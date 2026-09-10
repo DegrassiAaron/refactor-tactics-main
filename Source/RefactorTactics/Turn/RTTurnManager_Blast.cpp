@@ -346,6 +346,63 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
+void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
+{
+	// ➕ **CHI HAI COLPITO, LO HAI TROVATO** (`#2890`, [D-380]).
+	//
+	// 🔴 **E' l'estremo che rende usabile il tiro indiretto.** [D-378] ha reso il requisito della linea un
+	// dato dell'azione e ha tenuto il **targeting** cieco: `ClassifyHexTargeting` non guarda chi sta sulla
+	// cella. Restava che un colpo al buio a segno non producesse **alcun** feedback — la voce che lo
+	// racconta e' congelata contro un soggetto che l'attaccante non conosce ([D-223]), quindi non la legge.
+	// Un'azione senza segnale e' un'azione che nessuno impara a usare.
+	//
+	// ⚠️ **Qui non c'e' nessuna REGOLA, e non e' un caso.** Chi decide *quali* vittime si rivelano e'
+	// `VictimsRevealedByHits`, pura e testabile; chi decide *come* un contatto entra in una memoria e'
+	// `RevealByHit`, pura anch'essa. Questa funzione traduce e basta. La prima stesura teneva le tre regole
+	// qui dentro, e la misura per mutazione lo ha bocciato: far rivelare anche gli alleati non rendeva rosso
+	// **nessun** test della suite intera.
+	TArray<int32> StableUnitIds;
+	StableUnitIds.Reserve(Ctx.Units.Num());
+	for (const ARTUnit* U : Ctx.Units)
+	{
+		StableUnitIds.Add(U ? U->StableUnitId : INDEX_NONE);
+	}
+
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Ctx.Plan.Hits, Ctx.HexUnits, StableUnitIds);
+	if (Rivelate.Num() == 0)
+	{
+		return; // nessun colpo fra squadre avverse: niente da rivelare, e nessuno stato da toccare
+	}
+
+	// ⚠️ **Si itera `TeamKnowledgeState`, non le rivelazioni**: questa memoria entra nello snapshot, e
+	// l'ordine di scrittura dev'essere quello delle squadre (invariante #3).
+	for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+	{
+		TArray<FRTLastKnownContact> Vittime;
+		for (const FRTRevealedVictim& V : Rivelate)
+		{
+			if (V.AttackerTeamId == Knowledge.TeamId)
+			{
+				Vittime.Add(FRTLastKnownContact(V.VictimStableUnitId, V.Cell, TurnNumber));
+			}
+		}
+		if (Vittime.Num() > 0)
+		{
+			Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, Vittime, TurnNumber);
+		}
+	}
+
+	// 🔴 **E l'istantanea d'audit si riallinea**, o il replay racconterebbe una conoscenza diversa da quella
+	// che la partita ha avuto: [D-313] congela i verdetti contro questa fotografia, e lasciarla indietro
+	// renderebbe il feedback visibile in partita e assente nella traccia.
+	if (bRecordReplay)
+	{
+		BlastKnowledgeForAudit = TeamKnowledgeState;
+	}
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
+}
+
 void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA
@@ -399,7 +456,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 
 		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack();
 
 		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
 		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — l'azione e' gia'
@@ -459,7 +516,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
 		// cui questa raccolta viene prima.
 		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
@@ -574,7 +631,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
-			Unit->PlannedAttackTarget = nullptr;
+			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
 			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
 			{
@@ -618,7 +675,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 		ARTUnit* Target = Unit->PlannedAttackTarget;
 		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
-		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
+		// 🔴 **Il bersaglio a CELLA si copia QUI, prima dell'azzeramento** (`#2884`). Il piano si consuma in
+		// cima al ciclo — e' la disciplina di questo file — ma `bAttackTargetsCell` viene riletto un centinaio
+		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
+		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
+		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
+		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
@@ -687,9 +750,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Bersaglio a CELLA: nessuna unita' mirata per costruzione, non una che si e' persa. La distinzione
 		// conta subito qui sotto, dove `TargetUnitId == INDEX_NONE` significa `TargetGone` e degraderebbe al
 		// fallback un'azione che invece sta facendo esattamente cio' che le e' stato chiesto.
-		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		// ⚠️ Le due copie vengono da CIMA AL CICLO, dove il piano e' stato consumato: leggerle qui dall'unita'
+		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = bTargetsCell ? Unit->PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
 		Instance.EventSequence = Intents.Num();
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
@@ -804,6 +868,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Stessa storia, stesso rimedio ([`INT-8`]): senza questa riga l'intento nascerebbe sempre a `false` e
 		// NESSUN attacco produrrebbe un colpo, benche' il catalogo lo dichiari.
 		Intent.bCountsAsAttack = Instance.Def.bCountsAsAttack;
+		// Terza volta lo stesso rimedio, e stavolta il difetto sarebbe stato SILENZIOSO (`#2870`, [D-378]):
+		// senza questa riga l'intento nascerebbe `Required` e `CollectHexAttacks` scarterebbe in
+		// `BlockedIntents` proprio i piani che il planning ha appena accettato — una regola permissiva sul
+		// client che il resolver rifiuta, cioe' il contrario di cio' che la policy esiste per garantire.
+		Intent.LineOfSightPolicy = Instance.Def.LineOfSightPolicy;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -1393,6 +1462,17 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 				Ev.Type = ERTResolvedEventType::ReactionResolved;
 				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
 				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+				// `#2857`: QUALE interposizione. Stessa fonte della voce di TurnLog scritta qui sotto —
+				// `Reaction->Def` — e per la stessa ragione che quella riga dichiara: `Branth.Interposition`
+				// non e' `Action.Intercept` (CP 5.5), e senza questo campo la timeline non saprebbe dirlo.
+				//
+				// ⚠️ **Questo file e' l'ALTRO sito della reazione risolta**, e ce ne si accorge tardi: le
+				// reazioni generiche escono da `RTTurnManager.cpp`, l'interposizione ha il proprio ramo qui.
+				// `#2191` ha gia' pagato una volta l'errore di coprirne uno solo — «`ResolvedTimeline`
+				// compariva **zero** volte in questo file» — e un `ActionId` mancante sarebbe la stessa
+				// omissione, stavolta invisibile perche' `NAME_None` e' un valore legittimo.
+				Ev.ActionId = Reaction->Def.ActionId;
+				Ev.BaseActionId = Reaction->Def.BaseActionId;
 				ResolvedTimeline.Add(Ev);
 			}
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,

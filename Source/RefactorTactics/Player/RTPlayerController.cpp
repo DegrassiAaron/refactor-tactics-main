@@ -1436,8 +1436,13 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// copertura un bersaglio che era solo troppo lontano (test
 		// Combat.HexTargetingReasonDistinguishesRangeFromCover).
 		const bool bReady = SelectedUnit->CanUseAbility(AbilityIndex);
+		// ⚠️ **La policy si passa anche qui, e per un'azione mirata a un'unita' oggi non cambia niente**: le
+		// azioni `NotRequired` del catalogo hanno `Shape::Area`, quindi `TargetKindForAction` le manda a
+		// `HandleTargetCell` e non passano di qua. Si legge lo stesso perche' il dato e' **uno**: il giorno
+		// in cui un'azione mirata dichiarera' il tiro indiretto, questo sito non sara' quello dimenticato.
+		// ⛔ E non tocca la CONOSCENZA: la guardia `IsKnownToObserver()` qui sotto vale comunque (`#2741`).
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
 		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
@@ -1466,7 +1471,10 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
-			SelectedUnit->PlannedAttackTarget = ClickedUnit;
+			// ⛔ **Ritira la dichiarazione OPPOSTA**, e senza questa riga il piano andava altrove (`#2884`):
+			// `bAttackTargetsCell` non lo azzerava nessuno, e il Blast lo legge PRIMA del bersaglio-unita'.
+			// Misurato: chi puntava una cella e poi cambiava idea su un nemico gli faceva `0` danni.
+			SelectedUnit->DeclareAttackOnUnit(ClickedUnit);
 			// La zona colpita compare SUBITO, col fuoco amico gia' segnalato: e' il momento in cui il giocatore
 			// puo' ancora cambiare idea. Dopo il lock-in l'informazione non serve piu' a niente.
 			RefreshPlanningPreview(GetWorld(), SelectedUnit);
@@ -2138,7 +2146,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 		if (Unit->CanUseAbility(Index))
 		{
 			Unit->PlannedAbilityIndex = Index;
-			Unit->PlannedAttackTarget = nullptr;
+			// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
+			Unit->ClearPlannedAttack();
 			UE_LOG(LogRT, Log, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		}
 		else
@@ -2619,8 +2628,18 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 		return false;
 	}
 
+	// ➕ **IL TIRO INDIRETTO ENTRA DA QUI, ED E' L'UNICO INGRESSO DEL GIOCATORE** (`#2870`, [D-378]).
+	//
+	// 🔑 La riga non cambia forma: cambia il fatto che il requisito della linea sia **chiesto all'azione**
+	// invece che dato per scontato. Un'abilita' `NotRequired` puo' cosi' centrare una cella non visibile —
+	// granata, mortaio, velo — mentre ogni altra continua a essere rifiutata come prima.
+	//
+	// ⛔ **E il rifiuto NON diventa piu' informativo per questo.** Questa funzione non guarda chi sta sulla
+	// cella: valida `ContainsCell` e la geometria, e basta. Due mondi che differiscono solo per un nemico
+	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso esito e lo stesso log — che e'
+	// l'invariante di `#2791` applicata al targeting, e cio' che `BlindFireIsNotAnEnemyDetector` pinna.
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells);
+		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Cella non bersagliabile (%s, portata %d)"),
@@ -2630,9 +2649,9 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	}
 
 	Unit->PlannedAbilityIndex = Armed;
-	Unit->PlannedAttackTarget = nullptr; // il bersaglio e' la CELLA: un target-unita' residuo la sovrascriverebbe
-	Unit->PlannedAttackCell = Cell;
-	Unit->bAttackTargetsCell = true;
+	// Il bersaglio e' la CELLA, e la coppia si scrive in un colpo solo: e' `ARTUnit` a sapere che le due
+	// forme sono esclusive, non i suoi chiamanti (`#2884`).
+	Unit->DeclareAttackOnCell(Cell);
 
 	RefreshPlanningPreview(GetWorld(), Unit);
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -2682,8 +2701,10 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 		return false;
 	}
 
+	// La policy si legge dall'azione anche qui: una struttura di bordo si erige DOVE si arriva, e se un giorno
+	// un'azione dichiarera' di poterlo fare senza vedere il lato, il dato e' gia' quello giusto (`#2870`).
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells);
+		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo non raggiungibile (portata %d)"), Ability->RangeCells);
@@ -2693,9 +2714,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// Cella E direzione: il resolver di CP 9.5 rifiuta con `CoverRejected` se il piano non dichiara il lato,
 	// e a portata 3 il bordo non si deduce piu' dalla coppia di celle.
 	Unit->PlannedAbilityIndex = Armed;
-	Unit->PlannedAttackTarget = nullptr;
-	Unit->PlannedAttackCell = Cell;
-	Unit->bAttackTargetsCell = true;
+	Unit->DeclareAttackOnCell(Cell);
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;
 

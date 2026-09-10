@@ -656,9 +656,13 @@ namespace
 	 * prima. Aggiungere un terzo confronto SEMPRE attivo avrebbe rotto ogni scenario del corpus.
 	 */
 	bool MatchesScenarioLogEvent(const FRTTurnLogEntry& Entry, ERTLogCategory Category, uint8 Outcome,
-		FName ActionId)
+		FName ActionId, bool bHasPhase = false, ERTMatchPhase Phase = ERTMatchPhase::Move)
 	{
 		if (Entry.Category != Category || Entry.Outcome != Outcome) { return false; }
+		// ⚠️ Il filtro di fase e' un AND con gli altri, non un'alternativa: `Combat/Hit` nel `Blast` e
+		// `Combat/Hit` nel `Move` sono lo stesso evento in due momenti, e un'assertion che volesse
+		// distinguerli senza questo confronto non potrebbe (`#2867`).
+		if (bHasPhase && Entry.Phase != Phase) { return false; }
 		return ActionId.IsNone() || Entry.ActionId == ActionId;
 	}
 
@@ -670,11 +674,11 @@ namespace
 	 * confrontare i due esordi.
 	 */
 	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome,
-		FName ActionId = NAME_None)
+		FName ActionId = NAME_None, bool bHasPhase = false, ERTMatchPhase Phase = ERTMatchPhase::Move)
 	{
 		for (int32 I = 0; I < Log.Num(); ++I)
 		{
-			if (MatchesScenarioLogEvent(Log[I], Category, Outcome, ActionId)) { return I; }
+			if (MatchesScenarioLogEvent(Log[I], Category, Outcome, ActionId, bHasPhase, Phase)) { return I; }
 		}
 		return INDEX_NONE;
 	}
@@ -2264,14 +2268,16 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventCount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(
+				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
 			A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			int32 Found = 0;
 			for (const FRTTurnLogEntry& Entry : ScenarioLog)
 			{
-				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId)) { ++Found; }
+				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId,
+					Exp.bHasLogPhase, Exp.LogPhase)) { ++Found; }
 			}
 			A.Actual = FString::FromInt(Found);
 			A.bPassed = (Found == Exp.Value);
@@ -2279,13 +2285,15 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventAmount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(
+				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
 			A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
 			// una decisione non e' la somma dei residui.
-			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
+				Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
 			if (At == INDEX_NONE)
 			{
 				// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
@@ -2302,13 +2310,17 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventOrder:
 		{
-			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
-			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
+			const FString FirstName = URTScenarioLoader::DescribeLogEvent(
+				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+			const FString ThenName = URTScenarioLoader::DescribeLogEvent(
+				Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
 			A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
 			A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
 
-			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
-			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
+			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
+				Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome,
+				Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
 
 			// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
 			// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.

@@ -116,6 +116,47 @@ namespace
 	 * una seconda verita' da tenere allineata. Il prezzo e' che un `ActionId` scritto male non fallisce il
 	 * CARICAMENTO: fallisce l'assertion, dicendo che l'evento non c'e'.
 	 */
+	/**
+	 * Il filtro di FASE di un'assertion sul TurnLog (`#2867`): `"phase": "Blast"`.
+	 *
+	 * Il nome si risolve per RIFLESSIONE su `ERTMatchPhase`, come gia' fanno `category` e `outcome`: una
+	 * tabella scritta a mano qui divergerebbe dall'enum al primo valore aggiunto.
+	 */
+	bool ParseScenarioLogPhase(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Field,
+		ERTMatchPhase& OutPhase, bool& bOutHasPhase, FString& OutError)
+	{
+		FString Text;
+		if (!Obj->TryGetStringField(Field, Text))
+		{
+			bOutHasPhase = false;
+			return true;
+		}
+
+		const UEnum* PhaseEnum = StaticEnum<ERTMatchPhase>();
+		const int64 Value = PhaseEnum ? PhaseEnum->GetValueByNameString(Text) : INDEX_NONE;
+		if (Value == INDEX_NONE)
+		{
+			// L'elenco si GENERA dall'enum e non si scrive a mano, come per le chiavi di turno: il messaggio
+			// e' cio' che viene letto quando qualcosa non torna, e un elenco stantio manda a concludere che
+			// il vocabolario non esista.
+			TArray<FString> Nomi;
+			if (PhaseEnum)
+			{
+				for (int32 I = 0; I < PhaseEnum->NumEnums() - 1; ++I)
+				{
+					Nomi.Add(PhaseEnum->GetNameStringByIndex(I));
+				}
+			}
+			OutError = FString::Printf(
+				TEXT("assertion sul TurnLog: fase '%s' sconosciuta in '%s' (previste: %s)"),
+				*Text, Field, *FString::Join(Nomi, TEXT(", ")));
+			return false;
+		}
+		OutPhase = static_cast<ERTMatchPhase>(Value);
+		bOutHasPhase = true;
+		return true;
+	}
+
 	bool ParseScenarioLogActionId(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Field, FName& OutActionId,
 		FString& OutError)
 	{
@@ -313,6 +354,22 @@ FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outco
 	return ActionId.IsNone() ? Base : FString::Printf(TEXT("%s[%s]"), *Base, *ActionId.ToString());
 }
 
+FString URTScenarioLoader::DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId,
+	bool bHasPhase, ERTMatchPhase Phase)
+{
+	const FString Base = DescribeLogEvent(Category, Outcome, ActionId);
+	if (!bHasPhase) { return Base; }
+
+	// Il nome della fase per RIFLESSIONE, come categoria ed esito: una tabella scritta a mano qui
+	// divergerebbe dall'enum al primo valore aggiunto, e a divergere sarebbe il MESSAGGIO — cioe' la sola
+	// cosa che viene letta quando qualcosa non torna.
+	const UEnum* PhaseEnum = StaticEnum<ERTMatchPhase>();
+	const FString PhaseName = PhaseEnum
+		? PhaseEnum->GetNameStringByValue(static_cast<int64>(Phase))
+		: FString::FromInt(static_cast<int32>(Phase));
+	return FString::Printf(TEXT("%s@%s"), *Base, *PhaseName);
+}
+
 bool URTScenarioLoader::LoadFromFile(const FString& FilePath, FRTTestScenario& OutScenario, FString& OutError)
 {
 	FString Text;
@@ -355,6 +412,33 @@ namespace
 			if (Decision.On.Reactor.IsEmpty())
 			{
 				OutError = TEXT("decisions: 'on' richiede 'reactor' (chi risponde alla finestra)");
+				return false;
+			}
+			// 🔴 **La reaction si valida QUI e non a runtime, perche' il suo modo di fallire e' silenzioso.**
+			// Un refuso (`Action.Overwtach`) non combacia con nessuna finestra: la decisione resta non
+			// consumata e riemerge a fine turno come «nessuna finestra ha soddisfatto il selettore» — un
+			// messaggio VERO che manda a cercare una finestra mancante, mentre il difetto e' un nome scritto
+			// male. E' la stessa ragione per cui `Intent.Reaction` si valida contro il kit dell'eroe al
+			// caricamento invece di lasciar armare una reazione inesistente.
+			//
+			// ⚠️ **L'insieme e' quello delle reaction che aprono un boundary, NON il catalogo**: `Action.Counter`
+			// e `Action.Intercept` esistono a catalogo e non emettono nessuna finestra, quindi accettarli
+			// renderebbe questo gate piu' permissivo del gioco — cioe' sposterebbe il difetto invece di
+			// chiuderlo. L'elenco vive dove vivono le finestre (`URTReactionOpportunityLibrary`), e qui si
+			// interroga: una copia locale divergerebbe al primo produttore aggiunto.
+			if (!Decision.On.Reaction.IsNone()
+				&& !URTReactionOpportunityLibrary::IsBoundaryCapableReaction(Decision.On.Reaction))
+			{
+				TArray<FString> Ammesse;
+				for (const FName& Id : URTReactionOpportunityLibrary::BoundaryCapableReactionIds())
+				{
+					Ammesse.Add(Id.ToString());
+				}
+				Ammesse.Sort();
+				OutError = FString::Printf(
+					TEXT("decisions: 'on.reaction' nomina '%s', che nessuna finestra puo' emettere")
+					TEXT(" (ammesse: %s). Una reaction del catalogo non apre per forza un decision boundary."),
+					*Decision.On.Reaction.ToString(), *FString::Join(Ammesse, TEXT(", ")));
 				return false;
 			}
 			// ⚠️ **Anche questa forma dichiara la versione che la ammette**, come `decisions` con la `2` e le
@@ -1478,6 +1562,10 @@ namespace
 					{
 						return false;
 					}
+					if (!ParseScenarioLogPhase(Obj, TEXT("phase"), Exp.LogPhase, Exp.bHasLogPhase, OutError))
+					{
+						return false;
+					}
 					// Conteggio ATTESO, e `0` e' un valore legittimo — anzi e' quello che serve per asserire
 					// un'assenza. Assente del tutto = 1, cioe' «l'evento c'e'»: e' il caso piu' comune e scriverlo
 					// ogni volta sarebbe rumore.
@@ -1501,11 +1589,19 @@ namespace
 					{
 						return false;
 					}
+					if (!ParseScenarioLogPhase(Obj, TEXT("phase"), Exp.LogPhase, Exp.bHasLogPhase, OutError))
+					{
+						return false;
+					}
 					if (!ParseScenarioLogEvent(Obj, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome, OutError))
 					{
 						return false;
 					}
 					if (!ParseScenarioLogActionId(Obj, TEXT("thenActionId"), Exp.ThenActionId, OutError))
+					{
+						return false;
+					}
+					if (!ParseScenarioLogPhase(Obj, TEXT("thenPhase"), Exp.ThenPhase, Exp.bHasThenPhase, OutError))
 					{
 						return false;
 					}
@@ -1518,6 +1614,10 @@ namespace
 						return false;
 					}
 					if (!ParseScenarioLogActionId(Obj, TEXT("actionId"), Exp.LogActionId, OutError))
+					{
+						return false;
+					}
+					if (!ParseScenarioLogPhase(Obj, TEXT("phase"), Exp.LogPhase, Exp.bHasLogPhase, OutError))
 					{
 						return false;
 					}
@@ -1540,6 +1640,49 @@ namespace
 					// legge questa riga per capire cosa esiste, e un elenco stantio gli fa concludere che il
 					// vocabolario non c'e'. La v9 l'aveva dimenticato — trovato da una code review.
 					OutError = FString::Printf(TEXT("assertion sconosciuta: '%s' (previste: UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEventCount, LogEventOrder, LogEventAmount, OriginalTargetEquals, EffectiveTargetEquals)"), *Type);
+					return false;
+				}
+				// ⛔ **`phase` su un'assertion che non legge il TurnLog e' un ERRORE, non un campo ignorato**
+				// (`#2867`). Un filtro che c'e' e non conta e' il modo in cui uno scenario dice una cosa e ne
+				// verifica un'altra: `UnitAtCell` con `"phase": "Blast"` sembrerebbe chiedere «dov'era a fine
+				// Blast» — che e' precisamente cio' che il filtro NON fa — e resterebbe verde sullo stato
+				// finale. E' la stessa disciplina del `target` vietato su una risposta che non sia `FIRE`.
+				const bool bLeggeIlLog = Exp.Kind == ERTAssertionKind::LogEventCount
+					|| Exp.Kind == ERTAssertionKind::LogEventOrder
+					|| Exp.Kind == ERTAssertionKind::LogEventAmount;
+				if (!bLeggeIlLog && (Obj->HasField(TEXT("phase")) || Obj->HasField(TEXT("thenPhase"))))
+				{
+					OutError = FString::Printf(
+						TEXT("assertion %s: 'phase' vale solo per le assertion che leggono il TurnLog")
+						TEXT(" (LogEventCount, LogEventOrder, LogEventAmount). Il filtro di fase seleziona un")
+						TEXT(" EVENTO gia' registrato, non lo stato a un confine di fase."),
+						*Type);
+					return false;
+				}
+				// `thenPhase` senza `LogEventOrder` non ha un secondo evento da filtrare.
+				//
+				// 🔴 **Si guarda la CHIAVE nel JSON, non il flag parsato**, e la prima stesura sbagliava
+				// proprio qui: `thenPhase` viene letta solo dentro il ramo `LogEventOrder`, quindi altrove
+				// `bHasThenPhase` resta falso e una guardia su di lui non scatterebbe mai — il campo
+				// passerebbe in silenzio. E' la classe di difetto che `#2698` misura per nome, *«le guardie
+				// esterne trattano un campo presente come assente»*, ritrovata scrivendo la guardia che
+				// doveva chiuderla. Colta dal test, non dalla lettura.
+				if (Obj->HasField(TEXT("thenPhase")) && Exp.Kind != ERTAssertionKind::LogEventOrder)
+				{
+					OutError = FString::Printf(
+						TEXT("assertion %s: 'thenPhase' vale solo per LogEventOrder, che e' la sola con un")
+						TEXT(" secondo evento"), *Type);
+					return false;
+				}
+				// 🔴 **E la versione va DICHIARATA**, come per ogni chiave aggiunta al formato: senza, un file
+				// `version: 5` con `phase` verrebbe accettato da una build a `SupportedVersion = 5` che la
+				// chiave non conosce — e il filtro sarebbe ignorato in silenzio, cioe' l'assertion
+				// verificherebbe piu' di quanto il file chiede, restando verde per la ragione sbagliata.
+				if ((Exp.bHasLogPhase || Exp.bHasThenPhase) && OutScenario.Version < 6)
+				{
+					OutError = FString::Printf(
+						TEXT("expect: il filtro di fase richiede \"version\": 6 (dichiarata: %d)"),
+						OutScenario.Version);
 					return false;
 				}
 				OutScenario.Expect.Add(Exp);

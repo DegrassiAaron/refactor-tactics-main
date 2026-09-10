@@ -2,6 +2,7 @@
 #include "Turn/RTReactionOpportunityTypes.h" // IsDeclaredConditionAllowed: la validazione sta in un posto solo
 #include "Turn/RTHexSimLibrary.h" // #79: ClassifyWaypointCell classifica il rifiuto, qui non si decide nulla
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: facing planare, presentazione
+#include "Unit/RTGraykitLibrary.h" // #2880: gli anchor dei bracci si risolvono da li', non da numeri qui
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Ability/RTActionData.h"
@@ -108,6 +109,35 @@ ARTUnit::ARTUnit()
 		SelectionRing->SetStaticMesh(CylinderMesh.Object);
 	}
 	SelectionRing->SetRelativeScale3D(FVector(1.9f, 1.9f, 0.02f)); // cornice esterna al TeamRing (1.6)
+
+	// Bracci del segnaposto graykit (#2880): due cilindretti agli anchor `LeftHand`/`RightHand` che
+	// `URTGraykitLibrary::AnchorOffset` gia' calcola. Si posano DA LI' e non da numeri scritti qui, cosi'
+	// che un cilindro ridimensionato si porti dietro le proprie mani.
+	//
+	// ⛔ **Nessuna collisione**, come gli anelli: la geometria di presentazione non partecipa a nessun
+	// raycast di gioco. E' la meta' strutturale dell'invariante che #2880 deve difendere — l'altra meta' e'
+	// che `ApplyGraykitPose` scrive solo trasformazioni relative.
+	// ⚠️ Riposo e scala vengono dagli helper, non da numeri ripetuti qui: sono gli stessi valori che
+	// `ApplyGraykitPose` usa come base, e due copie divergerebbero al primo aggiustamento.
+	LeftArm = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("LeftArm"));
+	LeftArm->SetupAttachment(SceneRoot);
+	LeftArm->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	LeftArm->SetRelativeLocation(GraykitArmRestLocation(ERTGraykitAnchor::LeftHand));
+	if (CylinderMesh.Succeeded())
+	{
+		LeftArm->SetStaticMesh(CylinderMesh.Object);
+	}
+	LeftArm->SetRelativeScale3D(GraykitArmRestScale());
+
+	RightArm = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RightArm"));
+	RightArm->SetupAttachment(SceneRoot);
+	RightArm->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RightArm->SetRelativeLocation(GraykitArmRestLocation(ERTGraykitAnchor::RightHand));
+	if (CylinderMesh.Succeeded())
+	{
+		RightArm->SetStaticMesh(CylinderMesh.Object);
+	}
+	RightArm->SetRelativeScale3D(GraykitArmRestScale());
 
 	// Il grafo di locomozione vive in C++ (`#288`): nessun `.uasset` da duplicare, e le clip per eroe sono
 	// dati versionati invece che grafi dentro quattro binari da ~700 KB.
@@ -530,6 +560,26 @@ void ARTUnit::RefreshComponentVisibility()
 		// senza skeletal il cui `BP_Unit_*` usasse `bHiddenInGame = true`, questa riga chiederebbe di
 		// mostrare il cilindro e il cilindro resterebbe invisibile. Vedi `ShouldShowPlaceholderMesh`.
 		Mesh->SetVisibility(ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose), /*bPropagateToChildren*/ false);
+	}
+
+	// 🔴 **I bracci graykit seguono lo STESSO predicato del cilindro** (#2880), e non uno proprio. Sono parte
+	// del segnaposto: dove il cilindro sparisce perche' il posto non e' piu' vuoto — un eroe skeletal con una
+	// posa legata — due bastoncini resterebbero a orbitare attorno al personaggio.
+	//
+	// ⚠️ **E per questo NON somigliano agli anelli**, che invece restano visibili sugli eroi: `TeamRing` e
+	// `SelectionRing` portano squadra e selezione, informazione che il personaggio vero non dice. Un braccio
+	// grigio non dice niente che il personaggio non dica meglio.
+	//
+	// 🔑 Il predicato si CHIAMA, non si copia: se #2545 lo cambia, i bracci lo seguono senza una seconda
+	// modifica che qualcuno dimenticherebbe.
+	const bool bShowGraykitLimbs = ShouldShowPlaceholderMesh(bRender, bHasHeroMesh, bHasPose);
+	if (LeftArm)
+	{
+		LeftArm->SetVisibility(bShowGraykitLimbs, /*bPropagateToChildren*/ false);
+	}
+	if (RightArm)
+	{
+		RightArm->SetVisibility(bShowGraykitLimbs, /*bPropagateToChildren*/ false);
 	}
 
 	// L'anello di squadra esiste solo se `ApplyTeamColor` ha trovato il materiale: senza, il ripiego e' il
@@ -1137,6 +1187,59 @@ void ARTUnit::SetVisualLocation(const FVector& World)
 	}
 
 	SetActorLocation(World); // solo presentazione: lo stato logico (Cell) resta invariato
+}
+
+void ARTUnit::ApplyGraykitPose(const FRTGraykitPose& Pose)
+{
+	// ⛔ **Solo trasformazioni RELATIVE, e nessuna sull'attore.** Dove l'unita' STA lo decide
+	// `SetVisualLocation` a partire da `URTPlaybackLibrary::InterpolateAlongPath`; qui si dice soltanto come
+	// il corpo si deforma ATTORNO a quel punto. Se questa funzione toccasse `SetActorLocation`, nascerebbe
+	// la seconda autorita' sul movimento visivo — ed e' la ragione per cui `FRTGraykitPose` non porta una
+	// posizione di mondo.
+	//
+	// ⚠️ **Ogni componente e' condizionato separatamente**, e non da un unico `if` iniziale: un'unita' puo'
+	// legittimamente avere il cilindro e non i bracci (un `BP_Unit_*` che li rimuove), e in quel caso il
+	// corpo deve deformarsi lo stesso.
+	if (Mesh)
+	{
+		Mesh->SetRelativeLocation(Pose.Body.Offset);
+		Mesh->SetRelativeRotation(Pose.Body.Rotation);
+		Mesh->SetRelativeScale3D(BaseMeshScale * Pose.Body.Scale);
+	}
+
+	// I bracci partono dal proprio anchor: l'offset della posa si SOMMA alla posizione di riposo invece di
+	// sostituirla, altrimenti un braccio con posa nulla finirebbe nel centro del cilindro.
+	if (LeftArm)
+	{
+		LeftArm->SetRelativeLocation(GraykitArmRestLocation(ERTGraykitAnchor::LeftHand) + Pose.LeftArm.Offset);
+		LeftArm->SetRelativeRotation(Pose.LeftArm.Rotation);
+		LeftArm->SetRelativeScale3D(GraykitArmRestScale() * Pose.LeftArm.Scale);
+	}
+	if (RightArm)
+	{
+		RightArm->SetRelativeLocation(GraykitArmRestLocation(ERTGraykitAnchor::RightHand) + Pose.RightArm.Offset);
+		RightArm->SetRelativeRotation(Pose.RightArm.Rotation);
+		RightArm->SetRelativeScale3D(GraykitArmRestScale() * Pose.RightArm.Scale);
+	}
+}
+
+void ARTUnit::ResetGraykitPose()
+{
+	// 🔑 **Il riposo si RICOSTRUISCE, non si ricorda.** Una variante che salvasse la trasformazione iniziale
+	// in un campo avrebbe due modi di sbagliare: dimenticare di catturarla, e catturarla mentre una posa era
+	// gia' applicata — cioe' fissare come «riposo» un corpo gia' inclinato. Valutare un descriptor VUOTO
+	// costa una struct e non puo' sbagliare, perche' e' la stessa funzione che produce tutte le altre pose.
+	ApplyGraykitPose(URTGraykitLibrary::Evaluate(FRTGraykitDescriptor(), 0.f));
+}
+
+FVector ARTUnit::GraykitArmRestLocation(ERTGraykitAnchor Anchor)
+{
+	return URTGraykitLibrary::AnchorOffset(Anchor, UnitHalfHeight, UnitHalfHeight * 0.5f);
+}
+
+FVector ARTUnit::GraykitArmRestScale()
+{
+	return FVector(0.16f, 0.16f, 0.55f);
 }
 
 FVector ARTUnit::GetVelocity() const

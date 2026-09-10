@@ -303,15 +303,15 @@ bool FRTCombatHexTargetingTest::RunTest(const FString&)
 
 	// 1. Senza mappa: NIENTE ingaggio, mai (regressione fail-open).
 	TestFalse(TEXT("mappa assente -> non si ingaggia"),
-		URTCombatLibrary::CanTargetHexCell(nullptr, From, To, /*RangeCells=*/ 5));
+		URTCombatLibrary::CanTargetHexCell(nullptr, From, To, /*RangeCells=*/ 5, ERTLineOfSightPolicy::Required));
 
 	// 2. In portata e con linea libera -> si ingaggia.
 	TestTrue(TEXT("in portata e vista libera -> si ingaggia"),
-		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 5));
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 5, ERTLineOfSightPolicy::Required));
 
 	// 3. Fuori portata -> no (distanza ESAGONALE, non quadrata).
 	TestFalse(TEXT("oltre la portata -> no"),
-		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 2));
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 2, ERTLineOfSightPolicy::Required));
 
 	// 4. Muro sulla traiettoria -> no, pur restando in portata.
 	FRTHexCellData Wall(FRTCellId(2, 0, 0));
@@ -319,7 +319,7 @@ bool FRTCombatHexTargetingTest::RunTest(const FString&)
 	Map->AddOrUpdateCell(Wall);
 	Map->SortCells();
 	TestFalse(TEXT("muro sulla linea di tiro -> no"),
-		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 5));
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, /*RangeCells=*/ 5, ERTLineOfSightPolicy::Required));
 	return true;
 }
 
@@ -341,14 +341,17 @@ bool FRTCombatTargetReasonTest::RunTest(const FString&)
 
 	// Nessuna mappa: motivo dedicato, non "coperto".
 	TestTrue(TEXT("mappa assente -> NoMap"),
-		URTCombatLibrary::ClassifyHexTargeting(nullptr, From, To, 5) == ERTHexTargetReason::NoMap);
+		URTCombatLibrary::ClassifyHexTargeting(nullptr, From, To, 5, ERTLineOfSightPolicy::Required)
+			== ERTHexTargetReason::NoMap);
 
 	// In portata e senza ostacoli: ingaggiabile.
 	TestTrue(TEXT("in portata e vista libera -> Ok"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 5) == ERTHexTargetReason::Ok);
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 5, ERTLineOfSightPolicy::Required)
+			== ERTHexTargetReason::Ok);
 
 	// FUORI PORTATA su mappa senza muri: deve dire OutOfRange, MAI NoLineOfSight.
-	const ERTHexTargetReason FarReason = URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 2);
+	const ERTHexTargetReason FarReason =
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 2, ERTLineOfSightPolicy::Required);
 	TestTrue(TEXT("oltre la portata -> OutOfRange"), FarReason == ERTHexTargetReason::OutOfRange);
 	TestFalse(TEXT("oltre la portata NON deve risultare 'coperto'"),
 		FarReason == ERTHexTargetReason::NoLineOfSight);
@@ -359,11 +362,12 @@ bool FRTCombatTargetReasonTest::RunTest(const FString&)
 	Map->AddOrUpdateCell(Wall);
 	Map->SortCells();
 	TestTrue(TEXT("muro in portata -> NoLineOfSight"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 5) == ERTHexTargetReason::NoLineOfSight);
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, 5, ERTLineOfSightPolicy::Required)
+			== ERTHexTargetReason::NoLineOfSight);
 
 	// Il gate booleano resta coerente con la classificazione.
 	TestFalse(TEXT("CanTargetHexCell coerente col motivo"),
-		URTCombatLibrary::CanTargetHexCell(Map, From, To, 5));
+		URTCombatLibrary::CanTargetHexCell(Map, From, To, 5, ERTLineOfSightPolicy::Required));
 	return true;
 }
 
@@ -603,7 +607,8 @@ bool FRTOutOfRangeDiagnosticNamesAppliedLimitTest::RunTest(const FString&)
 	TestEqual(TEXT("premessa: senza terreno che cappa, effettiva == dichiarata"),
 		URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, Dichiarata), Dichiarata);
 	TestTrue(TEXT("premessa: e il bersaglio e' ingaggiabile"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, Dichiarata) == ERTHexTargetReason::Ok);
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, Dichiarata, ERTLineOfSightPolicy::Required)
+			== ERTHexTargetReason::Ok);
 	TestEqual(TEXT("senza cap il log resta a UN numero"),
 		URTCombatLibrary::OutOfRangeDiagnostic(Dichiarata, Dichiarata),
 		FString(TEXT("fuori portata (max 5)")));
@@ -622,7 +627,8 @@ bool FRTOutOfRangeDiagnosticNamesAppliedLimitTest::RunTest(const FString&)
 	TestTrue(TEXT("sponda 1: la distanza sta DENTRO la portata dichiarata"), Distanza <= Dichiarata);
 	TestTrue(TEXT("sponda 2: ma oltre quella effettiva"), Distanza > Effettiva);
 	TestTrue(TEXT("ed e' per questo che il classificatore rifiuta"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, Dichiarata) == ERTHexTargetReason::OutOfRange);
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, To, Dichiarata, ERTLineOfSightPolicy::Required)
+			== ERTHexTargetReason::OutOfRange);
 
 	// ── 🔴 Il cuore.
 	const FString Diagnostico = URTCombatLibrary::OutOfRangeDiagnostic(Dichiarata, Effettiva);

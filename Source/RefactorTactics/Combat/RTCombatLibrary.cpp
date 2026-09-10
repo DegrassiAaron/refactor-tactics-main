@@ -101,7 +101,7 @@ bool URTCombatLibrary::CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitC
 }
 
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-	const FRTCellId& To, int32 RangeCells)
+	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy)
 {
 	if (!Map)
 	{
@@ -110,11 +110,30 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 	// La portata la CAPPA il terreno (Fumo): si valuta quella effettiva, non quella dichiarata dall'abilita'.
 	// Senza, la preview accetta un bersaglio che CollectHexAttacks scarta poi in silenzio: slot speso, nessun
 	// effetto, nessuna riga di log che lo spieghi.
+	//
+	// 🔴 **E si valuta PRIMA della licenza, non dopo.** Il tiro indiretto toglie il requisito della LINEA e
+	// nient'altro: una portata cappata dal Fumo resta cappata anche per un mortaio, altrimenti «non serve
+	// vedere» diventerebbe «non serve avvicinarsi», che nessuno ha deciso.
 	const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, RangeCells);
 	if (URTHexLibrary::HexDistance(From, To) > FMath::Max(0, EffectiveRange))
 	{
 		return ERTHexTargetReason::OutOfRange; // la portata si valuta PRIMA: e' un difetto diverso da "coperto"
 	}
+
+	// ➕ **LA LICENZA DELL'AZIONE** (`#2870`, [D-378]). Non e' un bypass di `HasLineOfSight`: e' la domanda
+	// che viene prima — *questa azione la linea la CHIEDE?* — e solo un'azione che la chiede puo' esserne
+	// rifiutata.
+	//
+	// ⛔ **Non si guarda cosa c'e' sulla cella, e l'assenza e' la regola.** Questa funzione riceve due celle e
+	// una mappa: non ha, e non deve avere, l'elenco delle unita'. Un `NotRequired` che consultasse
+	// l'occupazione per decidere restituirebbe esiti diversi fra un bersaglio vuoto e uno abitato da un
+	// ignoto, e quella differenza sarebbe **essa stessa** il canale ([D-225]) — un rilevatore di presenze
+	// travestito da validazione. `BlindFireIsNotAnEnemyDetector` lo pinna.
+	if (Policy == ERTLineOfSightPolicy::NotRequired)
+	{
+		return ERTHexTargetReason::Ok;
+	}
+
 	return URTHexVisionLibrary::HasLineOfSight(Map, From, To)
 		? ERTHexTargetReason::Ok : ERTHexTargetReason::NoLineOfSight;
 }
@@ -179,9 +198,9 @@ FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 Effect
 }
 
 bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
-	int32 RangeCells)
+	int32 RangeCells, ERTLineOfSightPolicy Policy)
 {
-	return ClassifyHexTargeting(Map, From, To, RangeCells) == ERTHexTargetReason::Ok;
+	return ClassifyHexTargeting(Map, From, To, RangeCells, Policy) == ERTHexTargetReason::Ok;
 }
 
 int32 URTCombatLibrary::EffectiveAttackPower(int32 BasePower, int32 OccupantDamageBonus)

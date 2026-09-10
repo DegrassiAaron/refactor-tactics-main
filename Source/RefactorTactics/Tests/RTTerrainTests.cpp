@@ -606,7 +606,8 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	{
 		URTHexMapAsset* Clear = MakeMapWithSurface(/*Radius=*/ 5, SmokeCell, ERTHexSurface::Floor);
 		TestTrue(TEXT("senza Fumo: la preview accetta"),
-			URTCombatLibrary::ClassifyHexTargeting(Clear, AttackerCell, TargetCell, DeclaredRange)
+			URTCombatLibrary::ClassifyHexTargeting(Clear, AttackerCell, TargetCell, DeclaredRange,
+				ERTLineOfSightPolicy::Required)
 				== ERTHexTargetReason::Ok);
 		TestTrue(TEXT("senza Fumo: l'ordine pianificato resta valido"),
 			URTActionFallbackLibrary::ValidateInstance(Instance, Units, Clear) == ERTActionInvalidReason::None);
@@ -621,7 +622,8 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	{
 		URTHexMapAsset* Smoked = MakeMapWithSurface(/*Radius=*/ 5, SmokeCell, ERTHexSurface::Smoke);
 		TestTrue(TEXT("col Fumo: la preview dice FUORI PORTATA (non 'coperto')"),
-			URTCombatLibrary::ClassifyHexTargeting(Smoked, AttackerCell, TargetCell, DeclaredRange)
+			URTCombatLibrary::ClassifyHexTargeting(Smoked, AttackerCell, TargetCell, DeclaredRange,
+				ERTLineOfSightPolicy::Required)
 				== ERTHexTargetReason::OutOfRange);
 		TestTrue(TEXT("col Fumo: l'ordine pianificato decade per portata"),
 			URTActionFallbackLibrary::ValidateInstance(Instance, Units, Smoked)
@@ -648,18 +650,21 @@ bool FRTTerrainSmokeCapsFromAttackerCellTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeMapWithSurface(/*Radius=*/ 5, AttackerCell, ERTHexSurface::Smoke);
 
 	TestTrue(TEXT("dentro il Fumo: a 3 celle non si ingaggia, pur avendo portata 6"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, AttackerCell, FRTCellId(3, 0, 0), /*RangeCells=*/ 6)
+		URTCombatLibrary::ClassifyHexTargeting(Map, AttackerCell, FRTCellId(3, 0, 0), /*RangeCells=*/ 6,
+			ERTLineOfSightPolicy::Required)
 			== ERTHexTargetReason::OutOfRange);
 
 	// Il cap e' 2, non 0: dentro il fumo si spara ancora, ma corto. Ancora l'esito al valore ESATTO del
 	// catalogo, cosi' un cap cambiato per sbaglio non passa inosservato.
 	TestTrue(TEXT("dentro il Fumo: a 2 celle si ingaggia ancora"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, AttackerCell, FRTCellId(2, 0, 0), /*RangeCells=*/ 6)
+		URTCombatLibrary::ClassifyHexTargeting(Map, AttackerCell, FRTCellId(2, 0, 0), /*RangeCells=*/ 6,
+			ERTLineOfSightPolicy::Required)
 			== ERTHexTargetReason::Ok);
 
 	// Il cap non ALZA mai la portata: con un'abilita' da 1 cella, restare nel fumo non regala il secondo esagono.
 	TestTrue(TEXT("il cap e' un minimo, non una portata garantita"),
-		URTCombatLibrary::ClassifyHexTargeting(Map, AttackerCell, FRTCellId(2, 0, 0), /*RangeCells=*/ 1)
+		URTCombatLibrary::ClassifyHexTargeting(Map, AttackerCell, FRTCellId(2, 0, 0), /*RangeCells=*/ 1,
+			ERTLineOfSightPolicy::Required)
 			== ERTHexTargetReason::OutOfRange);
 
 	return true;

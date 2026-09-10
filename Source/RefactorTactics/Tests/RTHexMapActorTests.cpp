@@ -12,6 +12,7 @@
 #include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
 #include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
+#include "Turn/RTMatchSetupLibrary.h" // MakeTestArena: una board con piu' famiglie popolate
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1519,6 +1520,189 @@ bool FRTHexMapActorPlaybackFootprintChannelTest::RunTest(const FString&)
 	Actor->ClearPlaybackFootprint();
 	TestEqual(TEXT("dopo Clear non resta nessuna cella"), Actor->NumPlaybackFootprintCells(), 0);
 	TestFalse(TEXT("e nessuna cella risponde piu' vero"), Actor->IsPlaybackFootprintCell(A));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **`#2731` — IL LEAK: il corpo strutturale si vede sotto una cella mai osservata.**
+ *
+ * `StructuralBodies` era **l'unica famiglia visiva che `ApplyKnowledgeVeil` non poteva nascondere**, e non
+ * per una riga dimenticata: il suo sito di `AddInstance` non registrava nessuna cella, quindi non esisteva
+ * un indice da velare — `BodyCells` non compariva da nessuna parte nel repository.
+ *
+ * ⛔ **E' un leak, non un difetto estetico**: [D-225] dice *«mai vista: non si disegna»*, e su una mappa con
+ * `BodyFill != None` il volume solido restava visibile sotto celle che la squadra non aveva mai osservato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilStructuralBodyIsHiddenTest,
+	"RefactorTactics.Veil.StructuralBodyDisappearsUnderAnUnobservedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilStructuralBodyIsHiddenTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// La stessa colonna del test del derivatore: una superficie a L1 che dichiara il corpo, una a L0 no.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	const FRTCellId CellaSotto(0, 0, 0);
+	const FRTCellId CellaCorpo(0, 0, 1);
+	{
+		Asset->AddOrUpdateCell(FRTHexCellData(CellaSotto));
+		FRTHexCellData Sopra(CellaCorpo);
+		Sopra.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	// Premessa: il corpo c'e' ed e' DISEGNATO. Senza, il test non misurerebbe niente.
+	{
+		const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+		if (!TestEqual(TEXT("premessa: un corpo posato"), Corpi.Num(), 1))
+		{
+			DestroyMapActorWorld(World);
+			return false;
+		}
+		TestFalse(TEXT("premessa: nasce disegnato"), Corpi[0].GetScale3D().IsNearlyZero());
+	}
+
+	// 🔴 La tesi: una conoscenza che NON contiene la cella del corpo lo deve far sparire.
+	{
+		FRTTeamKnowledge K;
+		K.Version = FRTTeamKnowledge::CurrentVersion;
+		K.TeamId = 0;
+		K.VisibleCells = { CellaSotto };
+		K.ExploredCells = { CellaSotto };
+		Actor->ApplyKnowledgeVeil(K);
+
+		const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+		if (TestEqual(TEXT("il corpo e' ancora una istanza"), Corpi.Num(), 1))
+		{
+			TestTrue(TEXT("sotto una cella MAI OSSERVATA il corpo non si disegna ([D-225])"),
+				Corpi[0].GetScale3D().IsNearlyZero());
+		}
+	}
+
+	// ➕ Reversibile: osservata, il corpo torna. Senza questo, «scala zero sempre» passerebbe il test sopra.
+	{
+		FRTTeamKnowledge K;
+		K.Version = FRTTeamKnowledge::CurrentVersion;
+		K.TeamId = 0;
+		K.VisibleCells = { CellaSotto, CellaCorpo };
+		K.ExploredCells = { CellaSotto, CellaCorpo };
+		Actor->ApplyKnowledgeVeil(K);
+
+		const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+		if (Corpi.Num() == 1)
+		{
+			TestFalse(TEXT("e torna disegnato quando la cella e' osservata"),
+				Corpi[0].GetScale3D().IsNearlyZero());
+		}
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **IL GUARDIANO CHE COPRE LA FAMIGLIA, NON IL CASO** (`#2731`, terza voce della DoD).
+ *
+ * Il difetto che questa issue chiude e' vissuto fino a una code review perche' **nessun oracolo guardava le
+ * famiglie**: `GetVeilCounts` legge il solo `Cells`, quindi la copertura era cieca per costruzione su tutte
+ * le altre. Aggiungere il corpo strutturale a un elenco avrebbe spostato la stessa dimenticanza un livello
+ * piu' su — *«la decima nascera' con lo stesso buco»*.
+ *
+ * 🔴 **Quindi qui non c'e' nessun elenco.** Il test **enumera i componenti dell'attore** e chiede a ciascuno
+ * quante istanze restino disegnate sotto una conoscenza **vuota**. Una famiglia nuova si presenta da sola:
+ * chi la aggiunge senza velarla trova questo test rosso, e deve o velarla o dichiarare per iscritto perche'
+ * non vada velata.
+ *
+ * ⚠️ **Un componente senza istanze passa senza dire niente**, ed e' corretto — non c'e' niente da nascondere
+ * — ma renderebbe il test vacuo se fosse il caso di tutti: l'asserzione di anti-vacuita' pretende che almeno
+ * tre famiglie siano popolate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilEveryFamilyDisappearsTest,
+	"RefactorTactics.Veil.EveryInstanceFamilyDisappearsUnderAnEmptyKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilEveryFamilyDisappearsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Una board RICCA: `MakeTestArena` porta ostacoli, muri, terreno costoso e una piattaforma, quindi
+	// popola piu' famiglie di una graybox piatta. Il corpo strutturale lo si dichiara a mano, perche'
+	// nessuna arena generata lo fa.
+	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova"), Asset)) { DestroyMapActorWorld(World); return false; }
+	{
+		TArray<FRTHexCellData> Celle = Asset->Cells;
+		int32 Dichiarati = 0;
+		for (FRTHexCellData& C : Celle)
+		{
+			if (C.Id.Layer == 0 && Dichiarati < 3)
+			{
+				C.BodyFill = ERTHexBodyFill::Full;
+				++Dichiarati;
+			}
+		}
+		Asset->UpdateCells(Celle);
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	// Prima: quante famiglie hanno davvero delle istanze. E' la premessa del test.
+	TArray<UInstancedStaticMeshComponent*> Famiglie;
+	Actor->GetComponents(Famiglie);
+	int32 Popolate = 0;
+	for (const UInstancedStaticMeshComponent* F : Famiglie)
+	{
+		if (F && F->GetInstanceCount() > 0) { ++Popolate; }
+	}
+	AddInfo(FString::Printf(TEXT("componenti ISM: %d, di cui popolati: %d"), Famiglie.Num(), Popolate));
+	if (!TestTrue(*FString::Printf(TEXT("premessa: almeno tre famiglie popolate (%d)"), Popolate),
+			Popolate >= 3))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// 🔴 Conoscenza VUOTA: la squadra non ha mai osservato niente, quindi nulla dev'essere disegnato.
+	FRTTeamKnowledge Nulla;
+	Nulla.Version = FRTTeamKnowledge::CurrentVersion;
+	Nulla.TeamId = 0;
+	Actor->ApplyKnowledgeVeil(Nulla);
+
+	TArray<FString> Scoperte;
+	for (const UInstancedStaticMeshComponent* F : Famiglie)
+	{
+		if (!F) { continue; }
+		int32 Disegnate = 0;
+		for (int32 I = 0; I < F->GetInstanceCount(); ++I)
+		{
+			FTransform Xf;
+			if (F->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true)
+				&& !Xf.GetScale3D().IsNearlyZero())
+			{
+				++Disegnate;
+			}
+		}
+		if (Disegnate > 0)
+		{
+			Scoperte.Add(FString::Printf(TEXT("%s (%d istanze disegnate)"), *F->GetName(), Disegnate));
+		}
+	}
+
+	if (Scoperte.Num() > 0)
+	{
+		AddInfo(FString::Printf(TEXT("famiglie NON velate: %s"), *FString::Join(Scoperte, TEXT(", "))));
+	}
+	TestEqual(*FString::Printf(
+			TEXT("sotto una conoscenza vuota nessuna famiglia resta disegnata (scoperte: %d)"), Scoperte.Num()),
+		Scoperte.Num(), 0);
 
 	DestroyMapActorWorld(World);
 	return true;

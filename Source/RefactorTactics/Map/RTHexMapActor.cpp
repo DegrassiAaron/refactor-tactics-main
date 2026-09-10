@@ -1040,7 +1040,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewReachable.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
-		|| PlaybackFootprintCells.Num() > 0;
+		|| PlaybackFootprintCells.Num() > 0
+		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
+		|| VeilCellsInTransition > 0;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1104,6 +1106,23 @@ void ARTHexMapActor::ClearPlaybackFootprint()
 void ARTHexMapActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// 🔑 **La CONVERGENZA del velo segue il tempo; il suo CONTENUTO no** (`#2875`). I target li decide
+	// `ApplyKnowledgeVeil` ai due punti di refresh della conoscenza, e questa riga non li tocca: fa avanzare
+	// il valore disegnato verso un bersaglio gia' scelto. `Veil.FollowsRefreshPoints` resta verde per
+	// costruzione — misura le emissioni di `OnTeamKnowledgeRefreshed`, che questa funzione non produce.
+	//
+	// ⚠️ **A regime non costa niente**: `VeilCellsInTransition` va a zero quando tutto e' converso, e
+	// `HasAnythingToDraw` spegne il `Tick`.
+	if (VeilCellsInTransition > 0)
+	{
+		AdvanceVeilTransition(DeltaSeconds);
+		if (VeilCellsInTransition == 0)
+		{
+			SetActorTickEnabled(HasAnythingToDraw());
+		}
+	}
+
 	if (bCellOverlay)
 	{
 		DrawCellOverlay(); // prima: l'anteprima di pianificazione deve restare leggibile SOPRA
@@ -1439,6 +1458,10 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// Lo stato del velo si azzera con gli indici a cui si riferisce: sopravvivergli significherebbe saltare
 		// istanze che nel frattempo sono diventate altre celle.
 		LastVeilState.Reset();
+		// Il fattore disegnato segue lo stato, per la stessa ragione: e' parallelo agli stessi indici, e una
+		// transizione sopravvissuta a un rebuild attenuerebbe una cella che nel frattempo e' un'altra.
+		VeilDisplayFactor.Reset();
+		VeilCellsInTransition = 0;
 	}
 	if (bDoGlyphs)
 	{
@@ -1447,7 +1470,9 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			GlyphCells[Ring].Reset();
 			GlyphBaseScale[Ring].Reset();
 			LastGlyphVeilState[Ring].Reset();
+			GlyphDisplayFactor[Ring].Reset();
 		}
+		VeilCellsInTransition = 0;
 	}
 	if (bDoRelief)
 	{
@@ -1472,6 +1497,8 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		BorderCells.Reset();
 		BorderBaseScale.Reset();
 		LastBorderVeilState.Reset();
+		BorderDisplayFactor.Reset();
+		VeilCellsInTransition = 0;
 	}
 
 	// I glifi si ricostruiscono con le celle: `RebuildInstances` gira a ogni pennellata, e istanze vecchie
@@ -1515,6 +1542,11 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// azzera qui sopravvive alla mappa che descrive.
 		if (CellShape != nullptr) { StructuralBodies->SetStaticMesh(CellShape); }
 		StructuralBodies->ClearInstances();
+		// La mappatura cella->istanza e lo stato del velo si azzerano con gli indici a cui si riferiscono,
+		// come per le altre otto: sopravvivergli significherebbe velare istanze diventate altre celle.
+		BodyCells.Reset();
+		BodyBaseScale.Reset();
+		LastBodyVeilState.Reset();
 	}
 	if (bDoEdges && EdgeFeatures)
 	{
@@ -1784,7 +1816,17 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// Pannelli di BORDO: coperture e porte. Il punto e l'orientamento si CHIEDONO alla libreria
 		// (`EdgeMidpointWorld`, `EdgeRotation`), che li deriva dai due centri di cella: se la convenzione dei
 		// sei lati cambiasse, la geometria seguirebbe invece di mentire.
-		if (EdgeFeatures && EdgeSources[I])
+		//
+		// 🔴 **`bDoEdges` mancava da questa guardia, e la ricostruzione PARZIALE le duplicava** (`#2894`).
+		// Il `ClearInstances` di questa famiglia e' condizionato al flag (`if (bDoEdges)` piu' su), questo
+		// ciclo non lo era: una `RebuildInstances(Cells | Glyphs)` non le puliva e le **riaggiungeva**.
+		// Misurato dal rosso di `Veil.CoversEveryInstanceFamily`: le ausiliarie passavano da **148** a
+		// **222**, cioe' esattamente i 74 pannelli di bordo contati due volte.
+		//
+		// ⚠️ **Il difetto era latente, non teorico**: fino a `#2894` `RebuildInstances` aveva **un solo**
+		// chiamante non-`All` — nessuno — quindi la famiglia si ripuliva sempre insieme alle altre e il buco
+		// non poteva manifestarsi. Il primo uso parziale l'ha trovato al primo test.
+		if (bDoEdges && EdgeFeatures && EdgeSources[I])
 		{
 			const FRTHexCellData& Data = *EdgeSources[I];
 			auto AddEdgePanel = [&](ERTHexDirection Edge, float PanelHeight)
@@ -1826,7 +1868,13 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	// non lo conosce.
 	// ⚠️ Il pannello NON e' orientato con `EdgeRotation`, che deriva l'angolo dai due centri di cella:
 	// qui non c'e' nessun vicino da guardare, la giacitura e' quella del segmento e basta.
-	if (EdgeFeatures && MapAsset)
+	//
+	// 🔴 **`bDoEdges` mancava anche qui** (`#2894`), ed e' il SECONDO blocco che scrive in `EdgeFeatures`:
+	// il primo sono coperture e porte dentro il ciclo delle celle, questo sono i muri interni, che leggono
+	// l'asset direttamente. Entrambi condividono un solo `ClearInstances`, quindi **entrambi** devono
+	// condividerne la condizione: correggerne uno solo avrebbe lasciato la duplicazione a meta', cioe' un
+	// difetto piu' difficile da vedere di quello di partenza.
+	if (bDoEdges && EdgeFeatures && MapAsset)
 	{
 		for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
 		{
@@ -1899,9 +1947,21 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			const float AltezzaZ = Body.Height() / (2.f * RTCellPrismRadius);
 			const FVector Posizione(Centro.X, Centro.Y,
 				ActorOrigin.Z + static_cast<double>(Body.BottomZ + Body.TopZ) * 0.5);
-			StructuralBodies->AddInstance(
-				FTransform(FRotator::ZeroRotator, Posizione, FVector(PlanarScale, PlanarScale, AltezzaZ)),
-				/*bWorldSpace=*/ true);
+			const FTransform CorpoXf(FRotator::ZeroRotator, Posizione,
+				FVector(PlanarScale, PlanarScale, AltezzaZ));
+			StructuralBodies->AddInstance(CorpoXf, /*bWorldSpace=*/ true);
+
+			// 🔴 **La registrazione che mancava, ed e' cio' che rendeva questa famiglia INVELABILE** (`#2731`).
+			// Ogni altra famiglia registra `<Famiglia>Cells` / `<Famiglia>BaseScale` al proprio sito di
+			// `AddInstance`; questo non registrava niente, quindi `ApplyKnowledgeVeil` non aveva indici da
+			// velare e il volume solido restava visibile **sotto celle mai osservate** — cioe' esattamente
+			// la geometria che [D-225] dichiara di non disegnare.
+			//
+			// ⚠️ **Una cella produce al piu' un corpo**, a differenza dei `Blockers` che possono passare due
+			// volte (lastra e colonna): la mappatura resta comunque **per istanza** e non per cella, perche'
+			// e' l'indice dell'istanza che il velo usa.
+			BodyCells.Add(Body.Cell);
+			BodyBaseScale.Add(CorpoXf.GetScale3D());
 		}
 	}
 
@@ -2268,6 +2328,7 @@ ERTHexSurface ARTHexMapActor::SurfaceForCell(const FRTCellId& Cell) const
 
 int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	const TArray<FRTCellId>& CellsOfInstance, const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
+	TArray<float>* DisplayFactor,
 	const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
 	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor)
 {
@@ -2293,6 +2354,14 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		LastState.Init(RTVeilUnwritten, CellsOfInstance.Num());
 	}
 
+	// Il fattore disegnato, parallelo allo stato. Nasce a `-1`: un valore che nessun target puo' avere, quindi
+	// la prima scrittura di ogni istanza e' sempre uno **snap** e non una dissolvenza — la board non si
+	// accende sfumando alla prima inquadratura.
+	if (DisplayFactor && DisplayFactor->Num() != CellsOfInstance.Num())
+	{
+		DisplayFactor->Init(-1.f, CellsOfInstance.Num());
+	}
+
 	int32 Toccate = 0;
 	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
 	{
@@ -2300,10 +2369,15 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		const bool bVisible = Visible.Contains(Cell);
 		const bool bKnown = bVisible || Explored.Contains(Cell);
 		const uint8 State = bVisible ? RTVeilLit : (bKnown ? RTVeilRemembered : RTVeilHidden);
+		const uint8 Precedente = LastState[I];
 
 		// 🔴 Il salto. `UpdateInstanceTransform` e `SetCustomDataValue` costano anche quando riscrivono lo
 		// stesso valore, ed e' li' che finiva la misura del velo ingenuo — 2,2 s su arena piena.
-		if (LastState[I] == State)
+		//
+		// ⚠️ **Resta corretto col filtro di `#2875`**: se lo stato non cambia, non cambia nemmeno il target, e
+		// una transizione gia' in volo la porta avanti `AdvanceVeilTransition` per conto suo. Questo salto
+		// decide chi **riparte**, non chi si muove.
+		if (Precedente == State)
 		{
 			continue;
 		}
@@ -2332,10 +2406,39 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 			// colore per istanza — dove ricordato e osservato restano indistinguibili.
 			continue;
 		}
-		const float Factor = bVisible ? 1.f : RTVeilExploredFactor;
-		Component->SetCustomDataValue(I, 0, Base.R * Factor);
-		Component->SetCustomDataValue(I, 1, Base.G * Factor);
-		Component->SetCustomDataValue(I, 2, Base.B * Factor, /*bMarkRenderStateDirty=*/ false);
+		const float Target = bVisible ? 1.f : RTVeilExploredFactor;
+
+		// 🔴 **Si ATTENUA solo fra due stati DISEGNATI, e il reveal da `Hidden` resta uno scalino.**
+		// E' la decisione (i) di `#2875`, e la ragione e' il multilivello: `LayerView` vale `AllLayers` di
+		// default — i piani si impilano a `RTCellLayerHeightRef` di distanza — quindi una cella di layer 1
+		// disegnata a luminanza quasi nulla **starebbe sopra** quella di layer 0 e la coprirebbe. Sarebbe
+		// «un disegno che copre», cioe' la mappa nera che §25 dell'HUD vieta e da cui [D-225] si difende con
+		// quelle stesse parole.
+		//
+		// ⚠️ **Anche la prima scrittura e' uno snap** (`Precedente == RTVeilUnwritten`): senza, la board si
+		// accenderebbe sfumando alla prima inquadratura, e il primo fotogramma e' quello che nessun test
+		// tardivo prende.
+		const bool bAttenua = DisplayFactor
+			&& (Precedente == RTVeilLit || Precedente == RTVeilRemembered)
+			&& (State == RTVeilLit || State == RTVeilRemembered);
+
+		float Fattore = Target;
+		if (DisplayFactor)
+		{
+			if (!bAttenua)
+			{
+				(*DisplayFactor)[I] = Target;
+			}
+			Fattore = (*DisplayFactor)[I];
+			if (Fattore != Target)
+			{
+				++VeilCellsInTransition;
+			}
+		}
+
+		Component->SetCustomDataValue(I, 0, Base.R * Fattore);
+		Component->SetCustomDataValue(I, 1, Base.G * Fattore);
+		Component->SetCustomDataValue(I, 2, Base.B * Fattore, /*bMarkRenderStateDirty=*/ false);
 	}
 
 	// Una volta sola, in coda, e SOLO se qualcosa e' cambiato: marcarlo a ogni canale ricostruirebbe il
@@ -2358,6 +2461,33 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		return;
 	}
 
+	// ➕ **LE ISTANZE SI ALLINEANO AL DATO PRIMA DI VELARLO** (`#2894`).
+	//
+	// 🔴 **Il difetto che chiude**: una superficie creata in partita non cambiava niente a schermo. Il colore
+	// vive nel `CustomData` delle istanze e lo scrive `RebuildInstances`, che aveva **due chiamanti, entrambi
+	// `OnConstruction`** — quindi `Action.Ignite`, `Action.CreateWater` e `Hero.Muiren.MistVeil` mutavano il
+	// terreno e la board restava quella del primo fotogramma.
+	//
+	// 🔑 **Sta QUI e non in un canale nuovo, ed e' una conseguenza di cio' che questa funzione gia' dichiara
+	// di sé**: `VeilInstances` porta un `ensureMsgf` che sorveglia gli indici stantii — sa di dipendere dalla
+	// freschezza delle istanze. Velare istanze costruite su un dato vecchio non e' «un po' meno aggiornato»:
+	// e' la stessa precondizione, vista dall'altro lato. E il momento e' quello giusto per costruzione — il
+	// presenter chiama di qui a ogni `OnTeamKnowledgeRefreshed`, cioe' due volte per turno.
+	//
+	// ⛔ **Non e' una cache**: `SurfaceForCell` continua a rileggere dall'asset. Qui si confronta un numero di
+	// versione — `Revision`, che `AddOrUpdateCell` incrementa gia' — e la copia del dato non esiste.
+	//
+	// ⚠️ **Due famiglie e non `All`**, perche' sono i due canali che [D-183] accoppia: `Cells` porta il
+	// COLORE, `Glyphs` la FORMA (`SurfaceRingCount`: il fumo ha un anello). Ricostruirne una sola darebbe una
+	// cella col colore nuovo e il segno inciso vecchio, cioe' due canali che si contraddicono su un criterio
+	// — «colore **e** forma, mai solo il colore» (`#956`) — che esiste per non dipendere dal colore.
+	// Le altre cinque famiglie non dipendono dalla superficie e non si toccano.
+	if (MapAsset && MapAsset->Revision != LastSyncedMapRevision)
+	{
+		LastSyncedMapRevision = MapAsset->Revision;
+		RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs);
+	}
+
 	// Appartenenza puntuale, ripetuta una volta per istanza: `TSet` e non `TArray::Contains`, che su 7 651
 	// celle sarebbe quadratico. Nessuno dei due insiemi viene ITERATO — il loro ordine dipenderebbe
 	// dall'hash, e qui l'ordine e' quello delle istanze.
@@ -2367,7 +2497,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// Il disco: l'unica famiglia con un colore PROPRIO per cella, riletto dall'asset a ogni velo invece che
 	// memorizzato — un colore cachato sarebbe la seconda verita' sulla superficie.
 	LastVeilTouchedCells = VeilInstances(Cells, InstanceCells, InstanceBaseScale, LastVeilState,
-		Visible, Explored,
+		&VeilDisplayFactor, Visible, Explored,
 		[this](const FRTCellId& Cell, FLinearColor& Out)
 		{
 			Out = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(SurfaceForCell(Cell)));
@@ -2383,7 +2513,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
 	{
 		VeilInstances(SurfaceGlyphs[Ring], GlyphCells[Ring], GlyphBaseScale[Ring], LastGlyphVeilState[Ring],
-			Visible, Explored,
+			&GlyphDisplayFactor[Ring], Visible, Explored,
 			[&GlyphBase](const FRTCellId&, FLinearColor& Out) { Out = GlyphBase; return true; });
 	}
 
@@ -2397,14 +2527,143 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// bordo restasse a piena luminosita' sul ricordo, una cella NON osservata avrebbe il confine piu' marcato
 	// di una osservata — lo stesso rovesciamento che la corona dei glifi aveva nella prima stesura della spec.
 	const FLinearColor BorderBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
-	VeilInstances(CellBorders, BorderCells, BorderBaseScale, LastBorderVeilState, Visible, Explored,
+	VeilInstances(CellBorders, BorderCells, BorderBaseScale, LastBorderVeilState, &BorderDisplayFactor,
+		Visible, Explored,
 		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; });
 
+	// ⛔ `nullptr` invece di un array di fattori: queste tre famiglie non hanno un canale colore per istanza,
+	// quindi non c'e' niente da attenuare — il velo le nasconde e basta, e la scala non si interpola.
 	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
-	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, Visible, Explored, SenzaColore);
-	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, Visible, Explored, SenzaColore);
+	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, nullptr, Visible, Explored, SenzaColore);
+	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored, SenzaColore);
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
-		Visible, Explored, SenzaColore);
+		nullptr, Visible, Explored, SenzaColore);
+
+	// 🔴 **La NONA famiglia, che fino a `#2731` non passava di qui** — e non per una riga dimenticata: il
+	// suo sito di `AddInstance` non registrava nessuna cella, quindi non c'era niente da velare. Su una
+	// mappa con `BodyFill != None` il volume solido restava visibile sotto celle mai osservate.
+	//
+	// Come le altre tre senza canale colore: il velo NASCONDE e basta.
+	VeilInstances(StructuralBodies, BodyCells, BodyBaseScale, LastBodyVeilState,
+		nullptr, Visible, Explored, SenzaColore);
+
+	// 🔑 **Se il velo ha aperto una transizione, il `Tick` si accende.** E' l'unico punto in cui puo'
+	// nascerne una: i target li decide questa funzione, e nessun altro li muove.
+	//
+	// ⚠️ **Non si azzera `VeilCellsInTransition` qui.** Una transizione gia' in volo su un'istanza che questo
+	// refresh non ha toccato e' ancora viva: azzerare direbbe «converso» a chi sta ancora sfumando, e
+	// spegnerebbe il `Tick` a meta' dissolvenza. Il conteggio VERO lo ricalcola `AdvanceVeilTransition` a
+	// ogni passo; questo lo alza soltanto, e la differenza dura un fotogramma.
+	if (VeilCellsInTransition > 0)
+	{
+		SetActorTickEnabled(true);
+	}
+}
+
+bool ARTHexMapActor::GetVeilWrittenColor(int32 InstanceIndex, FLinearColor& OutColor) const
+{
+	if (!Cells || Cells->NumCustomDataFloats < 3)
+	{
+		return false;
+	}
+	const int32 Base = InstanceIndex * Cells->NumCustomDataFloats;
+	if (!Cells->PerInstanceSMCustomData.IsValidIndex(Base + 2))
+	{
+		return false;
+	}
+	OutColor = FLinearColor(Cells->PerInstanceSMCustomData[Base],
+		Cells->PerInstanceSMCustomData[Base + 1],
+		Cells->PerInstanceSMCustomData[Base + 2]);
+	return true;
+}
+
+void ARTHexMapActor::AdvanceVeilTransition(float DeltaSeconds)
+{
+	// Il conteggio si RICALCOLA, non si decrementa: un contatore mantenuto per differenza diverge al primo
+	// ramo che dimentica di aggiornarlo, e questo e' il numero che decide se il `Tick` resta acceso.
+	int32 InMovimento = 0;
+
+	InMovimento += AdvanceVeilFamily(Cells, InstanceCells, LastVeilState, VeilDisplayFactor, DeltaSeconds,
+		[this](const FRTCellId& Cell, FLinearColor& Out)
+		{
+			// Riletto dall'asset, come in `ApplyKnowledgeVeil` e per la stessa ragione: un colore cachato
+			// sarebbe la seconda verita' sulla superficie. Si paga sulla sola banda che si muove.
+			Out = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(SurfaceForCell(Cell)));
+			return true;
+		});
+
+	const FLinearColor GlyphBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		InMovimento += AdvanceVeilFamily(SurfaceGlyphs[Ring], GlyphCells[Ring], LastGlyphVeilState[Ring],
+			GlyphDisplayFactor[Ring], DeltaSeconds,
+			[&GlyphBase](const FRTCellId&, FLinearColor& Out) { Out = GlyphBase; return true; });
+	}
+
+	const FLinearColor BorderBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+	InMovimento += AdvanceVeilFamily(CellBorders, BorderCells, LastBorderVeilState, BorderDisplayFactor,
+		DeltaSeconds,
+		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; });
+
+	VeilCellsInTransition = InMovimento;
+}
+
+int32 ARTHexMapActor::AdvanceVeilFamily(UInstancedStaticMeshComponent* Component,
+	const TArray<FRTCellId>& CellsOfInstance, const TArray<uint8>& LastState, TArray<float>& DisplayFactor,
+	float DeltaSeconds, TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor)
+{
+	// ⚠️ Gli array possono essere disallineati fra un `RebuildInstances` e il velo successivo: si esce invece
+	// di leggere fuori. La stessa precondizione che `VeilInstances` sorveglia con un `ensure`, qui senza —
+	// questa funzione gira a ogni fotogramma, e un `ensure` per frame sarebbe rumore invece che segnale.
+	if (!Component || DisplayFactor.Num() != CellsOfInstance.Num() || LastState.Num() != CellsOfInstance.Num())
+	{
+		return 0;
+	}
+
+	int32 InMovimento = 0;
+	int32 Scritte = 0;
+	for (int32 I = 0; I < CellsOfInstance.Num(); ++I)
+	{
+		const uint8 State = LastState[I];
+
+		// Non disegnata (o mai scritta): non c'e' niente da attenuare. Il passaggio da e verso `Hidden` e'
+		// uno **scalino** per decisione — vedi il commento in `VeilInstances`.
+		if (State != RTVeilLit && State != RTVeilRemembered)
+		{
+			continue;
+		}
+
+		const float Target = (State == RTVeilLit) ? 1.f : RTVeilExploredFactor;
+		const float Corrente = DisplayFactor[I];
+		if (Corrente == Target)
+		{
+			continue; // gia' arrivata: e' il caso della stragrande maggioranza delle istanze
+		}
+
+		const float Prossimo = URTVeilTransitionLibrary::Advance(Corrente, Target, DeltaSeconds, VeilTransition);
+		DisplayFactor[I] = Prossimo;
+
+		FLinearColor Base;
+		if (BaseColor(CellsOfInstance[I], Base))
+		{
+			Component->SetCustomDataValue(I, 0, Base.R * Prossimo);
+			Component->SetCustomDataValue(I, 1, Base.G * Prossimo);
+			Component->SetCustomDataValue(I, 2, Base.B * Prossimo, /*bMarkRenderStateDirty=*/ false);
+			++Scritte;
+		}
+
+		if (Prossimo != Target)
+		{
+			++InMovimento;
+		}
+	}
+
+	// Una volta sola, in coda, e solo se qualcosa si e' mosso: la stessa disciplina di `VeilInstances`.
+	if (Scritte > 0)
+	{
+		Component->MarkRenderStateDirty();
+	}
+	return InMovimento;
 }
 
 void ARTHexMapActor::GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const
@@ -2479,4 +2738,7 @@ void ARTHexMapActor::GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) c
 	Count(Relief, ReliefCells.Num());
 	Count(Blockers, BlockerCells.Num());
 	Count(EdgeFeatures, EdgeFeatureCells.Num());
+	// ➕ Il corpo strutturale entra qui da `#2731`: prima non compariva in **nessun** oracolo, ed e' il
+	// motivo per cui il leak e' vissuto fino a una code review invece che fino al primo test rosso.
+	Count(StructuralBodies, BodyCells.Num());
 }

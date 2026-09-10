@@ -1,7 +1,7 @@
 {
   "scenarioId": "Spec.Overwatch.ThreeArmedWatchersOnOneEntry",
   "tags": ["spec", "reactions", "overwatch", "pacing", "diagnostic", "gadget", "wraith"],
-  "version": 2,
+  "version": 5,
   "seed": 0,
   "mapRadius": 4,
 
@@ -39,10 +39,11 @@
         { "unit": "V3", "ability": "Action.Overwatch" },
         { "unit": "F1", "move": [[0, 0, 0]] }
       ],
+      "_nota_selettore": "Le tre risposte nominano lo STESSO trigger e reactor diversi: e' la forma che dice cosa questo scenario misura — un ingresso solo che apre tre finestre distinte, una per watcher. Con `unit` sola la stessa cosa era vera e non era scritta.",
       "decisions": [
-        { "unit": "V1", "respond": "HOLD" },
-        { "unit": "V2", "respond": "HOLD" },
-        { "unit": "V3", "respond": "HOLD" }
+        { "on": { "reactor": "V1", "reaction": "Action.Overwatch", "triggerUnit": "F1" }, "respond": "HOLD" },
+        { "on": { "reactor": "V2", "reaction": "Action.Overwatch", "triggerUnit": "F1" }, "respond": "HOLD" },
+        { "on": { "reactor": "V3", "reaction": "Action.Overwatch", "triggerUnit": "F1" }, "respond": "HOLD" }
       ]
     }
   ],

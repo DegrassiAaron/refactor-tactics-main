@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexMapAsset.h" // FRTHexInteriorWall: la geometria intra-cella e' dato di gioco (`D-269`)
+#include "Turn/RTTurnRules.h" // ERTMatchPhase: il filtro di fase parla il vocabolario del turno
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
@@ -288,6 +289,27 @@ struct FRTScenarioUnit
 	 * Serve da CP 13.2: da quando il targeting consuma la conoscenza, l'orientamento decide COSA la squadra
 	 * vede, quindi uno scenario che non potesse esprimerlo non potrebbe descrivere un tiratore che guarda il
 	 * proprio bersaglio.
+	 *
+	 * 🔑 **E' anche il solo modo di orientare un OVERWATCH, ed e' la domanda che chi scrive scenari si pone
+	 * per prima** (`#2868`, confermata dall'autore il 2026-09-10).
+	 *
+	 * Non esiste una `watchDirection`: il cono della guardia **e'** il facing dell'unita', e
+	 * [ADR-0005](../../../docs/decisions/adr-0005-orientamento.md) §4c respinge per nome l'alternativa —
+	 * *«la zona controllata di un Overwatch armato nasce dal facing dell'unita', **non** da una direzione
+	 * dichiarata a parte … due sorgenti per la stessa cosa sarebbero due verita': chi arma la guardia decide
+	 * dove guardare **orientandosi**»*. Lo confermano `D-020`, che colloca `FacingUsedByOverwatch` fra i
+	 * valori **letti**, e `D-365` (`FAC-5`).
+	 *
+	 * ⚠️ **Conseguenza pratica, e non e' ovvia**: `ARTTurnManager` legge `Armed.Facing = Unit->Facing` in
+	 * **Prep**, mentre una rotazione dichiarata (`FRTScenarioIntent::Facing`) si applica dentro
+	 * `ResolveMovement`, cioe' **dopo**. Un cono quindi si prepara **il turno prima**, oppure si dichiara
+	 * **qui**, al piazzamento. Un'unita' che si muove ruota strada facendo e il caso non si vede; una che
+	 * arma e resta ferma conserva il facing di piazzamento, e li' si vede tutto — e' cio' che
+	 * `Spec.Overwatch.HoldThenFire` registra nella propria `_nota_facing_di_piazzamento`.
+	 *
+	 * ⛔ **Non e' una lacuna da colmare in un formato di scenario.** Darebbe all'harness un ingresso che
+	 * nessun giocatore ha in partita — la stessa asimmetria per cui `DeclaredRotation` e `ReactionPlanning`
+	 * sono rimaste fuori finche' non hanno avuto un produttore.
 	 */
 	UPROPERTY()
 	ERTHexDirection Facing = ERTHexDirection::E;
@@ -809,6 +831,44 @@ struct FRTTestExpectation
 	/** Filtro opzionale sull'`ActionId` del SECONDO evento (`LogEventOrder`). Vedi `LogActionId`. */
 	UPROPERTY()
 	FName ThenActionId;
+
+	/**
+	 * Filtro OPZIONALE sulla MACRO-FASE della voce (`LogEventCount`, `LogEventAmount`, `LogEventOrder`).
+	 * Valido solo con `bHasLogPhase`.
+	 *
+	 * 🔑 **Il dato c'era gia' e l'assertion non lo raggiungeva.** `FRTTurnLogEntry::Phase` porta da sempre la
+	 * fase in cui ogni evento e' avvenuto, ma `FRTTestExpectation` vedeva categoria, esito e `ActionId` e
+	 * nient'altro: uno scenario poteva dire *«un colpo e' avvenuto»*, non *«e' avvenuto nel Blast e non nel
+	 * Move»*. E' la lacuna che `#2867` ha trovato cercandone un'altra.
+	 *
+	 * ⛔ **Non e' un checkpoint di fase, e la differenza va conosciuta.** Questo filtra un EVENTO che il
+	 * resolver ha gia' registrato; un checkpoint leggerebbe lo STATO a un confine — dov'era un'unita' a fine
+	 * `Blast` quando nessun evento lo dice. Quel secondo caso richiede un punto di lettura dentro
+	 * `RunPhaseLoop`, e resta differito finche' un caso concreto non lo giustifica: `#2867` lo dichiara.
+	 *
+	 * ⚠️ **Mai dalla presentazione.** `ARTTurnManager::OnPhasePlaybackStarted` e `ResolvedTimeline` sanno
+	 * anch'essi di fasi, ma sono presentazione — il secondo lo dichiara nel proprio accessore. Un'assertion
+	 * che leggesse da li' misurerebbe cio' che l'animazione ha mostrato, non cio' che il resolver ha risolto.
+	 */
+	UPROPERTY()
+	ERTMatchPhase LogPhase = ERTMatchPhase::Move;
+
+	/**
+	 * La chiave `phase` era presente nel file.
+	 *
+	 * ⚠️ **Non deducibile da `LogPhase`**: `Move` e' il default dell'enum *e* una fase legittima da chiedere,
+	 * quindi non puo' fare da «campo non dichiarato». Stessa convenzione dei gemelli del formato —
+	 * `bTargetsCell`, `bHasCoverEdge`, `bDeclaresFacing`, `bHasSelector`.
+	 */
+	UPROPERTY()
+	bool bHasLogPhase = false;
+
+	/** Filtro opzionale sulla fase del SECONDO evento (`LogEventOrder`). Vedi `LogPhase`. */
+	UPROPERTY()
+	ERTMatchPhase ThenPhase = ERTMatchPhase::Move;
+
+	UPROPERTY()
+	bool bHasThenPhase = false;
 };
 
 /** Scenario completo, come letto dal file. */

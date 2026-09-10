@@ -202,7 +202,7 @@ Il test `RefactorTactics.Scenario.EveryD025ActionIsExpressible` (verde in questa
 — siano esprimibili nel formato corrente, e che le abilità d'eroe usino lo stesso involucro identificandosi
 per Stable Action ID. La copertura chiesta dal mandato c'è già.
 
-### 3.3 Checkpoint di fase e `afterEvent` — non implementati
+### 3.3 Checkpoint di fase e `afterEvent` — ⚠️ parzialmente chiuso, e la ricognizione ha spostato il problema
 
 `PlanningLocked · PrepEnded · DashEnded · BlastEnded · MoveEnded · CleanupEnded` non esistono nel formato.
 L'assenza non è un difetto silenzioso: `expect[]` verifica lo stato **finale** e il TurnLog, e
@@ -213,6 +213,18 @@ L'assenza non è un difetto silenzioso: `expect[]` verifica lo stato **finale** 
 cioè nel cuore del resolver. Il vincolo del mandato — *«niente frame, animazioni, `DeltaTime` o callback
 presentation-only»* — è già l'invariante 6 di `AGENTS.md`, quindi la forma è concordata; è il **seam** che non
 esiste.
+
+> ✅ **[#2867](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2867) ne ha chiuso la metà che
+> non richiedeva il seam**, e cercando l'aggancio ha spostato il problema. Il caso che questa sezione
+> portava — *«dove uno stato cambia»* — era in buona parte **già osservabile**: `FRTTurnLogEntry::Phase`
+> registra da sempre la fase di ogni evento, ma `FRTTestExpectation` non aveva un campo per filtrarci. Ora
+> un'assertion sul TurnLog può chiedere `"phase": "Blast"`.
+>
+> ⛔ **Resta fuori il checkpoint di STATO** — dov'era un'unità a fine `Blast` quando *nessun evento lo
+> dice* — e la ragione è scritta: richiede il punto di lettura in `RunPhaseLoop`, e nessun caso corrente lo
+> giustifica. Gli altri due agganci che sapevano di fasi sono stati **scartati**: `OnPhasePlaybackStarted`
+> e `ResolvedTimeline` sono **presentazione**, e un'assertion che leggesse da lì misurerebbe ciò che
+> l'animazione ha mostrato, non ciò che il resolver ha risolto.
 
 ### 3.4 Separazione sintattica `metadata`/`setup` nel JSON — costo alto, valore basso *oggi*
 
@@ -283,8 +295,12 @@ replay, non all'harness.
    versione che il loader poi rifiuta.
 4. **Round-trip verificato.** Il comparatore campo-per-campo di `RTScenarioWriterTests.cpp` confronta ora
    anche `bHasSelector`, `On.Reactor`, `On.Reaction`, `On.TriggerUnit`.
-5. **Migrazione: nessuno scenario è stato migrato**, deliberatamente. Il mandato prescrive di non migrare
-   finché loader, writer e compatibilità non sono verdi — ora lo sono, e la migrazione è il follow-up §7.1.
+5. **Migrazione: nessuno scenario è stato migrato in questa fetta**, deliberatamente. Il mandato prescrive
+   di non migrare finché loader, writer e compatibilità non sono verdi.
+   > ✅ **Fatta subito dopo, in [#2865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2865)**:
+   > tutti e cinque gli scenari con `decisions` usano il selettore, e la falsificabilità è dimostrata —
+   > invertendo l'ordine di dichiarazione, la forma con `on` resta `PASS (6/6)` mentre quella posizionale
+   > esce `ERROR (4/6)`.
 
 ### 4.4 File modificati
 
@@ -370,12 +386,18 @@ distingua gli esiti, e `RefactorTactics.Replay.Verifier.OrphanRecordedResponseIs
 2. **`triggerUnit` su una finestra senza `FIRE:`** — un profilo di `Brace`, per esempio — non può essere
    soddisfatto da nessuna opportunità, e la decisione finisce nel residuo. Il messaggio lo dice, ma non
    spiega **perché**: chi lo incontra deve sapere che quel vincolo vale solo dove esistono bersagli offerti.
-3. **`on.reaction` accetta qualunque `FName`**: il loader non la confronta con un catalogo. Un refuso
-   (`Action.Overwtach`) non trova finestre e cade nel residuo invece di essere rifiutato al caricamento. È la
-   stessa classe di difetto che [#2698](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2698)
-   misura per gli altri campi dell'intent.
-4. **Il corpus non usa ancora il selettore**, quindi la strada nuova è esercitata solo dai test: finché
-   `HoldThenFire` e `RT_Showcase_Relay_v01` restano posizionali, il difetto §1.2 resta vivo **su di loro**.
+3. ~~**`on.reaction` accetta qualunque `FName`**: il loader non la confronta con un catalogo. Un refuso
+   (`Action.Overwtach`) non trova finestre e cade nel residuo invece di essere rifiutato al caricamento.~~
+   ✅ **Chiuso da [#2866](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2866)**, e la
+   correzione ha smentito il modo in cui questa riga poneva il problema: l'insieme legale **non è il
+   catalogo**. `Action.Counter` e `Action.Intercept` esistono a catalogo — sono la base dei moduli di
+   equipaggiamento — e non aprono nessuna finestra, quindi una guardia costruita sul catalogo avrebbe
+   spostato il difetto invece di chiuderlo. L'insieme dichiarato è quello delle reaction che possono
+   **aprire un boundary**, e vive in `URTReactionOpportunityLibrary`.
+4. ~~**Il corpus non usa ancora il selettore**, quindi la strada nuova è esercitata solo dai test: finché
+   `HoldThenFire` e `RT_Showcase_Relay_v01` restano posizionali, il difetto §1.2 resta vivo **su di loro**.~~
+   ✅ **Chiuso da [#2865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2865)**: i cinque
+   scenari con `decisions` sono migrati, con gli stessi esiti di prima.
 
 ---
 
@@ -383,12 +405,12 @@ distingua gli esiti, e `RefactorTactics.Replay.Verifier.OrphanRecordedResponseIs
 
 | # | Cosa | Dipendenza |
 |---|---|---|
-| 7.1 | Migrare al selettore gli scenari con `decisions`: `Spec.Overwatch.HoldThenFire` e `RT_Showcase_Relay_v01` (i due a rischio), più `Spec/Brace/ProfileChangesResponse`, `Spec/Facing/OverwatchHitCameFromSide`, `Spec/Overwatch/ThreeArmedWatchersOnOneEntry` | questa fetta ✅ |
-| 7.2 | `on.reaction` validata contro il catalogo delle reaction al caricamento | — |
-| 7.3 | Checkpoint di fase (`PrepEnded` … `CleanupEnded`) e `afterEvent`: serve un seam di sospensione per macro-fase in `LockInAndResolve` | resolver |
-| 7.4 | Decisione su `watchDirection`: emendare o confermare ADR-0005 §4c | `#152` · `#339` · `#291` |
-| 7.5 | Target tipizzato discriminato | `#1119` (`RCI-1`) risponde prima |
-| 7.6 | Separazione sintattica `metadata`/`setup` nel JSON | consumatore: Composer (`#1105`, `#1628`) |
+| 7.1 | [#2865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2865) — migrare al selettore gli scenari con `decisions` | questa fetta ✅ |
+| 7.2 | ✅ [#2866](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2866) — `on.reaction` validata al caricamento contro le reaction che **aprono un boundary** (⚠️ *non* il catalogo: vedi §6.3) | — |
+| 7.3 | ⚠️ [#2867](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2867) — **parziale**: il filtro di fase sulle assertion del TurnLog è fatto; il checkpoint di **stato** resta, e serve il seam in `RunPhaseLoop` | resolver |
+| 7.4 | [#2868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2868) — `watchDirection`: emendare o confermare ADR-0005 §4c | `#152` · `#339` · `#291` |
+| 7.5 | Target tipizzato discriminato — **nessuna issue nuova**: l'owner è già `#1119` (`RCI-1`), e crearne una seconda sarebbe la duplicazione che `AGENTS.md` §8 vieta | `#1119` risponde prima |
+| 7.6 | Separazione sintattica `metadata`/`setup` nel JSON — **nessuna issue**: una proposta senza consumatore resterebbe ferma, e il consumatore è il Composer | `#1105` · `#1628` |
 | 7.7 | ✅ Difetti **preesistenti** trovati durante questa verifica — chiusi da [#2862](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2862) | ~~`#2491`~~ |
 
 ### 7.7 — Quattro test sono rossi su `main`, e nessuno per questa fetta
