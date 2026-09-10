@@ -1,25 +1,30 @@
 {
   "schemaVersion": 1,
   "bindHost": "127.0.0.1",
-  "gatewayPort": 8080,
   "playwright": {
     "enabled": true,
     "port": 8931,
-    "endpoint": "http://127.0.0.1:8931/mcp"
+    "endpoint": "http://localhost:8931/mcp",
+    "isolated": true,
+    "notes": "The endpoint is registered as 'localhost', not '127.0.0.1': @playwright/mcp enforces a Host check and answers 403 to a 127.0.0.1 Host header. The socket still binds 127.0.0.1 only. 'isolated' is required, not cosmetic - without it a second concurrent client is refused outright."
+  },
+  "gateway": {
+    "enabled": false,
+    "port": null,
+    "reason": "mcp-gway was evaluated and deferred. Episodic Memory cannot be fronted without renaming its tools, and Claude Code speaks HTTP to the shared Playwright directly, so a gateway would add a process and a hop for nothing. Reinstate it when a second shareable stdio backend appears - and do NOT default to 8080, which Docker Desktop holds on some machines."
   },
   "episodicMemory": {
-    "enabled": true,
-    "gatewayBackendName": "episodic-memory",
-    "command": "episodic-memory-mcp-server",
-    "centralizeMcpOnlyAfterPluginAudit": true
+    "centralized": false,
+    "reason": "BLOCKED. Its agent and skills hardcode the mcp__plugin_episodic-memory_* tool names, so any re-exposure under another name breaks them silently. The SQLite index is already shared; only the process count is duplicated."
   },
   "superpowersChrome": {
-    "enabled": false,
-    "reason": "Keep disabled until multi-client browser-session contention and plugin MCP duplication are verified."
+    "centralized": false,
+    "reason": "Must NOT be shared: it drives a live Chrome over CDP, so two clients would fight over the same tab. Per-session, or disabled and enabled on demand."
   },
   "serena": {
     "basePort": 9121,
     "context": "claude-code",
-    "transport": "streamable-http"
+    "transport": "streamable-http",
+    "registry": "~/.mcp-shared/ports.json"
   }
 }
