@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
+#include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
 #include "RTHexMapActor.generated.h"
 
@@ -501,7 +502,19 @@ public:
 	int32 LastRebuildCreatedInstances() const { return LastRebuildCreated; }
 #endif
 
-	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
+	/**
+	 * Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test.
+	 *
+	 * ⏱️ **Da `#2875` e' un oracolo A CONVERGENZA, e la precisazione non e' pedanteria.** Fra accesa e
+	 * ricordata questa funzione distingue **leggendo il colore scritto**, ed e' la scelta giusta — *«un
+	 * contatore proverebbe che la funzione sa contare, non che ha disegnato»*. Ma con il filtro il colore di
+	 * una cella che passa da ricordata a osservata **attraversa** i valori intermedi: contata a meta'
+	 * dissolvenza risulta ancora un ricordo. ∴ chi vuole la partizione aspetta che
+	 * `GetVeilCellsInTransition()` torni a **zero**.
+	 *
+	 * ⚠️ Il passaggio da e verso `Hidden` resta **istantaneo** (decisione (i) di `#2875`, [D-225]), quindi
+	 * `OutHidden` e' esatto in ogni istante: e' solo la riga fra accese e ricordate che si sposta nel tempo.
+	 */
 	void GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const;
 
 	/**
@@ -523,6 +536,39 @@ public:
 	 * differenza nel costo.
 	 */
 	int32 GetLastVeilTouchedCells() const { return LastVeilTouchedCells; }
+
+	/**
+	 * 🔑 **Le costanti di tempo con cui il velo ATTENUA invece di saltare** (`#2875`, filtro di `#2874`).
+	 *
+	 * ⚠️ **Il contenuto continua a seguire i punti di refresh; solo la CONVERGENZA verso quel contenuto
+	 * segue il tempo.** E' la precisazione che la DoD di `#1535` chiedeva — quella riga diceva «⛔ nessun
+	 * `Tick`» e va letta per cio' che il suo test misura: `Veil.FollowsRefreshPoints` conta le emissioni di
+	 * `OnTeamKnowledgeRefreshed` contro i tick spesi, cioe' garantisce che la **conoscenza** segua i turni.
+	 * Un filtro che interpola verso un target gia' deciso non emette e non ricalcola niente.
+	 *
+	 * ➕ E il precedente esisteva gia': `ARTHUD::Tick` chiama `UpdateObserverVeil()` a ogni fotogramma per
+	 * decidere `ARTUnit::bKnownToObserver`, con `RefactorTactics.Veil.DriverRunsOnTick` a tenerlo fermo. Le
+	 * due meta' della stessa fog of war — board e unita' — seguono ora la stessa regola.
+	 *
+	 * 🔑 **`FRTVeilTransitionParams::Instant()` spegne il filtro**, e serve come ramo di confronto: con quello
+	 * la board e' identica a quella di prima di `#2875`, e un test puo' dimostrarlo senza rimuovere il codice.
+	 */
+	void SetVeilTransitionParams(const FRTVeilTransitionParams& InParams) { VeilTransition = InParams; }
+	const FRTVeilTransitionParams& GetVeilTransitionParams() const { return VeilTransition; }
+
+	/** Quante istanze stanno ancora attenuando. **Zero = converso**, ed e' cio' che spegne il `Tick`. */
+	int32 GetVeilCellsInTransition() const { return VeilCellsInTransition; }
+
+	/**
+	 * Il colore che il velo ha DAVVERO scritto su un'istanza del disco, letto dal buffer per istanza.
+	 *
+	 * ⚠️ **Legge lo stato reale, non il fattore interno**, ed e' la stessa disciplina di `GetVeilCounts`:
+	 * *«un contatore proverebbe che la funzione sa contare, non che ha disegnato»*. Esporre
+	 * `VeilDisplayFactor` renderebbe verdi dei test che non guardano cio' che si vede.
+	 *
+	 * `false` se il disco non c'e', se l'indice non e' valido, o se il componente non porta custom data.
+	 */
+	bool GetVeilWrittenColor(int32 InstanceIndex, FLinearColor& OutColor) const;
 
 	/** Stati che il velo scrive per istanza. `Unwritten` distingue «mai velata» da «velata e nascosta». */
 	static constexpr uint8 RTVeilUnwritten = 0xFF;
@@ -1075,8 +1121,79 @@ protected:
 	TArray<uint8> LastVeilState;
 	TArray<uint8> LastGlyphVeilState[4];
 
+	/**
+	 * La `URTHexMapAsset::Revision` su cui le istanze derivate sono state costruite (`#2894`).
+	 *
+	 * 🔴 **Esiste perche' senza di lui una superficie creata IN PARTITA non cambiava niente a schermo.** Il
+	 * colore di una cella vive nel `CustomData` delle istanze e lo scrive `RebuildInstances`, che aveva **due
+	 * chiamanti e sono entrambi `OnConstruction`**: `Action.Ignite`, `Action.CreateWater` e
+	 * `Hero.Muiren.MistVeil` cambiavano il terreno, la simulazione ne teneva conto, e chi guardava non vedeva
+	 * nulla.
+	 *
+	 * ⛔ **Non e' una cache della superficie, ed e' la differenza che conta**: `SurfaceForCell` continua a
+	 * rileggere dall'asset, e resta l'unica verita' sul colore. Qui c'e' un **numero di versione**, cioe' la
+	 * domanda «e' cambiato qualcosa?» — non una copia del dato, che sarebbe la seconda verita' che il
+	 * commento di `SurfaceForCell` dichiara di voler evitare.
+	 *
+	 * ⚠️ `INDEX_NONE` significa «mai sincronizzato»: la prima velatura ricostruisce sempre, e il caso non si
+	 * confonde con la `Revision 0` di un asset appena creato.
+	 */
+	int32 LastSyncedMapRevision = INDEX_NONE;
+
 	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
 	int32 LastVeilTouchedCells = 0;
+
+	/**
+	 * 🔑 **`DisplayVisibility`: il fattore che si DISEGNA ora, mentre insegue quello che lo stato impone**
+	 * (`#2875`). Un `float` per istanza, parallelo a `Last…VeilState` e azzerato con lui da `RebuildInstances`.
+	 *
+	 * ⚠️ **Si interpola il FATTORE, non il colore.** Il colore pieno di una cella e' `SurfaceColor` della sua
+	 * superficie e non cambia mai; cio' che cambia fra osservato e ricordato e' il moltiplicatore — `1.0`
+	 * contro `RTVeilExploredFactor`. Tenere il fattore costa **un** `float` per istanza invece di tre, e
+	 * soprattutto lascia il colore dove sta: ricalcolato da `SurfaceForCell` a ogni scrittura, mai
+	 * memorizzato. Un colore cachato sarebbe la seconda verita' sulla superficie che `ApplyKnowledgeVeil`
+	 * dichiara di non volere.
+	 *
+	 * 🔴 **Il target non si memorizza: si DERIVA da `Last…VeilState`.** `Lit` -> `1.0`, `Remembered` ->
+	 * `RTVeilExploredFactor`. Un secondo array di target sarebbe un dato che qualcuno dovrebbe tenere
+	 * d'accordo con lo stato, e i due divergerebbero al primo ramo dimenticato.
+	 *
+	 * ⛔ **Solo le tre famiglie che hanno un canale colore per istanza**: disco, corone dei glifi e griglia.
+	 * `Relief`, `Blockers` ed `EdgeFeatures` il velo li nasconde e basta, e attenuarli richiederebbe un canale
+	 * nei loro materiali che questa fetta non apre.
+	 */
+	TArray<float> VeilDisplayFactor;
+	TArray<float> GlyphDisplayFactor[4];
+	TArray<float> BorderDisplayFactor;
+
+	/**
+	 * 🔑 **Quante istanze non hanno ancora raggiunto il proprio fattore.** E' il segnale con cui il `Tick` si
+	 * spegne: **zero significa converso**, e da li' in poi il velo non costa piu' niente per fotogramma.
+	 *
+	 * ⚠️ Senza, «il velo sta sfumando» e «il velo ha finito e continua a pagarne il costo» sarebbero
+	 * indistinguibili da fuori — lo stesso difetto che `GetLastVeilTouchedCells` rende misurabile sull'altra
+	 * meta' del problema.
+	 */
+	int32 VeilCellsInTransition = 0;
+
+	/** Le due costanti di tempo, editabili per i test e per il ramo `Instant`. Vedi `SetVeilTransitionParams`. */
+	FRTVeilTransitionParams VeilTransition;
+
+	/**
+	 * Avanza di `DeltaSeconds` i fattori che non sono ancora al proprio target, e riscrive il colore delle
+	 * sole istanze che si sono mosse.
+	 *
+	 * ⚠️ **Scandisce tutte le istanze, ma solo mentre qualcosa si muove**: `VeilCellsInTransition` spegne il
+	 * `Tick` a convergenza, quindi il costo a regime e' **zero**, non «un confronto per istanza per
+	 * fotogramma». Durante una transizione il confronto e' un `float` per istanza e la scrittura tocca la
+	 * sola banda che cambia — la stessa disciplina di `Last…VeilState`, un livello piu' sotto.
+	 */
+	void AdvanceVeilTransition(float DeltaSeconds);
+
+	/** Un passo del filtro su UNA famiglia. Risponde quante istanze restano in movimento. */
+	int32 AdvanceVeilFamily(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
+		const TArray<uint8>& LastState, TArray<float>& DisplayFactor, float DeltaSeconds,
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
 
 	/**
 	 * Il velo su UNA famiglia di istanze. Esiste perche' le famiglie sono cinque e la regola e' una sola:
@@ -1090,7 +1207,7 @@ protected:
 	 * @return quante istanze sono state davvero toccate.
 	 */
 	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
-		const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
+		const TArray<FVector>& BaseScale, TArray<uint8>& LastState, TArray<float>* DisplayFactor,
 		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
 		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
 

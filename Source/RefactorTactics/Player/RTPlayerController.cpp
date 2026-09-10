@@ -1471,7 +1471,10 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
-			SelectedUnit->PlannedAttackTarget = ClickedUnit;
+			// ⛔ **Ritira la dichiarazione OPPOSTA**, e senza questa riga il piano andava altrove (`#2884`):
+			// `bAttackTargetsCell` non lo azzerava nessuno, e il Blast lo legge PRIMA del bersaglio-unita'.
+			// Misurato: chi puntava una cella e poi cambiava idea su un nemico gli faceva `0` danni.
+			SelectedUnit->DeclareAttackOnUnit(ClickedUnit);
 			// La zona colpita compare SUBITO, col fuoco amico gia' segnalato: e' il momento in cui il giocatore
 			// puo' ancora cambiare idea. Dopo il lock-in l'informazione non serve piu' a niente.
 			RefreshPlanningPreview(GetWorld(), SelectedUnit);
@@ -2143,7 +2146,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 		if (Unit->CanUseAbility(Index))
 		{
 			Unit->PlannedAbilityIndex = Index;
-			Unit->PlannedAttackTarget = nullptr;
+			// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
+			Unit->ClearPlannedAttack();
 			UE_LOG(LogRT, Log, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		}
 		else
@@ -2645,9 +2649,9 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	}
 
 	Unit->PlannedAbilityIndex = Armed;
-	Unit->PlannedAttackTarget = nullptr; // il bersaglio e' la CELLA: un target-unita' residuo la sovrascriverebbe
-	Unit->PlannedAttackCell = Cell;
-	Unit->bAttackTargetsCell = true;
+	// Il bersaglio e' la CELLA, e la coppia si scrive in un colpo solo: e' `ARTUnit` a sapere che le due
+	// forme sono esclusive, non i suoi chiamanti (`#2884`).
+	Unit->DeclareAttackOnCell(Cell);
 
 	RefreshPlanningPreview(GetWorld(), Unit);
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -2710,9 +2714,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// Cella E direzione: il resolver di CP 9.5 rifiuta con `CoverRejected` se il piano non dichiara il lato,
 	// e a portata 3 il bordo non si deduce piu' dalla coppia di celle.
 	Unit->PlannedAbilityIndex = Armed;
-	Unit->PlannedAttackTarget = nullptr;
-	Unit->PlannedAttackCell = Cell;
-	Unit->bAttackTargetsCell = true;
+	Unit->DeclareAttackOnCell(Cell);
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;
 

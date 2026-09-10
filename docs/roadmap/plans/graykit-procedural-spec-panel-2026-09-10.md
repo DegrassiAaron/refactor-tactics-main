@@ -180,11 +180,18 @@ il binario misurato appartiene al codice misurato.
 
 ## 7. Ciò che resta, e il debito dichiarato
 
-- 🔴 **La posa non ha ancora un consumatore.** È lo stesso difetto che il referto
+- ✅ **RISOLTO il 2026-09-10 da #2880.** Questa riga diceva *«la posa non ha ancora un consumatore»* e lo
+  chiamava il rischio principale, per analogia col difetto che
   [`graykit-asset-roadmap-v10-spec-panel-2026-08-30.md`](graykit-asset-roadmap-v10-spec-panel-2026-08-30.md)
-  §1 ha diagnosticato sul kit v0.1 — *«esiste, è generato, è testato e non lo usa nessuno»*. Qui è **atteso e
-  temporaneo**, non ignorato: il consumatore richiede i componenti `LeftArm`/`RightArm` sull'unità, che è
-  lavoro Editor (§8). Se quel lavoro non avviene, questo codice diventa il secondo caso della stessa forma.
+  §1 aveva diagnosticato sul kit v0.1 — *«esiste, è generato, è testato e non lo usa nessuno»*.
+  Il consumatore esiste: `ARTUnit::LeftArm` / `RightArm`, `ApplyGraykitPose`, `ResetGraykitPose`, e il
+  playback che li chiama sullo **stesso alpha** del movimento (`RTTurnManager.cpp`).
+  🔴 **E la previsione di questo referto era sbagliata su un punto**: diceva che il consumatore *«è lavoro
+  Editor (§8)»*. Non lo era. Il difetto vero non erano i componenti — erano **la regola di visibilità** e
+  **il reset**, e nessuno dei due si vede aprendo l'Editor: il primo è `ShouldShowPlaceholderMesh`, che
+  nasconde il segnaposto sugli eroi skeletal e che due bracci ignari avrebbero contraddetto; il secondo è
+  che un `Lean` concluso *tiene* il proprio valore, quindi senza reset l'unità resta storta dal secondo turno
+  in poi. Entrambi sono C++ e si misurano headless.
 - ⚠️ **I numeri dei descriptor non sono un accordo di design.** Nessuno li ha visti a schermo: sono `NOT RUN`
   sul piano estetico per quanto verdi siano i test. Il tuning appartiene alla seduta Editor.
 - ⚠️ **`Trail`, `Ghost`, `ImpactBurst` restano fuori** con una ragione (sono emissioni con stato, non pose) e
