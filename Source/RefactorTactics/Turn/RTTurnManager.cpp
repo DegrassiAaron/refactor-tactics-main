@@ -1,6 +1,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
+#include "Unit/RTGraykitLibrary.h" // #2880: la posa si valuta sullo stesso Alpha del movimento
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTPlanValidationLibrary.h" // CP 38.2: la legalita' del piano si CHIEDE al commit
 #include "Turn/RTActionQueueLibrary.h"
@@ -7684,7 +7685,10 @@ void ARTTurnManager::EnterPlaybackPhase()
 	// il flag lo spegneva solo FinishPlayback, a risoluzione conclusa.
 	for (const FRTMoveAnim& A : MoveAnims)
 	{
-		if (A.Unit.IsValid()) { A.Unit->bIsMovingVisually = false; }
+		// 🔴 La posa torna a riposo INSIEME al flag, e non dopo: un `Lean` concluso TIENE il proprio valore
+		// finale (e' il patto di `WindowAlpha`), quindi senza questa riga il corpo resterebbe inclinato per
+		// tutto il resto del turno — un difetto che si vedrebbe solo dal secondo turno in poi.
+		if (A.Unit.IsValid()) { A.Unit->bIsMovingVisually = false; A.Unit->ResetGraykitPose(); }
 	}
 
 	if (Ph == ERTMatchPhase::Dash || Ph == ERTMatchPhase::Move || Ph == ERTMatchPhase::Blast)
@@ -7878,6 +7882,23 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 					? URTPlaybackLibrary::RouteAlpha(A.World.Num() - 1, PlaybackPhaseElapsed, PlaybackCellsPerSecond)
 					: AlphaFase;
 				A.Unit->SetVisualLocation(URTPlaybackLibrary::InterpolateAlongPath(A.World, Alpha));
+
+				// Posa graykit (#2880): il corpo si deforma attorno al punto dove `SetVisualLocation` lo ha
+				// appena messo.
+				//
+				// 🔑 **Si riusa `Alpha`, non se ne calcola un altro.** E' il tempo normalizzato di QUESTA
+				// unita' su QUESTO percorso — per percorso nel Move/Dash (#2370), di fase nel Blast — e
+				// ricalcolarlo qui produrrebbe due orologi sulla stessa animazione, sfasati al primo cambio
+				// di velocita' di playback.
+				//
+				// ⚠️ **Lo stile si sceglie dalla FASE, ed e' esplicitamente temporaneo**: il TurnManager
+				// conosce gia' `Ph`, quindi non nasce nessun mapping nuovo — legge un dato che ha in mano.
+				// Quando #2881 chiudera', la scelta si sposta li' e questa riga diventa una chiamata.
+				const ERTGraykitLocomotionStyle Style = (Ph == ERTMatchPhase::Dash)
+					? ERTGraykitLocomotionStyle::Run
+					: ERTGraykitLocomotionStyle::Normal;
+				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
+					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
 			}
 		}
 	}
@@ -8109,7 +8130,8 @@ void ARTTurnManager::FinishPlayback()
 		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), AllUnits);
 		for (AActor* UnitActor : AllUnits)
 		{
-			if (ARTUnit* U = Cast<ARTUnit>(UnitActor)) { U->bIsMovingVisually = false; }
+			// Stessa ragione della fase: la posa non deve sopravvivere alla risoluzione che l'ha prodotta.
+			if (ARTUnit* U = Cast<ARTUnit>(UnitActor)) { U->bIsMovingVisually = false; U->ResetGraykitPose(); }
 		}
 	}
 	OnResolvePlaybackFinished.Broadcast();

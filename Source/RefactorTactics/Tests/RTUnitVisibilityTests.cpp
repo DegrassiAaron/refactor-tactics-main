@@ -415,4 +415,68 @@ bool FRTVeilHiddenEnemyIsNotPickableTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// I bracci graykit (#2880) seguono lo STESSO predicato del cilindro segnaposto.
+//
+// 🔴 E' l'unica proprieta' che conta, ed e' la ragione per cui questo test sta QUI e non in un file suo:
+// la cosa da provare non e' «i bracci esistono», e' «i bracci sono parte del segnaposto». Su un eroe
+// skeletal con una posa legata il cilindro sparisce, e due bastoncini che non seguissero quella regola
+// resterebbero a orbitare attorno al personaggio.
+// ---------------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraykitLimbsFollowPlaceholderTest,
+	"RefactorTactics.Graykit.BracciSeguonoIlSegnaposto", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTGraykitLimbsFollowPlaceholderTest::RunTest(const FString& Parameters)
+{
+	// (a) La tabella del predicato, nei quattro casi che contano. E' la stessa che governa il cilindro:
+	// qui si dichiara che i bracci NON ne hanno una propria.
+	TestTrue(TEXT("unita' visibile senza eroe: segnaposto mostrato"),
+		ARTUnit::ShouldShowPlaceholderMesh(/*bRender*/ true, /*bHasHeroMesh*/ false, /*bHasPose*/ false));
+	TestFalse(TEXT("eroe skeletal CON posa: segnaposto nascosto"),
+		ARTUnit::ShouldShowPlaceholderMesh(true, true, true));
+	TestTrue(TEXT("eroe skeletal SENZA posa (#2545): segnaposto mostrato, non una T-pose"),
+		ARTUnit::ShouldShowPlaceholderMesh(true, true, false));
+	TestFalse(TEXT("unita' non renderizzata: segnaposto nascosto comunque"),
+		ARTUnit::ShouldShowPlaceholderMesh(false, false, false));
+
+	// (b) E i componenti veri lo seguono. Un'unita' senza skeletal: cilindro e bracci visibili insieme.
+	UWorld* World = UvMakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	UStaticMeshComponent* Placeholder = UvComponentNamed(Unit, TEXT("Mesh"));
+	UStaticMeshComponent* Left = UvComponentNamed(Unit, TEXT("LeftArm"));
+	UStaticMeshComponent* Right = UvComponentNamed(Unit, TEXT("RightArm"));
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("cilindro segnaposto"), Placeholder)
+		|| !TestNotNull(TEXT("braccio sinistro"), Left) || !TestNotNull(TEXT("braccio destro"), Right))
+	{
+		UvDestroyWorld(World);
+		return false;
+	}
+
+	// ⚠️ La transizione, non l'assegnazione: `SetKnownToObserver` ha un guard di idempotenza e un
+	// `SetKnownToObserver(true)` su un'unita' gia' nota non ricalcolerebbe nulla. E' la stessa ragione per
+	// cui i test sopra passano da `false` prima di tornare a `true`.
+	Unit->SetKnownToObserver(false);
+	Unit->SetKnownToObserver(true);
+	TestEqual(TEXT("nota: il braccio sinistro segue il cilindro"), Left->IsVisible(), Placeholder->IsVisible());
+	TestEqual(TEXT("nota: il braccio destro segue il cilindro"), Right->IsVisible(), Placeholder->IsVisible());
+
+	// (c) Velata: i bracci si spengono insieme al cilindro.
+	Unit->SetKnownToObserver(false);
+	TestFalse(TEXT("velata: il braccio sinistro e' nascosto"), Left->IsVisible());
+	TestFalse(TEXT("velata: il braccio destro e' nascosto"), Right->IsVisible());
+	TestEqual(TEXT("velata: segue ancora esattamente il cilindro"), Left->IsVisible(), Placeholder->IsVisible());
+
+	// (d) ⛔ I bracci NON somigliano agli anelli: `TeamRing` porta la squadra, cioe' informazione che il
+	// personaggio vero non dice; un braccio grigio no. Il test lo dichiara sul predicato, dove vive.
+	TestNotEqual(TEXT("sull'eroe con posa, segnaposto e anello di squadra divergono"),
+		ARTUnit::ShouldShowPlaceholderMesh(true, true, true),
+		ARTUnit::ShouldShowTeamRing(true, /*bHasTeamRingMaterial*/ true));
+
+	UvDestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
