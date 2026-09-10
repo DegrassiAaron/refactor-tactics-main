@@ -1660,7 +1660,14 @@ namespace
 					return false;
 				}
 				// `thenPhase` senza `LogEventOrder` non ha un secondo evento da filtrare.
-				if (Exp.bHasThenPhase && Exp.Kind != ERTAssertionKind::LogEventOrder)
+				//
+				// 🔴 **Si guarda la CHIAVE nel JSON, non il flag parsato**, e la prima stesura sbagliava
+				// proprio qui: `thenPhase` viene letta solo dentro il ramo `LogEventOrder`, quindi altrove
+				// `bHasThenPhase` resta falso e una guardia su di lui non scatterebbe mai — il campo
+				// passerebbe in silenzio. E' la classe di difetto che `#2698` misura per nome, *«le guardie
+				// esterne trattano un campo presente come assente»*, ritrovata scrivendo la guardia che
+				// doveva chiuderla. Colta dal test, non dalla lettura.
+				if (Obj->HasField(TEXT("thenPhase")) && Exp.Kind != ERTAssertionKind::LogEventOrder)
 				{
 					OutError = FString::Printf(
 						TEXT("assertion %s: 'thenPhase' vale solo per LogEventOrder, che e' la sola con un")
