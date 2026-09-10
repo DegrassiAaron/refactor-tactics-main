@@ -1461,4 +1461,68 @@ bool FRTAreaOverlayDrawingIsInertTest::RunTest(const FString&)
 }
 
 
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il canale di PLAYBACK dell'impronta e' additivo, indipendente dall'anteprima, e si spegne — `#2454`.
+ *
+ * 🔑 **Il punto del test e' l'indipendenza dai due cicli di vita.** `SetPreviewHitCells` mostra cio' che
+ * *accadrebbe* e muore al lock-in; `AddPlaybackFootprint` mostra cio' che **e' accaduto** e muore a
+ * `FinishPlayback`. Se un giorno qualcuno li fondesse in un array solo, spegnere l'anteprima cancellerebbe
+ * un fatto gia' avvenuto — e questo test cade.
+ *
+ * ⚠️ Verifica cio' che l'actor **riceve**, non cio' che disegna: il disegno non e' misurabile senza schermo,
+ * e il suo giudizio appartiene alla voce PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPlaybackFootprintChannelTest,
+	"RefactorTactics.HexMapActor.PlaybackFootprintIsItsOwnChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPlaybackFootprintChannelTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	TestNotNull(TEXT("actor spawnato"), Actor);
+	if (!Actor) { DestroyMapActorWorld(World); return false; }
+
+	const FRTCellId A(0, 0);
+	const FRTCellId B(1, 0);
+	const FRTCellId C(0, 1);
+
+	TestEqual(TEXT("si parte senza impronta"), Actor->NumPlaybackFootprintCells(), 0);
+
+	// Prima impronta: le celle arrivano cosi' come sono passate.
+	Actor->AddPlaybackFootprint({ A, B });
+	TestEqual(TEXT("due celle dopo la prima impronta"), Actor->NumPlaybackFootprintCells(), 2);
+	TestTrue(TEXT("A e' nell'impronta"), Actor->IsPlaybackFootprintCell(A));
+	TestTrue(TEXT("B e' nell'impronta"), Actor->IsPlaybackFootprintCell(B));
+	TestFalse(TEXT("C non lo e' ancora"), Actor->IsPlaybackFootprintCell(C));
+
+	// 🔴 **Additivo: `un evento -> un segnale`.** Due impronte nello stesso Blast sono due fatti, e la
+	// seconda non sostituisce la prima. Se qualcuno cambiasse `Append` in assegnazione, questa riga cade.
+	Actor->AddPlaybackFootprint({ C });
+	TestEqual(TEXT("tre celle dopo la seconda impronta"), Actor->NumPlaybackFootprintCells(), 3);
+	TestTrue(TEXT("A e' ancora li'"), Actor->IsPlaybackFootprintCell(A));
+	TestTrue(TEXT("e C si e' aggiunta"), Actor->IsPlaybackFootprintCell(C));
+
+	// ⛔ **I due canali non si toccano.** Spegnere l'anteprima non cancella un fatto gia' avvenuto.
+	Actor->SetPreviewHitCells({ A }, {});
+	Actor->SetPreviewHitCells({}, {});
+	TestEqual(TEXT("spenta l'anteprima, l'impronta di playback resta"),
+		Actor->NumPlaybackFootprintCells(), 3);
+
+	// … e viceversa: e' `FinishPlayback` a spegnere questo canale, e nessun altro.
+	Actor->ClearPlaybackFootprint();
+	TestEqual(TEXT("dopo Clear non resta nessuna cella"), Actor->NumPlaybackFootprintCells(), 0);
+	TestFalse(TEXT("e nessuna cella risponde piu' vero"), Actor->IsPlaybackFootprintCell(A));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+
 #endif // WITH_DEV_AUTOMATION_TESTS
