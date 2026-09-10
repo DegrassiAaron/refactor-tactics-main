@@ -111,25 +111,31 @@ Gli script esistono in due posti con ruoli diversi:
 * `~/.mcp-shared/bin/` e' la copia **operativa**: e' quella che lo Scheduled Task e l'hook
   `SessionStart` invocano davvero.
 
-Questa duplicazione ha gia' prodotto un drift una volta: la macchina girava su script corretti
-mentre il repo era fermo alla prima stesura, e chi leggeva il repo trovava istruzioni smentite
-dalla misura. Dopo ogni modifica, da un lato o dall'altro, confronta:
+Questa duplicazione ha gia' prodotto un drift due volte in un giorno: la macchina girava su
+script corretti mentre il repository era fermo a una stesura smentita dalla misura, e chi leggeva
+il repository trovava istruzioni sbagliate. Dopo ogni modifica, da un lato o dall'altro:
 
 ```powershell
-Get-ChildItem .\*.ps1 | ForEach-Object {
-  $mine = (Get-FileHash $_.FullName).Hash
-  $live = Join-Path $HOME ".mcp-shared\bin\$($_.Name)"
-  $theirs = if (Test-Path $live) { (Get-FileHash $live).Hash } else { 'ASSENTE' }
-  [pscustomobject]@{ Script=$_.Name; Uguali=($mine -eq $theirs); Operativo=$theirs }
-} | Format-Table -AutoSize
+.\kit-drift-check.ps1     # exit 0 se allineati, 1 altrimenti
 ```
 
-Se una riga dice `False`, decidi **quale** delle due e' quella giusta prima di allinearle: la copia
-operativa e' quella che ha superato le misure, la copia versionata e' quella che sopravvive a un
-reinstall.
+Lo script confronta il **contenuto**, non i byte. La prima versione usava `Get-FileHash` sui file
+cosi' come stanno e segnalava `DIVERSO` su tutto: `core.autocrlf` vale `true`, quindi il working
+copy prende CRLF mentre gli script operativi, scritti da shell POSIX, hanno LF — contenuto
+identico, hash diversi. Un check che segnala sempre un problema inesistente e' peggio di nessun
+check: si impara a ignorarlo, e quando il drift e' vero non lo vede nessuno. I fine riga vengono
+quindi normalizzati prima del confronto.
 
-`install-shared-mcp.ps1` risulta `False`: e' corretto, vive solo qui e non va copiato in
-`~/.mcp-shared/bin/`.
+Rileva quattro casi, ognuno verificato: contenuto divergente, file assente dalla copia operativa,
+script presente **solo** nella copia operativa, e — il caso che rompeva la versione precedente —
+stesso contenuto con fine riga diversi, che allineato deve restare.
+
+`install-shared-mcp.ps1` e `kit-drift-check.ps1` risultano `solo-repo`: si installano e si
+eseguono da qui, non vanno copiati in `~/.mcp-shared/bin/`.
+
+Se una riga dice `DIVERSO`, decidi **quale** delle due ha ragione prima di allinearle: la copia
+operativa e' quella che ha superato le misure, la versionata e' quella che sopravvive a un
+reinstall.
 
 ## Plugin duplicati
 
