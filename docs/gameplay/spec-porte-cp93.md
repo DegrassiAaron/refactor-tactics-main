@@ -286,20 +286,16 @@ esiti si aggiungono **in coda** a `ERTEnvironmentOutcome`:
    l'apertura autorizzata (chiave, consolle, obiettivo) è CP 10.1.
    > ⏱️ **Ancora vero il 2026-09-05, e ora è anche DETTO al giocatore**: un `Interact` su una `Locked` produce
    > un rifiuto con reason code `DoorLocked` invece di non fare niente in silenzio ([D-331]).
-4. ~~**Le porte non hanno integrità.**~~ 🔵 **EMENDATO da [`D-375`](../decisions/RT_PDR_00_Decision_Log.md)
-   il 2026-09-10.** Il testo diceva: *«`Destroyed` è uno stato raggiungibile solo per comando esplicito: il
-   danno strutturale che le abbatta è fuori dal perimetro di questo checkpoint (le coperture ce l'hanno da
-   CP 9.2)»*. **Ora le porte hanno integrità**: `FRTHexDoor` acquista `Integrity` con
-   `DefaultIntegrity = 35`, nella forma che `FRTHexEdge` già porta — `Integrity` + stato terminale, legati
-   dalla guardia di `ValidateMap`. `Destroyed` resta raggiungibile per comando esplicito **e** diventa
-   raggiungibile per danno strutturale.
-   > ⚠️ **La decisione non è implementata**, e la sua colonna Impatto elenca in ordine ciò che serve — a
-   > partire dal percorso di **raccolta**: `FirstCoveredEdge` non vede le porte, quindi finché il danno non
-   > passa da `FirstDoorEdge` nessun `FRTStructureHit` nasce su una porta e questo invariante resta vero
-   > *di fatto* pur essendo emendato *di diritto*.
-   > ⛔ **E la distruzione deve seguire `DamageArc`, non `DamageFace`**: quest'ultima rimuove la voce a
-   > zero, e con essa `StableId` e `DoorId` — cioè proprio l'identità che CP 23.3 ha appena finito di dare
-   > alle porte.
+4. **Le porte non hanno integrità.** `Destroyed` è uno stato raggiungibile solo per comando esplicito: il danno
+   strutturale che le abbatta è fuori dal perimetro di questo checkpoint (le coperture ce l'hanno da CP 9.2).
+   > ⏱️ **Scaduto il 2026-09-10** ([`D-375`](../decisions/RT_PDR_00_Decision_Log.md)). `FRTHexDoor` acquista
+   > `Integrity` con `DefaultIntegrity = 35`, nella forma che `FRTHexEdge` già porta — `Integrity` più stato
+   > terminale — e `Destroyed` diventa raggiungibile **anche** per danno strutturale, oltre che per comando.
+   > La riga resta come storia del checkpoint, non come stato del codice.
+   >
+   > ⚠️ **Scaduto di diritto, non ancora di fatto.** `FirstCoveredEdge` non vede le porte, quindi finché il
+   > danno non ha un percorso verso di esse nessun `FRTStructureHit` nasce su una porta. `D-375` elenca i tre
+   > vincoli che ne discendono; il lavoro è di [#2827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2827).
 5. **Il gruppo `DoorId` non è disegnabile.** Il dato lo prevede e i test lo esercitano, ma nessuno strumento lo
    assegna: la scelta è stata di pagare ora un `int32` invece di una seconda migrazione di formato dopo.
 6. **Nessuna durata.** Una porta resta nello stato in cui la si lascia: la scadenza degli stati topologici è
