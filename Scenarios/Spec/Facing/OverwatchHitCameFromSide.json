@@ -1,7 +1,7 @@
 {
   "scenarioId": "Spec.Facing.OverwatchHitCameFromSide",
   "tags": ["facing", "overwatch", "reactions", "turnlog", "spec", "wraith", "phase"],
-  "version": 2,
+  "version": 5,
   "seed": 0,
   "mapRadius": 5,
 
@@ -35,7 +35,8 @@
         { "unit": "P1", "move": [[-2, -1, 0], [-1, -1, 0]], "facing": "W" }
       ],
       "decisions": [
-        { "unit": "V1", "respond": "FIRE", "target": "P1" }
+        { "on": { "reactor": "V1", "reaction": "Action.Overwatch", "triggerUnit": "P1" },
+          "respond": "FIRE", "target": "P1" }
       ]
     }
   ],

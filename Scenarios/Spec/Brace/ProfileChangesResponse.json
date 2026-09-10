@@ -1,7 +1,7 @@
 {
   "scenarioId": "Spec.Brace.ProfileChangesResponse",
   "tags": ["spec", "reactions", "brace", "profile", "riktor", "phase"],
-  "version": 3,
+  "version": 5,
   "seed": 0,
   "mapRadius": 4,
 
@@ -40,7 +40,8 @@
       ],
       "decisions": [
         { "_nota": "Nessuna decisione per B1: la sua finestra non si apre, e dichiararne una qui sarebbe il caso simmetrico della «finestra scoperta» — una decisione che nessuno consuma, che `FRTScenarioSession` conta nel residuo e segnala.",
-          "unit": "R1", "respond": "SIDESTEP" }
+          "_nota_selettore": "⛔ Il selettore porta il solo `reactor`, e l'omissione di `triggerUnit` e' deliberata: una finestra di profilo non offre risposte `FIRE:<id>`, e il vincolo di trigger si confronta proprio con quelle. Dichiararlo qui darebbe un selettore che NESSUNA finestra puo' soddisfare — la decisione finirebbe nel residuo, e il referto direbbe «nessuna finestra ha soddisfatto il selettore» su uno scenario sano.",
+          "on": { "reactor": "R1" }, "respond": "SIDESTEP" }
       ]
     }
   ],

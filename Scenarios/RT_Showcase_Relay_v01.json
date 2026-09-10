@@ -9,7 +9,7 @@
     "riktor",
     "wraith"
   ],
-  "version": 2,
+  "version": 5,
   "seed": 12345,
   "_nota": "Showcase canonica «Relay Basin». La geometria NON e' qui: e' riferita per nome e vive in MakeShowcaseRelayBasinArena, protetta da ShowcaseRelay.BasinLayoutMatchesSpec. Quarantacinque celle copiate qui sarebbero una seconda verita' che nessuno confronta con la prima. Spec: docs/product/showcase-v0.1.md",
   "fixture": "RelayBasin",
@@ -216,11 +216,20 @@
       ],
       "decisions": [
         {
-          "unit": "Ivrin",
+          "_nota": "Le due risposte NON si abbinano piu' per ordine: ciascuna nomina il proprio trigger. La premessa «Gadget entra per PRIMO, Phase arriva dopo» era tenuta a mano dalla nota del turno, e un waypoint spostato la invertiva senza che nulla lo dicesse.",
+          "on": {
+            "reactor": "Ivrin",
+            "reaction": "Action.Overwatch",
+            "triggerUnit": "Gadget"
+          },
           "respond": "HOLD"
         },
         {
-          "unit": "Ivrin",
+          "on": {
+            "reactor": "Ivrin",
+            "reaction": "Action.Overwatch",
+            "triggerUnit": "Phase"
+          },
           "respond": "FIRE",
           "target": "Phase"
         }
