@@ -106,7 +106,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// regge piu'**: la decisione d'autore ha portato anche `HazardDamage` in attesa, con owner `#2455`.
 	// Questo evento esiste **precisamente perche' un giorno si mostri** —
 	// #1945 lo introduce per portare a valle le celle risolte, e la cue che le disegna (tracer, impatto,
-	// resa dell'area) e' lavoro di E21 che non e' ancora stato fatto.
+	// resa dell'area) e' lavoro di #2454 che non e' ancora stato fatto.
 	//
 	// ⚠️ **Dichiarare cue inventate sarebbe peggio che dichiarare l'assenza.** Le altre voci di questa
 	// tabella nominano funzioni che il C++ chiama davvero; scrivere qui il nome di un effetto che nessuno
@@ -115,11 +115,15 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⚠️ **Questa voce va RIVISTA, non ereditata**, appena la cue nasce: e' il segnaposto che il gate
 	// sorveglia, ed e' il motivo per cui il dato viene emesso prima del disegno e non insieme a lui.
-	// 🔑 L'owner che la sciogliera' e' ora un CAMPO (`PendingOwner`), non una frase: `E21`.
+	// 🔑 L'owner che la sciogliera' e' ora un CAMPO (`PendingOwner`), non una frase: `#2454`.
+	// ⌫ **Diceva `E21` fino al 2026-09-10, e un'epic non e' un owner di lavoro.** Il campo esiste per
+	// rispondere a *«quell'owner e' ancora aperto?»*: un'epic risponde SI per mesi, cioe' risponde senza
+	// informare. Letti uno per uno, i tre checkpoint di E21 (#287, #288, #289) non contengono l'impronta.
+	// Stessa correzione gia' fatta altrove: #1408 assegnava la dock a un'epic, e il lavoro e' andato a #2826.
 	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::AttackFootprint,
 		TEXT("Il dato esiste perche' la cue POSSA essere costruita: #1945 porta a valle le celle risolte, e ")
-		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma."),
-		TEXT("E21")));
+		TEXT("la resa dell'area e' fuori dal suo scope. Nessuna cue oggi lo consuma."),
+		TEXT("#2454")));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo
