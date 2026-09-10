@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-10 (`INT-9`, `INT-10`; `BLIND-1` `BLIND-4` `BLIND-5` chiuse da [D-371] [D-373] [D-374]; il blocco di #2793 si sposta su `BLIND-2` -> `OBS-1`)
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-10 (`GKPROC-1`, la contraddizione che il codice non puo' arbitrare; `INT-9`, `INT-10`; `BLIND-1` `BLIND-4` `BLIND-5` chiuse da [D-371] [D-373] [D-374]; il blocco di #2793 si sposta su `BLIND-2` -> `OBS-1`)
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -22,6 +22,25 @@
 > risposta, ed è la disciplina che questo documento dichiara dodici righe più in alto.
 > 🔴 **`GBX-1` e `GBX-5` NON sono fra queste**: la sessione ne ha deciso il **metodo**
 > ([`D-283`](decisions/RT_PDR_00_Decision_Log.md)) e ha lasciato i **numeri aperti** fino a `U25`.
+
+---
+
+## Aperta — il graykit procedurale e' un valutatore o una seconda pipeline, dal mandato Graykit del 2026-09-10
+
+Origine: il mandato `.temp/Graykit.md`, sottoposto a spec panel e **eseguito in parte** — referto in
+[`roadmap/plans/graykit-procedural-spec-panel-2026-09-10.md`](roadmap/plans/graykit-procedural-spec-panel-2026-09-10.md).
+Misurato su `origin/main` `1a4206c7`; il codice consegnato e' `27f43c4a`.
+Issue correlate: #286 · #288 · #1990 · #2453 · #2444 · #2449.
+
+🔑 **Perche' questa voce esiste, e perche' e' una sola.** Delle dodici milestone del mandato, undici si
+risolvono per misura: hanno gia' un owner (`GK-02` -> [D-278], `GK-09` -> `FRTOverlayArea`), oppure sono
+gap reali e stretti che il commit `27f43c4a` ha gia' coperto (`GK-01`, `GK-03`). **`GK-12` no**: non e' un
+gap, e' una **contraddizione fra due fonti che nessuno ha ancora messo nella stessa frase**, e il modo di
+chiuderla non e' scrivere codice.
+
+| ID | Domanda | Perche' non si deduce |
+|---|---|---|
+| `GKPROC-1` | **Il graykit procedurale e' un valutatore di pose DENTRO la presentazione esistente, o una seconda pipeline selezionabile?** | 🔴 **Due fonti vive dicono cose incompatibili, ed entrambe sono recenti.** Il mandato `GK-12` chiede che *«il Graykit possa funzionare anche come modalita' debug permanente»* con quattro modalita' — `Final`, `Graykit`, `Hybrid`, `Debug`. Il referto [`rt3b-graykit-animation-feasibility-2026-09-05.md`](roadmap/plans/rt3b-graykit-animation-feasibility-2026-09-05.md) poneva invece come **vincolo del mandato stesso** *«senza una seconda pipeline»*, e la decisione d'autore del 2026-09-05 — registrata nel commento di chiusura di [#2449](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2449), **senza `D-nnn`** — ha scelto `UAnimSequence` RT-owned esportate come fallback di presentazione. Le due letture convivono solo perche' nessuno le ha confrontate. ⚠️ **E la contraddizione non e' risolvibile osservando il codice**, perche' il codice non ha ancora ne' l'una ne' l'altra: `grep` su `PresentationMode\|HybridMode` in `Source/` da' **zero**, e la decisione #2449 ha prodotto **zero asset**. Non c'e' un'implementazione che faccia da arbitro. 🔑 **Cio' che la misura HA stabilito** e' che il valutatore puro non e' in conflitto con nulla: `URTGraykitLibrary::Evaluate` non ha un `AActor` in nessuna firma, consuma l'alpha che [`URTPlaybackLibrary`](../Source/RefactorTactics/Turn/RTPlaybackLibrary.h) gia' produce, e i suoi test passano headless. Il conflitto nasce **solo** al gradino successivo — quando qualcuno chiede di *sostituire* la presentazione finale invece di *deformare* quella che c'e'. **Uscite**: *(a)* **valutatore soltanto** — costo **zero**, e' cio' che `27f43c4a` ha gia' consegnato, e la posa resta un modificatore che convive con qualunque mesh; ⛔ ma *«modalita' debug permanente»* resta non soddisfatta, e chi la vuole tornera' a chiederla. *(b)* **seconda pipeline con selettore di modalita'** — apre `GK-12` per intero; ⛔ ma contraddice il vincolo di RT3-B, e **raddoppia i consumatori di ogni cue**: ogni `ERTResolvedEventType` di [D-278] dovrebbe avere una resa finale *e* una graykit, cioe' la tabella di `URTPresentationBindingLibrary` diventa bidimensionale. ⚠️ Va detto che il costo non e' l'implementazione, e' la **manutenzione della seconda colonna**, che invecchia in silenzio quando qualcuno aggiunge un evento. *(c)* **modalita' confinata a una mappa di laboratorio** — `L_GrayKitPlayground` esiste gia' e [#1990](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1990) la possiede; non tocca la partita e non raddoppia nessuna tabella; ⚠️ ma allora non e' *«permanente»* nel senso che il mandato intende, ed e' onesto dire che questa uscita **rinomina** un lavoro gia' aperto invece di aggiungerne uno. ⛔ **Cio' che nessuna uscita autorizza**: che la posa graykit diventi un canale verso la logica. `FRTGraykitNoGameplayMutationTest` lo misura oggi, e quel test **resta** qualunque uscita si scelga. **Innesco**: [#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288), che possiede la presentazione della locomozione, oppure la prima issue che chieda un selettore di modalita' — e in ogni caso **prima** che la decisione #2449 riceva il suo `D-nnn`, perche' le due vanno scritte insieme o si contraddiranno di nuovo |
 
 ---
 
