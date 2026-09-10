@@ -339,6 +339,31 @@ struct FRTDoorToggleRefusal
 		: IntentIndex(InIntentIndex), State(InState) {}
 };
 
+/**
+ * Un bersaglio che un colpo ha TROVATO: chi lo ha colpito (per squadra), chi e', e dove stava (`#2890`).
+ *
+ * ⚠️ **Non e' un `FRTLastKnownContact`, e la ragione e' la direzione delle dipendenze**: quel tipo vive in
+ * `Perception/`, che non conosce il combattimento e non deve cominciare. Qui si produce il FATTO — «questo
+ * colpo ha trovato quell'unita' in quella cella» — e chi possiede la conoscenza lo traduce in un contatto.
+ */
+USTRUCT(BlueprintType)
+struct FRTRevealedVictim
+{
+	GENERATED_BODY()
+
+	/** La squadra di chi ha colpito: e' lei che impara, non la vittima. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 AttackerTeamId = INDEX_NONE;
+
+	/** Identita' STABILE della vittima, non l'indice di snapshot: quello si rinumera fra i turni. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	int32 VictimStableUnitId = INDEX_NONE;
+
+	/** La cella in cui il colpo l'ha trovata — il fatto avvenuto, non la posizione di adesso. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexCombat")
+	FRTCellId Cell;
+};
+
 USTRUCT(BlueprintType)
 struct FRTHexBlastPlan
 {
@@ -726,6 +751,33 @@ public:
 	 * insieme farebbe di una domanda di presentazione un secondo validatore.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
+	/**
+	 * Chi ha trovato chi: le vittime che ogni squadra attaccante ha COLPITO (`#2890`, [D-380]).
+	 *
+	 * 🔴 **E' pura perche' la sua logica non e' ovvia, e quella del chiamante non si puo' provare.** Prima
+	 * di questa funzione le tre regole qui sotto vivevano dentro `ARTTurnManager`, dove nessun test le
+	 * raggiungeva: misurato per mutazione il 2026-09-10 — far rivelare anche gli alleati **non rendeva
+	 * rosso nessuno dei test della suite intera**. E' lo stesso difetto che [D-378] aveva gia' preso una
+	 * volta («il test che la cattura non esisteva nella prima stesura»), e qui si ripresentava identico.
+	 *
+	 * Le tre regole:
+	 *
+	 * 1. ⛔ **un colpo su un ALLEATO non rivela niente** — la conoscenza di squadra non contiene se stessa
+	 *    (`ClassifyTarget` lo dichiara), quindi un contatto sui propri sarebbe un dato che nessun
+	 *    consumatore sa leggere. Il fuoco amico esiste, quindi il caso e' reale;
+	 * 2. ⚠️ **una vittima per attaccante, non una per colpo** — un'area che investe lo stesso nemico due
+	 *    volte, o due tiratori della stessa squadra, sono casi ordinari;
+	 * 3. 🔑 **la cella e' quella dello SNAPSHOT** — dove il colpo l'ha trovata. Leggerla dall'Actor
+	 *    prenderebbe una posizione che il Move puo' gia' aver cambiato.
+	 *
+	 * @param Hits           i colpi del piano DEFINITIVO, dopo interrupt e intercettazioni
+	 * @param Units          lo snapshot contro cui il piano e' stato calcolato
+	 * @param StableUnitIds  parallelo a `Units`: l'identita' stabile di ciascuno. Un disallineamento di
+	 *                       lunghezza non si indovina — la voce si salta, fail-closed
+	 */
+	static TArray<FRTRevealedVictim> VictimsRevealedByHits(const TArray<FRTHexAttackHit>& Hits,
+		const TArray<FRTHexCombatUnit>& Units, const TArray<int32>& StableUnitIds);
+
 	static FRTBlastPreview MakeBlastPreview(const FRTBlastPreviewPlan& Plan,
 		const TArray<FRTHexCombatUnit>& Units);
 

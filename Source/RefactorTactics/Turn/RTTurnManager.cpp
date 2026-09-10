@@ -2234,6 +2234,15 @@ void ARTTurnManager::LockInAndResolve()
 		return; // gia' in risoluzione o non in pianificazione: ignora un secondo lock-in
 	}
 
+	// 🔑 **Il seme del velo durante il playback: lo stato PRE-TURNO** (`#2876`). Si copia qui, prima che
+	// qualunque fase risolva, perche' e' l'unico istante in cui `TeamKnowledgeState` non contiene ancora il
+	// transito di questo turno ([D-379]). Copiarlo dopo farebbe accendere il corridoio prima che l'unita' ci
+	// arrivi — il playback mostrerebbe il futuro.
+	//
+	// ⛔ **Presentazione, non gioco**: nessuna regola lo consulta, e non entra ne' nello snapshot ne' nel
+	// `TurnLog` ne' nello `StateHash`.
+	PlaybackKnowledgeState = TeamKnowledgeState;
+
 	// L'identita' di partita si fissa QUI, prima che il turno produca la sua prima voce di TurnLog (#405).
 	// Questo e' il punto comune ai due percorsi: il gioco ci arriva da `StartPlanningTimer`, lo Scenario
 	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.
@@ -5722,6 +5731,19 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyInterrupts(Ctx);
 	ResolveInterceptions(Ctx);
 
+	// ➕ **Chi e' stato colpito diventa noto a chi lo ha colpito** (`#2890`, [D-380]).
+	//
+	// 🔑 **QUI e non dopo `CollectHexAttacks`**, ed e' la ragione per cui la chiamata sta su questa riga:
+	// le due funzioni sopra riscrivono il piano — la prima toglie i colpi che non devono partire, la
+	// seconda cambia chi li incassa — quindi solo adesso `Plan.Hits` dice cio' che e' **davvero avvenuto**.
+	// Rivelare prima significherebbe che un colpo interrotto insegna comunque dov'era il nemico: una
+	// rivelazione che nessuno ha pagato.
+	//
+	// ⚠️ **E prima del ciclo del danno**, cosi' le voci di TurnLog dei colpi si congelano ([D-223]) contro
+	// una conoscenza che gia' include la rivelazione — altrimenti chi spara al buio applicherebbe il danno
+	// e non leggerebbe la riga che lo racconta.
+	RevealHitTargetsToAttackers(Ctx);
+
 	RunBlastReactions(Ctx);
 	LogBlockedIntents(Ctx);
 	ApplyEnvironmentChanges(Ctx);
@@ -6730,6 +6752,115 @@ const URTHexMapAsset* ARTTurnManager::GetHexContext(FVector& OutOrigin, float& O
 	return nullptr;
 }
 
+FRTTeamKnowledge ARTTurnManager::PlaybackKnowledgeForTeam(int32 TeamId) const
+{
+	for (const FRTTeamKnowledge& K : PlaybackKnowledgeState)
+	{
+		if (K.TeamId == TeamId) { return K; }
+	}
+	// Fuori dal playback — o per una squadra che il seme non conosceva — vale la canonica: e' cio' che il
+	// velo mostrava prima di `#2876`, quindi il ripiego non cambia niente invece di inventare uno stato.
+	return KnowledgeForTeam(TeamId);
+}
+
+bool ARTTurnManager::AnimatedCellFor(const ARTUnit* Unit, FRTCellId& OutCell) const
+{
+	if (!Unit || !PlaybackPhases.IsValidIndex(PlaybackPhaseIdx))
+	{
+		return false;
+	}
+	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
+
+	for (int32 A = 0; A < MoveAnims.Num(); ++A)
+	{
+		const FRTMoveAnim& Anim = MoveAnims[A];
+		if (Anim.Phase != Ph || Anim.Unit.Get() != Unit || Anim.Cells.Num() == 0)
+		{
+			continue;
+		}
+		const int32 Idx = PlaybackAnimCellIndex.IsValidIndex(A) ? PlaybackAnimCellIndex[A] : 0;
+		OutCell = Anim.Cells[FMath::Clamp(Idx, 0, Anim.Cells.Num() - 1)];
+		return true;
+	}
+	return false;
+}
+
+bool ARTTurnManager::AdvancePlaybackKnowledge()
+{
+	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
+	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
+
+	TArray<ARTUnit*> Units;
+	MakeCurrentSnapshot(Units);
+
+	// Le squadre VIVE, ordinate: l'ordine di un `TSet` dipende dall'hash, e qui si itera.
+	TSet<int32> Teams;
+	for (const ARTUnit* U : Units) { if (U && U->IsAlive()) { Teams.Add(U->TeamId); } }
+	TArray<int32> SortedTeams = Teams.Array();
+	SortedTeams.Sort();
+
+	bool bCambiato = false;
+	for (const int32 TeamId : SortedTeams)
+	{
+		// Gli osservatori alle pose ANIMATE: la cella dell'anim se sta animando, altrimenti quella logica.
+		// ⚠️ `Unit->Cell` durante il playback e' gia' quella FINALE — la risoluzione e' avvenuta — quindi
+		// per chi si sta muovendo e' la posa sbagliata, ed e' esattamente il difetto che `#2876` chiude.
+		TArray<FRTPerceiver> Observers;
+		for (const ARTUnit* U : Units)
+		{
+			if (!U || !U->IsAlive() || U->TeamId != TeamId) { continue; }
+
+			FRTPerceiver P;
+			if (!AnimatedCellFor(U, P.Cell))
+			{
+				P.Cell = U->Cell;
+			}
+			P.Facing = U->Facing;
+			P.VisionRange = U->VisionRange;
+			Observers.Add(P);
+		}
+
+		// 🔑 La STESSA funzione pura dei due refresh: nessun cono nuovo, nessuna LOS nuova.
+		const TArray<FRTCellId> VisibleNow = URTPerceptionLibrary::TeamVisibleCells(Map, Observers);
+
+		FRTTeamKnowledge* Stato = nullptr;
+		for (FRTTeamKnowledge& K : PlaybackKnowledgeState)
+		{
+			if (K.TeamId == TeamId) { Stato = &K; break; }
+		}
+		if (!Stato)
+		{
+			FRTTeamKnowledge Nuova = KnowledgeForTeam(TeamId);
+			Stato = &PlaybackKnowledgeState[PlaybackKnowledgeState.Add(MoveTemp(Nuova))];
+		}
+
+		if (Stato->VisibleCells != VisibleNow)
+		{
+			Stato->VisibleCells = VisibleNow;
+			bCambiato = true;
+		}
+
+		// L'esplorato del playback CRESCE, come quello canonico: cio' che si e' gia' mostrato non si
+		// richiude alle spalle dell'unita' mentre cammina.
+		TSet<FRTCellId> Esplorato(Stato->ExploredCells);
+		bool bNuove = false;
+		for (const FRTCellId& C : VisibleNow)
+		{
+			bool bGia = false;
+			Esplorato.Add(C, &bGia);
+			bNuove |= !bGia;
+		}
+		if (bNuove)
+		{
+			Stato->ExploredCells = Esplorato.Array();
+			Stato->ExploredCells.Sort([](const FRTCellId& A, const FRTCellId& B)
+				{ return URTHexLibrary::StableLess(A, B); });
+			bCambiato = true;
+		}
+	}
+	return bCambiato;
+}
+
 FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 {
 	for (const FRTTeamKnowledge& K : TeamKnowledgeState)
@@ -7574,6 +7705,9 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 
 	// Deriva le animazioni di movimento e la lista attacchi dagli eventi risolti.
 	MoveAnims.Reset();
+	// Gli indici di cella seguono le anim a cui si riferiscono (`#2876`): sopravvivergli farebbe
+	// leggere il confine di un'altra unita'.
+	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
@@ -7617,9 +7751,13 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			Anim.Unit = Src;
 			Anim.Phase = Ev.Phase; // Dash o Move
 			Anim.World.Reserve(Visible);
+			Anim.Cells.Reserve(Visible);
 			for (int32 i = 0; i < Visible; ++i)
 			{
 				Anim.World.Add(Src->WorldForCell(Ev.Path[i], PBOrigin, PBCellSize, PBLayerHeight));
+				// La stessa cella, dallo STESSO indice troncato: chi legge le pose durante il playback
+				// (`#2876`) guarda cio' che l'anim disegna, mai la rotta piena.
+				Anim.Cells.Add(Ev.Path[i]);
 			}
 			// Metti il cilindro all'inizio della sua PRIMA anim (Dash precede Move nella timeline):
 			// niente flash sulla cella finale. Un'anim successiva della stessa unita' non ne sposta lo start.
@@ -7979,8 +8117,18 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// decisione separata con la sua evidenza, non un effetto collaterale di questa.
 		const bool bAlphaPerPercorso = (Ph != ERTMatchPhase::Blast);
 		const float AlphaFase = (PhaseDur > 0.f) ? FMath::Clamp(PlaybackPhaseElapsed / PhaseDur, 0.f, 1.f) : 1.f;
-		for (const FRTMoveAnim& A : MoveAnims)
+
+		// Il confine di micro-step (`#2876`): l'indice di cella su cui ogni anim si trovava al fotogramma
+		// scorso, per accorgersi di quando ne attraversa uno nuovo.
+		if (PlaybackAnimCellIndex.Num() != MoveAnims.Num())
 		{
+			PlaybackAnimCellIndex.Init(0, MoveAnims.Num());
+		}
+		bool bAttraversatoUnConfine = false;
+
+		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
+		{
+			const FRTMoveAnim& A = MoveAnims[AnimIdx];
 			if (A.Phase == Ph && A.Unit.IsValid())
 			{
 				// I segmenti sono quelli che l'anim DISEGNA, non quelli del percorso reale: `A.World` e' gia'
@@ -7990,6 +8138,23 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 					? URTPlaybackLibrary::RouteAlpha(A.World.Num() - 1, PlaybackPhaseElapsed, PlaybackCellsPerSecond)
 					: AlphaFase;
 				A.Unit->SetVisualLocation(URTPlaybackLibrary::InterpolateAlongPath(A.World, Alpha));
+
+				// 🔑 **Su quale cella e' ADESSO** (`#2876`). `Alpha` copre l'intero percorso disegnato,
+				// quindi l'indice e' la sua frazione sui segmenti — la stessa aritmetica che
+				// `InterpolateAlongPath` usa per scegliere il segmento, letta come intero.
+				//
+				// ⚠️ `A.Cells` e non la rotta reale: e' gia' troncato al prefisso osservabile, e leggerlo
+				// qui tiene il velo dalla parte giusta del confine di privacy — come `A.World` sopra.
+				if (A.Cells.Num() > 0)
+				{
+					const int32 Segmenti = FMath::Max(A.Cells.Num() - 1, 1);
+					const int32 Idx = FMath::Clamp(FMath::FloorToInt(Alpha * Segmenti), 0, A.Cells.Num() - 1);
+					if (PlaybackAnimCellIndex.IsValidIndex(AnimIdx) && PlaybackAnimCellIndex[AnimIdx] != Idx)
+					{
+						PlaybackAnimCellIndex[AnimIdx] = Idx;
+						bAttraversatoUnConfine = true;
+					}
+				}
 
 				// Posa graykit (#2880): il corpo si deforma attorno al punto dove `SetVisualLocation` lo ha
 				// appena messo.
@@ -8008,6 +8173,18 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
 					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
 			}
+		}
+
+		// 🔑 **Il velo puo' seguire il movimento** (`#2876`). Solo sui confini: fra due di essi le pose sono
+		// le stesse celle, e ricalcolare darebbe lo stesso insieme.
+		//
+		// ⛔ **Non e' un terzo punto di refresh della conoscenza CANONICA**: `AdvancePlaybackKnowledge`
+		// scrive `PlaybackKnowledgeState`, che e' presentazione e non entra ne' nello snapshot ne' nel
+		// `TurnLog` ne' nello `StateHash`. `OnTeamKnowledgeRefreshed` non emette, quindi
+		// `Veil.FollowsRefreshPoints` resta verde per costruzione.
+		if (bAttraversatoUnConfine && AdvancePlaybackKnowledge())
+		{
+			OnPlaybackStepAdvanced.Broadcast();
 		}
 	}
 	// ⚠️ `if`, NON `else if`: il Blast fa DUE cose insieme — scivolare (knockback, sopra) e rivelare i
@@ -8287,6 +8464,9 @@ void ARTTurnManager::FinishPlayback()
 	}
 
 	MoveAnims.Reset();
+	// Gli indici di cella seguono le anim a cui si riferiscono (`#2876`): sopravvivergli farebbe
+	// leggere il confine di un'altra unita'.
+	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round

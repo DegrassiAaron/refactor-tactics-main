@@ -21,6 +21,12 @@ void URTKnowledgeVeilPresenter::Hook(ARTTurnManager* InTurnManager)
 	InTurnManager->OnTeamKnowledgeRefreshed.AddUniqueDynamic(
 		this, &URTKnowledgeVeilPresenter::HandleTeamKnowledgeRefreshed);
 
+	// 🔑 **Il secondo canale, e non e' un secondo punto di refresh** (`#2876`): annuncia che le pose ANIMATE
+	// hanno attraversato un confine di cella, non che la conoscenza canonica sia cambiata. Stesso
+	// `AddUniqueDynamic`, per la stessa ragione dell'iscrizione qui sopra.
+	InTurnManager->OnPlaybackStepAdvanced.AddUniqueDynamic(
+		this, &URTKnowledgeVeilPresenter::HandlePlaybackStepAdvanced);
+
 	// 🔴 **E si stende SUBITO, non al primo refresh.** Senza questa riga la board nasce interamente visibile
 	// e si vela al primo `RefreshTeamKnowledgeForPlanning`: il primo fotogramma e' quello che rivela tutta la
 	// mappa, ed e' l'unico che nessun test potrebbe prendere dopo. E' una voce esplicita della DoD di `E13.8`.
@@ -73,7 +79,38 @@ void URTKnowledgeVeilPresenter::Apply()
 
 void URTKnowledgeVeilPresenter::HandleTeamKnowledgeRefreshed(int32 /*TurnNumber*/)
 {
-	// Il numero di turno non serve: il velo non ha memoria e non interpola, ridipinge lo stato corrente.
-	// Riceverlo e ignorarlo e' comunque giusto — e' la firma del delegate, non una scelta di questo sito.
+	// Il numero di turno non serve: il velo ridipinge lo stato corrente. Riceverlo e ignorarlo e' comunque
+	// giusto — e' la firma del delegate, non una scelta di questo sito.
+	//
+	// ⏱️ **«non ha memoria e non interpola» era vero fino a `#2875`**: da allora `ARTHexMapActor` fa
+	// convergere il valore disegnato verso quello che questa applicazione decide. Il CONTENUTO continua a
+	// venire da qui, cioe' dai punti di refresh; solo la convergenza segue il tempo.
 	Apply();
+}
+
+void URTKnowledgeVeilPresenter::HandlePlaybackStepAdvanced()
+{
+	// 🔑 **Il velo segue il movimento** (`#2876`): durante il playback le pose animate cambiano cella, e la
+	// board si ridipinge su quelle invece di restare congelata fino a fine turno.
+	ARTTurnManager* TM = TurnManager.Get();
+	if (!TM)
+	{
+		return;
+	}
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(TM->GetWorld());
+	if (!HexMap)
+	{
+		return;
+	}
+
+	// ⚠️ `PlaybackKnowledgeForTeam` e **non** `KnowledgeForTeamPublic`: quella, quando il playback comincia,
+	// contiene gia' tutto il transito del turno ([D-379]) e farebbe accendere il corridoio prima che
+	// l'unita' ci arrivi. Vedi il suo commento nell'header del TurnManager.
+	HexMap->ApplyKnowledgeVeil(TM->PlaybackKnowledgeForTeam(ViewerTeamId()));
+
+	// ⛔ **`Applications` NON si incrementa qui.** Quel contatore misura quante volte il velo e' stato steso
+	// **dai punti di refresh** — e' l'anello che `Veil.GameModeAppliesTheVeilForTheViewerTeam` asserisce
+	// valere `1` subito dopo l'aggancio. Sommarci i passi di playback lo renderebbe un numero che dipende
+	// dalla lunghezza dei movimenti, cioe' inutile per la domanda che esiste per rispondere.
+	++PlaybackApplications;
 }

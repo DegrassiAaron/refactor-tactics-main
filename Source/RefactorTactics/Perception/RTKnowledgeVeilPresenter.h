@@ -108,6 +108,19 @@ public:
 	 */
 	int32 GetApplications() const { return Applications; }
 
+	/**
+	 * 🔑 **Quante volte il velo e' stato ridipinto SEGUENDO IL MOVIMENTO** (`#2876`), cioe' sui confini di
+	 * micro-step del playback.
+	 *
+	 * ⛔ **Contatore SEPARATO da `Applications`, e la separazione e' il punto.** Quello misura le stesure
+	 * dai punti di refresh, ed e' l'anello che `Veil.GameModeAppliesTheVeilForTheViewerTeam` asserisce
+	 * valere `1` subito dopo l'aggancio: sommarci i passi di playback lo renderebbe un numero che dipende
+	 * dalla lunghezza dei movimenti, inutile per la domanda che esiste per rispondere.
+	 *
+	 * ⚠️ **Non e' un contatore di correttezza**: dice che il velo ha seguito, non che abbia disegnato bene.
+	 */
+	int32 GetPlaybackApplications() const { return PlaybackApplications; }
+
 protected:
 	/**
 	 * Il subscriber di `OnTeamKnowledgeRefreshed`.
@@ -119,6 +132,15 @@ protected:
 	UFUNCTION()
 	void HandleTeamKnowledgeRefreshed(int32 TurnNumber);
 
+	/**
+	 * Il subscriber di `OnPlaybackStepAdvanced` (`#2876`): le pose animate hanno cambiato cella.
+	 *
+	 * ⚠️ `UFUNCTION` per la stessa ragione dell'altro handler — il delegate e' dinamico — e per nessun'altra:
+	 * nessuna categoria, nessun `BlueprintCallable`.
+	 */
+	UFUNCTION()
+	void HandlePlaybackStepAdvanced();
+
 private:
 	/**
 	 * Da chi arriva la conoscenza. **Weak** perche' il turn manager muore col mondo e il presenter puo'
@@ -128,4 +150,7 @@ private:
 
 	/** Vedi `GetApplications()`. */
 	int32 Applications = 0;
+
+	/** Vedi `GetPlaybackApplications()`. Separato di proposito da `Applications`. */
+	int32 PlaybackApplications = 0;
 };

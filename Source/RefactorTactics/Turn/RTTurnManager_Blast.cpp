@@ -346,6 +346,63 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
+void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
+{
+	// ➕ **CHI HAI COLPITO, LO HAI TROVATO** (`#2890`, [D-380]).
+	//
+	// 🔴 **E' l'estremo che rende usabile il tiro indiretto.** [D-378] ha reso il requisito della linea un
+	// dato dell'azione e ha tenuto il **targeting** cieco: `ClassifyHexTargeting` non guarda chi sta sulla
+	// cella. Restava che un colpo al buio a segno non producesse **alcun** feedback — la voce che lo
+	// racconta e' congelata contro un soggetto che l'attaccante non conosce ([D-223]), quindi non la legge.
+	// Un'azione senza segnale e' un'azione che nessuno impara a usare.
+	//
+	// ⚠️ **Qui non c'e' nessuna REGOLA, e non e' un caso.** Chi decide *quali* vittime si rivelano e'
+	// `VictimsRevealedByHits`, pura e testabile; chi decide *come* un contatto entra in una memoria e'
+	// `RevealByHit`, pura anch'essa. Questa funzione traduce e basta. La prima stesura teneva le tre regole
+	// qui dentro, e la misura per mutazione lo ha bocciato: far rivelare anche gli alleati non rendeva rosso
+	// **nessun** test della suite intera.
+	TArray<int32> StableUnitIds;
+	StableUnitIds.Reserve(Ctx.Units.Num());
+	for (const ARTUnit* U : Ctx.Units)
+	{
+		StableUnitIds.Add(U ? U->StableUnitId : INDEX_NONE);
+	}
+
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Ctx.Plan.Hits, Ctx.HexUnits, StableUnitIds);
+	if (Rivelate.Num() == 0)
+	{
+		return; // nessun colpo fra squadre avverse: niente da rivelare, e nessuno stato da toccare
+	}
+
+	// ⚠️ **Si itera `TeamKnowledgeState`, non le rivelazioni**: questa memoria entra nello snapshot, e
+	// l'ordine di scrittura dev'essere quello delle squadre (invariante #3).
+	for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+	{
+		TArray<FRTLastKnownContact> Vittime;
+		for (const FRTRevealedVictim& V : Rivelate)
+		{
+			if (V.AttackerTeamId == Knowledge.TeamId)
+			{
+				Vittime.Add(FRTLastKnownContact(V.VictimStableUnitId, V.Cell, TurnNumber));
+			}
+		}
+		if (Vittime.Num() > 0)
+		{
+			Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, Vittime, TurnNumber);
+		}
+	}
+
+	// 🔴 **E l'istantanea d'audit si riallinea**, o il replay racconterebbe una conoscenza diversa da quella
+	// che la partita ha avuto: [D-313] congela i verdetti contro questa fotografia, e lasciarla indietro
+	// renderebbe il feedback visibile in partita e assente nella traccia.
+	if (bRecordReplay)
+	{
+		BlastKnowledgeForAudit = TeamKnowledgeState;
+	}
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
+}
+
 void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 {
 	// `Action.Cleanse` (CP 5.2): azione PRINCIPALE, non una reazione, e l'unica del Blast che agisce su CHI LA

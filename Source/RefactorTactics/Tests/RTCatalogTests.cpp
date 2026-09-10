@@ -627,6 +627,7 @@ bool FRTCoreActionsDeclareAggressionTest::RunTest(const FString&)
 	static const TSet<FName> Attese = {
 		TEXT("Action.BasicAttack"), TEXT("Action.PrecisionAttack"), TEXT("Action.HeavyAttack"),
 		TEXT("Action.LineAttack"),  TEXT("Action.CircularAoE"),     TEXT("Action.SuppressiveLine"),
+		TEXT("Action.Mortar"), // `#2890`: colpisce senza vedere, ma COLPISCE — l'aggressione la dichiara
 		TEXT("Action.Charge"),      TEXT("Action.MarkTarget"),
 		TEXT("Action.Push"),        TEXT("Action.Pull"),            TEXT("Action.Root"),
 		TEXT("Action.Slow"),        TEXT("Action.Interrupt") };
