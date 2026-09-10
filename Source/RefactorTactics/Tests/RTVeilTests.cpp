@@ -122,6 +122,21 @@ bool FRTVeilCoversExactlyUnobservedCellsTest::RunTest(const FString&)
 	TArray<FRTCellId> Tutte;
 	for (int32 I = 0; I < Totale; ++I) { Tutte.Add(HexMap->CellForInstance(I)); }
 	HexMap->ApplyKnowledgeVeil(KnowledgeOf(Tutte, Tutte));
+
+	// ⏱️ **Da `#2875` il conteggio e' un oracolo A CONVERGENZA, non a meta' dissolvenza.** `GetVeilCounts`
+	// distingue accesa da ricordata **leggendo il colore scritto**, e la cella (2,0) — l'unica che qui passa
+	// da `Remembered` a `Lit` invece che da `Hidden` — ora **attenua** verso il valore pieno: contata subito
+	// risulterebbe ancora un ricordo. ⚠️ Il difetto sarebbe del test, non del velo, e la prima misura lo ha
+	// mostrato con `A3 = 60` su `61`.
+	//
+	// 🔑 **Il reveal da `Hidden` invece e' istantaneo** ([D-225], decisione (i) di `#2875`) — ed e' il motivo
+	// per cui manca **una** cella e non sessanta.
+	for (int32 P = 0; P < 600 && HexMap->GetVeilCellsInTransition() > 0; ++P)
+	{
+		HexMap->TickActor(1.f / 60.f, LEVELTICK_All, HexMap->PrimaryActorTick);
+	}
+	TestEqual(TEXT("la dissolvenza si e' conclusa"), HexMap->GetVeilCellsInTransition(), 0);
+
 	int32 A3 = 0, R3 = 0, N3 = 0;
 	HexMap->GetVeilCounts(A3, R3, N3);
 	TestEqual(TEXT("il velo si RIALZA: nessuna cella resta nascosta"), N3, 0);
