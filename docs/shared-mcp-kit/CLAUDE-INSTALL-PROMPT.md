@@ -1,5 +1,18 @@
 # Claude Code handoff — migrate duplicated MCP processes to shared services
 
+> **STORICO — questo prompt e' gia' stato eseguito (2026-09-09/10) e alcune sue premesse sono state
+> smentite dalla misura.** Restano qui perche' il prompt e' il documento che ha prodotto la
+> migrazione, non perche' vadano rieseguite. Prima di riusarlo, leggi `README.md`, che descrive
+> l'architettura realmente in piedi. In particolare:
+>
+> * il **gateway su `127.0.0.1:8080`** non e' stato deployato: su questa macchina 8080 e' di
+>   `com.docker.backend`, e dopo l'audit non restava un backend che il gateway aiutasse;
+> * **Episodic Memory non e' centralizzabile** — `BLOCKED`: i suoi agent e skill citano
+>   `mcp__plugin_episodic-memory_*` e riesporlo con un altro nome li rompe in silenzio;
+> * **Superpowers Chrome non va condiviso**: pilota un Chrome vivo via CDP e due client si
+>   contendono la stessa scheda.
+
+
 You are operating on my Windows development machine. I use many Claude Code terminals at the same time, often in different directories, repositories and Git worktrees. Current process inventory showed heavy MCP duplication, especially Serena, Playwright, Episodic Memory and Superpowers Chrome.
 
 Your job is to INSTALL AND MIGRATE the shared MCP architecture described below. Do the work, verify it, and leave rollback artifacts. Do not merely explain what I should do.
