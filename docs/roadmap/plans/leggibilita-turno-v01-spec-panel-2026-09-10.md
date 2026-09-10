@@ -28,7 +28,7 @@ Il kit chiedeva di non trattarle come aggiornate. Rimisurate una per una sullo s
 
 | Premessa del kit | Verdetto | Evidenza su `4fdb01a0` |
 |---|---|---|
-| `ERTPointerTargetKind::Object` esiste | ✅ **regge** | `Player/RTPointerInteraction.h:66` |
+| `ERTPointerTargetKind::Object` esiste | ✅ **regge** | `Player/RTPointerInteraction.h:68` |
 | `TargetKindForAction` produce solo `None` · `Edge` · `Cell` · `Unit` | ✅ **regge** | `Player/RTPointerInteraction.cpp:4-29` — quattro `return`, nessuno è `Object` |
 | Nessun produttore normale di `TargetKind::Object` | ✅ **regge, e per una ragione più profonda di quella supposta** | vedi §1.4 |
 | Nessun `HandleTargetObject` nel controller | ✅ **regge** | esistono `HandleTargetCell` (`:2527`), `HandleTargetEdge` (`:2593`), `HandleClickOnUnit` (`:1385`), `HandleClickOnCell` (`:1597`), `HandleFacingSector` |
@@ -107,12 +107,19 @@ ramo `Object` di `ResolveTarget` è irraggiungibile **due volte**: nessuno popol
 chiama la funzione.
 
 ⚠️ **Un puntatore stantio nello stesso documento**: la casella dell'oggetto multi-mesh dice *«serve il raycast
-di `OnSelect` che riconosca gli elementi logici (**#74** per le porte)»*, e `#74` è **chiusa** dal 2026-09-06.
+di `OnSelect` che riconosca gli elementi logici (**#74** per le porte)»*, e `#74` è **chiusa** dal 2026-09-01.
 La casella resta aperta e nomina come proprio sbloccante una issue conclusa.
 
 ⚠️ **`RTPlayerController.h:757` nomina `HandleTargetUnit`** fra i *«tre soli consumatori»* di
 `GetPointerContext()`. Quel simbolo **non esiste**: `git grep -n "HandleTargetUnit" -- Source/` dà solo quel
-commento. I consumatori reali sono `HandleTargetCell`, `HandleTargetEdge` e `HandleDeclareFacing`.
+commento.
+
+🔴 **E `HandleDeclareFacing` è il SECONDO fantasma della stessa riga**: anche quel nome non esiste —
+`git grep -n "HandleDeclareFacing" 07ccb918 -- Source/` dà solo quel commento. Il simbolo reale è
+`HandleFacingSector` (`RTPlayerController.cpp:2776`, che legge `GetPointerContext()` a `:2790`).
+⚠️ **E i consumatori non sono tre ma sei**: `IsWorldReadOnly` (`:2310`), `IsGameplayInputBlocked` (`:2320`),
+`ApplyBack` (`:2449`), `HandleTargetCell` (`:2540`), `HandleTargetEdge` (`:2606`), `HandleFacingSector`
+(`:2790`). Quella riga di commento sbaglia **due nomi su tre e il conteggio**.
 
 ### 1.5 🔴 Il secondo rilievo — al dock manca una porta, non un handler
 
@@ -121,8 +128,11 @@ più forte, e cambia chi possiede il lavoro:
 
 - `ARTPlayerController::SelectAbilityForCurrent(int32)` sta a `RTPlayerController.h:591`, **dopo `private:`**
   (`:490`) e **senza `UFUNCTION`**;
-- ogni `UFUNCTION` del controller è `BlueprintPure` (letture del puntatore) oppure un `UFUNCTION()` nudo
-  bersaglio di un delegate di input;
+- **nessun `UFUNCTION` del controller è `BlueprintCallable`**: sono `BlueprintPure` (letture del puntatore)
+  oppure `UFUNCTION()` nudi, bersaglio di delegate dinamici — `HandleLockInCommitted` (`:503`),
+  `HandlePlaybackFinished` (`:538`), `HandleMatchEndedPresentation` (`:549`) e `OnTogglePause` (`:749`).
+  ⚠️ I primi tre sono delegate di **presentazione**, non di input: manca la porta *chiamabile da un
+  widget*, non genericamente l'input;
 - `URTActionSlotWidget` espone `SetAction` (`BlueprintCallable`, ma la chiama il **dock**, non il giocatore),
   `GetResolvedIcon`, `GetIconId`, `OnActionChanged`. Nessuna accetta un click.
 
@@ -138,7 +148,7 @@ dock no.
 `ERTResolvedEventType` (`Turn/RTResolvedEvent.h:15`) dichiara `Move`, `Attack`, `HazardDamage`, `Defeated`,
 `AttackFootprint`, `ReactionResolved`, `StatusChanged`. **Nessun valore per la struttura.**
 
-Il danno c'è (`FRTStructureHit`, `Map/RTHexCoverLibrary.h:17`, con identità `(Low, High, Amount, AttackerId)`
+Il danno c'è (`FRTStructureHit`, `Map/RTHexCoverLibrary.h:17`, coi campi `From · To · Amount · AttackerId` — normalizzati da `URTHexLibrary::StableLess`
 — cioè **un bordo**) e il TurnLog ha `CoverDestroyed` (`Turn/RTTurnLog.h:249`). Ma fra i due non passa nessun
 `ResolvedEvent`, quindi **il playback non ha un istante in cui mostrare il colpo alla struttura**.
 
@@ -154,16 +164,16 @@ Il danno c'è (`FRTStructureHit`, `Map/RTHexCoverLibrary.h:17`, con identità `(
 | Responsabilità del kit | Owner esistente | Stato |
 |---|---|---|
 | Screen HUD in UMG, incluso `WBP_RT_ActionDock`/`WBP_RT_ActionSlot` | **#613** (CP 11.7, epic **#25** E11) | aperta; i widget sono montati e visibili — `#2759`, `#2760`, `#2784` chiuse |
-| Contratto del puntatore: contesti, `TargetKind`, Back, precedenza HUD→mondo | **#705** (CP 11.8, epic **#25**) | aperta, `IMPLEMENTING` |
+| Contratto del puntatore: contesti, `TargetKind`, Back, precedenza HUD→mondo | **#705** (CP 11.8, epic **#25**) | aperta — ⚠️ `IMPLEMENTING` lo dichiara il corpo di **#25**, non la issue: su `#705` non esiste né come label né nel corpo |
 | L'hover si vede | **#1614** | aperta |
 | Raggiungibilità dall'input di ogni voce del kit | **#1408** (E48) | aperta; dichiara *«la dock delle azioni è **E11 (#25)**»* |
 | Identità stabile di muri, porte, archi; interaction graph; leggibilità | **#324** (E23, v0.1) — `E23.3` e `E23.5` | aperta |
 | Posare una porta su una mappa | **#2330** (epic #324) | aperta — 🔴 **nessuna porta esiste nel contenuto versionato** |
 | Substrato degli overlay semantici d'area | **#1941** OVL-01 · **#1942** OVL-02 · **#1943** OVL-03 · **#1944** OVL-04 | aperte; palette `D-364`, valori `D-368`. ⚠️ **il MODELLO è già spedito** — vedi §2.1 |
 | **Target Preview System** vero e proprio | **#2825** | aperta il 2026-09-10, con referto proprio |
-| Overlay delle linee di tiro | **#2742** | aperta, bloccata su 3 caselle di `#1941` |
+| Overlay delle linee di tiro | **#2742** | aperta, bloccata da `#1941`; `D-368` ne ha sciolta una precondizione. Le residue si contano con `gh issue view 2742 --json body` |
 | Rifiuto di bersaglio player-facing | **#2741** | ✅ **chiusa 2026-09-09** (PR #2754) — `RefusalForObserver` + `ARTHUD::SetTargetRefusal` |
-| Feed causale del giocatore | **#1936** · **#2697** (epic **#1937**) | aperte — 🔴 i tre canali hanno **zero** chiamanti di produzione |
+| Feed causale del giocatore | **#1936** · **#2697** (epic **#1937**) | aperte — ⚠️ **corretto in §2.2**: `Project` un consumatore in partita ce l'ha |
 | Cue di combattimento dal `ResolvedEvent` | **#2453** (epic) · **#2454** · **#2456** · **#2457** · **#2505** | aperte; **#2455** ✅ chiusa |
 | Finestra di reazione, `FIRE`/`HOLD`, countdown | **#166** (CP 14.6, epic **#152** E14) | aperta; `URTFastDecisionWidget` esiste con `ChooseOption` |
 | Presentazione in scena: mesh, animazioni, anelli | **#286** (E21) | aperta |
@@ -182,13 +192,33 @@ misurato su `main = 89fbb24e` e mergiato con **#2840**. Due sue misure cambiano 
    esistono. Il residuo di `#1941`/`#1942` **non è il modello**: sono *(a)* il consumatore dell'alpha,
    *(b)* la ribbon a schermo, *(c)* la scelta sul depth test. Trattarlo come fondazione da costruire
    rischia *«il secondo modello»*, che è il difetto che `#1941` esiste per chiudere.
-2. 🔑 **Il Target Preview System è `#2825`, e lì il foglio è davvero bianco**: `grep -ril "TargetPreview" .`
+2. 🔑 **Il Target Preview System è `#2825`, e lì il foglio è davvero bianco**: `git grep -il "TargetPreview" 07ccb918 -- Source/`
    non dà nessun file. È un owner **distinto** dal substrato degli overlay.
 
 ⚠️ **E una terza misura corregge un mio raccordo**: quel referto verifica che `#2741` **non è mai stata il
 bloccante di `#2742`** — il bloccante è `#1941`. `#2741` ha consegnato una cosa diversa, il rifiuto di
 bersaglio al click. Qui §2 le teneva vicine senza confonderle, ma la §5 le metteva in fila come se una
 sbloccasse l'altra.
+
+### 2.2 🔴 Ritirata una misura di questo referto: il feed **ha** un consumatore
+
+⛔ **La prima stesura scriveva che i tre canali verso lo schermo hanno «zero chiamanti di produzione», e
+è falso di uno dei tre — quello che contava.** Trovato in code review sulla PR di questo referto.
+
+```
+git grep -n "URTPlayerEventProjector::Project" 07ccb918 -- Source/ | grep -v Tests/
+→ UI/RTHudViewModel.cpp:527, dentro BuildPlayerEventFeed
+   └─ chiamata da UI/RTHUD.cpp:994 e da UI/RTScreenHudWidgets.cpp:242 — entrambe di produzione
+```
+
+🔑 **E `#2697` lo registra già come fatto**, in una casella spuntata del proprio corpo:
+*«`URTPlayerEventProjector::Project` ha un consumatore in partita — **fatto** (#2707, `063ab898`)»*. Questo
+referto aveva copiato la **tabella** del corpo di `#2697` — ferma alla misura di apertura — senza leggere la
+checklist sotto, che la ritira. È lo stesso difetto che il referto contesta al kit in §1.3.
+
+✅ **Cosa resta vero**: i due canali **testuali** — `GetRecentEvents` e `GetRecentEventsForTeam` — non hanno
+chiamanti di produzione, e `RTHudViewModel.h:505` dichiara che il testuale *«non entra in questa catena, e non
+deve»*. Il residuo di `#2697`/`#1936` è quindi **più stretto** di come la §5 lo dipingeva.
 
 ∴ **Il kit chiedeva issue nuove per lavoro che ha già un owner in quasi tutti i casi.** Ciò che segue crea solo
 i buchi che restano dopo questa tabella.
@@ -241,7 +271,7 @@ Il verso opposto — che il click raggiunga il **controller** — non è nella s
 **Perché non è `#1408`**: lo esclude per iscritto, e assegna la dock a **E11 (#25)**, che è un'epic e non un
 owner di lavoro.
 
-→ Issue nuova, parent **#25**, dipendenze **#613** · **#705** · **#1408**.
+→ **[#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826)**, parent **#25**, dipendenze **#613** · **#705** · **#1408**.
 
 ### 4.2 Nessuna azione può chiedere una struttura
 
@@ -253,11 +283,16 @@ oggetti logici, non la forma del bersaglio che un'azione dichiara.
 **Perché non è `#705`**: la sua casella sull'oggetto multi-mesh riguarda il **picking**; qui si tratta di cosa
 il **catalogo** può dichiarare.
 
-→ Issue nuova, parent **#324**, dipendenze **#705** · **#2330** · **#1941**.
+→ **[#2827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2827)**, parent **#324**, dipendenze **#705** · **#2330** · **#1941**.
 
 ### 4.3 Il colpo alla struttura non ha un momento di playback
 
-→ Issue nuova, parent **#2453**, gemella dichiarata di **#2505**, dipendenza di 4.2.
+→ **[#2828](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2828)**, parent **#2453**, gemella dichiarata di **#2505**.
+
+⚠️ **Verso della dipendenza, corretto**: 4.2 e 4.3 sono **costruibili in modo indipendente** — il targeting
+non ha bisogno dell'evento per scrivere il piano, e l'evento non ha bisogno del targeting per esistere. Ciò
+che li lega è l'**outcome** della Slice C, che senza 4.3 si ferma un passo prima del playback. Nella §5
+l'ordine consigliato resta 4.2 → 4.3.
 
 ---
 
@@ -268,7 +303,7 @@ catalogo: è un ordine, e l'ordine è vincolato da ciò che blocca cosa.
 
 ### Slice A — il giocatore raggiunge i comandi
 
-`#613` (dock a schermo, ✅ montato) → **[nuova 4.1]** (porta di comando + prompt contestuale) → `#705`
+`#613` (dock a schermo, ✅ montato) → **#2826** (porta di comando + prompt contestuale) → `#705`
 (precedenza HUD→mondo, `HUDConsumesPointerBeforeWorld`).
 
 **Outcome**: il giocatore scopre e arma con il mouse le azioni **già implementate**, e un click sull'HUD non
@@ -294,7 +329,7 @@ panel. ⛔ **E non si riparte dal modello**: ridichiarare `FRTOverlayArea` dareb
 
 ### Slice C — una struttura si può bersagliare
 
-**[nuova 4.2]** (l'azione dichiara la forma) → **[nuova 4.3]** (l'evento ha un momento) → `#324` `E23.5` (la
+**#2827** (l'azione dichiara la forma) → **#2828** (l'evento ha un momento) → `#324` `E23.5` (la
 struttura si legge a schermo).
 🔴 **Prerequisito di contenuto**: `#2330` — oggi **nessuna porta esiste in nessuna mappa versionata**. Il
 prototipo v0.1 va quindi ancorato a una **copertura di bordo** (`FRTHexCover`), che esiste, che
@@ -303,7 +338,7 @@ prototipo v0.1 va quindi ancorato a una **copertura di bordo** (`FRTHexCover`), 
 
 ### Slice D — la risoluzione si legge
 
-`#2454` (attivazione · impatto · sconfitta) → `AttackFootprint` (owner `E21`) → **[nuova 4.3]** →
+`#2454` (attivazione · impatto · sconfitta) → `AttackFootprint` (owner `E21`) → **#2828** →
 `#2457` (diagnostica separata dal layer player-facing).
 
 **Outcome**: guardando il turno si capisce chi ha agito, su cosa, con quale esito.
@@ -314,9 +349,14 @@ prototipo v0.1 va quindi ancorato a una **copertura di bordo** (`FRTHexCover`), 
 (`HazardDamage` acquista un beat) · `ReactionResolved` (owner `#2454`) · `#2697` + `#1936` (**il feed causale
 acquista un consumatore**).
 
-🔴 **`#2697` è la fetta che il kit non nomina e che pesa di più**: `GetRecentEvents`,
-`GetRecentEventsForTeam` e `URTPlayerEventProjector::Project` hanno **zero** chiamanti fuori dai test. Senza un
-consumatore, ogni «riga leggibile nel feed» chiesta dalle altre fette non ha dove atterrare.
+⚠️ **Corretto dopo la code review, vedi §2.2.** La prima stesura diceva che i tre canali hanno *«zero
+chiamanti fuori dai test»* e ne faceva la fetta che pesa di più. **Falso del canale che conta**:
+`URTPlayerEventProjector::Project` è consumato in partita da `RTHudViewModel::BuildPlayerEventFeed`, a sua
+volta chiamata da `ARTHUD` e dal widget del log — e `#2697` lo registra già come **fatto** (#2707).
+
+✅ Quel che resta di `#2697`/`#1936` sono i due canali **testuali**, che `RTHudViewModel.h:505` dichiara
+fuori dalla catena per scelta. La fetta esiste ancora — le righe che le altre fette producono devono comparire
+a schermo — ma **non è il collo di bottiglia** che questo referto le attribuiva.
 
 ### Slice F — accettazione
 
@@ -330,11 +370,11 @@ esclusione — `U15`, `U43`, `U46`, `U9` — esattamente come il kit chiedeva. L
 ## §6 — Dipendenze verso la v1.0
 
 ```text
-v0.1   #613 ─┬─► [4.1 dock] ─► #705 ─┬─► PIA-3 #2618 ─┐
+v0.1   #613 ─┬─► [#2826 dock] ─► #705 ─┬─► PIA-3 #2618 ─┐
              │                       │                │
       #1941 ─┴─► #2742 · #1943 · #1944 · #1614 ───────┤
                                                       ├─► PIA-6 #2621
-       #324 ──► [4.2 targeting struttura] ──► [4.3 evento] ─┤
+       #324 ──► [#2827 targeting] ──► [#2828 evento] ─┤
          └─ #2330 (contenuto)                              │
                                                            │
       #2453 ─► #2454 · #2456 · #2457 · #2505 ─► PIA-2 #2617┤
@@ -429,13 +469,17 @@ misura tre run headless di Unreal erano attive in **altri cloni** (`rt-wt-363`, 
 ### Comandi per rifare le misure di §1
 
 ```bash
-git fetch --prune origin && git rev-parse origin/main
+# ⚠️ Lo SHA e' pinnato, non `origin/main`: la tabella di §1 asserisce righe, e un ref che si muove
+#    le fa scorrere in silenzio. Per rimisurare su un albero nuovo, sostituire SHA e riverificare le righe.
+SHA=07ccb918
 
-git grep -n "ResolveTarget(" origin/main -- Source/ | grep -v Tests/
-git grep -n "HandleTargetUnit"  origin/main -- Source/
-git show origin/main:Source/RefactorTactics/Player/RTPointerInteraction.cpp | sed -n '4,29p'
-git show origin/main:Source/RefactorTactics/Player/RTPlayerController.h     | sed -n '585,600p'
-git show origin/main:Source/RefactorTactics/Unit/RTPresentationRole.h       | sed -n '24,35p'
-git show origin/main:Source/RefactorTactics/Turn/RTResolvedEvent.h          | sed -n '15,25p'
-git grep -n "MakePendingPresentation" origin/main -- Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+git grep -n "ResolveTarget(" $SHA -- Source/ | grep -v Tests/
+git grep -n "HandleTargetUnit\|HandleDeclareFacing" $SHA -- Source/
+git show $SHA:Source/RefactorTactics/Player/RTPointerInteraction.cpp | sed -n '4,29p'
+git show $SHA:Source/RefactorTactics/Player/RTPointerInteraction.h   | sed -n '57,70p'   # l'enum: Object e' a 68
+git show $SHA:Source/RefactorTactics/Player/RTPlayerController.h     | sed -n '585,600p'
+git show $SHA:Source/RefactorTactics/Unit/RTPresentationRole.h       | sed -n '24,36p'   # fino a Fall, che e' a 36
+git show $SHA:Source/RefactorTactics/Turn/RTResolvedEvent.h          | grep -nE "^\s+(Move|Attack|HazardDamage|Defeated|AttackFootprint|ReactionResolved|StatusChanged)[,;]?$"
+git grep -n "MakePendingPresentation" $SHA -- Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+git grep -n "URTPlayerEventProjector::Project" $SHA -- Source/ | grep -v Tests/   # §2.2
 ```
