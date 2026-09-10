@@ -425,6 +425,8 @@ domande che restano aperte, `INT-9` e `INT-10`, in [`OPEN_DECISIONS.md`](../../O
 sull'asset di mappa, e `ERTHexDoorState::Destroyed` è già dichiarato terminale. Non nasce un campo: nasce la
 regola che **solo quel dato conta**.
 
+⚠️ **Questa conclusione non regge più per le porte**: [`D-375`](../../decisions/RT_PDR_00_Decision_Log.md) dà loro `Integrity`, quindi un campo nasce. Regge per coperture e archi, che il dato ce l'avevano già.
+
 **Cosa cambia a seconda della risposta**: se `BasicAttack` non demolisce, il primo slice ha **un solo**
 produttore (`HeavyAttack`) e la regola è verificabile con un test di esclusione; se demolisce, ogni attacco
 diventa un attacco a struttura e il costo di validazione cresce su tutto il catalogo.

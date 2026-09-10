@@ -276,6 +276,9 @@ esiti si aggiungono **in coda** a `ERTEnvironmentOutcome`:
 
 1. **Nessuna mappa `.uasset` disegna ancora porte.** Il dato esiste, i consumatori runtime esistono e sono
    testati, ma l'editor per disegnarle arriva con E9/E11. `DA_HexMap_Sandbox` è vuoto in partenza (0 celle).
+   > ⏱️ **Scaduto in parte il 2026-09-10.** Uno strumento per **scrivere** una porta esiste —
+   > `URTMapEditLibrary::AddDoor`, guidata da `RTSetCellDoorCommandlet` ([#2330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2330)) —
+   > quindi non è più vero che manchi la via. Resta vero il **fatto**: nessuna mappa versionata disegna ancora una porta.
 2. **Nessuna azione di catalogo apre o chiude porte.** C'è l'effetto dichiarato; l'azione è CP 10.1.
    Conseguenza: in partita oggi solo un'abilità a cui l'effetto viene aggiunto esplicitamente può agire su una
    porta.
@@ -298,6 +301,8 @@ esiti si aggiungono **in coda** a `ERTEnvironmentOutcome`:
    > vincoli che ne discendono; il lavoro è di [#2827](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2827).
 5. **Il gruppo `DoorId` non è disegnabile.** Il dato lo prevede e i test lo esercitano, ma nessuno strumento lo
    assegna: la scelta è stata di pagare ora un `int32` invece di una seconda migrazione di formato dopo.
+   > ⏱️ **Scaduto il 2026-09-10.** `URTMapEditLibrary::AddDoor` prende `DoorId` in firma, quindi lo strumento
+   > che lo assegna esiste ([#2330](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2330)).
 6. **Nessuna durata.** Una porta resta nello stato in cui la si lascia: la scadenza degli stati topologici è
    CP 9.4.
 
