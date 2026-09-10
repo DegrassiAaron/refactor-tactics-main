@@ -1,0 +1,2517 @@
+# RefactorTactics — Capability Map (dato machine-readable)
+#
+# Vista umana: capability-map.md (stesso cartella). Questo file e' la sorgente.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# FOTOGRAFIA
+#   misurata su  origin/main = 18065c28b2fc7726b5b31795083aac94b7e4542b
+#   data         2026-09-10
+#   metodo       audit statico: git ls-tree / git grep su origin/main + GitHub LIVE (gh).
+#                NESSUNA build, NESSUN Editor, NESSUNA suite eseguita in questa passata.
+#
+# ⛔ QUESTO FILE NON POSSIEDE STATO.
+#    La source of truth dello stato corrente sono le issue e le milestone GitHub, il codice
+#    su main e i test eseguibili. Quando questo file e GitHub non concordano, VINCE GITHUB.
+#    Non e' il Feature Registry: quello e' uscito dal repository con D-181 (commit 26f6955a) e
+#    gli identificatori `RT-FEAT-*` non sono autorevoli. Gli `RT-CAP-*` qui sotto sono
+#    identificatori LOCALI di questa vista, nati il 2026-09-10.
+#
+# ⛔ NON E' UN OWNER. Ogni capability dichiara l'owner che gia' esiste (epic GitHub, spec, ADR).
+#    Qui si linka, non si forka. La vista longitudinale per release resta
+#    docs/roadmap/capability-roadmaps.md (identificatori `CR-*`), che questo file referenzia
+#    nel campo `owner.capability_view`.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# SEMANTICA DEGLI STATI  (nessuna percentuale, per decisione: vedi il .md §0)
+#
+#   status.implementation
+#     complete : il comportamento esiste nel codice di produzione ed e' raggiungibile dal
+#                percorso di gioco reale (non solo dai test).
+#     partial  : esiste ed e' raggiungibile, ma il contratto dichiarato dal suo owner ha
+#                buchi misurati (issue aperte che nominano l'assenza).
+#     missing  : nessun codice di produzione lo implementa.
+#
+#   status.validation
+#     complete : esistono test automation mirati E scenari/golden che lo esercitano dal
+#                percorso di gioco reale.
+#     partial  : esistono test, ma manca almeno uno fra scenario/golden, verifica di
+#                mutazione, o copertura di un ramo che una issue aperta dichiara scoperto.
+#     missing  : nessun test nomina la capability.
+#     ⚠️ `validation` misura COSA ESISTE, non cosa e' stato ESEGUITO. L'esecuzione e' in
+#        `verification`, e in questa passata e' NOT RUN per costruzione (niente CI: D-182).
+#
+#   status.presentation
+#     complete       : il giocatore/designer puo' vedere l'esito senza leggere un log.
+#     partial        : visibile in parte, o solo da un canale di debug.
+#     missing        : la logica decide e nulla lo mostra.
+#     not_applicable : la capability non ha una superficie player-facing per costruzione.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# CONVENZIONI DEI CAMPI
+#   issues.open / issues.closed : NUMERI, mai conteggi (AGENTS.md §14). `open` elenca solo
+#                                 issue verificate OPEN alla fotografia.
+#   tests.automation            : PREFISSI di gruppo `RefactorTactics.<Gruppo>.*`, non nomi
+#                                 di singolo test, salvo quando il singolo test E' il gate.
+#   verification.pie            : voci del registro docs/technical/test-manuali-pie.md.
+#   verification.packaged       : gate G* di docs/roadmap/v0.1-definition-of-done.md §3.
+#   dependencies                : L'ARCO AUTOREVOLE. «Questa capability non funziona senza».
+#   consumers                   : l'INVERSO ESATTO di `dependencies`, generato — non scritto a
+#                                 mano. Verificato: il grafo e' ACICLICO e la simmetria e' totale
+#                                 (`consumers[A]` == { B : A in dependencies[B] }). Se aggiungi un
+#                                 arco, aggiungilo da entrambe le parti o rigeneralo.
+#   fact / inference            : dove lo stato non e' leggibile direttamente dal codice, il
+#                                 campo `notes` dichiara `FATTO:` o `INFERENZA:`.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COME QUESTA MAPPA SBAGLIA  (regola di metodo, aggiunta dopo il panel del 2026-09-10)
+#
+# 🔴 **Il titolo di una issue APERTA descrive il difetto al momento dell'apertura, non oggi.**
+#    In questo repository il lavoro atterra sotto una issue che poi resta aperta per lo scope
+#    residuo — verifica PIE, follow-up, accettazione. Leggere un titolo come stato corrente e' il
+#    modo in cui questa mappa e' stata sbagliata TRE volte nella sua prima stesura: #2697, #2742
+#    e #2554 erano tutte gia' indirizzate nel codice su `origin/main`.
+#
+#    ⛔ Nessun campo `status` puo' essere derivato da un titolo. Si deriva da:
+#       1. il simbolo nel codice, e i suoi chiamanti fuori dai test;
+#       2. `git log origin/main --grep=<numero>` per vedere se il lavoro e' atterrato;
+#       3. e solo dopo, la issue — LETTA, non citata dal titolo.
+#
+# 🔴 **Un `git grep` di un token non distingue un riferimento vivo da una frase sulla sua assenza.**
+#    Due difetti di tracciabilita' della prima stesura erano hit di COMMENTO (`WBP_RT_PauseMenu`,
+#    `WBP_RT_ScenarioComposer`), e un file di implementazione lo era pure (`RTPlayerState.h`).
+#
+# 🔴 **Una ricerca case-insensitive corta non e' una misura di assenza.** `git grep -il FMOD`
+#    risponde 10 file, tutti `FModuleManager` e `FModeToolkit`.
+#
+# ⚠️ Le rettifiche restano SCRITTE nelle voci, marcate `⌫`, invece di essere riscritte in silenzio.
+
+meta:
+  id_prefix: RT-CAP
+  created: 2026-09-10
+  revised: 2026-09-10   # panel di revisione: 12 rettifiche, 3 status corretti
+  measured_on: origin/main 18065c28b2fc7726b5b31795083aac94b7e4542b
+  authority: none          # vedi il banner sopra
+  owner_of: "una sola domanda: per ogni capability, chi la possiede, cosa la implementa,
+             cosa la verifica, e cosa manca ancora"
+  supersedes: none
+  related:
+    - docs/roadmap/capability-roadmaps.md          # vista longitudinale per release (CR-*)
+    - docs/technical/architecture/architettura-codice.md  # mappa per cartella
+    - docs/technical/tooling/scenario-map.md       # chi verifica cosa (macchina vs persona)
+    - docs/roadmap/v0.1-definition-of-done.md      # i gate di release G1..G14
+
+# ═════════════════════════════════════════════════════════════════════════════
+capabilities:
+
+# ───────────────────────────── AREA: gameplay ────────────────────────────────
+
+  - id: RT-CAP-TURN-LOOP
+    name: Turn Structure
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 14
+      spec: docs/gameplay/spec-sequenza-turno.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTTurnManager.h
+        - Source/RefactorTactics/Turn/RTTurnManager.cpp
+        - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
+        - Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp
+        - Source/RefactorTactics/Turn/RTTurnManagerInternal.h
+        - Source/RefactorTactics/Turn/RTTurnRules.h
+        - Source/RefactorTactics/RTGameMode.cpp
+    issues: { open: [1818, 1821, 1816], closed: [2193] }
+    consumers:
+      - RT-CAP-AUTOBATTLE
+      - RT-CAP-OBJECTIVES-MATCHEND
+      - RT-CAP-PACING
+      - RT-CAP-PLAYBACK
+      - RT-CAP-REACTIONS
+      - RT-CAP-SCENARIO-HARNESS
+      - RT-CAP-SCREEN-HUD
+    dependencies:
+      - RT-CAP-AUTHORITY-BOUNDARY
+      - RT-CAP-MATCH-FORMAT
+      - RT-CAP-PLANNING
+      - RT-CAP-RESOLUTION-ORDER
+      - RT-CAP-SNAPSHOT
+      - RT-CAP-TURNLOG
+    tests:
+      automation: ["RefactorTactics.Turn.*", "RefactorTactics.Match.*", "RefactorTactics.FirstTurn.*", "RefactorTactics.HexMatch.*"]
+      scenarios: [Scenarios/RT_Showcase_Relay_v01.json]
+      mutation: []
+    verification:
+      pie: [PIE-V01-BOARD]
+      packaged: [G10, G13]
+    risks:
+      - "#1818: `ARTTurnManager` e' dichiarato God Object dalla sua stessa issue. ⌫ La prima
+         stesura ne ricopiava il conteggio dal TITOLO; rimisurato il 2026-09-10 su `origin/main`:
+         `Turn/RTTurnManager.cpp` **8 085** righe e `.h` **2 783**, piu' `_Movement.cpp` **1 364**,
+         `_Blast.cpp` **2 978** e `Internal.h` **225**. Tre carichi inerti sono gia' usciti (#1818
+         fette 8/9, #2286); il resto no."
+      - "#1821: sette file di produzione includono l'header intero per leggere una fase."
+    notes:
+      - "FATTO: ARTTurnManager e' l'unico orchestratore. `LockInAndResolve`/`ResolveTurn` hanno
+         chiamanti solo in RTGameMode, RTPlayerController, RTMatchBootstrapper, ScenarioRunner/
+         Session e dentro Turn/. Nessun consumatore di UI, Replay o Editor lo chiama."
+      - "presentation=partial: il ciclo si vede (HUD header, fasi), ma #2744 misura che lo
+         Screen HUD §4.1 non sa di essere in autobattle."
+
+  - id: RT-CAP-PLANNING
+    name: Planning & Plan Validation
+    area: gameplay
+    status: { implementation: complete, validation: partial, presentation: partial }
+    owner:
+      epic: 609
+      spec: docs/gameplay/spec-economia-del-turno.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTPlanValidationLibrary.h
+        - Source/RefactorTactics/Turn/RTPlanValidationLibrary.cpp
+        - Source/RefactorTactics/Turn/RTActionQueue.h
+        - Source/RefactorTactics/Player/RTPlayerController.cpp
+    issues: { open: [2826, 2793, 2698, 2702, 607, 172], closed: [] }
+    consumers:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-INTENT-PRIVACY
+      - RT-CAP-SCENARIO-HARNESS
+      - RT-CAP-TARGET-PREVIEW
+      - RT-CAP-TURN-LOOP
+    dependencies: [RT-CAP-ACTION-ECONOMY, RT-CAP-ACTION-MODEL, RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Plan.*", "RefactorTactics.Actions.*", "RefactorTactics.PlayerInteraction.*"]
+      scenarios: [Scenarios/Movement/SwapRejectedByPlanning.json, Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json]
+      mutation: []
+    verification:
+      pie: [PIE-V01-INTENT]
+      packaged: []
+    risks:
+      - "#2698: le guardie esterne dell'intent trattano un campo presente come assente
+         (ability, dash, target, edge, facing)."
+      - "#2793: l'anteprima di Planning e' costruita sull'occupazione autorevole — il ventaglio
+         ha un buco dove sta un nemico che il giocatore non dovrebbe vedere. Confina con
+         RT-CAP-INTENT-PRIVACY."
+    notes:
+      - "validation=partial: #2702 misura che `\"move\": []` e `\"dash\": \"None\"` caricano
+         verdi come no-op silenziosi — il loader non distingue assente da vuoto."
+
+  - id: RT-CAP-ACTION-MODEL
+    name: Action Model & Catalog
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 609
+      spec: docs/gameplay/spec-motore-azioni-e4.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-CONTENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Ability/RTActionDef.h
+        - Source/RefactorTactics/Ability/RTActionData.h
+        - Source/RefactorTactics/Ability/RTCatalogLibrary.h
+        - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+        - Source/RefactorTactics/Turn/RTActionEvent.h
+        - Source/RefactorTactics/Turn/RTActionEffectLibrary.h
+        - Source/RefactorTactics/Turn/RTActionFallbackLibrary.h
+        - Source/RefactorTactics/Ability/RTActionReadout.h
+    issues: { open: [2827, 2578, 1803], closed: [] }
+    consumers:
+      - RT-CAP-ACTION-ECONOMY
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-EQUIPMENT-LOADOUT
+      - RT-CAP-ICON-LANGUAGE
+      - RT-CAP-PLANNING
+      - RT-CAP-SKILL-WORKBENCH
+      - RT-CAP-STATUS
+    dependencies: [RT-CAP-HERO-KIT]
+    tests:
+      automation: ["RefactorTactics.Actions.*", "RefactorTactics.Catalog.*", "RefactorTactics.Damage.*"]
+      scenarios: [Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json]
+      mutation: [tools/mutation/costanti-combattimento.py]
+    verification: { pie: [], packaged: [G6, G7] }
+    risks:
+      - "G7 e' 🟡 nella DoD: il validator copre il catalogo IN CODICE, la revisione dei .uasset
+         non e' stata fatta."
+      - "#2578: `catalog-code.ts` copre 4 eroi x 6 stat; gli ID d'azione restano fuori dal gate."
+      - "#2827: `TargetKindForAction` non produce mai `Object` — nessuna azione puo' chiedere
+         una struttura, e il ramo Object e' morto."
+
+  - id: RT-CAP-ACTION-ECONOMY
+    name: Action Economy (slot, cooldown, drawback)
+    area: gameplay
+    status: { implementation: partial, validation: partial, presentation: partial }
+    owner:
+      epic: 609
+      spec: docs/gameplay/spec-economia-del-turno.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTPlanValidationLibrary.h
+        - Source/RefactorTactics/Ability/RTActionDef.h
+        - Source/RefactorTactics/Turn/RTTurnRules.h
+    issues: { open: [609, 607, 2088], closed: [] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-PLANNING, RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-ACTION-MODEL]
+    tests:
+      automation: ["RefactorTactics.Actions.*", "RefactorTactics.Plan.*"]
+      scenarios: [Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "L'epic proprietaria (#609, E38) e' della v0.2: la v0.1 spedisce il sottoinsieme
+         slot+cooldown, non il modello completo dei quattro drawback."
+    notes:
+      - "FATTO: il commento di Scenarios/Spec/ActionEconomy/CooldownBlocksWithSlotFree.json
+         dichiara che lo scenario chiude un buco che il vecchio registry aveva censito — e' la
+         prova che la copertura e' stata aggiunta, non che il modello sia completo."
+
+  - id: RT-CAP-MOVEMENT-BUDGET
+    name: Movement (budget path)
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 16
+      spec: docs/gameplay/spec-tassonomia-movimento.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTHexSim.h
+        - Source/RefactorTactics/Turn/RTHexSimLibrary.h
+        - Source/RefactorTactics/Turn/RTHexSimLibrary.cpp
+        - Source/RefactorTactics/Turn/RTMoveRoute.h
+        - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
+    issues: { open: [2628, 2501, 2836], closed: [] }
+    consumers:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-MAP-EDITOR
+      - RT-CAP-PLAYBACK
+      - RT-CAP-SIMULTANEOUS-MOVEMENT
+      - RT-CAP-TARGET-PREVIEW
+    dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-PATHFINDING, RT-CAP-SNAPSHOT, RT-CAP-STRUCTURES]
+    tests:
+      automation: ["RefactorTactics.HexMove.*", "RefactorTactics.HexSim.*", "RefactorTactics.Movement.*", "RefactorTactics.MovementProbe.*"]
+      scenarios: [Scenarios/Movement/Basic.json, Scenarios/Movement/LongWalk.json, Scenarios/Movement/Blocked.json]
+      mutation: []
+    verification:
+      pie: [PIE-HEXPLAY-2]
+      packaged: [G10]
+    risks:
+      - "#2628: tre `ERTMoveOutcome` su sedici non hanno un testo — il log stampa
+         «esito di movimento non tradotto (15)»."
+      - "#2501: il Move ricalcola verso la destinazione dopo una spinta, cioe' il Model B che
+         D-045 esclude."
+
+  - id: RT-CAP-MOVEMENT-LINEAR
+    name: Linear Mobility (Dash, Charge, Leap, Reposition)
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 609
+      spec: docs/gameplay/spec-dash.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTMovementActionLibrary.h
+        - Source/RefactorTactics/Turn/RTMovementActionLibrary.cpp
+    issues: { open: [704, 2825], closed: [] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-TARGET-PREVIEW]
+    dependencies: [RT-CAP-FACING, RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Actions.*", "RefactorTactics.HexMove.*"]
+      scenarios: [Scenarios/Combat/MoveIsFullWithoutSlow.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO: distinte dal movimento a budget nel codice — `RTMovementActionLibrary.h`
+         dichiara «la traiettoria e' dichiarata e cio' che la interrompe FERMA»."
+
+  - id: RT-CAP-SIMULTANEOUS-MOVEMENT
+    name: Simultaneous Movement & Collision Resolution
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 14
+      spec: docs/gameplay/spec-anima-risoluzione.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTHexSimLibrary.cpp
+        - Source/RefactorTactics/Turn/RTMovementResolutionContext.h
+        - Source/RefactorTactics/Turn/RTTurnManager_Movement.cpp
+        - Source/RefactorTactics/Map/RTHexOccupancyLibrary.h
+    issues: { open: [2629], closed: [2679] }
+    consumers: [RT-CAP-PLAYBACK, RT-CAP-TURNLOG, RT-CAP-VERTICALITY]
+    dependencies: [RT-CAP-MOVEMENT-BUDGET, RT-CAP-RESOLUTION-ORDER, RT-CAP-SNAPSHOT]
+    tests:
+      automation: ["RefactorTactics.HexSim.*", "RefactorTactics.HexOccupancy.*", "RefactorTactics.Simulation.*"]
+      scenarios: [Scenarios/Movement/Collision.json, Scenarios/Movement/CollisionChoke.json]
+      mutation: []
+    verification: { pie: [PIE-HEXPLAY-2], packaged: [G4] }
+    risks:
+      - "#2629: due test di stallo rossi su main — la suite di ogni branch eredita un rumore
+         che non ha causato. ⚠️ E' l'unica riga di questa mappa che dichiara un ROSSO NOTO."
+
+  - id: RT-CAP-FACING
+    name: Facing & Rotation Policy
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 2276
+      spec: docs/decisions/adr-0008-rotazione-e-policy-di-facing.md
+      adr: docs/decisions/adr-0005-orientamento.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTFacingLibrary.h
+        - Source/RefactorTactics/World/RTGrayboxUnitFacingFixture.h
+        - Source/RefactorTactics/Unit/RTUnit.h
+    issues: { open: [2819, 2167, 1793], closed: [1800] }
+    consumers:
+      - RT-CAP-ANIMATION-RUNTIME
+      - RT-CAP-CHAR-PRESENTATION
+      - RT-CAP-COMBAT
+      - RT-CAP-MOVEMENT-LINEAR
+      - RT-CAP-PLAYBACK
+      - RT-CAP-STATE-HASH
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Facing.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-FACING-1], packaged: [] }
+    risks:
+      - "#2167: dal 2026-09-03 il facing logico cambia a ogni passo e la mesh no. E' una
+         DIVERGENZA logica/presentazione, la classe di difetto che l'invariante #1 vieta."
+      - "#1793: `MeshYawOffset` e' -90 su tutti e quattro gli eroi ma la mesh di Phase e' ruotata
+         diversamente."
+
+  - id: RT-CAP-PATHFINDING
+    name: Tactical Pathfinding
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 16
+      spec: docs/technical/architecture/spec-pathfinding.md
+      adr: docs/decisions/adr-0002-griglia-esagonale.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Pathfinding/RTHexPathLibrary.h
+        - Source/RefactorTactics/Pathfinding/RTHexPathLibrary.cpp
+        - Source/RefactorTactics/Pathfinding/RTHexPath.h
+    issues: { open: [], closed: [] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-MAP-EDITOR, RT-CAP-MOVEMENT-BUDGET, RT-CAP-TARGET-PREVIEW]
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.HexPath.*", "RefactorTactics.Path.*", "RefactorTactics.Perf.*"]
+      scenarios: [Scenarios/Movement/Blocked.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO: A* deterministico su interi, NON NavMesh — dichiarato in `RTHexPathLibrary.h`
+         e coerente con l'invariante #11 di AGENTS.md (pathfinding, LOS, targeting e traiettorie
+         sono servizi distinti)."
+      - "L'unica capability gameplay di questa mappa con `issues.open: []` — INFERENZA che sia
+         stabile, non prova che sia priva di difetti."
+
+  - id: RT-CAP-LOS
+    name: Line of Sight & Occlusion
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 151
+      spec: docs/technical/systems/h6-4-hex-vision-spec.md
+      adr: docs/decisions/adr-0002-griglia-esagonale.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTHexVisionLibrary.h
+        - Source/RefactorTactics/Map/RTHexVisionLibrary.cpp
+        - Source/RefactorTactics/Map/RTHexOcclusionLibrary.h
+        - Source/RefactorTactics/Map/RTSightLines.h
+        - Source/RefactorTactics/Map/RTSightLines.cpp
+        - Source/RefactorTactics/Map/RTHexLosConsole.h
+    issues: { open: [2742, 1944, 2795], closed: [1712, 1755, 2035] }
+    consumers:
+      - RT-CAP-DEBUG-CONSOLE
+      - RT-CAP-MAP-EDITOR
+      - RT-CAP-OVERWATCH-PREDICTIVE
+      - RT-CAP-PERCEPTION
+      - RT-CAP-TARGET-PREVIEW
+      - RT-CAP-TARGETING
+    dependencies: [RT-CAP-COVER, RT-CAP-MAP-TOPOLOGY, RT-CAP-STRUCTURES]
+    tests:
+      automation: ["RefactorTactics.HexVision.*", "RefactorTactics.Vision.*", "RefactorTactics.Occlusion.*", "RefactorTactics.Sight.*", "RefactorTactics.Incidence.*"]
+      scenarios: [Scenarios/Combat/BlockedByWall.json, Scenarios/Combat/BlockedByInteriorWall.json]
+      mutation: []
+    verification: { pie: [PIE-HEXPLAY-6], packaged: [] }
+    risks:
+      - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura dava `presentation: missing` citando il
+         TITOLO di #2742. Misurato sul codice: `5149867f feat(2742): la linea di tiro interrotta si
+         vede, e dove si interrompe` e' su `origin/main`, e `Map/RTHexMapActor.cpp:1291-1307`
+         disegna la linea con `URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision)` — senza un
+         solo `FColor` letterale — con `Player/RTPlayerController.cpp` fra i consumatori. Il canale
+         ESISTE; #2742 resta aperta per il residuo."
+      - "Resta vero e va tenuto SEPARATO: l'AREA di visibilita' (*«quali celle vedo»*) non e' la
+         LINEA di tiro, non ha un produttore, ed e' di #1944."
+      - "PIE-HEXPLAY-6 e' ❌ nel gate G9 — e' l'unica voce FALLITA del subset RELEASE-V01."
+      - "#2795: l'Overwatch decide su LOS geometrica e non sulla conoscenza."
+
+  - id: RT-CAP-TARGETING
+    name: Targeting & Engageability
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 2276
+      spec: docs/gameplay/spec-motore-azioni-e4.md
+      adr: docs/decisions/adr-0007-attacco-base-per-eroe.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Combat/RTCombatLibrary.h
+        - Source/RefactorTactics/Combat/RTHexCombatLibrary.h
+        - Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp
+        - Source/RefactorTactics/Combat/RTOffensiveActionLibrary.h
+    issues: { open: [2825, 2827], closed: [2741, 2766] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-REACTIONS, RT-CAP-TARGET-PREVIEW]
+    dependencies: [RT-CAP-COVER, RT-CAP-LOS, RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.HexCombat.*", "RefactorTactics.Combat.*", "RefactorTactics.Offensive.*"]
+      scenarios: [Scenarios/Combat/LineHitsThrough.json, Scenarios/Combat/FriendlyFire.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2035 (chiusa) ha misurato che il docstring di `RTOffensiveActionLibrary.h` dichiarava
+         un reason code «del TurnLog» che il TurnLog NON riceve. Il commento e' stato corretto;
+         il difetto di categoria — una spiegazione che non raggiunge il log — e' il tema di
+         RT-CAP-PLAYER-EVENT-LOG."
+
+  - id: RT-CAP-COMBAT
+    name: Combat Resolution & Damage Pipeline
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 2586
+      spec: docs/gameplay/spec-reaction-clash-e14.md
+      adr: docs/decisions/adr-0007-attacco-base-per-eroe.md
+      capability_view: CR-CONTENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Combat/RTCombatResolver.h
+        - Source/RefactorTactics/Combat/RTCombatResolver.cpp
+        - Source/RefactorTactics/Combat/RTCombatLibrary.cpp
+        - Source/RefactorTactics/Turn/RTCombatLog.h
+    issues: { open: [2586, 2589, 2588, 2658, 2798], closed: [1951] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT-FEEDBACK, RT-CAP-RESOLVED-TIMELINE]
+    dependencies:
+      - RT-CAP-COVER
+      - RT-CAP-EQUIPMENT-LOADOUT
+      - RT-CAP-FACING
+      - RT-CAP-OVERWATCH-PREDICTIVE
+      - RT-CAP-REACTIONS
+      - RT-CAP-SNAPSHOT
+      - RT-CAP-STATUS
+      - RT-CAP-TARGETING
+      - RT-CAP-TERRAIN-ENV
+    tests:
+      automation: ["RefactorTactics.Combat.*", "RefactorTactics.HexCombat.*", "RefactorTactics.HexBlast.*", "RefactorTactics.Damage.*", "RefactorTactics.CombatLog.*"]
+      scenarios: [Scenarios/Combat/BasicAttack.json, Scenarios/Combat/CounterStrikesBack.json, Scenarios/Combat/SplashHitsAlliesNotSelf.json]
+      mutation: [tools/mutation/costanti-combattimento.py]
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2586 (epic aperta): «i nomi non hanno seguito i pool, e sei array paralleli
+         rappresentano un record che non esiste» — debito strutturale dichiarato dall'owner."
+      - "#2658: `TwoCountersKeepTheirOwnOrigin` e' INTERMITTENTE sul campo autore. Un test
+         intermittente e' un oracolo che non decide."
+      - "#2798: il cap del terreno vale per sei consumatori su sette — il resolver delle
+         coperture non lo applica."
+
+  - id: RT-CAP-REACTIONS
+    name: Reaction Windows & Clash
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 152
+      spec: docs/gameplay/spec-reaction-clash-e14.md
+      adr: docs/decisions/adr-0004-finestre-di-reazione.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTReactionLibrary.h
+        - Source/RefactorTactics/Turn/RTReactionLibrary.cpp
+        - Source/RefactorTactics/Turn/RTReactionOpportunityTypes.h
+        - Source/RefactorTactics/Turn/RTReactionPassResult.h
+        - Source/RefactorTactics/Turn/RTReactionWindowView.h
+        - Source/RefactorTactics/Turn/RTDeclaredCondition.h
+    issues: { open: [2462, 2516, 2795, 2367, 166, 314, 319], closed: [2717] }
+    consumers:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-COMBAT
+      - RT-CAP-OVERWATCH-PREDICTIVE
+      - RT-CAP-PLAYBACK
+      - RT-CAP-SCREEN-HUD
+    dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-TARGETING, RT-CAP-TURN-LOOP]
+    tests:
+      automation: ["RefactorTactics.Reactions.*", "RefactorTactics.Reaction.*", "RefactorTactics.Clash.*"]
+      scenarios: [Scenarios/Spec/Clash/ReadBeatsStand.json, Scenarios/Spec/Clash/ShiftBeatsRead.json, Scenarios/Spec/Clash/StandBeatsShift.json, Scenarios/Spec/Clash/TieAppliesOnce.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2462 e' un P0 di roadmap: «Reaction hardening — boundary, determinismo, privacy,
+         performance e pacing». Cinque assi dichiarati aperti su una capability `complete`."
+      - "#2367: una spinta silenzia un Overwatch armato — la zona e' congelata, gli occhi ruotano."
+
+  - id: RT-CAP-OVERWATCH-PREDICTIVE
+    name: Overwatch & Predictive Fire
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 152
+      spec: docs/gameplay/brief-overwatch-reazioni.md
+      adr: docs/decisions/adr-0004-finestre-di-reazione.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTPredictiveLibrary.h
+        - Source/RefactorTactics/Turn/RTPredictiveLibrary.cpp
+        - Source/RefactorTactics/Turn/RTDeclaredCondition.h
+    issues: { open: [2795, 2367, 329, 330], closed: [] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-TARGET-PREVIEW]
+    dependencies: [RT-CAP-LOS, RT-CAP-REACTIONS]
+    tests:
+      automation: ["RefactorTactics.Overwatch.*", "RefactorTactics.Predictive.*", "RefactorTactics.BlindActions.*"]
+      scenarios: [Scenarios/Spec/Overwatch/HoldThenFire.json, Scenarios/Spec/Predictive/WhiffOnEmptyCell.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "Golden esistenti: Tests/Golden/Spec.Overwatch.HoldThenFire (2 turni),
+         Tests/Golden/Spec.Predictive.WhiffOnEmptyCell (2 turni)."
+
+  - id: RT-CAP-COVER
+    name: Cover & Intra-Hex Placement
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 323
+      spec: docs/technical/systems/spec-cover-placement-intra-hex.md
+      adr: docs/gameplay/spec-copertura-cp91.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTHexCoverLibrary.h
+        - Source/RefactorTactics/Map/RTHexCoverLibrary.cpp
+        - Source/RefactorTactics/Map/RTHexCoverPlacementLibrary.h
+        - Source/RefactorTactics/Map/RTHexCoverPlacementLibrary.cpp
+    issues: { open: [1833, 1829, 1831, 1317, 2341, 1561, 323], closed: [] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-LOS, RT-CAP-MAP-EDITOR, RT-CAP-TARGETING]
+    dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-STRUCTURES]
+    tests:
+      automation: ["RefactorTactics.Cover.*", "RefactorTactics.CoverPlacement.*"]
+      scenarios: [Scenarios/Spec/Combat/AreaGuardFromImpactCenterIsBypassed.json]
+      mutation: []
+    verification: { pie: [PIE-HEXPLAY-6], packaged: [] }
+    risks:
+      - "#1833 e' un [DESIGN] con otto decisioni (COV-1..COV-8) non ancora prese: la copertura
+         SELEZIONABILE non e' implementata, quella passiva si'."
+      - "#2341: la copertura non registra il facing che legge — `UsedByBlast` copre solo il
+         ramo della Guardia."
+
+  - id: RT-CAP-TERRAIN-ENV
+    name: Terrain & Environmental Systems
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 2276
+      spec: docs/gameplay/spec-terreni-e8.md
+      adr: docs/gameplay/spec-fuoco-acqua-cp84.md
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Terrain/RTTerrainLibrary.h
+        - Source/RefactorTactics/Terrain/RTTerrainLibrary.cpp
+        - Source/RefactorTactics/Terrain/RTTerrainData.h
+        - Source/RefactorTactics/Map/RTHexCellData.h
+    issues: { open: [2798, 2505, 257, 2149], closed: [] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-COMBAT, RT-CAP-STATUS, RT-CAP-WORLD-OVERLAY]
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Terrain.*", "RefactorTactics.Environment.*"]
+      scenarios: [Scenarios/Spec/Environment/, Scenarios/AutoBattle/Hazard.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2505: `HazardDamage` arriva alla timeline e NESSUNA FASE lo riproduce — la logica
+         decide, la presentazione non ha un momento in cui mostrarlo."
+    notes:
+      - "Golden: Tests/Golden/Spec.Environment.WaterQuenchesFire (3 turni)."
+
+  - id: RT-CAP-STATUS
+    name: Status Framework
+    area: gameplay
+    status: { implementation: partial, validation: partial, presentation: partial }
+    owner:
+      epic: 435
+      spec: docs/gameplay/spec-stati-temporanei-cp82.md
+      adr: docs/gameplay/brief-stati-personaggio-e-trasformazioni.md
+      capability_view: CR-CONTENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Core/RTGameplayTags.h
+        - Source/RefactorTactics/Ability/RTCatalogLibrary.cpp
+    issues: { open: [435, 437, 441, 244, 2456, 2378], closed: [] }
+    consumers: [RT-CAP-COMBAT, RT-CAP-COMBAT-FEEDBACK, RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-ACTION-MODEL, RT-CAP-TERRAIN-ENV, RT-CAP-TURNLOG]
+    tests:
+      automation: ["RefactorTactics.Status.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "FATTO misurato nel codice: `RTCatalogLibrary.cpp:512` e `:822` dichiarano che «il motore
+         non ha un modello di immunita' per categoria» e rimandano a E36 (#435), che e' v0.2.
+         La v0.1 ha `StatusTurns`, non il framework."
+      - "#2378: la catena Unbalanced→Prone «non l'ha guardata nessuno» — due banchi, quattro
+         voci PIE, due icone."
+
+  - id: RT-CAP-STRUCTURES
+    name: Structures, Walls, Doors & Arcs
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 324
+      spec: docs/gameplay/spec-porte-cp93.md
+      adr: docs/gameplay/spec-ponti-cp94.md
+      capability_view: CR-VERT
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTHexDoorLibrary.h
+        - Source/RefactorTactics/Map/RTHexArcLibrary.h
+        - Source/RefactorTactics/Map/RTStructuralBodyLibrary.h
+        - Source/RefactorTactics/Map/RTStructureIdentityLibrary.h
+        - Source/RefactorTactics/Core/RTTypes.h
+    issues: { open: [324, 2828, 2827, 2731, 2761, 1850, 1848], closed: [] }
+    consumers: [RT-CAP-COVER, RT-CAP-LOS, RT-CAP-MAP-EDITOR, RT-CAP-MOVEMENT-BUDGET, RT-CAP-VERTICALITY]
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Structures.*", "RefactorTactics.InteractionGraph.*", "RefactorTactics.Door.*", "RefactorTactics.StructuralBody.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-HEXPLAY-8], packaged: [] }
+    risks:
+      - "🔴 `Action.ModifyArc` E' SENZA ESECUTORE PER DECISIONE (D-046). Conseguenza misurata da
+         #2549: nessuna unita' puo' provocare il crollo del ponte, quindi PIE-HEXPLAY-8 non e'
+         osservabile e il gate G9 non puo' raggiungere ✅ finche' regge D-046."
+      - "#2828: `ERTResolvedEventType` non ha un valore per la struttura — il colpo a una
+         struttura non ha un momento in cui essere mostrato."
+      - "#2731: il corpo strutturale e' l'unica famiglia che `ApplyKnowledgeVeil` non tocca."
+
+  - id: RT-CAP-VERTICALITY
+    name: Verticality — Ledge, Fall & Forced Movement
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 2388
+      spec: docs/gameplay/spec-caduta-e-bordi.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-332
+      capability_view: CR-VERT
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTHexLedgeLibrary.h
+        - Source/RefactorTactics/Map/RTHexLedgeLibrary.cpp
+        - Source/RefactorTactics/Turn/RTReactionPassResult.h
+    issues: { open: [2388, 2408, 2407, 2405, 2404], closed: [2401] }
+    consumers: [RT-CAP-BOT-DECISION, RT-CAP-MAP-EDITOR, RT-CAP-PLAYBACK, RT-CAP-TURNLOG]
+    dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-SIMULTANEOUS-MOVEMENT, RT-CAP-STRUCTURES]
+    tests:
+      automation: ["RefactorTactics.Fall.*", "RefactorTactics.ForcedMovement.*", "RefactorTactics.Standability.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2405: «la minaccia di caduta non e' leggibile in pianificazione, e nel caso saturo
+         l'esito non si spiega» — e' un PRESENTATION GAP dichiarato dall'owner."
+      - "#2407 chiede evidenza PACKAGED (il bordo sopravvive al cook): NOT RUN."
+
+  - id: RT-CAP-OBJECTIVES-MATCHEND
+    name: Objectives & Match End
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 14
+      spec: docs/gameplay/spec-durata-partita-e-scala-mappe.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-184
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTTurnRules.h
+        - Source/RefactorTactics/Turn/RTTurnRules.cpp
+        - Source/RefactorTactics/Map/RTHexCellData.h
+        - Source/RefactorTacticsEditor/Private/Content/RTSetObjectiveCellCommandlet.h
+    issues: { open: [2281, 331, 332, 940], closed: [] }
+    consumers: [RT-CAP-AUTOBATTLE, RT-CAP-BOT-DECISION, RT-CAP-FRONTEND-SHELL, RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-TURN-LOOP]
+    tests:
+      automation: ["RefactorTactics.Objectives.*", "RefactorTactics.Match.*"]
+      scenarios: [Scenarios/AutoBattle/Objective.json, Scenarios/Spec/Bot/SeeksUncontestedObjective.json]
+      mutation: []
+    verification: { pie: [], packaged: [G10] }
+    risks:
+      - "#2281: «il punteggio d'obiettivo viaggia nella vista senza la condizione che lo rende
+         vero» — la UI mostra un numero che non porta il proprio perche'."
+      - "G10 e' ⏳ nella DoD: la partita completa 2v2 con esito terminale dichiarato non e'
+         stata registrata."
+
+  - id: RT-CAP-MATCH-FORMAT
+    name: Match Format (2v2 / 3v3 / 4v4)
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 325
+      spec: docs/gameplay/spec-durata-partita-e-scala-mappe.md
+      adr: docs/decisions/adr-0005-orientamento.md   # §4c, sorgente unica del formato
+      capability_view: CR-MATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTMatchFormatData.h
+        - Source/RefactorTactics/Turn/RTMatchFormatLibrary.h
+        - Source/RefactorTactics/Turn/RTMatchFormatLibrary.cpp
+        - Source/RefactorTactics/Turn/RTMatchSetupLibrary.h
+    issues: { open: [325, 333, 221], closed: [] }
+    consumers: [RT-CAP-AUTOBATTLE, RT-CAP-SCENARIO-HARNESS, RT-CAP-TURN-LOOP]
+    dependencies: [RT-CAP-HERO-KIT]
+    tests:
+      automation: ["RefactorTactics.MatchFormat.*", "RefactorTactics.MatchSetup.*", "RefactorTactics.Stress.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G10] }
+    notes:
+      - "FATTO: `URTMatchFormatData::UnitsPerTeam` ha default 2 e il campo `UnitsPerPlayer`
+         esiste gia'; `RTMatchFormatData.h:60` dichiara «`2/2 = 1` in v0.1». Il 3v3 e' modellato
+         nel DATO e non ancora spedito come formato: #325 (E24, v0.2) e' aperta.
+         `RefactorTactics.Stress.*` e `RTStress4v4Tests.cpp` esercitano gia' il 4v4."
+
+  - id: RT-CAP-PERCEPTION
+    name: Perception (vista, udito, propagazione)
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 151
+      spec: docs/technical/systems/conoscenza-parziale-visibile-spec.md
+      adr: docs/gameplay/brief-conoscenza-parziale.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Perception/RTPerceptionLibrary.h
+        - Source/RefactorTactics/Perception/RTPerceptionLibrary.cpp
+        - Source/RefactorTactics/Perception/RTAcousticPropagationLibrary.h
+        - Source/RefactorTactics/Perception/RTNoiseTypes.h
+        - Source/RefactorTactics/Perception/RTKnowledgeView.h
+    issues: { open: [327, 2795, 824], closed: [] }
+    consumers: [RT-CAP-BOT-FAIRNESS, RT-CAP-FOG-PRESENTATION, RT-CAP-TEAM-KNOWLEDGE]
+    dependencies: [RT-CAP-LOS, RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Perception.*", "RefactorTactics.Noise.*", "RefactorTactics.Knowledge.*", "RefactorTactics.Visibility.*"]
+      scenarios: [Scenarios/Spec/Bot/PlansOnPartialKnowledge.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+
+  - id: RT-CAP-TEAM-KNOWLEDGE
+    name: Team Knowledge & Memory
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 151
+      spec: docs/technical/systems/identita-di-squadra-spec.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-242
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Perception/RTTeamKnowledge.h
+        - Source/RefactorTactics/Perception/RTVisibilityBorder.h
+        - Source/RefactorTactics/Perception/RTEnemyTacticalQuery.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioKnowledge.h
+    issues: { open: [2731, 2632, 2597, 2485], closed: [1754] }
+    consumers:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-BOT-FAIRNESS
+      - RT-CAP-CHAR-PRESENTATION
+      - RT-CAP-DEBUG-CONSOLE
+      - RT-CAP-FOG-PRESENTATION
+      - RT-CAP-PLAYER-EVENT-LOG
+      - RT-CAP-SCREEN-HUD
+      - RT-CAP-TACTICAL-DESIGNER
+    dependencies: [RT-CAP-PERCEPTION]
+    tests:
+      automation: ["RefactorTactics.Knowledge.*", "RefactorTactics.Veil.*", "RefactorTactics.TeamKnowledge.*", "RefactorTactics.Visibility.*"]
+      scenarios: [Scenarios/Spec/Bot/HiddenEnemyFairness.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2731: il corpo strutturale e' l'unica famiglia che `ApplyKnowledgeVeil` non tocca —
+         un buco misurato nel velo."
+
+  - id: RT-CAP-INTENT-PRIVACY
+    name: Intent Privacy (planning privato)
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: not_applicable }
+    owner:
+      epic: 773
+      spec: docs/technical/systems/procedura-canary-anti-leak.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-276
+      capability_view: CR-NET
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+        - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.cpp
+        - Source/RefactorTactics/Core/RTServerOnlyGuard.h
+        - Source/RefactorTactics/Core/RTServerOnlyGuard.cpp
+    issues: { open: [784, 759, 1466, 2793], closed: [2331, 1496] }
+    consumers:
+      - RT-CAP-BOT-FAIRNESS
+      - RT-CAP-PLAYER-EVENT-LOG
+      - RT-CAP-REACTIONS
+      - RT-CAP-REPLAY-PRIVACY
+      - RT-CAP-REPLICATION
+      - RT-CAP-SCREEN-HUD
+      - RT-CAP-TARGET-PREVIEW
+      - RT-CAP-TEMPORAL-PRIVACY
+      - RT-CAP-WORLD-OVERLAY
+    dependencies: [RT-CAP-AUTHORITY-BOUNDARY, RT-CAP-PLANNING]
+    tests:
+      automation: ["RefactorTactics.Privacy.*", "RefactorTactics.BlindActions.*", "RefactorTactics.Reactions.IntentNotVisibleToEnemy", "RefactorTactics.UI.IntentViewFieldsAreClassified", "RefactorTactics.UI.EnemyViewCarriesNoAllyOnlyField"]
+      scenarios: [Scenarios/Spec/Bot/HiddenEnemyFairness.json]
+      mutation: []
+    verification: { pie: [PIE-V01-INTENT], packaged: [G8] }
+    risks:
+      - "⚠️ G8 e' ✅ MA OFFLINE PER DICHIARAZIONE: «misura il DTO, non il filo». Il canary sul
+         traffico e' #784, P0 di v0.5. Finche' non esiste rete, il gate non puo' fallire per la
+         ragione per cui esiste."
+      - "#2793: l'anteprima di Planning legge l'occupazione autorevole — un canale di leak
+         potenziale che nasce nella presentazione, non nella replicazione."
+
+  - id: RT-CAP-HERO-KIT
+    name: Hero Kits & Roster
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1408
+      spec: docs/technical/piano-migrazione-roster.md
+      adr: docs/decisions/adr-0006-ownership-abilita-sinergie.md
+      capability_view: CR-CONTENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Ability/RTHeroData.h
+        - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h
+        - Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp
+        - Source/RefactorTactics/Ability/RTHeroLab.h
+    issues: { open: [1408, 2297, 2291, 322, 2381], closed: [] }
+    consumers:
+      - RT-CAP-ACTION-MODEL
+      - RT-CAP-EQUIPMENT-LOADOUT
+      - RT-CAP-HERO-PROFILE
+      - RT-CAP-MATCH-FORMAT
+      - RT-CAP-SKILL-WORKBENCH
+    dependencies: []
+    tests:
+      automation: ["RefactorTactics.Heroes.*", "RefactorTactics.HeroLab.*", "RefactorTactics.Catalog.*"]
+      scenarios: [Scenarios/Combat/BranthImpactShotSlows.json]
+      mutation: []
+    verification: { pie: [PIE-V01-ROSTER], packaged: [G6] }
+    risks:
+      - "#2381: `Hero.Wraith.PhaseGuard` non e' esercitato da niente — «ne' scenario, ne' voce
+         PIE». E' un VALIDATION GAP nominale su una capability altrimenti coperta."
+      - "#2297/#2291: migrazione identita' roster da nomi di slot Paragon a identita' RT, aperta."
+
+  - id: RT-CAP-EQUIPMENT-LOADOUT
+    name: Equipment, Variants & Loadout
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1408
+      spec: docs/gameplay/spec-ownership-abilita-interazioni-sinergie.md
+      adr: docs/decisions/adr-0006-ownership-abilita-sinergie.md
+      capability_view: CR-CONTENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Ability/RTEquipmentData.h
+        - Source/RefactorTactics/Ability/RTActionData.h
+        - Source/RefactorTactics/Ability/RTWorkbenchVariant.h
+    issues: { open: [1564, 2577], closed: [] }
+    consumers: [RT-CAP-COMBAT, RT-CAP-HERO-PROFILE, RT-CAP-SKILL-WORKBENCH]
+    dependencies: [RT-CAP-ACTION-MODEL, RT-CAP-HERO-KIT]
+    tests:
+      automation: ["RefactorTactics.Equipment.*", "RefactorTactics.Workbench.*"]
+      scenarios: [Scenarios/Combat/NoCounterWhenUnarmed.json]
+      mutation: []
+    verification: { pie: [], packaged: [G6] }
+    notes:
+      - "#1564 (CP 22.4) chiede che le dodici varianti diventino scenari dell'harness: oggi
+         il dato esiste, il corpus di scenari per-variante no."
+
+  - id: RT-CAP-MAP-TOPOLOGY
+    name: Tactical Map Topology (hex multilivello)
+    area: gameplay
+    status: { implementation: complete, validation: complete, presentation: complete }
+    owner:
+      epic: 16
+      spec: docs/technical/architecture/spec-mappa-multilivello.md
+      adr: docs/decisions/adr-0002-griglia-esagonale.md
+      capability_view: CR-VERT
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTCellId.h
+        - Source/RefactorTactics/Map/RTHexLibrary.h
+        - Source/RefactorTactics/Map/RTHexLibrary.cpp
+        - Source/RefactorTactics/Map/RTHexMapAsset.h
+        - Source/RefactorTactics/Map/RTHexMapActor.h
+        - Source/RefactorTactics/Map/RTHexCellData.h
+        - Source/RefactorTactics/Map/RTHexMapCustomVersion.h
+        - Source/RefactorTactics/Core/RTTypes.h
+    issues: { open: [1868, 1775, 1218], closed: [687] }
+    consumers:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-CAMERA
+      - RT-CAP-COVER
+      - RT-CAP-FACING
+      - RT-CAP-LOS
+      - RT-CAP-MAP-EDITOR
+      - RT-CAP-MOVEMENT-BUDGET
+      - RT-CAP-MOVEMENT-LINEAR
+      - RT-CAP-OBJECTIVES-MATCHEND
+      - RT-CAP-PATHFINDING
+      - RT-CAP-PERCEPTION
+      - RT-CAP-PLANNING
+      - RT-CAP-POINTER-INTERACTION
+      - RT-CAP-SCENARIO-AUTHORING
+      - RT-CAP-SCENARIO-HARNESS
+      - RT-CAP-SNAPSHOT
+      - RT-CAP-STRUCTURES
+      - RT-CAP-TARGETING
+      - RT-CAP-TERRAIN-ENV
+      - RT-CAP-VERTICALITY
+      - RT-CAP-WORLD-OVERLAY
+    dependencies: []
+    tests:
+      automation: ["RefactorTactics.Hex.*", "RefactorTactics.HexMap.*", "RefactorTactics.HexMapActor.*", "RefactorTactics.HexMapValidation.*", "RefactorTactics.HexLayer.*", "RefactorTactics.Map.*", "RefactorTactics.MapClass.*"]
+      scenarios: [Scenarios/AutoBattle/ArenaV01.json, Scenarios/AutoBattle/Obstacles.json]
+      mutation: []
+    verification: { pie: [PIE-V01-BOARD], packaged: [G5, G13] }
+    notes:
+      - "FATTO — G5 rimisurato in questa passata: `git grep -l FRTGridCoord origin/main -- Source/`
+         restituisce ZERO file. Il substrato quadrato NON esiste piu' come tipo. La parola
+         «quadrato» sopravvive solo in COMMENTI — contesto storico e campi legacy dichiarati — e si
+         rimisura con `git grep -in quadrat origin/main -- Source/ | grep -vi inquadratur`
+         (⚠️ l'esclusione serve: «inquadratura» contiene la sottostringa). Gli unici identificatori
+         con `Square` sono matematica: `SizeSquared`, `DistSquared`."
+      - "FATTO: `FRTCellId` = (X=q, Y=r, Layer) interi, con invariante cubica q+r+s=0 e
+         `GetTypeHash` esplicito. E' la coordinata autorevole."
+
+# ─────────────────────────── AREA: resolution ────────────────────────────────
+
+  - id: RT-CAP-SNAPSHOT
+    name: Immutable Snapshot
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: not_applicable }
+    owner:
+      epic: 26
+      spec: docs/gameplay/spec-anima-risoluzione.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTHexSim.h
+        - Source/RefactorTactics/Combat/RTHexCombatLibrary.h
+        - Source/RefactorTactics/Turn/RTTurnManager.h   # MakeCurrentSnapshot
+    issues: { open: [], closed: [] }
+    consumers:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-COMBAT
+      - RT-CAP-MOVEMENT-BUDGET
+      - RT-CAP-RESOLUTION-ORDER
+      - RT-CAP-SIMULTANEOUS-MOVEMENT
+      - RT-CAP-STATE-HASH
+      - RT-CAP-TURN-LOOP
+      - RT-CAP-TURNLOG
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.HexSim.*", "RefactorTactics.Simulation.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G4] }
+    notes:
+      - "FATTO: identita' = intero stabile (`UnitId`), mai pointer — dichiarato in `RTHexSim.h`
+         e in `RTHexCombatLibrary.h` con la stessa motivazione (determinismo/replay)."
+
+  - id: RT-CAP-RESOLUTION-ORDER
+    name: Deterministic Resolution Order
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: not_applicable }
+    owner:
+      epic: 26
+      spec: docs/gameplay/spec-anima-risoluzione.md
+      adr: docs/decisions/adr-0003-modello-azioni-v01.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTActionQueueLibrary.h
+        - Source/RefactorTactics/Turn/RTActionQueueLibrary.cpp
+        - Source/RefactorTactics/Turn/RTActionQueue.h
+    issues: { open: [], closed: [] }
+    consumers: [RT-CAP-SIMULTANEOUS-MOVEMENT, RT-CAP-STATE-HASH, RT-CAP-TURN-LOOP, RT-CAP-TURNLOG]
+    dependencies: [RT-CAP-SNAPSHOT]
+    tests:
+      automation: ["RefactorTactics.Actions.*", "RefactorTactics.Simulation.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G4] }
+    notes:
+      - "FATTO: «una sola sede per la regola d'ordine» e' dichiarato nel docstring di
+         `RTActionQueueLibrary.h`, con la ragione (due punti che divergono)."
+
+  - id: RT-CAP-TURNLOG
+    name: TurnLog canonico (traccia + serializzazione)
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 26
+      spec: docs/technical/architecture/spec-turnlog.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTTurnLog.h
+        - Source/RefactorTactics/Turn/RTTurnLogLibrary.h
+        - Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp
+    issues: { open: [1392, 649, 805, 2516], closed: [1499, 307] }
+    consumers:
+      - RT-CAP-DEBUG-CONSOLE
+      - RT-CAP-PLAYBACK
+      - RT-CAP-PLAYER-EVENT-LOG
+      - RT-CAP-REPLAY-ARCHIVE
+      - RT-CAP-REPLAY-SEEK
+      - RT-CAP-REPLAY-STATE
+      - RT-CAP-RESOLVED-TIMELINE
+      - RT-CAP-SCENARIO-HARNESS
+      - RT-CAP-STATE-HASH
+      - RT-CAP-STATUS
+      - RT-CAP-TACTICAL-DESIGNER
+      - RT-CAP-TURN-LOOP
+    dependencies: [RT-CAP-RESOLUTION-ORDER, RT-CAP-SIMULTANEOUS-MOVEMENT, RT-CAP-SNAPSHOT, RT-CAP-VERTICALITY]
+    tests:
+      automation: ["RefactorTactics.TurnLog.*"]
+      scenarios: [Source/RefactorTactics/Tests/Fixtures/Legacy/turnlog-v10-movement-collision.rttl]
+      mutation: []
+    verification: { pie: [PIE-V01-LOG], packaged: [] }
+    risks:
+      - "#1392: «il colpo di boundary rispetta la copertura, e nessuno lo dice» — la regola
+         decide e la traccia tace. E' la forma canonica del TRACEABILITY GAP di questa capability."
+      - "#649: il bonus direzionale del bot conta un danno che nessuno puo' verificare — la
+         copertura scavalcata non lascia traccia."
+    notes:
+      - "FATTO: il formato e' alla v7 con estensioni SOLO IN CODA — dichiarato in
+         `RTReplayManifest.h` e in `RTTurnLog.h`. Esiste una fixture legacy v10 in Tests/."
+
+  - id: RT-CAP-STATE-HASH
+    name: StateHash & Boundary Checksum
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: not_applicable }
+    owner:
+      epic: 26
+      spec: docs/technical/architecture/spec-turnlog-serialize.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTMatchStateHash.h
+        - Source/RefactorTactics/Replay/RTBoundaryChecksum.h
+        - Source/RefactorTactics/Replay/RTBoundaryChecksum.cpp
+    issues: { open: [2620], closed: [2189, 1800] }
+    consumers: [RT-CAP-DEBUG-CONSOLE, RT-CAP-REPLAY-ARCHIVE, RT-CAP-SCENARIO-HARNESS]
+    dependencies:
+      - RT-CAP-FACING
+      - RT-CAP-REPLAY-STATE
+      - RT-CAP-RESOLUTION-ORDER
+      - RT-CAP-SNAPSHOT
+      - RT-CAP-TURNLOG
+    tests:
+      automation: ["RefactorTactics.Simulation.*", "RefactorTactics.Replay.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G4] }
+    notes:
+      - "⚠️ DUE «hash» OMONIMI e distinti: `FRTMatchStateHash` (fine partita) e
+         `FRTBoundaryChecksum` (per boundary, #2189). Non confonderli leggendo un log."
+
+  - id: RT-CAP-RESOLVED-TIMELINE
+    name: Resolved Timeline (FRTResolvedEvent)
+    area: resolution
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 2453
+      spec: docs/gameplay/spec-anima-risoluzione.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-278
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTResolvedEvent.h
+        - Source/RefactorTactics/Turn/RTPresentationBinding.h
+        - Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+    issues: { open: [2453, 2828, 2505, 2457], closed: [2455] }
+    consumers: [RT-CAP-ANIMATION-RUNTIME, RT-CAP-AUDIO, RT-CAP-COMBAT-FEEDBACK, RT-CAP-PLAYBACK, RT-CAP-VFX]
+    dependencies: [RT-CAP-COMBAT, RT-CAP-TURNLOG]
+    tests:
+      automation: ["RefactorTactics.Presentation.*", "RefactorTactics.Playback.*"]
+      scenarios: [Scenarios/Combat/BasicAttack.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "🔴 implementation=partial per DUE assenze misurate nell'enum stesso: #2828 (nessun
+         valore per la struttura) e #2505 (`HazardDamage` arriva e nessuna fase lo riproduce).
+         L'enum e' il vocabolario della presentazione: cio' che non ha un valore non ha un momento."
+      - "`RTPresentationBinding.h:51` dichiara che `Content/` non contiene UN SOLO asset Niagara
+         e che D-124 tiene fuori dal perimetro il «Niagara dedicato a ogni abilita'»."
+
+  - id: RT-CAP-PLAYBACK
+    name: Resolution Playback (pacing, pause, step, speed)
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1881
+      spec: docs/gameplay/spec-pacing-turno.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTPlaybackLibrary.h
+        - Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp
+        - Source/RefactorTactics/Replay/RTPlaybackSpeed.h
+        - Source/RefactorTactics/Replay/RTPlaybackSpeed.cpp
+    issues: { open: [1881, 2411], closed: [1878, 1879, 1880] }
+    consumers:
+      - RT-CAP-AUTOBATTLE
+      - RT-CAP-COMBAT-FEEDBACK
+      - RT-CAP-REPLAY-VIEWMODEL
+      - RT-CAP-SCREEN-HUD
+      - RT-CAP-TACTICAL-DESIGNER
+    dependencies:
+      - RT-CAP-FACING
+      - RT-CAP-MOVEMENT-BUDGET
+      - RT-CAP-PACING
+      - RT-CAP-REACTIONS
+      - RT-CAP-RESOLVED-TIMELINE
+      - RT-CAP-SIMULTANEOUS-MOVEMENT
+      - RT-CAP-TURN-LOOP
+      - RT-CAP-TURNLOG
+      - RT-CAP-VERTICALITY
+    tests:
+      automation: ["RefactorTactics.Playback.*", "RefactorTactics.Pacing.*"]
+      scenarios: [Scenarios/Movement/Basic.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2411: il caso ASIMMETRICO creato da #2370 («il corto che arriva prima e aspetta»)
+         non e' stato guardato da nessuno."
+    notes:
+      - "🔑 INVARIANTE VERIFICATA IN QUESTA PASSATA: il playback NON e' un secondo simulatore.
+         `LockInAndResolve`/`ResolveTurn`/`AdvanceMovementResolution` hanno chiamanti solo in
+         Turn/, RTGameMode, RTPlayerController, RTMatchBootstrapper e ScenarioRunner/Session.
+         Zero chiamanti in Replay/, UI/, Frontend/ e nel modulo Editor."
+      - "FATTO: `FRTPhaseTime` separa `Shown` (incomprimibile) da `Slack` (comprimibile) — il
+         budget di presentazione non puo' toccare il primo (#1878)."
+
+  - id: RT-CAP-REPLAY-ARCHIVE
+    name: Replay Recording & Manifest
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 26
+      spec: docs/technical/architecture/spec-turnlog-serialize.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Replay/RTReplayRecorderLibrary.h
+        - Source/RefactorTactics/Replay/RTReplayRecorderLibrary.cpp
+        - Source/RefactorTactics/Replay/RTReplayManifest.h
+        - Source/RefactorTactics/Turn/RTReplayRecording.h
+        - Source/RefactorTactics/Replay/RTReplayPlayerLibrary.h
+    issues: { open: [813, 805, 2620], closed: [2286] }
+    consumers: [RT-CAP-DEBUG-CONSOLE, RT-CAP-MATCH-HISTORY, RT-CAP-REPLAY-PRIVACY, RT-CAP-REPLAY-VIEWMODEL]
+    dependencies: [RT-CAP-STATE-HASH, RT-CAP-TURNLOG]
+    tests:
+      automation: ["RefactorTactics.Replay.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO: il Player rifiuta IN APERTURA cio' che non sa leggere (ADR-0009 §4), fail-closed."
+
+  - id: RT-CAP-REPLAY-SEEK
+    name: Replay Seek (turno, fase, micro-step)
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1881
+      spec: docs/technical/architecture/spec-turnlog.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Replay/RTReplaySeekLibrary.h
+        - Source/RefactorTactics/Replay/RTReplaySeekLibrary.cpp
+    issues: { open: [], closed: [415, 1880] }
+    consumers: [RT-CAP-REPLAY-STATE, RT-CAP-REPLAY-VIEWMODEL, RT-CAP-TACTICAL-DESIGNER]
+    dependencies: [RT-CAP-TURNLOG]
+    tests:
+      automation: ["RefactorTactics.Replay.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO: fail-closed per convenzione — «un bersaglio che non c'e' deve dirlo, non
+         restituire un indice plausibile» (`RTReplaySeekLibrary.h`)."
+
+  - id: RT-CAP-REPLAY-STATE
+    name: Replay State Reconstruction (UnitsAtBoundary)
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1881
+      spec: docs/technical/architecture/spec-turnlog.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Replay/RTReplayStateLibrary.h
+        - Source/RefactorTactics/Replay/RTReplayStateLibrary.cpp
+    issues: { open: [], closed: [470, 1880] }
+    consumers: [RT-CAP-REPLAY-VIEWMODEL, RT-CAP-STATE-HASH, RT-CAP-TACTICAL-DESIGNER]
+    dependencies: [RT-CAP-REPLAY-SEEK, RT-CAP-TURNLOG]
+    tests:
+      automation: ["RefactorTactics.Replay.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO — verificato in questa passata: `URTReplayStateLibrary::UnitsAtBoundary` esiste
+         (`RTReplayStateLibrary.h:116`) e `UnitsAtPosition` vi delega con `MicroStepIndex =
+         INDEX_NONE` (`RTReplayStateLibrary.cpp:104`). Il micro-step E' indirizzabile."
+      - "FATTO: `FRTTracedUnitState` porta dichiaratamente uno stato DI PRESENTAZIONE
+         ricostruito — cella, facing, vivo — e non uno stato di gioco."
+
+  - id: RT-CAP-REPLAY-VIEWMODEL
+    name: Replay ViewModel & Blueprint Bridge
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: complete }
+    owner:
+      epic: 1881
+      spec: docs/technical/architecture/spec-turnlog.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Replay/RTReplayViewModel.h
+        - Source/RefactorTactics/Replay/RTReplayViewModel.cpp
+        - Source/RefactorTactics/Replay/RTReplayViewerSubsystem.h
+        - Source/RefactorTactics/Replay/RTReplayViewerSubsystem.cpp
+        - Source/RefactorTactics/Replay/RTReplayScreenWidgets.h
+        - Content/RT/UI/Framework/WBP_RT_ReplayViewer.uasset
+    issues: { open: [1625], closed: [472, 999] }
+    consumers: [RT-CAP-FRONTEND-SHELL, RT-CAP-TACTICAL-DESIGNER]
+    dependencies:
+      - RT-CAP-MATCH-HISTORY
+      - RT-CAP-PLAYBACK
+      - RT-CAP-REPLAY-ARCHIVE
+      - RT-CAP-REPLAY-PRIVACY
+      - RT-CAP-REPLAY-SEEK
+      - RT-CAP-REPLAY-STATE
+    tests:
+      automation: ["RefactorTactics.Replay.*", "RefactorTactics.Playback.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO: i consumatori di `FRTReplayViewModel` fuori dal core sono
+         `ScenarioHarness/RTScenarioAuthoring.h`, `ScenarioHarness/RTScenarioDraft.h`,
+         `RefactorTacticsEditor/Public/RTScenarioPreviewSubsystem.h` e
+         `RefactorTacticsEditor/Public/RTLauncherScenarioBrowser.h`. Il Tactical Designer
+         CONSUMA il ViewModel — nessun secondo resolver."
+
+  - id: RT-CAP-REPLAY-PRIVACY
+    name: Replay Privacy (public/sanitized vs private audit)
+    area: resolution
+    status: { implementation: partial, validation: partial, presentation: missing }
+    owner:
+      epic: 1881
+      spec: docs/decisions/RT_PDR_00_Decision_Log.md   # D-276, D-313
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-NET
+    implementation:
+      files:
+        - Source/RefactorTactics/Replay/RTReplayPrivacyLibrary.h
+        - Source/RefactorTactics/Replay/RTReplayPrivacyLibrary.cpp
+        - Source/RefactorTactics/Replay/RTReplayAuditLibrary.h
+        - Source/RefactorTactics/Replay/RTReplayAuditLibrary.cpp
+    issues: { open: [1805, 759], closed: [] }
+    consumers: [RT-CAP-MATCH-HISTORY, RT-CAP-REPLAY-VIEWMODEL]
+    dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-REPLAY-ARCHIVE, RT-CAP-TEMPORAL-PRIVACY]
+    tests:
+      automation: ["RefactorTactics.Replay.*", "RefactorTactics.Privacy.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#1805 e' APERTA: la SEPARAZIONE fra export pubblico sanitizzato e traccia d'audit
+         privata e' decisa (D-276) e non ancora consegnata come due prodotti distinti."
+
+  - id: RT-CAP-MATCH-HISTORY
+    name: Match History Index
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: complete }
+    owner:
+      epic: 934
+      spec: docs/technical/architecture/spec-frontend-navigazione.md
+      adr: docs/decisions/adr-0009-replay-logico-canonico.md
+      capability_view: CR-SHELL
+    implementation:
+      files:
+        - Source/RefactorTactics/Replay/RTMatchHistoryLibrary.h
+        - Source/RefactorTactics/Replay/RTMatchHistoryLibrary.cpp
+        - Content/RT/UI/Framework/WBP_RT_MatchHistory.uasset
+    issues: { open: [], closed: [416, 472] }
+    consumers: [RT-CAP-FRONTEND-SHELL, RT-CAP-REPLAY-VIEWMODEL]
+    dependencies: [RT-CAP-REPLAY-ARCHIVE, RT-CAP-REPLAY-PRIVACY]
+    tests:
+      automation: ["RefactorTactics.Replay.*", "RefactorTactics.Frontend.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+
+  - id: RT-CAP-PACING
+    name: Pacing Telemetry
+    area: resolution
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1881
+      spec: docs/gameplay/spec-pacing-turno.md
+      adr: docs/gameplay/spec-decision-time-bank.md
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTPacing.h
+        - Source/RefactorTactics/Turn/RTPacingLibrary.h
+        - Source/RefactorTactics/Turn/RTPacingRecorder.h
+        - Source/RefactorTactics/Turn/RTPacingConsole.cpp
+    issues: { open: [1818, 2462], closed: [] }
+    consumers: [RT-CAP-DEBUG-CONSOLE, RT-CAP-PLAYBACK]
+    dependencies: [RT-CAP-TURN-LOOP]
+    tests:
+      automation: ["RefactorTactics.Pacing.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G11] }
+    risks:
+      - "G11 (KPI misurati e registrati) e' ⏳ nella DoD: la telemetria esiste, la tabella §4
+         non e' compilata."
+    notes:
+      - "FATTO: canale SEPARATO dal TurnLog per dichiarazione (`RTPacing.h`) — la telemetria non
+         entra nella traccia canonica."
+
+# ────────────────────────── AREA: presentation ───────────────────────────────
+
+  - id: RT-CAP-SCREEN-HUD
+    name: Screen HUD (Canvas legacy → UMG §4.1)
+    area: presentation
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 25
+      spec: docs/technical/systems/progettazione-hud.md
+      adr: docs/technical/runbooks/guida-screen-hud-umg.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/UI/RTHUD.h
+        - Source/RefactorTactics/UI/RTHUD.cpp
+        - Source/RefactorTactics/UI/RTScreenHudWidgets.h
+        - Source/RefactorTactics/UI/RTHudViewModel.h
+        - Source/RefactorTactics/UI/RTHudViewModel.cpp
+        - Source/RefactorTactics/UI/RTUnitOverlayWidget.h
+        - Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset
+        - Content/RT/UI/Match/WBP_RT_TurnHeader.uasset
+        - Content/RT/UI/Match/WBP_RT_UnitOverlay.uasset
+    issues: { open: [613, 1936, 2764, 2757, 2752, 2744, 2732, 2826, 2184, 2618], closed: [2288, 2372] }
+    consumers: [RT-CAP-AUTOBATTLE]
+    dependencies:
+      - RT-CAP-ACTION-ECONOMY
+      - RT-CAP-COMBAT-FEEDBACK
+      - RT-CAP-FOG-PRESENTATION
+      - RT-CAP-HERO-PROFILE
+      - RT-CAP-ICON-LANGUAGE
+      - RT-CAP-INTENT-PRIVACY
+      - RT-CAP-OBJECTIVES-MATCHEND
+      - RT-CAP-PLAYBACK
+      - RT-CAP-PLAYER-EVENT-LOG
+      - RT-CAP-POINTER-INTERACTION
+      - RT-CAP-REACTIONS
+      - RT-CAP-STATUS
+      - RT-CAP-TARGET-PREVIEW
+      - RT-CAP-TEAM-KNOWLEDGE
+      - RT-CAP-TURN-LOOP
+    tests:
+      automation: ["RefactorTactics.HUD.*", "RefactorTactics.ScreenHud.*", "RefactorTactics.HudViewModel.*", "RefactorTactics.UI.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-V01-HUD], packaged: [G13] }
+    risks:
+      - "🔴 LA TRANSIZIONE E' A META' ED E' IL PUNTO: `RTHUD.cpp` e' ancora 1 357 righe di Canvas
+         (#2184: `DrawHUD` e' la terza funzione piu' costosa e l'unica alta fuori dai resolver),
+         mentre i `WBP_RT_*` di `Content/RT/UI/Match/` esistono e sono versionati. #613 (CP 11.7)
+         e #1936 («i pannelli Canvas legacy escono») sono entrambe APERTE."
+      - "#2764: «il §4.1 ridecide nei Blueprint cio' che il C++ decide e testa» — rischio di
+         SECONDA AUTORITA' nella presentazione."
+      - "#2744: lo Screen HUD non sa di essere in autobattle: roster e feed restano di una
+         squadra sola."
+    notes:
+      - "⚠️ Da tenere separata da RT-CAP-WORLD-OVERLAY: questa e' la superficie SCHERMO
+         (§4.1), quella e' la superficie MONDO."
+
+  - id: RT-CAP-WORLD-OVERLAY
+    name: Tactical World Overlay (grammatica semantica)
+    area: presentation
+    status: { implementation: partial, validation: partial, presentation: partial }
+    owner:
+      epic: 1769
+      spec: docs/technical/systems/progettazione-hud.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-368 (riserva di colore)
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTOverlayArea.h
+        - Source/RefactorTactics/Map/RTOverlayPalette.h
+        - Source/RefactorTactics/Map/RTOverlayPalette.cpp
+        - Source/RefactorTactics/Map/RTHexMapActor.cpp   # DrawPlanningPreview
+        - Source/RefactorTactics/Map/RTHexOverlayConsole.cpp
+        - Source/RefactorTactics/Map/RTRegionBoundary.h
+    issues: { open: [1941, 1942, 1943, 1944, 2742, 1614, 921], closed: [] }
+    consumers: [RT-CAP-FOG-PRESENTATION, RT-CAP-GRAYKIT-PLAYGROUND, RT-CAP-MAP-EDITOR, RT-CAP-TARGET-PREVIEW]
+    dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-MAP-TOPOLOGY, RT-CAP-TERRAIN-ENV]
+    tests:
+      automation: ["RefactorTactics.AreaOverlay.*", "RefactorTactics.Overlay.*", "RefactorTactics.Preview.*", "RefactorTactics.RegionBoundary.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-HEXPLAY-6], packaged: [] }
+    risks:
+      - "FATTO scritto nell'enum: i significati della spec v0.2 che NON compaiono in
+         `ERTOverlayMeaning` — Vision/LOS d'area, Ability Range, Hazard, Objective, Invalid —
+         «non sono dimenticati: NON HANNO UN PRODUTTORE» (#1944 e' l'owner che li apre)."
+      - "#1943: la priorita' degli overlay e' FISSA mentre la decisione del giocatore non lo e'."
+
+  - id: RT-CAP-TARGET-PREVIEW
+    name: Target & Movement Preview
+    area: presentation
+    status: { implementation: partial, validation: partial, presentation: partial }
+    owner:
+      epic: 1769
+      spec: docs/technical/systems/brief-planning-visuale.md
+      adr: docs/technical/systems/spec-hover-cella.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Map/RTHexMapActor.cpp   # DrawPlanningPreview
+        - Source/RefactorTactics/Map/RTOverlayArea.h
+        - Source/RefactorTactics/Turn/RTHexSimLibrary.h  # reachable set
+        - Source/RefactorTactics/Map/RTSightLines.h
+        - Source/RefactorTactics/Perception/RTEnemyTacticalQuery.h
+    issues: { open: [2825, 2793, 2742, 2632, 2597, 1944, 607, 172], closed: [] }
+    consumers: [RT-CAP-MAP-EDITOR, RT-CAP-SCREEN-HUD, RT-CAP-TACTICAL-DESIGNER]
+    dependencies:
+      - RT-CAP-INTENT-PRIVACY
+      - RT-CAP-LOS
+      - RT-CAP-MOVEMENT-BUDGET
+      - RT-CAP-MOVEMENT-LINEAR
+      - RT-CAP-OVERWATCH-PREDICTIVE
+      - RT-CAP-PATHFINDING
+      - RT-CAP-PLANNING
+      - RT-CAP-POINTER-INTERACTION
+      - RT-CAP-TARGETING
+      - RT-CAP-WORLD-OVERLAY
+    tests:
+      automation: ["RefactorTactics.Preview.*", "RefactorTactics.AreaOverlay.*", "RefactorTactics.BlastPreview.*", "RefactorTactics.MovementProbe.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-HEXPLAY-6], packaged: [] }
+    risks:
+      - "🔴 RISPOSTA ALLA DOMANDA «capability unica o insieme coordinato?»: e' un INSIEME
+         COORDINATO con UNA grammatica (`ERTOverlayMeaning` + `URTOverlayPalette`) e PIU'
+         produttori indipendenti — reachable set (`RTHexSimLibrary`), rotta
+         (`DrawPlanningPreview`), linea di tiro (`RTSightLines`), regioni nemiche
+         (`RTEnemyTacticalQuery`), AoE (`RTHexCombatLibrary`). #2825 apre esplicitamente
+         l'unificazione dell'asse traiettoria: «`Shape` conflaziona percorso e footprint»."
+      - "#2793: l'anteprima e' costruita sull'occupazione AUTOREVOLE — il ventaglio ha un buco
+         dove sta un nemico che il giocatore non dovrebbe vedere. E' un LEAK di presentazione."
+
+  - id: RT-CAP-PLAYER-EVENT-LOG
+    name: Player Event Log & Explainability
+    area: presentation
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 1937
+      spec: docs/technical/systems/progettazione-hud.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-242
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/UI/RTPlayerEvent.h
+        - Source/RefactorTactics/UI/RTPlayerEventProjector.h
+        - Source/RefactorTactics/UI/RTPlayerEventProjector.cpp
+        - Content/RT/UI/Match/WBP_RT_EventLog.uasset
+        - Content/RT/UI/Match/WBP_RT_EventLine.uasset
+    issues: { open: [1937, 1936, 2697, 2281, 1392], closed: [] }
+    consumers: [RT-CAP-AUTOBATTLE, RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-INTENT-PRIVACY, RT-CAP-TEAM-KNOWLEDGE, RT-CAP-TEMPORAL-PRIVACY, RT-CAP-TURNLOG]
+    tests:
+      automation: ["RefactorTactics.UI.*", "RefactorTactics.HUD.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-V01-LOG], packaged: [] }
+    risks:
+      - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura dava `presentation: missing` citando il
+         TITOLO di #2697 — «i tre canali verso lo schermo hanno zero chiamanti fuori dai test» — e
+         quel titolo descrive il difetto AL MOMENTO DELL'APERTURA, non oggi. Misurato sul codice:
+         `9169c2ff feat(2697): il feed arriva a schermo` e' su `origin/main`, `UI/RTHUD.cpp:994`
+         chiama `URTHudViewModel::BuildPlayerEventFeed(TurnManager, PlayerTeamId)` in PRODUZIONE, e
+         `UI/RTScreenHudWidgets.h:294` espone `GetFeed()` al widget UMG. Il canale ESISTE."
+      - "#2697 resta APERTA per lo scope residuo, che questa mappa non ha misurato staticamente: si
+         legge la issue, non il suo titolo."
+    notes:
+      - "FATTO: la pipeline dichiarata in `RTPlayerEventProjector.h` e'
+         `Resolver → TurnLog canonico → predicato di autorizzazione → QUI → FRTPlayerEvent[]`.
+         L'ordine — sanificare PRIMA di proiettare — e' il vincolo che la capability protegge."
+
+  - id: RT-CAP-COMBAT-FEEDBACK
+    name: Combat Feedback (damage token, cue, status)
+    area: presentation
+    status: { implementation: partial, validation: partial, presentation: partial }
+    owner:
+      epic: 2453
+      spec: docs/technical/systems/progettazione-hud.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-320
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/UI/RTDamageTokenView.h
+        - Source/RefactorTactics/UI/RTUnitOverlayWidget.h
+        - Source/RefactorTactics/UI/RTUnitOverlayWidget.cpp
+        - Source/RefactorTacticsEditor/Private/Content/RTAddDamageTokenCommandlet.h
+    issues: { open: [2453, 2456, 2457, 2828, 2505], closed: [2455, 2288] }
+    consumers: [RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-COMBAT, RT-CAP-PLAYBACK, RT-CAP-RESOLVED-TIMELINE, RT-CAP-STATUS]
+    tests:
+      automation: ["RefactorTactics.UI.*", "RefactorTactics.Damage.*", "RefactorTactics.Presentation.*"]
+      scenarios: []
+      mutation: []
+    verification:
+      pie: []
+      packaged: []
+    notes:
+      - "Evidenza visiva gia' raccolta: docs/technical/evidence/hud-damage-token/ (tre PNG del
+         2026-09-06)."
+      - "#2456 (ciclo di vita degli stati: pulse e fade su StatusChanged) e #2457 (diagnostica
+         evento/animazione separata dal layer player-facing) sono le due meta' aperte."
+
+  - id: RT-CAP-CHAR-PRESENTATION
+    name: Character Presentation (mesh, anelli, sagome)
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 286
+      spec: docs/technical/systems/spec-team-identity.md
+      adr: docs/decisions/adr-0001-skeletal-unit.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Unit/RTUnit.h
+        - Source/RefactorTactics/Unit/RTUnit.cpp
+        - Source/RefactorTactics/Unit/RTPresentationRole.h
+        - Source/RefactorTactics/Unit/RTContactGhostAnimInstance.h
+        - Content/RT/Characters/Shared/Materials/M_TeamRing.uasset
+        - Content/RT/Characters/Shared/Materials/M_SelectionRing.uasset
+        - Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset
+    issues: { open: [286, 1750, 2545, 1095, 2167], closed: [287] }
+    consumers: [RT-CAP-FOG-PRESENTATION, RT-CAP-GRAYKIT-PLAYGROUND]
+    dependencies: [RT-CAP-ANIMATION-RUNTIME, RT-CAP-FACING, RT-CAP-TEAM-KNOWLEDGE]
+    tests:
+      automation: ["RefactorTactics.Unit.*", "RefactorTactics.UnitIdentity.*", "RefactorTactics.Graybox.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-FACING-1], packaged: [G13] }
+    risks:
+      - "#1750: la sagoma dell'ultimo contatto si disegna in POSA DI RIFERIMENTO — «le catene
+         di Riktor si stendono sullo schermo»."
+      - "#2545: un ruolo senza variante attiva mostra la T-pose invece del segnaposto."
+      - "⚠️ `GBX-5` in OPEN_DECISIONS.md dichiara che NESSUN TEST protegge `BaseMeshScale`:
+         portarlo a (0.6, 0.6, 1.8) lascia tutta la suite verde."
+
+  - id: RT-CAP-ANIMATION-RUNTIME
+    name: Animation Runtime & Catalog
+    area: presentation
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 286
+      spec: docs/technical/runbooks/guida-animazioni-paragon.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Unit/RTUnitAnimInstance.h
+        - Source/RefactorTactics/Unit/RTUnitAnimInstance.cpp
+        - Source/RefactorTactics/Unit/RTAnimCatalogLibrary.h
+        - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
+        - Data/Anim/AnimCatalog.json
+        - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
+    issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663] }
+    consumers: [RT-CAP-CHAR-PRESENTATION]
+    dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]
+    tests:
+      automation: ["RefactorTactics.Anim.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-AS4b, PIE-AS4c], packaged: [G13] }
+    risks:
+      - "🔴 FATTO scritto nel codice: `RTPresentationRole.h` dichiara che «il grafo di
+         `URTUnitAnimInstance` ha DUE sequence player e consuma `Idle` e `Move` e nient'altro».
+         `Attack` e gli altri ruoli sono VOCABOLARIO, non clip che il runtime suona."
+      - "#2521: PIE-AS4b e PIE-AS4c «non hanno mai avuto un esito»."
+      - "⚠️ I pack Paragon vivono in `Content/FabAsset/`, GITIGNORATO: le clip non sono nel
+         repository e `TSoftObjectPtr` e' la conseguenza dichiarata."
+
+  - id: RT-CAP-VFX
+    name: VFX (Niagara)
+    area: presentation
+    status: { implementation: missing, validation: missing, presentation: missing }
+    owner:
+      epic: null
+      spec: null
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-124 (fuori perimetro v0.1), D-278
+      capability_view: CR-PRESENT
+    implementation: { files: [] }
+    issues: { open: [288, 2453], closed: [] }
+    consumers: []
+    dependencies: [RT-CAP-RESOLVED-TIMELINE]
+    tests: { automation: [], scenarios: [], mutation: [] }
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "OWNER GAP: nessuna epic possiede i VFX. #288 (CP E21.2) e #2453 (Combat Feedback) li
+         sfiorano dal lato animazione e cue."
+    notes:
+      - "🔑 MISURATO in questa passata: `git grep -il niagara origin/main -- 'Source/*'` da'
+         UN SOLO file, ed e' un COMMENTO — `Turn/RTPresentationBinding.h:51-52`, che dichiara
+         *«`Content/` non contiene un solo asset Niagara»*. Zero e' il difetto, non un totale."
+      - "Il legame dichiarativo *evento risolto → asset VFX/SFX* e' DECISO (`FX-1`, chiusa da
+         D-278: dato dichiarativo, non branching Blueprint) e NON IMPLEMENTATO."
+      - "➕ **Il SEAM pero' esiste, e cambia la forma del gap.** `Turn/RTTurnManager.h:183-187`
+         dichiara quattro delegate `BlueprintAssignable` col commento *«per la presentazione in
+         Blueprint (camera/VFX/SFX)»* — `OnUnitMoveStarted`, `OnUnitDefeated`, `OnAttackResolved`,
+         `OnResolvePlaybackFinished` — e `:981` ripete *«per VFX/SFX di morte in Blueprint»*. Manca
+         il CONTENUTO e il legame dichiarativo, non l'attacco: chi apre questa capability non deve
+         progettare un canale, deve riempirne uno che c'e'."
+
+  - id: RT-CAP-AUDIO
+    name: Audio Feedback
+    area: presentation
+    status: { implementation: missing, validation: missing, presentation: missing }
+    owner:
+      epic: null
+      spec: null
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-278
+      capability_view: CR-PRESENT
+    implementation: { files: [] }
+    issues: { open: [], closed: [] }
+    consumers: []
+    dependencies: [RT-CAP-RESOLVED-TIMELINE]
+    tests: { automation: [], scenarios: [], mutation: [] }
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "🔴 OWNER GAP TOTALE: nessuna epic, nessuna spec, NESSUNA ISSUE APERTA nomina l'audio."
+    notes:
+      - "🔑 MISURATO con rete LARGA, non con tre token: `USound`, `SoundCue`, `SoundWave`,
+         `MetaSound`, `AudioComponent`, `SpawnSound`, `PlaySound`, `SoundBase`, `SoundClass`,
+         `AudioDevice`, `Audio::` danno **ZERO file** su `Source/`, `Config/` e `Content/`. Il
+         Domain 10 «Audio & Feedback» di CLAUDE.md §12 non ha controparte nel codice."
+      - "⚠️ **Trappola misurata**: `git grep -il FMOD` risponde 10 file e sono TUTTI falsi positivi
+         — `FModuleManager`, `FModeToolkit`. Una ricerca case-insensitive di quattro lettere non e'
+         una misura di assenza."
+      - "➕ **Il seam c'e', come per i VFX**: i delegate `BlueprintAssignable` di
+         `Turn/RTTurnManager.h:183-187` sono dichiarati *«camera/VFX/SFX»*. Nessun asset audio li
+         consuma."
+
+  - id: RT-CAP-CAMERA
+    name: Tactical Camera & Map Presentation
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1769
+      spec: docs/technical/systems/spec-tactical-camera.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-286
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Camera/RTCameraPawn.h
+        - Source/RefactorTactics/Camera/RTCameraPawn.cpp
+    issues: { open: [1769, 1781, 1775, 1809], closed: [864] }
+    consumers: [RT-CAP-AUTOBATTLE, RT-CAP-TACTICAL-DESIGNER]
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Camera.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "⚠️ L'occlusione di camera e' PRESENTAZIONE e non e' la LOS di gioco — vincolo
+         dichiarato in capability-roadmaps.md §CR-PRESENT."
+
+  - id: RT-CAP-FOG-PRESENTATION
+    name: Fog / Knowledge Veil presentation
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 151
+      spec: docs/technical/systems/conoscenza-parziale-visibile-spec.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-242
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Perception/RTKnowledgeVeilPresenter.h
+        - Source/RefactorTactics/Perception/RTVisibilityBorder.h
+        - Source/RefactorTactics/Unit/RTContactGhostAnimInstance.h
+        - Source/RefactorTactics/Map/RTKnowledgeDebugConsole.cpp
+    issues: { open: [2731, 1750], closed: [] }
+    consumers: [RT-CAP-AUTOBATTLE, RT-CAP-SCREEN-HUD, RT-CAP-TACTICAL-DESIGNER]
+    dependencies: [RT-CAP-CHAR-PRESENTATION, RT-CAP-PERCEPTION, RT-CAP-TEAM-KNOWLEDGE, RT-CAP-WORLD-OVERLAY]
+    tests:
+      automation: ["RefactorTactics.Veil.*", "RefactorTactics.Visibility.*", "RefactorTactics.Knowledge.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "#2731: il corpo strutturale «e' l'unica famiglia che `ApplyKnowledgeVeil` non tocca,
+         e si vede sotto» — un buco visibile a schermo."
+
+  - id: RT-CAP-ICON-LANGUAGE
+    name: Icon Language
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 217
+      spec: docs/technical/systems/spec-icon-card-grammar.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-031
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/UI/RTIconLibrary.h
+        - Source/RefactorTactics/UI/RTIconCatalogData.h
+        - Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.h
+        - Content/RT/UI/DA_IconCatalog.uasset
+    issues: { open: [217, 265], closed: [2537] }
+    consumers: [RT-CAP-HERO-PROFILE, RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-ACTION-MODEL]
+    tests:
+      automation: ["RefactorTactics.IconCatalog.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "FATTO: le dodici categorie sono DICHIARATE e POCHE POPOLATE — la v0.1 riempie Identity,
+         Action, Phase, Status e Certainty (`RTIconCatalogData.h`). Le altre sette sono vuote
+         per progetto, non per dimenticanza."
+      - "Generatore: tools/hud-assets/ → docs/generated/icons/ (⚠️ produttore si', oracolo no)."
+
+  - id: RT-CAP-HERO-PROFILE
+    name: Hero Profile / Profilo Tattico
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1408
+      spec: docs/technical/systems/progettazione-hud.md
+      adr: null
+      capability_view: CR-CONTENT
+    implementation:
+      files:
+        - Source/RefactorTactics/UI/RTHeroProfileView.h
+        - Source/RefactorTactics/UI/RTHeroProfileLibrary.h
+        - Source/RefactorTactics/UI/RTHeroProfileWidget.h
+        - Source/RefactorTactics/UI/RTHeroRadarWidget.h
+        - Content/RT/UI/Profile/WBP_RT_HeroProfile.uasset
+    issues: { open: [2652], closed: [] }
+    consumers: [RT-CAP-FRONTEND-SHELL, RT-CAP-SCREEN-HUD]
+    dependencies: [RT-CAP-EQUIPMENT-LOADOUT, RT-CAP-HERO-KIT, RT-CAP-ICON-LANGUAGE]
+    tests:
+      automation: ["RefactorTactics.HeroProfile.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-TD-*], packaged: [] }
+    notes:
+      - "Generatore correlato: tools/radar/ → docs/characters/radar/*.svg (output, non si editano)."
+
+  - id: RT-CAP-FRONTEND-SHELL
+    name: Frontend Shell & Navigation
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: complete }
+    owner:
+      epic: 934
+      spec: docs/technical/architecture/spec-frontend-navigazione.md
+      adr: null
+      capability_view: CR-SHELL
+    implementation:
+      files:
+        - Source/RefactorTactics/Frontend/RTFrontendNavigator.h
+        - Source/RefactorTactics/Frontend/RTFrontendGameMode.h
+        - Source/RefactorTactics/Frontend/RTScreenStack.h
+        - Source/RefactorTactics/Frontend/RTMatchFrontendBridge.h
+        - Source/RefactorTactics/Frontend/RTMatchResultViewModel.h
+        - Source/RefactorTactics/Frontend/RTStartupReport.h
+        - Content/RT/UI/Framework/WBP_RT_MainMenu.uasset
+        - Content/RT/Maps/Shared/L_Frontend/L_Frontend.umap
+    issues: { open: [934, 940], closed: [936, 938, 939, 941, 472] }
+    consumers: []
+    dependencies:
+      - RT-CAP-HERO-PROFILE
+      - RT-CAP-MATCH-HISTORY
+      - RT-CAP-OBJECTIVES-MATCHEND
+      - RT-CAP-REPLAY-VIEWMODEL
+    tests:
+      automation: ["RefactorTactics.Frontend.*", "RefactorTactics.Startup.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G13] }
+    notes:
+      - "⌫ Un difetto segnalato e RITIRATO in questa passata: `WBP_RT_PauseMenu` e' nominato in
+         `Config/DefaultGame.ini` e in `RTFrontendPauseTests.cpp` ma NON e' versionato sotto
+         `Content/RT/` — e in entrambi i posti l'occorrenza e' un COMMENTO che dichiara l'assenza
+         deliberata (`DefaultGame.ini:60`: «la voce `Pause` di CP 46.6 NON sta qui»). Un
+         `git grep` di un token non distingue un riferimento da una frase sulla sua assenza."
+
+  - id: RT-CAP-POINTER-INTERACTION
+    name: Pointer Interaction Contract
+    area: presentation
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 25
+      spec: docs/technical/systems/spec-pointer-interaction.md
+      adr: docs/technical/systems/spec-hover-cella.md
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTactics/Player/RTPointerInteraction.h
+        - Source/RefactorTactics/Player/RTPlayerController.h
+        - Source/RefactorTactics/Selection/RTSelectable.h
+    issues: { open: [1614, 2802], closed: [] }
+    consumers: [RT-CAP-SCREEN-HUD, RT-CAP-TARGET-PREVIEW]
+    dependencies: [RT-CAP-MAP-TOPOLOGY]
+    tests:
+      automation: ["RefactorTactics.Pointer.*", "RefactorTactics.PlayerInteraction.*", "RefactorTactics.PlayerInput.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+
+# ───────────────────────────── AREA: ai / bot ────────────────────────────────
+
+  - id: RT-CAP-BOT-DECISION
+    name: Bot Decision (candidate generation, scoring, selection)
+    area: ai
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 326
+      spec: docs/technical/systems/h6-5-hex-bot-spec.md
+      adr: docs/gameplay/spec-bot-tattico.md
+      capability_view: CR-BOT
+    implementation:
+      files:
+        - Source/RefactorTactics/Bot/RTHexBotLibrary.h
+        - Source/RefactorTactics/Bot/RTHexBotLibrary.cpp
+    issues: { open: [326, 328, 2629, 2477, 534], closed: [2556] }
+    consumers: [RT-CAP-AUTOBATTLE, RT-CAP-BOT-FAIRNESS, RT-CAP-SCENARIO-HARNESS]
+    dependencies:
+      - RT-CAP-ACTION-ECONOMY
+      - RT-CAP-ACTION-MODEL
+      - RT-CAP-COMBAT
+      - RT-CAP-COVER
+      - RT-CAP-MAP-TOPOLOGY
+      - RT-CAP-MOVEMENT-BUDGET
+      - RT-CAP-MOVEMENT-LINEAR
+      - RT-CAP-OBJECTIVES-MATCHEND
+      - RT-CAP-OVERWATCH-PREDICTIVE
+      - RT-CAP-PATHFINDING
+      - RT-CAP-PLANNING
+      - RT-CAP-REACTIONS
+      - RT-CAP-SNAPSHOT
+      - RT-CAP-TARGETING
+      - RT-CAP-TEAM-KNOWLEDGE
+      - RT-CAP-TERRAIN-ENV
+      - RT-CAP-VERTICALITY
+    tests:
+      automation: ["RefactorTactics.HexBot.*", "RefactorTactics.Bot.*", "RefactorTactics.HexBotPlay.*"]
+      scenarios: [Scenarios/Spec/Bot/SeeksUncontestedObjective.json, Scenarios/AutoBattle/OpenField.json]
+      mutation: []
+    verification: { pie: [PIE-AI-*], packaged: [] }
+    risks:
+      - "#2629: DUE TEST DI STALLO ROSSI SU MAIN — dichiarato nel titolo della issue."
+      - "#2477: «cinque voci PIE-AI non hanno un banco»."
+      - "D-102 (#543) e' un competence gate che PRECEDE ogni lotto di bilanciamento: un
+         risultato bot-contro-bot non e' ancora una misura."
+
+  - id: RT-CAP-BOT-FAIRNESS
+    name: Bot Fairness (il bot non vede piu' di te)
+    area: ai
+    status: { implementation: complete, validation: partial, presentation: not_applicable }
+    owner:
+      epic: 326
+      spec: docs/gameplay/spec-bot-hex.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md
+      capability_view: CR-BOT
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTTurnManager.cpp   # CP 13.5, righe 732 e 969
+        - Source/RefactorTactics/Bot/RTHexBotLibrary.h
+        - Source/RefactorTactics/Perception/RTTeamKnowledge.h
+    issues: { open: [160, 327], closed: [] }
+    consumers: [RT-CAP-AUTOBATTLE]
+    dependencies: [RT-CAP-BOT-DECISION, RT-CAP-INTENT-PRIVACY, RT-CAP-PERCEPTION, RT-CAP-TEAM-KNOWLEDGE]
+    tests:
+      automation: ["RefactorTactics.HexBot.*", "RefactorTactics.Knowledge.*"]
+      scenarios: [Scenarios/Spec/Bot/HiddenEnemyFairness.json, Scenarios/Spec/Bot/PlansOnPartialKnowledge.json]
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura diceva che la proprieta' «la tiene SOLO
+         la verifica di mutazione»: e' falso, ed era una premessa ereditata da `REP-2` invece che
+         misurata. `Tests/RTHexBotIntegrationTests.cpp:616` dichiara
+         `RefactorTactics.HexBotPlay.HiddenEnemyFairness`, un CANARY DIFFERENZIALE — due partite
+         identiche in tutto cio' che la squadra PUO' sapere e diverse solo in cio' che non puo', col
+         piano che deve risultare identico. E' un gate di automation vivo."
+      - "🔴 Cio' che `REP-2` dice davvero, e che resta vero, e' un'ALTRA cosa: «un bot che
+         pianifica su `FRTTeamKnowledge` e un bot onnisciente che fa la stessa mossa scrivono voci
+         IDENTICHE — la traccia registra l'azione, non cio' che il decisore sapeva». Cioe':
+         l'equita' e' VERIFICABILE IN CASA e NON E' DIMOSTRABILE A TERZI dalla traccia. E'
+         `validation: partial` per questo, non per assenza di test."
+
+  - id: RT-CAP-AUTOBATTLE
+    name: Autobattle / la partita che si guarda
+    area: ai
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 952
+      spec: docs/roadmap/plans/autobattle-showcase-long-term-roadmap-2026-09-09.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-242
+      capability_view: CR-WATCH
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTTurnManager.h   # IsUnattendedSession()
+        - Source/RefactorTactics/Match/RTMatchBootstrapper.h
+        - Source/RefactorTactics/RTGameMode.cpp
+    issues: { open: [952, 2748, 2745, 2744], closed: [] }
+    consumers: []
+    dependencies:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-BOT-FAIRNESS
+      - RT-CAP-CAMERA
+      - RT-CAP-FOG-PRESENTATION
+      - RT-CAP-MATCH-FORMAT
+      - RT-CAP-OBJECTIVES-MATCHEND
+      - RT-CAP-PLAYBACK
+      - RT-CAP-PLAYER-EVENT-LOG
+      - RT-CAP-SCREEN-HUD
+      - RT-CAP-TURN-LOOP
+    tests:
+      automation: ["RefactorTactics.Match.Autobattle*", "RefactorTactics.Bot.*"]
+      scenarios: [Scenarios/AutoBattle/ArenaV01.json, Scenarios/AutoBattle/OpenField.json, Scenarios/AutoBattle/Objective.json, Scenarios/AutoBattle/Hazard.json, Scenarios/AutoBattle/Obstacles.json]
+      mutation: []
+    verification: { pie: [], packaged: [G10, G13] }
+    risks:
+      - "⛔ VINCOLO DICHIARATO: «#952 non possiede il gioco: lo CONSUMA». Mai una mega-epic
+         Showcase, mai un secondo Scenario Harness, mai uno spettatore che allenti la privacy
+         (l'autorizzazione e' un DATO: `IsUnattendedSession()`, D-242)."
+      - "#2744: lo Screen HUD non sa di essere in autobattle."
+    notes:
+      - "Evidenza esistente: docs/technical/evidence/2269/partita-2v2-autobattle-2026-09-04.log"
+
+# ──────────────────────────── AREA: tooling ──────────────────────────────────
+
+  - id: RT-CAP-SCENARIO-HARNESS
+    name: Scenario Harness (loader, runner, report)
+    area: tooling
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1105
+      spec: docs/technical/tooling/test-automatico-unreal.md
+      adr: docs/decisions/adr-0010-esposizione-blueprint-scenario-harness.md
+      capability_view: CR-TD
+    implementation:
+      files:
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioRunner.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioSession.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioCoordinator.h
+        - Source/RefactorTactics/ScenarioHarness/RTTestScenario.h
+        - Source/RefactorTactics/ScenarioHarness/RTTestReportWriter.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioAuthoring.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioKnowledge.h
+    issues: { open: [2702, 2714, 1515, 2701, 703, 785], closed: [2190] }
+    consumers:
+      - RT-CAP-REPO-GATES
+      - RT-CAP-SCENARIO-AUTHORING
+      - RT-CAP-SKILL-WORKBENCH
+      - RT-CAP-TACTICAL-DESIGNER
+    dependencies:
+      - RT-CAP-BOT-DECISION
+      - RT-CAP-MAP-TOPOLOGY
+      - RT-CAP-MATCH-FORMAT
+      - RT-CAP-PLANNING
+      - RT-CAP-STATE-HASH
+      - RT-CAP-TURN-LOOP
+      - RT-CAP-TURNLOG
+    tests:
+      automation: ["RefactorTactics.Scenario.*", "RefactorTactics.ScenarioIndex.*", "RefactorTactics.Arena.*"]
+      scenarios: [Scenarios/]
+      mutation: []
+    verification: { pie: [], packaged: [G2, G3] }
+    risks:
+      - "🔴 #2702: `\"move\": []` e `\"dash\": \"None\"` caricano VERDI come no-op silenziosi.
+         Un harness che accetta un no-op silenzioso produce scenari che passano senza esercitare."
+      - "#2714: il corpus golden e' CIECO su `SightBlockerCell` — il campo introdotto da D-340
+         e' fuori dal visitatore che discrimina."
+      - "#1515: `TeamId` non validato e id unita' duplicati accettati all'apertura."
+    notes:
+      - "⛔ #2190 (CHIUSA) e' l'audit del corpus del replay viewer: «un solo caso scrivibile su
+         quattordici, e i tredici motivi». NON proporre scenari nuovi senza prima cercare la
+         copertura esistente in `Scenarios/` e in `Tests/Golden/`."
+      - "FATTO: il runner entra dagli STESSI INGRESSI DEL GIOCATORE — scrive `PlannedCell`/
+         `PlannedPath` e chiama `LockInAndResolve()`. Non e' un secondo motore."
+
+  - id: RT-CAP-SCENARIO-AUTHORING
+    name: Scenario Authoring, Index & Corpus
+    area: tooling
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 1105
+      spec: docs/technical/tooling/scenario-index-e-tag.md
+      adr: docs/decisions/adr-0010-esposizione-blueprint-scenario-harness.md
+      capability_view: CR-TD
+    implementation:
+      files:
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioDraft.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioWriter.cpp
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioArena.h
+        - Source/RefactorTacticsEditor/Public/RTLauncherScenarioBrowser.h
+    issues: { open: [1628, 1564, 1405, 1809], closed: [1115, 1705, 1682, 2190] }
+    consumers: [RT-CAP-TACTICAL-DESIGNER]
+    dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-SCENARIO-HARNESS]
+    tests:
+      automation: ["RefactorTactics.Scenario.*", "RefactorTactics.ScenarioIndex.*", "RefactorTactics.DevSandboxLauncher.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-TD-*], packaged: [] }
+    notes:
+      - "⌫ Secondo difetto segnalato e RITIRATO: `WBP_RT_ScenarioComposer` e' assente da
+         `Content/RT/` perche' #2789 lo ha RIMOSSO il 2026-09-09, e il suo contratto
+         (docs/technical/tooling/contratto-wbp-scenario-composer.md) porta gia' il banner
+         `SUPERSEDED` con la misura. Non e' un orfano: e' un ritiro fatto per intero."
+    notes:
+      - "Il corpus vive in `Scenarios/` (JSON) e in `Source/RefactorTactics/Tests/Golden/`
+         (`.rttl` per turno). La ripartizione automatico/umano e' in
+         docs/technical/tooling/scenario-map.md."
+
+  - id: RT-CAP-TACTICAL-DESIGNER
+    name: Tactical Designer (un solo loop fra mappa, skill e scenario)
+    area: tooling
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 1105
+      spec: docs/technical/tooling/spec-tactical-designer.md
+      adr: docs/decisions/adr-0010-esposizione-blueprint-scenario-harness.md
+      capability_view: CR-TD
+    implementation:
+      files:
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioPlayback.h
+        - Source/RefactorTactics/ScenarioHarness/RTScenarioPlayback.cpp
+        - Source/RefactorTacticsEditor/Public/RTScenarioPreviewSubsystem.h
+        - Source/RefactorTacticsEditor/Public/RTScenarioViewportModel.h
+        - Source/RefactorTacticsEditor/Public/RTScenarioPreviewActor.h
+        - Source/RefactorTacticsEditor/Public/RTLauncherWorkspace.h
+        - Source/RefactorTacticsEditor/Private/SRTLauncherScenarioPanel.h
+    issues: { open: [1105, 1625, 1628, 2802], closed: [1753, 1754, 1630, 1626, 1627, 1629] }
+    consumers: []
+    dependencies:
+      - RT-CAP-CAMERA
+      - RT-CAP-FOG-PRESENTATION
+      - RT-CAP-MAP-EDITOR
+      - RT-CAP-PLAYBACK
+      - RT-CAP-REPLAY-SEEK
+      - RT-CAP-REPLAY-STATE
+      - RT-CAP-REPLAY-VIEWMODEL
+      - RT-CAP-SCENARIO-AUTHORING
+      - RT-CAP-SCENARIO-HARNESS
+      - RT-CAP-TARGET-PREVIEW
+      - RT-CAP-TEAM-KNOWLEDGE
+      - RT-CAP-TURNLOG
+    tests:
+      automation: ["RefactorTactics.Scenario.*", "RefactorTactics.Editor.*", "RefactorTactics.DevSandboxLauncher.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-TD-*], packaged: [] }
+    risks:
+      - "#1625 e' APERTA: «vedere la risoluzione nel viewport, riusando il ViewModel del replay».
+         La META' RIUSO e' costruita (`RTScenarioPlayback`, `RTScenarioPreviewSubsystem`); la
+         issue di consegna no."
+    notes:
+      - "🔑 INVARIANTE VERIFICATA: NESSUN SECONDO RESOLVER. `RTScenarioPlayback.h` dichiara di
+         essere «il ponte fra la traccia e le viste d'authoring» e delega la ricostruzione a
+         `URTReplayStateLibrary::UnitsAtPosition`. Il modulo Editor non chiama mai
+         `LockInAndResolve`/`ResolveTurn`."
+      - "⚠️ Rischio dichiarato nel codice: e' «l'unico posto in cui i DUE SPAZI DI ID si
+         incontrano» — `FString` dello scenario contro `int32` del TurnLog. Fail-closed: uno
+         stato senza identita' nota viene SCARTATO, non indovinato."
+
+  - id: RT-CAP-MAP-EDITOR
+    name: Map Editor (Hex Map Mode, tool, cottura)
+    area: tooling
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 1861
+      spec: docs/technical/systems/spec-hex-geometry-authoring.md
+      adr: docs/technical/systems/spec-graybox-placement-contract.md
+      capability_view: CR-TD
+    implementation:
+      files:
+        - Source/RefactorTacticsEditor/Public/RTHexEditorMode.h
+        - Source/RefactorTacticsEditor/Public/RTHexSelectionStore.h
+        - Source/RefactorTacticsEditor/Public/RTHexHoverGate.h
+        - Source/RefactorTacticsEditor/Public/RTHexLosReadout.h
+        - Source/RefactorTacticsEditor/Public/RTHexProbeReadout.h
+        - Source/RefactorTacticsEditor/Public/RTHexAnchorReadout.h
+        - Source/RefactorTacticsEditor/Private/Tools/RTHexPaintTool.h
+        - Source/RefactorTacticsEditor/Private/Tools/RTHexFillTool.h
+        - Source/RefactorTacticsEditor/Private/Tools/RTHexGeometryTool.h
+        - Source/RefactorTacticsEditor/Private/Tools/RTHexArchTool.h
+        - Source/RefactorTactics/Map/RTGeometryBake.h
+        - Source/RefactorTactics/Map/RTGeometryGrammar.h
+        - Source/RefactorTactics/Map/RTMapEditLibrary.h
+        - Source/RefactorTacticsEditor/Private/Content/RTSetCellDoorCommandlet.h
+    issues: { open: [1861, 1864, 1872, 1868, 1895, 1831, 1317, 1186, 921, 2802, 2330], closed: [621, 687, 711, 1755, 1893] }
+    consumers: [RT-CAP-GRAYKIT-PLAYGROUND, RT-CAP-TACTICAL-DESIGNER]
+    dependencies:
+      - RT-CAP-COVER
+      - RT-CAP-LOS
+      - RT-CAP-MAP-TOPOLOGY
+      - RT-CAP-MOVEMENT-BUDGET
+      - RT-CAP-PATHFINDING
+      - RT-CAP-STRUCTURES
+      - RT-CAP-TARGET-PREVIEW
+      - RT-CAP-VERTICALITY
+      - RT-CAP-WORLD-OVERLAY
+    tests:
+      automation: ["RefactorTactics.HexEditor.*", "RefactorTactics.Editor.*", "RefactorTactics.MapEdit.*", "RefactorTactics.Geometry.*", "RefactorTactics.GeometryBake.*", "RefactorTactics.GeometryGrammar.*", "RefactorTactics.Anchor.*", "RefactorTactics.AnchorReadout.*", "RefactorTactics.MapTemplate.*", "RefactorTactics.HexMapValidation.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-U22, PIE-U25], packaged: [] }
+    risks:
+      - "#1872 chiede accettazione (Save/Reload, seduta PIE, parita' packaged, cook exclusion):
+         NOT RUN."
+      - "⛔ AUTHORING ASSET: le chiamate MCP che creano/modificano/salvano un asset appartengono
+         al CLONE PRINCIPALE (CLAUDE.md §10). Un worktree non ha i file gitignorati e salvare un
+         asset i cui riferimenti duri leggono `None` LI AZZERA senza errore."
+    notes:
+      - "FATTO: i readout (`RTHexLosReadout`, `RTHexProbeReadout`, `RTHexAnchorReadout`) vivono
+         FUORI dai tool proprio per essere misurabili headless — «di un `UInteractiveTool` con
+         hover un automation test vede quasi niente»."
+
+  - id: RT-CAP-ANIM-BROWSER
+    name: Anim Browser & Preview (l'«Animation Preview» del prompt)
+    area: tooling
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 286
+      spec: docs/technical/runbooks/guida-animazioni-paragon.md
+      adr: null
+      capability_view: CR-PRESENT
+    implementation:
+      files:
+        - Source/RefactorTacticsEditor/Private/SRTAnimBrowserPanel.h
+        - Source/RefactorTacticsEditor/Private/SRTAnimPreviewViewport.h
+        - Source/RefactorTacticsEditor/Private/RTAnimBrowserModel.h
+        - Source/RefactorTacticsEditor/Private/Tools/RTAnimScan.h
+        - Source/RefactorTactics/Unit/RTAnimCatalogLibrary.h
+        - Data/Anim/AnimCatalog.json
+    issues: { open: [2554, 2521], closed: [2443, 2445] }
+    consumers: [RT-CAP-ANIMATION-RUNTIME]
+    dependencies: []
+    tests:
+      automation: ["RefactorTactics.Anim.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-AS4b, PIE-AS4c], packaged: [] }
+    risks:
+      - "⌫ **RETTIFICA del 2026-09-10.** La prima stesura citava il titolo di #2554 — «non si
+         anima e non inquadra» — come difetto corrente. Misurato: `f29dd374` e' ANTENATO di
+         `origin/main`, `SRTAnimPreviewViewport.cpp:37-44` fa override di `Tick` e chiama
+         `World->Tick(...)`, e `:133` chiama `FocusViewportOnBox`. **Entrambi i difetti nominati dal
+         titolo sono indirizzati nel codice.** #2554 resta aperta: il residuo va letto nella issue."
+    notes:
+      - "🔴 CORREZIONE DI UNA PREMESSA DEL MANDATO: «Animation Preview» NON e' `NOT FORMALIZED`.
+         Esiste come strumento d'Editor consegnato da #2443 (chiusa), con modello separato dal
+         widget per essere misurabile (`RTAnimBrowserModel`), test
+         (`RTAnimBrowserModelTests.cpp`, `RTAnimScanTests.cpp`) e un commandlet che lega il
+         giudizio umano al runtime (`RTBuildAnimBindingsCommandlet`). Cio' che manca e' che
+         l'anteprima SI MUOVA (#2554), non che la capability esista."
+      - "FATTO: `SRTAnimPreviewViewport.h` dichiara che il riuso di `RTScenarioPreviewActor`
+         era stato ipotizzato da #2443 e MISURATO come non riusabile prima di scrivere il nuovo."
+
+  - id: RT-CAP-GRAYKIT-PLAYGROUND
+    name: Gray Kit Playground (Visual Language & Validation Lab)
+    area: tooling
+    status: { implementation: partial, validation: complete, presentation: partial }
+    owner:
+      epic: 1990
+      spec: docs/roadmap/roadmap-gray-kit-playground.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-304
+      capability_view: CR-TD
+    implementation:
+      files:
+        - Source/RefactorTacticsEditor/Public/RTPlaygroundLayout.h
+        - Source/RefactorTacticsEditor/Public/RTPlaygroundPanelLibrary.h
+        - Source/RefactorTactics/World/RTGrayboxUnitFacingFixture.h
+        - Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxFixturesCommandlet.h
+        - Source/RefactorTacticsEditor/Private/Content/RTBuildGrayboxMeshesCommandlet.h
+        - Content/RT/Maps/Dev/L_GrayKitPlayground/L_GrayKitPlayground.umap
+        - Content/RT/Editor/GrayKit/UI/WBP_RT_GrayKitPlayground.uasset
+    issues: { open: [1990, 1993, 1095], closed: [1991, 1992] }
+    consumers: []
+    dependencies: [RT-CAP-CHAR-PRESENTATION, RT-CAP-MAP-EDITOR, RT-CAP-WORLD-OVERLAY]
+    tests:
+      automation: ["RefactorTactics.Playground.*", "RefactorTactics.Graybox.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [PIE-U25], packaged: [] }
+    notes:
+      - "⚠️ Maturita' di TOOLING (`GKP 0.1`), FUORI dalla scala di release: non blocca una
+         release se nessun gate la consuma (capability-roadmaps.md §CR-TD)."
+
+  - id: RT-CAP-DEBUG-CONSOLE
+    name: Debug Console & Inspection
+    area: tooling
+    status: { implementation: complete, validation: complete, presentation: partial }
+    owner:
+      epic: 25
+      spec: docs/technical/runbooks/test-e-diagnosi.md
+      adr: null
+      capability_view: CR-REPLAY
+    implementation:
+      files:
+        - Source/RefactorTactics/Debug/RTDebugReportLibrary.h
+        - Source/RefactorTactics/Debug/RTDebugConsole.cpp
+        - Source/RefactorTactics/Map/RTHexLosConsole.h
+        - Source/RefactorTactics/Map/RTKnowledgeDebugConsole.cpp
+        - Source/RefactorTactics/Map/RTHexOverlayConsole.cpp
+        - Source/RefactorTactics/Map/RTArenaCriteriaConsole.cpp
+        - Source/RefactorTactics/Turn/RTPacingConsole.cpp
+        - Source/RefactorTactics/Turn/RTReactionConditionConsole.cpp
+        - Source/RefactorTactics/UI/RTHeroProfileConsole.cpp
+        - Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp
+    issues: { open: [2757, 2485], closed: [1712] }
+    consumers: []
+    dependencies:
+      - RT-CAP-LOS
+      - RT-CAP-PACING
+      - RT-CAP-REPLAY-ARCHIVE
+      - RT-CAP-STATE-HASH
+      - RT-CAP-TEAM-KNOWLEDGE
+      - RT-CAP-TURNLOG
+    tests:
+      automation: ["RefactorTactics.Debug.*", "RefactorTactics.HexLosConsole.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "Comandi registrati (misurati con `git grep -hoE 'TEXT\\(\"rt\\.[A-Za-z0-9_.]+\"\\)'`):
+         rt.Arena.Check · rt.Camera.TopDown · rt.Camera.TopDownShot · rt.Debug.DrawCells ·
+         rt.Debug.DrawCover · rt.Debug.DrawIntent · rt.Debug.DrawPaths · rt.Debug.DrawResolution ·
+         rt.Debug.DumpBoundaries · rt.Debug.DumpCellPlacement · rt.Debug.DumpSnapshot ·
+         rt.Debug.DumpTurnLog · rt.Debug.HeroProfile · rt.Debug.Knowledge · rt.Debug.Los ·
+         rt.Debug.Pacing · rt.Debug.VerifyReplay · rt.Map.Fixture · rt.Map.Source ·
+         rt.Match.Autobattle · rt.Match.BotAllies · rt.Match.DemoArenaRadius ·
+         rt.Match.PlanningSeconds · rt.Reaction.Condition · rt.Test.DumpResult · rt.Test.List ·
+         rt.Test.RegenerateGolden · rt.Test.Run · rt.Test.Scenario"
+      - "⚠️ `rt.Debug.Knowledge` e' sotto `#if !UE_BUILD_SHIPPING`: il confine e' verificato con
+         un CONTROLLO POSITIVO (0 occorrenze nel binario Shipping, 2 nel DLL Development), non
+         solo dalla compilazione — vedi G1 nella DoD."
+
+  - id: RT-CAP-SKILL-WORKBENCH
+    name: Skill Workbench & Ability/Hero Lab
+    area: tooling
+    status: { implementation: partial, validation: complete, presentation: missing }
+    owner:
+      epic: 2565
+      spec: docs/roadmap/roadmap-balance.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-154
+      capability_view: CR-BALANCE
+    implementation:
+      files:
+        - Source/RefactorTactics/Ability/RTWorkbenchVariant.h
+        - Source/RefactorTactics/Ability/RTAbilityLab.h
+        - Source/RefactorTactics/Ability/RTHeroLab.h
+        - Source/RefactorTacticsEditor/Private/RTLabViewModel.h
+        - Source/RefactorTacticsEditor/Private/SRTLabPanel.h
+    issues: { open: [2565, 2577, 2576, 2579, 2578, 1950, 776, 403], closed: [] }
+    consumers: []
+    dependencies: [RT-CAP-ACTION-MODEL, RT-CAP-EQUIPMENT-LOADOUT, RT-CAP-HERO-KIT, RT-CAP-SCENARIO-HARNESS]
+    tests:
+      automation: ["RefactorTactics.Workbench.*", "RefactorTactics.Lab.*", "RefactorTactics.AbilityLab.*", "RefactorTactics.HeroLab.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "🔴 presentation=missing MISURATO SUL CODICE, non dal titolo di #2577: i consumatori
+         di `FRTWorkbenchVariant` su `origin/main` sono `ScenarioHarness/RTScenarioRunner.*`,
+         `ScenarioHarness/RTScenarioSession.*`, `Unit/RTUnit.cpp` e due file di test — **nessuna
+         superficie d'Editor o di UI**. `SRTLabPanel` esiste ma e' il pannello dell'Ability/Hero Lab
+         (#2599 · #2600) sulle ability CANONICHE, non l'ingresso della VARIANTE. Il ciclo resta
+         aperto in due punti: #2577 (ingresso) e #2576 (diff baseline↔variante)."
+      - "⛔ INVARIANTE: nessun secondo simulatore. «Se lo strumento dice 28 e la partita dice 24,
+         lo strumento ha smesso di essere una lente» (ADR-0010 + spec-tactical-designer §3)."
+
+  - id: RT-CAP-REPO-GATES
+    name: Repository Gates (tooling locale, senza CI)
+    area: tooling
+    status: { implementation: complete, validation: complete, presentation: not_applicable }
+    owner:
+      epic: 26
+      spec: AGENTS.md   # §9 «Tooling locale»
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-181, D-182
+      capability_view: null
+    implementation:
+      files:
+        - tools/radar/generate.ts
+        - tools/radar/doc-links.ts
+        - tools/radar/doc-tables.ts
+        - tools/radar/catalog-code.ts
+        - tools/radar/issue-refs.ts
+        - tools/radar/scenario-notes.ts
+        - tools/radar/wiki-alt.ts
+        - tools/asset-refs/check.ts
+        - tools/asset-provenance/check.ts
+        - tools/mcp/check.ts
+        - tools/mutation/costanti-combattimento.py
+        - tools/architettura/misure-strutturali.py
+    issues: { open: [2849, 1405, 2578], closed: [] }
+    consumers: []
+    dependencies: [RT-CAP-SCENARIO-HARNESS]
+    tests:
+      automation: []
+      scenarios: []
+      mutation: [tools/mutation/costanti-combattimento.py]
+    verification: { pie: [], packaged: [] }
+    risks:
+      - "🔴 NON ESISTE CI, PER SCELTA (D-182). Ogni gate e' verde *a una data*, non verde. La DoD
+         lo scrive esplicitamente in G1: «un gate senza esecutore automatico non e' verde: e'
+         verde a una data»."
+      - "⛔ `tools/mutation/costanti-combattimento.py` NON e' fra i controlli noti: occupa il
+         motore per ore e invalida ogni altra misura in parallelo."
+      - "#2849: il ponte MCP e' vivo e irraggiungibile — la porta canonica ha perso il suo
+         guardiano."
+    notes:
+      - "Ogni tool dichiara nel docstring COSA NON COPRE. Un verde dimostra soltanto cio' che
+         quel tool misura."
+
+# ─────────────────────────── AREA: networking ────────────────────────────────
+
+  - id: RT-CAP-AUTHORITY-BOUNDARY
+    name: Authority Boundary (client propone, server valida)
+    area: networking
+    status: { implementation: complete, validation: complete, presentation: not_applicable }
+    owner:
+      epic: 773
+      spec: docs/technical/systems/procedura-canary-anti-leak.md
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md
+      capability_view: CR-NET
+    implementation:
+      files:
+        - Source/RefactorTactics/Core/RTServerOnlyGuard.h
+        - Source/RefactorTactics/Core/RTServerOnlyGuard.cpp
+        - Source/RefactorTactics/Turn/RTTurnManager.h
+        - Source/RefactorTactics/Player/RTPlayerState.h
+    issues: { open: [773, 784, 782, 1820], closed: [] }
+    consumers: [RT-CAP-INTENT-PRIVACY, RT-CAP-REPLICATION, RT-CAP-TURN-LOOP]
+    dependencies: []
+    tests:
+      automation: ["RefactorTactics.Privacy.*", "RefactorTactics.Player.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [G8] }
+    risks:
+      - "⚠️ La guardia strutturale esiste (`RTServerOnlyGuard`) e i suoi CONSUMATORI DI
+         PRODUZIONE sono zero: `git grep -l RTServerOnlyGuard` da' l'header, il suo `.cpp` e
+         due file di test. E' un'infrastruttura pronta, non un vincolo attivo su codice terzo."
+      - "#1820: non esiste un `AGameState` — lo stato pubblico di partita vive nell'Actor
+         autoritativo."
+
+  - id: RT-CAP-REPLICATION
+    name: Replication Boundary
+    area: networking
+    status: { implementation: missing, validation: missing, presentation: not_applicable }
+    owner:
+      epic: 773
+      spec: null
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md
+      capability_view: CR-NET
+    implementation: { files: [] }
+    issues: { open: [773, 775, 782, 781, 784, 785], closed: [] }
+    consumers: []
+    dependencies: [RT-CAP-AUTHORITY-BOUNDARY, RT-CAP-INTENT-PRIVACY]
+    tests: { automation: [], scenarios: [], mutation: [] }
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "🔑 MISURATO: `UFUNCTION(Server` da' ZERO. I file che nominano `DOREPLIFETIME` /
+         `GetLifetimeReplicatedProps` sono `Core/RTServerOnlyGuard.*` e i suoi test, cioe' la
+         GUARDIA — non una replicazione. Il networking e' FUORI dalla v0.1 come dichiarato: questa
+         riga esiste per rendere visibile che la preparazione (privacy, determinismo, autorita') e'
+         fatta e il trasporto no."
+      - "⌫ La prima stesura elencava `Player/RTPlayerState.h` fra i file di implementazione. Era
+         un hit di COMMENTO letto come codice: la riga 18 dice *«quando arrivera' il campo diventa
+         `Replicated` con condizione owner-only e il seam e' gia' al posto giusto»*. Un seam
+         dichiarato non e' un'implementazione, e `files` e' vuoto di proposito."
+      - "⛔ Non implementare networking. Questa capability e' censita, non aperta."
+
+  - id: RT-CAP-TEMPORAL-PRIVACY
+    name: Temporal Privacy (quando un intento diventa pubblico)
+    area: networking
+    status: { implementation: partial, validation: partial, presentation: not_applicable }
+    owner:
+      epic: 773
+      spec: null
+      adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-276
+      capability_view: CR-NET
+    implementation:
+      files:
+        - Source/RefactorTactics/Turn/RTIntentPrivacyLibrary.h
+        - Source/RefactorTactics/Replay/RTReplayPrivacyLibrary.h
+    issues: { open: [759, 1805, 1466], closed: [1496] }
+    consumers: [RT-CAP-PLAYER-EVENT-LOG, RT-CAP-REPLAY-PRIVACY]
+    dependencies: [RT-CAP-INTENT-PRIVACY]
+    tests:
+      automation: ["RefactorTactics.Privacy.*"]
+      scenarios: []
+      mutation: []
+    verification: { pie: [], packaged: [] }
+    notes:
+      - "⏳ DEFAULT PRUDENTE IN VIGORE (`REP-1`, chiusa da D-276): non pubblicare automaticamente
+         intenti storici. «Partita finita» NON implica «tutto il planning diventa pubblico»."
