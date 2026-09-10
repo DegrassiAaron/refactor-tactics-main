@@ -73,6 +73,7 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | fase | Move | Dash | quella dell'azione (`Leap`: Dash) | quella dell'effetto |
 | occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | sì per `Leap`, che è nella fase Dash | no |
 | micro-step | sì | **policy** | **no** | sì |
+| **durata del passo** (§2.0-ter) | **costo d'ingresso** ([D-381](../decisions/RT_PDR_00_Decision_Log.md)) | **policy** | n/a | ⏳ **non deciso** |
 | attraversa le celle intermedie | sì | policy | **no** | sì |
 | usa `MoveBudget` | sì | no | no | **no** |
 | paga il costo del terreno | sì | no | no | **no** (ma vedi §3) |
@@ -201,6 +202,75 @@ chiamante passa*, e una prova sulla funzione chiamata resta verde mentre il chia
 ⚠️ **Il terzo copre il lato ATTACCANTE, e senza di lui gli altri non lo coprono.** Con il watcher fermo le
 sue due celle coincidono per tutta la risoluzione, quindi la mutazione che rimette `WatchOwner->Cell` li
 lascia verdi: misurato in code review, dopo che due documenti dichiaravano già coperta quella metà.
+
+### 2.0-ter Un arco può durare più di un micro-step, e l'unità resta dov'era finché non lo completa
+
+> ✅ **Aggiunta il 2026-09-10 da [D-381](../decisions/RT_PDR_00_Decision_Log.md) e [D-382](../decisions/RT_PDR_00_Decision_Log.md)**, che chiudono `MOV-5` e `MOV-6` in
+> [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md). ⏳ **Non ancora implementata**: questa sezione dichiara il
+> contratto, non descrive il codice — in quale release il codice la raggiunga è `MOV-10`, aperta.
+
+La §2.0 dice che un'unità avanza di **al massimo un arco** per micro-step. Non diceva **quanti micro-step
+dura** quell'arco, e la risposta era `1` per costruzione — mai scelta.
+
+∴ due unità che spendono lo stesso budget arrivano in momenti diversi, e **chi paga di più arriva prima**:
+una cella di `Rough` costa `2` e si attraversa nello stesso micro-step di una di `Floor`, che costa `1`.
+
+```text
+TraversalDurationTicks(arco) = TotalMoveCost(cella d'arrivo) + max(0, MoveCostModifier)
+```
+
+🔑 **È un dato del passo, non una lettura del costo**, e la differenza non è estetica. Se la durata fosse *per
+contratto* il costo, l'unico modo di rendere un profilo più **rapido** sarebbe fargli costare **meno** per
+cella — e costare meno significa andare **più lontano**. Velocità e portata sarebbero la stessa manopola per
+sempre, e `MOV-3` — *«alcuni profili diventano eleggibili a un FAST micro-step?»* — si chiuderebbe per inerzia
+invece che per playtest.
+
+⛔ **E non si formula in MP.** [D-117](../decisions/RT_PDR_00_Decision_Log.md) separa il budget in **passi** e **MP** e porta il costo per cella a
+`max(0, MoveCost - 1 + MoveCostModifier)`, cioè **zero** sul terreno normale: una durata letta dagli MP
+renderebbe l'attraversamento del `Floor` istantaneo. `FRTHexCellData::TotalMoveCost()` vale invece almeno `1`
+su ogni cella del catalogo prima e dopo quella separazione — la linea di base che `D-117` sottrae riguarda il
+**prezzo**, non il **tempo**.
+
+#### Dove sta l'unità mentre attraversa
+
+**Sulla cella d'origine, fino al micro-step in cui completa l'arco.** Il passo è un **impegno**, non uno
+spostamento graduale: non esiste un istante in cui un'unità sia «fra due celle».
+
+```text
+tick 0   A su origine          destinazione libera
+tick 1   A su origine   …      destinazione libera
+tick 2   A su origine   …      destinazione libera
+tick 3   A su origine   …      destinazione libera
+tick 4   origine libera        A sulla destinazione
+```
+
+🔑 **La ragione è la §2.0-bis, e va letta insieme a questa.** `State.Pos[i]` non è soltanto l'occupancy:
+durante il ciclo è il soggetto autorevole del colpo di Overwatch e della sua copertura, del facing d'impatto,
+del verdetto di visibilità delle voci, della conoscenza di squadra e del `MoveLog`. Ognuno di loro riceve
+**una** `FRTCellId`, e nessuno ha un ramo per «a metà arco».
+
+⚠️ **Le due conseguenze di gioco sono dichiarate, non scoperte**:
+
+* un'unità lenta su terreno difficile **tappa il corridoio** per l'intera durata del passo — chi voleva
+  entrare nella sua cella d'origine trova `BlockedByUnit` fino all'ultimo micro-step;
+* incassa i colpi nella copertura **di partenza** anche quando è quasi arrivata.
+
+Sono il prezzo della lettura scelta, e sono coerenti con essa: un'unità che sta pagando quattro micro-step per
+attraversare una palude **è ancora nella palude**. Chi le troverà senza questa riga le chiamerà bug.
+
+#### ⏳ Cosa questa sezione NON decide
+
+* **Il `Dash`** ha `policy` alla riga *durata del passo* come già alla riga *micro-step*: non paga il costo del
+  terreno, quindi non può derivarne una durata, e nessuna decisione gliene assegna una.
+* **Il `Forced`** genera micro-step ma **ignora il costo volontario del terreno** (§3): la sua durata non è
+  derivabile e **non è decisa**. La domanda non è ancora stata posta, e la sua sede è la serie `MOV-*` di
+  [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+* **La presentazione**: come si mostri un'unità che occupa l'origine per più micro-step è materia di playback
+  — [#2411](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2411) sta già chiedendo se un'attesa si legga come arrivo o come impuntamento.
+* **Il facing in transito**: `URTFacingLibrary::FacingAtMicroStep` deriva l'orientamento dalle celle
+  **entrate**, e un'unità che non ne ha entrata nessuna non lo cambia.
+* **`MaxGraphTransitionsPerUnitPerMicroStep = 1` resta** ([D-305](../decisions/RT_PDR_00_Decision_Log.md)): un arco può durare più micro-step, un
+  micro-step non porta mai due archi.
 
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
