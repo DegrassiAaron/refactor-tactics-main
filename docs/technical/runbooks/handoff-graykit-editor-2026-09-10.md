@@ -23,8 +23,9 @@ conteggio di processi non lo dice. Al 2026-09-10 su questa macchina lavoravano a
 ⛔ **L'authoring asset appartiene al clone principale**, quello che ospita il bridge MCP. Un worktree non ha i
 file gitignorati: salvare un asset i cui riferimenti duri leggono `None` **li azzera**, senza errore.
 
-🔑 **Precondizione comune a tutte le voci**: il codice di `27f43c4a` è in `Source/` ma **non ha un
-consumatore**. `E-01` è quella che lo crea; le altre dipendono da lei.
+🔑 **Precondizione comune a tutte le voci**: il consumatore **esiste** — #2880 ha aggiunto `LeftArm`,
+`RightArm`, `ApplyGraykitPose` e `ResetGraykitPose`, e il playback li usa. Queste voci sono ora tutte di
+**sola osservazione**: nessuna deve costruire il ponte, perché il ponte c'è.
 
 ---
 
@@ -35,14 +36,14 @@ consumatore**. `E-01` è quella che lo crea; le altre dipendono da lei.
 | **Related issue** | #2880 · epic #2879 · dipende da #288 |
 | **Map/scenario** | `L_GrayKitPlayground` (esiste, `Content/RT/Maps/Dev/`) |
 | **Asset interessato** | `BP_Unit` (o la classe base equivalente) — **nessun asset nuovo** |
-| **Setup richiesto** | branch `feat/graykit-procedural-pose` compilato; `27f43c4a` presente |
-| **Operazione editor** | Aggiungere a `ARTUnit` due `UStaticMeshComponent` figli di `SceneRoot`, nominati `LeftArm` e `RightArm`, posizionati sugli anchor che `URTGraykitLibrary::AnchorOffset` già calcola (`LeftHand` → `(0, -45, 31.5)`, `RightHand` → `(0, +45, 31.5)` per il cilindro da 90/45). ⚠️ **Se i componenti si aggiungono in C++ invece che in Blueprint, questa voce non è Editor** — è DEV, e va fatta lì: si decida prima quale delle due. |
+| **Setup richiesto** | `main` con #2880 mergiata, compilato |
+| **Operazione editor** | 🔴 **La domanda che questa voce poneva è stata decisa, e la risposta è C++.** I componenti `LeftArm` e `RightArm` esistono in `ARTUnit` dal branch di #2880, posati sugli anchor che `URTGraykitLibrary::AnchorOffset` calcola, e la posa si applica nel playback. ∴ **non c'è più niente da costruire qui**: resta solo da **guardare** che l'oscillazione sia leggibile a distanza di camera tattica e che i bracci non compenetrino il cilindro. |
 | **MCP operation** | Nessuna se si sceglie il C++. Se Blueprint: `AssetTools` sul clone principale |
 | **PIE richiesto** | **Sì** — un'unità che si muove, per vedere il braccio oscillare |
 | **Controllo visuale** | I bracci restano attaccati al corpo durante `Move`; nessuna compenetrazione col cilindro; l'oscillazione è leggibile a distanza di camera tattica |
 | **Log da verificare** | `LogRefactorTactics` per warning di componenti mancanti |
 | **Risultato atteso** | La posa valutata si vede addosso all'unità |
-| **Blocca DEV** | **Sì** — finché non c'è un consumatore, `27f43c4a` è codice senza uso |
+| **Blocca DEV** | **No, non più** — il consumatore esiste (#2880). Restava bloccante finché la posa non aveva dove applicarsi |
 
 ---
 

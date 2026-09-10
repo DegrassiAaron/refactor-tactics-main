@@ -15,6 +15,11 @@
 
 class UAnimSequenceBase;
 class UStaticMeshComponent;
+// #2880: si dichiarano avanti invece di includere `RTGraykitTypes.h`. L'enum porta il proprio tipo
+// sottostante perche' senza di quello una forward declaration di `enum class` non e' utilizzabile come
+// parametro. `FRTGraykitPose` passa per riferimento const, quindi la definizione serve solo al `.cpp`.
+enum class ERTGraykitAnchor : uint8;
+struct FRTGraykitPose;
 class UArrowComponent;
 class USkeletalMeshComponent;
 class UMaterialInstanceDynamic;
@@ -1000,6 +1005,45 @@ public:
 	void SetVisualLocation(const FVector& World);
 
 	/**
+	 * Applica una posa graykit ai componenti del segnaposto (#2880).
+	 *
+	 * ⛔ **Solo presentazione.** Scrive trasformazioni RELATIVE su `Mesh`, `LeftArm` e `RightArm`, e non
+	 * tocca `Cell`, occupazione, collisione ne' la posizione dell'attore. La cella autorevole resta quella
+	 * che `PlaceOnCell` ha scritto, e `FRTGraykitNoGameplayMutationTest` lo misura su un playback intero.
+	 *
+	 * ⚠️ **No-op silenzioso quando i componenti non ci sono**, e il silenzio e' deliberato: questo metodo lo
+	 * chiama il playback a ogni tick, e un `ensure` o un `UE_LOG` produrrebbe migliaia di righe al secondo su
+	 * un difetto di configurazione che una riga sola descriverebbe meglio.
+	 *
+	 * 🔑 **Non calcola la posa**: la riceve. Chi la valuta e' `URTGraykitLibrary::Evaluate`, e il tempo
+	 * normalizzato lo produce `URTPlaybackLibrary`. Questo metodo e' solo il punto in cui la presentazione
+	 * tocca i componenti.
+	 */
+	void ApplyGraykitPose(const FRTGraykitPose& Pose);
+
+	/**
+	 * Riporta i componenti del segnaposto alla posa di riposo.
+	 *
+	 * 🔴 **Esiste perche' senza di lui l'unita' resta storta**, e il difetto si vedrebbe solo dal secondo
+	 * turno: un `Lean` concluso TIENE il proprio valore finale (e' il patto di `WindowAlpha`), quindi a fine
+	 * movimento il corpo resterebbe inclinato finche' qualcuno non lo raddrizza. Lo chiama il playback dove
+	 * gia' spegne `bIsMovingVisually`.
+	 */
+	void ResetGraykitPose();
+
+	/**
+	 * Posizione di riposo di un braccio, in spazio locale.
+	 *
+	 * 🔑 **Si risolve da `URTGraykitLibrary::AnchorOffset` e non da numeri scritti a mano**, cosi' che un
+	 * cilindro ridimensionato si porti dietro le proprie mani. E' pubblica perche' i test la confrontano:
+	 * un braccio che si posasse altrove renderebbe falsa la posa senza che nessuna misura lo dica.
+	 */
+	static FVector GraykitArmRestLocation(ERTGraykitAnchor Anchor);
+
+	/** Scala di riposo di un braccio: un bastoncino sottile, lungo circa meta' busto. */
+	static FVector GraykitArmRestScale();
+
+	/**
 	 * Velocita' DICHIARATA, non simulata. `AActor::GetVelocity()` legge il movement component e questa unita'
 	 * non ne ha: si muove per interpolazione di presentazione, quindi la velocita' vera sarebbe **sempre**
 	 * zero e ogni AnimBP che la legge resterebbe fermo in idle senza un errore e senza un log.
@@ -1590,6 +1634,25 @@ protected:
 	/** Anello di SELEZIONE a terra: riscontro visivo della selezione, visibile anche sui personaggi skeletal. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> SelectionRing;
+
+	/**
+	 * Braccio SINISTRO del segnaposto graykit (#2880).
+	 *
+	 * 🔴 **E' parte del SEGNAPOSTO, non un componente con una regola propria**, ed e' l'unica cosa che
+	 * conta saperne. `RefreshComponentVisibility` gli applica lo stesso `ShouldShowPlaceholderMesh` del
+	 * cilindro: su un eroe skeletal con una posa legata il cilindro sparisce, e un braccio che non seguisse
+	 * quel predicato resterebbe a orbitare attorno al personaggio.
+	 *
+	 * ⚠️ Diverso dagli anelli, che invece **restano visibili sugli eroi**: `TeamRing` e `SelectionRing`
+	 * dicono squadra e selezione, cioe' informazione che il personaggio vero non porta. Un braccio grigio
+	 * non dice niente che il personaggio non dica meglio.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> LeftArm;
+
+	/** Braccio DESTRO del segnaposto graykit. Stesso patto di `LeftArm`. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> RightArm;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SelectionRingDynMaterial;
