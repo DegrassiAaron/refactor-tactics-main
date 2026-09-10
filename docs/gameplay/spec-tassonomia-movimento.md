@@ -73,7 +73,7 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | fase | Move | Dash | quella dell'azione (`Leap`: Dash) | quella dell'effetto |
 | occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | sì per `Leap`, che è nella fase Dash | no |
 | micro-step | sì | **policy** | **no** | sì |
-| **durata del passo** (§2.0-ter) | **costo d'ingresso** ([D-381](../decisions/RT_PDR_00_Decision_Log.md)) | **policy** | n/a | ⏳ **non deciso** |
+| **durata del passo** (§2.0-ter) | **costo d'ingresso** ([D-381](../decisions/RT_PDR_00_Decision_Log.md)) | **policy** | n/a | **un micro-step per cella** ([D-384](../decisions/RT_PDR_00_Decision_Log.md)) |
 | attraversa le celle intermedie | sì | policy | **no** | sì |
 | usa `MoveBudget` | sì | no | no | **no** |
 | paga il costo del terreno | sì | no | no | **no** (ma vedi §3) |
@@ -284,9 +284,11 @@ attraversare una palude **è ancora nella palude**. Chi le troverà senza questa
 
 * **Il `Dash`** ha `policy` alla riga *durata del passo* come già alla riga *micro-step*: non paga il costo del
   terreno, quindi non può derivarne una durata, e nessuna decisione gliene assegna una.
-* **Il `Forced`** genera micro-step ma **ignora il costo volontario del terreno** (§3): la sua durata non è
-  derivabile e **non è decisa**. La domanda non è ancora stata posta, e la sua sede è la serie `MOV-*` di
-  [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+* **Il `Forced`** vale **un micro-step per cella, sempre** ([D-384](../decisions/RT_PDR_00_Decision_Log.md), che chiude `MOV-11`):
+  genera micro-step ma **ignora il costo volontario del terreno** (§3), e la ragione che §3 dà per il
+  prezzo vale per il tempo — *«il costo è ciò che si paga per SCEGLIERE di passare»*, e chi è spinto non ha
+  scelto. ⚠️ Ne segue, dichiarato: una spinta è **sempre più rapida** di un movimento volontario sullo
+  stesso terreno difficile. ⛔ Gli **hazard** delle celle attraversate restano applicati — §3 non si tocca.
 * **La presentazione**: come si mostri un'unità che occupa l'origine per più micro-step è materia di playback
   — [#2411](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2411) sta già chiedendo se un'attesa si legga come arrivo o come impuntamento.
 * **Il facing in transito**: `URTFacingLibrary::FacingAtMicroStep` deriva l'orientamento dalle celle
