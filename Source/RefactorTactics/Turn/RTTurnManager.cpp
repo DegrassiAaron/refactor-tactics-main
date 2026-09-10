@@ -6721,6 +6721,17 @@ bool ARTTurnManager::AdvancePlaybackKnowledge()
 	FVector Origin; float CellSize = 0.f; float LayerH = 0.f;
 	const URTHexMapAsset* Map = GetHexContext(Origin, CellSize, LayerH);
 
+	// ⏱️ **`MakeCurrentSnapshot` e' dichiarata «proibitiva a ogni frame», e qui NON gira a ogni frame.**
+	// Il suo docstring avverte che fa `GetAllActorsOfClass` e due `Sort`; chi legge questa riga dal playback
+	// ha ragione a fermarsi, e la risposta va scritta qui invece di lasciarla dedurre.
+	//
+	// 🔑 **Il chiamante e' il CONFINE di micro-step, non il tick.** `AdvancePlaybackKnowledge` viene invocata
+	// solo quando un'anim attraversa una cella, e i micro-step sono **per cella**: il loro numero per turno e'
+	// il budget di movimento, non il frame rate. Misurato da `Veil.FollowsTheMoveAcrossMicroSteps`: **6**
+	// invocazioni in **115** tick di playback su un allestimento da tre turni.
+	//
+	// ⚠️ **Se un giorno qualcuno la chiamasse da `Tick`**, quell'avvertenza tornerebbe a valere per intero —
+	// ed e' l'unico modo in cui questa riga puo' diventare il difetto che il docstring descrive.
 	TArray<ARTUnit*> Units;
 	MakeCurrentSnapshot(Units);
 
