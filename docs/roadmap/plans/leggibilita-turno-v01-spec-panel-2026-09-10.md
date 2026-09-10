@@ -33,7 +33,7 @@ Il kit chiedeva di non trattarle come aggiornate. Rimisurate una per una sullo s
 | Nessun produttore normale di `TargetKind::Object` | ✅ **regge, e per una ragione più profonda di quella supposta** | vedi §1.4 |
 | Nessun `HandleTargetObject` nel controller | ✅ **regge** | esistono `HandleTargetCell` (`:2527`), `HandleTargetEdge` (`:2593`), `HandleClickOnUnit` (`:1385`), `HandleClickOnCell` (`:1597`), `HandleFacingSector` |
 | Il click su un oggetto non produce un riferimento logico stabile nel piano | ✅ **regge, ed è dichiarato** | `FRTPointerCandidates::bMapElement` è un **`bool`**, non un id. Il commento lo dice: *«in v0.1 non si introduce un `MapElementId` generico … L'identità stabile è E23 (#324)»* (`RTPointerInteraction.h:120-127`) |
-| `HeavyAttack` dichiara `DamageStructure`, ma il danno colpisce la prima struttura sulla traiettoria | ✅ **regge** | `Combat/RTHexCombatLibrary.cpp:392` — `FirstCoveredEdge(Map, Attacker.Cell, AimCell, …)` → `AccumulateStructureHit` |
+| `HeavyAttack` dichiara `DamageStructure`, ma il danno colpisce la prima struttura sulla traiettoria | ✅ **regge** | `Combat/RTHexCombatLibrary.cpp:394` — `FirstCoveredEdge(Map, Attacker.Cell, AimCell, …)` → `AccumulateStructureHit` |
 | `Action.Interact` lavora su un bordo, non è un attacco generico | ✅ **regge** | `Ability/RTCatalogLibrary.cpp:1156` — *«`TargetKindForAction` forza il targeting a…»* |
 
 ⚠️ **Una correzione al kit, e non è un dettaglio.** Il kit lascia intendere che il danno strutturale «finisca»
