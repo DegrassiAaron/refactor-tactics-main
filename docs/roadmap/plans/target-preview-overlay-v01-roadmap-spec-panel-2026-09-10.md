@@ -396,3 +396,56 @@ git grep -niE "ballistic|parabol|trajector" -- 'Source/*' ':!*Tests*'   # -> 0
 - questo referto porta il rilievo **§C2**, che #2825 non ha: *manca la wave che sostituisce `DrawDebugLine` con un canale capace di alpha*. È il prerequisito reale della resa, e nessuna delle due issue lo possiede oggi.
 
 ∴ chi stima la resa della preview legge **entrambi**, e §C2 è il pezzo che sopravvive solo qui.
+
+## ⛔ `CONTRACT CONFLICT` — `D-364` e `D-368` decidono il contrario l'una dell'altra
+
+> Rilievo **nuovo**, non presente nel corpo: emerso rileggendo il Decision Log dopo l'aggiornamento su `D-368`. Non lo risolve questo referto — `CLAUDE.md` §13, *«se il conflitto resta reale: `BLOCKED — DECISION REQUIRED`»*.
+
+Due voci **accettate lo stesso giorno**, a quattro righe di distanza nello stesso Log (`RT_PDR_00_Decision_Log.md`, righe `378` e `382`), dicono l'opposto su due voci dell'enum:
+
+| | [`D-364`](../../decisions/RT_PDR_00_Decision_Log.md) | [`D-368`](../../decisions/RT_PDR_00_Decision_Log.md) |
+|---|---|---|
+| **`FriendlyFire`** | **non è un `Meaning`**: sottoinsieme marcato di `PreviewHitCells`, stesso produttore `MakeBlastPreview` — è un **modificatore reso come forma**, e *«va rinominata insieme, non dopo»* | **è un `Meaning`**, e prende il valore `#FA9B0A` |
+| **`Hover`** | è **Interaction Context** (#1614), non un'area di gameplay | **è un `Meaning`**, e prende il valore `#FFD60A` |
+| **L'effetto sulle collisioni** | toglierli *«fa sparire due collisioni invece di risolverle»* | le risolve **spostando i valori**, e converte il ratchet in gate |
+
+⛔ **Nessuna delle due cita l'altra, e nessuna è marcata superata.** Verificato: `grep` di `D-364` dentro il corpo di `D-368` non dà nulla, e viceversa.
+
+### Quale delle due è in vigore: lo dice il codice, non il Log
+
+`D-368` è **implementata, con l'attribuzione scritta accanto ai valori**:
+
+```
+$ sed -n '11,16p' Source/RefactorTactics/Map/RTOverlayPalette.cpp
+case ERTOverlayMeaning::Movement:        return FColor(53, 199, 89);   // #35C759 [D-368]
+case ERTOverlayMeaning::PathTrace:       return FColor(40, 220, 220);
+case ERTOverlayMeaning::AttackOriginAim: return FColor(220, 220, 255);
+case ERTOverlayMeaning::Attack:          return FColor(255, 69, 58);   // #FF453A [D-368]
+case ERTOverlayMeaning::FriendlyFire:    return FColor(250, 155, 10);  // #FA9B0A [D-368]
+case ERTOverlayMeaning::Hover:           return FColor(255, 214, 10);  // #FFD60A [D-368]
+```
+
+`FriendlyFire` e `Hover` sono presenti in **tutti e quattro** gli switch di `URTOverlayPalette` — `ColorFor`, `PriorityFor`, `ScaleFor`, `DrawsThroughUnits` — e il gate è `AreaOverlay.PaletteIsDistinguishable` senza esenzioni (`RTOverlayModelTests.cpp:182`).
+
+∴ **il punto (2) di `D-364` non è implementato, ed è contraddetto dal codice spedito.** Non è drift silenzioso — è una decisione accettata che un'altra decisione accettata ha scavalcato senza dichiararlo.
+
+### Perché blocca proprio questa roadmap
+
+È il rischio di **§C1**, reso concreto. La Wave 1 scrive `FRTTargetPreview` contro `ERTOverlayMeaning`:
+
+- se governa **`D-368`** → l'enum è stabile, e la Wave 1 può partire;
+- se governa **`D-364`** → l'enum perde due voci e una va **rinominata**, e un modello scritto prima nasce contro un vocabolario in movimento.
+
+🔑 La decisione minima richiesta è **una riga**: quale delle due governa `FriendlyFire` e `Hover`, e se `D-364` va marcata superata nel punto (2) o `D-368` nel punto (1). La conseguenza di non prenderla non è estetica: è che nessuna wave di questa roadmap può essere sequenziata sull'enum.
+
+### Due note di contorno, misurate insieme
+
+- ⚠️ `RTOverlayPalette.h:40` cita ancora `RefactorTactics.AreaOverlay.PaletteRatchet`, che **non esiste più** sotto quel nome. Fuori da `Source/` il nome sopravvive dove è corretto che sopravviva — nel corpo di `D-368`, che racconta la conversione, e in questo referto — ma in `Source/` resta **un solo lettore**, ed è quell'header:
+
+  ```
+  $ grep -rn "PaletteRatchet" --include=*.h --include=*.cpp Source/
+  Source/RefactorTactics/Map/RTOverlayPalette.h:40
+  ```
+
+  Lì non è una nota storica: è una citazione a un test, e chi la segue non trova niente;
+- 🔴 **il Decision Log non è ancora stato censito.** `D-364` è emersa da `git log`, `D-368` dall'appendice: entrambe per caso. Una `D-369` o successiva che risolva già questo conflitto **potrebbe esistere e non essere citata qui**. Chi raccoglie questo rilievo censisca il Log prima di aprirne una nuova.
