@@ -1243,6 +1243,15 @@ bool FRTVeilThreeStatesNonEmptyOnVisionSplitTest::RunTest(const FString&)
 		++Turni;
 	}
 
+	// ⏱️ **Da `#2875` il conteggio e' un oracolo A CONVERGENZA** — vedi il docstring di `GetVeilCounts`.
+	// Qui morde davvero: le celle che escono dal cono attenuano da acceso verso ricordo, e contate a meta'
+	// dissolvenza risultano ancora accese. ⚠️ **Misurato, non previsto**: senza queste righe il test cade su
+	// `ricordate > 0` con `R = 0`, cioe' proprio l'asserzione che esiste per dimostrare i tre stati.
+	for (int32 P = 0; P < 600 && HexMap->GetVeilCellsInTransition() > 0; ++P)
+	{
+		HexMap->TickActor(1.f / 60.f, LEVELTICK_All, HexMap->PrimaryActorTick);
+	}
+
 	int32 A = 0, R = 0, N = 0;
 	Conta(A, R, N);
 	AddInfo(FString::Printf(TEXT("dopo %d turni: %d accese, %d ricordate, %d nascoste (%d vive)"),
