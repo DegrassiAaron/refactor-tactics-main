@@ -27,16 +27,39 @@ struct FRTUnitOrderKey
 	/** Identita' di partita ([D-063]). `0` significa «non ancora assegnata», non «unita' zero». */
 	int32 StableUnitId = 0;
 
-	/** Ultimo spareggio, per il solo caso in cui `StableUnitId` non esista ancora. */
-	FString ActorName;
+	/**
+	 * Ultimo spareggio, per il solo caso in cui `StableUnitId` non esista ancora.
+	 *
+	 * 🔑 **`FName` e non `FString`, e la ragione e' il costo.** `AActor::GetName()` passa da
+	 * `FName::ToString()` e **alloca**; `GetFName()` no. Con una `FString` qui dentro, costruire la chiave
+	 * costava un'allocazione per unita' su un percorso — `PlanningSnapshotFor` — che gira a ogni interazione
+	 * di pianificazione e che prima non allocava niente. Trovato in code review, dopo che la prima stesura
+	 * aveva **peggiorato** cio' che diceva di ottimizzare.
+	 *
+	 * ⚠️ **Il confronto e' `LexicalLess`, che l'engine documenta *«stable / deterministic over process
+	 * runs»*** — l'opposto di `FastLess`, che ordina per indice della name table ed e' stabile solo dentro un
+	 * processo. E' lo stesso confronto che `InstanceLess` usa gia' per `ActionId`.
+	 *
+	 * ⚠️ `LexicalLess` e' case-INSENSITIVE, e qui non e' un buco: i nomi degli `UObject` sono unici in modo
+	 * case-insensitive dentro lo stesso Outer, quindi due Actor dello stesso livello non possono avere nomi
+	 * che differiscono solo per il caso — non c'e' la coppia che pareggerebbe.
+	 */
+	FName ActorName;
 
 	FRTUnitOrderKey() = default;
-	FRTUnitOrderKey(const FRTCellId& InCell, int32 InStableUnitId, FString InActorName)
-		: Cell(InCell), StableUnitId(InStableUnitId), ActorName(MoveTemp(InActorName)) {}
+	FRTUnitOrderKey(const FRTCellId& InCell, int32 InStableUnitId, const FName& InActorName)
+		: Cell(InCell), StableUnitId(InStableUnitId), ActorName(InActorName) {}
 };
 
 /**
- * Ordine di risoluzione delle azioni di un turno: pura, deterministica, senza Actor.
+ * Ordine di risoluzione di un turno: quello delle **azioni** e quello delle **unita'**, deterministici
+ * entrambi.
+ *
+ * ⚠️ **La regola e' pura; due funzioni di comodo no.** `MakeUnitOrderKey` e `SortUnitsForResolution`
+ * prendono `ARTUnit`, e l'header lo dichiara in avanti invece di includerlo. Fino a #2922 questa classe
+ * prometteva *«senza Actor»*: la promessa e' stata **ritirata**, non violata in silenzio. Cio' che resta
+ * vero, ed e' la parte che conta, e' che `InstanceLess` e `UnitOrderLess` — le due regole — non toccano
+ * nessun Actor e si provano senza un mondo.
  *
  * Una sola sede per la regola d'ordine, come `URTTurnLogLibrary` lo e' per il TurnLog. Se la scelta di
  * "chi risolve prima" fosse sparsa fra le fasi, due punti del codice potrebbero divergere e l'esito di un
@@ -96,32 +119,58 @@ public:
 	 * dalla decisione, rientrato da un anello piu' in la': l'indice in `CollectLivingUnits` **e'**
 	 * `FRTHexSimUnit::UnitId`, e `MakeSnapshot` tiene come occupante l'`UnitId` minore.
 	 *
-	 * 🔑 **La cella resta la PRIMA chiave**: dove il comparatore non pareggia l'ordine non si sposta di una
-	 * posizione, quindi nessuna regola di gameplay cambia e il corpus golden non ha ragione di cambiare. Le
-	 * due chiavi in coda sono spareggi TECNICI, non una priorita' di gioco: chi vince una sovrapposizione
-	 * resta l'errore strutturale che `ReportSnapshotOverlaps` segnala, e qui si stabilisce soltanto che
-	 * l'esito non dipenda dall'ordine di registrazione degli Actor (`CLAUDE.md` §11).
+	 * 🔑 **La cella resta la PRIMA chiave**: dove le celle differiscono l'ordine non si sposta di una
+	 * posizione. Le due chiavi in coda sono spareggi TECNICI, non una priorita' di gioco: chi vince una
+	 * sovrapposizione resta l'errore strutturale che `ReportSnapshotOverlaps` segnala, e qui si stabilisce
+	 * soltanto che l'esito non dipenda dall'ordine di registrazione degli Actor (`CLAUDE.md` §11).
+	 *
+	 * ⚠️ **Dove le celle pareggiano, invece, l'ordine CAMBIA rispetto a prima** — da arbitrario a
+	 * deterministico. Il caso e' raggiungibile senza patologie: una vittima uccisa nel Blast resta nel mondo
+	 * fino a `DestroyDefeatedUnits`, e `MakeSnapshot` conta occupante solo chi e' VIVO, quindi nel Move
+	 * un'altra unita' puo' salire sulla sua cella. La prima stesura di questo commento diceva *«il corpus
+	 * golden non ha ragione di cambiare»*: la ragione formulata cosi' non regge, ed e' `GoldenCorpusMatches`
+	 * verde a dirlo — una misura, non una deduzione. Trovato in code review.
 	 *
 	 * `StableUnitId` e' il tie-break **gia' disponibile e gia' corretto** ([D-063]): lo assegna
 	 * `ARTTurnManager::EnsureMatchRoster()` una volta per partita, con `MatchRosterLess` che e' gia' un ordine
-	 * totale. Il nome dell'Actor chiude il solo caso in cui vale ancora `0` — la pianificazione prima del
-	 * primo lock-in, e `ARTGameMode::AssignUnitControlGroups` — ed e' lo stesso ultimo confronto che
-	 * `MatchRosterLess` usa gia', per la stessa ragione dichiarata li'.
+	 * totale. Il nome dell'Actor chiude il caso in cui vale ancora `0` — la pianificazione prima del primo
+	 * lock-in — ed e' lo stesso ultimo confronto che `MatchRosterLess` usa gia'.
+	 *
+	 * ⛔ **E il nome NON e' riproducibile fra processi diversi, dove decide.** Un'unita' spawnata senza nome
+	 * esplicito lo riceve da `MakeUniqueObjectName`, che appende un contatore per-classe vivo quanto il
+	 * processo: due partite nello stesso Editor danno `..._0..3` e `..._4..7`. E l'ordine lessicale mette
+	 * `_10` prima di `_2`. Non e' un difetto introdotto qui — `MatchRosterLess` ha lo stesso ultimo
+	 * confronto, con la stessa proprieta' — ma la terza chiave rende l'ordine totale e ripetibile **dentro
+	 * una esecuzione**, non oltre. Oltre, a rendere l'ordine riproducibile e' `StableUnitId`, che nella
+	 * risoluzione c'e' sempre.
 	 */
 	static bool UnitOrderLess(const FRTUnitOrderKey& A, const FRTUnitOrderKey& B);
 
-	/** La chiave d'ordine di un'unita' viva o morta. L'unico punto che legge i tre campi dall'Actor. */
+	/**
+	 * La chiave d'ordine di un'unita' viva o morta. L'unico punto che legge i tre campi dall'Actor.
+	 *
+	 * Non alloca: `GetFName()` e non `GetName()`, per la ragione scritta su `FRTUnitOrderKey::ActorName`.
+	 */
 	static FRTUnitOrderKey MakeUnitOrderKey(const ARTUnit& Unit);
 
 	/**
 	 * Ordina in place con `UnitOrderLess`: permutare l'ingresso non cambia la sequenza risolta, nemmeno
 	 * quando due unita' condividono una cella.
 	 *
-	 * ⚠️ **Precondizione: nessun `nullptr` nell'array** — la stessa che avevano i sei `Sort` scritti a mano
-	 * che questa funzione sostituisce (`TDereferenceWrapper` dereferenzia comunque). I chiamanti riempiono
-	 * l'array da un `Cast<ARTUnit>`, quindi la condizione e' vera per costruzione. Un ripiego silenzioso
-	 * sarebbe peggio del crash: una chiave di default ordinerebbe il `nullptr` **in mezzo** alle unita' vere,
-	 * come se stesse sulla cella `(0,0,0)`.
+	 * Chiamanti, per nome invece che per conteggio (`AGENTS.md` §14): `ARTGameMode::AssignUnitControlGroups`,
+	 * `ARTTurnManager::ConcludeResolution`, `::ResolveEnvironment`, `::ResolvePrep`, `::CollectLivingUnits`,
+	 * `::GatherBlastUnits`. Prima di #2922 ognuno aveva la propria copia del comparatore.
+	 *
+	 * ⚠️ **Precondizione: nessun `nullptr` nell'array** — la stessa dei `Sort` scritti a mano che questa
+	 * funzione sostituisce (`TDereferenceWrapper` dereferenzia comunque). I chiamanti riempiono l'array da un
+	 * `Cast<ARTUnit>`, quindi la condizione e' vera per costruzione. Un ripiego silenzioso sarebbe peggio del
+	 * crash: una chiave di default ordinerebbe il `nullptr` **in mezzo** alle unita' vere, come se stesse
+	 * sulla cella `(0,0,0)`.
+	 *
+	 * ⛔ **Ordina IN PLACE, e non si riscrive l'array del chiamante.** Una stesura precedente decorava,
+	 * ordinava gli indici e faceva `Units = MoveTemp(Sorted)`: buttava via il buffer che `CollectLivingUnits`
+	 * riusa con `Reset()`+`Reserve()` — e che `FRTScenarioSession` tiene per tutta la partita — riallocandolo
+	 * a ogni turno. Trovato in code review.
 	 */
 	static void SortUnitsForResolution(TArray<ARTUnit*>& Units);
 };

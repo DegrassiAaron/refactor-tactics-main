@@ -104,7 +104,8 @@ struct FRTArmedPrediction
  * conoscenza di squadra sono quelle correnti.
  *
  * ⚠️ La separazione non e' un gusto architetturale, evita un difetto misurato: `ResolvePrep` costruisce il
- * proprio array di unita' ordinandolo per cella (`StableLess`), `ResolveMovement` usa quello dello snapshot.
+ * proprio array di unita' e lo ordina con `SortUnitsForResolution` (#2922), `ResolveMovement` usa quello
+ * dello snapshot — che e' filtrato sui vivi.
  * I due ordini NON coincidono, quindi un indice catturato nel Prep indicherebbe un'altra unita' nel Move —
  * e `FRTOverwatchWatcher::TeamAwareness` e `FRTSuppressionMover::UnitId` sono indici. Tenere il PUNTATORE e
  * risolverlo al momento dell'uso e' esattamente cio' che `FRTArmedPrediction` fa qui sopra, e per la stessa
@@ -1360,10 +1361,12 @@ public:
 	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
 	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
 	 *
-	 * ⚠️ Questo NON e' l'unico `StableLess` su unita' del progetto: `ResolveEnvironment` e `ResolvePrep`
-	 * ordinano array propri con lo stesso comparatore, e `ResolveCombat` pure. Questo helper e' la sorgente
-	 * unica per **chi vuole le unita' vive del livello**, non un consolidamento di tutti gli ordinamenti:
-	 * cambiare il comparatore qui non lo cambia la'.
+	 * ⚠️ **Questo helper resta la sorgente unica per *chi vuole le unita' vive del livello*** — non per
+	 * l'ordine, che da #2922 e' consolidato altrove. Fin qui c'era scritto che `ResolveEnvironment`,
+	 * `ResolvePrep` e `ResolveCombat` tenevano copie proprie del comparatore e che *«cambiare il comparatore
+	 * qui non lo cambia la'»*: non e' piu' vero. Tutti passano da
+	 * `URTActionQueueLibrary::SortUnitsForResolution`, quindi toccare quella regola le muove **tutte** — ed
+	 * e' il punto, non un effetto collaterale. Trovato in code review.
 	 */
 	/**
 	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.

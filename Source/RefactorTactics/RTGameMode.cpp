@@ -7,9 +7,11 @@
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
 #include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
-// `Map/RTHexLibrary.h` stava qui per `StableLess`, che questo file non chiama piu': l'ordine delle unita'
-// passa dalla sede unica (#2922), e un include con accanto la ragione sbagliata invecchia senza che nessuno
-// lo veda. `git grep "URTHexLibrary::" Source/RefactorTactics/RTGameMode.cpp` risponde a vuoto.
+// `Map/RTHexLibrary.h` stava qui per lo `StableLess` sulle celle, che questo file non chiama piu': l'ordine
+// delle unita' passa dalla sede unica (#2922), e un include con accanto la ragione sbagliata invecchia senza
+// che nessuno lo veda. Il controllo, con l'esclusione di QUESTA riga — la prima stesura citava il simbolo per
+// esteso, quindi il comando trovava il commento e si falsificava da solo (trovato in code review):
+//     git grep -n "URTHexLibrary" -- Source/RefactorTactics/RTGameMode.cpp ':!*:12'
 #include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
@@ -917,9 +919,17 @@ void ARTGameMode::AssignUnitControlGroups()
 	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
 	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
 	//
-	// 🔑 Qui `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — quindi a
+	// 🔑 Al PRIMO giro `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — e a
 	// spareggiare due unita' sulla stessa cella e' il NOME dell'Actor, l'ultima chiave di `UnitOrderLess`.
-	// E' il caso per cui quella terza chiave esiste (#2922).
+	//
+	// ⚠️ **Ma non e' l'unico giro, e la prima stesura di questo commento diceva il contrario.**
+	// `OnPostLogin -> AssignSeats -> AssignUnitControlGroups`: un controller che entra a partita iniziata
+	// arriva qui **dopo** `EnsureMatchRoster` (che gira in `PlanBots` e in `LockInAndResolve`), quindi con
+	// gli id gia' assegnati, e a decidere e' la seconda chiave invece della terza. In entrambi i casi
+	// l'ordine e' deterministico — che e' cio' che #2922 garantisce — ma con due unita' sulla stessa cella
+	// i due giri possono partizionare diversamente. Trovato in code review; se un giorno diventasse un
+	// problema osservabile, il rimedio e' rendere questa funzione un no-op a roster congelato, non
+	// cambiare l'ordine.
 	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre

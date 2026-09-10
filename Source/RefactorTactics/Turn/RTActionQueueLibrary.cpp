@@ -65,62 +65,37 @@ bool URTActionQueueLibrary::UnitOrderLess(const FRTUnitOrderKey& A, const FRTUni
 
 	// 2) L'identita' di partita ([D-063]). Due unita' sulla stessa cella esistono — `FRTHexSnapshot::Overlaps`
 	// le registra — e senza questa riga a ordinarle resterebbe `GetAllActorsOfClass`.
+	//
+	// 🔴 **A difenderla e' `Actions.UnitOrderStableIdBeatsActorName`**, e quel test esiste perche' i primi
+	// quattro non ci riuscivano: in ogni loro fixture l'ordine dei nomi CONCORDAVA con quello degli id,
+	// quindi togliendo questa riga restavano tutti verdi — il nome decideva allo stesso modo. Una chiave
+	// difesa solo da casi in cui la chiave successiva direbbe lo stesso non e' difesa. Trovato in code review.
 	if (A.StableUnitId != B.StableUnitId)
 	{
 		return A.StableUnitId < B.StableUnitId;
 	}
 
 	// 3) Il nome dell'Actor, per il solo caso in cui l'identita' non sia ancora stata assegnata (vale `0` per
-	// entrambe): pianificazione prima del primo lock-in, e `AssignUnitControlGroups` a inizio partita.
+	// entrambe): la pianificazione prima del primo lock-in.
 	//
-	// 🔴 `Compare(..., CaseSensitive)` e NON `operator<`: `FString::UEOpLessThan` e' `Stricmp(...) < 0` —
-	// case INSENSITIVE — quindi non e' un ordine totale sui byte, e due nomi che differiscono solo per il
-	// caso resterebbero a pari merito. E' lo stesso difetto che `URTTurnLogLibrary::EntryLess` ha gia' pagato
-	// una volta sulla v10, con la ragione scritta li'.
-	return A.ActorName.Compare(B.ActorName, ESearchCase::CaseSensitive) < 0;
+	// `LexicalLess` e non `FastLess`: l'engine documenta il primo *«stable / deterministic over process
+	// runs»* e il secondo come stabile solo dentro un processo — che qui sarebbe il difetto, non un dettaglio.
+	// E' lo stesso confronto che `InstanceLess` usa per `ActionId`, poche righe piu' su.
+	return A.ActorName.LexicalLess(B.ActorName);
 }
 
 FRTUnitOrderKey URTActionQueueLibrary::MakeUnitOrderKey(const ARTUnit& Unit)
 {
-	return FRTUnitOrderKey(Unit.Cell, Unit.StableUnitId, Unit.GetName());
+	return FRTUnitOrderKey(Unit.Cell, Unit.StableUnitId, Unit.GetFName());
 }
 
 void URTActionQueueLibrary::SortUnitsForResolution(TArray<ARTUnit*>& Units)
 {
-	const int32 Num = Units.Num();
-	if (Num < 2)
+	// In place, e la chiave costruita nel comparatore: ora non alloca — `GetFName()` non passa da
+	// `FName::ToString()` — quindi non c'e' niente da decorare, nessun array temporaneo, e il buffer del
+	// chiamante resta il suo.
+	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
 	{
-		return; // niente da ordinare, e niente chiave da costruire
-	}
-
-	// 🔑 **La chiave si costruisce UNA volta per unita', non a ogni confronto.** `AActor::GetName()` passa da
-	// `FName::ToString()` e alloca una `FString`: dentro il comparatore ne pagherebbe O(N log N) dove ne
-	// bastano O(N), e questi sort girano piu' volte per turno su ogni fase. E' anche la ragione per cui
-	// `MatchRosterLess` il nome lo tocca solo nell'ultimo ramo, quando tutto il resto ha gia' pareggiato.
-	//
-	// Si ordinano gli INDICI e non due array in parallelo, come fa gia'
-	// `URTReactionOpportunityTypesLibrary::SortParticipantsCanonically`: due sort indipendenti sugli stessi
-	// criteri divergono al primo pareggio, ed e' il difetto che questa funzione esiste per chiudere.
-	TArray<FRTUnitOrderKey> Keys;
-	Keys.Reserve(Num);
-	TArray<int32> Order;
-	Order.Reserve(Num);
-	for (int32 i = 0; i < Num; ++i)
-	{
-		Keys.Add(MakeUnitOrderKey(*Units[i])); // stessa precondizione di prima: nessun `nullptr` nell'array
-		Order.Add(i);
-	}
-
-	// `Sort` e non `StableSort`: `UnitOrderLess` e' un ordine TOTALE, quindi la stabilita' non ha niente da
-	// decidere. Due chiavi identiche vorrebbero due Actor con lo stesso nome nello stesso mondo, che UE non
-	// produce — ed e' `Actions.UnitOrderPermutationInvariant` a tenere onesta questa frase.
-	Order.Sort([&Keys](int32 A, int32 B) { return UnitOrderLess(Keys[A], Keys[B]); });
-
-	TArray<ARTUnit*> Sorted;
-	Sorted.Reserve(Num);
-	for (int32 Idx : Order)
-	{
-		Sorted.Add(Units[Idx]);
-	}
-	Units = MoveTemp(Sorted);
+		return UnitOrderLess(MakeUnitOrderKey(A), MakeUnitOrderKey(B));
+	});
 }

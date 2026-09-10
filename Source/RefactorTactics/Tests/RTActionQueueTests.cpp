@@ -156,7 +156,7 @@ namespace
 	/** Chiave d'ordine minima. Nome distinto per file (unity build). */
 	FRTUnitOrderKey UnitKey(int32 X, int32 Y, int32 Layer, int32 StableUnitId, const TCHAR* ActorName)
 	{
-		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, ActorName);
+		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, FName(ActorName));
 	}
 
 	void SortUnitKeys(TArray<FRTUnitOrderKey>& Keys)
@@ -171,7 +171,7 @@ namespace
 	TArray<FString> UnitOrderNames(const TArray<FRTUnitOrderKey>& Keys)
 	{
 		TArray<FString> Out;
-		for (const FRTUnitOrderKey& Key : Keys) { Out.Add(Key.ActorName); }
+		for (const FRTUnitOrderKey& Key : Keys) { Out.Add(Key.ActorName.ToString()); }
 		return Out;
 	}
 
@@ -214,8 +214,13 @@ bool FRTUnitOrderIsTotalOnSharedCellTest::RunTest(const FString&)
 	// Due unita' VIVE sulla stessa cella: non e' un caso teorico. `URTHexSimLibrary::MakeSnapshot` la
 	// registra in `FRTHexSnapshot::Overlaps` e `ARTTurnManager::ReportSnapshotOverlaps` la segnala a runtime
 	// (#1733, #1970) — quindi il comparatore la incontra, e sulla sola cella pareggerebbe.
-	const FRTUnitOrderKey A = UnitKey(2, 3, 0, /*StableUnitId*/ 4, TEXT("BP_Unit_Wraith_0"));
-	const FRTUnitOrderKey B = UnitKey(2, 3, 0, /*StableUnitId*/ 1, TEXT("BP_Unit_Phase_7"));
+	//
+	// 🔑 **Id e nome DISCORDANO, ed e' deliberato**: `A` ha l'id maggiore e il nome lessicalmente minore.
+	// Con le fixture concordanti della prima stesura, togliere la chiave `StableUnitId` lasciava questo test
+	// verde — il nome decideva nello stesso verso. Una fixture che non distingue le due chiavi non prova
+	// quale delle due sta lavorando. Trovato in code review.
+	const FRTUnitOrderKey A = UnitKey(2, 3, 0, /*StableUnitId*/ 4, TEXT("BP_Unit_Aaa_0"));
+	const FRTUnitOrderKey B = UnitKey(2, 3, 0, /*StableUnitId*/ 1, TEXT("BP_Unit_Zzz_7"));
 
 	// 🔴 L'assertion che nessuna mutazione del sort puo' salvare: l'ordine e' TOTALE, cioe' per ogni coppia
 	// distinta esattamente uno dei due versi e' vero. Con il comparatore sulla sola cella non lo sarebbe
@@ -223,10 +228,41 @@ bool FRTUnitOrderIsTotalOnSharedCellTest::RunTest(const FString&)
 	const bool bAB = URTActionQueueLibrary::UnitOrderLess(A, B);
 	const bool bBA = URTActionQueueLibrary::UnitOrderLess(B, A);
 	TestTrue(TEXT("stessa cella: esattamente un verso e' vero"), bAB != bBA);
-	TestTrue(TEXT("l'identita' stabile minore entra prima"), bBA);
+	TestTrue(TEXT("l'identita' stabile minore entra prima, MALGRADO il nome dica il contrario"), bBA);
 
 	// Irriflessivita': una chiave non precede se stessa, altrimenti il sort non ha un punto fisso.
 	TestFalse(TEXT("nessuna chiave precede se stessa"), URTActionQueueLibrary::UnitOrderLess(A, A));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderStableIdBeatsActorNameTest,
+	"RefactorTactics.Actions.UnitOrderStableIdBeatsActorName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOrderStableIdBeatsActorNameTest::RunTest(const FString&)
+{
+	// 🔴 **Il test che difende la chiave per cui #2922 esiste, e che i primi quattro non difendevano.**
+	// L'anti-vacuita' dichiarata nella issue diceva: tolta `StableUnitId`, un test deve diventare rosso.
+	// Non era vero: in ogni fixture l'ordine dei nomi concordava con quello degli id, quindi il nome
+	// rispondeva al posto suo e tutto restava verde. Qui i due criteri dicono cose OPPOSTE, e vince l'id.
+	//
+	// ⚠️ Se questa riga cade, non e' un dettaglio di ordinamento: e' che la partita torna a spareggiare
+	// sulla `MakeUniqueObjectName`, cioe' sul contatore di spawn — l'input che [#990] aveva tolto.
+	TArray<FRTUnitOrderKey> Keys;
+	Keys.Add(UnitKey(4, 4, 0, /*Stable*/ 7, TEXT("AAA_nome_minore_id_maggiore")));
+	Keys.Add(UnitKey(4, 4, 0, /*Stable*/ 2, TEXT("ZZZ_nome_maggiore_id_minore")));
+	SortUnitKeys(Keys);
+
+	const TArray<FString> Order = UnitOrderNames(Keys);
+	TestEqual(TEXT("con la stessa cella decide l'id, non il nome"),
+		Order[0], FString(TEXT("ZZZ_nome_maggiore_id_minore")));
+
+	// E il verso opposto: a parita' di id, allora si', decide il nome. Le due meta' insieme dicono che le
+	// chiavi sono DUE e in quest'ordine — una sola assertion non distinguerebbe «id vince» da «id esiste».
+	TArray<FRTUnitOrderKey> PariId;
+	PariId.Add(UnitKey(4, 4, 0, /*Stable*/ 3, TEXT("ZZZ")));
+	PariId.Add(UnitKey(4, 4, 0, /*Stable*/ 3, TEXT("AAA")));
+	SortUnitKeys(PariId);
+	TestEqual(TEXT("a parita' di id decide il nome"), UnitOrderNames(PariId)[0], FString(TEXT("AAA")));
 	return true;
 }
 
@@ -301,8 +337,8 @@ bool FRTUnitOrderPermutationInvariantTest::RunTest(const FString&)
 	//  - `NOME_A` e `NOME_B` condividono cella E `StableUnitId == 0`, e si distinguono solo per il nome;
 	//  - `SOLA` sta altrove e tiene onesto il confronto sulla prima chiave.
 	TArray<FRTUnitOrderKey> Base;
-	Base.Add(UnitKey(2, 3, 0, /*Stable*/ 4, TEXT("SU_A")));
-	Base.Add(UnitKey(2, 3, 0, /*Stable*/ 1, TEXT("SU_B")));
+	Base.Add(UnitKey(2, 3, 0, /*Stable*/ 4, TEXT("SU_AAA")));
+	Base.Add(UnitKey(2, 3, 0, /*Stable*/ 1, TEXT("SU_ZZZ")));
 	Base.Add(UnitKey(7, 1, 0, /*Stable*/ 0, TEXT("NOME_A")));
 	Base.Add(UnitKey(7, 1, 0, /*Stable*/ 0, TEXT("NOME_B")));
 	Base.Add(UnitKey(0, 0, 1, /*Stable*/ 2, TEXT("SOLA")));
