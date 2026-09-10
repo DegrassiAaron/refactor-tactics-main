@@ -413,7 +413,13 @@ bool FRTScenarioWriterIdentityIsNotPathTest::RunTest(const FString&)
 			TestEqual(TEXT("l'indice legge lo stesso scenarioId"), HeaderId, Scenario.ScenarioId);
 			TestEqual(TEXT("l'indice ritrova tutti i tag"), HeaderTags.Num(), 3);
 			// `ReadHeader` normalizza e ordina: e' il suo mestiere, e il writer non glielo ha tolto.
-			TestTrue(TEXT("il tag 'gadget' e' filtrabile"), HeaderTags.Contains(TEXT("gadget")));
+			//
+			// 🔑 **Il tag dichiarato e' `"Aevik"` con la maiuscola, e l'atteso e' minuscolo**: e' proprio
+			// la normalizzazione che questa riga verifica, non un confronto letterale. ⚠️ Cercava
+			// `gadget` fino al 2026-09-10 — il rename di `#2491` ha aggiornato il tag dentro
+			// `ScenarioWriterRichJson` e non l'assertion che lo interroga, e il test e' rimasto rosso su
+			// `main`. Se un giorno cambia il tag nel JSON, cambia anche questa riga: sono una cosa sola.
+			TestTrue(TEXT("il tag 'aevik' e' filtrabile"), HeaderTags.Contains(TEXT("aevik")));
 		}
 		else
 		{
