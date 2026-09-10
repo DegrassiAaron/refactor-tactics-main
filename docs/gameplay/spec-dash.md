@@ -70,7 +70,7 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   **Guardian → "Carica"** (`Guardian.Charge`, 4 celle, ricarica 3, `LinearCharge`, 20 danni + spinta 1);
   fallback generico "Scatto" (`Action.Dodge`: 3 celle, ricarica 1). Sono la **4ª abilità** (indice 3).
   Gli eroi del catalogo v0.1 hanno `Hero.Riktor.Ram` (`LinearCharge`), `Hero.Wraith.PassingBlade`
-  (`LinearPass`) e `Hero.Phase.FluidTrail` (`LinearDash`) — **tutte e tre sullo slot movimento**
+  (`LinearPass`) e `Hero.Muiren.FluidTrail` (`LinearDash`) — **tutte e tre sullo slot movimento**
   ([D-191](../decisions/RT_PDR_00_Decision_Log.md)).
 
   > 🔴 **Corretto il 2026-08-25**: questa riga attribuiva `LinearDash` a `PassingBlade`, che nel codice è

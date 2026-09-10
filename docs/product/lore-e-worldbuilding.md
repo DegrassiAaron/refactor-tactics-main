@@ -139,8 +139,8 @@ Le otto identità retail del roster sono decise:
 | Sentinel Directorate | **Ward** · **Vigil** | v0.2 |
 | Resonance | **Rime** · **Tethra** | v0.2 |
 
-⏳ **Identità decisa, runtime non ancora migrato.** Il codice porta ancora gli ID legacy `Hero.Gadget`,
-`Hero.Phase`, `Hero.Riktor` e `Hero.Wraith` — che sono i nomi degli **slot Paragon**, non nomi ispirati ad
+⏳ **Identità decisa, runtime non ancora migrato.** Il codice porta ancora gli ID legacy `Hero.Aevik`,
+`Hero.Muiren`, `Hero.Riktor` e `Hero.Wraith` — che sono i nomi degli **slot Paragon**, non nomi ispirati ad
 essi. La migrazione è differita **post-v0.1** da [D-321](../decisions/RT_PDR_00_Decision_Log.md) e ha come
 owner [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297).
 
@@ -173,7 +173,7 @@ Una squadra può contenere liberamente membri di fazioni diverse e non esistono 
 ## Conflux
 
 **FactionId:** `Faction.Conflux`  
-**Membri iniziali:** **Aevik** · **Muiren** — **v0.1** ⏳ · schede: [`v0.1/gadget.md`](../characters/v0.1/gadget.md) · [`v0.1/phase.md`](../characters/v0.1/phase.md)
+**Membri iniziali:** **Aevik** · **Muiren** — **v0.1** ⏳ · schede: [`v0.1/aevik.md`](../characters/v0.1/aevik.md) · [`v0.1/muiren.md`](../characters/v0.1/muiren.md)
 
 > **Tutto è collegato.**
 
@@ -532,7 +532,7 @@ Le quattro fazioni possono cooperare quando l'obiettivo lo richiede.
 # Collegamenti
 
 **Dentro il repository** — le schede dei personaggi nominati qui:
-[`characters/v0.1/`](../characters/v0.1/gadget.md) (Gadget, Phase, Riktor, Wraith) ·
+[`characters/v0.1/`](../characters/v0.1/aevik.md) (Gadget, Phase, Riktor, Wraith) ·
 [`characters/v0.2/`](../characters/v0.2/steel.md) (Ward · Vigil · Rime · Tethra) ·
 [`characters/paragon.md`](../characters/paragon.md) per la mappatura visuale
 ([D-037](../decisions/RT_PDR_00_Decision_Log.md)).

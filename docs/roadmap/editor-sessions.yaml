@@ -694,8 +694,15 @@ sessions:
       ⚠️ **Precondizione in piu', e non e' pro forma**: lo Screen HUD UMG dev'essere a schermo
       (`WBP_RT_TacticalHUD`, §4.1 di #613). Senza, la voce non misura «due squadre» ma «nessun roster».
 
-      ⛔ **Il punto (d) — il feed che nomina entrambe le squadre — si dichiara `N/A` finche'
-      `WBP_RT_EventLog` non esiste in `Content/` (#1936 §F).** Non si finge, e non blocca il resto della voce.
+      ⏳ **Il punto (d) — il feed che nomina entrambe le squadre — SI PUO' GIUDICARE dal 2026-09-10, e non
+      e' ancora stato giudicato**: `WBP_RT_EventLogRight` e' montato nella `ZoneRight` di
+      `WBP_RT_TacticalHUD` (#2697), con radice, contenitore e grafo (#2784). ⛔ **Resta `⏳` finche' qualcuno
+      non lo guarda: non si finge, e non blocca il resto della voce.** ⌫ *Qui stava scritto di dichiararlo
+      `N/A` «finche' `WBP_RT_EventLog` non esiste in `Content/`»: l'asset esisteva gia' dal 2026-09-09, cio'
+      che mancava era il **montaggio**. E per qualche ora questa riga ha portato un `✅` su un punto mai
+      giudicato — trovato in code review.*
+      ⚠️ In autobattle la squadra osservata la decide `ResolveObserverTeamIds` (#2744): se il feed nomina una
+      squadra sola in sessione non presidiata, il residuo e' quello e non questa voce.
 
       ⛔ **Nessuno scenario puo' sostituirla, e non per una capability mancante.** `RTScenarioSession`
       chiama `LockInAndResolve()` diretto dopo `SetPlanningSeconds(0.f)`: non attraversa
@@ -3125,9 +3132,16 @@ sessions:
       ⛔ **Dichiarare commit e binario accanto al verdetto**, non solo lo scenario: la misura del 2026-09-04
       diceva *«il muro si vede»* perche' guardava la colonna da 55 cm credendo di guardare la lastra da 10,
       e cio' che mancava accanto a quel verdetto era proprio l'oggetto misurato.
-      ⚠️ Il feed **testuale** non disegna ancora — manca `WBP_RT_EventLog.uasset`, fetta **F** di #1936 —
-      quindi la riga si legge in `Window -> Output Log`. Se e' questa la ragione che chi guarda dichiara, il
-      residuo appartiene a quella fetta e non a #2534 — ma **l'esito lo scrive il registro**, non questo file.
+      ⏳ **Dal 2026-09-10 il feed testuale e' MONTATO, quindi la riga PUO' arrivare a schermo** —
+      `WBP_RT_EventLogRight` nella `ZoneRight` (#2697), presidiato da
+      `ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn`. ⛔ **Che si LEGGA e' un'altra domanda, ed e'
+      questa voce a doverla rispondere**: un test prova che il widget e' nell'albero, non che una frase sia
+      leggibile a schermo. Guarda se la riga c'e' **prima** di aprire l'Output Log. ⌫ *Qui stava scritto che
+      «manca `WBP_RT_EventLog.uasset`»: l'asset esisteva, non era montato, e la differenza si vede solo
+      rileggendo il pacchetto. E per qualche ora questa riga ha dichiarato `✅ il feed DISEGNA`, che e' un
+      esito PIE emesso senza seduta — trovato in code review.*
+      ⚠️ Chi rigiudica dichiari **commit e binario** accanto al verdetto, come la riga qui sopra prescrive —
+      e **l'esito lo scrive il registro**, non questo file.
 
       **③ `PIE-HEXPLAY-8` — NIENTE DA GUARDARE. Salta al ④.**
       ⛔ **Questo passo prescriveva una verifica impossibile fino al 2026-09-08** ([#2549]). Diceva:

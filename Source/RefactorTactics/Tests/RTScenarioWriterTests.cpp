@@ -35,14 +35,14 @@ namespace
 	// ⚠️ **Ogni campo sta su una unita' che puo' portarlo davvero**, e non e' pedanteria: `B1` e' affidata
 	// al bot e `ValidateScenarioTurns` rifiuta un intent dichiarato per lei — *«il suo piano lo produce
 	// l'utility scoring, non il file»*. Percio' `C1` (Ivrin) esiste: possiede `PassingBlade` e
-	// `Deflection`, mentre Gadget non ha ne' un dash ne' quella reazione. Una fixture che nominasse una
+	// `Deflection`, mentre Aevik non ha ne' un dash ne' quella reazione. Una fixture che nominasse una
 	// mobilita' inesistente girerebbe lo stesso — il possesso del dash non e' validato — e sarebbe un dato
 	// finto che sembra una prova.
 	const TCHAR* ScenarioWriterRichJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Movement.WriterRoundTrip",
 	  "version": 1,
-	  "tags": ["movement", "Gadget", "regressione"],
+	  "tags": ["movement", "Aevik", "regressione"],
 	  "mapRadius": 4,
 	  "cells": [
 	    { "cell": [0, 0, 0], "blocksMovement": true, "moveCost": 2 },
@@ -55,7 +55,7 @@ namespace
 	      "type": "Low", "stableId": "Muretto" }
 	  ],
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
 	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 }, { "tag": "Status.Wet", "turns": 1 } ] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true },
 	    { "id": "C1", "hero": "Hero.Ivrin", "team": 0, "cell": [-2, 1, 0] }
@@ -302,7 +302,7 @@ bool FRTScenarioWriterRoundTripTest::RunTest(const FString&)
 	if (Reloaded.Tags.Num() == 3)
 	{
 		// `Gabget` maiuscolo resta maiuscolo: la normalizzazione appartiene all'indice, non al writer.
-		TestEqual(TEXT("tag non normalizzato dal writer"), Reloaded.Tags[1], TEXT("Gadget"));
+		TestEqual(TEXT("tag non normalizzato dal writer"), Reloaded.Tags[1], TEXT("Aevik"));
 	}
 	TestNotNull(TEXT("Stable Unit ID 'A1' ancora risolvibile"), Reloaded.FindUnit(TEXT("A1")));
 	TestNotNull(TEXT("Stable Unit ID 'B1' ancora risolvibile"), Reloaded.FindUnit(TEXT("B1")));
@@ -413,7 +413,13 @@ bool FRTScenarioWriterIdentityIsNotPathTest::RunTest(const FString&)
 			TestEqual(TEXT("l'indice legge lo stesso scenarioId"), HeaderId, Scenario.ScenarioId);
 			TestEqual(TEXT("l'indice ritrova tutti i tag"), HeaderTags.Num(), 3);
 			// `ReadHeader` normalizza e ordina: e' il suo mestiere, e il writer non glielo ha tolto.
-			TestTrue(TEXT("il tag 'gadget' e' filtrabile"), HeaderTags.Contains(TEXT("gadget")));
+			//
+			// 🔑 **Il tag dichiarato e' `"Aevik"` con la maiuscola, e l'atteso e' minuscolo**: e' proprio
+			// la normalizzazione che questa riga verifica, non un confronto letterale. ⚠️ Cercava
+			// `gadget` fino al 2026-09-10 — il rename di `#2491` ha aggiornato il tag dentro
+			// `ScenarioWriterRichJson` e non l'assertion che lo interroga, e il test e' rimasto rosso su
+			// `main`. Se un giorno cambia il tag nel JSON, cambia anche questa riga: sono una cosa sola.
+			TestTrue(TEXT("il tag 'aevik' e' filtrabile"), HeaderTags.Contains(TEXT("aevik")));
 		}
 		else
 		{

@@ -114,32 +114,32 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	// Stessa geometria di `Combat.FriendlyFire`: Phase adiacente al bersaglio, dentro l'area r1.
-	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
-	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	// Stessa geometria di `Combat.FriendlyFire`: Muiren adiacente al bersaglio, dentro l'area r1.
+	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
+	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("Branth"), Branth))
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
-	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Gadget->PlannedAbilityIndex = Overload;
-	Gadget->PlannedAttackTarget = Branth;
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Aevik->PlannedAbilityIndex = Overload;
+	Aevik->PlannedAttackTarget = Branth;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	// ⛔ **Le celle si copiano PRIMA di distruggere il mondo.** Le asserzioni qui sotto leggevano
-	// `Branth->Cell` e `Phase->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
+	// `Branth->Cell` e `Muiren->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
 	// distrutto: funzionava solo perche' il GC non era ancora passato, e un giro di garbage collection
 	// fra le due righe — plausibile quando la suite esegue l'intero gruppo `RefactorTactics.HUD` — le
 	// avrebbe fatte leggere memoria liberata. Trovato dalla code review su `#2726`.
 	const FRTCellId CellaBranth = Branth->Cell;
-	const FRTCellId CellaPhase  = Phase->Cell;
-	const FRTCellId CellaGadget = Gadget->Cell;
+	const FRTCellId CellaPhase  = Muiren->Cell;
+	const FRTCellId CellaGadget = Aevik->Cell;
 
 	DestroyMarksWorld(World);
 
@@ -147,13 +147,13 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	// «bersaglio singolo».
 	TestTrue(FString::Printf(TEXT("l'area e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
 	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(CellaBranth));
-	TestTrue(TEXT("anche la cella di Phase e' nella zona"), Hit.Contains(CellaPhase));
+	TestTrue(TEXT("anche la cella di Muiren e' nella zona"), Hit.Contains(CellaPhase));
 
 	// Il punto del test: l'ALLEATA e' segnalata come fuoco amico.
 	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
-	TestTrue(TEXT("ed e' quella di Phase"), Ally.Contains(CellaPhase));
+	TestTrue(TEXT("ed e' quella di Muiren"), Ally.Contains(CellaPhase));
 	// Chi lancia non si segnala mai da solo.
-	TestFalse(TEXT("Gadget non e' marcato"), Ally.Contains(CellaGadget));
+	TestFalse(TEXT("Aevik non e' marcato"), Ally.Contains(CellaGadget));
 	return true;
 }
 
@@ -173,20 +173,20 @@ bool FRTHUDEnemyPlansAreNotReadTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
 	// Stavolta e' l'avversario a pianificare, su un bersaglio del giocatore.
-	ARTUnit* NemicoGadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    1, FRTCellId(-1, 0, 0));
-	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* NemicoAevik = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    1, FRTCellId(-1, 0, 0));
+	ARTUnit* MioPhase    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* MioBranth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 0, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("unita'"), NemicoGadget) || !MioPhase || !MioBranth)
+	if (!TestNotNull(TEXT("unita'"), NemicoAevik) || !MioPhase || !MioBranth)
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
 
-	NemicoGadget->PlannedAbilityIndex = MarksAbilityIndex(NemicoGadget, TEXT("Hero.Gadget.Overload"));
-	NemicoGadget->PlannedAttackTarget = MioBranth;
+	NemicoAevik->PlannedAbilityIndex = MarksAbilityIndex(NemicoAevik, TEXT("Hero.Aevik.Overload"));
+	NemicoAevik->PlannedAttackTarget = MioBranth;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ NemicoGadget, MioPhase, MioBranth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ NemicoAevik, MioPhase, MioBranth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 	DestroyMarksWorld(World);
 
 	TestEqual(TEXT("nessuna cella dal piano avversario"), Hit.Num(), 0);
@@ -208,25 +208,25 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	ARTUnit* Gadget    = SpawnMarksUnit(World, TEXT("Hero.Gadget"),    0, FRTCellId(-1, 0, 0));
-	ARTUnit* Phase    = SpawnMarksUnit(World, TEXT("Hero.Phase"),    0, FRTCellId( 1, 0, 0));
+	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
+	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!Gadget || !Phase || !Branth) { DestroyMarksWorld(World); return false; }
+	if (!Aevik || !Muiren || !Branth) { DestroyMarksWorld(World); return false; }
 
-	const int32 Overload = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.Overload"));
-	if (!TestTrue(TEXT("Gadget ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
-	Gadget->PlannedAbilityIndex = Overload;
-	Gadget->PlannedAttackTarget = Branth;
+	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
+	Aevik->PlannedAbilityIndex = Overload;
+	Aevik->PlannedAttackTarget = Branth;
 
 	// Si spegne il flag sulla COPIA dell'unita', non nel catalogo: il test non deve lasciare il roster sporco
 	// per chi gira dopo di lui.
-	URTActionData* Ability = const_cast<URTActionData*>(Gadget->GetAbility(Overload));
+	URTActionData* Ability = const_cast<URTActionData*>(Aevik->GetAbility(Overload));
 	if (!TestNotNull(TEXT("abilita'"), Ability)) { DestroyMarksWorld(World); return false; }
 	const bool bSaved = Ability->Def.bFriendlyFire;
 	Ability->Def.bFriendlyFire = false;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Gadget, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	Ability->Def.bFriendlyFire = bSaved;
 	DestroyMarksWorld(World);
@@ -351,9 +351,9 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	}
 	Map->MapAsset = Asset;
 
-	ARTUnit* Gadget = SpawnMarksUnit(World, TEXT("Hero.Gadget"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
+	ARTUnit* Aevik = SpawnMarksUnit(World, TEXT("Hero.Aevik"), /*TeamId=*/ 0, FRTCellId(-1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), /*TeamId=*/ 1, FRTCellId(1, 0, 0));
-	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Branth"), Branth))
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Branth"), Branth))
 	{
 		DestroyMarksWorld(World);
 		return false;
@@ -363,18 +363,18 @@ bool FRTBlockerMarkLivesUntilNextLockInTest::RunTest(const FString&)
 	// resta al default `(0,0,0)` e ogni unita' pianifica in silenzio un movimento verso l'origine — due
 	// unita' che si contendono la stessa cella, esito `BlockedContested`, righe nel feed che nessuno ha
 	// chiesto. E' l'incidente su cui la prima stesura di questo test poggiava la propria premessa.
-	Gadget->PlaceOnCell(FRTCellId(-1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	Aevik->PlaceOnCell(FRTCellId(-1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 	Branth->PlaceOnCell(FRTCellId(1, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 
 	// L'attacco che il muro nega: e' il fenomeno di `#2534`, e produce la voce che porta `SightBlockerCell`.
-	const int32 ArcPulse = MarksAbilityIndex(Gadget, TEXT("Hero.Gadget.ArcPulse"));
-	if (!TestTrue(TEXT("premessa: Gadget ha ArcPulse nel kit"), ArcPulse != INDEX_NONE))
+	const int32 ArcPulse = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.ArcPulse"));
+	if (!TestTrue(TEXT("premessa: Aevik ha ArcPulse nel kit"), ArcPulse != INDEX_NONE))
 	{
 		DestroyMarksWorld(World);
 		return false;
 	}
-	Gadget->PlannedAbilityIndex = ArcPulse;
-	Gadget->PlannedAttackTarget = Branth;
+	Aevik->PlannedAbilityIndex = ArcPulse;
+	Aevik->PlannedAttackTarget = Branth;
 
 	// ── Turno 1: risolto per intero. Da qui il giocatore PIANIFICA il turno 2, ed e' la finestra in cui
 	//    la spiegazione di cio' che e' appena successo deve restare leggibile.

@@ -42,12 +42,12 @@ test('TBD si propaga e non diventa mai zero', () => {
 
 test('un radar con un asse TBD non si genera, e l errore nomina l asse', () => {
   assert.throws(
-    () => resolveAxes({ offense: 6, durability: TBD, mobility: TBD }).orThrow('Gadget'),
-    /Gadget.*durability, mobility/,
+    () => resolveAxes({ offense: 6, durability: TBD, mobility: TBD }).orThrow('Aevik'),
+    /Aevik.*durability, mobility/,
   );
 });
 
 test('quando tutti gli assi hanno un valore, orThrow li restituisce', () => {
-  const valori = resolveAxes({ offense: 6, durability: 7 }).orThrow('Gadget');
+  const valori = resolveAxes({ offense: 6, durability: 7 }).orThrow('Aevik');
   assert.deepEqual(valori, { offense: 6, durability: 7 });
 });

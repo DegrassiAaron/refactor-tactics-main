@@ -61,7 +61,7 @@ FRTAnimScanResult RTScanAnimSequencesUnder(const FString& PackageFolder)
 	}
 
 	// 🔑 **Si confronta la CLASSE, non il nome.** `AM_` e `BS_` danno zero risultati sotto `Animations/`
-	// di Gadget: i blend space e gli aim offset stanno in sottocartelle e portano nomi qualunque.
+	// di Aevik: i blend space e gli aim offset stanno in sottocartelle e portano nomi qualunque.
 	const FTopLevelAssetPath ClasseSequenza = UAnimSequence::StaticClass()->GetClassPathName();
 
 	for (const FAssetData& Asset : Trovati)

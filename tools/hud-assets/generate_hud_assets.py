@@ -335,7 +335,7 @@ def g_overwatch() -> str:
     ])
 
 
-# --- Kit di Gadget (`Hero.Gadget.*`, i cinque token che il roster dichiara davvero) ---------------
+# --- Kit di Gadget (`Hero.Aevik.*`, i cinque token che il roster dichiara davvero) ---------------
 
 def g_arc_pulse() -> str:
     """`ArcPulse`: origine + impulsi ad arco. Non e' `Chain`: nessun nodo di salto."""
@@ -673,7 +673,7 @@ def g_line_attack() -> str:
 
     **Senza nodi intermedi**: i nodi sono di `Move`, e una linea con i nodi diventa un percorso. Le
     due traverse non sono nodi: sono i bersagli sulla traiettoria, ed esistono perche' senza di loro
-    il glifo misurava **0.087** contro `Hero.Gadget.LinearDischarge`, che e' anch'essa origine,
+    il glifo misurava **0.087** contro `Hero.Aevik.LinearDischarge`, che e' anch'essa origine,
     segmento e punta. Due azioni che colpiscono in modo diverso lungo una linea devono dirlo.
     """
     return "\n".join([
@@ -1094,8 +1094,8 @@ def _identity(inner: str) -> str:
     return "\n".join([polygon(IDENTITY_BADGE, stroke_width=1.4), inner])
 
 
-def g_identity_gadget() -> str:
-    """Gadget: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
+def g_identity_aevik() -> str:
+    """Aevik: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
     return _identity("\n".join([
         polygon(hexagon(12, 12, 3.6), stroke_width=1.4),
         dot(12, 12, 1.4),
@@ -1103,8 +1103,8 @@ def g_identity_gadget() -> str:
     ]))
 
 
-def g_identity_phase() -> str:
-    """Phase: la superficie che si muove — il fluido e' la sua materia."""
+def g_identity_muiren() -> str:
+    """Muiren: la superficie che si muove — il fluido e' la sua materia."""
     return _identity("\n".join([
         waves(11, x0=6.4, span=11.2, amp=1.6, stroke_width=1.5),
         waves(14.6, x0=6.4, span=11.2, amp=1.6, stroke_width=1.3),
@@ -2149,28 +2149,28 @@ ICONS = [
      "assente dal mock"),
     ("Action.Ignite", g_ignite, "Attack",
      "assente dal mock"),
-    ("Action.Hero.Gadget.ArcPulse", g_arc_pulse, "Electric",
+    ("Action.Hero.Aevik.ArcPulse", g_arc_pulse, "Electric",
      "mock 16 — rimappato: kit fuori roster"),
-    ("Action.Hero.Gadget.LinearDischarge", g_linear_discharge, "Electric",
+    ("Action.Hero.Aevik.LinearDischarge", g_linear_discharge, "Electric",
      "mock 16 — «Chain Discharge» non esiste: Line, non Chain"),
-    ("Action.Hero.Gadget.ConductiveNode", g_conductive_node, "Electric",
+    ("Action.Hero.Aevik.ConductiveNode", g_conductive_node, "Electric",
      "mock 17 — «Static Field» rimappato"),
-    ("Action.Hero.Gadget.ReactiveCapacitor", g_reactive_capacitor, "Electric",
+    ("Action.Hero.Aevik.ReactiveCapacitor", g_reactive_capacitor, "Electric",
      "AGGIUNTO — quinto token del kit"),
-    ("Action.Hero.Gadget.Overload", g_overload, "Hazard",
+    ("Action.Hero.Aevik.Overload", g_overload, "Hazard",
      "mock 18 — nome corretto, glifo su grammatica Damage"),
 
     # Le altre quindici ability del roster. Fuori dal set richiesto come quelle di Gadget: hanno una
     # chiave regolare sotto `Action.` ma non stanno nel catalogo generico.
-    ("Action.Hero.Phase.PressureJet", g_phase_pressure_jet, "Utility",
+    ("Action.Hero.Muiren.PressureJet", g_phase_pressure_jet, "Utility",
      "roster — Attack/Line, Damage + Wet + Push"),
-    ("Action.Hero.Phase.CircularTide", g_phase_circular_tide, "Utility",
+    ("Action.Hero.Muiren.CircularTide", g_phase_circular_tide, "Utility",
      "roster — Attack/Area, l'unica d'area che cura"),
-    ("Action.Hero.Phase.FluidTrail", g_phase_fluid_trail, "Utility",
+    ("Action.Hero.Muiren.FluidTrail", g_phase_fluid_trail, "Utility",
      "roster — FastMovement, la scia e' meta' del significato"),
-    ("Action.Hero.Phase.MistVeil", g_phase_mist_veil, "Utility",
+    ("Action.Hero.Muiren.MistVeil", g_phase_mist_veil, "Utility",
      "roster — Environment/Area, da tenere distinta da Status.Obscured"),
-    ("Action.Hero.Phase.FlowReaction", g_phase_flow_reaction, "Reaction",
+    ("Action.Hero.Muiren.FlowReaction", g_phase_flow_reaction, "Reaction",
      "roster — Preparation, si arma e risponde"),
 
     ("Action.Hero.Branth.ImpactShot", g_branth_impact_shot, "Attack",
@@ -2234,9 +2234,9 @@ ICONS = [
      "assente dal mock — [D-319]/#2253, coppia con Status.Prone"),
     ("Status.Wet", g_status_wet, "Utility",
      "assente dal mock"),
-    ("Identity.Gadget", g_identity_gadget, "Electric",
+    ("Identity.Aevik", g_identity_aevik, "Electric",
      "assente dal mock"),
-    ("Identity.Phase", g_identity_phase, "Utility",
+    ("Identity.Muiren", g_identity_muiren, "Utility",
      "assente dal mock"),
     ("Identity.Branth", g_identity_branth, "Defense",
      "assente dal mock"),
@@ -2588,7 +2588,7 @@ def main() -> int:
         """
         if category != "Action":
             return "", None
-        # `Action.Hero.Gadget.Overload` -> `Hero.Gadget.Overload`; `Action.Move` -> `Action.Move`
+        # `Action.Hero.Aevik.Overload` -> `Hero.Aevik.Overload`; `Action.Move` -> `Action.Move`
         key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
         axes = HERO_AXES.get(key) or AXES.get(key)
         if not axes:
@@ -2897,7 +2897,7 @@ PHASE_INK = {
 
 # Le macro-fasi senza colore: D-233 le lascia aperte di proposito.
 # ⚠️ `Cleanup` NON e' vuota: **cinque** icone ci mappano via `Environment` — `Electrify`, `Ignite`,
-# `CreateWater`, piu' `Hero.Gadget.ConductiveNode` e `Hero.Phase.MistVeil`. Sono il consumatore
+# `CreateWater`, piu' `Hero.Aevik.ConductiveNode` e `Hero.Muiren.MistVeil`. Sono il consumatore
 # reale che l'open point di D-233 aspettava, e il gate le CONTA invece di tacerle: quando `Cleanup`
 # prendera' un colore, si sa gia' su che cosa cade.
 MATCH_PHASES_WITHOUT_INK = ("Planning", "Cleanup")
@@ -2920,10 +2920,10 @@ COLOR_DEBT = {
     "Action.Pull", "Action.Root", "Action.Slow", "Action.Interrupt", "Action.ModifyArc",
     "Action.Heal",
     # abilita' d'eroe (14)
-    "Action.Hero.Gadget.ArcPulse", "Action.Hero.Gadget.LinearDischarge",
-    "Action.Hero.Gadget.Overload", "Action.Hero.Gadget.ReactiveCapacitor",
-    "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
-    "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
+    "Action.Hero.Aevik.ArcPulse", "Action.Hero.Aevik.LinearDischarge",
+    "Action.Hero.Aevik.Overload", "Action.Hero.Aevik.ReactiveCapacitor",
+    "Action.Hero.Muiren.CircularTide", "Action.Hero.Muiren.FlowReaction",
+    "Action.Hero.Muiren.FluidTrail", "Action.Hero.Muiren.PressureJet",
     "Action.Hero.Branth.Interposition", "Action.Hero.Branth.Ram",
     "Action.Hero.Ivrin.Deflection", "Action.Hero.Ivrin.Feint",
     "Action.Hero.Ivrin.InterceptShot", "Action.Hero.Ivrin.PassingBlade",

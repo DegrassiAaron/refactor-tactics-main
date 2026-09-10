@@ -46,7 +46,7 @@ enum class ERTDamageStage : uint8
 	Catalog,
 	/** Bonus della cella di CHI TIRA (`EffectiveAttackPower`). */
 	AttackerCell,
-	/** Bonus condizionale di catalogo, p.es. `Wet` × `Hero.Gadget.LinearDischarge` (CP 8.2). */
+	/** Bonus condizionale di catalogo, p.es. `Wet` × `Hero.Aevik.LinearDischarge` (CP 8.2). */
 	ConditionalBonus,
 	/** Copertura, per-colpo e direzionale: dipende da dove sta chi SUBISCE (`D-206`). */
 	Cover,

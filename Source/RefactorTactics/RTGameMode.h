@@ -75,15 +75,15 @@ public:
 	/**
 	 * Eroi della squadra 0 (giocatore) e della squadra 1 (bot), per `HeroId` del catalogo eroi v0.1.
 	 *
-	 * Default: **Gadget + Phase** contro **Branth + Ivrin**. Le due coppie non sono casuali — Phase bagna e
-	 * Gadget fulmina (`+8` su `Status.Wet`), Branth costruisce e Ivrin sfrutta lo spazio: ogni squadra ha una
+	 * Default: **Aevik + Phase** contro **Branth + Ivrin**. Le due coppie non sono casuali — Phase bagna e
+	 * Aevik fulmina (`+8` su `Status.Wet`), Branth costruisce e Ivrin sfrutta lo spazio: ogni squadra ha una
 	 * combo interna giocabile, che e' l'unico modo di vedere in partita cio' che CP 6.2/6.3 hanno costruito.
 	 *
 	 * E' un DATO e non una scelta scritta nel codice: cambiare formazione non richiede ricompilare, e quando
 	 * la selezione pre-partita esistera' (north-star) questa restera' solo il valore di partenza.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
-	TArray<FName> Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
+	TArray<FName> Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren") };
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Units")
 	TArray<FName> Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
@@ -143,7 +143,7 @@ public:
 	 * Quanti COMPAGNI del giocatore pianifica il bot, contati dal fondo di `Team0Heroes`.
 	 *
 	 * `0` (default) = nessuno: la squadra 0 resta tutta di chi gioca, che e' il contratto pinnato da
-	 * `RTHeroSpawnTests`. `1` su `[Gadget, Phase]` lascia Gadget al giocatore e da' Phase al bot.
+	 * `RTHeroSpawnTests`. `1` su `[Aevik, Phase]` lascia Aevik al giocatore e da' Phase al bot.
 	 *
 	 * ⚠️ **E' il fratello minore di `bAutobattle`, non un suo caso particolare**: quella toglie il giocatore
 	 * dalla partita, questa gli riduce le unita' da comandare. Si sommano — `FRTMatchBootstrapper` cappa il

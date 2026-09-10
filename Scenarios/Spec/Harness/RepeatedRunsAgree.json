@@ -12,7 +12,7 @@
 
   "_nota_non_e_il_corpus_E47_5": "⛔ **Non e' il corpus di determinismo di E47.5, e non prova a esserlo.** Quel checkpoint dichiara sei casi con i loro nomi — `PermutationTest`, `PlaybackIndependence`, `NoPath`, `AllWait`, `SimultaneousKO`, `TurnLimit` — ed estende `RefactorTactics.Simulation.*`, cioe' test C++. Anticiparne uno qui con un altro nome creerebbe la seconda lista da tenere allineata alla prima, che e' il difetto che questo repository ha gia' pagato piu' volte. Qui si dimostra la CHIAVE, su un caso minimo.",
 
-  "_nota_perche_questo_allestimento": "Geometria, unita' e attese sono quelle di `Combat.BasicAttack`, riusate senza modificarne un numero: A1 a (-1,0) colpisce B1 a (1,0) con `Hero.Gadget.ArcPulse`, e i 103 HP finali sono **ereditati da una misura**, non ricalcolati. Un allestimento nuovo avrebbe richiesto di derivare a mano un'attesa nuova, e uno scenario che verifica il determinismo del runner non deve poter fallire per un'aritmetica di catalogo: se questo file diventa rosso, la causa dev'essere una sola.",
+  "_nota_perche_questo_allestimento": "Geometria, unita' e attese sono quelle di `Combat.BasicAttack`, riusate senza modificarne un numero: A1 a (-1,0) colpisce B1 a (1,0) con `Hero.Aevik.ArcPulse`, e i 103 HP finali sono **ereditati da una misura**, non ricalcolati. Un allestimento nuovo avrebbe richiesto di derivare a mano un'attesa nuova, e uno scenario che verifica il determinismo del runner non deve poter fallire per un'aritmetica di catalogo: se questo file diventa rosso, la causa dev'essere una sola.",
 
   "_nota_perche_non_tocca_l_originale": "`Combat.BasicAttack` resta com'e'. Aggiungergli `repeatCount` avrebbe moltiplicato per cinque il costo di uno scenario che sta nel corpus per un'altra ragione — verificare un danno — e avrebbe legato due domande diverse allo stesso file: chi un giorno volesse cambiare quel danno si troverebbe a decidere anche sul determinismo.",
 
@@ -21,14 +21,14 @@
   "_nota_versione": "`version: 4` perche' `repeatCount` e' una chiave della v4 del formato, come `freeRun`, `maxTurns` e `requires` di radice: il writer rifiuterebbe di scrivere un file che le usa dichiarandosi v1 (`MinimumVersionFor`), e il loader lo direbbe in lettura.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
       ]
     }
   ],

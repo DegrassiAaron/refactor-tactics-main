@@ -210,7 +210,7 @@ def _core_action_vars(text: str) -> dict[str, str]:
             text)
     }
     # `MakeBasicAttack(N)` non passa da `FindCoreAction`: costruisce un attacco base con la portata
-    # data. Senza questa riga `Hero.Gadget.ArcPulse` resta senza fase — una su venti, cioe' proprio il
+    # data. Senza questa riga `Hero.Aevik.ArcPulse` resta senza fase — una su venti, cioe' proprio il
     # genere di buco che passa inosservato in una tabella che sembra piena.
     bound.update({
         m.group(1): "Action.BasicAttack"

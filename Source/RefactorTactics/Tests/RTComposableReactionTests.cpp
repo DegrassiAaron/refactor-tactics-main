@@ -132,7 +132,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMultiEffectReactionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMultiEffectReactionTest::RunTest(const FString&)
 {
-	// `Gadget.ReactiveCapacitor` in miniatura (il cablaggio dell'eroe e' CP 6.7): scudo a chi reagisce **e**
+	// `Aevik.ReactiveCapacitor` in miniatura (il cablaggio dell'eroe e' CP 6.7): scudo a chi reagisce **e**
 	// danno a chi ha colpito, dichiarati nella stessa lista. Prima di CP 5.5 il resolver leggeva solo il primo
 	// `Damage` e ignorava tutto il resto: meta' della reazione non arrivava mai in partita.
 	UWorld* World = MakeCompWorld();

@@ -56,7 +56,7 @@ namespace
 		E.SrcCell = FRTCellId(1, 2, 0);
 		E.TgtCell = FRTCellId(3, 4, 1);
 		E.Amount = 17;
-		E.ActionId = FName(TEXT("Hero.Gadget.ArcPulse"));
+		E.ActionId = FName(TEXT("Hero.Aevik.ArcPulse"));
 		E.BaseActionId = FName(TEXT("Action.BasicAttack"));
 		E.UnitId = 42;
 		E.Verdict = FRTKnowledgeVerdict::Everyone();

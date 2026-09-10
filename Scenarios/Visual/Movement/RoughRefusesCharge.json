@@ -12,7 +12,7 @@
   "_nota_verde_per_il_motivo_sbagliato": "Alla prima esecuzione questo scenario PASSAVA, e non dimostrava niente: la carica era dichiarata con `ability` invece che con `dash`, quindi non partiva affatto — e «nessuno si e' mosso» era vero per la ragione sbagliata. E' il difetto peggiore che un test possa avere, perche' il verde tace. Ora la carica e' dichiarata correttamente e a fermarla dev'essere il Rough.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, -1, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",    "team": 0, "cell": [-1, -1, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-3, -1, 0] }
   ],
 

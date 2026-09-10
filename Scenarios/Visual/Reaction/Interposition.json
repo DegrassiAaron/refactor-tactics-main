@@ -12,7 +12,7 @@
   "_nota_semantica": "`Interposition` non ha effetti propri, ed e' corretto: interporsi non aggiunge danno ne' stati, cambia il bersaglio. La portata 2 e la priorita' (la piu' bassa fra le reazioni, cosi' la redirezione precede le altre) vengono da `Action.Intercept`; l'identita' resta dell'eroe.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",    "team": 0, "cell": [0, 0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin",  "team": 1, "cell": [2, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 1, 0] }
   ],
@@ -22,7 +22,7 @@
       "requires": ["Reaction"],
       "intents": [
         { "unit": "B1", "reaction": "Hero.Branth.Interposition" },
-        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "V1" }
+        { "unit": "F1", "ability": "Hero.Aevik.ArcPulse", "target": "V1" }
       ]
     }
   ],

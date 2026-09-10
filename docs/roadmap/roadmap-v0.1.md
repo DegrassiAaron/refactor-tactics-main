@@ -48,6 +48,23 @@ Un vertical slice **2v2 offline contro bot** su griglia **esagonale multilivello
   ha reso possibile l'ampliamento è misurato**: `StepUntilBlocked` ferma già la spinta sulla cella libera
   precedente, quindi il fallback non è una posizione da inventare — mancano gli effetti e la traccia.
   ⛔ Il **motore del ghiaccio** resta fuori, e con lui lo slide a catena.
+<!-- rename-exempt: la riga dichiara la rinomina imposta da D-343: sostituirla la renderebbe muta -->
+- **strumenti di prova della fetta e riproduzione** — **Replay Viewer**
+  ([#472](https://github.com/DegrassiAaron/refactor-tactics-main/issues/472), chiusa), **Ability Lab**
+  ([#2599](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2599)) e **Hero Lab**
+  ([#2600](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2600)), entrati con la decisione di
+  release del 2026-09-06 e ratificati da [D-343](../decisions/RT_PDR_00_Decision_Log.md) come **deliverable
+  della v0.1** — non capability che maturano fra le release, e quindi **senza numero di versione nel nome**:
+  si scrive *Ability Lab*, non *Ability Lab 0.1*. I confini restano quelli delle due issue — catalogo canonico
+  → fixture → **runner reale** → resolver reale → TurnLog reale per il primo, `HeroId` canonico → dati canonici
+  → ability del kit → **lo stesso runner** per il secondo. ⛔ **Fuori**: authoring di ability o di eroi,
+  mini-resolver separato, balance in batch, modding, Skill Workbench, editor completo. Che siano usabili **nello
+  stesso giro** di Presentation, Turn Log e Replay Viewer è il gate **`G16`** di
+  [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3, eseguito da
+  [#2601](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2601). ⚠️ **È il terzo ampliamento che
+  questa lista riceve dopo la stesura**, e stavolta non aggiunge lavoro: le tre capability erano **già** nel
+  target della milestone `v0.1` dal 2026-09-06 e in nessuna riga di questo file, che ne è lo scope owner. Una
+  capability dichiarata dal tracker e assente dall'owner dello scope non è scope: è un'aspettativa.
 
 **Fuori scope v0.1** (restano north-star): multiplayer in rete, 4v4, GAS, progressione, modding, editor di
 mappe dinamico a runtime.
@@ -786,11 +803,11 @@ in ogni parametro (vincolo del catalogo, verificato dal validator di CP 1.4).
 
 <!-- rename-exempt: misura datata: riscriverla la renderebbe falsa -->
 > **CP 6.7 chiuso il 2026-08-07** (`#155`, 5 test nuovi): `Bastion.Interposition`, `Vektor.Deflection` e
-> `Hero.Gadget.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
-> **in partita** (unità configurate con `ConfigureFromHeroData`). `Hero.Wraith.InterceptShot` e `Hero.Phase.FlowReaction`
+> `Hero.Aevik.ReactiveCapacitor` sono cablate sulla semantica core con `MakeHeroReactionFromCoreAction` e verificate
+> **in partita** (unità configurate con `ConfigureFromHeroData`). `Hero.Wraith.InterceptShot` e `Hero.Muiren.FlowReaction`
 > restano a **E14**, e il rinvio è dichiarato nei dati — slot `None`, nessun trigger — non in un commento.
 > I test che fissavano l'assenza sono stati **sostituiti**: `Heroes.Hero.Riktor.PanelCreatesCover` ora verifica che
-> Interposition sia una reazione, `Heroes.Hero.Gadget.MatchesCatalog` i suoi due effetti.
+> Interposition sia una reazione, `Heroes.Hero.Aevik.MatchesCatalog` i suoi due effetti.
 > Dettaglio: [`spec-reazioni-componibili-cp55.md`](../gameplay/spec-reazioni-componibili-cp55.md) §8.
 >
 > ➖ **Aggiornamento 2026-08-10 — dei due rinviati, uno è uscito.** `InterceptShot` non è più una reazione
@@ -850,7 +867,7 @@ l'unicità del colpo per unità sono **test**, non commenti.
 > senza, la regola non aveva alcun innesco — e **`Gadget.Insulator` si sposta a CP 7.2** (`#61`): dipendeva da
 > un'epic non costruita, e una DoD non spuntabile non chiude un checkpoint.
 >
-> `Hero.Gadget.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
+> `Hero.Aevik.ConductiveNode` resta senza effetti: «rendere conduttiva una cella» richiede **terreno dinamico**, che
 > la mappa (asset statico) non ha ancora. Non è una svista, è il limite dichiarato di CP 8.4/E9.
 
 ---
@@ -985,7 +1002,7 @@ finire anche per **Score Threshold** e, in futuro, per **overtime** (§12) — v
 > `../archive/src/design/action-ghosts-fasi-fast-reactions.md`. Il documento **conferma** sette
 > decisioni già canoniche (ordine delle fasi, Move ultima, Dash ≠ Move, privacy degli intenti, slow-motion
 > come presentazione, reaction decisa in resolution, renderer non autoritativo) e ne aggiunge una sola di
-> regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Hero.Phase.FlowReaction`
+> regola: il **displacement reattivo non è la Move Phase** e non la consuma — vincolo per `Hero.Muiren.FlowReaction`
 > e per il troncamento del movimento in CP 14.5.
 >
 > ✅ **Il punto aperto sul facing è chiuso** ([ADR-0005](../decisions/adr-0005-orientamento.md), 2026-08-07): l'orientamento
@@ -1944,7 +1961,7 @@ dichiarava v0.2, e **cinque owner** si contraddicevano — GitHub, Feature Regis
 | CP | Obiettivo | DoD misurabile | Stato |
 |---|---|---|---|
 | **E23.1** | Separazione geometria/logica | La logica di transizione non legge la mesh: legge archi e stati. Cambiare l'arte non cambia il gameplay | |
-| **E23.2** | Porta come oggetto logico unico | Una porta larga più celle resta **un** oggetto con **uno** stato, non N archi indipendenti (gruppo atomico) | |
+| **E23.2** | Porta come oggetto logico unico | Una porta larga più celle resta **un** oggetto con **uno** stato, non N archi indipendenti (gruppo atomico). ⚠️ `D-375`: vale per l'**interazione** — `Open`/`Closed`/`Locked` commutano di gruppo — ma **non** per la distruzione **da danno**: lì `Destroyed` è terminale e **per segmento** — mentre il comando esplicito è `INT-9`, aperta, e un portone sfondato in un punto è un portone con un buco. 🔁 Non è una novità di `D-375`: [`spec-porte-cp93.md`](../gameplay/spec-porte-cp93.md) lo scriveva già — *«se un bordo del gruppo viene distrutto, gli altri restano»* — ed è **questa riga** che era rimasta indietro. ⛔ **Non ancora vero del codice**: `CommutateEdge` propaga oggi **ogni** stato sul `DoorId`, `Destroyed` incluso — questa riga descrive il DoD dopo `D-375`, non il comportamento corrente. | |
 | **E23.3** | Stable ID e binding | Gli ID sono stabili attraverso il cook; binding duplicati o in conflitto sono errori di validazione, non comportamenti impliciti | ✅ [#832](https://github.com/DegrassiAaron/refactor-tactics-main/issues/832) |
 | **E23.4** | Interaction graph | Chi può agire su cosa è un grafo **dato**, con cardinalità dichiarata. ⚠️ `D-150`: l'operazione su N bersagli **non** è atomica — si applicano gli applicabili e si riporta l'esito degli altri | ✅ [#833](https://github.com/DegrassiAaron/refactor-tactics-main/issues/833) **chiusa** il 2026-09-01 |
 | **E23.5** | Leggibilità | Etichette tattiche, hover sorgente→bersagli e bersaglio→controllori; **mai il solo colore** a distinguere uno stato | |

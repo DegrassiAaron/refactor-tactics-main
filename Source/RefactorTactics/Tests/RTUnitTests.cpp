@@ -456,21 +456,21 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	// funziona mai per un pack intero, e un nome sbagliato non da' nessun errore: la clip semplicemente
 	// non si carica e l'unita' resta in posa di riferimento.
 	const TMap<FName, TPair<FString, FString>> Attese = {
-		{ FName(TEXT("Hero.Gadget")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
-		{ FName(TEXT("Hero.Phase")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
+		{ FName(TEXT("Hero.Aevik")), { TEXT("Idle"),           TEXT("Run_Fwd") } },
+		{ FName(TEXT("Hero.Muiren")),  { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Branth")), { TEXT("Idle"),           TEXT("Jog_Fwd") } },
 		{ FName(TEXT("Hero.Ivrin")), { TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") } },
 	};
 
 	// 🔴 **Il pack NON si deriva dall'HeroId, e da [D-334] non potrebbe piu'.** Fino al rename di `Riktor`
-	// bastava `Chi.RightChop(5)` — `Hero.Gadget` -> `Gadget` — perche' identita' RT e nome dello slot asset
+	// bastava `Chi.RightChop(5)` — `Hero.Aevik` -> `Aevik` — perche' identita' RT e nome dello slot asset
 	// **coincidevano**. E' esattamente la coincidenza che [D-321] ha dichiarato un difetto (*«lo slot non e'
 	// l'identita'»*): `Hero.Branth` vive nel pack `ParagonRiktor` finche' la fetta E di #2297 non rinomina
 	// l'asset. Una derivazione che oggi da' il nome giusto per tre eroi su quattro non e' una regola: e' un
 	// residuo dell'invariante rotta, e va scritta a mano finche' i due piani non tornano allineati.
 	const TMap<FName, FString> PackDiEroe = {
-		{ FName(TEXT("Hero.Gadget")), TEXT("Gadget") },
-		{ FName(TEXT("Hero.Phase")),  TEXT("Phase")  },
+		{ FName(TEXT("Hero.Aevik")), TEXT("Gadget") },
+		{ FName(TEXT("Hero.Muiren")),  TEXT("Phase")  },
 		{ FName(TEXT("Hero.Branth")), TEXT("Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("Wraith") },
 	};
@@ -546,7 +546,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
  * cambiare senza l'altro.
  *
  * ⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate sulla tabella di §AS.3b,
- * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Gadget, `HitReact_Fwd` per Phase, `Death` nudo per
+ * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Aevik, `HitReact_Fwd` per Phase, `Death` nudo per
  * Phase, `Death_Forward` per Ivrin. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
  * sempre.
  */
@@ -565,8 +565,8 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 	// cui un residuo sopravvive a una migrazione.
 	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
 	static const FAttesa Attese[] = {
-		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
-		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
+		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
 		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
 	};
@@ -760,7 +760,7 @@ bool FRTUnitGhostFallbackClipTest::RunTest(const FString&)
 	}
 
 	const FName Eroi[] = {
-		FName(TEXT("Hero.Gadget")), FName(TEXT("Hero.Phase")),
+		FName(TEXT("Hero.Aevik")), FName(TEXT("Hero.Muiren")),
 		FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Ivrin")),
 	};
 

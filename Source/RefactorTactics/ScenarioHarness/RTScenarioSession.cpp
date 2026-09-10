@@ -201,7 +201,7 @@ namespace
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 			TEXT("CreateCover"),       // E9 CP 9.5: coperture erette in partita, temporanee, spostabili
 			// D-046 (#282): un EROE possiede davvero un'azione ambientale. Non basta che il resolver la sappia
-			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Gadget.ConductiveNode` e'
+			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Aevik.ConductiveNode` e'
 			// `Action.Electrify` e `Phase.FluidTrail` e' `Action.CreateWater`.
 			//
 			// NON copre `Action.Ignite` ne' `Action.ModifyArc`: nessun eroe del roster le possiede, e D-046 ha
@@ -401,7 +401,7 @@ namespace
 			// e' il blocco VERO di `Spec/Brace/ProfileChangesResponse`, che fino a oggi ne dichiarava uno
 			// falso.** Quello scenario chiedeva `DecisionBoundary` scrivendo, nella propria nota, che «con la
 			// sola finestra di CP 14.5 questo file puo' diventare verde». Misurato: **non puo'**. Gli serve
-			// che `Hero.Phase` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
+			// che `Hero.Muiren` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
 			// e `grep -rn "Profile.Sidestep\|ReactionProfile" Source/` da' **zero** — il concetto non esiste
 			// in nessuna forma, non e' un rename e non e' un campo vuoto da riempire.
 			//
@@ -1237,7 +1237,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				// cadeva e il report diceva FAIL, cioe' mandava a cercare una regressione che non esisteva.
 				//
 				// Il validator non puo' prenderlo al caricamento: `Phase.CircularTide` ESISTE nel catalogo, non
-				// e' nel kit di Gadget — e il kit lo si conosce solo quando le unita' sono state costruite.
+				// e' nel kit di Aevik — e il kit lo si conosce solo quando le unita' sono state costruite.
 				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);

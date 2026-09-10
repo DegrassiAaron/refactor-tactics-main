@@ -1,11 +1,11 @@
-# Gadget
+# Aevik
 
-> **Asset base:** Paragon — Gadget  
+> **Asset base:** Paragon — Aevik  
 > **Hero_Key:** `ASSET_FLUX`  
-> **RT Character ID:** `Hero.Gadget`  
+> **RT Character ID:** `Hero.Aevik`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
-> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Gadget** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Aevik** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
 ## Panoramica
 
@@ -32,26 +32,26 @@ Tecnico della conduzione: fragile, controlla il campo e converte setup elettrici
 
 > **Nota bilanciamento:** Canonico v0.1. 90 HP, 5 MP, **vista 7**; bonus +8 di LinearDischarge contro Wet.
 > La vista è salita da 6 a 7 il 2026-08-10 ([D-073](../../decisions/RT_PDR_00_Decision_Log.md), `#131`): è ciò
-> che toglie a Wraith la dominanza statistica su Gadget, e rende Gadget **l'unico del roster a vedere oltre il
+> che toglie a Wraith la dominanza statistica su Aevik, e rende Aevik **l'unico del roster a vedere oltre il
 > raggio 6**.
 
-> **Nota su `Water-Electric Combo`:** è un'etichetta storica della meccanica secondaria. Indica l'interazione sistemica acqua/Wet ↔ elettricità, **non** una coppia obbligatoria Gadget+Phase.
+> **Nota su `Water-Electric Combo`:** è un'etichetta storica della meccanica secondaria. Indica l'interazione sistemica acqua/Wet ↔ elettricità, **non** una coppia obbligatoria Aevik+Phase.
 
 ## Meccanica firma
 
 ### Descrizione della meccanica
 
-**Conduction** è il nucleo del gameplay di Gadget. Il personaggio non ottiene il massimo valore sparando semplicemente al primo bersaglio disponibile: prepara invece condizioni conduttive e cerca il momento in cui trasformarle in pressione offensiva. La meccanica combina la **Carica Conduttiva** con stati e superfici che rendono l'elettricità più efficace, in particolare `Wet`.
+**Conduction** è il nucleo del gameplay di Aevik. Il personaggio non ottiene il massimo valore sparando semplicemente al primo bersaglio disponibile: prepara invece condizioni conduttive e cerca il momento in cui trasformarle in pressione offensiva. La meccanica combina la **Carica Conduttiva** con stati e superfici che rendono l'elettricità più efficace, in particolare `Wet`.
 
 La Carica Conduttiva ha cap 4 e si rigenera di 1 tramite un'interazione elettrica; il valore iniziale non è ancora specificato. Nel kit v0.1 la meccanica ha due facce concrete: `LinearDischarge`, che ottiene +8 danni contro un bersaglio `Wet`, e `ConductiveNode`, che dal **2026-08-09** **è** `Action.Electrify` ([D-046](../../decisions/RT_PDR_00_Decision_Log.md)) — la propagazione sul grafo conduttivo, prima verde nei test e non innescabile in partita perché nessun eroe la possedeva.
 
-Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambientale e mettere pressione su Gadget prima che possa convertire il campo preparato in un vantaggio.
+Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambientale e mettere pressione su Aevik prima che possa convertire il campo preparato in un vantaggio.
 
 ### Lettura tattica
 
 **Obiettivo del giocatore.** Preparare `Wet` o condizioni conduttive e scegliere quando convertire quel setup in danno/pressione. Quando il setup non è disponibile, `ArcPulse` mantiene una pressione stabile.
 
-**Misplay / Failure State.** Preparare la conduzione dove il nemico non arriverà, o scaricare prima che il bersaglio sia `Wet`. `LinearDischarge` **parte comunque**: perde gli +8, non l'azione. Il costo vero è la Carica Conduttiva, che ha cap 4 e si rigenera di 1 per interazione elettrica — un setup speso male non si recupera nel turno, e a Gadget resta `ArcPulse`, cioè pressione stabile senza il picco che giustifica il personaggio. È il failure state più *silenzioso* del roster: il turno sembra normale, e la differenza si vede solo nel confronto con ciò che la stessa carica avrebbe reso al momento giusto.
+**Misplay / Failure State.** Preparare la conduzione dove il nemico non arriverà, o scaricare prima che il bersaglio sia `Wet`. `LinearDischarge` **parte comunque**: perde gli +8, non l'azione. Il costo vero è la Carica Conduttiva, che ha cap 4 e si rigenera di 1 per interazione elettrica — un setup speso male non si recupera nel turno, e a Aevik resta `ArcPulse`, cioè pressione stabile senza il picco che giustifica il personaggio. È il failure state più *silenzioso* del roster: il turno sembra normale, e la differenza si vede solo nel confronto con ciò che la stessa carica avrebbe reso al momento giusto.
 
 **Counterplay / rischio.** È il personaggio più fragile del roster v0.1. Se il nemico evita `Wet`, rompe il setup o lo costringe a spendere azioni difensive, la sua meccanica firma rende meno.
 
@@ -71,7 +71,7 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Activation / Trigger | Interazioni elettriche e abilità di setup |
 | Payoff | Trasforma setup ambientali in pressione, incluso +8 su Wet con LinearDischarge |
 | Misplay / Failure State | Conduzione preparata nella zona sbagliata o scarica anticipata: `LinearDischarge` parte senza i +8 e la Carica Conduttiva è spesa; resta `ArcPulse` senza picco |
-| Counterplay | Uscire da Wet, interrompere setup, pressione sul fragile Gadget |
+| Counterplay | Uscire da Wet, interrompere setup, pressione sul fragile Aevik |
 | Telegraphing | Stato pubblico/ambientale; risorsa team-visible |
 | Design Status | IMPLEMENTED |
 
@@ -160,19 +160,19 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Gadget.ArcPulse` |
+| Ability ID | `Hero.Aevik.ArcPulse` |
 | Famiglia | **Engine** — *payload rinviato, vedi sotto* |
 | Danno / portata | 22 · range 4 |
 | Payload oltre il danno | **nessuno in v0.1** |
 | Dipendenza dal base | ★★★☆☆ — colpo affidabile mentre le sue abilità sono in ricarica |
 
-> ⚠️ **La famiglia descrive il kit, non ancora l'attacco base.** Il motore elettrico di Gadget **esiste** — è
+> ⚠️ **La famiglia descrive il kit, non ancora l'attacco base.** Il motore elettrico di Aevik **esiste** — è
 > `ConductiveNode`, cablata su `Action.Electrify` da [D-046](../../decisions/RT_PDR_00_Decision_Log.md) — ma
 > non passa da `ArcPulse`, che in v0.1 fa solo danno. ADR-0007 ha rinviato il payload di carica sull'attacco
 > base per una ragione precisa: darebbe alla generazione elettrica un **secondo produttore**, cioè il
 > contrario di quello che D-046 ha appena messo in ordine. Nessuno stato `Charged` esiste nel codice.
 >
-> Finché vale questo, **non dichiarare Gadget «Engine Attack» come se fosse già così**: sarebbe uno stato che
+> Finché vale questo, **non dichiarare Aevik «Engine Attack» come se fosse già così**: sarebbe uno stato che
 > il codice non sostiene.
 
 > `ArcPulse` è anche l'**unico** attacco base del roster che prende i numeri dalla tabella a fasce condivisa
@@ -186,13 +186,13 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 | Quando è inferiore a un'abilità firma? | Quando il bersaglio è **bagnato**: lì `LinearDischarge` vale 24 + 8 = 32 contro 22, e sprecare la finestra di `Wet` su un attacco base è l'errore tipico della coppia con Phase |
 | Che cosa risparmia? | Il cooldown di `LinearDischarge` per il turno in cui l'acqua ci sarà davvero |
 | Che counterplay esiste? | Quello ordinario — coperture, angoli, distanza. Non ha un counterplay proprio, perché non ha ancora un payload proprio |
-| Che cosa impara il giocatore? | Che con Gadget la domanda non è «quanto tolgo adesso» ma «l'acqua è già arrivata». L'attacco base è ciò che si fa **aspettando** che lo sia |
+| Che cosa impara il giocatore? | Che con Aevik la domanda non è «quanto tolgo adesso» ma «l'acqua è già arrivata». L'attacco base è ciò che si fa **aspettando** che lo sia |
 
 ### Prove
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Gadget.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
+| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Aevik.MatchesCatalog` · `RefactorTactics.Heroes.BasicAttackByRangeBand` — è l'unico legato alla fascia condivisa |
 | L'effetto si vede in partita | `Combat.BasicAttack` — 120 − (22 − 5 di `BaseShield`, D-224) = 103 su Riktor |
 | Il payload di carica | ⏳ **non esiste** — dipende da `RT-FEAT-ENV-ELECTRIC`, non da questa pagina |
 
@@ -202,11 +202,11 @@ Il controgioco è leggibile: evitare o rimuovere `Wet`, spezzare il setup ambien
 
 #### Descrizione
 
-Arc Pulse è l'attacco base affidabile di Gadget. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
+Arc Pulse è l'attacco base affidabile di Aevik. Infligge 22 danni a range 4 e non richiede setup ambientale: serve come opzione stabile quando non conviene investire una risorsa o preparare un payoff sistemico.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Gadget.ArcPulse` |
+| Ability ID | `Hero.Aevik.ArcPulse` |
 | Categoria | Attacco base |
 | Priorità | 50 |
 | Costo risorsa | — |
@@ -232,11 +232,11 @@ Arc Pulse è l'attacco base affidabile di Gadget. Infligge 22 danni a range 4 e 
 
 #### Descrizione
 
-Linear Discharge è l'attacco lineare firma di Gadget. Infligge 24 danni a range 5 e, se il bersaglio è `Wet`, aggiunge +8 danni. Il fallback è `AttackCell`, quindi la linea dichiarata resta rilevante anche se la situazione cambia durante la resolution.
+Linear Discharge è l'attacco lineare firma di Aevik. Infligge 24 danni a range 5 e, se il bersaglio è `Wet`, aggiunge +8 danni. Il fallback è `AttackCell`, quindi la linea dichiarata resta rilevante anche se la situazione cambia durante la resolution.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Gadget.LinearDischarge` |
+| Ability ID | `Hero.Aevik.LinearDischarge` |
 | Categoria | Attacco lineare |
 | Priorità | 55 |
 | Costo risorsa | — |
@@ -270,7 +270,7 @@ Il concetto di Conduction si estende comunque oltre `Wet`, ma per la via della *
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Gadget.ConductiveNode` |
+| Ability ID | `Hero.Aevik.ConductiveNode` |
 | Categoria | Setup/Prep |
 | Priorità | 35 |
 | Costo risorsa | — |
@@ -290,17 +290,17 @@ Il concetto di Conduction si estende comunque oltre `Wet`, ma per la via della *
 
 L'azione **non prepara** il terreno: lo **sfrutta**. Vale quanto il circuito che qualcuno ha già costruito — l'acqua di Phase, una superficie `Conductive` della mappa — e su un campo asciutto colpisce un bersaglio solo. È il rovescio esatto della lettura vecchia, in cui era lei a creare la conduttività.
 
-⚠️ **Fuoco amico sul circuito**: la scarica colpisce ogni unità sul grafo una volta sola, e il grafo non distingue le squadre. Chi allaga per Gadget allaga anche per l'avversario.
+⚠️ **Fuoco amico sul circuito**: la scarica colpisce ogni unità sul grafo una volta sola, e il grafo non distingue le squadre. Chi allaga per Aevik allaga anche per l'avversario.
 
 ### Overload
 
 #### Descrizione
 
-Overload è l'AoE di Gadget: 18 danni, range 3, raggio 1 e cooldown 3. La specifica prevede anche un'interruzione dei dispositivi, ma questa parte dipende da sistemi non ancora completati.
+Overload è l'AoE di Aevik: 18 danni, range 3, raggio 1 e cooldown 3. La specifica prevede anche un'interruzione dei dispositivi, ma questa parte dipende da sistemi non ancora completati.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Gadget.Overload` |
+| Ability ID | `Hero.Aevik.Overload` |
 | Categoria | AoE |
 | Priorità | 65 |
 | Costo risorsa | — |
@@ -326,11 +326,11 @@ Overload è l'AoE di Gadget: 18 danni, range 3, raggio 1 e cooldown 3. La specif
 
 #### Descrizione
 
-Reactive Capacitor è la reazione difensiva/offensiva di Gadget. Quando subisce un attacco diretto, applica scudo 15 a Gadget e 10 danni all'attaccante, con cooldown 3.
+Reactive Capacitor è la reazione difensiva/offensiva di Aevik. Quando subisce un attacco diretto, applica scudo 15 a Aevik e 10 danni all'attaccante, con cooldown 3.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Gadget.ReactiveCapacitor` |
+| Ability ID | `Hero.Aevik.ReactiveCapacitor` |
 | Categoria | Reazione/Counter |
 | Priorità | 20 |
 | Costo risorsa | — |
@@ -356,13 +356,13 @@ Nella v0.1 attuale è una reazione deterministica che riusa `Action.Counter`; no
 
 ### Descrizione delle reazioni
 
-- **`Hero.Gadget.ReactiveCapacitor`** — Si attiva quando Gadget subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
+- **`Hero.Aevik.ReactiveCapacitor`** — Si attiva quando Aevik subisce un attacco diretto. Nella v0.1 corrente il commit è automatico: applica scudo 15 e 10 danni all'attaccante. È già descritta anche fra le abilità.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Hero.Gadget.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
+| `Hero.Aevik.ReactiveCapacitor` | Subisce un attacco diretto | Counter | — | — | 20 | Commit automatico (v0.1 attuale) | — | — | Scudo 15 + 10 danni all'attaccante | IMPLEMENTED |
 
-> `Hero.Gadget.ReactiveCapacitor` — Reazione deterministica attuale: nessuna finestra live; il modello opportunity→commit arriva con E14.
+> `Hero.Aevik.ReactiveCapacitor` — Reazione deterministica attuale: nessuna finestra live; il modello opportunity→commit arriva con E14.
 
 ## Equipaggiamento
 
@@ -376,14 +376,14 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 | Weapon.Split | Weapon | Multiplo | — | Bersaglio aggiuntivo | −6 danni | Attacco base | Scelta orizzontale | CANONICAL |
 | Weapon.Suppressive | Weapon | Soppressione | — | Applica Slow | −5 danni | Attacco base | Scelta orizzontale | CANONICAL |
 | Weapon.Environmental | Weapon | Ambientale | — | Migliora hazard | −5 danni diretti | Attacco base | Scelta orizzontale | CANONICAL |
-| Gadget.Medkit | Gadget | Medkit | — | Cura 18 | — | Support | Cooldown 3 | CANONICAL |
-| Gadget.BreachCharge | Gadget | Carica da breccia | — | 35 danni a struttura | — | Map | Cooldown 3 | CANONICAL |
-| Gadget.Sprinkler | Gadget | Sprinkler | — | Acqua raggio 1 | — | Water combo | Cooldown 3 | CANONICAL |
-| Gadget.Insulator | Gadget | Isolante | — | Immunità a una propagazione elettrica | — | Electric defense | Cooldown 3 | CANONICAL |
-| Gadget.SmokeEmitter | Gadget | Emettitore di fumo | — | Fumo raggio 1 | — | Vision | Cooldown 3 | CANONICAL |
-| Gadget.PortableCover | Gadget | Copertura portatile | — | Crea copertura bassa | — | Structures | Cooldown 3 | CANONICAL |
-| Gadget.Sensor | Gadget | Sensore | — | Rivela un'area | — | Vision | Cooldown 3; raggio/durata non specificati | CANONICAL_PARTIAL |
-| Gadget.Anchor | Gadget | Ancora | — | Impedisce una spinta | — | Displacement | Cooldown 3 | CANONICAL |
+| Gadget.Medkit | Aevik | Medkit | — | Cura 18 | — | Support | Cooldown 3 | CANONICAL |
+| Gadget.BreachCharge | Aevik | Carica da breccia | — | 35 danni a struttura | — | Map | Cooldown 3 | CANONICAL |
+| Gadget.Sprinkler | Aevik | Sprinkler | — | Acqua raggio 1 | — | Water combo | Cooldown 3 | CANONICAL |
+| Gadget.Insulator | Aevik | Isolante | — | Immunità a una propagazione elettrica | — | Electric defense | Cooldown 3 | CANONICAL |
+| Gadget.SmokeEmitter | Aevik | Emettitore di fumo | — | Fumo raggio 1 | — | Vision | Cooldown 3 | CANONICAL |
+| Gadget.PortableCover | Aevik | Copertura portatile | — | Crea copertura bassa | — | Structures | Cooldown 3 | CANONICAL |
+| Gadget.Sensor | Aevik | Sensore | — | Rivela un'area | — | Vision | Cooldown 3; raggio/durata non specificati | CANONICAL_PARTIAL |
+| Gadget.Anchor | Aevik | Ancora | — | Impedisce una spinta | — | Displacement | Cooldown 3 | CANONICAL |
 | Reaction.EmergencyDash | Reaction | Dash d'emergenza | — | Reposition 1 | — | Reaction | Trigger: sei bersagliato | CANONICAL |
 | Reaction.ReactiveShield | Reaction | Scudo reattivo | — | Scudo 15 | — | Reaction | Trigger: subisci danno | CANONICAL |
 | Reaction.CounterShot | Reaction | Contrattacco | — | 14 danni | — | Reaction | Trigger: sei colpito | CANONICAL |
@@ -396,8 +396,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Hero.Gadget.LinearDischarge.Concentrated` | Scarica concentrata | +6 danni (30 totali) | Non si propaga a un secondo bersaglio | `Hero.Gadget.LinearDischarge.Branched` | Burst | CANONICAL |
-| `Hero.Gadget.LinearDischarge.Branched` | Scarica ramificata | Un bersaglio aggiuntivo | −6 danni per bersaglio (18 ciascuno) | `Hero.Gadget.LinearDischarge.Concentrated` | Multi-target | CANONICAL |
+| `Hero.Aevik.LinearDischarge.Concentrated` | Scarica concentrata | +6 danni (30 totali) | Non si propaga a un secondo bersaglio | `Hero.Aevik.LinearDischarge.Branched` | Burst | CANONICAL |
+| `Hero.Aevik.LinearDischarge.Branched` | Scarica ramificata | Un bersaglio aggiuntivo | −6 danni per bersaglio (18 ciascuno) | `Hero.Aevik.LinearDischarge.Concentrated` | Multi-target | CANONICAL |
 
 ## Talenti
 

@@ -12,7 +12,7 @@
   "_nota_da_completare": "Ne mancava DUE, ne manca UNA. — (1) RISOLTO il 2026-08-12 con D-113: la scala di precisione e' decisa, due ampiezze (raggio 4 e 2) scelte dal margine sopra la soglia d'udito e mai dal tipo di evento, perche' riconoscere il tipo e' il Livello 5 della stessa scala. — (2) RESTA: un modo di asserire sulla CONOSCENZA di una squadra; `ERTAssertionKind` oggi vede solo posizione, HP e vivo/morto. Finche' quell'assertion e' impossibile lo scenario resta BLOCKED e dichiarato: uno scenario verde non proverebbe niente, e adesso meno che mai — con la scala decisa la tentazione di pinnare un'area senza poterla interrogare e' piu' forte, non meno.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-3,  0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",   "team": 0, "cell": [-3,  0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 3,  0, 0] }
   ],
 

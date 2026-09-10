@@ -1441,7 +1441,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 	// davvero, ed e' l'unico posto dove farlo: qui il redirect e' deciso e nessuna reazione e' ancora stata
 	// valutata sui colpi riscritti, quindi la rivalidazione non puo' aprire una seconda opportunity.
 	//
-	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Gadget.LinearDischarge` contro `Status.Wet`):
+	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Aevik.LinearDischarge` contro `Status.Wet`):
 	// cio' che dipende da CHI subisce si decide dopo l'Intercept, non prima.
 	for (int32 r = 0; r < RedirectHit.Num(); ++r)
 	{

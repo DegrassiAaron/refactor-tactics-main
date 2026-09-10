@@ -963,7 +963,7 @@ FString ARTUnit::ShortHeroName(FName InHeroId, const FString& Fallback)
 		return Fallback;
 	}
 	const FString Full = InHeroId.ToString();
-	// Gli HeroId sono namespaced (`Hero.Gadget`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
+	// Gli HeroId sono namespaced (`Hero.Aevik`): a schermo serve l'ultimo segmento. Se un giorno l'ID smettesse
 	// di avere il punto, questa resta corretta invece di mostrare una stringa vuota.
 	int32 Dot = INDEX_NONE;
 	if (Full.FindLastChar(TEXT('.'), Dot) && Dot >= 0 && Dot + 1 < Full.Len())

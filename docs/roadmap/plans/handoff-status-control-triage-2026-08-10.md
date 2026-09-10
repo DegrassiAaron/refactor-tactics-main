@@ -83,12 +83,12 @@ motivo per cui il dodicesimo costerà come i primi undici messi insieme.
 
 > ⚠️ **`Reposition` è stato respinto ieri.** [PR #397](https://github.com/DegrassiAaron/refactor-tactics-main/pull/397)
 > (`D-067`) decide che il ripiegamento dopo l'Overwatch si chiama **`Withdraw`**, perché `Action.Reposition`
-> **è un'azione viva**: scatto lineare di 2 celle in macro-fase Dash, concesso anche da `Hero.Phase.FlowReaction` e
+> **è un'azione viva**: scatto lineare di 2 celle in macro-fase Dash, concesso anche da `Hero.Muiren.FlowReaction` e
 > `Hero.Wraith.Feint`. Il sorgente usa `Reposition` in §43, §44, §57 e §60.
 
 | Il sorgente propone | Il repository ha già | Esito |
 |---|---|---|
-| §41 — Brace profile **`Flow`** per Phase | **`Hero.Phase.FlowReaction`**: `Reposition 1` dopo un attacco subìto, fase Preparation, priorità 36 | **Collisione.** Due «Flow» di Phase in due fasi diverse si pagano a ogni lettura del TurnLog |
+| §41 — Brace profile **`Flow`** per Phase | **`Hero.Muiren.FlowReaction`**: `Reposition 1` dopo un attacco subìto, fase Preparation, priorità 36 | **Collisione.** Due «Flow» di Phase in due fasi diverse si pagano a ogni lettura del TurnLog |
 | §41 — Brace profile **`Deflection`** per Wraith | **`Hero.Wraith.Deflection`**: costruita su `Action.Deflect`, cioè **riduzione del danno** | **Collisione semantica invertita.** Il sorgente lo vuole anti-displacement; nel gioco è anti-danno |
 | §43–§44 — **`Reposition`** | `Action.Reposition` (Dash, 2 celle) · e `D-067` ha scelto **`Withdraw`** | **Respinto ieri.** Non si riapre |
 

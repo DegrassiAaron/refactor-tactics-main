@@ -251,7 +251,7 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 		}
 	}
 
-	// BILANCIAMENTO (#131). Ivrin era 100/6/6/0 e dominava sia Gadget (90/5/6/0) sia Phase (95/5/5/0): migliore
+	// BILANCIAMENTO (#131). Ivrin era 100/6/6/0 e dominava sia Aevik (90/5/6/0) sia Phase (95/5/5/0): migliore
 	// o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 gli attribuiva a parole un
 	// costo — «compra mobilita' con l'assenza di difese» — che sui numeri non esisteva.
 	//
@@ -284,9 +284,9 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 	//
 	// Le due leve che l'hanno chiusa, e perche' proprio quelle:
 	//   Ivrin 100 -> 90 HP  ([D-069]) — toglie la dominanza su Phase
-	//   Gadget    6 -> 7 vista ([D-073]) — toglie quella su Gadget, che il calo di Ivrin NON aveva risolto
+	//   Aevik    6 -> 7 vista ([D-073]) — toglie quella su Aevik, che il calo di Ivrin NON aveva risolto
 	//
-	// Le alternative scartate, misurate e non intuite: dare 6 MP a Gadget o toglierne uno a Ivrin rende i due
+	// Le alternative scartate, misurate e non intuite: dare 6 MP a Aevik o toglierne uno a Ivrin rende i due
 	// profili IDENTICI, e il ciclo di distinguibilita' qui sopra sarebbe caduto — un test rotto per ripararne
 	// un altro. Una `PushResistance` negativa per Ivrin non ha effetto osservabile, perche' e' una SOGLIA e
 	// le spinte valgono almeno 1.
@@ -303,9 +303,9 @@ bool FRTHeroRosterTest::RunTest(const FString&)
 
 	// La compensazione nelle abilita' resta com'era, e non era in discussione: `#131` riguardava la scheda
 	// statistiche, dove il costo di ogni eroe ora e' visibile.
-	TestTrue(TEXT("Gadget conserva il bonus combo piu' alto del roster"),
-		URTCombatLibrary::GadgetWetDischargeBonus > 0);
-	TestTrue(TEXT("e Gadget e' l'unico a vedere oltre il raggio 6"),
+	TestTrue(TEXT("Aevik conserva il bonus combo piu' alto del roster"),
+		URTCombatLibrary::AevikWetDischargeBonus > 0);
+	TestTrue(TEXT("e Aevik e' l'unico a vedere oltre il raggio 6"),
 		GadgetInRoster->VisionRange > IvrinInRoster->VisionRange);
 
 	// Le affinita' sono tutte diverse: quattro identita' ambientali, non due coppie di gemelli.

@@ -27,24 +27,24 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 
 ## La misura
 
-### Gadget (`Hero.Gadget`) — `Affinity.Electricity`, debolezza `Affinity.Water`
+### Gadget (`Hero.Aevik`) — `Affinity.Electricity`, debolezza `Affinity.Water`
 
 | Abilità | Effetti dichiarati | Elementale? |
 |---|---|:--:|
-| `Hero.Gadget.ArcPulse` | attacco base generico (`MakeBasicAttack(4)`) | ❌ |
-| `Hero.Gadget.LinearDischarge` | **solo `Damage 24`**, forma linea | ⚠️ vedi sotto |
-| `Hero.Gadget.ConductiveNode` | **è** `Action.Electrify`, con `PropagationLimit` dal core | ✅ **Propagate** Electric |
-| `Hero.Gadget.Overload` | `Damage 18`, area r1 | ❌ |
-| `Hero.Gadget.ReactiveCapacitor` | `Shield 15` + `Damage 10` | ❌ |
+| `Hero.Aevik.ArcPulse` | attacco base generico (`MakeBasicAttack(4)`) | ❌ |
+| `Hero.Aevik.LinearDischarge` | **solo `Damage 24`**, forma linea | ⚠️ vedi sotto |
+| `Hero.Aevik.ConductiveNode` | **è** `Action.Electrify`, con `PropagationLimit` dal core | ✅ **Propagate** Electric |
+| `Hero.Aevik.Overload` | `Damage 18`, area r1 | ❌ |
+| `Hero.Aevik.ReactiveCapacitor` | `Shield 15` + `Damage 10` | ❌ |
 
-### Phase (`Hero.Phase`) — `Affinity.Water`, debolezza `Affinity.Electricity`
+### Phase (`Hero.Muiren`) — `Affinity.Water`, debolezza `Affinity.Electricity`
 
 | Abilità | Effetti dichiarati | Elementale? |
 |---|---|:--:|
-| `Hero.Phase.PressureJet` | `Status.Wet` + `Push 1`, linea | ✅ **Apply** Water |
-| `Hero.Phase.CircularTide` | `Heal 18` — il `Wet` è uscito con #1006 | ❌ |
-| `Hero.Phase.FluidTrail` | `Action.Dash` — l'acqua è uscita con #1006 | ❌ |
-| `Hero.Phase.MistVeil` | `bCreatesSurface` → `Smoke` | ⚠️ vedi «Smoke» |
+| `Hero.Muiren.PressureJet` | `Status.Wet` + `Push 1`, linea | ✅ **Apply** Water |
+| `Hero.Muiren.CircularTide` | `Heal 18` — il `Wet` è uscito con #1006 | ❌ |
+| `Hero.Muiren.FluidTrail` | `Action.Dash` — l'acqua è uscita con #1006 | ❌ |
+| `Hero.Muiren.MistVeil` | `bCreatesSurface` → `Smoke` | ⚠️ vedi «Smoke» |
 
 ### Riktor (`Hero.Riktor`) — `Affinity.Structures`, debolezza `Affinity.Movement`
 
@@ -63,9 +63,9 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 
 ## 🔴 Il risultato: il criterio non cattura tutto, e la baseline dipende da come lo si scrive
 
-`Hero.Gadget.LinearDischarge` dichiara **solo `Damage 24`**. Il suo comportamento elettrico — il **+8 contro bersaglio `Status.Wet`** — vive nel **resolver**, non nei dati dell'azione. Il codice lo dichiara e ne spiega la ragione (`Turn/RTTurnManager.cpp:3971`):
+`Hero.Aevik.LinearDischarge` dichiara **solo `Damage 24`**. Il suo comportamento elettrico — il **+8 contro bersaglio `Status.Wet`** — vive nel **resolver**, non nei dati dell'azione. Il codice lo dichiara e ne spiega la ragione (`Turn/RTTurnManager.cpp:3971`):
 
-> *«`Hero.Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non è nella lista `Effects` perché non è un danno fisso, e vale su OGNI colpo dell'azione finché il bersaglio è bagnato.»*
+> *«`Hero.Aevik.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non è nella lista `Effects` perché non è un danno fisso, e vale su OGNI colpo dell'azione finché il bersaglio è bagnato.»*
 
 È un **Consume** di uno stato elementale — uno dei cinque verbi che #995 elenca — ma la prova non è dove il criterio la cerca. Ne seguono due letture, e **la baseline cambia a seconda di quale si sceglie**:
 
@@ -80,7 +80,7 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 
 ## Tre questioni che la misura ha sollevato e non risolve
 
-**1. `Smoke` è un elemento?** `Hero.Phase.MistVeil` crea davvero una superficie (`bCreatesSurface` → `Smoke`), quindi *genera* qualcosa. Se `Smoke` conta come elemento, Phase ha due capability di elementi **diversi** — e la grammatica di #995 conta per elemento, quindi resterebbe `Access` di Water più `Access` di Smoke. Se non conta, va scritto perché. Oggi la issue non nomina né `Smoke` né `Fire` fra gli elementi.
+**1. `Smoke` è un elemento?** `Hero.Muiren.MistVeil` crea davvero una superficie (`bCreatesSurface` → `Smoke`), quindi *genera* qualcosa. Se `Smoke` conta come elemento, Phase ha due capability di elementi **diversi** — e la grammatica di #995 conta per elemento, quindi resterebbe `Access` di Water più `Access` di Smoke. Se non conta, va scritto perché. Oggi la issue non nomina né `Smoke` né `Fire` fra gli elementi.
 
 **2. Le azioni core ospitate contano.** `ConductiveNode` **è** `Action.Electrify` e `FluidTrail` **era** `Action.CreateWater`: l'eroe è il veicolo di un'azione di catalogo. #1006 ha scartato l'opzione di escluderle — sarebbe scesa anche la baseline di Gadget — quindi **contano**, ed è una decisione già presa che l'owner deve scrivere invece di lasciare implicita.
 

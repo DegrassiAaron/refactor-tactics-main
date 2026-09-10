@@ -19,7 +19,7 @@
 // 🔴 **Il piano e' SCRITTO, non chiesto al bot, e la prima stesura di questo file sbagliava proprio qui.**
 // Allestiva un autobattle su un'arena di raggio 4 e si aspettava del movimento: gli spawn distano 8 celle,
 // il `VisionRange` piu' corto e' 5, quindi il bot non vedeva nessuno e le quattro unita' **restavano ferme**
-// (`[RT] Gadget: resta (q=-4,r=0,L=0)`). E' il difetto che `#1738` descrive, incontrato di lato. La guardia
+// (`[RT] Aevik: resta (q=-4,r=0,L=0)`). E' il difetto che `#1738` descrive, incontrato di lato. La guardia
 // «qualcosa si e' mosso» ha fatto cadere il test invece di lasciarlo passare confrontando due zeri — ed e'
 // la ragione per cui quella guardia c'e' e resta.
 //

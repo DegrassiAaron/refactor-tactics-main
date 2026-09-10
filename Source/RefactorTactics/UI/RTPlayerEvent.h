@@ -145,7 +145,7 @@ struct FRTPlayerEvent
 	 *
 	 * ⚠️ Segue la regola gia' fissata per il `TurnLog`: e' il soggetto di cio' che la riga racconta, non
 	 * sempre chi ha agito. Per un `Attacked` e' chi **subisce**, come per la categoria `Combat`
-	 * (`#1150`) — *«Gadget: colpisce»* direbbe il falso.
+	 * (`#1150`) — *«Aevik: colpisce»* direbbe il falso.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|PlayerEvent")
 	int32 PrimaryUnitId = INDEX_NONE;

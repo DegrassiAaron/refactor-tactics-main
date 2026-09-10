@@ -8,7 +8,7 @@
 //
 // ⚠️ **I valori sono INVENTATI, e devono restare tali.** Non sono il profilo di nessun eroe del catalogo:
 // servono solo a produrre sagome distinguibili. Un giorno in cui questi numeri diventassero «i valori di
-// Gadget» il comando avrebbe smesso di essere uno strumento e sarebbe diventato una seconda fonte —
+// Aevik» il comando avrebbe smesso di essere uno strumento e sarebbe diventato una seconda fonte —
 // esattamente cio' che tutto il componente evita. Il catalogo lo possiede `tools/radar`.
 //
 // ⛔ **Sola presentazione**: non tocca `ARTTurnManager`, non muove unita', non legge stato di partita.

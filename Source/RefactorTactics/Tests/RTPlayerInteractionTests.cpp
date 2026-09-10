@@ -1047,7 +1047,7 @@ bool FRTPlayerInputEveryKitEntryIsReachableTest::RunTest(const FString&)
  * La proprieta' per cui il canale generico risolve per NOME invece che per posizione.
  *
  * Le generiche sono accodate al kit, quindi il loro indice dipende da quante azioni porta l'eroe: Phase ne
- * ha sei e Gadget cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
+ * ha sei e Aevik cinque, e la stessa `Action.Guard` sta a indici DIVERSI sui due. Un tasto legato a una
  * posizione fissa punterebbe a un'abilita' d'eroe sull'uno e alla generica giusta sull'altro.
  *
  * ⚠️ **Serve un roster con kit di lunghezza diversa, ed e' la ragione per cui questo test non esisteva

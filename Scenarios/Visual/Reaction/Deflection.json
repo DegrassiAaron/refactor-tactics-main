@@ -12,7 +12,7 @@
   "_nota_confronto": "Da guardare accanto a `Combat.CounterStrikesBack`, che copre l'altra semantica difensiva: li' lo scudo assorbe **e** restituisce danno, qui la riduzione agisce sul colpo che l'ha innescata e basta. Tre reazioni, tre grammatiche diverse: redirezione, assorbimento con risposta, riduzione secca.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [0, 0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",   "team": 0, "cell": [0, 0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [2, 0, 0] }
   ],
 
@@ -21,7 +21,7 @@
       "requires": ["Reaction"],
       "intents": [
         { "unit": "V1", "reaction": "Hero.Ivrin.Deflection" },
-        { "unit": "F1", "ability": "Hero.Gadget.ArcPulse", "target": "V1" }
+        { "unit": "F1", "ability": "Hero.Aevik.ArcPulse", "target": "V1" }
       ]
     }
   ],

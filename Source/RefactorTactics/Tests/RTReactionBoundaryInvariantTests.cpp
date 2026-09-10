@@ -52,7 +52,7 @@ namespace RTBoundaryInvariants
 {
 	/**
 	 * Lo scenario condiviso dai due test: due Ivrin che guardano la STESSA cella da lati opposti, e un
-	 * Gadget che ci entra con un solo micro-step.
+	 * Aevik che ci entra con un solo micro-step.
 	 *
 	 * ⚠️ `MakeSuppressiveZone` costruisce una LINEA lungo il facing, quindi `(-1,-1,0)` cade nella zona di
 	 * entrambi i watcher. Sono due WATCHER diversi sullo stesso bersaglio — quindi **due opportunity** — e non
@@ -101,7 +101,7 @@ namespace RTBoundaryInvariants
 		// sopravvivenza non e' assunta: e' un `Expect` qui sotto.
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Gadget");
+		M1.HeroId = TEXT("Hero.Aevik");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		Scenario.Units.Add(M1);

@@ -107,7 +107,7 @@ una reazione che **è** riduzione danno. Due entità, un nome, semantiche oppost
 
 ### 2.5 MAGGIORE — `Flow` è già preso, con un trigger diverso
 
-`Hero.Phase.FlowReaction` esiste (`RTHeroCatalogLibrary.cpp:351-353`): `Reposition 1` **dopo un attacco
+`Hero.Muiren.FlowReaction` esiste (`RTHeroCatalogLibrary.cpp:351-353`): `Reposition 1` **dopo un attacco
 subito**, dichiarata con slot `None` e nessun trigger perché il suo aggancio è E14. Il §11.2 propone
 `Flow` come risposta a **Forced Movement**. Stesso nome, stesso eroe, stessa famiglia (movimento
 reattivo), **trigger diverso**.

@@ -1,11 +1,11 @@
-# Phase
+# Muiren
 
-> **Asset base:** Paragon — Phase  
+> **Asset base:** Paragon — Muiren  
 > **Hero_Key:** `ASSET_RIVA`  
-> **RT Character ID:** `Hero.Phase`  
+> **RT Character ID:** `Hero.Muiren`  
 > **Release:** `v0.1`  
 > **Roster status:** Release v0.1  
-> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Phase** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
+> **Provenienza visuale:** mesh e animazioni vengono dallo slot Paragon **Muiren** ([D-037](../../decisions/RT_PDR_00_Decision_Log.md) · tabella owner in [`paragon.md`](../paragon.md)). L'asset è la base visuale del prototipo, non l'identità del personaggio.
 
 ## Panoramica
 
@@ -36,17 +36,17 @@ Support/controller dell'acqua: bagna bersagli, cura, riposiziona e prepara il te
 
 ### Descrizione della meccanica
 
-**Water Shaping** fa di Phase il principale personaggio di setup ambientale della v0.1. La sua acqua non è solo un tema visivo: serve a applicare `Wet`, spostare unità, sostenere gli alleati e preparare interazioni successive, soprattutto con l'elettricità.
+**Water Shaping** fa di Muiren il principale personaggio di setup ambientale della v0.1. La sua acqua non è solo un tema visivo: serve a applicare `Wet`, spostare unità, sostenere gli alleati e preparare interazioni successive, soprattutto con l'elettricità.
 
 La **Riserva Idrica** ha cap 4 e recupera 1 tramite interazioni con l'acqua; il valore iniziale non è ancora specificato. Il kit alterna effetti immediati (`PressureJet`, `CircularTide`) a trasformazioni del campo (`FluidTrail`, `MistVeil`) e a un riposizionamento reattivo (`FlowReaction`, rinviato a E14).
 
-Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha preparato. Il controgioco consiste nel non restare nelle zone predisposte, interrompere la continuità del setup e sfruttare il fatto che l'acqua può diventare un vettore utile anche all'elettricità avversaria.
+Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Muiren ha preparato. Il controgioco consiste nel non restare nelle zone predisposte, interrompere la continuità del setup e sfruttare il fatto che l'acqua può diventare un vettore utile anche all'elettricità avversaria.
 
 ### Lettura tattica
 
-**Obiettivo del giocatore.** Creare valore di squadra attraverso `Wet`, spinta, cura, acqua e fumo. Phase è più efficace quando il turno successivo o un alleato possono sfruttare ciò che ha preparato.
+**Obiettivo del giocatore.** Creare valore di squadra attraverso `Wet`, spinta, cura, acqua e fumo. Muiren è più efficace quando il turno successivo o un alleato possono sfruttare ciò che ha preparato.
 
-**Misplay / Failure State.** Preparare il terreno nel posto sbagliato. È il failure state più severo del roster v0.1, perché non si limita a sprecare la Riserva Idrica: `Wet` è uno **stato della cella**, e il bonus elettrico lo legge senza sapere chi l'ha applicato — la stessa proprietà registrata da [D-029](../../decisions/RT_PDR_00_Decision_Log.md) a proposito di `Water-Electric`. Una superficie bagnata piazzata male non è un investimento perso: è un **vettore consegnato all'avversario**, che può usarla contro la squadra di Phase. Gli altri tre eroi v0.1, sbagliando, perdono valore; Phase può regalarlo.
+**Misplay / Failure State.** Preparare il terreno nel posto sbagliato. È il failure state più severo del roster v0.1, perché non si limita a sprecare la Riserva Idrica: `Wet` è uno **stato della cella**, e il bonus elettrico lo legge senza sapere chi l'ha applicato — la stessa proprietà registrata da [D-029](../../decisions/RT_PDR_00_Decision_Log.md) a proposito di `Water-Electric`. Una superficie bagnata piazzata male non è un investimento perso: è un **vettore consegnato all'avversario**, che può usarla contro la squadra di Muiren. Gli altri tre eroi v0.1, sbagliando, perdono valore; Muiren può regalarlo.
 
 **Counterplay / rischio.** Il setup può essere evitato o sfruttato dall'avversario. Inoltre `FlowReaction` non è ancora attiva nella v0.1 corrente perché dipende dalle decision boundary di E14.
 
@@ -155,7 +155,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Phase.PressureJet` |
+| Ability ID | `Hero.Muiren.PressureJet` |
 | Famiglia | **Setup** |
 | Danno / portata | 16 · range 5 · forma a linea |
 | Payload oltre il danno | `Status.Wet` 1 turno · `Push 1` |
@@ -178,7 +178,7 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha
 
 | Che cosa | Dove |
 | --- | --- |
-| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Phase.MatchesCatalog` |
+| Il payload è nel dato | `RefactorTactics.Heroes.Hero.Muiren.MatchesCatalog` |
 | L'effetto si vede in partita | `Visual.Combat.WaterElectricCoordinated` — il `Wet` non è osservabile direttamente (il runner non ha `UnitHasStatus`), quindi lo scenario lo prova con l'aritmetica: `90 − (16 + 32 − 5 di BaseShield) = 47`, dove i 32 valgono solo se il bersaglio è bagnato. Senza `Wet` la scarica varrebbe 24 invece di 32, e lo scenario diventa rosso |
 
 ## Abilità
@@ -187,11 +187,11 @@ Il suo payoff cresce quando la squadra sfrutta le celle e gli stati che Phase ha
 
 #### Descrizione
 
-Pressure Jet è l'attacco base tematico di Phase: una linea a range 5 che infligge 16 danni, applica `Wet` per 1 turno e `Push 1`.
+Pressure Jet è l'attacco base tematico di Muiren: una linea a range 5 che infligge 16 danni, applica `Wet` per 1 turno e `Push 1`.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Phase.PressureJet` |
+| Ability ID | `Hero.Muiren.PressureJet` |
 | Categoria | Attacco base lineare |
 | Priorità | 50 |
 | Costo risorsa | — |
@@ -217,18 +217,18 @@ Fa tre cose con una sola azione leggibile: danno leggero, spostamento e setup. I
 
 #### Descrizione
 
-Circular Tide è l'AoE di supporto di Phase. A range 4 e raggio 1, **cura 18 e basta**.
+Circular Tide è l'AoE di supporto di Muiren. A range 4 e raggio 1, **cura 18 e basta**.
 
 > ⚠️ **Corretto il 2026-09-10.** Questa riga diceva «cura 18 agli alleati **e applica `Wet` ai nemici per 1
 > turno**». Il `Wet` ad area è uscito dalla dichiarazione con
-> [#1006](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1006), che allinea Phase al grado
+> [#1006](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1006), che allinea Muiren al grado
 > `Access` di [#995](https://github.com/DegrassiAaron/refactor-tactics-main/issues/995) — **una sola**
 > capability elementale, e resta `PressureJet`. Costo dichiarato allora e ancora valido: la combo con Gadget
 > passa ora solo per la linea di `PressureJet`, che copre meno bersagli.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Phase.CircularTide` |
+| Ability ID | `Hero.Muiren.CircularTide` |
 | Categoria | AoE support |
 | Priorità | 60 |
 | Costo risorsa | — |
@@ -265,7 +265,7 @@ Fluid Trail è un Dash lineare di 3 celle. **Non lascia acqua**: è mobilità pu
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Phase.FluidTrail` |
+| Ability ID | `Hero.Muiren.FluidTrail` |
 | Categoria | Dash |
 | Priorità | 30 |
 | Costo risorsa | — |
@@ -285,7 +285,7 @@ Fluid Trail è un Dash lineare di 3 celle. **Non lascia acqua**: è mobilità pu
 
 #### Uso tattico e limiti
 
-È **riposizionamento**: Phase cambia posizione senza spendere l'azione principale (slot `Movement`). Il setup elementale, dopo #1006, passa da `PressureJet` o dall'equipaggiamento, non da qui. Il fallback è `Stop` se il Dash non può essere completato.
+È **riposizionamento**: Muiren cambia posizione senza spendere l'azione principale (slot `Movement`). Il setup elementale, dopo #1006, passa da `PressureJet` o dall'equipaggiamento, non da qui. Il fallback è `Stop` se il Dash non può essere completato.
 
 ### Mist Veil
 
@@ -295,7 +295,7 @@ Mist Veil crea fumo in un'area di raggio 1 attorno al bersaglio. È pensata per 
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Phase.MistVeil` |
+| Ability ID | `Hero.Muiren.MistVeil` |
 | Categoria | Environment/AoE |
 | Priorità | 60 |
 | Costo risorsa | — |
@@ -337,11 +337,11 @@ Un limite resta, ed è dichiarato invece che nascosto: chi **si trova già** nel
 
 #### Descrizione
 
-Flow Reaction prevede un `Reposition 1` dopo che Phase subisce un attacco. È una reazione di movimento e quindi richiede una decision boundary durante la resolution.
+Flow Reaction prevede un `Reposition 1` dopo che Muiren subisce un attacco. È una reazione di movimento e quindi richiede una decision boundary durante la resolution.
 
 | Campo | Valore |
 | --- | --- |
-| Ability ID | `Hero.Phase.FlowReaction` |
+| Ability ID | `Hero.Muiren.FlowReaction` |
 | Categoria | Reazione/Reposition |
 | Priorità | 36 |
 | Costo risorsa | — |
@@ -367,14 +367,14 @@ Per evitare TurnLog falsi è esplicitamente `DEFERRED_E14`: nel dato corrente no
 
 ### Descrizione delle reazioni
 
-- **`Hero.Phase.FlowReaction`** — Dopo un attacco subito, la specifica prevede `Reposition 1`. Richiede una decision boundary e resta `DEFERRED_E14`; la baseline di 3 s appartiene al modello futuro, non al comportamento runtime corrente.
+- **`Hero.Muiren.FlowReaction`** — Dopo un attacco subito, la specifica prevede `Reposition 1`. Richiede una decision boundary e resta `DEFERRED_E14`; la baseline di 3 s appartiene al modello futuro, non al comportamento runtime corrente.
 
 | Reaction_ID | Trigger | Tipo | Finestra_sec_SOURCE | Costo | Priorità | Scelta_A | Scelta_B | Default_Timeout | Tradeoff | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Hero.Phase.FlowReaction` | Dopo un attacco subito | Movement reaction | 3 | — | 36 | Reposition 1 | Hold | Hold | Movimento dentro decision boundary | DEFERRED_E14 |
+| `Hero.Muiren.FlowReaction` | Dopo un attacco subito | Movement reaction | 3 | — | 36 | Reposition 1 | Hold | Hold | Movimento dentro decision boundary | DEFERRED_E14 |
 
 > ⚠️ **Review required:** una o più finestre temporali sono valori sorgente/storici. Il modello corrente di Fast Reaction usa una baseline di 3,0 s; questi valori vanno riallineati prima dell'implementazione.
-> `Hero.Phase.FlowReaction` — Rinviata a E14; durata 3 s è baseline del modello Fast Reaction, non implementazione corrente.
+> `Hero.Muiren.FlowReaction` — Rinviata a E14; durata 3 s è baseline del modello Fast Reaction, non implementazione corrente.
 
 ## Equipaggiamento
 
@@ -408,8 +408,8 @@ Per la v0.1 il workbook assegna agli eroi il **catalogo generico canonico**: var
 
 | Variant_ID | Nome | Vantaggio | Svantaggio | Incompatibile_Con | Specializzazione | Implementation_Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Hero.Phase.CircularTide.Healing` | Marea curativa | Cura 24 invece di 18 | Non applica Wet ai nemici | `Hero.Phase.CircularTide.Impact` | Support | CANONICAL |
-| `Hero.Phase.CircularTide.Impact` | Marea d'urto | Applica Push 1 ai nemici | Cura solo 10 | `Hero.Phase.CircularTide.Healing` | Control | CANONICAL |
+| `Hero.Muiren.CircularTide.Healing` | Marea curativa | Cura 24 invece di 18 | Non applica Wet ai nemici | `Hero.Muiren.CircularTide.Impact` | Support | CANONICAL |
+| `Hero.Muiren.CircularTide.Impact` | Marea d'urto | Applica Push 1 ai nemici | Cura solo 10 | `Hero.Muiren.CircularTide.Healing` | Control | CANONICAL |
 
 ## Talenti
 

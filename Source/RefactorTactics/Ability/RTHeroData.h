@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Branth, Ivrin).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Aevik, Phase, Branth, Ivrin).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -22,8 +22,8 @@ class URTActionData;
  * `URTHeroCatalogLibrary::ValidateHeroes` fa valere l'intervallo e il vincolo della variante unica.
  *
  * ⚠️ **Era «ESATTAMENTE cinque», e la parola in maiuscolo non e' bastata a tenerlo vero.** Sul roster v0.1
- * ne hanno sei **Phase** (`Hero.Phase.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
- * da `Action.Shield`; Gadget e Branth restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
+ * ne hanno sei **Phase** (`Hero.Muiren.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
+ * da `Action.Shield`; Aevik e Branth restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
  * il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable` lo misura.
  * Il costo dell'intervallo e' dichiarato accanto al validator: non dice piu' «questo eroe e' completo».
  *
@@ -35,7 +35,7 @@ class REFACTORTACTICS_API URTHeroData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** ID stabile dell'eroe (es. `Hero.Gadget`). Chiave del data asset: non cambia mai. */
+	/** ID stabile dell'eroe (es. `Hero.Aevik`). Chiave del data asset: non cambia mai. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName HeroId;
 
@@ -59,7 +59,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Branth 3 · Ivrin 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Aevik 5 · Phase 3 · Branth 3 · Ivrin 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -86,7 +86,7 @@ public:
 	 *
 	 * | Personaggio | `MoveEndPivotMaxSteps` | `DashEndPivotMaxSteps` |
 	 * |---|---:|---:|
-	 * | Gadget | 2 | 2 |
+	 * | Aevik | 2 | 2 |
 	 * | Phase | 2 | 3 |
 	 * | Branth | 1 | **0** |
 	 * | Ivrin | 3 | 3 |

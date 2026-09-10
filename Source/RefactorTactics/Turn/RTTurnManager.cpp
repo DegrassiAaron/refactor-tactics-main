@@ -3850,7 +3850,7 @@ void ARTTurnManager::ConcludeTurn()
 	// come bug di gameplay su un comportamento corretto.
 	//
 	// La risoluzione dei nomi sta in `SubjectNamesForLog` e non qui: un test che riderivi queste righe deve
-	// poter usare la STESSA mappa, altrimenti confronta `Gadget: resta` con `u3: resta` e fallisce su una
+	// poter usare la STESSA mappa, altrimenti confronta `Aevik: resta` con `u3: resta` e fallisce su una
 	// differenza che non e' un difetto.
 	for (const FRTDescribedLine& Line : URTTurnLogLibrary::DescribeTurnLogWithSubjects(TurnLog, SubjectNamesForLog()))
 	{
@@ -5698,7 +5698,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// `ToAttacks` l'informazione non esiste piu'. Dopo l'Intercept, perche' il bersaglio puo' essere cambiato:
 	// il bonus lo decide chi il colpo lo incassa davvero.
 	//
-	// `Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
+	// `Aevik.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non e' nella lista `Effects`
 	// perche' non e' un danno fisso, e vale su OGNI colpo dell'azione finche' il bersaglio e' bagnato — non
 	// solo sul primo, quindi non passa dai delta qui sotto.
 	//
@@ -5716,7 +5716,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		if (!IntentDefs.IsValidIndex(Hit.IntentIndex)
-			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Hero.Gadget.LinearDischarge")))
+			|| IntentDefs[Hit.IntentIndex].ActionId != FName(TEXT("Hero.Aevik.LinearDischarge")))
 		{
 			continue;
 		}
@@ -5729,7 +5729,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			IntentDefs[Hit.IntentIndex].Priority > IncomingWetPriority[Hit.TargetId];
 		if (bWetBeforeBlast || bWetFromThisBlast)
 		{
-			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::GadgetWetDischargeBonus);
+			Hit.Power = URTCombatLibrary::EffectiveAttackPower(Hit.Power, URTCombatLibrary::AevikWetDischargeBonus);
 		}
 	}
 

@@ -668,10 +668,18 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// a zero. ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
 	// «l'oracolo non sa guardare» invece di «la clip non e' raggiungibile» — la stessa confusione che il
 	// registro PIE avverte per gli zeri di packaging.
+	// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
+	// nome dell'asset di terze parti, non l'id dell'eroe. Misurato dentro il package che lo referenzia:
+	// `python -c` su `Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset` estrae
+	// `.../Heroes/Gadget/Meshes/Gadget` — e `.../Meshes/Aevik` non esiste.
+	//
+	// 🔴 Ha detto `Aevik` dal rename al 2026-09-10, e il controllo POSITIVO cadeva: il test usciva rosso
+	// dichiarando che «il metodo di ricerca non sa guardare», cioe' accusando il proprio oracolo di un
+	// difetto che era un refuso nel letterale.
 	const FString MeshDiControllo =
 		TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget");
 	if (!TestTrue(
-			TEXT("controllo positivo: la mesh Paragon di Gadget e' referenziata da un asset versionato — ")
+			TEXT("controllo positivo: la mesh Paragon di Aevik e' referenziata da un asset versionato — ")
 			TEXT("se questo fallisce, il metodo di ricerca non sa guardare e il resto dell'esito non vale"),
 			QualcunoReferenzia(MeshDiControllo)))
 	{

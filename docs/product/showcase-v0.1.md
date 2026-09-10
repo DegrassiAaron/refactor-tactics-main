@@ -13,7 +13,7 @@
 > | Ambiente: stati, propagazione, fuoco/acqua, terreno dinamico, azioni ambientali (E8, CP 8.2–8.5) | ⏳ | ✅ **epic chiusa** |
 > | Copertura bassa e alta, integrità, distruzione (CP 9.1/9.2) | ⏳ «`FRTHexCellData` non ha il campo» | ✅ **il campo c'è**: `FRTHexCover{Edge, Type, Integrity}` |
 > | Reazioni d'eroe cablate (CP 5.5 + 6.7) | ⏳ | ✅ **tre su cinque**: `Interposition`, `Deflection`, `ReactiveCapacitor` |
-> | `Hero.Phase.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
+> | `Hero.Muiren.FlowReaction` | ⏳ rinviata | ⏳ **E14** — invariato |
 > | `Hero.Wraith.InterceptShot` | ⏳ E14 | ⏳ **E18**, come **Predictive Action** — non serve più una finestra interattiva |
 > | Scenario Test Harness | inesistente | ✅ disponibile |
 >
@@ -23,7 +23,7 @@
 > · **`Hero.Wraith.InterceptShot`** non è più `⏳ E18`: E18 è **chiusa** ([#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225), 2026-08-10) e l'abilità è
 >   consegnata — sette test `Predictive.*`, tre dei quali d'integrazione in un `UWorld` vero.
 > · **«tre su cinque»** è ora **tre su quattro**: `InterceptShot` è uscita dall'insieme delle reazioni, e il
->   denominatore è calato con lei. Resta `Hero.Phase.FlowReaction`.
+>   denominatore è calato con lei. Resta `Hero.Muiren.FlowReaction`.
 >
 > ### La showcase è uno **scenario dell'harness**, non una seconda pipeline
 >
@@ -121,7 +121,7 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un
   meccanismo diverso;
-- **una** reazione d'eroe non è cablata: `Hero.Phase.FlowReaction` (⏳ E14), perché produce **movimento** dentro un
+- **una** reazione d'eroe non è cablata: `Hero.Muiren.FlowReaction` (⏳ E14), perché produce **movimento** dentro un
   boundary di risoluzione. Le altre **tre** sono in partita da CP 6.7 — cioè **tre su quattro**.
   `Hero.Wraith.InterceptShot` **non compare in questo conto**: non è più una reazione — è una **Predictive
   Action**, ed è consegnata (vedi sotto).
@@ -314,7 +314,7 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 > ⚠️ **Vincolo d'ordine, misurato il 2026-08-24** ([#1111](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1111)).
 > Acqua e scarica **non si compongono dentro un turno** se sono due intenti dello stesso turno: l'unico
 > produttore d'acqua autorizzato è `Gadget.Sprinkler` = `Action.CreateWater`, che è `Environment` e quindi
-> risolve nel **Cleanup**, mentre `Hero.Gadget.LinearDischarge` è `Attack` e risolve nel **Blast** — e il
+> risolve nel **Cleanup**, mentre `Hero.Aevik.LinearDischarge` è `Attack` e risolve nel **Blast** — e il
 > Blast precede il Cleanup. Scritti insieme, la scarica legge un bersaglio non ancora bagnato.
 > ✅ **Il modello che funziona è già in questo documento**: §T2 fa entrare il bersaglio nell'acqua **nel
 > Dash**. Chi riempie il T7 sceglie fra quello e due turni distinti — la scelta è aperta, il vincolo no.
@@ -322,7 +322,7 @@ evento; la scivolata su ghiaccio è deterministica; `EnvironmentChanged` nel Tur
 > **Cos'è «combo» qui** ([D-029](../decisions/RT_PDR_00_Decision_Log.md)). Questo turno è uno **scenario
 > dimostrativo di interazioni sistemiche**, non una combo di squadra: Phase e Gadget non condividono un'abilità e
 > non ricevono un bonus perché sono insieme. Phase pubblica uno stato (`Wet` / acqua sulla cella), il sistema
-> ambientale lo propaga, e `Hero.Gadget.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
+> ambientale lo propaga, e `Hero.Aevik.LinearDischarge` legge **lo stato**, non l'identità di Phase. La stessa
 > sequenza vale con qualunque altra sorgente d'acqua autorizzata. Lo scenario **dimostra** la cooperazione:
 > non la implementa e non introduce regole competitive proprie
 > ([ADR-0006](../decisions/adr-0006-ownership-abilita-sinergie.md) ·
@@ -369,7 +369,7 @@ Nessuna riga di questa tabella si costruisce dentro E15.
 | `KineticPanel` / `Reconfigure` come struttura, non come mesh spostata | ⏳ | **CP 9.5** |
 | Obiettivo contestabile verificato nel Cleanup, dopo ambiente e KO | ⏳ | **CP 10.2** — issue `#75` |
 | Reazioni d'eroe cablate al motore (`Interposition`, `Deflection`, `ReactiveCapacitor`) | ✅ **tre su quattro** | **CP 5.5 + 6.7** chiusi — il denominatore era cinque finché `InterceptShot` era contata fra le reazioni |
-| `Hero.Phase.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
+| `Hero.Muiren.FlowReaction` (riposizionamento **dentro** un boundary) | ⏳ rinviata | **E14** |
 | Micro-step del movimento sospendibile | ⏳ | **CP 14.2** |
 | Finestra `FIRE`/`HOLD` da 3 s | ⏳ | **CP 14.5** |
 | `Hero.Wraith.InterceptShot` come **Predictive Action** (dichiarata in Planning, nessun input in Resolution) | ✅ **consegnata il 2026-08-10** | **E18** chiusa ([#225](https://github.com/DegrassiAaron/refactor-tactics-main/issues/225)) — [D-016](../decisions/RT_PDR_00_Decision_Log.md); **sganciata da E14**. Sette test `Predictive.*`, di cui tre d'integrazione in un `UWorld` vero: `InterceptCellHit`, `InterceptCellMiss`, `CrossingIsNotPresence` |
@@ -404,7 +404,7 @@ Costruibile **oggi** (CP 15.2). Usa solo regole atterrate e serve da fixture d'i
 4. `Ice` fa scivolare nel Move;
 5. `Fire` applica l'effetto on-enter;
 6. `Smoke` limita il targeting;
-7. `Hero.Phase.PressureJet` applica danno (+ `Wet`/Push per quanto rappresentabile);
+7. `Hero.Muiren.PressureJet` applica danno (+ `Wet`/Push per quanto rappresentabile);
 8. `Hero.Riktor.Ram` usa `LinearCharge` e si ferma all'impatto;
 9. Counter / Deflect / Intercept **generici**;
 10. fallback su bersaglio che si sposta prima del Blast;
@@ -431,7 +431,7 @@ e non al lato. I costi di movimento li detta il **catalogo terreni**: la fixture
 | `Fire` | `(0,-2)` · `(0,2)` | 10 danni + `Burning` on-enter |
 | `Smoke` | `(-1,-2)` · `(1,2)` | cap del targeting a 2 celle |
 
-**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Gadget` `(-5,2)` e `Hero.Phase` `(-5,3)` per
+**Spawn canonico** (celle di pavimento, anch'esse speculari): `Hero.Aevik` `(-5,2)` e `Hero.Muiren` `(-5,3)` per
 il team 0; `Hero.Riktor` `(5,-2)` e `Hero.Wraith` `(5,-3)` per il team 1. Le unità si configurano da
 `URTHeroCatalogLibrary` (`ConfigureFromHeroData`). ⚠️ Questa riga contrapponeva il catalogo a
 `ConfigureAsArchetype`, «legacy di test»: quel percorso e' stato **rimosso**, quindi non c'e' piu' un'altra

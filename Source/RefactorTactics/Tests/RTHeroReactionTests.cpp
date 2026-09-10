@@ -116,7 +116,7 @@ namespace
 
 	constexpr int32 HeroReactInterpositionIndex = 4; // Branth
 	constexpr int32 HeroReactDeflectionIndex = 3;    // Ivrin
-	constexpr int32 HeroReactCapacitorIndex = 4;     // Gadget
+	constexpr int32 HeroReactCapacitorIndex = 4;     // Aevik
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBranthInterpositionSlotTest,
@@ -145,7 +145,7 @@ bool FRTBranthInterpositionSlotTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
@@ -190,7 +190,7 @@ bool FRTBranthInterpositionRedirectsTest::RunTest(const FString&)
 	SpawnHeroReactMap(World);
 
 	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
-	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Ally = SpawnHeroReactUnit(World, PhaseData, /*Team*/ 0, FRTCellId(1, 0));
@@ -256,7 +256,7 @@ bool FRTBranthInterpositionRevalidatesCoverTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mappa"), Map)) { DestroyHeroReactWorld(World); return false; }
 
 	URTHeroData* BranthData = URTHeroCatalogLibrary::MakeBranth();
-	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* PhaseData = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
 	// Stesso layout del test gemello: l'attaccante sta a EST, quindi il colpo entra dal bordo `E`.
 	ARTUnit* Branth = SpawnHeroReactUnit(World, BranthData, /*Team*/ 0, FRTCellId(0, 0));
@@ -326,7 +326,7 @@ bool FRTIvrinDeflectionReducesTest::RunTest(const FString&)
 	SpawnHeroReactMap(World);
 
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
-	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
+	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeAevik();
 	ARTUnit* Ivrin = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -356,23 +356,23 @@ bool FRTIvrinDeflectionReducesTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetCapacitorShieldsAndCountersTest,
-	"RefactorTactics.Heroes.GadgetReactiveCapacitorShieldsAndCounters",
+	"RefactorTactics.Heroes.AevikReactiveCapacitorShieldsAndCounters",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 {
-	// DUE effetti nella stessa reazione (CP 5.5): scudo a Gadget **e** danno a chi l'ha colpito. Prima del
+	// DUE effetti nella stessa reazione (CP 5.5): scudo a Aevik **e** danno a chi l'ha colpito. Prima del
 	// motore componibile ne sarebbe arrivato uno solo — ed e' il motivo per cui questo checkpoint dipende
 	// da quello.
 	UWorld* World = MakeHeroReactWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHeroReactMap(World);
 
-	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
+	URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeAevik();
 	URTHeroData* IvrinData = URTHeroCatalogLibrary::MakeIvrin();
-	ARTUnit* Gadget = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 0, FRTCellId(0, 0));
+	ARTUnit* Aevik = SpawnHeroReactUnit(World, GadgetData, /*Team*/ 0, FRTCellId(0, 0));
 	ARTUnit* Enemy = SpawnHeroReactUnit(World, IvrinData, /*Team*/ 1, FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("nemico"), Enemy) || !TestNotNull(TEXT("TM"), TM))
 	{
 		DestroyHeroReactWorld(World);
 		return false;
@@ -388,20 +388,20 @@ bool FRTGadgetCapacitorShieldsAndCountersTest::RunTest(const FString&)
 	TestEqual(TEXT("il catalogo dichiara lo scudo da 15"), ShieldAmount, 15);
 	TestEqual(TEXT("e i 10 danni all'attaccante"), CounterAmount, 10);
 
-	Gadget->PlannedReactionAbility = HeroReactCapacitorIndex;
-	Gadget->PlannedAbilityIndex = INDEX_NONE;
+	Aevik->PlannedReactionAbility = HeroReactCapacitorIndex;
+	Aevik->PlannedAbilityIndex = INDEX_NONE;
 	Enemy->PlannedAbilityIndex = 0; // PulseShot, colpo singolo
-	Enemy->PlannedAttackTarget = Gadget;
+	Enemy->PlannedAttackTarget = Aevik;
 
-	const int32 GadgetBefore = Gadget->Health;
+	const int32 GadgetBefore = Aevik->Health;
 	const int32 EnemyBefore = Enemy->Health;
 	const int32 Shot = HeroReactDeclaredDamage(IvrinData->Actions[0]);
 	RunHeroReactTurn(TM);
 
 	TestEqual(TEXT("la reazione risulta attivata nel TurnLog"),
-		CountHeroReactActivations(TM, TEXT("Hero.Gadget.ReactiveCapacitor")), 1);
+		CountHeroReactActivations(TM, TEXT("Hero.Aevik.ReactiveCapacitor")), 1);
 	TestEqual(TEXT("lo scudo assorbe la sua parte del colpo"),
-		GadgetBefore - Gadget->Health, Shot - ShieldAmount);
+		GadgetBefore - Aevik->Health, Shot - ShieldAmount);
 	TestEqual(TEXT("e l'attaccante incassa il contraccolpo"), EnemyBefore - Enemy->Health, CounterAmount);
 
 	DestroyHeroReactWorld(World);
@@ -413,7 +413,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroReactionsAreDeclaredTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 {
-	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Phase.FlowReaction`: movimento
+	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Muiren.FlowReaction`: movimento
 	// reattivo, ADR-0004). Il rinvio e' dichiarato *come dato* — slot `None`, nessun trigger — non lasciato
 	// all'interpretazione di chi legge: una reazione a meta' con lo slot giusto verrebbe raccolta dal pass e
 	// non farebbe nulla, in silenzio.
@@ -423,14 +423,14 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 	// contrario di quella che c'era prima: non «nessuno la raccoglie», ma «la raccoglie il boundary del Move».
 	// Il test non e' stato cancellato perche' la domanda che poneva resta viva — *chi valuta questa azione?* —
 	// ed e' cambiata la risposta, non la domanda.
-	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
+	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
 	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
 	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 
 	struct FWired { const URTActionData* Action; const TCHAR* Id; };
 	const FWired Wired[] = {
-		{ Gadget->Actions[HeroReactCapacitorIndex],        TEXT("Hero.Gadget.ReactiveCapacitor") },
+		{ Aevik->Actions[HeroReactCapacitorIndex],        TEXT("Hero.Aevik.ReactiveCapacitor") },
 		{ Branth->Actions[HeroReactInterpositionIndex], TEXT("Hero.Branth.Interposition") },
 		{ Ivrin->Actions[HeroReactDeflectionIndex],     TEXT("Hero.Ivrin.Deflection") },
 	};
@@ -450,7 +450,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 
 	struct FDeferred { const URTActionData* Action; const TCHAR* Id; };
 	const FDeferred Deferred[] = {
-		{ Phase->Actions[4], TEXT("Hero.Phase.FlowReaction") },
+		{ Muiren->Actions[4], TEXT("Hero.Muiren.FlowReaction") },
 	};
 	for (const FDeferred& D : Deferred)
 	{
@@ -475,7 +475,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 		&& Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
 
 	// Il roster resta strutturalmente valido: il cablaggio non ha cambiato il numero di azioni ne' le varianti.
-	const TArray<const URTHeroData*> Roster = { Gadget, Phase, Branth, Ivrin };
+	const TArray<const URTHeroData*> Roster = { Aevik, Muiren, Branth, Ivrin };
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes(Roster);
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("roster valido dopo il cablaggio"), Errors.Num(), 0);

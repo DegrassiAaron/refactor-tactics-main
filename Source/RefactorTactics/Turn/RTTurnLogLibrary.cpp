@@ -283,7 +283,7 @@ TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<F
 		// che un giocatore legge.
 		//
 		// ⚠️ Solo `Move`: e' la categoria in cui `UnitId` e' anche il soggetto grammaticale. Per il danno
-		// porta chi SUBISCE (#1150) — *«Gadget: colpisce»* direbbe il falso — e le voci `Status` cominciano
+		// porta chi SUBISCE (#1150) — *«Aevik: colpisce»* direbbe il falso — e le voci `Status` cominciano
 		// gia' con la cella.
 		if (Entry.Category == ERTLogCategory::Move && Entry.UnitId != 0)
 		{

@@ -35,20 +35,20 @@ test('il Balance SVG si genera per i quattro eroi', () => {
 
 test('il radar di confronto sovrappone due eroi e li distingue', () => {
   const svg = renderCompare(
-    { name: 'Gadget', values: profileAxes(hero('Gadget')) },
+    { name: 'Aevik', values: profileAxes(hero('Aevik')) },
     { name: 'Branth', values: profileAxes(hero('Branth')) },
     PROFILE_AXES,
   );
-  assert.match(svg, /<title id="t">Gadget vs Branth/);
+  assert.match(svg, /<title id="t">Aevik vs Branth/);
   assert.equal((svg.match(/class="shape/g) ?? []).length, 2, 'due poligoni');
   // Una legenda, o due forme sovrapposte non si leggono.
-  assert.ok(svg.includes('>Gadget<') && svg.includes('>Branth<'));
+  assert.ok(svg.includes('>Aevik<') && svg.includes('>Branth<'));
 });
 
 test('anche il confronto ha decimali fissi', () => {
   const svg = renderCompare(
-    { name: 'Gadget', values: profileAxes(hero('Gadget')) },
-    { name: 'Phase', values: profileAxes(hero('Phase')) },
+    { name: 'Aevik', values: profileAxes(hero('Aevik')) },
+    { name: 'Muiren', values: profileAxes(hero('Muiren')) },
     PROFILE_AXES,
   );
   for (const n of svg.match(/-?\d+\.\d+/g) ?? []) assert.match(n, /^-?\d+\.\d{2}$/);

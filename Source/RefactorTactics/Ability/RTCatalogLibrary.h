@@ -21,7 +21,7 @@ class URTActionData;
  * dimenticanza**: `spec-reaction-clash-e14.md` §2.5 e [D-132] lasciano esplicitamente aperti «Charge del
  * `Grounding`» e «ampiezza della deviazione». `Profile.Sidestep` ce l'ha perche' `BAS-4` lo ha deciso — «e'
  * nuovo, si chiama `Profile.Sidestep` e risponde al **Forced Movement**», nella stessa forma di
- * `Hero.Phase.FlowReaction` (`Reposition 1`) — e si esprime con `SelfReposition`, la primitiva che
+ * `Hero.Muiren.FlowReaction` (`Reposition 1`) — e si esprime con `SelfReposition`, la primitiva che
  * `Reaction.EmergencyDash` e `Reaction.HazardEscape` gia' usano. Nessun numero nuovo entra qui.
  */
 USTRUCT()
@@ -111,7 +111,7 @@ public:
 	/**
 	 * I Reaction Profile del roster v0.1 (E14.7, [D-047] · `spec-reaction-clash-e14.md` §2.5).
 	 *
-	 * **Tre, non quattro**: `Profile.Grounding` (Gadget), `Profile.Sidestep` (Phase), `Profile.Glance`
+	 * **Tre, non quattro**: `Profile.Grounding` (Aevik), `Profile.Sidestep` (Phase), `Profile.Glance`
 	 * (Ivrin). Branth **non ne ha uno**, e non e' un taglio di contenuto — la risposta proposta era
 	 * `ANCHOR`, «annulla lo spostamento», ma `Hold Ground` lo fa gia' con la stessa ampiezza: il ramo
 	 * `Braced` del resolver non controlla `KnockDist`. Una seconda risposta che coincide con la prima

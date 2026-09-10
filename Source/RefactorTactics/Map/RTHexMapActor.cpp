@@ -1038,7 +1038,8 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewPath.Num() > 0
 		|| PreviewHitCells.Num() > 0
 		|| PreviewReachable.Num() > 0
-		|| bPreviewAttackValid;
+		|| bPreviewAttackValid
+		|| bHasPreviewSightBlock;
 }
 
 void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const TArray<FRTCellId>& AllyCells)
@@ -1065,6 +1066,16 @@ void ARTHexMapActor::SetPreviewAttack(const FRTCellId& OriginCell, const FRTCell
 	PreviewAttackAim = AimCell;
 	bPreviewAttackValid = bValid;
 	bPreviewOriginPredicted = bOriginPredicted;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, const FRTCellId& BlockedAt)
+{
+	// Si copia e basta, come le celle colpite e l'origine dell'attacco: `BlockedAt` lo produce
+	// `DescribeLineOfSight` e ricalcolarlo qui sarebbe la seconda risposta alla stessa domanda.
+	bHasPreviewSightBlock = bBlocked;
+	PreviewSightFrom = From;
+	PreviewSightBlockedAt = BlockedAt;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1264,6 +1275,36 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		{
 			DrawDebugLine(World, A, B, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
 		}
+	}
+
+	// ── LA LINEA CHE NON PASSA, e dove si ferma (`#2742`).
+	//
+	// 🔴 **Mutuamente esclusiva con la mira qui sopra, per costruzione e non per una guardia.** Quella si
+	// disegna quando il piano ESISTE (`OnSelect`, ramo `bReady && Reason == Ok`); questa quando il piano
+	// non e' nato perche' la traiettoria e' interrotta. I due stati non possono essere accesi insieme, e
+	// per questo non c'e' un `else`: non ci sarebbe niente da mettere in `else`.
+	//
+	// ⚠️ **Troncata, non intera.** `BlockedAt` e' dove il raggio si e' fermato: disegnarla fino al
+	// bersaglio direbbe che la traiettoria arriva, che e' l'opposto dell'informazione. Il segmento finisce
+	// dove l'ostacolo comincia, e chi guarda legge la distanza che gli resta.
+	//
+	// ⛔ Nessun `FColor` letterale: il colore e' `Vision` nella palette di [D-368], come il D010 chiede.
+	if (bHasPreviewSightBlock)
+	{
+		const FVector From = URTHexLibrary::AxialToWorld(PreviewSightFrom, Origin, Size, LayerH)
+			+ FVector(0, 0, CellLift(PreviewSightFrom) + RTLiftPreview + 3.f);
+		const FVector Stop = URTHexLibrary::AxialToWorld(PreviewSightBlockedAt, Origin, Size, LayerH)
+			+ FVector(0, 0, CellLift(PreviewSightBlockedAt) + RTLiftPreview + 3.f);
+
+		const FColor SightColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision);
+		DrawDebugLine(World, From, Stop, SightColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+
+		// L'ostacolo si marca sulla cella che ha fermato il raggio: la linea dice DOVE si e' fermata, il
+		// contorno dice SU COSA. E' la stessa coppia — segmento piu' cella — che `#2697` usa per gli
+		// ostacoli gia' incontrati in risoluzione.
+		DrawCellOutline(PreviewSightBlockedAt, SightColor,
+			URTOverlayPalette::ScaleFor(ERTOverlayMeaning::Vision),
+			URTOverlayPalette::DrawsThroughUnits(ERTOverlayMeaning::Vision));
 	}
 
 	// Zona colpita dall'attacco pianificato. Rosso = minaccia; ARANCIONE = c'e' un alleato dentro, e va visto

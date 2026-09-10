@@ -179,7 +179,7 @@ public:
 	 *
 	 * ⚠️ **I nomi delle clip NON si deducono**: `docs/technical/runbooks/guida-animazioni-paragon.md`
 	 * §AS.3b li ha misurati sul disco, e **sei caselle su venti** non si chiamano come ci si aspetta —
-	 * su Gadget la corsa e' `Run_Fwd` e non `Jog_Fwd`, su Ivrin l'idle e' `Idle_NonCombat`.
+	 * su Aevik la corsa e' `Run_Fwd` e non `Jog_Fwd`, su Ivrin l'idle e' `Idle_NonCombat`.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	TMap<FName, FRTHeroPresentationClips> ClipsPerHero;

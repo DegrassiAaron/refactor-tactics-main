@@ -6,7 +6,7 @@
 
 namespace
 {
-	/** La cartella animazioni di Gadget: il vertical slice di ANIM LAB parte da qui. */
+	/** La cartella animazioni di Aevik: il vertical slice di ANIM LAB parte da qui. */
 	const TCHAR* GadgetAnimations =
 		TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations");
 }
@@ -15,7 +15,7 @@ namespace
  * 🔴 **Lo scanner distingue «non ho trovato niente» da «non ho potuto guardare», e la distinzione e'
  * l'intera ragione per cui questo test esiste.**
  *
- * `Content/FabAsset/` e' **gitignorato** (~48 GB): su ogni clone appena creato la cartella di Gadget non
+ * `Content/FabAsset/` e' **gitignorato** (~48 GB): su ogni clone appena creato la cartella di Aevik non
  * esiste. Un test scritto come «restituisce N clip» sarebbe rosso per chiunque cloni senza i pack, e quel
  * rosso direbbe *«il tuo checkout e' incompleto»* mentre sembra dire *«il codice e' rotto»*.
  *
@@ -45,7 +45,7 @@ bool FRTAnimScanDeclaresNotRunWithoutPacksTest::RunTest(const FString&)
  * 🔑 **Il controllo positivo di questo test e' `ScartatiPerClasse`, non il numero di sequenze.**
  *
  * `SequencePaths.Num() > 0` e' quasi vacuo: passerebbe anche con un filtro di classe rotto che accetta
- * qualunque asset. Sotto `Animations/` di Gadget esistono due sottocartelle — `AimOffsets/` e
+ * qualunque asset. Sotto `Animations/` di Aevik esistono due sottocartelle — `AimOffsets/` e
  * `Blendspaces/` — quindi un filtro che funziona **deve** scartare qualcosa. Se scarta zero, non sta
  * filtrando, e il numero di «sequenze» sarebbe il numero di **file**.
  *
@@ -72,7 +72,7 @@ bool FRTAnimScanFiltersByClassNotByNameTest::RunTest(const FString&)
 	}
 
 	// (1) Anti-vacuita': senza sequenze ogni asserzione sotto guarderebbe un array vuoto.
-	if (!TestTrue(TEXT("il pack di Gadget porta almeno una UAnimSequence"),
+	if (!TestTrue(TEXT("il pack di Aevik porta almeno una UAnimSequence"),
 			Esito.SequencePaths.Num() > 0))
 	{
 		return false;
@@ -109,7 +109,7 @@ bool FRTAnimScanFiltersByClassNotByNameTest::RunTest(const FString&)
 	}
 
 	// I due numeri che questa issue deve registrare, entrambi e non uno solo.
-	AddInfo(FString::Printf(TEXT("Gadget: %d UAnimSequence, %d asset scartati per classe"),
+	AddInfo(FString::Printf(TEXT("Aevik: %d UAnimSequence, %d asset scartati per classe"),
 		Esito.SequencePaths.Num(), Esito.ScartatiPerClasse));
 	return true;
 }

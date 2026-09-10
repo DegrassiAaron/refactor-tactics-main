@@ -168,10 +168,20 @@ bool FRTAnimRosterMigrationKeepsPathsTest::RunTest(const FString&)
 	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
 	if (!TestNotNull(TEXT("CDO del grafo di animazione"), Cdo)) { return false; }
 
+	// ⛔ **`Pack` e' il nome PARAGON, e non segue il rename del roster** (`#2491`): sono cartelle di un
+	// asset di terze parti sotto `/Game/FabAsset/`, che nessuna migrazione RT rinomina. Le altre tre righe
+	// lo mostrano da se' — `Muiren` sta in `ParagonPhase`, `Branth` in `ParagonRiktor`, `Ivrin` in
+	// `ParagonWraith` — ed e' la ragione per cui questa colonna e' separata da `Eroe` invece di essere
+	// derivata da lui.
+	//
+	// 🔴 Questa riga ha detto `Aevik` dal 2026-09-05 al 2026-09-10, e il test era rosso su `main` per tutto
+	// quel tempo: un passaggio di rename ha toccato il letterale del pack insieme all'id dell'eroe. E' il
+	// terzo caso dello stesso incidente — i primi due sono citati da
+	// `Unit.CanonicalHeroIdHasNoLegacyName`, che avverte «uno script che sostituisce non e' una misura».
 	struct FAtteso { const TCHAR* Eroe; const TCHAR* Pack; const TCHAR* Idle; const TCHAR* Move; };
 	const FAtteso Attesi[] = {
-		{ TEXT("Hero.Gadget"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
-		{ TEXT("Hero.Phase"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
+		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Idle"),           TEXT("Run_Fwd") },
+		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Idle"),           TEXT("Jog_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd") },
 	};

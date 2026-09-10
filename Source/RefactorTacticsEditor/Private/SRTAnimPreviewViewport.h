@@ -32,7 +32,7 @@ public:
 	/**
 	 * Mostra questa clip. `nullptr` svuota la scena.
 	 *
-	 * ⚠️ **Lo skeletal viene dallo Skeleton della clip**, non da un default: montare la clip di Gadget su
+	 * ⚠️ **Lo skeletal viene dallo Skeleton della clip**, non da un default: montare la clip di Aevik su
 	 * una mesh qualunque produrrebbe deformazioni che sembrano un difetto della clip. Se lo skeleton non
 	 * ha una mesh d'anteprima, la scena resta vuota e `LastError` lo dice — invece di mostrare qualcosa
 	 * di sbagliato.

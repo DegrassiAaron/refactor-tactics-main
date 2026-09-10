@@ -126,7 +126,7 @@ Tre documenti dicono ancora l'opposto, in quattro punti:
 |---|---|---|
 | `feature-registry.yaml` | 1638 | `wiki_note`: «nessun eroe della v0.1 ha `Action.Electrify` come abilita' normale» |
 | [`acqua-e-elettricita` (Wiki)](https://github.com/DegrassiAaron/refactor-tactics-main/wiki/acqua-e-elettricita) | 11 · 71 | stessa affermazione, propagata dal `wiki_note` e ripetuta in prosa |
-| [`characters/v0.1/gadget.md`](../../characters/v0.1/gadget.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
+| [`characters/v0.1/aevik.md`](../../characters/v0.1/aevik.md) | 26 | stessa affermazione, nella pagina dell'eroe che **ora la possiede** |
 
 La riga 1638 è la **sorgente**: le altre sono propagazione. Il difetto è di classe nota — *dato che nessuno
 legge* rovesciato in *decisione che nessuno propaga* — e va corretto alla sorgente, non copia per copia.
@@ -334,7 +334,7 @@ quelli che le tre macchine fanno davvero.
 | `scripts/feature_registry.py` | **controllo nuovo**: nessuno `ScenarioId` senza una feature che lo rivendichi. Errore, non avviso, per simmetria con «`planned` ma presente» |
 | `roadmap/feature-registry.yaml` | i **6 scenari orfani** su 54 attaccati alla feature che dimostrano; `wiki_note` di `RT-FEAT-ENV-ELECTRIC` corretta (§5) |
 | `roadmap/feature-registry.md` | il controllo nuovo documentato, con il perché è un errore |
-| `feature-registry.json` · `wiki/feature-status.md` · `wiki/meccaniche/acqua-e-elettricita.md` · `characters/v0.1/gadget.md` | **rigenerati** dalla sorgente |
+| `feature-registry.json` · `wiki/feature-status.md` · `wiki/meccaniche/acqua-e-elettricita.md` · `characters/v0.1/aevik.md` | **rigenerati** dalla sorgente |
 | gli stessi due file, in prosa | le due frasi **scritte a mano** che ripetevano l'affermazione superata, che nessun generatore poteva raggiungere |
 
 **Verifica di mutazione**: staccato `Visual.Map.HighCoverBlocks` dalla sua feature, `validate` esce `1`

@@ -90,7 +90,7 @@ void SRTAnimPreviewViewport::SetClip(UAnimSequence* Clip)
 		return;
 	}
 
-	// 🔑 **La mesh viene dallo Skeleton della clip, e non da un default.** Montare l'animazione di Gadget
+	// 🔑 **La mesh viene dallo Skeleton della clip, e non da un default.** Montare l'animazione di Aevik
 	// su una mesh qualunque produce deformazioni che sembrano un difetto della clip — e questo pannello
 	// esiste perche' una persona giudichi la clip, non l'accoppiamento sbagliato che gliel'ha mostrata.
 	USkeletalMesh* PreviewMesh = Skeleton->GetPreviewMesh();
@@ -119,7 +119,7 @@ void SRTAnimPreviewViewport::SetClip(UAnimSequence* Clip)
 
 	// 🔴 **L'inquadratura si CALCOLA dai bounds, e non si indovina.** La stesura precedente metteva la
 	// camera a `(0, -260, 110)` guardando `(0, 0, 90)`: tre numeri scelti a mano, giusti per nessuno.
-	// I quattro eroi hanno taglie diverse — Riktor e' molto piu' alto di Gadget — quindi un personaggio
+	// I quattro eroi hanno taglie diverse — Riktor e' molto piu' alto di Aevik — quindi un personaggio
 	// nasceva fuori centro e toccava all'autore trascinare la camera prima di poter giudicare.
 	//
 	// ⚠️ Si usano i bounds della MESH e non della clip: la clip puo' spostare l'attore (root motion), ma

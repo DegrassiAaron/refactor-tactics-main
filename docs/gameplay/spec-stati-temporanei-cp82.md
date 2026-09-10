@@ -134,7 +134,7 @@ all'ingresso: è già il comportamento coperto da `Terrain.Fire.ErodesTemporaryS
 ### D6 — Durata di `Wet` fuori dall'acqua = 1 turno *(chiude un «non specificato» del catalogo)*
 
 Il catalogo terreni §4 lascia aperta la durata di `Wet` applicato lontano dall'acqua. Il catalogo eroi la
-dichiara già **1 turno** per `Hero.Phase.PressureJet` e `Hero.Phase.CircularTide`: si adotta quel valore e si aggiorna il
+dichiara già **1 turno** per `Hero.Muiren.PressureJet` e `Hero.Muiren.CircularTide`: si adotta quel valore e si aggiorna il
 catalogo terreni, invece di tenere aperta una domanda a cui il repository ha già risposto.
 
 ### D7 — Uno stato che finisce **quando paghi**: durata più `RemoveStatus`, non una terza forma *(2026-09-04)*
@@ -231,7 +231,7 @@ valore atteso prima dell'implementazione (es. `Burning`: 70 HP invece di 62, cio
 - **Spegnimento del fuoco da parte dell'acqua sulla *cella*** (`Environment.WaterExtinguishesFire`) → CP 8.4
   (`#67`). Qui `Wet` rimuove `Burning` **dall'unità**: è l'altra metà, e il catalogo le distingue.
 - **`Action.Ignite` / `CreateWater`** (modifica dinamica della superficie) → CP 8.5 (`#68`).
-- **Conduttività di cella** per `Hero.Gadget.ConductiveNode` → nessun modello di cella conduttiva esiste ancora
+- **Conduttività di cella** per `Hero.Aevik.ConductiveNode` → nessun modello di cella conduttiva esiste ancora
   (`RTHeroCatalogLibrary.cpp:167`); resta a CP 8.3.
 - **HUD**: `RTHUD.cpp:89` mostra un solo stato per unità (ROOT/SLOW). Con otto stati serve una decisione di
   presentazione che appartiene a E11 (CP 11.1), non a questo checkpoint.

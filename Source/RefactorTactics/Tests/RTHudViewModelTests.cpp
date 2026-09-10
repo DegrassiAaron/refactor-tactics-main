@@ -71,19 +71,19 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Gadget = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
-	ARTUnit* Phase = SpawnHudVmUnit(World, TEXT("Hero.Phase"), /*TeamId*/ 0);
+	ARTUnit* Aevik = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Muiren = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), /*TeamId*/ 0);
 	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
 	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 
-	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase)
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
 		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Gadget, Phase, Branth, Ivrin };
+	const TArray<ARTUnit*> All = { Aevik, Muiren, Branth, Ivrin };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -99,7 +99,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	TestEqual(TEXT("dall'altra parte se ne vedono due"), Theirs.Num(), 2);
 
 	// Una morta NON sparisce: il conto della squadra deve restare leggibile.
-	Gadget->Health = 0;
+	Aevik->Health = 0;
 	const TArray<FRTUnitCardView> AfterDeath = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster resta di due voci anche con una unita' morta"), AfterDeath.Num(), 2);
 
@@ -236,7 +236,7 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// 1. Piano vuoto: tre slot liberi. Un'unita' appena selezionata non deve sembrare gia' impegnata.
@@ -341,7 +341,7 @@ bool FRTHudVmCooldownTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Una riga per ogni azione del kit, nell'ordine del kit: l'indice serve all'hotkey.
@@ -406,7 +406,7 @@ bool FRTHudVmChargeFractionTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
@@ -635,7 +635,7 @@ bool FRTStatusBadgesControlsComeFirstTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Applicati DELIBERATAMENTE nell'ordine sbagliato: `Burning` precede entrambi in alfabetico, e `Slow`
@@ -691,7 +691,7 @@ bool FRTStatusBadgesCellBoundHasNoCountTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
@@ -748,7 +748,7 @@ bool FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
@@ -794,7 +794,7 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->Health = 60;
@@ -811,9 +811,9 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	TestEqual(TEXT("e sono quelli giusti"),
 		Alleata.Statuses[0].Tag, TAG_Status_Burning.GetTag().GetTagName());
 
-	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Gadget` si legge `Gadget`.
+	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Aevik` si legge `Aevik`.
 	TestFalse(TEXT("il nome non e' vuoto"), Alleata.DisplayName.IsEmpty());
-	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Gadget")));
+	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Aevik")));
 
 	// 🔴 Il cuore: stessa unita', due osservatori, due viste.
 	TestTrue(TEXT("per il compagno e' un'alleata"),  Alleata.Card.bIsAlly);
@@ -868,7 +868,7 @@ bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 	Unit->Cell = FRTCellId(3, 1, 0);
 

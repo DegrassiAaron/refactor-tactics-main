@@ -35,7 +35,7 @@ namespace
 	  "tags": ["movement", "authoring"],
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW" },
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0], "facing": "SW" },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
@@ -110,7 +110,7 @@ bool FRTScenarioDraftLifecycleTest::RunTest(const FString&)
 	if (TestEqual(TEXT("due unita' elencate"), Units.Num(), 2))
 	{
 		TestEqual(TEXT("Stable Unit ID preservato"), Units[0].Id, TEXT("A1"));
-		TestEqual(TEXT("eroe"), Units[0].HeroId, FName(TEXT("Hero.Gadget")));
+		TestEqual(TEXT("eroe"), Units[0].HeroId, FName(TEXT("Hero.Aevik")));
 		TestEqual(TEXT("la cella e' un FRTCellId"), Units[0].Cell, FRTCellId(-2, 0, 0));
 		TestEqual(TEXT("il facing e' un ERTHexDirection"), Units[0].Facing, ERTHexDirection::SW);
 		TestEqual(TEXT("l'ordine e' quello del file"), Units[1].Id, TEXT("B1"));

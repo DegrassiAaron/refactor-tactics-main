@@ -105,10 +105,10 @@ TArray<FName> URTIconLibrary::RequiredIconIds()
 
 	// IDENTITA' — i quattro eroi del roster, piu' la relazione di squadra.
 	//
-	// ⚠️ **Il prefisso cambia, e non e' un dettaglio**: gli `HeroId` sono `Hero.Gadget`, non `Gadget`, quindi
-	// `MakeIconId(HeroId)` darebbe `UI.Icon.Hero.Gadget` — il cui segmento di categoria (`Hero`) non combacia
+	// ⚠️ **Il prefisso cambia, e non e' un dettaglio**: gli `HeroId` sono `Hero.Aevik`, non `Aevik`, quindi
+	// `MakeIconId(HeroId)` darebbe `UI.Icon.Hero.Aevik` — il cui segmento di categoria (`Hero`) non combacia
 	// con `Identity`, e il validator di CP 20.1 lo rifiuterebbe. La derivazione tiene il NOME e sostituisce
-	// il prefisso con la categoria: `Hero.Gadget` -> `Identity.Gadget`. E' l'unico punto in cui la regola «la
+	// il prefisso con la categoria: `Hero.Aevik` -> `Identity.Aevik`. E' l'unico punto in cui la regola «la
 	// chiave si deriva dall'identificatore che esiste» ha bisogno di una traduzione, ed e' scritta qui una
 	// volta invece che in quattro righe a mano.
 	for (const FName& HeroId : URTHeroCatalogLibrary::GetHeroIds())

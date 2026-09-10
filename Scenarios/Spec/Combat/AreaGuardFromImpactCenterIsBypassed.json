@@ -9,12 +9,12 @@
 
   "_nota_perche_esiste": "#2009. Senza questo file il suo gemello `Spec.Combat.AreaGuardFromImpactCenterKeepsPool` passerebbe anche con una regola sbagliata e comoda — «per le aree il pool si consuma sempre» — che e' un'implementazione plausibile e falsa. Un test che non puo' distinguere l'implementazione giusta da una sbagliata non protegge la decisione: la descrive.",
 
-  "_nota_geometria": "Speculare al gemello. Il difensore sta in (0,0,0) e guarda a OVEST; il lanciatore e' in (-2,0,0) — DAVANTI — e mira alla cella (1,0,0) — ALLE SPALLE. L'area di raggio 1 attorno a (1,0,0) investe (0,0,0). Distanza lanciatore -> centro: 3 celle, la portata di `Hero.Gadget.Overload`.",
+  "_nota_geometria": "Speculare al gemello. Il difensore sta in (0,0,0) e guarda a OVEST; il lanciatore e' in (-2,0,0) — DAVANTI — e mira alla cella (1,0,0) — ALLE SPALLE. L'area di raggio 1 attorno a (1,0,0) investe (0,0,0). Distanza lanciatore -> centro: 3 celle, la portata di `Hero.Aevik.Overload`.",
 
   "_nota_oracolo": "`LogEventCount` a UNO su `Facing`/`RearHitBypassedGuard`: qui l'esito ci deve essere. E' l'assertion speculare a quella del gemello, e insieme costringono la regola a guardare il centro invece del lanciatore — nessuna delle due, da sola, lo farebbe.",
 
   "units": [
-    { "id": "LAN", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "LAN", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
     { "id": "DIF", "hero": "Hero.Ivrin", "team": 1, "cell": [0, 0, 0], "facing": "W" }
   ],
 
@@ -23,7 +23,7 @@
       "_turno": "Stessa forma del gemello, cambiano solo le due celle: dove sta chi lancia e dove cade l'ordigno.",
       "intents": [
         { "unit": "DIF", "ability": "Action.Guard" },
-        { "unit": "LAN", "ability": "Hero.Gadget.Overload", "targetCell": [1, 0, 0] }
+        { "unit": "LAN", "ability": "Hero.Aevik.Overload", "targetCell": [1, 0, 0] }
       ]
     }
   ],

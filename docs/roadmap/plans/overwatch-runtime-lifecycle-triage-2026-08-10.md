@@ -54,8 +54,8 @@ Evidenza — `Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:363-365` e
 | Quando si dichiara | come mobilità del turno | in Planning, insieme al Watch |
 
 Due entità, un nome, fasi diverse. È la **terza collisione in due handoff pari-data**: il gemello ne portava
-già due (`Hero.Wraith.Deflection`, `Hero.Phase.Flow`). E qui il costo è più alto, perché `Reposition` non è solo un
-nome di catalogo: è cablato in `RTMovementActionLibrary` fra le mobilità lineari, e `Hero.Phase.FlowReaction` e
+già due (`Hero.Wraith.Deflection`, `Hero.Muiren.Flow`). E qui il costo è più alto, perché `Reposition` non è solo un
+nome di catalogo: è cablato in `RTMovementActionLibrary` fra le mobilità lineari, e `Hero.Muiren.FlowReaction` e
 `Hero.Wraith.Feint` ne concedono uno.
 
 **Raccomandazione**: se il modello viene accettato, il profilo post-Watch ha bisogno di un nome proprio —

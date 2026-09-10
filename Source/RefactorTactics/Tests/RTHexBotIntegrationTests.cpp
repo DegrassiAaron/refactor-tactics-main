@@ -354,7 +354,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 
 	// Un kiter con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che mette davvero in
 	// moto il ramo che questo test deve coprire (col nemico lontano il bot spara e basta).
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakePhase(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0), /*bBot*/ true);
 
 	// Lo standoff non si dichiara piu' qui: il bot lo DERIVA dalla portata dell'attacco base, e Phase —
 	// `PressureJet`, portata 5 — e' l'unica kiter del roster. Lo scenario e' «il kiter fugge», quindi senza
@@ -519,7 +519,7 @@ bool FRTHexBotPanicTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakePhase(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0), /*bBot*/ true);
 
 	// La minaccia si posiziona a meta' dello standoff DERIVATO, che e' la soglia della ritirata immediata.
 	// Era a distanza 2, calcolata sullo standoff 4 del Ranger legacy: Phase ne ha 3, quindi la soglia e' 1 e
@@ -649,12 +649,12 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 
 		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
 		ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0), /*bBot*/ false);
-		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakePhase(), HiddenCell, /*bBot*/ false);
+		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), HiddenCell, /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Seen || !Hidden) { DestroyHexBotWorld(World); return Empty; }
 
 		// Vista corta e DICHIARATA nel test: cosi' la premessa non dipende dai numeri di bilanciamento del
-		// roster, che cambiano (D-073 ha appena portato Gadget a 7).
+		// roster, che cambiano (D-073 ha appena portato Aevik a 7).
 		Bot->VisionRange = 3;
 
 		const bool bSeen = URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange;
@@ -713,7 +713,7 @@ bool FRTHexBotPartialKnowledgeTest::RunTest(const FString&)
 
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
 	ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
-	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakePhase(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Seen || !Unknown) { DestroyHexBotWorld(World); return false; }
 

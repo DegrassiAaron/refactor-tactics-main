@@ -20,6 +20,7 @@
 #include "Turn/RTFacingLibrary.h" // CP 11.8: la legalita' della rotazione si CHIEDE, non si riscrive qui
 #include "Combat/RTCombatLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
+#include "Map/RTSightLines.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Turn/RTTurnManager.h"
 // #971: la sessione non presidiata e' un fatto del GameMode (`IsAutobattleInEffect()`), non dell'unita'.
@@ -1428,7 +1429,8 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 			return;
 		}
 		FVector TOrigin; float THexSize; float TLayerH; const URTHexMapAsset* TMap = nullptr;
-		HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
+		// L'actor serve alla linea di tiro interrotta (`#2742`): stessa chiamata, nessuna seconda ricerca.
+		ARTHexMapActor* THexMap = HexMapWithContext(GetWorld(), TOrigin, THexSize, TLayerH, TMap);
 		// Un solo gate (FAIL-CLOSED: senza mappa autorevole non si ingaggia — test
 		// Combat.HexTargetingIsFailClosed) che dichiara anche il MOTIVO, cosi' il log non attribuisce alla
 		// copertura un bersaglio che era solo troppo lontano (test
@@ -1541,6 +1543,39 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
 					URTTerrainLibrary::EffectiveTargetingRange(
 						TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells));
+			}
+
+			// ── LA LINEA CHE NON PASSA (`#2742`), accanto al messaggio che dice perche' (`#2741`).
+			//
+			// 🔑 **Stesso ramo, due canali complementari**: la frase dice *che* la traiettoria e' interrotta,
+			// la linea dice **dove**. Nessuno dei due basta da solo — «coperto» non indica quale ostacolo, e
+			// un segmento senza testo non distingue la copertura dalla distanza.
+			//
+			// ⛔ **Il produttore filtra per conoscenza nella sua FIRMA**: `AuthorizedSightLines` riceve il
+			// flag che il velo ha gia' deciso e non restituisce nulla per un bersaglio ignoto. Qui non si
+			// rifiltra — sarebbe il secondo contratto di conoscenza ([D-225]).
+			//
+			// ⚠️ Si disegna **solo** per `NoLineOfSight`. Un bersaglio fuori portata ha una traiettoria
+			// libera: mostrargliela suggerirebbe che il problema e' un ostacolo, che e' l'azione sbagliata.
+			if (THexMap)
+			{
+				bool bDrawBlocked = false;
+				FRTCellId BlockedAt;
+				if (Reason == ERTHexTargetReason::NoLineOfSight)
+				{
+					const TArray<FRTSightLine> Lines = URTSightLineLibrary::AuthorizedSightLines(
+						TMap, SelectedUnit->Cell,
+						{ FRTObservedTarget(ClickedUnit->Cell, ClickedUnit->IsKnownToObserver()) });
+					if (Lines.Num() > 0 && !Lines[0].IsClear())
+					{
+						bDrawBlocked = true;
+						BlockedAt = Lines[0].Sight.BlockedAt;
+					}
+				}
+				// Chiamata SEMPRE, non solo quando c'e' da accendere: e' cio' che spegne la linea del click
+				// precedente. La stessa durata del messaggio di `#2741` — vive quanto la decisione che l'ha
+				// prodotta, e un altro click e' un'altra decisione.
+				THexMap->SetPreviewSightBlock(bDrawBlocked, SelectedUnit->Cell, BlockedAt);
 			}
 		}
 	}
@@ -2118,7 +2153,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 }
 
 // Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
-// (nel roster ce n'e' una, `Hero.Phase.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
+// (nel roster ce n'e' una, `Hero.Muiren.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
 // suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }
