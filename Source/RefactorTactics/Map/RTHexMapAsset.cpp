@@ -55,6 +55,8 @@ void URTHexMapAsset::AddOrUpdateCell(const FRTHexCellData& Cell)
 		Lookup.Add(Cell.Id, NewIdx); // la cache resta valida (append non muove gli altri)
 	}
 	++Revision;
+	// Dopo `++Revision`, che e' cio' che data la voce: il registro dice «cambiata DA quella revisione in poi».
+	NoteCellChanged(Cell.Id);
 }
 
 void URTHexMapAsset::UpdateCells(const TArray<FRTHexCellData>& InCells)
@@ -78,6 +80,12 @@ void URTHexMapAsset::UpdateCells(const TArray<FRTHexCellData>& InCells)
 		}
 	}
 	++Revision; // UNA volta per l'intero gruppo
+	// ⚠️ Il gruppo muove la revisione una volta sola ma tocca N celle, e il registro le vuole tutte: una
+	// porta larga tre bordi si apre una volta, e sono comunque tre celle da ridipingere.
+	for (const FRTHexCellData& Cell : InCells)
+	{
+		NoteCellChanged(Cell.Id);
+	}
 }
 
 void URTHexMapAsset::BeginStroke()
@@ -137,6 +145,9 @@ bool URTHexMapAsset::ClearAll()
 	Transitions.Reset();
 	bLookupDirty = true; // gli indici non sopravvivono a un reset
 	++Revision;          // UNA volta per l'intero svuotamento, come `UpdateCells`
+	// Uno svuotamento non e' enumerabile cella per cella: dopo, di celle non ce n'e' nessuna, e ridipingere
+	// quelle di prima non ha senso. Il registro riparte e chi arriva da prima ricostruisce.
+	RestartChangeLedger();
 	return true;
 }
 
@@ -153,6 +164,10 @@ bool URTHexMapAsset::ReplaceContent(const TArray<FRTHexCellData>& InCells,
 	Transitions = InTransitions;
 	bLookupDirty = true; // gli indici non sopravvivono a una sostituzione
 	++Revision;          // UNA volta: rimpiazzare la mappa e' un evento, non N
+	// ⛔ **Non si enumera, anche se le celle nuove sono note.** Rimpiazzare cambia anche cio' che e'
+	// SPARITO, e quelle celle non compaiono in `InCells`: un elenco delle sole nuove sarebbe un registro
+	// incompleto, che e' peggio di nessun registro perche' ha l'aria di essere completo.
+	RestartChangeLedger();
 	return true;
 }
 
@@ -167,6 +182,9 @@ bool URTHexMapAsset::RemoveCell(const FRTCellId& Id)
 	Cells.RemoveAt(*Idx); // gli indici successivi scalano -> cache non piu' valida
 	bLookupDirty = true;
 	++Revision;
+	// Una cella cancellata E' una cella cambiata, e il consumatore deve saperlo per togliere le sue istanze:
+	// ometterla qui lascerebbe un disco appeso su una cella che non esiste piu'.
+	NoteCellChanged(Id);
 	return true;
 }
 
@@ -1324,4 +1342,60 @@ void URTHexMapAsset::PostLoad()
 {
 	Super::PostLoad();
 	MigrateToCurrentFormat();
+
+	// 🔴 **Un asset appena caricato non sa dire cosa e' cambiato, e deve dirlo.** `ChangedCells` non si
+	// serializza — e' stato derivato dalla sessione — quindi qui e' vuoto, mentre `Revision` arriva dal disco
+	// con il valore che aveva al salvataggio. Senza questa riga il registro si troverebbe ancorato a `0` con
+	// le mani vuote, e risponderebbe «nessuna cella cambiata dalla revisione 0» a chi chiede: la risposta
+	// giusta e' «non lo so», che e' esattamente cio' che una ripartenza produce.
+	RestartChangeLedger();
+}
+
+void URTHexMapAsset::NoteCellChanged(const FRTCellId& Id)
+{
+	// Oltre la capacita' il registro smette di crescere e riparte: da li' in poi risponde «non lo so», che e'
+	// piu' utile di un elenco cosi' lungo da costare piu' della famiglia che eviterebbe di ricostruire.
+	if (ChangedCells.Num() >= ChangeLedgerCapacity)
+	{
+		RestartChangeLedger();
+		return;
+	}
+	// ⚠️ **`Add` e non `AddUnique`, ed e' cambiato con la data**: la stessa cella dipinta a due revisioni
+	// diverse produce due voci, perche' un consumatore fermo in mezzo deve vedere la seconda. La
+	// deduplicazione avviene in USCITA, dove si sa da quale revisione si guarda.
+	ChangedCells.Add(TPair<int32, FRTCellId>(Revision, Id));
+}
+
+void URTHexMapAsset::RestartChangeLedger()
+{
+	ChangedCells.Reset();
+	// Si riancora alla revisione CORRENTE, cioe' a valle della modifica che ha causato la ripartenza: chi
+	// aveva sincronizzato prima riceve `false` e ricostruisce, chi sincronizza da qui in poi torna sul
+	// percorso per-cella al primo giro.
+	ChangeLedgerBaseRevision = Revision;
+}
+
+bool URTHexMapAsset::GetCellsChangedSince(int32 SinceRevision, TArray<FRTCellId>& OutCells) const
+{
+	OutCells.Reset();
+	// Anteriore all'inizio del registro: la finestra che il chiamante chiede non c'e' piu'.
+	if (SinceRevision < ChangeLedgerBaseRevision)
+	{
+		return false;
+	}
+	// Futura: non e' una domanda sensata, e rispondere `true` con l'elenco corrente la farebbe sembrare tale.
+	if (SinceRevision > Revision)
+	{
+		return false;
+	}
+	// Solo cio' che e' cambiato DOPO la revisione chiesta. `AddUnique` qui e non all'ingresso: una cella
+	// dipinta tre volte dentro la finestra e' una cella da ridipingere, non tre.
+	for (const TPair<int32, FRTCellId>& Voce : ChangedCells)
+	{
+		if (Voce.Key > SinceRevision)
+		{
+			OutCells.AddUnique(Voce.Value);
+		}
+	}
+	return true;
 }

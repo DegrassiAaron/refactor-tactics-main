@@ -55,7 +55,28 @@ enum class ERTLayerViewMode : uint8
  * esattamente com'era.
  *
  * ⚠️ **Non promette la proporzionalita' alla modifica**: il costo resta lineare nella mappa, su meno
- * famiglie. `HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e non cade.
+ * famiglie.
+ *
+ * ## ⌫ E dal 2026-09-10 la ricostruzione non e' piu' l'unica strada (`#2761`)
+ *
+ * Questo blocco diceva anche: *«`HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e
+ * non cade»*. Quel test **e' caduto**, per costruzione: `RepaintCells` riallinea le celle una per una senza
+ * ricostruire nessuna famiglia, e il suo opposto — `HexMapActor.EditCostScalesWithTheEditNotTheMap` — porta
+ * i numeri nuovi accanto alla baseline vecchia.
+ *
+ * 🔑 **La decisione del 2026-09-05 non era sbagliata: era senza presidio.** Il rischio che nominava —
+ * *«`RemoveInstance` rimescola gli indici»* — e' reale ed e' rimasto reale; cio' che e' cambiato e' che ora
+ * ha tre guardiani invece di zero:
+ *
+ *  - `RemoveInstanceMirrored` **chiede al motore** quale semantica di indice sta usando invece di
+ *    assumerne una — e sono due, con una **console variable** fra i tre modi di sceglierla;
+ *  - `VerifyMappingIdentity` confronta le POSIZIONI e non i soli conteggi, cioe' coglie la permutazione che
+ *    l'`ensureMsgf` storico lasciava passare;
+ *  - `HexMapActor.IncrementalRepaintEqualsFullRebuild` confronta la board incrementale con quella di un
+ *    rebuild totale, cella per cella e colore per colore.
+ *
+ * ⛔ **Questo enum resta**, e resta la via sicura: `RepaintCells` risponde `false` su tutto cio' che non e'
+ * un riallineamento, e il chiamante ricostruisce.
  */
 UENUM(meta = (Bitflags))
 enum class ERTRebuildFamily : uint8
@@ -351,6 +372,50 @@ public:
 	 * il fallback totale.
 	 */
 	void RebuildInstances(ERTRebuildFamily Families = ERTRebuildFamily::All);
+
+	/**
+	 * 🔑 **Riallinea le SOLE celle date, senza ricostruire nessuna famiglia** — `#2761`.
+	 *
+	 * Vero se ha potuto farlo; **falso se il chiamante deve ricostruire**, e quel falso e' parte del
+	 * contratto, non un errore: dichiara che il per-cella non copre il caso e che la via sicura resta
+	 * `RebuildInstances`. Non ricostruisce da solo — chi chiama sa quale maschera gli serve.
+	 *
+	 * ## Cosa riallinea
+	 *
+	 * Le due famiglie che [D-183] accoppia sulla superficie, che sono anche le due che il percorso runtime
+	 * ricostruiva per intero a ogni cambio di terreno:
+	 *
+	 *  - il **disco**, di cui la superficie decide il colore. L'istanza non si tocca: si marca `Unwritten` il
+	 *    suo stato di velo, e il velo che segue riscrive il colore fresco. Scriverlo qui darebbe una cella a
+	 *    piena luminosita' sopra un ricordo, perche' il colore disegnato e' quello **moltiplicato** per il
+	 *    fattore di attenuazione, che vive nel velo e non qui;
+	 *  - la **corona di glifi**, di cui la superficie decide la PRESENZA e l'anello (`SurfaceRingCount`).
+	 *    Qui c'e' geometria da aggiungere e togliere, ed e' l'unico punto in cui questa classe rimuove
+	 *    un'istanza singola.
+	 *
+	 * ## 🔴 Perche' risponde falso, e sono casi reali
+	 *
+	 *  - la cella non e' nella mappatura `InstanceCells`: e' **nuova**, e una cella nuova non e' un
+	 *    riallineamento ma una costruzione;
+	 *  - la cella e' sparita dall'asset: il suo disco va **rimosso**, e rimuovere dal disco rimescolerebbe
+	 *    gli indici di tutte le altre famiglie che vi si appoggiano — vedi `RemoveInstanceMirrored`;
+	 *  - la board viene dal ramo **demo** (`DemoRadius`), che non ha un asset da cui rileggere.
+	 *
+	 * ⚠️ **Non tocca rilievo, volumi di blocco, pannelli di bordo, griglia e corpi strutturali**, e non e'
+	 * una dimenticanza: nessuna di quelle famiglie dipende dalla superficie. Il rilievo dipende dal COSTO e i
+	 * volumi dal blocco — se un giorno il percorso runtime mutasse anche quelli, la riga da aggiungere e'
+	 * qui, e il test di equivalenza la chiederebbe cadendo.
+	 */
+	bool RepaintCells(const TArray<FRTCellId>& Ids);
+
+	/**
+	 * Quante istanze l'ultimo `RepaintCells` ha creato e quante ne ha rimosse.
+	 *
+	 * 🔑 **Esiste per la stessa ragione di `LastRebuildCreatedInstances`**: senza, «ho ridipinto una cella» e
+	 * «ho rifatto la famiglia» lasciano la stessa board, e nessun test puo' distinguerli. Contatore di
+	 * EVENTO, azzerato a ogni chiamata.
+	 */
+	int32 LastRepaintTouchedInstances() const { return LastRepaintTouched; }
 
 	/**
 	 * Il punto d'ingresso di `OnMapChanged`: ricostruisce **tutto**.
@@ -1165,6 +1230,59 @@ protected:
 	 */
 	int32 LastSyncedMapRevision = INDEX_NONE;
 
+	/** Vedi `LastRepaintTouchedInstances()`. Contatore di evento, azzerato a ogni `RepaintCells`. */
+	int32 LastRepaintTouched = 0;
+
+	/**
+	 * Cambia ogni volta che la mappatura cella→istanza puo' essersi mossa: una ricostruzione, oppure un
+	 * `RepaintCells` che ha aggiunto o rimosso un glifo.
+	 *
+	 * 🔑 **Serve a pagare il guardiano UNA volta per mappatura invece che a ogni velo.** `VerifyMappingIdentity`
+	 * e' `O(N)` con una lettura di trasformata per istanza — lo stesso ordine del velo stesso, quindi
+	 * raddoppierebbe il costo di una funzione che gira due volte per turno e a ogni passo di playback.
+	 * Verificarlo quando la mappatura cambia coglie comunque ogni rimescolamento: una permutazione non nasce
+	 * fra un velo e l'altro se nessuno ha toccato le istanze.
+	 */
+	int32 VeilMappingRevision = 0;
+
+	/** L'ultima `VeilMappingRevision` per cui il guardiano caro e' passato. Vedi sopra. */
+	int32 LastVerifiedMappingRevision = INDEX_NONE;
+
+	/**
+	 * 🔴 **Rimuove l'istanza `Index` dal componente E dai suoi array paralleli, con la STESSA semantica di
+	 * indice** — `#2761`.
+	 *
+	 * ⚠️ **`RemoveInstance` non ha una sola semantica, e questa e' la trappola che l'issue prevedeva.**
+	 * `UInstancedStaticMeshComponent::RemoveInstanceInternal` sceglie a runtime fra `RemoveAt` — gli indici
+	 * successivi scalano di uno — e `RemoveAtSwap` — l'ULTIMA istanza prende il posto liberato — e la scelta
+	 * dipende da tre cose, di cui una e' una **console variable**:
+	 *
+	 *     bUseRemoveAtSwap = bForceRemoveAtSwap || bSupportRemoveAtSwap
+	 *                     || r.InstancedStaticMeshes.ForceRemoveAtSwap != 0
+	 *
+	 * ∴ un array parallelo che ricopiasse **una** delle due semantiche resterebbe allineato finche' nessuno
+	 * tocca quella CVar, e si disallineerebbe in silenzio il giorno in cui qualcuno la accende — con l'esito
+	 * che il commento di `VeilInstances` gia' descrive: *«non un crash ma celle velate SBAGLIATE»*. Questa
+	 * funzione **chiede al componente** invece di assumere, e `HexMapActor.PerCellRemovalMirrorsTheEngine` la
+	 * misura sotto entrambe.
+	 */
+	static bool RemoveInstanceMirrored(UInstancedStaticMeshComponent* Component, int32 Index,
+		TArray<FRTCellId>& CellsOfInstance, TArray<FVector>& BaseScale, TArray<uint8>* LastState,
+		TArray<float>* DisplayFactor);
+
+	/** Vero se questo componente rimuove con `RemoveAtSwap`. Vedi `RemoveInstanceMirrored`. */
+	static bool UsesRemoveAtSwap(const UInstancedStaticMeshComponent* Component);
+
+	/**
+	 * Monta il glifo di `Id` sull'anello dato, con gli array paralleli al seguito. Vero se l'ha montato.
+	 *
+	 * ⚠️ **Ripete la formula di `RebuildInstances` invece di chiamarla**, ed e' il debito che questo
+	 * percorso porta: due siti che posano la stessa istanza possono divergere. E' anche cio' che
+	 * `HexMapActor.IncrementalRepaintEqualsFullRebuild` esiste per impedire — se divergessero, il confronto
+	 * cella per cella con il rebuild totale cadrebbe.
+	 */
+	bool AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& Id);
+
 	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
 	int32 LastVeilTouchedCells = 0;
 
@@ -1229,12 +1347,41 @@ protected:
 	 * colore per istanza: in quel caso il velo agisce sulla sola scala, e ricordato e osservato restano
 	 * indistinguibili su quella geometria.
 	 *
+	 * `bVerifyIdentity` chiede il guardiano CARO — vedi `VerifyMappingIdentity`. Il chiamante lo accende una
+	 * volta per mappatura nuova, non a ogni velo.
+	 *
 	 * @return quante istanze sono state davvero toccate.
 	 */
 	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
 		const TArray<FVector>& BaseScale, TArray<uint8>& LastState, TArray<float>* DisplayFactor,
 		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor, bool bVerifyIdentity = false);
+
+	/**
+	 * 🔴 **Il guardiano che i conteggi non sono** — `#2761`.
+	 *
+	 * Il presidio storico di `VeilInstances` confronta `GetInstanceCount()` con `CellsOfInstance.Num()`, e
+	 * **due array della stessa lunghezza con le celle SCAMBIATE lo superano in silenzio**. E' precisamente il
+	 * difetto che il percorso per-cella puo' introdurre: `RemoveInstance` rimescola gli indici, e un array
+	 * parallelo che ricopiasse la semantica sbagliata resterebbe lungo uguale e mappato storto.
+	 *
+	 * Questo confronta le POSIZIONI: l'istanza `I` deve stare dove sta la cella `CellsOfInstance[I]`.
+	 *
+	 * ⚠️ **Il confronto e' RELATIVO alla prima istanza, non assoluto**, ed e' l'unico modo di renderlo vero
+	 * anche dopo che qualcuno ha spostato l'actor: le istanze sono in spazio mondo e non seguono l'actor
+	 * finche' non passa un `RebuildInstances`, quindi un confronto assoluto griderebbe al lupo su una board
+	 * perfettamente allineata. Una traslazione comune non e' un rimescolamento; una permutazione si', e
+	 * sopravvive alla sottrazione.
+	 *
+	 * ⛔ **NON si applica ai pannelli di bordo.** `EdgeFeatures` posa le sue istanze sul PUNTO MEDIO di un
+	 * lato (`EdgeMidpointWorld`), non sul centro della cella: per quella famiglia la posizione non e' una
+	 * funzione della sola cella mappata, e il confronto direbbe il falso. Resta col solo conteggio, ed e'
+	 * dichiarato qui invece di essere dimenticato.
+	 *
+	 * @return vero se la mappatura regge.
+	 */
+	bool VerifyMappingIdentity(const UInstancedStaticMeshComponent* Component,
+		const TArray<FRTCellId>& CellsOfInstance) const;
 
 	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
 	mutable TArray<FRTCellId> UnreachableCells;
