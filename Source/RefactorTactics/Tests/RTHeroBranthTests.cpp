@@ -42,7 +42,9 @@ bool FRTBranthMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("affinita'"), Branth->Affinity, FName(TEXT("Affinity.Structures")));
 	TestEqual(TEXT("debolezza simmetrica a Ivrin"), Branth->Weakness, FName(TEXT("Affinity.Movement")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Branth->Actions.Num(), 5)) { return false; }
+	// SEI da `#2890`: le cinque del kit v0.1 piu' `MortarShot`, la generica del catalogo core che
+	// `ValidateHeroes` gia' ammetteva («piu' al massimo UNA generica portata nel kit»).
+	if (!TestEqual(TEXT("sei azioni"), Branth->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* ImpactShot = Branth->Actions[0];
 	TestEqual(TEXT("ImpactShot: 8 danni"), BranthEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);

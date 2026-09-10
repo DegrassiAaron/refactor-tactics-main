@@ -68,6 +68,7 @@ namespace
 			{ TEXT("Hero.Branth.Reconfigure"),     TEXT("Riconfigurazione") },
 			{ TEXT("Hero.Branth.Ram"),             TEXT("Carica d'ariete") },
 			{ TEXT("Hero.Branth.Interposition"),   TEXT("Interposizione") },
+			{ TEXT("Hero.Branth.MortarShot"),      TEXT("Colpo di mortaio") },
 
 			// Ivrin (`Hero.Ivrin`)
 			{ TEXT("Hero.Ivrin.PulseShot"),        TEXT("Colpo a impulsi") },
@@ -797,6 +798,51 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	AddAbility(Branth, MakeHeroReactionFromCoreAction(TEXT("Hero.Branth.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
+	// Indice 5 — MortarShot. ➕ **LA PRIMA AZIONE DEL ROSTER CHE COLPISCE SENZA VEDERE** (`#2890`, [D-380]).
+	//
+	// 🔑 **E' la sesta, ed e' esattamente il posto che il validatore teneva libero.** `ValidateHeroes`
+	// ammette *«1 attacco base + 4 abilita' fondamentali, piu' al massimo UNA generica del catalogo core
+	// portata nel kit»*: Branth ne aveva cinque, e questa e' quella generica. Il tetto di 6 non si sfonda, e
+	// `PlayerInput.EveryKitEntryIsReachable` resta il gate che misura se il tasto esiste.
+	//
+	// 🔑 **Perche' Branth e non gli altri tre.** E' l'unico del roster senza un'AoE offensiva —
+	// `Aevik.Overload` e `Muiren.CircularTide` ce l'hanno gia', e darla a loro sarebbe la seconda area sullo
+	// stesso eroe. E il concept regge nel verso giusto: Branth e' l'eroe CINETICO, quello che spinge e
+	// sfonda (`Ram`, `ImpactShot`, `KineticPanel`); un colpo ad arco che cade oltre l'ostacolo e' la sua
+	// grammatica, non un innesto.
+	//
+	// ⚠️ **La policy NON si scrive qui**, a differenza di `MistVeil`: viene da `Action.Mortar` attraverso
+	// `MakeHeroActionFromCore`, che ora la copia come copia `bSelfTarget`. Riscriverla su questa riga
+	// sarebbe la seconda sede della stessa decisione — e la prima e' il catalogo.
+	if (URTActionData* Mortar = MakeHeroActionFromCore(TEXT("Hero.Branth.MortarShot"), TEXT("Action.Mortar"),
+		/*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1))
+	{
+		// 🔴 **PORTATA 3, non la 4 del catalogo, e la ragione e' MISURATA — non un aggiustamento a occhio.**
+		//
+		// `Action.Mortar` dichiara 4 come il suo gemello a vista `Action.CircularAoE`, e li' resta: il
+		// prezzo del tiro indiretto si paga su danno e ricarica, non sull'avvicinamento. Ma Branth e'
+		// l'unico del roster che ingaggia a **3** (`ImpactShot`; Aevik 4, Ivrin 4, Muiren 5), e un'arma
+		// piu' lunga della sua non gli aggiunge un'opzione: gli cambia il **comportamento**.
+		//
+		// Misurato il 2026-09-10 sulla suite: con portata 4 il bot smette di chiudere e resta a distanza a
+		// ricaricare, e cadono **tre** gate anti-stallo — `Bot.StallDefinitionsOnTheGeneratedTestArena`
+		// («5 eliminazioni su 4»), `Match.Autobattle.EngagesOnTheGeneratedTestArena` («piu' lunga sequenza
+		// ferma 11 turni, pareggio allo scadere») e `Match.Autobattle.NobodyParksOnTheAuthoredMap`
+		// («6 turni fermi, limite 4»). Tutti e tre verdi su `main` prima della modifica, tutti e tre verdi
+		// di nuovo con la portata 3. ∴ la causa e' la portata, non l'azione.
+		//
+		// ⚠️ **E' una taratura d'EROE, come la ricarica**, che `MakeHeroActionFromCore` prende gia' per
+		// parametro: il catalogo dice cosa l'azione E', il kit dice come quell'eroe la porta. Chi domani
+		// desse il mortaio a un eroe che ingaggia a 4 o piu' non ha bisogno di questa riga.
+		//
+		// ⛔ **Lo specchio si scrive in ENTRAMBI i posti**: `ARTTurnManager` legge la portata dal `Def`, il
+		// bot da `URTActionData::RangeCells`. Scriverne uno solo lascerebbe le due meta' in disaccordo — lo
+		// stesso difetto che `MakeAbility` documenta per il cooldown.
+		Mortar->Def.RangeCells = 3;
+		Mortar->RangeCells = 3;
+		AddAbility(Branth, Mortar);
+	}
+
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti, e vivono in `Parameters`.
 	// **Da CP 9.5 qualcuno li legge**: `ResolveCoverStructures` prende integrita' e durata dalla variante
@@ -1019,6 +1065,17 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
 	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
 	Action->bSelfTarget = Core.bSelfTarget;
+
+	// ➕ **E la licenza della linea di tiro, per la STESSA ragione di `bSelfTarget`** (`#2890`, [D-380]).
+	//
+	// 🔑 E' una proprieta' dell'AZIONE, non un numero di bilanciamento dell'eroe: la sede della decisione
+	// e' il catalogo core, e un kit che la derivasse a mano sarebbe la seconda riga da tenere allineata.
+	// `Hero.Muiren.MistVeil` la scrive ancora da se' — deriva da `Action.Ignite`, che la linea la CHIEDE —
+	// e continua a farlo perche' li' la policy e' una scelta dell'EROE, non un'eredita' del core.
+	//
+	// ⚠️ **Non cambia nulla per le azioni gia' spedite**: `Required` e' lo zero dell'enum ed e' il valore di
+	// ogni core tranne `Action.Mortar`, quindi copiarlo e' un'identita' per tutte le altre.
+	Action->Def.LineOfSightPolicy = Core.LineOfSightPolicy;
 	return Action;
 }
 

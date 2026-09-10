@@ -368,9 +368,21 @@ bool FRTSpawnedUnitLoadoutTest::RunTest(const FString&)
 		if (!Unit || !Unit->bIsBotControlled) { continue; }
 		const TArray<FName> Loadout = URTCatalogLibrary::DefaultLoadoutFor(Unit->HeroId);
 		if (Loadout.Num() == 0) { continue; }
+
+		// ⚠️ **Il kit si CHIEDE al catalogo, non si scrive qui.** Questa riga diceva `5`, cioe' la
+		// dimensione che ogni kit aveva quando il test e' stato scritto; `ValidateHeroes` ammette pero'
+		// *«1 attacco base + 4 fondamentali, piu' al massimo UNA generica portata nel kit»*, e il giorno in
+		// cui un eroe ne ha sei — `Hero.Branth.MortarShot`, `#2890` — il letterale diventa rosso senza che
+		// nulla sia rotto. L'asserzione sopra, sul giocatore, derivava gia' da `Hero->Actions.Num()`: le
+		// due meta' della stessa domanda misuravano il roster in due modi diversi, e una sola invecchiava.
+		const URTHeroData* const* HeroPtr = URTHeroCatalogLibrary::GetHeroRoster().FindByPredicate(
+			[Unit](const URTHeroData* H) { return H && H->HeroId == Unit->HeroId; });
+		if (!HeroPtr || !*HeroPtr) { continue; }
+
 		TestEqual(*FString::Printf(TEXT("bot %s: equipaggiato quanto il giocatore"),
 			*Unit->HeroId.ToString()),
-			Unit->NumAbilities(), 5 + URTCatalogLibrary::GetGenericActionIds().Num() + 2);
+			Unit->NumAbilities(),
+			(*HeroPtr)->Actions.Num() + URTCatalogLibrary::GetGenericActionIds().Num() + 2);
 	}
 
 	DestroyRosterWorld(World);

@@ -313,4 +313,43 @@ public:
 	 */
 	static int32 ObservedPrefixLength(const TArray<FRTCellId>& Cells,
 		const TArray<FRTKnowledgeVerdict>& CellVerdicts, int32 ObserverTeamId);
+
+	/**
+	 * Chi hai COLPITO, lo hai trovato: i bersagli andati a segno diventano contatti per la squadra di chi
+	 * ha sparato (`#2890`, [D-380]).
+	 *
+	 * ## 🔴 E' un canale, ed e' aperto di proposito
+	 *
+	 * [D-378] ha chiuso il tiro indiretto come **rilevatore** nel planning: `ClassifyHexTargeting` non
+	 * guarda chi sta sulla cella, e `BlindFire.BlindFireIsNotAnEnemyDetector` lo pinna. Questa funzione
+	 * apre il verso opposto — dalla **risoluzione** — e la differenza non e' una scappatoia: e' la
+	 * decisione che rende il tiro indiretto un'azione che si puo' imparare a usare. Senza, un colpo al buio
+	 * a segno non produce alcun feedback e l'abilita' resta un atto di fede.
+	 *
+	 * Il sondaggio che ne risulta e' **pagato e a posteriori**, ed e' cio' che lo tiene stretto:
+	 *
+	 * 1. **scade come ogni contatto** (`ContactLifetimeTurns`): la rivelazione non e' permanente, ed e'
+	 *    gratis perche' il contatto e' lo stesso tipo che `Observe` produce — non un secondo meccanismo;
+	 * 2. **nomina la sola VITTIMA**, non la cella e non i vicini: chi era nell'area senza essere colpito
+	 *    resta ignoto, e questa e' la riga che impedisce all'area di diventare un radar;
+	 * 3. **arriva a piano gia' commesso**: non aiuta a mirare nel turno in cui si spara.
+	 *
+	 * ## ⛔ Cio' che NON fa
+	 *
+	 * Non tocca il **targeting**: `HandleTargetCell` continua a non leggere le unita', e il planning del
+	 * turno seguente vede solo cio' che il contatto autorizza — mai la posizione attuale di chi si e'
+	 * spostato, perche' un contatto porta la cella dell'avvistamento e non segue nessuno.
+	 *
+	 * ⚠️ **Fail-closed sulla versione**, come `Observe`: una conoscenza illeggibile non si arricchisce.
+	 * Aggiungerci un contatto produrrebbe una memoria per meta' interpretabile, che e' peggio di nessuna.
+	 *
+	 * ⚠️ **Non e' una `UFUNCTION`**: come `FreezeVerdict`, una regola che concede conoscenza non deve
+	 * essere richiamabile da Blueprint — sarebbe una regola di privacy aggirabile da Blueprint.
+	 *
+	 * @param Knowledge   la conoscenza della squadra che ha colpito
+	 * @param VictimsHit  i soli bersagli ANDATI A SEGNO, con la cella in cui il colpo li ha trovati
+	 * @param TurnNumber  il turno in cui il colpo e' avvenuto: da qui parte la scadenza
+	 */
+	static FRTTeamKnowledge RevealByHit(const FRTTeamKnowledge& Knowledge,
+		const TArray<FRTLastKnownContact>& VictimsHit, int32 TurnNumber);
 };
