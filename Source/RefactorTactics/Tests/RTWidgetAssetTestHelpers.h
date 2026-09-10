@@ -29,6 +29,8 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
+#include "Blueprint/WidgetTree.h"
+#include "Misc/AutomationTest.h"
 
 /** Il perimetro e' dichiarato nel nome: helper per i test che leggono i `WBP_*` come asset. */
 namespace RTWidgetAssetTest
@@ -41,6 +43,29 @@ namespace RTWidgetAssetTest
 	{
 		return Cast<UWidgetBlueprintGeneratedClass>(
 			StaticLoadObject(UWidgetBlueprintGeneratedClass::StaticClass(), nullptr, Path));
+	}
+
+	/**
+	 * L'albero di un `WBP_*`, con i due fallimenti gia' dichiarati sul test chiamante.
+	 *
+	 * 🔴 **Esiste perche' il preambolo era copiato in QUATTRO test** e ogni modifica al messaggio andava
+	 * fatta in quattro posti. E' il caso che l'intestazione di questo header descrive come «corpi
+	 * identici → header condiviso»: qui i corpi lo erano davvero.
+	 *
+	 * `nullptr` quando l'asset non si carica o non ha un albero — il chiamante esce, e il perche' e' gia'
+	 * nel report.
+	 */
+	inline const UWidgetTree* LoadWidgetTree(FAutomationTestBase& Test, const TCHAR* Path, const TCHAR* Label)
+	{
+		UWidgetBlueprintGeneratedClass* Class = LoadWidgetClass(Path);
+		if (!Test.TestNotNull(*FString::Printf(TEXT("%s si carica"), Label), Class))
+		{
+			return nullptr;
+		}
+
+		const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
+		Test.TestNotNull(*FString::Printf(TEXT("%s ha un albero di widget"), Label), Tree);
+		return Tree;
 	}
 
 	/** Il testo di un binding, nella forma in cui serve leggerlo in un log di automation. */
