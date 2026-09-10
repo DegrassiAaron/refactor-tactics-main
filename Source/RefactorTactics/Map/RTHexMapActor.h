@@ -611,6 +611,21 @@ public:
 	void SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
 		bool bOriginPredicted);
 
+	/**
+	 * La linea di tiro che NON passa: da dove parte e dove si ferma — `#2742`.
+	 *
+	 * 🔑 **Riceve il verdetto gia' calcolato**, come `SetPreviewAttack` riceve l'origine gia' derivata:
+	 * `BlockedAt` viene da `URTHexVisionLibrary::DescribeLineOfSight` attraverso
+	 * `URTSightLineLibrary::AuthorizedSightLines`, e questo actor non ricalcola nulla.
+	 *
+	 * ⛔ **La conoscenza e' gia' entrata a monte.** Chi chiama passa solo linee che l'osservatore poteva
+	 * vedere: qui non si rifiltra, che sarebbe il secondo contratto di conoscenza ([D-225]).
+	 *
+	 * Chiamare con `bBlocked = false` spegne la linea, ed e' cio' che fa ogni click che non finisce in
+	 * copertura — inclusa la selezione a vuoto.
+	 */
+	void SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, const FRTCellId& BlockedAt);
+
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitCells.Num(); }
@@ -719,6 +734,29 @@ protected:
 	TArray<FRTCellId> PreviewReachable;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
+	/**
+	 * La LINEA DI TIRO INTERROTTA, e dove si interrompe — `#2742`.
+	 *
+	 * 🔴 **Non e' una seconda linea accanto a quella di mira.** `AttackOriginAim` disegna gia' una spezzata
+	 * fra attaccante e bersaglio, ma solo quando il piano RIESCE: `OnSelect` chiama `RefreshPlanningPreview`
+	 * nel ramo `bReady && Reason == Ok`. Quando la traiettoria e' interrotta non c'e' piano, quindi non c'e'
+	 * linea — ed e' precisamente il caso che il giocatore avrebbe bisogno di vedere.
+	 *
+	 * ∴ i due stati sono **mutuamente esclusivi per costruzione**: o il piano esiste e si vede la mira, o
+	 * non esiste e si vede dove la linea si e' fermata. Non si sovrappongono mai.
+	 *
+	 * ⚠️ **`bHasPreviewSightBlock` e non `PreviewSightBlockedAt.IsValid()`**: una cella `(0,0,0)` e' valida
+	 * e sarebbe indistinguibile da «nessun blocco». E' la stessa ragione per cui `ComputeBlockerMarks` legge
+	 * `bHasBlocker` invece dell'id (`#2697`).
+	 */
+	bool bHasPreviewSightBlock = false;
+
+	/** L'origine della linea interrotta. */
+	FRTCellId PreviewSightFrom;
+
+	/** Dove la linea si e' fermata — `FRTLineOfSightResult::BlockedAt`, non ricalcolato. */
+	FRTCellId PreviewSightBlockedAt;
+
 	FRTCellId PreviewAttackOrigin;
 	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */
 	FRTCellId PreviewAttackAim;
