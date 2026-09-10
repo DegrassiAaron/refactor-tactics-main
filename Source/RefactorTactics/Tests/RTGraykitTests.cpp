@@ -385,4 +385,109 @@ bool FRTGraykitNoGameplayMutationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// 8. Il CONSUMATORE (#2880): applicare la posa muove i componenti, il reset li riporta a riposo, e
+//    l'assenza dei componenti non e' un errore.
+// ---------------------------------------------------------------------------------------------------------
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGraykitConsumerTest,
+	"RefactorTactics.Graykit.Consumatore", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTGraykitConsumerTest::RunTest(const FString& Parameters)
+{
+	UWorld* World = MakeGraykitWorld();
+	if (World == nullptr)
+	{
+		AddError(TEXT("mondo di test non creato"));
+		return false;
+	}
+
+	ARTUnit* Unit = World->SpawnActor<ARTUnit>();
+	if (Unit == nullptr)
+	{
+		AddError(TEXT("unita' non creata"));
+		GEngine->DestroyWorldContext(World);
+		World->DestroyWorld(false);
+		return false;
+	}
+
+	auto ComponentNamed = [](AActor* Actor, const TCHAR* Name) -> UStaticMeshComponent*
+	{
+		TArray<UStaticMeshComponent*> Comps;
+		Actor->GetComponents<UStaticMeshComponent>(Comps);
+		for (UStaticMeshComponent* C : Comps)
+		{
+			if (C && C->GetName() == Name) { return C; }
+		}
+		return nullptr;
+	};
+
+	UStaticMeshComponent* Body = ComponentNamed(Unit, TEXT("Mesh"));
+	UStaticMeshComponent* Left = ComponentNamed(Unit, TEXT("LeftArm"));
+	UStaticMeshComponent* Right = ComponentNamed(Unit, TEXT("RightArm"));
+	if (Body == nullptr || Left == nullptr || Right == nullptr)
+	{
+		AddError(TEXT("componenti del segnaposto non trovati"));
+		GEngine->DestroyWorldContext(World);
+		World->DestroyWorld(false);
+		return false;
+	}
+
+	// (a) I bracci nascono sugli anchor che la libreria calcola, non su numeri scritti a mano.
+	TestEqual(TEXT("il braccio sinistro nasce sull'anchor LeftHand"),
+		Left->GetRelativeLocation(), ARTUnit::GraykitArmRestLocation(ERTGraykitAnchor::LeftHand));
+	TestEqual(TEXT("il braccio destro nasce sull'anchor RightHand"),
+		Right->GetRelativeLocation(), ARTUnit::GraykitArmRestLocation(ERTGraykitAnchor::RightHand));
+
+	// (b) Applicare una posa MUOVE i componenti.
+	const FRTGraykitDescriptor Run = URTGraykitLibrary::DescriptorForStyle(ERTGraykitLocomotionStyle::Run);
+	Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(Run, 0.35f));
+
+	TestTrue(TEXT("a meta' corsa il corpo e' inclinato"),
+		!Body->GetRelativeRotation().IsNearlyZero());
+	TestTrue(TEXT("e almeno un braccio si e' mosso dal riposo"),
+		!Left->GetRelativeRotation().IsNearlyZero() || !Right->GetRelativeRotation().IsNearlyZero());
+
+	// (c) 🔑 Il seek: applicare la posa a un alpha da' lo stesso risultato che arrivarci passo-passo. E' la
+	// proprieta' che rende il consumatore utilizzabile in un replay, e vive QUI e non nella libreria —
+	// perche' e' il consumatore che potrebbe accumulare stato per sbaglio.
+	for (int32 Step = 0; Step <= 60; ++Step)
+	{
+		Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(Run, static_cast<float>(Step) / 100.f));
+	}
+	const FVector WalkedLoc = Body->GetRelativeLocation();
+	const FRotator WalkedRot = Body->GetRelativeRotation();
+
+	Unit->ResetGraykitPose();
+	Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(Run, 0.60f));
+
+	TestEqual(TEXT("il seek a 0,60 coincide col percorso passo-passo (posizione)"),
+		Body->GetRelativeLocation(), WalkedLoc);
+	TestTrue(TEXT("il seek a 0,60 coincide col percorso passo-passo (rotazione)"),
+		Body->GetRelativeRotation().Equals(WalkedRot, 0.01f));
+
+	// (d) 🔴 Il reset riporta TUTTO a riposo. Senza, un `Lean` concluso lascerebbe il corpo inclinato per il
+	// resto del turno — il difetto che si vedrebbe solo dal secondo turno in poi.
+	Unit->ResetGraykitPose();
+	TestTrue(TEXT("dopo il reset il corpo non e' ruotato"), Body->GetRelativeRotation().IsNearlyZero());
+	TestTrue(TEXT("dopo il reset il corpo e' all'origine locale"), Body->GetRelativeLocation().IsNearlyZero());
+	TestEqual(TEXT("dopo il reset il braccio sinistro e' tornato sul suo anchor"),
+		Left->GetRelativeLocation(), ARTUnit::GraykitArmRestLocation(ERTGraykitAnchor::LeftHand));
+	TestTrue(TEXT("dopo il reset il braccio destro non e' ruotato"),
+		Right->GetRelativeRotation().IsNearlyZero());
+	TestEqual(TEXT("dopo il reset il braccio destro ha la scala di riposo"),
+		Right->GetRelativeScale3D(), ARTUnit::GraykitArmRestScale());
+
+	// (e) ⛔ L'invariante: nulla di tutto questo ha toccato la cella autorevole.
+	const FRTCellId CellBefore = Unit->Cell;
+	Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(Run, 1.f));
+	TestEqual(TEXT("la cella autorevole non e' cambiata (X)"), Unit->Cell.X, CellBefore.X);
+	TestEqual(TEXT("la cella autorevole non e' cambiata (Y)"), Unit->Cell.Y, CellBefore.Y);
+	TestEqual(TEXT("la cella autorevole non e' cambiata (Layer)"), Unit->Cell.Layer, CellBefore.Layer);
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(false);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
