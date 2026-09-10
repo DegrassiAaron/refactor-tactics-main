@@ -491,7 +491,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogPhaseFilterDiscriminatesTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioLogPhaseFilterDiscriminatesTest::RunTest(const FString&)
 {
-	// Conta le voci `ReactionDecision`/`FireChosen` chiedendo (o no) una fase, e dice se l'harness e' PASS.
+	// Conta le voci `ReactionDecision`/`Chosen` chiedendo (o no) una fase, e dice se l'harness e' PASS.
 	auto ContaConFase = [this](bool bConFase, ERTMatchPhase Fase, int32 Atteso) -> bool
 	{
 		FRTTestScenario Scenario = MakeTwoWindowScenario();
@@ -504,7 +504,10 @@ bool FRTScenarioLogPhaseFilterDiscriminatesTest::RunTest(const FString&)
 		FRTTestExpectation Conteggio;
 		Conteggio.Kind = ERTAssertionKind::LogEventCount;
 		Conteggio.LogCategory = ERTLogCategory::ReactionDecision;
-		Conteggio.LogOutcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+		// ⚠️ `Chosen` e non un ipotetico `FireChosen`: l'esito dice che una risposta e' stata SCELTA — sia
+		// essa `FIRE` o `HOLD` — mentre quale sia lo porta `ReactionResponse`. Il turno ne produce due, e il
+		// conteggio atteso lo riflette.
+		Conteggio.LogOutcome = static_cast<uint8>(ERTReactionDecisionOutcome::Chosen);
 		Conteggio.Value = Atteso;
 		Conteggio.bHasLogPhase = bConFase;
 		Conteggio.LogPhase = Fase;
@@ -526,16 +529,16 @@ bool FRTScenarioLogPhaseFilterDiscriminatesTest::RunTest(const FString&)
 
 	// Premessa: senza filtro il `FIRE` c'e' ed e' uno solo. Se questa cade non e' il filtro a non
 	// funzionare — e' lo scenario a non produrre l'evento, e le due righe sotto non direbbero niente.
-	if (!TestTrue(TEXT("premessa: senza filtro il FIRE e' contato una volta"),
-		ContaConFase(/*bConFase*/ false, ERTMatchPhase::Move, 1)))
+	if (!TestTrue(TEXT("premessa: senza filtro le due decisioni scelte si contano"),
+		ContaConFase(/*bConFase*/ false, ERTMatchPhase::Move, 2)))
 	{
 		return false;
 	}
 
 	// 🔑 Le due righe che dimostrano il filtro: stesso evento, fasi diverse, conteggi attesi diversi.
-	TestTrue(TEXT("con `phase: Move` il colpo di Overwatch si trova"),
-		ContaConFase(/*bConFase*/ true, ERTMatchPhase::Move, 1));
-	TestTrue(TEXT("con `phase: Blast` lo stesso colpo NON si trova (atteso 0)"),
+	TestTrue(TEXT("con `phase: Move` le due decisioni si trovano"),
+		ContaConFase(/*bConFase*/ true, ERTMatchPhase::Move, 2));
+	TestTrue(TEXT("con `phase: Blast` le stesse decisioni NON si trovano (atteso 0)"),
 		ContaConFase(/*bConFase*/ true, ERTMatchPhase::Blast, 0));
 	return true;
 }
