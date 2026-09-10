@@ -114,5 +114,5 @@ La **cardinalità** era l'unica senza precedente nel repository. Ora ce l'ha, e 
 |---|---|---|
 | **Cardinalità** | una linea, verso il bersaglio puntato | §4, discende dal taglio |
 | **Durata** | fino a `OnLockInCommitted` | `RTTurnManager.h:976`, già il segnale che spegne le anteprime |
-| **Forma del blocco** | ⏳ resa, da decidere in implementazione: `BlockedAt` **e** `StepIndex` rendono entrambe costruibili senza nuovo calcolo |
+| **Forma del blocco** | **troncata** a `BlockedAt`, con l'ostacolo marcato | decisa in implementazione: disegnarla intera direbbe che la traiettoria arriva, che e' l'opposto dell'informazione |
 | **Costo** | una chiamata per frame di hover, `O(1)` | `DescribeLineOfSight` cammina `HexLine`; con cardinalità 1 il profilo è lo stesso di un hover qualsiasi |
