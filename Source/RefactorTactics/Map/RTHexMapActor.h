@@ -385,10 +385,10 @@ public:
 	 * Le due famiglie che [D-183] accoppia sulla superficie, che sono anche le due che il percorso runtime
 	 * ricostruiva per intero a ogni cambio di terreno:
 	 *
-	 *  - il **disco**, di cui la superficie decide il colore. L'istanza non si tocca: si marca `Unwritten` il
-	 *    suo stato di velo, e il velo che segue riscrive il colore fresco. Scriverlo qui darebbe una cella a
-	 *    piena luminosita' sopra un ricordo, perche' il colore disegnato e' quello **moltiplicato** per il
-	 *    fattore di attenuazione, che vive nel velo e non qui;
+	 *  - il **disco**, di cui la superficie decide il colore. Si riscrive il colore GIA' moltiplicato per il
+	 *    fattore di attenuazione corrente, e `LastVeilState` non si tocca: scrivere il colore pieno darebbe
+	 *    una cella a piena luminosita' sopra un ricordo, e marcarla `Unwritten` perche' il velo la riscriva
+	 *    butterebbe via una dissolvenza di `#2875` gia' in volo — `Unwritten` non attenua, fa uno **snap**;
 	 *  - la **corona di glifi**, di cui la superficie decide la PRESENZA e l'anello (`SurfaceRingCount`).
 	 *    Qui c'e' geometria da aggiungere e togliere, ed e' l'unico punto in cui questa classe rimuove
 	 *    un'istanza singola.
@@ -399,15 +399,26 @@ public:
 	 *    riallineamento ma una costruzione;
 	 *  - la cella e' sparita dall'asset: il suo disco va **rimosso**, e rimuovere dal disco rimescolerebbe
 	 *    gli indici di tutte le altre famiglie che vi si appoggiano — vedi `RemoveInstanceMirrored`;
+	 *  - la **posa** del disco non e' piu' quella che la cella impone: `AddOrUpdateCell` alza `Revision` per
+	 *    qualunque campo, `Height` compreso, e questo percorso riscrive colori e presenza, non geometrie;
+	 *  - l'elenco e' **VUOTO**: la revisione si e' mossa per qualcosa che non passa dalle celle — una
+	 *    transizione, per esempio — e rispondere `true` salterebbe in silenzio la ricostruzione di prima;
 	 *  - la board viene dal ramo **demo** (`DemoRadius`), che non ha un asset da cui rileggere.
 	 *
 	 * ⚠️ **Non tocca rilievo, volumi di blocco, pannelli di bordo, griglia e corpi strutturali**, e non e'
 	 * una dimenticanza: nessuna di quelle famiglie dipende dalla superficie. Il rilievo dipende dal COSTO e i
 	 * volumi dal blocco — se un giorno il percorso runtime mutasse anche quelli, la riga da aggiungere e'
 	 * qui, e il test di equivalenza la chiederebbe cadendo.
+	 *
+	 * ⛔ **PRIVATA, e la ragione è il colore.** Lascia il disco al colore attenuato con il fattore corrente,
+	 * che è coerente **solo** dentro il giro di velo che la chiama: un chiamante esterno che la usasse per
+	 * conto suo, fra un velo e l'altro, scriverebbe un colore che nessuno riconcilia. Il suo unico chiamante
+	 * è il blocco di sincronizzazione dentro `ApplyKnowledgeVeil`.
 	 */
+private:
 	bool RepaintCells(const TArray<FRTCellId>& Ids);
 
+public:
 	/**
 	 * Quante istanze l'ultimo `RepaintCells` ha creato e quante ne ha rimosse.
 	 *
@@ -1381,15 +1392,12 @@ protected:
 	 * colore per istanza: in quel caso il velo agisce sulla sola scala, e ricordato e osservato restano
 	 * indistinguibili su quella geometria.
 	 *
-	 * `bVerifyIdentity` chiede il guardiano CARO — vedi `VerifyMappingIdentity`. Il chiamante lo accende una
-	 * volta per mappatura nuova, non a ogni velo.
-	 *
 	 * @return quante istanze sono state davvero toccate.
 	 */
 	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
 		const TArray<FVector>& BaseScale, TArray<uint8>& LastState, TArray<float>* DisplayFactor,
 		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor, bool bVerifyIdentity = false);
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
 
 	/**
 	 * 🔴 **Il guardiano che i conteggi non sono** — `#2761`.
@@ -1415,7 +1423,20 @@ protected:
 	 * @return vero se la mappatura regge.
 	 */
 	bool VerifyMappingIdentity(const UInstancedStaticMeshComponent* Component,
-		const TArray<FRTCellId>& CellsOfInstance) const;
+		const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight) const;
+
+	/**
+	 * Il guardiano su TUTTE le famiglie mappate, in un punto solo. Vero se ognuna regge.
+	 *
+	 * 🔑 **Sta qui e non dentro `VeilInstances` perche' il suo esito e' UNO**: se una mappatura e'
+	 * rimescolata, le altre non sono «probabilmente a posto», sono non verificate — derivano tutte dallo
+	 * stesso giro di costruzione.
+	 */
+	bool VerifyAllMappings() const;
+
+	/** La posa del glifo di una cella. Sede UNICA della formula: la usano `RebuildInstances` e il per-cella. */
+	FTransform GlyphTransformForCell(const FRTCellId& Id, int32 Height, float InHexSize,
+		float InLayerHeight) const;
 
 	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
 	mutable TArray<FRTCellId> UnreachableCells;

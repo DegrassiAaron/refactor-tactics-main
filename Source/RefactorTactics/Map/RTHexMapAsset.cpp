@@ -252,6 +252,11 @@ void URTHexMapAsset::AddTransition(const FRTCellId& From, const FRTCellId& To, i
 		UpsertArc(To, From, Cost, Kind);
 	}
 	++Revision;
+	// ⚠️ **Una transizione non e' una cella, e il registro deve dirlo.** Muove `Revision` senza toccare
+	// nessuna cella: lasciare il registro fermo lo farebbe rispondere «so cosa e' cambiato: niente», e il
+	// consumatore salterebbe la ricostruzione. Qui si dichiara di non sapere, e chi arriva da prima
+	// ricostruisce. Vedi `GetCellsChangedSince`.
+	RestartChangeLedger();
 }
 
 void URTHexMapAsset::UpdateTransitions(const TArray<FRTHexEdge>& InEdges)
@@ -279,6 +284,11 @@ void URTHexMapAsset::UpdateTransitions(const TArray<FRTHexEdge>& InEdges)
 		}
 	}
 	++Revision; // UNA volta per l'intero gruppo (un ponte bidirezionale e' un evento solo)
+	// ⚠️ **Una transizione non e' una cella, e il registro deve dirlo.** Muove `Revision` senza toccare
+	// nessuna cella: lasciare il registro fermo lo farebbe rispondere «so cosa e' cambiato: niente», e il
+	// consumatore salterebbe la ricostruzione. Qui si dichiara di non sapere, e chi arriva da prima
+	// ricostruisce. Vedi `GetCellsChangedSince`.
+	RestartChangeLedger();
 }
 
 bool URTHexMapAsset::RemoveTransition(const FRTCellId& From, const FRTCellId& To, bool bBothDirections)
@@ -290,6 +300,11 @@ bool URTHexMapAsset::RemoveTransition(const FRTCellId& From, const FRTCellId& To
 	if (Removed > 0)
 	{
 		++Revision;
+		// ⚠️ **Una transizione non e' una cella, e il registro deve dirlo.** Muove `Revision` senza toccare
+		// nessuna cella: lasciare il registro fermo lo farebbe rispondere «so cosa e' cambiato: niente», e il
+		// consumatore salterebbe la ricostruzione. Qui si dichiara di non sapere, e chi arriva da prima
+		// ricostruisce. Vedi `GetCellsChangedSince`.
+			RestartChangeLedger();
 		return true;
 	}
 	return false;
@@ -1229,6 +1244,14 @@ void URTHexMapAsset::PostEditUndo()
 	// resterebbe allineata allo stato precedente e FindCell leggerebbe l'indice sbagliato — o fuori dall'array,
 	// se le celle sono diminuite. Va invalidata PRIMA che qualcuno interroghi l'asset.
 	InvalidateLookup();
+
+	// 🔴 **E il registro delle celle cambiate riparte, per la stessa ragione della cache e con una in
+	// piu'.** `Revision` e' una `UPROPERTY` e fa parte della transazione: un undo la riporta INDIETRO, mentre
+	// `ChangedCells` — deliberatamente non serializzato — resta con le voci dell'edit annullato. Due guasti
+	// seguono: i numeri di revisione si RIUSANO su contenuti diversi, e un consumatore che avesse gia'
+	// sincronizzato alla revisione ora annullata non vede piu' nessuna differenza da sincronizzare, quindi
+	// tiene a schermo lo stato che l'undo ha appena tolto.
+	RestartChangeLedger();
 
 	// Chi mostra l'asset (ARTHexMapActor) non fa parte della transazione e non saprebbe di dover ridisegnare.
 	OnMapChanged.Broadcast();

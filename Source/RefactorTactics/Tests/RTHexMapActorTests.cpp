@@ -1428,15 +1428,16 @@ bool FRTHexMapActorIncrementalEqualsFullTest::RunTest(const FString&)
 	}
 
 	// Il confronto, famiglia per famiglia: dove sta ogni cella, e con quale posa.
+	// ⚠️ **La chiave è la posizione a TRE componenti, non planare.** `FRTCellId` è `(X, Y, Layer)` e
+	// `AxialToWorld` mette il layer tutto nella `Z`: due celle impilate sulla stessa colonna hanno la stessa
+	// XY, quindi una chiave planare le farebbe collassare in una voce sola — sparirebbero dal confronto
+	// **senza farlo fallire**, che è il modo peggiore in cui un test può tacere.
 	auto MappaturaDi = [](const ARTHexMapActor* Actor, const TCHAR* Componente)
 	{
-		TMap<FVector2D, FVector> Out;
+		TMap<FVector, FVector> Out;
 		for (const FTransform& Xf : InstancesOf(Actor, Componente))
 		{
-			// La chiave è la posizione PLANARE, che è la firma della cella; il valore la posa completa.
-			// Due istanze della stessa famiglia sulla stessa cella non esistono per disco e glifi, che sono
-			// le due famiglie che il per-cella tocca.
-			Out.Add(FVector2D(Xf.GetLocation().X, Xf.GetLocation().Y), Xf.GetLocation());
+			Out.Add(Xf.GetLocation(), Xf.GetLocation());
 		}
 		return Out;
 	};
@@ -1447,19 +1448,13 @@ bool FRTHexMapActorIncrementalEqualsFullTest::RunTest(const FString&)
 		TEXT("SurfaceGlyph1"), TEXT("SurfaceGlyph2"), TEXT("SurfaceGlyph3"), TEXT("SurfaceGlyph4") };
 	for (const TCHAR* Famiglia : Famiglie)
 	{
-		const TMap<FVector2D, FVector> A = MappaturaDi(Incrementale, Famiglia);
-		const TMap<FVector2D, FVector> B = MappaturaDi(Totale, Famiglia);
+		const TMap<FVector, FVector> A = MappaturaDi(Incrementale, Famiglia);
+		const TMap<FVector, FVector> B = MappaturaDi(Totale, Famiglia);
 		TestEqual(*FString::Printf(TEXT("%s: stesso numero di istanze"), Famiglia), A.Num(), B.Num());
-		for (const TPair<FVector2D, FVector>& Voce : A)
+		for (const TPair<FVector, FVector>& Voce : A)
 		{
-			const FVector* Corrispondente = B.Find(Voce.Key);
-			if (!TestNotNull(*FString::Printf(TEXT("%s: la cella a (%.0f, %.0f) esiste anche nel rebuild totale"),
-					Famiglia, Voce.Key.X, Voce.Key.Y), Corrispondente))
-			{
-				continue;
-			}
-			TestTrue(*FString::Printf(TEXT("%s: e sta nello stesso posto"), Famiglia),
-				Voce.Value.Equals(*Corrispondente, 1.0));
+			TestNotNull(*FString::Printf(TEXT("%s: la cella a (%.0f, %.0f, %.0f) esiste anche nel rebuild totale"),
+				Famiglia, Voce.Key.X, Voce.Key.Y, Voce.Key.Z), B.Find(Voce.Key));
 		}
 	}
 
@@ -1471,13 +1466,13 @@ bool FRTHexMapActorIncrementalEqualsFullTest::RunTest(const FString&)
 	int32 ColoriDiversi = 0;
 	const TArray<FTransform> DischiA = InstancesOf(Incrementale, TEXT("Cells"));
 	const TArray<FTransform> DischiB = InstancesOf(Totale, TEXT("Cells"));
-	TMap<FVector2D, FLinearColor> ColoreTotale;
+	TMap<FVector, FLinearColor> ColoreTotale;
 	for (int32 I = 0; I < DischiB.Num(); ++I)
 	{
 		FLinearColor C;
 		if (Totale->GetVeilWrittenColor(I, C))
 		{
-			ColoreTotale.Add(FVector2D(DischiB[I].GetLocation().X, DischiB[I].GetLocation().Y), C);
+			ColoreTotale.Add(DischiB[I].GetLocation(), C);
 		}
 	}
 	for (int32 I = 0; I < DischiA.Num(); ++I)
@@ -1487,8 +1482,7 @@ bool FRTHexMapActorIncrementalEqualsFullTest::RunTest(const FString&)
 		{
 			continue;
 		}
-		const FVector2D Chiave(DischiA[I].GetLocation().X, DischiA[I].GetLocation().Y);
-		if (const FLinearColor* Atteso = ColoreTotale.Find(Chiave))
+		if (const FLinearColor* Atteso = ColoreTotale.Find(DischiA[I].GetLocation()))
 		{
 			++ColoriConfrontati;
 			if (!C.Equals(*Atteso, 0.01f))
@@ -1541,13 +1535,26 @@ bool FRTHexMapActorRemovalSemanticsTest::RunTest(const FString&)
 	const int32 Originale = Force->GetInt();
 
 	// La board dipinta per-cella sotto una semantica di indice data.
-	auto BoardConSemantica = [&](int32 Swap) -> TMap<FVector2D, FLinearColor>
+	auto BoardConSemantica = [&](int32 Swap) -> TMap<FVector, FLinearColor>
 	{
+		// 🔴 **Si VERIFICA che la scrittura abbia preso.** `IConsoleVariable::Set` usa
+		// `ECVF_SetByCode`, e il sistema di priorità di Unreal IGNORA in silenzio una scrittura di priorità
+		// inferiore a quella con cui la variabile è già stata impostata — da console, da device profile o da
+		// `-ExecCmds`. Senza questo controllo le due metà del test costruirebbero la STESSA board e
+		// l'asserzione finale passerebbe a vuoto, dichiarando provato ciò che non ha nemmeno esercitato.
 		Force->Set(Swap);
+		if (Force->GetInt() != Swap)
+		{
+			AddError(FString::Printf(
+				TEXT("r.InstancedStaticMeshes.ForceRemoveAtSwap non ha accettato %d (vale %d): una priorità ")
+				TEXT("superiore la tiene, e questo test non può esercitare le due semantiche"),
+				Swap, Force->GetInt()));
+			return TMap<FVector, FLinearColor>();
+		}
 
 		URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 2);
 		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
-		TMap<FVector2D, FLinearColor> Out;
+		TMap<FVector, FLinearColor> Out;
 		if (!Actor) { return Out; }
 
 		FRTTeamKnowledge Tutto;
@@ -1582,15 +1589,16 @@ bool FRTHexMapActorRemovalSemanticsTest::RunTest(const FString&)
 			FLinearColor C;
 			if (Actor->GetVeilWrittenColor(I, C))
 			{
-				Out.Add(FVector2D(Dischi[I].GetLocation().X, Dischi[I].GetLocation().Y), C);
+				Out.Add(Dischi[I].GetLocation(), C);
 			}
 		}
 		return Out;
 	};
 
-	const TMap<FVector2D, FLinearColor> ConRemoveAt = BoardConSemantica(0);
-	const TMap<FVector2D, FLinearColor> ConRemoveAtSwap = BoardConSemantica(1);
+	const TMap<FVector, FLinearColor> ConRemoveAt = BoardConSemantica(0);
+	const TMap<FVector, FLinearColor> ConRemoveAtSwap = BoardConSemantica(1);
 	Force->Set(Originale);
+	TestEqual(TEXT("la CVar è stata riportata al valore di partenza"), Force->GetInt(), Originale);
 
 	if (!TestTrue(TEXT("entrambe le board si sono costruite"),
 		ConRemoveAt.Num() > 0 && ConRemoveAtSwap.Num() > 0))
@@ -1601,7 +1609,7 @@ bool FRTHexMapActorRemovalSemanticsTest::RunTest(const FString&)
 		ConRemoveAtSwap.Num(), ConRemoveAt.Num());
 
 	int32 Diverse = 0;
-	for (const TPair<FVector2D, FLinearColor>& Voce : ConRemoveAt)
+	for (const TPair<FVector, FLinearColor>& Voce : ConRemoveAt)
 	{
 		const FLinearColor* Altro = ConRemoveAtSwap.Find(Voce.Key);
 		if (!Altro || !Voce.Value.Equals(*Altro, 0.01f))

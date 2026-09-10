@@ -1743,14 +1743,9 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		const int32 Rings = URTHexLibrary::SurfaceRingCount(Surfaces[I]);
 		if (bDoGlyphs && Rings > 0 && Rings <= RTGlyphMaxRings && SurfaceGlyphs[Rings - 1])
 		{
-			// La scala NON include il fattore 0.95 di `PlanarScale`: la mesh se lo porta gia' dentro
-			// (`RTGlyphOuterScale`), e applicarlo due volte stringerebbe il segno del 10% senza che nessun
-			// test lo veda — resterebbe proporzionato, solo piu' piccolo del previsto.
-			const float GlyphScale = UseHexSize / 50.f;
-			FVector GlyphCenter = World;
-			GlyphCenter.Z += RTLiftGlyph;
-			const FTransform GlyphXf(FRotator::ZeroRotator, GlyphCenter,
-				FVector(GlyphScale, GlyphScale, 1.f));
+			// ➕ La posa viene da `GlyphTransformForCell`, la sede condivisa con il riallineamento per-cella
+			// (`#2761`): due copie della stessa formula divergerebbero al primo che ne cambia una.
+			const FTransform GlyphXf = GlyphTransformForCell(CellIds[I], Heights[I], UseHexSize, UseLayerH);
 			const int32 GlyphIndex = SurfaceGlyphs[Rings - 1]->AddInstance(GlyphXf, /*bWorldSpace=*/ true);
 			// Indicizzazione PROPRIA del componente: senza queste due righe il velo della corona colpirebbe
 			// la cella sbagliata, e il conteggio delle velate tornerebbe comunque giusto.
@@ -2336,7 +2331,7 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 	const TArray<FRTCellId>& CellsOfInstance, const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
 	TArray<float>* DisplayFactor,
 	const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
-	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor, bool bVerifyIdentity)
+	TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor)
 {
 	if (!Component || CellsOfInstance.Num() == 0)
 	{
@@ -2353,14 +2348,10 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 		return 0;
 	}
 
-	// ➕ **E il conteggio NON basta** (`#2761`). La riga qui sopra passa su due array della stessa lunghezza
-	// con le celle scambiate, che e' il difetto che il riallineamento per-cella puo' introdurre. Il guardiano
-	// che coglie una permutazione confronta le posizioni, costa `O(N)` e per questo si paga una volta per
-	// mappatura — vedi `VeilMappingRevision`.
-	if (bVerifyIdentity && !VerifyMappingIdentity(Component, CellsOfInstance))
-	{
-		return 0;
-	}
+	// ➕ **E il conteggio NON basta** (`#2761`): passa su due array della stessa lunghezza con le celle
+	// scambiate. Il guardiano che coglie una permutazione — `VerifyMappingIdentity` — non sta qui ma in
+	// `ApplyKnowledgeVeil`, prima di tutte le famiglie: costa `O(N)` per famiglia, e va pagato una volta per
+	// mappatura nuova invece che una volta per famiglia per velo.
 
 	// Lo stato precedente, per saltare cio' che non cambia. La prima volta e' tutto `Unwritten`, quindi il
 	// primo velo tocca ogni istanza; dal secondo in poi tocca solo il bordo del cono.
@@ -2466,9 +2457,15 @@ int32 ARTHexMapActor::VeilInstances(UInstancedStaticMeshComponent* Component,
 }
 
 bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* Component,
-	const TArray<FRTCellId>& CellsOfInstance) const
+	const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight) const
 {
 	if (!Component || CellsOfInstance.Num() == 0)
+	{
+		return true;
+	}
+	// Se i conteggi gia' non tornano, il disallineamento e' quello che l'`ensureMsgf` di `VeilInstances`
+	// riporta con parole sue: qui non si aggiunge un secondo allarme sullo stesso fatto.
+	if (Component->GetInstanceCount() != CellsOfInstance.Num())
 	{
 		return true;
 	}
@@ -2479,6 +2476,21 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 	// permutazione la supera sempre — e molto sopra il rumore di un `float` in spazio mondo.
 	const double Tolleranza = FMath::Max(1.0, static_cast<double>(UseHexSize) * 0.25);
 
+	// La quota ATTESA di una cella: il piano la porta gia', e ci si somma l'altezza dell'asset. Il
+	// sollevamento di FAMIGLIA non compare perche' e' costante, e sparisce nella sottrazione qui sotto.
+	auto QuotaAttesa = [this](const FRTCellId& Cell, const FVector& Piano) -> double
+	{
+		double Z = Piano.Z;
+		if (MapAsset)
+		{
+			if (const FRTHexCellData* Data = MapAsset->FindCell(Cell))
+			{
+				Z += static_cast<double>(Data->Height);
+			}
+		}
+		return Z;
+	};
+
 	// L'origine del confronto: lo scarto della PRIMA istanza. Vedi l'header — le istanze vivono in spazio
 	// mondo e non seguono l'actor, quindi cio' che si confronta e' la forma della mappatura, non la sua
 	// posizione assoluta.
@@ -2487,9 +2499,10 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 	{
 		return true;
 	}
-	const FVector AttesoPrimo = URTHexLibrary::AxialToWorld(CellsOfInstance[0], GetActorLocation(),
+	const FVector PianoPrimo = URTHexLibrary::AxialToWorld(CellsOfInstance[0], GetActorLocation(),
 		UseHexSize, UseLayerH);
-	const FVector2D Scarto(Primo.GetLocation().X - AttesoPrimo.X, Primo.GetLocation().Y - AttesoPrimo.Y);
+	const FVector2D Scarto(Primo.GetLocation().X - PianoPrimo.X, Primo.GetLocation().Y - PianoPrimo.Y);
+	const double ScartoZ = Primo.GetLocation().Z - QuotaAttesa(CellsOfInstance[0], PianoPrimo);
 
 	for (int32 I = 1; I < CellsOfInstance.Num(); ++I)
 	{
@@ -2498,12 +2511,10 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 		{
 			continue;
 		}
-		const FVector Atteso = URTHexLibrary::AxialToWorld(CellsOfInstance[I], GetActorLocation(),
+		const FVector Piano = URTHexLibrary::AxialToWorld(CellsOfInstance[I], GetActorLocation(),
 			UseHexSize, UseLayerH);
-		// Solo XY: la quota porta i sollevamenti di famiglia — il glifo sta sopra il disco, il rilievo sopra
-		// la faccia — e confrontarla chiederebbe a questa funzione di conoscere le sei formule.
 		const FVector2D Trovato(Xf.GetLocation().X, Xf.GetLocation().Y);
-		const FVector2D Previsto(Atteso.X + Scarto.X, Atteso.Y + Scarto.Y);
+		const FVector2D Previsto(Piano.X + Scarto.X, Piano.Y + Scarto.Y);
 		if (!ensureMsgf(FVector2D::Distance(Trovato, Previsto) <= Tolleranza,
 			TEXT("ApplyKnowledgeVeil: %s ha l'istanza %d su %s, che sta a %.1f uu da dove la mappatura la ")
 			TEXT("vuole — gli INDICI sono rimescolati, e i conteggi tornano lo stesso"),
@@ -2512,8 +2523,55 @@ bool ARTHexMapActor::VerifyMappingIdentity(const UInstancedStaticMeshComponent* 
 		{
 			return false;
 		}
+
+		// 🔴 **La quota, dove e' confrontabile — ed e' l'unico modo di vedere una permutazione fra celle
+		// IMPILATE.** `FRTCellId` e' `(X, Y, Layer)` e `AxialToWorld` mette il layer tutto nella `Z`: due
+		// celle sopra la stessa colonna hanno esattamente lo stesso piano, e scambiarle sarebbe invisibile a
+		// un confronto planare. La mappa e' multilivello per costruzione — `LayerView` vale `AllLayers` di
+		// default — quindi non e' un caso di scuola.
+		if (!bCompareHeight)
+		{
+			continue;
+		}
+		const double PrevistaZ = QuotaAttesa(CellsOfInstance[I], Piano) + ScartoZ;
+		if (!ensureMsgf(FMath::Abs(Xf.GetLocation().Z - PrevistaZ) <= Tolleranza,
+			TEXT("ApplyKnowledgeVeil: %s ha l'istanza %d su %s alla quota %.1f invece di %.1f — due celle ")
+			TEXT("IMPILATE sono state scambiate, e sul piano non si vedrebbe"),
+			*Component->GetName(), I, *CellsOfInstance[I].ToString(), Xf.GetLocation().Z, PrevistaZ))
+		{
+			return false;
+		}
 	}
 	return true;
+}
+
+bool ARTHexMapActor::VerifyAllMappings() const
+{
+	// Le famiglie con un sollevamento COSTANTE per istanza — disco, corone, griglia — ammettono anche il
+	// confronto sulla quota, che e' l'unico modo di distinguere due celle impilate.
+	bool bOk = VerifyMappingIdentity(Cells, InstanceCells, /*bCompareHeight=*/ true);
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		bOk = VerifyMappingIdentity(SurfaceGlyphs[Ring], GlyphCells[Ring], /*bCompareHeight=*/ true) && bOk;
+	}
+	bOk = VerifyMappingIdentity(CellBorders, BorderCells, /*bCompareHeight=*/ true) && bOk;
+
+	// ⚠️ **Queste tre portano un sollevamento che dipende dalla CELLA e non solo dalla famiglia** — il
+	// rilievo cresce col sovrapprezzo di movimento, i volumi hanno due altezze diverse, il corpo strutturale
+	// segue il proprio riempimento — quindi la quota non e' confrontabile senza ricopiarne le formule qui.
+	// Restano sul solo piano, che coglie ogni permutazione tranne quella fra celle impilate.
+	bOk = VerifyMappingIdentity(Relief, ReliefCells, /*bCompareHeight=*/ false) && bOk;
+	bOk = VerifyMappingIdentity(Blockers, BlockerCells, /*bCompareHeight=*/ false) && bOk;
+	bOk = VerifyMappingIdentity(StructuralBodies, BodyCells, /*bCompareHeight=*/ false) && bOk;
+
+	// ⛔ `EdgeFeatures` non compare, ed e' dichiarato: i pannelli di bordo stanno sul punto medio di un LATO
+	// (`EdgeMidpointWorld`), non sul centro della cella mappata, quindi nemmeno il piano e' confrontabile
+	// senza sapere quale dei sei bordi ha prodotto l'istanza. Resta col solo conteggio.
+	//
+	// ⚠️ **`&& bOk` a destra e non a sinistra, in tutte le righe**: con l'ordine opposto il corto circuito
+	// salterebbe le famiglie successive alla prima rotta, e il log direbbe un guasto solo dove ce ne sono
+	// due — cioe' manderebbe a cercare la causa nel posto sbagliato.
+	return bOk;
 }
 
 bool ARTHexMapActor::UsesRemoveAtSwap(const UInstancedStaticMeshComponent* Component)
@@ -2522,22 +2580,21 @@ bool ARTHexMapActor::UsesRemoveAtSwap(const UInstancedStaticMeshComponent* Compo
 	{
 		return false;
 	}
-	// Il flag del componente e' il canale che il motore dichiara nel proprio header: *«l'implementazione e'
-	// libera di ignorare `bSupportRemoveAtSwap`, ma deve onorare cio' che `SupportsRemoveSwap()` risponde»*.
-	if (Component->SupportsRemoveSwap())
-	{
-		return true;
-	}
-	// 🔴 **E la CVar, che il flag non copre.** `RemoveInstanceInternal` la legge in `OR` con il flag, quindi
-	// accenderla cambia la semantica degli indici di TUTTI gli ISM del processo — inclusi quelli che
-	// rispondono `false` qui sopra. Si rilegge a ogni rimozione e non si memorizza: e' modificabile dalla
-	// console in qualunque momento, e una copia presa una volta sola sarebbe stantia esattamente quando conta.
-	if (IConsoleVariable* Force =
-			IConsoleManager::Get().FindConsoleVariable(TEXT("r.InstancedStaticMeshes.ForceRemoveAtSwap")))
-	{
-		return Force->GetInt() != 0;
-	}
-	return false;
+	// 🔑 **Si CHIEDE al componente, e la domanda e' una sola.** `SupportsRemoveSwap()` e' il canale che il
+	// motore dichiara nel proprio header — *«l'implementazione e' libera di ignorare `bSupportRemoveAtSwap`,
+	// ma deve onorare cio' che `SupportsRemoveSwap()` risponde»* — e in `5.8` copre **anche** la CVar:
+	//
+	//     bool UInstancedStaticMeshComponent::SupportsRemoveSwap() const
+	//     { return bSupportRemoveAtSwap || CVarISMForceRemoveAtSwap.GetValueOnGameThread() != 0; }
+	//
+	// ⌫ **Una prima stesura leggeva la CVar da sé**, con accanto un commento che diceva *«e la CVar, che il
+	// flag non copre»*. Era **falso**: il flag la copre, quel ramo era irraggiungibile, e la ricerca per nome
+	// nel registro globale delle CVar girava a ogni rimozione di glifo per un valore che non poteva
+	// differire. Rimosso il 2026-09-10.
+	//
+	// ⚠️ **Resta vero cio' che rendeva la CVar interessante**: la semantica degli indici e' modificabile
+	// dalla console in qualunque momento, quindi si rilegge a ogni rimozione invece di memorizzarla.
+	return Component->SupportsRemoveSwap();
 }
 
 bool ARTHexMapActor::RemoveInstanceMirrored(UInstancedStaticMeshComponent* Component, int32 Index,
@@ -2549,13 +2606,25 @@ bool ARTHexMapActor::RemoveInstanceMirrored(UInstancedStaticMeshComponent* Compo
 		return false;
 	}
 
-	// ⚠️ **Si CHIEDE prima di rimuovere.** Dopo, il componente ha gia' applicato la sua semantica e la
-	// domanda non avrebbe piu' un momento in cui essere fatta senza aver gia' scelto una risposta.
-	const bool bSwap = UsesRemoveAtSwap(Component);
-	if (!Component->RemoveInstance(Index))
+	// 🔴 **La validita' si controlla contro il COMPONENTE, e `RemoveInstance` non la riporta.**
+	// `RemoveInstanceInternal` decide con `bValidInstance` se rimuovere, poi cade su un `return true`
+	// **incondizionato**: su un indice fuori dalle sue istanze non rimuove niente e risponde comunque `true`.
+	//
+	// ⌫ Una prima stesura si fidava di quel valore di ritorno. L'esito sarebbe stato il peggiore possibile:
+	// con `CellsOfInstance` piu' lungo del componente — cioe' proprio il disallineamento contro cui tutto
+	// questo codice esiste — la chiamata al motore sarebbe stata un nulla di fatto e lo specchio avrebbe
+	// accorciato **solo** gli array paralleli. I conteggi sarebbero tornati a combaciare, l'`ensureMsgf` di
+	// `VeilInstances` sarebbe passato, e la mappatura sarebbe rimasta traslata per sempre: questa funzione
+	// avrebbe FABBRICATO la corruzione che ha il compito di impedire.
+	if (!Component->IsValidInstance(Index))
 	{
 		return false;
 	}
+
+	// ⚠️ **Si CHIEDE prima di rimuovere.** Dopo, il componente ha gia' applicato la sua semantica e la
+	// domanda non avrebbe piu' un momento in cui essere fatta senza aver gia' scelto una risposta.
+	const bool bSwap = UsesRemoveAtSwap(Component);
+	Component->RemoveInstance(Index);
 
 	// Gli array paralleli seguono la STESSA rimozione, non una equivalente: `RemoveAt` fa scalare gli indici
 	// successivi, `RemoveAtSwap` porta l'ultimo nel posto liberato, e i due lasciano ordini diversi.
@@ -2597,26 +2666,72 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 		return false;
 	}
 
+	// 🔴 **Un elenco VUOTO non e' «niente da fare», e' «non so cosa fare».** Il chiamante arriva qui perche'
+	// la revisione dell'asset si e' mossa: se il registro non nomina nessuna cella, la modifica e' di quelle
+	// che non passano per le celle — una transizione aggiunta o tolta, per esempio, che muove `Revision` e
+	// non tocca il registro. Rispondere `true` farebbe saltare la ricostruzione che avveniva prima di questa
+	// issue, in silenzio e senza che nessun conteggio se ne accorgesse.
+	if (Ids.Num() == 0)
+	{
+		return false;
+	}
+
 	// ⚠️ **Si VALIDA tutto prima di toccare qualunque cosa**, e non e' pignoleria: uscendo a meta' si
 	// lascerebbe la board in uno stato ibrido e il contatore direbbe un lavoro che il chiamante sta per
 	// buttare via ricostruendo. Con due passaggi, `false` significa «non ho toccato niente».
+	//
+	// ⚠️ **La mappa cella→indice si costruisce una volta**, non una scansione lineare per cella: con il
+	// registro pieno e una board grande sarebbero `celle-modificate × celle-della-board` confronti, cioe' il
+	// costo che segue la mappa rientrato dalla finestra. `InstanceCells` e' un array e resta tale — questa
+	// e' una vista locale alla chiamata, quindi non un'altra sede da tenere allineata.
+	TMap<FRTCellId, int32> IndicePerCella;
+	IndicePerCella.Reserve(InstanceCells.Num());
+	for (int32 I = 0; I < InstanceCells.Num(); ++I)
+	{
+		IndicePerCella.Add(InstanceCells[I], I);
+	}
+
+	const float UseHexSize = MapAsset->HexSize;
+	const float UseLayerH = MapAsset->LayerHeight;
+
 	TArray<int32> DiscIndices;
 	DiscIndices.Reserve(Ids.Num());
 	for (const FRTCellId& Id : Ids)
 	{
-		const int32 DiscIndex = InstanceCells.IndexOfByKey(Id);
-		if (DiscIndex == INDEX_NONE || !MapAsset->ContainsCell(Id))
+		const int32* Trovato = IndicePerCella.Find(Id);
+		const FRTHexCellData* Data = MapAsset->FindCell(Id);
+		if (!Trovato || !Data)
 		{
 			// Cella NUOVA (non ha ancora un'istanza) o SPARITA (l'istanza va tolta): nessuno dei due e' un
 			// riallineamento. Il secondo caso in particolare rimuoverebbe dal disco, e il disco e' la
 			// famiglia su cui si appoggia la mappatura di tutte le altre.
 			return false;
 		}
-		DiscIndices.Add(DiscIndex);
+
+		// 🔴 **E la GEOMETRIA deve essere rimasta quella, non solo la cella.** `AddOrUpdateCell` alza
+		// `Revision` per QUALUNQUE campo, altezza compresa: questo percorso riscrive il colore e la presenza
+		// del glifo, non le pose. Una cella che si alzasse resterebbe disegnata alla quota vecchia, e —
+		// peggio — un glifo montato da `AddGlyphInstanceForCell` rileggerebbe l'altezza NUOVA, lasciando i
+		// due canali della stessa cella a due quote diverse. Qui si confronta la posa attesa con quella che
+		// c'e': se non coincidono, non e' un riallineamento e si ricostruisce.
+		FTransform Attuale;
+		if (!Cells->GetInstanceTransform(*Trovato, Attuale, /*bWorldSpace=*/ true))
+		{
+			return false;
+		}
+		FVector Atteso = URTHexLibrary::AxialToWorld(Id, GetActorLocation(), UseHexSize, UseLayerH);
+		Atteso.Z += static_cast<double>(Data->Height);
+		if (!Attuale.GetLocation().Equals(Atteso, 1.0))
+		{
+			return false;
+		}
+
+		DiscIndices.Add(*Trovato);
 	}
 
 	bool bDiscDirty = false;
 	bool bMappaturaMossa = false;
+	bool bAnelloToccato[RTGlyphMaxRings] = { false, false, false, false };
 	for (int32 K = 0; K < Ids.Num(); ++K)
 	{
 		const FRTCellId& Id = Ids[K];
@@ -2625,23 +2740,24 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 
 		// ── Il DISCO: il colore ────────────────────────────────────────────────────────────────────────
 		//
-		// Si scrive il colore PIENO, che e' quello giusto quando il velo non e' mai passato — alla prima
-		// inquadratura `LastVeilState` e' vuoto e nessuno riscriverebbe questa istanza.
+		// 🔴 **Si scrive il colore GIA' ATTENUATO, e non si tocca `LastVeilState`.** Una prima stesura
+		// scriveva il colore pieno e marcava l'istanza `Unwritten` perche' il velo la riscrivesse. Funzionava,
+		// e costava una cosa che non si vede in un conteggio: `Unwritten` non e' ne' `Lit` ne' `Remembered`,
+		// quindi `VeilInstances` non attenua e **fa uno SNAP** — una dissolvenza di `#2875` gia' in volo
+		// veniva buttata via, e la cella scattava al suo valore finale proprio nel momento in cui il terreno
+		// cambia sotto lo sguardo, che e' quello per cui la transizione esiste.
+		//
+		// Moltiplicando qui per il fattore corrente, il velo puo' saltare l'istanza — il suo stato non e'
+		// cambiato — e cio' che si vede resta coerente: colore nuovo, attenuazione di prima, dissolvenza viva.
+		const float Fattore = VeilDisplayFactor.IsValidIndex(DiscIndex) && VeilDisplayFactor[DiscIndex] >= 0.f
+			? VeilDisplayFactor[DiscIndex]
+			: 1.f;
 		const FLinearColor CellColor = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(Surface));
-		Cells->SetCustomDataValue(DiscIndex, 0, CellColor.R);
-		Cells->SetCustomDataValue(DiscIndex, 1, CellColor.G);
-		Cells->SetCustomDataValue(DiscIndex, 2, CellColor.B, /*bMarkRenderStateDirty=*/ false);
+		Cells->SetCustomDataValue(DiscIndex, 0, CellColor.R * Fattore);
+		Cells->SetCustomDataValue(DiscIndex, 1, CellColor.G * Fattore);
+		Cells->SetCustomDataValue(DiscIndex, 2, CellColor.B * Fattore, /*bMarkRenderStateDirty=*/ false);
 		bDiscDirty = true;
 		++LastRepaintTouched;
-
-		// 🔴 **E si marca `Unwritten`, che e' la meta' che conta quando il velo c'e'.** `VeilInstances` salta
-		// le istanze il cui stato non e' cambiato, quindi senza questa riga il colore appena scritto
-		// resterebbe quello PIENO anche su un ricordo — una cella non osservata piu' luminosa di una
-		// osservata, che e' il rovesciamento che il velo esiste per non produrre.
-		if (LastVeilState.IsValidIndex(DiscIndex))
-		{
-			LastVeilState[DiscIndex] = RTVeilUnwritten;
-		}
 
 		// ── La CORONA di glifi: la presenza ────────────────────────────────────────────────────────────
 		//
@@ -2679,12 +2795,14 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 			{
 				++LastRepaintTouched;
 				bMappaturaMossa = true;
+				bAnelloToccato[CurrentRing] = true;
 			}
 		}
 		if (DesiredRing != INDEX_NONE && AddGlyphInstanceForCell(DesiredRing, Id))
 		{
 			++LastRepaintTouched;
 			bMappaturaMossa = true;
+			bAnelloToccato[DesiredRing] = true;
 		}
 	}
 
@@ -2696,13 +2814,37 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 		++VeilMappingRevision;
 	}
 
-	// Una volta sola, in coda: la stessa disciplina di `VeilInstances`, e per la stessa ragione — marcarlo a
-	// ogni canale ricostruirebbe il buffer 3N volte.
+	// Una volta sola per componente, in coda: la stessa disciplina di `VeilInstances` e di `RebuildInstances`,
+	// e per la stessa ragione — `MarkRenderStateDirty` distrugge e ricrea il proxy di scena, e farlo per
+	// istanza lo ricostruirebbe N volte.
+	//
+	// ⚠️ **Gli anelli si marcano QUI e non dentro `AddGlyphInstanceForCell`**: montare K glifi sullo stesso
+	// anello ricreava il proxy K volte, che e' esattamente cio' che le altre due funzioni evitano.
 	if (bDiscDirty)
 	{
 		Cells->MarkRenderStateDirty();
 	}
+	for (int32 Ring = 0; Ring < RTGlyphMaxRings; ++Ring)
+	{
+		if (bAnelloToccato[Ring] && SurfaceGlyphs[Ring])
+		{
+			SurfaceGlyphs[Ring]->MarkRenderStateDirty();
+		}
+	}
 	return true;
+}
+
+FTransform ARTHexMapActor::GlyphTransformForCell(const FRTCellId& Id, int32 Height,
+	float InHexSize, float InLayerHeight) const
+{
+	// 🔑 **La formula del glifo, in UNA sede.** La scala NON include il fattore `0.95` di `PlanarScale`:
+	// la mesh se lo porta gia' dentro (`RTGlyphOuterScale`), e applicarlo due volte stringerebbe il segno del
+	// 10% senza che nessun test lo veda — resterebbe proporzionato, solo piu' piccolo del previsto.
+	FVector World = URTHexLibrary::AxialToWorld(Id, GetActorLocation(), InHexSize, InLayerHeight);
+	World.Z += static_cast<double>(Height);
+	World.Z += RTLiftGlyph;
+	const float GlyphScale = InHexSize / 50.f;
+	return FTransform(FRotator::ZeroRotator, World, FVector(GlyphScale, GlyphScale, 1.f));
 }
 
 bool ARTHexMapActor::AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& Id)
@@ -2717,16 +2859,10 @@ bool ARTHexMapActor::AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& I
 		return false;
 	}
 
-	// La stessa formula di `RebuildInstances`, e non una sua parafrasi: quota della cella, sollevamento del
-	// glifo, e la scala SENZA il fattore 0.95 — quello la mesh del glifo se lo porta gia' dentro, e
-	// applicarlo due volte stringerebbe il segno del 10% senza che nessun test lo veda.
-	const float UseHexSize = MapAsset->HexSize;
-	const float UseLayerH = MapAsset->LayerHeight;
-	FVector World = URTHexLibrary::AxialToWorld(Id, GetActorLocation(), UseHexSize, UseLayerH);
-	World.Z += static_cast<double>(Data->Height);
-	World.Z += RTLiftGlyph;
-	const float GlyphScale = UseHexSize / 50.f;
-	const FTransform GlyphXf(FRotator::ZeroRotator, World, FVector(GlyphScale, GlyphScale, 1.f));
+	// ➕ **La posa viene dalla sede condivisa**, la stessa che `RebuildInstances` usa: due siti che posano la
+	// stessa istanza con due copie della formula divergono al primo che ne cambia una, e il confronto di
+	// `IncrementalRepaintEqualsFullRebuild` se ne accorgerebbe solo sui canali che guarda.
+	const FTransform GlyphXf = GlyphTransformForCell(Id, Data->Height, MapAsset->HexSize, MapAsset->LayerHeight);
 
 	const int32 GlyphIndex = SurfaceGlyphs[RingIndex]->AddInstance(GlyphXf, /*bWorldSpace=*/ true);
 	GlyphCells[RingIndex].Add(Id);
@@ -2750,8 +2886,9 @@ bool ARTHexMapActor::AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& I
 	const FLinearColor GlyphColor = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
 	SurfaceGlyphs[RingIndex]->SetCustomDataValue(GlyphIndex, 0, GlyphColor.R);
 	SurfaceGlyphs[RingIndex]->SetCustomDataValue(GlyphIndex, 1, GlyphColor.G);
+	// ⚠️ `false`: chi chiama marca il componente una volta sola in coda. Vedi `RepaintCells`.
 	SurfaceGlyphs[RingIndex]->SetCustomDataValue(GlyphIndex, 2, GlyphColor.B,
-		/*bMarkRenderStateDirty=*/ true);
+		/*bMarkRenderStateDirty=*/ false);
 	return true;
 }
 
@@ -2820,10 +2957,27 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	const TSet<FRTCellId> Visible(Knowledge.VisibleCells);
 	const TSet<FRTCellId> Explored(Knowledge.ExploredCells);
 
-	// ➕ **Il guardiano caro si paga qui, e una volta per mappatura** (`#2761`). Va letto DOPO il blocco di
-	// riallineamento qui sopra, che e' l'unico punto capace di muovere la mappatura durante un velo.
-	const bool bVerificaMappatura = (VeilMappingRevision != LastVerifiedMappingRevision);
-	LastVerifiedMappingRevision = VeilMappingRevision;
+	// ➕ **Il guardiano caro si paga qui, e una volta per mappatura VERIFICATA** (`#2761`). Sta DOPO il blocco
+	// di riallineamento qui sopra, che e' l'unico punto capace di muovere la mappatura durante un velo.
+	//
+	// 🔴 **La revisione si segna solo se il guardiano PASSA, e la prima stesura la segnava sempre.** Segnarla
+	// prima trasformava un allarme permanente in un allarme che suona una volta sola: al giro successivo
+	// `VeilMappingRevision == LastVerifiedMappingRevision`, il controllo veniva saltato, e la mappatura
+	// rimescolata sarebbe stata velata per sempre — cioe' esattamente le «celle velate SBAGLIATE» che questo
+	// guardiano esiste per rendere impossibili, con la spia spenta di suo pugno.
+	//
+	// ⚠️ **E se fallisce si ESCE, invece di velare le famiglie superstiti.** Le mappature derivano tutte dallo
+	// stesso giro di costruzione: se una e' rimescolata, le altre non sono «probabilmente a posto», sono non
+	// verificate. Il costo di ripetere il controllo a ogni velo finche' dura il guasto e' voluto — e' uno
+	// stato rotto, e la board ferma e' il sintomo che lo rende visibile.
+	if (VeilMappingRevision != LastVerifiedMappingRevision)
+	{
+		if (!VerifyAllMappings())
+		{
+			return;
+		}
+		LastVerifiedMappingRevision = VeilMappingRevision;
+	}
 
 	// Il disco: l'unica famiglia con un colore PROPRIO per cella, riletto dall'asset a ogni velo invece che
 	// memorizzato — un colore cachato sarebbe la seconda verita' sulla superficie.
@@ -2833,7 +2987,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 		{
 			Out = FLinearColor::FromSRGBColor(URTHexLibrary::SurfaceColor(SurfaceForCell(Cell)));
 			return true;
-		}, bVerificaMappatura);
+		});
 
 	// La corona segue il disco, e con lo STESSO fattore. Una prima stesura della spec la lasciava a piena
 	// luminosita': una cella NON osservata sarebbe risultata piu' appariscente di una osservata. Lo stesso
@@ -2845,8 +2999,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	{
 		VeilInstances(SurfaceGlyphs[Ring], GlyphCells[Ring], GlyphBaseScale[Ring], LastGlyphVeilState[Ring],
 			&GlyphDisplayFactor[Ring], Visible, Explored,
-			[&GlyphBase](const FRTCellId&, FLinearColor& Out) { Out = GlyphBase; return true; },
-			bVerificaMappatura);
+			[&GlyphBase](const FRTCellId&, FLinearColor& Out) { Out = GlyphBase; return true; });
 	}
 
 	// 🔴 Le TRE famiglie che la prima stesura aveva lasciato fuori, ed e' il difetto piu' grave che questa
@@ -2861,21 +3014,17 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	const FLinearColor BorderBase = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
 	VeilInstances(CellBorders, BorderCells, BorderBaseScale, LastBorderVeilState, &BorderDisplayFactor,
 		Visible, Explored,
-		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; },
-		bVerificaMappatura);
+		[&BorderBase](const FRTCellId&, FLinearColor& Out) { Out = BorderBase; return true; });
 
 	// ⛔ `nullptr` invece di un array di fattori: queste tre famiglie non hanno un canale colore per istanza,
 	// quindi non c'e' niente da attenuare — il velo le nasconde e basta, e la scala non si interpola.
 	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
 	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, nullptr, Visible, Explored,
-		SenzaColore, bVerificaMappatura);
+		SenzaColore);
 	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored,
-		SenzaColore, bVerificaMappatura);
-	// ⛔ **Questa e' la sola famiglia SENZA il guardiano di identita', ed e' dichiarato**: i pannelli di
-	// bordo stanno sul punto medio di un lato, non sul centro della cella mappata, quindi il confronto di
-	// posizione direbbe il falso. Vedi `VerifyMappingIdentity`.
+		SenzaColore);
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
-		nullptr, Visible, Explored, SenzaColore, /*bVerifyIdentity=*/ false);
+		nullptr, Visible, Explored, SenzaColore);
 
 	// 🔴 **La NONA famiglia, che fino a `#2731` non passava di qui** — e non per una riga dimenticata: il
 	// suo sito di `AddInstance` non registrava nessuna cella, quindi non c'era niente da velare. Su una
@@ -2883,7 +3032,7 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	//
 	// Come le altre tre senza canale colore: il velo NASCONDE e basta.
 	VeilInstances(StructuralBodies, BodyCells, BodyBaseScale, LastBodyVeilState,
-		nullptr, Visible, Explored, SenzaColore, bVerificaMappatura);
+		nullptr, Visible, Explored, SenzaColore);
 
 	// 🔑 **Se il velo ha aperto una transizione, il `Tick` si accende.** E' l'unico punto in cui puo'
 	// nascerne una: i target li decide questa funzione, e nessun altro li muove.
