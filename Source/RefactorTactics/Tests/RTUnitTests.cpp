@@ -17,23 +17,29 @@
  *
  * `AbilityCooldowns` e' un array PARALLELO ad `Abilities`, e veniva dimensionato solo in `ARTUnit::BeginPlay`
  * e in `ConfigureFromHeroData`. I world di test non chiamano `World->BeginPlay()`, quindi per un'unita'
- * configurata come archetipo l'array restava vuoto: `ConsumeAbility` trovava `IsValidIndex` falso e non
- * scriveva nulla, `GetAbilityCooldown` rispondeva 0 — sempre, in ogni test della suite, comunque fosse
+ * configurata fuori dal `BeginPlay` l'array restava vuoto: `ConsumeAbility` trovava `IsValidIndex` falso e
+ * non scriveva nulla, `GetAbilityCooldown` rispondeva 0 — sempre, in ogni test della suite, comunque fosse
  * scritto il codice sotto esame.
  *
  * Non e' solo un limite dell'infrastruttura: l'invariante «i cooldown sono paralleli al kit» vale ovunque il
  * kit venga popolato, non nei soli due percorsi che si ricordavano di risincronizzarlo.
+ *
+ * ⚠️ **Si chiamava `FRTUnitArchetypeCooldownTest` / `Unit.ArchetypeKitRecordsCooldown`, e non testava un
+ * archetipo.** `ERTArchetype` e `ARTUnit::ConfigureAsArchetype` sono stati rimossi — `git grep ERTArchetype
+ * -- Source/` non risponde nulla — e questo test configura un `URTHeroData` dal catalogo eroi fin dalla riga
+ * sotto. Il nome sopravviveva al modello che nominava, e un nome cosi' insegna un vocabolario morto a
+ * chiunque legga il rosso della suite.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitArchetypeCooldownTest,
-	"RefactorTactics.Unit.ArchetypeKitRecordsCooldown",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroKitCooldownTest,
+	"RefactorTactics.Unit.HeroKitRecordsCooldown",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTUnitArchetypeCooldownTest::RunTest(const FString&)
+bool FRTHeroKitCooldownTest::RunTest(const FString&)
 {
 	ARTUnit* Unit = NewObject<ARTUnit>();
 	if (!TestNotNull(TEXT("unita' di prova"), Unit)) { return false; }
 	Unit->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeBranth());
 
-	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'archetipo cambiano, il
+	// L'abilita' la sceglie il KIT, non un indice scritto a mano: se i numeri dell'eroe cambiano, il
 	// test resta valido invece di verificare la cosa sbagliata in silenzio.
 	int32 Index = INDEX_NONE;
 	int32 Declared = 0;

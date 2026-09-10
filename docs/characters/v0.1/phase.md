@@ -217,7 +217,14 @@ Fa tre cose con una sola azione leggibile: danno leggero, spostamento e setup. I
 
 #### Descrizione
 
-Circular Tide è l'AoE di supporto di Phase. A range 4 e raggio 1, cura 18 agli alleati e applica `Wet` ai nemici per 1 turno.
+Circular Tide è l'AoE di supporto di Phase. A range 4 e raggio 1, **cura 18 e basta**.
+
+> ⚠️ **Corretto il 2026-09-10.** Questa riga diceva «cura 18 agli alleati **e applica `Wet` ai nemici per 1
+> turno**». Il `Wet` ad area è uscito dalla dichiarazione con
+> [#1006](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1006), che allinea Phase al grado
+> `Access` di [#995](https://github.com/DegrassiAaron/refactor-tactics-main/issues/995) — **una sola**
+> capability elementale, e resta `PressureJet`. Costo dichiarato allora e ancora valido: la combo con Gadget
+> passa ora solo per la linea di `PressureJet`, che copre meno bersagli.
 
 | Campo | Valore |
 | --- | --- |
@@ -232,7 +239,7 @@ Circular Tide è l'AoE di supporto di Phase. A range 4 e raggio 1, cura 18 agli 
 | Control Strength | 0 |
 | Durata (turni) | 1 |
 | Loss/Contact Policy | Fallback.AttackCell |
-| Interazione terreno | Cura 18 agli alleati e applica Wet ai nemici |
+| Interazione terreno | Cura 18 ad area |
 | Gameplay Tags | `Ability.Support.AOE.Water` |
 | Implementation Status | PARTIAL |
 | Data Status | CANONICAL |
@@ -247,7 +254,14 @@ La specifica è `PARTIAL` perché il resolver corrente non differenzia ancora pi
 
 #### Descrizione
 
-Fluid Trail è un Dash lineare di 3 celle che dovrebbe lasciare acqua lungo il percorso. Il movimento è la parte già rappresentata; la creazione dinamica dell'acqua lungo il path resta parziale.
+Fluid Trail è un Dash lineare di 3 celle. **Non lascia acqua**: è mobilità pura.
+
+> ⚠️ **Corretto il 2026-09-10.** Questa riga diceva «*dovrebbe* lasciare acqua lungo il percorso … la
+> creazione dinamica dell'acqua resta parziale», e descriveva un lavoro in attesa che non è mai arrivato
+> perché la decisione è andata nell'altro verso: [#1006](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1006)
+> ha riportato l'abilità a uno scatto puro e ha spostato l'owner della superficie
+> sull'**equipaggiamento** (`Gadget.Sprinkler` porta già `Action.CreateWater`). Il terreno dinamico, nel
+> frattempo, **esiste** — E8 è chiusa — quindi il limite non era più nemmeno tecnico.
 
 | Campo | Valore |
 | --- | --- |
@@ -262,16 +276,16 @@ Fluid Trail è un Dash lineare di 3 celle che dovrebbe lasciare acqua lungo il p
 | Control Strength | 0 |
 | Durata (turni) | 0 |
 | Loss/Contact Policy | Fallback.Stop |
-| Interazione terreno | Dash 3 e crea acqua lungo il percorso |
+| Interazione terreno | Dash 3 |
 | Gameplay Tags | `Ability.Mobility.Dash.Water` |
 | Implementation Status | PARTIAL |
 | Data Status | CANONICAL |
 
-> Movimento lineare dichiarato; creazione acqua lungo path dipende dal terreno dinamico.
+> Movimento lineare dichiarato. Nessuna creazione di superficie: non è un limite in attesa, è la forma corrente dell'abilità (#1006).
 
 #### Uso tattico e limiti
 
-È insieme mobilità e setup: Phase cambia posizione mentre prepara celle utili a Wet, conduzione e controllo ambientale. Il fallback è `Stop` se il Dash non può essere completato.
+È **riposizionamento**: Phase cambia posizione senza spendere l'azione principale (slot `Movement`). Il setup elementale, dopo #1006, passa da `PressureJet` o dall'equipaggiamento, non da qui. Il fallback è `Stop` se il Dash non può essere completato.
 
 ### Mist Veil
 

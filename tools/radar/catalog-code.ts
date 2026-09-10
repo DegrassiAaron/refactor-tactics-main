@@ -8,7 +8,8 @@
  *  personaggio e uno nel piano delle issue. Nessun gate divento' rosso — quelli di allora verificavano
  *  i **link** e i **simboli citati**, nessuno i **valori** — e il difetto emerse per caso.
  *
- *  **Tre fonti, non due.** Le schede §1–§4, la tabella §5 che ne **ripete** i valori, e i literal C++.
+ *  **Cinque fonti, non due.** Le schede §1–§4, la tabella §5 che ne **ripete** i valori, la
+ *  tabella §5.1 che porta la soglia d'udito, i literal C++ e le **docstring dell'header**.
  *  Nella PR #572 le due meta' del catalogo erano sbagliate entrambe, ma niente lo garantisce la
  *  prossima volta: un confronto a due lati direbbe che il catalogo e' allineato al codice mentre la
  *  sua tabella riassuntiva dice altro.
@@ -23,9 +24,16 @@
  *  🔴 **Il rischio e' il falso verde, non il falso positivo.** Oggi i valori sono literal e si parsano.
  *  Il giorno in cui uno diventa `= kBaseHealth`, o un campo viene rinominato, il parser non trova
  *  nulla e il gate resta verde **proprio quando servirebbe**. Percio' dichiara la **copertura** — 4
- *  eroi × 6 campi = 24, piu' 20 per la tabella §5 che non porta la `Debolezza` — e fallisce se e'
+ *  eroi × 6 campi = 24, piu' 20 per la tabella §5 che non porta la `Debolezza`, 4 per §5.1 e 16 per le
+ *  quattro docstring — e fallisce se e'
  *  sotto l'atteso. Il conteggio si stampa anche in verde: un gate che non dice quanto ha guardato non
  *  e' distinguibile da uno che non guarda.
+ *
+ *  🔴 **Il quinto lato e' entrato il 2026-09-10, e la ragione e' che i primi quattro erano verdi
+ *  mentre l'header mentiva.** Su `4fdb01a0` schede, tabella §5, §5.1 e literal concordavano su tutto,
+ *  e a due righe dai literal le docstring di `MakeGadget`, `MakeBranth` e `MakeWraith` dichiaravano
+ *  `vista 6` (codice: 7), `resistenza push 1` (codice: 0) e `100 HP` (codice: 90). Il posto piu'
+ *  pericoloso in cui un numero puo' invecchiare e' **dentro il file che lo contraddice**. [#2824]
  *
  *  ⚠️ **Fuori scope, dichiarato**: le **abilita'** (il catalogo le descrive in prosa, e un gate che le
  *  parsasse sarebbe rumoroso), gli **altri tre cataloghi** (azioni, equipaggiamento, terreni), e
@@ -35,8 +43,10 @@ import { pathToFileURL } from 'node:url';
 
 const CATALOG_REL = 'docs/balance/RT_HeroCatalog_v0.1.md';
 const CPP_REL = 'Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp';
+const HEADER_REL = 'Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h';
 const HERO_CATALOG = new URL('../../' + CATALOG_REL, import.meta.url);
 const CPP_SOURCE = new URL('../../' + CPP_REL, import.meta.url);
+const CPP_HEADER = new URL('../../' + HEADER_REL, import.meta.url);
 
 /** Le sei statistiche base di un eroe, come le dichiara una delle tre fonti. */
 export interface HeroStats {
@@ -127,6 +137,57 @@ function cellAffinity(cell: string, field: string, hero: string): string {
     );
   }
   return mapped;
+}
+
+/** I quattro campi numerici che la **docstring** di ciascuna `Make<Eroe>()` ripete a parole.
+ *
+ *  ⚠️ **Sono un lato a se', e il difetto che li rende tale e' misurato.** Il 2026-09-10, su `4fdb01a0`,
+ *  questo gate era **verde** — schede, tabella §5, §5.1 e literal C++ concordavano su tutto — mentre a
+ *  due righe dai literal la docstring di `MakeGadget` dichiarava «vista 6» (il codice: `7`), quella di
+ *  `MakeBranth` «resistenza push 1» (il codice: `0`) e quella di `MakeWraith` «100 HP» (il codice: `90`).
+ *  Tre valori falsi in un punto che nessuno ha ragione di sospettare, perche' e' **dentro** il file
+ *  che lo contraddice. Chiuso da [#2824].
+ *
+ *  Solo i quattro campi **numerici**: l'header scrive affinita' e debolezza come parole senza accento
+ *  (`elettricita'`), e mapparle qui vorrebbe dire un secondo vocabolario che diverge dal primo. Quei due
+ *  campi sono gia' confrontati su quattro lati.
+ *
+ *  🔴 Vale anche qui il rischio del **falso verde**: e' prosa, e una riformulazione puo' far smettere di
+ *  matchare i pattern. E' per questo che la copertura di questo lato e' dichiarata e fa fallire il gate
+ *  quando scende — la stessa protezione che gli altri quattro hanno gia'. */
+const HEADER_PATTERNS: [keyof HeroStats, RegExp][] = [
+  ['health', /\*{0,2}(\d+)\*{0,2} HP/],
+  ['movePoints', /\*{0,2}(\d+)\*{0,2} MP/],
+  ['visionRange', /vista \*{0,2}(\d+)/],
+  ['pushResistance', /resistenza\s+push \*{0,2}(\d+)/],
+];
+
+/** Le docstring `Costruisce **<Eroe>**, … : N HP, N MP, vista N, resistenza push N, …`.
+ *
+ *  Si legge **solo** la prima frase di ciascuna docstring — quella fino al primo `.` che chiude la riga
+ *  d'apertura non basta, perche' la frase va a capo; si prende il blocco fino alla `Make` successiva e si
+ *  fa vincere la **prima** occorrenza di ogni pattern. E' cio' che rende innocue le cifre delle note
+ *  storiche che seguono (`era 6`, `era 100`, `D-069`, `#131`): arrivano dopo il valore corrente. */
+export function parseHeaderDocstrings(text: string): Map<string, Partial<HeroStats>> {
+  const out = new Map<string, Partial<HeroStats>>();
+  // Le righe di un blocco Doxygen cominciano con ` * `: senza toglierlo, un campo spezzato a capo
+  // (`resistenza\n * push 0`) non matcherebbe, e la copertura cadrebbe per un a-capo.
+  const flat = text
+    .split('\n')
+    .map((l) => l.replace(/^\s*\*\s?/, ''))
+    .join(' ');
+
+  for (const block of flat.split(/Costruisce \*\*/).slice(1)) {
+    const hero = block.slice(0, block.indexOf('*'));
+    if (!/^[A-Z][A-Za-z]*$/.test(hero)) continue;
+    const stats: Partial<HeroStats> = {};
+    for (const [field, pattern] of HEADER_PATTERNS) {
+      const m = block.match(pattern);
+      if (m) stats[field] = Number(m[1]) as never;
+    }
+    out.set(hero, stats);
+  }
+  return out;
 }
 
 /** Le sezioni eroe `## <n>. <Nome> — <sottotitolo>` con la loro tabella delle statistiche.
@@ -230,7 +291,7 @@ export interface Divergence {
 export interface Comparison {
   divergences: Divergence[];
   /** Quante estrazioni ha prodotto ciascun lato. */
-  coverage: { sections: number; summary: number; perception: number; cpp: number };
+  coverage: { sections: number; summary: number; perception: number; cpp: number; header: number };
 }
 
 const ALL_FIELDS: (keyof HeroStats)[] = [
@@ -264,10 +325,17 @@ export function compare(
   summary: Map<string, Partial<HeroStats>>,
   cpp: Map<string, Partial<HeroStats>>,
   perception: Map<string, Partial<HeroStats>> = new Map(),
+  header: Map<string, Partial<HeroStats>> = new Map(),
 ): Comparison {
   const divergences: Divergence[] = [];
   const heroes = [
-    ...new Set([...sections.keys(), ...summary.keys(), ...perception.keys(), ...cpp.keys()]),
+    ...new Set([
+      ...sections.keys(),
+      ...summary.keys(),
+      ...perception.keys(),
+      ...cpp.keys(),
+      ...header.keys(),
+    ]),
   ].sort();
 
   for (const hero of heroes) {
@@ -277,10 +345,12 @@ export function compare(
       const t = summary.get(hero)?.[field];
       const c = cpp.get(hero)?.[field];
       const p = perception.get(hero)?.[field];
+      const h = header.get(hero)?.[field];
       if (s !== undefined) values['schede'] = s;
       if (t !== undefined) values['tabella §5'] = t;
       if (p !== undefined) values['tabella §5.1'] = p;
       if (c !== undefined) values['C++'] = c;
+      if (h !== undefined) values['docstring .h'] = h;
 
       const distinct = new Set(Object.values(values));
       if (distinct.size > 1) divergences.push({ hero, field, values });
@@ -294,6 +364,7 @@ export function compare(
       summary: count(summary),
       perception: count(perception),
       cpp: count(cpp),
+      header: count(header),
     },
   };
 }
@@ -308,6 +379,7 @@ const EXPECT_HEROES = 4;
 function main() {
   const catalog = readFileSync(HERO_CATALOG, 'utf8');
   const cppText = readFileSync(CPP_SOURCE, 'utf8');
+  const headerText = readFileSync(CPP_HEADER, 'utf8');
 
   const sections = parseCatalogSections(catalog);
   const summary = parseSummaryTable(catalog);
@@ -315,8 +387,13 @@ function main() {
   // Il C++ dichiara anche altre struct: si tengono solo gli eroi che il catalogo conosce, altrimenti
   // una variabile locale qualsiasi con un campo omonimo entrerebbe nel confronto.
   const cpp = new Map([...parseCpp(cppText)].filter(([hero]) => sections.has(hero)));
+  // Stesso filtro del C++, e per la stessa ragione: l'header nomina anche helper e tipi, e un blocco
+  // che non e' un eroe del catalogo non deve entrare nel confronto.
+  const header = new Map(
+    [...parseHeaderDocstrings(headerText)].filter(([hero]) => sections.has(hero)),
+  );
 
-  const { divergences, coverage } = compare(sections, summary, cpp, perception);
+  const { divergences, coverage } = compare(sections, summary, cpp, perception, header);
 
   // Ogni lato ha i propri campi: le schede ne portano sei, il confronto §5 cinque (niente `Debolezza`),
   // §5.1 solo la soglia d'udito, il C++ tutti e sette.
@@ -325,9 +402,10 @@ function main() {
     summary: EXPECT_HEROES * 5,
     perception: EXPECT_HEROES * 1,
     cpp: EXPECT_HEROES * 7,
+    header: EXPECT_HEROES * 4,
   };
   const short: string[] = [];
-  for (const side of ['sections', 'summary', 'perception', 'cpp'] as const) {
+  for (const side of ['sections', 'summary', 'perception', 'cpp', 'header'] as const) {
     if (coverage[side] < want[side]) short.push(`${side}: ${coverage[side]}/${want[side]}`);
   }
 
@@ -336,7 +414,8 @@ function main() {
   console.error(
     `campi confrontati — schede ${coverage.sections}/${want.sections} · ` +
       `tabella §5 ${coverage.summary}/${want.summary} · ` +
-      `tabella §5.1 ${coverage.perception}/${want.perception} · C++ ${coverage.cpp}/${want.cpp}`,
+      `tabella §5.1 ${coverage.perception}/${want.perception} · C++ ${coverage.cpp}/${want.cpp} · ` +
+      `docstring .h ${coverage.header}/${want.header}`,
   );
 
   if (short.length > 0) {
@@ -350,7 +429,7 @@ function main() {
   }
 
   if (divergences.length === 0) {
-    console.error(`le quattro fonti concordano su tutti i campi dei ${sections.size} eroi`);
+    console.error(`le cinque fonti concordano su tutti i campi dei ${sections.size} eroi`);
     return;
   }
 
@@ -362,7 +441,7 @@ function main() {
     console.error(`  ${d.hero}.${d.field}: ${detail}`);
   }
   console.error(
-    `\nFonti: ${CATALOG_REL} (schede §1-§4 e tabella §5) · ${CPP_REL}\n` +
+    `\nFonti: ${CATALOG_REL} (schede §1-§4, tabella §5, tabella §5.1) · ${CPP_REL} · ${HEADER_REL}\n` +
       `⚠️ Quale lato sia giusto NON lo dice questo gate, deliberatamente: il 2026-08-10 il codice aveva\n` +
       `ragione e il catalogo era indietro (D-075). Leggi il Decision Log prima di scegliere.`,
   );

@@ -11,11 +11,17 @@ const roster = () => parseHeroCatalog(HERO, ACTION);
 test('i sei assi del Profile per i quattro eroi', () => {
   const got = Object.fromEntries(roster().map((h) => [h.name, profileAxes(h)]));
 
+  // ⚠️ **Phase: `control` 7 -> 5 e `support` 8 -> 6 il 2026-09-10, e non e' un ribilanciamento.** I due
+  // punti venivano da due frammenti che il catalogo dichiarava e il runtime non fa piu' da **#1006**:
+  // `CircularTide` non applica piu' `Wet` ai nemici (era `support (setup)`) e `FluidTrail` non crea piu'
+  // acqua (era `control · precision`). Il codice era cambiato, il Markdown no, e i radar leggevano il
+  // Markdown: Phase risultava piu' di supporto e piu' di controllo di quanto il gioco le concedesse.
+  // Nessun numero di gameplay e' stato toccato per ottenere questi valori — vedi #2824.
   assert.deepEqual(got, {
     Gadget:    { offense: 5, durability: 7, mobility: 7, control: 2, support: 1, information: 7 },
     Wraith:  { offense: 4, durability: 7, mobility: 9, control: 4, support: 1, information: 6 },
     Branth: { offense: 3, durability: 8, mobility: 6, control: 9, support: 2, information: 5 },
-    Phase:    { offense: 1, durability: 7, mobility: 8, control: 7, support: 8, information: 5 },
+    Phase:    { offense: 1, durability: 7, mobility: 8, control: 5, support: 6, information: 5 },
   });
 });
 

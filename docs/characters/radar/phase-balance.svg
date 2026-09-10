@@ -17,15 +17,15 @@
   <polygon class="grid" points="200.00,110.00 285.60,172.19 252.90,272.81 147.10,272.81 114.40,172.19" />
   <polygon class="grid" points="200.00,80.00 314.13,162.92 270.53,297.08 129.47,297.08 85.87,162.92" />
   <polygon class="grid" points="200.00,50.00 342.66,153.65 288.17,321.35 111.83,321.35 57.34,153.65" />
-  <polygon class="shape" points="200.00,140.00 228.53,190.73 261.72,284.95 129.47,297.08 100.14,167.55" />
+  <polygon class="shape" points="200.00,140.00 228.53,190.73 244.08,260.68 147.10,272.81 100.14,167.55" />
   <text class="axis" x="200.00" y="23.00">Precisione</text>
   <text class="value" x="200.00" y="37.00">4</text>
   <text class="axis" x="368.34" y="145.30">Potenza</text>
   <text class="value" x="368.34" y="159.30">2</text>
   <text class="axis" x="304.04" y="343.20">Controllo</text>
-  <text class="value" x="304.04" y="357.20">7</text>
+  <text class="value" x="304.04" y="357.20">5</text>
   <text class="axis" x="95.96" y="343.20">Supporto</text>
-  <text class="value" x="95.96" y="357.20">8</text>
+  <text class="value" x="95.96" y="357.20">6</text>
   <text class="axis" x="31.66" y="145.30">Durabilità</text>
   <text class="value" x="31.66" y="159.30">7</text>
 </svg>
