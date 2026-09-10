@@ -193,6 +193,30 @@ struct FRTUnitCardView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bAlive = false;
+
+	/**
+	 * Quanta salute resta, in `[0,1]`, pronta per una progress bar.
+	 *
+	 * 🔴 **Esiste perche' il grafo la calcolava, e su una card VUOTA divideva per zero.** Misurato in PIE
+	 * il 2026-09-10 durante `U49` (`PIE-V01-SCREENHUD`, `#613`): `Script Msg: Divide by zero:
+	 * Divide_DoubleDouble` da `WBP_RT_UnitCard_C`, dentro `WBP_RT_SelectedUnitPanelBottom`.
+	 * `BuildUnitCard(nullptr)` rende una card con `MaxHealth = 0`, e quello **e' il caso normale**: e' cio'
+	 * che il pannello mostra quando non c'e' selezione, non un errore da correggere altrove.
+	 *
+	 * 🔑 **Stessa cura di `ChargeFraction`, per la stessa ragione (`#1896`)**: la divisione e la sua guardia
+	 * sullo zero vivono in un posto solo e testato. Un widget che legge questo campo non puo' sbagliare,
+	 * perche' non c'e' niente da dividere.
+	 *
+	 * ⚠️ **Card vuota -> `0`, e qui e' l'OPPOSTO di `ChargeFraction`**, che senza ricarica vale `1`. Non e'
+	 * un'incoerenza: un'abilita' senza ricarica **e'** pronta, mentre un'unita' che non c'e' non ha salute
+	 * da mostrare. Chi distingue «vuota» da «ferita» guarda `MaxHealth`, che per la prima e' `0`.
+	 *
+	 * ⚠️ `Health` e `MaxHealth` restano esposti: un testo «7/12» li vuole entrambi. E' la DIVISIONE che non
+	 * appartiene al grafo, non i due addendi — la riga del DoD di `#613` e' *«i widget non ricalcolano
+	 * formula, visibilita' o reason code»*.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	float HealthFraction = 0.f;
 };
 
 /**
