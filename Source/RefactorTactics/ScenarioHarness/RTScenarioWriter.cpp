@@ -71,6 +71,18 @@ namespace
 			return 4;
 		}
 
+		// ⚠️ **L'ordine di questi controlli non e' estetico**: `MinimumVersionFor` ritorna al PRIMO requisito
+		// trovato, quindi il piu' recente va per primo. Uno scenario che usa il filtro di fase e anche una
+		// risposta di profilo otterrebbe altrimenti la `3` — cioe' una versione che il loader poi rifiuta.
+		for (const FRTTestExpectation& Exp : Scenario.Expect)
+		{
+			if (Exp.bHasLogPhase || Exp.bHasThenPhase)
+			{
+				OutWhy = TEXT("il filtro di fase su un'assertion del TurnLog");
+				return 6;
+			}
+		}
+
 		// Il selettore semantico e' la chiave piu' recente: si controlla per PRIMA, perche' `MinimumVersionFor`
 		// restituisce al primo requisito trovato e un `on` in uno scenario che usa anche una risposta di
 		// profilo otterrebbe altrimenti la `3` — cioe' una versione che il loader poi rifiuta.
@@ -358,6 +370,19 @@ namespace
 	 * si chiama `None` — un round-trip che cambia il significato del file invece di preservarlo. E scriverlo
 	 * come stringa vuota sarebbe peggio: il loader lo RIFIUTA di proposito.
 	 */
+	/** La FASE di un'assertion sul TurnLog, scritta solo quando il filtro c'e' davvero (`#2867`). */
+	void WriteLogPhase(const TSharedRef<FRTScenarioJsonWriter>& W, const TCHAR* Key,
+		bool bHasPhase, ERTMatchPhase Phase)
+	{
+		if (!bHasPhase) { return; }
+		// Per NOME e per riflessione, come categoria ed esito: un indice non dice niente a chi legge lo
+		// scenario, e rinumerare l'enum renderebbe verdi gli scenari sbagliati.
+		const UEnum* PhaseEnum = StaticEnum<ERTMatchPhase>();
+		W->WriteValue(Key, PhaseEnum
+			? PhaseEnum->GetNameStringByValue(static_cast<int64>(Phase))
+			: FString::FromInt(static_cast<int32>(Phase)));
+	}
+
 	void WriteLogActionId(const TSharedRef<FRTScenarioJsonWriter>& W, const TCHAR* Key, FName ActionId)
 	{
 		if (!ActionId.IsNone())
@@ -412,14 +437,17 @@ namespace
 			case ERTAssertionKind::LogEventAmount:
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
 				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
+				WriteLogPhase(W, TEXT("phase"), Exp.bHasLogPhase, Exp.LogPhase);
 				W->WriteValue(TEXT("value"), Exp.Value);
 				break;
 
 			case ERTAssertionKind::LogEventOrder:
 				WriteLogEvent(W, TEXT("category"), TEXT("outcome"), Exp.LogCategory, Exp.LogOutcome);
 				WriteLogActionId(W, TEXT("actionId"), Exp.LogActionId);
+				WriteLogPhase(W, TEXT("phase"), Exp.bHasLogPhase, Exp.LogPhase);
 				WriteLogEvent(W, TEXT("thenCategory"), TEXT("thenOutcome"), Exp.ThenCategory, Exp.ThenOutcome);
 				WriteLogActionId(W, TEXT("thenActionId"), Exp.ThenActionId);
+				WriteLogPhase(W, TEXT("thenPhase"), Exp.bHasThenPhase, Exp.ThenPhase);
 				break;
 
 			case ERTAssertionKind::OriginalTargetEquals:

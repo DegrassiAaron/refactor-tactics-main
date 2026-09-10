@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexMapAsset.h" // FRTHexInteriorWall: la geometria intra-cella e' dato di gioco (`D-269`)
+#include "Turn/RTTurnRules.h" // ERTMatchPhase: il filtro di fase parla il vocabolario del turno
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
@@ -809,6 +810,44 @@ struct FRTTestExpectation
 	/** Filtro opzionale sull'`ActionId` del SECONDO evento (`LogEventOrder`). Vedi `LogActionId`. */
 	UPROPERTY()
 	FName ThenActionId;
+
+	/**
+	 * Filtro OPZIONALE sulla MACRO-FASE della voce (`LogEventCount`, `LogEventAmount`, `LogEventOrder`).
+	 * Valido solo con `bHasLogPhase`.
+	 *
+	 * 🔑 **Il dato c'era gia' e l'assertion non lo raggiungeva.** `FRTTurnLogEntry::Phase` porta da sempre la
+	 * fase in cui ogni evento e' avvenuto, ma `FRTTestExpectation` vedeva categoria, esito e `ActionId` e
+	 * nient'altro: uno scenario poteva dire *«un colpo e' avvenuto»*, non *«e' avvenuto nel Blast e non nel
+	 * Move»*. E' la lacuna che `#2867` ha trovato cercandone un'altra.
+	 *
+	 * ⛔ **Non e' un checkpoint di fase, e la differenza va conosciuta.** Questo filtra un EVENTO che il
+	 * resolver ha gia' registrato; un checkpoint leggerebbe lo STATO a un confine — dov'era un'unita' a fine
+	 * `Blast` quando nessun evento lo dice. Quel secondo caso richiede un punto di lettura dentro
+	 * `RunPhaseLoop`, e resta differito finche' un caso concreto non lo giustifica: `#2867` lo dichiara.
+	 *
+	 * ⚠️ **Mai dalla presentazione.** `ARTTurnManager::OnPhasePlaybackStarted` e `ResolvedTimeline` sanno
+	 * anch'essi di fasi, ma sono presentazione — il secondo lo dichiara nel proprio accessore. Un'assertion
+	 * che leggesse da li' misurerebbe cio' che l'animazione ha mostrato, non cio' che il resolver ha risolto.
+	 */
+	UPROPERTY()
+	ERTMatchPhase LogPhase = ERTMatchPhase::Move;
+
+	/**
+	 * La chiave `phase` era presente nel file.
+	 *
+	 * ⚠️ **Non deducibile da `LogPhase`**: `Move` e' il default dell'enum *e* una fase legittima da chiedere,
+	 * quindi non puo' fare da «campo non dichiarato». Stessa convenzione dei gemelli del formato —
+	 * `bTargetsCell`, `bHasCoverEdge`, `bDeclaresFacing`, `bHasSelector`.
+	 */
+	UPROPERTY()
+	bool bHasLogPhase = false;
+
+	/** Filtro opzionale sulla fase del SECONDO evento (`LogEventOrder`). Vedi `LogPhase`. */
+	UPROPERTY()
+	ERTMatchPhase ThenPhase = ERTMatchPhase::Move;
+
+	UPROPERTY()
+	bool bHasThenPhase = false;
 };
 
 /** Scenario completo, come letto dal file. */

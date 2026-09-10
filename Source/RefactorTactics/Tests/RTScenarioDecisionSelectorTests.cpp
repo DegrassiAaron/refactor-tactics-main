@@ -26,6 +26,8 @@
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
 #include "Turn/RTReactionOpportunityTypes.h" // BoundaryCapableReactionIds (#2866)
+#include "Turn/RTTurnLog.h"   // ERTLogCategory, ERTReactionDecisionOutcome: il filtro di fase (#2867)
+#include "Turn/RTTurnRules.h" // ERTMatchPhase
 #include "Tests/RTWorldFixtures.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -467,6 +469,181 @@ bool FRTScenarioBoundaryReactionInMemoryTest::RunTest(const FString&)
 	FString ErrorePositivo;
 	TestTrue(FString::Printf(TEXT("`Validate` accetta 'Action.Overwatch' (errore: '%s')"), *ErrorePositivo),
 		URTScenarioLoader::Validate(Scenario, ErrorePositivo));
+	return true;
+}
+
+// === Filtro di fase sulle assertion del TurnLog (#2867, "version": 6) ===============================
+
+/**
+ * 🔴 **Il filtro DISCRIMINA**, ed e' la sola proprieta' che conta: lo stesso evento contato con la fase in
+ * cui e' avvenuto e con un'altra deve dare risultati diversi.
+ *
+ * ⚠️ Senza questa riga un filtro che non filtrasse nulla resterebbe verde: passerebbe il round-trip,
+ * passerebbe il parsing, e conterebbe gli eventi di ogni fase come se il vincolo non ci fosse. E' lo stesso
+ * difetto che `LogActionId` evita dichiarando che il confronto e' esatto sull'`FName` e non un prefisso.
+ *
+ * Il caso: `M2` viene fermata da un colpo di Overwatch, che e' una reazione risolta **dentro la fase Move**
+ * — l'opportunity nasce a un micro-step del movimento. Contare quel colpo chiedendo `Move` lo trova;
+ * chiedendo `Blast` non lo trova, e la differenza dimostra che la fase entra nel confronto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogPhaseFilterDiscriminatesTest,
+	"RefactorTactics.Scenario.LogPhaseFilterDiscriminates",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLogPhaseFilterDiscriminatesTest::RunTest(const FString&)
+{
+	// Conta le voci `ReactionDecision`/`FireChosen` chiedendo (o no) una fase, e dice se l'harness e' PASS.
+	auto ContaConFase = [this](bool bConFase, ERTMatchPhase Fase, int32 Atteso) -> bool
+	{
+		FRTTestScenario Scenario = MakeTwoWindowScenario();
+		Scenario.Version = 6;
+		Scenario.Turns[0].Decisions.Add(
+			MakeSelectorDecision(TEXT("W1"), TEXT("M2"), TEXT("FIRE"), TEXT("M2")));
+		Scenario.Turns[0].Decisions.Add(
+			MakeSelectorDecision(TEXT("W1"), TEXT("M1"), TEXT("HOLD"), nullptr));
+
+		FRTTestExpectation Conteggio;
+		Conteggio.Kind = ERTAssertionKind::LogEventCount;
+		Conteggio.LogCategory = ERTLogCategory::ReactionDecision;
+		Conteggio.LogOutcome = static_cast<uint8>(ERTReactionDecisionOutcome::FireChosen);
+		Conteggio.Value = Atteso;
+		Conteggio.bHasLogPhase = bConFase;
+		Conteggio.LogPhase = Fase;
+		Scenario.Expect.Add(Conteggio);
+
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+		const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+		RTWorldFixtures::DestroyWorld(World);
+
+		const bool bPass = Result.Outcome == ERTTestOutcome::Pass;
+		if (!bPass)
+		{
+			AddInfo(FString::Printf(TEXT("esito: %s · note: %s"),
+				*Result.OutcomeString(), *FString::Join(Result.Notes, TEXT(" | "))));
+		}
+		return bPass;
+	};
+
+	// Premessa: senza filtro il `FIRE` c'e' ed e' uno solo. Se questa cade non e' il filtro a non
+	// funzionare — e' lo scenario a non produrre l'evento, e le due righe sotto non direbbero niente.
+	if (!TestTrue(TEXT("premessa: senza filtro il FIRE e' contato una volta"),
+		ContaConFase(/*bConFase*/ false, ERTMatchPhase::Move, 1)))
+	{
+		return false;
+	}
+
+	// 🔑 Le due righe che dimostrano il filtro: stesso evento, fasi diverse, conteggi attesi diversi.
+	TestTrue(TEXT("con `phase: Move` il colpo di Overwatch si trova"),
+		ContaConFase(/*bConFase*/ true, ERTMatchPhase::Move, 1));
+	TestTrue(TEXT("con `phase: Blast` lo stesso colpo NON si trova (atteso 0)"),
+		ContaConFase(/*bConFase*/ true, ERTMatchPhase::Blast, 0));
+	return true;
+}
+
+/** Le forme malformate del filtro di fase sono un `ERROR` con il motivo. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogPhaseRejectTest,
+	"RefactorTactics.Scenario.LogPhaseRejectsMalformedForms",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLogPhaseRejectTest::RunTest(const FString&)
+{
+	auto Rifiuta = [this](const TCHAR* Cosa, int32 Versione, const TCHAR* Expect, const TCHAR* Atteso)
+	{
+		const FString Json = FString::Printf(TEXT(R"JSON(
+		{
+		  "scenarioId": "Spec.LogPhase.Reject", "version": %d, "mapRadius": 3,
+		  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+		  "turns": [ { "intents": [] } ],
+		  "expect": [ %s ]
+		}
+		)JSON"), Versione, Expect);
+
+		FRTTestScenario Scenario;
+		FString Error;
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa),
+			URTScenarioLoader::LoadFromString(*Json, Scenario, Error));
+		TestTrue(FString::Printf(TEXT("%s: il motivo nomina '%s' (era: '%s')"), Cosa, Atteso, *Error),
+			Error.Contains(Atteso));
+	};
+
+	Rifiuta(TEXT("fase sconosciuta"), 6,
+		TEXT(R"({ "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "phase": "Blastt" })"),
+		TEXT("Blastt"));
+	// Il caso che conta: un filtro su un'assertion che non legge il TurnLog SEMBRA chiedere «dov'era a fine
+	// Blast» — che e' precisamente cio' che non fa — e resterebbe verde sullo stato finale.
+	Rifiuta(TEXT("phase su un'assertion che non legge il log"), 6,
+		TEXT(R"({ "type": "UnitAtCell", "unit": "A1", "cell": [-2, 0, 0], "phase": "Blast" })"),
+		TEXT("TurnLog"));
+	Rifiuta(TEXT("thenPhase fuori da LogEventOrder"), 6,
+		TEXT(R"({ "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "thenPhase": "Move" })"),
+		TEXT("LogEventOrder"));
+	// Il verso che conta: senza il gate, una build a `SupportedVersion = 5` ignorerebbe il filtro e
+	// l'assertion verificherebbe piu' di quanto il file chiede, restando verde per la ragione sbagliata.
+	Rifiuta(TEXT("il filtro di fase richiede version 6"), 5,
+		TEXT(R"({ "type": "LogEventCount", "category": "Combat", "outcome": "Hit", "phase": "Blast" })"),
+		TEXT("version"));
+	return true;
+}
+
+/** Il filtro sopravvive a un round-trip, e la fase entra nel NOME dell'evento. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLogPhaseRoundTripTest,
+	"RefactorTactics.Scenario.LogPhaseRoundTrips",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLogPhaseRoundTripTest::RunTest(const FString&)
+{
+	const TCHAR* Json = TEXT(R"JSON(
+	{
+	  "scenarioId": "Spec.LogPhase.RoundTrip", "version": 6, "mapRadius": 3,
+	  "units": [ { "id": "A1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] } ],
+	  "turns": [ { "intents": [] } ],
+	  "expect": [
+	    { "type": "LogEventOrder", "category": "Combat", "outcome": "Hit", "phase": "Blast",
+	      "thenCategory": "Move", "thenOutcome": "Moved", "thenPhase": "Move" }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("scenario col filtro di fase accettato"),
+		URTScenarioLoader::LoadFromString(Json, Scenario, Error)))
+	{
+		AddError(FString::Printf(TEXT("il loader ha rifiutato: '%s'"), *Error));
+		return false;
+	}
+	if (!TestEqual(TEXT("una assertion"), Scenario.Expect.Num(), 1)) { return false; }
+	TestTrue (TEXT("il filtro sul primo evento e' dichiarato"), Scenario.Expect[0].bHasLogPhase);
+	TestEqual(TEXT("la fase del primo evento"),
+		static_cast<int32>(Scenario.Expect[0].LogPhase), static_cast<int32>(ERTMatchPhase::Blast));
+	TestTrue (TEXT("il filtro sul secondo evento e' dichiarato"), Scenario.Expect[0].bHasThenPhase);
+
+	FString Written;
+	if (!TestTrue(TEXT("lo scenario si riserializza"),
+		URTScenarioLoader::SaveToString(Scenario, Written, Error)))
+	{
+		AddError(FString::Printf(TEXT("il writer ha rifiutato: '%s'"), *Error));
+		return false;
+	}
+	FRTTestScenario Reread;
+	if (!TestTrue(TEXT("il testo scritto si rilegge"),
+		URTScenarioLoader::LoadFromString(Written, Reread, Error)))
+	{
+		AddError(FString::Printf(TEXT("rilettura fallita: '%s'"), *Error));
+		return false;
+	}
+	TestTrue (TEXT("round-trip: il filtro sopravvive"), Reread.Expect[0].bHasLogPhase);
+	TestEqual(TEXT("round-trip: la fase"),
+		static_cast<int32>(Reread.Expect[0].LogPhase), static_cast<int32>(ERTMatchPhase::Blast));
+	TestTrue (TEXT("round-trip: anche il secondo filtro"), Reread.Expect[0].bHasThenPhase);
+
+	// ⚠️ La fase entra nel NOME dell'evento: due assertion che differiscono solo per essa devono produrre
+	// messaggi di fallimento diversi, o chi legge il referto non sa quale delle due e' caduta.
+	const FString ConFase = URTScenarioLoader::DescribeLogEvent(
+		ERTLogCategory::Combat, /*Outcome*/ 0, NAME_None, /*bHasPhase*/ true, ERTMatchPhase::Blast);
+	const FString SenzaFase = URTScenarioLoader::DescribeLogEvent(
+		ERTLogCategory::Combat, /*Outcome*/ 0, NAME_None, /*bHasPhase*/ false, ERTMatchPhase::Blast);
+	TestNotEqual(TEXT("il nome cambia quando la fase e' dichiarata"), ConFase, SenzaFase);
+	TestTrue(FString::Printf(TEXT("il nome porta la fase (era: '%s')"), *ConFase),
+		ConFase.Contains(TEXT("Blast")));
 	return true;
 }
 
