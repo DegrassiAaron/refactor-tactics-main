@@ -27,15 +27,15 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 
 ## La misura
 
-### Gadget (`Hero.Gadget`) — `Affinity.Electricity`, debolezza `Affinity.Water`
+### Gadget (`Hero.Aevik`) — `Affinity.Electricity`, debolezza `Affinity.Water`
 
 | Abilità | Effetti dichiarati | Elementale? |
 |---|---|:--:|
-| `Hero.Gadget.ArcPulse` | attacco base generico (`MakeBasicAttack(4)`) | ❌ |
-| `Hero.Gadget.LinearDischarge` | **solo `Damage 24`**, forma linea | ⚠️ vedi sotto |
-| `Hero.Gadget.ConductiveNode` | **è** `Action.Electrify`, con `PropagationLimit` dal core | ✅ **Propagate** Electric |
-| `Hero.Gadget.Overload` | `Damage 18`, area r1 | ❌ |
-| `Hero.Gadget.ReactiveCapacitor` | `Shield 15` + `Damage 10` | ❌ |
+| `Hero.Aevik.ArcPulse` | attacco base generico (`MakeBasicAttack(4)`) | ❌ |
+| `Hero.Aevik.LinearDischarge` | **solo `Damage 24`**, forma linea | ⚠️ vedi sotto |
+| `Hero.Aevik.ConductiveNode` | **è** `Action.Electrify`, con `PropagationLimit` dal core | ✅ **Propagate** Electric |
+| `Hero.Aevik.Overload` | `Damage 18`, area r1 | ❌ |
+| `Hero.Aevik.ReactiveCapacitor` | `Shield 15` + `Damage 10` | ❌ |
 
 ### Phase (`Hero.Phase`) — `Affinity.Water`, debolezza `Affinity.Electricity`
 
@@ -63,9 +63,9 @@ Fonte: `Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp`, le quattro fac
 
 ## 🔴 Il risultato: il criterio non cattura tutto, e la baseline dipende da come lo si scrive
 
-`Hero.Gadget.LinearDischarge` dichiara **solo `Damage 24`**. Il suo comportamento elettrico — il **+8 contro bersaglio `Status.Wet`** — vive nel **resolver**, non nei dati dell'azione. Il codice lo dichiara e ne spiega la ragione (`Turn/RTTurnManager.cpp:3971`):
+`Hero.Aevik.LinearDischarge` dichiara **solo `Damage 24`**. Il suo comportamento elettrico — il **+8 contro bersaglio `Status.Wet`** — vive nel **resolver**, non nei dati dell'azione. Il codice lo dichiara e ne spiega la ragione (`Turn/RTTurnManager.cpp:3971`):
 
-> *«`Hero.Gadget.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non è nella lista `Effects` perché non è un danno fisso, e vale su OGNI colpo dell'azione finché il bersaglio è bagnato.»*
+> *«`Hero.Aevik.LinearDischarge` +8 contro bersaglio `Status.Wet` (catalogo eroi §1). Non è nella lista `Effects` perché non è un danno fisso, e vale su OGNI colpo dell'azione finché il bersaglio è bagnato.»*
 
 È un **Consume** di uno stato elementale — uno dei cinque verbi che #995 elenca — ma la prova non è dove il criterio la cerca. Ne seguono due letture, e **la baseline cambia a seconda di quale si sceglie**:
 

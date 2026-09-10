@@ -11,7 +11,7 @@ namespace
 	 *
 	 * ⚠️ **I nomi sono MISURATI sul disco**, non dedotti: §AS.3b della guida animazioni li ha contati, e
 	 * **sei caselle su venti** divergono da quelle di Gideon. Le tre che si vedono qui sono la corsa di
-	 * Gadget (`Run_Fwd`, non `Jog_Fwd`) e l'idle di Ivrin (`Idle_NonCombat`).
+	 * Aevik (`Run_Fwd`, non `Jog_Fwd`) e l'idle di Ivrin (`Idle_NonCombat`).
 	 */
 	FString ClipPath(const TCHAR* Pack, const TCHAR* Clip)
 	{
@@ -154,7 +154,7 @@ const FRTAnimRoleClips* FRTHeroPresentationClips::FindRole(ERTPresentationRole R
 
 URTUnitAnimInstance::URTUnitAnimInstance()
 {
-	ClipsPerHero.Add(FName(TEXT("Hero.Gadget")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
+	ClipsPerHero.Add(FName(TEXT("Hero.Aevik")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
 		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
 	ClipsPerHero.Add(FName(TEXT("Hero.Phase")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
 		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));

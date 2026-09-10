@@ -282,14 +282,14 @@ public:
 	static constexpr int32 LowCoverDamageReduction = 10;
 
 	/**
-	 * `Gadget.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
+	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed`/`Guard`/`Marked`, NON passa da `ApplyFirstHitDelta`: il bonus non si consuma
 	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
 	 */
-	static constexpr int32 GadgetWetDischargeBonus = 8;
+	static constexpr int32 AevikWetDischargeBonus = 8;
 
 	/**
 	 * Applica il danno: erode il temporaneo, poi — solo se la sorgente e' `Direct` — lo scudo base, poi gli

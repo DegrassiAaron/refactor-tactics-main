@@ -20,7 +20,7 @@ struct FRTAbilityVariant
 {
 	GENERATED_BODY()
 
-	/** ID stabile della variante (es. `Gadget.LinearDischarge.Branched`). */
+	/** ID stabile della variante (es. `Aevik.LinearDischarge.Branched`). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName VariantId;
 

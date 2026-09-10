@@ -77,7 +77,7 @@ Il DoD chiede **almeno un evento `Combat` a schermo e la riga di log col reason 
 In pratica: fermati su un turno in cui una unità colpisce, cattura lo schermo, e affianca la riga
 
 ```
-(q=-1,r=1,L=0) -> (q=-2,r=1,L=0): 20 danni, eliminata (Hero.Gadget.LinearDischarge, p55)
+(q=-1,r=1,L=0) -> (q=-2,r=1,L=0): 20 danni, eliminata (Hero.Aevik.LinearDischarge, p55)
 ```
 
 Le coordinate nella riga sono quelle delle due celle: è ciò che rende schermo e log **la stessa cosa** e non

@@ -952,7 +952,7 @@ bool FRTHexInteractFromKitOpensDoorTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WithDoor);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Hinge);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Hinge);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1035,7 +1035,7 @@ bool FRTHexInteractDoorlessEdgeRefusedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1117,7 +1117,7 @@ bool FRTHexInteractUsesDeclaredEdgeTest::RunTest(const FString&)
 	AddClosedDoor(MapActor, Target, ERTHexDirection::W);
 	AddClosedDoor(MapActor, Target, ERTHexDirection::E);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1263,7 +1263,7 @@ bool FRTHexInteractTogglesOpenDoorClosedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Open);
 
-	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Closer = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Closer || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1348,12 +1348,12 @@ bool FRTHexToggleResolvesOncePreBlastTest::RunTest(const FString&)
 		ARTUnit* Second = nullptr;
 		if (bSwapped)
 		{
-			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), East);
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), East);
 			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), West);
 		}
 		else
 		{
-			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), West);
+			First = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), West);
 			Second = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), East);
 		}
 		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
@@ -1462,7 +1462,7 @@ bool FRTHexInteractOnLockedDoorRefusedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Locked);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }
@@ -1526,7 +1526,7 @@ bool FRTHexInteractOnDestroyedDoorRefusedTest::RunTest(const FString&)
 	const FRTCellId Target(1, 0);
 	AddDoor(MapActor, Target, ERTHexDirection::W, ERTHexDoorState::Destroyed);
 
-	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), Standing);
+	ARTUnit* Opener = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), Standing);
 	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Opener || !Foe) { DestroyHexBlastWorld(World); return false; }

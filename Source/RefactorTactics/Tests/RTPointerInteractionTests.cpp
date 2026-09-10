@@ -309,7 +309,7 @@ bool FRTPointerNeutralEnemyClickTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),   FRTCellId(0, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),   FRTCellId(0, 0, 0));
 	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }
@@ -358,7 +358,7 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine) { DestroyPointerWorld(World); return false; }
 

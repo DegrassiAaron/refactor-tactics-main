@@ -12,7 +12,7 @@
   "_nota_limite": "La fixture porta il DATO, non le mesh del kit. SM_Graybox_* sono asset da posare in scena e nessuna fixture li posa: PIE-GBX-COVER, -DOOR e -SURFACE guardano il kit, quindi restano manuali per quella meta'. Cio' che sparisce e' l'allestimento del dato — incluso lo Cells[i].Doors scritto a mano nel Details e il ridisegno da forzare con ActiveLayer 0->1->0, che e' la trappola che faceva sembrare fallita una voce solo non allestita.",
 
   "units": [
-    { "id": "R1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "R1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
     { "id": "R2", "hero": "Hero.Phase",  "team": 0, "cell": [-1, 1, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] },
     { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] }

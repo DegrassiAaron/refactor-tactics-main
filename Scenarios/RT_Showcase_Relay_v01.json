@@ -17,7 +17,7 @@
   "units": [
     {
       "id": "Gadget",
-      "hero": "Hero.Gadget",
+      "hero": "Hero.Aevik",
       "team": 0,
       "cell": [
         -4,
@@ -285,7 +285,7 @@
       "intents": [
         {
           "unit": "Gadget",
-          "ability": "Hero.Gadget.ArcPulse",
+          "ability": "Hero.Aevik.ArcPulse",
           "target": "Ivrin"
         },
         {
@@ -297,7 +297,7 @@
       "_nota_le_due_battute_mancanti": "Il §T6 della spec owner nomina anche `Phase PressureJet su Branth` e `Ivrin attacca Gadget`. Restano fuori, e la ragione e' la MISURA: l'oracolo discriminante di questo turno e' il danno che Branth incassa - 12 invece di 22, perche' la copertura rivalidata e' la SUA. Un secondo colpo su Branth nello stesso Blast renderebbe `UnitHpEquals` una somma di due cause, e un rosso non direbbe piu' quale delle due e' cambiata. L'attacco di Ivrin su Gadget non tocca Branth ma non aggiunge niente a cio' che questo turno esiste per dimostrare."
     },
     {
-      "_turno": "T7 — combo ambientale, ⛔ **NON ottenibile in un turno solo cosi' com'e' scritta (#1111)**. L'intento e': Phase bagna Ivrin sulla fascia `Fire` a (1,-1), l'acqua spegne il fuoco, e `LinearDischarge` legge lo STATO — non l'identita' di chi ha portato l'acqua. **L'ordine di risoluzione lo impedisce**: `Gadget.Sprinkler` = `Action.CreateWater` e' `Environment` → **Cleanup**, `Hero.Gadget.LinearDischarge` e' `Attack` → **Blast**, e Blast precede Cleanup. Nello stesso turno la scarica risolve **prima che l'acqua esista**: legge Ivrin non bagnato e la fascia ancora accesa. ⚠️ Lo stesso ordine mette il **Move** fra le due, quindi Ivrin lascia (1,-1) prima del Cleanup: dove finisca l'acqua e' un secondo effetto da verificare quando il turno diventera' eseguibile. ✅ **Il modello che funziona esiste** ed e' `showcase-v0.1.md` §T2: il bersaglio entra nell'acqua **nel Dash**, cioe' il problema d'ordine si risolve invece di ignorarlo. Chi riempira' questo turno quando il T6 si sblocca sceglie fra quel modello e due turni distinti; questa nota registra il vincolo, non lo scioglie. Ivrin fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Branth dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`. ⛔ **E dal 2026-08-27 il `Ram` di Branth parte da un'altra cella**, che va detto perche' cambia cosa dimostrerebbe: dopo aver aperto il gate al T5 Branth si ferma su **(2,0,0)**, che e' `Rough`. Il piano dichiarato qui — `Ram` verso (1,0,0) — nasceva per essere RIFIUTATO dal planning, perche' la traiettoria attraversava il `Rough`; partendo gia' da una cella `Rough` il rifiuto avrebbe un'altra causa, o nessuna. ✅ I waypoint di Ivrin restano invece liberi: (1,0,0), (1,1,0) e (1,2,0) non sono occupati da nessuno. Non riscrivo un turno che nessuno puo' eseguire; chi lo rendera' eseguibile trova qui cosa guardare.",
+      "_turno": "T7 — combo ambientale, ⛔ **NON ottenibile in un turno solo cosi' com'e' scritta (#1111)**. L'intento e': Phase bagna Ivrin sulla fascia `Fire` a (1,-1), l'acqua spegne il fuoco, e `LinearDischarge` legge lo STATO — non l'identita' di chi ha portato l'acqua. **L'ordine di risoluzione lo impedisce**: `Gadget.Sprinkler` = `Action.CreateWater` e' `Environment` → **Cleanup**, `Hero.Aevik.LinearDischarge` e' `Attack` → **Blast**, e Blast precede Cleanup. Nello stesso turno la scarica risolve **prima che l'acqua esista**: legge Ivrin non bagnato e la fascia ancora accesa. ⚠️ Lo stesso ordine mette il **Move** fra le due, quindi Ivrin lascia (1,-1) prima del Cleanup: dove finisca l'acqua e' un secondo effetto da verificare quando il turno diventera' eseguibile. ✅ **Il modello che funziona esiste** ed e' `showcase-v0.1.md` §T2: il bersaglio entra nell'acqua **nel Dash**, cioe' il problema d'ordine si risolve invece di ignorarlo. Chi riempira' questo turno quando il T6 si sblocca sceglie fra quel modello e due turni distinti; questa nota registra il vincolo, non lo scioglie. Ivrin fa un Move normale che TERMINA su `Ice` a (1,2) e scivola in modo deterministico. Branth dichiara un `Ram` attraverso il `Rough` di (2,0): il planning lo RIFIUTA, perche' `Rough` ha `bBlocksDashCharge`. ⛔ **E dal 2026-08-27 il `Ram` di Branth parte da un'altra cella**, che va detto perche' cambia cosa dimostrerebbe: dopo aver aperto il gate al T5 Branth si ferma su **(2,0,0)**, che e' `Rough`. Il piano dichiarato qui — `Ram` verso (1,0,0) — nasceva per essere RIFIUTATO dal planning, perche' la traiettoria attraversava il `Rough`; partendo gia' da una cella `Rough` il rifiuto avrebbe un'altra causa, o nessuna. ✅ I waypoint di Ivrin restano invece liberi: (1,0,0), (1,1,0) e (1,2,0) non sono occupati da nessuno. Non riscrivo un turno che nessuno puo' eseguire; chi lo rendera' eseguibile trova qui cosa guardare.",
       "intents": [
         {
           "unit": "Phase",
@@ -306,7 +306,7 @@
         },
         {
           "unit": "Gadget",
-          "ability": "Hero.Gadget.LinearDischarge",
+          "ability": "Hero.Aevik.LinearDischarge",
           "target": "Ivrin"
         },
         {
@@ -527,7 +527,7 @@
       "type": "LogEventOrder",
       "category": "Combat",
       "outcome": "Hit",
-      "actionId": "Hero.Gadget.LinearDischarge",
+      "actionId": "Hero.Aevik.LinearDischarge",
       "thenCategory": "Environment",
       "thenOutcome": "SurfaceChanged",
       "thenActionId": "Gadget.Sprinkler"

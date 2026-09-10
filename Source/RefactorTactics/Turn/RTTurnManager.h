@@ -2547,7 +2547,7 @@ public:
 	 * 🔴 **Esiste per non avere due produttori del testo.** Le righe che il giocatore legge nascono da
 	 * `URTTurnLogLibrary::DescribeTurnLogWithSubjects`, a cui questa mappa viene passata: chi vuole
 	 * RIDERIVARE le stesse righe — un test che confronta cio' che e' stato emesso con cio' che il TurnLog
-	 * dice — deve poter usare la stessa risoluzione, altrimenti confronta `Gadget: resta` con `u3: resta` e
+	 * dice — deve poter usare la stessa risoluzione, altrimenti confronta `Aevik: resta` con `u3: resta` e
 	 * fallisce su una differenza che non e' un difetto. E' `public` per questo: e' il modo di verificare che
 	 * di produttori ce ne sia uno solo.
 	 *

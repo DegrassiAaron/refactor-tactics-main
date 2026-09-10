@@ -57,7 +57,7 @@ Sono due relazioni diverse, e sovrapporle su un campo solo renderebbe la traccia
 | `BaseActionId` | di quale delle **sette generiche** questa è il profilo | [D-033](../decisions/RT_PDR_00_Decision_Log.md), consumato da `DescribeActionIdentity` |
 | `DerivedFromActionId` | da quale azione **core** eredita i parametri | questo piano, consumato dal gate di §4 |
 
-Per gli attacchi base i due coincidono — `Hero.Gadget.ArcPulse` è profilo di `Action.BasicAttack` **ed**
+Per gli attacchi base i due coincidono — `Hero.Aevik.ArcPulse` è profilo di `Action.BasicAttack` **ed**
 eredita i suoi valori da lì (`URTCatalogLibrary::MakeBasicAttack`) — e non è un caso: un profilo di una
 generica è anche una derivazione da essa. Il contrario non vale, ed è tutta la differenza: `Ram` deriva da
 `Action.Charge`, che generica non è.
@@ -93,17 +93,17 @@ confronto — è quella che `URTCatalogLibrary::MakeEquipmentAction` usa da semp
 
 | Abilità | Deriva da | Oggi |
 |---|---|---|
-| `Hero.Gadget.ConductiveNode` | `Action.Electrify` | `Def` locale in `MakeGadget` |
+| `Hero.Aevik.ConductiveNode` | `Action.Electrify` | `Def` locale in `MakeGadget` |
 | `Hero.Phase.FluidTrail` | `Action.Dodge` | `Def` locale in `MakePhase` |
 | `Hero.Phase.MistVeil` | `Action.Ignite` | `Def` locale in `MakePhase` |
 | `Hero.Riktor.KineticPanel` | `Action.CreateCover` | `Def` locale in `MakeRiktor` |
 | `Hero.Riktor.Ram` | `Action.Charge` | `Def` locale in `MakeRiktor` |
-| `Hero.Gadget.ReactiveCapacitor` | `Action.Counter` | riceve l'ID e lo butta, in `MakeHeroReactionFromCoreAction` |
+| `Hero.Aevik.ReactiveCapacitor` | `Action.Counter` | riceve l'ID e lo butta, in `MakeHeroReactionFromCoreAction` |
 | `Hero.Riktor.Interposition` | `Action.Intercept` | idem |
 | `Hero.Wraith.Deflection` | `Action.Deflect` | idem |
 
 ⛔ **Gli attacchi base restano fuori, e `MakeHeroBasicAttack` non si tocca.** Misurato durante
-l'implementazione: dei quattro, solo `Hero.Gadget.ArcPulse` deriva davvero i parametri
+l'implementazione: dei quattro, solo `Hero.Aevik.ArcPulse` deriva davvero i parametri
 (`URTCatalogLibrary::MakeBasicAttack(4)` parte da `FindCoreAction`); `PressureJet`, `ImpactShot` e
 `PulseShot` li hanno **letterali**. Scrivere `DerivedFromActionId` su tutti e quattro trasformerebbe «i
 parametri vengono da lì» in «gli somiglia», che è la parentela semantica scartata in §2.

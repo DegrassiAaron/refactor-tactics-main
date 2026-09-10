@@ -108,7 +108,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
 	TestEqual(TEXT("quattro eroi distinti"), InPlay.Num(), 4);
-	TestTrue(TEXT("c'e' Gadget"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
+	TestTrue(TEXT("c'e' Aevik"), InPlay.Contains(FName(TEXT("Hero.Aevik"))));
 	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Phase"))));
 	TestTrue(TEXT("c'e' Branth"), InPlay.Contains(FName(TEXT("Hero.Branth"))));
 	TestTrue(TEXT("c'e' Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
@@ -145,18 +145,18 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
-	// Formazione di default: Gadget+Phase (giocatore) contro Branth+Ivrin (bot).
-	ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
+	// Formazione di default: Aevik+Phase (giocatore) contro Branth+Ivrin (bot).
+	ARTUnit* Aevik = FindByHeroId(Units, TEXT("Hero.Aevik"));
 	ARTUnit* Phase = FindByHeroId(Units, TEXT("Hero.Phase"));
 	ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
 	ARTUnit* Ivrin = FindByHeroId(Units, TEXT("Hero.Ivrin"));
-	if (Gadget && Phase && Branth && Ivrin)
+	if (Aevik && Phase && Branth && Ivrin)
 	{
-		TestEqual(TEXT("Gadget e' del giocatore"), Gadget->TeamId, 0);
+		TestEqual(TEXT("Aevik e' del giocatore"), Aevik->TeamId, 0);
 		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Phase->TeamId, 0);
 		TestEqual(TEXT("Branth e' del bot"), Branth->TeamId, 1);
 		TestEqual(TEXT("Ivrin anche"), Ivrin->TeamId, 1);
-		TestFalse(TEXT("il giocatore comanda i suoi"), Gadget->bIsBotControlled);
+		TestFalse(TEXT("il giocatore comanda i suoi"), Aevik->bIsBotControlled);
 		TestTrue(TEXT("il bot comanda i propri"), Branth->bIsBotControlled);
 
 		// **Il punto della DoD sul bot**: MP diversi arrivano davvero in campo. Il budget dello snapshot viene
@@ -164,10 +164,10 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		TestEqual(TEXT("Branth: 4 MP"), Branth->MoveRange, 4);
 		TestEqual(TEXT("Ivrin: 6 MP"), Ivrin->MoveRange, 6);
 		// ⚠️ **La portata ora dipende dalla VARIANTE D'ARMA, e il valore atteso si deriva** (`#1054`).
-		// Gadget non ha un loadout — §4 gli assegna `Gadget.Insulator`, che v0.1 non costruisce — quindi
+		// Aevik non ha un loadout — §4 gli assegna `Gadget.Insulator`, che v0.1 non costruisce — quindi
 		// resta a 4, il numero del catalogo. Branth monta `Weapon.Impact`, che toglie una cella: **3 → 2**.
 		// Il `2` non e' scritto qui: lo produce `ApplyWeaponVariant`, cosi' un ribilanciamento della
-		// variante fa cadere il catalogo e non questo file, e il giorno in cui Gadget avra' il suo gadget
+		// variante fa cadere il catalogo e non questo file, e il giorno in cui Aevik avra' il suo gadget
 		// questa riga comincera' a coprire anche lui senza che nessuno la aggiorni.
 		auto PortataAttesa = [](const TCHAR* HeroId) -> int32
 		{
@@ -183,8 +183,8 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			}
 			return INDEX_NONE;
 		};
-		TestEqual(TEXT("Gadget colpisce alla portata del catalogo (nessun loadout)"),
-			Gadget->AttackRange, PortataAttesa(TEXT("Hero.Gadget")));
+		TestEqual(TEXT("Aevik colpisce alla portata del catalogo (nessun loadout)"),
+			Aevik->AttackRange, PortataAttesa(TEXT("Hero.Aevik")));
 		TestEqual(TEXT("Branth colpisce alla portata ridotta dalla sua variante"),
 			Branth->AttackRange, PortataAttesa(TEXT("Hero.Branth")));
 		// E che le due NON siano lo stesso numero: senza questa riga il lambda potrebbe restituire sempre
@@ -194,7 +194,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 
 		// Ogni unita' ha le PROPRIE istanze d'azione: due eroi che condividessero un `URTActionData`
 		// ricaricherebbero insieme.
-		TestTrue(TEXT("azioni non condivise"), Gadget->GetAbility(0) != Phase->GetAbility(0));
+		TestTrue(TEXT("azioni non condivise"), Aevik->GetAbility(0) != Phase->GetAbility(0));
 
 		// Le unita' stanno su celle distinte della mappa.
 		TSet<FRTCellId> Cells;
@@ -227,10 +227,10 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 		return false;
 	}
 
-	// Gadget in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
+	// Aevik in ENTRAMBE le squadre: la formazione dichiara quattro slot, ma i nomi distinti sono tre.
 	// Due unita' che condividessero un `URTHeroData` ricaricherebbero insieme le stesse azioni.
-	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
-	GameMode->Team1Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Ivrin") };
+	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Phase") };
+	GameMode->Team1Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Ivrin") };
 
 	GameMode->SetupHexMatch(HexMap);
 
@@ -239,7 +239,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
 
 	TSet<FName> InPlay;
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
-	TestTrue(TEXT("Gadget, una volta sola"), InPlay.Contains(FName(TEXT("Hero.Gadget"))));
+	TestTrue(TEXT("Aevik, una volta sola"), InPlay.Contains(FName(TEXT("Hero.Aevik"))));
 	TestTrue(TEXT("e Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
 	TestEqual(TEXT("nessun duplicato in campo"), InPlay.Num(), Units.Num());
 
@@ -268,7 +268,7 @@ bool FRTHeroSpawnDuplicateTest::RunTest(const FString&)
  * dice quale portata deve avere l'attacco base dopo la variante. Trascrivere un numero qui creerebbe una
  * terza copia di ciò che il catalogo già decide, e cadrebbe al primo ribilanciamento senza dire perché.
  *
- * ⚠️ **Metà roster non ha un loadout, e non è un difetto di questo test.** §4 assegna a Gadget e Ivrin
+ * ⚠️ **Metà roster non ha un loadout, e non è un difetto di questo test.** §4 assegna a Aevik e Ivrin
  * due gadget che v0.1 non costruisce (`Gadget.Insulator` è un passivo che aspetta E36, `Gadget.Sensor`
  * aspetta E13), quindi `DefaultLoadoutFor` restituisce vuoto per loro — decisione presa nella fetta A.
  * Il test non elenca *quali*: chiede al catalogo, così quando E36 atterrerà comincerà a coprire anche
@@ -405,12 +405,12 @@ bool FRTUnknownHeroAbortsSetupTest::RunTest(const FString&)
 	// Il CONTEGGIO resta quello del formato — due per squadra — cosi' la guardia che si esercita e' quella
 	// del nome. Con una formazione piu' corta si fermerebbe prima, sulla cardinalita', e questo test
 	// direbbe verde senza aver mai toccato il ramo che copre.
-	GameMode->Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.NonEsiste") };
+	GameMode->Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.NonEsiste") };
 
 	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, 1);
 	GameMode->SetupHexMatch(HexMap);
 
-	// **Zero, non tre.** Gadget precede il nome ignoto e la squadra 1 e' intatta: senza la guardia in campo
+	// **Zero, non tre.** Aevik precede il nome ignoto e la squadra 1 e' intatta: senza la guardia in campo
 	// resterebbero TRE unita', ed e' quel numero — una partita che parte e sembra normale — a rendere il
 	// difetto invisibile a chi guarda lo schermo invece di contare i pezzi.
 	TestEqual(TEXT("nessuna unita' in campo"), CollectRosterUnits(World).Num(), 0);
@@ -495,14 +495,14 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// chiuso. Se un `BP_Unit_*` viene spostato o rinominato, qui si vede subito.
 	//
 	// ⚠️ **E il percorso e' per eroe**, perche' l'errore facile in quel costruttore e' lo scambio: quattro
-	// `Assegna` in fila con quattro finder simili, e `Hero.Phase` che riceve il Blueprint di Gadget passerebbe
+	// `Assegna` in fila con quattro finder simili, e `Hero.Phase` che riceve il Blueprint di Aevik passerebbe
 	// un asserto scritto solo su «non e' il cilindro».
 	// ⚠️ **`Hero.Branth` mappa su un path che dice `Riktor`, ed e' la coppia CORRETTA oggi.** [D-334] ha
 	// rinominato l'identita', non l'asset: il rename di `/Game/RT/Characters/Riktor/` e' la fetta E di
 	// #2297. Questa riga e' il pin che tiene insieme le due meta' — quando l'asset si muove, si muove anche
 	// qui, e finche' non si muove il disallineamento e' la verita' del progetto, non un errore da correggere.
 	const TMap<FName, FString> Attesi = {
-		{ FName(TEXT("Hero.Gadget")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
+		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
 		{ FName(TEXT("Hero.Phase")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
 		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
@@ -621,13 +621,13 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 
 	// Il caso che il DoD di `#287` chiede per nome: **mesh assegnata a meta' roster**. E' lo stato reale di
 	// chi ha solo alcuni pack Paragon, e la domanda e' se le due meta' convivono nella stessa partita.
-	const TSubclassOf<ARTUnit>* ClasseGadget = GameMode->HeroUnitClasses.Find(FName(TEXT("Hero.Gadget")));
-	if (!TestNotNull(TEXT("il default porta la classe di Gadget"), (const void*)ClasseGadget))
+	const TSubclassOf<ARTUnit>* ClasseAevik = GameMode->HeroUnitClasses.Find(FName(TEXT("Hero.Aevik")));
+	if (!TestNotNull(TEXT("il default porta la classe di Aevik"), (const void*)ClasseAevik))
 	{
 		DestroyRosterWorld(World);
 		return false;
 	}
-	UClass* AttesaGadget = ClasseGadget->Get();
+	UClass* AttesaAevik = ClasseAevik->Get();
 
 	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Branth")));
 	GameMode->HeroUnitClasses.Remove(FName(TEXT("Hero.Ivrin")));
@@ -637,15 +637,15 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 	const TArray<ARTUnit*> Units = CollectRosterUnits(World);
 	TestEqual(TEXT("le quattro unita' entrano"), Units.Num(), 4);
 
-	const ARTUnit* Gadget = FindByHeroId(Units, TEXT("Hero.Gadget"));
+	const ARTUnit* Aevik = FindByHeroId(Units, TEXT("Hero.Aevik"));
 	const ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
-	if (TestNotNull(TEXT("Gadget in campo"), Gadget) && TestNotNull(TEXT("Branth in campo"), Branth))
+	if (TestNotNull(TEXT("Aevik in campo"), Aevik) && TestNotNull(TEXT("Branth in campo"), Branth))
 	{
-		TestEqual(TEXT("Gadget ha la sua classe visiva"), Gadget->GetClass(), AttesaGadget);
+		TestEqual(TEXT("Aevik ha la sua classe visiva"), Aevik->GetClass(), AttesaAevik);
 		TestEqual(TEXT("Branth, senza voce, ricade sul cilindro"), Branth->GetClass(), ARTUnit::StaticClass());
 
 		// La meta' senza asset non degrada l'altra: e' il punto della domanda.
-		TestNotEqual(TEXT("le due meta' restano distinte"), Gadget->GetClass(), Branth->GetClass());
+		TestNotEqual(TEXT("le due meta' restano distinte"), Aevik->GetClass(), Branth->GetClass());
 	}
 
 	DestroyRosterWorld(World);

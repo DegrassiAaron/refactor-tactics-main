@@ -265,7 +265,7 @@ struct FRTScenarioUnit
 	UPROPERTY()
 	FString Id;
 
-	/** ID stabile dell'eroe dal catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`. */
+	/** ID stabile dell'eroe dal catalogo: `Hero.Aevik`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`. */
 	UPROPERTY()
 	FName HeroId;
 
@@ -340,7 +340,7 @@ struct FRTScenarioUnit
 	 * abbia.
 	 *
 	 * Serve perche' altrimenti la premessa di uno scenario sulla conoscenza dipenderebbe dai numeri del
-	 * roster, **che cambiano**: `D-073` ha appena portato Gadget da un valore all'altro, e con `AttackRange` a 5
+	 * roster, **che cambiano**: `D-073` ha appena portato Aevik da un valore all'altro, e con `AttackRange` a 5
 	 * contro viste da 5 a 7 non esiste oggi una distanza in cui un nemico sia insieme fuori vista e sotto tiro
 	 * — cioe' la sola configurazione in cui «non lo bersaglia» dimostri qualcosa. Il test C++ gemello
 	 * (`HexBotPlay.PlansOnPartialKnowledge`) dichiara la vista nel test per la stessa ragione, e lo scrive.
@@ -428,7 +428,7 @@ struct FRTScenarioIntent
 	TArray<FRTCellId> Move;
 
 	/**
-	 * `ActionId` dell'abilita' da usare (`Gadget.ArcPulse`). Vuoto = nessun attacco.
+	 * `ActionId` dell'abilita' da usare (`Aevik.ArcPulse`). Vuoto = nessun attacco.
 	 *
 	 * Per **ID** e non per indice: l'indice di un'abilita' nel kit si sposta appena qualcuno ne aggiunge una,
 	 * e lo scenario continuerebbe a passare verificando l'abilita' sbagliata — il tipo di test che mente.
@@ -485,7 +485,7 @@ struct FRTScenarioIntent
 	bool bHasCoverEdge = false;
 
 	/**
-	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Gadget.ReactiveCapacitor`). Vuota = nessuna.
+	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Aevik.ReactiveCapacitor`). Vuota = nessuna.
 	 *
 	 * Armare non e' agire: la reazione dichiara solo **cosa succedera' se** il trigger scatta durante la
 	 * risoluzione. Non ha bersaglio — lo decide il trigger (chi ha colpito, quale alleato e' stato preso) —
@@ -730,7 +730,7 @@ struct FRTTestScenario
 	 * ⚠️ **Conservati COME SCRITTI nel file, non normalizzati.** La forma canonica di un tag — minuscolo,
 	 * senza spazi ai bordi, ordinata — appartiene a `URTScenarioIndex::NormalizeTag`, e l'indice la applica
 	 * per conto suo quando costruisce i filtri. Se la applicasse anche il loader, il primo salvataggio di uno
-	 * scenario riscriverebbe `"Gadget"` in `"gadget"` in tutti i file che lo dichiarano cosi': una modifica
+	 * scenario riscriverebbe `"Aevik"` in `"gadget"` in tutti i file che lo dichiarano cosi': una modifica
 	 * che nessuno ha chiesto, prodotta da uno strumento che doveva solo preservare.
 	 *
 	 * Il campo esiste perche' senza di esso il modello non porta cio' che il file contiene, e un round-trip

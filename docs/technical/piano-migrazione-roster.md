@@ -92,8 +92,8 @@ FRTTurnLogEntry:  Phase · Category · Outcome · SrcCell · TgtCell · Amount
 
 | Token | Serializzato | Trattamento |
 |---|---|---|
-| `Hero.Flux` → `Hero.Gadget` | no | **rinomina**: nessun redirect, nessuna doppia verità, nessuna finestra di transizione | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
-| `Flux.ArcPulse` → `Hero.Gadget.ArcPulse` | **sì**, come `ActionId` | **rinomina** anche questo — vedi sotto | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
+| `Hero.Flux` → `Hero.Aevik` | no | **rinomina**: nessun redirect, nessuna doppia verità, nessuna finestra di transizione | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
+| `Flux.ArcPulse` → `Hero.Aevik.ArcPulse` | **sì**, come `ActionId` | **rinomina** anche questo — vedi sotto | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 
 Il fatto che un token sia serializzato dice che **potrebbe** esistere una traccia da proteggere, non che esista.
 Tre misure dicono che non esiste:
@@ -117,7 +117,7 @@ turno usa 503 volte (`ERTMatchPhase` 367 + `ERTResolutionPhase` 136). Il prefiss
 per costruzione, e **non costa nulla**: nessun punto del codice legge la struttura interna di un token
 abilità. `ValidateActions` verifica `IsNone` e i duplicati — mai la forma. I due soli split di
 `Source/` (`ARTUnit::ShortHeroName`, `URTIconLibrary`) usano `FindLastChar` e operano su `HeroId`, quindi
-`Hero.Gadget.ArcPulse` → `ArcPulse` funziona già oggi.
+`Hero.Aevik.ArcPulse` → `ArcPulse` funziona già oggi.
 
 ## 3. Il piano, a fette
 
@@ -134,7 +134,7 @@ per la stessa cosa.
 
 | # | Fetta | Tocca la serializzazione? | Dipende da | Gate |
 |---:|---|---|---|---|
-| 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Gadget` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
+| 1 *(era 3)* | **`HeroId` + simboli C++**: `Hero.Flux` → `Hero.Aevik` e i quattro `MakeFlux`/`MakeRiva`/`MakeBastion`/`MakeVektor`; 4 file di test rinominati | no | — | `Unit.CanonicalHeroIdHasNoLegacyName` sostituisce `ShortHeroNameFromStableId` | <!-- rename-exempt: la riga dichiara la rinomina: sostituirla la renderebbe muta -->
 | 2 *(era 4)* | **Token abilità a catalogo** → `Hero.<Nome>.<Abilità>`; scenari JSON e i 2 file scenario rinominati | no (il catalogo non è una traccia) | 1 | i 5 ID di test aggiornati **con** il registry, `feature_registry.py generate` **e** `shortlist` |
 | 3 *(era 5)* | **Documentazione viva** — 1600 occorrenze, 106 file | — | 2 | `check-docs-naming.py --check` **senza esenzioni** per i file vivi |
 | 4 *(era 6)* | **Archivio e citazioni datate** — 1128 occorrenze, 40 file; rimozione delle esenzioni «registri datati» dal gate | — | 3 | `check-docs-naming.py --check` verde con **zero** esenzioni |

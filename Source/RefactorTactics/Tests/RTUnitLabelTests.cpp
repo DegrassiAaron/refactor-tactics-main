@@ -23,7 +23,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	const FString Fallback = TEXT("RTUnit_0");
 
 	// Il caso reale: gli HeroId del catalogo sono namespaced.
-	TestEqual(TEXT("Hero.Gadget -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Gadget"), Fallback), TEXT("Gadget"));
+	TestEqual(TEXT("Hero.Aevik -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
 	TestEqual(TEXT("Hero.Phase -> Phase"), ARTUnit::ShortHeroName(TEXT("Hero.Phase"), Fallback), TEXT("Phase"));
 	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
 	TestEqual(TEXT("Hero.Ivrin -> Ivrin"), ARTUnit::ShortHeroName(TEXT("Hero.Ivrin"), Fallback), TEXT("Ivrin"));
@@ -32,10 +32,10 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	TestEqual(TEXT("NAME_None -> fallback"), ARTUnit::ShortHeroName(NAME_None, Fallback), Fallback);
 
 	// Robustezza: un ID senza punto resta se stesso, non diventa vuoto.
-	TestEqual(TEXT("ID senza punto -> se stesso"), ARTUnit::ShortHeroName(TEXT("Gadget"), Fallback), TEXT("Gadget"));
+	TestEqual(TEXT("ID senza punto -> se stesso"), ARTUnit::ShortHeroName(TEXT("Aevik"), Fallback), TEXT("Aevik"));
 
 	// Namespace annidato: conta l'ULTIMO segmento.
-	TestEqual(TEXT("A.B.C -> C"), ARTUnit::ShortHeroName(TEXT("Hero.Elite.Gadget"), Fallback), TEXT("Gadget"));
+	TestEqual(TEXT("A.B.C -> C"), ARTUnit::ShortHeroName(TEXT("Hero.Elite.Aevik"), Fallback), TEXT("Aevik"));
 
 	// Punto finale senza segmento: non deve produrre una stringa vuota a schermo.
 	TestEqual(TEXT("punto finale -> stringa intera, mai vuota"),
@@ -70,8 +70,8 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	// Quattro vengono da D-130; `Riktor` da [D-334], che ha superseduto D-322 e portato il roster v0.1 a
 	// `Aevik`/`Muiren`/`Branth`/`Ivrin`; `Wraith` da [D-341], la fetta che lo ha ritirato davvero.
 	// ⚠️ **La lista cresce con la migrazione, non prima**: aggiungere qui un nome ancora in uso —
-	// `Gadget` e `Phase` finche' non sono migrati — fa rosso il test contro un roster sano. Ogni fetta
-	// aggiunge il proprio nome quando lo ritira davvero.
+	// `Phase` finche' non e' migrata — fa rosso il test contro un roster sano. Ogni fetta aggiunge il
+	// proprio nome quando lo ritira davvero, e `Gadget` e' entrato con la sua (#2491).
 	// ⛔ **E mai l'EREDE.** La stesura precedente elencava `Ivrin` fra i nomi da non aggiungere ancora:
 	// era un refuso per `Wraith`. `Ivrin` e' il nome NUOVO, non uno ritirato — in questa lista non entra
 	// mai, e mettercelo renderebbe il test rosso contro un roster sano per sempre.
@@ -81,7 +81,7 @@ bool FRTCanonicalHeroIdTest::RunTest(const FString&)
 	// la seconda quando lo stesso script e' stato rilanciato *per misurare i residui* — uno script che
 	// sostituisce non e' una misura, e rieseguirlo ha disfatto la riparazione appena scritta.
 	const TArray<FString> Legacy = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
-		TEXT("Riktor"), TEXT("Wraith") };
+		TEXT("Riktor"), TEXT("Wraith"), TEXT("Gadget") };
 
 	const TArray<FName> Ids = URTHeroCatalogLibrary::GetHeroIds();
 	if (!TestEqual(TEXT("il roster v0.1 dichiara quattro id"), Ids.Num(), 4)) { return false; }
@@ -121,15 +121,15 @@ bool FRTUnitDisplayLabelTest::RunTest(const FString&)
 {
 	const FString Fallback = TEXT("RTUnit_0");
 
-	// 1. Nome canonico dichiarato: vince sull'ID stabile. E' il punto di D-120 — `Hero.Gadget` si legge
+	// 1. Nome canonico dichiarato: vince sull'ID stabile. E' il punto di D-120 — `Hero.Aevik` si legge
 	//    `Gadget`, e i due piani non convergono.
-	TestEqual(TEXT("Hero.Gadget + \"Gadget\" -> Gadget"),
-		ARTUnit::DisplayLabel(FText::FromString(TEXT("Gadget")), TEXT("Hero.Gadget"), Fallback), TEXT("Gadget"));
+	TestEqual(TEXT("Hero.Aevik + \"Gadget\" -> Gadget"),
+		ARTUnit::DisplayLabel(FText::FromString(TEXT("Gadget")), TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
 
 	// 2. Nome assente: ripiego sull'ultimo segmento dell'ID. Un FText vuoto e' un valore LEGALE, quindi
 	//    senza questo ramo l'etichetta sparirebbe a schermo — il difetto che ShortHeroName impediva.
 	TestEqual(TEXT("FText vuoto -> ultimo segmento dell'ID, mai stringa vuota"),
-		ARTUnit::DisplayLabel(FText::GetEmpty(), TEXT("Hero.Gadget"), Fallback), TEXT("Gadget"));
+		ARTUnit::DisplayLabel(FText::GetEmpty(), TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
 
 	// Soli spazi: a schermo e' indistinguibile da assente, quindi vale come assente.
 	TestEqual(TEXT("soli spazi -> ripiego, non un'etichetta invisibile"),
@@ -158,7 +158,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 	// Il test non copre il percorso di disegno: `ARTHUD::DrawHUD` non e' esercitato da nessun test
 	// automatico, e che l'etichetta si veda davvero resta la voce `PIE-NAME`.
 	const TMap<FName, FString> Attesi = {
-		{ TEXT("Hero.Gadget"),    TEXT("Gadget") },
+		{ TEXT("Hero.Aevik"),    TEXT("Gadget") },
 		{ TEXT("Hero.Phase"),    TEXT("Phase")  },
 		{ TEXT("Hero.Branth"), TEXT("Branth") },
 		{ TEXT("Hero.Ivrin"),  TEXT("Ivrin")  },

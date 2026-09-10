@@ -551,7 +551,7 @@ scenari su diciassette erano rossi** — e la ripartizione delle cause è ciò c
 verificato dai test come **valore**, e mai letto quando si applica una spinta.
 
 La combo Phase→Gadget (**#242**) è il caso più istruttivo della sessione: documentata nella showcase, con un
-test verde (`Heroes.Hero.Gadget.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
+test verde (`Heroes.Hero.Aevik.WetBonus`, che verifica l'aritmetica senza passare dal `TurnManager`), e
 **ineseguibile** — il `Wet` di `PressureJet` arriva durante il Blast quando i colpi sono già preparati, e su
 due turni scade nel Cleanup prima di servire.
 

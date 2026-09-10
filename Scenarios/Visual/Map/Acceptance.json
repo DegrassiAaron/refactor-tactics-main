@@ -26,11 +26,11 @@
   "units": [
     { "id": "P_DOOR", "hero": "Hero.Phase", "team": 0, "cell": [0, 1, 0] },
 
-    { "id": "G_COV", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
+    { "id": "G_COV", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0] },
     { "id": "W_COV", "hero": "Hero.Ivrin", "team": 1, "cell": [0, -2, 0] },
     { "id": "R_COV", "hero": "Hero.Branth", "team": 1, "cell": [0, 2, 0], "loadout": [] },
 
-    { "id": "G_HIGH", "hero": "Hero.Gadget", "team": 0, "cell": [1, 0, 0] },
+    { "id": "G_HIGH", "hero": "Hero.Aevik", "team": 0, "cell": [1, 0, 0] },
     { "id": "W_HI", "hero": "Hero.Ivrin", "team": 1, "cell": [2, -2, 0] },
     { "id": "W_LO", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] }
   ],
@@ -45,7 +45,7 @@
     {
       "_turno": "T2 — LA COPERTURA E' DI UN BORDO (`PIE-VIS-COVER`). Due colpi simultanei sullo stesso bersaglio, da due lati opposti: uno attraversa il bordo protetto e l'altro no, quindi arrivano con entita' DIVERSE. G_COV risponde a W_COV, cosi' la scena e' uno scambio e non un'esecuzione. E' il caso in cui un solo numero finale non basterebbe: la differenza fra i due impatti e' l'oggetto.",
       "intents": [
-        { "unit": "G_COV", "ability": "Hero.Gadget.ArcPulse", "target": "W_COV" },
+        { "unit": "G_COV", "ability": "Hero.Aevik.ArcPulse", "target": "W_COV" },
         { "unit": "W_COV", "ability": "Hero.Ivrin.PulseShot", "target": "G_COV" },
         { "unit": "R_COV", "ability": "Hero.Branth.ImpactShot", "target": "G_COV" }
       ]

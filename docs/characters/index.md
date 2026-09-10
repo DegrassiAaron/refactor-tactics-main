@@ -11,7 +11,7 @@ I nomi canonici del roster sono fissati da [D-120](../decisions/RT_PDR_00_Decisi
 
 | Nome canonico | Scheda | Stable ID (legacy) | Base visuale |
 |---|---|---|---|
-| **Gadget** | [scheda](v0.1/gadget.md) | `Hero.Gadget` | `Paragon.Gadget` |
+| **Aevik** | [scheda](v0.1/aevik.md) | `Hero.Aevik` | `Paragon.Aevik` |
 | **Phase** | [scheda](v0.1/phase.md) | `Hero.Phase` | `Paragon.Phase` |
 | **Riktor** | [scheda](v0.1/riktor.md) | `Hero.Riktor` | `Paragon.Riktor` |
 | **Wraith** | [scheda](v0.1/wraith.md) | `Hero.Wraith` | `Paragon.Wraith` |

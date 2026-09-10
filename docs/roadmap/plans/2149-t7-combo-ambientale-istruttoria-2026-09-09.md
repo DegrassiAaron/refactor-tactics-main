@@ -10,7 +10,7 @@
 ## Nota di provenienza
 
 Prodotta in sola lettura su `HEAD = 57112a47`. I fatti su cui poggiano le conclusioni sono stati
-**riverificati indipendentemente** prima di registrarla: `Hero.Gadget.LinearDischarge` non imposta
+**riverificati indipendentemente** prima di registrarla: `Hero.Aevik.LinearDischarge` non imposta
 `PropagationLimit` (solo `ConductiveNode`, `RTHeroCatalogLibrary.cpp:378`); il `§T2` della spec non contiene
 alcun Dash nell'acqua (`showcase-v0.1.md:237-244`); il `Ram` di Branth è la sorgente della categoria
 `fallback` (`RTShowcaseScenarioTests.cpp:2275-2281`).
@@ -31,7 +31,7 @@ Il turno **gira** — `Scenario.ShowcaseRelayV01PlaysEveryTurn` asserisce otto t
 | Unità | Intento | Fase |
 |---|---|---|
 | Phase | `Gadget.Sprinkler` su Wraith | `Environment` → **Cleanup** |
-| Gadget | `Hero.Gadget.LinearDischarge` su Wraith | `Attack` → **Blast** |
+| Gadget | `Hero.Aevik.LinearDischarge` su Wraith | `Attack` → **Blast** |
 | Wraith | `move` → `(1,2,0)` | **Move** |
 | Branth | `dash: Hero.Branth.Ram` → `(1,0,0)` | **Dash** |
 
@@ -46,7 +46,7 @@ bersaglio non ancora bagnato.
 produzione** (`RTTurnManager.cpp:3523`), dentro il ramo filtrato su `ERTMatchPhase::Cleanup` (`:3433-3437`).
 
 ∴ **la riga dell'`Expected` *«la propagazione elettrica è ordinata e non colpisce due volte»* non è ottenibile
-da `LinearDischarge` in nessuna delle due strade.** Richiede `Hero.Gadget.ConductiveNode`
+da `LinearDischarge` in nessuna delle due strade.** Richiede `Hero.Aevik.ConductiveNode`
 (`PropagationLimit = 3`), che è **anch'essa** `Environment` → Cleanup.
 
 **(b) Un'unità pianifica UNA sola abilità per turno.** `PlannedAbilityIndex` è un `int32` singolo

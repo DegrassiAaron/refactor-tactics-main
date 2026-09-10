@@ -2347,7 +2347,7 @@ bool FRTAutobattleEngagesOnGeneratedTestArenaTest::RunTest(const FString&)
 	//     nessuna voce di catalogo runtime, nessun codice che riservi lo slot movimento. `D-070` e' decisa e
 	//     **non implementata**.
 	//   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe.
-	//   · Il roster spedito non scende sotto **4** (`Gadget` 5, `Phase` 5, `Branth` 4, `Ivrin` 6), e a 4 MP
+	//   · Il roster spedito non scende sotto **4** (`Aevik` 5, `Phase` 5, `Branth` 4, `Ivrin` 6), e a 4 MP
 	//     quella board arretra in **zero** coppie.
 	//
 	// ∴ Un Overwatch sostenuto non tiene il budget a 2 MP **perche' non lo tocca affatto**.

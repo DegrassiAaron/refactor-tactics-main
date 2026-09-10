@@ -16,7 +16,7 @@
   "_nota_numeri": "I sei turni e i due colpi vengono da Visual.Combat.Defeat, dove sono MISURATI: lo scudo base assorbe 5 punti per turno e si ricarica nel Cleanup, quindi con quattro turni Gadget chiudeva a 18 HP invece che abbattuto (D-224). Non sono stati ricalcolati qui: sono la stessa aritmetica, e cambiarli scollegherebbe i due banchi proprio nel punto in cui devono restare confrontabili.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,  0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,  0, 0] },
     { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-4,  1, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1,  0, 0] },
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 1, -1, 0] }

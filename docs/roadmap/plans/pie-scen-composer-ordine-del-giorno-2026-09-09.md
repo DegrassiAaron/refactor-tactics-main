@@ -300,7 +300,7 @@ readout PRIMA:  squadre  team 0: 1 · team 1: 1  |  unità 2
 readout DOPO :  squadre  team 0: 1 · team 1: 2  |  unità 3
 ```
 
-e il file su disco: `{"id": "U1", "hero": "Hero.Gadget", "team": 1, "cell": [0, 0, 0]}`.
+e il file su disco: `{"id": "U1", "hero": "Hero.Aevik", "team": 1, "cell": [0, 0, 0]}`.
 
 ⚠️ **Il DoD resta parzialmente osservato**: il secondo `+ UNIT` è stato rifiutato da `AddUnit` perché la
 cella era la stessa. Il rifiuto è corretto — è l'autorità della facade — ma non dimostra *due* id

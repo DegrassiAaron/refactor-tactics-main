@@ -654,7 +654,7 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 		if (!TM || !Bot || !Seen || !Hidden) { DestroyHexBotWorld(World); return Empty; }
 
 		// Vista corta e DICHIARATA nel test: cosi' la premessa non dipende dai numeri di bilanciamento del
-		// roster, che cambiano (D-073 ha appena portato Gadget a 7).
+		// roster, che cambiano (D-073 ha appena portato Aevik a 7).
 		Bot->VisionRange = 3;
 
 		const bool bSeen = URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange;

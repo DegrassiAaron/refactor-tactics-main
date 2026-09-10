@@ -31,7 +31,7 @@ namespace RTBootstrapperTestsLocal
 		Config.MapSource = ERTMapSource::GeneratedDemoArena;
 		Config.DemoArenaRadius = 4;
 		Config.ShippedFormatId = FName(TEXT("Format.Skirmish2v2"));
-		Config.Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Phase") };
+		Config.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Phase") };
 		Config.Team1Heroes = { TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
 		return Config;
 	}
@@ -186,7 +186,7 @@ bool FRTBootstrapperFailsClosedOnUnknownHeroTest::RunTest(const FString&)
 	FRTMatchBootstrapConfig Config = RTBootstrapperTestsLocal::MakeConfig();
 	// La SECONDA voce della prima squadra: cosi' la lineup ha gia' risolto un eroe valido quando incontra
 	// quello sbagliato, ed e' esattamente lo stato da cui nasceva la partita a meta'.
-	Config.Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.CheNonEsiste") };
+	Config.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.CheNonEsiste") };
 
 	AddExpectedError(TEXT("MapSource=GeneratedDemoArena"), EAutomationExpectedErrorFlags::Contains, 1);
 	AddExpectedError(TEXT("non e' nel catalogo eroi"), EAutomationExpectedErrorFlags::Contains, 1);
@@ -326,7 +326,7 @@ bool FRTBootstrapperNeedsFormationAlignedToFormatTest::RunTest(const FString&)
 	}
 
 	FRTMatchBootstrapConfig Disallineata = RTBootstrapperTestsLocal::MakeConfig();
-	Disallineata.Team0Heroes = { TEXT("Hero.Gadget") }; // uno solo, dove il formato ne chiede due
+	Disallineata.Team0Heroes = { TEXT("Hero.Aevik") }; // uno solo, dove il formato ne chiede due
 
 	// Il disallineamento e' un `Error` dichiarato: va atteso, o l'automation lo conta come fallimento.
 	AddExpectedError(TEXT("la formazione della squadra 0 ne dichiara"),
@@ -427,7 +427,7 @@ bool FRTBootstrapperIgnoresTheSecondCopyOfAHeroTest::RunTest(const FString&)
 	}
 
 	FRTMatchBootstrapConfig Doppia = RTBootstrapperTestsLocal::MakeConfig();
-	Doppia.Team0Heroes = { TEXT("Hero.Gadget"), TEXT("Hero.Gadget") }; // due voci, un solo eroe
+	Doppia.Team0Heroes = { TEXT("Hero.Aevik"), TEXT("Hero.Aevik") }; // due voci, un solo eroe
 
 	FRTStartupReport Report;
 	const FRTMatchBootstrapOutcome Outcome = FRTMatchBootstrapper::Bootstrap(HexMap, TM, Doppia, Report);

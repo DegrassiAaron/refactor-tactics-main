@@ -498,7 +498,7 @@ bool FRTShieldIsCarriedOncePerTeamTest::RunTest(const FString&)
 	// Phase, Team 1 = Riktor + Wraith. Il test guarda i PORTATORI, non i nomi delle abilita': un rename
 	// non deve farlo cadere, un portatore spostato di squadra si'.
 	const TMap<FName, int32> SquadraDi = {
-		{ TEXT("Hero.Gadget"), 0 }, { TEXT("Hero.Phase"),  0 },
+		{ TEXT("Hero.Aevik"), 0 }, { TEXT("Hero.Phase"),  0 },
 		{ TEXT("Hero.Riktor"), 1 }, { TEXT("Hero.Wraith"), 1 }
 	};
 

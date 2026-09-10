@@ -24,15 +24,15 @@
   "_nota_anti_vacuita": "Ogni gruppo porta almeno un'assertion che cade se il suo fenomeno non avviene: `UnitHpEquals W_ELE 63` per la scarica sull'acqua, `UnitAtCell G_ICE (-2,1,0)` per la scivolata (la cella e' oltre la fine del percorso dichiarato, quindi non e' raggiungibile camminando), `UnitAtCell R_ROU (-3,-1,0)` per la carica rifiutata, `UnitHpEquals R_SMO 120` per il colpo che il fumo non lascia arrivare, e `UnitHpEquals W_FIRE 61` per il fuoco piu' lo spegnimento — accanto a `UnitAtCell W_FIRE (0,-1,0)`, che pinna la spinta del getto. Un composito senza queste sarebbe una bella animazione di cinque cose che non sono successe.",
 
   "units": [
-    { "id": "G_ELE", "hero": "Hero.Gadget", "team": 0, "cell": [-3, 0, 0] },
+    { "id": "G_ELE", "hero": "Hero.Aevik", "team": 0, "cell": [-3, 0, 0] },
     { "id": "W_ELE", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] },
 
-    { "id": "G_ICE", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 4, 0] },
+    { "id": "G_ICE", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 4, 0] },
 
     { "id": "R_ROU", "hero": "Hero.Branth", "team": 1, "cell": [-3, -1, 0] },
-    { "id": "G_ROU", "hero": "Hero.Gadget", "team": 0, "cell": [-1, -1, 0] },
+    { "id": "G_ROU", "hero": "Hero.Aevik", "team": 0, "cell": [-1, -1, 0] },
 
-    { "id": "G_SMO", "hero": "Hero.Gadget", "team": 0, "cell": [1, 4, 0] },
+    { "id": "G_SMO", "hero": "Hero.Aevik", "team": 0, "cell": [1, 4, 0] },
     { "id": "R_SMO", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] },
 
     { "id": "P_WET", "hero": "Hero.Phase", "team": 0, "cell": [0, -4, 0] },
@@ -44,7 +44,7 @@
       "_turno": "T1 — ACQUA + ELETTRICITA' (`PIE-VIS-COMBO`). W_ELE scatta nella spina d'acqua in fase Dash e il terreno lo bagna; la scarica lineare di G_ELE lo trova gia' bagnato e il bonus si applica. 90 - (32 - 5 di scudo base, [D-224]) = 63. Va per primo perche' la rete conduttiva dev'essere intatta.",
       "intents": [
         { "unit": "W_ELE", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [0, 0, 0] },
-        { "unit": "G_ELE", "ability": "Hero.Gadget.LinearDischarge", "target": "W_ELE" }
+        { "unit": "G_ELE", "ability": "Hero.Aevik.LinearDischarge", "target": "W_ELE" }
       ]
     },
     {
@@ -57,7 +57,7 @@
     {
       "_turno": "T3 — FUMO (`PIE-VIS-SMOKE`). G_SMO spara a R_SMO lungo la colonna q=1, che attraversa il fumo di (1,2): il bersaglio SI VEDE e non si puo' colpire, perche' il fumo accorcia la portata invece di accecare. R_SMO resta a 120 pieni.",
       "intents": [
-        { "unit": "G_SMO", "ability": "Hero.Gadget.ArcPulse", "target": "R_SMO" }
+        { "unit": "G_SMO", "ability": "Hero.Aevik.ArcPulse", "target": "R_SMO" }
       ]
     },
     {

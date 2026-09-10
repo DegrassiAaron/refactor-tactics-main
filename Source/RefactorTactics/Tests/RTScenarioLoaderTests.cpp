@@ -39,7 +39,7 @@ namespace
 	  "version": 1,
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
@@ -50,7 +50,7 @@ namespace
 	// Le decisioni di finestra come DATO (CP 15.3 meta' B, #512). Nome distinto, come sopra.
 	//
 	// ⚠️ Gli id eroe sono i LEGACY, e non e' una svista: `RTHeroCatalogLibrary.cpp` dichiara oggi solo
-	// `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`, e i nomi di [D-130] — Gadget, Phase, Branth,
+	// `Hero.Aevik`, `Hero.Phase`, `Hero.Branth`, `Hero.Ivrin`, e i nomi di [D-130] — Aevik, Phase, Branth,
 	// Ivrin — hanno ZERO occorrenze in tutto `Source/`, perche' la fetta 3 (`#753`) non e' stata eseguita.
 	// Un `Hero.Branth` qui non risolverebbe. Si rinominano insieme al catalogo, non prima.
 	const TCHAR* ScenarioLoaderDecisionsJson = TEXT(R"JSON(
@@ -95,7 +95,7 @@ bool FRTScenarioLoaderValidTest::RunTest(const FString&)
 
 	const FRTScenarioUnit* A1 = Scenario.FindUnit(TEXT("A1"));
 	if (!TestNotNull(TEXT("A1 trovata per id"), A1)) { return false; }
-	TestEqual(TEXT("A1 e' Gadget"), A1->HeroId, FName(TEXT("Hero.Gadget")));
+	TestEqual(TEXT("A1 e' Aevik"), A1->HeroId, FName(TEXT("Hero.Aevik")));
 	TestEqual(TEXT("A1 parte da (-2,0,0)"), A1->Cell, FRTCellId(-2, 0, 0));
 
 	// 🔴 **Qui c'era «cella a due componenti -> layer 0», e non e' stata riscritta: e' stata SPOSTATA**
@@ -136,39 +136,39 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Drift","team":0,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("eroe sconosciuto"), TEXT("eroe inesistente"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("fuori dall'arena"), TEXT("cella fuori mappa"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},{"id":"A","hero":"Hero.Phase","team":1,"cell":[1,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"A","hero":"Hero.Phase","team":1,"cell":[1,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("duplicato"), TEXT("id unita' duplicato"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},{"id":"B","hero":"Hero.Phase","team":1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},{"id":"B","hero":"Hero.Phase","team":1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("stessa cella"), TEXT("due unita' sovrapposte alla partenza"));
 
 	// #1515 — una squadra che la partita non conosce. Non e' pedanteria di formato: `GetTeamScore` risponde
 	// `0` a ogni indice diverso da 0 e 1, e l'hash di stato si costruisce da quei due soltanto, quindi uno
 	// scenario con `"team": 7` girerebbe producendo un esito che nessuno puo' riprodurre.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("squadra 7"), TEXT("squadra fuori dall'intervallo ammesso"));
 
 	// Anche il verso negativo: `TeamId` e' un `int32` libero, e `-1` non e' meno rotto di `7`.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":-1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":-1,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("squadra -1"), TEXT("squadra negativa"));
 
 	// Uno scenario senza assertion passerebbe sempre: e' un test che non testa.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}]})"),
 		TEXT("nessuna assertion"), TEXT("scenario senza expect"));
 
 	// Un'assertion scritta male non deve essere IGNORATA: il test sembrerebbe passare.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitHasSuperpowers"}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitHasSuperpowers"}]})"),
 		TEXT("assertion sconosciuta"), TEXT("assertion non riconosciuta"));
 
 	// Intent su un'unita' mai schierata: errore di scrittura tipico, va colto subito.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"Z","move":[[1,0,0]]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"Z","move":[[1,0,0]]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("non schierata"), TEXT("intent su unita' inesistente"));
 
 	// Un formato piu' nuovo di quanto il loader sappia leggere non va interpretato a caso.
-	Rejects(TEXT(R"({"scenarioId":"X","version":99,"mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","version":99,"mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("non supportato"), TEXT("versione di formato futura"));
 
 	// Chiave di INTENT sconosciuta (CP 16.1). Prima veniva ignorata in silenzio, e uno scenario che chiedeva
@@ -185,14 +185,14 @@ bool FRTScenarioLoaderRejectsTest::RunTest(const FString&)
 	// segnala. Sostituita con `dashCell`, il refuso che il commento qui sopra nomina da sempre — che ha il
 	// pregio di essere un errore realistico invece di una chiave impossibile, e nessuno ha in programma di
 	// implementarlo.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("chiave sconosciuta"), TEXT("chiave di intent inventata"));
 
 	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Branth","team":0,"cell":[0,0,0]}],"turns":[{"intents":[{"unit":"A","dash":"Branth.Ram","dashCell":[1,0,0]}]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("chiave sconosciuta"), TEXT("refuso su una chiave vera"));
 
 	// Una direzione inventata in UnitFacing non deve diventare «guarda a est» per arrotondamento.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitFacing","unit":"A","value":"NNE"}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"expect":[{"type":"UnitFacing","unit":"A","value":"NNE"}]})"),
 		TEXT("direzione 'NNE' sconosciuta"), TEXT("direzione di facing inventata"));
 
 	return true;
@@ -273,7 +273,7 @@ bool FRTScenarioLoaderLogAssertionsTest::RunTest(const FString&)
 		  "scenarioId": "Test.LogAssertions",
 		  "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [-1, 0, 0] },
 		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [] } ],
@@ -427,7 +427,7 @@ bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
 		FRTTestScenario Scenario;
 		FString Error;
 		const bool bOk = Load(
-			TEXT(R"({ "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0] },
+			TEXT(R"({ "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
 			         { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0], "bot": true, "health": 7, "shield": 0, "visionRange": 1 })"),
 			TEXT(R"({ "intents": [] })"), Scenario, Error);
 		if (TestTrue(FString::Printf(TEXT("scenario valido (%s)"), *Error), bOk))
@@ -454,7 +454,7 @@ bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
 		FRTTestScenario Scenario;
 		FString Error;
 		const bool bOk = Load(
-			TEXT(R"({ "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0], "bot": true },
+			TEXT(R"({ "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0], "bot": true },
 			         { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] })"),
 			TEXT(R"({ "intents": [ { "unit": "A1", "move": [[0, 0, 0]] } ] })"), Scenario, Error);
 		TestFalse(TEXT("un intent su un'unita' bot e' rifiutato"), bOk);
@@ -466,7 +466,7 @@ bool FRTScenarioLoaderBotUnitTest::RunTest(const FString&)
 		FRTTestScenario Scenario;
 		FString Error;
 		const bool bOk = Load(
-			TEXT(R"({ "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1, 0, 0], "health": 0 })"),
+			TEXT(R"({ "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0], "health": 0 })"),
 			TEXT(R"({ "intents": [] })"), Scenario, Error);
 		TestFalse(TEXT("health 0 e' rifiutata"), bOk);
 	}
@@ -495,7 +495,7 @@ bool FRTScenarioLoaderVariantsTest::RunTest(const FString&)
 		  "scenarioId": "Test.Variants",
 		  "mapRadius": 4,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-1, 0, 0] },
+		    { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [-1, 0, 0] },
 		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
 		  ],
 		  %s
@@ -602,7 +602,7 @@ bool FRTScenarioLoaderDeclaredFacingTest::RunTest(const FString&)
 		{
 		  "scenarioId": "Test.DeclaredFacing",
 		  "mapRadius": 3,
-		  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
+		  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0] },
 		             { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] } ],
 		  "turns": [ { "requires": ["DeclaredRotation"], "intents": [ %s ] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -1022,7 +1022,7 @@ bool FRTScenarioLoaderDeclaredConditionTest::RunTest(const FString&)
 	{
 	  "scenarioId": "Spec.Condition.Probe", "version": 2, "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [
@@ -1080,7 +1080,7 @@ bool FRTScenarioLoaderConditionRejectTest::RunTest(const FString&)
 		{
 		  "scenarioId": "Spec.Condition.Reject", "version": 2, "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
 		    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, 0, 0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
@@ -1196,7 +1196,7 @@ bool FRTScenarioLoaderExpectCommentKeysTest::RunTest(const FString&)
 	const FString Json = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Expect.Comments", "version": 2, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [
 	    { "_assertion": "perche' questa assertion esiste", "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0] },
@@ -1234,7 +1234,7 @@ bool FRTScenarioLoaderRedirectExpectTest::RunTest(const FString&)
 	const FString Ok = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Expect.Redirect", "version": 2, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [
 	    { "type": "OriginalTargetEquals", "unit": "V1" },
@@ -1265,7 +1265,7 @@ bool FRTScenarioLoaderRedirectExpectTest::RunTest(const FString&)
 	const FString NoUnit = TEXT(R"JSON(
 	{
 	  "scenarioId": "Spec.Expect.RedirectNoUnit", "version": 2, "mapRadius": 3,
-	  "units": [ { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] } ],
+	  "units": [ { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] } ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
 	  "expect": [ { "type": "EffectiveTargetEquals" } ]
 	}
@@ -1326,7 +1326,7 @@ bool FRTScenarioTeamConstraintIsDerivedTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	FString Error;
 	const bool bOk = URTScenarioLoader::LoadFromString(
-		TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"Ribelle","hero":"Hero.Gadget","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+		TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"Ribelle","hero":"Hero.Aevik","team":7,"cell":[0,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		Scenario, Error);
 	TestFalse(TEXT("lo scenario con la squadra 7 e' rifiutato"), bOk);
 	TestTrue(FString::Printf(TEXT("l'errore nomina l'unita' (era: '%s')"), *Error),
@@ -1383,32 +1383,32 @@ bool FRTScenarioLoaderRejectsLayerOutsideFlatArenaTest::RunTest(const FString&)
 	// E' il caso reale, con lo stesso `L=-1` e la stessa coordinata planare VALIDA: `(-2,1)` sta dentro il
 	// raggio 3. Prima passava, ed e' il motivo per cui il messaggio deve nominare il layer invece di dire
 	// solo «fuori dall'arena» — su una planare giusta, quel messaggio manda a cercare il raggio.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[-2,1,-1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[-2,1,-1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("layer -1"), TEXT("unita' su un layer inesistente"));
 
 	// --- 2. CELLA MODIFICATA sullo stesso difetto --------------------------------------------------
 	// Un ostacolo posato fuori mappa non blocca niente, e lo scenario verificherebbe una condizione che non
 	// ha mai creato.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]}],"cells":[{"cell":[1,0,2],"blocksLineOfSight":true}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]}],"cells":[{"cell":[1,0,2],"blocksLineOfSight":true}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("layer 2"), TEXT("cella modificata su un layer inesistente"));
 
 	// --- 3. Il segno NON e' la regola --------------------------------------------------------------
 	// 🔴 Il blocco che boccia «rifiuta i layer negativi»: `+7` e' fuori mappa quanto `-1`.
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,7]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,7]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("layer 7"), TEXT("unita' su un layer POSITIVO inesistente"));
 
 	// --- 4. Il layer 0 continua a passare, e il raggio resta la sua regola --------------------------
-	Accepts(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[-2,1,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Accepts(TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[-2,1,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("unita' sul layer 0, dentro il raggio"));
 
-	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Rejects(TEXT(R"({"scenarioId":"X","mapRadius":2,"units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[9,0,0]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("distanza"), TEXT("layer giusto ma fuori raggio: il motivo cambia"));
 
 	// --- 5. ⛔ Con una FIXTURE il multilivello resta legale -----------------------------------------
 	// 🔴 Il blocco che boccia «rifiuta ogni layer != 0». Con una fixture la forma non e' un raggio, e
 	// l'arena PUO' avere piu' piani: e' la ragione per cui `FRTCellId` porta un layer. Qui il loader non
 	// decide — la cella la verifica `FRTScenarioSession` sulla mappa vera.
-	Accepts(TEXT(R"({"scenarioId":"X","fixture":"TestArena","units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+	Accepts(TEXT(R"({"scenarioId":"X","fixture":"TestArena","units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 		TEXT("fixture multilivello: il layer 1 non e' del loader"));
 
 	return true;
@@ -1452,7 +1452,7 @@ bool FRTScenarioLoaderCellArityTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON(
 		{
 		  "scenarioId": "Spec.Cell.Arity", "version": 1, "mapRadius": 6,
-		  "units": [ { "id": "ALFA", "hero": "Hero.Gadget", "team": 0%s } ],
+		  "units": [ { "id": "ALFA", "hero": "Hero.Aevik", "team": 0%s } ],
 		  "turns": [ { "intents": [] } ],
 		  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
 		}
@@ -1534,7 +1534,7 @@ bool FRTScenarioLoaderCellArityTest::RunTest(const FString&)
 		FRTTestScenario S;
 		FString E;
 		const bool bOk = URTScenarioLoader::LoadFromString(
-			TEXT(R"({"scenarioId":"Spec.Cell.Arity.Layer","fixture":"TestArena","units":[{"id":"ALFA","hero":"Hero.Gadget","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
+			TEXT(R"({"scenarioId":"Spec.Cell.Arity.Layer","fixture":"TestArena","units":[{"id":"ALFA","hero":"Hero.Aevik","team":0,"cell":[0,0,1]}],"expect":[{"type":"TurnsCompleted","value":1}]})"),
 			S, E);
 		if (TestTrue(FString::Printf(TEXT("tre elementi su una fixture multilivello (errore: '%s')"), *E), bOk)
 			&& TestEqual(TEXT("una unita' schierata"), S.Units.Num(), 1))
@@ -1598,7 +1598,7 @@ bool FRTScenarioLoaderCellArityEveryCallSiteTest::RunTest(const FString&)
 		  "scenarioId": "Spec.Cell.Arity.CallSites", "version": 1, "mapRadius": 6,
 		  %s
 		  "units": [
-		    { "id": "ALFA", "hero": "Hero.Gadget", "team": 0, "cell": %s },
+		    { "id": "ALFA", "hero": "Hero.Aevik", "team": 0, "cell": %s },
 		    { "id": "BETA", "hero": "Hero.Branth", "team": 1, "cell": [0, -6, 0] }
 		  ],
 		  "turns": [ { "intents": [ { "unit": "ALFA", "move": [ %s ] } ] } ],
@@ -1733,7 +1733,7 @@ bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
 	const bool bBad = Load(TEXT(R"JSON({
 	  "scenarioId": "T", "version": 1, "mapRadius": 2,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
 	      "statuses": [ { "tag": "Status.Guarded1", "turns": 2 } ] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 	  ],
@@ -1751,7 +1751,7 @@ bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
 	const bool bZero = Load(TEXT(R"JSON({
 	  "scenarioId": "T", "version": 1, "mapRadius": 2,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
 	      "statuses": [ { "tag": "Status.Wet", "turns": 0 } ] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 	  ],
@@ -1767,7 +1767,7 @@ bool FRTScenarioUnknownStatusIsRefusedTest::RunTest(const FString&)
 	const bool bGood = Load(TEXT(R"JSON({
 	  "scenarioId": "T", "version": 1, "mapRadius": 2,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
 	      "statuses": [ { "tag": "Status.Wet", "turns": 2 } ] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 	  ],
@@ -1808,7 +1808,7 @@ bool FRTScenarioStatusVocabularyIsTheRuntimeOneTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON({
 		  "scenarioId": "T", "version": 1, "mapRadius": 2,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0],
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0],
 		      "statuses": [ { "tag": "%s", "turns": 1 } ] },
 		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
@@ -1954,7 +1954,7 @@ bool FRTScenarioD025CoverageTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON({
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0] },
 		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
@@ -2033,7 +2033,7 @@ bool FRTScenarioD025CoverageTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON({
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0] },
 		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
@@ -2098,7 +2098,7 @@ bool FRTScenarioTargetFormsTest::RunTest(const FString&)
 		const FString Json = FString::Printf(TEXT(R"JSON({
 		  "scenarioId": "T", "version": 1, "mapRadius": 3,
 		  "units": [
-		    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,0,0] },
+		    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,0,0] },
 		    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1,0,0] }
 		  ],
 		  "turns": [ { "intents": [ %s ] } ],
@@ -2238,7 +2238,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	auto WithIntent = [](const FString& IntentBody) -> FString
 	{
 		return FString::Printf(TEXT(R"({"scenarioId":"X","mapRadius":3,)")
-			TEXT(R"("units":[{"id":"A","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},)")
+			TEXT(R"("units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
 			TEXT(R"({"id":"B","hero":"Hero.Phase","team":1,"cell":[2,0,0]}],)")
 			TEXT(R"("turns":[{"intents":[%s]}],)")
 			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"), *IntentBody);
@@ -2268,7 +2268,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 		FRTTestScenario Scenario;
 		FString Error;
 		const bool bOk = URTScenarioLoader::LoadFromString(
-			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,0,0]})")),
+			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,0,0]})")),
 			Scenario, Error);
 		// Le condizioni di forma si ASSERISCONO, non si usano come guardia muta: con un `&&` grezzo, un
 		// loader che emettesse due turni farebbe sparire l'assertion sulla cella senza un rosso, e il
@@ -2284,17 +2284,17 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	}
 
 	// (2) Due elementi: il layer NON si deduce piu'.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,1]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,1]})")),
 		TEXT("targetCell"), TEXT("targetCell con due elementi"));
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,1]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,1]})")),
 		TEXT("trovati 2"), TEXT("targetCell con due elementi: la lunghezza e' nel messaggio"));
 
 	// (3) Quattro elementi: la coda non si scarta piu' in silenzio.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[1,1,0,7]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,1,0,7]})")),
 		TEXT("trovati 4"), TEXT("targetCell con quattro elementi"));
 
 	// (4) Un elemento, senza `target`: l'errore nomina `targetCell` e non piu' il bersaglio mancante.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[3]})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[3]})")),
 		TEXT("targetCell"), TEXT("targetCell con un elemento, senza target"));
 
 	// (5) 🔴 **Il caso che non emetteva NESSUN errore**: un elemento, accanto a un `target` valido.
@@ -2305,7 +2305,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// parziale che accettasse `Num() >= 1`, la cella diventerebbe (3,0,0), `bTargetsCell` passerebbe a vero
 	// e sarebbe `Validate` a rifiutare: `Contains("targetCell")` resterebbe VERO e questo caso — il caso
 	// per cui l'intera issue esiste — resterebbe verde mentre la regressione parte.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":[3],"target":"B"})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[3],"target":"B"})")),
 		TEXT("trovati 1"), TEXT("targetCell malformato accanto a un target valido"));
 
 	// ---- dashTo -----------------------------------------------------------------------------------
@@ -2392,7 +2392,7 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// fino a qui solo quello di `move` era esercitato. Senza questi due casi, chi ricollassasse
 	// `HasField` + `TryGetArrayField` in una guardia sola su `targetCell` o `dashTo` li riporterebbe al
 	// silenzio che questa issue rimuove, e i casi sopra resterebbero tutti verdi.
-	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Gadget.ArcPulse","targetCell":"1,0,0"})")),
+	Rejects(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":"1,0,0"})")),
 		TEXT("targetCell non e' un array"), TEXT("targetCell scritto come stringa"));
 	Rejects(WithIntent(TEXT(R"({"unit":"A","dash":"Hero.Ivrin.PassingBlade","dashTo":"1,1,0"})")),
 		TEXT("dashTo non e' un array"), TEXT("dashTo scritto come stringa"));

@@ -146,7 +146,7 @@ esso l'errore di aprire la cartella sbagliata.
 
 | Eroe (gioco) | `HeroId` (C++) | `<CharacterId>` (contenuti) |
 |---|---|---|
-| Gadget | `Hero.Gadget` | **`Gadget`** |
+| Gadget | `Hero.Aevik` | **`Gadget`** |
 | Phase | `Hero.Phase` | **`Phase`** |
 | Riktor | `Hero.Riktor` | **`Riktor`** |
 | Wraith | `Hero.Wraith` | **`Wraith`** |
@@ -170,7 +170,7 @@ i casi li tiene aggiornati per mestiere.
 **Eccezione: i dati restano intitolati all'eroe.** `DA_Hero_Gadget` sta in `Characters/Gadget/Data/` ma non
 diventa `DA_Hero_Gadget`. Un data asset eroe descrive *statistiche e abilità*, che non dipendono dalla mesh:
 se Gadget cambiasse base visuale, quel file resterebbe valido parola per parola. Lo stesso vale per `HeroId`,
-che in C++ è e resta `Hero.Gadget`. La mappatura fra i due mondi è **D-037**, tabella owner in
+che in C++ è e resta `Hero.Aevik`. La mappatura fra i due mondi è **D-037**, tabella owner in
 [`../../characters/paragon.md`](../../characters/paragon.md).
 
 ⚠️ **Costo accettato, non rimosso.** Fino al 2026-08-11 §A raccomandava l'**opposto** — il nome del

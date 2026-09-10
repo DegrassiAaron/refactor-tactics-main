@@ -27,7 +27,7 @@ namespace
 			return nullptr;
 		}
 		U->TeamId = TeamId;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeGadget());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeAevik());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->bIsBotControlled = false;
 		U->DispatchBeginPlay();

@@ -15,7 +15,7 @@
 
   "units": [
     { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [-1,  1, 0] },
-    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [ 2, -2, 0], "health": 20, "shield": 0 },
+    { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [ 2, -2, 0], "health": 20, "shield": 0 },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3,  0, 0] }
   ],
 

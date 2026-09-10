@@ -111,7 +111,7 @@ public:
 	/**
 	 * I Reaction Profile del roster v0.1 (E14.7, [D-047] · `spec-reaction-clash-e14.md` §2.5).
 	 *
-	 * **Tre, non quattro**: `Profile.Grounding` (Gadget), `Profile.Sidestep` (Phase), `Profile.Glance`
+	 * **Tre, non quattro**: `Profile.Grounding` (Aevik), `Profile.Sidestep` (Phase), `Profile.Glance`
 	 * (Ivrin). Branth **non ne ha uno**, e non e' un taglio di contenuto — la risposta proposta era
 	 * `ANCHOR`, «annulla lo spostamento», ma `Hold Ground` lo fa gia' con la stessa ampiezza: il ramo
 	 * `Braced` del resolver non controlla `KnockDist`. Una seconda risposta che coincide con la prima

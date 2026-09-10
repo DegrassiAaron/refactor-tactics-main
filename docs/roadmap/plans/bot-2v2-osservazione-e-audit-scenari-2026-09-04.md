@@ -161,7 +161,7 @@ tabella, che ne mostra meno.
 - **Stato**: Gadget `(-1,1)`, Wraith conosciuto a `(-2,2)` — **adiacente**, distanza 1. Il 2 è la distanza
   dalla cella in cui Wraith sarebbe finita **dopo** lo scatto, ed è già il difetto che questo caso descrive.
 - **Decisione**: `utility -> (-1,1) attacca Wraith score=130` — resta e usa `LinearDischarge`.
-- **Risultato**: `(-1,1) -> (-2,0): nessuna linea di tiro (Hero.Gadget.LinearDischarge)`. Turno perso.
+- **Risultato**: `(-1,1) -> (-2,0): nessuna linea di tiro (Hero.Aevik.LinearDischarge)`. Turno perso.
 - **Perché sembra stupida**: era il turno in cui il team 0 aveva il focus fire (Phase 50 + Gadget 130 sullo stesso
   bersaglio). Ne è arrivata metà.
 - **Perché il codice l'ha scelta**: `ScorePlan` valuta gittata e LOS contro `Context.Enemies`, che è la posizione

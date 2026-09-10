@@ -186,7 +186,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 			Basic->Def.Slot, ERTActionSlot::Main);
 
 		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
-		// QUANTO — 8 (Branth) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		// QUANTO — 8 (Branth) e 22 (Aevik) sono entrambi legittimi, ed e' il punto di ADR-0007.
 		bool bDealsDamage = false;
 		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
 		{
@@ -524,9 +524,9 @@ bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
  * rifiutare: un ID ritirato semplicemente non risolve. La guardia che serviva davvero e' questa.
  *
  * Due asserzioni, e la seconda e' quella che il grep non sa fare. Il DoD motiva il **terzo segmento**
- * dicendo che un prefisso piatto metterebbe `Gadget.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
+ * dicendo che un prefisso piatto metterebbe `Aevik.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
  * `ERTEquipmentSlot::Gadget` (serializzato). Ma «comincia per `Hero.`» non basterebbe: legare l'azione
- * al `HeroId` del **suo** eroe fa cadere anche un'azione di Gadget che finisse sotto `Hero.Phase.` —
+ * al `HeroId` del **suo** eroe fa cadere anche un'azione di Aevik che finisse sotto `Hero.Phase.` —
  * un errore che un rename massivo produce esattamente come quello che deve correggere.
  *
  * Il prefisso si legge dal roster, non si scrive qui: un quinto eroe non richiede di toccare il test.
@@ -582,7 +582,7 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
 	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
 	// Anti-vacuita': se il ciclo non avesse esaminato nulla, i controlli sopra sarebbero verdi su zero.
-	// **22** da [D-226]: cinque per Gadget e Branth, sei per Phase e Ivrin che portano lo scudo proattivo.
+	// **22** da [D-226]: cinque per Aevik e Branth, sei per Phase e Ivrin che portano lo scudo proattivo.
 	TestEqual(TEXT("il roster v0.1 dichiara ventidue abilita'"), Checked, 22);
 	return true;
 }
@@ -600,12 +600,12 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 	// una derivazione di parametri. Tre dei quattro hanno i numeri scritti a mano, non presi dal core:
 	// chiamarli «derivati» trasformerebbe «i parametri vengono da li'» in «gli somiglia».
 	const TMap<FName, FName> Atteso = {
-		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
+		{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Action.Electrify")    },
 		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dodge")         },
 		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
 		{ TEXT("Hero.Branth.KineticPanel"),       TEXT("Action.CreateCover")  },
 		{ TEXT("Hero.Branth.Ram"),                TEXT("Action.Charge")       },
-		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Action.Counter")      },
 		{ TEXT("Hero.Branth.Interposition"),      TEXT("Action.Intercept")    },
 		{ TEXT("Hero.Ivrin.Deflection"),         TEXT("Action.Deflect")      },
 		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
@@ -638,7 +638,7 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
 				// profilo (`BaseActionId`) e non questo.
 				//
-				// Dieci derivate + otto proprie + quattro base = **22**: cinque abilita' per Gadget e
+				// Dieci derivate + otto proprie + quattro base = **22**: cinque abilita' per Aevik e
 				// Branth, **sei** per Phase e Ivrin, che da [D-226] portano anche lo scudo proattivo.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());

@@ -30,7 +30,7 @@
 Ne segue la conseguenza pratica — vale come nota per
 [#637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/637): `Target`, `Shape`, `Delivery`,
 `HitRule` ed `Effect` sono **primitive compositive**. Possono comporre un'icona senza che nasca una
-`ERTIconCategory` per ciascuna. Un'abilità resta `UI.Icon.Action.Hero.Gadget.LinearDischarge` anche se il
+`ERTIconCategory` per ciascuna. Un'abilità resta `UI.Icon.Action.Hero.Aevik.LinearDischarge` anche se il
 suo glifo è composto da `Line + Electric`: non deve esistere `UI.Icon.Geometry.Line`.
 
 ---

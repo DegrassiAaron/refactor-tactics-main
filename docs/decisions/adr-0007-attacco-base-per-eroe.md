@@ -67,7 +67,7 @@ runtime (metriche, UI, tutorial) — non prima.
 
 D-033 richiede che un'azione generica con profilo sia **spiegabile nel TurnLog come *azione base + profilo***.
 Oggi i quattro attacchi base non passano da `Action.BasicAttack`: hanno `ActionId` propri
-(`Hero.Gadget.ArcPulse`, `Hero.Phase.PressureJet`, `Hero.Riktor.ImpactShot`, `Hero.Wraith.PulseShot`), quindi il TurnLog registra
+(`Hero.Aevik.ArcPulse`, `Hero.Phase.PressureJet`, `Hero.Riktor.ImpactShot`, `Hero.Wraith.PulseShot`), quindi il TurnLog registra
 **il nome dell'eroe**, non la coppia.
 
 Questo ADR **non risolveva** quel punto e non lo dichiarava risolto: lo registrava come conseguenza da
@@ -134,7 +134,7 @@ un gradino sopra Riktor, e 8 ne è la metà esatta. Lascia possibile il *finish*
   non hanno un consumer. È il costo accettato di questa decisione, non un effetto imprevisto.
 - **Gadget non va pubblicato come «Engine Attack»** in Wiki o Feature Registry finché il payload non esiste:
   sarebbe uno stato che il codice non sostiene.
-- La coordinazione acqua+elettricità continua a passare da `Hero.Gadget.LinearDischarge`, non dall'attacco base, e
+- La coordinazione acqua+elettricità continua a passare da `Hero.Aevik.LinearDischarge`, non dall'attacco base, e
   resta vincolata a [D-036](RT_PDR_00_Decision_Log.md): stesso Blast, non turni consecutivi.
 - Feature registry: la capability è `RT-FEAT-ACTION-BASIC-ATTACK-PROFILES`, modellata su
   `RT-FEAT-ACTION-MOVE-PROFILES`. **Non** si crea `RT-FEAT-CHAR-BASE-ACTION-SIGNATURE`: sarebbe una gerarchia

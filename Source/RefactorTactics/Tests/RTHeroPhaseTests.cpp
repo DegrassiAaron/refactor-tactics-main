@@ -46,8 +46,8 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("vista"), Phase->VisionRange, 5);
 	TestEqual(TEXT("resistenza push"), Phase->PushResistance, 0);
 	TestEqual(TEXT("affinita'"), Phase->Affinity, FName(TEXT("Affinity.Water")));
-	// Simmetrica a Gadget: la stessa combo si legge da entrambi i lati con lo stesso nome.
-	TestEqual(TEXT("debolezza simmetrica a Gadget"), Phase->Weakness, FName(TEXT("Affinity.Electricity")));
+	// Simmetrica a Aevik: la stessa combo si legge da entrambi i lati con lo stesso nome.
+	TestEqual(TEXT("debolezza simmetrica a Aevik"), Phase->Weakness, FName(TEXT("Affinity.Electricity")));
 
 	if (!TestEqual(TEXT("sei azioni: le cinque del catalogo piu' lo scudo proattivo di D-226"), Phase->Actions.Num(), 6)) { return false; }
 
@@ -69,7 +69,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	// un Generic Equipment e' `External Access` e non fa proficiency.
 	//
 	// ⚠️ Il costo e' dichiarato in #1006 e non va dimenticato leggendo solo questa riga: il roster perde
-	// l'unico produttore INNATO di superficie acqua, quindi `Gadget.ConductiveNode` — che propaga sul grafo
+	// l'unico produttore INNATO di superficie acqua, quindi `Aevik.ConductiveNode` — che propaga sul grafo
 	// conduttivo — dipende dalla mappa o dallo Sprinkler. La vetrina Conflux di D-046 ne risente.
 	const URTActionData* FluidTrail = Phase->Actions[2];
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
@@ -125,7 +125,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
  * Il perche' viene da #995 via #1006: Phase e' **abilitata** a Water, non padrona — grado `Access`, una
  * sola capability elementale — e il catalogo ne dichiarava tre. Resta `PressureJet`.
  *
- * ⚠️ **Costo di gameplay dichiarato**: quel `Wet` ad area era il preparatore della combo con Gadget
+ * ⚠️ **Costo di gameplay dichiarato**: quel `Wet` ad area era il preparatore della combo con Aevik
  * (`LinearDischarge` fa **+8 su bersaglio `Wet`**). Dopo questa modifica la combo passa solo per la linea
  * di `PressureJet`, che colpisce meno bersagli. E' il prezzo accettato con l'opzione C di #1006.
  */

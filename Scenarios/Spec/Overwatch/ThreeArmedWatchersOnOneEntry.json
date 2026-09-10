@@ -22,7 +22,7 @@
   "_nota_ipotesi_da_falsificare": "🔑 L'attesa di TRE e' derivata dalla regola - ogni watcher armato che vede l'ingresso decide per se' - non dall'output. Le due uscite sono entrambe informative: TRE significa che il costo del pacing SCALA con le unita' armate, e con 3,0 s a boundary un solo ingresso vale 9 s; UNA significherebbe che le finestre si raggruppano per micro-step e il costo NON scala col numero di watcher, che sarebbe la notizia migliore possibile per la soglia dei 20 s. ⛔ Se il numero e' diverso da tre non si riallinea l'attesa in silenzio: si scrive qui perche'.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-1,  0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1,  0, 0] },
 
     { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2,  0, 0], "facing": "W"  },
     { "id": "V2", "hero": "Hero.Ivrin", "team": 1, "cell": [ 0, -2, 0], "facing": "SE" },

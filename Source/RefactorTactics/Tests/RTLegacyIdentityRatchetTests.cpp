@@ -22,7 +22,21 @@ namespace RTLegacyIdentity
 	 * un rosso che non nomina un difetto.
 	 */
 	const FRitirata Ritirate[] = {
-		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),  60, 97 },
+		// ✅ **Fetta eseguita il 2026-09-10** (#2491): il tetto scende da `60, 97` a **zero su entrambi i
+		// lati**, ed e' una misura — `grep -rl "Hero.Gadget"` non risponde nulla ne' in `Source/` ne' in
+		// `Scenarios/`. Per questa identita' il ratchet e' ora l'oracolo secco che [D-341] chiede.
+		//
+		// 🔴 **E questa riga e' stata disfatta dalla sostituzione che la fetta stessa ha eseguito**: uno
+		// script che rinominava `Hero.Gadget` -> `Hero.Aevik` su tutti i `.cpp` l'ha ridotta a
+		// `{ Hero.Aevik, Hero.Aevik, ... }` — l'identita' ritirata diventata il proprio erede, cioe' la
+		// guardia che si cancella da sola restando verde. E' il **terzo** episodio della stessa famiglia:
+		// #754 senza confini di parola, poi lo script rilanciato «per misurare», ora questo. La lezione
+		// non cambia — *uno script che sostituisce non e' una misura* — e la difesa non e' ricordarsene:
+		// e' rileggere il diff di QUESTO file a mano, sempre, a ogni fetta.
+		//
+		// ⛔ Il tetto misura `Hero.Gadget`, cioe' l'IDENTITA'. `ERTEquipmentSlot::Gadget` e i nove token
+		// `Gadget.<Oggetto>` non lo consumano e non devono: quella parola li' e' lo **slot**, non l'eroe.
+		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),   0,  0 },
 		// ✅ **Fetta eseguita il 2026-09-09**: il tetto è sceso a ZERO, e per questa identità il ratchet
 		// **è già** l'oracolo secco che [D-341] chiede — qualunque ricomparsa fallisce.
 		// ⚠️ Zero e non quattro come `Hero.Riktor`: quelle quattro sono commenti sul rename e un test che ne

@@ -12,7 +12,7 @@
   "_nota_verifica": "ESEGUITO il 2026-08-30 con `-RTScenario=Spec.Map.MatchArenaPlatformClimb`: PASS, 3/3 assertion, `stateHash d0705578`, al primo tentativo. `UnitAtCell(F1)` atteso e ottenuto (q=3,r=-3,L=1). ENTRAMBE le assunzioni dichiarate prima dell'esecuzione hanno retto: il budget di movimento di Gadget copre un passo da costo 2, e (3,-3,0) e' una cella libera su cui piazzare un'unita' benche' la fixture la usi come ancora della piattaforma.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [ 3, -3, 0] },
+    { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [ 3, -3, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [-4,  0, 0] }
   ],
 

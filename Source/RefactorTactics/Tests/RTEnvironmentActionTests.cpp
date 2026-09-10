@@ -1241,15 +1241,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPortableCoverGadgetTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 {
-	URTEquipmentData* Gadget = URTCatalogLibrary::MakePortableCoverGadget();
-	if (!TestNotNull(TEXT("il gadget esiste"), Gadget)) { return false; }
+	URTEquipmentData* Aevik = URTCatalogLibrary::MakePortableCoverGadget();
+	if (!TestNotNull(TEXT("il gadget esiste"), Aevik)) { return false; }
 
 	// Passa il validator del catalogo: lo svantaggio e' dichiarato, non sottinteso.
 	TArray<const URTEquipmentData*> Set;
-	Set.Add(Gadget);
+	Set.Add(Aevik);
 	TestEqual(TEXT("il gadget e' valido a catalogo"), URTCatalogLibrary::ValidateEquipment(Set).Num(), 0);
-	TestEqual(TEXT("cooldown 3, come ogni gadget"), Gadget->CooldownTurns, 3);
-	TestFalse(TEXT("dichiara uno svantaggio"), Gadget->Drawback.IsEmpty());
+	TestEqual(TEXT("cooldown 3, come ogni gadget"), Aevik->CooldownTurns, 3);
+	TestFalse(TEXT("dichiara uno svantaggio"), Aevik->Drawback.IsEmpty());
 
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1268,7 +1268,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 		return false;
 	}
 
-	URTActionData* FromGadget = URTCatalogLibrary::MakeEquipmentAction(Gadget, Carrier);
+	URTActionData* FromGadget = URTCatalogLibrary::MakeEquipmentAction(Aevik, Carrier);
 	if (!TestNotNull(TEXT("il gadget concede un'azione"), FromGadget))
 	{
 		DestroyEnvWorld(World);

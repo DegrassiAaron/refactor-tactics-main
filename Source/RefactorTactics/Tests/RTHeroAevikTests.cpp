@@ -23,42 +23,42 @@ namespace
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetMatchesCatalogTest,
-	"RefactorTactics.Heroes.Gadget.MatchesCatalog",
+	"RefactorTactics.Heroes.Aevik.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §1 del catalogo eroi v0.1: documento e codice non possono divergere in silenzio.
-	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
-	if (!TestNotNull(TEXT("Gadget costruito"), Gadget)) { return false; }
+	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+	if (!TestNotNull(TEXT("Aevik costruito"), Aevik)) { return false; }
 
-	TestEqual(TEXT("HeroId"), Gadget->HeroId, FName(TEXT("Hero.Gadget")));
-	TestEqual(TEXT("salute"), Gadget->MaxHealth, 90);
-	TestEqual(TEXT("movimento"), Gadget->MovePoints, 5);
-	TestEqual(TEXT("vista"), Gadget->VisionRange, 7); // 6 -> 7 (#131, D-073): toglie l'ultima dominanza
-	TestEqual(TEXT("resistenza push"), Gadget->PushResistance, 0);
-	TestEqual(TEXT("affinita'"), Gadget->Affinity, FName(TEXT("Affinity.Electricity")));
-	TestFalse(TEXT("la debolezza e' dichiarata (non NAME_None)"), Gadget->Weakness.IsNone());
+	TestEqual(TEXT("HeroId"), Aevik->HeroId, FName(TEXT("Hero.Aevik")));
+	TestEqual(TEXT("salute"), Aevik->MaxHealth, 90);
+	TestEqual(TEXT("movimento"), Aevik->MovePoints, 5);
+	TestEqual(TEXT("vista"), Aevik->VisionRange, 7); // 6 -> 7 (#131, D-073): toglie l'ultima dominanza
+	TestEqual(TEXT("resistenza push"), Aevik->PushResistance, 0);
+	TestEqual(TEXT("affinita'"), Aevik->Affinity, FName(TEXT("Affinity.Electricity")));
+	TestFalse(TEXT("la debolezza e' dichiarata (non NAME_None)"), Aevik->Weakness.IsNone());
 
-	if (!TestEqual(TEXT("cinque azioni"), Gadget->Actions.Num(), 5)) { return false; }
+	if (!TestEqual(TEXT("cinque azioni"), Aevik->Actions.Num(), 5)) { return false; }
 
-	const URTActionData* ArcPulse = Gadget->Actions[0];
-	TestEqual(TEXT("ArcPulse: ActionId"), ArcPulse->Def.ActionId, FName(TEXT("Hero.Gadget.ArcPulse")));
+	const URTActionData* ArcPulse = Aevik->Actions[0];
+	TestEqual(TEXT("ArcPulse: ActionId"), ArcPulse->Def.ActionId, FName(TEXT("Hero.Aevik.ArcPulse")));
 	TestEqual(TEXT("ArcPulse: range 4"), ArcPulse->Def.RangeCells, 4);
 	TestEqual(TEXT("ArcPulse: 22 danni (fascia medio raggio)"), GadgetDeclaredDamage(ArcPulse), 22);
 	TestEqual(TEXT("ArcPulse: nessuna ricarica (e' l'attacco base)"), ArcPulse->Def.CooldownTurns, 0);
 
-	const URTActionData* LinearDischarge = Gadget->Actions[1];
+	const URTActionData* LinearDischarge = Aevik->Actions[1];
 	TestEqual(TEXT("LinearDischarge: 24 danni"), GadgetDeclaredDamage(LinearDischarge), 24);
 	TestEqual(TEXT("LinearDischarge: cooldown 2"), LinearDischarge->Def.CooldownTurns, 2);
 	TestTrue(TEXT("LinearDischarge: forma a linea"), LinearDischarge->Shape == ERTAbilityShape::Line);
 
-	const URTActionData* Overload = Gadget->Actions[3];
+	const URTActionData* Overload = Aevik->Actions[3];
 	TestEqual(TEXT("Overload: 18 danni"), GadgetDeclaredDamage(Overload), 18);
 	TestEqual(TEXT("Overload: cooldown 3"), Overload->Def.CooldownTurns, 3);
 
 	// CP 6.7: la reazione e' cablata e dichiara DUE effetti (prima ne aveva uno, con il contrattacco
 	// «non rappresentabile» in un commento). Il secondo e' cio' che CP 5.5 ha reso applicabile.
-	const URTActionData* ReactiveCapacitor = Gadget->Actions[4];
+	const URTActionData* ReactiveCapacitor = Aevik->Actions[4];
 	if (TestEqual(TEXT("ReactiveCapacitor: due effetti"), ReactiveCapacitor->Def.Effects.Num(), 2))
 	{
 		TestTrue(TEXT("ReactiveCapacitor: scudo 15 a chi reagisce"),
@@ -72,17 +72,17 @@ bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("ReactiveCapacitor: occupa lo slot Reazione"),
 		ReactiveCapacitor->Def.Slot == ERTActionSlot::Reaction);
 
-	// Gadget e' un roster valido di per se': passa lo stesso validator che il roster completo dovra' passare.
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Gadget });
+	// Aevik e' un roster valido di per se': passa lo stesso validator che il roster completo dovra' passare.
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Aevik });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Gadget e' strutturalmente valido"), Errors.Num(), 0);
+	TestEqual(TEXT("Aevik e' strutturalmente valido"), Errors.Num(), 0);
 
 	// ConductiveNode NON e' piu' un limite dichiarato: da D-046 (#282) e' cablata su `Action.Electrify`, e
-	// Gadget e' il produttore di propagazione elettrica del roster. Il limite di prima era vero quando fu
+	// Aevik e' il produttore di propagazione elettrica del roster. Il limite di prima era vero quando fu
 	// scritto — poi E8 ha chiuso, il modello di cella conduttiva e' esistito, e la dichiarazione onesta e'
 	// diventata un dato che nessuno leggeva.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	const URTActionData* ConductiveNode = Gadget->Actions[2];
+	const URTActionData* ConductiveNode = Aevik->Actions[2];
 	TestEqual(TEXT("ConductiveNode: portata dal core"), ConductiveNode->Def.RangeCells, ElectrifyDef.RangeCells);
 	TestTrue(TEXT("ConductiveNode: risolve nell'ambiente"),
 		ConductiveNode->Def.ResolutionPhase == ERTResolutionPhase::Environment);
@@ -93,48 +93,48 @@ bool FRTGadgetMatchesCatalogTest::RunTest(const FString&)
 	TestTrue(TEXT("ConductiveNode: propaga davvero (limite > 1)"), ConductiveNode->Def.PropagationLimit > 1);
 
 	// Limite dichiarato che RESTA: "interrupt sui dispositivi" di Overload non e' rappresentabile (E7).
-	TestEqual(TEXT("Overload: solo il danno e' dichiarato"), Gadget->Actions[3]->Def.Effects.Num(), 1);
+	TestEqual(TEXT("Overload: solo il danno e' dichiarato"), Aevik->Actions[3]->Def.Effects.Num(), 1);
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetWetBonusTest,
-	"RefactorTactics.Heroes.Gadget.WetBonus",
+	"RefactorTactics.Heroes.Aevik.WetBonus",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetWetBonusTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD. Il bonus NON e' nella lista Effects (e' condizionale al bersaglio, non un
 	// danno fisso): passa da `EffectiveAttackPower`, la stessa funzione del bonus di cella, riusata per un
 	// bonus di STATO invece che di terreno.
-	const int32 BaseDamage = GadgetDeclaredDamage(URTHeroCatalogLibrary::MakeGadget()->Actions[1]);
+	const int32 BaseDamage = GadgetDeclaredDamage(URTHeroCatalogLibrary::MakeAevik()->Actions[1]);
 	if (!TestEqual(TEXT("il danno base dichiarato e' 24"), BaseDamage, 24)) { return false; }
 
 	const int32 AgainstDry = URTCombatLibrary::EffectiveAttackPower(BaseDamage, /*OccupantDamageBonus*/ 0);
-	const int32 AgainstWet = URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::GadgetWetDischargeBonus);
+	const int32 AgainstWet = URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::AevikWetDischargeBonus);
 
 	TestEqual(TEXT("bersaglio asciutto: 24"), AgainstDry, 24);
 	TestEqual(TEXT("bersaglio Wet: 24 + 8 = 32"), AgainstWet, 32);
-	TestEqual(TEXT("il bonus e' esattamente 8"), URTCombatLibrary::GadgetWetDischargeBonus, 8);
+	TestEqual(TEXT("il bonus e' esattamente 8"), URTCombatLibrary::AevikWetDischargeBonus, 8);
 
 	// Il bonus si somma a un altro bonus di cella (es. altura), non lo sostituisce: e' un caso normale di
 	// `EffectiveAttackPower`, non uno speciale per Wet.
 	TestEqual(TEXT("Wet + altura: si sommano"),
-		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::GadgetWetDischargeBonus + 3), 35);
+		URTCombatLibrary::EffectiveAttackPower(BaseDamage, URTCombatLibrary::AevikWetDischargeBonus + 3), 35);
 
 	// Limite dichiarato: qui si verifica la FORMULA, non il resolver. Nessuna unita' legge ancora
 	// `Status.Wet` durante il Blast (`CollectHexAttacks` non conosce lo stato del bersaglio) — il bonus
-	// diventa osservabile in partita quando CP 6.6 collega Gadget al turno E quando Phase (CP 6.3) applica
+	// diventa osservabile in partita quando CP 6.6 collega Aevik al turno E quando Phase (CP 6.3) applica
 	// `Status.Wet` per davvero.
 	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGadgetVariantTradeoffTest,
-	"RefactorTactics.Heroes.Gadget.VariantTradeoff",
+	"RefactorTactics.Heroes.Aevik.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTGadgetVariantTradeoffTest::RunTest(const FString&)
 {
 	// Nome vincolante della DoD: "nessuna variante migliore in ogni parametro" — lo stesso principio degli
 	// equipaggiamenti (URTEquipmentData::Drawback obbligatorio), applicato alla variante di un'abilita'.
-	const URTActionData* LinearDischarge = URTHeroCatalogLibrary::MakeGadget()->Actions[1];
+	const URTActionData* LinearDischarge = URTHeroCatalogLibrary::MakeAevik()->Actions[1];
 	if (!TestEqual(TEXT("LinearDischarge ha esattamente due varianti"), LinearDischarge->Variants.Num(), 2))
 	{
 		return false;

@@ -20,7 +20,7 @@ nel Cleanup prima del danno di `Burning`. Dettaglio in
 > | Area | Stato |
 > |---|---|
 > | Interazioni **fuoco/acqua** (CP 8.4) | ✅ fatte |
-> | **Terreno dinamico** — cella che cambia superficie a runtime (`CreateWater`, `Ignite`, `Hero.Gadget.ConductiveNode`) | ✅ fatto |
+> | **Terreno dinamico** — cella che cambia superficie a runtime (`CreateWater`, `Ignite`, `Hero.Aevik.ConductiveNode`) | ✅ fatto |
 > | **Coperture direzionali** — «non esistono nel formato dell'asset» | ✅ **esistono**: `FRTHexCover{Edge, Type, Integrity}` in `FRTHexCellData`, con `URTHexCoverLibrary`. Copertura **bassa** (CP 9.1) e **alta** (CP 9.2), con `Integrity` e distruzione |
 > | Azioni ambientali (CP 8.5) | vedi roadmap |
 > | Porte, ponti, coperture temporanee | ⏳ **da completare** |

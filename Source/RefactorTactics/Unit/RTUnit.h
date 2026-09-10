@@ -199,7 +199,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 HearingThreshold = 5;
 
-	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Gadget su bersaglio Wet). */
+	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Aevik su bersaglio Wet). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName Affinity;
 
@@ -231,13 +231,13 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Ivrin), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (D-120: Aevik · Phase · Branth · Ivrin), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
 	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
-	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
-	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Gadget` → `Hero.Aevik`), e la
+	 * invariante. Ma `Hero.Aevik` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
+	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Aevik` → `Hero.Aevik`), e la
 	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
 	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
@@ -285,7 +285,7 @@ public:
 
 	/**
 	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
-	 * su una CELLA, che puo' essere vuota (`Gadget.Overload` su un varco, una cella conduttiva senza nessuno
+	 * su una CELLA, che puo' essere vuota (`Aevik.Overload` su un varco, una cella conduttiva senza nessuno
 	 * sopra). Valida solo con `bAttackTargetsCell`.
 	 *
 	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
@@ -955,7 +955,7 @@ public:
 	 *
 	 * | Pack | ossa di catena rimosse | effetto a schermo |
 	 * |---|---|---|
-	 * | Gadget | **0** | nessuno |
+	 * | Aevik | **0** | nessuno |
 	 * | Ivrin | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
 	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
@@ -1064,7 +1064,7 @@ public:
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
 
 	/**
-	 * Ultimo segmento di uno Stable ID: `Hero.Gadget` -> `Gadget`.
+	 * Ultimo segmento di uno Stable ID: `Hero.Aevik` -> `Aevik`.
 	 *
 	 * ⚠️ **Non e' piu' il nome mostrato a schermo, ed e' cambiato il 2026-08-13** (#715). Fino ad allora
 	 * questa funzione ERA l'etichetta, e la sua descrizione lo diceva; oggi l'etichetta la sceglie
@@ -1129,7 +1129,7 @@ public:
 	 *
 	 * Tre casi, e nessuno produce una stringa vuota — che e' il difetto che `ShortHeroName` esisteva per
 	 * impedire e che un `FText` vuoto reintrodurrebbe in silenzio, perche' vuoto e' un valore legale:
-	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Gadget`, `Phase`, ...);
+	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Aevik`, `Phase`, ...);
 	 *   2. `InDisplayName` vuoto              -> `ShortHeroName(InHeroId)`, cioe' l'ultimo segmento dell'ID;
 	 *   3. anche `InHeroId` a `NAME_None`     -> `Fallback` (il nome dell'attore).
 	 *

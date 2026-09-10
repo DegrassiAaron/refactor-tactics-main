@@ -30,7 +30,7 @@ namespace
 	  "mapRadius": 3,
 	  "cells": [ { "cell": [0, 1, 0], "blocksMovement": true } ],
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [ { "unit": "A1", "move": [[-1, 0, 0]] } ] } ],
@@ -218,7 +218,7 @@ bool FRTScenarioEditingNamesItsRefusalsTest::RunTest(const FString&)
 	// Un draft senza scenario aperto risponde `NoScenarioOpen` a tutte, invece di fingere.
 	FRTScenarioDraft Empty;
 	TestEqual(TEXT("AddUnit senza scenario aperto"),
-		Empty.AddUnit(TEXT("X"), FName(TEXT("Hero.Gadget")), 0, FRTCellId(0, 0, 0), ERTHexDirection::E, Error),
+		Empty.AddUnit(TEXT("X"), FName(TEXT("Hero.Aevik")), 0, FRTCellId(0, 0, 0), ERTHexDirection::E, Error),
 		ERTScenarioAuthoringResult::NoScenarioOpen);
 	TestEqual(TEXT("MoveUnit senza scenario aperto"),
 		Empty.MoveUnit(TEXT("X"), FRTCellId(0, 0, 0), Error), ERTScenarioAuthoringResult::NoScenarioOpen);
@@ -416,7 +416,7 @@ bool FRTScenarioEditingIsReachableFromBlueprintTest::RunTest(const FString&)
 	// a meta' non e' rossa, e' NON VALIDA (D-222).
 	if (!TestTrue(TEXT("il catalogo eroi non e' vuoto"), Heroes.Num() > 0)) { return false; }
 	TestTrue(TEXT("e contiene il roster della v0.1"),
-		Heroes.Contains(FName(TEXT("Hero.Gadget"))) && Heroes.Contains(FName(TEXT("Hero.Ivrin"))));
+		Heroes.Contains(FName(TEXT("Hero.Aevik"))) && Heroes.Contains(FName(TEXT("Hero.Ivrin"))));
 
 	// Un giro dell'editing attraverso la facade, non attraverso il draft: e' il percorso che fara' l'Editor.
 	URTScenarioAuthoring* Authoring = URTScenarioAuthoring::CreateScenarioDraft(nullptr);
@@ -464,7 +464,7 @@ bool FRTScenarioVariantRespectsBlockingCellsTest::RunTest(const FString&)
 	  "mapRadius": 3,
 	  "cells": [ { "cell": [0, 1, 0], "blocksMovement": true } ],
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "turns": [ { "intents": [] } ],
@@ -557,7 +557,7 @@ bool FRTScenarioDuplicateIdBothDoorsTest::RunTest(const FString&)
 		FString Error;
 		const bool bOk = URTScenarioLoader::LoadFromString(
 			TEXT(R"({"scenarioId":"X","mapRadius":3,"units":[)")
-			TEXT(R"({"id":"Gemella","hero":"Hero.Gadget","team":0,"cell":[0,0,0]},)")
+			TEXT(R"({"id":"Gemella","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
 			TEXT(R"({"id":"Gemella","hero":"Hero.Phase","team":1,"cell":[1,0,0]}],)")
 			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"),
 			Loaded, Error);

@@ -65,8 +65,8 @@ struct FRTMatchBootstrapConfig
 	/**
 	 * Quante unita' della squadra del GIOCATORE sono pianificate dal bot, contate dal FONDO di `Team0Heroes`.
 	 *
-	 * `0` — nessuna: e' il comportamento storico, e resta il default. `1` su una formazione `[Gadget, Phase]`
-	 * mette Phase al bot e lascia Gadget al giocatore.
+	 * `0` — nessuna: e' il comportamento storico, e resta il default. `1` su una formazione `[Aevik, Phase]`
+	 * mette Phase al bot e lascia Aevik al giocatore.
 	 *
 	 * ⚠️ **Dal fondo, e non «tutti tranne il primo»**: la regola deve valere anche a 3v3 (D-256), dove il
 	 * giocatore puo' volerne comandare due su tre. Un intero risponde a quella domanda, un booleano no.
