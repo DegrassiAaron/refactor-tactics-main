@@ -814,8 +814,34 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	// ⚠️ **La policy NON si scrive qui**, a differenza di `MistVeil`: viene da `Action.Mortar` attraverso
 	// `MakeHeroActionFromCore`, che ora la copia come copia `bSelfTarget`. Riscriverla su questa riga
 	// sarebbe la seconda sede della stessa decisione — e la prima e' il catalogo.
-	AddAbility(Branth, MakeHeroActionFromCore(TEXT("Hero.Branth.MortarShot"), TEXT("Action.Mortar"),
-		/*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+	if (URTActionData* Mortar = MakeHeroActionFromCore(TEXT("Hero.Branth.MortarShot"), TEXT("Action.Mortar"),
+		/*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1))
+	{
+		// 🔴 **PORTATA 3, non la 4 del catalogo, e la ragione e' MISURATA — non un aggiustamento a occhio.**
+		//
+		// `Action.Mortar` dichiara 4 come il suo gemello a vista `Action.CircularAoE`, e li' resta: il
+		// prezzo del tiro indiretto si paga su danno e ricarica, non sull'avvicinamento. Ma Branth e'
+		// l'unico del roster che ingaggia a **3** (`ImpactShot`; Aevik 4, Ivrin 4, Muiren 5), e un'arma
+		// piu' lunga della sua non gli aggiunge un'opzione: gli cambia il **comportamento**.
+		//
+		// Misurato il 2026-09-10 sulla suite: con portata 4 il bot smette di chiudere e resta a distanza a
+		// ricaricare, e cadono **tre** gate anti-stallo — `Bot.StallDefinitionsOnTheGeneratedTestArena`
+		// («5 eliminazioni su 4»), `Match.Autobattle.EngagesOnTheGeneratedTestArena` («piu' lunga sequenza
+		// ferma 11 turni, pareggio allo scadere») e `Match.Autobattle.NobodyParksOnTheAuthoredMap`
+		// («6 turni fermi, limite 4»). Tutti e tre verdi su `main` prima della modifica, tutti e tre verdi
+		// di nuovo con la portata 3. ∴ la causa e' la portata, non l'azione.
+		//
+		// ⚠️ **E' una taratura d'EROE, come la ricarica**, che `MakeHeroActionFromCore` prende gia' per
+		// parametro: il catalogo dice cosa l'azione E', il kit dice come quell'eroe la porta. Chi domani
+		// desse il mortaio a un eroe che ingaggia a 4 o piu' non ha bisogno di questa riga.
+		//
+		// ⛔ **Lo specchio si scrive in ENTRAMBI i posti**: `ARTTurnManager` legge la portata dal `Def`, il
+		// bot da `URTActionData::RangeCells`. Scriverne uno solo lascerebbe le due meta' in disaccordo — lo
+		// stesso difetto che `MakeAbility` documenta per il cooldown.
+		Mortar->Def.RangeCells = 3;
+		Mortar->RangeCells = 3;
+		AddAbility(Branth, Mortar);
+	}
 
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti, e vivono in `Parameters`.

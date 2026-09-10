@@ -232,6 +232,51 @@ bool FRTMortarStillObeysRangeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Test 3b** — il mortaio di Branth non supera la portata a cui Branth ingaggia.
+ *
+ * 🔴 **Questo test esiste per NOMINARE una causa che altrimenti resta muta.** Con la portata del catalogo
+ * (4) invece di quella del kit (3), il bot smette di chiudere e resta a distanza a ricaricare: cadono
+ * `Bot.StallDefinitionsOnTheGeneratedTestArena`, `Match.Autobattle.EngagesOnTheGeneratedTestArena` e
+ * `Match.Autobattle.NobodyParksOnTheAuthoredMap` — misurato il 2026-09-10, verdi prima e verdi dopo il
+ * ripristino della 3.
+ *
+ * ⚠️ **Quei tre gate prendono gia' il difetto, e non bastano lo stesso**: dicono *«le partite stallano»*,
+ * che e' l'effetto. Chi lo vedesse senza questa riga cercherebbe la causa nel bot — dove non c'e'. Un
+ * gate che nomina il sintomo ha bisogno di uno che nomini la causa, o la prossima persona rifa' la
+ * misura da capo.
+ *
+ * ⛔ **Non asserisce `== 3`**, che sarebbe una costante: asserisce la RELAZIONE con l'attacco base, che
+ * e' la regola vera — *«il mortaio non allunga l'ingaggio di chi lo porta»*. Resta valido se domani
+ * `ImpactShot` cambia portata, e resta valido per un eroe diverso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMortarDoesNotOutrangeItsCarrierTest,
+	"RefactorTactics.BlindFireOffensive.MortarDoesNotOutrangeItsCarrier",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMortarDoesNotOutrangeItsCarrierTest::RunTest(const FString&)
+{
+	const URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
+	if (!TestNotNull(TEXT("Branth esiste"), Branth)) { return false; }
+	if (!TestTrue(TEXT("premessa: ha un attacco base"), Branth->Actions.Num() > 0)) { return false; }
+
+	const URTActionData* Base = Branth->Actions[0];
+	const URTActionData* Mortar = nullptr;
+	for (const URTActionData* A : Branth->Actions)
+	{
+		if (A && A->Def.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired) { Mortar = A; break; }
+	}
+	if (!TestNotNull(TEXT("il kit porta il tiro indiretto"), Mortar)) { return false; }
+	if (!TestNotNull(TEXT("e l'attacco base"), Base)) { return false; }
+
+	TestTrue(TEXT("il mortaio non ingaggia piu' lontano dell'attacco base"),
+		Mortar->Def.RangeCells <= Base->Def.RangeCells);
+
+	// Lo specchio: il bot legge da qui, il turn manager dal `Def`. Se divergono, meta' del motore usa la
+	// portata vecchia e il difetto e' invisibile finche' non si gioca.
+	TestEqual(TEXT("e lo specchio segue il Def"), Mortar->RangeCells, Mortar->Def.RangeCells);
+	return true;
+}
+
 // ======================================================================================================
 // 4-8 — «chi hai colpito, lo hai trovato»: la regola nuova, e i suoi confini
 // ======================================================================================================
