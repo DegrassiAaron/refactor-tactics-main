@@ -448,4 +448,67 @@ case ERTOverlayMeaning::Hover:           return FColor(255, 214, 10);  // #FFD60
   ```
 
   Lì non è una nota storica: è una citazione a un test, e chi la segue non trova niente;
-- 🔴 **il Decision Log non è ancora stato censito.** `D-364` è emersa da `git log`, `D-368` dall'appendice: entrambe per caso. Una `D-369` o successiva che risolva già questo conflitto **potrebbe esistere e non essere citata qui**. Chi raccoglie questo rilievo censisca il Log prima di aprirne una nuova.
+- 🔁 **il Decision Log non era ancora stato censito** quando questa sezione è stata scritta: `D-364` era emersa da `git log`, `D-368` dall'appendice, entrambe per caso. **Il censimento è stato fatto subito dopo ed è la sezione seguente** — il conflitto sopra sopravvive alla verifica.
+
+## ✅ Censimento del Decision Log — la limitazione dichiarata in §5 è chiusa
+
+> §5 dichiarava: *«il Decision Log non è stato censito … altre decisioni accettate che toccano questo perimetro possono esistere e non essere citate qui»*. **Esistono, e sono molte.** Questa sezione le nomina.
+
+**Metodo.** Indice costruito dai titoli, non dai corpi:
+
+```bash
+grep -oE "^\| \*\*D-[0-9]+\*\* \| \*\*[^*]{0,170}" docs/decisions/RT_PDR_00_Decision_Log.md
+# al passaggio di oggi il Log va da D-009 a D-370; nessun ID duplicato:
+grep -oE "^\| \*\*D-[0-9]+\*\*" … | grep -oE "[0-9]+" | sort -n | uniq -d   # -> vuoto
+```
+
+### 1 · Il conflitto `D-364`/`D-368` non è risolto da nulla che venga dopo
+
+`D-369` e `D-370` esistono e riguardano **i bersagli non-unità**, non la palette. ∴ il `CONTRACT CONFLICT` della sezione precedente **resta aperto** — non era un artefatto di lettura parziale.
+
+### 2 · 🔴 Il difetto di §C1 si ripete sulle decisioni: la Wave 0 propone di decidere ciò che è già deciso
+
+La tabella *«Congelare la grammatica»* della Wave 0 presenta come scelte da prendere righe che hanno già una voce accettata:
+
+| Riga della Wave 0 | Decisione che la governa già |
+|---|---|
+| *«Lifetime: da action armed fino a cancel / confirm / lock-in»* | **`D-128`** — *«in stato neutro il click su un nemico ISPEZIONA; per bersagliare bisogna aver armato un'azione»* |
+| *«Certainty: linea piena = confirmed; tratteggiata = predicted»* | **`D-235`** — *«`Certainty` e validità del piano sono due assi GIÀ separati nel dominio; la v0.1 riceve lo STATO binario di legalità durante il Planning»* · **`D-177`** — *«la certezza si rende solo sugli elementi che esistono per più di un livello, e la matrice è parte della grammatica»* |
+| *«Il colore non deve essere l'unico canale»* | **`D-146`** — *«l'encoding è ridondante: mai solo il colore»*. Non è un criterio da proporre: è la regola che `D-364` discute quanto pesi su un overlay |
+| *«Invalid: stesso preview geometrico, ma semantica Invalid»* | **`D-235`**, che separa già legalità da certezza — sono i due assi che la roadmap fonde in una riga |
+| Wave 4, il marcatore del tiro bloccato | **`D-359`** — *«IL MARCATORE D'OSTACOLO VIVE FINO AL LOCK-IN SUCCESSIVO, E IL SUO STATO STA NELLA PRESENTAZIONE»* |
+| Wave 1, *«`PreviewStyle` = metadato di presentazione esplicito»* | **`D-278`** — *«il legame evento risolto → presentazione è DATO DICHIARATIVO: ogni `ERTResolvedEventType` risolve in una voce di mapping oppure dichiara …»*. Il pattern esiste: la Wave 1 ne inventerebbe un secondo |
+
+🔑 **È lo stesso difetto di §C1, spostato di un livello**: là la roadmap ricostruiva codice spedito, qui ridecide decisioni accettate.
+
+### 3 · ⚠️ La premessa *«un solo linguaggio grafico condiviso»* è già stata decisa al contrario
+
+L'obiettivo in testa alla roadmap chiede *«un solo linguaggio grafico condiviso da movimento, attacchi, AoE, LOS, hazard, obiettivi e stati non validi»*. Il Log ne registra **due, deliberatamente separati**:
+
+- **`D-232`** — *«il colore dice la FASE, non la famiglia semantica»*, con **`D-233`** che fissa `Prep #56B4E9 · Dash #009E73 · Blast #D55E00 · Move #0072B2`;
+- **`D-234`** — *«il colore del world overlay ha un vocabolario PROPRIO, e la fase `Dash` ne prende in prestito `#009E73`»*.
+
+∴ i due vocabolari si incontrano esattamente nella **Wave 5**, dove il Target Preview diventa consumer della fase selezionata. La roadmap non può unificarli per premessa: o dichiara di superare `D-232`/`D-234`, o dice come convivono.
+
+### 4 · Ciò che il censimento **regala** alla roadmap
+
+| Rilievo | La decisione che lo risolve o lo rafforza |
+|---|---|
+| **§C7**, la riga PIE «Multilayer» | **`D-255`** — *«il click e l'hover risolvono la cella sul PIANO ATTIVO del giocatore, non sulla quota del punto colpito»*. Il «piano corretto» **ha già un nome**: è il piano attivo, e vive nel `PlayerController` |
+| **§C9**, `FRTTargetPreview` non deve ridichiarare | **`D-370`** — *«il puntatore NON acquista un secondo campo»*: il vincolo è già scritto, e vale anche per la preview |
+| **§C2**, il canale di rendering | **`D-124`** — *«E21 finisce alla leggibilità tattica necessaria per giocare e misurare la v0.1, non a un presentation pass»*: giustifica lo scope minimo della roadmap, e va citata a suo favore |
+| Il non-goal *«non deve nascere un secondo ruleset»* | **`D-143`** (camera presentation-only), **`D-243`** (gli spicchi sono presentazione), **`D-269`**/**`D-270`** (muri e geometria intra-cella occludono LoS e proiettili, e sono AUTOREVOLI): la traiettoria di Wave 3 non può contraddirli |
+| Cosa la preview **non** può disegnare | **`D-225`** · **`D-249`** — *«l'ignoto non si disegna e non si raggiunge»*. Vincolo di privacy sul range di movimento e sulle linee di tiro, già accettato |
+| L'area colpita | **`D-301`** — l'impronta a terra è **un evento proprio**, `ERTResolvedEventType::AttackFootprint`, non un campo del colpo |
+
+### 5 · Uno **zero misurato**, ed è dove la roadmap è più esposta
+
+```bash
+grep -inE "preview|anteprima|ghost|timeline|fase selezionat" <indice del Log>   # -> 0
+```
+
+**Nessuna decisione accettata parla di Ghost Timeline o di preview per fase.** La Wave 5 — che la roadmap dà per la più semplice, *«non servono quattro renderer»* — è l'unica che opera in un'area **senza contratto**, ed è anche quella dove i due vocabolari di colore di §3 si incontrano. Non è la wave facile: è la wave scoperta.
+
+### ⛔ Cosa questo censimento **non** ha fatto
+
+Ha letto i **titoli**, non i corpi. Una decisione il cui titolo non nomina il perimetro ma il cui corpo lo tocca **non è stata vista** — e `D-364` insegna che i corpi contengono clausole che i titoli non annunciano. Le voci nominate qui vanno lette per intero prima di essere usate come vincolo.
