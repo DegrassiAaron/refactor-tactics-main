@@ -798,4 +798,29 @@ public:
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	TObjectPtr<URTIconCatalogData> IconCatalog;
+
+	/**
+	 * Le righe che dicono **chi del §4.1 e' stato costruito e chi no**, a partire da `Radice` e scendendo
+	 * DENTRO ogni `UUserWidget` innestato.
+	 *
+	 * 🔑 **La ricorsione e' la ragione per cui questa funzione esiste**, e non duplica i test dell'albero:
+	 * `UWidgetTree::ForEachWidget` cammina l'albero di UN Blueprint e **si ferma sui `UUserWidget`
+	 * innestati, che hanno un albero loro** — limite dichiarato in `RTMatchWidgetAssetTests.cpp`. Un
+	 * `WBP_RT_ActionSlot` dentro `WBP_RT_ActionDock` non lo vede nessun test di quel file.
+	 *
+	 * ⚠️ **Guarda cio' che e' stato COSTRUITO, non cio' che il `.uasset` dichiara.** E' la differenza che
+	 * `PIE-V01-SCREENHUD` (`#613`, seduta `U49`) misura: i test headless provano l'albero PROGETTATO, e una
+	 * partita puo' comunque non montarne un pezzo.
+	 *
+	 * Pura: non tocca stato e non emette log. Chi la chiama decide dove stamparla.
+	 */
+	static TArray<FString> ComposeMountReport(const UUserWidget* Radice);
+
+protected:
+	/**
+	 * Emette `ComposeMountReport` su `LogRT`. **Non e' decorazione**: senza, una partita a cui manca un
+	 * pezzo del §4.1 e una completa producono lo stesso log — nessuno — ed e' la condizione in cui `U49`
+	 * si e' trovata, a giudicare a occhio quale widget mancasse.
+	 */
+	virtual void NativeConstruct() override;
 };
