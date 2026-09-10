@@ -671,6 +671,26 @@ public:
 	bool ArePlaybackControlsEnabled() const { return bPlaybackControlsEnabled; }
 
 	/**
+	 * Fa **cominciare in pausa** ogni playback di questa sessione (`#2858`), così che il primo confine
+	 * osservabile sia il primo e non uno qualsiasi.
+	 *
+	 * 🔑 **Non e' uno stato logico diverso.** Il turno e' risolto — o sospeso — esattamente come senza:
+	 * cio' che cambia e' **quando** l'immagine comincia a scorrere. `LockInAndResolve` ha gia' deciso tutto
+	 * prima che questa riga conti qualcosa.
+	 *
+	 * ⛔ **Vale solo con i controlli abilitati, e la subordinazione e' la sua sicurezza.** Partire in pausa
+	 * senza il comando per riprendere sarebbe una partita bloccata da un flag — lo stesso difetto che
+	 * `SetPlaybackControlsEnabled(false)` evita facendo ripartire cio' che aveva fermato. Chiederlo con i
+	 * controlli spenti non fa nulla e non lo ricorda per dopo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void SetStartPlaybackPaused(bool bStartPaused);
+
+	/** `true` se ogni playback di questa sessione comincia fermo (`#2858`). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool DoesPlaybackStartPaused() const { return bStartPlaybackPaused; }
+
+	/**
 	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
 	 *
 	 * ⚠️ Ferma cio' che si VEDE, e cio' che si vede non e' piu' sempre un turno finito. Questa riga diceva
@@ -2899,6 +2919,18 @@ private:
 	 * differenza fra un fail-closed e una convenzione.
 	 */
 	bool bPlaybackControlsEnabled = false;
+
+	/**
+	 * Ogni playback di questa sessione comincia fermo (`#2858`).
+	 *
+	 * ⚠️ **Separato da `bPlaybackPaused`, che e' lo stato corrente.** Questo e' una **politica di sessione**
+	 * — vale per ogni turno finche' non la si spegne — mentre quello dice se l'immagine e' ferma **adesso**.
+	 * Fonderli renderebbe `ResumePlayback` una revoca della politica: si riprenderebbe una volta e il turno
+	 * dopo ripartirebbe da solo, che e' l'opposto di cio' che chiede chi sta ispezionando.
+	 *
+	 * ⛔ Nasce `false` come `bPlaybackControlsEnabled`, e come quello non si accende da se'.
+	 */
+	bool bStartPlaybackPaused = false;
 
 	/**
 	 * Il playback e' fermo.

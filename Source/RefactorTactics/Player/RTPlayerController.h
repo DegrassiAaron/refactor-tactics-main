@@ -240,6 +240,42 @@ protected:
 	TObjectPtr<UInputAction> PrepWindowPauseAction;
 
 	/**
+	 * `K`: ferma e riprende il **playback della risoluzione** (`#2858`, comandi di `#1879`).
+	 *
+	 * 🔴 **NON `P`, e la scelta va detta perche' le due pause si somigliano.** `P` e' la pausa della
+	 * finestra di preparazione: dare a questa lo stesso tasto — o uno adiacente — produrrebbe un comando
+	 * che a volte fa una cosa e a volte l'altra a seconda della fase, e il test che le tiene esclusive
+	 * misura lo **stato**, non l'intenzione di chi preme. `RTTurnManager.h` le dichiara mutuamente
+	 * esclusive *per costruzione*: due tasti distinti tengono distinte anche le due **intenzioni**.
+	 *
+	 * 🔑 **`K` e `L` sono la convenzione dei riproduttori** (pausa e avanti), e sono liberi: mappati
+	 * altrove sono `A B C D E F G Q R S T V W X Z P`, `0`-`9`, Spazio, `ESC`, `Home`, `PageUp`/`PageDown`,
+	 * `BackSpace`, i pulsanti del mouse e i due `Alt`. Verificato sull'elenco completo dei `MapKey` di
+	 * `BuildInputMappings`, come `#1775` e `PlaybackSpeedAction` hanno gia' fatto.
+	 *
+	 * ⚠️ **Sta accanto a `PlaybackSpeedAction`**, e per la stessa ragione: e' un comando dello
+	 * **spettatore**, non l'ennesimo del giocatore. Delle tre voci della matrice di `#1881` — Speed, Pause,
+	 * Step — la prima aveva un ingresso e queste due no.
+	 *
+	 * ⛔ **Inerte senza `rt.Debug.PlaybackControls`**: il tasto esiste sempre, il comando no. Il
+	 * fail-closed vive nel manager (`#1879`) e non qui, perche' una guardia nel controller sarebbe una
+	 * seconda sede della stessa regola.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PlaybackPauseAction;
+
+	/**
+	 * `L`: avanza di **un** micro-step e torna in pausa (`#2858`, comando di `#1879`).
+	 *
+	 * Stesse ragioni di `PlaybackPauseAction` per il tasto, per la collocazione e per l'inerzia senza la
+	 * console variable. ⚠️ Uno **step semantico non e' un frame**: `StepMicroStep` calcola il confine in
+	 * secondi alla pressione, quindi la stessa pressione ferma il playback nello stesso punto su macchine
+	 * diverse.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PlaybackStepAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -582,6 +618,19 @@ private:
 	 * un senso. E' la stessa scelta gia' fatta per `OnCyclePlaybackSpeed`, che pure non ne ha.
 	 */
 	void OnTogglePrepWindowPause(const FInputActionValue& Value);
+
+	/**
+	 * `K` — ferma o riprende il playback della risoluzione (`#2858`).
+	 *
+	 * ⚠️ **Il toggle interroga lo stato, non lo ricorda**, come `OnTogglePrepWindowPause`: un `bool` locale
+	 * sarebbe una seconda sede della stessa verita', e divergerebbe al primo percorso che questo controller
+	 * non vede passare — per esempio un predicato di `#2855` che mette in pausa da se'.
+	 */
+	void OnTogglePlaybackPause(const FInputActionValue& Value);
+
+	/** `L` — avanza di un micro-step e torna in pausa (`#2858`). */
+	void OnStepPlaybackMicroStep(const FInputActionValue& Value);
+
 	void OnRecenter(const FInputActionValue& Value);
 	void OnFocusSelected(const FInputActionValue& Value);
 
@@ -674,6 +723,17 @@ public:
 
 	/** Hook per i test: percorre il gesto `P` senza Enhanced Input (`#2386`). Gemello di `OnLockInForTest`. */
 	void OnTogglePrepWindowPauseForTest();
+
+	/**
+	 * Hook per i test: percorre i gesti `K` e `L` senza Enhanced Input (`#2858`).
+	 *
+	 * 🔑 **Esistono perche' il criterio d'accettazione parla del GESTO, non della funzione del manager.**
+	 * Chiamare `TM->PausePlayback()` da un test dimostra che il manager funziona — cosa che `#1879` ha gia'
+	 * dimostrato — e non che qualcuno possa premerlo. Questi due percorrono la stessa strada del tasto, che
+	 * e' cio' che a questa issue mancava.
+	 */
+	void OnTogglePlaybackPauseForTest();
+	void OnStepPlaybackMicroStepForTest();
 
 	/**
 	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.
