@@ -1,12 +1,14 @@
 # `#2826` — il prompt di targeting, e i tre significati di `None`
 
-> `CURRENT` · **Stato**: slice consegnata in corsia `HUD`, **nessun gate Unreal eseguito** · **Data**: 2026-09-10
+> `CURRENT` · **Stato**: slice **mergiata**; compile e Automation `PASS`, **mutazione `NOT RUN`** · **Data**: 2026-09-10
 > **HEAD di partenza**: `9e881ad6` (`main`), allineato a `origin/main` alla stessa sha
-> **Branch**: `issue/2826-prompt-di-targeting`
+> **Branch**: `issue/2826-prompt-di-targeting` → mergiato con [PR #2898](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2898)
+> **Gate eseguiti su**: `e27f9d0f`, dal clone `refactor-tactics-main`
 > **Oggetto**: lo **scope 5** di [`#2826`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826)
 > — *«prompt contestuale di targeting»* — letto contro `Source/`, il contratto puntatore (CP 11.8) e
 > [`#2757`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2757)
-> **Perimetro**: C++ e test Automation. **Nessun `.uasset` toccato, nessuna build, nessun PIE, nessun MCP.**
+> **Perimetro**: C++ e test Automation. **Nessun `.uasset` toccato, nessun PIE, nessun MCP.**
+> ⚠️ La stesura è avvenuta in corsia `HUD`, che non compila; i gate sono stati eseguiti **dopo il merge**, dal clone principale.
 > **Corsia**: clone `refactor-tactics-refactor` — **non** è il clone principale che ospita il bridge MCP.
 > **Scade quando**: `#2826` chiude, oppure un owner produce `ERTPointerTargetKind::Object`.
 
@@ -32,8 +34,9 @@ distingue i cinque prompt che la sua stessa DoD elenca.
 | lo slot «indica il proprio indice» (scope 2) | da fare | ✅ `FRTAbilityCooldownView::AbilityIndex` esiste già: lo slot **riceve** l'indice che il core ha prodotto, non lo deduce dalla posizione nel `ForEach` |
 | test della porta | i quattro nomi della DoD non esistono | ⚠️ **i quattro nomi restano inesistenti** (`grep` → 0 ciascuno), ma `RefactorTactics.PlayerInput.TheDockPortArmsAndDisarms` (`RTActionDockPortTests.cpp`) copre arma · disarma · il tasto non fa toggle · sostituzione · fail-closed |
 
-⛔ **Il corpo di `#2826` va aggiornato**: descrive come mancante una porta che è a `main`. Chi legge la
-issue oggi ricostruisce lavoro già fatto — è la stessa deriva che `#2697` ha pagato tre volte.
+✅ **Il corpo di `#2826` è stato rimisurato il 2026-09-10** e ora porta questa tabella in testa: descriveva
+come mancante una porta che è a `main`, e chi la leggeva ricostruiva lavoro già fatto — la stessa deriva che
+`#2697` ha pagato tre volte.
 
 ∴ Dello scope della issue restano scoperti i punti **3** (keybind visibile), **4** (stato senza il solo
 colore), **5** (prompt contestuale), **6** (motivo di indisponibilità) e **7** (`RMB` collegato alla UI).
@@ -111,7 +114,7 @@ stato nominato, la frase da mostrare, e `bIsAwaitingTarget` separato dalla visib
 
 ---
 
-## 5. Test aggiunti — tutti `NOT RUN`
+## 5. Test aggiunti — eseguiti, `PASS`; **mutazione `NOT RUN`**
 
 Namespace `RefactorTactics.HudViewModel.*`, dove vivono già le pin di neutralità delle view.
 
@@ -123,22 +126,57 @@ Namespace `RefactorTactics.HudViewModel.*`, dove vivono già le pin di neutralit
 | `TargetPromptDistinguishesVisibleFromAwaiting` | comprimere *visibile* e *in attesa* in un booleano solo |
 | `TargetPromptDeclaresTheUnproducibleTargetKind` | far sparire `Object` in un ramo muto |
 
-⚠️ **Nessuno è stato eseguito**: questa corsia non compila e non lancia Automation. Sono scritti, non misurati.
+✅ **Eseguiti il 2026-09-10 su `e27f9d0f`**, dal clone `refactor-tactics-main`: tutti e cinque `Result={Success}`,
+dentro una passata di 26 test del filtro `RefactorTactics.HudViewModel` chiusa **senza un fallimento**.
+
+⚠️ **Verificati per nome nel log, non dedotti dall'exit code**: un filtro che non matcha niente esce comunque
+`0`, e un verde così sarebbe indistinguibile da una suite che non ha eseguito nulla.
+
+🔴 **Ma il verde da solo non basta, e la colonna qui sopra dice perché**: nessuno di questi test è ancora
+stato **falsificato**. La verifica di mutazione è `NOT RUN` — §7 punto 3 porta le quattro mutazioni e il
+rosso atteso da ciascuna.
 
 ---
 
 ## 6. Gate
 
-| Gate | Esito | Motivo |
+> ✅ **AGGIORNATO il 2026-09-10, dopo il merge.** La prima stesura dichiarava `NOT RUN` compile e Automation,
+> ed era vero quando è stata scritta: la slice nasce in una corsia che non compila. **Sono stati eseguiti dopo
+> il merge**, dal clone `refactor-tactics-main`, e la tabella qui sotto porta l'esito reale.
+
+| Gate | Esito | Motivo / evidenza |
 |---|---|---|
-| Compile (Game) | `NOT RUN` | vincolo di corsia: non è la directory Unreal autorevole |
-| Compile (Editor) | `NOT RUN` | idem |
-| Automation | `NOT RUN` | idem — i cinque test sopra sono **scritti**, non eseguiti |
+| Compile (Editor) | ✅ `PASS` | `Build.bat RefactorTacticsEditor Win64 Development -WaitMutex` su `e27f9d0f` → `Result: Succeeded`, 37/37 step, zero errori. Il DLL passa da `16389632` a `16472576` byte: la build ha **incorporato** il codice, non è stato un no-op |
+| Compile (Game) | `NOT RUN` | non richiesto dalla slice: nessun target Game toccato |
+| Automation `RefactorTactics.HudViewModel` | ✅ `PASS` | 26 test, tutti `Result={Success}`, zero fallimenti. ⚠️ **I cinque nuovi sono stati eseguiti, non filtrati via** — verificato per nome nel log, non dedotto dall'exit code |
+| **Mutazione** | 🔴 `NOT RUN` | **motore occupato**: un Editor interattivo era aperto sul clone `refactor-tactics-main` (`UnrealEditor.exe`, PID 39284), che tiene il DLL — `AGENTS.md` §11 dice di aspettare. Vedi §7 |
 | Determinismo | `N/A` | nessuna modifica a resolver, snapshot, TurnLog o formati serializzati |
 | Replay | `N/A` | idem |
 | Privacy | `N/A` sul dato, ⚠️ **da confermare in PIE** sulla resa | `BuildTargetPrompt` non legge intenti, unità, manager né catalogo: solo due enum già derivati. Non introduce nessun canale nuovo |
-| PIE | `NOT RUN` | richiede Editor |
+| PIE | `NOT RUN` | richiede Editor e giudizio umano |
 | Packaged | `NOT RUN` | non pertinente alla slice |
+
+### La misura è `VALIDA`, e per condizioni dichiarate
+
+Senza `rt-suite.ps1` la verifica di §9 è a carico di chi misura. Istantanea confrontata ai due capi:
+
+| | prima | dopo |
+|---|---|---|
+| `HEAD` | `e27f9d0f` | `e27f9d0f` — invariato |
+| diff dei tracciati | vuoto (sha256 dell'albero pulito) | invariato |
+| untracked (**hashati**, non elencati) | nessuno | nessuno |
+| DLL del progetto | `16389632` @ `14:12:12` | `16472576` @ `14:34:31` — cambiato **dalla mia build**, e stabile per tutta la suite (partita `14:35:57`) |
+
+⚠️ **Una suite di un'altra sessione girava in parallelo** — `RefactorTactics.Playback` sul clone
+`refactor-tactics-designer/.claude/worktrees/playback`, processo nato alle `14:34:34`. **Non invalida**, e
+l'argomento è quello di §9, non la fortuna:
+
+- cloni distinti → `Binaries/` distinti: nessuno riscrive il modulo che l'altra suite ha caricato;
+- `D:/EpicGames/UE_5.8/Engine/Build/InstalledBuild.txt` **verificato presente** → i moduli Engine sono
+  read-only e un target di progetto non può toccarli;
+- la build è finita **prima** che quel processo nascesse, e all'avvio il motore era libero;
+- ⛔ e i cinque test **non sono di performance**: `BuildTargetPrompt` è puro, la contesa di CPU non ne
+  cambia l'esito. Per un gate di pacing questo referto direbbe `NOT RUN`.
 
 **Verifiche statiche realmente eseguite** in questa corsia:
 
@@ -151,19 +189,39 @@ Namespace `RefactorTactics.HudViewModel.*`, dove vivono già le pin di neutralit
 - `RefactorTactics.Build.cs` non elenca sorgenti: il nuovo `.cpp` entra nel modulo senza modifiche al build.
 - Graffe e `LOCTEXT_NAMESPACE` bilanciati nei tre file.
 
-⛔ **Nessuno di questi è una prova di compilabilità.** Sono controlli testuali: il primo `Build.bat` in MAIN
-è l'unico oracolo.
+⛔ **Nessuno di questi era una prova di compilabilità**: erano controlli testuali, e l'oracolo restava il
+primo `Build.bat`. ✅ Quello è poi passato — vedi la tabella dei gate qui sopra — quindi la previsione ha
+retto, ma è la build che lo dimostra, non i controlli.
 
 ---
 
 ## 7. Che cosa deve fare la corsia MAIN
 
-1. `Build.bat RefactorTacticsEditor Win64 Development` con `-WaitMutex`, a Editor chiuso.
-2. Automation, filtro `RefactorTactics.HudViewModel` — i cinque test nuovi più le pin esistenti del view model.
-3. ⚠️ **Verifica di mutazione sui cinque**, come `#2826` richiede per i propri: togliere il ramo che ciascuno
-   presidia e controllare che diventi rosso. Un test che passa anche senza il ramo non misura il ramo.
-   Il candidato più a rischio è `TargetPromptSeparatesTheThreeMeaningsOfNone`: si falsifica riscrivendo
-   `BuildTargetPrompt` in modo che ignori `Context`.
+1. ~~`Build.bat RefactorTacticsEditor`~~ → ✅ **eseguito**, `PASS`. Vedi §6.
+2. ~~Automation, filtro `RefactorTactics.HudViewModel`~~ → ✅ **eseguito**, `PASS`, cinque test nuovi inclusi.
+3. 🔴 **Verifica di mutazione sui cinque — `NOT RUN`, ed è il debito aperto di questa slice.**
+
+   `#2826` la richiede per i propri test, e la ragione vale identica qui: *«un test che passa anche togliendo
+   la porta non misura la porta»*. Un verde da solo non distingue un oracolo che funziona da uno vacuo.
+
+   ⛔ **Non è stata eseguita perché il motore era occupato**, non perché sia stata ritenuta superflua: un
+   `UnrealEditor.exe` interattivo era aperto sul clone `refactor-tactics-main`, e un Editor aperto sul clone
+   che si vuole compilare tiene il DLL (`AGENTS.md` §11). Mutare i sorgenti sotto un Editor aperto è peggio
+   che aspettare.
+
+   Le tre mutazioni da eseguire, con il rosso atteso — a Editor chiuso, una build e una suite ciascuna:
+
+   | # | Mutazione su `BuildTargetPrompt` | Deve diventare rosso |
+   |---|---|---|
+   | **A** | ignorare `Context` e decidere sul solo `Kind` | `TargetPromptSeparatesTheThreeMeaningsOfNone` · `TargetPromptIsNotApplicableWhileTheWorldIsReadOnly` |
+   | **B** | far cadere `ERTPointerTargetKind::Object` su un prompt qualsiasi invece che su `Unsupported` | `TargetPromptDeclaresTheUnproducibleTargetKind` |
+   | **C** | scrivere `bIsAwaitingTarget = (Kind != NotApplicable)` | `TargetPromptDistinguishesVisibleFromAwaiting` |
+
+   ⚠️ `TargetPromptNamesEveryProducibleTargetKind` non compare: si falsifica dando **la stessa frase** a
+   `Unit`, `Cell` ed `Edge`, che è una quarta mutazione (**D**) e abbatte i suoi confronti `C1`–`C3`.
+
+   ⚠️ E se una mutazione lascia **verde** il test che dovrebbe abbattere, il difetto è nel test, non nella
+   mutazione: quel test va riscritto prima di considerarlo un oracolo.
 
 ### Istruzioni Blueprint — `WBP_RT_ActionDock`, da eseguire nel clone principale
 
@@ -217,8 +275,10 @@ Testo pronto da inserire quando `#2826` si chiude, nella seduta **U43** (che con
 
 ## 9. Follow-up candidates
 
-- **`#2826`**: aggiornare il corpo (§2 di questo referto) e spuntare la casella *«il prompt contestuale nomina
-  la forma di bersaglio»* **solo dopo** build, Automation e mutazione in MAIN.
+- **`#2826`**: il corpo è stato rimisurato il 2026-09-10 (§2 di questo referto è pubblicato nella issue).
+  ⚠️ La casella *«il prompt contestuale nomina la forma di bersaglio»* resta **non spuntata**: build e
+  Automation sono `PASS`, ma la **mutazione** è `NOT RUN` e senza di essa il verde non distingue un oracolo
+  da uno vacuo. Vedi §7 punto 3.
 - **`#2757`**: `ERTTargetPromptKind` è un caso concreto della tassonomia che la issue chiede. Non la chiude —
   copre un elemento, non le cinque zone.
 - `ERTPointerTargetKind::Object` resta **senza produttore**: ora ha un nome nel prompt e un test che lo
