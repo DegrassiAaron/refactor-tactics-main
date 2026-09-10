@@ -409,8 +409,13 @@ Due condizioni, entrambe necessarie, e nessuna delle due è la mesh.
 concludeva che il dato del distruggibile fosse **per tipo**, perché `FRTHexDoor` non ha `Integrity`.
 `D-375` sceglie il verso opposto — **dare** il dato alle porte, nella forma che `FRTHexEdge` già porta
 (`Integrity` + `State` terminale, con la guardia di `ValidateMap` a `RTHexMapAsset.cpp:706`). Con
-`FRTHexDoor::DefaultIntegrity = 35`, integrità **per voce di bordo**, `E23.2` emendata a *«interazione di
-gruppo, distruzione per segmento»*, e `FRTHexEdgeGuard` fuori per dichiarazione.
+`FRTHexDoor::DefaultIntegrity = 35`, integrità **per voce di bordo**, e `FRTHexEdgeGuard` fuori per
+dichiarazione.
+
+🔴 **E ciò che `D-375` emenda davvero è un invariante di owner spec, non la roadmap**: [`spec-porte-cp93.md`](../../gameplay/spec-porte-cp93.md) invariante **4** diceva *«Le porte non hanno
+integrità»*. La regola gruppo/segmento invece **non è nuova** — la stessa spec scriveva già *«se un bordo
+del gruppo viene distrutto, gli altri restano»* — ed è la riga `E23.2` di `roadmap-v0.1.md` a essere
+rimasta indietro. Entrambi i documenti sono stati allineati nello stesso giro.
 
 🔑 **E la metà nuova conferma la forma esistente invece di aggiungerne una**: `FRTHexCover`
 (`Edge · Type · Integrity`) e `FRTHexDoor` (`Edge · State · DoorId · StableId`) sono già tutti `EditAnywhere`
