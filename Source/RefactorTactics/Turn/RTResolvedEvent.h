@@ -177,6 +177,58 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 Amount = 0;
 
+	// --- L'identita' dell'AZIONE che ha prodotto l'evento (`#2857`). `NAME_None` = nessuna azione dietro. ---
+
+	/**
+	 * QUALE azione ha prodotto questo evento (`Branth.ImpactShot`, `Action.Move`, `Ivrin.Deflection`, …),
+	 * con la chiave stabile del catalogo — la stessa che `FRTTurnLogEntry::ActionId` porta.
+	 *
+	 * 🔑 **Esiste perche' `Next Action` non aveva su cosa fermarsi.** Fra `Next Phase` — una fase `Blast`
+	 * contiene tutti i colpi del turno — e `Step` — un micro-step per volta — manca la granularita' che chi
+	 * guarda una risoluzione chiede quasi sempre: *«portami al prossimo ATTO»*. Turn, Phase e Micro-step
+	 * erano gia' indirizzabili; l'azione no, e non perche' il dato non esistesse ma perche' non attraversava
+	 * questo confine.
+	 *
+	 * 🔴 **Non e' una seconda fonte, ed e' il punto su cui `#2191` aveva deciso il contrario.** Il commento
+	 * che vietava questo campo — `RTTurnManager.cpp`, sito della reazione risolta — diceva *«QUALE reazione
+	 * sia scattata lo dice gia' il TurnLog»*, e per la **presentazione** era vero: dare un momento alla
+	 * parata non richiede di sapere quale parata fosse. Cio' che e' cambiato e' il consumatore:
+	 * l'**inspection** deve fermarsi su un confine di azione, e il TurnLog non e' cio' che il playback
+	 * scorre. Il campo si **copia** al sito di scrittura — come `StatusTag` gia' fa — e non si ricostruisce
+	 * dal `Type` ne' si deriva dalla forma: l'identita' dell'azione ha un solo produttore, il catalogo.
+	 *
+	 * ⚠️ **NON si copia ciecamente da `FRTTurnLogEntry::ActionId`, perche' li' il campo e' POLIMORFO.**
+	 * Nella voce di TurnLog quel nome porta l'azione per le voci di combattimento e di movimento, ma porta
+	 * il **tag dello stato** per le voci `Status` (`Status.Burning` — lo dichiara `RTTurnLog.h`) e la
+	 * **causa ambientale** per gli hazard (`Terrain.*`, `Fall.*` — lo legge `IsEnvironmentalDamage`).
+	 * Copiarlo dov'e' a portata di mano invece che dov'e' un'azione produrrebbe un confine **falso**: un
+	 * `Next Action` che si ferma su un rogo o su una scadenza, cioe' su qualcosa che nessuno ha *fatto*.
+	 * Per quegli eventi il valore corretto e' `NAME_None`, e lo stato continua a viaggiare in `StatusTag`.
+	 *
+	 * ⚠️ **`NAME_None` e' legittimo, e per questo un produttore che dimentica di popolarlo e' invisibile**:
+	 * nessun test fallisce e `Next Action` salta un atto senza dirlo. E' la ragione per cui la copertura si
+	 * verifica confrontando la timeline con il TurnLog **voce per voce** sullo stesso turno, e non a campione.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FName ActionId;
+
+	/**
+	 * L'azione GENERICA di cui `ActionId` e' un profilo (`Action.BasicAttack` per `Branth.ImpactShot`),
+	 * quando il produttore la conosce.
+	 *
+	 * ⚠️ **Dove non e' nota si lascia `NAME_None`, non si indovina.** E' una FUNZIONE di `ActionId` — lo
+	 * dichiara `FRTTurnLogEntry::BaseActionId` per motivare la propria esclusione dall'hash — quindi
+	 * derivarla qui sarebbe ricalcolare a valle cio' che il catalogo sa gia', ed e' il modo in cui due
+	 * letture della stessa identita' cominciano a divergere.
+	 *
+	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda `ActionId`
+	 * e solo quello: due profili distinti della stessa generica — `Branth.Interposition` e
+	 * `Action.Intercept` — sono due atti, ed e' esattamente la distinzione che `RTTurnLog.h` dichiara di
+	 * voler conservare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FName BaseActionId;
+
 	// --- Solo per `AttackFootprint` ([D-301]). Vuoti/di default per ogni altro `Type`. ---
 
 	/**

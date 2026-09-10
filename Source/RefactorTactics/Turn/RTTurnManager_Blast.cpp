@@ -1405,6 +1405,17 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 				Ev.Type = ERTResolvedEventType::ReactionResolved;
 				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
 				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+				// `#2857`: QUALE interposizione. Stessa fonte della voce di TurnLog scritta qui sotto —
+				// `Reaction->Def` — e per la stessa ragione che quella riga dichiara: `Branth.Interposition`
+				// non e' `Action.Intercept` (CP 5.5), e senza questo campo la timeline non saprebbe dirlo.
+				//
+				// ⚠️ **Questo file e' l'ALTRO sito della reazione risolta**, e ce ne si accorge tardi: le
+				// reazioni generiche escono da `RTTurnManager.cpp`, l'interposizione ha il proprio ramo qui.
+				// `#2191` ha gia' pagato una volta l'errore di coprirne uno solo — «`ResolvedTimeline`
+				// compariva **zero** volte in questo file» — e un `ActionId` mancante sarebbe la stessa
+				// omissione, stavolta invisibile perche' `NAME_None` e' un valore legittimo.
+				Ev.ActionId = Reaction->Def.ActionId;
+				Ev.BaseActionId = Reaction->Def.BaseActionId;
 				ResolvedTimeline.Add(Ev);
 			}
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,

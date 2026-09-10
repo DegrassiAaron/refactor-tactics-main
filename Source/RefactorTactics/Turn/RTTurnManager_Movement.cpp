@@ -61,6 +61,23 @@
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
+namespace
+{
+	/**
+	 * La causa del movimento VOLONTARIO della fase Move (`#307`), in un posto solo (`#2857`).
+	 *
+	 * 🔑 **Esiste perche' ora la dichiarano in DUE canali.** La legge `BuildMoveLog` per la voce di TurnLog
+	 * ed `EmitMoveEvents` per l'evento di playback: con due letterali, il primo rename ne cambierebbe uno e
+	 * lascerebbe l'altro — e il difetto sarebbe muto, perche' `NAME_None` e un nome vecchio sono entrambi
+	 * valori legittimi. E' lo stesso argomento con cui `IsEnvironmentalDamage` rifiuta il letterale di
+	 * `Status.Burning` e passa dal tag (`D-098`).
+	 *
+	 * ⛔ Scatto e spostamento forzato NON la usano: hanno altri produttori e dichiarano la propria — lo
+	 * scatto dal catalogo dell'abilita', lo spostamento da `FRTDisplacementCause`.
+	 */
+	const FName MoveCauseActionId(TEXT("Action.Move"));
+}
+
 /**
  * La risoluzione del movimento in tre momenti (`#2679` fetta 1, [D-355]).
  *
@@ -1034,6 +1051,10 @@ void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
 		Ev.SourceStableUnitId = Units[i]->StableUnitId;
 		Ev.Path = Route;
 		Ev.CellVerdicts = Tracked.CellVerdicts;
+		// `#2857`: la causa del movimento volontario, dalla stessa costante che `BuildMoveLog` riceve —
+		// mai un secondo letterale. `BaseActionId` resta `NAME_None`: `Action.Move` E' l'azione generica,
+		// e non e' il profilo di nient'altro.
+		Ev.ActionId = MoveCauseActionId;
 		ResolvedTimeline.Add(Ev);
 	}
 }
@@ -1079,8 +1100,8 @@ void ARTTurnManager::FinishMovementResolution()
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
 	// Causa dichiarata (#307): questo e' il movimento VOLONTARIO della fase Move. Scatto e spostamento
 	// forzato hanno altri produttori e dichiareranno la propria.
-	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Ctx.Paths, Resolved, TEXT("Action.Move"),
-		URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Ctx.Paths, Resolved, MoveCauseActionId,
+		URTCatalogLibrary::FindCoreAction(MoveCauseActionId).Priority);
 
 	// 🔑 **Chi e' SCIVOLATO DAVVERO, e non chi lo ha solo chiesto** (`#2253`). Il predicato non e'
 	// `bSlideRequested[i]`: fra la richiesta e la fine del Move l'unita' puo' essere fermata dal microstep,

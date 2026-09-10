@@ -2693,6 +2693,15 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		Ev.Type = ERTResolvedEventType::Move;
 		Ev.SourceStableUnitId = Unit->StableUnitId;
 		Ev.Path = Path;
+		// `#2857`: QUALE azione ha spinto. E' la STESSA `FRTDisplacementCause` che `AppendDisplacementEntry`
+		// ha appena letto al passo 3 — copiata dalla mappa, non ricostruita — quindi i due canali non
+		// possono raccontare due cause diverse per lo stesso spostamento. Un bersaglio senza causa
+		// dichiarata resta `NAME_None`, come nella voce di TurnLog.
+		if (const FRTDisplacementCause* Cause = CauseByTarget.Find(Unit))
+		{
+			Ev.ActionId = Cause->ActionId;
+			Ev.BaseActionId = Cause->BaseActionId;
+		}
 		ResolvedTimeline.Add(Ev);
 	}
 
@@ -3476,6 +3485,11 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// invece che come l'unita' zero.
 		Ev.SourceStableUnitId = Entry.UnitId;
 		Ev.StatusTag = Entry.ActionId;
+		// ⛔ **`Ev.ActionId` resta `NAME_None`, e NON e' una dimenticanza** (`#2857`). In una voce di
+		// categoria `Status` il campo `Entry.ActionId` porta il **tag dello stato** — `Status.Burning` — e
+		// non l'azione che lo ha acceso: e' la riga sopra a leggerlo per quel che e', dentro `StatusTag`.
+		// Copiarlo anche qui perche' e' a portata di mano darebbe a `NextActionBoundary` un confine
+		// **falso**, e `Next Action` si fermerebbe su una scadenza invece che su un atto.
 		Ev.StatusOutcome = static_cast<ERTStatusOutcome>(Entry.Outcome);
 		// ⚠️ Per `AppliedWhileOnCell` vale `0`, e li' NON e' un conteggio: e' l'unico caso in cui `Amount`
 		// non dice «turni». Lo dichiara `ERTStatusOutcome` stesso, e chi consuma deve chiedere il verso a
@@ -3557,6 +3571,11 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// resta, e chi consuma deve leggerlo come «nessuno» ([D-063]) e mai come «l'unita' zero». E' la
 		// stessa scelta gia' fatta da `#625`/`#1150` sul canale della traccia.
 		Ev.TargetStableUnitId = Entry.UnitId;
+		// ⛔ **`Ev.ActionId` resta `NAME_None`, ed e' il valore CORRETTO** (`#2857`, che lo prescrive per il
+		// danno ambientale). `Entry.ActionId` porta qui una **causa** — `Terrain.Fire`, `Fall.*`,
+		// `Status.Burning`: e' su quel prefisso che `IsEnvironmentalDamage` riconosce la voce due righe
+		// sopra — e una causa ambientale non e' un atto di nessuno. Un rogo non e' qualcosa su cui
+		// `Next Action` debba fermarsi.
 		// ⚠️ Il danno **NOMINALE** del catalogo, non gli HP effettivamente persi: e' cio' che porta la voce
 		// gemella, e cambiarlo qui solo renderebbe i due canali non confrontabili. Con lo scudo che assorbe
 		// tutto questo vale comunque 10, e quanto sia arrivato agli HP lo dice l'`Outcome` di quella voce.
@@ -5109,6 +5128,16 @@ void ARTTurnManager::ResolveDash()
 			Ev.Type = ERTResolvedEventType::Move;
 			Ev.SourceStableUnitId = Units[i]->StableUnitId;
 			Ev.Path = Route;
+			// `#2857`: con quale mobilita' si e' scattato. La fonte e' la STESSA del ciclo che scrive la voce
+			// di TurnLog poco piu' sotto — `Unit->GetAbility(DashAbilityIdx[i])->Def`, cioe' il catalogo — e
+			// non una deduzione dalla fase: `Dash` dice QUANDO, l'azione dice CON COSA, ed e' la distinzione
+			// che quella voce dichiara di voler conservare. Un'abilita' non risolvibile lascia `NAME_None`,
+			// come la voce di log che lo stesso `if` gia' salta.
+			if (const URTActionData* DashDef = Units[i]->GetAbility(DashAbilityIdx[i]))
+			{
+				Ev.ActionId = DashDef->Def.ActionId;
+				Ev.BaseActionId = DashDef->Def.BaseActionId;
+			}
 			// 🔴 **Lo STESSO verdetto della traccia, copiato e non ricalcolato** (`#1525`). Questa era la
 			// «seconda strada» che la stessa rotta prendeva due righe piu' sotto: `LastMoveRoutes` moriva
 			// nel `Reset()` del Move e non arrivava a schermo, mentre questo evento ci arrivava — senza
@@ -5439,10 +5468,20 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 				Ev.TargetStableUnitId = Units.IsValidIndex(TriggeredBy) && Units[TriggeredBy]
 					? Units[TriggeredBy]->StableUnitId : 0;
 				Ev.Origin = Unit->Cell;
-				// ⛔ **Nessun `ActionId` qui, e non e' una dimenticanza**: `FRTResolvedEvent` non ha quel
-				// campo, e QUALE reazione sia scattata lo dice gia' il TurnLog (`Entry.ActionId`, due righe
-				// sopra). Aggiungerlo alla struct creerebbe una seconda fonte per lo stesso fatto, e la
-				// presentazione non ne ha bisogno per dare un momento alla reazione.
+				// 🔴 **QUALE reazione e' scattata, e fino a `#2857` questo campo non c'era** — per una
+				// ragione che era vera e che ha smesso di esserlo. `#2191` aveva scritto qui *«nessun
+				// `ActionId`: lo dice gia' il TurnLog, e aggiungerlo creerebbe una seconda fonte»*, ed era
+				// esatto finche' l'unico consumatore era la **presentazione**: dare un momento alla parata
+				// non richiede di sapere quale parata fosse. Il consumatore nuovo e' l'**inspection**, che
+				// deve fermarsi a un confine di azione scorrendo la timeline — e il TurnLog non e' cio' che
+				// il playback scorre.
+				//
+				// ⚠️ **Non e' una seconda fonte perche' non e' una seconda LETTURA**: e' lo stesso
+				// `Reaction->Def` da cui `Entry.ActionId` e' stato scritto poche righe sopra, copiato al
+				// sito di scrittura come `StatusTag` gia' fa. `Ivrin.Deflection` non e' `Action.Deflect`
+				// (CP 5.5), e la distinzione arriva intatta.
+				Ev.ActionId = Reaction->Def.ActionId;
+				Ev.BaseActionId = Reaction->Def.BaseActionId;
 				ResolvedTimeline.Add(MoveTemp(Ev));
 			}
 
@@ -5712,6 +5751,18 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		Ev.AimCell = Footprint.AimCell;
 		Ev.Shape = Footprint.Shape;
 		Ev.HitCells = Footprint.HitCells;
+		// `#2857`: QUALE azione ha prodotto l'impronta. `IntentIndex` e' dichiarato dalla struct come *«la
+		// chiave con cui si risale ad abilita', priorita' e attaccante»*, e `IntentDefs` e' la stessa
+		// tabella da cui il ciclo dei colpi legge la propria causa: nessuna seconda lettura del catalogo.
+		//
+		// 🔑 **E' l'evento su cui un `Next Action` si ferma piu' naturalmente**, perche' ne esce **uno per
+		// intento** — mentre gli `Attack` sono uno per vittima. Un intento che non colpisce nessuno emette
+		// comunque la propria impronta, quindi resta un atto indirizzabile anche quando manca del tutto.
+		if (IntentDefs.IsValidIndex(Footprint.IntentIndex))
+		{
+			Ev.ActionId = IntentDefs[Footprint.IntentIndex].ActionId;
+			Ev.BaseActionId = IntentDefs[Footprint.IntentIndex].BaseActionId;
+		}
 		ResolvedTimeline.Add(MoveTemp(Ev));
 	}
 
@@ -6429,6 +6480,19 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		Ev.SourceStableUnitId = Attacker ? Attacker->StableUnitId : 0;
 		Ev.TargetStableUnitId = Victim ? Victim->StableUnitId : 0;
 		Ev.Amount = Hit.Power;
+		// `#2857`: QUALE colpo. Stessa fonte e stesso indice che il `case Push`/`case Pull` qui sopra usano
+		// per riempire `FRTDisplacementCause` — `IntentDefs[Hit.IntentIndex]` — cosi' il colpo e lo
+		// spostamento che ne consegue dichiarano la **stessa** azione invece di due letture da tenere
+		// d'accordo.
+		//
+		// ⚠️ **N vittime dello stesso intento producono N eventi con lo STESSO `ActionId`**, ed e' voluto:
+		// `NextActionBoundary` li legge come un atto solo, che e' la ragione per cui `AttackFootprint`
+		// esiste come «una voce per intento, non per vittima».
+		if (bHasDef)
+		{
+			Ev.ActionId = IntentDefs[Hit.IntentIndex].ActionId;
+			Ev.BaseActionId = IntentDefs[Hit.IntentIndex].BaseActionId;
+		}
 		ResolvedTimeline.Add(Ev);
 
 		// L'abilita' si consuma una volta per attaccante, anche se il colpo prende piu' bersagli.
@@ -6585,6 +6649,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		Ev.Phase = ERTMatchPhase::Blast;
 		Ev.Type = ERTResolvedEventType::Defeated;
 		Ev.SourceStableUnitId = Units[Idx]->StableUnitId;
+		// ⛔ **`Ev.ActionId` resta `NAME_None`, ed e' il valore che `#2857` prescrive** per questo tipo.
+		// `NewlyDefeated` confronta gli HP prima e dopo l'INTERA fase: chi ha inferto il colpo finale non
+		// e' un dato di questo punto, e attribuirne uno qui — l'ultimo colpo del ciclo, il piu' grosso —
+		// sarebbe un'inferenza travestita da fatto. L'eliminazione e' una CONSEGUENZA, e il colpo che la
+		// produce ha gia' il proprio evento con la propria azione.
 		ResolvedTimeline.Add(Ev);
 	}
 
