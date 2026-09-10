@@ -335,9 +335,57 @@ public:
 	 * Serve un flag e non basta «target nullo»: nel resolver `TargetUnitId == INDEX_NONE` significa gia'
 	 * **bersaglio perso** (eliminato o mai valido), che degrada al fallback. Senza distinguerle, mirare a una
 	 * cella verrebbe letto come un errore di pianificazione.
+	 *
+	 * ⛔ **NON scriverlo a mano dal codice di gioco: usa `DeclareAttackOnCell` / `DeclareAttackOnUnit` /
+	 * `ClearPlannedAttack`** (`#2884`). Questo campo e `PlannedAttackTarget` sono **mutuamente esclusivi**, e
+	 * finche' l'esclusivita' e' stata una convenzione invece che una funzione nessuno l'ha rispettata:
+	 * `HandleTargetCell` accendeva il flag e `HandleClickOnUnit` scriveva il bersaglio **senza spegnerlo**.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
 	bool bAttackTargetsCell = false;
+
+	/**
+	 * ## 🔴 I due bersagli dell'azione principale sono ESCLUSIVI, e queste tre funzioni sono il posto in cui
+	 * l'esclusivita' esiste (`#2884`)
+	 *
+	 * `PlannedAttackTarget` e la coppia `bAttackTargetsCell`/`PlannedAttackCell` descrivono la **stessa**
+	 * scelta — *dove va l'azione principale* — in due modi che il resolver legge in ordine: `Blast` guarda
+	 * PRIMA il flag, e quando e' acceso **ignora** il bersaglio-unita'.
+	 *
+	 * ⛔ **Finche' la regola e' stata una convenzione, nessuno l'ha applicata.** Misurato su `main`
+	 * `fdbc6797`: due scrittori del flag, quattro lettori, **zero** azzeramenti in produzione — e la
+	 * conseguenza si vede in un turno solo. Chi punta una cella e poi **cambia idea** puntando un nemico
+	 * ottiene un piano che risolve sulla cella di prima, e il bersaglio incassa `0` senza che niente lo dica.
+	 *
+	 * 🔑 **Il rimedio non e' azzerare al consumo del piano.** Sarebbe bastato per il turno successivo e
+	 * avrebbe lasciato scoperto il cambio d'idea, che e' il caso piu' comune dei due: l'esclusivita' va
+	 * imposta **dove si dichiara**, non dove si consuma. Queste funzioni sono quel posto.
+	 *
+	 * ⚠️ I campi restano pubblici — l'harness degli scenari e i test li scrivono direttamente, e renderli
+	 * privati sarebbe una migrazione che non appartiene a questa correzione. La garanzia e' quindi che il
+	 * **codice di gioco** passi di qui, ed e' `Plan.MindChangeRetiresTheOtherTarget` a pinnarla.
+	 */
+	void DeclareAttackOnUnit(ARTUnit* Target)
+	{
+		PlannedAttackTarget = Target;
+		bAttackTargetsCell = false; // la dichiarazione opposta si RITIRA: era lei a vincere nel resolver
+	}
+
+	// ⚠️ Il parametro NON si chiama `Cell`: quello e' un membro di `ARTUnit` — la cella su cui l'unita' sta —
+	// e ombreggiarlo qui e' un errore di compilazione (`C4458` come warning-as-error).
+	void DeclareAttackOnCell(const FRTCellId& TargetCell)
+	{
+		PlannedAttackCell = TargetCell;
+		bAttackTargetsCell = true;
+		PlannedAttackTarget = nullptr; // un target-unita' residuo verrebbe letto dal fallback come «perso»
+	}
+
+	/** Nessun bersaglio dichiarato per l'azione principale: si spengono ENTRAMBE le forme. */
+	void ClearPlannedAttack()
+	{
+		PlannedAttackTarget = nullptr;
+		bAttackTargetsCell = false;
+	}
 
 	/**
 	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
