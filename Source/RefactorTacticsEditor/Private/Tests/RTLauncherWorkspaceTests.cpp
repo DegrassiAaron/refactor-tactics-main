@@ -1,6 +1,8 @@
 #include "Misc/AutomationTest.h"
 
 #include "RTLauncherWorkspace.h"
+#include "RTDevSandboxLauncherSubsystem.h"
+#include "SRTLabPanel.h"
 #include "ScenarioHarness/RTScenarioDraft.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -209,6 +211,45 @@ bool FRTLauncherSurfaceKeysAreUniqueTest::RunTest(const FString&)
 
 	TestNull(TEXT("una chiave che non esiste non risolve, invece di risolvere alla prima"),
 		FRTLauncherWorkspace::Find(TEXT("SuperficieCheNonEsiste")));
+
+	return true;
+}
+
+/**
+ * Il Lab e' raggiungibile DAL launcher, e atterra sul PROPRIO tab.
+ *
+ * ⚠️ **I criteri generici non prendono questo difetto.** `SurfaceRegistryDeclaresOnlyWhatItReaches`
+ * itera il registro e chiede che ogni voce dichiarata abbia *un* bersaglio; resterebbe verde anche se il
+ * `Lab` puntasse al tab del launcher. Il risultato sarebbe la peggiore delle uscite: un pulsante che si
+ * apre, apre la finestra sbagliata, e non fallisce da nessuna parte.
+ *
+ * 🔑 **Cosa pinna, ed e' la DoD di #2599**: che il Lab *«viva nel Launcher gia' esistente, non in una
+ * finestra nuova»*. Il registro e' il modo in cui una superficie sta nel launcher senza essere dentro il
+ * suo pannello — e' lo stesso di `Map`, che e' un Editor Mode e non un widget del launcher.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherLabSurfaceLandsOnTheLabTabTest,
+	"RefactorTactics.DevSandboxLauncher.LabSurfaceLandsOnTheLabTab",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherLabSurfaceLandsOnTheLabTabTest::RunTest(const FString&)
+{
+	const FRTLauncherSurface* Lab = FRTLauncherWorkspace::Find(TEXT("Lab"));
+
+	if (!TestNotNull(TEXT("il launcher dichiara la superficie 'Lab'"), Lab))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("'Lab' e' dichiarata: esiste e si raggiunge adesso"), Lab->bDeclared);
+	TestEqual(TEXT("si attiva come tab"), Lab->ActivationKind, ERTLauncherActivationKind::Tab);
+
+	// 🔴 La riga che conta: il bersaglio e' il tab DEL LAB.
+	TestEqual(TEXT("e atterra sul tab del Lab, non su quello del launcher"),
+		Lab->ActivationTarget, SRTLabPanel::TabId);
+
+	// ⛔ Controllo negativo: senza di questo, la riga sopra passerebbe anche se i due `TabId` fossero
+	// per sbaglio lo stesso nome, e il test non distinguerebbe le due finestre.
+	TestNotEqual(TEXT("i due tab sono davvero distinti"),
+		SRTLabPanel::TabId, URTDevSandboxLauncherSubsystem::TabId);
 
 	return true;
 }
