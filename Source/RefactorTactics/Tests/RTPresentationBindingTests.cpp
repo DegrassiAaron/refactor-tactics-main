@@ -483,8 +483,8 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	};
 	TestEqual(TEXT("HazardDamage attende #2505"),
 		OwnerDi(ERTResolvedEventType::HazardDamage), FString(TEXT("#2505")));
-	TestEqual(TEXT("AttackFootprint attende E21"),
-		OwnerDi(ERTResolvedEventType::AttackFootprint), FString(TEXT("E21")));
+	TestEqual(TEXT("AttackFootprint attende #2454"),
+		OwnerDi(ERTResolvedEventType::AttackFootprint), FString(TEXT("#2454")));
 	TestEqual(TEXT("ReactionResolved attende #2454"),
 		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
 	TestEqual(TEXT("StatusChanged attende #2456"),
