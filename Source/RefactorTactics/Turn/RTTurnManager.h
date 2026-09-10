@@ -556,6 +556,27 @@ public:
 	TArray<FRTResolvedEvent> ResolvedHazardEventsForTest() const;
 
 	/**
+	 * Hook per i test: la timeline INTERA di questo turno, nell'ordine di emissione (`#2857`).
+	 *
+	 * 🔴 **Esiste per un confronto che nessun accessore filtrato puo' reggere: timeline contro TurnLog, sullo
+	 * stesso turno.** `#2857` porta l'`ActionId` su `FRTResolvedEvent` copiandolo al sito di scrittura, e il
+	 * difetto che quella copia puo' produrre e' **muto**: un produttore dimenticato lascia `NAME_None`, che
+	 * e' un valore legittimo — nessun test fallisce, e `Next Action` salta un atto senza dirlo. L'unico
+	 * modo di sorvegliarlo e' verificare che le due fonti **non divergano**, e per farlo servono entrambe
+	 * per intero.
+	 *
+	 * ⚠️ **Gli eventi INTERI e non un conteggio, e TUTTI e non un tipo.** Filtrare qui rifarebbe l'errore
+	 * che `ResolvedEventCountOfTypeForTest` documenta poco sopra: chi cerca un `NAME_None` fra gli eventi
+	 * gia' selezionati su un tipo che l'azione ce l'ha risponde «nessuno» **per costruzione**.
+	 *
+	 * ⛔ **Non e' una porta di produzione.** La presentazione continua a passare dagli accessori tipizzati:
+	 * questa serve a chi deve giudicare la timeline come un tutto, cioe' solo la suite.
+	 *
+	 * @return copia della timeline, nell'ordine in cui il resolver l'ha emessa.
+	 */
+	const TArray<FRTResolvedEvent>& ResolvedTimelineForTest() const { return ResolvedTimeline; }
+
+	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
 	 *
 	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
