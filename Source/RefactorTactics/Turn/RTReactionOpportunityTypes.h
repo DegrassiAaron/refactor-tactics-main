@@ -542,6 +542,35 @@ public:
 	 */
 	static bool IsDeclaredConditionAllowed(const FRTDeclaredCondition& Condition);
 
+	/**
+	 * Gli `ActionId` che possono **aprire** un decision boundary, cioe' i valori che
+	 * `FRTReactionOpportunityKey::ReactionDefId` puo' davvero assumere in partita.
+	 *
+	 * 🔑 **Non e' l'elenco delle reaction del catalogo, ed e' piu' STRETTO.** Misurato il 2026-09-10:
+	 * `Action.Counter`, `Action.Deflect` e `Action.Intercept` esistono a catalogo — sono la base dei moduli
+	 * di equipaggiamento (`Reaction.CounterShot`, `Reaction.AllyIntercept`, …) — e **non aprono nessuna
+	 * finestra**. Compaiono solo nei test, che costruiscono opportunity a mano. Derivare questo elenco dal
+	 * catalogo lo renderebbe piu' permissivo del gioco: chi scrive uno scenario potrebbe nominare una
+	 * reaction che nessuna finestra emettera' mai, e il file caricherebbe verde.
+	 *
+	 * ⚠️ **Sta qui e non nel loader dello scenario**, che e' il suo unico consumatore oggi. La ragione e' la
+	 * stessa per cui `ValidateDecisionForm` chiede il vocabolario di `respond` a `URTCatalogLibrary` invece
+	 * di riscriverlo: una seconda lista diverge al primo produttore aggiunto, e a divergere sarebbe il
+	 * **gate**, cioe' il pezzo il cui mestiere e' accorgersene. Questo tipo possiede gia' la domanda gemella
+	 * — *«quali risposte sono legali per questa opportunity»* (`IsResponseAllowed`) — e questa e' la stessa
+	 * domanda un livello piu' su.
+	 *
+	 * 🔴 **Chi aggiunge un produttore di finestre aggiunge il proprio `ActionId` QUI, nello stesso commit.**
+	 * I due produttori correnti sono `ARTTurnManager::ResolveMovement` (l'Overwatch armato, che passa
+	 * `Armed.ActionId`) e il ramo `Brace` del Blast. Il pin non e' questo commento: sono gli scenari del
+	 * corpus che nominano la propria reaction nel selettore — `Spec.Overwatch.HoldThenFire` e
+	 * `Spec.Brace.ProfileChangesResponse` — e che diventano rossi se un produttore cambia id.
+	 */
+	static const TArray<FName>& BoundaryCapableReactionIds();
+
+	/** Vero se `ReactionId` e' fra quelli che possono aprire una finestra. Confronto esatto, elenco chiuso. */
+	static bool IsBoundaryCapableReaction(const FName& ReactionId);
+
 	/** La risposta che NON spende niente. `Timeout -> HOLD` (ADR-0004 §3) sceglie questa. */
 	static const TCHAR* HoldResponse() { return TEXT("HOLD"); }
 
