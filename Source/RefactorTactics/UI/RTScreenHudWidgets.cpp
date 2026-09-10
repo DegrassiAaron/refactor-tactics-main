@@ -709,6 +709,12 @@ void URTTacticalHUDWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 
+	// ⚠️ **Questa e' una fotografia AL MONTAGGIO, e va letta come tale.** Gli `ActionSlot` li crea il grafo
+	// del dock quando arrivano le azioni: qui contano `0` anche quando poi ci saranno, ed e' precisamente
+	// l'equivoco in cui la seduta `U49` e' incorsa il 2026-09-10. Per l'albero VIVO: `rt.Debug.ScreenHud`.
+	UE_LOG(LogRT, Display,
+		TEXT("Screen HUD 4.1 - fotografia AL MONTAGGIO; per l'albero a regime usa 'rt.Debug.ScreenHud'"));
+
 	for (const FString& Riga : ComposeMountReport(this))
 	{
 		UE_LOG(LogRT, Display, TEXT("%s"), *Riga);
