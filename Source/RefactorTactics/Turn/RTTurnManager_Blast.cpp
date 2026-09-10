@@ -271,9 +271,13 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 			Ctx.Units.Add(Unit);
 		}
 	}
-	// Ordine STABILE per cella: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici
-	// del piano, il TurnLog e la sequenza del playback. Una cella ospita al piu' un'unita' -> ordine totale.
-	Ctx.Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Ordine STABILE: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici del piano,
+	// il TurnLog e la sequenza del playback.
+	//
+	// ⚠️ Questa riga diceva *«una cella ospita al piu' un'unita' -> ordine totale»*, ed e' la premessa che
+	// `#1733`/`#1970` hanno misurato falsa: la sovrapposizione esiste e `MakeSnapshot` la registra. La cella
+	// resta la prima chiave; l'ordine totale lo chiudono `StableUnitId` e il nome (#2922).
+	URTActionQueueLibrary::SortUnitsForResolution(Ctx.Units);
 
 	Ctx.States.Reserve(Ctx.Units.Num());
 	Ctx.HexUnits.Reserve(Ctx.Units.Num());
