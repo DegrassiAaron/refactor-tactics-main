@@ -357,6 +357,33 @@ namespace
 				OutError = TEXT("decisions: 'on' richiede 'reactor' (chi risponde alla finestra)");
 				return false;
 			}
+			// 🔴 **La reaction si valida QUI e non a runtime, perche' il suo modo di fallire e' silenzioso.**
+			// Un refuso (`Action.Overwtach`) non combacia con nessuna finestra: la decisione resta non
+			// consumata e riemerge a fine turno come «nessuna finestra ha soddisfatto il selettore» — un
+			// messaggio VERO che manda a cercare una finestra mancante, mentre il difetto e' un nome scritto
+			// male. E' la stessa ragione per cui `Intent.Reaction` si valida contro il kit dell'eroe al
+			// caricamento invece di lasciar armare una reazione inesistente.
+			//
+			// ⚠️ **L'insieme e' quello delle reaction che aprono un boundary, NON il catalogo**: `Action.Counter`
+			// e `Action.Intercept` esistono a catalogo e non emettono nessuna finestra, quindi accettarli
+			// renderebbe questo gate piu' permissivo del gioco — cioe' sposterebbe il difetto invece di
+			// chiuderlo. L'elenco vive dove vivono le finestre (`URTReactionOpportunityLibrary`), e qui si
+			// interroga: una copia locale divergerebbe al primo produttore aggiunto.
+			if (!Decision.On.Reaction.IsNone()
+				&& !URTReactionOpportunityLibrary::IsBoundaryCapableReaction(Decision.On.Reaction))
+			{
+				TArray<FString> Ammesse;
+				for (const FName& Id : URTReactionOpportunityLibrary::BoundaryCapableReactionIds())
+				{
+					Ammesse.Add(Id.ToString());
+				}
+				Ammesse.Sort();
+				OutError = FString::Printf(
+					TEXT("decisions: 'on.reaction' nomina '%s', che nessuna finestra puo' emettere")
+					TEXT(" (ammesse: %s). Una reaction del catalogo non apre per forza un decision boundary."),
+					*Decision.On.Reaction.ToString(), *FString::Join(Ammesse, TEXT(", ")));
+				return false;
+			}
 			// ⚠️ **Anche questa forma dichiara la versione che la ammette**, come `decisions` con la `2` e le
 			// risposte di profilo con la `3`: senza, un file `version: 4` con `on` verrebbe accettato da una
 			// build a `SupportedVersion = 4` — che non conosce la chiave — e rifiutato con «chiave

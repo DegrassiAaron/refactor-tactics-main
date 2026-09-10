@@ -40,8 +40,8 @@
       ],
       "decisions": [
         { "_nota": "Nessuna decisione per B1: la sua finestra non si apre, e dichiararne una qui sarebbe il caso simmetrico della «finestra scoperta» — una decisione che nessuno consuma, che `FRTScenarioSession` conta nel residuo e segnala.",
-          "_nota_selettore": "⛔ Il selettore porta il solo `reactor`, e l'omissione di `triggerUnit` e' deliberata: una finestra di profilo non offre risposte `FIRE:<id>`, e il vincolo di trigger si confronta proprio con quelle. Dichiararlo qui darebbe un selettore che NESSUNA finestra puo' soddisfare — la decisione finirebbe nel residuo, e il referto direbbe «nessuna finestra ha soddisfatto il selettore» su uno scenario sano.",
-          "on": { "reactor": "R1" }, "respond": "SIDESTEP" }
+          "_nota_selettore": "⛔ Il selettore porta `reactor` e `reaction`, e l'omissione di `triggerUnit` e' deliberata: una finestra di profilo non offre risposte `FIRE:<id>`, e il vincolo di trigger si confronta proprio con quelle. Dichiararlo qui darebbe un selettore che NESSUNA finestra puo' soddisfare — la decisione finirebbe nel residuo, e il referto direbbe «nessuna finestra ha soddisfatto il selettore» su uno scenario sano. 🔑 La `reaction` invece c'e', ed e' il PIN del produttore (#2866): `ARTTurnManager` scrive `Action.Brace` sulla chiave dell'opportunity del Brace, e se un giorno quell'id cambiasse questo scenario uscirebbe rosso invece di lasciar divergere in silenzio l'elenco di `BoundaryCapableReactionIds`.",
+          "on": { "reactor": "R1", "reaction": "Action.Brace" }, "respond": "SIDESTEP" }
       ]
     }
   ],

@@ -64,6 +64,32 @@ bool URTReactionOpportunityLibrary::RequiresDecisionBoundary(const FRTReactionOp
 	return Opportunity.AllowedResponses.Num() >= 2;
 }
 
+const TArray<FName>& URTReactionOpportunityLibrary::BoundaryCapableReactionIds()
+{
+	// ⚠️ **Elenco chiuso e scritto qui, non derivato dal catalogo**, e il perche' sta nel docstring: il
+	// catalogo delle reaction e' piu' LARGO di questo insieme, e usarlo renderebbe il gate piu' permissivo
+	// del gioco. I due valori sono i soli che un produttore emette oggi — misurato con
+	// `grep -rn "ReactionDefId = " Source/RefactorTactics --include=*.cpp`, che fuori dai test da' due punti:
+	// `RTTurnManager_Movement.cpp` (l'Overwatch armato, via `Armed.ActionId`) e `RTTurnManager_Blast.cpp`
+	// (il ramo `Brace`, letterale).
+	//
+	// 🔑 **Che questo elenco resti allineato non lo garantisce il commento: lo garantiscono gli scenari.**
+	// `Spec.Overwatch.HoldThenFire` e `Spec.Brace.ProfileChangesResponse` nominano la propria reaction nel
+	// selettore delle `decisions`, quindi se un produttore cambiasse `ActionId` quei file uscirebbero rossi
+	// — il loro selettore non troverebbe piu' nessuna finestra. E' il pin che un test con i valori ripetuti
+	// non darebbe: quello resterebbe verde confermando se stesso.
+	static const TArray<FName> Ids = {
+		FName(TEXT("Action.Overwatch")),
+		FName(TEXT("Action.Brace")),
+	};
+	return Ids;
+}
+
+bool URTReactionOpportunityLibrary::IsBoundaryCapableReaction(const FName& ReactionId)
+{
+	return !ReactionId.IsNone() && BoundaryCapableReactionIds().Contains(ReactionId);
+}
+
 FString URTReactionOpportunityLibrary::FireResponse(int32 TargetUnitId)
 {
 	// Il bersaglio sta DENTRO la risposta e non in un campo parallelo: `AllowedResponses` e' gia' l'elenco
