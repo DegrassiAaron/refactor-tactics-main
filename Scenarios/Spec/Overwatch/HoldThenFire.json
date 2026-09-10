@@ -1,7 +1,7 @@
 {
   "scenarioId": "Spec.Overwatch.HoldThenFire",
   "tags": ["spec", "reactions", "wraith", "gadget", "phase"],
-  "version": 2,
+  "version": 5,
   "seed": 0,
   "mapRadius": 5,
 
@@ -11,7 +11,7 @@
 
   "_nota_completata": "✅ 2026-08-16 (#512 fase B). Il `_nota_da_completare` diceva: «gli intent del turno 2 sono volutamente vuoti: la sintassi con cui si dichiarera' una risposta HOLD/FIRE non esiste ancora, e inventarla qui creerebbe un formato che nessuno ha deciso. Chi implementa E14 riempie il turno e aggiunge le assertion sugli HP di Phase e sulla cella in cui si e' fermata». Il formato ora esiste ed e' deciso — `turns[].decisions`, `\"version\": 2` (#512 fase A, PR #1016) — quindi il turno e' riempito e le due assertion ci sono. La nota resta come registro: uno scenario-specifica scritto PRIMA dell'implementazione ha detto, senza cambiare una virgola della propria semantica, cosa andava costruito.",
 
-  "_nota_geometria": "La zona dell'Overwatch e' una LINEA, non un cono: `MakeSuppressiveZone(Map, ..., OwnerCell, Neighbor(OwnerCell, Facing), Range)` con `LineCells`. V1 e' a (2,-1) e guarda W, quindi controlla (1,-1) (0,-1) (-1,-1) (-2,-1) — quattro celle, la portata di `Hero.Ivrin.PulseShot`. I due percorsi sono scelti perche' entrano nella linea a MICRO-STEP DIVERSI: `BuildOverwatchTriggers` raggruppa per passo, e due bersagli nello stesso passo sarebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione sola, non due, e questo scenario non direbbe piu' quello che dice.",
+  "_nota_geometria": "La zona dell'Overwatch e' una LINEA, non un cono: `MakeSuppressiveZone(Map, ..., OwnerCell, Neighbor(OwnerCell, Facing), Range)` con `LineCells`. V1 e' a (2,-1) e guarda W, quindi controlla (1,-1) (0,-1) (-1,-1) (-2,-1) — quattro celle, la portata di `Hero.Ivrin.PulseShot`. I due percorsi sono scelti perche' entrano nella linea a MICRO-STEP DIVERSI: `BuildOverwatchTriggers` raggruppa per passo, e due bersagli nello stesso passo sarebbero UNA sola opportunity (`Overwatch.SimultaneousTargetsSingleOpportunity`) — cioe' una decisione sola, non due, e questo scenario non direbbe piu' quello che dice. ⚠️ Il vincolo resta vero e non e' piu' l'unica cosa che tiene in piedi lo scenario: da `version: 5` le due risposte nominano il proprio trigger (`on.triggerUnit`), quindi se un giorno i due mover entrassero nello stesso passo il file uscirebbe ERROR per selettore ambiguo invece di restare verde rispondendo a caso.",
 
   "_nota_facing_di_piazzamento": "🔴 Il `facing` di V1 sta fra le UNITA' e non fra gli intent, e la prima stesura sbagliava: metteva `\"facing\": \"W\"` sull'intent del T2 e lo scenario apriva ZERO finestre pur avendo entrambi i mover dentro le celle calcolate. Misurato: `Armed.Facing = Unit->Facing` viene letto in PREP (`ARTTurnManager`, ramo `Action.Overwatch`), mentre una rotazione DICHIARATA si applica dentro `ResolveMovement` DOPO il ciclo dei micro-step — quindi in T2 arriva troppo tardi per il proprio cono. Un'unita' che si MUOVE ruota strada facendo e il caso non si vede (e' cio' che nasconde il difetto in `RT_Showcase_Relay_v01`, dove Branth arriva gia' girato dal T1); V1 non si muove mai, quindi conserva il facing di piazzamento e il caso si vede tutto. Conseguenza da tenere a mente scrivendo scenari: un cono si prepara il turno PRIMA, o si dichiara al piazzamento.",
 
@@ -37,9 +37,12 @@
         { "unit": "F1", "move": [[-2, -1, 0]] },
         { "unit": "R1", "move": [[-1, 0, 0], [0, -1, 0], [1, -1, 0]] }
       ],
+      "_nota_selettore": "Le due risposte NON si abbinano piu' per ordine: ciascuna dichiara la finestra che intende chiudere. Fino alla `version: 4` la prima voce andava alla prima opportunita' che si apriva per V1, e QUALE fosse lo decideva il micro-step in cui i due mover entravano nella zona: cambiare un waypoint di R1 — un dato che questo scenario non verifica — scambiava HOLD e FIRE senza che nulla lo dicesse, e lo scenario restava verde verificando un'altra cosa. Con `on.triggerUnit` la premessa che la `_nota_geometria` teneva a mano e' diventata parte del file.",
       "decisions": [
-        { "unit": "V1", "respond": "HOLD" },
-        { "unit": "V1", "respond": "FIRE", "target": "R1" }
+        { "on": { "reactor": "V1", "reaction": "Action.Overwatch", "triggerUnit": "F1" },
+          "respond": "HOLD" },
+        { "on": { "reactor": "V1", "reaction": "Action.Overwatch", "triggerUnit": "R1" },
+          "respond": "FIRE", "target": "R1" }
       ]
     }
   ],
