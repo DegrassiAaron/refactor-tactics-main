@@ -313,7 +313,7 @@ Engine: installed build `D:/EpicGames/UE_5.8`, `InstalledBuild.txt` presente. Og
 |---|---|
 | Build `RefactorTacticsEditor Win64 Development` | `PASS` |
 | `Automation RunTests RefactorTactics.Scenario` | `PASS` — 178 verdi, 1 rosso **preesistente** (§7.7) |
-| `Automation RunTests RefactorTactics` (suite intera) | `PASS` — 2300 verdi, 4 rossi **tutti preesistenti** (§7.7) |
+| `Automation RunTests RefactorTactics` (suite intera) | `PASS` — 2300 verdi, 4 rossi **tutti preesistenti**, chiusi da allora (§7.7) |
 | Corpus scenari | `122 PASS, 9 BLOCKED, 1 dichiarati expected-fail` |
 | Determinismo | `PASS` — coperto dalla suite intera (`HexSim.ReplayDivergenceZero`, corpus `repeatCount`) |
 | Replay | `N/A` — nessun formato di replay toccato; il selettore vive nel file di scenario |
@@ -389,7 +389,7 @@ distingua gli esiti, e `RefactorTactics.Replay.Verifier.OrphanRecordedResponseIs
 | 7.4 | Decisione su `watchDirection`: emendare o confermare ADR-0005 §4c | `#152` · `#339` · `#291` |
 | 7.5 | Target tipizzato discriminato | `#1119` (`RCI-1`) risponde prima |
 | 7.6 | Separazione sintattica `metadata`/`setup` nel JSON | consumatore: Composer (`#1105`, `#1628`) |
-| 7.7 | ⚠️ Difetto **preesistente** trovato durante questa verifica — sotto | `#2491` |
+| 7.7 | ✅ Difetti **preesistenti** trovati durante questa verifica — chiusi da [#2862](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2862) | ~~`#2491`~~ |
 
 ### 7.7 — Quattro test sono rossi su `main`, e nessuno per questa fetta
 
@@ -414,6 +414,15 @@ Il quarto è a una riga di distanza: `RTScenarioWriterTests.cpp:44` dichiara
 diventa Hero.Aevik`. Il diff di questa fetta su quel file sono sette righe nel comparatore del round-trip
 (~riga 190), non alla 424.
 
-⛔ **Non corretti qui, deliberatamente.** Appartengono a `#2491`, e correggerli dentro questa PR sarebbe il
-refactor collaterale che `AGENTS.md` §8 vieta; inoltre la misura di un fix non la firma chi lo scrive
-(`AGENTS.md` §11).
+⛔ **Non corretti in questa fetta, deliberatamente.** Appartengono a `#2491`, e correggerli dentro questa
+PR sarebbe stato il refactor collaterale che `AGENTS.md` §8 vieta.
+
+> ✅ **Chiusi il 2026-09-10 da [#2862](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2862)**, in
+> un passaggio separato e su un branch proprio. Tre erano refusi di un passaggio di rename che aveva toccato
+> letterali **non RT-owned** — i nomi dei pack Paragon, che nessuna migrazione RT rinomina — e il quarto era
+> vero: `generate_hud_assets.py` disegnava `Identity.Gadget`/`Identity.Phase` mentre `RequiredIconIds()`
+> deriva le chiavi dal roster. Riaperta e richiusa `#2551` con la misura.
+>
+> ⚠️ **La misura di questa fetta resta quella dichiarata sopra**, presa quando i quattro erano ancora rossi:
+> non è stata riscritta a posteriori. Il loro esito non dipendeva da questo write-set — è ciò che la
+> controprova su `origin/main` aveva già dimostrato.
