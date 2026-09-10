@@ -3,7 +3,54 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTTurnRules.h"
+// FRTResolvedEvent: il confine di azione si legge sulla timeline gia' risolta (`#2857`). L'inclusione non
+// e' circolare — `RTResolvedEvent.h` non include questo header.
+#include "Turn/RTResolvedEvent.h"
 #include "RTPlaybackLibrary.generated.h"
+
+/**
+ * Il confine su cui un predicato di pausa **una tantum** deve fermare il playback (`#2855`).
+ *
+ * 🔑 **Un predicato, non una modalita'.** Si arma, il playback scorre, si consuma alla prima occasione
+ * utile e torna a `None`. Fra `Step` — un micro-step — e la fine del turno non c'era nulla: seguire un
+ * movimento cella per cella per arrivare al colpo che interessa e' il modo lento di fare la cosa
+ * sbagliata.
+ *
+ * ⛔ **Guarda solo AVANTI.** Nessun `Previous Phase`, nessun `Previous Action`, nessun rewind: quelli
+ * sono seek su una traccia, e li possiede `URTReplaySeekLibrary`.
+ *
+ * ⚠️ **Non e' simmetria, ed e' il confine con [D-355].** Quella voce lascia aperto se il playback delle
+ * fasi *senza* boundary debba fermarsi, e dichiara che non deve acquisirne una ragione **per simmetria**.
+ * Questo predicato non e' simmetria: e' una ragione dichiarata — un comando developer che qualcuno preme —
+ * e vale solo con i controlli abilitati. Un playback che si fermasse **senza** un predicato armato sarebbe
+ * la simmetria che [D-355] vieta.
+ */
+UENUM(BlueprintType)
+enum class ERTPlaybackStopAt : uint8
+{
+	/** Nessun predicato armato: il playback scorre fino alla fine del turno. */
+	None,
+
+	/**
+	 * Alla prossima fase riprodotta.
+	 *
+	 * ⚠️ **`PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e non contiene mai `Cleanup`**: un
+	 * `Next Phase` dall'ultima fase riprodotta non porta al `Cleanup`, porta alla **fine del turno**. Va
+	 * saputo, o chi lo usa lo scoprira' da un salto che sembra un bug.
+	 */
+	NextPhase,
+
+	/**
+	 * Al prossimo **atto**: il primo colpo con un `ActionId` diverso da quello in corso (`#2857`), oppure
+	 * il prossimo confine di fase se arriva prima.
+	 *
+	 * 🔑 **La fase conta come confine d'atto, e non e' una scorciatoia.** Il tempo del playback scorre per
+	 * fase, e l'unica sequenza che esso srotola un elemento per volta sono i colpi del `Blast`
+	 * (`AttacksToShow`). Un `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il
+	 * confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
+	 */
+	NextAction
+};
 
 /**
  * Di che cosa e' fatto il tempo di UNA fase del playback: due termini, e la ragione per cui sono due.
@@ -264,4 +311,38 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float NextMicroStepBoundary(float Alpha, int32 StepCount);
+
+	/**
+	 * L'indice del prossimo confine di **AZIONE** sulla timeline dopo `FromIndex`: dove si ferma un
+	 * `Next Action` (`#2857`, e la meta' `Next Action` del predicato di `#2855`).
+	 *
+	 * E' il primo evento a indice `> FromIndex` che porta un `ActionId` **non-`None`** e **diverso**
+	 * dall'atto in corso. Restituisce `Timeline.Num()` — cioe' la **fine** — quando non ce n'e' un altro:
+	 * un `Next Action` sull'ultimo atto porta a fine timeline e non oltre, esattamente come
+	 * `NextMicroStepBoundary` non supera mai `1.f`.
+	 *
+	 * 🔑 **L'atto in corso e' l'ultimo `ActionId` non-`None` a indice `<= FromIndex`, non quello a
+	 * `FromIndex`.** La differenza si vede su una timeline come `Attack(A) · Defeated(None) · Attack(A)`:
+	 * con la lettura ingenua l'ultimo evento sembrerebbe aprire un atto nuovo — perche' quello a
+	 * `FromIndex` era `None` — e `Next Action` si fermerebbe **due volte** dentro lo stesso colpo. Un
+	 * `FromIndex` negativo significa «prima dell'inizio»: nessun atto in corso, quindi il primo evento con
+	 * un'azione e' gia' un confine.
+	 *
+	 * ⛔ **Gli eventi senza azione non sono confini e non interrompono l'atto.** `NAME_None` vuol dire
+	 * «nessuna azione dietro» — danno ambientale, `Defeated`, cambiamenti di stato — e fermarsi li'
+	 * significherebbe fermarsi su qualcosa che nessuno ha *fatto*.
+	 *
+	 * ⚠️ **Piu' eventi con lo stesso `ActionId` sono UN atto**, ed e' voluto: un'area che colpisce tre
+	 * bersagli emette tre `Attack` per un solo intento, e fermarsi tre volte sarebbe il difetto che
+	 * `AttackFootprint` documenta gia' («una voce per INTENTO, non per vittima»).
+	 *
+	 * 🔴 **Limite noto, dichiarato e non aggirato**: il criterio e' l'`ActionId` **da solo**, come `#2855`
+	 * lo scrive. Ne segue che due unita' diverse che nello stesso `Blast` usano la **stessa** azione
+	 * (`Action.BasicAttack` per entrambe) producono eventi che questa funzione legge come **un** atto, e
+	 * `Next Action` salta il secondo attaccante. Distinguerli chiederebbe la coppia
+	 * `(ActionId, SourceStableUnitId)` — cioe' un criterio diverso da quello che l'issue fissa, e va
+	 * deciso li' invece che allargato qui.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static int32 NextActionBoundary(const TArray<FRTResolvedEvent>& Timeline, int32 FromIndex);
 };

@@ -565,6 +565,27 @@ public:
 	TArray<FRTResolvedEvent> ResolvedHazardEventsForTest() const;
 
 	/**
+	 * Hook per i test: la timeline INTERA di questo turno, nell'ordine di emissione (`#2857`).
+	 *
+	 * 🔴 **Esiste per un confronto che nessun accessore filtrato puo' reggere: timeline contro TurnLog, sullo
+	 * stesso turno.** `#2857` porta l'`ActionId` su `FRTResolvedEvent` copiandolo al sito di scrittura, e il
+	 * difetto che quella copia puo' produrre e' **muto**: un produttore dimenticato lascia `NAME_None`, che
+	 * e' un valore legittimo — nessun test fallisce, e `Next Action` salta un atto senza dirlo. L'unico
+	 * modo di sorvegliarlo e' verificare che le due fonti **non divergano**, e per farlo servono entrambe
+	 * per intero.
+	 *
+	 * ⚠️ **Gli eventi INTERI e non un conteggio, e TUTTI e non un tipo.** Filtrare qui rifarebbe l'errore
+	 * che `ResolvedEventCountOfTypeForTest` documenta poco sopra: chi cerca un `NAME_None` fra gli eventi
+	 * gia' selezionati su un tipo che l'azione ce l'ha risponde «nessuno» **per costruzione**.
+	 *
+	 * ⛔ **Non e' una porta di produzione.** La presentazione continua a passare dagli accessori tipizzati:
+	 * questa serve a chi deve giudicare la timeline come un tutto, cioe' solo la suite.
+	 *
+	 * @return copia della timeline, nell'ordine in cui il resolver l'ha emessa.
+	 */
+	const TArray<FRTResolvedEvent>& ResolvedTimelineForTest() const { return ResolvedTimeline; }
+
+	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
 	 *
 	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
@@ -688,6 +709,38 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
 	void StepMicroStep();
+
+	/**
+	 * Arma un predicato di pausa **una tantum**: scorri, e fermati al confine indicato (`#2855`).
+	 *
+	 * 🔑 **Non introduce un secondo orologio.** Il confine di fase il playback lo conosce gia' — lo tiene
+	 * `PlaybackPhaseIdx` e lo annuncia `OnPhasePlaybackStarted` — e quello di azione lo porta la timeline
+	 * da `#2857`. Qui non si calcola niente di nuovo: si dichiara **dove fermarsi** la prossima volta che
+	 * uno di quei confini passa.
+	 *
+	 * ⚠️ **Si consuma, e non sopravvive al turno.** Armato durante l'ULTIMA fase riprodotta, il playback
+	 * arriva a fine turno e il predicato viene disarmato esplicitamente: un predicato armato e mai
+	 * soddisfatto fermerebbe l'osservazione del turno successivo senza dirlo.
+	 *
+	 * ⚠️ **Armarlo due volte di fila non salta un confine**: la seconda chiamata riscrive lo stesso stato.
+	 *
+	 * ⛔ **La fermata avviene su un confine canonico**, con la stessa garanzia di `PausePlayback`: mai a
+	 * meta' micro-step. Un `Next Phase` si ferma appena entrati nella fase nuova, quindi
+	 * `GetPlaybackPhaseName()` nomina gia' quella.
+	 *
+	 * 🔴 **Il playback non decide niente.** Un predicato di pausa cambia **quando** l'immagine si ferma,
+	 * mai cosa e' stato risolto: `RunPhaseLoop` e i resolver non sono toccati. La prima stesura di `#2855`
+	 * proponeva di rendere richiedibile un'uscita dal resolver, e lo spec panel del 2026-09-10 l'ha
+	 * ritirato.
+	 *
+	 * Senza controlli abilitati e' inerte (fail-closed, come `#1879`).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void RequestPlaybackStopAt(ERTPlaybackStopAt Boundary);
+
+	/** Il predicato attualmente armato, o `None`. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	ERTPlaybackStopAt GetArmedPlaybackStop() const { return PlaybackStopAt; }
 
 	/** `true` se la riproduzione e' ferma (diagnostica, UI e test). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
@@ -2949,6 +3002,29 @@ private:
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
+
+	/**
+	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.
+	 *
+	 * ⚠️ **Vive accanto a `bPlaybackPaused` e non dentro**: la pausa e' uno STATO — ci si e' fermati — e
+	 * questo e' un'INTENZIONE — ci si fermera'. Fonderli renderebbe impossibile distinguere «fermo perche'
+	 * qualcuno ha premuto Pause» da «in corsa verso un confine», che e' proprio cio' che chi guarda deve
+	 * poter leggere sulla riga di stato.
+	 */
+	ERTPlaybackStopAt PlaybackStopAt = ERTPlaybackStopAt::None;
+
+	/**
+	 * L'azione in corso quando `NextAction` e' stato armato: il termine di paragone del confine.
+	 *
+	 * 🔑 **Congelata all'ARMAMENTO e non riletta a ogni tick.** E' la stessa regola di `StepMicroStep`, che
+	 * calcola il proprio confine *«alla pressione e in secondi, non in tick»*: un paragone ricalcolato
+	 * mentre il playback scorre inseguirebbe il proprio bersaglio e non si fermerebbe mai.
+	 *
+	 * ⚠️ `NAME_None` significa «nessun atto in corso», ed e' il valore giusto quando si arma prima che un
+	 * colpo sia stato mostrato: il primo atto che passa e' allora gia' un confine — la stessa semantica
+	 * che `URTPlaybackLibrary::NextActionBoundary` da' a un indice negativo.
+	 */
+	FName PlaybackStopFromAction;
 
 	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.
 	FVector PBOrigin = FVector::ZeroVector;
