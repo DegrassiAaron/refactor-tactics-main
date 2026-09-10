@@ -202,7 +202,7 @@ Il test `RefactorTactics.Scenario.EveryD025ActionIsExpressible` (verde in questa
 — siano esprimibili nel formato corrente, e che le abilità d'eroe usino lo stesso involucro identificandosi
 per Stable Action ID. La copertura chiesta dal mandato c'è già.
 
-### 3.3 Checkpoint di fase e `afterEvent` — non implementati
+### 3.3 Checkpoint di fase e `afterEvent` — ⚠️ parzialmente chiuso, e la ricognizione ha spostato il problema
 
 `PlanningLocked · PrepEnded · DashEnded · BlastEnded · MoveEnded · CleanupEnded` non esistono nel formato.
 L'assenza non è un difetto silenzioso: `expect[]` verifica lo stato **finale** e il TurnLog, e
@@ -213,6 +213,18 @@ L'assenza non è un difetto silenzioso: `expect[]` verifica lo stato **finale** 
 cioè nel cuore del resolver. Il vincolo del mandato — *«niente frame, animazioni, `DeltaTime` o callback
 presentation-only»* — è già l'invariante 6 di `AGENTS.md`, quindi la forma è concordata; è il **seam** che non
 esiste.
+
+> ✅ **[#2867](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2867) ne ha chiuso la metà che
+> non richiedeva il seam**, e cercando l'aggancio ha spostato il problema. Il caso che questa sezione
+> portava — *«dove uno stato cambia»* — era in buona parte **già osservabile**: `FRTTurnLogEntry::Phase`
+> registra da sempre la fase di ogni evento, ma `FRTTestExpectation` non aveva un campo per filtrarci. Ora
+> un'assertion sul TurnLog può chiedere `"phase": "Blast"`.
+>
+> ⛔ **Resta fuori il checkpoint di STATO** — dov'era un'unità a fine `Blast` quando *nessun evento lo
+> dice* — e la ragione è scritta: richiede il punto di lettura in `RunPhaseLoop`, e nessun caso corrente lo
+> giustifica. Gli altri due agganci che sapevano di fasi sono stati **scartati**: `OnPhasePlaybackStarted`
+> e `ResolvedTimeline` sono **presentazione**, e un'assertion che leggesse da lì misurerebbe ciò che
+> l'animazione ha mostrato, non ciò che il resolver ha risolto.
 
 ### 3.4 Separazione sintattica `metadata`/`setup` nel JSON — costo alto, valore basso *oggi*
 
@@ -395,7 +407,7 @@ distingua gli esiti, e `RefactorTactics.Replay.Verifier.OrphanRecordedResponseIs
 |---|---|---|
 | 7.1 | [#2865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2865) — migrare al selettore gli scenari con `decisions` | questa fetta ✅ |
 | 7.2 | ✅ [#2866](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2866) — `on.reaction` validata al caricamento contro le reaction che **aprono un boundary** (⚠️ *non* il catalogo: vedi §6.3) | — |
-| 7.3 | [#2867](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2867) — checkpoint di fase e `afterEvent`: serve un seam di sospensione per macro-fase in `LockInAndResolve` | resolver |
+| 7.3 | ⚠️ [#2867](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2867) — **parziale**: il filtro di fase sulle assertion del TurnLog è fatto; il checkpoint di **stato** resta, e serve il seam in `RunPhaseLoop` | resolver |
 | 7.4 | [#2868](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2868) — `watchDirection`: emendare o confermare ADR-0005 §4c | `#152` · `#339` · `#291` |
 | 7.5 | Target tipizzato discriminato — **nessuna issue nuova**: l'owner è già `#1119` (`RCI-1`), e crearne una seconda sarebbe la duplicazione che `AGENTS.md` §8 vieta | `#1119` risponde prima |
 | 7.6 | Separazione sintattica `metadata`/`setup` nel JSON — **nessuna issue**: una proposta senza consumatore resterebbe ferma, e il consumatore è il Composer | `#1105` · `#1628` |
