@@ -548,7 +548,27 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	//   2. Poi lo stesso script e' stato rilanciato **per misurare quanti residui restassero**, e ha
 	//      disfatto la riparazione appena scritta. Uno script che sostituisce non e' una misura, per quanto
 	//      il suo ultimo `print` somigli a una.
-	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"), TEXT("Riktor") };
+	//
+	// ➕ **`Gadget` e `Wraith` sono entrati il 2026-09-10 (#2853), a rename concluso.** Le tre fette di
+	// #2491 avevano esteso la guardia GEMELLA — quella di `Unit.CanonicalHeroIdHasNoLegacyName`, che oggi
+	// conta otto voci — e avevano dimenticato questa. Non e' una svista di una fetta: e' una lista meno
+	// visibile dell'altra, ritrovata solo perche' e' stata scritta come finding invece che ricordata.
+	//
+	// ⛔ **`Phase` NON entra, e l'assenza e' una misura, non una dimenticanza.** Il confronto e'
+	// `Id.Contains(Vecchio)` — in QUALUNQUE posizione, ed e' cio' che stana le forme concatenate — quindi
+	// `Phase` colpirebbe **`Hero.Ivrin.PhaseGuard`**, che e' un'abilita' sana: li' `Phase` e' la *fase del
+	// turno*, DisplayName «Guardia di fase». Misurato sui 22 `ActionId` del roster: `Gadget` e `Wraith`
+	// hanno **zero** collisioni, `Phase` ne ha **una**.
+	// 🔑 Chi legge questa lista la vede incompleta e ha ragione. Completarla la rende **rossa su codice
+	// sano**, che e' il difetto che il punto (1) qui sopra racconta — una guardia rovesciata. Se un giorno
+	// si vuole `Phase` qui, il prezzo e' indebolire `Contains` in un confronto per segmento, e con esso la
+	// copertura sulle forme concatenate: e' una decisione, non un `if`.
+	//
+	// ⚠️ E il limite vale anche per i due appena aggiunti: un'abilita' futura chiamata `Hero.X.GadgetHack`
+	// cadrebbe come cadrebbe `PhaseGuard`. E' il prezzo di cercare ovunque invece che al confine di parola,
+	// ed e' pagato sapendolo.
+	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
+		TEXT("Riktor"), TEXT("Gadget"), TEXT("Wraith") };
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
