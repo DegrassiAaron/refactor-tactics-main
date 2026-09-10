@@ -71,6 +71,21 @@ namespace
 			return 4;
 		}
 
+		// Il selettore semantico e' la chiave piu' recente: si controlla per PRIMA, perche' `MinimumVersionFor`
+		// restituisce al primo requisito trovato e un `on` in uno scenario che usa anche una risposta di
+		// profilo otterrebbe altrimenti la `3` — cioe' una versione che il loader poi rifiuta.
+		for (const FRTScenarioTurn& Turn : Scenario.Turns)
+		{
+			for (const FRTScenarioDecision& Decision : Turn.Decisions)
+			{
+				if (Decision.bHasSelector)
+				{
+					OutWhy = FString::Printf(TEXT("il selettore 'on' di '%s'"), *Decision.Unit);
+					return 5;
+				}
+			}
+		}
+
 		for (const FRTScenarioTurn& Turn : Scenario.Turns)
 		{
 			for (const FRTScenarioDecision& Decision : Turn.Decisions)
@@ -293,7 +308,27 @@ namespace
 				for (const FRTScenarioDecision& Decision : Turn.Decisions)
 				{
 					W->WriteObjectStart();
-					W->WriteValue(TEXT("unit"), Decision.Unit);
+					// `unit` e `on` non convivono nel file — il loader li rifiuta insieme — quindi si scrive
+					// l'una o l'altro. In memoria il reactor sta comunque in `Unit`, che e' la verita' unica:
+					// `on.reactor` la rilegge identica.
+					if (Decision.bHasSelector)
+					{
+						W->WriteObjectStart(TEXT("on"));
+						W->WriteValue(TEXT("reactor"), Decision.On.Reactor);
+						if (!Decision.On.Reaction.IsNone())
+						{
+							W->WriteValue(TEXT("reaction"), Decision.On.Reaction.ToString());
+						}
+						if (!Decision.On.TriggerUnit.IsEmpty())
+						{
+							W->WriteValue(TEXT("triggerUnit"), Decision.On.TriggerUnit);
+						}
+						W->WriteObjectEnd();
+					}
+					else
+					{
+						W->WriteValue(TEXT("unit"), Decision.Unit);
+					}
 					W->WriteValue(TEXT("respond"), Decision.Respond);
 					// Il loader rifiuta un `target` su una risposta che non sia `FIRE`: si scrive se c'e'.
 					if (!Decision.Target.IsEmpty()) { W->WriteValue(TEXT("target"), Decision.Target); }

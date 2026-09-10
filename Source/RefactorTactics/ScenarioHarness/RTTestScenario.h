@@ -589,6 +589,89 @@ struct FRTScenarioVariant
  * scrivibile in un JSON. La traduzione avviene dove esiste la mappa, cioe' `UnitsById` in
  * `FRTScenarioSession`.
  */
+/**
+ * Il SELETTORE SEMANTICO di una decisione: quale finestra questa risposta intende chiudere.
+ *
+ * 🔑 **Esiste perche' l'alternativa e' l'ORDINE, e l'ordine non e' una descrizione della finestra.** Fino a
+ * qui `turns[].decisions` si abbinava alle opportunity per posizione — la prima decisione di un'unita' alla
+ * prima finestra che si apre per lei — e `Spec.Overwatch.HoldThenFire` e' il caso che lo mostra: due voci
+ * `V1` consecutive, `HOLD` poi `FIRE`, dove *quale* delle due risponda a *quale* varco lo decide il
+ * micro-step in cui i due mover entrano nella zona. Cambiare un waypoint di `R1` — cioe' un dato che
+ * quello scenario non sta verificando — scambia le due risposte **senza che nulla lo dica**: lo scenario
+ * resta verde e verifica un'altra cosa.
+ *
+ * ⚠️ **Il selettore NON e' l'identita' dell'opportunity, e la differenza e' deliberata.** L'identita' e'
+ * `FRTReactionOpportunityKey` — turno, macro-fase, `MicroStepIndex`, `OwnerId` di runtime, `Seq` — e
+ * nessuno dei suoi campi e' scrivibile in un JSON: due sono id di runtime e uno e' un indice di
+ * risoluzione. Qui si dichiara cio' che l'autore dello scenario **sa e intende**, e la traduzione avviene
+ * dove esiste la mappa (`UnitsById` in `FRTScenarioSession`), esattamente come per `Respond`/`Target`.
+ *
+ * ⛔ **Non porta la CELLA del trigger, e non e' una dimenticanza.** `FRTReactionOpportunity` ha un elenco
+ * **chiuso** di campi, protetto da `RefactorTactics.Overwatch.OpportunityLeaksNoFuture`: allargarlo per
+ * portare una cella toglierebbe al progetto l'unica barriera contro un campo di informazione futura nel
+ * DTO, e `FRTReactionOpportunityKey` entra nell'hash del replay. Il decisore riceve
+ * `(Opportunity, OwnerUnitId)` e nient'altro: cio' che il selettore puo' confrontare e' cio' che quei due
+ * portano, e la cella non c'e'. Una chiave `triggerCell` che il matching ignorasse sarebbe un campo che
+ * dichiara e non verifica — il difetto che questo formato rifiuta ovunque.
+ */
+USTRUCT()
+struct FRTScenarioOpportunitySelector
+{
+	GENERATED_BODY()
+
+	/**
+	 * L'id di SCENARIO dell'unita' proprietaria della finestra. **Obbligatorio** quando il selettore c'e'.
+	 *
+	 * ⚠️ **E la voce che lo dichiara NON puo' avere anche `unit`**: sarebbero due posti per lo stesso fatto,
+	 * e il loader rifiuta la coppia invece di sceglierne uno. In memoria resta un campo solo —
+	 * `FRTScenarioDecision::Unit`, che il loader popola da qui — cosi' validazione, messaggi d'errore e
+	 * matching per unita' continuano a leggere una verita' sola.
+	 */
+	UPROPERTY()
+	FString Reactor;
+
+	/**
+	 * L'`ActionId` della reaction che ha aperto la finestra: `Action.Overwatch`, `Action.Brace`, ...
+	 * `NAME_None` = nessun vincolo.
+	 *
+	 * ⚠️ **E' il vocabolario del RUNTIME** (`FRTReactionOpportunityKey::ReactionDefId`), non un nome di
+	 * tipo inventato per il file. Una chiave che dicesse `"OverwatchOpportunity"` sarebbe un secondo
+	 * vocabolario da tenere allineato al primo, e diverge alla prima reaction aggiunta.
+	 */
+	UPROPERTY()
+	FName Reaction;
+
+	/**
+	 * L'id di SCENARIO dell'unita' che ha innescato la finestra. Vuoto = nessun vincolo.
+	 *
+	 * Si confronta con i bersagli che la finestra **offre**, cioe' con i token `FIRE:<id>` di
+	 * `AllowedResponses`: per l'Overwatch il bersaglio di un `FIRE` E' il mover che e' entrato nella zona
+	 * (`FRTOverwatchTrigger::TargetUnitIds`, «uno per ogni risposta `FIRE:`»). E' l'unico modo di nominare
+	 * il trigger con cio' che l'opportunity porta davvero.
+	 *
+	 * ⚠️ **Su una finestra senza `FIRE:` — un profilo di `Brace`, per esempio — questo vincolo non puo'
+	 * essere soddisfatto da nessuna opportunity**, e la decisione resta non consumata: il residuo di fine
+	 * turno la dichiara. E' il verso giusto: un selettore che non trova la propria finestra deve dirlo.
+	 */
+	UPROPERTY()
+	FString TriggerUnit;
+
+	/** Il selettore non vincola niente: nessun campo dichiarato. Il loader lo rifiuta. */
+	bool IsEmpty() const
+	{
+		return Reactor.IsEmpty() && Reaction.IsNone() && TriggerUnit.IsEmpty();
+	}
+
+	/** Descrizione leggibile per i messaggi di errore: `V1 on Action.Overwatch <- R1`. */
+	FString Describe() const
+	{
+		FString Out = Reactor;
+		if (!Reaction.IsNone()) { Out += FString::Printf(TEXT(" on %s"), *Reaction.ToString()); }
+		if (!TriggerUnit.IsEmpty()) { Out += FString::Printf(TEXT(" <- %s"), *TriggerUnit); }
+		return Out;
+	}
+};
+
 USTRUCT()
 struct FRTScenarioDecision
 {
@@ -608,6 +691,24 @@ struct FRTScenarioDecision
 	 */
 	UPROPERTY()
 	FString Target;
+
+	/**
+	 * Il selettore semantico: **quale** finestra questa risposta chiude. Vedi
+	 * `FRTScenarioOpportunitySelector`. Valido solo con `bHasSelector`.
+	 */
+	UPROPERTY()
+	FRTScenarioOpportunitySelector On;
+
+	/**
+	 * La chiave `on` era presente nel file.
+	 *
+	 * ⚠️ **Non e' deducibile da `On.IsEmpty()`**, ed e' la stessa ragione dei flag gemelli del formato
+	 * (`bTargetsCell`, `bHasCoverEdge`, `bDeclaresFacing`): un `on` dichiarato e vuoto e' un errore che il
+	 * loader deve poter accusare per nome, mentre un `on` assente e' la forma legacy — abbinamento per
+	 * ORDINE — che i file gia' scritti continuano a usare senza cambiare comportamento.
+	 */
+	UPROPERTY()
+	bool bHasSelector = false;
 };
 
 /** Un turno dello scenario. */

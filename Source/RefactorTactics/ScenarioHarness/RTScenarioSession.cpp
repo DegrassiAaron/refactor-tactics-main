@@ -1641,10 +1641,20 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			{
 				if (PendingConsumed[Index]) { continue; }
 				++Result.ScriptedDecisionsUnused;
-				const FString Motivo = FString::Printf(
-					TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra si e' ")
-					TEXT("aperta per quell'unita'"),
-					TurnIndex + 1, *PendingDecisions[Index].Unit, *PendingDecisions[Index].Respond);
+				// ⚠️ **Con un selettore il motivo e' un altro, e dirlo cambia dove si va a guardare**: la
+				// finestra puo' essersi aperta benissimo, e a non combaciare e' stato un vincolo — la
+				// reaction sbagliata, o un trigger che quella finestra non offriva. Il messaggio senza
+				// selettore manderebbe a cercare una finestra mancante che invece c'era.
+				const FRTScenarioDecision& Residua = PendingDecisions[Index];
+				const FString Motivo = Residua.bHasSelector
+					? FString::Printf(
+						TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra ")
+						TEXT("ha soddisfatto il selettore"),
+						TurnIndex + 1, *Residua.On.Describe(), *Residua.Respond)
+					: FString::Printf(
+						TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra si e' ")
+						TEXT("aperta per quell'unita'"),
+						TurnIndex + 1, *Residua.Unit, *Residua.Respond);
 				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
 				Notes.Add(Motivo);
 			}
@@ -1727,11 +1737,54 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 	}
 	if (OwnerScenarioId.IsEmpty()) { return FString(); }
 
+	// L'id di runtime di un'unita' di scenario, nello stesso spazio del proprietario: l'indice nell'array
+	// di risoluzione. `INDEX_NONE` se non e' viva in questo turno.
+	const auto RuntimeIdOf = [&](const FString& ScenarioId) -> int32
+	{
+		const TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(ScenarioId);
+		ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		return Unit ? RuntimeUnits.IndexOfByKey(Unit) : INDEX_NONE;
+	};
+
+	/**
+	 * Il SELETTORE combacia con questa finestra?
+	 *
+	 * Confronta soltanto cio' che l'opportunity porta davvero: la reaction che l'ha aperta
+	 * (`Key.ReactionDefId`) e i bersagli che offre (i token `FIRE:<id>` di `AllowedResponses`, che per
+	 * l'Overwatch sono esattamente i mover entrati nella zona). Non esiste un terzo campo da confrontare:
+	 * `FRTReactionOpportunity` ha un elenco chiuso, e il decisore riceve lei e l'`OwnerUnitId`.
+	 *
+	 * Una decisione SENZA selettore combacia sempre — e' la forma legacy, abbinata per ordine, e i file
+	 * gia' scritti non cambiano comportamento.
+	 */
+	const auto SelectorMatches = [&](const FRTScenarioDecision& D) -> bool
+	{
+		if (!D.bHasSelector) { return true; }
+		if (!D.On.Reaction.IsNone() && Opportunity.Key.ReactionDefId != D.On.Reaction) { return false; }
+		if (!D.On.TriggerUnit.IsEmpty())
+		{
+			const int32 TriggerRuntimeId = RuntimeIdOf(D.On.TriggerUnit);
+			if (TriggerRuntimeId == INDEX_NONE) { return false; }
+			bool bOffered = false;
+			for (const FString& Allowed : Opportunity.AllowedResponses)
+			{
+				if (URTReactionOpportunityLibrary::FireResponseTarget(Allowed) == TriggerRuntimeId)
+				{
+					bOffered = true;
+					break;
+				}
+			}
+			if (!bOffered) { return false; }
+		}
+		return true;
+	};
+
 	for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
 	{
 		if (PendingConsumed[Index]) { continue; }
 		const FRTScenarioDecision& D = PendingDecisions[Index];
 		if (D.Unit != OwnerScenarioId) { continue; }
+		if (!SelectorMatches(D)) { continue; }
 
 		// 🔴 **La decisione si consuma solo se si riesce davvero a tradurla.** Segnarla consumata qui sopra —
 		// come faceva la prima stesura — significava che una traduzione fallita usciva con un `HOLD` per
@@ -1827,6 +1880,28 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 			return FString();
 		}
 		return Consuma(URTReactionOpportunityLibrary::FireResponse(TargetRuntimeId));
+	}
+
+	// 🔴 **SELETTORE AMBIGUO: due finestre lo soddisfano entrambe.** Si riconosce da qui — nessuna decisione
+	// libera combacia, ma una gia' CONSUMATA avrebbe combaciato — e va distinto dalla finestra scoperta,
+	// perche' i due difetti si correggono in posti opposti: qui si stringe il selettore, li' se ne aggiunge
+	// una. Senza questa distinzione uno scenario ambiguo uscirebbe con «finestra senza una decisione che la
+	// nomini», mandando ad aggiungere una seconda risposta a un selettore che ne intercetta gia' due.
+	for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
+	{
+		if (!PendingConsumed[Index]) { continue; }
+		const FRTScenarioDecision& D = PendingDecisions[Index];
+		if (!D.bHasSelector) { continue; }
+		if (D.Unit != OwnerScenarioId) { continue; }
+		if (!SelectorMatches(D)) { continue; }
+
+		const FString Motivo = FString::Printf(
+			TEXT("turno %d: il selettore '%s' e' ambiguo — piu' di una finestra lo soddisfa, e la seconda ")
+			TEXT("resterebbe senza risposta"),
+			TurnIndex + 1, *D.On.Describe());
+		if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+		Notes.Add(Motivo);
+		return FString();
 	}
 
 	if (PendingDecisions.Num() > 0)

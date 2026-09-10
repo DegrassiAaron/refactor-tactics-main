@@ -68,7 +68,17 @@ public:
 	// cioe' uno scenario che verifica il solo stato iniziale. Non uscirebbe rosso: uscirebbe **verde**, senza
 	// aver giocato un turno. Un verde per assenza di partita e' il peggiore degli esiti, perche' nessuno va a
 	// guardarlo. Con la `4` il rifiuto arriva dal gate di versione e nomina la build.
-	static constexpr int32 SupportedVersion = 4;
+	// 4 → 5 con il **selettore semantico** delle `decisions` (`on`): una risposta dichiara QUALE finestra
+	// intende chiudere invece di prendere la prossima in ordine.
+	//
+	// ⚠️ Il bump segue lo stesso ragionamento della `3` e della `4`, e qui il verso che conta morde come per
+	// `freeRun`: una build a `SupportedVersion = 4` **ignorerebbe** `on` — la chiave e' sconosciuta al suo
+	// parser, che pero' la rifiuterebbe con «chiave sconosciuta 'on'», cioe' accusando il FILE mentre il
+	// difetto e' la build troppo vecchia. Peggio nel caso simmetrico: un loader che la ignorasse abbinerebbe
+	// le risposte **per ordine**, cioe' con la semantica che il selettore esiste per sostituire, e uno
+	// scenario che dichiara di rispondere a una finestra precisa risponderebbe a un'altra restando verde.
+	// Con la `5` il rifiuto arriva dal gate di versione e nomina la build.
+	static constexpr int32 SupportedVersion = 5;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.
