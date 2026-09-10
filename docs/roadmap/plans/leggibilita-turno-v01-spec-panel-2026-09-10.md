@@ -159,7 +159,8 @@ Il danno c'è (`FRTStructureHit`, `Map/RTHexCoverLibrary.h:17`, con identità `(
 | Raggiungibilità dall'input di ogni voce del kit | **#1408** (E48) | aperta; dichiara *«la dock delle azioni è **E11 (#25)**»* |
 | Identità stabile di muri, porte, archi; interaction graph; leggibilità | **#324** (E23, v0.1) — `E23.3` e `E23.5` | aperta |
 | Posare una porta su una mappa | **#2330** (epic #324) | aperta — 🔴 **nessuna porta esiste nel contenuto versionato** |
-| Modello semantico degli overlay d'area — *il «Target Preview System»* | **#1941** OVL-01 · **#1942** OVL-02 · **#1943** OVL-03 · **#1944** OVL-04 | aperte; palette accettata come `D-364` |
+| Substrato degli overlay semantici d'area | **#1941** OVL-01 · **#1942** OVL-02 · **#1943** OVL-03 · **#1944** OVL-04 | aperte; palette `D-364`, valori `D-368`. ⚠️ **il MODELLO è già spedito** — vedi §2.1 |
+| **Target Preview System** vero e proprio | **#2825** | aperta il 2026-09-10, con referto proprio |
 | Overlay delle linee di tiro | **#2742** | aperta, bloccata su 3 caselle di `#1941` |
 | Rifiuto di bersaglio player-facing | **#2741** | ✅ **chiusa 2026-09-09** (PR #2754) — `RefusalForObserver` + `ARTHUD::SetTargetRefusal` |
 | Feed causale del giocatore | **#1936** · **#2697** (epic **#1937**) | aperte — 🔴 i tre canali hanno **zero** chiamanti di produzione |
@@ -169,6 +170,25 @@ Il danno c'è (`FRTStructureHit`, `Map/RTHexCoverLibrary.h:17`, con identità `(
 | Icon language | **#217** (E20) · **#265** (E25, v0.2) | aperte |
 | Accettazione integrata PIE + packaged della v0.1 | **#2623** ROADMAP PIA · **#2616**…**#2621** | aperte |
 | Detriti, crolli, Rubble — *i non-goal v0.1 del kit* | **#1848** (E51, v0.2) | aperta |
+
+### 2.1 🔁 Corretto lo stesso giorno da un panel gemello
+
+⚠️ **Questo referto equiparava la famiglia `OVL` al «Target Preview System», e la misura di un altro panel dice
+che sono due cose.** Referto:
+[`target-preview-overlay-v01-roadmap-spec-panel-2026-09-10.md`](target-preview-overlay-v01-roadmap-spec-panel-2026-09-10.md),
+misurato su `main = 89fbb24e` e mergiato con **#2840**. Due sue misure cambiano la §5 di qui:
+
+1. 🔴 **Il modello di `#1941` è già spedito, con i propri test** — `FRTOverlayArea` e `RTOverlayPalette.h`
+   esistono. Il residuo di `#1941`/`#1942` **non è il modello**: sono *(a)* il consumatore dell'alpha,
+   *(b)* la ribbon a schermo, *(c)* la scelta sul depth test. Trattarlo come fondazione da costruire
+   rischia *«il secondo modello»*, che è il difetto che `#1941` esiste per chiudere.
+2. 🔑 **Il Target Preview System è `#2825`, e lì il foglio è davvero bianco**: `grep -ril "TargetPreview" .`
+   non dà nessun file. È un owner **distinto** dal substrato degli overlay.
+
+⚠️ **E una terza misura corregge un mio raccordo**: quel referto verifica che `#2741` **non è mai stata il
+bloccante di `#2742`** — il bloccante è `#1941`. `#2741` ha consegnato una cosa diversa, il rifiuto di
+bersaglio al click. Qui §2 le teneva vicine senza confonderle, ma la §5 le metteva in fila come se una
+sbloccasse l'altra.
 
 ∴ **Il kit chiedeva issue nuove per lavoro che ha già un owner in quasi tutti i casi.** Ciò che segue crea solo
 i buchi che restano dopo questa tabella.
@@ -253,13 +273,19 @@ costruisce.
 
 ### Slice B — il giocatore vede cosa sta puntando
 
-`#1941` OVL-01 (il modello: `Meaning · Source · Certainty · Priority · Layer` + palette `D-364`) →
-`#2742` (linee di tiro) · `#1943` OVL-03 (priorità) · `#1944` OVL-04 (i significati e la privacy) ·
-`#1614` (l'hover si vede) · `#2793` (l'anteprima non deve avere un buco dove sta un nemico ignoto).
+⚠️ **Riscritta dopo §2.1**: la prima stesura metteva il modello di `#1941` in testa come fondazione da
+costruire. È già spedito.
+
+Residuo di `#1941`/`#1942` — *(a)* consumatore dell'alpha, *(b)* ribbon a schermo, *(c)* depth test →
+`#1943` OVL-03 (priorità e `Primary`/`Secondary`) · `#1944` OVL-04 (i significati e la privacy) ·
+`#2742` (linee di tiro, **bloccata da `#1941`** e non da `#2741`) · `#1614` (l'hover si vede) ·
+`#2793` (l'anteprima non deve avere un buco dove sta un nemico ignoto).
+In parallelo, con owner proprio: **`#2825`** — il Target Preview System, dove la traiettoria diventa un asse
+dichiarato invece di essere conflazionata in `Shape`.
 
 **Outcome**: prima del commit il giocatore capisce cosa sta puntando e cosa verrebbe colpito.
-⛔ **Non si crea una seconda issue di Target Preview**: OVL-01 è il modello, e `#2742` ha già misurato che il
-blocco è **3 caselle su 11** — la parte *dato* è sbloccabile subito, la parte *colore* no.
+⛔ **Non si crea nessuna issue di Target Preview**: l'owner è `#2825`, aperta lo stesso giorno da un altro
+panel. ⛔ **E non si riparte dal modello**: ridichiarare `FRTOverlayArea` darebbe alla palette due sedi.
 
 ### Slice C — una struttura si può bersagliare
 
@@ -368,7 +394,7 @@ Dove l'etichetta **vive** resta di **E23** (`#324`), `E23.3` e `E23.4`.
 | Creare 4 epic v0.1 → v1.0 | ⛔ **non fatto** | §3 — tutte già coperte; `#2623` vieta esplicitamente la seconda source of truth |
 | Creare una issue `[v0.1] Action Dock interattivo…` | ✅ **fatta**, con titolo che nomina il difetto misurato | convenzione del repository: il titolo è un fatto, non un'etichetta di feature |
 | Creare una issue `[v0.1] Targeting diretto di strutture…` | ✅ **fatta**, ristretta al **dichiarare la forma** | il picking è `#705`, l'identità è `#324`: assorbirli sarebbe stato un duplicato |
-| Creare una issue sul Target Preview System | ⛔ **non fatto** | è `#1941`–`#1944`, e il kit stesso chiedeva di non duplicarla |
+| Creare una issue sul Target Preview System | ⛔ **non fatto** | l'owner è **`#2825`**, aperta lo stesso giorno da un altro panel; il substrato è `#1941`–`#1944`, il cui modello è **già spedito** (§2.1) |
 | Creare una issue sul reason code player-facing | ⛔ **non fatto** | `#2741` è **chiusa**: il canale esiste (`SetTargetRefusal`) |
 | Creare una Slice F di accettazione | ⛔ **non fatto** | è `#2623` PIA, con le sedute già raggruppate |
 | Un documento roadmap separato dal referto | ⛔ **non fatto** | sarebbe una seconda source of truth della stessa sequenza; §5 è la roadmap |
