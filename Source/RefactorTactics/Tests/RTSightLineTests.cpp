@@ -121,18 +121,25 @@ bool FRTSightHiddenStatesAreIndistinguishableTest::RunTest(const FString&)
 		FRTObservedTarget(NascostoB, /*bKnown=*/ false) });
 
 	// ── ANTI-VACUITA': l'insieme non e' vuoto, altrimenti l'uguaglianza non direbbe niente.
-	if (!TestEqual(TEXT("premessa: il bersaglio NOTO produce la sua linea in entrambi gli stati"),
-			A.Num(), 1))
-	{
-		return false;
-	}
+	// ⚠️ **Non blocca piu' il test**: il ciclo qui sotto protegge gia' gli accessi con `Min`, e una
+	// premessa che interrompe impedirebbe all'asserzione centrale di essere ESERCITATA sotto
+	// mutazione — cioe' proprio quando serve sapere se cade.
+	TestEqual(TEXT("premessa: il bersaglio NOTO produce la sua linea, e solo quella"), A.Num(), 1);
 
 	// ── 🔴 Il cuore: stessa conoscenza autorizzata, stesso insieme di linee.
+	//
+	// ⚠️ **Si confronta l'INSIEME INTERO, non `A[0]` contro `B[0]`, e la verifica di mutazione ha
+	// dimostrato che serve.** Togliendo il filtro dalla firma entrambi gli insiemi arrivano a due
+	// elementi, e il PRIMO resta il bersaglio noto in tutti e due: un confronto sul solo `[0]` sarebbe
+	// passato, e il canary si sarebbe salvato per la premessa invece che per la propria asserzione.
 	TestEqual(TEXT("due stati nascosti diversi producono lo STESSO numero di linee"), A.Num(), B.Num());
-	TestTrue(TEXT("e la linea e' la stessa: stessa origine"), A[0].From == B[0].From);
-	TestTrue(TEXT("e lo stesso bersaglio"), A[0].To == B[0].To);
-	TestEqual(TEXT("e lo stesso verdetto di traiettoria"),
-		static_cast<int32>(A[0].Sight.Block), static_cast<int32>(B[0].Sight.Block));
+	for (int32 I = 0; I < FMath::Min(A.Num(), B.Num()); ++I)
+	{
+		TestTrue(*FString::Printf(TEXT("la linea %d ha la stessa origine"), I), A[I].From == B[I].From);
+		TestTrue(*FString::Printf(TEXT("la linea %d ha lo stesso bersaglio"), I), A[I].To == B[I].To);
+		TestEqual(*FString::Printf(TEXT("la linea %d ha lo stesso verdetto di traiettoria"), I),
+			static_cast<int32>(A[I].Sight.Block), static_cast<int32>(B[I].Sight.Block));
+	}
 
 	return true;
 }
