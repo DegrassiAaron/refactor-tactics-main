@@ -877,8 +877,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				if (HexUnits[u].TeamId != Unit->TeamId) { Hostiles.Add(u); }
 			}
 
+			// ⚠️ L'origine si legge da `HexUnits[i]` e non da `Unit->Cell`: e' la STESSA cella che
+			// `CollectHexAttacks` usera' come `Attacker.Cell`. Oggi coincidono — lo snapshot nasce da li' —
+			// ma leggerle da due posti e' il modo in cui due calcoli della stessa cosa iniziano a divergere.
 			const FRTLineAttackResult Line = URTOffensiveActionLibrary::ResolveLineAttack(
-				Map, Unit->Cell, Instance.TargetCell, Instance.Def.RangeCells, Occupancy, Hostiles);
+				Map, HexUnits[i].Cell, Instance.TargetCell, Instance.Def.RangeCells, Occupancy, Hostiles);
 
 			if (Line.HitUnitId != INDEX_NONE && HexUnits.IsValidIndex(Line.HitUnitId))
 			{
