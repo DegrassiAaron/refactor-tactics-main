@@ -469,7 +469,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 	// l'asset. Una derivazione che oggi da' il nome giusto per tre eroi su quattro non e' una regola: e' un
 	// residuo dell'invariante rotta, e va scritta a mano finche' i due piani non tornano allineati.
 	const TMap<FName, FString> PackDiEroe = {
-		{ FName(TEXT("Hero.Aevik")), TEXT("Aevik") },
+		{ FName(TEXT("Hero.Aevik")), TEXT("Gadget") },
 		{ FName(TEXT("Hero.Muiren")),  TEXT("Phase")  },
 		{ FName(TEXT("Hero.Branth")), TEXT("Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("Wraith") },
@@ -565,7 +565,7 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 	// cui un residuo sopravvive a una migrazione.
 	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
 	static const FAttesa Attese[] = {
-		{ TEXT("Hero.Aevik"), TEXT("Aevik"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
 		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
 		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
 		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },

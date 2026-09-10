@@ -8,7 +8,7 @@ namespace
 {
 	/** La cartella animazioni di Aevik: il vertical slice di ANIM LAB parte da qui. */
 	const TCHAR* GadgetAnimations =
-		TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Aevik/Animations");
+		TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations");
 }
 
 /**

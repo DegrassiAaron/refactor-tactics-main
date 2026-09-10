@@ -6,7 +6,7 @@
 
 FString FRTAnimBrowserModel::PackFromAssetPath(const FString& AssetPath)
 {
-	// `/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Aevik/Animations/Idle.Idle` -> `Aevik`.
+	// `/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Idle.Idle` -> `Aevik`.
 	//
 	// ⚠️ Si legge il segmento `Paragon<Pack>` e **non** la cartella `Heroes/<X>`: sono quasi sempre
 	// uguali, ma il pack e' il nome che il path porta due volte, e prenderne uno solo rende il parser

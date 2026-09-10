@@ -23,7 +23,7 @@ bool FRTUnitShortHeroNameTest::RunTest(const FString&)
 	const FString Fallback = TEXT("RTUnit_0");
 
 	// Il caso reale: gli HeroId del catalogo sono namespaced.
-	TestEqual(TEXT("Hero.Aevik -> Gadget"), ARTUnit::ShortHeroName(TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
+	TestEqual(TEXT("Hero.Aevik -> Aevik"), ARTUnit::ShortHeroName(TEXT("Hero.Aevik"), Fallback), TEXT("Aevik"));
 	TestEqual(TEXT("Hero.Muiren -> Muiren"), ARTUnit::ShortHeroName(TEXT("Hero.Muiren"), Fallback), TEXT("Muiren"));
 	TestEqual(TEXT("Hero.Branth -> Branth"), ARTUnit::ShortHeroName(TEXT("Hero.Branth"), Fallback), TEXT("Branth"));
 	TestEqual(TEXT("Hero.Ivrin -> Ivrin"), ARTUnit::ShortHeroName(TEXT("Hero.Ivrin"), Fallback), TEXT("Ivrin"));
@@ -127,12 +127,12 @@ bool FRTUnitDisplayLabelTest::RunTest(const FString&)
 	// 1. Nome canonico dichiarato: vince sull'ID stabile. E' il punto di D-120 — `Hero.Aevik` si legge
 	//    `Gadget`, e i due piani non convergono.
 	TestEqual(TEXT("Hero.Aevik + \"Gadget\" -> Gadget"),
-		ARTUnit::DisplayLabel(FText::FromString(TEXT("Gadget")), TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
+		ARTUnit::DisplayLabel(FText::FromString(TEXT("Aevik")), TEXT("Hero.Aevik"), Fallback), TEXT("Aevik"));
 
 	// 2. Nome assente: ripiego sull'ultimo segmento dell'ID. Un FText vuoto e' un valore LEGALE, quindi
 	//    senza questo ramo l'etichetta sparirebbe a schermo — il difetto che ShortHeroName impediva.
 	TestEqual(TEXT("FText vuoto -> ultimo segmento dell'ID, mai stringa vuota"),
-		ARTUnit::DisplayLabel(FText::GetEmpty(), TEXT("Hero.Aevik"), Fallback), TEXT("Gadget"));
+		ARTUnit::DisplayLabel(FText::GetEmpty(), TEXT("Hero.Aevik"), Fallback), TEXT("Aevik"));
 
 	// Soli spazi: a schermo e' indistinguibile da assente, quindi vale come assente.
 	TestEqual(TEXT("soli spazi -> ripiego, non un'etichetta invisibile"),
@@ -161,7 +161,7 @@ bool FRTRosterCanonicalNamesTest::RunTest(const FString&)
 	// Il test non copre il percorso di disegno: `ARTHUD::DrawHUD` non e' esercitato da nessun test
 	// automatico, e che l'etichetta si veda davvero resta la voce `PIE-NAME`.
 	const TMap<FName, FString> Attesi = {
-		{ TEXT("Hero.Aevik"),    TEXT("Gadget") },
+		{ TEXT("Hero.Aevik"),    TEXT("Aevik")  },
 		{ TEXT("Hero.Muiren"),   TEXT("Muiren") },
 		{ TEXT("Hero.Branth"), TEXT("Branth") },
 		{ TEXT("Hero.Ivrin"),  TEXT("Ivrin")  },

@@ -10,7 +10,7 @@ namespace
 	FString AnimCatalogTestPath(int32 Index)
 	{
 		return FString::Printf(
-			TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Aevik/Animations/Clip%02d.Clip%02d"),
+			TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Animations/Clip%02d.Clip%02d"),
 			Index, Index);
 	}
 

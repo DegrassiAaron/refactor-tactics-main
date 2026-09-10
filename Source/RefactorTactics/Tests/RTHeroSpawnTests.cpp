@@ -503,7 +503,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// qui, e finche' non si muove il disallineamento e' la verita' del progetto, non un errore da correggere.
 	const TMap<FName, FString> Attesi = {
 		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
-		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Phase")   },
+		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
 		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
 	};
