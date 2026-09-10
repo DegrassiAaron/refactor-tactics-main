@@ -11,6 +11,11 @@
 # — 48 sedute con passi, prerequisiti e artefatti, scritti a mano — non perche' qualcosa lo consumi.
 # L'esito delle voci `PIE-*` vive in `docs/technical/test-manuali-pie.md`, che lo rende leggibile.
 #
+# ⏱️ **51 misurate il 2026-09-10** con lo stesso comando, e non a mente: entrano `U49`, `U50` e `U51`.
+# La riga sotto diceva `48` ed era esatta il 2026-09-06 — quattro giorni, tre sedute. ⚠️ Il file avverte da
+# se' che questo numero invecchia: chi lo rilegge lo RICALCOLA. E non contraddice l'avvertimento sul fatto
+# che nessuno consumi il file, lo rafforza ancora.
+#
 # ⏱️ **48 misurate il 2026-09-06**, e la riga qui sopra diceva `27`: era esatta il 2026-08-21 quando fu
 # scritta (`d671df47`), e sono 21 sedute in 16 giorni. Tre metodi indipendenti concordano —
 # `grep -oE "^  - id: U[0-9]+" | sort -u | wc -l` (zero duplicati), la somma per `block`
@@ -3408,5 +3413,67 @@ sessions:
 
       ⚠️ **Un rifiuto di `AddUnit` non è un fallimento della seduta.** `Invalid` con «id già preso» sarebbe
       invece un difetto della **schermata** che accusa lo scenario: il conio è del pannello, non del file.
+
+      L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
+  - id: U51
+    title: Si mira dove non si vede, e si sa solo chi si è colpito
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: il verdetto umano sul tiro indiretto — che mirare al buio non riveli nulla, e che colpire riveli solo la vittima
+    artifacts: []
+    # 🔑 **Questa seduta esiste perché due voci PIE sono nate senza nessuna che le convocasse.**
+    # Misurato su `origin/main` il 2026-09-10, prima di questo record:
+    #   grep -c PIE-V01-BLINDFIRE docs/roadmap/editor-sessions.yaml   # → 0
+    #   grep -c PIE-V01-MORTAR    docs/roadmap/editor-sessions.yaml   # → 0
+    # È la stessa condizione che `U50` ha chiuso il giorno prima per `PIE-SCEN-COMPOSER`, e che `#2476`
+    # nomina nel proprio titolo: *«la seduta esiste, nessuna issue la convoca»* — qui al grado sopra,
+    # perché non esisteva nemmeno la seduta. Due voci ⏳ che nessun ordine di lavoro raggiunge restano ⏳
+    # per sempre, e il registro PIE non può ripararlo: possiede l'esito atteso, non la sequenza.
+    unblocked_by: []
+    # ⚠️ **Vuoto per una ragione misurata**, come in `U46`, `U49` e `U50`: il codice c'è tutto ed è verde
+    # headless. [D-378] ha reso il requisito della linea un dato dell'azione (`#2870`), [D-380] ha aggiunto
+    # l'azione che colpisce e il feedback (`#2890`); entrambe le suite sono validate per mutazione. Quello
+    # che manca è un occhio.
+    shares_setup_with: []
+    # 🔴 **Vuoto DI PROPOSITO, ed è l'eccezione alla *Regola di batching* di questo file** — che autorizza
+    # un'apertura nuova solo se cambia una precondizione. Qui ne cambia una, e non è l'allestimento: è la
+    # **formazione**. `ARTGameMode::Team0Heroes` vale `{Aevik, Muiren}` e `Team1Heroes` vale
+    # `{Branth, Ivrin}`, quindi a formazione spedita **Branth è del bot** e il mortaio non è fra le azioni
+    # del giocatore. Va spostato in squadra 0 (`EditAnywhere`, `BotAllyCount` a `0`) e **rimesso a posto
+    # dopo**: qualunque altra seduta girata nel frattempo giudicherebbe una partita che non è quella spedita.
+    # ⛔ Batchiarla con le sedute di acceptance sarebbe quindi il difetto, non l'economia.
+    verifies: [PIE-V01-BLINDFIRE, PIE-V01-MORTAR]
+    issues: [2791, 2870, 2890]
+    # ⛔ **Perché una seduta e non un automation test.** Ciò che questa seduta giudica è per metà un
+    # **non-evento** e per metà un **ordine**, e nessuna delle due cose si vede da headless.
+    # Il non-evento lo enuncia `PIE-V01-BLINDFIRE` e non si ricopia qui (R-6); ciò che serve sapere per
+    # decidere se aprire è che `BlindFire.BlindFireIsNotAnEnemyDetector` lo prova sullo **stato**, e
+    # resterebbe verde anche se a schermo trapelasse per un frame.
+    # L'ordine è l'altra metà, e nessun test lo raggiunge per costruzione: le suite misurano lo stato
+    # finale, mai l'ISTANTE in cui una cosa compare. Un'inversione lì riaprirebbe il rilevatore di
+    # presenze che [D-378] ha chiuso, con la suite tutta verde.
+    # ⚠️ Le due voci si giudicano **nella stessa apertura e in quest'ordine**: `MORTAR` fino al lock-in
+    # deve essere indistinguibile da `BLINDFIRE`, e un non-evento si giudica solo avendo il caso positivo
+    # accanto con cui confrontarlo.
+    done_when: entrambe le voci hanno esito reale nel registro
+    unblocks: []
+    # ⚠️ Vuoto: nessun checkpoint dipende dal tiro indiretto. `RELEASE-V01` non lo dichiara — nessuno lo
+    # ha promesso per la v0.1 — e le due voci PIE non portano quel marcatore.
+    notes: |
+      Setup, nell'ordine in cui va fatto:
+
+      1. `Hero.Branth` in `Team0Heroes`, `BotAllyCount` a `0`. Senza, metà seduta non è eseguibile.
+      2. Arena con un blocco alla vista fra il tiratore e la cella scelta.
+      3. Un avversario che la squadra **non conosce** dietro il blocco — entro **3** celle da Branth per la
+         parte `MORTAR`, che è la portata dell'istanza d'eroe e non la 4 del catalogo ([D-380] punto 6).
+      4. Per il terzo confine (la rivelazione scade) serve **un secondo turno** senza altri avvistamenti.
+
+      ⚠️ **Ripristinare `Team0Heroes` prima di riaprire su altro.**
+
+      🔴 **Una trappola che ha già una misura, e non è di questa seduta.** `PIE-V01-BLINDFIRE` porta
+      scritto che «al Cleanup il fumo nasce lì» **non è osservabile**: il colore della superficie vive nel
+      `CustomData` delle mesh istanziate e nessuno lo riscrive in partita (`#2894`). Chi giudica non deve
+      contare su quel canale per nessuna delle due voci.
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).

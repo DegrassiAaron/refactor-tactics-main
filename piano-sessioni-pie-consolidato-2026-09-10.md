@@ -9,6 +9,7 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 - La Reaction Window è ora raggiungibile e i relativi widget risultano presenti; `PIE-V01-OVERWATCH`, `PIE-V01-RXPLAYBACK` e `PIE-V01-RXBRACE` sono diventati eseguibili. Owner: [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166); blocker tecnico storico [#2723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2723) chiuso.
 - `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE` non vanno eseguiti prima delle cue: gli eventi esistono, ma nessuno li disegna ancora. Owner: [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454).
 - `PIE-V01-GHOSTS` non ha ancora una seduta dedicata e la feature è aperta. Owner: [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172), [#173](https://github.com/DegrassiAaron/refactor-tactics-main/issues/173), correzione registro/seduta [#2622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2622).
+- Il tiro indiretto e' atterrato in due tempi — [D-378] il requisito come dato dell'azione, [D-380] l'azione che colpisce e il feedback — e nessuna delle due meta' e' stata guardata a schermo: `PIE-V01-BLINDFIRE` e `PIE-V01-MORTAR` sono **S9**, e la seconda **non e' eseguibile a formazione spedita** (Branth e' del bot). Owner: [#2791](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2791).
 - Gli scenari del corpus spawnano il cilindro `ARTUnit` base. Per verificare le animazioni degli eroi bisogna usare una partita 2v2 normale con i quattro `BP_Unit_*`.
 - Non creare dodici montage `AM_*`: il registro corrente usa clip `Cast/Hit/Death` nel CDO e `PlaySlotAnimationAsDynamicMontage`. La issue [#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) va riallineata al contratto consegnato da #2450/#2448/#2444.
 
@@ -161,6 +162,28 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 **Asset:** eventuali ghost/materiali sono presentation-only.  
 **Issue:** [#172](https://github.com/DegrassiAaron/refactor-tactics-main/issues/172), [#173](https://github.com/DegrassiAaron/refactor-tactics-main/issues/173), [#2622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2622), [#80](https://github.com/DegrassiAaron/refactor-tactics-main/issues/80), [#1881](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1881), [#1937](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1937).
 
+### S9 — Tiro indiretto: mirare al buio, e sapere solo cio' che si e' colpito
+
+**Stato:** eseguibile, ma **non a formazione spedita** — vedi il setup. Le due voci sono le meta' opposte della stessa decisione ([D-378] il planning, [D-380] la risoluzione) e conviene giudicarle nella stessa apertura, in quest'ordine.
+
+🔴 **Setup che NON e' quello di default, ed e' la ragione per cui questa e' una seduta a se':** `ARTGameMode::Team0Heroes` vale `{Aevik, Muiren}` e `Team1Heroes` vale `{Branth, Ivrin}`. Muiren e' gia' del giocatore, quindi `PIE-V01-BLINDFIRE` si gioca cosi' com'e'; **Branth e' del bot**, quindi `PIE-V01-MORTAR` richiede di spostare `Hero.Branth` in `Team0Heroes` (`EditAnywhere`), lasciando `BotAllyCount` a `0`. ⚠️ Chi apre senza farlo non trova il mortaio fra le proprie azioni e conclude che la voce sia irraggiungibile: e' il difetto di `PIE-HEXPLAY-6`, e qui e' evitabile leggendo una riga.
+
+**Mappa/setup:** arena con un blocco alla vista fra il tiratore e la cella scelta, e un avversario che la squadra **non conosce** dietro di esso. Per `MORTAR` l'avversario dev'essere entro **3** celle da Branth — la portata dell'istanza d'eroe, non la 4 del catalogo ([D-380] punto 6).
+
+**Controlli:**
+
+- `PIE-V01-BLINDFIRE`: armata `MistVeil`, il cursore accetta una cella **oltre l'ostacolo**, il click crea il piano e l'anteprima disegna l'area sulla cella scelta; con ogni altra azione ad area la stessa cella resta rifiutata;
+- `PIE-V01-MORTAR`, **fino al lock-in**: identico al precedente — e questo e' il punto, non una ripetizione. Nulla (cursore, messaggio, anteprima) deve cambiare a seconda che dietro il muro ci sia o no qualcuno;
+- `PIE-V01-MORTAR`, **dopo il lock-in**: il colpo cade e la vittima colpita diventa nota. Si giudicano i **tre confini**: *(a)* si rivela chi e' stato **colpito**, non l'area — un secondo ignoto dentro il raggio ma non toccato resta invisibile; *(b)* la cella **non si illumina** — la rivelazione concede un contatto, non la vista; *(c)* al turno seguente, senza altri avvistamenti, il segno **sparisce**.
+
+⛔ **Cio' che questa seduta esiste per prendere e' un ORDINE, non un disegno:** se la rivelazione comparisse durante il targeting invece che a piano commesso, il tiro indiretto sarebbe il rilevatore di presenze che [D-378] ha chiuso — e nessun test headless lo vedrebbe, perche' misurano lo stato e non l'istante in cui compare a schermo.
+
+**UI/HUD richiesti:** cursore di targeting, anteprima d'area, velo della conoscenza, feed giocatore.
+**Animazioni:** non necessarie al verdetto.
+**Asset:** l'icona `UI.Icon.Action.Mortar` e' nel catalogo (`FindMissingRequiredIcons: 0`); nessun VFX serve — [D-124] tiene Niagara fuori dal perimetro v0.1.
+**Headless gia' verde, e non sostituisce questa seduta:** `RefactorTactics.BlindFire.*` e `RefactorTactics.BlindFireOffensive.*`, tutte validate per mutazione. Provano lo **stato**; qui si giudica cio' che si **vede**.
+**Issue:** [#2870](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2870), [#2890](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2890) (entrambe chiuse: resta il PIE), tracker [#2791](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2791).
+
 ## Issue da aggiornare o creare
 
 1. **Aggiornare #288**: rimuovere come lavoro attuale i dodici montage `.uasset`; collegare `PIE-AS4b` al contratto clip CDO/dynamic montage già consegnato.
@@ -168,7 +191,8 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 3. **Aggiornare #2622/editor-sessions**: creare una seduta stabile per `PIE-V01-GHOSTS` dopo #172/#173, invece di lasciarla orfana.
 4. **Aggiornare #2697** con la ricetta S2: vera pianificazione umana, intento vivo, stesso verdetto per `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL`.
 5. **Mantenere #2826 come blocker esplicito** di S1/S2: finché il dock non può armare un'azione, un click visibile non prova l'interazione.
-6. **Creare una sola issue sotto #1990, se non esiste in un branch non visibile:** `Procedural Graybox Unit — silhouette, facing e locomotion cues`. Scope minimo: cilindro correttamente scalato, facing già esistente, braccia/appendici primitive, idle/walk/run/stealth/knockback leggibili. Non assorbe le Basic Combat Cues di #2453 né le animazioni degli eroi di #288.
+6. **Aggiornare #2791** con la ricetta S9: la formazione va cambiata prima di aprire, e le due voci si giudicano nella stessa seduta perche' `MORTAR` fino al lock-in *deve* essere indistinguibile da `BLINDFIRE` — e' un non-evento, e un non-evento si giudica solo avendo il caso positivo accanto.
+7. **Creare una sola issue sotto #1990, se non esiste in un branch non visibile:** `Procedural Graybox Unit — silhouette, facing e locomotion cues`. Scope minimo: cilindro correttamente scalato, facing già esistente, braccia/appendici primitive, idle/walk/run/stealth/knockback leggibili. Non assorbe le Basic Combat Cues di #2453 né le animazioni degli eroi di #288.
 
 ## Strategia di apertura Editor
 
@@ -176,5 +200,6 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 - **Gate pulito:** build + Automation + validator, senza Editor.
 - **Apertura B — acceptance umana:** S1 → S2 → S3 → S4 → S5, cambiando scenario senza riavviare. Un riavvio extra è ammesso solo per nuovo binario, persistenza/reload o configurazione incompatibile.
 - **Sessioni lunghe separate:** S6, perché produce metriche e registrazioni; S7 dopo authoring porta; S8 solo quando cadono i relativi blocchi.
+- **Apertura C — tiro indiretto (S9):** separata da `Apertura B` **per una ragione di configurazione, non di durata**: cambiare `Team0Heroes` tocca il GameMode, e rientrare nel giro `S1 → S5` con una formazione non spedita renderebbe non confrontabili i verdetti di quelle sedute. Cambiare la formazione, giudicare `PIE-V01-BLINDFIRE` e `PIE-V01-MORTAR`, **ripristinare la formazione** prima di riaprire su altro.
 
 Ogni verdetto deve registrare commit, binario, mappa/scenario, setup, risultato PIE, `runId`/TurnLog quando disponibile e link all'issue owner. Un `PASS` dello scenario non equivale a un `PASS` visivo.
