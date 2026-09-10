@@ -607,3 +607,102 @@ TArray<int32> URTHudViewModel::ResolveObserverTeamIds(const ARTTurnManager* Turn
 }
 
 #undef LOCTEXT_NAMESPACE
+
+
+#define LOCTEXT_NAMESPACE "RTTargetPrompt"
+
+FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context, ERTPointerTargetKind Kind)
+{
+	FRTTargetPromptView View;
+
+	// 🔴 **Il CONTESTO viene prima della forma, e l'ordine e' quello che il contratto dichiara gia'.**
+	// `GetPointerContext()` mette `Modal` e `ResolutionPlayback` davanti a ogni altro ramo — «con la pausa a
+	// schermo nessun click deve raggiungere il mondo, qualunque cosa sia selezionata». Guardare prima il
+	// `Kind` mostrerebbe «scegli un'unita'» a partita in pausa, con un'azione rimasta armata da prima.
+	//
+	// ⚠️ `ReactionWindow` sta qui pur non avendo ancora un produttore (e' E14), e NON e' il «campo senza
+	// produttore» che questo repository evita: non e' uno stato nuovo che qualcuno dovrebbe scrivere, e'
+	// un valore dell'enum del puntatore che va classificato comunque. Ometterlo lo farebbe cadere nel
+	// `default` in fondo, cioe' su una risposta sbagliata invece che su una dichiarata.
+	if (Context == ERTPointerContext::Modal
+		|| Context == ERTPointerContext::ResolutionPlayback
+		|| Context == ERTPointerContext::ReactionWindow)
+	{
+		View.Kind = ERTTargetPromptKind::NotApplicable;
+		return View; // testo vuoto: e' l'unico caso in cui lo e', e `Kind` lo nomina.
+	}
+
+	if (Context == ERTPointerContext::IdleSelection)
+	{
+		View.Kind = ERTTargetPromptKind::NoSelection;
+		View.Text = LOCTEXT("NoSelection", "Seleziona un'unita'");
+		return View;
+	}
+
+	// La rotazione finale non passa da un `TargetKind`: e' un contesto suo, ed e' il quarto dei cinque
+	// prompt che la DoD elenca.
+	if (Context == ERTPointerContext::Facing)
+	{
+		View.Kind = ERTTargetPromptKind::ChooseFacing;
+		View.Text = LOCTEXT("ChooseFacing", "Scegli l'orientamento");
+		View.bIsAwaitingTarget = true;
+		return View;
+	}
+
+	// `Planning` e `Pathing` sono entrambi «unita' selezionata, niente armato»: il neutro di D-128. Restano
+	// due contesti perche' il puntatore ci fa cose diverse, ma la domanda posta al giocatore e' la stessa —
+	// e' ancora «scegli un'azione».
+	if (Context != ERTPointerContext::Targeting)
+	{
+		View.Kind = ERTTargetPromptKind::Neutral;
+		View.Text = LOCTEXT("Neutral", "Scegli un'azione");
+		return View;
+	}
+
+	// --- Da qui in giu' un'azione E' armata, e il `Kind` dice cosa chiede -----------------------------
+	switch (Kind)
+	{
+	case ERTPointerTargetKind::None:
+		// 🔑 **Questo `None` non e' un'assenza: e' una risposta.** L'azione e' armata e non ha niente da
+		// puntare (`TargetKindForAction`: «un supporto su se stessi non ha niente da puntare, si pianifica
+		// alla pressione del tasto»). Dirlo «nessuna azione» sarebbe falso, e tacere lascerebbe il
+		// giocatore ad aspettare un click che non serve.
+		View.Kind = ERTTargetPromptKind::SelfTargetConfirmed;
+		View.Text = LOCTEXT("SelfTarget", "Azione su di se': confermata");
+		return View;
+
+	case ERTPointerTargetKind::Unit:
+		View.Kind = ERTTargetPromptKind::ChooseUnit;
+		View.Text = LOCTEXT("ChooseUnit", "Scegli un'unita'");
+		View.bIsAwaitingTarget = true;
+		return View;
+
+	case ERTPointerTargetKind::Cell:
+		View.Kind = ERTTargetPromptKind::ChooseCell;
+		View.Text = LOCTEXT("ChooseCell", "Scegli una cella");
+		View.bIsAwaitingTarget = true;
+		return View;
+
+	case ERTPointerTargetKind::Edge:
+		View.Kind = ERTTargetPromptKind::ChooseEdge;
+		View.Text = LOCTEXT("ChooseEdge", "Scegli un bordo");
+		View.bIsAwaitingTarget = true;
+		return View;
+
+	case ERTPointerTargetKind::Object:
+		break; // cade sotto: nessun produttore, e si dichiara invece di indovinare.
+	}
+
+	// ⚠️ **`Object` e' nell'enum e nessuno lo produce**: `TargetKindForAction` restituisce `None`, `Edge`,
+	// `Cell` o `Unit`, mai `Object`. Non gli si inventa una frase — «scegli un oggetto» sarebbe una
+	// promessa che nessun percorso mantiene — e non lo si lascia sparire in un testo vuoto, che e' il
+	// difetto che `ComposePlayerEventText` documenta un piano piu' in la': *«una riga vuota e' una
+	// sparizione che nessuno nota»*. Il giorno in cui un owner produrra' `Object`, questo ramo e il suo
+	// test dicono dove aggiungere il prompt.
+	View.Kind = ERTTargetPromptKind::Unsupported;
+	View.Text = LOCTEXT("Unsupported", "Bersaglio non ancora supportato");
+	View.bIsAwaitingTarget = true;
+	return View;
+}
+
+#undef LOCTEXT_NAMESPACE
