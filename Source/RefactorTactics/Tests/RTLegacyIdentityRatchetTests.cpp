@@ -36,7 +36,12 @@ namespace RTLegacyIdentity
 		//
 		// ⛔ Il tetto misura `Hero.Gadget`, cioe' l'IDENTITA'. `ERTEquipmentSlot::Gadget` e i nove token
 		// `Gadget.<Oggetto>` non lo consumano e non devono: quella parola li' e' lo **slot**, non l'eroe.
-		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),   0,  0 },
+		// ⚠️ **Il tetto e' `1` e non `0`, e l'uno e' arrivato DOPO.** La fetta l'aveva portato a zero;
+		// poi la correzione del commento di `MakeAevik` — che la sostituzione aveva ridotto a «`Hero.Aevik`
+		// -> `Hero.Aevik`», un rename fra un nome e se stesso — ha rimesso il token nel file. E' la stessa
+		// menzione legittima per cui `Hero.Riktor` sta a quattro: un commento che dichiara il rename deve
+		// poter nominare cio' che ha rinominato.
+		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),   1,  0 },
 		// ✅ **Fetta eseguita il 2026-09-09**: il tetto è sceso a ZERO, e per questa identità il ratchet
 		// **è già** l'oracolo secco che [D-341] chiede — qualunque ricomparsa fallisce.
 		// ⚠️ Zero e non quattro come `Hero.Riktor`: quelle quattro sono commenti sul rename e un test che ne

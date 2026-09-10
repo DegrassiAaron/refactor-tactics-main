@@ -297,7 +297,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 {
 	URTHeroData* Aevik = NewObject<URTHeroData>();
 	Aevik->HeroId = TEXT("Hero.Aevik");
-	// ✅ **Rename eseguito** (#2491, fetta B·C di #2297): `Hero.Aevik` -> `Hero.Aevik`, regime SECCO —
+	// ✅ **Rename eseguito** (#2491, fetta B·C di #2297): `Hero.Gadget` -> `Hero.Aevik`, regime SECCO —
 	// nessun redirect, nessun resolver (D-134). Variabile, Stable ID e nome player-facing dicono ora la
 	// stessa cosa, e il commento che spiegava perche' NON lo dicessero e' uscito con la ragione che lo
 	// reggeva: D-120 separava i due piani finche' il piano dell'identita' era ancora quello vecchio.
@@ -448,9 +448,19 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 {
 	URTHeroData* Muiren = NewObject<URTHeroData>();
 	Muiren->HeroId = TEXT("Hero.Muiren");
-	// ✅ **Rename eseguito** (#2491): `Hero.Muiren` -> `Hero.Muiren`, regime SECCO (D-134).
-	// ⛔ `Muiren` resta ovunque significhi la **fase del turno**: `ERTMatchPhase`, `ERTResolutionPhase`,
-	// il parametro `Muiren` di `MakeHeroAction` qui sopra, e `Hero.Ivrin.PhaseGuard` — «Guardia di fase».
+	// ✅ **Rename eseguito** (#2491): `Hero.Phase` -> `Hero.Muiren`, regime SECCO (D-134).
+	//
+	// 🔴 **E questo commento e' gia' stato reso autocontraddittorio una volta, dalla sostituzione che
+	// descrive.** Il passaggio che rinominava l'eroe dentro i commenti l'ha ridotto a *«`Hero.Muiren` ->
+	// `Hero.Muiren`»* — una frase che dichiara un rename fra un nome e se stesso — e ha chiamato
+	// «`Muiren`» il parametro `Phase` e la fase del turno, cioe' le tre cose che la riga sotto esiste per
+	// dire che NON cambiano. E' lo stesso difetto che il commento in cima a questo file racconta di #753:
+	// *una sostituzione di testo puo' invertire il senso di una frase senza toccarne la forma, e nessun
+	// gate lo vede perche' il file compila*. Capitato due volte nello stesso file, la seconda a chi
+	// l'aveva appena letto.
+	//
+	// ⛔ `Phase` resta ovunque significhi la **fase del turno**: `ERTMatchPhase`, `ERTResolutionPhase`,
+	// il parametro `Phase` di `MakeHeroAction` qui sopra, e `Hero.Ivrin.PhaseGuard` — «Guardia di fase».
 	Muiren->DisplayName = FText::FromString(TEXT("Muiren"));
 	Muiren->MaxHealth = 95;
 	Muiren->MovePoints = 5;
