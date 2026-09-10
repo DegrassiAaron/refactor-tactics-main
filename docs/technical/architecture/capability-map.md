@@ -36,7 +36,7 @@ decidere cosa fare dopo.
 
 ⚠️ **`validation` misura cosa ESISTE, non cosa è stato ESEGUITO.** L'esecuzione vive in `verification`, e
 in questa passata è **`NOT RUN` per costruzione**: l'audit è statico e non esiste CI (`D-182`). Lo stato
-degli esiti realmente misurati è nei gate `G1`…`G14` di
+degli esiti realmente misurati è nei gate di
 [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) §3, riportato al §5
 di questo file.
 
@@ -511,10 +511,23 @@ quella tabella dichiara. Un gate senza esecutore automatico **non è verde: è v
 | `G12` | Packaging Development + Shipping | 🔴 **STANTIO** — timbro del 2026-08-16 | 2026-08-16 |
 | `G13` | Partita giocabile dalla build packaged | 🟡 | 2026-09-03 |
 | `G14` | Documentazione allineata | ⏳ | — |
+| `G16` | Vertical Slice Labs & Playback — smoke integrato | ⏳ aperto | 2026-09-10 |
 
-⌫ **`G15` esiste come riga ritirata**, e il numero **non si riusa**: fu tolto il 2026-08-21 da `D-181`
-insieme al Feature Registry che ne era l'unico meccanismo. Il perimetro dei gate della v0.1 misurato su
-`origin/main` `18065c28` è quindi `G1`…`G14` più un `G15` barrato — non un intervallo continuo.
+🔴 **Il perimetro non è un intervallo, e leggerlo come tale è il modo in cui si perde un gate.**
+`G15` **è ritirato** — tolto il 2026-08-21 da `D-181` insieme al Feature Registry che ne era l'unico
+meccanismo — e il numero **non si riusa**: la riga resta barrata perché un gate che sparisce senza traccia
+si riscrive uguale sei mesi dopo. `G16` è il gate **successivo**, non il quindicesimo.
+
+⚠️ **`G16` non è su `origin/main` `18065c28`**, cioè fuori dalla fotografia dichiarata in testa a questo
+documento: entra con `1cdd0d03` (`D-377`), il commit **gemello di questo file nella stessa PR**. Al merge
+il perimetro diventa `G1`…`G14` più `G16`. La riga è qui perché la prima stesura scriveva *«`G1`…`G14`»*
+come se fosse tutto, e sarebbe atterrata contraddicendo il commit accanto al proprio.
+
+🔑 **`G16` è il gate che questa mappa avrebbe voluto avere.** Chiede che **Ability Lab**, **Hero Lab**,
+**Presentation**, **Turn Log proiettato al giocatore** e **Replay Viewer** siano usabili **nello stesso
+giro** su una sola release candidate — invece che verdi ciascuno nel proprio checkpoint. È esattamente la
+differenza fra la colonna `Impl` di questa matrice e la domanda *«il vertical slice esiste come
+esperienza?»*, che qui resta senza risposta e al §9 è la voce `4`.
 
 ---
 

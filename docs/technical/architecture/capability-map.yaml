@@ -98,7 +98,9 @@ meta:
     - docs/roadmap/capability-roadmaps.md          # vista longitudinale per release (CR-*)
     - docs/technical/architecture/architettura-codice.md  # mappa per cartella
     - docs/technical/tooling/scenario-map.md       # chi verifica cosa (macchina vs persona)
-    - docs/roadmap/v0.1-definition-of-done.md      # i gate di release G1..G14
+    - docs/roadmap/v0.1-definition-of-done.md      # i gate di release: G1..G14 + G16
+                                                  # (G15 e' ritirato da D-181 e il numero non si riusa;
+                                                  #  G16 entra con 1cdd0d03, non e' su 18065c28)
 
 # ═════════════════════════════════════════════════════════════════════════════
 capabilities:
