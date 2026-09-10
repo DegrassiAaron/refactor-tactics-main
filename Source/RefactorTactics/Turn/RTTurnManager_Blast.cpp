@@ -399,7 +399,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 
 		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack();
 
 		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
 		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — l'azione e' gia'
@@ -459,7 +459,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
 		// cui questa raccolta viene prima.
 		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
@@ -574,7 +574,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
-			Unit->PlannedAttackTarget = nullptr;
+			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
 			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
 			{
@@ -618,7 +618,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 		ARTUnit* Target = Unit->PlannedAttackTarget;
 		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
-		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
+		// 🔴 **Il bersaglio a CELLA si copia QUI, prima dell'azzeramento** (`#2884`). Il piano si consuma in
+		// cima al ciclo — e' la disciplina di questo file — ma `bAttackTargetsCell` viene riletto un centinaio
+		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
+		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
+		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
+		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
@@ -687,9 +693,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Bersaglio a CELLA: nessuna unita' mirata per costruzione, non una che si e' persa. La distinzione
 		// conta subito qui sotto, dove `TargetUnitId == INDEX_NONE` significa `TargetGone` e degraderebbe al
 		// fallback un'azione che invece sta facendo esattamente cio' che le e' stato chiesto.
-		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		// ⚠️ Le due copie vengono da CIMA AL CICLO, dove il piano e' stato consumato: leggerle qui dall'unita'
+		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = bTargetsCell ? Unit->PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
 		Instance.EventSequence = Intents.Num();
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il

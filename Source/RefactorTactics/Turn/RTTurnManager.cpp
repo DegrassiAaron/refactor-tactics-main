@@ -973,7 +973,7 @@ void ARTTurnManager::PlanBots()
 		}
 
 		Bot->PlannedCell = Bot->Cell;   // default: fermo
-		Bot->PlannedAttackTarget = nullptr;
+		Bot->ClearPlannedAttack();
 		Bot->PlannedAbilityIndex = INDEX_NONE;
 		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
 		Bot->PlannedWaypoints.Reset();
@@ -1755,7 +1755,11 @@ void ARTTurnManager::PlanBots()
 			Bot->PlannedDashAbility = DashIdx;
 			Bot->PlannedDashCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
-			Bot->PlannedAttackTarget = Target;
+			// Il bot dichiara un bersaglio-UNITA', e la forma opposta si ritira con esso (`#2884`): il suo
+			// piano nasce da `PlanBots`, che azzera gia' tutto, ma la simmetria col percorso del giocatore
+			// vale piu' di una riga risparmiata — un secondo produttore che scriva il campo grezzo e' il modo
+			// in cui l'esclusivita' torna a essere una convenzione.
+			Bot->DeclareAttackOnUnit(Target);
 			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d%s"),
@@ -1767,7 +1771,7 @@ void ARTTurnManager::PlanBots()
 			// Resta e attacca dalla cella attuale (Best.DestCell == cella d'origine).
 			Bot->PlannedCell = Best.DestCell;
 			Bot->PlannedAbilityIndex = BestAbility;
-			Bot->PlannedAttackTarget = Target;
+			Bot->DeclareAttackOnUnit(Target); // come sopra (`#2884`)
 			Scelto = Target;
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d%s"),
@@ -3704,7 +3708,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		const bool bTargetsCell = Caster->bAttackTargetsCell;
 		const FRTCellId PlannedCell = Caster->PlannedAttackCell;
 		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
-		Caster->PlannedAttackTarget = nullptr;
+		Caster->ClearPlannedAttack();
 		if (!Caster->CanUseAbility(AbilityIndex)) { continue; }
 
 		// Il fallback dichiarato di `Action.Electrify` e' `Cancel`: senza bersaglio valido non succede nulla,
@@ -4367,7 +4371,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		const bool bHasTarget = bTargetsCell || Unit->PlannedAttackTarget != nullptr;
 
 		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack();
 		Unit->bHasPlannedCoverEdge = false;
 		if (!Unit->CanUseAbility(Index)) { continue; }
 
@@ -4673,7 +4677,7 @@ void ARTTurnManager::ResolvePrep()
 			// giusta o no. E' la meta' del costo che rende il whiff una scelta e non un tentativo gratuito.
 			Unit->ConsumeAbility(Index);
 			Unit->PlannedAbilityIndex = INDEX_NONE;
-			Unit->PlannedAttackTarget = nullptr;
+			Unit->ClearPlannedAttack();
 			continue;
 		}
 
@@ -4732,7 +4736,7 @@ void ARTTurnManager::ResolvePrep()
 			// Da non confondere con la CHARGE, che `bCharged` tiene e che solo un `FIRE` consuma.
 			Unit->ConsumeAbility(Index);
 			Unit->PlannedAbilityIndex = INDEX_NONE;
-			Unit->PlannedAttackTarget = nullptr;
+			Unit->ClearPlannedAttack();
 			continue;
 		}
 
@@ -4792,7 +4796,7 @@ void ARTTurnManager::ResolvePrep()
 		ARTUnit* Unit = Units[Instance.SourceUnitId];
 		Unit->ConsumeAbility(Unit->PlannedAbilityIndex);
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack();
 	}
 }
 
@@ -5304,7 +5308,7 @@ void ARTTurnManager::ResolveDash()
 			}
 
 			Unit->PlannedAbilityIndex = INDEX_NONE; // lo slot principale e' speso
-			Unit->PlannedAttackTarget = nullptr;
+			Unit->ClearPlannedAttack();
 		}
 
 		// Effetti DICHIARATI dall'azione (Sprint applica `Status.Exposed`): stesso registry di Prep e Blast.
