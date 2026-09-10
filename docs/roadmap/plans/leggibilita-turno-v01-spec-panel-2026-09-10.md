@@ -217,7 +217,12 @@ e accettazione sarebbe **precisamente** quella seconda source of truth.
 ⚠️ [`AGENTS.md`](../../../AGENTS.md) §8 dice la stessa cosa in forma di regola: *«non creare le milestone, le
 label o le epic che nomina senza verificare la tassonomia esistente»*.
 
-∴ **Zero epic create. Zero `D-nnn` assegnati. Zero `E<n>` assegnati. Zero milestone create.**
+∴ **Zero epic create. Zero `E<n>` assegnati. Zero milestone create. Zero label nuove.**
+
+⚠️ **Sui `D-nnn` la riga è cambiata in corsa, e va detto invece di lasciarla contraddire la §7.** In
+ricognizione non ne è stato assegnato nessuno, ed era il punto: un kit non porta un contatore condiviso
+([`AGENTS.md`](../../../AGENTS.md) §12). **`D-369` e `D-370` sono nati dopo**, dalla risposta dell'autore alle
+due domande di §7 — su misura a tre posti rifatta, non sulla memoria del kit.
 La milestone della v0.1 è **una sola** — `v0.1 — Offline Vertical Slice` — per consolidamento del 2026-09-06.
 
 ---
