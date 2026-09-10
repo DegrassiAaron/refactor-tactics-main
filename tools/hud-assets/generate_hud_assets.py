@@ -1094,8 +1094,8 @@ def _identity(inner: str) -> str:
     return "\n".join([polygon(IDENTITY_BADGE, stroke_width=1.4), inner])
 
 
-def g_identity_gadget() -> str:
-    """Gadget: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
+def g_identity_aevik() -> str:
+    """Aevik: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
     return _identity("\n".join([
         polygon(hexagon(12, 12, 3.6), stroke_width=1.4),
         dot(12, 12, 1.4),
@@ -1103,8 +1103,8 @@ def g_identity_gadget() -> str:
     ]))
 
 
-def g_identity_phase() -> str:
-    """Phase: la superficie che si muove — il fluido e' la sua materia."""
+def g_identity_muiren() -> str:
+    """Muiren: la superficie che si muove — il fluido e' la sua materia."""
     return _identity("\n".join([
         waves(11, x0=6.4, span=11.2, amp=1.6, stroke_width=1.5),
         waves(14.6, x0=6.4, span=11.2, amp=1.6, stroke_width=1.3),
@@ -2234,9 +2234,9 @@ ICONS = [
      "assente dal mock — [D-319]/#2253, coppia con Status.Prone"),
     ("Status.Wet", g_status_wet, "Utility",
      "assente dal mock"),
-    ("Identity.Gadget", g_identity_gadget, "Electric",
+    ("Identity.Aevik", g_identity_aevik, "Electric",
      "assente dal mock"),
-    ("Identity.Phase", g_identity_phase, "Utility",
+    ("Identity.Muiren", g_identity_muiren, "Utility",
      "assente dal mock"),
     ("Identity.Branth", g_identity_branth, "Defense",
      "assente dal mock"),
