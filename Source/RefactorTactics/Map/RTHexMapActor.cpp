@@ -1747,7 +1747,17 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// Pannelli di BORDO: coperture e porte. Il punto e l'orientamento si CHIEDONO alla libreria
 		// (`EdgeMidpointWorld`, `EdgeRotation`), che li deriva dai due centri di cella: se la convenzione dei
 		// sei lati cambiasse, la geometria seguirebbe invece di mentire.
-		if (EdgeFeatures && EdgeSources[I])
+		//
+		// 🔴 **`bDoEdges` mancava da questa guardia, e la ricostruzione PARZIALE le duplicava** (`#2894`).
+		// Il `ClearInstances` di questa famiglia e' condizionato al flag (`if (bDoEdges)` piu' su), questo
+		// ciclo non lo era: una `RebuildInstances(Cells | Glyphs)` non le puliva e le **riaggiungeva**.
+		// Misurato dal rosso di `Veil.CoversEveryInstanceFamily`: le ausiliarie passavano da **148** a
+		// **222**, cioe' esattamente i 74 pannelli di bordo contati due volte.
+		//
+		// ⚠️ **Il difetto era latente, non teorico**: fino a `#2894` `RebuildInstances` aveva **un solo**
+		// chiamante non-`All` — nessuno — quindi la famiglia si ripuliva sempre insieme alle altre e il buco
+		// non poteva manifestarsi. Il primo uso parziale l'ha trovato al primo test.
+		if (bDoEdges && EdgeFeatures && EdgeSources[I])
 		{
 			const FRTHexCellData& Data = *EdgeSources[I];
 			auto AddEdgePanel = [&](ERTHexDirection Edge, float PanelHeight)
@@ -1789,7 +1799,13 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	// non lo conosce.
 	// ⚠️ Il pannello NON e' orientato con `EdgeRotation`, che deriva l'angolo dai due centri di cella:
 	// qui non c'e' nessun vicino da guardare, la giacitura e' quella del segmento e basta.
-	if (EdgeFeatures && MapAsset)
+	//
+	// 🔴 **`bDoEdges` mancava anche qui** (`#2894`), ed e' il SECONDO blocco che scrive in `EdgeFeatures`:
+	// il primo sono coperture e porte dentro il ciclo delle celle, questo sono i muri interni, che leggono
+	// l'asset direttamente. Entrambi condividono un solo `ClearInstances`, quindi **entrambi** devono
+	// condividerne la condizione: correggerne uno solo avrebbe lasciato la duplicazione a meta', cioe' un
+	// difetto piu' difficile da vedere di quello di partenza.
+	if (bDoEdges && EdgeFeatures && MapAsset)
 	{
 		for (const FRTHexInteriorWall& Wall : MapAsset->InteriorWalls)
 		{
@@ -2319,6 +2335,33 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	if (!Cells)
 	{
 		return;
+	}
+
+	// ➕ **LE ISTANZE SI ALLINEANO AL DATO PRIMA DI VELARLO** (`#2894`).
+	//
+	// 🔴 **Il difetto che chiude**: una superficie creata in partita non cambiava niente a schermo. Il colore
+	// vive nel `CustomData` delle istanze e lo scrive `RebuildInstances`, che aveva **due chiamanti, entrambi
+	// `OnConstruction`** — quindi `Action.Ignite`, `Action.CreateWater` e `Hero.Muiren.MistVeil` mutavano il
+	// terreno e la board restava quella del primo fotogramma.
+	//
+	// 🔑 **Sta QUI e non in un canale nuovo, ed e' una conseguenza di cio' che questa funzione gia' dichiara
+	// di sé**: `VeilInstances` porta un `ensureMsgf` che sorveglia gli indici stantii — sa di dipendere dalla
+	// freschezza delle istanze. Velare istanze costruite su un dato vecchio non e' «un po' meno aggiornato»:
+	// e' la stessa precondizione, vista dall'altro lato. E il momento e' quello giusto per costruzione — il
+	// presenter chiama di qui a ogni `OnTeamKnowledgeRefreshed`, cioe' due volte per turno.
+	//
+	// ⛔ **Non e' una cache**: `SurfaceForCell` continua a rileggere dall'asset. Qui si confronta un numero di
+	// versione — `Revision`, che `AddOrUpdateCell` incrementa gia' — e la copia del dato non esiste.
+	//
+	// ⚠️ **Due famiglie e non `All`**, perche' sono i due canali che [D-183] accoppia: `Cells` porta il
+	// COLORE, `Glyphs` la FORMA (`SurfaceRingCount`: il fumo ha un anello). Ricostruirne una sola darebbe una
+	// cella col colore nuovo e il segno inciso vecchio, cioe' due canali che si contraddicono su un criterio
+	// — «colore **e** forma, mai solo il colore» (`#956`) — che esiste per non dipendere dal colore.
+	// Le altre cinque famiglie non dipendono dalla superficie e non si toccano.
+	if (MapAsset && MapAsset->Revision != LastSyncedMapRevision)
+	{
+		LastSyncedMapRevision = MapAsset->Revision;
+		RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs);
 	}
 
 	// Appartenenza puntuale, ripetuta una volta per istanza: `TSet` e non `TArray::Contains`, che su 7 651
