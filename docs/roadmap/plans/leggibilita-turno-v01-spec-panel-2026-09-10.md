@@ -405,6 +405,13 @@ struttura, e `OPEN_DECISIONS.md` non portava la domanda.
 è **sì**, e aggiunge una seconda metà che la proposta non aveva: **il distruggibile lo dichiara l'Editor**.
 Due condizioni, entrambe necessarie, e nessuna delle due è la mesh.
 
+🔁 **Poi emendata da [`D-375`](../../decisions/RT_PDR_00_Decision_Log.md) lo stesso giorno**: `D-369`
+concludeva che il dato del distruggibile fosse **per tipo**, perché `FRTHexDoor` non ha `Integrity`.
+`D-375` sceglie il verso opposto — **dare** il dato alle porte, nella forma che `FRTHexEdge` già porta
+(`Integrity` + `State` terminale, con la guardia di `ValidateMap` a `RTHexMapAsset.cpp:706`). Con
+`FRTHexDoor::DefaultIntegrity = 35`, integrità **per voce di bordo**, `E23.2` emendata a *«interazione di
+gruppo, distruzione per segmento»*, e `FRTHexEdgeGuard` fuori per dichiarazione.
+
 🔑 **E la metà nuova conferma la forma esistente invece di aggiungerne una**: `FRTHexCover`
 (`Edge · Type · Integrity`) e `FRTHexDoor` (`Edge · State · DoorId · StableId`) sono già tutti `EditAnywhere`
 sull'asset di mappa, e `ERTHexDoorState::Destroyed` è già dichiarato terminale. Non nasce un campo: nasce la
