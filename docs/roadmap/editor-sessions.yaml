@@ -3321,3 +3321,78 @@ sessions:
       porti una chiave icona e che il catalogo arrivi alla radice.
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
+
+  - id: U50
+    title: Due unità su celle diverse, e i loro id sopravvivono al giro sul disco
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: il verdetto sul DoD di TD-EDITOR-01 — due unità schierate dal pannello, distinte e ritrovabili dopo il salvataggio
+    artifacts: []
+    # 🔑 **Questa seduta esiste perché la voce che convoca non ne aveva nessuna.** Misurato su
+    # `origin/main` il 2026-09-09 e ancora il 2026-09-10, prima di questo record:
+    #   grep -ic composer          docs/roadmap/editor-sessions.yaml   # → 0
+    #   grep -ic td-editor         docs/roadmap/editor-sessions.yaml   # → 0
+    #   grep -c  PIE-SCEN-COMPOSER docs/roadmap/editor-sessions.yaml   # → 0
+    # Nessuna forma, nessuna seduta. È la condizione che `spec-tactical-designer.md` §9 chiama «tende a
+    # non essere mai eseguita», e la voce lo dimostrava: è rimasta ⏳ per giorni mentre il suo bloccante
+    # cambiava tre volte senza che nessuno la riguardasse. Il buco non si chiudeva scrivendo nel
+    # registro PIE — quello possiede l'esito atteso, non la sequenza — ma solo qui.
+    unblocked_by: []
+    # ⚠️ **Vuoto per una ragione misurata, non per default**, come in `U46` e `U49`: il codice c'è tutto.
+    # Da #2786 il pannello ha i quattro gesti — schiera, sposta, ruota, ritira — e il piazzamento salva
+    # dentro il gesto (`SaveInPlace`, `DEC-1`). Quello che manca è un occhio.
+    # 🔴 **E il soggetto non è più `WBP_RT_ScenarioComposer`**: quell'asset è stato aperto il 2026-09-09,
+    # era un guscio senza controlli, ed è stato rimosso da #2789. La superficie viva è
+    # `SRTLauncherScenarioPanel`, il tab **Tactical Designer**. L'ID della voce PIE non cambia — rinominarlo
+    # romperebbe i rimandi già scritti, e ciò che verifica è rimasto lo stesso.
+    shares_setup_with: [U31, U32]
+    # ⛔ **Stessa apertura di `U31` e `U32`, e non è una cortesia: è la *Regola di batching* di questo file.**
+    # Un'apertura nuova è autorizzata solo se cambia una precondizione — mappa, binario o allestimento — e
+    # qui non ne cambia nessuna: stesso `L_DevSandbox` come `EditorStartupMap`, stesso tab presentato da sé,
+    # stesso modulo Editor. `U31` guarda che il tab compaia, `U32` cosa c'è dentro, questa cosa il pannello
+    # **scrive**. Separarle in tre aperture significherebbe aprire l'editor tre volte per la stessa schermata.
+    verifies: [PIE-SCEN-COMPOSER]
+    issues: [1527, 1105]
+    # ⛔ **Perché una seduta e non un automation test.** Il round-trip del formato è già coperto headless da
+    # `RTScenarioWriterTests` e `RTScenarioAuthoringTests`, e che due coni consecutivi non collidano lo
+    # dimostra `RefactorTactics.DevSandboxLauncher.CoinUnitIdAvoidsCollisions`. Resta fuori la metà che
+    # nessuno di quei test vede: che **la schermata** faccia arrivare al writer due id distinti, con celle
+    # scelte da chi guarda. Questa seduta non ripete il round-trip, verifica chi glielo consegna.
+    done_when: la voce ha esito reale nel registro
+    unblocks: []
+    # ⚠️ Vuoto perché `TD-EDITOR-02` e `TD-EDITOR-03` sono **slice**, non checkpoint, e questo campo ammette
+    # solo le forme `M*.*`, `E*`, `E*.*`, `U*`. Se questa seduta stabilisce che quelle due non sono più
+    # bloccate, la constatazione va dove le slice hanno un owner — non inventata qui in una forma che
+    # nessuno può risolvere.
+    steps: |
+      L'ordine del giorno è in
+      [`plans/pie-scen-composer-ordine-del-giorno-2026-09-09.md`](plans/pie-scen-composer-ordine-del-giorno-2026-09-09.md);
+      l'esito atteso di ogni passo è in `test-manuali-pie.md`, voce `PIE-SCEN-COMPOSER`. Qui c'è **l'ordine**
+      e il passo che è già fallito una volta.
+
+      Il tab **Tactical Designer** si presenta da sé all'apertura di `L_DevSandbox`. Seleziona uno scenario
+      in lista: senza, `[ + UNIT ]` resta disabilitato — è la sua condizione di abilitazione, non un difetto.
+
+      🔴 **Le due unità vanno su celle DIVERSE, e questo è il passo che il 2026-09-09 è fallito.** Quel
+      giorno il secondo `[ + UNIT ]` è stato rifiutato da `AddUnit` perché la cella era la stessa. Il
+      rifiuto è **corretto** — è l'autorità della facade, e il pannello non ha voce in capitolo — ma la
+      seduta è finita con una unità sola, cioè senza dimostrare ciò che il DoD chiede.
+
+      Concretamente, sulla riga di piazzamento: scegli `hero` dalla tendina (viene dal roster, non da un
+      elenco scritto nel pannello), imposta `team`, i tre numerici `q` `r` `L`, e una delle sei direzioni
+      di `facing`. Premi `[ + UNIT ]`. Poi **cambia soltanto la cella** e premi una seconda volta.
+      ⚠️ Almeno una delle due sia del **team avversario**, o la riga `squadre` non ha niente da incrementare.
+
+      Il salvataggio avviene **dentro il gesto** e non con un pulsante separato, e il readout si ricostruisce
+      **dal file** invece che dalla memoria: il giro sul disco è già avvenuto quando lo leggi. Quindi
+      «riapri per ID» qui è la **riselezione** dello scenario in lista — che rilegge — e i quattro campi
+      `Hero · Team · Facing · Cell` devono coincidere su **entrambe**.
+
+      ⛔ Se un passo fallisce, il difetto prende una issue propria e viene linkato a #1527: questa seduta
+      possiede la **verifica**, non la riparazione.
+
+      ⚠️ **Un rifiuto di `AddUnit` non è un fallimento della seduta.** `Invalid` con «id già preso» sarebbe
+      invece un difetto della **schermata** che accusa lo scenario: il conio è del pannello, non del file.
+
+      L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
