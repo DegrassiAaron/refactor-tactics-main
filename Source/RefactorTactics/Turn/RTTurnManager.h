@@ -2153,6 +2153,14 @@ protected:
 	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
 	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
 	void BeginPlayback(bool bPreserveClock = false);
+
+	/**
+	 * Porta a schermo le impronte fino a `UpTo`, in ordine di timeline — `#2454`.
+	 *
+	 * ⛔ **Non riordina e non aggrega.** Consuma `PlaybackFootprints` nell'ordine in cui il resolver le ha
+	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
+	 */
+	void RevealPlaybackFootprints(int32 UpTo);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -3004,6 +3012,16 @@ private:
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
 
 	/**
+	 * Eventi `AttackFootprint`, rivelati nel Blast come i colpi — `#2454`.
+	 *
+	 * 🔴 **Array proprio e non fuso con `PlaybackAttacks`**, perche' i due contano cose diverse:
+	 * `ResolveCombatPasses` emette un `Attack` per **vittima** e un'impronta per **intento**. Fonderli
+	 * perderebbe proprio il caso che `D-301` esiste per far esistere — l'area su sole celle vuote, che ha
+	 * un'impronta e zero colpi.
+	 */
+	TArray<FRTResolvedEvent> PlaybackFootprints;
+
+	/**
 	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
 	 *
 	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
@@ -3034,6 +3052,7 @@ private:
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
+	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.

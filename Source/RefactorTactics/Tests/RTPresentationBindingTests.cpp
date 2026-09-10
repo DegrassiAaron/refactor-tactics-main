@@ -434,7 +434,7 @@ bool FRTPresentationPendingNeedsOwnerAndRationaleTest::RunTest(const FString&)
  *
  * 🔴 **E' il test che rende falsificabile la classificazione, e senza di esso `#2483` non consegna niente.**
  * I due test sopra provano che il *gate* sa distinguere; questo prova che le voci *reali* sono classificate.
- * Declassare `AttackFootprint` da `PendingPresentation` a `NoPresentation` lascerebbe il gate verde — la
+ * Declassare `ReactionResolved` da `PendingPresentation` a `NoPresentation` lascerebbe il gate verde — la
  * voce resterebbe ben formata — e la distinzione morirebbe in silenzio. Qui diventa rossa.
  *
  * ⚠️ **I numeri sono un'osservazione, non una derivazione**, e vanno **rimisurati** se il censimento cambia
@@ -471,7 +471,10 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// ⚠️ **Se questa riga tornasse a 1, qualcuno avra' preso quella decisione: la si cerchi.** Non si
 	// aggiorna il numero — si cerca chi l'ha deciso e perche'.
 	TestEqual(TEXT("nessuna assenza e' DECISA in v0.1"), Decise, 0);
-	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
+	// ⌫ **Erano quattro fino al 2026-09-10.** `AttackFootprint` ha una cue (`#2454`): l'evento entra nel
+	// playback e il cancello della fase Blast conta anche le impronte. ⚠️ Se questa riga risale, qualcuno
+	// ha rimesso in attesa una voce sciolta: si cerchi chi, non si aggiorni il numero.
+	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 
 	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
@@ -484,8 +487,10 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	};
 	TestEqual(TEXT("HazardDamage attende #2505"),
 		OwnerDi(ERTResolvedEventType::HazardDamage), FString(TEXT("#2505")));
-	TestEqual(TEXT("AttackFootprint attende #2454"),
-		OwnerDi(ERTResolvedEventType::AttackFootprint), FString(TEXT("#2454")));
+	// ✅ `AttackFootprint` non e' piu' in attesa: ha cue, quindi NON ha un `PendingOwner`. Asserirlo vuoto
+	// e' cio' che impedisce di rimetterla in attesa in silenzio.
+	TestEqual(TEXT("AttackFootprint non attende piu' nessuno"),
+		OwnerDi(ERTResolvedEventType::AttackFootprint), FString());
 	TestEqual(TEXT("ReactionResolved attende #2454"),
 		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
 	TestEqual(TEXT("StatusChanged attende #2456"),

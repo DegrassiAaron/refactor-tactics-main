@@ -7737,6 +7737,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackFootprints.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
@@ -7805,6 +7806,16 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		{
 			PlaybackDefeated.Add(Ev);
 		}
+		else if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			// ⛔ **Nessun filtro di conoscenza qui, e non e' una dimenticanza**: l'impronta e' un fatto
+			// dell'AZIONE e le sue celle sono terreno, non occupazione. `HitCells` non consulta chi c'e'
+			// dentro — la catena `BlastOriginCell -> HexHitCells` non tocca l'occupazione in nessun punto
+			// (`#2791`), quindi disegnarla non rivela una presenza.
+			// ⚠️ Se un giorno l'impronta portasse un dato dipendente da CHI e' stato colpito, questa riga
+			// diventerebbe un canale e andrebbe filtrata come il prefisso osservato del `Move` qui sopra.
+			PlaybackFootprints.Add(Ev);
+		}
 	}
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
@@ -7818,7 +7829,14 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackPhases.Reset();
 	if (bPrepActiveThisTurn) { PlaybackPhases.Add(ERTMatchPhase::Prep); }
 	if (bHasDash) { PlaybackPhases.Add(ERTMatchPhase::Dash); }
-	if (PlaybackAttacks.Num() > 0 || bHasBlastMove) { PlaybackPhases.Add(ERTMatchPhase::Blast); }
+	// 🔴 **Le impronte contano quanto i colpi**, ed e' la riga che apre il caso «area su sole celle
+	// vuote»: zero vittime -> zero `Attack` -> senza questo termine la fase non nasceva, e non esisteva
+	// un istante in cui disegnare (`#2454`). La decisione sta in una funzione pura perche' cambia la
+	// DURATA di un turno, ed e' cio' che i test di pacing sorvegliano.
+	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove, PlaybackFootprints.Num()))
+	{
+		PlaybackPhases.Add(ERTMatchPhase::Blast);
+	}
 	if (bHasMove) { PlaybackPhases.Add(ERTMatchPhase::Move); }
 
 	if (PlaybackPhases.Num() == 0)
@@ -7907,10 +7925,37 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	EnterPlaybackPhase();
 }
 
+void ARTTurnManager::RevealPlaybackFootprints(int32 UpTo)
+{
+	const int32 Target = FMath::Min(UpTo, PlaybackFootprints.Num());
+	if (FootprintsShown >= Target)
+	{
+		return;
+	}
+
+	// ⚠️ L'actor si cerca UNA volta per chiamata e non per impronta: `FindInWorld` itera gli attori, e
+	// farlo dentro il ciclo lo renderebbe quadratico in un ramo che gira a ogni tick del Blast.
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+
+	while (FootprintsShown < Target)
+	{
+		const FRTResolvedEvent& Footprint = PlaybackFootprints[FootprintsShown];
+		if (MapActor)
+		{
+			// ⛔ Le celle si passano COSI' COME ARRIVANO. `HexHitCells` le ha gia' prodotte nell'ordine
+			// stabile di `URTHexLibrary::StableLess`, e riordinarle o filtrarle qui sarebbe la seconda
+			// risposta a una domanda che il resolver ha gia' chiuso ([D-301]).
+			MapActor->AddPlaybackFootprint(Footprint.HitCells);
+		}
+		++FootprintsShown;
+	}
+}
+
 void ARTTurnManager::EnterPlaybackPhase()
 {
 	PlaybackPhaseElapsed = 0.f;
 	AttacksShown = 0;
+	FootprintsShown = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
 	OnPhasePlaybackStarted.Broadcast(Ph);
@@ -8241,6 +8286,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	if (Ph == ERTMatchPhase::Blast)
 	{
 		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
+		// L'impronta PRECEDE i suoi colpi: e' il segno a terra dell'azione, e vederla dopo le vittime
+		// racconterebbe la storia al contrario (`#2454`). Stesso scaglionamento, contatore proprio.
+		RevealPlaybackFootprints(URTPlaybackLibrary::AttacksToShow(
+			PlaybackFootprints.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
+
 		const int32 ShouldShow = URTPlaybackLibrary::AttacksToShow(
 			PlaybackAttacks.Num(), PlaybackPhaseElapsed, AttackShowSeconds);
 		while (AttacksShown < ShouldShow)
@@ -8315,6 +8365,10 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
+			// Chi non ha fatto in tempo a comparire compare adesso: una fase compressa dal budget non deve
+			// PERDERE un fatto, deve solo mostrarlo piu' in fretta.
+			RevealPlaybackFootprints(PlaybackFootprints.Num());
+
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
 				const FRTResolvedEvent& Atk = PlaybackAttacks[AttacksShown];
@@ -8536,6 +8590,14 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackAnimCellIndex.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
+	PlaybackFootprints.Reset();
+	FootprintsShown = 0;
+	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
+	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
+	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		FootprintMap->ClearPlaybackFootprint();
+	}
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();

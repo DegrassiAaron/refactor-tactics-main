@@ -120,10 +120,18 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// rispondere a *«quell'owner e' ancora aperto?»*: un'epic risponde SI per mesi, cioe' risponde senza
 	// informare. Letti uno per uno, i tre checkpoint di E21 (#287, #288, #289) non contengono l'impronta.
 	// Stessa correzione gia' fatta altrove: #1408 assegnava la dock a un'epic, e il lavoro e' andato a #2826.
-	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::AttackFootprint,
-		TEXT("Il dato esiste perche' la cue POSSA essere costruita: #1945 porta a valle le celle risolte, e ")
-		TEXT("la resa dell'area e' fuori dal suo scope. Nessuna cue oggi lo consuma."),
-		TEXT("#2454")));
+	// ✅ **La cue e' NATA il 2026-09-10 (`#2454`)**, e questa voce non e' piu' in attesa.
+	//
+	// 🔑 Cio' che mancava non era il disegno: era il **momento**. `BeginPlayback` raccoglieva `Move`,
+	// `Attack` e `Defeated` e nient'altro, e il cancello che apre la fase `Blast` contava i soli colpi —
+	// quindi un'area su sole celle vuote, che produce zero `Attack` e UNA impronta, non aveva nemmeno una
+	// fase in cui accadere. Ora il cancello e' `URTPlaybackLibrary::BlastPhaseIsActive`, che conta anche
+	// le impronte, ed e' pura perche' cambia la DURATA di un turno.
+	//
+	// ⛔ `AddPlaybackFootprint` riceve `HitCells` COSI' COME ARRIVANO: nessun ricalcolo di `HexHitCells`
+	// nella presentazione, che e' cio' che [D-301] punto (1) esclude a monte.
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AttackFootprint,
+		{ FName(TEXT("AddPlaybackFootprint")) }));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo

@@ -657,6 +657,47 @@ bool FRTPlaybackStepKeepsSimultaneityTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` si apre anche per una sola IMPRONTA, senza nessun colpo — `#2454`.
+ *
+ * 🔴 **E' il caso che [D-301] esiste per far esistere, ed era irraggiungibile.** `ResolveCombatPasses`
+ * emette un `Attack` per **vittima** e un `AttackFootprint` per **intento**: un'area su sole celle vuote
+ * produce zero colpi e una impronta. Il cancello contava i soli colpi, quindi quel turno non apriva la fase
+ * — e senza fase non esiste un istante in cui disegnare.
+ *
+ * ⚠️ **Non e' un test di gusto: la fase decide la DURATA del turno.** Se questa riga cambia, cambia il
+ * pacing, ed e' la ragione per cui la decisione sta in una funzione pura invece che dentro `BeginPlayback`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastPhaseOpensForFootprintOnlyTest,
+	"RefactorTactics.Playback.BlastPhaseOpensForFootprintOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastPhaseOpensForFootprintOnlyTest::RunTest(const FString&)
+{
+	// Il caso nuovo, e il solo che prima falliva.
+	TestTrue(TEXT("una impronta senza colpi apre il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1));
+
+	// ⚠️ **La controprova, senza la quale il test sopra non prova niente**: il vuoto deve restare vuoto.
+	// Un `return true` costante passerebbe la prima asserzione e fallirebbe questa.
+	TestFalse(TEXT("niente colpi, niente spinta, niente impronte: nessun Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0));
+
+	// Le due ragioni preesistenti non sono state indebolite.
+	TestTrue(TEXT("un colpo apre il Blast, come prima"),
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0));
+	TestTrue(TEXT("una spinta apre il Blast, come prima"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0));
+
+	// ⛔ Nessuna soglia e nessuna somma: le tre ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
+	// "misurare quanto succede", questa riga resterebbe verde e la precedente cadrebbe — ed e' voluto.
+	TestTrue(TEXT("le tre ragioni insieme aprono il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2));
+
+	return true;
+}
+
 // --- NextActionBoundary: il confine di AZIONE sulla timeline (`#2857`) ------------------------------
 //
 // 🔑 **Sono test PURI e senza mondo**, ed e' il criterio d'accettazione alla lettera: *«il prossimo
