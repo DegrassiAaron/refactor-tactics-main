@@ -2898,6 +2898,12 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// lavoro svolto proprio nel caso in cui non se n'e' fatto nessuno, ed e' la misura su cui
 	// `Veil.FullScanCostIsMeasured` asserisce.
 	LastVeilTouchedCells = 0;
+	// ➕ **E il contatore del riallineamento per-cella, per la stessa ragione** (`#2761`): da quando il
+	// ridipingere puo' avvenire in due punti — il blocco di sincronizzazione qui sotto e `VeilInstances` —
+	// un contatore che sopravvivesse a un velo in cui non e' successo niente dichiarerebbe lavoro svolto
+	// proprio nel giro in cui non se n'e' fatto nessuno. Sono due meta' della stessa domanda, e si azzerano
+	// insieme.
+	LastRepaintTouched = 0;
 	if (!Cells)
 	{
 		return;
