@@ -676,6 +676,17 @@ public:
 	void OnTogglePrepWindowPauseForTest();
 
 	/**
+	 * Hook per i test: percorre il **tasto destro** senza Enhanced Input. Gemello di `OnLockInForTest`.
+	 *
+	 * 🔴 **Esiste perche' senza di esso il Back era verificato solo a valle.** `ResolveBack` e `ApplyBack`
+	 * hanno test propri, ma nessuno guardava il percorso che il giocatore usa davvero: l'`RMB` entra da
+	 * `OnUndoWaypoint`, e finche' quella funzione ordinava i livelli per conto suo il modulo puro poteva
+	 * restare verde mentre il tasto faceva un'altra cosa. E' la distinzione fra testare una regola e
+	 * testare chi la applica.
+	 */
+	void OnUndoWaypointForTest();
+
+	/**
 	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.
 	 *
 	 * Estratto da `OnFocusSelected` perche' la scelta della quota — la **cella**, non la posizione

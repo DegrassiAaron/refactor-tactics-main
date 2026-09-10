@@ -2277,18 +2277,39 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		}
 	}
 
-	ARTUnit* Unit = GetSelectedUnit();
-	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
-	{
-		return;
-	}
-	Unit->PlannedWaypoints.Pop(); // rimuove l'ultimo waypoint
-	RebuildPlannedPath();
-	if (ARTTurnManager* TM = PacingTurnManager(this))
-	{
-		TM->RecordPlanningInput(ERTPlanningInput::Undo);
-	}
-	UE_LOG(LogRT, Log, TEXT("[RT] Annullato waypoint: %s -> %d waypoint"), *Unit->GetName(), Unit->PlannedWaypoints.Num());
+	// 🔴 **Da qui in giu' decide `ApplyBack()`, e prima decideva questa funzione** (`#2826` scope 7).
+	//
+	// Il corpo precedente andava dritto a `PlannedWaypoints.Pop()`, cioe' conosceva UN livello solo del
+	// Back. Ma `GetPointerContext()` mette `Targeting` **prima** di `Pathing`: con un'azione armata e un
+	// waypoint montato il destro toglieva il waypoint e lasciava il targeting acceso — l'opposto
+	// dell'ordine che §5.5 dichiara e che `URTPointerLibrary::ResolveBack` codifica.
+	//
+	// 🔑 **Non e' un livello aggiunto, e' una seconda autorita' tolta.** `ResolveBack` e `ApplyBack`
+	// esistevano gia', con i loro test, e `ApplyBack` non aveva **nessun chiamante fuori dai test**: la
+	// regola era scritta, ordinata e verificata, e il tasto che il giocatore preme non la usava. Finche'
+	// sono rimaste due, il modulo puro poteva restare verde mentre il destro faceva un'altra cosa — ed e'
+	// esattamente cio' che era successo.
+	//
+	// ⚠️ Le quattro guardie qui sopra NON scendono dentro `ApplyBack()`, e non e' una dimenticanza: non
+	// sono livelli del Back. Una schermata bloccante, il dolly di `Alt`, una sessione non presidiata e
+	// l'Unready del countdown decidono **se** il tasto ha una funzione di gioco adesso; `ResolveBack`
+	// decide **quale**, e solo dopo che le prime hanno lasciato passare.
+	//
+	// ⚠️ **La telemetria di ritmo la registra `ApplyBack()`**, e con una distinzione che qui non c'era:
+	// solo il livello `Waypoint` conta come `ERTPlanningInput::Undo`. Chiudere un inspector o uscire da un
+	// targeting sono attivita', non ripensamenti — registrarli come `Undo` gonfierebbe la metrica che
+	// `PIE-V01-MATCHLEN` legge. Ripeterla qui la conterebbe due volte.
+	const ERTPointerBackStep Step = ApplyBack();
+
+	// ⚠️ **La riga nomina il LIVELLO, e non solo l'effetto.** Prima diceva «Annullato waypoint: X -> N» e
+	// non poteva dire altro, perche' altro non sapeva fare; adesso il destro ha sette esiti possibili e un
+	// log che ne stampasse uno solo renderebbe illeggibile in PIE proprio la distinzione che questa
+	// correzione introduce. I waypoint restano nella riga: sono l'informazione che la seduta M6-8 leggeva.
+	const ARTUnit* Unit = GetSelectedUnit();
+	UE_LOG(LogRT, Log, TEXT("[RT] Back: livello %s (%s -> %d waypoint)"),
+		*UEnum::GetValueAsString(Step),
+		Unit ? *Unit->GetName() : TEXT("nessuna selezione"),
+		Unit ? Unit->PlannedWaypoints.Num() : 0);
 }
 
 void ARTPlayerController::RebuildPlannedPath()
@@ -2391,6 +2412,11 @@ void ARTPlayerController::OnLockInForTest()
 void ARTPlayerController::OnTogglePrepWindowPauseForTest()
 {
 	OnTogglePrepWindowPause(FInputActionValue());
+}
+
+void ARTPlayerController::OnUndoWaypointForTest()
+{
+	OnUndoWaypoint(FInputActionValue());
 }
 
 bool ARTPlayerController::IsPlanningInputInert() const
