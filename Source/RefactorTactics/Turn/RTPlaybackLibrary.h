@@ -9,6 +9,50 @@
 #include "RTPlaybackLibrary.generated.h"
 
 /**
+ * Il confine su cui un predicato di pausa **una tantum** deve fermare il playback (`#2855`).
+ *
+ * 🔑 **Un predicato, non una modalita'.** Si arma, il playback scorre, si consuma alla prima occasione
+ * utile e torna a `None`. Fra `Step` — un micro-step — e la fine del turno non c'era nulla: seguire un
+ * movimento cella per cella per arrivare al colpo che interessa e' il modo lento di fare la cosa
+ * sbagliata.
+ *
+ * ⛔ **Guarda solo AVANTI.** Nessun `Previous Phase`, nessun `Previous Action`, nessun rewind: quelli
+ * sono seek su una traccia, e li possiede `URTReplaySeekLibrary`.
+ *
+ * ⚠️ **Non e' simmetria, ed e' il confine con [D-355].** Quella voce lascia aperto se il playback delle
+ * fasi *senza* boundary debba fermarsi, e dichiara che non deve acquisirne una ragione **per simmetria**.
+ * Questo predicato non e' simmetria: e' una ragione dichiarata — un comando developer che qualcuno preme —
+ * e vale solo con i controlli abilitati. Un playback che si fermasse **senza** un predicato armato sarebbe
+ * la simmetria che [D-355] vieta.
+ */
+UENUM(BlueprintType)
+enum class ERTPlaybackStopAt : uint8
+{
+	/** Nessun predicato armato: il playback scorre fino alla fine del turno. */
+	None,
+
+	/**
+	 * Alla prossima fase riprodotta.
+	 *
+	 * ⚠️ **`PlaybackPhases` e' `Prep -> Dash -> Blast -> Move` e non contiene mai `Cleanup`**: un
+	 * `Next Phase` dall'ultima fase riprodotta non porta al `Cleanup`, porta alla **fine del turno**. Va
+	 * saputo, o chi lo usa lo scoprira' da un salto che sembra un bug.
+	 */
+	NextPhase,
+
+	/**
+	 * Al prossimo **atto**: il primo colpo con un `ActionId` diverso da quello in corso (`#2857`), oppure
+	 * il prossimo confine di fase se arriva prima.
+	 *
+	 * 🔑 **La fase conta come confine d'atto, e non e' una scorciatoia.** Il tempo del playback scorre per
+	 * fase, e l'unica sequenza che esso srotola un elemento per volta sono i colpi del `Blast`
+	 * (`AttacksToShow`). Un `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il
+	 * confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
+	 */
+	NextAction
+};
+
+/**
  * Di che cosa e' fatto il tempo di UNA fase del playback: due termini, e la ragione per cui sono due.
  *
  * 🔑 **Il budget di presentazione puo' comprimere `Slack` e non puo' toccare `Shown`.** E' la decisione

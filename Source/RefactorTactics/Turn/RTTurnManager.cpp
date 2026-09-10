@@ -7798,6 +7798,11 @@ void ARTTurnManager::SetPlaybackControlsEnabled(bool bEnabled)
 		// arrivarci e' proprio disabilitare i controlli in una sessione in pausa.
 		bPlaybackPaused = false;
 		PlaybackStepTargetElapsed = -1.f;
+		// `#2855`: e con essi cade il predicato armato. Un `Next Phase` che sopravvivesse alla revoca dei
+		// controlli fermerebbe il playback in una sessione che non ha piu' il comando per riprenderlo — la
+		// stessa partita bloccata da un flag che le due righe qui sopra esistono per evitare.
+		PlaybackStopAt = ERTPlaybackStopAt::None;
+		PlaybackStopFromAction = NAME_None;
 	}
 }
 
@@ -7849,6 +7854,40 @@ void ARTTurnManager::StepMicroStep()
 	// Il confine in SECONDI, calcolato ora: il tick ci arriva senza sapere quanti frame servono.
 	PlaybackStepTargetElapsed = AlphaTarget * Durata;
 	bPlaybackPaused = false; // si riparte, ma solo fino al confine
+}
+
+void ARTTurnManager::RequestPlaybackStopAt(ERTPlaybackStopAt Boundary)
+{
+	if (!bPlaybackControlsEnabled)
+	{
+		return; // fail-closed, come `#1879`: vedi `bPlaybackControlsEnabled`
+	}
+
+	PlaybackStopAt = Boundary;
+
+	if (Boundary == ERTPlaybackStopAt::None)
+	{
+		PlaybackStopFromAction = NAME_None;
+		return;
+	}
+
+	// 🔑 **L'atto in corso si congela ADESSO**, ed e' il termine di paragone del confine. L'ultimo colpo
+	// mostrato e' `AttacksShown - 1`: `AttacksShown` conta quelli gia' rivelati, quindi indicizza il
+	// PROSSIMO. Se non ne e' ancora uscito nessuno resta `NAME_None`, cioe' «nessun atto in corso» — e il
+	// primo che passa e' gia' un confine, la stessa semantica che `NextActionBoundary` da' a un indice
+	// negativo.
+	PlaybackStopFromAction = PlaybackAttacks.IsValidIndex(AttacksShown - 1)
+		? PlaybackAttacks[AttacksShown - 1].ActionId
+		: NAME_None;
+
+	// 🔑 **Si riparte, ma solo fino al confine — la stessa forma di `StepMicroStep`.** E' lo stesso gesto a
+	// una granularita' diversa: *«portami al prossimo X e fermati li'»*. Chi lo preme lo preme quasi sempre
+	// **da fermo**, e un predicato che si limitasse ad armarsi chiederebbe un `Resume` per fare qualcosa —
+	// due comandi per un'intenzione sola, e un `Next Phase` che a schermo non fa niente.
+	//
+	// ⚠️ Uno `Step` in volo viene abbandonato: il comando piu' recente vince, come in `PausePlayback`.
+	bPlaybackPaused = false;
+	PlaybackStepTargetElapsed = -1.f;
 }
 
 void ARTTurnManager::TickPlayback(float DeltaSeconds)
@@ -8007,6 +8046,33 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			}
 			OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
 			++AttacksShown;
+
+			// `#2855`: il confine di AZIONE dentro il `Blast`, che e' l'unica sequenza che il playback
+			// srotola un elemento per volta.
+			//
+			// 🔑 **Si ferma DOPO aver mostrato il colpo, non prima.** `Next Action` vuol dire *«portami al
+			// prossimo atto»*: fermarsi un istante prima lo lascerebbe fuori dallo schermo, cioe' porterebbe
+			// dove l'atto sta per cominciare invece che dove comincia.
+			//
+			// ⚠️ **La regola e' quella di `NextActionBoundary`, non una seconda**: `ActionId` non-`None` e
+			// diverso da quello congelato all'armamento. Un colpo senza azione dietro non e' un confine, e
+			// piu' colpi dello stesso intento — un'area su tre bersagli — sono UN atto.
+			//
+			// 🔴 **`return` e non `break`, e la differenza e' un difetto vero.** Dopo questo ciclo il tick
+			// prosegue con `PlaybackPhaseElapsed >= PhaseDur`, che finalizza la fase e passa alla
+			// successiva: uscendo solo dal `while`, un colpo che cade nell'ultimo tick della fase avrebbe
+			// messo in pausa e poi sarebbe avanzato lo stesso, e la fermata sarebbe durata zero. Uscire dal
+			// tick lascia la fase dov'e'; la finalizzazione la fara' il primo tick dopo la ripresa, che
+			// trova `PlaybackPhaseElapsed` ancora oltre la durata.
+			if (PlaybackStopAt == ERTPlaybackStopAt::NextAction
+				&& !Atk.ActionId.IsNone() && Atk.ActionId != PlaybackStopFromAction)
+			{
+				PlaybackStopAt = ERTPlaybackStopAt::None;
+				PlaybackStopFromAction = NAME_None;
+				bPlaybackPaused = true;
+				PlaybackStepTargetElapsed = -1.f;
+				return; // i colpi che questo tick avrebbe ancora rivelato restano per la ripresa
+			}
 		}
 	}
 
@@ -8104,6 +8170,29 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			return;
 		}
 		EnterPlaybackPhase();
+
+		// `#2855`: il predicato armato consuma QUESTO confine.
+		//
+		// 🔑 **Dopo `EnterPlaybackPhase` e non prima**, ed e' il criterio d'accettazione alla lettera:
+		// fermandosi qui `GetPlaybackPhaseName()` nomina gia' la fase NUOVA, che e' cio' che chi ha chiesto
+		// *«portami alla prossima fase»* si aspetta di leggere. Fermarsi una riga sopra lo lascerebbe in
+		// quella vecchia, a guardare un'immagine che dice il contrario del comando che ha premuto.
+		//
+		// 🔑 **Vale anche per `NextAction`, e non e' un ripiego.** Il tempo del playback scorre per fase, e
+		// un cambio di fase e' sempre anche un cambio d'atto: la fase `Move` contiene il solo `Action.Move`,
+		// e nessun atto attraversa due fasi. Un `Next Action` armato durante il `Move` non ha colpi da
+		// aspettare — il suo prossimo atto E' la fase seguente.
+		//
+		// ⛔ **Senza un predicato armato non si ferma niente**: e' la riga che tiene questo comando dalla
+		// parte giusta di [D-355], che vieta a una fase di acquisire una ragione di fermarsi *per
+		// simmetria*.
+		if (PlaybackStopAt != ERTPlaybackStopAt::None)
+		{
+			PlaybackStopAt = ERTPlaybackStopAt::None;
+			PlaybackStopFromAction = NAME_None;
+			bPlaybackPaused = true;
+			PlaybackStepTargetElapsed = -1.f;
+		}
 	}
 }
 
@@ -8125,6 +8214,18 @@ void ARTTurnManager::FinishPlayback()
 
 	bIsResolving = false;
 	SetActorTickEnabled(false);
+
+	// `#2855`: **il predicato non sopravvive al turno che l'ha visto.** Armato durante l'ULTIMA fase
+	// riprodotta, `Next Phase` non trova un confine da consumare — `PlaybackPhases` finisce — e arrivare
+	// qui e' il suo esito legittimo. Ma lasciarlo armato fermerebbe il playback del turno SEGUENTE al suo
+	// primo cambio di fase, senza che nessuno l'abbia chiesto: un predicato armato e mai soddisfatto blocca
+	// l'osservazione senza dirlo, ed e' il rischio che `#2855` registra e chiude proprio qui.
+	//
+	// ⚠️ **Qui e non in `BeginPlayback`**, che ricomincia anche a META' turno (`bPreserveClock`, [D-355])
+	// quando una finestra di reazione si e' chiusa: disarmare li' butterebbe un `Next Phase` chiesto prima
+	// della finestra e mai ancora servito.
+	PlaybackStopAt = ERTPlaybackStopAt::None;
+	PlaybackStopFromAction = NAME_None;
 
 	// Snap di sicurezza alle posizioni finali (la cella logica e' gia' quella finale).
 	for (const FRTMoveAnim& A : MoveAnims)
