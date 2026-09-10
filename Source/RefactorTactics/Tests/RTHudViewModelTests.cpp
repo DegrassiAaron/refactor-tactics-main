@@ -76,14 +76,14 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
 	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Phase"), Phase)
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
 		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Aevik, Phase, Branth, Ivrin };
+	const TArray<ARTUnit*> All = { Aevik, Muiren, Branth, Ivrin };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);

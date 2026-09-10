@@ -620,11 +620,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMoveAndDashBudgetsAreIndependentTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 {
-	// Phase e' la coppia che dimostra da sola perche' i budget sono DUE: Move 2, Dash 3.
+	// Muiren e' la coppia che dimostra da sola perche' i budget sono DUE: Move 2, Dash 3.
 	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	if (!Phase)
+	if (!Muiren)
 	{
-		AddError(TEXT("il catalogo non ha prodotto Phase"));
+		AddError(TEXT("il catalogo non ha prodotto Muiren"));
 		return false;
 	}
 	const FRTPivotBudget Budget(Muiren->MoveEndPivotMaxSteps, Muiren->DashEndPivotMaxSteps);
@@ -635,8 +635,8 @@ bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 	const int32 DashNum =
 		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW, Budget).Num();
 
-	TestEqual(TEXT("Move di Phase (2) -> cinque direzioni"), MoveNum, 5);
-	TestEqual(TEXT("Dash di Phase (3) -> sei direzioni"), DashNum, 6);
+	TestEqual(TEXT("Move di Muiren (2) -> cinque direzioni"), MoveNum, 5);
+	TestEqual(TEXT("Dash di Muiren (3) -> sei direzioni"), DashNum, 6);
 	TestTrue(TEXT("i due budget dello STESSO eroe danno insiemi diversi"), MoveNum != DashNum);
 
 	// La mappa stile -> famiglia, esplicita: e' cio' che l'ADR presupponeva senza scriverlo.

@@ -32,13 +32,13 @@ namespace
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseMatchesCatalogTest,
-	"RefactorTactics.Heroes.Muiren.MatchesCatalog",
+	"RefactorTactics.Heroes.Phase.MatchesCatalog",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 {
 	// Numeri della tabella §2 del catalogo eroi v0.1.
 	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { return false; }
+	if (!TestNotNull(TEXT("Muiren costruita"), Muiren)) { return false; }
 
 	TestEqual(TEXT("HeroId"), Muiren->HeroId, FName(TEXT("Hero.Muiren")));
 	TestEqual(TEXT("salute"), Muiren->MaxHealth, 95);
@@ -61,7 +61,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	// FluidTrail TORNA a essere uno scatto (#1006), e il commento precedente prevedeva questo giro: diceva
 	// «se un giorno tornasse un Dash, deve cadere qualcosa». E' caduto, ed e' stato sostituito qui.
 	//
-	// Il perche' non e' di mobilita': viene da #995. Phase e' **abilitata** a Water, non padrona — grado
+	// Il perche' non e' di mobilita': viene da #995. Muiren e' **abilitata** a Water, non padrona — grado
 	// `Access`, cioe' UNA sola capability elementale — e il catalogo ne dichiarava tre: `PressureJet`
 	// (Apply Wet), `CircularTide` (Apply Wet) e questa (Generate della superficie). Resta `PressureJet`.
 	// D-046 aveva cablato questa su `Action.CreateWater` per dare un owner all'acqua; l'owner ora e'
@@ -107,10 +107,10 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("MistVeil: priorita' dal core — ordina DENTRO la fase in cui e' andata a vivere"),
 		MistVeil->Def.Priority, IgniteDef.Priority);
 
-	// Phase e' un roster valido di per se'.
-	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Phase });
+	// Muiren e' un roster valido di per se'.
+	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes({ Muiren });
 	for (const FString& Err : Errors) { AddError(Err); }
-	TestEqual(TEXT("Phase e' strutturalmente valida"), Errors.Num(), 0);
+	TestEqual(TEXT("Muiren e' strutturalmente valida"), Errors.Num(), 0);
 	return true;
 }
 
@@ -122,7 +122,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
  * e' cambiato insieme al contratto perche' un test che si chiama `...WetsEnemies` e non verifica piu'
  * nessun `Wet` e' peggio di un test cancellato: resta verde e racconta un kit che non esiste.
  *
- * Il perche' viene da #995 via #1006: Phase e' **abilitata** a Water, non padrona — grado `Access`, una
+ * Il perche' viene da #995 via #1006: Muiren e' **abilitata** a Water, non padrona — grado `Access`, una
  * sola capability elementale — e il catalogo ne dichiarava tre. Resta `PressureJet`.
  *
  * ⚠️ **Costo di gameplay dichiarato**: quel `Wet` ad area era il preparatore della combo con Aevik
@@ -130,7 +130,7 @@ bool FRTPhaseMatchesCatalogTest::RunTest(const FString&)
  * di `PressureJet`, che colpisce meno bersagli. E' il prezzo accettato con l'opzione C di #1006.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseTideHealsWithoutWettingTest,
-	"RefactorTactics.Heroes.Muiren.TideHealsWithoutWetting",
+	"RefactorTactics.Heroes.Phase.TideHealsWithoutWetting",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 {
@@ -165,7 +165,7 @@ bool FRTPhaseTideHealsWithoutWettingTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPhaseVariantTradeoffTest,
-	"RefactorTactics.Heroes.Muiren.VariantTradeoff",
+	"RefactorTactics.Heroes.Phase.VariantTradeoff",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPhaseVariantTradeoffTest::RunTest(const FString&)
 {

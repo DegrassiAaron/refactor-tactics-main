@@ -493,7 +493,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	//
 	// 🔵 Il `Wet` ai nemici e' USCITO dalla dichiarazione. Viene da #995: Muiren e' **abilitata** a Water,
 	// non padrona — grado `Access`, cioe' UNA sola capability elementale — e il catalogo ne dichiarava
-	// tre. Resta `PressureJet`. Copertura: `RefactorTactics.Heroes.Muiren.TideHealsWithoutWetting`, che
+	// tre. Resta `PressureJet`. Copertura: `RefactorTactics.Heroes.Phase.TideHealsWithoutWetting`, che
 	// sostituisce `...TideHealsAlliesWetsEnemies` — il nome e' cambiato col contratto, perche' un test
 	// che dice `WetsEnemies` e non verifica piu' nessun `Wet` resta verde e racconta un kit che non c'e'.
 	//

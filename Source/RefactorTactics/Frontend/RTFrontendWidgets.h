@@ -142,7 +142,7 @@ class REFACTORTACTICS_API URTLoadingScreenWidgetBase : public UUserWidget
 public:
 	/** La fase corrente. `Idle` finche' l'allestimento non comincia. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Frontend")
-	ERTLoadPhase GetPhase() const { return Muiren; }
+	ERTLoadPhase GetPhase() const { return Phase; }
 
 	/**
 	 * La riga da mostrare per la fase corrente. Vuota su `Idle` e su `Ready`: in nessuno dei due casi c'e'

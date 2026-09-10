@@ -109,7 +109,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 	for (const ARTUnit* Unit : Units) { InPlay.Add(Unit->HeroId); }
 	TestEqual(TEXT("quattro eroi distinti"), InPlay.Num(), 4);
 	TestTrue(TEXT("c'e' Aevik"), InPlay.Contains(FName(TEXT("Hero.Aevik"))));
-	TestTrue(TEXT("c'e' Phase"), InPlay.Contains(FName(TEXT("Hero.Muiren"))));
+	TestTrue(TEXT("c'e' Muiren"), InPlay.Contains(FName(TEXT("Hero.Muiren"))));
 	TestTrue(TEXT("c'e' Branth"), InPlay.Contains(FName(TEXT("Hero.Branth"))));
 	TestTrue(TEXT("c'e' Ivrin"), InPlay.Contains(FName(TEXT("Hero.Ivrin"))));
 
@@ -135,7 +135,7 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 		// v0.1 non costruisce), e diventerebbe falso in silenzio il giorno in cui E36 o E13 li sbloccano.
 		const int32 PezziCheConcedono = URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId).Num() > 0 ? 2 : 0;
 		// ⚠️ **Anche il numero di azioni d'eroe si DERIVA**, per la stessa ragione del `+2` qui sopra: era
-		// un `5` scritto a mano, ed e' diventato falso il giorno in cui [D-226] ha dato a Phase e Ivrin
+		// un `5` scritto a mano, ed e' diventato falso il giorno in cui [D-226] ha dato a Muiren e Ivrin
 		// una sesta abilita'. Un conteggio esatto in un test che misura una SOMMA non aggiunge niente —
 		// quanti kit abbia un eroe lo pinna `Heroes.RosterIsBalanced`, che esiste per quello.
 		TestEqual(FString::Printf(TEXT("%s: azioni dell'eroe piu' generiche piu' il loadout"), *Who),
@@ -145,15 +145,15 @@ bool FRTHeroSpawnFromDataTest::RunTest(const FString&)
 			Unit->GetAbility(0)->Def.ActionId, Hero->Actions[0]->Def.ActionId);
 	}
 
-	// Formazione di default: Aevik+Phase (giocatore) contro Branth+Ivrin (bot).
+	// Formazione di default: Aevik+Muiren (giocatore) contro Branth+Ivrin (bot).
 	ARTUnit* Aevik = FindByHeroId(Units, TEXT("Hero.Aevik"));
 	ARTUnit* Muiren = FindByHeroId(Units, TEXT("Hero.Muiren"));
 	ARTUnit* Branth = FindByHeroId(Units, TEXT("Hero.Branth"));
 	ARTUnit* Ivrin = FindByHeroId(Units, TEXT("Hero.Ivrin"));
-	if (Aevik && Phase && Branth && Ivrin)
+	if (Aevik && Muiren && Branth && Ivrin)
 	{
 		TestEqual(TEXT("Aevik e' del giocatore"), Aevik->TeamId, 0);
-		TestEqual(TEXT("Phase anche: la combo Wet e' giocabile"), Muiren->TeamId, 0);
+		TestEqual(TEXT("Muiren anche: la combo Wet e' giocabile"), Muiren->TeamId, 0);
 		TestEqual(TEXT("Branth e' del bot"), Branth->TeamId, 1);
 		TestEqual(TEXT("Ivrin anche"), Ivrin->TeamId, 1);
 		TestFalse(TEXT("il giocatore comanda i suoi"), Aevik->bIsBotControlled);
@@ -503,7 +503,7 @@ bool FRTHeroUnitClassesDefaultTest::RunTest(const FString&)
 	// qui, e finche' non si muove il disallineamento e' la verita' del progetto, non un errore da correggere.
 	const TMap<FName, FString> Attesi = {
 		{ FName(TEXT("Hero.Aevik")), TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget") },
-		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase")   },
+		{ FName(TEXT("Hero.Muiren")),  TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Phase")   },
 		{ FName(TEXT("Hero.Branth")), TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor") },
 		{ FName(TEXT("Hero.Ivrin")), TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith") },
 	};

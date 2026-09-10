@@ -114,11 +114,11 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	UWorld* World = MakeMarksWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
 
-	// Stessa geometria di `Combat.FriendlyFire`: Phase adiacente al bersaglio, dentro l'area r1.
+	// Stessa geometria di `Combat.FriendlyFire`: Muiren adiacente al bersaglio, dentro l'area r1.
 	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
 	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Phase"), Phase) || !TestNotNull(TEXT("Branth"), Branth))
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren) || !TestNotNull(TEXT("Branth"), Branth))
 	{
 		DestroyMarksWorld(World);
 		return false;
@@ -130,7 +130,7 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	Aevik->PlannedAttackTarget = Branth;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Aevik, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	// ⛔ **Le celle si copiano PRIMA di distruggere il mondo.** Le asserzioni qui sotto leggevano
 	// `Branth->Cell` e `Muiren->Cell` **dopo** `DestroyMarksWorld`, cioe' da Actor di un mondo gia'
@@ -147,11 +147,11 @@ bool FRTHUDAllyMarkFromPlanTest::RunTest(const FString&)
 	// «bersaglio singolo».
 	TestTrue(FString::Printf(TEXT("l'area e' accesa (celle: %d)"), Hit.Num()), Hit.Num() > 1);
 	TestTrue(TEXT("il bersaglio e' nella zona"), Hit.Contains(CellaBranth));
-	TestTrue(TEXT("anche la cella di Phase e' nella zona"), Hit.Contains(CellaPhase));
+	TestTrue(TEXT("anche la cella di Muiren e' nella zona"), Hit.Contains(CellaPhase));
 
 	// Il punto del test: l'ALLEATA e' segnalata come fuoco amico.
 	TestEqual(TEXT("una sola cella di fuoco amico"), Ally.Num(), 1);
-	TestTrue(TEXT("ed e' quella di Phase"), Ally.Contains(CellaPhase));
+	TestTrue(TEXT("ed e' quella di Muiren"), Ally.Contains(CellaPhase));
 	// Chi lancia non si segnala mai da solo.
 	TestFalse(TEXT("Aevik non e' marcato"), Ally.Contains(CellaGadget));
 	return true;
@@ -211,7 +211,7 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	ARTUnit* Aevik    = SpawnMarksUnit(World, TEXT("Hero.Aevik"),    0, FRTCellId(-1, 0, 0));
 	ARTUnit* Muiren    = SpawnMarksUnit(World, TEXT("Hero.Muiren"),    0, FRTCellId( 1, 0, 0));
 	ARTUnit* Branth = SpawnMarksUnit(World, TEXT("Hero.Branth"), 1, FRTCellId( 2, 0, 0));
-	if (!Aevik || !Phase || !Branth) { DestroyMarksWorld(World); return false; }
+	if (!Aevik || !Muiren || !Branth) { DestroyMarksWorld(World); return false; }
 
 	const int32 Overload = MarksAbilityIndex(Aevik, TEXT("Hero.Aevik.Overload"));
 	if (!TestTrue(TEXT("Aevik ha Overload"), Overload != INDEX_NONE)) { DestroyMarksWorld(World); return false; }
@@ -226,7 +226,7 @@ bool FRTHUDNoFriendlyFireNoMarkTest::RunTest(const FString&)
 	Ability->Def.bFriendlyFire = false;
 
 	TSet<FRTCellId> Hit, Ally;
-	ARTHUD::ComputePlannedHitMarks({ Aevik, Phase, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
+	ARTHUD::ComputePlannedHitMarks({ Aevik, Muiren, Branth }, /*PlayerTeamId=*/ 0, Hit, Ally);
 
 	Ability->Def.bFriendlyFire = bSaved;
 	DestroyMarksWorld(World);

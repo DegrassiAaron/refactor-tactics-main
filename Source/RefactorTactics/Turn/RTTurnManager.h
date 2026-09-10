@@ -583,7 +583,7 @@ public:
 	}
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
-	ERTMatchPhase GetPhase() const { return Muiren; }
+	ERTMatchPhase GetPhase() const { return Phase; }
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Turn")
 	int32 GetTurnNumber() const { return TurnNumber; }

@@ -413,7 +413,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroReactionsAreDeclaredTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 {
-	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Phase.FlowReaction`: movimento
+	// Cinque reazioni a catalogo: TRE cablate qui, UNA rinviata a E14 (`Muiren.FlowReaction`: movimento
 	// reattivo, ADR-0004). Il rinvio e' dichiarato *come dato* — slot `None`, nessun trigger — non lasciato
 	// all'interpretazione di chi legge: una reazione a meta' con lo slot giusto verrebbe raccolta dal pass e
 	// non farebbe nulla, in silenzio.
@@ -475,7 +475,7 @@ bool FRTHeroReactionsAreDeclaredTest::RunTest(const FString&)
 		&& Intercept->Def.PredictionBoundary == ERTPredictionBoundary::MovementEntry);
 
 	// Il roster resta strutturalmente valido: il cablaggio non ha cambiato il numero di azioni ne' le varianti.
-	const TArray<const URTHeroData*> Roster = { Aevik, Phase, Branth, Ivrin };
+	const TArray<const URTHeroData*> Roster = { Aevik, Muiren, Branth, Ivrin };
 	const TArray<FString> Errors = URTHeroCatalogLibrary::ValidateHeroes(Roster);
 	for (const FString& Err : Errors) { AddError(Err); }
 	TestEqual(TEXT("roster valido dopo il cablaggio"), Errors.Num(), 0);

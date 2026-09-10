@@ -48,8 +48,8 @@ namespace RTLegacyIdentity
 		// verifica la scomparsa. Qui non esistono ancora — se qualcuno li scrivesse, il tetto va alzato
 		// **con loro**, non prima.
 		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),   0,  0 },
-		// **Il tetto di `Hero.Phase` sale da 35 a 36, e NON e' questa fetta a consumarlo.** Il commit
-		// `18806f68` (#2824) ha aggiunto `RTHeroData.h`, che nomina `Hero.Phase.TideGuard` per spiegare
+		// **Il tetto di `Hero.Muiren` sale da 35 a 36, e NON e' questa fetta a consumarlo.** Il commit
+		// `18806f68` (#2824) ha aggiunto `RTHeroData.h`, che nomina `Hero.Muiren.TideGuard` per spiegare
 		// perche' due eroi portano sei azioni invece di cinque. E' una menzione LEGITTIMA di un'identita'
 		// ancora viva — `Phase` non e' rinominata — ma il tetto non e' stato alzato nella stessa PR, e da
 		// allora questo test e' ROSSO su `main`: misurato 36 file contro un tetto di 35. Qui sale con la
@@ -65,7 +65,7 @@ namespace RTLegacyIdentity
 		// basso del reale e' un rosso che non nomina un difetto*. Corretto misurando di nuovo, dopo aver
 		// migrato gli esempi di `RTUnitLabelTests`.
 		//
-		// ⛔ Il tetto misura `Hero.Phase`, cioe' l'IDENTITA'. NON lo consumano — e non devono —
+		// ⛔ Il tetto misura `Hero.Muiren`, cioe' l'IDENTITA'. NON lo consumano — e non devono —
 		// `ERTMatchPhase`, `ERTResolutionPhase`, `Hero.Ivrin.PhaseGuard`, `Visual.Core.PhaseOrder`,
 		// le icone `RT_UI_Icon_Phase_*` e i diciotto test di Playback/Replay che nominano la fase.
 		// Su 937 usi di `ERT*Phase` in `Source/`, questa riga ne conta UNO: il token e' lo stesso, il

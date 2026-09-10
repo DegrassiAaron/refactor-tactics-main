@@ -169,7 +169,7 @@ bool FRTBotAllyIsNotCommandableTest::RunTest(const FString&)
 }
 
 /**
- * L'ALLESTIMENTO. `BotAllyCount = 1` su `[Aevik, Phase]` da' Phase al bot e lascia Aevik al giocatore.
+ * L'ALLESTIMENTO. `BotAllyCount = 1` su `[Aevik, Muiren]` da' Muiren al bot e lascia Aevik al giocatore.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotAllyBootstrapTest,
 	"RefactorTactics.Bot.Ally.BootstrapPutsLastTeammateUnderBot",
@@ -192,27 +192,27 @@ bool FRTBotAllyBootstrapTest::RunTest(const FString&)
 	ARTUnit* Muiren = FindBotAllyHero(Units, TEXT("Hero.Muiren"));
 	ARTUnit* Branth = FindBotAllyHero(Units, TEXT("Hero.Branth"));
 	ARTUnit* Ivrin = FindBotAllyHero(Units, TEXT("Hero.Ivrin"));
-	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Phase"), Phase)
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
 		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyBotAllyWorld(World);
 		return false;
 	}
 
-	// LA SQUADRA NON CAMBIA: Phase resta un'alleata, e questo e' il punto della feature. Se cambiasse
+	// LA SQUADRA NON CAMBIA: Muiren resta un'alleata, e questo e' il punto della feature. Se cambiasse
 	// squadra sarebbe un'avversaria in piu', cioe' un'altra partita.
-	TestEqual(TEXT("Phase resta nella squadra del giocatore"), Muiren->TeamId, 0);
+	TestEqual(TEXT("Muiren resta nella squadra del giocatore"), Muiren->TeamId, 0);
 	TestEqual(TEXT("Aevik anche"), Aevik->TeamId, 0);
 
 	// ...ma chi la pianifica si': e' la prima volta che due unita' della stessa squadra si dividono qui.
 	TestFalse(TEXT("Aevik resta al giocatore"), Aevik->bIsBotControlled);
-	TestTrue(TEXT("Phase passa al bot"), Muiren->bIsBotControlled);
+	TestTrue(TEXT("Muiren passa al bot"), Muiren->bIsBotControlled);
 	TestTrue(TEXT("gli avversari restano al bot"), Branth->bIsBotControlled && Ivrin->bIsBotControlled);
 
 	// E il gate lo vede: senza questa riga il test proverebbe l'assegnazione e non il suo effetto.
 	TestTrue(TEXT("Aevik e' comandabile"),
 		URTCombatLibrary::CanPlayerControlUnit(Aevik->TeamId, 0, Aevik->bIsBotControlled));
-	TestFalse(TEXT("Phase no"),
+	TestFalse(TEXT("Muiren no"),
 		URTCombatLibrary::CanPlayerControlUnit(Muiren->TeamId, 0, Muiren->bIsBotControlled));
 
 	DestroyBotAllyWorld(World);
@@ -330,7 +330,7 @@ bool FRTBotAllyDeterministicIntentTest::RunTest(const FString&)
 
 		const TArray<ARTUnit*> Units = BootstrapWithBotAllies(World, /*BotAllyCount=*/ 1);
 		ARTUnit* Muiren = FindBotAllyHero(Units, TEXT("Hero.Muiren"));
-		if (!Phase || !Muiren->bIsBotControlled) { return World; }
+		if (!Muiren || !Muiren->bIsBotControlled) { return World; }
 
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM) { return World; }

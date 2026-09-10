@@ -762,7 +762,7 @@ bool FRTBraceBlocksPushTest::RunTest(const FString&)
  * `Hold Ground` applicata, e il giocatore perdeva una scelta che il gioco gli doveva.
  *
  * 🔑 **Tre cose in un test solo**, perche' separarle darebbe tre test che passano su un turno rotto:
- * la finestra si apre, la fase si FERMA — `Phase` resta `Blast`, [D-356] — e alla chiusura il turno
+ * la finestra si apre, la fase si FERMA — `Muiren` resta `Blast`, [D-356] — e alla chiusura il turno
  * arriva in fondo con la spinta applicata **una volta sola**.
  *
  * ⚠️ **`Action.Push` spinge di 1 e il profilo base non basta**: con `Hold Ground` sola la cardinalita' e'
@@ -817,7 +817,7 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 	// 🔑 **(1) La finestra si e' aperta**, e con essa la scelta che prima non arrivava.
 	TestEqual(TEXT("si e' aperta UNA finestra del Brace"), Aperte, 1);
 
-	// 🔑 **(2) La fase si e' fermata.** `IsResolutionSuspended` copre il Blast, e `Phase` resta la fase
+	// 🔑 **(2) La fase si e' fermata.** `IsResolutionSuspended` copre il Blast, e `Muiren` resta la fase
 	// che si e' fermata invece di tornare a `Planning` ([D-356]): senza, `Move` si risolverebbe su un
 	// Blast applicato a meta'.
 	TestTrue(TEXT("la resolution e' sospesa"), TM->IsResolutionSuspended());
@@ -1564,14 +1564,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceProfileDecidesInPlayTest,
 bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 {
 	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
+	if (!TestNotNull(TEXT("Muiren, che porta `Profile.Sidestep`"), Muiren)) { return false; }
 	if (!TestTrue(TEXT("e il profilo e' quello atteso"),
 		Muiren->ReactionProfileId == FName(TEXT("Profile.Sidestep")))) { return false; }
 
 	const FRTCellId Start(1, 0, 0);
 
 	int32 PromptsSidestep = 0; bool bRanSidestep = false;
-	const FRTCellId ConScarto = RunBracePushTurn(Phase, TEXT("SIDESTEP"), PromptsSidestep, bRanSidestep);
+	const FRTCellId ConScarto = RunBracePushTurn(Muiren, TEXT("SIDESTEP"), PromptsSidestep, bRanSidestep);
 	// ⚠️ `bRan` PRIMA della cella, e non e' pedanteria: con la fixture rotta il valore di ritorno e' `(0,0,0)`,
 	// che soddisfa `!= Start` — l'asserzione sotto sarebbe verde senza che nessuno si sia mosso.
 	TestTrue(TEXT("il turno con `SIDESTEP` e' girato davvero"), bRanSidestep);
@@ -1579,13 +1579,13 @@ bool FRTBraceProfileDecidesInPlayTest::RunTest(const FString&)
 	TestEqual(TEXT("e la finestra e' stata chiesta una volta"), PromptsSidestep, 1);
 
 	int32 PromptsHold = 0; bool bRanHold = false;
-	const FRTCellId ConHold = RunBracePushTurn(Phase, TEXT("Hold Ground"), PromptsHold, bRanHold);
+	const FRTCellId ConHold = RunBracePushTurn(Muiren, TEXT("Hold Ground"), PromptsHold, bRanHold);
 	TestTrue(TEXT("il turno con `Hold Ground` e' girato davvero"), bRanHold);
 	TestTrue(TEXT("con `Hold Ground` resta dov'era"), ConHold == Start);
 	TestEqual(TEXT("e la finestra e' stata chiesta anche qui"), PromptsHold, 1);
 
 	int32 PromptsNessuno = 0; bool bRanNessuno = false;
-	const FRTCellId SenzaDecisore = RunBracePushTurn(Phase, nullptr, PromptsNessuno, bRanNessuno);
+	const FRTCellId SenzaDecisore = RunBracePushTurn(Muiren, nullptr, PromptsNessuno, bRanNessuno);
 	TestTrue(TEXT("il turno senza decisore e' girato davvero"), bRanNessuno);
 	TestTrue(TEXT("senza decisore la scelta sicura tiene la posizione"), SenzaDecisore == Start);
 	TestEqual(TEXT("e nessuno e' stato interrogato"), PromptsNessuno, 0);
@@ -1755,13 +1755,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceDecisionRoundTripsThroughTraceTest,
 bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 {
 	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	if (!TestNotNull(TEXT("Phase, che porta `Profile.Sidestep`"), Phase)) { return false; }
+	if (!TestNotNull(TEXT("Muiren, che porta `Profile.Sidestep`"), Muiren)) { return false; }
 	const FRTCellId Start(1, 0, 0);
 
 	// --- 1. La partita: si sceglie `SIDESTEP`, e la traccia se ne accorge --------------------------------
 	TArray<FRTTurnLogEntry> Traccia;
 	bool bRan = false;
-	const FRTCellId Originale = RunBraceTurn(Phase, TEXT("SIDESTEP"), /*Trace*/ nullptr, /*OutPrompts*/ nullptr, &Traccia, bRan);
+	const FRTCellId Originale = RunBraceTurn(Muiren, TEXT("SIDESTEP"), /*Trace*/ nullptr, /*OutPrompts*/ nullptr, &Traccia, bRan);
 
 	if (!TestTrue(TEXT("il turno originale e' girato"), bRan)) { return false; }
 	TestTrue(TEXT("con `SIDESTEP` il difensore lascia la cella"), Originale != Start);
@@ -1785,7 +1785,7 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	TArray<FRTTurnLogEntry> TracciaReplay;
 	bool bRanReplay = false;
 	TArray<FString> Divergenze;
-	const FRTCellId Replay = RunBraceTurn(Phase, /*Response*/ nullptr, &Traccia, nullptr, &TracciaReplay,
+	const FRTCellId Replay = RunBraceTurn(Muiren, /*Response*/ nullptr, &Traccia, nullptr, &TracciaReplay,
 		bRanReplay, &Divergenze);
 
 	if (!TestTrue(TEXT("il replay e' girato"), bRanReplay)) { return false; }
@@ -1810,7 +1810,7 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	TArray<FRTTurnLogEntry> Ignorata;
 	bool bRanSenza = false;
 	TArray<FString> DivergenzeSenza;
-	const FRTCellId SenzaTokenCell = RunBraceTurn(Phase, nullptr, &SenzaToken, nullptr, &Ignorata, bRanSenza,
+	const FRTCellId SenzaTokenCell = RunBraceTurn(Muiren, nullptr, &SenzaToken, nullptr, &Ignorata, bRanSenza,
 		&DivergenzeSenza);
 
 	TestTrue(TEXT("il turno senza token e' girato"), bRanSenza);
@@ -1839,7 +1839,7 @@ bool FRTBraceDecisionRoundTripsThroughTraceTest::RunTest(const FString&)
 	TArray<FRTTurnLogEntry> LogDelReplay;
 	TArray<FString> DivergenzeLacuna;
 	bool bRanLacuna = false;
-	RunBraceTurn(Phase, nullptr, &TracciaEstranea, nullptr, &LogDelReplay, bRanLacuna, &DivergenzeLacuna);
+	RunBraceTurn(Muiren, nullptr, &TracciaEstranea, nullptr, &LogDelReplay, bRanLacuna, &DivergenzeLacuna);
 
 	TestTrue(TEXT("il turno con traccia estranea e' girato"), bRanLacuna);
 	TestTrue(TEXT("il Verifier dichiara la finestra non coperta"), DivergenzeLacuna.Num() > 0);
@@ -1873,7 +1873,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceBotAnswerIsLegalTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTBraceBotAnswerIsLegalTest::RunTest(const FString&)
 {
-	// La finestra che il `Brace` di Phase apre davvero, costruita dal catalogo e non a mano: se domani il
+	// La finestra che il `Brace` di Muiren apre davvero, costruita dal catalogo e non a mano: se domani il
 	// vocabolario cambiasse, questo test cambierebbe con lui invece di pinnare una stringa morta.
 	FRTReactionOpportunity Opp;
 	Opp.AllowedResponses = URTCatalogLibrary::BraceExecutableResponses(TEXT("Profile.Sidestep"));

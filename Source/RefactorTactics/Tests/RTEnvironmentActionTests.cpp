@@ -290,7 +290,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionMistVeilTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionMistVeilTest::RunTest(const FString&)
 {
-	// Issue #353. `Phase.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
+	// Issue #353. `Muiren.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
 	// otto superfici che nessuna azione sapeva creare. Il test non si ferma alla superficie — verifica anche
 	// il CAP di targeting, perche' e' quello l'effetto tattico, e una superficie dipinta che non cambia nulla
 	// sarebbe lo stesso difetto di prima con un colore in piu'.
@@ -311,7 +311,7 @@ bool FRTActionMistVeilTest::RunTest(const FString&)
 	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
 	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
 	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { DestroyEnvWorld(World); return false; }
+	if (!TestNotNull(TEXT("Muiren costruita"), Muiren)) { DestroyEnvWorld(World); return false; }
 	URTActionData* MistVeil = Muiren->Actions.IsValidIndex(3) ? Muiren->Actions[3] : nullptr;
 	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
@@ -1450,8 +1450,8 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
 	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
-	URTActionData* MistVeil = (Phase && Muiren->Actions.IsValidIndex(3)) ? Muiren->Actions[3] : nullptr;
-	if (!TestNotNull(TEXT("MistVeil nel kit di Phase"), MistVeil)) { DestroyEnvWorld(World); return false; }
+	URTActionData* MistVeil = (Muiren && Muiren->Actions.IsValidIndex(3)) ? Muiren->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit di Muiren"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
 	Caster->PlannedAbilityIndex = 3;
@@ -1822,7 +1822,7 @@ bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
 	if (TestEqual(TEXT("una voce di Terrain.Fire nel TurnLog"), Trovate, 1))
 	{
 		// ⚠️ **`Move` e non `Cleanup`**: e' il danno dell'INGRESSO, e si distingue da quello del `Burning`
-		// per fase **e** per `ActionId`. Se la fase fosse letta dal membro `Phase` sarebbe sbagliata — il
+		// per fase **e** per `ActionId`. Se la fase fosse letta dal membro `Muiren` sarebbe sbagliata — il
 		// ciclo delle fasi esce su `Planning` e la Cleanup gira dopo.
 		TestEqual(TEXT("nella fase del movimento"), Voce.Phase, ERTMatchPhase::Move);
 		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
