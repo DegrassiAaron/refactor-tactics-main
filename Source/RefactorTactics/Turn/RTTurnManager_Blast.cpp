@@ -348,7 +348,7 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 
 void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
 {
-	// ➕ **CHI HAI COLPITO, LO HAI TROVATO** (`#2890`, [D-379]).
+	// ➕ **CHI HAI COLPITO, LO HAI TROVATO** (`#2890`, [D-380]).
 	//
 	// 🔴 **E' l'estremo che rende usabile il tiro indiretto.** [D-378] ha reso il requisito della linea un
 	// dato dell'azione e ha tenuto il **targeting** cieco: `ClassifyHexTargeting` non guarda chi sta sulla

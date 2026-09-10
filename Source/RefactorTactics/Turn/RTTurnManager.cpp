@@ -5683,7 +5683,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	ApplyInterrupts(Ctx);
 	ResolveInterceptions(Ctx);
 
-	// ➕ **Chi e' stato colpito diventa noto a chi lo ha colpito** (`#2890`, [D-379]).
+	// ➕ **Chi e' stato colpito diventa noto a chi lo ha colpito** (`#2890`, [D-380]).
 	//
 	// 🔑 **QUI e non dopo `CollectHexAttacks`**, ed e' la ragione per cui la chiamata sta su questa riga:
 	// le due funzioni sopra riscrivono il piano — la prima toglie i colpi che non devono partire, la

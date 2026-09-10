@@ -798,7 +798,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	AddAbility(Branth, MakeHeroReactionFromCoreAction(TEXT("Hero.Branth.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
-	// Indice 5 — MortarShot. ➕ **LA PRIMA AZIONE DEL ROSTER CHE COLPISCE SENZA VEDERE** (`#2890`, [D-379]).
+	// Indice 5 — MortarShot. ➕ **LA PRIMA AZIONE DEL ROSTER CHE COLPISCE SENZA VEDERE** (`#2890`, [D-380]).
 	//
 	// 🔑 **E' la sesta, ed e' esattamente il posto che il validatore teneva libero.** `ValidateHeroes`
 	// ammette *«1 attacco base + 4 abilita' fondamentali, piu' al massimo UNA generica del catalogo core
@@ -1066,7 +1066,7 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
 	Action->bSelfTarget = Core.bSelfTarget;
 
-	// ➕ **E la licenza della linea di tiro, per la STESSA ragione di `bSelfTarget`** (`#2890`, [D-379]).
+	// ➕ **E la licenza della linea di tiro, per la STESSA ragione di `bSelfTarget`** (`#2890`, [D-380]).
 	//
 	// 🔑 E' una proprieta' dell'AZIONE, non un numero di bilanciamento dell'eroe: la sede della decisione
 	// e' il catalogo core, e un kit che la derivasse a mano sarebbe la seconda riga da tenere allineata.

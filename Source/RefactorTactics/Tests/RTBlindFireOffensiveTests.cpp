@@ -1,10 +1,10 @@
 // Blind Fire offensivo — la prima azione che fa DANNO senza linea di tiro, e la regola che le da' un
-// feedback (`#2890`, [D-379]).
+// feedback (`#2890`, [D-380]).
 //
 // `#2870` aveva reso il requisito della linea un dato dell'azione e lo aveva dichiarato su `MistVeil`, che
 // non colpisce. Questa suite misura le due cose che quella issue aveva rinviato: che un'azione OFFENSIVA
 // possa dichiarare il tiro indiretto, e che un colpo al buio a segno produca un feedback — senza che il
-// canale si allarghi oltre cio' che [D-379] ha deciso di aprire.
+// canale si allarghi oltre cio' che [D-380] ha deciso di aprire.
 
 #include "Misc/AutomationTest.h"
 #include "Ability/RTActionData.h"
@@ -370,7 +370,7 @@ bool FRTRevealExpiresTest::RunTest(const FString&)
  * **Test 6 — CANARY** — la rivelazione concede un CONTATTO, non la VISTA.
  *
  * 🔴 **E' il confine fra questa decisione e quella che l'ha preceduta, e la sua misura.** [D-378] ha
- * chiuso il tiro indiretto come rilevatore nel planning; [D-379] apre un canale nella risoluzione. Il
+ * chiuso il tiro indiretto come rilevatore nel planning; [D-380] apre un canale nella risoluzione. Il
  * modo in cui il secondo puo' riaprire il primo non e' teorico: basterebbe che `RevealByHit`, per
  * comodita', aggiungesse la cella colpita a `VisibleCells` o a `ExploredCells`. Sarebbe **una riga**, e
  * regalerebbe la geometria di un posto in cui nessuno ha guardato — cioe' esattamente cio' che [D-225]

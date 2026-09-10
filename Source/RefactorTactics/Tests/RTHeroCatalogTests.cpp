@@ -603,7 +603,7 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
 	// Anti-vacuita': se il ciclo non avesse esaminato nulla, i controlli sopra sarebbero verdi su zero.
 	// **23** da `#2890`: cinque per Aevik, sei per Phase e Ivrin che portano lo scudo proattivo ([D-226]),
-	// e sei per Branth, che da [D-379] porta anche `MortarShot` — la generica del core nel kit.
+	// e sei per Branth, che da [D-380] porta anche `MortarShot` — la generica del core nel kit.
 	// VENTITRE da `#2890`: la ventitreesima e' `Hero.Branth.MortarShot`, il tiro indiretto.
 	TestEqual(TEXT("il roster v0.1 dichiara ventitre abilita'"), Checked, 23);
 	return true;
@@ -614,7 +614,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedActionsDeclareOriginTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 {
-	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, dieci da [D-226], **undici** da [D-379].
+	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, dieci da [D-226], **undici** da [D-380].
 	// Chi aggiunge un eroe che deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la
 	// relazione verificabile, invece di lasciarla vivere nel solo sorgente dove nessun test la vede.
 	//
@@ -633,7 +633,7 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
 		{ TEXT("Hero.Muiren.TideGuard"),           TEXT("Action.Shield")       },
 		{ TEXT("Hero.Ivrin.PhaseGuard"),         TEXT("Action.Shield")       },
-		// `#2890` / [D-379]: la generica del catalogo core che Branth porta nel kit — il tiro indiretto.
+		// `#2890` / [D-380]: la generica del catalogo core che Branth porta nel kit — il tiro indiretto.
 		{ TEXT("Hero.Branth.MortarShot"),         TEXT("Action.Mortar")       },
 	};
 
@@ -664,7 +664,7 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 				//
 				// Undici derivate + otto proprie + quattro base = **23**: cinque abilita' per Aevik,
 				// **sei** per Phase e Ivrin, che da [D-226] portano lo scudo proattivo, e **sei** per
-				// Branth, che da [D-379] porta `MortarShot`.
+				// Branth, che da [D-380] porta `MortarShot`.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
 			}

@@ -316,7 +316,7 @@ public:
 
 	/**
 	 * Chi hai COLPITO, lo hai trovato: i bersagli andati a segno diventano contatti per la squadra di chi
-	 * ha sparato (`#2890`, [D-379]).
+	 * ha sparato (`#2890`, [D-380]).
 	 *
 	 * ## 🔴 E' un canale, ed e' aperto di proposito
 	 *

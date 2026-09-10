@@ -1313,7 +1313,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// `Mortar` — la PRIMA azione che fa DANNO senza aver bisogno della linea di tiro (`#2890`, [D-379]).
+	// `Mortar` — la PRIMA azione che fa DANNO senza aver bisogno della linea di tiro (`#2890`, [D-380]).
 	//
 	// 🔑 **Perche' esiste, e perche' non bastava `MistVeil`.** [D-378] ha reso il requisito della linea un
 	// dato dell'azione, ma l'ha dichiarato su un'azione che non colpisce: `bCountsAsAttack` falso, nessun
@@ -1338,7 +1338,7 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (centro)*/ 4, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
-	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-379]
+	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-380]
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola

@@ -752,7 +752,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")
 	/**
-	 * Chi ha trovato chi: le vittime che ogni squadra attaccante ha COLPITO (`#2890`, [D-379]).
+	 * Chi ha trovato chi: le vittime che ogni squadra attaccante ha COLPITO (`#2890`, [D-380]).
 	 *
 	 * 🔴 **E' pura perche' la sua logica non e' ovvia, e quella del chiamante non si puo' provare.** Prima
 	 * di questa funzione le tre regole qui sotto vivevano dentro `ARTTurnManager`, dove nessun test le

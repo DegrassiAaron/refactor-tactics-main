@@ -1365,7 +1365,7 @@ protected:
 	void RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx);
 
 	/**
-	 * Chi e' stato COLPITO diventa un contatto per la squadra che ha sparato (`#2890`, [D-379]).
+	 * Chi e' stato COLPITO diventa un contatto per la squadra che ha sparato (`#2890`, [D-380]).
 	 *
 	 * 🔑 **Chiamata a piano DEFINITIVO**, cioe' dopo `ApplyInterrupts` e `ResolveInterceptions`: quelle
 	 * due riscrivono `Plan.Hits`, e rivelare prima significherebbe che un colpo **interrotto** — mai
