@@ -44,6 +44,16 @@ namespace
 	// Il bottone di UNA risposta. Entra col proprio asset, come il fratello qui sopra.
 	const TCHAR* const FastDecisionOptionPath =
 		TEXT("/Game/RT/UI/Match/WBP_RT_FastDecisionOption.WBP_RT_FastDecisionOption_C");
+	// 🔴 **Il feed e la sua riga entrano qui, e in ritardo** (`#2697`): l'asset esiste dal 2026-09-09 e
+	// fino al 2026-09-10 era l'unico `WBP_RT_*` di Match che nessun gate di questo file guardava — proprio
+	// quello che #2697 stava montando. La regola scritta sopra per `FastDecision` — *il path entra QUI
+	// quando l'asset c'e'* — valeva gia' e non era stata applicata.
+	const TCHAR* const EventLogPath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLog.WBP_RT_EventLog_C");
+	// ⚠️ **`WBP_RT_EventLine` NON entra in `Expected[]`**, e non e' una svista: deriva da `UUserWidget`
+	// nudo — misurato leggendo il pacchetto, che non nomina nessuna classe di `RefactorTactics`. E' un
+	// contenitore passivo che il feed riempie, quindi il gate delle classi base non ha niente da chiedergli;
+	// il caricamento e il divieto di texture, si'.
+	const TCHAR* const EventLinePath = TEXT("/Game/RT/UI/Match/WBP_RT_EventLine.WBP_RT_EventLine_C");
 
 	/**
 	 * Vero se la proprieta' e' — o contiene — una `UTexture2D`.
@@ -205,13 +215,16 @@ bool FRTMatchWidgetsLoadTest::RunTest(const FString&)
 {
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
-		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath
+		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath,
+		EventLogPath, EventLinePath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
 		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
-		TEXT("FastDecisionOption")
+		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine")
 	};
+	static_assert(UE_ARRAY_COUNT(Paths) == UE_ARRAY_COUNT(Labels),
+		"path ed etichette vanno a coppie: un'etichetta in meno sposta i nomi di tutti i successivi");
 
 	for (int32 i = 0; i < UE_ARRAY_COUNT(Paths); ++i)
 	{
@@ -339,6 +352,7 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		{ FastDecisionPath, TEXT("FastDecision"),      URTFastDecisionWidget::StaticClass() },
 		{ FastDecisionOptionPath, TEXT("FastDecisionOption"),
 		                                               URTFastDecisionOptionWidget::StaticClass() },
+		{ EventLogPath,     TEXT("EventLog"),          URTPlayerEventLogWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -395,13 +409,16 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 {
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
-		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath
+		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath,
+		EventLogPath, EventLinePath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
 		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
-		TEXT("FastDecisionOption")
+		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine")
 	};
+	static_assert(UE_ARRAY_COUNT(Paths) == UE_ARRAY_COUNT(Labels),
+		"path ed etichette vanno a coppie: un'etichetta in meno sposta i nomi di tutti i successivi");
 
 	int32 Caricate = 0;
 	int32 Ispezionate = 0;
@@ -660,14 +677,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelsLeaveTheCenterFreeTest,
 
 bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
 {
-	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(TacticalHudPath);
-	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), Class))
-	{
-		return false;
-	}
-
-	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
-	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD ha un albero di widget"), Tree))
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
 	{
 		return false;
 	}
@@ -791,12 +803,20 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
  *
  * `URTPlayerEventLogWidget::GetFeed()` e' filtrato per osservatore, coperto da
  * `EventFeedShowsOnlyWhatTheObserverMaySee`, e `WBP_RT_EventLog` ha radice, contenitore e grafo (#2784).
- * Tutto verde, e a schermo **niente**: `WBP_RT_TacticalHUD` non lo referenzia.
+ * Tutto verde, e a schermo **niente**: `WBP_RT_TacticalHUD` non lo referenziava.
  *
  * 🔑 **Il test chiede la PRESENZA nell'albero, non la zona.** Dove vada e' materia di
  * `guida-screen-hud-umg.md` §3 — che oggi dice `RIGHT` — e congelarla qui darebbe a un test di montaggio
  * un'opinione sul layout. La zona finisce nel report, cosi' il log dice **dove** e' atterrato senza che il
  * criterio dipenda dalla risposta.
+ *
+ * ⚠️ **ESATTAMENTE UNO, non «almeno uno»** — corretto in code review. Il contatore c'era gia' e il test
+ * guardava solo lo zero: due feed montati sarebbero due cronache sovrapposte a schermo, e sarebbero
+ * passati.
+ *
+ * ⚠️ **Limite dichiarato, e vale per tutti e tre i test di questo blocco**: `UWidgetTree::ForEachWidget`
+ * cammina l'albero di QUESTO Blueprint e si ferma sui `UUserWidget` innestati, che hanno un albero loro.
+ * Un segnaposto dentro `WBP_RT_ActionDock` o `WBP_RT_SelectedUnitPanel` non lo vede nessuno di qui.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMountsTheFeedTest,
 	"RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn",
@@ -804,14 +824,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMountsTheFeedTest,
 
 bool FRTHudMountsTheFeedTest::RunTest(const FString&)
 {
-	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(TacticalHudPath);
-	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), Class))
-	{
-		return false;
-	}
-
-	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
-	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD ha un albero di widget"), Tree))
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
 	{
 		return false;
 	}
@@ -856,12 +871,95 @@ bool FRTHudMountsTheFeedTest::RunTest(const FString&)
 
 	if (Trovati == 0)
 	{
-		AddError(FString::Printf(
+		// ⚠️ `FString(TEXT(...))` e non `Printf`: il messaggio non ha segnaposto, e un `Printf` senza
+		// argomenti diventa una trappola il giorno in cui qualcuno ci mette dentro un `%` letterale —
+		// proprio nel ramo il cui mestiere e' spiegare cosa fare. Trovato in code review.
+		AddError(FString(
 			TEXT("`WBP_RT_TacticalHUD` non monta nessun `URTPlayerEventLogWidget`: il feed che spiega ")
 			TEXT("perche' un'azione dichiarata non e' avvenuta esiste (`WBP_RT_EventLog`, con grafo da ")
 			TEXT("#2784) e non e' nell'albero di nessuno, quindi in partita non disegna. ")
 			TEXT("Monta un'istanza di `/Game/RT/UI/Match/WBP_RT_EventLog` nella zona che ")
 			TEXT("`docs/technical/runbooks/guida-screen-hud-umg.md` §3 le assegna (#2697, #1936 fetta F).")));
+	}
+	else if (Trovati > 1)
+	{
+		AddError(FString::Printf(
+			TEXT("`WBP_RT_TacticalHUD` monta %d `URTPlayerEventLogWidget`: il feed e' una cronaca sola, e ")
+			TEXT("due istanze si sovrappongono a schermo leggendo lo stesso `GetTurnLog()`. ")
+			TEXT("Tienine una."),
+			Trovati));
+	}
+
+	return true;
+}
+
+/**
+ * ⛔ **Ogni zona ospita l'inquilino che `guida-screen-hud-umg.md` §3 le assegna, verificato per CLASSE.**
+ *
+ * 🔴 **Esiste per un buco trovato in code review**, e il buco era nella pretesa dei due test fratelli:
+ * dicevano di presidiare la regressione di #2760, e presidiavano **un solo sintomo** — un nodo che porta
+ * il nome di un widget senza esserne un'istanza. Un risalvataggio stantio che lasciasse
+ * `ZoneBottomContainer` semplicemente **vuoto** — nessun nodo, invece di un nodo omonimo — li avrebbe
+ * lasciati entrambi verdi, col dock di nuovo impopolabile.
+ *
+ * 🔑 **La domanda e' «c'e' un'istanza di questa classe?», non «c'e' un nodo con questo nome».** Il nome e'
+ * una convenzione e si puo' cambiare senza rompere niente; la classe e' il contratto — se manca, il
+ * binding non ha nessuno da chiamare.
+ *
+ * ⚠️ **`WBP_RT_ActionSlot`, `WBP_RT_UnitCard` e `WBP_RT_FastDecision` NON sono qui**, e non e' una
+ * dimenticanza: nascono a runtime dentro i rispettivi contenitori (`SetAction`, `AddChildToVerticalBox`),
+ * quindi nell'archetipo dell'albero non ci sono e chiederli renderebbe il test rosso su un asset corretto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMountsEveryZoneOwnerTest,
+	"RefactorTactics.ScreenHud.EveryZoneOwnerIsMountedByClass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	struct FInquilino
+	{
+		UClass* Classe;
+		const TCHAR* Zona;   // solo per il messaggio: il criterio non guarda dove sia atterrato
+		const TCHAR* Issue;
+	};
+
+	const FInquilino Attesi[] = {
+		{ URTTurnHeaderWidget::StaticClass(),        TEXT("TOP"),    TEXT("#613") },
+		{ URTTeamRosterWidget::StaticClass(),        TEXT("LEFT"),   TEXT("#613, #2744") },
+		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("RIGHT"),  TEXT("#2697, #1936 fetta F") },
+		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("BOTTOM"), TEXT("#613, #2760") },
+		{ URTActionDockWidget::StaticClass(),        TEXT("BOTTOM"), TEXT("#220, #2760") },
+	};
+
+	for (const FInquilino& Atteso : Attesi)
+	{
+		int32 Conta = 0;
+		Tree->ForEachWidget([&Conta, &Atteso](UWidget* Widget)
+		{
+			if (Widget && Widget->IsA(Atteso.Classe))
+			{
+				++Conta;
+			}
+		});
+
+		AddInfo(FString::Printf(TEXT("  %-34s zona %-6s -> %d istanza/e"),
+			*Atteso.Classe->GetName(), Atteso.Zona, Conta));
+
+		if (Conta == 0)
+		{
+			AddError(FString::Printf(
+				TEXT("`WBP_RT_TacticalHUD` non monta nessun `%s`, che `guida-screen-hud-umg.md` §3 assegna ")
+				TEXT("alla zona `%s` (%s). Un binding senza istanza non ha nessuno da chiamare: il pannello ")
+				TEXT("non si popola per costruzione, non per una selezione mancante."),
+				*Atteso.Classe->GetName(), Atteso.Zona, Atteso.Issue));
+		}
 	}
 
 	return true;
@@ -880,8 +978,14 @@ bool FRTHudMountsTheFeedTest::RunTest(const FString&)
  * `WBP_RT_ActionDockBottom`; `cc5ca967` ha risalvato l'asset com'era prima, e i due segnaposto sono
  * tornati. Fra i due eventi la suite e' rimasta verde: **nessun test guardava l'albero**.
  *
- * ⚠️ **La regola e' sul PREFISSO, non su un elenco di nomi.** Un elenco invecchia al primo widget nuovo ed
- * e' un promemoria; il prefisso vale anche per chi verra' dopo, ed e' un oracolo.
+ * ⚠️ **Questo test da solo NON presidia #2760**, e la prima stesura lo lasciava credere: vede un nodo
+ * *omonimo*, non un nodo *mancante*. La meta' che manca la copre `EveryZoneOwnerIsMountedByClass`, ed e'
+ * quella che risponde alla domanda «il dock c'e'?».
+ *
+ * ⚠️ **Nessun requisito di NOMENCLATURA, ed e' una correzione da code review.** La prima stesura pretendeva
+ * almeno un nodo col prefisso `WBP_` — cioe' rendeva obbligatoria una convenzione che nessun documento
+ * impone, e sarebbe diventata rossa su un albero corretto i cui nodi si chiamassero `EventLogRight`.
+ * L'anti-vacuita' guarda che l'albero abbia dei widget, non come si chiamino.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoNodeWearsAWidgetNameTest,
 	"RefactorTactics.ScreenHud.NoNodeWearsTheNameOfAWidgetWithoutBeingOne",
@@ -889,23 +993,26 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoNodeWearsAWidgetNameTest,
 
 bool FRTNoNodeWearsAWidgetNameTest::RunTest(const FString&)
 {
-	UWidgetBlueprintGeneratedClass* Class = RTWidgetAssetTest::LoadWidgetClass(TacticalHudPath);
-	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD si carica"), Class))
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
 	{
 		return false;
 	}
 
-	const UWidgetTree* Tree = Class->GetWidgetTreeArchetype();
-	if (!TestNotNull(TEXT("WBP_RT_TacticalHUD ha un albero di widget"), Tree))
-	{
-		return false;
-	}
-
+	int32 Nodi = 0;
 	int32 Esaminati = 0;
 
-	Tree->ForEachWidget([this, &Esaminati](UWidget* Widget)
+	Tree->ForEachWidget([this, &Nodi, &Esaminati](UWidget* Widget)
 	{
-		if (!Widget || !Widget->GetName().StartsWith(TEXT("WBP_")))
+		if (!Widget)
+		{
+			return;
+		}
+
+		++Nodi;
+
+		if (!Widget->GetName().StartsWith(TEXT("WBP_")))
 		{
 			return;
 		}
@@ -920,17 +1027,18 @@ bool FRTNoNodeWearsAWidgetNameTest::RunTest(const FString&)
 		AddError(FString::Printf(
 			TEXT("il nodo `%s` porta il nome di un widget-blueprint ma e' un `%s`: un contenitore nudo che ")
 			TEXT("ne indossa il nome non ha i suoi binding e non si popola per costruzione, e a chi legge ")
-			TEXT("l'albero sembra montato. Sostituiscilo con un'istanza della classe che il nome promette ")
-			TEXT("(#2760, regredito con `cc5ca967`)."),
+			TEXT("l'albero sembra montato. Sostituiscilo con un'istanza — quale, lo dice ")
+			TEXT("`guida-screen-hud-umg.md` §3, e lo verifica `EveryZoneOwnerIsMountedByClass` (#2760, ")
+			TEXT("regredito con `cc5ca967`)."),
 			*Widget->GetName(),
 			*Widget->GetClass()->GetName()));
 	});
 
-	// Zero nodi esaminati significherebbe che il criterio non ha misurato niente — e un gate che misura zero
-	// e' verde per assenza, non per correttezza.
-	TestTrue(
-		*FString::Printf(TEXT("l'albero contiene nodi con prefisso `WBP_` da esaminare (ne ha %d)"), Esaminati),
-		Esaminati > 0);
+	AddInfo(FString::Printf(TEXT("=== %d nodi nell'albero, %d col prefisso `WBP_` ==="), Nodi, Esaminati));
+
+	// ⚠️ L'anti-vacuita' guarda i NODI, non i nomi: un albero vuoto e' il caso da escludere, un albero con
+	// altre convenzioni di nome no. Zero nodi col prefisso e' un esito legittimo, e il report lo dice.
+	TestTrue(*FString::Printf(TEXT("l'albero contiene dei nodi da esaminare (ne ha %d)"), Nodi), Nodi > 0);
 
 	return true;
 }

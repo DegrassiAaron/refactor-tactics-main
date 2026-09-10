@@ -156,9 +156,23 @@ compilata; una lettura che le scambi è un **re-layout**, non una correzione, e 
 >
 > ⚠️ **L'errore non è nato qui: è stato ereditato e rafforzato.** La versione precedente diceva `Right:
 > (spazio futuro)` — stantia, e mai misurata. Riscriverla come *«vuota, e non è un difetto»* ha trasformato
-> una riga vecchia in un'affermazione, senza aggiungere la misura che l'avrebbe smentita. ⛔ Un `.uasset` è
-> compresso e `strings` non lo legge: **questo tree si verifica solo dall'Editor**, e finché non lo si apre
-> la fonte è il registro, non l'intuizione.
+> una riga vecchia in un'affermazione, senza aggiungere la misura che l'avrebbe smentita.
+>
+> 🔴 **⌫ E qui stava la frase che ha reso possibile l'errore successivo**: *«Un `.uasset` è compresso e
+> `strings` non lo legge: questo tree si verifica **solo dall'Editor**»*. È **falsa**, e il 2026-09-10 la sua
+> falsità è costata tre dichiarazioni sbagliate (§2, §3 e il messaggio di `cc5ca967`). La **tabella dei nomi**
+> di un pacchetto Unreal **non è compressa**: è una sequenza di `FString` con prefisso di lunghezza, e
+> contiene il nome di ogni widget, classe e import dell'albero. Si legge dal blob di Git, senza aprire nulla:
+>
+> ```
+> python tools/uasset/names.py Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset --filtro WBP_RT_ --unici
+> python tools/uasset/names.py --rev cc5ca967 Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset --filtro EventLog
+> #                                                                                        -> 0 nomi
+> ```
+>
+> ⛔ **Non sostituisce l'Editor per il *layout*** — dice chi c'è nell'albero, non com'è disposto. Ma la
+> domanda *«questo widget è montato?»* la risponde in un secondo, ed è la domanda su cui l'Editor è stato
+> creduto tre volte a torto.
 
 🔴 **Il centro libero è un requisito, non un gusto.** Il layer §4.2 (`ARTHUD::DrawHUD`) continua a disegnare
 path, waypoint, AoE, fuoco amico e le barre ancorate **sopra la mappa**: un pannello al centro glieli
