@@ -1505,6 +1505,11 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		// azzera qui sopravvive alla mappa che descrive.
 		if (CellShape != nullptr) { StructuralBodies->SetStaticMesh(CellShape); }
 		StructuralBodies->ClearInstances();
+		// La mappatura cella->istanza e lo stato del velo si azzerano con gli indici a cui si riferiscono,
+		// come per le altre otto: sopravvivergli significherebbe velare istanze diventate altre celle.
+		BodyCells.Reset();
+		BodyBaseScale.Reset();
+		LastBodyVeilState.Reset();
 	}
 	if (bDoEdges && EdgeFeatures)
 	{
@@ -1905,9 +1910,21 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			const float AltezzaZ = Body.Height() / (2.f * RTCellPrismRadius);
 			const FVector Posizione(Centro.X, Centro.Y,
 				ActorOrigin.Z + static_cast<double>(Body.BottomZ + Body.TopZ) * 0.5);
-			StructuralBodies->AddInstance(
-				FTransform(FRotator::ZeroRotator, Posizione, FVector(PlanarScale, PlanarScale, AltezzaZ)),
-				/*bWorldSpace=*/ true);
+			const FTransform CorpoXf(FRotator::ZeroRotator, Posizione,
+				FVector(PlanarScale, PlanarScale, AltezzaZ));
+			StructuralBodies->AddInstance(CorpoXf, /*bWorldSpace=*/ true);
+
+			// 🔴 **La registrazione che mancava, ed e' cio' che rendeva questa famiglia INVELABILE** (`#2731`).
+			// Ogni altra famiglia registra `<Famiglia>Cells` / `<Famiglia>BaseScale` al proprio sito di
+			// `AddInstance`; questo non registrava niente, quindi `ApplyKnowledgeVeil` non aveva indici da
+			// velare e il volume solido restava visibile **sotto celle mai osservate** — cioe' esattamente
+			// la geometria che [D-225] dichiara di non disegnare.
+			//
+			// ⚠️ **Una cella produce al piu' un corpo**, a differenza dei `Blockers` che possono passare due
+			// volte (lastra e colonna): la mappatura resta comunque **per istanza** e non per cella, perche'
+			// e' l'indice dell'istanza che il velo usa.
+			BodyCells.Add(Body.Cell);
+			BodyBaseScale.Add(CorpoXf.GetScale3D());
 		}
 	}
 
@@ -2485,6 +2502,14 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
 		nullptr, Visible, Explored, SenzaColore);
 
+	// 🔴 **La NONA famiglia, che fino a `#2731` non passava di qui** — e non per una riga dimenticata: il
+	// suo sito di `AddInstance` non registrava nessuna cella, quindi non c'era niente da velare. Su una
+	// mappa con `BodyFill != None` il volume solido restava visibile sotto celle mai osservate.
+	//
+	// Come le altre tre senza canale colore: il velo NASCONDE e basta.
+	VeilInstances(StructuralBodies, BodyCells, BodyBaseScale, LastBodyVeilState,
+		nullptr, Visible, Explored, SenzaColore);
+
 	// 🔑 **Se il velo ha aperto una transizione, il `Tick` si accende.** E' l'unico punto in cui puo'
 	// nascerne una: i target li decide questa funzione, e nessun altro li muove.
 	//
@@ -2676,4 +2701,7 @@ void ARTHexMapActor::GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) c
 	Count(Relief, ReliefCells.Num());
 	Count(Blockers, BlockerCells.Num());
 	Count(EdgeFeatures, EdgeFeatureCells.Num());
+	// ➕ Il corpo strutturale entra qui da `#2731`: prima non compariva in **nessun** oracolo, ed e' il
+	// motivo per cui il leak e' vissuto fino a una code review invece che fino al primo test rosso.
+	Count(StructuralBodies, BodyCells.Num());
 }
