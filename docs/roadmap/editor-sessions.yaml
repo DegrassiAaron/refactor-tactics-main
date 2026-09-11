@@ -2888,7 +2888,14 @@ sessions:
       # del dock — stessa partita, stessa unita' selezionata — e perche' aprire una seduta nuova per una
       # voce sola sprecherebbe un'esclusiva sul motore (`CLAUDE.md` §10).
       - PIE-V01-INSPECT
-    issues: [151, 705, 613, 2826]
+      # I due difetti del dock trovati cablando il click (#2989), stesso allestimento delle sorelle.
+      # SEPARATI di proposito: `DOCKTICK` e' un innesco sbagliato — il dock si ricostruisce su
+      # `EventTick` — mentre `DOCKREBUILD` e' distruzione di istanze sotto il puntatore, e vive anche
+      # senza il Tick: basta un cambio di lunghezza del kit. Fonderli farebbe sparire il secondo il
+      # giorno in cui qualcuno sposta il primo su un evento.
+      - PIE-V01-DOCKTICK
+      - PIE-V01-DOCKREBUILD
+    issues: [151, 705, 613, 2826, 2989]
     done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
