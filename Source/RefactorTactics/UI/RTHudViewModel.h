@@ -687,6 +687,24 @@ public:
 	 * ne ha tolto: leggere `GetTurnLog()` da li' pretenderebbe il tipo completo, e la dipendenza tornerebbe
 	 * dentro il file dei widget. Qui l'header c'e' gia', e l'estrazione costa una riga.
 	 */
+	/**
+	 * PERCHE' il feed e' vuoto: la domanda che un vuoto a schermo non sa rispondere da solo.
+	 *
+	 * 🔑 **Tre cause diverse producono lo stesso sintomo**, e senza questa riga si distinguono solo aprendo
+	 * l'Editor: il manager non e' stato acquisito, il TurnLog non ha ancora voci, oppure le voci ci sono ma
+	 * l'osservatore non e' autorizzato a vederle. La prima e' un difetto di cablaggio, la seconda e' lo stato
+	 * normale prima della prima risoluzione, la terza e' privacy che funziona. Chiamarle tutte «feed rotto»
+	 * e' precisamente cio' che e' successo nella seduta `U49` (`#2964`).
+	 *
+	 * ⚠️ **Descrive, non giudica**: nessuno di questi stati e' un errore per se stesso. La riga dice cosa si
+	 * osserva e lascia il verdetto a chi legge — che e' la stessa disciplina del mount report del §4.1.
+	 *
+	 * ⛔ **Va chiamata su EVENTO o da console, mai da un binding**: attraversa il TurnLog, e a ogni frame
+	 * sarebbe un costo per una diagnostica che nessuno sta leggendo.
+	 */
+	static TArray<FString> DescribeFeedState(const ARTTurnManager* TurnManager,
+		const TArray<int32>& ObserverTeamIds);
+
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 		int32 ObserverTeamId);
 

@@ -244,6 +244,12 @@ TArray<FRTPlayerEventLineView> URTPlayerEventLogWidget::GetFeed() const
 	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), ResolveObserverTeamIds());
 }
 
+TArray<FString> URTPlayerEventLogWidget::DescribeFeedState() const
+{
+	return URTHudViewModel::DescribeFeedState(GetTurnManager(), ResolveObserverTeamIds());
+}
+
+
 FRTMatchHeaderView URTTurnHeaderWidget::GetHeader() const
 {
 	// `BuildMatchHeader` gestisce gia' il manager nullo con una vista neutra: qui non serve una seconda

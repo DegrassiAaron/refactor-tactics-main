@@ -563,6 +563,63 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 	return Lines;
 }
 
+TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnManager,
+	const TArray<int32>& ObserverTeamIds)
+{
+	TArray<FString> Righe;
+
+	if (TurnManager == nullptr)
+	{
+		Righe.Add(TEXT("[RT] Feed: nessun TurnManager acquisito — il widget non ha contesto."));
+		Righe.Add(TEXT("[RT]   NativeTick lo ricerca finche' non lo trova: se questa riga persiste a partita "
+					   "avviata, l'acquisizione non e' avvenuta e il vuoto NON e' privacy."));
+		return Righe;
+	}
+
+	const TArray<FRTTurnLogEntry>& Log = TurnManager->GetTurnLog();
+	const TArray<FRTPlayerEventLineView> Filtrato = BuildPlayerEventFeed(Log, ObserverTeamIds);
+
+	FString Osservatori;
+	for (const int32 Id : ObserverTeamIds)
+	{
+		Osservatori += (Osservatori.IsEmpty() ? TEXT("") : TEXT(", ")) + FString::FromInt(Id);
+	}
+
+	Righe.Add(FString::Printf(
+		TEXT("[RT] Feed: TurnLog=%d voci, osservatori={%s}, righe dopo filtro=%d, budget=%d"),
+		Log.Num(), Osservatori.IsEmpty() ? TEXT("vuoto") : *Osservatori, Filtrato.Num(), MaxFeedLines));
+
+	// ⚠️ **Il TurnLog e' l'ULTIMO turno risolto, non la cronaca della partita**: `LockInAndResolve` lo azzera
+	// al commit e lo ripopola durante le fasi. Zero voci PRIMA della prima risoluzione e' lo stato corretto,
+	// e chiamarlo difetto manderebbe a cercare un guasto che non c'e'.
+	if (Log.Num() == 0)
+	{
+		Righe.Add(TEXT("[RT]   Il TurnLog e' vuoto: nessun turno ancora risolto, oppure e' appena stato "
+					   "azzerato dal commit. Non e' un difetto finche' una risoluzione non e' avvenuta."));
+		return Righe;
+	}
+
+	// 🔴 Il caso che questa funzione esiste per nominare: il log ha voci, e a schermo non arriva niente.
+	if (Filtrato.Num() == 0)
+	{
+		Righe.Add(TEXT("[RT]   Il log ha voci ma NESSUNA passa il filtro dell'osservatore."));
+		Righe.Add(TEXT("[RT]   Se l'insieme degli osservatori qui sopra non e' quello atteso, la causa e' "
+					   "ResolveObserverTeamIds (sessione presidiata o no), non il feed."));
+		return Righe;
+	}
+
+	// ⛔ Se si arriva qui il ViewModel PRODUCE le righe: un vuoto a schermo e' a valle, nel widget che le
+	// disegna. E' la distinzione che `#2964` ha dovuto ricostruire a mano.
+	Righe.Add(FString::Printf(
+		TEXT("[RT]   Il ViewModel produce %d righe: se a schermo non compaiono, il difetto e' nel widget."),
+		Filtrato.Num()));
+	for (int32 i = 0; i < Filtrato.Num(); ++i)
+	{
+		Righe.Add(FString::Printf(TEXT("[RT]     %d) %s"), i + 1, *Filtrato[i].Text.ToString()));
+	}
+	return Righe;
+}
+
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 	int32 ObserverTeamId)
 {
