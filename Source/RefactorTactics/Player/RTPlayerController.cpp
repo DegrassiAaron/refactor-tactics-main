@@ -224,32 +224,67 @@ namespace
 		{
 			FRTPlanPreviewInput Timeline;
 			Timeline.UnitId = UnitId;
-			Timeline.bReactionArmed = !Unit->ReactionProfileId.IsNone();
+
+			// 🔴 **La reazione e' armata da `PlannedReactionAbility`, NON da `ReactionProfileId`**, e la
+			// prima stesura leggeva il secondo. Quello e' configurazione persistente dell'eroe — sta accanto
+			// ad `Affinity` e `Weakness`, e la pianificazione non lo scrive mai — quindi sbagliava in
+			// **entrambi** i versi: un eroe con un profilo configurato risultava armato ogni turno anche senza
+			// aver pianificato niente, e chi arma sul profilo base (`NAME_None`) spariva dalla timeline. Lo
+			// slot per-turno e' quello che `ClearReactionPlan` azzera.
+			Timeline.bReactionArmed = Unit->PlannedReactionAbility != INDEX_NONE;
 			Timeline.ReactionProfileId = Unit->ReactionProfileId;
-			Timeline.bDashPlanned = Unit->PlannedDashCell != Unit->Cell;
+			if (const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility))
+			{
+				Timeline.PrepActionId = Reazione->Def.ActionId;
+			}
+
+			// 🔴 **E lo scatto si legge da `PlannedDashAbility`.** `PlannedDashCell` e' dichiarata
+			// *«valida solo se `PlannedDashAbility` e' impostata»*, si costruisce a `(0,0,0)` e nessuno la
+			// azzera — `ResolveDash` pulisce la sola abilita'. Confrontarla con la cella corrente, come faceva
+			// la prima stesura, dava uno scatto FANTASMA verso l'origine della mappa a ogni unita' che non ci
+			// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
+			Timeline.bDashPlanned = Unit->PlannedDashAbility != INDEX_NONE
+				&& !(Unit->PlannedDashCell == Unit->Cell);
 			Timeline.bDashResolves = Unit->PlannedDashApplies();
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
+			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
+			{
+				Timeline.DashActionId = Scatto->Def.ActionId;
+			}
+
 			Timeline.Blast = PreviewPlan;
 			Timeline.PlannedWaypoints = Unit->PlannedWaypoints;
+			// ⚠️ **Ogni fase riempita porta il proprio `ActionId`**, e la prima stesura riempiva il solo
+			// Blast. La entry dichiara che `NAME_None` significa «fase che il piano non riempie»: con tre fasi
+			// su quattro vuote, un consumatore non poteva distinguere le due cose.
+			Timeline.MoveActionId = TEXT("Action.Move");
 			if (Ability)
 			{
 				Timeline.BlastActionId = Ability->Def.ActionId;
 			}
 
-			// ➕ **Il motivo del rifiuto entra nell'anteprima, TRASPORTATO e non ricalcolato** (`#172`).
+			// ➕ **Il motivo del rifiuto, calcolato sul bersaglio DEL PIANO** (`#172`).
 			//
-			// ⛔ **Non si richiama `ClassifyHexTargeting` qui.** Quel percorso è privacy-critico: il rifiuto
-			// nasce dalla classificazione **più** il flag di conoscenza dell'osservatore, e una seconda copia
-			// che dimenticasse il secondo rivelerebbe la presenza di un nemico velato ([D-225]). Ciò che
-			// l'HUD già mostra è già filtrato, ed è quello che la timeline porta.
+			// ⌫ **Una prima stesura trasportava `ARTHUD::LastRefusal`, ed era sbagliato.** Quel campo e'
+			// dichiarato *«nasce da un click e muore col click seguente»*: e' legato all'ULTIMO CLICK, non al
+			// bersaglio corrente del piano. Pianificando un attacco valido su A e poi cliccando B fuori
+			// portata, ogni refresh successivo che non fosse un click — un waypoint annullato, la fine del
+			// playback — rileggeva `Range` e declassava a `Uncertain` un piano che non aveva niente che non
+			// andasse. E preso da `GetFirstPlayerController()` sarebbe stato, in split-screen, il rifiuto di
+			// un ALTRO osservatore: proprio la lettura incrociata che [D-225] vieta.
 			//
-			// ⚠️ L'HUD si raggiunge dal mondo e non da `this`: questa funzione vive in un namespace anonimo
-			// e non ha un controller — il limite già dichiarato in `RTHexPerfTests.cpp:202`.
-			if (const APlayerController* PC = World->GetFirstPlayerController())
+			// 🔑 **Si COMPONGONO le due funzioni canoniche, non se ne riscrive una.** `ClassifyHexTargeting`
+			// piu' `RefusalForObserver` e' la stessa coppia, nello stesso ordine, che usa il sito del click; il
+			// flag di conoscenza e' quello del bersaglio pianificato, letto qui e non altrove.
+			if (Ability && !Unit->bAttackTargetsCell)
 			{
-				if (const ARTHUD* Hud = Cast<ARTHUD>(PC->GetHUD()))
+				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
 				{
-					Timeline.BlastTargetRefusal = Hud->GetLastTargetRefusal();
+					const ERTHexTargetReason Motivo = URTCombatLibrary::ClassifyHexTargeting(
+						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
+						Ability->Def.LineOfSightPolicy);
+					Timeline.BlastTargetRefusal =
+						URTCombatLibrary::RefusalForObserver(Motivo, Bersaglio->IsKnownToObserver());
 				}
 			}
 

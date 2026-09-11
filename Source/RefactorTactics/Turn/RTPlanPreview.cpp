@@ -73,10 +73,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		Prep.PreviewDestination = CellaCorrenteDiFase;
 		Prep.Facing = FacingCorrenteDiFase;
 		Prep.FacingSource = ERTPreviewFacingSource::Authoritative;
-		Prep.PoseId = TEXT("Pose.Prep");
 		Prep.Certainty = ERTIntentCertainty::Confirmed;
 		Out.Phases.Add(Prep);
 	}
+
+	// ⚠️ **Lo scatto si applica solo se e' stato pianificato E risolve.** I due flag sono indipendenti
+	// nell'ingresso, e leggerne uno solo — come faceva la prima stesura nel blocco della reazione — lascia
+	// passare `bDashResolves` senza `bDashPlanned`, cioe' una cella d'arrivo che nessuna fase ha prodotto.
+	const bool bScattoEffettivo = Plan.bDashPlanned && Plan.bDashResolves;
 
 	// ── DASH ────────────────────────────────────────────────────────────────────────────────────────────
 	//
@@ -85,28 +89,48 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// pianificato e potrebbe non arrivare.
 	if (Plan.bDashPlanned)
 	{
+		// 🔴 **La rotta dello scatto la CALCOLA il resolver, e la prima stesura la inventava.**
+		// Diceva `PreviewPath = { partenza, arrivo }` — due celle, una linea retta — mentre `ResolveDash`
+		// fa `FindPathForUnit(Snapshot, i, PlannedDashCell).Path` (`RTTurnManager.cpp:5017`) e da quel
+		// percorso ricava anche il facing. Su uno scatto che deve aggirare un ostacolo il ghost disegnava una
+		// retta ATTRAVERSO l'ostacolo e dichiarava un orientamento che l'unita' non avrebbe mai avuto: lo
+		// stesso difetto che la fase Move era stata scritta per evitare, sulla fase accanto.
+		const FRTHexPathResult RottaScatto =
+			URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell);
+
 		FRTPhasePreviewEntry Dash;
 		Dash.Phase = ERTResolutionPhase::FastMovement;
 		Dash.UnitId = Plan.UnitId;
 		Dash.ActionId = Plan.DashActionId;
 		Dash.PreviewOrigin = CellaCorrenteDiFase;
-		Dash.PreviewDestination = Plan.PlannedDashCell;
-		Dash.PreviewPath = { CellaCorrenteDiFase, Plan.PlannedDashCell };
-		Dash.Facing = FacingVerso(CellaCorrenteDiFase, Plan.PlannedDashCell, FacingCorrenteDiFase);
-		Dash.FacingSource = ERTPreviewFacingSource::DerivedFromPath;
-		Dash.PoseId = TEXT("Pose.Dash");
+		Dash.PreviewPath = RottaScatto.Path;
+		// Una rotta RIFIUTATA torna vuota: allora lo scatto non porta da nessuna parte, e dirlo e' l'esito
+		// giusto — come per il Move.
+		Dash.PreviewDestination = RottaScatto.Path.Num() > 0 ? RottaScatto.Path.Last() : CellaCorrenteDiFase;
+		Dash.Facing = RottaScatto.Path.Num() >= 2
+			? URTFacingLibrary::FacingFromPath(RottaScatto.Path, FacingCorrenteDiFase)
+			: FacingCorrenteDiFase;
+		Dash.FacingSource = RottaScatto.Path.Num() >= 2
+			? ERTPreviewFacingSource::DerivedFromPath
+			: ERTPreviewFacingSource::InheritedFromPreviousPhase;
 		// «Muoversi basta»: le celle del percorso sono contendibili e il resolver puo' troncare la rotta.
 		Dash.Certainty = ERTIntentCertainty::Uncertain;
 		Out.Phases.Add(Dash);
 
 		// 🔴 **Solo se si applica DAVVERO.** `bDashResolves` e' la stessa domanda che `ResolveDash` si pone,
 		// e propagare una cella d'arrivo che lo scatto non raggiunge sposterebbe anche l'origine del Blast.
-		if (Plan.bDashResolves)
+		if (bScattoEffettivo)
 		{
-			CellaCorrenteDiFase = Plan.PlannedDashCell;
+			CellaCorrenteDiFase = Dash.PreviewDestination;
 			FacingCorrenteDiFase = Dash.Facing;
 		}
 	}
+
+	// 🔑 **La cella e il facing DOPO lo scatto, in una sede sola.** La prima stesura ne aveva tre — la
+	// catena di fase, i campi `Plan.Blast.*` che `MakeBlastPreview` consuma, e una terza derivazione dentro il
+	// blocco della reazione — e con un ingresso incoerente rispondevano cose diverse alla stessa domanda.
+	const FRTCellId CellaDopoScatto = CellaCorrenteDiFase;
+	const ERTHexDirection FacingDopoScatto = FacingCorrenteDiFase;
 
 	// ── BLAST ───────────────────────────────────────────────────────────────────────────────────────────
 	//
@@ -125,34 +149,50 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		Colpo.AffectedCells = Blast.HitCells;
 		Colpo.AllyCells = Blast.AllyCells;
 		Colpo.TargetRefusal = Plan.BlastTargetRefusal;
-		Colpo.PoseId = TEXT("Pose.Blast");
 
 		// Cio' che il piano DICHIARA di bersagliare, distinto da cio' che l'azione toccherebbe.
+		//
+		// ⛔ **Un bersaglio CADUTO non ha una cella dichiarata, e la prima stesura gliela dava.**
+		// `MakeBlastPreview` esige `Units[TargetId].bAlive` e lo motiva: *«un bersaglio caduto non degrada
+		// alla propria ultima cella — quello sarebbe il FALLBACK del resolver»*. Leggendo il solo
+		// `IsValidIndex` la timeline segnava un bersaglio sulla cella di un cadavere, che l'area lasciava
+		// giustamente vuota: due campi della stessa voce che si contraddicevano.
 		FRTCellId CellaMira;
+		bool bMiraSuUnitaViva = false;
 		bool bMiraNota = false;
 		if (Plan.Blast.bTargetsCell)
 		{
 			CellaMira = Plan.Blast.TargetCell;
 			bMiraNota = true;
 		}
-		else if (CombatUnits.IsValidIndex(Plan.Blast.TargetId))
+		else if (CombatUnits.IsValidIndex(Plan.Blast.TargetId) && CombatUnits[Plan.Blast.TargetId].bAlive)
 		{
 			CellaMira = CombatUnits[Plan.Blast.TargetId].Cell;
 			bMiraNota = true;
+			bMiraSuUnitaViva = true;
 		}
 		if (bMiraNota)
 		{
 			Colpo.TargetCells.Add(CellaMira);
-			// Il facing verso il bersaglio e' la stessa derivazione che il resolver registra come
-			// `TargetingReoriented` (`FacingAfterPrepActionTargeting`): un'azione con bersaglio orienta chi
-			// la esegue. Qui si PREVEDE quella rotazione, non se ne inventa un'altra.
-			Colpo.Facing = FacingVerso(Blast.Origin, CellaMira, FacingCorrenteDiFase);
+		}
+
+		// 🔴 **La rotazione verso il bersaglio vale SOLO per un'unita' viva, e la prima stesura la
+		// prevedeva anche per una cella.** Il resolver la guarda con
+		// `if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)`
+		// (`RTTurnManager_Blast.cpp:715`): un'azione bersagliata su una CELLA — un'area lasciata cadere su un
+		// varco vuoto — non orienta chi la esegue. Prevederla comunque faceva leggere al giocatore una postura
+		// di copertura direzionale che al momento del colpo non sarebbe esistita.
+		if (bMiraSuUnitaViva)
+		{
+			// La stessa derivazione che il resolver registra come `TargetingReoriented`. Qui si PREVEDE
+			// quella rotazione, non se ne inventa un'altra.
+			Colpo.Facing = FacingVerso(Blast.Origin, CellaMira, FacingDopoScatto);
 			Colpo.FacingSource = ERTPreviewFacingSource::DerivedFromPath;
 		}
 		else
 		{
-			Colpo.Facing = FacingCorrenteDiFase;
-			Colpo.FacingSource = Plan.bDashResolves
+			Colpo.Facing = FacingDopoScatto;
+			Colpo.FacingSource = bScattoEffettivo
 				? ERTPreviewFacingSource::InheritedFromPreviousPhase
 				: ERTPreviewFacingSource::Authoritative;
 		}
@@ -168,7 +208,6 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 			: ERTIntentCertainty::Predicted;
 
 		Out.Phases.Add(Colpo);
-		FacingCorrenteDiFase = Colpo.Facing;
 	}
 
 	// ── MOVE ────────────────────────────────────────────────────────────────────────────────────────────
@@ -186,38 +225,53 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// resolver ne percorrera' un altro.
 	if (Plan.PlannedWaypoints.Num() > 0)
 	{
-		FRTHexSnapshot SnapshotDiFase = Snapshot;
-		if (Plan.bDashResolves)
+		// 🔴 **Spostare l'unita' vuol dire spostare anche l'OCCUPAZIONE, e la prima stesura riscriveva
+		// solo `Units[i].Cell`.** `BuildCompositeHexPath` non guarda `Units` per sapere cosa e' bloccato:
+		// `BlockedCellsFor` itera `Snapshot.Occupancy` (`RTHexSimLibrary.cpp:34`). Con la sola cella riscritta
+		// lo snapshot restava internamente incoerente — la cella lasciata continuava a risultare occupata dal
+		// mover, e quella d'arrivo non risultava sua. Se un'altra unita' ne occupasse la destinazione, il
+		// percorso partirebbe da un nodo bloccato e il Move collasserebbe a vuoto, **in silenzio**: un
+		// percorso rifiutato si legge come «il piano non porta da nessuna parte».
+		//
+		// ⚠️ **E la copia si paga solo quando serve.** Senza scatto lo snapshot si usa com'e': copiarlo
+		// duplicherebbe `Units`, `Occupancy`, `Overlaps` e la conoscenza di squadra a ogni waypoint aggiunto o
+		// tolto, per poi non cambiarne niente.
+		FRTHexSnapshot SnapshotDiFase;
+		const FRTHexSnapshot* SnapshotPerIlMove = &Snapshot;
+		if (bScattoEffettivo)
 		{
+			SnapshotDiFase = Snapshot;
 			for (FRTHexSimUnit& U : SnapshotDiFase.Units)
 			{
 				if (U.UnitId == Plan.UnitId)
 				{
-					U.Cell = CellaCorrenteDiFase;
+					SnapshotDiFase.Occupancy.Remove(U.Cell);
+					U.Cell = CellaDopoScatto;
 					break;
 				}
 			}
+			SnapshotDiFase.Occupancy.Add(CellaDopoScatto, Plan.UnitId);
+			SnapshotPerIlMove = &SnapshotDiFase;
 		}
 
-		const FRTHexPathResult Percorso =
-			URTHexSimLibrary::BuildCompositeHexPath(SnapshotDiFase, Plan.UnitId, Plan.PlannedWaypoints);
+		const FRTHexPathResult Percorso = URTHexSimLibrary::BuildCompositeHexPath(
+			*SnapshotPerIlMove, Plan.UnitId, Plan.PlannedWaypoints);
 
 		FRTPhasePreviewEntry Move;
 		Move.Phase = ERTResolutionPhase::NormalMovement;
 		Move.UnitId = Plan.UnitId;
 		Move.ActionId = Plan.MoveActionId;
-		Move.PreviewOrigin = CellaCorrenteDiFase;
+		Move.PreviewOrigin = CellaDopoScatto;
 		Move.PreviewPath = Percorso.Path;
 		// ⚠️ Un percorso RIFIUTATO torna vuoto (vedi il contratto di `BuildCompositeHexPath`), e allora la
 		// destinazione e' l'origine: il piano non porta l'unita' da nessuna parte, e dirlo e' l'esito giusto.
-		Move.PreviewDestination = Percorso.Path.Num() > 0 ? Percorso.Path.Last() : CellaCorrenteDiFase;
+		Move.PreviewDestination = Percorso.Path.Num() > 0 ? Percorso.Path.Last() : CellaDopoScatto;
 		Move.Facing = Percorso.Path.Num() >= 2
-			? URTFacingLibrary::FacingFromPath(Percorso.Path, FacingCorrenteDiFase)
-			: FacingCorrenteDiFase;
+			? URTFacingLibrary::FacingFromPath(Percorso.Path, FacingDopoScatto)
+			: FacingDopoScatto;
 		Move.FacingSource = Percorso.Path.Num() >= 2
 			? ERTPreviewFacingSource::DerivedFromPath
 			: ERTPreviewFacingSource::InheritedFromPreviousPhase;
-		Move.PoseId = TEXT("Pose.Move");
 		Move.Certainty = ERTIntentCertainty::Uncertain;
 		Out.Phases.Add(Move);
 	}
@@ -234,8 +288,12 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		Out.Reaction.ReactionProfileId = Plan.ReactionProfileId;
 		// La cella di FINE Dash: la reazione e' armata in Prep e il Move risolve dopo il Blast, quindi
 		// sorveglia da dove l'unita' si trovera' quando un innesco potra' scattare.
-		Out.Reaction.WatchOrigin = Plan.bDashResolves ? Plan.PlannedDashCell : CellaCorrente;
-		Out.Reaction.Facing = FacingCorrenteDiFase;
+		// ⚠️ **Cella E facing dello STESSO istante**, che e' la fine del Dash. La prima stesura prendeva la
+		// cella dopo lo scatto e il facing dopo il BLAST: una reazione il cui innesco scatta durante il Dash —
+		// o prima dell'attacco — veniva disegnata mentre guarda il bersaglio di un colpo non ancora partito.
+		// L'argomento con cui `WatchOrigin` sceglie la cella del Dash sceglie anche il facing di quel momento.
+		Out.Reaction.WatchOrigin = CellaDopoScatto;
+		Out.Reaction.Facing = FacingDopoScatto;
 		Out.Reaction.Certainty = ERTIntentCertainty::Uncertain;
 	}
 

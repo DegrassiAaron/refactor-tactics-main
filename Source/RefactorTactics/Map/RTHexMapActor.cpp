@@ -132,6 +132,8 @@ namespace
 
 	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
+	// Il passo con cui due ghost sulla STESSA cella si separano in quota. Vedi `SetPlanPreview`.
+	constexpr float RTGhostStackStep = 6.f;
 	constexpr float RTLiftGlyph = RTCellTopZ + 0.3f;    // glifo di superficie (#956): inciso nella faccia,
 	                                                    // sotto il contorno, sopra il disco
 	// Le coordinate incise (#1920): sopra superficie/griglia/glifo (leggibili), sotto marker e anteprima —
@@ -1283,6 +1285,22 @@ void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
 			}
 		}
 		World.Z += RTLiftPreview;
+
+		// 🔴 **I ghost coincidenti si IMPILANO invece di sovrapporsi.** Due fasi possono finire sulla
+		// stessa cella per costruzione — il Prep non sposta, il Blast non sposta chi lo esegue, un Move con
+		// percorso rifiutato torna alla propria origine — e due istanze alla stessa posa producono
+		// z-fighting con un colore che ne occlude un altro a caso. Il colore È l'informazione che questo
+		// canale porta (la certezza), quindi perderlo cosi' sarebbe perdere l'unica cosa che i ghost dicono
+		// oltre alla posizione.
+		int32 GiaSuQuestaCella = 0;
+		for (const FRTCellId& Posata : PlanGhostCells)
+		{
+			if (Posata == Fase.PreviewDestination)
+			{
+				++GiaSuQuestaCella;
+			}
+		}
+		World.Z += static_cast<double>(GiaSuQuestaCella) * RTGhostStackStep;
 
 		const FTransform Xf(FRotator::ZeroRotator, World,
 			FVector(PlanarScale * 0.7f, PlanarScale * 0.7f, RTCellFlatScale));

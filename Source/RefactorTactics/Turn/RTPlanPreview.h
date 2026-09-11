@@ -53,8 +53,9 @@ enum class ERTPreviewFacingSource : uint8
 	Authoritative,
 	/** Derivato dal percorso di questa fase (`FacingFromPath`). */
 	DerivedFromPath,
-	/** Dichiarato in planning e accettato dall'insieme legale. */
-	Declared,
+	// ⬜ `Declared` non c'e' per la stessa ragione di `PoseId`: nessun percorso lo assegnerebbe oggi, e un
+	// valore di enum che nessuno produce e' un caso che i consumatori devono gestire per niente. Entra quando
+	// il facing dichiarato in planning arrivera' fin qui.
 	/** Ereditato dalla fase precedente della stessa timeline. */
 	InheritedFromPreviousPhase
 };
@@ -108,14 +109,11 @@ struct FRTPhasePreviewEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	ERTPreviewFacingSource FacingSource = ERTPreviewFacingSource::Authoritative;
 
-	/**
-	 * ⚠️ **Un SUGGERIMENTO di presentazione, e non ha nessuna autorita'.** Il progetto non ha un sistema di
-	 * pose — `grep -c PoseId` fuori da questa famiglia risponde **0** — quindi qui non si sta consumando un
-	 * dato esistente: si sta nominando la posa che il ghost dovrebbe assumere, derivata dalla fase e
-	 * dall'azione. Chi disegna puo' ignorarlo; nessuna regola lo legge.
-	 */
-	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
-	FName PoseId;
+	// ⬜ **`PoseId` NON c'e', ed e' una scelta.** La DoD lo elenca fra i campi della entry, e una prima
+	// stesura lo aveva aggiunto scrivendoci quattro letterali (`Pose.Prep`, `Pose.Dash`, …) che **nessuno**
+	// legge: il progetto non ha un sistema di pose. Sarebbe superficie `USTRUCT` esposta a Blueprint, da
+	// versionare e da spiegare, per un consumatore che non esiste — cioe' il placeholder per una roadmap
+	// lontana che `CLAUDE.md` §4 vieta. Torna insieme al sistema che lo consuma, e sta in FOLLOW-UP.
 
 	/** Cio' che il piano DICHIARA di bersagliare. Vedi la nota della struct. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")

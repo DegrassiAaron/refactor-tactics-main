@@ -554,12 +554,21 @@ bool FRTPlanPreviewGhostsArePooledTest::RunTest(const FString&)
 	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriDopo; }
 	TestEqual(TEXT("nessun Actor e' stato spawnato per i ghost"), AttoriDopo, AttoriPrima);
 
-	// ── Non ogni Tick: le istanze SOPRAVVIVONO senza che nessuno chiami `Tick`.
+	// ── Non ogni Tick: posare i ghost non ACCENDE il Tick dell'actor.
 	//
-	// 🔑 È la differenza con `DrawPlanningPreview`, che riemette le proprie `DrawDebugLine` a ogni
-	// fotogramma e per questo tiene acceso il `Tick`. Qui non si chiama `Tick` affatto, e i ghost restano.
-	TestEqual(TEXT("e restano posati senza che nessuno chiami Tick"),
-		HexMap->PlanGhostInstanceCount(), 3);
+	// ⌫ **Una prima stesura rileggeva `PlanGhostInstanceCount()` una seconda volta, e non misurava niente**:
+	// fra le due letture non c'era un `Tick`, un avanzamento di frame, niente. Qualunque implementazione che
+	// passava la prima passava la seconda per costruzione, e la terza delle tre promesse del budget — quella
+	// che la PR dichiara «misurate separatamente» — non era misurata affatto.
+	//
+	// 🔑 La proprietà che la DoD chiede è questa: `DrawPlanningPreview` riemette le proprie
+	// `DrawDebugLine` a ogni fotogramma e per farlo tiene ACCESO il tick dell'actor; i ghost no, perché posare
+	// un'istanza è definitivo. Si misura l'interruttore, non il conteggio.
+	const bool bTickPrima = HexMap->IsActorTickEnabled();
+	HexMap->SetPlanPreview(Timeline);
+	TestEqual(TEXT("posare i ghost non accende il Tick dell'actor"),
+		HexMap->IsActorTickEnabled(), bTickPrima);
+	TestEqual(TEXT("e le istanze restano quelle"), HexMap->PlanGhostInstanceCount(), 3);
 
 	// ── L'annullamento: una timeline vuota li toglie.
 	HexMap->SetPlanPreview(FRTPlanPreview());
