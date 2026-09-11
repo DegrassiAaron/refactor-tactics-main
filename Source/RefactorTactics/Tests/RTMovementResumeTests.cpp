@@ -673,6 +673,7 @@ namespace
 		int32 FinestreChiuse = 0;
 		int32 Divergenze = 0;
 		int32 Aperture = 0;
+		bool bAncoraSospesa = false;
 		bool bAllestita = false;
 	};
 }
@@ -744,6 +745,7 @@ bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
 
 		R.bSospesa = TM->IsResolutionSuspended();
 		R.FinestreChiuse = ChiudiOgniFinestra(TM);
+		R.bAncoraSospesa = TM->IsResolutionSuspended();
 		R.Log = TM->GetTurnLog();
 		R.Divergenze = TM->GetVerificationDivergences().Num();
 		R.Aperture = Aperture;
@@ -780,6 +782,15 @@ bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
 		return false;
 	}
 	if (!TestTrue(TEXT("la corsa A ha prodotto una traccia"), A.Log.Num() > 0)) { return false; }
+	// ⛔ ANTI-VACUITA' 1-bis: `ChiudiOgniFinestra` ha un TETTO, e un tetto che tronca in silenzio lascia
+	// la risoluzione a meta' con una traccia parziale — che poi diverge da B per il motivo sbagliato. Se il
+	// tetto e' stato raggiunto, va detto QUI e col suo nome, non dedotto da un confronto che fallisce dopo.
+	if (!TestFalse(TEXT("anti-vacuita': la corsa A non e' RIMASTA sospesa: il tetto di chiusura non ha troncato"),
+		A.bAncoraSospesa))
+	{
+		return false;
+	}
+
 
 	// 🔴 **E le voci di decisione della corsa VIVA devono portare un indice VERO.**
 	//
