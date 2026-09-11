@@ -10,8 +10,8 @@ class URTHexMapAsset;
 class URTHeroData;
 
 /**
- * Le tre regioni tattiche di un soggetto OSSERVATO: dove puo' arrivare, dove puo' colpire adesso, dove
- * potrebbe colpire dopo una mobilita' rapida (`#2596`).
+ * Le regioni tattiche di un soggetto OSSERVATO: dove arriva camminando, dove arriva soltanto scattando,
+ * dove puo' colpire adesso, dove potrebbe colpire dopo una mobilita' rapida (`#2596`, `#2632`).
  *
  * 🔴 **E' un DTO di privacy, non un risultato di simulazione.** Non decide nulla di competitivo: non
  * muove, non colpisce, non produce eventi. Esiste perche' il giocatore possa interrogare un nemico che
@@ -107,7 +107,7 @@ class REFACTORTACTICS_API URTEnemyTacticalQueryLibrary : public UBlueprintFuncti
 
 public:
 	/**
-	 * Le tre regioni del soggetto indicato, come l'osservatore di `View` ha diritto di vederle.
+	 * Le regioni del soggetto indicato, come l'osservatore di `View` ha diritto di vederle.
 	 *
 	 * Ritorna `false` — e lascia `OutRegions` al default — quando il soggetto non ha una voce nella vista.
 	 *
