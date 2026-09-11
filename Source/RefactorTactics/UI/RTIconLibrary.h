@@ -5,6 +5,11 @@
 #include "UI/RTIconCatalogData.h"
 #include "RTIconLibrary.generated.h"
 
+// Forward declaration e non `#include "Ability/RTActionDef.h"`: `MakeActionIconId` prende la struct per
+// riferimento, quindi la definizione serve al `.cpp` — che gia' la include — e non a chi include questo
+// header. Tirarci dentro il catalogo azioni farebbe dipendere ogni consumatore di icone da `Ability/`.
+struct FRTActionDef;
+
 /**
  * Lettura e validazione del catalogo iconografico: pura, deterministica, senza Actor.
  *
@@ -34,6 +39,41 @@ public:
 	/** Il nome della categoria come appare dentro l'`IconId` (`ERTIconCategory::Status` -> `Status`). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Icons")
 	static FString CategoryName(ERTIconCategory Category);
+
+	/**
+	 * Il primo segmento di `SemanticPath` e' una delle categorie dichiarate da `D-031`?
+	 *
+	 * ⚠️ **La domanda non e' «esiste un'icona»** — e' «questa chiave puo' esistere». `D-031` dichiara dodici
+	 * categorie e la v0.1 ne popola cinque: una chiave in `Reaction.*` e' **legittima e non ancora disegnata**,
+	 * una in `Hero.*` e' **malformata**, e le due cose vogliono risposte diverse.
+	 */
+	static bool IsDeclaredIconCategory(const FName& SemanticPath);
+
+	/**
+	 * La chiave icona di un'AZIONE, tradotta quando il suo `ActionId` non porta una categoria dichiarata.
+	 *
+	 * 🔑 **Gli `ActionId` e le categorie d'icona sono due tassonomie diverse, e questa funzione e' il punto in
+	 * cui si incontrano.** `Action.Move` le attraversa entrambe e non ha bisogno di niente; `Hero.Muiren.TideGuard`
+	 * vive nello spazio degli id d'azione e **non** in quello delle icone — `MakeIconId` su di lui produrrebbe
+	 * `UI.Icon.Hero.Muiren.TideGuard`, il cui segmento `Hero` non e' fra le dodici di `D-031`.
+	 *
+	 * La traduzione usa il dato che l'azione gia' dichiara, in quest'ordine:
+	 *
+	 * 1. `DerivedFromActionId` — da dove vengono i numeri (`Hero.Branth.Ram` -> `Action.Charge`);
+	 * 2. `BaseActionId` — di quale generica e' il profilo (`Hero.Muiren.PressureJet` -> `Action.BasicAttack`).
+	 *
+	 * ⚠️ **`DerivedFromActionId` PRIMA, e non e' indifferente.** I due campi esistono apposta separati
+	 * (`RTActionDef.h`): `BaseActionId` dice di quale delle sette generiche un'azione e' il profilo, l'altro da
+	 * dove vengono fase, portata ed effetti. L'icona segue cio' che l'azione **fa**, quindi la seconda.
+	 * `Hero.Branth.Ram` eredita da `Action.Charge` e un «profilo di Charge» non esiste: preferendo
+	 * `BaseActionId` si perderebbe proprio il caso che i due campi sono stati separati per distinguere.
+	 *
+	 * ⛔ **Torna `NAME_None` quando l'azione non dichiara nessuno dei due**, invece di indovinare dal nome.
+	 * E' la stessa regola del docstring di `BaseActionId`: *«dedurlo dal nome funzionerebbe finche' un eroe non
+	 * chiama diversamente la sua azione, cioe' fino al primo eroe nuovo»*. Un `NAME_None` qui e' un dato che
+	 * manca e si vede; una deduzione sarebbe un dato sbagliato che non si vede.
+	 */
+	static FName MakeActionIconId(const FRTActionDef& Def);
 
 	/**
 	 * Le chiavi che il catalogo DEVE avere, derivate dai dati di gioco reali e non da una lista scritta a mano:
