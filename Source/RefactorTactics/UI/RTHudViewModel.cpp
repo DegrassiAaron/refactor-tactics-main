@@ -309,6 +309,48 @@ TArray<FRTStatusBadgeView> URTHudViewModel::BuildStatusBadges(const ARTUnit* Uni
 	return Badges;
 }
 
+ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownView& Action, bool bArmed)
+{
+	// L'ordine di questi `if` E' la precedenza, ed e' l'unica sede in cui esiste.
+
+	// Nessuna azione: nient'altro puo' valere, e il campo che lo dice e' `ActionId` (`#2987`).
+	if (Action.ActionId.IsNone())
+	{
+		return ERTActionSlotState::Empty;
+	}
+
+	// 🔑 **Armata batte tutto il resto, ed e' la regola di `ARTHUD::ComposeAbilityLine`**, non una nuova:
+	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*. Un'ultimate
+	// armata e ancora in ricarica resta riconoscibile come quella scelta; il motivo lo dice il numero.
+	if (bArmed)
+	{
+		return ERTActionSlotState::Selected;
+	}
+
+	// Gia' nel piano: un impegno preso, che sopravvive al fatto che l'armamento sia passato ad altro.
+	if (Action.bPlanned)
+	{
+		return ERTActionSlotState::Planned;
+	}
+
+	// La ricarica prima dell'indisponibilita' generica: e' l'unico motivo che il giocatore puo' leggere come
+	// un numero, e passa da solo col tempo.
+	if (Action.TurnsRemaining > 0)
+	{
+		return ERTActionSlotState::Cooldown;
+	}
+
+	// ⚠️ Da [D-324] `bUsableNow` coincide con `TurnsRemaining == 0`, quindi questo ramo oggi non si
+	// raggiunge da una vista costruita dal simulatore. Resta perche' la vista e' una struct e un chiamante
+	// puo' comporla cosi' — ed e' la stessa ragione per cui `AbilityLineShowsCooldownOnly` prova quel caso.
+	if (!Action.bUsableNow)
+	{
+		return ERTActionSlotState::Unavailable;
+	}
+
+	return ERTActionSlotState::Available;
+}
+
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)
 {
 	TArray<FRTAbilityCooldownView> Cooldowns;
@@ -357,6 +399,12 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// e' la stessa disciplina delle due chiavi icona qui sopra — l'owner della regola risponde, chi
 		// disegna riceve.
 		View.HotkeyLabel = ARTPlayerController::HotkeyLabelForKitIndex(Index);
+		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione — che vive in un campo
+		// suo da `#601` — e lo scatto. Leggerne uno solo direbbe «non pianificata» di una reazione che il
+		// pass delle reazioni eseguira'.
+		View.bPlanned = (Unit->PlannedAbilityIndex == Index)
+			|| (Unit->PlannedReactionAbility == Index)
+			|| (Unit->PlannedDashAbility == Index);
 		View.Slot = Action->Def.Slot;
 
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista

@@ -1676,4 +1676,210 @@ bool FRTHudVmKitHoleTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **LO STATO DI UNO SLOT E' UN VALORE, E LA SUA PRECEDENZA VIVE IN UN POSTO SOLO** (`#2988`).
+ *
+ * 🔑 **L'oracolo non e' «risponde qualcosa»: sono le COPPIE in conflitto.** Uno stato calcolato bene sui
+ * casi puri — pronta, in ricarica, vuota — e sbagliato quando due condizioni valgono insieme passerebbe un
+ * test scritto caso per caso. Le tre coppie qui sotto sono quelle che un grafo Blueprint ricomporrebbe in
+ * ordine diverso, ed erano l'unica cosa che rendeva la deduzione locale pericolosa.
+ *
+ * ⚠️ **`Selected` sopra `Cooldown` non e' una scelta di questo test**: e' la regola che
+ * `ARTHUD::ComposeAbilityLine` applica al colore da prima — *«Armata batte inutilizzabile»* — e qui viene
+ * pinnata nella sede in cui ora vive.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSlotStateTest,
+	"RefactorTactics.HudViewModel.SlotStatePrefersTheArmedOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSlotStateTest::RunTest(const FString&)
+{
+	// --- I casi puri, che sono la premessa delle coppie ------------------------------------------------
+	FRTAbilityCooldownView Vuota; // `ActionId` nullo: e' cio' che dichiara la posizione vuota (#2987)
+	TestEqual(TEXT("posizione vuota"),
+		URTHudViewModel::ResolveSlotState(Vuota, /*bArmed=*/ false), ERTActionSlotState::Empty);
+
+	FRTAbilityCooldownView Pronta;
+	Pronta.ActionId = TEXT("Action.Guard");
+	Pronta.bUsableNow = true;
+	TestEqual(TEXT("pronta"),
+		URTHudViewModel::ResolveSlotState(Pronta, false), ERTActionSlotState::Available);
+
+	FRTAbilityCooldownView InRicarica = Pronta;
+	InRicarica.TurnsRemaining = 2;
+	InRicarica.bUsableNow = false;
+	TestEqual(TEXT("in ricarica"),
+		URTHudViewModel::ResolveSlotState(InRicarica, false), ERTActionSlotState::Cooldown);
+
+	FRTAbilityCooldownView Pianificata = Pronta;
+	Pianificata.bPlanned = true;
+	TestEqual(TEXT("nel piano"),
+		URTHudViewModel::ResolveSlotState(Pianificata, false), ERTActionSlotState::Planned);
+
+	// --- A. armata BATTE in ricarica -------------------------------------------------------------------
+	// 🔑 La regola di `ComposeAbilityLine`: un'ultimate armata e ancora in ricarica resta riconoscibile
+	// come quella scelta, e il motivo lo dice il numero.
+	TestEqual(TEXT("A: armata e in ricarica -> armata"),
+		URTHudViewModel::ResolveSlotState(InRicarica, /*bArmed=*/ true), ERTActionSlotState::Selected);
+
+	// --- B. armata BATTE pianificata -------------------------------------------------------------------
+	// Una posizione puo' essere entrambe: si arma un'abilita' e la si pianifica su un bersaglio.
+	TestEqual(TEXT("B: armata e pianificata -> armata"),
+		URTHudViewModel::ResolveSlotState(Pianificata, /*bArmed=*/ true), ERTActionSlotState::Selected);
+
+	// --- C. pianificata BATTE in ricarica --------------------------------------------------------------
+	// Una reazione pianificata e poi entrata in ricarica resta un impegno preso: dire «in ricarica»
+	// nasconderebbe che il turno la eseguira'.
+	FRTAbilityCooldownView PianificataEInRicarica = InRicarica;
+	PianificataEInRicarica.bPlanned = true;
+	TestEqual(TEXT("C: pianificata e in ricarica -> pianificata"),
+		URTHudViewModel::ResolveSlotState(PianificataEInRicarica, false), ERTActionSlotState::Planned);
+
+	// --- D. vuota BATTE tutto --------------------------------------------------------------------------
+	// ⛔ Senza questo, un segnaposto che ereditasse `bArmed` dall'unita' direbbe «armata» di una posizione
+	// che non porta nessuna azione — e il dock accenderebbe uno slot vuoto.
+	FRTAbilityCooldownView VuotaMaArmata;
+	VuotaMaArmata.bPlanned = true;
+	TestEqual(TEXT("D: una posizione vuota resta vuota anche se armata e pianificata"),
+		URTHudViewModel::ResolveSlotState(VuotaMaArmata, /*bArmed=*/ true), ERTActionSlotState::Empty);
+
+	return true;
+}
+
+/**
+ * 🔴 **`Planned` ARRIVA ALLA VISTA, E LEGGE TUTTI E TRE I CAMPI DEL PIANO** (`#2988`).
+ *
+ * 🔑 **La reazione e' il caso che rende il test non ovvio.** `PlannedReactionAbility` esiste come campo
+ * separato da `#601` — *«una reazione selezionata finiva nello slot PRINCIPALE, dove il pass delle reazioni
+ * non la guarda mai»* — quindi una vista che leggesse il solo `PlannedAbilityIndex` direbbe «non
+ * pianificata» di una reazione che il turno eseguira'. E' esattamente il difetto che `#2986` descrive dal
+ * lato opposto: uno stato che afferma il contrario di cio' che il modello fara'.
+ *
+ * ⚠️ **Il controllo C non e' cortesia**: senza, un `bPlanned` scritto `true` per tutti passerebbe A e B.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmPlannedReachesTheViewTest,
+	"RefactorTactics.HudViewModel.PlannedIsDistinctFromArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmPlannedReachesTheViewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	if (!TestTrue(TEXT("premessa: il kit ha almeno tre posizioni"), Unit->NumAbilities() >= 3))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- A. la principale pianificata si vede ----------------------------------------------------------
+	Unit->PlannedAbilityIndex = 1;
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(1)))
+		{
+			TestTrue(TEXT("A: la principale pianificata arriva alla vista"), Cds[1].bPlanned);
+		}
+	}
+
+	// --- B. la REAZIONE pure, e vive in un campo suo ---------------------------------------------------
+	Unit->PlannedAbilityIndex = INDEX_NONE;
+	Unit->PlannedReactionAbility = 2;
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(2)))
+		{
+			TestTrue(TEXT("B: la reazione pianificata arriva alla vista"), Cds[2].bPlanned);
+		}
+	}
+
+	// --- C. e chi NON e' nel piano non risulta pianificato ---------------------------------------------
+	// ⛔ Senza, un `bPlanned` scritto `true` per tutti passerebbe A e B.
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(0)))
+		{
+			TestFalse(TEXT("C: una posizione fuori dal piano non risulta pianificata"), Cds[0].bPlanned);
+		}
+	}
+
+	// --- D. armato e pianificato restano DUE cose ------------------------------------------------------
+	// `SelectedAbilityIndex` e' «cosa sto per fare», il piano e' «cosa ho gia' deciso»: armare la posizione
+	// 0 non deve rendere pianificata la 0 ne' spianificare la 2.
+	Unit->SelectAbility(0);
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: le righe esistono"), Cds.IsValidIndex(2)))
+		{
+			TestFalse(TEXT("D: armare non pianifica"), Cds[0].bPlanned);
+			TestTrue(TEXT("D: e non spianifica cio' che era nel piano"), Cds[2].bPlanned);
+		}
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔵 **TEST CARATTERIZZANTE — che cosa SOPRAVVIVE a un cambio di selezione, oggi** (`#2988`).
+ *
+ * ⚠️ **Non pinna una decisione: la FOTOGRAFA, e lo dichiara.** Se un'azione armata debba sopravvivere al
+ * cambio di unita', di fase e di round e' una **decisione aperta** — `#2990`, domanda 3 — e nessuna fonte
+ * del progetto la prende: `SelectedAbilityIndex` ha un solo sito di scrittura (`ARTUnit::SelectAbility`) e
+ * nessuno lo azzera, ne' `SelectUnit`, ne' il cambio fase, ne' il passaggio di round.
+ *
+ * 🔑 **Il valore di questo test e' rendere osservabile ciò che oggi accade**, così la decisione si prende
+ * guardando un comportamento invece di indovinarlo. Il giorno in cui `#2990` sceglie, questo test cambia
+ * **insieme** alla scelta — ed è il posto in cui ci si accorge che va cambiato.
+ *
+ * ⛔ **Un rosso qui non e' automaticamente un difetto**: e' un comportamento che si e' mosso senza che
+ * nessuno lo dichiarasse, che e' precisamente la cosa da notare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmArmingLifecycleTest,
+	"RefactorTactics.HudViewModel.ArmingIsPerUnitAndSurvivesSelectionToday",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmArmingLifecycleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Prima = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Seconda = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 0);
+	if (!Prima || !Seconda)
+	{
+		DestroyHudVmWorld(World);
+		return TestTrue(TEXT("due unita' esistono"), false);
+	}
+
+	// --- A. l'armamento e' PER UNITA', non del controller ----------------------------------------------
+	Prima->SelectAbility(1);
+	TestEqual(TEXT("A: la prima unita' porta il proprio armamento"), Prima->SelectedAbilityIndex, 1);
+	TestEqual(TEXT("A: e la seconda resta al neutro di D-128"),
+		Seconda->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+	// --- B. armare la seconda non disarma la prima -----------------------------------------------------
+	// 🔵 **E' la fotografia**: oggi due unita' possono essere armate insieme, ciascuna sulla propria voce.
+	// Se `#2990` decidesse che l'armamento e' uno solo e segue la selezione, questa asserzione va riscritta
+	// con la decisione — non «corretta» di nascosto.
+	Seconda->SelectAbility(0);
+	TestEqual(TEXT("B: oggi la prima resta armata quando si arma la seconda"),
+		Prima->SelectedAbilityIndex, 1);
+
+	// --- C. il neutro e' raggiungibile, ed e' un ingresso legittimo ------------------------------------
+	// ⛔ Questa meta' NON e' in attesa di decisione: `SelectAbility(INDEX_NONE)` disarma per contratto —
+	// *«senza di esso non esisterebbe un modo di tornare allo stato neutro»* — ed e' cio' su cui poggiano
+	// il disarmo col click (`ArmKitAbility`) e l'uscita dal targeting con `RMB`.
+	Prima->SelectAbility(INDEX_NONE);
+	TestEqual(TEXT("C: il neutro si raggiunge"),
+		Prima->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+	// --- D. un indice fuori range non arma e non disarma -----------------------------------------------
+	Seconda->SelectAbility(9999);
+	TestEqual(TEXT("D: un indice non valido lascia l'armamento dov'era"), Seconda->SelectedAbilityIndex, 0);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
