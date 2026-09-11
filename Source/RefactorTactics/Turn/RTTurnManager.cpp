@@ -2583,6 +2583,21 @@ void ARTTurnManager::ConcludeResolution()
 			// E con lui il contatore delle attivazioni ([D-092]): «una per TURNO» ha bisogno di sapere quando
 			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
 			Unit->ReactionActivationsThisTurn = 0;
+
+			// 🔴 **E l'ARMAMENTO torna al neutro, per [D-397] §5** (`#2988`). Un piano consumato lasciava
+			// `SelectedAbilityIndex` scritto: il dock leggeva `GetArmedActionIndex()` e accendeva uno slot
+			// che affermava una scelta gia' spesa. Con `bPlanned` la contraddizione diventa **visibile** —
+			// `armato` senza `pianificato` — ed e' cio' che ha portato la decisione a scegliere il Cleanup.
+			//
+			// 🔑 **UN SITO SOLO, e lato autorita'.** La decisione lo dichiara per iscritto: *«non in
+			// `SelectUnit`, non al cambio di fase dentro il turno, non nel widget»*. Il cambio di unita' NON
+			// disarma — ritrovare su un'unita' cio' che le si era armato e' la conseguenza del modello, e
+			// [D-397] lo conferma invece di correggerlo.
+			//
+			// ⚠️ **Passa da `SelectAbility` e non scrive il campo a mano**, come gia' fa il disarmo col
+			// click: `INDEX_NONE` e' un ingresso legittimo di quella funzione ([D-128]), e un secondo sito
+			// di scrittura sarebbe un secondo posto da cui lo stato neutro puo' divergere.
+			Unit->SelectAbility(INDEX_NONE);
 			// La presenza sull'obiettivo si legge QUI, nello stesso passaggio: un secondo giro sulle unita'
 			// sarebbe un secondo momento, e fra i due qualcosa potrebbe muoversi senza che nessuno lo veda.
 			if (CleanupMap)

@@ -1,4 +1,4 @@
-#include "Player/RTPlayerController.h"
+﻿#include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
@@ -325,8 +325,29 @@ const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
 	return Hotkeys;
 }
 
-FText ARTPlayerController::HotkeyLabelForKitIndex(int32 KitIndex)
+FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
 {
+	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
+	// `SelectAbilityForCurrent(5)`, `OnGeneric1` da `SelectAbilityByIdForCurrent` — quindi la domanda non e'
+	// quale funzioni, ma quale si MOSTRA. Il numero e' legato alla posizione, la lettera all'`ActionId`, e la
+	// posizione cambia col kit dell'eroe: *«una barra che rinumerasse le generiche insegnerebbe una mappa che
+	// scade»*.
+	//
+	// ⛔ **Una etichetta sola per slot**: il numero resta funzionante senza essere mostrato. E' l'estensione
+	// alla presentazione della disciplina che `PlayerInput.GenericHotkeyResolvesByNameNotPosition` pinna gia'
+	// sull'input.
+	if (!ActionId.IsNone())
+	{
+		for (const TPair<FName, FKey>& Generica : GenericHotkeys())
+		{
+			if (Generica.Key == ActionId)
+			{
+				return Generica.Value.GetDisplayName(/*bLongDisplayName=*/ false);
+			}
+		}
+	}
+
+
 	// 🔑 **Si INTERROGA la tabella, e il vuoto fuori range e' la meta' che conta.** Un `Index + 1` risponde
 	// a qualunque indice — anche a quelli che nessun tasto raggiunge — e quella e' esattamente la risposta
 	// che non esiste. Qui `IsValidIndex` e' il confine, ed e' lo stesso della bindatura.
