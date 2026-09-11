@@ -611,6 +611,15 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 	TArray<FRTActionDef>& IntentDefs = Ctx.IntentDefs;
 	TArray<FRTPendingArcOp>& PendingArcOps = Ctx.PendingArcOps;
 
+	// L'ordine di DICHIARAZIONE delle istanze costruite in questo ciclo (#2970): e' cio' che
+	// `FRTActionInstance::EventSequence` significa, e va contato dove l'istanza nasce.
+	//
+	// 🔴 **Prima si leggeva `Intents.Num()`**, e non era la stessa cosa: quell'`Add` avviene duecento righe
+	// piu' sotto ed e' CONDIZIONATO — fra i due punti ci sono i `continue` del fallback `Cancel` e del ramo
+	// senza colpo. Un'istanza che non arriva all'`Add` lascia il contatore fermo, e la successiva riceve il
+	// suo stesso numero: l'ultima chiave d'ordine smetteva di spareggiare proprio dove serviva.
+	int32 DeclarationOrder = 0;
+
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -759,7 +768,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
 		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
-		Instance.EventSequence = Intents.Num();
+		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non `Intents.Num()` (#2970)
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
 		// supporto su se stessi, e risolvono altrove): e' un'azione che il bersaglio l'ha PERSO — eliminato e

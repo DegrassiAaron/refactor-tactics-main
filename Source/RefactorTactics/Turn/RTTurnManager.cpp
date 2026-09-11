@@ -4681,6 +4681,7 @@ void ARTTurnManager::ResolvePrep()
 
 	// 1. RACCOGLI: un'istanza per ogni azione di Prep pianificata e utilizzabile.
 	TArray<FRTActionInstance> Instances;
+	int32 PrepDeclarationOrder = 0; // ordine di dichiarazione delle istanze di questo ciclo (#2970)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -4789,7 +4790,13 @@ void ARTTurnManager::ResolvePrep()
 		Instance.SourceUnitId = i;
 		Instance.TargetUnitId = i;   // le azioni di Prep del vertical slice agiscono su chi le usa
 		Instance.TargetCell = Unit->Cell;
-		Instance.EventSequence = Instances.Num();
+		// ⚠️ **Un contatore, non `Instances.Num()`** (#2970). Qui `Num()` era corretto — l'`Add` e' la riga
+		// successiva — ma e' l'unico produttore il cui `EventSequence` viene davvero CONSUMATO
+		// (`SortActionInstances` e' chiamata trenta righe sotto), ed era rimasto sull'idioma che la stessa
+		// issue dichiara sbagliato altrove. Bastava inserire un `continue` fra le due righe, o un secondo
+		// `Add` condizionato — la stessa modifica che aveva rotto `CollectAttackIntents` — perche' la sola
+		// chiave viva smettesse di spareggiare in silenzio. Trovato in code review.
+		Instance.EventSequence = PrepDeclarationOrder++;
 		Instances.Add(Instance);
 	}
 	if (Instances.Num() == 0) { return; }
@@ -5187,6 +5194,14 @@ void ARTTurnManager::ResolveDash()
 	// e' cio' che decide l'esito (invariante #1), non in un controllo di pianificazione che il bot potrebbe
 	// aggirare. Prima di D-028 il move normale sopravviveva allo scatto: era il «movimento doppio» di
 	// `docs/gameplay/spec-dash.md`, vigente e implementato, ora superato.
+	//
+	// L'ordine di DICHIARAZIONE delle istanze costruite in questo ciclo (#2970). ⚠️ Prima si usava `i`, e a
+	// differenza degli altri due siti corretti dalla stessa issue **non era un difetto**: l'istanza e' al
+	// piu' una per unita', quindi `i` bastava a spareggiare. Cio' che non era e' la stessa cosa che il campo
+	// dichiara — un indice di unita' non e' un ordine di dichiarazione — e due numerazioni diverse sotto un
+	// nome solo sono il modo in cui la prossima sede sceglie quella sbagliata.
+	int32 DashDeclarationOrder = 0;
+
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		if (DashAbilityIdx[i] == INDEX_NONE) { continue; }
@@ -5382,7 +5397,7 @@ void ARTTurnManager::ResolveDash()
 		Instance.SourceUnitId = i;
 		Instance.TargetUnitId = i;   // le mobilita' del vertical slice applicano i propri effetti a chi le usa
 		Instance.TargetCell = Final;
-		Instance.EventSequence = i;
+		Instance.EventSequence = DashDeclarationOrder++; // ordine di dichiarazione, non l'indice di unita' (#2970)
 		for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
 		{
 			if (Event.Kind == ERTActionEffect::Status)
@@ -6304,6 +6319,15 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	AttackActionId.Reserve(Plan.Hits.Num());
 	AttackBaseActionId.Reserve(Plan.Hits.Num());
 	AttackPriority.Reserve(Plan.Hits.Num());
+
+	// L'ordine di DICHIARAZIONE delle istanze costruite in questo ciclo (#2970). Un contatore, perche' qui
+	// non c'e' un indice: il ciclo e' un range-for su `Plan.Hits`.
+	//
+	// 🔴 **Prima si scriveva `Plan.Hits.Num()`, che dentro questo ciclo e' una COSTANTE** — la dimensione
+	// dell'array, non il passo — quindi ogni istanza usciva con lo stesso `EventSequence`. Sembra il gemello
+	// della riga di `CollectAttackIntents`, e non lo e': li' l'array cresce mentre lo si legge, qui no.
+	int32 HitDeclarationOrder = 0;
+
 	for (const FRTHexAttackHit& Hit : Plan.Hits)
 	{
 		ARTUnit* Attacker = Units[Hit.AttackerId];
@@ -6425,7 +6449,7 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 			Instance.SourceUnitId = Hit.AttackerId;
 			Instance.TargetUnitId = Hit.TargetId;
 			Instance.TargetCell = HexUnits[Hit.TargetId].Cell;
-			Instance.EventSequence = Plan.Hits.Num();
+			Instance.EventSequence = HitDeclarationOrder++; // ordine di dichiarazione, non la dimensione (#2970)
 			// 🔴 **Il colpo e' qui perche' NON e' stato cancellato: se e' fra i degradati, l'Interrupt gli ha
 			// tolto qualcosa lo stesso** ([D-300]). E' l'unico punto in cui `bInterrupted` diventa vero in
 			// partita — prima del 2026-08-31 lo scrivevano solo i test, e il ramo di `ProduceEvents` che lo
