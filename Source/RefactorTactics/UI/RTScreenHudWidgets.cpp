@@ -368,6 +368,48 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	OnActionChanged();
 }
 
+void URTActionSlotWidget::SetArmingControllerForTest(ARTPlayerController* InController)
+{
+	ArmingControllerForTest = InController;
+}
+
+ARTPlayerController* URTActionSlotWidget::ResolveArmingController() const
+{
+	// L'iniezione dei test viene PRIMA, e solo perche' in gioco e' sempre nulla: senza un `ULocalPlayer`
+	// — che una run headless non ha — `GetOwningPlayer()` resta nullo e il click non sarebbe verificabile
+	// se non aprendo l'Editor. E' la stessa forma, con la stessa ragione misurata, di
+	// `URTScreenHudWidgetBase::GetSelectedUnit()`.
+	if (ARTPlayerController* Iniettato = ArmingControllerForTest.Get())
+	{
+		return Iniettato;
+	}
+
+	return Cast<ARTPlayerController>(GetOwningPlayer());
+}
+
+void URTActionSlotWidget::Activate()
+{
+	// ⛔ **Uno slot MAI assegnato porta `INDEX_NONE`, e `ArmKitAbility(INDEX_NONE)` DISARMA.** Senza questa
+	// guardia un riquadro vuoto — o sopravvissuto alla ricostruzione della lista — spegnerebbe l'azione
+	// armata da un altro. E' la guardia di `URTFastDecisionOptionWidget::Choose()` sul proprio proprietario,
+	// tradotta sul dato che qui fa le veci del legame.
+	//
+	// ⚠️ Non e' un controllo di DISPONIBILITA': una posizione di kit vuota porta comunque il proprio indice
+	// (`Cooldowns[i].AbilityIndex == i`, `#2987`) e passa di qui. A rifiutarla e' il core.
+	if (Action.AbilityIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// 🔑 **L'indice, non l'azione, e la stessa porta del tasto.** `ArmKitAbility` prende un `int32` e delega
+	// a `SelectAbilityForCurrent`: cooldown, slot reazione, self-target e input bloccato restano decisi in
+	// un posto solo, e un click non puo' aggirare un controllo che il tasto rispetta.
+	if (ARTPlayerController* PC = ResolveArmingController())
+	{
+		PC->ArmKitAbility(Action.AbilityIndex);
+	}
+}
+
 FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
 {
 	// ⚠️ **Rende la cache e non ricalcola**: e' sicuro chiamarla da un binding, che e' esattamente cio' che
