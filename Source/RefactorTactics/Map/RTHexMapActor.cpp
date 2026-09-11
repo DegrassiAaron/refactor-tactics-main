@@ -780,6 +780,21 @@ ARTHexMapActor::ARTHexMapActor()
 		Relief->SetStaticMesh(CylinderMesh.Object);
 	}
 
+	// Volume della SUPERFICIE (`#2936`): stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
+	//
+	// ⚠️ **Nessuna collisione e' un requisito, non un'ottimizzazione**: un volume di fumo che intercettasse il
+	// raycast del puntatore ruberebbe il click alla cella sotto di se', e il giocatore non potrebbe piu'
+	// bersagliare la cella che il fumo occupa — cioe' proprio il caso che `#2870` esiste per aprire.
+	SurfaceVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SurfaceVolumes"));
+	SurfaceVolumes->SetupAttachment(Cells);
+	SurfaceVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SurfaceVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
+	SurfaceVolumes->CastShadow = false;
+	if (CylinderMesh.Succeeded())
+	{
+		SurfaceVolumes->SetStaticMesh(CylinderMesh.Object);
+	}
+
 	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
 	// Il corpo strutturale (#1865): sotto le superfici, senza collisione — non si calpesta e non si clicca.
 	StructuralBodies = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("StructuralBodies"));
@@ -1418,6 +1433,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	const bool bDoEdges   = EnumHasAnyFlags(Families, ERTRebuildFamily::EdgeFeatures);
 	const bool bDoBorders = EnumHasAnyFlags(Families, ERTRebuildFamily::Borders);
 	const bool bDoBodies  = EnumHasAnyFlags(Families, ERTRebuildFamily::Bodies);
+	const bool bDoSurfaceVolumes = EnumHasAnyFlags(Families, ERTRebuildFamily::SurfaceVolumes);
 
 	// Mesh configurabile con fallback. Il fallback e' il prisma esagonale generato, NON piu' il cilindro
 	// engine: quello restava un disco, ed e' il difetto che `U22` ha visto a schermo. `CellMesh` continua a
@@ -1481,6 +1497,14 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		ReliefBaseScale.Reset();
 		LastReliefVeilState.Reset();
 	}
+	if (bDoSurfaceVolumes && SurfaceVolumes)
+	{
+		SurfaceVolumes->ClearInstances();
+		SurfaceVolumeCells.Reset();
+		SurfaceVolumeBaseScale.Reset();
+		// Lo stato del velo si azzera con gli indici a cui si riferisce, come per ogni altra famiglia.
+		LastSurfaceVolumeVeilState.Reset();
+	}
 	if (bDoBlock)
 	{
 		BlockerCells.Reset();
@@ -1530,6 +1554,10 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	{
 		if (CellShape != nullptr) { Relief->SetStaticMesh(CellShape); }
 		Relief->ClearInstances();
+	}
+	if (bDoSurfaceVolumes && SurfaceVolumes)
+	{
+		if (CellShape != nullptr) { SurfaceVolumes->SetStaticMesh(CellShape); }
 	}
 	if (bDoBlock && Blockers)
 	{
@@ -1784,6 +1812,29 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// rilievo `N` non e' la cella `N` ([D-227]).
 			ReliefCells.Add(CellIds[I]);
 			ReliefBaseScale.Add(ReliefXf.GetScale3D());
+		}
+
+		// ➕ **IL VOLUME DELLA SUPERFICIE** (`#2936`): il terzo canale, dopo il colore del disco e il glifo
+		// inciso. La forma la decide `URTHexLibrary::SurfaceVolumeFor`, che e' l'unica autorita': qui si
+		// traduce in una trasformata, non si sceglie.
+		//
+		// ⚠️ **Legge `Surfaces[I]` e non il costo o i flag**: e' cio' che tiene questa famiglia indipendente da
+		// `Relief` (costo) e da `Blockers` (regole di blocco). Il fumo costa 1 e non blocca la vista: nessuna
+		// delle altre due lo disegnerebbe mai.
+		const FVector2D SurfaceVolume = URTHexLibrary::SurfaceVolumeFor(Surfaces[I]);
+		if (bDoSurfaceVolumes && SurfaceVolumes && SurfaceVolume.Y > 0.0)
+		{
+			// Poggia sulla faccia del disco e cresce verso l'alto, come il rilievo: il cilindro engine e'
+			// CENTRATO, quindi il suo centro sta a meta' altezza.
+			FVector VolumeCenter = World;
+			VolumeCenter.Z += RTCellTopZ + SurfaceVolume.Y * 0.5;
+			const FTransform VolumeXf(FRotator::ZeroRotator, VolumeCenter,
+				FVector(PlanarScale * SurfaceVolume.X, PlanarScale * SurfaceVolume.X, SurfaceVolume.Y / 100.f));
+			SurfaceVolumes->AddInstance(VolumeXf, /*bWorldSpace=*/ true);
+			// Per ISTANZA e non per cella, come rilievo e glifi: otto superfici su nove non producono volume,
+			// quindi il volume `N` non e' la cella `N`.
+			SurfaceVolumeCells.Add(CellIds[I]);
+			SurfaceVolumeBaseScale.Add(VolumeXf.GetScale3D());
 		}
 
 		// Volumi delle due regole. Sono INDIPENDENTI: una cella puo' averne una, l'altra o entrambe, e in
@@ -2726,6 +2777,27 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 			return false;
 		}
 
+		// ➕ **E il VOLUME della superficie dev'essere rimasto lo stesso** (`#2936`).
+		//
+		// 🔴 **Questo percorso riscrive colore e glifo, non i volumi.** Una cella che diventasse fumo passando
+		// di qui avrebbe due canali su tre: tinta e anello nuovi, nessun volume. ∴ quando la presenza del volume
+		// cambia non e' un riallineamento, ed e' il fallback a doverla costruire.
+		//
+		// ⚠️ **Si confronta la PRESENZA, non la forma**: due superfici con volumi diversi non esistono ancora —
+		// il fumo e' l'unica ad averne uno — e confrontare le dimensioni qui sarebbe un ramo che nessun dato
+		// puo' percorrere. Il giorno in cui una seconda superficie dichiarera' un volume, questo confronto va
+		// esteso alla forma, e `SurfaceVolumeFor` e' gia' il posto da cui leggerla.
+		//
+		// ⚠️ `Contains` su `SurfaceVolumeCells` e' lineare, e va bene: quell'array conta le sole celle CON un
+		// volume — zero su una board senza fumo — non le 7 651 della mappa. E' la stessa ragione per cui il
+		// guardiano di `#2761` puo' permettersi di girare per cella.
+		const bool bVolumeOra = SurfaceVolumeCells.Contains(Id);
+		const bool bVolumeDopo = URTHexLibrary::SurfaceVolumeFor(Data->Surface).Y > 0.0;
+		if (bVolumeOra != bVolumeDopo)
+		{
+			return false;
+		}
+
 		DiscIndices.Add(*Trovato);
 	}
 
@@ -2943,6 +3015,21 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// giro dopo un caricamento — e `RepaintCells` risponde `false` quando la modifica non e' un
 	// riallineamento ma una costruzione. In entrambi i casi si ricostruiscono le due famiglie, cioe' si fa
 	// esattamente cio' che si faceva prima.
+	//
+	// ➕ **E i canali che dipendono dalla superficie sono TRE dal `#2936`**, non due: `Cells` porta il
+	// COLORE, `Glyphs` la FORMA INCISA (`SurfaceRingCount`) e `SurfaceVolumes` il VOLUME
+	// (`SurfaceVolumeFor`). Il fallback li ricostruisce insieme, perche' ricostruirne una parte darebbe una
+	// cella con canali che si contraddicono — colore nuovo e forma vecchia — su un criterio, «colore **e**
+	// forma, mai solo il colore» (`#956`), che esiste proprio per non dipendere da uno solo.
+	//
+	// 🔴 **E il percorso PER CELLA non conosce il volume, ed e' dichiarato qui invece che scoperto dopo.**
+	// `RepaintCells` riscrive colore e presenza del glifo; il volume no. Una cella che diventa fumo per quella
+	// strada avrebbe due canali su tre. E' per questo che `RepaintCells` **rifiuta** i cambi di superficie che
+	// muovono il volume e lascia decidere al fallback: vedi la sua guardia `SurfaceVolumeFor`.
+	//
+	// 🔑 **Chi aggiunge un quarto canale derivato dalla superficie deve toccare ENTRAMBE le strade**, o quel
+	// canale resterebbe indietro su una delle due — il difetto di `#2894`, ristretto a un percorso solo e
+	// quindi piu' difficile da vedere di quanto lo fosse allora.
 	if (MapAsset && MapAsset->Revision != LastSyncedMapRevision)
 	{
 		const int32 SinceRevision = LastSyncedMapRevision;
@@ -2953,7 +3040,8 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 			&& RepaintCells(Cambiate);
 		if (!bPerCella)
 		{
-			RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs);
+			RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs
+				| ERTRebuildFamily::SurfaceVolumes);
 		}
 	}
 
@@ -3027,6 +3115,13 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
 	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, nullptr, Visible, Explored,
 		SenzaColore);
+
+	// ⚠️ **Il volume della superficie passa di QUI, e non e' una formalita'** (`#2936`): `VeilInstances`
+	// porta a scala ZERO cio' che sta su una cella mai vista ([D-225]). Senza questa riga il fumo si
+	// vedrebbe **dove la squadra non guarda** — un canale di conoscenza aperto proprio dalla feature che
+	// esiste per non aprirne (`#2870`), e visibile a colpo d'occhio invece che dedotto.
+	VeilInstances(SurfaceVolumes, SurfaceVolumeCells, SurfaceVolumeBaseScale, LastSurfaceVolumeVeilState,
+		nullptr, Visible, Explored, SenzaColore);
 	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored,
 		SenzaColore);
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
@@ -3229,6 +3324,7 @@ void ARTHexMapActor::GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) c
 	};
 
 	Count(Relief, ReliefCells.Num());
+	Count(SurfaceVolumes, SurfaceVolumeCells.Num());
 	Count(Blockers, BlockerCells.Num());
 	Count(EdgeFeatures, EdgeFeatureCells.Num());
 	// ➕ Il corpo strutturale entra qui da `#2731`: prima non compariva in **nessun** oracolo, ed e' il
