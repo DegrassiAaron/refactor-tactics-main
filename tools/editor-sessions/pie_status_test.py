@@ -13,6 +13,8 @@ Testo di prosa che non e' una riga di tabella e va ignorato.
 | **PIE-HEXPLAY-6** `RELEASE-V01` | Muro attraversabile | scenario | ❌ da rifare in pianificazione |
 | **PIE-TD-CLEAN** | Il pannello non sporca | nessuna | ⏳ mai eseguita |
 | **PIE-VIS-DEFLECT** | La parata si vede | cue assenti | ⛔ non eseguibile prima delle cue |
+| **PIE-AS4a** | Suffisso MINUSCOLO | il registro avverte che un regex `[A-Z0-9]` la tronca | 🟡 mezza |
+| **PIE-HEXPLAY-6c** `RELEASE-V01` | Altro suffisso minuscolo | — | ⏳ mai eseguita |
 
 > `PIE-V01-ROSTER` citata in prosa: non e' una riga di tabella e non cambia lo stato.
 """
@@ -23,8 +25,24 @@ class ParseTest(unittest.TestCase):
         st = pie_status.parse(REGISTRO)
         self.assertEqual(
             sorted(st),
-            ["PIE-HEXPLAY-6", "PIE-TD-CLEAN", "PIE-V01-ROSTER", "PIE-VIS-DEFLECT"],
+            [
+                "PIE-AS4a",
+                "PIE-HEXPLAY-6",
+                "PIE-HEXPLAY-6c",
+                "PIE-TD-CLEAN",
+                "PIE-V01-ROSTER",
+                "PIE-VIS-DEFLECT",
+            ],
         )
+
+    def test_un_suffisso_minuscolo_non_fa_saltare_la_riga(self):
+        # Il registro avverte da se' che un regex `[A-Z0-9]` tronca o accorpa nove righe
+        # reali. Questo test e' li' perche' il difetto e' gia' costato una volta.
+        st = pie_status.parse(REGISTRO)
+        self.assertEqual(st["PIE-AS4a"]["stato"], "🟡")
+        self.assertEqual(st["PIE-HEXPLAY-6c"]["stato"], "⏳")
+        self.assertTrue(st["PIE-HEXPLAY-6c"]["release"])
+        self.assertNotIn("PIE-AS4", st)
 
     def test_lo_stato_e_la_prima_emoji_dell_ultima_cella(self):
         st = pie_status.parse(REGISTRO)

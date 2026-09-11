@@ -12,7 +12,13 @@ import re
 from pathlib import Path
 
 REGISTRO = Path("docs/technical/test-manuali-pie.md")
-RIGA = re.compile(r"^\|\s*\*\*(PIE-[A-Z0-9-]+)\*\*")
+
+# ⚠️ La classe include le MINUSCOLE, e non e' un dettaglio: il registro avverte da se' che
+# «nove righe reali portano un suffisso minuscolo che il regex, essendo `[A-Z0-9]`, tronca o
+# accorpa» — `PIE-AS4a`, `PIE-AS4b`, `PIE-BU2b`, `PIE-BU2c`, `PIE-BU3c`, `PIE-HEXPLAY-3b`,
+# `-4b`, `-6b`, `-6c`. Con `[A-Z0-9-]+` la riga non viene troncata: viene SALTATA, perche' il
+# `**` di chiusura non arriva dove il regex lo aspetta. Sono voci che spariscono in silenzio.
+RIGA = re.compile(r"^\|\s*\*\*(PIE-[A-Za-z0-9-]+)\*\*")
 STATI = "✅🟡⏳❌⛔🔴"
 VERDE = "✅"
 SCONOSCIUTO = "?"
