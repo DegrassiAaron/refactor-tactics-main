@@ -3559,3 +3559,33 @@ sessions:
       nella scelta e non nel cablaggio — e il rimedio e' una misura come quella, non un ritocco a occhio.
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
+  - id: U53
+    title: La linea che non arriva, e la cella che la ferma
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilita' della linea di tiro interrotta — esiste, non arriva, e si vede cosa la ferma
+    artifacts: []
+    # 🔑 **Perche' esiste.** Il codice di #2742 e' in `main` da `5149867f`: `URTSightLineLibrary` produce le
+    # linee autorizzate, `ERTOverlayMeaning::Vision` le disegna, e tre test le presidiano headless —
+    # `Sight.BlockedLineCarriesWhereItStops`, `Sight.HiddenStatesProduceTheSameLines`,
+    # `Sight.UnknownTargetProducesNoLine`. Nessuno di quei tre puo' dire se un giocatore **capisca** cosa sta
+    # guardando, ed e' l'unica meta' che resta.
+    #
+    # ⚠️ **La voce arriva DOPO la feature, ed e' il verso giusto.** Il precedente da non ripetere e' il
+    # marcatore d'ostacolo di #2707, a schermo tre sedute prima che qualcuno lo giudicasse; qui il rischio
+    # opposto — una feature spedita che nessuna voce convoca — era gia' realizzato, e questa seduta lo chiude.
+    #
+    # ⛔ **Non duplica `PIE-VIS-SIGHTWALL`.** Quella chiede se la **cella** che nega il tiro si distingua dal
+    # pavimento, ed e' ❌ dal 2026-09-06 con il verdetto d'autore *«ho visto solo l'esagono ambra, nessuna
+    # linea di tiro presente»*. Questa chiede se **la linea** ci sia e dica dove si ferma: e' esattamente la
+    # meta' che a quel verdetto mancava, e che nel frattempo e' stata costruita.
+    unblocked_by: []
+    # Vuoto e misurato: nessun `FColor` letterale resta in `DrawPlanningPreview` (zero, misurato il
+    # 2026-09-11), quindi la precondizione di #1941 che bloccava #2742 e' caduta.
+    shares_setup_with: []
+    # ⚠️ Vuoto perche' l'allestimento e' uno scenario suo — `Visual.Environment.BlindFireThroughSightWall` —
+    # e appoggiarsi a una partita normale lascerebbe fuori proprio il caso che rende la voce giudicabile:
+    # una linea che ESISTE e non arriva. In una partita normale un bersaglio non visibile non si punta.
+    verifies:
+      - PIE-VIS-SIGHTLINE
