@@ -451,4 +451,112 @@ bool FRTHudRoundLimitFromScenarioTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **UNA POSIZIONE DI KIT VUOTA ARRIVA FINO AL GRAFO DEL DOCK, E NON SPOSTA GLI SLOT** (`#2989`).
+ *
+ * 🔑 **E' l'ultimo tratto che nessun oracolo attraversava.** Il buco nel kit era misurato **solo sul
+ * ViewModel** — `HudViewModel.KitHoleDoesNotRenumberTheSlots` — e il grafo di `WBP_RT_ActionDock` era
+ * esercitato **solo su kit sani**, da `DockArmsOnlyTheSelectedAction`. Fra i due restava scoperto
+ * precisamente il punto in cui i due si incontrano: il `For Loop` del dock che prende `Azioni[i]` per
+ * POSIZIONE e lo passa allo slot i-esimo.
+ *
+ * ⚠️ **Il grafo indicizza per posizione, e questo test e' cio' che lo rende lecito.** L'ubergraph confronta
+ * con `Equal (Integer)` l'indice del ciclo e `GetArmedActionIndex()`: e' corretto **soltanto** finche'
+ * `BuildAbilityCooldowns` emette una riga per ogni posizione di kit. Prima di `#2987` saltava le vuote, e
+ * su un kit con un buco il dock avrebbe acceso lo slot sbagliato — senza che niente smettesse di
+ * compilare, e senza che nessun test cadesse.
+ *
+ * 🔑 **L'oracolo forte e' il controllo C**, non il conteggio: si arma una posizione **dopo** il buco. E'
+ * l'unico che distingue «il dock disegna il numero giusto di riquadri» da «il dock accende quello giusto»,
+ * ed e' esattamente cio' che una rinumerazione romperebbe.
+ *
+ * ⛔ **Non duplica `DockArmsOnlyTheSelectedAction`**: quello prova che il dock accenda UNO slot e sia
+ * l'armato, su un kit senza buchi. Qui il kit ne ha uno, ed e' l'unica differenza — deliberata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudDockKitHoleTest,
+	"RefactorTactics.ScreenHud.DockSurvivesAHoleInTheKit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudDockKitHoleTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	FString ReportDir;
+	const FRTTestResult Result =
+		URTScenarioRunner::RunById(World, TEXT("Spec.Hud.DockArmsTheSelectedAction"), ReportDir);
+	if (!TestEqual(TEXT("lo scenario gira"),
+		static_cast<int32>(Result.Outcome), static_cast<int32>(ERTTestOutcome::Pass)))
+	{
+		AddError(FString::Printf(TEXT("esito scenario: %s"), *Result.ErrorMessage));
+		return false;
+	}
+
+	ARTUnit* Mine = RTWorldFixtures::FirstUnitOfTeam(World, 0);
+	if (!TestNotNull(TEXT("lo scenario ha lasciato in campo un'unita' del team 0"), Mine)) { return false; }
+
+	// Anti-vacuita': serve un buco FRA due posizioni popolate, e una posizione DOPO il buco da armare.
+	if (!TestTrue(TEXT("premessa: il kit ha almeno tre posizioni"), Mine->NumAbilities() >= 3))
+	{
+		return false;
+	}
+
+	// Il buco. `Abilities` e' pubblico: e' lo stesso modo in cui `KitHoleDoesNotRenumberTheSlots` lo scava,
+	// e resta l'unico modo di produrre il caso senza un catalogo malformato.
+	constexpr int32 Buco = 1;
+	constexpr int32 DopoIlBuco = 2;
+	const int32 PosizioniDiKit = Mine->NumAbilities();
+	Mine->Abilities[Buco] = nullptr;
+
+	UClass* DockClass = LoadClass<URTActionDockWidget>(nullptr, DockBlueprintPath);
+	if (!TestNotNull(TEXT("WBP_RT_ActionDock si carica"), DockClass)) { return false; }
+
+	URTActionDockWidget* Dock = CreateWidget<URTActionDockWidget>(World, DockClass);
+	if (!TestNotNull(TEXT("il dock si istanzia"), Dock)) { return false; }
+	Dock->SetSelectedUnitForTest(Mine);
+
+	// --- A. il dock disegna un riquadro per ogni POSIZIONE, buco compreso -----------------------------
+	Dock->Tick(FGeometry(), 0.f);
+	const TArray<URTActionSlotWidget*> Slots = SlotsOf(Dock);
+
+	TestEqual(TEXT("A: un riquadro per ogni posizione di kit, la vuota compresa"),
+		Slots.Num(), PosizioniDiKit);
+
+	// --- B. il riquadro del buco porta la posizione vuota, non l'azione seguente ----------------------
+	if (TestTrue(TEXT("premessa: il riquadro del buco esiste"), Slots.IsValidIndex(Buco)))
+	{
+		TestTrue(TEXT("B: il riquadro del buco porta una posizione VUOTA"),
+			Slots[Buco]->Action.ActionId.IsNone());
+		TestEqual(TEXT("B: e porta comunque il proprio indice di kit"),
+			Slots[Buco]->Action.AbilityIndex, Buco);
+	}
+
+	// --- C. armando DOPO il buco si accende quel riquadro, non uno slittato ---------------------------
+	// 🔑 E' l'asserzione che cade se il ViewModel torna a saltare le posizioni vuote: li' `Azioni[2]`
+	// sarebbe l'azione della posizione 3, e il dock accenderebbe il riquadro sbagliato.
+	Mine->SelectAbility(DopoIlBuco);
+	Dock->Tick(FGeometry(), 0.f);
+
+	const TArray<int32> Accesi = ArmedIndices(SlotsOf(Dock));
+	TestEqual(TEXT("C: si accende un riquadro solo"), Accesi.Num(), 1);
+	if (Accesi.Num() == 1)
+	{
+		TestEqual(TEXT("C: ed e' quello della posizione armata, non uno slittato dal buco"),
+			Accesi[0], DopoIlBuco);
+	}
+
+	// --- D. il riquadro vuoto non si accende mai ------------------------------------------------------
+	// ⛔ Senza, un dock che accendesse tutto passerebbe il controllo C quando `Accesi.Num()` fosse 1 per
+	// caso. E un riquadro vuoto acceso e' peggio di uno spento: annuncia un'azione che non esiste.
+	Mine->SelectAbility(Buco);
+	Dock->Tick(FGeometry(), 0.f);
+	const TArray<int32> DopoArmareIlBuco = ArmedIndices(SlotsOf(Dock));
+	TestFalse(TEXT("D: armare la posizione vuota non accende il suo riquadro"),
+		DopoArmareIlBuco.Contains(Buco));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
