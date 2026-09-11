@@ -681,4 +681,97 @@ bool FRTBlastPreviewFieldsStayClosedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#2936` — **il volume del fumo nasce dal GIRO DI GIOCO, non solo da una chiamata al velo.**
+ *
+ * ## Il buco che questo test chiude
+ *
+ * I due test del volume (`Veil.SurfaceVolumeFollowsTheData`, `…IsVeiledLikeEverythingElse`) chiamano
+ * `ApplyKnowledgeVeil` **direttamente** dopo aver cambiato la superficie a mano. Provano la regola; non
+ * provano che in partita qualcuno la percorra.
+ *
+ * 🔴 **E fra le due strade c'e' di mezzo tutto cio' che puo' rompersi**: `ApplyDynamicSurface` nel Cleanup,
+ * la `Revision` dell'asset, il percorso PER CELLA di `#2761` con la sua guardia, e il presenter che chiama il
+ * velo su `OnTeamKnowledgeRefreshed`. Un modulo verde con il chiamante rotto e' il difetto che `#2870` ha
+ * gia' pagato una volta, su un'altra riga.
+ *
+ * ⚠️ **Nato da una seduta a schermo che non ha visto niente.** Il log diceva sette celle trasformate e zero
+ * ripristini, e la board sembrava vuota: senza questo test non c'era modo di distinguere «il volume non
+ * esiste» da «il volume c'e' e la camera non lo mostra». Sono due difetti diversi con lo stesso aspetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindFireVolumeAppearsInAGameTurnTest,
+	"RefactorTactics.BlindFire.SmokeVolumeAppearsFromAGameTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindFireVolumeAppearsInAGameTurnTest::RunTest(const FString&)
+{
+	UWorld* World = MakeBlindFireWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(World, 4);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+	MapActor->RebuildInstances();
+
+	// Premessa: una board di solo pavimento non ha volumi. Senza, un conteggio finale positivo non
+	// direbbe che e' stato il fumo a produrlo.
+	if (!TestEqual(TEXT("premessa: nessun volume su una board di pavimento"),
+		MapActor->NumSurfaceVolumeInstances(), 0))
+	{
+		DestroyBlindFireWorld(World);
+		return false;
+	}
+
+	ARTUnit* Caster = SpawnBlindFireUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Caster) { DestroyBlindFireWorld(World); return false; }
+
+	// `MistVeil` si cerca per POLICY, come nel resto di questa suite: segue il dato invece di un indice.
+	const int32 Idx = FindAbilityWithPolicy(Caster, ERTLineOfSightPolicy::NotRequired, ERTAbilityShape::Area);
+	if (!TestTrue(TEXT("premessa: il kit porta l'azione a tiro indiretto"), Idx != INDEX_NONE))
+	{
+		DestroyBlindFireWorld(World);
+		return false;
+	}
+
+	// Il piano e' quello che `HandleTargetCell` scrive: cella dichiarata, nessun bersaglio-unita'.
+	const FRTCellId Bersaglio(2, 0, 0);
+	Caster->PlannedAbilityIndex = Idx;
+	Caster->DeclareAttackOnCell(Bersaglio);
+
+	// ── Un turno INTERO, non una chiamata al velo: e' il punto del test.
+	TM->LockInAndResolve();
+	for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// La superficie e' cambiata davvero: se questo fallisse, il test successivo misurerebbe l'assenza di una
+	// causa invece dell'assenza di un effetto.
+	const FRTHexCellData* Dopo = Map->FindCell(Bersaglio);
+	if (!TestNotNull(TEXT("la cella bersaglio esiste ancora"), Dopo)) { DestroyBlindFireWorld(World); return false; }
+	if (!TestTrue(TEXT("premessa: il Cleanup ha creato il fumo"), Dopo->Surface == ERTHexSurface::Smoke))
+	{
+		DestroyBlindFireWorld(World);
+		return false;
+	}
+
+	// ── IL CUORE: il velo gira come in partita — il presenter lo chiama a ogni refresh — e le istanze del
+	//    volume devono esistere. Si vela con tutto osservato: qui non si misura la privacy (ci pensa
+	//    `Veil.SurfaceVolumeIsVeiledLikeEverythingElse`), si misura che il volume NASCA.
+	TArray<FRTCellId> Tutte;
+	for (int32 I = 0; I < MapActor->NumInstanceCells(); ++I) { Tutte.Add(MapActor->CellForInstance(I)); }
+	FRTTeamKnowledge Conoscenza;
+	Conoscenza.Version = FRTTeamKnowledge::CurrentVersion;
+	Conoscenza.TeamId = 0;
+	Conoscenza.TurnNumber = 1;
+	Conoscenza.VisibleCells = Tutte;
+	Conoscenza.ExploredCells = Tutte;
+	MapActor->ApplyKnowledgeVeil(Conoscenza);
+
+	// Sette celle: `MistVeil` dichiara `SurfaceRadius = 1`, cioe' un esagono pieno. Il numero e' un'asserzione
+	// come nello scenario: un 1 direbbe che l'area ha smesso di essere un'area.
+	TestEqual(TEXT("il turno di gioco produce i volumi delle sette celle"),
+		MapActor->NumSurfaceVolumeInstances(), 7);
+
+	DestroyBlindFireWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
