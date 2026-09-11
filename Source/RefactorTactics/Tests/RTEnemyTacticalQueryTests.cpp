@@ -328,10 +328,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyQueryRegionsAreStablyOrderedTest,
 bool FRTEnemyQueryRegionsAreStablyOrderedTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(5);
+	// ⚠️ `Action.Sprint` accanto a `Action.Reposition`, e la ragione e' misurata: `Reposition` e' DUE celle in
+	// linea (`RTCatalogLibrary.cpp:1259`), quindi con `MovePoints` 3 ogni sua destinazione cade DENTRO il
+	// passo e la regione dello scatto resta vuota — correttamente. Senza lo scatto a budget, il controllo di
+	// non vacuita' su `DashOnlyCells` sarebbe impossibile da soddisfare (#2632).
 	URTHeroData* Hero = MakeQueryHero(TEXT("Hero.QueryProbe"), 3,
 		{
 			MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 2),
-			MakeQueryAction(TEXT("Action.Reposition"))
+			MakeQueryAction(TEXT("Action.Reposition")),
+			MakeQueryAction(TEXT("Action.Sprint"))
 		});
 
 	FRTKnowledgeView Forward;
@@ -859,19 +864,42 @@ bool FRTWallTruncatesBothRegionsTest::RunTest(const FString&)
 		return false;
 	}
 
-	// --- Con i muri: nessuna delle due regioni contiene una cella che blocca il movimento ----------------
-	URTHexMapAsset* Walled = MakeQueryArena(5);
-	PutBlocker(Walled, InWalk);
-	PutBlocker(Walled, InSprint);
+	// --- Un muro DENTRO il passo: esce dal passo, e non si ripresenta nello scatto -----------------------
+	//
+	// ⛔ **Non si misura un conteggio, e la ragione e' un difetto che questo test ha avuto.** Lo scatto esce
+	// AL NETTO del passo: ogni cella che un muro toglie al passo puo' ENTRARE nello scatto, quindi il numero
+	// di celle dello scatto non ha un segno garantito. Un `After.Num() < Before.Num()` qui e' rosso per una
+	// ragione giusta, e verde per fortuna. Si misura l'appartenenza della cella murata.
+	{
+		URTHexMapAsset* Walled = MakeQueryArena(5);
+		PutBlocker(Walled, InWalk);
 
-	FRTEnemyTacticalRegions After;
-	if (!TestTrue(TEXT("con i muri risponde comunque"),
-		URTEnemyTacticalQueryLibrary::RegionsFor(Walled, View, 7, Hero, After))) { return false; }
+		FRTEnemyTacticalRegions After;
+		if (!TestTrue(TEXT("con il muro vicino risponde comunque"),
+			URTEnemyTacticalQueryLibrary::RegionsFor(Walled, View, 7, Hero, After))) { return false; }
 
-	TestFalse(TEXT("il muro toglie la cella dal passo"), Has(After.ReachableCells, InWalk));
-	TestFalse(TEXT("e l'altro muro la toglie dallo scatto"), Has(After.DashOnlyCells, InSprint));
-	TestTrue(TEXT("il passo si restringe"), After.ReachableCells.Num() < Before.ReachableCells.Num());
-	TestTrue(TEXT("e anche lo scatto"), After.DashOnlyCells.Num() < Before.DashOnlyCells.Num());
+		TestFalse(TEXT("il muro toglie la cella dal passo"), Has(After.ReachableCells, InWalk));
+		TestFalse(TEXT("e una cella murata non compare nello scatto"), Has(After.DashOnlyCells, InWalk));
+		TestTrue(TEXT("il passo si restringe"), After.ReachableCells.Num() < Before.ReachableCells.Num());
+	}
+
+	// --- Un muro dentro lo SCATTO: esce dallo scatto, e la regione cambia --------------------------------
+	{
+		URTHexMapAsset* Walled = MakeQueryArena(5);
+		PutBlocker(Walled, InSprint);
+
+		FRTEnemyTacticalRegions After;
+		if (!TestTrue(TEXT("con il muro lontano risponde comunque"),
+			URTEnemyTacticalQueryLibrary::RegionsFor(Walled, View, 7, Hero, After))) { return false; }
+
+		TestFalse(TEXT("il muro toglie la cella dallo scatto"), Has(After.DashOnlyCells, InSprint));
+		TestFalse(TEXT("e la regione dello scatto non e' piu' la stessa"),
+			SameCells(After.DashOnlyCells, Before.DashOnlyCells));
+		// Il passo non la conteneva, quindi resta com'era: e' la controprova che il muro ha agito SULLO
+		// SCATTO e non su entrambe per via di un effetto collaterale.
+		TestTrue(TEXT("il passo non cambia: il muro e' fuori dalla sua portata"),
+			SameCells(After.ReachableCells, Before.ReachableCells));
+	}
 
 	// --- Layer: stesso X/Y, piano diverso, in nessuna delle due ------------------------------------------
 	TestTrue(TEXT("la cella vicina sul layer 0 e' nel passo"), Has(Before.ReachableCells, FRTCellId(1, 0, 0)));
@@ -993,6 +1021,50 @@ bool FRTHiddenHazardIsNotDeducibleFromTheRegionDifferenceTest::RunTest(const FSt
 	TestEqual(TEXT("la differenza fra le due regioni e' identica"),
 		B.DashOnlyCells.Num() - B.ReachableCells.Num(),
 		A.DashOnlyCells.Num() - A.ReachableCells.Num());
+
+	return true;
+}
+
+/**
+ * 🔑 **Una regione dello scatto vuota NON significa «questo nemico non scatta»** — trovato misurando #2632,
+ * non previsto dalla sua specifica.
+ *
+ * `Action.Reposition` e' DUE celle in linea (`RTCatalogLibrary.cpp:1259`). Un soggetto con `MovePoints` 3 e
+ * `Reposition` possiede una mobilita' rapida e ha comunque la regione dello scatto **vuota**: lo scatto non
+ * lo porta oltre il suo passo. Il valore tattico di `Reposition` e' la FASE — risolve in `Dash`, prima del
+ * Blast — non la distanza.
+ *
+ * ⚠️ **Conseguenza per chi consuma il DTO** (#2597): da `DashOnlyCells` vuota non si deduce «non ha scatto»,
+ * e una UI che scrivesse quella frase mentirebbe. Il DTO risponde *dove arriva*, non *cosa possiede*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShortFastMovementAddsNoReachTest,
+	"RefactorTactics.Perception.ShortFastMovementAddsNoReach",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShortFastMovementAddsNoReachTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeQueryArena(5);
+
+	// Mobilita' rapida CORTA (2 celle in linea) contro un passo piu' lungo (3).
+	URTHeroData* ShortDash = MakeQueryHero(TEXT("Hero.QueryProbe"), /*MovePoints*/ 3,
+		{ MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1),
+		  MakeQueryAction(TEXT("Action.Reposition")) });
+
+	FRTKnowledgeView View;
+	View.ObserverTeamId = 0;
+	View.Entries.Add(LiveEntry(7, FRTCellId(0, 0), ShortDash->HeroId));
+
+	FRTEnemyTacticalRegions R;
+	if (!TestTrue(TEXT("il soggetto risponde"),
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, ShortDash, R))) { return false; }
+
+	// Il passo c'e', quindi la risposta non e' vuota per assenza di soggetto.
+	if (!TestTrue(TEXT("il passo e' popolato"), R.ReachableCells.Num() > 1)) { return false; }
+
+	TestEqual(TEXT("uno scatto piu' corto del passo non aggiunge portata"), R.DashOnlyCells.Num(), 0);
+
+	// 🔑 E la minaccia post-scatto NON e' vuota: la capacita' esiste, e si vede nell'altra regione. E' la
+	// prova che «scatto vuoto» non equivale a «nessuna mobilita' rapida».
+	TestTrue(TEXT("ma la minaccia post-scatto esiste: la capacita' c'e'"), R.PostDashThreat.Num() > 0);
 
 	return true;
 }
