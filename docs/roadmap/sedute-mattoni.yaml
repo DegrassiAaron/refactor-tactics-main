@@ -342,6 +342,12 @@ wiring:
     setup: SET-HEX-MATCH
   - check: PIE-V01-DEBUG
     setup: SET-HEX-MATCH
+  - check: PIE-V01-DOCKCLICK
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-V01-DOCKKEYS
+    setup: SET-SCEN
+    issue: 151
   - check: PIE-V01-DOCKPROMPT
     setup: SET-SCEN
     issue: 151

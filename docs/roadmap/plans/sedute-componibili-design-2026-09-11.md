@@ -393,7 +393,9 @@ La voce deve dichiarare tre cose:
 
 ## 12. Esito della fetta 0
 
-**Misurato il 2026-09-11** su `b549e9db` (base `1b9f6f36`), col comando:
+**Rimisurato il 2026-09-11 dopo il merge di `main` (`c4cf7ed1`)**, ed e' la misura che vale: il merge
+ha toccato `editor-sessions.yaml` e `test-manuali-pie.md`, cioe' i due registri che il generatore
+legge. Comando:
 
 ```bash
 python tools/editor-sessions/compare_legacy.py
@@ -404,7 +406,15 @@ python tools/editor-sessions/compare_legacy.py
 | **Aperture calcolate contro sedute scritte** | **6** contro **53** |
 | **Persi** — convocati da una seduta e non dall'agenda | **nessuno** |
 | **Guadagnati** — convocati dall'agenda e da nessuna seduta | nessuno, come atteso: il cablaggio nasce dalle sedute |
-| **Coda scoperta** — nel registro PIE e in nessuna riga di `wiring` | **48**, di cui **zero** nel subset `RELEASE-V01` |
+| **Coda scoperta** — nel registro PIE e in nessuna riga di `wiring` | **47**, di cui **zero** nel subset `RELEASE-V01` |
+| **Righe di `wiring`** | **166** |
+
+⚠️ **Il gate ha fatto il proprio mestiere durante il merge, e va registrato.** Sul risultato del merge
+la prima esecuzione ha dato `PERSI = PIE-V01-DOCKCLICK, PIE-V01-DOCKKEYS`: `main` aveva aggiunto due
+check che il cablaggio, seminato prima, non copriva. Rilanciare il seme li ha ripresi da se' — la
+prosa della loro seduta nomina un allestimento che l'euristica riconosce — e il gate e' tornato verde.
+**Questo e' il caso d'uso**: un registro che si muove sotto un cablaggio fermo produce esattamente la
+divergenza che `compare_legacy` esiste per vedere.
 
 **Verdetto sul modello: `REGGE`.** La lista dei persi è vuota, e non perché il criterio sia stato
 abbassato: ogni check che una seduta scritta a mano convocava è convocato dall'agenda calcolata. Le
@@ -455,10 +465,13 @@ già da sé. Il registro ha **240** voci, non le 230 che §1 riportava.
 - **Nessun `requires` è ancora dichiarato**, quindi nessuna apertura ha voci bloccate. È la fetta 1, e
   finché non esiste il design non ha ancora dimostrato la sua promessa centrale — che `U30` non venga
   convocata perché `WBP_RT_PauseMenu` non esiste.
-- **La base si è mossa sotto il lavoro.** Le misure di §1 vengono da `1b9f6f36`; `main` è avanzato
-  durante l'esecuzione, e `95bb31af` ha aggiunto una voce PIE e una seduta. Il confronto resta valido
-  perché agenda e sedute sono lette dallo stesso commit, ma i numeri assoluti vanno rimisurati dopo il
-  rebase.
+- **La base si è mossa sotto il lavoro, e il gate l'ha vista.** Le misure di §1 vengono da
+  `1b9f6f36`; `main` è avanzato fino a `c4cf7ed1` durante l'esecuzione. Il merge è stato fatto e il
+  gate rilanciato — vedi l'avviso qui sopra. I numeri di §1 restano quelli della ricognizione e non
+  vanno aggiornati a mente: si rimisurano coi comandi che li accompagnano.
+- **La rigenerazione del `wiring` è un passo manuale, e l'ho dovuto rifare due volte.** Il seme
+  produce `build/wiring-seminato.yaml`, che va innestato nel registro a mano. Due innesti in una sola
+  fetta sono il segnale che serve un `--into`: candidato per la fetta 1.
 
 ---
 
