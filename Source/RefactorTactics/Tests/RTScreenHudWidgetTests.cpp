@@ -1,4 +1,4 @@
-// Le classi BASE dei widget dello Screen HUD (§4.1, CP 11.7 / #613).
+﻿// Le classi BASE dei widget dello Screen HUD (§4.1, CP 11.7 / #613).
 //
 // Cio' che questi test possono provare e' la SUPERFICIE: cosa un Blueprint puo' leggere, e cosa non trova
 // perche' non esiste. Il layout, l'aspetto e il «centro libero» stanno nel `.uasset` e restano a
@@ -1116,6 +1116,61 @@ bool FRTScreenHudMountReportTest::RunTest(const FString&)
 		Testo.Contains(TEXT("[MANCA] EventLog: 0")));
 	TestTrue(TEXT("l'header assente e' nominato"),
 		Testo.Contains(TEXT("[MANCA] TurnHeader: 0")));
+
+	return true;
+}
+
+/**
+ * La chiave si risolve UNA VOLTA per cambio azione, non a ogni lettura — e il test lo prova contando le
+ * warning, non ispezionando la cache.
+ *
+ * 🔴 **Il difetto che ferma e' misurato**: la seduta PIE del 2026-09-11 ha prodotto **16 388** righe
+ * `Icona non risolta` per **quattro** chiavi distinte. `ResolveIcon` logga — e' il suo scopo — ma il
+ * Blueprint chiama `GetResolvedIcon` da un property binding, cioe' a ogni frame. Il docstring del getter
+ * prescriveva gia' «un evento, una volta per cambio azione»; nulla lo rendeva vero.
+ *
+ * ⚠️ **Si contano le warning e non si guarda `CachedResolvedIcon`**: un test sul campo privato
+ * passerebbe anche se il getter continuasse a loggare, che e' esattamente il difetto. Il soggetto e' il
+ * RUMORE, quindi si misura quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotResolvesOncePerActionChangeTest,
+	"RefactorTactics.ScreenHud.ActionSlotResolvesOncePerActionChange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionSlotResolvesOncePerActionChangeTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("slot"), Slot)) { return false; }
+
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->MissingIcon = TSoftObjectPtr<UTexture2D>(
+		FSoftObjectPath(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	// Un'abilita' PROPRIA: nessun ripiego, quindi la chiave non si risolve e `ResolveIcon` logga.
+	// E' il caso reale di `Hero.Aevik.Overload` — uno dei quattro che la seduta ha visto ripetersi.
+	FRTAbilityCooldownView Azione;
+	Azione.ActionId = TEXT("Hero.Aevik.Overload");
+
+	// 🔑 **Esattamente UNA**, non «almeno una»: `Occurrences 1` e' l'asserto di questo test. Con `0` —
+	// la forma usata altrove per dire «almeno una» — il difetto delle 16 388 righe passerebbe.
+	AddExpectedMessage(TEXT("Icona non risolta"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences*/ 1, /*IsRegex*/ false);
+
+	Slot->SetAction(Azione, /*bArmed=*/ false, Catalogo);
+
+	// Venti letture: e' cio' che un property binding fa in un terzo di secondo.
+	for (int32 i = 0; i < 20; ++i)
+	{
+		Slot->GetResolvedIcon();
+	}
+
+	// ⚠️ Il controllo che rende il test non vacuo: la risoluzione DEVE essere avvenuta. Senza, «una sola
+	// warning» sarebbe soddisfatto anche da un getter che non risolve mai.
+	const FRTIconResolution Esito = Slot->GetResolvedIcon();
+	TestFalse(TEXT("un'abilita' propria senza asset non si risolve"), Esito.bResolved);
+	TestFalse(TEXT("ma l'esito e' popolato: e' il missing-icon, non un valore vuoto"),
+		Esito.Asset.IsNull());
 
 	return true;
 }

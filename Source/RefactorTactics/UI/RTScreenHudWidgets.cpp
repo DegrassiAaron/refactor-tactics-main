@@ -357,15 +357,22 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// ⚠️ L'evento va per ULTIMO: e' il Blueprint che disegna, e disegna leggendo i tre campi qui sopra. Se
 	// partisse prima, un'implementazione che chiama `GetResolvedIcon()` leggerebbe il catalogo del turno
 	// PRECEDENTE — un difetto che a schermo somiglia a un ritardo di un frame invece che a un errore.
+	// ── L'icona si risolve QUI, una volta per cambio azione, e non nel getter.
+	//
+	// 🔴 `ResolveIcon` logga le chiavi che non trova, ed e' cio' per cui esiste. Chiamarla da un property
+	// binding la valuta a ogni frame: la seduta del 2026-09-11 ha prodotto 16 388 righe per quattro chiavi.
+	// Il docstring di `GetResolvedIcon` prescriveva gia' «un evento, una volta per cambio azione» — questa
+	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
+	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
+
 	OnActionChanged();
 }
 
 FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
 {
-	// Il consumer e' fisso qui e non arriva dal grafo: `ResolveIcon` lo usa per dire QUALE widget ha chiesto
-	// un'icona che non c'era, e sei slot che lo compongono ciascuno per conto proprio possono scriverci sei
-	// stringhe diverse — o nessuna. La warning perderebbe l'unica cosa per cui esiste.
-	return URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
+	// ⚠️ **Rende la cache e non ricalcola**: e' sicuro chiamarla da un binding, che e' esattamente cio' che
+	// il Blueprint fa. La risoluzione — e il suo log — avvengono in `SetAction`.
+	return CachedResolvedIcon;
 }
 
 FName URTActionSlotWidget::GetIconId() const
