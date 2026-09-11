@@ -317,6 +317,12 @@ Tutte sub-issue di [`#1881`](https://github.com/DegrassiAaron/refactor-tactics-m
 | [#2858](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2858) | I controlli di #1879 non hanno un chiamante di produzione | P2 | `v0.1` | — |
 | [#2859](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2859) | **Gate**: nessun test dimostra `stepped ≡ continuous` | P2 | — | #2855 |
 
+> ⚠️ **Superato il 2026-09-11 per #2859, e solo per quella riga.** Il gate *«stepped ≡ continuous»* è
+> stato **ritirato**: `StepMicroStep` non scrive nel TurnLog, quindi quell'uguaglianza è vera per
+> costruzione e nessuna sabotatura può farla cadere. #2859 misura ora *«sospesa e ripresa ≡ passaggio
+> unico»* sulla finestra di reazione — la motivazione, con i comandi che la producono, è nei commenti
+> della issue. Il resto di questo piano resta quello che il panel ha deciso quel giorno.
+
 🔴 **Titoli, priorità e dipendenze sono quelli **dopo** lo spec panel di §11**, che ha ritirato dallo scope
 la fermata richiedibile del resolver. La forma di apertura è nella cronaca dei commenti delle issue.
 
