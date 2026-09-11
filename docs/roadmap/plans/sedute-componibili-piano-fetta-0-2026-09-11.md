@@ -402,14 +402,24 @@ Expected: PASS, dodici test in totale.
 Run:
 ```bash
 cd tools/editor-sessions && python -c "
-import pie_status, collections
-st = pie_status.load(__import__('pathlib').Path('../../docs/technical/test-manuali-pie.md'))
+import sys, collections, pathlib, pie_status
+sys.stdout.reconfigure(encoding='utf-8')
+st = pie_status.load(pathlib.Path('../../docs/technical/test-manuali-pie.md'))
 print('voci lette:', len(st))
 print(collections.Counter(v['stato'] for v in st.values()))
 print('nel subset RELEASE-V01:', sum(1 for v in st.values() if v['release']))
+print('sconosciuti:', [k for k, v in st.items() if v['stato'] == pie_status.SCONOSCIUTO])
 "
 ```
-Expected: il numero di voci lette è dello stesso ordine dei `PIE-` presenti nel file, e nessuno stato è `?`. **Se compaiono degli `?`, fermati e guarda le righe che li producono**: significa che il registro usa una forma che il parser non conosce, e dedurla al posto suo è il modo di sbagliare in silenzio.
+
+⛔ **`sys.stdout.reconfigure(encoding='utf-8')` non e' facoltativo su Windows.** La console e'
+`cp1252` e le emoji di stato la fanno esplodere con `UnicodeEncodeError` — misurato il 2026-09-11,
+su `⏳`. Vale per qualunque comando di questo repository che stampi uno stato; i file invece si
+scrivono gia' con `encoding='utf-8'` esplicito e non hanno il problema.
+
+Expected: `sconosciuti` è la lista vuota, e `RELEASE-V01` dà il numero che il registro dichiara per il gate G9. **Se compare anche un solo sconosciuto, fermati e guarda la riga che lo produce**: significa che il registro usa una forma che il parser non conosce, e dedurla al posto suo è il modo di sbagliare in silenzio.
+
+Misurato il 2026-09-11, per confronto: `voci lette: 230`, `⏳ 126 · ✅ 71 · 🟡 27 · ❌ 4 · ⛔ 2`, `RELEASE-V01: 17`, `sconosciuti: []`.
 
 - [ ] **Step 6: commit**
 
