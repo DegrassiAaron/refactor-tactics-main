@@ -5103,6 +5103,16 @@ void ARTTurnManager::ResolveDash()
 
 	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
 	// scontro frontale fra mobilita' lineari — CP 4.8).
+	//
+	// ⛔ **Il Dash NON riceve `StepDurations`, ed e' voluto** (`#2914`, [D-381]). La matrice di
+	// `spec-tassonomia-movimento.md` §2 dichiara `policy` per la durata del passo del Dash, e la ragione
+	// sta due righe sopra nella stessa tabella: il Dash **non paga il costo del terreno**. Una durata
+	// derivata da un costo che non si paga non vorrebbe dire niente.
+	//
+	// ⚠️ Chi trovasse l'asimmetria col `Move` e volesse «allinearla» passando qui le durate
+	// contraddirebbe quella riga della matrice: il Dash avrebbe un tempo proporzionale a un prezzo che
+	// non sostiene. Se un giorno una policy di durata per il Dash servisse davvero, si decide nella
+	// serie `MOV-*` e si scrive li', non qui.
 	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers, bPassThrough);
 
 	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
