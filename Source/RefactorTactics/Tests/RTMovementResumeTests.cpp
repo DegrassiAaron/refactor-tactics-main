@@ -7,7 +7,10 @@
 #include "Tests/RTAbilityFixtures.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h" // DeriveOpportunityId: l'identita' della finestra
+#include "Replay/RTBoundaryChecksum.h" // ChecksumsAlongTrace / DescribeDivergence: l oracolo del progetto
+#include "Replay/RTReplayStateLibrary.h" // FRTTracedUnitState: lo schieramento iniziale della traccia
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h" // GoldenEntriesMatch: stessa voce ha gia un proprietario
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
@@ -626,6 +629,207 @@ bool FRTReactionWindowPlaybackIsRunningTest::RunTest(const FString&)
 
 	TM->OnReactionWindowOpened.Unbind();
 	DestroyResumeWorld(World);
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// #2859 — SOSPESA E RIPRESA == PASSAGGIO UNICO
+//
+// 🔴 **Questa issue era nata chiedendo un'altra cosa, e quella cosa non poteva fallire.** Chiedeva di
+// confrontare un turno riprodotto in modo continuo con lo stesso turno **steppato** coi comandi di `#1879`.
+// Misurato: `Pause`, `Step` e `Next Phase` toccano `TickPlayback` — l'immagine — mentre il TurnLog e'
+// scritto per intero da `RunPhaseLoop` **prima** che il playback cominci. Dentro `TickPlayback` e
+// `StepMicroStep` le scritture di log sono **zero**. ∴ quel confronto avrebbe messo un array contro se
+// stesso: verde anche su uno `Step` implementato come corpo vuoto.
+//
+// ✅ **Cio' che attraversa davvero stato persistente e' la finestra di reazione**, ed e' quello che questo
+// gate misura. `RunPhaseLoop` esce su `IsResolutionSuspended()` lasciando `Phase` dov'e', e chi chiude la
+// finestra rientra ripartendo *dalla fase gia' risolta, senza rieseguirla*. Se quella ripresa sbagliasse —
+// una fase rieseguita, una saltata, un ramo registrato che decide diverso — le due tracce divergono.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Chiude ogni finestra aperta con `HOLD` finche' la risoluzione non riparte. Restituisce quante. */
+	int32 ChiudiOgniFinestra(ARTTurnManager* TM, int32 Tetto = 16)
+	{
+		int32 Chiuse = 0;
+		while (TM && TM->IsResolutionSuspended() && Chiuse < Tetto)
+		{
+			const FString Aperta = TM->GetOpenReactionWindowId();
+			if (Aperta.IsEmpty()) { break; }
+			TM->SubmitReactionResponse(Aperta, TEXT("HOLD"));
+			++Chiuse;
+		}
+		return Chiuse;
+	}
+
+	/** L'esito di una corsa dello scenario: tutto cio' che il confronto e le anti-vacuita' leggono. */
+	struct FCorsaRisolta
+	{
+		TArray<FRTTurnLogEntry> Log;
+		TArray<FRTTracedUnitState> Iniziale;
+		bool bSospesa = false;
+		int32 FinestreChiuse = 0;
+		int32 Divergenze = 0;
+		int32 Aperture = 0;
+		bool bAllestita = false;
+	};
+}
+
+/**
+ * 🔴 **Il gate di `#1881` che mancava: «nessun secondo simulatore».**
+ *
+ * Due percorsi, lo stesso turno:
+ *
+ *   A) la risoluzione si **sospende** su una finestra viva e **riprende** quando la risposta arriva;
+ *   B) la stessa risoluzione con le decisioni **registrate** armate prima — [D-355]: *«il ramo della traccia
+ *      precede qualunque attesa»* — quindi in un passaggio unico, senza mai sospendersi.
+ *
+ * Devono produrre la **stessa** traccia. Il confronto e' voce per voce con `GoldenEntriesMatch` — il
+ * predicato di «stessa voce» che il progetto gia' possiede — piu' i checksum di boundary che, quando
+ * cadono, **nominano il luogo** (`T1|Move#3`) invece di dire «gli hash differiscono».
+ *
+ * ⛔ **Le tre anti-vacuita' sono dentro il test e non sono ornamentali.** Senza l'assertion che A si sia
+ * davvero sospesa, i due percorsi potrebbero essere lo stesso e il test proverebbe zero — che e'
+ * esattamente il difetto per cui la formulazione originale di questa issue e' stata ritirata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSuspendedResumedMatchesSinglePassTest,
+	"RefactorTactics.Resolution.SuspendedAndResumedMatchesSinglePass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
+{
+	// Una corsa dello stesso scenario. `Registrate` vuoto = percorso A (finestra viva); non vuoto = B.
+	auto Corsa = [](const TArray<FRTTurnLogEntry>& Registrate) -> FCorsaRisolta
+	{
+		FCorsaRisolta R;
+
+		UWorld* World = MakeResumeWorld();
+		if (!World) { return R; }
+		SpawnResumeMap(World);
+
+		ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+		ARTUnit* Watcher = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!Mover || !Watcher || !TM) { DestroyResumeWorld(World); return R; }
+
+		Watcher->bIsBotControlled = false;
+		Watcher->PlannedAbilityIndex =
+			RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
+		Watcher->Facing = ERTHexDirection::W;
+		Watcher->PlannedCell = Watcher->Cell;
+		Mover->PlannedCell = FRTCellId(2, 0);
+
+		// 🔴 **Senza un ascoltatore la finestra non si apre: si committa da sola.** Lo dicono
+		// `Reactions.SingleResponseCommitsWithoutWindow` e `Reactions.NoPlayerControllerLeavesTheDelegateUnbound`,
+		// e la prima stesura di questo test lo ha imparato dal proprio rosso — l anti-vacuita 1 ha rifiutato
+		// di passare perche la corsa A non si era sospesa. Si lega in ENTRAMBE le corse, cosi lunica
+		// differenza fra A e B restano le decisioni registrate.
+		int32 Aperture = 0;
+		TM->OnReactionWindowOpened.BindLambda(
+			[&Aperture](const FRTReactionWindowView&, int32) { ++Aperture; });
+
+		// ⚠️ Le celle si leggono PRIMA di risolvere — la traccia dichiara i cambiamenti, non le posizioni di
+		// partenza — mentre `StableUnitId` si legge DOPO: lo assegna `EnsureMatchRoster` dentro
+		// `LockInAndResolve`, e prima varrebbe ancora `0` per tutti ([D-063]).
+		const FRTCellId CellaMover = Mover->Cell;
+		const FRTCellId CellaWatcher = Watcher->Cell;
+
+		if (Registrate.Num() > 0)
+		{
+			TM->ArmRecordedReactionDecisions(Registrate);
+		}
+
+		TM->LockInAndResolve();
+
+		R.bSospesa = TM->IsResolutionSuspended();
+		R.FinestreChiuse = ChiudiOgniFinestra(TM);
+		R.Log = TM->GetTurnLog();
+		R.Divergenze = TM->GetVerificationDivergences().Num();
+		R.Aperture = Aperture;
+		TM->OnReactionWindowOpened.Unbind();
+
+		FRTTracedUnitState SM; SM.UnitId = Mover->StableUnitId;   SM.Cell = CellaMover;
+		FRTTracedUnitState SW; SW.UnitId = Watcher->StableUnitId; SW.Cell = CellaWatcher;
+		R.Iniziale.Add(SM);
+		R.Iniziale.Add(SW);
+		R.bAllestita = true;
+
+		DestroyResumeWorld(World);
+		return R;
+	};
+
+	// --- A) sospensione VIVA ----------------------------------------------------------------------------
+	const FCorsaRisolta A = Corsa({});
+	if (!TestTrue(TEXT("la corsa A si allestisce"), A.bAllestita)) { return false; }
+
+	// ⛔ ANTI-VACUITA' 1: senza una sospensione vera, A e B sono lo stesso percorso e il confronto non misura
+	// niente. E' il difetto per cui la formulazione originale di questa issue e' stata ritirata.
+	if (!TestTrue(TEXT("anti-vacuita': la corsa A si e' DAVVERO sospesa su una finestra"), A.bSospesa))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("anti-vacuita': e almeno una finestra e' stata chiusa per riprenderla"),
+		A.FinestreChiuse > 0))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("anti-vacuita': e la finestra si e' davvero APERTA, non committata da sola"),
+		A.Aperture > 0))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("la corsa A ha prodotto una traccia"), A.Log.Num() > 0)) { return false; }
+
+	// --- B) passaggio UNICO, con le decisioni di A registrate --------------------------------------------
+	const FCorsaRisolta B = Corsa(A.Log);
+	if (!TestTrue(TEXT("la corsa B si allestisce"), B.bAllestita)) { return false; }
+
+	// ⛔ ANTI-VACUITA' 2: se B si fosse sospesa, il ramo registrato non ha preso e si starebbero confrontando
+	// due esecuzioni vive — cioe' un'altra proprieta'.
+	TestFalse(TEXT("anti-vacuita': la corsa B NON si e' sospesa (il ramo registrato ha preso)"), B.bSospesa);
+	TestEqual(TEXT("anti-vacuita': nessuna divergenza fra traccia e ri-simulazione"), B.Divergenze, 0);
+
+	// --- L'equivalenza, voce per voce -------------------------------------------------------------------
+	if (!TestEqual(TEXT("le due tracce hanno lo stesso numero di voci"), B.Log.Num(), A.Log.Num()))
+	{
+		return false;
+	}
+
+	int32 PrimaDiversa = INDEX_NONE;
+	for (int32 i = 0; i < A.Log.Num(); ++i)
+	{
+		// 🔴 **`MicroStepIndex` si confronta a parte, e non e' ridondante.** `GoldenEntriesMatch` passa da
+		// `HashTurnLogOrdered`, che quel campo **non lo copre**: senza questa riga il confronto sarebbe cieco
+		// proprio sulla localizzazione che #1880 ha aggiunto e su cui #2374 costruisce i boundary — cioe' sul
+		// campo che il criterio d accettazione di #2859 nomina per esteso.
+		if (!URTTurnLogLibrary::GoldenEntriesMatch(A.Log[i], B.Log[i])
+			|| A.Log[i].MicroStepIndex != B.Log[i].MicroStepIndex)
+		{
+			PrimaDiversa = i;
+			break;
+		}
+	}
+	TestEqual(*FString::Printf(
+		TEXT("voce per voce: sospesa+ripresa e passaggio unico coincidono (prima diversa: %d)"), PrimaDiversa),
+		PrimaDiversa, INDEX_NONE);
+
+	// --- E il LUOGO, non solo il fatto ------------------------------------------------------------------
+	// 🔑 L'oracolo e' quello del progetto: `DescribeDivergence` decide COME si dice, e restituisce la stringa
+	// vuota quando le due sequenze coincidono — cosi' un rosso porta `T1|Move#3` invece di un booleano.
+	const TArray<FRTBoundaryChecksum> BoundA = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, A.Log, A.Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+	const TArray<FRTBoundaryChecksum> BoundB = URTBoundaryChecksumLibrary::ChecksumsAlongTrace(
+		nullptr, B.Log, B.Iniziale, ERTTurnLogFormatVersion::WithMicroStep);
+
+	// ⛔ ANTI-VACUITA' 3: due sequenze vuote coinciderebbero sempre.
+	if (!TestTrue(TEXT("anti-vacuita': la traccia attraversa almeno un boundary"), BoundA.Num() > 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("i checksum di boundary non divergono"),
+		URTBoundaryChecksumLibrary::DescribeDivergence(BoundA, BoundB), FString());
 	return true;
 }
 
