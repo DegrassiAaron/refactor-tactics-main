@@ -40,6 +40,7 @@
 #include "Turn/RTMatchFormatData.h" // FRTMatchRules: il limite di round viene dal FORMATO
 #include "Engine/World.h"
 #include "EngineUtils.h" // TActorIterator
+#include "Player/RTPlayerController.h" // il percorso REALE di armamento (#2986)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -547,14 +548,38 @@ bool FRTHudDockKitHoleTest::RunTest(const FString&)
 			Accesi[0], DopoIlBuco);
 	}
 
-	// --- D. il riquadro vuoto non si accende mai ------------------------------------------------------
-	// ⛔ Senza, un dock che accendesse tutto passerebbe il controllo C quando `Accesi.Num()` fosse 1 per
-	// caso. E un riquadro vuoto acceso e' peggio di uno spento: annuncia un'azione che non esiste.
-	Mine->SelectAbility(Buco);
-	Dock->Tick(FGeometry(), 0.f);
-	const TArray<int32> DopoArmareIlBuco = ArmedIndices(SlotsOf(Dock));
-	TestFalse(TEXT("D: armare la posizione vuota non accende il suo riquadro"),
-		DopoArmareIlBuco.Contains(Buco));
+	// --- D. dal PERCORSO REALE, la posizione vuota non accende niente ---------------------------------
+	// ⌫ **Questo controllo chiamava `ARTUnit::SelectAbility(Buco)` e falliva, ed era il TEST a essere mal
+	// posto.** Quel metodo e' il setter di basso livello: accetta un indice valido-ma-nullo e scrive
+	// `SelectedAbilityIndex`, cosi' il dock accendeva un riquadro vuoto. Ma quello stato **non e'
+	// raggiungibile in gioco**: misurato, i soli chiamanti di produzione sono `SelectAbilityForCurrent`
+	// — che passa un indice **dopo** la guardia sulla posizione vuota — e tre siti che passano
+	// `INDEX_NONE` (il disarmo col click, l'uscita dal targeting con `RMB`, il Cleanup di [D-397] §5).
+	//
+	// 🔑 **Cosi' il controllo misura l'integrazione invece del setter**: `#2986` garantisce che una
+	// posizione vuota **disarmi** invece di restare armata — *«nulla e' stato armato»* — e qui si verifica
+	// che il dock lo renda, cioe' che quella garanzia arrivi fino allo schermo. Senza il percorso reale,
+	// questo controllo provava una combinazione che nessun input puo' produrre.
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (TestNotNull(TEXT("premessa di D: il controller esiste"), PC))
+	{
+		PC->SelectActorForTest(Mine);
+		// Si parte da uno stato ARMATO — il controllo C lo ha appena acceso — perche' un dock che non
+		// accendesse mai nulla passerebbe questo controllo senza significare niente.
+		PC->SelectAbilityForCurrentForTest(Buco);
+
+		// ⚠️ **Il modello NON torna al neutro, ed e' corretto.** `#2986` garantisce che una posizione vuota
+		// *non risulti armata*, non che disarmi cio' che lo era: una richiesta rifiutata non cambia lo
+		// stato. ⌫ La prima stesura di questo controllo chiedeva `INDEX_NONE` e falliva con
+		// *«to be -1, but it was 2»* — avevo letto il ramo del disarmo esplicito come se fosse quello della
+		// posizione vuota.
+		TestNotEqual(TEXT("D: la posizione vuota non diventa quella armata (#2986)"),
+			Mine->SelectedAbilityIndex, Buco);
+
+		Dock->Tick(FGeometry(), 0.f);
+		TestFalse(TEXT("D: e il riquadro del buco non si accende MAI, qualunque cosa si prema"),
+			ArmedIndices(SlotsOf(Dock)).Contains(Buco));
+	}
 
 	return true;
 }
