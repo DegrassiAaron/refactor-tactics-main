@@ -3614,3 +3614,47 @@ sessions:
     # una linea che ESISTE e non arriva. In una partita normale un bersaglio non visibile non si punta.
     verifies:
       - PIE-VIS-SIGHTLINE
+
+  - id: U54
+    title: Il dock dice quale abilita', e il feed dice cosa e' successo
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: rilettura dei due criteri che tennero `PIE-V01-SCREENHUD` a 🟡 nella seduta U49
+    artifacts: []
+    # 🔑 **Perche' esiste.** `PIE-V01-SCREENHUD` e' 🟡 dal 2026-09-11 per DUE difetti, entrambi nel tratto
+    # che nessun test headless copre, ed entrambi hanno avuto una correzione in `main` da allora:
+    #
+    #   il dock mostrava il ripiego          -> #2963, `f9af87c5` e `bc5b3651`
+    #   il feed restava vuoto a schermo      -> #2964, `#2992`
+    #
+    # ⛔ **Nessuna delle due correzioni puo' dichiararsi verificata da se'.** Per le icone la suite dice che
+    # le chiavi risolvono e che il catalogo e' valido — 95/95 su `Icon+ScreenHud+Heroes` — ma misura il
+    # **ViewModel** e le chiavi che il catalogo **dichiara**: nessuno legge una texture a schermo, e un'icona
+    # che risolve puo' essere illeggibile a 24 px o indistinguibile dalla vicina. Per il feed vale la stessa
+    # asimmetria gia' scritta nella cella di U49: montato e verde headless non implica visibile.
+    #
+    # ⚠️ **Un criterio era `NOT RUN` per CAUSA di un altro**, e resta il primo da riprendere: l'aggiornamento
+    # della riga al KO non e' osservabile finche' il feed e' vuoto. Se il feed ora scrive, quel criterio
+    # diventa misurabile per la prima volta — e se non scrive, resta `NOT RUN` con la stessa causa, non con
+    # una nuova.
+    #
+    # 🔴 **Cosa guardare sulle icone, oltre a «c'e' o non c'e'».** Le otto abilita' senza ripiego hanno ora
+    # il glifo PROPRIO, che porta il sigillo dell'eroe; le derivate mostrano l'icona della loro core, ed e'
+    # corretto. ∴ due slot dello stesso kit possono legittimamente mostrare lo stesso disegno — `TideGuard` e
+    # un altro scudo — e questo NON e' il difetto di #2963 che torna: e' il ripiego che funziona. Il difetto
+    # sarebbe `MissingIcon`, o un glifo d'eroe sullo slot di un altro eroe.
+    #
+    # ⚠️ **D-233 lascia una deroga dichiarata che questa e' la prima seduta in grado di guardare**:
+    # `Move #0072B2` ha contrasto **2.89** su `BG_Raised`, sotto la soglia WCAG 1.4.11 di 3:1. Su superficie
+    # rialzata il glifo va bordato o schiarito, e la voce dice che «e' la prima cosa da guardare in una
+    # PIE-ICON-*». Qui gli slot del dock sono superficie rialzata.
+    unblocked_by: []
+    # Vuoto e misurato: entrambe le correzioni sono in `main` — `bc5b3651` per le icone, `#2992` per il feed
+    # — e il catalogo ricostruito e' committato (`f9af87c5`). Non serve rigenerare niente prima della seduta.
+    shares_setup_with: [U49]
+    # Stesso allestimento di U49: partita v0.1 con `WBP_RT_TacticalHUD` montato, `L_Frontend` -> `L_HexArena`.
+    # ⛔ **La calibrazione dei pack Paragon va rifatta PRIMA di giudicare**, come in U49: senza, un'assenza
+    # dovuta ai pack e' indistinguibile da un difetto dell'HUD, e il verdetto direbbe il falso.
+    verifies:
+      - PIE-V01-SCREENHUD
