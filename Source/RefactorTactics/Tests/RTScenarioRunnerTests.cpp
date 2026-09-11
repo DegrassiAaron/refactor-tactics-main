@@ -1860,3 +1860,77 @@ bool FRTScenarioResidueBetweenRunsTest::RunTest(const FString&)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS
+
+/**
+ * 🔴 **Il banco a corridoio: il corpus esercita TERRENO COSTOSO** (`#2914`).
+ *
+ * Fino a `Movement.CostlyCorridor` un solo scenario in tutto `Scenarios/` dichiarava `moveCost`
+ * (`AutoBattle/Obstacles.json`), e non era fra i golden: ogni traccia di riferimento girava su pavimento a
+ * costo `1`, dove ogni arco dura un micro-step e il resolver si comporta come prima di [D-381]. Il corpus
+ * **non era verde perche' la durata variabile fosse gratuita: era verde perche' non la vedeva.**
+ *
+ * 🔑 **Come discrimina, dato che un `expect` non puo' asserire un micro-step.** Le assertion dello harness
+ * sono `UnitAtCell`, `TurnsCompleted`, `UnitHpEquals`, `UnitAlive`, `UnitFacing`, `LogEvent*` e
+ * `*TargetEquals`: nessuna parla di tempo. Lo scenario costruisce quindi un caso in cui il **tempo cambia
+ * l'esito**, e l'esito si legge dalla cella finale:
+ *
+ * ```text
+ * X:  [-2,0] -> [-1,0] -> [0,0]      costi 1 + 1     su T al micro-step 2
+ * Y:  [ 2,0] -> [ 1,0] -> [0,0]      costi 3 + 1     si affaccia su T al micro-step 4, e la trova occupata
+ * ```
+ *
+ * **Con** le durate X e' su `T` e Y resta su `[1,0]`. **Senza** — un arco, un micro-step — entrambe puntano
+ * a `T` allo stesso passo, la destinazione e' CONTESA a parita' di priorita', e si fermano tutte e due:
+ * X resterebbe su `[-1,0]`.
+ *
+ * ⚠️ **L'asserzione anti-vacuita' e' la seconda, non la prima.** «X e' su `T`» passerebbe anche per un
+ * resolver che non ha mai guardato le durate ma ha risolto la contesa in un altro modo; «X non e' rimasta
+ * su `[-1,0]`» nomina il valore che il modello SBAGLIATO produce, ed e' quella che cade sotto mutazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCostlyCorridorTest,
+	"RefactorTactics.Scenario.CostlyCorridorSeesTheDuration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCostlyCorridorTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Movement.CostlyCorridor"), Scenario)) { return false; }
+
+	// Premessa del banco, misurata e non creduta: se lo scenario smettesse di dichiarare celle costose,
+	// girerebbe su pavimento liscio e non misurerebbe piu' niente — restando verde.
+	int32 CostlyCells = 0;
+	for (const FRTScenarioCell& Cell : Scenario.Cells)
+	{
+		if (Cell.MoveCost > 1) { ++CostlyCells; }
+	}
+	TestTrue(TEXT("premessa: il banco dichiara terreno costoso"), CostlyCells >= 2);
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyRunnerWorld(World);
+
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
+		return false;
+	}
+	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
+	TestEqual(TEXT("nessuna assertion fallita"), Result.FailedCount(), 0);
+
+	// 🔴 **Il discriminatore.** `X` deve essere sulla cella contesa, e soprattutto NON su quella che il
+	// modello a un-arco-un-micro-step produrrebbe.
+	const FRTAssertionResult* XCell = Result.Assertions.FindByPredicate(
+		[](const FRTAssertionResult& A)
+		{
+			return A.Kind == ERTAssertionKind::UnitAtCell && A.Description.Contains(TEXT("X"));
+		});
+	if (TestNotNull(TEXT("c'e' l'assertion su X"), XCell))
+	{
+		TestEqual(TEXT("X ha vinto la cella contesa arrivandoci prima"),
+			XCell->Actual, FRTCellId(0, 0, 0).ToString());
+		TestNotEqual(TEXT("⛔ e NON e' rimasta dove la contesa simultanea l'avrebbe fermata"),
+			XCell->Actual, FRTCellId(-1, 0, 0).ToString());
+	}
+	return true;
+}

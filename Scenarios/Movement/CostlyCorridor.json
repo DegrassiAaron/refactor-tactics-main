@@ -1,0 +1,46 @@
+{
+  "scenarioId": "Movement.CostlyCorridor",
+  "tags": ["movement", "core", "terrain", "duration", "aevik", "branth", "ivrin", "muiren"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "Il banco a corridoio di #2914: il corpus esercita finalmente TERRENO COSTOSO. Fino a questo file un solo scenario in tutto Scenarios/ dichiarava `moveCost` (AutoBattle/Obstacles.json), e non era fra i golden: ogni traccia di riferimento girava su pavimento a costo 1, dove ogni arco dura un micro-step e il resolver si comporta come prima di D-381. Il corpus non era verde perche' la durata variabile fosse gratuita: era verde perche' non la vedeva.",
+
+  "_nota_come_discrimina": "Un `expect` non puo' asserire un MICRO-STEP - le assertion disponibili sono UnitAtCell, TurnsCompleted, UnitHpEquals, UnitAlive, UnitFacing, LogEvent* e *TargetEquals. Quindi il banco non dice «arriva al tick 4»: costruisce un caso in cui il TEMPO cambia l'ESITO, e quello si legge dalla cella finale. E' la corsia A qui sotto.",
+
+  "_nota_corsia_A": "X e Y convergono sulla stessa cella T=[0,0] da lati opposti, con costi di ingresso diversi. CON le durate: X paga 1+1 e arriva a T al micro-step 2; Y paga 3 per entrare in [1,0] e si affaccia su T al micro-step 4, quando T e' gia' occupata -> Y resta dov'e' e X e' su T. SENZA le durate (un arco = un micro-step): entrambe puntano a T al micro-step 2, la destinazione e' CONTESA a parita' di priorita', e si fermano TUTTE E DUE -> X resta su [-1,0]. ∴ la cella finale di X distingue i due modelli, ed e' l'assertion che porta il peso.",
+
+  "_nota_corsia_C": "S attraversa una cella a costo 3 e, sotto D-382, tiene occupata la propria origine per tutta la durata del passo. ⛔ NON c'e' un inseguitore, e non e' una dimenticanza: un seguito NON E' AUTORABILE in uno scenario. `FindPathAvoiding` esclude le celle occupate, quindi un percorso che termina - o passa - dove sta un'altra unita' viene RIFIUTATO in pianificazione, prima che la risoluzione cominci (misurato: il primo giro di questo banco dava «percorso rifiutato per F, l'unita' resta ferma»). E' lo stesso vincolo che #1922 §3 misura per il click del giocatore. Il comportamento del seguito vive quindi nei test C++ che bypassano la pianificazione - Movement.TransitStillOccupiesItsOriginCell e Movement.ConvoyOnCostlyTerrainSerializes - e non qui.",
+
+  "_nota_budget": "I budget NON sono cablabili da uno scenario (`Sim.MoveBudget = Hero->MovePoints`), quindi il banco usa quelli del roster invece di chiedere quattro unita' a 4 MP che non esistono: Aevik 5 - Muiren 5 - Branth 4 - Ivrin 6. Il percorso piu' caro e' quello di Y (3+1 = 4 MP) ed e' affidato ad Aevik, che ne ha 5: un margine, non un pareggio, cosi' una troncatura al budget non puo' mascherare l'esito temporale.",
+
+  "cells": [
+    { "cell": [1, 0, 0], "moveCost": 3 },
+    { "cell": [-1, 2, 0], "moveCost": 3 }
+  ],
+
+  "units": [
+    { "id": "X", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "Y", "hero": "Hero.Aevik",  "team": 0, "cell": [2, 0, 0] },
+    { "id": "S", "hero": "Hero.Muiren", "team": 0, "cell": [-2, 2, 0] },
+    { "id": "E1", "hero": "Hero.Branth", "team": 1, "cell": [0, -4, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "X", "move": [[-1, 0, 0], [0, 0, 0]] },
+        { "unit": "Y", "move": [[1, 0, 0], [0, 0, 0]] },
+        { "unit": "S", "move": [[-1, 2, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "X", "cell": [0, 0, 0] },
+    { "type": "UnitAtCell", "unit": "Y", "cell": [1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "S", "cell": [-1, 2, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
