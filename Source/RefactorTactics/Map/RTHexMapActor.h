@@ -96,8 +96,13 @@ enum class ERTRebuildFamily : uint8
 	Borders      = 1 << 5,
 	/** Il corpo strutturale sotto le superfici. */
 	Bodies       = 1 << 6,
+	/**
+	 * Il volume con cui una SUPERFICIE si dichiara nello spazio: `URTHexLibrary::SurfaceVolumeFor` decide se
+	 * esiste e che forma ha (`#2936`). Oggi il solo fumo.
+	 */
+	SurfaceVolumes = 1 << 7,
 	/** Tutto: il comportamento di sempre, ed e' il default di `RebuildInstances`. */
-	All          = 0x7F
+	All          = 0xFF
 };
 ENUM_CLASS_FLAGS(ERTRebuildFamily);
 
@@ -451,6 +456,16 @@ public:
 
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
+	/**
+	 * Quanti VOLUMI di superficie sono disegnati (`#2936`). Diagnostica e test.
+	 *
+	 * 🔑 **Conta QUESTA famiglia e non l'aggregato**: `GetAuxiliaryVeilCounts` somma rilievo, blocchi, bordi
+	 * e corpi, quindi un test scritto su quel totale diventerebbe verde per qualunque geometria comparsa —
+	 * cioe' passerebbe per la ragione sbagliata. Cio' che va legato al dato e' *questa* famiglia: la cella
+	 * che diventa fumo acquista un volume, e lo perde quando la superficie torna indietro.
+	 */
+	int32 NumSurfaceVolumeInstances() const { return SurfaceVolumeCells.Num(); }
 
 	/**
 	 * Stende il velo della fog of war sulla board, secondo cio' che UNA squadra sa ([D-225], [D-227]).
@@ -980,6 +995,21 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Relief;
 
 	/**
+	 * Volume della SUPERFICIE (`#2936`): il terzo canale con cui una cella dice cosa e', dopo il colore e il
+	 * glifo inciso. Oggi lo porta il solo fumo — `URTHexLibrary::SurfaceVolumeFor` e' l'unica autorita' sulla
+	 * forma, e le altre otto superfici restituiscono zero.
+	 *
+	 * ⛔ **Famiglia PROPRIA e non dentro `Blockers`**, e non e' una preferenza: quella e' costruita dai flag
+	 * `bBlocksLineOfSight` / `bBlocksMovement`, che il fumo **non ha** — non interrompe la linea, ne cappa la
+	 * portata a 2. Metterlo li' conflaterebbe due regole che il gioco tiene distinte, e il primo a pagarlo
+	 * sarebbe il test che conta i volumi di blocco.
+	 *
+	 * ⛔ E non dentro `Relief`, che misura il **costo di movimento**: il fumo costa 1 come il pavimento.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> SurfaceVolumes;
+
+	/**
 	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
 	 *
 	 * **Un solo componente per due forme**, e non e' un compromesso: un ISM porta una sola `StaticMesh`, ma le
@@ -1210,6 +1240,9 @@ protected:
 	TArray<FRTCellId> ReliefCells;
 	TArray<FVector> ReliefBaseScale;
 	TArray<uint8> LastReliefVeilState;
+	TArray<FRTCellId> SurfaceVolumeCells;
+	TArray<FVector> SurfaceVolumeBaseScale;
+	TArray<uint8> LastSurfaceVolumeVeilState;
 	TArray<FRTCellId> BlockerCells;
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
