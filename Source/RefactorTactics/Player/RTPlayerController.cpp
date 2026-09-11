@@ -1350,10 +1350,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		SelectedUnit = nullptr;
 	}
 
-	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica l'abilita' attiva.
-	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
+	// §5 — la riga di matrice decide, e la decisione e' ESTRAIBILE dal raycast: vedi `DispatchUnitClick`.
+	if (DispatchUnitClick(ClickedUnit, SelectedUnit))
 	{
-		HandleClickOnUnit(ClickedUnit);
 		return;
 	}
 
@@ -1534,6 +1533,59 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
 		RefreshPlanningPreview(GetWorld(), NewUnit);
 	}
+}
+
+bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* SelectedUnit)
+{
+	// 🔑 **La riga di matrice la risponde una funzione PURA**, `URTPointerLibrary::ResolveOutcome`: il
+	// contesto decide, non una cascata di `if` sul tipo di Actor colpito — che e' una voce della DoD di
+	// `#705`. E' la casella ratificata il 2026-09-11: fuori da `Targeting` un'unita' che non comandi si
+	// **ispeziona** invece di non fare niente.
+	//
+	// ⚠️ **Sta qui e non dentro `OnSelect` perche' la decisione dev'essere misurabile senza un raycast**:
+	// `GetHitResultUnderCursor` non esiste in un test headless. E' la stessa disciplina di
+	// `HandleClickOnUnitForTest` — *«cio' che va verificato e' la decisione»*.
+	//
+	// ⚠️ `IsKnownToObserver()` e non una seconda vista di conoscenza: il velo ha **un** produttore
+	// (`ARTHUD::UpdateObserverVeil`) e chi consuma legge quel flag. Ricostruirla qui sarebbe la seconda
+	// risposta che puo' divergere, ed e' il motivo per cui gli altri consumatori di questo file la leggono
+	// cosi'.
+	//
+	// @return vero se il click e' stato consumato: chi chiama esce.
+	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
+		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
+		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
+		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
+		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver());
+
+	// `Inspect` — il soggetto ISPEZIONATO, che non e' il soggetto comandato.
+	//
+	// ⛔ **Non si scrive `SelectedActor`, e non e' una sottigliezza.** Da quel campo passa
+	// `GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e `BuildAbilityCooldowns`, cioe'
+	// il dock: puntarli su un'avversaria mostrerebbe il suo piano e il suo kit. Sono due canali della stessa
+	// fuga, e il secondo non era nemmeno nel contratto di comportamento finche' non e' stato misurato.
+	// ⚠️ E la selezione **non si tocca**: ispezionare non costa l'unita' comandata ne' l'azione armata.
+	if (Outcome == ERTPointerOutcome::Inspect)
+	{
+		InspectedUnit = ClickedUnit;
+		return true;
+	}
+
+	// `Confirm` — bersagliamento: il comportamento di prima, invariato. E' la meta' della decisione del
+	// 2026-09-11 che dice cosa NON cambia.
+	// ⚠️ La condizione tiene anche `SelectedUnit && ClickedUnit != SelectedUnit`: `ResolveOutcome` sa del
+	// contesto, non di **chi** sia selezionato adesso, e `HandleClickOnUnit` esce da sola senza una
+	// selezione. Tenerla qui rende esplicito che l'esito non basta, invece di fidarsi di quell'uscita.
+	if (Outcome == ERTPointerOutcome::Confirm && SelectedUnit && ClickedUnit != SelectedUnit)
+	{
+		HandleClickOnUnit(ClickedUnit);
+		return true;
+	}
+
+	// `Select`, `NoOp`, `Blocked`: il click non e' consumato qui. La selezione e i rifiuti restano dove
+	// erano — spostarli sarebbe un secondo cambiamento travestito da riordino.
+	return false;
 }
 
 void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)

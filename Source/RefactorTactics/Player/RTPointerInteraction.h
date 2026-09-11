@@ -227,4 +227,37 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	static ERTPointerBackStep ResolveBack(ERTPointerContext Context, bool bInspectorPinned, int32 WaypointCount,
 		bool bPhaseFocusPinned);
+
+	/**
+	 * §5 — **Che cosa significa un `LMB` su un'unita', dato il contesto**: la riga di matrice, non l'effetto.
+	 *
+	 * 🔴 **`ERTPointerOutcome` esisteva e non aveva NESSUN produttore.** Misurato il 2026-09-11 su
+	 * `origin/main` `755931f8`: `grep -rc "ERTPointerOutcome" Source/` dava **una** occorrenza, la propria
+	 * dichiarazione, e nessuna firma lo restituiva — con `ERTPointerTargetKind` a 34 su cinque file come
+	 * controllo positivo. Gli otto esiti erano un vocabolario che nessuno parlava, e la prima casella della
+	 * DoD di `#705` — *«ogni combinazione rilevante produce uno degli otto esiti»* — non aveva una sede.
+	 *
+	 * ⚠️ **Torna il SIGNIFICATO, non l'azione.** Chi chiama decide cosa farne: `Confirm` non applica un
+	 * bersaglio, `Blocked` non scrive un log. E' la stessa separazione di `ResolveBack`, e per la stessa
+	 * ragione — un test che guarda l'effetto non distingue *«ha fatto la cosa giusta»* da *«sa fare solo
+	 * quella»*.
+	 *
+	 * 🔑 **`bCommandable` non e' «e' mia»**: viene da `URTCombatLibrary::CanPlayerControlUnitInGroup`, quindi
+	 * un'alleata pianificata dal bot e una di un altro gruppo sono `false` come un'avversaria. E' il predicato
+	 * che il controller usa gia'; duplicarne la logica qui sarebbe una seconda autorita'.
+	 *
+	 * ⛔ **`bObserved` falso produce `NoOp`, mai `Blocked`**, e la differenza e' il punto: un'unita' che il
+	 * velo nasconde deve comportarsi **come una cella vuota**, che e' `NoOp`. Un `Blocked` porterebbe un
+	 * reason code su qualcosa di cui non dovresti sapere l'esistenza — cioe' la raggiungibilita' stessa
+	 * diventerebbe un canale di conoscenza. E' l'unico punto di questa funzione in cui la DoD di `#705`
+	 * *«ogni rifiuto porta un reason code»* **non** si applica: non e' un rifiuto, e' un nulla.
+	 *
+	 * @param Context       il contesto corrente del puntatore.
+	 * @param bHitUnit      il raggio ha toccato un'unita'. Falso -> `NoOp`: le celle sono di `ResolveTarget`.
+	 * @param bCommandable  il giocatore puo' COMANDARE quell'unita' adesso.
+	 * @param bObserved     la conoscenza di squadra la osserva. Irrilevante per le unita' comandabili.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	static ERTPointerOutcome ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,
+		bool bObserved);
 };

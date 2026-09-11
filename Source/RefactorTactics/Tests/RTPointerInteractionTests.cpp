@@ -910,4 +910,147 @@ bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **`Inspect` e `Select` sono esiti diversi, e l'oracolo e' la DIFFERENZA.**
+ *
+ * Un test che asserisse solo *«un'avversaria produce `Inspect`»* passerebbe anche con una funzione che
+ * risponde `Inspect` a tutto. Cio' che va pinnato e' che il **soggetto comandato** e il **soggetto
+ * ispezionato** non finiscano nello stesso esito: da li' dipende che il pannello degli slot e il dock delle
+ * azioni non leggano mai di un'avversaria il piano e il kit.
+ *
+ * ⚠️ E pinna anche cio' che NON cambia: in `Targeting` una non comandabile resta `Confirm`. E' la meta'
+ * della decisione del 2026-09-11 che ha scartato la lettura «larga», e senza questa riga il test
+ * descriverebbe solo la meta' nuova.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerOutcomeSeparatesInspectFromSelectTest,
+	"RefactorTactics.Pointer.OutcomeSeparatesInspectFromSelect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerOutcomeSeparatesInspectFromSelectTest::RunTest(const FString&)
+{
+	using ERTOut = ERTPointerOutcome;
+
+	// Fuori da `Targeting`: comandabile -> `Select`, osservata-e-non-comandabile -> `Inspect`.
+	for (const ERTPointerContext Ctx : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Pathing, ERTPointerContext::Facing })
+	{
+		const ERTOut Mia = URTPointerLibrary::ResolveOutcome(Ctx, true, /*bCommandable=*/ true, true);
+		const ERTOut Altrui = URTPointerLibrary::ResolveOutcome(Ctx, true, /*bCommandable=*/ false, true);
+
+		TestEqual(TEXT("la propria si seleziona"), Mia, ERTOut::Select);
+		TestEqual(TEXT("l'altrui osservata si ispeziona"), Altrui, ERTOut::Inspect);
+		TestNotEqual(TEXT("e i due esiti NON coincidono"), Mia, Altrui);
+	}
+
+	// In `Targeting` cambia solo il lato non comandabile: la propria continua a ri-selezionarsi.
+	TestEqual(TEXT("in Targeting l'avversaria si conferma come bersaglio"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Targeting, true, false, true), ERTOut::Confirm);
+	TestEqual(TEXT("in Targeting la propria si ri-seleziona, non si bersaglia"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Targeting, true, true, true), ERTOut::Select);
+
+	// I contesti in cui l'input di gioco non arriva rifiutano, e lo dicono.
+	for (const ERTPointerContext Ctx : { ERTPointerContext::Modal, ERTPointerContext::ResolutionPlayback,
+		ERTPointerContext::ReactionWindow })
+	{
+		TestEqual(TEXT("input di gioco bloccato: rifiuto dichiarato"),
+			URTPointerLibrary::ResolveOutcome(Ctx, true, true, true), ERTOut::Blocked);
+	}
+
+	return true;
+}
+
+/**
+ * ⛔ **Cio' che il velo nasconde risponde come il terreno vuoto, e la prova e' l'UGUAGLIANZA fra i due.**
+ *
+ * 🔴 Questo test esiste perche' la prima stesura di `ResolveOutcome` sbagliava proprio qui: rispondeva
+ * `Blocked` a un'unita' non osservata, citando la DoD di `#705` — *«ogni rifiuto porta un reason code»* — e
+ * si contraddiceva col proprio commento accanto, che prometteva un comportamento *«indistinguibile da una
+ * cella vuota»*. Il terreno vuoto da' `NoOp`: un `Blocked` sarebbe stato **distinguibile**, e un reason code
+ * su un'unita' di cui non dovresti sapere l'esistenza e' il canale che quella riga esiste per chiudere.
+ *
+ * ⚠️ **L'asserzione e' un confronto, non un valore atteso.** Scrivere `TestEqual(..., NoOp)` passerebbe
+ * anche il giorno in cui il terreno vuoto cominciasse a rispondere altro, e i due tornerebbero a
+ * distinguersi senza che nessun test cada.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerVeiledUnitTest,
+	"RefactorTactics.Pointer.VeiledUnitIsIndistinguishableFromEmptyGround",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerVeiledUnitTest::RunTest(const FString&)
+{
+	for (const ERTPointerContext Ctx : { ERTPointerContext::IdleSelection, ERTPointerContext::Planning,
+		ERTPointerContext::Pathing, ERTPointerContext::Targeting, ERTPointerContext::Facing })
+	{
+		const ERTPointerOutcome Velata =
+			URTPointerLibrary::ResolveOutcome(Ctx, /*bHitUnit=*/ true, /*bCommandable=*/ false, /*bObserved=*/ false);
+		const ERTPointerOutcome TerrenoVuoto =
+			URTPointerLibrary::ResolveOutcome(Ctx, /*bHitUnit=*/ false, /*bCommandable=*/ false, /*bObserved=*/ false);
+
+		TestEqual(TEXT("un'unita' velata risponde come il terreno vuoto"), Velata, TerrenoVuoto);
+	}
+
+	// Controllo positivo: la stessa unita', **osservata**, produce un esito diverso. Senza questa riga il
+	// test passerebbe anche se `ResolveOutcome` rispondesse `NoOp` a qualunque cosa.
+	TestNotEqual(TEXT("osservata, la stessa unita' NON risponde come il terreno vuoto"),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Planning, true, false, /*bObserved=*/ true),
+		URTPointerLibrary::ResolveOutcome(ERTPointerContext::Planning, false, false, false));
+
+	return true;
+}
+
+/**
+ * 🔴 **Il click su un'avversaria la ISPEZIONA, e non costa nulla di cio' che si stava comandando.**
+ *
+ * Prima della casella ratificata il 2026-09-11 quel click era un **no-op silenzioso**: `HandleClickOnUnit`
+ * usciva su `!Ability` e a schermo non cambiava niente.
+ *
+ * ⚠️ **Le due asserzioni che contano sono quelle NEGATIVE**, e senza di loro il test sarebbe quasi vacuo:
+ * che l'unita' comandata resti comandata, e che il soggetto ispezionato **non** sia quello selezionato. La
+ * seconda e' la barriera di privacy resa verificabile: se `Inspect` scrivesse `SelectedActor`, il pannello
+ * mostrerebbe gli slot dell'avversaria e il dock il suo kit, e questo test cadrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerEnemyClickInspectsTest,
+	"RefactorTactics.PlayerInput.EnemyClickInspectsWithoutCostingTheCommandedUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerEnemyClickInspectsTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }
+
+	PC->SelectActorForTest(Mine);
+	TestEqual(TEXT("niente armato -> contesto NEUTRO"), PC->GetPointerContext(), ERTPointerContext::Planning);
+	TestNull(TEXT("all'inizio non si sta ispezionando nulla"), (void*)PC->GetInspectedUnit());
+
+	TestTrue(TEXT("il click sull'avversaria e' consumato"), PC->DispatchUnitClickForTest(Enemy, Mine));
+	TestTrue(TEXT("e l'avversaria e' il soggetto ispezionato"), PC->GetInspectedUnit() == Enemy);
+
+	// ⛔ Le due negative: ispezionare non costa il comando, e il soggetto ispezionato NON e' il selezionato.
+	TestTrue(TEXT("l'unita' comandata resta comandata"), PC->GetSelectedUnit() == Mine);
+	TestTrue(TEXT("ispezionato e selezionato sono DUE soggetti diversi"),
+		PC->GetInspectedUnit() != PC->GetSelectedUnit());
+	TestEqual(TEXT("e nessuna abilita' e' stata armata o disarmata"),
+		Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("ne' pianificata"), Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
+
+	// In `Targeting` il comportamento NON cambia: lo stesso click bersaglia, come prima della decisione.
+	const int32 Attack = 0;
+	Mine->SelectAbility(Attack);
+	TestEqual(TEXT("armata -> contesto Targeting"), PC->GetPointerContext(), ERTPointerContext::Targeting);
+
+	TestTrue(TEXT("in Targeting il click resta consumato"), PC->DispatchUnitClickForTest(Enemy, Mine));
+	TestEqual(TEXT("e pianifica, invece di ispezionare"), Mine->PlannedAbilityIndex, Attack);
+	TestTrue(TEXT("sul nemico cliccato"), Mine->PlannedAttackTarget == Enemy);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

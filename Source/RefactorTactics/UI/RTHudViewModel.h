@@ -267,6 +267,24 @@ struct FRTUnitSlotsView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FRTPlannedSlotView Reaction;
+
+	/**
+	 * 🔴 **Il TERZO stato: «non ti e' dato saperlo», che non e' «non ha pianificato».**
+	 *
+	 * Falso quando il soggetto del pannello non e' comandato dal giocatore — un'unita' **ispezionata**.
+	 * I tre slot restano ai loro default, e chi disegna **deve** distinguere questo caso dal piano vuoto.
+	 *
+	 * ⛔ **Un'area slot mostrata vuota per un'avversaria direbbe «non ha pianificato»**, che e' una lettura
+	 * del suo piano. La regola non nasce qui: `#2757` la scrive gia' in forma piu' forte — *«nessun conteggio
+	 * o metadato da cui dedurre che un dato privato esiste»* — e un vuoto e' precisamente quel metadato.
+	 *
+	 * 🔑 **La difesa vera sta a monte di questo flag**: `URTSelectedUnitPanelWidget::GetSlots()` non
+	 * COSTRUISCE gli slot per un soggetto non comandato, quindi il dato non lascia il core e non c'e' niente
+	 * da nascondere a valle. Questo campo esiste perche' chi disegna sappia **quale delle due assenze** ha
+	 * davanti, non perche' sia lui a doverla creare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bAuthorized = false;
 };
 
 /**
