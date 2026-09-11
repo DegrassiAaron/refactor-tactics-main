@@ -1,13 +1,17 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "UI/RTIconCatalogData.h"
 #include "RTIconLibrary.generated.h"
 
-// Forward declaration e non `#include "Ability/RTActionDef.h"`: `MakeActionIconId` prende la struct per
-// riferimento, quindi la definizione serve al `.cpp` — che gia' la include — e non a chi include questo
+// Forward declaration e non `#include "Ability/RTActionDef.h"`: solo `MakeActionIconFallbackId` prende la
+// struct, e per riferimento — la definizione serve al `.cpp`, che gia' la include, non a chi include questo
 // header. Tirarci dentro il catalogo azioni farebbe dipendere ogni consumatore di icone da `Ability/`.
+//
+// 🔑 **La chiave PREFERITA prende solo un `FName`, ed e' una proprieta' del design, non un'economia**: la
+// traduzione nome->categoria non ha mai avuto bisogno del `Def`. E' il RIPIEGO che legge `DerivedFromActionId`
+// e `BaseActionId`, e per questo chi ha solo un `ActionId` sa comunque derivare la chiave giusta.
 struct FRTActionDef;
 
 /**
@@ -57,23 +61,47 @@ public:
 	 * vive nello spazio degli id d'azione e **non** in quello delle icone — `MakeIconId` su di lui produrrebbe
 	 * `UI.Icon.Hero.Muiren.TideGuard`, il cui segmento `Hero` non e' fra le dodici di `D-031`.
 	 *
-	 * La traduzione usa il dato che l'azione gia' dichiara, in quest'ordine:
+	 * La traduzione **tiene il NOME e sostituisce il prefisso con la categoria**: `Hero.Aevik.Overload` ->
+	 * `UI.Icon.Action.Overload`, `Gadget.Sprinkler` -> `UI.Icon.Action.Sprinkler`.
 	 *
-	 * 1. `DerivedFromActionId` — da dove vengono i numeri (`Hero.Branth.Ram` -> `Action.Charge`);
-	 * 2. `BaseActionId` — di quale generica e' il profilo (`Hero.Muiren.PressureJet` -> `Action.BasicAttack`).
+	 * 🔑 **E' la stessa regola che `RequiredIconIds` gia' applica agli `HeroId`** (`Hero.Aevik` ->
+	 * `Identity.Aevik`), dove il commento dichiarava di essere *«l'unico punto in cui la regola ha bisogno di
+	 * una traduzione»*. Non era l'unico: era il primo.
 	 *
-	 * ⚠️ **`DerivedFromActionId` PRIMA, e non e' indifferente.** I due campi esistono apposta separati
-	 * (`RTActionDef.h`): `BaseActionId` dice di quale delle sette generiche un'azione e' il profilo, l'altro da
-	 * dove vengono fase, portata ed effetti. L'icona segue cio' che l'azione **fa**, quindi la seconda.
-	 * `Hero.Branth.Ram` eredita da `Action.Charge` e un «profilo di Charge» non esiste: preferendo
-	 * `BaseActionId` si perderebbe proprio il caso che i due campi sono stati separati per distinguere.
+	 * ⚠️ **Il nome sopravvive perche' il dock risponde a «quale abilita' e' questa»**, non a «che cosa fa».
+	 * Due voci dello stesso kit devono avere chiavi diverse: tradurre verso l'azione core le farebbe
+	 * collassare sullo stesso disegno, ed e' precisamente cio' che si guarda per sceglierle.
 	 *
-	 * ⛔ **Torna `NAME_None` quando l'azione non dichiara nessuno dei due**, invece di indovinare dal nome.
-	 * E' la stessa regola del docstring di `BaseActionId`: *«dedurlo dal nome funzionerebbe finche' un eroe non
-	 * chiama diversamente la sua azione, cioe' fino al primo eroe nuovo»*. Un `NAME_None` qui e' un dato che
-	 * manca e si vede; una deduzione sarebbe un dato sbagliato che non si vede.
+	 * ⛔ **Questa chiave e' la PREFERITA, non l'unica**: finche' l'asset non e' disegnato il catalogo non la
+	 * risolve, e il chiamante ripiega su `MakeActionIconFallbackId`. Vedi `URTActionSlotWidget::GetIconId`.
 	 */
-	static FName MakeActionIconId(const FRTActionDef& Def);
+	static FName MakeActionIconId(const FName& ActionId);
+
+	/**
+	 * Il RIPIEGO della chiave d'azione: l'icona della core da cui l'azione deriva, quando l'asset proprio non
+	 * e' ancora stato disegnato.
+	 *
+	 * ⚠️ **`DerivedFromActionId` PRIMA di `BaseActionId`, e non e' indifferente.** I due campi esistono
+	 * separati per decisione (`D-195`): `BaseActionId` dice di quale delle sette generiche un'azione e' il
+	 * profilo, l'altro da dove vengono fase, portata ed effetti. L'icona segue cio' che l'azione **fa**,
+	 * quindi il secondo. `Hero.Branth.Ram` eredita da `Action.Charge` e un «profilo di Charge» non esiste:
+	 * preferendo `BaseActionId` si perderebbe proprio il caso che i due campi distinguono.
+	 *
+	 * ⛔ **Torna `NAME_None` per un'abilita' PROPRIA**, che non deriva da nessuna core — e non si indovina dal
+	 * nome, che e' la regola del docstring di `BaseActionId`. Per quelle non esiste un ripiego: l'asset va
+	 * disegnato, e il `NAME_None` e' il modo in cui il buco resta visibile.
+	 */
+	static FName MakeActionIconFallbackId(const FRTActionDef& Def);
+
+	/**
+	 * Il catalogo risolve questa chiave? Domanda **pura e senza log**, per chi deve scegliere fra due chiavi.
+	 *
+	 * ⛔ **Non e' `ResolveIcon` con l'esito buttato via.** Quella LOGGA quando una chiave non si risolve, ed
+	 * e' il suo scopo: dire quale widget ha chiesto un'icona che non c'era. Usarla per *provare* la chiave
+	 * preferita emetterebbe una warning ogni volta che il ripiego funziona — cioe' trasformerebbe in rumore
+	 * proprio la diagnostica che `#2963` esiste per rendere leggibile.
+	 */
+	static bool CatalogHasIcon(const URTIconCatalogData* Catalog, const FName& IconId);
 
 	/**
 	 * Le chiavi che il catalogo DEVE avere, derivate dai dati di gioco reali e non da una lista scritta a mano:
