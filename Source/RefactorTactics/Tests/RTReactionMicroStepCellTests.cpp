@@ -162,7 +162,8 @@ namespace
 	 * Un decisore che risponde `FIRE` a qualunque finestra glielo consenta.
 	 *
 	 * Sceglie la prima risposta legale diversa da `HOLD` invece di costruire `FireResponse(idx)`: l'indice
-	 * del bersaglio e' quello di `CollectLivingUnits`, che ordina per cella e cambierebbe con la geometria.
+	 * del bersaglio e' quello di `CollectLivingUnits`, la cui prima chiave e' la cella (#2922): cambierebbe
+	 * con la geometria.
 	 * Leggere l'opzione dalla finestra e' anche cio' che fa un giocatore.
 	 */
 	void BindRxCellFireDecider(ARTTurnManager* TM)
