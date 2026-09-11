@@ -93,6 +93,9 @@ public:
 	 */
 	void SetSelectedUnitForTest(ARTUnit* InUnit);
 
+	/** Come sopra, per il soggetto **ispezionato** (`#705`): quello che si guarda, non quello che si comanda. */
+	void SetInspectedUnitForTest(ARTUnit* InUnit);
+
 	/**
 	 * Inietta il VIEW MODEL della finestra di reazione senza un `PlayerController` (CP 14.6, `#166`).
 	 *
@@ -161,6 +164,15 @@ protected:
 	const ARTUnit* GetSelectedUnit() const;
 
 	/**
+	 * L'unita' che si sta **guardando**, che puo' non essere quella che si comanda (`#705`).
+	 *
+	 * ⛔ **Non e' un secondo `GetSelectedUnit()`, e chi la usa deve saperlo**: un soggetto ispezionato puo'
+	 * essere avversario, quindi da qui **non** si costruiscono ne' gli slot pianificati ne' il dock delle
+	 * azioni. Protetta come la sorella, e per la stessa ragione: i Blueprint vedono le viste, non le unita'.
+	 */
+	const ARTUnit* GetInspectedUnit() const;
+
+	/**
 	 * Il view model della finestra di reazione di questo client, o `nullptr` (CP 14.6, `#166`).
 	 *
 	 * 🔴 **`protected`, e la differenza NON e' stilistica.** `URTReactionWindowViewModel::SubmitResponse` e'
@@ -219,6 +231,14 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<ARTUnit> SelectedUnitForTest;
+
+	/**
+	 * Gemella della precedente per il soggetto **ispezionato** (`#705`), e per la stessa ragione: senza un
+	 * `ULocalPlayer` — che una run headless non ha — `GetOwningPlayer()` resta nullo e il pannello non
+	 * sarebbe verificabile. Nulla in gioco: l'ispezione vera resta del `PlayerController`.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ARTUnit> InspectedUnitForTest;
 
 	/**
 	 * La finestra di reazione, risolta dal proprietario in `AcquireMatchContext` oppure iniettata da un test.
@@ -350,9 +370,25 @@ class REFACTORTACTICS_API URTSelectedUnitPanelWidget : public URTScreenHudWidget
 	GENERATED_BODY()
 
 public:
-	/** Falso quando non c'e' selezione: il pannello si nasconde invece di mostrare una carta vuota. */
+	/**
+	 * Falso quando non c'e' selezione: il pannello si nasconde invece di mostrare una carta vuota.
+	 *
+	 * ⚠️ **Significa «comando un'unita'», non «il pannello ha qualcosa da mostrare»**: da `#705` il soggetto
+	 * puo' essere anche un'unita' **ispezionata**, che non si comanda. Per «c'e' qualcosa da mostrare» esiste
+	 * `HasSubject()`. Il nome resta questo perche' i grafi esistenti lo leggono col significato di sempre, e
+	 * cambiarlo sotto di loro avrebbe spostato il difetto invece di aggiungere il caso.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	bool HasSelection() const;
+
+	/**
+	 * Vero quando il pannello ha un soggetto: comandato **oppure** ispezionato (`#705`).
+	 *
+	 * ⚠️ Chi disegna distingue i due casi con `HasSelection()` e con `GetSlots().bAuthorized`, non con
+	 * questo: qui si risponde solo *«c'e' qualcosa da mostrare»*.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	bool HasSubject() const;
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTUnitCardView GetCard() const;
@@ -363,6 +399,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTUnitSlotsView GetSlots() const;
+
+protected:
+	/**
+	 * Il soggetto del pannello: l'unita' comandata se c'e', altrimenti quella ispezionata (`#705`).
+	 *
+	 * ⛔ **Non e' `UFUNCTION`, e resta protetta**: i Blueprint vedono le **viste**, mai le unita' — la stessa
+	 * regola di `GetSelectedUnit()`. E chi la usa in C++ deve sapere che il soggetto puo' essere avversario:
+	 * `GetSlots()` non passa da qui, di proposito.
+	 */
+	const ARTUnit* GetSubject() const;
 };
 
 /** `WBP_RT_ActionDock` — le azioni della selezionata, con stato disponibile / armata / in ricarica. */
