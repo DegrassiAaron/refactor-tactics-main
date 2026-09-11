@@ -77,6 +77,15 @@ bool URTActionQueueLibrary::InstanceLess(const FRTActionInstance& A, const FRTAc
 	//
 	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
 	//
+	// ⚠️ **Quel comando risponde piu' righe che chiamate**: fra i match ci sono la dichiarazione, la
+	// definizione e i commenti — questo incluso. Le chiamate sono DUE, e si chiamano
+	// `ARTTurnManager::ResolvePrep` e `URTActionQueueLibrary::InstancesForPhase` (venti righe sotto); cercale
+	// per nome, non contare i match. Una stesura precedente dichiarava «un solo chiamante» (#3004), cosi' chi
+	// eseguiva il controllo prescritto trovava una smentita e nessuna spiegazione.
+	//
+	// La premessa regge lo stesso, ma per una ragione sola: **`InstancesForPhase` non ha chiamanti**. ⛔ Non
+	// perche' non sia `UFUNCTION` — in questo header non lo e' nessuno, nemmeno `SortActionInstances`.
+	//
 	// ⛔ Il giorno in cui due produttori confluissero nello stesso array — la direzione di #1818 — la
 	// premessa cade, e **aggiungere `Def` al confronto non e' la risposta**: appartiene al catalogo, e
 	// confrontarla a fondo qui ne creerebbe una seconda verita'. Servirebbe un'identita' d'istanza unica per
