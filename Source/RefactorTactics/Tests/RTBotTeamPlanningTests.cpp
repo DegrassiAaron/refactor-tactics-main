@@ -535,7 +535,10 @@ bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
 
 	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
 	if (!Map) { DestroyTeamPlanningWorld(World); return false; }
+	// ⚠️ Controllato: uno spawn fallito qui **abbatterebbe l'intera suite** invece di far fallire un test,
+	// e un crash porta via 2485 risultati. Trovato in code review.
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!MapActor) { DestroyTeamPlanningWorld(World); return false; }
 	MapActor->MapAsset = Map;
 
 	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
@@ -547,7 +550,10 @@ bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
 	TM->PlanBotsForTest();
 	if (Bot->PlannedReactionAbility == INDEX_NONE)
 	{
-		AddInfo(TEXT("il bot non ha armato una reazione: la premessa non regge, il test non misura niente"));
+		// ⛔ `AddError` e non `AddInfo`: `return false` segna il rosso, ma senza una voce d'errore il
+		// referto mostra un `Fail` con la lista vuota e chi lo tria non vede la causa. E' lo stesso
+		// principio che questa issue difende — un rosso che non dice niente non vale piu' di un verde.
+		AddError(TEXT("il bot non ha armato una reazione: la premessa non regge, il test non misura niente"));
 		DestroyTeamPlanningWorld(World);
 		return false;
 	}

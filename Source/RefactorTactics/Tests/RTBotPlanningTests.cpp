@@ -213,6 +213,34 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 	TestEqual(TEXT("nessun bersaglio dichiarato: la squadra non lo conosce"),
 		Esito.Decisions[0].PlannedAttackTargetIndex, static_cast<int32>(INDEX_NONE));
 
+	// --- IL CONTROLLO POSITIVO, senza il quale l'asserzione sopra puo' marcire -------------------------
+	//
+	// 🔴 **Senza questa seconda meta' il test tornerebbe vacuo in silenzio**, ed e' un rilievo di code
+	// review. L'asserzione sopra e' un `INDEX_NONE` atteso: passa anche se il bot smette di dichiarare
+	// attacchi per una ragione che non c'entra — un cambio nel punteggio di `AddCandidates`, un altro
+	// equilibrio fra `WDamage` e `WApproach`, un significato diverso di `RangeCells`. Sarebbe di nuovo un
+	// verde che non puo' diventare rosso, che e' il difetto che questa issue esiste per chiudere.
+	//
+	// 🔑 **Qui la fixture dimostra da se' di poter produrre un attacco**: stessa scena, stessi pesi, e la
+	// sola differenza e' che la squadra 1 VEDE la cella del nemico. Se questa meta' cade, l'altra non sta
+	// piu' misurando la conoscenza — sta misurando un bot che non attacca mai.
+	FRTTeamKnowledge Vista;
+	Vista.TeamId = 1;
+	Vista.VisibleCells.Add(FRTCellId(1, 0, 0)); // dove il nemico sta adesso -> `Detected`
+	TMap<int32, FRTTeamKnowledge> ConoscenzaPiena;
+	ConoscenzaPiena.Add(1, Vista);
+
+	TMap<int32, int32> InattivitaB;
+	TMap<int32, int32> UltimoRoundB;
+	const FRTBotPlanningOutcome ConVista = URTBotPlanningLibrary::PlanTurn(
+		Snap, Facts, Pesi, ConoscenzaPiena, InattivitaB, UltimoRoundB, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+
+	if (TestEqual(TEXT("controllo positivo: un piano per il bot"), ConVista.Decisions.Num(), 1))
+	{
+		TestEqual(TEXT("controllo positivo: vedendolo, il bot LO dichiara bersaglio"),
+			ConVista.Decisions[0].PlannedAttackTargetIndex, 1);
+	}
+
 	return true;
 }
 
