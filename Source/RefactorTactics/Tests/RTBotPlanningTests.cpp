@@ -147,4 +147,73 @@ bool FRTBotPlanningAuditIsOptInTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La conoscenza MANCANTE non rende il bot onnisciente.
+ *
+ * 🔴 **Il difetto che questo test presidia e' stato reale, e la suite intera era verde** (#3025, trovato
+ * in code review su #3020). `KnowledgeByTeam.FindRef(TeamId)` su una chiave assente restituisce un
+ * `FRTTeamKnowledge` default-costruito, il cui `TeamId` vale **0**; e `ClassifyTarget` corto-circuita su
+ * `TargetTeamId == Knowledge.TeamId` restituendo `Allowed`, perche' *«un alleato non passa dalla
+ * conoscenza»*. Un bot di squadra diversa da 0 vedeva quindi **ogni** nemico della squadra 0 con cella
+ * vera, salute vera e `Unbalanced` vero: la fuga che CP 13.5 esiste per chiudere, a favore del bot.
+ *
+ * ⚠️ **Perche' la suite restava verde**: `ARTTurnManager::PlanBots` popola la mappa per ogni squadra
+ * presente, quindi dal chiamante di produzione il caso degradato non si presenta. Era irraggiungibile per
+ * una proprieta' del CHIAMANTE, non per una difesa del codice — e `PlanTurn` e' una porta **pubblica**.
+ *
+ * 🔑 **La squadra del bot e' 1 e quella del nemico e' 0, e l'asimmetria e' il test**: col difetto la
+ * conoscenza vuota si spaccia per «squadra 0», e il nemico di squadra 0 diventa un alleato da vedere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest,
+	"RefactorTactics.Bot.PlannerMissingKnowledgeIsNotOmniscience",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeFlatMap(4);
+
+	// Adiacenti: col difetto il bot LO VEDE, e a portata 1 dichiara l'attacco. Senza, non lo vede affatto.
+	TArray<FRTHexSimUnit> SimUnits;
+	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 2));
+	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 2));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+
+	TArray<FRTBotUnitFacts> Facts;
+	Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));   // il bot NON e' di squadra 0
+	Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(1, 0, 0), /*bBot*/ false));  // il nemico SI'
+
+	// 🔴 **Il bot deve avere un'abilita' d'attacco, altrimenti il test e' VACUO** — e la prima stesura lo
+	// era: `AddCandidates` costruisce le candidate d'attacco solo da un'abilita' (`Ability->Power`), quindi
+	// un'unita' senza abilita' non dichiara MAI un bersaglio e l'asserzione passava anche col difetto in
+	// piedi. Misurato con la mutazione: il test restava verde. Un test che non cade non e' un gate.
+	URTActionData* Colpo = NewObject<URTActionData>();
+	Colpo->RangeCells = 1;
+	Colpo->Power = 40;
+	Facts[0].Abilities.Add(Colpo);
+	Facts[0].bAbilityUsable.Add(true);
+
+	FRTBotWeights Pesi;
+	Pesi.WKill = 100;
+	Pesi.WDamage = 50;
+	Pesi.WApproach = 5;
+
+	// ⛔ **VUOTA, ed e' il punto**: e' il caso degradato che dal chiamante di produzione non si presenta.
+	TMap<int32, FRTTeamKnowledge> Conoscenza;
+	TMap<int32, int32> Inattivita;
+	TMap<int32, int32> UltimoRound;
+
+	const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
+		Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+
+	if (!TestEqual(TEXT("un piano per il bot"), Esito.Decisions.Num(), 1))
+	{
+		return false;
+	}
+
+	// 🔴 Il bot non sa che quel nemico esiste: non puo' dichiarargli un attacco.
+	TestEqual(TEXT("nessun bersaglio dichiarato: la squadra non lo conosce"),
+		Esito.Decisions[0].PlannedAttackTargetIndex, static_cast<int32>(INDEX_NONE));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
