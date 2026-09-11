@@ -862,6 +862,14 @@ namespace
 		auto PriorityOf = [&State](int32 i) { return State.Priorities.IsValidIndex(i) ? State.Priorities[i] : 0; };
 		auto IsLinearMover = [&State](int32 i) { return State.bLinearMovers.IsValidIndex(i) && State.bLinearMovers[i]; };
 		auto PassesThrough = [&State](int32 i) { return State.bPassThrough.IsValidIndex(i) && State.bPassThrough[i]; };
+		// ➕ **Compagne** — `#2984`, [D-396]. Una squadra non dichiarata (`INDEX_NONE`, o l'array vuoto)
+		// non e' alleata di nessuno, nemmeno di un'altra non dichiarata: il permesso si concede, non si
+		// deduce dall'assenza di dato.
+		auto AreAllies = [&State](int32 a, int32 b)
+		{
+			if (!State.Teams.IsValidIndex(a) || !State.Teams.IsValidIndex(b)) { return false; }
+			return State.Teams[a] != INDEX_NONE && State.Teams[a] == State.Teams[b];
+		};
 
 		const TArray<TArray<FRTCellId>>& Paths = State.Paths;
 		TArray<FRTCellId>& Pos = State.Pos;
@@ -1031,6 +1039,19 @@ namespace
 						{
 							if (j != i && !Arriving[j] && Pos[j] == Target[i])
 							{
+								// ➕ **Una COMPAGNA si attraversa** (`#2984`, [D-396]), alle STESSE condizioni con cui
+								// la attraversa un `LinearPass`: `!bFinalStep`, cioe' si transita dentro qualcuno e non
+								// ci si ferma. ⛔ Due unita' nella stessa cella a fine turno restano non
+								// rappresentabili ([D-289]), e togliere quel vincolo qui le renderebbe possibili.
+								//
+								// ⚠️ Il permesso e' PER OCCUPANTE e sta dentro il ciclo, mentre quello dello stile
+								// (`bCrossesStationary`) e' per mover e salta il ciclo intero: uno guarda CHI blocca,
+								// l'altro guarda chi si muove, e appiattirli renderebbe un `LinearPass` capace di
+								// attraversare un nemico solo perche' un compagno stava altrove.
+								if (!bFinalStep && AreAllies(i, j))
+								{
+									continue;
+								}
 								bBlocked = true;
 								Reason = ERTMoveOutcome::BlockedByUnit;
 								// In transito = ancora in movimento, quindi la cella si liberera'.
@@ -1170,13 +1191,15 @@ namespace
 
 FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
 	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough,
-	const TArray<FRTPlannedMovement>& Planned, const TArray<TArray<int32>>& StepDurations)
+	const TArray<FRTPlannedMovement>& Planned, const TArray<TArray<int32>>& StepDurations,
+	const TArray<int32>& Teams)
 {
 	FRTMovementResolutionState State;
 	State.Paths = Paths;
 	State.Priorities = Priorities;
 	State.bLinearMovers = bLinearMovers;
 	State.bPassThrough = bPassThrough;
+	State.Teams = Teams;
 	State.StepDurations = StepDurations;
 
 	const int32 N = Paths.Num();
@@ -1292,16 +1315,18 @@ TArray<FRTHexMoveResult> URTHexSimLibrary::FinishHexMovement(FRTMovementResoluti
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths)
 {
-	return ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>());
+	return ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>(), TArray<int32>());
 }
 
 TArray<FRTHexMoveResult> URTHexSimLibrary::ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
-	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough)
+	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough,
+	const TArray<int32>& Teams)
 {
 	// `initialize -> while(!finished) step -> result`: la via a passi e quella in blocco sono LO STESSO
 	// codice, non due algoritmi che qualcuno dovra' tenere allineati. E' la condizione per cui CP 14.2 puo'
 	// dichiarare "nessun comportamento cambia" invece di sperarlo.
-	FRTMovementResolutionState State = BeginHexMovement(Paths, Priorities, bLinearMovers, bPassThrough);
+	FRTMovementResolutionState State = BeginHexMovement(Paths, Priorities, bLinearMovers, bPassThrough,
+		TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), Teams);
 	return FinishHexMovement(State);
 }
 
