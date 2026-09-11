@@ -2030,6 +2030,29 @@ def required_icon_ids() -> list[str]:
         ids.append(f"UI.Icon.Identity.{hero}")
     ids += ["UI.Icon.Identity.Ally", "UI.Icon.Identity.Enemy"]
 
+    # Abilita' d'eroe SENZA RIPIEGO (`#2963`). Il criterio non e' «sono d'eroe»: un'abilita' derivata da
+    # una core mostra l'icona di quella — `TideGuard` quella di `Action.Shield` — e pretenderne una propria
+    # chiederebbe un disegno per qualcosa che gia' si vede. Un'abilita' PROPRIA non ha quella via, e senza
+    # glifo il dock mostra `MissingIcon`.
+    #
+    # ⚠️ **Si riconoscono dalla FABBRICA, e il match e' deliberatamente generico.** Le fabbriche che
+    # dichiarano una core portano `FromCore` nel nome — `MakeHeroActionFromCore`,
+    # `MakeHeroReactionFromCoreAction` — piu' `MakeHeroBasicAttack`, che scrive `BaseActionId` da se'.
+    # Elencarle una per una si rompe in silenzio alla prossima: e' successo scrivendo questo blocco, dove
+    # `MakeHeroReactionFromCoreAction` mancava dall'elenco e il conto dava 11 invece di 8.
+    #
+    # ⛔ **Resta un surrogato, come tutto il resto di questa funzione.** L'autorita' e'
+    # `MakeActionIconFallbackId`, che guarda `DerivedFromActionId` e `BaseActionId` sul `Def` costruito —
+    # non il nome di chi l'ha costruito. Un'abilita' che si scrivesse il ripiego a mano dopo una fabbrica
+    # senza `FromCore` sfuggirebbe a questa lettura, e il generatore chiederebbe un glifo che il gioco non
+    # pretende. Il disallineamento si vede: il commandlet stampa `Chiavi richieste`, e i due numeri vanno
+    # confrontati quando divergono.
+    con_ripiego = set(re.findall(
+        r'Make\w*(?:FromCore\w*|BasicAttack)\(\s*TEXT\("(Hero\.[A-Za-z.]+)"\)', roster))
+    for ability in sorted(set(re.findall(r'TEXT\("(Hero\.[A-Za-z]+\.[A-Za-z]+)"\)', roster))):
+        if ability not in con_ripiego:
+            ids.append(f"UI.Icon.Action.{ability}")
+
     # Deduplica conservando l'ordine, come fa `AddUnique`.
     seen, unique = set(), []
     for i in ids:
@@ -2040,9 +2063,13 @@ def required_icon_ids() -> list[str]:
 
 
 def check_coverage(drawn: set[str]) -> tuple[list[str], list[str]]:
-    """Restituisce (mancanti, extra). Gli extra non sono un errore: le ability degli eroi hanno una
-    chiave regolare sotto `Action.` ma non sono nel catalogo generico, quindi `RequiredIconIds()` non
-    le pretende — servono comunque alla skill bar."""
+    """Restituisce (mancanti, extra). Gli extra non sono un errore: sono disegni che nessuno pretende.
+
+    ⚠️ **Diceva che le ability degli eroi stanno tutte fra gli extra, e dal `#2963` e' falso.** Quelle
+    SENZA ripiego sono ora chiavi richieste: non derivano da nessuna core, quindi senza il proprio glifo
+    il dock mostra `MissingIcon`. Restano extra le derivate — mostrano l'icona della loro core — e il
+    censimento delle sette categorie, che e' asset e non copertura.
+    """
     required = required_icon_ids()
     missing = [i for i in required if i not in drawn]
     extra = sorted(d for d in drawn if d not in set(required))
