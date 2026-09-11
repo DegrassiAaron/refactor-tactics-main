@@ -3008,19 +3008,24 @@ bool FRTHexSimAlliesDoNotStackTest::RunTest(const FString&)
  * 🔴 **Questo banco chiedeva l'OPPOSTO, ed e' stato riscritto misurando** (`#2984` su [D-399]). La
  * sua prima stesura poggiava su un precedente reale: `bCrossesStationary` saltava il ciclo INTERO, quindi
  * un `LinearPass` attraversava anche chi stava ancora uscendo dalla propria cella. [D-396] concede alle
- * compagne *« le STESSE condizioni »*, e quelle erano le condizioni.
+ * compagne « le STESSE condizioni », e quelle erano le condizioni.
  *
  * 🔑 **Poi [D-399] ha ristretto quelle condizioni**, per una ragione misurata: un arco scavalca le
  * celle che copre, e quelle celle non compaiono in `Target` — scavalcare chi si MUOVE perderebbe la
  * catena `target -> occupante` su cui [D-394] chiude `MOV-7`. L'arco copre percio' i soli occupanti FERMI.
  *
- * ∴ *« le stesse condizioni »* e' un RIFERIMENTO, non un valore fissato: seguirlo al suo nuovo
+ * ∴ « le stesse condizioni » e' un RIFERIMENTO, non un valore fissato: seguirlo al suo nuovo
  * valore **applica** [D-396], non la cambia. E il banco lo misura invece di dedurlo — nello stesso
  * allestimento un `LinearPass` aspetta esattamente come una compagna.
  *
- * ⚠️ Misurato il 2026-09-12 innestando `#2984` su `origin/main` = `a9928882`: era l'unico rosso
- * della suite, e cadeva sulla sola meta' che asserisce l'attraversamento — la meta' falsificante
- * (*« fra avversarie A aspetta »*) era gia' verde, cioe' il comportamento nuovo, non una regressione.
+ * ⛔ **L'oracolo e' il NUMERO DI MICRO-STEP, e le due stesure precedenti hanno sbagliato qui entrambe.**
+ * `Final` non serve: il blocco da unita' in transito e' TRANSITORIO, la cella si libera e tutti arrivano
+ * comunque — misurerebbe il tempo credendo di misurare il permesso. Ma **nemmeno `Pos` dopo un passo
+ * serve**: sotto [D-382] chi attraversa resta sulla propria origine per l'INTERA durata dell'arco, quindi
+ * *« non si e' mossi dopo un passo »* e' vero sia che si stia aspettando sia che si stia
+ * attraversando. ⚠️ Misurato, non dedotto: la mutazione che fa scavalcare anche gli occupanti in
+ * movimento lasciava quella stesura **verde**. Il tempo d'arrivo invece separa i due mondi — due
+ * micro-step se si attraversa, quanto la cella impiega a liberarsi se si aspetta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitWaitsTest,
 	"RefactorTactics.HexSim.AllyInTransitWaitsLikeEveryoneElse",
@@ -3035,10 +3040,8 @@ bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
 	Durate.Add({ 1, 1 });
 	Durate.Add({ 5 }); // cinque micro-step per lasciare (1,0): in transito quando A ci arriva
 
-	// 🔴 **L'oracolo e' il MICRO-STEP, non la cella finale.** Un blocco da unita' in transito e'
-	// TRANSITORIO: la cella si libera e chi aspettava prosegue, quindi `Final` e' la stessa in ogni
-	// variante, e leggerla misurerebbe il tempo invece del permesso.
-	auto PosizioneDopoUnPasso = [&Paths, &Durate](const TArray<int32>& Teams, bool bLinearPass)
+	// Micro-step al termine dei quali A e' su `(2,0)`, o `INDEX_NONE` se non ci arriva affatto.
+	auto PassiPerArrivare = [&Paths, &Durate](const TArray<int32>& Teams, bool bLinearPass)
 	{
 		TArray<bool> PassThrough;
 		if (bLinearPass)
@@ -3047,29 +3050,50 @@ bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
 		}
 		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
 			TArray<bool>(), PassThrough, TArray<FRTPlannedMovement>(), Durate, Teams);
-		URTHexSimLibrary::ResolveNextHexMicroStep(State);
-		return State.Pos.IsValidIndex(0) ? State.Pos[0] : FRTCellId();
+		for (int32 Passo = 1; Passo <= 20; ++Passo)
+		{
+			URTHexSimLibrary::ResolveNextHexMicroStep(State);
+			if (State.Pos.IsValidIndex(0) && State.Pos[0] == FRTCellId(2, 0))
+			{
+				return Passo;
+			}
+		}
+		return (int32)INDEX_NONE;
 	};
 
-	// Chi e' in transito occupa la propria cella per l'intera durata del passo ([D-382]), e l'arco copre i
-	// soli occupanti FERMI ([D-399]): non lo scavalca nessuno.
-	TestEqual(TEXT("fra compagne A aspetta che la cella si liberi"),
-		PosizioneDopoUnPasso({ 0, 0 }, /*bLinearPass*/ false), FRTCellId(0, 0));
-	TestEqual(TEXT("fra avversarie, lo stesso"),
-		PosizioneDopoUnPasso({ 0, 1 }, /*bLinearPass*/ false), FRTCellId(0, 0));
+	const int32 Compagne = PassiPerArrivare({ 0, 0 }, /*bLinearPass*/ false);
+	if (!TestTrue(TEXT("premessa: prima o poi si arriva comunque"), Compagne > 0)) { return false; }
+
+	// 🔑 **La riga che porta il peso.** Due micro-step e' cio' che costa l'arco che scavalca ([D-398]
+	// §7a): arrivare piu' tardi significa aver ASPETTATO che la cella si liberasse.
+	TestTrue(TEXT("ma non attraversando: si aspetta che la cella si liberi"), Compagne > 2);
+
+	TestEqual(TEXT("fra avversarie, identico"),
+		PassiPerArrivare({ 0, 1 }, /*bLinearPass*/ false), Compagne);
 
 	// ⚠️ **La parita' si MISURA.** [D-396] concede alle compagne le stesse condizioni del
 	// `LinearPass`: qui si legge quali sono oggi, invece di assumerle da un commento.
 	TestEqual(TEXT("e un LinearPass aspetta esattamente come loro"),
-		PosizioneDopoUnPasso(TArray<int32>(), /*bLinearPass*/ true), FRTCellId(0, 0));
+		PassiPerArrivare(TArray<int32>(), /*bLinearPass*/ true), Compagne);
 
-	// ⛔ **La meta' falsificante: con l'occupante FERMO il permesso e' vivo.** Senza, tutto quanto sopra
-	// resterebbe vero anche se l'attraversamento fra compagne avesse smesso di funzionare del tutto.
+	// ⛔ **La meta' falsificante: con l'occupante FERMO il permesso e' vivo**, e si vede dal tempo. Senza
+	// di essa tutto quanto sopra resterebbe vero anche se l'attraversamento fra compagne non funzionasse.
 	TArray<TArray<FRTCellId>> Ferma;
 	Ferma.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
 	Ferma.Add({ FRTCellId(1, 0) }); // nessun percorso da fare: e' ferma
-	const TArray<FRTHexMoveResult> Compagne = RTResolveWithTeams(Ferma, { 0, 0 });
-	TestEqual(TEXT("una compagna FERMA invece si attraversa"), Compagne[0].Final, FRTCellId(2, 0));
+	FRTMovementResolutionState Stato = URTHexSimLibrary::BeginHexMovement(Ferma, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), { 0, 0 });
+	int32 PassiFerma = INDEX_NONE;
+	for (int32 Passo = 1; Passo <= 20 && PassiFerma == INDEX_NONE; ++Passo)
+	{
+		URTHexSimLibrary::ResolveNextHexMicroStep(Stato);
+		if (Stato.Pos.IsValidIndex(0) && Stato.Pos[0] == FRTCellId(2, 0))
+		{
+			PassiFerma = Passo;
+		}
+	}
+	TestEqual(TEXT("una compagna FERMA invece si attraversa, e l'arco costa i suoi due passi"), PassiFerma, 2);
+	TestTrue(TEXT("cioe' si arriva prima che aspettando"), PassiFerma < Compagne);
 	return true;
 }
 
