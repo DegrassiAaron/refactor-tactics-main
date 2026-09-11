@@ -70,13 +70,13 @@ file gitignorati: salvare un asset i cui riferimenti duri leggono `None` **li az
 | Campo | Valore |
 |---|---|
 | **Related issue** | #288 · #2881 · epic #2879 |
-| **Map/scenario** | `L_GrayKitPlayground` o una scena 1v1 con percorso lungo |
+| **Map/scenario** | ✅ **Il banco esiste**: `Visual.Movement.MoveVsRun` (`Scenarios/Visual/Movement/`). Validato headless — 184 test `RefactorTactics.Scenario`, 0 non-Success. Si avvia con `-RTScenario=Visual.Movement.MoveVsRun` o con la console `rt.Test.Scenario Visual.Movement.MoveVsRun`. |
 | **Asset interessato** | nessuno |
-| **Setup richiesto** | `E-01` completata |
-| **Operazione editor** | Far percorrere lo stesso tragitto a due unità, una con `ERTGraykitLocomotionStyle::Normal` e una con `Run`. **Guardarle senza HUD.** |
-| **MCP operation** | `AutomationTestToolset` no — questa è una misura di occhio |
+| **Setup richiesto** | nessuno oltre una build corrente: `E-01` è chiusa da #2880 |
+| **Operazione editor** | 🔴 **Aggiornato da #2881: lo stile non si imposta più a mano.** Lo decide `URTPresentationBindingLibrary::StyleForPhase` dalla **fase**, e l'unica fase che corre è il `Dash`. ∴ per confrontare le due andature serve un turno in cui un'unità **fa un Dash** e un'altra un `Move` ordinario — non due unità configurate diversamente. **Guardarle senza HUD.** |
+| **MCP operation** | nessuna. 🔴 **E un tentativo di automatizzarla è stato fatto e ritirato**, quindi non va ripetuto: catturare lo *schermo* dall'esterno dipende dal focus della finestra e fotografa ciò che non c'entra. Il canale corretto sarebbe `rt.Camera.TopDownShot`, che scrive il **viewport** in `Saved/Screenshots/` — ma resta il timing: gli scatti servono *durante* il playback, e `-ExecCmds` esegue solo all'avvio. Servirebbe un aggancio su `ARTTurnManager::OnPhasePlaybackStarted`, che è una feature con la sua issue, non un dettaglio di questa voce. |
 | **PIE richiesto** | **Sì** |
-| **Controllo visuale** | 🔴 **Il criterio del mandato**: sono distinguibili *senza HUD*? Se la risposta è no, i numeri di `DescriptorForStyle` vanno cambiati — sono un punto di partenza, non un accordo di design, e il referto lo dichiara |
+| **Controllo visuale** | 🔴 **Il criterio del mandato**: sono distinguibili *senza HUD*? Se la risposta è no, i numeri di `DescriptorForStyle` vanno cambiati — sono un punto di partenza, non un accordo di design, e il referto lo dichiara.<br><br>⚠️ **Metà della differenza NON si vede in un fermo immagine**, e conviene saperlo prima di guardare: il `Lean` (18° contro 6°) e lo `Stretch` direzionale reggono anche fermi, ma il **ritmo** — braccio e bob a 4 cicli contro 3 — richiede di guardare il movimento. Un giudizio dato su uno screenshot risponde a metà domanda.<br><br>🔑 **E le due andature non sono simultanee**: `Dash` e `Move` sono fasi diverse e il playback le riproduce in sequenza. Si vede prima lo scatto, poi la camminata — stessa mappa, stessa inquadratura. |
 | **Log da verificare** | — |
 | **Risultato atteso** | Sì/no motivato, e se no i valori proposti |
 | **Blocca DEV** | No — ma è **l'unico gate che può chiudere `GK-03`** sul piano estetico |

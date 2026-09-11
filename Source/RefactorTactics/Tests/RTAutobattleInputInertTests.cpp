@@ -342,6 +342,84 @@ bool FRTAutobattleOrderSitesInertTest::RunTest(const FString&)
 }
 
 // ======================================================================================================
+// Il tasto che disfa, che non e' un sito `Order`
+// ======================================================================================================
+
+/**
+ * IL TASTO DESTRO E' INERTE SU UNA SESSIONE NON PRESIDIATA.
+ *
+ * ⚠️ **Non e' un sesto sito `Order`**, ed e' il motivo per cui il test qui sopra non lo contiene: i cinque
+ * PRODUCONO un piano, il destro lo DISFA. La sua guardia esiste per un'altra ragione — *«non c'e' un piano
+ * umano da disfare, e `UndoCount` non deve crescere»* — e per questo ha un test suo.
+ *
+ * 🔴 **Misurato con una verifica di mutazione il 2026-09-10, e la guardia era scoperta.** Togliendo
+ * `IsPlanningInputInert()` da `OnUndoWaypoint` la suite intera restava verde — `2387 Success`, `0 Fail`:
+ * nessun test percorreva quella riga. `PlanningInputIsInertOnEveryOrderSite` non la copre perche' il destro
+ * non produce ordini, e `PacingTimesAreDeclaredUnmeasured` misura un turno in cui **nessuno preme niente**,
+ * quindi resta verde anche con la guardia rimossa.
+ *
+ * ⚠️ **Il waypoint si monta A MANO**, con la stessa disciplina del sito (3) del test qui sopra: passare da
+ * `HandleClickOnCell` con l'autobattle in vigore lo farebbe rifiutare *a monte*, e il verde direbbe soltanto
+ * che il piano non e' mai esistito — non che il destro l'abbia lasciato stare.
+ *
+ * 🔑 **Il controllo e' nello stesso test.** Senza, «il waypoint e' ancora li'» non distinguerebbe la guardia
+ * che regge da un banco su cui il destro non funziona affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAutobattleBackIsInertTest,
+	"RefactorTactics.Match.Autobattle.RightClickBackIsInertOnAnUnattendedSession",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAutobattleBackIsInertTest::RunTest(const FString&)
+{
+	FRTScopedInertSessionState StateGuard;
+
+	FRTInertBench B = MakeInertBench(/*bWithTurnManagerBeginPlay=*/ false);
+	if (!TestTrue(TEXT("banco completo"), B.IsComplete()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// --- CONTROLLO: sessione presidiata, il destro disfa ---------------------------------------------
+	B.Setup(/*bAutobattle=*/ false);
+	B.PC->SelectActorForTest(B.Aevik);
+	B.Aevik->PlannedWaypoints.Add(FRTCellId(0, -1, 0));
+
+	B.PC->OnUndoWaypointForTest();
+	if (!TestEqual(TEXT("controllo: presidiata, il destro toglie il waypoint"),
+		B.Aevik->PlannedWaypoints.Num(), 0))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	// --- LA MISURA: sessione non presidiata, il destro non tocca niente -------------------------------
+	ClearInertPlan(B.Aevik);
+	B.Setup(/*bAutobattle=*/ true);
+	if (!TestTrue(TEXT("la misura: l'input e' inerte"), B.PC->IsPlanningInputInert()))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+
+	B.PC->SelectActorForTest(B.Aevik);
+	B.Aevik->PlannedWaypoints.Add(FRTCellId(0, -1, 0));
+
+	B.PC->OnUndoWaypointForTest();
+	TestEqual(TEXT("il destro NON disfa il piano di una sessione non presidiata"),
+		B.Aevik->PlannedWaypoints.Num(), 1);
+
+	// ⛔ E non esce nemmeno da una dichiarazione: la guardia sta PRIMA di `ApplyBack()`, quindi nessun
+	// livello del Back viene raggiunto. Senza questa riga il test resterebbe verde con una guardia spostata
+	// dentro il solo ramo `Waypoint`.
+	B.Aevik->SelectAbility(0);
+	B.PC->OnUndoWaypointForTest();
+	TestEqual(TEXT("e non disarma nemmeno l'azione"), B.Aevik->SelectedAbilityIndex, 0);
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
+// ======================================================================================================
 // Il turno, che non e' un piano
 // ======================================================================================================
 

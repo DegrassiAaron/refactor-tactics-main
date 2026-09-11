@@ -104,7 +104,8 @@ struct FRTArmedPrediction
  * conoscenza di squadra sono quelle correnti.
  *
  * ⚠️ La separazione non e' un gusto architetturale, evita un difetto misurato: `ResolvePrep` costruisce il
- * proprio array di unita' ordinandolo per cella (`StableLess`), `ResolveMovement` usa quello dello snapshot.
+ * proprio array di unita' e lo ordina con `SortUnitsForResolution` (#2922), `ResolveMovement` usa quello
+ * dello snapshot — che e' filtrato sui vivi.
  * I due ordini NON coincidono, quindi un indice catturato nel Prep indicherebbe un'altra unita' nel Move —
  * e `FRTOverwatchWatcher::TeamAwareness` e `FRTSuppressionMover::UnitId` sono indici. Tenere il PUNTATORE e
  * risolverlo al momento dell'uso e' esattamente cio' che `FRTArmedPrediction` fa qui sopra, e per la stessa
@@ -669,6 +670,26 @@ public:
 	/** `true` se Pause/Step sono disponibili in questa sessione. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	bool ArePlaybackControlsEnabled() const { return bPlaybackControlsEnabled; }
+
+	/**
+	 * Fa **cominciare in pausa** ogni playback di questa sessione (`#2858`), così che il primo confine
+	 * osservabile sia il primo e non uno qualsiasi.
+	 *
+	 * 🔑 **Non e' uno stato logico diverso.** Il turno e' risolto — o sospeso — esattamente come senza:
+	 * cio' che cambia e' **quando** l'immagine comincia a scorrere. `LockInAndResolve` ha gia' deciso tutto
+	 * prima che questa riga conti qualcosa.
+	 *
+	 * ⛔ **Vale solo con i controlli abilitati, e la subordinazione e' la sua sicurezza.** Partire in pausa
+	 * senza il comando per riprendere sarebbe una partita bloccata da un flag — lo stesso difetto che
+	 * `SetPlaybackControlsEnabled(false)` evita facendo ripartire cio' che aveva fermato. Chiederlo con i
+	 * controlli spenti non fa nulla e non lo ricorda per dopo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void SetStartPlaybackPaused(bool bStartPaused);
+
+	/** `true` se ogni playback di questa sessione comincia fermo (`#2858`). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool DoesPlaybackStartPaused() const { return bStartPlaybackPaused; }
 
 	/**
 	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
@@ -1329,23 +1350,6 @@ public:
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
 	/**
-	 * Le unita' VIVE del livello, in ordine stabile per cella.
-	 *
-	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
-	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
-	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
-	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
-	 * che dopo [D-190] non lo legge affatto.
-	 *
-	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
-	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
-	 *
-	 * ⚠️ Questo NON e' l'unico `StableLess` su unita' del progetto: `ResolveEnvironment` e `ResolvePrep`
-	 * ordinano array propri con lo stesso comparatore, e `ResolveCombat` pure. Questo helper e' la sorgente
-	 * unica per **chi vuole le unita' vive del livello**, non un consolidamento di tutti gli ordinamenti:
-	 * cambiare il comparatore qui non lo cambia la'.
-	 */
-	/**
 	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
 	 *
 	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
@@ -1358,6 +1362,26 @@ public:
 	 */
 	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
 
+	/**
+	 * Le unita' VIVE del livello, nell'ordine di `URTActionQueueLibrary::SortUnitsForResolution`
+	 * — cella, poi `StableUnitId`, poi nome dell'Actor (#2922).
+	 *
+	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
+	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
+	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
+	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
+	 * che dopo [D-190] non lo legge affatto.
+	 *
+	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
+	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
+	 *
+	 * ⚠️ **Questo helper resta la sorgente unica per *chi vuole le unita' vive del livello*** — non per
+	 * l'ordine, che da #2922 e' consolidato altrove. Fin qui c'era scritto che `ResolveEnvironment`,
+	 * `ResolvePrep` e `GatherBlastUnits` tenevano copie proprie del comparatore e che *«cambiare il comparatore
+	 * qui non lo cambia la'»*: non e' piu' vero. Tutti passano da
+	 * `URTActionQueueLibrary::SortUnitsForResolution`, quindi toccare quella regola le muove **tutte** — ed
+	 * e' il punto, non un effetto collaterale. Trovato in code review.
+	 */
 	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
 
 	/**
@@ -1454,7 +1478,10 @@ protected:
 	// dettaglio di implementazione. Sono metodi e non funzioni libere perche' scrivono nei membri che
 	// devono sopravvivere alla fase: `TurnLog`, `TeamKnowledgeState`, `ReactionBlockedThisTurn`.
 
-	/** Raccoglie le unita' del livello, le ordina per cella e costruisce identita', stati e copia posizionale. */
+	/**
+	 * Raccoglie le unita' del livello, le ordina con `URTActionQueueLibrary::SortUnitsForResolution` — cella,
+	 * poi `StableUnitId`, poi nome dell'Actor (#2922) — e costruisce identita', stati e copia posizionale.
+	 */
 	void GatherBlastUnits(FRTBlastContext& Ctx) const;
 
 	/**
@@ -2133,6 +2160,14 @@ protected:
 	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
 	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
 	void BeginPlayback(bool bPreserveClock = false);
+
+	/**
+	 * Porta a schermo le impronte fino a `UpTo`, in ordine di timeline — `#2454`.
+	 *
+	 * ⛔ **Non riordina e non aggrega.** Consuma `PlaybackFootprints` nell'ordine in cui il resolver le ha
+	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
+	 */
+	void RevealPlaybackFootprints(int32 UpTo);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -2901,6 +2936,18 @@ private:
 	bool bPlaybackControlsEnabled = false;
 
 	/**
+	 * Ogni playback di questa sessione comincia fermo (`#2858`).
+	 *
+	 * ⚠️ **Separato da `bPlaybackPaused`, che e' lo stato corrente.** Questo e' una **politica di sessione**
+	 * — vale per ogni turno finche' non la si spegne — mentre quello dice se l'immagine e' ferma **adesso**.
+	 * Fonderli renderebbe `ResumePlayback` una revoca della politica: si riprenderebbe una volta e il turno
+	 * dopo ripartirebbe da solo, che e' l'opposto di cio' che chiede chi sta ispezionando.
+	 *
+	 * ⛔ Nasce `false` come `bPlaybackControlsEnabled`, e come quello non si accende da se'.
+	 */
+	bool bStartPlaybackPaused = false;
+
+	/**
 	 * Il playback e' fermo.
 	 *
 	 * ⚠️ **Ferma la PRESENTAZIONE.** Questa riga aggiungeva *«la risoluzione e' gia' avvenuta per intero»*, e
@@ -2972,6 +3019,16 @@ private:
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
 
 	/**
+	 * Eventi `AttackFootprint`, rivelati nel Blast come i colpi — `#2454`.
+	 *
+	 * 🔴 **Array proprio e non fuso con `PlaybackAttacks`**, perche' i due contano cose diverse:
+	 * `ResolveCombatPasses` emette un `Attack` per **vittima** e un'impronta per **intento**. Fonderli
+	 * perderebbe proprio il caso che `D-301` esiste per far esistere — l'area su sole celle vuote, che ha
+	 * un'impronta e zero colpi.
+	 */
+	TArray<FRTResolvedEvent> PlaybackFootprints;
+
+	/**
 	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
 	 *
 	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
@@ -3002,6 +3059,7 @@ private:
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
+	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.

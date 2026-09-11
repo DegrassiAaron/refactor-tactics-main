@@ -225,6 +225,45 @@ struct FRTMovementResolutionState
 	/** Indice raggiunto dentro il proprio `Paths[i]`. */
 	TArray<int32> Prog;
 
+	/**
+	 * Quanti microstep dura ogni ARCO del percorso ([D-381](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+	 * `StepDurations[i][k]` e' la durata dell'arco che porta a `Paths[i][k + 1]`, quindi ha un elemento in
+	 * meno del percorso.
+	 *
+	 * 🔑 **E' un DATO del passo, non una lettura del costo**, ed e' la ragione per cui esiste come array
+	 * invece che come una chiamata alla mappa qui dentro. Se la durata fosse *per contratto* il costo,
+	 * l'unico modo di rendere un profilo piu' RAPIDO sarebbe fargli costare MENO per cella — e costare meno
+	 * significa andare piu' LONTANO: velocita' e portata sarebbero la stessa manopola per sempre, e `MOV-3`
+	 * si chiuderebbe per inerzia invece che per playtest.
+	 *
+	 * ⛔ **Il resolver NON riceve la mappa**, e questo array e' il modo di rispettarlo: la durata si deriva a
+	 * monte, dove costo, modificatore e percorso sono tutti visibili — `ARTTurnManager::ResolveMovement` — e
+	 * viaggia qui gia' calcolata. Passare lo snapshot al resolver renderebbe rosso
+	 * `Movement.BlockedPath_DoesNotAutoReroute`, che esiste per impedirlo.
+	 *
+	 * Vuoto, piu' corto di `Paths`, o con valori `<= 0` -> **un microstep per arco**, cioe' il comportamento
+	 * che il resolver aveva prima di `#2914`: con l'array vuoto l'esito e' identico per costruzione.
+	 */
+	TArray<TArray<int32>> StepDurations;
+
+	/**
+	 * Microstep ancora da pagare per l'arco IN CORSO, per unita'. `1` significa «l'arco si completa in questo
+	 * microstep»; un valore maggiore significa che l'unita' e' **in transito**.
+	 *
+	 * ⚠️ **Un'unita' in transito resta sulla propria cella d'origine** ([D-382](../../../docs/decisions/RT_PDR_00_Decision_Log.md)):
+	 * `Pos[i]` non cambia finche' l'arco non e' completo, e non esiste un istante in cui sia «fra due celle».
+	 * Ne segue, dichiarato: un'unita' lenta **tappa il corridoio** per l'intera durata del passo, e incassa
+	 * nella copertura di PARTENZA fino all'ingresso — perche' `Pos` e' il soggetto autorevole, durante il
+	 * ciclo, del colpo di Overwatch e della sua copertura, del facing d'impatto, del verdetto di visibilita'
+	 * delle voci, della conoscenza di squadra, della geometria della voce e del `MoveLog`; non solo
+	 * dell'occupancy. L'elenco governante e' in `spec-tassonomia-movimento.md` §2.0-ter.
+	 *
+	 * ⚠️ **E il ritardo si propaga lungo una catena**: un inseguitore bloccato non paga il proprio arco
+	 * mentre aspetta, quindi un convoglio su terreno costoso **si serializza** invece di avanzare in blocco.
+	 * E' la conseguenza diretta di [D-382], pinnata da `Movement.ConvoyOnCostlyTerrainSerializes`.
+	 */
+	TArray<int32> StepRemaining;
+
 	/** Percorso esaurito, o nessun movimento da fare. */
 	TArray<bool> Done;
 

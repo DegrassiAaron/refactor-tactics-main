@@ -119,6 +119,12 @@ namespace
 			// percorsi DAVVERO avvenuti (`RTHUD.cpp:667`) su un canale diverso, quindi le due tracce
 			// convivevano invece di darsi il cambio.
 			HexMap->SetPreviewPath(TArray<FRTCellId>());
+
+			// ➕ **E la timeline** (`#172`), per la stessa ragione della rotta qui sopra: spegnere
+			// l'anteprima a metà è un difetto più difficile da vedere che non spegnerla affatto. Una
+			// `FRTPlanPreview` di default è l'annullamento — non serve un secondo metodo che faccia la
+			// stessa cosa con un altro nome.
+			HexMap->SetPlanPreview(FRTPlanPreview());
 			return;
 		}
 
@@ -129,8 +135,10 @@ namespace
 		int32 UnitId = INDEX_NONE;
 		TArray<ARTUnit*> Units;
 		TArray<FRTCellId> Reachable;
+		bool bHasSnapshot = false;
 		if (PlanningSnapshotFor(World, Unit, Snapshot, UnitId, &Units))
 		{
+			bHasSnapshot = true;
 			for (const FRTHexReachableCell& R :
 				URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->PlannedWaypoints))
 			{
@@ -202,6 +210,91 @@ namespace
 			? PreviewPlan.TargetCell
 			: (HexUnits.IsValidIndex(PreviewPlan.TargetId) ? HexUnits[PreviewPlan.TargetId].Cell : FRTCellId());
 		HexMap->SetPreviewAttack(Blast.Origin, AimCell, bHasAim, Blast.bOriginFromPlannedDash);
+
+		// ➕ **LA TIMELINE DEL PIANO, una voce per fase** (`CP 11.5`, `#172`).
+		//
+		// 🔑 **Si TRADUCE il piano, non si decide niente.** Tutto ciò che segue riempie una struct di
+		// ingresso; l'origine, l'area, il percorso e il facing li deriva `MakePlanPreview`, che è pura e
+		// verificabile headless — e che a sua volta chiama le funzioni del resolver invece di riscriverle.
+		//
+		// ⚠️ **Senza snapshot non si costruisce una timeline finta.** `BuildCompositeHexPath` ha bisogno
+		// dello stato autorevole: darle uno snapshot vuoto produrrebbe un percorso che il resolver non
+		// percorrerà mai, cioè precisamente la divergenza che questo checkpoint esiste per impedire.
+		if (bHasSnapshot)
+		{
+			FRTPlanPreviewInput Timeline;
+			Timeline.UnitId = UnitId;
+
+			// 🔴 **La reazione e' armata da `PlannedReactionAbility`, NON da `ReactionProfileId`**, e la
+			// prima stesura leggeva il secondo. Quello e' configurazione persistente dell'eroe — sta accanto
+			// ad `Affinity` e `Weakness`, e la pianificazione non lo scrive mai — quindi sbagliava in
+			// **entrambi** i versi: un eroe con un profilo configurato risultava armato ogni turno anche senza
+			// aver pianificato niente, e chi arma sul profilo base (`NAME_None`) spariva dalla timeline. Lo
+			// slot per-turno e' quello che `ClearReactionPlan` azzera.
+			Timeline.bReactionArmed = Unit->PlannedReactionAbility != INDEX_NONE;
+			Timeline.ReactionProfileId = Unit->ReactionProfileId;
+			if (const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility))
+			{
+				Timeline.PrepActionId = Reazione->Def.ActionId;
+			}
+
+			// 🔴 **E lo scatto si legge da `PlannedDashAbility`.** `PlannedDashCell` e' dichiarata
+			// *«valida solo se `PlannedDashAbility` e' impostata»*, si costruisce a `(0,0,0)` e nessuno la
+			// azzera — `ResolveDash` pulisce la sola abilita'. Confrontarla con la cella corrente, come faceva
+			// la prima stesura, dava uno scatto FANTASMA verso l'origine della mappa a ogni unita' che non ci
+			// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
+			Timeline.bDashPlanned = Unit->PlannedDashAbility != INDEX_NONE
+				&& !(Unit->PlannedDashCell == Unit->Cell);
+			Timeline.bDashResolves = Unit->PlannedDashApplies();
+			Timeline.PlannedDashCell = Unit->PlannedDashCell;
+			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
+			{
+				Timeline.DashActionId = Scatto->Def.ActionId;
+			}
+
+			Timeline.Blast = PreviewPlan;
+			Timeline.PlannedWaypoints = Unit->PlannedWaypoints;
+			// ⚠️ **Ogni fase riempita porta il proprio `ActionId`**, e la prima stesura riempiva il solo
+			// Blast. La entry dichiara che `NAME_None` significa «fase che il piano non riempie»: con tre fasi
+			// su quattro vuote, un consumatore non poteva distinguere le due cose.
+			Timeline.MoveActionId = TEXT("Action.Move");
+			if (Ability)
+			{
+				Timeline.BlastActionId = Ability->Def.ActionId;
+			}
+
+			// ➕ **Il motivo del rifiuto, calcolato sul bersaglio DEL PIANO** (`#172`).
+			//
+			// ⌫ **Una prima stesura trasportava `ARTHUD::LastRefusal`, ed era sbagliato.** Quel campo e'
+			// dichiarato *«nasce da un click e muore col click seguente»*: e' legato all'ULTIMO CLICK, non al
+			// bersaglio corrente del piano. Pianificando un attacco valido su A e poi cliccando B fuori
+			// portata, ogni refresh successivo che non fosse un click — un waypoint annullato, la fine del
+			// playback — rileggeva `Range` e declassava a `Uncertain` un piano che non aveva niente che non
+			// andasse. E preso da `GetFirstPlayerController()` sarebbe stato, in split-screen, il rifiuto di
+			// un ALTRO osservatore: proprio la lettura incrociata che [D-225] vieta.
+			//
+			// 🔑 **Si COMPONGONO le due funzioni canoniche, non se ne riscrive una.** `ClassifyHexTargeting`
+			// piu' `RefusalForObserver` e' la stessa coppia, nello stesso ordine, che usa il sito del click; il
+			// flag di conoscenza e' quello del bersaglio pianificato, letto qui e non altrove.
+			if (Ability && !Unit->bAttackTargetsCell)
+			{
+				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
+				{
+					const ERTHexTargetReason Motivo = URTCombatLibrary::ClassifyHexTargeting(
+						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
+						Ability->Def.LineOfSightPolicy);
+					Timeline.BlastTargetRefusal =
+						URTCombatLibrary::RefusalForObserver(Motivo, Bersaglio->IsKnownToObserver());
+				}
+			}
+
+			HexMap->SetPlanPreview(
+				URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Timeline, HexUnits));
+		}
+		else
+		{
+			HexMap->SetPlanPreview(FRTPlanPreview());
+		}
 	}
 
 	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */
@@ -340,6 +433,14 @@ void ARTPlayerController::BuildInputMappings()
 	PrepWindowPauseAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
+	// `#2858`: i due comandi che mancavano alla matrice di `#1881`. Nascono sempre — anche in Shipping,
+	// dove restano inerti perche' il manager non li accende: il fail-closed di `#1879` ha un solo owner, e
+	// una guardia in piu' qui sarebbe la sua seconda sede.
+	PlaybackPauseAction = NewObject<UInputAction>(this, TEXT("IA_TogglePlaybackPause"));
+	PlaybackPauseAction->ValueType = EInputActionValueType::Boolean;
+	PlaybackStepAction = NewObject<UInputAction>(this, TEXT("IA_StepPlaybackMicroStep"));
+	PlaybackStepAction->ValueType = EInputActionValueType::Boolean;
+
 	// CP 46.6 (#941): il menu di pausa.
 	PauseAction = NewObject<UInputAction>(this, TEXT("IA_Pause"));
 	PauseAction->ValueType = EInputActionValueType::Boolean;
@@ -447,6 +548,19 @@ void ARTPlayerController::BuildInputMappings()
 	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
 	// invece che su una lista scritta a mano, quindi questa riga non ha bisogno di essere ricordata altrove.
 	MappingContext->MapKey(PrepWindowPauseAction, EKeys::P);
+
+	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
+	//
+	// 🔴 **Deliberatamente lontani da `P`.** Quella e' la pausa della *finestra di preparazione*, e le due
+	// si somigliano abbastanza da confondersi: un tasto adiacente produrrebbe un comando che a volte ferma
+	// l'attesa e a volte l'immagine, a seconda della fase. `RTTurnManager.h` le dichiara mutuamente
+	// esclusive per costruzione — due tasti distanti tengono distinte anche le due intenzioni.
+	//
+	// 🔑 `K` e `L` sono la convenzione dei riproduttori, e sono liberi: come per gli altri,
+	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista
+	// scritta a mano, quindi queste due righe non vanno ricordate altrove.
+	MappingContext->MapKey(PlaybackPauseAction, EKeys::K);
+	MappingContext->MapKey(PlaybackStepAction, EKeys::L);
 
 	// `ESC`: la pausa (CP 46.6).
 	//
@@ -597,6 +711,10 @@ void ARTPlayerController::SetupInputComponent()
 			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
+		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
+		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
+		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
+		EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
 		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
@@ -2044,6 +2162,61 @@ void ARTPlayerController::OnTogglePrepWindowPause(const FInputActionValue& Value
 	}
 }
 
+void ARTPlayerController::OnTogglePlaybackPause(const FInputActionValue& Value)
+{
+	// Stessa unica guardia dei fratelli: una schermata bloccante copre la partita e questo gesto non le
+	// arriva. ⛔ Nessun `IsPlanningInputInert()`, per la ragione gia' scritta su `OnTogglePrepWindowPause`:
+	// spegnerebbe il comando proprio nella modalita' non presidiata, che e' dove serve di piu'.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// ⚠️ **Il toggle interroga lo stato, non lo ricorda** — come la pausa della finestra. Un `bool` locale
+	// qui divergerebbe al primo percorso che questo controller non vede passare: il predicato di `#2855`
+	// mette in pausa da se' quando raggiunge il confine armato, e un ricordo locale direbbe il contrario.
+	//
+	// ⛔ **Nessuna guardia su `ArePlaybackControlsEnabled()`.** I comandi sono gia' fail-closed nel manager
+	// (`#1879`): a controlli spenti `PausePlayback` non fa nulla e `IsPlaybackPaused()` resta falso, quindi
+	// questo ramo chiama una funzione inerte invece di saltarla. Ricontrollare qui sarebbe una seconda sede
+	// della stessa regola, e la seconda sede e' quella che un giorno resta indietro.
+	if (TurnManager->IsPlaybackPaused())
+	{
+		TurnManager->ResumePlayback();
+	}
+	else
+	{
+		TurnManager->PausePlayback();
+	}
+}
+
+void ARTPlayerController::OnStepPlaybackMicroStep(const FInputActionValue& Value)
+{
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (!TurnManager)
+	{
+		return;
+	}
+
+	// Un intero micro-step, poi di nuovo fermo. Il confine lo calcola il manager **alla pressione** e in
+	// secondi: un «avanza per N frame» dipenderebbe dal frame rate, e la stessa pressione fermerebbe il
+	// playback in punti diversi su macchine diverse.
+	TurnManager->StepMicroStep();
+}
+
 void ARTPlayerController::OnRestart(const FInputActionValue& Value)
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva. Vedi `IsGameplayInputBlocked`.
@@ -2089,8 +2262,17 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
 	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che
 	// ripetuta dieci volte, cosi' un tasto abilita' in piu' la eredita per costruzione.
+	// 🔴 **Le tre uscite qui sotto erano MUTE, e la seduta `U49` del 2026-09-10 ha pagato il conto.**
+	// Un tasto abilita' che non produce effetto usciva da una di queste tre porte senza lasciare traccia:
+	// a schermo e nel log, «premo 1 e non succede niente» era indistinguibile da «l'azione e' armata ma il
+	// dock non la mostra». Sono due difetti di owner diversi, e senza queste righe si sceglieva a caso.
+	//
+	// ⚠️ `Display` e non `Warning`: nessuna delle tre e' un errore. Rifiutare l'input durante la
+	// risoluzione e' il comportamento corretto — cio' che mancava era dirlo.
 	if (IsGameplayInputBlocked())
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: input di gameplay bloccato"), Index + 1);
 		return;
 	}
 
@@ -2098,15 +2280,27 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	// ragione del commento qui sopra.
 	if (IsPlanningInputInert())
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: input di planning inerte (autobattle, o fase che non "
+				 "accetta ordini)"), Index + 1);
 		return;
 	}
 
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: nessuna unita' selezionata"), Index + 1);
 		return;
 	}
 	Unit->SelectAbility(Index);
+
+	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione.** Se compare, l'azione e'
+	// stata armata sul modello: cio' che resta da spiegare e' perche' il dock non lo mostri, ed e' un
+	// difetto di presentazione (`#2764`), non di input.
+	UE_LOG(LogRT, Display,
+		TEXT("Hotkey abilita' %d: armata la posizione %d su '%s'"),
+		Index + 1, Index, *Unit->GetName());
 	// Qui e non "in fondo alla funzione": sotto ci sono due return anticipati e il ramo bSelfTarget,
 	// quindi questo e' l'unico punto attraversato da ogni pressione di tasto che produca un effetto.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -2161,9 +2355,18 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	}
 }
 
-// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
-// (nel roster ce n'e' una, `Hero.Muiren.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
-// suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
+// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase
+// `ERTResolutionPhase::FastMovement` e non ha un tasto dedicato: sta dove la mette il suo eroe. Un
+// commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
+//
+// 🔴 **Questa riga diceva `ERTResolutionPhase::Dash`, e quel valore non esiste.** `Dash` e' la MACRO-fase
+// (`ERTMatchPhase::Dash`); la fase dichiarata dall'azione e' `FastMovement`, e le due sono separate proprio
+// perche' il codice 20 del catalogo si sdoppia (ADR-0003 §3). La conversione e' `MapResolutionPhase`.
+//
+// ⚠️ **E diceva «nel roster ce n'e' una», che era un conteggio e si e' invecchiato da solo** — l'errore
+// esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
+// `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
+// ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }
 void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2); }
@@ -2277,18 +2480,39 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		}
 	}
 
-	ARTUnit* Unit = GetSelectedUnit();
-	if (!Unit || Unit->PlannedWaypoints.Num() == 0)
-	{
-		return;
-	}
-	Unit->PlannedWaypoints.Pop(); // rimuove l'ultimo waypoint
-	RebuildPlannedPath();
-	if (ARTTurnManager* TM = PacingTurnManager(this))
-	{
-		TM->RecordPlanningInput(ERTPlanningInput::Undo);
-	}
-	UE_LOG(LogRT, Log, TEXT("[RT] Annullato waypoint: %s -> %d waypoint"), *Unit->GetName(), Unit->PlannedWaypoints.Num());
+	// 🔴 **Da qui in giu' decide `ApplyBack()`, e prima decideva questa funzione** (`#2826` scope 7).
+	//
+	// Il corpo precedente andava dritto a `PlannedWaypoints.Pop()`, cioe' conosceva UN livello solo del
+	// Back. Ma `GetPointerContext()` mette `Targeting` **prima** di `Pathing`: con un'azione armata e un
+	// waypoint montato il destro toglieva il waypoint e lasciava il targeting acceso — l'opposto
+	// dell'ordine che §5.5 dichiara e che `URTPointerLibrary::ResolveBack` codifica.
+	//
+	// 🔑 **Non e' un livello aggiunto, e' una seconda autorita' tolta.** `ResolveBack` e `ApplyBack`
+	// esistevano gia', con i loro test, e `ApplyBack` non aveva **nessun chiamante fuori dai test**: la
+	// regola era scritta, ordinata e verificata, e il tasto che il giocatore preme non la usava. Finche'
+	// sono rimaste due, il modulo puro poteva restare verde mentre il destro faceva un'altra cosa — ed e'
+	// esattamente cio' che era successo.
+	//
+	// ⚠️ Le quattro guardie qui sopra NON scendono dentro `ApplyBack()`, e non e' una dimenticanza: non
+	// sono livelli del Back. Una schermata bloccante, il dolly di `Alt`, una sessione non presidiata e
+	// l'Unready del countdown decidono **se** il tasto ha una funzione di gioco adesso; `ResolveBack`
+	// decide **quale**, e solo dopo che le prime hanno lasciato passare.
+	//
+	// ⚠️ **La telemetria di ritmo la registra `ApplyBack()`**, e con una distinzione che qui non c'era:
+	// solo il livello `Waypoint` conta come `ERTPlanningInput::Undo`. Chiudere un inspector o uscire da un
+	// targeting sono attivita', non ripensamenti — registrarli come `Undo` gonfierebbe la metrica che
+	// `PIE-V01-MATCHLEN` legge. Ripeterla qui la conterebbe due volte.
+	const ERTPointerBackStep Step = ApplyBack();
+
+	// ⚠️ **La riga nomina il LIVELLO, e non solo l'effetto.** Prima diceva «Annullato waypoint: X -> N» e
+	// non poteva dire altro, perche' altro non sapeva fare; adesso il destro ha sette esiti possibili e un
+	// log che ne stampasse uno solo renderebbe illeggibile in PIE proprio la distinzione che questa
+	// correzione introduce. I waypoint restano nella riga: sono l'informazione che la seduta M6-8 leggeva.
+	const ARTUnit* Unit = GetSelectedUnit();
+	UE_LOG(LogRT, Log, TEXT("[RT] Back: livello %s (%s -> %d waypoint)"),
+		*UEnum::GetValueAsString(Step),
+		Unit ? *Unit->GetName() : TEXT("nessuna selezione"),
+		Unit ? Unit->PlannedWaypoints.Num() : 0);
 }
 
 void ARTPlayerController::RebuildPlannedPath()
@@ -2391,6 +2615,21 @@ void ARTPlayerController::OnLockInForTest()
 void ARTPlayerController::OnTogglePrepWindowPauseForTest()
 {
 	OnTogglePrepWindowPause(FInputActionValue());
+}
+
+void ARTPlayerController::OnUndoWaypointForTest()
+{
+	OnUndoWaypoint(FInputActionValue());
+}
+
+void ARTPlayerController::OnTogglePlaybackPauseForTest()
+{
+	OnTogglePlaybackPause(FInputActionValue());
+}
+
+void ARTPlayerController::OnStepPlaybackMicroStepForTest()
+{
+	OnStepPlaybackMicroStep(FInputActionValue());
 }
 
 bool ARTPlayerController::IsPlanningInputInert() const

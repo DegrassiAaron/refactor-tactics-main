@@ -250,6 +250,21 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 		}
 	}
 
+	// --- Lo scatto come REGIONE, al netto del passo (#2632) -----------------------------------------------
+	//
+	// Le celle sono le stesse che servono da origine alla minaccia post-scatto: `DashOrigins` le ha gia'
+	// raccolte da OGNI mobilita' rapida, a budget (`ReachableWithBudget`) e lineare (`ResolveLinearMove`).
+	// Esporle costa una sottrazione, non un secondo attraversamento.
+	//
+	// 🔑 **Al netto**, con la stessa disciplina di `PostDashThreat` verso `ImmediateThreat`: una cella che il
+	// passo raggiunge non e' una cella che «solo lo scatto» raggiunge, e lasciarla in entrambe le regioni
+	// sovrapporrebbe due significati sulla stessa cella per chi le disegna.
+	TSet<FRTCellId> DashOnly;
+	for (const FRTCellId& C : DashOrigins)
+	{
+		if (!Reachable.Contains(C)) { DashOnly.Add(C); }
+	}
+
 	// --- Minaccia post-scatto -----------------------------------------------------------------------------
 	//
 	// ⚠️ Costo dichiarato: origini x celle mirabili x impronta. Nessun consumatore chiama oggi questa
@@ -275,6 +290,7 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 
 	OutRegions.StableUnitId = SubjectStableUnitId;
 	OutRegions.ReachableCells = Canonical(Reachable);
+	OutRegions.DashOnlyCells = Canonical(DashOnly);
 	OutRegions.ImmediateThreat = Canonical(Immediate);
 	OutRegions.PostDashThreat = Canonical(PostDash);
 	return true;

@@ -271,9 +271,13 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 			Ctx.Units.Add(Unit);
 		}
 	}
-	// Ordine STABILE per cella: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici
-	// del piano, il TurnLog e la sequenza del playback. Una cella ospita al piu' un'unita' -> ordine totale.
-	Ctx.Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Ordine STABILE: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici del piano,
+	// il TurnLog e la sequenza del playback.
+	//
+	// ⚠️ Questa riga diceva *«una cella ospita al piu' un'unita' -> ordine totale»*, ed e' la premessa che
+	// `#1733`/`#1970` hanno misurato falsa: la sovrapposizione esiste e `MakeSnapshot` la registra. La cella
+	// resta la prima chiave; l'ordine totale lo chiudono `StableUnitId` e il nome (#2922).
+	URTActionQueueLibrary::SortUnitsForResolution(Ctx.Units);
 
 	Ctx.States.Reserve(Ctx.Units.Num());
 	Ctx.HexUnits.Reserve(Ctx.Units.Num());
@@ -324,7 +328,8 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 			}
 			else
 			{
-				// Identita' STABILE, non l'indice `u`: questo array e' ordinato per cella e si rinumera
+				// Identita' STABILE, non l'indice `u`: questo array e' ordinato da `SortUnitsForResolution`,
+				// la cui prima chiave e' la cella (#2922), e si rinumera
 				// appena qualcuno si muove. `TurnNumber` in ingresso ignorato — lo scrive `Observe`, che
 				// e' l'unica a sapere QUANDO l'avvistamento avviene.
 				EnemiesNow.Add(FRTLastKnownContact(Ctx.Units[u]->StableUnitId, Ctx.HexUnits[u].Cell, /*ignorato*/ 0));
@@ -852,6 +857,38 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 				continue; // Cancel (e cio' che vi degrada): l'azione non avviene
 			}
 			Instance = Fallback.Instance; // AttackCell: si perde il bersaglio, resta la cella
+		}
+
+		// 🔑 IL BERSAGLIO EFFETTIVO DI UN'AZIONE LINEARE, e questa e' l'unica sede che lo calcola (`#2929`).
+		//
+		// Sta QUI e non in `HexHitCells` perche' quella primitiva e' geometria **pura** e non riceve
+		// l'occupazione: sapere chi sta dove e' l'unico modo di fermarsi sul primo, e l'occupazione esiste
+		// solo da questa parte. Il footprint resta quello dichiarato — cambia CHI si punta, non che forma ha.
+		//
+		// ⚠️ Si risolve DOPO il fallback, non prima: se il bersaglio si e' spostato, `AttackCell` ha gia'
+		// riportato l'istanza sulla cella mirata, ed e' quella la direzione che il colpo percorre.
+		if (Instance.Def.LineResolution == ERTLineResolution::StopAtFirstTarget)
+		{
+			TMap<FRTCellId, int32> Occupancy;
+			TSet<int32> Hostiles;
+			for (int32 u = 0; u < HexUnits.Num(); ++u)
+			{
+				if (!HexUnits[u].bAlive) { continue; } // un cadavere non occupa e non ferma un colpo
+				Occupancy.Add(HexUnits[u].Cell, u);
+				if (HexUnits[u].TeamId != Unit->TeamId) { Hostiles.Add(u); }
+			}
+
+			// ⚠️ L'origine si legge da `HexUnits[i]` e non da `Unit->Cell`: e' la STESSA cella che
+			// `CollectHexAttacks` usera' come `Attacker.Cell`. Oggi coincidono — lo snapshot nasce da li' —
+			// ma leggerle da due posti e' il modo in cui due calcoli della stessa cosa iniziano a divergere.
+			const FRTLineAttackResult Line = URTOffensiveActionLibrary::ResolveLineAttack(
+				Map, HexUnits[i].Cell, Instance.TargetCell, Instance.Def.RangeCells, Occupancy, Hostiles);
+
+			if (Line.HitUnitId != INDEX_NONE && HexUnits.IsValidIndex(Line.HitUnitId))
+			{
+				Instance.TargetUnitId = Line.HitUnitId;
+				Instance.TargetCell = HexUnits[Line.HitUnitId].Cell;
+			}
 		}
 
 		FRTHexAttackIntent Intent;
@@ -2265,7 +2302,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		}
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
-		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
+		// Si itera su Units (ordine di `SortUnitsForResolution`, #2922): quello di una TMap non e' garantito
 		// e da qui dipendono la sequenza del playback e quella del combat log.
 
 
@@ -2416,7 +2453,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// 🔴 **`OwnerId` vive nello spazio di id di `MakeCurrentSnapshot`, NON in quello del Blast**, e
 				// la differenza non e' teorica: `GatherBlastUnits` aggiunge **ogni** `ARTUnit` senza filtrare
 				// (`Ctx.Units`), mentre `MakeCurrentSnapshot` scarta i morti — il suo commento lo dichiara,
-				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano per cella, quindi
+				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano con la cella come
+				// prima chiave (#2922), quindi
 				// **un solo caduto che ordina prima di questa unita' sposta di uno tutti gli indici a valle**.
 				//
 				// ⚠️ Ogni consumatore di `Key.OwnerId` assume lo spazio alive-only: `DecideScriptedResponse`

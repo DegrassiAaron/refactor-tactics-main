@@ -884,7 +884,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInRejectionsFollowTheStableOrderTest,
 bool FRTLockInRejectionsFollowTheStableOrderTest::RunTest(const FString&)
 {
 	// 🔴 **L'ordine delle righe di rifiuto non deve dipendere dall'ordine di SPAWN.**
-	// `ValidatePlansAtLockIn` itera `CollectLivingUnits`, che ordina per cella con `StableLess`. Sostituire
+	// `ValidatePlansAtLockIn` itera `CollectLivingUnits`, che ordina con `SortUnitsForResolution` — cella per
+	// prima (#2922). Sostituire
 	// quella chiamata con un `GetAllActorsOfClass` grezzo lascerebbe verde tutto il resto della suite e
 	// renderebbe il combat log dipendente dall'ordine in cui il livello tiene gli Actor — la stessa classe di
 	// difetto che `Match.Autobattle.DeterminismSurvivesUnitPermutation` difende per la risoluzione, e che

@@ -2,6 +2,7 @@
 
 #include "RTDevSandboxLauncherSubsystem.h"
 #include "RTHexEditorMode.h"
+#include "SRTLabPanel.h"
 #include "ScenarioHarness/RTScenarioDraft.h"
 
 FRTLauncherStartDecision FRTLauncherWorkspace::DecideStart(const FString& SelectedId, ERTScenarioAuthoringResult OpenResult, const FString& OpenError)
@@ -87,6 +88,18 @@ const TArray<FRTLauncherSurface>& FRTLauncherWorkspace::Surfaces()
 		// La validazione: stesso tab, ed e' voluto. Vedi il commento su `ActivationTarget`: il registro
 		// dichiara dove si atterra, non che ogni superficie abbia una finestra propria.
 		Out.Add({ TEXT("Validation"), true, ERTLauncherActivationKind::Tab, URTDevSandboxLauncherSubsystem::TabId, 0 });
+
+		// Il Lab: Ability e Hero nello stesso tab, ed e' voluto — `ListHeroKit` **e'** un filtro su
+		// `ListCanonicalAbilities`, quindi due superfici distinte prometterebbero due strumenti dove ce n'e'
+		// uno. La chiave e' `Lab` e non `AbilityLab`: la superficie e' il banco, non una delle due viste.
+		//
+		// ⚠️ **Perche' `Tab` con un target DIVERSO da quello del launcher.** Le due superfici sopra
+		// atterrano nel tab del launcher perche' vivono dentro il suo pannello; il Lab ha un tab proprio, come
+		// `Map` ha un Editor Mode proprio. Il registro dichiara **dove si atterra** — lo dice il commento su
+		// `ActivationTarget` — non che ogni superficie viva nella stessa finestra. ∴ il Lab e' raggiungibile
+		// **dal** launcher, che e' cio' che #2599 chiede, senza che il suo widget venga spostato dentro un
+		// pannello che non lo ospiterebbe meglio.
+		Out.Add({ TEXT("Lab"), true, ERTLauncherActivationKind::Tab, SRTLabPanel::TabId, 0 });
 
 		// --- Pendenti: NON dichiarate, e ciascuna nomina la issue che la porta -----------------------
 

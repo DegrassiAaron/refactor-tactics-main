@@ -226,6 +226,38 @@ enum class ERTLineOfSightPolicy : uint8
 	NotRequired
 };
 
+/**
+ * Come un'azione risolve il proprio bersaglio LUNGO una direzione (`#2929`, [D-386] emendata).
+ *
+ * 🔑 **Non e' un asse di forma, ed e' la ragione per cui non e' un valore di `ERTAbilityShape`.** La forma
+ * risponde a *«quali celle investo»* e la calcola `URTHexCombatLibrary::HexHitCells`, che e' geometria
+ * **pura**: non riceve l'occupazione, quindi non puo' sapere dove si trovi il primo bersaglio. Fermarsi sul
+ * primo e' una domanda di TARGETING — *«chi incasso»* — e si risolve dove l'occupazione esiste.
+ *
+ * ⛔ **Sta nei DATI e non nel codice**, per lo stesso argomento con cui `ERTLineOfSightPolicy` ci sta: senza,
+ * l'unica via sarebbe un `if (ActionId == TEXT("Action.LineAttack"))` dentro il resolver, cioe' l'eccezione
+ * hard-coded che il motore azioni esiste per togliere ([D-046]).
+ *
+ * ⚠️ **`None` e' lo zero apposta**: un'azione che non dichiara il campo — cioe' ogni azione del catalogo
+ * prima di questo commit — conserva esattamente il comportamento che aveva. I valori nuovi vanno **in coda**,
+ * perche' il valore serializzato e' l'indice.
+ */
+UENUM(BlueprintType)
+enum class ERTLineResolution : uint8
+{
+	/** L'azione non risolve lungo una linea: il bersaglio e' quello puntato. Comportamento storico. */
+	None,
+
+	/**
+	 * Il colpo percorre la direzione mirata e si ferma sul PRIMO bersaglio valido
+	 * (`URTOffensiveActionLibrary::ResolveLineAttack`).
+	 *
+	 * ⚠️ **Un alleato non e' un bersaglio valido e non ferma il colpo**: a interrompere la linea e' la
+	 * geometria, che e' cio' che il catalogo dichiara. La regola vive nel resolver, non qui.
+	 */
+	StopAtFirstTarget
+};
+
 UENUM(BlueprintType)
 enum class ERTReactionTrigger : uint8
 {
@@ -743,6 +775,22 @@ struct FRTActionDef
 	 * deve decidere se rifiutare legge questo, e non ricostruisce il confronto con l'enum a modo proprio.
 	 */
 	bool RequiresLineOfSight() const { return LineOfSightPolicy == ERTLineOfSightPolicy::Required; }
+
+	/**
+	 * Come l'azione risolve il bersaglio lungo la direzione mirata (`#2929`, [D-386] emendata).
+	 *
+	 * 🔴 **Il campo nasce perche' la dichiarazione e l'implementazione non concordavano.** Il catalogo
+	 * descriveva `Action.LineAttack` come *«22 danni al PRIMO bersaglio valido»* e nominava
+	 * `URTOffensiveActionLibrary::ResolveLineAttack`, che **non aveva chiamanti di produzione**: l'intento
+	 * nasceva `ERTAbilityShape::Single` — perche' `FRTActionDef` non porta uno `Shape` — e il colpo arrivava
+	 * alla cella puntata scavalcando chi stava in mezzo.
+	 *
+	 * ⚠️ **Emenda [D-386] punto (2)**, che diceva *«non nasce nessun campo»*. L'argomento contro un
+	 * `bPiercing` su `URTActionData` regge e non e' stato riaperto — non arriverebbe mai a un'azione di
+	 * catalogo — ma la chiave dichiarativa doveva esistere da qualche parte, e questa e' la casa dell'azione.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTLineResolution LineResolution = ERTLineResolution::None;
 
 	FRTActionDef() = default;
 };

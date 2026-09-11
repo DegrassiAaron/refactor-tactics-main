@@ -5,9 +5,11 @@
   "seed": 0,
   "fixture": "TestArena",
 
-  "_nota": "Il TIRO INDIRETTO a schermo (#2870, [D-378]) e la RESA della superficie che ne nasce (#2894). Muiren posa `MistVeil` su una cella che NON vede: il muro alla vista di `TestArena` lungo q=0 sta fra lei e il bersaglio. Cio' che si guarda e' se il fumo COMPAIA sulle celle mirate — prima di #2894 la superficie cambiava nel dato e la board restava quella del primo fotogramma, perche' `RebuildInstances` aveva due chiamanti ed erano entrambi `OnConstruction`.",
+  "_nota": "Il TIRO INDIRETTO a schermo (#2870, [D-378]) e la RESA della superficie che ne nasce (#2894). Muiren posa `MistVeil` su una cella che NON vede: il muro alla vista di `TestArena` lungo q=0 sta fra lei e il bersaglio. Cio' che si guarda e' se il fumo COMPAIA sulle celle mirate — e per poterlo guardare serve che qualcuno della squadra le OSSERVI, vedi `_nota_osservatore` — prima di #2894 la superficie cambiava nel dato e la board restava quella del primo fotogramma, perche' `RebuildInstances` aveva due chiamanti ed erano entrambi `OnConstruction`.",
 
   "_nota_coppia": "🔑 **Le due unita' fanno la STESSA cosa e ottengono esiti opposti, ed e' il punto dello scenario.** Muiren e Aevik puntano entrambe un'area sulla stessa cella invisibile: `Hero.Muiren.MistVeil` dichiara `LineOfSightPolicy = NotRequired` e passa, `Hero.Aevik.Overload` resta `Required` e viene scartata con `NoLineOfSight`. Senza la seconda meta' questo file proverebbe che una cella oltre un muro e' bersagliabile — che e' vero anche se la policy non esistesse e il muro non bloccasse davvero. La coppia prova che la differenza e' **la policy dell'azione**, non la geometria.",
+
+  "_nota_osservatore": "🔴 **`S1` esiste perche' la prima stesura di questo banco era INOSSERVABILE, ed e' un difetto trovato guardando lo schermo e non il codice.** Il tiro indiretto cade dove il tiratore non vede — e' il suo senso — ma il volume del fumo **passa dal velo** (`#2936`): `VeilInstances` porta a scala ZERO cio' che sta su una cella mai osservata ([D-225]). Con le sole `M1` e `A1` a ovest del muro, le sette celle trasformate restavano nella nebbia: il fumo c'era nel dato — sette righe `la superficie cambia`, zero ripristini — e a schermo non c'era niente da vedere. ⚠️ **Era il difetto giusto**, non un bug: se il fumo si vedesse la' sarebbe un canale di conoscenza aperto proprio dalla feature che esiste per non aprirne. 🔑 **Il banco si ripara spostando l'OSSERVATORE, mai il velo**: `S1` sta a `(1,2)`, adiacente alla cella di fumo `(1,1)` e ben dentro il raggio visivo (5 di catalogo), quindi la squadra 0 osserva l'area e il volume si disegna. ⛔ E la meta' «cieca» resta intatta: la linea di tiro si valuta dalla cella di CHI SPARA, non dalla conoscenza di squadra — `M1` da `(-2,0)` continua a non vedere `(1,0)`, e `A1` viene rifiutata come prima. E' anche il caso di gioco vero: si spara al buio su cio' che un compagno segnala.",
 
   "_nota_geometria": "Muro alla vista di `TestArena`: lungo q=0, r=-2..2, ATTRAVERSABILE (blocca la vista, non il passo). Muiren in (-2,0) e Aevik in (-2,1) mirano (1,0): distanza 3 su portata 4, e la linea passa per (0,0) che e' sul muro. La cella e' libera — gli ostacoli al movimento di questa arena sono (-1,2), (1,-2) e (2,1), nessuno dei tre.",
 
@@ -20,6 +22,7 @@
   "units": [
     { "id": "M1", "hero": "Hero.Muiren", "team": 0, "cell": [-2,  0, 0] },
     { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-2,  1, 0] },
+    { "id": "S1", "hero": "Hero.Ivrin",  "team": 0, "cell": [ 1,  2, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 3, -1, 0] }
   ],
 

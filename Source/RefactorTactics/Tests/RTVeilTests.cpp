@@ -1350,6 +1350,11 @@ bool FRTVeilSurfaceChangeRepaintsTest::RunTest(const FString&)
 	HexMap->ApplyKnowledgeVeil(Conoscenza);
 	TestEqual(TEXT("senza cambiamenti il velo non tocca nessuna istanza"),
 		HexMap->GetLastVeilTouchedCells(), 0);
+	// ➕ **E nemmeno il riallineamento per-cella** (`#2761`): da quando il ridipingere ha due sedi, il
+	// controllo negativo deve chiuderle entrambe. Con una sola, un riallineamento che girasse a vuoto a ogni
+	// velo passerebbe inosservato proprio nel test scritto per impedirlo.
+	TestEqual(TEXT("e nemmeno il riallineamento per-cella"),
+		HexMap->LastRepaintTouchedInstances(), 0);
 
 	// 3. UNA cella cambia superficie, come farebbe `ApplyDynamicSurface` nel Cleanup. Si passa da
 	//    `AddOrUpdateCell` perche' e' quello il punto che il gioco usa — ed e' quello che muove `Revision`.
@@ -1370,14 +1375,32 @@ bool FRTVeilSurfaceChangeRepaintsTest::RunTest(const FString&)
 	HexMap->MapAsset->AddOrUpdateCell(Dopo);
 
 	// 4. ── IL CASO POSITIVO: la stessa conoscenza, e stavolta la board si ridipinge.
+	//
+	// ⌫ **L'oracolo conta DUE sedi, e fino al 2026-09-10 ne contava una** — `GetLastVeilTouchedCells()`,
+	// cioe' le istanze che `VeilInstances` ha riscritto. Contava quella perche' il ridipingere avveniva
+	// **solo** li': il blocco di sincronizzazione di `#2894` ricostruiva disco e corone, e il velo che seguiva
+	// li trovava tutti da riscrivere.
+	//
+	// 🔴 **`#2761` ha spostato il ridipingere, non l'ha tolto.** Il riallineamento per-cella scrive il colore
+	// nuovo — gia' moltiplicato per il fattore di attenuazione corrente — e **non** marca l'istanza
+	// `Unwritten`, apposta: `Unwritten` non attenua e farebbe uno **snap**, buttando via una dissolvenza di
+	// `#2875` in volo proprio nel momento in cui il terreno cambia sotto lo sguardo. ∴ `VeilInstances` salta
+	// l'istanza — il suo STATO non e' cambiato — e il vecchio oracolo vedeva zero su una board ridipinta.
+	//
+	// ⛔ **Non e' un allentamento**: la domanda che questo test pone — *«la cella che ha cambiato superficie
+	// ha cambiato anche il proprio disegno?»* — e' la stessa, e la somma dei due contatori la risponde per
+	// intero. Il controllo negativo al punto 2 chiude entrambe le sedi, quindi «ridipinge sempre» resta
+	// escluso come prima.
 	HexMap->ApplyKnowledgeVeil(Conoscenza);
-	TestTrue(TEXT("dopo un cambio di superficie il velo ridipinge"),
-		HexMap->GetLastVeilTouchedCells() > 0);
+	TestTrue(TEXT("dopo un cambio di superficie la board si ridipinge, per l'una o per l'altra via"),
+		HexMap->GetLastVeilTouchedCells() + HexMap->LastRepaintTouchedInstances() > 0);
 
 	// 5. E il salto torna a valere subito dopo: la sincronizzazione non lo spegne per sempre.
 	HexMap->ApplyKnowledgeVeil(Conoscenza);
 	TestEqual(TEXT("e al velo successivo il salto vale di nuovo"),
 		HexMap->GetLastVeilTouchedCells(), 0);
+	TestEqual(TEXT("e nemmeno il per-cella ha piu' niente da fare"),
+		HexMap->LastRepaintTouchedInstances(), 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
@@ -1455,6 +1478,141 @@ bool FRTVeilPartialRebuildTest::RunTest(const FString&)
 	HexMap->RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs);
 	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
 	TestEqual(TEXT("ne' due ricostruzioni parziali di fila"), Disegnate + Nascoste, Prima);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `#2936` — **il fumo si dichiara con un VOLUME, e il volume segue il dato.**
+ *
+ * ## Cosa lega questo test, e perche' nessun altro lo faceva
+ *
+ * `#2894` ha legato la superficie al COLORE e al GLIFO. Il volume e' il terzo canale, e senza un test che
+ * lo leghi allo stesso dato resterebbe quello del fotogramma di costruzione — lo stesso difetto di `#2894`,
+ * ristretto a una famiglia sola e quindi piu' difficile da vedere di quanto lo fosse allora.
+ *
+ * 🔑 **L'oracolo e' `NumSurfaceVolumeInstances`, non `GetAuxiliaryVeilCounts`**: quell'aggregato somma
+ * rilievo, blocchi, bordi e corpi, quindi un test scritto su di esso diventerebbe verde per qualunque
+ * geometria comparsa — passerebbe per la ragione sbagliata.
+ *
+ * ⚠️ **E il ritorno indietro e' meta' dell'asserzione.** Un volume che compare e non sparisce piu' e' un
+ * difetto che nessuno vede finche' il fumo non scade: la cella resterebbe con la forma del fumo e il colore
+ * del pavimento, due canali che si contraddicono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilSurfaceVolumeFollowsTheDataTest,
+	"RefactorTactics.Veil.SurfaceVolumeFollowsTheData",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilSurfaceVolumeFollowsTheDataTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = MakeVeiledBoard(World, /*Radius=*/ 3);
+	if (!TestNotNull(TEXT("board con istanze montate"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// 1. Un'arena di solo pavimento non ha volumi: e' il controllo che rende non vacuo tutto il resto.
+	TestEqual(TEXT("premessa: una board di pavimento non ha volumi di superficie"),
+		HexMap->NumSurfaceVolumeInstances(), 0);
+
+	TArray<FRTCellId> Tutte;
+	for (int32 I = 0; I < HexMap->NumInstanceCells(); ++I) { Tutte.Add(HexMap->CellForInstance(I)); }
+	const FRTTeamKnowledge Conoscenza = KnowledgeOf(Tutte, Tutte);
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+
+	// 2. UNA cella diventa fumo, come farebbe `ApplyDynamicSurface` nel Cleanup.
+	const FRTCellId Bersaglio = Tutte[0];
+	FRTHexCellData Dopo = *HexMap->MapAsset->FindCell(Bersaglio);
+	Dopo.Surface = ERTHexSurface::Smoke;
+	HexMap->MapAsset->AddOrUpdateCell(Dopo);
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+
+	TestEqual(TEXT("la cella che diventa fumo acquista il proprio volume"),
+		HexMap->NumSurfaceVolumeInstances(), 1);
+
+	// 3. E torna indietro: il volume non sopravvive alla superficie che lo ha prodotto.
+	Dopo.Surface = ERTHexSurface::Floor;
+	HexMap->MapAsset->AddOrUpdateCell(Dopo);
+	HexMap->ApplyKnowledgeVeil(Conoscenza);
+
+	TestEqual(TEXT("e lo perde quando la superficie torna pavimento"),
+		HexMap->NumSurfaceVolumeInstances(), 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `#2936` — **il volume del fumo passa dal velo: non si vede dove la squadra non guarda.**
+ *
+ * 🔴 **E' il vincolo che questa feature non puo' violare**, ed e' piu' stretto di una preferenza estetica:
+ * un volume visibile su una cella mai osservata sarebbe un canale di conoscenza aperto **proprio dalla
+ * feature che esiste per non aprirne** (`#2870`, [D-225]) — e visibile a colpo d'occhio invece che dedotto
+ * da un costo o da un ventaglio.
+ *
+ * ⚠️ Il conteggio passa da `GetAuxiliaryVeilCounts`, che e' l'aggregato: qui va bene, perche' cio' che si
+ * asserisce non e' *quale* geometria sia sparita ma che **nessuna** sopravviva: una board dove una sola
+ * cella e' osservata non puo' mostrare la geometria delle altre.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilSurfaceVolumeIsVeiledTest,
+	"RefactorTactics.Veil.SurfaceVolumeIsVeiledLikeEverythingElse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilSurfaceVolumeIsVeiledTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* HexMap = MakeVeiledBoard(World, /*Radius=*/ 3);
+	if (!TestNotNull(TEXT("board con istanze montate"), HexMap))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Fumo su una cella LONTANA dall'origine, cosi' che l'osservatore di sotto non la veda.
+	TArray<FRTCellId> Tutte;
+	for (int32 I = 0; I < HexMap->NumInstanceCells(); ++I) { Tutte.Add(HexMap->CellForInstance(I)); }
+	const FRTCellId Lontana(3, 0, 0);
+	const FRTHexCellData* Esiste = HexMap->MapAsset->FindCell(Lontana);
+	if (!TestNotNull(TEXT("premessa: la cella lontana esiste"), Esiste))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	FRTHexCellData Fumo = *Esiste;
+	Fumo.Surface = ERTHexSurface::Smoke;
+	HexMap->MapAsset->AddOrUpdateCell(Fumo);
+
+	// 1. Tutto osservato: il volume c'e' ed e' disegnato.
+	HexMap->ApplyKnowledgeVeil(KnowledgeOf(Tutte, Tutte));
+	if (!TestEqual(TEXT("premessa: con tutto osservato il volume esiste"),
+		HexMap->NumSurfaceVolumeInstances(), 1))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	int32 Disegnate = 0, Nascoste = 0;
+	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
+	const int32 DisegnateConTutto = Disegnate;
+	TestTrue(TEXT("premessa: con tutto osservato qualcosa e' disegnato"), DisegnateConTutto > 0);
+
+	// 2. ── IL CUORE: una sola cella osservata, e NON e' quella del fumo.
+	const TArray<FRTCellId> SoloOrigine = { FRTCellId(0, 0, 0) };
+	HexMap->ApplyKnowledgeVeil(KnowledgeOf(SoloOrigine, SoloOrigine));
+	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
+
+	TestTrue(TEXT("il volume della cella mai vista e' nascosto"), Nascoste > 0);
+	TestTrue(TEXT("e resta disegnato meno di prima"), Disegnate < DisegnateConTutto);
+
+	// 3. E si RIALZA: il velo non e' irreversibile nemmeno qui.
+	HexMap->ApplyKnowledgeVeil(KnowledgeOf(Tutte, Tutte));
+	HexMap->GetAuxiliaryVeilCounts(Disegnate, Nascoste);
+	TestEqual(TEXT("tornata osservata, la geometria si rialza"), Nascoste, 0);
+	TestEqual(TEXT("e torna disegnata quanto prima"), Disegnate, DisegnateConTutto);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
