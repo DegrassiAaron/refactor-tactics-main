@@ -168,6 +168,16 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 	// Un effetto per volta, nell'ORDINE dichiarato: la traduzione (entita' non positiva, stato senza tag,
 	// bersaglio assente) resta quella di `URTActionEffectLibrary::ProduceEvents`, non una seconda copia che
 	// puo' divergere. Il prezzo e' un'istanza per effetto: una reazione ne dichiara al piu' una manciata.
+	//
+	// L'ordine di DICHIARAZIONE delle istanze costruite qui (#2970): una per `FRTActionEffectSpec`.
+	//
+	// 🔴 **Prima si scriveva `Events.Num()`**, cioe' il conteggio degli EVENTI gia' prodotti — un'altra cosa.
+	// `ProduceEvents` scarta gli spec che non producono nulla (entita' non positiva, stato senza tag,
+	// bersaglio assente), e a ogni scarto il contatore non avanza: due istanze consecutive ricevevano lo
+	// stesso numero. E qui e' il caso peggiore, perche' quelle due istanze differiscono **solo** per
+	// `Def.Effects` — che `InstanceLess` non guarda e non deve guardare, essendo del catalogo.
+	int32 DeclarationOrder = 0;
+
 	for (const FRTActionEffectSpec& Spec : Def.Effects)
 	{
 		const int32 TargetId = ReactionEffectTargetsTriggerer(Spec.Effect) ? TriggeredBy : SelfId;
@@ -181,7 +191,7 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 		Instance.Def.Effects = { Spec };
 		Instance.SourceUnitId = SelfId;
 		Instance.TargetUnitId = TargetId;
-		Instance.EventSequence = Events.Num();
+		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non gli eventi prodotti (#2970)
 		Events.Append(URTActionEffectLibrary::ProduceEvents(Instance));
 	}
 

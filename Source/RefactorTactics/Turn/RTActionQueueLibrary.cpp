@@ -29,7 +29,40 @@ bool URTActionQueueLibrary::InstanceLess(const FRTActionInstance& A, const FRTAc
 	{
 		return A.SourceUnitId < B.SourceUnitId;
 	}
-	return A.EventSequence < B.EventSequence;
+	if (A.EventSequence != B.EventSequence)
+	{
+		return A.EventSequence < B.EventSequence;
+	}
+
+	// 6..8) I campi che restavano fuori (#2970). Fino a qui l'ordine era PARZIALE: due istanze identiche su
+	// tutte e cinque le chiavi sopra ma con bersaglio diverso pareggiavano nei due versi, e a deciderle
+	// restava `TArray::Sort` — che inoltra ad `Algo::Sort`, introsort e NON stabile, cioe' l'ordine d'arrivo
+	// nel container. E' la stessa classe di difetto che `URTTurnLogLibrary::EntryLess` ha gia' pagato due
+	// volte sui campi serializzati, e che `TurnLog.CanonicalOrderCoversSerializedFields` esiste per fermare;
+	// qui il gate gemello e' `Actions.CanonicalOrderCoversInstanceFields`.
+	//
+	// 🔑 **Sono spareggi TECNICI, e stanno in CODA a tutte le chiavi di gioco.** Non decidono chi meriti di
+	// risolvere prima — quella sarebbe una regola di gameplay, e #2970 dichiara di non inventarne. Decidono
+	// soltanto che l'esito non dipenda dall'ordine d'inserimento (`CLAUDE.md` §11), che e' la stessa
+	// distinzione fatta da `UnitOrderLess` fra la cella e i due confronti che la seguono.
+	//
+	// ⛔ **`Def` non entra oltre i tre campi gia' usati sopra**, e il confine e' dichiarato invece di restare
+	// implicito: `FRTActionDef` appartiene al catalogo, e confrontarla a fondo qui sarebbe una seconda verita'
+	// su di lui. Due istanze che differiscono solo per una `Def` mutata per-istanza — `Def.Effects` in
+	// `URTReactionLibrary::BuildReactionEvents`, `Def.RangeCells` in `ARTTurnManager::CollectAttackIntents` —
+	// si separano su `EventSequence`, che ogni produttore assegna per istanza.
+	if (A.TargetUnitId != B.TargetUnitId)
+	{
+		return A.TargetUnitId < B.TargetUnitId;
+	}
+	if (!(A.TargetCell == B.TargetCell))
+	{
+		return URTHexLibrary::StableLess(A.TargetCell, B.TargetCell); // stessa primitiva di `UnitOrderLess`
+	}
+	// `bInterrupted` chiude: falso prima di vero. E' l'ultimo campo di `FRTActionInstance`, quindi da qui in
+	// poi due istanze sono indistinguibili perche' sono la stessa istanza, non perche' il confronto si e'
+	// fermato prima.
+	return static_cast<int32>(A.bInterrupted) < static_cast<int32>(B.bInterrupted);
 }
 
 void URTActionQueueLibrary::SortActionInstances(TArray<FRTActionInstance>& Instances)

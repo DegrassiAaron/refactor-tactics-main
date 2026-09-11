@@ -92,7 +92,24 @@ public:
 	 * Ordine TOTALE fra due azioni pianificate. Vero se A risolve prima di B.
 	 *
 	 * Chiavi, in ordine: **macro-fase di Atlas** (`Prep -> Dash -> Blast -> Move -> Cleanup`) -> `Priority`
-	 * intera crescente -> `ActionId` -> `SourceUnitId` -> `EventSequence`.
+	 * intera crescente -> `ActionId` -> `SourceUnitId` -> `EventSequence` -> `TargetUnitId` -> `TargetCell`
+	 * (`URTHexLibrary::StableLess`) -> `bInterrupted`.
+	 *
+	 * 🔴 **Fino a #2970 le chiavi erano cinque, e non erano un ordine totale.** `FRTActionInstance` ne porta
+	 * altri tre che DISTINGUONO due istanze — `TargetUnitId`, `TargetCell`, `bInterrupted` — e il confronto
+	 * non li guardava: due azioni della stessa unita', stessa `ActionId`, stessa fase, pari priorita' e
+	 * stesso `EventSequence` ma bersaglio diverso rispondevano `false` nei DUE versi. A deciderle restava
+	 * `TArray::Sort`, che inoltra ad `Algo::Sort` — introsort, NON stabile — cioe' l'ordine d'arrivo nel
+	 * container. E' la stessa classe di difetto che `EntryLess` ha gia' pagato due volte sui campi
+	 * serializzati del TurnLog.
+	 *
+	 * 🔑 **Le tre chiavi in coda sono spareggi TECNICI, non una priorita' di gioco**, e stanno DOPO fase e
+	 * priorita' apposta: dove il comparatore non pareggiava, l'ordine non si sposta di una posizione — ed e'
+	 * `Actions.GameplayKeysStillBeatTechnicalTieBreaks` a dirlo, non questo commento. Cio' che stabiliscono e'
+	 * soltanto che l'esito non dipenda dall'ordine d'inserimento (`CLAUDE.md` §11).
+	 *
+	 * ⚠️ **Il gate che impedisce il terzo giro e' `Actions.CanonicalOrderCoversInstanceFields`**, gemello di
+	 * `TurnLog.CanonicalOrderCoversSerializedFields`: un campo discriminante lasciato fuori lo fa cadere.
 	 *
 	 * La macro-fase viene PRIMA della priorita': un `Action.Move` a priorita' 50 risolve dopo un attacco a
 	 * priorita' 80, perche' il Move e' una fase successiva (ADR-0003 §1 — il catalogo v0.1 metteva invece il

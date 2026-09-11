@@ -37,8 +37,25 @@ struct FRTActionInstance
 	FRTCellId TargetCell;
 
 	/**
-	 * Ordine di dichiarazione dell'azione nel turno: ULTIMO tie-break dell'ordinamento.
-	 * Serve a rendere l'ordine TOTALE quando tutto il resto coincide — non e' una priorita' nascosta.
+	 * Ordine di dichiarazione dell'azione nel turno. Non e' una priorita' nascosta.
+	 *
+	 * 🔑 **Si conta dove l'istanza NASCE, con un contatore incrementato di suo** (#2970). Non e' una
+	 * preferenza di stile: `Num()` letto su un altro array — o sullo stesso, ma piu' in la' nel ciclo —
+	 * **non e' questo numero**, e i modi di sbagliarlo sono gia' stati misurati tutti e tre:
+	 *
+	 * | Sede | Cosa scriveva | Perche' non spareggiava |
+	 * |---|---|---|
+	 * | `ARTTurnManager::CollectAttackIntents` | `Intents.Num()` | l'`Add` e' duecento righe sotto ed e' condizionato: dopo un `continue` il contatore resta fermo |
+	 * | `ARTTurnManager::ResolveCombatPasses` | `Plan.Hits.Num()` | dentro un range-for su `Plan.Hits` e' una **costante**: ogni istanza usciva con lo stesso numero |
+	 * | `URTReactionLibrary::BuildReactionEvents` | `Events.Num()` | conta gli EVENTI prodotti, e uno spec che non ne produce lascia il contatore fermo |
+	 *
+	 * ⚠️ **Nessuna delle tre produceva un rosso**, e la ragione va detta perche' e' anche il motivo per cui
+	 * sono rimaste: `URTActionQueueLibrary::SortActionInstances` ha un solo chiamante fuori dai test
+	 * (`ARTTurnManager::ResolvePrep`), che era anche l'unico a numerare davvero. La chiave sbagliata stava su
+	 * istanze che nessuno ordinava — inerte, finche' qualcuno non le ordina.
+	 *
+	 * ⛔ **Non e' piu' l'ULTIMO tie-break**, e il commento lo diceva: da #2970 seguono `TargetUnitId`,
+	 * `TargetCell` e `bInterrupted`, perche' cinque chiavi non erano un ordine totale.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	int32 EventSequence = 0;
