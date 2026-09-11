@@ -122,7 +122,11 @@ Non fare affidamento su, e tratta come obsoleto ogni riferimento a:
 
 Rimossi il 2026-09-08 ([`D-346`](../../../docs/decisions/RT_PDR_00_Decision_Log.md), [`D-347`](../../../docs/decisions/RT_PDR_00_Decision_Log.md)). **I vincoli fisici che li motivavano non sono spariti con loro**: ciò che prima veniva rifiutato ora riesce, e produce il danno che il rifiuto evitava.
 
-⚠️ I task «RT: …» in `.vscode/tasks.json` invocano script inesistenti: falliscono con file-not-found. Vanno rimossi a mano, `.vscode/` è gitignorato.
+⚠️ **Se il tuo clone ha un `.vscode/tasks.json`, i task «RT: …» invocano script inesistenti** e falliscono con file-not-found. Vanno rimossi a mano. ⛔ È una verifica **per clone, non una volta per repository**: `.vscode/` è gitignorato, quindi il file c'è in alcuni checkout e manca in altri — misuralo dove sei, invece di dedurlo.
+
+```
+grep -c '"RT:' .vscode/tasks.json    # file assente: niente da rimuovere qui
+```
 
 ---
 
