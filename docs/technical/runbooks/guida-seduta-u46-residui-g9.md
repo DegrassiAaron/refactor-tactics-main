@@ -93,7 +93,11 @@ questa seduta deve rispondere.
 scena: due allestimenti sovrapposti, e ogni verdetto preso così è su una scena contaminata. Misurato il
 2026-09-03 e scritto in [`guida-seduta-u42-corpus-visual.md`](guida-seduta-u42-corpus-visual.md) §1–2.
 
-### 3.2 La via pulita
+### 3.2 La via pulita per lanciare uno scenario — che serve al **passo ②**, non al ①
+
+⚠️ **Leggi prima §3.3.** Questa sezione dice come si lancia bene uno scenario; **non** dice che il passo ①
+si giudichi su uno scenario, perché non è così. Serve al passo ② (`PIE-V01-DEBUG`), e a chiunque debba
+lanciare un banco per altre ragioni.
 
 Lo scenario si esegue **al posto** della partita normale: il ramo `ERTScenarioStart::Started` accende il
 Tick del GameMode e prosegue nell'harness invece di allestire la board
@@ -115,22 +119,42 @@ visibile — la partita è semplicemente partita normale, e chi guardava credeva
 💡 Con PIE **fermo** lo scenario si cambia da console senza riaprire l'Editor: Stop → `rt.Test.Scenario …`
 → Play.
 
-### 3.3 ⏱️ Il ritmo — è la leva che decide se il giudizio è possibile
+### 3.3 🔴 `ScenarioTurnPauseSeconds` NON è la via, ed è l'errore che questa guida conteneva
 
 ```
 ARTGameMode::ScenarioTurnPauseSeconds   // RTGameMode.h:309, default 1.5f
 UPROPERTY(EditAnywhere, Category = "RefactorTactics|Test")
 ```
 
-🔴 **Fra le due sedute del 2026-09-09 la build NON è cambiata: è cambiato questo numero, da `1,5` a `15`.**
-La prima apertura misurava un secondo e mezzo di scena credendo di misurare il gioco. Per una voce che
-chiede *«si legge?»*, un secondo e mezzo non è una misura.
+⌫ **La prima stesura di questa guida prescriveva di portarlo a `15` e giudicare sul banco in auto-run.
+È sbagliato, e sarebbe la QUINTA ripetizione dello stesso errore** — il registro ne conta già quattro su
+questa voce: *«un verdetto che descrive il banco invece del prodotto»*, e l'auto-run scambiato per la
+pianificazione è la quarta.
 
-**Portalo a `15` nei Details prima di premere Play.**
+**Il fatto strutturale**, misurato e scritto in [`test-manuali-pie.md`](../test-manuali-pie.md):
 
-⚠️ **Cambialo nel pannello, MAI nel codice.** `RefactorTactics.Scenario.AutoRunPacingHasShortDefault`
-(`Tests/RTScenarioAutoRunTests.cpp:145`) asserisce che il **default** stia sotto `10 s`: alzarlo nel sorgente
-fa rosso quel test. La proprietà impostata a mano su un'istanza non lo tocca.
+> *il banco in auto-run non può giudicare la leggibilità della pianificazione, perché **non ha una fase di
+> pianificazione**. Ciò che vi si osserva è la scena **fra** due risoluzioni, con tutti i piani azzerati.*
+
+Il meccanismo, verificabile nel codice:
+
+* durante la pausa `FRTScenarioSession::Step` esegue **solo** `PauseElapsed += DeltaSeconds`
+  (`ScenarioHarness/RTScenarioSession.cpp:1567`) — nessun input, nessun piano;
+* `BeginTurn()` azzera i piani, applica gli intenti, chiama i bot e committa **nello stesso frame**;
+* la guardia della linea d'intento ha **tre** condizioni — `GetPhase() == Planning` **e** `!IsResolving()`
+  **e** `View.bHasTarget` — e la terza è **falsa** per tutta la pausa, perché il resolver ha appena azzerato
+  il piano.
+
+∴ alzare la pausa dà **più tempo per guardare una scena in cui nessuno sta pianificando**. Il 2026-09-09 ha
+prodotto esattamente questo: un verdetto ❌ la cui causa è stata **ritirata lo stesso giorno**.
+
+⛔ **E l'harness non ha una modalità che ceda il controllo**: `git grep` per
+`bHumanPlanning|WaitForPlayer|Interactive|PauseForPlanning` in `ScenarioHarness/` dà **0** occorrenze
+(misurato 2026-09-10 su `main = d62c5dca`). Non è una via da configurare meglio: non c'è.
+
+✅ **La via corretta è una partita con pianificazione umana**, ed è ciò che prescrivono sia il registro —
+*«in una partita con pianificazione umana, o su un banco che lasci un intento vivo nella finestra»* — sia
+`S2` del piano consolidato: *«non usare l'auto-run come oracolo della planning UI»*.
 
 ---
 
@@ -138,34 +162,52 @@ fa rosso quel test. La proprietà impostata a mano su un'istanza non lo tocca.
 
 ### Passo ① — `PIE-HEXPLAY-6` **e** `PIE-VIS-SIGHTWALL`, un solo Play
 
-**Banco**: `Visual.Map.SightWallIsWalkable` · **Ritmo**: `ScenarioTurnPauseSeconds = 15`
+🔴 **Allestimento: una partita con PIANIFICAZIONE UMANA. Non l'auto-run di uno scenario** — §3.3.
 
-⚠️ **Perché questo banco e non `L_HexArena`**: le celle di barriera della mappa d'autore portano
-**entrambi** i flag — `bBlocksMovement` e `bBlocksLineOfSight` — quindi lastra e colonna si sovrappongono e
-la lastra non si giudica da sola. `SightWallIsWalkable` è l'unico caso in cui la cella **nega il tiro e si
-attraversa**.
+Due vie, entrambe legittime, e nessuna delle due è il banco lasciato girare da solo:
 
-Le due forme che `RebuildInstances` popola nell'ISM persistente `Blockers`, indipendenti e senza guardia di
-compilazione:
+| | Setup | Come |
+|---|---|---|
+| **A** | partita normale su `L_HexArena` | `rt.Test.Scenario ""` → Play → **`Home`** → si comanda un'unità e si pianifica |
+| **B** | `Visual.Map.SightWallIsWalkable` con un **intento vivo** nella finestra | il banco isola la lastra, ma va tenuto in pianificazione: senza questo è la via ⌫ del §3.3 |
+
+⚠️ **La via B non ha oggi un modo di ottenere quella finestra** — l'harness non cede il controllo, misurato
+(§3.3). Finché non esiste, **la via A è l'unica eseguibile**, e va dichiarata come tale accanto al verdetto.
+
+⚠️ **Che cosa la via A NON può isolare, e perché oggi non importa.** Le celle di barriera di `L_HexArena`
+portano **entrambi** i flag — `bBlocksMovement` e `bBlocksLineOfSight` — quindi `RebuildInstances` dà loro
+due volumi sovrapposti e la **lastra** non si giudica da sola:
 
 | forma | misura | flag di origine |
 |---|---|---|
 | **lastra** | `0,75 × 10 cm` | `bBlocksLineOfSight` |
 | **colonna** | `0,40 × 55 cm` | `bBlocksMovement` |
 
+Non importa perché **quella domanda è caduta**: [D-340](../../decisions/RT_PDR_00_Decision_Log.md) ha scelto
+la via *(b)* — far nominare la causa al log — e ha rinunciato **per iscritto** ad alzare `RTSightSlabHeight`.
+La domanda residua non è più *«la lastra si vede?»* ma *«il giocatore collega la riga al segno?»*, e quella
+non chiede di isolare le due forme.
+
+⌫ *Fino al 2026-09-10 questo passo diceva «perché questo banco e non `L_HexArena`»: era corretto quando la
+domanda era la lastra, ed è stato superato da D-340 e dal montaggio del feed.*
+
 **Che cosa guardare, in quest'ordine:**
 
-1. 🔑 **Guarda se la riga arriva a schermo PRIMA di aprire l'Output Log.** È la novità del 2026-09-10, ed è
-   il punto di tutta la seduta: se apri il log prima, hai già saputo cosa cercare e la domanda è bruciata.
-2. Un tiro viene rifiutato per linea di vista. La riga nel feed nomina la cella che l'ha fermato, e a schermo
-   quella cella porta un segno.
-3. **La domanda**: *chi guarda, senza sapere in anticipo cosa cercare, collega la riga al segno?*
-4. Per `PIE-VIS-SIGHTWALL`, nello stesso Play: la coppia **lastra/colonna** si legge nella vista di gioco?
-   Si distingue «non ci passo» da «non ci vedo attraverso»?
+1. 🔑 **Guarda se la riga arriva a schermo PRIMA di aprire l'Output Log.** È la novità del 2026-09-10 ed è il
+   punto di tutta la seduta: se apri il log prima, hai già saputo cosa cercare e la domanda è bruciata.
+2. **Pianifica un tiro contro un bersaglio dietro una cella che blocca la vista.** Il click non deve creare
+   un piano — `ARTPlayerController::HandleClickOnUnit` rifiuta **a monte** — e a schermo la cella che ha
+   fermato il colpo porta un segno.
+3. **La domanda, e va posta mentre pianifichi il turno seguente**: *chi guarda, senza sapere in anticipo
+   cosa cercare, collega la riga del feed al segno sulla cella?*
+4. Per `PIE-VIS-SIGHTWALL`, nello stesso Play: la coppia lastra/colonna si legge nella vista di gioco? Si
+   distingue «non ci passo» da «non ci vedo attraverso»?
+5. **La geometria**, che è ciò che #2870 ha lasciato a questa voce: spostandosi di **una cella di lato** il
+   tiro va a segno, e con un ostacolo su un **altro layer** il tiro passa (regola di elevazione).
 
-⛔ **Non aprire una issue se la lastra da 10 cm si legge male.** [D-340](../../decisions/RT_PDR_00_Decision_Log.md)
-ha scelto la via *(b)* — far nominare la causa al log — e ha rinunciato **per iscritto** ad alzare
-`RTSightSlabHeight`. Un «no» sulla lastra è il risultato **atteso**, non un difetto da aprire.
+⛔ **Il segno vive fino al commit del turno, non un turno solo.** Sul banco in auto-run durava `1,5 s` perché
+quella pausa *era* la pianificazione; in partita resta acceso per tutta la pianificazione vera. Presidiato da
+`RefactorTactics.HUD.BlockerMarkLivesUntilNextLockIn`.
 
 ⚠️ **Il velo entra nella misura.** `VeilInstances` porta a scala **zero** i volumi delle celle mai viste
 ([D-225](../../decisions/RT_PDR_00_Decision_Log.md)): una cella non osservata non mostra nulla **per
@@ -174,6 +216,9 @@ progetto**. Non è un difetto di resa.
 ⛔ **Si giudica in PIE, alla camera del giocatore.** Chi cattura dal viewport dell'Editor vede gli anelli di
 `DrawCellOverlay` — che però nascono **spenti** (`bCellOverlay = false`) — e crede di aver giudicato la vista
 del giocatore.
+
+✅ **E la via A porta un vantaggio che il banco non ha**: in partita entrano i quattro `BP_Unit_*`, mentre
+**ogni** banco di scenario spawna il cilindro base — `RTScenarioSession.cpp:849` usa `ARTUnit::StaticClass()`.
 
 ### Passo ② — *(opzionale)* `PIE-V01-DEBUG`
 

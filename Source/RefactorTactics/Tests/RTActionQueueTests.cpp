@@ -142,4 +142,218 @@ bool FRTActionPermutationInvariantTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// Ordine delle UNITA' (#2922): cella -> StableUnitId -> nome dell'Actor
+//
+// Si prova sulla CHIAVE e non sull'Actor, ed e' deliberato: `ARTUnit` e' un Actor e vorrebbe un mondo,
+// mentre la regola d'ordine non ne ha bisogno per essere vera. Il percorso completo che passa dagli Actor —
+// `CollectLivingUnits` -> `MakeCurrentSnapshot` -> risoluzione — ha gia' il suo test, che spawna un mondo:
+// `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation`.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Chiave d'ordine minima. Nome distinto per file (unity build). */
+	FRTUnitOrderKey UnitKey(int32 X, int32 Y, int32 Layer, int32 StableUnitId, const TCHAR* ActorName)
+	{
+		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, ActorName);
+	}
+
+	void SortUnitKeys(TArray<FRTUnitOrderKey>& Keys)
+	{
+		Keys.Sort([](const FRTUnitOrderKey& A, const FRTUnitOrderKey& B)
+		{
+			return URTActionQueueLibrary::UnitOrderLess(A, B);
+		});
+	}
+
+	/** Le chiavi identificate dal nome, nell'ordine risolto. */
+	TArray<FString> UnitOrderNames(const TArray<FRTUnitOrderKey>& Keys)
+	{
+		TArray<FString> Out;
+		for (const FRTUnitOrderKey& Key : Keys) { Out.Add(Key.ActorName); }
+		return Out;
+	}
+
+	int32 UnitOrderFactorial(int32 N)
+	{
+		int32 Out = 1;
+		for (int32 i = 2; i <= N; ++i) { Out *= i; }
+		return Out;
+	}
+
+	/**
+	 * La `Index`-esima permutazione di `[0..N)` in ordine lessicografico, per enumerarle TUTTE.
+	 *
+	 * ⚠️ Tutte e non tre scelte a mano: una permutazione campionata prova che quel caso funziona, non che la
+	 * proprieta' vale. Con `N == 5` sono 120 riordini, che costano niente.
+	 */
+	TArray<int32> UnitOrderNthPermutation(int32 N, int32 Index)
+	{
+		TArray<int32> Pool;
+		for (int32 i = 0; i < N; ++i) { Pool.Add(i); }
+
+		TArray<int32> Out;
+		for (int32 i = N; i >= 1; --i)
+		{
+			const int32 BlockSize = UnitOrderFactorial(i - 1);
+			const int32 Pick = Index / BlockSize;
+			Index %= BlockSize;
+			Out.Add(Pool[Pick]);
+			Pool.RemoveAt(Pick);
+		}
+		return Out;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderIsTotalOnSharedCellTest,
+	"RefactorTactics.Actions.UnitOrderIsTotalOnSharedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOrderIsTotalOnSharedCellTest::RunTest(const FString&)
+{
+	// Due unita' VIVE sulla stessa cella: non e' un caso teorico. `URTHexSimLibrary::MakeSnapshot` la
+	// registra in `FRTHexSnapshot::Overlaps` e `ARTTurnManager::ReportSnapshotOverlaps` la segnala a runtime
+	// (#1733, #1970) — quindi il comparatore la incontra, e sulla sola cella pareggerebbe.
+	const FRTUnitOrderKey A = UnitKey(2, 3, 0, /*StableUnitId*/ 4, TEXT("BP_Unit_Wraith_0"));
+	const FRTUnitOrderKey B = UnitKey(2, 3, 0, /*StableUnitId*/ 1, TEXT("BP_Unit_Phase_7"));
+
+	// 🔴 L'assertion che nessuna mutazione del sort puo' salvare: l'ordine e' TOTALE, cioe' per ogni coppia
+	// distinta esattamente uno dei due versi e' vero. Con il comparatore sulla sola cella non lo sarebbe
+	// **nessuno** dei due, e a decidere resterebbe l'ordine di arrivo nel container.
+	const bool bAB = URTActionQueueLibrary::UnitOrderLess(A, B);
+	const bool bBA = URTActionQueueLibrary::UnitOrderLess(B, A);
+	TestTrue(TEXT("stessa cella: esattamente un verso e' vero"), bAB != bBA);
+	TestTrue(TEXT("l'identita' stabile minore entra prima"), bBA);
+
+	// Irriflessivita': una chiave non precede se stessa, altrimenti il sort non ha un punto fisso.
+	TestFalse(TEXT("nessuna chiave precede se stessa"), URTActionQueueLibrary::UnitOrderLess(A, A));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderKeepsCellAsPrimaryKeyTest,
+	"RefactorTactics.Actions.UnitOrderKeepsCellAsPrimaryKey",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOrderKeepsCellAsPrimaryKeyTest::RunTest(const FString&)
+{
+	// Anti-vacuita' dell'altro verso: le due chiavi nuove NON devono poter riordinare unita' su celle
+	// diverse. Se lo facessero, l'ordine di risoluzione cambierebbe dove oggi non pareggia — cioe' ovunque —
+	// e con esso il corpus golden. La cella governa da sola, come prima di #2922.
+	//
+	// `StableUnitId` e nome dicono entrambi il contrario della cella, apposta: e devono perdere.
+	TArray<FRTUnitOrderKey> Keys;
+	Keys.Add(UnitKey(5, 0, 0, /*Stable*/ 1, TEXT("AAA")));  // cella lontana, id minore, nome primo
+	Keys.Add(UnitKey(0, 0, 0, /*Stable*/ 9, TEXT("ZZZ")));  // cella vicina, id maggiore, nome ultimo
+	SortUnitKeys(Keys);
+
+	const TArray<FString> Order = UnitOrderNames(Keys);
+	TestEqual(TEXT("la cella minore entra prima, malgrado id e nome"), Order[0], FString(TEXT("ZZZ")));
+	TestEqual(TEXT("la cella maggiore entra dopo"),                    Order[1], FString(TEXT("AAA")));
+
+	// E il Layer viene prima di X e Y, che e' `URTHexLibrary::StableLess` e non una regola nuova.
+	TArray<FRTUnitOrderKey> Layered;
+	Layered.Add(UnitKey(0, 0, 1, /*Stable*/ 1, TEXT("SOPRA")));
+	Layered.Add(UnitKey(9, 9, 0, /*Stable*/ 2, TEXT("SOTTO")));
+	SortUnitKeys(Layered);
+	TestEqual(TEXT("Layer inferiore per primo"), UnitOrderNames(Layered)[0], FString(TEXT("SOTTO")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderFallsBackToActorNameTest,
+	"RefactorTactics.Actions.UnitOrderFallsBackToActorName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
+{
+	// `StableUnitId` vale `0` finche' `ARTTurnManager::EnsureMatchRoster()` non e' passato, e c'e' almeno un
+	// chiamante che ordina PRIMA: `ARTGameMode::AssignUnitControlGroups`, a inizio partita. Li' le prime due
+	// chiavi pareggiano entrambe, e senza la terza il pareggio tornerebbe a `GetAllActorsOfClass`.
+	const FRTUnitOrderKey A = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Riktor_2"));
+	const FRTUnitOrderKey B = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Gadget_1"));
+
+	TestTrue(TEXT("senza identita' stabile decide il nome, e decide"),
+		URTActionQueueLibrary::UnitOrderLess(A, B) != URTActionQueueLibrary::UnitOrderLess(B, A));
+	TestTrue(TEXT("nome lessicalmente minore per primo"), URTActionQueueLibrary::UnitOrderLess(B, A));
+
+	// 🔴 Il confronto e' CASE-SENSITIVE. `FString::operator<` e' `Stricmp(...) < 0` — case INSENSITIVE — e
+	// due nomi che differiscono solo per il caso pareggerebbero in **entrambi** i versi: non un ordine
+	// totale, e il pareggio tornerebbe all'ordine d'ingresso. E' lo stesso difetto che `EntryLess` ha gia'
+	// pagato una volta sulla v10 del TurnLog.
+	const FRTUnitOrderKey Upper = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("UNIT"));
+	const FRTUnitOrderKey Lower = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("unit"));
+	TestTrue(TEXT("nomi che differiscono solo per il caso restano distinguibili"),
+		URTActionQueueLibrary::UnitOrderLess(Upper, Lower) != URTActionQueueLibrary::UnitOrderLess(Lower, Upper));
+
+	// Un `StableUnitId` assegnato batte comunque uno non assegnato, deterministicamente: `0` non e' l'unita'
+	// zero, e non deve comportarsi come un valore mancante che scivola a caso.
+	const FRTUnitOrderKey Senza = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("AAA"));
+	const FRTUnitOrderKey Con   = UnitKey(1, 1, 0, /*Stable*/ 3, TEXT("ZZZ"));
+	TestTrue(TEXT("id non assegnato prima di uno assegnato, e non a caso"),
+		URTActionQueueLibrary::UnitOrderLess(Senza, Con));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderPermutationInvariantTest,
+	"RefactorTactics.Actions.UnitOrderPermutationInvariant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitOrderPermutationInvariantTest::RunTest(const FString&)
+{
+	// L'insieme collide su OGNI chiave, cosi' il tie-break viene esercitato fino in fondo:
+	//  - `SU_A` e `SU_B` condividono la cella e si distinguono per `StableUnitId`;
+	//  - `NOME_A` e `NOME_B` condividono cella E `StableUnitId == 0`, e si distinguono solo per il nome;
+	//  - `SOLA` sta altrove e tiene onesto il confronto sulla prima chiave.
+	TArray<FRTUnitOrderKey> Base;
+	Base.Add(UnitKey(2, 3, 0, /*Stable*/ 4, TEXT("SU_A")));
+	Base.Add(UnitKey(2, 3, 0, /*Stable*/ 1, TEXT("SU_B")));
+	Base.Add(UnitKey(7, 1, 0, /*Stable*/ 0, TEXT("NOME_A")));
+	Base.Add(UnitKey(7, 1, 0, /*Stable*/ 0, TEXT("NOME_B")));
+	Base.Add(UnitKey(0, 0, 1, /*Stable*/ 2, TEXT("SOLA")));
+
+	TArray<FRTUnitOrderKey> Riferimento = Base;
+	SortUnitKeys(Riferimento);
+	const TArray<FString> Atteso = UnitOrderNames(Riferimento);
+
+	// TUTTE le permutazioni dell'ingresso, non tre scelte a mano.
+	const int32 N = Base.Num();
+	const int32 Permutazioni = UnitOrderFactorial(N);
+	int32 Divergenti = 0;
+	FString PrimaDivergenza;
+
+	for (int32 P = 0; P < Permutazioni; ++P)
+	{
+		const TArray<int32> Indici = UnitOrderNthPermutation(N, P);
+		TArray<FRTUnitOrderKey> Permutato;
+		Permutato.Reserve(N);
+		for (int32 i = 0; i < N; ++i) { Permutato.Add(Base[Indici[i]]); }
+
+		SortUnitKeys(Permutato);
+		const TArray<FString> Ottenuto = UnitOrderNames(Permutato);
+
+		if (Ottenuto != Atteso)
+		{
+			++Divergenti;
+			if (PrimaDivergenza.IsEmpty())
+			{
+				PrimaDivergenza = FString::Printf(TEXT("permutazione %d: [%s] invece di [%s]"),
+					P, *FString::Join(Ottenuto, TEXT(",")), *FString::Join(Atteso, TEXT(",")));
+			}
+		}
+	}
+
+	const FString Esito = FString::Printf(TEXT("permutare l'ingresso non cambia l'ordine risolto (%s)"),
+		PrimaDivergenza.IsEmpty() ? TEXT("nessuna divergenza") : *PrimaDivergenza);
+	TestEqual(*Esito, Divergenti, 0);
+
+	// 🔴 L'assertion che nessuna implementazione di `Sort` puo' rendere vacua. `Algo::Sort` non e' stabile,
+	// ma su array piccoli ripiega su un insertion sort che di fatto lo e': un comparatore parziale potrebbe
+	// quindi passare il ciclo qui sopra per un accidente dell'engine, non perche' l'ordine sia totale. Questa
+	// riga chiede la proprieta' direttamente — ogni coppia adiacente e' STRETTAMENTE ordinata — e cade se la
+	// chiave `StableUnitId` o quella del nome vengono tolte dal comparatore.
+	bool bTotale = true;
+	for (int32 i = 1; i < Riferimento.Num(); ++i)
+	{
+		bTotale &= URTActionQueueLibrary::UnitOrderLess(Riferimento[i - 1], Riferimento[i]);
+	}
+	TestTrue(TEXT("ordine totale: nessuna coppia indistinguibile, nemmeno sulla cella condivisa"), bTotale);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -2875,14 +2875,20 @@ sessions:
       - PIE-KNOW5
       - PIE-VELO-VIEWER
       - PIE-V01-POINTER
-    issues: [151]
-    done_when: le sette voci hanno esito reale nel registro
+      - PIE-V01-DOCKPROMPT
+    issues: [151, 2826]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
-      **Due scenari, sette voci.** `Visual.Perception.Acceptance` porta in una sola scena i tre stati del
-      velo — osservato, ricordato, mai visto — e `Visual.Hud.FirstPlayable` porta la partita in uno stato
-      ricco. Entrambi gli scenari sono **verdi headless**, quindi la scena si allestisce e lo stato è
-      quello giusto: non c'è niente da preparare prima di premere Play.
+      **Due scenari, le voci elencate in `verifies`.** `Visual.Perception.Acceptance` porta in una sola
+      scena i tre stati del velo — osservato, ricordato, mai visto — e `Visual.Hud.FirstPlayable` porta la
+      partita in uno stato ricco. Entrambi gli scenari sono **verdi headless**, quindi la scena si
+      allestisce e lo stato è quello giusto: non c'è niente da preparare prima di premere Play.
+
+      ⏱️ **Il conteggio in prosa è stato tolto il 2026-09-10, non aggiornato** (`AGENTS.md` §14): diceva
+      «sette voci» in due punti, ed entrando `PIE-V01-DOCKPROMPT` sarebbe diventato falso in silenzio —
+      che è esattamente il modo in cui un totale scritto a mano invecchia. Chi vuole il numero conta
+      `verifies`; chi vuole i nomi li ha sopra.
 
       ⚠️ **Le due voci ombrello restano ⏳, e la prima stesura di questa seduta le dava per verdi.** Il
       registro dice l'opposto e ne scrive la ragione: *«resta ⏳ perché nessuno l'ha GUARDATO — il verde
@@ -2898,7 +2904,15 @@ sessions:
       Il giro: `Scenario To Run = Visual.Perception.Acceptance`, `Scenario Turn Pause Seconds` alto
       abbastanza da vedere i tre turni separati, Play. Le cinque `PIE-KNOW*` e `PIE-VELO-VIEWER` si
       giudicano lì dentro, nell'ordine in cui i `_turno` del file le nomina. Poi
-      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER`, nello stesso processo.
+      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER` **e `PIE-V01-DOCKPROMPT`**, nello
+      stesso processo.
+
+      🔑 **Le due voci del `FirstPlayable` si giudicano nello stesso giro e non si confondono**: `POINTER`
+      guarda **cosa fa il click**, `DOCKPROMPT` guarda **cosa il dock dichiara di aspettare prima** che il
+      click arrivi. Il percorso a tappe di `POINTER` qui sotto le attraversa entrambe — a ogni tappa in cui
+      il puntatore cambia contesto, il prompt del dock deve dire un'altra cosa. ⚠️ **Se il prompt resta
+      identico fra un'azione armata su unità e una su cella, `DOCKPROMPT` è rossa anche con `POINTER`
+      verde**: sono due oracoli sullo stesso gesto, e il secondo non è implicato dal primo.
 
       ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
       benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
@@ -3028,6 +3042,11 @@ sessions:
     block: 6
     critical: true
     execution_lane: pie
+    runbook: docs/technical/runbooks/guida-seduta-u46-residui-g9.md
+    # Aggiunto il 2026-09-10 con la guida. La guida corregge due prescrizioni di questi `steps`, e chi
+    # esegue segue LEI: (1) il passo (2) non si giudica sul banco in auto-run — non ha una fase di
+    # pianificazione, ed e' l'errore che il registro ha gia' contato quattro volte su `PIE-HEXPLAY-6`;
+    # (2) tre delle voci in `verifies` sono chiuse, e `PIE-VIS-SIGHTWALL` NON e' nel subset `RELEASE-V01`.
     produces: >-
       i tre verdetti che `G9` puo' ancora ricevere da una seduta, piu' i due che chiudono gli scenari
       orfani. ⌫ Erano QUATTRO fino al 2026-09-08 — `PIE-HEXPLAY-8` esce dal conto perche' il suo

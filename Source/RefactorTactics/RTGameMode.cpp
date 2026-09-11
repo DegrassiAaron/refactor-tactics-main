@@ -7,7 +7,10 @@
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
 #include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
-#include "Map/RTHexLibrary.h"        // StableLess: l'ordine deterministico delle unita'
+// `Map/RTHexLibrary.h` stava qui per `StableLess`, che questo file non chiama piu': l'ordine delle unita'
+// passa dalla sede unica (#2922), e un include con accanto la ragione sbagliata invecchia senza che nessuno
+// lo veda. `git grep "URTHexLibrary::" Source/RefactorTactics/RTGameMode.cpp` risponde a vuoto.
+#include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
@@ -913,7 +916,11 @@ void ARTGameMode::AssignUnitControlGroups()
 	// ⚠️ **L'ordine e' quello di `CollectLivingUnits`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
 	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
 	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	//
+	// 🔑 Qui `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — quindi a
+	// spareggiare due unita' sulla stessa cella e' il NOME dell'Actor, l'ultima chiave di `UnitOrderLess`.
+	// E' il caso per cui quella terza chiave esiste (#2922).
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
 	// hanno entrambe un gruppo `0`.

@@ -2398,18 +2398,26 @@ void ARTTurnManager::ConcludeResolution()
 		// run riga per riga. Uno scambio farebbe divergere l'archivio da se' stesso.
 		// E' la stessa disciplina che `ResolveEnvironment` e `TickDynamicCovers` applicano gia', con lo
 		// stesso comparatore. Trovato in code review.
-		Actors.Sort([](const AActor& A, const AActor& B)
-		{
-			const ARTUnit* UA = Cast<ARTUnit>(&A);
-			const ARTUnit* UB = Cast<ARTUnit>(&B);
-			if (!UA || !UB) { return UA != nullptr; } // i non-unita' in coda, deterministicamente
-			return URTHexLibrary::StableLess(UA->Cell, UB->Cell);
-		});
-
+		//
+		// ⚠️ Il comparatore stava QUI, scritto a mano, e confrontava la sola cella (#2922): due unita' sulla
+		// stessa cella pareggiavano e a deciderle tornava `GetAllActorsOfClass`. La regola vive ora in una
+		// sede sola ed e' un ordine TOTALE.
+		//
+		// 🔑 E si raccoglie in `TArray<ARTUnit*>` PRIMA di ordinare, invece di ordinare gli `AActor*` con un
+		// comparatore che sa gestire i non-unita': la query e' `ARTUnit::StaticClass()`, quindi quel ramo non
+		// sarebbe mai stato raggiunto — codice difensivo che nessun test puo' rendere rosso. Ed e' la stessa
+		// forma degli altri chiamanti (`ResolvePrep`, `ResolveEnvironment`), che e' il punto.
+		TArray<ARTUnit*> Units;
+		Units.Reserve(Actors.Num());
 		for (AActor* Actor : Actors)
 		{
-			ARTUnit* Unit = Cast<ARTUnit>(Actor);
-			if (!Unit || !Unit->IsAlive())
+			if (ARTUnit* Unit = Cast<ARTUnit>(Actor)) { Units.Add(Unit); }
+		}
+		URTActionQueueLibrary::SortUnitsForResolution(Units);
+
+		for (ARTUnit* Unit : Units)
+		{
+			if (!Unit->IsAlive())
 			{
 				continue;
 			}
@@ -3684,9 +3692,10 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		}
 	}
 	if (Units.Num() == 0) { return; }
-	// Stesso ordine stabile per cella del resto del turno: da qui dipendono gli indici passati alla libreria
-	// e l'ordine in cui due scariche dello stesso turno si applicano.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Stesso ordine stabile del resto del turno: da qui dipendono gli indici passati alla libreria e l'ordine
+	// in cui due scariche dello stesso turno si applicano. La cella e' la prima chiave, ma non l'unica
+	// (#2922): da sola pareggia sulla sovrapposizione, e il pareggio tornerebbe a `GetAllActorsOfClass`.
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// Celle la cui SUPERFICIE nasce in questo Cleanup (`#570`). Si raccolgono qui e i loro effetti si
 	// applicano in fondo, a tutte le trasformazioni decise: e' lo stesso "raccogli poi applica" del resto del
@@ -4653,7 +4662,9 @@ void ARTTurnManager::ResolvePrep()
 			Units.Add(Unit);
 		}
 	}
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Ordine totale: cella, poi identita' stabile, poi nome (#2922). Da questo ordine dipendono gli indici
+	// delle istanze raccolte qui sotto.
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// 0. Le strutture di BORDO (CP 9.5) prima del motore azioni, e fuori da esso: il loro esito e' una modifica
 	// della mappa, non un evento verso un'unita'. Passando dalla raccolta, un'azione senza `Effects`
@@ -6942,7 +6953,14 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	//
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
-	OutUnits.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	//
+	// 🔴 **E la cella da sola non bastava** (#2922). `#990` chiuse con questo comparatore sulla premessa
+	// *«due unita' vive non condividono una cella»*; `#1733`/`#1970` l'hanno misurata falsa — la
+	// sovrapposizione esiste e `MakeSnapshot` la REGISTRA in `Overlaps`. Su un pareggio `Algo::Sort` non e'
+	// stabile, quindi a decidere tornava proprio l'ordine che queste venti righe esistono per togliere di
+	// mezzo: due unita' scambiate qui ricevono `UnitId` scambiati, e `MakeSnapshot` tiene come occupante
+	// l'altra. La regola vive ora in `URTActionQueueLibrary`, con la cella ancora come PRIMA chiave.
+	URTActionQueueLibrary::SortUnitsForResolution(OutUnits);
 }
 
 FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const

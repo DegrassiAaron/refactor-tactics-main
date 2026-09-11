@@ -1350,6 +1350,11 @@ bool FRTVeilSurfaceChangeRepaintsTest::RunTest(const FString&)
 	HexMap->ApplyKnowledgeVeil(Conoscenza);
 	TestEqual(TEXT("senza cambiamenti il velo non tocca nessuna istanza"),
 		HexMap->GetLastVeilTouchedCells(), 0);
+	// ➕ **E nemmeno il riallineamento per-cella** (`#2761`): da quando il ridipingere ha due sedi, il
+	// controllo negativo deve chiuderle entrambe. Con una sola, un riallineamento che girasse a vuoto a ogni
+	// velo passerebbe inosservato proprio nel test scritto per impedirlo.
+	TestEqual(TEXT("e nemmeno il riallineamento per-cella"),
+		HexMap->LastRepaintTouchedInstances(), 0);
 
 	// 3. UNA cella cambia superficie, come farebbe `ApplyDynamicSurface` nel Cleanup. Si passa da
 	//    `AddOrUpdateCell` perche' e' quello il punto che il gioco usa — ed e' quello che muove `Revision`.
@@ -1370,14 +1375,32 @@ bool FRTVeilSurfaceChangeRepaintsTest::RunTest(const FString&)
 	HexMap->MapAsset->AddOrUpdateCell(Dopo);
 
 	// 4. ── IL CASO POSITIVO: la stessa conoscenza, e stavolta la board si ridipinge.
+	//
+	// ⌫ **L'oracolo conta DUE sedi, e fino al 2026-09-10 ne contava una** — `GetLastVeilTouchedCells()`,
+	// cioe' le istanze che `VeilInstances` ha riscritto. Contava quella perche' il ridipingere avveniva
+	// **solo** li': il blocco di sincronizzazione di `#2894` ricostruiva disco e corone, e il velo che seguiva
+	// li trovava tutti da riscrivere.
+	//
+	// 🔴 **`#2761` ha spostato il ridipingere, non l'ha tolto.** Il riallineamento per-cella scrive il colore
+	// nuovo — gia' moltiplicato per il fattore di attenuazione corrente — e **non** marca l'istanza
+	// `Unwritten`, apposta: `Unwritten` non attenua e farebbe uno **snap**, buttando via una dissolvenza di
+	// `#2875` in volo proprio nel momento in cui il terreno cambia sotto lo sguardo. ∴ `VeilInstances` salta
+	// l'istanza — il suo STATO non e' cambiato — e il vecchio oracolo vedeva zero su una board ridipinta.
+	//
+	// ⛔ **Non e' un allentamento**: la domanda che questo test pone — *«la cella che ha cambiato superficie
+	// ha cambiato anche il proprio disegno?»* — e' la stessa, e la somma dei due contatori la risponde per
+	// intero. Il controllo negativo al punto 2 chiude entrambe le sedi, quindi «ridipinge sempre» resta
+	// escluso come prima.
 	HexMap->ApplyKnowledgeVeil(Conoscenza);
-	TestTrue(TEXT("dopo un cambio di superficie il velo ridipinge"),
-		HexMap->GetLastVeilTouchedCells() > 0);
+	TestTrue(TEXT("dopo un cambio di superficie la board si ridipinge, per l'una o per l'altra via"),
+		HexMap->GetLastVeilTouchedCells() + HexMap->LastRepaintTouchedInstances() > 0);
 
 	// 5. E il salto torna a valere subito dopo: la sincronizzazione non lo spegne per sempre.
 	HexMap->ApplyKnowledgeVeil(Conoscenza);
 	TestEqual(TEXT("e al velo successivo il salto vale di nuovo"),
 		HexMap->GetLastVeilTouchedCells(), 0);
+	TestEqual(TEXT("e nemmeno il per-cella ha piu' niente da fare"),
+		HexMap->LastRepaintTouchedInstances(), 0);
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;
