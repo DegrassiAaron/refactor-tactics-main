@@ -77,6 +77,11 @@ bool URTActionQueueLibrary::InstanceLess(const FRTActionInstance& A, const FRTAc
 	//
 	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
 	//
+	// ⚠️ **Quel comando risponde DUE chiamanti, non uno**, e una stesura precedente scriveva «uno» (#3004):
+	// c'e' anche `InstancesForPhase`, venti righe sotto. La premessa regge lo stesso perche' quella funzione
+	// non ha chiamanti e non e' `UFUNCTION` — nessun array reale la attraversa — ma chi esegue il controllo
+	// deve trovare scritto cio' che vedra', altrimenti il prossimo lettore conclude che il comando sbaglia.
+	//
 	// ⛔ Il giorno in cui due produttori confluissero nello stesso array — la direzione di #1818 — la
 	// premessa cade, e **aggiungere `Def` al confronto non e' la risposta**: appartiene al catalogo, e
 	// confrontarla a fondo qui ne creerebbe una seconda verita'. Servirebbe un'identita' d'istanza unica per

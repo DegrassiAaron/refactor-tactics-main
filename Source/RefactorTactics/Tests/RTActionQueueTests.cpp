@@ -467,31 +467,64 @@ namespace
 	}
 
 	/**
-	 * Le chiavi di `InstanceLess` **nell'ordine in cui decidono**, ciascuna come «mettiti al minimo / al
-	 * massimo». E' la tabella su cui poggiano sia lo sweep dei campi sia il pinning della precedenza.
+	 * Una chiave di `InstanceLess`: il campo `UPROPERTY` che perturba, e come metterla al minimo / al massimo.
+	 *
+	 * 🔑 **Il nome del campo sta QUI, accanto alla perturbazione, e non in un elenco separato** — ed e' una
+	 * correzione fatta in code review (#3004). Prima l'insieme dei campi «confrontati» era una seconda lista
+	 * scritta a mano: un campo nuovo rendeva rosso lo sweep, e la via piu' economica per il verde era
+	 * **aggiungere il suo nome a quella lista** invece di insegnarlo a `InstanceLess`. La suite tornava
+	 * interamente verde con il pareggio non deterministico ancora li'. Il commento lo vietava a parole e
+	 * nient'altro lo impediva; ora dichiarare un campo confrontato SIGNIFICA dargli una perturbazione, e la
+	 * perturbazione deve ribaltare il verdetto perche' la parte 2 dello sweep la misura.
 	 *
 	 * ⚠️ Puntatore a funzione e non `TFunction`: le lambda non catturano niente, quindi si convertono da
 	 * sole e non c'e' alcuna type-erasure da pagare — ne' un include in piu'.
 	 */
-	using FInstanceKeySetter = void (*)(FRTActionInstance&, bool bHigh);
-
-	const TArray<FInstanceKeySetter>& InstanceKeySettersInOrder()
+	struct FInstanceKey
 	{
-		static const TArray<FInstanceKeySetter> Setters =
+		/** Il nome dell'`UPROPERTY` di `FRTActionInstance` che questa chiave distingue. */
+		const TCHAR* CampoUProperty;
+		void (*Perturba)(FRTActionInstance& I, bool bHigh);
+	};
+
+	/**
+	 * Le chiavi di `InstanceLess` **nell'ordine in cui decidono**. E' la tabella su cui poggiano sia lo sweep
+	 * dei campi sia il pinning della precedenza.
+	 *
+	 * ⚠️ **Tre chiavi dichiarano lo stesso campo `Def`**, e non e' una svista: `InstanceLess` di `Def`
+	 * guarda tre sottocampi in tre posizioni distinte della precedenza. Il campo e' coperto se **almeno una**
+	 * lo distingue; che ne servano tre e' quanto serve a `KeyPrecedenceIsPinned`, non allo sweep.
+	 */
+	const TArray<FInstanceKey>& InstanceKeysInOrder()
+	{
+		static const TArray<FInstanceKey> Chiavi =
 		{
-			[](FRTActionInstance& I, bool bHigh) { I.Def.ResolutionPhase = bHigh ? ERTResolutionPhase::NormalMovement : ERTResolutionPhase::Preparation; },
-			[](FRTActionInstance& I, bool bHigh) { I.Def.Priority = bHigh ? 90 : 10; },
-			[](FRTActionInstance& I, bool bHigh) { I.Def.ActionId = FName(bHigh ? TEXT("Action.ZZZ") : TEXT("Action.AAA")); },
-			[](FRTActionInstance& I, bool bHigh) { I.SourceUnitId = bHigh ? 9 : 1; },
-			[](FRTActionInstance& I, bool bHigh) { I.EventSequence = bHigh ? 9 : 1; },
-			[](FRTActionInstance& I, bool bHigh) { I.TargetUnitId = bHigh ? 9 : 1; },
+			{ TEXT("Def"), [](FRTActionInstance& I, bool bHigh) { I.Def.ResolutionPhase = bHigh ? ERTResolutionPhase::NormalMovement : ERTResolutionPhase::Preparation; } },
+			{ TEXT("Def"), [](FRTActionInstance& I, bool bHigh) { I.Def.Priority = bHigh ? 90 : 10; } },
+			{ TEXT("Def"), [](FRTActionInstance& I, bool bHigh) { I.Def.ActionId = FName(bHigh ? TEXT("Action.ZZZ") : TEXT("Action.AAA")); } },
+			{ TEXT("SourceUnitId"), [](FRTActionInstance& I, bool bHigh) { I.SourceUnitId = bHigh ? 9 : 1; } },
+			{ TEXT("EventSequence"), [](FRTActionInstance& I, bool bHigh) { I.EventSequence = bHigh ? 9 : 1; } },
+			{ TEXT("TargetUnitId"), [](FRTActionInstance& I, bool bHigh) { I.TargetUnitId = bHigh ? 9 : 1; } },
 			// ⚠️ `StableLess` confronta **Layer -> X -> Y**, non solo X: il lato alto muove tutti e tre, cosi'
 			// una sostituzione con un `A.TargetCell.X < B.TargetCell.X` non resta verde. La prima stesura di
 			// questi test toccava il solo X, e la delega a `StableLess` non era provata. Trovato in code review.
-			[](FRTActionInstance& I, bool bHigh) { I.TargetCell = bHigh ? FRTCellId(4, 5, 6) : FRTCellId(0, 0, 0); },
-			[](FRTActionInstance& I, bool bHigh) { I.bInterrupted = bHigh; },
+			{ TEXT("TargetCell"), [](FRTActionInstance& I, bool bHigh) { I.TargetCell = bHigh ? FRTCellId(4, 5, 6) : FRTCellId(0, 0, 0); } },
+			{ TEXT("bInterrupted"), [](FRTActionInstance& I, bool bHigh) { I.bInterrupted = bHigh; } },
 		};
-		return Setters;
+		return Chiavi;
+	}
+
+	/**
+	 * I campi che `InstanceLess` confronta, **derivati dalle chiavi** invece che elencati a parte.
+	 *
+	 * ⛔ **Non esiste un modo di dichiarare un campo confrontato senza dargli una perturbazione** — che e'
+	 * precisamente il buco chiuso da #3004.
+	 */
+	TSet<FString> CampiConfrontati()
+	{
+		TSet<FString> Nomi;
+		for (const FInstanceKey& Chiave : InstanceKeysInOrder()) { Nomi.Add(Chiave.CampoUProperty); }
+		return Nomi;
 	}
 }
 
@@ -524,10 +557,8 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 	UScriptStruct* Struct = FRTActionInstance::StaticStruct();
 	if (!TestNotNull(TEXT("FRTActionInstance risolta dalla reflection"), Struct)) { return false; }
 
-	// I campi che `InstanceLess` confronta, per nome di UPROPERTY.
-	const TSet<FString> Confrontati = {
-		TEXT("Def"), TEXT("SourceUnitId"), TEXT("EventSequence"),
-		TEXT("TargetUnitId"), TEXT("TargetCell"), TEXT("bInterrupted") };
+	// I campi che `InstanceLess` confronta — **derivati dalle chiavi**, non riscritti qui (#3004).
+	const TSet<FString> Confrontati = CampiConfrontati();
 
 	// ⛔ **Esenzioni dichiarate: nessuna, oggi.** La riga esiste perche' il giorno in cui ne servisse una la
 	// si scriva QUI con la ragione, invece di risolvere il rosso allargando l'elenco dei confrontati —
@@ -548,13 +579,13 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 	}
 
 	// --- 2) Ogni chiave confrontata ribalta davvero il verdetto -----------------------------------------
-	const TArray<FInstanceKeySetter>& Setters = InstanceKeySettersInOrder();
-	for (int32 k = 0; k < Setters.Num(); ++k)
+	const TArray<FInstanceKey>& Chiavi = InstanceKeysInOrder();
+	for (int32 k = 0; k < Chiavi.Num(); ++k)
 	{
 		FRTActionInstance Minore = SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false);
 		FRTActionInstance Maggiore = Minore;
-		Setters[k](Minore, /*bHigh*/ false);
-		Setters[k](Maggiore, /*bHigh*/ true);
+		Chiavi[k].Perturba(Minore, /*bHigh*/ false);
+		Chiavi[k].Perturba(Maggiore, /*bHigh*/ true);
 
 		TestTrue(*FString::Printf(TEXT("chiave %d: il lato minore precede"), k),
 			URTActionQueueLibrary::InstanceLess(Minore, Maggiore));
@@ -575,10 +606,14 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 	//
 	// ⚠️ **La premessa che rende il limite accettabile va detta, perche' e' l'unica cosa che regge**: le
 	// istanze che entrano in uno STESSO sort vengono da un solo produttore, e li' `EventSequence` e' distinto
-	// per costruzione (un contatore per sede). `URTActionQueueLibrary::SortActionInstances` ha un solo
-	// chiamante fuori dai test — `ARTTurnManager::ResolvePrep` — e questo e' verificabile:
+	// per costruzione (un contatore per sede). `URTActionQueueLibrary::SortActionInstances` ha due chiamanti
+	// fuori dai test, e uno solo riceve istanze reali — `ARTTurnManager::ResolvePrep`. Verificabile:
 	//
 	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
+	//
+	// ⚠️ **L'altro e' `URTActionQueueLibrary::InstancesForPhase`, e una stesura precedente lo ometteva**
+	// dichiarando «un solo chiamante» (#3004). Non ha chiamanti e non e' `UFUNCTION`, quindi non rompe la
+	// premessa; ⛔ ma e' la seconda porta d'ingresso al sort, cioe' da dove il secondo produttore entrerebbe.
 	//
 	// ⛔ **Il giorno in cui due produttori confluissero nello stesso array — e' la direzione di #1818 — la
 	// premessa cade, e non basta aggiungere `Def` al confronto**: `FRTActionDef` appartiene al catalogo, e
@@ -614,27 +649,27 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionKeyPrecedenceIsPinnedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionKeyPrecedenceIsPinnedTest::RunTest(const FString&)
 {
-	const TArray<FInstanceKeySetter>& Setters = InstanceKeySettersInOrder();
-	for (int32 k = 0; k < Setters.Num(); ++k)
+	const TArray<FInstanceKey>& Chiavi = InstanceKeysInOrder();
+	for (int32 k = 0; k < Chiavi.Num(); ++k)
 	{
 		FRTActionInstance Vince;
 		FRTActionInstance Perde;
-		for (int32 j = 0; j < Setters.Num(); ++j)
+		for (int32 j = 0; j < Chiavi.Num(); ++j)
 		{
 			if (j < k)
 			{
-				Setters[j](Vince, /*bHigh*/ true);  // identiche: le chiavi precedenti non decidono
-				Setters[j](Perde, /*bHigh*/ true);
+				Chiavi[j].Perturba(Vince, /*bHigh*/ true);  // identiche: le precedenti non decidono
+				Chiavi[j].Perturba(Perde, /*bHigh*/ true);
 			}
 			else if (j == k)
 			{
-				Setters[j](Vince, /*bHigh*/ false); // `Vince` e' minore QUI, e solo qui
-				Setters[j](Perde, /*bHigh*/ true);
+				Chiavi[j].Perturba(Vince, /*bHigh*/ false); // `Vince` e' minore QUI, e solo qui
+				Chiavi[j].Perturba(Perde, /*bHigh*/ true);
 			}
 			else
 			{
-				Setters[j](Vince, /*bHigh*/ true);  // ...e maggiore su TUTTE le chiavi successive
-				Setters[j](Perde, /*bHigh*/ false);
+				Chiavi[j].Perturba(Vince, /*bHigh*/ true);  // ...e maggiore su TUTTE le successive
+				Chiavi[j].Perturba(Perde, /*bHigh*/ false);
 			}
 		}
 

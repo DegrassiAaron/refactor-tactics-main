@@ -50,9 +50,14 @@ struct FRTActionInstance
 	 * | `URTReactionLibrary::BuildReactionEvents` | `Events.Num()` | conta gli EVENTI prodotti, e uno spec che non ne produce lascia il contatore fermo |
 	 *
 	 * ⚠️ **Nessuna delle tre produceva un rosso**, e la ragione va detta perche' e' anche il motivo per cui
-	 * sono rimaste: `URTActionQueueLibrary::SortActionInstances` ha un solo chiamante fuori dai test
-	 * (`ARTTurnManager::ResolvePrep`), che era anche l'unico a numerare davvero. La chiave sbagliata stava su
-	 * istanze che nessuno ordinava — inerte, finche' qualcuno non le ordina.
+	 * sono rimaste: delle due porte d'ingresso all'ordinamento fuori dai test, solo `ARTTurnManager::ResolvePrep`
+	 * riceve istanze reali — ed era anche l'unica a numerare davvero. La chiave sbagliata stava su istanze che
+	 * nessuno ordinava — inerte, finche' qualcuno non le ordina.
+	 *
+	 * ⚠️ **Le porte sono DUE, e una stesura precedente ne dichiarava una** (#3004): `URTActionQueueLibrary::InstancesForPhase`
+	 * chiama anch'essa `SortActionInstances`. Oggi non ha chiamanti e non e' `UFUNCTION`, quindi nessun array
+	 * reale ci passa; ⛔ ma e' la sede da cui un secondo produttore arriverebbe senza annunciarsi, ed e' li'
+	 * che va guardato prima di dare per buona la premessa qui sotto.
 	 *
 	 * ⚠️ **`ARTTurnManager::ResolvePrep` e' passato al contatore benche' il suo `Instances.Num()` fosse
 	 * corretto**, e non e' pulizia: e' l'unica sede il cui `EventSequence` viene davvero consumato, quindi e'
