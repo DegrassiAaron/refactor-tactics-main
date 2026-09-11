@@ -1,8 +1,9 @@
 {
   "scenarioId": "Movement.CostlyCorridor",
-  "tags": ["movement", "core", "terrain", "duration", "aevik", "branth", "ivrin", "muiren"],
-  "version": 1,
+  "tags": ["movement", "core", "gadget", "phase", "riktor"],
+  "version": 4,
   "seed": 0,
+  "repeatCount": 3,
   "mapRadius": 4,
 
   "_nota": "Il banco a corridoio di #2914: il corpus esercita finalmente TERRENO COSTOSO. Fino a questo file un solo scenario in tutto Scenarios/ dichiarava `moveCost` (AutoBattle/Obstacles.json), e non era fra i golden: ogni traccia di riferimento girava su pavimento a costo 1, dove ogni arco dura un micro-step e il resolver si comporta come prima di D-381. Il corpus non era verde perche' la durata variabile fosse gratuita: era verde perche' non la vedeva.",
@@ -11,9 +12,11 @@
 
   "_nota_corsia_A": "X e Y convergono sulla stessa cella T=[0,0] da lati opposti, con costi di ingresso diversi. CON le durate: X paga 1+1 e arriva a T al micro-step 2; Y paga 3 per entrare in [1,0] e si affaccia su T al micro-step 4, quando T e' gia' occupata -> Y resta dov'e' e X e' su T. SENZA le durate (un arco = un micro-step): entrambe puntano a T al micro-step 2, la destinazione e' CONTESA a parita' di priorita', e si fermano TUTTE E DUE -> X resta su [-1,0]. ∴ la cella finale di X distingue i due modelli, ed e' l'assertion che porta il peso.",
 
-  "_nota_corsia_C": "S attraversa una cella a costo 3 e, sotto D-382, tiene occupata la propria origine per tutta la durata del passo. ⛔ NON c'e' un inseguitore, e non e' una dimenticanza: un seguito NON E' AUTORABILE in uno scenario. `FindPathAvoiding` esclude le celle occupate, quindi un percorso che termina - o passa - dove sta un'altra unita' viene RIFIUTATO in pianificazione, prima che la risoluzione cominci (misurato: il primo giro di questo banco dava «percorso rifiutato per F, l'unita' resta ferma»). E' lo stesso vincolo che #1922 §3 misura per il click del giocatore. Il comportamento del seguito vive quindi nei test C++ che bypassano la pianificazione - Movement.TransitStillOccupiesItsOriginCell e Movement.ConvoyOnCostlyTerrainSerializes - e non qui.",
+  "_nota_corsia_C": "⛔ **QUESTA CORSIA NON DISCRIMINA, e va detto invece che lasciato credere**: S attraversa una cella a costo 3 e finisce su [-1,2] sia con le durate sia senza — cambia QUANDO, non DOVE, e nessun `expect` puo' vedere il quando. Resta perche' un secondo percorso su terreno costoso allarga cio' che la traccia attraversa, non perche' provi qualcosa. ⛔ E non c'e' un inseguitore, che sarebbe l'unica cosa capace di renderla discriminante: un seguito NON E' AUTORABILE in uno scenario. `FindPathAvoiding` esclude le celle occupate, quindi un percorso che termina - o passa - dove sta un'altra unita' viene RIFIUTATO in pianificazione, prima che la risoluzione cominci (misurato: il primo giro di questo banco dava «percorso rifiutato per F, l'unita' resta ferma»). E' lo stesso vincolo che #1922 §3 misura per il click del giocatore. Il comportamento del seguito vive quindi nei test C++ che bypassano la pianificazione - Movement.TransitStillOccupiesItsOriginCell e Movement.ConvoyOnCostlyTerrainSerializes - e non qui.",
 
   "_nota_budget": "I budget NON sono cablabili da uno scenario (`Sim.MoveBudget = Hero->MovePoints`), quindi il banco usa quelli del roster invece di chiedere quattro unita' a 4 MP che non esistono: Aevik 5 - Muiren 5 - Branth 4 - Ivrin 6. Il percorso piu' caro e' quello di Y (3+1 = 4 MP) ed e' affidato ad Aevik, che ne ha 5: un margine, non un pareggio, cosi' una troncatura al budget non puo' mascherare l'esito temporale.",
+
+  "_nota_E1": "L'unita' avversaria esiste per far partire la partita: senza una seconda squadra il match finirebbe prima che un turno si completi, e `TurnsCompleted: 1` non sarebbe soddisfatto. Sta a distanza 4 da X (6 da Y e S), non ha intent e non e' un bot, quindi non puo' intervenire — e l'`expect` che la tiene su [0,-4] lo rende una misura invece che una convinzione: se una spinta o un piano vagante la muovesse, si vedrebbe qui.",
 
   "cells": [
     { "cell": [1, 0, 0], "moveCost": 3 },
@@ -41,6 +44,7 @@
     { "type": "UnitAtCell", "unit": "X", "cell": [0, 0, 0] },
     { "type": "UnitAtCell", "unit": "Y", "cell": [1, 0, 0] },
     { "type": "UnitAtCell", "unit": "S", "cell": [-1, 2, 0] },
+    { "type": "UnitAtCell", "unit": "E1", "cell": [0, -4, 0] },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

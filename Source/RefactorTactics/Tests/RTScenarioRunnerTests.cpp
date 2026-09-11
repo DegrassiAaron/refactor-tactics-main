@@ -1859,7 +1859,6 @@ bool FRTScenarioResidueBetweenRunsTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 /**
  * 🔴 **Il banco a corridoio: il corpus esercita TERRENO COSTOSO** (`#2914`).
@@ -1895,14 +1894,21 @@ bool FRTScenarioCostlyCorridorTest::RunTest(const FString&)
 	FRTTestScenario Scenario;
 	if (!LoadShippedScenario(*this, TEXT("Movement.CostlyCorridor"), Scenario)) { return false; }
 
-	// Premessa del banco, misurata e non creduta: se lo scenario smettesse di dichiarare celle costose,
-	// girerebbe su pavimento liscio e non misurerebbe piu' niente — restando verde.
-	int32 CostlyCells = 0;
-	for (const FRTScenarioCell& Cell : Scenario.Cells)
+	// 🔑 **La premessa nomina LA cella che guida l'esito, non un conteggio** (`#2955`). `[1,0]` e' il costo
+	// che fa arrivare `Y` tardi: e' l'unica cella da cui dipende il discriminatore, e un conteggio generico
+	// (`>= 2`) resterebbe verde se qualcuno spostasse il costo altrove — o lo soddisfarebbe con la cella
+	// decorativa della corsia di `S`.
+	//
+	// ⚠️ **E se cade, il test SI FERMA.** Continuare produrrebbe una seconda ondata di rossi — lo scenario
+	// fallisce, l'esito non e' PASS, l'assertion su `X` non torna — e chi legge dovrebbe capire da solo quale
+	// e' la causa e quali le conseguenze. E' la forma che il resto di questo file usa gia'.
+	const FRTScenarioCell* Gate = Scenario.Cells.FindByPredicate(
+		[](const FRTScenarioCell& C) { return C.Cell == FRTCellId(1, 0, 0); });
+	if (!TestNotNull(TEXT("premessa: il banco dichiara la cella che fa tardare Y"), Gate)) { return false; }
+	if (!TestTrue(TEXT("premessa: e quella cella costa piu' di un micro-step"), Gate->MoveCost > 1))
 	{
-		if (Cell.MoveCost > 1) { ++CostlyCells; }
+		return false;
 	}
-	TestTrue(TEXT("premessa: il banco dichiara terreno costoso"), CostlyCells >= 2);
 
 	UWorld* World = MakeRunnerWorld();
 	if (!TestNotNull(TEXT("world"), World)) { return false; }
@@ -1915,22 +1921,67 @@ bool FRTScenarioCostlyCorridorTest::RunTest(const FString&)
 		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
 		return false;
 	}
+	// ⚠️ **`Blocked` ha un ramo suo, e non e' pedanteria** (`#2955`): li' `Assertions` e' VUOTO — la sessione
+	// salta il ciclo degli expect — quindi «nessuna assertion fallita: 0» passerebbe **a vuoto**, e il
+	// referto direbbe solo «atteso PASS, ottenuto BLOCKED» senza la ragione. E' la forma che
+	// `AnchorScenarioMustPass` usa in `RTScenarioCorpusTests.cpp`.
+	if (Result.Outcome == ERTTestOutcome::Blocked)
+	{
+		AddError(FString::Printf(TEXT("BLOCKED invece di PASS: %s"), *Result.BlockedReason));
+		return false;
+	}
 	TestEqual(TEXT("esito PASS"), Result.OutcomeString(), FString(TEXT("PASS")));
 	TestEqual(TEXT("nessuna assertion fallita"), Result.FailedCount(), 0);
 
-	// 🔴 **Il discriminatore.** `X` deve essere sulla cella contesa, e soprattutto NON su quella che il
-	// modello a un-arco-un-micro-step produrrebbe.
+	// 🔴 **Il discriminatore vive nell'`expect` del JSON, non qui, e questo blocco esiste per una cosa sola:
+	// accorgersi se qualcuno lo TOGLIE** (`#2955`).
+	//
+	// La prima stesura asseriva anche `Actual == (0,0)` e `Actual != (-1,0)`, e presentava la seconda come
+	// «anti-vacuita'». 🔴 **Era falso**: le due leggono la STESSA stringa, quindi la disuguaglianza e'
+	// implicata dall'uguaglianza e non puo' cadere da sola. Sotto mutazione infatti cadevano insieme,
+	// con `esito PASS` e `nessuna assertion fallita` — quattro rossi, non uno.
+	//
+	// Cio' che `FailedCount() == 0` gia' garantisce e' che `X` sia dove l'`expect` dice; cio' che NON
+	// garantisce e' che quell'`expect` esista ancora.
+	//
+	// ⚠️ **La descrizione porta un PREFISSO di ripetizione**, e il confronto deve saperlo (`#2955`): con
+	// `repeatCount` il runner aggrega le run e rinomina ogni assertion in `[run N] UnitAtCell(X)`
+	// (`RTScenarioRunner.cpp:299`). Un confronto esatto con `UnitAtCell(X)` non trova piu' niente — ed e'
+	// esattamente il rosso che questo test ha dato quando `repeatCount` e' entrato.
+	//
+	// ⛔ **E `Contains(TEXT("X"))` non e' l'alternativa**: sarebbe un confronto di UNA lettera, per giunta
+	// case-insensitive, che aggancerebbe in silenzio l'unita' sbagliata al primo `Ex`, `X2` o `EX1`. Il
+	// suffisso e' cio' che identifica l'unita', e il prefisso cio' che identifica la run.
 	const FRTAssertionResult* XCell = Result.Assertions.FindByPredicate(
 		[](const FRTAssertionResult& A)
 		{
-			return A.Kind == ERTAssertionKind::UnitAtCell && A.Description.Contains(TEXT("X"));
+			return A.Kind == ERTAssertionKind::UnitAtCell && A.Description.EndsWith(TEXT("UnitAtCell(X)"));
 		});
-	if (TestNotNull(TEXT("c'e' l'assertion su X"), XCell))
-	{
-		TestEqual(TEXT("X ha vinto la cella contesa arrivandoci prima"),
-			XCell->Actual, FRTCellId(0, 0, 0).ToString());
-		TestNotEqual(TEXT("⛔ e NON e' rimasta dove la contesa simultanea l'avrebbe fermata"),
-			XCell->Actual, FRTCellId(-1, 0, 0).ToString());
-	}
+	TestNotNull(TEXT("l'expect che porta il discriminatore e' ancora nel banco"), XCell);
+
+	// 🔑 **Il determinismo ha un oracolo, non una speranza** (`#2955`). `repeatCount` fa rieseguire lo
+	// scenario e confrontare le run fra loro, ma il **sommario non conta** quelle assertion — `PASS (5/5)`
+	// mostra i soli `expect` dichiarati, e lo stesso vale per `Spec.Harness.RepeatedRunsAgree`, che ne
+	// dichiara 4 e ne riporta 4 pur girando cinque volte. ∴ togliere `repeatCount` dal JSON non cambierebbe
+	// nulla di visibile: il banco resterebbe verde e smetterebbe in silenzio di misurare il determinismo.
+	//
+	// ⚠️ Questa e' la sola copertura di corpus sulle **durate variabili**, che cambiano il numero di
+	// micro-step per turno — cioe' proprio la superficie dove `FRTTurnLogEntry::MicroStepIndex` e
+	// `FRTReactionOpportunityKey` vivono.
+	const bool bHasHashComparison = Result.Assertions.ContainsByPredicate(
+		[](const FRTAssertionResult& A) { return A.Description.Contains(TEXT("SameStateHashAcrossRuns")); });
+	TestTrue(TEXT("le run ripetute si confrontano davvero sullo StateHash"), bHasHashComparison);
+
+	const bool bHasLogComparison = Result.Assertions.ContainsByPredicate(
+		[](const FRTAssertionResult& A) { return A.Description.Contains(TEXT("SameTurnLogAcrossRuns")); });
+	TestTrue(TEXT("e sul TurnLog"), bHasLogComparison);
 	return true;
 }
+
+// ⚠️ **L'`#endif` della guardia deve restare l'ULTIMA riga del file** (`#2955`).
+// Ci sono cascato due volte in due giorni: `#2940` ha aggiunto il blocco di `#2914` dopo l'`#endif` in
+// `RTHexSimTests.cpp`, e `#2955` ha ripetuto l'errore qui. In Editor e Development
+// `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
+// namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
+// non vede niente di tutto questo.
+#endif // WITH_DEV_AUTOMATION_TESTS
