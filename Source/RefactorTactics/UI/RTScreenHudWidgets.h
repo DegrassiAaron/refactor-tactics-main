@@ -7,6 +7,7 @@
 #include "Turn/RTReactionWindowView.h" // idem per FRTReactionWindowView, reso per valore da `URTFastDecisionWidget`
 #include "RTScreenHudWidgets.generated.h"
 
+class ARTPlayerController;
 class ARTTurnManager;
 class ARTUnit;
 class URTIconCatalogData;
@@ -438,6 +439,58 @@ public:
 		const URTIconCatalogData* InCatalog = nullptr);
 
 	/**
+	 * 🔴 **Il click: inoltra ad `ARTPlayerController::ArmKitAbility` il PROPRIO indice di kit, e nient'altro**
+	 * (`#2826`).
+	 *
+	 * 🔑 **Esiste perche' lo slot non aveva nessuna porta in USCITA.** `SetAction` e' entrante,
+	 * `GetResolvedIcon`, `GetIconId` e `GetActionLine` sono pure: il dock mostrava l'azione e il click non
+	 * aveva dove andare. Il contrasto si misura — `ArmKitAbility` e' `BlueprintCallable`, ed e' testata da
+	 * `PlayerInput.TheDockPortArmsAndDisarms`, ma `git grep -l ArmKitAbility -- Content/` non trovava
+	 * **nessun** chiamante: la porta c'era e nessuno ci bussava.
+	 *
+	 * ⛔ **Nessuna formula, nessun controllo di disponibilita', nessun reason code qui dentro.** Cooldown,
+	 * slot reazione, self-target e input bloccato li decide `SelectAbilityForCurrent`, che e' anche il corpo
+	 * che i dieci tasti numerici attraversano: **la stessa porta del tasto, non una seconda**. Un controllo
+	 * scritto qui sarebbe un secondo giudice con la propria copia delle regole, e divergerebbe al primo
+	 * cambio — il difetto che `#2826` nomina per il proprio percorso di armamento.
+	 *
+	 * ⚠️ **E il grafo non deve comporre la chiamata da se'.** Un `Get Player Controller` + `Cast` dentro
+	 * `WBP_RT_ActionSlot` metterebbe la risoluzione del proprietario in chi disegna, e sei slot potrebbero
+	 * risolverne sei diversi. Il `.uasset` chiama **questa**, e basta.
+	 *
+	 * ⛔ **Fail-closed su uno slot MAI assegnato**, ed e' la stessa guardia che `URTFastDecisionOptionWidget::Choose()`
+	 * ha sul proprio proprietario. `Action.AbilityIndex` vale `INDEX_NONE` finche' `SetAction` non passa una
+	 * posizione, e `ArmKitAbility(INDEX_NONE)` **DISARMA**: senza la guardia un riquadro rimasto vuoto — o
+	 * sopravvissuto alla ricostruzione della lista — spegnerebbe l'azione armata da un altro.
+	 *
+	 * ⚠️ **Non e' un controllo di disponibilita', e la differenza e' misurabile**: una posizione di kit
+	 * **vuota** porta comunque il proprio indice — `Cooldowns[i].AbilityIndex == i` vale per costruzione
+	 * (`#2987`) — quindi passa di qui e a rifiutarla e' il core.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void Activate();
+
+	/**
+	 * Inietta il controller a cui `Activate()` inoltra, senza passare da un `ULocalPlayer`. E' il modo in cui
+	 * i test guidano questo widget, ed e' la stessa forma delle tre iniezioni di `URTScreenHudWidgetBase`.
+	 *
+	 * 🔴 **Senza, `Activate()` non sarebbe verificabile affatto in headless — e il difetto si presenterebbe
+	 * come un VERDE.** `UUserWidget::SetOwningPlayer` memorizza il **`ULocalPlayer`**, che una run headless
+	 * non ha: `GetOwningPlayer()` resta nullo anche dopo aver spawnato un `ARTPlayerController` e avergli
+	 * selezionato un'unita'. Un test scritto senza questa porta misurerebbe il ramo «nessun proprietario»
+	 * credendo di misurare il click. Il prezzo e' gia' stato pagato una volta su questa stessa famiglia di
+	 * widget, e lo racconta `SetSelectedUnitForTest`: *«il Blueprint passava `false` fisso, e
+	 * `ActionDockShowsTheNeutralState` era verde»*.
+	 *
+	 * In gioco resta nulla e la verita' e' `GetOwningPlayer()`. **Non** e' esposta ai Blueprint: sarebbe un
+	 * secondo canale per decidere a chi arriva il click.
+	 *
+	 * ⚠️ Definita nel `.cpp` come le sorelle: `ARTPlayerController` e' solo forward-declared qui, e
+	 * `TWeakObjectPtr::operator=` vuole il tipo completo.
+	 */
+	void SetArmingControllerForTest(ARTPlayerController* InController);
+
+	/**
 	 * L'icona di questa azione, risolta dal catalogo — o il missing-icon.
 	 *
 	 * 🔴 **Esiste perche' il Blueprint non deve comporre la chiamata da solo.** `ResolveIcon` vuole tre
@@ -466,6 +519,21 @@ public:
 	 * preferita e ripiego, e da un binding quell'attraversamento andava a ogni frame per ogni slot.
 	 */
 	FRTIconResolution CachedResolvedIcon;
+
+	/**
+	 * Vedi `SetArmingControllerForTest`. **Nullo in gioco**: il proprietario vero resta `GetOwningPlayer()`,
+	 * e questo campo esiste solo perche' in headless quello non c'e'.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ARTPlayerController> ArmingControllerForTest;
+
+	/**
+	 * Il controller a cui inoltrare: l'iniezione dei test PRIMA, il proprietario poi.
+	 *
+	 * ⚠️ **L'ordine e' lo stesso di `URTScreenHudWidgetBase::GetSelectedUnit()`, e per la stessa ragione
+	 * misurata**: in gioco l'iniezione e' sempre nulla, quindi anteporla non puo' scavalcare niente.
+	 */
+	ARTPlayerController* ResolveArmingController() const;
 	public:
 
 	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
