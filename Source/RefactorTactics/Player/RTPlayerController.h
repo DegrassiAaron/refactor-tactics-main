@@ -313,6 +313,25 @@ protected:
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
 
+	/**
+	 * L'unita' ISPEZIONATA: quella che si sta guardando, non quella che si comanda.
+	 *
+	 * 🔴 **E' un campo separato da `SelectedActor`, e la ragione e' una misura.** Da `SelectedActor` passa
+	 * `URTScreenHudWidgetBase::GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e
+	 * `BuildAbilityCooldowns`, cioe' l'Action Dock. Scriverci un'avversaria mostrerebbe al giocatore il suo
+	 * **piano** e il suo **kit con i cooldown**: due canali della stessa fuga, e il secondo non era nemmeno
+	 * previsto dal contratto finche' non e' stato misurato in `RTScreenHudWidgets.cpp`.
+	 *
+	 * ⚠️ **Convive con la selezione, non la sostituisce** (decisione del 2026-09-11): ispezionare un nemico
+	 * non fa perdere l'unita' comandata ne' l'azione armata. E persiste finche' non se ne ispeziona un'altra.
+	 *
+	 * ⛔ **Chi lo legge deve sopprimere cio' che non gli spetta.** Questo campo dice *quale* unita' si sta
+	 * guardando, non *quanto* se ne puo' mostrare: il filtro e' di chi disegna, e per il pannello e' `#613`,
+	 * con la regola di `#2757` — carta si', slot mai, **e nemmeno vuoti**.
+	 */
+	UPROPERTY()
+	TObjectPtr<class ARTUnit> InspectedUnit;
+
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
 	void OnRotate(const FInputActionValue& Value);
@@ -726,6 +745,18 @@ public:
 	class ARTUnit* GetSelectedUnit() const;
 
 	/**
+	 * L'unita' che si sta **guardando**, che puo' non essere quella che si comanda.
+	 *
+	 * ⚠️ **Torna l'unita', non una vista sanificata**, ed e' deliberato: sanificare qui significherebbe
+	 * decidere in due posti quanto si puo' mostrare di un'avversaria. Il filtro appartiene a chi disegna —
+	 * `#613` per il pannello, con la regola di `#2757`: carta si', slot mai, **e nemmeno vuoti**.
+	 * ⛔ Chi la consuma non puo' leggerne il piano ne' il kit solo perche' il puntatore ne restituisce il
+	 * puntatore: quella e' la fuga che il campo separato esiste per non aprire.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	class ARTUnit* GetInspectedUnit() const { return InspectedUnit; }
+
+	/**
 	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.
 	 *
 	 * Separata dal raycast (`OnSelect` fa solo punto-mondo -> cella) perche' la decisione e' verificabile
@@ -757,6 +788,24 @@ public:
 
 	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
+
+	/**
+	 * §5 — **applica la riga di matrice** a un click su un'unita': chiede l'esito a
+	 * `URTPointerLibrary::ResolveOutcome` e fa cio' che quell'esito comporta.
+	 *
+	 * ⚠️ **Separata da `OnSelect` perche' la decisione sia misurabile senza un raycast.** Stessa disciplina
+	 * di `HandleClickOnUnitForTest`: cio' che va verificato e' la decisione, non il trace che la precede.
+	 *
+	 * @return vero se il click e' stato consumato — `Inspect` o `Confirm`. Falso per `Select`, `NoOp` e
+	 *         `Blocked`: quei percorsi restano dove erano, e chi chiama prosegue.
+	 */
+	bool DispatchUnitClick(class ARTUnit* ClickedUnit, class ARTUnit* SelectedUnit);
+
+	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
+	bool DispatchUnitClickForTest(class ARTUnit* ClickedUnit, class ARTUnit* SelectedUnit)
+	{
+		return DispatchUnitClick(ClickedUnit, SelectedUnit);
+	}
 
 	/**
 	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).

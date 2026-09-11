@@ -67,6 +67,26 @@ N PNG rasterizzati
 > non è stato misurato qui — se manca la libreria, quella riga non compare e i gate `T1/T3` si dichiarano
 > «non misurabili» invece di tacere.
 
+> 🔴 **Fino al 2026-09-11 quelle righe non comparivano affatto su console Windows, e questo blocco
+> chiedeva di leggere qualcosa di irraggiungibile** ([#3002](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3002)).
+> `sys.stdout.encoding` vale `cp1252` e ogni riga di verdetto porta un simbolo che quella codifica non
+> ha: il generatore moriva di `UnicodeEncodeError` **dopo** aver scritto tutti i PNG. Gli asset erano
+> corretti, spariva solo ciò che dice com'è andata — compreso il `⛔` del paragrafo qui sotto, quello su
+> cui questo runbook ti dice di fermarti. Ora il verdetto esce sempre: i simboli veri dove il terminale
+> li accetta, sostituiti dove no.
+
+**Se lo lanci da uno script, leggi l'exit code invece dell'output:**
+
+| exit | significato |
+|---|---|
+| `0` | tutto a posto |
+| `1` | chiavi richieste senza icona — il caso in cui questo runbook dice di fermarsi |
+| `2` | gate dell'alfabeto caduti |
+
+> ⚠️ **Non metterlo in pipe se poi leggi `$?`.** `python … | tail` restituisce l'exit code di `tail`,
+> che è `0` quasi sempre: il fallimento scorre via e il comando sembra riuscito. Quando ti serve sia
+> l'output sia l'esito, passa da un file — `python … > gen.log 2>&1; echo $?`.
+
 **Se leggi `⛔ N chiavi richieste SENZA icona`, fermati qui.** Significa che il gioco ha guadagnato una
 chiave da quando il generatore è stato scritto — una azione nuova a catalogo, un tag `Status.` nuovo, un
 eroe in più. Il generatore stampa quali: vanno disegnate prima, non aggirate. Un catalogo con una chiave
