@@ -606,6 +606,36 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 				CampoDichiarato->Identical_InContainer(&Minore, &Maggiore));
 		}
 
+		// 🔴 **E deve muovere SOLO quello.** L'assertion qui sopra chiede che il campo dichiarato si muova;
+		// da sola non esclude che la lambda ne muova un SECONDO — ed e' il secondo a poter ribaltare il
+		// verdetto. Cosi' il buco di #3004 restava aperto da una porta piu' larga (#3031): la scorciatoia
+		// che quel commento vieta a parole non e' solo «duplicare una riga e cambiarne il nome», e'
+		// duplicarla cambiandone il nome **e muovendo anche il campo nuovo**:
+		//
+		//     { TEXT("CampoNuovo"), [](FRTActionInstance& I, bool bHigh) {
+		//           I.CampoNuovo   = bHigh ? 1 : 0;   // dichiarato, e mosso -> l'assertion sopra passa
+		//           I.SourceUnitId = bHigh ? 9 : 1;   // ed e' QUESTO a ribaltare il verdetto
+		//       } },
+		//
+		// Con quella riga la parte 1 (`CampiConfrontati()` contiene `CampoNuovo`), la parte 2 e
+		// `Actions.KeyPrecedenceIsPinned` restano TUTTE verdi, mentre `InstanceLess` non guarda mai
+		// `CampoNuovo`: due istanze che differiscono solo per esso tornano a pari merito, e a decidere torna
+		// `TArray::Sort` — che inoltra ad `Algo::Sort`, introsort e non stabile. Isolando la perturbazione il
+		// verdetto e' attribuibile alla SOLA chiave, e l'unico modo di tornare verdi e' insegnare il campo a
+		// `InstanceLess` — che e' cio' che il gate esiste per ottenere.
+		//
+		// ⚠️ **Le tre chiavi che dichiarano `Def` passano per costruzione**: muovono un SOTTOcampo, quindi
+		// `Def` resta la sola proprieta' di primo livello che differisce. Il gate lavora sulle proprieta' di
+		// `FRTActionInstance`, non sui sottocampi — che e' anche il limite pinnato dalla parte 3.
+		for (TFieldIterator<FProperty> AltroIt(Struct); AltroIt; ++AltroIt)
+		{
+			if (AltroIt->GetName() == Chiavi[k].CampoUProperty) { continue; }
+			TestTrue(*FString::Printf(
+				TEXT("chiave %d: la perturbazione NON muove '%s', che non dichiara"),
+				k, *AltroIt->GetName()),
+				AltroIt->Identical_InContainer(&Minore, &Maggiore));
+		}
+
 		TestTrue(*FString::Printf(TEXT("chiave %d: il lato minore precede"), k),
 			URTActionQueueLibrary::InstanceLess(Minore, Maggiore));
 
