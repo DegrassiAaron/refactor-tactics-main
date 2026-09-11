@@ -668,4 +668,91 @@ bool FRTHeroUnitClassesPartialTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroMeshYawOffsetIsPinnedTest,
+	"RefactorTactics.Heroes.MeshYawOffsetIsPinnedPerHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroMeshYawOffsetIsPinnedTest::RunTest(const FString&)
+{
+	const ARTGameMode* Cdo = GetDefault<ARTGameMode>();
+	if (!TestNotNull(TEXT("CDO del GameMode"), Cdo)) { return false; }
+
+	// I quattro valori misurati sul CDO il 2026-09-10 (`origin/main` = `6c695731`). Le skeletal di
+	// personaggio si modellano lungo +Y e il forward di un attore e' +X: `ACharacter` compensa i 90 gradi
+	// nel costruttore, `ARTUnit` deriva da `AActor` e non li ha mai avuti — da cui il `-90`.
+	//
+	// 🔴 **`Hero.Muiren` e' atteso `-90` come gli altri, e `#1793` dice che per lui e' SBAGLIATO.** La sua
+	// mesh e' `Phase_GDC`, l'unica del set che non segue la convenzione. Questa riga fotografa lo stato
+	// **prima** della calibrazione: quando quel Blueprint ricevera' il suo valore, questo test diventa
+	// ROSSO, e il rosso e' il punto — dice che l'asset e' cambiato davvero, invece di lasciare passare in
+	// silenzio una modifica a un binario che nessun diff sa leggere.
+	//
+	// 🔤 **I quattro nomi sono quelli del roster corrente**, e non era cosi' quando il test e' stato
+	// scritto: due delle identita' che attendeva sono state rinominate su `main` mentre il branch era
+	// fermo. ⛔ Portarlo invariato avrebbe rotto DUE test: questo, che avrebbe cercato chiavi inesistenti,
+	// e `RTLegacyIdentityRatchetTests.cpp`, che tiene un **tetto di file** per ogni identita' ritirata —
+	// due di quei tetti valgono `1` ed erano gia' consumati, quindi anche solo NOMINARLE qui in un
+	// commento li sfonderebbe. ⚠️ Per questo il commento non le nomina: la tabella dei rename sta in quel
+	// file, ed e' li' che si guarda quando una di queste righe smette di risolvere — un `Hero.*` che non
+	// esiste piu' fa fallire questo test per una ragione che non e' la sua.
+	const TMap<FName, float> Attesi = {
+		{ FName(TEXT("Hero.Aevik")),  -90.f },
+		{ FName(TEXT("Hero.Muiren")), -90.f },
+		{ FName(TEXT("Hero.Branth")), -90.f },
+		{ FName(TEXT("Hero.Ivrin")),  -90.f },
+	};
+
+	// ⛔ L'anti-vacuita': se la mappa e' vuota o piu' corta, il ciclo sotto non asserisce niente.
+	if (!TestEqual(TEXT("il roster risolve quattro classi"), Cdo->HeroUnitClasses.Num(), Attesi.Num()))
+	{
+		return false;
+	}
+
+	for (const TPair<FName, float>& Atteso : Attesi)
+	{
+		const TSubclassOf<ARTUnit>* Trovata = Cdo->HeroUnitClasses.Find(Atteso.Key);
+		if (!TestNotNull(*FString::Printf(TEXT("voce per %s"), *Atteso.Key.ToString()), (const void*)Trovata))
+		{
+			continue;
+		}
+
+		UClass* Classe = Trovata->Get();
+		if (!TestNotNull(*FString::Printf(TEXT("classe risolta per %s"), *Atteso.Key.ToString()), Classe))
+		{
+			continue;
+		}
+
+		// Il CDO della classe Blueprint: e' il valore che l'unita' avra' allo spawn, ed e' cio' che
+		// `#1793` chiede di LEGGERE invece di dedurre dalla name table del `.uasset`.
+		const ARTUnit* UnitCdo = Cast<ARTUnit>(Classe->GetDefaultObject());
+		if (!TestNotNull(*FString::Printf(TEXT("CDO di %s"), *Atteso.Key.ToString()), UnitCdo))
+		{
+			continue;
+		}
+
+		// 🔑 **CONTROLLO POSITIVO, e senza di esso questo test sarebbe una decorazione.** La vacuita' da
+		// escludere e' specifica: se `GetDefaultObject()` restituisse il CDO **nativo** invece di quello
+		// della classe Blueprint, l'asserto qui sotto leggerebbe sempre il default C++ (`-90`) e passerebbe
+		// **qualunque cosa dica il `.uasset`** — cioe' tacerebbe esattamente il giorno in cui deve parlare,
+		// quando `BP_Unit_Phase` ricevera' il suo valore.
+		//
+		// `VisualZOffset` separa i due casi: il C++ lo mette a `UnitHalfHeight`, i quattro Blueprint lo
+		// SOVRASCRIVONO (misurato sulla name table: compare in tutti e quattro). Se il valore letto qui
+		// coincidesse col nativo, staremmo leggendo la classe sbagliata.
+		const ARTUnit* NativeCdo = GetDefault<ARTUnit>();
+		if (NativeCdo)
+		{
+			TestFalse(
+				*FString::Printf(TEXT("%s: leggo il CDO del Blueprint, non quello nativo "
+					"(VisualZOffset %.1f contro il nativo %.1f)"),
+					*Atteso.Key.ToString(), UnitCdo->VisualZOffset, NativeCdo->VisualZOffset),
+				FMath::IsNearlyEqual(UnitCdo->VisualZOffset, NativeCdo->VisualZOffset));
+		}
+
+		TestEqual(*FString::Printf(TEXT("%s: MeshYawOffset"), *Atteso.Key.ToString()),
+			UnitCdo->MeshYawOffset, Atteso.Value);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

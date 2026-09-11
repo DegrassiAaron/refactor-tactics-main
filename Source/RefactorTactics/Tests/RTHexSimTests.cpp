@@ -2111,7 +2111,6 @@ bool FRTMovementPlannedLengthIsOrderIndependentTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 // ---------------------------------------------------------------------------------------------------------
 // #2914 — la durata del passo e' un dato, e chi attraversa resta sull'origine
@@ -2619,3 +2618,11 @@ bool FRTMovementSlideCellsDoNotPayTerrainDurationTest::RunTest(const FString&)
 		Legacy.Num() == 2 ? Legacy[1] : -1, 3);
 	return true;
 }
+
+// ⚠️ **L'`#endif` della guardia deve restare l'ULTIMA riga del file** (`#2955`).
+// Ci sono cascato due volte in due giorni: `#2940` ha aggiunto il blocco di `#2914` dopo l'`#endif` in
+// `RTHexSimTests.cpp`, e `#2955` ha ripetuto l'errore qui. In Editor e Development
+// `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
+// namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
+// non vede niente di tutto questo.
+#endif // WITH_DEV_AUTOMATION_TESTS
