@@ -24,8 +24,10 @@
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "UI/RTHudZoneWidget.h"
 #include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
 #include "Tests/RTWidgetAssetTestHelpers.h"
+#include "Algo/Accumulate.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1039,6 +1041,92 @@ bool FRTNoNodeWearsAWidgetNameTest::RunTest(const FString&)
 	// ⚠️ L'anti-vacuita' guarda i NODI, non i nomi: un albero vuoto e' il caso da escludere, un albero con
 	// altre convenzioni di nome no. Zero nodi col prefisso e' un esito legittimo, e il report lo dice.
 	TestTrue(*FString::Printf(TEXT("l'albero contiene dei nodi da esaminare (ne ha %d)"), Nodi), Nodi > 0);
+
+	return true;
+}
+
+// =====================================================================================================
+// Le otto zone: ci sono tutte, una volta ciascuna
+// =====================================================================================================
+//
+// 🔴 **E' la domanda che prima di `URTHudZoneWidget` nessuno poteva porre**, e la ragione per cui quella
+// classe esiste. Una zona era un `UCanvasPanelSlot` con un nome scelto nel Designer: indistinguibile, per
+// un test, da qualunque altro nodo. E' anche la domanda che `cc5ca967` ha eluso — un salvataggio che ha
+// riportato l'albero allo stato precedente al fix di `#2760`, con la suite verde perche' nessun gate
+// guardava.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTheEightZonesAreDeclaredExactlyOnceTest,
+	"RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTheEightZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	// Quante istanze per ogni valore dell'enum. Zero e due sono due difetti diversi, e il report li deve
+	// distinguere: «manca» si corregge aggiungendo, «doppia» si corregge cambiando un `ZoneId`.
+	TArray<int32> Conteggio;
+	Conteggio.Init(0, static_cast<int32>(ERTHudZone::Count));
+
+	int32 FuoriEnum = 0;
+
+	Tree->ForEachWidget([&Conteggio, &FuoriEnum, this](UWidget* Widget)
+	{
+		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
+		if (!Zona)
+		{
+			return;
+		}
+
+		const int32 Indice = static_cast<int32>(Zona->ZoneId);
+		if (Conteggio.IsValidIndex(Indice))
+		{
+			++Conteggio[Indice];
+			AddInfo(FString::Printf(TEXT("  %-24s ZoneId=%s"),
+				*Widget->GetName(), *URTHudZoneWidget::ZoneName(Zona->ZoneId)));
+		}
+		else
+		{
+			++FuoriEnum;
+			AddError(FString::Printf(
+				TEXT("la zona `%s` porta un `ZoneId` che non e' una zona (indice %d). ")
+				TEXT("`ERTHudZone::Count` e' una sentinella per il conteggio, non un valore assegnabile."),
+				*Widget->GetName(), Indice));
+		}
+	});
+
+	for (int32 I = 0; I < Conteggio.Num(); ++I)
+	{
+		const FString Nome = URTHudZoneWidget::ZoneName(static_cast<ERTHudZone>(I));
+
+		if (Conteggio[I] == 0)
+		{
+			AddError(FString::Printf(
+				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le otto zone sono la griglia ")
+				TEXT("3x3 meno il centro (`guida-screen-hud-umg.md` §3): una che manca e' un buco nel ")
+				TEXT("layout, non uno spazio libero."), *Nome));
+		}
+		else if (Conteggio[I] > 1)
+		{
+			AddError(FString::Printf(
+				TEXT("`WBP_RT_TacticalHUD` dichiara %d zone `%s`. Due istanze con lo stesso `ZoneId` si ")
+				TEXT("sovrappongono a schermo, e il blockout smette di dire quale riquadro si guarda."),
+				Conteggio[I], *Nome));
+		}
+	}
+
+	// 🔴 **Senza questa riga il test sarebbe verde su un albero SENZA zone** — cioe' misurando zero, il modo
+	// in cui un gate diventa decorativo. Questo file lo ha gia' imparato una volta, in
+	// `PanelsLeaveTheCenterFree`.
+	const int32 Totale = Algo::Accumulate(Conteggio, 0) + FuoriEnum;
+	TestTrue(
+		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Totale),
+		Totale > 0);
 
 	return true;
 }
