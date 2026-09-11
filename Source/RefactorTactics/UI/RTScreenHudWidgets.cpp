@@ -1,4 +1,4 @@
-#include "UI/RTScreenHudWidgets.h"
+﻿#include "UI/RTScreenHudWidgets.h"
 
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
@@ -363,15 +363,44 @@ FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
 
 FName URTActionSlotWidget::GetIconId() const
 {
-	// `Action.ActionId` e' il percorso semantico che il gioco usa gia': `MakeIconId` ne fa la chiave. Un'azione
-	// senza `ActionId` — quelle create in codice prima del motore azioni — non ha icona, e restituire `None`
-	// e' meglio di comporre `UI.Icon.` a vuoto: la risoluzione direbbe «chiave sconosciuta» nominando una
-	// chiave che nessuno ha mai dichiarato.
+	// Un'azione senza `ActionId` — quelle create in codice prima del motore azioni — non ha icona, e
+	// restituire `None` e' meglio di comporre `UI.Icon.` a vuoto: la risoluzione direbbe «chiave sconosciuta»
+	// nominando una chiave che nessuno ha mai dichiarato.
 	if (Action.ActionId.IsNone())
 	{
 		return NAME_None;
 	}
-	return URTIconLibrary::MakeIconId(Action.ActionId);
+
+	// 🔑 **Le due chiavi arrivano dalla VISTA, non si compongono qui.** E' la disciplina gia' dichiarata per
+	// i badge di stato (`RTHudViewModel.h`): *«porta l'`IconId` e non lascia che sia chi disegna a comporlo»*,
+	// perche' comporla nel widget sarebbe una seconda verita' sulla stessa regola. Qui lo slot **sceglie**
+	// fra due chiavi gia' derivate, e la derivazione resta in `URTIconLibrary`.
+	// ⚠️ **La vista puo' non portarla**: una `FRTAbilityCooldownView` costruita fuori da
+	// `BuildAbilityCooldowns` — un test, un grafo — avrebbe `IconId` vuoto, e leggere solo quel campo
+	// toglierebbe l'icona a chiunque non passi dal costruttore canonico. La chiave PREFERITA dipende dal solo
+	// `ActionId`, quindi si ricava lo stesso; e' il RIPIEGO che richiede il `Def`, e quello resta nella vista.
+	const FName Preferred = Action.IconId.IsNone()
+		? URTIconLibrary::MakeActionIconId(Action.ActionId)
+		: Action.IconId;
+	if (Preferred.IsNone())
+	{
+		return NAME_None;
+	}
+
+	// ── Ripiego, finche' l'asset proprio non e' disegnato: l'icona della core da cui l'azione deriva.
+	//
+	// ⚠️ **Si CHIEDE al catalogo con una query pura, e non si prova `ResolveIcon`**: quella logga, e provarla
+	// emetterebbe una warning ogni volta che il ripiego funziona — rumore al posto della diagnostica.
+	// ⛔ **`ReceivedCatalog` assente non e' «nessuna icona»**: e' un widget nato prima del catalogo, e allora
+	// si torna la preferita — sara' `ResolveIcon` a dire che non c'e' nulla da risolvere, nominando il consumer.
+	if (ReceivedCatalog != nullptr
+		&& !URTIconLibrary::CatalogHasIcon(ReceivedCatalog, Preferred)
+		&& !Action.FallbackIconId.IsNone())
+	{
+		return Action.FallbackIconId;
+	}
+
+	return Preferred;
 }
 
 // =====================================================================================================
