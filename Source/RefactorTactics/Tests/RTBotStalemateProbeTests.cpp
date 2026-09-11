@@ -937,44 +937,6 @@ bool FRTBotStalemateContendersTest::RunTest(const FString&)
 }
 
 /**
- * LO STROZZO IN USCITA, e perche' il banco se lo costruisce invece di ereditarlo — `#2951`.
- *
- * 🔑 **Una collisione di ROTTA nasce solo da un collo di bottiglia.** La struct lo dichiara: la
- * cella contesa e' *«il PRIMO PASSO che non e' stato fatto, non la destinazione»*. Perche' due compagne
- * se ne contendano uno andando in posti diversi, devono essere costrette nello stesso varco.
- *
- * 🔴 **`MakeTestArena` non ne ha uno**, ed e' il motivo per cui la guardia di non-vacuita' era
- * decorativa. E' un esagono pieno di raggio 4 con ostacoli SPARSI e un muro a `q=0` che blocca la sola
- * VISTA: attorno a ogni ostacolo si gira. Misurato su `origin/main`: dopo la prenotazione le contese
- * FRA COMPAGNI sono **zero di ogni specie**, e la guardia sopravviveva su una collisione fra AVVERSARI.
- *
- * ⛔ **Non si tocca `MakeTestArena`**: la usano dieci file di test, fra cui i tre gate anti-stallo che
- * devono restare verdi. Il varco si aggiunge QUI, sulla copia che questo banco possiede.
- *
- * ⚠️ **Lo strozzo sta sul lato di squadra 0, non a meta' campo.** Un varco unico su `q=0` imbucherebbe
- * anche gli avversari e produrrebbe contese fra squadre diverse — la categoria che questo banco esiste
- * per NON misurare. Chiudendo `q=-1` tranne una cella, a strozzarsi sono le due compagne che partono
- * nel fango a `q=-2`.
- */
-static void RTChokeTeamZeroExit(URTHexMapAsset* Arena)
-{
-	// La colonna `q=-1` e' il primo passo verso est per chi parte a `q=-2`: si chiude tutta tranne
-	// `r=0`, che diventa il varco unico.
-	for (int32 R = -3; R <= 4; ++R)
-	{
-		if (R == 0) { continue; } // il varco
-		const FRTCellId Id(-1, R, 0);
-		if (const FRTHexCellData* Existing = Arena->FindCell(Id))
-		{
-			FRTHexCellData Cell = *Existing;
-			Cell.bBlocksMovement = true;
-			Arena->AddOrUpdateCell(Cell);
-		}
-	}
-	Arena->SortCells();
-}
-
-/**
  * La correzione, misurata sullo STESSO ciclo che ha prodotto il difetto.
  *
  * Cambia una cosa sola rispetto al test qui sopra: le unita' pianificano su uno snapshot PER SQUADRA e
@@ -990,7 +952,6 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
 	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
-	RTChokeTeamZeroExit(Arena); // `#2951`: senza varco unico non esiste una collisione di rotta fra compagni
 
 	// ⚠️ **Il controllo di non-vacuita', e qui e' l'intero test.** Se lo stallo non si formasse piu' da solo
 	// — per un cambio all'utility, all'arena o al catalogo — allora «con la prenotazione non ci sono contese»
