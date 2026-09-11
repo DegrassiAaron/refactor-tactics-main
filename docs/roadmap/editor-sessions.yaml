@@ -2876,6 +2876,13 @@ sessions:
       - PIE-VELO-VIEWER
       - PIE-V01-POINTER
       - PIE-V01-DOCKPROMPT
+      # `DOCKKEYS` dichiarava «Seduta U43» nella propria cella del registro dal 2026-09-11 e non era mai
+      # entrata qui: `8f2c6aa5` ha scritto la riga e non l'elenco. Una voce che nessuna seduta convoca
+      # resta un ⏳ che nessuno esegue — il difetto misurato da #2188 e #2240.
+      - PIE-V01-DOCKKEYS
+      # `DOCKCLICK` nasce con il cablaggio del bottone (#2826): condivide l'allestimento delle due sorelle,
+      # e il click e il tasto vanno provati nella STESSA seduta — l'oracolo è che armino la stessa voce.
+      - PIE-V01-DOCKCLICK
     issues: [151, 2826]
     done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
@@ -2904,15 +2911,28 @@ sessions:
       Il giro: `Scenario To Run = Visual.Perception.Acceptance`, `Scenario Turn Pause Seconds` alto
       abbastanza da vedere i tre turni separati, Play. Le cinque `PIE-KNOW*` e `PIE-VELO-VIEWER` si
       giudicano lì dentro, nell'ordine in cui i `_turno` del file le nomina. Poi
-      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER` **e `PIE-V01-DOCKPROMPT`**, nello
-      stesso processo.
+      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER`, `PIE-V01-DOCKPROMPT`,
+      `PIE-V01-DOCKKEYS` **e `PIE-V01-DOCKCLICK`**, nello stesso processo.
 
-      🔑 **Le due voci del `FirstPlayable` si giudicano nello stesso giro e non si confondono**: `POINTER`
-      guarda **cosa fa il click**, `DOCKPROMPT` guarda **cosa il dock dichiara di aspettare prima** che il
-      click arrivi. Il percorso a tappe di `POINTER` qui sotto le attraversa entrambe — a ogni tappa in cui
-      il puntatore cambia contesto, il prompt del dock deve dire un'altra cosa. ⚠️ **Se il prompt resta
-      identico fra un'azione armata su unità e una su cella, `DOCKPROMPT` è rossa anche con `POINTER`
-      verde**: sono due oracoli sullo stesso gesto, e il secondo non è implicato dal primo.
+      🔑 **Le voci del `FirstPlayable` si giudicano nello stesso giro e non si confondono**, e guardano
+      quattro cose diverse sullo stesso dock: `POINTER` **cosa fa il click** sulla mappa, `DOCKPROMPT`
+      **cosa il dock dichiara di aspettare prima** che il click arrivi, `DOCKKEYS` **quale tasto ogni
+      riquadro dice di avere**, `DOCKCLICK` **se il riquadro stesso si può cliccare**. Il percorso a tappe
+      di `POINTER` qui sotto le attraversa tutte — a ogni tappa in cui il puntatore cambia contesto, il
+      prompt del dock deve dire un'altra cosa. ⚠️ **Se il prompt resta identico fra un'azione armata su
+      unità e una su cella, `DOCKPROMPT` è rossa anche con `POINTER` verde**: sono oracoli sullo stesso
+      gesto, e nessuno è implicato dall'altro.
+
+      🔴 **`DOCKKEYS` e `DOCKCLICK` vanno provate INSIEME, ed è il motivo per cui condividono la seduta**:
+      il tasto e il click devono armare la **stessa** voce, e due passate separate darebbero due verdi che
+      non dicono se i due canali coincidono. Su ogni riquadro: premere il tasto che mostra, annotare
+      cosa si arma, tornare al neutro, cliccarlo, e confrontare. ⚠️ **Un riquadro dove i due divergono è
+      rosso per entrambe**, e non è un difetto teorico: è quello che la lista del dock rendeva possibile
+      quando la vista rinumerava le posizioni e il tasto no (`#2987`).
+
+      ⏱️ **Niente conteggio in prosa, per la stessa ragione già scritta qui sopra**: la riga diceva «le due
+      voci del `FirstPlayable`» e con `DOCKKEYS` e `DOCKCLICK` sarebbe diventata falsa in silenzio. I nomi
+      sono sopra; chi vuole il numero conta `verifies`.
 
       ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
       benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
