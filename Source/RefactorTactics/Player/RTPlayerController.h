@@ -532,8 +532,8 @@ public:
 	static const TArray<FKey>& AbilityHotkeys();
 
 	/**
-	 * L'ETICHETTA del tasto che arma la posizione `KitIndex`, o testo **vuoto** se nessun tasto la raggiunge
-	 * (`#2987`).
+	 * L'ETICHETTA del tasto che arma questa voce di kit, o testo **vuoto** se nessun tasto la raggiunge
+	 * (`#2987`, estesa da [D-397] §4).
 	 *
 	 * 🔴 **Esiste perche' quell'etichetta veniva CALCOLATA invece che letta, e per l'ultima posizione era
 	 * falsa.** `ARTHUD::ComposeAbilityLine` scriveva `AbilityIndex + 1`, quindi per la posizione `9` — che
@@ -546,15 +546,17 @@ public:
 	 * posizione non ha un tasto, e mostrare `11.` la annuncerebbe come premibile — la forma scritta del
 	 * *«verde che mente»* che quel commento gia' nomina.
 	 *
-	 * ⛔ **Non nomina il tasto GENERICO di un'azione universale.** `Action.Wait` si arma anche con `Z`, e
-	 * se questa funzione scegliesse fra i due binding deciderebbe una cosa che nessuna fonte del progetto
-	 * ha ancora deciso (`#2990`, domanda 4). Qui si risponde alla sola domanda che la tabella puo'
-	 * rispondere: **quale tasto numerico arma questa posizione**.
+	 * 🔑 **L'ordine di risoluzione e' `GenericHotkeys()` per `ActionId` -> `AbilityHotkeys()` per posizione
+	 * -> vuoto, e lo fissa [D-397] §4.** `Action.Wait` si arma con `Z` **e** col numero della propria
+	 * posizione; si mostra la lettera perche' e' legata all'`ActionId`, mentre il numero dipende da quante
+	 * azioni porta l'eroe — *«una barra che rinumerasse le generiche insegnerebbe una mappa che scade»*.
+	 *
+	 * ⛔ **Una etichetta sola per slot**: il numero resta funzionante senza essere mostrato.
 	 *
 	 * ⚠️ Restituisce l'etichetta della `FKey`, non una stringa composta qui: la traduzione da tasto a nome
 	 * visibile appartiene all'engine, e ricomporla sarebbe la seconda verita' daccapo.
 	 */
-	static FText HotkeyLabelForKitIndex(int32 KitIndex);
+	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
 
 	/**
 	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e

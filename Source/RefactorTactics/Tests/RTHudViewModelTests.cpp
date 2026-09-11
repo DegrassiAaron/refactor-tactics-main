@@ -1,4 +1,4 @@
-﻿// Le viste dello Screen HUD (§4.1, CP 11.7): cosa i widget leggono, e cosa NON possono leggere.
+// Le viste dello Screen HUD (§4.1, CP 11.7): cosa i widget leggono, e cosa NON possono leggere.
 //
 // Il valore di queste funzioni non e' che risparmiano righe al widget — e' che gli tolgono la possibilita' di
 // sbagliare. `BuildTeamRoster` non ha un parametro «mostra anche gli avversari», e `BuildMatchHeader` non ha
@@ -13,7 +13,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
-#include "Player/RTPlayerController.h" // AbilityHotkeys / HotkeyLabelForKitIndex: l'ORACOLO del tasto (#2987)
+#include "Player/RTPlayerController.h" // AbilityHotkeys / HotkeyLabelFor: l ORACOLO del tasto (#2987)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Turn/RTTurnManager.h"
@@ -1563,16 +1563,34 @@ bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
 		return false;
 	}
 
-	// --- A. ogni posizione porta il tasto che la tabella le assegna ------------------------------------
+	// --- A. ogni posizione porta il tasto che le TABELLE le assegnano ----------------------------------
+	// 🔑 **L'ordine di risoluzione e' quello di [D-397] §4**, ed e' il punto: `GenericHotkeys()` per
+	// `ActionId` -> `AbilityHotkeys()` per posizione -> vuoto. Una generica mostra la propria LETTERA perche'
+	// quella e' legata all'azione, mentre il numero dipende da quante voci porta l'eroe.
+	//
+	// ⌫ **Questo ciclo attendeva il numero per OGNI posizione, e la decisione l'ha superato**: misurato,
+	// la posizione 5 portava `Z` dove il test chiedeva `6`. Non era un difetto del codice — era il test a
+	// pinnare una regola che nel frattempo era stata decisa diversamente.
 	const TArray<FKey>& Tabella = ARTPlayerController::AbilityHotkeys();
+	const TArray<TPair<FName, FKey>>& Generiche = ARTPlayerController::GenericHotkeys();
+
+	int32 GenericheViste = 0;
+
 	for (int32 i = 0; i < Cds.Num(); ++i)
 	{
-		const FString Atteso = Tabella.IsValidIndex(i)
-			? Tabella[i].GetDisplayName(/*bLongDisplayName=*/ false).ToString()
-			: FString();
+		const TPair<FName, FKey>* Generica = Generiche.FindByPredicate(
+			[&](const TPair<FName, FKey>& G) { return G.Key == Cds[i].ActionId; });
+		if (Generica) { ++GenericheViste; }
+
+		const FString Atteso = Generica
+			? Generica->Value.GetDisplayName(/*bLongDisplayName=*/ false).ToString()
+			: (Tabella.IsValidIndex(i)
+				? Tabella[i].GetDisplayName(/*bLongDisplayName=*/ false).ToString()
+				: FString());
 
 		TestEqual(
-			FString::Printf(TEXT("A: la posizione %d porta il tasto della tabella"), i),
+			FString::Printf(TEXT("A: la posizione %d (%s) porta il tasto che le tabelle le assegnano"),
+				i, *Cds[i].ActionId.ToString()),
 			Cds[i].HotkeyLabel.ToString(), Atteso);
 	}
 
@@ -1589,13 +1607,21 @@ bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
 		AddInfo(TEXT("B: kit piu' corto della fila dei numeri — caso coperto dal solo controllo C"));
 	}
 
+	// ⛔ **Anti-vacuita' della meta' che [D-397] §4 ha deciso**: senza generiche nel kit il ciclo non
+	// asserirebbe mai il ramo della lettera, e il test resterebbe verde misurando il solo numero. Le
+	// generiche sono accodate al kit di OGNI unita' (`MakeGenericActions`), quindi zero qui e' un difetto.
+	TestTrue(
+		FString::Printf(TEXT("il kit porta delle generiche, che sono il ramo `lettera` (ne ha %d)"),
+			GenericheViste),
+		GenericheViste > 0);
+
 	// --- C. oltre la tabella non c'e' un tasto, e la risposta e' VUOTA ---------------------------------
 	// ⚠️ Si interroga la funzione e non la vista: serve un indice che la tabella non copre, e costruire
 	// un'unita' con undici voci di kit misurerebbe la composizione del kit invece di questa regola.
 	TestTrue(TEXT("C: una posizione oltre la fila dei numeri non porta nessun tasto"),
-		ARTPlayerController::HotkeyLabelForKitIndex(Tabella.Num()).IsEmpty());
+		ARTPlayerController::HotkeyLabelFor(NAME_None, Tabella.Num()).IsEmpty());
 	TestTrue(TEXT("C: e un indice negativo nemmeno"),
-		ARTPlayerController::HotkeyLabelForKitIndex(INDEX_NONE).IsEmpty());
+		ARTPlayerController::HotkeyLabelFor(NAME_None, INDEX_NONE).IsEmpty());
 
 	DestroyHudVmWorld(World);
 	return true;
@@ -1822,22 +1848,27 @@ bool FRTHudVmPlannedReachesTheViewTest::RunTest(const FString&)
 }
 
 /**
- * 🔵 **TEST CARATTERIZZANTE — che cosa SOPRAVVIVE a un cambio di selezione, oggi** (`#2988`).
+ * 🔵 **CHE COSA SOPRAVVIVE a un cambio di selezione — e cosa no** (`#2988`, deciso da [D-397] §5).
  *
- * ⚠️ **Non pinna una decisione: la FOTOGRAFA, e lo dichiara.** Se un'azione armata debba sopravvivere al
- * cambio di unita', di fase e di round e' una **decisione aperta** — `#2990`, domanda 3 — e nessuna fonte
- * del progetto la prende: `SelectedAbilityIndex` ha un solo sito di scrittura (`ARTUnit::SelectAbility`) e
- * nessuno lo azzera, ne' `SelectUnit`, ne' il cambio fase, ne' il passaggio di round.
+ * ⌫ **Nasceva CARATTERIZZANTE — fotografava un comportamento che nessuno aveva deciso — e ora dichiara una
+ * scelta.** [D-397] §5 ha risolto la domanda 3 di `#2990` mentre questo test era in main, e l'ha risolta in
+ * due meta' che vanno nomi nate separatamente:
  *
- * 🔑 **Il valore di questo test e' rendere osservabile ciò che oggi accade**, così la decisione si prende
- * guardando un comportamento invece di indovinarlo. Il giorno in cui `#2990` sceglie, questo test cambia
- * **insieme** alla scelta — ed è il posto in cui ci si accorge che va cambiato.
+ *  - **cambio di unita': SOPRAVVIVE, ed e' corretto.** `SelectedAbilityIndex` vive su `ARTUnit`: ritrovare
+ *    su un'unita' cio' che le si era armato e' la conseguenza del modello. *«Va scritto, non corretto.»*
+ *  - **risoluzione: NON sopravvive.** Uno slot armato dopo che il piano e' stato consumato afferma una
+ *    scelta che non esiste piu', e con `bPlanned` la contraddizione diventa visibile — armato senza
+ *    pianificato. Il ritorno al neutro sta nel **Cleanup**, un sito solo, lato autorita'.
  *
- * ⛔ **Un rosso qui non e' automaticamente un difetto**: e' un comportamento che si e' mosso senza che
- * nessuno lo dichiarasse, che e' precisamente la cosa da notare.
+ * 🔑 **Il fatto che il test esistesse PRIMA della decisione e' il suo valore**: ha reso osservabile il
+ * comportamento su cui la decisione si e' poi pronunciata, invece di lasciarlo indovinare.
+ *
+ * ⚠️ **La meta' del Cleanup non si prova qui**, e non per dimenticanza: richiede un turno risolto, quindi
+ * vive dove gia' abita quell'invariante — `Turn.PlansDoNotSurviveTheTurn`, accanto agli altri campi che
+ * muoiono nello stesso punto. Duplicarla qui significherebbe un secondo posto da aggiornare.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmArmingLifecycleTest,
-	"RefactorTactics.HudViewModel.ArmingIsPerUnitAndSurvivesSelectionToday",
+	"RefactorTactics.HudViewModel.ArmingIsPerUnitAndReturnsToNeutralAtCleanup",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHudVmArmingLifecycleTest::RunTest(const FString&)
 {
@@ -1859,11 +1890,11 @@ bool FRTHudVmArmingLifecycleTest::RunTest(const FString&)
 		Seconda->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
 
 	// --- B. armare la seconda non disarma la prima -----------------------------------------------------
-	// 🔵 **E' la fotografia**: oggi due unita' possono essere armate insieme, ciascuna sulla propria voce.
-	// Se `#2990` decidesse che l'armamento e' uno solo e segue la selezione, questa asserzione va riscritta
-	// con la decisione — non «corretta» di nascosto.
+	// ✅ **Deciso da [D-397] §5**, e non piu' una fotografia: l'armamento e' stato dell'unita', quindi due
+	// unita' possono essere armate insieme, ciascuna sulla propria voce. Cio' che NON sopravvive e' la
+	// risoluzione, e quella meta' vive in `Turn.PlansDoNotSurviveTheTurn`.
 	Seconda->SelectAbility(0);
-	TestEqual(TEXT("B: oggi la prima resta armata quando si arma la seconda"),
+	TestEqual(TEXT("B: la prima resta armata quando si arma la seconda — l'armamento e' dell'unita'"),
 		Prima->SelectedAbilityIndex, 1);
 
 	// --- C. il neutro e' raggiungibile, ed e' un ingresso legittimo ------------------------------------

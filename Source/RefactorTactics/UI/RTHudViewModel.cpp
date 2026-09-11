@@ -7,7 +7,7 @@
 #include "Ability/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
 #include "UI/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
-#include "Player/RTPlayerController.h" // HotkeyLabelForKitIndex: il tasto si legge dalla tabella (#2987)
+#include "Player/RTPlayerController.h" // HotkeyLabelFor: il tasto si legge dalla tabella, generiche comprese (#2987, D-397)
 #include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
@@ -379,7 +379,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		{
 			FRTAbilityCooldownView Empty;
 			Empty.AbilityIndex = Index;
-			Empty.HotkeyLabel = ARTPlayerController::HotkeyLabelForKitIndex(Index);
+			Empty.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(NAME_None, Index); // vuota non ha ActionId
 			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
 			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
 			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
@@ -398,7 +398,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`):
 		// e' la stessa disciplina delle due chiavi icona qui sopra — l'owner della regola risponde, chi
 		// disegna riceve.
-		View.HotkeyLabel = ARTPlayerController::HotkeyLabelForKitIndex(Index);
+		View.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(Action->Def.ActionId, Index);
 		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione — che vive in un campo
 		// suo da `#601` — e lo scatto. Leggerne uno solo direbbe «non pianificata» di una reazione che il
 		// pass delle reazioni eseguira'.
