@@ -319,7 +319,7 @@ public:
 	 * meno delle celle. `Path` piu' corto di due celle -> array vuoto.
 	 */
 	static TArray<int32> StepDurationsForPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
-		const TArray<FRTCellId>& Path);
+		const TArray<FRTCellId>& Path, int32 PlannedLength = 0);
 
 	/**
 	 * Esegue UN microstep: tutte le unita' avanzano di una cella e si risolvono le collisioni.

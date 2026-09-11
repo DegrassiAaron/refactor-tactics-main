@@ -253,8 +253,14 @@ struct FRTMovementResolutionState
 	 * ⚠️ **Un'unita' in transito resta sulla propria cella d'origine** ([D-382](../../../docs/decisions/RT_PDR_00_Decision_Log.md)):
 	 * `Pos[i]` non cambia finche' l'arco non e' completo, e non esiste un istante in cui sia «fra due celle».
 	 * Ne segue, dichiarato: un'unita' lenta **tappa il corridoio** per l'intera durata del passo, e incassa
-	 * nella copertura di PARTENZA fino all'ingresso — perche' `Pos` e' il soggetto autorevole di sette
-	 * consumatori durante il ciclo, non solo l'occupancy.
+	 * nella copertura di PARTENZA fino all'ingresso — perche' `Pos` e' il soggetto autorevole, durante il
+	 * ciclo, del colpo di Overwatch e della sua copertura, del facing d'impatto, del verdetto di visibilita'
+	 * delle voci, della conoscenza di squadra, della geometria della voce e del `MoveLog`; non solo
+	 * dell'occupancy. L'elenco governante e' in `spec-tassonomia-movimento.md` §2.0-ter.
+	 *
+	 * ⚠️ **E il ritardo si propaga lungo una catena**: un inseguitore bloccato non paga il proprio arco
+	 * mentre aspetta, quindi un convoglio su terreno costoso **si serializza** invece di avanzare in blocco.
+	 * E' la conseguenza diretta di [D-382], pinnata da `Movement.ConvoyOnCostlyTerrainSerializes`.
 	 */
 	TArray<int32> StepRemaining;
 

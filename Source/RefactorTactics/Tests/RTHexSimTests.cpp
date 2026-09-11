@@ -2150,8 +2150,14 @@ namespace
 			}
 			for (int32 i = 0; i < State.Num(); ++i)
 			{
+				// 🔑 **Il criterio e' `Prog`, non `Pos == Paths.Last()`** (`#2940`). E' la stessa correzione
+				// che `#2314` ha fatto in `FinalizeHexMovementOutcomes`, e per la stessa ragione: un percorso
+				// puo' RIVISITARE una cella — `BuildCompositeHexPath` produce `{A, B, C, B}` concatenando i
+				// segmenti A* senza deduplicare — e un'unita' ferma a un terzo di strada su `B` soddisfa
+				// l'uguaglianza, registrando un arrivo che non c'e' stato. Oggi i percorsi di questi test sono
+				// lineari e non si vedrebbe; il primo test con waypoint asserirebbe su un tick falso.
 				if (Arrival[i] == INDEX_NONE && State.Paths[i].Num() >= 2
-					&& State.Pos[i] == State.Paths[i].Last())
+					&& State.Prog[i] == State.Paths[i].Num() - 1)
 				{
 					Arrival[i] = Tick;
 				}
@@ -2448,5 +2454,168 @@ bool FRTMovementTraversalDurationReadsTheEntryCostTest::RunTest(const FString&)
 
 	TestEqual(TEXT("un percorso di una sola cella non ha archi da temporizzare"),
 		URTHexSimLibrary::StepDurationsForPath(Snap, 0, { FRTCellId(0, 0) }).Num(), 0);
+	return true;
+}
+
+/**
+ * 🔴 **Un convoglio su terreno costoso si SERIALIZZA**, e questo test lo dichiara invece di lasciarlo
+ * scoprire (`#2940`).
+ *
+ * E' la conseguenza diretta di [D-382]: un inseguitore non puo' entrare dove qualcuno sta ancora uscendo, e
+ * mentre aspetta **non paga il proprio arco** — non lo sta percorrendo. Ne segue che il ritardo si propaga
+ * lungo la catena: a parita' di costo speso, il primo della fila arriva prima dell'ultimo.
+ *
+ * ⚠️ **Prima delle durate la catena avanzava in LOCKSTEP**, tutti al microstep 1. Chi trovera' la
+ * serializzazione senza questo test la chiamera' regressione; e' invece il prezzo, dichiarato, della regola
+ * *«chi attraversa occupa ancora l'origine»*.
+ *
+ * ⛔ Da non confondere con un blocco: la catena **avanza**, e ognuno arriva. Il convoy a coda libera di
+ * [D-295] resta vivo — `HexSim.ResolveFreeTailConvoyStillAdvances` lo pinna senza durate, questo con.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementConvoyOnCostlyTerrainSerializesTest,
+	"RefactorTactics.Movement.ConvoyOnCostlyTerrainSerializes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementConvoyOnCostlyTerrainSerializesTest::RunTest(const FString&)
+{
+	const FRTCellId C1(0, 0), C2(1, 0), C3(2, 0), C4(3, 0);
+
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ C1, C2 });   // A, in coda
+	Paths.Add({ C2, C3 });   // B
+	Paths.Add({ C3, C4 });   // C, in testa: davanti a lei la cella e' libera
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 2 });
+	Durations.Add({ 2 });
+	Durations.Add({ 2 });
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	const TArray<int32> Arrival = ArrivalTicks(State);
+
+	// La testa paga solo il proprio arco; ogni inseguitore aspetta che il precedente completi.
+	TestEqual(TEXT("C, in testa, arriva al microstep 2"), Arrival[2], 2);
+	TestEqual(TEXT("B arriva al 3: ha aspettato un microstep prima di partire"), Arrival[1], 3);
+	TestEqual(TEXT("A arriva al 4"), Arrival[0], 4);
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+	for (int32 i = 0; i < 3; ++i)
+	{
+		TestEqual(FString::Printf(TEXT("unita' %d e' comunque ARRIVATA: e' un ritardo, non un blocco"), i),
+			Out[i].Outcome, ERTMoveOutcome::Moved);
+	}
+	return true;
+}
+
+/**
+ * 🔴 **Un blocco causato da chi sta ATTRAVERSANDO non fissa il motivo** (`#2940`).
+ *
+ * `ReasonLocked` esiste perche' il punto fisso e' monotono: un blocker fermo non riparte, quindi il primo
+ * motivo e' anche l'ultimo. Con le durate quella premessa cade — chi e' in transito libera la cella — e
+ * latchare il blocco transitorio produrrebbe l'inversione che `BeginHexMovement` dichiara di voler
+ * impedire: *«il motivo diventerebbe "cella occupata" invece di "priorita' avversa"»*.
+ *
+ * Il test costruisce esattamente quella successione: l'inseguitore e' fermato **un microstep** da un
+ * compagno di passaggio, riparte, e poi perde la cella contesa contro una priorita' migliore. Il TurnLog
+ * deve raccontare la SECONDA causa, non la prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementTransientBlockDoesNotLatchTheReasonTest,
+	"RefactorTactics.Movement.TransientBlockDoesNotLatchTheReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementTransientBlockDoesNotLatchTheReasonTest::RunTest(const FString&)
+{
+	const FRTCellId X(0, 0), Y(1, 0), Z(2, 0), W(1, -1);
+
+	TArray<TArray<FRTCellId>> Paths;
+	// 0 = il transitante: X -> Y in 2 microstep. Tiene X occupata fino al secondo.
+	Paths.Add({ X, Y });
+	// 1 = l'inseguitore: vuole X (bloccata al microstep 1), poi Z, che perdera' per priorita'.
+	Paths.Add({ FRTCellId(-1, 0), X, Z });
+	// 2 = il contendente con priorita' migliore, che punta a Z arrivandoci dallo stesso microstep.
+	Paths.Add({ W, Z });
+
+	TArray<int32> Priorities;
+	Priorities.Add(5);   // transitante
+	Priorities.Add(5);   // inseguitore: priorita' PEGGIORE
+	Priorities.Add(1);   // contendente: numero piu' basso = vince
+
+	TArray<TArray<int32>> Durations;
+	Durations.Add({ 2 });        // il transitante occupa X per due microstep
+	Durations.Add({ 1, 1 });
+	Durations.Add({ 3 });        // arriva su Z tardi, cosi' la contesa cade dopo il blocco transitorio
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, Priorities,
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+
+	const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+	// Premessa del test: l'inseguitore E' stato bloccato all'inizio, altrimenti non misurerebbe nulla.
+	TestTrue(TEXT("premessa: l'inseguitore non e' arrivato a destinazione"),
+		Out[1].Final != Z);
+
+	// ⛔ Il motivo NON deve essere quello del blocco transitorio.
+	TestNotEqual(TEXT("il motivo non e' il blocco transitorio del compagno di passaggio"),
+		Out[1].Outcome, ERTMoveOutcome::BlockedByUnit);
+	return true;
+}
+
+/**
+ * 🔴 **Le celle oltre il prefisso PIANIFICATO non pagano il costo del terreno** ([D-384], `#2940`).
+ *
+ * La coda di un percorso puo' essere uno **scivolamento** che il terreno ha imposto — `ApplyIceSliding`
+ * accoda una cella quando il Move finisce sul ghiaccio con budget residuo — e quello e' spostamento
+ * **subito**. `D-384` dice che il `Forced` non legge il costo del terreno, perche' *«una durata derivata dal
+ * costo farebbe pagare a chi e' spinto il prezzo di una scelta che non ha fatto»*.
+ *
+ * ⚠️ **E sotto [D-382] il prezzo sarebbe doppio**: chi scivola terrebbe occupata la propria cella d'origine
+ * per tutta la durata inventata, bloccando chi lo segue.
+ *
+ * Il test e' **differenziale**: la stessa cella finale, misurata come pianificata e come scivolata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementSlideCellsDoNotPayTerrainDurationTest,
+	"RefactorTactics.Movement.SlideCellsDoNotPayTerrainDuration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementSlideCellsDoNotPayTerrainDurationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	const FRTCellId Start(0, 0), Mid(1, 0), Rough(2, 0);
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == Rough)
+		{
+			Cell.MoveCost = 3;   // terreno costoso: e' cio' che lo scivolamento NON deve pagare
+		}
+	}
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(0, Start, 10));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	const TArray<FRTCellId> Path = { Start, Mid, Rough };
+
+	// (1) Tutto pianificato: l'ultima cella costa quanto il suo terreno.
+	const TArray<int32> AllPlanned = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path, /*PlannedLength*/ 3);
+	TestEqual(TEXT("due archi"), AllPlanned.Num(), 2);
+	if (AllPlanned.Num() == 2)
+	{
+		TestEqual(TEXT("il primo arco entra nel pavimento: un microstep"), AllPlanned[0], 1);
+		TestEqual(TEXT("il secondo, PIANIFICATO, paga il terreno costoso"), AllPlanned[1], 3);
+	}
+
+	// (2) L'ultima cella e' uno SCIVOLAMENTO: il piano del giocatore finiva a `Mid`.
+	const TArray<int32> WithSlide = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path, /*PlannedLength*/ 2);
+	TestEqual(TEXT("sempre due archi"), WithSlide.Num(), 2);
+	if (WithSlide.Num() == 2)
+	{
+		TestEqual(TEXT("il primo arco non cambia"), WithSlide[0], 1);
+		TestEqual(TEXT("⛔ lo scivolamento vale UN microstep, non tre"), WithSlide[1], 1);
+	}
+
+	// (3) `PlannedLength` assente -> «tutto pianificato», il contratto di ogni chiamante che non tocca i terreni.
+	const TArray<int32> Legacy = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path);
+	TestEqual(TEXT("senza PlannedLength il comportamento e' quello di (1)"),
+		Legacy.Num() == 2 ? Legacy[1] : -1, 3);
 	return true;
 }

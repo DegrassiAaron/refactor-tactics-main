@@ -717,7 +717,13 @@ int32 URTHexSimLibrary::TraversalDurationTicks(const FRTHexSnapshot& Snapshot, i
 
 	// 🔑 **La stessa lettura del costo che fa `TruncatePathToBudget`**, e non e' una coincidenza da
 	// conservare a mano: se le due divergessero, il budget direbbe che un percorso e' affrontabile e la
-	// durata lo misurerebbe su un'altra scala. Il costo d'ingresso e' UNO.
+	// durata lo misurerebbe su un'altra scala.
+	//
+	// ⚠️ **Due eccezioni, ed entrambe sono fail-safe deliberati** (`#2940`): una cella **fuori mappa** costa
+	// `0` di budget e `1` microstep — li' non c'e' un dato da leggere, e il budget sceglie di non far pagare
+	// mentre il tempo sceglie di non annullare il passo; una cella con `MoveCost` e sovrapprezzo a **zero**
+	// costa `0` di budget e `1` microstep, per il clamp qui sotto. Chi confronta le due funzioni le trova, e
+	// non deve «allinearle»: sono divergenze scritte, non derive.
 	//
 	// ⚠️ **Ancorata a `TotalMoveCost`, non agli MP consumati** ([D-381]): [D-117] porta il costo per cella a
 	// `max(0, MoveCost - 1 + MoveCostModifier)`, cioe' ZERO sul terreno normale, e una durata letta da li'
@@ -728,7 +734,7 @@ int32 URTHexSimLibrary::TraversalDurationTicks(const FRTHexSnapshot& Snapshot, i
 }
 
 TArray<int32> URTHexSimLibrary::StepDurationsForPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
-	const TArray<FRTCellId>& Path)
+	const TArray<FRTCellId>& Path, int32 PlannedLength)
 {
 	TArray<int32> Durations;
 	if (Path.Num() < 2)
@@ -736,11 +742,25 @@ TArray<int32> URTHexSimLibrary::StepDurationsForPath(const FRTHexSnapshot& Snaps
 		return Durations; // nessun arco da percorrere: niente da temporizzare
 	}
 
+	// 🔑 **Gli archi oltre il prefisso PIANIFICATO valgono un microstep, sempre** ([D-384], `#2940`).
+	// La coda di un percorso puo' essere uno SCIVOLAMENTO che il terreno ha imposto (`ApplyIceSliding`), e
+	// quello e' spostamento **subito**: `D-384` dice che il `Forced` non legge il costo del terreno, perche'
+	// *«una durata derivata dal costo farebbe pagare a chi e' spinto il prezzo di una scelta che non ha
+	// fatto»*. Senza questa riga chi scivola su terreno difficile pagherebbe due o tre microstep — e sotto
+	// [D-382] terrebbe occupata la propria cella d'origine per tutto quel tempo.
+	//
+	// `PlannedLength` conta le CELLE, partenza inclusa, quindi l'ultimo arco pianificato ha indice
+	// `PlannedLength - 2`. Valore `<= 0` -> «tutto pianificato», che e' il caso di ogni chiamante che non
+	// passa dai terreni.
+	const int32 LastPlannedArc = PlannedLength > 0 ? (PlannedLength - 2) : (Path.Num() - 2);
+
 	Durations.Reserve(Path.Num() - 1);
 	for (int32 k = 1; k < Path.Num(); ++k)
 	{
 		// La durata di un arco e' quella della cella in cui si ENTRA: e' l'ingresso a costare, non l'uscita.
-		Durations.Add(TraversalDurationTicks(Snapshot, UnitId, Path[k]));
+		Durations.Add((k - 1) <= LastPlannedArc
+			? TraversalDurationTicks(Snapshot, UnitId, Path[k])
+			: 1);
 	}
 	return Durations;
 }
@@ -884,6 +904,16 @@ namespace
 					bool bBlocked = false;
 					ERTMoveOutcome Reason = ERTMoveOutcome::BlockedByUnit;
 
+					// 🔑 **Un blocco causato da chi sta ATTRAVERSANDO e' TRANSITORIO, e non deve fissare il
+					// motivo** (`#2940`). La memoria del primo congelamento (`ReasonLocked`, sotto) esiste
+					// perche' il punto fisso e' monotono: un blocker `!Moving` non riparte mai, quindi il primo
+					// motivo era anche l'ultimo. Con le durate variabili non e' piu' vero — chi e' in transito
+					// libera la cella quando completa l'arco — e latchare qui produrrebbe l'inversione che
+					// `BeginHexMovement` dichiara di voler impedire: un inseguitore fermato un microstep da un
+					// compagno di passaggio, e poi battuto sulla cella da una `Charge` con priorita' migliore,
+					// finirebbe nel TurnLog come «cella occupata» invece che «priorita' avversa».
+					bool bTransientBlock = false;
+
 					// Destinazione contesa: 2+ unita' in movimento verso la stessa cella. A parita' di
 					// priorita' fra i contendenti (compreso il caso senza priorita' dichiarata) tutti fermi,
 					// come nella variante base; a priorita' diverse, solo la piu' bassa fra i contendenti
@@ -1003,6 +1033,8 @@ namespace
 							{
 								bBlocked = true;
 								Reason = ERTMoveOutcome::BlockedByUnit;
+								// In transito = ancora in movimento, quindi la cella si liberera'.
+								bTransientBlock = Moving[j];
 								break;
 							}
 						}
@@ -1012,8 +1044,11 @@ namespace
 						ToFreeze.Add(i);
 						if (!ReasonLocked[i])
 						{
+							// Il motivo si registra sempre: se l'unita' non ripartisse piu', questo resta
+							// l'ultima cosa vera che le e' successa.
 							BlockReason[i] = Reason;
-							ReasonLocked[i] = true;
+							// Ma si FISSA solo se il blocco e' definitivo. Vedi `bTransientBlock` sopra.
+							ReasonLocked[i] = !bTransientBlock;
 						}
 					}
 				}
@@ -1168,6 +1203,23 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 	State.Pos.SetNum(N);
 	State.Prog.SetNum(N);
 	State.Done.SetNum(N);
+	// 🔴 **Un `StepDurations` presente ma INCOMPLETO non deve degradare in silenzio** (`#2940`).
+	// `DurationOfStep` ha un fail-safe a `1` per l'array assente — che e' il contratto legacy, e va bene —
+	// ma lo stesso fail-safe rendeva **invisibile** un cablaggio rotto: sostituire la riga che produce le
+	// durate con un array vuoto lasciava l'intera suite verde. Chi passa le durate deve passarle tutte.
+	if (StepDurations.Num() > 0)
+	{
+		ensureMsgf(StepDurations.Num() == N,
+			TEXT("StepDurations ha %d voci per %d unita': il cablaggio non e' allineato"),
+			StepDurations.Num(), N);
+		for (int32 i = 0; i < FMath::Min(StepDurations.Num(), N); ++i)
+		{
+			const int32 Arcs = FMath::Max(0, Paths[i].Num() - 1);
+			ensureMsgf(StepDurations[i].Num() == Arcs,
+				TEXT("unita' %d: %d durate per %d archi"), i, StepDurations[i].Num(), Arcs);
+		}
+	}
+
 	State.StepRemaining.SetNum(N);
 	for (int32 i = 0; i < N; ++i)
 	{

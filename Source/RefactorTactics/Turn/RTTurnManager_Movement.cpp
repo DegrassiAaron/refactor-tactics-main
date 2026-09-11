@@ -242,7 +242,11 @@ void ARTTurnManager::BeginMovementResolution()
 		// ⚠️ **Sullo snapshot CONGELATO a inizio fase, e una volta sola**: rileggerla durante la risoluzione
 		// la esporrebbe a una mappa che nel frattempo e' cambiata, ed e' precisamente cio' che lo snapshot
 		// esiste per impedire.
-		StepDurations.Add(URTHexSimLibrary::StepDurationsForPath(Ctx.Snapshot, /*UnitId=*/ i, Path));
+		// ⚠️ `PlannedLength` e' passato perche' la coda di `Path` puo' essere uno SCIVOLAMENTO imposto dal
+		// terreno, e quello non paga il costo del terreno ([D-384]): oltre il prefisso pianificato ogni arco
+		// vale un microstep.
+		StepDurations.Add(URTHexSimLibrary::StepDurationsForPath(Ctx.Snapshot, /*UnitId=*/ i, Path,
+			PlannedMoves[i].PlannedLength));
 	}
 
 	// RISOLUZIONE SEGMENTATA (CP 14.5). Fino a qui questa riga era `ResolveHexPaths(Ctx.Paths)`, cioe' un colpo
