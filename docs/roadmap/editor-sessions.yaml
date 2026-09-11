@@ -2883,7 +2883,12 @@ sessions:
       # `DOCKCLICK` nasce con il cablaggio del bottone (#2826): condivide l'allestimento delle due sorelle,
       # e il click e il tasto vanno provati nella STESSA seduta — l'oracolo è che armino la stessa voce.
       - PIE-V01-DOCKCLICK
-    issues: [151, 2826]
+      # `INSPECT` nasce col gesto di `#705` e col pannello di `#613`: guardare un'avversaria senza
+      # comandarla. Sta QUI e non in una seduta propria perche' condivide l'allestimento delle tre sorelle
+      # del dock — stessa partita, stessa unita' selezionata — e perche' aprire una seduta nuova per una
+      # voce sola sprecherebbe un'esclusiva sul motore (`CLAUDE.md` §10).
+      - PIE-V01-INSPECT
+    issues: [151, 705, 613, 2826]
     done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
