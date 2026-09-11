@@ -24,6 +24,10 @@ setups:
   - id: SET-HEX-TURN           # ex «B — un turno pianificato e risolto»
     extends: SET-HEX-MATCH
     given: "piani impostati, lock-in con Spazio, un turno con un fallback e una modifica ambientale"
+  - id: SET-GEN-ARENA          # l'arena GENERATA a runtime — non e' L_HexArena, non e' uno scenario
+    map_source: GeneratedTestArena
+    given: "esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1, una transizione"
+    note: "U37 dichiara di condividerla con U2..U6: «non e' una seduta in piu', e' la coda di quella che si sta gia' facendo»"
   - id: SET-SCEN               # ex «C» — una apertura, molti Play
     command: "rt.Test.Scenario <scenario_id>"
     note: "lo scenario porta arena, unita' e piani; il comando si riemette senza chiudere l'Editor"
@@ -42,17 +46,67 @@ setups:
     given: "il pannello Tactical Designer, aperto dal dock"
 
 wiring:
-  # Seminato da `tools/editor-sessions/seed_wiring.py` sul registro a `1b9f6f36`.
-  # Le sedute che la semina non sa leggere sono lavoro del Task 6, e non stanno qui:
-  # una riga senza setup renderebbe il registro invalido, e `registry.load` la rifiuta.
+  # Prodotto da `python tools/editor-sessions/seed_wiring.py --out build/wiring-seminato.yaml`
+  # e innestato qui. Il seme e' l'euristica sulla prosa PIU' due tabelle di giudizio dichiarato
+  # che vivono nel sorgente del seminatore, non qui:
+  #   ALLESTIMENTO_DICHIARATO  le sedute la cui prosa non dice dove si guarda
+  #   CABLAGGIO_DICHIARATO     i check che due sedute rivendicano con allestimenti DIVERSI
+  # ⚠️ Correggere una riga QUI e' inutile: la decisione sta nelle tabelle, e il prossimo seme
+  #    ricalcola. Se una riga e' sbagliata, e' sbagliata la tabella.
+  - check: PIE-ACC-ENVIRONMENT
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-ACC-GUARDBRACE
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-ACC-MAP
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-AI-01
+    setup: SET-GEN-ARENA
+  - check: PIE-AI-02
+    setup: SET-GEN-ARENA
+  - check: PIE-AI-03
+    setup: SET-GEN-ARENA
+  - check: PIE-AI-04
+    setup: SET-GEN-ARENA
+  - check: PIE-AI-05
+    setup: SET-GEN-ARENA
+  - check: PIE-AS2
+    setup: SET-SANDBOX
+    issue: 1719
+  - check: PIE-AS4a
+    setup: SET-SANDBOX
+    issue: 1719
   - check: PIE-AS4b
     setup: SET-SANDBOX
     issue: 288
   - check: PIE-AS4c
     setup: SET-SANDBOX
     issue: 288
+  - check: PIE-AS5
+    setup: SET-SANDBOX
   - check: PIE-BAL1
     setup: SET-SCEN
+  - check: PIE-CAM-BOUNDS
+    setup: SET-GEN-ARENA
+  - check: PIE-CAM-FOCUS
+    setup: SET-GEN-ARENA
+  - check: PIE-CAM-ORBIT
+    setup: SET-GEN-ARENA
+  - check: PIE-CAM-START
+    setup: SET-GEN-ARENA
+  - check: PIE-CAM-ZOOM-ANCHOR
+    setup: SET-GEN-ARENA
+  - check: PIE-DEBUG-CELLS
+    setup: SET-HEX-MATCH
+  - check: PIE-FACING
+    setup: SET-SANDBOX
+    issue: 1719
+  - check: PIE-FACING-1
+    setup: SET-GEN-ARENA
+  - check: PIE-FMT-01
+    setup: SET-SANDBOX
   - check: PIE-GBX-COVER
     setup: SET-SANDBOX
     issue: 1095
@@ -95,6 +149,9 @@ wiring:
   - check: PIE-GEO-UNDO
     setup: SET-SCEN
     issue: 712
+  - check: PIE-GRID-CONFINE
+    setup: SET-HEX-MATCH
+    issue: 1758
   - check: PIE-HEX-COORD-COSTO
     setup: SET-SANDBOX
     issue: 1920
@@ -114,25 +171,25 @@ wiring:
     setup: SET-HEX-BOT
     issue: 450
   - check: PIE-HEX-MODE-E
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MODE-F
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MODE-G
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MODE-H
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MODE-L
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MODE-N
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MODE-O
-    setup: SET-SANDBOX
+    setup: SET-GEN-ARENA
     issue: 449
   - check: PIE-HEX-MOVEMENT-PROBE
     setup: SET-SANDBOX
@@ -167,12 +224,59 @@ wiring:
   - check: PIE-HEX-VIZ-VELO
     setup: SET-SANDBOX
     issue: 1754
+  - check: PIE-HEXPLAY-1
+    setup: SET-GEN-ARENA
+  - check: PIE-HEXPLAY-10
+    setup: SET-GEN-ARENA
+  - check: PIE-HEXPLAY-2
+    setup: SET-GEN-ARENA
+    issue: 33
+  - check: PIE-HEXPLAY-3
+    setup: SET-GEN-ARENA
+    issue: 33
+  - check: PIE-HEXPLAY-3b
+    setup: SET-GEN-ARENA
+    issue: 33
+  - check: PIE-HEXPLAY-4
+    setup: SET-GEN-ARENA
+  - check: PIE-HEXPLAY-4b
+    setup: SET-GEN-ARENA
+  - check: PIE-HEXPLAY-5
+    setup: SET-GEN-ARENA
   - check: PIE-HEXPLAY-6
     setup: SET-SCEN
     issue: 1246
+  - check: PIE-HEXPLAY-6b
+    setup: SET-GEN-ARENA
+  - check: PIE-HEXPLAY-6c
+    setup: SET-GEN-ARENA
+  - check: PIE-HEXPLAY-7
+    setup: SET-GEN-ARENA
   - check: PIE-HEXPLAY-8
     setup: SET-SCEN
     issue: 1246
+  - check: PIE-HEXPLAY-9
+    setup: SET-GEN-ARENA
+  - check: PIE-ICON-01
+    setup: SET-SANDBOX
+  - check: PIE-ICON-02
+    setup: SET-SCEN
+    issue: 2378
+  - check: PIE-KNOW1
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-KNOW2
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-KNOW3
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-KNOW4
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-KNOW5
+    setup: SET-SCEN
+    issue: 151
   - check: PIE-MAPED-FRAME
     setup: SET-SANDBOX
     issue: 623
@@ -182,12 +286,26 @@ wiring:
   - check: PIE-OBJ-PUNTI
     setup: SET-HEX-MATCH
     issue: 959
+  - check: PIE-PC-GYM
+    setup: SET-GEN-ARENA
+    issue: 1859
   - check: PIE-PREVIEW-AREA
     setup: SET-HEX-BOT
     issue: 450
+  - check: PIE-PREVIEW-GHOST
+    setup: SET-HEX-TURN
+    issue: 172
+  - check: PIE-PREVIEW-PERSIST
+    setup: SET-GEN-ARENA
+    issue: 33
   - check: PIE-SCEN-COMPOSER
     setup: SET-SANDBOX
     issue: 1527
+  - check: PIE-SCEN-PLAYBACK
+    setup: SET-SCEN
+    issue: 1625
+  - check: PIE-SEL
+    setup: SET-SANDBOX
   - check: PIE-TD-CLEAN
     setup: SET-GRAYKIT
     issue: 1680
@@ -209,30 +327,100 @@ wiring:
   - check: PIE-V01-ARENA
     setup: SET-HEX-MATCH
     issue: 959
+  - check: PIE-V01-BLINDFIRE
+    setup: SET-HEX-MATCH
+    issue: 2791
   - check: PIE-V01-BOARD
     setup: SET-HEX-MATCH
     issue: 959
+  - check: PIE-V01-COLL
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-COVEREDIT
+    setup: SET-SANDBOX
+    issue: 1738
+  - check: PIE-V01-DASHCOVER
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-DEBUG
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-DOCKPROMPT
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-V01-DOOR
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-ELEC
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-FALLBACK
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-FF
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-FIREWATER
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-FRONTEND-MAIN
+    setup: SET-FRONTEND
+    issue: 938
+  - check: PIE-V01-FRONTEND-NAV
+    setup: SET-FRONTEND
+    issue: 938
+  - check: PIE-V01-FRONTEND-PAUSE
+    setup: SET-FRONTEND
+    issue: 941
+  - check: PIE-V01-FRONTEND-RESULT
+    setup: SET-FRONTEND
+    issue: 940
+  - check: PIE-V01-HUD
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-INTENT
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-INTERCEPT
+    setup: SET-HEX-MATCH
   - check: PIE-V01-KIT-HOTKEYS
     setup: SET-HEX-BOT
     issue: 450
   - check: PIE-V01-LOG
-    setup: SET-SCEN
+    setup: SET-HEX-TURN
     issue: 1246
+  - check: PIE-V01-LOWCOVER
+    setup: SET-HEX-MATCH
+  - check: PIE-V01-MAPSCALE
+    setup: SET-HEX-MATCH
+    issue: 84
   - check: PIE-V01-MATCHEND
     setup: SET-HEX-BOT
     issue: 450
+  - check: PIE-V01-MATCHLEN
+    setup: SET-HEX-MATCH
+    issue: 84
+  - check: PIE-V01-MORTAR
+    setup: SET-HEX-MATCH
+    issue: 2791
+  - check: PIE-V01-OVERWATCH
+    setup: SET-HEX-MATCH
+    issue: 84
   - check: PIE-V01-PACKAGED
     setup: SET-SCEN
     issue: 959
+  - check: PIE-V01-POINTER
+    setup: SET-SCEN
+    issue: 151
   - check: PIE-V01-PREPWINDOW
     setup: SET-SCEN
     issue: 959
+  - check: PIE-V01-PUSH
+    setup: SET-HEX-MATCH
   - check: PIE-V01-REACTCOND
     setup: SET-HEX-BOT
     issue: 450
+  - check: PIE-V01-READY
+    setup: SET-HEX-MATCH
+    issue: 84
+  - check: PIE-V01-REPLAY
+    setup: SET-HEX-MATCH
+    issue: 84
   - check: PIE-V01-ROSTER
     setup: SET-SCEN
     issue: 1246
+  - check: PIE-V01-ROUGH
+    setup: SET-HEX-MATCH
   - check: PIE-V01-SCREENHUD
     setup: SET-FRONTEND
     issue: 613
@@ -242,18 +430,77 @@ wiring:
   - check: PIE-V01-SPECTATOR-ROSTER
     setup: SET-SCEN
     issue: 959
+  - check: PIE-VELO-VIEWER
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-VIS-AREAGUARD
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-BRACE
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-CHARGE
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-COMBO
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-COORD
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-COVER
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-DOOR
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-FALLBACK
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-GUARD
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-HIGH
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-HIGHCOVER
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-ICE
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-KO
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-LEVEL
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-PHASES
+    setup: SET-SCEN
+    issue: 231
   - check: PIE-VIS-PRONE
     setup: SET-SCEN
     issue: 2378
+  - check: PIE-VIS-ROUGH
+    setup: SET-SCEN
+    issue: 231
+  - check: PIE-VIS-SIGHTLINE
+    setup: SET-SCEN
   - check: PIE-VIS-SIGHTWALL
     setup: SET-SCEN
     issue: 1246
   - check: PIE-VIS-SLIDESTATE
     setup: SET-SCEN
     issue: 2378
+  - check: PIE-VIS-SMOKE
+    setup: SET-SCEN
+    issue: 231
   - check: PIE-VIS-TWOLAYERS
     setup: SET-SCEN
     issue: 1246
   - check: PIE-VIS-UNBAL
     setup: SET-SCEN
     issue: 2378
+  - check: PIE-VIS-WETFIRE
+    setup: SET-SCEN
+    issue: 231
