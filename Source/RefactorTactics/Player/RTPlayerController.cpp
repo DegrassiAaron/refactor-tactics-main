@@ -2262,8 +2262,17 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
 	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che
 	// ripetuta dieci volte, cosi' un tasto abilita' in piu' la eredita per costruzione.
+	// 🔴 **Le tre uscite qui sotto erano MUTE, e la seduta `U49` del 2026-09-10 ha pagato il conto.**
+	// Un tasto abilita' che non produce effetto usciva da una di queste tre porte senza lasciare traccia:
+	// a schermo e nel log, «premo 1 e non succede niente» era indistinguibile da «l'azione e' armata ma il
+	// dock non la mostra». Sono due difetti di owner diversi, e senza queste righe si sceglieva a caso.
+	//
+	// ⚠️ `Display` e non `Warning`: nessuna delle tre e' un errore. Rifiutare l'input durante la
+	// risoluzione e' il comportamento corretto — cio' che mancava era dirlo.
 	if (IsGameplayInputBlocked())
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: input di gameplay bloccato"), Index + 1);
 		return;
 	}
 
@@ -2271,15 +2280,27 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	// ragione del commento qui sopra.
 	if (IsPlanningInputInert())
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: input di planning inerte (autobattle, o fase che non "
+				 "accetta ordini)"), Index + 1);
 		return;
 	}
 
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: nessuna unita' selezionata"), Index + 1);
 		return;
 	}
 	Unit->SelectAbility(Index);
+
+	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione.** Se compare, l'azione e'
+	// stata armata sul modello: cio' che resta da spiegare e' perche' il dock non lo mostri, ed e' un
+	// difetto di presentazione (`#2764`), non di input.
+	UE_LOG(LogRT, Display,
+		TEXT("Hotkey abilita' %d: armata la posizione %d su '%s'"),
+		Index + 1, Index, *Unit->GetName());
 	// Qui e non "in fondo alla funzione": sotto ci sono due return anticipati e il ramo bSelfTarget,
 	// quindi questo e' l'unico punto attraversato da ogni pressione di tasto che produca un effetto.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
@@ -2334,9 +2355,18 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	}
 }
 
-// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
-// (nel roster ce n'e' una, `Hero.Muiren.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
-// suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
+// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase
+// `ERTResolutionPhase::FastMovement` e non ha un tasto dedicato: sta dove la mette il suo eroe. Un
+// commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
+//
+// 🔴 **Questa riga diceva `ERTResolutionPhase::Dash`, e quel valore non esiste.** `Dash` e' la MACRO-fase
+// (`ERTMatchPhase::Dash`); la fase dichiarata dall'azione e' `FastMovement`, e le due sono separate proprio
+// perche' il codice 20 del catalogo si sdoppia (ADR-0003 §3). La conversione e' `MapResolutionPhase`.
+//
+// ⚠️ **E diceva «nel roster ce n'e' una», che era un conteggio e si e' invecchiato da solo** — l'errore
+// esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
+// `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
+// ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }
 void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2); }

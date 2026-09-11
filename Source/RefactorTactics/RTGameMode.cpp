@@ -7,15 +7,8 @@
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
 #include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
-// `Map/RTHexLibrary.h` stava qui per lo `StableLess` sulle celle, che questo file non chiama piu': l'ordine
-// delle unita' passa dalla sede unica (#2922), e un include con accanto la ragione sbagliata invecchia senza
-// che nessuno lo veda.
-//
-// ⛔ **E qui non va un comando di verifica**, dopo tre tentativi sbagliati allo stesso modo: il primo citava
-// il simbolo e si falsificava da solo, il secondo aggiungeva un pathspec che `git grep` rifiuta, il terzo
-// dichiarava «una sola riga» — vero oggi, falso appena qualcuno scriva quel nome in una nota. Un `grep` non
-// distingue una chiamata viva dalla prosa, ed e' lo stesso strumento che questa PR condanna altrove. Se la
-// dipendenza tornasse, a dirlo e' il compilatore.
+// `Map/RTHexLibrary.h` stava qui per lo `StableLess` sulle celle: l'ordine delle unita' passa dalla sede
+// unica (#2922) e questo file non lo chiama piu'.
 #include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
@@ -919,9 +912,14 @@ void ARTGameMode::AssignUnitControlGroups()
 		}
 	}
 
-	// ⚠️ **L'ordine e' quello di `CollectLivingUnits`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
+	// ⚠️ **L'ordine e' quello di `SortUnitsForResolution`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
 	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
 	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
+	//
+	// ⛔ **Stesso comparatore di `CollectLivingUnits`, insieme DIVERSO**: qui non c'e' il filtro `IsAlive()`,
+	// quindi l'array porta anche i caduti. Una stesura precedente diceva «l'ordine e' quello di
+	// `CollectLivingUnits`» e sbagliava proprio su questo — ed e' la stessa divergenza su cui #2942 poggia il
+	// proprio caso. Trovato in code review.
 	//
 	// 🔑 Al PRIMO giro `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — e a
 	// spareggiare due unita' sulla stessa cella e' il NOME dell'Actor, l'ultima chiave di `UnitOrderLess`.

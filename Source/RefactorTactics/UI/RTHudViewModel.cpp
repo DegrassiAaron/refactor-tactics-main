@@ -123,6 +123,16 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	Card.bIsAlly = (Unit->TeamId == PlayerTeamId);
 	Card.bAlive = Unit->IsAlive();
 
+	// `MaxHealth <= 0` non e' un errore da segnalare: e' la card VUOTA — quella che il pannello mostra
+	// senza selezione — e la barra giusta e' quella a zero.
+	//
+	// `Clamp` e non aritmetica nuda: il contratto dichiara `[0,1]` e `Health` viene dal simulatore, dove
+	// una cura o un danno eccessivo possono portarlo fuori dall'intervallo. E' la stessa cura gia' presa
+	// da `ChargeFraction` poco piu' sotto.
+	Card.HealthFraction = (Card.MaxHealth > 0)
+		? FMath::Clamp(static_cast<float>(Card.Health) / static_cast<float>(Card.MaxHealth), 0.f, 1.f)
+		: 0.f;
+
 	return Card;
 }
 

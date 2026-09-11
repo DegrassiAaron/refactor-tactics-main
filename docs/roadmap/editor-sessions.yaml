@@ -3314,8 +3314,17 @@ sessions:
     # il layer sbagliato e lascerebbe questo `NOT RUN` credendo di averlo verificato.
     unblocked_by: []
     # Vuoto e non e' una svista, come in U46: il codice c'e' tutto. I `WBP_RT_*` di `Content/RT/UI/Match/`
-    # esistono, `URTFrontendNavigator::PresentMatchHud` li monta, e nove test `RefactorTactics.ScreenHud.*`
-    # coprono la meta' strutturale. Quello che manca e' un occhio.
+    # esistono, `URTFrontendNavigator::PresentMatchHud` li monta, e la famiglia `RefactorTactics.ScreenHud.*`
+    # copre la meta' strutturale. Quello che manca e' un occhio.
+    #
+    # ⌫ **Diceva «nove test», ed era vero il 2026-08-28.** Il 2026-09-10 il comando ne contava **34**:
+    #     grep -rhno 'RefactorTactics\.ScreenHud\.[A-Za-z][A-Za-z]*' Source/RefactorTactics/Tests/ | sort -u | wc -l
+    # Il totale non si cita a memoria — si ricontano col comando, che questa riga porta apposta. ⚠️ E la
+    # differenza non e' cosmetica: fra le voci arrivate dopo ci sono `PanelsLeaveTheCenterFree`,
+    # `EveryZoneOwnerIsMountedByClass`, `FeedShowsTheLastLinesWithinBudget` e `FeedIsScopedToTheCurrentTurn`,
+    # cioe' meta' dei criteri che questa seduta elenca. Restano voci PIE lo stesso — quei test misurano il
+    # ViewModel e le geometrie a design-time, non la resa del Blueprint — ma chi esegue deve saperlo prima,
+    # o spende la seduta a rimisurare cio' che e' gia' verde. L'esito resta in `test-manuali-pie.md` (R-6).
     shares_setup_with: []
     # ⚠️ Vuoto per una ragione MISURATA, non per default: l'allestimento di questa seduta parte da
     # `L_Frontend`, e nessun'altra seduta lo condivide — le altre aprono direttamente una mappa di partita.
@@ -3494,5 +3503,59 @@ sessions:
       scritto che «al Cleanup il fumo nasce lì» **non è osservabile**: il colore della superficie vive nel
       `CustomData` delle mesh istanziate e nessuno lo riscrive in partita (`#2894`). Chi giudica non deve
       contare su quel canale per nessuna delle due voci.
+
+      L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
+
+  - id: U52
+    title: I quattro ghost della timeline, e quello che l'occhio non conta da solo
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilita' della timeline di pianificazione — quattro fasi, tre certezze, due ghost impilati
+    artifacts: []
+    # 🔑 **Perche' esiste, e perche' non e' `critical`.** `CP 11.5` (#172) e' mergiato con la DoD coperta per
+    # sei voci su sette, e la settima e' proprio questa: i ghost **a schermo**. Non blocca la v0.1 — la voce
+    # non e' nel subset `RELEASE-V01`, e nessuno ha promesso la timeline per la release — ma senza di lei
+    # quel checkpoint resta con un `NOT RUN` che nessun test headless puo' togliere.
+    #
+    # ⛔ **Non duplica U15 ne' `PIE-PREVIEW-AREA`.** Quella giudica **dove cade** il colpo: un canale solo,
+    # a bersaglio scelto. Questa giudica **in che ordine** le fasi accadranno, che e' una domanda che prima
+    # non si poteva porre perche' la board non la mostrava.
+    unblocked_by: []
+    # Vuoto e misurato: il codice e' in `main` da #2941, e la famiglia `RefactorTactics.Preview.*` copre la
+    # meta' meccanica con sette voci nuove. Quello che manca e' un occhio.
+    shares_setup_with: []
+    # ⚠️ Vuoto per una ragione precisa: l'allestimento chiede `rt.Map.Fixture VisionSplit` **e** un piano
+    # costruito a mano con quattro fasi insieme. Nessuna altra seduta lo ha, e appoggiarsi a una partita
+    # normale lascerebbe fuori proprio il caso che rende la voce giudicabile.
+    verifies: [PIE-PREVIEW-GHOST]
+    issues: [172]
+    done_when: la voce ha esito reale nel registro
+    unblocks: []
+    steps: |
+      🔴 **Le CVar si danno PRIMA del Play, nella console dell'Editor.** Dentro PIE arrivano dopo che il
+      GameMode ha gia' allestito la partita: si impostano e non servono a niente, senza un errore che lo
+      dica. E' la stessa trappola che `PIE-HEX-VIZ-VELO` registra col docstring di `CVarRTMapSource`.
+
+          rt.Map.Fixture VisionSplit
+          rt.Camera.TopDown 1
+          rt.Match.PlanningSeconds 60
+
+      ⚠️ **`VisionSplit` non e' scelta per il velo**: serve il **muro a tre file**, perche' senza un
+      ostacolo fra partenza e arrivo il criterio (2) non e' osservabile — una rotta dritta e una calcolata
+      dal resolver coincidono, e il difetto che quel criterio cerca non puo' manifestarsi.
+
+      🔴 **Poi si costruisce UN piano con tutte e quattro le fasi, e non si conferma.** Su una sola unita':
+      arma una reazione, dichiara uno scatto che **debba aggirare il muro**, un attacco, e **due** waypoint.
+      Con una fase sola si guarda una macchia e non si e' giudicato niente.
+
+      ⛔ **Due dei cinque criteri vanno CHIESTI, non aspettati.** Il (3) e' un confronto di colore fra tre
+      livelli di certezza: a chi non sta confrontando sembra sempre «ok». Il (4) chiede di contare **due**
+      prismi coincidenti — Prep e Blast finiscono sulla stessa cella per costruzione — dove l'occhio ne
+      vede uno spesso. Senza quelle due domande il verde vale tre criteri su cinque e ne dichiara cinque.
+
+      ⚠️ **Le costanti di colore sono scelte, non misurate.** [D-183] per il glifo misuro' contrasto e
+      distanza dalla gamma delle superfici; qui no. Se i tre livelli non si distinguono, il difetto e'
+      nella scelta e non nel cablaggio — e il rimedio e' una misura come quella, non un ritocco a occhio.
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).

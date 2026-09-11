@@ -101,7 +101,7 @@ bool URTCombatLibrary::CanPlayerControlUnitInGroup(int32 UnitTeamId, int32 UnitC
 }
 
 ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy)
+	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells)
 {
 	if (!Map)
 	{
@@ -115,9 +115,26 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 	// nient'altro: una portata cappata dal Fumo resta cappata anche per un mortaio, altrimenti «non serve
 	// vedere» diventerebbe «non serve avvicinarsi», che nessuno ha deciso.
 	const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, RangeCells);
-	if (URTHexLibrary::HexDistance(From, To) > FMath::Max(0, EffectiveRange))
+	const int32 Distance = URTHexLibrary::HexDistance(From, To);
+	if (Distance > FMath::Max(0, EffectiveRange))
 	{
 		return ERTHexTargetReason::OutOfRange; // la portata si valuta PRIMA: e' un difetto diverso da "coperto"
+	}
+
+	// ➕ **IL MINIMO, subito dopo il massimo e nello stesso blocco** (`#2950`). I due verdetti di portata
+	// stanno insieme perche' rispondono alla stessa domanda — *«sono alla distanza giusta?»* — e separarli
+	// avrebbe messo fra loro una regola che non c'entra.
+	//
+	// ⛔ **Il minimo NON passa da `EffectiveTargetingRange`, ed e' deliberato.** Il Fumo cappa quanto lontano
+	// si arriva; non cambia quanto vicino un'arma smette di funzionare. Capparlo significherebbe che una
+	// nube rende improvvisamente usabile in mischia un mortaio, che nessuno ha deciso.
+	//
+	// ⚠️ Dopo il massimo, non prima: se una distanza violasse entrambi i limiti — possibile solo con un
+	// catalogo incoerente, `MinRangeCells > RangeCells` — il motivo resta quello storico, e un dato
+	// incoerente non cambia in silenzio il messaggio di un caso che gia' funzionava.
+	if (MinRangeCells > 0 && Distance < MinRangeCells)
+	{
+		return ERTHexTargetReason::TooClose;
 	}
 
 	// ➕ **LA LICENZA DELL'AZIONE** (`#2870`, [D-378]). Non e' un bypass di `HasLineOfSight`: e' la domanda
@@ -161,6 +178,10 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 
 	case ERTHexTargetReason::NoLineOfSight:
 		return ERTTargetRefusal::Cover;
+
+	case ERTHexTargetReason::TooClose:
+		// Il gesto e' l'OPPOSTO di `Range`, che porta scritto «avvicinati»: qui si indietreggia.
+		return ERTTargetRefusal::TooClose;
 
 	case ERTHexTargetReason::NoMap:
 		// ⚠️ Fail-closed, e per la stessa ragione di `ClassifyHexTargeting`: senza mappa autorevole la

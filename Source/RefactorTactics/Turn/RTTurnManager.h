@@ -1377,7 +1377,7 @@ public:
 	 *
 	 * ⚠️ **Questo helper resta la sorgente unica per *chi vuole le unita' vive del livello*** — non per
 	 * l'ordine, che da #2922 e' consolidato altrove. Fin qui c'era scritto che `ResolveEnvironment`,
-	 * `ResolvePrep` e `ResolveCombat` tenevano copie proprie del comparatore e che *«cambiare il comparatore
+	 * `ResolvePrep` e `GatherBlastUnits` tenevano copie proprie del comparatore e che *«cambiare il comparatore
 	 * qui non lo cambia la'»*: non e' piu' vero. Tutti passano da
 	 * `URTActionQueueLibrary::SortUnitsForResolution`, quindi toccare quella regola le muove **tutte** — ed
 	 * e' il punto, non un effetto collaterale. Trovato in code review.
@@ -1478,7 +1478,10 @@ protected:
 	// dettaglio di implementazione. Sono metodi e non funzioni libere perche' scrivono nei membri che
 	// devono sopravvivere alla fase: `TurnLog`, `TeamKnowledgeState`, `ReactionBlockedThisTurn`.
 
-	/** Raccoglie le unita' del livello, le ordina per cella e costruisce identita', stati e copia posizionale. */
+	/**
+	 * Raccoglie le unita' del livello, le ordina con `URTActionQueueLibrary::SortUnitsForResolution` — cella,
+	 * poi `StableUnitId`, poi nome dell'Actor (#2922) — e costruisce identita', stati e copia posizionale.
+	 */
 	void GatherBlastUnits(FRTBlastContext& Ctx) const;
 
 	/**

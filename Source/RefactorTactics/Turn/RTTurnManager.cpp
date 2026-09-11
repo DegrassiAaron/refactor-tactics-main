@@ -4375,9 +4375,12 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why), FRTLogSubject::Unit(Who));
 	};
 
-	for (ARTUnit* Unit : Units) // gia' ordinati dal chiamante con `SortUnitsForResolution` (#2922)
+	// Gia' ordinati dal chiamante con `SortUnitsForResolution` (#2922), che dereferenzia senza controllare:
+	// ∴ un `nullptr` qui sarebbe gia' esploso nel sort, e il controllo sarebbe codice che nessun test puo'
+	// rendere rosso. Resta il solo filtro che serve davvero.
+	for (ARTUnit* Unit : Units)
 	{
-		if (!Unit || !Unit->IsAlive()) { continue; }
+		if (!Unit->IsAlive()) { continue; }
 
 		const int32 Index = Unit->PlannedAbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
@@ -6946,7 +6949,8 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 		}
 	}
 
-	// ORDINE STABILE PER CELLA, e non e' una rifinitura: senza, l'ORDINE DI SPAWN decide la partita (#990).
+	// ORDINE STABILE, e non e' una rifinitura: senza, l'ORDINE DI SPAWN decide la partita (#990). La cella e'
+	// la PRIMA chiave, non l'unica: `SortUnitsForResolution` chiude con `StableUnitId` e col nome (#2922).
 	//
 	// `GetAllActorsOfClass` restituisce gli Actor nell'ordine in cui il livello li tiene, che non e' un dato
 	// di gioco. Da questo array nasce l'identita' delle unita' nello snapshot — l'indice, si veda il commento
@@ -6958,9 +6962,10 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
 	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
 	//
-	// E' lo stesso `Sort` con lo stesso comparatore che `ResolveCombat` applica al proprio array, dove la
-	// regola era gia' scritta — *«GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli
-	// indici»*. Erano due gemelli, e uno solo dei due la rispettava.
+	// ⚠️ Qui c'era scritto che `ResolveCombat` applica «lo stesso `Sort` con lo stesso comparatore» al
+	// proprio array, e che *«erano due gemelli, e uno solo dei due la rispettava»*: dopo #2922 non c'e' piu'
+	// un gemello. La regola e' una sola — `URTActionQueueLibrary::SortUnitsForResolution` — e il Blast ci
+	// arriva da `GatherBlastUnits`. Toccarla le muove tutte, ed e' il punto.
 	//
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
@@ -6999,7 +7004,8 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	//
 	// I contatti sono chiavati su `ARTUnit::StableUnitId` e NON sull'indice di questo array: le due
 	// numerazioni sono diverse — questo snapshot scarta i morti, quello del Blast no, ed entrambi si
-	// riordinano per cella a ogni movimento. Un consumatore che volesse risalire all'Actor deve cercare per
+	// si riordinano a ogni movimento (la cella e' la prima chiave). Un consumatore che volesse risalire
+	// all'Actor deve cercare per
 	// `StableUnitId`, mai indicizzare `Snapshot.Units` con `Contacts[].StableUnitId`.
 	Snapshot.TeamKnowledge = TeamKnowledgeState;
 	return Snapshot;
@@ -7457,6 +7463,28 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 	{
 		return;
 	}
+
+	// 🔴 **L indice del micro-step viene dalla CHIAVE dell opportunity, non dal contatore ambientale.**
+	//
+	// Quando la risoluzione si sospende su una finestra, `ResolveMovement` RITORNA, e il suo
+	// `ON_SCOPE_EXIT` azzera `CurrentMicroStepIndex`. Le voci scritte alla RIPRESA nascerebbero percio' con
+	// `INDEX_NONE` — che su quel campo significa «nessun ciclo qui», non «non lo so» — di fatti avvenuti
+	// dentro un ciclo di movimento.
+	//
+	// Misurato da `Resolution.SuspendedAndResumedMatchesSinglePass` (#2956): due voci di `ReactionDecision`
+	// collassavano entrambe su `-1` dove la stessa risoluzione in passaggio unico scriveva `#0` e `#1`, e i
+	// boundary delle due tracce smettevano di allinearsi — `T1|Move` contro `T1|Move#0`.
+	//
+	// 🔑 `Opportunity.Key.MicroStepIndex` e' l autorita' su DOVE quella finestra e' avvenuta: lo scrive
+	// `BuildOverwatchTriggers` come `FirstMicroStepIndex + Step`, cioe' dallo stesso conteggio da cui il
+	// ciclo semina il contatore. ∴ nel percorso non sospeso i due valori coincidono e nessuna traccia gia'
+	// registrata si muove; in quello sospeso, questa riga e' la differenza.
+	//
+	// ⚠️ Si ripristina il valore precedente invece di azzerare: questa funzione gira DENTRO il ciclo quando
+	// la finestra non ha sospeso, e lasciarlo a `INDEX_NONE` spegnerebbe l indice per le voci successive.
+	const int32 IndiceAmbientale = CurrentMicroStepIndex;
+	CurrentMicroStepIndex = Opportunity.Key.MicroStepIndex;
+	ON_SCOPE_EXIT{ CurrentMicroStepIndex = IndiceAmbientale; };
 
 	// La voce e' COMUNE ai sei esiti, e non solo al `FIRE`: un `HOLD` che non lascia traccia renderebbe
 	// indistinguibile «ha scelto di non sparare» da «la finestra non si e' mai aperta», che sono la lettura

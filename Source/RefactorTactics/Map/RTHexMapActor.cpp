@@ -1065,7 +1065,8 @@ void ARTHexMapActor::SetHoveredCell(const FRTCellId& Cell, bool bValid)
 
 void ARTHexMapActor::SetPreviewPath(const TArray<FRTCellId>& Path)
 {
-	PreviewPath = Path;
+	PreviewPathArea.Cells = Path;
+	PreviewPathArea.Meaning = ERTOverlayMeaning::PathTrace;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1073,9 +1074,9 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 {
 	return bCellOverlay
 		|| bHoveredValid
-		|| PreviewPath.Num() > 0
-		|| PreviewHitCells.Num() > 0
-		|| PreviewReachable.Num() > 0
+		|| PreviewPathArea.Cells.Num() > 0
+		|| PreviewHitArea.Cells.Num() > 0
+		|| PreviewReachableArea.Cells.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
@@ -1087,14 +1088,17 @@ void ARTHexMapActor::SetPreviewHitCells(const TArray<FRTCellId>& HitCells, const
 {
 	// Si copia e basta: le celle arrivano gia' calcolate da URTHexCombatLibrary::HexHitCells. Rifiltrarle qui
 	// sarebbe un secondo calcolo, e due calcoli della stessa cosa prima o poi divergono (invariante #1).
-	PreviewHitCells = HitCells;
-	PreviewAllyHitCells = AllyCells;
+	PreviewHitArea.Cells = HitCells;
+	PreviewHitArea.Meaning = ERTOverlayMeaning::Attack;
+	PreviewAllyHitArea.Cells = AllyCells;
+	PreviewAllyHitArea.Meaning = ERTOverlayMeaning::FriendlyFire;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
 void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells)
 {
-	PreviewReachable = ReachableCells;
+	PreviewReachableArea.Cells = ReachableCells;
+	PreviewReachableArea.Meaning = ERTOverlayMeaning::Movement;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1392,21 +1396,21 @@ void ARTHexMapActor::DrawPlanningPreview() const
 
 	// Celle raggiungibili: contorno piccolo e tenue. Fa vedere il budget mordere (il fango accorcia il raggio)
 	// senza coprire il resto: e' contesto, non una decisione presa.
-	for (const FRTCellId& Cell : PreviewReachable)
+	for (const FRTCellId& Cell : PreviewReachableArea.Cells)
 	{
 		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
 	}
 
 	// Traccia del percorso: contorno ciano su ogni cella + segmento fra i centri consecutivi.
-	for (int32 I = 0; I < PreviewPath.Num(); ++I)
+	for (int32 I = 0; I < PreviewPathArea.Cells.Num(); ++I)
 	{
-		DrawMeaning(PreviewPath[I], ERTOverlayMeaning::PathTrace);
+		DrawMeaning(PreviewPathArea.Cells[I], ERTOverlayMeaning::PathTrace);
 		if (I > 0)
 		{
-			const FVector A = URTHexLibrary::AxialToWorld(PreviewPath[I - 1], Origin, Size, LayerH)
-				+ FVector(0, 0, CellLift(PreviewPath[I - 1]) + RTLiftPreview + 1.5f);
-			const FVector B = URTHexLibrary::AxialToWorld(PreviewPath[I], Origin, Size, LayerH)
-				+ FVector(0, 0, CellLift(PreviewPath[I]) + RTLiftPreview + 1.5f);
+			const FVector A = URTHexLibrary::AxialToWorld(PreviewPathArea.Cells[I - 1], Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(PreviewPathArea.Cells[I - 1]) + RTLiftPreview + 1.5f);
+			const FVector B = URTHexLibrary::AxialToWorld(PreviewPathArea.Cells[I], Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(PreviewPathArea.Cells[I]) + RTLiftPreview + 1.5f);
 			DrawDebugLine(World, A, B, URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace), false, -1.f, 0, 4.f);
 		}
 	}
@@ -1482,9 +1486,9 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	// Zona colpita dall'attacco pianificato. Rosso = minaccia; ARANCIONE = c'e' un alleato dentro, e va visto
 	// PRIMA del lock-in: che il fuoco amico faccia danno e' gia' verificato dai test, che il giocatore lo sappia
 	// mentre puo' ancora cambiare idea no — quella meta' esiste solo qui.
-	for (const FRTCellId& Cell : PreviewHitCells)
+	for (const FRTCellId& Cell : PreviewHitArea.Cells)
 	{
-		const bool bAlly = PreviewAllyHitCells.Contains(Cell);
+		const bool bAlly = PreviewAllyHitArea.Cells.Contains(Cell);
 		DrawMeaning(Cell, bAlly ? ERTOverlayMeaning::FriendlyFire : ERTOverlayMeaning::Attack);
 	}
 
