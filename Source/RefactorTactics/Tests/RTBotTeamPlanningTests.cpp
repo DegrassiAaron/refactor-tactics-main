@@ -22,6 +22,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: la premessa di non-vacuita del piano
 #include "Unit/RTUnit.h"
+#include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione che il piano deve azzerare (#3025)
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Bot/RTHexBotLibrary.h"
@@ -502,6 +503,82 @@ bool FRTPlanBotsWritesWhatTheValidatorReadsTest::RunTest(const FString&)
 		Bot->HasPlannedNormalMove() || Bot->PlannedDashAbility != INDEX_NONE
 		|| Bot->PlannedAbilityIndex != INDEX_NONE);
 	TestTrue(TEXT("e cio' che ha scritto arriva al validatore, non a un canale che non legge"), Piano.Num() > 0);
+
+	DestroyTeamPlanningWorld(World);
+	return true;
+}
+
+
+/**
+ * Pianificare AZZERA la condizione di reazione, e non solo l'abilita'.
+ *
+ * 🔴 **Il difetto che questo test presidia e' stato reale, e la suite intera era verde** (#3025, trovato
+ * durante #3013). `ARTUnit::ClearReactionPlan()` azzera DUE campi — `PlannedReactionAbility` e
+ * `PlannedReactionCondition` — e l'applicazione del piano dei bot, dopo l'estrazione del planner, scriveva
+ * il solo primo: una condizione dichiarata in un turno precedente sopravviveva a un piano nuovo che non la
+ * prevede.
+ *
+ * 🔑 **Il pericolo lo dichiara gia' `SetPlannedReactionCondition`**, che rifiuta una condizione senza
+ * reazione perche' *«resterebbe orfana nel piano, e il prossimo armamento se la ritroverebbe addosso senza
+ * averla chiesta»*. E' precisamente cio' che accadeva, e nulla lo misurava.
+ *
+ * ⚠️ **Serve un mondo**: `PlannedReactionCondition` vive su `ARTUnit`, e osservarla dopo una
+ * pianificazione significa passare da `PlanBotsForTest()` — cioe' dal percorso vero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanBotsClearsReactionConditionTest,
+	"RefactorTactics.Bot.PlanBotsClearsTheReactionCondition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanBotsClearsReactionConditionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeTeamPlanningWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!Map) { DestroyTeamPlanningWorld(World); return false; }
+	// ⚠️ Controllato: uno spawn fallito qui **abbatterebbe l'intera suite** invece di far fallire un test,
+	// e un crash porta via 2485 risultati. Trovato in code review.
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	if (!MapActor) { DestroyTeamPlanningWorld(World); return false; }
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Bot = SpawnTeamPlanningUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+	ARTUnit* Foe = SpawnTeamPlanningUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0), true);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bot || !Foe) { DestroyTeamPlanningWorld(World); return false; }
+
+	// 1) Un primo giro arma la reazione: senza un'abilita' armata la condizione non si puo' nemmeno porre.
+	TM->PlanBotsForTest();
+	if (Bot->PlannedReactionAbility == INDEX_NONE)
+	{
+		// ⛔ `AddError` e non `AddInfo`: `return false` segna il rosso, ma senza una voce d'errore il
+		// referto mostra un `Fail` con la lista vuota e chi lo tria non vede la causa. E' lo stesso
+		// principio che questa issue difende — un rosso che non dice niente non vale piu' di un verde.
+		AddError(TEXT("il bot non ha armato una reazione: la premessa non regge, il test non misura niente"));
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	// 2) Si dichiara una condizione, come farebbe un giocatore dalla UI.
+	// ⚠️ **L'id dev'essere uno di quelli AMMESSI, e in v0.1 ce n'e' uno solo.**
+	// `URTReactionOpportunityLibrary::IsDeclaredConditionAllowed` rifiuta il resto, e
+	// `SetPlannedReactionCondition` restituisce `false` senza scrivere niente — *«o entra intera, o il piano
+	// resta com'era»*. La prima stesura usava un id inventato: il test cadeva QUI, prima di arrivare alla
+	// proprieta' che voleva misurare, e cadeva identico con e senza il difetto.
+	const bool bPosta = Bot->SetPlannedReactionCondition(
+		FRTDeclaredCondition(TEXT("TargetHealthAtOrBelowPercent"), 50));
+	if (!TestTrue(TEXT("la condizione si e' potuta dichiarare"), bPosta)
+		|| !TestTrue(TEXT("premessa: la condizione c'e'"), Bot->PlannedReactionCondition.IsDeclared()))
+	{
+		DestroyTeamPlanningWorld(World);
+		return false;
+	}
+
+	// 3) Il turno dopo il bot ripianifica, e il piano nuovo non prevede quella condizione.
+	TM->PlanBotsForTest();
+
+	// 🔴 La proprieta': il piano nuovo NON se la porta dietro.
+	TestFalse(TEXT("la condizione del piano precedente non sopravvive alla nuova pianificazione"),
+		Bot->PlannedReactionCondition.IsDeclared());
 
 	DestroyTeamPlanningWorld(World);
 	return true;
