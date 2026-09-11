@@ -1383,4 +1383,75 @@ bool FRTHudFeedShowsTheLastLinesWithinBudgetTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `HealthFraction`: la barra della card non deve dividere, e il caso che rompeva e' la card VUOTA.
+ *
+ * 🔴 **Il difetto e' stato MISURATO in PIE, non ipotizzato.** Seduta `U49` del 2026-09-10
+ * (`PIE-V01-SCREENHUD`, `#613`): `Script Msg: Divide by zero: Divide_DoubleDouble` da
+ * `WBP_RT_UnitCard_C`, dentro `WBP_RT_SelectedUnitPanelBottom`.
+ *
+ * ⛔ **Questo test NON riproduce il warning**, che nasce in un nodo dentro il `.uasset` e headless non
+ * viene nemmeno costruito — stessa dichiarazione, e per la stessa ragione, di
+ * `ChargeFractionNeedsNoDivisionInTheWidget`. Prova la cosa che rende il warning impossibile: che la
+ * vista porti gia' il risultato, con la guardia sullo zero in un posto solo e misurabile.
+ *
+ * ⚠️ **Finche' il grafo continua a dividere da se', la warning resta.** Ricablare la progress bar su
+ * questo campo e' lavoro di Editor, e non lo copre nessun test di questo file.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmHealthFractionTest,
+	"RefactorTactics.HudViewModel.HealthFractionNeedsNoDivisionInTheWidget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmHealthFractionTest::RunTest(const FString&)
+{
+	// 🔴 IL CASO DEL DIFETTO, e viene per primo: nessuna unita' selezionata.
+	const FRTUnitCardView Vuota = URTHudViewModel::BuildUnitCard(nullptr, 0);
+
+	// PREMESSA DEL DIFETTO: senza questa riga il test proverebbe la guardia su un caso che non si
+	// presenta mai, e resterebbe verde anche togliendo la guardia.
+	if (!TestEqual(TEXT("premessa: la card vuota ha MaxHealth = 0 (il caso che divideva per zero)"),
+			Vuota.MaxHealth, 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("card vuota: la barra e' a zero"), Vuota.HealthFraction, 0.f);
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const FRTUnitCardView Illesa = URTHudViewModel::BuildUnitCard(Unit, 0);
+	if (!TestTrue(TEXT("premessa: un'unita' viva ha un massimo positivo"), Illesa.MaxHealth > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("illesa: la barra e' piena"), Illesa.HealthFraction, 1.f);
+
+	// La frazione SEGUE il simulatore: si toglie salute e la barra deve scendere. Senza questo controllo
+	// la guardia potrebbe restituire una costante e il test resterebbe verde.
+	Unit->Health = Unit->MaxHealth / 2;
+	const FRTUnitCardView Ferita = URTHudViewModel::BuildUnitCard(Unit, 0);
+	TestTrue(TEXT("ferita: la barra scende sotto la piena"),
+		Ferita.HealthFraction < Illesa.HealthFraction);
+	TestTrue(TEXT("ferita: la frazione resta in [0,1]"),
+		Ferita.HealthFraction >= 0.f && Ferita.HealthFraction <= 1.f);
+
+	// Il `Clamp` non e' decorativo: `Health` viene dal simulatore e puo' uscire dall'intervallo in
+	// entrambe le direzioni. Una barra fuori da `[0,1]` disegna fuori dal proprio riquadro.
+	Unit->Health = -5;
+	TestEqual(TEXT("salute negativa: la barra si ferma a zero, non va sotto"),
+		URTHudViewModel::BuildUnitCard(Unit, 0).HealthFraction, 0.f);
+
+	Unit->Health = Unit->MaxHealth * 2;
+	TestEqual(TEXT("salute oltre il massimo: la barra si ferma a uno"),
+		URTHudViewModel::BuildUnitCard(Unit, 0).HealthFraction, 1.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

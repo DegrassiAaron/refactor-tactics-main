@@ -20,6 +20,7 @@
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
 #include "UObject/UObjectIterator.h" // TObjectIterator: le classi widget si interrogano, non si elencano
+#include "Blueprint/WidgetTree.h"    // l'albero si COSTRUISCE qui: e' l'unico modo di provare la ricorsione
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -932,6 +933,67 @@ bool FRTScreenHudEmptyObserverSetTest::RunTest(const FString&)
 
 	TestFalse(TEXT("e il predicato dice di no anche da solo"),
 		URTPlayerEventProjector::IsAuthorized(Pubblico, TArray<int32>{}));
+
+	return true;
+}
+
+/**
+ * `ComposeMountReport`: il dump dice chi del §4.1 e' stato costruito **e chi manca**.
+ *
+ * 🔑 **Quello che questo test protegge e' la RICORSIONE**, ed e' la ragione per cui la funzione esiste:
+ * `UWidgetTree::ForEachWidget` cammina l'albero di UN Blueprint e si ferma sui `UUserWidget` innestati,
+ * che hanno un albero loro — limite dichiarato in `RTMatchWidgetAssetTests.cpp`. Qui l'`ActionSlot` sta
+ * DENTRO l'`ActionDock`: se la discesa sparisse, `ActionSlot` conterebbe `0` e questo test diventerebbe
+ * rosso. Un dump fermo al primo livello direbbe «manca» di un widget presente, che e' peggio del
+ * silenzio da cui veniamo.
+ *
+ * ⚠️ **Prova il camminatore, non il montaggio reale**: l'albero qui e' costruito a mano. Che una
+ * PARTITA monti i sei widget resta `PIE-V01-SCREENHUD`, ed e' precisamente cio' che il dump serve a
+ * leggere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudMountReportTest,
+	"RefactorTactics.ScreenHud.MountReportNamesWhoIsMissing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudMountReportTest::RunTest(const FString&)
+{
+	// Senza radice il report PARLA, invece di rendere una lista vuota: una lista vuota si leggerebbe
+	// come «nessun problema», che e' il contrario di cio' che sarebbe successo.
+	const TArray<FString> SenzaRadice = URTTacticalHUDWidget::ComposeMountReport(nullptr);
+	TestTrue(TEXT("senza radice il report dice qualcosa"), SenzaRadice.Num() > 0);
+
+	URTTacticalHUDWidget* Radice = NewObject<URTTacticalHUDWidget>(GetTransientPackage());
+	if (!TestNotNull(TEXT("radice di prova"), Radice)) { return false; }
+
+	// Un dock, e DENTRO il dock uno slot: due livelli, che e' il minimo per distinguere una discesa
+	// ricorsiva da una passata sola.
+	Radice->WidgetTree = NewObject<UWidgetTree>(Radice);
+	URTActionDockWidget* Dock = Radice->WidgetTree->ConstructWidget<URTActionDockWidget>(
+		URTActionDockWidget::StaticClass(), TEXT("DockDiProva"));
+	if (!TestNotNull(TEXT("dock di prova"), Dock)) { return false; }
+	Radice->WidgetTree->RootWidget = Dock;
+
+	Dock->WidgetTree = NewObject<UWidgetTree>(Dock);
+	URTActionSlotWidget* Slot = Dock->WidgetTree->ConstructWidget<URTActionSlotWidget>(
+		URTActionSlotWidget::StaticClass(), TEXT("SlotDiProva"));
+	if (!TestNotNull(TEXT("slot di prova"), Slot)) { return false; }
+	Dock->WidgetTree->RootWidget = Slot;
+
+	const TArray<FString> Report = URTTacticalHUDWidget::ComposeMountReport(Radice);
+	const FString Testo = FString::Join(Report, TEXT("|"));
+
+	TestTrue(TEXT("il dock, che sta al primo livello, e' contato"),
+		Testo.Contains(TEXT("[ok]    ActionDock: 1")));
+
+	// 🔴 LA RIGA CHE PROTEGGE LA RICORSIONE: lo slot sta nell'albero del dock, non della radice.
+	TestTrue(TEXT("lo slot INNESTATO nel dock e' contato: la discesa ricorsiva regge"),
+		Testo.Contains(TEXT("[ok]    ActionSlot: 1")));
+
+	// E chi non c'e' viene NOMINATO. E' la meta' del report che il log non sapeva dare: di un widget
+	// mancante non si sapeva niente, nemmeno che fosse atteso.
+	TestTrue(TEXT("il feed assente e' nominato, non taciuto"),
+		Testo.Contains(TEXT("[MANCA] EventLog: 0")));
+	TestTrue(TEXT("l'header assente e' nominato"),
+		Testo.Contains(TEXT("[MANCA] TurnHeader: 0")));
 
 	return true;
 }

@@ -3314,8 +3314,17 @@ sessions:
     # il layer sbagliato e lascerebbe questo `NOT RUN` credendo di averlo verificato.
     unblocked_by: []
     # Vuoto e non e' una svista, come in U46: il codice c'e' tutto. I `WBP_RT_*` di `Content/RT/UI/Match/`
-    # esistono, `URTFrontendNavigator::PresentMatchHud` li monta, e nove test `RefactorTactics.ScreenHud.*`
-    # coprono la meta' strutturale. Quello che manca e' un occhio.
+    # esistono, `URTFrontendNavigator::PresentMatchHud` li monta, e la famiglia `RefactorTactics.ScreenHud.*`
+    # copre la meta' strutturale. Quello che manca e' un occhio.
+    #
+    # ⌫ **Diceva «nove test», ed era vero il 2026-08-28.** Il 2026-09-10 il comando ne contava **34**:
+    #     grep -rhno 'RefactorTactics\.ScreenHud\.[A-Za-z][A-Za-z]*' Source/RefactorTactics/Tests/ | sort -u | wc -l
+    # Il totale non si cita a memoria — si ricontano col comando, che questa riga porta apposta. ⚠️ E la
+    # differenza non e' cosmetica: fra le voci arrivate dopo ci sono `PanelsLeaveTheCenterFree`,
+    # `EveryZoneOwnerIsMountedByClass`, `FeedShowsTheLastLinesWithinBudget` e `FeedIsScopedToTheCurrentTurn`,
+    # cioe' meta' dei criteri che questa seduta elenca. Restano voci PIE lo stesso — quei test misurano il
+    # ViewModel e le geometrie a design-time, non la resa del Blueprint — ma chi esegue deve saperlo prima,
+    # o spende la seduta a rimisurare cio' che e' gia' verde. L'esito resta in `test-manuali-pie.md` (R-6).
     shares_setup_with: []
     # ⚠️ Vuoto per una ragione MISURATA, non per default: l'allestimento di questa seduta parte da
     # `L_Frontend`, e nessun'altra seduta lo condivide — le altre aprono direttamente una mappa di partita.
