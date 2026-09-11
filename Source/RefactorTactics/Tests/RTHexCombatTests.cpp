@@ -4,6 +4,7 @@
 #include "Ability/RTActionData.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTHexCombatLibrary.h"
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal / RefusalForObserver (#2950)
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -877,6 +878,53 @@ bool FRTHexAreaFootprintStaysOnTargetLayerTest::RunTest(const FString&)
 
 	// La meta' che rende il test falsificabile: la cella sottostante, stesso X/Y e Layer 0, NON e' investita.
 	TestFalse(TEXT("e il piano sottostante non viene toccato"), Celle.Contains(FRTCellId(2, 0, 0)));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// PORTATA MINIMA: un'azione puo' dichiarare quanto VICINO smette di funzionare (`#2950`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Sotto il minimo dichiarato il bersaglio e' rifiutato, e il rifiuto **non e' `OutOfRange`**.
+ *
+ * 🔑 **Le due meta' sono separate perche' falliscono per ragioni diverse.** Un rifiuto che non arriva e un
+ * rifiuto che mente sono due difetti, e il secondo e' quello che `#2766` ha gia' pagato su questo enum:
+ * `ERTTargetRefusal::Range` porta scritto *«avvicinati»*, quindi riusarla per una distanza minima direbbe
+ * al giocatore di fare l'opposto di cio' che risolve.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMinRangeRefusesTooCloseTest,
+	"RefactorTactics.Combat.MinRangeRefusesTooClose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMinRangeRefusesTooCloseTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	const FRTCellId From(0, 0);
+
+	// Sotto il minimo: distanza 1, minimo 3.
+	TestEqual(TEXT("sotto il minimo il bersaglio e' rifiutato, e il motivo e' TooClose"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(1, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required, /*MinRange*/ 3),
+		ERTHexTargetReason::TooClose);
+
+	// Al minimo esatto: parte. E' il confine, ed e' la meta' che impedisce a un minimo troppo zelante di
+	// mangiarsi il caso legittimo.
+	TestEqual(TEXT("alla distanza minima esatta l'azione parte"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(3, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required, /*MinRange*/ 3),
+		ERTHexTargetReason::Ok);
+
+	// ⛔ Il default: chi non dichiara un minimo non cambia comportamento. E' l'invariante che protegge
+	// l'intero catalogo esistente.
+	TestEqual(TEXT("senza minimo dichiarato, la distanza 1 resta legittima"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(1, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::Ok);
+
+	// Il rifiuto raggiunge il giocatore con un gesto PROPRIO, non con quello opposto.
+	TestEqual(TEXT("l'osservatore legge «troppo vicino», non «troppo lontano»"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::TooClose, /*bKnown*/ true),
+		ERTTargetRefusal::TooClose);
 	return true;
 }
 

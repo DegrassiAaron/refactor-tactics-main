@@ -22,7 +22,20 @@ enum class ERTHexTargetReason : uint8
 	Ok,             // ingaggiabile
 	NoMap,          // nessuna mappa autorevole: non si valida (fail-closed)
 	OutOfRange,     // oltre la portata dell'abilita'
-	NoLineOfSight   // in portata, ma la traiettoria e' bloccata
+	NoLineOfSight,  // in portata, ma la traiettoria e' bloccata
+
+	/**
+	 * Sotto la distanza MINIMA che l'azione dichiara (`#2950`): un arco, un mortaio, un'arma pesante che
+	 * in mischia non si usa.
+	 *
+	 * ⚠️ **In CODA, e non e' estetica**: il valore serializzato e' l'indice, e infilarlo in mezzo
+	 * rinumererebbe `NoLineOfSight` in silenzio. E' la disciplina che `ERTLineStop` e
+	 * `ERTResolvedEventType` dichiarano gia' per se'.
+	 *
+	 * ⛔ **Non e' `OutOfRange` al contrario.** Sono due difetti con due correzioni opposte, e confonderli
+	 * renderebbe il messaggio una bugia — il difetto che `#2766` ha gia' chiuso su questo stesso enum.
+	 */
+	TooClose
 };
 
 /**
@@ -46,7 +59,19 @@ enum class ERTTargetRefusal : uint8
 	None,    // nessun rifiuto: il bersaglio e' ingaggiabile
 	Cover,   // qualcosa interrompe la traiettoria — «spostati di lato»
 	Range,   // troppo lontano — «avvicinati»
-	Nothing  // niente da bersagliare QUI, per quanto l'osservatore ne sappia
+	Nothing, // niente da bersagliare QUI, per quanto l'osservatore ne sappia
+
+	/**
+	 * Troppo VICINO — «allontanati» (`#2950`).
+	 *
+	 * 🔑 **Vale un valore proprio perche' chiede il gesto OPPOSTO a `Range`.** Quella voce porta scritto
+	 * *«avvicinati»*: riusarla per una distanza minima direbbe al giocatore di fare esattamente cio' che
+	 * peggiora la sua posizione. E' il criterio gia' usato da `ERTLineStop` per separare
+	 * `BlockedByEdgeCover` da `BlockedByCover` — due rifiuti si distinguono quando la correzione differisce.
+	 *
+	 * ⚠️ In coda: l'indice e' il dato.
+	 */
+	TooClose
 };
 
 /**
@@ -436,8 +461,13 @@ public:
 	 * @param Policy  `FRTActionDef::LineOfSightPolicy` dell'azione che si sta pianificando
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	/**
+	 * ⚠️ `MinRangeCells` ha default **0** = nessun minimo: ogni chiamante che non lo passa conserva il
+	 * comportamento che aveva, e un'azione che non lo dichiara non cambia (`#2950`). Stessa forma con cui
+	 * `Policy` e' entrata qui con [D-378].
+	 */
 	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
 
 	/**
 	 * Traduce la classificazione INTERNA in cio' che il giocatore puo' sapere — `#2741`.
