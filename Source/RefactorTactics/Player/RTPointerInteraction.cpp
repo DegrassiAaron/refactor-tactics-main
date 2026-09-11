@@ -187,3 +187,69 @@ ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, boo
 	// piano gia' consegnato.
 	return ERTPointerBackStep::None;
 }
+
+ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,
+	bool bObserved)
+{
+	// Nessuna unita' sotto il cursore: questa funzione non ha niente da dire. Le celle, i bordi e gli oggetti
+	// logici sono di `ResolveTarget`, che ha i candidati in mano; rispondere qualcosa di diverso da `NoOp`
+	// significherebbe avere due funzioni che decidono sullo stesso hit.
+	if (!bHitUnit)
+	{
+		return ERTPointerOutcome::NoOp;
+	}
+
+	// 🔴 **I contesti in cui l'input di gioco non arriva rispondono `Blocked`, non `NoOp`.** Il controller
+	// esce prima, su `IsGameplayInputBlocked`, quindi in produzione questi rami non si raggiungono — ma la
+	// matrice §5 dev'essere **totale**, e un buco qui sarebbe un esito non dichiarato invece di un esito
+	// dichiarato irraggiungibile. ⚠️ `Blocked` e non `NoOp` perche' e' un rifiuto: la DoD di `#705` chiede
+	// che *«ogni rifiuto porti un reason code»*, e un `NoOp` non ne ha uno da portare.
+	if (Context == ERTPointerContext::Modal
+		|| Context == ERTPointerContext::ResolutionPlayback
+		|| Context == ERTPointerContext::ReactionWindow)
+	{
+		return ERTPointerOutcome::Blocked;
+	}
+
+	// ⛔ **Il velo decide PRIMA della squadra, e risponde `NoOp` — NON `Blocked`.**
+	//
+	// 🔴 L'ordine conta: guardando prima `bCommandable`, un'avversaria nascosta produrrebbe `Inspect`, e la
+	// sequenza stessa direbbe che li' c'e' qualcosa.
+	//
+	// 🔴 **E l'esito conta quanto l'ordine.** Una prima stesura rispondeva `Blocked`, citando la DoD di
+	// `#705` — *«ogni rifiuto porta un reason code»* — e si contraddiceva con il proprio commento accanto,
+	// che prometteva un comportamento *«indistinguibile da una cella vuota»*. Una cella vuota da' `NoOp`:
+	// `Blocked` sarebbe stato **distinguibile**, e un reason code su un'unita' che non dovresti sapere
+	// esistere e' esattamente il canale che questa riga esiste per chiudere. Cio' che il velo nasconde non
+	// e' un rifiuto — e' un nulla, e va risposto come tale ([D-225]).
+	//
+	// ⚠️ `bObserved` non vincola le unita' comandabili: le proprie si vedono sempre, e chiedere al velo di
+	// autorizzarle introdurrebbe un modo di perdere il comando delle proprie unita'.
+	if (!bCommandable && !bObserved)
+	{
+		return ERTPointerOutcome::NoOp;
+	}
+
+	// 🔑 **Un'unita' comandabile si seleziona SEMPRE, `Targeting` incluso**, e non e' una semplificazione:
+	// e' il comportamento di oggi. Il ramo che bersaglia (`RTPlayerController.cpp`) pretende
+	// `ClickedUnit->TeamId != SelectedUnit->TeamId`, quindi cliccare una propria unita' mentre si mira la
+	// **ri-seleziona** invece di bersagliarla. ⌫ Una prima stesura di questa funzione metteva il ramo
+	// `Targeting` per primo e rispondeva `Confirm` anche per le proprie: avrebbe fatto bersagliare le
+	// compagne, che e' un cambio di gameplay travestito da riordino.
+	if (bCommandable)
+	{
+		return ERTPointerOutcome::Select;
+	}
+
+	// Non comandabile. In `Targeting` il click e' la conferma del bersaglio, ed e' la parte della decisione
+	// del 2026-09-11 che dice **cosa NON cambia**: la lettura «larga» — `LMB` non bersaglia mai — e' stata
+	// scartata perche' toglierebbe il gesto a ogni abilita' a bersaglio singolo.
+	// ⚠️ `Confirm` NON significa «il bersaglio e' legale»: portata, linea di tiro e slot restano di chi
+	// chiama. Significa «questo click e' una conferma di bersaglio», che e' l'unica cosa che il contesto sa.
+	//
+	// 🔑 Fuori da `Targeting`, `Inspect`. **`Inspect` e `Select` sono esiti DIVERSI e non due nomi della
+	// stessa cosa**: selezionare significa comandare, e cio' che segue la selezione — il pannello degli slot,
+	// il dock delle azioni — leggerebbe di un'avversaria il piano e il kit. L'esito separato esiste perche'
+	// il soggetto ispezionato sia un'altra cosa dal soggetto comandato.
+	return Context == ERTPointerContext::Targeting ? ERTPointerOutcome::Confirm : ERTPointerOutcome::Inspect;
+}
