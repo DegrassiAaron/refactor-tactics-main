@@ -27,6 +27,7 @@
 #include "Map/RTHexDoorLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Ability/RTActionData.h"
+#include "Bot/RTBotPlanningLibrary.h" // URTBotPlanningLibrary: la decisione dei bot vive fuori (#3013)
 #include "Bot/RTHexBotLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Turn/RTFacingLibrary.h"
@@ -771,30 +772,26 @@ void ARTTurnManager::RefreshTeamKnowledgeNow()
 
 void ARTTurnManager::PlanBots()
 {
-
-	// Osservabilita' del tuning: i pesi correnti, una riga per turno (verifica delle modifiche in PIE).
-	// UE_LOG diretto (non AddLogEvent) per non riempire il combat log della HUD.
+	// L'ORCHESTRAZIONE della pianificazione dei bot. La decisione vive in `URTBotPlanningLibrary` (#3013).
+	//
+	// 🔑 **Cio' che resta qui e' cio' che ha bisogno del mondo**: il ruolino, lo snapshot, la conoscenza, e
+	// l'applicazione dei piani sugli `ARTUnit`. Cio' che se n'e' andato e' la decisione — 1 054 righe che
+	// per essere provate pretendevano una partita viva. `CLAUDE.md` §11: *«i bot generano intent, e usano
+	// gli stessi legal-action rules, canonical state, simulator e resolution rules dei player»*.
 	UE_LOG(LogRT, Log, TEXT("[RT] Pesi bot: WKill=%d WDamage=%d WThreat=%d WKiteViolation=%d WApproach=%d WElevation=%d"),
 		WKill, WDamage, WThreat, WKiteViolation, WApproach, WElevation);
 
 	// 🔴 **L'invariante si verifica sull'ISTANZA, e una volta per partita** (`#1276`).
 	//
 	// `WElevation * MaxLayer < WApproach` e' l'unica difesa contro lo stato assorbente di `#1088` — il bot
-	// che si parcheggia in quota e la partita che non si decide. L'header lo dichiara accanto al campo, e
-	// dichiara anche il modo di riaprirlo: *«alzarlo da qui in editor lo riapre»*.
+	// che si parcheggia in quota e la partita che non si decide.
 	//
-	// ⚠️ **Il test che lo pinna legge `GetDefault<ARTTurnManager>()`, cioe' il CDO.** Ma `ARTGameMode`
-	// RIUSA un `ARTTurnManager` gia' presente nel livello invece di spawnarlo, e un'istanza piazzata
-	// serializza i propri `UPROPERTY` nel `.umap`: un livello che portasse ancora `WElevation = 20`
-	// riaprirebbe il difetto **mentre il test resta verde**. Un test non puo' vederlo — non carica i
-	// livelli — quindi il presidio sta qui, dove i pesi e la mappa sono entrambi quelli veri.
-	//
-	// ⚠️ E vale anche per `MaxLayer`: l'invariante non e' una proprieta' dei soli pesi, ma del loro rapporto
-	// con la mappa in gioco. Gli stessi pesi reggono su due layer e cedono su tre.
+	// ⚠️ **Resta nell'orchestratore e non e' passato al planner**: legge la MAPPA del livello caricato
+	// (`GetHexContext`), cioe' esattamente cio' che il planner non ha piu'. Ed e' diagnostica, non
+	// decisione: non cambia una sola scelta.
 	if (!bBotWeightInvariantChecked)
 	{
 		bBotWeightInvariantChecked = true;
-
 		FVector InvOrigin; float InvHexSize; float InvLayerH;
 		if (const URTHexMapAsset* Map = GetHexContext(InvOrigin, InvHexSize, InvLayerH))
 		{
@@ -803,12 +800,8 @@ void ARTTurnManager::PlanBots()
 			{
 				MaxLayer = FMath::Max(MaxLayer, Cell.Id.Layer);
 			}
-
 			if (WElevation * MaxLayer >= WApproach)
 			{
-				// Fail-loud e non fail-closed: la partita si gioca lo stesso, ma chi raccoglie una misura di
-				// bilanciamento deve sapere che questa non vale. Un peso serializzato invisibile falserebbe
-				// qualunque numero raccolto su `#149`.
 				UE_LOG(LogRT, Error,
 					TEXT("[RT] INVARIANTE PESI BOT VIOLATA: WElevation(%d) * MaxLayer(%d) = %d >= WApproach(%d). "
 						 "Il bot puo' parcheggiarsi in quota (#1088) e la partita puo' non decidersi. "
@@ -819,1008 +812,148 @@ void ARTTurnManager::PlanBots()
 		}
 	}
 
-	// Stesso snapshot autorevole del movimento e dell'input: mappa, occupazione e budget congelati.
-	// Le mosse candidate nascono da ReachableCells, quindi il bot NON puo' proporre una mossa illegale
-	// (niente celle inesistenti, bloccate, occupate o fuori budget) e non rifa' pathfinding per conto suo.
-	// CP 13.5 — l'IDENTITA' dev'esistere prima della conoscenza, perche' e' la sua chiave.
-	//
-	// `EnsureMatchRoster` viveva solo in `LockInAndResolve`, cioe' a valle della pianificazione: al primo
-	// turno ogni `StableUnitId` valeva ancora **0**. Finche' nessuno leggeva quel campo in pianificazione non
-	// si vedeva; adesso lo legge `ClassifyTarget`, e con tutti gli id a zero i contatti di unita' diverse si
-	// sarebbero fusi in uno — il ricordo di un nemico avrebbe risposto per un altro.
-	// La funzione e' idempotente per costruzione («l'identita' si assegna una volta»), quindi chiamarla anche
-	// qui non riassegna niente: sposta solo *quando* la prima assegnazione avviene.
 	EnsureMatchRoster();
 
 	TArray<ARTUnit*> Units;
 	const FRTHexSnapshot BaseSnapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
 
-	// #1088 — UNO SNAPSHOT DI PIANIFICAZIONE PER SQUADRA, e non era cosi'.
+	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra.
+	RefreshTeamKnowledgeForPlanning(Units);
+
+	// --- I FATTI, non gli Actor ---------------------------------------------------------------------
 	//
-	// Fino a qui ogni bot pianificava sullo stesso snapshot congelato prima del ciclo: la seconda unita' non
-	// sapeva cosa avesse scelto la prima, sceglieva la stessa cella, e la risoluzione simultanea le fermava
-	// entrambe (`BlockedContested`). Deterministico, quindi il turno dopo ricreava la contesa identica — e la
-	// partita si bloccava. Misurato sull'arena spedita: 24 contese in 12 turni, TUTTE fra compagni di
-	// squadra, zero mosse.
-	//
-	// ⛔ **Per squadra, e non e' un'ottimizzazione: e' fairness** (CP 13.5, `RT-FEAT-BOT-FAIRNESS`). Le
-	// prenotazioni sono informazione sui piani, e i piani di una squadra sono privati: con un solo snapshot
-	// condiviso un bot eviterebbe la cella dove sta per andare un AVVERSARIO, cioe' schiverebbe un intento
-	// che nessun giocatore puo' vedere. Due squadre che si contendono la stessa cella devono continuare a
-	// contendersela — quella e' una collisione legittima, e la risolve il resolver.
-	// ⚠️ Costruiti TUTTI in anticipo, e non su richiesta dentro il ciclo: un `Add` in corsa puo' riallocare
-	// la mappa e invalidare un riferimento gia' preso — e quel riferimento resterebbe vivo per l'intero corpo
-	// dell'iterazione. Con le squadre note prima, la mappa non viene piu' toccata mentre qualcuno la guarda.
-	TMap<int32, FRTHexSnapshot> PlanningSnapshots;
-	for (const ARTUnit* U : Units)
+	// ⚠️ **La portata di scatto si calcola QUI**, perche' `GetEffectiveDashRange` dipende dallo stato
+	// dell'unita' e dalla portata dichiarata dall'abilita': sono due letture che il planner non puo' fare.
+	TArray<FRTBotUnitFacts> Facts;
+	Facts.Reserve(Units.Num());
+	TMap<int32, FRTTeamKnowledge> KnowledgeByTeam;
+	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (U && U->bIsBotControlled && !PlanningSnapshots.Contains(U->TeamId))
+		// ⚠️ **Nessuna guardia sul nullo, ed e' deliberato**: `Facts` deve restare allineato a `Units`, e
+		// saltare una voce qui sposterebbe di uno ogni posizione successiva — cioe' trasformerebbe un crash
+		// in un piano applicato all'unita' SBAGLIATA. `CollectLivingUnits` non emette nulli, e questa riga
+		// dipende da quell'invariante come ci dipendeva il codice di prima. Trovato in code review.
+		const ARTUnit* U = Units[i];
+
+		FRTBotUnitFacts F;
+		F.Index = i;
+		F.StableUnitId = U->StableUnitId;
+		F.TeamId = U->TeamId;
+		F.bIsBotControlled = U->bIsBotControlled;
+		F.bAlive = U->IsAlive();
+		F.DisplayName = U->GetName();
+		F.Cell = U->Cell;
+		F.Facing = U->Facing;
+		F.Health = U->Health;
+		F.Shield = U->Shield;
+		F.MaxHealth = U->MaxHealth;
+		F.AttackRange = U->AttackRange;
+		F.bUnbalanced = U->HasStatus(TAG_Status_Unbalanced);
+
+		F.Abilities.Reserve(U->NumAbilities());
+		F.bAbilityUsable.Reserve(U->NumAbilities());
+		for (int32 A = 0; A < U->NumAbilities(); ++A)
 		{
-			PlanningSnapshots.Add(U->TeamId, BaseSnapshot);
+			F.Abilities.Add(U->GetAbility(A));
+			F.bAbilityUsable.Add(U->CanUseAbility(A));
+		}
+
+		F.DashAbilityIndex = U->FindDashAbilityIndex();
+		if (const URTActionData* DashAb = U->GetAbility(F.DashAbilityIndex))
+		{
+			const int32 Dichiarata = DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells;
+			F.EffectiveDashRange = U->GetEffectiveDashRange(Dichiarata);
+		}
+
+		Facts.Add(MoveTemp(F));
+
+		if (!KnowledgeByTeam.Contains(U->TeamId))
+		{
+			KnowledgeByTeam.Add(U->TeamId, KnowledgeForTeam(U->TeamId));
 		}
 	}
 
-	// Prenota nello snapshot della squadra la rotta che il bot ha appena scelto.
-	//
-	// 🔴 **LIMITE MISURATO, e va letto prima di credere che questa prenotazione basti.** Cio' che arriva
-	// all'esecuzione e' la DESTINAZIONE, non la rotta: `ResolveMovement` ricalcola il percorso su uno
-	// snapshot fresco, dove nessuna prenotazione esiste, quindi per ogni compagna dopo la prima la rotta
-	// eseguita puo' tornare a essere quella DIRETTA — proprio quella che la prenotazione aveva scartato.
-	// ∴ questa prenotazione garantisce **destinazioni distinte**, non **percorsi disgiunti**, e la meta' del
-	// difetto di #1088 fatta di collisioni di percorso (12 contese su 24) resta possibile in linea di
-	// principio. Sulla configurazione spedita non si osserva — misurato, `fermo: cella contesa` = 0 in 12
-	// round — ma «non osservato» non e' «impedito».
-	//
-	// ⛔ **Fissare qui `PlannedPath` NON e' la soluzione, ed e' stato provato**: `ResolveMovement` accetta un
-	// `PlannedPath` gia' pronto **senza** riapplicare l'occupazione fresca — la sua validazione autorevole
-	// vive nel ramo che ricalcola — e una rotta scelta in pianificazione e' vecchia di due fasi (Dash e Blast
-	// muovono, spingono e uccidono). Il risultato misurato e' **due unita' sulla stessa cella**
-	// (`HexMatch.TestArenaKeepsUnitsOnLegalCells`, turno 9). La correzione giusta e' far accumulare le rotte
-	// **dentro** `ResolveMovement`, dove l'occupazione e' fresca e varrebbe anche per le unita' umane: e'
-	// piu' larga di #1088 e va aperta a parte.
-	//
-	// ⚠️ **Solo il movimento NORMALE**, e la ragione e' la geometria: lo scatto ha traiettoria LINEARE mentre
-	// `ReservePlannedRoute` cammina il grafo, quindi per uno scatto prenoterebbe celle che non verranno
-	// attraversate. Della fase Dash si prenota la sola cella d'ARRIVO — vedi piu' sotto: e' li' che l'unita'
-	// si trovera' quando il Move gira, quindi e' l'unica che una compagna non deve poter scegliere.
-	auto ReserveNormalMove = [](FRTHexSnapshot& TeamSnapshot, ARTUnit* PlannedBot, int32 PlannedIdx)
+	FRTBotWeights Pesi;
+	Pesi.WKill = WKill;
+	Pesi.WDamage = WDamage;
+	Pesi.WThreat = WThreat;
+	Pesi.WKiteViolation = WKiteViolation;
+	Pesi.WApproach = WApproach;
+	Pesi.WElevation = WElevation;
+	Pesi.WEngage = WEngage;
+	Pesi.WEngageDecay = WEngageDecay;
+	Pesi.WObjective = WObjective;
+	Pesi.WObjectiveFalloff = WObjectiveFalloff;
+
+	// --- LA DECISIONE -------------------------------------------------------------------------------
+	const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
+		BaseSnapshot, Facts, Pesi, KnowledgeByTeam, BotIdleTurns, BotIdleRound, TurnNumber, bRecordReplay);
+
+	// --- L'APPLICAZIONE -----------------------------------------------------------------------------
+	for (const FRTBotPlanDecision& Piano : Esito.Decisions)
 	{
-		if (!PlannedBot)
-		{
-			return;
-		}
-		if (PlannedBot->PlannedDashAbility != INDEX_NONE)
-		{
-			// Scatta: la rotta e' della fase Dash e non passa di qui, ma la cella su cui ATTERRA sara'
-			// occupata quando il Move risolve. Senza prenotarla, una compagna la sceglie come destinazione e
-			// al proprio turno di movimento trova la strada sbarrata: un turno speso per niente.
-			if (!(PlannedBot->PlannedDashCell == PlannedBot->Cell)
-				&& !TeamSnapshot.Occupancy.Contains(PlannedBot->PlannedDashCell))
-			{
-				TeamSnapshot.Occupancy.Add(PlannedBot->PlannedDashCell, PlannedIdx);
-			}
-			return;
-		}
-		URTHexBotLibrary::ReservePlannedRoute(TeamSnapshot, PlannedIdx, PlannedBot->PlannedCell);
-	};
+		if (!Units.IsValidIndex(Piano.UnitIndex)) { continue; }
+		ARTUnit* Bot = Units[Piano.UnitIndex];
+		if (!Bot) { continue; }
 
-	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra. `ResolveCombat` la
-	// rinfresca a valle del Dash, cioe' DOPO: al primo turno sarebbe vuota, e un bot che pianifica su una
-	// conoscenza vuota non e' parziale, e' cieco — il filtro sembrerebbe funzionare mentre produce un bot
-	// che non fa niente.
-	RefreshTeamKnowledgeForPlanning(Units);
+		Bot->PlannedCell = Piano.PlannedCell;
+		Bot->PlannedPath = Piano.PlannedPath;
+		Bot->PlannedWaypoints = Piano.PlannedWaypoints;
+		Bot->PlannedAbilityIndex = Piano.PlannedAbilityIndex;
+		Bot->PlannedDashAbility = Piano.PlannedDashAbility;
+		Bot->PlannedDashCell = Piano.PlannedDashCell;
 
-	// Gli id di TUTTO l'equipaggiamento spedito, per distinguere un'abilita' concessa dal LOADOUT da una del
-	// KIT (`#1403`, [D-220]). Si chiede al catalogo, non all'indice.
-	//
-	// ⚠️ **Tutto l'equipaggiamento, non i soli moduli reazione**: `EquipLoadout` passa da
-	// `MakeEquipmentAction` per ogni pezzo non-arma, **gadget compresi**, e quella funzione scrive
-	// `Def.ActionId = Item->EquipmentId` per tutti. Un gadget costruito su un'azione di slot reazione
-	// finirebbe archiviato fra le abilita' di kit — e sarebbe la stessa «origine per accidente» che questa
-	// riga esiste per togliere, un livello piu' sotto.
-	//
-	// ⚠️ **`static`, quindi una volta per processo**: `FindEquipment` ricostruisce i tre cataloghi a ogni
-	// chiamata — **diciassette** `NewObject` piu' le `FText` — e `PlanBots` gira a ogni turno. E' l'idioma
-	// che `DefaultReactionModuleFor` e `DefaultGadgetFor` gia' usano due funzioni piu' su.
-	static const TSet<FName> IdEquipaggiamento = []()
+		// ⛔ **Anche la reazione passa dalla FUNZIONE, e per la stessa ragione dell'attacco.**
+		// `ClearReactionPlan()` azzera DUE campi — `PlannedReactionAbility` e `PlannedReactionCondition` —
+		// e una stesura precedente di questa applicazione ne scriveva uno solo: una condizione dichiarata
+		// in un turno precedente sarebbe sopravvissuta a un piano che non la prevede. Il planner non
+		// trasporta la condizione perche' il bot non ne dichiara (scrive la sola abilita', come faceva
+		// prima); ⚠️ ma azzerarla resta necessario, ed e' cio' che il campo da solo non fa.
+		Bot->ClearReactionPlan();
+		if (Piano.PlannedReactionAbility != INDEX_NONE)
+		{
+			Bot->PlannedReactionAbility = Piano.PlannedReactionAbility;
+		}
+
+		// ⛔ **Il bersaglio passa dalla funzione, non dal campo** (`#2884`): `PlannedAttackTarget` e
+		// `bAttackTargetsCell` sono mutuamente esclusivi, e l'esclusivita' vive in `DeclareAttackOnUnit` /
+		// `ClearPlannedAttack`. Scrivere il campo a mano e' precisamente cio' che l'header di `ARTUnit`
+		// vieta, *«finche' l'esclusivita' e' stata una convenzione invece che una funzione nessuno l'ha
+		// rispettata»*.
+		if (Units.IsValidIndex(Piano.PlannedAttackTargetIndex))
+		{
+			Bot->DeclareAttackOnUnit(Units[Piano.PlannedAttackTargetIndex]);
+		}
+		else
+		{
+			Bot->ClearPlannedAttack();
+		}
+	}
+
+	// Le righe di log: prodotte dalla decisione, emesse da qui col loro soggetto.
+	for (const FRTBotLogLine& Riga : Esito.LogLines)
 	{
-		TSet<FName> Ids;
-		for (const TArray<URTEquipmentData*>& Catalogo :
-			{ URTCatalogLibrary::MakeWeaponVariants(), URTCatalogLibrary::MakeGadgets(),
-			  URTCatalogLibrary::MakeReactionModules() })
+		// ⚠️ Il soggetto si costruisce solo da `FRTLogSubject::Unit`: il costruttore di default e' privato,
+		// ed e' cosi' apposta — una riga senza soggetto non la produce questa pianificazione.
+		if (ARTUnit* Soggetto = Units.IsValidIndex(Riga.SubjectUnitIndex) ? Units[Riga.SubjectUnitIndex] : nullptr)
 		{
-			for (const URTEquipmentData* Pezzo : Catalogo)
-			{
-				if (Pezzo) { Ids.Add(Pezzo->EquipmentId); }
-			}
+			AddLogEvent(Riga.Text, FRTLogSubject::Unit(Soggetto));
 		}
-		return Ids;
-	}();
+	}
 
-	// [D-313], emendamento — le SCELTE dei bot si aprono QUI, e la ragione e' che questa funzione ha **due
-	// ingressi**: il gioco ci arriva da `StartPlanningTimer`, l'harness e i test da `PlanBotsForTest()`. E'
-	// lo stesso paio di percorsi che `LockInAndResolve` dichiara sopra `EnsureMatchRoster`, e catturare
-	// altrove ne serviva uno solo — sull'altro l'archivio restava vuoto, che non e' un'assoluzione ma
-	// un'assenza di prove letta come «nessuna violazione».
+	// [D-313], emendamento — le SCELTE dei bot si aprono e si chiudono QUI, e la ragione e' che `PlanBots`
+	// ha **due ingressi**: il gioco ci arriva da `StartPlanningTimer`, l'harness e i test da
+	// `PlanBotsForTest()`. Catturare altrove ne serviva uno solo — sull'altro l'archivio restava vuoto, che
+	// non e' un'assoluzione ma un'assenza di prove letta come «nessuna violazione».
 	//
 	// ⚠️ **E si riaprono a ogni passaggio**, perche' `PlanBots` gira due volte sullo stesso turno quando
 	// `PlanBotsForTest()` precede `LockInAndResolve()`: la conoscenza di Planning viene riscritta dal
 	// secondo giro, e scelte del primo accanto a una conoscenza del secondo sarebbero una coppia che non e'
-	// mai esistita.
+	// mai esistita. L'assegnazione — e non un `Append` — e' cio' che lo garantisce.
 	if (bRecordReplay)
 	{
-		BotDecisionsForAudit.Reset();
+		BotDecisionsForAudit = Esito.AuditDecisions;
 		BotDecisionsTurnForAudit = TurnNumber;
-	}
-
-	for (int32 BotIdx = 0; BotIdx < Units.Num(); ++BotIdx)
-	{
-		ARTUnit* Bot = Units[BotIdx];
-		if (!Bot->bIsBotControlled)
-		{
-			continue; // il giocatore umano mira dove vuole: il suo filtro e' altrove, e non e' questo
-		}
-
-		// Il record si APRE adesso e si chiude dopo la scelta: un bot che esce dal ciclo senza bersaglio ne
-		// lascia comunque uno, con `TargetUnitId` a `INDEX_NONE`. Cosi' «nessuna scelta» resta distinguibile
-		// da «nessuna cattura», che e' la differenza fra un dato e un buco.
-		const int32 IdxScelta = bRecordReplay ? BotDecisionsForAudit.Num() : INDEX_NONE;
-		if (bRecordReplay)
-		{
-			FRTAuditBotDecision Apertura;
-			Apertura.UnitId = Bot->StableUnitId;
-			Apertura.TeamId = Bot->TeamId;
-			BotDecisionsForAudit.Add(Apertura);
-		}
-
-		Bot->PlannedCell = Bot->Cell;   // default: fermo
-		Bot->ClearPlannedAttack();
-		Bot->PlannedAbilityIndex = INDEX_NONE;
-		Bot->PlannedPath.Reset();       // il bot pianifica destinazioni, non percorsi a waypoint
-		Bot->PlannedWaypoints.Reset();
-		// 🔴 Anche lo SCATTO, che fino al 2026-08-25 restava fuori da questo azzeramento: quattro campi
-		// su cinque ripartivano da zero e il quinto no. Un dash che il resolver non ha consumato — perche'
-		// la sua destinazione non era piu' raggiungibile, o perche' l'azione era in ricarica — sopravviveva
-		// alla ripianificazione e si sommava al movimento deciso in QUESTO turno.
-		//
-		// ⚠️ Il difetto era invisibile finche' la carica occupava la principale: `[Ram(Main), Move(Movement)]`
-		// e' un piano legale, e nessuno guardava. Con [D-191] la carica e' mobilita', quindi le due voci si
-		// contendono lo slot e `ValidatePlan` lo dichiara `SlotOccupied` — misurato dal bot, non dedotto.
-		Bot->PlannedDashAbility = INDEX_NONE;
-		// ⚠️ **E lo slot REAZIONE, che era il sesto campo su sei a non ripartire da zero** (`#1403`,
-		// [D-220]): fino a oggi dipendeva solo da `ClearReactionPlan()` nel Cleanup, che non gira sul
-		// passaggio di `BeginPlay` ne' quando `PlanBotsForTest()` precede `LockInAndResolve()`. Da [D-220]
-		// «nessuna reazione utilizzabile» e' un esito raggiungibile da due categorie indipendenti — kit e
-		// loadout — quindi un indice stantio sopravviverebbe piu' spesso di prima. Si passa dalla porta di
-		// [D-109]: azzera lo slot **e la sua condizione**, che sono una cosa sola.
-		Bot->ClearReactionPlan();
-
-		// Lo snapshot su cui QUESTO bot pianifica: quello della sua squadra, che porta le prenotazioni delle
-		// compagne gia' passate di qui. Esistono tutti da prima del ciclo, quindi qui non si inserisce nulla
-		// e il riferimento non puo' essere invalidato da una riallocazione.
-		FRTHexSnapshot* TeamSnapshotPtr = PlanningSnapshots.Find(Bot->TeamId);
-		if (!TeamSnapshotPtr)
-		{
-			continue; // non puo' accadere: la mappa e' costruita sugli stessi bot che questo ciclo visita
-		}
-		// UN SOLO nome, e non due: un alias `const` accanto a uno scrivibile dichiarerebbe un'immutabilita'
-		// che non c'e' — la prenotazione a fine iterazione scrive proprio qui dentro.
-		FRTHexSnapshot& Snapshot = *TeamSnapshotPtr;
-
-		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
-		//
-		// «Supporto» qui significa curare o schermare, non genericamente «agire su di se'»: il filtro era
-		// `bSelfTarget` e basta, e finche' nessuna azione dichiarava quel flag la differenza non si vedeva.
-		// Appena `Action.Guard` e `Action.Brace` l'hanno dichiarato — sono generiche, quindi le ha OGNI eroe —
-		// un bot sotto meta' HP entrava qui ogni turno: Guard ha cooldown 0, quindi e' sempre pronta, e il
-		// `continue` gli fa saltare l'attacco. Risultato: il bot ferito si mette in guardia per sempre e la
-		// partita non finisce (`HexMatch.PlaysToCompletion`).
-		//
-		// Il ramo era scritto per `Guardian.Barrier`, che di cooldown ne aveva 3 e dava 40 di scudo. Chiedere
-		// un effetto curativo lo riporta a quel significato senza dipendere dai cooldown, che sono
-		// bilanciamento e cambiano.
-		//
-		// 🔴 2026-09-04 (`#2283`): **e lo SCUDO non basta, serve la CURA.** Lo stesso loop e' tornato
-		// appena `Action.Shield` ha dichiarato `bSelfTarget` e i suoi due portatori d'eroe hanno dato al ramo
-		// il suo primo consumatore reale del roster. La ragione sta nella condizione d'ingresso, non nei
-		// cooldown: `Health * 2 < MaxHealth` la scioglie **solo** un effetto che alza gli HP. Lo scudo di
-		// `Action.Shield` e' TEMPORANEO — `AddTemporaryShield`, scade nel Cleanup — quindi non tocca
-		// `Health`, la condizione resta vera per sempre e il bot rientra qui a ogni ricarica. Misurato: Ivrin
-		// ferma 5 turni contro un limite di 4, «di cui 2 inerti e 3 armati», con `Bot.StallDefinitions...`,
-		// `Match.Autobattle...`, `Replay.Producer...` e il playback dell'Editor rossi a cascata.
-		//
-		// 🔑 Il criterio e' quindi **l'effetto che scioglie la guardia**, non «supporto» in generale: e'
-		// cio' che rende il ramo non ripetibile a vuoto senza aggiungere stato all'unita' — stato che il
-		// replay dovrebbe serializzare, e sarebbe determinismo speso per un ripiego.
-		//
-		// Con questo il ramo torna NON ATTRAVERSATO nel roster v0.1, che e' lo stato documentato da `#464` e
-		// scelto dal progetto: rendere un'azione curativa lanciabile su di se' *«e' una scelta di
-		// bilanciamento — un eroe che si cura da solo cambia il ritmo dello scontro — non un refactoring»*,
-		// ed e' rinviata alla v0.2. Chi la prendera' trovera' qui la prova che «schermi» non equivale a
-		// «curi», e che il ramo va ripensato prima di aprirlo allo scudo.
-		bool bUsedSupport = false;
-		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-		{
-			const URTActionData* Ab = Bot->GetAbility(A);
-			bool bRestores = false;
-			if (Ab)
-			{
-				for (const FRTActionEffectSpec& Spec : Ab->Def.Effects)
-				{
-					// Solo `Heal`: vedi sopra — uno scudo non alza `Health`, quindi non scioglie la guardia
-					// che ha fatto entrare qui, e il ramo si ripeterebbe a ogni ricarica (#2283).
-					if (Spec.Effect == ERTActionEffect::Heal)
-					{
-						bRestores = true;
-						break;
-					}
-				}
-			}
-			if (Ab && Ab->bSelfTarget && bRestores && Bot->CanUseAbility(A) && Bot->Health * 2 < Bot->MaxHealth)
-			{
-				Bot->PlannedAbilityIndex = A;
-				bUsedSupport = true;
-				break;
-			}
-		}
-		// REAZIONE (`#601`): il bot arma la reazione che ha, se ne ha una pronta. Lo slot e' indipendente da
-		// Movimento e Principale, quindi non compete con nient'altro e si dichiara PRIMA di ogni `continue`
-		// del resto della pianificazione — altrimenti un bot che cura o che scatta uscirebbe dal ciclo senza
-		// armarla.
-		//
-		// Nessuna euristica su QUANDO conviene: il trigger e' dichiarato dall'abilita' e valutato dal
-		// resolver, e una reazione non armata non costa nulla a nessuno.
-		//
-		// Senza questa riga meta' delle unita' della v0.1 non reagirebbe mai, e il playtest misurerebbe un
-		// gioco diverso da quello progettato: i sette moduli di CP 7.5 sarebbero verdi nei test e assenti in
-		// partita.
-		//
-		// Contesto di valutazione: i nemici che la SQUADRA DEL BOT conosce (celle, gittata effettiva,
-		// HP+scudo) e pesi dal tuning.
-		// L'ordine dei nemici viene da Units (ordine stabile dello snapshot): il punteggio non dipende
-		// dall'ordine di enumerazione degli Actor.
-		//
-		// CP 13.5 — IL BOT PIANIFICA SULLA CONOSCENZA DELLA SUA SQUADRA (#160, RT-FEAT-BOT-FAIRNESS).
-		// Fino a qui `Ctx.Enemies` conteneva *tutte* le unita' nemiche vive, senza filtro di percezione: il
-		// bot vedeva ogni posizione avversaria mentre il giocatore no. Non era una svista nascosta — la spec
-		// lo dichiarava (`docs/gameplay/spec-bot-hex.md` §6) — ma rendeva falsa la promessa che la Wiki fa al
-		// giocatore, «il bot non vede piu' di te», e invalidava per costruzione ogni playtest contro di lui.
-		//
-		// La regola e' la STESSA del targeting umano (`ClassifyTarget`, piu' sotto in questo file): non un
-		// secondo modello di conoscenza per il bot, che divergerebbe dal primo alla prima modifica.
-		const FRTTeamKnowledge BotKnowledge = KnowledgeForTeam(Bot->TeamId);
-		FRTHexBotContext Ctx;
-		Ctx.Origin = Bot->Cell;
-		// Da dove il bot guarda ORA: e' il punto di partenza della stima di come sara' orientato a fine turno
-		// (CP 13.5). Chi resta fermo e non attacca conserva questo.
-		Ctx.SelfFacing = Bot->Facing;
-		// Il kiting lo DERIVA il bot dalla portata dell'attacco base: e' un comportamento dell'IA, non una
-		// caratteristica dell'unita' (che quando la muove il giocatore non lo consulta mai).
-		Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Bot->AttackRange);
-
-
-		Ctx.WKill = WKill;
-		Ctx.WDamage = WDamage;
-		Ctx.WThreat = WThreat;
-		Ctx.WKiteViolation = WKiteViolation;
-		Ctx.WApproach = WApproach;
-		Ctx.WElevation = WElevation;
-		Ctx.WEngage = WEngage;
-		Ctx.WEngageDecay = WEngageDecay;
-		Ctx.WObjective = WObjective;
-		Ctx.WObjectiveFalloff = WObjectiveFalloff;
-
-		// Le celle OBIETTIVO, lette dai dati di mappa (`#2269`).
-		//
-		// ⚠️ **Geometria pubblica, e per questo NON passa dal filtro di percezione** che le righe qui sotto
-		// applicano ai nemici. Dov'e' l'obiettivo lo vedono entrambe le squadre — il giocatore umano ce l'ha
-		// sullo schermo dal primo fotogramma — quindi nasconderlo al bot non sarebbe fairness, sarebbe
-		// renderlo cieco a un'informazione che non e' mai stata segreta. Cio' che CP 13.5 protegge sono le
-		// UNITA' avversarie e i loro intenti, non il terreno.
-		//
-		// ⚠️ **Si legge da `Map->Cells`, che e' ordinato** (`SortCells`): l'ordine dell'array e' stabile, e
-		// nessuna decisione del bot dipende dall'ordine di enumerazione (invariante #4).
-		//
-		// ⚠️ Su una mappa senza obiettivi l'array resta vuoto e il termine vale zero riga per riga: e' la
-		// ragione per cui nessuna arena generata — che un obiettivo non lo posa — cambia comportamento.
-		if (Snapshot.Map)
-		{
-			for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
-			{
-				if (Cell.bIsObjective)
-				{
-					Ctx.ObjectiveCells.Add(Cell.Id);
-				}
-			}
-		}
-
-		// La memoria per unita' del termine di ingaggio: quanti turni consecutivi questa unita' non
-		// pianifica un attacco (#1300, D-185). Si aggiorna piu' sotto, a piano scelto.
-		Ctx.IdleTurns = BotIdleTurns.FindRef(Bot->StableUnitId);
-
-		TArray<int32> EnemyUnitIndex; // parallelo a Ctx.Enemies: indice dell'unita' in Units
-		ARTUnit* Nearest = nullptr;
-		// La cella da cui il kiter fugge, come la CONOSCE la squadra: su un contatto incerto e' il ricordo,
-		// non la posizione vera. Senza questo campo la fuga userebbe `Nearest->Cell` — cioe' il bot
-		// scapperebbe da dove il nemico e' davvero, che e' l'onniscienza rientrata dalla finestra.
-		FRTCellId NearestKnownCell;
-		int32 NearestDistance = MAX_int32;
-		for (int32 j = 0; j < Units.Num(); ++j)
-		{
-			ARTUnit* Other = Units[j];
-			if (Other->TeamId == Bot->TeamId)
-			{
-				// Alleati: servono a pesare il collaterale di un'area (#213). Il bot NON si conta fra loro
-				// perche' `CollectHexAttacks` salta sempre l'attaccante.
-				if (Other != Bot)
-				{
-					Ctx.Allies.Add(Other->Cell);
-					Ctx.AllyHealth.Add(Other->Health + Other->Shield);
-				}
-				continue;
-			}
-			int32 EnemyReach = Other->AttackRange;
-			for (int32 a = 0; a < Other->NumAbilities(); ++a)
-			{
-				const URTActionData* EAb = Other->GetAbility(a);
-				// La minaccia e' cio' che il nemico puo' COLPIRE: una mobilita' rapida sposta, non fa danno a
-				// distanza, e contarla gonfierebbe la portata percepita di ogni eroe che ne ha una.
-				if (EAb && !URTCatalogLibrary::IsFastMovement(EAb->Def))
-				{
-					EnemyReach = FMath::Max(EnemyReach, EAb->RangeCells);
-				}
-			}
-			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
-			// catalogo, cioe' dato pubblico — sapere che Phase ha portata 5 non e' sapere dov'e' Phase.
-			FRTCellId KnownCell = Other->Cell;
-			int32 KnownHealth = Other->Health + Other->Shield;
-			// La CONDIZIONE segue la stessa disciplina degli HP: su un contatto incerto non si sa, e non si
-			// indovina ([D-319], `#2253`). Vedi il ramo `CellOnly` sotto.
-			bool bKnownUnbalanced = Other->HasStatus(TAG_Status_Unbalanced);
-			switch (URTTeamKnowledgeLibrary::ClassifyTarget(BotKnowledge, Other->StableUnitId,
-				Other->TeamId, Other->Cell))
-			{
-			case ERTTargetKnowledge::Allowed:
-				break; // la squadra lo vede: cella e condizione attuali, come sempre
-
-			case ERTTargetKnowledge::CellOnly:
-			{
-				// Contatto INCERTO: vale la cella dell'ULTIMO contatto, mai quella attuale — altrimenti il
-				// ricordo inseguirebbe il bersaglio, che e' il modo silenzioso di continuare a vederlo.
-				if (!URTTeamKnowledgeLibrary::LastKnownCell(BotKnowledge, Other->StableUnitId, KnownCell))
-				{
-					continue; // incerto senza ricordo: non e' ne' bersaglio ne' minaccia contabilizzabile
-				}
-				// ⚠️ **Gli HP correnti sarebbero la fuga esatta che il canary deve prendere**: direbbero al
-				// bot che un'unita' che NON vede e' quasi morta, e lo manderebbe a finirla. Cio' che la
-				// squadra conosce di un ricordo e' l'IDENTITA' (`StableUnitId` -> eroe -> catalogo), non la
-				// condizione: si assume quindi integro, con un valore pubblico.
-				//
-				// ⚠️ Limite dichiarato: cosi' si PERDE anche informazione legittima — se la squadra l'ha
-				// visto a 10 HP un turno fa, quel dato c'era. Il modello corretto e' un HP nel contatto, cioe'
-				// un campo in `FRTLastKnownContact` e un incremento di `FRTTeamKnowledge::CurrentVersion`:
-				// una decisione di formato, non un dettaglio di questo checkpoint. L'errore va nella
-				// direzione sicura — il bot sottostima le occasioni, non ne inventa.
-				KnownHealth = Other->MaxHealth;
-				// Stesso argomento, stesso verso sicuro: «sbilanciato» e' CONDIZIONE, non identita'. Dirlo
-				// su un ricordo manderebbe il bot a capitalizzare su un'unita' che non vede, ed e' la fuga
-				// di conoscenza che il filtro esiste per chiudere. Il bot perde occasioni, non ne inventa.
-				bKnownUnbalanced = false;
-				break;
-			}
-
-			default:
-				continue; // ignoto alla squadra: per il bot quella cella e' vuota
-			}
-
-			Ctx.Enemies.Add(KnownCell);
-			Ctx.EnemyRanges.Add(EnemyReach);
-			Ctx.EnemyHealth.Add(KnownHealth);
-			Ctx.EnemyUnbalanced.Add(bKnownUnbalanced);
-			// CP 13.5 — l'ORIENTAMENTO del nemico, che decide se la sua copertura vale (ADR-0005 §4a).
-			//
-			// Si prende quello corrente e non si filtra, ed e' corretto: il facing e' cio' che la mesh mostra,
-			// quindi il giocatore umano lo legge allo stesso modo. A restare privato e' l'INTENTO di rotazione
-			// (`Facing.IntentIsTeamFiltered`), che qui non passa.
-			//
-			// ⚠️ Su un contatto `CellOnly` la cella e' quella del RICORDO ma il facing e' quello ATTUALE: e' una
-			// piccola incoerenza voluta, perche' l'alternativa — ricordare anche l'orientamento — vorrebbe un
-			// campo in `FRTLastKnownContact` e un incremento di `FRTTeamKnowledge::CurrentVersion`, cioe' una
-			// decisione di formato. L'errore va nella direzione sicura: la copertura si calcola fra la cella
-			// ricordata e la mia, e un facing piu' aggiornato del ricordo non rivela DOVE sia l'unita'.
-			Ctx.EnemyFacings.Add(Other->Facing);
-			EnemyUnitIndex.Add(j);
-
-			// La distanza si misura da cio' che si CONOSCE: su un contatto incerto e' la cella del ricordo.
-			const int32 Distance = URTHexLibrary::HexDistance(Bot->Cell, KnownCell);
-			if (Distance < NearestDistance)
-			{
-				NearestDistance = Distance;
-				Nearest = Other;
-				NearestKnownCell = KnownCell;
-			}
-		}
-
-		// 🔴 **LA REGOLA E' CAMBIATA: punteggio tattico, e il kit RETROCEDE a tie-break** ([D-268], `#1802`).
-		//
-		// [D-220] aveva DICHIARATO la regola che c'era gia' — prima il kit, il modulo come riserva — invece di
-		// sceglierne una. E' deterministica ma non tattica: la reazione d'identita' vince sempre, quale che sia
-		// il suo valore in quella situazione, e il valore del loadout si perde. Il caso concreto: un Branth con
-		// `Interposition` nel kit e un modulo di contrattacco, in un turno in cui nessun alleato e' minacciato
-		// e un nemico conosciuto puo' colpirlo, armava l'interposizione — cioe' una reazione che non sarebbe
-		// scattata.
-		//
-		// ⚠️ **E per questo il blocco vive QUI e non piu' prima del contesto.** Un punteggio tattico si misura
-		// su cio' che la squadra CONOSCE, e `Ctx.Enemies`/`Ctx.Allies` nascono dalla raccolta qui sopra. Le due
-		// alternative erano peggiori: ricalcolare il filtro di conoscenza nel punto vecchio avrebbe creato il
-		// secondo modello di conoscenza che il commento della raccolta vieta per nome, e lasciare il punteggio
-		// cieco avrebbe reso **vacua** l'AC di equita' di [D-268] — un punteggio costante la soddisfa.
-		//
-		// ⚠️ **`if (bUsedSupport)` si e' spostato INSIEME al blocco, e non e' un dettaglio**: prima usciva
-		// dal ciclo PRIMA della raccolta, quindi un bot che si cura armava comunque la reazione. Lasciandolo
-		// dov'era, questo spostamento gliela avrebbe tolta — un cambio di comportamento che `#1802` non chiede.
-		//
-		// 🔑 **La proprieta' che rende il cambio atterrabile**: dove la conoscenza non separa i candidati tutti
-		// i punteggi valgono zero, decide il tie-break, e il bot arma esattamente cio' che armava prima.
-		TArray<FRTReactionCandidate> ReactionCandidates;
-		for (int32 R = 0; R < Bot->NumAbilities(); ++R)
-		{
-			const URTActionData* Reaction = Bot->GetAbility(R);
-			if (!Reaction || Reaction->Def.Slot != ERTActionSlot::Reaction || !Bot->CanUseAbility(R))
-			{
-				continue;
-			}
-			// L'origine si chiede al CATALOGO: `MakeEquipmentAction` scrive `Def.ActionId = EquipmentId`.
-			// Dedurla dalla posizione — «i moduli stanno in fondo perche' `Add` accoda» — e' l'accidente che
-			// [D-220] aveva gia' smesso di usare, e che qui serve come TIE-BREAK invece che come regola.
-			FRTReactionCandidate& Candidate = ReactionCandidates.AddDefaulted_GetRef();
-			Candidate.AbilityIndex = R;
-			Candidate.bFromKit = !IdEquipaggiamento.Contains(Reaction->Def.ActionId);
-			Candidate.Score = URTHexBotLibrary::ScoreReaction(Snapshot.Map, Reaction->Def, Ctx);
-		}
-
-		// La scelta porta con se' la RAGIONE, che [D-245] chiede sia un dato e non una deduzione di chi
-		// legge: «ha vinto perche' valeva di piu'», «ha vinto lo spareggio di kit» e «ha vinto l'indice» sono
-		// tre spiegazioni diverse della stessa riga, e un'etichetta sola le confonderebbe.
-		const FRTReactionChoice Choice = URTHexBotLibrary::SelectReaction(ReactionCandidates);
-		if (const URTActionData* Armed = Bot->GetAbility(Choice.AbilityIndex)) // `nullptr` per `INDEX_NONE`
-		{
-			Bot->PlannedReactionAbility = Choice.AbilityIndex;
-
-			const TCHAR* Reason = TEXT("");
-			switch (Choice.DecidedBy)
-			{
-			case ERTReactionTieBreak::Kit:   Reason = TEXT(", spareggio: kit");   break;
-			case ERTReactionTieBreak::Index: Reason = TEXT(", spareggio: indice"); break;
-			case ERTReactionTieBreak::Utility:
-			case ERTReactionTieBreak::None:  break;
-			}
-			AddLogEvent(FString::Printf(TEXT("%s: arma %s (reazione, punteggio %d%s)"),
-				*Bot->GetName(), *Armed->Def.ActionId.ToString(), Choice.Score, Reason),
-				FRTLogSubject::Unit(Bot));
-		}
-
-		if (bUsedSupport)
-		{
-			continue;
-		}
-
-		// CP 13.5 — NESSUN CONTATTO: si cerca, non ci si ferma.
-		//
-		// Prima del filtro di percezione questo caso non esisteva: `Ctx.Enemies` conteneva sempre tutti i
-		// nemici vivi, quindi c'era sempre qualcuno verso cui avvicinarsi. Con la conoscenza parziale una
-		// squadra puo' non sapere dove sia nessuno — ed e' la condizione NORMALE del primo turno, perche' su
-		// una mappa di raggio 5 gli schieramenti opposti distano piu' della vista di chiunque.
-		//
-		// ⚠️ **Senza questo ramo la partita non finisce.** Con `Ctx.Enemies` vuoto lo scoring perde i termini
-		// di minaccia e di avvicinamento, ogni cella vale uguale, e il bot resta fermo per sempre: due squadre
-		// cieche che si aspettano. Non e' «il bot perde il contatto e sbaglia» (che il DoD ammette): e' un bot
-		// che smette di giocare, e l'ha misurato `HexMatch.PlaysToCompletion` diventando rosso.
-		//
-		// La condotta e' la piu' povera che ristabilisce il contatto: avvicinarsi al CENTRO della mappa, che
-		// e' geometria pubblica — zero informazione nascosta. Non e' una ricerca intelligente e non pretende
-		// di esserlo: i goal veri (`SecureObjective`, `GatherInformation`) sono E26, e questo ramo e' il posto
-		// in cui atterreranno. Deterministica: distanza minima dal centro, poi `StableLess`.
-		// **Livello 3 di #1287: la condizione si estende da «non so dove sia nessuno» a «non ho nessuno che
-		// posso ingaggiare».**
-		//
-		// Il caso che mancava: contatto NOTO ma non raggiungibile in modo utile. Misurato sulla mappa
-		// d'autore — le due squadre si fermano ai lati dell'ostacolo centrale, che blocca vista e passo, a due
-		// e tre celle di distanza in linea d'aria. `Ctx.Enemies` non e' vuoto, quindi questo ramo non entrava;
-		// e il punteggio, che misura la distanza in linea d'aria, diceva «sei vicino, resta». Dodici turni,
-		// 42 voci di TurnLog su 48 con esito `Stayed`, zero `Combat`.
-		bool bQualcunoDaIngaggiare = false;
-		if (Ctx.Enemies.Num() > 0 && Snapshot.Map)
-		{
-			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
-			{
-				for (const FRTCellId& KnownEnemy : Ctx.Enemies)
-				{
-					if (URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, R.Cell, KnownEnemy))
-					{
-						bQualcunoDaIngaggiare = true;
-						break;
-					}
-				}
-				if (bQualcunoDaIngaggiare) { break; }
-			}
-		}
-
-		if (Ctx.Enemies.Num() == 0 || !bQualcunoDaIngaggiare)
-		{
-			if (Snapshot.Map && Snapshot.Map->Cells.Num() > 0)
-			{
-				// **Il PUNTO DI OSSERVAZIONE (#1287)**, quando un contatto noto esiste ma non e' ingaggiabile: la
-				// cella percorribile piu' vicina PER CAMMINO da cui quel contatto si vedrebbe.
-				//
-				// ⚠️ **Per cammino e non in linea d'aria**, ed e' la differenza fra funzionare e no: con un
-				// ostacolo in mezzo la meta e' geometricamente vicina e topologicamente lontana, e minimizzare la
-				// distanza in linea d'aria incastra il bot contro il muro — che e' il difetto originale, ripetuto
-				// un livello piu' in la'.
-				//
-				// ⚠️ Usa la MEMORIA del contatto (`FRTLastKnownContact`, CP 13.4), non le posizioni vere: il bot
-				// va dove ha visto qualcuno, non dove qualcuno e'.
-				//
-				// ⛔ Non e' un pattern di ricerca: niente memoria di dove ha gia' guardato, niente settori, niente
-				// coordinamento. Quelli sono E26 (#326), e chiedono stato per unita' che il bot oggi non ha.
-				FRTCellId SeekCell;
-				bool bHaMeta = false;
-				if (Ctx.Enemies.Num() > 0)
-				{
-					int32 MiglioreCosto = MAX_int32;
-					for (const FRTHexCellData& C : Snapshot.Map->Cells)
-					{
-						if (C.bBlocksMovement) { continue; }
-						bool bVede = false;
-						for (const FRTCellId& KnownEnemy : Ctx.Enemies)
-						{
-							if (URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, C.Id, KnownEnemy)) { bVede = true; break; }
-						}
-						if (!bVede) { continue; }
-
-						const FRTHexPathResult Verso = URTHexSimLibrary::FindPathForUnit(Snapshot, BotIdx, C.Id);
-						if (Verso.Path.Num() == 0) { continue; } // irraggiungibile: non e' una meta
-						if (Verso.TotalCost < MiglioreCosto
-							|| (Verso.TotalCost == MiglioreCosto && URTHexLibrary::StableLess(C.Id, SeekCell)))
-						{
-							MiglioreCosto = Verso.TotalCost;
-							SeekCell = C.Id;
-							bHaMeta = true;
-						}
-					}
-				}
-
-				if (!bHaMeta)
-				{
-					// Nessun contatto noto, o nessuna cella lo vede: il CENTRO, la condotta di CP 13.5. Geometria
-					// pubblica, zero informazione nascosta.
-					int64 SumX = 0, SumY = 0;
-					for (const FRTHexCellData& C : Snapshot.Map->Cells) { SumX += C.Id.X; SumY += C.Id.Y; }
-					const int32 N = Snapshot.Map->Cells.Num();
-					const FRTCellId Barycentre(static_cast<int32>(SumX / N), static_cast<int32>(SumY / N), 0);
-
-					SeekCell = Snapshot.Map->Cells[0].Id;
-					int32 BestToBary = MAX_int32;
-					for (const FRTHexCellData& C : Snapshot.Map->Cells)
-					{
-						// ⚠️ **Percorribile**, e l'assenza di questo filtro ha fermato l'intera partita. Su
-						// `L_HexArena` il baricentro e' `(0,0)`, che blocca il passo: la meta era una cella in cui
-						// non si puo' entrare, quindi nessun cammino, quindi nessun passo. Il codice precedente si
-						// AVVICINAVA alla meta e sopravviveva a una meta impenetrabile; seguire un cammino no.
-						if (C.bBlocksMovement) { continue; }
-						const int32 D = URTHexLibrary::HexDistance(C.Id, Barycentre);
-						if (D < BestToBary || (D == BestToBary && URTHexLibrary::StableLess(C.Id, SeekCell)))
-						{
-							BestToBary = D;
-							SeekCell = C.Id;
-						}
-					}
-				}
-
-				// **Si SEGUE il cammino**, non si minimizza una distanza: il prefisso percorribile entro il
-				// budget. Restare vince a parita' (cammino vuoto = si e' gia' a destinazione).
-				FRTCellId Best = Bot->Cell;
-				const FRTHexPathResult Rotta = URTHexSimLibrary::FindPathForUnit(Snapshot, BotIdx, SeekCell);
-				const TArray<FRTCellId> Passi = URTHexSimLibrary::TruncatePathToBudget(Snapshot, BotIdx, Rotta.Path);
-				if (Passi.Num() > 1)
-				{
-					Best = Passi.Last();
-				}
-				else
-				{
-					// Nessun cammino: ci si AVVICINA, che e' la condotta di CP 13.5 e non richiede che la meta sia
-					// raggiungibile. Restare vince a parita', quindi un bot gia' al punto migliore non oscilla.
-					int32 BestDistance = URTHexLibrary::HexDistance(Bot->Cell, SeekCell);
-					for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
-					{
-						const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
-						if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))
-						{
-							BestDistance = D;
-							Best = R.Cell;
-						}
-					}
-				}
-				Bot->PlannedCell = Best;
-			}
-			// #1088 — anche qui, ed e' il ramo che il difetto colpiva per primo: due compagne che cercano il
-			// contatto puntano ENTRAMBE la cella piu' vicina al centro, che e' una sola.
-			ReserveNormalMove(Snapshot, Bot, BotIdx);
-			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
-		}
-
-		// Scatto disponibile per questo turno (serve sia alla fuga sia alle candidate di riposizionamento).
-		const int32 DashIdx = Bot->FindDashAbilityIndex();
-		const URTActionData* DashAb = Bot->GetAbility(DashIdx);
-		const bool bDashReady = DashAb && URTCatalogLibrary::IsFastMovement(DashAb->Def) && Bot->CanUseAbility(DashIdx);
-
-		// Portata dello scatto letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte,
-		// altrimenti dal campo legacy dell'asset. Se il bot leggesse un numero diverso da quello che il
-		// resolver usera', proporrebbe scatti fuori portata (o si negherebbe quelli buoni).
-		const int32 DashDeclaredRange = bDashReady
-			? (DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells)
-			: 0;
-		const int32 DashBudget = bDashReady ? Bot->GetEffectiveDashRange(DashDeclaredRange) : 0;
-		const ERTMovementStyle DashStyle = bDashReady ? DashAb->Def.MovementStyle : ERTMovementStyle::None;
-
-		// Nemici del bot, per UnitId dello snapshot: la carica li tratta come bersagli, gli altri stili come
-		// ostacoli. Sono gli stessi indici che ResolveDash passa a ResolveLinearMove.
-		TSet<int32> DashHostiles;
-		for (int32 j = 0; j < Units.Num(); ++j)
-		{
-			if (Units[j] && Units[j]->IsAlive() && Units[j]->TeamId != Bot->TeamId) { DashHostiles.Add(j); }
-		}
-
-		// 🔴 **Dalla BASE, non dallo snapshot di squadra, e la differenza e' una fase.** Le prenotazioni
-		// descrivono dove le compagne andranno nel MOVE; il Dash risolve PRIMA del Move, quando quelle celle
-		// sono ancora vuote. Copiandole qui, `ResolveLinearMove` e `IsLinearReachable` — che trattano ogni
-		// occupante non ostile come un corpo solido — scarterebbero cariche e scatti perfettamente legali,
-		// in silenzio. La prenotazione e' del Move: che sia CONSUMATA solo dal Move.
-		FRTHexSnapshot DashSnapshot = BaseSnapshot;
-		if (bDashReady)
-		{
-			// Le candidate nascono da `ReachableCells`, che spende PUNTI MOVIMENTO (Dijkstra sui costi). Ma la
-			// portata di una mobilita' LINEARE si misura in CELLE — il catalogo dice che il terreno non la
-			// riduce. Passare la portata direttamente come budget tronca le candidate sul terreno caro: su
-			// acqua (costo 2) uno scatto da 5 celle ne vedrebbe 2, e le celle 3-5 non verrebbero mai
-			// proposte benche' il resolver le raggiunga. E' la stessa divergenza celle-vs-MP di #140, un
-			// gradino piu' a monte: il filtro puo' solo SCARTARE candidate, non farle nascere.
-			//
-			// Si allarga quindi il budget al caso peggiore (portata x costo della cella piu' cara della
-			// mappa) e si lascia che `IsDashReachable` poti cio' che non e' in linea.
-			int32 CandidateBudget = DashBudget;
-			if (URTMovementActionLibrary::IsLinear(DashStyle) && Snapshot.Map)
-			{
-				int32 MaxCellCost = 1;
-				for (const FRTHexCellData& Cell : Snapshot.Map->Cells)
-				{
-					MaxCellCost = FMath::Max(MaxCellCost, Cell.TotalMoveCost());
-				}
-				CandidateBudget = DashBudget * MaxCellCost;
-			}
-			DashSnapshot.Units[BotIdx].MoveBudget = CandidateBudget;
-		}
-
-		// Il bot valuta la raggiungibilita' con lo STESSO codice che la fase Dash usa per eseguirla
-		// (issue #140): il grafo genera le candidate, ma e' la linearita' a dire quali sopravvivono.
-		//
-		// L'instradamento per STILE e' quello di ResolveDash: solo le mobilita' LINEARI passano da
-		// `ResolveLinearMove`. Una mobilita' a budget (`Action.Sprint`) risolve col pathfinding, lo stesso
-		// grafo da cui le candidate sono nate — quindi li' non c'e' nulla da filtrare, e applicare il filtro
-		// lineare scarterebbe mosse perfettamente legali.
-		//
-		// Anche il GATE "questa e' un'azione di scatto" e' lo stesso (#142): `URTCatalogLibrary::IsFastMovement`
-		// legge la fase del catalogo, qui come in ResolveDash. Prima le due risposte divergevano e le azioni
-		// degli eroi — che dichiarano la fase e nient'altro — non venivano mai pianificate come scatto.
-		auto IsDashReachable = [&](const FRTHexSnapshot& Snap, const FRTCellId& Goal) -> bool
-		{
-			if (!URTMovementActionLibrary::IsLinear(DashStyle))
-			{
-				return true;
-			}
-			return URTMovementActionLibrary::IsLinearReachable(
-				Snap.Map, Bot->Cell, Goal, DashBudget, DashStyle, Snap.Occupancy, DashHostiles);
-		};
-
-		// Priorita' ritirata: se un nemico e' molto vicino (meta' dello standoff), il kiter fugge SUBITO,
-		// rinunciando al tiro. Guardia del bot quadrato, conservata: non passa dalla utility.
-		const int32 Standoff = URTHexBotLibrary::DeriveKiteStandoff(Bot->AttackRange);
-		const bool bKiter = Standoff > 0;
-		if (bKiter && Nearest && NearestDistance <= Standoff / 2)
-		{
-			if (bDashReady)
-			{
-				// Anche la fuga del kiter passa da ReachableCells (grafo): se la cella scelta non e'
-				// raggiungibile in LINEA, lo scatto verrebbe rifiutato e il panico si tradurrebbe in un turno
-				// perso. Meglio non scattare e lasciare decidere al movimento normale.
-				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, NearestKnownCell);
-				if (Dest != Bot->Cell && IsDashReachable(DashSnapshot, Dest))
-				{
-					Bot->PlannedDashAbility = DashIdx;
-					Bot->PlannedDashCell = Dest;
-					AddLogEvent(FString::Printf(TEXT("%s: scatto difensivo (schiva) -> (q=%d,r=%d,L%d)"),
-						*Bot->GetName(), Dest.X, Dest.Y, Dest.Layer), FRTLogSubject::Unit(Bot));
-					continue;
-				}
-			}
-			Bot->PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
-			AddLogEvent(FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
-				*Bot->GetName(), Bot->PlannedCell.X, Bot->PlannedCell.Y, Bot->PlannedCell.Layer), FRTLogSubject::Unit(Bot));
-			ReserveNormalMove(Snapshot, Bot, BotIdx);
-			continue;
-		}
-
-		// --- Pool di candidate ---------------------------------------------------------------------
-		// Un'unica utility sceglie fra: restare e sparare, riposizionarsi, scattare e sparare, scattare
-		// per riposizionarsi. L'ATTACCO vale solo dalla cella in cui il bot si trovera' nel Blast: quella
-		// attuale (il Move viene DOPO il Blast) o quella post-scatto (il Dash viene PRIMA).
-		TArray<FRTHexBotPlan> Plans;
-		TArray<int32> PlanAbility;  // abilita' d'attacco della candidata (INDEX_NONE = solo movimento)
-		TArray<bool> PlanViaDash;   // la candidata si raggiunge con lo scatto
-		// Vero se la candidata e' una CARICA: allora si punta la cella del NEMICO (`Ctx.Enemies[TargetIndex]`),
-		// non `DestCell` — che per una carica e' dove ci si ferma, cioe' davanti al bersaglio. Serve un flag e
-		// non una cella-sentinella: `FRTCellId()` vale (0,0,0), che e' una cella vera della mappa.
-		TArray<bool> PlanIsCharge;
-
-		auto AddCandidates = [&](const FRTHexSnapshot& Snap, int32 AbilityIndex, int32 Range, int32 Damage,
-			bool bViaDash, bool bAttacksOnly)
-		{
-			FRTHexBotContext LocalCtx = Ctx;
-			LocalCtx.AttackRange = Range;
-			LocalCtx.AttackDamage = Damage;
-
-			// Forma dell'azione valutata: senza, ogni attacco verrebbe pesato come un colpo singolo e un'area
-			// non mostrerebbe ne' i nemici presi in piu' ne' il compagno investito (#213).
-			if (const URTActionData* ShapedAbility = (AbilityIndex != INDEX_NONE) ? Bot->GetAbility(AbilityIndex) : nullptr)
-			{
-				LocalCtx.AttackShape = ShapedAbility->Shape;
-				LocalCtx.AttackAreaRadius = ShapedAbility->AreaRadius;
-				LocalCtx.bAttackFriendlyFire = ShapedAbility->Def.bFriendlyFire;
-				// Chi SPOSTA, letto dagli effetti dichiarati ([D-319], `#2253`). Dal `Def` e non da una
-				// lista di `ActionId`: cosi' vale anche per gli effetti che l'EQUIPAGGIAMENTO aggiunge —
-				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Phase
-				// (D-089). Una lista di nomi avrebbe mancato proprio il caso piu' comune.
-				LocalCtx.bAttackDisplaces = false;
-				for (const FRTActionEffectSpec& Effect : ShapedAbility->Def.Effects)
-				{
-					if (Effect.Effect == ERTActionEffect::Push || Effect.Effect == ERTActionEffect::Pull)
-					{
-						LocalCtx.bAttackDisplaces = true;
-						break;
-					}
-				}
-			}
-			for (const FRTHexBotPlan& Candidate : URTHexBotLibrary::BuildCandidates(Snap, BotIdx, LocalCtx))
-			{
-				if (bAttacksOnly && !Candidate.bHasAttack) { continue; }
-				// Le candidate nascono da ReachableCells, che segue il GRAFO. Lo scatto invece e' lineare
-				// (CP 4.5): senza questo filtro il bot proporrebbe scatti che ResolveDash rifiuta, sprecando
-				// l'abilita' in silenzio. L'invariante "il bot non propone mosse illegali" vale anche qui.
-				if (bViaDash && !IsDashReachable(Snap, Candidate.DestCell))
-				{
-					continue;
-				}
-				Plans.Add(Candidate);
-				PlanAbility.Add(Candidate.bHasAttack ? AbilityIndex : INDEX_NONE);
-				PlanViaDash.Add(bViaDash);
-				PlanIsCharge.Add(false);
-			}
-		};
-
-		// 1) Riposizionamento col movimento normale (gittata 0 -> nessun attacco: nel Blast il bot e' ancora qui).
-		AddCandidates(Snapshot, INDEX_NONE, /*Range*/ 0, /*Damage*/ 0, /*bViaDash*/ false, /*bAttacksOnly*/ false);
-
-		// 2) Attacco da FERMO, un'abilita' per volta: budget 0 -> l'unica cella candidata e' quella attuale.
-		FRTHexSnapshot StaySnapshot = Snapshot;
-		StaySnapshot.Units[BotIdx].MoveBudget = 0;
-		for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-		{
-			const URTActionData* Ability = Bot->GetAbility(A);
-			if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
-				|| !Bot->CanUseAbility(A)) { continue; }
-			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
-		}
-
-		// 3) CARICA: l'unico modo di scattare E colpire nello stesso turno, perche' il danno e' dell'azione di
-		// movimento stessa e non di una seconda azione principale (#145). Le candidate non possono nascere da
-		// `ReachableCells`: quella cerca celle LIBERE, mentre una carica punta la cella OCCUPATA dal nemico e
-		// si ferma davanti. Si generano quindi dai bersagli, chiedendo al resolver se la traiettoria li
-		// raggiunge — lo stesso codice che poi la eseguira'.
-		if (bDashReady && DashStyle == ERTMovementStyle::LinearCharge)
-		{
-			const int32 ImpactDamage = URTCatalogLibrary::FirstDamage(DashAb->Def);
-			for (int32 e = 0; e < Ctx.Enemies.Num(); ++e)
-			{
-				// Occupazione dalla BASE, come per `DashSnapshot`: la carica risolve nella fase Dash, e una
-				// cella prenotata per il Move di una compagna li' e' ancora vuota. Con `Snapshot.Occupancy`
-				// la traiettoria si fermerebbe su un corpo che non c'e' e la candidata sparirebbe in silenzio.
-				const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
-					BaseSnapshot.Map, Bot->Cell, Ctx.Enemies[e], DashBudget, DashStyle,
-					BaseSnapshot.Occupancy, DashHostiles);
-
-				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
-				// prima e' una candidata diversa, e la genera il suo giro di ciclo.
-				if (Linear.Stop != ERTLinearStop::Impact
-					|| !EnemyUnitIndex.IsValidIndex(e) || Units[EnemyUnitIndex[e]] != Units[Linear.ImpactUnitId])
-				{
-					continue;
-				}
-
-				FRTHexBotPlan Charge;
-				Charge.DestCell = Linear.Final;   // dove il bot si ferma: adiacente al bersaglio
-				Charge.bHasAttack = true;
-				Charge.TargetIndex = e;
-				Charge.AttackDamage = ImpactDamage;
-				Charge.TargetHealth = Ctx.EnemyHealth.IsValidIndex(e) ? Ctx.EnemyHealth[e] : 0;
-				Plans.Add(Charge);
-				PlanAbility.Add(INDEX_NONE);      // il colpo NON e' una seconda azione: e' l'impatto della carica
-				PlanViaDash.Add(true);
-				PlanIsCharge.Add(true);
-			}
-		}
-
-		// 4) Scatto + attacco, e scatto per riposizionarsi.
-		//
-		// NOTA (#145, aggiornata da D-028): scatto e attacco sono ora slot DIVERSI — movimento e principale —
-		// quindi pianificarli insieme e' legale, ed e' la scelta *schivo e sparo*. Il prezzo c'e' e non e' piu'
-		// implicito: chi scatta non prosegue col Move (lo applica il resolver piu' sotto), chi carica si.
-		//
-		// Resta il problema di bilanciamento che la nota segnalava, e resta misurato sugli ARCHETIPI: per il
-		// Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1 con
-		// cooldown 3. Sul roster eroi i numeri sono altri. Il meccanismo qui sopra e' corretto; a renderlo
-		// utile e' il bilanciamento — voce `BAL-1` del backlog, che parte da una misura e non da una correzione.
-		if (bDashReady)
-		{
-			for (int32 A = 0; A < Bot->NumAbilities(); ++A)
-			{
-				const URTActionData* Ability = Bot->GetAbility(A);
-				if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
-					|| !Bot->CanUseAbility(A)) { continue; }
-				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
-			}
-			AddCandidates(DashSnapshot, INDEX_NONE, /*Range*/ 0, /*Damage*/ 0, /*bViaDash*/ true, /*bAttacksOnly*/ false);
-		}
-
-		const FRTHexBotPlan Best = URTHexBotLibrary::ChooseBestPlan(Snapshot.Map, Plans, Ctx);
-
-		// Da quale candidata viene il piano scelto (per sapere abilita' e se passa dallo scatto). Le candidate
-		// di movimento normale sono in testa: a parita' di campi si preferisce NON consumare lo scatto.
-		int32 BestIdx = INDEX_NONE;
-		for (int32 p = 0; p < Plans.Num(); ++p)
-		{
-			if (Plans[p].DestCell == Best.DestCell && Plans[p].bHasAttack == Best.bHasAttack
-				&& Plans[p].TargetIndex == Best.TargetIndex && Plans[p].AttackDamage == Best.AttackDamage)
-			{
-				BestIdx = p;
-				break;
-			}
-		}
-
-		const bool bViaDash = Plans.IsValidIndex(BestIdx) && PlanViaDash[BestIdx];
-		const bool bIsCharge = Plans.IsValidIndex(BestIdx) && PlanIsCharge[BestIdx];
-		const int32 BestAbility = Plans.IsValidIndex(BestIdx) ? PlanAbility[BestIdx] : INDEX_NONE;
-		ARTUnit* Target = (Best.bHasAttack && EnemyUnitIndex.IsValidIndex(Best.TargetIndex))
-			? Units[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
-		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
-
-		// Il TERMINE d'obiettivo accanto al totale, non dentro (`#2269`).
-		//
-		// 🔴 **E' la proprieta' che `spec-bot-tattico.md` §5 chiede, e il motivo per cui la chiede.** Un
-		// `score=-40` senza righe e' indebuggabile: quando il bot sbaglia non si sa QUALE termine ha vinto, e
-		// si finisce a ritoccare i pesi a caso. Il difetto che questa issue chiude e' stato diagnosticato
-		// esattamente cosi' — leggendo `utility -> (q=0,r=-3,L0) score=-40` e non potendo dire se quella cella
-		// avesse vinto per l'obiettivo (impossibile: il termine non esisteva) o per avvicinamento e quota.
-		//
-		// ⚠️ **Il breakdown COMPLETO e' lavoro di E26**, e questa e' una riga sola: si scrive quando pesa,
-		// cosi' che ogni partita su una mappa senza obiettivi produca un log identico a prima. La differenza
-		// fra «il termine vale zero» e «il termine non c'e'» qui non si vede — e per una mappa senza obiettivi
-		// e' la stessa cosa.
-		const int32 ObjectiveTerm = URTHexBotLibrary::ScoreObjectiveTerm(Snapshot.Map, Best.DestCell, Ctx);
-		const FString ObjectiveNote = ObjectiveTerm > 0
-			? FString::Printf(TEXT(" [obiettivo +%d]"), ObjectiveTerm)
-			: FString();
-
-		// La memoria si aggiorna UNA VOLTA per round: `PlanBotsForTest()` e `LockInAndResolve()`
-		// pianificano entrambi lo stesso round, e senza guardia il decadimento andrebbe al doppio.
-		{
-			int32& UltimoRound = BotIdleRound.FindOrAdd(Bot->StableUnitId, -1);
-			if (UltimoRound != TurnNumber)
-			{
-				UltimoRound = TurnNumber;
-				int32& TurniInerti = BotIdleTurns.FindOrAdd(Bot->StableUnitId, 0);
-				TurniInerti = Best.bHasAttack ? 0 : TurniInerti + 1;
-			}
-		}
-
-		// Il bersaglio su cui il piano vincente AGISCE: lo valorizzano i tre rami che attaccano (carica,
-		// scatto+attacco, attacco da fermo) e nessun altro. E' cio' che [D-313] chiama «la scelta».
-		ARTUnit* Scelto = nullptr;
-
-		if (bIsCharge && Target && Ctx.Enemies.IsValidIndex(Best.TargetIndex))
-		{
-			Scelto = Target;
-			// CARICA: si punta la cella del bersaglio e la fase Dash si ferma addosso a lui registrando
-			// l'impatto. Nessun `PlannedAbilityIndex`: il colpo e' dell'azione di movimento, e pianificare
-			// anche un'azione principale significherebbe spendere due volte lo stesso slot.
-			Bot->PlannedDashAbility = DashIdx;
-			Bot->PlannedDashCell = Ctx.Enemies[Best.TargetIndex];
-			// Il soggetto e' il BOT, non il bersaglio: e' la sua posizione e la sua intenzione che trapelano
-			// qui. Il bersaglio e' gia' filtrato dalla riga che lo riguarda.
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d%s"),
-				*Bot->GetName(), *Target->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				*ObjectiveNote), FRTLogSubject::Unit(Bot));
-		}
-		else if (bViaDash && Target && BestAbility != INDEX_NONE)
-		{
-			// Scatta (fase Dash) e attacca dalla cella post-scatto: nel Blast, che segue il Dash, il bot e' li'.
-			Bot->PlannedDashAbility = DashIdx;
-			Bot->PlannedDashCell = Best.DestCell;
-			Bot->PlannedAbilityIndex = BestAbility;
-			// Il bot dichiara un bersaglio-UNITA', e la forma opposta si ritira con esso (`#2884`): il suo
-			// piano nasce da `PlanBots`, che azzera gia' tutto, ma la simmetria col percorso del giocatore
-			// vale piu' di una riga risparmiata — un secondo produttore che scriva il campo grezzo e' il modo
-			// in cui l'esclusivita' torna a essere una convenzione.
-			Bot->DeclareAttackOnUnit(Target);
-			Scelto = Target;
-			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d%s"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score,
-				*ObjectiveNote), FRTLogSubject::Unit(Bot));
-		}
-		else if (Target && BestAbility != INDEX_NONE)
-		{
-			// Resta e attacca dalla cella attuale (Best.DestCell == cella d'origine).
-			Bot->PlannedCell = Best.DestCell;
-			Bot->PlannedAbilityIndex = BestAbility;
-			Bot->DeclareAttackOnUnit(Target); // come sopra (`#2884`)
-			Scelto = Target;
-			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d%s"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->GetName(), Score,
-				*ObjectiveNote), FRTLogSubject::Unit(Bot));
-		}
-		else if (bViaDash)
-		{
-			// Riposizionamento rapido con lo scatto (nessun tiro disponibile da nessuna cella).
-			Bot->PlannedDashAbility = DashIdx;
-			Bot->PlannedDashCell = Best.DestCell;
-			AddLogEvent(FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d%s"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				*ObjectiveNote), FRTLogSubject::Unit(Bot));
-		}
-		else
-		{
-			// Posizionamento con il movimento normale (o "resta", se l'utility preferisce la cella attuale).
-			Bot->PlannedCell = Best.DestCell;
-			AddLogEvent(FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s%s"),
-				*Bot->GetName(), Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				Best.DestCell == Bot->Cell ? TEXT(" (resta)") : TEXT(""),
-				*ObjectiveNote), FRTLogSubject::Unit(Bot));
-		}
-
-		// [D-313] — si chiude il record con il bersaglio SCELTO, quando c'e'.
-		//
-		// 🔴 **`Target`, non `Bot->PlannedAttackTarget`**: il ramo della CARICA non scrive quel campo, perche'
-		// il colpo e' dell'azione di movimento e non di una principale. Leggere il campo avrebbe perso
-		// l'intera classe di scelte piu' aggressiva del bot — proprio quella su cui la domanda d'equita'
-		// morde di piu' — archiviandola come «nessun bersaglio», cioe' come niente da giudicare.
-		//
-		// ⚠️ Si prendono solo i tre rami che AGISCONO su di lui: `Target` e' valorizzato anche quando il piano
-		// vincente non attacca, e un riposizionamento non e' una scelta di bersaglio.
-		if (IdxScelta != INDEX_NONE && Scelto && BotDecisionsForAudit.IsValidIndex(IdxScelta))
-		{
-			FRTAuditBotDecision& Record = BotDecisionsForAudit[IdxScelta];
-			Record.TargetUnitId = Scelto->StableUnitId;
-			Record.TargetTeamId = Scelto->TeamId;
-			// ⚠️ La cella e' quella VERA del bersaglio adesso, non quella che il bot ricordava: e' l'ingresso
-			// che il cancello di produzione passa a `ClassifyTarget`, e con un'altra il ricalcolo porrebbe
-			// una domanda simile invece della stessa.
-			Record.TargetCell = Scelto->Cell;
-		}
-
-		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
-		// rami qui sopra; i due `continue` piu' in alto prenotano per conto proprio, perche' escono prima.
-		ReserveNormalMove(Snapshot, Bot, BotIdx);
 	}
 }
 
