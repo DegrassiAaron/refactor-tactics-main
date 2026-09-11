@@ -328,7 +328,8 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 			}
 			else
 			{
-				// Identita' STABILE, non l'indice `u`: questo array e' ordinato per cella e si rinumera
+				// Identita' STABILE, non l'indice `u`: questo array e' ordinato da `SortUnitsForResolution`,
+				// la cui prima chiave e' la cella (#2922), e si rinumera
 				// appena qualcuno si muove. `TurnNumber` in ingresso ignorato — lo scrive `Observe`, che
 				// e' l'unica a sapere QUANDO l'avvistamento avviene.
 				EnemiesNow.Add(FRTLastKnownContact(Ctx.Units[u]->StableUnitId, Ctx.HexUnits[u].Cell, /*ignorato*/ 0));
@@ -2452,7 +2453,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// 🔴 **`OwnerId` vive nello spazio di id di `MakeCurrentSnapshot`, NON in quello del Blast**, e
 				// la differenza non e' teorica: `GatherBlastUnits` aggiunge **ogni** `ARTUnit` senza filtrare
 				// (`Ctx.Units`), mentre `MakeCurrentSnapshot` scarta i morti — il suo commento lo dichiara,
-				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano per cella, quindi
+				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano con la cella come
+				// prima chiave (#2922), quindi
 				// **un solo caduto che ordina prima di questa unita' sposta di uno tutti gli indici a valle**.
 				//
 				// ⚠️ Ogni consumatore di `Key.OwnerId` assume lo spazio alive-only: `DecideScriptedResponse`

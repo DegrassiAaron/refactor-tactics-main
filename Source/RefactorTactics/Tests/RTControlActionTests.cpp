@@ -1296,15 +1296,18 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 	if (!GiraLaCatena(/*bSpecchiata=*/ false, DannoDritta, InterruptedDritta, A1, B1)) { return false; }
 	if (!GiraLaCatena(/*bSpecchiata=*/ true,  DannoSpecchiata, InterruptedSpecchiata, A2, B2)) { return false; }
 
-	// 🔴 **La premessa che rende il test un test**: i due giri devono avere ordini OPPOSTI. Si confronta con
-	// il PREFISSO del comparatore che `GatherBlastUnits` usa — `StableLess` sulle celle, prima chiave di
-	// `SortUnitsForResolution` (#2922). ⚠️ La premessa qui sotto confronta le sole CELLE, cioe' la prima
-	// chiave: basta perche' in questo scenario le celle sono distinte, e **cadrebbe** — fermando il test con
-	// un rosso onesto, non con un esito sbagliato — se un domani condividessero la cella. Chiamare
+	// 🔴 **La premessa che rende il test un test**: i due giri devono avere ordini OPPOSTI. Senza questa
+	// coppia di asserzioni il test girerebbe due volte lo stesso scenario e concorderebbe sempre — e' successo
+	// due volte scrivendolo.
+	//
+	// L'ordine da cui dipende `AttackerId`, e quindi la sequenza di `Plan.Hits`, e' quello che
+	// `GatherBlastUnits` produce con `SortUnitsForResolution` (#2922).
+	//
+	// ⚠️ La premessa qui sotto ne confronta il solo PREFISSO — `StableLess` sulle celle, la prima chiave.
+	// Basta perche' in questo scenario le celle sono distinte; il giorno in cui ne condividessero una,
+	// cadrebbe, fermando il test con un rosso onesto invece di un esito sbagliato. Chiamare
 	// `URTActionQueueLibrary::UnitOrderLess` la renderebbe indipendente dallo scenario, ed e' il passo
-	// naturale il giorno in cui serva. Perche' e'
-	// quello a decidere `AttackerId` e quindi l'ordine di `Plan.Hits`. Senza questa coppia di asserzioni il
-	// test girerebbe due volte lo stesso scenario e concorderebbe sempre: e' successo due volte scrivendolo.
+	// naturale quel giorno.
 	if (!TestTrue(TEXT("premessa: dritta, A viene prima di B nell'ordine per cella"),
 			URTHexLibrary::StableLess(A1, B1))
 		|| !TestTrue(TEXT("premessa: specchiata, A viene DOPO B"),

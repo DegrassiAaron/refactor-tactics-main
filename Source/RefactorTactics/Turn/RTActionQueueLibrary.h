@@ -30,20 +30,33 @@ struct FRTUnitOrderKey
 	/**
 	 * Ultimo spareggio, per il solo caso in cui `StableUnitId` non esista ancora.
 	 *
-	 * 🔴 **`FString` confrontata CASE-SENSITIVE, e non un `FName`.** Una stesura intermedia di questa PR
-	 * era passata a `FName` + `LexicalLess` per non allocare: e' stata **ritirata**, perche' toglieva uno
-	 * spareggio che funzionava. `FName::Compare` e' case-INSENSITIVE, quindi due Actor chiamati `Unit_Alpha` e
-	 * `UNIT_ALPHA` — rappresentabili in due sublevel diversi, perche' l'unicita' degli `UObject` vale dentro
-	 * un solo Outer — pareggerebbero su tutte e tre le chiavi, e a decidere tornerebbe `GetAllActorsOfClass`.
-	 * Cioe' `#990`, di nuovo.
+	 * 🔴 **Questa chiave separa due unita' solo se i loro NOMI sono diversi**, e la premessa che lo
+	 * garantisce va detta con il modo di verificarla — perche' e' esattamente cio' che manco' a `#990`.
 	 *
-	 * ⚠️ **E non e' teorico nella build che conta**: `WITH_CASE_PRESERVING_NAME` vale `WITH_EDITORONLY_DATA`
-	 * (`NameTypes.h:33`), quindi negli Editor target — dove gira l'automation — il caso e' preservato e le due
-	 * stringhe sono davvero diverse. Trovato in code review.
+	 * L'unicita' dei nomi `UObject` vale **dentro un solo Outer**, e per un Actor l'Outer e' la `ULevel`. ∴ la
+	 * chiave e' un ordine totale finche' **tutte le unita' vivono in un solo livello**. Oggi e' vero: sono
+	 * spawnate nel livello persistente (`FRTMatchBootstrapper`, `FRTScenarioSession`) e il progetto non carica
+	 * sublevel. La premessa si ricontrolla cosi':
 	 *
-	 * ⛔ `operator<` no: `FString::UEOpLessThan` e' `Stricmp(...) < 0`, case-insensitive, quindi non e' un
-	 * ordine totale sui byte. E' lo stesso difetto che `URTTurnLogLibrary::EntryLess` ha gia' pagato sulla
-	 * v10 del TurnLog, con la ragione scritta li'.
+	 *     git grep -n "SpawnActor.*ARTUnit" -- Source/RefactorTactics    # da dove nascono
+	 *     git grep -n "LoadStreamLevel\|ULevelStreaming" -- Source/RefactorTactics   # deve essere vuoto
+	 *
+	 * ⛔ **Il giorno in cui cadesse, questa chiave non basta piu' e nessuna sua variante aiuta**: due Actor in
+	 * livelli diversi possono avere nomi identici byte per byte, e li' non c'e' confronto di stringhe che
+	 * separi. Servirebbe una quarta chiave davvero unica — che oggi non esiste e **non va inventata qui**.
+	 *
+	 * ⚠️ **E nei target Runtime la coppia `Unit_Alpha`/`UNIT_ALPHA` non e' nemmeno rappresentabile come due
+	 * nomi**: `WITH_CASE_PRESERVING_NAME` vale `WITH_EDITORONLY_DATA`, e l'engine lo documenta —
+	 * *«enabled for the Editor and any Programs (such as UHT), but not the Runtime»* (`NameTypes.h:25-30`).
+	 * Senza preservazione del caso i due registrano sullo **stesso** `FNameEntry`, e `GetName()` restituisce la
+	 * stessa stringa a entrambi. ∴ il case-sensitive di questa chiave conta **in Editor**, dove gira
+	 * l'automation; in packaged e' la premessa dell'Outer unico a reggere tutto. Una stesura precedente
+	 * affermava che il case-sensitive chiudesse il buco *e basta*: falso fuori dall'Editor. Trovato in code
+	 * review, dopo il merge.
+	 *
+	 * ⛔ `operator<` resta comunque escluso: `FString::UEOpLessThan` e' `Stricmp(...) < 0`, quindi non e' un
+	 * ordine totale sui byte nemmeno dove il caso e' preservato. E' lo stesso difetto che
+	 * `URTTurnLogLibrary::EntryLess` ha gia' pagato sulla v10 del TurnLog.
 	 *
 	 * 🔑 Il costo di `AActor::GetName()` — che passa da `FName::ToString()` e alloca — si paga **una volta
 	 * per unita'**, non a ogni confronto: `SortUnitsForResolution` costruisce le chiavi prima di ordinare.
