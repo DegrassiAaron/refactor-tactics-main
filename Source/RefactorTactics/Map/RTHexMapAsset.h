@@ -612,6 +612,52 @@ public:
 	 */
 	void InvalidateLookup() const { bLookupDirty = true; }
 
+	/**
+	 * 🔑 **QUALI celle sono cambiate dalla revisione `SinceRevision` in poi, quando l'asset lo sa dire.**
+	 *
+	 * `Revision` dice **che** qualcosa e' cambiato, non **cosa**: e' abbastanza per invalidare una cache
+	 * intera, e non abbastanza per ridipingere una cella sola. Questo registro aggiunge il *cosa*, ed e' cio'
+	 * che permette a un consumatore di non ricostruire un'intera famiglia di istanze per una superficie.
+	 *
+	 * 🔴 **Risponde `false` quando NON lo sa, e quel `false` e' la meta' importante del contratto.** Un
+	 * registro che tirasse a indovinare lascerebbe celle non ridipinte — il difetto piu' silenzioso che
+	 * questa classe possa produrre, perche' a schermo somiglia a una superficie che non ha attecchito. I due
+	 * casi in cui non sa:
+	 *
+	 *  - `SinceRevision` e' **anteriore** all'inizio del registro: un evento all'ingrosso (`ClearAll`,
+	 *    `ReplaceContent`) o un traboccamento lo hanno fatto ripartire da capo;
+	 *  - la revisione chiesta e' **futura**, che non e' una domanda sensata.
+	 *
+	 * ⛔ **Ogni voce porta la revisione a cui e' cambiata, e non e' un lusso.** Una prima stesura teneva il
+	 * solo elenco delle celle e restituiva tutto — un sovrainsieme, corretto ma inutile: misurato il
+	 * 2026-09-10, una pennellata su UNA cella ne consegnava **7** su una board di 7 celle e **61** su una di
+	 * 61, perche' il registro portava ancora le celle scritte alla costruzione dell'asset. Il costo tornava a
+	 * seguire la mappa, che e' esattamente il difetto da togliere. La data rende la finestra esatta.
+	 *
+	 * ⚠️ **Il registro NON si pota consultandolo**, e questo resta deliberato: i consumatori sono piu' d'uno,
+	 * e potare per il primo mentirebbe al secondo. A limitarlo e' la capacita', non la lettura.
+	 */
+	bool GetCellsChangedSince(int32 SinceRevision, TArray<FRTCellId>& OutCells) const;
+
+	/**
+	 * La revisione da cui il registro delle celle cambiate e' significativo.
+	 *
+	 * Esiste per rendere osservabile una **ripartenza** del registro, che dall'esterno si vedrebbe solo come
+	 * un `false` di `GetCellsChangedSince` — e un `false` ha due letture, «non lo so» e «non e' cambiato
+	 * niente», che portano a comportamenti opposti nel consumatore.
+	 */
+	int32 GetChangeLedgerBaseRevision() const { return ChangeLedgerBaseRevision; }
+
+	/**
+	 * Quante celle il registro puo' portare prima di ripartire da capo.
+	 *
+	 * ⚠️ **Non e' un limite di correttezza ma di convenienza**: oltre questa soglia ridipingere cella per
+	 * cella non conviene piu' rispetto a rifare la famiglia, quindi il registro smette di crescere e
+	 * dichiara di non sapere. La soglia e' un numero scelto, non misurato: sta qui perche' un test possa
+	 * nominarla invece di ricopiarla.
+	 */
+	static constexpr int32 ChangeLedgerCapacity = 256;
+
 #if WITH_EDITOR
 	/** Notifica di cambiamento non mediato dalle API (undo/redo): chi mostra l'asset deve riallinearsi. */
 	FRTHexMapAssetChanged OnMapChanged;
@@ -625,4 +671,28 @@ private:
 	mutable TMap<FRTCellId, int32> Lookup;
 	mutable bool bLookupDirty = true;
 	void EnsureLookup() const;
+
+	/**
+	 * Le celle toccate da `ChangeLedgerBaseRevision` in poi, **ciascuna con la revisione a cui e' cambiata**
+	 * (`Key` = revisione, `Value` = cella). Vedi `GetCellsChangedSince`.
+	 *
+	 * ⛔ **NON e' una `UPROPERTY` e non si serializza, ed e' una scelta**: e' stato DERIVATO dalla sessione
+	 * corrente, non contenuto dell'asset. Serializzarlo lo farebbe sopravvivere a un salvataggio e a un
+	 * caricamento, cioe' farebbe credere a un consumatore appena nato di sapere cosa e' cambiato prima che
+	 * lui esistesse.
+	 */
+	TArray<TPair<int32, FRTCellId>> ChangedCells;
+
+	/** Vedi `GetChangeLedgerBaseRevision()`. Stato DERIVATO, come `ChangedCells`. */
+	int32 ChangeLedgerBaseRevision = 0;
+
+	/** Registra una cella toccata. Va chiamata DOPO `++Revision`, che e' cio' che il registro data. */
+	void NoteCellChanged(const FRTCellId& Id);
+
+	/**
+	 * «Da qui in poi non so piu' dire cosa e' cambiato prima»: svuota il registro e lo riancora alla
+	 * revisione corrente. Va chiamata DOPO `++Revision` da ogni modifica **non enumerabile** cella per
+	 * cella — svuotamento, sostituzione integrale, traboccamento.
+	 */
+	void RestartChangeLedger();
 };

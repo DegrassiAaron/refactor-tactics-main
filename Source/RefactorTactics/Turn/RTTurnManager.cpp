@@ -3924,7 +3924,8 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 	// ⚠️ Conseguenza dichiarata: creare fuoco sotto un bersaglio fermo passa da 0 a **10 danni + `Burning 2`**
 	// (catalogo terreni). E' un'apertura offensiva nuova, non un effetto collaterale.
 	//
-	// L'ordine e' quello di raccolta (`HexArea` gia' ordinata) incrociato con `Units`, ordinate per cella piu'
+	// L'ordine e' quello di raccolta (`HexArea` gia' ordinata) incrociato con `Units`, ordinate da
+	// `SortUnitsForResolution` — cella, poi `StableUnitId`, poi nome (#2922) — piu'
 	// sopra: due unita' sulla stessa trasformazione ricevono gli effetti sempre nella stessa sequenza.
 	// --- Fuga dagli hazard (CP 7.5, `#505`): il punto di valutazione del CLEANUP -----------------------
 	// Le superfici sono nate e i loro effetti non hanno ancora toccato nessuno: e' l'unico istante in cui
@@ -4374,7 +4375,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why), FRTLogSubject::Unit(Who));
 	};
 
-	for (ARTUnit* Unit : Units) // gia' ordinati per cella dal chiamante
+	for (ARTUnit* Unit : Units) // gia' ordinati dal chiamante con `SortUnitsForResolution` (#2922)
 	{
 		if (!Unit || !Unit->IsAlive()) { continue; }
 
@@ -5102,6 +5103,16 @@ void ARTTurnManager::ResolveDash()
 
 	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
 	// scontro frontale fra mobilita' lineari — CP 4.8).
+	//
+	// ⛔ **Il Dash NON riceve `StepDurations`, ed e' voluto** (`#2914`, [D-381]). La matrice di
+	// `spec-tassonomia-movimento.md` §2 dichiara `policy` per la durata del passo del Dash, e la ragione
+	// sta due righe sopra nella stessa tabella: il Dash **non paga il costo del terreno**. Una durata
+	// derivata da un costo che non si paga non vorrebbe dire niente.
+	//
+	// ⚠️ Chi trovasse l'asimmetria col `Move` e volesse «allinearla» passando qui le durate
+	// contraddirebbe quella riga della matrice: il Dash avrebbe un tempo proporzionale a un prezzo che
+	// non sostiene. Se un giorno una policy di durata per il Dash servisse davvero, si decide nella
+	// serie `MOV-*` e si scrive li', non qui.
 	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers, bPassThrough);
 
 	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
