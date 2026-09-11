@@ -15,6 +15,7 @@
 #include "UI/RTReactionWindowViewModel.h" // idem, ed e' quella che porterebbe `SubmitResponse` nel grafo
 #include "UI/RTHudViewModel.h"           // il feed si prova anche SOTTO il widget: l'insieme vuoto (#2744)
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
+#include "UI/RTHUD.h"                    // ComposeAbilityLine: l'oracolo dell'uguaglianza, non una seconda riga
 #include "Misc/ScopeExit.h"              // ON_SCOPE_EXIT: il mondo si distrugge anche sui ritorni anticipati
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -130,6 +131,121 @@ bool FRTScreenHudIconKeyTest::RunTest(const FString&)
 	// La chiave e' quella che il catalogo si aspetta: si CHIEDE a `MakeIconId`, non si compone qui.
 	TestEqual(TEXT("la chiave e' quella del catalogo"),
 		Slot->GetIconId(), URTIconLibrary::MakeIconId(TEXT("Action.Move")));
+
+	DestroyHudWidgetWorld(nullptr); // no-op: questo test non ha un mondo
+	return true;
+}
+
+/**
+ * 🔴 **Lo slot dice il TASTO, lo stato armato e il MOTIVO — e li dice in TESTO**, che e' il canale non
+ * cromatico che `#2826` chiede: *«uno slot in cooldown o non disponibile e' distinguibile **senza**
+ * affidarsi al colore»*.
+ *
+ * L'oracolo non e' che la riga «ci sia»: sono le tre sottostringhe, ciascuna legata a un campo della vista.
+ * Una riga che perdesse il numero passerebbe un test scritto come *«non e' vuota»* — e il giocatore non
+ * saprebbe piu' quale tasto arma quello slot.
+ *
+ * ⚠️ **Il numero e' `AbilityIndex + 1` perche' e' il TASTO, non l'indice.** Vale finche' il dock mostra il
+ * solo kit numerato: `URTActionDockWidget::GetActions()` inoltra a `BuildAbilityCooldowns`, che cammina le
+ * abilita' dell'unita'. I cinque generici (`G` `B` `C` `X` `Z`) arrivano da `GenericHotkeys()` e non entrano
+ * in questa lista; se un giorno ci entrassero, questo test resterebbe verde mentre la riga mostrerebbe un
+ * numero che non arma nulla — e allora la lettera va aggiunta **qui insieme** al ramo che la produce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudActionLineTest,
+	"RefactorTactics.ScreenHud.ActionSlotLineCarriesKeyArmedAndReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudActionLineTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("widget"), Slot)) { return false; }
+
+	FRTAbilityCooldownView Action;
+	Action.ActionId = TEXT("Action.Overload");
+	Action.DisplayName = FText::FromString(TEXT("Sovraccarico"));
+	Action.AbilityIndex = 3;        // quarto slot -> tasto `4`
+	Action.TurnsRemaining = 2;      // in ricarica
+	Action.TotalTurns = 3;
+	Action.bUsableNow = false;
+
+	Slot->SetAction(Action, /*bArmed=*/ false);
+	const FString Spenta = Slot->GetActionLine().ToString();
+
+	TestTrue(TEXT("la riga nomina il tasto che arma lo slot"), Spenta.Contains(TEXT("4. ")));
+	TestTrue(TEXT("e il nome dell'azione"), Spenta.Contains(TEXT("Sovraccarico")));
+	TestTrue(TEXT("il motivo d'indisponibilita' e' leggibile senza aprire un log"),
+		Spenta.Contains(TEXT("(ricarica 2)")));
+	TestFalse(TEXT("non armata: nessun prefisso di selezione"), Spenta.StartsWith(TEXT("> ")));
+
+	// Armata: il canale NON cromatico e' il prefisso. E' la meta' che il colore da solo non puo' dare.
+	Slot->SetAction(Action, /*bArmed=*/ true);
+	const FString Armata = Slot->GetActionLine().ToString();
+
+	TestTrue(TEXT("armata: il prefisso lo dichiara in testo"), Armata.StartsWith(TEXT("> ")));
+	TestNotEqual(TEXT("armata e non armata NON sono la stessa riga"), Armata, Spenta);
+
+	// Pronta: il motivo sparisce invece di dire «ricarica 0», che sarebbe un motivo inventato.
+	FRTAbilityCooldownView Pronta = Action;
+	Pronta.TurnsRemaining = 0;
+	Pronta.bUsableNow = true;
+	Slot->SetAction(Pronta, /*bArmed=*/ false);
+
+	TestFalse(TEXT("un'azione pronta non porta un motivo"),
+		Slot->GetActionLine().ToString().Contains(TEXT("ricarica")));
+
+	DestroyHudWidgetWorld(nullptr); // no-op: questo test non ha un mondo
+	return true;
+}
+
+/**
+ * 🔑 **L'oracolo e' l'UGUAGLIANZA con `ARTHUD::ComposeAbilityLine`, e serve a impedire un secondo
+ * produttore** — la stessa disciplina che `#2826` impone al proprio percorso di armamento: *«stesso
+ * percorso, non un secondo»*.
+ *
+ * ⚠️ **Detto onestamente: oggi questo test e' tautologico**, perche' `GetActionLine` inoltra a quella
+ * funzione e a null'altro. Non e' un oracolo di contenuto — quello e'
+ * `ActionSlotLineCarriesKeyArmedAndReason` — ed e' un **rilevatore di cambiamento**: il giorno in cui
+ * qualcuno sostituisse l'inoltro con una composizione locale, o il grafo di `WBP_RT_ActionSlot`
+ * concatenasse numero e nome per conto proprio, le due stringhe divergerebbero al primo cambio di formato e
+ * questo test cadrebbe. E' l'unica cosa che promette, e la promette su tre forme di vista diverse perche'
+ * una sola non distinguerebbe un inoltro da una copia fortunata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudActionLineSameComposerTest,
+	"RefactorTactics.ScreenHud.ActionSlotLineIsTheSameComposerAsTheHud",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudActionLineSameComposerTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("widget"), Slot)) { return false; }
+
+	FRTAbilityCooldownView InRicarica;
+	InRicarica.ActionId = TEXT("Action.Overload");
+	InRicarica.DisplayName = FText::FromString(TEXT("Sovraccarico"));
+	InRicarica.AbilityIndex = 3;
+	InRicarica.TurnsRemaining = 2;
+	InRicarica.TotalTurns = 3;
+
+	FRTAbilityCooldownView Pronta;
+	Pronta.ActionId = TEXT("Action.Move");
+	Pronta.DisplayName = FText::FromString(TEXT("Muovi"));
+	Pronta.AbilityIndex = 0;
+	Pronta.bUsableNow = true;
+
+	// Terza forma: la vista NUDA, quella che un grafo o un test possono costruire ai default. Se un ramo
+	// locale comparisse, e' la forma su cui divergerebbe per prima.
+	const FRTAbilityCooldownView Nuda;
+
+	for (const FRTAbilityCooldownView& Vista : { InRicarica, Pronta, Nuda })
+	{
+		for (const bool bArmed : { false, true })
+		{
+			Slot->SetAction(Vista, bArmed);
+			TestEqual(
+				FString::Printf(TEXT("la riga dello slot e' quella dell'HUD (%s, armata=%d)"),
+					*Vista.ActionId.ToString(), bArmed ? 1 : 0),
+				Slot->GetActionLine().ToString(),
+				ARTHUD::ComposeAbilityLine(Vista, bArmed).Text);
+		}
+	}
 
 	DestroyHudWidgetWorld(nullptr); // no-op: questo test non ha un mondo
 	return true;

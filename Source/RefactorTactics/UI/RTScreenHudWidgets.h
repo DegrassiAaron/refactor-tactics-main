@@ -459,6 +459,28 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FName GetIconId() const;
+
+	/**
+	 * La riga testuale dello slot: **tasto**, nome, stato armato e motivo d'indisponibilita', gia' composti.
+	 *
+	 * 🔑 **Inoltra a `ARTHUD::ComposeAbilityLine` e non compone niente**, ed e' l'unica ragione per cui questa
+	 * funzione puo' stare su un widget. Quella riga esisteva, era testata e **non aveva un chiamante fuori dai
+	 * test** — il suo commento lo dichiarava: *«finche' #613 non la consuma, il suo unico chiamante sono i
+	 * test»*. Non era raggiungibile dal Blueprint perche' non e' una `UFUNCTION`: il dato c'era e la porta no.
+	 *
+	 * ⛔ **Non aggiunge un secondo produttore della stessa stringa.** Se il grafo di `WBP_RT_ActionSlot`
+	 * concatenasse da se' numero, nome e ricarica, due composizioni divergerebbero al primo cambio di formato
+	 * — ed e' il difetto che `#2826` nomina per il proprio percorso di armamento: *«stesso percorso, non un
+	 * secondo»*. `ScreenHud.ActionSlotLineIsTheSameComposerAsTheHud` lo pinna per **uguaglianza**, quindi una
+	 * composizione locale non lo fa passare.
+	 *
+	 * ⚠️ **Torna il solo `Text`, non il colore.** La grammatica visiva dello stato armato resta nel Blueprint:
+	 * portarla qui sposterebbe il dominio dentro la presentazione, ed e' cio' che lo spec panel del
+	 * 2026-09-10 ha escluso per iscritto. Cio' che questa riga garantisce e' che lo stato sia leggibile anche
+	 * **senza** colore — il prefisso `> ` dell'armata e il `(ricarica N)` sono testo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetActionLine() const;
 };
 
 /**

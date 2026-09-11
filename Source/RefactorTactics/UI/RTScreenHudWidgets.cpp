@@ -21,6 +21,7 @@
 // bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
@@ -401,6 +402,16 @@ FName URTActionSlotWidget::GetIconId() const
 	}
 
 	return Preferred;
+}
+
+FText URTActionSlotWidget::GetActionLine() const
+{
+	// Un inoltro, e la riga sopra e' il contratto: comporre qui sarebbe il secondo produttore della stessa
+	// stringa. `ComposeAbilityLine` sa gia' che il numero e' 1-based perche' e' il TASTO che il giocatore
+	// preme, e non l'indice del kit — e il dock mostra solo il kit numerato (`BuildAbilityCooldowns`), quindi
+	// quel numero e' davvero il tasto che arma questo slot. I cinque generici — `G` `B` `C` `X` `Z` di
+	// `ARTPlayerController::GenericHotkeys` — non passano da qui e non hanno bisogno di un ramo.
+	return FText::FromString(ARTHUD::ComposeAbilityLine(Action, bArmed).Text);
 }
 
 // =====================================================================================================
