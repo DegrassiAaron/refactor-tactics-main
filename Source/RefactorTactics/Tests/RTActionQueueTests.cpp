@@ -587,6 +587,25 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 		Chiavi[k].Perturba(Minore, /*bHigh*/ false);
 		Chiavi[k].Perturba(Maggiore, /*bHigh*/ true);
 
+		// 🔴 **L'etichetta deve corrispondere a cio' che la perturbazione MUOVE**, e lo verifica la
+		// reflection invece della buona fede. Trovato in code review: senza questo, il buco di #3004 era
+		// chiuso solo a meta'. Restava questa scorciatoia — duplicare una riga e cambiarne il solo nome:
+		//
+		//     { TEXT("CampoNuovo"), [](FRTActionInstance& I, bool bHigh) { I.SourceUnitId = bHigh ? 9 : 1; } }
+		//
+		// La parte 2 sarebbe passata (il verdetto si ribalta davvero — su `SourceUnitId`), `CampiConfrontati()`
+		// avrebbe contenuto `CampoNuovo`, la parte 1 sarebbe tornata verde, e il pareggio non deterministico
+		// sul campo nuovo sarebbe rimasto esattamente dov'era.
+		FProperty* CampoDichiarato = Struct->FindPropertyByName(FName(Chiavi[k].CampoUProperty));
+		if (TestNotNull(*FString::Printf(TEXT("chiave %d: il campo dichiarato '%s' esiste su FRTActionInstance"),
+			k, Chiavi[k].CampoUProperty), CampoDichiarato))
+		{
+			TestFalse(*FString::Printf(
+				TEXT("chiave %d: la perturbazione muove davvero il campo '%s' che dichiara"),
+				k, Chiavi[k].CampoUProperty),
+				CampoDichiarato->Identical_InContainer(&Minore, &Maggiore));
+		}
+
 		TestTrue(*FString::Printf(TEXT("chiave %d: il lato minore precede"), k),
 			URTActionQueueLibrary::InstanceLess(Minore, Maggiore));
 
@@ -610,6 +629,11 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 	// fuori dai test, e uno solo riceve istanze reali — `ARTTurnManager::ResolvePrep`. Verificabile:
 	//
 	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
+	//
+	// ⚠️ **Quel comando risponde NOVE righe, di cui due sono chiamate** — le altre sono la dichiarazione,
+	// la definizione e i commenti (questo incluso). Le due che contano: `RTTurnManager.cpp` in `ResolvePrep`,
+	// e `RTActionQueueLibrary.cpp` in `InstancesForPhase`. Contare i match porta fuori strada, e una stesura
+	// precedente diceva «un solo chiamante» lasciando al lettore una smentita senza spiegazione (#3004).
 	//
 	// ⚠️ **L'altro e' `URTActionQueueLibrary::InstancesForPhase`, e una stesura precedente lo ometteva**
 	// dichiarando «un solo chiamante» (#3004). Non ha chiamanti e non e' `UFUNCTION`, quindi non rompe la

@@ -77,10 +77,12 @@ bool URTActionQueueLibrary::InstanceLess(const FRTActionInstance& A, const FRTAc
 	//
 	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
 	//
-	// ⚠️ **Quel comando risponde DUE chiamanti, non uno**, e una stesura precedente scriveva «uno» (#3004):
-	// c'e' anche `InstancesForPhase`, venti righe sotto. La premessa regge lo stesso perche' quella funzione
-	// non ha chiamanti e non e' `UFUNCTION` — nessun array reale la attraversa — ma chi esegue il controllo
-	// deve trovare scritto cio' che vedra', altrimenti il prossimo lettore conclude che il comando sbaglia.
+	// ⚠️ **Quel comando risponde NOVE righe, e due sole sono chiamate** — le altre sono la dichiarazione, la
+	// definizione e i commenti, questo incluso. Le due: `ARTTurnManager::ResolvePrep` e `InstancesForPhase`,
+	// venti righe sotto. Una stesura precedente dichiarava «un solo chiamante» (#3004), cosi' chi eseguiva il
+	// controllo prescritto trovava una smentita e nessuna spiegazione; contare i match ne dava nove, che e'
+	// un terzo numero ancora. La premessa regge lo stesso, ma per una ragione sola: `InstancesForPhase` non
+	// ha chiamanti. ⛔ Non perche' non sia `UFUNCTION` — in questo header non lo e' nessuno.
 	//
 	// ⛔ Il giorno in cui due produttori confluissero nello stesso array — la direzione di #1818 — la
 	// premessa cade, e **aggiungere `Def` al confronto non e' la risposta**: appartiene al catalogo, e
