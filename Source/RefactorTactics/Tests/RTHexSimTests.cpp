@@ -2848,4 +2848,89 @@ bool FRTHexSimArcCrossesAndLandsTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * \u26d4 La CODA DI SCIVOLAMENTO non riapre il difetto: con la destinazione pianificata occupata, non si
+ * attraversa affatto.
+ *
+ * \U0001f534 **Era una delle due vie che allargavano il difetto** (`#3012`). `ApplyIceSliding` **appende** celle
+ * al percorso, quindi la cella che il giocatore aveva scelto come destinazione smette di essere l'ultima —
+ * e il vecchio guardiano, che leggeva esattamente *«e' l'ultima del percorso?»*, concedeva l'attraversamento
+ * proprio li'. Chi attraversava e poi trovava la coda bloccata restava dentro.
+ *
+ * \U0001f511 Con [D-398] la domanda non esiste piu': l'arco termina su una cella **libera**, e se non ce n'e'
+ * una non si apre. Il percorso puo' essere lungo quanto vuole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcWithSlideTailTest,
+	"RefactorTactics.HexSim.ArcRefusesWhenSlideTailIsBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcWithSlideTailTest::RunTest(const FString&)
+{
+	// Il giocatore pianifica UNA cella — `(1,0)` — e lo scivolamento appende `(2,0)`. Entrambe occupate.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, 0) }); // ferma sulla destinazione PIANIFICATA
+	Paths.Add({ FRTCellId(2, 0) }); // ferma sulla coda di scivolamento
+
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 1, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false),
+		PianoDelGiocatore(1, false)
+	};
+	const TArray<bool> PassThrough = { true, false, false };
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), PassThrough, Planned);
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::FinishHexMovement(State);
+
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestEqual(TEXT("con la coda bloccata non si attraversa, e si resta alla partenza"), R[0].Final, FRTCellId(0, 0));
+	TestNotEqual(TEXT("e non si finisce sulla destinazione pianificata altrui"), R[0].Final, R[1].Final);
+	TestFalse(TEXT("ne' vi si e' entrati"), R[0].Entered.Contains(FRTCellId(1, 0)));
+	return true;
+}
+
+/**
+ * \u26d4 Fermare un'unita' a META' ATTRAVERSAMENTO la lascia dove e' PARTITA, non dentro qualcuno.
+ *
+ * \U0001f534 **Era l'altra via che allargava il difetto** (`#3012`): `StopUnitInPlace` — l'interruzione da
+ * Overwatch — congela l'unita' a `Pos` **senza alcun controllo di condivisione**, e con il vecchio permesso
+ * `Pos` poteva gia' essere la cella di chi era stato attraversato.
+ *
+ * \U0001f511 Con [D-398] non puo' esserlo: sotto [D-382] l'unita' resta sulla propria ORIGINE per tutta la
+ * durata dell'arco e compare direttamente sull'arrivo. A meta' arco `Pos` e' la cella di partenza — sua, e
+ * di nessun altro. L'interruzione non ha piu' un istante illecito su cui cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimStopMidArcTest,
+	"RefactorTactics.HexSim.StopMidArcLeavesTheMoverAtItsOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimStopMidArcTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa (1,0), arriva a (2,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma sul passaggio
+	const TArray<bool> PassThrough = { true, false };
+
+	// L'arco copre due passi, quindi dura due micro-step: dopo il primo l'unita' e' a META'.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), PassThrough);
+	URTHexSimLibrary::ResolveNextHexMicroStep(State);
+
+	// \u26a0\ufe0f La premessa, misurata e non assunta: l'unita' NON e' ancora arrivata.
+	if (!TestNotEqual(TEXT("premessa: a meta' arco non si e' ancora arrivati"),
+		State.Pos[0], FRTCellId(2, 0)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e a meta' arco si sta sulla PROPRIA origine"), State.Pos[0], FRTCellId(0, 0));
+
+	// L'interruzione cade proprio li'.
+	URTHexSimLibrary::StopUnitInPlace(State, 0, ERTMoveOutcome::BlockedByUnit);
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestEqual(TEXT("chi viene fermato a meta' arco resta alla partenza"), R[0].Final, FRTCellId(0, 0));
+	TestNotEqual(TEXT("e non dentro chi stava attraversando"), R[0].Final, R[1].Final);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
