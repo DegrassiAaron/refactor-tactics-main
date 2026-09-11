@@ -156,7 +156,7 @@ namespace
 	/** Chiave d'ordine minima. Nome distinto per file (unity build). */
 	FRTUnitOrderKey UnitKey(int32 X, int32 Y, int32 Layer, int32 StableUnitId, const TCHAR* ActorName)
 	{
-		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, FString(ActorName));
+		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, ActorName);
 	}
 
 	void SortUnitKeys(TArray<FRTUnitOrderKey>& Keys)
@@ -240,7 +240,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderStableIdBeatsActorNameTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTUnitOrderStableIdBeatsActorNameTest::RunTest(const FString&)
 {
-	// 🔴 **Il test che difende la chiave per cui #2922 esiste, e che i primi quattro non difendevano.**
+	// 🔴 **Il test che difende la chiave per cui #2922 esiste.** Non lo facevano `UnitOrderIsTotalOnSharedCell`,
+	// `UnitOrderKeepsCellAsPrimaryKey`, `UnitOrderFallsBackToActorName` ne' `UnitOrderPermutationInvariant`:
 	// L'anti-vacuita' dichiarata nella issue diceva: tolta `StableUnitId`, un test deve diventare rosso.
 	// Non era vero: in ogni fixture l'ordine dei nomi concordava con quello degli id, quindi il nome
 	// rispondeva al posto suo e tutto restava verde. Qui i due criteri dicono cose OPPOSTE, e vince l'id.

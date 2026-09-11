@@ -155,13 +155,24 @@ Content/RT/UI/_Generated/
 !Content/RT/Core/Grid/M_HexCell.uasset
 # I Blueprint-unita' e gli anim BP del roster v0.1 — sedute U7 e U8. Stessa ragione dell'arena qui
 # sopra: riammessi PRIMA che esistano.
-# Il nome e la cartella seguono il **pack Paragon**, non l'eroe (decisione dell'autore, 2026-08-11):
-# in editor si vede `Gadget` e si cerca `Gadget`. La mappatura eroe->pack la fissa D-037 —
-# Flux/Gadget, Riva/Phase, Bastion/Riktor, Vektor/Wraith — e vive nel catalogo C++, non nei path.
-!Content/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget.uasset
-!Content/RT/Characters/Phase/Blueprints/BP_Unit_Phase.uasset
-!Content/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor.uasset
-!Content/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith.uasset
+# ⌫ **Il nome e la cartella seguivano il pack Paragon, e dal 2026-09-10 seguono l'identita' RT.**
+# La riga precedente diceva: «in editor si vede `Gadget` e si cerca `Gadget`», con la mappatura eroe->pack
+# di D-037. Quella convenzione e' stata ritirata da #2297 — «Migrazione identita' roster v0.1: da nomi di
+# slot Paragon a identita' RT» — e i quattro path qui sotto sono il suo esito.
+#
+# 🔴 **E queste quattro righe sono la meta' che era rimasta indietro.** `5e335554` ha cancellato dal
+# repository i quattro `.uasset` coi nomi vecchi senza aggiungere i nuovi, e queste negazioni continuavano a
+# nominare i vecchi: i file rinominati esistevano su disco ma erano **ignorati**, quindi `git status` non
+# aveva niente da mostrare e un `git add` non faceva niente. Da fuori si vedeva solo l'effetto — tre test
+# rossi su `main` per chiunque non fosse su quella macchina:
+# `Heroes.HeroUnitClassesCoversTheRoster`, `Heroes.PartialHeroUnitClassesMixesMeshAndCylinder`,
+# `Packaging.RequiredAnimationClipsAreCooked`.
+#
+# ⚠️ L'oracolo resta quello dichiarato sopra per l'arena: `git check-ignore -q <file>` -> exit **1**.
+!Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset
+!Content/RT/Characters/Branth/Blueprints/BP_Unit_Branth.uasset
+!Content/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin.uasset
+!Content/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren.uasset
 # Gli ABP_* dei quattro eroi NON hanno una riga, e non e' una dimenticanza: D-248 (2026-08-30) ha
 # stabilito che il grafo di locomozione vive in C++ (URTUnitAnimInstance) e che quei quattro .uasset
 # non vanno creati. Le righe c'erano, e sono uscite il 2026-08-31: finche' restavano, il comando di

@@ -119,6 +119,12 @@ namespace
 			// percorsi DAVVERO avvenuti (`RTHUD.cpp:667`) su un canale diverso, quindi le due tracce
 			// convivevano invece di darsi il cambio.
 			HexMap->SetPreviewPath(TArray<FRTCellId>());
+
+			// ➕ **E la timeline** (`#172`), per la stessa ragione della rotta qui sopra: spegnere
+			// l'anteprima a metà è un difetto più difficile da vedere che non spegnerla affatto. Una
+			// `FRTPlanPreview` di default è l'annullamento — non serve un secondo metodo che faccia la
+			// stessa cosa con un altro nome.
+			HexMap->SetPlanPreview(FRTPlanPreview());
 			return;
 		}
 
@@ -129,8 +135,10 @@ namespace
 		int32 UnitId = INDEX_NONE;
 		TArray<ARTUnit*> Units;
 		TArray<FRTCellId> Reachable;
+		bool bHasSnapshot = false;
 		if (PlanningSnapshotFor(World, Unit, Snapshot, UnitId, &Units))
 		{
+			bHasSnapshot = true;
 			for (const FRTHexReachableCell& R :
 				URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->PlannedWaypoints))
 			{
@@ -202,6 +210,91 @@ namespace
 			? PreviewPlan.TargetCell
 			: (HexUnits.IsValidIndex(PreviewPlan.TargetId) ? HexUnits[PreviewPlan.TargetId].Cell : FRTCellId());
 		HexMap->SetPreviewAttack(Blast.Origin, AimCell, bHasAim, Blast.bOriginFromPlannedDash);
+
+		// ➕ **LA TIMELINE DEL PIANO, una voce per fase** (`CP 11.5`, `#172`).
+		//
+		// 🔑 **Si TRADUCE il piano, non si decide niente.** Tutto ciò che segue riempie una struct di
+		// ingresso; l'origine, l'area, il percorso e il facing li deriva `MakePlanPreview`, che è pura e
+		// verificabile headless — e che a sua volta chiama le funzioni del resolver invece di riscriverle.
+		//
+		// ⚠️ **Senza snapshot non si costruisce una timeline finta.** `BuildCompositeHexPath` ha bisogno
+		// dello stato autorevole: darle uno snapshot vuoto produrrebbe un percorso che il resolver non
+		// percorrerà mai, cioè precisamente la divergenza che questo checkpoint esiste per impedire.
+		if (bHasSnapshot)
+		{
+			FRTPlanPreviewInput Timeline;
+			Timeline.UnitId = UnitId;
+
+			// 🔴 **La reazione e' armata da `PlannedReactionAbility`, NON da `ReactionProfileId`**, e la
+			// prima stesura leggeva il secondo. Quello e' configurazione persistente dell'eroe — sta accanto
+			// ad `Affinity` e `Weakness`, e la pianificazione non lo scrive mai — quindi sbagliava in
+			// **entrambi** i versi: un eroe con un profilo configurato risultava armato ogni turno anche senza
+			// aver pianificato niente, e chi arma sul profilo base (`NAME_None`) spariva dalla timeline. Lo
+			// slot per-turno e' quello che `ClearReactionPlan` azzera.
+			Timeline.bReactionArmed = Unit->PlannedReactionAbility != INDEX_NONE;
+			Timeline.ReactionProfileId = Unit->ReactionProfileId;
+			if (const URTActionData* Reazione = Unit->GetAbility(Unit->PlannedReactionAbility))
+			{
+				Timeline.PrepActionId = Reazione->Def.ActionId;
+			}
+
+			// 🔴 **E lo scatto si legge da `PlannedDashAbility`.** `PlannedDashCell` e' dichiarata
+			// *«valida solo se `PlannedDashAbility` e' impostata»*, si costruisce a `(0,0,0)` e nessuno la
+			// azzera — `ResolveDash` pulisce la sola abilita'. Confrontarla con la cella corrente, come faceva
+			// la prima stesura, dava uno scatto FANTASMA verso l'origine della mappa a ogni unita' che non ci
+			// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
+			Timeline.bDashPlanned = Unit->PlannedDashAbility != INDEX_NONE
+				&& !(Unit->PlannedDashCell == Unit->Cell);
+			Timeline.bDashResolves = Unit->PlannedDashApplies();
+			Timeline.PlannedDashCell = Unit->PlannedDashCell;
+			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
+			{
+				Timeline.DashActionId = Scatto->Def.ActionId;
+			}
+
+			Timeline.Blast = PreviewPlan;
+			Timeline.PlannedWaypoints = Unit->PlannedWaypoints;
+			// ⚠️ **Ogni fase riempita porta il proprio `ActionId`**, e la prima stesura riempiva il solo
+			// Blast. La entry dichiara che `NAME_None` significa «fase che il piano non riempie»: con tre fasi
+			// su quattro vuote, un consumatore non poteva distinguere le due cose.
+			Timeline.MoveActionId = TEXT("Action.Move");
+			if (Ability)
+			{
+				Timeline.BlastActionId = Ability->Def.ActionId;
+			}
+
+			// ➕ **Il motivo del rifiuto, calcolato sul bersaglio DEL PIANO** (`#172`).
+			//
+			// ⌫ **Una prima stesura trasportava `ARTHUD::LastRefusal`, ed era sbagliato.** Quel campo e'
+			// dichiarato *«nasce da un click e muore col click seguente»*: e' legato all'ULTIMO CLICK, non al
+			// bersaglio corrente del piano. Pianificando un attacco valido su A e poi cliccando B fuori
+			// portata, ogni refresh successivo che non fosse un click — un waypoint annullato, la fine del
+			// playback — rileggeva `Range` e declassava a `Uncertain` un piano che non aveva niente che non
+			// andasse. E preso da `GetFirstPlayerController()` sarebbe stato, in split-screen, il rifiuto di
+			// un ALTRO osservatore: proprio la lettura incrociata che [D-225] vieta.
+			//
+			// 🔑 **Si COMPONGONO le due funzioni canoniche, non se ne riscrive una.** `ClassifyHexTargeting`
+			// piu' `RefusalForObserver` e' la stessa coppia, nello stesso ordine, che usa il sito del click; il
+			// flag di conoscenza e' quello del bersaglio pianificato, letto qui e non altrove.
+			if (Ability && !Unit->bAttackTargetsCell)
+			{
+				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
+				{
+					const ERTHexTargetReason Motivo = URTCombatLibrary::ClassifyHexTargeting(
+						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
+						Ability->Def.LineOfSightPolicy);
+					Timeline.BlastTargetRefusal =
+						URTCombatLibrary::RefusalForObserver(Motivo, Bersaglio->IsKnownToObserver());
+				}
+			}
+
+			HexMap->SetPlanPreview(
+				URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Timeline, HexUnits));
+		}
+		else
+		{
+			HexMap->SetPlanPreview(FRTPlanPreview());
+		}
 	}
 
 	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */
@@ -2169,8 +2262,17 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 {
 	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che
 	// ripetuta dieci volte, cosi' un tasto abilita' in piu' la eredita per costruzione.
+	// 🔴 **Le tre uscite qui sotto erano MUTE, e la seduta `U49` del 2026-09-10 ha pagato il conto.**
+	// Un tasto abilita' che non produce effetto usciva da una di queste tre porte senza lasciare traccia:
+	// a schermo e nel log, «premo 1 e non succede niente» era indistinguibile da «l'azione e' armata ma il
+	// dock non la mostra». Sono due difetti di owner diversi, e senza queste righe si sceglieva a caso.
+	//
+	// ⚠️ `Display` e non `Warning`: nessuna delle tre e' un errore. Rifiutare l'input durante la
+	// risoluzione e' il comportamento corretto — cio' che mancava era dirlo.
 	if (IsGameplayInputBlocked())
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: input di gameplay bloccato"), Index + 1);
 		return;
 	}
 
@@ -2178,15 +2280,27 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	// ragione del commento qui sopra.
 	if (IsPlanningInputInert())
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: input di planning inerte (autobattle, o fase che non "
+				 "accetta ordini)"), Index + 1);
 		return;
 	}
 
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("Hotkey abilita' %d ignorata: nessuna unita' selezionata"), Index + 1);
 		return;
 	}
 	Unit->SelectAbility(Index);
+
+	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione.** Se compare, l'azione e'
+	// stata armata sul modello: cio' che resta da spiegare e' perche' il dock non lo mostri, ed e' un
+	// difetto di presentazione (`#2764`), non di input.
+	UE_LOG(LogRT, Display,
+		TEXT("Hotkey abilita' %d: armata la posizione %d su '%s'"),
+		Index + 1, Index, *Unit->GetName());
 	// Qui e non "in fondo alla funzione": sotto ci sono due return anticipati e il ramo bSelfTarget,
 	// quindi questo e' l'unico punto attraversato da ogni pressione di tasto che produca un effetto.
 	if (ARTTurnManager* TM = PacingTurnManager(this))

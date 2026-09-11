@@ -98,33 +98,39 @@ void URTActionQueueLibrary::SortUnitsForResolution(TArray<ARTUnit*>& Units)
 		return; // niente da ordinare, e nessuna chiave da costruire
 	}
 
-	// 🔑 **La chiave si costruisce UNA volta per unita', non a ogni confronto.** `AActor::GetName()`
-	// passa da `FName::ToString()` e alloca: dentro il comparatore ne pagherebbe O(N log N) dove ne bastano
-	// O(N). E' anche la ragione per cui `MatchRosterLess` il nome lo tocca solo nell'ultimo ramo.
+	// 🔑 **La chiave si costruisce UNA volta per unita'**, e viaggia ATTACCATA al suo puntatore.
 	//
-	// Si ordinano gli INDICI e non due array in parallelo, come fa gia' `ResolveContestedBoundary`: due sort
-	// indipendenti sugli stessi criteri divergono al primo pareggio.
-	TArray<FRTUnitOrderKey> Keys;
-	Keys.Reserve(Num);
-	TArray<int32> Order;
-	Order.Reserve(Num);
-	for (int32 i = 0; i < Num; ++i)
+	// ⚠️ **Il compromesso vero non e' O(N) contro O(N log N): e' UNA REGOLA contro ZERO ALLOCAZIONI**, e le
+	// stesure precedenti lo raccontavano male. Un comparatore pigro — cella, poi id, e il nome solo se
+	// entrambi pareggiano — non allocherebbe **mai**, perche' quel ramo non si raggiunge quasi mai. Ma per
+	// essere pigro dovrebbe confrontare cella e id **da se'**, cioe' riscrivere le prime due chiavi fuori da
+	// `UnitOrderLess`: due copie della stessa regola, che e' il difetto che #2922 esiste per chiudere.
+	// ∴ si decora, e si paga una `FString` per unita'.
+	//
+	// ⛔ E si decora in COPPIE, non ordinando un array di indici: la stesura intermedia riscriveva
+	// `Units[i] = Originale[Order[i]]`, una permutazione a mano che nessun test copre e che il refuso naturale
+	// — `Units[Order[i]] = Originale[i]` — avrebbe invertito in silenzio. Tenere chiave e puntatore insieme
+	// toglie quella classe di difetto invece di difendersene. Trovato in code review.
+	TArray<TPair<FRTUnitOrderKey, ARTUnit*>> Decorate;
+	Decorate.Reserve(Num);
+	for (ARTUnit* Unit : Units)
 	{
-		Keys.Add(MakeUnitOrderKey(*Units[i])); // stessa precondizione di prima: nessun `nullptr` nell'array
-		Order.Add(i);
+		Decorate.Emplace(MakeUnitOrderKey(*Unit), Unit); // precondizione: nessun `nullptr` nell'array
 	}
 
-	// `Sort` e non `StableSort`: `UnitOrderLess` e' un ordine TOTALE, quindi la stabilita' non ha niente da
-	// decidere. Due chiavi identiche vorrebbero due Actor con lo stesso nome, byte per byte, nello stesso
-	// mondo — e l'ultima chiave e' case-sensitive proprio per non lasciare quella coppia indistinguibile.
-	Order.Sort([&Keys](int32 A, int32 B) { return UnitOrderLess(Keys[A], Keys[B]); });
+	// `Sort` e non `StableSort`: `UnitOrderLess` e' totale **sotto la premessa dell'Outer unico** scritta su
+	// `FRTUnitOrderKey::ActorName`. Se quella premessa cadesse, nemmeno `StableSort` salverebbe l'ordine — a
+	// deciderlo resterebbe comunque l'ingresso, cioe' `GetAllActorsOfClass`. La difesa e' la premessa, non la
+	// scelta del sort.
+	Decorate.Sort([](const TPair<FRTUnitOrderKey, ARTUnit*>& A, const TPair<FRTUnitOrderKey, ARTUnit*>& B)
+	{
+		return UnitOrderLess(A.Key, B.Key);
+	});
 
-	// ⛔ **Si ricopia dentro `Units`, non si sostituisce l'array.** Una stesura precedente faceva
-	// `Units = MoveTemp(Sorted)` e buttava via il buffer che `CollectLivingUnits` riusa con
-	// `Reset()`+`Reserve()` — e che `FRTScenarioSession` tiene per tutta la partita. Trovato in code review.
-	TArray<ARTUnit*> Originale = Units;
+	// Si riscrive DENTRO `Units`: il buffer del chiamante resta il suo. `CollectLivingUnits` lo riusa con
+	// `Reset()`+`Reserve()`, e `FRTScenarioSession` lo tiene per tutta la partita.
 	for (int32 i = 0; i < Num; ++i)
 	{
-		Units[i] = Originale[Order[i]];
+		Units[i] = Decorate[i].Value;
 	}
 }

@@ -4375,9 +4375,12 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why), FRTLogSubject::Unit(Who));
 	};
 
-	for (ARTUnit* Unit : Units) // gia' ordinati dal chiamante con `SortUnitsForResolution` (#2922)
+	// Gia' ordinati dal chiamante con `SortUnitsForResolution` (#2922), che dereferenzia senza controllare:
+	// ∴ un `nullptr` qui sarebbe gia' esploso nel sort, e il controllo sarebbe codice che nessun test puo'
+	// rendere rosso. Resta il solo filtro che serve davvero.
+	for (ARTUnit* Unit : Units)
 	{
-		if (!Unit || !Unit->IsAlive()) { continue; }
+		if (!Unit->IsAlive()) { continue; }
 
 		const int32 Index = Unit->PlannedAbilityIndex;
 		const URTActionData* Ability = Unit->GetAbility(Index);
@@ -5103,6 +5106,16 @@ void ARTTurnManager::ResolveDash()
 
 	// Scatti simultanei, ordine-indipendenti (stesso resolver a microstep del movimento, con priorita' e
 	// scontro frontale fra mobilita' lineari — CP 4.8).
+	//
+	// ⛔ **Il Dash NON riceve `StepDurations`, ed e' voluto** (`#2914`, [D-381]). La matrice di
+	// `spec-tassonomia-movimento.md` §2 dichiara `policy` per la durata del passo del Dash, e la ragione
+	// sta due righe sopra nella stessa tabella: il Dash **non paga il costo del terreno**. Una durata
+	// derivata da un costo che non si paga non vorrebbe dire niente.
+	//
+	// ⚠️ Chi trovasse l'asimmetria col `Move` e volesse «allinearla» passando qui le durate
+	// contraddirebbe quella riga della matrice: il Dash avrebbe un tempo proporzionale a un prezzo che
+	// non sostiene. Se un giorno una policy di durata per il Dash servisse davvero, si decide nella
+	// serie `MOV-*` e si scrive li', non qui.
 	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers, bPassThrough);
 
 	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
@@ -6936,7 +6949,8 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 		}
 	}
 
-	// ORDINE STABILE PER CELLA, e non e' una rifinitura: senza, l'ORDINE DI SPAWN decide la partita (#990).
+	// ORDINE STABILE, e non e' una rifinitura: senza, l'ORDINE DI SPAWN decide la partita (#990). La cella e'
+	// la PRIMA chiave, non l'unica: `SortUnitsForResolution` chiude con `StableUnitId` e col nome (#2922).
 	//
 	// `GetAllActorsOfClass` restituisce gli Actor nell'ordine in cui il livello li tiene, che non e' un dato
 	// di gioco. Da questo array nasce l'identita' delle unita' nello snapshot — l'indice, si veda il commento
@@ -6948,9 +6962,10 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	// attivava, nell'altro non trovava trigger. Il turno 1 era identico byte per byte, che e' il modo in cui
 	// questa classe di difetto passa inosservata: si manifesta quando gli agenti cominciano a interagire.
 	//
-	// E' lo stesso `Sort` con lo stesso comparatore che `ResolveCombat` applica al proprio array, dove la
-	// regola era gia' scritta — *«GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli
-	// indici»*. Erano due gemelli, e uno solo dei due la rispettava.
+	// ⚠️ Qui c'era scritto che `ResolveCombat` applica «lo stesso `Sort` con lo stesso comparatore» al
+	// proprio array, e che *«erano due gemelli, e uno solo dei due la rispettava»*: dopo #2922 non c'e' piu'
+	// un gemello. La regola e' una sola — `URTActionQueueLibrary::SortUnitsForResolution` — e il Blast ci
+	// arriva da `GatherBlastUnits`. Toccarla le muove tutte, ed e' il punto.
 	//
 	// CADE `RefactorTactics.Match.Autobattle.DeterminismSurvivesUnitPermutation` se questa riga sparisce:
 	// verificato per mutazione, non dedotto.
@@ -6989,7 +7004,8 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	//
 	// I contatti sono chiavati su `ARTUnit::StableUnitId` e NON sull'indice di questo array: le due
 	// numerazioni sono diverse — questo snapshot scarta i morti, quello del Blast no, ed entrambi si
-	// riordinano per cella a ogni movimento. Un consumatore che volesse risalire all'Actor deve cercare per
+	// si riordinano a ogni movimento (la cella e' la prima chiave). Un consumatore che volesse risalire
+	// all'Actor deve cercare per
 	// `StableUnitId`, mai indicizzare `Snapshot.Units` con `Contacts[].StableUnitId`.
 	Snapshot.TeamKnowledge = TeamKnowledgeState;
 	return Snapshot;
