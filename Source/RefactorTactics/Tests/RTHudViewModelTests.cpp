@@ -13,6 +13,7 @@
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Player/RTPlayerController.h" // AbilityHotkeys / HotkeyLabelFor: l ORACOLO del tasto (#2987)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Turn/RTTurnManager.h"
@@ -497,7 +498,7 @@ bool FRTHudVmRoundLimitTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
 
 	{
@@ -546,7 +547,7 @@ bool FRTHudVmObjectiveScoreTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
 
 	// A zero punti la vista dice zero, non «nessun dato»: una partita appena cominciata ha un punteggio, ed
@@ -1449,6 +1450,464 @@ bool FRTHudVmHealthFractionTest::RunTest(const FString&)
 	Unit->Health = Unit->MaxHealth * 2;
 	TestEqual(TEXT("salute oltre il massimo: la barra si ferma a uno"),
 		URTHudViewModel::BuildUnitCard(Unit, 0).HealthFraction, 1.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * La diagnostica del feed distingue le TRE cause che a schermo hanno lo stesso aspetto.
+ *
+ * 🔑 **Una diagnostica non verificata e' peggio del silenzio**: se dicesse «nessun turno risolto» mentre il
+ * log ha voci, manderebbe chi indaga dalla parte sbagliata con l'autorita' di una misura. Questo test
+ * asserisce che ogni ramo nomini il proprio caso, e che NON nomini gli altri.
+ *
+ * ⛔ Il difetto che esiste per fermare e' quello vero di `#2964`: un feed vuoto letto come «feed rotto»,
+ * quando le cause possibili erano tre e due di esse non sono difetti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedStateNamesItsOwnCauseTest,
+	"RefactorTactics.ScreenHud.FeedStateNamesItsOwnCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedStateNamesItsOwnCauseTest::RunTest(const FString&)
+{
+	auto Unisci = [](const TArray<FString>& R)
+	{
+		FString S;
+		for (const FString& X : R) { S += X + TEXT(" | "); }
+		return S;
+	};
+
+	// ── (1) Nessun manager: il caso che NON e' privacy, e la riga deve dirlo.
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(nullptr, TArray<int32>{ 1 }));
+		TestTrue(TEXT("senza manager lo dichiara"), S.Contains(TEXT("nessun TurnManager")));
+		TestTrue(TEXT("e avverte che NON e' privacy"), S.Contains(TEXT("NON e' privacy")));
+	}
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// ── (2) Manager presente, log VUOTO: stato normale prima della prima risoluzione, e va detto che non
+	//        e' un difetto — altrimenti si cerca un guasto che non c'e'.
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 1 }));
+		TestTrue(TEXT("log vuoto: lo nomina"), S.Contains(TEXT("TurnLog e' vuoto")));
+		TestTrue(TEXT("e dichiara che non e' un difetto"), S.Contains(TEXT("Non e' un difetto")));
+		TestFalse(TEXT("e NON accusa il filtro"), S.Contains(TEXT("filtro dell'osservatore")));
+	}
+
+	// Una voce autorizzata alla sola squadra 1.
+	FRTTurnLogEntry Voce = VoceDiTurno(/*TurnNumber*/ 3, /*UnitId*/ 77);
+	// `VoceDiTurno` autorizza gia' la squadra 1 nella sua forma: il caso (3) dipende da quel default.
+	TM->AppendTurnLogEntryForTest(Voce);
+
+	// ── (3) Log pieno, osservatore NON autorizzato: il filtro funziona, e la riga punta a chi decide
+	//        l'insieme invece che al feed.
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 2 }));
+		TestTrue(TEXT("nomina il filtro"), S.Contains(TEXT("filtro dell'osservatore")));
+		TestTrue(TEXT("e indica ResolveObserverTeamIds"), S.Contains(TEXT("ResolveObserverTeamIds")));
+		TestFalse(TEXT("e NON dice che il log e' vuoto"), S.Contains(TEXT("TurnLog e' vuoto")));
+	}
+
+	// ── (4) ⚠️ Il CONTROLLO che rende il test non vacuo: con l'osservatore GIUSTO la stessa voce passa, e la
+	//        riga sposta il sospetto sul widget. Senza questo caso, i tre rami sopra passerebbero anche se
+	//        `DescribeFeedState` dicesse sempre «filtrato».
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 1 }));
+		TestTrue(TEXT("con l'osservatore giusto il ViewModel produce righe"),
+			S.Contains(TEXT("il difetto e' nel widget")));
+		TestFalse(TEXT("e non accusa piu' il filtro"), S.Contains(TEXT("NESSUNA passa")));
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **IL TASTO SI LEGGE DALLA TABELLA DEI BINDING, E NON SI CALCOLA DALL'INDICE** (`#2987`).
+ *
+ * 🔑 **L'oracolo e' l'UGUAGLIANZA con `ARTPlayerController::AbilityHotkeys()`**, e la scelta e' il punto
+ * del test. Confrontare con una stringa attesa — `"1"`, `"0"` — rifarebbe qui la traduzione da tasto a
+ * etichetta, cioe' creerebbe la seconda verita' che questa issue esiste per togliere: due composizioni che
+ * divergono al primo cambio di tabella, e un test verde su entrambe.
+ *
+ * ⚠️ **La posizione `9` e' il caso che il difetto rendeva falso**, e va nominata: `AbilityHotkeys()` chiude
+ * con `EKeys::Zero`, quindi la riga diceva `10.` per un tasto che e' `0`. Il controllo B e' scritto come
+ * disuguaglianza da `"10"` perche' e' **quel** difetto a dover cadere, non un formato qualunque.
+ *
+ * ⛔ **E il vuoto oltre la tabella e' la meta' che nessun `Index + 1` puo' dare**: quell'aritmetica
+ * risponde a ogni indice, anche a quelli che nessun tasto raggiunge — il kit a undici voci che
+ * `GenericHotkeys()` dichiara possibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmShortcutFromBindingTableTest,
+	"RefactorTactics.HudViewModel.ShortcutComesFromTheBindingTableNotTheIndex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmShortcutFromBindingTableTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+	// Anti-vacuita': senza un kit, ogni asserzione del ciclo sarebbe verde per il motivo sbagliato.
+	if (!TestTrue(TEXT("premessa: l'unita' ha un kit"), Cds.Num() > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- A. ogni posizione porta il tasto che le TABELLE le assegnano ----------------------------------
+	// 🔑 **L'ordine di risoluzione e' quello di [D-397] §4**, ed e' il punto: `GenericHotkeys()` per
+	// `ActionId` -> `AbilityHotkeys()` per posizione -> vuoto. Una generica mostra la propria LETTERA perche'
+	// quella e' legata all'azione, mentre il numero dipende da quante voci porta l'eroe.
+	//
+	// ⌫ **Questo ciclo attendeva il numero per OGNI posizione, e la decisione l'ha superato**: misurato,
+	// la posizione 5 portava `Z` dove il test chiedeva `6`. Non era un difetto del codice — era il test a
+	// pinnare una regola che nel frattempo era stata decisa diversamente.
+	const TArray<FKey>& Tabella = ARTPlayerController::AbilityHotkeys();
+	const TArray<TPair<FName, FKey>>& Generiche = ARTPlayerController::GenericHotkeys();
+
+	int32 GenericheViste = 0;
+
+	for (int32 i = 0; i < Cds.Num(); ++i)
+	{
+		const TPair<FName, FKey>* Generica = Generiche.FindByPredicate(
+			[&](const TPair<FName, FKey>& G) { return G.Key == Cds[i].ActionId; });
+		if (Generica) { ++GenericheViste; }
+
+		const FString Atteso = Generica
+			? Generica->Value.GetDisplayName(/*bLongDisplayName=*/ false).ToString()
+			: (Tabella.IsValidIndex(i)
+				? Tabella[i].GetDisplayName(/*bLongDisplayName=*/ false).ToString()
+				: FString());
+
+		TestEqual(
+			FString::Printf(TEXT("A: la posizione %d (%s) porta il tasto che le tabelle le assegnano"),
+				i, *Cds[i].ActionId.ToString()),
+			Cds[i].HotkeyLabel.ToString(), Atteso);
+	}
+
+	// --- B. la posizione 9 NON dice «10», che e' il difetto misurato -----------------------------------
+	if (Cds.IsValidIndex(9))
+	{
+		TestNotEqual(TEXT("B: la decima posizione non annuncia un tasto `10` che non esiste"),
+			Cds[9].HotkeyLabel.ToString(), FString(TEXT("10")));
+	}
+	else
+	{
+		// Il kit di questo eroe non arriva a dieci voci: il caso non e' osservabile QUI, e dirlo vale piu'
+		// di un verde che sembra averlo coperto. Il controllo C lo esercita comunque, sulla funzione.
+		AddInfo(TEXT("B: kit piu' corto della fila dei numeri — caso coperto dal solo controllo C"));
+	}
+
+	// ⛔ **Anti-vacuita' della meta' che [D-397] §4 ha deciso**: senza generiche nel kit il ciclo non
+	// asserirebbe mai il ramo della lettera, e il test resterebbe verde misurando il solo numero. Le
+	// generiche sono accodate al kit di OGNI unita' (`MakeGenericActions`), quindi zero qui e' un difetto.
+	TestTrue(
+		FString::Printf(TEXT("il kit porta delle generiche, che sono il ramo `lettera` (ne ha %d)"),
+			GenericheViste),
+		GenericheViste > 0);
+
+	// --- C. oltre la tabella non c'e' un tasto, e la risposta e' VUOTA ---------------------------------
+	// ⚠️ Si interroga la funzione e non la vista: serve un indice che la tabella non copre, e costruire
+	// un'unita' con undici voci di kit misurerebbe la composizione del kit invece di questa regola.
+	TestTrue(TEXT("C: una posizione oltre la fila dei numeri non porta nessun tasto"),
+		ARTPlayerController::HotkeyLabelFor(NAME_None, Tabella.Num()).IsEmpty());
+	TestTrue(TEXT("C: e un indice negativo nemmeno"),
+		ARTPlayerController::HotkeyLabelFor(NAME_None, INDEX_NONE).IsEmpty());
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **UNA POSIZIONE DI KIT VUOTA PRODUCE UNA RIGA, E NON SPOSTA QUELLE DOPO** (`#2987`).
+ *
+ * 🔑 **E' il test che `CooldownsMirrorTheSimulator` non poteva essere.** Quello asserisce
+ * `Num() == NumAbilities()` e `[i].AbilityIndex == i` su `Hero.Aevik`, cioe' su un kit **senza buchi**: il
+ * ramo che salta non veniva mai eseguito, e l'asserzione pinnava il contratto esattamente nel caso in cui
+ * era gia' vero. Qui il buco si crea, ed e' l'unico modo di far parlare quel ramo.
+ *
+ * ⚠️ **Il caso non e' teorico**: tre punti del progetto ammettono che una posizione non produca un'azione —
+ * il `continue` di `MakeGenericActions` su un `ActionId` che il catalogo non conosce, il
+ * `if (!Ability) return;` di `SelectAbilityForCurrent`, e il bounds-check di `GetAbility`. Cio' che
+ * mancava era una risposta **sola**.
+ *
+ * 🔑 **L'oracolo forte e' il controllo C**, non il conteggio: che l'azione dopo il buco resti dove il tasto
+ * la cerca. Con il `continue` di prima, `Num()` scendeva **e** ogni azione successiva slittava di una
+ * posizione — e' lo slittamento a rendere il sesto riquadro e il tasto `6` due cose diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmKitHoleTest,
+	"RefactorTactics.HudViewModel.KitHoleDoesNotRenumberTheSlots",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmKitHoleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	// Anti-vacuita': serve un buco FRA due voci popolate, quindi almeno tre posizioni.
+	if (!TestTrue(TEXT("premessa: il kit ha almeno tre posizioni"), Unit->NumAbilities() >= 3))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// L'identita' dell'azione che sta DOPO il buco, letta prima di scavarlo: e' il riferimento del
+	// controllo C. Presa dal kit e non dalla vista, cosi' non dipende da cio' che il test sta misurando.
+	const URTActionData* DopoIlBuco = Unit->GetAbility(2);
+	if (!TestNotNull(TEXT("premessa: la posizione 2 porta un'azione"), DopoIlBuco))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+	const FName IdDopoIlBuco = DopoIlBuco->Def.ActionId;
+
+	// Il buco: una posizione di kit che non produce un'azione, fra due che la producono.
+	const int32 NumPrima = Unit->NumAbilities();
+	Unit->Abilities[1] = nullptr;
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+	// --- A. una riga per posizione, buco compreso ------------------------------------------------------
+	TestEqual(TEXT("A: l'array non si accorcia quando una posizione e' vuota"), Cds.Num(), NumPrima);
+
+	// --- B. il buco si riconosce, e porta comunque il proprio indice -----------------------------------
+	if (TestTrue(TEXT("premessa: la riga del buco esiste"), Cds.IsValidIndex(1)))
+	{
+		TestTrue(TEXT("B: la posizione vuota si riconosce da `ActionId` nullo"), Cds[1].ActionId.IsNone());
+		TestEqual(TEXT("B: e porta comunque il proprio indice di kit"), Cds[1].AbilityIndex, 1);
+		TestFalse(TEXT("B: una posizione vuota non e' usabile"), Cds[1].bUsableNow);
+	}
+
+	// --- C. cio' che sta DOPO il buco non slitta -------------------------------------------------------
+	// 🔑 E' l'asserzione che cade col `continue`: li' `Cds[2]` sarebbe stata l'azione della posizione 3.
+	if (TestTrue(TEXT("premessa: la riga dopo il buco esiste"), Cds.IsValidIndex(2)))
+	{
+		TestEqual(TEXT("C: l'azione dopo il buco resta dove il tasto la cerca"),
+			Cds[2].ActionId, IdDopoIlBuco);
+		TestEqual(TEXT("C: e il suo indice non e' cambiato"), Cds[2].AbilityIndex, 2);
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **LO STATO DI UNO SLOT E' UN VALORE, E LA SUA PRECEDENZA VIVE IN UN POSTO SOLO** (`#2988`).
+ *
+ * 🔑 **L'oracolo non e' «risponde qualcosa»: sono le COPPIE in conflitto.** Uno stato calcolato bene sui
+ * casi puri — pronta, in ricarica, vuota — e sbagliato quando due condizioni valgono insieme passerebbe un
+ * test scritto caso per caso. Le tre coppie qui sotto sono quelle che un grafo Blueprint ricomporrebbe in
+ * ordine diverso, ed erano l'unica cosa che rendeva la deduzione locale pericolosa.
+ *
+ * ⚠️ **`Selected` sopra `Cooldown` non e' una scelta di questo test**: e' la regola che
+ * `ARTHUD::ComposeAbilityLine` applica al colore da prima — *«Armata batte inutilizzabile»* — e qui viene
+ * pinnata nella sede in cui ora vive.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSlotStateTest,
+	"RefactorTactics.HudViewModel.SlotStatePrefersTheArmedOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSlotStateTest::RunTest(const FString&)
+{
+	// --- I casi puri, che sono la premessa delle coppie ------------------------------------------------
+	FRTAbilityCooldownView Vuota; // `ActionId` nullo: e' cio' che dichiara la posizione vuota (#2987)
+	TestEqual(TEXT("posizione vuota"),
+		URTHudViewModel::ResolveSlotState(Vuota, /*bArmed=*/ false), ERTActionSlotState::Empty);
+
+	FRTAbilityCooldownView Pronta;
+	Pronta.ActionId = TEXT("Action.Guard");
+	Pronta.bUsableNow = true;
+	TestEqual(TEXT("pronta"),
+		URTHudViewModel::ResolveSlotState(Pronta, false), ERTActionSlotState::Available);
+
+	FRTAbilityCooldownView InRicarica = Pronta;
+	InRicarica.TurnsRemaining = 2;
+	InRicarica.bUsableNow = false;
+	TestEqual(TEXT("in ricarica"),
+		URTHudViewModel::ResolveSlotState(InRicarica, false), ERTActionSlotState::Cooldown);
+
+	FRTAbilityCooldownView Pianificata = Pronta;
+	Pianificata.bPlanned = true;
+	TestEqual(TEXT("nel piano"),
+		URTHudViewModel::ResolveSlotState(Pianificata, false), ERTActionSlotState::Planned);
+
+	// --- A. armata BATTE in ricarica -------------------------------------------------------------------
+	// 🔑 La regola di `ComposeAbilityLine`: un'ultimate armata e ancora in ricarica resta riconoscibile
+	// come quella scelta, e il motivo lo dice il numero.
+	TestEqual(TEXT("A: armata e in ricarica -> armata"),
+		URTHudViewModel::ResolveSlotState(InRicarica, /*bArmed=*/ true), ERTActionSlotState::Selected);
+
+	// --- B. armata BATTE pianificata -------------------------------------------------------------------
+	// Una posizione puo' essere entrambe: si arma un'abilita' e la si pianifica su un bersaglio.
+	TestEqual(TEXT("B: armata e pianificata -> armata"),
+		URTHudViewModel::ResolveSlotState(Pianificata, /*bArmed=*/ true), ERTActionSlotState::Selected);
+
+	// --- C. pianificata BATTE in ricarica --------------------------------------------------------------
+	// Una reazione pianificata e poi entrata in ricarica resta un impegno preso: dire «in ricarica»
+	// nasconderebbe che il turno la eseguira'.
+	FRTAbilityCooldownView PianificataEInRicarica = InRicarica;
+	PianificataEInRicarica.bPlanned = true;
+	TestEqual(TEXT("C: pianificata e in ricarica -> pianificata"),
+		URTHudViewModel::ResolveSlotState(PianificataEInRicarica, false), ERTActionSlotState::Planned);
+
+	// --- D. vuota BATTE tutto --------------------------------------------------------------------------
+	// ⛔ Senza questo, un segnaposto che ereditasse `bArmed` dall'unita' direbbe «armata» di una posizione
+	// che non porta nessuna azione — e il dock accenderebbe uno slot vuoto.
+	FRTAbilityCooldownView VuotaMaArmata;
+	VuotaMaArmata.bPlanned = true;
+	TestEqual(TEXT("D: una posizione vuota resta vuota anche se armata e pianificata"),
+		URTHudViewModel::ResolveSlotState(VuotaMaArmata, /*bArmed=*/ true), ERTActionSlotState::Empty);
+
+	return true;
+}
+
+/**
+ * 🔴 **`Planned` ARRIVA ALLA VISTA, E LEGGE TUTTI E TRE I CAMPI DEL PIANO** (`#2988`).
+ *
+ * 🔑 **La reazione e' il caso che rende il test non ovvio.** `PlannedReactionAbility` esiste come campo
+ * separato da `#601` — *«una reazione selezionata finiva nello slot PRINCIPALE, dove il pass delle reazioni
+ * non la guarda mai»* — quindi una vista che leggesse il solo `PlannedAbilityIndex` direbbe «non
+ * pianificata» di una reazione che il turno eseguira'. E' esattamente il difetto che `#2986` descrive dal
+ * lato opposto: uno stato che afferma il contrario di cio' che il modello fara'.
+ *
+ * ⚠️ **Il controllo C non e' cortesia**: senza, un `bPlanned` scritto `true` per tutti passerebbe A e B.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmPlannedReachesTheViewTest,
+	"RefactorTactics.HudViewModel.PlannedIsDistinctFromArmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmPlannedReachesTheViewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	if (!TestTrue(TEXT("premessa: il kit ha almeno tre posizioni"), Unit->NumAbilities() >= 3))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- A. la principale pianificata si vede ----------------------------------------------------------
+	Unit->PlannedAbilityIndex = 1;
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(1)))
+		{
+			TestTrue(TEXT("A: la principale pianificata arriva alla vista"), Cds[1].bPlanned);
+		}
+	}
+
+	// --- B. la REAZIONE pure, e vive in un campo suo ---------------------------------------------------
+	Unit->PlannedAbilityIndex = INDEX_NONE;
+	Unit->PlannedReactionAbility = 2;
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(2)))
+		{
+			TestTrue(TEXT("B: la reazione pianificata arriva alla vista"), Cds[2].bPlanned);
+		}
+	}
+
+	// --- C. e chi NON e' nel piano non risulta pianificato ---------------------------------------------
+	// ⛔ Senza, un `bPlanned` scritto `true` per tutti passerebbe A e B.
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: la riga esiste"), Cds.IsValidIndex(0)))
+		{
+			TestFalse(TEXT("C: una posizione fuori dal piano non risulta pianificata"), Cds[0].bPlanned);
+		}
+	}
+
+	// --- D. armato e pianificato restano DUE cose ------------------------------------------------------
+	// `SelectedAbilityIndex` e' «cosa sto per fare», il piano e' «cosa ho gia' deciso»: armare la posizione
+	// 0 non deve rendere pianificata la 0 ne' spianificare la 2.
+	Unit->SelectAbility(0);
+	{
+		const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("premessa: le righe esistono"), Cds.IsValidIndex(2)))
+		{
+			TestFalse(TEXT("D: armare non pianifica"), Cds[0].bPlanned);
+			TestTrue(TEXT("D: e non spianifica cio' che era nel piano"), Cds[2].bPlanned);
+		}
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * 🔵 **CHE COSA SOPRAVVIVE a un cambio di selezione — e cosa no** (`#2988`, deciso da [D-397] §5).
+ *
+ * ⌫ **Nasceva CARATTERIZZANTE — fotografava un comportamento che nessuno aveva deciso — e ora dichiara una
+ * scelta.** [D-397] §5 ha risolto la domanda 3 di `#2990` mentre questo test era in main, e l'ha risolta in
+ * due meta' che vanno nomi nate separatamente:
+ *
+ *  - **cambio di unita': SOPRAVVIVE, ed e' corretto.** `SelectedAbilityIndex` vive su `ARTUnit`: ritrovare
+ *    su un'unita' cio' che le si era armato e' la conseguenza del modello. *«Va scritto, non corretto.»*
+ *  - **risoluzione: NON sopravvive.** Uno slot armato dopo che il piano e' stato consumato afferma una
+ *    scelta che non esiste piu', e con `bPlanned` la contraddizione diventa visibile — armato senza
+ *    pianificato. Il ritorno al neutro sta nel **Cleanup**, un sito solo, lato autorita'.
+ *
+ * 🔑 **Il fatto che il test esistesse PRIMA della decisione e' il suo valore**: ha reso osservabile il
+ * comportamento su cui la decisione si e' poi pronunciata, invece di lasciarlo indovinare.
+ *
+ * ⚠️ **La meta' del Cleanup non si prova qui**, e non per dimenticanza: richiede un turno risolto, quindi
+ * vive dove gia' abita quell'invariante — `Turn.PlansDoNotSurviveTheTurn`, accanto agli altri campi che
+ * muoiono nello stesso punto. Duplicarla qui significherebbe un secondo posto da aggiornare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmArmingLifecycleTest,
+	"RefactorTactics.HudViewModel.ArmingIsPerUnitAndReturnsToNeutralAtCleanup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmArmingLifecycleTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Prima = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	ARTUnit* Seconda = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 0);
+	if (!Prima || !Seconda)
+	{
+		DestroyHudVmWorld(World);
+		return TestTrue(TEXT("due unita' esistono"), false);
+	}
+
+	// --- A. l'armamento e' PER UNITA', non del controller ----------------------------------------------
+	Prima->SelectAbility(1);
+	TestEqual(TEXT("A: la prima unita' porta il proprio armamento"), Prima->SelectedAbilityIndex, 1);
+	TestEqual(TEXT("A: e la seconda resta al neutro di D-128"),
+		Seconda->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+	// --- B. armare la seconda non disarma la prima -----------------------------------------------------
+	// ✅ **Deciso da [D-397] §5**, e non piu' una fotografia: l'armamento e' stato dell'unita', quindi due
+	// unita' possono essere armate insieme, ciascuna sulla propria voce. Cio' che NON sopravvive e' la
+	// risoluzione, e quella meta' vive in `Turn.PlansDoNotSurviveTheTurn`.
+	Seconda->SelectAbility(0);
+	TestEqual(TEXT("B: la prima resta armata quando si arma la seconda — l'armamento e' dell'unita'"),
+		Prima->SelectedAbilityIndex, 1);
+
+	// --- C. il neutro e' raggiungibile, ed e' un ingresso legittimo ------------------------------------
+	// ⛔ Questa meta' NON e' in attesa di decisione: `SelectAbility(INDEX_NONE)` disarma per contratto —
+	// *«senza di esso non esisterebbe un modo di tornare allo stato neutro»* — ed e' cio' su cui poggiano
+	// il disarmo col click (`ArmKitAbility`) e l'uscita dal targeting con `RMB`.
+	Prima->SelectAbility(INDEX_NONE);
+	TestEqual(TEXT("C: il neutro si raggiunge"),
+		Prima->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
+
+	// --- D. un indice fuori range non arma e non disarma -----------------------------------------------
+	Seconda->SelectAbility(9999);
+	TestEqual(TEXT("D: un indice non valido lascia l'armamento dov'era"), Seconda->SelectedAbilityIndex, 0);
 
 	DestroyHudVmWorld(World);
 	return true;

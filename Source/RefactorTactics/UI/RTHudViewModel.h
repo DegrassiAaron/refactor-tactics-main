@@ -371,6 +371,19 @@ struct FRTAbilityCooldownView
 {
 	GENERATED_BODY()
 
+	/**
+	 * L'azione, o `None` quando la posizione di kit **e' vuota**.
+	 *
+	 * 🔑 **`None` e' uno stato dichiarato, non un dato mancante** (`#2987`). Fino a quel punto
+	 * `BuildAbilityCooldowns` **saltava** le posizioni senza azione, e l'array usciva piu' corto del kit:
+	 * la posizione visiva si scollava da quella di kit, mentre `SelectAbilityForCurrent(5)` continuava a
+	 * significare *«la posizione 5»*. Il tasto e il riquadro smettevano di essere la stessa cosa, in
+	 * silenzio.
+	 *
+	 * ∴ **una riga per ogni posizione del kit, sempre**: `Cooldowns.Num() == Unit->NumAbilities()` e
+	 * `Cooldowns[i].AbilityIndex == i` valgono per costruzione, non solo sui kit che non hanno buchi. Chi
+	 * disegna riconosce la posizione vuota da questo campo.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FName ActionId;
 
@@ -397,7 +410,55 @@ struct FRTAbilityCooldownView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 AbilityIndex = INDEX_NONE;
 
-	/** Quale slot consuma: il pannello raggruppa per slot, non per ordine nel kit. */
+	/**
+	 * L'etichetta del TASTO che arma questa posizione (`0`, `7`, …), **vuota** quando nessuno la raggiunge.
+	 *
+	 * 🔴 **Derivata qui e non da chi disegna, ed e' una CORREZIONE** (`#2987`). `ComposeAbilityLine`
+	 * scriveva `AbilityIndex + 1`: per la posizione `9` diceva **«10.»**, mentre `AbilityHotkeys()` chiude
+	 * con `EKeys::Zero` e il tasto e' **`0`**. L'aritmetica non interrogava la tabella, quindi le due
+	 * divergevano — e divergevano sull'unica posizione che il giocatore non puo' verificare altrove.
+	 *
+	 * ⚠️ **Vuota e' un valore, non un dato mancante**: e' la risposta per una posizione che nessun tasto
+	 * numerico preme — il caso che `GenericHotkeys()` dichiara, *«un eroe con sei azioni porta il kit a
+	 * undici voci contro i dieci tasti numerici»*. Chi disegna mostra il tasto **solo** se c'e'.
+	 *
+	 * ⛔ **Non porta il tasto GENERICO** (`G` `B` `C` `X` `Z`): quale dei due binding mostrare per
+	 * un'universale e' una decisione aperta (`#2990`), e un campo che la anticipasse la deciderebbe di
+	 * fatto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText HotkeyLabel;
+
+	/**
+	 * Questa posizione e' gia' nel PIANO del turno (`#2988`).
+	 *
+	 * 🔴 **Armata e pianificata sono due cose, e la vista non le distingueva.** `SelectedAbilityIndex` e'
+	 * *«cosa sto per fare»* — sopravvive a un click a vuoto — mentre `PlannedAbilityIndex`,
+	 * `PlannedReactionAbility` e `PlannedDashAbility` sono *«cosa ho gia' messo nel piano»*, cioe' cio' che
+	 * il turno risolvera'. `progettazione-hud.md` §7 li elenca come due stati separati di uno slot
+	 * (`Selected` e `Planned`) e fino a qui uno dei due non arrivava a chi disegna.
+	 *
+	 * ⚠️ **Guarda tutti e TRE i campi**, e non il solo `PlannedAbilityIndex`: una reazione vive in un campo
+	 * suo — `#601` lo dichiara, *«una reazione selezionata finiva nello slot PRINCIPALE»* — e uno scatto in
+	 * un terzo. Leggerne uno solo direbbe «non pianificata» di una reazione che il pass delle reazioni
+	 * eseguira'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPlanned = false;
+
+	/**
+	 * Quale slot del turno consuma questa azione.
+	 *
+	 * ⌫ **Questo commento diceva *«il pannello raggruppa per slot, non per ordine nel kit»*, e non era
+	 * vero** (`#2988`). Nessun pannello raggruppa: `URTActionDockWidget::GetActions()` documenta l'ordine
+	 * opposto — *«nell'ordine del kit: l'indice e' quello che l'hotkey arma»* — e
+	 * `URTSelectedUnitPanelWidget::GetSlots()` mostra i tre slot **del piano**, che sono un'altra cosa dal
+	 * raggruppamento di una palette. Le due frasi si contraddicevano dentro lo stesso modulo.
+	 *
+	 * 🔑 **Il campo resta, ed e' il ponte fra la palette e l'economia**: `1..N` sono le voci, `3` sono gli
+	 * slot, e questo dice quale voce ne consuma quale. ⛔ **Se la barra debba mostrarlo e' `#2990`**: e'
+	 * layout, e deciderlo qui lo deciderebbe di fatto.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTActionSlot Slot = ERTActionSlot::None;
 
@@ -504,6 +565,62 @@ struct FRTPlayerEventLineView
 	bool bHasBlocker = false;
 };
 
+
+/**
+ * Lo STATO di uno slot della barra, in un valore solo (`#2988`).
+ *
+ * 🔴 **Esiste perche' lo stato non era un dato: erano quattro campi da cui dedurlo.**
+ * `progettazione-hud.md` §7 elenca gli stati che uno slot deve poter rappresentare, e la vista ne portava i
+ * **materiali** — `bUsableNow`, `TurnsRemaining`, `ActionId`, piu' `GetArmedActionIndex()` che sta su un
+ * altro widget. Ogni `WBP_` che volesse distinguere `Planned` da `Selected` doveva ricomporlo da se', e un
+ * grafo Blueprint e' il posto del progetto con meno copertura.
+ *
+ * ## La precedenza e' DERIVATA, non inventata qui
+ *
+ * 🔑 **`Selected` batte `Cooldown`, ed e' la regola che `ARTHUD::ComposeAbilityLine` gia' applica**:
+ * *«Armata batte inutilizzabile. "Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde
+ * alla prima»*. Questo enum la scrive una volta invece di lasciarla al colore, e
+ * `HudViewModel.SlotStatePrefersTheArmedOne` la pinna.
+ *
+ * ⚠️ **`Selected` batte anche `Planned`** per la stessa ragione e nella stessa direzione: una posizione puo'
+ * essere entrambe — si arma un'abilita' e la si pianifica su un bersaglio — e la domanda a cui uno slot
+ * acceso risponde per prima resta *«cosa sto per fare»*.
+ *
+ * ## ⛔ Tre stati di §7 NON sono qui, e ciascuno ha un motivo e un owner
+ *
+ *  - **`Hover` e `Pressed`** appartengono al WIDGET, non al modello: nascono da un puntatore sopra un
+ *    riquadro, e nessun dato della simulazione li conosce. Dedurli qui richiederebbe che il ViewModel
+ *    sapesse dove sta il mouse — cioe' la porta che §4.1 chiude.
+ *  - **`Disabled by phase`** ha un produttore, ma non raggiungibile da questa firma:
+ *    `ARTPlayerController::IsPlanningInputInert()` e `IsGameplayInputBlocked()` stanno sul **controller**, e
+ *    `BuildAbilityCooldowns` riceve un `ARTUnit*`. ⚠️ Aggiungerlo qui significherebbe cambiare la firma di
+ *    tutti i chiamanti per un valore che oggi nessuno disegna: resta **dichiarato mancante**, e l'owner e'
+ *    `#2988` stessa quando un widget lo chiedera'.
+ *  - **`Invalid` e `Warning`** riguardano il BERSAGLIO, non l'azione, e hanno gia' un owner:
+ *    `ERTTargetRefusal` piu' `URTCombatLibrary::RefusalForObserver`. Duplicarli qui creerebbe un secondo
+ *    vocabolario per la stessa domanda.
+ */
+UENUM(BlueprintType)
+enum class ERTActionSlotState : uint8
+{
+	/** Nessuna azione in questa posizione di kit: `ActionId` e' `None` (`#2987`). */
+	Empty,
+
+	/** Armata adesso: e' cio' che il prossimo click sul mondo eseguira'. */
+	Selected,
+
+	/** Gia' nel piano del turno — principale, reazione o scatto. */
+	Planned,
+
+	/** In ricarica: `TurnsRemaining > 0`, e il numero dice quanto manca. */
+	Cooldown,
+
+	/** Non usabile adesso per un motivo che non e' la ricarica. */
+	Unavailable,
+
+	/** Pronta. */
+	Available
+};
 
 /**
  * Perche' il dock chiede — o NON chiede — un bersaglio (`#2826` scope 5).
@@ -687,6 +804,24 @@ public:
 	 * ne ha tolto: leggere `GetTurnLog()` da li' pretenderebbe il tipo completo, e la dipendenza tornerebbe
 	 * dentro il file dei widget. Qui l'header c'e' gia', e l'estrazione costa una riga.
 	 */
+	/**
+	 * PERCHE' il feed e' vuoto: la domanda che un vuoto a schermo non sa rispondere da solo.
+	 *
+	 * 🔑 **Tre cause diverse producono lo stesso sintomo**, e senza questa riga si distinguono solo aprendo
+	 * l'Editor: il manager non e' stato acquisito, il TurnLog non ha ancora voci, oppure le voci ci sono ma
+	 * l'osservatore non e' autorizzato a vederle. La prima e' un difetto di cablaggio, la seconda e' lo stato
+	 * normale prima della prima risoluzione, la terza e' privacy che funziona. Chiamarle tutte «feed rotto»
+	 * e' precisamente cio' che e' successo nella seduta `U49` (`#2964`).
+	 *
+	 * ⚠️ **Descrive, non giudica**: nessuno di questi stati e' un errore per se stesso. La riga dice cosa si
+	 * osserva e lascia il verdetto a chi legge — che e' la stessa disciplina del mount report del §4.1.
+	 *
+	 * ⛔ **Va chiamata su EVENTO o da console, mai da un binding**: attraversa il TurnLog, e a ogni frame
+	 * sarebbe un costo per una diagnostica che nessuno sta leggendo.
+	 */
+	static TArray<FString> DescribeFeedState(const ARTTurnManager* TurnManager,
+		const TArray<int32>& ObserverTeamIds);
+
 	static TArray<FRTPlayerEventLineView> BuildPlayerEventFeed(const ARTTurnManager* TurnManager,
 		int32 ObserverTeamId);
 
@@ -811,6 +946,25 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
+
+	/**
+	 * Lo STATO di uno slot, in un valore solo (`#2988`).
+	 *
+	 * 🔑 **La precedenza vive qui e in nessun altro posto.** Senza questa funzione ogni `WBP_` che voglia
+	 * distinguere `Planned` da `Selected` ricompone lo stato da quattro campi nel proprio grafo, e due
+	 * Blueprint possono ricomporlo in modo diverso — che e' la definizione di una seconda verita'.
+	 *
+	 * ⚠️ **`bArmed` arriva da FUORI, e non e' una dimenticanza**: l'armamento e' dell'UNITA'
+	 * (`SelectedAbilityIndex`), non della singola voce di kit, e il dock lo legge gia' una volta sola con
+	 * `GetArmedActionIndex()`. Passarlo qui evita che questa funzione debba risalire all'unita' — cioe' la
+	 * stessa porta che la vista esiste per chiudere.
+	 *
+	 * ⛔ **Non risponde `Hover`, `Pressed` o `Disabled by phase`**, e le ragioni stanno sulla dichiarazione
+	 * di `ERTActionSlotState`: i primi due sono del widget, il terzo ha un produttore che questa firma non
+	 * raggiunge.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static ERTActionSlotState ResolveSlotState(const FRTAbilityCooldownView& Action, bool bArmed);
 
 	/**
 	 * Quali stati mostrare sopra un'unita', **in che ordine** e con quale durata residua (`#2274`, `D-320`).

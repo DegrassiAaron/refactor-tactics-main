@@ -118,4 +118,75 @@ bool FRTActionDockPortArmsAndDisarmsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **CLICK E TASTO RAGGIUNGONO LA STESSA VOCE DI KIT — PRIMA, INTERMEDIA E ULTIMA POSIZIONE** (`#2987`).
+ *
+ * 🔑 **L'oracolo e' l'UGUAGLIANZA fra i due percorsi, non che ciascuno «funzioni».** Due canali che
+ * armano *qualcosa* passerebbero due test scritti separatamente e potrebbero comunque armare due voci
+ * diverse: e' precisamente il difetto che la lista del dock rendeva possibile, quando la vista rinumerava
+ * le posizioni e il tasto no.
+ *
+ * ⚠️ **Le tre posizioni non sono un campione di cortesia.** `ActionSlotLineCarriesKeyArmedAndReason`
+ * provava una posizione centrale e per questo restava verde sul difetto: sono la **prima** e l'**ultima** a
+ * rompersi per prime quando una lista si accorcia o si riordina.
+ *
+ * ⛔ **Il toggle e' l'unica differenza ammessa**, ed e' gia' presidiato da `TheDockPortArmsAndDisarms`:
+ * qui si parte ogni volta dal neutro di [D-128], cosi' la seconda meta' del confronto misura l'armamento e
+ * non un disarmo accidentale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionDockParityTest,
+	"RefactorTactics.PlayerInput.DockClickAndHotkeyReachTheSameAbility",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionDockParityTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World))
+	{
+		return false;
+	}
+
+	ARTUnit* Unit = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!Unit || !PC)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("unita' e controller esistono"), false);
+	}
+	PC->SelectActorForTest(Unit);
+
+	const int32 Ultima = Unit->NumAbilities() - 1;
+	if (!TestTrue(TEXT("premessa: il kit ha almeno tre posizioni"), Unit->NumAbilities() >= 3))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+
+	// Prima, intermedia, ultima: gli estremi sono quelli che un riordino o un accorciamento spostano.
+	for (const int32 Posizione : { 0, Unit->NumAbilities() / 2, Ultima })
+	{
+		// Dal neutro, cosi' il click ARMA invece di fare toggle su cio' che il tasto aveva lasciato.
+		PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+		PC->SelectAbilityForCurrentForTest(Posizione);
+		const int32 DalTasto = Unit->SelectedAbilityIndex;
+
+		PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+		PC->ArmKitAbility(Posizione);
+		const int32 DalClick = Unit->SelectedAbilityIndex;
+
+		TestEqual(
+			FString::Printf(TEXT("posizione %d: click e tasto armano la stessa voce"), Posizione),
+			DalClick, DalTasto);
+
+		// ⚠️ Anti-vacuita': se entrambi i canali fallissero, `INDEX_NONE == INDEX_NONE` passerebbe
+		// l'uguaglianza qui sopra dichiarando parita' fra due percorsi che non armano niente.
+		TestNotEqual(
+			FString::Printf(TEXT("posizione %d: e l'hanno armata davvero"), Posizione),
+			DalClick, static_cast<int32>(INDEX_NONE));
+	}
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
