@@ -1175,4 +1175,65 @@ bool FRTActionSlotResolvesOncePerActionChangeTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **Il pannello non porta MAI il piano di un'unita' ispezionata, e il nemico di questo test UN PIANO CE
+ * L'HA.**
+ *
+ * ⚠️ **La premessa e' la meta' che conta.** Un test che ispezionasse un nemico senza piano passerebbe anche
+ * con un `GetSlots()` che consegna tutto: non ci sarebbe niente da consegnare. Qui l'avversaria ha un
+ * waypoint — quindi `BuildUnitSlots` la direbbe occupata — e il pannello continua a non dirlo.
+ *
+ * 🔑 **Il controllo positivo non e' cortesia**: senza il ramo sull'unita' comandata, un `GetSlots()` che
+ * tornasse sempre il default passerebbe questo test mentre rompe il pannello per tutti.
+ *
+ * ⛔ E `bAuthorized` distingue il caso dal piano vuoto: un'area slot mostrata vuota per un'avversaria
+ * direbbe *«non ha pianificato»*, che e' una lettura del suo piano — vietata da `#2757` in forma piu' forte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudInspectedSlotsTest,
+	"RefactorTactics.ScreenHud.InspectedEnemyNeverCarriesItsPlannedSlots",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudInspectedSlotsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	ON_SCOPE_EXIT { DestroyHudWidgetWorld(World); };
+
+	ARTUnit* Mine  = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Enemy = SpawnRosterUnit(World, 1, TEXT("Hero.Ivrin"));
+	URTSelectedUnitPanelWidget* Panel = NewObject<URTSelectedUnitPanelWidget>(World);
+	if (!TestNotNull(TEXT("pannello"), Panel) || !Mine || !Enemy) { return false; }
+
+	// **Entrambe** pianificano un movimento: senza il piano dell'avversaria non ci sarebbe nulla da NON
+	// mostrare, e il test sarebbe vacuo.
+	Mine->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+	Enemy->PlannedWaypoints.Add(FRTCellId(2, 0, 0));
+
+	// (1) Controllo POSITIVO — l'unita' comandata porta i suoi slot, autorizzati.
+	Panel->SetSelectedUnitForTest(Mine);
+	const FRTUnitSlotsView Comandata = Panel->GetSlots();
+	TestTrue(TEXT("la comandata e' autorizzata"), Comandata.bAuthorized);
+	TestTrue(TEXT("e il suo movimento risulta occupato"), Comandata.Movement.bOccupied);
+
+	// (2) Ispezionata — stesso pannello, soggetto avversario: niente slot, e NON perche' non ne ha.
+	Panel->SetSelectedUnitForTest(nullptr);
+	Panel->SetInspectedUnitForTest(Enemy);
+
+	TestFalse(TEXT("non si sta comandando nulla"), Panel->HasSelection());
+	TestTrue(TEXT("ma il pannello ha un soggetto"), Panel->HasSubject());
+
+	const FRTUnitSlotsView Ispezionata = Panel->GetSlots();
+	TestFalse(TEXT("gli slot NON sono autorizzati"), Ispezionata.bAuthorized);
+	TestFalse(TEXT("e il movimento dell'avversaria non trapela, benche' pianificato"),
+		Ispezionata.Movement.bOccupied);
+	TestFalse(TEXT("ne' la principale"), Ispezionata.Main.bOccupied);
+	TestFalse(TEXT("ne' la reazione"), Ispezionata.Reaction.bOccupied);
+
+	// La carta invece segue il soggetto: identita' e salute sono cio' che il velo gia' autorizza sopra la
+	// testa di un'unita' osservata. Senza questa riga il pannello potrebbe essere vuoto e il test passerebbe.
+	TestEqual(TEXT("la carta e' quella dell'avversaria che si sta guardando"),
+		Panel->GetCard().HeroId, Enemy->HeroId);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
