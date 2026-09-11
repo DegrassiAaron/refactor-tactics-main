@@ -630,14 +630,18 @@ bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 	//
 	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
 	//
-	// ⚠️ **Quel comando risponde NOVE righe, di cui due sono chiamate** — le altre sono la dichiarazione,
-	// la definizione e i commenti (questo incluso). Le due che contano: `RTTurnManager.cpp` in `ResolvePrep`,
-	// e `RTActionQueueLibrary.cpp` in `InstancesForPhase`. Contare i match porta fuori strada, e una stesura
-	// precedente diceva «un solo chiamante» lasciando al lettore una smentita senza spiegazione (#3004).
+	// ⚠️ **Quel comando risponde piu' righe che chiamate** — fra i match ci sono anche la dichiarazione, la
+	// definizione e i commenti. Le chiamate sono DUE: `ARTTurnManager::ResolvePrep` (`RTTurnManager.cpp`) e
+	// `URTActionQueueLibrary::InstancesForPhase` (`RTActionQueueLibrary.cpp`). Cercale per nome: contare i
+	// match porta fuori strada, e una stesura precedente diceva «un solo chiamante» lasciando al lettore una
+	// smentita senza spiegazione (#3004). ⛔ Il filtro esclude `Source/RefactorTactics/Tests`, quindi questo
+	// commento NON e' fra i match — il lettore non deve cercarlo li'.
 	//
 	// ⚠️ **L'altro e' `URTActionQueueLibrary::InstancesForPhase`, e una stesura precedente lo ometteva**
-	// dichiarando «un solo chiamante» (#3004). Non ha chiamanti e non e' `UFUNCTION`, quindi non rompe la
-	// premessa; ⛔ ma e' la seconda porta d'ingresso al sort, cioe' da dove il secondo produttore entrerebbe.
+	// dichiarando «un solo chiamante» (#3004). Non rompe la premessa per **un solo motivo: non ha chiamanti**.
+	// ⛔ Non dedurlo dal fatto che non sia `UFUNCTION`: in `RTActionQueueLibrary.h` non lo e' nessuno, nemmeno
+	// `SortActionInstances`, quindi la proprieta' e' vera anche della porta che le istanze reali le riceve e
+	// non distingue niente. E' `static` pubblica: un qualunque commit C++ puo' darle il primo chiamante.
 	//
 	// ⛔ **Il giorno in cui due produttori confluissero nello stesso array — e' la direzione di #1818 — la
 	// premessa cade, e non basta aggiungere `Def` al confronto**: `FRTActionDef` appartiene al catalogo, e
