@@ -15,6 +15,29 @@ struct FInputActionValue;
 struct FRTHexSnapshot;
 
 /**
+ * Da dove arriva una richiesta di armamento, per la TRACCIA e per nient'altro.
+ *
+ * 🔑 **Esiste perche' i percorsi sono due e il sintomo e' uno solo** (`#2986`). Fino a `#2826` l'unica
+ * strada per armare era la tastiera, e «premo e non succede niente» aveva un'origine sola da indagare; ora
+ * la stessa uscita puo' venire da un tasto o da un click su uno slot, e un log che non lo dicesse
+ * costringerebbe a indovinare quale dei due canali ha prodotto la riga.
+ *
+ * ⛔ **Non e' un reason code e non governa niente.** Nessun ramo di `SelectAbilityForCurrent` cambia
+ * decisione in base a questo valore: il toggle che distingue davvero un click da un tasto vive in
+ * `ArmKitAbility`, dove `#2826` l'ha messo di proposito. Se un giorno un ramo leggesse questo enum per
+ * decidere un esito, sarebbero due percorsi con regole proprie — cioe' esattamente cio' che la porta del
+ * dock e' stata scritta per NON essere.
+ *
+ * ⚠️ **Nessun default sul parametro che lo porta**, ed e' deliberato: un chiamante nuovo deve dichiarare
+ * la propria origine invece di ereditare in silenzio quella del vicino.
+ */
+enum class ERTAbilityRequestSource : uint8
+{
+	Hotkey,  // i dieci tasti del kit e le cinque generiche
+	Dock     // la porta di `#2826`: un click su uno slot
+};
+
+/**
  * Controller tattico. Costruisce Enhanced Input interamente in C++ (nessun .uasset richiesto):
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
  */
@@ -662,7 +685,27 @@ private:
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
 	void RebuildPlannedPath();
 
-	void SelectAbilityForCurrent(int32 Index);
+	/**
+	 * Il punto comune di ogni richiesta di armamento: i dieci tasti, le cinque generiche e la porta del dock.
+	 *
+	 * 🔴 **Nessuna uscita e' muta, e l'ORDINE dei rami e' il contratto** (`#2986`). La riga che dichiara
+	 * l'azione armata sta DOPO l'ultimo ramo capace di rifiutare: prima stava sopra, e per una posizione di
+	 * kit vuota o una reazione in ricarica affermava un successo che la funzione non aveva prodotto. Chi
+	 * leggeva concludeva «armata, e' la presentazione a non mostrarla», cioe' mandava l'indagine su `#2764`
+	 * invece che sul kit.
+	 *
+	 * ⛔ **E un rifiuto non lascia `SelectedAbilityIndex` scritto.** `Unit->SelectAbility` si chiama dopo le
+	 * validazioni e non prima: uno stato armato sul modello con la reazione NON pianificata accendeva lo
+	 * slot del dock per un'azione che il pass delle reazioni non avrebbe mai trovato, e il giocatore lo
+	 * scopriva a turno risolto.
+	 *
+	 * ⚠️ `INDEX_NONE` e' il DISARMO e non un rifiuto: ha un ramo proprio, perche' passando da quello del
+	 * kit vuoto annunciava «armata la posizione -1».
+	 */
+	void SelectAbilityForCurrent(int32 Index, ERTAbilityRequestSource Source);
+
+	/** Come si nomina l'origine nella traccia. Frase gia' preposizionata: «dal tasto», «dallo slot del dock». */
+	static const TCHAR* DescribeAbilityRequestSource(ERTAbilityRequestSource Source);
 
 	/**
 	 * Arma l'azione con questo `ActionId` nel kit dell'unita' selezionata, cercandone l'indice.
@@ -730,7 +773,10 @@ public:
 	 * secondo dei cinque siti che registrano un `ERTPlanningInput::Order` non sarebbe raggiungibile da un
 	 * test, e la sua guardia sarebbe l'unica delle cinque affermata invece che misurata (#971).
 	 */
-	void SelectAbilityForCurrentForTest(int32 Index) { SelectAbilityForCurrent(Index); }
+	void SelectAbilityForCurrentForTest(int32 Index)
+	{
+		SelectAbilityForCurrent(Index, ERTAbilityRequestSource::Hotkey);
+	}
 
 	/**
 	 * Il tasto di lock-in (Spazio) senza passare da un `FInputActionValue`, per i test.
