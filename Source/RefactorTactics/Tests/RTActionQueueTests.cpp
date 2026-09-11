@@ -302,11 +302,16 @@ bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
 	// `StableUnitId` vale `0` finche' `ARTTurnManager::EnsureMatchRoster()` non e' passato, e c'e' almeno un
 	// chiamante che ordina PRIMA: `ARTGameMode::AssignUnitControlGroups`, a inizio partita. Li' le prime due
 	// chiavi pareggiano entrambe, e senza la terza il pareggio tornerebbe a `GetAllActorsOfClass`.
-	// ⚠️ Nomi INVENTATI, e deliberatamente non quelli di un eroe. La prima stesura usava
-	// `BP_Unit_Riktor_2` e `BP_Unit_Gadget_1` — identita' del roster **ritirato**, che #2291 esiste per
-	// purgare — come semplice decorazione: qui conta solo l'ordine lessicale fra due stringhe. Sono costate
-	// subito il loro prezzo: un `grep -roE "BP_Unit_[A-Za-z]+"` sui test le ha fatte sembrare riferimenti
-	// vivi a asset pre-rename, e una sessione vicina ci ha costruito sopra una diagnosi sbagliata.
+	// ⚠️ Nomi INVENTATI, e deliberatamente non quelli di un eroe. Qui conta solo l'ordine lessicale fra
+	// due stringhe, e le prime stesure ci avevano messo due identita' del roster **ritirato** — i vecchi
+	// nomi Paragon, col prefisso delle Blueprint d'unita' — che #2291 esiste per purgare.
+	//
+	// 🔴 **E i letterali NON si ripetono qui**, nemmeno per spiegare: e' il punto. Quella decorazione ha
+	// fatto costruire a due sessioni una diagnosi sbagliata (#2938), perche' un `grep` sul prefisso non
+	// distingue una stringa d'arredo da un riferimento vivo. Riscriverli in un commento che racconta il
+	// difetto lo **riprodurrebbe** — misurato: su `main` sette occorrenze su undici sono rumore, e una di
+	// esse e' proprio un commento storico citato come precedente assolutorio. La lezione sta nel fatto, non
+	// nei nomi.
 	const FRTUnitOrderKey A = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Beta"));
 	const FRTUnitOrderKey B = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Alfa"));
 
