@@ -26,8 +26,6 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 	FRTBotPlanningOutcome Esito;
 
 
-	// Osservabilita' del tuning: i pesi correnti, una riga per turno (verifica delle modifiche in PIE).
-	// UE_LOG diretto (non AddLogEvent) per non riempire il combat log della HUD.
 	// Gli snapshot di pianificazione: uno per squadra che ha almeno un bot.
 	//
 	// 🔑 **Condiviso dentro la squadra, e non e' un dettaglio**: i compagni prenotano la rotta scelta sullo
@@ -90,17 +88,6 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		return Ids;
 	}();
 
-	// [D-313], emendamento — le SCELTE dei bot si aprono QUI, e la ragione e' che questa funzione ha **due
-	// ingressi**: il gioco ci arriva da `StartPlanningTimer`, l'harness e i test da `PlanBotsForTest()`. E'
-	// lo stesso paio di percorsi che `LockInAndResolve` dichiara sopra `EnsureMatchRoster`, e catturare
-	// altrove ne serviva uno solo — sull'altro l'archivio restava vuoto, che non e' un'assoluzione ma
-	// un'assenza di prove letta come «nessuna violazione».
-	//
-	// ⚠️ **E si riaprono a ogni passaggio**, perche' `PlanBots` gira due volte sullo stesso turno quando
-	// `PlanBotsForTest()` precede `LockInAndResolve()`: la conoscenza di Planning viene riscritta dal
-	// secondo giro, e scelte del primo accanto a una conoscenza del secondo sarebbero una coppia che non e'
-	// mai esistita.
-
 
 	for (int32 BotIdx = 0; BotIdx < Facts.Num(); ++BotIdx)
 	{
@@ -113,7 +100,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// Il piano di QUESTO bot, aggiunto subito: i `continue` piu' sotto escono con un piano parziale, e
 		// un piano parziale e' il piano — «fermo, senza attacco» e' una decisione come le altre.
 		FRTBotPlanDecision& Piano = Esito.Decisions.AddDefaulted_GetRef();
-		Piano.UnitIndex = BotIdx;
+		Piano.UnitIndex = Bot.Index;
 
 		// Il record si APRE adesso e si chiude dopo la scelta: un bot che esce dal ciclo senza bersaglio ne
 		// lascia comunque uno, con `TargetUnitId` a `INDEX_NONE`. Cosi' «nessuna scelta» resta distinguibile
@@ -242,7 +229,18 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		//
 		// La regola e' la STESSA del targeting umano (`ClassifyTarget`, piu' sotto in questo file): non un
 		// secondo modello di conoscenza per il bot, che divergerebbe dal primo alla prima modifica.
-		const FRTTeamKnowledge BotKnowledge = KnowledgeByTeam.FindRef(Bot.TeamId);
+		// 🔴 **L'identita' della squadra si RIMETTE, e non e' pedanteria.** `FindRef` su una chiave assente
+		// restituisce un `FRTTeamKnowledge` default-costruito, il cui `TeamId` vale **0**; e
+		// `URTTeamKnowledgeLibrary::ClassifyTarget` corto-circuita su `TargetTeamId == Knowledge.TeamId`
+		// restituendo `Allowed`. Un bot di una squadra diversa da 0, con la conoscenza incompleta,
+		// classificherebbe quindi OGNI nemico della squadra 0 come pienamente visibile — cella vera, salute
+		// vera, `Unbalanced` vero: esattamente la fuga di informazione che CP 13.5 esiste per chiudere.
+		//
+		// ⚠️ `ARTTurnManager::KnowledgeForTeam` questo lo faceva gia' — timbra `Empty.TeamId = TeamId` sul
+		// proprio ripiego — e la traduzione lo aveva perso. Qui la porta d'ingresso e' **pubblica**, quindi
+		// il caso degradato e' raggiungibile da chiunque costruisca una mappa parziale. Trovato in code review.
+		FRTTeamKnowledge BotKnowledge = KnowledgeByTeam.FindRef(Bot.TeamId);
+		BotKnowledge.TeamId = Bot.TeamId;
 		FRTHexBotContext Ctx;
 		Ctx.Origin = Bot.Cell;
 		// Da dove il bot guarda ORA: e' il punto di partenza della stima di come sara' orientato a fine turno
@@ -485,7 +483,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		bool bQualcunoDaIngaggiare = false;
 		if (Ctx.Enemies.Num() > 0 && Snapshot.Map)
 		{
-			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, Bot.Index))
 			{
 				for (const FRTCellId& KnownEnemy : Ctx.Enemies)
 				{
@@ -531,7 +529,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 						}
 						if (!bVede) { continue; }
 
-						const FRTHexPathResult Verso = URTHexSimLibrary::FindPathForUnit(Snapshot, BotIdx, C.Id);
+						const FRTHexPathResult Verso = URTHexSimLibrary::FindPathForUnit(Snapshot, Bot.Index, C.Id);
 						if (Verso.Path.Num() == 0) { continue; } // irraggiungibile: non e' una meta
 						if (Verso.TotalCost < MiglioreCosto
 							|| (Verso.TotalCost == MiglioreCosto && URTHexLibrary::StableLess(C.Id, SeekCell)))
@@ -573,8 +571,8 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				// **Si SEGUE il cammino**, non si minimizza una distanza: il prefisso percorribile entro il
 				// budget. Restare vince a parita' (cammino vuoto = si e' gia' a destinazione).
 				FRTCellId Best = Bot.Cell;
-				const FRTHexPathResult Rotta = URTHexSimLibrary::FindPathForUnit(Snapshot, BotIdx, SeekCell);
-				const TArray<FRTCellId> Passi = URTHexSimLibrary::TruncatePathToBudget(Snapshot, BotIdx, Rotta.Path);
+				const FRTHexPathResult Rotta = URTHexSimLibrary::FindPathForUnit(Snapshot, Bot.Index, SeekCell);
+				const TArray<FRTCellId> Passi = URTHexSimLibrary::TruncatePathToBudget(Snapshot, Bot.Index, Rotta.Path);
 				if (Passi.Num() > 1)
 				{
 					Best = Passi.Last();
@@ -584,7 +582,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 					// Nessun cammino: ci si AVVICINA, che e' la condotta di CP 13.5 e non richiede che la meta sia
 					// raggiungibile. Restare vince a parita', quindi un bot gia' al punto migliore non oscilla.
 					int32 BestDistance = URTHexLibrary::HexDistance(Bot.Cell, SeekCell);
-					for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, BotIdx))
+					for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, Bot.Index))
 					{
 						const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
 						if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))
@@ -598,7 +596,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			}
 			// #1088 — anche qui, ed e' il ramo che il difetto colpiva per primo: due compagne che cercano il
 			// contatto puntano ENTRAMBE la cella piu' vicina al centro, che e' una sola.
-			ReserveNormalMove(Snapshot, Piano, Bot.Cell, BotIdx);
+			ReserveNormalMove(Snapshot, Piano, Bot.Cell, Bot.Index);
 			continue; // niente da bersagliare: nessun attacco, nessuno scatto verso un nemico che non si conosce
 		}
 
@@ -610,9 +608,6 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// Portata dello scatto letta come la legge ResolveDash: dal CATALOGO se l'azione ne fa parte,
 		// altrimenti dal campo legacy dell'asset. Se il bot leggesse un numero diverso da quello che il
 		// resolver usera', proporrebbe scatti fuori portata (o si negherebbe quelli buoni).
-		const int32 DashDeclaredRange = bDashReady
-			? (DashAb->Def.ActionId.IsNone() ? DashAb->RangeCells : DashAb->Def.RangeCells)
-			: 0;
 		const int32 DashBudget = bDashReady ? Bot.EffectiveDashRange : 0;
 		const ERTMovementStyle DashStyle = bDashReady ? DashAb->Def.MovementStyle : ERTMovementStyle::None;
 
@@ -621,7 +616,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		TSet<int32> DashHostiles;
 		for (int32 j = 0; j < Facts.Num(); ++j)
 		{
-			if (Facts[j].bAlive && Facts[j].TeamId != Bot.TeamId) { DashHostiles.Add(j); }
+			if (Facts[j].bAlive && Facts[j].TeamId != Bot.TeamId) { DashHostiles.Add(Facts[j].Index); }
 		}
 
 		// 🔴 **Dalla BASE, non dallo snapshot di squadra, e la differenza e' una fase.** Le prenotazioni
@@ -651,7 +646,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				}
 				CandidateBudget = DashBudget * MaxCellCost;
 			}
-			DashSnapshot.Units[BotIdx].MoveBudget = CandidateBudget;
+			DashSnapshot.Units[Bot.Index].MoveBudget = CandidateBudget;
 		}
 
 		// Il bot valuta la raggiungibilita' con lo STESSO codice che la fase Dash usa per eseguirla
@@ -686,7 +681,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				// Anche la fuga del kiter passa da ReachableCells (grafo): se la cella scelta non e'
 				// raggiungibile in LINEA, lo scatto verrebbe rifiutato e il panico si tradurrebbe in un turno
 				// perso. Meglio non scattare e lasciare decidere al movimento normale.
-				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, BotIdx, NearestKnownCell);
+				const FRTCellId Dest = URTHexBotLibrary::BestKiteCell(DashSnapshot, Bot.Index, NearestKnownCell);
 				if (Dest != Bot.Cell && IsDashReachable(DashSnapshot, Dest))
 				{
 					Piano.PlannedDashAbility = DashIdx;
@@ -696,10 +691,10 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 					continue;
 				}
 			}
-			Piano.PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, BotIdx, NearestKnownCell);
+			Piano.PlannedCell = URTHexBotLibrary::BestKiteCell(Snapshot, Bot.Index, NearestKnownCell);
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: arretra -> (q=%d,r=%d,L%d)"),
 				*Bot.DisplayName, Piano.PlannedCell.X, Piano.PlannedCell.Y, Piano.PlannedCell.Layer), Bot.Index});
-			ReserveNormalMove(Snapshot, Piano, Bot.Cell, BotIdx);
+			ReserveNormalMove(Snapshot, Piano, Bot.Cell, Bot.Index);
 			continue;
 		}
 
@@ -743,7 +738,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 					}
 				}
 			}
-			for (const FRTHexBotPlan& Candidate : URTHexBotLibrary::BuildCandidates(Snap, BotIdx, LocalCtx))
+			for (const FRTHexBotPlan& Candidate : URTHexBotLibrary::BuildCandidates(Snap, Bot.Index, LocalCtx))
 			{
 				if (bAttacksOnly && !Candidate.bHasAttack) { continue; }
 				// Le candidate nascono da ReachableCells, che segue il GRAFO. Lo scatto invece e' lineare
@@ -765,7 +760,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 
 		// 2) Attacco da FERMO, un'abilita' per volta: budget 0 -> l'unica cella candidata e' quella attuale.
 		FRTHexSnapshot StaySnapshot = Snapshot;
-		StaySnapshot.Units[BotIdx].MoveBudget = 0;
+		StaySnapshot.Units[Bot.Index].MoveBudget = 0;
 		for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 		{
 			const URTActionData* Ability = Bot.GetAbility(A);
@@ -794,7 +789,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
 				// prima e' una candidata diversa, e la genera il suo giro di ciclo.
 				if (Linear.Stop != ERTLinearStop::Impact
-					|| !EnemyUnitIndex.IsValidIndex(e) || EnemyUnitIndex[e] != Linear.ImpactUnitId)
+					|| !EnemyUnitIndex.IsValidIndex(e) || Facts[EnemyUnitIndex[e]].Index != Linear.ImpactUnitId)
 				{
 					continue;
 				}
@@ -973,7 +968,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 
 		// #1088 — l'ultima cosa che il bot fa: dichiarare alle compagne dove sta andando. Copre i quattro
 		// rami qui sopra; i due `continue` piu' in alto prenotano per conto proprio, perche' escono prima.
-		ReserveNormalMove(Snapshot, Piano, Bot.Cell, BotIdx);
+		ReserveNormalMove(Snapshot, Piano, Bot.Cell, Bot.Index);
 	}
 
 	return Esito;

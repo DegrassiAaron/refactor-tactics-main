@@ -30,7 +30,7 @@ public:
 	 *
 	 * @param BaseSnapshot   lo snapshot canonico del turno; `Facts[i].Index` indicizza `BaseSnapshot.Units`
 	 * @param Facts          i fatti di TUTTE le unita' vive, bot e non: le non-bot sono contesto
-	 * @param Weights        i pesi dell'utility scoring, copiati dall'orchestratore
+	 * @param Pesi           i pesi dell'utility scoring, copiati dall'orchestratore
 	 * @param KnowledgeByTeam la conoscenza di squadra, per `TeamId`
 	 * @param IdleTurns      i turni d'inattivita' per `StableUnitId` — ⚠️ **letta E scritta**
 	 * @param IdleRound      l'ultimo round in cui l'inattivita' e' stata aggiornata — ⚠️ **letta E scritta**

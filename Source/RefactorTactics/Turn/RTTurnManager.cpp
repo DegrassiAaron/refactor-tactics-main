@@ -829,8 +829,11 @@ void ARTTurnManager::PlanBots()
 	TMap<int32, FRTTeamKnowledge> KnowledgeByTeam;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		// ⚠️ **Nessuna guardia sul nullo, ed e' deliberato**: `Facts` deve restare allineato a `Units`, e
+		// saltare una voce qui sposterebbe di uno ogni posizione successiva — cioe' trasformerebbe un crash
+		// in un piano applicato all'unita' SBAGLIATA. `CollectLivingUnits` non emette nulli, e questa riga
+		// dipende da quell'invariante come ci dipendeva il codice di prima. Trovato in code review.
 		const ARTUnit* U = Units[i];
-		if (!U) { continue; }
 
 		FRTBotUnitFacts F;
 		F.Index = i;
@@ -938,6 +941,15 @@ void ARTTurnManager::PlanBots()
 		}
 	}
 
+	// [D-313], emendamento — le SCELTE dei bot si aprono e si chiudono QUI, e la ragione e' che `PlanBots`
+	// ha **due ingressi**: il gioco ci arriva da `StartPlanningTimer`, l'harness e i test da
+	// `PlanBotsForTest()`. Catturare altrove ne serviva uno solo — sull'altro l'archivio restava vuoto, che
+	// non e' un'assoluzione ma un'assenza di prove letta come «nessuna violazione».
+	//
+	// ⚠️ **E si riaprono a ogni passaggio**, perche' `PlanBots` gira due volte sullo stesso turno quando
+	// `PlanBotsForTest()` precede `LockInAndResolve()`: la conoscenza di Planning viene riscritta dal
+	// secondo giro, e scelte del primo accanto a una conoscenza del secondo sarebbero una coppia che non e'
+	// mai esistita. L'assegnazione — e non un `Append` — e' cio' che lo garantisce.
 	if (bRecordReplay)
 	{
 		BotDecisionsForAudit = Esito.AuditDecisions;
