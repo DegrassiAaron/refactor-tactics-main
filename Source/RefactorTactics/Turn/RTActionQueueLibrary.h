@@ -30,38 +30,29 @@ struct FRTUnitOrderKey
 	/**
 	 * Ultimo spareggio, per il solo caso in cui `StableUnitId` non esista ancora.
 	 *
-	 * 🔑 **`FName` e non `FString`, e la ragione e' il costo.** `AActor::GetName()` passa da
-	 * `FName::ToString()` e **alloca**; `GetFName()` no. ⚠️ La prima stesura giustificava il cambio dicendo
-	 * che `PlanningSnapshotFor` *«prima non allocava niente»*: e' **falso** e va detto — quel percorso
-	 * costruisce gia' un `TArray<AActor*>`, un `TArray<ARTUnit*>` e un intero `FRTHexSnapshot` per chiamata.
-	 * La ragione vera e' piu' modesta: una chiave **senza allocazioni** si puo' costruire dentro il
-	 * comparatore senza pensarci, e questa lo e'.
+	 * 🔴 **`FString` confrontata CASE-SENSITIVE, e non un `FName`.** Una stesura intermedia di questa PR
+	 * era passata a `FName` + `LexicalLess` per non allocare: e' stata **ritirata**, perche' toglieva uno
+	 * spareggio che funzionava. `FName::Compare` e' case-INSENSITIVE, quindi due Actor chiamati `Unit_Alpha` e
+	 * `UNIT_ALPHA` — rappresentabili in due sublevel diversi, perche' l'unicita' degli `UObject` vale dentro
+	 * un solo Outer — pareggerebbero su tutte e tre le chiavi, e a decidere tornerebbe `GetAllActorsOfClass`.
+	 * Cioe' `#990`, di nuovo.
 	 *
-	 * ⚠️ **Il confronto e' `LexicalLess`, che l'engine documenta *«stable / deterministic over process
-	 * runs»*** — l'opposto di `FastLess`, che ordina per indice della name table ed e' stabile solo dentro un
-	 * processo. E' lo stesso confronto che `InstanceLess` usa gia' per `ActionId`.
+	 * ⚠️ **E non e' teorico nella build che conta**: `WITH_CASE_PRESERVING_NAME` vale `WITH_EDITORONLY_DATA`
+	 * (`NameTypes.h:33`), quindi negli Editor target — dove gira l'automation — il caso e' preservato e le due
+	 * stringhe sono davvero diverse. Trovato in code review.
 	 *
-	 * 🔴 **Il suffisso numerico si confronta come NUMERO, non come testo**, ed e' il contrario di cio'
-	 * che questo commento affermava. Misurato nel sorgente dell'engine — `FName::CompareInternal`
-	 * (`UnrealNames.cpp`): a parita' di parte testuale restituisce `GetNumber() - Other.GetNumber()`. Quindi
-	 * `..._2` precede `..._10`, mentre la `FString::Compare` della stesura precedente metteva `_10` per
-	 * primo. ⚠️ **E' un cambio di comportamento rispetto a cio' che #2923 ha mergiato**, visibile solo
-	 * dove decide la terza chiave — cioe' prima del lock-in. E' un ordine piu' naturale, non solo diverso.
+	 * ⛔ `operator<` no: `FString::UEOpLessThan` e' `Stricmp(...) < 0`, case-insensitive, quindi non e' un
+	 * ordine totale sui byte. E' lo stesso difetto che `URTTurnLogLibrary::EntryLess` ha gia' pagato sulla
+	 * v10 del TurnLog, con la ragione scritta li'.
 	 *
-	 * ⚠️ `LexicalLess` e' case-INSENSITIVE. Due Actor **dello stesso livello** non possono avere nomi che
-	 * differiscono solo per il caso — l'unicita' degli `UObject` e' case-insensitive dentro lo stesso Outer,
-	 * e per un Actor l'Outer e' la `ULevel`. ⛔ **Ma l'unicita' non vale FRA livelli**, e gli array che si
-	 * ordinano qui nascono da `GetAllActorsOfClass`, che li attraversa tutti: due unita' in sublevel diversi
-	 * possono portare lo stesso nome. Il pareggio completo richiede allora **tre** coincidenze insieme —
-	 * stessa cella, `StableUnitId` uguale, e stesso nome da due livelli — e nella risoluzione la seconda non
-	 * si da', perche' `EnsureMatchRoster` ha gia' assegnato id distinti. Resta rappresentabile nelle
-	 * anteprime di pianificazione, dove gli id valgono tutti `0`. Trovato in code review.
+	 * 🔑 Il costo di `AActor::GetName()` — che passa da `FName::ToString()` e alloca — si paga **una volta
+	 * per unita'**, non a ogni confronto: `SortUnitsForResolution` costruisce le chiavi prima di ordinare.
 	 */
-	FName ActorName;
+	FString ActorName;
 
 	FRTUnitOrderKey() = default;
-	FRTUnitOrderKey(const FRTCellId& InCell, int32 InStableUnitId, const FName& InActorName)
-		: Cell(InCell), StableUnitId(InStableUnitId), ActorName(InActorName) {}
+	FRTUnitOrderKey(const FRTCellId& InCell, int32 InStableUnitId, FString InActorName)
+		: Cell(InCell), StableUnitId(InStableUnitId), ActorName(MoveTemp(InActorName)) {}
 };
 
 /**
@@ -146,24 +137,27 @@ public:
 	 *
 	 * `StableUnitId` e' il tie-break **gia' disponibile e gia' corretto** ([D-063]): lo assegna
 	 * `ARTTurnManager::EnsureMatchRoster()` una volta per partita, con `MatchRosterLess` che e' gia' un ordine
-	 * totale. Il nome dell'Actor chiude il caso in cui vale ancora `0` — la pianificazione prima del primo
-	 * lock-in — ed e' lo stesso ultimo confronto che `MatchRosterLess` usa gia'.
+	 * totale. Il nome dell'Actor chiude il caso in cui vale ancora `0`, ed e' **lo stesso ultimo confronto**
+	 * che `MatchRosterLess` usa gia' — `GetName().Compare(...)`, case-sensitive: i due restano allineati.
+	 *
+	 * ⚠️ **`EnsureMatchRoster` non garantisce che `StableUnitId` sia sempre assegnato**, e una stesura
+	 * precedente lo dava per fatto. Esce subito quando `bMatchRosterBuilt`, e il campo vale `0` di default:
+	 * ogni unita' che compare **dopo** il congelamento porta `0` nella risoluzione. ∴ il terzo confronto non
+	 * serve solo alle anteprime di pianificazione. Trovato in code review.
 	 *
 	 * ⛔ **E il nome NON e' riproducibile fra processi diversi, dove decide.** Un'unita' spawnata senza nome
 	 * esplicito lo riceve da `MakeUniqueObjectName`, che appende un contatore per-classe vivo quanto il
-	 * processo: due partite nello stesso Editor danno `..._0..3` e `..._4..7`. (⚠️ Il suffisso si ordina
-	 * **numericamente**, non lessicalmente — si veda `FRTUnitOrderKey::ActorName`.) Non e' un difetto
-	 * introdotto qui — `MatchRosterLess` ha lo stesso ultimo
-	 * confronto, con la stessa proprieta' — ma la terza chiave rende l'ordine totale e ripetibile **dentro
-	 * una esecuzione**, non oltre. Oltre, a rendere l'ordine riproducibile e' `StableUnitId`, che nella
-	 * risoluzione c'e' sempre.
+	 * processo: due partite nello stesso Editor danno `..._0..3` e `..._4..7`, e l'ordine lessicale mette
+	 * `_10` prima di `_2`. Non e' un difetto introdotto qui — `MatchRosterLess` ha la stessa proprieta' — ma
+	 * va detto che la terza chiave rende l'ordine totale e ripetibile **dentro una esecuzione**, non oltre.
 	 */
 	static bool UnitOrderLess(const FRTUnitOrderKey& A, const FRTUnitOrderKey& B);
 
 	/**
 	 * La chiave d'ordine di un'unita' viva o morta. L'unico punto che legge i tre campi dall'Actor.
 	 *
-	 * Non alloca: `GetFName()` e non `GetName()`, per la ragione scritta su `FRTUnitOrderKey::ActorName`.
+	 * ⚠️ Alloca una `FString` per chiamata (`GetName()` passa da `FName::ToString()`), ed e' per questo che
+	 * `SortUnitsForResolution` la chiama O(N) volte e **non** dentro il comparatore.
 	 */
 	static FRTUnitOrderKey MakeUnitOrderKey(const ARTUnit& Unit);
 

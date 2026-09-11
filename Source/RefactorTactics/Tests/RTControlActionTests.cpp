@@ -1298,9 +1298,11 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 
 	// 🔴 **La premessa che rende il test un test**: i due giri devono avere ordini OPPOSTI. Si confronta con
 	// il PREFISSO del comparatore che `GatherBlastUnits` usa — `StableLess` sulle celle, prima chiave di
-	// `SortUnitsForResolution` (#2922). ⚠️ La premessa chiama il comparatore VERO invece di re-implementarne
-	// la prima chiave: cosi' resta giusta anche il giorno in cui due unita' condividessero una cella, dove
-	// una `StableLess` scritta a mano sbaglierebbe. Perche' e'
+	// `SortUnitsForResolution` (#2922). ⚠️ La premessa qui sotto confronta le sole CELLE, cioe' la prima
+	// chiave: basta perche' in questo scenario le celle sono distinte, e **cadrebbe** — fermando il test con
+	// un rosso onesto, non con un esito sbagliato — se un domani condividessero la cella. Chiamare
+	// `URTActionQueueLibrary::UnitOrderLess` la renderebbe indipendente dallo scenario, ed e' il passo
+	// naturale il giorno in cui serva. Perche' e'
 	// quello a decidere `AttackerId` e quindi l'ordine di `Plan.Hits`. Senza questa coppia di asserzioni il
 	// test girerebbe due volte lo stesso scenario e concorderebbe sempre: e' successo due volte scrivendolo.
 	if (!TestTrue(TEXT("premessa: dritta, A viene prima di B nell'ordine per cella"),

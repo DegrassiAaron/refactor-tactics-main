@@ -156,7 +156,7 @@ namespace
 	/** Chiave d'ordine minima. Nome distinto per file (unity build). */
 	FRTUnitOrderKey UnitKey(int32 X, int32 Y, int32 Layer, int32 StableUnitId, const TCHAR* ActorName)
 	{
-		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, FName(ActorName));
+		return FRTUnitOrderKey(FRTCellId(X, Y, Layer), StableUnitId, FString(ActorName));
 	}
 
 	void SortUnitKeys(TArray<FRTUnitOrderKey>& Keys)
@@ -171,7 +171,7 @@ namespace
 	TArray<FString> UnitOrderNames(const TArray<FRTUnitOrderKey>& Keys)
 	{
 		TArray<FString> Out;
-		for (const FRTUnitOrderKey& Key : Keys) { Out.Add(Key.ActorName.ToString()); }
+		for (const FRTUnitOrderKey& Key : Keys) { Out.Add(Key.ActorName); }
 		return Out;
 	}
 
@@ -309,9 +309,10 @@ bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
 	// 🔴 **E i letterali NON si ripetono qui**, nemmeno per spiegare: e' il punto. Quella decorazione ha
 	// fatto costruire a due sessioni una diagnosi sbagliata (#2938), perche' un `grep` sul prefisso non
 	// distingue una stringa d'arredo da un riferimento vivo. Riscriverli in un commento che racconta il
-	// difetto lo **riprodurrebbe** — misurato: su `main` sette occorrenze su undici sono rumore, e una di
-	// esse e' proprio un commento storico citato come precedente assolutorio. La lezione sta nel fatto, non
-	// nei nomi.
+	// difetto lo **riprodurrebbe**. Quanto ne resta si conta, invece di scriverlo qui dove invecchia:
+	//     git grep -hoE "BP_Unit_[A-Za-z]+" -- 'Source/RefactorTactics/Tests/*.cpp' | sort -u
+	// I riferimenti VIVI stanno in `RTHeroSpawnTests.cpp`; tutto il resto e' commento o decorazione. La
+	// lezione sta nel fatto, non nei nomi.
 	const FRTUnitOrderKey A = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Beta"));
 	const FRTUnitOrderKey B = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Alfa"));
 
@@ -319,28 +320,18 @@ bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
 		URTActionQueueLibrary::UnitOrderLess(A, B) != URTActionQueueLibrary::UnitOrderLess(B, A));
 	TestTrue(TEXT("nome lessicalmente minore per primo"), URTActionQueueLibrary::UnitOrderLess(B, A));
 
-	// 🔴 **Il caso che con una `FString` sarebbe stato un buco, e con un `FName` non e' rappresentabile.**
-	// `FName::LexicalLess` e' case-INSENSITIVE, quindi due nomi che differiscono solo per il caso
-	// pareggerebbero in entrambi i versi — l'ordine non sarebbe totale. Ma quella coppia non puo' esistere
-	// fra due Actor: i nomi degli `UObject` sono unici in modo case-insensitive dentro lo stesso Outer,
-	// quindi `FName("UNIT")` e `FName("unit")` sono **lo stesso nome**, cioe' la stessa unita'.
+	// 🔴 **Due nomi che differiscono solo per il caso restano DISTINGUIBILI**, e questa assertion e' la
+	// ragione per cui la terza chiave e' una `FString` confrontata case-sensitive.
 	//
-	// ⚠️ Questa assertion nasce ROSSA e corretta: la stesura precedente teneva una `FString` confrontata
-	// case-sensitive e affermava che i due restassero distinguibili. Passando a `FName` — per non allocare
-	// a ogni confronto — quell'affermazione e' diventata falsa, e il test l'ha presa. Trovato dalla suite,
-	// non dalla rilettura.
+	// ⚠️ Una stesura intermedia di #2922 era passata a `FName`, dove il confronto e' case-insensitive, e
+	// aveva **invertito questa riga** per farla passare: certificava che il comparatore non sa separare
+	// quella coppia, invece di fallire. E' il modo in cui un test smette di difendere qualcosa. Il caso e'
+	// rappresentabile — due Actor in sublevel diversi, perche' l'unicita' degli `UObject` vale dentro un solo
+	// Outer — e negli Editor target il caso e' preservato (`WITH_CASE_PRESERVING_NAME`), quindi qui morde.
 	const FRTUnitOrderKey Upper = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("UNIT"));
 	const FRTUnitOrderKey Lower = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("unit"));
-	TestTrue(TEXT("due nomi che differiscono solo per il caso sono lo STESSO FName, non due unita'"),
-		Upper.ActorName == Lower.ActorName);
-	TestFalse(TEXT("e infatti nessuno dei due precede l'altro: non c'e' una coppia da spareggiare"),
-		URTActionQueueLibrary::UnitOrderLess(Upper, Lower) || URTActionQueueLibrary::UnitOrderLess(Lower, Upper));
-
-	// Due nomi VERAMENTE diversi, invece, si ordinano: e' la proprieta' che la terza chiave deve avere.
-	const FRTUnitOrderKey Primo  = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Alfa"));
-	const FRTUnitOrderKey Ultimo = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Zeta"));
-	TestTrue(TEXT("nomi distinti restano distinguibili, in un verso solo"),
-		URTActionQueueLibrary::UnitOrderLess(Primo, Ultimo) != URTActionQueueLibrary::UnitOrderLess(Ultimo, Primo));
+	TestTrue(TEXT("nomi che differiscono solo per il caso restano distinguibili, in un verso solo"),
+		URTActionQueueLibrary::UnitOrderLess(Upper, Lower) != URTActionQueueLibrary::UnitOrderLess(Lower, Upper));
 
 	// Un `StableUnitId` assegnato batte comunque uno non assegnato, deterministicamente: `0` non e' l'unita'
 	// zero, e non deve comportarsi come un valore mancante che scivola a caso.

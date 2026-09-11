@@ -11,13 +11,11 @@
 // delle unita' passa dalla sede unica (#2922), e un include con accanto la ragione sbagliata invecchia senza
 // che nessuno lo veda.
 //
-// ⚠️ Il controllo, con l'esito ATTESO dichiarato — due stesure precedenti hanno sbagliato qui: la prima
-// citava il simbolo e si falsificava da sola, la seconda ci aggiungeva un pathspec `':!*:12'` che `git grep`
-// non accetta (`fatal: ... is outside repository`) e che non verificava nulla. `git grep` non sa escludere
-// una riga, quindi la via onesta e' dire quale match e' legittimo:
-//
-//     git grep -n "URTHexLibrary" -- Source/RefactorTactics/RTGameMode.cpp
-//     -> deve rispondere UNA sola riga, e deve essere QUESTA. Due o piu' = il file lo chiama ancora.
+// ⛔ **E qui non va un comando di verifica**, dopo tre tentativi sbagliati allo stesso modo: il primo citava
+// il simbolo e si falsificava da solo, il secondo aggiungeva un pathspec che `git grep` rifiuta, il terzo
+// dichiarava «una sola riga» — vero oggi, falso appena qualcuno scriva quel nome in una nota. Un `grep` non
+// distingue una chiamata viva dalla prosa, ed e' lo stesso strumento che questa PR condanna altrove. Se la
+// dipendenza tornasse, a dirlo e' il compilatore.
 #include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
@@ -937,9 +935,9 @@ void ARTGameMode::AssignUnitControlGroups()
 	// consegnare un'unita' a un posto diverso da quello d'inizio.
 	//
 	// ⛔ **E' un difetto di autorita' che #2922 non ha introdotto e non chiude**: l'ordine qui e' comunque
-	// deterministico, che e' tutto cio' che questa issue garantisce. Il rimedio e' rendere questa funzione
-	// un no-op a roster congelato — cioe' assegnare i gruppi una volta, come si fa con `StableUnitId` — e
-	// vive altrove. Trovato in code review.
+	// deterministico, che e' tutto cio' che quella issue garantisce. Ha una sede propria: **#2942**, dove
+	// sta anche la forma del rimedio — un no-op a roster congelato, come fa gia' `EnsureMatchRoster` con
+	// `StableUnitId`. Trovato in code review; `DEFERRED`, non `CURRENT`.
 	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
