@@ -80,6 +80,13 @@ struct FRTHexSimUnit
 	 * ⚠️ **E' un NUMERO, non una fazione**, per la stessa disciplina di `MoveCostModifier` e
 	 * `ExtraSlideCells` qui sopra: lo strato esagonale non conosce `ARTUnit`, e la traduzione avviene
 	 * una volta sola, in `ARTTurnManager::MakeSimUnit`.
+	 *
+	 * ⛔ **NON entra in nessun hash, e non e' fortuna: e' il tipo.** `URTMatchStateHashLibrary::HashMatchState`
+	 * legge `FRTUnitStateDigest`, che `BuildUnitDigests` costruisce da `ARTUnit` — questo struct non lo
+	 * attraversa mai. E `FRTHexSnapshot` dichiara di se' che *«NON va conservata oltre la fase che la
+	 * produce»*. 🔑 Il valore qui e' una COPIA transitoria di `ARTUnit::TeamId`, che esisteva gia': questo
+	 * campo non aggiunge stato competitivo, quindi replay e `StateHash` non si muovono. Stessa disciplina
+	 * con cui `FRTHexCover::bGenerated` dichiara di restare fuori dall'hash.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	int32 TeamId = INDEX_NONE;

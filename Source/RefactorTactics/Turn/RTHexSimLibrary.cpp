@@ -27,16 +27,41 @@ namespace
 		return Reachable.FindByPredicate([&Cell](const FRTHexReachableCell& R) { return R.Cell == Cell; });
 	}
 
-	/** Celle occupate da unita' vive DIVERSE da ForUnitId: ostacoli dinamici (non appartengono all'asset mappa). */
-	TSet<FRTCellId> BlockedCellsFor(const FRTHexSnapshot& Snapshot, int32 ForUnitId)
+	/**
+	 * Celle occupate da unita' vive DIVERSE da ForUnitId: ostacoli dinamici (non appartengono all'asset mappa).
+	 *
+	 * ➕ **Una COMPAGNA non e' un ostacolo per la ROTTA, ma lo resta come DESTINAZIONE** — `#2984`,
+	 * [D-396]. E' lo specchio, nel pathfinder, del permesso che `StepHexMovement` concede: se il
+	 * resolver lascia passare e il pathfinder no, il bot continua a evitare rotte che il gioco permette.
+	 *
+	 * ⛔ **`Goal` esiste per la meta' che non va persa.** Togliendo le compagne dagli ostacoli senza
+	 * proteggere la destinazione, l'A* sceglierebbe la cella di una compagna come arrivo — e il resolver
+	 * la rifiuterebbe (`!bFinalStep`), cioe' il bot proporrebbe una mossa illegale. Chi non ha una
+	 * destinazione — `ReachableCells` — passa `nullptr` e filtra il RISULTATO, che e' la stessa regola
+	 * detta dall'altro lato.
+	 *
+	 * ⚠️ Squadra non dichiarata (`INDEX_NONE`) = nessuna alleanza, come nel resolver.
+	 */
+	TSet<FRTCellId> BlockedCellsFor(const FRTHexSnapshot& Snapshot, int32 ForUnitId,
+		const FRTCellId* Goal = nullptr)
 	{
+		const FRTHexSimUnit* Self = FindUnit(Snapshot, ForUnitId);
+		const int32 MyTeam = Self ? Self->TeamId : INDEX_NONE;
+
 		TSet<FRTCellId> Out;
 		for (const TPair<FRTCellId, int32>& Entry : Snapshot.Occupancy)
 		{
-			if (Entry.Value != ForUnitId)
+			if (Entry.Value == ForUnitId)
 			{
-				Out.Add(Entry.Key);
+				continue;
 			}
+			const FRTHexSimUnit* Other = FindUnit(Snapshot, Entry.Value);
+			const bool bAlly = Other && MyTeam != INDEX_NONE && Other->TeamId == MyTeam;
+			if (bAlly && !(Goal && *Goal == Entry.Key))
+			{
+				continue; // si attraversa, ma non e' questa la destinazione
+			}
+			Out.Add(Entry.Key);
 		}
 		return Out;
 	}
@@ -295,6 +320,19 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	{
 		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value.Key, Entry.Value.Value));
 	}
+	// ➕ **Una compagna si attraversa, ma non ci si ferma sopra** (`#2984`, [D-396]). Le sue celle sono
+	// entrate nel Dijkstra come passaggio — e' cio' che le rende raggiungibili le celle OLTRE — ma non
+	// sono destinazioni: restare sarebbe la co-occupazione che [D-289] vieta, e l'overlay illuminerebbe
+	// una cella su cui il resolver non lascia fermare. ⚠️ E' l'altra meta' di `Goal` in `BlockedCellsFor`:
+	// la stessa regola detta dal lato del risultato, perche' qui una destinazione sola non esiste.
+	for (int32 i = Out.Num() - 1; i >= 0; --i)
+	{
+		const int32* Occupant = Snapshot.Occupancy.Find(Out[i].Cell);
+		if (Occupant && *Occupant != UnitId)
+		{
+			Out.RemoveAt(i);
+		}
+	}
 	Out.Sort([](const FRTHexReachableCell& A, const FRTHexReachableCell& B)
 	{
 		return URTHexLibrary::StableLess(A.Cell, B.Cell);
@@ -380,7 +418,7 @@ FRTHexPathResult URTHexSimLibrary::FindPathForUnit(const FRTHexSnapshot& Snapsho
 		return Result;
 	}
 
-	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, &Goal);
 	return URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Goal, &Blocked, Budget,
 		/*MaxNodes*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 }
@@ -636,7 +674,7 @@ ERTHexProbeExclusion URTHexSimLibrary::ClassifyProbeCell(const FRTHexSnapshot& S
 		return ERTHexProbeExclusion::NoRoute;
 	}
 
-	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, &Cell);
 	const FRTHexPathResult Unlimited = URTHexPathLibrary::FindPathAvoiding(Snapshot.Map, Unit->Cell, Cell,
 		&Blocked, /*MaxCost=*/ 0, /*MaxNodes=*/ 100000, FMath::Max(0, Unit->MoveCostModifier));
 
@@ -660,7 +698,10 @@ FRTHexPathResult URTHexSimLibrary::BuildCompositeHexPath(const FRTHexSnapshot& S
 	Result.Status = ERTHexPathStatus::Success;
 	Result.Path.Add(Unit->Cell);
 
-	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId);
+	// L'ultimo waypoint E' la destinazione del percorso composito: e' quello da proteggere, non i
+	// waypoint intermedi, che sono celle di passaggio come tutte le altre ([D-396]).
+	const FRTCellId* FinalGoal = Waypoints.Num() > 0 ? &Waypoints.Last() : nullptr;
+	const TSet<FRTCellId> Blocked = BlockedCellsFor(Snapshot, UnitId, FinalGoal);
 	int32 Remaining = FMath::Max(0, Unit->MoveBudget);
 	FRTCellId Current = Unit->Cell;
 

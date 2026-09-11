@@ -2908,4 +2908,68 @@ bool FRTHexSimAlliedSwapIsStillACycleTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * Il PATHFINDER attraversa una compagna, e non si ferma sopra — `#2984`, [D-396] Scope 4.
+ *
+ * \U0001f511 **E' lo specchio di cio' che `StepHexMovement` gia' concede.** Se il resolver lascia passare e
+ * il pathfinder no, il bot continua a evitare rotte che il gioco permette — ed era il difetto che questa
+ * meta' della issue esiste per chiudere.
+ *
+ * \u26d4 **Le due asserzioni vanno insieme.** Togliere le compagne dagli ostacoli senza proteggere la
+ * DESTINAZIONE farebbe scegliere all'A* la cella di una compagna come arrivo, che il resolver poi
+ * rifiuta: il bot proporrebbe una mossa illegale, cioe' l'invariante opposta a quella che si voleva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimPathCrossesAlliesTest,
+	"RefactorTactics.HexSim.PathCrossesAlliesButNotOntoThem",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimPathCrossesAlliesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+	if (!TestNotNull(TEXT("arena piatta"), Map)) { return false; }
+
+	auto Snapshot = [Map](int32 TeamOfOther)
+	{
+		TArray<FRTHexSimUnit> Units;
+		FRTHexSimUnit Me(1, FRTCellId(0, 0), /*budget*/ 6);
+		Me.TeamId = 0;
+		FRTHexSimUnit Other(2, FRTCellId(1, 0), /*budget*/ 0);
+		Other.TeamId = TeamOfOther;
+		Units.Add(Me);
+		Units.Add(Other);
+		return URTHexSimLibrary::MakeSnapshot(Map, Units);
+	};
+
+	// --- compagna: si attraversa -------------------------------------------------------------------
+	const FRTHexSnapshot Alleata = Snapshot(/*TeamOfOther*/ 0);
+	const FRTHexPathResult Oltre = URTHexSimLibrary::FindPathForUnit(Alleata, 1, FRTCellId(2, 0));
+	TestEqual(TEXT("la rotta OLTRE la compagna esiste"), Oltre.Status, ERTHexPathStatus::Success);
+	TestTrue(TEXT("e passa proprio dalla sua cella"), Oltre.Path.Contains(FRTCellId(1, 0)));
+
+	// \u26d4 ...ma non ci si ferma sopra.
+	const FRTHexPathResult Addosso = URTHexSimLibrary::FindPathForUnit(Alleata, 1, FRTCellId(1, 0));
+	TestNotEqual(TEXT("la cella della compagna non e' una destinazione"), Addosso.Status, ERTHexPathStatus::Success);
+
+	// E la portata dice la stessa cosa, o overlay e pathfinding divergerebbero.
+	const TArray<FRTHexReachableCell> Portata = URTHexSimLibrary::ReachableCells(Alleata, 1);
+	const bool bOltreRaggiungibile = Portata.ContainsByPredicate(
+		[](const FRTHexReachableCell& R) { return R.Cell == FRTCellId(2, 0); });
+	const bool bSullaCompagna = Portata.ContainsByPredicate(
+		[](const FRTHexReachableCell& R) { return R.Cell == FRTCellId(1, 0); });
+	TestTrue(TEXT("la portata include la cella OLTRE la compagna"), bOltreRaggiungibile);
+	TestFalse(TEXT("e NON include quella della compagna"), bSullaCompagna);
+
+	// --- avversaria: la meta' falsificante ---------------------------------------------------------
+	const FRTHexSnapshot Nemica = Snapshot(/*TeamOfOther*/ 1);
+	const FRTHexPathResult Aggirata = URTHexSimLibrary::FindPathForUnit(Nemica, 1, FRTCellId(2, 0));
+	// ⚠️ **L'oracolo e' PER DOVE passa, non se arriva**, e la prima stesura sbagliava qui: su un esagono
+	// aperto l'A* gira semplicemente attorno, quindi anche con un'avversaria in mezzo la destinazione si
+	// raggiunge. Misurato: asserire il fallimento rendeva il test rosso su un comportamento corretto.
+	TestTrue(TEXT("verso un'avversaria la rotta esiste comunque, girando attorno"),
+		Aggirata.Status == ERTHexPathStatus::Success);
+	TestFalse(TEXT("ma NON passa dalla sua cella"), Aggirata.Path.Contains(FRTCellId(1, 0)));
+	TestTrue(TEXT("e costa piu' passi che attraversare una compagna"), Aggirata.Path.Num() > Oltre.Path.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
