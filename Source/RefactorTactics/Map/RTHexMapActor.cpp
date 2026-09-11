@@ -828,6 +828,26 @@ ARTHexMapActor::ARTHexMapActor()
 		SurfaceGlyphs[Ring]->NumCustomDataFloats = 3;
 	}
 
+	// 🔑 **I GHOST della timeline di pianificazione** (`CP 11.5`, `#172`): uno per fase del piano.
+	//
+	// ⚠️ **Un ISM e non un Actor per ghost, e non `DrawDebugLine`**, ed e' la voce «budget di presentazione»
+	// della DoD: *«pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza
+	// limitata (non ogni Tick)»*. Le tre cose cadono da questa scelta invece di richiedere disciplina:
+	//
+	//  - il **pooling** e' il componente stesso — le istanze si aggiungono e si tolgono da un oggetto solo;
+	//  - **nessun Actor**: un ISM e' un componente di questa board, non un attore che nasce e muore;
+	//  - **non ogni Tick**: un'istanza posata RESTA posata. `DrawDebugLine` va riemessa a ogni fotogramma,
+	//    ed e' la ragione per cui l'anteprima esistente tiene acceso il `Tick` finche' c'e' qualcosa da
+	//    mostrare. Qui si scrive quando la timeline cambia, e poi non si paga piu' niente.
+	PlanGhosts = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PlanGhosts"));
+	PlanGhosts->SetupAttachment(Cells);
+	PlanGhosts->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PlanGhosts->SetCollisionResponseToAllChannels(ECR_Ignore);
+	PlanGhosts->CastShadow = false;
+	// Il colore per istanza porta il grado di CERTEZZA, che e' l'informazione che distingue un ghost
+	// confermato da uno previsto: senza custom data servirebbe un componente per livello.
+	PlanGhosts->NumCustomDataFloats = 3;
+
 	// I volumi di conoscenza (debug). Stessa disciplina degli altri — nessuna collisione, nessuna ombra — e
 	// nascosto per default: si accende da `rt.Debug.Knowledge`, e una board che lo mostrasse all'avvio
 	// rivelerebbe cio' che la squadra non sa a chiunque apra il livello.
@@ -1199,6 +1219,83 @@ void ARTHexMapActor::DrawCellOverlay() const
 		{
 			DrawRing(Cell.Id, URTHexLibrary::SightBlockerColor(), 0.64f, CellLift + RTLiftMarker, 2.0f);
 		}
+	}
+}
+
+void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
+{
+	if (!PlanGhosts)
+	{
+		return;
+	}
+
+	// ⛔ **Si azzera sempre, anche per una timeline vuota**, ed e' il caso dell'annullamento: un piano
+	// cancellato deve togliere i suoi ghost, e `Preview.Phases.Num() == 0` e' precisamente come arriva.
+	PlanGhosts->ClearInstances();
+	PlanGhostCells.Reset();
+
+	if (Preview.Phases.Num() == 0)
+	{
+		return;
+	}
+
+	// La mesh si assegna qui e non nel costruttore, come per i glifi: `GetCellPrismMesh` la costruisce a
+	// runtime, e chiamarla sul CDO creerebbe oggetti transitori al caricamento delle classi.
+	if (UStaticMesh* Shape = GetCellPrismMesh())
+	{
+		PlanGhosts->SetStaticMesh(Shape);
+	}
+	if (UMaterialInterface* Mat = CellMaterial.LoadSynchronous())
+	{
+		PlanGhosts->SetMaterial(0, Mat);
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+	const float PlanarScale = Size / 50.f * 0.95f;
+
+	for (const FRTPhasePreviewEntry& Fase : Preview.Phases)
+	{
+		// Il ghost sta dove l'unita' SARA' a fase conclusa: e' la domanda a cui questa timeline risponde.
+		FVector World = URTHexLibrary::AxialToWorld(Fase.PreviewDestination, Origin, Size, LayerH);
+		if (MapAsset)
+		{
+			if (const FRTHexCellData* Data = MapAsset->FindCell(Fase.PreviewDestination))
+			{
+				World.Z += static_cast<double>(Data->Height);
+			}
+		}
+		World.Z += RTLiftPreview;
+
+		const FTransform Xf(FRotator::ZeroRotator, World,
+			FVector(PlanarScale * 0.7f, PlanarScale * 0.7f, RTCellFlatScale));
+		const int32 Index = PlanGhosts->AddInstance(Xf, /*bWorldSpace=*/ true);
+		PlanGhostCells.Add(Fase.PreviewDestination);
+
+		// 🔑 **Il colore porta la CERTEZZA, non la fase.** Le fasi si distinguono gia' per posizione e per
+		// ordine; cio' che il giocatore non puo' dedurre guardando e' quanto ciascuna sia sicura.
+		const FLinearColor Colore = GhostColorForCertainty(Fase.Certainty);
+		PlanGhosts->SetCustomDataValue(Index, 0, Colore.R);
+		PlanGhosts->SetCustomDataValue(Index, 1, Colore.G);
+		PlanGhosts->SetCustomDataValue(Index, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+	}
+
+	// Una volta sola, in coda: la stessa disciplina di `RebuildInstances` e di `VeilInstances`.
+	PlanGhosts->MarkRenderStateDirty();
+}
+
+FLinearColor ARTHexMapActor::GhostColorForCertainty(ERTIntentCertainty Certainty)
+{
+	// ⚠️ **Tre livelli e non quattro**: `Unknown` non ha una resa, e il catalogo icone lo dichiara —
+	// *«le chiavi sono i livelli DISEGNABILI, non i valori dell'enum»*. Un `Unknown` che arriva qui e' un
+	// difetto a monte, e si disegna come il piu' debole invece di inventargli un aspetto proprio.
+	switch (Certainty)
+	{
+	case ERTIntentCertainty::Confirmed: return FLinearColor::FromSRGBColor(FColor(90, 220, 120));
+	case ERTIntentCertainty::Predicted: return FLinearColor::FromSRGBColor(FColor(220, 200, 90));
+	default:                            return FLinearColor::FromSRGBColor(FColor(190, 120, 90));
 	}
 }
 
@@ -3234,4 +3331,9 @@ void ARTHexMapActor::GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) c
 	// ➕ Il corpo strutturale entra qui da `#2731`: prima non compariva in **nessun** oracolo, ed e' il
 	// motivo per cui il leak e' vissuto fino a una code review invece che fino al primo test rosso.
 	Count(StructuralBodies, BodyCells.Num());
+}
+
+int32 ARTHexMapActor::PlanGhostInstanceCount() const
+{
+	return PlanGhosts ? PlanGhosts->GetInstanceCount() : 0;
 }

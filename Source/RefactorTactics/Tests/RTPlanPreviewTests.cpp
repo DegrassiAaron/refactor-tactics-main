@@ -8,6 +8,10 @@
 #include "Ability/RTActionData.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexMapActor.h"
+#include "Engine/World.h"
+#include "Engine/Engine.h"
+#include "EngineUtils.h" // TActorIterator: gli Actor del mondo si contano guardando il mondo
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTFacingLibrary.h" // l'oracolo del facing: la stessa derivazione pura che usa la preview
@@ -392,6 +396,178 @@ bool FRTPlanPreviewRefusalIsSpeakableTest::RunTest(const FString&)
 			BlastBuono->Certainty, ERTIntentCertainty::Predicted);
 	}
 
+	return true;
+}
+
+/**
+ * ⛔ **Il ghost NON anticipa l'intento avversario** — voce della DoD: *«nessun planned facing avversario, in
+ * nessun DTO che raggiunga il client»*.
+ *
+ * ## Perché questo test non duplica `Facing.IntentIsTeamFiltered`
+ *
+ * Quello verifica il **filtro**: che `FilterForTeam` tolga ciò che un osservatore non ha diritto di sapere.
+ * Questo verifica che qui un filtro **non serva**, perché il dato avversario non entra mai — e la ragione è
+ * la **firma**. `MakePlanPreview` prende UN `FRTPlanPreviewInput`, cioè il piano di una sola unità: non
+ * riceve la lista dei piani, quindi non può guardarne un altro neanche per sbaglio. È lo stesso argomento
+ * con cui `ClassifyPlan` è stata scritta — *«prende UN intento, non la lista, e la firma è il punto»*.
+ *
+ * ⚠️ **La prova è che le unità avversarie SONO nella scena** — occupano celle, compaiono in `CombatUnits`,
+ * sono bersagliabili — e ciò nonostante nessuna voce della timeline parla di loro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewNoEnemyIntentTest,
+	"RefactorTactics.Preview.TimelineCarriesOnlyThePlanningUnit",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewNoEnemyIntentTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+
+	const FRTCellId Mia(-2, 0, 0);
+	const FRTCellId Nemica(2, 0, 0);
+
+	TArray<FRTHexSimUnit> Units;
+	FRTHexSimUnit Io(/*UnitId=*/ 0, Mia, /*MoveBudget=*/ 8);
+	Io.Facing = ERTHexDirection::E;
+	FRTHexSimUnit Lui(/*UnitId=*/ 1, Nemica, /*MoveBudget=*/ 8);
+	// Un facing avversario ben riconoscibile: se finisse nella timeline, si vedrebbe.
+	Lui.Facing = ERTHexDirection::NW;
+	Units.Add(Io);
+	Units.Add(Lui);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	TArray<FRTHexCombatUnit> CombatUnits;
+	CombatUnits.Add(MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Mia));
+	CombatUnits.Add(MakePlanPreviewCombatUnit(1, /*TeamId=*/ 1, Nemica));
+
+	FRTPlanPreviewInput Plan;
+	Plan.UnitId = 0;
+	Plan.PlannedWaypoints = { FRTCellId(0, 0, 0) };
+	Plan.MoveActionId = TEXT("Action.Move");
+	Plan.Blast.AttackerId = 0;
+	Plan.Blast.bHasAction = true;
+	Plan.Blast.Shape = ERTAbilityShape::Single;
+	Plan.Blast.RangeCells = 5;
+	Plan.Blast.TargetId = 1;
+	Plan.BlastActionId = TEXT("Action.Shoot");
+
+	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, CombatUnits);
+
+	if (!TestTrue(TEXT("premessa: la timeline non e' vuota"), Preview.Phases.Num() > 0))
+	{
+		return false;
+	}
+
+	// 🔴 Ogni voce parla della PROPRIA unita', nessuna dell'avversaria.
+	bool bSoloMia = true;
+	for (const FRTPhasePreviewEntry& E : Preview.Phases)
+	{
+		bSoloMia = bSoloMia && E.UnitId == 0;
+	}
+	TestTrue(TEXT("ogni voce della timeline parla della sola unita' che pianifica"), bSoloMia);
+	TestTrue(TEXT("e la reazione, quando c'e', pure"),
+		!Preview.Reaction.bArmed || Preview.Reaction.UnitId == 0);
+
+	// ⚠️ **La cella dell'avversario COMPARE**, ed e' giusto: e' il bersaglio dichiarato, cioe' informazione
+	// che il giocatore ha gia' perche' l'ha scelta lui. Cio' che non deve comparire e' il suo INTENTO — dove
+	// sta andando, dove guardera'. Il test distingue le due cose invece di vietare la cella.
+	const FRTPhasePreviewEntry* Blast = PhaseOf(Preview, ERTResolutionPhase::Attack);
+	if (TestNotNull(TEXT("il Blast c'e'"), Blast))
+	{
+		TestTrue(TEXT("e il bersaglio dichiarato e' la cella nemica, che il giocatore ha scelto"),
+			Blast->TargetCells.Contains(Nemica));
+	}
+
+	// 🔑 Nessuna voce porta il facing dell'avversario. `NW` e' il suo, e nessuna fase puo' averlo per caso:
+	// tutte le derivazioni di questo piano guardano verso EST.
+	bool bFacingNemicoTrapelato = false;
+	for (const FRTPhasePreviewEntry& E : Preview.Phases)
+	{
+		if (E.Facing == ERTHexDirection::NW)
+		{
+			bFacingNemicoTrapelato = true;
+		}
+	}
+	TestFalse(TEXT("nessuna voce porta il facing dell'avversario"), bFacingNemicoTrapelato);
+
+	return true;
+}
+
+/**
+ * 🔴 **I ghost sono ISTANZE IN POOL, non Actor, e non costano un fotogramma** — voce della DoD di `CP 11.5`:
+ * *«budget di presentazione: pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a
+ * frequenza limitata (non ogni Tick)»*.
+ *
+ * ⚠️ **Le tre promesse si misurano separatamente**, perché si rompono separatamente: si può fare pooling e
+ * spawnare comunque un Actor per il ghost «principale», e si può evitare gli Actor e ridisegnare tutto a
+ * ogni Tick. Qui si contano gli Actor del mondo, le istanze del componente e la loro sopravvivenza a un
+ * `Tick` che non viene mai chiamato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewGhostsArePooledTest,
+	"RefactorTactics.Preview.GhostsArePooledNotSpawned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewGhostsArePooledTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	if (GEngine)
+	{
+		FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+		Ctx.SetCurrentWorld(World);
+	}
+
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 3);
+	ARTHexMapActor* HexMap = World->SpawnActorDeferred<ARTHexMapActor>(
+		ARTHexMapActor::StaticClass(), FTransform::Identity);
+	if (!TestNotNull(TEXT("actor mappa"), HexMap))
+	{
+		if (GEngine) { GEngine->DestroyWorldContext(World); }
+		World->DestroyWorld(false);
+		return false;
+	}
+	HexMap->MapAsset = M;
+	HexMap->FinishSpawning(FTransform::Identity);
+
+	// Quanti Actor esistono PRIMA: è il numero che nessun ghost deve muovere.
+	int32 AttoriPrima = 0;
+	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriPrima; }
+
+	// Una timeline con tre fasi, costruita a mano: qui si misura il CONSUMO, non la derivazione.
+	FRTPlanPreview Timeline;
+	for (int32 I = 0; I < 3; ++I)
+	{
+		FRTPhasePreviewEntry E;
+		E.Phase = ERTResolutionPhase::NormalMovement;
+		E.UnitId = 0;
+		E.PreviewDestination = FRTCellId(I, 0, 0);
+		E.Certainty = ERTIntentCertainty::Predicted;
+		Timeline.Phases.Add(E);
+	}
+
+	HexMap->SetPlanPreview(Timeline);
+
+	// ── Pooling: una istanza per fase, su un componente solo.
+	TestEqual(TEXT("un ghost per fase, in istanze"), HexMap->PlanGhostInstanceCount(), 3);
+	TestEqual(TEXT("e la mappatura cella->ghost e' lunga uguale"),
+		HexMap->GetPlanGhostCells().Num(), 3);
+
+	// ── Nessun Actor: il conteggio del mondo non si e' mosso.
+	int32 AttoriDopo = 0;
+	for (TActorIterator<AActor> It(World); It; ++It) { ++AttoriDopo; }
+	TestEqual(TEXT("nessun Actor e' stato spawnato per i ghost"), AttoriDopo, AttoriPrima);
+
+	// ── Non ogni Tick: le istanze SOPRAVVIVONO senza che nessuno chiami `Tick`.
+	//
+	// 🔑 È la differenza con `DrawPlanningPreview`, che riemette le proprie `DrawDebugLine` a ogni
+	// fotogramma e per questo tiene acceso il `Tick`. Qui non si chiama `Tick` affatto, e i ghost restano.
+	TestEqual(TEXT("e restano posati senza che nessuno chiami Tick"),
+		HexMap->PlanGhostInstanceCount(), 3);
+
+	// ── L'annullamento: una timeline vuota li toglie.
+	HexMap->SetPlanPreview(FRTPlanPreview());
+	TestEqual(TEXT("una timeline vuota toglie i ghost"), HexMap->PlanGhostInstanceCount(), 0);
+	TestEqual(TEXT("e svuota la mappatura con loro"), HexMap->GetPlanGhostCells().Num(), 0);
+
+	if (GEngine) { GEngine->DestroyWorldContext(World); }
+	World->DestroyWorld(false);
 	return true;
 }
 

@@ -119,6 +119,12 @@ namespace
 			// percorsi DAVVERO avvenuti (`RTHUD.cpp:667`) su un canale diverso, quindi le due tracce
 			// convivevano invece di darsi il cambio.
 			HexMap->SetPreviewPath(TArray<FRTCellId>());
+
+			// ➕ **E la timeline** (`#172`), per la stessa ragione della rotta qui sopra: spegnere
+			// l'anteprima a metà è un difetto più difficile da vedere che non spegnerla affatto. Una
+			// `FRTPlanPreview` di default è l'annullamento — non serve un secondo metodo che faccia la
+			// stessa cosa con un altro nome.
+			HexMap->SetPlanPreview(FRTPlanPreview());
 			return;
 		}
 
@@ -129,8 +135,10 @@ namespace
 		int32 UnitId = INDEX_NONE;
 		TArray<ARTUnit*> Units;
 		TArray<FRTCellId> Reachable;
+		bool bHasSnapshot = false;
 		if (PlanningSnapshotFor(World, Unit, Snapshot, UnitId, &Units))
 		{
+			bHasSnapshot = true;
 			for (const FRTHexReachableCell& R :
 				URTHexSimLibrary::ReachableCellsAfterPlan(Snapshot, UnitId, Unit->PlannedWaypoints))
 			{
@@ -202,6 +210,56 @@ namespace
 			? PreviewPlan.TargetCell
 			: (HexUnits.IsValidIndex(PreviewPlan.TargetId) ? HexUnits[PreviewPlan.TargetId].Cell : FRTCellId());
 		HexMap->SetPreviewAttack(Blast.Origin, AimCell, bHasAim, Blast.bOriginFromPlannedDash);
+
+		// ➕ **LA TIMELINE DEL PIANO, una voce per fase** (`CP 11.5`, `#172`).
+		//
+		// 🔑 **Si TRADUCE il piano, non si decide niente.** Tutto ciò che segue riempie una struct di
+		// ingresso; l'origine, l'area, il percorso e il facing li deriva `MakePlanPreview`, che è pura e
+		// verificabile headless — e che a sua volta chiama le funzioni del resolver invece di riscriverle.
+		//
+		// ⚠️ **Senza snapshot non si costruisce una timeline finta.** `BuildCompositeHexPath` ha bisogno
+		// dello stato autorevole: darle uno snapshot vuoto produrrebbe un percorso che il resolver non
+		// percorrerà mai, cioè precisamente la divergenza che questo checkpoint esiste per impedire.
+		if (bHasSnapshot)
+		{
+			FRTPlanPreviewInput Timeline;
+			Timeline.UnitId = UnitId;
+			Timeline.bReactionArmed = !Unit->ReactionProfileId.IsNone();
+			Timeline.ReactionProfileId = Unit->ReactionProfileId;
+			Timeline.bDashPlanned = Unit->PlannedDashCell != Unit->Cell;
+			Timeline.bDashResolves = Unit->PlannedDashApplies();
+			Timeline.PlannedDashCell = Unit->PlannedDashCell;
+			Timeline.Blast = PreviewPlan;
+			Timeline.PlannedWaypoints = Unit->PlannedWaypoints;
+			if (Ability)
+			{
+				Timeline.BlastActionId = Ability->Def.ActionId;
+			}
+
+			// ➕ **Il motivo del rifiuto entra nell'anteprima, TRASPORTATO e non ricalcolato** (`#172`).
+			//
+			// ⛔ **Non si richiama `ClassifyHexTargeting` qui.** Quel percorso è privacy-critico: il rifiuto
+			// nasce dalla classificazione **più** il flag di conoscenza dell'osservatore, e una seconda copia
+			// che dimenticasse il secondo rivelerebbe la presenza di un nemico velato ([D-225]). Ciò che
+			// l'HUD già mostra è già filtrato, ed è quello che la timeline porta.
+			//
+			// ⚠️ L'HUD si raggiunge dal mondo e non da `this`: questa funzione vive in un namespace anonimo
+			// e non ha un controller — il limite già dichiarato in `RTHexPerfTests.cpp:202`.
+			if (const APlayerController* PC = World->GetFirstPlayerController())
+			{
+				if (const ARTHUD* Hud = Cast<ARTHUD>(PC->GetHUD()))
+				{
+					Timeline.BlastTargetRefusal = Hud->GetLastTargetRefusal();
+				}
+			}
+
+			HexMap->SetPlanPreview(
+				URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Timeline, HexUnits));
+		}
+		else
+		{
+			HexMap->SetPlanPreview(FRTPlanPreview());
+		}
 	}
 
 	/** Testo del motivo di rifiuto di un waypoint, dallo stato del pathfinding (per il log). */

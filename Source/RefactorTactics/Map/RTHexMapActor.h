@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
@@ -734,6 +735,31 @@ public:
 		bool bOriginPredicted);
 
 	/**
+	 * 🔑 **Posa i GHOST della timeline: uno per fase del piano** — `CP 11.5` ([#172]).
+	 *
+	 * Una timeline **vuota li toglie**, ed e' il caso dell'annullamento: chi spegne l'anteprima chiama questa
+	 * con un `FRTPlanPreview` di default, senza un secondo metodo che faccia la stessa cosa con un altro nome.
+	 *
+	 * ⚠️ **Non disegna: POSA.** Le istanze restano dove sono messe, quindi nessun fotogramma successivo paga
+	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue `DrawDebugLine` a ogni `Tick` e per
+	 * questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
+	 * il bisogno di aggiornare invece che rallentandolo.
+	 */
+	void SetPlanPreview(const FRTPlanPreview& Preview);
+
+	/**
+	 * Quanti ghost sono posati, e su quali celle. Per i test e per la diagnostica.
+	 *
+	 * ⚠️ **Legge la MAPPATURA, non il componente**: e' la stessa disciplina di `GetVeilCounts` al contrario —
+	 * qui la domanda e' «quali celle ho dichiarato», e il componente non conserva le celle. I due numeri
+	 * devono coincidere, e `Preview.GhostsArePooledNotSpawned` lo verifica.
+	 */
+	const TArray<FRTCellId>& GetPlanGhostCells() const { return PlanGhostCells; }
+
+	/** Quante istanze il componente dei ghost porta davvero. Vedi `GetPlanGhostCells()`. */
+	int32 PlanGhostInstanceCount() const;
+
+	/**
 	 * La linea di tiro che NON passa: da dove parte e dove si ferma — `#2742`.
 	 *
 	 * 🔑 **Riceve il verdetto gia' calcolato**, come `SetPreviewAttack` riceve l'origine gia' derivata:
@@ -1277,6 +1303,25 @@ protected:
 
 	/** Vedi `LastRepaintTouchedInstances()`. Contatore di evento, azzerato a ogni `RepaintCells`. */
 	int32 LastRepaintTouched = 0;
+
+	/**
+	 * Il componente dei ghost della timeline (`#172`). Vedi `SetPlanPreview`.
+	 *
+	 * ⚠️ **Non partecipa a `RebuildInstances`**, e non e' la svista che `#2222` aveva trovato sui volumi di
+	 * conoscenza: quelli sopravvivevano a una ricostruzione della board restando appesi su celle diventate
+	 * altre celle. Qui il contenuto e' il PIANO CORRENTE, che non deriva dall'asset e che il produttore
+	 * riscrive a ogni refresh dell'anteprima — una board ricostruita sotto un piano vivo riceve i ghost nuovi
+	 * al primo refresh, e quello arriva prima di qualunque fotogramma utile.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap",
+		meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInstancedStaticMeshComponent> PlanGhosts;
+
+	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
+	TArray<FRTCellId> PlanGhostCells;
+
+	/** Il colore che rende un livello di certezza. Vedi `SetPlanPreview`. */
+	static FLinearColor GhostColorForCertainty(ERTIntentCertainty Certainty);
 
 	/**
 	 * Cambia ogni volta che la mappatura cella→istanza puo' essersi mossa: una ricostruzione, oppure un
