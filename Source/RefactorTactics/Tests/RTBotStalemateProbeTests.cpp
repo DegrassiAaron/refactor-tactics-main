@@ -679,6 +679,21 @@ namespace
 		 * test su una condizione di cui la feature non risponde.
 		 */
 		int32 SameTeamContestsWithSameDestination = 0;
+
+		/**
+		 * Il sottoinsieme che la prenotazione NON puo' chiudere: due COMPAGNE che contendono la stessa
+		 * cella andando in posti DIVERSI — una collisione di ROTTA, non di destinazione.
+		 *
+		 * 🔴 **Nasce perche' la sua meta' simmetrica esisteva e questa no** (`#2951`). La guardia di
+		 * non-vacuita' del banco leggeva `ContestsWithDifferentDestination`, che conta **anche** le
+		 * coincidenze fra avversari: su `origin/main` passava grazie a **una sola** collisione, e quella
+		 * era `squadre diverse` — cioe' proprio la categoria che questo file dichiara fuori dalla portata
+		 * della feature. Era non-vacua per caso, non per costruzione.
+		 *
+		 * ⚠️ E' lo stesso difetto che `SameTeamContestsWithSameDestination` ha gia' corretto sull'altro
+		 * asse: un'asserzione piu' larga della propria tesi. La raffinatura mancava a meta'.
+		 */
+		int32 SameTeamContestsWithDifferentDestination = 0;
 	};
 }
 
@@ -824,6 +839,9 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			if (bSharedDestination) { ++Out.ContestsWithSameDestination; }
 			else { ++Out.ContestsWithDifferentDestination; }
 			if (bSharedWithinTeam) { ++Out.SameTeamContestsWithSameDestination; }
+			// Compagne sulla stessa cella ma dirette altrove: la collisione di ROTTA che la prenotazione
+			// delle destinazioni non scioglie, ed e' cio' che deve sopravvivere perche' il banco misuri.
+			if (bSameTeam && !bSharedWithinTeam) { ++Out.SameTeamContestsWithDifferentDestination; }
 
 			T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: cella %s contesa da %s -> %s, destinazioni %s"),
 				Label, Turn, *ContestedCell[i].ToString(), *Who,
@@ -853,10 +871,11 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 	}
 
 	T.AddInfo(FString::Printf(
-		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione condivisa %d di cui FRA COMPAGNI %d, diversa %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
+		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione condivisa %d di cui FRA COMPAGNI %d, diversa %d di cui FRA COMPAGNI %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
 		Label, Out.Contests, Out.SameTeamContests, Out.CrossTeamContests,
 		Out.ContestsWithSameDestination, Out.SameTeamContestsWithSameDestination,
-		Out.ContestsWithDifferentDestination, Out.TurnsWithAnyMove,
+		Out.ContestsWithDifferentDestination, Out.SameTeamContestsWithDifferentDestination,
+		Out.TurnsWithAnyMove,
 		Out.FirstFrozenTurn, Out.BlockedByUnitEvents));
 
 	return Out;
@@ -979,16 +998,25 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 		Before.SameTeamContestsWithSameDestination),
 		Before.SameTeamContestsWithSameDestination > 0);
 
-	// ⚠️ **L'altra meta' non resta scoperta, e il predicato guarda `After`.** Le collisioni di percorso sono
-	// fuori dalla portata della prenotazione delle destinazioni — questo file lo dichiara cinquanta righe
-	// sopra — ma se sparissero anche loro, `ContestsWithSameDestination == 0` diventerebbe vero per assenza
-	// di contese e non per merito della prenotazione: il test direbbe il falso restando verde.
+	// ⌨ **QUI C'ERA `After.ContestsWithDifferentDestination > 0`, ed e' stata TOLTA il 2026-09-11** (`#2951`).
 	//
-	// 🔴 Scritto la prima volta su `Before`, che e' l'altra run: non poteva rilevare il difetto che nomina.
-	TestTrue(FString::Printf(
-		TEXT("e nella run con prenotazione restano contese di percorso: %d (prima ce n'erano %d)"),
-		After.ContestsWithDifferentDestination, Before.ContestsWithDifferentDestination),
-		After.ContestsWithDifferentDestination > 0);
+	// Prometteva di togliere la vacuita': *«se le collisioni di percorso sparissero, `== 0` diventerebbe
+	// vero per assenza di contese e non per merito della prenotazione»*. 🔑 **Ma la vacuita' e' gia'
+	// esclusa quattro volte** — dalle due premesse su `Before`, dal tetto qui sotto, e da «le unita' si
+	// muovono davvero», che e' precisamente cio' che distingue «nessuna contesa» da «nessuno si muove».
+	//
+	// 🔴 **Cio' che asseriva davvero era un LIMITE della feature**, non un suo merito: che la
+	// prenotazione delle destinazioni non raggiunga le collisioni di rotta. La misura lo contraddice —
+	// fra COMPAGNI vanno da 12 a 0 — e il difetto era gia' visibile in questo file, che due paragrafi
+	// sotto osserva come quell'asserzione sia *«addirittura PIU' soddisfatta quanto peggio va»*.
+	//
+	// ⚠️ **E reggeva per caso.** Su `origin/main` era soddisfatta da **una sola** collisione, e quella
+	// era fra AVVERSARI — la categoria che questo file dichiara fuori dalla portata della feature. Le due
+	// collisioni fra compagni che [#1088] aveva misurato il 2026-08-22 erano gia' sparite, e nessuno se
+	// n'era accorto perche' il contatore letto conta anche gli avversari.
+	//
+	// 🔑 `SameTeamContestsWithDifferentDestination` nasce da qui e **resta**: e' lo strumento con cui
+	// quell'erosione si e' vista, e senza di lui la prossima passerebbe di nuovo inosservata.
 
 	// ⚠️ **Un tetto sul TOTALE, che si era perso.** `After.Contests == 0` e' stato tolto perche' pretendeva
 	// zero contese di ogni specie — anche quelle fra avversari, che la prenotazione non previene. Ma

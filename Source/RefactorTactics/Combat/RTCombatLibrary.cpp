@@ -137,6 +137,29 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 		return ERTHexTargetReason::TooClose;
 	}
 
+	// ➕ **IL PIANO, E NON E' UNA DOMANDA DI PORTATA** (`#2951`, [D-393]). La verticalita' non e' un
+	// asse di targeting: un'azione bersaglia celle del PROPRIO `Layer`, e puntare un altro piano e' un
+	// rifiuto DICHIARATO invece di un colpo che manca in silenzio.
+	//
+	// 🔴 **Il difetto che chiude e' un'incoerenza fra le tre forme, non un'assenza.** `HexHitCells`
+	// costruisce l'impronta di `Line` con `HexLine(From, Target)`, che scrive `A.Layer` su ogni cella —
+	// il piano del TIRATORE — mentre `Area` usa `HexArea(Target, R)`, che scrive `Center.Layer`.
+	// ∴ prima di questa riga un'azione `Shape::Line` verso una piattaforma era ACCETTATA e non toccava
+	// nessuno: la cella del bersaglio non stava nell'insieme investito, e non c'era ne' un rifiuto ne'
+	// una riga di log.
+	//
+	// ⚠️ **Dopo la portata, non prima**, con lo stesso argomento con cui `#2950` ha messo il minimo
+	// dopo il massimo: un bersaglio che violi anche la gittata conserva il motivo storico, e un caso che
+	// gia' funzionava non cambia messaggio in silenzio.
+	//
+	// ⛔ **E PRIMA della licenza**: il tiro indiretto toglie il requisito della LINEA e nient'altro. Un
+	// mortaio non scavalca un piano — [D-380] non gliel'ha concesso, e concederglielo qui sarebbe la
+	// seconda sede di una decisione che nessuno ha preso.
+	if (From.Layer != To.Layer)
+	{
+		return ERTHexTargetReason::OtherLayer;
+	}
+
 	// ➕ **LA LICENZA DELL'AZIONE** (`#2870`, [D-378]). Non e' un bypass di `HasLineOfSight`: e' la domanda
 	// che viene prima — *questa azione la linea la CHIEDE?* — e solo un'azione che la chiede puo' esserne
 	// rifiutata.
@@ -182,6 +205,11 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 	case ERTHexTargetReason::TooClose:
 		// Il gesto e' l'OPPOSTO di `Range`, che porta scritto «avvicinati»: qui si indietreggia.
 		return ERTTargetRefusal::TooClose;
+
+	case ERTHexTargetReason::OtherLayer:
+		// Nessuno dei gesti NEL piano aiuta: ne' avvicinarsi ne' indietreggiare cambia il `Layer`, e
+		// «spostati di lato» prometterebbe una traiettoria che non e' mai stata costruita.
+		return ERTTargetRefusal::OtherLayer;
 
 	case ERTHexTargetReason::NoMap:
 		// ⚠️ Fail-closed, e per la stessa ragione di `ClassifyHexTargeting`: senza mappa autorevole la

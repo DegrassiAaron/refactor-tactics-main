@@ -928,4 +928,71 @@ bool FRTMinRangeRefusesTooCloseTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// IL PIANO: la verticalita' non e' un asse di targeting (`#2951`, [D-393])
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Puntare un altro `Layer` e' un rifiuto DICHIARATO, e non uno degli altri tre.
+ *
+ * 🔴 **Il difetto che chiude non era un rifiuto sbagliato: era l'ASSENZA di un rifiuto.** `HexLine`
+ * costruisce l'impronta di `Shape::Line` sul piano del TIRATORE, e `HexDistance` ignora il `Layer`: prima
+ * di [D-393] un colpo verso una piattaforma passava il gate e non toccava nessuno, senza una riga di log.
+ *
+ * 🔑 **La meta' falsificante e' la seconda asserzione.** Le stesse coordinate sullo STESSO piano
+ * danno `Ok`: senza, un test che vede `OtherLayer` non distinguerebbe «rifiutato per il piano» da
+ * «rifiutato perche' quella cella non esiste nella fixture».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetingRefusesOtherLayerTest,
+	"RefactorTactics.Combat.TargetingRefusesOtherLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTargetingRefusesOtherLayerTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	const FRTCellId From(0, 0, 0);
+
+	// La piattaforma ESISTE nella fixture: altrimenti un rifiuto potrebbe venire da una cella assente
+	// invece che dal piano, e il test misurerebbe un'altra cosa.
+	for (const FRTCellId& Id : { FRTCellId(2, 0, 1), FRTCellId(5, 0, 1) })
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+
+	TestEqual(TEXT("un bersaglio su un altro piano e' rifiutato, e il motivo e' OtherLayer"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(2, 0, 1), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::OtherLayer);
+
+	// ⛔ La meta' che rende il test falsificabile: stesse coordinate, stesso piano -> ingaggiabile.
+	TestEqual(TEXT("le stesse coordinate sul PROPRIO piano restano ingaggiabili"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(2, 0, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::Ok);
+
+	// La licenza del tiro indiretto toglie la LINEA e nient'altro: non scavalca un piano ([D-380]).
+	TestEqual(TEXT("nemmeno un tiro indiretto raggiunge un altro piano"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(2, 0, 1), /*Range*/ 6,
+			ERTLineOfSightPolicy::NotRequired),
+		ERTHexTargetReason::OtherLayer);
+
+	// ⚠️ Ordine: chi viola ANCHE la gittata conserva il motivo storico — la disciplina di `#2950`.
+	TestEqual(TEXT("fuori portata E su un altro piano: il motivo resta OutOfRange"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(5, 0, 1), /*Range*/ 2,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::OutOfRange);
+
+	// Il rifiuto raggiunge il giocatore con un gesto PROPRIO: ne' «avvicinati» ne' «allontanati».
+	TestEqual(TEXT("l'osservatore legge «altro piano»"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OtherLayer, /*bKnown*/ true),
+		ERTTargetRefusal::OtherLayer);
+
+	// ⛔ E il velo resta PRIMA della geometria: su un bersaglio ignoto non trapela nemmeno il piano.
+	TestEqual(TEXT("su un bersaglio ignoto il rifiuto resta Nothing"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OtherLayer, /*bKnown*/ false),
+		ERTTargetRefusal::Nothing);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

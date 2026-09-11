@@ -35,7 +35,21 @@ enum class ERTHexTargetReason : uint8
 	 * ⛔ **Non e' `OutOfRange` al contrario.** Sono due difetti con due correzioni opposte, e confonderli
 	 * renderebbe il messaggio una bugia — il difetto che `#2766` ha gia' chiuso su questo stesso enum.
 	 */
-	TooClose
+	TooClose,
+
+	/**
+	 * Su un piano diverso da quello di chi agisce (`#2951`, [D-393]): la verticalita' non e' un asse di
+	 * targeting, e i piani si raggiungono MUOVENDOSI, non mirando.
+	 *
+	 * ⛔ **Non e' `OutOfRange`, e confonderli sarebbe peggio che tacere.** `HexDistance` IGNORA il
+	 * `Layer` (`Map/RTHexLibrary.h`), quindi una cella su un altro piano puo' distare 1 ed essere
+	 * comunque inarrivabile: chiamarla «lontana» direbbe al giocatore di avvicinarsi a una cosa che
+	 * nessun avvicinamento sistema. E' lo stesso criterio con cui `TooClose` ha rifiutato di essere
+	 * `OutOfRange` al contrario.
+	 *
+	 * ⚠️ **In coda**, per la disciplina che `TooClose` dichiara: il valore serializzato e' l'indice.
+	 */
+	OtherLayer
 };
 
 /**
@@ -71,7 +85,19 @@ enum class ERTTargetRefusal : uint8
 	 *
 	 * ⚠️ In coda: l'indice e' il dato.
 	 */
-	TooClose
+	TooClose,
+
+	/**
+	 * Su un altro piano — «non da qui» (`#2951`, [D-393]).
+	 *
+	 * 🔑 **Vale un valore proprio perche' nessuno dei tre gesti esistenti e' quello giusto.**
+	 * `Range` dice «avvicinati», `TooClose` dice «allontanati»: sono entrambi movimenti NEL piano, e
+	 * nessuno dei due cambia il piano. `Cover` — «spostati di lato» — sarebbe peggio di tutti, perche'
+	 * prometterebbe che qualcosa interrompe una traiettoria che non e' mai stata costruita.
+	 *
+	 * ⚠️ In coda: l'indice e' il dato.
+	 */
+	OtherLayer
 };
 
 /**
