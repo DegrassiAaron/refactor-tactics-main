@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -373,6 +373,22 @@ struct FRTAbilityCooldownView
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FName ActionId;
+
+	/** La chiave icona PREFERITA: porta il nome dell'abilita' (`Hero.Aevik.Overload` -> `UI.Icon.Action.Overload`).
+	 *
+	 * 🔑 **Derivata nel ViewModel e non nel widget**, per la stessa ragione dei badge di stato:
+	 * `URTIconLibrary` e' l'owner della regola, e comporla in chi disegna sarebbe una seconda verita'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName IconId;
+
+	/** Il RIPIEGO: l'icona della core da cui l'azione deriva, finche' l'asset proprio non esiste.
+	 *
+	 * ⚠️ **`None` per un'abilita' PROPRIA**, che non deriva da nessuna core — e non e' un difetto di questa
+	 * vista: e' un asset da disegnare, e il vuoto qui e' il modo in cui resta visibile (`#2963`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName FallbackIconId;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FText DisplayName;

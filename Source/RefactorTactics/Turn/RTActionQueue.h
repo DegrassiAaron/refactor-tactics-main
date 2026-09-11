@@ -37,8 +37,36 @@ struct FRTActionInstance
 	FRTCellId TargetCell;
 
 	/**
-	 * Ordine di dichiarazione dell'azione nel turno: ULTIMO tie-break dell'ordinamento.
-	 * Serve a rendere l'ordine TOTALE quando tutto il resto coincide — non e' una priorita' nascosta.
+	 * Ordine di dichiarazione dell'azione nel turno. Non e' una priorita' nascosta.
+	 *
+	 * 🔑 **Si conta dove l'istanza NASCE, con un contatore incrementato di suo** (#2970). Non e' una
+	 * preferenza di stile: `Num()` letto su un altro array — o sullo stesso, ma piu' in la' nel ciclo —
+	 * **non e' questo numero**, e i modi di sbagliarlo sono gia' stati misurati tutti e tre:
+	 *
+	 * | Sede | Cosa scriveva | Perche' non spareggiava |
+	 * |---|---|---|
+	 * | `ARTTurnManager::CollectAttackIntents` | `Intents.Num()` | l'`Add` e' duecento righe sotto ed e' condizionato: dopo un `continue` il contatore resta fermo |
+	 * | `ARTTurnManager::ResolveCombatPasses` | `Plan.Hits.Num()` | dentro un range-for su `Plan.Hits` e' una **costante**: ogni istanza usciva con lo stesso numero |
+	 * | `URTReactionLibrary::BuildReactionEvents` | `Events.Num()` | conta gli EVENTI prodotti, e uno spec che non ne produce lascia il contatore fermo |
+	 *
+	 * ⚠️ **Nessuna delle tre produceva un rosso**, e la ragione va detta perche' e' anche il motivo per cui
+	 * sono rimaste: `URTActionQueueLibrary::SortActionInstances` ha un solo chiamante fuori dai test
+	 * (`ARTTurnManager::ResolvePrep`), che era anche l'unico a numerare davvero. La chiave sbagliata stava su
+	 * istanze che nessuno ordinava — inerte, finche' qualcuno non le ordina.
+	 *
+	 * ⚠️ **`ARTTurnManager::ResolvePrep` e' passato al contatore benche' il suo `Instances.Num()` fosse
+	 * corretto**, e non e' pulizia: e' l'unica sede il cui `EventSequence` viene davvero consumato, quindi e'
+	 * anche la sola in cui un `continue` inserito fra la lettura e l'`Add` costerebbe qualcosa. Reggeva per
+	 * adiacenza di due righe, non per costruzione.
+	 *
+	 * ⛔ **Questa convenzione NON ha un gate, e va detto invece di lasciarlo intendere.** Il campo si legge
+	 * solo da `InstanceLess`, e solo le istanze di `ResolvePrep` passano da un sort: i quattro siti restanti
+	 * si possono riportare all'idioma sbagliato con la suite interamente verde. A coprirli servirebbe un test
+	 * che osservi i produttori — cioe' un mondo — e #2970 dichiara di non introdurlo. Il giorno in cui #1818
+	 * desse piu' chiamanti a `SortActionInstances`, quel test diventa necessario prima del refactor, non dopo.
+	 *
+	 * ⛔ **Non e' piu' l'ULTIMO tie-break**, e il commento lo diceva: da #2970 seguono `TargetUnitId`,
+	 * `TargetCell` e `bInterrupted`, perche' cinque chiavi non erano un ordine totale.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	int32 EventSequence = 0;

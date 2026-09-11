@@ -1,4 +1,4 @@
-#include "UI/RTIconLibrary.h"
+﻿#include "UI/RTIconLibrary.h"
 
 #include "RefactorTactics.h"
 #include "Ability/RTActionDef.h"
@@ -22,6 +22,113 @@ FString URTIconLibrary::CategoryName(ERTIconCategory Category)
 {
 	const UEnum* Enum = StaticEnum<ERTIconCategory>();
 	return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Category)) : FString();
+}
+
+bool URTIconLibrary::IsDeclaredIconCategory(const FName& SemanticPath)
+{
+	if (SemanticPath.IsNone())
+	{
+		return false;
+	}
+
+	// Il segmento di categoria e' il primo, e si confronta con l'enum invece che con una lista scritta a mano:
+	// una categoria aggiunta a `ERTIconCategory` entra qui senza che questa riga cambi, ed e' la stessa
+	// disciplina con cui `RequiredIconIds` prende le azioni dal catalogo e non da un elenco.
+	FString Path = SemanticPath.ToString();
+	int32 Dot = INDEX_NONE;
+	if (!Path.FindChar(TEXT('.'), Dot))
+	{
+		return false;
+	}
+	const FString Head = Path.Left(Dot);
+
+	const UEnum* Enum = StaticEnum<ERTIconCategory>();
+	if (Enum == nullptr)
+	{
+		return false;
+	}
+	for (int32 i = 0; i < Enum->NumEnums() - 1; ++i)
+	{
+		if (Enum->GetNameStringByIndex(i) == Head)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FName URTIconLibrary::MakeActionIconId(const FName& ActionId)
+{
+	if (ActionId.IsNone())
+	{
+		return NAME_None;
+	}
+
+	// Gia' in una categoria dichiarata — `Action.Move`, `Reaction.HazardEscape`: nessuna traduzione, e
+	// tradurre comunque romperebbe il caso in cui l'azione **e'** la generica.
+	if (IsDeclaredIconCategory(ActionId))
+	{
+		return MakeIconId(ActionId);
+	}
+
+	// ── Tiene il NOME e sostituisce il prefisso con la categoria: `Hero.Aevik.Overload` -> `Action.Overload`.
+	//
+	// 🔑 **E' la stessa regola gia' scritta per gli `HeroId` in `RequiredIconIds`** (`Hero.Aevik` ->
+	// `Identity.Aevik`), applicata dove mancava. Il commento di quella riga diceva *«e' l'unico punto in cui
+	// la regola ha bisogno di una traduzione»*: non era l'unico, era il primo.
+	//
+	// ⚠️ **Il nome sopravvive, e non e' un dettaglio estetico**: il dock risponde a «quale abilita' e' questa»,
+	// quindi due voci dello stesso kit devono avere chiavi diverse. Tradurre verso la core le farebbe
+	// collassare — `TideGuard` e un secondo scudo mostrerebbero lo stesso disegno.
+	FString Path = ActionId.ToString();
+	int32 LastDot = INDEX_NONE;
+	if (Path.FindLastChar(TEXT('.'), LastDot) && LastDot + 1 < Path.Len())
+	{
+		return MakeIconId(FName(*FString::Printf(TEXT("%s.%s"),
+			*CategoryName(ERTIconCategory::Action), *Path.RightChop(LastDot + 1))));
+	}
+
+	// ⛔ Un id senza punto non ha un nome da estrarre. Non si compone `UI.Icon.Action.` a vuoto: la
+	// risoluzione direbbe «chiave sconosciuta» nominando una chiave che nessuno ha mai dichiarato.
+	return NAME_None;
+}
+
+bool URTIconLibrary::CatalogHasIcon(const URTIconCatalogData* Catalog, const FName& IconId)
+{
+	if (Catalog == nullptr || IconId.IsNone())
+	{
+		return false;
+	}
+
+	for (const FRTIconDef& Icon : Catalog->Icons)
+	{
+		// ⚠️ `!Asset.IsNull()` come in `ResolveIcon`: una voce dichiarata senza asset NON e' un'icona che il
+		// catalogo risolve, e rispondere `true` qui manderebbe il chiamante a chiedere una texture assente
+		// invece che al ripiego.
+		if (Icon.IconId == IconId && !Icon.Asset.IsNull())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FName URTIconLibrary::MakeActionIconFallbackId(const FRTActionDef& Def)
+{
+	// ⚠️ L'ordine non e' indifferente: l'icona segue cio' che l'azione FA, quindi `DerivedFromActionId` —
+	// da dove vengono fase, portata ed effetti — prima di `BaseActionId`, che dice di quale delle sette
+	// generiche l'azione e' il profilo (D-195 li tiene separati apposta).
+	for (const FName& Candidate : { Def.DerivedFromActionId, Def.BaseActionId })
+	{
+		if (!Candidate.IsNone() && IsDeclaredIconCategory(Candidate))
+		{
+			return MakeIconId(Candidate);
+		}
+	}
+
+	// ⛔ `NAME_None` quando l'azione non dichiara nessuno dei due, invece di indovinare dal nome — la regola
+	// del docstring di `BaseActionId`. Un'abilita' PROPRIA non ha un ripiego, e il suo asset va disegnato.
+	return NAME_None;
 }
 
 TArray<FName> URTIconLibrary::RequiredIconIds()

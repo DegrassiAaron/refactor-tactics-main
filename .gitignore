@@ -147,12 +147,26 @@ Content/RT/UI/_Generated/
 # non fa nulla e non segnala nulla, e la seduta si chiude senza che gli artefatti entrino.
 !Content/RT/Maps/Dev/L_HexArena/L_HexArena.umap
 !Content/RT/Maps/Dev/L_HexArena/Data/DA_HexMap_Arena.uasset
-# Materiale delle celle hex (#896): legge `PerInstanceCustomData` come Base Color, ed e' cio' che rende
+# Materiale delle celle hex (#896): legge `PerInstanceCustomData` sull'**Emissive**, ed e' cio' che rende
 # visibile il colore per superficie che `ARTHexMapActor` gia' scrive su ogni istanza. Ammesso QUI, prima che
 # l'asset esista: al contrario `git add` non farebbe nulla e non lo direbbe — e' il difetto che #449 ha
 # corretto per l'arena. L'oracolo e' `git check-ignore -q <file>` -> exit 1; con `-v` esce 0 in entrambi i
 # casi e non distingue.
+# ⌫ Questa riga diceva «come Base Color» fino al 2026-09-11. Era il gemello sopravvissuto della correzione
+# che `RTHexMapActor.cpp:1842` aveva gia' registrato il 2026-08-23: «**Emissive** di `M_HexCell`, non sul
+# Base Color come questo commento ha dichiarato fino al 2026-08-23».
 !Content/RT/Core/Grid/M_HexCell.uasset
+# Riempimento degli overlay tattici (#1944, famiglia OVL #1941-#1944). Stesso canale
+# `PerInstanceCustomData` del materiale qui sopra, ma **Translucent**: RGB sull'Emissive e l'alpha sul
+# **quarto** float. E' cio' che rende visibile `URTOverlayPalette::AlphaFor`, oggi dichiarata e che
+# nessuno disegna — `git grep -c AlphaFor -- Source/RefactorTactics/Map/RTHexMapActor.cpp` -> 0, e la
+# certezza a schermo passa dal tratteggio delle `DrawDebugLine`, che l'alpha lo ignorano.
+# ⛔ **Non e' un'estensione di `M_HexCell`, ed e' voluto.** Quello e' opaco e lo montano i quattro ISM che
+# portano RGB — `Cells`, `SurfaceGlyphs[Ring]`, `PlanGhosts`, `CellBorders` (`CellMaterial`,
+# `RTHexMapActor.h:214`). Cambiargli il blend mode rimetterebbe in discussione PIE-DEBUG-CELLS, che poggia
+# sull'emissive auto-illuminato e indipendente dalla luce di scena (#956).
+# Ammesso QUI prima che l'asset esista, per la stessa ragione dichiarata sopra per l'arena e per `M_HexCell`.
+!Content/RT/Core/Grid/M_HexOverlayFill.uasset
 # I Blueprint-unita' e gli anim BP del roster v0.1 — sedute U7 e U8. Stessa ragione dell'arena qui
 # sopra: riammessi PRIMA che esistano.
 # ⌫ **Il nome e la cartella seguivano il pack Paragon, e dal 2026-09-10 seguono l'identita' RT.**

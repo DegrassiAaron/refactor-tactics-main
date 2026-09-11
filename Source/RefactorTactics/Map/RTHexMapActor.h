@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Map/RTOverlayArea.h" // FRTOverlayArea: le anteprime sono aree semantiche (#1941)
 #include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
@@ -811,18 +812,18 @@ public:
 	void ClearPlaybackFootprint();
 
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
-	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
-	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitCells.Num(); }
-	int32 NumPreviewReachableCells() const { return PreviewReachable.Num(); }
+	int32 NumPreviewHitCells() const { return PreviewHitArea.Cells.Num(); }
+	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitArea.Cells.Num(); }
+	int32 NumPreviewReachableCells() const { return PreviewReachableArea.Cells.Num(); }
 	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
 	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
 
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
-	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitCells.Contains(Cell); }
+	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle colpite **e** occupata da un alleato (test del fuoco amico). */
-	bool IsPreviewAllyHitCell(const FRTCellId& Cell) const { return PreviewAllyHitCells.Contains(Cell); }
+	bool IsPreviewAllyHitCell(const FRTCellId& Cell) const { return PreviewAllyHitArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente (test). */
-	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachable.Contains(Cell); }
+	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachableArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' nell'impronta di playback corrente (test). */
 	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
 
@@ -831,7 +832,7 @@ public:
 	bool IsHoveredCellValid() const { return bHoveredValid; }
 
 	/** Numero di celle nella traccia di anteprima (diagnostica e test). */
-	int32 NumPreviewPathCells() const { return PreviewPath.Num(); }
+	int32 NumPreviewPathCells() const { return PreviewPathArea.Cells.Num(); }
 
 	/**
 	 * Overlay di LEGGIBILITA': disegna ogni cella col colore della sua superficie, con marcatori distinti per
@@ -911,15 +912,28 @@ protected:
 	/** Falso = niente evidenziazione (cursore fuori dalla mappa). */
 	bool bHoveredValid = false;
 
-	/** Traccia del percorso pianificato, impostata dal controller. */
-	TArray<FRTCellId> PreviewPath;
-
-	/** Celle colpite dall'attacco pianificato, impostate dal controller (sola presentazione). */
-	TArray<FRTCellId> PreviewHitCells;
-	/** Sottoinsieme di `PreviewHitCells` occupato da alleati: fuoco amico, disegnato in arancione. */
-	TArray<FRTCellId> PreviewAllyHitCells;
-	/** Celle raggiungibili dall'unita' selezionata, impostate dal controller (sola presentazione). */
-	TArray<FRTCellId> PreviewReachable;
+	/**
+	 * Le quattro aree d'anteprima, TIPIZZATE — `#1941`, casella 1 della sua DoD.
+	 *
+	 * 🔑 **Erano `TArray<FRTCellId>` nudi, e il tipo che le descrive esisteva gia'.** `FRTOverlayArea`
+	 * porta il significato, la certezza e — derivato dalle celle — il piano; `URTOverlayPalette` decide
+	 * colore, scala, priorita' e profondita' a partire dal significato. Finche' i produttori passavano
+	 * array nudi, il significato viveva **nel punto di disegno**: `DrawPlanningPreview` lo riappiccicava a
+	 * ogni ciclo, e un quinto significato sarebbe nato come un quinto ciclo invece che come un dato.
+	 *
+	 * ⛔ **Questo non cambia niente di osservabile, ed e' voluto.** Le stesse celle, gli stessi colori, lo
+	 * stesso ordine: cio' che cambia e' che il prossimo consumatore — l'*area fill* aggregata di `#1944` —
+	 * trova un tipo invece di quattro array e un lambda.
+	 *
+	 * ⚠️ **`Source` resta `NAME_None` e non e' una dimenticanza**: nessun chiamante ha oggi un'identita' da
+	 * passare, e sceglierne una qui — unita'? azione? sistema? — sarebbe inventare una convenzione che il
+	 * docstring del tipo lascia aperta. Entra col chiamante che ne ha una.
+	 */
+	FRTOverlayArea PreviewPathArea;
+	FRTOverlayArea PreviewHitArea;
+	/** Sottoinsieme di `PreviewHitArea` occupato da alleati: fuoco amico. */
+	FRTOverlayArea PreviewAllyHitArea;
+	FRTOverlayArea PreviewReachableArea;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
 	/**
@@ -948,7 +962,7 @@ protected:
 	/**
 	 * Celle investite dai colpi gia' risolti, mostrate durante il playback (`#2454`).
 	 *
-	 * ⚠️ Separato da `PreviewHitCells` **per ciclo di vita**, non per grammatica: il colore e' lo stesso
+	 * ⚠️ Separato da `PreviewHitArea` **per ciclo di vita**, non per grammatica: il colore e' lo stesso
 	 * `ERTOverlayMeaning::Attack`, perche' l'area colpita significa la stessa cosa prima e dopo. Ciò che
 	 * cambia e' chi la spegne.
 	 */
