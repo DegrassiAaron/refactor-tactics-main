@@ -7,6 +7,7 @@
 #include "Ability/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
 #include "UI/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
+#include "Player/RTPlayerController.h" // HotkeyLabelForKitIndex: il tasto si legge dalla tabella (#2987)
 #include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
@@ -319,8 +320,28 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 	{
 		const URTActionData* Action = Unit->GetAbility(Index);
+
+		// 🔴 **Una posizione vuota produce una RIGA, non un salto** (`#2987`). Il `continue` che stava qui
+		// accorciava l'array, e la posizione visiva si scollava da quella di kit — mentre il tasto continua
+		// a significare *«la posizione N»*: `OnAbility6` chiama `SelectAbilityForCurrent(5)` comunque.
+		// Saltare rendeva il sesto riquadro e il tasto `6` due cose diverse, senza che niente lo dicesse.
+		//
+		// ⚠️ **E rendeva VACUA l'asserzione che la difende**: `CooldownsMirrorTheSimulator` chiede
+		// `Num() == NumAbilities()` e `[i].AbilityIndex == i`, e gira su un kit senza buchi — cioe' pinnava
+		// il contratto esattamente nel caso in cui era gia' vero.
+		//
+		// 🔑 Il segnaposto porta **l'indice e il tasto**: sono le due cose vere anche di una posizione
+		// vuota — il tasto la preme lo stesso, e `SelectAbilityForCurrent` la rifiuta da li'. `ActionId`
+		// resta `None`, ed e' cio' da cui chi disegna riconosce il vuoto.
 		if (!Action)
 		{
+			FRTAbilityCooldownView Empty;
+			Empty.AbilityIndex = Index;
+			Empty.HotkeyLabel = ARTPlayerController::HotkeyLabelForKitIndex(Index);
+			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
+			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
+			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
+			Cooldowns.Add(Empty);
 			continue;
 		}
 
@@ -332,6 +353,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		View.FallbackIconId = URTIconLibrary::MakeActionIconFallbackId(Action->Def);
 		View.DisplayName = Action->DisplayName;
 		View.AbilityIndex = Index;
+		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`):
+		// e' la stessa disciplina delle due chiavi icona qui sopra — l'owner della regola risponde, chi
+		// disegna riceve.
+		View.HotkeyLabel = ARTPlayerController::HotkeyLabelForKitIndex(Index);
 		View.Slot = Action->Def.Slot;
 
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista

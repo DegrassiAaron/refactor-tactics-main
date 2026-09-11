@@ -46,8 +46,14 @@ bool FRTHudAbilityLineReasonTest::RunTest(const FString&)
 	Ability.AbilityIndex = 0;
 	Ability.DisplayName = FText::FromString(TEXT("Scatto"));
 	Ability.bUsableNow = true;
+	// 🔑 **Il tasto si DICHIARA, e prima si deduceva da `AbilityIndex`** (`#2987`). Comporlo qui è ciò che
+	// rende questo test cieco al difetto che `ComposeAbilityLine` aveva: finché la riga calcolava
+	// `Index + 1`, una vista con `AbilityIndex = 0` produceva `1.` **qualunque** tabella di binding
+	// esistesse. Ora la riga porta ciò che la vista dichiara, e chi la dichiara è `BuildAbilityCooldowns`
+	// leggendo `AbilityHotkeys()`.
+	Ability.HotkeyLabel = FText::FromString(TEXT("1"));
 
-	// Il numero mostrato è 1-based: è la scorciatoia che il giocatore preme, non l'indice del kit.
+	// Il tasto viene dalla vista, non dall'indice: è la scorciatoia che il giocatore preme.
 	TestEqualSensitive(TEXT("pronta: numero e nome, nessun motivo"),
 		ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ false).Text,
 		FString(TEXT("1. Scatto")));
@@ -99,6 +105,7 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	Ability.AbilityIndex = 2;
 	Ability.DisplayName = FText::FromString(TEXT("Guardia"));
 	Ability.bUsableNow = true;
+	Ability.HotkeyLabel = FText::FromString(TEXT("3")); // dichiarato, non dedotto da `AbilityIndex` (#2987)
 
 	const FRTHudTextLine Armata = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ true);
 	TestEqualSensitive(TEXT("armata: il prefisso davanti al numero"),

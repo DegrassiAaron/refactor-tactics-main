@@ -371,6 +371,19 @@ struct FRTAbilityCooldownView
 {
 	GENERATED_BODY()
 
+	/**
+	 * L'azione, o `None` quando la posizione di kit **e' vuota**.
+	 *
+	 * 🔑 **`None` e' uno stato dichiarato, non un dato mancante** (`#2987`). Fino a quel punto
+	 * `BuildAbilityCooldowns` **saltava** le posizioni senza azione, e l'array usciva piu' corto del kit:
+	 * la posizione visiva si scollava da quella di kit, mentre `SelectAbilityForCurrent(5)` continuava a
+	 * significare *«la posizione 5»*. Il tasto e il riquadro smettevano di essere la stessa cosa, in
+	 * silenzio.
+	 *
+	 * ∴ **una riga per ogni posizione del kit, sempre**: `Cooldowns.Num() == Unit->NumAbilities()` e
+	 * `Cooldowns[i].AbilityIndex == i` valgono per costruzione, non solo sui kit che non hanno buchi. Chi
+	 * disegna riconosce la posizione vuota da questo campo.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FName ActionId;
 
@@ -396,6 +409,25 @@ struct FRTAbilityCooldownView
 	/** Indice nel kit dell'unita': e' cio' che l'hotkey arma, quindi il widget ne ha bisogno. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 AbilityIndex = INDEX_NONE;
+
+	/**
+	 * L'etichetta del TASTO che arma questa posizione (`0`, `7`, …), **vuota** quando nessuno la raggiunge.
+	 *
+	 * 🔴 **Derivata qui e non da chi disegna, ed e' una CORREZIONE** (`#2987`). `ComposeAbilityLine`
+	 * scriveva `AbilityIndex + 1`: per la posizione `9` diceva **«10.»**, mentre `AbilityHotkeys()` chiude
+	 * con `EKeys::Zero` e il tasto e' **`0`**. L'aritmetica non interrogava la tabella, quindi le due
+	 * divergevano — e divergevano sull'unica posizione che il giocatore non puo' verificare altrove.
+	 *
+	 * ⚠️ **Vuota e' un valore, non un dato mancante**: e' la risposta per una posizione che nessun tasto
+	 * numerico preme — il caso che `GenericHotkeys()` dichiara, *«un eroe con sei azioni porta il kit a
+	 * undici voci contro i dieci tasti numerici»*. Chi disegna mostra il tasto **solo** se c'e'.
+	 *
+	 * ⛔ **Non porta il tasto GENERICO** (`G` `B` `C` `X` `Z`): quale dei due binding mostrare per
+	 * un'universale e' una decisione aperta (`#2990`), e un campo che la anticipasse la deciderebbe di
+	 * fatto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText HotkeyLabel;
 
 	/** Quale slot consuma: il pannello raggruppa per slot, non per ordine nel kit. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
