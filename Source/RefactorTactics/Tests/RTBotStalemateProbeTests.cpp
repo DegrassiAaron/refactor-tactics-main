@@ -998,16 +998,25 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 		Before.SameTeamContestsWithSameDestination),
 		Before.SameTeamContestsWithSameDestination > 0);
 
-	// ⚠️ **L'altra meta' non resta scoperta, e il predicato guarda `After`.** Le collisioni di percorso sono
-	// fuori dalla portata della prenotazione delle destinazioni — questo file lo dichiara cinquanta righe
-	// sopra — ma se sparissero anche loro, `ContestsWithSameDestination == 0` diventerebbe vero per assenza
-	// di contese e non per merito della prenotazione: il test direbbe il falso restando verde.
+	// ⌨ **QUI C'ERA `After.ContestsWithDifferentDestination > 0`, ed e' stata TOLTA il 2026-09-11** (`#2951`).
 	//
-	// 🔴 Scritto la prima volta su `Before`, che e' l'altra run: non poteva rilevare il difetto che nomina.
-	TestTrue(FString::Printf(
-		TEXT("e nella run con prenotazione restano contese di percorso: %d (prima ce n'erano %d)"),
-		After.ContestsWithDifferentDestination, Before.ContestsWithDifferentDestination),
-		After.ContestsWithDifferentDestination > 0);
+	// Prometteva di togliere la vacuita': *«se le collisioni di percorso sparissero, `== 0` diventerebbe
+	// vero per assenza di contese e non per merito della prenotazione»*. 🔑 **Ma la vacuita' e' gia'
+	// esclusa quattro volte** — dalle due premesse su `Before`, dal tetto qui sotto, e da «le unita' si
+	// muovono davvero», che e' precisamente cio' che distingue «nessuna contesa» da «nessuno si muove».
+	//
+	// 🔴 **Cio' che asseriva davvero era un LIMITE della feature**, non un suo merito: che la
+	// prenotazione delle destinazioni non raggiunga le collisioni di rotta. La misura lo contraddice —
+	// fra COMPAGNI vanno da 12 a 0 — e il difetto era gia' visibile in questo file, che due paragrafi
+	// sotto osserva come quell'asserzione sia *«addirittura PIU' soddisfatta quanto peggio va»*.
+	//
+	// ⚠️ **E reggeva per caso.** Su `origin/main` era soddisfatta da **una sola** collisione, e quella
+	// era fra AVVERSARI — la categoria che questo file dichiara fuori dalla portata della feature. Le due
+	// collisioni fra compagni che [#1088] aveva misurato il 2026-08-22 erano gia' sparite, e nessuno se
+	// n'era accorto perche' il contatore letto conta anche gli avversari.
+	//
+	// 🔑 `SameTeamContestsWithDifferentDestination` nasce da qui e **resta**: e' lo strumento con cui
+	// quell'erosione si e' vista, e senza di lui la prossima passerebbe di nuovo inosservata.
 
 	// ⚠️ **Un tetto sul TOTALE, che si era perso.** `After.Contests == 0` e' stato tolto perche' pretendeva
 	// zero contese di ogni specie — anche quelle fra avversari, che la prenotazione non previene. Ma
