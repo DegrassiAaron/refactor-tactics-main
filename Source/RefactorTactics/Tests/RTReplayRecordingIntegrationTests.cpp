@@ -6,6 +6,7 @@
 #include "Turn/RTMatchFormatData.h"
 #include "Turn/RTMatchFormatLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
+#include "Replay/RTReplayStateLibrary.h"
 #include "Unit/RTUnit.h"
 #include "RTGameMode.h"
 #include "Map/RTHexMapActor.h"
@@ -266,5 +267,116 @@ bool FRTReplaySetupWithoutBeginPlayTest::RunTest(const FString&)
 	DestroyRecWorld(World);
 	return true;
 }
+
+/**
+ * 🔴 **Il test 8 di `#2914`: la traccia regge quando un arco dura piu' di un micro-step.**
+ *
+ * `FRTTurnLogEntry::MicroStepIndex` e' **serializzato** (`ERTTurnLogFormatVersion::WithMicroStep`) e fa parte
+ * del boundary `(TurnNumber, Phase, MicroStepIndex)` su cui il replay indicizza. Con [D-381] il numero di
+ * micro-step di un turno non e' piu' il numero di celle percorse: e' la **somma dei costi d'ingresso**.
+ *
+ * ⚠️ **Nessuno dei tre test di replay esistenti esercita terreno costoso** — misurato: `MoveCost = [2-9]` da'
+ * `0` occorrenze in `RTReplayPlayerTests`, `RTReplayProducerTests` e in questo file. Giravano tutti su
+ * pavimento a costo `1`, dove un arco vale un micro-step e la distinzione non esiste.
+ *
+ * 🔑 **Cosa misura, e cosa NON misura.** Misura che una risoluzione con durate variabili produca una traccia
+ * **rileggibile**: stesse celle finali ricostruite dalla traccia e dallo stato vivo. ⛔ Non misura il seek per
+ * micro-step — quello ha i suoi test su tracce sintetiche — e non aggiunge lo scenario al corpus golden, che
+ * resta una decisione con il suo costo di rigenerazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayCostlyTerrainRoundTripTest,
+	"RefactorTactics.Replay.Recording.CostlyTerrainSurvivesTheRoundTrip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayCostlyTerrainRoundTripTest::RunTest(const FString&)
+{
+	UWorld* World = MakeRecWorld();
+	if (!TestNotNull(TEXT("mondo creato"), World)) { return false; }
+
+	// Arena con una cella CARA sul percorso: e' l'unica differenza rispetto agli altri test di replay.
+	URTHexMapAsset* M = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), /*Radius=*/ 4);
+	const FRTCellId Costosa(0, 0, 0);
+	int32 CelleCare = 0;
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == Costosa) { Cell.MoveCost = 3; ++CelleCare; }
+	}
+	// Premessa misurata: senza la cella cara questo test girerebbe come gli altri tre, e sarebbe un doppione.
+	if (!TestEqual(TEXT("premessa: l'arena dichiara la cella cara"), CelleCare, 1))
+	{
+		DestroyRecWorld(World);
+		return false;
+	}
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = M;
+
+	ARTUnit* Mover = SpawnRecUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-1, 0, 0));
+	ARTUnit* Altro = SpawnRecUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0, 0));
+	if (!TestNotNull(TEXT("mover"), Mover) || !TestNotNull(TEXT("avversario"), Altro))
+	{
+		DestroyRecWorld(World);
+		return false;
+	}
+	Mover->bIsBotControlled = false;
+	Altro->bIsBotControlled = false;
+
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("TurnManager"), TM)) { DestroyRecWorld(World); return false; }
+	TM->DispatchBeginPlay();
+
+	// Il mover attraversa la cella cara e prosegue: due archi, di cui uno da tre micro-step.
+	Mover->PlannedPath = { FRTCellId(-1, 0, 0), Costosa, FRTCellId(1, 0, 0) };
+	Mover->PlannedCell = FRTCellId(1, 0, 0);
+
+	// ⚠️ `ResolveMovement` e' `protected`. La terna pubblica — `Begin`/`Advance`/`Finish` — **e' cio' che
+	// quella funzione esegue**, e non una seconda implementazione: guidarla a mano da qui e' la stessa
+	// risoluzione, con in piu' la possibilita' di contare i micro-step.
+	TM->BeginMovementResolution();
+	int32 MicroStep = 0;
+	while (TM->AdvanceMovementResolution() == ERTMovementAdvanceResult::Advanced && MicroStep < 64)
+	{
+		++MicroStep;
+	}
+	TM->FinishMovementResolution();
+
+	// 🔑 **La prova che le durate sono ATTIVE su questo percorso**: due archi, di cui uno su una cella a
+	// costo 3, valgono piu' di due micro-step. Senza questa riga il round-trip qui sotto sarebbe verde
+	// anche su una risoluzione che le ignora — cioe' misurerebbe il replay e non il caso che lo mette alla
+	// prova.
+	TestTrue(FString::Printf(TEXT("il costo del terreno allunga la risoluzione: %d micro-step per 2 archi"),
+		MicroStep), MicroStep > 2);
+
+	const TArray<FRTTurnLogEntry> Traccia = TM->GetTurnLog();
+	TestTrue(TEXT("la risoluzione ha lasciato una traccia"), Traccia.Num() > 0);
+
+	// 🔑 **Il round-trip**: lo stato ricostruito DALLA TRACCIA deve dire dove sta l'unita' quanto lo stato
+	// vivo. Se la durata variabile rompesse l'indicizzazione, questa e' la riga che cade.
+	// ⚠️ `UnitsAtEnd` ricostruisce PARTENDO da uno stato iniziale: la traccia porta i delta, non le posizioni
+	// assolute. Lo stato iniziale e' dove le unita' stavano PRIMA della risoluzione.
+	TArray<FRTTracedUnitState> Iniziale;
+	{
+		FRTTracedUnitState S;
+		S.UnitId = Mover->StableUnitId;
+		S.Cell = FRTCellId(-1, 0, 0);
+		Iniziale.Add(S);
+	}
+	const TArray<FRTTracedUnitState> Ricostruito =
+		URTReplayStateLibrary::UnitsAtEnd(Traccia, Iniziale);
+
+	const FRTTracedUnitState* Stato = Ricostruito.FindByPredicate(
+		[Mover](const FRTTracedUnitState& S) { return S.UnitId == Mover->StableUnitId; });
+
+	if (TestNotNull(TEXT("la traccia conosce il mover"), Stato))
+	{
+		TestEqual(TEXT("la cella ricostruita e' quella viva"), Stato->Cell, Mover->Cell);
+	}
+
+	// ⚠️ **E il mover si e' MOSSO davvero**: senza questa riga il round-trip sarebbe verde anche su
+	// un'unita' rimasta ferma, cioe' su una traccia che non racconta nulla.
+	TestNotEqual(TEXT("premessa: non e' rimasto alla partenza"), Mover->Cell, FRTCellId(-1, 0, 0));
+
+	DestroyRecWorld(World);
+	return true;
+}
+
 
 #endif // WITH_DEV_AUTOMATION_TESTS

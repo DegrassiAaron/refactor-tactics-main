@@ -2619,6 +2619,149 @@ bool FRTMovementSlideCellsDoNotPayTerrainDurationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **`MOV-7` si risponde qui: nessuna combinazione di durate produce un conflitto d'ARCO che l'occupancy
+ * non veda gia'** (`#2914`).
+ *
+ * La voce chiede se serva una *reservation* degli archi. Il candidato che la motivava — due transiti che si
+ * sovrappongono **parzialmente** sullo stesso arco in versi opposti — cade sotto [D-383]: entrambe le unita'
+ * restano sulla propria origine, entrambe sono `Moving`, e la catena si chiude.
+ *
+ * 🔑 **Ma «cade quel candidato» non e' «non ne esistono altri», ed e' la differenza che questo test misura.**
+ * Esercita l'head-on su **nove** combinazioni di durate — dalla simmetrica alla piu' sbilanciata — e pretende
+ * lo stesso esito in tutte. Se una sola combinazione producesse un attraversamento, o due reason code diversi,
+ * la reservation avrebbe un caso e `MOV-7` un lavoro.
+ *
+ * ⛔ **Perche' un arco non puo' essere conteso, dato [D-382]**: un'unita' e' sempre SU una cella — sulla
+ * propria origine finche' non completa. Due unita' non possono quindi «incrociarsi a meta' arco»: o vanno
+ * verso la cella dell'altra (ciclo), o verso celle diverse (nessun contatto). L'arco non e' una risorsa che
+ * qualcuno occupa, ed e' per questo che non serve prenotarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementNoArcConflictEscapesOccupancyTest,
+	"RefactorTactics.Movement.NoArcConflictEscapesOccupancy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementNoArcConflictEscapesOccupancyTest::RunTest(const FString&)
+{
+	const FRTCellId X(0, 0), Y(1, 0);
+
+	// Dalla simmetrica (1,1) alla piu' sbilanciata (1,5): se un varco esistesse, vivrebbe in una di queste.
+	const int32 Combos[][2] = { {1,1}, {1,2}, {2,1}, {1,4}, {4,1}, {2,3}, {3,2}, {1,5}, {5,1} };
+
+	for (const int32(&Combo)[2] : Combos)
+	{
+		TArray<TArray<FRTCellId>> Paths;
+		Paths.Add({ X, Y });
+		Paths.Add({ Y, X });
+
+		TArray<TArray<int32>> Durations;
+		Durations.Add({ Combo[0] });
+		Durations.Add({ Combo[1] });
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+		const FString Caso = FString::Printf(TEXT("durate %d/%d"), Combo[0], Combo[1]);
+
+		// 1. Nessuna delle due attraversa: e' l'esito che [D-295] impone, e che una reservation servirebbe a
+		//    ottenere se l'occupancy non ci arrivasse gia'.
+		TestTrue(*FString::Printf(TEXT("%s: nessuna ha percorso celle"), *Caso),
+			Out[0].Entered.Num() == 0 && Out[1].Entered.Num() == 0);
+
+		// 2. E lo stesso reason code su entrambe: un conflitto solo, non due.
+		TestEqual(*FString::Printf(TEXT("%s: ciclo per la prima"), *Caso),
+			Out[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+		TestEqual(*FString::Printf(TEXT("%s: ciclo per la seconda"), *Caso),
+			Out[1].Outcome, ERTMoveOutcome::BlockedByCycle);
+	}
+
+	// 🔑 **Il controllo che rende il test non vacuo**: su celle DIVERSE le stesse durate sbilanciate non
+	// bloccano nulla. Senza questa riga «tutto blocca sempre» passerebbe per un resolver rotto che ferma
+	// chiunque.
+	{
+		TArray<TArray<FRTCellId>> Liberi;
+		Liberi.Add({ FRTCellId(0, 3), FRTCellId(1, 3) });
+		Liberi.Add({ FRTCellId(0, 6), FRTCellId(1, 6) });
+
+		TArray<TArray<int32>> D;
+		D.Add({ 1 });
+		D.Add({ 5 });
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Liberi, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), D);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+		TestEqual(TEXT("controllo: su corsie separate le stesse durate lasciano passare"),
+			Out[0].Outcome, ERTMoveOutcome::Moved);
+		TestEqual(TEXT("controllo: anche la piu' lenta"), Out[1].Outcome, ERTMoveOutcome::Moved);
+	}
+	return true;
+}
+
+/**
+ * 🔴 **L'oracolo di [D-384], nella forma in cui e' scrivibile — e la misura che ne restringe la portata**
+ * (`#2914`).
+ *
+ * `D-384` dice che lo spostamento **forzato** dura un micro-step per cella e non legge il costo del terreno.
+ * Misurando `ARTTurnManager::ApplyForcedDisplacement` si scopre pero' che quella famiglia **non genera
+ * micro-step affatto**: calcola `URTHexLibrary::HexLine(OldCell, NewCell)` e chiama `ApplyOnEnter` sulle celle
+ * attraversate, fuori dal ciclo del resolver. Push, knockback, fuga e caduta risolvono nel `Blast` o nel
+ * `Cleanup`, non nel `Move`.
+ *
+ * ∴ per quella meta' del `Forced` la durata non e' *«un micro-step per cella»*: e' **nessun micro-step**, e un
+ * oracolo su un tempo che non esiste sarebbe un test vacuo.
+ *
+ * ⚠️ **Cio' che resta misurabile e' lo SCIVOLAMENTO**, che e' spostamento subito e **passa** dal resolver:
+ * `ApplyIceSliding` accoda la cella al percorso, che poi attraversa i micro-step come il resto. E' li' che
+ * `D-384` ha un contenuto osservabile, ed e' quello che questo test pinna END-TO-END sul percorso reale —
+ * `Movement.SlideCellsDoNotPayTerrainDuration` lo fa sulla funzione pura, questo sulla catena che la usa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementForcedHasNoTerrainDurationTest,
+	"RefactorTactics.Movement.ForcedHasNoTerrainDuration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementForcedHasNoTerrainDurationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	const FRTCellId Start(0, 0), Planned(1, 0), Slide(2, 0);
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == Slide) { Cell.MoveCost = 4; }   // la cella di scivolamento e' la piu' cara della mappa
+	}
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(0, Start, 10));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	// Il percorso come `ResolveMovement` lo costruisce: due celle chieste dal giocatore, la terza aggiunta
+	// dal terreno. `PlannedLength` conta le CELLE, partenza inclusa.
+	const TArray<FRTCellId> Path = { Start, Planned, Slide };
+	const TArray<int32> Durations = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path, /*PlannedLength*/ 2);
+
+	TArray<TArray<FRTCellId>> Paths;   Paths.Add(Path);
+	TArray<TArray<int32>> AllDur;      AllDur.Add(Durations);
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), AllDur);
+
+	// Due micro-step in tutto: uno per la cella pianificata, uno per lo scivolamento — che di suo ne
+	// costerebbe QUATTRO.
+	int32 Ticks = 0;
+	while (URTHexSimLibrary::ResolveNextHexMicroStep(State)) { ++Ticks; }
+
+	TestEqual(TEXT("due micro-step: il piano e lo scivolamento, uno ciascuno"), Ticks, 2);
+
+	// 🔑 **Il controllo positivo, dentro il test**: la stessa cella, se fosse PIANIFICATA, ne costerebbe
+	// quattro. Senza questo confronto «due micro-step» non direbbe che lo scivolamento e' stato scontato —
+	// direbbe solo che il percorso e' corto.
+	const TArray<int32> SePianificata = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path, /*PlannedLength*/ 3);
+	TestEqual(TEXT("la stessa cella, pianificata, costerebbe quattro micro-step"),
+		SePianificata.Num() == 2 ? SePianificata[1] : -1, 4);
+	TestEqual(TEXT("e come scivolamento ne costa uno"),
+		Durations.Num() == 2 ? Durations[1] : -1, 1);
+	return true;
+}
+
+
 // ⚠️ **L'`#endif` della guardia deve restare l'ULTIMA riga del file** (`#2955`).
 // Ci sono cascato due volte in due giorni: `#2940` ha aggiunto il blocco di `#2914` dopo l'`#endif` in
 // `RTHexSimTests.cpp`, e `#2955` ha ripetuto l'errore qui. In Editor e Development
