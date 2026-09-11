@@ -222,6 +222,7 @@ fossero un dato).
 | `Maps/Dev/L_Prototype/L_Prototype.umap` | Mappa | — | ✅ committato |
 | `Core/Framework/BP_GameMode.uasset` | Framework | — | ✅ committato |
 | `Core/Grid/M_HexCell.uasset` | Materiale griglia | — | ✅ committato |
+| `Core/Grid/M_HexOverlayFill.uasset` | Materiale overlay | — | ✅ committato |
 | `Art/GlobalMaterials/M_Global_Tint.uasset` | Materiale globale | — | ✅ committato |
 | `UI/Framework/WBP_RT_FallbackBanner.uasset` | Frontend | **U24** | ✅ committato |
 | `UI/Framework/WBP_RT_ErrorModal.uasset` | Frontend | **U24** | ✅ committato |
@@ -247,9 +248,15 @@ fare»*, e la differenza va letta.
 > *(Vero dal 2026-08-31 al 2026-09-05. La riga d'allowlist era stata scritta nell'ordine giusto; è caduta la
 > **via**, non l'ordine.)*
 
-⚠️ **`M_HexCell.uasset` non è rivendicato da nessuna seduta.** È in allowlist e committato, ma
-`editor-sessions.yaml` non lo nomina: come i cinque path storici marcati `—`, esiste senza che una
-seduta ne risponda. Non è un difetto da correggere qui — è un buco della fonte, e si chiude lì.
+⚠️ **I due materiali di `Core/Grid` non sono rivendicati da nessuna seduta.** `M_HexCell.uasset` e
+`M_HexOverlayFill.uasset` sono in allowlist e committati, ma `editor-sessions.yaml` non li nomina: come
+i cinque path storici marcati `—`, esistono senza che una seduta ne risponda. Non è un difetto da
+correggere qui — è un buco della fonte, e si chiude lì.
+>
+> ⌫ *Fino al 2026-09-11 questa nota parlava del solo `M_HexCell`. `M_HexOverlayFill` è nato il
+> 2026-09-11 da [#1944](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1944) (PR
+> [#2979](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2979)) — da una **issue**, non da
+> una seduta numerata, che è la stessa forma del buco.*
 
 ### 2.1 Famiglie attese che non hanno una riga d'allowlist
 
