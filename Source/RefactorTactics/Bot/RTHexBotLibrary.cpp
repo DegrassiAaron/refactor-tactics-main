@@ -14,6 +14,26 @@
 namespace
 {
 	/**
+	 * Due celle sono ingaggiabili solo se stanno sullo STESSO piano — `#2951`, [D-393].
+	 *
+	 * 🔑 **E' lo SPECCHIO di `URTCombatLibrary::ClassifyHexTargeting`, non una seconda regola.**
+	 * Il gate rifiuta `From.Layer != To.Layer`; se questo file non lo rifiutasse, il bot proporrebbe
+	 * attacchi che il gate scarta — lo stesso disaccordo che il commento di `Hero.Branth.MortarShot`
+	 * documenta per la portata: «Lo specchio si scrive in ENTRAMBI i posti».
+	 *
+	 * ⚠️ **Serve anche dove si misura la MINACCIA, non solo dove si attacca.** Un nemico su un
+	 * altro piano non puo' colpire questa cella: contarlo come minaccia farebbe evitare celle sicure, e
+	 * non contarlo dove si spara farebbe proporre mosse illegali. La stessa regola risponde a entrambe.
+	 *
+	 * ⛔ **Non e' un doppione di `HexDistance`**: quella funzione IGNORA il `Layer`
+	 * (`Map/RTHexLibrary.h`), quindi due celle su piani diversi possono distare 1.
+	 */
+	bool SamePlane(const FRTCellId& A, const FRTCellId& B)
+	{
+		return A.Layer == B.Layer;
+	}
+
+	/**
 	 * Quanti PASSI separano davvero due celle sul grafo della mappa.
 	 *
 	 * 🔴 **E' lo strato 1 di #1287, che quel fix ha nominato e non ha toccato.** Il suo consuntivo scrive
@@ -375,6 +395,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 		// no: quello lo si paga in passi, ed e' la correzione dello strato 1 di #1287.
 		const int32 Dist = URTHexLibrary::HexDistance(Plan.DestCell, Context.Enemies[I]);
 		if (Dist <= Context.EnemyRanges[I]
+			&& SamePlane(Context.Enemies[I], Plan.DestCell) // [D-393]: da un altro piano non ti colpisce
 			&& URTHexVisionLibrary::HasLineOfSight(Map, Context.Enemies[I], Plan.DestCell))
 		{
 			Score -= Context.WThreat; // sotto tiro E in linea di vista di questo nemico (la copertura protegge)
@@ -482,7 +503,11 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 	{
 		for (const FRTCellId& Enemy : Context.Enemies)
 		{
-			if (URTHexVisionLibrary::HasLineOfSight(Map, Plan.DestCell, Enemy))
+			// ⚠️ Il piano prima della linea: una cella da cui non si puo' bersagliare nessuno non vale
+			// il bonus d'ingaggio, o salire diventerebbe un modo di prendere punti senza combattere
+			// ([D-393]).
+			if (SamePlane(Plan.DestCell, Enemy)
+				&& URTHexVisionLibrary::HasLineOfSight(Map, Plan.DestCell, Enemy))
 			{
 				// Una volta sola: e' «posso ingaggiare», non «quanti ne vedo». Contare i nemici visti
 				// renderebbe il termine una seconda misura del focus-fire, che ha gia' il suo peso.
@@ -628,6 +653,14 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 				> URTTerrainLibrary::EffectiveTargetingRange(Snapshot.Map, Cell.Cell, Enemy, Context.AttackRange))
 			{
 				continue; // fuori gittata da questa cella
+			}
+			// ⛔ **Il piano, nello stesso ordine del gate** (`#2951`, [D-393]): dopo la gittata e prima
+			// della linea. Senza, il bot proporrebbe un attacco che `ClassifyHexTargeting` rifiuta, e
+			// l'invariante che la gittata difende qui sopra — «il bot non propone mosse illegali» — vale
+			// identica per il `Layer`.
+			if (!SamePlane(Cell.Cell, Enemy))
+			{
+				continue; // altro piano: la verticalita' non e' un asse di targeting
 			}
 			if (!URTHexVisionLibrary::HasLineOfSight(Snapshot.Map, Cell.Cell, Enemy))
 			{
@@ -818,6 +851,7 @@ int32 URTHexBotLibrary::ScoreReaction(const URTHexMapAsset* Map, const FRTAction
 	{
 		const int32 Reach = Context.EnemyRanges.IsValidIndex(EnemyIndex) ? Context.EnemyRanges[EnemyIndex] : 0;
 		return URTHexLibrary::HexDistance(Context.Enemies[EnemyIndex], Cell) <= Reach
+			&& SamePlane(Context.Enemies[EnemyIndex], Cell) // [D-393]
 			&& URTHexVisionLibrary::HasLineOfSight(Map, Context.Enemies[EnemyIndex], Cell);
 	};
 

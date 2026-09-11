@@ -1329,4 +1329,60 @@ bool FRTHexBotExposureZeroTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// LO SPECCHIO DEL PIANO: il bot non propone cio' che il gate rifiuta (`#2951`, [D-393])
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il bot non propone un attacco che `URTCombatLibrary::ClassifyHexTargeting` rifiuterebbe.
+ *
+ * 🔑 **E' l'invariante che la gittata difende gia' in `BuildCandidates`** — *«il bot non propone
+ * mosse illegali»* — applicata al `Layer`. Senza, una piattaforma darebbe al bot bersagli che il gate
+ * scarta: slot spesi, nessun effetto, e il parcheggio che i tre gate anti-stallo misurano.
+ *
+ * ⛔ **La seconda asserzione e' la meta' falsificante**: lo stesso nemico sul proprio piano DEVE
+ * produrre una candidata, o il test passerebbe anche se `BuildCandidates` avesse smesso di proporre
+ * qualunque attacco.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPlaneMirrorTest,
+	"RefactorTactics.HexBot.CandidatesRespectThePlane",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPlaneMirrorTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(5);
+	// La piattaforma esiste: il rifiuto deve venire dal PIANO, non da una cella assente.
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 1)));
+	M->SortCells();
+
+	TArray<FRTHexSimUnit> Units;
+	// Budget 0: fermo. Isola il targeting dal movimento, cosi' l'unica variabile e' il piano del bersaglio.
+	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0, 0), /*budget*/ 0));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	auto ContaAttacchi = [](const TArray<FRTHexBotPlan>& Plans)
+	{
+		int32 N = 0;
+		for (const FRTHexBotPlan& P : Plans)
+		{
+			if (P.bHasAttack)
+			{
+				++N;
+			}
+		}
+		return N;
+	};
+
+	// Nemico su un ALTRO piano, adiacente e dentro la gittata: nessuna candidata d'attacco.
+	FRTHexBotContext Sopra = MakeCtx(FRTCellId(0, 0, 0), FRTCellId(1, 0, 1), /*EnemyRange*/ 0, /*HP*/ 100);
+	TestEqual(TEXT("nessun attacco proposto verso un altro piano"),
+		ContaAttacchi(URTHexBotLibrary::BuildCandidates(Snap, 1, Sopra)), 0);
+
+	// ⛔ La meta' falsificante: lo stesso nemico sul PROPRIO piano produce almeno una candidata.
+	FRTHexBotContext Accanto = MakeCtx(FRTCellId(0, 0, 0), FRTCellId(1, 0, 0), /*EnemyRange*/ 0, /*HP*/ 100);
+	TestTrue(TEXT("sul proprio piano l'attacco viene proposto, o il test non misura il PIANO"),
+		ContaAttacchi(URTHexBotLibrary::BuildCandidates(Snap, 1, Accanto)) > 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
