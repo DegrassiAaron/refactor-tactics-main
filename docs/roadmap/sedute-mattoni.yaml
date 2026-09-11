@@ -351,6 +351,12 @@ wiring:
   - check: PIE-V01-DOCKPROMPT
     setup: SET-SCEN
     issue: 151
+  - check: PIE-V01-DOCKREBUILD
+    setup: SET-SCEN
+    issue: 151
+  - check: PIE-V01-DOCKTICK
+    setup: SET-SCEN
+    issue: 151
   - check: PIE-V01-DOOR
     setup: SET-HEX-MATCH
   - check: PIE-V01-ELEC
@@ -375,6 +381,9 @@ wiring:
     issue: 940
   - check: PIE-V01-HUD
     setup: SET-HEX-MATCH
+  - check: PIE-V01-INSPECT
+    setup: SET-SCEN
+    issue: 151
   - check: PIE-V01-INTENT
     setup: SET-HEX-MATCH
   - check: PIE-V01-INTERCEPT

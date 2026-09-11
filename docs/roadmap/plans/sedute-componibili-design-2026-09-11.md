@@ -403,18 +403,26 @@ python tools/editor-sessions/compare_legacy.py
 
 | | |
 |---|---|
-| **Aperture calcolate contro sedute scritte** | **6** contro **53** |
+| **Aperture calcolate contro sedute scritte** | **6** contro **54** |
 | **Persi** — convocati da una seduta e non dall'agenda | **nessuno** |
 | **Guadagnati** — convocati dall'agenda e da nessuna seduta | nessuno, come atteso: il cablaggio nasce dalle sedute |
 | **Coda scoperta** — nel registro PIE e in nessuna riga di `wiring` | **47**, di cui **zero** nel subset `RELEASE-V01` |
-| **Righe di `wiring`** | **166** |
+| **Righe di `wiring`** | **169** |
 
-⚠️ **Il gate ha fatto il proprio mestiere durante il merge, e va registrato.** Sul risultato del merge
-la prima esecuzione ha dato `PERSI = PIE-V01-DOCKCLICK, PIE-V01-DOCKKEYS`: `main` aveva aggiunto due
-check che il cablaggio, seminato prima, non copriva. Rilanciare il seme li ha ripresi da se' — la
-prosa della loro seduta nomina un allestimento che l'euristica riconosce — e il gate e' tornato verde.
-**Questo e' il caso d'uso**: un registro che si muove sotto un cablaggio fermo produce esattamente la
-divergenza che `compare_legacy` esiste per vedere.
+⚠️ **Il gate ha fatto il proprio mestiere a ogni riallineamento con `main`, e va registrato — due
+volte, non una.**
+
+- primo merge: `PERSI = PIE-V01-DOCKCLICK, PIE-V01-DOCKKEYS`;
+- secondo merge, prima di portare il lavoro su `main`: `PERSI = PIE-V01-DOCKREBUILD, PIE-V01-DOCKTICK,
+  PIE-V01-INSPECT`, e le sedute scritte erano passate da 53 a **54**.
+
+In entrambi i casi rilanciare il seme li ha ripresi da se' — la prosa delle loro sedute nomina un
+allestimento che l'euristica riconosce — e il gate e' tornato verde. **Questo e' il caso d'uso, non un
+incidente**: un registro che si muove sotto un cablaggio fermo produce esattamente la divergenza che
+`compare_legacy` esiste per vedere, e in questo repository il registro si muove ogni giorno.
+
+🔑 **Il corollario operativo**: il cablaggio non e' un artefatto che si scrive una volta. Si **riseme**
+a ogni riallineamento, e il gate dice se serviva.
 
 **Verdetto sul modello: `REGGE`.** La lista dei persi è vuota, e non perché il criterio sia stato
 abbassato: ogni check che una seduta scritta a mano convocava è convocato dall'agenda calcolata. Le
