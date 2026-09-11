@@ -161,6 +161,13 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 		return Slots;
 	}
 
+	// ⚠️ **`bAuthorized` lo alza il fatto stesso di costruire, e la difesa non e' qui.** Questa funzione non
+	// sa CHI comanda l'unita' che le viene passata: chiederglielo significherebbe darle una seconda regola di
+	// autorizzazione accanto a quella di chi chiama. La barriera sta nel chiamante —
+	// `URTSelectedUnitPanelWidget::GetSlots()` non invoca questa funzione per un soggetto ispezionato, quindi
+	// il piano di un'avversaria non viene **costruito**, non «costruito e poi nascosto».
+	Slots.bAuthorized = true;
+
 	// --- movimento ---------------------------------------------------------------------------------------
 	// Due modi di occuparlo, e uno solo dei due ha un nome. Un percorso e' `PlannedWaypoints`: occupa lo slot
 	// e non e' un'azione scelta, quindi resta senza `ActionId` (vedi il commento su `FRTPlannedSlotView`).

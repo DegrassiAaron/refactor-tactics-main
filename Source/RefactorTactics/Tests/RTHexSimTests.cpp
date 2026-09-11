@@ -2770,6 +2770,171 @@ bool FRTMovementForcedHasNoTerrainDurationTest::RunTest(const FString&)
 // non vede niente di tutto questo.
 
 // ---------------------------------------------------------------------------------------------------------
+// L'ARCO D'ATTRAVERSAMENTO (`#3012`, [D-398])
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * \u26d4 Due unita' non finiscono il turno sulla stessa cella, nemmeno attraversando.
+ *
+ * \U0001f534 **E' il difetto che questo banco esiste per prendere, ed era su TRUNK.** Misurato su
+ * `origin/main` = `1b9f6f36`: `Final0 == Final1 == (1,0)`. Il guardiano di allora proteggeva la
+ * destinazione **pianificata** — *«solo se quella cella non e' la sua ULTIMA»* — mentre un'unita' bloccata
+ * piu' avanti si ferma dove **sta**, e `Results[i].Final = Pos[i]` promuove quella posizione a finale.
+ *
+ * \U0001f511 Con [D-398] l'arco termina su una cella **libera**, quindi il caso non e' piu' rappresentabile:
+ * A non entra affatto in `(1,0)`, perche' `(2,0)` e' occupata e nessuna cella libera segue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcNeverRestsOnAnotherTest,
+	"RefactorTactics.HexSim.ArcNeverRestsOnAnother",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcNeverRestsOnAnotherTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa, e vorrebbe (2,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma sul passaggio
+	Paths.Add({ FRTCellId(2, 0) });                                   // ferma sulla destinazione
+
+	const TArray<bool> PassThrough = { true, false, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestNotEqual(TEXT("chi attraversa non finisce addosso a chi ha attraversato"), R[0].Final, R[1].Final);
+	TestNotEqual(TEXT("ne' addosso a chi sta sulla destinazione"), R[0].Final, R[2].Final);
+
+	// \u26d4 La meta' che dice DOVE si ferma: senza cella libera a valle non si attraversa affatto, e si
+	// resta alla partenza. E' un rifiuto, non un errore ([D-398] §7c).
+	TestEqual(TEXT("senza cella libera a valle l'arco non si apre"), R[0].Final, FRTCellId(0, 0));
+
+	// \u26a0\ufe0f E `Entered` non nomina una cella in cui non si e' entrati.
+	TestFalse(TEXT("e non risulta esservi entrata"), R[0].Entered.Contains(FRTCellId(1, 0)));
+	return true;
+}
+
+/**
+ * L'arco attraversa e ARRIVA quando una cella libera a valle c'e'.
+ *
+ * \U0001f511 **E' la meta' falsificante del banco sopra**: senza, «non si ferma addosso» sarebbe vero anche
+ * se l'attraversamento avesse smesso di funzionare del tutto, e [D-398] avrebbe chiuso il difetto
+ * togliendo la feature invece che riparandola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcCrossesAndLandsTest,
+	"RefactorTactics.HexSim.ArcCrossesAndLandsBeyond",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcCrossesAndLandsTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, 0) }); // ferma in mezzo, e (2,0) e' libera
+
+	const TArray<bool> PassThrough = { true, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+
+	if (!TestEqual(TEXT("due risultati"), R.Num(), 2)) { return false; }
+	TestEqual(TEXT("chi attraversa arriva oltre"), R[0].Final, FRTCellId(2, 0));
+	TestEqual(TEXT("e chi e' stato attraversato non si e' mosso"), R[1].Final, FRTCellId(1, 0));
+
+	// \u2795 `Entered` nomina OGNI cella dell'arco ([D-398] §7b): e' la crescita su cui `MovedUnitIds` misura
+	// gli ingressi, quindi un Overwatch armato sulla cella attraversata deve poterla vedere.
+	TestTrue(TEXT("l'attraversata figura fra le celle in cui si e' entrati"),
+		R[0].Entered.Contains(FRTCellId(1, 0)));
+	TestTrue(TEXT("e l'arrivo pure"), R[0].Entered.Contains(FRTCellId(2, 0)));
+
+	// \u26d4 E senza il permesso, lo stesso allestimento si ferma prima: e' il controllo che prova che a
+	// muovere il risultato e' l'attraversamento e non la geometria.
+	const TArray<FRTHexMoveResult> Senza = URTHexSimLibrary::ResolveHexPaths(Paths);
+	TestEqual(TEXT("senza permesso ci si ferma davanti"), Senza[0].Final, FRTCellId(0, 0));
+	return true;
+}
+
+
+/**
+ * \u26d4 La CODA DI SCIVOLAMENTO non riapre il difetto: con la destinazione pianificata occupata, non si
+ * attraversa affatto.
+ *
+ * \U0001f534 **Era una delle due vie che allargavano il difetto** (`#3012`). `ApplyIceSliding` **appende** celle
+ * al percorso, quindi la cella che il giocatore aveva scelto come destinazione smette di essere l'ultima —
+ * e il vecchio guardiano, che leggeva esattamente *«e' l'ultima del percorso?»*, concedeva l'attraversamento
+ * proprio li'. Chi attraversava e poi trovava la coda bloccata restava dentro.
+ *
+ * \U0001f511 Con [D-398] la domanda non esiste piu': l'arco termina su una cella **libera**, e se non ce n'e'
+ * una non si apre. Il percorso puo' essere lungo quanto vuole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcWithSlideTailTest,
+	"RefactorTactics.HexSim.ArcRefusesWhenSlideTailIsBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcWithSlideTailTest::RunTest(const FString&)
+{
+	// Il giocatore pianifica UNA cella — `(1,0)` — e lo scivolamento appende `(2,0)`. Entrambe occupate.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, 0) }); // ferma sulla destinazione PIANIFICATA
+	Paths.Add({ FRTCellId(2, 0) }); // ferma sulla coda di scivolamento
+
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 1, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false),
+		PianoDelGiocatore(1, false)
+	};
+	const TArray<bool> PassThrough = { true, false, false };
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), PassThrough, Planned);
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::FinishHexMovement(State);
+
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestEqual(TEXT("con la coda bloccata non si attraversa, e si resta alla partenza"), R[0].Final, FRTCellId(0, 0));
+	TestNotEqual(TEXT("e non si finisce sulla destinazione pianificata altrui"), R[0].Final, R[1].Final);
+	TestFalse(TEXT("ne' vi si e' entrati"), R[0].Entered.Contains(FRTCellId(1, 0)));
+	return true;
+}
+
+/**
+ * \u26d4 Fermare un'unita' a META' ATTRAVERSAMENTO la lascia dove e' PARTITA, non dentro qualcuno.
+ *
+ * \U0001f534 **Era l'altra via che allargava il difetto** (`#3012`): `StopUnitInPlace` — l'interruzione da
+ * Overwatch — congela l'unita' a `Pos` **senza alcun controllo di condivisione**, e con il vecchio permesso
+ * `Pos` poteva gia' essere la cella di chi era stato attraversato.
+ *
+ * \U0001f511 Con [D-398] non puo' esserlo: sotto [D-382] l'unita' resta sulla propria ORIGINE per tutta la
+ * durata dell'arco e compare direttamente sull'arrivo. A meta' arco `Pos` e' la cella di partenza — sua, e
+ * di nessun altro. L'interruzione non ha piu' un istante illecito su cui cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimStopMidArcTest,
+	"RefactorTactics.HexSim.StopMidArcLeavesTheMoverAtItsOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimStopMidArcTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa (1,0), arriva a (2,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma sul passaggio
+	const TArray<bool> PassThrough = { true, false };
+
+	// L'arco copre due passi, quindi dura due micro-step: dopo il primo l'unita' e' a META'.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), PassThrough);
+	URTHexSimLibrary::ResolveNextHexMicroStep(State);
+
+	// \u26a0\ufe0f La premessa, misurata e non assunta: l'unita' NON e' ancora arrivata.
+	if (!TestNotEqual(TEXT("premessa: a meta' arco non si e' ancora arrivati"),
+		State.Pos[0], FRTCellId(2, 0)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e a meta' arco si sta sulla PROPRIA origine"), State.Pos[0], FRTCellId(0, 0));
+
+	// L'interruzione cade proprio li'.
+	URTHexSimLibrary::StopUnitInPlace(State, 0, ERTMoveOutcome::BlockedByUnit);
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestEqual(TEXT("chi viene fermato a meta' arco resta alla partenza"), R[0].Final, FRTCellId(0, 0));
+	TestNotEqual(TEXT("e non dentro chi stava attraversando"), R[0].Final, R[1].Final);
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
 // ATTRAVERSAMENTO FRA COMPAGNE (`#2984`, [D-396])
 // ---------------------------------------------------------------------------------------------------------
 
@@ -2785,7 +2950,7 @@ namespace
 /**
  * Una compagna ferma sul passaggio si attraversa; un'avversaria nella STESSA posizione no.
  *
- * \U0001f511 **L'allestimento e' quello di `ResolveBlockedByStationary`**, che pinna il comportamento senza
+ * 🔑 **L'allestimento e' quello di `ResolveBlockedByStationary`**, che pinna il comportamento senza
  * squadre: qui cambia **solo** l'array `Teams`, quindi la differenza misurata non puo' venire da altro.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliesCrossTest,
@@ -2801,12 +2966,12 @@ bool FRTHexSimAlliesCrossTest::RunTest(const FString&)
 	TestEqual(TEXT("fra compagne A attraversa e arriva"), Compagne[0].Final, FRTCellId(2, 0));
 	TestEqual(TEXT("e la compagna attraversata resta dov'era"), Compagne[1].Final, FRTCellId(1, 0));
 
-	// \u26d4 La meta' falsificante: stessa geometria, squadre diverse -> bloccata come prima.
+	// ⛔ La meta' falsificante: stessa geometria, squadre diverse -> bloccata come prima.
 	const TArray<FRTHexMoveResult> Avversarie = RTResolveWithTeams(Paths, { 0, 1 });
 	TestEqual(TEXT("fra avversarie A resta ferma"), Avversarie[0].Final, FRTCellId(0, 0));
 	TestEqual(TEXT("e il motivo resta BlockedByUnit"), Avversarie[0].Outcome, ERTMoveOutcome::BlockedByUnit);
 
-	// \u26a0\ufe0f Squadra NON dichiarata: non e' alleata di nessuno, nemmeno di un'altra non dichiarata.
+	// ⚠️ Squadra NON dichiarata: non e' alleata di nessuno, nemmeno di un'altra non dichiarata.
 	const TArray<FRTHexMoveResult> Ignote = RTResolveWithTeams(Paths, { INDEX_NONE, INDEX_NONE });
 	TestEqual(TEXT("due squadre non dichiarate non si attraversano"), Ignote[0].Final, FRTCellId(0, 0));
 
@@ -2817,7 +2982,7 @@ bool FRTHexSimAlliesCrossTest::RunTest(const FString&)
 }
 
 /**
- * \u26d4 Due compagne non finiscono sulla stessa cella: il vincolo `!bFinalStep` regge.
+ * ⛔ Due compagne non finiscono sulla stessa cella: il vincolo `!bFinalStep` regge.
  *
  * E' la meta' che [D-289] impone — un solo slot d'occupancy autorevole per `FRTCellId` — e che [D-396]
  * dichiara intatta: *«si transita dentro una compagna, non ci si ferma»*.
@@ -2838,58 +3003,80 @@ bool FRTHexSimAlliesDoNotStackTest::RunTest(const FString&)
 }
 
 /**
- * Una compagna IN TRANSITO si attraversa come una ferma — e il perche' e' il precedente, non una scelta nuova.
+ * ⌫ **UNA COMPAGNA IN TRANSITO NON SI ATTRAVERSA**, e la squadra non c'entra: decide l'arco.
  *
- * \U0001f534 **Il nome `bCrossesStationary` dice meno di cio' che il codice fa.** Quel permesso salta il ciclo
- * INTERO, quindi un `LinearPass` attraversa gia' oggi anche chi sta ancora uscendo dalla propria cella, non
- * solo chi e' fermo. [D-396] concede alle compagne *«le STESSE condizioni»*, quindi il comportamento e'
- * questo — e sotto [D-382] e' anche l'unico coerente: un'unita' in transito **e'** sulla propria cella
- * d'origine, non fra due celle, quindi non esiste una terza situazione da distinguere.
+ * 🔴 **Questo banco chiedeva l'OPPOSTO, ed e' stato riscritto misurando** (`#2984` su [D-399]). La
+ * sua prima stesura poggiava su un precedente reale: `bCrossesStationary` saltava il ciclo INTERO, quindi
+ * un `LinearPass` attraversava anche chi stava ancora uscendo dalla propria cella. [D-396] concede alle
+ * compagne *« le STESSE condizioni »*, e quelle erano le condizioni.
  *
- * \u26a0\ufe0f Questa casella corregge la riga della issue che chiedeva l'opposto: era scritta leggendo il
- * commento di `#2914`, che governa il blocco GENERALE e non l'eccezione dell'attraversamento.
+ * 🔑 **Poi [D-399] ha ristretto quelle condizioni**, per una ragione misurata: un arco scavalca le
+ * celle che copre, e quelle celle non compaiono in `Target` — scavalcare chi si MUOVE perderebbe la
+ * catena `target -> occupante` su cui [D-394] chiude `MOV-7`. L'arco copre percio' i soli occupanti FERMI.
+ *
+ * ∴ *« le stesse condizioni »* e' un RIFERIMENTO, non un valore fissato: seguirlo al suo nuovo
+ * valore **applica** [D-396], non la cambia. E il banco lo misura invece di dedurlo — nello stesso
+ * allestimento un `LinearPass` aspetta esattamente come una compagna.
+ *
+ * ⚠️ Misurato il 2026-09-12 innestando `#2984` su `origin/main` = `a9928882`: era l'unico rosso
+ * della suite, e cadeva sulla sola meta' che asserisce l'attraversamento — la meta' falsificante
+ * (*« fra avversarie A aspetta »*) era gia' verde, cioe' il comportamento nuovo, non una regressione.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitIsCrossedTest,
-	"RefactorTactics.HexSim.AllyInTransitIsCrossedLikeAStationaryOne",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitWaitsTest,
+	"RefactorTactics.HexSim.AllyInTransitWaitsLikeEveryoneElse",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexSimAllyInTransitIsCrossedTest::RunTest(const FString&)
+bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
 {
 	TArray<TArray<FRTCellId>> Paths;
-	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // passa da (1,0)
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // vorrebbe passare da (1,0)
 	Paths.Add({ FRTCellId(1, 0), FRTCellId(1, 1) });                  // sta uscendo da (1,0), lentamente
 
 	TArray<TArray<int32>> Durate;
 	Durate.Add({ 1, 1 });
 	Durate.Add({ 5 }); // cinque micro-step per lasciare (1,0): in transito quando A ci arriva
 
-	// \U0001f534 **L'oracolo e' il MICRO-STEP, non la cella finale, e la prima stesura sbagliava proprio qui.**
-	// Un blocco da unita' in transito e' TRANSITORIO: la cella si libera e chi aspettava prosegue, quindi
-	// `Final` e' la stessa per compagne e avversarie e il test non misurerebbe il permesso ma il tempo.
-	// Misurato: con `Final` come oracolo il caso avversario passava, ed era il test a essere cieco.
-	// \u26a0\ufe0f E non esiste uno stato «in transito permanente» da usare al suo posto: chi e' in transito
-	// prima o poi completa. L'unica differenza osservabile e' QUANDO si entra, e `FRTHexMoveResult` non
-	// porta il tempo — `ResolveNextHexMicroStep` si'.
-	auto PosizioneDopoUnPasso = [&Paths, &Durate](const TArray<int32>& Teams)
+	// 🔴 **L'oracolo e' il MICRO-STEP, non la cella finale.** Un blocco da unita' in transito e'
+	// TRANSITORIO: la cella si libera e chi aspettava prosegue, quindi `Final` e' la stessa in ogni
+	// variante, e leggerla misurerebbe il tempo invece del permesso.
+	auto PosizioneDopoUnPasso = [&Paths, &Durate](const TArray<int32>& Teams, bool bLinearPass)
 	{
+		TArray<bool> PassThrough;
+		if (bLinearPass)
+		{
+			PassThrough = { true, false };
+		}
 		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
-			TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durate, Teams);
+			TArray<bool>(), PassThrough, TArray<FRTPlannedMovement>(), Durate, Teams);
 		URTHexSimLibrary::ResolveNextHexMicroStep(State);
 		return State.Pos.IsValidIndex(0) ? State.Pos[0] : FRTCellId();
 	};
 
-	TestEqual(TEXT("fra compagne A entra SUBITO nella cella di chi sta ancora uscendo"),
-		PosizioneDopoUnPasso({ 0, 0 }), FRTCellId(1, 0));
+	// Chi e' in transito occupa la propria cella per l'intera durata del passo ([D-382]), e l'arco copre i
+	// soli occupanti FERMI ([D-399]): non lo scavalca nessuno.
+	TestEqual(TEXT("fra compagne A aspetta che la cella si liberi"),
+		PosizioneDopoUnPasso({ 0, 0 }, /*bLinearPass*/ false), FRTCellId(0, 0));
+	TestEqual(TEXT("fra avversarie, lo stesso"),
+		PosizioneDopoUnPasso({ 0, 1 }, /*bLinearPass*/ false), FRTCellId(0, 0));
 
-	// \u26d4 La meta' falsificante: le stesse durate fra avversarie lasciano A ferma alla partenza.
-	TestEqual(TEXT("fra avversarie A aspetta che la cella si liberi"),
-		PosizioneDopoUnPasso({ 0, 1 }), FRTCellId(0, 0));
+	// ⚠️ **La parita' si MISURA.** [D-396] concede alle compagne le stesse condizioni del
+	// `LinearPass`: qui si legge quali sono oggi, invece di assumerle da un commento.
+	TestEqual(TEXT("e un LinearPass aspetta esattamente come loro"),
+		PosizioneDopoUnPasso(TArray<int32>(), /*bLinearPass*/ true), FRTCellId(0, 0));
+
+	// ⛔ **La meta' falsificante: con l'occupante FERMO il permesso e' vivo.** Senza, tutto quanto sopra
+	// resterebbe vero anche se l'attraversamento fra compagne avesse smesso di funzionare del tutto.
+	TArray<TArray<FRTCellId>> Ferma;
+	Ferma.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Ferma.Add({ FRTCellId(1, 0) }); // nessun percorso da fare: e' ferma
+	const TArray<FRTHexMoveResult> Compagne = RTResolveWithTeams(Ferma, { 0, 0 });
+	TestEqual(TEXT("una compagna FERMA invece si attraversa"), Compagne[0].Final, FRTCellId(2, 0));
 	return true;
 }
 
 /**
- * \u26d4 Lo SCAMBIO fra compagne resta un ciclo: [D-396] non lo concede.
+ * ⛔ Lo SCAMBIO fra compagne resta un ciclo: [D-396] non lo concede.
  *
- * \U0001f511 E la ragione e' scritta nella decisione: [D-394] chiude `MOV-7` poggiando sulla **totalita'**
+ * 🔑 E la ragione e' scritta nella decisione: [D-394] chiude `MOV-7` poggiando sulla **totalita'**
  * della catena `Target -> occupante`, e uno scambio permesso e' esattamente un ciclo che si vorrebbe far
  * passare. Chi lo aprira' riapre quell'argomento con la propria esibizione, non per estensione di questa.
  */
@@ -2912,11 +3099,11 @@ bool FRTHexSimAlliedSwapIsStillACycleTest::RunTest(const FString&)
 /**
  * Il PATHFINDER attraversa una compagna, e non si ferma sopra — `#2984`, [D-396] Scope 4.
  *
- * \U0001f511 **E' lo specchio di cio' che `StepHexMovement` gia' concede.** Se il resolver lascia passare e
+ * 🔑 **E' lo specchio di cio' che `StepHexMovement` gia' concede.** Se il resolver lascia passare e
  * il pathfinder no, il bot continua a evitare rotte che il gioco permette — ed era il difetto che questa
  * meta' della issue esiste per chiudere.
  *
- * \u26d4 **Le due asserzioni vanno insieme.** Togliere le compagne dagli ostacoli senza proteggere la
+ * ⛔ **Le due asserzioni vanno insieme.** Togliere le compagne dagli ostacoli senza proteggere la
  * DESTINAZIONE farebbe scegliere all'A* la cella di una compagna come arrivo, che il resolver poi
  * rifiuta: il bot proporrebbe una mossa illegale, cioe' l'invariante opposta a quella che si voleva.
  */
@@ -2946,7 +3133,7 @@ bool FRTHexSimPathCrossesAlliesTest::RunTest(const FString&)
 	TestEqual(TEXT("la rotta OLTRE la compagna esiste"), Oltre.Status, ERTHexPathStatus::Success);
 	TestTrue(TEXT("e passa proprio dalla sua cella"), Oltre.Path.Contains(FRTCellId(1, 0)));
 
-	// \u26d4 ...ma non ci si ferma sopra.
+	// ⛔ ...ma non ci si ferma sopra.
 	const FRTHexPathResult Addosso = URTHexSimLibrary::FindPathForUnit(Alleata, 1, FRTCellId(1, 0));
 	TestNotEqual(TEXT("la cella della compagna non e' una destinazione"), Addosso.Status, ERTHexPathStatus::Success);
 

@@ -296,6 +296,33 @@ Con Unreal Editor chiuso, da PowerShell:
 
 Il filtro è il segmento dopo `RunTests`: `RefactorTactics` esegue tutto, `RefactorTactics.Scenario` solo quel gruppo.
 
+#### Quali famiglie girare quando tocchi il **resolver del movimento**
+
+⛔ **Questa riga esiste perché la sua assenza ha lasciato passare un difetto su trunk.** Chi ha toccato il
+resolver per [#2984](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2984) ha girato sette
+famiglie — `HexSim` · `Movement` · `Bot` · `Match` · `HexBot` · `Combat` · `Scenario` — **tutte verdi**, e
+il difetto c'era: due unità finivano il turno sulla stessa cella
+([#3012](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3012), chiuso da [`D-398`]). Mancava
+la famiglia che pinna proprio quell'invariante.
+
+```text
+RefactorTactics.HexSim+RefactorTactics.HexMatch+RefactorTactics.HexOccupancy+RefactorTactics.Movement+RefactorTactics.HexMove+RefactorTactics.ForcedMovement+RefactorTactics.Scenario
+```
+
+🔑 **`HexMatch` e `HexOccupancy` sono le due che rispondono a *«due unità possono stare sulla stessa
+cella?»***, cioè all'invariante di [`D-289`] e di `CLAUDE.md` §11. Le altre rispondono a *«il movimento
+produce il percorso giusto?»*, che è una domanda diversa e che nel caso di `#3012` era verde.
+
+⚠️ **Non è un elenco chiuso, ed è una mappa di partenza, non un cancello.** Le famiglie si contano col
+comando, non a memoria:
+
+```bash
+grep -rhoE '"RefactorTactics\.[A-Za-z]+\.' Source/ --include=*.cpp | sort -u
+```
+
+Se tocchi anche reazioni, conoscenza o presentazione, aggiungi le loro — `Reactions`, `Knowledge`,
+`Overwatch`, `Veil` — invece di fidarti di questa riga.
+
 Una misura è valida soltanto se osserva lo stesso:
 
 - `HEAD`;

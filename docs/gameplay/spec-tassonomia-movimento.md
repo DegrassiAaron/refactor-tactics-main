@@ -336,6 +336,29 @@ significa aggiungere un valore lì, non un `if` nel resolver. *(Il conteggio è 
 questa pagina diceva già «sei valori», questo paragrafo ne elencava cinque, e da D-118 in poi la differenza
 smette di essere un dettaglio.)*
 
+> 🔴 **`LinearPass` attraversa CHI E' FERMO, e da [D-398] non piu' chiunque — 2026-09-11.** È un
+> cambiamento di comportamento di un'abilità **spedita**, non una precisazione, e sta qui perché questa
+> pagina è owner di *«cosa comporta»* un tipo di movimento.
+>
+> Il permesso precedente saltava il controllo di occupancy per l'intero passo, quindi un `LinearPass`
+> attraversava **chiunque** stesse sulla cella — fermo o in movimento. L'attraversamento è ora un **arco
+> solo**, che copre le celle occupate consecutive più la **prima libera**: se quella cella libera non
+> esiste nel percorso, non si attraversa affatto.
+>
+> ∴ **ciò che cambia in partita**: un `LinearPass` che prima passava attraverso un'unità **in movimento**
+> ora si ferma davanti — a meno che quella non liberi la cella da sé, nel qual caso passa comunque.
+> L'attraversamento di chi è **fermo** non cambia, ed è il caso d'uso per cui lo stile esiste.
+>
+> 🔑 **La restrizione non è un effetto collaterale: è ciò che tiene in piedi la catena del ciclo.**
+> Concedere l'attraversamento anche di chi si muove riapre lo scambio di posizione fra due unità che si
+> attraversano a vicenda — è il caso che `ResolveSwapBlockedEvenWhenPassingThrough` presidia.
+>
+> ⚠️ **Chi lo porta nel roster v0.1 è `Hero.Ivrin.PassingBlade`**, ed è l'unica azione spedita che dichiari
+> `LinearPass` (`git grep -n "ERTMovementStyle::LinearPass" -- Source/` per riverificarlo). Il difetto che
+> [D-398] chiude era su trunk e nessun test lo prendeva: due unità finivano il turno **sulla stessa
+> cella**, che [D-289] dichiara irrappresentabile. Storia e misura in
+> [#3012](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3012).
+
 ## 3. Forced Movement — cosa ignora, e cosa no
 
 > **Lo spostamento forzato ignora il costo *volontario* del terreno. Non ignora la geometria, e non ignora gli

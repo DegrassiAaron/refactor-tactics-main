@@ -1066,7 +1066,13 @@ bool FRTNoNodeWearsAWidgetNameTest::RunTest(const FString&)
  *
  * ⛔ `SelfHitTestInvisible` su un CONTENITORE non e' un difetto, ed e' la ragione per cui questo gate
  * guarda l'albero e non la radice: e' il valore corretto per un pannello che deve lasciar passare il
- * puntatore ai propri figli, ed e' quello che `ArmedBorder` e `SlotBox` portano oggi.
+ * puntatore ai propri figli, ed e' quello che `ArmedBorder` porta oggi.
+ *
+ * ⌫ **Questa riga nominava anche `SlotBox`, e sbagliava albero.** `SlotBox` e' l'`HorizontalBox` del
+ * **dock** — `RTHudScenarioTests.cpp` lo cerca in `Dock->WidgetTree`, e nell'albero dello slot ha **zero**
+ * occorrenze. Attribuirlo qui suggeriva che il contenitore degli slot vivesse dentro uno slot, cioe'
+ * esattamente la confusione fra i due `.uasset` che questo file esiste per tenere separati. Trovato da una
+ * seduta Editor su `#2826` il 2026-09-11.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotCanReceiveAClickTest,
 	"RefactorTactics.ScreenHud.ActionSlotIsNotTransparentToThePointer",

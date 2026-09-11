@@ -168,6 +168,11 @@ void URTScreenHudWidgetBase::SetSelectedUnitForTest(ARTUnit* InUnit)
 	SelectedUnitForTest = InUnit;
 }
 
+void URTScreenHudWidgetBase::SetInspectedUnitForTest(ARTUnit* InUnit)
+{
+	InspectedUnitForTest = InUnit;
+}
+
 void URTScreenHudWidgetBase::SetReactionWindowForTest(URTReactionWindowViewModel* InViewModel)
 {
 	ReactionWindow = InViewModel;
@@ -198,6 +203,18 @@ const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
 
 	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer());
 	return PC ? PC->GetSelectedUnit() : nullptr;
+}
+
+const ARTUnit* URTScreenHudWidgetBase::GetInspectedUnit() const
+{
+	// Stessa forma della sorella, e per la stessa ragione headless: vedi `SetInspectedUnitForTest`.
+	if (const ARTUnit* Injected = InspectedUnitForTest.Get())
+	{
+		return Injected;
+	}
+
+	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer());
+	return PC ? PC->GetInspectedUnit() : nullptr;
 }
 
 const URTIconCatalogData* URTScreenHudWidgetBase::GetIconCatalog() const
@@ -315,14 +332,53 @@ bool URTSelectedUnitPanelWidget::HasSelection() const
 	return GetSelectedUnit() != nullptr;
 }
 
+bool URTSelectedUnitPanelWidget::HasSubject() const
+{
+	// Il pannello ha qualcosa da mostrare se comanda un'unita' **oppure** ne sta guardando una.
+	return GetSubject() != nullptr;
+}
+
+const ARTUnit* URTSelectedUnitPanelWidget::GetSubject() const
+{
+	// 🔑 **Il comando VINCE sull'ispezione, e l'ordine e' la regola.** Se l'ispezione vincesse, guardare un
+	// nemico nasconderebbe l'unita' che stai comandando — cioe' ispezionare costerebbe qualcosa, che e'
+	// esattamente cio' che la decisione del 2026-09-11 ha escluso dicendo *«convive»*.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return Commanded;
+	}
+	return GetInspectedUnit();
+}
+
 FRTUnitCardView URTSelectedUnitPanelWidget::GetCard() const
 {
-	return URTHudViewModel::BuildUnitCard(GetSelectedUnit(), GetPlayerTeamId());
+	// La carta segue il soggetto, comandato o ispezionato: identita', salute e scudo sono cio' che
+	// `ARTHUD::ShouldDrawUnitOverlay` gia' autorizza sopra la testa di un'unita' osservata. `bIsAlly` lo
+	// deriva `BuildUnitCard` dalla squadra, quindi chi disegna sa gia' di chi sta guardando la carta.
+	return URTHudViewModel::BuildUnitCard(GetSubject(), GetPlayerTeamId());
 }
 
 FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 {
-	return URTHudViewModel::BuildUnitSlots(GetSelectedUnit());
+	// 🔴 **Gli slot seguono il COMANDO, non il soggetto — e questa e' la barriera di privacy.**
+	//
+	// `FRTUnitSlotsView` e' `{ Movement, Main, Reaction }`: il **piano del turno**. Costruirlo per un'unita'
+	// ispezionata significherebbe consegnare al giocatore il piano avversario, ed e' la ragione per cui
+	// `ARTPlayerController` tiene `InspectedUnit` separato da `SelectedActor` invece di riusarne uno solo.
+	//
+	// ⛔ **E non si costruisce-e-poi-nasconde**: per un soggetto non comandato `BuildUnitSlots` **non viene
+	// chiamata**. Il dato non lascia il core, quindi non c'e' niente da filtrare a valle e nessun filtro da
+	// dimenticare. Cio' che torna e' il default, con `bAuthorized` falso.
+	//
+	// ⚠️ **Chi disegna deve distinguere `bAuthorized == false` da un piano vuoto**: un'area slot mostrata
+	// vuota per un'avversaria direbbe *«non ha pianificato»*, che e' una lettura del suo piano. `#2757` lo
+	// vieta gia' in forma piu' forte — *«nessun conteggio o metadato da cui dedurre che un dato privato
+	// esiste»*.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return URTHudViewModel::BuildUnitSlots(Commanded);
+	}
+	return FRTUnitSlotsView{};
 }
 
 // =====================================================================================================
@@ -366,6 +422,48 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
 
 	OnActionChanged();
+}
+
+void URTActionSlotWidget::SetArmingControllerForTest(ARTPlayerController* InController)
+{
+	ArmingControllerForTest = InController;
+}
+
+ARTPlayerController* URTActionSlotWidget::ResolveArmingController() const
+{
+	// L'iniezione dei test viene PRIMA, e solo perche' in gioco e' sempre nulla: senza un `ULocalPlayer`
+	// — che una run headless non ha — `GetOwningPlayer()` resta nullo e il click non sarebbe verificabile
+	// se non aprendo l'Editor. E' la stessa forma, con la stessa ragione misurata, di
+	// `URTScreenHudWidgetBase::GetSelectedUnit()`.
+	if (ARTPlayerController* Iniettato = ArmingControllerForTest.Get())
+	{
+		return Iniettato;
+	}
+
+	return Cast<ARTPlayerController>(GetOwningPlayer());
+}
+
+void URTActionSlotWidget::Activate()
+{
+	// ⛔ **Uno slot MAI assegnato porta `INDEX_NONE`, e `ArmKitAbility(INDEX_NONE)` DISARMA.** Senza questa
+	// guardia un riquadro vuoto — o sopravvissuto alla ricostruzione della lista — spegnerebbe l'azione
+	// armata da un altro. E' la guardia di `URTFastDecisionOptionWidget::Choose()` sul proprio proprietario,
+	// tradotta sul dato che qui fa le veci del legame.
+	//
+	// ⚠️ Non e' un controllo di DISPONIBILITA': una posizione di kit vuota porta comunque il proprio indice
+	// (`Cooldowns[i].AbilityIndex == i`, `#2987`) e passa di qui. A rifiutarla e' il core.
+	if (Action.AbilityIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// 🔑 **L'indice, non l'azione, e la stessa porta del tasto.** `ArmKitAbility` prende un `int32` e delega
+	// a `SelectAbilityForCurrent`: cooldown, slot reazione, self-target e input bloccato restano decisi in
+	// un posto solo, e un click non puo' aggirare un controllo che il tasto rispetta.
+	if (ARTPlayerController* PC = ResolveArmingController())
+	{
+		PC->ArmKitAbility(Action.AbilityIndex);
+	}
 }
 
 FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const

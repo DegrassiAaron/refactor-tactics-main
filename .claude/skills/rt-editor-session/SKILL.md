@@ -35,7 +35,26 @@ Prima di occupare l'Editor, dichiara un contratto breve con:
 3. Non eseguire stash, reset, checkout distruttivi, merge, rebase, commit o push salvo richiesta esplicita.
 4. Scopri i launcher, i test, l'MCP e le procedure Unreal realmente disponibili nel repository. Non ricostruire comandi da memoria.
 5. Controlla istanze Unreal esistenti, progetto aperto e ownership. Riusa un Editor solo se l'ownership è certa e compatibile con la seduta.
-6. Considera lock o lease come preflight cooperativo: verifica anche processo, progetto e proprietario. Se esiste un Editor incompatibile e non è possibile stabilire ownership esclusiva, termina con `BLOCKED`.
+6. Stabilisci l'ownership leggendo la `CommandLine` dei processi Unreal — porta il `.uproject`, quindi **quale clone**, e `-abslog`, quindi **quale sessione** (`AGENTS.md` §11). Se esiste un Editor incompatibile e l'ownership non è stabilibile, termina con `BLOCKED`.
+   ⛔ **Non cercare un lock o un lease**: sono stati rimossi da [`D-347`](../../../docs/decisions/RT_PDR_00_Decision_Log.md) e [`D-362`](../../../docs/decisions/RT_PDR_00_Decision_Log.md) ha rifiutato di reintrodurli — *«niente `scripts/`, niente file di lock, niente marker»*, perché un file di lock resta stantio dopo un crash mentre **un processo che non c'è non dichiara niente**.
+
+## 🔴 Dove puoi scrivere un asset: nel clone principale, e si misura
+
+Il punto 1 dice di restare dove sei, e vale per **tutto tranne una cosa**: creare, modificare, rinominare, spostare, cancellare, importare o **salvare** un asset Unreal via MCP appartiene al **clone principale**, quello che ospita il bridge (`CLAUDE.md` §10, `AGENTS.md` §11, [`D-347`](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
+
+```powershell
+git rev-parse --git-dir            # nel clone principale: .git
+git rev-parse --git-common-dir     # se DIFFERISCE, sei in un worktree
+```
+
+⚠️ **La ragione è tecnica e silenziosa, ed è per questo che va scritta accanto alla regola**: un worktree **non ha i file gitignorati**, quindi i riferimenti duri di un asset vi leggono `None` e **salvarlo li azzera** — senza errore, e ce ne si accorge dopo. Il bridge MCP è inoltre **uno solo**: usarlo da un altro checkout muta gli asset del principale mentre leggi il `git status` del tuo.
+
+| `intent` | Dove può avvenire |
+|---|---|
+| `inspect`, `verify`, `reproduce` — lettura, PIE, automation | **qualunque** checkout |
+| `author` su `.uasset`/`.umap` via MCP | **solo** il clone che ospita il bridge |
+
+⛔ Se i due `git-dir` differiscono e l'intent è `author` su binari, termina con `BLOCKED` nominando il clone che ospita il bridge. Non aggirarlo, e non dedurre da dove sei dal nome della directory né dal prompt.
 
 Non invocare, ripristinare o dipendere da RT3, RTI o relativi processi e comandi legacy.
 
