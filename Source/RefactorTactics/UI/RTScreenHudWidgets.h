@@ -453,6 +453,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTIconResolution GetResolvedIcon() const;
 
+	private:
+	/** L'icona risolta UNA VOLTA, in `SetAction`. `GetResolvedIcon` la rende senza ricalcolare.
+	 *
+	 * 🔴 **Non e' un'ottimizzazione: e' il contratto dichiarato reso vero.** `ResolveIcon` LOGGA quando una
+	 * chiave non si risolve, e il docstring di `GetResolvedIcon` prescrive «un evento, una volta per cambio
+	 * azione» proprio per questo. Ma nulla lo impediva, e un property binding la chiama a ogni frame: nella
+	 * seduta del 2026-09-11 sono state **16 388** righe di warning per **quattro** chiavi distinte, cioe' la
+	 * stessa diagnostica ripetuta finche' non e' illeggibile.
+	 *
+	 * ⚠️ **E il costo non era solo il log**: `GetIconId` interroga il catalogo per scegliere fra chiave
+	 * preferita e ripiego, e da un binding quell'attraversamento andava a ogni frame per ogni slot.
+	 */
+	FRTIconResolution CachedResolvedIcon;
+	public:
+
 	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
 	void OnActionChanged();
