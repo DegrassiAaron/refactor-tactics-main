@@ -41,26 +41,6 @@ struct FRTPendingArcOp
 };
 
 /**
- * Stato vivo di UNA risoluzione della fase Blast, dalla raccolta delle unita' fino agli effetti finali.
- *
- * Perche' esiste: `ARTTurnManager::ResolveCombat` risolve il Blast in una sequenza di pass che condividono
- * una cinquantina di valori — chi c'e' in campo, con quale indice, quali intenti, quale piano. Finche' erano
- * variabili locali di una funzione sola, quella condivisione era invisibile: leggendo un pass non si poteva
- * sapere che cosa il pass prima gli avesse lasciato, e l'unico modo per spostarne uno era leggere le altre
- * millesettecento righe. Il contesto rende quella dipendenza DICHIARATA, e quindi verificabile.
- *
- * Che cosa NON e': non e' stato del turno e non sopravvive alla fase. Nasce all'inizio di `ResolveCombat` e
- * muore alla fine — cio' che deve durare oltre il Blast sta nei membri del manager (`TurnLog`,
- * `TeamKnowledgeState`, `ReactionBlockedThisTurn`), non qui. Un campo che qualcuno volesse leggere nel turno
- * successivo e' un campo che sta nel posto sbagliato.
- *
- * Invariante di identita': `UnitId` e' SEMPRE l'indice in `Units`, e `Units` e' ordinato per cella
- * (`URTHexLibrary::StableLess`) una volta sola, all'inizio. Da quell'ordine dipendono gli indici del piano,
- * il TurnLog e la sequenza del playback: chi riordina `Units` a fase iniziata rompe il replay, non solo
- * questa struttura. Le identita' che devono sopravvivere all'ordinamento usano `ARTUnit::StableUnitId`
- * ([D-063]), mai l'indice.
- */
-/**
  * Lo stato del PASSO SPINTE di `ApplyDisplacements`, estratto perche' quel passo deve poter uscire e
  * rientrare (`#2692`, [D-355]).
  *
@@ -159,6 +139,31 @@ struct FRTDisplacementPassState
 	bool bResumingWithResponse = false;
 };
 
+/**
+ * Stato vivo di UNA risoluzione della fase Blast, dalla raccolta delle unita' fino agli effetti finali.
+ *
+ * Perche' esiste: `ARTTurnManager::ResolveCombat` risolve il Blast in una sequenza di pass che condividono
+ * una cinquantina di valori — chi c'e' in campo, con quale indice, quali intenti, quale piano. Finche' erano
+ * variabili locali di una funzione sola, quella condivisione era invisibile: leggendo un pass non si poteva
+ * sapere che cosa il pass prima gli avesse lasciato, e l'unico modo per spostarne uno era leggere le altre
+ * millesettecento righe. Il contesto rende quella dipendenza DICHIARATA, e quindi verificabile.
+ *
+ * Che cosa NON e': non e' stato del turno e non sopravvive alla fase. Nasce all'inizio di `ResolveCombat` e
+ * muore alla fine — cio' che deve durare oltre il Blast sta nei membri del manager (`TurnLog`,
+ * `TeamKnowledgeState`, `ReactionBlockedThisTurn`), non qui. Un campo che qualcuno volesse leggere nel turno
+ * successivo e' un campo che sta nel posto sbagliato.
+ *
+ * Invariante di identita': `UnitId` e' SEMPRE l'indice in `Units`, e `Units` e' ordinato una volta
+ * sola, all'inizio, con `URTActionQueueLibrary::SortUnitsForResolution` — cella, poi `StableUnitId`,
+ * poi nome dell'Actor (#2922).
+ *
+ * ⚠️ Fino a quella issue qui c'era scritto *«ordinato per cella (`StableLess`)»*, e chi ricostruisse
+ * un indice atteso da quella sola chiave lo sbaglierebbe alla prima cella condivisa.
+ *
+ * Da quell'ordine dipendono gli indici del piano, il TurnLog e la sequenza del playback: chi riordina
+ * `Units` a fase iniziata rompe il replay, non solo questa struttura. Le identita' che devono
+ * sopravvivere all'ordinamento usano `ARTUnit::StableUnitId` ([D-063]), mai l'indice.
+ */
 struct FRTBlastContext
 {
 	// --- Geometria autorevole della fase: letta una volta, mai riscritta ---------------------------
@@ -172,7 +177,10 @@ struct FRTBlastContext
 
 	// --- Chi e' in campo, e con quale identita' ----------------------------------------------------
 
-	/** Unita' del match ordinate per cella. L'indice in questo array E' l'`UnitId` di tutta la fase. */
+	/**
+	 * Unita' del match nell'ordine di `URTActionQueueLibrary::SortUnitsForResolution` — cella, poi
+	 * `StableUnitId`, poi nome (#2922). L'indice in questo array E' l'`UnitId` di tutta la fase.
+	 */
 	TArray<ARTUnit*> Units;
 
 	/** Inverso di `Units`: dall'attore al suo indice. Serve a tradurre i bersagli pianificati in `UnitId`. */

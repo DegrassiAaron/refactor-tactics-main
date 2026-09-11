@@ -65,18 +65,23 @@ bool URTActionQueueLibrary::UnitOrderLess(const FRTUnitOrderKey& A, const FRTUni
 
 	// 2) L'identita' di partita ([D-063]). Due unita' sulla stessa cella esistono — `FRTHexSnapshot::Overlaps`
 	// le registra — e senza questa riga a ordinarle resterebbe `GetAllActorsOfClass`.
+	//
+	// 🔴 **A difenderla e' `Actions.UnitOrderStableIdBeatsActorName`**, e quel test esiste perche' quelli
+	// che c'erano prima non ci riuscivano: in ogni loro fixture l'ordine dei nomi CONCORDAVA con quello degli id,
+	// quindi togliendo questa riga restavano tutti verdi — il nome decideva allo stesso modo. Una chiave
+	// difesa solo da casi in cui la chiave successiva direbbe lo stesso non e' difesa. Trovato in code review.
 	if (A.StableUnitId != B.StableUnitId)
 	{
 		return A.StableUnitId < B.StableUnitId;
 	}
 
 	// 3) Il nome dell'Actor, per il solo caso in cui l'identita' non sia ancora stata assegnata (vale `0` per
-	// entrambe): pianificazione prima del primo lock-in, e `AssignUnitControlGroups` a inizio partita.
+	// entrambe): la pianificazione prima del primo lock-in, e le unita' entrate dopo il congelamento del
+	// roster, che `EnsureMatchRoster` non rinumera.
 	//
-	// 🔴 `Compare(..., CaseSensitive)` e NON `operator<`: `FString::UEOpLessThan` e' `Stricmp(...) < 0` —
-	// case INSENSITIVE — quindi non e' un ordine totale sui byte, e due nomi che differiscono solo per il
-	// caso resterebbero a pari merito. E' lo stesso difetto che `URTTurnLogLibrary::EntryLess` ha gia' pagato
-	// una volta sulla v10, con la ragione scritta li'.
+	// 🔴 `Compare(..., CaseSensitive)` e NON `operator<`, e non un `FName`: il perche' di entrambi sta su
+	// `FRTUnitOrderKey::ActorName`. In breve: `operator<` e `FName::Compare` sono case-INSENSITIVE, quindi
+	// nessuno dei due e' un ordine totale, e il pareggio tornerebbe a `GetAllActorsOfClass`.
 	return A.ActorName.Compare(B.ActorName, ESearchCase::CaseSensitive) < 0;
 }
 
@@ -90,17 +95,15 @@ void URTActionQueueLibrary::SortUnitsForResolution(TArray<ARTUnit*>& Units)
 	const int32 Num = Units.Num();
 	if (Num < 2)
 	{
-		return; // niente da ordinare, e niente chiave da costruire
+		return; // niente da ordinare, e nessuna chiave da costruire
 	}
 
-	// 🔑 **La chiave si costruisce UNA volta per unita', non a ogni confronto.** `AActor::GetName()` passa da
-	// `FName::ToString()` e alloca una `FString`: dentro il comparatore ne pagherebbe O(N log N) dove ne
-	// bastano O(N), e questi sort girano piu' volte per turno su ogni fase. E' anche la ragione per cui
-	// `MatchRosterLess` il nome lo tocca solo nell'ultimo ramo, quando tutto il resto ha gia' pareggiato.
+	// 🔑 **La chiave si costruisce UNA volta per unita', non a ogni confronto.** `AActor::GetName()`
+	// passa da `FName::ToString()` e alloca: dentro il comparatore ne pagherebbe O(N log N) dove ne bastano
+	// O(N). E' anche la ragione per cui `MatchRosterLess` il nome lo tocca solo nell'ultimo ramo.
 	//
-	// Si ordinano gli INDICI e non due array in parallelo, come fa gia'
-	// `URTReactionOpportunityTypesLibrary::SortParticipantsCanonically`: due sort indipendenti sugli stessi
-	// criteri divergono al primo pareggio, ed e' il difetto che questa funzione esiste per chiudere.
+	// Si ordinano gli INDICI e non due array in parallelo, come fa gia' `ResolveContestedBoundary`: due sort
+	// indipendenti sugli stessi criteri divergono al primo pareggio.
 	TArray<FRTUnitOrderKey> Keys;
 	Keys.Reserve(Num);
 	TArray<int32> Order;
@@ -112,15 +115,16 @@ void URTActionQueueLibrary::SortUnitsForResolution(TArray<ARTUnit*>& Units)
 	}
 
 	// `Sort` e non `StableSort`: `UnitOrderLess` e' un ordine TOTALE, quindi la stabilita' non ha niente da
-	// decidere. Due chiavi identiche vorrebbero due Actor con lo stesso nome nello stesso mondo, che UE non
-	// produce — ed e' `Actions.UnitOrderPermutationInvariant` a tenere onesta questa frase.
+	// decidere. Due chiavi identiche vorrebbero due Actor con lo stesso nome, byte per byte, nello stesso
+	// mondo — e l'ultima chiave e' case-sensitive proprio per non lasciare quella coppia indistinguibile.
 	Order.Sort([&Keys](int32 A, int32 B) { return UnitOrderLess(Keys[A], Keys[B]); });
 
-	TArray<ARTUnit*> Sorted;
-	Sorted.Reserve(Num);
-	for (int32 Idx : Order)
+	// ⛔ **Si ricopia dentro `Units`, non si sostituisce l'array.** Una stesura precedente faceva
+	// `Units = MoveTemp(Sorted)` e buttava via il buffer che `CollectLivingUnits` riusa con
+	// `Reset()`+`Reserve()` — e che `FRTScenarioSession` tiene per tutta la partita. Trovato in code review.
+	TArray<ARTUnit*> Originale = Units;
+	for (int32 i = 0; i < Num; ++i)
 	{
-		Sorted.Add(Units[Idx]);
+		Units[i] = Originale[Order[i]];
 	}
-	Units = MoveTemp(Sorted);
 }
