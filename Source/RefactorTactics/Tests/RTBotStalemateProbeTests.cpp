@@ -679,6 +679,21 @@ namespace
 		 * test su una condizione di cui la feature non risponde.
 		 */
 		int32 SameTeamContestsWithSameDestination = 0;
+
+		/**
+		 * Il sottoinsieme che la prenotazione NON puo' chiudere: due COMPAGNE che contendono la stessa
+		 * cella andando in posti DIVERSI — una collisione di ROTTA, non di destinazione.
+		 *
+		 * 🔴 **Nasce perche' la sua meta' simmetrica esisteva e questa no** (`#2951`). La guardia di
+		 * non-vacuita' del banco leggeva `ContestsWithDifferentDestination`, che conta **anche** le
+		 * coincidenze fra avversari: su `origin/main` passava grazie a **una sola** collisione, e quella
+		 * era `squadre diverse` — cioe' proprio la categoria che questo file dichiara fuori dalla portata
+		 * della feature. Era non-vacua per caso, non per costruzione.
+		 *
+		 * ⚠️ E' lo stesso difetto che `SameTeamContestsWithSameDestination` ha gia' corretto sull'altro
+		 * asse: un'asserzione piu' larga della propria tesi. La raffinatura mancava a meta'.
+		 */
+		int32 SameTeamContestsWithDifferentDestination = 0;
 	};
 }
 
@@ -824,6 +839,9 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 			if (bSharedDestination) { ++Out.ContestsWithSameDestination; }
 			else { ++Out.ContestsWithDifferentDestination; }
 			if (bSharedWithinTeam) { ++Out.SameTeamContestsWithSameDestination; }
+			// Compagne sulla stessa cella ma dirette altrove: la collisione di ROTTA che la prenotazione
+			// delle destinazioni non scioglie, ed e' cio' che deve sopravvivere perche' il banco misuri.
+			if (bSameTeam && !bSharedWithinTeam) { ++Out.SameTeamContestsWithDifferentDestination; }
 
 			T.AddInfo(FString::Printf(TEXT("[%s] turno %2d: cella %s contesa da %s -> %s, destinazioni %s"),
 				Label, Turn, *ContestedCell[i].ToString(), *Who,
@@ -853,10 +871,11 @@ static FRTProbeContestReport RTRunSimultaneousResolutionProbe(URTHexMapAsset* Ar
 	}
 
 	T.AddInfo(FString::Printf(
-		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione condivisa %d di cui FRA COMPAGNI %d, diversa %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
+		TEXT("[%s] TOTALI: contese %d (stessa squadra %d, squadre diverse %d | destinazione condivisa %d di cui FRA COMPAGNI %d, diversa %d di cui FRA COMPAGNI %d) | turni con almeno una mossa %d/12 | primo turno fermo %d | bloccate da unita' ferma %d"),
 		Label, Out.Contests, Out.SameTeamContests, Out.CrossTeamContests,
 		Out.ContestsWithSameDestination, Out.SameTeamContestsWithSameDestination,
-		Out.ContestsWithDifferentDestination, Out.TurnsWithAnyMove,
+		Out.ContestsWithDifferentDestination, Out.SameTeamContestsWithDifferentDestination,
+		Out.TurnsWithAnyMove,
 		Out.FirstFrozenTurn, Out.BlockedByUnitEvents));
 
 	return Out;
@@ -918,6 +937,44 @@ bool FRTBotStalemateContendersTest::RunTest(const FString&)
 }
 
 /**
+ * LO STROZZO IN USCITA, e perche' il banco se lo costruisce invece di ereditarlo — `#2951`.
+ *
+ * 🔑 **Una collisione di ROTTA nasce solo da un collo di bottiglia.** La struct lo dichiara: la
+ * cella contesa e' *«il PRIMO PASSO che non e' stato fatto, non la destinazione»*. Perche' due compagne
+ * se ne contendano uno andando in posti diversi, devono essere costrette nello stesso varco.
+ *
+ * 🔴 **`MakeTestArena` non ne ha uno**, ed e' il motivo per cui la guardia di non-vacuita' era
+ * decorativa. E' un esagono pieno di raggio 4 con ostacoli SPARSI e un muro a `q=0` che blocca la sola
+ * VISTA: attorno a ogni ostacolo si gira. Misurato su `origin/main`: dopo la prenotazione le contese
+ * FRA COMPAGNI sono **zero di ogni specie**, e la guardia sopravviveva su una collisione fra AVVERSARI.
+ *
+ * ⛔ **Non si tocca `MakeTestArena`**: la usano dieci file di test, fra cui i tre gate anti-stallo che
+ * devono restare verdi. Il varco si aggiunge QUI, sulla copia che questo banco possiede.
+ *
+ * ⚠️ **Lo strozzo sta sul lato di squadra 0, non a meta' campo.** Un varco unico su `q=0` imbucherebbe
+ * anche gli avversari e produrrebbe contese fra squadre diverse — la categoria che questo banco esiste
+ * per NON misurare. Chiudendo `q=-1` tranne una cella, a strozzarsi sono le due compagne che partono
+ * nel fango a `q=-2`.
+ */
+static void RTChokeTeamZeroExit(URTHexMapAsset* Arena)
+{
+	// La colonna `q=-1` e' il primo passo verso est per chi parte a `q=-2`: si chiude tutta tranne
+	// `r=0`, che diventa il varco unico.
+	for (int32 R = -3; R <= 4; ++R)
+	{
+		if (R == 0) { continue; } // il varco
+		const FRTCellId Id(-1, R, 0);
+		if (const FRTHexCellData* Existing = Arena->FindCell(Id))
+		{
+			FRTHexCellData Cell = *Existing;
+			Cell.bBlocksMovement = true;
+			Arena->AddOrUpdateCell(Cell);
+		}
+	}
+	Arena->SortCells();
+}
+
+/**
  * La correzione, misurata sullo STESSO ciclo che ha prodotto il difetto.
  *
  * Cambia una cosa sola rispetto al test qui sopra: le unita' pianificano su uno snapshot PER SQUADRA e
@@ -933,6 +990,7 @@ bool FRTBotStalemateTeamPlanningBreaksItTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
 	if (!TestNotNull(TEXT("arena di prova generata"), Arena)) { return false; }
+	RTChokeTeamZeroExit(Arena); // `#2951`: senza varco unico non esiste una collisione di rotta fra compagni
 
 	// ⚠️ **Il controllo di non-vacuita', e qui e' l'intero test.** Se lo stallo non si formasse piu' da solo
 	// — per un cambio all'utility, all'arena o al catalogo — allora «con la prenotazione non ci sono contese»
