@@ -899,7 +899,18 @@ void ARTTurnManager::PlanBots()
 		Bot->PlannedAbilityIndex = Piano.PlannedAbilityIndex;
 		Bot->PlannedDashAbility = Piano.PlannedDashAbility;
 		Bot->PlannedDashCell = Piano.PlannedDashCell;
-		Bot->PlannedReactionAbility = Piano.PlannedReactionAbility;
+
+		// ⛔ **Anche la reazione passa dalla FUNZIONE, e per la stessa ragione dell'attacco.**
+		// `ClearReactionPlan()` azzera DUE campi — `PlannedReactionAbility` e `PlannedReactionCondition` —
+		// e una stesura precedente di questa applicazione ne scriveva uno solo: una condizione dichiarata
+		// in un turno precedente sarebbe sopravvissuta a un piano che non la prevede. Il planner non
+		// trasporta la condizione perche' il bot non ne dichiara (scrive la sola abilita', come faceva
+		// prima); ⚠️ ma azzerarla resta necessario, ed e' cio' che il campo da solo non fa.
+		Bot->ClearReactionPlan();
+		if (Piano.PlannedReactionAbility != INDEX_NONE)
+		{
+			Bot->PlannedReactionAbility = Piano.PlannedReactionAbility;
+		}
 
 		// ⛔ **Il bersaglio passa dalla funzione, non dal campo** (`#2884`): `PlannedAttackTarget` e
 		// `bAttackTargetsCell` sono mutuamente esclusivi, e l'esclusivita' vive in `DeclareAttackOnUnit` /
