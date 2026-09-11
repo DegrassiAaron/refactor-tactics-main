@@ -389,6 +389,79 @@ La voce deve dichiarare tre cose:
 - `PIE-V01-ROSTER`: la sua precondizione è già stata riscritta il 2026-09-04, e la riga «non entra in
   nessun allestimento» va rimisurata contro il nuovo `wiring`.
 
+---
+
+## 12. Esito della fetta 0
+
+**Misurato il 2026-09-11** su `b549e9db` (base `1b9f6f36`), col comando:
+
+```bash
+python tools/editor-sessions/compare_legacy.py
+```
+
+| | |
+|---|---|
+| **Aperture calcolate contro sedute scritte** | **6** contro **53** |
+| **Persi** — convocati da una seduta e non dall'agenda | **nessuno** |
+| **Guadagnati** — convocati dall'agenda e da nessuna seduta | nessuno, come atteso: il cablaggio nasce dalle sedute |
+| **Coda scoperta** — nel registro PIE e in nessuna riga di `wiring` | **48**, di cui **zero** nel subset `RELEASE-V01` |
+
+**Verdetto sul modello: `REGGE`.** La lista dei persi è vuota, e non perché il criterio sia stato
+abbassato: ogni check che una seduta scritta a mano convocava è convocato dall'agenda calcolata. Le
+sei aperture sono `SET-SCEN` (46 voci), `SET-HEX-MATCH` (31), `SET-SANDBOX` (18), `SET-GEN-ARENA`
+(10), `SET-FRONTEND` (5), `SET-GRAYKIT` (3). `SET-HEX-BOT` e `SET-HEX-TURN` non compaiono come
+aperture proprie perché `extends` le fa cadere in `SET-HEX-MATCH`, ed è il comportamento voluto.
+
+🔑 **Che la coda scoperta non tocchi `RELEASE-V01` è il risultato che conta più del numero**: il gate
+G9 è interamente cablato, e le 48 voci scoperte sono lavoro che il vecchio registro non copriva —
+fra esse `PIE-V01-GHOSTS`, che il piano `S0`–`S9` dichiara a mano *«non ha ancora una seduta
+dedicata»*, e `PIE-V01-RXBRACE`, `PIE-V01-RXPLAYBACK`, `PIE-VIS-DEFLECT`, `PIE-VIS-INTERPOSE`,
+`PIE-HUD-CARD-ZERO`, `PIE-V01-DOCKKEYS`. Il calcolo le ha trovate meccanicamente.
+
+### Cosa la fetta 0 ha scoperto, e che il design non sapeva
+
+**Un nono allestimento.** `MapSource = GeneratedTestArena` non è `L_HexArena` e non è uno scenario:
+porta esagono r=4, ostacoli, muro che blocca la vista, fango a costo 3, piattaforma sul layer 1 e una
+transizione. `U37` dichiara di condividerlo con `U2..U6` — *«non è una seduta in più: è la coda di
+quella che si sta già facendo»* — e **32** check ci cadono dentro. Gli otto allestimenti di §3.1 non
+lo contemplavano.
+
+**La prosa del vecchio registro non contiene l'allestimento.** La semina meccanica copre **83** check
+su **164**; allargare gli indizi vale **+2**. Non è un'euristica debole: è la conferma della premessa
+di §1.5. Il resto sono **due tabelle di giudizio dichiarato** — `ALLESTIMENTO_DICHIARATO` per le
+sedute mute e `CABLAGGIO_DICHIARATO` per i conflitti — che vivono nel sorgente del seminatore perché
+la semina resti riproducibile.
+
+**«Vince la prima seduta» era una decisione presa dall'ordine del documento.** Quando due sedute
+rivendicano lo stesso check con allestimenti diversi, la prima regola scritta sceglieva in silenzio —
+e aveva appena spostato `PIE-HEXPLAY-6` da `SET-SCEN` a `SET-GEN-ARENA`, **contro** ciò che il
+registro PIE dice di quella voce (*«allestimento C: gli scenari esistono e portano con sé arena,
+unità e piani»*). Ora un disaccordo è un **conflitto** che ferma la riga. Sono esattamente **quattro**
+— `PIE-HEXPLAY-6`, `PIE-HEXPLAY-8`, `PIE-V01-LOG`, `PIE-TD-CLEAN` — cioè quattro delle cinque
+rivendicazioni doppie che §1.4 aveva misurato.
+
+**L'errore duro ha pagato il proprio costo alla prima esecuzione.** *«`PIE-AS4a` è cablato ma non
+esiste nel registro PIE»* ha scoperto che il parser di stato, con la classe `[A-Z0-9-]`, **saltava**
+le righe col suffisso minuscolo — non le troncava: il `**` di chiusura non arriva dove il regex lo
+aspetta. Nove righe reali sparivano in silenzio, ed è un difetto che `test-manuali-pie.md` documenta
+già da sé. Il registro ha **240** voci, non le 230 che §1 riportava.
+
+### Follow-up aperti dalla fetta 0
+
+- **`SET-TD` è dichiarato e mai usato.** I check `PIE-TD-*` sono finiti su `SET-GRAYKIT` e
+  `SET-SANDBOX`, seguendo le sedute che li possiedono. O il pannello Tactical Designer è un
+  allestimento a sé e quei check gli appartengono, o `SET-TD` va rimosso: un allestimento dichiarato
+  che nessuno usa invecchia in finzione.
+- **Nessun `requires` è ancora dichiarato**, quindi nessuna apertura ha voci bloccate. È la fetta 1, e
+  finché non esiste il design non ha ancora dimostrato la sua promessa centrale — che `U30` non venga
+  convocata perché `WBP_RT_PauseMenu` non esiste.
+- **La base si è mossa sotto il lavoro.** Le misure di §1 vengono da `1b9f6f36`; `main` è avanzato
+  durante l'esecuzione, e `95bb31af` ha aggiunto una voce PIE e una seduta. Il confronto resta valido
+  perché agenda e sedute sono lette dallo stesso commit, ma i numeri assoluti vanno rimisurati dopo il
+  rebase.
+
+---
+
 [D-130]: ../../decisions/RT_PDR_00_Decision_Log.md
 [D-181]: ../../decisions/RT_PDR_00_Decision_Log.md
 [D-182]: ../../decisions/RT_PDR_00_Decision_Log.md

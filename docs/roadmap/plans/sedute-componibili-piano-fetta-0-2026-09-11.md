@@ -857,11 +857,12 @@ git commit -m "feat(sedute): il calcolo raggruppa per allestimento e non fa spar
 
 La semina è meccanica e fallibile per costruzione. Ciò che non sa dedurre finisce a parte, **non** in una riga con un setup inventato: `registry.load` rifiuta i setup sconosciuti, quindi una riga seminata male non può passare inosservata.
 
-⚠️ **Sappi in anticipo quanto copre, perché è meno di metà.** Misurato il 2026-09-11 sul registro
-attuale: la semina produce **71** righe su **166** check citati, e lascia **95** orfani da **24**
-sedute. Allargare gli indizi non aiuta — provato con `DA_HexMap_*`, `Tactical Designer`, `partita hex`
-e `Board 2v2`: **+2**. Non è un difetto dell'euristica: **la prosa del vecchio registro non contiene
-l'allestimento**, che è esattamente la premessa del design. Il resto è giudizio, e ha un task suo (Task 6).
+⚠️ **Sappi in anticipo quanto copre, perché è circa metà.** Misurato il 2026-09-11 su `1b9f6f36`: la
+semina produce **83** righe su **164** check citati, e lascia il resto orfano. Allargare gli indizi non
+aiuta — provato con `DA_HexMap_*`, `Tactical Designer`, `partita hex` e `Board 2v2`: **+2**. Non è un
+difetto dell'euristica: **la prosa del vecchio registro non contiene l'allestimento**, che è esattamente
+la premessa del design. Il resto è giudizio, e ha un task suo (Task 6). Rimisura: il numero è l'esito di
+quel passaggio, e cambia col commit di base.
 
 - [ ] **Step 1: scrivi il test che fallisce**
 
