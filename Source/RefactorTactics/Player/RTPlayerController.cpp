@@ -325,6 +325,20 @@ const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
 	return Hotkeys;
 }
 
+FText ARTPlayerController::HotkeyLabelForKitIndex(int32 KitIndex)
+{
+	// 🔑 **Si INTERROGA la tabella, e il vuoto fuori range e' la meta' che conta.** Un `Index + 1` risponde
+	// a qualunque indice — anche a quelli che nessun tasto raggiunge — e quella e' esattamente la risposta
+	// che non esiste. Qui `IsValidIndex` e' il confine, ed e' lo stesso della bindatura.
+	if (!AbilityHotkeys().IsValidIndex(KitIndex))
+	{
+		return FText::GetEmpty();
+	}
+
+	// `bLongDisplayName = false`: si vuole cio' che sta su uno slot largo un'icona — `0`, non `Zero`.
+	return AbilityHotkeys()[KitIndex].GetDisplayName(/*bLongDisplayName=*/ false);
+}
+
 const TArray<TPair<FName, FKey>>& ARTPlayerController::GenericHotkeys()
 {
 	// Le cinque generiche di D-025 che entrano nel kit, ognuna col suo tasto STABILE: non cambiano da eroe

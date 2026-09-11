@@ -145,11 +145,16 @@ bool FRTScreenHudIconKeyTest::RunTest(const FString&)
  * Una riga che perdesse il numero passerebbe un test scritto come *«non e' vuota»* — e il giocatore non
  * saprebbe piu' quale tasto arma quello slot.
  *
- * ⚠️ **Il numero e' `AbilityIndex + 1` perche' e' il TASTO, non l'indice.** Vale finche' il dock mostra il
- * solo kit numerato: `URTActionDockWidget::GetActions()` inoltra a `BuildAbilityCooldowns`, che cammina le
- * abilita' dell'unita'. I cinque generici (`G` `B` `C` `X` `Z`) arrivano da `GenericHotkeys()` e non entrano
- * in questa lista; se un giorno ci entrassero, questo test resterebbe verde mentre la riga mostrerebbe un
- * numero che non arma nulla — e allora la lettera va aggiunta **qui insieme** al ramo che la produce.
+ * ⚠️ **Il tasto si DICHIARA nella vista, e non si deduce piu' da `AbilityIndex`** (`#2987`). Fino a quel
+ * punto `ComposeAbilityLine` scriveva `Index + 1`, e questo test lo confermava passando `AbilityIndex = 3`
+ * e cercando `"4. "`: l'uguaglianza reggeva **per costruzione** su ogni posizione centrale, e nessuna delle
+ * due che sbagliano — la decima, dove il tasto e' `0`, e l'undicesima, che nessun tasto raggiunge — era
+ * provata. Ora `HotkeyLabel` viene da `AbilityHotkeys()` e le due sono coperte da
+ * `HudViewModel.ShortcutComesFromTheBindingTableNotTheIndex`.
+ *
+ * ⛔ **Il tasto GENERICO resta fuori.** `Action.Wait` si arma anche con `Z` (`GenericHotkeys()`), e quale
+ * dei due binding uno slot debba mostrare non e' deciso da nessuna fonte del progetto: e' `#2990`,
+ * domanda 4. Questo test pinna il numero perche' e' cio' che la vista porta oggi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudActionLineTest,
 	"RefactorTactics.ScreenHud.ActionSlotLineCarriesKeyArmedAndReason",
@@ -162,7 +167,8 @@ bool FRTScreenHudActionLineTest::RunTest(const FString&)
 	FRTAbilityCooldownView Action;
 	Action.ActionId = TEXT("Action.Overload");
 	Action.DisplayName = FText::FromString(TEXT("Sovraccarico"));
-	Action.AbilityIndex = 3;        // quarto slot -> tasto `4`
+	Action.AbilityIndex = 3;        // quarta posizione del kit
+	Action.HotkeyLabel = FText::FromString(TEXT("4")); // il tasto, DICHIARATO: non piu' dedotto (#2987)
 	Action.TurnsRemaining = 2;      // in ricarica
 	Action.TotalTurns = 3;
 	Action.bUsableNow = false;
