@@ -405,88 +405,92 @@ bool FRTIconValidatorTest::RunTest(const FString&)
 }
 
 /**
- * La chiave icona di un'azione d'EROE si traduce verso una categoria dichiarata, e quando non c'e' un dato
- * da cui tradurre torna `NAME_None` invece di indovinare.
+ * La chiave icona di un'azione porta il NOME dell'abilita', e il ripiego sulla core e' una funzione a parte.
  *
- * 🔑 **Il difetto che questo test esiste per fermare e' silenzioso a suite verde**: `MakeIconId` prefissa e
- * basta, quindi `Hero.Muiren.TideGuard` diventerebbe `UI.Icon.Hero.Muiren.TideGuard` — categoria `Hero`, che
- * `D-031` non dichiara. A schermo si vede l'icona di ripiego e nel log una warning; nessun gate cade, perche'
- * `RequiredIconIds()` deriva dal catalogo CORE e quella chiave non gli passa mai davanti.
- * E' esattamente come e' arrivato in PIE (`#2963`).
+ * 🔑 **Il dock risponde a «quale abilita' e' questa»**, quindi due voci dello stesso kit devono avere chiavi
+ * diverse: tradurre verso la core le farebbe collassare sullo stesso disegno. La core resta come RIPIEGO,
+ * finche' l'asset proprio non e' disegnato.
+ *
+ * ⛔ Il difetto che questo test ferma e' silenzioso a suite verde: `MakeIconId` prefissa e basta, quindi
+ * `Hero.Muiren.TideGuard` diventerebbe `UI.Icon.Hero.…` — categoria che `D-031` non dichiara. E' cosi' che
+ * e' arrivato in PIE (`#2963`).
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIconIdTranslatesToADeclaredCategoryTest,
-	"RefactorTactics.Icons.ActionIconIdTranslatesToADeclaredCategory",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIconIdKeepsTheAbilityNameTest,
+	"RefactorTactics.Icons.ActionIconIdKeepsTheAbilityName",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTActionIconIdTranslatesToADeclaredCategoryTest::RunTest(const FString&)
+bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
 {
-	// ── Un'azione che vive GIA' in una categoria dichiarata non si tocca.
+	// ── Un'azione gia' in una categoria dichiarata non si tocca.
 	{
 		FRTActionDef Def;
 		Def.ActionId = FName(TEXT("Action.Move"));
 		TestEqual(TEXT("un'azione core attraversa entrambe le tassonomie e non si traduce"),
-			URTIconLibrary::MakeActionIconId(Def), FName(TEXT("UI.Icon.Action.Move")));
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Action.Move")));
 	}
 
-	// ── `Reaction` E' fra le dodici di D-031: la chiave e' legittima anche se la v0.1 non la disegna.
+	// ── `Reaction` E' fra le dodici di D-031: legittima anche se la v0.1 non la disegna.
 	{
 		FRTActionDef Def;
 		Def.ActionId = FName(TEXT("Reaction.HazardEscape"));
-		TestEqual(TEXT("Reaction e' una categoria dichiarata: nessuna traduzione"),
-			URTIconLibrary::MakeActionIconId(Def), FName(TEXT("UI.Icon.Reaction.HazardEscape")));
+		TestEqual(TEXT("Reaction e' dichiarata: nessuna traduzione"),
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Reaction.HazardEscape")));
 	}
 
-	// ── Un'abilita' che DERIVA i suoi valori: la chiave segue cio' che l'azione fa (D-195).
+	// ── 🔑 Il cuore: il NOME sopravvive, il prefisso diventa la categoria.
 	{
 		FRTActionDef Def;
-		Def.ActionId = FName(TEXT("Hero.Branth.Ram"));
-		Def.DerivedFromActionId = FName(TEXT("Action.Charge"));
-		TestEqual(TEXT("un'abilita' derivata prende la chiave della core da cui eredita"),
-			URTIconLibrary::MakeActionIconId(Def), FName(TEXT("UI.Icon.Action.Charge")));
+		Def.ActionId = FName(TEXT("Hero.Aevik.Overload"));
+		TestEqual(TEXT("un'abilita' d'eroe tiene il proprio nome sotto Action"),
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Action.Overload")));
+
+		FRTActionDef Gadget;
+		Gadget.ActionId = FName(TEXT("Gadget.Sprinkler"));
+		TestEqual(TEXT("e vale anche per un gadget"),
+			URTIconLibrary::MakeActionIconId(Gadget.ActionId), FName(TEXT("UI.Icon.Action.Sprinkler")));
 	}
 
-	// ── Un attacco base: l'unico caso in cui `BaseActionId` e' scritto (`Heroes.BasicAttackDeclaresItsBaseAction`).
+	// ── ⚠️ Il controllo che rende il test NON vacuo: due abilita' dello stesso kit che derivano dalla STESSA
+	// core restano distinte. Se la traduzione andasse alla core, questo asserto cadrebbe — ed e' il difetto
+	// che la decisione del 2026-09-11 esiste per evitare.
 	{
-		FRTActionDef Def;
-		Def.ActionId = FName(TEXT("Hero.Muiren.PressureJet"));
-		Def.BaseActionId = FName(TEXT("Action.BasicAttack"));
-		TestEqual(TEXT("un attacco base ricade sul profilo che dichiara"),
-			URTIconLibrary::MakeActionIconId(Def), FName(TEXT("UI.Icon.Action.BasicAttack")));
+		FRTActionDef A; FRTActionDef B;
+		A.ActionId = FName(TEXT("Hero.Muiren.TideGuard"));
+		A.DerivedFromActionId = FName(TEXT("Action.Shield"));
+		B.ActionId = FName(TEXT("Hero.Muiren.SecondoScudo"));
+		B.DerivedFromActionId = FName(TEXT("Action.Shield"));
+		TestNotEqual(TEXT("due abilita' con la STESSA core hanno chiavi preferite DIVERSE"),
+			URTIconLibrary::MakeActionIconId(A.ActionId), URTIconLibrary::MakeActionIconId(B.ActionId));
+		TestEqual(TEXT("ma lo stesso ripiego, che e' il punto del ripiego"),
+			URTIconLibrary::MakeActionIconFallbackId(A), URTIconLibrary::MakeActionIconFallbackId(B));
 	}
 
-	// ── ⚠️ **Il controllo che rende il test non vacuo**: `DerivedFromActionId` vince su `BaseActionId`, e la
-	// preferenza si vede solo quando i due DIVERGONO. Con un solo campo popolato passerebbe in entrambi gli
-	// ordini, e la riga che dichiara la precedenza non sarebbe provata da niente.
+	// ── Il ripiego: `DerivedFromActionId` vince su `BaseActionId`, e si vede solo se DIVERGONO.
 	{
 		FRTActionDef Def;
 		Def.ActionId = FName(TEXT("Hero.Test.Entrambi"));
 		Def.BaseActionId = FName(TEXT("Action.BasicAttack"));
 		Def.DerivedFromActionId = FName(TEXT("Action.Charge"));
-		TestEqual(TEXT("con entrambi i campi vince DerivedFromActionId: l'icona segue cio' che l'azione FA"),
-			URTIconLibrary::MakeActionIconId(Def), FName(TEXT("UI.Icon.Action.Charge")));
+		TestEqual(TEXT("il ripiego segue cio' che l'azione FA, non di che e' profilo"),
+			URTIconLibrary::MakeActionIconFallbackId(Def), FName(TEXT("UI.Icon.Action.Charge")));
 	}
 
-	// ── ⛔ Un'abilita' PROPRIA — ne' profilo ne' derivata — non ha una chiave, e non se ne inventa una.
-	// `Heroes.BasicAttackDeclaresItsBaseAction` pretende `BaseActionId.IsNone()` proprio per queste, e D-195
-	// vieta di riempirlo: il `NAME_None` qui e' il dato che manca reso VISIBILE, non un difetto di questa funzione.
+	// ── ⛔ Un'abilita' PROPRIA non ha ripiego: l'asset va disegnato, e il vuoto resta visibile.
 	{
 		FRTActionDef Def;
 		Def.ActionId = FName(TEXT("Hero.Aevik.Overload"));
-		TestEqual(TEXT("un'abilita' propria non ha chiave icona derivabile, e torna None"),
-			URTIconLibrary::MakeActionIconId(Def), FName(NAME_None));
+		TestEqual(TEXT("nessun ripiego per un'abilita' propria"),
+			URTIconLibrary::MakeActionIconFallbackId(Def), FName(NAME_None));
 	}
 
-	// ── Una categoria inventata non diventa valida per il fatto di essere scritta.
+	// ── Le categorie non si inventano.
 	{
-		TestFalse(TEXT("Hero non e' una delle dodici categorie di D-031"),
+		TestFalse(TEXT("Hero non e' una delle dodici"),
 			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Hero.Aevik.Overload"))));
-		TestFalse(TEXT("Gadget non e' una delle dodici"),
-			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Gadget.Sprinkler"))));
 		TestTrue(TEXT("Action si'"), URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Action.Move"))));
 		TestTrue(TEXT("Reaction si'"), URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Reaction.Counter"))));
 		TestFalse(TEXT("un id senza punto non ha categoria"),
 			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Move"))));
-		TestFalse(TEXT("None non ha categoria"), URTIconLibrary::IsDeclaredIconCategory(NAME_None));
 	}
 
 	return true;

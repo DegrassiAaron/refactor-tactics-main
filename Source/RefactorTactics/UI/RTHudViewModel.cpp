@@ -1,4 +1,4 @@
-#include "UI/RTHudViewModel.h"
+﻿#include "UI/RTHudViewModel.h"
 
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchFormatData.h"
@@ -326,6 +326,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 
 		FRTAbilityCooldownView View;
 		View.ActionId = Action->Def.ActionId;
+		// Le due chiavi si derivano QUI, dove il `Def` completo esiste: lo slot ha solo questa vista, e
+		// `DerivedFromActionId`/`BaseActionId` non gli arriverebbero mai.
+		View.IconId = URTIconLibrary::MakeActionIconId(Action->Def.ActionId);
+		View.FallbackIconId = URTIconLibrary::MakeActionIconFallbackId(Action->Def);
 		View.DisplayName = Action->DisplayName;
 		View.AbilityIndex = Index;
 		View.Slot = Action->Def.Slot;
