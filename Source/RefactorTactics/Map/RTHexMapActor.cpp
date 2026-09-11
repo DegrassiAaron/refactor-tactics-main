@@ -132,6 +132,8 @@ namespace
 
 	/** Quote di disegno, tutte sopra la faccia del disco e in ordine di priorita' di lettura. */
 	constexpr float RTLiftSurface = RTCellTopZ + 0.5f;  // contorno della superficie (contesto)
+	// Il passo con cui due ghost sulla STESSA cella si separano in quota. Vedi `SetPlanPreview`.
+	constexpr float RTGhostStackStep = 6.f;
 	constexpr float RTLiftGlyph = RTCellTopZ + 0.3f;    // glifo di superficie (#956): inciso nella faccia,
 	                                                    // sotto il contorno, sopra il disco
 	// Le coordinate incise (#1920): sopra superficie/griglia/glifo (leggibili), sotto marker e anteprima —
@@ -780,6 +782,21 @@ ARTHexMapActor::ARTHexMapActor()
 		Relief->SetStaticMesh(CylinderMesh.Object);
 	}
 
+	// Volume della SUPERFICIE (`#2936`): stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
+	//
+	// ⚠️ **Nessuna collisione e' un requisito, non un'ottimizzazione**: un volume di fumo che intercettasse il
+	// raycast del puntatore ruberebbe il click alla cella sotto di se', e il giocatore non potrebbe piu'
+	// bersagliare la cella che il fumo occupa — cioe' proprio il caso che `#2870` esiste per aprire.
+	SurfaceVolumes = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SurfaceVolumes"));
+	SurfaceVolumes->SetupAttachment(Cells);
+	SurfaceVolumes->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SurfaceVolumes->SetCollisionResponseToAllChannels(ECR_Ignore);
+	SurfaceVolumes->CastShadow = false;
+	if (CylinderMesh.Succeeded())
+	{
+		SurfaceVolumes->SetStaticMesh(CylinderMesh.Object);
+	}
+
 	// Volumi delle regole di blocco: stessa disciplina del rilievo — nessuna collisione, nessuna ombra.
 	// Il corpo strutturale (#1865): sotto le superfici, senza collisione — non si calpesta e non si clicca.
 	StructuralBodies = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("StructuralBodies"));
@@ -827,6 +844,26 @@ ARTHexMapActor::ARTHexMapActor()
 		SurfaceGlyphs[Ring]->CastShadow = false;
 		SurfaceGlyphs[Ring]->NumCustomDataFloats = 3;
 	}
+
+	// 🔑 **I GHOST della timeline di pianificazione** (`CP 11.5`, `#172`): uno per fase del piano.
+	//
+	// ⚠️ **Un ISM e non un Actor per ghost, e non `DrawDebugLine`**, ed e' la voce «budget di presentazione»
+	// della DoD: *«pooling di mesh/decal, nessun Actor persistente per preview, aggiornamento a frequenza
+	// limitata (non ogni Tick)»*. Le tre cose cadono da questa scelta invece di richiedere disciplina:
+	//
+	//  - il **pooling** e' il componente stesso — le istanze si aggiungono e si tolgono da un oggetto solo;
+	//  - **nessun Actor**: un ISM e' un componente di questa board, non un attore che nasce e muore;
+	//  - **non ogni Tick**: un'istanza posata RESTA posata. `DrawDebugLine` va riemessa a ogni fotogramma,
+	//    ed e' la ragione per cui l'anteprima esistente tiene acceso il `Tick` finche' c'e' qualcosa da
+	//    mostrare. Qui si scrive quando la timeline cambia, e poi non si paga piu' niente.
+	PlanGhosts = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("PlanGhosts"));
+	PlanGhosts->SetupAttachment(Cells);
+	PlanGhosts->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PlanGhosts->SetCollisionResponseToAllChannels(ECR_Ignore);
+	PlanGhosts->CastShadow = false;
+	// Il colore per istanza porta il grado di CERTEZZA, che e' l'informazione che distingue un ghost
+	// confermato da uno previsto: senza custom data servirebbe un componente per livello.
+	PlanGhosts->NumCustomDataFloats = 3;
 
 	// I volumi di conoscenza (debug). Stessa disciplina degli altri — nessuna collisione, nessuna ombra — e
 	// nascosto per default: si accende da `rt.Debug.Knowledge`, e una board che lo mostrasse all'avvio
@@ -1202,6 +1239,99 @@ void ARTHexMapActor::DrawCellOverlay() const
 	}
 }
 
+void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
+{
+	if (!PlanGhosts)
+	{
+		return;
+	}
+
+	// ⛔ **Si azzera sempre, anche per una timeline vuota**, ed e' il caso dell'annullamento: un piano
+	// cancellato deve togliere i suoi ghost, e `Preview.Phases.Num() == 0` e' precisamente come arriva.
+	PlanGhosts->ClearInstances();
+	PlanGhostCells.Reset();
+
+	if (Preview.Phases.Num() == 0)
+	{
+		return;
+	}
+
+	// La mesh si assegna qui e non nel costruttore, come per i glifi: `GetCellPrismMesh` la costruisce a
+	// runtime, e chiamarla sul CDO creerebbe oggetti transitori al caricamento delle classi.
+	if (UStaticMesh* Shape = GetCellPrismMesh())
+	{
+		PlanGhosts->SetStaticMesh(Shape);
+	}
+	if (UMaterialInterface* Mat = CellMaterial.LoadSynchronous())
+	{
+		PlanGhosts->SetMaterial(0, Mat);
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float Size = 0.f;
+	float LayerH = 0.f;
+	GetHexContext(Origin, Size, LayerH);
+	const float PlanarScale = Size / 50.f * 0.95f;
+
+	for (const FRTPhasePreviewEntry& Fase : Preview.Phases)
+	{
+		// Il ghost sta dove l'unita' SARA' a fase conclusa: e' la domanda a cui questa timeline risponde.
+		FVector World = URTHexLibrary::AxialToWorld(Fase.PreviewDestination, Origin, Size, LayerH);
+		if (MapAsset)
+		{
+			if (const FRTHexCellData* Data = MapAsset->FindCell(Fase.PreviewDestination))
+			{
+				World.Z += static_cast<double>(Data->Height);
+			}
+		}
+		World.Z += RTLiftPreview;
+
+		// 🔴 **I ghost coincidenti si IMPILANO invece di sovrapporsi.** Due fasi possono finire sulla
+		// stessa cella per costruzione — il Prep non sposta, il Blast non sposta chi lo esegue, un Move con
+		// percorso rifiutato torna alla propria origine — e due istanze alla stessa posa producono
+		// z-fighting con un colore che ne occlude un altro a caso. Il colore È l'informazione che questo
+		// canale porta (la certezza), quindi perderlo cosi' sarebbe perdere l'unica cosa che i ghost dicono
+		// oltre alla posizione.
+		int32 GiaSuQuestaCella = 0;
+		for (const FRTCellId& Posata : PlanGhostCells)
+		{
+			if (Posata == Fase.PreviewDestination)
+			{
+				++GiaSuQuestaCella;
+			}
+		}
+		World.Z += static_cast<double>(GiaSuQuestaCella) * RTGhostStackStep;
+
+		const FTransform Xf(FRotator::ZeroRotator, World,
+			FVector(PlanarScale * 0.7f, PlanarScale * 0.7f, RTCellFlatScale));
+		const int32 Index = PlanGhosts->AddInstance(Xf, /*bWorldSpace=*/ true);
+		PlanGhostCells.Add(Fase.PreviewDestination);
+
+		// 🔑 **Il colore porta la CERTEZZA, non la fase.** Le fasi si distinguono gia' per posizione e per
+		// ordine; cio' che il giocatore non puo' dedurre guardando e' quanto ciascuna sia sicura.
+		const FLinearColor Colore = GhostColorForCertainty(Fase.Certainty);
+		PlanGhosts->SetCustomDataValue(Index, 0, Colore.R);
+		PlanGhosts->SetCustomDataValue(Index, 1, Colore.G);
+		PlanGhosts->SetCustomDataValue(Index, 2, Colore.B, /*bMarkRenderStateDirty=*/ false);
+	}
+
+	// Una volta sola, in coda: la stessa disciplina di `RebuildInstances` e di `VeilInstances`.
+	PlanGhosts->MarkRenderStateDirty();
+}
+
+FLinearColor ARTHexMapActor::GhostColorForCertainty(ERTIntentCertainty Certainty)
+{
+	// ⚠️ **Tre livelli e non quattro**: `Unknown` non ha una resa, e il catalogo icone lo dichiara —
+	// *«le chiavi sono i livelli DISEGNABILI, non i valori dell'enum»*. Un `Unknown` che arriva qui e' un
+	// difetto a monte, e si disegna come il piu' debole invece di inventargli un aspetto proprio.
+	switch (Certainty)
+	{
+	case ERTIntentCertainty::Confirmed: return FLinearColor::FromSRGBColor(FColor(90, 220, 120));
+	case ERTIntentCertainty::Predicted: return FLinearColor::FromSRGBColor(FColor(220, 200, 90));
+	default:                            return FLinearColor::FromSRGBColor(FColor(190, 120, 90));
+	}
+}
+
 void ARTHexMapActor::DrawPlanningPreview() const
 {
 	const UWorld* World = GetWorld();
@@ -1418,6 +1548,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	const bool bDoEdges   = EnumHasAnyFlags(Families, ERTRebuildFamily::EdgeFeatures);
 	const bool bDoBorders = EnumHasAnyFlags(Families, ERTRebuildFamily::Borders);
 	const bool bDoBodies  = EnumHasAnyFlags(Families, ERTRebuildFamily::Bodies);
+	const bool bDoSurfaceVolumes = EnumHasAnyFlags(Families, ERTRebuildFamily::SurfaceVolumes);
 
 	// Mesh configurabile con fallback. Il fallback e' il prisma esagonale generato, NON piu' il cilindro
 	// engine: quello restava un disco, ed e' il difetto che `U22` ha visto a schermo. `CellMesh` continua a
@@ -1481,6 +1612,14 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 		ReliefBaseScale.Reset();
 		LastReliefVeilState.Reset();
 	}
+	if (bDoSurfaceVolumes && SurfaceVolumes)
+	{
+		SurfaceVolumes->ClearInstances();
+		SurfaceVolumeCells.Reset();
+		SurfaceVolumeBaseScale.Reset();
+		// Lo stato del velo si azzera con gli indici a cui si riferisce, come per ogni altra famiglia.
+		LastSurfaceVolumeVeilState.Reset();
+	}
 	if (bDoBlock)
 	{
 		BlockerCells.Reset();
@@ -1530,6 +1669,10 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 	{
 		if (CellShape != nullptr) { Relief->SetStaticMesh(CellShape); }
 		Relief->ClearInstances();
+	}
+	if (bDoSurfaceVolumes && SurfaceVolumes)
+	{
+		if (CellShape != nullptr) { SurfaceVolumes->SetStaticMesh(CellShape); }
 	}
 	if (bDoBlock && Blockers)
 	{
@@ -1784,6 +1927,29 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// rilievo `N` non e' la cella `N` ([D-227]).
 			ReliefCells.Add(CellIds[I]);
 			ReliefBaseScale.Add(ReliefXf.GetScale3D());
+		}
+
+		// ➕ **IL VOLUME DELLA SUPERFICIE** (`#2936`): il terzo canale, dopo il colore del disco e il glifo
+		// inciso. La forma la decide `URTHexLibrary::SurfaceVolumeFor`, che e' l'unica autorita': qui si
+		// traduce in una trasformata, non si sceglie.
+		//
+		// ⚠️ **Legge `Surfaces[I]` e non il costo o i flag**: e' cio' che tiene questa famiglia indipendente da
+		// `Relief` (costo) e da `Blockers` (regole di blocco). Il fumo costa 1 e non blocca la vista: nessuna
+		// delle altre due lo disegnerebbe mai.
+		const FVector2D SurfaceVolume = URTHexLibrary::SurfaceVolumeFor(Surfaces[I]);
+		if (bDoSurfaceVolumes && SurfaceVolumes && SurfaceVolume.Y > 0.0)
+		{
+			// Poggia sulla faccia del disco e cresce verso l'alto, come il rilievo: il cilindro engine e'
+			// CENTRATO, quindi il suo centro sta a meta' altezza.
+			FVector VolumeCenter = World;
+			VolumeCenter.Z += RTCellTopZ + SurfaceVolume.Y * 0.5;
+			const FTransform VolumeXf(FRotator::ZeroRotator, VolumeCenter,
+				FVector(PlanarScale * SurfaceVolume.X, PlanarScale * SurfaceVolume.X, SurfaceVolume.Y / 100.f));
+			SurfaceVolumes->AddInstance(VolumeXf, /*bWorldSpace=*/ true);
+			// Per ISTANZA e non per cella, come rilievo e glifi: otto superfici su nove non producono volume,
+			// quindi il volume `N` non e' la cella `N`.
+			SurfaceVolumeCells.Add(CellIds[I]);
+			SurfaceVolumeBaseScale.Add(VolumeXf.GetScale3D());
 		}
 
 		// Volumi delle due regole. Sono INDIPENDENTI: una cella puo' averne una, l'altra o entrambe, e in
@@ -2726,6 +2892,27 @@ bool ARTHexMapActor::RepaintCells(const TArray<FRTCellId>& Ids)
 			return false;
 		}
 
+		// ➕ **E il VOLUME della superficie dev'essere rimasto lo stesso** (`#2936`).
+		//
+		// 🔴 **Questo percorso riscrive colore e glifo, non i volumi.** Una cella che diventasse fumo passando
+		// di qui avrebbe due canali su tre: tinta e anello nuovi, nessun volume. ∴ quando la presenza del volume
+		// cambia non e' un riallineamento, ed e' il fallback a doverla costruire.
+		//
+		// ⚠️ **Si confronta la PRESENZA, non la forma**: due superfici con volumi diversi non esistono ancora —
+		// il fumo e' l'unica ad averne uno — e confrontare le dimensioni qui sarebbe un ramo che nessun dato
+		// puo' percorrere. Il giorno in cui una seconda superficie dichiarera' un volume, questo confronto va
+		// esteso alla forma, e `SurfaceVolumeFor` e' gia' il posto da cui leggerla.
+		//
+		// ⚠️ `Contains` su `SurfaceVolumeCells` e' lineare, e va bene: quell'array conta le sole celle CON un
+		// volume — zero su una board senza fumo — non le 7 651 della mappa. E' la stessa ragione per cui il
+		// guardiano di `#2761` puo' permettersi di girare per cella.
+		const bool bVolumeOra = SurfaceVolumeCells.Contains(Id);
+		const bool bVolumeDopo = URTHexLibrary::SurfaceVolumeFor(Data->Surface).Y > 0.0;
+		if (bVolumeOra != bVolumeDopo)
+		{
+			return false;
+		}
+
 		DiscIndices.Add(*Trovato);
 	}
 
@@ -2943,6 +3130,21 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	// giro dopo un caricamento — e `RepaintCells` risponde `false` quando la modifica non e' un
 	// riallineamento ma una costruzione. In entrambi i casi si ricostruiscono le due famiglie, cioe' si fa
 	// esattamente cio' che si faceva prima.
+	//
+	// ➕ **E i canali che dipendono dalla superficie sono TRE dal `#2936`**, non due: `Cells` porta il
+	// COLORE, `Glyphs` la FORMA INCISA (`SurfaceRingCount`) e `SurfaceVolumes` il VOLUME
+	// (`SurfaceVolumeFor`). Il fallback li ricostruisce insieme, perche' ricostruirne una parte darebbe una
+	// cella con canali che si contraddicono — colore nuovo e forma vecchia — su un criterio, «colore **e**
+	// forma, mai solo il colore» (`#956`), che esiste proprio per non dipendere da uno solo.
+	//
+	// 🔴 **E il percorso PER CELLA non conosce il volume, ed e' dichiarato qui invece che scoperto dopo.**
+	// `RepaintCells` riscrive colore e presenza del glifo; il volume no. Una cella che diventa fumo per quella
+	// strada avrebbe due canali su tre. E' per questo che `RepaintCells` **rifiuta** i cambi di superficie che
+	// muovono il volume e lascia decidere al fallback: vedi la sua guardia `SurfaceVolumeFor`.
+	//
+	// 🔑 **Chi aggiunge un quarto canale derivato dalla superficie deve toccare ENTRAMBE le strade**, o quel
+	// canale resterebbe indietro su una delle due — il difetto di `#2894`, ristretto a un percorso solo e
+	// quindi piu' difficile da vedere di quanto lo fosse allora.
 	if (MapAsset && MapAsset->Revision != LastSyncedMapRevision)
 	{
 		const int32 SinceRevision = LastSyncedMapRevision;
@@ -2953,7 +3155,8 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 			&& RepaintCells(Cambiate);
 		if (!bPerCella)
 		{
-			RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs);
+			RebuildInstances(ERTRebuildFamily::Cells | ERTRebuildFamily::Glyphs
+				| ERTRebuildFamily::SurfaceVolumes);
 		}
 	}
 
@@ -3027,6 +3230,13 @@ void ARTHexMapActor::ApplyKnowledgeVeil(const FRTTeamKnowledge& Knowledge)
 	auto SenzaColore = [](const FRTCellId&, FLinearColor&) { return false; };
 	VeilInstances(Relief, ReliefCells, ReliefBaseScale, LastReliefVeilState, nullptr, Visible, Explored,
 		SenzaColore);
+
+	// ⚠️ **Il volume della superficie passa di QUI, e non e' una formalita'** (`#2936`): `VeilInstances`
+	// porta a scala ZERO cio' che sta su una cella mai vista ([D-225]). Senza questa riga il fumo si
+	// vedrebbe **dove la squadra non guarda** — un canale di conoscenza aperto proprio dalla feature che
+	// esiste per non aprirne (`#2870`), e visibile a colpo d'occhio invece che dedotto.
+	VeilInstances(SurfaceVolumes, SurfaceVolumeCells, SurfaceVolumeBaseScale, LastSurfaceVolumeVeilState,
+		nullptr, Visible, Explored, SenzaColore);
 	VeilInstances(Blockers, BlockerCells, BlockerBaseScale, LastBlockerVeilState, nullptr, Visible, Explored,
 		SenzaColore);
 	VeilInstances(EdgeFeatures, EdgeFeatureCells, EdgeFeatureBaseScale, LastEdgeFeatureVeilState,
@@ -3229,9 +3439,15 @@ void ARTHexMapActor::GetAuxiliaryVeilCounts(int32& OutDrawn, int32& OutHidden) c
 	};
 
 	Count(Relief, ReliefCells.Num());
+	Count(SurfaceVolumes, SurfaceVolumeCells.Num());
 	Count(Blockers, BlockerCells.Num());
 	Count(EdgeFeatures, EdgeFeatureCells.Num());
 	// ➕ Il corpo strutturale entra qui da `#2731`: prima non compariva in **nessun** oracolo, ed e' il
 	// motivo per cui il leak e' vissuto fino a una code review invece che fino al primo test rosso.
 	Count(StructuralBodies, BodyCells.Num());
+}
+
+int32 ARTHexMapActor::PlanGhostInstanceCount() const
+{
+	return PlanGhosts ? PlanGhosts->GetInstanceCount() : 0;
 }

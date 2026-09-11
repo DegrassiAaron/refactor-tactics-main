@@ -1077,7 +1077,8 @@ bool FRTInterruptTwiceTracesOnceTest::RunTest(const FString&)
  * mano proverebbe che `AppendChargeImpactIntents` legge un array — non che il turno ci arriva.
  *
  * ⚠️ **Le celle non sono decorative**: l'attaccante finisce a `(2,0)`, la vittima della carica sta a `(3,0)`
- * e quella dell'ultimate a `(4,0)`. `Ctx.Units` e' ordinato per cella (`StableLess` su `X`, cioe' `q`),
+ * e quella dell'ultimate a `(4,0)`. `Ctx.Units` e' ordinato da `SortUnitsForResolution` (#2922), la cui
+ * PRIMA chiave e' la cella (`StableLess` su `X`, cioe' `q`) — che qui basta perche' le celle sono distinte,
  * quindi il bersaglio della carica ha indice MINORE — precisamente la condizione in cui il difetto si
  * manifestava. Invertendole il test resterebbe verde senza dire niente.
  */
@@ -1220,8 +1221,11 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 {
 	// ⚠️ **Si SPECCHIA la fila**, e ci sono voluti due tentativi per arrivarci. L'indice che decide l'ordine
 	// di `Plan.Hits` e' quello in `Ctx.Units`, che `GatherBlastUnits` ordina **per cella**
-	// (`URTHexLibrary::StableLess`) — non per ordine di spawn, e nemmeno per `StableUnitId`, che
-	// `MatchRosterLess` costruisce su `(TeamId, cella, nome)`. Le prime due stesure di questo test invertivano
+	// (prima chiave di `SortUnitsForResolution`, #2922) — non per ordine di spawn, e non per l'ordine del
+	// ROSTER, che `MatchRosterLess` costruisce su `(TeamId, cella, nome)` e che mette la squadra per prima.
+	// ⚠️ `StableUnitId` **e'** la seconda chiave del comparatore, e qui non decide solo perche' le
+	// celle in gioco sono distinte; la stesura precedente diceva «nemmeno per `StableUnitId`», che
+	// e' falso. Le prime due stesure di questo test invertivano
 	// prima gli `SpawnControlUnit` e poi i team, e in tutti e due i casi giravano **due volte lo stesso
 	// scenario**: misurato, non supposto.
 	auto GiraLaCatena = [this](bool bSpecchiata, int32& OutDannoSubito, int32& OutInterrupted,
@@ -1293,7 +1297,12 @@ bool FRTInterruptChainOrderIndependentTest::RunTest(const FString&)
 	if (!GiraLaCatena(/*bSpecchiata=*/ true,  DannoSpecchiata, InterruptedSpecchiata, A2, B2)) { return false; }
 
 	// 🔴 **La premessa che rende il test un test**: i due giri devono avere ordini OPPOSTI. Si confronta con
-	// lo stesso comparatore che `GatherBlastUnits` usa — `URTHexLibrary::StableLess` sulle celle — perche' e'
+	// il PREFISSO del comparatore che `GatherBlastUnits` usa — `StableLess` sulle celle, prima chiave di
+	// `SortUnitsForResolution` (#2922). ⚠️ La premessa qui sotto confronta le sole CELLE, cioe' la prima
+	// chiave: basta perche' in questo scenario le celle sono distinte, e **cadrebbe** — fermando il test con
+	// un rosso onesto, non con un esito sbagliato — se un domani condividessero la cella. Chiamare
+	// `URTActionQueueLibrary::UnitOrderLess` la renderebbe indipendente dallo scenario, ed e' il passo
+	// naturale il giorno in cui serva. Perche' e'
 	// quello a decidere `AttackerId` e quindi l'ordine di `Plan.Hits`. Senza questa coppia di asserzioni il
 	// test girerebbe due volte lo stesso scenario e concorderebbe sempre: e' successo due volte scrivendolo.
 	if (!TestTrue(TEXT("premessa: dritta, A viene prima di B nell'ordine per cella"),

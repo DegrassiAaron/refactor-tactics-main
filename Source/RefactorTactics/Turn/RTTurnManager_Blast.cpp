@@ -858,6 +858,38 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			Instance = Fallback.Instance; // AttackCell: si perde il bersaglio, resta la cella
 		}
 
+		// 🔑 IL BERSAGLIO EFFETTIVO DI UN'AZIONE LINEARE, e questa e' l'unica sede che lo calcola (`#2929`).
+		//
+		// Sta QUI e non in `HexHitCells` perche' quella primitiva e' geometria **pura** e non riceve
+		// l'occupazione: sapere chi sta dove e' l'unico modo di fermarsi sul primo, e l'occupazione esiste
+		// solo da questa parte. Il footprint resta quello dichiarato — cambia CHI si punta, non che forma ha.
+		//
+		// ⚠️ Si risolve DOPO il fallback, non prima: se il bersaglio si e' spostato, `AttackCell` ha gia'
+		// riportato l'istanza sulla cella mirata, ed e' quella la direzione che il colpo percorre.
+		if (Instance.Def.LineResolution == ERTLineResolution::StopAtFirstTarget)
+		{
+			TMap<FRTCellId, int32> Occupancy;
+			TSet<int32> Hostiles;
+			for (int32 u = 0; u < HexUnits.Num(); ++u)
+			{
+				if (!HexUnits[u].bAlive) { continue; } // un cadavere non occupa e non ferma un colpo
+				Occupancy.Add(HexUnits[u].Cell, u);
+				if (HexUnits[u].TeamId != Unit->TeamId) { Hostiles.Add(u); }
+			}
+
+			// ⚠️ L'origine si legge da `HexUnits[i]` e non da `Unit->Cell`: e' la STESSA cella che
+			// `CollectHexAttacks` usera' come `Attacker.Cell`. Oggi coincidono — lo snapshot nasce da li' —
+			// ma leggerle da due posti e' il modo in cui due calcoli della stessa cosa iniziano a divergere.
+			const FRTLineAttackResult Line = URTOffensiveActionLibrary::ResolveLineAttack(
+				Map, HexUnits[i].Cell, Instance.TargetCell, Instance.Def.RangeCells, Occupancy, Hostiles);
+
+			if (Line.HitUnitId != INDEX_NONE && HexUnits.IsValidIndex(Line.HitUnitId))
+			{
+				Instance.TargetUnitId = Line.HitUnitId;
+				Instance.TargetCell = HexUnits[Line.HitUnitId].Cell;
+			}
+		}
+
 		FRTHexAttackIntent Intent;
 		Intent.AttackerId = i;
 		Intent.TargetId = Instance.TargetUnitId;
@@ -2269,7 +2301,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		}
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
-		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
+		// Si itera su Units (ordine di `SortUnitsForResolution`, #2922): quello di una TMap non e' garantito
 		// e da qui dipendono la sequenza del playback e quella del combat log.
 
 

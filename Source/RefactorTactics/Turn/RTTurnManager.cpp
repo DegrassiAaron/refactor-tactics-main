@@ -3924,7 +3924,8 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 	// ⚠️ Conseguenza dichiarata: creare fuoco sotto un bersaglio fermo passa da 0 a **10 danni + `Burning 2`**
 	// (catalogo terreni). E' un'apertura offensiva nuova, non un effetto collaterale.
 	//
-	// L'ordine e' quello di raccolta (`HexArea` gia' ordinata) incrociato con `Units`, ordinate per cella piu'
+	// L'ordine e' quello di raccolta (`HexArea` gia' ordinata) incrociato con `Units`, ordinate da
+	// `SortUnitsForResolution` — cella, poi `StableUnitId`, poi nome (#2922) — piu'
 	// sopra: due unita' sulla stessa trasformazione ricevono gli effetti sempre nella stessa sequenza.
 	// --- Fuga dagli hazard (CP 7.5, `#505`): il punto di valutazione del CLEANUP -----------------------
 	// Le superfici sono nate e i loro effetti non hanno ancora toccato nessuno: e' l'unico istante in cui
@@ -4374,7 +4375,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			Who ? *Who->GetName() : TEXT("?"), *ActionId.ToString(), Why), FRTLogSubject::Unit(Who));
 	};
 
-	for (ARTUnit* Unit : Units) // gia' ordinati per cella dal chiamante
+	for (ARTUnit* Unit : Units) // gia' ordinati dal chiamante con `SortUnitsForResolution` (#2922)
 	{
 		if (!Unit || !Unit->IsAlive()) { continue; }
 

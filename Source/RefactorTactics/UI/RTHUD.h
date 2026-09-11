@@ -290,6 +290,19 @@ public:
 	void SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange);
 
 	/**
+	 * L'ultimo rifiuto mostrato al giocatore — `CP 11.5` (`#172`).
+	 *
+	 * 🔑 **Esiste perche' la timeline del piano lo TRASPORTI invece di ricalcolarlo.** Classificare una
+	 * seconda volta dentro l'anteprima significherebbe riscrivere un percorso privacy-critico: il rifiuto
+	 * nasce da `ClassifyHexTargeting` **piu'** il flag di conoscenza dell'osservatore, e una copia che
+	 * dimenticasse il secondo rivelerebbe la presenza di un nemico velato ([D-225]).
+	 *
+	 * ⚠️ **E' gia' filtrato**: cio' che si legge qui e' cio' che il giocatore sta gia' vedendo, non lo stato
+	 * interno. Non c'e' niente da filtrare una seconda volta, e non si deve.
+	 */
+	ERTTargetRefusal GetLastTargetRefusal() const { return LastRefusal; }
+
+	/**
 	 * Il testo di un rifiuto — e cio' che NON ha un testo, che e' il punto (`#2741`).
 	 *
 	 * ⛔ **`Nothing` e `None` restituiscono entrambi la stringa VUOTA, e devono restituire la stessa cosa.**

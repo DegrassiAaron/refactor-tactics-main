@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
@@ -96,8 +97,13 @@ enum class ERTRebuildFamily : uint8
 	Borders      = 1 << 5,
 	/** Il corpo strutturale sotto le superfici. */
 	Bodies       = 1 << 6,
+	/**
+	 * Il volume con cui una SUPERFICIE si dichiara nello spazio: `URTHexLibrary::SurfaceVolumeFor` decide se
+	 * esiste e che forma ha (`#2936`). Oggi il solo fumo.
+	 */
+	SurfaceVolumes = 1 << 7,
 	/** Tutto: il comportamento di sempre, ed e' il default di `RebuildInstances`. */
-	All          = 0x7F
+	All          = 0xFF
 };
 ENUM_CLASS_FLAGS(ERTRebuildFamily);
 
@@ -453,6 +459,16 @@ public:
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
 
 	/**
+	 * Quanti VOLUMI di superficie sono disegnati (`#2936`). Diagnostica e test.
+	 *
+	 * 🔑 **Conta QUESTA famiglia e non l'aggregato**: `GetAuxiliaryVeilCounts` somma rilievo, blocchi, bordi
+	 * e corpi, quindi un test scritto su quel totale diventerebbe verde per qualunque geometria comparsa —
+	 * cioe' passerebbe per la ragione sbagliata. Cio' che va legato al dato e' *questa* famiglia: la cella
+	 * che diventa fumo acquista un volume, e lo perde quando la superficie torna indietro.
+	 */
+	int32 NumSurfaceVolumeInstances() const { return SurfaceVolumeCells.Num(); }
+
+	/**
 	 * Stende il velo della fog of war sulla board, secondo cio' che UNA squadra sa ([D-225], [D-227]).
 	 *
 	 * Tre stati e non due, ed e' la conseguenza diretta di [D-227]:
@@ -734,6 +750,31 @@ public:
 		bool bOriginPredicted);
 
 	/**
+	 * 🔑 **Posa i GHOST della timeline: uno per fase del piano** — `CP 11.5` ([#172]).
+	 *
+	 * Una timeline **vuota li toglie**, ed e' il caso dell'annullamento: chi spegne l'anteprima chiama questa
+	 * con un `FRTPlanPreview` di default, senza un secondo metodo che faccia la stessa cosa con un altro nome.
+	 *
+	 * ⚠️ **Non disegna: POSA.** Le istanze restano dove sono messe, quindi nessun fotogramma successivo paga
+	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue `DrawDebugLine` a ogni `Tick` e per
+	 * questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
+	 * il bisogno di aggiornare invece che rallentandolo.
+	 */
+	void SetPlanPreview(const FRTPlanPreview& Preview);
+
+	/**
+	 * Quanti ghost sono posati, e su quali celle. Per i test e per la diagnostica.
+	 *
+	 * ⚠️ **Legge la MAPPATURA, non il componente**: e' la stessa disciplina di `GetVeilCounts` al contrario —
+	 * qui la domanda e' «quali celle ho dichiarato», e il componente non conserva le celle. I due numeri
+	 * devono coincidere, e `Preview.GhostsArePooledNotSpawned` lo verifica.
+	 */
+	const TArray<FRTCellId>& GetPlanGhostCells() const { return PlanGhostCells; }
+
+	/** Quante istanze il componente dei ghost porta davvero. Vedi `GetPlanGhostCells()`. */
+	int32 PlanGhostInstanceCount() const;
+
+	/**
 	 * La linea di tiro che NON passa: da dove parte e dove si ferma — `#2742`.
 	 *
 	 * 🔑 **Riceve il verdetto gia' calcolato**, come `SetPreviewAttack` riceve l'origine gia' derivata:
@@ -980,6 +1021,21 @@ protected:
 	TObjectPtr<UInstancedStaticMeshComponent> Relief;
 
 	/**
+	 * Volume della SUPERFICIE (`#2936`): il terzo canale con cui una cella dice cosa e', dopo il colore e il
+	 * glifo inciso. Oggi lo porta il solo fumo — `URTHexLibrary::SurfaceVolumeFor` e' l'unica autorita' sulla
+	 * forma, e le altre otto superfici restituiscono zero.
+	 *
+	 * ⛔ **Famiglia PROPRIA e non dentro `Blockers`**, e non e' una preferenza: quella e' costruita dai flag
+	 * `bBlocksLineOfSight` / `bBlocksMovement`, che il fumo **non ha** — non interrompe la linea, ne cappa la
+	 * portata a 2. Metterlo li' conflaterebbe due regole che il gioco tiene distinte, e il primo a pagarlo
+	 * sarebbe il test che conta i volumi di blocco.
+	 *
+	 * ⛔ E non dentro `Relief`, che misura il **costo di movimento**: il fumo costa 1 come il pavimento.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> SurfaceVolumes;
+
+	/**
 	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
 	 *
 	 * **Un solo componente per due forme**, e non e' un compromesso: un ISM porta una sola `StaticMesh`, ma le
@@ -1210,6 +1266,9 @@ protected:
 	TArray<FRTCellId> ReliefCells;
 	TArray<FVector> ReliefBaseScale;
 	TArray<uint8> LastReliefVeilState;
+	TArray<FRTCellId> SurfaceVolumeCells;
+	TArray<FVector> SurfaceVolumeBaseScale;
+	TArray<uint8> LastSurfaceVolumeVeilState;
 	TArray<FRTCellId> BlockerCells;
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
@@ -1277,6 +1336,25 @@ protected:
 
 	/** Vedi `LastRepaintTouchedInstances()`. Contatore di evento, azzerato a ogni `RepaintCells`. */
 	int32 LastRepaintTouched = 0;
+
+	/**
+	 * Il componente dei ghost della timeline (`#172`). Vedi `SetPlanPreview`.
+	 *
+	 * ⚠️ **Non partecipa a `RebuildInstances`**, e non e' la svista che `#2222` aveva trovato sui volumi di
+	 * conoscenza: quelli sopravvivevano a una ricostruzione della board restando appesi su celle diventate
+	 * altre celle. Qui il contenuto e' il PIANO CORRENTE, che non deriva dall'asset e che il produttore
+	 * riscrive a ogni refresh dell'anteprima — una board ricostruita sotto un piano vivo riceve i ghost nuovi
+	 * al primo refresh, e quello arriva prima di qualunque fotogramma utile.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap",
+		meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInstancedStaticMeshComponent> PlanGhosts;
+
+	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
+	TArray<FRTCellId> PlanGhostCells;
+
+	/** Il colore che rende un livello di certezza. Vedi `SetPlanPreview`. */
+	static FLinearColor GhostColorForCertainty(ERTIntentCertainty Certainty);
 
 	/**
 	 * Cambia ogni volta che la mappatura cella→istanza puo' essersi mossa: una ricostruzione, oppure un
