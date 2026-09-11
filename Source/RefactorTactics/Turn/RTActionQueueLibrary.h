@@ -89,11 +89,17 @@ class REFACTORTACTICS_API URTActionQueueLibrary : public UBlueprintFunctionLibra
 
 public:
 	/**
-	 * Ordine TOTALE fra due azioni pianificate. Vero se A risolve prima di B.
+	 * Ordine fra due azioni pianificate. Vero se A risolve prima di B.
 	 *
 	 * Chiavi, in ordine: **macro-fase di Atlas** (`Prep -> Dash -> Blast -> Move -> Cleanup`) -> `Priority`
 	 * intera crescente -> `ActionId` -> `SourceUnitId` -> `EventSequence` -> `TargetUnitId` -> `TargetCell`
 	 * (`URTHexLibrary::StableLess`) -> `bInterrupted`.
+	 *
+	 * ⚠️ **TOTALE sulle chiavi dichiarate, NON esaustivo su `FRTActionInstance`**, e la distinzione va tenuta
+	 * perche' due stesure precedenti hanno scritto qui la parola «totale» senza qualificarla. Di `Def` il
+	 * confronto guarda tre sottocampi — `ResolutionPhase`, `Priority`, `ActionId` — e non il resto: due
+	 * istanze che differiscono solo per `Def.Effects` o `Def.RangeCells` restano a pari merito. La premessa
+	 * che lo rende sufficiente, e il giorno in cui cade, stanno scritte in fondo a `InstanceLess`.
 	 *
 	 * 🔴 **Fino a #2970 le chiavi erano cinque, e non erano un ordine totale.** `FRTActionInstance` ne porta
 	 * altri tre che DISTINGUONO due istanze — `TargetUnitId`, `TargetCell`, `bInterrupted` — e il confronto

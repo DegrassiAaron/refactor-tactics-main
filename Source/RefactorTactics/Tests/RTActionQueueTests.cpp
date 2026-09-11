@@ -5,7 +5,7 @@
 #include "Turn/RTActionQueue.h"
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTTurnRules.h"
-#include "Templates/Function.h" // TFunction: la tabella dei campi discriminanti (#2970)
+#include "UObject/UnrealType.h" // TFieldIterator: lo sweep dei campi di FRTActionInstance (#2970)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -420,9 +420,10 @@ bool FRTUnitOrderPermutationInvariantTest::RunTest(const FString&)
 // `InstanceLess`, dopo le cinque che c'erano gia'.
 //
 // 🔑 **Spareggi tecnici, non priorita' di gioco.** Fase e `Priority` restano in testa e decidono come
-// prima: `GameplayKeysStillBeatTechnicalTieBreaks` e' li' a dirlo. Cio' che queste chiavi stabiliscono e'
-// soltanto che l'esito non dipenda dall'ordine d'inserimento nel container (`CLAUDE.md` §11) — la stessa
-// distinzione che `UnitOrderLess` fa fra la cella e i due spareggi che la seguono.
+// prima: `GameplayKeysStillBeatTechnicalTieBreaks` e `KeyPrecedenceIsPinned` sono li' a dirlo. Cio' che
+// queste chiavi stabiliscono e' soltanto che l'esito non dipenda dall'ordine d'inserimento nel container
+// (`CLAUDE.md` §11) — la stessa distinzione che `UnitOrderLess` fa fra la cella e i due spareggi che la
+// seguono.
 // ---------------------------------------------------------------------------------------------------------
 
 namespace
@@ -464,6 +465,34 @@ namespace
 		for (const FRTActionInstance& Instance : Queue) { Out.Add(SameTickIdentity(Instance)); }
 		return Out;
 	}
+
+	/**
+	 * Le chiavi di `InstanceLess` **nell'ordine in cui decidono**, ciascuna come «mettiti al minimo / al
+	 * massimo». E' la tabella su cui poggiano sia lo sweep dei campi sia il pinning della precedenza.
+	 *
+	 * ⚠️ Puntatore a funzione e non `TFunction`: le lambda non catturano niente, quindi si convertono da
+	 * sole e non c'e' alcuna type-erasure da pagare — ne' un include in piu'.
+	 */
+	using FInstanceKeySetter = void (*)(FRTActionInstance&, bool bHigh);
+
+	const TArray<FInstanceKeySetter>& InstanceKeySettersInOrder()
+	{
+		static const TArray<FInstanceKeySetter> Setters =
+		{
+			[](FRTActionInstance& I, bool bHigh) { I.Def.ResolutionPhase = bHigh ? ERTResolutionPhase::NormalMovement : ERTResolutionPhase::Preparation; },
+			[](FRTActionInstance& I, bool bHigh) { I.Def.Priority = bHigh ? 90 : 10; },
+			[](FRTActionInstance& I, bool bHigh) { I.Def.ActionId = FName(bHigh ? TEXT("Action.ZZZ") : TEXT("Action.AAA")); },
+			[](FRTActionInstance& I, bool bHigh) { I.SourceUnitId = bHigh ? 9 : 1; },
+			[](FRTActionInstance& I, bool bHigh) { I.EventSequence = bHigh ? 9 : 1; },
+			[](FRTActionInstance& I, bool bHigh) { I.TargetUnitId = bHigh ? 9 : 1; },
+			// ⚠️ `StableLess` confronta **Layer -> X -> Y**, non solo X: il lato alto muove tutti e tre, cosi'
+			// una sostituzione con un `A.TargetCell.X < B.TargetCell.X` non resta verde. La prima stesura di
+			// questi test toccava il solo X, e la delega a `StableLess` non era provata. Trovato in code review.
+			[](FRTActionInstance& I, bool bHigh) { I.TargetCell = bHigh ? FRTCellId(4, 5, 6) : FRTCellId(0, 0, 0); },
+			[](FRTActionInstance& I, bool bHigh) { I.bInterrupted = bHigh; },
+		};
+		return Setters;
+	}
 }
 
 /**
@@ -472,52 +501,148 @@ namespace
  * Gemello, per le azioni, di `RefactorTactics.TurnLog.CanonicalOrderCoversSerializedFields`. La ragione e'
  * la stessa, ed e' scritta accanto a `EntryLess`: un campo che il confronto non guarda lascia due istanze a
  * pari merito, e li' a decidere resta `TArray::Sort` — che inoltra ad `Algo::Sort`, introsort e **non**
- * stabile. Il TurnLog ha dovuto scrivere il proprio gate dopo aver dimenticato un campo due volte; questo
- * arriva prima della terza.
+ * stabile.
  *
- * ⛔ **`Def` non entra oltre i tre campi gia' usati**, e il confine e' dichiarato: `FRTActionDef` appartiene
- * al catalogo, e confrontarla a fondo qui sarebbe una seconda verita' su di lui. Due istanze che
- * differiscono solo per una `Def` mutata per-istanza — `Def.Effects` in `URTReactionLibrary::BuildReactionEvents`,
- * `Def.RangeCells` in `ARTTurnManager::CollectAttackIntents` — si separano su `EventSequence`, che ogni
- * produttore assegna per istanza.
+ * 🔴 **E' uno SWEEP per reflection, non un elenco scritto a mano**, ed e' una correzione fatta in code
+ * review. La prima stesura era una tabella degli otto campi che il comparatore gia' guardava: non poteva
+ * cadere sul campo numero nove, cioe' non era un gate ma un esempio — **esattamente la forma che il commento
+ * del gemello dichiara insufficiente** (*«verificava il solo `UnitId`, quindi era un esempio e non uno
+ * sweep — un campo serializzato aggiunto dopo poteva mancare dall'ordine canonico e restare verde»*). Qui
+ * la reflection enumera i campi di `FRTActionInstance` e ognuno deve essere **classificato**: o e' coperto da
+ * una perturbazione che ribalta il verdetto, o sta nell'elenco delle esenzioni dichiarate. Un campo nuovo
+ * non e' ne' l'uno ne' l'altro, e il test diventa rosso finche' qualcuno non decide quale dei due sia.
+ *
+ * E' la stessa forma di `RefactorTactics.BlindFire.BlastPreviewFieldsStayClosed`, che questo repository ha
+ * gia' scelto una volta per lo stesso problema.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionCanonicalOrderCoversInstanceFieldsTest,
 	"RefactorTactics.Actions.CanonicalOrderCoversInstanceFields",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionCanonicalOrderCoversInstanceFieldsTest::RunTest(const FString&)
 {
-	// Il campo, e come si muove il LATO MAGGIORE. Il lato minore e' sempre la base qui sotto.
-	struct FDiscriminante
-	{
-		const TCHAR* Nome;
-		TFunction<void(FRTActionInstance&)> Maggiora;
-	};
+	// --- 1) Ogni campo di `FRTActionInstance` e' classificato -------------------------------------------
+	UScriptStruct* Struct = FRTActionInstance::StaticStruct();
+	if (!TestNotNull(TEXT("FRTActionInstance risolta dalla reflection"), Struct)) { return false; }
 
-	const TArray<FDiscriminante> Campi =
-	{
-		{ TEXT("Def.ResolutionPhase"), [](FRTActionInstance& I) { I.Def.ResolutionPhase = ERTResolutionPhase::NormalMovement; } },
-		{ TEXT("Def.Priority"),        [](FRTActionInstance& I) { I.Def.Priority = 90; } },
-		{ TEXT("Def.ActionId"),        [](FRTActionInstance& I) { I.Def.ActionId = FName(TEXT("Action.ZetaAttack")); } },
-		{ TEXT("SourceUnitId"),        [](FRTActionInstance& I) { I.SourceUnitId = 9; } },
-		{ TEXT("EventSequence"),       [](FRTActionInstance& I) { I.EventSequence = 11; } },
-		{ TEXT("TargetUnitId"),        [](FRTActionInstance& I) { I.TargetUnitId = 9; } },
-		{ TEXT("TargetCell"),          [](FRTActionInstance& I) { I.TargetCell = FRTCellId(1, 0, 0); } },
-		{ TEXT("bInterrupted"),        [](FRTActionInstance& I) { I.bInterrupted = true; } },
-	};
+	// I campi che `InstanceLess` confronta, per nome di UPROPERTY.
+	const TSet<FString> Confrontati = {
+		TEXT("Def"), TEXT("SourceUnitId"), TEXT("EventSequence"),
+		TEXT("TargetUnitId"), TEXT("TargetCell"), TEXT("bInterrupted") };
 
-	for (const FDiscriminante& Campo : Campi)
+	// ⛔ **Esenzioni dichiarate: nessuna, oggi.** La riga esiste perche' il giorno in cui ne servisse una la
+	// si scriva QUI con la ragione, invece di risolvere il rosso allargando l'elenco dei confrontati —
+	// che e' lo stesso gesto con conseguenze opposte.
+	const TSet<FString> EsentiDichiarati;
+
+	for (TFieldIterator<FProperty> It(Struct); It; ++It)
 	{
-		const FRTActionInstance Minore = SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false);
+		const FString Nome = It->GetName();
+		if (!Confrontati.Contains(Nome) && !EsentiDichiarati.Contains(Nome))
+		{
+			AddError(FString::Printf(
+				TEXT("FRTActionInstance espone il campo '%s', che non e' ne' confrontato da InstanceLess ne' ")
+				TEXT("esente dichiarato: se distingue due istanze deve entrare nell'ordine canonico, altrimenti ")
+				TEXT("due istanze restano a pari merito e a decidere torna TArray::Sort, che non e' stabile ")
+				TEXT("(#2970). Se invece NON le distingue, aggiungilo a EsentiDichiarati con la ragione"), *Nome));
+		}
+	}
+
+	// --- 2) Ogni chiave confrontata ribalta davvero il verdetto -----------------------------------------
+	const TArray<FInstanceKeySetter>& Setters = InstanceKeySettersInOrder();
+	for (int32 k = 0; k < Setters.Num(); ++k)
+	{
+		FRTActionInstance Minore = SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false);
 		FRTActionInstance Maggiore = Minore;
-		Campo.Maggiora(Maggiore);
+		Setters[k](Minore, /*bHigh*/ false);
+		Setters[k](Maggiore, /*bHigh*/ true);
 
-		TestTrue(*FString::Printf(TEXT("%s: il lato minore precede"), Campo.Nome),
+		TestTrue(*FString::Printf(TEXT("chiave %d: il lato minore precede"), k),
 			URTActionQueueLibrary::InstanceLess(Minore, Maggiore));
 
 		// ANTISIMMETRIA, e non solo determinismo: due istanze diverse non sono mai «uguali». E' il verso che
 		// cade per primo quando un campo resta fuori dal confronto — entrambe le direzioni diventano false.
-		TestFalse(*FString::Printf(TEXT("%s: e non il contrario"), Campo.Nome),
+		TestFalse(*FString::Printf(TEXT("chiave %d: e non il contrario"), k),
 			URTActionQueueLibrary::InstanceLess(Maggiore, Minore));
+	}
+
+	// --- 3) Il LIMITE dichiarato, pinnato invece che raccontato -----------------------------------------
+	//
+	// 🔴 **`Def` e' confrontata su tre sottocampi soltanto** — `ResolutionPhase`, `Priority`, `ActionId` — e
+	// ne porta molti altri. Due istanze che differiscono **solo** per `Def.Effects` o `Def.RangeCells`
+	// restano quindi a pari merito, e questo test lo ASSERISCE invece di lasciarlo implicito: una stesura
+	// precedente ci scriveva sopra un commento che dichiarava il confronto esaustivo, il che era falso.
+	// Trovato in code review.
+	//
+	// ⚠️ **La premessa che rende il limite accettabile va detta, perche' e' l'unica cosa che regge**: le
+	// istanze che entrano in uno STESSO sort vengono da un solo produttore, e li' `EventSequence` e' distinto
+	// per costruzione (un contatore per sede). `URTActionQueueLibrary::SortActionInstances` ha un solo
+	// chiamante fuori dai test — `ARTTurnManager::ResolvePrep` — e questo e' verificabile:
+	//
+	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
+	//
+	// ⛔ **Il giorno in cui due produttori confluissero nello stesso array — e' la direzione di #1818 — la
+	// premessa cade, e non basta aggiungere `Def` al confronto**: `FRTActionDef` appartiene al catalogo, e
+	// confrontarla a fondo qui ne creerebbe una seconda verita'. Servirebbe un'identita' d'istanza unica per
+	// turno, che oggi non esiste e che #2970 dichiara di non introdurre.
+	FRTActionInstance ConEffettoA = SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false);
+	ConEffettoA.Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Damage, 10) };
+	FRTActionInstance ConEffettoB = ConEffettoA;
+	ConEffettoB.Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 10) };
+
+	TestFalse(TEXT("limite dichiarato: due istanze che differiscono solo in Def.Effects non si ordinano (A<B)"),
+		URTActionQueueLibrary::InstanceLess(ConEffettoA, ConEffettoB));
+	TestFalse(TEXT("limite dichiarato: ne' nel verso opposto (B<A)"),
+		URTActionQueueLibrary::InstanceLess(ConEffettoB, ConEffettoA));
+	return true;
+}
+
+/**
+ * L'ORDINE DELLE CHIAVI, non solo la loro presenza.
+ *
+ * 🔴 **Senza questo test l'intera suite resta verde se si sposta `TargetUnitId` davanti ad `ActionId`**, e
+ * quello sarebbe un cambio di regola di gioco: l'ordine di risoluzione di due azioni della stessa unita'
+ * dipenderebbe dal bersaglio invece che dalla dichiarazione. Lo sweep dei campi non lo vede — perturba un
+ * campo per volta da una base comune, quindi ogni riga e' decisa dalla sua sola chiave, qualunque sia la
+ * posizione. Trovato in code review.
+ *
+ * Il metodo: per ogni chiave `k`, due istanze che pareggiano su tutte le chiavi PRECEDENTI, si separano su
+ * `k` — e sono messe **al contrario** su tutte le SUCCESSIVE. Se `k` fosse scavalcata da una che la segue,
+ * il verdetto si ribalterebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionKeyPrecedenceIsPinnedTest,
+	"RefactorTactics.Actions.KeyPrecedenceIsPinned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionKeyPrecedenceIsPinnedTest::RunTest(const FString&)
+{
+	const TArray<FInstanceKeySetter>& Setters = InstanceKeySettersInOrder();
+	for (int32 k = 0; k < Setters.Num(); ++k)
+	{
+		FRTActionInstance Vince;
+		FRTActionInstance Perde;
+		for (int32 j = 0; j < Setters.Num(); ++j)
+		{
+			if (j < k)
+			{
+				Setters[j](Vince, /*bHigh*/ true);  // identiche: le chiavi precedenti non decidono
+				Setters[j](Perde, /*bHigh*/ true);
+			}
+			else if (j == k)
+			{
+				Setters[j](Vince, /*bHigh*/ false); // `Vince` e' minore QUI, e solo qui
+				Setters[j](Perde, /*bHigh*/ true);
+			}
+			else
+			{
+				Setters[j](Vince, /*bHigh*/ true);  // ...e maggiore su TUTTE le chiavi successive
+				Setters[j](Perde, /*bHigh*/ false);
+			}
+		}
+
+		TestTrue(*FString::Printf(
+			TEXT("la chiave %d decide, malgrado tutte le successive dicano il contrario"), k),
+			URTActionQueueLibrary::InstanceLess(Vince, Perde));
+		TestFalse(*FString::Printf(TEXT("chiave %d: e in un verso solo"), k),
+			URTActionQueueLibrary::InstanceLess(Perde, Vince));
 	}
 	return true;
 }
@@ -532,18 +657,20 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionOrderIsTotalOnSameTickAndPriorityTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionOrderIsTotalOnSameTickAndPriorityTest::RunTest(const FString&)
 {
+	// ⚠️ Le celle cambiano **Layer**, non solo X: `StableLess` confronta Layer -> X -> Y, e una fixture che
+	// muovesse il solo X lascerebbe la delega non provata. Trovato in code review.
 	TArray<FRTActionInstance> Coda;
 	Coda.Add(SameTickAction(/*Target*/ 9, FRTCellId(0, 0, 0), /*Interrotta*/ false)); // D
-	Coda.Add(SameTickAction(/*Target*/ 7, FRTCellId(1, 0, 0), /*Interrotta*/ false)); // C
-	Coda.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ true));  // B
-	Coda.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false)); // A
+	Coda.Add(SameTickAction(/*Target*/ 7, FRTCellId(5, 5, 1), /*Interrotta*/ false)); // C — Layer 1
+	Coda.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 3, 0), /*Interrotta*/ true));  // B
+	Coda.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 3, 0), /*Interrotta*/ false)); // A
 
 	URTActionQueueLibrary::SortActionInstances(Coda);
 
-	// La sequenza attesa e' SCRITTA, non ricalcolata: `TargetUnitId` -> `TargetCell` (`StableLess`, che
-	// confronta Layer -> X -> Y) -> `bInterrupted` (falso prima di vero).
-	const TArray<FString> Atteso = { TEXT("T7/C0,0,0/I0"), TEXT("T7/C0,0,0/I1"),
-		TEXT("T7/C1,0,0/I0"), TEXT("T9/C0,0,0/I0") };
+	// La sequenza attesa e' SCRITTA, non ricalcolata: `TargetUnitId` -> `TargetCell` (`StableLess`:
+	// Layer -> X -> Y, quindi il Layer 0 precede il Layer 1 malgrado X e Y maggiori) -> `bInterrupted`.
+	const TArray<FString> Atteso = { TEXT("T7/C0,3,0/I0"), TEXT("T7/C0,3,0/I1"),
+		TEXT("T7/C5,5,1/I0"), TEXT("T9/C0,0,0/I0") };
 	const TArray<FString> Ottenuto = SameTickIdentities(Coda);
 
 	TestEqual(*FString::Printf(TEXT("ordine a pari tick: [%s]"), *FString::Join(Ottenuto, TEXT(","))),
@@ -575,12 +702,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSameTickPermutationInvariantTest,
 bool FRTActionSameTickPermutationInvariantTest::RunTest(const FString&)
 {
 	TArray<FRTActionInstance> Base;
-	Base.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ false));
-	Base.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 0, 0), /*Interrotta*/ true));
-	Base.Add(SameTickAction(/*Target*/ 7, FRTCellId(1, 0, 0), /*Interrotta*/ false));
+	Base.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 3, 0), /*Interrotta*/ false));
+	Base.Add(SameTickAction(/*Target*/ 7, FRTCellId(0, 3, 0), /*Interrotta*/ true));
+	Base.Add(SameTickAction(/*Target*/ 7, FRTCellId(5, 5, 1), /*Interrotta*/ false));
 	Base.Add(SameTickAction(/*Target*/ 9, FRTCellId(0, 0, 0), /*Interrotta*/ false));
 
-	const FString Atteso = TEXT("T7/C0,0,0/I0,T7/C0,0,0/I1,T7/C1,0,0/I0,T9/C0,0,0/I0");
+	const FString Atteso = TEXT("T7/C0,3,0/I0,T7/C0,3,0/I1,T7/C5,5,1/I0,T9/C0,0,0/I0");
 
 	int32 Divergenti = 0;
 	FString PrimaDivergenza;
@@ -617,6 +744,9 @@ bool FRTActionSameTickPermutationInvariantTest::RunTest(const FString&)
  * E' l'acceptance scenario 2 di #2970 detto come test — *«dove non c'e' pareggio, l'ordine e' identico a
  * quello di prima»* — ed e' la meta' che protegge il corpus golden. Senza, questa issue sarebbe
  * indistinguibile da un cambio di regola di gameplay.
+ *
+ * ⚠️ **Verde anche PRIMA della modifica, ed e' corretto che lo sia**: asserisce cio' che non e' cambiato.
+ * La precedenza fra TUTTE le chiavi, invece, la pinna `KeyPrecedenceIsPinned`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionGameplayKeysBeatTechnicalTieBreaksTest,
 	"RefactorTactics.Actions.GameplayKeysStillBeatTechnicalTieBreaks",

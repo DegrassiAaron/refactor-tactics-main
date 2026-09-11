@@ -4681,6 +4681,7 @@ void ARTTurnManager::ResolvePrep()
 
 	// 1. RACCOGLI: un'istanza per ogni azione di Prep pianificata e utilizzabile.
 	TArray<FRTActionInstance> Instances;
+	int32 PrepDeclarationOrder = 0; // ordine di dichiarazione delle istanze di questo ciclo (#2970)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -4789,7 +4790,13 @@ void ARTTurnManager::ResolvePrep()
 		Instance.SourceUnitId = i;
 		Instance.TargetUnitId = i;   // le azioni di Prep del vertical slice agiscono su chi le usa
 		Instance.TargetCell = Unit->Cell;
-		Instance.EventSequence = Instances.Num();
+		// ⚠️ **Un contatore, non `Instances.Num()`** (#2970). Qui `Num()` era corretto — l'`Add` e' la riga
+		// successiva — ma e' l'unico produttore il cui `EventSequence` viene davvero CONSUMATO
+		// (`SortActionInstances` e' chiamata trenta righe sotto), ed era rimasto sull'idioma che la stessa
+		// issue dichiara sbagliato altrove. Bastava inserire un `continue` fra le due righe, o un secondo
+		// `Add` condizionato — la stessa modifica che aveva rotto `CollectAttackIntents` — perche' la sola
+		// chiave viva smettesse di spareggiare in silenzio. Trovato in code review.
+		Instance.EventSequence = PrepDeclarationOrder++;
 		Instances.Add(Instance);
 	}
 	if (Instances.Num() == 0) { return; }

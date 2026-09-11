@@ -54,6 +54,17 @@ struct FRTActionInstance
 	 * (`ARTTurnManager::ResolvePrep`), che era anche l'unico a numerare davvero. La chiave sbagliata stava su
 	 * istanze che nessuno ordinava — inerte, finche' qualcuno non le ordina.
 	 *
+	 * ⚠️ **`ARTTurnManager::ResolvePrep` e' passato al contatore benche' il suo `Instances.Num()` fosse
+	 * corretto**, e non e' pulizia: e' l'unica sede il cui `EventSequence` viene davvero consumato, quindi e'
+	 * anche la sola in cui un `continue` inserito fra la lettura e l'`Add` costerebbe qualcosa. Reggeva per
+	 * adiacenza di due righe, non per costruzione.
+	 *
+	 * ⛔ **Questa convenzione NON ha un gate, e va detto invece di lasciarlo intendere.** Il campo si legge
+	 * solo da `InstanceLess`, e solo le istanze di `ResolvePrep` passano da un sort: i quattro siti restanti
+	 * si possono riportare all'idioma sbagliato con la suite interamente verde. A coprirli servirebbe un test
+	 * che osservi i produttori — cioe' un mondo — e #2970 dichiara di non introdurlo. Il giorno in cui #1818
+	 * desse piu' chiamanti a `SortActionInstances`, quel test diventa necessario prima del refactor, non dopo.
+	 *
 	 * ⛔ **Non e' piu' l'ULTIMO tie-break**, e il commento lo diceva: da #2970 seguono `TargetUnitId`,
 	 * `TargetCell` e `bInterrupted`, perche' cinque chiavi non erano un ordine totale.
 	 */

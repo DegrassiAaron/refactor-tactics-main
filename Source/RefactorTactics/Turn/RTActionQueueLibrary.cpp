@@ -39,30 +39,49 @@ bool URTActionQueueLibrary::InstanceLess(const FRTActionInstance& A, const FRTAc
 	// restava `TArray::Sort` — che inoltra ad `Algo::Sort`, introsort e NON stabile, cioe' l'ordine d'arrivo
 	// nel container. E' la stessa classe di difetto che `URTTurnLogLibrary::EntryLess` ha gia' pagato due
 	// volte sui campi serializzati, e che `TurnLog.CanonicalOrderCoversSerializedFields` esiste per fermare;
-	// qui il gate gemello e' `Actions.CanonicalOrderCoversInstanceFields`.
+	// qui il gate gemello e' `Actions.CanonicalOrderCoversInstanceFields`, che enumera i campi per reflection.
 	//
 	// 🔑 **Sono spareggi TECNICI, e stanno in CODA a tutte le chiavi di gioco.** Non decidono chi meriti di
 	// risolvere prima — quella sarebbe una regola di gameplay, e #2970 dichiara di non inventarne. Decidono
 	// soltanto che l'esito non dipenda dall'ordine d'inserimento (`CLAUDE.md` §11), che e' la stessa
-	// distinzione fatta da `UnitOrderLess` fra la cella e i due confronti che la seguono.
+	// distinzione fatta da `UnitOrderLess` fra la cella e i due confronti che la seguono. A tenerle in coda
+	// e' `Actions.KeyPrecedenceIsPinned`: senza quel test, spostare `TargetUnitId` davanti ad `ActionId`
+	// lascerebbe l'intera suite verde e cambierebbe una regola di gioco.
 	//
-	// ⛔ **`Def` non entra oltre i tre campi gia' usati sopra**, e il confine e' dichiarato invece di restare
-	// implicito: `FRTActionDef` appartiene al catalogo, e confrontarla a fondo qui sarebbe una seconda verita'
-	// su di lui. Due istanze che differiscono solo per una `Def` mutata per-istanza — `Def.Effects` in
-	// `URTReactionLibrary::BuildReactionEvents`, `Def.RangeCells` in `ARTTurnManager::CollectAttackIntents` —
-	// si separano su `EventSequence`, che ogni produttore assegna per istanza.
+	// ⚠️ **`TargetUnitId` e `SourceUnitId` sono indici di SNAPSHOT, non identita' stabili** ([D-063]):
+	// `RTActionQueue.h` lo dichiara — *«l'intero e' l'indice nello snapshot»* — e quella numerazione si
+	// rifa' a ogni risoluzione. Regge come spareggio perche' lo snapshot e' congelato DENTRO la risoluzione
+	// che lo usa, che e' tutto cio' che serve a non dipendere dall'ordine d'inserimento; ⛔ non regge come
+	// identita' fra turni o fra processi, e non va usata per quello. `UnitOrderLess` puo' permettersi
+	// `StableUnitId` perche' lavora su `ARTUnit`; qui un campo d'identita' stabile non esiste, e #2970
+	// dichiara di non introdurlo.
 	if (A.TargetUnitId != B.TargetUnitId)
 	{
 		return A.TargetUnitId < B.TargetUnitId;
 	}
-	if (!(A.TargetCell == B.TargetCell))
+	if (A.TargetCell != B.TargetCell)
 	{
 		return URTHexLibrary::StableLess(A.TargetCell, B.TargetCell); // stessa primitiva di `UnitOrderLess`
 	}
-	// `bInterrupted` chiude: falso prima di vero. E' l'ultimo campo di `FRTActionInstance`, quindi da qui in
-	// poi due istanze sono indistinguibili perche' sono la stessa istanza, non perche' il confronto si e'
-	// fermato prima.
-	return static_cast<int32>(A.bInterrupted) < static_cast<int32>(B.bInterrupted);
+	// `bInterrupted` chiude: falso prima di vero.
+	//
+	// ⛔ **Non e' un ordine ESAUSTIVO su `FRTActionInstance`, e una stesura precedente scriveva qui che lo
+	// fosse.** `Def` e' un campo come gli altri e ne porta molti: di quelli il confronto guarda
+	// `ResolutionPhase`, `Priority` e `ActionId`, non il resto. Due istanze che differiscono solo per
+	// `Def.Effects` (`URTReactionLibrary::BuildReactionEvents`) o `Def.RangeCells`
+	// (`ARTTurnManager::CollectAttackIntents`) restano a pari merito, e
+	// `Actions.CanonicalOrderCoversInstanceFields` lo ASSERISCE invece di lasciarlo a un commento.
+	//
+	// 🔑 **La premessa che rende il limite accettabile**: le istanze che entrano in uno stesso sort vengono
+	// da UN solo produttore, e li' `EventSequence` e' distinto per costruzione. Si ricontrolla cosi':
+	//
+	//     git grep -n "SortActionInstances" -- Source/RefactorTactics ":(exclude)Source/RefactorTactics/Tests"
+	//
+	// ⛔ Il giorno in cui due produttori confluissero nello stesso array — la direzione di #1818 — la
+	// premessa cade, e **aggiungere `Def` al confronto non e' la risposta**: appartiene al catalogo, e
+	// confrontarla a fondo qui ne creerebbe una seconda verita'. Servirebbe un'identita' d'istanza unica per
+	// turno, che oggi non esiste. Trovato in code review.
+	return !A.bInterrupted && B.bInterrupted;
 }
 
 void URTActionQueueLibrary::SortActionInstances(TArray<FRTActionInstance>& Instances)

@@ -169,7 +169,13 @@ TArray<FRTActionEvent> URTReactionLibrary::BuildReactionEvents(const FRTActionDe
 	// bersaglio assente) resta quella di `URTActionEffectLibrary::ProduceEvents`, non una seconda copia che
 	// puo' divergere. Il prezzo e' un'istanza per effetto: una reazione ne dichiara al piu' una manciata.
 	//
-	// L'ordine di DICHIARAZIONE delle istanze costruite qui (#2970): una per `FRTActionEffectSpec`.
+	// L'ordine di DICHIARAZIONE delle istanze costruite qui (#2970): una per `FRTActionEffectSpec`
+	// **che sopravvive al filtro** — il `continue` qui sotto salta gli spec senza bersaglio, quindi
+	// `EventSequence` NON e' l'indice in `Def.Effects` e non va usato per risalire allo spec.
+	//
+	// ⚠️ La prima stesura di questo commento diceva «una per `FRTActionEffectSpec`» e basta: e' la stessa
+	// deriva fra descrizione e codice che #2970 esiste per chiudere, rifatta nella issue che la chiude.
+	// Trovato in code review.
 	//
 	// 🔴 **Prima si scriveva `Events.Num()`**, cioe' il conteggio degli EVENTI gia' prodotti — un'altra cosa.
 	// `ProduceEvents` scarta gli spec che non producono nulla (entita' non positiva, stato senza tag,
