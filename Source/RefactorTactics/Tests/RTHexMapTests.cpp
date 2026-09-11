@@ -1681,4 +1681,97 @@ bool FRTAuthoredArenaDoorCountTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **Il registro delle celle cambiate dice «non lo so» invece di una mezza verità** — `#2761`.
+ *
+ * `GetCellsChangedSince` è ciò che permette al velo di ridipingere una cella invece di ricostruire due
+ * famiglie. La sua metà pericolosa non è il percorso veloce: è il **`false`**. Un registro che rispondesse
+ * `true` con un elenco incompleto lascerebbe celle non ridipinte — *«il difetto più silenzioso che questa
+ * classe possa produrre»*, come dichiara il suo stesso header, perché a schermo somiglia a una superficie
+ * che non ha attecchito.
+ *
+ * ⚠️ **Questi rami non avevano un test**, e i due accessori pubblici — `ChangeLedgerCapacity` e
+ * `GetChangeLedgerBaseRevision` — erano stati messi lì apposta per uno che non era stato scritto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapChangeLedgerTest,
+	"RefactorTactics.HexMap.ChangeLedgerSaysItDoesNotKnow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapChangeLedgerTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+
+	// ── Il caso normale: la finestra è esatta ──────────────────────────────────────────────────────────
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(1, 0, 0)));
+	const int32 DopoLeDue = M->Revision;
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(2, 0, 0)));
+
+	TArray<FRTCellId> Cambiate;
+	TestTrue(TEXT("il registro sa rispondere dalla revisione appena osservata"),
+		M->GetCellsChangedSince(DopoLeDue, Cambiate));
+	// 🔑 **Una sola**, non tre: è la differenza fra un registro datato e un elenco cumulativo, ed è tutta la
+	// ragione per cui il costo segue la modifica invece della board.
+	TestEqual(TEXT("e nomina la SOLA cella cambiata dopo quella revisione"), Cambiate.Num(), 1);
+	if (Cambiate.Num() == 1)
+	{
+		TestTrue(TEXT("ed è quella giusta"), Cambiate[0] == FRTCellId(2, 0, 0));
+	}
+
+	// La stessa cella dipinta due volte dentro la finestra resta una cella da ridipingere, non due.
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(2, 0, 0)));
+	TestTrue(TEXT("risponde ancora"), M->GetCellsChangedSince(DopoLeDue, Cambiate));
+	TestEqual(TEXT("e la stessa cella toccata due volte compare una volta sola"), Cambiate.Num(), 1);
+
+	// ── Revisione FUTURA: non è una domanda sensata ───────────────────────────────────────────────────
+	TestFalse(TEXT("una revisione futura non è una domanda a cui si possa rispondere"),
+		M->GetCellsChangedSince(M->Revision + 10, Cambiate));
+
+	// ── Evento all'ingrosso: il registro riparte e chi arriva da prima ricostruisce ────────────────────
+	const int32 PrimaDelloSvuotamento = M->Revision;
+	M->ClearAll();
+	TestFalse(TEXT("dopo uno svuotamento il registro non sa dire cosa è cambiato prima"),
+		M->GetCellsChangedSince(PrimaDelloSvuotamento, Cambiate));
+	TestEqual(TEXT("e si è riancorato alla revisione corrente"),
+		M->GetChangeLedgerBaseRevision(), M->Revision);
+
+	// 🔑 E dal giro dopo torna sul percorso veloce da solo: la ripartenza non è una condanna permanente.
+	const int32 DopoLoSvuotamento = M->Revision;
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(5, 5, 0)));
+	TestTrue(TEXT("e dal giro successivo sa di nuovo rispondere"),
+		M->GetCellsChangedSince(DopoLoSvuotamento, Cambiate));
+	TestEqual(TEXT("nominando la sola cella nuova"), Cambiate.Num(), 1);
+
+	// ── Una TRANSIZIONE muove la revisione e non è una cella ──────────────────────────────────────────
+	//
+	// 🔴 Se il registro restasse fermo risponderebbe «so cosa è cambiato: niente», e il consumatore
+	// salterebbe la ricostruzione che faceva prima — in silenzio, e senza che nessun conteggio se ne accorga.
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(6, 5, 0)));
+	const int32 PrimaDellaTransizione = M->Revision;
+	M->AddTransition(FRTCellId(5, 5, 0), FRTCellId(6, 5, 0), 1, ERTHexTransitionKind::Stair, true);
+	TestTrue(TEXT("una transizione muove comunque la revisione"), M->Revision != PrimaDellaTransizione);
+	TestFalse(TEXT("e il registro dichiara di non sapere, invece di rispondere «niente»"),
+		M->GetCellsChangedSince(PrimaDellaTransizione, Cambiate));
+
+	// ── Traboccamento: oltre la capacità dichiara di non sapere ────────────────────────────────────────
+	//
+	// ⚠️ La soglia si CHIEDE alla classe invece di ricopiarne il numero: un test che ne portasse una propria
+	// copia continuerebbe a passare il giorno in cui quella cambia, misurando un'altra cosa.
+	URTHexMapAsset* Grande = NewObject<URTHexMapAsset>();
+	Grande->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	const int32 PrimaDelDiluvio = Grande->Revision;
+	for (int32 I = 0; I < URTHexMapAsset::ChangeLedgerCapacity + 8; ++I)
+	{
+		Grande->AddOrUpdateCell(FRTHexCellData(FRTCellId(I + 1, 0, 0)));
+	}
+	TestFalse(TEXT("oltre la capacità il registro non consegna un elenco monco"),
+		Grande->GetCellsChangedSince(PrimaDelDiluvio, Cambiate));
+
+	// ⛔ E quel `false` non è «non è cambiato niente»: le celle ci sono tutte, a mancare è il RICORDO di
+	// quali fossero. La distinzione è l'intero punto di questa API.
+	TestEqual(TEXT("le celle però ci sono tutte: a mancare è il ricordo, non il contenuto"),
+		Grande->NumCells(), URTHexMapAsset::ChangeLedgerCapacity + 9);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
