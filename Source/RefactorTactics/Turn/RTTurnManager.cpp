@@ -7464,6 +7464,28 @@ void ARTTurnManager::ApplyReactionDecision(const URTHexMapAsset* Map, const TArr
 		return;
 	}
 
+	// 🔴 **L indice del micro-step viene dalla CHIAVE dell opportunity, non dal contatore ambientale.**
+	//
+	// Quando la risoluzione si sospende su una finestra, `ResolveMovement` RITORNA, e il suo
+	// `ON_SCOPE_EXIT` azzera `CurrentMicroStepIndex`. Le voci scritte alla RIPRESA nascerebbero percio' con
+	// `INDEX_NONE` — che su quel campo significa «nessun ciclo qui», non «non lo so» — di fatti avvenuti
+	// dentro un ciclo di movimento.
+	//
+	// Misurato da `Resolution.SuspendedAndResumedMatchesSinglePass` (#2956): due voci di `ReactionDecision`
+	// collassavano entrambe su `-1` dove la stessa risoluzione in passaggio unico scriveva `#0` e `#1`, e i
+	// boundary delle due tracce smettevano di allinearsi — `T1|Move` contro `T1|Move#0`.
+	//
+	// 🔑 `Opportunity.Key.MicroStepIndex` e' l autorita' su DOVE quella finestra e' avvenuta: lo scrive
+	// `BuildOverwatchTriggers` come `FirstMicroStepIndex + Step`, cioe' dallo stesso conteggio da cui il
+	// ciclo semina il contatore. ∴ nel percorso non sospeso i due valori coincidono e nessuna traccia gia'
+	// registrata si muove; in quello sospeso, questa riga e' la differenza.
+	//
+	// ⚠️ Si ripristina il valore precedente invece di azzerare: questa funzione gira DENTRO il ciclo quando
+	// la finestra non ha sospeso, e lasciarlo a `INDEX_NONE` spegnerebbe l indice per le voci successive.
+	const int32 IndiceAmbientale = CurrentMicroStepIndex;
+	CurrentMicroStepIndex = Opportunity.Key.MicroStepIndex;
+	ON_SCOPE_EXIT{ CurrentMicroStepIndex = IndiceAmbientale; };
+
 	// La voce e' COMUNE ai sei esiti, e non solo al `FIRE`: un `HOLD` che non lascia traccia renderebbe
 	// indistinguibile «ha scelto di non sparare» da «la finestra non si e' mai aperta», che sono la lettura
 	// riuscita e il difetto. E' la stessa ragione per cui `ERTReactionOutcome::NotTriggered` esiste dal CP 5.1.
