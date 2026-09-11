@@ -4900,16 +4900,22 @@ void ARTTurnManager::ResolveDash()
 	TArray<int32> Priorities;     // parallelo a Units: FRTActionDef::Priority dell'azione, 0 per chi non scatta
 	TArray<bool> bLinearMovers;   // parallelo a Units: vero se la mobilita' e' lineare (URTMovementActionLibrary::IsLinear)
 	TArray<bool> bPassThrough;    // parallelo a Units: vero per chi ATTRAVERSA le unita' ferme (LinearPass)
+	TArray<int32> Teams;          // parallelo a Units: la squadra, che decide chi si attraversa ([D-396])
 	Paths.Reserve(Units.Num());
 	DashAbilityIdx.Init(INDEX_NONE, Units.Num());
 	Priorities.Init(0, Units.Num());
 	bLinearMovers.Init(false, Units.Num());
 	bPassThrough.Init(false, Units.Num());
+	// `INDEX_NONE` e non `0`: chi non dichiara la squadra non attraversa nessuno ([D-396]).
+	Teams.Init(INDEX_NONE, Units.Num());
 	int32 DasherCount = 0;
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
 		Paths.Add({ Unit->Cell }); // default: fermo
+		// La squadra si dichiara per TUTTE, non solo per chi scatta: a bloccare un percorso e' anche chi
+		// resta fermo, e senza la sua squadra l'attraversamento non saprebbe se e' un compagno ([D-396]).
+		Teams[i] = Unit->TeamId;
 
 		const int32 DashIdx = Unit->PlannedDashAbility;
 		// ⚠️ Valutato PRIMA del consumo: `PlannedDashApplies` legge `PlannedDashAbility`, che la riga sotto
@@ -5123,7 +5129,7 @@ void ARTTurnManager::ResolveDash()
 	// contraddirebbe quella riga della matrice: il Dash avrebbe un tempo proporzionale a un prezzo che
 	// non sostiene. Se un giorno una policy di durata per il Dash servisse davvero, si decide nella
 	// serie `MOV-*` e si scrive li', non qui.
-	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers, bPassThrough);
+	const TArray<FRTHexMoveResult> Resolved = URTHexSimLibrary::ResolveHexPaths(Paths, Priorities, bLinearMovers, bPassThrough, Teams);
 
 	// Un impatto era stato previsto sul percorso GIA' troncato dal solo `ResolveLinearMove` (occupazione
 	// congelata a inizio fase): non sa se la collisione simultanea fermera' il caricatore PRIMA del contatto
@@ -6954,6 +6960,9 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) cons
 	// Orientamento (CP 16.1): lo si porta perche' e' stato di gioco, e perche' il facing di fine round e'
 	// quello di inizio del round dopo senza nessun travaso esplicito.
 	SimUnit.Facing = Unit->Facing;
+	// La squadra (`#2984`, [D-396]): decide chi si puo' attraversare. Qui e come per lo `Slow` sopra e'
+	// il confine dello strato puro — `URTHexSimLibrary` non conosce `ARTUnit`, e la traduzione e' una.
+	SimUnit.TeamId = Unit->TeamId;
 	return SimUnit;
 }
 

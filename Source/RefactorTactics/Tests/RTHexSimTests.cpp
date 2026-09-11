@@ -2768,4 +2768,144 @@ bool FRTMovementForcedHasNoTerrainDurationTest::RunTest(const FString&)
 // `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
 // namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
 // non vede niente di tutto questo.
+
+// ---------------------------------------------------------------------------------------------------------
+// ATTRAVERSAMENTO FRA COMPAGNE (`#2984`, [D-396])
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Risolve gli stessi percorsi cambiando SOLO le squadre: e' cio' che rende il confronto una misura. */
+	TArray<FRTHexMoveResult> RTResolveWithTeams(const TArray<TArray<FRTCellId>>& Paths, const TArray<int32>& Teams)
+	{
+		return URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>(), Teams);
+	}
+}
+
+/**
+ * Una compagna ferma sul passaggio si attraversa; un'avversaria nella STESSA posizione no.
+ *
+ * \U0001f511 **L'allestimento e' quello di `ResolveBlockedByStationary`**, che pinna il comportamento senza
+ * squadre: qui cambia **solo** l'array `Teams`, quindi la differenza misurata non puo' venire da altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliesCrossTest,
+	"RefactorTactics.HexSim.AlliesCrossEachOther",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliesCrossTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // vuole passare da (1,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma proprio li'
+
+	const TArray<FRTHexMoveResult> Compagne = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("fra compagne A attraversa e arriva"), Compagne[0].Final, FRTCellId(2, 0));
+	TestEqual(TEXT("e la compagna attraversata resta dov'era"), Compagne[1].Final, FRTCellId(1, 0));
+
+	// \u26d4 La meta' falsificante: stessa geometria, squadre diverse -> bloccata come prima.
+	const TArray<FRTHexMoveResult> Avversarie = RTResolveWithTeams(Paths, { 0, 1 });
+	TestEqual(TEXT("fra avversarie A resta ferma"), Avversarie[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il motivo resta BlockedByUnit"), Avversarie[0].Outcome, ERTMoveOutcome::BlockedByUnit);
+
+	// \u26a0\ufe0f Squadra NON dichiarata: non e' alleata di nessuno, nemmeno di un'altra non dichiarata.
+	const TArray<FRTHexMoveResult> Ignote = RTResolveWithTeams(Paths, { INDEX_NONE, INDEX_NONE });
+	TestEqual(TEXT("due squadre non dichiarate non si attraversano"), Ignote[0].Final, FRTCellId(0, 0));
+
+	// E l'array vuoto e' il caso di ogni chiamante che non sa di questo campo: comportamento di prima.
+	const TArray<FRTHexMoveResult> Vuoto = RTResolveWithTeams(Paths, TArray<int32>());
+	TestEqual(TEXT("senza squadre l'esito e' quello storico"), Vuoto[0].Final, FRTCellId(0, 0));
+	return true;
+}
+
+/**
+ * \u26d4 Due compagne non finiscono sulla stessa cella: il vincolo `!bFinalStep` regge.
+ *
+ * E' la meta' che [D-289] impone — un solo slot d'occupancy autorevole per `FRTCellId` — e che [D-396]
+ * dichiara intatta: *«si transita dentro una compagna, non ci si ferma»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliesDoNotStackTest,
+	"RefactorTactics.HexSim.AlliesDoNotShareTheFinalCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliesDoNotStackTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) }); // (1,0) e' la sua ULTIMA cella
+	Paths.Add({ FRTCellId(1, 0) });                  // e la compagna ci sta ferma
+
+	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("anche fra compagne non ci si ferma addosso"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il motivo resta BlockedByUnit"), R[0].Outcome, ERTMoveOutcome::BlockedByUnit);
+	return true;
+}
+
+/**
+ * Una compagna IN TRANSITO si attraversa come una ferma — e il perche' e' il precedente, non una scelta nuova.
+ *
+ * \U0001f534 **Il nome `bCrossesStationary` dice meno di cio' che il codice fa.** Quel permesso salta il ciclo
+ * INTERO, quindi un `LinearPass` attraversa gia' oggi anche chi sta ancora uscendo dalla propria cella, non
+ * solo chi e' fermo. [D-396] concede alle compagne *«le STESSE condizioni»*, quindi il comportamento e'
+ * questo — e sotto [D-382] e' anche l'unico coerente: un'unita' in transito **e'** sulla propria cella
+ * d'origine, non fra due celle, quindi non esiste una terza situazione da distinguere.
+ *
+ * \u26a0\ufe0f Questa casella corregge la riga della issue che chiedeva l'opposto: era scritta leggendo il
+ * commento di `#2914`, che governa il blocco GENERALE e non l'eccezione dell'attraversamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitIsCrossedTest,
+	"RefactorTactics.HexSim.AllyInTransitIsCrossedLikeAStationaryOne",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAllyInTransitIsCrossedTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // passa da (1,0)
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(1, 1) });                  // sta uscendo da (1,0), lentamente
+
+	TArray<TArray<int32>> Durate;
+	Durate.Add({ 1, 1 });
+	Durate.Add({ 5 }); // cinque micro-step per lasciare (1,0): in transito quando A ci arriva
+
+	// \U0001f534 **L'oracolo e' il MICRO-STEP, non la cella finale, e la prima stesura sbagliava proprio qui.**
+	// Un blocco da unita' in transito e' TRANSITORIO: la cella si libera e chi aspettava prosegue, quindi
+	// `Final` e' la stessa per compagne e avversarie e il test non misurerebbe il permesso ma il tempo.
+	// Misurato: con `Final` come oracolo il caso avversario passava, ed era il test a essere cieco.
+	// \u26a0\ufe0f E non esiste uno stato «in transito permanente» da usare al suo posto: chi e' in transito
+	// prima o poi completa. L'unica differenza osservabile e' QUANDO si entra, e `FRTHexMoveResult` non
+	// porta il tempo — `ResolveNextHexMicroStep` si'.
+	auto PosizioneDopoUnPasso = [&Paths, &Durate](const TArray<int32>& Teams)
+	{
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durate, Teams);
+		URTHexSimLibrary::ResolveNextHexMicroStep(State);
+		return State.Pos.IsValidIndex(0) ? State.Pos[0] : FRTCellId();
+	};
+
+	TestEqual(TEXT("fra compagne A entra SUBITO nella cella di chi sta ancora uscendo"),
+		PosizioneDopoUnPasso({ 0, 0 }), FRTCellId(1, 0));
+
+	// \u26d4 La meta' falsificante: le stesse durate fra avversarie lasciano A ferma alla partenza.
+	TestEqual(TEXT("fra avversarie A aspetta che la cella si liberi"),
+		PosizioneDopoUnPasso({ 0, 1 }), FRTCellId(0, 0));
+	return true;
+}
+
+/**
+ * \u26d4 Lo SCAMBIO fra compagne resta un ciclo: [D-396] non lo concede.
+ *
+ * \U0001f511 E la ragione e' scritta nella decisione: [D-394] chiude `MOV-7` poggiando sulla **totalita'**
+ * della catena `Target -> occupante`, e uno scambio permesso e' esattamente un ciclo che si vorrebbe far
+ * passare. Chi lo aprira' riapre quell'argomento con la propria esibizione, non per estensione di questa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedSwapIsStillACycleTest,
+	"RefactorTactics.HexSim.AlliedSwapIsStillACycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliedSwapIsStillACycleTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) }); // testa a testa
+
+	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("nemmeno fra compagne lo scambio passa"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il motivo e' il ciclo, non l'unita'"), R[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
