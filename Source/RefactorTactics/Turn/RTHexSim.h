@@ -264,6 +264,21 @@ struct FRTMovementResolutionState
 	 */
 	TArray<int32> StepRemaining;
 
+	/**
+	 * L'indice, dentro `Paths[i]`, della cella su cui l'ARCO in corso termina — `#3012`, [D-398].
+	 *
+	 * 🔑 **Un arco puo' coprire piu' di una cella**, ed e' cio' che rende l'attraversamento sicuro:
+	 * copre le celle occupate consecutive piu' la prima LIBERA, quindi non esiste un micro-step in cui
+	 * l'unita' sia *sopra* qualcun altro. Sotto [D-382] l'unita' resta sulla propria origine per tutta la
+	 * durata dell'arco e compare direttamente sulla cella d'arrivo.
+	 *
+	 * ⚠️ **`ArcEnd <= Prog` significa «nessun arco aperto»**, ed e' il segnale con cui il micro-step
+	 * successivo sa di doverne calcolare uno. L'arco si apre in un passaggio DEDICATO, prima del punto
+	 * fisso: calcolarlo dentro il ciclo d'avanzamento leggerebbe un `Pos` aggiornato a meta', e l'esito
+	 * dipenderebbe dall'ordine delle unita' — che e' precisamente cio' che questo resolver non ammette.
+	 */
+	TArray<int32> ArcEnd;
+
 	/** Percorso esaurito, o nessun movimento da fare. */
 	TArray<bool> Done;
 
