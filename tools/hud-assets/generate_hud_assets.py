@@ -2589,7 +2589,56 @@ def check_alphabet_gates(entries: list) -> list[str]:
     return errors
 
 
+# --------------------------------------------------------------------------------------------------
+# L'uscita — stampare il verdetto non puo' uccidere la corsa
+#
+# 🔴 Su Windows `sys.stdout.encoding` vale `cp1252`, e OGNI riga di verdetto di `main()` porta un
+# simbolo che quella codifica non ha. Il generatore moriva di `UnicodeEncodeError` **dopo** aver
+# scritto tutto (`#3002`): i PNG erano su disco, e spariva la sola cosa che dice com'e' andata —
+# incluso il `chiavi richieste SENZA icona` su cui il runbook istruisce a fermarsi.
+#
+# Due difese, e servono **entrambe** perche' coprono casi diversi:
+#   `_stdout_to_utf8()` fa uscire i simboli VERI, quando il flusso si lascia riconfigurare;
+#   `emit()` garantisce che una riga impossibile DEGRADI invece di terminare il processo.
+#
+# ⛔ Non togliere `emit()` credendo che `reconfigure` basti. `sys.stdout` non e' sempre un
+# `TextIOWrapper` — sotto un runner che lo sostituisce con un altro oggetto file-like il metodo non
+# c'e' — e il punto del difetto e' che il verdetto sopravviva a un flusso QUALUNQUE, non a quello
+# che avevamo in mente.
+
+def _stdout_to_utf8() -> None:
+    """Porta stdout e stderr a UTF-8 dove si puo'. Silenziosa dove non si puo': e' la prima di due difese."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            # Un flusso che rifiuta la riconfigurazione non e' un errore da propagare: `emit()` lo copre.
+            pass
+
+
+def emit(line: str = "") -> None:
+    """Stampa una riga di verdetto. NON solleva: al peggio sostituisce i caratteri che non passano."""
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+        print(line.encode(encoding, errors="replace").decode(encoding, errors="replace"))
+
+
+# Esiti di `main()`. Erano un solo `1` per due difetti diversi, e nemmeno distinguibile dal `1` che
+# Python restituisce su eccezione non gestita — cioe' dal crash di stampa qui sopra (`#3002`).
+EXIT_OK = 0
+EXIT_MISSING_ICONS = 1
+EXIT_GATES_FAILED = 2
+
+
 def main() -> int:
+    # Prima di qualunque lavoro: il verdetto in fondo deve poter uscire. Vedi il blocco qui sopra.
+    _stdout_to_utf8()
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="Content/RT/UI/_Generated",
                     help="cartella di output (default: Content/RT/UI/_Generated)")
@@ -2728,28 +2777,28 @@ def main() -> int:
     for f in orphans:
         f.unlink()
 
-    print(f"{len(ICONS)} icone + {len(FRAMES)} cornici -> {root}")
+    emit(f"{len(ICONS)} icone + {len(FRAMES)} cornici -> {root}")
     if orphans:
-        print(f"🧹 {len(orphans)} file orfani rimossi (chiavi rinominate o uscite):")
+        emit(f"🧹 {len(orphans)} file orfani rimossi (chiavi rinominate o uscite):")
         for f in orphans[:8]:
-            print(f"   {f.relative_to(root)}")
+            emit(f"   {f.relative_to(root)}")
         if len(orphans) > 8:
-            print(f"   … e altri {len(orphans) - 8}")
+            emit(f"   … e altri {len(orphans) - 8}")
     if gate_errors:
-        print(f"⛔ {len(gate_errors)} gate dell'alfabeto caduti:")
+        emit(f"⛔ {len(gate_errors)} gate dell'alfabeto caduti:")
         for e in gate_errors:
-            print(f"   {e}")
+            emit(f"   {e}")
     else:
-        print("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
+        emit("✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · "
               "T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile")
         for key, why in ALPHABET_EXEMPT.items():
-            print(f"   ⏱️  deroga dichiarata: {key} — {why}")
+            emit(f"   ⏱️  deroga dichiarata: {key} — {why}")
     if missing:
-        print(f"⛔ {len(missing)} chiavi richieste SENZA icona:")
+        emit(f"⛔ {len(missing)} chiavi richieste SENZA icona:")
         for m in missing:
-            print(f"   {m}")
+            emit(f"   {m}")
     else:
-        print(f"✅ copertura completa: {len(required_icon_ids())} chiavi richieste, tutte disegnate")
+        emit(f"✅ copertura completa: {len(required_icon_ids())} chiavi richieste, tutte disegnate")
     if extra:
         # Non sono un residuo: sono le ability d'eroe (chiave regolare sotto `Action.`, fuori dal
         # catalogo generico), `Action.Dodge` che l'handoff ha deciso e il codice non ha ancora, e le
@@ -2758,7 +2807,7 @@ def main() -> int:
         for e in extra:
             by_cat[e.split(".")[2]] = by_cat.get(e.split(".")[2], 0) + 1
         breakdown = ", ".join(f"{k} {v}" for k, v in sorted(by_cat.items()))
-        print(f"ℹ️  {len(extra)} icone fuori dal set richiesto — {breakdown}")
+        emit(f"ℹ️  {len(extra)} icone fuori dal set richiesto — {breakdown}")
     if cairosvg is None:
         # 🔴 **Questo messaggio diceva `pip install cairosvg`, e su Windows e' il consiglio SBAGLIATO**
         # (`#2551`). Li' `cairosvg` e' quasi sempre gia' installato: quello che manca e' la libreria
@@ -2766,14 +2815,21 @@ def main() -> int:
         # reinstallava un pacchetto che c'era gia', vedeva lo stesso ripiego, e concludeva che servisse
         # un'altra macchina — e' successo davvero, ed e' costato tre giorni a una chiave di catalogo
         # mentre `libcairo-2.dll` era sul disco da sempre.
-        print("⚠️  cairosvg non utilizzabile: scritti solo gli SVG, nessun PNG.")
-        print("    Non e' `pip`: il modulo si importa e fallisce sulla libreria NATIVA `libcairo-2.dll`.")
-        print("    Su Windows la porta GTK3 Runtime. Se e' installato, basta il PATH:")
-        print('      PATH="/c/Program Files/GTK3-Runtime Win64/bin:$PATH" python tools/hud-assets/generate_hud_assets.py')
-        print("    Per sapere quale dei due casi e' il tuo:  python -c \"import cairosvg\"")
+        emit("⚠️  cairosvg non utilizzabile: scritti solo gli SVG, nessun PNG.")
+        emit("    Non e' `pip`: il modulo si importa e fallisce sulla libreria NATIVA `libcairo-2.dll`.")
+        emit("    Su Windows la porta GTK3 Runtime. Se e' installato, basta il PATH:")
+        emit('      PATH="/c/Program Files/GTK3-Runtime Win64/bin:$PATH" python tools/hud-assets/generate_hud_assets.py')
+        emit("    Per sapere quale dei due casi e' il tuo:  python -c \"import cairosvg\"")
     else:
-        print(f"{rasterized} PNG rasterizzati")
-    return 1 if (missing or gate_errors) else 0
+        emit(f"{rasterized} PNG rasterizzati")
+    # Due difetti diversi, due codici diversi: chi lancia questo script da uno script deve poterli
+    # distinguere senza leggere stdout (`#3002`). `1` resta le chiavi mancanti — il caso su cui il
+    # runbook dice di fermarsi — cosi' chi controllava `!= 0` continua a vedere quello che vedeva.
+    if missing:
+        return EXIT_MISSING_ICONS
+    if gate_errors:
+        return EXIT_GATES_FAILED
+    return EXIT_OK
 
 
 
