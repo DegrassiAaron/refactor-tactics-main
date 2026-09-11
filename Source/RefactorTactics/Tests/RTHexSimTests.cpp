@@ -2768,4 +2768,84 @@ bool FRTMovementForcedHasNoTerrainDurationTest::RunTest(const FString&)
 // `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
 // namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
 // non vede niente di tutto questo.
+
+// ---------------------------------------------------------------------------------------------------------
+// L'ARCO D'ATTRAVERSAMENTO (`#3012`, [D-398])
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * \u26d4 Due unita' non finiscono il turno sulla stessa cella, nemmeno attraversando.
+ *
+ * \U0001f534 **E' il difetto che questo banco esiste per prendere, ed era su TRUNK.** Misurato su
+ * `origin/main` = `1b9f6f36`: `Final0 == Final1 == (1,0)`. Il guardiano di allora proteggeva la
+ * destinazione **pianificata** — *«solo se quella cella non e' la sua ULTIMA»* — mentre un'unita' bloccata
+ * piu' avanti si ferma dove **sta**, e `Results[i].Final = Pos[i]` promuove quella posizione a finale.
+ *
+ * \U0001f511 Con [D-398] l'arco termina su una cella **libera**, quindi il caso non e' piu' rappresentabile:
+ * A non entra affatto in `(1,0)`, perche' `(2,0)` e' occupata e nessuna cella libera segue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcNeverRestsOnAnotherTest,
+	"RefactorTactics.HexSim.ArcNeverRestsOnAnother",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcNeverRestsOnAnotherTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa, e vorrebbe (2,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma sul passaggio
+	Paths.Add({ FRTCellId(2, 0) });                                   // ferma sulla destinazione
+
+	const TArray<bool> PassThrough = { true, false, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestNotEqual(TEXT("chi attraversa non finisce addosso a chi ha attraversato"), R[0].Final, R[1].Final);
+	TestNotEqual(TEXT("ne' addosso a chi sta sulla destinazione"), R[0].Final, R[2].Final);
+
+	// \u26d4 La meta' che dice DOVE si ferma: senza cella libera a valle non si attraversa affatto, e si
+	// resta alla partenza. E' un rifiuto, non un errore ([D-398] §7c).
+	TestEqual(TEXT("senza cella libera a valle l'arco non si apre"), R[0].Final, FRTCellId(0, 0));
+
+	// \u26a0\ufe0f E `Entered` non nomina una cella in cui non si e' entrati.
+	TestFalse(TEXT("e non risulta esservi entrata"), R[0].Entered.Contains(FRTCellId(1, 0)));
+	return true;
+}
+
+/**
+ * L'arco attraversa e ARRIVA quando una cella libera a valle c'e'.
+ *
+ * \U0001f511 **E' la meta' falsificante del banco sopra**: senza, «non si ferma addosso» sarebbe vero anche
+ * se l'attraversamento avesse smesso di funzionare del tutto, e [D-398] avrebbe chiuso il difetto
+ * togliendo la feature invece che riparandola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcCrossesAndLandsTest,
+	"RefactorTactics.HexSim.ArcCrossesAndLandsBeyond",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcCrossesAndLandsTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, 0) }); // ferma in mezzo, e (2,0) e' libera
+
+	const TArray<bool> PassThrough = { true, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+
+	if (!TestEqual(TEXT("due risultati"), R.Num(), 2)) { return false; }
+	TestEqual(TEXT("chi attraversa arriva oltre"), R[0].Final, FRTCellId(2, 0));
+	TestEqual(TEXT("e chi e' stato attraversato non si e' mosso"), R[1].Final, FRTCellId(1, 0));
+
+	// \u2795 `Entered` nomina OGNI cella dell'arco ([D-398] §7b): e' la crescita su cui `MovedUnitIds` misura
+	// gli ingressi, quindi un Overwatch armato sulla cella attraversata deve poterla vedere.
+	TestTrue(TEXT("l'attraversata figura fra le celle in cui si e' entrati"),
+		R[0].Entered.Contains(FRTCellId(1, 0)));
+	TestTrue(TEXT("e l'arrivo pure"), R[0].Entered.Contains(FRTCellId(2, 0)));
+
+	// \u26d4 E senza il permesso, lo stesso allestimento si ferma prima: e' il controllo che prova che a
+	// muovere il risultato e' l'attraversamento e non la geometria.
+	const TArray<FRTHexMoveResult> Senza = URTHexSimLibrary::ResolveHexPaths(Paths);
+	TestEqual(TEXT("senza permesso ci si ferma davanti"), Senza[0].Final, FRTCellId(0, 0));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

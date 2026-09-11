@@ -846,12 +846,24 @@ namespace
 	}
 
 	/** Microstep ancora da pagare per l'arco in corso di `UnitIdx`. Non inizializzato -> `1`. */
-	/** C'e' un'unita' DIVERSA da `UnitIdx` su `Cell`? Legge `Pos`, cioe' lo stato stabile del micro-step. */
-	bool CellHeldByOther(const FRTMovementResolutionState& State, int32 UnitIdx, const FRTCellId& Cell)
+	/**
+	 * C'e' un'unita' FERMA, diversa da `UnitIdx`, su `Cell`? Legge `Pos`, lo stato stabile del micro-step.
+	 *
+	 * 🔴 **FERMA, non semplicemente presente, e la differenza e' la catena del ciclo.** Un arco scavalca le
+	 * celle che copre, e quelle celle non compaiono in `Target`: la catena `target -> occupante` non le vede
+	 * ([D-398] §9b, il rischio che quella voce si era dichiarata). Scavalcando un'unita' che si MUOVE si
+	 * perderebbe lo scambio che quella catena esiste per prendere — misurato:
+	 * `HexSim.ResolveSwapBlockedEvenWhenPassingThrough` cade, e i due si incrociano invece di bloccarsi.
+	 *
+	 * 🔑 **E la restrizione non costa niente al difetto che [D-398] chiude**: quel difetto e' fermarsi
+	 * addosso a chi non se ne andra' mai, cioe' precisamente a un'unita' ferma. Chi si muove libera la cella
+	 * da solo, e se non ci riesce il blocco normale ferma chi arriva — su una cella legittima.
+	 */
+	bool CellHeldByStationaryOther(const FRTMovementResolutionState& State, int32 UnitIdx, const FRTCellId& Cell)
 	{
 		for (int32 j = 0; j < State.Pos.Num(); ++j)
 		{
-			if (j != UnitIdx && State.Pos[j] == Cell)
+			if (j != UnitIdx && State.Done.IsValidIndex(j) && State.Done[j] && State.Pos[j] == Cell)
 			{
 				return true;
 			}
@@ -896,7 +908,7 @@ namespace
 		int32 End = Next;
 		if (bMayCross)
 		{
-			while (Path.IsValidIndex(End) && CellHeldByOther(State, UnitIdx, Path[End]))
+			while (Path.IsValidIndex(End) && CellHeldByStationaryOther(State, UnitIdx, Path[End]))
 			{
 				++End;
 			}
