@@ -836,6 +836,117 @@ bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
 
 
 /**
+ * TRE nemici in fila: il primo non consuma l'Overwatch, il secondo si', il terzo passa indisturbato
+ * (#3031 CHECKPOINT D).
+ *
+ * 🔴 **La proprieta' e' che la charge sia UNA PER WATCHER, non una per bersaglio**, e nessun gate la
+ * osservava. `Overwatch.HoldKeepsArmed` prova il `HOLD` e lo `Spent` su **un solo** bersaglio, che e' lo
+ * stesso in entrambi i passi; `Overwatch.TriggersPerMicroStep` conta le finestre di **un** mover. Nessuno dei
+ * due distingue un'implementazione che tenga il consumo per COPPIA watcher-bersaglio — la quale sparerebbe
+ * tre volte con un solo armamento e resterebbe verde su tutto questo file.
+ *
+ * Lo scenario, tre nemici distinti che entrano in tre micro-step distinti:
+ *
+ * | Passo | Chi entra | Risposta | `bArmed` dopo |
+ * |---|---|---|---|
+ * | 0 | `7` in `(1,0,0)` | `HOLD` — si lascia passare per il bait | resta `true` |
+ * | 1 | `8` in `(2,0,0)` | `FIRE` sul bersaglio `8` | diventa `false` |
+ * | 2 | `9` in `(3,0,0)` | nessuna finestra: la charge e' spesa | `false` |
+ *
+ * ⛔ **Il controfattuale del passo 2 non e' un extra, e' cio' che rende `0` un'evidenza.** Senza di lui lo
+ * zero finale potrebbe venire dalla geometria — `(3,0,0)` fuori zona, o il nemico `9` non dichiarato
+ * `Detected` — invece che dal consumo, e il test direbbe verde su un difetto diverso. La riga con il watcher
+ * ancora armato deve dare `1` sullo STESSO mover.
+ *
+ * ⚠️ Cio' che questo test NON copre, e va detto: non applica la risposta attraverso il boundary reale
+ * (`ApplyReactionDecision`) — il `FIRE` e' modellato azzerando `bArmed`, che e' cio' che il boundary fa e
+ * che `Overwatch.HoldKeepsArmed` dichiara (*«`bArmed` e' cio' che il boundary azzera su un `FIRE`»*). Il
+ * troncamento del movimento e' `Overwatch.FireTruncatesFutureMovement`; qui si misura la charge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchChargeIsPerWatcherNotPerTargetTest,
+	"RefactorTactics.Overwatch.ChargeIsPerWatcherNotPerTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchChargeIsPerWatcherNotPerTargetTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap();
+
+	// Sentinella in (0,0,0) verso est: controlla (1,0,0)...(4,0,0). Tutti e tre i nemici sono VISTI, cosi'
+	// nessuno dei tre zeri puo' venire dalla conoscenza.
+	FRTOverwatchWatcher Armed = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+	Armed.TeamAwareness.Add(7, ERTAwareness::Detected);
+	Armed.TeamAwareness.Add(8, ERTAwareness::Detected);
+	Armed.TeamAwareness.Add(9, ERTAwareness::Detected);
+
+	const FRTSuppressionMover Primo   = MakeOverwatchMover(7, /*TeamId*/ 1, { FRTCellId(1, 0, 0) });
+	const FRTSuppressionMover Secondo = MakeOverwatchMover(8, /*TeamId*/ 1, { FRTCellId(2, 0, 0) });
+	const FRTSuppressionMover Terzo   = MakeOverwatchMover(9, /*TeamId*/ 1, { FRTCellId(3, 0, 0) });
+
+	// --- Passo 0: il primo entra, e si risponde HOLD ----------------------------------------------------
+	const TArray<FRTOverwatchTrigger> Passo0 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 5, { Armed }, { Primo }, {}, /*Step*/ 0);
+	if (!TestEqual(TEXT("il primo nemico apre una finestra"), Passo0.Num(), 1)) { return false; }
+	TestEqual(TEXT("e il bersaglio offerto e' il primo"), Passo0[0].TargetUnitIds, TArray<int32>{ 7 });
+
+	// `HOLD` non spende la charge: il watcher del passo dopo e' ANCORA questo, non una copia disarmata.
+	FRTOverwatchWatcher DopoHold = Armed;
+
+	// --- Passo 1: il secondo entra, la finestra si apre ancora, e si risponde FIRE ----------------------
+	const TArray<FRTOverwatchTrigger> Passo1 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 5, { DopoHold }, { Secondo }, {}, /*Step*/ 1);
+	if (!TestEqual(TEXT("dopo l'HOLD sul primo, il secondo apre la sua finestra"), Passo1.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("il bersaglio offerto e' il secondo, non quello lasciato passare"),
+		Passo1[0].TargetUnitIds, TArray<int32>{ 8 });
+	TestTrue(TEXT("fra le risposte c'e' il FIRE sul secondo"),
+		Passo1[0].Opportunity.AllowedResponses.Contains(URTReactionOpportunityLibrary::FireResponse(8)));
+
+	// Le due finestre sono DISTINTE: se condividessero l'id, il replay attribuirebbe l'HOLD del primo alla
+	// decisione presa sul secondo.
+	TestNotEqual(TEXT("le due finestre hanno due id distinti"),
+		URTReactionOpportunityLibrary::DeriveOpportunityId(Passo0[0].Opportunity.Key),
+		URTReactionOpportunityLibrary::DeriveOpportunityId(Passo1[0].Opportunity.Key));
+
+	// Il `FIRE` spende la charge: e' cio' che il boundary fa.
+	FRTOverwatchWatcher DopoFire = DopoHold;
+	DopoFire.bArmed = false;
+
+	// --- Passo 2: il terzo entra, e non trova niente ----------------------------------------------------
+	const TArray<FRTOverwatchTrigger> Passo2 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 5, { DopoFire }, { Terzo }, {}, /*Step*/ 2);
+	TestEqual(TEXT("speso il colpo sul secondo, il terzo nemico passa senza finestra"), Passo2.Num(), 0);
+
+	// --- Il CONTROFATTUALE: lo stesso passo 2, con la charge ancora intatta ------------------------------
+	//
+	// ⛔ Senza questa riga lo zero qui sopra non prova il consumo: proverebbe solo che al passo 2 non si apre
+	// nulla, e la ragione potrebbe essere la geometria o la conoscenza. Stesso mover, stesso passo, stessa
+	// mappa — cambia SOLO `bArmed`.
+	const TArray<FRTOverwatchTrigger> Controfattuale = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 5, { DopoHold }, { Terzo }, {}, /*Step*/ 2);
+	if (TestEqual(TEXT("controfattuale: col colpo ancora intatto il terzo APRIREBBE una finestra"),
+		Controfattuale.Num(), 1))
+	{
+		TestEqual(TEXT("e il bersaglio sarebbe il terzo"),
+			Controfattuale[0].TargetUnitIds, TArray<int32>{ 9 });
+	}
+
+	// --- E il verso che smaschera il consumo per COPPIA -------------------------------------------------
+	//
+	// 🔴 Un'implementazione che tenesse la charge per watcher-bersaglio direbbe: «sul 9 non ho ancora
+	// sparato, quindi posso». Il watcher e' speso, e nessun bersaglio nuovo la riapre — nemmeno uno che non
+	// ha mai visto. Qui il terzo e' proprio quello: `DopoFire` non ha mai avuto una finestra su `9`.
+	const TArray<FRTOverwatchTrigger> BersaglioMaiVisto = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 5, { DopoFire }, { Terzo, Secondo, Primo }, {}, /*Step*/ 2);
+	TestEqual(TEXT("un watcher speso non riapre per nessun bersaglio, nemmeno tutti e tre insieme"),
+		BersaglioMaiVisto.Num(), 0);
+
+	return true;
+}
+
+
+/**
  * Un `FIRE` TRONCA il movimento residuo del bersaglio, che resta nella cella raggiunta (CP 14.5).
  *
  * Il troncamento avviene **dentro** il calcolo, non correggendo i risultati a movimento concluso: e' la
