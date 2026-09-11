@@ -2355,9 +2355,18 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	}
 }
 
-// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase `ERTResolutionPhase::Dash`
-// (nel roster ce n'e' una, `Hero.Muiren.FluidTrail`) e non ha un tasto dedicato: sta dove la mette il
-// suo eroe. Un commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
+// Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase
+// `ERTResolutionPhase::FastMovement` e non ha un tasto dedicato: sta dove la mette il suo eroe. Un
+// commento che promettesse un'azione a un tasto invecchierebbe al primo cambio di roster.
+//
+// 🔴 **Questa riga diceva `ERTResolutionPhase::Dash`, e quel valore non esiste.** `Dash` e' la MACRO-fase
+// (`ERTMatchPhase::Dash`); la fase dichiarata dall'azione e' `FastMovement`, e le due sono separate proprio
+// perche' il codice 20 del catalogo si sdoppia (ADR-0003 §3). La conversione e' `MapResolutionPhase`.
+//
+// ⚠️ **E diceva «nel roster ce n'e' una», che era un conteggio e si e' invecchiato da solo** — l'errore
+// esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
+// `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
+// ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
 void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
 void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }
 void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2); }
