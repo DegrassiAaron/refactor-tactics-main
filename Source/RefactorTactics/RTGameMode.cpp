@@ -7,7 +7,9 @@
 #include "Map/RTHexMapActor.h"
 #include "Unit/RTUnit.h" // FClassFinder<ARTUnit> nel costruttore, e il tipo di `HeroUnitClasses`
 #include "Combat/RTCombatLibrary.h" // ControlGroupForUnit: la partizione della squadra (`CP 19.3`, `#1124`)
-#include "Map/RTHexLibrary.h"        // StableLess: l'ordine deterministico delle unita'
+// `Map/RTHexLibrary.h` stava qui per lo `StableLess` sulle celle: l'ordine delle unita' passa dalla sede
+// unica (#2922) e questo file non lo chiama piu'.
+#include "Turn/RTActionQueueLibrary.h" // SortUnitsForResolution: la sede unica dell'ordine (#2922)
 #include "Turn/RTTurnManager.h"
 #include "Frontend/RTFrontendNavigator.h"
 #include "Frontend/RTMatchFrontendBridge.h" // la POLITICA del confine col frontend: qui resta il cablaggio
@@ -135,6 +137,40 @@ TAutoConsoleVariable<float> CVarRTPlanningSeconds(
 	-1.f,
 	TEXT("Secondi della fase di Planning. Negativo = non impostata: vale la riga di comando, poi la proprieta', poi il TurnManager."),
 	ECVF_Default);
+
+// --- L'INGRESSO DEI CONTROLLI DI PLAYBACK (`#2858`) --------------------------------------------------
+//
+// 🔴 **`#if !UE_BUILD_SHIPPING` sui punti nuovi, nella forma gia' in uso** — `Map/RTKnowledgeDebugConsole.cpp`
+// mette l'intero file dentro questa guardia, e `#2395` ha registrato cosa succede a un flag di debug che
+// esce dalla propria. Qui il file non e' interamente di debug, quindi la guardia avvolge le due variable
+// e i loro due punti di lettura, e nient'altro.
+//
+// 🔑 **`rt.Debug.*` e non `rt.Match.*`, malgrado si leggano all'allestimento come `rt.Match.Autobattle`.**
+// La FORMA e' quella — `TAutoConsoleVariable` letta quando la partita si allestisce, «per l'intento di chi
+// lancia adesso» ([D-363]) — ma il NOME dice a chi appartiene: queste non cambiano una regola di partita,
+// accendono un'ispezione. `#80` possiede `rt.Debug.*`, ed e' li' che vanno tenute coerenti.
+//
+// ⚠️ **Default `0` e non `-1`, e la differenza ha una ragione.** Le `rt.Match.*` usano `-1` per distinguere
+// «non impostata» da «impostata a spento», perche' sotto di loro c'e' una proprieta' del GameMode da poter
+// scavalcare **in entrambi i versi**. Qui sotto non c'e' niente: il default e' il fail-closed di `#1879`,
+// e «non impostata» e «spento» sono la stessa cosa. Una sentinella per una domanda che nessuno pone
+// sarebbe uno stato rappresentabile in piu' da tenere d'accordo.
+#if !UE_BUILD_SHIPPING
+TAutoConsoleVariable<int32> CVarRTPlaybackControls(
+	TEXT("rt.Debug.PlaybackControls"),
+	0,
+	TEXT("Developer: accende Pause/Resume/Step del playback della risoluzione. 0 = spenti (default "
+		 "fail-closed di #1879), 1 = accesi. Senza, i comandi restano inerti e i tasti non fanno nulla."),
+	ECVF_Default);
+
+TAutoConsoleVariable<int32> CVarRTPlaybackStartPaused(
+	TEXT("rt.Debug.PlaybackStartPaused"),
+	0,
+	TEXT("Developer: ogni playback comincia FERMO, cosi' il primo confine osservabile e' il primo. "
+		 "0 = scorre subito, 1 = parte in pausa. Richiede rt.Debug.PlaybackControls 1: senza il comando "
+		 "per riprendere, partire fermi bloccherebbe la partita."),
+	ECVF_Default);
+#endif // !UE_BUILD_SHIPPING
 
 /**
  * LE TRE SORGENTI della modalita' non presidiata, con la stessa forma e lo stesso ordine di
@@ -354,22 +390,31 @@ ARTGameMode::ARTGameMode()
 			}
 		};
 
-		// ⚠️ **`BranthBP` punta a un path che dice ancora `Riktor`, e NON e' un refuso.** [D-334] ha rinominato
-		// l'IDENTITA' (`Hero.Riktor` -> `Hero.Branth`), non gli asset: `/Game/RT/Characters/Riktor/` e
-		// `BP_Unit_Riktor` sono `.uasset`, e il loro rename e' la fetta E di #2297 — fuori dallo scope di
-		// #2491, che tocca solo codice e scenari. Allineare il path prima che l'asset esista farebbe fallire
-		// il `FClassFinder` **nel costruttore**, e i quattro eroi ricadrebbero sul cilindro di fallback.
-		// ∴ quando la fetta E rinomina l'asset, questa riga e la tabella di `RTHeroSpawnTests` si muovono
-		// insieme — sono le due meta' dello stesso pin.
-		static ConstructorHelpers::FClassFinder<ARTUnit> GadgetBP(TEXT("/Game/RT/Characters/Gadget/Blueprints/BP_Unit_Gadget"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> PhaseBP(TEXT("/Game/RT/Characters/Phase/Blueprints/BP_Unit_Phase"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Riktor/Blueprints/BP_Unit_Riktor"));
-		static ConstructorHelpers::FClassFinder<ARTUnit> WraithBP(TEXT("/Game/RT/Characters/Wraith/Blueprints/BP_Unit_Wraith"));
+		// ✅ **I path dicono ora l'IDENTITA', e non piu' lo slot asset Paragon** (`#2297` fetta E, [D-321]).
+		//
+		// Fino al 2026-09-10 queste quattro righe puntavano a `Gadget`, `Phase`, `Riktor` e `Wraith`, che
+		// [D-321] ha misurato **non essere nomi ispirati**: sono i nomi degli **slot asset Paragon**. [D-334]
+		// aveva gia' rinominato l'identita' (`Hero.Riktor` -> `Hero.Branth`) lasciando indietro gli asset, e il
+		// disallineamento e' stato per settimane «la verita' del progetto, non un errore da correggere».
+		//
+		// 🔴 **Il rename NON e' un search/replace, ed e' la ragione per cui la fetta E aspettava.** Questi sono
+		// letterali risolti da `FClassFinder` **nel costruttore**: se il path non risolve, la voce resta ASSENTE
+		// e in partita torna il cilindro **senza dire niente** (il difetto che `#287` ha chiuso). ∴ asset e
+		// codice si muovono **insieme**, e l'oracolo che lo prova e' `RTHeroSpawnTests`, che risolve davvero le
+		// quattro classi invece di confrontare stringhe.
+		//
+		// ⚠️ **Cio' che NON si e' mosso, e non e' una dimenticanza**: i path dentro `/Game/FabAsset/Paragon/`
+		// restano quelli di terze parti — l'ultimo segmento e' il nome dell'asset originale, non l'id
+		// dell'eroe. `RTPackagingConfigTests` lo dichiara sul proprio letterale di controllo.
+		static ConstructorHelpers::FClassFinder<ARTUnit> AevikBP(TEXT("/Game/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> MuirenBP(TEXT("/Game/RT/Characters/Muiren/Blueprints/BP_Unit_Muiren"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> BranthBP(TEXT("/Game/RT/Characters/Branth/Blueprints/BP_Unit_Branth"));
+		static ConstructorHelpers::FClassFinder<ARTUnit> IvrinBP(TEXT("/Game/RT/Characters/Ivrin/Blueprints/BP_Unit_Ivrin"));
 
-		Assegna(TEXT("Hero.Gadget"), GadgetBP);
-		Assegna(TEXT("Hero.Phase"),  PhaseBP);
+		Assegna(TEXT("Hero.Aevik"), AevikBP);
+		Assegna(TEXT("Hero.Muiren"),  MuirenBP);
 		Assegna(TEXT("Hero.Branth"), BranthBP);
-		Assegna(TEXT("Hero.Wraith"), WraithBP);
+		Assegna(TEXT("Hero.Ivrin"), IvrinBP);
 	}
 }
 
@@ -529,6 +574,34 @@ void ARTGameMode::BeginPlay()
 			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())))
 	{
 		TurnManager->BeginReplayRecording();
+
+		// `#2858`: l'ingresso dei controlli di playback, letto all'allestimento come le altre.
+		//
+		// 🔴 **Prima di `OpenFirstTurnAfterSetup`, che e' cio' che rende il criterio vero al PRIMO
+		// playback.** Quella riga apre il turno 1; se l'accensione arrivasse dopo, il primo playback della
+		// partita scorrerebbe con i comandi ancora spenti — e sarebbe proprio il turno che chi lancia con
+		// `PlaybackStartPaused` vuole guardare fermo.
+		//
+		// ⚠️ **L'ordine fra le due non e' libero**: `SetStartPlaybackPaused` e' subordinato ai controlli e
+		// non mette in coda la richiesta, quindi chiamarla per prima la butterebbe via in silenzio.
+		//
+		// ⛔ Fuori da una build Shipping non esiste nemmeno la lettura: senza queste righe il manager resta
+		// al proprio default fail-closed, che e' il comportamento spedito.
+#if !UE_BUILD_SHIPPING
+		if (CVarRTPlaybackControls.GetValueOnGameThread() > 0)
+		{
+			TurnManager->SetPlaybackControlsEnabled(true);
+			UE_LOG(LogTemp, Display,
+				TEXT("[RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step)."));
+
+			if (CVarRTPlaybackStartPaused.GetValueOnGameThread() > 0)
+			{
+				TurnManager->SetStartPlaybackPaused(true);
+				UE_LOG(LogTemp, Display,
+					TEXT("[RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo."));
+			}
+		}
+#endif // !UE_BUILD_SHIPPING
 
 		// 🔴 **La conoscenza va ricalcolata QUI, e non e' una precauzione** ([#1762]).
 		//
@@ -839,10 +912,31 @@ void ARTGameMode::AssignUnitControlGroups()
 		}
 	}
 
-	// ⚠️ **L'ordine e' quello di `CollectLivingUnits`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
+	// ⚠️ **L'ordine e' quello di `SortUnitsForResolution`, non quello di `GetAllActorsOfClass`.** Quest'ultimo non
 	// promette nulla, e il gruppo di un'unita' decide CHI la comanda: farlo dipendere dall'ordine di
 	// registrazione degli Actor renderebbe la partizione diversa a ogni avvio, che e' l'invariante n. 4.
-	Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	//
+	// ⛔ **Stesso comparatore di `CollectLivingUnits`, insieme DIVERSO**: qui non c'e' il filtro `IsAlive()`,
+	// quindi l'array porta anche i caduti. Una stesura precedente diceva «l'ordine e' quello di
+	// `CollectLivingUnits`» e sbagliava proprio su questo — ed e' la stessa divergenza su cui #2942 poggia il
+	// proprio caso. Trovato in code review.
+	//
+	// 🔑 Al PRIMO giro `StableUnitId` vale ancora `0` per tutti — `EnsureMatchRoster()` non e' passato — e a
+	// spareggiare due unita' sulla stessa cella e' il NOME dell'Actor, l'ultima chiave di `UnitOrderLess`.
+	//
+	// 🔴 **Ma non e' l'unico giro, e questo commento ha gia' sbagliato due volte a dire quanto costa.**
+	// `OnPostLogin -> AssignSeats -> AssignUnitControlGroups`: un controller che entra a partita iniziata
+	// rientra qui. La seconda stesura diceva che i due giri possono divergere *«solo con due unita' sulla
+	// stessa cella»*: e' **falso**, e il motivo e' la PRIMA chiave. L'ordine parte dalla **cella**, e le celle
+	// cambiano a ogni turno; in piu' `DestroyDefeatedUnits` accorcia la lista. ∴ un rientro a meta' partita
+	// ripartiziona **tutte** le unita', non solo quelle che pareggiano, e `ControlGroupForUnit` puo'
+	// consegnare un'unita' a un posto diverso da quello d'inizio.
+	//
+	// ⛔ **E' un difetto di autorita' che #2922 non ha introdotto e non chiude**: l'ordine qui e' comunque
+	// deterministico, che e' tutto cio' che quella issue garantisce. Ha una sede propria: **#2942**, dove
+	// sta anche la forma del rimedio — un no-op a roster congelato, come fa gia' `EnsureMatchRoster` con
+	// `StableUnitId`. Trovato in code review; `DEFERRED`, non `CURRENT`.
+	URTActionQueueLibrary::SortUnitsForResolution(Units);
 
 	// L'indice riparte per SQUADRA: il gruppo dice quale persona *di quella squadra* comanda, e due squadre
 	// hanno entrambe un gruppo `0`.

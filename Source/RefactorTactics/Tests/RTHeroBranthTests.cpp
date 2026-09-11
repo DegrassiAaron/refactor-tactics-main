@@ -40,9 +40,11 @@ bool FRTBranthMatchesCatalogTest::RunTest(const FString&)
 	TestEqual(TEXT("movimento"), Branth->MovePoints, 4);
 	TestEqual(TEXT("vista"), Branth->VisionRange, 5);
 	TestEqual(TEXT("affinita'"), Branth->Affinity, FName(TEXT("Affinity.Structures")));
-	TestEqual(TEXT("debolezza simmetrica a Wraith"), Branth->Weakness, FName(TEXT("Affinity.Movement")));
+	TestEqual(TEXT("debolezza simmetrica a Ivrin"), Branth->Weakness, FName(TEXT("Affinity.Movement")));
 
-	if (!TestEqual(TEXT("cinque azioni"), Branth->Actions.Num(), 5)) { return false; }
+	// SEI da `#2890`: le cinque del kit v0.1 piu' `MortarShot`, la generica del catalogo core che
+	// `ValidateHeroes` gia' ammetteva («piu' al massimo UNA generica portata nel kit»).
+	if (!TestEqual(TEXT("sei azioni"), Branth->Actions.Num(), 6)) { return false; }
 
 	const URTActionData* ImpactShot = Branth->Actions[0];
 	TestEqual(TEXT("ImpactShot: 8 danni"), BranthEffectAmount(ImpactShot->Def.Effects, ERTActionEffect::Damage), 8);
@@ -101,19 +103,19 @@ bool FRTBranthPushResistanceTest::RunTest(const FString&)
 	// aveva deciso. Ora il test pinna il roster **tutto a zero**, ed e' l'unico posto che diventa rosso se
 	// qualcuno rimette una resistenza nativa senza passare da una decisione.
 	URTHeroData* Branth = URTHeroCatalogLibrary::MakeBranth();
-	URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	URTHeroData* Wraith = URTHeroCatalogLibrary::MakeWraith();
+	URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	URTHeroData* Ivrin = URTHeroCatalogLibrary::MakeIvrin();
 	TestEqual(TEXT("Branth non ha piu' resistenza nativa"), Branth->PushResistance, 0);
-	TestEqual(TEXT("Gadget non resiste"), Gadget->PushResistance, 0);
-	TestEqual(TEXT("Phase non resiste"), Phase->PushResistance, 0);
-	TestEqual(TEXT("Wraith non resiste"), Wraith->PushResistance, 0);
+	TestEqual(TEXT("Aevik non resiste"), Aevik->PushResistance, 0);
+	TestEqual(TEXT("Phase non resiste"), Muiren->PushResistance, 0);
+	TestEqual(TEXT("Ivrin non resiste"), Ivrin->PushResistance, 0);
 
 	// Il prezzo, in dati: piu' salute di tutti, ma il movimento piu' basso finora.
-	TestTrue(TEXT("piu' salute di Gadget e Phase"),
-		Branth->MaxHealth > Gadget->MaxHealth && Branth->MaxHealth > Phase->MaxHealth);
+	TestTrue(TEXT("piu' salute di Aevik e Phase"),
+		Branth->MaxHealth > Aevik->MaxHealth && Branth->MaxHealth > Muiren->MaxHealth);
 	TestTrue(TEXT("ma meno movimento"),
-		Branth->MovePoints < Gadget->MovePoints && Branth->MovePoints < Phase->MovePoints);
+		Branth->MovePoints < Aevik->MovePoints && Branth->MovePoints < Muiren->MovePoints);
 
 	// Il commento che stava qui diceva `PushResistance` "un DATO senza consumatore", e che il resolver
 	// applicava solo `GuardResistedPushDistance`. **Era invecchiato**: il ramo `ERTActionEffect::Push` di

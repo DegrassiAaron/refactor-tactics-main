@@ -1,7 +1,7 @@
 {
   "scenarioId": "Spec.Brace.ProfileChangesResponse",
   "tags": ["spec", "reactions", "brace", "profile", "riktor", "phase"],
-  "version": 3,
+  "version": 5,
   "seed": 0,
   "mapRadius": 4,
 
@@ -11,7 +11,7 @@
 
   "_nota_perche_un_turno_solo": "🔴 La stesura precedente aveva due turni — «entrambi si irrigidiscono», poi «la differenza» — e NON avrebbe potuto funzionare: `Action.Brace` applica `Status.Braced` con durata **1** e ha **cooldown 1** (`RTCatalogLibrary.cpp:1259-1263`), quindi al T2 lo stato e' scaduto e l'azione non e' ridichiarabile. Prep e Blast stanno nello stesso turno — `Preparation` risolve prima di `Attack` — quindi il turno unico non e' una semplificazione: e' l'unica forma in cui la premessa dello scenario e' vera.",
 
-  "_nota_perche_PressureJet_e_non_Action_Push": "🔴 `Action.Push` e' un'azione di catalogo che **nessun eroe porta nel proprio kit** — misurato: lo scenario la dichiarava e il corpus rispondeva «'V1' non possiede l'abilita' 'Action.Push'». L'unica azione del gioco che spinge stando in un kit e' `Hero.Phase.PressureJet` (16 danni, `Push 1`, forma a linea), la stessa fixture di `Spec.Brace.GuardAndBraceOnMixedHit` — che la usa per la stessa ragione e lo dichiara: e' l'unica che porta danno e spinta nello stesso colpo.",
+  "_nota_perche_PressureJet_e_non_Action_Push": "🔴 `Action.Push` e' un'azione di catalogo che **nessun eroe porta nel proprio kit** — misurato: lo scenario la dichiarava e il corpus rispondeva «'V1' non possiede l'abilita' 'Action.Push'». L'unica azione del gioco che spinge stando in un kit e' `Hero.Muiren.PressureJet` (16 danni, `Push 1`, forma a linea), la stessa fixture di `Spec.Brace.GuardAndBraceOnMixedHit` — che la usa per la stessa ragione e lo dichiara: e' l'unica che porta danno e spinta nello stesso colpo.",
 
   "_nota_loadout_vuoto": "I due attaccanti entrano SPOGLI (`\"loadout\": []`), ed e' la riga che tiene in vita questo file — copiata dal gemello `GuardAndBraceOnMixedHit`, che l'ha gia' pagata. Dal 2026-08-16 (#1054) il gioco monta i default, e quello di Phase e' `Weapon.Impact`: la spinta di `PressureJet` passa da 1 a **2**. Qui la variabile da tenere ferma e' la SPINTA A 1, perche' questo scenario misura *chi* decide lo spostamento, non *quanto* vale la soglia di una difesa.",
 
@@ -23,24 +23,25 @@
 
   "units": [
     { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [ 0, 0, 0] },
-    { "id": "R1", "hero": "Hero.Phase",  "team": 0, "cell": [ 0, 3, 0], "facing": "NE" },
-    { "id": "V1", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 0, 0], "loadout": [] },
-    { "id": "V2", "hero": "Hero.Phase",  "team": 1, "cell": [-1, 3, 0], "loadout": [] }
+    { "id": "R1", "hero": "Hero.Muiren",  "team": 0, "cell": [ 0, 3, 0], "facing": "NE" },
+    { "id": "V1", "hero": "Hero.Muiren",  "team": 1, "cell": [-1, 0, 0], "loadout": [] },
+    { "id": "V2", "hero": "Hero.Muiren",  "team": 1, "cell": [-1, 3, 0], "loadout": [] }
   ],
 
   "turns": [
     {
-      "_turno": "T1 — la differenza, in un turno solo. Nel `Prep` B1 e R1 dichiarano `Action.Brace`: identica azione, identico costo, identico `Status.Braced`. Nell'`Attack` V1 colpisce B1 e V2 colpisce R1 con lo stesso `Hero.Phase.PressureJet`. Il ramo `Status.Braced` costruisce per ciascuno l'opportunity dalle risposte del PROPRIO profilo: B1 (Branth) non ne ha uno, quindi una sola risposta e nessuna finestra — commit immediato, il comportamento di sempre. R1 (Phase) porta `Profile.Sidestep`, quindi due risposte e la finestra si apre; la `decisions` qui sotto risponde `SIDESTEP` e R1 lascia la cella.",
+      "_turno": "T1 — la differenza, in un turno solo. Nel `Prep` B1 e R1 dichiarano `Action.Brace`: identica azione, identico costo, identico `Status.Braced`. Nell'`Attack` V1 colpisce B1 e V2 colpisce R1 con lo stesso `Hero.Muiren.PressureJet`. Il ramo `Status.Braced` costruisce per ciascuno l'opportunity dalle risposte del PROPRIO profilo: B1 (Branth) non ne ha uno, quindi una sola risposta e nessuna finestra — commit immediato, il comportamento di sempre. R1 (Phase) porta `Profile.Sidestep`, quindi due risposte e la finestra si apre; la `decisions` qui sotto risponde `SIDESTEP` e R1 lascia la cella.",
       "requires": ["ReactionProfile"],
       "intents": [
         { "unit": "B1", "ability": "Action.Brace" },
         { "unit": "R1", "ability": "Action.Brace" },
-        { "unit": "V1", "ability": "Hero.Phase.PressureJet", "target": "B1" },
-        { "unit": "V2", "ability": "Hero.Phase.PressureJet", "target": "R1" }
+        { "unit": "V1", "ability": "Hero.Muiren.PressureJet", "target": "B1" },
+        { "unit": "V2", "ability": "Hero.Muiren.PressureJet", "target": "R1" }
       ],
       "decisions": [
         { "_nota": "Nessuna decisione per B1: la sua finestra non si apre, e dichiararne una qui sarebbe il caso simmetrico della «finestra scoperta» — una decisione che nessuno consuma, che `FRTScenarioSession` conta nel residuo e segnala.",
-          "unit": "R1", "respond": "SIDESTEP" }
+          "_nota_selettore": "⛔ Il selettore porta `reactor` e `reaction`, e l'omissione di `triggerUnit` e' deliberata: una finestra di profilo non offre risposte `FIRE:<id>`, e il vincolo di trigger si confronta proprio con quelle. Dichiararlo qui darebbe un selettore che NESSUNA finestra puo' soddisfare — la decisione finirebbe nel residuo, e il referto direbbe «nessuna finestra ha soddisfatto il selettore» su uno scenario sano. 🔑 La `reaction` invece c'e', ed e' il PIN del produttore (#2866): `ARTTurnManager` scrive `Action.Brace` sulla chiave dell'opportunity del Brace, e se un giorno quell'id cambiasse questo scenario uscirebbe rosso invece di lasciar divergere in silenzio l'elenco di `BoundaryCapableReactionIds`.",
+          "on": { "reactor": "R1", "reaction": "Action.Brace" }, "respond": "SIDESTEP" }
       ]
     }
   ],

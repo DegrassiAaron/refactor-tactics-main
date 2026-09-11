@@ -146,8 +146,8 @@ ostacoli `(-1,2)` `(1,-2)` `(2,1)` e la fascia Rough a costo 3 su `q=-2`.
 
 | Eroe | HP | MP | Attacco base | Note |
 |---|---:|---:|---|---|
-| Gadget | 90 | 5 | `Hero.Gadget.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
-| Phase | 95 | 5 | `Hero.Phase.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
+| Gadget | 90 | 5 | `Hero.Aevik.ArcPulse` 22, r4 | `LinearDischarge` 24 r5 linea cd2 · `Overload` 18 AoE r1 |
+| Phase | 95 | 5 | `Hero.Muiren.PressureJet` 16 + Wet(1) + Push 1, r5 linea | fallback `AttackCell` |
 | Riktor | 120 | 4 | `Hero.Riktor.ImpactShot` 8 + Slow(1), r3 | PushResistance 1 · `Ram` = carica 20 + Push 1 |
 | Wraith | 90 | 6 | `Hero.Wraith.PulseShot` 21, r4 | il più mobile |
 
@@ -170,7 +170,7 @@ progetto a usare una fixture invece di un'arena generata.
 | `Movement.LongWalk` *(esiste)* | r5 | due unità attraversano l'arena, 3 celle per turno × 2 | passo, orientamento, velocità, camera che segue | *(già sue)* | già `animation` |
 | `Combat.BasicAttack` *(esiste)* | r4 | Gadget `ArcPulse` su Riktor a distanza 2 | partenza, volo, impatto, numero di danno | `UnitHpEquals B1 103` — 120 − (22 − 5 di `BaseShield`, D-224) | già `animation` |
 | `Visual.Environment.FireOnEnter` | RelayLite | Wraith `(0,-3)` → move `(0,-2)` Fire | **due** momenti: 10 danni all'ingresso, 8 nel Cleanup per `Burning` | `UnitHpEquals V1 72` (i due danni della cella accanto: il danno da terreno e' `Environmental`, e il `BaseShield` non lo ferma — D-224) · `UnitAtCell V1 (0,-2,0)` | scritto |
-| `Visual.Combat.Defeat` | r4 | Gadget `(-1,0)`; Riktor `ImpactShot` + Wraith `PulseShot` per **sei turni** | l'unità che incassa, poi sparisce: KO al **sesto** (ADR-0007 lo aveva già portato da due a quattro; D-224 da quattro a sei, e il danno per turno **non** è costante — `Hero.Gadget.ReactiveCapacitor` ha cooldown 3) | `UnitAlive F1 false` · `UnitHpEquals R1 95` · `TurnsCompleted 6` | scritto |
+| `Visual.Combat.Defeat` | r4 | Gadget `(-1,0)`; Riktor `ImpactShot` + Wraith `PulseShot` per **sei turni** | l'unità che incassa, poi sparisce: KO al **sesto** (ADR-0007 lo aveva già portato da due a quattro; D-224 da quattro a sei, e il danno per turno **non** è costante — `Hero.Aevik.ReactiveCapacitor` ha cooldown 3) | `UnitAlive F1 false` · `UnitHpEquals R1 95` · `TurnsCompleted 6` | scritto |
 | `Visual.Movement.Charge` | r4 | Riktor `(3,0)` usa `Ram` su Gadget `(1,0)` (distanza 2, portata 3) | la carica **si legge diversa** dal passo: accelerazione, impatto, arresto addosso | `UnitHpEquals F1 75` — 90 − (20 − 5 di `BaseShield`, D-224) | scritto |
 | `Visual.Environment.IceSlide` | RelayLite | Gadget `(-2,4)` → move `(-2,3)` `(-2,2)` Ice, restano 3 MP | il passo extra deve leggersi come **scivolata**, non come un passo in più | `UnitAtCell F1 (-2,1,0)` | scritto |
 
@@ -387,8 +387,8 @@ soluzione: quelle erano azioni **generiche** per D-025 e potevano entrare nel ki
 ambientale in mano a ogni eroe sarebbe una decisione di design — «chiunque può incendiare e creare acqua» —
 non un cablaggio.
 
-La via canonica è un'altra, e il progetto l'ha già usata per le reazioni: `Hero.Gadget.ConductiveNode`,
-`Hero.Phase.MistVeil` e `Hero.Phase.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
+La via canonica è un'altra, e il progetto l'ha già usata per le reazioni: `Hero.Aevik.ConductiveNode`,
+`Hero.Muiren.MistVeil` e `Hero.Muiren.FluidTrail` **esistono nel catalogo eroi con `Effects` vuoti**, e i loro commenti
 dichiarano il perché — quando furono scritte, il sistema d'ambiente non c'era. Ora c'è. Cablarle alla
 semantica core conservando l'identità dell'eroe è la stessa mossa di `Hero.Riktor.Ram` → `Action.Charge`.
 
@@ -434,7 +434,7 @@ sulla **portata**. Lo scenario ora fa caricare Riktor in direzione opposta, fino
 | Difetto | Perché nessuno se n'era accorto |
 |---|---|
 | `PushResistance` non riduce le spinte ([#241], **chiuso**) | era un **dato senza consumatore**: catalogo → `ARTUnit` → test che ne verificano il *valore*. Nessuno lo leggeva quando applicava una spinta |
-| la combo Phase→Gadget non è realizzabile ([#242]) | `Heroes.Hero.Gadget.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
+| la combo Phase→Gadget non è realizzabile ([#242]) | `Heroes.Hero.Aevik.WetBonus` verifica l'**aritmetica** di `EffectiveAttackPower` senza passare dal `TurnManager`. Il `Wet` di `PressureJet` arriva *durante* il Blast, quando i colpi sono già preparati — e su due turni scade nel Cleanup prima di servire |
 
 Il secondo è il più istruttivo del lotto: la combo firma della v0.1 era documentata, aveva un test verde, ed
 era **ineseguibile**.
@@ -448,7 +448,7 @@ Le due sorgenti di `Wet` hanno ora uno scenario ciascuna, e servono entrambe:
 
 | Scenario | Sorgente del bagnato | Cosa dimostra |
 |---|---|---|
-| `Visual.Combat.WaterElectricCoordinated` | `Hero.Phase.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
+| `Visual.Combat.WaterElectricCoordinated` | `Hero.Muiren.PressureJet`, priorità 50 | la **coordinazione fra due eroi** dentro lo stesso Blast: `90 − (16 + 32 − 5 di BaseShield) = 47` — Wraith ha 90 HP, non 100 |
 | `Visual.Combat.WaterElectric` | il **terreno**, attraversato in fase Dash | che il bonus non dipende da chi bagna (D-029): `90 − (32 − 5 di BaseShield) = 63` — Wraith ha 90 HP, non 100 |
 
 ### Lacune dichiarate
@@ -457,8 +457,8 @@ Tre abilità del kit non hanno scenario, e non per dimenticanza:
 
 | Abilità | Perché no |
 |---|---|
-| `Hero.Phase.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
-| `Hero.Phase.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
+| `Hero.Muiren.CircularTide` | il routing cura-agli-alleati / `Wet`-ai-nemici è dichiarato **incompleto** nel catalogo. Un'assertion scritta sul design invece che sul comportamento reale produrrebbe un `FAIL` che accusa il gioco di un difetto già noto |
+| `Hero.Muiren.FluidTrail` | la mobilità è rappresentabile, la scia d'acqua no: resterebbe uno scenario che verifica un Dash e lo chiama `FluidTrail` |
 | `Hero.Wraith.Feint` | nessuna delle due metà è dichiarabile — `Status` si applica alle unità e non alle celle, e il `Reposition` passa da `MovementStyle`, non da `Effects` |
 
 Vanno scritte quando il comportamento è **osservabile**, misurando il primo run invece di derivarlo dal

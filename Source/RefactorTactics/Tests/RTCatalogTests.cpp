@@ -344,8 +344,8 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 					// «Tutto il resto colpisce» descriveva i quattro slot degli archetipi legacy. Un kit
 					// d'eroe ha almeno quattro categorie, e le ultime due non colpiscono affatto:
 					//   - si PREPARA senza essere supporto su se' — `Branth.Reconfigure`, `Phase.FlowReaction`,
-					//     `Wraith.InterceptShot` (fase Prep);
-					//   - agisce sull'AMBIENTE — `Gadget.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
+					//     `Ivrin.InterceptShot` (fase Prep);
+					//   - agisce sull'AMBIENTE — `Aevik.ConductiveNode`, `Phase.FluidTrail`, `Phase.MistVeil`,
 					//     `Branth.KineticPanel`, che ereditano la fase dalle azioni core d'ambiente e
 					//     risolvono nel Cleanup, dopo il Move, per colpire anche chi e' appena entrato.
 					// La proprieta' che regge tutte e' che l'azione risolva in una fase in cui si GIOCA:
@@ -499,8 +499,8 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		{ TEXT("Action.Push"),            TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Reposition"),      TEXT("Aspetta il suo eroe") },
 		{ TEXT("Action.Root"),            TEXT("Aspetta il suo eroe") },
-		// `Action.Shield` e' USCITA da questo elenco: la portano `Hero.Phase.TideGuard` e
-		// `Hero.Wraith.PhaseGuard`, uno per squadra. Ci si era provato il 2026-08-28 con [D-224] e il
+		// `Action.Shield` e' USCITA da questo elenco: la portano `Hero.Muiren.TideGuard` e
+		// `Hero.Ivrin.PhaseGuard`, uno per squadra. Ci si era provato il 2026-08-28 con [D-224] e il
 		// tentativo era stato RITIRATO — un sesto slot d'eroe portava il kit a 11 voci contro i 10 tasti
 		// numerici, e l'azione sarebbe stata raggiungibile per QUESTO gate e impremibile per il giocatore.
 		// Il vincolo e' caduto spostando le generiche su tasti propri (`GenericHotkeys()`), non ignorandolo.
@@ -627,6 +627,7 @@ bool FRTCoreActionsDeclareAggressionTest::RunTest(const FString&)
 	static const TSet<FName> Attese = {
 		TEXT("Action.BasicAttack"), TEXT("Action.PrecisionAttack"), TEXT("Action.HeavyAttack"),
 		TEXT("Action.LineAttack"),  TEXT("Action.CircularAoE"),     TEXT("Action.SuppressiveLine"),
+		TEXT("Action.Mortar"), // `#2890`: colpisce senza vedere, ma COLPISCE — l'aggressione la dichiara
 		TEXT("Action.Charge"),      TEXT("Action.MarkTarget"),
 		TEXT("Action.Push"),        TEXT("Action.Pull"),            TEXT("Action.Root"),
 		TEXT("Action.Slow"),        TEXT("Action.Interrupt") };

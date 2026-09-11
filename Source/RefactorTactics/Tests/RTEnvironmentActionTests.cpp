@@ -73,7 +73,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -290,7 +290,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionMistVeilTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTActionMistVeilTest::RunTest(const FString&)
 {
-	// Issue #353. `Phase.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
+	// Issue #353. `Muiren.MistVeil` dichiarava «crea fumo raggio 1» e non lo faceva: `Smoke` era l'unica delle
 	// otto superfici che nessuna azione sapeva creare. Il test non si ferma alla superficie — verifica anche
 	// il CAP di targeting, perche' e' quello l'effetto tattico, e una superficie dipinta che non cambia nulla
 	// sarebbe lo stesso difetto di prima con un colore in piu'.
@@ -310,9 +310,9 @@ bool FRTActionMistVeilTest::RunTest(const FString&)
 
 	// L'abilita' vera del catalogo, non una ricostruita nel test: la issue nasceva proprio da uno scarto fra
 	// cio' che il catalogo dichiarava e cio' che l'azione faceva.
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	if (!TestNotNull(TEXT("Phase costruita"), Phase)) { DestroyEnvWorld(World); return false; }
-	URTActionData* MistVeil = Phase->Actions.IsValidIndex(3) ? Phase->Actions[3] : nullptr;
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!TestNotNull(TEXT("Muiren costruita"), Muiren)) { DestroyEnvWorld(World); return false; }
+	URTActionData* MistVeil = Muiren->Actions.IsValidIndex(3) ? Muiren->Actions[3] : nullptr;
 	if (!TestNotNull(TEXT("MistVeil nel kit"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
@@ -1241,15 +1241,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPortableCoverGadgetTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 {
-	URTEquipmentData* Gadget = URTCatalogLibrary::MakePortableCoverGadget();
-	if (!TestNotNull(TEXT("il gadget esiste"), Gadget)) { return false; }
+	URTEquipmentData* Aevik = URTCatalogLibrary::MakePortableCoverGadget();
+	if (!TestNotNull(TEXT("il gadget esiste"), Aevik)) { return false; }
 
 	// Passa il validator del catalogo: lo svantaggio e' dichiarato, non sottinteso.
 	TArray<const URTEquipmentData*> Set;
-	Set.Add(Gadget);
+	Set.Add(Aevik);
 	TestEqual(TEXT("il gadget e' valido a catalogo"), URTCatalogLibrary::ValidateEquipment(Set).Num(), 0);
-	TestEqual(TEXT("cooldown 3, come ogni gadget"), Gadget->CooldownTurns, 3);
-	TestFalse(TEXT("dichiara uno svantaggio"), Gadget->Drawback.IsEmpty());
+	TestEqual(TEXT("cooldown 3, come ogni gadget"), Aevik->CooldownTurns, 3);
+	TestFalse(TEXT("dichiara uno svantaggio"), Aevik->Drawback.IsEmpty());
 
 	UWorld* World = MakeEnvWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1268,7 +1268,7 @@ bool FRTPortableCoverGadgetTest::RunTest(const FString&)
 		return false;
 	}
 
-	URTActionData* FromGadget = URTCatalogLibrary::MakeEquipmentAction(Gadget, Carrier);
+	URTActionData* FromGadget = URTCatalogLibrary::MakeEquipmentAction(Aevik, Carrier);
 	if (!TestNotNull(TEXT("il gadget concede un'azione"), FromGadget))
 	{
 		DestroyEnvWorld(World);
@@ -1449,9 +1449,9 @@ bool FRTBornSurfaceIsNotOnlyFireTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Caster || !Target || !TM) { DestroyEnvWorld(World); return false; }
 
-	URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	URTActionData* MistVeil = (Phase && Phase->Actions.IsValidIndex(3)) ? Phase->Actions[3] : nullptr;
-	if (!TestNotNull(TEXT("MistVeil nel kit di Phase"), MistVeil)) { DestroyEnvWorld(World); return false; }
+	URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	URTActionData* MistVeil = (Muiren && Muiren->Actions.IsValidIndex(3)) ? Muiren->Actions[3] : nullptr;
+	if (!TestNotNull(TEXT("MistVeil nel kit di Muiren"), MistVeil)) { DestroyEnvWorld(World); return false; }
 
 	Caster->Abilities[3] = MistVeil;
 	Caster->PlannedAbilityIndex = 3;
@@ -1822,7 +1822,7 @@ bool FRTHazardTerrainEntryLogTest::RunTest(const FString&)
 	if (TestEqual(TEXT("una voce di Terrain.Fire nel TurnLog"), Trovate, 1))
 	{
 		// ⚠️ **`Move` e non `Cleanup`**: e' il danno dell'INGRESSO, e si distingue da quello del `Burning`
-		// per fase **e** per `ActionId`. Se la fase fosse letta dal membro `Phase` sarebbe sbagliata — il
+		// per fase **e** per `ActionId`. Se la fase fosse letta dal membro `Muiren` sarebbe sbagliata — il
 		// ciclo delle fasi esce su `Planning` e la Cleanup gira dopo.
 		TestEqual(TEXT("nella fase del movimento"), Voce.Phase, ERTMatchPhase::Move);
 		TestEqual(TEXT("categoria Combat"), Voce.Category, ERTLogCategory::Combat);
@@ -1955,7 +1955,7 @@ bool FRTHazardSufferedVsInflictedTest::RunTest(const FString&)
 	// Salute fissata dal test e non ereditata dal catalogo: entrambi devono SOPRAVVIVERE al turno, altrimenti
 	// una delle due voci non nasce e il confronto non esiste. Stessa cura di `BurningLeavesACanonicalEntry`.
 	//
-	// ⚠️ **Dentro il range del catalogo** (`MakeWraith` da' `MaxHealth = 90`): la prima stesura metteva 200 e
+	// ⚠️ **Dentro il range del catalogo** (`MakeIvrin` da' `MaxHealth = 90`): la prima stesura metteva 200 e
 	// creava uno stato che il gioco non puo' produrre — e `ApplyCombatState` clampa solo lo zero, quindi
 	// 200/90 attraversava tutto il turno. Il ramo `ShieldAbsorbed` confronta con `MaxHealth`. I danni reali
 	// sono 18 e 21, quindi 60 basta con margine. Trovato in code review.

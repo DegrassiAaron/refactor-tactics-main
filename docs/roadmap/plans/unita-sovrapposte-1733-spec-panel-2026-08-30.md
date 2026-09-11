@@ -301,12 +301,12 @@ dell'issue. Unità: `Wraith` + `Riktor` (team 0), `Phase` + `Gadget` (team 1).
 ```
 Dash    Wraith  (0,0)  -> (1,-1)   Hero.Wraith.PassingBlade  p30
 Blast   Spinta: BP_Unit_Wraith_C_0 -> (-1,-1)
-        spostata (1,-1) -> (-1,-1) (2 celle) (Hero.Phase.PressureJet)   <- il Wraith LASCIA (1,-1)
+        spostata (1,-1) -> (-1,-1) (2 celle) (Hero.Muiren.PressureJet)   <- il Wraith LASCIA (1,-1)
 Move    Gadget  (4,-4) -> (1,-1)   Action.Move               p50
 ```
 
 L'issue mette in fila la prima e l'ultima riga. Fra loro c'è il **Blast**, che spinge il Wraith fuori dalla
-cella con `Hero.Phase.PressureJet`. Fine turno: `(-1,-1)` `(1,0)` `(3,-2)` `(1,-1)` — **quattro celle
+cella con `Hero.Muiren.PressureJet`. Fine turno: `(-1,-1)` `(1,0)` `(3,-2)` `(1,-1)` — **quattro celle
 distinte**.
 
 ### Turni 5 e 6 — la riga `resta` è la stessa unità arrivata col Dash

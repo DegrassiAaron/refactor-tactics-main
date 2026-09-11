@@ -21,13 +21,13 @@
 
 namespace RTVariante
 {
-	/** Il kit di Gadget come lista cruda: `Apply` lavora sulle istanze, non sull'eroe. */
+	/** Il kit di Aevik come lista cruda: `Apply` lavora sulle istanze, non sull'eroe. */
 	TArray<URTActionData*> KitDiGadget()
 	{
 		TArray<URTActionData*> Kit;
-		const URTHeroData* Gadget = URTHeroCatalogLibrary::MakeGadget();
-		if (Gadget == nullptr) { return Kit; }
-		for (const TObjectPtr<URTActionData>& Voce : Gadget->Actions)
+		const URTHeroData* Aevik = URTHeroCatalogLibrary::MakeAevik();
+		if (Aevik == nullptr) { return Kit; }
+		for (const TObjectPtr<URTActionData>& Voce : Aevik->Actions)
 		{
 			if (URTActionData* A = Voce) { Kit.Add(A); }
 		}
@@ -77,10 +77,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantOverrideReachesBothHomesTest,
 bool FRTVariantOverrideReachesBothHomesTest::RunTest(const FString&)
 {
 	TArray<URTActionData*> Kit = RTVariante::KitDiGadget();
-	if (!TestTrue(TEXT("il kit di Gadget non e' vuoto"), Kit.Num() > 0)) { return false; }
+	if (!TestTrue(TEXT("il kit di Aevik non e' vuoto"), Kit.Num() > 0)) { return false; }
 
-	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Gadget.ArcPulse"));
-	URTActionData* Overload = RTVariante::Azione(Kit, TEXT("Hero.Gadget.Overload"));
+	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Aevik.ArcPulse"));
+	URTActionData* Overload = RTVariante::Azione(Kit, TEXT("Hero.Aevik.Overload"));
 	if (!TestNotNull(TEXT("ArcPulse c'e'"), ArcPulse)) { return false; }
 	if (!TestNotNull(TEXT("Overload c'e'"), Overload)) { return false; }
 
@@ -93,11 +93,11 @@ bool FRTVariantOverrideReachesBothHomesTest::RunTest(const FString&)
 
 	FRTWorkbenchVariant Variante;
 	Variante.VariantId = TEXT("Test.TreParametri");
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::RangeCells(), PortataPrima + 1));
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::Damage(), DannoPrima + 5));
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.Overload"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.Overload"),
 		RTActionParameterKeys::CooldownTurns(), RicaricaPrima + 1));
 
 	FRTWorkbenchVariant Ripristino;
@@ -138,7 +138,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantResetRestoresCanonicalValuesTest,
 bool FRTVariantResetRestoresCanonicalValuesTest::RunTest(const FString&)
 {
 	TArray<URTActionData*> Kit = RTVariante::KitDiGadget();
-	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Gadget.ArcPulse"));
+	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Aevik.ArcPulse"));
 	if (!TestNotNull(TEXT("ArcPulse c'e'"), ArcPulse)) { return false; }
 
 	const int32 PortataCanonica = ArcPulse->Def.RangeCells;
@@ -146,9 +146,9 @@ bool FRTVariantResetRestoresCanonicalValuesTest::RunTest(const FString&)
 
 	FRTWorkbenchVariant Variante;
 	Variante.VariantId = TEXT("Test.DaAnnullare");
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::RangeCells(), PortataCanonica + 3));
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::Damage(), DannoCanonico + 9));
 
 	FRTWorkbenchVariant Ripristino;
@@ -194,7 +194,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantSecondKitIsBaselineTest,
 bool FRTVariantSecondKitIsBaselineTest::RunTest(const FString&)
 {
 	TArray<URTActionData*> Primo = RTVariante::KitDiGadget();
-	URTActionData* ArcPulsePrimo = RTVariante::Azione(Primo, TEXT("Hero.Gadget.ArcPulse"));
+	URTActionData* ArcPulsePrimo = RTVariante::Azione(Primo, TEXT("Hero.Aevik.ArcPulse"));
 	if (!TestNotNull(TEXT("ArcPulse del primo kit"), ArcPulsePrimo)) { return false; }
 
 	const int32 PortataCanonica = ArcPulsePrimo->Def.RangeCells;
@@ -202,9 +202,9 @@ bool FRTVariantSecondKitIsBaselineTest::RunTest(const FString&)
 
 	FRTWorkbenchVariant Variante;
 	Variante.VariantId = TEXT("Test.NonDeveSopravvivere");
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::RangeCells(), PortataCanonica + 4));
-	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Variante.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::Damage(), DannoCanonico + 11));
 
 	FRTWorkbenchVariant Ripristino;
@@ -219,7 +219,7 @@ bool FRTVariantSecondKitIsBaselineTest::RunTest(const FString&)
 	// Il secondo kit non viene ripristinato: viene CHIESTO DI NUOVO al catalogo, che e' quel che fa una
 	// seconda esecuzione. Se l'override fosse sopravvissuto, comparirebbe qui.
 	TArray<URTActionData*> Secondo = RTVariante::KitDiGadget();
-	URTActionData* ArcPulseSecondo = RTVariante::Azione(Secondo, TEXT("Hero.Gadget.ArcPulse"));
+	URTActionData* ArcPulseSecondo = RTVariante::Azione(Secondo, TEXT("Hero.Aevik.ArcPulse"));
 	if (!TestNotNull(TEXT("ArcPulse del secondo kit"), ArcPulseSecondo)) { return false; }
 
 	TestEqual(TEXT("il secondo kit ha la portata canonica nel Def"),
@@ -244,7 +244,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantInvalidWritesNothingTest,
 bool FRTVariantInvalidWritesNothingTest::RunTest(const FString&)
 {
 	TArray<URTActionData*> Kit = RTVariante::KitDiGadget();
-	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Gadget.ArcPulse"));
+	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Aevik.ArcPulse"));
 	if (!TestNotNull(TEXT("ArcPulse c'e'"), ArcPulse)) { return false; }
 
 	const int32 PortataPrima = ArcPulse->Def.RangeCells;
@@ -254,7 +254,7 @@ bool FRTVariantInvalidWritesNothingTest::RunTest(const FString&)
 	// completa, il primo sarebbe gia' atterrato quando il secondo fallisce.
 	FRTWorkbenchVariant Mista;
 	Mista.VariantId = TEXT("Test.Mista");
-	Mista.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	Mista.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::RangeCells(), PortataPrima + 2));
 	Mista.Overrides.Add(RTVariante::Ov(TEXT("Hero.Inesistente.Azione"),
 		RTActionParameterKeys::RangeCells(), 9));
@@ -271,7 +271,7 @@ bool FRTVariantInvalidWritesNothingTest::RunTest(const FString&)
 	// Chiave sconosciuta.
 	FRTWorkbenchVariant Chiave;
 	Chiave.VariantId = TEXT("Test.ChiaveIgnota");
-	Chiave.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"), TEXT("Action.Inventato"), 1));
+	Chiave.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"), TEXT("Action.Inventato"), 1));
 	TestEqual(TEXT("una ParameterKey sconosciuta fallisce esplicitamente"),
 		URTWorkbenchVariantLibrary::Apply(Chiave, Kit, Ripristino), ERTVariantApplyResult::UnknownParameter);
 	TestEqual(TEXT("e non ha scritto"), ArcPulse->Def.RangeCells, PortataPrima);
@@ -279,7 +279,7 @@ bool FRTVariantInvalidWritesNothingTest::RunTest(const FString&)
 	// Indice d'effetto che non punta a un `Damage`.
 	FRTWorkbenchVariant Indice;
 	Indice.VariantId = TEXT("Test.IndiceFuoriPosto");
-	FRTAbilityParameterOverride Fuori = RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	FRTAbilityParameterOverride Fuori = RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::Damage(), 40);
 	Fuori.EffectIndex = 99;
 	Indice.Overrides.Add(Fuori);
@@ -302,12 +302,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantMissingIdFailsTest,
 bool FRTVariantMissingIdFailsTest::RunTest(const FString&)
 {
 	TArray<URTActionData*> Kit = RTVariante::KitDiGadget();
-	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Gadget.ArcPulse"));
+	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Aevik.ArcPulse"));
 	if (!TestNotNull(TEXT("ArcPulse c'e'"), ArcPulse)) { return false; }
 	const int32 PortataPrima = ArcPulse->Def.RangeCells;
 
 	FRTWorkbenchVariant SenzaId;
-	SenzaId.Overrides.Add(RTVariante::Ov(TEXT("Hero.Gadget.ArcPulse"),
+	SenzaId.Overrides.Add(RTVariante::Ov(TEXT("Hero.Aevik.ArcPulse"),
 		RTActionParameterKeys::RangeCells(), PortataPrima + 1));
 
 	FRTWorkbenchVariant Ripristino;
@@ -336,7 +336,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVariantEmptyIsBaselineTest,
 bool FRTVariantEmptyIsBaselineTest::RunTest(const FString&)
 {
 	TArray<URTActionData*> Kit = RTVariante::KitDiGadget();
-	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Gadget.ArcPulse"));
+	URTActionData* ArcPulse = RTVariante::Azione(Kit, TEXT("Hero.Aevik.ArcPulse"));
 	if (!TestNotNull(TEXT("ArcPulse c'e'"), ArcPulse)) { return false; }
 	const int32 PortataPrima = ArcPulse->Def.RangeCells;
 

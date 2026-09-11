@@ -68,7 +68,23 @@ public:
 	// cioe' uno scenario che verifica il solo stato iniziale. Non uscirebbe rosso: uscirebbe **verde**, senza
 	// aver giocato un turno. Un verde per assenza di partita e' il peggiore degli esiti, perche' nessuno va a
 	// guardarlo. Con la `4` il rifiuto arriva dal gate di versione e nomina la build.
-	static constexpr int32 SupportedVersion = 4;
+	// 4 → 5 con il **selettore semantico** delle `decisions` (`on`): una risposta dichiara QUALE finestra
+	// intende chiudere invece di prendere la prossima in ordine.
+	//
+	// ⚠️ Il bump segue lo stesso ragionamento della `3` e della `4`, e qui il verso che conta morde come per
+	// `freeRun`: una build a `SupportedVersion = 4` **ignorerebbe** `on` — la chiave e' sconosciuta al suo
+	// parser, che pero' la rifiuterebbe con «chiave sconosciuta 'on'», cioe' accusando il FILE mentre il
+	// difetto e' la build troppo vecchia. Peggio nel caso simmetrico: un loader che la ignorasse abbinerebbe
+	// le risposte **per ordine**, cioe' con la semantica che il selettore esiste per sostituire, e uno
+	// scenario che dichiara di rispondere a una finestra precisa risponderebbe a un'altra restando verde.
+	// Con la `5` il rifiuto arriva dal gate di versione e nomina la build.
+	// 5 → 6 con il **filtro di fase** sulle assertion del TurnLog (`phase` / `thenPhase`): un'assertion puo'
+	// chiedere che l'evento sia avvenuto in una macro-fase precisa.
+	//
+	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso morde come per `decisions`: una build a
+	// `SupportedVersion = 5` non conosce la chiave e la rifiuterebbe come sconosciuta, accusando il FILE
+	// mentre il difetto e' la build. Con la `6` il rifiuto arriva dal gate di versione e nomina la build.
+	static constexpr int32 SupportedVersion = 6;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.
@@ -168,6 +184,16 @@ public:
 	 * referto non saprebbe quale delle due e' caduta. `NAME_None` -> identica alla forma senza filtro.
 	 */
 	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId);
+
+	/**
+	 * Come sopra, con il filtro di FASE quando c'e': `Combat.Hit@Blast` (`#2867`).
+	 *
+	 * ⚠️ **La fase entra nel NOME e non solo nel confronto**, per la stessa ragione di `ActionId`: due
+	 * assertion che differiscono soltanto per la fase produrrebbero altrimenti lo stesso messaggio di
+	 * fallimento, e chi legge il referto non saprebbe quale delle due e' caduta.
+	 */
+	static FString DescribeLogEvent(ERTLogCategory Category, uint8 Outcome, FName ActionId,
+		bool bHasPhase, ERTMatchPhase Phase);
 
 	// Il percorso di uno scenario NON si calcola più dal suo ID: dal momento che l'ID è dichiarato dal file
 	// e le cartelle sono libere, l'unico modo di sapere dove vive è chiederlo all'indice

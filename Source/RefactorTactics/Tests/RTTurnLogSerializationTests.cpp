@@ -1006,7 +1006,7 @@ bool FRTTurnLogHashFieldOrderTest::RunTest(const FString&)
 	E.SrcCell = FRTCellId(-2, 5, 1);
 	E.TgtCell = FRTCellId(7, -3, 0);
 	E.Amount = 21;
-	E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+	E.ActionId = FName(TEXT("Hero.Ivrin.PulseShot"));
 	E.GraphRevision = 127;
 	E.OpportunityId = TEXT("opp-7");
 	E.SelectedTargetUnitId = 4;
@@ -1015,7 +1015,7 @@ bool FRTTurnLogHashFieldOrderTest::RunTest(const FString&)
 	E.UnitId = 9;
 	E.TurnNumber = 5;
 	E.Priority = 50;
-	E.BaseActionId = FName(TEXT("Hero.Wraith.Base"));
+	E.BaseActionId = FName(TEXT("Hero.Ivrin.Base"));
 	E.OriginalTargetUnitId = 2;
 
 	uint32 Expected = 2166136261u; // FNV-1a offset basis
@@ -1169,7 +1169,7 @@ bool FRTTurnLogPriorityRoundTripTest::RunTest(const FString&)
 	E.SrcCell = FRTCellId(0, 0);
 	E.TgtCell = FRTCellId(2, 0);
 	E.Amount = 21;
-	E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+	E.ActionId = FName(TEXT("Hero.Ivrin.PulseShot"));
 	E.BaseActionId = FName(TEXT("Action.BasicAttack"));
 	E.Priority = 50;
 
@@ -1233,7 +1233,7 @@ bool FRTTurnLogLegacyWithoutPriorityTest::RunTest(const FString&)
 	U32(0); U32(0); U32(0);
 	U32(2); U32(0); U32(0);
 	U32(21);
-	Str("Hero.Wraith.PulseShot");
+	Str("Hero.Ivrin.PulseShot");
 	Str("Action.BasicAttack");
 	U32(3); U32(1); U32(0); // UnitId, TurnNumber, GraphRevision — la v6 li ha; Priority no
 

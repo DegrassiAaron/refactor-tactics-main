@@ -30,9 +30,16 @@ public:
 	/**
 	 * Errori strutturali di un roster di eroi (vuoto = roster valido). Rifiuta:
 	 * HeroId assente o duplicato · statistiche non positive (salute, movimento) o negative (vista, resistenza
-	 * push) · affinita' o debolezza non dichiarate · numero di azioni diverso da **5** (attacco base + quattro
-	 * fondamentali, catalogo v0.1 §"Struttura di un eroe") · zero o piu' di UNA azione fondamentale con
-	 * varianti dichiarate (vincolo v0.1: una sola abilita' configurabile per eroe).
+	 * push) · numero di azioni **fuori dall'intervallo 5-6** (attacco base + quattro fondamentali, catalogo
+	 * v0.1 §"Struttura di un eroe", piu' al massimo UNA generica del catalogo core portata nel kit) ·
+	 * affinita' o debolezza non dichiarate · zero o piu' di UNA azione fondamentale con varianti dichiarate
+	 * (vincolo v0.1: una sola abilita' configurabile per eroe).
+	 *
+	 * ⚠️ **L'intervallo era `== 5` esatte, e il corpo della funzione ne dichiara il costo**: il validator non
+	 * dice piu' «questo eroe e' completo» ma «e' nell'intervallo». Il tetto e' 6 e non «quante ne vuoi»
+	 * perche' oltre il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable`
+	 * e' il gate che lo misura. Sul roster v0.1 ne hanno sei **Muiren** (`TideGuard`) e **Ivrin**
+	 * (`PhaseGuard`); Aevik e Branth restano a cinque.
 	 *
 	 * Ogni messaggio nomina l'eroe colpevole: un errore che non dice QUALE eroe e' rotto costringe a
 	 * ricontrollare tutto il roster a mano.
@@ -43,8 +50,9 @@ public:
 	static TArray<FString> ValidateHeroes(const TArray<const URTHeroData*>& Heroes);
 
 	/**
-	 * Costruisce **Gadget**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, vista 6, resistenza
-	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Phase, CP 6.3). Nuova istanza a
+	 * Costruisce **Aevik**, tecnico della conduzione (catalogo eroi v0.1 §1): 90 HP, 5 MP, **vista 7** (era 6,
+	 * alzata da D-073 / #131: l'unico del roster che vede oltre il raggio 6), resistenza
+	 * push 0, affinita' elettricita', debolezza acqua (combo dichiarata con Muiren, CP 6.3). Nuova istanza a
 	 * ogni chiamata — stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`: il catalogo eroi non e' un
 	 * singleton, e un chiamante che ne vuole due (es. specchio nello stesso 2v2) non condivide lo stato.
 	 *
@@ -56,46 +64,85 @@ public:
 	 * grafo conduttivo — acqua e superfici `Conductive` — e non lo crea. Portata e propagazione vengono dal
 	 * core, quindi `Range 0` non e' piu' un segnaposto in attesa di un numero.
 	 *
-	 * Limite dichiarato che resta (nessun sistema a valle esiste ancora, quindi l'effetto non e'
-	 * rappresentabile): `Overload` non ha un modello di "dispositivo interrompibile" (E7, gadget). L'azione
-	 * esiste comunque come DATO, con la sua identita', portata e cooldown dal catalogo — solo l'effetto
-	 * aggiuntivo resta un numero non ancora consumato.
+	 * 🔑 **La combo `Wet` e' una sinergia SISTEMICA, e `LinearDischarge` resta un'abilita' elettrica.** Il `+8`
+	 * dipende da `Status.Wet` **sul bersaglio**, non da chi ha bagnato: acqua e superfici conduttive sono il
+	 * *setup*, la scarica e' il *payoff*. L'ownership e' decisa da D-029 e ADR-0006 — qualunque sorgente di
+	 * `Wet` autorizzata dalle regole (`Gadget.Sprinkler`, acqua bassa del terreno) abilita lo stesso payoff, e
+	 * Muiren non e' un requisito. Il bonus non vive negli `Effects`: passa da `EffectiveAttackPower` +
+	 * `URTCombatLibrary::AevikWetDischargeBonus`, ed e' misurato da `Heroes.Aevik.WetBonus`.
+	 *
+	 * Limite dichiarato che resta: `Overload` non ha un modello di "dispositivo interrompibile", quindi
+	 * l'`Interrupt` sui dispositivi non e' rappresentabile. L'azione esiste comunque come DATO, con la sua
+	 * identita', portata e cooldown dal catalogo — solo l'effetto aggiuntivo resta un numero non ancora
+	 * consumato.
+	 *
+	 * ⚠️ **Il limite e' vero, la ragione che lo motivava no.** Fin qui questa riga diceva «(E7, gadget)», cioe'
+	 * *i gadget non esistono ancora*. **E7 e' chiusa** e l'equipaggiamento esiste — `Gadget.Sprinkler` e
+	 * `Gadget.Insulator` sono nel catalogo. Cio' che manca e' piu' stretto: un **bersaglio interrompibile**,
+	 * un dispositivo con uno stato che un `Interrupt` possa spegnere. Un limite che cita un'epic chiusa si
+	 * legge come gia' risolto, ed e' il modo in cui un vincolo reale sparisce senza che nessuno lo tolga.
 	 */
-	static URTHeroData* MakeGadget();
+	static URTHeroData* MakeAevik();
 
 	/**
-	 * Costruisce **Phase**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 95 HP, 5 MP, vista 5, resistenza
-	 * push 0, affinita' acqua, debolezza elettricita' — simmetrica a Gadget (stesso `Affinity.Electricity`),
+	 * Costruisce **Muiren**, manipolatrice dell'acqua (catalogo eroi v0.1 §2): 95 HP, 5 MP, vista 5, resistenza
+	 * push 0, affinita' acqua, debolezza elettricita' — simmetrica a Aevik (stesso `Affinity.Electricity`),
 	 * cosi' la rivalita' fra i due e' un solo identificatore condiviso, non due nomi.
 	 *
-	 * Limiti dichiarati: `CircularTide` dichiara Heal E Status.Wet nella stessa lista Effects, ma **nessun
-	 * resolver applica oggi effetti diversi ad alleati e nemici dentro la stessa area** (`bFriendlyFire`
-	 * decide solo SE un alleato viene colpito, non CON QUALE effetto) — la differenziazione arriva quando
-	 * Phase sara' davvero cablata (CP 6.6+). `FluidTrail` (acqua lungo il percorso) e `MistVeil` (fumo) non
-	 * hanno un modello di terreno dinamico (E8/E9): identita', fase, portata e cooldown sono dati veri,
-	 * l'effetto no. `FlowReaction` e' **rinviata a E14** (ADR-0004): produce movimento dentro un boundary di
-	 * risoluzione, che il motore delle reazioni di E5 non fa — il rinvio e' dichiarato come dato (slot `None`,
-	 * nessun trigger), non lasciato a un commento.
+	 * ⚠️ **Muiren porta SEI azioni**: le cinque del catalogo piu' `TideGuard`, lo scudo proattivo derivato da
+	 * `Action.Shield`. Non e' una fondamentale — e' la generica core che l'intervallo 5-6 di `ValidateHeroes`
+	 * ammette — e il suo gemello e' `Hero.Ivrin.PhaseGuard`, uno per squadra.
+	 *
+	 * Limiti dichiarati: `CircularTide` **cura e basta** (`{ Heal 18 }`). Il `Wet` ad area e' uscito dalla
+	 * dichiarazione con #1006, che allinea Muiren al grado `Access` di #995 — una sola capability elementale,
+	 * e resta `PressureJet`. Il limite che *resta* e' un altro: **nessun resolver applica oggi effetti diversi
+	 * ad alleati e nemici dentro la stessa area** (`bFriendlyFire` decide solo SE un alleato viene colpito,
+	 * non CON QUALE effetto). `FluidTrail` **non crea piu' acqua**: sempre #1006 la riporta a uno scatto puro,
+	 * e l'owner della superficie e' l'equipaggiamento (`Gadget.Sprinkler`). `FlowReaction` e' **rinviata a
+	 * E14** (ADR-0004): produce movimento dentro un boundary di risoluzione, che il motore delle reazioni di
+	 * E5 non fa — il rinvio e' dichiarato come dato (slot `None`, nessun trigger), non lasciato a un commento.
+	 *
+	 * 🔵 **`MistVeil` non e' piu' un limite, ed e' l'unica delle tre a essere uscita dall'elenco per merito.**
+	 * Fin qui questa docstring la teneva accanto a `FluidTrail` dicendo che «non hanno un modello di terreno
+	 * dinamico (E8/E9)». **E8 ed E9 sono chiuse**, e #353 ha collegato l'azione al meccanismo che gia'
+	 * esisteva: oggi dichiara `bCreatesSurface` e crea `ERTHexSurface::Smoke` raggio 1, nel Cleanup. Le altre
+	 * due sono cambiate per ragioni diverse — una per decisione di design, l'altra resta rinviata — e
+	 * tenerle sotto la stessa frase le faceva sembrare bloccate dalla stessa cosa.
 	 */
-	static URTHeroData* MakePhase();
+	static URTHeroData* MakeMuiren();
 
 	/**
 	 * Costruisce **Branth**, architetto del campo (catalogo eroi v0.1 §3): 120 HP, 4 MP, vista 5,
-	 * **resistenza push 1** (l'unico del roster), affinita' strutture, debolezza movimento — simmetrica a
-	 * Wraith (CP 6.5), come Gadget/Phase lo sono fra loro.
+	 * **resistenza push 0**, affinita' strutture, debolezza movimento — simmetrica a
+	 * Ivrin (CP 6.5), come Aevik/Muiren lo sono fra loro.
 	 *
-	 * ⚠️ **Resta l'eroe piu' incompleto del roster, e la sua issue (#57) chiede esplicitamente di dichiararlo.**
-	 * `KineticPanel` e `Reconfigure` manipolano STRUTTURE, che non esistono nel modello dati (`FRTHexCellData`
-	 * non ha coperture: E9, issue `#69`/`#73`) — nessun effetto dichiarabile, i numeri del catalogo terreni
-	 * (`Structure.KineticPanel`: integrita' 30, protezione 10) vivono nei `Parameters` della variante finche'
-	 * qualcuno non li consuma. `Interposition` e' **cablata** (CP 6.7) sulla semantica di `Action.Intercept`.
+	 * ⚠️ **Era `1`, l'unico del roster, e questa riga lo ha dichiarato per piu' di quanto sia stato vero.**
+	 * D-075 (#402) l'ha azzerata il 2026-08-10: siccome ogni spinta del gioco vale 1 e `PushResistance` e'
+	 * una SOGLIA (D-038), il valore `1` non comprava stabilita' ma **immunita' totale a ogni spostamento**,
+	 * che nessuno aveva deciso. Cio' che Branth compra col movimento e la vista sono i 120 HP, e quelli non
+	 * dipendevano da questo campo. Il roster e' ora interamente a `0`: la meccanica e' **dormiente**, non
+	 * dimenticata — vedi il commento accanto al literal nel `.cpp`.
+	 *
+	 * 🔵 **`KineticPanel` e `Reconfigure` hanno un sistema che le consuma, da CP 9.5.** Fin qui questa
+	 * docstring diceva che le strutture «non esistono nel modello dati (E9, `#69`/`#73`)»: **E9 e' chiusa**, e
+	 * `ResolveCoverStructures` legge integrita' e durata dalla variante attiva dell'unita'
+	 * (`ARTUnit::ActiveVariantId`) invece che dai valori base. I `Parameters` erano stati scritti dichiarando
+	 * che sarebbero serviti a E9 — e' successo. `Interposition` e' **cablata** (CP 6.7) sulla semantica di
+	 * `Action.Intercept`.
 	 */
 	static URTHeroData* MakeBranth();
 
 	/**
-	 * Costruisce **Wraith**, duellante predittivo (catalogo eroi v0.1 §4): 100 HP, **6 MP** (il piu' mobile),
-	 * vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Branth, che chiude
-	 * il roster in due coppie (Gadget↔Phase, Branth↔Wraith).
+	 * Costruisce **Ivrin**, duellante predittivo (catalogo eroi v0.1 §4): **90 HP** (era 100, abbassata da
+	 * D-069 / #131 perche' «compra mobilita' con l'assenza di difese» sui numeri era falso), **6 MP** (il piu'
+	 * mobile), vista 6, resistenza push 0, affinita' movimento, debolezza strutture — simmetrica a Branth, che
+	 * chiude il roster in due coppie (Aevik↔Muiren, Branth↔Ivrin).
+	 *
+	 * ⚠️ **Anche Ivrin porta SEI azioni**: le cinque del catalogo piu' `PhaseGuard`, gemello di
+	 * `Hero.Muiren.TideGuard` e derivato dallo stesso `Action.Shield`. Non e' una fondamentale, e' la generica
+	 * core che l'intervallo 5-6 di `ValidateHeroes` ammette. ⛔ Il `Muiren` del nome e' la **fase** — DisplayName
+	 * «Guardia di fase» — non l'eroe, e infatti il rename di questa identita' l'ha lasciato intatto: e'
+	 * `Hero.Ivrin.PhaseGuard`, non `Hero.Ivrin.IvrinGuard` (#2491).
 	 *
 	 * `Deflection` e' cablata (CP 6.7, semantica di `Action.Deflect`). `InterceptShot` **non e' piu' una
 	 * reazione**: dal 2026-08-10 (E18 CP 18.2, D-016) e' una **Predictive Action** — cella dichiarata in
@@ -105,16 +152,16 @@ public:
 	 * Limiti dichiarati: `Feint` marca una CELLA e concede un `Reposition`, e nessuna delle due meta' e' un
 	 * `ERTActionEffect` (gli stati si applicano alle unita', il movimento passa da `ERTMovementStyle`).
 	 */
-	static URTHeroData* MakeWraith();
+	static URTHeroData* MakeIvrin();
 
 	/**
-	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Gadget, Phase, Branth, Wraith.
+	 * Il roster completo della v0.1, nell'ordine del catalogo eroi: Aevik, Muiren, Branth, Ivrin.
 	 * Nuove istanze a ogni chiamata (stesso idioma di `URTCatalogLibrary::GetCoreActionCatalog`).
 	 */
 	static TArray<URTHeroData*> GetHeroRoster();
 
 	/**
-	 * Solo gli `HeroId` del roster (`Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`), senza costruire
+	 * Solo gli `HeroId` del roster (`Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`), senza costruire
 	 * gli eroi.
 	 *
 	 * Esiste perche' `GetHeroRoster()` istanzia quattro `URTHeroData` **con tutte le loro abilita'** a ogni

@@ -11,11 +11,17 @@ const roster = () => parseHeroCatalog(HERO, ACTION);
 test('i sei assi del Profile per i quattro eroi', () => {
   const got = Object.fromEntries(roster().map((h) => [h.name, profileAxes(h)]));
 
+  // ⚠️ **Muiren: `control` 7 -> 5 e `support` 8 -> 6 il 2026-09-10, e non e' un ribilanciamento.** I due
+  // punti venivano da due frammenti che il catalogo dichiarava e il runtime non fa piu' da **#1006**:
+  // `CircularTide` non applica piu' `Wet` ai nemici (era `support (setup)`) e `FluidTrail` non crea piu'
+  // acqua (era `control · precision`). Il codice era cambiato, il Markdown no, e i radar leggevano il
+  // Markdown: Muiren risultava piu' di supporto e piu' di controllo di quanto il gioco le concedesse.
+  // Nessun numero di gameplay e' stato toccato per ottenere questi valori — vedi #2824.
   assert.deepEqual(got, {
-    Gadget:    { offense: 5, durability: 7, mobility: 7, control: 2, support: 1, information: 7 },
-    Wraith:  { offense: 4, durability: 7, mobility: 9, control: 4, support: 1, information: 6 },
+    Aevik:    { offense: 5, durability: 7, mobility: 7, control: 2, support: 1, information: 7 },
+    Ivrin:  { offense: 4, durability: 7, mobility: 9, control: 4, support: 1, information: 6 },
     Branth: { offense: 3, durability: 8, mobility: 6, control: 9, support: 2, information: 5 },
-    Phase:    { offense: 1, durability: 7, mobility: 8, control: 7, support: 8, information: 5 },
+    Muiren:    { offense: 1, durability: 7, mobility: 8, control: 5, support: 6, information: 5 },
   });
 });
 
@@ -37,8 +43,8 @@ test('ogni coppia differisce su almeno tre assi (DoD #558)', () => {
 });
 
 test('la mitigazione su di se alza durability, quella sugli alleati no', () => {
-  const [flux, bastion] = ['Gadget', 'Branth'].map((n) => roster().find((h) => h.name === n)!);
-  // Gadget 90 HP + scudo 15 -> supera Phase, che ne ha 95 e nessuna mitigazione.
+  const [flux, bastion] = ['Aevik', 'Branth'].map((n) => roster().find((h) => h.name === n)!);
+  // Aevik 90 HP + scudo 15 -> supera Muiren, che ne ha 95 e nessuna mitigazione.
   assert.equal(profileAxes(flux).durability, 7);
   // `Hero.Branth.Interposition` incassa per un ALLEATO: va in support, non in durability.
   assert.ok(profileAxes(bastion).support > 1);

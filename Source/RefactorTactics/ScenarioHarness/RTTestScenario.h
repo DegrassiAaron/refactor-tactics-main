@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexMapAsset.h" // FRTHexInteriorWall: la geometria intra-cella e' dato di gioco (`D-269`)
+#include "Turn/RTTurnRules.h" // ERTMatchPhase: il filtro di fase parla il vocabolario del turno
 #include "Turn/RTTurnLog.h" // ERTLogCategory: un'assertion sul log parla il vocabolario del log
 #include "Turn/RTDeclaredCondition.h" // FRTDeclaredCondition: la condizione dichiarata di [D-109] sull'intent
 #include "RTTestScenario.generated.h"
@@ -265,7 +266,7 @@ struct FRTScenarioUnit
 	UPROPERTY()
 	FString Id;
 
-	/** ID stabile dell'eroe dal catalogo: `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`. */
+	/** ID stabile dell'eroe dal catalogo: `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`. */
 	UPROPERTY()
 	FName HeroId;
 
@@ -288,6 +289,27 @@ struct FRTScenarioUnit
 	 * Serve da CP 13.2: da quando il targeting consuma la conoscenza, l'orientamento decide COSA la squadra
 	 * vede, quindi uno scenario che non potesse esprimerlo non potrebbe descrivere un tiratore che guarda il
 	 * proprio bersaglio.
+	 *
+	 * 🔑 **E' anche il solo modo di orientare un OVERWATCH, ed e' la domanda che chi scrive scenari si pone
+	 * per prima** (`#2868`, confermata dall'autore il 2026-09-10).
+	 *
+	 * Non esiste una `watchDirection`: il cono della guardia **e'** il facing dell'unita', e
+	 * [ADR-0005](../../../docs/decisions/adr-0005-orientamento.md) §4c respinge per nome l'alternativa —
+	 * *«la zona controllata di un Overwatch armato nasce dal facing dell'unita', **non** da una direzione
+	 * dichiarata a parte … due sorgenti per la stessa cosa sarebbero due verita': chi arma la guardia decide
+	 * dove guardare **orientandosi**»*. Lo confermano `D-020`, che colloca `FacingUsedByOverwatch` fra i
+	 * valori **letti**, e `D-365` (`FAC-5`).
+	 *
+	 * ⚠️ **Conseguenza pratica, e non e' ovvia**: `ARTTurnManager` legge `Armed.Facing = Unit->Facing` in
+	 * **Prep**, mentre una rotazione dichiarata (`FRTScenarioIntent::Facing`) si applica dentro
+	 * `ResolveMovement`, cioe' **dopo**. Un cono quindi si prepara **il turno prima**, oppure si dichiara
+	 * **qui**, al piazzamento. Un'unita' che si muove ruota strada facendo e il caso non si vede; una che
+	 * arma e resta ferma conserva il facing di piazzamento, e li' si vede tutto — e' cio' che
+	 * `Spec.Overwatch.HoldThenFire` registra nella propria `_nota_facing_di_piazzamento`.
+	 *
+	 * ⛔ **Non e' una lacuna da colmare in un formato di scenario.** Darebbe all'harness un ingresso che
+	 * nessun giocatore ha in partita — la stessa asimmetria per cui `DeclaredRotation` e `ReactionPlanning`
+	 * sono rimaste fuori finche' non hanno avuto un produttore.
 	 */
 	UPROPERTY()
 	ERTHexDirection Facing = ERTHexDirection::E;
@@ -340,7 +362,7 @@ struct FRTScenarioUnit
 	 * abbia.
 	 *
 	 * Serve perche' altrimenti la premessa di uno scenario sulla conoscenza dipenderebbe dai numeri del
-	 * roster, **che cambiano**: `D-073` ha appena portato Gadget da un valore all'altro, e con `AttackRange` a 5
+	 * roster, **che cambiano**: `D-073` ha appena portato Aevik da un valore all'altro, e con `AttackRange` a 5
 	 * contro viste da 5 a 7 non esiste oggi una distanza in cui un nemico sia insieme fuori vista e sotto tiro
 	 * — cioe' la sola configurazione in cui «non lo bersaglia» dimostri qualcosa. Il test C++ gemello
 	 * (`HexBotPlay.PlansOnPartialKnowledge`) dichiara la vista nel test per la stessa ragione, e lo scrive.
@@ -428,7 +450,7 @@ struct FRTScenarioIntent
 	TArray<FRTCellId> Move;
 
 	/**
-	 * `ActionId` dell'abilita' da usare (`Gadget.ArcPulse`). Vuoto = nessun attacco.
+	 * `ActionId` dell'abilita' da usare (`Aevik.ArcPulse`). Vuoto = nessun attacco.
 	 *
 	 * Per **ID** e non per indice: l'indice di un'abilita' nel kit si sposta appena qualcuno ne aggiunge una,
 	 * e lo scenario continuerebbe a passare verificando l'abilita' sbagliata — il tipo di test che mente.
@@ -441,7 +463,7 @@ struct FRTScenarioIntent
 	FString Target;
 
 	/**
-	 * `ActionId` della mobilita' RAPIDA (`Wraith.PassingBlade`, `Action.Dodge`): risolve in fase Dash, prima
+	 * `ActionId` della mobilita' RAPIDA (`Ivrin.PassingBlade`, `Action.Dodge`): risolve in fase Dash, prima
 	 * del Blast. Vuoto = nessuno scatto.
 	 *
 	 * Campo separato da `Ability` e non un'alternativa, perche' dopo [D-028] occupano slot diversi: lo scatto
@@ -485,7 +507,7 @@ struct FRTScenarioIntent
 	bool bHasCoverEdge = false;
 
 	/**
-	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Gadget.ReactiveCapacitor`). Vuota = nessuna.
+	 * `ActionId` della REAZIONE che l'unita' arma per questo turno (`Aevik.ReactiveCapacitor`). Vuota = nessuna.
 	 *
 	 * Armare non e' agire: la reazione dichiara solo **cosa succedera' se** il trigger scatta durante la
 	 * risoluzione. Non ha bersaglio — lo decide il trigger (chi ha colpito, quale alleato e' stato preso) —
@@ -589,6 +611,89 @@ struct FRTScenarioVariant
  * scrivibile in un JSON. La traduzione avviene dove esiste la mappa, cioe' `UnitsById` in
  * `FRTScenarioSession`.
  */
+/**
+ * Il SELETTORE SEMANTICO di una decisione: quale finestra questa risposta intende chiudere.
+ *
+ * 🔑 **Esiste perche' l'alternativa e' l'ORDINE, e l'ordine non e' una descrizione della finestra.** Fino a
+ * qui `turns[].decisions` si abbinava alle opportunity per posizione — la prima decisione di un'unita' alla
+ * prima finestra che si apre per lei — e `Spec.Overwatch.HoldThenFire` e' il caso che lo mostra: due voci
+ * `V1` consecutive, `HOLD` poi `FIRE`, dove *quale* delle due risponda a *quale* varco lo decide il
+ * micro-step in cui i due mover entrano nella zona. Cambiare un waypoint di `R1` — cioe' un dato che
+ * quello scenario non sta verificando — scambia le due risposte **senza che nulla lo dica**: lo scenario
+ * resta verde e verifica un'altra cosa.
+ *
+ * ⚠️ **Il selettore NON e' l'identita' dell'opportunity, e la differenza e' deliberata.** L'identita' e'
+ * `FRTReactionOpportunityKey` — turno, macro-fase, `MicroStepIndex`, `OwnerId` di runtime, `Seq` — e
+ * nessuno dei suoi campi e' scrivibile in un JSON: due sono id di runtime e uno e' un indice di
+ * risoluzione. Qui si dichiara cio' che l'autore dello scenario **sa e intende**, e la traduzione avviene
+ * dove esiste la mappa (`UnitsById` in `FRTScenarioSession`), esattamente come per `Respond`/`Target`.
+ *
+ * ⛔ **Non porta la CELLA del trigger, e non e' una dimenticanza.** `FRTReactionOpportunity` ha un elenco
+ * **chiuso** di campi, protetto da `RefactorTactics.Overwatch.OpportunityLeaksNoFuture`: allargarlo per
+ * portare una cella toglierebbe al progetto l'unica barriera contro un campo di informazione futura nel
+ * DTO, e `FRTReactionOpportunityKey` entra nell'hash del replay. Il decisore riceve
+ * `(Opportunity, OwnerUnitId)` e nient'altro: cio' che il selettore puo' confrontare e' cio' che quei due
+ * portano, e la cella non c'e'. Una chiave `triggerCell` che il matching ignorasse sarebbe un campo che
+ * dichiara e non verifica — il difetto che questo formato rifiuta ovunque.
+ */
+USTRUCT()
+struct FRTScenarioOpportunitySelector
+{
+	GENERATED_BODY()
+
+	/**
+	 * L'id di SCENARIO dell'unita' proprietaria della finestra. **Obbligatorio** quando il selettore c'e'.
+	 *
+	 * ⚠️ **E la voce che lo dichiara NON puo' avere anche `unit`**: sarebbero due posti per lo stesso fatto,
+	 * e il loader rifiuta la coppia invece di sceglierne uno. In memoria resta un campo solo —
+	 * `FRTScenarioDecision::Unit`, che il loader popola da qui — cosi' validazione, messaggi d'errore e
+	 * matching per unita' continuano a leggere una verita' sola.
+	 */
+	UPROPERTY()
+	FString Reactor;
+
+	/**
+	 * L'`ActionId` della reaction che ha aperto la finestra: `Action.Overwatch`, `Action.Brace`, ...
+	 * `NAME_None` = nessun vincolo.
+	 *
+	 * ⚠️ **E' il vocabolario del RUNTIME** (`FRTReactionOpportunityKey::ReactionDefId`), non un nome di
+	 * tipo inventato per il file. Una chiave che dicesse `"OverwatchOpportunity"` sarebbe un secondo
+	 * vocabolario da tenere allineato al primo, e diverge alla prima reaction aggiunta.
+	 */
+	UPROPERTY()
+	FName Reaction;
+
+	/**
+	 * L'id di SCENARIO dell'unita' che ha innescato la finestra. Vuoto = nessun vincolo.
+	 *
+	 * Si confronta con i bersagli che la finestra **offre**, cioe' con i token `FIRE:<id>` di
+	 * `AllowedResponses`: per l'Overwatch il bersaglio di un `FIRE` E' il mover che e' entrato nella zona
+	 * (`FRTOverwatchTrigger::TargetUnitIds`, «uno per ogni risposta `FIRE:`»). E' l'unico modo di nominare
+	 * il trigger con cio' che l'opportunity porta davvero.
+	 *
+	 * ⚠️ **Su una finestra senza `FIRE:` — un profilo di `Brace`, per esempio — questo vincolo non puo'
+	 * essere soddisfatto da nessuna opportunity**, e la decisione resta non consumata: il residuo di fine
+	 * turno la dichiara. E' il verso giusto: un selettore che non trova la propria finestra deve dirlo.
+	 */
+	UPROPERTY()
+	FString TriggerUnit;
+
+	/** Il selettore non vincola niente: nessun campo dichiarato. Il loader lo rifiuta. */
+	bool IsEmpty() const
+	{
+		return Reactor.IsEmpty() && Reaction.IsNone() && TriggerUnit.IsEmpty();
+	}
+
+	/** Descrizione leggibile per i messaggi di errore: `V1 on Action.Overwatch <- R1`. */
+	FString Describe() const
+	{
+		FString Out = Reactor;
+		if (!Reaction.IsNone()) { Out += FString::Printf(TEXT(" on %s"), *Reaction.ToString()); }
+		if (!TriggerUnit.IsEmpty()) { Out += FString::Printf(TEXT(" <- %s"), *TriggerUnit); }
+		return Out;
+	}
+};
+
 USTRUCT()
 struct FRTScenarioDecision
 {
@@ -608,6 +713,24 @@ struct FRTScenarioDecision
 	 */
 	UPROPERTY()
 	FString Target;
+
+	/**
+	 * Il selettore semantico: **quale** finestra questa risposta chiude. Vedi
+	 * `FRTScenarioOpportunitySelector`. Valido solo con `bHasSelector`.
+	 */
+	UPROPERTY()
+	FRTScenarioOpportunitySelector On;
+
+	/**
+	 * La chiave `on` era presente nel file.
+	 *
+	 * ⚠️ **Non e' deducibile da `On.IsEmpty()`**, ed e' la stessa ragione dei flag gemelli del formato
+	 * (`bTargetsCell`, `bHasCoverEdge`, `bDeclaresFacing`): un `on` dichiarato e vuoto e' un errore che il
+	 * loader deve poter accusare per nome, mentre un `on` assente e' la forma legacy — abbinamento per
+	 * ORDINE — che i file gia' scritti continuano a usare senza cambiare comportamento.
+	 */
+	UPROPERTY()
+	bool bHasSelector = false;
 };
 
 /** Un turno dello scenario. */
@@ -708,6 +831,44 @@ struct FRTTestExpectation
 	/** Filtro opzionale sull'`ActionId` del SECONDO evento (`LogEventOrder`). Vedi `LogActionId`. */
 	UPROPERTY()
 	FName ThenActionId;
+
+	/**
+	 * Filtro OPZIONALE sulla MACRO-FASE della voce (`LogEventCount`, `LogEventAmount`, `LogEventOrder`).
+	 * Valido solo con `bHasLogPhase`.
+	 *
+	 * 🔑 **Il dato c'era gia' e l'assertion non lo raggiungeva.** `FRTTurnLogEntry::Phase` porta da sempre la
+	 * fase in cui ogni evento e' avvenuto, ma `FRTTestExpectation` vedeva categoria, esito e `ActionId` e
+	 * nient'altro: uno scenario poteva dire *«un colpo e' avvenuto»*, non *«e' avvenuto nel Blast e non nel
+	 * Move»*. E' la lacuna che `#2867` ha trovato cercandone un'altra.
+	 *
+	 * ⛔ **Non e' un checkpoint di fase, e la differenza va conosciuta.** Questo filtra un EVENTO che il
+	 * resolver ha gia' registrato; un checkpoint leggerebbe lo STATO a un confine — dov'era un'unita' a fine
+	 * `Blast` quando nessun evento lo dice. Quel secondo caso richiede un punto di lettura dentro
+	 * `RunPhaseLoop`, e resta differito finche' un caso concreto non lo giustifica: `#2867` lo dichiara.
+	 *
+	 * ⚠️ **Mai dalla presentazione.** `ARTTurnManager::OnPhasePlaybackStarted` e `ResolvedTimeline` sanno
+	 * anch'essi di fasi, ma sono presentazione — il secondo lo dichiara nel proprio accessore. Un'assertion
+	 * che leggesse da li' misurerebbe cio' che l'animazione ha mostrato, non cio' che il resolver ha risolto.
+	 */
+	UPROPERTY()
+	ERTMatchPhase LogPhase = ERTMatchPhase::Move;
+
+	/**
+	 * La chiave `phase` era presente nel file.
+	 *
+	 * ⚠️ **Non deducibile da `LogPhase`**: `Move` e' il default dell'enum *e* una fase legittima da chiedere,
+	 * quindi non puo' fare da «campo non dichiarato». Stessa convenzione dei gemelli del formato —
+	 * `bTargetsCell`, `bHasCoverEdge`, `bDeclaresFacing`, `bHasSelector`.
+	 */
+	UPROPERTY()
+	bool bHasLogPhase = false;
+
+	/** Filtro opzionale sulla fase del SECONDO evento (`LogEventOrder`). Vedi `LogPhase`. */
+	UPROPERTY()
+	ERTMatchPhase ThenPhase = ERTMatchPhase::Move;
+
+	UPROPERTY()
+	bool bHasThenPhase = false;
 };
 
 /** Scenario completo, come letto dal file. */
@@ -730,7 +891,7 @@ struct FRTTestScenario
 	 * ⚠️ **Conservati COME SCRITTI nel file, non normalizzati.** La forma canonica di un tag — minuscolo,
 	 * senza spazi ai bordi, ordinata — appartiene a `URTScenarioIndex::NormalizeTag`, e l'indice la applica
 	 * per conto suo quando costruisce i filtri. Se la applicasse anche il loader, il primo salvataggio di uno
-	 * scenario riscriverebbe `"Gadget"` in `"gadget"` in tutti i file che lo dichiarano cosi': una modifica
+	 * scenario riscriverebbe `"Aevik"` in `"gadget"` in tutti i file che lo dichiarano cosi': una modifica
 	 * che nessuno ha chiesto, prodotta da uno strumento che doveva solo preservare.
 	 *
 	 * Il campo esiste perche' senza di esso il modello non porta cio' che il file contiene, e un round-trip

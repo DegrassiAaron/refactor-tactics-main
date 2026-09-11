@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Engine/Engine.h"
+#include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"                  // TActorIterator: nessun Actor per cella si conta guardando il mondo
@@ -12,6 +13,7 @@
 #include "Map/RTStructuralBodyLibrary.h" // il corpo lo calcola il derivatore, il test non lo ricalcola
 #include "Perception/RTTeamKnowledge.h" // il velo: la griglia deve seguirlo, non ignorarlo
 #include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
+#include "Turn/RTMatchSetupLibrary.h" // MakeTestArena: una board con piu' famiglie popolate
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -1242,27 +1244,38 @@ bool FRTHexMapActorStructuralBodyLayerViewTest::RunTest(const FString&)
 
 
 /**
- * 🔴 **Il costo di una modifica è quello dell'INTERA board, e questo test lo dice con un numero** —
- * `#1865`, punto 3.
+ * 🔴 **Il costo di una modifica è quello della MODIFICA, non della board** — `#2761`.
  *
- * L'AC chiede che *«modificare una cella ricostruisca solo la regione toccata: il numero di istanze
- * ricreate è proporzionale alla modifica, non alla mappa»*. Fino a oggi non era falsificabile: un rebuild
- * totale e uno parziale sono indistinguibili da fuori, quindi nessuno poteva dire se l'ottimizzazione
- * fosse avvenuta — né accorgersi che era regredita.
+ * ## ⌫ Questo test ha sostituito il suo opposto, e la sostituzione è il criterio di successo
  *
- * 🔑 **Questo test è scritto per essere ROSSO il giorno in cui il difetto viene corretto**, ed è
- * deliberato: pinna la baseline. Chi renderà incrementale la ricostruzione lo vedrà cadere, e quella
- * caduta è il criterio di successo — non un fastidio da aggiornare in silenzio. Il commento accanto
- * all'asserzione dice cosa scrivere al suo posto.
+ * Fino al 2026-09-10 qui stava `RebuildCostScalesWithTheMapNotTheEdit`, che asseriva **il difetto**:
+ * *«il costo segue la mappa — `Grande > Piccola * 3`»*. Era scritto per **essere rosso il giorno in cui il
+ * difetto viene corretto**, e il suo commento diceva cosa scrivere al suo posto:
+ *
+ * > *«Quando il punto 3 di #1865 sarà implementato questa riga DEVE cadere, e va sostituita con il suo
+ * > opposto: `Grande` vicino a `Piccola`, perché entrambe hanno dipinto una cella sola. Non riallineare il
+ * > numero: è la caduta a dire che l'ottimizzazione è arrivata.»*
+ *
+ * ⛔ **Non è stato riallineato.** I suoi numeri di baseline, misurati su `65781204`, restano scritti qui
+ * perché sono l'unica prova che il lavoro è avvenuto: **14** istanze su board r=1 (7 celle) e **122** su
+ * board r=4 (61 celle), per una pennellata su **una** cella.
+ *
+ * ## Cosa misura adesso, e perché passa dal velo
+ *
+ * ⚠️ **Il percorso è `ApplyKnowledgeVeil`, non `RebuildInstances`**, e non è un dettaglio di comodo: è il
+ * percorso RUNTIME. `PaintCellData` ha solo chiamanti d'editor, mentre il terreno che cambia in partita
+ * — `Action.Ignite`, `Action.CreateWater`, `Hero.Muiren.MistVeil` — arriva alla board dal blocco di
+ * sincronizzazione della revisione che `#2894` ha messo dentro il velo. È lì che il costo si pagava due
+ * volte per turno, ed è lì che il per-cella doveva arrivare.
  *
  * ⚠️ **Si confrontano due board di DIMENSIONE DIVERSA**, non due modifiche: è l'unico modo di distinguere
  * «proporzionale alla modifica» da «proporzionale alla mappa». Con una board sola, qualunque numero
  * sarebbe compatibile con entrambe le ipotesi.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRebuildCostTest,
-	"RefactorTactics.HexMapActor.RebuildCostScalesWithTheMapNotTheEdit",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorEditCostTest,
+	"RefactorTactics.HexMapActor.EditCostScalesWithTheEditNotTheMap",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexMapActorRebuildCostTest::RunTest(const FString&)
+bool FRTHexMapActorEditCostTest::RunTest(const FString&)
 {
 	UWorld* World = MakeMapActorWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
@@ -1274,14 +1287,24 @@ bool FRTHexMapActorRebuildCostTest::RunTest(const FString&)
 		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
 		if (!Actor) { return -1; }
 
-		// Una cella sola cambia superficie: e' la pennellata minima che l'autore possa dare.
-		const FRTCellId Toccata = Asset->Cells[0].Id;
+		// Il primo velo sincronizza la revisione: senza, la pennellata qui sotto verrebbe confusa con
+		// «tutto quello che è successo dall'inizio», che è il caso in cui il registro dichiara di non sapere.
+		FRTTeamKnowledge Tutto;
+		for (const FRTHexCellData& C : Asset->Cells)
+		{
+			Tutto.VisibleCells.Add(C.Id);
+			Tutto.ExploredCells.Add(C.Id);
+		}
+		Actor->ApplyKnowledgeVeil(Tutto);
+
+		// Una cella sola cambia superficie: è la pennellata minima che l'autore possa dare.
 		FRTHexCellData Dipinta = Asset->Cells[0];
 		Dipinta.Surface = Dipinta.Surface == ERTHexSurface::Floor ? ERTHexSurface::Rough : ERTHexSurface::Floor;
 		Asset->AddOrUpdateCell(Dipinta);
 
-		Actor->RebuildInstances();
-		return Actor->LastRebuildCreatedInstances();
+		// Il velo successivo è il percorso runtime: vede la revisione mossa e riallinea.
+		Actor->ApplyKnowledgeVeil(Tutto);
+		return Actor->LastRepaintTouchedInstances();
 	};
 
 	const int32 Piccola = CostoDiUnaPennellata(/*Radius=*/ 1);   // 7 celle
@@ -1289,19 +1312,314 @@ bool FRTHexMapActorRebuildCostTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("entrambe le board si sono costruite"), Piccola > 0 && Grande > 0)) { return false; }
 
 	AddInfo(FString::Printf(
-		TEXT("una pennellata su UNA cella costa %d istanze su board r=1 (7 celle) e %d su board r=4 (61 celle)"),
+		TEXT("una pennellata su UNA cella costa %d istanze su board r=1 (7 celle) e %d su board r=4 (61 celle) ")
+		TEXT("— la baseline del 2026-09-10 diceva 14 e 122"),
 		Piccola, Grande));
 
-	// 🔴 LA BASELINE, e il difetto: la stessa modifica costa molto di piu' sulla board grande, cioe' il
-	// costo segue la MAPPA e non la modifica.
-	//
-	// ⚠️ **Quando il punto 3 di #1865 sara' implementato questa riga DEVE cadere**, e va sostituita con il
-	// suo opposto: `Grande` vicino a `Piccola`, perche' entrambe hanno dipinto una cella sola. Non
-	// riallineare il numero: e' la caduta a dire che l'ottimizzazione e' arrivata.
-	TestTrue(*FString::Printf(
-			TEXT("BASELINE (difetto noto): il costo segue la mappa — %d contro %d, oltre il triplo"),
-			Grande, Piccola),
-		Grande > Piccola * 3);
+	// 🔑 L'OPPOSTO della baseline: la stessa modifica costa **uguale** sulle due board, perché entrambe
+	// hanno dipinto una cella sola. Si asserisce l'uguaglianza e non una soglia — una soglia lascerebbe
+	// passare una regressione che riportasse il costo a crescere di poco con la mappa.
+	TestEqual(*FString::Printf(
+			TEXT("il costo segue la MODIFICA: %d su 7 celle e %d su 61"), Piccola, Grande),
+		Grande, Piccola);
+
+	// E il numero è piccolo in assoluto, non solo uguale: una cella dipinta tocca il suo disco, e il glifo
+	// solo se la superficie ne cambia il numero di anelli.
+	TestTrue(*FString::Printf(TEXT("e in assoluto è il costo di una cella, non di una board: %d"), Piccola),
+		Piccola <= 3);
+
+	return true;
+}
+
+
+/**
+ * 🔴 **N modifiche incrementali lasciano la board IDENTICA a un rebuild totale** — `#2761`.
+ *
+ * ## Perché questa asserzione non esisteva, e perché adesso serve
+ *
+ * Il rebuild per famiglia non ne aveva bisogno: buttava via tutto e rifaceva, quindi non poteva
+ * disallineare niente. Il per-cella tocca istanze **in mezzo** ad array paralleli, e il difetto che può
+ * introdurre non è un crash — è una board con le celle **scambiate**.
+ *
+ * ⛔ **Le due asserzioni che già esistevano passerebbero entrambe su una board rimescolata**: il conteggio
+ * (`GetVeilCounts`, l'`ensureMsgf` di `VeilInstances`) perché il numero di istanze non cambia, e il costo
+ * (`EditCostScalesWithTheEditNotTheMap`) perché misura quante ne ho toccate, non quali. È l'unica che
+ * coglie una permutazione.
+ *
+ * ⚠️ **Il confronto è per CELLA, non per indice**, ed è deliberato: l'ordine delle istanze può
+ * legittimamente differire — un glifo rimosso e riaggiunto finisce in coda — mentre ciò che deve
+ * coincidere è **dove sta cosa**. Un confronto per indice fallirebbe su una board corretta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorIncrementalEqualsFullTest,
+	"RefactorTactics.HexMapActor.IncrementalRepaintEqualsFullRebuild",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorIncrementalEqualsFullTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Le superfici si scelgono per FAR MUOVERE i glifi: `SurfaceRingCount` risponde diverso, quindi le
+	// istanze della corona nascono, muoiono e cambiano anello. Su superfici con lo stesso numero di anelli
+	// il per-cella non rimuoverebbe niente, e il test non eserciterebbe il caso che esiste per coprire.
+	// ⚠️ Le voci si NOMINANO invece di iterare l'enum fino a un sentinella: `ERTHexSurface` non ne ha uno, e
+	// inventarlo per un test lo farebbe entrare nel contratto dell'enum da una porta di servizio.
+	const TArray<ERTHexSurface> Tavolozza = {
+		ERTHexSurface::Floor, ERTHexSurface::ShallowWater, ERTHexSurface::Rough, ERTHexSurface::Fire,
+		ERTHexSurface::Conductive, ERTHexSurface::Ice, ERTHexSurface::Smoke, ERTHexSurface::HighGround };
+
+	// ⛔ **Si dipinge la sola SUPERFICIE, e non il costo di movimento.** Il blocco di sincronizzazione del
+	// velo riallinea le due famiglie che [D-183] accoppia sulla superficie — disco e corona — e **non** il
+	// rilievo, che dipende dal costo. Non e' un buco di questa issue: e' cosi' da `#2894`, che quel blocco lo
+	// ha scritto con la maschera `Cells | Glyphs`. Dipingere il costo qui farebbe cadere il confronto per una
+	// ragione che non c'entra con il per-cella, ed e' il modo piu' rapido di rendere un test bugiardo.
+	auto Dipingi = [&Tavolozza](URTHexMapAsset* Asset, int32 Quante)
+	{
+		for (int32 K = 0; K < Quante && K < Asset->Cells.Num(); ++K)
+		{
+			FRTHexCellData Dipinta = Asset->Cells[K];
+			Dipinta.Surface = Tavolozza[K % Tavolozza.Num()];
+			Asset->AddOrUpdateCell(Dipinta);
+		}
+	};
+
+	constexpr int32 Pennellate = 12;
+
+	URTHexMapAsset* AssetIncrementale = MakeActorTestAsset(/*Radius=*/ 3);
+	ARTHexMapActor* Incrementale = SpawnMapActor(World, AssetIncrementale);
+	if (!TestNotNull(TEXT("actor incrementale"), Incrementale)) { return false; }
+
+	FRTTeamKnowledge Tutto;
+	for (const FRTHexCellData& C : AssetIncrementale->Cells)
+	{
+		Tutto.VisibleCells.Add(C.Id);
+		Tutto.ExploredCells.Add(C.Id);
+	}
+
+	// ⚠️ **Un velo per pennellata**, non uno in fondo: è ciò che rende ognuna un riallineamento per-cella
+	// separato. Applicandone dodici e velando una volta sola, il registro ne consegnerebbe dodici in un
+	// colpo e il caso «istanza rimossa in mezzo, poi un'altra rimossa dopo» non verrebbe esercitato.
+	Incrementale->ApplyKnowledgeVeil(Tutto);
+	int32 ToccateInTutto = 0;
+	for (int32 K = 0; K < Pennellate; ++K)
+	{
+		FRTHexCellData Dipinta = AssetIncrementale->Cells[K];
+		Dipinta.Surface = Tavolozza[K % Tavolozza.Num()];
+		AssetIncrementale->AddOrUpdateCell(Dipinta);
+		Incrementale->ApplyKnowledgeVeil(Tutto);
+		ToccateInTutto += Incrementale->LastRepaintTouchedInstances();
+	}
+
+	// L'altra board: stesse pennellate, ma la costruzione avviene una volta sola alla fine.
+	URTHexMapAsset* AssetTotale = MakeActorTestAsset(/*Radius=*/ 3);
+	Dipingi(AssetTotale, Pennellate);
+	ARTHexMapActor* Totale = SpawnMapActor(World, AssetTotale);
+	if (!TestNotNull(TEXT("actor totale"), Totale)) { return false; }
+	Totale->RebuildInstances(ERTRebuildFamily::All);
+	Totale->ApplyKnowledgeVeil(Tutto);
+
+	// 🔑 La prova che il per-cella è stato DAVVERO usato: senza, questo test passerebbe confrontando due
+	// rebuild totali e non direbbe niente.
+	AddInfo(FString::Printf(TEXT("%d pennellate hanno toccato %d istanze in tutto"),
+		Pennellate, ToccateInTutto));
+	if (!TestTrue(TEXT("il percorso per-cella è stato usato (altrimenti il confronto è vuoto)"),
+		ToccateInTutto > 0 && ToccateInTutto <= Pennellate * 3))
+	{
+		return false;
+	}
+
+	// Il confronto, famiglia per famiglia: dove sta ogni cella, e con quale posa.
+	// ⚠️ **La chiave è la posizione a TRE componenti, non planare.** `FRTCellId` è `(X, Y, Layer)` e
+	// `AxialToWorld` mette il layer tutto nella `Z`: due celle impilate sulla stessa colonna hanno la stessa
+	// XY, quindi una chiave planare le farebbe collassare in una voce sola — sparirebbero dal confronto
+	// **senza farlo fallire**, che è il modo peggiore in cui un test può tacere.
+	auto MappaturaDi = [](const ARTHexMapActor* Actor, const TCHAR* Componente)
+	{
+		TMap<FVector, FVector> Out;
+		for (const FTransform& Xf : InstancesOf(Actor, Componente))
+		{
+			Out.Add(Xf.GetLocation(), Xf.GetLocation());
+		}
+		return Out;
+	};
+
+	// Le famiglie che il riallineamento tocca — disco e le quattro corone — piu' la griglia, che **non**
+	// tocca: se il per-cella la sfiorasse per sbaglio, il confronto se ne accorgerebbe.
+	const TCHAR* Famiglie[] = { TEXT("Cells"), TEXT("CellBorders"),
+		TEXT("SurfaceGlyph1"), TEXT("SurfaceGlyph2"), TEXT("SurfaceGlyph3"), TEXT("SurfaceGlyph4") };
+	for (const TCHAR* Famiglia : Famiglie)
+	{
+		const TMap<FVector, FVector> A = MappaturaDi(Incrementale, Famiglia);
+		const TMap<FVector, FVector> B = MappaturaDi(Totale, Famiglia);
+		TestEqual(*FString::Printf(TEXT("%s: stesso numero di istanze"), Famiglia), A.Num(), B.Num());
+		for (const TPair<FVector, FVector>& Voce : A)
+		{
+			TestNotNull(*FString::Printf(TEXT("%s: la cella a (%.0f, %.0f, %.0f) esiste anche nel rebuild totale"),
+				Famiglia, Voce.Key.X, Voce.Key.Y, Voce.Key.Z), B.Find(Voce.Key));
+		}
+	}
+
+	// 🔴 **E il COLORE, che è la metà che una permutazione degli indici sposta senza muovere niente a
+	// schermo di geometrico.** Due board con le stesse istanze nelle stesse posizioni e i colori scambiati
+	// superano tutto il confronto qui sopra: è esattamente il difetto che l'issue descrive — *«celle velate
+	// SBAGLIATE»* — e sarebbe l'unico a passare inosservato.
+	int32 ColoriConfrontati = 0;
+	int32 ColoriDiversi = 0;
+	const TArray<FTransform> DischiA = InstancesOf(Incrementale, TEXT("Cells"));
+	const TArray<FTransform> DischiB = InstancesOf(Totale, TEXT("Cells"));
+	TMap<FVector, FLinearColor> ColoreTotale;
+	for (int32 I = 0; I < DischiB.Num(); ++I)
+	{
+		FLinearColor C;
+		if (Totale->GetVeilWrittenColor(I, C))
+		{
+			ColoreTotale.Add(DischiB[I].GetLocation(), C);
+		}
+	}
+	for (int32 I = 0; I < DischiA.Num(); ++I)
+	{
+		FLinearColor C;
+		if (!Incrementale->GetVeilWrittenColor(I, C))
+		{
+			continue;
+		}
+		if (const FLinearColor* Atteso = ColoreTotale.Find(DischiA[I].GetLocation()))
+		{
+			++ColoriConfrontati;
+			if (!C.Equals(*Atteso, 0.01f))
+			{
+				++ColoriDiversi;
+			}
+		}
+	}
+	TestTrue(TEXT("i colori sono stati confrontati su tutte le celle"), ColoriConfrontati > 0);
+	TestEqual(TEXT("nessuna cella porta il colore di un'altra"), ColoriDiversi, 0);
+
+	return true;
+}
+
+
+/**
+ * 🔴 **La rimozione per-cella segue la semantica di indice che il MOTORE usa, non una che abbiamo
+ * scelto** — `#2761`.
+ *
+ * ## Il difetto che questo test rende impossibile
+ *
+ * `UInstancedStaticMeshComponent::RemoveInstanceInternal` sceglie a runtime fra due semantiche:
+ *
+ *     bUseRemoveAtSwap = bForceRemoveAtSwap || bSupportRemoveAtSwap
+ *                     || r.InstancedStaticMeshes.ForceRemoveAtSwap != 0
+ *
+ * `RemoveAt` fa scalare di uno tutti gli indici successivi; `RemoveAtSwap` porta l'**ultima** istanza nel
+ * posto liberato. Sono ordini diversi, e un array parallelo che ne ricopiasse una sola resterebbe della
+ * **lunghezza giusta** e mappato **storto** — cioè supererebbe l'`ensureMsgf` sui conteggi.
+ *
+ * ⚠️ **La terza condizione è una console variable**, quindi il difetto non richiede una modifica al codice
+ * per manifestarsi: basta che qualcuno accenda quella CVar. Questo test la accende e la spegne, e chiede la
+ * stessa board in entrambi i casi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorRemovalSemanticsTest,
+	"RefactorTactics.HexMapActor.PerCellRemovalMirrorsTheEngine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorRemovalSemanticsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	IConsoleVariable* Force =
+		IConsoleManager::Get().FindConsoleVariable(TEXT("r.InstancedStaticMeshes.ForceRemoveAtSwap"));
+	if (!TestNotNull(TEXT("la CVar del motore esiste (se sparisce, questo test va riscritto, non tolto)"),
+		Force))
+	{
+		return false;
+	}
+	const int32 Originale = Force->GetInt();
+
+	// La board dipinta per-cella sotto una semantica di indice data.
+	auto BoardConSemantica = [&](int32 Swap) -> TMap<FVector, FLinearColor>
+	{
+		// 🔴 **Si VERIFICA che la scrittura abbia preso.** `IConsoleVariable::Set` usa
+		// `ECVF_SetByCode`, e il sistema di priorità di Unreal IGNORA in silenzio una scrittura di priorità
+		// inferiore a quella con cui la variabile è già stata impostata — da console, da device profile o da
+		// `-ExecCmds`. Senza questo controllo le due metà del test costruirebbero la STESSA board e
+		// l'asserzione finale passerebbe a vuoto, dichiarando provato ciò che non ha nemmeno esercitato.
+		Force->Set(Swap);
+		if (Force->GetInt() != Swap)
+		{
+			AddError(FString::Printf(
+				TEXT("r.InstancedStaticMeshes.ForceRemoveAtSwap non ha accettato %d (vale %d): una priorità ")
+				TEXT("superiore la tiene, e questo test non può esercitare le due semantiche"),
+				Swap, Force->GetInt()));
+			return TMap<FVector, FLinearColor>();
+		}
+
+		URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius=*/ 2);
+		ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+		TMap<FVector, FLinearColor> Out;
+		if (!Actor) { return Out; }
+
+		FRTTeamKnowledge Tutto;
+		for (const FRTHexCellData& C : Asset->Cells)
+		{
+			Tutto.VisibleCells.Add(C.Id);
+			Tutto.ExploredCells.Add(C.Id);
+		}
+		Actor->ApplyKnowledgeVeil(Tutto);
+
+		// Si dipinge in modo da far NASCERE e MORIRE glifi: è la rimozione che questo test esercita, e senza
+		// un cambio di `SurfaceRingCount` non ne verrebbe rimosso nessuno.
+		for (int32 K = 0; K < Asset->Cells.Num(); ++K)
+		{
+			FRTHexCellData Dipinta = Asset->Cells[K];
+			Dipinta.Surface = (K % 2 == 0) ? ERTHexSurface::Floor : ERTHexSurface::Rough;
+			Asset->AddOrUpdateCell(Dipinta);
+			Actor->ApplyKnowledgeVeil(Tutto);
+		}
+		// E poi si riporta tutto a `Floor`, che rimuove i glifi appena nati.
+		for (int32 K = 0; K < Asset->Cells.Num(); ++K)
+		{
+			FRTHexCellData Dipinta = Asset->Cells[K];
+			Dipinta.Surface = ERTHexSurface::Floor;
+			Asset->AddOrUpdateCell(Dipinta);
+			Actor->ApplyKnowledgeVeil(Tutto);
+		}
+
+		const TArray<FTransform> Dischi = InstancesOf(Actor, TEXT("Cells"));
+		for (int32 I = 0; I < Dischi.Num(); ++I)
+		{
+			FLinearColor C;
+			if (Actor->GetVeilWrittenColor(I, C))
+			{
+				Out.Add(Dischi[I].GetLocation(), C);
+			}
+		}
+		return Out;
+	};
+
+	const TMap<FVector, FLinearColor> ConRemoveAt = BoardConSemantica(0);
+	const TMap<FVector, FLinearColor> ConRemoveAtSwap = BoardConSemantica(1);
+	Force->Set(Originale);
+	TestEqual(TEXT("la CVar è stata riportata al valore di partenza"), Force->GetInt(), Originale);
+
+	if (!TestTrue(TEXT("entrambe le board si sono costruite"),
+		ConRemoveAt.Num() > 0 && ConRemoveAtSwap.Num() > 0))
+	{
+		return false;
+	}
+	TestEqual(TEXT("stesso numero di celle sotto le due semantiche"),
+		ConRemoveAtSwap.Num(), ConRemoveAt.Num());
+
+	int32 Diverse = 0;
+	for (const TPair<FVector, FLinearColor>& Voce : ConRemoveAt)
+	{
+		const FLinearColor* Altro = ConRemoveAtSwap.Find(Voce.Key);
+		if (!Altro || !Voce.Value.Equals(*Altro, 0.01f))
+		{
+			++Diverse;
+		}
+	}
+	// 🔑 Se gli array paralleli ricopiassero una semantica sola, una delle due board avrebbe i colori
+	// spostati e questo numero non sarebbe zero.
+	TestEqual(TEXT("la board non dipende da come il motore rimuove le istanze"), Diverse, 0);
 
 	return true;
 }
@@ -1455,6 +1773,253 @@ bool FRTAreaOverlayDrawingIsInertTest::RunTest(const FString&)
 	Actor->SetPreviewHitCells({}, {});
 	Actor->TickActor(0.016f, LEVELTICK_All, Actor->PrimaryActorTick);
 	TestEqual(TEXT("spenta l'anteprima, l'hash e' ancora quello di partenza"), Asset->ComputeHash(), HashPrima);
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il canale di PLAYBACK dell'impronta e' additivo, indipendente dall'anteprima, e si spegne — `#2454`.
+ *
+ * 🔑 **Il punto del test e' l'indipendenza dai due cicli di vita.** `SetPreviewHitCells` mostra cio' che
+ * *accadrebbe* e muore al lock-in; `AddPlaybackFootprint` mostra cio' che **e' accaduto** e muore a
+ * `FinishPlayback`. Se un giorno qualcuno li fondesse in un array solo, spegnere l'anteprima cancellerebbe
+ * un fatto gia' avvenuto — e questo test cade.
+ *
+ * ⚠️ Verifica cio' che l'actor **riceve**, non cio' che disegna: il disegno non e' misurabile senza schermo,
+ * e il suo giudizio appartiene alla voce PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPlaybackFootprintChannelTest,
+	"RefactorTactics.HexMapActor.PlaybackFootprintIsItsOwnChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPlaybackFootprintChannelTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	TestNotNull(TEXT("actor spawnato"), Actor);
+	if (!Actor) { DestroyMapActorWorld(World); return false; }
+
+	const FRTCellId A(0, 0);
+	const FRTCellId B(1, 0);
+	const FRTCellId C(0, 1);
+
+	TestEqual(TEXT("si parte senza impronta"), Actor->NumPlaybackFootprintCells(), 0);
+
+	// Prima impronta: le celle arrivano cosi' come sono passate.
+	Actor->AddPlaybackFootprint({ A, B });
+	TestEqual(TEXT("due celle dopo la prima impronta"), Actor->NumPlaybackFootprintCells(), 2);
+	TestTrue(TEXT("A e' nell'impronta"), Actor->IsPlaybackFootprintCell(A));
+	TestTrue(TEXT("B e' nell'impronta"), Actor->IsPlaybackFootprintCell(B));
+	TestFalse(TEXT("C non lo e' ancora"), Actor->IsPlaybackFootprintCell(C));
+
+	// 🔴 **Additivo: `un evento -> un segnale`.** Due impronte nello stesso Blast sono due fatti, e la
+	// seconda non sostituisce la prima. Se qualcuno cambiasse `Append` in assegnazione, questa riga cade.
+	Actor->AddPlaybackFootprint({ C });
+	TestEqual(TEXT("tre celle dopo la seconda impronta"), Actor->NumPlaybackFootprintCells(), 3);
+	TestTrue(TEXT("A e' ancora li'"), Actor->IsPlaybackFootprintCell(A));
+	TestTrue(TEXT("e C si e' aggiunta"), Actor->IsPlaybackFootprintCell(C));
+
+	// ⛔ **I due canali non si toccano.** Spegnere l'anteprima non cancella un fatto gia' avvenuto.
+	Actor->SetPreviewHitCells({ A }, {});
+	Actor->SetPreviewHitCells({}, {});
+	TestEqual(TEXT("spenta l'anteprima, l'impronta di playback resta"),
+		Actor->NumPlaybackFootprintCells(), 3);
+
+	// … e viceversa: e' `FinishPlayback` a spegnere questo canale, e nessun altro.
+	Actor->ClearPlaybackFootprint();
+	TestEqual(TEXT("dopo Clear non resta nessuna cella"), Actor->NumPlaybackFootprintCells(), 0);
+	TestFalse(TEXT("e nessuna cella risponde piu' vero"), Actor->IsPlaybackFootprintCell(A));
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **`#2731` — IL LEAK: il corpo strutturale si vede sotto una cella mai osservata.**
+ *
+ * `StructuralBodies` era **l'unica famiglia visiva che `ApplyKnowledgeVeil` non poteva nascondere**, e non
+ * per una riga dimenticata: il suo sito di `AddInstance` non registrava nessuna cella, quindi non esisteva
+ * un indice da velare — `BodyCells` non compariva da nessuna parte nel repository.
+ *
+ * ⛔ **E' un leak, non un difetto estetico**: [D-225] dice *«mai vista: non si disegna»*, e su una mappa con
+ * `BodyFill != None` il volume solido restava visibile sotto celle che la squadra non aveva mai osservato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilStructuralBodyIsHiddenTest,
+	"RefactorTactics.Veil.StructuralBodyDisappearsUnderAnUnobservedCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilStructuralBodyIsHiddenTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// La stessa colonna del test del derivatore: una superficie a L1 che dichiara il corpo, una a L0 no.
+	URTHexMapAsset* Asset = NewObject<URTHexMapAsset>(GetTransientPackage());
+	const FRTCellId CellaSotto(0, 0, 0);
+	const FRTCellId CellaCorpo(0, 0, 1);
+	{
+		Asset->AddOrUpdateCell(FRTHexCellData(CellaSotto));
+		FRTHexCellData Sopra(CellaCorpo);
+		Sopra.BodyFill = ERTHexBodyFill::Full;
+		Asset->AddOrUpdateCell(Sopra);
+		Asset->SortCells();
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	// Premessa: il corpo c'e' ed e' DISEGNATO. Senza, il test non misurerebbe niente.
+	{
+		const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+		if (!TestEqual(TEXT("premessa: un corpo posato"), Corpi.Num(), 1))
+		{
+			DestroyMapActorWorld(World);
+			return false;
+		}
+		TestFalse(TEXT("premessa: nasce disegnato"), Corpi[0].GetScale3D().IsNearlyZero());
+	}
+
+	// 🔴 La tesi: una conoscenza che NON contiene la cella del corpo lo deve far sparire.
+	{
+		FRTTeamKnowledge K;
+		K.Version = FRTTeamKnowledge::CurrentVersion;
+		K.TeamId = 0;
+		K.VisibleCells = { CellaSotto };
+		K.ExploredCells = { CellaSotto };
+		Actor->ApplyKnowledgeVeil(K);
+
+		const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+		if (TestEqual(TEXT("il corpo e' ancora una istanza"), Corpi.Num(), 1))
+		{
+			TestTrue(TEXT("sotto una cella MAI OSSERVATA il corpo non si disegna ([D-225])"),
+				Corpi[0].GetScale3D().IsNearlyZero());
+		}
+	}
+
+	// ➕ Reversibile: osservata, il corpo torna. Senza questo, «scala zero sempre» passerebbe il test sopra.
+	{
+		FRTTeamKnowledge K;
+		K.Version = FRTTeamKnowledge::CurrentVersion;
+		K.TeamId = 0;
+		K.VisibleCells = { CellaSotto, CellaCorpo };
+		K.ExploredCells = { CellaSotto, CellaCorpo };
+		Actor->ApplyKnowledgeVeil(K);
+
+		const TArray<FTransform> Corpi = InstancesOf(Actor, TEXT("StructuralBodies"));
+		if (Corpi.Num() == 1)
+		{
+			TestFalse(TEXT("e torna disegnato quando la cella e' osservata"),
+				Corpi[0].GetScale3D().IsNearlyZero());
+		}
+	}
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
+/**
+ * 🔑 **IL GUARDIANO CHE COPRE LA FAMIGLIA, NON IL CASO** (`#2731`, terza voce della DoD).
+ *
+ * Il difetto che questa issue chiude e' vissuto fino a una code review perche' **nessun oracolo guardava le
+ * famiglie**: `GetVeilCounts` legge il solo `Cells`, quindi la copertura era cieca per costruzione su tutte
+ * le altre. Aggiungere il corpo strutturale a un elenco avrebbe spostato la stessa dimenticanza un livello
+ * piu' su — *«la decima nascera' con lo stesso buco»*.
+ *
+ * 🔴 **Quindi qui non c'e' nessun elenco.** Il test **enumera i componenti dell'attore** e chiede a ciascuno
+ * quante istanze restino disegnate sotto una conoscenza **vuota**. Una famiglia nuova si presenta da sola:
+ * chi la aggiunge senza velarla trova questo test rosso, e deve o velarla o dichiarare per iscritto perche'
+ * non vada velata.
+ *
+ * ⚠️ **Un componente senza istanze passa senza dire niente**, ed e' corretto — non c'e' niente da nascondere
+ * — ma renderebbe il test vacuo se fosse il caso di tutti: l'asserzione di anti-vacuita' pretende che almeno
+ * tre famiglie siano popolate.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilEveryFamilyDisappearsTest,
+	"RefactorTactics.Veil.EveryInstanceFamilyDisappearsUnderAnEmptyKnowledge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTVeilEveryFamilyDisappearsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	// Una board RICCA: `MakeTestArena` porta ostacoli, muri, terreno costoso e una piattaforma, quindi
+	// popola piu' famiglie di una graybox piatta. Il corpo strutturale lo si dichiara a mano, perche'
+	// nessuna arena generata lo fa.
+	URTHexMapAsset* Asset = URTMatchSetupLibrary::MakeTestArena(GetTransientPackage());
+	if (!TestNotNull(TEXT("arena di prova"), Asset)) { DestroyMapActorWorld(World); return false; }
+	{
+		TArray<FRTHexCellData> Celle = Asset->Cells;
+		int32 Dichiarati = 0;
+		for (FRTHexCellData& C : Celle)
+		{
+			if (C.Id.Layer == 0 && Dichiarati < 3)
+			{
+				C.BodyFill = ERTHexBodyFill::Full;
+				++Dichiarati;
+			}
+		}
+		Asset->UpdateCells(Celle);
+	}
+
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	if (!TestNotNull(TEXT("actor mappa"), Actor)) { DestroyMapActorWorld(World); return false; }
+
+	// Prima: quante famiglie hanno davvero delle istanze. E' la premessa del test.
+	TArray<UInstancedStaticMeshComponent*> Famiglie;
+	Actor->GetComponents(Famiglie);
+	int32 Popolate = 0;
+	for (const UInstancedStaticMeshComponent* F : Famiglie)
+	{
+		if (F && F->GetInstanceCount() > 0) { ++Popolate; }
+	}
+	AddInfo(FString::Printf(TEXT("componenti ISM: %d, di cui popolati: %d"), Famiglie.Num(), Popolate));
+	if (!TestTrue(*FString::Printf(TEXT("premessa: almeno tre famiglie popolate (%d)"), Popolate),
+			Popolate >= 3))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	// 🔴 Conoscenza VUOTA: la squadra non ha mai osservato niente, quindi nulla dev'essere disegnato.
+	FRTTeamKnowledge Nulla;
+	Nulla.Version = FRTTeamKnowledge::CurrentVersion;
+	Nulla.TeamId = 0;
+	Actor->ApplyKnowledgeVeil(Nulla);
+
+	TArray<FString> Scoperte;
+	for (const UInstancedStaticMeshComponent* F : Famiglie)
+	{
+		if (!F) { continue; }
+		int32 Disegnate = 0;
+		for (int32 I = 0; I < F->GetInstanceCount(); ++I)
+		{
+			FTransform Xf;
+			if (F->GetInstanceTransform(I, Xf, /*bWorldSpace=*/ true)
+				&& !Xf.GetScale3D().IsNearlyZero())
+			{
+				++Disegnate;
+			}
+		}
+		if (Disegnate > 0)
+		{
+			Scoperte.Add(FString::Printf(TEXT("%s (%d istanze disegnate)"), *F->GetName(), Disegnate));
+		}
+	}
+
+	if (Scoperte.Num() > 0)
+	{
+		AddInfo(FString::Printf(TEXT("famiglie NON velate: %s"), *FString::Join(Scoperte, TEXT(", "))));
+	}
+	TestEqual(*FString::Printf(
+			TEXT("sotto una conoscenza vuota nessuna famiglia resta disegnata (scoperte: %d)"), Scoperte.Num()),
+		Scoperte.Num(), 0);
 
 	DestroyMapActorWorld(World);
 	return true;

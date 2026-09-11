@@ -106,7 +106,7 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// regge piu'**: la decisione d'autore ha portato anche `HazardDamage` in attesa, con owner `#2455`.
 	// Questo evento esiste **precisamente perche' un giorno si mostri** —
 	// #1945 lo introduce per portare a valle le celle risolte, e la cue che le disegna (tracer, impatto,
-	// resa dell'area) e' lavoro di E21 che non e' ancora stato fatto.
+	// resa dell'area) e' lavoro di #2454 che non e' ancora stato fatto.
 	//
 	// ⚠️ **Dichiarare cue inventate sarebbe peggio che dichiarare l'assenza.** Le altre voci di questa
 	// tabella nominano funzioni che il C++ chiama davvero; scrivere qui il nome di un effetto che nessuno
@@ -115,11 +115,23 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	//
 	// ⚠️ **Questa voce va RIVISTA, non ereditata**, appena la cue nasce: e' il segnaposto che il gate
 	// sorveglia, ed e' il motivo per cui il dato viene emesso prima del disegno e non insieme a lui.
-	// 🔑 L'owner che la sciogliera' e' ora un CAMPO (`PendingOwner`), non una frase: `E21`.
-	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::AttackFootprint,
-		TEXT("Il dato esiste perche' la cue POSSA essere costruita: #1945 porta a valle le celle risolte, e ")
-		TEXT("la resa dell'area e' fuori dal suo scope (E21). Nessuna cue oggi lo consuma."),
-		TEXT("E21")));
+	// 🔑 L'owner che la sciogliera' e' ora un CAMPO (`PendingOwner`), non una frase: `#2454`.
+	// ⌫ **Diceva `E21` fino al 2026-09-10, e un'epic non e' un owner di lavoro.** Il campo esiste per
+	// rispondere a *«quell'owner e' ancora aperto?»*: un'epic risponde SI per mesi, cioe' risponde senza
+	// informare. Letti uno per uno, i tre checkpoint di E21 (#287, #288, #289) non contengono l'impronta.
+	// Stessa correzione gia' fatta altrove: #1408 assegnava la dock a un'epic, e il lavoro e' andato a #2826.
+	// ✅ **La cue e' NATA il 2026-09-10 (`#2454`)**, e questa voce non e' piu' in attesa.
+	//
+	// 🔑 Cio' che mancava non era il disegno: era il **momento**. `BeginPlayback` raccoglieva `Move`,
+	// `Attack` e `Defeated` e nient'altro, e il cancello che apre la fase `Blast` contava i soli colpi —
+	// quindi un'area su sole celle vuote, che produce zero `Attack` e UNA impronta, non aveva nemmeno una
+	// fase in cui accadere. Ora il cancello e' `URTPlaybackLibrary::BlastPhaseIsActive`, che conta anche
+	// le impronte, ed e' pura perche' cambia la DURATA di un turno.
+	//
+	// ⛔ `AddPlaybackFootprint` riceve `HitCells` COSI' COME ARRIVANO: nessun ricalcolo di `HexHitCells`
+	// nella presentazione, che e' cio' che [D-301] punto (1) esclude a monte.
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AttackFootprint,
+		{ FName(TEXT("AddPlaybackFootprint")) }));
 
 	// Defeated — la morte visiva e' DIFFERITA: l'unita' sparisce dopo che il colpo o l'attraversamento e'
 	// stato mostrato. La presentazione non decide quando si muore: lo decide il resolver, e questa cue lo
@@ -300,4 +312,31 @@ TArray<FString> URTPresentationBindingLibrary::FindMissingBindings(
 	}
 
 	return Missing;
+}
+
+ERTGraykitLocomotionStyle URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase Phase)
+{
+	switch (Phase)
+	{
+	case ERTMatchPhase::Dash:
+		// L'unica fase che corre. Il Dash e' uno scatto dichiarato, non un Move piu' lungo, e
+		// `DescriptorForStyle(Run)` lo rende con una COMPOSIZIONE diversa — non con magnitudini piu' alte.
+		return ERTGraykitLocomotionStyle::Run;
+
+	// ⚠️ **Le altre fasi si elencano invece di cadere in un `default` muto**, ed e' cio' che rende questa
+	// funzione una tabella leggibile invece di una scorciatoia. Il `Blast` in particolare muove le unita'
+	// (knockback) e finisce qui: un knockback non e' una corsa, e' uno spostamento subito.
+	case ERTMatchPhase::Move:
+	case ERTMatchPhase::Blast:
+	case ERTMatchPhase::Planning:
+	case ERTMatchPhase::Prep:
+	case ERTMatchPhase::Cleanup:
+	case ERTMatchPhase::MatchEnded:
+		return ERTGraykitLocomotionStyle::Normal;
+
+	default:
+		// ⛔ Un valore che questa build non conosce: andatura neutra, mai un crash e mai un ensure. La
+		// presentazione degrada; e' la simulazione che deve essere rumorosa quando incontra l'ignoto.
+		return ERTGraykitLocomotionStyle::Normal;
+	}
 }

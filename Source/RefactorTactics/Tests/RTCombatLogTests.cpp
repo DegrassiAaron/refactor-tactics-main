@@ -78,7 +78,7 @@ namespace RTCombatLogFixture
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi: qui si prova il log, non il bot
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -132,7 +132,7 @@ namespace RTCombatLogFixture
 	 *
 	 * ⚠️ Non `DescribeTurnLog`: da quando le voci `Move` portano il soggetto nel testo, quella forma le rende
 	 * con `u<id>` — non avendo la mappa — e il confronto con cio' che e' stato emesso cadrebbe su
-	 * `Gadget: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
+	 * `Aevik: resta` contro `u3: resta`, che e' la stessa riga scritta da due risoluzioni diverse. Il
 	 * produttore resta uno solo: qui si passa la mappa, non si riscrive il testo.
 	 */
 	TArray<FString> RigheAttese(const ARTTurnManager* TM)
@@ -167,7 +167,7 @@ bool FRTLogContainsReasonAndCoordsTest::RunTest(const FString&)
 	Colpo.SrcCell = FRTCellId(0, 0, 0);
 	Colpo.TgtCell = FRTCellId(2, -1, 1);
 	Colpo.Amount = 40;
-	Colpo.ActionId = FName(TEXT("Hero.Wraith.PiercingShot"));
+	Colpo.ActionId = FName(TEXT("Hero.Ivrin.PiercingShot"));
 
 	const TArray<FString> Righe = URTTurnLogLibrary::DescribeTurnLog({ Colpo });
 	if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
@@ -179,7 +179,7 @@ bool FRTLogContainsReasonAndCoordsTest::RunTest(const FString&)
 	// Il reason code tradotto, non il numero dell'enum.
 	TestTrue(*FString::Printf(TEXT("e l'esito in chiaro: %s"), *R), R.Contains(TEXT("eliminata")));
 	// L'ActionId: senza, due colpi diversi dello stesso eroe sono indistinguibili nel log.
-	TestTrue(*FString::Printf(TEXT("e l'azione che l'ha prodotto: %s"), *R), R.Contains(TEXT("Hero.Wraith.PiercingShot")));
+	TestTrue(*FString::Printf(TEXT("e l'azione che l'ha prodotto: %s"), *R), R.Contains(TEXT("Hero.Ivrin.PiercingShot")));
 
 	return true;
 }
@@ -498,10 +498,10 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
 	}
 
 	// Con `ActionId`: la riga lo nomina, come ogni altra categoria.
-	Annullata.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+	Annullata.ActionId = FName(TEXT("Hero.Ivrin.PulseShot"));
 	const FString Nominata = URTTurnLogLibrary::DescribeEntry(Annullata);
 	TestTrue(*FString::Printf(TEXT("nomina l'azione: %s"), *Nominata),
-		Nominata.Contains(TEXT("Hero.Wraith.PulseShot")));
+		Nominata.Contains(TEXT("Hero.Ivrin.PulseShot")));
 
 	// Due azioni annullate dalla stessa unita' nello stesso posto NON producono piu' la stessa riga: e' il
 	// difetto per cui questo ramo esisteva senza identita'.
@@ -910,11 +910,11 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	// ⚠️ **Cercava nome E coordinate, e la ragione scritta qui non regge piu'.** Diceva *«la copia
 	// derivata dal TurnLog non porta il nome, quindi solo l'eco puo' produrla»*: da `#1932` le voci
 	// `Move` portano **anche il soggetto**, e da `#1412` l'eco scritto a mano non c'e' piu' — era un
-	// duplicato che nominava la stessa unita' in un altro modo (`RTUnit_0` contro `Wraith`). La
+	// duplicato che nominava la stessa unita' in un altro modo (`RTUnit_0` contro `Ivrin`). La
 	// premessa si regge ora sulla **cella**, che e' anche cio' che il cuore verifica.
 	//
 	// ⛔ Il nome non e' un criterio utilizzabile qui: le tre unita' della fixture escono tutte da
-	// `MakeWraith`, quindi *«Wraith»* compare anche nelle righe della squadra che guarda. Cio' che
+	// `MakeIvrin`, quindi *«Ivrin»* compare anche nelle righe della squadra che guarda. Cio' che
 	// identifica la nemica in una riga e' la sua **posizione**, ed e' quella che non deve trapelare.
 	const TArray<FString>& Complete = TM->GetRecentEvents();
 	bool bEcoNelCanaleCompleto = false;
@@ -1294,7 +1294,7 @@ namespace RT1932
  * gameplay su un comportamento corretto.
  *
  * ⚠️ Il prefisso vale solo dove `UnitId` e' anche il soggetto GRAMMATICALE: nelle voci di danno porta chi
- * **subisce** (#1150), e «Gadget: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
+ * **subisce** (#1150), e «Aevik: colpisce» direbbe il falso. Il test lo pinna, altrimenti la prossima
  * estensione lo scopre a schermo.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLineNamesItsSubjectTest,
@@ -1309,10 +1309,10 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
 	// --- 1. Col nome risolto dal chiamante -----------------------------------------------------------
 	{
 		TMap<int32, FString> Nomi;
-		Nomi.Add(3, TEXT("Gadget"));
+		Nomi.Add(3, TEXT("Aevik"));
 		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Mossa }, Nomi);
 		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
-		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Gadget")));
+		TestEqual(TEXT("la riga nomina il soggetto"), Soggetto(Righe[0].Text), FString(TEXT("Aevik")));
 		TestTrue(*FString::Printf(TEXT("e conserva il predicato: %s"), *Righe[0].Text),
 			Righe[0].Text.Contains(TEXT("si muove")));
 		// Il dato per il filtro di conoscenza non cambia: il testo si aggiunge, non sostituisce.
@@ -1350,11 +1350,11 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
 		Colpo.Amount = 12;
 
 		TMap<int32, FString> Nomi;
-		Nomi.Add(7, TEXT("Gadget"));
+		Nomi.Add(7, TEXT("Aevik"));
 		const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects({ Colpo }, Nomi);
 		if (!TestEqual(TEXT("una riga per voce"), Righe.Num(), 1)) { return false; }
 		TestFalse(*FString::Printf(TEXT("il difensore non diventa il soggetto della frase: %s"), *Righe[0].Text),
-			Righe[0].Text.StartsWith(TEXT("Gadget:"), ESearchCase::CaseSensitive));
+			Righe[0].Text.StartsWith(TEXT("Aevik:"), ESearchCase::CaseSensitive));
 		// Ma il soggetto come DATO resta: e' quello che il filtro di conoscenza usa.
 		TestEqual(TEXT("e resta il soggetto per la conoscenza"), Righe[0].SubjectStableUnitId, 7);
 	}
@@ -1370,7 +1370,7 @@ bool FRTMoveLineNamesItsSubjectTest::RunTest(const FString&)
  * 🔴 **Il caso che ha prodotto #1733: due righe, una unita' sola.**
  *
  * ```text
- * Turno 5:  si muove (-1,-1) -> (1,-1)  (Hero.Wraith.PassingBlade, p30)
+ * Turno 5:  si muove (-1,-1) -> (1,-1)  (Hero.Ivrin.PassingBlade, p30)
  *           resta    (1,-1)             (Action.Move, p50)
  * ```
  *
@@ -1389,7 +1389,7 @@ bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
 	using namespace RT1932;
 
 	TMap<int32, FString> Nomi;
-	Nomi.Add(3, TEXT("Wraith"));
+	Nomi.Add(3, TEXT("Ivrin"));
 	Nomi.Add(5, TEXT("Branth"));
 
 	const TArray<FRTTurnLogEntry> Log = {
@@ -1401,19 +1401,19 @@ bool FRTTwoLinesSameUnitSameSubjectTest::RunTest(const FString&)
 	const TArray<FRTDescribedLine> Righe = URTTurnLogLibrary::DescribeTurnLogWithSubjects(Log, Nomi);
 	if (!TestEqual(TEXT("tre voci, tre righe"), Righe.Num(), 3)) { return false; }
 
-	TArray<FString> DiWraith;
+	TArray<FString> DiIvrin;
 	TArray<FString> DiAltri;
 	for (const FRTDescribedLine& Riga : Righe)
 	{
-		(Riga.SubjectStableUnitId == 3 ? DiWraith : DiAltri).Add(Soggetto(Riga.Text));
+		(Riga.SubjectStableUnitId == 3 ? DiIvrin : DiAltri).Add(Soggetto(Riga.Text));
 	}
 
-	if (!TestEqual(TEXT("due righe sono della stessa unita'"), DiWraith.Num(), 2)) { return false; }
-	TestEqual(TEXT("e portano lo stesso soggetto"), DiWraith[0], DiWraith[1]);
-	TestEqual(TEXT("che e' il nome dell'unita'"), DiWraith[0], FString(TEXT("Wraith")));
+	if (!TestEqual(TEXT("due righe sono della stessa unita'"), DiIvrin.Num(), 2)) { return false; }
+	TestEqual(TEXT("e portano lo stesso soggetto"), DiIvrin[0], DiIvrin[1]);
+	TestEqual(TEXT("che e' il nome dell'unita'"), DiIvrin[0], FString(TEXT("Ivrin")));
 
 	if (!TestEqual(TEXT("la terza e' di un'altra"), DiAltri.Num(), 1)) { return false; }
-	TestNotEqual(TEXT("e si distingue dalle prime due"), DiAltri[0], DiWraith[0]);
+	TestNotEqual(TEXT("e si distingue dalle prime due"), DiAltri[0], DiIvrin[0]);
 
 	return true;
 }
@@ -1488,7 +1488,7 @@ bool FRTBlockedMoveIsNotRepeatedTest::RunTest(const FString&)
 	// preceduta da `«Nome: »`, contata per riga unica contro le sue occorrenze attese.
 	// Il PREDICATO nudo, non la riga intera: e' la chiave che vede il difetto. Le due copie portano
 	// prefissi DIVERSI — `Units[i]->GetName()` rende `RTUnit_0`, mentre la derivata usa il nome risolto da
-	// `SubjectNamesForLog()` e rende `Wraith` — quindi confrontare la riga intera, come fa
+	// `SubjectNamesForLog()` e rende `Ivrin` — quindi confrontare la riga intera, come fa
 	// `LogDoesNotRepeatTheDerivedLines`, non le fa combaciare e il duplicato passa.
 	//
 	// 🔴 **E le due righe non sono solo doppie: si contraddicono.** Lo stesso evento arriva al

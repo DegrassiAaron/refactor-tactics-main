@@ -861,7 +861,7 @@ resta visibile invece di sparire.
 > significato il contrario del file. Il quarto, `Spec.Brace.PushBeyondGuardThreshold`, **non nasce**: chiedeva
 > una spinta di 2 che [D-074](../../decisions/RT_PDR_00_Decision_Log.md) ha deciso di non introdurre, riscrivendo
 > invece la clausola di `Brace`. Oracolo e fixture erano quelli previsti — `UnitHpEquals`, `UnitAtCell` e
-> `Hero.Phase.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
+> `Hero.Muiren.PressureJet` (16 danni **e** `Push 1` nello stesso colpo) — e nessuna capability nuova è servita.
 >
 > Vale la pena notare **perché** questi quattro mancavano: `Guard` e `Brace` hanno ciascuno i propri scenari
 > e nessuno li guarda **insieme**. È la stessa forma del *dato senza consumatore*, ruotata — qui i

@@ -36,7 +36,7 @@ namespace
 	  "version": 1,
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -44,15 +44,15 @@ namespace
 	)JSON");
 
 	// Per lo slot REATTIVO serve una unita' che possieda davvero una reazione: `ValidateScenarioTurns`
-	// rifiuta `non possiede la reazione`, e provarlo su Gadget misurerebbe il rifiuto invece dello slot.
-	// `Hero.Wraith.Deflection` e' la reazione che `Scenarios/Spec/Overwatch/` arma per davvero.
+	// rifiuta `non possiede la reazione`, e provarlo su Aevik misurerebbe il rifiuto invece dello slot.
+	// `Hero.Ivrin.Deflection` e' la reazione che `Scenarios/Spec/Overwatch/` arma per davvero.
 	const TCHAR* TurnAuthoringReactionJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Movement.TurnAuthoringReactionProbe",
 	  "version": 1,
 	  "mapRadius": 3,
 	  "units": [
-	    { "id": "W1", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 0, 0] },
+	    { "id": "W1", "hero": "Hero.Ivrin", "team": 0, "cell": [-2, 0, 0] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
 	  ],
 	  "expect": [ { "type": "TurnsCompleted", "value": 1 } ]
@@ -548,7 +548,7 @@ bool FRTScenarioIntentPreservesOtherFieldsTest::RunTest(const FString&)
 	// Un intent ricco, come ne esistono negli scenari scritti a mano.
 	FRTScenarioIntent Rich;
 	Rich.UnitId = TEXT("A1");
-	Rich.Ability = FName(TEXT("Hero.Gadget.ArcPulse"));
+	Rich.Ability = FName(TEXT("Hero.Aevik.ArcPulse"));
 	Rich.Target = TEXT("B1");
 	Rich.Reaction = FName(TEXT("Action.Overwatch"));
 	Rich.Facing = ERTHexDirection::NW;
@@ -562,7 +562,7 @@ bool FRTScenarioIntentPreservesOtherFieldsTest::RunTest(const FString&)
 
 	const FRTScenarioIntent& After = Draft.GetScenario().Turns[0].Intents[0];
 	TestEqual(TEXT("il nuovo percorso c'e'"), After.Move.Num(), 1);
-	TestEqual(TEXT("l'abilita' e' sopravvissuta"), After.Ability, FName(TEXT("Hero.Gadget.ArcPulse")));
+	TestEqual(TEXT("l'abilita' e' sopravvissuta"), After.Ability, FName(TEXT("Hero.Aevik.ArcPulse")));
 	TestEqual(TEXT("il bersaglio e' sopravvissuto"), After.Target, TEXT("B1"));
 	TestEqual(TEXT("la reazione e' sopravvissuta"), After.Reaction, FName(TEXT("Action.Overwatch")));
 	TestTrue(TEXT("la rotazione dichiarata e' sopravvissuta"), After.bDeclaresFacing);
@@ -943,7 +943,7 @@ bool FRTScenarioReactionConditionTest::RunTest(const FString&)
 {
 	FRTTestScenario Loaded;
 	FString Error;
-	if (!TestTrue(TEXT("base con Wraith caricata"),
+	if (!TestTrue(TEXT("base con Ivrin caricata"),
 		URTScenarioLoader::LoadFromString(TurnAuthoringReactionJson, Loaded, Error)))
 	{
 		AddError(Error);
@@ -965,10 +965,10 @@ bool FRTScenarioReactionConditionTest::RunTest(const FString&)
 	};
 
 	TestEqual(TEXT("reazione e condizione armate"),
-		Draft.SetReactionIntent(Turn, TEXT("W1"), TEXT("Hero.Wraith.Deflection"),
+		Draft.SetReactionIntent(Turn, TEXT("W1"), TEXT("Hero.Ivrin.Deflection"),
 			TEXT("TargetHealthAtOrBelowPercent"), 10, Error),
 		ERTScenarioAuthoringResult::Success);
-	TestEqual(TEXT("la reazione c'e'"), Intent().Reaction, FName(TEXT("Hero.Wraith.Deflection")));
+	TestEqual(TEXT("la reazione c'e'"), Intent().Reaction, FName(TEXT("Hero.Ivrin.Deflection")));
 	TestEqual(TEXT("la condizione anche"), Intent().Condition.Id, FName(TEXT("TargetHealthAtOrBelowPercent")));
 	TestEqual(TEXT("con il suo parametro"), Intent().Condition.Param, 10);
 	if (!TestEqual(TEXT("lo scenario e' salvabile"), Draft.Validate(Error),
@@ -990,7 +990,7 @@ bool FRTScenarioReactionConditionTest::RunTest(const FString&)
 	}
 
 	// E chi prova a tenerla viene avvisato invece di scoprirlo al salvataggio.
-	Draft.SetReactionIntent(Turn, TEXT("W1"), TEXT("Hero.Wraith.Deflection"),
+	Draft.SetReactionIntent(Turn, TEXT("W1"), TEXT("Hero.Ivrin.Deflection"),
 		TEXT("TargetHealthAtOrBelowPercent"), 10, Error);
 	Draft.SetReactionIntent(Turn, TEXT("W1"), NAME_None, TEXT("TargetHealthAtOrBelowPercent"), 10, Error);
 	TestFalse(TEXT("la condizione non sopravvive alla reazione"), Intent().Condition.IsDeclared());

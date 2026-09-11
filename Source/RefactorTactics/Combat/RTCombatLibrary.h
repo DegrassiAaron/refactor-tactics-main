@@ -4,6 +4,10 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Core/RTTypes.h"
 #include "Turn/RTTurnLog.h"
+// `ERTLineOfSightPolicy` vive col DATO che la dichiara (`FRTActionDef`), non accanto al gate che la applica:
+// il requisito e' una proprieta' dell'azione (`#2870`). La dipendenza e' la stessa che `RTHexCombatLibrary.h`
+// ha gia' su `Ability/RTActionData.h`, e non introduce cicli — `RTActionDef.h` non risale a Combat.
+#include "Ability/RTActionDef.h"
 #include "RTCombatLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -18,7 +22,20 @@ enum class ERTHexTargetReason : uint8
 	Ok,             // ingaggiabile
 	NoMap,          // nessuna mappa autorevole: non si valida (fail-closed)
 	OutOfRange,     // oltre la portata dell'abilita'
-	NoLineOfSight   // in portata, ma la traiettoria e' bloccata
+	NoLineOfSight,  // in portata, ma la traiettoria e' bloccata
+
+	/**
+	 * Sotto la distanza MINIMA che l'azione dichiara (`#2950`): un arco, un mortaio, un'arma pesante che
+	 * in mischia non si usa.
+	 *
+	 * ⚠️ **In CODA, e non e' estetica**: il valore serializzato e' l'indice, e infilarlo in mezzo
+	 * rinumererebbe `NoLineOfSight` in silenzio. E' la disciplina che `ERTLineStop` e
+	 * `ERTResolvedEventType` dichiarano gia' per se'.
+	 *
+	 * ⛔ **Non e' `OutOfRange` al contrario.** Sono due difetti con due correzioni opposte, e confonderli
+	 * renderebbe il messaggio una bugia — il difetto che `#2766` ha gia' chiuso su questo stesso enum.
+	 */
+	TooClose
 };
 
 /**
@@ -42,7 +59,19 @@ enum class ERTTargetRefusal : uint8
 	None,    // nessun rifiuto: il bersaglio e' ingaggiabile
 	Cover,   // qualcosa interrompe la traiettoria — «spostati di lato»
 	Range,   // troppo lontano — «avvicinati»
-	Nothing  // niente da bersagliare QUI, per quanto l'osservatore ne sappia
+	Nothing, // niente da bersagliare QUI, per quanto l'osservatore ne sappia
+
+	/**
+	 * Troppo VICINO — «allontanati» (`#2950`).
+	 *
+	 * 🔑 **Vale un valore proprio perche' chiede il gesto OPPOSTO a `Range`.** Quella voce porta scritto
+	 * *«avvicinati»*: riusarla per una distanza minima direbbe al giocatore di fare esattamente cio' che
+	 * peggiora la sua posizione. E' il criterio gia' usato da `ERTLineStop` per separare
+	 * `BlockedByEdgeCover` da `BlockedByCover` — due rifiuti si distinguono quando la correzione differisce.
+	 *
+	 * ⚠️ In coda: l'indice e' il dato.
+	 */
+	TooClose
 };
 
 /**
@@ -219,7 +248,7 @@ public:
 	 * da `FRTReactionPassResult::DeflectDelta`, che il dispatcher riempie per QUALUNQUE reazione dichiari
 	 * `ERTActionEffect::DamageReduction` — *«Qui non si guarda mai l'`ActionId`: e' cio' che permette a una
 	 * reazione d'eroe di riusare la semantica di `Action.Deflect` con numeri propri»* (`RTTurnManager.cpp`).
-	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Wraith.Deflection` un'azione che l'unita' non ha
+	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Ivrin.Deflection` un'azione che l'unita' non ha
 	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
 	 *
 	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.
@@ -282,14 +311,14 @@ public:
 	static constexpr int32 LowCoverDamageReduction = 10;
 
 	/**
-	 * `Gadget.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
+	 * `Aevik.LinearDischarge` (catalogo eroi v0.1 §1): +8 danni contro un bersaglio `Status.Wet`.
 	 *
 	 * A differenza di `Exposed`/`Guard`/`Marked`, NON passa da `ApplyFirstHitDelta`: il bonus non si consuma
 	 * al primo colpo, vale per OGNI colpo finche' `Wet` e' attivo (come `Root`/`Slow`) — e riusa
 	 * `EffectiveAttackPower` (bonus di cella), non un meccanismo nuovo. E' specifico di UN'abilita', non una
 	 * regola di combattimento universale: per questo il nome non e' generico come gli altri.
 	 */
-	static constexpr int32 GadgetWetDischargeBonus = 8;
+	static constexpr int32 AevikWetDischargeBonus = 8;
 
 	/**
 	 * Applica il danno: erode il temporaneo, poi — solo se la sorgente e' `Direct` — lo scudo base, poi gli
@@ -401,23 +430,44 @@ public:
 
 	/**
 	 * Vero se il bersaglio e' ingaggiabile su griglia esagonale: entro `RangeCells` (distanza esagonale) e con
-	 * linea di tiro libera sulla mappa.
+	 * linea di tiro libera sulla mappa, **se l'azione la richiede** (`Policy`).
 	 *
 	 * **FAIL-CLOSED**: `Map == nullptr` -> falso. Senza mappa autorevole non si valida la linea di tiro, quindi
 	 * non si pianifica l'attacco. La versione precedente nel controller faceva l'opposto (`!Grid || HasLOS`) e
 	 * lasciava passare ogni bersaglio quando la griglia non c'era.
+	 *
+	 * ⚠️ **Il fail-closed vale anche con `NotRequired`**: senza mappa non si valida nemmeno la PORTATA, e una
+	 * licenza sulla linea non e' una licenza sulla distanza.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static bool CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
-		int32 RangeCells);
+		int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
 	 * Come `CanTargetHexCell`, ma dice **perche'**: portata prima, poi linea di tiro. Il chiamante logga il
 	 * motivo esatto invece di attribuire ogni rifiuto alla copertura.
+	 *
+	 * ## 🔴 `Policy` non ha un valore di default, ed e' una scelta
+	 *
+	 * Ogni chiamante **dichiara** il requisito dell'azione che sta validando. Un default renderebbe muto il
+	 * sito che si dimentica di leggerlo dal `Def`, e un sito muto e' esattamente il modo in cui la regola
+	 * tornerebbe a essere una proprieta' del classificatore invece che dell'azione — cioe' il difetto che
+	 * `#2870` chiude. Il compilatore chiede la risposta a chi la conosce.
+	 *
+	 * ⛔ **`HasLineOfSight` NON esce di qui.** Con `Required` — lo zero dell'enum, e quindi il caso normale —
+	 * questa funzione fa esattamente cio' che faceva prima. `NotRequired` non e' un bypass globale: e' una
+	 * licenza che una singola azione porta con se'.
+	 *
+	 * @param Policy  `FRTActionDef::LineOfSightPolicy` dell'azione che si sta pianificando
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	/**
+	 * ⚠️ `MinRangeCells` ha default **0** = nessun minimo: ogni chiamante che non lo passa conserva il
+	 * comportamento che aveva, e un'azione che non lo dichiara non cambia (`#2950`). Stessa forma con cui
+	 * `Policy` e' entrata qui con [D-378].
+	 */
 	static ERTHexTargetReason ClassifyHexTargeting(const URTHexMapAsset* Map, const FRTCellId& From,
-		const FRTCellId& To, int32 RangeCells);
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, int32 MinRangeCells = 0);
 
 	/**
 	 * Traduce la classificazione INTERNA in cio' che il giocatore puo' sapere — `#2741`.

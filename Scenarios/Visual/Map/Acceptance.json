@@ -24,15 +24,15 @@
   "_nota_anti_vacuita": "Ogni gruppo porta un'assertion che cade se il suo fenomeno non avviene: `UnitAtCell P_DOOR (1,1,0)` per la deviazione attorno alla porta, `UnitHpEquals G_COV 76` per i due colpi che la copertura tratta in modo diverso, e `UnitHpEquals G_HIGH 53` per i due colpi identici che l'altura NON differenzia. 🔑 **Il 53 e' il numero piu' importante della scena**: e' la prova che il bonus non c'e', e sarebbe piu' basso se ci fosse.",
 
   "units": [
-    { "id": "P_DOOR", "hero": "Hero.Phase", "team": 0, "cell": [0, 1, 0] },
+    { "id": "P_DOOR", "hero": "Hero.Muiren", "team": 0, "cell": [0, 1, 0] },
 
-    { "id": "G_COV", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
-    { "id": "W_COV", "hero": "Hero.Wraith", "team": 1, "cell": [0, -2, 0] },
+    { "id": "G_COV", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0] },
+    { "id": "W_COV", "hero": "Hero.Ivrin", "team": 1, "cell": [0, -2, 0] },
     { "id": "R_COV", "hero": "Hero.Branth", "team": 1, "cell": [0, 2, 0], "loadout": [] },
 
-    { "id": "G_HIGH", "hero": "Hero.Gadget", "team": 0, "cell": [1, 0, 0] },
-    { "id": "W_HI", "hero": "Hero.Wraith", "team": 1, "cell": [2, -2, 0] },
-    { "id": "W_LO", "hero": "Hero.Wraith", "team": 1, "cell": [3, 0, 0] }
+    { "id": "G_HIGH", "hero": "Hero.Aevik", "team": 0, "cell": [1, 0, 0] },
+    { "id": "W_HI", "hero": "Hero.Ivrin", "team": 1, "cell": [2, -2, 0] },
+    { "id": "W_LO", "hero": "Hero.Ivrin", "team": 1, "cell": [3, 0, 0] }
   ],
 
   "turns": [
@@ -45,16 +45,16 @@
     {
       "_turno": "T2 — LA COPERTURA E' DI UN BORDO (`PIE-VIS-COVER`). Due colpi simultanei sullo stesso bersaglio, da due lati opposti: uno attraversa il bordo protetto e l'altro no, quindi arrivano con entita' DIVERSE. G_COV risponde a W_COV, cosi' la scena e' uno scambio e non un'esecuzione. E' il caso in cui un solo numero finale non basterebbe: la differenza fra i due impatti e' l'oggetto.",
       "intents": [
-        { "unit": "G_COV", "ability": "Hero.Gadget.ArcPulse", "target": "W_COV" },
-        { "unit": "W_COV", "ability": "Hero.Wraith.PulseShot", "target": "G_COV" },
+        { "unit": "G_COV", "ability": "Hero.Aevik.ArcPulse", "target": "W_COV" },
+        { "unit": "W_COV", "ability": "Hero.Ivrin.PulseShot", "target": "G_COV" },
         { "unit": "R_COV", "ability": "Hero.Branth.ImpactShot", "target": "G_COV" }
       ]
     },
     {
-      "_turno": "T3 — L'ALTURA NON DA' BONUS (`PIE-VIS-HIGH`). Due Wraith IDENTICI colpiscono lo stesso bersaglio con la stessa abilita': W_HI dalla cresta, W_LO dal piano. I due colpi devono arrivare UGUALI ([D-024]), e cio' che si guarda e' che nulla nella presentazione suggerisca il contrario — nessun numero piu' grande, nessun effetto piu' vistoso dall'alto. E' l'unica delle tre voci in cui il difetto sarebbe un'aspettativa del giocatore, non una regola.",
+      "_turno": "T3 — L'ALTURA NON DA' BONUS (`PIE-VIS-HIGH`). Due Ivrin IDENTICI colpiscono lo stesso bersaglio con la stessa abilita': W_HI dalla cresta, W_LO dal piano. I due colpi devono arrivare UGUALI ([D-024]), e cio' che si guarda e' che nulla nella presentazione suggerisca il contrario — nessun numero piu' grande, nessun effetto piu' vistoso dall'alto. E' l'unica delle tre voci in cui il difetto sarebbe un'aspettativa del giocatore, non una regola.",
       "intents": [
-        { "unit": "W_HI", "ability": "Hero.Wraith.PulseShot", "target": "G_HIGH" },
-        { "unit": "W_LO", "ability": "Hero.Wraith.PulseShot", "target": "G_HIGH" }
+        { "unit": "W_HI", "ability": "Hero.Ivrin.PulseShot", "target": "G_HIGH" },
+        { "unit": "W_LO", "ability": "Hero.Ivrin.PulseShot", "target": "G_HIGH" }
       ]
     }
   ],

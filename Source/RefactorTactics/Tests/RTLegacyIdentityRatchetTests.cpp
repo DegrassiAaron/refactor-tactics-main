@@ -22,9 +22,55 @@ namespace RTLegacyIdentity
 	 * un rosso che non nomina un difetto.
 	 */
 	const FRitirata Ritirate[] = {
-		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),  60, 97 },
-		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),  57, 74 },
-		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"), 35, 44 },
+		// ✅ **Fetta eseguita il 2026-09-10** (#2491): il tetto scende da `60, 97` a **zero su entrambi i
+		// lati**, ed e' una misura — `grep -rl "Hero.Gadget"` non risponde nulla ne' in `Source/` ne' in
+		// `Scenarios/`. Per questa identita' il ratchet e' ora l'oracolo secco che [D-341] chiede.
+		//
+		// 🔴 **E questa riga e' stata disfatta dalla sostituzione che la fetta stessa ha eseguito**: uno
+		// script che rinominava `Hero.Gadget` -> `Hero.Aevik` su tutti i `.cpp` l'ha ridotta a
+		// `{ Hero.Aevik, Hero.Aevik, ... }` — l'identita' ritirata diventata il proprio erede, cioe' la
+		// guardia che si cancella da sola restando verde. E' il **terzo** episodio della stessa famiglia:
+		// #754 senza confini di parola, poi lo script rilanciato «per misurare», ora questo. La lezione
+		// non cambia — *uno script che sostituisce non e' una misura* — e la difesa non e' ricordarsene:
+		// e' rileggere il diff di QUESTO file a mano, sempre, a ogni fetta.
+		//
+		// ⛔ Il tetto misura `Hero.Gadget`, cioe' l'IDENTITA'. `ERTEquipmentSlot::Gadget` e i nove token
+		// `Gadget.<Oggetto>` non lo consumano e non devono: quella parola li' e' lo **slot**, non l'eroe.
+		// ⚠️ **Il tetto e' `1` e non `0`, e l'uno e' arrivato DOPO.** La fetta l'aveva portato a zero;
+		// poi la correzione del commento di `MakeAevik` — che la sostituzione aveva ridotto a «`Hero.Aevik`
+		// -> `Hero.Aevik`», un rename fra un nome e se stesso — ha rimesso il token nel file. E' la stessa
+		// menzione legittima per cui `Hero.Riktor` sta a quattro: un commento che dichiara il rename deve
+		// poter nominare cio' che ha rinominato.
+		{ TEXT("Hero.Gadget"), TEXT("Hero.Aevik"),   1,  0 },
+		// ✅ **Fetta eseguita il 2026-09-09**: il tetto è sceso a ZERO, e per questa identità il ratchet
+		// **è già** l'oracolo secco che [D-341] chiede — qualunque ricomparsa fallisce.
+		// ⚠️ Zero e non quattro come `Hero.Riktor`: quelle quattro sono commenti sul rename e un test che ne
+		// verifica la scomparsa. Qui non esistono ancora — se qualcuno li scrivesse, il tetto va alzato
+		// **con loro**, non prima.
+		{ TEXT("Hero.Wraith"), TEXT("Hero.Ivrin"),   0,  0 },
+		// **Il tetto di `Hero.Muiren` sale da 35 a 36, e NON e' questa fetta a consumarlo.** Il commit
+		// `18806f68` (#2824) ha aggiunto `RTHeroData.h`, che nomina `Hero.Muiren.TideGuard` per spiegare
+		// perche' due eroi portano sei azioni invece di cinque. E' una menzione LEGITTIMA di un'identita'
+		// ancora viva — `Phase` non e' rinominata — ma il tetto non e' stato alzato nella stessa PR, e da
+		// allora questo test e' ROSSO su `main`: misurato 36 file contro un tetto di 35. Qui sale con la
+		// ragione scritta, che e' quanto la regola in testa a questo file chiede — il tetto si muove
+		// **insieme** a cio' che lo muove, mai in silenzio e mai prima.
+		// ✅ **Fetta eseguita il 2026-09-10** (#2491), l'ultima delle quattro: il tetto scende da `36, 44`
+		// a **`1, 0`**, e l'uno non e' un residuo — e' il commento di `RTHeroCatalogLibrary.cpp` che
+		// dichiara il rename, la stessa menzione legittima per cui `Hero.Riktor` sta a quattro.
+		//
+		// ⚠️ **Questa riga ha detto `0, 0` per il tempo di due comandi.** La misura era gia' stampata —
+		// «Source/: 2 file» — e il tetto e' stato scritto guardando l'intenzione invece del numero. Il
+		// difetto e' esattamente quello che la regola in testa a questo file descrive: *un tetto piu'
+		// basso del reale e' un rosso che non nomina un difetto*. Corretto misurando di nuovo, dopo aver
+		// migrato gli esempi di `RTUnitLabelTests`.
+		//
+		// ⛔ Il tetto misura `Hero.Muiren`, cioe' l'IDENTITA'. NON lo consumano — e non devono —
+		// `ERTMatchPhase`, `ERTResolutionPhase`, `Hero.Ivrin.PhaseGuard`, `Visual.Core.PhaseOrder`,
+		// le icone `RT_UI_Icon_Phase_*` e i diciotto test di Playback/Replay che nominano la fase.
+		// Su 937 usi di `ERT*Phase` in `Source/`, questa riga ne conta UNO: il token e' lo stesso, il
+		// significato no, ed e' la ragione per cui il rename e' stato contestuale e mai globale.
+		{ TEXT("Hero.Phase"),  TEXT("Hero.Muiren"),  1,  0 },
 		// ⌫ Gia' rinominata (`D-334`), e il suo tetto **non e' zero**: le quattro occorrenze residue sono
 		// menzioni LEGITTIME — tre commenti che spiegano il rename e un test che verifica che l'identita' non
 		// si risolva piu'. E' la misura di cosa resta quando una fetta e' completa.

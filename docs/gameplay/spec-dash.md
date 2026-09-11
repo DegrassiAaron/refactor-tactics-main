@@ -70,7 +70,7 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   **Guardian → "Carica"** (`Guardian.Charge`, 4 celle, ricarica 3, `LinearCharge`, 20 danni + spinta 1);
   fallback generico "Scatto" (`Action.Dodge`: 3 celle, ricarica 1). Sono la **4ª abilità** (indice 3).
   Gli eroi del catalogo v0.1 hanno `Hero.Riktor.Ram` (`LinearCharge`), `Hero.Wraith.PassingBlade`
-  (`LinearPass`) e `Hero.Phase.FluidTrail` (`LinearDash`) — **tutte e tre sullo slot movimento**
+  (`LinearPass`) e `Hero.Muiren.FluidTrail` (`LinearDash`) — **tutte e tre sullo slot movimento**
   ([D-191](../decisions/RT_PDR_00_Decision_Log.md)).
 
   > 🔴 **Corretto il 2026-08-25**: questa riga attribuiva `LinearDash` a `PassingBlade`, che nel codice è
@@ -79,7 +79,10 @@ Reactor e dà senso alla fase + profondità alla pianificazione (il Blast usa le
   > ferma addosso al bersaglio è un attacco e occupa la principale, chi lo attraversa è mobilità e occupa il
   > movimento. Gli slot sono aggiunti qui per la stessa ragione: sono la conseguenza dello stile, e leggerli
   > accanto evita di doverli dedurre.
-  > Questi sono i valori **oggi nel codice** (`ARTUnit::ConfigureAsArchetype`), non i valori vigenti della
+  > ⚠️ **Questa riga diceva «i valori *oggi nel codice* (`ARTUnit::ConfigureAsArchetype`)», e da allora quel
+  > percorso e' stato rimosso**: `ERTArchetype` e `ConfigureAsArchetype` non esistono piu' — il roster si
+  > configura da `URTHeroCatalogLibrary` via `ConfigureFromHeroData`. I numeri qui sotto restano leggibili
+  > come **snapshot dei due archetipi legacy**, non come lo stato del codice, e non sono i valori vigenti della
   > v0.1: con il budget a **5 MP** dell'[ADR-0003](../decisions/adr-0003-modello-azioni-v01.md) le mobilità rapide passano a
   > distanza fissa dichiarata dall'azione (`Dash 3`, `Charge 4`, `Leap 3`, `Sprint 8 MP`) — riparametrizzazione
   > al **CP 4.2** (issue `#43`), con la suite del bot come gate.

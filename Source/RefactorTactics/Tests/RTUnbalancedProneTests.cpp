@@ -89,7 +89,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // i piani li scriviamo noi
-		U->ConfigureFromHeroData(Hero ? Hero : URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(Hero ? Hero : URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		// `FRTCellId()` di default e' `(0,0,0)`, che e' una cella VERA: senza questa riga ogni unita' senza
@@ -630,7 +630,7 @@ bool FRTProneSurvivesToNextTurnTest::RunTest(const FString&)
  * il varco davanti**. Il varco e' la prima cella della linea in entrambe le posizioni post-spinta.
  *
  * ⛔ **La predictive armata NON e' coperta.** `Prone` la rimuove nello stesso punto e con la stessa riga, ma
- * armare `Hero.Wraith.InterceptShot` chiede un montaggio proprio: dichiarato come lacuna invece che
+ * armare `Hero.Ivrin.InterceptShot` chiede un montaggio proprio: dichiarato come lacuna invece che
  * sottinteso come coperto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTProneDisarmsOverwatchTest,

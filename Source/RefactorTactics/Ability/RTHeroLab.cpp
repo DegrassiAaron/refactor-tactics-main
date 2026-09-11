@@ -68,13 +68,13 @@ bool URTHeroLabLibrary::BuildHeroFixture(const FName& HeroId, const FName& Abili
 	if (!FindHero(HeroId, Hero))
 	{
 		OutError = FString::Printf(
-			TEXT("HeroId non canonico: '%s'. Il roster della v0.1 e' Hero.Gadget, Hero.Phase, Hero.Branth, Hero.Wraith."),
+			TEXT("HeroId non canonico: '%s'. Il roster della v0.1 e' Hero.Aevik, Hero.Muiren, Hero.Branth, Hero.Ivrin."),
 			*HeroId.ToString());
 		return false;
 	}
 
 	// L'unica domanda che l'Ability Lab non puo' porre. Per #2599 ogni ability canonica e' eseguibile; qui
-	// conta anche DI CHI e'. Senza questo controllo Hero Lab farebbe lanciare a Gadget un'abilita' di Wraith
+	// conta anche DI CHI e'. Senza questo controllo Hero Lab farebbe lanciare a Aevik un'abilita' di Ivrin
 	// e la fixture funzionerebbe — mostrando come «kit dell'eroe» qualcosa che non lo e'.
 	bool bOwnsIt = false;
 	for (const FRTAbilityLabEntry& Owned : ListHeroKit(HeroId))

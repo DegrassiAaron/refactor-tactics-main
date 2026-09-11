@@ -271,6 +271,23 @@ private:
 	FString ReadoutError;
 
 	/**
+	 * Cosa ha prodotto l'ultima pressione di `Esegui` sullo scenario ora a schermo (#2788).
+	 *
+	 * 🔴 **E' l'unica cosa che il sottosistema d'anteprima non puo' dire.** Lui sa se un playback e'
+	 * aperto; non sa se qualcuno ha eseguito. Le due domande divergono nel caso che ha ingannato un
+	 * lettore: una corsa che non produce turni non apre nessun playback, e la riga di stato invitava a
+	 * eseguire uno scenario a chi lo aveva appena eseguito.
+	 *
+	 * ⚠️ **Vale per la posa corrente e non oltre.** `RefreshReadout()` la dimentica, perche' quella
+	 * funzione richiude il playback e rimette a schermo lo schieramento d'authoring: la memoria di una corsa
+	 * non deve sopravvivere alla traccia che descriveva.
+	 */
+	ERTLauncherRunState LastRunState = ERTLauncherRunState::NotRun;
+
+	/** I turni che quella corsa ha GIOCATO, dal referto della facade. Senza significato con `NotRun`. */
+	int32 LastRunTurns = 0;
+
+	/**
 	 * La facade d'authoring usata per leggere il readout.
 	 *
 	 * ⚠️ `TStrongObjectPtr` e non un puntatore nudo: e' un `UObject` creato su `GetTransientPackage()`, e

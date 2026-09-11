@@ -143,7 +143,7 @@ bool FRTHexMoveReachesPlannedCellTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	ARTHexMapActor* HexMap = SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
@@ -175,7 +175,7 @@ bool FRTHexMoveRejectsOutOfBudgetTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
@@ -218,7 +218,7 @@ bool FRTHexMoveBudgetCostsTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Map;
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	// Un avversario lontano e fermo: senza, la squadra 1 e' gia' eliminata e la partita finisce al primo
 	// turno (MatchEnded), quindi il secondo lock-in non risolverebbe nulla.
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
@@ -264,7 +264,7 @@ bool FRTHexDashReachesCellTest::RunTest(const FString&)
 	// Destinazione OBLIQUA (3,-3): distanza ESAGONALE 3, dentro la portata 5 dello scatto — ma distanza di
 	// Manhattan 6 e coordinate negative, quindi irraggiungibile per il pathfinding quadrato. E' il caso che
 	// distingue le due geometrie: se lo scatto girasse ancora sul quadrato, l'unita' resterebbe ferma.
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -299,7 +299,7 @@ bool FRTHexDashRejectsOutOfBudgetTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -327,8 +327,8 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 
 	// Due unita' equidistanti da una stessa cella: la contesa e' simultanea, nessuna delle due la ottiene.
 	const FRTCellId Contested(0, 0);
-	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0));
-	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-1, 0));
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 
@@ -386,8 +386,8 @@ bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
 	// quando i due piani sono stati scritti prima che l'altra ci si spostasse.
 	const FRTCellId CellA(0, 0);
 	const FRTCellId CellB(1, 0);
-	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), CellA);
-	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), CellB);
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), CellA);
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), CellB);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 
@@ -436,8 +436,8 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 
 	// Due Ranger: il tiro (25 danni, portata 6, bersaglio singolo) non spinge e non fa area, quindi l'unica
 	// differenza misurabile fra i due turni e' lo stato. Il Ranger non ha scudo: il danno si legge sugli HP.
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(8, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(8, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
@@ -507,7 +507,7 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
@@ -595,7 +595,7 @@ bool FRTIceSlidesInMatchTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Map;
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	// Un avversario fermo e lontano: senza, la squadra 1 e' gia' eliminata e il secondo lock-in non risolve.
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -716,7 +716,7 @@ bool FRTIceSlideBlockedInMatchTest::RunTest(const FString&)
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Map;
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
@@ -779,7 +779,7 @@ bool FRTTerrainFireDamagesAndBurnsOnEnterTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover) { DestroyHexMoveWorld(World); return false; }
 
@@ -816,7 +816,7 @@ bool FRTTerrainFireDamagesOnDashTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(FireCell);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -932,7 +932,7 @@ bool FRTTerrainStatusLogMatchesStateTest::RunTest(const FString&)
 	MapActor->MapAsset->AddOrUpdateCell(WaterCell);
 	MapActor->MapAsset->SortCells();
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	// Il test dura due turni: senza un avversario vivo il primo Cleanup dichiara vinta la partita
 	// (`EvaluateOutcome(1, 0)`) e il secondo turno non verrebbe mai risolto. Sta fuori portata e fermo.
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
@@ -1007,7 +1007,7 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
@@ -1058,8 +1058,8 @@ bool FRTMoveCellConflictTest::RunTest(const FString&)
 	SpawnHexMap(World, /*Radius=*/ 4);
 
 	const FRTCellId Contested(0, 0);
-	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 0));
-	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0));
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 
@@ -1100,7 +1100,7 @@ bool FRTDashConsumesMovementTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
@@ -1145,7 +1145,7 @@ bool FRTKitDeclaredBothSlotsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -1205,7 +1205,7 @@ bool FRTNormalDashDoesNotDiscardTheMainSlotTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -1272,7 +1272,7 @@ bool FRTKitDeclaredBothSlotsDeclaresTheDiscardTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -1415,8 +1415,8 @@ bool FRTHexMoveIllegalDeclaredRotationTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	// 🔴 **Branth e non Wraith, dal 2026-09-03 — ADR-0008 §1 (#1605).** Questo test ha bisogno che `W` sia
-	// ILLEGALE, e con Wraith non lo e' piu': `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le
+	// 🔴 **Branth e non Ivrin, dal 2026-09-03 — ADR-0008 §1 (#1605).** Questo test ha bisogno che `W` sia
+	// ILLEGALE, e con Ivrin non lo e' piu': `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le
 	// direzioni a fine Move, quindi la dichiarazione verrebbe accolta e il test misurerebbe il contrario di
 	// quel che il suo nome promette. Branth ha budget `1`, cioe' esattamente la vecchia regola universale.
 	//
@@ -1519,7 +1519,7 @@ bool FRTHexMoveLogCauseInMatchTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
@@ -1572,7 +1572,7 @@ bool FRTDashLeavesMainAvailableTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner) { DestroyHexMoveWorld(World); return false; }
 
@@ -1635,7 +1635,7 @@ bool FRTMainLeavesMovementAvailableTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* Shooter = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter) { DestroyHexMoveWorld(World); return false; }
 
@@ -1707,8 +1707,8 @@ bool FRTHexMoveRoutesCarryIdentityTest::RunTest(const FString&)
 	//
 	// ⚠️ Il fermo sta in `(1, 1)`, **fuori** dai percorsi minimi di chi si muove: su `(1, 0)` sarebbe un
 	// ostacolo sul cammino del mover, e un fallimento misurerebbe il pathfinding invece dell'identita'.
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Fermo = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(1, 1));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Fermo = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 1));
 	ARTUnit* Avversario = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Fermo || !Avversario) { DestroyHexMoveWorld(World); return false; }
@@ -1772,7 +1772,7 @@ bool FRTHexMoveRoutesCarryIdentityTest::RunTest(const FString&)
  * un array gia' azzerato e passerebbe per assenza invece che per merito.
  *
  * La DISTANZA fa il nascondimento di B2, non l'orientamento — e il numero e' MISURATO, non dedotto:
- * l'osservatore e' Wraith, che ha `VisionRange = 6` e non il `5` del default di `ARTUnit`. B2 resta a
+ * l'osservatore e' Ivrin, che ha `VisionRange = 6` e non il `5` del default di `ARTUnit`. B2 resta a
  * distanza 8 per l'intera rotta, quindi il caso non dipende dal `Facing` ne' dall'apertura del cono. Con
  * B2 a distanza 6 il test sarebbe passato lo stesso, ma per l'arco frontale: la stessa asserzione con una
  * premessa diversa da quella dichiarata.
@@ -1790,8 +1790,8 @@ bool FRTHexMoveTrailHidesUnobservedRouteTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 8);
 
-	ARTUnit* A1 = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* B1 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(2, 0));
+	ARTUnit* A1 = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* B1 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(2, 0));
 	ARTUnit* B2 = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-8, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A1 || !B1 || !B2) { DestroyHexMoveWorld(World); return false; }
@@ -1884,8 +1884,8 @@ bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
 	// B parte a distanza 5 (il limite di VisionRange, in direzione E pura: visto) e cammina fino a 7,
 	// dove nessuno lo vede piu'. E' il soggetto che si perde di vista MUOVENDOSI, l'unico caso in cui
 	// ricordo e posizione vera non coincidono — senza il movimento la verifica sarebbe vuota.
-	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(5, 0));
+	ARTUnit* A = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* B = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(5, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !A || !B) { DestroyHexMoveWorld(World); return false; }
 	A->Facing = ERTHexDirection::E;
@@ -1960,7 +1960,7 @@ bool FRTHexMoveTrailAndGhostAgreeTest::RunTest(const FString&)
 	// E il tratto che resta e' cio' che era osservato, con la sagoma DENTRO e mai oltre.
 	//
 	// L'asserto e' `Contains`, non `Trail.Last() == Sagoma->Cell`, e la differenza e' un fatto misurato:
-	// con Wraith (`VisionRange = 6`) la traccia arriva a `(6,0)` mentre la sagoma resta a `(5,0)`. Non e'
+	// con Ivrin (`VisionRange = 6`) la traccia arriva a `(6,0)` mentre la sagoma resta a `(5,0)`. Non e'
 	// una fuga — `(6,0)` A la vedeva davvero quando B ci e' passato, e «ho visto questa parte del suo
 	// movimento» resta vero — ma e' il LIMITE che [D-223] dichiara: i due canali campionano a granularita'
 	// diverse. La sagoma nasce dal refresh di FASE (`RefreshTeamKnowledgeForPlanning` / `ResolveCombat`,
@@ -2010,7 +2010,7 @@ bool FRTHexMoveEntriesDeclareNoBoundaryTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 4);
 
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
@@ -2048,7 +2048,7 @@ bool FRTHexMoveEntriesDeclareNoBoundaryTest::RunTest(const FString&)
 //
 // Criterio di accettazione 2 del work order: i due casi devono essere distinguibili **leggendo la sola
 // voce**, senza il log del runner degli scenari. Oggi non lo sono — in PIE (seduta `U14`,
-// `PIE-V01-COLL`) i turni 3 e 4 producono la riga identica «Gadget: resta (q=-1,r=0,L=0)
+// `PIE-V01-COLL`) i turni 3 e 4 producono la riga identica «Aevik: resta (q=-1,r=0,L=0)
 // (Action.Move, p50)», e i due turni sono l'uno «non ho dichiarato» e l'altro «ho tentato il varco».
 //
 // I due esiti si misurano NELLO STESSO TURNO, su due unita' diverse. Due test separati proverebbero
@@ -2105,9 +2105,9 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		const FRTCellId PartenzaFerma(-2, 0);
 
 		// `Negata` dichiara e viene respinta; `Ferma` non dichiara niente; `Occupante` e' l'ostacolo.
-		ARTUnit* Negata = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), PartenzaNegata);
+		ARTUnit* Negata = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), PartenzaNegata);
 		ARTUnit* Occupante = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
-		ARTUnit* Ferma = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), PartenzaFerma);
+		ARTUnit* Ferma = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), PartenzaFerma);
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !PC || !Negata || !Occupante || !Ferma)
@@ -2219,7 +2219,7 @@ bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
 
 	const FRTCellId Partenza(0, 0);
 	const FRTCellId Occupata(1, 0);
-	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), Partenza);
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
 	ARTUnit* Occupante = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Occupante) { DestroyHexMoveWorld(World); return false; }

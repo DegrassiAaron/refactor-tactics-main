@@ -67,7 +67,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo: questi test guardano il Blast
@@ -122,7 +122,7 @@ namespace
 	int32 CompBasicAttackDamage()
 	{
 		// Lo stesso eroe che `SpawnCompUnit` schiera: il numero viene dal catalogo, non da qui.
-		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeWraith();
+		const URTHeroData* Hero = URTHeroCatalogLibrary::MakeIvrin();
 		return (Hero && Hero->Actions.Num() > 0 && Hero->Actions[0]) ? Hero->Actions[0]->Power : 0;
 	}
 }
@@ -132,7 +132,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMultiEffectReactionTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTMultiEffectReactionTest::RunTest(const FString&)
 {
-	// `Gadget.ReactiveCapacitor` in miniatura (il cablaggio dell'eroe e' CP 6.7): scudo a chi reagisce **e**
+	// `Aevik.ReactiveCapacitor` in miniatura (il cablaggio dell'eroe e' CP 6.7): scudo a chi reagisce **e**
 	// danno a chi ha colpito, dichiarati nella stessa lista. Prima di CP 5.5 il resolver leggeva solo il primo
 	// `Damage` e ignorava tutto il resto: meta' della reazione non arrivava mai in partita.
 	UWorld* World = MakeCompWorld();
@@ -244,7 +244,7 @@ bool FRTHeroReactionIdentityTest::RunTest(const FString&)
 	//
 	// Il commento qui sopra diceva che il residuo a runtime «non e' osservabile»: valeva fino a **#135**, che
 	// ha riallineato `AbilityCooldowns` al kit in tutti i punti che lo popolano invece del solo `BeginPlay`.
-	// Oggi il residuo si osserva su un'unita' configurata (`RefactorTactics.Unit.ArchetypeKitRecordsCooldown`).
+	// Oggi il residuo si osserva su un'unita' configurata (`RefactorTactics.Unit.HeroKitRecordsCooldown`).
 	// Resta scoperto il caso degli helper che aggiungono abilita' DOPO la configurazione: quelli allungano
 	// `Abilities` senza risincronizzare, e per quegli slot il cooldown legge ancora 0.
 	TestEqual(TEXT("il cooldown d'eroe e' nel Def"), Deflection->Def.CooldownTurns, HeroCooldown);
@@ -297,7 +297,7 @@ bool FRTNoHeroBranchInResolverTest::RunTest(const FString&)
 
 	// Stessa semantica, tre identita' diverse: l'esito non cambia.
 	const int32 CoreDamage = RunDeflectScenario(TEXT("Action.Deflect"));
-	const int32 HeroDamage = RunDeflectScenario(TEXT("Hero.Wraith.Deflection"));
+	const int32 HeroDamage = RunDeflectScenario(TEXT("Hero.Ivrin.Deflection"));
 	const int32 OtherDamage = RunDeflectScenario(TEXT("Zzz.PermutedIdentity"));
 
 	TestEqual(TEXT("la riduzione arriva dai dati, non dall'ActionId"),

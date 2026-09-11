@@ -232,7 +232,7 @@ composito compra tempo di seduta, non verdetti — le voci restano ⏳ finché q
 > sbagliata. È lo stesso motivo per cui la tabella delle epic ora esiste in **un solo posto**.
 >
 > Stessa forma, altro caso: E5 ed E6 risultavano «chiuse» mentre `Hero.Riktor.Interposition`,
-> `Hero.Wraith.Deflection`, `Hero.Gadget.ReactiveCapacitor` e `Hero.Phase.FlowReaction` erano identità a catalogo con `Effects`
+> `Hero.Wraith.Deflection`, `Hero.Aevik.ReactiveCapacitor` e `Hero.Muiren.FlowReaction` erano identità a catalogo con `Effects`
 > **vuoto**. Un motore che nessuno consuma non è collaudato. E5.5 ed E6.7 (chiusi il 2026-08-07) lo hanno
 > reso componibile e cablato tre reazioni su cinque. Delle due allora rinviate ne resta **una**:
 > `FlowReaction`. `InterceptShot` è uscita dall'insieme il 2026-08-10 — non è rinviata, è **consegnata**
@@ -451,7 +451,7 @@ che blocca la CI su mappa non valida, soak test senza crash.
 | Rete introdotta tardi su superficie ampia | M/H | Autorità isolata come gate di PR (invariante #5) | accettato, monitorato |
 | Budget mai misurati → target mitici | M/M | M7.3 forza una misura reale | pianificato |
 | Verifiche PIE che si accumulano | M/M | Raggruppate in sessioni A–D; ogni milestone chiude le proprie voci | attivo |
-| Scope roster/ambienti | H/M | ~~2 archetipi (Ranger/Guardian) finché il loop non è chiuso~~ → **superata**: E6 ha chiuso i 4 eroi ed E8 gli ambienti. `ERTArchetype` sopravvive come configurazione **di test** | ✅ chiusa 2026-08-08 |
+| Scope roster/ambienti | H/M | ~~2 archetipi (Ranger/Guardian) finché il loop non è chiuso~~ → **superata**: E6 ha chiuso i 4 eroi ed E8 gli ambienti. ~~`ERTArchetype` sopravvive come configurazione **di test**~~ → **rimosso**: enum e `ConfigureAsArchetype` non esistono più (verificato il 2026-09-10, `git grep ERTArchetype -- Source/` non risponde nulla) | ✅ chiusa 2026-08-08 |
 | Upgrade UE dentro una milestone | M/H | UE 5.8.1 bloccata (canone), upgrade solo fra milestone | ✅ |
 
 ## Definition of Done trasversale (per ogni PR)
@@ -507,7 +507,7 @@ neutri (combat math, serializzazione, regole di fase). Il resto ha data di scade
 | ~~`feature-registry.yaml`~~ · ~~`feature-registry.md`~~ | ⛔ **Rimossi con D-181** (2026-08-21). Dichiaravano: stato per *feature* (non per milestone né per epic), derivato da gate verificabili. Unica sorgente dello stato che Wiki e workbook leggono |
 | [`roadmap-v0.1.md`](roadmap-v0.1.md) | **Release v0.1**: il totale di epic e checkpoint (letto **di lì**, mai copiato qui), mappatura con queste milestone + **§2.1 stato misurato**. ⚠️ Il totale si legge **di lì**: questa riga è una copia, e il 2026-08-12 era indietro di cinque. 🔴 **Ed è rimasta indietro una seconda volta** — E46, 2026-08-16: la copia è stata aggiornata solo perché una code review ha eseguito `grep -rn "21 epic" docs/`. Delle **cinque** copie vive di quel totale, l'aggiunta di un'epic ne aggiorna **una** (l'owner), e nessun gate confronta le altre quattro. 🔴 **E una terza volta, lo stesso giorno, per la stessa ragione**: **E47** è atterrata poche ore dopo E46 e le quattro copie erano di nuovo ferme. Tre su quattro sono state riallineate a mano; `docs/README.md` **no**, perché non è nel `writable` di nessuna track e [D-139](../decisions/RT_PDR_00_Decision_Log.md) dice che un file non assegnato è uno **stop**. Il difetto strutturale ha ora un numero: [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) |
 | [`roadmap-post-v0.1.md`](roadmap-post-v0.1.md) | **Release v0.2 → v0.4**: epic `E22`–`E35`. Non apre lavoro finché i gate della v0.1 non sono verdi |
-| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release `G1`–`G15`, KPI, checklist di contenuto |
+| [`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) | Gate di release, KPI, checklist di contenuto. ⚠️ Il perimetro si legge **nella tabella** §3, non da un intervallo: fino al 2026-09-10 questa cella diceva `G1`–`G15`, e `G15` era ⌫ da **D-181** dal 2026-08-21 |
 | [`balance/`](../balance) | **Numeri vigenti v0.1**: cataloghi azioni, terreni, equipaggiamento, eroi, matrice di test |
 | [`spec-motore-azioni-e4.md`](../gameplay/spec-motore-azioni-e4.md) | **Proposta di design** del motore azioni (epic E4): modello, fette, rischi, domande aperte |
 | [`spec-stati-temporanei-cp82.md`](../gameplay/spec-stati-temporanei-cp82.md) | **Stati temporanei** (CP 8.2): durata legata alla cella, ordine del Cleanup, decisioni e difetti di cablaggio trovati |

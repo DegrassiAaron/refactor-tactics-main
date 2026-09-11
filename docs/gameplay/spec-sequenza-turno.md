@@ -119,7 +119,7 @@ sistemi per la stessa cosa.
 
 | | Quando si decide | Input durante la Resolution | Esempio |
 |---|---|---|---|
-| **Normal Action** | Planning | no | `Hero.Gadget.ArcPulse` |
+| **Normal Action** | Planning | no | `Hero.Aevik.ArcPulse` |
 | **Delayed / Predictive Action** | Planning, **interamente** | **no** | «sparo dove *penso* che arriverai» |
 | **Prepared Reaction** | Planning (armata) | no — una sola risposta legale | `Hero.Riktor.Interposition` |
 | **Fast Reaction** | **live**, al boundary | sì — evento **esterno** | Overwatch: `FIRE` / `HOLD` |

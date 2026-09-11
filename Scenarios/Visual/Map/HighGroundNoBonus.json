@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "RelayBasin",
 
-  "_nota": "Uno scenario che esiste per dimostrare che NON succede niente. In v0.1 l'altura da' un vantaggio geometrico e nessun bonus numerico (D-024). Due Wraith identici colpiscono lo stesso Gadget dalla stessa distanza: uno dalla cresta (2,-2), l'altro dal piano (3,0). I due colpi valgono 21 ciascuno, uguali.",
+  "_nota": "Uno scenario che esiste per dimostrare che NON succede niente. In v0.1 l'altura da' un vantaggio geometrico e nessun bonus numerico (D-024). Due Ivrin identici colpiscono lo stesso Gadget dalla stessa distanza: uno dalla cresta (2,-2), l'altro dal piano (3,0). I due colpi valgono 21 ciascuno, uguali.",
 
   "_nota_due_vektor": "Due unita' con lo stesso `hero` sono lecite: l'`id` e' locale allo scenario, `HeroId` e' un'altra cosa. E' l'unico modo di confrontare a parita' di azione — con due eroi diversi si confronterebbero anche i loro danni base, e il test non direbbe piu' niente sull'altura.",
 
@@ -13,16 +13,16 @@
   "_nota_scudo_base": "Ogni conto in prosa di questo file sottrae gia' lo SCUDO BASE. Causa: `URTCombatLibrary::BaseShield = 5` ([D-224]) esiste dal COSTRUTTORE di `ARTUnit`, quindi ogni unita' assorbe 5 danni prima degli HP, e ogni nota scritta prima di [D-224] sbagliava di 5 per bersaglio colpito. \u26a0\ufe0f **Fino al 2026-09-02 questo campo era un'ERRATA** (2026-08-30): dichiarava che la prosa sopra era rimasta indietro e che NON sarebbe stata riscritta, *«dice ancora cosa faceva il gioco quando fu scritto»*. `#2049` ha ribaltato quella scelta, e la ragione e' misurata: un `_nota` descrive il file di **oggi**, non e' un registro storico, e due testi che si contraddicono nello stesso file sono il difetto \u2014 non la sua documentazione. La versione precedente dei conti e' in git.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [1,  0, 0] },
-    { "id": "VH", "hero": "Hero.Wraith", "team": 1, "cell": [2, -2, 0] },
-    { "id": "VF", "hero": "Hero.Wraith", "team": 1, "cell": [3,  0, 0] }
+    { "id": "F1", "hero": "Hero.Aevik",   "team": 0, "cell": [1,  0, 0] },
+    { "id": "VH", "hero": "Hero.Ivrin", "team": 1, "cell": [2, -2, 0] },
+    { "id": "VF", "hero": "Hero.Ivrin", "team": 1, "cell": [3,  0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "VH", "ability": "Hero.Wraith.PulseShot", "target": "F1" },
-        { "unit": "VF", "ability": "Hero.Wraith.PulseShot", "target": "F1" }
+        { "unit": "VH", "ability": "Hero.Ivrin.PulseShot", "target": "F1" },
+        { "unit": "VF", "ability": "Hero.Ivrin.PulseShot", "target": "F1" }
       ]
     }
   ],

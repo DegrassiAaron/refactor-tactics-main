@@ -481,7 +481,7 @@ git commit -m "feat(D-224): ogni unita' entra in campo con 5 di scudo, e li ripr
 
 **Interfaces:**
 - Consumes: `URTHeroCatalogLibrary::MakeHeroActionFromCore(HeroActionId, CoreActionId, Cooldown, Shape, AreaRadius)`
-- Produces: `Hero.Phase.TideGuard`, `Hero.Wraith.PhaseGuard` — entrambe con
+- Produces: `Hero.Muiren.TideGuard`, `Hero.Wraith.PhaseGuard` — entrambe con
   `Def.DerivedFromActionId == "Action.Shield"`
 
 - [ ] **Step 1: Scrivere il test che fallisce**
@@ -498,7 +498,7 @@ bool FRTShieldIsCarriedOncePerTeamTest::RunTest(const FString&)
 	// Phase, Team 1 = Riktor + Wraith. Il test guarda i PORTATORI, non i nomi delle abilita': un rename
 	// non deve farlo cadere, un portatore spostato di squadra si'.
 	const TMap<FName, int32> SquadraDi = {
-		{ TEXT("Hero.Gadget"), 0 }, { TEXT("Hero.Phase"),  0 },
+		{ TEXT("Hero.Aevik"), 0 }, { TEXT("Hero.Muiren"),  0 },
 		{ TEXT("Hero.Riktor"), 1 }, { TEXT("Hero.Wraith"), 1 }
 	};
 
@@ -534,20 +534,20 @@ Expected: FAIL — zero portatori per entrambe le squadre.
 
 - [ ] **Step 3: Dare l'azione ai due eroi**
 
-In `RTHeroCatalogLibrary.cpp`, dopo `Hero.Phase.FlowReaction` (riga 536):
+In `RTHeroCatalogLibrary.cpp`, dopo `Hero.Muiren.FlowReaction` (riga 536):
 
 ```cpp
-	// `Hero.Phase.TideGuard` — lo scudo PROATTIVO (D-224). Deriva da `Action.Shield`: Preparation, 25 punti
+	// `Hero.Muiren.TideGuard` — lo scudo PROATTIVO (D-224). Deriva da `Action.Shield`: Preparation, 25 punti
 	// di scudo temporaneo, cooldown 2. E' l'unico scudo del gioco che si sceglie PRIMA di sapere se sarai
 	// colpito — gli altri (`ReactiveCapacitor`, `ReactiveShield`) rispondono a un colpo gia' partito.
 	Phase->Actions.Add(URTHeroCatalogLibrary::MakeHeroActionFromCore(
-		TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"), /*Cooldown*/ 2));
+		TEXT("Hero.Muiren.TideGuard"), TEXT("Action.Shield"), /*Cooldown*/ 2));
 ```
 
 E dopo `Hero.Wraith.Feint` (riga 819):
 
 ```cpp
-	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra (D-224). Su Wraith
+	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Muiren.TideGuard`, uno per squadra (D-224). Su Wraith
 	// costa una scelta vera: la Preparation spesa qui e' quella che non prepara il tiro.
 	Wraith->Actions.Add(URTHeroCatalogLibrary::MakeHeroActionFromCore(
 		TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"), /*Cooldown*/ 2));
@@ -569,7 +569,7 @@ e sostituirla con la nota di provenienza, nella forma già usata per `Action.Pur
 
 ```cpp
 		// `Action.Shield` e' USCITA da questo elenco il 2026-08-28 ([D-224], `#1403`): la portano
-		// `Hero.Phase.TideGuard` e `Hero.Wraith.PhaseGuard`, uno per squadra. La riga la toglie il gate
+		// `Hero.Muiren.TideGuard` e `Hero.Wraith.PhaseGuard`, uno per squadra. La riga la toglie il gate
 		// stesso, che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire.
 ```
 

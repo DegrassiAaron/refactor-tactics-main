@@ -39,7 +39,13 @@ namespace RTReflection
 	 * Il nome dell'enumeratore, o il valore grezzo se l'enum non e' riflesso o il valore non e' coperto.
 	 *
 	 * ⚠️ Il nome torna **senza** il prefisso del tipo (`GetNameStringByValue` da' `Move`, non
-	 * `ERTResolutionPhase::Move`): chi lo scrive in un report o in un log lo qualifica se serve.
+	 * `ERTMatchPhase::Move`): chi lo scrive in un report o in un log lo qualifica se serve.
+	 *
+	 * 🔴 **Questa riga diceva `ERTResolutionPhase::Move`, e quel valore non esiste**: quell'enum ha
+	 * `FastMovement` e `NormalMovement`, sdoppiati apposta (ADR-0003 §3, il codice 20 del catalogo). Un
+	 * esempio che nomina un enumeratore inventato insegna il nome sbagliato a chi lo copia — e qui il
+	 * tipo giusto e' `ERTMatchPhase`, che e' davvero cio' su cui questa funzione viene chiamata
+	 * (`FRTTurnLogEntry::Phase`, in `RTTurnLogLibrary.cpp` e `RTDebugReportLibrary.cpp`).
 	 */
 	template <typename TEnum>
 	FString EnumName(TEnum Value)

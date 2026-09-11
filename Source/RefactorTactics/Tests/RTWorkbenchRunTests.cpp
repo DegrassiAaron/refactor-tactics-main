@@ -5,7 +5,7 @@
 // di design: **il risultato cambia?**
 //
 // Lo scenario e' quello di `Scenarios/Combat/BasicAttack.json`, costruito in memoria con gli stessi numeri:
-// Gadget colpisce Branth a distanza 2 con `Hero.Gadget.ArcPulse` (22 danni), Branth parte da 120 e finisce
+// Aevik colpisce Branth a distanza 2 con `Hero.Aevik.ArcPulse` (22 danni), Branth parte da 120 e finisce
 // a 103 — i 5 che mancano sono lo scudo BASE di [D-224], che ferma solo il danno diretto.
 //
 // ⚠️ E' l'unico scenario del corpus che asserisce un DANNO invece di una posizione, cioe' esattamente cio'
@@ -48,19 +48,19 @@ namespace RTWorkbenchRun
 		}
 	}
 
-	/** `Combat.BasicAttack` in memoria: Gadget colpisce Branth, e si asserisce la SALUTE attesa. */
+	/** `Combat.BasicAttack` in memoria: Aevik colpisce Branth, e si asserisce la SALUTE attesa. */
 	FRTTestScenario BasicAttack(int32 SaluteAttesaDiB1)
 	{
 		FRTTestScenario S;
 		S.ScenarioId = TEXT("Internal.WorkbenchVariantRun");
 		S.MapRadius = 4;
 
-		FRTScenarioUnit Gadget;
-		Gadget.Id = TEXT("A1");
-		Gadget.HeroId = FName(TEXT("Hero.Gadget"));
-		Gadget.TeamId = 0;
-		Gadget.Cell = FRTCellId(-1, 0);
-		S.Units.Add(Gadget);
+		FRTScenarioUnit Aevik;
+		Aevik.Id = TEXT("A1");
+		Aevik.HeroId = FName(TEXT("Hero.Aevik"));
+		Aevik.TeamId = 0;
+		Aevik.Cell = FRTCellId(-1, 0);
+		S.Units.Add(Aevik);
 
 		FRTScenarioUnit Branth;
 		Branth.Id = TEXT("B1");
@@ -72,7 +72,7 @@ namespace RTWorkbenchRun
 		FRTScenarioTurn Turn;
 		FRTScenarioIntent Colpo;
 		Colpo.UnitId = TEXT("A1");
-		Colpo.Ability = FName(TEXT("Hero.Gadget.ArcPulse"));
+		Colpo.Ability = FName(TEXT("Hero.Aevik.ArcPulse"));
 		Colpo.Target = TEXT("B1");
 		Turn.Intents.Add(Colpo);
 		S.Turns.Add(Turn);
@@ -92,7 +92,7 @@ namespace RTWorkbenchRun
 		FRTWorkbenchVariant V;
 		V.VariantId = FName(Id);
 		FRTAbilityParameterOverride Ov;
-		Ov.ActionId = FName(TEXT("Hero.Gadget.ArcPulse"));
+		Ov.ActionId = FName(TEXT("Hero.Aevik.ArcPulse"));
 		Ov.ParameterKey = RTActionParameterKeys::Damage();
 		Ov.Value = Danno;
 		V.Overrides.Add(Ov);
@@ -201,7 +201,7 @@ bool FRTWorkbenchUnknownActionFailsBeforeTheFirstTurnTest::RunTest(const FString
 	FRTWorkbenchVariant Assurda;
 	Assurda.VariantId = TEXT("Test.AzioneCheNessunoPorta");
 	FRTAbilityParameterOverride Ov;
-	Ov.ActionId = FName(TEXT("Hero.Wraith.PulseShot")); // Wraith non e' in questo scenario
+	Ov.ActionId = FName(TEXT("Hero.Ivrin.PulseShot")); // Ivrin non e' in questo scenario
 	Ov.ParameterKey = RTActionParameterKeys::Damage();
 	Ov.Value = 99;
 	Assurda.Overrides.Add(Ov);
@@ -262,10 +262,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkbenchVariantReachesEveryInstanceTest,
 bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 {
 	// Due kit distinti: e' cio' che due unita' dello stesso eroe hanno in partita.
-	const URTHeroData* PrimoEroe = URTHeroCatalogLibrary::MakeGadget();
-	const URTHeroData* SecondoEroe = URTHeroCatalogLibrary::MakeGadget();
-	if (!TestNotNull(TEXT("il primo Gadget esiste"), PrimoEroe)) { return false; }
-	if (!TestNotNull(TEXT("il secondo Gadget esiste"), SecondoEroe)) { return false; }
+	const URTHeroData* PrimoEroe = URTHeroCatalogLibrary::MakeAevik();
+	const URTHeroData* SecondoEroe = URTHeroCatalogLibrary::MakeAevik();
+	if (!TestNotNull(TEXT("il primo Aevik esiste"), PrimoEroe)) { return false; }
+	if (!TestNotNull(TEXT("il secondo Aevik esiste"), SecondoEroe)) { return false; }
 
 	TArray<URTActionData*> Unione;
 	URTActionData* PrimoArcPulse = nullptr;
@@ -275,7 +275,7 @@ bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 		if (URTActionData* A = V)
 		{
 			Unione.Add(A);
-			if (A->Def.ActionId == FName(TEXT("Hero.Gadget.ArcPulse"))) { PrimoArcPulse = A; }
+			if (A->Def.ActionId == FName(TEXT("Hero.Aevik.ArcPulse"))) { PrimoArcPulse = A; }
 		}
 	}
 	for (const TObjectPtr<URTActionData>& V : SecondoEroe->Actions)
@@ -283,7 +283,7 @@ bool FRTWorkbenchVariantReachesEveryInstanceTest::RunTest(const FString&)
 		if (URTActionData* A = V)
 		{
 			Unione.Add(A);
-			if (A->Def.ActionId == FName(TEXT("Hero.Gadget.ArcPulse"))) { SecondoArcPulse = A; }
+			if (A->Def.ActionId == FName(TEXT("Hero.Aevik.ArcPulse"))) { SecondoArcPulse = A; }
 		}
 	}
 

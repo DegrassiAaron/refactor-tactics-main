@@ -43,7 +43,7 @@ struct FRTAbilityLabEntry
 {
 	GENERATED_BODY()
 
-	/** `Hero.Gadget.LinearDischarge`, `Action.Move`, ... */
+	/** `Hero.Aevik.LinearDischarge`, `Action.Move`, ... */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|AbilityLab")
 	FName AbilityId;
 
@@ -94,7 +94,7 @@ struct FRTAbilityLabFixtureSpec
 	 * stessa identita' in due squadre — leggibile per il motore, confondente per chi guarda.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|AbilityLab")
-	FName TargetHeroId = FName(TEXT("Hero.Wraith"));
+	FName TargetHeroId = FName(TEXT("Hero.Ivrin"));
 };
 
 UCLASS()

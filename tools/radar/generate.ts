@@ -25,16 +25,16 @@ const OUT = fileURLToPath(new URL('../../docs/characters/radar/', import.meta.ur
  * 🔴 Era chiavata sui nomi (`Flux`, `Riva`, `Bastion`, `Vektor`) e dopo la rinomina di D-120 nessuna chiave
  * corrispondeva piu': `ROLES[hero.name]` dava `undefined`, il `?? '—'` lo trasformava in un trattino, e i
  * quattro radar sarebbero stati rigenerati **senza ruolo** con il gate verde. Il difetto si e' visto solo
- * guardando il diff degli alt della Wiki: `Gadget — Controller —` era diventato `Gadget — — —`.
+ * guardando il diff degli alt della Wiki: `Aevik — Controller —` era diventato `Aevik — — —`.
  */
 // 🔵 Chiavi aggiornate con `#755`: sono i segmenti d'eroe di `Hero.<Nome>.<Abilità>` (D-130), non
 // piu' i prefissi piatti. Il guard sopra ha fatto esattamente cio' per cui esiste — «nessun ruolo per
-// la chiave "gadget"» invece di un radar disegnato con un trattino al posto del ruolo.
+// la chiave "aevik"» invece di un radar disegnato con un trattino al posto del ruolo.
 const ROLES: Record<string, string> = {
-  gadget: 'Controller',
-  phase: 'Support',
+  aevik: 'Controller',
+  muiren: 'Support',
   branth: 'Guardian',
-  wraith: 'Striker',
+  ivrin: 'Striker',
 };
 
 const check = process.argv.includes('--check');
@@ -66,7 +66,7 @@ for (const hero of heroes) {
   for (const [view, svg] of views) {
   // 🔴 `hero.key`, NON `hero.name`: il nome del file segue lo Stable ID, il titolo dentro l'SVG segue il
   // nome mostrato. Diceva `hero.name.toLowerCase()` fino al 2026-08-13, e dopo la rinomina di D-120 il gate
-  // cercava `gadget-profile.svg` mentre sul disco c'era `flux-profile.svg`. Rinominare i file avrebbe rotto
+  // cercava `aevik-profile.svg` mentre sul disco c'era `flux-profile.svg`. Rinominare i file avrebbe rotto
   // le URL che la Wiki incorpora da `raw.githubusercontent.com`.
   const file = `${OUT}${hero.key}-${view}.svg`;
 

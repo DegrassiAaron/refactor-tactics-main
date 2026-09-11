@@ -410,6 +410,51 @@ come un fallimento del tuo codice ti farebbe inseguire un difetto che non esiste
 `list_toolsets` → `describe_toolset` → `call_tool`; oppure metti `bEnableToolSearch = false` per la
 registrazione nativa. **Prova entrambe** e riporta quale hai usato per ciascun risultato.
 
+### 9.2 🔴 La trappola numero due: il ponte muto
+
+⚠️ **Il sintomo non è un errore. È l'assenza**: lato Claude Code il server `unreal-mcp` semplicemente
+non compare — nessuna riga, nessun messaggio. Chi lo vede conclude «il bridge è rotto» e va a cercare
+nel posto sbagliato.
+
+Le cause sono **quattro**, e la quarta non è mai stata nell'elenco di nessuno. `ff2488f7` lo scriveva
+già il 2026-08-28 — *«chi diagnostica un bridge muto non si fermi a quelle»* — riferendosi alle tre che
+`CLAUDE.md` §5 elencava allora; quella lista, dopo la ristrutturazione, non esiste più. Qui c'è per
+intero, in ordine di costo crescente:
+
+| # | Causa | Come si esclude |
+|---|---|---|
+| 1 | Editor chiuso | `Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'"` |
+| 2 | plugin non abilitato | il `.uproject` non elenca `ModelContextProtocol` (`EnabledByDefault: false`) |
+| 3 | `bAutoStartServer` false | `Saved/Config/WindowsEditor/EditorPerProjectUserSettings.ini` |
+| 4 | 🔴 **porta sbagliata** | il server è **sano**, e si bussa altrove — vedi sotto |
+
+**La quarta si esclude guardando chi ascolta, non chi risponde:**
+
+```powershell
+# Quale porta apre DAVVERO il processo Editor - non quella che ti aspetti
+Get-NetTCPConnection -State Listen | ? { $_.OwningProcess -eq <pid> }
+
+# 405 su GET NON e' un guasto: e' un endpoint MCP sano che rifiuta GET e vuole POST
+Invoke-WebRequest http://127.0.0.1:<porta>/mcp
+```
+
+⚠️ **E leggi la `CommandLine` del PID prima di concludere.** È la verifica che distingue *«la porta è
+sbagliata»* da *«sto parlando al clone sbagliato»*, e senza di essa le due diagnosi sono
+indistinguibili — `ff2488f7` la nomina come il passo che ha risolto quel caso.
+
+> 🔑 **La porta canonica ha una risposta, e non è un'opinione.** Il bridge è **uno** e lo ospita
+> **MAIN**, su **8765** — il valore che `.mcp.json` porta versionato. Un altro clone che accende il
+> proprio bridge è una divergenza **locale**, che muove `ServerPortNumber` *e* l'url di `.mcp.json`
+> **insieme** e non si committa. MAIN fuori canone non è una variazione: è un difetto. Il ragionamento
+> completo sta in `Config/DefaultEditorPerProjectUserSettings.ini` e in
+> [#2849](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2849).
+
+⛔ **Se stai diagnosticando da un agente, non fidarti di `curl` in un sandbox.** Misurato il 2026-09-10:
+`curl` dal tool Bash rispondeva `HTTP 000` su una porta dove il server **stava ascoltando da minuti**,
+mentre `Invoke-WebRequest` sullo stesso endpoint dava `405`. Le sonde erano cieche, non negative — ed è
+lo stesso genere di trappola del `MSYS_NO_PATHCONV` di §15.4. Verifica con due strumenti prima di
+scrivere «non è in ascolto».
+
 ---
 
 ## 10. Vincoli di lavoro sul repository

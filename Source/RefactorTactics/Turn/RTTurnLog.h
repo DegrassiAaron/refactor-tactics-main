@@ -1163,7 +1163,7 @@ struct FRTTurnLogEntry
 	 * ogni voce che non redirige — che e' la verita': non c'e' stato nessun trasferimento.
 	 *
 	 * Oggi lo produce la sola interposizione (`ERTReactionTrigger::AllyHitByDirectAttack`): Branth si mette
-	 * davanti a Wraith, e il colpo che era per Wraith lo incassa Branth. `UnitId` dice **chi lo incassa** —
+	 * davanti a Ivrin, e il colpo che era per Ivrin lo incassa Branth. `UnitId` dice **chi lo incassa** —
 	 * e' l'unita' che reagisce — quindi con questo campo la voce nomina entrambi i capi del trasferimento.
 	 *
 	 * 🔴 **Porta uno `StableUnitId`, come `UnitId` e a differenza di `SelectedTargetUnitId`**, che invece porta
@@ -1179,7 +1179,7 @@ struct FRTTurnLogEntry
 	 * troverebbe l'occupante di fine turno, non chi era bersagliato al Blast.
 	 *
 	 * ⚠️ **NON entra nell'hash** ([D-063]): il trasferimento e' **gia' discriminato** da `SrcCell`, che
-	 * nell'hash c'e' — interporsi per Wraith invece che per Phase da' due celle diverse e quindi due hash
+	 * nell'hash c'e' — interporsi per Ivrin invece che per Phase da' due celle diverse e quindi due hash
 	 * diversi. Questo campo rende quel fatto **leggibile** senza inferenza, non lo aggiunge. E' lo stesso
 	 * argomento di `BaseActionId` (funzione di `ActionId`) e di `Priority`: zero potere discriminante in piu',
 	 * e includerlo invaliderebbe in blocco gli hash golden per un dato che non discrimina nulla.

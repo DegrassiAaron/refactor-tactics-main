@@ -620,14 +620,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingMoveAndDashBudgetsAreIndependentTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 {
-	// Phase e' la coppia che dimostra da sola perche' i budget sono DUE: Move 2, Dash 3.
-	const URTHeroData* Phase = URTHeroCatalogLibrary::MakePhase();
-	if (!Phase)
+	// Muiren e' la coppia che dimostra da sola perche' i budget sono DUE: Move 2, Dash 3.
+	const URTHeroData* Muiren = URTHeroCatalogLibrary::MakeMuiren();
+	if (!Muiren)
 	{
-		AddError(TEXT("il catalogo non ha prodotto Phase"));
+		AddError(TEXT("il catalogo non ha prodotto Muiren"));
 		return false;
 	}
-	const FRTPivotBudget Budget(Phase->MoveEndPivotMaxSteps, Phase->DashEndPivotMaxSteps);
+	const FRTPivotBudget Budget(Muiren->MoveEndPivotMaxSteps, Muiren->DashEndPivotMaxSteps);
 	const TArray<FRTCellId> Path = MakePath(FRTCellId(0, 0, 0), { ERTHexDirection::E, ERTHexDirection::NE });
 
 	const int32 MoveNum =
@@ -635,8 +635,8 @@ bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 	const int32 DashNum =
 		URTFacingLibrary::LegalFacings(ERTMovementStyle::LinearDash, Path, ERTHexDirection::SW, Budget).Num();
 
-	TestEqual(TEXT("Move di Phase (2) -> cinque direzioni"), MoveNum, 5);
-	TestEqual(TEXT("Dash di Phase (3) -> sei direzioni"), DashNum, 6);
+	TestEqual(TEXT("Move di Muiren (2) -> cinque direzioni"), MoveNum, 5);
+	TestEqual(TEXT("Dash di Muiren (3) -> sei direzioni"), DashNum, 6);
 	TestTrue(TEXT("i due budget dello STESSO eroe danno insiemi diversi"), MoveNum != DashNum);
 
 	// La mappa stile -> famiglia, esplicita: e' cio' che l'ADR presupponeva senza scriverlo.
@@ -650,7 +650,7 @@ bool FRTFacingMoveAndDashBudgetsAreIndependentTest::RunTest(const FString&)
 		TestTrue(TEXT("ogni Linear* e' famiglia Dash"),
 			URTFacingLibrary::FamilyForStyle(Style) == ERTMovementFamily::Dash);
 		TestEqual(TEXT("e legge il budget Dash"),
-			URTFacingLibrary::PivotStepsForStyle(Budget, Style), Phase->DashEndPivotMaxSteps);
+			URTFacingLibrary::PivotStepsForStyle(Budget, Style), Muiren->DashEndPivotMaxSteps);
 	}
 	return true;
 }
@@ -695,10 +695,10 @@ bool FRTFacingCatalogPivotBudgetsMatchAdr0008Test::RunTest(const FString&)
 	// basta che cada il test che nomina il campo.
 	struct FExpected { const TCHAR* HeroId; int32 Move; int32 Dash; };
 	const FExpected Expected[] = {
-		{ TEXT("Hero.Gadget"), 2, 2 },
-		{ TEXT("Hero.Phase"),  2, 3 },
+		{ TEXT("Hero.Aevik"), 2, 2 },
+		{ TEXT("Hero.Muiren"),  2, 3 },
 		{ TEXT("Hero.Branth"), 1, 0 },
-		{ TEXT("Hero.Wraith"), 3, 3 },
+		{ TEXT("Hero.Ivrin"), 3, 3 },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();

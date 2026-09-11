@@ -61,6 +61,23 @@
 #include "Misc/DateTime.h"
 #include "HAL/FileManager.h"
 
+namespace
+{
+	/**
+	 * La causa del movimento VOLONTARIO della fase Move (`#307`), in un posto solo (`#2857`).
+	 *
+	 * 🔑 **Esiste perche' ora la dichiarano in DUE canali.** La legge `BuildMoveLog` per la voce di TurnLog
+	 * ed `EmitMoveEvents` per l'evento di playback: con due letterali, il primo rename ne cambierebbe uno e
+	 * lascerebbe l'altro — e il difetto sarebbe muto, perche' `NAME_None` e un nome vecchio sono entrambi
+	 * valori legittimi. E' lo stesso argomento con cui `IsEnvironmentalDamage` rifiuta il letterale di
+	 * `Status.Burning` e passa dal tag (`D-098`).
+	 *
+	 * ⛔ Scatto e spostamento forzato NON la usano: hanno altri produttori e dichiarano la propria — lo
+	 * scatto dal catalogo dell'abilita', lo spostamento da `FRTDisplacementCause`.
+	 */
+	const FName MoveCauseActionId(TEXT("Action.Move"));
+}
+
 /**
  * La risoluzione del movimento in tre momenti (`#2679` fetta 1, [D-355]).
  *
@@ -116,6 +133,11 @@ void ARTTurnManager::BeginMovementResolution()
 	// correzione nel chiamante era l'approccio di `#2290`, e ne sono usciti tre difetti di correttezza.
 	TArray<FRTPlannedMovement> PlannedMoves;
 	PlannedMoves.Init(FRTPlannedMovement(), Units.Num());
+
+	// Durata di ogni arco, per unita' ([D-381], `#2914`). Cresce accanto a `Ctx.Paths`, un elemento per
+	// percorso accodato, cosi' gli indici restano gli stessi senza doverlo dichiarare.
+	TArray<TArray<int32>> StepDurations;
+	StepDurations.Reserve(Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -211,6 +233,20 @@ void ARTTurnManager::BeginMovementResolution()
 		PlannedMoves[i].bSlideRequested = Slide.bSlideRequested && !Ctx.bStoppedByTopology[i];
 
 		Ctx.Paths.Add(Path);
+		// LA DURATA DEL PASSO ([D-381], `#2914`). Si deriva QUI e non dentro il resolver, perche' questo e'
+		// il solo punto in cui costo di cella, modificatore dell'unita' e percorso sono tutti visibili — e
+		// perche' `ResolveHexPaths` non riceve la mappa, per una garanzia che `BlockedPath_DoesNotAutoReroute`
+		// pinna: *«il giorno in cui qualcuno passasse lo snapshot al resolver, il punto (4) diventerebbe
+		// rosso»*.
+		//
+		// ⚠️ **Sullo snapshot CONGELATO a inizio fase, e una volta sola**: rileggerla durante la risoluzione
+		// la esporrebbe a una mappa che nel frattempo e' cambiata, ed e' precisamente cio' che lo snapshot
+		// esiste per impedire.
+		// ⚠️ `PlannedLength` e' passato perche' la coda di `Path` puo' essere uno SCIVOLAMENTO imposto dal
+		// terreno, e quello non paga il costo del terreno ([D-384]): oltre il prefisso pianificato ogni arco
+		// vale un microstep.
+		StepDurations.Add(URTHexSimLibrary::StepDurationsForPath(Ctx.Snapshot, /*UnitId=*/ i, Path,
+			PlannedMoves[i].PlannedLength));
 	}
 
 	// RISOLUZIONE SEGMENTATA (CP 14.5). Fino a qui questa riga era `ResolveHexPaths(Ctx.Paths)`, cioe' un colpo
@@ -223,7 +259,7 @@ void ARTTurnManager::BeginMovementResolution()
 	// La via a passi e quella in blocco sono LO STESSO codice — `ResolveHexPaths` e' esattamente questo ciclo
 	// — quindi il comportamento senza Overwatch armati e' invariato per costruzione, non per verifica.
 	Ctx.State = URTHexSimLibrary::BeginHexMovement(Ctx.Paths, TArray<int32>(),
-		TArray<bool>(), TArray<bool>(), PlannedMoves);
+		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations);
 
 	// Le unita' passano nel contesto come riferimenti DEBOLI: fra due micro-step, in prospettiva, passa una
 	// finestra di reazione. Gli indici di `Ctx.State` sono indici di QUESTO array.
@@ -1034,6 +1070,10 @@ void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
 		Ev.SourceStableUnitId = Units[i]->StableUnitId;
 		Ev.Path = Route;
 		Ev.CellVerdicts = Tracked.CellVerdicts;
+		// `#2857`: la causa del movimento volontario, dalla stessa costante che `BuildMoveLog` riceve —
+		// mai un secondo letterale. `BaseActionId` resta `NAME_None`: `Action.Move` E' l'azione generica,
+		// e non e' il profilo di nient'altro.
+		Ev.ActionId = MoveCauseActionId;
 		ResolvedTimeline.Add(Ev);
 	}
 }
@@ -1079,8 +1119,8 @@ void ARTTurnManager::FinishMovementResolution()
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
 	// Causa dichiarata (#307): questo e' il movimento VOLONTARIO della fase Move. Scatto e spostamento
 	// forzato hanno altri produttori e dichiareranno la propria.
-	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Ctx.Paths, Resolved, TEXT("Action.Move"),
-		URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).Priority);
+	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Ctx.Paths, Resolved, MoveCauseActionId,
+		URTCatalogLibrary::FindCoreAction(MoveCauseActionId).Priority);
 
 	// 🔑 **Chi e' SCIVOLATO DAVVERO, e non chi lo ha solo chiesto** (`#2253`). Il predicato non e'
 	// `bSlideRequested[i]`: fra la richiesta e la fine del Move l'unita' puo' essere fermata dal microstep,
@@ -1178,7 +1218,7 @@ void ARTTurnManager::FinishMovementResolution()
 	//
 	// 🔴 **E le due copie non erano nemmeno identiche**: questa nominava l'unita' con
 	// `Units[i]->GetName()` — l'Actor, cioe' `RTUnit_0` — mentre la derivata usa il nome risolto da
-	// `SubjectNamesForLog()`, cioe' `Wraith`. Lo stesso evento arrivava al giocatore due volte,
+	// `SubjectNamesForLog()`, cioe' `Ivrin`. Lo stesso evento arrivava al giocatore due volte,
 	// attribuito a due entita' che sembravano diverse. Misurato da
 	// `RefactorTactics.UI.BlockedMoveLineIsNotRepeated`, che senza questa rimozione conta `2` (`#1412`).
 
@@ -1194,8 +1234,18 @@ void ARTTurnManager::FinishMovementResolution()
 	// Applica le posizioni finali e gli effetti delle celle ATTRAVERSATE (non solo di quella finale).
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
+		// La cella di PARTENZA della rotta — la stessa chiave che `BuildMoveLog` usa qui sopra, e per la
+		// stessa ragione: `Cell` cambia con `PlaceOnCell`, quindi dopo questa riga non e' piu' leggibile.
+		// Serve a `ApplyOnEnter` per orientare il PRIMO passo attraversato (`#2885`).
+		//
+		// ⚠️ Il ripiego non e' un caso da gestire: una rotta vuota ha `Entered` vuoto, e l'accumulo esce
+		// subito senza guardare `FromCell`. Sta qui perche' l'espressione si valuta comunque.
+		const FRTCellId FromCell = (Ctx.Paths.IsValidIndex(i) && Ctx.Paths[i].Num() > 0)
+			? Ctx.Paths[i][0]
+			: Resolved[i].Final;
+
 		Units[i]->PlaceOnCell(Resolved[i].Final, Ctx.Origin, Ctx.HexSize, Ctx.LayerHeight);
-		ApplyTerrainOnEnterEffects(Ctx.Snapshot.Map, Units[i], Resolved[i].Entered, ERTMatchPhase::Move);
+		ApplyOnEnter(Ctx.Snapshot.Map, Units[i], FromCell, Resolved[i].Entered, ERTMatchPhase::Move);
 	}
 
 	// Orientamento di fine Move (CP 16.1, `FacingFinalAfterMove` di D-020). Si deriva dalla rotta EFFETTIVA —

@@ -657,4 +657,201 @@ bool FRTPlaybackStepKeepsSimultaneityTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` si apre anche per una sola IMPRONTA, senza nessun colpo — `#2454`.
+ *
+ * 🔴 **E' il caso che [D-301] esiste per far esistere, ed era irraggiungibile.** `ResolveCombatPasses`
+ * emette un `Attack` per **vittima** e un `AttackFootprint` per **intento**: un'area su sole celle vuote
+ * produce zero colpi e una impronta. Il cancello contava i soli colpi, quindi quel turno non apriva la fase
+ * — e senza fase non esiste un istante in cui disegnare.
+ *
+ * ⚠️ **Non e' un test di gusto: la fase decide la DURATA del turno.** Se questa riga cambia, cambia il
+ * pacing, ed e' la ragione per cui la decisione sta in una funzione pura invece che dentro `BeginPlayback`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastPhaseOpensForFootprintOnlyTest,
+	"RefactorTactics.Playback.BlastPhaseOpensForFootprintOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastPhaseOpensForFootprintOnlyTest::RunTest(const FString&)
+{
+	// Il caso nuovo, e il solo che prima falliva.
+	TestTrue(TEXT("una impronta senza colpi apre il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1));
+
+	// ⚠️ **La controprova, senza la quale il test sopra non prova niente**: il vuoto deve restare vuoto.
+	// Un `return true` costante passerebbe la prima asserzione e fallirebbe questa.
+	TestFalse(TEXT("niente colpi, niente spinta, niente impronte: nessun Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0));
+
+	// Le due ragioni preesistenti non sono state indebolite.
+	TestTrue(TEXT("un colpo apre il Blast, come prima"),
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0));
+	TestTrue(TEXT("una spinta apre il Blast, come prima"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0));
+
+	// ⛔ Nessuna soglia e nessuna somma: le tre ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
+	// "misurare quanto succede", questa riga resterebbe verde e la precedente cadrebbe — ed e' voluto.
+	TestTrue(TEXT("le tre ragioni insieme aprono il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2));
+
+	return true;
+}
+
+// --- NextActionBoundary: il confine di AZIONE sulla timeline (`#2857`) ------------------------------
+//
+// 🔑 **Sono test PURI e senza mondo**, ed e' il criterio d'accettazione alla lettera: *«il prossimo
+// confine di azione e' calcolabile con una funzione pura, testabile senza mondo»*. `FRTResolvedEvent` e'
+// un value type che porta id e non puntatori (`#1800`), quindi una timeline si costruisce a mano.
+//
+// ⛔ **Questi test NON dimostrano che i produttori popolino il campo**: quella e' la meta' headless della
+// issue (`…Playback.ResolvedEventCarriesTheActionIdentity`), che confronta timeline e TurnLog sullo stesso
+// turno. Qui si verifica la REGOLA del confine; li' che il dato ci arrivi.
+
+namespace
+{
+	/** Un evento della timeline ridotto a cio' che il confine di azione guarda. */
+	FRTResolvedEvent EventoConAzione(ERTResolvedEventType Tipo, const TCHAR* Azione)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Type = Tipo;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.ActionId = (Azione != nullptr) ? FName(Azione) : NAME_None;
+		return Ev;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundaryEmptyTest,
+	"RefactorTactics.Playback.ActionBoundaryOnEmptyTimeline",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActionBoundaryEmptyTest::RunTest(const FString&)
+{
+	const TArray<FRTResolvedEvent> Vuota;
+
+	// «La fine» di una timeline vuota e' `0`, e non e' un caso degenere da evitare: e' cio' che un
+	// `Next Action` deve rispondere quando non c'e' niente da mostrare.
+	TestEqual(TEXT("timeline vuota -> la fine (0)"),
+		URTPlaybackLibrary::NextActionBoundary(Vuota, 0), 0);
+	TestEqual(TEXT("timeline vuota, indice negativo -> la fine (0)"),
+		URTPlaybackLibrary::NextActionBoundary(Vuota, -1), 0);
+	TestEqual(TEXT("timeline vuota, indice oltre la fine -> la fine (0)"),
+		URTPlaybackLibrary::NextActionBoundary(Vuota, 7), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundaryFindsNextActTest,
+	"RefactorTactics.Playback.ActionBoundaryFindsTheNextAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActionBoundaryFindsNextActTest::RunTest(const FString&)
+{
+	// Due atti distinti, il primo su due vittime: `Branth.ImpactShot` due volte, poi `Ivrin.Deflection`.
+	const TArray<FRTResolvedEvent> Timeline = {
+		EventoConAzione(ERTResolvedEventType::AttackFootprint, TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack,          TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Attack,          TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::ReactionResolved,TEXT("Ivrin.Deflection")),
+	};
+
+	TestEqual(TEXT("dal primo colpo si arriva alla reazione"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 0), 3);
+
+	// ⛔ **ANTI-VACUITA': N vittime dello stesso intento sono UN atto.** Senza questa riga il test
+	// passerebbe anche con una funzione che si ferma a ogni evento, che e' precisamente il difetto —
+	// `Next Action` diventerebbe uno `Step` piu' lento.
+	TestEqual(TEXT("⛔ il secondo colpo dello stesso intento NON e' un confine"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 1), 3);
+
+	// Da «prima dell'inizio» il primo atto e' gia' un confine: e' cio' che serve per armare `Next Action`
+	// su un playback che non ha ancora mostrato niente.
+	TestEqual(TEXT("da prima dell'inizio, il primo atto e' un confine"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, -1), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundaryLastActTest,
+	"RefactorTactics.Playback.ActionBoundaryOnTheLastAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActionBoundaryLastActTest::RunTest(const FString&)
+{
+	const TArray<FRTResolvedEvent> Timeline = {
+		EventoConAzione(ERTResolvedEventType::Move,   TEXT("Action.Move")),
+		EventoConAzione(ERTResolvedEventType::Attack, TEXT("Branth.ImpactShot")),
+	};
+
+	// Sull'ultimo atto si va a fine timeline e non oltre: la stessa scelta di `NextMicroStepBoundary`, che
+	// non supera mai `1.f`.
+	TestEqual(TEXT("dall'ultimo atto -> la fine"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 1), Timeline.Num());
+	TestEqual(TEXT("da un indice oltre la fine -> la fine"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 99), Timeline.Num());
+
+	// Un solo atto ripetuto: non esiste un «prossimo», e la risposta e' la fine — non `0` e non l'indice
+	// corrente, che lascerebbero `Next Action` fermo sul posto.
+	const TArray<FRTResolvedEvent> UnSoloAtto = {
+		EventoConAzione(ERTResolvedEventType::Attack, TEXT("Action.BasicAttack")),
+		EventoConAzione(ERTResolvedEventType::Attack, TEXT("Action.BasicAttack")),
+	};
+	TestEqual(TEXT("un solo ActionId su tutta la timeline -> la fine"),
+		URTPlaybackLibrary::NextActionBoundary(UnSoloAtto, 0), UnSoloAtto.Num());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundarySkipsEventsWithoutAnActionTest,
+	"RefactorTactics.Playback.ActionBoundarySkipsEventsWithoutAnAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActionBoundarySkipsEventsWithoutAnActionTest::RunTest(const FString&)
+{
+	// `NAME_None` = «nessuna azione dietro»: danno ambientale, `Defeated`, cambiamenti di stato.
+	const TArray<FRTResolvedEvent> Timeline = {
+		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::Defeated,      nullptr),
+		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Branth.ImpactShot")),
+		EventoConAzione(ERTResolvedEventType::HazardDamage,  nullptr),
+		EventoConAzione(ERTResolvedEventType::Attack,        TEXT("Ivrin.LinearDischarge")),
+	};
+
+	// 🔴 **Il caso che la lettura ingenua sbaglia.** Se l'atto in corso si leggesse dal solo evento a
+	// `FromIndex`, sull'indice 1 (`Defeated`, `None`) l'atto corrente sarebbe «nessuno» e l'indice 2 —
+	// che e' lo STESSO colpo — sembrerebbe aprirne uno nuovo: `Next Action` si fermerebbe due volte
+	// dentro un colpo solo. Cercare l'atto all'indietro lo evita.
+	TestEqual(TEXT("⛔ un Defeated in mezzo non spezza l'atto in corso"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 1), 4);
+
+	// E un evento senza azione non e' mai esso stesso un confine.
+	TestEqual(TEXT("dal primo colpo si salta al colpo di un'altra azione"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 0), 4);
+	TestEqual(TEXT("⛔ ci si ferma sull'atto, non sull'hazard che lo precede"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 2), 4);
+
+	// Una timeline di soli eventi senza azione non ha confini: la fine.
+	const TArray<FRTResolvedEvent> SenzaAtti = {
+		EventoConAzione(ERTResolvedEventType::HazardDamage, nullptr),
+		EventoConAzione(ERTResolvedEventType::Defeated,     nullptr),
+	};
+	TestEqual(TEXT("nessun atto in tutta la timeline -> la fine"),
+		URTPlaybackLibrary::NextActionBoundary(SenzaAtti, -1), SenzaAtti.Num());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionBoundaryDistinguishesProfilesTest,
+	"RefactorTactics.Playback.ActionBoundaryDistinguishesProfilesOfTheSameBase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActionBoundaryDistinguishesProfilesTest::RunTest(const FString&)
+{
+	// 🔑 Due profili della STESSA generica sono due atti. E' la distinzione che `RTTurnLog.h` dichiara di
+	// voler conservare — senza `ActionId`, `Branth.Interposition` e `Action.Intercept` produrrebbero voci
+	// identiche «e un replay non potrebbe piu' dire quale abilita' e' scattata».
+	TArray<FRTResolvedEvent> Timeline = {
+		EventoConAzione(ERTResolvedEventType::ReactionResolved, TEXT("Branth.Interposition")),
+		EventoConAzione(ERTResolvedEventType::ReactionResolved, TEXT("Action.Intercept")),
+	};
+	// Stessa generica su entrambi: e' il campo che NON deve influenzare il confine.
+	Timeline[0].BaseActionId = FName(TEXT("Action.Intercept"));
+	Timeline[1].BaseActionId = FName(TEXT("Action.Intercept"));
+
+	TestEqual(TEXT("due profili della stessa generica restano due atti"),
+		URTPlaybackLibrary::NextActionBoundary(Timeline, 0), 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

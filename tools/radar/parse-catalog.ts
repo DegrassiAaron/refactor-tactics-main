@@ -39,7 +39,7 @@ export interface ReactionInput {
 export interface HeroInput {
   /**
    * Nome MOSTRATO, dall'intestazione del catalogo. Cambia: D-120 ha rinominato il roster
-   * (`Flux` -> `Gadget`, `Riva` -> `Phase`, `Bastion` -> `Riktor`, `Vektor` -> `Wraith`),
+   * (`Flux` -> `Aevik`, `Riva` -> `Muiren`, `Bastion` -> `Riktor`, `Vektor` -> `Wraith`),
    * e D-334 ha poi portato `Riktor` -> `Branth`. I due passi restano scritti perche' la riga
    * documenta cosa fece D-120: comprimerli in `Bastion` -> `Branth` la renderebbe falsa.
    * Va nel titolo del radar, mai in un nome di file o in una URL.
@@ -51,7 +51,7 @@ export interface HeroInput {
    *
    * 🔴 **Esiste perche' il nome del file non puo' seguire il nome mostrato.** Fino al 2026-08-13 il
    * generatore scriveva `${hero.name.toLowerCase()}-profile.svg`: dopo la rinomina di D-120 cercava
-   * `gadget-profile.svg`, sul disco c'era `flux-profile.svg`, e il gate era rosso — con in piu' otto file
+   * `aevik-profile.svg`, sul disco c'era `flux-profile.svg`, e il gate era rosso — con in piu' otto file
    * che sarebbero rimasti orfani rigenerando.
    *
    * Rinominare i file avrebbe rotto le **URL pubblicate**: la Wiki incorpora i radar via
@@ -274,14 +274,14 @@ export function parseHeroCatalog(source: URL | string, actionSource: URL | strin
     // due, e sceglierne una in silenzio scriverebbe il radar di un eroe nel file di un altro.
     //
     // 🔴 **È il PENULTIMO segmento, non il primo, e il cambio è di `#755`.** Gli `AbilityId` sono passati
-    // da `Flux.ArcPulse` a `Hero.Gadget.ArcPulse` (D-130, `#754`): col primo segmento la chiave sarebbe
+    // da `Flux.ArcPulse` a `Hero.Aevik.ArcPulse` (D-130, `#754`): col primo segmento la chiave sarebbe
     // diventata `hero` per **tutti e quattro** gli eroi, e i quattro radar si sarebbero scritti sullo
     // stesso file. ⚠️ Il guard qui sotto **non l'avrebbe fermato**: con `Hero.` il prefisso resta uno solo
     // per eroe, quindi `prefixes.length === 1` era soddisfatto. A fermare tutto è stato il pattern degli
     // id, che accettava due soli segmenti e non ne ha riconosciuto nessuno — un caso in cui il difetto è
     // stato preso dalla parte sbagliata del codice, e per fortuna.
     //
-    // Il penultimo funziona per entrambe le forme: `Hero.Gadget.ArcPulse` → `gadget`, e `Flux.ArcPulse`
+    // Il penultimo funziona per entrambe le forme: `Hero.Aevik.ArcPulse` → `aevik`, e `Flux.ArcPulse`
     // → `flux` se un catalogo restasse indietro.
     const heroKey = (id: string) => {
       const parts = id.split('.');

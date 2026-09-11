@@ -88,7 +88,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // il piano lo scriviamo noi: qui si prova la difesa, non il bot
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		return U;
@@ -128,7 +128,7 @@ namespace
 		if (bGuarded) { Difensore->ApplyStatus(TAG_Status_Guarded, 1); }
 		Difensore->PlannedAbilityIndex = INDEX_NONE; // il difensore non fa nulla: incassa e basta
 
-		Attaccante->PlannedAbilityIndex = 0; // indice 0 = attacco base (`Hero.Wraith.PulseShot`)
+		Attaccante->PlannedAbilityIndex = 0; // indice 0 = attacco base (`Hero.Ivrin.PulseShot`)
 		Attaccante->PlannedAttackTarget = Difensore;
 
 		TM->LockInAndResolve();
@@ -525,7 +525,7 @@ namespace
 		Difensore->PlannedAbilityIndex = INDEX_NONE; // incassa e basta: nessuna reazione da isolare
 
 		// Un'area montata sull'attacco base invece che pescata dal kit di un eroe: qui contano la FORMA e il
-		// raggio, non i numeri di bilanciamento di `Hero.Gadget.Overload`, e legare il test a quelli lo
+		// raggio, non i numeri di bilanciamento di `Hero.Aevik.Overload`, e legare il test a quelli lo
 		// farebbe cadere al prossimo ritocco del catalogo.
 		const int32 Slot = RTAbilityFixtures::AddCoreAbilityInSlot(Lanciatore, TEXT("Action.BasicAttack"), 3);
 		if (!Test.TestTrue(TEXT("slot dell'area"), Slot != INDEX_NONE))

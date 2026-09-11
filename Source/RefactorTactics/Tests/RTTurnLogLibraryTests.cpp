@@ -141,7 +141,7 @@ bool FRTInflictedDamagePredicateTest::RunTest(const FString&)
 		E.SrcCell = FRTCellId(0, 0, 0);
 		E.TgtCell = FRTCellId(1, 0, 0);
 		E.Amount = 20;
-		E.ActionId = FName(TEXT("Hero.Wraith.PulseShot"));
+		E.ActionId = FName(TEXT("Hero.Ivrin.PulseShot"));
 		return E;
 	};
 

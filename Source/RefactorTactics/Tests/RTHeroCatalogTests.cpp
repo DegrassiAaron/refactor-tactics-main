@@ -164,7 +164,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 		if (!TestNotNull(FString::Printf(TEXT("eroe #%d non nullo"), i), Hero)) { continue; }
 
 		const FString Who = Hero->HeroId.ToString();
-		// [D-226] Un eroe ne ha cinque o sei: la sesta e' lo scudo proattivo di Phase e Wraith. Qui basta
+		// [D-226] Un eroe ne ha cinque o sei: la sesta e' lo scudo proattivo di Phase e Ivrin. Qui basta
 		// che il kit NON sia vuoto — la proprieta' in esame e' «l'indice 0 e' l'attacco base», e legarla a
 		// un conteggio esatto la faceva cadere ogni volta che il roster cambiava forma.
 		if (!TestTrue(*FString::Printf(TEXT("%s: il kit non e' vuoto"), *Who), Hero->Actions.Num() > 0))
@@ -186,7 +186,7 @@ bool FRTHeroBasicAttackIsIndexZeroTest::RunTest(const FString&)
 			Basic->Def.Slot, ERTActionSlot::Main);
 
 		// Almeno un effetto di danno: un attacco base che non fa male non e' un attacco. NON asserisce
-		// QUANTO — 8 (Branth) e 22 (Gadget) sono entrambi legittimi, ed e' il punto di ADR-0007.
+		// QUANTO — 8 (Branth) e 22 (Aevik) sono entrambi legittimi, ed e' il punto di ADR-0007.
 		bool bDealsDamage = false;
 		for (const FRTActionEffectSpec& Spec : Basic->Def.Effects)
 		{
@@ -323,7 +323,7 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 	}
 	{
 		// [D-226] Il confine si e' spostato, e questo test lo insegue da ENTRAMBI i lati: sei azioni sono
-		// legali — e' cio' che permette a Phase e Wraith di portare lo scudo proattivo — sette no.
+		// legali — e' cio' che permette a Phase e Ivrin di portare lo scudo proattivo — sette no.
 		//
 		// ⚠️ **Il verso positivo non e' ridondante.** Con il solo caso a sette, un validatore che avesse
 		// smesso del tutto di contare resterebbe rosso qui e verde ovunque; con il solo caso a sei, uno che
@@ -364,7 +364,7 @@ bool FRTHeroValidateStructureTest::RunTest(const FString&)
 // il caso che questo test deve intercettare — non l'errore di oggi, quello di domani.
 //
 // 🔴 **E fino al 2026-08-25 non lo intercettava.** Il criterio era «fa danno o no», e il ciclo faceva
-// `continue` su ogni mobilita' che colpisce: `Hero.Wraith.PassingBlade` — che fa 20 danni e attraversa —
+// `continue` su ogni mobilita' che colpisce: `Hero.Ivrin.PassingBlade` — che fa 20 danni e attraversa —
 // passava indenne col `Main` di default, e da li' due azioni principali in un turno. Il test che diceva di
 // prendere «l'errore di domani» non prendeva nemmeno quello di ieri, perche' la clausola sul danno lo
 // escludeva per costruzione.
@@ -405,7 +405,7 @@ bool FRTHeroMobilitySlotTest::RunTest(const FString&)
 	//
 	// 🔵 **La riga e' tornata a `> 0` il 2026-08-16, ed e' il test stesso ad averlo prescritto.** Dal
 	// 2026-08-09 chiedeva ESATTAMENTE zero, perche' D-046 (#282) aveva cablato `Phase.FluidTrail` su
-	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Wraith.PassingBlade` e'
+	// `Action.CreateWater` togliendo al roster l'unica mobilita' SENZA danno — `Ivrin.PassingBlade` e'
 	// FastMovement ma fa 20 danni, cioe' una carica — e la regola D-028 era rimasta vera e senza soggetto.
 	// Accanto c'era scritto: *«quando il roster v0.2 introdurra' una mobilita' pura, questa riga CADRA' […]
 	// a quel punto si torna a `> 0` e il ciclo ricomincia a verificare la regola davvero»*.
@@ -524,9 +524,9 @@ bool FRTHeroActionDisplayNameTest::RunTest(const FString&)
  * rifiutare: un ID ritirato semplicemente non risolve. La guardia che serviva davvero e' questa.
  *
  * Due asserzioni, e la seconda e' quella che il grep non sa fare. Il DoD motiva il **terzo segmento**
- * dicendo che un prefisso piatto metterebbe `Gadget.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
+ * dicendo che un prefisso piatto metterebbe `Aevik.ArcPulse` accanto a `Gadget.Medkit` (un oggetto) e a
  * `ERTEquipmentSlot::Gadget` (serializzato). Ma «comincia per `Hero.`» non basterebbe: legare l'azione
- * al `HeroId` del **suo** eroe fa cadere anche un'azione di Gadget che finisse sotto `Hero.Phase.` —
+ * al `HeroId` del **suo** eroe fa cadere anche un'azione di Aevik che finisse sotto `Hero.Muiren.` —
  * un errore che un rename massivo produce esattamente come quello che deve correggere.
  *
  * Il prefisso si legge dal roster, non si scrive qui: un quinto eroe non richiede di toccare il test.
@@ -548,7 +548,27 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	//   2. Poi lo stesso script e' stato rilanciato **per misurare quanti residui restassero**, e ha
 	//      disfatto la riparazione appena scritta. Uno script che sostituisce non e' una misura, per quanto
 	//      il suo ultimo `print` somigli a una.
-	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"), TEXT("Riktor") };
+	//
+	// ➕ **`Gadget` e `Wraith` sono entrati il 2026-09-10 (#2853), a rename concluso.** Le tre fette di
+	// #2491 avevano esteso la guardia GEMELLA — quella di `Unit.CanonicalHeroIdHasNoLegacyName`, che oggi
+	// conta otto voci — e avevano dimenticato questa. Non e' una svista di una fetta: e' una lista meno
+	// visibile dell'altra, ritrovata solo perche' e' stata scritta come finding invece che ricordata.
+	//
+	// ⛔ **`Phase` NON entra, e l'assenza e' una misura, non una dimenticanza.** Il confronto e'
+	// `Id.Contains(Vecchio)` — in QUALUNQUE posizione, ed e' cio' che stana le forme concatenate — quindi
+	// `Phase` colpirebbe **`Hero.Ivrin.PhaseGuard`**, che e' un'abilita' sana: li' `Phase` e' la *fase del
+	// turno*, DisplayName «Guardia di fase». Misurato sui 22 `ActionId` del roster: `Gadget` e `Wraith`
+	// hanno **zero** collisioni, `Phase` ne ha **una**.
+	// 🔑 Chi legge questa lista la vede incompleta e ha ragione. Completarla la rende **rossa su codice
+	// sano**, che e' il difetto che il punto (1) qui sopra racconta — una guardia rovesciata. Se un giorno
+	// si vuole `Phase` qui, il prezzo e' indebolire `Contains` in un confronto per segmento, e con esso la
+	// copertura sulle forme concatenate: e' una decisione, non un `if`.
+	//
+	// ⚠️ E il limite vale anche per i due appena aggiunti: un'abilita' futura chiamata `Hero.X.GadgetHack`
+	// cadrebbe come cadrebbe `PhaseGuard`. E' il prezzo di cercare ovunque invece che al confine di parola,
+	// ed e' pagato sapendolo.
+	const TArray<FString> Ritirati = { TEXT("Flux"), TEXT("Riva"), TEXT("Bastion"), TEXT("Vektor"),
+		TEXT("Riktor"), TEXT("Gadget"), TEXT("Wraith") };
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
 	if (!TestTrue(TEXT("il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
@@ -582,8 +602,10 @@ bool FRTHeroAbilityIdNamespaceTest::RunTest(const FString&)
 	// soggetti — la stessa forma di falso verde contro cui `EveryActionHasADisplayName` si difende.
 	TestTrue(TEXT("almeno un'azione controllata"), Checked > 0);
 	// Anti-vacuita': se il ciclo non avesse esaminato nulla, i controlli sopra sarebbero verdi su zero.
-	// **22** da [D-226]: cinque per Gadget e Branth, sei per Phase e Wraith che portano lo scudo proattivo.
-	TestEqual(TEXT("il roster v0.1 dichiara ventidue abilita'"), Checked, 22);
+	// **23** da `#2890`: cinque per Aevik, sei per Phase e Ivrin che portano lo scudo proattivo ([D-226]),
+	// e sei per Branth, che da [D-380] porta anche `MortarShot` — la generica del core nel kit.
+	// VENTITRE da `#2890`: la ventitreesima e' `Hero.Branth.MortarShot`, il tiro indiretto.
+	TestEqual(TEXT("il roster v0.1 dichiara ventitre abilita'"), Checked, 23);
 	return true;
 }
 
@@ -592,25 +614,27 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroDerivedActionsDeclareOriginTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 {
-	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, **dieci** da [D-226]. Chi aggiunge un eroe che
-	// deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la relazione verificabile,
-	// invece di lasciarla vivere nel solo sorgente dove nessun test la vede.
+	// Le derivazioni del roster v0.1 — otto fino al 2026-08-27, dieci da [D-226], **undici** da [D-380].
+	// Chi aggiunge un eroe che deriva da un'azione core aggiunge una riga qui: e' l'elenco che rende la
+	// relazione verificabile, invece di lasciarla vivere nel solo sorgente dove nessun test la vede.
 	//
 	// ⛔ Gli attacchi base NON sono qui: dichiarano `BaseActionId` — profilo di una generica, D-033 — e non
 	// una derivazione di parametri. Tre dei quattro hanno i numeri scritti a mano, non presi dal core:
 	// chiamarli «derivati» trasformerebbe «i parametri vengono da li'» in «gli somiglia».
 	const TMap<FName, FName> Atteso = {
-		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
-		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dodge")         },
-		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
+		{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Action.Electrify")    },
+		{ TEXT("Hero.Muiren.FluidTrail"),          TEXT("Action.Dodge")         },
+		{ TEXT("Hero.Muiren.MistVeil"),            TEXT("Action.Ignite")       },
 		{ TEXT("Hero.Branth.KineticPanel"),       TEXT("Action.CreateCover")  },
 		{ TEXT("Hero.Branth.Ram"),                TEXT("Action.Charge")       },
-		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Action.Counter")      },
 		{ TEXT("Hero.Branth.Interposition"),      TEXT("Action.Intercept")    },
-		{ TEXT("Hero.Wraith.Deflection"),         TEXT("Action.Deflect")      },
+		{ TEXT("Hero.Ivrin.Deflection"),         TEXT("Action.Deflect")      },
 		// [D-226]: le due che chiudono la meta' `Shield` di `#1403`, uno scudo proattivo per squadra.
-		{ TEXT("Hero.Phase.TideGuard"),           TEXT("Action.Shield")       },
-		{ TEXT("Hero.Wraith.PhaseGuard"),         TEXT("Action.Shield")       },
+		{ TEXT("Hero.Muiren.TideGuard"),           TEXT("Action.Shield")       },
+		{ TEXT("Hero.Ivrin.PhaseGuard"),         TEXT("Action.Shield")       },
+		// `#2890` / [D-380]: la generica del catalogo core che Branth porta nel kit — il tiro indiretto.
+		{ TEXT("Hero.Branth.MortarShot"),         TEXT("Action.Mortar")       },
 	};
 
 	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
@@ -638,8 +662,9 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 				// `InterceptShot`, `PassingBlade`, `Feint`. Piu' i quattro attacchi base, che dichiarano il
 				// profilo (`BaseActionId`) e non questo.
 				//
-				// Dieci derivate + otto proprie + quattro base = **22**: cinque abilita' per Gadget e
-				// Branth, **sei** per Phase e Wraith, che da [D-226] portano anche lo scudo proattivo.
+				// Undici derivate + otto proprie + quattro base = **23**: cinque abilita' per Aevik,
+				// **sei** per Phase e Ivrin, che da [D-226] portano lo scudo proattivo, e **sei** per
+				// Branth, che da [D-380] porta `MortarShot`.
 				TestTrue(*FString::Printf(TEXT("%s non deriva da nulla e non lo dichiara"),
 					*A->Def.ActionId.ToString()), A->Def.DerivedFromActionId.IsNone());
 			}

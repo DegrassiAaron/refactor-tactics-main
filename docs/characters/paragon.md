@@ -17,8 +17,8 @@ altri documenti la referenziano, non la copiano.
 
 | Identità RefactorTactics | `RT Character ID` | Slot asset Paragon | Release |
 |---|---|---|---|
-| **Aevik** ⏳ | `Hero.Gadget` → `Hero.Aevik` | [Gadget](candidates/gadget.md) | v0.1 |
-| **Muiren** ⏳ | `Hero.Phase` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
+| **Aevik** ⏳ | `Hero.Aevik` → `Hero.Aevik` | [Gadget](candidates/gadget.md) | v0.1 |
+| **Muiren** ⏳ | `Hero.Muiren` → `Hero.Muiren` | [Phase](candidates/phase.md) | v0.1 |
 | **Branth** ⏳ | `Hero.Riktor` → `Hero.Branth` | [Riktor](candidates/riktor.md) | v0.1 |
 | **Ivrin** ⏳ | `Hero.Wraith` → `Hero.Ivrin` | [Wraith](candidates/wraith.md) | v0.1 |
 | **Ward** | `Hero.Ward` | [Steel](v0.2/steel.md) | v0.2 |
@@ -26,7 +26,7 @@ altri documenti la referenziano, non la copiano.
 | **Vigil** | `Hero.Vigil` | [Murdock](v0.2/murdock.md) | v0.2 |
 | **Tethra** | `Hero.Tethra` | [Kwang](v0.2/kwang.md) | v0.2 |
 
-⏳ = **identità decisa, ID non ancora migrato.** La freccia è il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297), differito post-v0.1 da [D-321](../decisions/RT_PDR_00_Decision_Log.md). Finché quella issue è aperta, `Hero.Gadget` è ciò che il codice contiene e `Aevik` è ciò che il personaggio si chiama: **due verità simultanee e dichiarate**, non una divergenza.
+⏳ = **identità decisa, ID non ancora migrato.** La freccia è il lavoro di [#2297](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297), differito post-v0.1 da [D-321](../decisions/RT_PDR_00_Decision_Log.md). Finché quella issue è aperta, `Hero.Aevik` è ciò che il codice contiene e `Aevik` è ciò che il personaggio si chiama: **due verità simultanee e dichiarate**, non una divergenza.
 
 Tre concetti, tre colonne, e restano separati:
 
@@ -91,11 +91,11 @@ Gadget un `Plasma Blast` che appartiene a **un altro eroe del pack**.
 
 | AbilityId | Abilità | FX Paragon | Base |
 |---|---|---|---|
-| `Hero.Gadget.ArcPulse` | Impulso ad arco *(attacco base)* | `Primary` | **misurata** — corrispondenza di **ruolo**: `ArcPulse` è l'indice 0 del kit RT, e `Primary` è l'attacco base lato Paragon — lo nomina il soundcue `Gadget_Effort_Ability_Primary_Fire`, che è audio e non FX, ma fissa il **vocabolario** del pack |
-| `Hero.Gadget.LinearDischarge` | Scarica lineare | — | aperta |
-| `Hero.Gadget.ConductiveNode` | Nodo conduttore | — | aperta |
-| `Hero.Gadget.Overload` | Sovraccarico | — | aperta |
-| `Hero.Gadget.ReactiveCapacitor` | Capacitore reattivo | — | aperta |
+| `Hero.Aevik.ArcPulse` | Impulso ad arco *(attacco base)* | `Primary` | **misurata** — corrispondenza di **ruolo**: `ArcPulse` è l'indice 0 del kit RT, e `Primary` è l'attacco base lato Paragon — lo nomina il soundcue `Gadget_Effort_Ability_Primary_Fire`, che è audio e non FX, ma fissa il **vocabolario** del pack |
+| `Hero.Aevik.LinearDischarge` | Scarica lineare | — | aperta |
+| `Hero.Aevik.ConductiveNode` | Nodo conduttore | — | aperta |
+| `Hero.Aevik.Overload` | Sovraccarico | — | aperta |
+| `Hero.Aevik.ReactiveCapacitor` | Capacitore reattivo | — | aperta |
 
 Restano **non assegnate** tre cartelle: `RollingBot`, `StickyBomb`, `VisionBot`.
 
@@ -141,7 +141,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Wraith](candidates/wraith.md) | Recon / Predicter | Insight | 5/5 | **Roster v0.1** — `Hero.Wraith` → `Hero.Ivrin` ⏳ |
 | [Lt. Belica](candidates/lt-belica.md) | Counter / Control | Suppression Charge | 4/5 | Candidate |
 | [GRIM.exe](candidates/grim-exe.md) | Ranged / Utility | Core Modes | 4/5 | Candidate |
-| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Gadget` → `Hero.Aevik` ⏳ |
+| [Gadget](candidates/gadget.md) | Engineer | Device Network | 5/5 | **Roster v0.1** — `Hero.Aevik` → `Hero.Aevik` ⏳ |
 | [Howitzer](candidates/howitzer.md) | Artillery | Artillery Heat | 4/5 | Candidate |
 | [Zinx](candidates/zinx.md) | Sustain / Controller | Energy Debt | 5/5 | Candidate |
 | [Muriel](candidates/muriel.md) | Support | Guardian Link | 4/5 | Candidate |
@@ -157,7 +157,7 @@ Ogni pagina contiene una card grafica locale in `images/paragon/`. È un placeho
 | [Gideon](candidates/gideon.md) | Controller / Mobility | Rift Network | 5/5 | Candidate |
 | [The Fey](candidates/the-fey.md) | Terrain Controller | Growth | 5/5 | Candidate |
 | [Morigesh](candidates/morigesh.md) | Hexer / Hunter | Hex | 4/5 | Candidate |
-| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Phase` → `Hero.Muiren` ⏳ |
+| [Phase](candidates/phase.md) | Support / Mobility | Phase Link | 5/5 | **Roster v0.1** — `Hero.Muiren` → `Hero.Muiren` ⏳ |
 | [Narbash](candidates/narbash.md) | Support / Rhythm | Beat | 4/5 | Candidate |
 | [Iggy & Scorch](candidates/iggy-and-scorch.md) | Terrain Controller / Duo | Combustion Field | 5/5 | Candidate |
 | [Sparrow](candidates/sparrow.md) | Marksman | Precision Chain | 3/5 | Candidate |

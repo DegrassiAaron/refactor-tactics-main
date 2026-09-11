@@ -82,7 +82,7 @@ struct FRTUnitStateDigest
 	 * I COOLDOWN delle abilita', per slot — `D-333`, `#2366`.
 	 *
 	 * 🔴 **Senza, due stati che differiscono solo per cosa un'unita' PUO' FARE davano lo stesso digest.**
-	 * Misurato sullo showcase: il turno del *whiff* — Wraith arma `Hero.Wraith.InterceptShot` su una cella
+	 * Misurato sullo showcase: il turno del *whiff* — Ivrin arma `Hero.Ivrin.InterceptShot` su una cella
 	 * che nessuno attraversa — non muove nessuno, non fa danno e non cambia stato, quindi dei sette campi
 	 * precedenti non ne toccava **nessuno**; ma paga `Cooldown 2`, e il catalogo eroi scrive che e' *«la meta'
 	 * del costo che rende il whiff una scelta»*. T1 e T2 dello showcase avevano lo stesso `StateHash`.

@@ -12,15 +12,15 @@
   "_nota_geometria": "Branth carica Phase verso EST, cioe' allontanandosi da Gadget invece di attraversargli davanti: da (1,0) si ferma addosso a lei in (3,0), a sette celle da (-4,0).",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-4, 0, 0] },
-    { "id": "R1", "hero": "Hero.Phase",    "team": 0, "cell": [ 4, 0, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",    "team": 0, "cell": [-4, 0, 0] },
+    { "id": "R1", "hero": "Hero.Muiren",    "team": 0, "cell": [ 4, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 1, 0, 0] }
   ],
 
   "turns": [
     {
       "intents": [
-        { "unit": "F1", "ability": "Hero.Gadget.LinearDischarge", "target": "B1" },
+        { "unit": "F1", "ability": "Hero.Aevik.LinearDischarge", "target": "B1" },
         { "unit": "B1", "dash": "Hero.Branth.Ram", "dashTo": [4, 0, 0] }
       ]
     }

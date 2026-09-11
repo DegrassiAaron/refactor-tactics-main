@@ -547,7 +547,18 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 				continue;
 			}
 		}
-		if (!URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
+		// ➕ **LA LICENZA DELL'AZIONE, LETTA DALLO STESSO DATO DEL PLANNING** (`#2870`, [D-378]).
+		//
+		// 🔑 **E' l'estremo che rende UNA la semantica.** `ClassifyHexTargeting` ha gia' posto la stessa
+		// domanda quando il giocatore ha scelto la cella; qui la si ripone sull'intento, con il campo copiato
+		// dal medesimo `FRTActionDef`. Non e' una seconda regola da tenere allineata: e' la stessa regola
+		// interrogata dove il colpo nasce, che e' cio' che impedisce a un piano legale di morire in silenzio
+		// dentro `BlockedIntents`.
+		//
+		// ⚠️ Resta **dopo** la portata e prima dell'aggressione, come prima: la licenza toglie la linea, non
+		// l'ordine dei motivi.
+		if (Intent.LineOfSightPolicy == ERTLineOfSightPolicy::Required
+			&& !URTHexVisionLibrary::HasLineOfSight(Map, Attacker.Cell, AimCell))
 		{
 			Plan.BlockedIntents.Add(IntentIdx);
 			continue;
@@ -789,6 +800,61 @@ FRTCellId URTHexCombatLibrary::BlastOriginCell(const FRTBlastPreviewPlan& Plan,
 		return Plan.PlannedDashCell;
 	}
 	return Current;
+}
+
+TArray<FRTRevealedVictim> URTHexCombatLibrary::VictimsRevealedByHits(const TArray<FRTHexAttackHit>& Hits,
+	const TArray<FRTHexCombatUnit>& Units, const TArray<int32>& StableUnitIds)
+{
+	TArray<FRTRevealedVictim> Out;
+
+	for (const FRTHexAttackHit& Hit : Hits)
+	{
+		// Fail-closed su un disallineamento: un indice fuori da uno dei tre array non si indovina.
+		if (!Units.IsValidIndex(Hit.AttackerId) || !Units.IsValidIndex(Hit.TargetId)
+			|| !StableUnitIds.IsValidIndex(Hit.TargetId))
+		{
+			continue;
+		}
+
+		const FRTHexCombatUnit& Attacker = Units[Hit.AttackerId];
+		const FRTHexCombatUnit& Target   = Units[Hit.TargetId];
+
+		// (1) Un colpo su un alleato non rivela niente: la squadra conosce gia' i propri.
+		if (Attacker.TeamId == Target.TeamId)
+		{
+			continue;
+		}
+
+		const int32 VictimStableId = StableUnitIds[Hit.TargetId];
+		if (VictimStableId == INDEX_NONE)
+		{
+			continue;
+		}
+
+		// (2) Una vittima per attaccante. Si deduplica sulla COPPIA (squadra, vittima) e non sulla sola
+		// vittima: due squadre che colpiscono lo stesso bersaglio lo imparano entrambe, e ognuna ha pagato.
+		const bool bGia = Out.ContainsByPredicate([&](const FRTRevealedVictim& V)
+			{ return V.AttackerTeamId == Attacker.TeamId && V.VictimStableUnitId == VictimStableId; });
+		if (bGia)
+		{
+			continue;
+		}
+
+		FRTRevealedVictim V;
+		V.AttackerTeamId = Attacker.TeamId;
+		V.VictimStableUnitId = VictimStableId;
+		V.Cell = Target.Cell; // (3) la cella dello snapshot: dove il colpo l'ha TROVATA
+		Out.Add(MoveTemp(V));
+	}
+
+	// Ordine canonico: questo risultato alimenta `TeamKnowledgeState`, che entra nello snapshot. Un ordine
+	// che dipendesse da quello dei colpi farebbe divergere due tracce a parita' di partita (invariante #3).
+	Out.Sort([](const FRTRevealedVictim& A, const FRTRevealedVictim& B)
+	{
+		if (A.AttackerTeamId != B.AttackerTeamId) { return A.AttackerTeamId < B.AttackerTeamId; }
+		return A.VictimStableUnitId < B.VictimStableUnitId;
+	});
+	return Out;
 }
 
 FRTBlastPreview URTHexCombatLibrary::MakeBlastPreview(const FRTBlastPreviewPlan& Plan,

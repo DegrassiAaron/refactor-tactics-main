@@ -92,7 +92,7 @@ namespace
 	}
 
 	/**
-	 * Il roster CORE, nell'ordine del canone: Gadget · Phase · Branth · Wraith.
+	 * Il roster CORE, nell'ordine del canone: Aevik · Phase · Branth · Ivrin.
 	 *
 	 * Quattro eroi per squadra e non «quattro copie di due»: e' il roster della v0.1, ed e' cio' che rende il
 	 * 4v4 uno stress del sistema invece che dello stesso eroe moltiplicato.
@@ -101,10 +101,10 @@ namespace
 	{
 		TArray<URTHeroData*> Roster;
 		const TArray<URTHeroData*> All = {
-			URTHeroCatalogLibrary::MakeGadget(),
-			URTHeroCatalogLibrary::MakePhase(),
+			URTHeroCatalogLibrary::MakeAevik(),
+			URTHeroCatalogLibrary::MakeMuiren(),
 			URTHeroCatalogLibrary::MakeBranth(),
-			URTHeroCatalogLibrary::MakeWraith(),
+			URTHeroCatalogLibrary::MakeIvrin(),
 		};
 		for (int32 i = 0; i < Count; ++i)
 		{

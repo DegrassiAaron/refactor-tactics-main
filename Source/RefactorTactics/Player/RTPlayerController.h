@@ -240,6 +240,42 @@ protected:
 	TObjectPtr<UInputAction> PrepWindowPauseAction;
 
 	/**
+	 * `K`: ferma e riprende il **playback della risoluzione** (`#2858`, comandi di `#1879`).
+	 *
+	 * 🔴 **NON `P`, e la scelta va detta perche' le due pause si somigliano.** `P` e' la pausa della
+	 * finestra di preparazione: dare a questa lo stesso tasto — o uno adiacente — produrrebbe un comando
+	 * che a volte fa una cosa e a volte l'altra a seconda della fase, e il test che le tiene esclusive
+	 * misura lo **stato**, non l'intenzione di chi preme. `RTTurnManager.h` le dichiara mutuamente
+	 * esclusive *per costruzione*: due tasti distinti tengono distinte anche le due **intenzioni**.
+	 *
+	 * 🔑 **`K` e `L` sono la convenzione dei riproduttori** (pausa e avanti), e sono liberi: mappati
+	 * altrove sono `A B C D E F G Q R S T V W X Z P`, `0`-`9`, Spazio, `ESC`, `Home`, `PageUp`/`PageDown`,
+	 * `BackSpace`, i pulsanti del mouse e i due `Alt`. Verificato sull'elenco completo dei `MapKey` di
+	 * `BuildInputMappings`, come `#1775` e `PlaybackSpeedAction` hanno gia' fatto.
+	 *
+	 * ⚠️ **Sta accanto a `PlaybackSpeedAction`**, e per la stessa ragione: e' un comando dello
+	 * **spettatore**, non l'ennesimo del giocatore. Delle tre voci della matrice di `#1881` — Speed, Pause,
+	 * Step — la prima aveva un ingresso e queste due no.
+	 *
+	 * ⛔ **Inerte senza `rt.Debug.PlaybackControls`**: il tasto esiste sempre, il comando no. Il
+	 * fail-closed vive nel manager (`#1879`) e non qui, perche' una guardia nel controller sarebbe una
+	 * seconda sede della stessa regola.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PlaybackPauseAction;
+
+	/**
+	 * `L`: avanza di **un** micro-step e torna in pausa (`#2858`, comando di `#1879`).
+	 *
+	 * Stesse ragioni di `PlaybackPauseAction` per il tasto, per la collocazione e per l'inerzia senza la
+	 * console variable. ⚠️ Uno **step semantico non e' un frame**: `StepMicroStep` calcola il confine in
+	 * secondi alla pressione, quindi la stessa pressione ferma il playback nello stesso punto su macchine
+	 * diverse.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PlaybackStepAction;
+
+	/**
 	 * `ESC`: apre e chiude il menu di pausa (CP 46.6, `#941`).
 	 *
 	 * ⚠️ **Nessun `.uasset`, come tutti i fratelli**: gli `UInputAction` di questo controller nascono da
@@ -582,6 +618,19 @@ private:
 	 * un senso. E' la stessa scelta gia' fatta per `OnCyclePlaybackSpeed`, che pure non ne ha.
 	 */
 	void OnTogglePrepWindowPause(const FInputActionValue& Value);
+
+	/**
+	 * `K` — ferma o riprende il playback della risoluzione (`#2858`).
+	 *
+	 * ⚠️ **Il toggle interroga lo stato, non lo ricorda**, come `OnTogglePrepWindowPause`: un `bool` locale
+	 * sarebbe una seconda sede della stessa verita', e divergerebbe al primo percorso che questo controller
+	 * non vede passare — per esempio un predicato di `#2855` che mette in pausa da se'.
+	 */
+	void OnTogglePlaybackPause(const FInputActionValue& Value);
+
+	/** `L` — avanza di un micro-step e torna in pausa (`#2858`). */
+	void OnStepPlaybackMicroStep(const FInputActionValue& Value);
+
 	void OnRecenter(const FInputActionValue& Value);
 	void OnFocusSelected(const FInputActionValue& Value);
 
@@ -676,6 +725,28 @@ public:
 	void OnTogglePrepWindowPauseForTest();
 
 	/**
+	 * Hook per i test: percorre il **tasto destro** senza Enhanced Input. Gemello di `OnLockInForTest`.
+	 *
+	 * 🔴 **Esiste perche' senza di esso il Back era verificato solo a valle.** `ResolveBack` e `ApplyBack`
+	 * hanno test propri, ma nessuno guardava il percorso che il giocatore usa davvero: l'`RMB` entra da
+	 * `OnUndoWaypoint`, e finche' quella funzione ordinava i livelli per conto suo il modulo puro poteva
+	 * restare verde mentre il tasto faceva un'altra cosa. E' la distinzione fra testare una regola e
+	 * testare chi la applica.
+	 */
+	void OnUndoWaypointForTest();
+
+	/**
+	 * Hook per i test: percorre i gesti `K` e `L` senza Enhanced Input (`#2858`).
+	 *
+	 * 🔑 **Esistono perche' il criterio d'accettazione parla del GESTO, non della funzione del manager.**
+	 * Chiamare `TM->PausePlayback()` da un test dimostra che il manager funziona — cosa che `#1879` ha gia'
+	 * dimostrato — e non che qualcuno possa premerlo. Questi due percorrono la stessa strada del tasto, che
+	 * e' cio' che a questa issue mancava.
+	 */
+	void OnTogglePlaybackPauseForTest();
+	void OnStepPlaybackMicroStepForTest();
+
+	/**
 	 * Inquadra un'unita' con la camera: quello che fa il tasto `F` una volta stabilito CHI inquadrare.
 	 *
 	 * Estratto da `OnFocusSelected` perche' la scelta della quota — la **cella**, non la posizione
@@ -713,6 +784,34 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerContext GetPointerContext() const;
+
+	/**
+	 * 🔴 **La porta che il dock chiama: arma — o DISARMA — la posizione `KitIndex` del kit dell'unita'
+	 * selezionata** (`#2826`).
+	 *
+	 * 🔑 **Esiste perche' il dock era a schermo e non serviva a niente.** `#2759`, `#2760` e `#2784` hanno
+	 * chiuso i tre difetti di montaggio: gli slot mostrano azione, icona, cooldown e stato armato — e
+	 * cliccarli non faceva nulla, perche' `SelectAbilityForCurrent` e' `private:` e senza `UFUNCTION`.
+	 * L'unica strada per armare era la tastiera. Il contrasto sta nello stesso progetto:
+	 * `URTFastDecisionWidget::ChooseOption` e' `BlueprintCallable` e porta il click fino al core — la
+	 * finestra di reazione una porta ce l'ha, il dock no.
+	 *
+	 * ⛔ **DELEGA, non duplica.** Il corpo resta uno solo: cooldown, slot reazione e self-target sono
+	 * decisi da `SelectAbilityForCurrent`, e un click non puo' aggirare un controllo che il tasto
+	 * rispetta. Cio' che questa funzione aggiunge e' **solo** il toggle, che la tastiera non ha.
+	 *
+	 * ⚠️ **Un `int32`, mai un `FName` scelto dal widget** — la stessa disciplina di `ChooseOption`: il
+	 * widget puo' soltanto *indicare* una posizione che il core ha prodotto, non nominare un'azione.
+	 *
+	 * 🔑 **Ricliccare lo slot gia' armato DISARMA**, e riporta al neutro di [D-128]: `SelectAbility`
+	 * dichiara `INDEX_NONE` un ingresso legittimo — *«senza di esso non esisterebbe un modo di tornare
+	 * allo stato neutro»* — quindi anche il disarmo passa dalla stessa porta e dalle stesse guardie.
+	 *
+	 * ⚠️ Fail-closed come il resto della catena: senza unita' selezionata, con l'input bloccato o con la
+	 * pianificazione inerte non fa **nulla**.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void ArmKitAbility(int32 KitIndex);
 
 	/**
 	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).

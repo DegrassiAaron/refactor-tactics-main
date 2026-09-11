@@ -335,8 +335,8 @@ namespace RTMatchBootstrapDetail
 			// allestite dallo stesso codice. Chi altro scrive quel campo: `ARTUnit::bIsBotControlled`.
 			// Un `if (!bIsBotControlled)` sarebbe la forma in cui «il bot gioca un altro gioco» rientra.
 			//
-			// `DefaultLoadoutFor` risponde VUOTO per un eroe i cui pezzi non sono spediti — oggi Gadget e
-			// Wraith, che §4 assegna a due gadget che v0.1 non costruisce — e un array vuoto qui non fa nulla.
+			// `DefaultLoadoutFor` risponde VUOTO per un eroe i cui pezzi non sono spediti — oggi Aevik e
+			// Ivrin, che §4 assegna a due gadget che v0.1 non costruisce — e un array vuoto qui non fa nulla.
 			Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
 
 			UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
@@ -585,8 +585,8 @@ FRTMatchBootstrapOutcome FRTMatchBootstrapper::Bootstrap(ARTHexMapActor* HexMap,
 		for (int32 Slot = 0; Slot < Lineups[TeamId].Num(); ++Slot)
 		{
 			const FName& HeroId = (*Formations[TeamId])[Slot];
-			// Dal FONDO della formazione: `[Gadget, Phase]` con `BotAllies == 1` da' Phase al bot e lascia
-			// Gadget al giocatore. Con `BotAllies == 0` il confronto e' `Slot >= Team0Size`, sempre falso.
+			// Dal FONDO della formazione: `[Aevik, Phase]` con `BotAllies == 1` da' Phase al bot e lascia
+			// Aevik al giocatore. Con `BotAllies == 0` il confronto e' `Slot >= Team0Size`, sempre falso.
 			const bool bBotAlly = (TeamId == 0) && (Slot >= Team0Size - BotAllies);
 			if (CellIndex >= Start.Num())
 			{

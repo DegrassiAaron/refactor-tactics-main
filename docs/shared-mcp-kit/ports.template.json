@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "basePort": 9121,
+  "note": "One Serena port per simultaneously active repo/worktree root. Distinct git worktrees count as distinct roots. Copy this file to ~/.mcp-shared/ports.json and replace the rows with your own; reserved entries are not started, they exist so a future root cannot collide.",
+  "roots": [
+    {
+      "projectId": "CHANGE-ME-first-root",
+      "path": "D:/Repositories/CHANGE-ME",
+      "port": 9121,
+      "status": "active"
+    },
+    {
+      "projectId": "CHANGE-ME-second-root",
+      "path": "D:/Repositories/CHANGE-ME",
+      "port": 9122,
+      "status": "reserved"
+    }
+  ]
+}

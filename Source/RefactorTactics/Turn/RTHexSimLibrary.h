@@ -259,7 +259,7 @@ public:
 	 *   lineari resta consentito, come nella variante base.
 	 *
 	 * `bPassThrough` marca chi ATTRAVERSA le unita' ferme lungo la traiettoria (`ERTMovementStyle::LinearPass`,
-	 * la lama di Wraith): per costoro un'unita' che resta su una cella INTERMEDIA non blocca il passo.
+	 * la lama di Ivrin): per costoro un'unita' che resta su una cella INTERMEDIA non blocca il passo.
 	 *
 	 * Resta un vincolo sulla cella FINALE: si passa in mezzo a qualcuno, non ci si ferma dentro. E resta
 	 * invariata la contesa fra due unita' in MOVIMENTO verso la stessa cella — attraversare chi sta fermo e
@@ -292,7 +292,34 @@ public:
 	static FRTMovementResolutionState BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
 		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
 		const TArray<bool>& bPassThrough = TArray<bool>(),
-		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>());
+		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>(),
+		const TArray<TArray<int32>>& StepDurations = TArray<TArray<int32>>());
+
+	/**
+	 * Quanti microstep dura l'ingresso in `Cell` per l'unita' `UnitId` dello snapshot
+	 * ([D-381](../../../docs/decisions/RT_PDR_00_Decision_Log.md)):
+	 *
+	 * ```text
+	 * TraversalDurationTicks = TotalMoveCost(cella) + max(0, MoveCostModifier)
+	 * ```
+	 *
+	 * 🔑 **E' ancorata al COSTO D'INGRESSO, non agli MP consumati**, e la differenza non e' formale:
+	 * [D-117](../../../docs/decisions/RT_PDR_00_Decision_Log.md) separa il budget in passi e asperita' e
+	 * porta il costo per cella a `max(0, MoveCost - 1 + MoveCostModifier)`, cioe' **zero** sul terreno
+	 * normale. Una durata letta dagli MP renderebbe istantaneo l'attraversamento del `Floor`.
+	 * `FRTHexCellData::TotalMoveCost()` vale invece almeno `1` su ogni cella del catalogo, prima e dopo
+	 * quella separazione.
+	 *
+	 * Cella o unita' sconosciute -> `1`: si degrada al comportamento precedente, non si inventa una durata.
+	 */
+	static int32 TraversalDurationTicks(const FRTHexSnapshot& Snapshot, int32 UnitId, const FRTCellId& Cell);
+
+	/**
+	 * Le durate di OGNI arco di `Path`, pronte per `BeginHexMovement`: un elemento per arco, quindi uno in
+	 * meno delle celle. `Path` piu' corto di due celle -> array vuoto.
+	 */
+	static TArray<int32> StepDurationsForPath(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		const TArray<FRTCellId>& Path, int32 PlannedLength = 0);
 
 	/**
 	 * Esegue UN microstep: tutte le unita' avanzano di una cella e si risolvono le collisioni.

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "projectId": "CHANGE-ME",
+  "serena": {
+    "enabled": true,
+    "port": 9121
+  },
+  "sharedGateway": {
+    "enabled": false,
+    "endpoint": null
+  },
+  "notes": "Copy this file to the ROOT of each repo/worktree as .mcp-shared.json, and add that name to the root's .git/info/exclude so it never gets committed. Use a UNIQUE Serena port for every simultaneously active repo/worktree, and record it in ~/.mcp-shared/ports.json. sharedGateway stays false: the gateway was evaluated and deferred - see README."
+}

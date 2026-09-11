@@ -71,19 +71,19 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Gadget = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
-	ARTUnit* Phase = SpawnHudVmUnit(World, TEXT("Hero.Phase"), /*TeamId*/ 0);
+	ARTUnit* Aevik = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
+	ARTUnit* Muiren = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), /*TeamId*/ 0);
 	ARTUnit* Branth = SpawnHudVmUnit(World, TEXT("Hero.Branth"), /*TeamId*/ 1);
-	ARTUnit* Wraith = SpawnHudVmUnit(World, TEXT("Hero.Wraith"), /*TeamId*/ 1);
+	ARTUnit* Ivrin = SpawnHudVmUnit(World, TEXT("Hero.Ivrin"), /*TeamId*/ 1);
 
-	if (!TestNotNull(TEXT("Gadget"), Gadget) || !TestNotNull(TEXT("Phase"), Phase)
-		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Wraith"), Wraith))
+	if (!TestNotNull(TEXT("Aevik"), Aevik) || !TestNotNull(TEXT("Muiren"), Muiren)
+		|| !TestNotNull(TEXT("Branth"), Branth) || !TestNotNull(TEXT("Ivrin"), Ivrin))
 	{
 		DestroyHudVmWorld(World);
 		return false;
 	}
 
-	const TArray<ARTUnit*> All = { Gadget, Phase, Branth, Wraith };
+	const TArray<ARTUnit*> All = { Aevik, Muiren, Branth, Ivrin };
 
 	const TArray<FRTUnitCardView> Mine = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster ha le due unita' della mia squadra"), Mine.Num(), 2);
@@ -91,7 +91,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	{
 		TestTrue(*FString::Printf(TEXT("%s e' un alleato"), *Card.HeroId.ToString()), Card.bIsAlly);
 		TestFalse(TEXT("nessun avversario nel roster"),
-			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Wraith"));
+			Card.HeroId == TEXT("Hero.Branth") || Card.HeroId == TEXT("Hero.Ivrin"));
 	}
 
 	// Simmetrico: cambiando squadra cambia il roster, e la funzione non ha altri parametri con cui sbagliare.
@@ -99,7 +99,7 @@ bool FRTHudVmRosterIsOwnTeamTest::RunTest(const FString&)
 	TestEqual(TEXT("dall'altra parte se ne vedono due"), Theirs.Num(), 2);
 
 	// Una morta NON sparisce: il conto della squadra deve restare leggibile.
-	Gadget->Health = 0;
+	Aevik->Health = 0;
 	const TArray<FRTUnitCardView> AfterDeath = URTHudViewModel::BuildTeamRoster(All, /*PlayerTeamId*/ 0);
 	TestEqual(TEXT("il roster resta di due voci anche con una unita' morta"), AfterDeath.Num(), 2);
 
@@ -236,7 +236,7 @@ bool FRTHudVmSlotsTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// 1. Piano vuoto: tre slot liberi. Un'unita' appena selezionata non deve sembrare gia' impegnata.
@@ -341,7 +341,7 @@ bool FRTHudVmCooldownTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Una riga per ogni azione del kit, nell'ordine del kit: l'indice serve all'hotkey.
@@ -406,7 +406,7 @@ bool FRTHudVmChargeFractionTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
@@ -635,7 +635,7 @@ bool FRTStatusBadgesControlsComeFirstTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	// Applicati DELIBERATAMENTE nell'ordine sbagliato: `Burning` precede entrambi in alfabetico, e `Slow`
@@ -691,7 +691,7 @@ bool FRTStatusBadgesCellBoundHasNoCountTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->ApplyStatus(TAG_Status_Wet, ARTUnit::PersistentWhileOnCell);
@@ -748,7 +748,7 @@ bool FRTStatusBadgesShowOnlyWhatTheUnitCarriesTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->ApplyStatus(TAG_Status_Burning, /*Turni*/ 2);
@@ -794,7 +794,7 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 
 	Unit->Health = 60;
@@ -811,9 +811,9 @@ bool FRTUnitOverlayViewIsObserverRelativeTest::RunTest(const FString&)
 	TestEqual(TEXT("e sono quelli giusti"),
 		Alleata.Statuses[0].Tag, TAG_Status_Burning.GetTag().GetTagName());
 
-	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Gadget` si legge `Gadget`.
+	// Il nome e' quello canonico del catalogo, non l'ID: `Hero.Aevik` si legge `Aevik`.
 	TestFalse(TEXT("il nome non e' vuoto"), Alleata.DisplayName.IsEmpty());
-	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Gadget")));
+	TestFalse(TEXT("il nome non e' l'ID grezzo"), Alleata.DisplayName.Equals(TEXT("Hero.Aevik")));
 
 	// 🔴 Il cuore: stessa unita', due osservatori, due viste.
 	TestTrue(TEXT("per il compagno e' un'alleata"),  Alleata.Card.bIsAlly);
@@ -868,7 +868,7 @@ bool FRTUnitOverlayFriendlyFireWinsOverTargetedTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
-	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Gadget"), /*TeamId*/ 0);
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), /*TeamId*/ 0);
 	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
 	Unit->Cell = FRTCellId(3, 1, 0);
 
@@ -1263,6 +1263,194 @@ bool FRTHudEventFeedRespectsTheObserverTest::RunTest(const FString&)
 	const TArray<FRTPlayerEventLineView> NonAutorizzato =
 		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 0);
 	TestEqual(TEXT("chi non e' autorizzato non riceve nessuna riga"), NonAutorizzato.Num(), 0);
+	return true;
+}
+
+namespace
+{
+	/** Una voce autorizzata alla squadra 1, distinguibile per `UnitId`, nel turno chiesto. */
+	FRTTurnLogEntry VoceDiTurno(int32 TurnNumber, int32 UnitId)
+	{
+		FRTTurnLogEntry Voce;
+		Voce.Category = ERTLogCategory::Combat;
+		Voce.Outcome = static_cast<uint8>(ERTCombatOutcome::NoLineOfSight);
+		Voce.UnitId = UnitId;
+		Voce.TurnNumber = TurnNumber;
+		Voce.SrcCell = FRTCellId(-1, 0, 0);
+		Voce.TgtCell = FRTCellId(1, 0, 0);
+		Voce.Verdict.AllowTeam(1);
+		return Voce;
+	}
+}
+
+/**
+ * 🔴 **IL FEED PARLA DEL TURNO, NON DELLA PARTITA — e non e' una questione di ingombro.**
+ *
+ * 🔑 **Il difetto che questo test chiude e' che il feed NASCONDE.** `URTPlayerEventProjector::Project`
+ * applica la **dominanza**: una riga per unita', dove «il KO prende il posto del danno, il danno quello
+ * del colpo». Il suo commento la descrive *«in questo turno»* — ma il chiamante gli passava
+ * `TurnManager->GetTurnLog()`, cioe' la **partita intera**. Con quel perimetro l'unita' andata KO al
+ * round 3 tiene la propria riga fino alla fine, perche' nessun evento successivo ha rango piu' alto: cio'
+ * che le e' accaduto dopo non compare, e il giocatore legge una cronaca ferma a tre round prima.
+ *
+ * ⚠️ **Stessa sorte per l'ambiente**: §E vuole una riga sola con un contatore («quante celle, non
+ * quali»), e su dodici round quel contatore sommava l'intera partita in una voce che non dice piu' nulla.
+ *
+ * ⛔ **Il taglio sta nella VISTA e non nel `TurnLog`**, che e' la fonte del replay (`#469`): troncare li'
+ * cambierebbe cio' che si puo' rigiocare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedIsScopedToTheCurrentTurnTest,
+	"RefactorTactics.ScreenHud.FeedIsScopedToTheCurrentTurn",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedIsScopedToTheCurrentTurnTest::RunTest(const FString&)
+{
+	TArray<FRTTurnLogEntry> Log;
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 1, /*UnitId*/ 11)); // turno vecchio
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 1, /*UnitId*/ 12)); // turno vecchio
+	Log.Add(VoceDiTurno(/*TurnNumber*/ 2, /*UnitId*/ 21)); // turno corrente
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+
+	if (!TestEqual(TEXT("il feed porta solo le voci del turno piu' recente"), Feed.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("ed e' quella dell'unita' che ha agito in quel turno"),
+		Feed[0].PrimaryStableUnitId, 21);
+
+	// ⚠️ Il controllo che il test sarebbe inutile senza: le voci vecchie erano **autorizzate** e
+	// **componibili**, quindi la loro assenza dice «filtrate per turno» e non «scartate per privacy».
+	TArray<FRTTurnLogEntry> SoloVecchie;
+	SoloVecchie.Add(VoceDiTurno(1, 11));
+	SoloVecchie.Add(VoceDiTurno(1, 12));
+	TestEqual(TEXT("controllo: da sole quelle voci PRODUCONO righe"),
+		URTHudViewModel::BuildPlayerEventFeed(SoloVecchie, 1).Num(), 2);
+
+	return true;
+}
+
+/**
+ * 🔴 **IL TETTO E' UN NUMERO, E SI PRENDONO LE ULTIME.**
+ *
+ * ⚠️ **«Le prime N» sarebbe altrettanto implementabile e completamente inutile**, ed e' esattamente cio'
+ * che questo test distingue: un tetto che tagliasse la coda lascerebbe a schermo l'inizio del turno e
+ * nasconderebbe l'esito. Verificare solo il **numero** di righe non vedrebbe la differenza.
+ *
+ * 🔑 Il tetto e' la **rete**, non il rimedio: il rimedio e' il perimetro
+ * (`FeedIsScopedToTheCurrentTurn`). Serve per il turno anomalo — molte voci di **mondo**, che sfuggono
+ * alla dominanza perche' non appartengono a nessuna unita' e si accodano una per una.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedShowsTheLastLinesWithinBudgetTest,
+	"RefactorTactics.ScreenHud.FeedShowsTheLastLinesWithinBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedShowsTheLastLinesWithinBudgetTest::RunTest(const FString&)
+{
+	// Un turno con molte piu' voci del budget, ciascuna di un'unita' diversa: senza unita' distinte la
+	// dominanza le fonderebbe in una riga sola e il tetto non verrebbe mai raggiunto.
+	const int32 Quante = URTHudViewModel::MaxFeedLines * 3;
+	TArray<FRTTurnLogEntry> Log;
+	for (int32 i = 0; i < Quante; ++i)
+	{
+		Log.Add(VoceDiTurno(/*TurnNumber*/ 7, /*UnitId*/ 100 + i));
+	}
+
+	const TArray<FRTPlayerEventLineView> Feed =
+		URTHudViewModel::BuildPlayerEventFeed(Log, /*ObserverTeamId*/ 1);
+
+	if (!TestEqual(TEXT("il feed si ferma al budget"), Feed.Num(), URTHudViewModel::MaxFeedLines))
+	{
+		return false;
+	}
+
+	// 🔑 La meta' che conta: **quali** dodici. La prima riga mostrata e' la tredicesima dal fondo, non la
+	// prima del turno.
+	const int32 PrimaAttesa = 100 + (Quante - URTHudViewModel::MaxFeedLines);
+	TestEqual(TEXT("e sono le ULTIME: la prima riga e' quella giusta"),
+		Feed[0].PrimaryStableUnitId, PrimaAttesa);
+	TestEqual(TEXT("e l'ultima riga e' l'evento piu' recente del turno"),
+		Feed[Feed.Num() - 1].PrimaryStableUnitId, 100 + Quante - 1);
+
+	// Sotto il budget non si taglia niente: un tetto che accorciasse sempre sarebbe un altro difetto.
+	TArray<FRTTurnLogEntry> Poche;
+	Poche.Add(VoceDiTurno(7, 1));
+	Poche.Add(VoceDiTurno(7, 2));
+	TestEqual(TEXT("sotto il budget il feed non taglia"),
+		URTHudViewModel::BuildPlayerEventFeed(Poche, 1).Num(), 2);
+
+	return true;
+}
+
+/**
+ * `HealthFraction`: la barra della card non deve dividere, e il caso che rompeva e' la card VUOTA.
+ *
+ * 🔴 **Il difetto e' stato MISURATO in PIE, non ipotizzato.** Seduta `U49` del 2026-09-10
+ * (`PIE-V01-SCREENHUD`, `#613`): `Script Msg: Divide by zero: Divide_DoubleDouble` da
+ * `WBP_RT_UnitCard_C`, dentro `WBP_RT_SelectedUnitPanelBottom`.
+ *
+ * ⛔ **Questo test NON riproduce il warning**, che nasce in un nodo dentro il `.uasset` e headless non
+ * viene nemmeno costruito — stessa dichiarazione, e per la stessa ragione, di
+ * `ChargeFractionNeedsNoDivisionInTheWidget`. Prova la cosa che rende il warning impossibile: che la
+ * vista porti gia' il risultato, con la guardia sullo zero in un posto solo e misurabile.
+ *
+ * ⚠️ **Finche' il grafo continua a dividere da se', la warning resta.** Ricablare la progress bar su
+ * questo campo e' lavoro di Editor, e non lo copre nessun test di questo file.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmHealthFractionTest,
+	"RefactorTactics.HudViewModel.HealthFractionNeedsNoDivisionInTheWidget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmHealthFractionTest::RunTest(const FString&)
+{
+	// 🔴 IL CASO DEL DIFETTO, e viene per primo: nessuna unita' selezionata.
+	const FRTUnitCardView Vuota = URTHudViewModel::BuildUnitCard(nullptr, 0);
+
+	// PREMESSA DEL DIFETTO: senza questa riga il test proverebbe la guardia su un caso che non si
+	// presenta mai, e resterebbe verde anche togliendo la guardia.
+	if (!TestEqual(TEXT("premessa: la card vuota ha MaxHealth = 0 (il caso che divideva per zero)"),
+			Vuota.MaxHealth, 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("card vuota: la barra e' a zero"), Vuota.HealthFraction, 0.f);
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const FRTUnitCardView Illesa = URTHudViewModel::BuildUnitCard(Unit, 0);
+	if (!TestTrue(TEXT("premessa: un'unita' viva ha un massimo positivo"), Illesa.MaxHealth > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("illesa: la barra e' piena"), Illesa.HealthFraction, 1.f);
+
+	// La frazione SEGUE il simulatore: si toglie salute e la barra deve scendere. Senza questo controllo
+	// la guardia potrebbe restituire una costante e il test resterebbe verde.
+	Unit->Health = Unit->MaxHealth / 2;
+	const FRTUnitCardView Ferita = URTHudViewModel::BuildUnitCard(Unit, 0);
+	TestTrue(TEXT("ferita: la barra scende sotto la piena"),
+		Ferita.HealthFraction < Illesa.HealthFraction);
+	TestTrue(TEXT("ferita: la frazione resta in [0,1]"),
+		Ferita.HealthFraction >= 0.f && Ferita.HealthFraction <= 1.f);
+
+	// Il `Clamp` non e' decorativo: `Health` viene dal simulatore e puo' uscire dall'intervallo in
+	// entrambe le direzioni. Una barra fuori da `[0,1]` disegna fuori dal proprio riquadro.
+	Unit->Health = -5;
+	TestEqual(TEXT("salute negativa: la barra si ferma a zero, non va sotto"),
+		URTHudViewModel::BuildUnitCard(Unit, 0).HealthFraction, 0.f);
+
+	Unit->Health = Unit->MaxHealth * 2;
+	TestEqual(TEXT("salute oltre il massimo: la barra si ferma a uno"),
+		URTHudViewModel::BuildUnitCard(Unit, 0).HealthFraction, 1.f);
+
+	DestroyHudVmWorld(World);
 	return true;
 }
 

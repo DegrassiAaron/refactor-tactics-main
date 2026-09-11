@@ -33,7 +33,7 @@ namespace
 	 *      `RTCatalogLibrary.h`, «un ID che il catalogo non conosce non risolve». Senza redirect,
 	 *      «si redirigono» non descriveva niente.
 	 *   2. Il **rename di #753** l'ha reso autocontraddittorio: ha sostituito i nomi dentro l'elenco che
-	 *      li dichiarava legacy, cosi' la frase diceva «i nomi legacy sono `Gadget.`, `Phase.` …», che sono
+	 *      li dichiarava legacy, cosi' la frase diceva «i nomi legacy sono `Aevik.`, `Muiren.` …», che sono
 	 *      i nomi NUOVI. Una sostituzione di testo puo' invertire il senso di una frase senza toccarne la
 	 *      forma, e nessun gate lo vede perche' il file compila.
 	 *   3. E la **premessa** e' caduta comunque: #754 ha rinominato le chiavi.
@@ -47,20 +47,20 @@ namespace
 	FText HeroActionDisplayName(const FName& Id)
 	{
 		static const TMap<FName, FString> Names = {
-			// Gadget (`Hero.Gadget`)
-			{ TEXT("Hero.Gadget.ArcPulse"),           TEXT("Impulso ad arco") },
-			{ TEXT("Hero.Gadget.LinearDischarge"),    TEXT("Scarica lineare") },
-			{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Nodo conduttivo") },
-			{ TEXT("Hero.Gadget.Overload"),           TEXT("Sovraccarico") },
-			{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Condensatore reattivo") },
+			// Aevik (`Hero.Aevik`)
+			{ TEXT("Hero.Aevik.ArcPulse"),           TEXT("Impulso ad arco") },
+			{ TEXT("Hero.Aevik.LinearDischarge"),    TEXT("Scarica lineare") },
+			{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Nodo conduttivo") },
+			{ TEXT("Hero.Aevik.Overload"),           TEXT("Sovraccarico") },
+			{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Condensatore reattivo") },
 
-			// Phase (`Hero.Phase`)
-			{ TEXT("Hero.Phase.PressureJet"),        TEXT("Getto in pressione") },
-			{ TEXT("Hero.Phase.CircularTide"),       TEXT("Marea circolare") },
-			{ TEXT("Hero.Phase.FluidTrail"),         TEXT("Scia fluida") },
-			{ TEXT("Hero.Phase.MistVeil"),           TEXT("Velo di nebbia") },
-			{ TEXT("Hero.Phase.FlowReaction"),       TEXT("Reazione di flusso") },
-			{ TEXT("Hero.Phase.TideGuard"),          TEXT("Guardia di marea") },
+			// Muiren (`Hero.Muiren`)
+			{ TEXT("Hero.Muiren.PressureJet"),        TEXT("Getto in pressione") },
+			{ TEXT("Hero.Muiren.CircularTide"),       TEXT("Marea circolare") },
+			{ TEXT("Hero.Muiren.FluidTrail"),         TEXT("Scia fluida") },
+			{ TEXT("Hero.Muiren.MistVeil"),           TEXT("Velo di nebbia") },
+			{ TEXT("Hero.Muiren.FlowReaction"),       TEXT("Reazione di flusso") },
+			{ TEXT("Hero.Muiren.TideGuard"),          TEXT("Guardia di marea") },
 
 			// Branth (`Hero.Branth`)
 			{ TEXT("Hero.Branth.ImpactShot"),      TEXT("Colpo d'impatto") },
@@ -68,14 +68,15 @@ namespace
 			{ TEXT("Hero.Branth.Reconfigure"),     TEXT("Riconfigurazione") },
 			{ TEXT("Hero.Branth.Ram"),             TEXT("Carica d'ariete") },
 			{ TEXT("Hero.Branth.Interposition"),   TEXT("Interposizione") },
+			{ TEXT("Hero.Branth.MortarShot"),      TEXT("Colpo di mortaio") },
 
-			// Wraith (`Hero.Wraith`)
-			{ TEXT("Hero.Wraith.PulseShot"),        TEXT("Colpo a impulsi") },
-			{ TEXT("Hero.Wraith.InterceptShot"),    TEXT("Intercetto") },
-			{ TEXT("Hero.Wraith.PassingBlade"),     TEXT("Lama di passaggio") },
-			{ TEXT("Hero.Wraith.Deflection"),       TEXT("Deviazione") },
-			{ TEXT("Hero.Wraith.Feint"),            TEXT("Finta") },
-			{ TEXT("Hero.Wraith.PhaseGuard"),       TEXT("Guardia di fase") },
+			// Ivrin (`Hero.Ivrin`)
+			{ TEXT("Hero.Ivrin.PulseShot"),        TEXT("Colpo a impulsi") },
+			{ TEXT("Hero.Ivrin.InterceptShot"),    TEXT("Intercetto") },
+			{ TEXT("Hero.Ivrin.PassingBlade"),     TEXT("Lama di passaggio") },
+			{ TEXT("Hero.Ivrin.Deflection"),       TEXT("Deviazione") },
+			{ TEXT("Hero.Ivrin.Feint"),            TEXT("Finta") },
+			{ TEXT("Hero.Ivrin.PhaseGuard"),       TEXT("Guardia di fase") },
 		};
 
 		if (const FString* Found = Names.Find(Id))
@@ -179,7 +180,7 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 	// ⚠️ **Era `== 5` esatte, ed e' diventato un intervallo con un costo dichiarato**: il validatore non dice
 	// piu' *«questo eroe e' completo»* ma *«e' nell'intervallo»*. Un eroe a cui mancasse una fondamentale e
 	// che ne portasse una generica passerebbe. Si accetta perche' l'alternativa — alzare il minimo a 6 —
-	// renderebbe **invalidi** Gadget e Branth, che di azioni ne hanno cinque: sposterebbe il rosso invece di
+	// renderebbe **invalidi** Aevik e Branth, che di azioni ne hanno cinque: sposterebbe il rosso invece di
 	// toglierlo.
 	//
 	// ⛔ **Il tetto e' 6 e non "quante ne vuoi"**: oltre, il kit supera le posizioni che l'input raggiunge.
@@ -293,58 +294,60 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 	return Errors;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeGadget()
+URTHeroData* URTHeroCatalogLibrary::MakeAevik()
 {
-	URTHeroData* Gadget = NewObject<URTHeroData>();
-	Gadget->HeroId = TEXT("Hero.Gadget");
-	// ⚠️ La variabile dice `Gadget` e il nome dice `Gadget`, e NON e' un refuso: D-120 separa i due piani.
-	// `Hero.Gadget` e' lo Stable ID — chiave di codice, scenari e replay. #716 ha gia' sciolto la collisione
-	// di namespace (D-130), e il rename e' deciso: `Hero.Gadget` -> `Hero.Aevik`, differito post-v0.1 (D-321,
-	// D-334, che supersede D-322 sui quattro nomi), owner #2297. `Gadget` e' il nome canonico/player-facing di oggi, legacy temporaneo.
+	URTHeroData* Aevik = NewObject<URTHeroData>();
+	Aevik->HeroId = TEXT("Hero.Aevik");
+	// ✅ **Rename eseguito** (#2491, fetta B·C di #2297): `Hero.Gadget` -> `Hero.Aevik`, regime SECCO —
+	// nessun redirect, nessun resolver (D-134). Variabile, Stable ID e nome player-facing dicono ora la
+	// stessa cosa, e il commento che spiegava perche' NON lo dicessero e' uscito con la ragione che lo
+	// reggeva: D-120 separava i due piani finche' il piano dell'identita' era ancora quello vecchio.
+	// ⛔ `ERTEquipmentSlot::Gadget` e i nove token `Gadget.<Oggetto>` NON sono toccati: quella parola li'
+	// e' lo **slot d'equipaggiamento**, non l'eroe.
 	// Da qui il nome raggiunge l'unita' (`ConfigureFromHeroData`) e poi la HUD; il gate del confine e'
 	// `RefactorTactics.Unit.HeroDataCrossesTheBoundary`.
-	Gadget->DisplayName = FText::FromString(TEXT("Gadget"));
-	Gadget->MaxHealth = 90;
-	Gadget->MovePoints = 5;
-	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Wraith 100->90: quel calo aveva
-	// tolto la dominanza su Phase e lasciato quella su **Gadget**, dove a parita' di salute e vista Wraith
+	Aevik->DisplayName = FText::FromString(TEXT("Aevik"));
+	Aevik->MaxHealth = 90;
+	Aevik->MovePoints = 5;
+	// 6 -> 7 (#131, [D-073]). E' la seconda meta' del lavoro cominciato con Ivrin 100->90: quel calo aveva
+	// tolto la dominanza su Muiren e lasciato quella su **Aevik**, dove a parita' di salute e vista Ivrin
 	// restava avanti di un punto movimento.
 	//
-	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Gadget (o toglierne uno a
-	// Wraith) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
+	// La leva e' la VISTA e non il movimento, per due ragioni misurate. Dare 6 MP a Aevik (o toglierne uno a
+	// Ivrin) renderebbe i due profili IDENTICI sulle quattro statistiche base, e `RosterIsBalanced` verifica
 	// che nessuna coppia li condivida: si sarebbe rotto un test per ripararne un altro. E una resistenza alla
-	// spinta NEGATIVA per Wraith sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
+	// spinta NEGATIVA per Ivrin sarebbe stata un numero senza effetto — `PushResistance` e' una SOGLIA, e le
 	// spinte del catalogo valgono almeno 1, quindi -1 e 0 si comportano allo stesso modo.
 	//
-	// Con 7, Gadget diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
-	Gadget->VisionRange = 7;
-	Gadget->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
-	Gadget->PushResistance = 0;
+	// Con 7, Aevik diventa l'unico che vede oltre l'esagono di raggio 6: identita' vera, non compensazione.
+	Aevik->VisionRange = 7;
+	Aevik->HearingThreshold = 5;  // D-041: vede piu' lontano di tutti (7), quindi sente meno. L'udito COMPENSA la vista.
+	Aevik->PushResistance = 0;
 	// ADR-0008 §1 — «standard/tecnico» in entrambe le mobilita': 120 gradi a fine Move e a fine Dash.
 	// ⚠️ Ipotesi iniziale, non bilanciamento approvato: la fonte (handoff §23.1) la da' come «da
 	// scenario/playtest», e la taratura degli otto numeri e' lavoro separato (#1605 §Out of scope).
-	Gadget->MoveEndPivotMaxSteps = 2;
-	Gadget->DashEndPivotMaxSteps = 2;
-	Gadget->Affinity = TEXT("Affinity.Electricity");
-	// Debolezza acqua: stesso identificatore che Phase (CP 6.3) usera' come sua affinita', cosi' la combo
-	// "Gadget su bersaglio Wet" e "l'affinita' di Phase e' l'acqua" restano lo stesso concetto, non due nomi.
-	Gadget->Weakness = TEXT("Affinity.Water");
+	Aevik->MoveEndPivotMaxSteps = 2;
+	Aevik->DashEndPivotMaxSteps = 2;
+	Aevik->Affinity = TEXT("Affinity.Electricity");
+	// Debolezza acqua: stesso identificatore che Muiren (CP 6.3) usera' come sua affinita', cosi' la combo
+	// "Aevik su bersaglio Wet" e "l'affinita' di Muiren e' l'acqua" restano lo stesso concetto, non due nomi.
+	Aevik->Weakness = TEXT("Affinity.Water");
 	// E14.7 [D-047]: il profilo che il `Brace` arma. Il token NON porta il prefisso d'eroe — `Profile.Grounding`
-	// e non `Gadget.Grounding` — cosi' il profilo si riassegna quando il roster cresce, senza rename.
-	Gadget->ReactionProfileId = TEXT("Profile.Grounding");
+	// e non `Aevik.Grounding` — cosi' il profilo si riassegna quando il roster cresce, senza rename.
+	Aevik->ReactionProfileId = TEXT("Profile.Grounding");
 
 	// Indice 0 — ArcPulse, attacco base. 22 danni / range 4 e' ESATTAMENTE la fascia "medio raggio" del
 	// catalogo azioni v0.1 §1: non e' una coincidenza da verificare a mano, e' la stessa tabella.
 	const FRTActionDef ArcPulseDef = URTCatalogLibrary::MakeBasicAttack(4);
-	Gadget->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Gadget.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
+	Aevik->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Aevik.ArcPulse"), ArcPulseDef.ResolutionPhase, ArcPulseDef.Priority,
 		ArcPulseDef.RangeCells, ArcPulseDef.CooldownTurns, ArcPulseDef.Fallback, ArcPulseDef.Effects));
 
 	// Indice 1 — LinearDischarge. 24 danni in linea, range 5 (stessa portata di `Action.LineAttack`: nessuna
 	// azione lineare del catalogo ne dichiara una diversa). Il bonus "+8 su bersaglio Wet" NON e' nella lista
 	// Effects: e' condizionale al bersaglio, non un danno fisso, e passa da `EffectiveAttackPower` +
-	// `URTCombatLibrary::GadgetWetDischargeBonus` (vedi `Heroes.Gadget.WetBonus`) — un chiamante che applica
+	// `URTCombatLibrary::AevikWetDischargeBonus` (vedi `Heroes.Aevik.WetBonus`) — un chiamante che applica
 	// SOLO Effects vede 24, corretto finche' non controlla anche lo status del bersaglio.
-	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
+	Aevik->Actions.Add(MakeHeroAction(TEXT("Hero.Aevik.LinearDischarge"), ERTResolutionPhase::Attack, /*Priority*/ 55,
 		/*Range*/ 5, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 24) }, ERTAbilityShape::Line));
 
@@ -366,7 +369,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// Il corollario che vale per chi passera' di qui: nessun campo di durata per-azione entra nel catalogo per
 	// rappresentare l'altra lettura, e `Range 0` non e' piu' un segnaposto da sostituire.
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	URTActionData* ConductiveNode = MakeHeroActionFromCore(TEXT("Hero.Gadget.ConductiveNode"),
+	URTActionData* ConductiveNode = MakeHeroActionFromCore(TEXT("Hero.Aevik.ConductiveNode"),
 		TEXT("Action.Electrify"), /*Cooldown*/ 2);
 	// Il `nullptr` va guardato, altrimenti il fail-closed dell'helper diventa un crash sul percorso del
 	// roster: `GetHeroRoster()` gira all'avvio e in decine di test. Un eroe con un'abilita' in meno lo
@@ -376,13 +379,19 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 		// La propagazione e' IL comportamento, non un dettaglio: senza questa riga l'azione elettrificherebbe
 		// una cella sola e CP 8.3 resterebbe non innescabile pur avendo un owner.
 		ConductiveNode->Def.PropagationLimit = ElectrifyDef.PropagationLimit;
-		Gadget->Actions.Add(ConductiveNode);
+		Aevik->Actions.Add(ConductiveNode);
 	}
 
 	// Indice 3 — Overload. AoE 18 danni, raggio 1 (riuso il raggio di `Action.CircularAoE`, non un numero
-	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: non esistono dispositivi/gadget
-	// (E7). Solo il danno e' un effetto dichiarato.
-	Gadget->Actions.Add(MakeHeroAction(TEXT("Hero.Gadget.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
+	// nuovo), portata 3. "Interrupt sui dispositivi" non e' rappresentabile: manca un modello di **dispositivo
+	// interrompibile**, cioe' un bersaglio con uno stato che un `Interrupt` possa spegnere. Solo il danno e'
+	// un effetto dichiarato.
+	//
+	// ⚠️ Questa riga diceva «non esistono dispositivi/gadget (E7)». **E7 e' chiusa** e i gadget esistono —
+	// `Gadget.Sprinkler` e `Gadget.Insulator` sono equipaggiamento del catalogo. Il limite non e' caduto con
+	// l'epic, si e' solo ristretto: un limite che cita un'epic chiusa si legge come gia' risolto, ed e' cosi'
+	// che un vincolo reale sparisce senza che nessuno lo tolga.
+	Aevik->Actions.Add(MakeHeroAction(TEXT("Hero.Aevik.Overload"), ERTResolutionPhase::Attack, /*Priority*/ 65,
 		/*Range*/ 3, /*Cooldown*/ 3, ERTActionFallback::AttackCell,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 18) }, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 	// La variante (vincolo v0.1: una sola abilita' fondamentale per eroe) sta su LinearDischarge, non qui:
@@ -390,19 +399,31 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 
 	// Indice 4 — ReactiveCapacitor (CP 6.7). REAZIONE cablata sulla semantica di `Action.Counter`: stesso
 	// trigger («sono stato colpito da un attacco diretto») e stesso modo di raggiungere chi ha colpito. Gli
-	// EFFETTI sono di Gadget e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
+	// EFFETTI sono di Aevik e sono DUE — scudo 15 a se' **e** 10 danni all'attaccante: e' la reazione per cui
 	// CP 5.5 ha reso il motore componibile, e prima di allora ne sarebbe arrivata solo meta'.
 	// Cooldown 3, dal catalogo eroi: piu' lungo dei 2 di `Action.Counter`, perche' fa anche da scudo.
-	AddAbility(Gadget, MakeHeroReactionFromCoreAction(TEXT("Hero.Gadget.ReactiveCapacitor"), TEXT("Action.Counter"),
+	AddAbility(Aevik, MakeHeroReactionFromCoreAction(TEXT("Hero.Aevik.ReactiveCapacitor"), TEXT("Action.Counter"),
 		/*Cooldown*/ 3,
 		{ FRTActionEffectSpec(ERTActionEffect::Shield, 15),
 		  FRTActionEffectSpec(ERTActionEffect::Damage, 10) }));
 
 	// Variante di LinearDischarge (catalogo v0.1 §6, vincolo: una sola abilita' fondamentale con variante).
 	// Concentrata: +6 danni (30 totali), un solo bersaglio — "non si propaga" e' vero per costruzione, dato
-	// che LinearDischarge base non propaga (nessun sistema di propagazione elettrica esiste, E8).
+	// che LinearDischarge base **non dichiara** propagazione: `PropagationLimit` resta al default, a
+	// differenza di `ConductiveNode` che lo prende dal core.
+	//
+	// ⚠️ Questa riga diceva «nessun sistema di propagazione elettrica esiste, E8», e contraddiceva il
+	// commento di `ConductiveNode` quaranta righe piu' sopra, **nello stesso file**. Il sistema esiste: E8 e'
+	// chiusa, `ERTHexSurface::Conductive` dichiara `bConductsElectricity`, e CP 8.3 e' esercitata da
+	// `RTElectricPropagationTests.cpp`. Cio' che regge non e' l'assenza del sistema — e' che questa abilita'
+	// non vi si aggancia. La differenza conta: la prima formulazione rendeva la variante inspiegabile il
+	// giorno in cui qualcuno leggesse `Action.Electrify`, e prometteva un lavoro gia' fatto.
+	//
+	// 🔑 Ed e' il verso corretto della combo firma: `Status.Wet` e le superfici conduttive sono il **setup
+	// sistemico**, la scarica e' il **payoff**. Il `+8` di LinearDischarge dipende dallo STATO del bersaglio,
+	// non da chi l'ha bagnato (D-029, ADR-0006) — resta un'abilita' elettrica, non una skill d'acqua.
 	FRTAbilityVariant Concentrated;
-	Concentrated.VariantId = TEXT("Hero.Gadget.LinearDischarge.Concentrated");
+	Concentrated.VariantId = TEXT("Hero.Aevik.LinearDischarge.Concentrated");
 	Concentrated.DisplayName = FText::FromString(TEXT("Scarica concentrata"));
 	Concentrated.Tradeoff = FText::FromString(TEXT("+6 danni (30 totali), ma non si propaga a un secondo bersaglio"));
 	Concentrated.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 30));
@@ -412,43 +433,56 @@ URTHeroData* URTHeroCatalogLibrary::MakeGadget()
 	// (`ProduceEvents` legge oggi un solo `TargetUnitId` per istanza) — il numero c'e', il "come" arriva
 	// quando la geometria multi-bersaglio delle azioni lineari lo richiedera' davvero.
 	FRTAbilityVariant Branched;
-	Branched.VariantId = TEXT("Hero.Gadget.LinearDischarge.Branched");
+	Branched.VariantId = TEXT("Hero.Aevik.LinearDischarge.Branched");
 	Branched.DisplayName = FText::FromString(TEXT("Scarica ramificata"));
 	Branched.Tradeoff = FText::FromString(TEXT("un bersaglio aggiuntivo, ma -6 danni per bersaglio (18 ciascuno)"));
 	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
 	Branched.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 18));
 
-	Gadget->Actions[1]->Variants.Add(Concentrated);
-	Gadget->Actions[1]->Variants.Add(Branched);
+	Aevik->Actions[1]->Variants.Add(Concentrated);
+	Aevik->Actions[1]->Variants.Add(Branched);
 
-	return Gadget;
+	return Aevik;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakePhase()
+URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 {
-	URTHeroData* Phase = NewObject<URTHeroData>();
-	Phase->HeroId = TEXT("Hero.Phase");
-	Phase->DisplayName = FText::FromString(TEXT("Phase")); // D-120: nome canonico; `Hero.Phase` resta lo Stable ID
-	Phase->MaxHealth = 95;
-	Phase->MovePoints = 5;
-	Phase->VisionRange = 5;
-	Phase->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
-	Phase->PushResistance = 0;
+	URTHeroData* Muiren = NewObject<URTHeroData>();
+	Muiren->HeroId = TEXT("Hero.Muiren");
+	// ✅ **Rename eseguito** (#2491): `Hero.Phase` -> `Hero.Muiren`, regime SECCO (D-134).
+	//
+	// 🔴 **E questo commento e' gia' stato reso autocontraddittorio una volta, dalla sostituzione che
+	// descrive.** Il passaggio che rinominava l'eroe dentro i commenti l'ha ridotto a *«`Hero.Muiren` ->
+	// `Hero.Muiren`»* — una frase che dichiara un rename fra un nome e se stesso — e ha chiamato
+	// «`Muiren`» il parametro `Phase` e la fase del turno, cioe' le tre cose che la riga sotto esiste per
+	// dire che NON cambiano. E' lo stesso difetto che il commento in cima a questo file racconta di #753:
+	// *una sostituzione di testo puo' invertire il senso di una frase senza toccarne la forma, e nessun
+	// gate lo vede perche' il file compila*. Capitato due volte nello stesso file, la seconda a chi
+	// l'aveva appena letto.
+	//
+	// ⛔ `Phase` resta ovunque significhi la **fase del turno**: `ERTMatchPhase`, `ERTResolutionPhase`,
+	// il parametro `Phase` di `MakeHeroAction` qui sopra, e `Hero.Ivrin.PhaseGuard` — «Guardia di fase».
+	Muiren->DisplayName = FText::FromString(TEXT("Muiren"));
+	Muiren->MaxHealth = 95;
+	Muiren->MovePoints = 5;
+	Muiren->VisionRange = 5;
+	Muiren->HearingThreshold = 3;  // D-041: orecchio fine (soglia bassa) a compensare una vista corta.
+	Muiren->PushResistance = 0;
 	// ADR-0008 §1 — Move «fluido» (120 gradi), Dash «molto manovrabile»: 3 step, cioe' qualsiasi facing.
 	// E' la coppia che dimostra da sola perche' i budget sono DUE e non uno.
-	Phase->MoveEndPivotMaxSteps = 2;
-	Phase->DashEndPivotMaxSteps = 3;
-	Phase->Affinity = TEXT("Affinity.Water");
-	// Simmetrica a Gadget (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
+	Muiren->MoveEndPivotMaxSteps = 2;
+	Muiren->DashEndPivotMaxSteps = 3;
+	Muiren->Affinity = TEXT("Affinity.Water");
+	// Simmetrica a Aevik (Affinity.Water e' gia' la sua debolezza): la rivalita' fra i due eroi legati dalla
 	// combo Wet e' un solo identificatore condiviso in entrambe le direzioni, non due nomi da sincronizzare.
-	Phase->Weakness = TEXT("Affinity.Electricity");
-	Phase->ReactionProfileId = TEXT("Profile.Sidestep"); // E14.7 [D-047]
+	Muiren->Weakness = TEXT("Affinity.Electricity");
+	Muiren->ReactionProfileId = TEXT("Profile.Sidestep"); // E14.7 [D-047]
 
 	// Indice 0 — PressureJet, attacco base. 16 danni non corrisponde a NESSUNA fascia di
-	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Gadget.ArcPulse`, l'attacco base di Phase e'
+	// `BasicAttackDamageForRange` (28/25/22/20): a differenza di `Aevik.ArcPulse`, l'attacco base di Muiren e'
 	// TEMATICO (linea, Wet, spinta), non generico per portata. Non si forza `MakeBasicAttack` su un numero
-	// che non gli appartiene. Range 5: stessa portata di `Gadget.LinearDischarge` (stessa forma, stesso riuso).
-	Phase->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Phase.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	// che non gli appartiene. Range 5: stessa portata di `Aevik.LinearDischarge` (stessa forma, stesso riuso).
+	Muiren->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Muiren.PressureJet"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 5, /*Cooldown*/ 0, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Damage, 16),
@@ -458,30 +492,34 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 
 	// Indice 1 — CircularTide. Cura 18 ad area, e **solo quello** (#1006).
 	//
-	// 🔵 Il `Wet` ai nemici e' USCITO dalla dichiarazione. Viene da #995: Phase e' **abilitata** a Water,
+	// 🔵 Il `Wet` ai nemici e' USCITO dalla dichiarazione. Viene da #995: Muiren e' **abilitata** a Water,
 	// non padrona — grado `Access`, cioe' UNA sola capability elementale — e il catalogo ne dichiarava
 	// tre. Resta `PressureJet`. Copertura: `RefactorTactics.Heroes.Phase.TideHealsWithoutWetting`, che
 	// sostituisce `...TideHealsAlliesWetsEnemies` — il nome e' cambiato col contratto, perche' un test
 	// che dice `WetsEnemies` e non verifica piu' nessun `Wet` resta verde e racconta un kit che non c'e'.
 	//
 	// ⚠️ Costo accettato con l'opzione C di #1006: questo `Wet` ad area era il preparatore della combo con
-	// Gadget (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
+	// Aevik (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
 	// `PressureJet`, che copre meno bersagli.
 	//
 	// Il limite dichiarato di prima resta e non c'entra col cambio: `bFriendlyFire` decide SE colpire un
-	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Gadget.Overload`.
-	Phase->Actions.Add(MakeHeroAction(TEXT("Hero.Phase.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
+	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Aevik.Overload`.
+	Muiren->Actions.Add(MakeHeroAction(TEXT("Hero.Muiren.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
 		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
 		{
 			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
 		}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
 
-	// Indice 2 — FluidTrail. `Dash 3` che crea acqua lungo il percorso: la mobilita' e' rappresentabile
-	// (fase Dash, stile lineare — stessa famiglia di `Action.Dodge`), la creazione di terreno no (nessun
-	// effetto di cella dinamica esiste: E8/E9). Nessun Effects dichiarato: il movimento non passa da li', e
-	// l'acqua lasciata dietro non ha un modello da consumare.
+	// Indice 2 — FluidTrail. `Dash 3` e **basta**: la scia d'acqua e' uscita dal kit con #1006. Nessun
+	// Effects dichiarato, e non e' un limite in attesa di un sistema — e' la forma corrente dell'abilita'.
 	// Lo slot va dichiarato: `MakeHeroAction` mette `Main` di default, e per una mobilita' che non fa danno
 	// sarebbe quello sbagliato (D-028). Chi lascia la scia si e' mosso, ma puo' ancora agire.
+	//
+	// ⚠️ Queste righe dicevano «crea acqua lungo il percorso: … la creazione di terreno no (nessun effetto di
+	// cella dinamica esiste: E8/E9)», e la premessa era scaduta **due volte**. E8/E9 sono chiuse — il terreno
+	// dinamico esiste, `ApplyDynamicSurface` cambia la superficie di una cella per N turni — e l'abilita' non
+	// crea piu' terreno affatto. Contraddicevano il capoverso qui sotto, che il cambio lo spiega per intero.
+	//
 	// 🔵 **TORNA a essere uno scatto (#1006), e D-046 e' superata su questo punto.**
 	//
 	// D-046 l'aveva cablata su `Action.CreateWater` per dare all'acqua un owner nel roster, e il suo
@@ -491,17 +529,17 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// `Gadget.Sprinkler` porta gia' `Action.CreateWater` («acqua raggio 1, che e' esattamente cio' che
 	// `Action.CreateWater` gia' fa», `RTCatalogLibrary.cpp`). Chi vuole la combo la equipaggia.
 	//
-	// La ragione del cambio viene da #995: Phase e' **abilitata** a Water, non padrona — grado `Access`,
+	// La ragione del cambio viene da #995: Muiren e' **abilitata** a Water, non padrona — grado `Access`,
 	// una sola capability elementale. Questa era la terza, e l'unica che *generava* la superficie.
 	// Per la grammatica di #995 un Generic Equipment e' `External Access` e non fa proficiency, quindi
-	// montare lo Sprinkler non riporta Phase sopra `Access`.
+	// montare lo Sprinkler non riporta Muiren sopra `Access`.
 	//
 	// ⚠️ **Costo accettato, scritto qui perche' e' dove qualcuno lo cerchera'**: il roster perde l'unico
-	// produttore INNATO di superficie acqua, quindi `Gadget.ConductiveNode` — che propaga sul grafo
+	// produttore INNATO di superficie acqua, quindi `Aevik.ConductiveNode` — che propaga sul grafo
 	// conduttivo — dipende ora dalla mappa o dallo Sprinkler.
 	//
 	// ✅ E D-028 riacquista un soggetto: `RTHeroCatalogTests.cpp` registra che dopo D-046 la regola era
-	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Wraith.PassingBlade` e' FastMovement e fa
+	// «vera, e oggi senza nessuno a cui applicarsi», perche' `Ivrin.PassingBlade` e' FastMovement e fa
 	// 20 danni. Questa e' di nuovo mobilita' senza danno.
 	//
 	// 🔴 Questa riga chiamava `PassingBlade` **«una carica»** per via del danno. Dopo [D-191] la
@@ -516,12 +554,12 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// quello sbagliato (D-028). Chi scatta si e' mosso, ma puo' ancora agire.
 	//
 	// 🔴 **Questa riga diceva «per una mobilita' che NON FA DANNO», e la clausola era il difetto**: ha
-	// lasciato `Hero.Wraith.PassingBlade` — che fa danno — col `Main` di default, e con esso due azioni
+	// lasciato `Hero.Ivrin.PassingBlade` — che fa danno — col `Main` di default, e con esso due azioni
 	// principali in un turno. [D-191] toglie la clausola e fissa il criterio: conta se la mobilita' si
 	// FERMA sul bersaglio (`LinearCharge` -> attacco, slot principale) o lo ATTRAVERSA (`LinearPass` ->
 	// mobilita', slot movimento), non se fa danno.
 	const FRTActionDef DodgeDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dodge"));
-	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Phase.FluidTrail"),
+	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Muiren.FluidTrail"),
 		TEXT("Action.Dodge"), /*Cooldown*/ 2);
 	if (FluidTrail)
 	{
@@ -532,7 +570,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 		// fase, portata, ricarica, fallback ed effetti — non i campi di comportamento. Senza questa riga
 		// l'azione risolve e non muove nessuno, cioe' fallisce nel modo piu' silenzioso possibile.
 		FluidTrail->Def.MovementStyle = DodgeDef.MovementStyle;
-		Phase->Actions.Add(FluidTrail);
+		Muiren->Actions.Add(FluidTrail);
 	}
 
 	// Indice 3 — MistVeil. Issue #353: dichiarava «crea fumo raggio 1» e non lo faceva. `Smoke` era l'unica
@@ -549,7 +587,7 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// azioni ambientali (`Ignite`, `CreateWater`). La priorita' e' un ordinamento INTERNO alla fase — si
 	// confronta solo fra azioni della stessa — quindi il 35 scelto per il Prep non aveva piu' significato
 	// dove l'azione e' andata a vivere. Il cooldown 3 resta: e' del catalogo eroi.
-	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Phase.MistVeil"),
+	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Muiren.MistVeil"),
 		TEXT("Action.Ignite"), /*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1);
 	if (MistVeil)
 	{
@@ -565,7 +603,23 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 		MistVeil->Def.bCreatesSurface = true;
 		MistVeil->Def.SurfaceCreated = ERTHexSurface::Smoke;
 		MistVeil->Def.SurfaceRadius = 1; // «crea fumo raggio 1», catalogo eroi
-		Phase->Actions.Add(MistVeil);
+
+		// ➕ **LA PRIMA — E PER ORA L'UNICA — AZIONE CHE NON CHIEDE LA LINEA DI TIRO** (`#2870`, [D-378]).
+		//
+		// 🔑 **Perche' questa e non un attacco ad area.** `MistVeil` non e' un'aggressione: `bCountsAsAttack`
+		// resta falso e non dichiara `Damage`, quindi la licenza **non riprezza niente** — nessun numero di
+		// bilanciamento cambia, e non nasce l'AoE che colpisce da dietro un muro senza che nessuno l'abbia
+		// deciso. `Aevik.Overload` e `Muiren.CircularTide` restano `Required`, che e' il default.
+		//
+		// ⚠️ **E il concept regge nel verso giusto**: un velo si lancia *per non far vedere*, e pretendere di
+		// vedere il punto in cui lo si posa e' la richiesta piu' strana delle due. Il fumo si alza nel
+		// Cleanup e copre il turno seguente (vedi sopra), quindi cio' che si guadagna e' un attraversamento
+		// preparato al buio — non un colpo.
+		//
+		// ⛔ **Non e' un rilevatore**: la cella si sceglie sulla topologia, che [D-373] ha dichiarato
+		// pubblica, e nessun ramo del targeting guarda chi ci sta sopra.
+		MistVeil->Def.LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired;
+		Muiren->Actions.Add(MistVeil);
 	}
 
 	// Indice 4 — FlowReaction. `Reposition 1` dopo un attacco subito: e' una reazione che produce MOVIMENTO
@@ -574,45 +628,45 @@ URTHeroData* URTHeroCatalogLibrary::MakePhase()
 	// Il rinvio e' dichiarato come DATO: slot `None` e nessun trigger. Darle lo slot `Reaction` la farebbe
 	// raccogliere dal pass delle reazioni, che la registrerebbe come attivata senza che accada nulla — un
 	// esito falso nel TurnLog e' peggio di un'abilita' dichiaratamente incompleta.
-	Phase->Actions.Add(MakeHeroAction(TEXT("Hero.Phase.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
+	Muiren->Actions.Add(MakeHeroAction(TEXT("Hero.Muiren.FlowReaction"), ERTResolutionPhase::Preparation, /*Priority*/ 36,
 		/*Range*/ 0, /*Cooldown*/ 3, ERTActionFallback::Cancel, {}, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::None, ERTInterruptPolicy::None));
 
-	// `Hero.Phase.TideGuard` — lo scudo PROATTIVO, derivato da `Action.Shield`: Preparation, 25 punti di
+	// `Hero.Muiren.TideGuard` — lo scudo PROATTIVO, derivato da `Action.Shield`: Preparation, 25 punti di
 	// scudo temporaneo, cooldown 2. E' l'unico scudo del gioco che si sceglie PRIMA di sapere se sarai
-	// colpito: `Gadget.ReactiveCapacitor` e `Reaction.ReactiveShield` rispondono a un colpo gia' partito.
+	// colpito: `Aevik.ReactiveCapacitor` e `Reaction.ReactiveShield` rispondono a un colpo gia' partito.
 	//
-	// Uno per squadra — il gemello e' `Hero.Wraith.PhaseGuard` — perche' le formazioni sono fisse
-	// (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Non va a Gadget, che porta gia' `ReactiveCapacitor`:
+	// Uno per squadra — il gemello e' `Hero.Ivrin.PhaseGuard` — perche' le formazioni sono fisse
+	// (`ARTGameMode::Team0Heroes`/`Team1Heroes`). Non va a Aevik, che porta gia' `ReactiveCapacitor`:
 	// sarebbe la terza fonte di scudo sullo stesso eroe, il difetto che [D-218] ha corretto altrove.
 	//
-	// ⚠️ **E' la SESTA azione di Phase, e prima non ci sarebbe stata**: fino a quando le generiche
+	// ⚠️ **E' la SESTA azione di Muiren, e prima non ci sarebbe stata**: fino a quando le generiche
 	// occupavano la fila dei numeri, un kit da undici voci ne lasciava una impremibile.
-	// Stessa ragione del gemello `Hero.Wraith.PhaseGuard`: un `nullptr` non entra nel kit.
-	AddAbility(Phase, MakeHeroActionFromCore(TEXT("Hero.Phase.TideGuard"), TEXT("Action.Shield"),
+	// Stessa ragione del gemello `Hero.Ivrin.PhaseGuard`: un `nullptr` non entra nel kit.
+	AddAbility(Muiren, MakeHeroActionFromCore(TEXT("Hero.Muiren.TideGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di CircularTide (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// Curativa: cura 24 (invece di 18), MA non applica Wet ai nemici — rinuncia al setup della combo con
-	// Gadget per curare di piu'.
+	// Aevik per curare di piu'.
 	FRTAbilityVariant Healing;
-	Healing.VariantId = TEXT("Hero.Phase.CircularTide.Healing");
+	Healing.VariantId = TEXT("Hero.Muiren.CircularTide.Healing");
 	Healing.DisplayName = FText::FromString(TEXT("Marea curativa"));
 	Healing.Tradeoff = FText::FromString(TEXT("cura 24 invece di 18, ma non applica Wet ai nemici"));
 	Healing.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 24));
 
 	// Urto: cura 10 (meno della base) MA applica Push 1 ai nemici — meno supporto, piu' controllo.
 	FRTAbilityVariant Impact;
-	Impact.VariantId = TEXT("Hero.Phase.CircularTide.Impact");
+	Impact.VariantId = TEXT("Hero.Muiren.CircularTide.Impact");
 	Impact.DisplayName = FText::FromString(TEXT("Marea d'urto"));
 	Impact.Tradeoff = FText::FromString(TEXT("cura solo 10, ma applica Push 1 ai nemici"));
 	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Heal, 10));
 	Impact.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Push, 1));
 
-	Phase->Actions[1]->Variants.Add(Healing);
-	Phase->Actions[1]->Variants.Add(Impact);
+	Muiren->Actions[1]->Variants.Add(Healing);
+	Muiren->Actions[1]->Variants.Add(Impact);
 
-	return Phase;
+	return Muiren;
 }
 
 URTHeroData* URTHeroCatalogLibrary::MakeBranth()
@@ -646,7 +700,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	Branth->MoveEndPivotMaxSteps = 1;
 	Branth->DashEndPivotMaxSteps = 0;
 	Branth->Affinity = TEXT("Affinity.Structures");
-	// Simmetrica a Wraith (CP 6.5), come Gadget/Phase fra loro: il roster chiude in due coppie. Il piu' lento
+	// Simmetrica a Ivrin (CP 6.5), come Aevik/Muiren fra loro: il roster chiude in due coppie. Il piu' lento
 	// del roster e' vulnerabile a chi il movimento lo fa di mestiere.
 	Branth->Weakness = TEXT("Affinity.Movement");
 	// ⛔ **Branth NON ha un profilo, e il campo resta `None` di proposito** ([D-047], §2.5). La proposta gli
@@ -657,13 +711,13 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	// ∴ il roster tiene **un eroe senza finestra sul `Brace`**, ed e' la baseline con cui CP 14.6 confronta
 	// gli altri tre quando misura il pacing. La riga non si aggiunge: l'assenza e' il contenuto.
 
-	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Phase.PressureJet`, non e'
+	// Indice 0 — ImpactShot, attacco base. **8 danni / range 3** (ADR-0007). Come `Muiren.PressureJet`, non e'
 	// una fascia di `BasicAttackDamageForRange`: l'attacco base e' dell'eroe, non della tabella generica.
 	//
 	// Fino al 2026-08-09 erano 24, ed era un numero motivato — la fascia corto raggio da' 25, e il catalogo
 	// ne toglieva uno «in cambio della stazza». Il problema non era il numero in se': era che rendeva
 	// `ImpactShot` l'attacco base PIU' FORTE del roster mentre il ruolo dichiarato di Branth e'
-	// Utility/Emergency. 8 e' ancorato a `Phase.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
+	// Utility/Emergency. 8 e' ancorato a `Muiren.PressureJet` (16), che sta un gradino sopra: ne e' la meta'
 	// esatta. Basso, ma non finto: deve restare corretto premerlo per finire un bersaglio a pochi HP.
 	//
 	// Lo `Slow` e' la utility della famiglia, e delle cinque candidate era l'unica sia esprimibile sia
@@ -744,6 +798,51 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	AddAbility(Branth, MakeHeroReactionFromCoreAction(TEXT("Hero.Branth.Interposition"), TEXT("Action.Intercept"),
 		/*Cooldown*/ 3));
 
+	// Indice 5 — MortarShot. ➕ **LA PRIMA AZIONE DEL ROSTER CHE COLPISCE SENZA VEDERE** (`#2890`, [D-380]).
+	//
+	// 🔑 **E' la sesta, ed e' esattamente il posto che il validatore teneva libero.** `ValidateHeroes`
+	// ammette *«1 attacco base + 4 abilita' fondamentali, piu' al massimo UNA generica del catalogo core
+	// portata nel kit»*: Branth ne aveva cinque, e questa e' quella generica. Il tetto di 6 non si sfonda, e
+	// `PlayerInput.EveryKitEntryIsReachable` resta il gate che misura se il tasto esiste.
+	//
+	// 🔑 **Perche' Branth e non gli altri tre.** E' l'unico del roster senza un'AoE offensiva —
+	// `Aevik.Overload` e `Muiren.CircularTide` ce l'hanno gia', e darla a loro sarebbe la seconda area sullo
+	// stesso eroe. E il concept regge nel verso giusto: Branth e' l'eroe CINETICO, quello che spinge e
+	// sfonda (`Ram`, `ImpactShot`, `KineticPanel`); un colpo ad arco che cade oltre l'ostacolo e' la sua
+	// grammatica, non un innesto.
+	//
+	// ⚠️ **La policy NON si scrive qui**, a differenza di `MistVeil`: viene da `Action.Mortar` attraverso
+	// `MakeHeroActionFromCore`, che ora la copia come copia `bSelfTarget`. Riscriverla su questa riga
+	// sarebbe la seconda sede della stessa decisione — e la prima e' il catalogo.
+	if (URTActionData* Mortar = MakeHeroActionFromCore(TEXT("Hero.Branth.MortarShot"), TEXT("Action.Mortar"),
+		/*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1))
+	{
+		// 🔴 **PORTATA 3, non la 4 del catalogo, e la ragione e' MISURATA — non un aggiustamento a occhio.**
+		//
+		// `Action.Mortar` dichiara 4 come il suo gemello a vista `Action.CircularAoE`, e li' resta: il
+		// prezzo del tiro indiretto si paga su danno e ricarica, non sull'avvicinamento. Ma Branth e'
+		// l'unico del roster che ingaggia a **3** (`ImpactShot`; Aevik 4, Ivrin 4, Muiren 5), e un'arma
+		// piu' lunga della sua non gli aggiunge un'opzione: gli cambia il **comportamento**.
+		//
+		// Misurato il 2026-09-10 sulla suite: con portata 4 il bot smette di chiudere e resta a distanza a
+		// ricaricare, e cadono **tre** gate anti-stallo — `Bot.StallDefinitionsOnTheGeneratedTestArena`
+		// («5 eliminazioni su 4»), `Match.Autobattle.EngagesOnTheGeneratedTestArena` («piu' lunga sequenza
+		// ferma 11 turni, pareggio allo scadere») e `Match.Autobattle.NobodyParksOnTheAuthoredMap`
+		// («6 turni fermi, limite 4»). Tutti e tre verdi su `main` prima della modifica, tutti e tre verdi
+		// di nuovo con la portata 3. ∴ la causa e' la portata, non l'azione.
+		//
+		// ⚠️ **E' una taratura d'EROE, come la ricarica**, che `MakeHeroActionFromCore` prende gia' per
+		// parametro: il catalogo dice cosa l'azione E', il kit dice come quell'eroe la porta. Chi domani
+		// desse il mortaio a un eroe che ingaggia a 4 o piu' non ha bisogno di questa riga.
+		//
+		// ⛔ **Lo specchio si scrive in ENTRAMBI i posti**: `ARTTurnManager` legge la portata dal `Def`, il
+		// bot da `URTActionData::RangeCells`. Scriverne uno solo lascerebbe le due meta' in disaccordo — lo
+		// stesso difetto che `MakeAbility` documenta per il cooldown.
+		Mortar->Def.RangeCells = 3;
+		Mortar->RangeCells = 3;
+		AddAbility(Branth, Mortar);
+	}
+
 	// Variante di KineticPanel (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
 	// I due compromessi sono fatti di INTEGRITA' e DURATA, non di effetti, e vivono in `Parameters`.
 	// **Da CP 9.5 qualcuno li legge**: `ResolveCoverStructures` prende integrita' e durata dalla variante
@@ -783,39 +882,39 @@ URTHeroData* URTHeroCatalogLibrary::MakeBranth()
 	return Branth;
 }
 
-URTHeroData* URTHeroCatalogLibrary::MakeWraith()
+URTHeroData* URTHeroCatalogLibrary::MakeIvrin()
 {
-	URTHeroData* Wraith = NewObject<URTHeroData>();
-	Wraith->HeroId = TEXT("Hero.Wraith");
-	Wraith->DisplayName = FText::FromString(TEXT("Wraith")); // D-120: nome canonico; `Hero.Wraith` resta lo Stable ID
-	// 100 -> 90 (#131). A 100 HP Wraith DOMINAVA Gadget (90/5/6/0) e Phase (95/5/5/0) sulle quattro statistiche
+	URTHeroData* Ivrin = NewObject<URTHeroData>();
+	Ivrin->HeroId = TEXT("Hero.Ivrin");
+	Ivrin->DisplayName = FText::FromString(TEXT("Ivrin")); // D-120: nome canonico; `Hero.Ivrin` resta lo Stable ID
+	// 100 -> 90 (#131). A 100 HP Ivrin DOMINAVA Aevik (90/5/6/0) e Muiren (95/5/5/0) sulle quattro statistiche
 	// base: migliore o pari ovunque, strettamente migliore in salute e movimento. Il catalogo §5 scriveva
-	// «Wraith compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
+	// «Ivrin compra mobilita' con l'assenza di difese», che sui numeri era falso — non pagava nulla.
 	//
-	// ⚠️ 90 toglie la dominanza su **Phase** (-5 HP), NON quella su Gadget: a parita' di HP e vista resta +1 MP.
-	// Non e' una svista, e' il perimetro della decisione presa: il costo di Wraith diventa visibile, ma il
-	// confronto Gadget/Wraith resta da chiudere e vive in `#131`, che non si chiude qui.
-	Wraith->MaxHealth = 90;
-	Wraith->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
-	Wraith->VisionRange = 6;
-	Wraith->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
-	Wraith->PushResistance = 0;
+	// ⚠️ 90 toglie la dominanza su **Muiren** (-5 HP), NON quella su Aevik: a parita' di HP e vista resta +1 MP.
+	// Non e' una svista, e' il perimetro della decisione presa: il costo di Ivrin diventa visibile, ma il
+	// confronto Aevik/Ivrin resta da chiudere e vive in `#131`, che non si chiude qui.
+	Ivrin->MaxHealth = 90;
+	Ivrin->MovePoints = 6; // il piu' mobile del roster: e' cio' che compra con l'assenza di difese
+	Ivrin->VisionRange = 6;
+	Ivrin->HearingThreshold = 5;  // D-041: mobilita' e vista si pagano sull'udito.
+	Ivrin->PushResistance = 0;
 	// ADR-0008 §1 — «agile/predittivo» e «reposition rapido»: 3 e 3, l'unico del roster libero di finire
 	// qualunque movimento guardando dove vuole. E' l'estremo opposto di Branth, e la scala esiste per
 	// questo: se il pivot alto risultasse sempre preferibile, la via di rientro dichiarata dall'ADR e'
 	// **comprimere la scala** (tutti a 1-2), non rimuovere il modello.
-	Wraith->MoveEndPivotMaxSteps = 3;
-	Wraith->DashEndPivotMaxSteps = 3;
-	Wraith->Affinity = TEXT("Affinity.Movement");
+	Ivrin->MoveEndPivotMaxSteps = 3;
+	Ivrin->DashEndPivotMaxSteps = 3;
+	Ivrin->Affinity = TEXT("Affinity.Movement");
 	// Simmetrica a Branth: chi si muove di mestiere e' neutralizzato da chi gli chiude le traiettorie.
-	// Il roster chiude in due coppie — Gadget↔Phase sull'acqua, Branth↔Wraith sullo spazio.
-	Wraith->Weakness = TEXT("Affinity.Structures");
+	// Il roster chiude in due coppie — Aevik↔Muiren sull'acqua, Branth↔Ivrin sullo spazio.
+	Ivrin->Weakness = TEXT("Affinity.Structures");
 	// E14.7 [D-047]: `Profile.Glance` porta DUE risposte extra, quindi cardinalita' 3 — l'unico del roster.
-	Wraith->ReactionProfileId = TEXT("Profile.Glance");
+	Ivrin->ReactionProfileId = TEXT("Profile.Glance");
 
-	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Phase e Branth, non e' la fascia
+	// Indice 0 — PulseShot, attacco base. 21 danni / range 4: come per Muiren e Branth, non e' la fascia
 	// generica (a range 4 darebbe 22). Un punto in meno del medio raggio, pagato in mobilita'.
-	Wraith->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Wraith.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
+	Ivrin->Actions.Add(MakeHeroBasicAttack(TEXT("Hero.Ivrin.PulseShot"), ERTResolutionPhase::Attack, /*Priority*/ 50,
 		/*Range*/ 4, /*Cooldown*/ 0, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 21) }));
 
@@ -831,7 +930,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// Lo slot torna `Main`: e' un'azione dichiarata in pianificazione come le altre, non una reazione tenuta
 	// pronta. Portata 1 e' la cella ADIACENTE controllata; il cooldown 2 non cambia — chi scommette paga il
 	// cooldown anche quando sbaglia, ed e' la meta' del costo che rende il whiff una scelta.
-	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Wraith.InterceptShot"), ERTResolutionPhase::Preparation,
+	URTActionData* InterceptShot = MakeHeroAction(TEXT("Hero.Ivrin.InterceptShot"), ERTResolutionPhase::Preparation,
 		/*Priority*/ 30, /*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 16) }, ERTAbilityShape::Single, /*AreaRadius*/ 0,
 		ERTActionSlot::Main, ERTInterruptPolicy::None);
@@ -839,10 +938,10 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// la cella non si rivaluta, `MovementEntry` quando si guarda chi ci e' passato.
 	InterceptShot->Def.PredictiveTargeting = ERTPredictiveTargeting::LockCell;
 	InterceptShot->Def.PredictionBoundary = ERTPredictionBoundary::MovementEntry;
-	Wraith->Actions.Add(InterceptShot);
+	Ivrin->Actions.Add(InterceptShot);
 
 	// Indice 2 — PassingBlade. `Dash 3` che colpisce per 20 le unita' ATTRAVERSATE: l'unica abilita'
-	// non-base di Wraith interamente rappresentabile. Stile `LinearPass` e non `LinearCharge`: la carica si
+	// non-base di Ivrin interamente rappresentabile. Stile `LinearPass` e non `LinearCharge`: la carica si
 	// FERMA sul primo nemico, questa gli passa attraverso — e' la differenza che `ERTMovementStyle` esiste
 	// per rendere un dato invece che un `if` sull'ActionId (CP 4.5).
 	//
@@ -851,14 +950,14 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// [D-191], che su quella distinzione fonda il criterio dello slot — un commento sbagliato li' non e' piu'
 	// solo impreciso, manda il prossimo kit dalla parte sbagliata.
 	// 🔴 Lo SLOT e' `Movement` e va DICHIARATO ([D-191]): una mobilita' rapida occupa il movimento, e il
-	// danno non cambia che cosa ha speso. Vale per tutte e tre quelle del roster — questa, `Phase.FluidTrail`
+	// danno non cambia che cosa ha speso. Vale per tutte e tre quelle del roster — questa, `Muiren.FluidTrail`
 	// e `Branth.Ram`, carica compresa.
 	//
 	// ⚠️ Senza la dichiarazione prendeva il `Main` di default di `MakeHeroAction`, e la conseguenza era
 	// misurabile: il bot pianificava lama + attacco base e il resolver eseguiva ENTRAMBE — due azioni
 	// principali, 41 danni in un turno. Il difetto e' rimasto invisibile finche' nessuno ha composto il
 	// piano e chiesto a `URTPlanValidationLibrary::ValidatePlan` se fosse legale.
-	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.PassingBlade"), ERTResolutionPhase::FastMovement,
+	Ivrin->Actions.Add(MakeHeroAction(TEXT("Hero.Ivrin.PassingBlade"), ERTResolutionPhase::FastMovement,
 		/*Priority*/ 30, /*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 20) },
 		ERTAbilityShape::Single, /*AreaRadius*/ 0, ERTActionSlot::Movement));
@@ -866,7 +965,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// codice si fermava sul primo nemico come uno scatto qualsiasi, quindi i 20 danni dichiarati sopra non
 	// avevano un momento in cui applicarsi. Lo stile e' un DATO proprio per questo (CP 4.5): la differenza
 	// fra fermarsi, fermarsi addosso, scavalcare e attraversare non e' un `if` sull'ActionId.
-	Wraith->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
+	Ivrin->Actions[2]->Def.MovementStyle = ERTMovementStyle::LinearPass;
 
 	// Indice 3 — Deflection (CP 6.7). REAZIONE cablata sulla semantica di `Action.Deflect`: un POOL di 20
 	// danni assorbibili sui colpi diretti del boundary che l'ha innescata. La riduzione arriva dagli effetti
@@ -877,7 +976,7 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// il Deflect e' una reazione senza clausola d'arco — e l'ORDINE: `Deflect` assorbe per primo ([D-312]).
 	// ⚠️ La divergenza aperta da [D-292] il 2026-08-31 e' durata un giorno: [D-309] l'ha richiusa.
 	// Cooldown 2, uguale al core: il catalogo eroi non ne dichiara uno diverso.
-	AddAbility(Wraith, MakeHeroReactionFromCoreAction(TEXT("Hero.Wraith.Deflection"), TEXT("Action.Deflect"),
+	AddAbility(Ivrin, MakeHeroReactionFromCoreAction(TEXT("Hero.Ivrin.Deflection"), TEXT("Action.Deflect"),
 		/*Cooldown*/ 2));
 
 	// Indice 4 — Feint. Marca una CELLA e concede un `Reposition`: nessuna delle due meta' e' dichiarabile.
@@ -889,16 +988,16 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// `Parameters` perche' quelli sono della VARIANTE (dove il catalogo differenzia due configurazioni), e
 	// qui non c'e' niente da differenziare: e' un numero dell'azione base, e finche' non esiste un effetto
 	// che lo porti resta dichiarato nel catalogo eroi, non simulato in un campo che nessuno leggerebbe.
-	Wraith->Actions.Add(MakeHeroAction(TEXT("Hero.Wraith.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
+	Ivrin->Actions.Add(MakeHeroAction(TEXT("Hero.Ivrin.Feint"), ERTResolutionPhase::Control, /*Priority*/ 40,
 		/*Range*/ 3, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
 
-	// `Hero.Wraith.PhaseGuard` — gemello di `Hero.Phase.TideGuard`, uno per squadra. Su Wraith costa una
+	// `Hero.Ivrin.PhaseGuard` — gemello di `Hero.Muiren.TideGuard`, uno per squadra. Su Ivrin costa una
 	// scelta vera: la Preparation spesa qui e' quella che non arma `InterceptShot`.
 	// 🔴 `AddAbility` e non `Actions.Add`: `MakeHeroActionFromCore` e' fail-closed e torna `nullptr` se
 	// `Action.Shield` sparisce o cambia nome. Con `Add` quel `nullptr` ENTRA nel kit — `Num()` conta 6,
 	// quindi ogni guardia che si fida del conteggio passa, e chi dereferenzia va giu'. E' l'invariante che
 	// `AddAbility` esiste per tenere, e qui era aggirata.
-	AddAbility(Wraith, MakeHeroActionFromCore(TEXT("Hero.Wraith.PhaseGuard"), TEXT("Action.Shield"),
+	AddAbility(Ivrin, MakeHeroActionFromCore(TEXT("Hero.Ivrin.PhaseGuard"), TEXT("Action.Shield"),
 		/*Cooldown*/ 2));
 
 	// Variante di InterceptShot (vincolo v0.1: una sola abilita' fondamentale con variante per eroe).
@@ -907,35 +1006,35 @@ URTHeroData* URTHeroCatalogLibrary::MakeWraith()
 	// da `FRTSuppressiveZone`, che nessuno collega ancora a un eroe): sta nei `Parameters`, come l'integrita'
 	// del pannello di Branth.
 	FRTAbilityVariant Precise;
-	Precise.VariantId = TEXT("Hero.Wraith.InterceptShot.Precise");
+	Precise.VariantId = TEXT("Hero.Ivrin.InterceptShot.Precise");
 	Precise.DisplayName = FText::FromString(TEXT("Intercetto preciso"));
 	Precise.Tradeoff = FText::FromString(TEXT("20 danni invece di 16, ma controlla una sola cella"));
 	Precise.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 20));
 	Precise.Parameters.Add(TEXT("ControlledCells"), 1);
 
 	FRTAbilityVariant Extended;
-	Extended.VariantId = TEXT("Hero.Wraith.InterceptShot.Extended");
+	Extended.VariantId = TEXT("Hero.Ivrin.InterceptShot.Extended");
 	Extended.DisplayName = FText::FromString(TEXT("Intercetto esteso"));
 	Extended.Tradeoff = FText::FromString(TEXT("controlla una linea di 3 celle, ma solo 14 danni"));
 	Extended.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Damage, 14));
 	Extended.Parameters.Add(TEXT("ControlledCells"), 3);
 
-	Wraith->Actions[1]->Variants.Add(Precise);
-	Wraith->Actions[1]->Variants.Add(Extended);
+	Ivrin->Actions[1]->Variants.Add(Precise);
+	Ivrin->Actions[1]->Variants.Add(Extended);
 
-	return Wraith;
+	return Ivrin;
 }
 
 TArray<URTHeroData*> URTHeroCatalogLibrary::GetHeroRoster()
 {
-	return { MakeGadget(), MakePhase(), MakeBranth(), MakeWraith() };
+	return { MakeAevik(), MakeMuiren(), MakeBranth(), MakeIvrin() };
 }
 
 TArray<FName> URTHeroCatalogLibrary::GetHeroIds()
 {
 	// Stesso ordine di `GetHeroRoster()`: `Heroes.HeroIdsMatchRoster` confronta le due liste posizione per
 	// posizione, quindi riordinare qui senza riordinare la' e' un rosso, non una svista che passa.
-	return { TEXT("Hero.Gadget"), TEXT("Hero.Phase"), TEXT("Hero.Branth"), TEXT("Hero.Wraith") };
+	return { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
 }
 
 URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroActionId,
@@ -957,7 +1056,7 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	Action->Def.DerivedFromActionId = CoreActionId;
 	// 🔑 `bSelfTarget` NON e' fra i campi che `MakeHeroAction` riceve, e va copiato qui: e' una
 	// **proprieta' dell'azione**, non una deduzione dalla fase o dalla portata (lo dice il suo docstring
-	// in `RTActionDef.h`). Senza, `Hero.Phase.TideGuard` eredita scudo e fase di `Action.Shield` ma non il
+	// in `RTActionDef.h`). Senza, `Hero.Muiren.TideGuard` eredita scudo e fase di `Action.Shield` ma non il
 	// fatto di applicarsi a chi la usa — e i tre consumatori del flag (puntatore del giocatore,
 	// valutazione del bot, harness degli scenari) chiedono un bersaglio per un'azione che non ne ha (#2283).
 	Action->Def.bSelfTarget = Core.bSelfTarget;
@@ -966,6 +1065,17 @@ URTActionData* URTHeroCatalogLibrary::MakeHeroActionFromCore(const FName& HeroAc
 	// abilita' nuove. Quel test PREVEDEVA questo giorno — «quando la prima arrivera', controllare che
 	// MakeHeroAction ne copi lo specchio prima di rendere verde questa riga» — ed e' cio' che ha fatto.
 	Action->bSelfTarget = Core.bSelfTarget;
+
+	// ➕ **E la licenza della linea di tiro, per la STESSA ragione di `bSelfTarget`** (`#2890`, [D-380]).
+	//
+	// 🔑 E' una proprieta' dell'AZIONE, non un numero di bilanciamento dell'eroe: la sede della decisione
+	// e' il catalogo core, e un kit che la derivasse a mano sarebbe la seconda riga da tenere allineata.
+	// `Hero.Muiren.MistVeil` la scrive ancora da se' — deriva da `Action.Ignite`, che la linea la CHIEDE —
+	// e continua a farlo perche' li' la policy e' una scelta dell'EROE, non un'eredita' del core.
+	//
+	// ⚠️ **Non cambia nulla per le azioni gia' spedite**: `Required` e' lo zero dell'enum ed e' il valore di
+	// ogni core tranne `Action.Mortar`, quindi copiarlo e' un'identita' per tutte le altre.
+	Action->Def.LineOfSightPolicy = Core.LineOfSightPolicy;
 	return Action;
 }
 

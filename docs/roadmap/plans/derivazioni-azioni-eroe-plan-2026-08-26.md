@@ -145,12 +145,12 @@ bool FRTHeroDerivedActionsDeclareOriginTest::RunTest(const FString&)
 	// ⛔ Gli attacchi base NON sono qui: dichiarano `BaseActionId` (profilo di una generica, D-033) e non
 	// una derivazione di parametri — tre dei quattro hanno i numeri scritti a mano, non presi dal core.
 	const TMap<FName, FName> Atteso = {
-		{ TEXT("Hero.Gadget.ConductiveNode"),     TEXT("Action.Electrify")    },
-		{ TEXT("Hero.Phase.FluidTrail"),          TEXT("Action.Dash")         },
-		{ TEXT("Hero.Phase.MistVeil"),            TEXT("Action.Ignite")       },
+		{ TEXT("Hero.Aevik.ConductiveNode"),     TEXT("Action.Electrify")    },
+		{ TEXT("Hero.Muiren.FluidTrail"),          TEXT("Action.Dash")         },
+		{ TEXT("Hero.Muiren.MistVeil"),            TEXT("Action.Ignite")       },
 		{ TEXT("Hero.Riktor.KineticPanel"),       TEXT("Action.CreateCover")  },
 		{ TEXT("Hero.Riktor.Ram"),                TEXT("Action.Charge")       },
-		{ TEXT("Hero.Gadget.ReactiveCapacitor"),  TEXT("Action.Counter")      },
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  TEXT("Action.Counter")      },
 		{ TEXT("Hero.Riktor.Interposition"),      TEXT("Action.Intercept")    },
 		{ TEXT("Hero.Wraith.Deflection"),         TEXT("Action.Deflect")      },
 	};
@@ -318,7 +318,7 @@ Prima:
 
 ```cpp
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Hero.Gadget.ConductiveNode"), ElectrifyDef.ResolutionPhase,
+	URTActionData* ConductiveNode = MakeHeroAction(TEXT("Hero.Aevik.ConductiveNode"), ElectrifyDef.ResolutionPhase,
 		ElectrifyDef.Priority, ElectrifyDef.RangeCells, /*Cooldown*/ 2, ElectrifyDef.Fallback,
 		ElectrifyDef.Effects);
 	ConductiveNode->Def.PropagationLimit = ElectrifyDef.PropagationLimit;
@@ -328,7 +328,7 @@ Dopo — la riga di `PropagationLimit` **resta**, e legge il core una volta sola
 
 ```cpp
 	const FRTActionDef ElectrifyDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Electrify"));
-	URTActionData* ConductiveNode = MakeHeroActionFromCore(TEXT("Hero.Gadget.ConductiveNode"),
+	URTActionData* ConductiveNode = MakeHeroActionFromCore(TEXT("Hero.Aevik.ConductiveNode"),
 		TEXT("Action.Electrify"), /*Cooldown*/ 2);
 	// La propagazione e' IL comportamento, non un dettaglio: senza questa riga l'azione elettrificherebbe
 	// una cella sola e CP 8.3 resterebbe non innescabile pur avendo un owner.
@@ -339,7 +339,7 @@ Dopo — la riga di `PropagationLimit` **resta**, e legge il core una volta sola
 
 ```cpp
 	const FRTActionDef DashDef = URTCatalogLibrary::FindCoreAction(TEXT("Action.Dash"));
-	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Phase.FluidTrail"),
+	URTActionData* FluidTrail = MakeHeroActionFromCore(TEXT("Hero.Muiren.FluidTrail"),
 		TEXT("Action.Dash"), /*Cooldown*/ 2, ERTAbilityShape::Single, /*AreaRadius*/ 0, {},
 		/*bUseCoreSlot*/ false);
 	FluidTrail->Def.Slot = ERTActionSlot::Movement; // mobilita' che ATTRAVERSA: slot movimento [D-191]
@@ -354,7 +354,7 @@ in cui la riga `const FRTActionDef IgniteDef = URTCatalogLibrary::FindCoreAction
 darebbe una variabile non usata.
 
 ```cpp
-	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Phase.MistVeil"),
+	URTActionData* MistVeil = MakeHeroActionFromCore(TEXT("Hero.Muiren.MistVeil"),
 		TEXT("Action.Ignite"), /*Cooldown*/ 3, ERTAbilityShape::Area, /*AreaRadius*/ 1, {},
 		/*bUseCoreSlot*/ false, ERTActionFallback::Cancel, /*bUseCoreFallback*/ false);
 	MistVeil->Def.Effects.Empty(); // «crea fumo», non brucia: nessun effetto ereditato da Ignite
@@ -411,7 +411,7 @@ git commit -m "feat(catalogo eroi): le cinque abilita' derivate passano dall'hel
 
 ⛔ **`MakeHeroBasicAttack` non si tocca.** Il piano prevedeva di farle scrivere anche
 `DerivedFromActionId`. Misurato mentre si scriveva il Task 2: dei quattro attacchi base solo
-`Hero.Gadget.ArcPulse` deriva davvero i parametri (`MakeBasicAttack(4)` parte da `FindCoreAction`);
+`Hero.Aevik.ArcPulse` deriva davvero i parametri (`MakeBasicAttack(4)` parte da `FindCoreAction`);
 `PressureJet`, `ImpactShot` e `PulseShot` li hanno **letterali**. Dichiararli derivati avrebbe
 trasformato «i parametri vengono da lì» in «gli somiglia», che è la parentela semantica scartata.
 

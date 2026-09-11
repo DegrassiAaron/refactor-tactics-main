@@ -17,17 +17,17 @@ test('un effetto sconosciuto e un ERRORE, non uno zero silenzioso', () => {
   const tmp = new URL('./voc.tmp.md', import.meta.url);
   writeFileSync(tmp, s);
   try {
-    const flux = parseHeroCatalog(tmp, A).find((x) => x.name === 'Gadget')!;
-    // `Hero.Gadget.Overload` e' un AbilityId, NON il nome mostrato. Il commento qui diceva che D-120
+    const flux = parseHeroCatalog(tmp, A).find((x) => x.name === 'Aevik')!;
+    // `Hero.Aevik.Overload` e' un AbilityId, NON il nome mostrato. Il commento qui diceva che D-120
     // aveva rinominato l'eroe «e lasciato fermi gli Stable ID, quindi qui resta `Flux.`»: era vero fino
     // a **D-130**, che gli ID li ha migrati (fetta 4, #754). Una nota che spiega perche' un valore NON
     // cambia diventa falsa nel momento esatto in cui quel valore cambia, e nessun gate la rilegge.
-    assert.throws(() => assertKnownEffects(flux), /Hero\.Gadget\.Overload.*Confonde/);
+    assert.throws(() => assertKnownEffects(flux), /Hero\.Aevik\.Overload.*Confonde/);
   } finally { rmSync(tmp); }
 });
 
 test('monotonia: aumentare un input non fa scendere il rating che ne dipende', () => {
-  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Phase')!;
+  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Muiren')!;
   for (const [hp, atteso] of [[95, 7], [140, 9]] as const) {
     const h = { ...base, health: hp };
     assert.equal(profileAxes(h).durability, atteso, `durability a ${hp} HP`);
@@ -43,7 +43,7 @@ test('monotonia: aumentare un input non fa scendere il rating che ne dipende', (
 
 test('sensibilita: il delta dichiarato muove l asse di almeno 1', () => {
   // La spec dichiara: 17 punti di Salute muovono `durability` di 1 (ancora 150 su nove passi).
-  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Phase')!;
+  const base = parseHeroCatalog(H, A).find((x) => x.name === 'Muiren')!;
   const a = profileAxes({ ...base, health: 95 }).durability;
   const b = profileAxes({ ...base, health: 95 + 17 }).durability;
   assert.ok(b >= a + 1, `+17 HP deve muovere durability: ${a} -> ${b}`);

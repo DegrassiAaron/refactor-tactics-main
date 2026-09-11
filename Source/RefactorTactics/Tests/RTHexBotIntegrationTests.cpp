@@ -82,8 +82,8 @@ bool FRTHexBotLegalMovesTest::RunTest(const FString&)
 	// 2v2: due bot contro due unita' del giocatore, in posizioni oblique (dove Manhattan e distanza
 	// esagonale divergono e il pathfinding quadrato proporrebbe celle fuori dalla mappa).
 	ARTUnit* BotA = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
-	ARTUnit* BotB = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(3, -3), /*bBot*/ true);
-	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTUnit* BotB = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(3, -3), /*bBot*/ true);
+	ARTUnit* FoeA = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 3), /*bBot*/ false);
 	ARTUnit* FoeB = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-3, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !BotA || !BotB || !FoeA || !FoeB) { DestroyHexBotWorld(World); return false; }
@@ -260,8 +260,8 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		SpawnHexBotMap(World, /*Radius=*/ 5);
 
 		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0), /*bBot*/ false);
-		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -285,8 +285,8 @@ bool FRTHexBotSparesAllyTest::RunTest(const FString&)
 		SpawnHexBotMap(World, /*Radius=*/ 5);
 
 		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
-		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, -4), /*bBot*/ false);
-		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
+		ARTUnit* Ally = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, -4), /*bBot*/ false);
+		ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Ally || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -354,7 +354,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 
 	// Un kiter con un nemico ADDOSSO fugge, e la fuga passa dallo scatto. E' lo scenario che mette davvero in
 	// moto il ramo che questo test deve coprire (col nemico lontano il bot spara e basta).
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakePhase(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0), /*bBot*/ true);
 
 	// Lo standoff non si dichiara piu' qui: il bot lo DERIVA dalla portata dell'attacco base, e Phase —
 	// `PressureJet`, portata 5 — e' l'unica kiter del roster. Lo scenario e' «il kiter fugge», quindi senza
@@ -369,7 +369,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
 	// Lo scenario chiede un'unita' che sia kiter E abbia uno scatto, e nel roster v0.1 nessuno e' entrambe
-	// le cose: Phase e' l'unica kiter (portata 5) ma il suo kit non ha mobilita' rapide, Wraith ha
+	// le cose: Phase e' l'unica kiter (portata 5) ma il suo kit non ha mobilita' rapide, Ivrin ha
 	// `PassingBlade` ma con portata 4 non e' kiter. Lo scatto glielo da' il test, dal catalogo GENERICO —
 	// non e' un numero inventato, e' `Action.Dodge` cosi' come lo spedisce il gioco.
 	URTActionData* Sprint = NewObject<URTActionData>(Bot);
@@ -455,7 +455,7 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 
 	// Unita' ferita sotto meta' HP: usa un'abilita' self-target invece di attaccare.
 	ARTUnit* Hurt = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Hurt || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -472,7 +472,7 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 	// Non e' il test adattato alla sua implementazione: e' la stessa proprieta' misurata su un effetto che
 	// la regge. La condizione d'ingresso del ramo e' `Health * 2 < MaxHealth`, e uno scudo temporaneo non
 	// la scioglie — scade nel Cleanup senza toccare `Health`. Questo test dura UN turno, quindi non
-	// poteva vederlo: in partita il bot rientrava nel ramo a ogni ricarica e si parcheggiava (Wraith ferma
+	// poteva vederlo: in partita il bot rientrava nel ramo a ogni ricarica e si parcheggiava (Ivrin ferma
 	// 5 turni contro un limite di 4, con quattro test di partita rossi a cascata).
 	//
 	// ⚠️ Chi volesse riaprire il ramo allo scudo — `#464`, v0.2 — non cambi solo questa riga: serve
@@ -519,7 +519,7 @@ bool FRTHexBotPanicTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakePhase(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Kiter = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(0, 0), /*bBot*/ true);
 
 	// La minaccia si posiziona a meta' dello standoff DERIVATO, che e' la soglia della ritirata immediata.
 	// Era a distanza 2, calcolata sullo standoff 4 del Ranger legacy: Phase ne ha 3, quindi la soglia e' 1 e
@@ -647,14 +647,14 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 		if (!World) { return Empty; }
 		SpawnHexBotMap(World, /*Radius=*/ 6);
 
-		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0), /*bBot*/ true);
+		ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
 		ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0), /*bBot*/ false);
-		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakePhase(), HiddenCell, /*bBot*/ false);
+		ARTUnit* Hidden = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), HiddenCell, /*bBot*/ false);
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!TM || !Bot || !Seen || !Hidden) { DestroyHexBotWorld(World); return Empty; }
 
 		// Vista corta e DICHIARATA nel test: cosi' la premessa non dipende dai numeri di bilanciamento del
-		// roster, che cambiano (D-073 ha appena portato Gadget a 7).
+		// roster, che cambiano (D-073 ha appena portato Aevik a 7).
 		Bot->VisionRange = 3;
 
 		const bool bSeen = URTHexLibrary::HexDistance(Bot->Cell, Seen->Cell) <= Bot->VisionRange;
@@ -711,9 +711,9 @@ bool FRTHexBotPartialKnowledgeTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
 	ARTUnit* Seen = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0), /*bBot*/ false);
-	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakePhase(), FRTCellId(3, 0), /*bBot*/ false);
+	ARTUnit* Unknown = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Seen || !Unknown) { DestroyHexBotWorld(World); return false; }
 
@@ -764,7 +764,7 @@ bool FRTHexBotSeeksContactTest::RunTest(const FString&)
 	// l'onniscienza — misurava un movimento, non la condotta di ricerca. Verificato per mutazione.
 	// Qui il nemico sta su un lato e il centro dall'altro rispetto al bot: le due direzioni DIVERGONO, e
 	// avvicinarsi al centro e' incompatibile con l'avvicinarsi al nemico.
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2), /*bBot*/ true);
 	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
@@ -821,7 +821,7 @@ bool FRTHexBotRemembersLastKnownTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexBotMap(World, /*Radius=*/ 6);
 
-	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0), /*bBot*/ true);
+	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0), /*bBot*/ true);
 	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
@@ -892,7 +892,7 @@ bool FRTBotArmsItsReactionTest::RunTest(const FString&)
 
 	// Branth porta una reazione nel kit: una del roster vero, non costruita qui.
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
-	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!Bot || !Nemico || !TM) { DestroyHexBotWorld(World); return false; }
 
@@ -967,7 +967,7 @@ bool FRTHexBotChargeLandsTest::RunTest(const FString&)
 	// Nessun alleato in scena: qui non si misura il collaterale, e un terzo attore aggiungerebbe solo un
 	// modo per cui il piano potrebbe cambiare senza che il test lo dica.
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0), /*bBot*/ true);
-	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, 0), /*bBot*/ false);
+	ARTUnit* Foe = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Bot || !Foe) { DestroyHexBotWorld(World); return false; }
 
@@ -1113,8 +1113,8 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
 	// 2v2 interamente sotto bot: si misura il pianificatore, non la reazione del bot a un umano.
 	TArray<ARTUnit*> Bots;
 	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-4, 1), /*bBot*/ true));
-	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-4, 2), /*bBot*/ true));
-	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(4, -2), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 2), /*bBot*/ true));
+	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, -2), /*bBot*/ true));
 	Bots.Add(SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, -1), /*bBot*/ true));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || Bots.Contains(nullptr)) { DestroyHexBotWorld(World); return false; }
@@ -1212,7 +1212,7 @@ bool FRTHexBotPlansAreLegalTest::RunTest(const FString&)
  * 🔴 **Da [D-268] (`#1802`) questo test misura lo SPAREGGIO, non la politica, e la differenza va detta.**
  * La regola non è più «prima il kit»: è «punteggio più alto, e a parità esatta il kit». Qui i due candidati
  * pareggiano **a zero**, e la premessa è la geometria di questa scena, non un'invariante del gioco: Branth
- * sta a `(2,-3)` e Wraith a `(-2,3)` su un raggio 5, cioè a distanza 6 — oltre la vista di chiunque — quindi
+ * sta a `(2,-3)` e Ivrin a `(-2,3)` su un raggio 5, cioè a distanza 6 — oltre la vista di chiunque — quindi
  * `Ctx.Enemies` è vuoto; non c'è un secondo alleato, quindi `Ctx.Allies` è vuoto; e `Reaction.Cleanse` ha
  * trigger `AboutToReceiveControl`, che vale zero per dichiarazione.
  *
@@ -1244,7 +1244,7 @@ bool FRTBotPrefersTheKitReactionTest::RunTest(const FString&)
 	SpawnHexBotMap(World, 5);
 
 	ARTUnit* Bot = SpawnHexBotUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -3), /*bBot*/ true);
-	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(-2, 3), /*bBot*/ false);
+	ARTUnit* Nemico = SpawnHexBotUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 3), /*bBot*/ false);
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("Bot"), Bot) || !TestNotNull(TEXT("Nemico"), Nemico) || !TestNotNull(TEXT("TM"), TM))
 	{

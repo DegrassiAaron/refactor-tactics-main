@@ -44,6 +44,13 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 	return FMath::Min(NumAttacks, 1 + FMath::FloorToInt(Elapsed / AttackShowSeconds));
 }
 
+bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints)
+{
+	// Tre ragioni indipendenti, e la terza e' quella nuova: un'impronta senza vittime e' comunque un fatto
+	// avvenuto nel Blast. ⛔ Nessuna somma e nessuna soglia: basta che UNA sia vera.
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0;
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {
@@ -196,4 +203,49 @@ float URTPlaybackLibrary::NextMicroStepBoundary(float Alpha, int32 StepCount)
 	const int32 Prossimo = FMath::Max(0, Corrente) + 1;
 
 	return AlphaAtMicroStep(Prossimo, StepCount);
+}
+
+int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Timeline, int32 FromIndex)
+{
+	const int32 Fine = Timeline.Num();
+
+	// 🔑 **L'atto in corso si cerca ALL'INDIETRO, e non e' un dettaglio.** Un `Defeated` o un danno
+	// ambientale portano `NAME_None` — non li ha *fatti* nessuno — quindi leggere l'azione corrente dal
+	// solo evento a `FromIndex` la perderebbe ogni volta che ci si ferma su uno di essi, e il colpo che
+	// segue, pur essendo lo STESSO atto, sembrerebbe aprirne uno nuovo. Su
+	// `Attack(A) · Defeated(None) · Attack(A)` la lettura ingenua fermerebbe `Next Action` due volte
+	// dentro un colpo solo.
+	//
+	// ⚠️ `FromIndex` negativo significa «prima dell'inizio»: nessun atto in corso, e il primo evento con
+	// un'azione e' gia' un confine. `Min(FromIndex, Fine - 1)` tiene la scansione dentro l'array anche
+	// quando l'indice arriva oltre la fine, e su timeline vuota il ciclo non parte.
+	FName Corrente = NAME_None;
+	for (int32 i = FMath::Min(FromIndex, Fine - 1); i >= 0; --i)
+	{
+		if (!Timeline[i].ActionId.IsNone())
+		{
+			Corrente = Timeline[i].ActionId;
+			break;
+		}
+	}
+
+	for (int32 i = FMath::Max(0, FromIndex + 1); i < Fine; ++i)
+	{
+		const FName Azione = Timeline[i].ActionId;
+
+		// ⛔ **`None` non e' mai un confine.** E' un valore legittimo che dice «nessuna azione dietro»:
+		// fermarcisi sarebbe fermarsi su un fatto che nessuno ha compiuto.
+		if (Azione.IsNone())
+		{
+			continue;
+		}
+		if (Azione != Corrente)
+		{
+			return i;
+		}
+	}
+
+	// Nessun altro atto: la fine della timeline. E' la stessa scelta di `NextMicroStepBoundary`, che oltre
+	// l'ultimo segmento porta a fine fase e non oltre.
+	return Fine;
 }

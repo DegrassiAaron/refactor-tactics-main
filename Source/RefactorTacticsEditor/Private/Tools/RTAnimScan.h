@@ -46,11 +46,11 @@ struct FRTAnimScanResult
  * lascerebbe un file modificato nel working tree — e una suite che modifica l'albero mentre misura si
  * invalida da sola.
  *
- * ⚠️ **La classe si legge dal registry, non dal nome del file.** Sotto `Animations/` di Gadget non c'e'
+ * ⚠️ **La classe si legge dal registry, non dal nome del file.** Sotto `Animations/` di Aevik non c'e'
  * nessun prefisso che distingua una sequenza da un aim offset: `AM_` e `BS_` danno **zero** risultati
  * in quella cartella. E' la stessa lezione di §AS.3b della guida animazioni — leggere la cartella, non
  * dedurre il nome.
  *
- * @param PackageFolder cartella in forma di package path, es. `/Game/FabAsset/.../Gadget/Animations`
+ * @param PackageFolder cartella in forma di package path, es. `/Game/FabAsset/.../Aevik/Animations`
  */
 FRTAnimScanResult RTScanAnimSequencesUnder(const FString& PackageFolder);

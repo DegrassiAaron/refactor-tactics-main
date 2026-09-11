@@ -35,7 +35,7 @@ struct FRTHeroLabEntry
 {
 	GENERATED_BODY()
 
-	/** `Hero.Gadget`, `Hero.Phase`, `Hero.Branth`, `Hero.Wraith`. */
+	/** `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HeroLab")
 	FName HeroId;
 
@@ -79,11 +79,11 @@ class REFACTORTACTICS_API URTHeroLabLibrary : public UBlueprintFunctionLibrary
 
 public:
 	/**
-	 * I quattro eroi canonici, nell'ordine del catalogo: Gadget, Phase, Branth, Wraith.
+	 * I quattro eroi canonici, nell'ordine del catalogo: Aevik, Muiren, Branth, Ivrin.
 	 *
-	 * ⚠️ `Hero.Riktor` **non esiste**: `D-334` ha rinominato l'identita' in `Hero.Branth`. Gli **asset**
-	 * conservano il nome vecchio (`/Game/RT/Characters/Riktor/`), e `RTGameMode.cpp` dichiara che non e' un
-	 * refuso. Questa libreria indicizza per identita', mai per path d'asset.
+	 * ⚠️ `Hero.Riktor` **non esiste**: `D-334` ha rinominato l'identita' in `Hero.Branth`, e dal 2026-09-10
+	 * gli **asset** la seguono (`#2297` fetta E: `/Game/RT/Characters/Branth/`). Questa libreria indicizza per
+	 * identita', mai per path d'asset — ed e' la ragione per cui il rename non l'ha toccata.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HeroLab")
 	static TArray<FRTHeroLabEntry> ListCanonicalHeroes();

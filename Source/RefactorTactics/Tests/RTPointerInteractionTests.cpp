@@ -142,7 +142,7 @@ bool FRTPointerTargetCellIgnoresUnitTest::RunTest(const FString&)
 {
 	UWorld* World = MakePointerWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	ARTUnit* Occupant = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
+	ARTUnit* Occupant = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 
 	FRTPointerCandidates C;
 	C.Unit = Occupant;
@@ -268,7 +268,7 @@ bool FRTPointerBackNeverDeselectsTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -309,8 +309,8 @@ bool FRTPointerNeutralEnemyClickTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(),   FRTCellId(0, 0, 0));
-	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0, 0));
+	ARTUnit* Mine  = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),   FRTCellId(0, 0, 0));
+	ARTUnit* Enemy = SpawnPointerUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine || !Enemy) { DestroyPointerWorld(World); return false; }
 
@@ -358,7 +358,7 @@ bool FRTPointerTargetCellProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeGadget(), FRTCellId(0, 0, 0));
+	ARTUnit* Mine = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Mine) { DestroyPointerWorld(World); return false; }
 
@@ -458,7 +458,7 @@ bool FRTPointerFacingProducerTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -504,8 +504,8 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	// 🔴 **Branth e non Wraith, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
-	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Wraith non esiste piu':
+	// 🔴 **Branth e non Ivrin, e la sostituzione e' il punto del test** — ADR-0008 §1 (#1605). Questo test
+	// ha bisogno che esista almeno una direzione ILLEGALE da rifiutare, e con Ivrin non esiste piu':
 	// `MoveEndPivotMaxSteps = 3` gli concede tutte e sei le direzioni a fine Move. Branth, con budget 1, ne
 	// concede tre e ne lascia tre da rifiutare. Il soggetto del test — «una rotazione illegale e'
 	// rifiutata» — resta lo stesso; cambia l'eroe che ne ha ancora una.
@@ -572,7 +572,7 @@ bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 
@@ -633,7 +633,7 @@ bool FRTPlannedFacingPreviewTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0, 0));
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
 	PC->SelectActorForTest(Unit);
@@ -831,6 +831,82 @@ bool FRTPointerRightClickCancelsPreviewOnlyTest::RunTest(const FString&)
 		URTPointerLibrary::ResolveBack(ERTPointerContext::Planning, false, 0, true),
 		ERTPointerBackStep::PhaseFocus);
 
+	return true;
+}
+
+// ======================================================================================================
+// #2826 scope 7 — il tasto che applica il Back, non una sua imitazione
+// ======================================================================================================
+
+/**
+ * L'`RMB` **esce dal targeting prima di toccare i waypoint**, e non deseleziona.
+ *
+ * 🔴 **Il modulo puro era verde mentre il tasto sbagliava.** `ResolveBack` dichiara l'ordine di §5.5 e
+ * `RightClickCancelsPreviewOnly` lo verifica; `ApplyBack` lo applica e ha i suoi test. Ma il percorso che
+ * il giocatore usa davvero — `OnUndoWaypoint`, bindata su `RightMouseButton` — ordinava i livelli **per
+ * conto proprio** e andava dritta a `PlannedWaypoints.Pop()`: con un'azione armata e un waypoint montato
+ * toglieva il waypoint e lasciava il targeting acceso. Nessun test lo guardava, perche' tutti si fermavano
+ * un livello piu' in basso.
+ *
+ * ⚠️ **La premessa e' proprio il caso che distingue le due autorita'**: `GetPointerContext()` mette
+ * `Targeting` PRIMA di `Pathing`, quindi con entrambi montati il contesto e' `Targeting`. Un test con la
+ * sola azione armata e zero waypoint passerebbe anche con il vecchio corpo — `Pop()` su una lista vuota non
+ * fa nulla — e non misurerebbe niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPointerRightClickLeavesTargetingFirstTest,
+	"RefactorTactics.PlayerInput.RightClickLeavesTargetingBeforeWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPointerRightClickLeavesTargetingFirstTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+
+	PC->SelectActorForTest(Unit);
+
+	// Premessa in due tempi: prima il waypoint, poi l'azione armata sopra.
+	PC->HandleClickOnCellForTest(FRTCellId(1, 0, 0));
+	if (!TestEqual(TEXT("premessa: c'e' un waypoint"), Unit->PlannedWaypoints.Num(), 1))
+	{
+		DestroyPointerWorld(World);
+		return false;
+	}
+
+	Unit->SelectAbility(0);
+	if (!TestEqual(TEXT("premessa: con entrambi montati il contesto e' Targeting"),
+		PC->GetPointerContext(), ERTPointerContext::Targeting))
+	{
+		DestroyPointerWorld(World);
+		return false;
+	}
+
+	// --- Il primo destro: esce dalla DICHIARAZIONE ---------------------------------------------------
+	PC->OnUndoWaypointForTest();
+
+	TestEqual(TEXT("il destro disarma l'azione"), Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e NON tocca il waypoint, che sta un livello piu' in basso"),
+		Unit->PlannedWaypoints.Num(), 1);
+	TestNotNull(TEXT("e non deseleziona"), PC->GetSelectedUnit());
+
+	// --- Il secondo destro: adesso, e solo adesso, il waypoint ---------------------------------------
+	// 🔑 Controprova indispensabile: senza di essa il test passerebbe anche con un `OnUndoWaypoint` che non
+	// sa piu' togliere waypoint affatto — cioe' con il tasto rotto invece che corretto.
+	TestEqual(TEXT("disarmata, il contesto scende a Pathing"),
+		PC->GetPointerContext(), ERTPointerContext::Pathing);
+
+	PC->OnUndoWaypointForTest();
+	TestEqual(TEXT("il secondo destro toglie il waypoint"), Unit->PlannedWaypoints.Num(), 0);
+	TestNotNull(TEXT("e neanche adesso deseleziona"), PC->GetSelectedUnit());
+
+	DestroyPointerWorld(World);
 	return true;
 }
 

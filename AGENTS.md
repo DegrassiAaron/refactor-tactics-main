@@ -396,6 +396,7 @@ node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
 node tools/asset-refs/check.ts
 node tools/asset-provenance/check.ts
+node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
 
 cd tools/radar
@@ -403,9 +404,20 @@ node --test
 
 cd ../asset-provenance
 node --test
+
+cd ../mcp
+node --test
 ```
 
 Ogni tool dichiara nel docstring **cosa non copre**.
+
+⛔ `tools/mcp/check.ts` confronta l'endpoint che `.mcp.json` **dichiara** con la porta che i settings
+**configurano**, e nient'altro. Un verde significa **«i due file concordano»**, mai «il ponte risponde»:
+che il server sia vivo lo dice `Invoke-WebRequest http://127.0.0.1:<porta>/mcp` — `405` su GET e' un
+endpoint sano che rifiuta GET — e la diagnosi completa di un ponte muto sta in
+[`brief-mcp-developer-bridge.md`](docs/technical/tooling/brief-mcp-developer-bridge.md) §9.2.
+⚠️ Ed e' rosso **solo dove `bAutoStartServer` e' acceso**: il bridge e' uno per macchina, e su un
+checkout che non lo ospita una porta diversa non verra' mai aperta.
 
 ⛔ `tools/asset-provenance/check.ts` verifica che ogni asset abbia una **riga** nel registro di
 provenienza ([`docs/technical/asset-licenze.md`](docs/technical/asset-licenze.md)), non che la licenza

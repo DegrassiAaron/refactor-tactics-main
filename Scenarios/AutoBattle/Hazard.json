@@ -15,10 +15,10 @@
   "maxTurns": 40,
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
-    { "id": "A2", "hero": "Hero.Phase",  "team": 0, "cell": [-4, 3, 0], "bot": true },
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-4, 2, 0], "bot": true },
+    { "id": "A2", "hero": "Hero.Muiren",  "team": 0, "cell": [-4, 3, 0], "bot": true },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [4, -2, 0], "bot": true },
-    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [4, -3, 0], "bot": true }
+    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [4, -3, 0], "bot": true }
   ],
 
   "expect": [

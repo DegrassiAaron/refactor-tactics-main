@@ -42,7 +42,12 @@ gameplay che influenzano l'esito.
 
 ---
 
-## 2. Stato attuale (verificato dal codice)
+## 2. 📸 `HISTORICAL` — stato del 2026-08-03 (verificato dal codice **di allora**)
+
+> Il banner in testa al documento classifica questa sezione come `HISTORICAL`, e il titolo lo diceva al
+> contrario. Le righe qui sotto **non si riscrivono** — sono l'esperimento a due archetipi — ma non vanno
+> lette come lo stato corrente: `ConfigureAsArchetype` e `ERTArchetype`, che la tabella cita, sono stati
+> rimossi, e il roster si configura da `URTHeroCatalogLibrary`.
 
 | Fatto | Evidenza |
 |---|---|

@@ -19,7 +19,7 @@
 // 🔴 **Il piano e' SCRITTO, non chiesto al bot, e la prima stesura di questo file sbagliava proprio qui.**
 // Allestiva un autobattle su un'arena di raggio 4 e si aspettava del movimento: gli spawn distano 8 celle,
 // il `VisionRange` piu' corto e' 5, quindi il bot non vedeva nessuno e le quattro unita' **restavano ferme**
-// (`[RT] Gadget: resta (q=-4,r=0,L=0)`). E' il difetto che `#1738` descrive, incontrato di lato. La guardia
+// (`[RT] Aevik: resta (q=-4,r=0,L=0)`). E' il difetto che `#1738` descrive, incontrato di lato. La guardia
 // «qualcosa si e' mosso» ha fatto cadere il test invece di lasciarlo passare confrontando due zeri — ed e'
 // la ragione per cui quella guardia c'e' e resta.
 //
@@ -71,7 +71,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false; // il piano lo scriviamo noi: una misura non si chiede a un'euristica
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, /*CellSize=*/ 100.f, /*LayerHeight=*/ 250.f);
 		// Senza, `PlannedCell` resta il default `(0,0,0)` — una cella VERA — e ogni unita' pianificherebbe

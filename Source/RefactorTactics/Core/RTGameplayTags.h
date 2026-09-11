@@ -10,7 +10,7 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Exposed); // scoperta: +5 al PRIMO dan
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Guarded); // guardia: POOL di 15 assorbibili sull'arco frontale ([D-292]), resiste a una spinta di 1
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Marked);  // marchiato: +6 al PROSSIMO attacco alleato, che lo consuma
 // Bagnato: UNA sola dichiarazione per DUE sorgenti che il catalogo vuole convergenti — l'acqua bassa
-// (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +8 a Gadget.LinearDischarge finche' attivo, conduce elettricita'
+// (E8/CP 8.1) e Phase (E6/CP 6.3). Effetti: +8 a Aevik.LinearDischarge finche' attivo, conduce elettricita'
 // (CP 8.3) e rimuove Burning (CP 8.4).
 //
 // La durata "finche' sulla cella" e' VIVA, e passa da tre pezzi: il terreno la dichiara con

@@ -271,9 +271,13 @@ void ARTTurnManager::GatherBlastUnits(FRTBlastContext& Ctx) const
 			Ctx.Units.Add(Unit);
 		}
 	}
-	// Ordine STABILE per cella: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici
-	// del piano, il TurnLog e la sequenza del playback. Una cella ospita al piu' un'unita' -> ordine totale.
-	Ctx.Units.Sort([](const ARTUnit& A, const ARTUnit& B) { return URTHexLibrary::StableLess(A.Cell, B.Cell); });
+	// Ordine STABILE: GetAllActorsOfClass non e' ordinato, e da questo ordine dipendono gli indici del piano,
+	// il TurnLog e la sequenza del playback.
+	//
+	// ⚠️ Questa riga diceva *«una cella ospita al piu' un'unita' -> ordine totale»*, ed e' la premessa che
+	// `#1733`/`#1970` hanno misurato falsa: la sovrapposizione esiste e `MakeSnapshot` la registra. La cella
+	// resta la prima chiave; l'ordine totale lo chiudono `StableUnitId` e il nome (#2922).
+	URTActionQueueLibrary::SortUnitsForResolution(Ctx.Units);
 
 	Ctx.States.Reserve(Ctx.Units.Num());
 	Ctx.HexUnits.Reserve(Ctx.Units.Num());
@@ -324,7 +328,8 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 			}
 			else
 			{
-				// Identita' STABILE, non l'indice `u`: questo array e' ordinato per cella e si rinumera
+				// Identita' STABILE, non l'indice `u`: questo array e' ordinato da `SortUnitsForResolution`,
+				// la cui prima chiave e' la cella (#2922), e si rinumera
 				// appena qualcuno si muove. `TurnNumber` in ingresso ignorato — lo scrive `Observe`, che
 				// e' l'unica a sapere QUANDO l'avvistamento avviene.
 				EnemiesNow.Add(FRTLastKnownContact(Ctx.Units[u]->StableUnitId, Ctx.HexUnits[u].Cell, /*ignorato*/ 0));
@@ -343,6 +348,63 @@ void ARTTurnManager::RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx)
 		BlastKnowledgeForAudit = TeamKnowledgeState;
 	}
 	// Il secondo punto: una cella rivelata da un'esplosione compare a META' playback ([D-227]).
+	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
+}
+
+void ARTTurnManager::RevealHitTargetsToAttackers(const FRTBlastContext& Ctx)
+{
+	// ➕ **CHI HAI COLPITO, LO HAI TROVATO** (`#2890`, [D-380]).
+	//
+	// 🔴 **E' l'estremo che rende usabile il tiro indiretto.** [D-378] ha reso il requisito della linea un
+	// dato dell'azione e ha tenuto il **targeting** cieco: `ClassifyHexTargeting` non guarda chi sta sulla
+	// cella. Restava che un colpo al buio a segno non producesse **alcun** feedback — la voce che lo
+	// racconta e' congelata contro un soggetto che l'attaccante non conosce ([D-223]), quindi non la legge.
+	// Un'azione senza segnale e' un'azione che nessuno impara a usare.
+	//
+	// ⚠️ **Qui non c'e' nessuna REGOLA, e non e' un caso.** Chi decide *quali* vittime si rivelano e'
+	// `VictimsRevealedByHits`, pura e testabile; chi decide *come* un contatto entra in una memoria e'
+	// `RevealByHit`, pura anch'essa. Questa funzione traduce e basta. La prima stesura teneva le tre regole
+	// qui dentro, e la misura per mutazione lo ha bocciato: far rivelare anche gli alleati non rendeva rosso
+	// **nessun** test della suite intera.
+	TArray<int32> StableUnitIds;
+	StableUnitIds.Reserve(Ctx.Units.Num());
+	for (const ARTUnit* U : Ctx.Units)
+	{
+		StableUnitIds.Add(U ? U->StableUnitId : INDEX_NONE);
+	}
+
+	const TArray<FRTRevealedVictim> Rivelate =
+		URTHexCombatLibrary::VictimsRevealedByHits(Ctx.Plan.Hits, Ctx.HexUnits, StableUnitIds);
+	if (Rivelate.Num() == 0)
+	{
+		return; // nessun colpo fra squadre avverse: niente da rivelare, e nessuno stato da toccare
+	}
+
+	// ⚠️ **Si itera `TeamKnowledgeState`, non le rivelazioni**: questa memoria entra nello snapshot, e
+	// l'ordine di scrittura dev'essere quello delle squadre (invariante #3).
+	for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+	{
+		TArray<FRTLastKnownContact> Vittime;
+		for (const FRTRevealedVictim& V : Rivelate)
+		{
+			if (V.AttackerTeamId == Knowledge.TeamId)
+			{
+				Vittime.Add(FRTLastKnownContact(V.VictimStableUnitId, V.Cell, TurnNumber));
+			}
+		}
+		if (Vittime.Num() > 0)
+		{
+			Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, Vittime, TurnNumber);
+		}
+	}
+
+	// 🔴 **E l'istantanea d'audit si riallinea**, o il replay racconterebbe una conoscenza diversa da quella
+	// che la partita ha avuto: [D-313] congela i verdetti contro questa fotografia, e lasciarla indietro
+	// renderebbe il feedback visibile in partita e assente nella traccia.
+	if (bRecordReplay)
+	{
+		BlastKnowledgeForAudit = TeamKnowledgeState;
+	}
 	OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
 }
 
@@ -399,7 +461,7 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 
 		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack();
 
 		// 🔴 Una purificazione che non purifica **non sparisce in silenzio** ([D-196], `#1437`): e' lo stesso
 		// difetto della cura senza effetti sessanta righe piu' sotto, nella stessa funzione — l'azione e' gia'
@@ -459,7 +521,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
 		// cui questa raccolta viene prima.
 		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->PlannedAttackTarget = nullptr;
+		Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
@@ -574,7 +636,7 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		{
 			ARTUnit* ArcTarget = Unit->PlannedAttackTarget;
 			const int32 ArcAbilityIndex = Unit->PlannedAbilityIndex;
-			Unit->PlannedAttackTarget = nullptr;
+			Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`)
 			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, attivata o no
 			if (Unit->CanUseAbility(ArcAbilityIndex) && ArcTarget && ArcTarget->IsAlive())
 			{
@@ -618,7 +680,13 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 		ARTUnit* Target = Unit->PlannedAttackTarget;
 		const int32 AbilityIndex = Unit->PlannedAbilityIndex;
-		Unit->PlannedAttackTarget = nullptr; // consumati nel turno
+		// 🔴 **Il bersaglio a CELLA si copia QUI, prima dell'azzeramento** (`#2884`). Il piano si consuma in
+		// cima al ciclo — e' la disciplina di questo file — ma `bAttackTargetsCell` viene riletto un centinaio
+		// di righe piu' sotto, dove si costruisce l'istanza: azzerarlo senza copiarlo renderebbe ogni
+		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
+		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
+		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
 		const URTActionData* Ability = Unit->GetAbility(AbilityIndex);
@@ -687,9 +755,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Bersaglio a CELLA: nessuna unita' mirata per costruzione, non una che si e' persa. La distinzione
 		// conta subito qui sotto, dove `TargetUnitId == INDEX_NONE` significa `TargetGone` e degraderebbe al
 		// fallback un'azione che invece sta facendo esattamente cio' che le e' stato chiesto.
-		const bool bTargetsCell = Unit->bAttackTargetsCell;
+		// ⚠️ Le due copie vengono da CIMA AL CICLO, dove il piano e' stato consumato: leggerle qui dall'unita'
+		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = bTargetsCell ? Unit->PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
 		Instance.EventSequence = Intents.Num();
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
@@ -790,6 +859,38 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			Instance = Fallback.Instance; // AttackCell: si perde il bersaglio, resta la cella
 		}
 
+		// 🔑 IL BERSAGLIO EFFETTIVO DI UN'AZIONE LINEARE, e questa e' l'unica sede che lo calcola (`#2929`).
+		//
+		// Sta QUI e non in `HexHitCells` perche' quella primitiva e' geometria **pura** e non riceve
+		// l'occupazione: sapere chi sta dove e' l'unico modo di fermarsi sul primo, e l'occupazione esiste
+		// solo da questa parte. Il footprint resta quello dichiarato — cambia CHI si punta, non che forma ha.
+		//
+		// ⚠️ Si risolve DOPO il fallback, non prima: se il bersaglio si e' spostato, `AttackCell` ha gia'
+		// riportato l'istanza sulla cella mirata, ed e' quella la direzione che il colpo percorre.
+		if (Instance.Def.LineResolution == ERTLineResolution::StopAtFirstTarget)
+		{
+			TMap<FRTCellId, int32> Occupancy;
+			TSet<int32> Hostiles;
+			for (int32 u = 0; u < HexUnits.Num(); ++u)
+			{
+				if (!HexUnits[u].bAlive) { continue; } // un cadavere non occupa e non ferma un colpo
+				Occupancy.Add(HexUnits[u].Cell, u);
+				if (HexUnits[u].TeamId != Unit->TeamId) { Hostiles.Add(u); }
+			}
+
+			// ⚠️ L'origine si legge da `HexUnits[i]` e non da `Unit->Cell`: e' la STESSA cella che
+			// `CollectHexAttacks` usera' come `Attacker.Cell`. Oggi coincidono — lo snapshot nasce da li' —
+			// ma leggerle da due posti e' il modo in cui due calcoli della stessa cosa iniziano a divergere.
+			const FRTLineAttackResult Line = URTOffensiveActionLibrary::ResolveLineAttack(
+				Map, HexUnits[i].Cell, Instance.TargetCell, Instance.Def.RangeCells, Occupancy, Hostiles);
+
+			if (Line.HitUnitId != INDEX_NONE && HexUnits.IsValidIndex(Line.HitUnitId))
+			{
+				Instance.TargetUnitId = Line.HitUnitId;
+				Instance.TargetCell = HexUnits[Line.HitUnitId].Cell;
+			}
+		}
+
 		FRTHexAttackIntent Intent;
 		Intent.AttackerId = i;
 		Intent.TargetId = Instance.TargetUnitId;
@@ -804,6 +905,11 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// Stessa storia, stesso rimedio ([`INT-8`]): senza questa riga l'intento nascerebbe sempre a `false` e
 		// NESSUN attacco produrrebbe un colpo, benche' il catalogo lo dichiari.
 		Intent.bCountsAsAttack = Instance.Def.bCountsAsAttack;
+		// Terza volta lo stesso rimedio, e stavolta il difetto sarebbe stato SILENZIOSO (`#2870`, [D-378]):
+		// senza questa riga l'intento nascerebbe `Required` e `CollectHexAttacks` scarterebbe in
+		// `BlockedIntents` proprio i piani che il planning ha appena accettato — una regola permissiva sul
+		// client che il resolver rifiuta, cioe' il contrario di cio' che la policy esiste per garantire.
+		Intent.LineOfSightPolicy = Instance.Def.LineOfSightPolicy;
 		// Danno DICHIARATO dagli effetti dell'azione: e' il catalogo a dirlo. Il campo legacy `Power` resta
 		// come ripiego per le abilita' non ancora catalogate (quelle generiche di EnsureDefaultAbilities):
 		// finche' esistono, toglierlo del tutto trasformerebbe i loro colpi in danno zero.
@@ -1393,6 +1499,17 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 				Ev.Type = ERTResolvedEventType::ReactionResolved;
 				Ev.SourceStableUnitId = Unit->StableUnitId;                  // chi si interpone
 				Ev.TargetStableUnitId = Units[OriginalTarget]->StableUnitId;  // chi era il bersaglio
+				// `#2857`: QUALE interposizione. Stessa fonte della voce di TurnLog scritta qui sotto —
+				// `Reaction->Def` — e per la stessa ragione che quella riga dichiara: `Branth.Interposition`
+				// non e' `Action.Intercept` (CP 5.5), e senza questo campo la timeline non saprebbe dirlo.
+				//
+				// ⚠️ **Questo file e' l'ALTRO sito della reazione risolta**, e ce ne si accorge tardi: le
+				// reazioni generiche escono da `RTTurnManager.cpp`, l'interposizione ha il proprio ramo qui.
+				// `#2191` ha gia' pagato una volta l'errore di coprirne uno solo — «`ResolvedTimeline`
+				// compariva **zero** volte in questo file» — e un `ActionId` mancante sarebbe la stessa
+				// omissione, stavolta invisibile perche' `NAME_None` e' un valore legittimo.
+				Ev.ActionId = Reaction->Def.ActionId;
+				Ev.BaseActionId = Reaction->Def.BaseActionId;
 				ResolvedTimeline.Add(Ev);
 			}
 			// Bersaglio ORIGINALE -> bersaglio FINALE: il TurnLog deve dire da chi a chi e' passato il colpo,
@@ -1441,7 +1558,7 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 	// davvero, ed e' l'unico posto dove farlo: qui il redirect e' deciso e nessuna reazione e' ancora stata
 	// valutata sui colpi riscritti, quindi la rivalidazione non puo' aprire una seconda opportunity.
 	//
-	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Gadget.LinearDischarge` contro `Status.Wet`):
+	// E' la stessa disciplina dei bonus di coppia piu' sotto (`Aevik.LinearDischarge` contro `Status.Wet`):
 	// cio' che dipende da CHI subisce si decide dopo l'Intercept, non prima.
 	for (int32 r = 0; r < RedirectHit.Num(); ++r)
 	{
@@ -1990,7 +2107,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		}
 
 		// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'**
-		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Wraith.InterceptShot`: una scelta
+		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Ivrin.InterceptShot`: una scelta
 		// dichiarata e pagata un turno prima viene cancellata da una spinta, ed e' il punto che il brief §8.4
 		// lascia da confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
 		ArmedPredictions.RemoveAll([T](const FRTArmedPrediction& A) { return A.Shooter.Get() == T; });
@@ -2185,7 +2302,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		}
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
-		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
+		// Si itera su Units (ordine di `SortUnitsForResolution`, #2922): quello di una TMap non e' garantito
 		// e da qui dipendono la sequenza del playback e quella del combat log.
 
 
@@ -2336,7 +2453,8 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				// 🔴 **`OwnerId` vive nello spazio di id di `MakeCurrentSnapshot`, NON in quello del Blast**, e
 				// la differenza non e' teorica: `GatherBlastUnits` aggiunge **ogni** `ARTUnit` senza filtrare
 				// (`Ctx.Units`), mentre `MakeCurrentSnapshot` scarta i morti — il suo commento lo dichiara,
-				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano per cella, quindi
+				// «i morti (es. nel Blast) non si muovono e non bloccano». Entrambi ordinano con la cella come
+				// prima chiave (#2922), quindi
 				// **un solo caduto che ordina prima di questa unita' sposta di uno tutti gli indici a valle**.
 				//
 				// ⚠️ Ogni consumatore di `Key.OwnerId` assume lo spazio alive-only: `DecideScriptedResponse`

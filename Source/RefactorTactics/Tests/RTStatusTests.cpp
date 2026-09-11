@@ -114,7 +114,7 @@ bool FRTStatusPersistsWhileOnCellTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0)); // fuori portata: nessun colpo
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -144,7 +144,7 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 {
 	// L'altra meta' di "finche' sulla cella": uscire asciuga, e asciuga NELLO STESSO turno in cui si esce.
 	// La revoca guarda la posizione FINALE, quindi nel Blast del turno dopo l'unita' non e' piu' un bersaglio
-	// conduttivo per Gadget.
+	// conduttivo per Aevik.
 	//
 	// Due turni e non uno: "non e' bagnato dopo essere uscito" e' vero anche in un mondo dove `Wet` non si
 	// applica mai. Il primo turno stabilisce che lo stato c'era davvero, il secondo prova la revoca.
@@ -152,7 +152,7 @@ bool FRTStatusRevokedOnLeavingCellTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -194,7 +194,7 @@ bool FRTStatusBurningDamagesInCleanupTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -226,7 +226,7 @@ bool FRTStatusBurningExpiresAfterTwoTurnsTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -269,7 +269,7 @@ bool FRTStatusBurningDefeatCountsThisTurnTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::Fire, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -303,7 +303,7 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -328,40 +328,40 @@ bool FRTStatusWetRemovesBurningTest::RunTest(const FString&)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusWetAmplifiesGadgetDischargeTest,
-	"RefactorTactics.Status.Wet.AmplifiesGadgetDischarge",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStatusWetAmplifiesAevikDischargeTest,
+	"RefactorTactics.Status.Wet.AmplifiesAevikDischarge",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
+bool FRTStatusWetAmplifiesAevikDischargeTest::RunTest(const FString&)
 {
-	// `URTCombatLibrary::GadgetWetDischargeBonus` esiste dal CP 6.2 ma finora compariva SOLO nei test: nessuno
-	// in partita leggeva lo stato del bersaglio (limite dichiarato in `Heroes.Gadget.WetBonus`). Qui il turno
+	// `URTCombatLibrary::AevikWetDischargeBonus` esiste dal CP 6.2 ma finora compariva SOLO nei test: nessuno
+	// in partita leggeva lo stato del bersaglio (limite dichiarato in `Heroes.Aevik.WetBonus`). Qui il turno
 	// e' vero: due bersagli identici, uno bagnato e uno no, colpiti dalla stessa azione.
 	UWorld* World = MakeStatusWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 5, FRTCellId(2, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Gadget = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Aevik = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* WetTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0)); // nell'acqua
 	ARTUnit* DryTarget = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 2)); // all'asciutto
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Gadget || !WetTarget || !DryTarget) { DestroyStatusWorld(World); return false; }
+	if (!TM || !Aevik || !WetTarget || !DryTarget) { DestroyStatusWorld(World); return false; }
 
 	// L'azione arriva dal catalogo EROI, non da numeri riscritti qui: se il catalogo cambia i 24 danni o la
 	// forma lineare, questo test lo segue invece di sorvegliare una copia.
-	const URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeGadget();
-	const URTActionData* Source = GadgetData ? GadgetData->Actions[1] : nullptr; // indice 1 = Gadget.LinearDischarge
-	if (!TestNotNull(TEXT("Hero.Gadget.LinearDischarge nel catalogo eroi"), Source))
+	const URTHeroData* GadgetData = URTHeroCatalogLibrary::MakeAevik();
+	const URTActionData* Source = GadgetData ? GadgetData->Actions[1] : nullptr; // indice 1 = Aevik.LinearDischarge
+	if (!TestNotNull(TEXT("Hero.Aevik.LinearDischarge nel catalogo eroi"), Source))
 	{
 		DestroyStatusWorld(World);
 		return false;
 	}
-	URTActionData* Discharge = NewObject<URTActionData>(Gadget);
+	URTActionData* Discharge = NewObject<URTActionData>(Aevik);
 	Discharge->DisplayName = FText::FromString(TEXT("Scarica lineare"));
 	Discharge->Def = Source->Def;
 	Discharge->Shape = Source->Shape;             // Line: la forma vive su URTActionData, non su Def
 	Discharge->RangeCells = Source->RangeCells;
 	Discharge->Power = Source->Power;
-	const int32 DischargeIdx = Gadget->Abilities.Add(Discharge);
+	const int32 DischargeIdx = Aevik->Abilities.Add(Discharge);
 
 	WetTarget->Shield = 0;
 	DryTarget->Shield = 0;
@@ -369,9 +369,9 @@ bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
 	const int32 WetStart = WetTarget->Health;
 	const int32 DryStart = DryTarget->Health;
 
-	Gadget->PlannedAbilityIndex = DischargeIdx;
-	Gadget->PlannedAttackTarget = WetTarget;
-	Gadget->PlannedCell = Gadget->Cell;
+	Aevik->PlannedAbilityIndex = DischargeIdx;
+	Aevik->PlannedAttackTarget = WetTarget;
+	Aevik->PlannedCell = Aevik->Cell;
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 
@@ -384,7 +384,7 @@ bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("24 dichiarati + 8 perche' il bersaglio e' bagnato"),
-		WetDamage, 24 + URTCombatLibrary::GadgetWetDischargeBonus);
+		WetDamage, 24 + URTCombatLibrary::AevikWetDischargeBonus);
 
 	// Controprova nello stesso mondo: stesso attaccante, stessa azione, bersaglio ASCIUTTO -> nessun bonus.
 	//
@@ -392,9 +392,9 @@ bool FRTStatusWetAmplifiesGadgetDischargeTest::RunTest(const FString&)
 	// ha attraversato un Cleanup e la ricarica ha rimesso i 5 punti base. Senza questa riga la controprova
 	// misurerebbe «24 meno lo scudo» e accuserebbe il bonus dell'acqua di una differenza che non ha causato.
 	DryTarget->Shield = 0;
-	Gadget->PlannedAbilityIndex = DischargeIdx;
-	Gadget->PlannedAttackTarget = DryTarget;
-	Gadget->PlannedCell = Gadget->Cell;
+	Aevik->PlannedAbilityIndex = DischargeIdx;
+	Aevik->PlannedAttackTarget = DryTarget;
+	Aevik->PlannedCell = Aevik->Cell;
 	StandStill(WetTarget);
 	StandStill(DryTarget);
 	RunStatusTurn(TM);
@@ -449,9 +449,9 @@ bool FRTStatusMarkedAllyHitConsumesBonusTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 5, FRTCellId(4, 0, 0), ERTHexSurface::Floor, /*MoveCost=*/ 1);
 
-	ARTUnit* Marker = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Ally1 = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 1));
-	ARTUnit* Ally2 = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0));
+	ARTUnit* Marker = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Ally1 = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
+	ARTUnit* Ally2 = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
 	ARTUnit* Victim = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Marker || !Ally1 || !Ally2 || !Victim) { DestroyStatusWorld(World); return false; }
@@ -507,8 +507,8 @@ bool FRTStatusMarkedEnemyHitDoesNotConsumeTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 5, FRTCellId(5, 0, 0), ERTHexSurface::Floor, /*MoveCost=*/ 1);
 
-	ARTUnit* Marker = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
-	ARTUnit* Ally = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(1, 0));   // centro dell'AoE nemico
+	ARTUnit* Marker = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Ally = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));   // centro dell'AoE nemico
 	ARTUnit* Victim = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0)); // marcato, adiacente
 	ARTUnit* VictimMate = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
@@ -559,7 +559,7 @@ bool FRTStatusObscuredBySmokeTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 6, FRTCellId(1, 0, 0), ERTHexSurface::Smoke, /*MoveCost=*/ 1);
 
-	ARTUnit* Shooter = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Shooter = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(5, 0)); // a 5 celle: oltre il cap
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Shooter || !Foe) { DestroyStatusWorld(World); return false; }
@@ -605,7 +605,7 @@ bool FRTStatusExpiresInCleanupTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -661,7 +661,7 @@ bool FRTStatusPlaybackCarriesTagAndCauseTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(1, 0, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }
@@ -756,7 +756,7 @@ bool FRTStatusPlaybackIgnoresNonStatusEntriesTest::RunTest(const FString&)
 	// Nessuna acqua: su terreno asciutto un movimento non produce nessuno stato.
 	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(9, 9, 0), ERTHexSurface::Rough, /*MoveCost=*/ 1);
 
-	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeWraith(), FRTCellId(0, 0));
+	ARTUnit* Mover = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Foe) { DestroyStatusWorld(World); return false; }

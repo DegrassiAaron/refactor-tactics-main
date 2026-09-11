@@ -65,7 +65,7 @@ namespace
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeWraith());
+		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell; // fermo salvo che il caso non lo cambi
@@ -166,7 +166,7 @@ bool FRTMovementCharacterizationTest::RunTest(const FString&)
 	Watcher->PlannedAbilityIndex =
 		RTAbilityFixtures::AddCoreAbilityInSlot(Watcher, TEXT("Action.Overwatch"), 3);
 
-	// Due celle: dentro il budget di movimento del Wraith senza dover conoscere il numero esatto.
+	// Due celle: dentro il budget di movimento del Ivrin senza dover conoscere il numero esatto.
 	Mover->PlannedCell = FRTCellId(2, 0);
 
 	RunResumeTurn(TM);

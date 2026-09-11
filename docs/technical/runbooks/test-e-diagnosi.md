@@ -355,7 +355,7 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](../tooling/scenario-in
   "mapRadius": 3,
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 0, 0] },
+    { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [-2, 0, 0] },
     { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [2, 0, 0] }
   ],
 
@@ -376,10 +376,10 @@ tabella di redirect stanno in [`scenario-index-e-tag.md`](../tooling/scenario-in
 | `tags` | *(opzionale)* parole per cui filtrare nell'Editor: tipologia, lente, personaggio. Vedi [`scenario-index-e-tag.md`](../tooling/scenario-index-e-tag.md) |
 | `mapRadius` | arena esagonale piena generata da codice (nessun `.umap` da versionare) |
 | `cells` | *(opzionale)* celle da modificare: `blocksMovement`, `blocksLineOfSight`, `moveCost` |
-| `hero` | ID stabile dal catalogo: `Hero.Gadget` · `Hero.Phase` · `Hero.Riktor` · `Hero.Wraith` |
+| `hero` | ID stabile dal catalogo: `Hero.Aevik` · `Hero.Muiren` · `Hero.Riktor` · `Hero.Wraith` |
 | `cell` | `[q, r]` oppure `[q, r, layer]` — il layer è opzionale e vale 0 |
 | `move` | lista di **waypoint**, come li produrrebbe il giocatore cliccando |
-| `ability` | `ActionId` dell'abilità (`Hero.Gadget.ArcPulse`) — per **ID**, non per indice |
+| `ability` | `ActionId` dell'abilità (`Hero.Aevik.ArcPulse`) — per **ID**, non per indice |
 | `target` | ID di scenario del bersaglio; obbligatorio con `ability` |
 | `reaction` | `ActionId` della reazione che l'unità **arma** per il turno — nessun bersaglio |
 | `bot` | *(opzionale)* l'unità è guidata dal **pianificatore del gioco**, non dal file. Un intent scritto per lei è un errore |
@@ -449,7 +449,7 @@ sposta nulla, due varianti omonime, un'unità spostata sopra un'altra.
 "freeRun": true,
 "maxTurns": 40,
 "units": [
-  { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-4, 2, 0], "bot": true },
+  { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-4, 2, 0], "bot": true },
   { "id": "B1", "hero": "Hero.Riktor", "team": 1, "cell": [4, -2, 0], "bot": true }
 ]
 ```

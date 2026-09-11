@@ -5,7 +5,7 @@
   "seed": 0,
   "fixture": "RelayLite",
 
-  "_nota": "L'asimmetria di D-224 messa in UN turno solo: lo scudo base ferma il danno DIRETTO e NON il danno da terreno. Due Wraith identici, 90 HP ciascuno, incassano nello stesso turno due colpi di entita' simile e finiscono a HP diversi — e la differenza e' precisamente lo scudo. V1 entra nel fuoco e paga 18 su 18; T1 incassa un `PulseShot` da 21 e ne paga 16. Chi legge deve poter concludere che l'armatura non protegge da cio' che brucia, che e' la ragione per cui vale la pena uscire da una cella in fiamme invece di ripararsi.",
+  "_nota": "L'asimmetria di D-224 messa in UN turno solo: lo scudo base ferma il danno DIRETTO e NON il danno da terreno. Due Ivrin identici, 90 HP ciascuno, incassano nello stesso turno due colpi di entita' simile e finiscono a HP diversi — e la differenza e' precisamente lo scudo. V1 entra nel fuoco e paga 18 su 18; T1 incassa un `PulseShot` da 21 e ne paga 16. Chi legge deve poter concludere che l'armatura non protegge da cio' che brucia, che e' la ragione per cui vale la pena uscire da una cella in fiamme invece di ripararsi.",
 
   "_nota_aritmetica": "SCUDO BASE = 5 (`URTCombatLibrary::BaseShield`), e `ApplyDamage` lo sottrae SOLO quando `Source == Direct`. V1: 10 all'ingresso + 8 di `Status.Burning` nel Cleanup, entrambi `HazardDamage`, quindi 90 - 18 = 72. T1: `PulseShot` 21 e' diretto, la base ne assorbe 5, quindi 90 - 16 = 74. La coppia 72/74 e' il punto: il bersaglio che ha incassato il numero PIU' ALTO (21 contro 18) finisce col numero di HP piu' alto.",
 
@@ -15,10 +15,10 @@
 
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget", "team": 0, "cell": [-4,  0, 0] },
-    { "id": "A1", "hero": "Hero.Wraith", "team": 0, "cell": [ 4,  0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 0, -3, 0] },
-    { "id": "T1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2,  0, 0] }
+    { "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-4,  0, 0] },
+    { "id": "A1", "hero": "Hero.Ivrin", "team": 0, "cell": [ 4,  0, 0] },
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 0, -3, 0] },
+    { "id": "T1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2,  0, 0] }
   ],
 
   "turns": [
@@ -26,7 +26,7 @@
       "_turno": "V1 entra nel fuoco (danno da terreno, lo scudo non c'entra); A1 spara a T1 (danno diretto, lo scudo assorbe 5).",
       "intents": [
         { "unit": "V1", "move": [[0, -2, 0]] },
-        { "unit": "A1", "ability": "Hero.Wraith.PulseShot", "target": "T1" }
+        { "unit": "A1", "ability": "Hero.Ivrin.PulseShot", "target": "T1" }
       ]
     }
   ],

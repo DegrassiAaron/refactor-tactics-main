@@ -357,6 +357,37 @@ public:
 	static int32 SurfaceRingCount(ERTHexSurface Surface);
 
 	/**
+	 * Il VOLUME con cui una superficie si dichiara nello spazio: `X` = frazione del raggio della cella,
+	 * `Y` = altezza in uu. `(0,0)` significa «nessun volume», che e' il caso di otto superfici su nove.
+	 *
+	 * ## 🔴 Perche' un volume, quando colore e glifo esistono gia'
+	 *
+	 * Perche' nessuno dei due dice **cosa** sia la superficie. Il colore del fumo — `(180,190,215)` — dista
+	 * dal pavimento `(160,160,160)` il **19%** di luminanza: un delta che si vede solo se si sa cosa cercare.
+	 * Il glifo e' inequivocabile — un anello, e Smoke e' l'unica a averne uno — ma e' **astratto**: dice
+	 * *«superficie speciale numero uno»*, non *«fumo»*.
+	 *
+	 * 🔑 **La forma e' il terzo canale, ed e' la strada che questo repository ha gia' scelto una volta.**
+	 * `ARTHexMapActor` costruisce da `#552` due volumi con forme deliberatamente diverse — una **lastra**
+	 * sottile per cio' che ferma la vista, una **colonna** stretta per cio' che ferma il passo — proprio
+	 * perche' due regole diverse non si distinguono col solo colore. E' il criterio di `#956`, *«colore **e**
+	 * forma, mai solo il colore»*, e quello di [D-183], che accoppia tinta e glifo.
+	 *
+	 * ⛔ **Non e' un VFX e non ne apre la porta**: [D-124] tiene Niagara fuori dal perimetro v0.1, e questa
+	 * funzione restituisce due float che una `UInstancedStaticMeshComponent` consuma come le altre.
+	 *
+	 * ## ⚠️ `switch` esplicito e senza `default`, come `SurfaceRingCount`
+	 *
+	 * Una superficie nuova **non compila** finche' non dichiara la propria forma. Un `default` la farebbe
+	 * nascere invisibile per omissione, che e' lo stesso difetto che il gate dei glifi esiste per impedire —
+	 * e la superficie sbagliata da rendere muta e' sempre quella che qualcuno aggiungera' domani.
+	 *
+	 * ⚠️ **DERIVATO dalla superficie, mai memorizzato**, per la ragione di `SurfaceRingCount`: se diventasse
+	 * un dato, l'hash della mappa cambierebbe e ogni `.uasset` andrebbe risalvato.
+	 */
+	static FVector2D SurfaceVolumeFor(ERTHexSurface Surface);
+
+	/**
 	 * Altezza (uu) del RILIEVO con cui l'editor mostra quanto costa attraversare una cella: il profilo della
 	 * mappa racconta dove si rallenta, senza aprire un pannello.
 	 *

@@ -169,6 +169,95 @@ enum class ERTInterruptPolicy : uint8
 	CancelChannel
 };
 
+/**
+ * Se l'azione ha BISOGNO della linea di tiro per essere legale (`#2870`).
+ *
+ * ## 🔴 Perche' e' un dato dell'AZIONE e non una deduzione dal bersaglio
+ *
+ * Fino a qui il requisito era cablato dentro `URTCombatLibrary::ClassifyHexTargeting`, che lo applicava a
+ * chiunque: un'azione ad area finiva rifiutata su una cella non visibile esattamente come un tiro mirato.
+ * ∴ *forma dell'area* e *requisito di linea* erano la stessa riga di codice, e nessuna azione poteva
+ * dissociarli — granata, mortaio, blast oltre un ostacolo e velo di nebbia non erano rappresentabili.
+ *
+ * ⛔ **Dedurlo dal fatto che il bersaglio sia una CELLA sarebbe sbagliato**, ed e' la scorciatoia che
+ * questa enum esiste per non prendere: `Shape::Area` dice dove cade l'esplosione, non se il tiratore debba
+ * vedere il punto in cui la manda. Un'AoE mirata a vista e un mortaio hanno la stessa forma e regole
+ * diverse, e la differenza appartiene all'azione.
+ *
+ * ## ⛔ Enum e non `bool`, e la ragione e' tecnica prima che semantica
+ *
+ * Lo **zero** dell'enum E' il requisito. Un pin Blueprint che nessuno riempie, un `Def` costruito in codice
+ * che si dimentica il campo e un `FRTHexAttackIntent` inizializzato di default restano quindi
+ * **fail-closed**, cioe' col comportamento storico. Un `bRequiresLineOfSight` avrebbe lo stesso significato
+ * e il verso opposto: non dichiararlo varrebbe `false`, cioe' *«il tiro indiretto e' concesso»* — fail-OPEN
+ * su un vincolo di legalita', che e' il modo in cui un permesso si estende a chi non l'ha chiesto.
+ *
+ * E' lo stesso argomento che `bCountsAsAttack` porta nel verso suo: quel flag descrive un'IDENTITA' e nasce
+ * chiuso, mentre `bAllowsReaction` e `bFriendlyFire` descrivono PERMESSI e nascono aperti. Questa e' una
+ * **licenza**, quindi nasce revocata.
+ *
+ * ## ⛔ Cio' che questa enum NON e'
+ *
+ * Non e' `DirectLOS / CellLOS / Indirect`. Quella distinzione — *che FORMA di bersaglio chiede l'azione* —
+ * la fa gia' `URTPointerLibrary::TargetKindForAction` leggendo `Shape` e `StructureOp`, e duplicarla qui
+ * creerebbe la seconda fonte di verita' che quel file dichiara apertamente di evitare. I due assi sono
+ * ortogonali per costruzione: un'azione a cella puo' richiedere la linea, e domani un'azione mirata a
+ * un'unita' gia' conosciuta potrebbe non richiederla.
+ *
+ * ⚠️ **E non e' una policy di CONOSCENZA.** Chi si possa bersagliare lo decidono `ERTTargetKnowledge` e
+ * `#2741`; questa enum parla solo di **geometria**. Un'azione `NotRequired` non rende bersagliabile
+ * un'unita' che l'osservatore non conosce, e non deve: sono due velluti diversi sulla stessa cella.
+ */
+UENUM(BlueprintType)
+enum class ERTLineOfSightPolicy : uint8
+{
+	/**
+	 * La linea di tiro e' un requisito: senza, il bersaglio e' rifiutato con `NoLineOfSight`. E' il
+	 * comportamento di ogni azione del catalogo prima di `#2870`, ed e' lo **zero** dell'enum apposta.
+	 */
+	Required,
+
+	/**
+	 * L'azione e' esplicitamente autorizzata a colpire dove non si vede (tiro indiretto, blast, velo).
+	 *
+	 * ⚠️ **Non toglie NIENTE ALTRO**: portata, terreno, forma, fuoco amico e ogni altro vincolo dell'azione
+	 * restano. Cieco non significa illimitato — `BlindFireStillObeysRange` lo pinna.
+	 */
+	NotRequired
+};
+
+/**
+ * Come un'azione risolve il proprio bersaglio LUNGO una direzione (`#2929`, [D-386] emendata).
+ *
+ * 🔑 **Non e' un asse di forma, ed e' la ragione per cui non e' un valore di `ERTAbilityShape`.** La forma
+ * risponde a *«quali celle investo»* e la calcola `URTHexCombatLibrary::HexHitCells`, che e' geometria
+ * **pura**: non riceve l'occupazione, quindi non puo' sapere dove si trovi il primo bersaglio. Fermarsi sul
+ * primo e' una domanda di TARGETING — *«chi incasso»* — e si risolve dove l'occupazione esiste.
+ *
+ * ⛔ **Sta nei DATI e non nel codice**, per lo stesso argomento con cui `ERTLineOfSightPolicy` ci sta: senza,
+ * l'unica via sarebbe un `if (ActionId == TEXT("Action.LineAttack"))` dentro il resolver, cioe' l'eccezione
+ * hard-coded che il motore azioni esiste per togliere ([D-046]).
+ *
+ * ⚠️ **`None` e' lo zero apposta**: un'azione che non dichiara il campo — cioe' ogni azione del catalogo
+ * prima di questo commit — conserva esattamente il comportamento che aveva. I valori nuovi vanno **in coda**,
+ * perche' il valore serializzato e' l'indice.
+ */
+UENUM(BlueprintType)
+enum class ERTLineResolution : uint8
+{
+	/** L'azione non risolve lungo una linea: il bersaglio e' quello puntato. Comportamento storico. */
+	None,
+
+	/**
+	 * Il colpo percorre la direzione mirata e si ferma sul PRIMO bersaglio valido
+	 * (`URTOffensiveActionLibrary::ResolveLineAttack`).
+	 *
+	 * ⚠️ **Un alleato non e' un bersaglio valido e non ferma il colpo**: a interrompere la linea e' la
+	 * geometria, che e' cio' che il catalogo dichiara. La regola vive nel resolver, non qui.
+	 */
+	StopAtFirstTarget
+};
+
 UENUM(BlueprintType)
 enum class ERTReactionTrigger : uint8
 {
@@ -292,7 +381,7 @@ enum class ERTMovementStyle : uint8
 	/** Salto: ignora unita' e celle intermedie, conta solo dove si atterra (`Leap`). */
 	LinearLeap,
 	/**
-	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Wraith.PassingBlade`).
+	 * ATTRAVERSA le unita' sulla traiettoria e le colpisce, poi prosegue (`Ivrin.PassingBlade`).
 	 *
 	 * La differenza con `LinearLeap` non e' il danno ma cosa si tocca: il salto **scavalca** e non incontra
 	 * nessuno, la lama passa **in mezzo** e applica a ognuno gli effetti dell'azione. Con `LinearCharge`
@@ -669,6 +758,54 @@ struct FRTActionDef
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTPredictionBoundary PredictionBoundary = ERTPredictionBoundary::None;
+
+	/**
+	 * Se l'azione ha bisogno della linea di tiro (`#2870`, [D-378]). Default `Required`: il comportamento di
+	 * ogni azione del catalogo prima di questo campo, quindi introdurlo non sposta nulla.
+	 *
+	 * ⛔ **Sta nei DATI e non nel codice**, come `bFriendlyFire` e `SurfaceCreated` prima di lui: altrimenti
+	 * il tiro indiretto sarebbe un `if (ActionId == ...)` dentro il classificatore, cioe' l'eccezione
+	 * hard-coded che il motore azioni esiste per togliere ([D-046]).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTLineOfSightPolicy LineOfSightPolicy = ERTLineOfSightPolicy::Required;
+
+	/**
+	 * La domanda binaria che i tre gate pongono. E' una funzione sola perche' la risposta e' una sola: chi
+	 * deve decidere se rifiutare legge questo, e non ricostruisce il confronto con l'enum a modo proprio.
+	 */
+	bool RequiresLineOfSight() const { return LineOfSightPolicy == ERTLineOfSightPolicy::Required; }
+
+	/**
+	 * Come l'azione risolve il bersaglio lungo la direzione mirata (`#2929`, [D-386] emendata).
+	 *
+	 * 🔴 **Il campo nasce perche' la dichiarazione e l'implementazione non concordavano.** Il catalogo
+	 * descriveva `Action.LineAttack` come *«22 danni al PRIMO bersaglio valido»* e nominava
+	 * `URTOffensiveActionLibrary::ResolveLineAttack`, che **non aveva chiamanti di produzione**: l'intento
+	 * nasceva `ERTAbilityShape::Single` — perche' `FRTActionDef` non porta uno `Shape` — e il colpo arrivava
+	 * alla cella puntata scavalcando chi stava in mezzo.
+	 *
+	 * ⚠️ **Emenda [D-386] punto (2)**, che diceva *«non nasce nessun campo»*. L'argomento contro un
+	 * `bPiercing` su `URTActionData` regge e non e' stato riaperto — non arriverebbe mai a un'azione di
+	 * catalogo — ma la chiave dichiarativa doveva esistere da qualche parte, e questa e' la casa dell'azione.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	ERTLineResolution LineResolution = ERTLineResolution::None;
+
+	/**
+	 * Distanza MINIMA in celle: sotto questa, l'azione non parte (`#2950`). `0` = nessun minimo.
+	 *
+	 * 🔴 **Nasce perche' il vocabolario aveva un solo verso.** `RangeCells` e' un massimo e basta, quindi
+	 * nessuna azione poteva esistere che richiedesse distanza — un mortaio, un arco, un'arma pesante
+	 * inutile in mischia. L'unica via era un ramo per `ActionId` dentro il classificatore, cioe'
+	 * l'eccezione hard-coded che [D-046] esiste per togliere. Stesso difetto che [D-378] ha chiuso
+	 * sull'asse della linea di tiro.
+	 *
+	 * ⚠️ **Lo zero e' il default apposta**: ogni azione del catalogo prima di questo campo conserva il
+	 * comportamento che aveva, e un test lo prova sul catalogo invece che a memoria.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 MinRangeCells = 0;
 
 	FRTActionDef() = default;
 };

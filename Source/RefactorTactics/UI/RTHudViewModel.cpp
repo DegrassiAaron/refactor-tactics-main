@@ -123,6 +123,16 @@ FRTUnitCardView URTHudViewModel::BuildUnitCard(const ARTUnit* Unit, int32 Player
 	Card.bIsAlly = (Unit->TeamId == PlayerTeamId);
 	Card.bAlive = Unit->IsAlive();
 
+	// `MaxHealth <= 0` non e' un errore da segnalare: e' la card VUOTA — quella che il pannello mostra
+	// senza selezione — e la barra giusta e' quella a zero.
+	//
+	// `Clamp` e non aritmetica nuda: il contratto dichiara `[0,1]` e `Health` viene dal simulatore, dove
+	// una cura o un danno eccessivo possono portarlo fuori dall'intervallo. E' la stessa cura gia' presa
+	// da `ChargeFraction` poco piu' sotto.
+	Card.HealthFraction = (Card.MaxHealth > 0)
+		? FMath::Clamp(static_cast<float>(Card.Health) / static_cast<float>(Card.MaxHealth), 0.f, 1.f)
+		: 0.f;
+
 	return Card;
 }
 
@@ -208,7 +218,7 @@ FRTUnitOverlayView URTHudViewModel::BuildUnitOverlay(const ARTUnit* Unit, int32 
 	View.Card = BuildUnitCard(Unit, PlayerTeamId);
 	View.Statuses = BuildStatusBadges(Unit);
 
-	// Il nome CANONICO del catalogo ([D-120]), non l'ID stabile: `Hero.Gadget` si legge `Gadget`. Il
+	// Il nome CANONICO del catalogo ([D-120]), non l'ID stabile: `Hero.Aevik` si legge `Aevik`. Il
 	// ripiego sull'ID resta dentro `DisplayLabel`, per le unita' che nessun eroe ha configurato.
 	View.DisplayName = ARTUnit::DisplayLabel(Unit->HeroDisplayName, Unit->HeroId, Unit->GetName());
 
@@ -495,16 +505,46 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArray<FRTTurnLogEntry>& TurnLog,
 	const TArray<int32>& ObserverTeamIds)
 {
+	// 🔴 **Il PERIMETRO viene prima della proiezione, ed e' una correzione non un taglio.**
+	// `Project` applica la dominanza — una riga per unita' — e il suo commento la descrive «in questo
+	// turno». Passandogli la partita intera quella regola cambia significato: chi e' andato KO al round 3
+	// tiene la riga fino alla fine, perche' nessun evento successivo ha rango piu' alto, e cio' che gli e'
+	// accaduto dopo non si vede. Anche l'aggregazione dell'ambiente («quante celle, non quali») si
+	// fonderebbe su dodici round in un contatore solo.
+	int32 UltimoTurno = 0;
+	for (const FRTTurnLogEntry& Entry : TurnLog)
+	{
+		UltimoTurno = FMath::Max(UltimoTurno, Entry.TurnNumber);
+	}
+
+	TArray<FRTTurnLogEntry> DelTurnoCorrente;
+	DelTurnoCorrente.Reserve(TurnLog.Num());
+	for (const FRTTurnLogEntry& Entry : TurnLog)
+	{
+		if (Entry.TurnNumber == UltimoTurno)
+		{
+			DelTurnoCorrente.Add(Entry);
+		}
+	}
+
 	// ⛔ **L'autorizzazione non si ripete qui, e non deve.** `Project` la applica come primo passo, sul
 	// verdetto che ogni voce porta congelato ([D-223]). Riapplicarla sarebbe un secondo contratto di
 	// conoscenza — il difetto che `#1936` vieta — e ometterla sarebbe il leak. Questa funzione **compone** e
 	// nient'altro.
-	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(TurnLog, ObserverTeamIds);
+	//
+	// ⚠️ Il filtro qui sopra non tocca l'autorizzazione: seleziona QUALI voci entrano, non chi puo'
+	// vederle. Le due decisioni restano separate, e quella di privacy resta una sola.
+	const TArray<FRTPlayerEvent> Events = URTPlayerEventProjector::Project(DelTurnoCorrente, ObserverTeamIds);
+
+	// Le **ultime** `MaxFeedLines`: il giocatore vuole sapere cos'e' appena successo, non come il turno
+	// era cominciato. Prendere le prime sarebbe altrettanto implementabile e inutile.
+	const int32 Prime = FMath::Max(0, Events.Num() - MaxFeedLines);
 
 	TArray<FRTPlayerEventLineView> Lines;
-	Lines.Reserve(Events.Num());
-	for (const FRTPlayerEvent& Event : Events)
+	Lines.Reserve(Events.Num() - Prime);
+	for (int32 i = Prime; i < Events.Num(); ++i)
 	{
+		const FRTPlayerEvent& Event = Events[i];
 		FRTPlayerEventLineView& Line = Lines.AddDefaulted_GetRef();
 		Line.Text = ComposePlayerEventText(Event);
 		Line.Importance = Event.Importance;
@@ -574,6 +614,105 @@ TArray<int32> URTHudViewModel::ResolveObserverTeamIds(const ARTTurnManager* Turn
 	// squadre di posto. E' la stessa disciplina per cui il roster ordina per `HeroId`.
 	TeamIds.Sort();
 	return TeamIds;
+}
+
+#undef LOCTEXT_NAMESPACE
+
+
+#define LOCTEXT_NAMESPACE "RTTargetPrompt"
+
+FRTTargetPromptView URTHudViewModel::BuildTargetPrompt(ERTPointerContext Context, ERTPointerTargetKind Kind)
+{
+	FRTTargetPromptView View;
+
+	// 🔴 **Il CONTESTO viene prima della forma, e l'ordine e' quello che il contratto dichiara gia'.**
+	// `GetPointerContext()` mette `Modal` e `ResolutionPlayback` davanti a ogni altro ramo — «con la pausa a
+	// schermo nessun click deve raggiungere il mondo, qualunque cosa sia selezionata». Guardare prima il
+	// `Kind` mostrerebbe «scegli un'unita'» a partita in pausa, con un'azione rimasta armata da prima.
+	//
+	// ⚠️ `ReactionWindow` sta qui pur non avendo ancora un produttore (e' E14), e NON e' il «campo senza
+	// produttore» che questo repository evita: non e' uno stato nuovo che qualcuno dovrebbe scrivere, e'
+	// un valore dell'enum del puntatore che va classificato comunque. Ometterlo lo farebbe cadere nel
+	// `default` in fondo, cioe' su una risposta sbagliata invece che su una dichiarata.
+	if (Context == ERTPointerContext::Modal
+		|| Context == ERTPointerContext::ResolutionPlayback
+		|| Context == ERTPointerContext::ReactionWindow)
+	{
+		View.Kind = ERTTargetPromptKind::NotApplicable;
+		return View; // testo vuoto: e' l'unico caso in cui lo e', e `Kind` lo nomina.
+	}
+
+	if (Context == ERTPointerContext::IdleSelection)
+	{
+		View.Kind = ERTTargetPromptKind::NoSelection;
+		View.Text = LOCTEXT("NoSelection", "Seleziona un'unita'");
+		return View;
+	}
+
+	// La rotazione finale non passa da un `TargetKind`: e' un contesto suo, ed e' il quarto dei cinque
+	// prompt che la DoD elenca.
+	if (Context == ERTPointerContext::Facing)
+	{
+		View.Kind = ERTTargetPromptKind::ChooseFacing;
+		View.Text = LOCTEXT("ChooseFacing", "Scegli l'orientamento");
+		View.bIsAwaitingTarget = true;
+		return View;
+	}
+
+	// `Planning` e `Pathing` sono entrambi «unita' selezionata, niente armato»: il neutro di D-128. Restano
+	// due contesti perche' il puntatore ci fa cose diverse, ma la domanda posta al giocatore e' la stessa —
+	// e' ancora «scegli un'azione».
+	if (Context != ERTPointerContext::Targeting)
+	{
+		View.Kind = ERTTargetPromptKind::Neutral;
+		View.Text = LOCTEXT("Neutral", "Scegli un'azione");
+		return View;
+	}
+
+	// --- Da qui in giu' un'azione E' armata, e il `Kind` dice cosa chiede -----------------------------
+	switch (Kind)
+	{
+	case ERTPointerTargetKind::None:
+		// 🔑 **Questo `None` non e' un'assenza: e' una risposta.** L'azione e' armata e non ha niente da
+		// puntare (`TargetKindForAction`: «un supporto su se stessi non ha niente da puntare, si pianifica
+		// alla pressione del tasto»). Dirlo «nessuna azione» sarebbe falso, e tacere lascerebbe il
+		// giocatore ad aspettare un click che non serve.
+		View.Kind = ERTTargetPromptKind::SelfTargetConfirmed;
+		View.Text = LOCTEXT("SelfTarget", "Azione su di se': confermata");
+		return View;
+
+	case ERTPointerTargetKind::Unit:
+		View.Kind = ERTTargetPromptKind::ChooseUnit;
+		View.Text = LOCTEXT("ChooseUnit", "Scegli un'unita'");
+		View.bIsAwaitingTarget = true;
+		return View;
+
+	case ERTPointerTargetKind::Cell:
+		View.Kind = ERTTargetPromptKind::ChooseCell;
+		View.Text = LOCTEXT("ChooseCell", "Scegli una cella");
+		View.bIsAwaitingTarget = true;
+		return View;
+
+	case ERTPointerTargetKind::Edge:
+		View.Kind = ERTTargetPromptKind::ChooseEdge;
+		View.Text = LOCTEXT("ChooseEdge", "Scegli un bordo");
+		View.bIsAwaitingTarget = true;
+		return View;
+
+	case ERTPointerTargetKind::Object:
+		break; // cade sotto: nessun produttore, e si dichiara invece di indovinare.
+	}
+
+	// ⚠️ **`Object` e' nell'enum e nessuno lo produce**: `TargetKindForAction` restituisce `None`, `Edge`,
+	// `Cell` o `Unit`, mai `Object`. Non gli si inventa una frase — «scegli un oggetto» sarebbe una
+	// promessa che nessun percorso mantiene — e non lo si lascia sparire in un testo vuoto, che e' il
+	// difetto che `ComposePlayerEventText` documenta un piano piu' in la': *«una riga vuota e' una
+	// sparizione che nessuno nota»*. Il giorno in cui un owner produrra' `Object`, questo ramo e il suo
+	// test dicono dove aggiungere il prompt.
+	View.Kind = ERTTargetPromptKind::Unsupported;
+	View.Text = LOCTEXT("Unsupported", "Bersaglio non ancora supportato");
+	View.bIsAwaitingTarget = true;
+	return View;
 }
 
 #undef LOCTEXT_NAMESPACE

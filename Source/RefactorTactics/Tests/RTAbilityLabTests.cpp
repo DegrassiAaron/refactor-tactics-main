@@ -2,8 +2,8 @@
 //
 // ## Perche' nessun `AbilityId` e' cablato
 //
-// Le identita' di questo progetto si rinominano: `D-130` ha spostato `Flux` -> `Gadget` e `Riva` -> `Phase`,
-// `D-334` ha spostato `Hero.Riktor` -> `Hero.Branth`. Un test che scrivesse `Hero.Gadget.LinearDischarge`
+// Le identita' di questo progetto si rinominano: `D-130` ha spostato `Flux` -> `Aevik` e `Riva` -> `Phase`,
+// `D-334` ha spostato `Hero.Riktor` -> `Hero.Branth`. Un test che scrivesse `Hero.Aevik.LinearDischarge`
 // diventerebbe rosso al prossimo rename **senza che nulla si sia rotto**, e il costo di quel falso rosso lo
 // paga chi rinomina.
 //

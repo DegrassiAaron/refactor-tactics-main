@@ -51,8 +51,8 @@
 namespace RTBoundaryInvariants
 {
 	/**
-	 * Lo scenario condiviso dai due test: due Wraith che guardano la STESSA cella da lati opposti, e un
-	 * Gadget che ci entra con un solo micro-step.
+	 * Lo scenario condiviso dai due test: due Ivrin che guardano la STESSA cella da lati opposti, e un
+	 * Aevik che ci entra con un solo micro-step.
 	 *
 	 * ⚠️ `MakeSuppressiveZone` costruisce una LINEA lungo il facing, quindi `(-1,-1,0)` cade nella zona di
 	 * entrambi i watcher. Sono due WATCHER diversi sullo stesso bersaglio — quindi **due opportunity** — e non
@@ -81,7 +81,7 @@ namespace RTBoundaryInvariants
 
 		FRTScenarioUnit W1;
 		W1.Id = TEXT("W1");
-		W1.HeroId = TEXT("Hero.Wraith");
+		W1.HeroId = TEXT("Hero.Ivrin");
 		W1.TeamId = 1;
 		W1.Cell = FRTCellId(2, -1, 0);
 		W1.Facing = ERTHexDirection::W;
@@ -89,7 +89,7 @@ namespace RTBoundaryInvariants
 
 		FRTScenarioUnit W2;
 		W2.Id = TEXT("W2");
-		W2.HeroId = TEXT("Hero.Wraith");
+		W2.HeroId = TEXT("Hero.Ivrin");
 		W2.TeamId = 1;
 		W2.Cell = FRTCellId(-3, -1, 0);
 		W2.Facing = ERTHexDirection::E;
@@ -101,7 +101,7 @@ namespace RTBoundaryInvariants
 		// sopravvivenza non e' assunta: e' un `Expect` qui sotto.
 		FRTScenarioUnit M1;
 		M1.Id = TEXT("M1");
-		M1.HeroId = TEXT("Hero.Gadget");
+		M1.HeroId = TEXT("Hero.Aevik");
 		M1.TeamId = 0;
 		M1.Cell = FRTCellId(-2, 0, 0);
 		Scenario.Units.Add(M1);

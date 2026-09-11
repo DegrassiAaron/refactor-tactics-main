@@ -257,7 +257,7 @@ altro nome.
 | | |
 |---|---|
 | **Goal** | Il codice applica [D-028](../../decisions/RT_PDR_00_Decision_Log.md) |
-| **Scope** | **1.** core: `Action.Dash`, `Action.Leap`, `Action.Reposition`, `Action.Sprint` → `ERTActionSlot::Movement` (`Charge` invariato)<br>**2.** eroi: `Hero.Phase.FluidTrail` → `Movement` — vedi sotto, **non è un dettaglio**<br>**3.** resolver: dopo uno scatto il movimento è **speso** (`RTTurnManager` oggi conserva `PlannedCell` e concede il doppio movimento)<br>**4.** invariante sul roster che impedisca la ricaduta |
+| **Scope** | **1.** core: `Action.Dash`, `Action.Leap`, `Action.Reposition`, `Action.Sprint` → `ERTActionSlot::Movement` (`Charge` invariato)<br>**2.** eroi: `Hero.Muiren.FluidTrail` → `Movement` — vedi sotto, **non è un dettaglio**<br>**3.** resolver: dopo uno scatto il movimento è **speso** (`RTTurnManager` oggi conserva `PlannedCell` e concede il doppio movimento)<br>**4.** invariante sul roster che impedisca la ricaduta |
 | **Non-goals** | Ribilanciare `Charge` e `Sprint` → `BAL-1` · far rispettare gli slot nel controller e nel bot: l'esito lo decide il **resolver** (invariante #1), il rifiuto in pianificazione è UX e viene dopo |
 | **Acceptance** | `Dash` + attacco **legale** e il colpo parte dalla posizione post-scatto · `Dash` + `Move` → si finisce dove ha portato lo scatto · `Charge` + `Move` legale · nessuna mobilità d'eroe senza danno occupa la principale |
 | **Test** | `Actions.Sprint.ConsumesOnlyMovement` (riscritto) · `Actions.Dash.LeavesMainAvailable` · `Actions.Dash.ConsumesTheMovement` · `Heroes.MobilityWithoutDamageIsNotMain` · `Actions.KitCanDeclareAMobilityThatCostsBothSlots` |
@@ -269,7 +269,7 @@ altro nome.
 > | Azione d'eroe | Cos'è | Slot oggi | Sotto D-028 |
 > |---|---|---|---|
 > | `Hero.Riktor.Ram` | carica: 20 danni + `Push 1` | `Main` | `Main` ✅ — **è un attacco** |
-> | `Hero.Phase.FluidTrail` | `Dash 3`, `LinearDash`, **nessun effetto** | `Main` | `Movement` ❌ da correggere |
+> | `Hero.Muiren.FluidTrail` | `Dash 3`, `LinearDash`, **nessun effetto** | `Main` | `Movement` ❌ da correggere |
 >
 > Cambiare solo i quattro slot core avrebbe lasciato indietro l'unica mobilità d'eroe del roster. E il default
 > è il difetto vero: **ogni prossima mobilità nascerà sulla principale** senza che nessuno se ne accorga.

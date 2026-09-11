@@ -13,21 +13,21 @@
 
   "_nota_perche_tre_turni": "I tre turni non servono a QUESTO file, servono alla sua coppia: la' il turno centrale esiste perche' il Move risolve DOPO il Blast (`Prep -> Dash -> Blast -> Move`) e un passo dichiarato insieme al colpo arriverebbe troppo tardi per cambiare la conoscenza. Qui il T2 e' un turno in cui A1 non fa nulla e B1 si sposta. Tenerlo comunque e' il punto: due file che differiscono per il numero di turni non sono una coppia, sono due esperimenti diversi.",
 
-  "_nota_movimento_di_b1": "B1 si sposta anche qui, ed e' deliberato: se fosse fermo nel controllo e mobile nell'altro, i due file differirebbero per DUE cose e il delta non sarebbe attribuibile a niente. (3,-1,0) resta dentro la portata 4 di `Hero.Gadget.ArcPulse` da (0,0,0) — distanza 3 — e dentro l'arco frontale a est: verificato, questo file passa 5/5 con B1 su quella cella.",
+  "_nota_movimento_di_b1": "B1 si sposta anche qui, ed e' deliberato: se fosse fermo nel controllo e mobile nell'altro, i due file differirebbero per DUE cose e il delta non sarebbe attribuibile a niente. (3,-1,0) resta dentro la portata 4 di `Hero.Aevik.ArcPulse` da (0,0,0) — distanza 3 — e dentro l'arco frontale a est: verificato, questo file passa 5/5 con B1 su quella cella.",
 
   "_nota_facing_assente": "⚠️ Nemmeno questo file asserisce sul facing di A1, ma per una ragione DIVERSA dal gemello, e la prima stesura ne portava la copia verbatim — parlava di «il passo a ovest» e del «gate della conoscenza», che qui non esistono: A1 non si muove e nessun gate lo ferma. Qui A1 finisce a EST per DUE cause sovrapposte — non si e' mai girato, e l'attacco del T3 lo orienterebbe comunque verso il bersaglio ([D-020]) — quindi un'assertion su `E` non discriminerebbe fra le due e non misurerebbe niente. La domanda aperta sul facing e' `PER-4` e la pone il gemello, `Spec.Perception.MovingBreaksContact`; il meccanismo ha i suoi owner in `Spec/Facing/DerivesFromMove` e `Spec/Facing/TargetingReorients`.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0], "facing": "E" },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [3, 0, 0] },
-    { "id": "B2", "hero": "Hero.Wraith", "team": 1, "cell": [5, 0, 0] }
+    { "id": "B2", "hero": "Hero.Ivrin", "team": 1, "cell": [5, 0, 0] }
   ],
 
   "turns": [
     {
       "_turno": "T1 — identico alla coppia: A1 vede B1 e lo colpisce: 22 di danno meno i 5 dello scudo base ([D-224]), 120 - 17 = 103.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
       ]
     },
     {
@@ -39,7 +39,7 @@
     {
       "_turno": "T3 — A1 e' fermo e guarda ancora a est: B1 e' visibile sulla sua cella NUOVA, quindi il colpo va sull'UNITA' e non su un ricordo. Lo scudo si e' ricaricato nel Cleanup, quindi ferma altri 5: 103 - 17 = 86.",
       "intents": [
-        { "unit": "A1", "ability": "Hero.Gadget.ArcPulse", "target": "B1" }
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
       ]
     }
   ],

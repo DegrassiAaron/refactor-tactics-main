@@ -335,7 +335,7 @@ def g_overwatch() -> str:
     ])
 
 
-# --- Kit di Gadget (`Hero.Gadget.*`, i cinque token che il roster dichiara davvero) ---------------
+# --- Kit di Gadget (`Hero.Aevik.*`, i cinque token che il roster dichiara davvero) ---------------
 
 def g_arc_pulse() -> str:
     """`ArcPulse`: origine + impulsi ad arco. Non e' `Chain`: nessun nodo di salto."""
@@ -673,7 +673,7 @@ def g_line_attack() -> str:
 
     **Senza nodi intermedi**: i nodi sono di `Move`, e una linea con i nodi diventa un percorso. Le
     due traverse non sono nodi: sono i bersagli sulla traiettoria, ed esistono perche' senza di loro
-    il glifo misurava **0.087** contro `Hero.Gadget.LinearDischarge`, che e' anch'essa origine,
+    il glifo misurava **0.087** contro `Hero.Aevik.LinearDischarge`, che e' anch'essa origine,
     segmento e punta. Due azioni che colpiscono in modo diverso lungo una linea devono dirlo.
     """
     return "\n".join([
@@ -690,6 +690,27 @@ def g_circular_aoe() -> str:
     return "\n".join([
         circle(12, 12, 7.6),
         dot(12, 12, 2.0),
+    ])
+
+
+def g_mortar() -> str:
+    """`Mortar` (`#2890`, D-379): la traiettoria che SCAVALCA. Arco alto da sinistra a destra, il muro
+    sotto di esso, e il punto d'impatto oltre.
+
+    🔴 **Il muro e' il glifo, non l'arco.** Un arco da solo si legge come `Leap` — anche quello e' una
+    parabola — e la differenza non e' la curvatura: e' che qui c'e' un OSTACOLO in mezzo, e la
+    traiettoria lo ignora. Togliendo il muro le due icone diventano la stessa cosa a 24 px.
+
+    ⚠️ Nessun tubo di mortaio, nessuna arma disegnata: il resto del set nomina cio' che l'azione FA, mai
+    l'attrezzo con cui lo fa — `LineAttack` non disegna un fucile.
+    """
+    return "\n".join([
+        # L'arco: parte in basso a sinistra, scavalca, ricade a destra.
+        path("M3.6 18.4 Q12 2.6 20.4 15.4", stroke_width=1.5, fill="none"),
+        # Il muro che l'arco supera, al centro e sotto la sommita': e' cio' che rende l'arco necessario.
+        path("M12 20.6 L12 13.2", stroke_width=2.0),
+        # L'impatto oltre il muro.
+        dot(20.4, 15.4, 1.8),
     ])
 
 
@@ -1094,8 +1115,8 @@ def _identity(inner: str) -> str:
     return "\n".join([polygon(IDENTITY_BADGE, stroke_width=1.4), inner])
 
 
-def g_identity_gadget() -> str:
-    """Gadget: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
+def g_identity_aevik() -> str:
+    """Aevik: il nodo conduttivo, che e' la cosa che solo lui lascia sul campo."""
     return _identity("\n".join([
         polygon(hexagon(12, 12, 3.6), stroke_width=1.4),
         dot(12, 12, 1.4),
@@ -1103,8 +1124,8 @@ def g_identity_gadget() -> str:
     ]))
 
 
-def g_identity_phase() -> str:
-    """Phase: la superficie che si muove — il fluido e' la sua materia."""
+def g_identity_muiren() -> str:
+    """Muiren: la superficie che si muove — il fluido e' la sua materia."""
     return _identity("\n".join([
         waves(11, x0=6.4, span=11.2, amp=1.6, stroke_width=1.5),
         waves(14.6, x0=6.4, span=11.2, amp=1.6, stroke_width=1.3),
@@ -1120,8 +1141,8 @@ def g_identity_branth() -> str:
     ]))
 
 
-def g_identity_wraith() -> str:
-    """Wraith: la lama che passa. Il tratto interrotto dice il transito, che e' la sua firma."""
+def g_identity_ivrin() -> str:
+    """Ivrin: la lama che passa. Il tratto interrotto dice il transito, che e' la sua firma."""
     return _identity("\n".join([
         path("M7.4 16.6 L16.6 7.4", stroke_width=1.9),
         path("M8.6 8.4 L11 10.8", stroke_dasharray="1.4 1.8", stroke_width=1.3),
@@ -1172,7 +1193,7 @@ def g_missing_icon() -> str:
 #   Gadget  elettricita' — nodi, archi, contenimento che cede
 #   Phase   acqua        — superfici, onde, spinta
 #   Branth  massa        — piastre, ancoraggi, basi larghe
-#   Wraith  lama         — tratti netti, transito, tratteggio di passaggio
+#   Ivrin  lama         — tratti netti, transito, tratteggio di passaggio
 
 
 def g_phase_pressure_jet() -> str:
@@ -1297,7 +1318,7 @@ def g_branth_interposition() -> str:
     ])
 
 
-def g_wraith_pulse_shot() -> str:
+def g_ivrin_pulse_shot() -> str:
     """`PulseShot` (Attack — Damage): colpo a impulsi, non un raggio continuo."""
     return "\n".join([
         dot(3.4, 12, 1.7),
@@ -1306,7 +1327,7 @@ def g_wraith_pulse_shot() -> str:
     ])
 
 
-def g_wraith_intercept_shot() -> str:
+def g_ivrin_intercept_shot() -> str:
     """`InterceptShot` (Preparation, Single — Damage): la thin slice Predictive della v0.1.
 
     Si arma su DOVE il bersaglio sara', non dove e': il bersaglio tratteggiato non e' decorazione, e'
@@ -1320,7 +1341,7 @@ def g_wraith_intercept_shot() -> str:
     ])
 
 
-def g_wraith_passing_blade() -> str:
+def g_ivrin_passing_blade() -> str:
     """`PassingBlade` (FastMovement — Damage): attraversa e colpisce chi trova in mezzo.
 
     Contro `Leap`, che scavalca e non incontra nessuno: qui i due segni sulla traiettoria sono le
@@ -1333,7 +1354,7 @@ def g_wraith_passing_blade() -> str:
     ])
 
 
-def g_wraith_deflection() -> str:
+def g_ivrin_deflection() -> str:
     """`Deflection` (Control, da `Action.Deflect` — DamageReduction): la lama devia invece della
     piastra. Il tratto inclinato e' sottile e lungo: e' una lama, non un muro."""
     return "\n".join([
@@ -1345,7 +1366,7 @@ def g_wraith_deflection() -> str:
     ])
 
 
-def g_wraith_feint() -> str:
+def g_ivrin_feint() -> str:
     """`Feint` (Control): due traiettorie, una sola vera.
 
     Il tratteggio qui NON e' `Predicted`: e' la finta, cioe' una cosa che il giocatore che la lancia
@@ -1758,7 +1779,7 @@ def g_reaction_hazard_escape() -> str:
 def g_reaction_ally_intercept() -> str:
     """Modulo di Branth: ti interponi e prendi al posto di un alleato entro 2 celle.
 
-    ⚠️ La confusione piu' insidiosa e' con `Hero.Wraith.InterceptShot`, che e' la thin slice
+    ⚠️ La confusione piu' insidiosa e' con `Hero.Ivrin.InterceptShot`, che e' la thin slice
     Predictive: due nomi quasi identici per un'interposizione e una previsione."""
     return "\n".join([
         path("M2.6 12.4 L6.4 12.4", stroke_width=1.6),
@@ -1771,7 +1792,7 @@ def g_reaction_ally_intercept() -> str:
 
 
 def g_reaction_emergency_dash() -> str:
-    """Modulo di Wraith: quando sei bersagliato ti sposti di una cella **restando fronte alla
+    """Modulo di Ivrin: quando sei bersagliato ti sposti di una cella **restando fronte alla
     minaccia**.
 
     🔴 Vietata la grammatica `Dash`: la parola nel nome porta dritto al glifo della FASE Dash, con cui
@@ -2099,6 +2120,8 @@ ICONS = [
      "assente dal mock"),
     ("Action.SuppressiveLine", g_suppressive_line, "Attack",
      "assente dal mock"),
+    ("Action.Mortar", g_mortar, "Attack",
+     "AGGIUNTO - #2890/D-379: la prima azione che colpisce senza linea di tiro"),
     ("Action.MarkTarget", g_mark_target, "Utility",
      "assente dal mock"),
     ("Action.Guard", g_guard, "Defense",
@@ -2149,28 +2172,28 @@ ICONS = [
      "assente dal mock"),
     ("Action.Ignite", g_ignite, "Attack",
      "assente dal mock"),
-    ("Action.Hero.Gadget.ArcPulse", g_arc_pulse, "Electric",
+    ("Action.Hero.Aevik.ArcPulse", g_arc_pulse, "Electric",
      "mock 16 — rimappato: kit fuori roster"),
-    ("Action.Hero.Gadget.LinearDischarge", g_linear_discharge, "Electric",
+    ("Action.Hero.Aevik.LinearDischarge", g_linear_discharge, "Electric",
      "mock 16 — «Chain Discharge» non esiste: Line, non Chain"),
-    ("Action.Hero.Gadget.ConductiveNode", g_conductive_node, "Electric",
+    ("Action.Hero.Aevik.ConductiveNode", g_conductive_node, "Electric",
      "mock 17 — «Static Field» rimappato"),
-    ("Action.Hero.Gadget.ReactiveCapacitor", g_reactive_capacitor, "Electric",
+    ("Action.Hero.Aevik.ReactiveCapacitor", g_reactive_capacitor, "Electric",
      "AGGIUNTO — quinto token del kit"),
-    ("Action.Hero.Gadget.Overload", g_overload, "Hazard",
+    ("Action.Hero.Aevik.Overload", g_overload, "Hazard",
      "mock 18 — nome corretto, glifo su grammatica Damage"),
 
     # Le altre quindici ability del roster. Fuori dal set richiesto come quelle di Gadget: hanno una
     # chiave regolare sotto `Action.` ma non stanno nel catalogo generico.
-    ("Action.Hero.Phase.PressureJet", g_phase_pressure_jet, "Utility",
+    ("Action.Hero.Muiren.PressureJet", g_phase_pressure_jet, "Utility",
      "roster — Attack/Line, Damage + Wet + Push"),
-    ("Action.Hero.Phase.CircularTide", g_phase_circular_tide, "Utility",
+    ("Action.Hero.Muiren.CircularTide", g_phase_circular_tide, "Utility",
      "roster — Attack/Area, l'unica d'area che cura"),
-    ("Action.Hero.Phase.FluidTrail", g_phase_fluid_trail, "Utility",
+    ("Action.Hero.Muiren.FluidTrail", g_phase_fluid_trail, "Utility",
      "roster — FastMovement, la scia e' meta' del significato"),
-    ("Action.Hero.Phase.MistVeil", g_phase_mist_veil, "Utility",
+    ("Action.Hero.Muiren.MistVeil", g_phase_mist_veil, "Utility",
      "roster — Environment/Area, da tenere distinta da Status.Obscured"),
-    ("Action.Hero.Phase.FlowReaction", g_phase_flow_reaction, "Reaction",
+    ("Action.Hero.Muiren.FlowReaction", g_phase_flow_reaction, "Reaction",
      "roster — Preparation, si arma e risponde"),
 
     ("Action.Hero.Branth.ImpactShot", g_branth_impact_shot, "Attack",
@@ -2184,15 +2207,15 @@ ICONS = [
     ("Action.Hero.Branth.Interposition", g_branth_interposition, "Reaction",
      "roster — Control, deriva da Action.Intercept"),
 
-    ("Action.Hero.Wraith.PulseShot", g_wraith_pulse_shot, "Attack",
+    ("Action.Hero.Ivrin.PulseShot", g_ivrin_pulse_shot, "Attack",
      "roster — Attack, Damage"),
-    ("Action.Hero.Wraith.InterceptShot", g_wraith_intercept_shot, "Reaction",
+    ("Action.Hero.Ivrin.InterceptShot", g_ivrin_intercept_shot, "Reaction",
      "roster — Preparation, thin slice Predictive della v0.1"),
-    ("Action.Hero.Wraith.PassingBlade", g_wraith_passing_blade, "Attack",
+    ("Action.Hero.Ivrin.PassingBlade", g_ivrin_passing_blade, "Attack",
      "roster — FastMovement, attraversa e colpisce"),
-    ("Action.Hero.Wraith.Deflection", g_wraith_deflection, "Reaction",
+    ("Action.Hero.Ivrin.Deflection", g_ivrin_deflection, "Reaction",
      "roster — Control, deriva da Action.Deflect"),
-    ("Action.Hero.Wraith.Feint", g_wraith_feint, "Utility",
+    ("Action.Hero.Ivrin.Feint", g_ivrin_feint, "Utility",
      "roster — Control, il tratteggio qui significa «falso», non «previsto»"),
     ("Phase.Prep", g_phase_prep, "Utility",
      "mock 03 — sostituisce la timeline a iniziativa"),
@@ -2234,13 +2257,13 @@ ICONS = [
      "assente dal mock — [D-319]/#2253, coppia con Status.Prone"),
     ("Status.Wet", g_status_wet, "Utility",
      "assente dal mock"),
-    ("Identity.Gadget", g_identity_gadget, "Electric",
+    ("Identity.Aevik", g_identity_aevik, "Electric",
      "assente dal mock"),
-    ("Identity.Phase", g_identity_phase, "Utility",
+    ("Identity.Muiren", g_identity_muiren, "Utility",
      "assente dal mock"),
     ("Identity.Branth", g_identity_branth, "Defense",
      "assente dal mock"),
-    ("Identity.Wraith", g_identity_wraith, "Reaction",
+    ("Identity.Ivrin", g_identity_ivrin, "Reaction",
      "assente dal mock"),
     ("Identity.Ally", g_identity_ally, "Defense",
      "assente dal mock"),
@@ -2293,7 +2316,7 @@ ICONS = [
      "E25 — modulo di Phase, vive nel Cleanup"),
     ("Reaction.AllyIntercept", g_reaction_ally_intercept, "Defense", "E25 — modulo di Branth"),
     ("Reaction.EmergencyDash", g_reaction_emergency_dash, "Movement",
-     "E25 — modulo di Wraith, facing conservato"),
+     "E25 — modulo di Ivrin, facing conservato"),
 
     ("Warning.Cooldown", g_warn_cooldown, "Disabled", "E25 — tempo, non economia"),
     ("Warning.SlotOccupied", g_warn_slot_occupied, "Hazard",
@@ -2588,7 +2611,7 @@ def main() -> int:
         """
         if category != "Action":
             return "", None
-        # `Action.Hero.Gadget.Overload` -> `Hero.Gadget.Overload`; `Action.Move` -> `Action.Move`
+        # `Action.Hero.Aevik.Overload` -> `Hero.Aevik.Overload`; `Action.Move` -> `Action.Move`
         key = semantic[len("Action."):] if semantic.startswith("Action.Hero.") else semantic
         axes = HERO_AXES.get(key) or AXES.get(key)
         if not axes:
@@ -2801,7 +2824,7 @@ def rail(y: float, slot: int, slots: int, *, width: float = 2.2, guide: bool = T
 # La marca di materia. E' l'asse Identity riusato come MODIFICATORE invece che come icona a se':
 # le quattro identita' esistono gia' nel catalogo, e un'ability d'eroe appartiene a un eroe.
 #
-# Perche' serve, misurato: senza, `Wraith.PulseShot`, `Phase.PressureJet`, `Branth.ImpactShot`,
+# Perche' serve, misurato: senza, `Ivrin.PulseShot`, `Phase.PressureJet`, `Branth.ImpactShot`,
 # `Action.LineAttack` e `Action.Dash` stanno tutte entro 0.11 l'una dall'altra — cinque glifi che
 # rivendicano la stessa silhouette «linea orizzontale con una punta». Non e' un difetto dei singoli
 # disegni: e' che molte abilita' a distanza SONO una linea con una punta, e a un certo punto il
@@ -2829,7 +2852,7 @@ def hero_sigil(hero: str) -> str:
             path(f"M{_n(x - 0.2)} {_n(HERO_SIGIL_Y - 1.6)} L{_n(x + 2.6)} {_n(HERO_SIGIL_Y - 1.6)}",
                  stroke_width=1.4),
         ])
-    if hero == "Wraith":       # lama: il transito
+    if hero == "Ivrin":       # lama: il transito
         return "\n".join([
             path(f"M{_n(x - 1.6)} {_n(HERO_SIGIL_Y + 1.6)} L{_n(x + 4)} {_n(HERO_SIGIL_Y - 1.6)}",
                  stroke_width=1.8),
@@ -2840,7 +2863,7 @@ def hero_sigil(hero: str) -> str:
 
 
 def hero_of(semantic: str):
-    """`Action.Hero.Wraith.Feint` -> `Wraith`. `Action.Move` -> None."""
+    """`Action.Hero.Ivrin.Feint` -> `Ivrin`. `Action.Move` -> None."""
     parts = semantic.split(".")
     return parts[2] if len(parts) >= 4 and parts[1] == "Hero" else None
 
@@ -2897,7 +2920,7 @@ PHASE_INK = {
 
 # Le macro-fasi senza colore: D-233 le lascia aperte di proposito.
 # ⚠️ `Cleanup` NON e' vuota: **cinque** icone ci mappano via `Environment` — `Electrify`, `Ignite`,
-# `CreateWater`, piu' `Hero.Gadget.ConductiveNode` e `Hero.Phase.MistVeil`. Sono il consumatore
+# `CreateWater`, piu' `Hero.Aevik.ConductiveNode` e `Hero.Muiren.MistVeil`. Sono il consumatore
 # reale che l'open point di D-233 aspettava, e il gate le CONTA invece di tacerle: quando `Cleanup`
 # prendera' un colore, si sa gia' su che cosa cade.
 MATCH_PHASES_WITHOUT_INK = ("Planning", "Cleanup")
@@ -2920,13 +2943,13 @@ COLOR_DEBT = {
     "Action.Pull", "Action.Root", "Action.Slow", "Action.Interrupt", "Action.ModifyArc",
     "Action.Heal",
     # abilita' d'eroe (14)
-    "Action.Hero.Gadget.ArcPulse", "Action.Hero.Gadget.LinearDischarge",
-    "Action.Hero.Gadget.Overload", "Action.Hero.Gadget.ReactiveCapacitor",
-    "Action.Hero.Phase.CircularTide", "Action.Hero.Phase.FlowReaction",
-    "Action.Hero.Phase.FluidTrail", "Action.Hero.Phase.PressureJet",
+    "Action.Hero.Aevik.ArcPulse", "Action.Hero.Aevik.LinearDischarge",
+    "Action.Hero.Aevik.Overload", "Action.Hero.Aevik.ReactiveCapacitor",
+    "Action.Hero.Muiren.CircularTide", "Action.Hero.Muiren.FlowReaction",
+    "Action.Hero.Muiren.FluidTrail", "Action.Hero.Muiren.PressureJet",
     "Action.Hero.Branth.Interposition", "Action.Hero.Branth.Ram",
-    "Action.Hero.Wraith.Deflection", "Action.Hero.Wraith.Feint",
-    "Action.Hero.Wraith.InterceptShot", "Action.Hero.Wraith.PassingBlade",
+    "Action.Hero.Ivrin.Deflection", "Action.Hero.Ivrin.Feint",
+    "Action.Hero.Ivrin.InterceptShot", "Action.Hero.Ivrin.PassingBlade",
 }
 
 

@@ -20,7 +20,7 @@
   "_nota_geometria": "B1 e' ADIACENTE (distanza 1) perche' `Action.Interact` ha portata 1: se il colpo non nasce, non puo' essere perche' l'azione era fuori portata. E' la stessa ragione per cui la v1 stava a distanza 1 e non a 2 come `Combat.CounterStrikesBack`.",
 
   "units": [
-    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [0, 0, 0] },
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [0, 0, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
   ],
 
@@ -29,7 +29,7 @@
       "requires": ["ReactionPlanning"],
       "_turno": "A1 arma la reazione da colpo; B1 la INTERAGISCE, adiacente e a portata.",
       "intents": [
-        { "unit": "A1", "reaction": "Hero.Gadget.ReactiveCapacitor" },
+        { "unit": "A1", "reaction": "Hero.Aevik.ReactiveCapacitor" },
         { "unit": "B1", "ability": "Action.Interact", "target": "A1" }
       ]
     }

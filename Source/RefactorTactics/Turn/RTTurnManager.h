@@ -104,7 +104,8 @@ struct FRTArmedPrediction
  * conoscenza di squadra sono quelle correnti.
  *
  * ⚠️ La separazione non e' un gusto architetturale, evita un difetto misurato: `ResolvePrep` costruisce il
- * proprio array di unita' ordinandolo per cella (`StableLess`), `ResolveMovement` usa quello dello snapshot.
+ * proprio array di unita' e lo ordina con `SortUnitsForResolution` (#2922), `ResolveMovement` usa quello
+ * dello snapshot — che e' filtrato sui vivi.
  * I due ordini NON coincidono, quindi un indice catturato nel Prep indicherebbe un'altra unita' nel Move —
  * e `FRTOverwatchWatcher::TeamAwareness` e `FRTSuppressionMover::UnitId` sono indici. Tenere il PUNTATORE e
  * risolverlo al momento dell'uso e' esattamente cio' che `FRTArmedPrediction` fa qui sopra, e per la stessa
@@ -195,6 +196,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackFinishedSignature);
  * tempo reale invece dello stato del turno, ed e' cio' che `Veil.FollowsRefreshPoints` esiste per impedire.
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FRTTeamKnowledgeRefreshedSignature, int32, TurnNumber);
+
+/**
+ * Il playback ha attraversato un confine di micro-step (`#2876`): le pose ANIMATE sono cambiate.
+ *
+ * ⛔ **Non porta la conoscenza nel payload**, come `FRTTeamKnowledgeRefreshedSignature` e per la stessa
+ * ragione registrata in [D-227]: sceglierebbe la squadra per conto di tutti i subscriber. Chi ascolta
+ * chiede `PlaybackKnowledgeForTeam` per la squadra che gli compete.
+ */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTPlaybackStepSignature);
 
 /**
  * La partita è finita, con il verdetto e lo stato che lo motiva (CP 46.5, `#940`).
@@ -556,6 +566,27 @@ public:
 	TArray<FRTResolvedEvent> ResolvedHazardEventsForTest() const;
 
 	/**
+	 * Hook per i test: la timeline INTERA di questo turno, nell'ordine di emissione (`#2857`).
+	 *
+	 * 🔴 **Esiste per un confronto che nessun accessore filtrato puo' reggere: timeline contro TurnLog, sullo
+	 * stesso turno.** `#2857` porta l'`ActionId` su `FRTResolvedEvent` copiandolo al sito di scrittura, e il
+	 * difetto che quella copia puo' produrre e' **muto**: un produttore dimenticato lascia `NAME_None`, che
+	 * e' un valore legittimo — nessun test fallisce, e `Next Action` salta un atto senza dirlo. L'unico
+	 * modo di sorvegliarlo e' verificare che le due fonti **non divergano**, e per farlo servono entrambe
+	 * per intero.
+	 *
+	 * ⚠️ **Gli eventi INTERI e non un conteggio, e TUTTI e non un tipo.** Filtrare qui rifarebbe l'errore
+	 * che `ResolvedEventCountOfTypeForTest` documenta poco sopra: chi cerca un `NAME_None` fra gli eventi
+	 * gia' selezionati su un tipo che l'azione ce l'ha risponde «nessuno» **per costruzione**.
+	 *
+	 * ⛔ **Non e' una porta di produzione.** La presentazione continua a passare dagli accessori tipizzati:
+	 * questa serve a chi deve giudicare la timeline come un tutto, cioe' solo la suite.
+	 *
+	 * @return copia della timeline, nell'ordine in cui il resolver l'ha emessa.
+	 */
+	const TArray<FRTResolvedEvent>& ResolvedTimelineForTest() const { return ResolvedTimeline; }
+
+	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
 	 *
 	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
@@ -641,6 +672,26 @@ public:
 	bool ArePlaybackControlsEnabled() const { return bPlaybackControlsEnabled; }
 
 	/**
+	 * Fa **cominciare in pausa** ogni playback di questa sessione (`#2858`), così che il primo confine
+	 * osservabile sia il primo e non uno qualsiasi.
+	 *
+	 * 🔑 **Non e' uno stato logico diverso.** Il turno e' risolto — o sospeso — esattamente come senza:
+	 * cio' che cambia e' **quando** l'immagine comincia a scorrere. `LockInAndResolve` ha gia' deciso tutto
+	 * prima che questa riga conti qualcosa.
+	 *
+	 * ⛔ **Vale solo con i controlli abilitati, e la subordinazione e' la sua sicurezza.** Partire in pausa
+	 * senza il comando per riprendere sarebbe una partita bloccata da un flag — lo stesso difetto che
+	 * `SetPlaybackControlsEnabled(false)` evita facendo ripartire cio' che aveva fermato. Chiederlo con i
+	 * controlli spenti non fa nulla e non lo ricorda per dopo.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void SetStartPlaybackPaused(bool bStartPaused);
+
+	/** `true` se ogni playback di questa sessione comincia fermo (`#2858`). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	bool DoesPlaybackStartPaused() const { return bStartPlaybackPaused; }
+
+	/**
 	 * Ferma la riproduzione **al prossimo confine di micro-step**, mai a meta' (`#1879`).
 	 *
 	 * ⚠️ Ferma cio' che si VEDE, e cio' che si vede non e' piu' sempre un turno finito. Questa riga diceva
@@ -679,6 +730,38 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
 	void StepMicroStep();
+
+	/**
+	 * Arma un predicato di pausa **una tantum**: scorri, e fermati al confine indicato (`#2855`).
+	 *
+	 * 🔑 **Non introduce un secondo orologio.** Il confine di fase il playback lo conosce gia' — lo tiene
+	 * `PlaybackPhaseIdx` e lo annuncia `OnPhasePlaybackStarted` — e quello di azione lo porta la timeline
+	 * da `#2857`. Qui non si calcola niente di nuovo: si dichiara **dove fermarsi** la prossima volta che
+	 * uno di quei confini passa.
+	 *
+	 * ⚠️ **Si consuma, e non sopravvive al turno.** Armato durante l'ULTIMA fase riprodotta, il playback
+	 * arriva a fine turno e il predicato viene disarmato esplicitamente: un predicato armato e mai
+	 * soddisfatto fermerebbe l'osservazione del turno successivo senza dirlo.
+	 *
+	 * ⚠️ **Armarlo due volte di fila non salta un confine**: la seconda chiamata riscrive lo stesso stato.
+	 *
+	 * ⛔ **La fermata avviene su un confine canonico**, con la stessa garanzia di `PausePlayback`: mai a
+	 * meta' micro-step. Un `Next Phase` si ferma appena entrati nella fase nuova, quindi
+	 * `GetPlaybackPhaseName()` nomina gia' quella.
+	 *
+	 * 🔴 **Il playback non decide niente.** Un predicato di pausa cambia **quando** l'immagine si ferma,
+	 * mai cosa e' stato risolto: `RunPhaseLoop` e i resolver non sono toccati. La prima stesura di `#2855`
+	 * proponeva di rendere richiedibile un'uscita dal resolver, e lo spec panel del 2026-09-10 l'ha
+	 * ritirato.
+	 *
+	 * Senza controlli abilitati e' inerte (fail-closed, come `#1879`).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Playback")
+	void RequestPlaybackStopAt(ERTPlaybackStopAt Boundary);
+
+	/** Il predicato attualmente armato, o `None`. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	ERTPlaybackStopAt GetArmedPlaybackStop() const { return PlaybackStopAt; }
 
 	/** `true` se la riproduzione e' ferma (diagnostica, UI e test). */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
@@ -927,6 +1010,44 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Perception")
 	FRTTeamKnowledgeRefreshedSignature OnTeamKnowledgeRefreshed;
+
+	/**
+	 * 🔑 **Il playback ha attraversato un confine di micro-step: chi disegna il velo puo' rileggere** (`#2876`).
+	 *
+	 * ⛔ **Non e' un terzo punto di refresh della CONOSCENZA, ed e' la distinzione che tiene in piedi
+	 * `Veil.FollowsRefreshPoints`.** La conoscenza canonica continua a rinfrescarsi in due soli punti —
+	 * `RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast` — e questo segnale non la tocca:
+	 * annuncia che le pose ANIMATE sono cambiate, cioe' che `PlaybackKnowledgeForTeam` risponde diverso.
+	 *
+	 * 🔴 **Senza, il velo non puo' seguire il movimento.** Fra i due refresh la fase `Move` scorre intera:
+	 * il velo resta congelato sulle posizioni pre-`Move` e cambia in un colpo solo a fine turno. E' il
+	 * difetto misurato in `#2873`, e l'attenuazione di `#2875` da sola non lo chiude — smussa un salto che
+	 * avviene comunque a movimento gia' finito.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Perception")
+	FRTPlaybackStepSignature OnPlaybackStepAdvanced;
+
+	/**
+	 * La conoscenza che il PLAYBACK sta mostrando a una squadra, alle pose animate di questo istante.
+	 *
+	 * 🔑 **Non e' la conoscenza canonica, e la differenza e' voluta.** Quella, quando il playback comincia,
+	 * contiene **gia'** tutto il transito del turno ([D-379]): usarla farebbe accendere il corridoio prima
+	 * che l'unita' ci arrivi — mostrerebbe il futuro. Questa parte dallo stato **pre-turno** e ci unisce solo
+	 * cio' che le pose animate hanno gia' osservato.
+	 *
+	 * ⚠️ **`VisibleCells` si ricalcola con `URTPerceptionLibrary::TeamVisibleCells`**, la stessa funzione
+	 * pura dei due refresh: nessun cono nuovo, nessuna LOS nuova. Cambiano solo le pose.
+	 *
+	 * 🔴 **Le pose vengono da cio' che l'anim DISEGNA** (`FRTMoveAnim::Cells`, gia' troncato da
+	 * `ObservedPrefixLength`), mai dalla rotta reale: leggerla rivelerebbe il tratto che [D-223] tronca.
+	 *
+	 * ⚠️ **Non e' una `UFUNCTION`**, come `KnowledgeForTeamPublic` e per la stessa ragione: da Blueprint
+	 * sarebbe un canale verso la conoscenza non filtrata di una squadra qualunque.
+	 *
+	 * A fine playback coincide con la canonica per la squadra osservatrice: le pose animate sono le stesse
+	 * celle da cui l'accumulo canonico ha calcolato, e le rotte della propria squadra non si troncano mai.
+	 */
+	FRTTeamKnowledge PlaybackKnowledgeForTeam(int32 TeamId) const;
 
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
 	const TArray<FRTPacingSample>& GetPacingSamples() const { return Pacing.GetSamples(); }
@@ -1229,23 +1350,6 @@ public:
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
 	/**
-	 * Le unita' VIVE del livello, in ordine stabile per cella.
-	 *
-	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
-	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
-	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
-	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
-	 * che dopo [D-190] non lo legge affatto.
-	 *
-	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
-	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
-	 *
-	 * ⚠️ Questo NON e' l'unico `StableLess` su unita' del progetto: `ResolveEnvironment` e `ResolvePrep`
-	 * ordinano array propri con lo stesso comparatore, e `ResolveCombat` pure. Questo helper e' la sorgente
-	 * unica per **chi vuole le unita' vive del livello**, non un consolidamento di tutti gli ordinamenti:
-	 * cambiare il comparatore qui non lo cambia la'.
-	 */
-	/**
 	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
 	 *
 	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
@@ -1258,6 +1362,26 @@ public:
 	 */
 	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
 
+	/**
+	 * Le unita' VIVE del livello, nell'ordine di `URTActionQueueLibrary::SortUnitsForResolution`
+	 * — cella, poi `StableUnitId`, poi nome dell'Actor (#2922).
+	 *
+	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
+	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
+	 * `GetAllActorsOfClass` sull'intero livello, un `FRTHexSimUnit` per unita', la vista di mappa e
+	 * occupazione, una copia di `TeamKnowledgeState` — per passarne un elemento a `URTPlanValidationLibrary`,
+	 * che dopo [D-190] non lo legge affatto.
+	 *
+	 * 🔴 **Il `Sort` non e' una rifinitura**: senza, l'ordine di spawn decide la partita (#990), e cade
+	 * `Match.Autobattle.DeterminismSurvivesUnitPermutation` — verificato per mutazione.
+	 *
+	 * ⚠️ **Questo helper resta la sorgente unica per *chi vuole le unita' vive del livello*** — non per
+	 * l'ordine, che da #2922 e' consolidato altrove. Fin qui c'era scritto che `ResolveEnvironment`,
+	 * `ResolvePrep` e `GatherBlastUnits` tenevano copie proprie del comparatore e che *«cambiare il comparatore
+	 * qui non lo cambia la'»*: non e' piu' vero. Tutti passano da
+	 * `URTActionQueueLibrary::SortUnitsForResolution`, quindi toccare quella regola le muove **tutte** — ed
+	 * e' il punto, non un effetto collaterale. Trovato in code review.
+	 */
 	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
 
 	/**
@@ -1354,7 +1478,10 @@ protected:
 	// dettaglio di implementazione. Sono metodi e non funzioni libere perche' scrivono nei membri che
 	// devono sopravvivere alla fase: `TurnLog`, `TeamKnowledgeState`, `ReactionBlockedThisTurn`.
 
-	/** Raccoglie le unita' del livello, le ordina per cella e costruisce identita', stati e copia posizionale. */
+	/**
+	 * Raccoglie le unita' del livello, le ordina con `URTActionQueueLibrary::SortUnitsForResolution` — cella,
+	 * poi `StableUnitId`, poi nome dell'Actor (#2922) — e costruisce identita', stati e copia posizionale.
+	 */
 	void GatherBlastUnits(FRTBlastContext& Ctx) const;
 
 	/**
@@ -1363,6 +1490,19 @@ protected:
 	 * prima di sparare. Osservare prima dello scatto darebbe una fotografia che nessuna fase usa.
 	 */
 	void RefreshTeamKnowledgeForBlast(const FRTBlastContext& Ctx);
+
+	/**
+	 * Chi e' stato COLPITO diventa un contatto per la squadra che ha sparato (`#2890`, [D-380]).
+	 *
+	 * 🔑 **Chiamata a piano DEFINITIVO**, cioe' dopo `ApplyInterrupts` e `ResolveInterceptions`: quelle
+	 * due riscrivono `Plan.Hits`, e rivelare prima significherebbe che un colpo **interrotto** — mai
+	 * avvenuto — insegna comunque dov'era il nemico. Sarebbe una rivelazione che nessuno ha pagato.
+	 *
+	 * ⚠️ La regola vive in `URTTeamKnowledgeLibrary::RevealByHit`, che e' pura: qui c'e' solo la
+	 * traduzione dagli indici di snapshot agli `StableUnitId`, e il verso — dalla squadra dell'ATTACCANTE
+	 * verso il bersaglio, mai il contrario.
+	 */
+	void RevealHitTargetsToAttackers(const FRTBlastContext& Ctx);
 
 	/**
 	 * `Action.Cleanse` (CP 5.2): risolve PRIMA del ciclo degli intenti, che consuma `PlannedAbilityIndex`.
@@ -2020,6 +2160,14 @@ protected:
 	/** Avvia il playback della risoluzione (movimento in parallelo, fasi a beat). */
 	/** Avvia il playback. Con `bPreserveClock` ESTENDE quello in corso invece di ricominciarlo (#2679). */
 	void BeginPlayback(bool bPreserveClock = false);
+
+	/**
+	 * Porta a schermo le impronte fino a `UpTo`, in ordine di timeline — `#2454`.
+	 *
+	 * ⛔ **Non riordina e non aggrega.** Consuma `PlaybackFootprints` nell'ordine in cui il resolver le ha
+	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
+	 */
+	void RevealPlaybackFootprints(int32 UpTo);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -2111,9 +2259,82 @@ protected:
 	 * · questa funzione e' chiamata da **quattro** siti in **tre** fasi diverse — `ResolveDash` (`Dash`),
 	 *   `ResolveMovement` (`Move`), `ResolveEnvironment` (`Cleanup`) e `ApplyForcedDisplacement`, che a sua
 	 *   volta arriva da tre punti in fasi diverse. Nessun valore fisso sarebbe giusto per tutti.
+	 *
+	 * ⏱️ **Da `#2885` NON e' piu' chiamata direttamente da quei quattro siti**: la chiama `ApplyOnEnter`, che
+	 * e' diventata l'imbuto. Resta `private` e resta l'owner degli effetti del terreno — cio' che e' cambiato
+	 * e' che non e' piu' l'unica cosa che accade per aver attraversato una cella.
 	 */
 	void ApplyTerrainOnEnterEffects(const URTHexMapAsset* Map, ARTUnit* Unit, const TArray<FRTCellId>& Entered,
 		ERTMatchPhase InPhase);
+
+	/**
+	 * 🔑 **TUTTO cio' che accade a un'unita' PER AVER ATTRAVERSATO delle celle** (`#2885`): gli effetti del
+	 * terreno, e la memoria che la sua squadra ne ricava.
+	 *
+	 * 🔴 **Esiste per essere UN punto derivato, non due righe da tenere allineate a mano.** I percorsi che
+	 * attraversano celle sono quattro — `ResolveMovement`, `ResolveDash`, `ApplyForcedDisplacement` (che a sua
+	 * volta serve knockback, pull, fuga e **caduta**) e il pass ambiente del Cleanup — e prima di `#2885`
+	 * chiamavano tutti `ApplyTerrainOnEnterEffects`. Aggiungere l'accumulo di conoscenza **accanto** a ognuna
+	 * di quelle quattro chiamate sarebbe stato quattro occasioni di dimenticarne una, e un percorso aggiunto
+	 * domani sarebbe nato scoperto. E' la stessa lezione gia' registrata in questo file per l'emissione della
+	 * `ResolvedTimeline`: *«da qui un percorso aggiunto domani e' coperto per costruzione»*.
+	 *
+	 * 🔴 **L'ORDINE fra i due passi non e' indifferente, ed e' il motivo per cui la conoscenza viene PRIMA.**
+	 * `ApplyTerrainOnEnterEffects` **puo' uccidere l'unita'** — `Fire` fa 10 danni all'ingresso e il commento
+	 * di `ResolveDash` lo dichiara. Un'unita' che muore sull'ultima cella di un corridoio l'ha comunque
+	 * **attraversata**, e la sua squadra l'ha vista: accumulare dopo perderebbe in silenzio proprio il
+	 * percorso piu' informativo, e nessun test lo direbbe senza il caso apposta.
+	 *
+	 * @param FromCell la cella da cui si e' entrati — la PARTENZA della rotta, non `Unit->Cell`, che a
+	 *        tutti e quattro i siti e' **gia'** quella d'arrivo. Serve solo a orientare il primo passo.
+	 */
+	void ApplyOnEnter(const URTHexMapAsset* Map, ARTUnit* Unit, const FRTCellId& FromCell,
+		const TArray<FRTCellId>& Entered, ERTMatchPhase InPhase);
+
+	/**
+	 * Versa in `FRTTeamKnowledge::ExploredCells` cio' che la squadra ha visto **mentre attraversava**
+	 * ([D-227] applicata agli istanti che i due refresh saltano — decisione di `#2873`, ramo **(a)**).
+	 *
+	 * 🔴 **Il difetto che chiude sopravvive al turno.** La conoscenza si rinfresca in due soli punti —
+	 * `RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast` — e l'ordine delle fasi e'
+	 * `Planning → Prep → Dash → Blast → Move → Cleanup`: la fase `Move` scorre **intera** fra l'uno e
+	 * l'altro. ∴ una cella vista **solo** attraversandola — un corridoio non visibile ne' dalla partenza ne'
+	 * dall'arrivo — restava `Hidden` **per sempre**, e non e' solo grafica: `URTTurnLogLibrary` legge
+	 * `VisibleCells ∪ ExploredCells` fail-closed per decidere quale cella il combat log puo' **nominare**
+	 * come causa di un tiro fermato, e taceva su un muro che il giocatore aveva costeggiato.
+	 *
+	 * ⛔ **`Contacts` NON cresce qui, e l'asimmetria e' argomentata.** E' lo stesso argomento di [D-227],
+	 * applicato una seconda volta: **il terreno non si muove**, quindi ricordarlo a un istante qualunque e'
+	 * sicuro; **un'unita' si', quindi un contatto raccolto a meta' transito sarebbe la vista sotto mentite
+	 * spoglie** — e sarebbe una regola nuova su intercettazione e finestra di reazione, che confina con
+	 * l'Overwatch di `#2795`. Una squadra ricorda il PAVIMENTO che ha visto all'istante `t` e non il nemico
+	 * che ci stava sopra: e' voluto, ed e' scritto qui perche' chi lo trovera' senza questa riga lo
+	 * chiamera' bug.
+	 *
+	 * 🔑 **Non e' una seconda regola di visibilita'.** Passa da `URTPerceptionLibrary::TeamVisibleCells`, la
+	 * stessa funzione pura che usano entrambi i refresh: nessun cono nuovo, nessuna LOS nuova. Cio' che
+	 * questa funzione aggiunge sono gli **osservatori**, uno per posizione attraversata, con
+	 * l'orientamento **di quel passo** letto da `URTFacingLibrary::FacingAtMicroStep`. Riusare il facing
+	 * finale per tutte le celle rivelerebbe cio' che l'unita' non ha mai guardato.
+	 *
+	 * ⚠️ **Un'unita' morta accumula lo stesso**, e non c'e' una guardia `IsAlive()`: la conoscenza e' di
+	 * SQUADRA ([D-043]), e la squadra ha visto quelle celle finche' quella era viva.
+	 *
+	 * 🔴 **Se la squadra non ha ancora una voce in `TeamKnowledgeState`, la voce si CREA** — vuota e di
+	 * versione corrente, esattamente come fa `KnowledgeForTeam` per il caso simmetrico e per la ragione che
+	 * ha gia' scritto accanto a se'. Una prima stesura saltava, ragionando che *«`PlanBots` rinfresca prima
+	 * della prima risoluzione»*: vero **solo** con un `ARTGameMode`, che chiama `RefreshTeamKnowledgeNow()`
+	 * in `SetupHexMatch`. Un mondo headless che spawna il `TurnManager` da solo arriva al `Move` del primo
+	 * turno con lo stato **vuoto**, e l'accumulo spariva senza dire niente.
+	 *
+	 * ⚠️ Una `Version` diversa da quella corrente, invece, **non** si tocca: `Observe` la scarterebbe come
+	 * illeggibile, e scriverci dentro darebbe una memoria plausibile e sbagliata.
+	 *
+	 * ⚠️ **Sopravvive fino al refresh successivo per COSTRUZIONE**, non per fortuna: entrambi i refresh
+	 * chiamano `Observe(..., KnowledgeForTeam(TeamId))`, e `Observe` unisce `Previous.ExploredCells`.
+	 */
+	void AccumulateExploredFromTransit(const URTHexMapAsset* Map, const ARTUnit* Unit,
+		const FRTCellId& FromCell, const TArray<FRTCellId>& Entered);
 
 	/** Le celle ENTRATE lungo un percorso: tutte tranne la partenza, dove l'unita' stava gia'. */
 	static TArray<FRTCellId> CellsEnteredAlong(const TArray<FRTCellId>& Path);
@@ -2299,6 +2520,35 @@ protected:
 	 * cosi' i consumatori puri la leggono senza conoscere il TurnManager.
 	 */
 	TArray<FRTTeamKnowledge> TeamKnowledgeState;
+
+	/**
+	 * Lo stato che il **playback** mostra, distinto da quello canonico (`#2876`). Vedi
+	 * `PlaybackKnowledgeForTeam` per il perche' non possano essere lo stesso.
+	 *
+	 * ⛔ **Presentazione, non gioco**: non entra nello snapshot, non entra nel `TurnLog`, non entra nello
+	 * `StateHash`, e nessuna regola lo consulta. Si semina all'inizio della risoluzione — cioe' allo stato
+	 * **pre-turno** — e cresce con le pose animate.
+	 */
+	TArray<FRTTeamKnowledge> PlaybackKnowledgeState;
+
+	/**
+	 * L'indice di cella su cui ogni anim si trovava all'ultimo fotogramma, parallelo a `MoveAnims`.
+	 *
+	 * E' cio' che rende osservabile il **confine** di micro-step: senza, «l'unita' e' a meta' fra due celle»
+	 * e «l'unita' e' appena entrata in una cella nuova» sarebbero lo stesso frame.
+	 */
+	TArray<int32> PlaybackAnimCellIndex;
+
+	/**
+	 * Ricalcola `PlaybackKnowledgeState` dalle pose animate correnti e risponde **se qualcosa e' cambiato**.
+	 *
+	 * ⚠️ Chiamata solo quando un'anim ha attraversato un confine di cella: fra due confini le pose sono le
+	 * stesse celle, quindi il ricalcolo darebbe lo stesso insieme e il costo sarebbe per niente.
+	 */
+	bool AdvancePlaybackKnowledge();
+
+	/** La cella su cui l'anim di `Unit` si trova ORA, se sta animando nella fase corrente. */
+	bool AnimatedCellFor(const ARTUnit* Unit, FRTCellId& OutCell) const;
 
 	/** La conoscenza della squadra, o una vuota e di versione corrente se la squadra non ne ha ancora. */
 	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;
@@ -2547,7 +2797,7 @@ public:
 	 * 🔴 **Esiste per non avere due produttori del testo.** Le righe che il giocatore legge nascono da
 	 * `URTTurnLogLibrary::DescribeTurnLogWithSubjects`, a cui questa mappa viene passata: chi vuole
 	 * RIDERIVARE le stesse righe — un test che confronta cio' che e' stato emesso con cio' che il TurnLog
-	 * dice — deve poter usare la stessa risoluzione, altrimenti confronta `Gadget: resta` con `u3: resta` e
+	 * dice — deve poter usare la stessa risoluzione, altrimenti confronta `Aevik: resta` con `u3: resta` e
 	 * fallisce su una differenza che non e' un difetto. E' `public` per questo: e' il modo di verificare che
 	 * di produttori ce ne sia uno solo.
 	 *
@@ -2647,6 +2897,18 @@ private:
 	{
 		TWeakObjectPtr<ARTUnit> Unit;
 		TArray<FVector> World; // start + celle attraversate, in coordinate mondo
+
+		/**
+		 * Le stesse pose di `World`, in celle (`#2876`). Parallelo e della **stessa lunghezza**: e' la
+		 * copia troncata dal prefisso osservabile, non la rotta reale.
+		 *
+		 * 🔴 **Il troncamento e' il punto.** `World` nasce gia' tagliato da
+		 * `URTTeamKnowledgeLibrary::ObservedPrefixLength`, e chi ricava la visibilita' durante il playback
+		 * deve guardare **cio' che l'anim disegna**, non dove l'unita' e' passata davvero. Un secondo array
+		 * costruito dalla rotta piena rivelerebbe esattamente il tratto che [D-223] tronca.
+		 */
+		TArray<FRTCellId> Cells;
+
 		ERTMatchPhase Phase = ERTMatchPhase::Move; // fase in cui va riprodotta (Dash o Move)
 	};
 
@@ -2672,6 +2934,18 @@ private:
 	 * differenza fra un fail-closed e una convenzione.
 	 */
 	bool bPlaybackControlsEnabled = false;
+
+	/**
+	 * Ogni playback di questa sessione comincia fermo (`#2858`).
+	 *
+	 * ⚠️ **Separato da `bPlaybackPaused`, che e' lo stato corrente.** Questo e' una **politica di sessione**
+	 * — vale per ogni turno finche' non la si spegne — mentre quello dice se l'immagine e' ferma **adesso**.
+	 * Fonderli renderebbe `ResumePlayback` una revoca della politica: si riprenderebbe una volta e il turno
+	 * dopo ripartirebbe da solo, che e' l'opposto di cio' che chiede chi sta ispezionando.
+	 *
+	 * ⛔ Nasce `false` come `bPlaybackControlsEnabled`, e come quello non si accende da se'.
+	 */
+	bool bStartPlaybackPaused = false;
 
 	/**
 	 * Il playback e' fermo.
@@ -2745,6 +3019,16 @@ private:
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
 
 	/**
+	 * Eventi `AttackFootprint`, rivelati nel Blast come i colpi — `#2454`.
+	 *
+	 * 🔴 **Array proprio e non fuso con `PlaybackAttacks`**, perche' i due contano cose diverse:
+	 * `ResolveCombatPasses` emette un `Attack` per **vittima** e un'impronta per **intento**. Fonderli
+	 * perderebbe proprio il caso che `D-301` esiste per far esistere — l'area su sole celle vuote, che ha
+	 * un'impronta e zero colpi.
+	 */
+	TArray<FRTResolvedEvent> PlaybackFootprints;
+
+	/**
 	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
 	 *
 	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
@@ -2775,6 +3059,30 @@ private:
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
+	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
+
+	/**
+	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.
+	 *
+	 * ⚠️ **Vive accanto a `bPlaybackPaused` e non dentro**: la pausa e' uno STATO — ci si e' fermati — e
+	 * questo e' un'INTENZIONE — ci si fermera'. Fonderli renderebbe impossibile distinguere «fermo perche'
+	 * qualcuno ha premuto Pause» da «in corsa verso un confine», che e' proprio cio' che chi guarda deve
+	 * poter leggere sulla riga di stato.
+	 */
+	ERTPlaybackStopAt PlaybackStopAt = ERTPlaybackStopAt::None;
+
+	/**
+	 * L'azione in corso quando `NextAction` e' stato armato: il termine di paragone del confine.
+	 *
+	 * 🔑 **Congelata all'ARMAMENTO e non riletta a ogni tick.** E' la stessa regola di `StepMicroStep`, che
+	 * calcola il proprio confine *«alla pressione e in secondi, non in tick»*: un paragone ricalcolato
+	 * mentre il playback scorre inseguirebbe il proprio bersaglio e non si fermerebbe mai.
+	 *
+	 * ⚠️ `NAME_None` significa «nessun atto in corso», ed e' il valore giusto quando si arma prima che un
+	 * colpo sia stato mostrato: il primo atto che passa e' allora gia' un confine — la stessa semantica
+	 * che `URTPlaybackLibrary::NextActionBoundary` da' a un indice negativo.
+	 */
+	FName PlaybackStopFromAction;
 
 	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.
 	FVector PBOrigin = FVector::ZeroVector;

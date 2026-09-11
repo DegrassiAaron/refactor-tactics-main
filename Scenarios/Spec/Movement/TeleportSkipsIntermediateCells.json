@@ -19,8 +19,8 @@
   ],
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",   "team": 0, "cell": [-2, 0, 0] },
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 4, 0, 0] }
+    { "id": "F1", "hero": "Hero.Aevik",   "team": 0, "cell": [-2, 0, 0] },
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 4, 0, 0] }
   ],
 
   "turns": [

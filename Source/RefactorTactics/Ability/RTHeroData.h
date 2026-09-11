@@ -7,7 +7,7 @@
 class URTActionData;
 
 /**
- * Definizione data-driven di un EROE del catalogo v0.1 (Gadget, Phase, Branth, Wraith).
+ * Definizione data-driven di un EROE del catalogo v0.1 (Aevik, Phase, Branth, Ivrin).
  *
  * Contiene solo cio' che il catalogo dichiara come **fisso** dell'eroe: identita', statistiche base e le
  * azioni fondamentali (attacco base compreso). Cio' che e' configurabile FRA eroi diversi (variante d'arma,
@@ -16,9 +16,16 @@ class URTActionData;
  * dall'abilita' che modifica — la stessa "Scarica ramificata" non avrebbe senso su un'abilita' di un altro
  * eroe.
  *
- * `Actions` ha ESATTAMENTE cinque elementi nel catalogo v0.1: indice 0 l'attacco base (fascia dalla portata,
+ * `Actions` ha **da cinque a sei** elementi nel catalogo v0.1: indice 0 l'attacco base (fascia dalla portata,
  * `URTCatalogLibrary::MakeBasicAttack`), indici 1-4 le quattro abilita' fondamentali — di cui **una sola**
- * dichiara varianti (`URTHeroCatalogLibrary::ValidateHeroes` lo fa valere).
+ * dichiara varianti — e un indice 5 **facoltativo**, una generica del catalogo core portata nel kit.
+ * `URTHeroCatalogLibrary::ValidateHeroes` fa valere l'intervallo e il vincolo della variante unica.
+ *
+ * ⚠️ **Era «ESATTAMENTE cinque», e la parola in maiuscolo non e' bastata a tenerlo vero.** Sul roster v0.1
+ * ne hanno sei **Phase** (`Hero.Muiren.TideGuard`) e **Ivrin** (`Hero.Ivrin.PhaseGuard`), entrambe derivate
+ * da `Action.Shield`; Aevik e Branth restano a cinque. Il tetto e' 6 e non «quante ne vuoi» perche' oltre,
+ * il kit supera le posizioni che l'input raggiunge — `PlayerInput.EveryKitEntryIsReachable` lo misura.
+ * Il costo dell'intervallo e' dichiarato accanto al validator: non dice piu' «questo eroe e' completo».
  *
  * Solo interi (invariante #4). Riferimento: docs/balance/RT_HeroCatalog_v0.1.md
  */
@@ -28,7 +35,7 @@ class REFACTORTACTICS_API URTHeroData : public UPrimaryDataAsset
 	GENERATED_BODY()
 
 public:
-	/** ID stabile dell'eroe (es. `Hero.Gadget`). Chiave del data asset: non cambia mai. */
+	/** ID stabile dell'eroe (es. `Hero.Aevik`). Chiave del data asset: non cambia mai. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName HeroId;
 
@@ -52,7 +59,7 @@ public:
 	 * **almeno** a questo valore perche' l'eroe lo senta. Scala `0-10`, la stessa dell'intensita'
 	 * (`Wait 0 · Sprint 5 · Dash 6 · esplosione 10`), e soglia **bassa = orecchio fine**.
 	 *
-	 * Quarta statistica, e **compensa** la vista invece di seguirla: Gadget 5 · Phase 3 · Branth 3 · Wraith 5.
+	 * Quarta statistica, e **compensa** la vista invece di seguirla: Aevik 5 · Phase 3 · Branth 3 · Ivrin 5.
 	 * Chi vede lontano sente meno. La terza via — udito allineato alla vista — e' stata scartata perche'
 	 * raddoppiare lo stesso vantaggio su due canali renderebbe gli eroi da ricognizione *migliori*, non
 	 * diversi.
@@ -63,7 +70,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 HearingThreshold = 5;
 
-	/** Celle di spinta assorbite prima di essere spostato (Branth: 1). */
+	/**
+	 * Celle di spinta assorbite prima di essere spostato. **Soglia**, non riduzione (D-038).
+	 *
+	 * ⚠️ Il roster v0.1 e' interamente a `0` da D-075 (#402), Branth compreso — che fino al 2026-08-10 era
+	 * l'unico a `1`. A soglia 1, siccome ogni spinta del gioco vale 1, il campo comprava **immunita' totale**
+	 * invece di stabilita'. La meccanica resta implementata (`RTTurnManager.cpp`, ramo `ERTActionEffect::Push`)
+	 * e **dormiente**: si risveglia il giorno in cui una spinta >= 2 entra nel catalogo.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 PushResistance = 0;
 
@@ -72,10 +86,10 @@ public:
 	 *
 	 * | Personaggio | `MoveEndPivotMaxSteps` | `DashEndPivotMaxSteps` |
 	 * |---|---:|---:|
-	 * | Gadget | 2 | 2 |
+	 * | Aevik | 2 | 2 |
 	 * | Phase | 2 | 3 |
 	 * | Branth | 1 | **0** |
-	 * | Wraith | 3 | 3 |
+	 * | Ivrin | 3 | 3 |
 	 *
 	 * ⚠️ **Ipotesi iniziali, non bilanciamento approvato.** L'ADR li dichiara «*ipotesi da scenario/playtest*»
 	 * e chiede di non canonizzarli come definitivi: entrano nel catalogo perche' il modello ha bisogno di un
@@ -121,7 +135,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	FName ReactionProfileId;
 
-	/** Le azioni dell'eroe: attacco base (indice 0) + quattro abilita' fondamentali (indici 1-4). */
+	/**
+	 * Le azioni dell'eroe: attacco base (indice 0) + quattro abilita' fondamentali (indici 1-4) + una
+	 * generica del catalogo core **facoltativa** (indice 5). Cardinalita' 5-6, vedi il docstring della classe.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	TArray<TObjectPtr<URTActionData>> Actions;
 

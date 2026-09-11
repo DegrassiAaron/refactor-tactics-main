@@ -89,7 +89,7 @@ namespace
 /**
  * La domanda del criterio 1 di #1088, posta alla geometria invece che a una partita.
  *
- * ⚠️ **La gittata non e' un parametro libero: e' 4.** `Hero.Gadget.ArcPulse` e `Hero.Wraith.PulseShot`
+ * ⚠️ **La gittata non e' un parametro libero: e' 4.** `Hero.Aevik.ArcPulse` e `Hero.Ivrin.PulseShot`
  * dichiarano `Range 4` nel catalogo, ed e' il numero che rende lo stallo strano — le unita' si fermano a
  * distanza **3**, cioe' dentro la gittata, e non sparano.
  */
@@ -117,7 +117,7 @@ bool FRTBotStalemateFiringPositionsTest::RunTest(const FString&)
 		bSpawnsSeeEachOther ? TEXT("LIBERA") : TEXT("interrotta")));
 
 	// --- 2. La domanda decisiva: esiste una cella da cui B sarebbe colpibile?
-	const int32 BasicAttackRange = 4; // `Hero.Gadget.ArcPulse`, `Hero.Wraith.PulseShot`
+	const int32 BasicAttackRange = 4; // `Hero.Aevik.ArcPulse`, `Hero.Ivrin.PulseShot`
 	const FRTProbeFiringReport Firing = ProbeFiringPositions(Arena, SpawnA, SpawnB, BasicAttackRange);
 
 	AddInfo(FString::Printf(
@@ -209,7 +209,7 @@ bool FRTBotStalemateDemoArenaContrastTest::RunTest(const FString&)
  * ⚠️ **Due fatti letti nel codice, che restringono prima ancora di misurare:**
  *
  *  · `DeriveKiteStandoff` da' standoff `0` sotto gittata 5. Sul roster v0.1 **solo Phase** (`PressureJet`,
- *    gittata 5) tiene le distanze; Gadget e Wraith (4) e Branth (3) **chiudono**. Lo stallo a distanza 3
+ *    gittata 5) tiene le distanze; Aevik e Ivrin (4) e Branth (3) **chiudono**. Lo stallo a distanza 3
  *    non e' quindi il kiting che fa il suo mestiere — non per tre unita' su quattro.
  *  · `ChooseBestPlan` dichiara un **tie-break assoluto**: *«a parita' di punteggio vince la MOSSA MINIMA
  *    da Origin (restare vince)»*. Se attaccare non migliorasse **strettamente** il punteggio, restare
@@ -264,8 +264,8 @@ bool FRTBotStalemateCandidateScoresTest::RunTest(const FString&)
 	Ctx.Enemies.Add(EnemyCell);
 	Ctx.EnemyRanges.Add(4);
 	Ctx.EnemyHealth.Add(100);
-	Ctx.AttackRange = 4;   // `Hero.Gadget.ArcPulse`
-	Ctx.AttackDamage = 21; // `Hero.Wraith.PulseShot`
+	Ctx.AttackRange = 4;   // `Hero.Aevik.ArcPulse`
+	Ctx.AttackDamage = 21; // `Hero.Ivrin.PulseShot`
 	Ctx.KiteStandoff = URTHexBotLibrary::DeriveKiteStandoff(Ctx.AttackRange);
 
 	AddInfo(FString::Printf(TEXT("standoff derivato da gittata %d: %d (0 = chiude la distanza)"),

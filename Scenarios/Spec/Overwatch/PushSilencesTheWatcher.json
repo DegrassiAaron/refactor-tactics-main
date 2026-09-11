@@ -22,10 +22,10 @@
   "_nota_cosa_asserisce_e_cosa_no": "🔴 **Le assertion sono di DUE classi.** Le celle sono una REGOLA: la spinta di 1 sposta di 1, e non e' in discussione. `UnitHpEquals M1 90` e' invece il **REGISTRO di un comportamento indeciso** — `#2367` elenca quattro uscite e tre lo cambiano. ⛔ **Non dice che sia giusto: dice che non deve cambiare per sbaglio.** Il giorno in cui si sceglie un'altra uscita questo file diventa rosso, e la modifica passa da qui invece di scivolare dentro inosservata: chi la sceglie aggiorna la riga **nello stesso commit** che cambia la regola. ➕ **E c'e' una seconda sentinella che non si vede fra le `expect`**: non dichiarare **nessuna** `decision`. Se la finestra tornasse ad aprirsi, l'harness uscirebbe `ERROR` — *«finestra aperta senza una decisione che la nomini»* — cioe' l'assenza stessa e' l'asserzione.",
 
   "units": [
-    { "id": "M1", "hero": "Hero.Wraith", "team": 0, "cell": [-2,  0, 0] },
-    { "id": "P1", "hero": "Hero.Phase",  "team": 0, "cell": [ 3, -1, 0], "loadout": [] },
+    { "id": "M1", "hero": "Hero.Ivrin", "team": 0, "cell": [-2,  0, 0] },
+    { "id": "P1", "hero": "Hero.Muiren",  "team": 0, "cell": [ 3, -1, 0], "loadout": [] },
 
-    { "id": "V1", "hero": "Hero.Wraith", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
+    { "id": "V1", "hero": "Hero.Ivrin", "team": 1, "cell": [ 2, -1, 0], "facing": "W" }
   ],
 
   "turns": [
@@ -33,7 +33,7 @@
       "_turno": "Un turno solo, e i tre momenti stanno tutti dentro. PREP: `V1` arma sul varco che gia' guarda, e la direzione si congela li'. BLAST: `P1` lo spinge da est — `V1` arretra a (1,-1) e si gira verso la sorgente, con il corridoio alle spalle. MOVE: `M1` entra in (-2,-1), dentro la linea guardata, e non succede niente.",
       "intents": [
         { "unit": "V1", "ability": "Action.Overwatch" },
-        { "unit": "P1", "ability": "Hero.Phase.PressureJet", "target": "V1" },
+        { "unit": "P1", "ability": "Hero.Muiren.PressureJet", "target": "V1" },
         { "unit": "M1", "move": [[-2, -1, 0]] }
       ]
     }

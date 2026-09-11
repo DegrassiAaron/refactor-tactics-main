@@ -201,7 +201,7 @@ namespace
 			TEXT("Structures"),        // E9 CP 9.3: porte come bordo, revisione della mappa
 			TEXT("CreateCover"),       // E9 CP 9.5: coperture erette in partita, temporanee, spostabili
 			// D-046 (#282): un EROE possiede davvero un'azione ambientale. Non basta che il resolver la sappia
-			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Gadget.ConductiveNode` e'
+			// risolvere — per mesi la sapeva, e nessuna unita' poteva innescarla. Oggi `Aevik.ConductiveNode` e'
 			// `Action.Electrify` e `Phase.FluidTrail` e' `Action.CreateWater`.
 			//
 			// NON copre `Action.Ignite` ne' `Action.ModifyArc`: nessun eroe del roster le possiede, e D-046 ha
@@ -217,7 +217,7 @@ namespace
 			// Il primo scenario che la chiedera' ripetera' lo stesso errore, e il rimedio e' lo stesso —
 			// un nome accanto ad `ArcModification`, non un ripiego su questa voce.
 			TEXT("EnvironmentalActionOwner"),
-			// E18 CP 18.2 (D-016): `Wraith.InterceptShot` e' una Predictive Action — cella dichiarata in
+			// E18 CP 18.2 (D-016): `Ivrin.InterceptShot` e' una Predictive Action — cella dichiarata in
 			// Planning, verificata al boundary del Move, nessun input durante la Resolution.
 			//
 			// ✅ **La motivazione di questa riga e' tornata VERA il 2026-08-13 sera, e vale la pena dire come.**
@@ -305,7 +305,7 @@ namespace
 			//   · il **contenuto** del T6 atterra nello STESSO commit di questa riga, che e' la condizione che
 			//     la vecchia nota poneva: scoprirla da sola farebbe passare un turno con `intents: []`.
 			// ⚠️ E la fixture e' **discriminante**, che e' la quarta condizione e non era scritta: la copertura
-			// sul bordo `(1,0)->(2,0)` ripara Branth e non Wraith, quindi un resolver che conservasse la
+			// sul bordo `(1,0)->(2,0)` ripara Branth e non Ivrin, quindi un resolver che conservasse la
 			// copertura del bersaglio ORIGINALE darebbe 98 invece di 108 — e il turno cadrebbe. Senza quella
 			// copertura, i due comportamenti sarebbero indistinguibili e il verde non direbbe niente.
 			TEXT("InterceptRevalidation"),
@@ -401,7 +401,7 @@ namespace
 			// e' il blocco VERO di `Spec/Brace/ProfileChangesResponse`, che fino a oggi ne dichiarava uno
 			// falso.** Quello scenario chiedeva `DecisionBoundary` scrivendo, nella propria nota, che «con la
 			// sola finestra di CP 14.5 questo file puo' diventare verde». Misurato: **non puo'**. Gli serve
-			// che `Hero.Phase` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
+			// che `Hero.Muiren` porti `Profile.Sidestep`, cioe' un profilo di reazione con DUE risposte legali,
 			// e `grep -rn "Profile.Sidestep\|ReactionProfile" Source/` da' **zero** — il concetto non esiste
 			// in nessuna forma, non e' un rename e non e' un campo vuoto da riempire.
 			//
@@ -656,9 +656,13 @@ namespace
 	 * prima. Aggiungere un terzo confronto SEMPRE attivo avrebbe rotto ogni scenario del corpus.
 	 */
 	bool MatchesScenarioLogEvent(const FRTTurnLogEntry& Entry, ERTLogCategory Category, uint8 Outcome,
-		FName ActionId)
+		FName ActionId, bool bHasPhase = false, ERTMatchPhase Phase = ERTMatchPhase::Move)
 	{
 		if (Entry.Category != Category || Entry.Outcome != Outcome) { return false; }
+		// ⚠️ Il filtro di fase e' un AND con gli altri, non un'alternativa: `Combat/Hit` nel `Blast` e
+		// `Combat/Hit` nel `Move` sono lo stesso evento in due momenti, e un'assertion che volesse
+		// distinguerli senza questo confronto non potrebbe (`#2867`).
+		if (bHasPhase && Entry.Phase != Phase) { return false; }
 		return ActionId.IsNone() || Entry.ActionId == ActionId;
 	}
 
@@ -670,11 +674,11 @@ namespace
 	 * confrontare i due esordi.
 	 */
 	int32 IndexOfScenarioLogEvent(const TArray<FRTTurnLogEntry>& Log, ERTLogCategory Category, uint8 Outcome,
-		FName ActionId = NAME_None)
+		FName ActionId = NAME_None, bool bHasPhase = false, ERTMatchPhase Phase = ERTMatchPhase::Move)
 	{
 		for (int32 I = 0; I < Log.Num(); ++I)
 		{
-			if (MatchesScenarioLogEvent(Log[I], Category, Outcome, ActionId)) { return I; }
+			if (MatchesScenarioLogEvent(Log[I], Category, Outcome, ActionId, bHasPhase, Phase)) { return I; }
 		}
 		return INDEX_NONE;
 	}
@@ -1237,7 +1241,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 				// cadeva e il report diceva FAIL, cioe' mandava a cercare una regressione che non esisteva.
 				//
 				// Il validator non puo' prenderlo al caricamento: `Phase.CircularTide` ESISTE nel catalogo, non
-				// e' nel kit di Gadget — e il kit lo si conosce solo quando le unita' sono state costruite.
+				// e' nel kit di Aevik — e il kit lo si conosce solo quando le unita' sono state costruite.
 				ErroredBy = FString::Printf(TEXT("'%s' non possiede l'abilita' '%s' (turno %d)"),
 					*Intent.UnitId, *Intent.Ability.ToString(), TurnIndex + 1);
 				UE_LOG(LogRT, Error, TEXT("[RT-Test] %s: %s"), *Scenario.ScenarioId, *ErroredBy);
@@ -1641,10 +1645,20 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 			{
 				if (PendingConsumed[Index]) { continue; }
 				++Result.ScriptedDecisionsUnused;
-				const FString Motivo = FString::Printf(
-					TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra si e' ")
-					TEXT("aperta per quell'unita'"),
-					TurnIndex + 1, *PendingDecisions[Index].Unit, *PendingDecisions[Index].Respond);
+				// ⚠️ **Con un selettore il motivo e' un altro, e dirlo cambia dove si va a guardare**: la
+				// finestra puo' essersi aperta benissimo, e a non combaciare e' stato un vincolo — la
+				// reaction sbagliata, o un trigger che quella finestra non offriva. Il messaggio senza
+				// selettore manderebbe a cercare una finestra mancante che invece c'era.
+				const FRTScenarioDecision& Residua = PendingDecisions[Index];
+				const FString Motivo = Residua.bHasSelector
+					? FString::Printf(
+						TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra ")
+						TEXT("ha soddisfatto il selettore"),
+						TurnIndex + 1, *Residua.On.Describe(), *Residua.Respond)
+					: FString::Printf(
+						TEXT("turno %d: decisione dichiarata per '%s' (%s) e mai consumata — nessuna finestra si e' ")
+						TEXT("aperta per quell'unita'"),
+						TurnIndex + 1, *Residua.Unit, *Residua.Respond);
 				if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
 				Notes.Add(Motivo);
 			}
@@ -1727,11 +1741,54 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 	}
 	if (OwnerScenarioId.IsEmpty()) { return FString(); }
 
+	// L'id di runtime di un'unita' di scenario, nello stesso spazio del proprietario: l'indice nell'array
+	// di risoluzione. `INDEX_NONE` se non e' viva in questo turno.
+	const auto RuntimeIdOf = [&](const FString& ScenarioId) -> int32
+	{
+		const TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(ScenarioId);
+		ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		return Unit ? RuntimeUnits.IndexOfByKey(Unit) : INDEX_NONE;
+	};
+
+	/**
+	 * Il SELETTORE combacia con questa finestra?
+	 *
+	 * Confronta soltanto cio' che l'opportunity porta davvero: la reaction che l'ha aperta
+	 * (`Key.ReactionDefId`) e i bersagli che offre (i token `FIRE:<id>` di `AllowedResponses`, che per
+	 * l'Overwatch sono esattamente i mover entrati nella zona). Non esiste un terzo campo da confrontare:
+	 * `FRTReactionOpportunity` ha un elenco chiuso, e il decisore riceve lei e l'`OwnerUnitId`.
+	 *
+	 * Una decisione SENZA selettore combacia sempre — e' la forma legacy, abbinata per ordine, e i file
+	 * gia' scritti non cambiano comportamento.
+	 */
+	const auto SelectorMatches = [&](const FRTScenarioDecision& D) -> bool
+	{
+		if (!D.bHasSelector) { return true; }
+		if (!D.On.Reaction.IsNone() && Opportunity.Key.ReactionDefId != D.On.Reaction) { return false; }
+		if (!D.On.TriggerUnit.IsEmpty())
+		{
+			const int32 TriggerRuntimeId = RuntimeIdOf(D.On.TriggerUnit);
+			if (TriggerRuntimeId == INDEX_NONE) { return false; }
+			bool bOffered = false;
+			for (const FString& Allowed : Opportunity.AllowedResponses)
+			{
+				if (URTReactionOpportunityLibrary::FireResponseTarget(Allowed) == TriggerRuntimeId)
+				{
+					bOffered = true;
+					break;
+				}
+			}
+			if (!bOffered) { return false; }
+		}
+		return true;
+	};
+
 	for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
 	{
 		if (PendingConsumed[Index]) { continue; }
 		const FRTScenarioDecision& D = PendingDecisions[Index];
 		if (D.Unit != OwnerScenarioId) { continue; }
+		if (!SelectorMatches(D)) { continue; }
 
 		// 🔴 **La decisione si consuma solo se si riesce davvero a tradurla.** Segnarla consumata qui sopra —
 		// come faceva la prima stesura — significava che una traduzione fallita usciva con un `HOLD` per
@@ -1827,6 +1884,28 @@ FString FRTScenarioSession::DecideScriptedResponse(const FRTReactionOpportunity&
 			return FString();
 		}
 		return Consuma(URTReactionOpportunityLibrary::FireResponse(TargetRuntimeId));
+	}
+
+	// 🔴 **SELETTORE AMBIGUO: due finestre lo soddisfano entrambe.** Si riconosce da qui — nessuna decisione
+	// libera combacia, ma una gia' CONSUMATA avrebbe combaciato — e va distinto dalla finestra scoperta,
+	// perche' i due difetti si correggono in posti opposti: qui si stringe il selettore, li' se ne aggiunge
+	// una. Senza questa distinzione uno scenario ambiguo uscirebbe con «finestra senza una decisione che la
+	// nomini», mandando ad aggiungere una seconda risposta a un selettore che ne intercetta gia' due.
+	for (int32 Index = 0; Index < PendingDecisions.Num(); ++Index)
+	{
+		if (!PendingConsumed[Index]) { continue; }
+		const FRTScenarioDecision& D = PendingDecisions[Index];
+		if (!D.bHasSelector) { continue; }
+		if (D.Unit != OwnerScenarioId) { continue; }
+		if (!SelectorMatches(D)) { continue; }
+
+		const FString Motivo = FString::Printf(
+			TEXT("turno %d: il selettore '%s' e' ambiguo — piu' di una finestra lo soddisfa, e la seconda ")
+			TEXT("resterebbe senza risposta"),
+			TurnIndex + 1, *D.On.Describe());
+		if (ErroredBy.IsEmpty()) { ErroredBy = Motivo; }
+		Notes.Add(Motivo);
+		return FString();
 	}
 
 	if (PendingDecisions.Num() > 0)
@@ -2189,14 +2268,16 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventCount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(
+				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
 			A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			int32 Found = 0;
 			for (const FRTTurnLogEntry& Entry : ScenarioLog)
 			{
-				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId)) { ++Found; }
+				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId,
+					Exp.bHasLogPhase, Exp.LogPhase)) { ++Found; }
 			}
 			A.Actual = FString::FromInt(Found);
 			A.bPassed = (Found == Exp.Value);
@@ -2204,13 +2285,15 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventAmount:
 		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const FString EventName = URTScenarioLoader::DescribeLogEvent(
+				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
 			A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
 			A.Expected = FString::FromInt(Exp.Value);
 
 			// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
 			// una decisione non e' la somma dei residui.
-			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
+			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
+				Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
 			if (At == INDEX_NONE)
 			{
 				// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
@@ -2227,13 +2310,17 @@ void FRTScenarioSession::Finish()
 		}
 		case ERTAssertionKind::LogEventOrder:
 		{
-			const FString FirstName = URTScenarioLoader::DescribeLogEvent(Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
-			const FString ThenName = URTScenarioLoader::DescribeLogEvent(Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
+			const FString FirstName = URTScenarioLoader::DescribeLogEvent(
+				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+			const FString ThenName = URTScenarioLoader::DescribeLogEvent(
+				Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
 			A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
 			A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
 
-			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId);
-			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId);
+			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
+				Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome,
+				Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
 
 			// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
 			// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.

@@ -15,6 +15,11 @@
 
 class UAnimSequenceBase;
 class UStaticMeshComponent;
+// #2880: si dichiarano avanti invece di includere `RTGraykitTypes.h`. L'enum porta il proprio tipo
+// sottostante perche' senza di quello una forward declaration di `enum class` non e' utilizzabile come
+// parametro. `FRTGraykitPose` passa per riferimento const, quindi la definizione serve solo al `.cpp`.
+enum class ERTGraykitAnchor : uint8;
+struct FRTGraykitPose;
 class UArrowComponent;
 class USkeletalMeshComponent;
 class UMaterialInstanceDynamic;
@@ -199,7 +204,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 HearingThreshold = 5;
 
-	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Gadget su bersaglio Wet). */
+	/** Affinità e debolezza ambientale dell'eroe (identità per le combo fra eroi, es. Aevik su bersaglio Wet). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	FName Affinity;
 
@@ -231,13 +236,13 @@ public:
 	FName HeroId;
 
 	/**
-	 * Nome canonico/player-facing dell'eroe (D-120: Gadget · Phase · Branth · Wraith), dichiarato dal
+	 * Nome canonico/player-facing dell'eroe (D-120: Aevik · Phase · Branth · Ivrin), dichiarato dal
 	 * catalogo e trasportato qui da `ConfigureFromHeroData`. `FText` perché è testo mostrato all'utente e
 	 * deve restare localizzabile.
 	 *
 	 * ⚠️ **Non è lo Stable ID**, e i due piani restano separati — D-037, che D-321 ha ripristinato come
-	 * invariante. Ma `Hero.Gadget` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
-	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Gadget` → `Hero.Aevik`), e la
+	 * invariante. Ma `Hero.Aevik` **sarà rinominato**: D-321 dichiara che i quattro nomi del roster v0.1
+	 * sono identità legacy temporanee, D-334 fissa i sostituti (`Hero.Aevik` → `Hero.Aevik`), e la
 	 * migrazione è differita post-v0.1 con owner #2297. Il blocker di namespace che rendeva impossibile il
 	 * rename è sciolto da D-130, che ha chiuso #716 scegliendo `Hero.<Nome>.<Abilità>`.
 	 * Vuoto = nessun eroe l'ha dichiarato: la presentazione ricade su `ShortHeroName`, mai su stringa vuota.
@@ -285,7 +290,7 @@ public:
 
 	/**
 	 * Cella bersagliata dall'azione principale, in alternativa a `PlannedAttackTarget`: le aree si centrano
-	 * su una CELLA, che puo' essere vuota (`Gadget.Overload` su un varco, una cella conduttiva senza nessuno
+	 * su una CELLA, che puo' essere vuota (`Aevik.Overload` su un varco, una cella conduttiva senza nessuno
 	 * sopra). Valida solo con `bAttackTargetsCell`.
 	 *
 	 * Chiude a meta' il limite dichiarato in `RTTurnManager` (CP 8.3): la pianificazione non aveva un
@@ -335,9 +340,57 @@ public:
 	 * Serve un flag e non basta «target nullo»: nel resolver `TargetUnitId == INDEX_NONE` significa gia'
 	 * **bersaglio perso** (eliminato o mai valido), che degrada al fallback. Senza distinguerle, mirare a una
 	 * cella verrebbe letto come un errore di pianificazione.
+	 *
+	 * ⛔ **NON scriverlo a mano dal codice di gioco: usa `DeclareAttackOnCell` / `DeclareAttackOnUnit` /
+	 * `ClearPlannedAttack`** (`#2884`). Questo campo e `PlannedAttackTarget` sono **mutuamente esclusivi**, e
+	 * finche' l'esclusivita' e' stata una convenzione invece che una funzione nessuno l'ha rispettata:
+	 * `HandleTargetCell` accendeva il flag e `HandleClickOnUnit` scriveva il bersaglio **senza spegnerlo**.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Plan")
 	bool bAttackTargetsCell = false;
+
+	/**
+	 * ## 🔴 I due bersagli dell'azione principale sono ESCLUSIVI, e queste tre funzioni sono il posto in cui
+	 * l'esclusivita' esiste (`#2884`)
+	 *
+	 * `PlannedAttackTarget` e la coppia `bAttackTargetsCell`/`PlannedAttackCell` descrivono la **stessa**
+	 * scelta — *dove va l'azione principale* — in due modi che il resolver legge in ordine: `Blast` guarda
+	 * PRIMA il flag, e quando e' acceso **ignora** il bersaglio-unita'.
+	 *
+	 * ⛔ **Finche' la regola e' stata una convenzione, nessuno l'ha applicata.** Misurato su `main`
+	 * `fdbc6797`: due scrittori del flag, quattro lettori, **zero** azzeramenti in produzione — e la
+	 * conseguenza si vede in un turno solo. Chi punta una cella e poi **cambia idea** puntando un nemico
+	 * ottiene un piano che risolve sulla cella di prima, e il bersaglio incassa `0` senza che niente lo dica.
+	 *
+	 * 🔑 **Il rimedio non e' azzerare al consumo del piano.** Sarebbe bastato per il turno successivo e
+	 * avrebbe lasciato scoperto il cambio d'idea, che e' il caso piu' comune dei due: l'esclusivita' va
+	 * imposta **dove si dichiara**, non dove si consuma. Queste funzioni sono quel posto.
+	 *
+	 * ⚠️ I campi restano pubblici — l'harness degli scenari e i test li scrivono direttamente, e renderli
+	 * privati sarebbe una migrazione che non appartiene a questa correzione. La garanzia e' quindi che il
+	 * **codice di gioco** passi di qui, ed e' `Plan.MindChangeRetiresTheOtherTarget` a pinnarla.
+	 */
+	void DeclareAttackOnUnit(ARTUnit* Target)
+	{
+		PlannedAttackTarget = Target;
+		bAttackTargetsCell = false; // la dichiarazione opposta si RITIRA: era lei a vincere nel resolver
+	}
+
+	// ⚠️ Il parametro NON si chiama `Cell`: quello e' un membro di `ARTUnit` — la cella su cui l'unita' sta —
+	// e ombreggiarlo qui e' un errore di compilazione (`C4458` come warning-as-error).
+	void DeclareAttackOnCell(const FRTCellId& TargetCell)
+	{
+		PlannedAttackCell = TargetCell;
+		bAttackTargetsCell = true;
+		PlannedAttackTarget = nullptr; // un target-unita' residuo verrebbe letto dal fallback come «perso»
+	}
+
+	/** Nessun bersaglio dichiarato per l'azione principale: si spengono ENTRAMBE le forme. */
+	void ClearPlannedAttack()
+	{
+		PlannedAttackTarget = nullptr;
+		bAttackTargetsCell = false;
+	}
 
 	/**
 	 * Percorso composito pianificato (waypoint risolti in celle, From = Cell incluso).
@@ -955,8 +1008,8 @@ public:
 	 *
 	 * | Pack | ossa di catena rimosse | effetto a schermo |
 	 * |---|---|---|
-	 * | Gadget | **0** | nessuno |
-	 * | Wraith | **0** | nessuno |
+	 * | Aevik | **0** | nessuno |
+	 * | Ivrin | **0** | nessuno |
 	 * | Phase | **6** (`hip_chain_l/r_01..03`) | catenine ai fianchi, poco visibile |
 	 * | Branth | **13** (`l_hand_chain_01..04`, `chain_tip_r`, ...) | **le catene si stendono sullo schermo** |
 	 *
@@ -998,6 +1051,45 @@ public:
 
 	/** Sposta solo la mesh (presentazione): NON cambia Cell ne' il piano. Usato dall'animazione del turno. */
 	void SetVisualLocation(const FVector& World);
+
+	/**
+	 * Applica una posa graykit ai componenti del segnaposto (#2880).
+	 *
+	 * ⛔ **Solo presentazione.** Scrive trasformazioni RELATIVE su `Mesh`, `LeftArm` e `RightArm`, e non
+	 * tocca `Cell`, occupazione, collisione ne' la posizione dell'attore. La cella autorevole resta quella
+	 * che `PlaceOnCell` ha scritto, e `FRTGraykitNoGameplayMutationTest` lo misura su un playback intero.
+	 *
+	 * ⚠️ **No-op silenzioso quando i componenti non ci sono**, e il silenzio e' deliberato: questo metodo lo
+	 * chiama il playback a ogni tick, e un `ensure` o un `UE_LOG` produrrebbe migliaia di righe al secondo su
+	 * un difetto di configurazione che una riga sola descriverebbe meglio.
+	 *
+	 * 🔑 **Non calcola la posa**: la riceve. Chi la valuta e' `URTGraykitLibrary::Evaluate`, e il tempo
+	 * normalizzato lo produce `URTPlaybackLibrary`. Questo metodo e' solo il punto in cui la presentazione
+	 * tocca i componenti.
+	 */
+	void ApplyGraykitPose(const FRTGraykitPose& Pose);
+
+	/**
+	 * Riporta i componenti del segnaposto alla posa di riposo.
+	 *
+	 * 🔴 **Esiste perche' senza di lui l'unita' resta storta**, e il difetto si vedrebbe solo dal secondo
+	 * turno: un `Lean` concluso TIENE il proprio valore finale (e' il patto di `WindowAlpha`), quindi a fine
+	 * movimento il corpo resterebbe inclinato finche' qualcuno non lo raddrizza. Lo chiama il playback dove
+	 * gia' spegne `bIsMovingVisually`.
+	 */
+	void ResetGraykitPose();
+
+	/**
+	 * Posizione di riposo di un braccio, in spazio locale.
+	 *
+	 * 🔑 **Si risolve da `URTGraykitLibrary::AnchorOffset` e non da numeri scritti a mano**, cosi' che un
+	 * cilindro ridimensionato si porti dietro le proprie mani. E' pubblica perche' i test la confrontano:
+	 * un braccio che si posasse altrove renderebbe falsa la posa senza che nessuna misura lo dica.
+	 */
+	static FVector GraykitArmRestLocation(ERTGraykitAnchor Anchor);
+
+	/** Scala di riposo di un braccio: un bastoncino sottile, lungo circa meta' busto. */
+	static FVector GraykitArmRestScale();
 
 	/**
 	 * Velocita' DICHIARATA, non simulata. `AActor::GetVelocity()` legge il movement component e questa unita'
@@ -1064,7 +1156,7 @@ public:
 	static FLinearColor TeamColorFor(int32 InTeamId, const FLinearColor& Team0, const FLinearColor& Team1);
 
 	/**
-	 * Ultimo segmento di uno Stable ID: `Hero.Gadget` -> `Gadget`.
+	 * Ultimo segmento di uno Stable ID: `Hero.Aevik` -> `Aevik`.
 	 *
 	 * ⚠️ **Non e' piu' il nome mostrato a schermo, ed e' cambiato il 2026-08-13** (#715). Fino ad allora
 	 * questa funzione ERA l'etichetta, e la sua descrizione lo diceva; oggi l'etichetta la sceglie
@@ -1129,7 +1221,7 @@ public:
 	 *
 	 * Tre casi, e nessuno produce una stringa vuota — che e' il difetto che `ShortHeroName` esisteva per
 	 * impedire e che un `FText` vuoto reintrodurrebbe in silenzio, perche' vuoto e' un valore legale:
-	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Gadget`, `Phase`, ...);
+	 *   1. `InDisplayName` valorizzato        -> il nome canonico (`Aevik`, `Phase`, ...);
 	 *   2. `InDisplayName` vuoto              -> `ShortHeroName(InHeroId)`, cioe' l'ultimo segmento dell'ID;
 	 *   3. anche `InHeroId` a `NAME_None`     -> `Fallback` (il nome dell'attore).
 	 *
@@ -1590,6 +1682,25 @@ protected:
 	/** Anello di SELEZIONE a terra: riscontro visivo della selezione, visibile anche sui personaggi skeletal. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	TObjectPtr<UStaticMeshComponent> SelectionRing;
+
+	/**
+	 * Braccio SINISTRO del segnaposto graykit (#2880).
+	 *
+	 * 🔴 **E' parte del SEGNAPOSTO, non un componente con una regola propria**, ed e' l'unica cosa che
+	 * conta saperne. `RefreshComponentVisibility` gli applica lo stesso `ShouldShowPlaceholderMesh` del
+	 * cilindro: su un eroe skeletal con una posa legata il cilindro sparisce, e un braccio che non seguisse
+	 * quel predicato resterebbe a orbitare attorno al personaggio.
+	 *
+	 * ⚠️ Diverso dagli anelli, che invece **restano visibili sugli eroi**: `TeamRing` e `SelectionRing`
+	 * dicono squadra e selezione, cioe' informazione che il personaggio vero non porta. Un braccio grigio
+	 * non dice niente che il personaggio non dica meglio.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> LeftArm;
+
+	/** Braccio DESTRO del segnaposto graykit. Stesso patto di `LeftArm`. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	TObjectPtr<UStaticMeshComponent> RightArm;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SelectionRingDynMaterial;

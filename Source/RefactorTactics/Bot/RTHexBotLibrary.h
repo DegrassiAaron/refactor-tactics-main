@@ -299,7 +299,7 @@ struct FRTHexBotContext
 	 * di essere una meta e diventa un bonus posizionale generale: cioe' la forma di `#1088`, che compete con
 	 * l'avvicinamento e paga per **stare**. Misurato il 2026-09-04:
 	 * `Match.Autobattle.NobodyParksOnTheAuthoredMap` **rosso**, sequenza ferma **5** contro un limite di 4 —
-	 * e l'unita' parcheggiata era Gadget su `(-1,1,L0)`, che dista **cinque** passi dall'obiettivo e
+	 * e l'unita' parcheggiata era Aevik su `(-1,1,L0)`, che dista **cinque** passi dall'obiettivo e
 	 * incassava comunque `+45`. Non era l'obiettivo a trattenerla: era il termine che, a quella distanza,
 	 * non parla piu' dell'obiettivo.
 	 *
@@ -411,7 +411,7 @@ public:
 	 * standoff 4, `Guardian` portata 3 e standoff 0. Chi colpisce da lontano ha qualcosa da guadagnare a
 	 * restare lontano; chi colpisce da vicino no, e arretrare gli costerebbe soltanto il turno.
 	 *
-	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Gadget e Wraith (4) e
+	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Aevik e Ivrin (4) e
 	 * Branth (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
 	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
 	 */

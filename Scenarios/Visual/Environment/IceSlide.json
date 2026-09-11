@@ -10,7 +10,7 @@
   "_nota_regola": "`ApplyIceSliding` scivola solo se il budget RESIDUO e' >= 2. Gadget ha 5 MP, il percorso ne costa 2 (Floor 1 + Ice 1), ne restano 3: scivola. Cambiare la cella di partenza puo' quindi spegnere l'effetto senza che niente sembri rotto.",
 
   "units": [
-    { "id": "F1", "hero": "Hero.Gadget",    "team": 0, "cell": [-2, 4, 0] },
+    { "id": "F1", "hero": "Hero.Aevik",    "team": 0, "cell": [-2, 4, 0] },
     { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [ 4, 0, 0] }
   ],
 

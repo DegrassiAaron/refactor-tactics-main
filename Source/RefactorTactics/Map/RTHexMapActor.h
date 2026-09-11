@@ -3,7 +3,9 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
+#include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
+#include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
 #include "Map/RTHexCellData.h"
 #include "RTHexMapActor.generated.h"
 
@@ -54,7 +56,28 @@ enum class ERTLayerViewMode : uint8
  * esattamente com'era.
  *
  * ⚠️ **Non promette la proporzionalita' alla modifica**: il costo resta lineare nella mappa, su meno
- * famiglie. `HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e non cade.
+ * famiglie.
+ *
+ * ## ⌫ E dal 2026-09-10 la ricostruzione non e' piu' l'unica strada (`#2761`)
+ *
+ * Questo blocco diceva anche: *«`HexMapActor.RebuildCostScalesWithTheMapNotTheEdit` continua a misurarlo, e
+ * non cade»*. Quel test **e' caduto**, per costruzione: `RepaintCells` riallinea le celle una per una senza
+ * ricostruire nessuna famiglia, e il suo opposto — `HexMapActor.EditCostScalesWithTheEditNotTheMap` — porta
+ * i numeri nuovi accanto alla baseline vecchia.
+ *
+ * 🔑 **La decisione del 2026-09-05 non era sbagliata: era senza presidio.** Il rischio che nominava —
+ * *«`RemoveInstance` rimescola gli indici»* — e' reale ed e' rimasto reale; cio' che e' cambiato e' che ora
+ * ha tre guardiani invece di zero:
+ *
+ *  - `RemoveInstanceMirrored` **chiede al motore** quale semantica di indice sta usando invece di
+ *    assumerne una — e sono due, con una **console variable** fra i tre modi di sceglierla;
+ *  - `VerifyMappingIdentity` confronta le POSIZIONI e non i soli conteggi, cioe' coglie la permutazione che
+ *    l'`ensureMsgf` storico lasciava passare;
+ *  - `HexMapActor.IncrementalRepaintEqualsFullRebuild` confronta la board incrementale con quella di un
+ *    rebuild totale, cella per cella e colore per colore.
+ *
+ * ⛔ **Questo enum resta**, e resta la via sicura: `RepaintCells` risponde `false` su tutto cio' che non e'
+ * un riallineamento, e il chiamante ricostruisce.
  */
 UENUM(meta = (Bitflags))
 enum class ERTRebuildFamily : uint8
@@ -74,8 +97,13 @@ enum class ERTRebuildFamily : uint8
 	Borders      = 1 << 5,
 	/** Il corpo strutturale sotto le superfici. */
 	Bodies       = 1 << 6,
+	/**
+	 * Il volume con cui una SUPERFICIE si dichiara nello spazio: `URTHexLibrary::SurfaceVolumeFor` decide se
+	 * esiste e che forma ha (`#2936`). Oggi il solo fumo.
+	 */
+	SurfaceVolumes = 1 << 7,
 	/** Tutto: il comportamento di sempre, ed e' il default di `RebuildInstances`. */
-	All          = 0x7F
+	All          = 0xFF
 };
 ENUM_CLASS_FLAGS(ERTRebuildFamily);
 
@@ -352,6 +380,61 @@ public:
 	void RebuildInstances(ERTRebuildFamily Families = ERTRebuildFamily::All);
 
 	/**
+	 * 🔑 **Riallinea le SOLE celle date, senza ricostruire nessuna famiglia** — `#2761`.
+	 *
+	 * Vero se ha potuto farlo; **falso se il chiamante deve ricostruire**, e quel falso e' parte del
+	 * contratto, non un errore: dichiara che il per-cella non copre il caso e che la via sicura resta
+	 * `RebuildInstances`. Non ricostruisce da solo — chi chiama sa quale maschera gli serve.
+	 *
+	 * ## Cosa riallinea
+	 *
+	 * Le due famiglie che [D-183] accoppia sulla superficie, che sono anche le due che il percorso runtime
+	 * ricostruiva per intero a ogni cambio di terreno:
+	 *
+	 *  - il **disco**, di cui la superficie decide il colore. Si riscrive il colore GIA' moltiplicato per il
+	 *    fattore di attenuazione corrente, e `LastVeilState` non si tocca: scrivere il colore pieno darebbe
+	 *    una cella a piena luminosita' sopra un ricordo, e marcarla `Unwritten` perche' il velo la riscriva
+	 *    butterebbe via una dissolvenza di `#2875` gia' in volo — `Unwritten` non attenua, fa uno **snap**;
+	 *  - la **corona di glifi**, di cui la superficie decide la PRESENZA e l'anello (`SurfaceRingCount`).
+	 *    Qui c'e' geometria da aggiungere e togliere, ed e' l'unico punto in cui questa classe rimuove
+	 *    un'istanza singola.
+	 *
+	 * ## 🔴 Perche' risponde falso, e sono casi reali
+	 *
+	 *  - la cella non e' nella mappatura `InstanceCells`: e' **nuova**, e una cella nuova non e' un
+	 *    riallineamento ma una costruzione;
+	 *  - la cella e' sparita dall'asset: il suo disco va **rimosso**, e rimuovere dal disco rimescolerebbe
+	 *    gli indici di tutte le altre famiglie che vi si appoggiano — vedi `RemoveInstanceMirrored`;
+	 *  - la **posa** del disco non e' piu' quella che la cella impone: `AddOrUpdateCell` alza `Revision` per
+	 *    qualunque campo, `Height` compreso, e questo percorso riscrive colori e presenza, non geometrie;
+	 *  - l'elenco e' **VUOTO**: la revisione si e' mossa per qualcosa che non passa dalle celle — una
+	 *    transizione, per esempio — e rispondere `true` salterebbe in silenzio la ricostruzione di prima;
+	 *  - la board viene dal ramo **demo** (`DemoRadius`), che non ha un asset da cui rileggere.
+	 *
+	 * ⚠️ **Non tocca rilievo, volumi di blocco, pannelli di bordo, griglia e corpi strutturali**, e non e'
+	 * una dimenticanza: nessuna di quelle famiglie dipende dalla superficie. Il rilievo dipende dal COSTO e i
+	 * volumi dal blocco — se un giorno il percorso runtime mutasse anche quelli, la riga da aggiungere e'
+	 * qui, e il test di equivalenza la chiederebbe cadendo.
+	 *
+	 * ⛔ **PRIVATA, e la ragione è il colore.** Lascia il disco al colore attenuato con il fattore corrente,
+	 * che è coerente **solo** dentro il giro di velo che la chiama: un chiamante esterno che la usasse per
+	 * conto suo, fra un velo e l'altro, scriverebbe un colore che nessuno riconcilia. Il suo unico chiamante
+	 * è il blocco di sincronizzazione dentro `ApplyKnowledgeVeil`.
+	 */
+private:
+	bool RepaintCells(const TArray<FRTCellId>& Ids);
+
+public:
+	/**
+	 * Quante istanze l'ultimo `RepaintCells` ha creato e quante ne ha rimosse.
+	 *
+	 * 🔑 **Esiste per la stessa ragione di `LastRebuildCreatedInstances`**: senza, «ho ridipinto una cella» e
+	 * «ho rifatto la famiglia» lasciano la stessa board, e nessun test puo' distinguerli. Contatore di
+	 * EVENTO, azzerato a ogni chiamata.
+	 */
+	int32 LastRepaintTouchedInstances() const { return LastRepaintTouched; }
+
+	/**
 	 * Il punto d'ingresso di `OnMapChanged`: ricostruisce **tutto**.
 	 *
 	 * 🔑 **Esiste perche' quel delegate non sa cosa e' cambiato, e non e' un limite da aggirare**: nasce per
@@ -374,6 +457,16 @@ public:
 
 	/** Numero di celle attualmente rappresentate (istanze ISM). Diagnostica e test. */
 	int32 NumInstanceCells() const { return InstanceCells.Num(); }
+
+	/**
+	 * Quanti VOLUMI di superficie sono disegnati (`#2936`). Diagnostica e test.
+	 *
+	 * 🔑 **Conta QUESTA famiglia e non l'aggregato**: `GetAuxiliaryVeilCounts` somma rilievo, blocchi, bordi
+	 * e corpi, quindi un test scritto su quel totale diventerebbe verde per qualunque geometria comparsa —
+	 * cioe' passerebbe per la ragione sbagliata. Cio' che va legato al dato e' *questa* famiglia: la cella
+	 * che diventa fumo acquista un volume, e lo perde quando la superficie torna indietro.
+	 */
+	int32 NumSurfaceVolumeInstances() const { return SurfaceVolumeCells.Num(); }
 
 	/**
 	 * Stende il velo della fog of war sulla board, secondo cio' che UNA squadra sa ([D-225], [D-227]).
@@ -501,7 +594,19 @@ public:
 	int32 LastRebuildCreatedInstances() const { return LastRebuildCreated; }
 #endif
 
-	/** Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test. */
+	/**
+	 * Quante istanze il velo ha lasciato accese, ricordate e nascoste. Diagnostica e test.
+	 *
+	 * ⏱️ **Da `#2875` e' un oracolo A CONVERGENZA, e la precisazione non e' pedanteria.** Fra accesa e
+	 * ricordata questa funzione distingue **leggendo il colore scritto**, ed e' la scelta giusta — *«un
+	 * contatore proverebbe che la funzione sa contare, non che ha disegnato»*. Ma con il filtro il colore di
+	 * una cella che passa da ricordata a osservata **attraversa** i valori intermedi: contata a meta'
+	 * dissolvenza risulta ancora un ricordo. ∴ chi vuole la partizione aspetta che
+	 * `GetVeilCellsInTransition()` torni a **zero**.
+	 *
+	 * ⚠️ Il passaggio da e verso `Hidden` resta **istantaneo** (decisione (i) di `#2875`, [D-225]), quindi
+	 * `OutHidden` e' esatto in ogni istante: e' solo la riga fra accese e ricordate che si sposta nel tempo.
+	 */
 	void GetVeilCounts(int32& OutVisible, int32& OutExplored, int32& OutHidden) const;
 
 	/**
@@ -523,6 +628,39 @@ public:
 	 * differenza nel costo.
 	 */
 	int32 GetLastVeilTouchedCells() const { return LastVeilTouchedCells; }
+
+	/**
+	 * 🔑 **Le costanti di tempo con cui il velo ATTENUA invece di saltare** (`#2875`, filtro di `#2874`).
+	 *
+	 * ⚠️ **Il contenuto continua a seguire i punti di refresh; solo la CONVERGENZA verso quel contenuto
+	 * segue il tempo.** E' la precisazione che la DoD di `#1535` chiedeva — quella riga diceva «⛔ nessun
+	 * `Tick`» e va letta per cio' che il suo test misura: `Veil.FollowsRefreshPoints` conta le emissioni di
+	 * `OnTeamKnowledgeRefreshed` contro i tick spesi, cioe' garantisce che la **conoscenza** segua i turni.
+	 * Un filtro che interpola verso un target gia' deciso non emette e non ricalcola niente.
+	 *
+	 * ➕ E il precedente esisteva gia': `ARTHUD::Tick` chiama `UpdateObserverVeil()` a ogni fotogramma per
+	 * decidere `ARTUnit::bKnownToObserver`, con `RefactorTactics.Veil.DriverRunsOnTick` a tenerlo fermo. Le
+	 * due meta' della stessa fog of war — board e unita' — seguono ora la stessa regola.
+	 *
+	 * 🔑 **`FRTVeilTransitionParams::Instant()` spegne il filtro**, e serve come ramo di confronto: con quello
+	 * la board e' identica a quella di prima di `#2875`, e un test puo' dimostrarlo senza rimuovere il codice.
+	 */
+	void SetVeilTransitionParams(const FRTVeilTransitionParams& InParams) { VeilTransition = InParams; }
+	const FRTVeilTransitionParams& GetVeilTransitionParams() const { return VeilTransition; }
+
+	/** Quante istanze stanno ancora attenuando. **Zero = converso**, ed e' cio' che spegne il `Tick`. */
+	int32 GetVeilCellsInTransition() const { return VeilCellsInTransition; }
+
+	/**
+	 * Il colore che il velo ha DAVVERO scritto su un'istanza del disco, letto dal buffer per istanza.
+	 *
+	 * ⚠️ **Legge lo stato reale, non il fattore interno**, ed e' la stessa disciplina di `GetVeilCounts`:
+	 * *«un contatore proverebbe che la funzione sa contare, non che ha disegnato»*. Esporre
+	 * `VeilDisplayFactor` renderebbe verdi dei test che non guardano cio' che si vede.
+	 *
+	 * `false` se il disco non c'e', se l'indice non e' valido, o se il componente non porta custom data.
+	 */
+	bool GetVeilWrittenColor(int32 InstanceIndex, FLinearColor& OutColor) const;
 
 	/** Stati che il velo scrive per istanza. `Unwritten` distingue «mai velata» da «velata e nascosta». */
 	static constexpr uint8 RTVeilUnwritten = 0xFF;
@@ -611,10 +749,73 @@ public:
 	void SetPreviewAttack(const FRTCellId& OriginCell, const FRTCellId& AimCell, bool bValid,
 		bool bOriginPredicted);
 
+	/**
+	 * 🔑 **Posa i GHOST della timeline: uno per fase del piano** — `CP 11.5` ([#172]).
+	 *
+	 * Una timeline **vuota li toglie**, ed e' il caso dell'annullamento: chi spegne l'anteprima chiama questa
+	 * con un `FRTPlanPreview` di default, senza un secondo metodo che faccia la stessa cosa con un altro nome.
+	 *
+	 * ⚠️ **Non disegna: POSA.** Le istanze restano dove sono messe, quindi nessun fotogramma successivo paga
+	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue `DrawDebugLine` a ogni `Tick` e per
+	 * questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
+	 * il bisogno di aggiornare invece che rallentandolo.
+	 */
+	void SetPlanPreview(const FRTPlanPreview& Preview);
+
+	/**
+	 * Quanti ghost sono posati, e su quali celle. Per i test e per la diagnostica.
+	 *
+	 * ⚠️ **Legge la MAPPATURA, non il componente**: e' la stessa disciplina di `GetVeilCounts` al contrario —
+	 * qui la domanda e' «quali celle ho dichiarato», e il componente non conserva le celle. I due numeri
+	 * devono coincidere, e `Preview.GhostsArePooledNotSpawned` lo verifica.
+	 */
+	const TArray<FRTCellId>& GetPlanGhostCells() const { return PlanGhostCells; }
+
+	/** Quante istanze il componente dei ghost porta davvero. Vedi `GetPlanGhostCells()`. */
+	int32 PlanGhostInstanceCount() const;
+
+	/**
+	 * La linea di tiro che NON passa: da dove parte e dove si ferma — `#2742`.
+	 *
+	 * 🔑 **Riceve il verdetto gia' calcolato**, come `SetPreviewAttack` riceve l'origine gia' derivata:
+	 * `BlockedAt` viene da `URTHexVisionLibrary::DescribeLineOfSight` attraverso
+	 * `URTSightLineLibrary::AuthorizedSightLines`, e questo actor non ricalcola nulla.
+	 *
+	 * ⛔ **La conoscenza e' gia' entrata a monte.** Chi chiama passa solo linee che l'osservatore poteva
+	 * vedere: qui non si rifiltra, che sarebbe il secondo contratto di conoscenza ([D-225]).
+	 *
+	 * Chiamare con `bBlocked = false` spegne la linea, ed e' cio' che fa ogni click che non finisce in
+	 * copertura — inclusa la selezione a vuoto.
+	 */
+	void SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, const FRTCellId& BlockedAt);
+
+	/**
+	 * L'impronta a terra di un colpo **gia' risolto**, durante il playback — `#2454`, `D-301`.
+	 *
+	 * 🔑 **Canale distinto da quello di pianificazione, e la distinzione e' di CICLO DI VITA.**
+	 * `SetPreviewHitCells` mostra cio' che *accadrebbe* e muore al lock-in; questo mostra cio' che
+	 * **e' accaduto** e muore a `FinishPlayback`. Non convivono mai nello stesso momento del turno, ed e'
+	 * per questo che due array separati non producono due grammatiche.
+	 *
+	 * ⛔ **Si copia e basta.** Le celle arrivano da `FRTResolvedEvent::HitCells`, che il resolver ha gia'
+	 * prodotto con `HexHitCells`: richiamarlo qui sarebbe la seconda implementazione di una primitiva
+	 * canonica dentro la presentazione, che e' cio' che `D-301` punto (1) esclude a monte.
+	 *
+	 * ⚠️ **Additivo**: ogni chiamata AGGIUNGE l'impronta di un evento, perche' la regola della v0.1 e'
+	 * `un evento -> un segnale` e due impronte nello stesso Blast restano due fatti. `ClearPlaybackFootprint`
+	 * e' l'unico modo di svuotare.
+	 */
+	void AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCells);
+
+	/** Spegne il canale di playback. Lo chiama `FinishPlayback`: nessuna impronta sopravvive al turno. */
+	void ClearPlaybackFootprint();
+
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitCells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitCells.Num(); }
 	int32 NumPreviewReachableCells() const { return PreviewReachable.Num(); }
+	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
+	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
 
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitCells.Contains(Cell); }
@@ -622,6 +823,8 @@ public:
 	bool IsPreviewAllyHitCell(const FRTCellId& Cell) const { return PreviewAllyHitCells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle raggiungibili nell'anteprima corrente (test). */
 	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachable.Contains(Cell); }
+	/** Vero se la cella e' nell'impronta di playback corrente (test). */
+	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
 
 	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
 	FRTCellId GetHoveredCell() const { return HoveredCell; }
@@ -719,6 +922,38 @@ protected:
 	TArray<FRTCellId> PreviewReachable;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
+	/**
+	 * La LINEA DI TIRO INTERROTTA, e dove si interrompe — `#2742`.
+	 *
+	 * 🔴 **Non e' una seconda linea accanto a quella di mira.** `AttackOriginAim` disegna gia' una spezzata
+	 * fra attaccante e bersaglio, ma solo quando il piano RIESCE: `OnSelect` chiama `RefreshPlanningPreview`
+	 * nel ramo `bReady && Reason == Ok`. Quando la traiettoria e' interrotta non c'e' piano, quindi non c'e'
+	 * linea — ed e' precisamente il caso che il giocatore avrebbe bisogno di vedere.
+	 *
+	 * ∴ i due stati sono **mutuamente esclusivi per costruzione**: o il piano esiste e si vede la mira, o
+	 * non esiste e si vede dove la linea si e' fermata. Non si sovrappongono mai.
+	 *
+	 * ⚠️ **`bHasPreviewSightBlock` e non `PreviewSightBlockedAt.IsValid()`**: una cella `(0,0,0)` e' valida
+	 * e sarebbe indistinguibile da «nessun blocco». E' la stessa ragione per cui `ComputeBlockerMarks` legge
+	 * `bHasBlocker` invece dell'id (`#2697`).
+	 */
+	bool bHasPreviewSightBlock = false;
+
+	/** L'origine della linea interrotta. */
+	FRTCellId PreviewSightFrom;
+
+	/** Dove la linea si e' fermata — `FRTLineOfSightResult::BlockedAt`, non ricalcolato. */
+	FRTCellId PreviewSightBlockedAt;
+
+	/**
+	 * Celle investite dai colpi gia' risolti, mostrate durante il playback (`#2454`).
+	 *
+	 * ⚠️ Separato da `PreviewHitCells` **per ciclo di vita**, non per grammatica: il colore e' lo stesso
+	 * `ERTOverlayMeaning::Attack`, perche' l'area colpita significa la stessa cosa prima e dopo. Ciò che
+	 * cambia e' chi la spegne.
+	 */
+	TArray<FRTCellId> PlaybackFootprintCells;
+
 	FRTCellId PreviewAttackOrigin;
 	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */
 	FRTCellId PreviewAttackAim;
@@ -784,6 +1019,21 @@ protected:
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TObjectPtr<UInstancedStaticMeshComponent> Relief;
+
+	/**
+	 * Volume della SUPERFICIE (`#2936`): il terzo canale con cui una cella dice cosa e', dopo il colore e il
+	 * glifo inciso. Oggi lo porta il solo fumo — `URTHexLibrary::SurfaceVolumeFor` e' l'unica autorita' sulla
+	 * forma, e le altre otto superfici restituiscono zero.
+	 *
+	 * ⛔ **Famiglia PROPRIA e non dentro `Blockers`**, e non e' una preferenza: quella e' costruita dai flag
+	 * `bBlocksLineOfSight` / `bBlocksMovement`, che il fumo **non ha** — non interrompe la linea, ne cappa la
+	 * portata a 2. Metterlo li' conflaterebbe due regole che il gioco tiene distinte, e il primo a pagarlo
+	 * sarebbe il test che conta i volumi di blocco.
+	 *
+	 * ⛔ E non dentro `Relief`, che misura il **costo di movimento**: il fumo costa 1 come il pavimento.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TObjectPtr<UInstancedStaticMeshComponent> SurfaceVolumes;
 
 	/**
 	 * Volumi delle due regole di blocco: dove non si passa, e dove non si vede attraverso.
@@ -1016,12 +1266,40 @@ protected:
 	TArray<FRTCellId> ReliefCells;
 	TArray<FVector> ReliefBaseScale;
 	TArray<uint8> LastReliefVeilState;
+	TArray<FRTCellId> SurfaceVolumeCells;
+	TArray<FVector> SurfaceVolumeBaseScale;
+	TArray<uint8> LastSurfaceVolumeVeilState;
 	TArray<FRTCellId> BlockerCells;
 	TArray<FVector> BlockerBaseScale;
 	TArray<uint8> LastBlockerVeilState;
 	TArray<FRTCellId> EdgeFeatureCells;
 	TArray<FVector> EdgeFeatureBaseScale;
 	TArray<uint8> LastEdgeFeatureVeilState;
+
+	/**
+	 * 🔴 **La mappatura del CORPO STRUTTURALE, che mancava** (`#2731`).
+	 *
+	 * Fino al 2026-09-10 `StructuralBodies` era **l'unica famiglia visiva che `ApplyKnowledgeVeil` non
+	 * poteva nascondere**, e la ragione era strutturale invece che una dimenticanza di una riga: il suo sito
+	 * di `AddInstance` non registrava niente, quindi non esisteva nessun indice da velare. `BodyCells` non
+	 * compariva da nessuna parte nel repository.
+	 *
+	 * ⛔ **La conseguenza era un leak, non un difetto estetico**: su una mappa le cui celle dichiarano
+	 * `BodyFill != None`, un giocatore vedeva il **volume solido sotto celle che la sua squadra non aveva
+	 * mai osservato** — la geometria che [D-225] dichiara di non disegnare. E' la forma esatta del difetto
+	 * che il commento in `ApplyKnowledgeVeil` chiama *«il piu' grave che questa funzione poteva avere»* per
+	 * le tre famiglie corrette allora; questa non c'era ancora.
+	 *
+	 * ⚠️ **E nessun test poteva vederlo**: `GetVeilCounts` legge il solo `Cells`, quindi la copertura era
+	 * cieca per costruzione su tutte le famiglie tranne la prima. Il guardiano che lo prende ora non e' una
+	 * lista di famiglie da tenere aggiornata — sarebbe la stessa dimenticanza un livello piu' su — ma
+	 * `Veil.EveryInstanceFamilyDisappearsUnderAnEmptyKnowledge`, che **enumera i componenti** e chiede a
+	 * ciascuno quante istanze restino disegnate sotto una conoscenza vuota. Una decima famiglia si presenta
+	 * da sola.
+	 */
+	TArray<FRTCellId> BodyCells;
+	TArray<FVector> BodyBaseScale;
+	TArray<uint8> LastBodyVeilState;
 
 	/**
 	 * Lo stato che il velo ha SCRITTO per ultimo su ogni istanza: `0` nascosta, `1` ricordata, `2` accesa —
@@ -1037,8 +1315,151 @@ protected:
 	TArray<uint8> LastVeilState;
 	TArray<uint8> LastGlyphVeilState[4];
 
+	/**
+	 * La `URTHexMapAsset::Revision` su cui le istanze derivate sono state costruite (`#2894`).
+	 *
+	 * 🔴 **Esiste perche' senza di lui una superficie creata IN PARTITA non cambiava niente a schermo.** Il
+	 * colore di una cella vive nel `CustomData` delle istanze e lo scrive `RebuildInstances`, che aveva **due
+	 * chiamanti e sono entrambi `OnConstruction`**: `Action.Ignite`, `Action.CreateWater` e
+	 * `Hero.Muiren.MistVeil` cambiavano il terreno, la simulazione ne teneva conto, e chi guardava non vedeva
+	 * nulla.
+	 *
+	 * ⛔ **Non e' una cache della superficie, ed e' la differenza che conta**: `SurfaceForCell` continua a
+	 * rileggere dall'asset, e resta l'unica verita' sul colore. Qui c'e' un **numero di versione**, cioe' la
+	 * domanda «e' cambiato qualcosa?» — non una copia del dato, che sarebbe la seconda verita' che il
+	 * commento di `SurfaceForCell` dichiara di voler evitare.
+	 *
+	 * ⚠️ `INDEX_NONE` significa «mai sincronizzato»: la prima velatura ricostruisce sempre, e il caso non si
+	 * confonde con la `Revision 0` di un asset appena creato.
+	 */
+	int32 LastSyncedMapRevision = INDEX_NONE;
+
+	/** Vedi `LastRepaintTouchedInstances()`. Contatore di evento, azzerato a ogni `RepaintCells`. */
+	int32 LastRepaintTouched = 0;
+
+	/**
+	 * Il componente dei ghost della timeline (`#172`). Vedi `SetPlanPreview`.
+	 *
+	 * ⚠️ **Non partecipa a `RebuildInstances`**, e non e' la svista che `#2222` aveva trovato sui volumi di
+	 * conoscenza: quelli sopravvivevano a una ricostruzione della board restando appesi su celle diventate
+	 * altre celle. Qui il contenuto e' il PIANO CORRENTE, che non deriva dall'asset e che il produttore
+	 * riscrive a ogni refresh dell'anteprima — una board ricostruita sotto un piano vivo riceve i ghost nuovi
+	 * al primo refresh, e quello arriva prima di qualunque fotogramma utile.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap",
+		meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInstancedStaticMeshComponent> PlanGhosts;
+
+	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
+	TArray<FRTCellId> PlanGhostCells;
+
+	/** Il colore che rende un livello di certezza. Vedi `SetPlanPreview`. */
+	static FLinearColor GhostColorForCertainty(ERTIntentCertainty Certainty);
+
+	/**
+	 * Cambia ogni volta che la mappatura cella→istanza puo' essersi mossa: una ricostruzione, oppure un
+	 * `RepaintCells` che ha aggiunto o rimosso un glifo.
+	 *
+	 * 🔑 **Serve a pagare il guardiano UNA volta per mappatura invece che a ogni velo.** `VerifyMappingIdentity`
+	 * e' `O(N)` con una lettura di trasformata per istanza — lo stesso ordine del velo stesso, quindi
+	 * raddoppierebbe il costo di una funzione che gira due volte per turno e a ogni passo di playback.
+	 * Verificarlo quando la mappatura cambia coglie comunque ogni rimescolamento: una permutazione non nasce
+	 * fra un velo e l'altro se nessuno ha toccato le istanze.
+	 */
+	int32 VeilMappingRevision = 0;
+
+	/** L'ultima `VeilMappingRevision` per cui il guardiano caro e' passato. Vedi sopra. */
+	int32 LastVerifiedMappingRevision = INDEX_NONE;
+
+	/**
+	 * 🔴 **Rimuove l'istanza `Index` dal componente E dai suoi array paralleli, con la STESSA semantica di
+	 * indice** — `#2761`.
+	 *
+	 * ⚠️ **`RemoveInstance` non ha una sola semantica, e questa e' la trappola che l'issue prevedeva.**
+	 * `UInstancedStaticMeshComponent::RemoveInstanceInternal` sceglie a runtime fra `RemoveAt` — gli indici
+	 * successivi scalano di uno — e `RemoveAtSwap` — l'ULTIMA istanza prende il posto liberato — e la scelta
+	 * dipende da tre cose, di cui una e' una **console variable**:
+	 *
+	 *     bUseRemoveAtSwap = bForceRemoveAtSwap || bSupportRemoveAtSwap
+	 *                     || r.InstancedStaticMeshes.ForceRemoveAtSwap != 0
+	 *
+	 * ∴ un array parallelo che ricopiasse **una** delle due semantiche resterebbe allineato finche' nessuno
+	 * tocca quella CVar, e si disallineerebbe in silenzio il giorno in cui qualcuno la accende — con l'esito
+	 * che il commento di `VeilInstances` gia' descrive: *«non un crash ma celle velate SBAGLIATE»*. Questa
+	 * funzione **chiede al componente** invece di assumere, e `HexMapActor.PerCellRemovalMirrorsTheEngine` la
+	 * misura sotto entrambe.
+	 */
+	static bool RemoveInstanceMirrored(UInstancedStaticMeshComponent* Component, int32 Index,
+		TArray<FRTCellId>& CellsOfInstance, TArray<FVector>& BaseScale, TArray<uint8>* LastState,
+		TArray<float>* DisplayFactor);
+
+	/** Vero se questo componente rimuove con `RemoveAtSwap`. Vedi `RemoveInstanceMirrored`. */
+	static bool UsesRemoveAtSwap(const UInstancedStaticMeshComponent* Component);
+
+	/**
+	 * Monta il glifo di `Id` sull'anello dato, con gli array paralleli al seguito. Vero se l'ha montato.
+	 *
+	 * ⚠️ **Ripete la formula di `RebuildInstances` invece di chiamarla**, ed e' il debito che questo
+	 * percorso porta: due siti che posano la stessa istanza possono divergere. E' anche cio' che
+	 * `HexMapActor.IncrementalRepaintEqualsFullRebuild` esiste per impedire — se divergessero, il confronto
+	 * cella per cella con il rebuild totale cadrebbe.
+	 */
+	bool AddGlyphInstanceForCell(int32 RingIndex, const FRTCellId& Id);
+
 	/** Quante istanze l'ultimo velo ha toccato. Diagnostica: vedi `GetLastVeilTouchedCells`. */
 	int32 LastVeilTouchedCells = 0;
+
+	/**
+	 * 🔑 **`DisplayVisibility`: il fattore che si DISEGNA ora, mentre insegue quello che lo stato impone**
+	 * (`#2875`). Un `float` per istanza, parallelo a `Last…VeilState` e azzerato con lui da `RebuildInstances`.
+	 *
+	 * ⚠️ **Si interpola il FATTORE, non il colore.** Il colore pieno di una cella e' `SurfaceColor` della sua
+	 * superficie e non cambia mai; cio' che cambia fra osservato e ricordato e' il moltiplicatore — `1.0`
+	 * contro `RTVeilExploredFactor`. Tenere il fattore costa **un** `float` per istanza invece di tre, e
+	 * soprattutto lascia il colore dove sta: ricalcolato da `SurfaceForCell` a ogni scrittura, mai
+	 * memorizzato. Un colore cachato sarebbe la seconda verita' sulla superficie che `ApplyKnowledgeVeil`
+	 * dichiara di non volere.
+	 *
+	 * 🔴 **Il target non si memorizza: si DERIVA da `Last…VeilState`.** `Lit` -> `1.0`, `Remembered` ->
+	 * `RTVeilExploredFactor`. Un secondo array di target sarebbe un dato che qualcuno dovrebbe tenere
+	 * d'accordo con lo stato, e i due divergerebbero al primo ramo dimenticato.
+	 *
+	 * ⛔ **Solo le tre famiglie che hanno un canale colore per istanza**: disco, corone dei glifi e griglia.
+	 * `Relief`, `Blockers` ed `EdgeFeatures` il velo li nasconde e basta, e attenuarli richiederebbe un canale
+	 * nei loro materiali che questa fetta non apre.
+	 */
+	TArray<float> VeilDisplayFactor;
+	TArray<float> GlyphDisplayFactor[4];
+	TArray<float> BorderDisplayFactor;
+
+	/**
+	 * 🔑 **Quante istanze non hanno ancora raggiunto il proprio fattore.** E' il segnale con cui il `Tick` si
+	 * spegne: **zero significa converso**, e da li' in poi il velo non costa piu' niente per fotogramma.
+	 *
+	 * ⚠️ Senza, «il velo sta sfumando» e «il velo ha finito e continua a pagarne il costo» sarebbero
+	 * indistinguibili da fuori — lo stesso difetto che `GetLastVeilTouchedCells` rende misurabile sull'altra
+	 * meta' del problema.
+	 */
+	int32 VeilCellsInTransition = 0;
+
+	/** Le due costanti di tempo, editabili per i test e per il ramo `Instant`. Vedi `SetVeilTransitionParams`. */
+	FRTVeilTransitionParams VeilTransition;
+
+	/**
+	 * Avanza di `DeltaSeconds` i fattori che non sono ancora al proprio target, e riscrive il colore delle
+	 * sole istanze che si sono mosse.
+	 *
+	 * ⚠️ **Scandisce tutte le istanze, ma solo mentre qualcosa si muove**: `VeilCellsInTransition` spegne il
+	 * `Tick` a convergenza, quindi il costo a regime e' **zero**, non «un confronto per istanza per
+	 * fotogramma». Durante una transizione il confronto e' un `float` per istanza e la scrittura tocca la
+	 * sola banda che cambia — la stessa disciplina di `Last…VeilState`, un livello piu' sotto.
+	 */
+	void AdvanceVeilTransition(float DeltaSeconds);
+
+	/** Un passo del filtro su UNA famiglia. Risponde quante istanze restano in movimento. */
+	int32 AdvanceVeilFamily(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
+		const TArray<uint8>& LastState, TArray<float>& DisplayFactor, float DeltaSeconds,
+		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
 
 	/**
 	 * Il velo su UNA famiglia di istanze. Esiste perche' le famiglie sono cinque e la regola e' una sola:
@@ -1052,9 +1473,48 @@ protected:
 	 * @return quante istanze sono state davvero toccate.
 	 */
 	int32 VeilInstances(UInstancedStaticMeshComponent* Component, const TArray<FRTCellId>& CellsOfInstance,
-		const TArray<FVector>& BaseScale, TArray<uint8>& LastState,
+		const TArray<FVector>& BaseScale, TArray<uint8>& LastState, TArray<float>* DisplayFactor,
 		const TSet<FRTCellId>& Visible, const TSet<FRTCellId>& Explored,
 		TFunctionRef<bool(const FRTCellId&, FLinearColor&)> BaseColor);
+
+	/**
+	 * 🔴 **Il guardiano che i conteggi non sono** — `#2761`.
+	 *
+	 * Il presidio storico di `VeilInstances` confronta `GetInstanceCount()` con `CellsOfInstance.Num()`, e
+	 * **due array della stessa lunghezza con le celle SCAMBIATE lo superano in silenzio**. E' precisamente il
+	 * difetto che il percorso per-cella puo' introdurre: `RemoveInstance` rimescola gli indici, e un array
+	 * parallelo che ricopiasse la semantica sbagliata resterebbe lungo uguale e mappato storto.
+	 *
+	 * Questo confronta le POSIZIONI: l'istanza `I` deve stare dove sta la cella `CellsOfInstance[I]`.
+	 *
+	 * ⚠️ **Il confronto e' RELATIVO alla prima istanza, non assoluto**, ed e' l'unico modo di renderlo vero
+	 * anche dopo che qualcuno ha spostato l'actor: le istanze sono in spazio mondo e non seguono l'actor
+	 * finche' non passa un `RebuildInstances`, quindi un confronto assoluto griderebbe al lupo su una board
+	 * perfettamente allineata. Una traslazione comune non e' un rimescolamento; una permutazione si', e
+	 * sopravvive alla sottrazione.
+	 *
+	 * ⛔ **NON si applica ai pannelli di bordo.** `EdgeFeatures` posa le sue istanze sul PUNTO MEDIO di un
+	 * lato (`EdgeMidpointWorld`), non sul centro della cella: per quella famiglia la posizione non e' una
+	 * funzione della sola cella mappata, e il confronto direbbe il falso. Resta col solo conteggio, ed e'
+	 * dichiarato qui invece di essere dimenticato.
+	 *
+	 * @return vero se la mappatura regge.
+	 */
+	bool VerifyMappingIdentity(const UInstancedStaticMeshComponent* Component,
+		const TArray<FRTCellId>& CellsOfInstance, bool bCompareHeight) const;
+
+	/**
+	 * Il guardiano su TUTTE le famiglie mappate, in un punto solo. Vero se ognuna regge.
+	 *
+	 * 🔑 **Sta qui e non dentro `VeilInstances` perche' il suo esito e' UNO**: se una mappatura e'
+	 * rimescolata, le altre non sono «probabilmente a posto», sono non verificate — derivano tutte dallo
+	 * stesso giro di costruzione.
+	 */
+	bool VerifyAllMappings() const;
+
+	/** La posa del glifo di una cella. Sede UNICA della formula: la usano `RebuildInstances` e il per-cella. */
+	FTransform GlyphTransformForCell(const FRTCellId& Id, int32 Height, float InHexSize,
+		float InLayerHeight) const;
 
 	/** Stato DERIVATO, non serializzato: cache pigra, invalidata da `RebuildInstances`. */
 	mutable TArray<FRTCellId> UnreachableCells;

@@ -34,15 +34,15 @@ namespace
 	//
 	// ⚠️ **Ogni campo sta su una unita' che puo' portarlo davvero**, e non e' pedanteria: `B1` e' affidata
 	// al bot e `ValidateScenarioTurns` rifiuta un intent dichiarato per lei — *«il suo piano lo produce
-	// l'utility scoring, non il file»*. Percio' `C1` (Wraith) esiste: possiede `PassingBlade` e
-	// `Deflection`, mentre Gadget non ha ne' un dash ne' quella reazione. Una fixture che nominasse una
+	// l'utility scoring, non il file»*. Percio' `C1` (Ivrin) esiste: possiede `PassingBlade` e
+	// `Deflection`, mentre Aevik non ha ne' un dash ne' quella reazione. Una fixture che nominasse una
 	// mobilita' inesistente girerebbe lo stesso — il possesso del dash non e' validato — e sarebbe un dato
 	// finto che sembra una prova.
 	const TCHAR* ScenarioWriterRichJson = TEXT(R"JSON(
 	{
 	  "scenarioId": "Movement.WriterRoundTrip",
 	  "version": 1,
-	  "tags": ["movement", "Gadget", "regressione"],
+	  "tags": ["movement", "Aevik", "regressione"],
 	  "mapRadius": 4,
 	  "cells": [
 	    { "cell": [0, 0, 0], "blocksMovement": true, "moveCost": 2 },
@@ -55,10 +55,10 @@ namespace
 	      "type": "Low", "stableId": "Muretto" }
 	  ],
 	  "units": [
-	    { "id": "A1", "hero": "Hero.Gadget", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
+	    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0], "facing": "SW", "health": 12,
 	      "statuses": [ { "tag": "Status.Guarded", "turns": 3 }, { "tag": "Status.Wet", "turns": 1 } ] },
 	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0], "shield": 4, "visionRange": 6, "bot": true },
-	    { "id": "C1", "hero": "Hero.Wraith", "team": 0, "cell": [-2, 1, 0] }
+	    { "id": "C1", "hero": "Hero.Ivrin", "team": 0, "cell": [-2, 1, 0] }
 	  ],
 	  "turns": [
 	    { "intents": [ { "unit": "A1", "move": [[-1, 0, 0], [0, -1, 0]] } ] },
@@ -69,11 +69,11 @@ namespace
 	        { "unit": "C1", "ability": "Action.Guard" }
 	    ] },
 	    { "intents": [
-	        { "unit": "C1", "dash": "Hero.Wraith.PassingBlade", "dashTo": [1, -1, 0] },
+	        { "unit": "C1", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [1, -1, 0] },
 	        { "unit": "A1", "ability": "Action.Interact", "targetCell": [0, 0, 0] }
 	    ] },
 	    { "intents": [
-	        { "unit": "C1", "reaction": "Hero.Wraith.Deflection",
+	        { "unit": "C1", "reaction": "Hero.Ivrin.Deflection",
 	          "condition": { "id": "TargetHealthAtOrBelowPercent", "param": 10 } }
 	    ] }
 	  ],
@@ -192,6 +192,13 @@ namespace
 				if (A.Decisions[D].Unit != B.Decisions[D].Unit) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].unit"), T, D)); }
 				if (A.Decisions[D].Respond != B.Decisions[D].Respond) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].respond"), T, D)); }
 				if (A.Decisions[D].Target != B.Decisions[D].Target) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].target"), T, D)); }
+				// Il SELETTORE entra nel confronto come ogni altro campo del formato: una chiave che il writer
+				// dimenticasse si noterebbe solo qui, e il file salvato tornerebbe all'abbinamento per ordine
+				// senza che nulla lo dica.
+				if (A.Decisions[D].bHasSelector != B.Decisions[D].bHasSelector) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on (presenza)"), T, D)); }
+				if (A.Decisions[D].On.Reactor != B.Decisions[D].On.Reactor) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.reactor"), T, D)); }
+				if (A.Decisions[D].On.Reaction != B.Decisions[D].On.Reaction) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.reaction"), T, D)); }
+				if (A.Decisions[D].On.TriggerUnit != B.Decisions[D].On.TriggerUnit) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.triggerUnit"), T, D)); }
 			}
 			if (A.Intents.Num() != B.Intents.Num()) { return Fail(FString::Printf(TEXT("turns[%d]: numero di intent"), T)); }
 			for (int32 N = 0; N < A.Intents.Num(); ++N)
@@ -302,7 +309,7 @@ bool FRTScenarioWriterRoundTripTest::RunTest(const FString&)
 	if (Reloaded.Tags.Num() == 3)
 	{
 		// `Gabget` maiuscolo resta maiuscolo: la normalizzazione appartiene all'indice, non al writer.
-		TestEqual(TEXT("tag non normalizzato dal writer"), Reloaded.Tags[1], TEXT("Gadget"));
+		TestEqual(TEXT("tag non normalizzato dal writer"), Reloaded.Tags[1], TEXT("Aevik"));
 	}
 	TestNotNull(TEXT("Stable Unit ID 'A1' ancora risolvibile"), Reloaded.FindUnit(TEXT("A1")));
 	TestNotNull(TEXT("Stable Unit ID 'B1' ancora risolvibile"), Reloaded.FindUnit(TEXT("B1")));
@@ -413,7 +420,13 @@ bool FRTScenarioWriterIdentityIsNotPathTest::RunTest(const FString&)
 			TestEqual(TEXT("l'indice legge lo stesso scenarioId"), HeaderId, Scenario.ScenarioId);
 			TestEqual(TEXT("l'indice ritrova tutti i tag"), HeaderTags.Num(), 3);
 			// `ReadHeader` normalizza e ordina: e' il suo mestiere, e il writer non glielo ha tolto.
-			TestTrue(TEXT("il tag 'gadget' e' filtrabile"), HeaderTags.Contains(TEXT("gadget")));
+			//
+			// 🔑 **Il tag dichiarato e' `"Aevik"` con la maiuscola, e l'atteso e' minuscolo**: e' proprio
+			// la normalizzazione che questa riga verifica, non un confronto letterale. ⚠️ Cercava
+			// `gadget` fino al 2026-09-10 — il rename di `#2491` ha aggiornato il tag dentro
+			// `ScenarioWriterRichJson` e non l'assertion che lo interroga, e il test e' rimasto rosso su
+			// `main`. Se un giorno cambia il tag nel JSON, cambia anche questa riga: sono una cosa sola.
+			TestTrue(TEXT("il tag 'aevik' e' filtrabile"), HeaderTags.Contains(TEXT("aevik")));
 		}
 		else
 		{
