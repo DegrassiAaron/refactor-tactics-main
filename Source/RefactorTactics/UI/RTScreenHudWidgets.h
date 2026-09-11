@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
@@ -292,6 +292,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTPlayerEventLineView> GetFeed() const;
+
+	/** Perche' il feed e' vuoto, per `rt.Debug.ScreenHud`: inoltra al view model, che ha il tipo completo.
+	 *
+	 * ⚠️ **Il manager si PASSA e non si dereferenzia qui**, come in `GetFeed`: leggere `GetTurnLog()` da
+	 * questo file rivorrebbe l'header che `#2257` ha tolto.
+	 */
+	TArray<FString> DescribeFeedState() const;
 };
 
 /**

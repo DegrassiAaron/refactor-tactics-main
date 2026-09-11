@@ -1,4 +1,4 @@
-// Le viste dello Screen HUD (§4.1, CP 11.7): cosa i widget leggono, e cosa NON possono leggere.
+﻿// Le viste dello Screen HUD (§4.1, CP 11.7): cosa i widget leggono, e cosa NON possono leggere.
 //
 // Il valore di queste funzioni non e' che risparmiano righe al widget — e' che gli tolgono la possibilita' di
 // sbagliare. `BuildTeamRoster` non ha un parametro «mostra anche gli avversari», e `BuildMatchHeader` non ha
@@ -497,7 +497,7 @@ bool FRTHudVmRoundLimitTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
 
 	{
@@ -546,7 +546,7 @@ bool FRTHudVmObjectiveScoreTest::RunTest(const FString&)
 	UWorld* World = MakeHudVmWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
 
 	// A zero punti la vista dice zero, non «nessun dato»: una partita appena cominciata ha un punteggio, ed
@@ -1449,6 +1449,78 @@ bool FRTHudVmHealthFractionTest::RunTest(const FString&)
 	Unit->Health = Unit->MaxHealth * 2;
 	TestEqual(TEXT("salute oltre il massimo: la barra si ferma a uno"),
 		URTHudViewModel::BuildUnitCard(Unit, 0).HealthFraction, 1.f);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * La diagnostica del feed distingue le TRE cause che a schermo hanno lo stesso aspetto.
+ *
+ * 🔑 **Una diagnostica non verificata e' peggio del silenzio**: se dicesse «nessun turno risolto» mentre il
+ * log ha voci, manderebbe chi indaga dalla parte sbagliata con l'autorita' di una misura. Questo test
+ * asserisce che ogni ramo nomini il proprio caso, e che NON nomini gli altri.
+ *
+ * ⛔ Il difetto che esiste per fermare e' quello vero di `#2964`: un feed vuoto letto come «feed rotto»,
+ * quando le cause possibili erano tre e due di esse non sono difetti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudFeedStateNamesItsOwnCauseTest,
+	"RefactorTactics.ScreenHud.FeedStateNamesItsOwnCause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTHudFeedStateNamesItsOwnCauseTest::RunTest(const FString&)
+{
+	auto Unisci = [](const TArray<FString>& R)
+	{
+		FString S;
+		for (const FString& X : R) { S += X + TEXT(" | "); }
+		return S;
+	};
+
+	// ── (1) Nessun manager: il caso che NON e' privacy, e la riga deve dirlo.
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(nullptr, TArray<int32>{ 1 }));
+		TestTrue(TEXT("senza manager lo dichiara"), S.Contains(TEXT("nessun TurnManager")));
+		TestTrue(TEXT("e avverte che NON e' privacy"), S.Contains(TEXT("NON e' privacy")));
+	}
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHudVmWorld(World); return false; }
+
+	// ── (2) Manager presente, log VUOTO: stato normale prima della prima risoluzione, e va detto che non
+	//        e' un difetto — altrimenti si cerca un guasto che non c'e'.
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 1 }));
+		TestTrue(TEXT("log vuoto: lo nomina"), S.Contains(TEXT("TurnLog e' vuoto")));
+		TestTrue(TEXT("e dichiara che non e' un difetto"), S.Contains(TEXT("Non e' un difetto")));
+		TestFalse(TEXT("e NON accusa il filtro"), S.Contains(TEXT("filtro dell'osservatore")));
+	}
+
+	// Una voce autorizzata alla sola squadra 1.
+	FRTTurnLogEntry Voce = VoceDiTurno(/*TurnNumber*/ 3, /*UnitId*/ 77);
+	// `VoceDiTurno` autorizza gia' la squadra 1 nella sua forma: il caso (3) dipende da quel default.
+	TM->AppendTurnLogEntryForTest(Voce);
+
+	// ── (3) Log pieno, osservatore NON autorizzato: il filtro funziona, e la riga punta a chi decide
+	//        l'insieme invece che al feed.
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 2 }));
+		TestTrue(TEXT("nomina il filtro"), S.Contains(TEXT("filtro dell'osservatore")));
+		TestTrue(TEXT("e indica ResolveObserverTeamIds"), S.Contains(TEXT("ResolveObserverTeamIds")));
+		TestFalse(TEXT("e NON dice che il log e' vuoto"), S.Contains(TEXT("TurnLog e' vuoto")));
+	}
+
+	// ── (4) ⚠️ Il CONTROLLO che rende il test non vacuo: con l'osservatore GIUSTO la stessa voce passa, e la
+	//        riga sposta il sospetto sul widget. Senza questo caso, i tre rami sopra passerebbero anche se
+	//        `DescribeFeedState` dicesse sempre «filtrato».
+	{
+		const FString S = Unisci(URTHudViewModel::DescribeFeedState(TM, TArray<int32>{ 1 }));
+		TestTrue(TEXT("con l'osservatore giusto il ViewModel produce righe"),
+			S.Contains(TEXT("il difetto e' nel widget")));
+		TestFalse(TEXT("e non accusa piu' il filtro"), S.Contains(TEXT("NESSUNA passa")));
+	}
 
 	DestroyHudVmWorld(World);
 	return true;
