@@ -729,4 +729,155 @@ bool FRTFootprintChannelIsOrderedTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// L'IMPRONTA DELL'AREA: tre proprieta' che reggono OGGI per costruzione, e che nessun test difendeva (`#2825`)
+//
+// 🔑 **Si fissano PRIMA che una preview cominci a mostrarle, ed e' il punto.** `#2825` porta la resa
+// dell'area verso lo schermo; il giorno in cui qualcuno guardera' un'AoE disegnata e la trovera' strana, la
+// tentazione sara' correggere la RESA perche' concordi con l'aspettativa. Questi tre test dichiarano cosa il
+// gameplay fa davvero, cosi' che quella correzione debba passare da una decisione invece che da una taratura.
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Le celle investite dall'intento `IntentIndex`, dall'impronta che il resolver ha gia' registrato. */
+	TArray<FRTCellId> FootprintCellsOf(const FRTHexBlastPlan& Plan, int32 IntentIndex)
+	{
+		for (const FRTAttackFootprint& F : Plan.Footprints)
+		{
+			if (F.IntentIndex == IntentIndex) { return F.HitCells; }
+		}
+		return TArray<FRTCellId>();
+	}
+}
+
+/**
+ * L'impronta di un'AoE NON dipende da chi sta nell'area (`#2825`, canary del footprint).
+ *
+ * 🔴 **La proprieta' regge per costruzione e nessun test la difendeva.** `URTHexCombatLibrary::HexHitCells`
+ * non riceve l'occupazione: la forma si calcola dalla geometria e le unita' entrano DOPO, quando il resolver
+ * sceglie chi colpire. ⛔ La sonda di privacy di `#2791` misura ventaglio e percorso, mai l'impronta.
+ *
+ * ⚠️ **Qui non si allestisce un osservatore, e non e' una semplificazione**: `CollectHexAttacks` non conosce
+ * la conoscenza di squadra. Cio' che questo test pinna e' il fatto STRUTTURALE da cui la proprieta' di
+ * privacy discende — l'occupazione non raggiunge l'impronta — e che e' l'unica meta' misurabile da qui. Il
+ * gate aggregato resta di `#2791`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAreaFootprintIgnoresOccupancyTest,
+	"RefactorTactics.Combat.AreaFootprintIgnoresOccupancy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAreaFootprintIgnoresOccupancyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(5);
+
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, /*Range*/ 4, /*Power*/ 15));
+	Intents[0].AreaRadius = 2;
+
+	// Senza il terzo: attaccante e bersaglio, e basta.
+	TArray<FRTHexCombatUnit> Pochi;
+	Pochi.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Pochi.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
+
+	// Con un nemico IN PIU', dentro l'area investita.
+	TArray<FRTHexCombatUnit> Molti = Pochi;
+	Molti.Add(CombatUnit(2, 1, FRTCellId(3, 0)));
+
+	const TArray<FRTCellId> Senza = FootprintCellsOf(
+		URTHexCombatLibrary::CollectHexAttacks(Pochi, Intents, Map), 0);
+	const TArray<FRTCellId> Con = FootprintCellsOf(
+		URTHexCombatLibrary::CollectHexAttacks(Molti, Intents, Map), 0);
+
+	// Anti-vacuita': un'impronta vuota renderebbe l'uguaglianza vera e il test inutile.
+	if (!TestTrue(TEXT("l'impronta non e' vuota"), Senza.Num() > 0))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("stesso numero di celle investite"), Con.Num(), Senza.Num());
+	bool bIdentiche = (Con.Num() == Senza.Num());
+	for (int32 i = 0; bIdentiche && i < Senza.Num(); ++i)
+	{
+		bIdentiche = (Con[i] == Senza[i]);
+	}
+	TestTrue(TEXT("e le STESSE celle, nello stesso ordine: l'occupazione non raggiunge l'impronta"), bIdentiche);
+
+	// E il secondo nemico c'era davvero: senza questa riga il test sarebbe verde anche se `Molti` fosse
+	// stato ignorato per un'altra ragione (fuori portata, non vivo, non ingaggiabile).
+	TestTrue(TEXT("controllo positivo: il nemico aggiunto viene davvero colpito"),
+		PlanHits(URTHexCombatLibrary::CollectHexAttacks(Molti, Intents, Map), 0, 2));
+	return true;
+}
+
+/**
+ * L'area ATTRAVERSA i muri: `HexArea` non riceve la mappa (`#2825`).
+ *
+ * ⚠️ **Non e' un difetto da correggere qui, e' un comportamento da dichiarare.** Una cella che blocca la
+ * linea di tiro sta DENTRO l'area e non la interrompe: l'esplosione investe anche cio' che le sta oltre.
+ * Chi un giorno vorra' un'area che si ferma contro un muro cambia il produttore e questo test, in
+ * quest'ordine — non la resa perche' concordi con l'aspettativa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAreaFootprintCrossesWallsTest,
+	"RefactorTactics.Combat.AreaFootprintCrossesWalls",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAreaFootprintCrossesWallsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	SetCombatSightBlocker(Map, FRTCellId(3, 0)); // dentro l'area, fra il centro e la cella oltre
+
+	TArray<FRTHexCombatUnit> Units;
+	Units.Add(CombatUnit(0, 0, FRTCellId(0, 0)));
+	Units.Add(CombatUnit(1, 1, FRTCellId(2, 0)));
+
+	TArray<FRTHexAttackIntent> Intents;
+	Intents.Add(CombatIntent(0, 1, ERTAbilityShape::Area, /*Range*/ 4, /*Power*/ 15));
+	Intents[0].AreaRadius = 2;
+
+	const TArray<FRTCellId> Impronta = FootprintCellsOf(
+		URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map), 0);
+
+	TestTrue(TEXT("l'area include la cella che blocca la vista"), Impronta.Contains(FRTCellId(3, 0)));
+	TestTrue(TEXT("e include anche la cella OLTRE quel muro"), Impronta.Contains(FRTCellId(4, 0)));
+	return true;
+}
+
+/**
+ * L'area RESTA sul piano del bersaglio: `HexArea` scrive `Center.Layer` su ogni cella (`#2825`).
+ *
+ * 🔑 **Il caso che oggi non ha un test, ed e' quello che la verticalita' rendera' visibile.** Il livello
+ * superiore e' coperto per la VISTA — `HexVision.ElevationRule` — e non per le celle investite: un'area
+ * mirata al piano 1 non tocca il piano 0 sotto di se', e nemmeno il contrario.
+ *
+ * ⚠️ Si misura su `HexHitCells` e non sul resolver perche' la proprieta' e' della primitiva: allestire due
+ * piani nell'arena aggiungerebbe una mappa multilivello alla fixture senza spostare cio' che si sta provando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexAreaFootprintStaysOnTargetLayerTest,
+	"RefactorTactics.Combat.AreaFootprintStaysOnTargetLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexAreaFootprintStaysOnTargetLayerTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0, 0);
+	const FRTCellId Target(2, 0, 1); // stesso X/Y di una cella del piano 0, Layer diverso
+
+	const TArray<FRTCellId> Celle = URTHexCombatLibrary::HexHitCells(
+		ERTAbilityShape::Area, From, Target, /*RangeCells*/ 4, /*AreaRadius*/ 2);
+
+	if (!TestTrue(TEXT("l'area non e' vuota"), Celle.Num() > 0))
+	{
+		return false;
+	}
+
+	bool bTutteSulPianoDelBersaglio = true;
+	for (const FRTCellId& C : Celle)
+	{
+		if (C.Layer != Target.Layer) { bTutteSulPianoDelBersaglio = false; break; }
+	}
+	TestTrue(TEXT("ogni cella investita sta sul piano del BERSAGLIO, non su quello dell'attaccante"),
+		bTutteSulPianoDelBersaglio);
+
+	// La meta' che rende il test falsificabile: la cella sottostante, stesso X/Y e Layer 0, NON e' investita.
+	TestFalse(TEXT("e il piano sottostante non viene toccato"), Celle.Contains(FRTCellId(2, 0, 0)));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
