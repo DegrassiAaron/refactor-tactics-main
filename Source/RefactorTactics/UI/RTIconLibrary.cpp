@@ -24,6 +24,67 @@ FString URTIconLibrary::CategoryName(ERTIconCategory Category)
 	return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Category)) : FString();
 }
 
+bool URTIconLibrary::IsDeclaredIconCategory(const FName& SemanticPath)
+{
+	if (SemanticPath.IsNone())
+	{
+		return false;
+	}
+
+	// Il segmento di categoria e' il primo, e si confronta con l'enum invece che con una lista scritta a mano:
+	// una categoria aggiunta a `ERTIconCategory` entra qui senza che questa riga cambi, ed e' la stessa
+	// disciplina con cui `RequiredIconIds` prende le azioni dal catalogo e non da un elenco.
+	FString Path = SemanticPath.ToString();
+	int32 Dot = INDEX_NONE;
+	if (!Path.FindChar(TEXT('.'), Dot))
+	{
+		return false;
+	}
+	const FString Head = Path.Left(Dot);
+
+	const UEnum* Enum = StaticEnum<ERTIconCategory>();
+	if (Enum == nullptr)
+	{
+		return false;
+	}
+	for (int32 i = 0; i < Enum->NumEnums() - 1; ++i)
+	{
+		if (Enum->GetNameStringByIndex(i) == Head)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+FName URTIconLibrary::MakeActionIconId(const FRTActionDef& Def)
+{
+	if (Def.ActionId.IsNone())
+	{
+		return NAME_None;
+	}
+
+	// Gia' in una categoria dichiarata — `Action.Move`, `Reaction.HazardEscape`: nessuna traduzione, e
+	// tradurre comunque romperebbe il caso in cui l'azione **e'** la generica.
+	if (IsDeclaredIconCategory(Def.ActionId))
+	{
+		return MakeIconId(Def.ActionId);
+	}
+
+	// ⚠️ L'ordine e' dichiarato nel docstring e non e' indifferente: l'icona segue cio' che l'azione FA.
+	for (const FName& Candidate : { Def.DerivedFromActionId, Def.BaseActionId })
+	{
+		if (!Candidate.IsNone() && IsDeclaredIconCategory(Candidate))
+		{
+			return MakeIconId(Candidate);
+		}
+	}
+
+	// ⛔ Il dato manca. Non si indovina: chi chiama distingue «nessuna icona per questa azione» da «icona
+	// assente dal catalogo», e sono due difetti diversi con due correzioni diverse.
+	return NAME_None;
+}
+
 TArray<FName> URTIconLibrary::RequiredIconIds()
 {
 	TArray<FName> Ids;
