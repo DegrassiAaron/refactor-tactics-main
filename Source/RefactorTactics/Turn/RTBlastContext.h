@@ -54,13 +54,16 @@ struct FRTPendingArcOp
  * `TeamKnowledgeState`, `ReactionBlockedThisTurn`), non qui. Un campo che qualcuno volesse leggere nel turno
  * successivo e' un campo che sta nel posto sbagliato.
  *
- * Invariante di identita': `UnitId` e' SEMPRE l'indice in `Units`, e `Units` e' ordinato una volta sola,
- * all'inizio, con `URTActionQueueLibrary::SortUnitsForResolution` — cella, poi `StableUnitId`, poi nome
- * dell'Actor (#2922). ⚠️ Fino a quella issue qui c'era scritto *«ordinato per cella (`StableLess`)»*, e chi
- * ricostruisse un indice atteso da quella sola chiave lo sbaglierebbe alla prima cella condivisa. Da quell'ordine dipendono gli indici del piano,
- * il TurnLog e la sequenza del playback: chi riordina `Units` a fase iniziata rompe il replay, non solo
- * questa struttura. Le identita' che devono sopravvivere all'ordinamento usano `ARTUnit::StableUnitId`
- * ([D-063]), mai l'indice.
+ * Invariante di identita': `UnitId` e' SEMPRE l'indice in `Units`, e `Units` e' ordinato una volta
+ * sola, all'inizio, con `URTActionQueueLibrary::SortUnitsForResolution` — cella, poi `StableUnitId`,
+ * poi nome dell'Actor (#2922).
+ *
+ * ⚠️ Fino a quella issue qui c'era scritto *«ordinato per cella (`StableLess`)»*, e chi ricostruisse
+ * un indice atteso da quella sola chiave lo sbaglierebbe alla prima cella condivisa.
+ *
+ * Da quell'ordine dipendono gli indici del piano, il TurnLog e la sequenza del playback: chi riordina
+ * `Units` a fase iniziata rompe il replay, non solo questa struttura. Le identita' che devono
+ * sopravvivere all'ordinamento usano `ARTUnit::StableUnitId` ([D-063]), mai l'indice.
  */
 /**
  * Lo stato del PASSO SPINTE di `ApplyDisplacements`, estratto perche' quel passo deve poter uscire e

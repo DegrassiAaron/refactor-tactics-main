@@ -31,18 +31,31 @@ struct FRTUnitOrderKey
 	 * Ultimo spareggio, per il solo caso in cui `StableUnitId` non esista ancora.
 	 *
 	 * 🔑 **`FName` e non `FString`, e la ragione e' il costo.** `AActor::GetName()` passa da
-	 * `FName::ToString()` e **alloca**; `GetFName()` no. Con una `FString` qui dentro, costruire la chiave
-	 * costava un'allocazione per unita' su un percorso — `PlanningSnapshotFor` — che gira a ogni interazione
-	 * di pianificazione e che prima non allocava niente. Trovato in code review, dopo che la prima stesura
-	 * aveva **peggiorato** cio' che diceva di ottimizzare.
+	 * `FName::ToString()` e **alloca**; `GetFName()` no. ⚠️ La prima stesura giustificava il cambio dicendo
+	 * che `PlanningSnapshotFor` *«prima non allocava niente»*: e' **falso** e va detto — quel percorso
+	 * costruisce gia' un `TArray<AActor*>`, un `TArray<ARTUnit*>` e un intero `FRTHexSnapshot` per chiamata.
+	 * La ragione vera e' piu' modesta: una chiave **senza allocazioni** si puo' costruire dentro il
+	 * comparatore senza pensarci, e questa lo e'.
 	 *
 	 * ⚠️ **Il confronto e' `LexicalLess`, che l'engine documenta *«stable / deterministic over process
 	 * runs»*** — l'opposto di `FastLess`, che ordina per indice della name table ed e' stabile solo dentro un
 	 * processo. E' lo stesso confronto che `InstanceLess` usa gia' per `ActionId`.
 	 *
-	 * ⚠️ `LexicalLess` e' case-INSENSITIVE, e qui non e' un buco: i nomi degli `UObject` sono unici in modo
-	 * case-insensitive dentro lo stesso Outer, quindi due Actor dello stesso livello non possono avere nomi
-	 * che differiscono solo per il caso — non c'e' la coppia che pareggerebbe.
+	 * 🔴 **Il suffisso numerico si confronta come NUMERO, non come testo**, ed e' il contrario di cio'
+	 * che questo commento affermava. Misurato nel sorgente dell'engine — `FName::CompareInternal`
+	 * (`UnrealNames.cpp`): a parita' di parte testuale restituisce `GetNumber() - Other.GetNumber()`. Quindi
+	 * `..._2` precede `..._10`, mentre la `FString::Compare` della stesura precedente metteva `_10` per
+	 * primo. ⚠️ **E' un cambio di comportamento rispetto a cio' che #2923 ha mergiato**, visibile solo
+	 * dove decide la terza chiave — cioe' prima del lock-in. E' un ordine piu' naturale, non solo diverso.
+	 *
+	 * ⚠️ `LexicalLess` e' case-INSENSITIVE. Due Actor **dello stesso livello** non possono avere nomi che
+	 * differiscono solo per il caso — l'unicita' degli `UObject` e' case-insensitive dentro lo stesso Outer,
+	 * e per un Actor l'Outer e' la `ULevel`. ⛔ **Ma l'unicita' non vale FRA livelli**, e gli array che si
+	 * ordinano qui nascono da `GetAllActorsOfClass`, che li attraversa tutti: due unita' in sublevel diversi
+	 * possono portare lo stesso nome. Il pareggio completo richiede allora **tre** coincidenze insieme —
+	 * stessa cella, `StableUnitId` uguale, e stesso nome da due livelli — e nella risoluzione la seconda non
+	 * si da', perche' `EnsureMatchRoster` ha gia' assegnato id distinti. Resta rappresentabile nelle
+	 * anteprime di pianificazione, dove gli id valgono tutti `0`. Trovato in code review.
 	 */
 	FName ActorName;
 
@@ -138,8 +151,9 @@ public:
 	 *
 	 * ⛔ **E il nome NON e' riproducibile fra processi diversi, dove decide.** Un'unita' spawnata senza nome
 	 * esplicito lo riceve da `MakeUniqueObjectName`, che appende un contatore per-classe vivo quanto il
-	 * processo: due partite nello stesso Editor danno `..._0..3` e `..._4..7`. E l'ordine lessicale mette
-	 * `_10` prima di `_2`. Non e' un difetto introdotto qui — `MatchRosterLess` ha lo stesso ultimo
+	 * processo: due partite nello stesso Editor danno `..._0..3` e `..._4..7`. (⚠️ Il suffisso si ordina
+	 * **numericamente**, non lessicalmente — si veda `FRTUnitOrderKey::ActorName`.) Non e' un difetto
+	 * introdotto qui — `MatchRosterLess` ha lo stesso ultimo
 	 * confronto, con la stessa proprieta' — ma la terza chiave rende l'ordine totale e ripetibile **dentro
 	 * una esecuzione**, non oltre. Oltre, a rendere l'ordine riproducibile e' `StableUnitId`, che nella
 	 * risoluzione c'e' sempre.

@@ -219,8 +219,8 @@ bool FRTUnitOrderIsTotalOnSharedCellTest::RunTest(const FString&)
 	// Con le fixture concordanti della prima stesura, togliere la chiave `StableUnitId` lasciava questo test
 	// verde — il nome decideva nello stesso verso. Una fixture che non distingue le due chiavi non prova
 	// quale delle due sta lavorando. Trovato in code review.
-	const FRTUnitOrderKey A = UnitKey(2, 3, 0, /*StableUnitId*/ 4, TEXT("BP_Unit_Aaa_0"));
-	const FRTUnitOrderKey B = UnitKey(2, 3, 0, /*StableUnitId*/ 1, TEXT("BP_Unit_Zzz_7"));
+	const FRTUnitOrderKey A = UnitKey(2, 3, 0, /*StableUnitId*/ 4, TEXT("Unita_Alfa_0"));
+	const FRTUnitOrderKey B = UnitKey(2, 3, 0, /*StableUnitId*/ 1, TEXT("Unita_Zeta_7"));
 
 	// 🔴 L'assertion che nessuna mutazione del sort puo' salvare: l'ordine e' TOTALE, cioe' per ogni coppia
 	// distinta esattamente uno dei due versi e' vero. Con il comparatore sulla sola cella non lo sarebbe
@@ -302,8 +302,13 @@ bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
 	// `StableUnitId` vale `0` finche' `ARTTurnManager::EnsureMatchRoster()` non e' passato, e c'e' almeno un
 	// chiamante che ordina PRIMA: `ARTGameMode::AssignUnitControlGroups`, a inizio partita. Li' le prime due
 	// chiavi pareggiano entrambe, e senza la terza il pareggio tornerebbe a `GetAllActorsOfClass`.
-	const FRTUnitOrderKey A = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Riktor_2"));
-	const FRTUnitOrderKey B = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Gadget_1"));
+	// ⚠️ Nomi INVENTATI, e deliberatamente non quelli di un eroe. La prima stesura usava
+	// `BP_Unit_Riktor_2` e `BP_Unit_Gadget_1` — identita' del roster **ritirato**, che #2291 esiste per
+	// purgare — come semplice decorazione: qui conta solo l'ordine lessicale fra due stringhe. Sono costate
+	// subito il loro prezzo: un `grep -roE "BP_Unit_[A-Za-z]+"` sui test le ha fatte sembrare riferimenti
+	// vivi a asset pre-rename, e una sessione vicina ci ha costruito sopra una diagnosi sbagliata.
+	const FRTUnitOrderKey A = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Beta"));
+	const FRTUnitOrderKey B = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Alfa"));
 
 	TestTrue(TEXT("senza identita' stabile decide il nome, e decide"),
 		URTActionQueueLibrary::UnitOrderLess(A, B) != URTActionQueueLibrary::UnitOrderLess(B, A));
@@ -327,15 +332,20 @@ bool FRTUnitOrderFallsBackToActorNameTest::RunTest(const FString&)
 		URTActionQueueLibrary::UnitOrderLess(Upper, Lower) || URTActionQueueLibrary::UnitOrderLess(Lower, Upper));
 
 	// Due nomi VERAMENTE diversi, invece, si ordinano: e' la proprieta' che la terza chiave deve avere.
-	const FRTUnitOrderKey Primo  = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Aaa"));
-	const FRTUnitOrderKey Ultimo = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("BP_Unit_Zzz"));
+	const FRTUnitOrderKey Primo  = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Alfa"));
+	const FRTUnitOrderKey Ultimo = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("Unita_Zeta"));
 	TestTrue(TEXT("nomi distinti restano distinguibili, in un verso solo"),
 		URTActionQueueLibrary::UnitOrderLess(Primo, Ultimo) != URTActionQueueLibrary::UnitOrderLess(Ultimo, Primo));
 
 	// Un `StableUnitId` assegnato batte comunque uno non assegnato, deterministicamente: `0` non e' l'unita'
 	// zero, e non deve comportarsi come un valore mancante che scivola a caso.
-	const FRTUnitOrderKey Senza = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("AAA"));
-	const FRTUnitOrderKey Con   = UnitKey(1, 1, 0, /*Stable*/ 3, TEXT("ZZZ"));
+	//
+	// 🔴 **I nomi sono invertiti apposta.** La prima stesura dava a `Senza` il nome minore e a `Con` il
+	// maggiore: i due criteri CONCORDAVANO, quindi togliendo la chiave `StableUnitId` questa assertion
+	// restava verde e non misurava niente sugli id — la stessa vacuita' che questo test file esiste per
+	// togliere, rifatta due riquadri piu' in la'. Trovato in code review.
+	const FRTUnitOrderKey Senza = UnitKey(1, 1, 0, /*Stable*/ 0, TEXT("ZZZ"));
+	const FRTUnitOrderKey Con   = UnitKey(1, 1, 0, /*Stable*/ 3, TEXT("AAA"));
 	TestTrue(TEXT("id non assegnato prima di uno assegnato, e non a caso"),
 		URTActionQueueLibrary::UnitOrderLess(Senza, Con));
 	return true;
@@ -347,7 +357,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitOrderPermutationInvariantTest,
 bool FRTUnitOrderPermutationInvariantTest::RunTest(const FString&)
 {
 	// L'insieme collide su OGNI chiave, cosi' il tie-break viene esercitato fino in fondo:
-	//  - `SU_A` e `SU_B` condividono la cella e si distinguono per `StableUnitId`;
+	//  - `SU_AAA` e `SU_ZZZ` condividono la cella e si distinguono per `StableUnitId` — con i nomi in ordine
+	//    OPPOSTO agli id, cosi' che sia la seconda chiave a decidere e non la terza;
 	//  - `NOME_A` e `NOME_B` condividono cella E `StableUnitId == 0`, e si distinguono solo per il nome;
 	//  - `SOLA` sta altrove e tiene onesto il confronto sulla prima chiave.
 	TArray<FRTUnitOrderKey> Base;

@@ -2269,7 +2269,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		}
 
 		// Destinazioni dallo snapshot: solo bersagli vivi spinti da ESATTAMENTE un attaccante.
-		// Si itera su Units (ordine stabile per cella): l'ordine di iterazione di una TMap non e' garantito
+		// Si itera su Units (ordine di `SortUnitsForResolution`, #2922): quello di una TMap non e' garantito
 		// e da qui dipendono la sequenza del playback e quella del combat log.
 
 

@@ -91,9 +91,17 @@ FRTUnitOrderKey URTActionQueueLibrary::MakeUnitOrderKey(const ARTUnit& Unit)
 
 void URTActionQueueLibrary::SortUnitsForResolution(TArray<ARTUnit*>& Units)
 {
-	// In place, e la chiave costruita nel comparatore: ora non alloca — `GetFName()` non passa da
-	// `FName::ToString()` — quindi non c'e' niente da decorare, nessun array temporaneo, e il buffer del
-	// chiamante resta il suo.
+	// In place, con la chiave costruita DENTRO il comparatore — quindi due volte per confronto, cioe'
+	// O(N log N) costruzioni invece delle O(N) di una decorazione. ⚠️ **E' un compromesso scelto, non una
+	// svista**: la stesura precedente decorava per ottenere le O(N), e pagava tre cose peggiori — `Keys` e
+	// `Order` temporanei, e un `Units = MoveTemp(Sorted)` che buttava via il buffer che `CollectLivingUnits`
+	// riusa con `Reset()`+`Reserve()` e che `FRTScenarioSession` tiene per tutta la partita.
+	//
+	// 🔑 Cio' che rende accettabile il compromesso e' che la chiave **non alloca**: `FRTCellId` e' tre
+	// interi, `StableUnitId` uno, e `GetFName()` non passa da `FName::ToString()`. Sono copie, non
+	// allocazioni — il contrario della prima stesura, che teneva una `FString` e per cui la decorazione era
+	// l'unica uscita. Se un giorno la chiave crescesse fino ad allocare, la decorazione per INDICI (senza
+	// `MoveTemp` sull'array del chiamante) e' la forma giusta, e vive gia' in `ResolveContestedBoundary`.
 	Units.Sort([](const ARTUnit& A, const ARTUnit& B)
 	{
 		return UnitOrderLess(MakeUnitOrderKey(A), MakeUnitOrderKey(B));

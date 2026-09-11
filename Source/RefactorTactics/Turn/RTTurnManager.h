@@ -1350,7 +1350,21 @@ public:
 	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
 
 	/**
-	 * Le unita' VIVE del livello, in ordine stabile per cella.
+	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
+	 *
+	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
+	 * costruirselo a mano: e' cosi' che e' nato un difetto trovato in code review, con `MoveCostModifier` e
+	 * `Facing` dimenticati. `MakeCurrentSnapshot` chiama questo stesso helper nel proprio loop, quindi i due
+	 * non possono divergere.
+	 *
+	 * ⚠️ `Index` e' l'identita' NELLO SNAPSHOT, non `StableUnitId`: due numerazioni diverse (si veda il
+	 * commento sui contatti in `MakeCurrentSnapshot`).
+	 */
+	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
+
+	/**
+	 * Le unita' VIVE del livello, nell'ordine di `URTActionQueueLibrary::SortUnitsForResolution`
+	 * — cella, poi `StableUnitId`, poi nome dell'Actor (#2922).
 	 *
 	 * E' la prima meta' di `MakeCurrentSnapshot`, estratta perche' chi ha bisogno delle unita' ma NON dello
 	 * snapshot non paghi la seconda: `ValidatePlansAtLockIn` iterava un `FRTHexSnapshot` completo — un
@@ -1368,19 +1382,6 @@ public:
 	 * `URTActionQueueLibrary::SortUnitsForResolution`, quindi toccare quella regola le muove **tutte** — ed
 	 * e' il punto, non un effetto collaterale. Trovato in code review.
 	 */
-	/**
-	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.
-	 *
-	 * Esiste perche' chi ha bisogno dello stato di un'unita' — `ValidatePlansAtLockIn` — non debba
-	 * costruirselo a mano: e' cosi' che e' nato un difetto trovato in code review, con `MoveCostModifier` e
-	 * `Facing` dimenticati. `MakeCurrentSnapshot` chiama questo stesso helper nel proprio loop, quindi i due
-	 * non possono divergere.
-	 *
-	 * ⚠️ `Index` e' l'identita' NELLO SNAPSHOT, non `StableUnitId`: due numerazioni diverse (si veda il
-	 * commento sui contatti in `MakeCurrentSnapshot`).
-	 */
-	FRTHexSimUnit MakeSimUnit(int32 Index, const ARTUnit* Unit) const;
-
 	void CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const;
 
 	/**
