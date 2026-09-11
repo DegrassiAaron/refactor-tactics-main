@@ -781,6 +781,26 @@ bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
 	}
 	if (!TestTrue(TEXT("la corsa A ha prodotto una traccia"), A.Log.Num() > 0)) { return false; }
 
+	// 🔴 **E le voci di decisione della corsa VIVA devono portare un indice VERO.**
+	//
+	// ⚠️ Questa riga esiste perche' la verifica per mutazione di #2956 ha scoperto un buco nel gate: forzando
+	// `INDEX_NONE` su ENTRAMBE le corse, il confronto A-contro-B resta verde — le due tracce sono uguali fra
+	// loro, e sbagliate insieme. Il confronto misura la DIVERGENZA fra i percorsi, non il valore del campo.
+	//
+	// Qui il valore si afferma in assoluto, e solo dove e' lecito: una `ReactionDecision` in fase Move nasce
+	// dentro un ciclo di micro-step, quindi `INDEX_NONE` — che significa «nessun ciclo qui» — sarebbe falso.
+	int32 DecisioniSenzaIndice = 0;
+	for (const FRTTurnLogEntry& E : A.Log)
+	{
+		if (E.Category == ERTLogCategory::ReactionDecision && E.Phase == ERTMatchPhase::Move
+			&& E.MicroStepIndex == INDEX_NONE)
+		{
+			++DecisioniSenzaIndice;
+		}
+	}
+	TestEqual(TEXT("le decisioni di reazione della corsa viva sono localizzate nel loro micro-step"),
+		DecisioniSenzaIndice, 0);
+
 	// --- B) passaggio UNICO, con le decisioni di A registrate --------------------------------------------
 	const FCorsaRisolta B = Corsa(A.Log);
 	if (!TestTrue(TEXT("la corsa B si allestisce"), B.bAllestita)) { return false; }
