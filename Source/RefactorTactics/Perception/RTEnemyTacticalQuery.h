@@ -10,8 +10,8 @@ class URTHexMapAsset;
 class URTHeroData;
 
 /**
- * Le tre regioni tattiche di un soggetto OSSERVATO: dove puo' arrivare, dove puo' colpire adesso, dove
- * potrebbe colpire dopo una mobilita' rapida (`#2596`).
+ * Le regioni tattiche di un soggetto OSSERVATO: dove arriva camminando, dove arriva soltanto scattando,
+ * dove puo' colpire adesso, dove potrebbe colpire dopo una mobilita' rapida (`#2596`, `#2632`).
  *
  * 🔴 **E' un DTO di privacy, non un risultato di simulazione.** Non decide nulla di competitivo: non
  * muove, non colpisce, non produce eventi. Esiste perche' il giocatore possa interrogare un nemico che
@@ -43,6 +43,29 @@ struct FRTEnemyTacticalRegions
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
 	TArray<FRTCellId> ReachableCells;
+
+	/**
+	 * Celle che il soggetto raggiunge SOLO con una mobilita' rapida, ordinate `StableLess` e **al netto** di
+	 * `ReachableCells` — la stessa disciplina con cui `PostDashThreat` esce al netto di `ImmediateThreat`.
+	 *
+	 * 🔑 **Non e' un cerchio grande attorno a uno piccolo, e la differenza e' tattica** (`#2632`). Il passo
+	 * (`NormalMovement`) risolve in `ERTMatchPhase::Move`, cioe' DOPO il Blast; lo scatto (`FastMovement`)
+	 * risolve in `Dash`, cioe' PRIMA. E `Action.Sprint` si paga con `Status.Exposed`. Fondere le due aree in
+	 * una sola direbbe al giocatore una capacita' che il ruleset non sostiene.
+	 *
+	 * ⚠️ **Vuota non vuol dire assente.** Un soggetto privo di mobilita' rapida ha questa regione vuota e
+	 * `RegionsFor` risponde comunque `true`; un soggetto non osservato non produce regioni del tutto, e
+	 * `RegionsFor` risponde `false`. Sono due esiti diversi e un test li distingue.
+	 *
+	 * ⚠️ **Include ogni origine di mobilita' rapida, non solo quelle a budget.** Lo Scope di `#2632` nomina
+	 * `ReachableWithBudget`, che copre `Action.Sprint`; le mobilita' rapide LINEARI (`Action.Leap`,
+	 * `Action.Charge`, `Action.Dodge`, `Action.Reposition`) passano da `ResolveLinearMove`, che e' la
+	 * primitiva canonica della linearita' e non un secondo pathfinder. Escluderle renderebbe il DTO
+	 * auto-contraddittorio: `PostDashThreat` irradia dalle loro celle d'arrivo, che sarebbero minaccia
+	 * post-scatto partita da celle fuori dalla regione dello scatto. Scostamento dichiarato, non dedotto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
+	TArray<FRTCellId> DashOnlyCells;
 
 	/**
 	 * Celle che il soggetto puo' investire SENZA riposizionarsi, ordinate `StableLess`: l'unione delle
@@ -84,7 +107,7 @@ class REFACTORTACTICS_API URTEnemyTacticalQueryLibrary : public UBlueprintFuncti
 
 public:
 	/**
-	 * Le tre regioni del soggetto indicato, come l'osservatore di `View` ha diritto di vederle.
+	 * Le regioni del soggetto indicato, come l'osservatore di `View` ha diritto di vederle.
 	 *
 	 * Ritorna `false` — e lascia `OutRegions` al default — quando il soggetto non ha una voce nella vista.
 	 *
