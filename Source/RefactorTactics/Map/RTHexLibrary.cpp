@@ -301,6 +301,53 @@ int32 URTHexLibrary::SurfaceRingCount(ERTHexSurface Surface)
 	return 0;
 }
 
+FVector2D URTHexLibrary::SurfaceVolumeFor(ERTHexSurface Surface)
+{
+	switch (Surface)
+	{
+	// ➕ **IL FUMO E' L'UNICA SUPERFICIE CON UN VOLUME** (`#2936`), e la forma e' scelta per CONTRASTO con le
+	// due che esistono gia' in `ARTHexMapActor`:
+	//
+	//   · lastra della vista   `0.75 x  10`  — larga e bassissima
+	//   · colonna del passo    `0.40 x  55`  — stretta e alta
+	//   · **fumo**             `0.86 x  26`  — la piu' LARGA e a meta' altezza
+	//
+	// 🔑 **Nessuna delle tre coppie si confonde con le altre a colpo d'occhio**, ed e' il requisito: la
+	// larghezza cresce da 0.40 a 0.86 mentre l'altezza NON segue lo stesso ordine, quindi le tre forme non
+	// stanno su una scala sola e non si leggono come «poco / medio / molto» della stessa cosa.
+	//
+	// ⚠️ **0.86 e non 1.0**: a raggio pieno il volume combacerebbe col bordo della cella e il confine fra due
+	// celle di fumo adiacenti sparirebbe — un'area di sette celle diventerebbe una macchia unica, e chi
+	// guarda non potrebbe piu' contare cosa copre. Il margine e' cio' che tiene leggibile l'IMPRONTA.
+	//
+	// ⚠️ **26 uu e' sotto la colonna (55) e sopra la lastra (10)**, di proposito: il fumo deve leggersi come
+	// volume ma non nascondere chi ci sta dentro — le unita' restano visibili sopra di esso, e un'occlusione
+	// del proprio bersaglio sarebbe una perdita d'informazione pagata per guadagnarne un'altra.
+	case ERTHexSurface::Smoke:
+		return FVector2D(0.86, 26.0);
+
+	// ⛔ **Le altre otto non hanno volume, ed e' una scelta dichiarata, non un rinvio.** `Fire`,
+	// `ShallowWater`, `Ice` e le altre hanno lo stesso problema di leggibilita' del fumo, ma ognuna vuole una
+	// forma DECISA: deciderne sei in blocco qui sarebbe come non deciderne nessuna, e produrrebbe sei volumi
+	// che si somigliano. Questa funzione le rende dichiarabili **una alla volta**, ed e' cio' per cui esiste.
+	case ERTHexSurface::Floor:
+	case ERTHexSurface::ShallowWater:
+	case ERTHexSurface::Rough:
+	case ERTHexSurface::Fire:
+	case ERTHexSurface::Conductive:
+	case ERTHexSurface::Ice:
+	case ERTHexSurface::HighGround:
+	case ERTHexSurface::Void:
+		return FVector2D::ZeroVector;
+	}
+
+	// ⛔ **Nessun `default:` nello switch qui sopra, ed e' la stessa disciplina di `SurfaceRingCount`.**
+	// Con un `default` una superficie nuova nascerebbe senza volume **in silenzio**; senza, `-Wswitch` la
+	// rende un errore di compilazione, e chi la aggiunge deve dichiarare che forma ha — anche se la risposta
+	// e' «nessuna».
+	return FVector2D::ZeroVector;
+}
+
 FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 {
 	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:

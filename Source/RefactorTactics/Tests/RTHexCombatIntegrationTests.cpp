@@ -1556,4 +1556,65 @@ bool FRTHexInteractOnDestroyedDoorRefusedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Action.LineAttack` colpisce il PRIMO bersaglio valido sulla direzione, non quello puntato (`#2929`, [D-386]).
+ *
+ * 🔴 **Il difetto che questo test esiste per prendere.** Il catalogo dichiara l'azione come *«22 danni al
+ * PRIMO bersaglio valido su una delle sei direzioni»* e nomina il resolver che lo farebbe
+ * (`URTOffensiveActionLibrary::ResolveLineAttack`). Quel resolver non aveva chiamanti di produzione, e
+ * l'intento nasceva `ERTAbilityShape::Single` perche' `FRTActionDef` non porta uno `Shape`: il colpo
+ * arrivava alla cella puntata **scavalcando** chi stava in mezzo.
+ *
+ * ⚠️ **Due nemici allineati e si punta il LONTANO**: e' l'unica configurazione che distingue le due
+ * semantiche. Con un bersaglio solo, «primo bersaglio» e «bersaglio puntato» coincidono e il test sarebbe
+ * verde col difetto.
+ *
+ * ⛔ La linea di tiro NON e' la variabile: la mappa non ha celle che bloccano, quindi `(2,0)` e' un
+ * bersaglio legittimo anche prima del fix. Cio' che cambia e' CHI incassa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLineAttackStopsAtFirstTargetTest,
+	"RefactorTactics.Combat.LineAttackStopsAtFirstTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLineAttackStopsAtFirstTargetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	ARTUnit* Attacker = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Near     = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 0));
+	ARTUnit* Far      = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Attacker || !Near || !Far) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 Idx = RTAbilityFixtures::AddCoreAbility(Attacker, TEXT("Action.LineAttack"));
+
+	// La premessa, misurata invece che assunta: se il catalogo cambiasse portata o danno, questo test
+	// misurerebbe il caso sbagliato restando verde.
+	const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.LineAttack"));
+	if (!TestEqual(TEXT("premessa: portata 5, quindi (2,0) e' raggiungibile"), Def.RangeCells, 5)
+		|| !TestTrue(TEXT("premessa: l'azione dichiara un danno"), URTCatalogLibrary::FirstDamage(Def) > 0))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	const int32 NearHealthBefore = Near->Health;
+	const int32 FarHealthBefore  = Far->Health;
+
+	Attacker->PlannedAbilityIndex = Idx;
+	Attacker->PlannedAttackTarget = Far; // si punta il LONTANO, di proposito
+
+	RunBlastTurn(TM);
+
+	// 🔑 Le due meta' della stessa proprieta': la linea si ferma sul primo, quindi il primo la prende e il
+	// secondo no. Separate perche' falliscono per ragioni diverse e il messaggio deve dirlo.
+	TestTrue(TEXT("il bersaglio VICINO incassa il colpo: la linea si ferma su di lui"),
+		Near->Health < NearHealthBefore);
+	TestEqual(TEXT("il bersaglio LONTANO non viene scavalcato"), Far->Health, FarHealthBefore);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
