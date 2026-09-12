@@ -2457,6 +2457,139 @@ bool FRTMovementTraversalDurationReadsTheEntryCostTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **PORTATA e VELOCITA' sono due manopole INDIPENDENTI, ed e' l'invariante per cui [D-381] esiste.**
+ * (`#3031` CHECKPOINT B)
+ *
+ * ## Cosa questo test difende, e perche' nessun altro lo fa
+ *
+ * `D-381` dichiara la durata d'arco un **campo separato** e non una lettura del costo, con una ragione
+ * scritta: *«se la durata fosse per contratto il costo, l'unico modo di rendere un profilo piu' RAPIDO
+ * sarebbe fargli costare MENO per cella — e costare meno significa andare piu' LONTANO: velocita' e portata
+ * sarebbero la stessa manopola per sempre, e `MOV-3` si chiuderebbe per inerzia invece che per playtest»*.
+ *
+ * Quella separazione **non aveva un gate**. `Movement.TraversalDurationReadsTheEntryCost` (sopra) verifica
+ * la formula della durata; `Movement.SameCostSpentArrivesTogether` e `Movement.ShorterMoveArrivesEarlier`
+ * verificano l'ordine d'arrivo. Nessuno dei tre cade se le due manopole tornano ad essere una: un
+ * `TruncatePathToBudget` che leggesse la durata, o un `TraversalDurationTicks` che leggesse il budget,
+ * passerebbero tutti e tre.
+ *
+ * ## Il metodo: si muove una manopola per volta
+ *
+ *   · **stesso terreno, budget DIVERSO** -> la portata cambia, la durata NO. E' il caso «due unita' con
+ *     scorte diverse vanno piu' o meno lontano, non piu' o meno veloci»;
+ *   · **stesso budget, modificatore di costo DIVERSO** (`Status.Slow`) -> cambiano ENTRAMBE, e non e' una
+ *     contraddizione: `MoveCostModifier` e' dichiarato *«l'asse cosa fai»* e agisce sul prezzo per cella,
+ *     quindi tocca legittimamente sia quanto lontano si arriva sia quanto ci si mette. Il test lo ASSERISCE
+ *     invece di lasciarlo implicito, perche' e' il caso che distingue «le due manopole sono indipendenti»
+ *     da «esiste una manopola che non le tocca mai insieme» — la seconda e' falsa, e dichiararla sarebbe
+ *     un gate che mente.
+ *
+ * ⚠️ **Cio' che NON copre, e va detto**: i profili di movimento non esistono come entita'. Il canone
+ * [D-015] dice *«`Sneak · Normal · Sprint` sono profili della famiglia `Move`»*, ma `Sneak` ha UNA
+ * occorrenza in tutto `Source/` — un commento in `RTCoreActionTests.cpp` — e i tre profili vivono come
+ * **portata** in `RangeCells` (`Move` 5 · `Sprint` 8 · `Withdraw` 2, `RTActionDef.h`), non come durata.
+ * ∴ «normale, sprint, stealth, ridotto» non e' oggi una dimensione parametrizzabile del resolver: questo
+ * test difende il fatto che lo POSSA diventare — cioe' l'indipendenza degli assi — e la copertura per
+ * profilo resta a #653 e #1410.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementRangeAndSpeedAreIndependentKnobsTest,
+	"RefactorTactics.Movement.RangeAndSpeedAreIndependentKnobs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementRangeAndSpeedAreIndependentKnobsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(4);
+
+	// Un corridoio di terreno difficile: ogni cella costa 2, quindi ogni arco dura 2 microstep e ogni passo
+	// consuma 2 di budget. Le due letture partono dallo stesso dato, ed e' proprio per questo che il test
+	// serve: e' la coincidenza che rende facile confonderle.
+	const TArray<FRTCellId> Corridoio = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == FRTCellId(1, 0) || Cell.Id == FRTCellId(2, 0) || Cell.Id == FRTCellId(3, 0))
+		{
+			Cell.MoveCost = 2;
+		}
+	}
+
+	// --- 1) Budget DIVERSO, terreno uguale: cambia la PORTATA, non la durata --------------------------
+	{
+		TArray<FRTHexSimUnit> Corte;
+		Corte.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 2));   // arriva a un passo
+		const FRTHexSnapshot SnapCorte = URTHexSimLibrary::MakeSnapshot(M, Corte);
+
+		TArray<FRTHexSimUnit> Lunghe;
+		Lunghe.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 6));  // arriva a tre
+		const FRTHexSnapshot SnapLunghe = URTHexSimLibrary::MakeSnapshot(M, Lunghe);
+
+		const TArray<FRTCellId> TroncoCorte =
+			URTHexSimLibrary::TruncatePathToBudget(SnapCorte, 0, Corridoio);
+		const TArray<FRTCellId> TroncoLunghe =
+			URTHexSimLibrary::TruncatePathToBudget(SnapLunghe, 0, Corridoio);
+
+		// La PORTATA risponde al budget — ed e' la premessa: se non cambiasse, la meta' sotto non
+		// significherebbe niente.
+		if (!TestTrue(TEXT("premessa: un budget maggiore porta piu' lontano"),
+			TroncoLunghe.Num() > TroncoCorte.Num()))
+		{
+			return false;
+		}
+		TestEqual(TEXT("budget 2 su terreno da 2: un solo passo"), TroncoCorte.Num(), 2);
+		TestEqual(TEXT("budget 6: tre passi"), TroncoLunghe.Num(), 4);
+
+		// 🔴 E la DURATA no: la stessa cella dura lo stesso, con qualunque scorta.
+		TestEqual(TEXT("la durata d'arco NON dipende dal budget: stessa cella, stessa durata"),
+			URTHexSimLibrary::TraversalDurationTicks(SnapLunghe, 0, FRTCellId(1, 0)),
+			URTHexSimLibrary::TraversalDurationTicks(SnapCorte, 0, FRTCellId(1, 0)));
+
+		// Fino a dove arrivano ENTRAMBE, arrivano nello stesso microstep: l'unita' con piu' scorte non e'
+		// piu' veloce sul tratto comune, e' solo capace di continuare.
+		TArray<TArray<FRTCellId>> Paths;
+		Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+		Paths.Add({ FRTCellId(0, 2), FRTCellId(1, 2) });
+		for (FRTHexCellData& Cell : M->Cells)
+		{
+			if (Cell.Id == FRTCellId(1, 2)) { Cell.MoveCost = 2; } // stesso terreno del gemello
+		}
+		TArray<TArray<int32>> Durate;
+		Durate.Add(URTHexSimLibrary::StepDurationsForPath(SnapCorte, 0, Paths[0]));
+		Durate.Add(URTHexSimLibrary::StepDurationsForPath(SnapLunghe, 0, Paths[1]));
+		if (Durate[0].Num() == 1 && Durate[1].Num() == 1)
+		{
+			TestEqual(TEXT("e le due durate d'arco coincidono, malgrado i budget diversi"),
+				Durate[1][0], Durate[0][0]);
+		}
+	}
+
+	// --- 2) Modificatore di costo diverso: cambiano ENTRAMBE, e va dichiarato ------------------------
+	//
+	// ⛔ Questa meta' esiste per NON dichiarare un'indipendenza piu' forte di quella vera. `MoveCostModifier`
+	// e' l'asse «cosa fai» di [D-117] e agisce sul prezzo per cella: e' legittimo che tocchi sia la portata
+	// sia la durata. Un gate che pretendesse il contrario sarebbe rosso su `Status.Slow`, che e' un
+	// comportamento voluto.
+	{
+		TArray<FRTHexSimUnit> Normale;
+		Normale.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 6));
+		const FRTHexSnapshot SnapNormale = URTHexSimLibrary::MakeSnapshot(M, Normale);
+
+		FRTHexSimUnit Rallentata(0, FRTCellId(0, 0), /*MoveBudget*/ 6);
+		Rallentata.MoveCostModifier = 1;
+		TArray<FRTHexSimUnit> Lente;
+		Lente.Add(Rallentata);
+		const FRTHexSnapshot SnapLenta = URTHexSimLibrary::MakeSnapshot(M, Lente);
+
+		TestTrue(TEXT("con Slow la stessa cella dura di piu'"),
+			URTHexSimLibrary::TraversalDurationTicks(SnapLenta, 0, FRTCellId(1, 0))
+			> URTHexSimLibrary::TraversalDurationTicks(SnapNormale, 0, FRTCellId(1, 0)));
+
+		TestTrue(TEXT("e con lo STESSO budget si arriva meno lontano: e' l'asse del prezzo, non della velocita'"),
+			URTHexSimLibrary::TruncatePathToBudget(SnapLenta, 0, Corridoio).Num()
+			< URTHexSimLibrary::TruncatePathToBudget(SnapNormale, 0, Corridoio).Num());
+	}
+
+	return true;
+}
+
+/**
  * 🔴 **Un convoglio su terreno costoso si SERIALIZZA**, e questo test lo dichiara invece di lasciarlo
  * scoprire (`#2940`).
  *

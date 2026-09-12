@@ -836,6 +836,86 @@ bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
 
 
 /**
+ * `FRTOverwatchWatcher` non porta stato PER BERSAGLIO, quindi una carica per bersaglio non e'
+ * rappresentabile a questo livello (`#3031` CHECKPOINT D).
+ *
+ * 🔴 **E' cio' che resta di un test che pretendeva di misurare altro, ed e' una correzione fatta in code
+ * review.** La prima stesura si chiamava `ChargeIsPerWatcherNotPerTarget` e costruiva tre nemici in fila per
+ * dimostrare che «il primo non consuma, il secondo si', il terzo non trova nulla». **Non poteva cadere sul
+ * difetto che nominava**, e la ragione e' che modellava il `FIRE` scrivendosi da se' `bArmed = false`:
+ *
+ *   · `FRTOverwatchWatcher::bArmed` NON e' la carica. La carica e' `FRTArmedOverwatch::bCharged`
+ *     (`RTTurnManager.h`), la consuma `ARTTurnManager::ApplyReactionDecision` e la filtra
+ *     `ARTTurnManager::BuildOverwatchTriggersForMicroStep` **prima** di costruire il watcher;
+ *   · li' `W.bArmed = true` si scrive **incondizionatamente** (`RTTurnManager_Movement.cpp`), quindi in
+ *     partita quel flag e' sempre vero e l'unico consumatore e' la guardia
+ *     `if (!Watcher.bArmed || …) continue` di `BuildOverwatchTriggers`;
+ *   · ∴ un'implementazione che tenesse la carica per COPPIA watcher-bersaglio non toccherebbe `bArmed`, il
+ *     test gli passerebbe comunque `false` a mano, osserverebbe `0` e resterebbe verde.
+ *
+ * ⚠️ La mutazione che avevo eseguito — `bArmed` che non si spende — falsificava solo *«il flag viene
+ * letto»*, ed era soddisfatta anche dal gemello `Overwatch.HoldKeepsArmed`. Un'assertion che scatta non e'
+ * la prova che il gate misuri la proprieta': e' precisamente il difetto che
+ * `Actions.CanonicalOrderCoversInstanceFields` esiste per chiudere, nella stessa PR.
+ *
+ * 🔑 **Cio' che a QUESTO livello e' misurabile, ed e' questo test**: il DTO del watcher non ha un campo in
+ * cui uno stato per-bersaglio potrebbe vivere. Finche' resta cosi', `BuildOverwatchTriggers` non PUO'
+ * discriminare fra bersagli, e la proprieta' e' vera per costruzione — che e' un fatto forte, purche'
+ * qualcuno lo sorvegli. Stessa forma di `BlindFire.BlastPreviewFieldsStayClosed` e di
+ * `Overwatch.OpportunityLeaksNoFuture`.
+ *
+ * ⛔ **La meta' COMPORTAMENTALE non vive qui e non e' stata abbandonata**: appartiene a una partita vera,
+ * dove `bCharged` e' la carica, e la porta lo scenario `Spec.Resolver.IntegratedTurn` (#3031 CHECKPOINT H).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchWatcherCarriesNoPerTargetStateTest,
+	"RefactorTactics.Overwatch.WatcherCarriesNoPerTargetState",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchWatcherCarriesNoPerTargetStateTest::RunTest(const FString&)
+{
+	UScriptStruct* Struct = FRTOverwatchWatcher::StaticStruct();
+	if (!TestNotNull(TEXT("FRTOverwatchWatcher risolta dalla reflection"), Struct)) { return false; }
+
+	// Perche' ciascuno e' ammesso, e perche' NESSUNO puo' ospitare un contatore per bersaglio:
+	//   `Zone` / `OwnerCell`          — geometria, che non dipende da chi la attraversa;
+	//   `ReactionDefId`               — quale reaction, non contro chi;
+	//   `DeclaredCondition`           — la condizione dichiarata in pianificazione;
+	//   `TeamAwareness`               — l'unica mappa indicizzata per unita', e dice cosa la SQUADRA vede:
+	//                                   e' un ingresso della condizione di trigger, non una carica spesa;
+	//   i quattro `*Priority`/`*Id`   — i tie-break di ADR-0004 §4 e l'identita' della reaction;
+	//   `bArmed`                      — per WATCHER, e in partita sempre vero (vedi sopra).
+	const TSet<FString> Ammessi = {
+		TEXT("Zone"), TEXT("OwnerCell"), TEXT("ReactionDefId"), TEXT("DeclaredCondition"),
+		TEXT("TeamAwareness"), TEXT("ReactionPriority"), TEXT("AbilityPriority"),
+		TEXT("UnitInitiative"), TEXT("StableUnitId"), TEXT("ReactionInstanceId"), TEXT("bArmed")
+	};
+
+	for (TFieldIterator<FProperty> It(Struct); It; ++It)
+	{
+		const FString Nome = It->GetName();
+		if (!Ammessi.Contains(Nome))
+		{
+			AddError(FString::Printf(
+				TEXT("FRTOverwatchWatcher espone il campo '%s', che non e' nell'elenco chiuso. Se puo' tenere ")
+				TEXT("uno stato PER BERSAGLIO — «su questo ho gia' sparato», «su questo ho gia' chiesto» — ")
+				TEXT("allora `BuildOverwatchTriggers` puo' discriminare fra bersagli, e la carica smette di ")
+				TEXT("essere una per watcher: la sede della carica e' `FRTArmedOverwatch::bCharged`, non ")
+				TEXT("questo DTO. Se invece NON lo e', aggiungilo qui con la ragione (#3031)"), *Nome));
+		}
+	}
+
+	// E il verso opposto: `bArmed` e' ancora l'unico booleano di stato, e `TeamAwareness` l'unica mappa per
+	// unita'. Se uno dei due scomparisse, l'elenco qui sopra descriverebbe una struttura che non esiste piu'
+	// e il presidio diventerebbe una lista di nomi morti.
+	for (const FString& Atteso : Ammessi)
+	{
+		TestNotNull(*FString::Printf(TEXT("FRTOverwatchWatcher dichiara ancora '%s'"), *Atteso),
+			Struct->FindPropertyByName(FName(*Atteso)));
+	}
+	return true;
+}
+
+
+/**
  * Un `FIRE` TRONCA il movimento residuo del bersaglio, che resta nella cella raggiunta (CP 14.5).
  *
  * Il troncamento avviene **dentro** il calcolo, non correggendo i risultati a movimento concluso: e' la
