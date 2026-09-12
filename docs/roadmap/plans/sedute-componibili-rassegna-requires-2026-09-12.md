@@ -64,14 +64,14 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
 | `PIE-GBX-SURFACE` | `SET-SANDBOX` | — | `SM_Graybox_Surface_Water` e `SM_Graybox_Surface_Ice` tracciati; il dato `ERTHexSurface` esiste già e si dipinge col tool Paint, nessun package mancante |
 | `PIE-GBX-VOLUME` | `SET-SANDBOX` | — | `BP_Graybox_CellPlacementVolume` tracciato; nessun asset o widget nominato mancante |
 | `PIE-GBX-ZOOM` | `SET-SANDBOX` | — | dipende dalle cinque voci `PIE-GBX-*` sopra, tutte eseguibili oggi (asset tracciati); la scena di `U25` non aspetta altro |
-| `PIE-HEX-COORD-COSTO` | `SET-SANDBOX` | — | seduta `U39`: `artifacts: []`; la mappa si genera col gesto `Generate Into Asset` sull'`ARTHexMapActor` già in livello (`RTHexMapActor.cpp:1736`); resta solo il giudizio a schermo sulla fluidità, non un prerequisito mancante |
+| `PIE-HEX-COORD-COSTO` | `SET-SANDBOX` | — | seduta `U39`: `artifacts: []`; la mappa si genera col gesto `Generate Into Asset` sull'`ARTHexMapActor` già in livello (`grep -n 'void ARTHexMapActor::GenerateIntoAsset' Source/RefactorTactics/Map/RTHexMapActor.cpp` → riga 2264; una citazione precedente non ricontrollata diceva `:1736`, corretta in questo giro); resta solo il giudizio a schermo sulla fluidità, non un prerequisito mancante |
 | `PIE-HEX-MOVEMENT-PROBE` | `SET-SANDBOX` | — | `ProbeYard` è una fixture di codice (`URTMatchSetupLibrary::MakeFixtureArena`, `RTHexMapActor.h:270`, testata in `RTProbeYardFixtureTests.cpp`), non un asset; seduta `U26`: `artifacts: []` |
 | `PIE-HEX-MOVEMENT-PROBE-FLUIDITA` | `SET-SANDBOX` | — | stesso `ProbeYard` di codice della voce sopra; il fix di #1900 è già in `main`, resta solo il giudizio a schermo sull'attraversamento di molte celle escluse |
 | `PIE-HEX-MOVEMENT-PROBE-SURFACE` | `SET-SANDBOX` | — | stesso `ProbeYard` di codice più il tool Paint, già disponibile; nessun asset o widget mancante |
 | `PIE-ICON-01` | `SET-SANDBOX` | — | `DA_IconCatalog` tracciato (`oracles.asset_tracciati()` → `True`) e popolato — 61 chiavi/62 texture, cinque categorie v0.1 (`docs/roadmap/roadmap-v0.1.md:218`); i widget lo consumano dal 2026-08-28 (#1556, mergiata); `#219`/`#220` restano `OPEN` (`gh issue view`) ma solo perché questa stessa voce non è ancora stata eseguita, non per un prerequisito mancante |
 | `PIE-SCEN-COMPOSER` | `SET-SANDBOX` | — | il candidato `asset:WBP_RT_ScenarioComposer` del brief è superato dalla riga stessa: quell'asset si è ritirato il 2026-09-09 (#2789) — non tracciato, confermato (`oracles.asset_tracciati()` → `False`, `git ls-files 'Content/RT/Editor/**/WBP_RT_ScenarioComposer*'` → vuoto) — ma non è più il soggetto del DoD. Il DoD si esegue su `SRTLauncherScenarioPanel` (classe C++/Slate in `Source/RefactorTacticsEditor/`, non un asset), tab Tactical Designer su `L_DevSandbox`; seduta `U50` (`artifacts: []`) lo rivendica dal 2026-09-10 |
 | `PIE-TD-FILTERS` | `SET-SANDBOX` | — | stessa precondizione di `PIE-SCEN-COMPOSER` («come sopra»); seduta `U32`: `artifacts: []`, già confermata nell'insieme il 2026-08-30 |
-| `PIE-V01-COVEREDIT` | `SET-SANDBOX` | — | `DA_HexMap_Sandbox` tracciato (`oracles.asset_tracciati()` → `True`); è vuoto (0 celle) ma la riga lo dichiara già apertamente, e popolarlo è authoring nella stessa apertura (`Generate Into Asset`, lo stesso gesto di `PIE-HEX-COORD-COSTO`) — non un package/widget/anim/feature mancante; `#1738` (cablata) è `CLOSED`, su un tema diverso (percezione su `VisionSplit`, non questo) |
+| `PIE-V01-COVEREDIT` | `SET-SANDBOX` | — | `DA_HexMap_Sandbox` tracciato (`oracles.asset_tracciati()` → `True`) ma vuoto (0 celle); il gap che questo check giudica — copertura bassa su un bordo esposto — è dichiarato **fuori scope** da `U13.done_when` perché `#1738` non lo copre e oggi **non ha una issue propria**. Nessuno dei cinque tipi di `requires` lo esprime: `asset:` non si applica (il package c'è), e i quattro tipi con issue pretendono un `#numero` che qui non esiste. Non si dichiara — dettagli in coda al verbale |
 | `PIE-AI-01` | `SET-GEN-ARENA` | — | seduta `U5`: `artifacts: []`, allestimento `MapSource = GeneratedTestArena` (codice, non asset); nessun package o widget nominato mancante nella riga di registro |
 | `PIE-AI-02` | `SET-GEN-ARENA` | — | stessa seduta `U5`, stesso allestimento di `PIE-AI-01`; nessun asset o widget mancante |
 | `PIE-AI-03` | `SET-GEN-ARENA` | — | stessa seduta `U5`, stesso allestimento; nessun asset o widget mancante |
@@ -94,3 +94,25 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
   non si può dichiarare il prerequisito di un check che non ha ancora un allestimento.
 - I restanti check del bacino (`SET-HEX-MATCH`, `SET-HEX-BOT`, `SET-SCEN`) appartengono ai
   lotti successivi di questo stesso Task 6, non a questa fetta.
+
+## Dubbi sopravvissuti alla rassegna
+
+- **`PIE-V01-COVEREDIT`** (`SET-SANDBOX`): il package `DA_HexMap_Sandbox` esiste ma è vuoto
+  (0 celle). Il criterio che questo check giudica — copertura bassa su un bordo esposto,
+  insieme a `Terrain.Rough`, acqua e porta — è dichiarato **fuori scope** dal `done_when` di
+  `U13` (`docs/roadmap/editor-sessions.yaml:1183-1191`): `#1738` lo mette nel proprio *Out of
+  Scope* e la riga dice apertamente **«oggi non hanno una issue propria»**. Questo non è un
+  `asset:` mancante (il package c'è, solo vuoto), e non è nessuno dei quattro tipi con issue:
+  tutti e quattro pretendono un `#numero`, e qui non esiste un'issue che copra proprio questo
+  gap — dichiararne uno significherebbe inventare un bloccante che nessun owner può chiudere.
+  **Correzione rispetto alla prova scritta nel primo giro di questo lotto**: avevo indicato
+  `Generate Into Asset` come rimedio disponibile nella stessa apertura. Non lo è —
+  `ARTHexMapActor::GenerateIntoAsset()` (`Source/RefactorTactics/Map/RTHexMapActor.cpp`, riga
+  2264 per `grep -n 'void ARTHexMapActor::GenerateIntoAsset'`) **sostituisce** il contenuto con
+  celle native generate, non ricostruisce i dati pre-migrazione che `U13` descrive da autorare
+  a mano (`Terrain.Rough`, coperture, porta). E su un asset vuoto il criterio della voce non è
+  nemmeno falsificabile: `Source/RefactorTactics/Tests/RTHexMapTests.cpp:1016` annota che
+  «migra senza perdere nulla» è banalmente vero del nulla. **La decisione resta `—`**, ma per
+  l'unica ragione onesta disponibile: lo schema dei `requires` non ha un token per un gap che
+  il repository stesso dichiara privo di issue owner — non perché il check sia oggi pienamente
+  giudicabile su questo asse.
