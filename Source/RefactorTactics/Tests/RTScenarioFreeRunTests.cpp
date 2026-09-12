@@ -10,6 +10,8 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTScenarioSession.h"
+#include "Turn/RTTurnLog.h"          // ERTLogCategory: il campo pericoloso si conta sulle voci
+#include "Turn/RTTurnLogLibrary.h"   // DeserializeTurnLog: le tracce del report arrivano in byte
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
@@ -522,6 +524,151 @@ bool FRTFreeRunArenaV01Test::RunTest(const FString&)
 	TestTrue(FString::Printf(TEXT("la partita si decide: %s"), *Reached->Actual), Reached->bPassed);
 	TestFalse(FString::Printf(TEXT("non e' un pareggio allo scadere: %s"), *Reached->Actual),
 		Reached->Actual.Contains(TEXT("allo scadere")));
+	return true;
+}
+
+
+/**
+ * **Il terzo percorso di determinismo che `PIA-5.1` nomina, e l'unico che non aveva copertura**
+ * ([#2620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2620)).
+ *
+ * Il mandato chiede il determinismo su tre percorsi e ne dichiara due gia' coperti — lo showcase con
+ * `Scenario.ShowcaseT1IsDeterministic` (dieci ripetizioni sul roster intero) e il Deflect con
+ * `Combat.GuardPoolIsPermutationInvariant` ([D-309]) — lasciando lo **scenario hazard** come residuo
+ * *«da verificare»*. Misurato il 2026-09-12: `grep -rn "AutoBattle\.Hazard" Source/` rispondeva **0**, e
+ * `Scenario.EveryShippedScenarioRuns` lo esegue **una volta sola** — quindi non poteva dire niente sulla
+ * ripetibilita', che e' la domanda.
+ *
+ * ⚠️ **Non e' un secondo test di `G4`**, che la issue vieta per nome:
+ * `Replay.Verifier.ResimulationIsDeterministic` ri-simula una traccia **registrata**, e chiede se il
+ * verifier la riproduca. Qui si **rigioca** uno scenario free-run, dove i turni non sono enumerati e a
+ * deciderli e' il bot: e' l'altro verso della stessa proprieta'.
+ *
+ * 🔑 **E non e' un doppione di `RepeatedRunsAreIdentical`, che e' il suo gemello**: quello gira su
+ * `AutoBattle.OpenField`, cioe' un campo **neutro**, dove fra un turno e l'altro nessuna superficie
+ * interviene. Qui il campo interviene — la fixture `RelayLite` porta acqua conduttiva, fuoco, ghiaccio,
+ * fumo e rough in coppie speculari — ed e' proprio l'ordine con cui gli effetti ambientali si applicano
+ * a poter divergere senza che nessuno se ne accorga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFreeRunHazardDeterminismTest,
+	"RefactorTactics.Scenario.FreeRun.HazardRunsAreIdentical",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFreeRunHazardDeterminismTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	// Il tetto del FILE, non uno del test: si misura lo scenario spedito com'e'.
+	if (!LoadAutobattleScenarioById(*this, TEXT("AutoBattle.Hazard"), /*MaxTurns=*/ 0, Scenario))
+	{
+		return false;
+	}
+	// Le premesse che rendono il nome vero. Se un giorno lo scenario smettesse di riferire la fixture
+	// pericolosa, il confronto girerebbe su un campo neutro e questo test direbbe un'altra cosa dal proprio
+	// nome — restando verde.
+	TestTrue(TEXT("e' dichiarato free-run"), Scenario.bFreeRun);
+	TestEqual(TEXT("riferisce la fixture che fa male"), Scenario.Fixture, FString(TEXT("RelayLite")));
+	const int32 TettoDelFile = Scenario.MaxTurns;
+	TestTrue(TEXT("il file dichiara il proprio tetto"), TettoDelFile > 0);
+
+	// Due esecuzioni identiche dello stesso scenario: il confronto lo fa il runner, e produce le due
+	// assertion lette qui sotto. Non si riscrive un comparatore che esiste gia'.
+	Scenario.RepeatCount = 2;
+
+	FString ValidationError;
+	if (!TestTrue(TEXT("lo scenario e' valido"), URTScenarioLoader::Validate(Scenario, ValidationError)))
+	{
+		AddError(ValidationError);
+		return false;
+	}
+
+	UWorld* World = MakeFreeRunWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+	DestroyFreeRunWorld(World);
+
+	TestEqual(TEXT("esito"), Result.OutcomeString(), FString(TEXT("PASS")));
+	// ⚠️ La premessa asserita nella stessa run: due partite in cui non succede niente hanno tracce
+	// identiche, e il confronto sarebbe verde senza aver misurato nulla.
+	TestTrue(FString::Printf(TEXT("la premessa: qualcosa e' successo (%d turni)"), Result.TurnsPlayed),
+		Result.TurnsPlayed > 1);
+	TestTrue(FString::Printf(TEXT("il tetto non e' stato raggiunto (%d < %d)"), Result.TurnsPlayed, TettoDelFile),
+		Result.TurnsPlayed < TettoDelFile);
+	TestTrue(TEXT("le tracce della prima esecuzione sono nel report"), Result.TurnTraces.Num() > 1);
+
+	const FRTAssertionResult* SameLog = Result.Assertions.FindByPredicate([](const FRTAssertionResult& A)
+	{
+		return A.Description.Contains(TEXT("SameTurnLogAcrossRuns"));
+	});
+	const FRTAssertionResult* SameHash = Result.Assertions.FindByPredicate([](const FRTAssertionResult& A)
+	{
+		return A.Description.Contains(TEXT("SameStateHashAcrossRuns"));
+	});
+
+	if (!TestNotNull(TEXT("confronto del TurnLog fra le due esecuzioni"), SameLog)) { return false; }
+	if (!TestNotNull(TEXT("confronto dello StateHash fra le due esecuzioni"), SameHash)) { return false; }
+	TestTrue(FString::Printf(TEXT("stesso TurnLog: %s"), *SameLog->Actual), SameLog->bPassed);
+	TestTrue(FString::Printf(TEXT("stesso StateHash: %s contro %s"), *SameHash->Expected, *SameHash->Actual),
+		SameHash->bPassed);
+
+	// --- 🔴 E il campo ha PARLATO, invece di fare da sfondo -------------------------------------------
+	//
+	// Senza questo conteggio il test resterebbe verde su una partita giocata agli estremi della mappa, dove
+	// nessuna superficie tocca nessuno: direbbe che due partite su un campo **neutro** coincidono, che e'
+	// gia' esattamente cio' che misura il gemello su `OpenField`. Il residuo di `PIA-5.1` non sarebbe coperto
+	// e nessuno avrebbe modo di accorgersene.
+	//
+	// ⚠️ **Il segnale non e' la sola categoria `Environment`**, e la prima stesura di questo test lo
+	// dava per scontato cadendo: il terreno parla anche con voci di categoria `Status`, che portano nell'esito
+	// **da dove** viene lo stato — `AppliedByTerrain`, `AppliedWhileOnCell`, e `Revoked` per chi lascia la
+	// cella che lo sosteneva. Contare solo `Environment` chiedeva *«il campo ha fatto danno?»* invece di
+	// *«il campo e' intervenuto?»*, che e' la domanda dello scenario.
+	//
+	// ⚠️ **Non e' un'assertion fragile**, e la ragione e' nelle righe qui sopra: lo scenario e' appena
+	// stato misurato deterministico, quindi il conteggio non oscilla fra un'esecuzione e l'altra.
+	int32 VociAmbientali = 0;
+	int32 StatiDalTerreno = 0;
+	TMap<uint8, int32> PerCategoria;
+	TMap<FString, int32> StatusPerEsito;
+	for (const FRTTurnTrace& Traccia : Result.TurnTraces)
+	{
+		TArray<FRTTurnLogEntry> Voci;
+		if (!URTTurnLogLibrary::DeserializeTurnLog(Traccia.Bytes, Voci)) { continue; }
+		for (const FRTTurnLogEntry& V : Voci)
+		{
+			PerCategoria.FindOrAdd(static_cast<uint8>(V.Category)) += 1;
+			if (V.Category == ERTLogCategory::Environment) { ++VociAmbientali; continue; }
+			if (V.Category != ERTLogCategory::Status) { continue; }
+
+			const ERTStatusOutcome Esito = static_cast<ERTStatusOutcome>(V.Outcome);
+			StatusPerEsito.FindOrAdd(FString::Printf(TEXT("%s/%d"), *V.ActionId.ToString(), V.Outcome)) += 1;
+			if (Esito == ERTStatusOutcome::AppliedByTerrain
+				|| Esito == ERTStatusOutcome::AppliedWhileOnCell
+				|| Esito == ERTStatusOutcome::Revoked)
+			{
+				++StatiDalTerreno;
+			}
+		}
+	}
+	const int32 InterventiDelCampo = VociAmbientali + StatiDalTerreno;
+	AddInfo(FString::Printf(
+		TEXT("turni giocati: %d · tracce: %d · voci Environment: %d · stati dal terreno: %d"),
+		Result.TurnsPlayed, Result.TurnTraces.Num(), VociAmbientali, StatiDalTerreno));
+	if (InterventiDelCampo == 0)
+	{
+		// La diagnosi PRIMA del rosso: uno zero da solo non distingue un campo che nessuno attraversa da una
+		// partita che non ha prodotto log affatto, ne' dice quali stati siano arrivati da un'altra sorgente.
+		for (const TPair<uint8, int32>& Coppia : PerCategoria)
+		{
+			AddInfo(FString::Printf(TEXT("categoria %d: %d voci"), Coppia.Key, Coppia.Value));
+		}
+		for (const TPair<FString, int32>& Coppia : StatusPerEsito)
+		{
+			AddInfo(FString::Printf(TEXT("status %s: %d voci"), *Coppia.Key, Coppia.Value));
+		}
+	}
+	TestTrue(FString::Printf(
+		TEXT("il campo e' intervenuto almeno una volta (Environment %d + stati dal terreno %d)"),
+		VociAmbientali, StatiDalTerreno), InterventiDelCampo > 0);
+
 	return true;
 }
 
