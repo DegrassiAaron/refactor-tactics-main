@@ -54,5 +54,42 @@ public class RefactorTactics : ModuleRules
 		{
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}
+
+		// #950 / #923: `Tests/` E' COMPILATA IN OGNI TARGET, E NON E' UNA DIMENTICANZA.
+		//
+		// Qui non c'e' nessuna condizione su `Target.Configuration` che escluda `Tests/`, e la ragione va
+		// scritta qui perche' e' qui che verrebbe voglia di aggiungerla. Tre volte — 2026-08-09
+		// (`RTHexSimTests.cpp`), 2026-08-11 (`RTNoisePropagationTests.cpp`), 2026-08-23/24
+		// (`RTFrontendNavigationTests.cpp` e `RTScenarioRunnerTests.cpp`) — codice di test lasciato fuori
+		// da `#if WITH_DEV_AUTOMATION_TESTS` ha rotto la sola build Shipping, e ogni volta la domanda
+		// «perche' non escludiamo i test dal target gioco?» e' tornata senza trovare una risposta scritta.
+		//
+		// ⛔ **Non si escludono con una riga qui, e questo e' il primo fatto**: `ModuleRules` non espone
+		// nessuna API di esclusione dei sorgenti — `grep -n "Exclude"` su
+		// `Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` (UE 5.8) trova un
+		// commento su unity build e zero proprieta'. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`.
+		// L'alternativa vera non e' una condizione: e' un **modulo separato**, con i suoi `.Build.cs`, il
+		// suo posto nel `.uproject` e l'export dei simboli che oggi i test raggiungono perche' stanno
+		// dentro lo stesso modulo. E' un lavoro, non una riga.
+		//
+		// 🔑 **E il target Game Development ha i test ACCESI**: `WITH_DEV_AUTOMATION_TESTS` vale 1 in ogni
+		// configurazione tranne `Test` e `Shipping` (`UnrealBuildTool/Configuration/UEBuildTarget.cs:6311`,
+		// UE 5.8). Il pacchetto che il runbook costruisce e' `-clientconfig=Development`
+		// (`docs/technical/runbooks/test-e-diagnosi.md` §1): li' i test sono nel binario del gioco **e
+		// istanziati**, cioe' interrogabili fuori dall'editor. Escluderli toglierebbe quella possibilita'.
+		//
+		// ⚠️ **In Shipping invece NON sono nel binario, e la deduzione contraria e' gia' stata falsificata
+		// una volta**: `WITH_AUTOMATION_WORKER` vale 0 (`Core/Public/Misc/Build.h:127`), la macro prende il
+		// ramo che definisce la classe senza istanziarla e `/OPT:REF` la scarta. Misurato su #923: togliere
+		// 89 test dal binario Shipping ha cambiato **1024 byte su 166 MB**. Chi volesse riaprire questa
+		// scelta argomentando «i test finiscono nella build distribuita» sta ripetendo una misura gia'
+		// smentita.
+		//
+		// ∴ il prezzo della scelta e' che la guardia `#if WITH_DEV_AUTOMATION_TESTS` e' **obbligatoria** in
+		// ogni `.cpp` di `Tests/`, e che dimenticarla si vede **solo** compilando la Shipping. Il prezzo e'
+		// pagato da un oracolo, non dalla memoria di chi scrive: `RefactorTactics.Meta.TestGuardClosesAtEndOfFile`
+		// (`Tests/RTTestGuardTests.cpp`) fallisce nella suite Editor invece che alla prossima build di
+		// release. L'unita' di misura di quell'oracolo — i `.cpp`, non gli header — e' dichiarata nel suo
+		// docstring insieme alla ragione.
 	}
 }

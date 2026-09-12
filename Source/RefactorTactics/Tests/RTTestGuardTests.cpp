@@ -7,7 +7,7 @@
 
 namespace
 {
-	/** Un sorgente di `Tests/` con il suo contenuto: il soggetto comune dei due oracoli di questo file. */
+	/** Un sorgente di `Tests/` con il suo contenuto: il soggetto comune degli oracoli di questo file. */
 	struct FRTSorgenteDiTest
 	{
 		FString Nome;
@@ -57,6 +57,60 @@ namespace
 		Cache = Sorgenti;
 		return Sorgenti;
 	}
+
+	/**
+	 * Gli HEADER di `Tests/`, letti una volta sola come i `.cpp` qui sopra.
+	 *
+	 * Soggetto separato di proposito: i due insiemi hanno regole diverse, e mescolarli farebbe perdere
+	 * proprio la distinzione che `TestHeadersDeclareNoAutomationTest` esiste per rendere verificabile.
+	 */
+	TArray<FRTSorgenteDiTest> RTLeggiHeaderDeiTest(FAutomationTestBase& Test)
+	{
+		static TArray<FRTSorgenteDiTest> Cache;
+		if (Cache.Num() > 0)
+		{
+			return Cache;
+		}
+
+		const FString Cartella = RTCartellaDeiTest();
+		TArray<FString> Nomi;
+		IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, TEXT("*.h")), /*Files*/ true, /*Dirs*/ false);
+
+		TArray<FRTSorgenteDiTest> Sorgenti;
+		Sorgenti.Reserve(Nomi.Num());
+		for (const FString& Nome : Nomi)
+		{
+			FString Testo;
+			if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+			{
+				Test.AddError(FString::Printf(TEXT("%s non si legge"), *Nome));
+				continue;
+			}
+			Sorgenti.Add({ Nome, MoveTemp(Testo) });
+		}
+		Cache = Sorgenti;
+		return Sorgenti;
+	}
+
+	/**
+	 * Le righe che DICHIARANO un test, distinte da quelle che ne NOMINANO la macro.
+	 *
+	 * ⛔ **L'ancora a inizio riga e' il criterio, non un dettaglio.** Un `grep` non ancorato sul corpus dei
+	 * `.cpp` conta **una dichiarazione in piu'** di quelle che esistono, perche' `RTScenarioCorpusTests.cpp`
+	 * nomina la macro in un commento — e' la differenza fra i due numeri che circolavano su #950. Qui si
+	 * scarta esplicitamente cio' che apre un commento (`//`, `/*`, `*` di continuazione), cosi' il criterio
+	 * resta lo stesso sui due insiemi.
+	 */
+	bool RTRigaDichiaraUnTest(const FString& Riga)
+	{
+		FString Trimmed = Riga;
+		Trimmed.TrimStartAndEndInline();
+		if (Trimmed.StartsWith(TEXT("//")) || Trimmed.StartsWith(TEXT("/*")) || Trimmed.StartsWith(TEXT("*")))
+		{
+			return false;
+		}
+		return Trimmed.StartsWith(TEXT("IMPLEMENT_")) && Trimmed.Contains(TEXT("AUTOMATION_TEST"));
+	}
 }
 
 /**
@@ -81,6 +135,36 @@ namespace
  * ⚠️ **Se non trova i sorgenti FALLISCE**, e non e' pignoleria: un oracolo che perde il proprio soggetto e
  * resta verde e' peggio di un oracolo assente. Il test e' `EditorContext`, quindi gira dove i sorgenti ci
  * sono per costruzione — a partire da questo file, che e' uno dei suoi soggetti.
+ *
+ * ---
+ *
+ * 🔑 **L'UNITA' DI MISURA, scelta invece che lasciata a due letture (#950).** Il DoD di #923 ne portava due
+ * incompatibili nello stesso elenco: *«nessuna **riga** di `Tests/` resta fuori»* accanto a *«nessun file ha
+ * righe dopo il proprio `#endif`»*. La prima misura **ogni riga della cartella**, header compresi; la seconda
+ * misura **i `.cpp`**. Fino a oggi nessuna delle due era dichiarata vincente, e la prossima misura sarebbe
+ * stata ambigua quanto quella precedente.
+ *
+ * ✅ **Vince la seconda, e questo oracolo e' la sua forma eseguibile**: il soggetto sono i **`.cpp`** di
+ * `Tests/`; la regola e' che la guardia, dove c'e', chiuda in fondo al file.
+ *
+ * ⛔ **Gli header sono FUORI dal criterio per una ragione misurata, non per comodita'.** I `.cpp` li includono
+ * **fuori** dalla propria guardia — campionato su `RTHexOccupancyTests.cpp:4,18`, `RTShowcaseScenarioTests.cpp:2`,
+ * `RTVeilTests.cpp:14`, `RTStress4v4Tests.cpp:14`, dove l'`#if` apre rispettivamente alle righe 20, 40, 21, 31.
+ * ∴ il contenuto di un header di fixture **e' compilato in ogni target**, Shipping inclusa, e racchiuderlo in
+ * `#if WITH_DEV_AUTOMATION_TESTS` non lo proteggerebbe da niente che oggi lo minacci: lo renderebbe vuoto
+ * proprio dove serve che compili. Un header e' quindi tenuto a una regola **diversa** — compilare senza la
+ * macro — non alla stessa.
+ *
+ * ⚠️ **E la regola diversa non e' «nessuna regola»**: cio' che un header non puo' fare e' **dichiarare un
+ * test**, perche' quella dichiarazione sfuggirebbe a questo oracolo pur essendo esattamente il difetto che
+ * cerca. Quella meta' e' `RefactorTactics.Meta.TestHeadersDeclareNoAutomationTest`, in fondo a questo file.
+ *
+ * ⚠️ **Resta a giudizio una cosa sola, e va detta**: che un header non usi un simbolo che in Shipping non
+ * esiste. Oggi il caso limite e' `RTWidgetAssetTestHelpers.h`, che include `Misc/AutomationTest.h` e prende
+ * un `FAutomationTestBase&` **senza guardia** — e compila perche' `class FAutomationTestBase`
+ * (`Core/Public/Misc/AutomationTest.h:1594`, UE 5.8) sta **fuori** da `WITH_AUTOMATION_TESTS`. Regge su una
+ * proprieta' dell'Engine, non su una scelta di questo repository: se un aggiornamento la spostasse dentro la
+ * guardia, quel file romperebbe la Shipping e nessun oracolo qui lo vedrebbe — solo `G1`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTestGuardClosesAtEndOfFileTest,
 	"RefactorTactics.Meta.TestGuardClosesAtEndOfFile",
@@ -708,6 +792,111 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
 	// delle collisioni resterebbe zero senza che nulla sia stato guardato.
 	TestTrue(TEXT("il corpus contiene firme in namespace anonimo"), All.Num() > 0);
 	TestEqual(TEXT("nessuna firma anonima e' definita in due file"), Collisions, 0);
+	return true;
+}
+
+/**
+ * **Nessun HEADER di `Tests/` dichiara un test.**
+ *
+ * 🔑 **E' la meta' eseguibile dell'unita' di misura scelta in #950**, e non ha senso da sola: il gemello
+ * `TestGuardClosesAtEndOfFile` guarda i **`.cpp`** — `FindFiles(..., "*.cpp", ...)` — quindi una
+ * `IMPLEMENT_*_AUTOMATION_TEST` scritta in un header **non la vede nessuno**. Sarebbe il difetto esatto che
+ * quell'oracolo cerca, nell'unico posto dove non guarda.
+ *
+ * ⚠️ **La scelta di escludere gli header non e' arbitraria, ed e' argomentata nel docstring del gemello**: i
+ * `.cpp` includono le fixture **fuori** dalla propria guardia, quindi un header di `Tests/` e' compilato in
+ * ogni target e deve compilare **senza** `WITH_DEV_AUTOMATION_TESTS`. Una dichiarazione di test li' dentro
+ * romperebbe proprio quel contratto — e romperebbe la sola Shipping, che e' la ragione per cui #923 e' esistita.
+ *
+ * ∴ un header di `Tests/` puo' contenere fixture, probe e helper — e ne contiene, quasi tutti senza guardia —
+ * ma non e' un posto dove si dichiara una suite.
+ *
+ * ---
+ *
+ * ⛔ **Il controllo POSITIVO e' obbligatorio, perche' il conteggio atteso e' ZERO.** Uno zero non distingue
+ * *«nessun header dichiara test»* da *«il predicato non riconosce piu' la macro»*, e un rename o una mano
+ * sbadata su `RTRigaDichiaraUnTest` renderebbero questo oracolo cieco **e verde**. Il campione porta la forma
+ * vera e le due esche che l'ancora esiste per scartare.
+ *
+ * ⚠️ **I limiti, dichiarati invece che scoperti dopo:**
+ *
+ * 1. **Riconosce la macro SCRITTA**, non una generata da un'altra macro. `#define RT_SUITE(...) IMPLEMENT_...`
+ *    in un header passerebbe: espandere macro e' un preprocessore, cioe' piu' di quanto questo oracolo sia.
+ * 2. **Guarda `Source/RefactorTactics/Tests`, non ricorsivo**, e non guarda `RefactorTacticsEditor`. E' lo
+ *    stesso perimetro degli altri tre di questo file, ed e' l'altitudine dei file che si sono rotti.
+ * 3. **Non dice nulla sul CONTENUTO di un header.** Che non usi un simbolo assente in Shipping resta a
+ *    giudizio — vedi il caso `RTWidgetAssetTestHelpers.h` nel docstring del gemello.
+ * 4. 🔴 **Il suo rosso arriva dentro la suite, insieme agli altri.** #950 registra che il 2026-09-10 un rosso
+ *    di `TestGuardClosesAtEndOfFile` — diagnostico, con file, misura e target — e' stato **attribuito male**
+ *    perche' arrivava in un elenco di quattro, e il difetto e' rimasto su `main` un giorno. Questo oracolo non
+ *    cambia quel salto: lo erediterebbe. Un controllo isolato, eseguito **prima** della suite, e' l'unica cosa
+ *    che lo eviterebbe, e non e' quello che sta qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTestHeadersDeclareNoAutomationTestTest,
+	"RefactorTactics.Meta.TestHeadersDeclareNoAutomationTest",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTestHeadersDeclareNoAutomationTestTest::RunTest(const FString&)
+{
+	// ⛔ Il controllo positivo viene PRIMA: se il predicato e' cieco, lo zero piu' sotto sarebbe verde e falso.
+	{
+		if (!TestTrue(TEXT("il predicato riconosce una dichiarazione vera"),
+			RTRigaDichiaraUnTest(TEXT("IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCampione, \"A.B\", Flags)"))))
+		{
+			return false;
+		}
+		if (!TestTrue(TEXT("il predicato riconosce una dichiarazione indentata"),
+			RTRigaDichiaraUnTest(TEXT("\tIMPLEMENT_COMPLEX_AUTOMATION_TEST(FRTCampione, \"A.B\", Flags)"))))
+		{
+			return false;
+		}
+		// Le due esche: e' la differenza fra i due conteggi che circolavano su #950 — un `grep` non ancorato
+		// contava anche la prosa che nomina la macro.
+		if (!TestFalse(TEXT("una riga di commento non e' una dichiarazione"),
+			RTRigaDichiaraUnTest(TEXT("\t// IMPLEMENT_SIMPLE_AUTOMATION_TEST qui sarebbe invisibile al gemello"))))
+		{
+			return false;
+		}
+		if (!TestFalse(TEXT("una continuazione di docstring non e' una dichiarazione"),
+			RTRigaDichiaraUnTest(TEXT(" * IMPLEMENT_SIMPLE_AUTOMATION_TEST, nominata in un docstring"))))
+		{
+			return false;
+		}
+	}
+
+	const TArray<FRTSorgenteDiTest> Header = RTLeggiHeaderDeiTest(*this);
+
+	// ⚠️ Stessa disciplina degli altri tre: un oracolo che perde il proprio soggetto e resta verde e' peggio
+	// di un oracolo assente. `Tests/` contiene header per costruzione — a partire dalle fixture che i `.cpp`
+	// di questa stessa cartella includono.
+	if (!TestTrue(TEXT("gli header dei test sono leggibili"), Header.Num() > 0))
+	{
+		return false;
+	}
+
+	int32 Difettosi = 0;
+	for (const FRTSorgenteDiTest& Sorgente : Header)
+	{
+		TArray<FString> Righe;
+		Sorgente.Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
+		for (int32 Indice = 0; Indice < Righe.Num(); ++Indice)
+		{
+			if (!RTRigaDichiaraUnTest(Righe[Indice]))
+			{
+				continue;
+			}
+
+			++Difettosi;
+			AddError(FString::Printf(
+				TEXT("%s:%d dichiara un test in un HEADER. Nessun oracolo guarda li': ")
+				TEXT("`TestGuardClosesAtEndOfFile` legge i `.cpp`, e la guardia di un header non protegge ")
+				TEXT("comunque, perche' i `.cpp` lo includono FUORI dalla propria. Sposta la dichiarazione ")
+				TEXT("nel `.cpp` che la usa, dentro `#if WITH_DEV_AUTOMATION_TESTS`."),
+				*Sorgente.Nome, Indice + 1));
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("header di test ispezionati: %d"), Header.Num()));
+	TestEqual(TEXT("nessun header dichiara un test"), Difettosi, 0);
 	return true;
 }
 

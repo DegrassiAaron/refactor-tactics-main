@@ -47,6 +47,50 @@ Packaged/Windows/RefactorTactics.exe -nullrhi -unattended -nosound -abslog=<log>
 grep "Partita finita" <log>   # la partita si gioca DA SOLA: i bot giocano entrambe le squadre
 ```
 
+#### Perché i test sono compilati anche nel target gioco, e chi paga il prezzo
+
+La domanda torna ogni volta che la guardia dimenticata rompe la Shipping — tre volte finora, e ogni volta
+senza una risposta scritta ([#950](https://github.com/DegrassiAaron/refactor-tactics-main/issues/950)).
+La risposta è qui, e il commento che la ripete sta in `Source/RefactorTactics/RefactorTactics.Build.cs`,
+dove qualcuno sarebbe sul punto di aggiungere l'esclusione.
+
+| | |
+|---|---|
+| **Escludere `Tests/` è una riga in `Build.cs`?** | ⛔ **No.** `ModuleRules` non espone nessuna API di esclusione dei sorgenti — `grep -n "Exclude"` su `Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` (UE 5.8) trova un commento su unity build e zero proprietà. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`. L'alternativa vera è un **modulo separato** |
+| **Il target Game Development ha i test accesi?** | ✅ **Sì.** `WITH_DEV_AUTOMATION_TESTS` vale 1 in ogni configurazione tranne `Test` e `Shipping` (`UnrealBuildTool/Configuration/UEBuildTarget.cs:6311`). Il pacchetto del punto 2 qui sopra è `-clientconfig=Development`: lì i test sono nel binario del gioco **e istanziati** |
+| **E in Shipping finiscono nella build distribuita?** | ⛔ **No, ed è una deduzione già falsificata.** `WITH_AUTOMATION_WORKER` vale 0 (`Core/Public/Misc/Build.h:127`), la macro definisce la classe senza istanziarla e `/OPT:REF` la scarta: togliere 89 test dal binario Shipping cambiò **1024 byte su 166 MB** ([#923](https://github.com/DegrassiAaron/refactor-tactics-main/issues/923)) |
+
+∴ il prezzo della scelta è che `#if WITH_DEV_AUTOMATION_TESTS` è **obbligatoria** in ogni `.cpp` di `Tests/`,
+e che dimenticarla si vede **solo** compilando la Shipping — cioè al punto 1 qui sopra.
+
+**L'unità di misura, che fino a oggi era doppia.** Il DoD di
+[#923](https://github.com/DegrassiAaron/refactor-tactics-main/issues/923) ne portava due incompatibili nello
+stesso elenco: *«nessuna **riga** di `Tests/` resta fuori»* e *«nessun file ha righe dopo il proprio
+`#endif`»*. Vince la seconda: il soggetto sono i **`.cpp`**.
+
+Gli header sono fuori dal criterio per una ragione misurata, non per comodità: i `.cpp` li includono **fuori**
+dalla propria guardia, quindi un header di `Tests/` è compilato in ogni target e deve compilare **senza** la
+macro. Racchiuderlo nella guardia lo renderebbe vuoto proprio dove serve che compili. Ciò che un header non
+può fare è **dichiarare un test**, perché quella dichiarazione sfuggirebbe all'oracolo che guarda i `.cpp`.
+
+Due oracoli tengono le due metà, e falliscono nella suite Editor invece che alla prossima build di release:
+
+| Oracolo | Soggetto | Cosa fallisce |
+|---|---|---|
+| `RefactorTactics.Meta.TestGuardClosesAtEndOfFile` | i `.cpp` di `Tests/` | codice dopo l'`#endif` della guardia |
+| `RefactorTactics.Meta.TestHeadersDeclareNoAutomationTest` | gli `.h` di `Tests/` | una dichiarazione di test in un header |
+
+⚠️ **Nessuno dei due copre la classe intera**, e la cella `G1` di
+[`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) lo dice: un **simbolo
+letto fuori dalla propria guardia** è sfuggito il 2026-08-27 (un'API solo-`WITH_METADATA`) e di nuovo il
+2026-09-05 (`bKnowledgeDebug` in `Map/`, cioè fuori da `Tests/` del tutto). Per quella forma resta vero che
+*«solo rieseguire i tre build la trova»*.
+
+⚠️ **E il loro rosso arriva dentro la suite, insieme agli altri.** Il 2026-09-10 un rosso di
+`TestGuardClosesAtEndOfFile` — diagnostico, con file, misura e target — è stato **attribuito male** perché
+arrivava in un elenco di quattro, e il difetto è rimasto su `main` un giorno. Un controllo isolato, eseguito
+*prima* della suite, è l'unica cosa che eviterebbe quel salto, e non esiste.
+
 **Scegliere la mappa da fuori**, senza aprire l'editor:
 
 ```bash
