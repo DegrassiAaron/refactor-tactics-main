@@ -202,7 +202,7 @@ eseguita il 2026-09-05/06 (`#2476`, PR `#2541`, commit `6a677671` delle 10:01) �
 
 ### 🔴 `PIE-HEXPLAY-6` è un `FAIL` su una voce `RELEASE-V01`
 
-Non è un dettaglio di seduta: `PIE-HEXPLAY-6` appartiene al subset `RELEASE-V01`, quindi **blocca `G9`**, che
+⌫ **Superato il 2026-09-12**: `PIE-HEXPLAY-6` è ✅ (seduta convocata da #2697, `runId 20260912-141110`) e `PIE-HEXPLAY-8` è ✅ per riduzione di criterio (`D-402`, #2911), quindi il subset è `17 ✅ · 0 · 0` e **`G9` è ✅**. Il paragrafo resta come cronologia del blocco, e diceva: «`PIE-HEXPLAY-6` appartiene al subset `RELEASE-V01`, quindi **blocca `G9`**, che
 `PIA-3` mappa. Il documento lo registra invece di ereditarlo in silenzio: `PIA-3` non può essere `PASS` finché
 `#2534` non è risolta o la voce non è esplicitamente riclassificata.
 
@@ -277,7 +277,7 @@ Regole invarianti:
 **P0** — T8 e showcase completo · Deflect discriminante · `HazardDamage` end-to-end · combat feedback che rende
 giudicabili Deflect e Interpose · HUD e interazione essenziali · privacy degli intenti · leggibilità della scena
 (E21, seduta `U9`) · determinismo · packaged smoke · **multilayer smoke** · **`#2534`**, il `FAIL` di
-`PIE-HEXPLAY-6` che blocca `G9`.
+`PIE-HEXPLAY-6` che bloccava `G9` fino al 2026-09-12, quando è passata a ✅ — da allora il subset `RELEASE-V01` è interamente verde e `G9` non è più un blocco (`D-402`, #2697, #2911).
 
 ⚠️ Il multilayer smoke è stato **promosso da `P1` a `P0`**: `G10` chiede una partita completa 2v2 su mappa
 **multilivello** e non è verde, quindi non è un extra ma parte di un gate di release aperto.

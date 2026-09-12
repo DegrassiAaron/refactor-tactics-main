@@ -3214,7 +3214,7 @@ sessions:
       ✅ L'altra meta' del residuo e' **chiusa dal 2026-09-04**: la salita porta l'unita' a
       `LayerHeight` esatto — `z` 140,0 contro -110,0, **250,0** di dislivello, misurato sugli Actor con
       `Spec.Map.MatchArenaPlatformClimb`.
-      ∴ `PIE-HEXPLAY-8` resta 🟡 **per una ragione dichiarata**, non per una verifica che qualcuno deve
+      ∴ `PIE-HEXPLAY-8` restava 🟡 **per una ragione dichiarata**, non per una verifica che qualcuno deve
       ancora fare. La regola resta coperta headless da `Structures.Bridge.RemovalBreaksPath` e
       `Structures.Bridge.NoTeleportOnRemoval`.
 

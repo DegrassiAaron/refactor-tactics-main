@@ -710,8 +710,13 @@ capabilities:
     verification: { pie: [PIE-HEXPLAY-8], packaged: [] }
     risks:
       - "🔴 `Action.ModifyArc` E' SENZA OWNER NEL ROSTER PER DECISIONE (D-046). Conseguenza misurata da
-         #2549: nessuna unita' puo' provocare il crollo del ponte, quindi PIE-HEXPLAY-8 non e'
-         osservabile e il gate G9 non puo' raggiungere ✅ finche' regge D-046."
+         #2549: nessuna unita' puo' provocare il crollo del ponte, quindi la terza parte del criterio
+         di PIE-HEXPLAY-8 non e' osservabile. ✅ Dal 2026-09-12 questo NON blocca piu' G9 (D-402,
+         #2911): quella parte e' uscita dal CRITERIO e non dalla copertura — restano i tre test
+         headless Structures.Bridge.RemovalBreaksPath, Structures.Bridge.NoTeleportOnRemoval e
+         HexMove.ClimbsOnlyThroughTransition — e il subset RELEASE-V01 e' 17 verdi, 0 parziali,
+         0 fallite. La riga diceva che G9 non potesse raggiungere il verde finche' reggeva D-046:
+         D-402 l'ha resa falsa LASCIANDO D-046 in vigore. Trovato in code review."
       - "#2828: `ERTResolvedEventType` non ha un valore per la struttura — il colpo a una
          struttura non ha un momento in cui essere mostrato."
       - "#2731: il corpo strutturale e' l'unica famiglia che `ApplyKnowledgeVeil` non tocca."
