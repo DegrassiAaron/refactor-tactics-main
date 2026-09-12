@@ -253,7 +253,7 @@ Gli stati sono i quattro di `CLAUDE.md` §6, e non ce ne sono altri:
 | Stato | Quando |
 |---|---|
 | `PASS` | il gate è stato **eseguito** e ha avuto esito positivo |
-| `FAIL` | eseguito, esito negativo — come `PIE-HEXPLAY-6` oggi |
+| `FAIL` | eseguito, esito negativo. ⛔ **Non citare qui una voce viva come esempio**: fino al 2026-09-12 questa cella diceva *«come `PIE-HEXPLAY-6` oggi»*, e quella voce è passata a ✅ senza che nulla rimisurasse la frase |
 | `NOT RUN` | non eseguito. **Deve portare il motivo**, e se il motivo è un blocco deve **nominare** l'issue che blocca |
 | `N/A` | il gate non si applica a questa release — come il canale di rete per una v0.1 offline |
 

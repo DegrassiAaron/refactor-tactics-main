@@ -465,7 +465,10 @@ capabilities:
          ESISTE; #2742 resta aperta per il residuo."
       - "Resta vero e va tenuto SEPARATO: l'AREA di visibilita' (*«quali celle vedo»*) non e' la
          LINEA di tiro, non ha un produttore, ed e' di #1944."
-      - "PIE-HEXPLAY-6 e' ❌ nel gate G9 — e' l'unica voce FALLITA del subset RELEASE-V01."
+      - "⌫ SUPERATO il 2026-09-12: questa nota diceva «PIE-HEXPLAY-6 e' ❌ nel gate G9 — e' l'unica
+         voce FALLITA del subset RELEASE-V01». La voce e' ✅ (seduta convocata da #2697, runId
+         20260912-141110, verdetto d'autore PASS) e G9 e' ✅. Resta ❌ PIE-VIS-SIGHTWALL, che e'
+         FUORI dal subset RELEASE-V01 e non lo tocca."
       - "#2795: l'Overwatch decide su LOS geometrica e non sulla conoscenza."
 
   - id: RT-CAP-TARGETING
