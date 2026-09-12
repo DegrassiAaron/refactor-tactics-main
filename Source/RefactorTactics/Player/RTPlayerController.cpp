@@ -1,4 +1,5 @@
 ﻿#include "Player/RTPlayerController.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
@@ -468,6 +469,9 @@ void ARTPlayerController::BuildInputMappings()
 
 	PrepWindowPauseAction = NewObject<UInputAction>(this, TEXT("IA_PausePrepWindow"));
 	PrepWindowPauseAction->ValueType = EInputActionValueType::Boolean;
+
+	MovementProfileAction = NewObject<UInputAction>(this, TEXT("IA_CycleMovementProfile"));
+	MovementProfileAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
 	// `#2858`: i due comandi che mancavano alla matrice di `#1881`. Nascono sempre — anche in Shipping,
@@ -585,6 +589,14 @@ void ARTPlayerController::BuildInputMappings()
 	// lock-in. Il tasto e' libero: `PlayerInput.HotkeysDoNotCollide` lo verifica su tutto il mapping context
 	// invece che su una lista scritta a mano, quindi questa riga non ha bisogno di essere ricordata altrove.
 	MappingContext->MapKey(PrepWindowPauseAction, EKeys::P);
+
+	// `M` come "movimento": cicla il profilo dichiarato (`#1410`).
+	//
+	// ⚠️ **Il tasto e' lontano da `WASD` e non e' un ripiego.** Le hotkey delle azioni stanno sotto la
+	// sinistra perche' si premono mentre quella mano guida la camera; questo gesto si usa **mentre si
+	// disegna il percorso col mouse**, cioe' con la sinistra ferma. `M` e' libero, e
+	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista.
+	MappingContext->MapKey(MovementProfileAction, EKeys::M);
 
 	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
 	//
@@ -748,6 +760,7 @@ void ARTPlayerController::SetupInputComponent()
 			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
+		EIC->BindAction(MovementProfileAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleMovementProfile);
 		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
 		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
@@ -2704,6 +2717,115 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		*UEnum::GetValueAsString(Step),
 		Unit ? *Unit->GetName() : TEXT("nessuna selezione"),
 		Unit ? Unit->PlannedWaypoints.Num() : 0);
+}
+
+void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Value*/)
+{
+	// Una schermata bloccante copre la partita: questo input non le arriva.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return;
+	}
+
+	const TArray<FRTMovementProfile> Offerable = URTMovementProfileLibrary::OfferableProfiles();
+	if (Offerable.Num() < 2)
+	{
+		// ⚠️ **Un solo profilo offribile non e' un errore, ed e' lo stato di oggi**: il selettore esiste e
+		// non ha niente fra cui scegliere finche' un secondo profilo non diventa raggiungibile. Dirlo e'
+		// meglio che non reagire — chi preme il tasto deve sapere se il gesto non esiste o se e' vuoto.
+		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: nessuna alternativa disponibile (%d offribile)."),
+			Offerable.Num());
+		return;
+	}
+
+	// Il profilo corrente, per nome: `NAME_None` significa il neutro, come in `MakePlanFor`.
+	const FName CurrentId = Unit->PlannedMovementProfileId.IsNone()
+		? URTMovementProfileLibrary::ProfileMove
+		: Unit->PlannedMovementProfileId;
+
+	int32 CurrentIndex = Offerable.IndexOfByPredicate(
+		[&CurrentId](const FRTMovementProfile& P) { return P.Id == CurrentId; });
+	// Un profilo dichiarato che non e' piu' offribile — il catalogo puo' cambiare fra un turno e l'altro —
+	// non blocca il ciclo: si riparte dal primo invece di restare fermi su una scelta irraggiungibile.
+	if (CurrentIndex == INDEX_NONE)
+	{
+		CurrentIndex = Offerable.Num() - 1;
+	}
+
+	const FRTMovementProfile& Next = Offerable[(CurrentIndex + 1) % Offerable.Num()];
+	Unit->PlannedMovementProfileId = Next.Id;
+
+	// Il cambio e' SEMPRE accettato ([D-401]): quello che puo' cadere e' il percorso, non la scelta.
+	const int32 UnitRange = Unit->GetEffectiveMoveRange();
+	const int32 NewSteps = Next.ResolveStepBudget(UnitRange);
+	const int32 NewCost = Next.ResolveMoveBudget(UnitRange);
+
+	if (Unit->PlannedWaypoints.Num() == 0)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: %s (passi %d, asperita' %d)."),
+			*Next.Id.ToString(), NewSteps, NewCost);
+		return;
+	}
+
+	FRTHexSnapshot Snapshot;
+	int32 UnitId = INDEX_NONE;
+	if (!PlanningSnapshotFor(this, Unit, Snapshot, UnitId))
+	{
+		return;
+	}
+
+	const FRTHexPathResult Composite =
+		URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Unit->PlannedWaypoints);
+	// I passi sono le celle ATTRAVERSATE: la partenza non si percorre ([D-117] voce 1).
+	const int32 PathSteps = FMath::Max(0, Composite.Path.Num() - 1);
+
+	const bool bOverSteps = PathSteps > NewSteps;
+	const bool bOverCost = Composite.TotalCost > NewCost;
+
+	if (Composite.Status == ERTHexPathStatus::Success && !bOverSteps && !bOverCost)
+	{
+		// Il percorso REGGE col profilo nuovo: sopravvive, e con lui il rifiuto ([D-404]).
+		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: %s — percorso invariato (%d passi/%d, costo %d/%d)."),
+			*Next.Id.ToString(), PathSteps, NewSteps, Composite.TotalCost, NewCost);
+		return;
+	}
+
+	// 🔑 **Il messaggio nomina QUALE dei due budget non regge** (`AC-3`, [D-117]): «oltre i passi» e «oltre
+	// l'asperita'» sono due frasi diverse per chi legge, con la stessa disciplina con cui
+	// `DescribeWaypointRejection` dice quanto era stato speso sul waypoint.
+	//
+	// ⚠️ **Oggi le due condizioni cadono insieme**, perche' ogni cella costa `1` e i due budget portano lo
+	// stesso numero: la frase e' gia' quella giusta, ma la distinzione diventera' osservabile solo con la
+	// funzione di costo di `#666`. Si nomina il vincolo piu' specifico per primo — i passi — invece di
+	// riportarli entrambi: un rifiuto che elenca due motivi non ne dichiara nessuno.
+	const TCHAR* Reason = bOverSteps ? TEXT("oltre i passi") : TEXT("oltre l'asperita'");
+	if (Composite.Status != ERTHexPathStatus::Success)
+	{
+		Reason = TEXT("percorso non piu' percorribile");
+	}
+
+	UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: %s — piano azzerato (%s: %d passi/%d, costo %d/%d)."),
+		*Next.Id.ToString(), Reason, PathSteps, NewSteps, Composite.TotalCost, NewCost);
+
+	Unit->PlannedWaypoints.Reset();
+	Unit->PlannedPath.Reset();
+	Unit->PlannedCell = Unit->Cell;
+	// ➕ [D-404]: col percorso azzerato il rifiuto e' azzerato con lui — non perche' il cambio di profilo lo
+	// tocchi, ma perche' il piano di cui faceva parte non esiste piu'.
+	Unit->ClearMovePlanRejection();
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	if (ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map))
+	{
+		HexMap->SetPreviewPath(Unit->PlannedPath);
+	}
+	RefreshPlanningPreview(GetWorld(), Unit);
 }
 
 void ARTPlayerController::RebuildPlannedPath()

@@ -1063,9 +1063,22 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// Lo svantaggio dello scatto lungo e' `Exposed`, dichiarato come EFFETTO: chi corre allo scoperto incassa
 	// +5 dal primo colpo. Niente di tutto cio' e' scritto nell'orchestratore.
-	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
+	//
+	// 🔴 **Migrato a `NormalMovement` il 2026-09-12** ([D-116] voce 1, `#641`): lo scatto **smette di
+	// sparare da una posizione nuova**, che e' cio' che il catalogo §2.1 gli attribuiva da sempre e che
+	// questo codice contraddiceva. Supera [D-068].
+	//
+	// ⚠️ **La migrazione non si fa da sola, e le voci di D-116 non sono separabili**: la fase da sola
+	// produrrebbe l'**upgrade puro** che [D-015] vieta — 8 punti contro 5, nessun cooldown, `Exposed`
+	// inerte. Gli altri due prezzi che accompagnano questa riga sono `Exposed` a **2** turni (qui sotto) e
+	// il divieto di reazione, che da oggi si valuta **sul piano** e non piu' dentro `ResolveDash`, dove
+	// uno scatto in fase Move non passa piu' (`ARTTurnManager::ValidatePlansAtLockIn`).
+	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::NormalMovement, /*Priority*/ 60,
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
-		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
+		// `Exposed` **2** turni ([D-116] voce 4): con lo scatto dopo il Blast, un turno solo lo renderebbe
+		// **inerte** — verrebbe applicato quando tutti hanno gia' sparato, e scadrebbe nel Cleanup subito
+		// dopo. Due turni sono cio' che restituisce allo Sprint il prezzo che la migrazione gli toglie.
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 2) },
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava gli `8` punti senza
 	// che nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.

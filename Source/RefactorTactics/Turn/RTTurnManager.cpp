@@ -4047,6 +4047,41 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
+	// 🔴 **Il divieto dichiarato dal PIANO, e non piu' solo dall'azione effettivamente usata** ([D-116],
+	// `#641`, deciso il 2026-09-12).
+	//
+	// Finche' `Action.Sprint` risolveva in `FastMovement`, il divieto si registrava dove lo scatto risultava
+	// usato — piu' in basso in questa stessa funzione, e il commento la' spiega perche' quel punto era
+	// l'unico onesto. Con lo Sprint spostato **dopo il Blast** quel punto **non gira piu' per lui**, e la
+	// reazione sarebbe gia' scattata prima che qualcuno si accorgesse del divieto: il prezzo sparirebbe da
+	// solo, senza che nessuna decisione lo avesse tolto.
+	//
+	// 🔑 **Si legge il piano e non l'`ActionId`**: `MakePlanFor` compone le voci che il giocatore ha
+	// dichiarato, e ognuna porta il proprio `bAllowsReaction` dal catalogo. Cosi' un kit che dichiarasse
+	// un'altra azione «chi la usa non para» e' coperto senza toccare questa riga — la stessa disciplina per
+	// cui lo slot lo dice il catalogo e non il campo in cui l'azione e' scritta.
+	//
+	// ⚠️ **Si paga l'IMPEGNO DICHIARATO, non il movimento avvenuto**, ed e' la conseguenza accettata della
+	// decisione: chi dichiara lo Sprint e poi non si muove davvero — fallback, cella occupata — perde la
+	// reazione comunque. E' la stessa giustificazione con cui [D-116] difende il caso dell'unita' radicata
+	// da `Action.Root`, che paga la penalita' per un movimento che non avviene: *«e' la regola, perche'
+	// colpisce l'impegno dichiarato»*.
+	for (ARTUnit* Unit : Units)
+	{
+		if (!IsValid(Unit))
+		{
+			continue;
+		}
+		for (const FRTPlannedAction& Planned : URTPlanValidationLibrary::MakePlanFor(Unit))
+		{
+			if (!Planned.Def.bAllowsReaction)
+			{
+				ReactionBlockedThisTurn.Add(Unit);
+				break;
+			}
+		}
+	}
+
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
 	TArray<int32> PendingImpactAttackerIdx;
@@ -4499,10 +4534,17 @@ void ARTTurnManager::ResolveDash()
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
 
-		// Chi ha usato un'azione che nega la reazione (CP 5.1: `Action.Sprint`) non ne tiene pronta una in
-		// questo turno, comunque sia pianificata — vale QUI, non dove lo scatto e' stato solo pianificato,
-		// perche' qui e' l'unico punto in cui l'azione risulta EFFETTIVAMENTE usata (non su cooldown, non
-		// scartata dal fallback).
+		// Chi ha usato un'azione che nega la reazione non ne tiene pronta una in questo turno. Vale QUI per
+		// le mobilita' che risolvono in `FastMovement`: qui l'azione risulta EFFETTIVAMENTE usata — non su
+		// cooldown, non scartata dal fallback.
+		//
+		// ⚠️ **Dal 2026-09-12 questo ramo non ha piu' soggetti nel catalogo di serie, e non e' morto.**
+		// `Action.Sprint` era l'unica azione con `bAllowsReaction = false` ed e' migrata a
+		// `NormalMovement` ([D-116], `#641`): per lei il divieto si valuta ora sul **piano**, all'inizio di
+		// questa stessa funzione. Il ramo resta perche' e' il meccanismo con cui una mobilita' RAPIDA
+		// dichiara lo stesso divieto, e per quelle «usata davvero» e «dichiarata» restano due fatti
+		// diversi — la ragione per cui questo punto fu scelto vale ancora, per loro.
+		// ⛔ Il doppio conteggio non e' un rischio: `ReactionBlockedThisTurn` e' un `TSet`.
 		if (!Used->Def.bAllowsReaction)
 		{
 			ReactionBlockedThisTurn.Add(Unit);

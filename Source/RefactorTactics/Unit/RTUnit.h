@@ -407,6 +407,29 @@ public:
 	TArray<FRTCellId> PlannedWaypoints;
 
 	/**
+	 * Il PROFILO DI MOVIMENTO dichiarato per questo turno (`#1410`, [D-401]): `MovementProfile.Move`,
+	 * `...Sprint`, ... Vive accanto ai waypoint perche' e' **la seconda decisione di movimento**, dopo la
+	 * destinazione — e come loro si edita fino al lock-in.
+	 *
+	 * 🔑 **`NAME_None` significa «il neutro», e lo traduce chi legge.** Il campo nasce vuoto — e' il
+	 * default di un `FName`, e un'unita' deserializzata da un salvataggio anteriore a `#1410` lo troverebbe
+	 * vuoto comunque — quindi la traduzione sta in `URTPlanValidationLibrary::MakePlanFor`, in un punto
+	 * solo: vuoto ⇒ `Action.Move`, cioe' il comportamento identico a prima di questa issue. Inizializzarlo
+	 * nel costruttore avrebbe lasciato il caso della deserializzazione scoperto e due verita' sul default.
+	 *
+	 * ⛔ **`MovementProfile.Still` NON si scrive qui**: quello e' la lettura di un piano *senza* movimento,
+	 * che `ProfileForPlan` ricava dall'assenza di una voce di movimento. Scriverlo darebbe due modi di
+	 * dire «fermo» — questo campo e l'assenza di waypoint — che possono contraddirsi.
+	 *
+	 * ⛔ **Non e' replicato, come `PlannedWaypoints` e `PlannedCell` qui sopra, e non e' un dettaglio.**
+	 * Il profilo e' intento di pianificazione: dire a un avversario *«questo sprinta»* prima del lock-in
+	 * gli anticipa la distanza che quell'unita' puo' coprire, cioe' esattamente l'informazione che la
+	 * simultaneita' esiste per nascondere.
+	 */
+	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
+	FName PlannedMovementProfileId;
+
+	/**
 	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
 	 * OCCUPATA da un'altra unita' (#79).
 	 *

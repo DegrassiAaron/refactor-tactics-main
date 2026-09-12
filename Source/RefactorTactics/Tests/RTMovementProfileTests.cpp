@@ -274,4 +274,125 @@ bool FRTMovementProfileSnapshotCarriesBothBudgets::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * `AC-4` e `AC-6` di `#1410`: quali profili il selettore OFFRE, e le tre ragioni diverse per cui gli altri
+ * restano fuori.
+ *
+ * ⚠️ **Le tre esclusioni non sono la stessa cosa, e il test le tiene separate**: `Sneak` non ha numeri
+ * (`AE-5`), `Still` e' derivato dall'assenza di piano, `Withdraw` e' riservato all'`Overwatch` ([D-070]).
+ * Un test che asserisse solo la cardinalita' resterebbe verde se una delle tre uscisse per la ragione
+ * sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileOfferableExcludesForThreeReasons,
+	"RefactorTactics.MovementProfile.OfferableExcludesForThreeReasons",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileOfferableExcludesForThreeReasons::RunTest(const FString&)
+{
+	TArray<FName> Ids;
+	for (const FRTMovementProfile& Profile : URTMovementProfileLibrary::OfferableProfiles())
+	{
+		Ids.Add(Profile.Id);
+	}
+
+	// `Sneak`: senza numeri finche' `AE-5` e' aperta. Senza questo test, il giorno in cui qualcuno inventa
+	// quei numeri il selettore lo mostra e `AE-5` si chiude per inerzia.
+	TestFalse(TEXT("Sneak non e' offribile: non ha numeri (AE-5)"),
+		Ids.Contains(URTMovementProfileLibrary::ProfileSneak));
+
+	// `Still`: e' la lettura di «non mi muovo», e si ottiene cancellando i waypoint.
+	TestFalse(TEXT("Still non e' offribile: e' derivato dall'assenza di piano"),
+		Ids.Contains(URTMovementProfileLibrary::ProfileStill));
+
+	// `Withdraw`: lo impone l'`Overwatch`, e sceglierlo a mano sarebbe una seconda verita' sullo stesso
+	// vincolo.
+	TestFalse(TEXT("Withdraw non e' offribile: lo riserva l'Overwatch (D-070)"),
+		Ids.Contains(URTMovementProfileLibrary::ProfileWithdraw));
+
+	// ⛔ E il selettore non e' vuoto: il neutro c'e' sempre, altrimenti i tre `TestFalse` sopra sarebbero
+	// veri anche con un elenco vuoto — il verde per vacuita' che questo assert impedisce.
+	TestTrue(TEXT("il Move e' offribile"), Ids.Contains(URTMovementProfileLibrary::ProfileMove));
+	return true;
+}
+
+/**
+ * `AC-2` di `#1410`, la meta' che questa PR consegna: **il profilo dichiarato entra nel piano**.
+ *
+ * 🔑 Non e' un dettaglio di composizione: da qui passa tutto il resto — il budget dello snapshot
+ * (`MakeSimUnit` -> `ProfileForPlan`) e il divieto di reazione di [D-116], che legge il piano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileActionForProfileIsTheInverse,
+	"RefactorTactics.MovementProfile.ActionForProfileIsTheInverse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileActionForProfileIsTheInverse::RunTest(const FString&)
+{
+	const FRTActionDef ForMove =
+		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileMove);
+	const FRTActionDef ForSprint =
+		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileSprint);
+
+	TestEqual(TEXT("il profilo Move porta ad Action.Move"), ForMove.ActionId, FName(TEXT("Action.Move")));
+	TestEqual(TEXT("il profilo Sprint porta ad Action.Sprint"), ForSprint.ActionId,
+		FName(TEXT("Action.Sprint")));
+
+	// L'inversa e' davvero tale: si torna al punto di partenza.
+	TestEqual(TEXT("e l'andata e ritorno chiude"), ForSprint.MovementProfileId,
+		URTMovementProfileLibrary::ProfileSprint);
+
+	// ⛔ Un profilo che nessuna azione nomina non produce un'azione inventata.
+	TestTrue(TEXT("un profilo senza azione non produce un Def"),
+		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileWithdraw)
+			.ActionId.IsNone());
+	return true;
+}
+
+/**
+ * `#641` / [D-116]: lo Sprint paga TRE prezzi, e questo test li asserisce insieme perche' le voci della
+ * decisione **non sono separabili**.
+ *
+ * ⛔ **Il caso che nessuno vuole e' la migrazione a meta'**: fase spostata e prezzi rimasti indietro
+ * produce l'upgrade puro che [D-015] vieta — 8 punti contro 5, `Exposed` inerte, nessun cooldown. Tre
+ * asserzioni separate cadrebbero una alla volta lasciando credere a un difetto isolato; qui cadono
+ * insieme, che e' la forma della decisione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileSprintPaysItsPrices,
+	"RefactorTactics.MovementProfile.SprintPaysItsPrices",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileSprintPaysItsPrices::RunTest(const FString&)
+{
+	FRTActionDef Sprint;
+	if (!TestTrue(TEXT("Action.Sprint e' nel catalogo"), FindCoreAction(TEXT("Action.Sprint"), Sprint)))
+	{
+		return false;
+	}
+
+	// (1) La fase: dopo il Blast, quindi non spara da una posizione nuova.
+	TestEqual(TEXT("D-116 voce 1: Sprint risolve in NormalMovement"),
+		Sprint.ResolutionPhase, ERTResolutionPhase::NormalMovement);
+
+	// (4) Il prezzo che la migrazione gli toglierebbe, restituito: `Exposed` due turni.
+	int32 ExposedTurns = 0;
+	for (const FRTActionEffectSpec& Effect : Sprint.Effects)
+	{
+		if (Effect.Effect == ERTActionEffect::Status)
+		{
+			ExposedTurns = FMath::Max(ExposedTurns, Effect.StatusDuration);
+		}
+	}
+	TestEqual(TEXT("D-116 voce 4: Exposed dura 2 turni, altrimenti e' inerte dopo il Blast"),
+		ExposedTurns, 2);
+
+	// Il terzo prezzo: chi corre non para. Il FLAG resta sul catalogo; a leggerlo dal PIANO e non piu' dal
+	// solo `ResolveDash` e' `ARTTurnManager`, perche' in fase Move lo scatto non passa piu' di li'.
+	TestFalse(TEXT("D-116: lo Sprint nega la reazione"), Sprint.bAllowsReaction);
+
+	// Controprova: il Move normale non paga nessuno dei tre, altrimenti gli assert sopra non
+	// distinguerebbero lo Sprint da qualunque azione.
+	FRTActionDef Move;
+	TestTrue(TEXT("Action.Move e' nel catalogo"), FindCoreAction(TEXT("Action.Move"), Move));
+	TestTrue(TEXT("il Move normale conserva la reazione"), Move.bAllowsReaction);
+	TestEqual(TEXT("e non applica effetti"), Move.Effects.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

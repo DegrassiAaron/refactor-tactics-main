@@ -336,18 +336,18 @@ bool FRTRetiredStableIdTest::RunTest(const FString&)
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintIsAMoveProfileTest,
-	"RefactorTactics.Actions.SprintIsAMoveProfileResolvedPreBlast",
+	"RefactorTactics.Actions.SprintIsAMoveProfileResolvedAfterBlast",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 {
 	// #199, seconda voce — `Action.Sprint`. Il DoD ammetteva due vie: migrare la fase, **oppure** scrivere
-	// perche' resta dov'e'. E' stata scelta la seconda, e questo test e' la forma eseguibile di quella
-	// motivazione: senza, «documentato» sarebbe una frase in un file che nessuno ricontrolla.
+	// perche' resta dov'e'. Fu scelta la seconda ([D-068]); [D-116] l'ha rovesciata il 2026-08-12, e la
+	// migrazione e' avvenuta il **2026-09-12** in `#641`.
 	//
-	// ⛔ **Quella scelta e' stata rovesciata da [D-116] il 2026-08-12**: la prima via — migrare — e' ora la
-	// decisione, e questo test pinna un arretrato in attesa di #641. Il blocco piu' sotto lo dichiara per
-	// esteso; questa riga esiste perche' chi legge dall'alto non concluda che la seconda via sia ancora
-	// quella in vigore.
+	// 🔴 **Il nome di questo test e' cambiato con la fase che pinna** — era
+	// `SprintIsAMoveProfileResolvedPreBlast` — perche' un nome che dichiara il contrario di cio' che il test
+	// asserisce e' peggio di nessun nome. I documenti che lo citano al vecchio nome registrano la misura del
+	// giorno in cui fu scritto; le spec correnti sono state aggiornate.
 	//
 	// COSA DICE IL CANONE. [D-015]: «`Sneak · Normal · Sprint` sono profili della famiglia `Move`» e
 	// «**`Sprint` non e' un Dash**». [D-028]: `Sprint` e' «solo movimento», cioe' slot Movimento.
@@ -366,23 +366,19 @@ bool FRTSprintIsAMoveProfileTest::RunTest(const FString&)
 	TestTrue(TEXT("D-028: Sprint spende lo slot MOVIMENTO, non il principale"),
 		Sprint.Slot == ERTActionSlot::Movement && Sprint.Slot == Move.Slot);
 
-	// ⛔ **LA DECISIONE E' STATA PRESA, e da allora questo blocco pinna un ARRETRATO — non una scelta in
-	// vigore.** [D-116] (2026-08-12) supera [D-068]: `Action.Sprint` migra a `NormalMovement`, `Exposed`
-	// passa a 2 turni, e il profilo di movimento entra nella legalita' delle azioni. Le quattro voci non
-	// sono separabili — la prima da sola produrrebbe l'upgrade puro che [D-015] vieta.
+	// ✅ **MIGRATA il 2026-09-12** ([D-116] voce 1, `#641`): `Action.Sprint` risolve in `NormalMovement`,
+	// cioe' **dopo il Blast**, e smette di sparare da una posizione nuova — che e' cio' che il catalogo
+	// §2.1 gli attribuiva da sempre e che il codice contraddiceva.
 	//
-	// ⚠️ **Il verde qui sotto misura quanto il codice e' indietro, non che abbia ragione.** La migrazione e'
-	// **E38 (v0.2)**, issue #641, che dichiara di non aprirsi prima dei gate della v0.1: finche' quei gate
-	// non chiudono, questo assert DEVE restare verde. Il giorno in cui #641 parte, cade — ed e' il gate
-	// della migrazione, non un danno: D-116 lo elenca fra i propri costi misurati.
-	//
-	// *(Il testo che stava qui presentava la fase pre-Blast come «divergenza DICHIARATA, non una svista»,
-	// con la motivazione di D-068 — vero fino al 2026-08-12, falso dal giorno dopo. D-116 chiedeva di
-	// registrare subito questo debito: «fino alla migrazione il commento di quel test resta verde e falso».
-	// Registrato il 2026-08-25, tredici giorni dopo. La motivazione originale resta leggibile in D-068 e
-	// nella voce D-116 che la supera, quindi chi migrera' trova ancora il perche' era com'era.)*
-	TestTrue(TEXT("#641/D-116: Sprint e' ANCORA pre-Blast — arretrato dichiarato, migrazione in E38 (v0.2)"),
-		Sprint.ResolutionPhase == ERTResolutionPhase::FastMovement);
+	// ⚠️ **Questa riga da sola non basta a dire che la migrazione e' giusta, ed e' voluto**: le quattro voci
+	// di D-116 non sono separabili, e la fase da sola produrrebbe l'upgrade puro che [D-015] vieta. Il prezzo
+	// che la accompagna — `Exposed` a **2** turni — lo pinna
+	// `Actions.Sprint.ExposedDurationTracksItsReaderPhase` qui sotto, che era gia' scritto come **verde
+	// condizionato**: passa oggi e passa dopo una migrazione fatta INTERA, e cade nel solo caso che nessuno
+	// vuole — fase spostata, durata rimasta `1`. Il terzo prezzo, il divieto di reazione, si valuta ora sul
+	// **piano** (`ARTTurnManager`, dove il set nasce) perche' lo scatto non passa piu' da `ResolveDash`.
+	TestTrue(TEXT("#641/D-116: Sprint risolve DOPO il Blast, come il Move normale"),
+		Sprint.ResolutionPhase == ERTResolutionPhase::NormalMovement);
 	TestTrue(TEXT("...mentre il Move normale resta l'ultima fase volontaria"),
 		Move.ResolutionPhase == ERTResolutionPhase::NormalMovement);
 
@@ -414,7 +410,7 @@ bool FRTSprintExposedDurationTracksReaderPhaseTest::RunTest(const FString&)
 	// rimasta `1`. Un test rosso di proposito su `main` sarebbe invece una tassa per ogni sessione, ed e' la
 	// ragione per cui `test/sprint-exposed-misura` non e' stato mergiato.
 	//
-	// 🔑 E' il fratello di `Actions.SprintIsAMoveProfileResolvedPreBlast`, qui sopra: quello pinna la fase,
+	// 🔑 E' il fratello di `Actions.SprintIsAMoveProfileResolvedAfterBlast`, qui sopra: quello pinna la fase,
 	// questo pinna cio' che la fase **impone al prezzo**.
 	const FRTActionDef Sprint = CoreActionDef(TEXT("Action.Sprint"));
 	if (!TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint"))))

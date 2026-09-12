@@ -263,6 +263,17 @@ protected:
 	TObjectPtr<UInputAction> PrepWindowPauseAction;
 
 	/**
+	 * Cicla il PROFILO DI MOVIMENTO dichiarato per l'unita' selezionata (`#1410`, `AC-1`).
+	 *
+	 * ⚠️ **Un gesto solo per tutti i profili, e non una hotkey per ciascuno.** I profili non sono azioni
+	 * ([D-015]: sono alternative sullo stesso slot), quindi non passano dalla tabella delle hotkey per
+	 * `ActionId` di `#1409` — che assegna un tasto a un'AZIONE del kit. Dargliene uno ciascuno avrebbe
+	 * dichiarato il contrario: che scegliere `Sprint` e' come premere `Guard`.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MovementProfileAction;
+
+	/**
 	 * `K`: ferma e riprende il **playback della risoluzione** (`#2858`, comandi di `#1879`).
 	 *
 	 * 🔴 **NON `P`, e la scelta va detta perche' le due pause si somigliano.** `P` e' la pausa della
@@ -687,6 +698,19 @@ private:
 	 * un senso. E' la stessa scelta gia' fatta per `OnCyclePlaybackSpeed`, che pure non ne ha.
 	 */
 	void OnTogglePrepWindowPause(const FInputActionValue& Value);
+
+	/**
+	 * Cicla il profilo di movimento dell'unita' selezionata, e applica al percorso gia' disegnato la regola
+	 * di [D-401]: il cambio e' **sempre accettato**, il percorso **sopravvive** se resta legale col profilo
+	 * nuovo ed e' **azzerato** se non lo e' (`#1410` `AC-3`).
+	 *
+	 * ⛔ **Non passa da `RebuildPlannedPath`, e la differenza e' [D-404].** Quella azzera il rifiuto di
+	 * `NoteMovePlanRejection` perche' l'insieme dei waypoint e' cambiato; un cambio di profilo non ne toglie
+	 * nessuno, e applicarle lo stesso azzeramento declasserebbe **in silenzio** un «fermo: cella occupata»
+	 * vero — la falsita' esatta per cui `#79` esiste. Qui il rifiuto segue il percorso: sopravvive con lui,
+	 * si azzera con lui.
+	 */
+	void OnCycleMovementProfile(const FInputActionValue& Value);
 
 	/**
 	 * `K` — ferma o riprende il playback della risoluzione (`#2858`).

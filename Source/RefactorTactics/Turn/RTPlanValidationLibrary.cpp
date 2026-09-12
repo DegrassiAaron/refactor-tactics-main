@@ -1,4 +1,5 @@
 #include "Turn/RTPlanValidationLibrary.h"
+#include "Ability/RTMovementProfileLibrary.h"
 
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
@@ -90,13 +91,29 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// preview della HUD a ogni click, il bot a ogni turno), quindi quell'allocazione cadrebbe una volta
 		// per unita' che si muove. E' lo stesso rimedio, per la stessa causa, gia' applicato a
 		// `GetReactionProfileCatalog` dopo una misura di code review.
-		static const FRTActionDef Move = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
-		if (!Move.ActionId.IsNone())
+		// 🔑 **Il PROFILO dichiarato decide quale azione di movimento entra nel piano** (`#1410`, [D-401]).
+		// Il giocatore sceglie un profilo; il piano porta un'azione, ed e' `FindActionForProfile` a fare la
+		// conversione — l'inversa di `FRTActionDef::MovementProfileId`, in un punto solo.
+		//
+		// ⚠️ **`NAME_None` significa «il neutro», e la traduzione avviene QUI.** Il campo sull'unita' nasce
+		// vuoto, e un'unita' deserializzata da un salvataggio anteriore a `#1410` lo trova vuoto comunque:
+		// tradurlo in un punto solo e' cio' che rende vero *«chi non ha mai toccato il selettore si muove
+		// come prima»*, senza che ogni lettore debba conoscere un terzo caso.
+		const FName DeclaredProfile = Unit->PlannedMovementProfileId;
+		const FRTActionDef Movement = DeclaredProfile.IsNone()
+			? URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"))
+			: URTMovementProfileLibrary::FindActionForProfile(DeclaredProfile);
+
+		if (!Movement.ActionId.IsNone())
 		{
 			FRTPlannedAction Entry;
-			Entry.Def = Move;
+			Entry.Def = Movement;
 			Plan.Add(Entry);
 		}
+		// ⛔ Un profilo dichiarato che nessuna azione nomina **non** ripiega sul `Move`: la voce non si
+		// aggiunge, esattamente come per un'abilita' senza `ActionId` qui sopra. Ripiegare darebbe al
+		// giocatore il budget del neutro dopo avergli mostrato un'altra scelta, che e' peggio del non
+		// muoversi — e il posto dove quel difetto deve farsi vedere e' il test del catalogo.
 	}
 
 	return Plan;

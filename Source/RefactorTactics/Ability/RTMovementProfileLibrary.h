@@ -53,4 +53,38 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
 	static FRTMovementProfile ProfileForPlan(const TArray<FRTPlannedAction>& Plan);
+
+	/**
+	 * L'azione del catalogo core che NOMINA quel profilo, o un `Def` vuoto (`ActionId.IsNone()`) se
+	 * nessuna lo fa (`#1410`).
+	 *
+	 * E' l'inversa di `FRTActionDef::MovementProfileId`, e serve al selettore: il giocatore sceglie un
+	 * **profilo**, il piano porta un'**azione**. Senza questa funzione il selettore dovrebbe conoscere la
+	 * corrispondenza per nome, che e' la seconda sede che `#653` ha evitato.
+	 *
+	 * ⚠️ **Il catalogo si scorre una volta sola.** `GetCoreActionCatalog()` costruisce l'array a ogni
+	 * invocazione, e questa funzione la chiama il compositore del piano — cioe' la HUD a ogni click. La
+	 * cache e' la stessa disciplina gia' applicata a `MakePlanFor` e a `GetReactionProfileCatalog`.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
+	static FRTActionDef FindActionForProfile(FName ProfileId);
+
+	/**
+	 * I profili che il giocatore puo' SCEGLIERE, nell'ordine del catalogo (`#1410`, `AC-1`).
+	 *
+	 * Sono quelli `bPlannable` **meno** i due che l'`AC-4` esclude, e le due esclusioni hanno ragioni
+	 * diverse che non vanno confuse:
+	 *
+	 * - `Withdraw` e' **riservato**: lo impone l'`Overwatch` ([D-070]), e sceglierlo a mano sarebbe una
+	 *   seconda verita' sullo stesso vincolo;
+	 * - `Still` e' **derivato**: e' la lettura di «non ho pianificato movimento», e si ottiene cancellando
+	 *   i waypoint. Offrirlo darebbe due gesti per lo stesso fatto.
+	 *
+	 * ⛔ **E un profilo senza un'azione che lo nomini non e' offribile**, per quanto `bPlannable` dica di
+	 * si': il piano porta azioni, quindi un profilo irraggiungibile comparirebbe nel selettore e non
+	 * arriverebbe mai al piano. E' il caso di `Sprint` finche' `Action.Sprint` non entra nel kit di
+	 * qualcuno.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
+	static TArray<FRTMovementProfile> OfferableProfiles();
 };
