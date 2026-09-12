@@ -1,11 +1,12 @@
 {
  "repo": "DegrassiAaron/refactor-tactics-main",
- "fetched": "2026-08-27",
+ "fetched": "2026-09-12",
  "items": {
   "10": {
    "state": "closed",
    "title": "fix(camera): zoom più ravvicinato (DefaultArmLength 800, MinArmLength 100)",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "17": {
    "state": "closed",
@@ -17,6 +18,16 @@
    "title": "CP 3.3 — Misurazione dei budget su hex",
    "type": "issue"
   },
+  "66": {
+   "state": "closed",
+   "title": "CP 8.3 — Propagazione elettrica deterministica",
+   "type": "issue"
+  },
+  "67": {
+   "state": "closed",
+   "title": "CP 8.4 — Interazioni fuoco e acqua",
+   "type": "issue"
+  },
   "70": {
    "state": "closed",
    "title": "CP 9.2 — Copertura alta e distruzione",
@@ -25,6 +36,26 @@
   "73": {
    "state": "closed",
    "title": "CP 9.5 — Pannello cinetico e coperture temporanee",
+   "type": "issue"
+  },
+  "75": {
+   "state": "closed",
+   "title": "CP 10.2 — Obiettivo contestabile",
+   "type": "issue"
+  },
+  "76": {
+   "state": "closed",
+   "title": "CP 10.3 — Fine partita a tre vie",
+   "type": "issue"
+  },
+  "78": {
+   "state": "closed",
+   "title": "CP 11.2 — Intenti alleati con livello di certezza",
+   "type": "issue"
+  },
+  "79": {
+   "state": "open",
+   "title": "CP 11.3 — Combat log con reason code completi",
    "type": "issue"
   },
   "81": {
@@ -47,6 +78,11 @@
    "title": "Bilanciamento: Vektor domina Flux e Riva su tutte le statistiche base",
    "type": "issue"
   },
+  "137": {
+   "state": "closed",
+   "title": "Status.Marked non e' cablato in ResolveCombat: il marchio non fa nulla in partita",
+   "type": "issue"
+  },
   "145": {
    "state": "closed",
    "title": "Il bot non pianifica mai una carica che colpisce: l'impatto e' irraggiungibile",
@@ -55,6 +91,11 @@
   "149": {
    "state": "open",
    "title": "Bilanciamento del bot: la carica e' dominata, e far valere lo slot Principale manda la partita in stallo",
+   "type": "issue"
+  },
+  "151": {
+   "state": "open",
+   "title": "[EPIC v0.1] E13 — Conoscenza parziale: vista e udito",
    "type": "issue"
   },
   "152": {
@@ -72,6 +113,16 @@
    "title": "CP 13.4 — Rumore → contatto incerto, vista filtrata per squadra",
    "type": "issue"
   },
+  "162": {
+   "state": "closed",
+   "title": "CP 14.2 — Micro-step del movimento step-able, a comportamento invariato",
+   "type": "issue"
+  },
+  "163": {
+   "state": "closed",
+   "title": "CP 14.3 — Modello unificato opportunity → commit, senza regressioni",
+   "type": "issue"
+  },
   "165": {
    "state": "closed",
    "title": "CP 14.5 — Finestra, commit e primo consumatore (Overwatch universale)",
@@ -80,6 +131,16 @@
   "166": {
    "state": "open",
    "title": "CP 14.6 — Counterplay, UI della finestra e misura del pacing",
+   "type": "issue"
+  },
+  "172": {
+   "state": "open",
+   "title": "CP 11.5 — Ghost Timeline: preview del piano per fase",
+   "type": "issue"
+  },
+  "173": {
+   "state": "open",
+   "title": "CP 11.6 — Scrubbing delle fasi e ramo condizionale della reaction",
    "type": "issue"
   },
   "178": {
@@ -123,8 +184,33 @@
    "type": "issue"
   },
   "214": {
-   "state": "open",
+   "state": "closed",
    "title": "[EPIC] E19 · Classe di mappa e composizione",
+   "type": "issue"
+  },
+  "215": {
+   "state": "closed",
+   "title": "CP 19.1 · `MapClass` sul dato mappa",
+   "type": "issue"
+  },
+  "217": {
+   "state": "open",
+   "title": "[EPIC] E20 · HUD Icon Language",
+   "type": "issue"
+  },
+  "219": {
+   "state": "open",
+   "title": "CP 20.2 · Categorie della v0.1",
+   "type": "issue"
+  },
+  "220": {
+   "state": "open",
+   "title": "CP 20.3 · I widget consumano il catalogo",
+   "type": "issue"
+  },
+  "226": {
+   "state": "closed",
+   "title": "CP 18.1 · Modello e boundary",
    "type": "issue"
   },
   "241": {
@@ -135,6 +221,16 @@
   "242": {
    "state": "closed",
    "title": "La combo Riva→Flux (Wet + LinearDischarge) non è realizzabile in partita",
+   "type": "issue"
+  },
+  "265": {
+   "state": "open",
+   "title": "[EPIC] E25 · Icon Language completo",
+   "type": "issue"
+  },
+  "266": {
+   "state": "open",
+   "title": "CP 25.1 · Tassonomia completa e governance",
    "type": "issue"
   },
   "282": {
@@ -162,10 +258,21 @@
    "title": "CP E21.3 — Leggibilità tattica",
    "type": "issue"
   },
+  "291": {
+   "state": "open",
+   "title": "Facing finale: il secondo click sulla destinazione sostituisce il tasto T",
+   "type": "issue"
+  },
+  "295": {
+   "state": "closed",
+   "title": "CP 13.4: un TurnLog «sanitizzato per squadra» toglie il determinismo al replay",
+   "type": "issue"
+  },
   "306": {
    "state": "closed",
    "title": "docs(movimento): Model A (D-045) e tre scenari-specifica — riconciliata con ADR-0008",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "307": {
    "state": "closed",
@@ -182,9 +289,14 @@
    "title": "Profili di attacco base per eroe (RT-FEAT-ACTION-BASIC-ATTACK-PROFILES)",
    "type": "issue"
   },
+  "322": {
+   "state": "open",
+   "title": "[EPIC v0.2] E35 · Roster 8: Sentinel Directorate e Resonance",
+   "type": "issue"
+  },
   "324": {
    "state": "open",
-   "title": "[EPIC v0.2] E23 · Muri, porte e interaction graph",
+   "title": "[EPIC v0.1] E23 · Muri, porte e interaction graph",
    "type": "issue"
   },
   "326": {
@@ -192,9 +304,19 @@
    "title": "[EPIC v0.2] E26 · Tactical Bot v1",
    "type": "issue"
   },
+  "336": {
+   "state": "closed",
+   "title": "[DOCS] Consolidamento cluster Characters & Roster",
+   "type": "issue"
+  },
   "339": {
    "state": "open",
-   "title": "[DESIGN] Facing: nove decisioni aperte (FAC-3, FAC-5…FAC-9, FAC-12…FAC-14)",
+   "title": "[DESIGN] Facing: le FAC sono decise (D-365); resta da costruire l'orientamento automatico di Interact (FAC-6)",
+   "type": "issue"
+  },
+  "340": {
+   "state": "closed",
+   "title": "[DOCS] Collegare RT-FEAT-MAP-INTERACTIVE-EDGES e le feature di E10 al nuovo owner spec",
    "type": "issue"
   },
   "341": {
@@ -205,12 +327,14 @@
   "346": {
    "state": "closed",
    "title": "Profili di attacco base per eroe: Bastion smette di essere il più forte del roster",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "351": {
    "state": "closed",
    "title": "Tre difetti trovati rivedendo #346",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "353": {
    "state": "closed",
@@ -292,6 +416,11 @@
    "title": "GEO-3: le semantiche di fine Move e il grafo causale vanno riconciliate col TurnLog v6",
    "type": "issue"
   },
+  "435": {
+   "state": "open",
+   "title": "[EPIC v0.2] E36 · Framework degli status: capability, primitive e severity",
+   "type": "issue"
+  },
   "436": {
    "state": "open",
    "title": "CP 36.1 · Tassonomia delle capability",
@@ -323,8 +452,13 @@
    "type": "issue"
   },
   "472": {
-   "state": "open",
+   "state": "closed",
    "title": "Replay R6: l'interfaccia — guardare una partita registrata, e sapere dove si e'",
+   "type": "issue"
+  },
+  "486": {
+   "state": "closed",
+   "title": "Una run della suite puo' eseguire meno test di quelli dichiarati, e nessuno se ne accorge",
    "type": "issue"
   },
   "490": {
@@ -335,7 +469,8 @@
   "494": {
    "state": "closed",
    "title": "feat(reactions): CP 14.3 — l'identita' di una opportunity e la soglia che decide il regime",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "505": {
    "state": "closed",
@@ -372,6 +507,11 @@
    "title": "Competence gate: un risultato bot-vs-bot non e' ancora una misura di bilanciamento (D-102)",
    "type": "issue"
   },
+  "552": {
+   "state": "closed",
+   "title": "Viz editor 2/4: dare volume ai blocchi, e distinguere «non si passa» da «non si vede»",
+   "type": "issue"
+  },
   "558": {
    "state": "closed",
    "title": "CP 37.3 · I quattro profili v0.1 risultano distinti dalla rubrica",
@@ -402,10 +542,21 @@
    "title": "La condizione dichiarata di D-109 gira in partita, ma nessuno scenario la esercita e il TurnLog non la porta",
    "type": "issue"
   },
+  "589": {
+   "state": "closed",
+   "title": "Privacy: manca la guardia strutturale «server-only non diventa replicated», e il canary di M10.3 va eseguito packaged",
+   "type": "issue"
+  },
+  "593": {
+   "state": "closed",
+   "title": "Il cilindro segnaposto e' il root di ARTUnit: ogni mesh aggiunta in Blueprint ne eredita la scala non uniforme",
+   "type": "issue"
+  },
   "594": {
    "state": "closed",
    "title": "docs(radar): anche il Balance si deriva dalla rubrica, e l'ordine si inverte — D-112",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "603": {
    "state": "closed",
@@ -418,7 +569,7 @@
    "type": "issue"
   },
   "605": {
-   "state": "open",
+   "state": "closed",
    "title": "CP 38.2 · Validazione del piano in Planning, con reason code deterministico",
    "type": "issue"
   },
@@ -427,9 +578,34 @@
    "title": "CP 38.3 · Compatibilità abilità↔movimento come dato, non come ramo",
    "type": "issue"
   },
+  "607": {
+   "state": "open",
+   "title": "CP 38.4 · La preview dice perché: slot, MP, cooldown, drawback e stato dell'abilità",
+   "type": "issue"
+  },
+  "609": {
+   "state": "open",
+   "title": "[EPIC v0.2] E38 · Economia del turno, accoppiamento col movimento e validazione del piano",
+   "type": "issue"
+  },
+  "610": {
+   "state": "closed",
+   "title": "[DESIGN] La risorsa firma ha tre valori in tre posti, e il costo non è a catalogo",
+   "type": "issue"
+  },
+  "613": {
+   "state": "open",
+   "title": "CP 11.7 — Screen HUD in UMG (layer §4.1)",
+   "type": "issue"
+  },
   "617": {
    "state": "open",
    "title": "[DESIGN] ECO-1 · Brace paga due volte e Guard una: quanto costa prepararsi",
+   "type": "issue"
+  },
+  "619": {
+   "state": "closed",
+   "title": "Occupancy a 12 settori: la maschera, CoreBlocked, e il Constrained che qualcuno legge",
    "type": "issue"
   },
   "620": {
@@ -445,6 +621,11 @@
   "625": {
    "state": "closed",
    "title": "Il danno da hazard non lascia traccia: Burning uccide fuori dal TurnLog canonico",
+   "type": "issue"
+  },
+  "637": {
+   "state": "open",
+   "title": "Riconciliare la tassonomia delle icone: 17 categorie del manifest non esistono nel codice",
    "type": "issue"
   },
   "641": {
@@ -467,6 +648,11 @@
    "title": "[DECISIONE] Quando l'Overwatch entrerà in un kit, chi lo arma dichiara una condizione? (dipende da BAS-2)",
    "type": "issue"
   },
+  "686": {
+   "state": "closed",
+   "title": "La soglia d'udito entra nel catalogo eroi (debito D-041)",
+   "type": "issue"
+  },
   "687": {
    "state": "closed",
    "title": "La migrazione di formato non parte mai: FormatVersion non è nei byte serializzati",
@@ -480,7 +666,8 @@
   "693": {
    "state": "closed",
    "title": "feat(noise): da dove PUO' essere venuto un rumore, senza sapere da dove e' venuto",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "695": {
    "state": "open",
@@ -493,7 +680,7 @@
    "type": "issue"
   },
   "711": {
-   "state": "open",
+   "state": "closed",
    "title": "Sonda di movimento nell'editor: dove arriva questa unita' con questo budget, e perche' quella cella no",
    "type": "issue"
   },
@@ -518,14 +705,25 @@
    "type": "issue"
   },
   "726": {
-   "state": "open",
+   "state": "closed",
    "title": "Facing: la relazione a sei direzioni relative non esiste a runtime (D-126)",
+   "type": "issue"
+  },
+  "729": {
+   "state": "closed",
+   "title": "La sovrapposizione dell'unita' esce dal viewport quando e' vicina alla camera: nome e barre spariscono insieme",
+   "type": "issue"
+  },
+  "738": {
+   "state": "closed",
+   "title": "Gate: una riga non dichiara bloccante una issue gia' chiusa",
    "type": "issue"
   },
   "750": {
    "state": "closed",
    "title": "docs(D-130): i nomi legacy escono dal repository, e metà del vincolo non c'era",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "751": {
    "state": "closed",
@@ -539,7 +737,7 @@
   },
   "753": {
    "state": "closed",
-   "title": "[D-130 · fetta 3] Gli Hero. si rinominano davvero: ID, simboli C++ e quattro file di test",
+   "title": "[D-130 · fetta 3] Gli Hero.<Nome> si rinominano davvero: ID, simboli C++ e quattro file di test",
    "type": "issue"
   },
   "757": {
@@ -547,19 +745,71 @@
    "title": "[D-130 · fetta 7] Wiki: il contenuto delle schede migra, e la sidebar smette di puntare alle legacy",
    "type": "issue"
   },
+  "759": {
+   "state": "open",
+   "title": "Privacy temporale: la finestra non deve essere deducibile dal ritmo osservato (ADR-0004 §7-bis, M10)",
+   "type": "issue"
+  },
   "765": {
    "state": "closed",
    "title": "docs(E14): i profili Brace diventano contenuto, e la revisione dell'ADR diventa una taratura",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "769": {
    "state": "closed",
    "title": "docs(D-132/D-133): i profili Brace sono tre, e la Revisione di ADR-0004 era una taratura",
-   "type": "pr"
+   "type": "pr",
+   "merged": false
+  },
+  "775": {
+   "state": "open",
+   "title": "[EPIC v0.7] E42 · Dedicated server e loop online reale",
+   "type": "issue"
   },
   "778": {
    "state": "open",
    "title": "[EPIC v1.0] E45 · Un gate di produzione, non una release di feature",
+   "type": "issue"
+  },
+  "792": {
+   "state": "closed",
+   "title": "CP 42.1 · Target di build dedicated server",
+   "type": "issue"
+  },
+  "793": {
+   "state": "closed",
+   "title": "CP 42.2 · Lifecycle di partita lato server dedicato",
+   "type": "issue"
+  },
+  "794": {
+   "state": "closed",
+   "title": "CP 42.3 · Lobby privata custom: creare, entrare, comporre le squadre",
+   "type": "issue"
+  },
+  "795": {
+   "state": "closed",
+   "title": "CP 42.4 · Riconnessione e resync: senza, la rete decide l'esito",
+   "type": "issue"
+  },
+  "796": {
+   "state": "closed",
+   "title": "CP 42.5 · Soak 3v3 su dedicated packaged",
+   "type": "issue"
+  },
+  "797": {
+   "state": "closed",
+   "title": "CP 43.1 · Batch runner: molte partite, lo stesso gioco",
+   "type": "issue"
+  },
+  "802": {
+   "state": "closed",
+   "title": "CP 43.6 · Soak lungo su packaged: quello che regge due ore",
+   "type": "issue"
+  },
+  "810": {
+   "state": "closed",
+   "title": "CP 45.3 · Rollout del matchmaking",
    "type": "issue"
   },
   "830": {
@@ -573,7 +823,7 @@
    "type": "issue"
   },
   "833": {
-   "state": "open",
+   "state": "closed",
    "title": "Chi apre D1? Il grafo sorgente -> bersaglio non esiste, e nessun dato lo esprime",
    "type": "issue"
   },
@@ -585,7 +835,8 @@
   "836": {
    "state": "closed",
    "title": "docs(map): il consolidamento walls/doors filtra l'handoff invece di applicarlo",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "839": {
    "state": "closed",
@@ -602,6 +853,26 @@
    "title": "URTMatchFormatData ha il sintomo di #687 ma non la stessa macchina: la versione non viaggia, e non c'e' migrazione da far partire",
    "type": "issue"
   },
+  "858": {
+   "state": "closed",
+   "title": "L'arena di U1 e' degradata su wip/icon-visual-language: 37 celle e tutte le transizioni",
+   "type": "issue"
+  },
+  "864": {
+   "state": "closed",
+   "title": "[Camera] Zoom ancorato al cursore e soft bounds: oggi si zooma al centro e si puo' perdere la mappa",
+   "type": "issue"
+  },
+  "877": {
+   "state": "closed",
+   "title": "L'anteprima delle celle raggiungibili non si restringe man mano che si spendono i waypoint",
+   "type": "issue"
+  },
+  "883": {
+   "state": "closed",
+   "title": "Il rebake non ha un test sull'estensione: l'idempotenza e' vera anche se tocca tutta la mappa",
+   "type": "issue"
+  },
   "886": {
    "state": "closed",
    "title": "Le decisioni di reazione tornano dal TurnLog: il Verifier non le richiede",
@@ -612,25 +883,47 @@
    "title": "Il danno deciso a un decision boundary ignora la copertura: scelta o svista? (Overwatch + Predictive)",
    "type": "issue"
   },
+  "921": {
+   "state": "open",
+   "title": "L'overlay delle superfici e' una proprieta' per-tool: sparisce cambiando strumento, e in Arch/Fill/Geometry non esiste",
+   "type": "issue"
+  },
   "926": {
    "state": "closed",
    "title": "Un pacchetto non puo' eseguire uno scenario: Scenarios non e' staged, e in Shipping -dpcvars e' compilato fuori",
    "type": "issue"
   },
+  "931": {
+   "state": "open",
+   "title": "Il gizmo dell'Arch si riaggancia in ritardo, e sparisce se si tocca la Transform dell'actor",
+   "type": "issue"
+  },
   "935": {
    "state": "closed",
    "title": "docs(926): i due documenti dicevano che gli scenari non entrano nel pacchetto, e ora entrano",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "936": {
    "state": "closed",
    "title": "CP 46.1 · Frontend root e navigation controller",
    "type": "issue"
   },
+  "938": {
+   "state": "closed",
+   "title": "CP 46.3 · Main Menu, e il pacchetto che avvia da li'",
+   "type": "issue"
+  },
+  "939": {
+   "state": "closed",
+   "title": "CP 46.4 · Play avvia il vertical slice, senza un secondo percorso",
+   "type": "issue"
+  },
   "945": {
    "state": "closed",
    "title": "feat(926): una porta d'ingresso allo scenario che funziona anche in Shipping",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "952": {
    "state": "open",
@@ -642,20 +935,46 @@
    "title": "CP 47.1 · Modalita' non presidiata: entrambe le squadre al bot, per configurazione",
    "type": "issue"
   },
+  "955": {
+   "state": "closed",
+   "title": "CP 47.2 · Ritmo osservabile: la velocita' di playback non cambia il risultato",
+   "type": "issue"
+  },
   "956": {
    "state": "closed",
    "title": "CP 47.3 · Grammatica visiva della board: colore E forma, mai solo il colore",
    "type": "issue"
   },
   "959": {
-   "state": "open",
+   "state": "closed",
    "title": "CP 47.6 · La partita registrata: PIE e packaged, con evidenza allegata",
    "type": "issue"
   },
   "960": {
-   "state": "open",
+   "state": "closed",
    "title": "[DESIGN] RNG-1/RNG-2 · Il gioco deve avere varieta' pseudo-casuale? Oggi non ha alcun RNG",
    "type": "issue"
+  },
+  "983": {
+   "state": "closed",
+   "title": "RTCellTopZ e' una costante condivisa e vive in un namespace anonimo: chi ci si appoggia la ricopia",
+   "type": "issue"
+  },
+  "986": {
+   "state": "closed",
+   "title": "L'identita' e' entrata in uno dei due hash, e il test del DoD guarda l'altro",
+   "type": "issue"
+  },
+  "996": {
+   "state": "open",
+   "title": "Un arco pendente sparisce modificando la Transform dell'actor: la causa non e' misurata",
+   "type": "issue"
+  },
+  "1007": {
+   "state": "closed",
+   "title": "CP 47.2 — la velocita' di playback si sceglie, e il TurnLog non se ne accorge",
+   "type": "pr",
+   "merged": true
   },
   "1013": {
    "state": "open",
@@ -667,14 +986,30 @@
    "title": "Il motore apre le porte e nessuno puo' chiederglielo: Action.Interact e' inerte e nessuna azione dichiara SetDoorState",
    "type": "issue"
   },
+  "1015": {
+   "state": "closed",
+   "title": "CP 47.7 · Il controllo di velocita' in HUD: la manopola esiste e nessuno puo' premerla",
+   "type": "issue"
+  },
+  "1028": {
+   "state": "closed",
+   "title": "feat(hud): il controllo di velocita' x1/x2/x4, e l'etichetta che non mente quando vince il tetto (#1015)",
+   "type": "pr",
+   "merged": true
+  },
   "1060": {
-   "state": "open",
+   "state": "closed",
    "title": "Il T6 dello showcase non ha il vocabolario per essere verificato: OriginalTargetEquals ed EffectiveTargetEquals non esistono",
    "type": "issue"
   },
   "1067": {
    "state": "closed",
    "title": "Il danno da terreno non lascia traccia: entrare nel fuoco uccide fuori dal TurnLog canonico",
+   "type": "issue"
+  },
+  "1069": {
+   "state": "closed",
+   "title": "Il BP_GameMode spedito porta un MatchFormat non versionato e forza l'arena di prova, entrati fuori dalla lease",
    "type": "issue"
   },
   "1077": {
@@ -685,6 +1020,11 @@
   "1088": {
    "state": "closed",
    "title": "I bot non attaccano mai: 12 round, zero Combat, pareggio — e dal 2026-08-17 e' il comportamento predefinito",
+   "type": "issue"
+  },
+  "1094": {
+   "state": "closed",
+   "title": "Cinque domande aperte del contratto graybox: inset, Closed vs Locked, soglie di integrita', percorso, ingombro unita' (la scala e' chiusa da D-163)",
    "type": "issue"
   },
   "1095": {
@@ -700,7 +1040,8 @@
   "1100": {
    "state": "closed",
    "title": "chore(d139): spatial rilascia i quattro path del TurnLog, e #1060 non ha piu' ostacoli",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1105": {
    "state": "open",
@@ -717,14 +1058,29 @@
    "title": "Il commento su FRTHexCover::Integrity promette CP 9.2 al futuro, e CP 9.2 e' chiuso da dieci giorni",
    "type": "issue"
   },
+  "1118": {
+   "state": "closed",
+   "title": "La risposta di reazione e la sua ragione sono un enum solo: regge Overwatch, non il Reaction Profile",
+   "type": "issue"
+  },
   "1124": {
-   "state": "open",
+   "state": "closed",
    "title": "CP 19.3 — Il formato dichiara quanti Hero controlla un Player (il bank di #319 non ha un soggetto)",
+   "type": "issue"
+  },
+  "1135": {
+   "state": "closed",
+   "title": "check-docs-naming esce 1 su main dal merge di #1126: una riga d'archivio dice ancora Vektor",
    "type": "issue"
   },
   "1150": {
    "state": "closed",
    "title": "In una voce di hazard `UnitId` porta chi SUBISCE, e chi aggrega il danno inflitto otterra' un numero plausibile e sbagliato",
+   "type": "issue"
+  },
+  "1154": {
+   "state": "closed",
+   "title": "rt.Test.DumpResult stampa sempre 'selftest': FindLatestRunDirectory ordina per nome, non per tempo",
    "type": "issue"
   },
   "1155": {
@@ -737,10 +1093,22 @@
    "title": "Due Overwatch sullo stesso mover: il secondo FIRE colpisce un bersaglio gia' abbattuto e lo scrive nel TurnLog",
    "type": "issue"
   },
+  "1165": {
+   "state": "open",
+   "title": "Riorganizzazione della documentazione — information architecture v2",
+   "type": "issue"
+  },
+  "1178": {
+   "state": "closed",
+   "title": "feat(937): i cinque WBP_RT_* di U24, e un test che si copriva col proprio asset",
+   "type": "pr",
+   "merged": true
+  },
   "1188": {
    "state": "closed",
    "title": "docs(1094): tre delle cinque GBX del contratto graybox chiuse, e le due che restano dicono cosa aspettano",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1194": {
    "state": "closed",
@@ -755,12 +1123,14 @@
   "1208": {
    "state": "closed",
    "title": "docs(1197): D-175 toglie «distrutto» dalla scaletta, e tre correzioni della riverifica",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1213": {
    "state": "closed",
    "title": "fix(1088): lo stallo era fra compagne di squadra, e PlanBots pianificava una alla volta",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1232": {
    "state": "closed",
@@ -790,7 +1160,8 @@
   "1256": {
    "state": "closed",
    "title": "chore(1255): il gate sui link si ferma al repository, e il clone della Wiki esce dalla sorveglianza",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1262": {
    "state": "closed",
@@ -807,9 +1178,19 @@
    "title": "Il colore della board non sopravvive alla resa: nove superfici, due popolazioni di luminanza a schermo",
    "type": "issue"
   },
+  "1296": {
+   "state": "closed",
+   "title": "Sulla mappa d'autore i bot oscillano fra due celle e la partita non si decide: e' il fix di #1287 a produrlo",
+   "type": "issue"
+  },
   "1300": {
    "state": "closed",
    "title": "BOT-1/BOT-2 · Il bot non ha un termine per «da qui posso ingaggiare»: filtro o punteggio?",
+   "type": "issue"
+  },
+  "1314": {
+   "state": "closed",
+   "title": "Uno stato puo' finire in tre modi che il TurnLog non sa dire: ERTStatusOutcome non ha un esito per «tolto da un altro effetto»",
    "type": "issue"
   },
   "1317": {
@@ -817,10 +1198,16 @@
    "title": "Nell'editor una copertura High nasce ancora a 30: il default derivato dal tipo non attraversa l'autoraggio",
    "type": "issue"
   },
+  "1324": {
+   "state": "closed",
+   "title": "Status.Electrified e' un tag inerte con un'icona obbligatoria: CP 8.3 e' arrivato e non lo consuma",
+   "type": "issue"
+  },
   "1369": {
    "state": "closed",
    "title": "feat(tools): un controllo in Node verifica i percorsi citati dai documenti, e vede anche le etichette che mentono",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1389": {
    "state": "closed",
@@ -830,7 +1217,8 @@
   "1390": {
    "state": "closed",
    "title": "docs(1389): il «Limite v0.1» di Cleanse era stantio su entrambi gli stati, e la prima stesura sbagliava la diagnosi",
-   "type": "pr"
+   "type": "pr",
+   "merged": false
   },
   "1392": {
    "state": "open",
@@ -840,7 +1228,8 @@
   "1395": {
    "state": "closed",
    "title": "docs(D-190): le due gerarchie rispondono a domande diverse, e il caso che conta non era coperto",
-   "type": "pr"
+   "type": "pr",
+   "merged": false
   },
   "1396": {
    "state": "closed",
@@ -850,7 +1239,8 @@
   "1397": {
    "state": "closed",
    "title": "fix(radar): il gate vede le righe che non stanno in nessuna tabella, e i fence non lo spengono",
-   "type": "pr"
+   "type": "pr",
+   "merged": false
   },
   "1402": {
    "state": "open",
@@ -859,7 +1249,12 @@
   },
   "1403": {
    "state": "open",
-   "title": "Tre azioni del catalogo non sono nel kit di nessun eroe: Cleanse, Shield e Purge sono irraggiungibili",
+   "title": "Due azioni del catalogo non sono nel kit di nessun eroe: Cleanse e Purge sono irraggiungibili",
+   "type": "issue"
+  },
+  "1410": {
+   "state": "open",
+   "title": "Il profilo di movimento non si sceglie: `Sneak · Move · Sprint · Withdraw` non arrivano all'input",
    "type": "issue"
   },
   "1412": {
@@ -875,7 +1270,8 @@
   "1426": {
    "state": "closed",
    "title": "fix(1423): un elenco solo di campi discriminanti, e la diagnosi nomina quello che diverge",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1430": {
    "state": "closed",
@@ -896,6 +1292,12 @@
    "state": "closed",
    "title": "`ApplyInterrupts` guarda solo il primo intento della vittima, e una cura senza effetti utili sparisce in silenzio",
    "type": "issue"
+  },
+  "1439": {
+   "state": "closed",
+   "title": "feat(1409): i tasti abilità arrivano a tutto il kit, e ora è una domanda interrogabile",
+   "type": "pr",
+   "merged": true
   },
   "1443": {
    "state": "closed",
@@ -932,25 +1334,1292 @@
    "title": "L'elenco delle fixture di mappa non è quello che il dispatcher accetta: `DemoArena` è dichiarata e non esiste, `ArenaV01` esiste e non è dichiarata",
    "type": "issue"
   },
+  "1466": {
+   "state": "open",
+   "title": "E13.6 · La conoscenza parziale diventa visibile: la porta filtrata, i due leak, la sagoma",
+   "type": "issue"
+  },
+  "1467": {
+   "state": "closed",
+   "title": "E13.7 · Il velo: si vede fin dove arriva la vista della squadra (e la fog of war e' una decisione di scope)",
+   "type": "issue"
+  },
   "1468": {
    "state": "closed",
    "title": "docs: fasi delle azioni — referto sul sorgente del 2026-08-26 e quattro decisioni (D-204…D-207)",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1470": {
    "state": "closed",
    "title": "docs: D-208 — chiude BAL-5, e Guard e Brace finiscono con lo stesso prezzo",
-   "type": "pr"
+   "type": "pr",
+   "merged": true
   },
   "1473": {
-   "state": "open",
+   "state": "closed",
    "title": "Un curatore che cade nel Blast scrive la cura riuscita e non quella mancata: due predicati opposti nella stessa funzione",
    "type": "issue"
   },
   "1479": {
    "state": "open",
-   "title": "CLEANSE-1: la Cleanse e' cieca al controllo, e la misura lo dice",
+   "title": "Slow e Root non sono mai contrastabili dalla Cleanse — e Slow lo applica un attacco base, ogni turno",
    "type": "issue"
+  },
+  "1485": {
+   "state": "closed",
+   "title": "feat(1403): il modulo di default di Riktor smette di duplicare la sua reazione di kit [D-218]",
+   "type": "pr",
+   "merged": true
+  },
+  "1487": {
+   "state": "closed",
+   "title": "fix(1485): il bot non armava mai il modulo di loadout, e la scelta era un accidente degli indici [D-220]",
+   "type": "pr",
+   "merged": false
+  },
+  "1491": {
+   "state": "closed",
+   "title": "Un'interazione arma la reazione da colpo: `Action.Interact` fa zero danni e incassa 10 di contrattacco",
+   "type": "issue"
+  },
+  "1496": {
+   "state": "closed",
+   "title": "Il filtro di conoscenza chiede «lo conosco adesso?» o «lo conoscevo allora?»",
+   "type": "issue"
+  },
+  "1497": {
+   "state": "closed",
+   "title": "La traccia post-lock disegna il percorso di ogni unità, di entrambe le squadre",
+   "type": "issue"
+  },
+  "1498": {
+   "state": "open",
+   "title": "Decidere se «un morto non è un soggetto di conoscenza» debba restare",
+   "type": "issue"
+  },
+  "1499": {
+   "state": "closed",
+   "title": "`AddLogEvent` perde il default, e il compilatore enumera i chiamanti",
+   "type": "issue"
+  },
+  "1500": {
+   "state": "open",
+   "title": "La presentazione non ha un confine unico su `ARTUnit`",
+   "type": "issue"
+  },
+  "1510": {
+   "state": "closed",
+   "title": "D-178 descrive un regime che non e piu quello praticato: sei sessioni, una working directory, e le misure mentono",
+   "type": "issue"
+  },
+  "1515": {
+   "state": "closed",
+   "title": "Scenario Harness: TeamId non validato e id unità duplicati accettati all'apertura",
+   "type": "issue"
+  },
+  "1525": {
+   "state": "closed",
+   "title": "Il playback anima il movimento di ogni unita', anche di quelle che la squadra non vede",
+   "type": "issue"
+  },
+  "1532": {
+   "state": "closed",
+   "title": "feat(D-230): Dash è la fase, l'azione si chiama Action.Dodge — più il gate anti-texture che guardava meno del dichiarato",
+   "type": "pr",
+   "merged": true
+  },
+  "1535": {
+   "state": "closed",
+   "title": "E13.8 · Il velo si aggancia alla presentazione, e con esso si decide di chi e' la vista",
+   "type": "issue"
+  },
+  "1551": {
+   "state": "closed",
+   "title": "I due oracoli di parcheggio rispondono in modo opposto alla stessa domanda, e nessuno dei due lo sa",
+   "type": "issue"
+  },
+  "1554": {
+   "state": "closed",
+   "title": "feat(166): le finestre di un giocatore si contano, e a tre unita' armate il tetto esaurisce il bank",
+   "type": "pr",
+   "merged": true
+  },
+  "1556": {
+   "state": "closed",
+   "title": "feat(#220): il catalogo icone esiste e i widget lo raggiungono — 61 chiavi, 62 texture",
+   "type": "pr",
+   "merged": true
+  },
+  "1563": {
+   "state": "open",
+   "title": "CP 22.3 · Richiudere è un'azione ordinaria, e una copertura distrutta non si richiude",
+   "type": "issue"
+  },
+  "1604": {
+   "state": "closed",
+   "title": "CP 44.5 · Ranked e rating: l'epic che li dichiara non ha un checkpoint che li possieda",
+   "type": "issue"
+  },
+  "1605": {
+   "state": "closed",
+   "title": "I budget di pivot per eroe di ADR-0008 non esistono a runtime: l'ADR dice «da implementare (E11/E16)» ed E16 e' chiusa",
+   "type": "issue"
+  },
+  "1606": {
+   "state": "closed",
+   "title": "[DESIGN] End Placement e PlacementSector: sette domande prima che il modello esista (PLC-1…PLC-7)",
+   "type": "issue"
+  },
+  "1614": {
+   "state": "open",
+   "title": "CP 11.8 — L'hover si vede: overlay pointy-top maggiorato, e HoveredCell resta separata dalla selezione",
+   "type": "issue"
+  },
+  "1615": {
+   "state": "open",
+   "title": "CP 11.8 — Il settore sotto il cursore: dodici spicchi da 30°, dead-zone al centro, e nessuna terza tassonomia di «settore»",
+   "type": "issue"
+  },
+  "1645": {
+   "state": "closed",
+   "title": "test(bot): la (c) di BOT-STALL-1 misurata, e su queste board non compra niente",
+   "type": "pr",
+   "merged": true
+  },
+  "1663": {
+   "state": "closed",
+   "title": "Nel pacchetto gli eroi non hanno animazioni: 756 asset Paragon cotti, zero clip",
+   "type": "issue"
+  },
+  "1665": {
+   "state": "closed",
+   "title": "Nel pacchetto la board e' nera: le celle perdono il colore, e nero non e' nessuno dei due esiti previsti",
+   "type": "issue"
+  },
+  "1697": {
+   "state": "closed",
+   "title": "Un AC che chiede di dimostrare una non-esistenza e' malformato: la regola manca, e il difetto e' gia' costato una tesi ritirata",
+   "type": "issue"
+  },
+  "1701": {
+   "state": "closed",
+   "title": "feat(td): il widget dello Scenario Composer esiste, e chiama le API che erano gia' pronte",
+   "type": "pr",
+   "merged": true
+  },
+  "1719": {
+   "state": "closed",
+   "title": "Phase, Riktor e Wraith: la skeletal e' figlia del cilindro e ne eredita la scala (1,2x piu' larga, 1,5x piu' alta)",
+   "type": "issue"
+  },
+  "1720": {
+   "state": "closed",
+   "title": "Quattro documenti mandano a costruire gli ABP_* che #288 ha scartato, e la decisione non ha un D-nnn",
+   "type": "issue"
+  },
+  "1730": {
+   "state": "closed",
+   "title": "Il viewer dell'HUD e' un letterale, e governa quattro filtri di privacy: la seconda sede che D-242 lascia aperta",
+   "type": "issue"
+  },
+  "1733": {
+   "state": "closed",
+   "title": "Due unita' vive finiscono sulla stessa cella, e l'errore strutturale che lo vieta non lo guarda nessuno in partita",
+   "type": "issue"
+  },
+  "1738": {
+   "state": "closed",
+   "title": "U13-A · L'arena ha raggio 4 e il VisionRange piu' corto e' 5: sul banco che dovrebbe provarla, la percezione non e' osservabile",
+   "type": "issue"
+  },
+  "1762": {
+   "state": "closed",
+   "title": "Al primo turno i click non muovono: il velo si stende su una conoscenza che non esiste ancora, e porta via la collisione",
+   "type": "issue"
+  },
+  "1769": {
+   "state": "open",
+   "title": "[EPIC] E49 · Tactical Camera & Map Presentation",
+   "type": "issue"
+  },
+  "1773": {
+   "state": "open",
+   "title": "CAM-04 · Il doppio click non inquadra (zero occorrenze di DoubleClick), e nulla interrompe un movimento automatico",
+   "type": "issue"
+  },
+  "1774": {
+   "state": "open",
+   "title": "CAM-05 · La Strategic View e' una conseguenza dello zoom, con isteresi — e oggi non esiste",
+   "type": "issue"
+  },
+  "1776": {
+   "state": "closed",
+   "title": "CAM-07 · Il click sceglie il layer dalla quota del colpo: passare ad ActiveLayer tocca il gameplay",
+   "type": "issue"
+  },
+  "1777": {
+   "state": "open",
+   "title": "CAM-08 · La mappa ha quattro domini spaziali e il repository ne conosce uno (D-250)",
+   "type": "issue"
+  },
+  "1778": {
+   "state": "closed",
+   "title": "CAM-09 · Il limite del pivot e' un rettangolo fisso: a pitch basso e 32:9 mezzo schermo esce dalla zona prevista",
+   "type": "issue"
+  },
+  "1779": {
+   "state": "open",
+   "title": "CAM-10 · Occlusione: zero cutaway, zero fade, e la collisione SpringArm resta spenta apposta",
+   "type": "issue"
+  },
+  "1780": {
+   "state": "open",
+   "title": "CAM-11 · L_CameraFeatureLab: una mappa sola per ri-tarare i default che sette issue hanno chiuso a tavolino",
+   "type": "issue"
+  },
+  "1781": {
+   "state": "open",
+   "title": "CAM-12 · Camera Director della Resolution — backlog, non prima che il core camera sia chiuso",
+   "type": "issue"
+  },
+  "1793": {
+   "state": "open",
+   "title": "Phase guarda dalla parte sbagliata mentre si muove: MeshYawOffset e' -90 su tutti e quattro, ma la sua mesh e' l'unica diversa",
+   "type": "issue"
+  },
+  "1800": {
+   "state": "closed",
+   "title": "determinismo: il Facing entra in FRTUnitStateDigest e nel checksum di stato",
+   "type": "issue"
+  },
+  "1801": {
+   "state": "closed",
+   "title": "presentazione: validator di esaustivita per il binding ResolvedEvent - presentazione",
+   "type": "issue"
+  },
+  "1802": {
+   "state": "closed",
+   "title": "bot: scoring tattico deterministico delle reazioni su TeamKnowledge autorizzata",
+   "type": "issue"
+  },
+  "1804": {
+   "state": "closed",
+   "title": "tooling: spostare WBP_RT_ScenarioComposer sotto /Game/RT/Editor/Scenario/ e validare l'esclusione dal cook",
+   "type": "issue"
+  },
+  "1805": {
+   "state": "open",
+   "title": "replay: separare il Public/Sanitized Replay dalla Private Audit Trace",
+   "type": "issue"
+  },
+  "1818": {
+   "state": "open",
+   "title": "ARTTurnManager e' un God Object: dodici responsabilita' in tre file, e il planning dei bot e' la funzione piu' lunga del repository",
+   "type": "issue"
+  },
+  "1826": {
+   "state": "closed",
+   "title": "MSE-4 al centro: un muro passante fa collassare tutti e dodici i settori, e la regola superata sopravvive li'",
+   "type": "issue"
+  },
+  "1827": {
+   "state": "closed",
+   "title": "E23.6 - La calpestabilita' e' l'esito di un placement per footprint, non di una soglia di settori",
+   "type": "issue"
+  },
+  "1828": {
+   "state": "closed",
+   "title": "E23.7 - Traversata intra-cella: da SideA a SideB solo con una traversata autorata, mai scegliendo la faccia",
+   "type": "issue"
+  },
+  "1829": {
+   "state": "open",
+   "title": "Copertura selezionabile: l'intento di movimento porta CoverOption/CoverSide, e l'autorita' la valida all'arrivo",
+   "type": "issue"
+  },
+  "1830": {
+   "state": "closed",
+   "title": "LOS e proiettili leggono la geometria intra-cella: l'implementazione che D-269 e D-270 attendono senza owner",
+   "type": "issue"
+  },
+  "1832": {
+   "state": "closed",
+   "title": "Validator: topologia di posa, copertura e traversata - sei regole che oggi passano in silenzio",
+   "type": "issue"
+  },
+  "1833": {
+   "state": "open",
+   "title": "[DESIGN] Copertura selezionabile e posa: otto decisioni prima dell'implementazione (COV-1...COV-8)",
+   "type": "issue"
+  },
+  "1836": {
+   "state": "open",
+   "title": "CAM-15 · La camera vede la forma della mappa mai esplorata: il pan non passa dalla conoscenza di squadra",
+   "type": "issue"
+  },
+  "1848": {
+   "state": "open",
+   "title": "[EPIC v0.2] E51 · Detriti strutturali, crolli e Rubble",
+   "type": "issue"
+  },
+  "1851": {
+   "state": "open",
+   "title": "CP 51.4 · Detriti su celle e archi: traversal, topologia e GraphRevision",
+   "type": "issue"
+  },
+  "1859": {
+   "state": "open",
+   "title": "[PlayerController] PC Gym — Planning & Input Usability Lab",
+   "type": "issue"
+  },
+  "1861": {
+   "state": "open",
+   "title": "[EPIC] Map Editor 0.1 — il gray kit tattico si disegna, si valida, e si rilegge uguale",
+   "type": "issue"
+  },
+  "1867": {
+   "state": "open",
+   "title": "No-Cross Line: una linea puo' chiudere il passo senza chiudere la vista, e senza diventare un muro",
+   "type": "issue"
+  },
+  "1872": {
+   "state": "open",
+   "title": "Map Editor 0.1 — accettazione: Save/Reload, seduta PIE, parita' packaged e cook exclusion verificata",
+   "type": "issue"
+  },
+  "1875": {
+   "state": "closed",
+   "title": "fix(1525): il playback tronca al tratto osservato, come gia' fa la traccia",
+   "type": "pr",
+   "merged": true
+  },
+  "1879": {
+   "state": "closed",
+   "title": "v0.1 · Resolution controls Vs Bot/Debug — Pause al boundary e StepMicroStep",
+   "type": "issue"
+  },
+  "1880": {
+   "state": "closed",
+   "title": "v0.1 · Replay — rendere il micro-step indirizzabile nella traccia canonica",
+   "type": "issue"
+  },
+  "1881": {
+   "state": "open",
+   "title": "[EPIC] Resolution Playback & Inspection — bot, replay e debug fino alla v1.0",
+   "type": "issue"
+  },
+  "1892": {
+   "state": "closed",
+   "title": "[DESIGN] Tactical Segment e reticola degli anchor: cinque decisioni prima di toccare la grammatica (GEO-5...GEO-9)",
+   "type": "issue"
+  },
+  "1893": {
+   "state": "closed",
+   "title": "Anchor canonico: lo stesso punto di bordo visto da due celle è un punto solo, e il muro che ci sta sopra un muro solo",
+   "type": "issue"
+  },
+  "1894": {
+   "state": "open",
+   "title": "Due segmenti si incontrano solo su un anchor: incrocio fuori-anchor, T-junction e sovrapposizione parziale oggi passano tutti",
+   "type": "issue"
+  },
+  "1895": {
+   "state": "open",
+   "title": "I tredici anchor si vedono, e le ventiquattro coppie che la grammatica non porta smettono di diventare un altro muro",
+   "type": "issue"
+  },
+  "1897": {
+   "state": "closed",
+   "title": "L'ordine APNAP a sei gruppi e' normativo e non esiste: decidere se FR-RESOLVE-01..03 vale, o se le cinque chiavi bastano",
+   "type": "issue"
+  },
+  "1898": {
+   "state": "closed",
+   "title": "E49 significa due cose: il commento del damage model punta all'epic della camera, e nessun gate lo vede",
+   "type": "issue"
+  },
+  "1900": {
+   "state": "closed",
+   "title": "fix(711): la sonda ricostruiva il roster eroi due volte per cella sorvolata, e l'Editor smetteva di seguire il mouse",
+   "type": "pr",
+   "merged": true
+  },
+  "1909": {
+   "state": "closed",
+   "title": "La Guardia diventa un pool assorbito solo dai colpi frontali: il totale non dipende piu' da chi colpisce per primo (D-289)",
+   "type": "issue"
+  },
+  "1918": {
+   "state": "closed",
+   "title": "Deflect e' ancora sensibile all'ordine dei colpi: e' una regola o il residuo di un clamp?",
+   "type": "issue"
+  },
+  "1922": {
+   "state": "closed",
+   "title": "Lo scambio diretto e i cicli chiusi riescono nel resolver, e la decisione d'autore dice che devono bloccare",
+   "type": "issue"
+  },
+  "1931": {
+   "state": "closed",
+   "title": "ERTInterruptPolicy: consegnare il tipo che D-298 decide — migrazione, ramo SuppressSecondary e rifiuto di CancelChannel",
+   "type": "issue"
+  },
+  "1936": {
+   "state": "open",
+   "title": "Il log a schermo racconta le celle, non la partita: i pannelli Canvas legacy escono e il feed del giocatore entra",
+   "type": "issue"
+  },
+  "1937": {
+   "state": "open",
+   "title": "[EPIC] Player Event Log & Explainability — dal TurnLog alla UI fino alla v1.0",
+   "type": "issue"
+  },
+  "1941": {
+   "state": "open",
+   "title": "OVL-01 · Semantic Area Overlay Foundation: cinque significati disegnati, zero modello che li dichiari",
+   "type": "issue"
+  },
+  "1942": {
+   "state": "open",
+   "title": "OVL-02 · Volumetric Region Boundary: una regione si legge dal perimetro, e oggi esistono solo venti esagoni",
+   "type": "issue"
+  },
+  "1943": {
+   "state": "open",
+   "title": "OVL-03 · Priorita' dinamica e Primary/Secondary: l'ordine e' fisso mentre la decisione del giocatore non lo e'",
+   "type": "issue"
+  },
+  "1944": {
+   "state": "open",
+   "title": "OVL-04 · I sette significati, la privacy e il costo: quattro hanno un produttore e tre no",
+   "type": "issue"
+  },
+  "1945": {
+   "state": "closed",
+   "title": "L'evento Attack non dice dove ha colpito: FRTResolvedEvent porta le celle risolte e la forma, o la presentazione dell'area e' impossibile senza ricalcolarla",
+   "type": "issue"
+  },
+  "1955": {
+   "state": "closed",
+   "title": "D-300: la Charge degrada invece di essere immune — togliere l'immunita' dell'impatto e collegare bInterrupted al runtime",
+   "type": "issue"
+  },
+  "1957": {
+   "state": "closed",
+   "title": "Il primo turno si chiude da solo dopo 6s, senza lock-in e senza timer: si gioca dal turno 2",
+   "type": "issue"
+  },
+  "1972": {
+   "state": "closed",
+   "title": "feat(1801): il gate di esaustività ResolvedEvent → presentazione",
+   "type": "pr",
+   "merged": true
+  },
+  "1990": {
+   "state": "open",
+   "title": "[EPIC] Gray Kit Playground — Visual Language & Validation Lab",
+   "type": "issue"
+  },
+  "1991": {
+   "state": "closed",
+   "title": "[GKP 0.1] L_GrayKitPlayground — shell 40x24 m, guida da 1 m e otto stazioni",
+   "type": "issue"
+  },
+  "1992": {
+   "state": "closed",
+   "title": "[GKP 0.1] Station 01 — Unit + Facing, il primo fixture leggibile",
+   "type": "issue"
+  },
+  "1993": {
+   "state": "open",
+   "title": "[GKP 0.1] Playground Panel — Station 01, focus, fixture controls e diagnostics",
+   "type": "issue"
+  },
+  "2000": {
+   "state": "closed",
+   "title": "Il resolver applica due regole che nessun test nomina: un arco per micro-step, e mai un reroute automatico",
+   "type": "issue"
+  },
+  "2001": {
+   "state": "closed",
+   "title": "docs(consolidamento): la reticola che il mandato introduce è un enum spedito, e la regola che ripete non era scritta",
+   "type": "pr",
+   "merged": true
+  },
+  "2062": {
+   "state": "closed",
+   "title": "test(2009): D-302 (3) entra nel corpus — due scenari che cadono in direzioni opposte",
+   "type": "pr",
+   "merged": true
+  },
+  "2064": {
+   "state": "closed",
+   "title": "feat(1802): la reazione si sceglie col punteggio, e il kit retrocede a spareggio — D-268",
+   "type": "pr",
+   "merged": true
+  },
+  "2069": {
+   "state": "closed",
+   "title": "test(1957): al turno 1 la selezione funziona come al turno 2 — e cio' restringe il PIE",
+   "type": "pr",
+   "merged": true
+  },
+  "2074": {
+   "state": "closed",
+   "title": "La traccia di audit non puo' falsificare l'equita' del bot: la conoscenza su cui ha deciso non sopravvive al turno",
+   "type": "issue"
+  },
+  "2083": {
+   "state": "closed",
+   "title": "feat(2074): l'evidenza d'audit esiste, e un ricalcolo la interroga invece di limitarsi a contenerla",
+   "type": "pr",
+   "merged": true
+  },
+  "2085": {
+   "state": "closed",
+   "title": "Un raggio dal centro a un lato diventa copertura di bordo: la scorciatoia di #712 e' sopravvissuta agli InteriorWalls",
+   "type": "issue"
+  },
+  "2087": {
+   "state": "closed",
+   "title": "Gadget.SmokeEmitter: manca un'azione CORE che crei fumo",
+   "type": "issue"
+  },
+  "2095": {
+   "state": "closed",
+   "title": "feat(1625): la scala di velocità del playback, e i tre criteri headless di T1",
+   "type": "pr",
+   "merged": true
+  },
+  "2098": {
+   "state": "closed",
+   "title": "replay: il filtro per osservatore e' sui CAMPI, non sulle VOCI — e il dato per farlo vive solo nel prodotto privato",
+   "type": "issue"
+  },
+  "2102": {
+   "state": "closed",
+   "title": "Il turno 1 apre 348 ms prima che la board sia allestita: StartPlanningTimer non attende ERTLoadPhase::Ready",
+   "type": "issue"
+  },
+  "2115": {
+   "state": "closed",
+   "title": "L'anteprima di scenario tiene in vita il mondo vecchio, e cambiare livello fa crashare l'editor",
+   "type": "issue"
+  },
+  "2128": {
+   "state": "closed",
+   "title": "La traccia direzionale non copre contrattacchi e Overwatch: Plan.Hits non li contiene",
+   "type": "issue"
+  },
+  "2130": {
+   "state": "closed",
+   "title": "rt-suite non parte per un processo del motore che non esiste: manca HasExited come discriminante",
+   "type": "issue"
+  },
+  "2131": {
+   "state": "closed",
+   "title": "ADR-0008 §2 e §3 non hanno owner: sette test dichiarati dalla tabella Verifica non esistono, e D-295 ne citava uno come esistente",
+   "type": "issue"
+  },
+  "2142": {
+   "state": "closed",
+   "title": "Il boundary delle reazioni legge ARTUnit::Cell dentro il ciclo dei micro-step, dove e' la cella di partenza",
+   "type": "issue"
+  },
+  "2149": {
+   "state": "open",
+   "title": "Le due battute del T8 dello showcase che la coreografia non produce: nessuno puo' uccidere Gadget, e Phase ha una rotta sola",
+   "type": "issue"
+  },
+  "2156": {
+   "state": "closed",
+   "title": "replay: il filtro per osservatore non ha un produttore — l'archivio non registra di CHI era la partita",
+   "type": "issue"
+  },
+  "2167": {
+   "state": "open",
+   "title": "La posa non segue piu' il facing: dal 2026-09-03 il facing logico cambia a ogni passo e la mesh no, e il docstring dice che i BP_Unit lo attivano",
+   "type": "issue"
+  },
+  "2168": {
+   "state": "closed",
+   "title": "Launcher: il Tactical Designer si docka nel layout invece di aprirsi in una finestra",
+   "type": "issue"
+  },
+  "2173": {
+   "state": "closed",
+   "title": "feat(1625): la preview si muove — lo stato delle unita' ricostruito dalla traccia",
+   "type": "pr",
+   "merged": true
+  },
+  "2176": {
+   "state": "closed",
+   "title": "feat(1625): il ponte fra i due spazi di id di uno scenario",
+   "type": "pr",
+   "merged": true
+  },
+  "2182": {
+   "state": "open",
+   "title": "L'allestimento e' il residuo della metrica di E50: 24 file su 75 spawnano un mondo che non usano",
+   "type": "issue"
+  },
+  "2184": {
+   "state": "open",
+   "title": "ARTHUD::DrawHUD e' 706 righe e la terza funzione piu' costosa, ma l'unica alta fuori dai resolver",
+   "type": "issue"
+  },
+  "2185": {
+   "state": "closed",
+   "title": "feat(1625): la traduzione fra la traccia e le viste d'authoring",
+   "type": "pr",
+   "merged": true
+  },
+  "2193": {
+   "state": "closed",
+   "title": "il Ready anticipato non ha countdown ne' Unready: una voce PIE descrive un comportamento che non esiste",
+   "type": "issue"
+  },
+  "2224": {
+   "state": "closed",
+   "title": "fix(1625): due difetti del pannello, trovati pilotandolo via MCP",
+   "type": "pr",
+   "merged": true
+  },
+  "2244": {
+   "state": "closed",
+   "title": "Un commento dichiara che in Content non esiste nessuna icona di stato: sono undici, versionate, ed erano gia' li' sei giorni prima che la frase venisse scritta",
+   "type": "issue"
+  },
+  "2245": {
+   "state": "closed",
+   "title": "Gli status non hanno un momento nel playback: dieci stati vivono e muoiono nel simulatore, e la timeline non ne porta nessuno",
+   "type": "issue"
+  },
+  "2246": {
+   "state": "closed",
+   "title": "Il ciclo delle unita' di DrawHUD applica il velo di conoscenza: chi sposta la sovrapposizione lo porta via, e nessun test diventa rosso",
+   "type": "issue"
+  },
+  "2248": {
+   "state": "closed",
+   "title": "refactor(2184): la barra di stato ricostruiva a mano una vista che esisteva gia'",
+   "type": "pr",
+   "merged": true
+  },
+  "2253": {
+   "state": "closed",
+   "title": "feat(stati): `Unbalanced` e `Prone` — Fase 1, gli stati e il termine mirato nel bot",
+   "type": "issue"
+  },
+  "2277": {
+   "state": "closed",
+   "title": "Correzioni meccaniche — audit della review gameplay 2026-09-04 e piano di playtest",
+   "type": "issue"
+  },
+  "2291": {
+   "state": "open",
+   "title": "CP 35.5 · Paragon naming purge: zero identità Paragon nel namespace RT-owned, e il gate che lo difende",
+   "type": "issue"
+  },
+  "2292": {
+   "state": "closed",
+   "title": "[DESIGN] Il roster v0.1 porta quattro nomi di slot Paragon come identità RT: D-120 li ha adottati, la nuova policy li vieta",
+   "type": "issue"
+  },
+  "2297": {
+   "state": "open",
+   "title": "Migrazione identità roster v0.1: da nomi di slot Paragon a identità RT — piano a fette A–F",
+   "type": "issue"
+  },
+  "2314": {
+   "state": "closed",
+   "title": "fix(terreni): chi arriva a destinazione ma non riesce a scivolare risulta fermato — e va risolto nel resolver",
+   "type": "issue"
+  },
+  "2330": {
+   "state": "open",
+   "title": "Una porta del gray kit non si puo' posare su nessuna mappa: la catena e' pronta tranne l'anello che scrive",
+   "type": "issue"
+  },
+  "2337": {
+   "state": "closed",
+   "title": "feat(2330): una porta si puo' finalmente posare — primitiva, rifiuti e CLI",
+   "type": "pr",
+   "merged": true
+  },
+  "2358": {
+   "state": "closed",
+   "title": "Il countdown del Ready non si vede: due funzioni BlueprintPure e nessun consumatore",
+   "type": "issue"
+  },
+  "2366": {
+   "state": "closed",
+   "title": "determinismo: il cooldown non entra nel checksum di stato, e due turni che differiscono solo per quello hanno lo stesso StateHash",
+   "type": "issue"
+  },
+  "2367": {
+   "state": "open",
+   "title": "Una spinta silenzia un Overwatch armato: la zona è congelata, gli occhi ruotano",
+   "type": "issue"
+  },
+  "2370": {
+   "state": "closed",
+   "title": "v0.1 · Resolution playback — durata movimento per cella e ingresso-cella sul micro-step canonico",
+   "type": "issue"
+  },
+  "2380": {
+   "state": "closed",
+   "title": "INT-7 si chiude: l'Interact COMMUTA la porta, e il bersaglio si risolve una volta sola",
+   "type": "issue"
+  },
+  "2388": {
+   "state": "open",
+   "title": "[EPIC] Verticalità tattica — Ledge, Fall e Forced Movement",
+   "type": "issue"
+  },
+  "2401": {
+   "state": "closed",
+   "title": "Il bordo non ha un vocabolario: aperto e parapetto non si distinguono, e la relazione di atterraggio non esiste",
+   "type": "issue"
+  },
+  "2402": {
+   "state": "open",
+   "title": "Chi e' spinto oltre un bordo aperto si ferma invece di cadere: il ramo dietro Data == nullptr non esiste",
+   "type": "issue"
+  },
+  "2403": {
+   "state": "closed",
+   "title": "Una caduta non lascia una catena causale: il replay non distingue primario, alternativa e fallback",
+   "type": "issue"
+  },
+  "2406": {
+   "state": "closed",
+   "title": "Il gate della caduta: suite VALIDA piu' le cinque mutazioni che devono far cadere un test",
+   "type": "issue"
+  },
+  "2411": {
+   "state": "open",
+   "title": "v0.1 · Resolution playback — il corto che arriva prima e aspetta: nessuno ha guardato il caso asimmetrico che #2370 ha creato",
+   "type": "issue"
+  },
+  "2430": {
+   "state": "closed",
+   "title": "La caduta non applica nessun effetto: FallEffects e ImpactEffects non esistono come dato",
+   "type": "issue"
+  },
+  "2453": {
+   "state": "open",
+   "title": "[EPIC] Combat Feedback — cue di combattimento, danno e status dal ResolvedEvent (v0.1 → v1.0)",
+   "type": "issue"
+  },
+  "2454": {
+   "state": "open",
+   "title": "[v0.1] Combat Feedback — evento → cue: attivazione, impatto e sconfitta senza logica di gameplay",
+   "type": "issue"
+  },
+  "2455": {
+   "state": "closed",
+   "title": "[v0.1] Combat Feedback — numeri di danno e risposta HP guidati dal ResolvedEvent",
+   "type": "issue"
+  },
+  "2456": {
+   "state": "open",
+   "title": "[v0.1] Combat Feedback — ciclo di vita degli stati: pulse e fade delle icone su StatusChanged",
+   "type": "issue"
+  },
+  "2460": {
+   "state": "closed",
+   "title": "HazardDamage è dichiarato e non lo emette nessuno: sei tipi su sette arrivano al playback, il danno da terreno no",
+   "type": "issue"
+  },
+  "2476": {
+   "state": "open",
+   "title": "Seduta U46 — i quattro residui del gate G9 in una sola apertura: la seduta esiste, nessuna issue la convoca",
+   "type": "issue"
+  },
+  "2481": {
+   "state": "closed",
+   "title": "docs(D-334): le identita' retail v0.1 sono Aevik Muiren Branth Ivrin",
+   "type": "pr",
+   "merged": true
+  },
+  "2483": {
+   "state": "closed",
+   "title": "presentazione: NoPresentation non distingue l'assenza decisa da quella in attesa, e tre voci su quattro sono in attesa",
+   "type": "issue"
+  },
+  "2491": {
+   "state": "closed",
+   "title": "Fette B·C·D di #2297: rename secco degli ID d'eroe ad Aevik · Muiren · Branth · Ivrin",
+   "type": "issue"
+  },
+  "2501": {
+   "state": "open",
+   "title": "Il Move ricalcola verso la destinazione dopo una spinta: e' il Model B che D-045 esclude",
+   "type": "issue"
+  },
+  "2505": {
+   "state": "open",
+   "title": "Il danno da terreno non ha un momento in cui essere mostrato: HazardDamage arriva alla timeline e nessuna fase lo riproduce",
+   "type": "issue"
+  },
+  "2534": {
+   "state": "closed",
+   "title": "La lastra del blocco-vista non e' leggibile alla camera del giocatore: 10 cm su cella di raggio 75, e il log non nomina cio' che ferma il tiro",
+   "type": "issue"
+  },
+  "2556": {
+   "state": "closed",
+   "title": "Due test dei bot sono rossi su main da quando Model A e' stato adottato: l'unita' si parcheggia 11 turni",
+   "type": "issue"
+  },
+  "2595": {
+   "state": "closed",
+   "title": "feat(rt3): il default versionato spegne il bridge, cosi' un clone nuovo non apre il canale per inerzia",
+   "type": "pr",
+   "merged": true
+  },
+  "2597": {
+   "state": "open",
+   "title": "Enemy Inspection — click sul nemico osservato: MOVIMENTO e MINACCIA come regione, non come piano rivelato",
+   "type": "issue"
+  },
+  "2599": {
+   "state": "closed",
+   "title": "[V0.1][ABILITY-LAB] Ability Lab — eseguire una ability canonica in una fixture deterministica",
+   "type": "issue"
+  },
+  "2600": {
+   "state": "closed",
+   "title": "[V0.1][HERO-LAB] Hero Lab — caricare un eroe canonico e provare il suo kit reale",
+   "type": "issue"
+  },
+  "2601": {
+   "state": "open",
+   "title": "[V0.1][TOOLS] Vertical Slice Labs & Playback — smoke gate integrato",
+   "type": "issue"
+  },
+  "2603": {
+   "state": "closed",
+   "title": "docs(rt3): l'handoff con cui VALIDATION si e' fermata sul lease, prima del merge",
+   "type": "pr",
+   "merged": true
+  },
+  "2606": {
+   "state": "open",
+   "title": "[DOCS][META] Consolidamento della conoscenza delle chat di progetto e audit SAFE_TO_DELETE",
+   "type": "issue"
+  },
+  "2609": {
+   "state": "closed",
+   "title": "fix(tests): il test dei due contrattacchi vedeva due satelliti su cinque, e diceva di vederli tutti",
+   "type": "pr",
+   "merged": true
+  },
+  "2616": {
+   "state": "open",
+   "title": "PIA-1 — Showcase end-to-end e scenari discriminanti",
+   "type": "issue"
+  },
+  "2624": {
+   "state": "closed",
+   "title": "docs(pia): la matrice di accettazione esisteva gia', e si chiama G1-G14",
+   "type": "pr",
+   "merged": true
+  },
+  "2625": {
+   "state": "closed",
+   "title": "Ability Lab — Fetta A: la facade che esegue una ability canonica nel runtime reale, e D-343",
+   "type": "pr",
+   "merged": true
+  },
+  "2626": {
+   "state": "closed",
+   "title": "Hero Lab — Fetta A: l'eroe canonico impugna il proprio kit, e il runner resta quello di #2599",
+   "type": "pr",
+   "merged": true
+  },
+  "2627": {
+   "state": "open",
+   "title": "Il combat log dice che il passaggio è negato, non quale: `BlockedByUnit` non stampa la destinazione",
+   "type": "issue"
+  },
+  "2629": {
+   "state": "open",
+   "title": "Due test di stallo rossi su main: la suite di ogni branch eredita un rumore che non ha causato",
+   "type": "issue"
+  },
+  "2664": {
+   "state": "closed",
+   "title": "fix(rt3): i terminali gestiti nascono su pwsh, non su Windows PowerShell",
+   "type": "pr",
+   "merged": true
+  },
+  "2666": {
+   "state": "closed",
+   "title": "fix(rt3): una finestra gestita è una sessione RT, e può compilare",
+   "type": "pr",
+   "merged": true
+  },
+  "2667": {
+   "state": "closed",
+   "title": "fix(rt3): terminal stop chiude anche una sessione la cui finestra è sparita",
+   "type": "pr",
+   "merged": true
+  },
+  "2668": {
+   "state": "closed",
+   "title": "fix(rt): il contratto di ownership importava una funzione che ne chiama un'altra",
+   "type": "pr",
+   "merged": true
+  },
+  "2669": {
+   "state": "closed",
+   "title": "fix(rt): la suite dice che il motore resta occupato, e sa rilasciarlo",
+   "type": "pr",
+   "merged": true
+  },
+  "2677": {
+   "state": "closed",
+   "title": "docs(decisions): D-349/350/351 — il watcher che tace, la manopola di chi guarda, la finestra lasciata sola",
+   "type": "pr",
+   "merged": true
+  },
+  "2679": {
+   "state": "closed",
+   "title": "La finestra di reazione non esiste come oggetto: `AskReactionDecision` e' sincrona, e un umano non puo' rispondere a una funzione gia' tornata",
+   "type": "issue"
+  },
+  "2680": {
+   "state": "closed",
+   "title": "docs(2403): il parapetto smette di somigliare a un muro, e il seek al boundary non era una coordinata che la caduta ha",
+   "type": "pr",
+   "merged": true
+  },
+  "2692": {
+   "state": "closed",
+   "title": "Il Brace non puo' sospendere: la finestra di Phase spinta non si apre, e il Blast non e' riprendibile",
+   "type": "issue"
+  },
+  "2697": {
+   "state": "open",
+   "title": "Il feed del giocatore non ha consumatori: i tre canali verso lo schermo hanno zero chiamanti fuori dai test, e la via (b) di #2534 si ferma all'Output Log",
+   "type": "issue"
+  },
+  "2706": {
+   "state": "closed",
+   "title": "docs(2692): D-356 — durante una sospensione la fase resta quella vera",
+   "type": "pr",
+   "merged": true
+  },
+  "2707": {
+   "state": "closed",
+   "title": "feat(2697): il feed del giocatore ha un consumatore, e il muro si vede nel mondo",
+   "type": "pr",
+   "merged": true
+  },
+  "2723": {
+   "state": "closed",
+   "title": "La finestra di reazione non è raggiungibile in partita: `OnReactionWindowOpened` non lo lega nessuno",
+   "type": "issue"
+  },
+  "2725": {
+   "state": "closed",
+   "title": "Action.Sprint dichiara un prezzo che non paga: Exposed con durata 1 muore nel Cleanup dello stesso turno",
+   "type": "issue"
+  },
+  "2736": {
+   "state": "closed",
+   "title": "docs(2697): il verdetto con la finestra giusta, e la causa che ne era seguita e' ritirata",
+   "type": "pr",
+   "merged": true
+  },
+  "2741": {
+   "state": "closed",
+   "title": "Il rifiuto di bersaglio non arriva al giocatore: il gioco sa perche' non puoi colpire, lo distingue in due categorie, e lo scrive in un log che nessuno apre",
+   "type": "issue"
+  },
+  "2742": {
+   "state": "open",
+   "title": "Le linee di tiro non si vedono: l'informazione esiste tutta in DescribeLineOfSight e manca il canale verso lo schermo",
+   "type": "issue"
+  },
+  "2747": {
+   "state": "closed",
+   "title": "Il criterio di uscita di D-045 e' scattato sul BOT: quanto spesso un giocatore perde il Move sotto Model A non l'ha misurato nessuno",
+   "type": "issue"
+  },
+  "2789": {
+   "state": "closed",
+   "title": "`WBP_RT_ScenarioComposer` non e' raggiungibile da nessun codice, e il suo contratto descrive gesti che nessuno puo' fare",
+   "type": "issue"
+  },
+  "2791": {
+   "state": "open",
+   "title": "[ROADMAP] Blind / Unseen Spatial Actions — pianificare verso l'ignoto senza information oracle",
+   "type": "issue"
+  },
+  "2792": {
+   "state": "open",
+   "title": "Blind Actions Contract — EntityTarget non è SpatialTarget, e l'emendamento di D-249",
+   "type": "issue"
+  },
+  "2793": {
+   "state": "open",
+   "title": "Il Planning costruisce l'anteprima sull'occupazione autorevole: il ventaglio verde ha un buco dove sta un nemico che la squadra non conosce",
+   "type": "issue"
+  },
+  "2794": {
+   "state": "open",
+   "title": "Blind Move — pianificare verso lo spazio non osservato, e una Resolution che ferma senza ricalcolare",
+   "type": "issue"
+  },
+  "2795": {
+   "state": "open",
+   "title": "Blind Reaction Areas — l'Overwatch decide su LOS geometrica e non sulla conoscenza: la finestra è un sensore",
+   "type": "issue"
+  },
+  "2803": {
+   "state": "closed",
+   "title": "test(2793): la sonda misura il leak di occupazione invece di leggerlo — e il costo cambia, non solo la forma",
+   "type": "pr",
+   "merged": true
+  },
+  "2808": {
+   "state": "closed",
+   "title": "feat(1941): i sei significati dell'anteprima hanno un modello e una sede, e due collisioni di palette smettono di essere invisibili",
+   "type": "pr",
+   "merged": true
+  },
+  "2815": {
+   "state": "closed",
+   "title": "test(2792): BLIND-4 aveva già un esempio falsificabile — la sonda misura la geometria al buio",
+   "type": "pr",
+   "merged": true
+  },
+  "2825": {
+   "state": "open",
+   "title": "Targeting Preview System — la traiettoria non e' un asse dichiarato: `Shape` conflaziona percorso e footprint, e l'arco balistico non esiste in `Source/`",
+   "type": "issue"
+  },
+  "2826": {
+   "state": "open",
+   "title": "L'Action Dock arma e non si spiega: restano keybind visibile, stato oltre il solo colore, motivo d'indisponibilita' e RMB — la porta C++ esiste gia'",
+   "type": "issue"
+  },
+  "2827": {
+   "state": "open",
+   "title": "Nessuna azione puo' chiedere una struttura: TargetKindForAction non produce mai Object, e il ramo Object di ResolveTarget e' irraggiungibile",
+   "type": "issue"
+  },
+  "2828": {
+   "state": "open",
+   "title": "Il colpo a una struttura non ha un momento in cui essere mostrato: ERTResolvedEventType non ha un valore per la struttura, quindi nemmeno l'assenza e' censita",
+   "type": "issue"
+  },
+  "2834": {
+   "state": "closed",
+   "title": "feat(2697): il feed arriva a schermo, e l'albero della HUD ha finalmente un oracolo",
+   "type": "pr",
+   "merged": true
+  },
+  "2847": {
+   "state": "closed",
+   "title": "decision(D-375): le porte acquistano Integrity nella forma dell'arco, ed E23.2 si emenda",
+   "type": "pr",
+   "merged": true
+  },
+  "2848": {
+   "state": "closed",
+   "title": "docs(2793): il blocco non e' caduto, si e' spostato su BLIND-2 -> OBS-1",
+   "type": "pr",
+   "merged": true
+  },
+  "2868": {
+   "state": "closed",
+   "title": "[DESIGN] Il cono dell'Overwatch si puo' orientare senza ruotare l'unita'? ADR-0005 §4c dice no, e la domanda torna",
+   "type": "issue"
+  },
+  "2870": {
+   "state": "closed",
+   "title": "Blind Fire — il requisito di linea di tiro non e' un dato dell'azione: ClassifyHexTargeting lo cabla, e nessuna abilita' puo' dichiarare il tiro indiretto",
+   "type": "issue"
+  },
+  "2871": {
+   "state": "closed",
+   "title": "feat(2454): l'impronta del colpo entra nel playback, e l'area su celle vuote smette di non avere un istante",
+   "type": "pr",
+   "merged": true
+  },
+  "2873": {
+   "state": "closed",
+   "title": "La conoscenza non segue il movimento: il velo e' congelato per tutta la fase Move, e le celle attraversate non entrano mai in ExploredCells",
+   "type": "issue"
+  },
+  "2875": {
+   "state": "closed",
+   "title": "Il velo consuma il filtro: le istanze si attenuano invece di saltare (il reveal da Hidden resta uno scalino, D-225 confermata)",
+   "type": "issue"
+  },
+  "2876": {
+   "state": "closed",
+   "title": "Il velo segue il movimento: il target si aggiorna sui micro-step del Move, non solo ai due punti di refresh",
+   "type": "issue"
+  },
+  "2885": {
+   "state": "closed",
+   "title": "Le celle attraversate entrano in ExploredCells: la conoscenza segue il movimento, e il transito smette di essere invisibile alla memoria",
+   "type": "issue"
+  },
+  "2888": {
+   "state": "closed",
+   "title": "feat(2885): le celle attraversate entrano in ExploredCells, e il transito smette di essere invisibile alla memoria",
+   "type": "pr",
+   "merged": true
+  },
+  "2890": {
+   "state": "closed",
+   "title": "Blind Fire offensivo — nessuna azione che faccia danno dichiara il tiro indiretto, e un colpo al buio a segno non produce alcun feedback",
+   "type": "issue"
+  },
+  "2891": {
+   "state": "closed",
+   "title": "feat(2880): i bracci sono parte del segnaposto, e la posa torna a riposo quando il movimento finisce",
+   "type": "pr",
+   "merged": true
+  },
+  "2902": {
+   "state": "closed",
+   "title": "Il costo d'ingresso di una cella non ha una durata: il micro-step conta gli archi, e chi paga di piu' arriva prima",
+   "type": "issue"
+  },
+  "2914": {
+   "state": "closed",
+   "title": "Il resolver conta gli archi e deve contare il costo: la durata del passo diventa un dato, e chi attraversa resta sull'origine",
+   "type": "issue"
+  },
+  "2923": {
+   "state": "closed",
+   "title": "fix(2922): l'ordine di risoluzione delle unita' diventa totale — cella, identita' stabile, nome",
+   "type": "pr",
+   "merged": true
+  },
+  "2928": {
+   "state": "closed",
+   "title": "feat(2761): la pennellata smette di costare quanto la board, e il guardiano impara a vedere una permutazione",
+   "type": "pr",
+   "merged": true
+  },
+  "2929": {
+   "state": "closed",
+   "title": "Action.LineAttack dichiara di fermarsi sul primo bersaglio e colpisce solo quello puntato: ResolveLineAttack non ha chiamanti di produzione (D-386)",
+   "type": "issue"
+  },
+  "2933": {
+   "state": "closed",
+   "title": "feat(2826): il dock dice che cosa sta aspettando — il prompt di targeting a schermo",
+   "type": "pr",
+   "merged": true
+  },
+  "2940": {
+   "state": "closed",
+   "title": "feat(2914): la durata del passo e' un dato, e chi attraversa resta sull'origine",
+   "type": "pr",
+   "merged": true
+  },
+  "2941": {
+   "state": "closed",
+   "title": "feat(172): la timeline del piano ha una voce per fase, e la reazione non e' la quinta",
+   "type": "pr",
+   "merged": true
+  },
+  "2943": {
+   "state": "closed",
+   "title": "test(2825): tre canary sull'impronta dell'area — le caselle che non aspettano #1941",
+   "type": "pr",
+   "merged": true
+  },
+  "2945": {
+   "state": "closed",
+   "title": "feat(2632): il passo e lo scatto sono due regioni, e la seconda esce al netto della prima",
+   "type": "pr",
+   "merged": true
+  },
+  "2951": {
+   "state": "open",
+   "title": "Un colpo `Shape::Line` verso un'altra piattaforma e' accettato e non tocca nessuno: `HexLine` tiene il piano del tiratore, e `HexDistance` ignora il `Layer`",
+   "type": "issue"
+  },
+  "2955": {
+   "state": "closed",
+   "title": "test(2914): il banco a corridoio — il corpus smette di essere cieco sul terreno costoso",
+   "type": "pr",
+   "merged": true
+  },
+  "2963": {
+   "state": "open",
+   "title": "Il dock chiede icone per abilita' di eroe, il catalogo le indicizza per tipo di azione: `UI.Icon.Hero.*`, `Gadget.*` e `Reaction.*` non esistono in `DA_IconCatalog`",
+   "type": "issue"
+  },
+  "2964": {
+   "state": "open",
+   "title": "Il feed e' montato e il turno produce eventi, ma a schermo non compare nessuna riga",
+   "type": "issue"
+  },
+  "2980": {
+   "state": "closed",
+   "title": "feat(2826): la riga dello slot esce dai test — tasto, stato armato e motivo diventano leggibili dal dock",
+   "type": "pr",
+   "merged": true
+  },
+  "2984": {
+   "state": "closed",
+   "title": "Due compagne non si attraversano perche' il resolver non sa chi sono: `FRTHexSimUnit` non porta la squadra, e `BlockedByUnit` blocca su qualunque unita'",
+   "type": "issue"
+  },
+  "2987": {
+   "state": "open",
+   "title": "Il numero sullo slot e' `Index + 1` e non il tasto: la decima voce dice `10` e si preme `0`, e la vista rinumera dove l'hotkey no",
+   "type": "issue"
+  },
+  "2988": {
+   "state": "open",
+   "title": "Lo stato di uno slot non e' un dato ma una deduzione del grafo, e due degli stati di §7 non hanno un produttore: `Planned` e `Disabled by phase` non arrivano alla vista",
+   "type": "issue"
+  },
+  "2989": {
+   "state": "open",
+   "title": "Il cablaggio del dock non ha nessun oracolo: quale valore il `ForEach` passi ad `ArmKitAbility`, e se un riquadro sia raggiungibile dal mouse, non li misura niente",
+   "type": "issue"
+  },
+  "2990": {
+   "state": "closed",
+   "title": "BLOCKED — DECISION REQUIRED: il numero sullo slot e' un binding o una posizione? §6.7 chiede corsie, e il raggruppamento romperebbe l'identita' posizionale dell'hotkey",
+   "type": "issue"
+  },
+  "2994": {
+   "state": "closed",
+   "title": "feat(2984): le compagne si attraversano — il permesso viene dalla squadra",
+   "type": "pr",
+   "merged": true
+  },
+  "3012": {
+   "state": "closed",
+   "title": "Due unita' finiscono il turno sulla stessa cella: `LinearPass` attraversa e poi si ferma dentro, e `Final` registra dove si e' fermato",
+   "type": "issue"
+  },
+  "3014": {
+   "state": "closed",
+   "title": "feat(705,613): il click su un'avversaria la ispeziona, e il pannello non ne costruisce mai gli slot",
+   "type": "pr",
+   "merged": true
+  },
+  "3024": {
+   "state": "closed",
+   "title": "docs(3012): le due voci di DoD residue — la mappa area→suite, e l'effetto su LinearPass",
+   "type": "pr",
+   "merged": true
   }
  }
 }
