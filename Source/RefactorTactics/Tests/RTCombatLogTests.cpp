@@ -865,8 +865,20 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	// dentro l'ostacolo: passando per `PlannedCell` l'A* lo aggirerebbe e non ci sarebbe mossa bloccata.
 	// Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
 	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno.
-	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0), FRTCellId(3, 0, 0) };
-	Nemica->PlannedCell = FRTCellId(3, 0, 0);
+	//
+	// 🔴 **Il percorso finisce SULL'ostacolo, e dal 2026-09-11 non e' un dettaglio** (#3051). Prima puntava
+	// a `(3,0,0)`, una cella oltre il muro, e il blocco arrivava lo stesso perche' qualunque occupante
+	// fermava chi passava. Poi #3012 ha stabilito che un arco di attraversamento **scavalca gli occupanti
+	// FERMI** (`CellHeldByStationaryOther`, `RTHexSimLibrary.cpp`): il muro e' fermo per costruzione, quindi
+	// veniva scavalcato, la nemica arrivava a `(3,0,0)` e **nessuna voce Move bloccata** entrava nel
+	// TurnLog. La premessa qui sotto cadeva, ed e' cosi' che il difetto si e' visto.
+	//
+	// 🔑 **Cio' che blocca ora e' l'assenza di una cella libera a valle**, che e' l'altro ramo dichiarato
+	// dallo stesso commit: *«nessuna cella libera a valle -> non si attraversa affatto»*. Con il percorso
+	// che termina sulla cella del muro, l'arco non ha dove atterrare e il blocco torna — **senza** toccare
+	// la regola nuova, che e' accettata.
+	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0) };
+	Nemica->PlannedCell = FRTCellId(4, 0, 0);
 	Muro->PlannedCell = Muro->Cell; // fermo: e' l'ostacolo
 	RTCombatLogFixture::RunTurn(TM);
 
