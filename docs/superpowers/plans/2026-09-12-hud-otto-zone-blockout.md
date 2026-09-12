@@ -33,7 +33,7 @@
 | `Source/RefactorTactics/UI/RTHudZoneWidget.h` (nuovo) | `ERTHudZone` + dichiarazione `URTHudZoneWidget` | 1 |
 | `Source/RefactorTactics/UI/RTHudZoneWidget.cpp` (nuovo) | `BlockoutColor`, l'unica logica della classe | 1 |
 | `Source/RefactorTactics/Tests/RTHudZoneTests.cpp` (nuovo) | I test **puri** sulla classe: colori distinti, copertura dell'enum | 2 |
-| `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (modifica) | I due gate **sull'asset**: le otto zone ci sono, e stanno dove devono | 3, 4 |
+| `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (modifica) | I due gate **sull'asset**: le otto zone ci sono, e stanno dove devono; poi il vocabolario di zone in `EveryZoneOwnerIsMountedByClass` e la pulizia del commento «sette widget» | 3, 4, 7 |
 | `Content/RT/UI/Match/WBP_RT_HudZone.uasset` (nuovo) | Il bordo e il `NamedSlot Content` | 5 |
 | `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset` (modifica) | Le otto istanze e la migrazione degli inquilini | 6 |
 | `docs/technical/runbooks/guida-screen-hud-umg.md` (modifica) | §3 riscritto sulle otto zone | 7 |
@@ -785,15 +785,23 @@ In `Content/RT/UI/Match/`, creare un **Widget Blueprint** derivato da `URTHudZon
 Albero del widget:
 
 ```
-Root: Border  (nome: ZoneBorder)
- └── NamedSlot  (nome: Content)     ← il nome DEVE essere esattamente `Content`
+Root: Overlay  (nome: ZoneRoot)
+ ├── Border      (nome: ZoneBorder)   ← decorativo, si spegne col blockout
+ └── NamedSlot   (nome: Content)      ← il nome DEVE essere esattamente `Content`
 ```
 
+🔴 **Radice `Overlay`, non `Border` che avvolge il `NamedSlot`.** Un `Border` collassato collassa anche i
+suoi figli: se `Content` fosse figlio di `ZoneBorder`, spegnere il blockout su `Zone_TopCenter`
+(`bBlockoutVisible = false`) farebbe sparire anche `WBP_RT_TurnHeader` — ed è il contratto della classe a
+dirlo, non un'ipotesi: `RTHudZoneWidget.h` documenta `bBlockoutVisible` come *«si spegne quando il contenuto
+della zona arriva»*, cioè proprio per le zone che un inquilino ce l'hanno già. Con `Border` e `NamedSlot`
+**fratelli** dentro l'`Overlay`, spegnere il primo non tocca il secondo.
+
 Impostazioni del `Border` `ZoneBorder`:
-- `Brush` → `Draw As: Border`, con un materiale o una texture di bordo; in mancanza, `Draw As: Box` con `Margin` a 0.1 dà un riquadro pieno — **accettabile per un blockout**, che deve stonare.
-- `Padding`: 8 su tutti i lati, così il `Content` non tocca il bordo.
-- `Brush Color`: **binding** alla funzione `BlockoutColor` con `ZoneId` come argomento. Nel grafo: `Get ZoneId` → `BlockoutColor` → return value.
-- `Visibility`: **binding** su `bBlockoutVisible` → `Visible` / `Collapsed`.
+- `Brush` → `Draw As: Border`, con un materiale o una texture di bordo. ⛔ **Niente ripiego su `Draw As: Box`**: un `Margin` a 0.1 produce comunque un riquadro PIENO a saturazione e valore massimi, dietro `WBP_RT_TurnHeader`, `WBP_RT_TeamRosterLeft`, `WBP_RT_EventLogRight`, `WBP_RT_SelectedUnitPanelLeft` e `WBP_RT_ActionDockBottom` — la richiesta era «bordi spessi», non un fondo a tinta unita, e il giudizio PIE cadrebbe su un HUD illeggibile. Se manca la risorsa di bordo, procurarsene una (anche un 9-slice minimale) prima di continuare.
+- `Padding`: 8 su tutti i lati.
+- `Brush Color`: **binding** — non a una funzione parametrica (UMG non passa argomenti a un property binding), ma alla funzione generata dal binding stesso: senza parametri, che al suo interno legge `ZoneId` e lo passa a `BlockoutColor`. Nel grafo: `Get ZoneId` → `BlockoutColor` → return value.
+- `Visibility`: **binding**, solo su questo `Border`, su `bBlockoutVisible` → `SelfHitTestInvisible` / `Collapsed`. ⛔ **Non `Visible`**: è hit-testable, e `Zone_TopRight`, `Zone_BottomLeft` e `Zone_BottomRight` nascono con `Content` vuoto — oggi lì non c'è niente che intercetti un click, con `Visible` ci sarebbe un rettangolo opaco che lo mangia. `SelfHitTestInvisible` mostra il colore ma lascia passare l'input.
 
 ⚠️ **Il colore va in binding, non impostato a mano.** Un colore fissato nel Designer si scollegherebbe da `ZoneId` alla prima istanza in cui qualcuno cambia zona, ed è esattamente ciò che la funzione statica esiste per impedire.
 
@@ -932,6 +940,7 @@ Atteso, confrontando con la baseline del Task 4 Step 4:
 | `PanelsLeaveTheCenterFree` | verde, e ora misura **otto** zone invece di quattro |
 | `TheHudMountsTheFeedThatExplainsTheTurn` | verde |
 | `NoNodeWearsTheNameOfAWidgetWithoutBeingOne` | verde |
+| `EveryZoneOwnerIsMountedByClass` | verde (già lo era: verifica per classe, non per posizione) |
 | `HudZoneColorsAreAllDistinct`, `HudZoneNamesCoverEveryValue` | verdi (non dipendono dall'asset) |
 
 ⚠️ **`TheHudMountsTheFeedThatExplainsTheTurn` è il rischio dichiarato nella spec §6.2.** Dipende dal fatto che il contenuto di un `NamedSlot` finisca nel `WidgetTree` del contenitore — comportamento atteso da UMG, **mai misurato su questo albero**. Se cade qui, il fallimento è previsto: la correzione è nel test (deve scendere anche nei `NamedSlot`), non nell'asset.
@@ -965,14 +974,22 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ---
 
-### Task 7: Allineare la guida, e aprire il follow-up
+### Task 7: Allineare la guida e il vocabolario dei gate, e aprire il follow-up
 
 **Files:**
 - Modify: `docs/technical/runbooks/guida-screen-hud-umg.md` (§3)
+- Modify: `Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp` (vocabolario zone in `EveryZoneOwnerIsMountedByClass`; pulizia del commento «sette widget»)
 
 **Interfaces:** nessuna.
 
-- [ ] **Step 1: Riscrivere §3 sulle otto zone**
+🔴 **Questo task va nello STESSO giro del rimontaggio (Task 5-6), non dopo.** Il gate nuovo
+(`TheEightZonesAreDeclaredExactlyOnce`) cita già «guida-screen-hud-umg.md §3» in ciascuno degli otto errori
+del rosso voluto, e `EveryZoneOwnerIsMountedByClass` — che resta verde prima e dopo il rimontaggio — cita la
+stessa §3 col vocabolario `TOP`/`LEFT`/`RIGHT`/`BOTTOM`. Finché §3 descrive cinque zone col vocabolario
+vecchio, ogni messaggio che la cita rimanda a un documento che non corrisponde più all'albero appena
+rimontato: chiudere il Task 6 e rimandare questo lascerebbe quella finestra aperta sul branch padre.
+
+- [ ] **Step 1: Riscrivere §3 sulle otto zone, e il vocabolario di `EveryZoneOwnerIsMountedByClass`**
 
 Sostituire il diagramma a quattro zone e la tabella «Contiene oggi» con la griglia 3×3 e la tabella del Task 6 Step 2. Tenere:
 - il paragrafo su `CENTER` come zona a contratto negativo;
@@ -981,6 +998,13 @@ Sostituire il diagramma a quattro zone e la tabella «Contiene oggi» con la gri
 - **i riquadri storici** su `cc5ca967` e `#2760`: sono la ragione per cui i gate esistono, e cancellarli renderebbe i test inspiegabili.
 
 Aggiungere una riga che nomina i due gate nuovi e cosa chiedono.
+
+Nello stesso passo, riscrivere l'array `Attesi[]` di `EveryZoneOwnerIsMountedByClass`
+(`RTMatchWidgetAssetTests.cpp`) sul vocabolario a otto zone: `TOP` → `TopCenter` (TurnHeader), `LEFT` →
+`TopLeft` (TeamRoster), `RIGHT` → `MiddleRight` (EventLog), `BOTTOM` → `MiddleLeft` (SelectedUnit, che
+cambia fascia) e `BOTTOM` → `BottomCenter` (ActionDock). Il test resta verde prima e dopo — cambia solo
+l'etichetta nel messaggio d'errore — ma lasciato al vocabolario vecchio continuerebbe a rimandare a una §3
+che nel frattempo è cambiata sotto di lui.
 
 - [ ] **Step 2: Correggere la riga su `FastDecision`**
 
@@ -1018,15 +1042,35 @@ Il montaggio e' a runtime, quindi un gate sull'albero non basterebbe: serve una 
 compaia quando la reazione si apre."
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Pulizia di un totale volatile preesistente in `RTMatchWidgetAssetTests.cpp`**
+
+Il file dice in tre punti «i sette widget di `Content/RT/UI/Match/`» (il commento in cima al file, il
+docstring di `FRTMatchWidgetsLoadTest`, e il messaggio del suo `TestEqual`), mentre l'array `Paths[]` dello
+stesso test ne conta di più — il numero esatto lo dà `UE_ARRAY_COUNT(Paths)`, che il codice stesso usa già
+nel `TestEqual` invece di ripeterlo in prosa. È un totale volatile **preesistente**, non causato da questo
+lavoro — ma il Task 5 aggiunge un altro asset a quella stessa cartella (`WBP_RT_HudZone.uasset`), quindi è
+il momento di smettere di fissare un numero in prosa invece di lasciarlo invecchiare ulteriormente.
+
+Sostituire «i sette widget» con una formulazione che non conti a mano — ad esempio «i widget di
+`Content/RT/UI/Match/` elencati in `Paths[]`» — nei tre punti sopra.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add docs/technical/runbooks/guida-screen-hud-umg.md
-git commit -m "docs(hud): la guida descrive le otto zone, e smette di dichiarare un montaggio che non c'e'
+git add docs/technical/runbooks/guida-screen-hud-umg.md Source/RefactorTactics/Tests/RTMatchWidgetAssetTests.cpp
+git commit -m "docs(hud): la guida descrive le otto zone, e i gate parlano lo stesso vocabolario
 
 §3 diceva che il BOTTOM contiene WBP_RT_FastDecision a runtime. L'asset non lo
 referenzia e nessun C++ lo crea — misurato con names.py e grep, entrambi nel
 testo. La riga e' sostituita dalla misura e dal rimando alla issue.
+
+EveryZoneOwnerIsMountedByClass passava dal vocabolario TOP/LEFT/RIGHT/BOTTOM a
+quello a otto zone: restava verde con un'etichetta che rimandava a una sezione
+gia' cambiata sotto di lui.
+
+Rimosso anche un totale volatile preesistente ('i sette widget di
+Content/RT/UI/Match/'): l'array Paths[] ne contava di piu' gia' prima di questo
+lavoro, che ne aggiunge un altro.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ```

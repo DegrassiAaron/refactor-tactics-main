@@ -149,7 +149,9 @@ enum class ERTHudZone : uint8
 {
     TopLeft, TopCenter, TopRight,
     MiddleLeft,          MiddleRight,
-    BottomLeft, BottomCenter, BottomRight
+    BottomLeft, BottomCenter, BottomRight,
+
+    Count   // sentinella per il conteggio: non e' una zona, non assegnarla mai a un ZoneId
 };
 
 UCLASS(BlueprintType)
@@ -165,6 +167,9 @@ public:
 
     UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
     static FLinearColor BlockoutColor(ERTHudZone Zone);
+
+    // L'etichetta diagnostica di una zona, per i messaggi di test e i log. Mai a schermo.
+    static FString ZoneName(ERTHudZone Zone);
 };
 ```
 
@@ -250,13 +255,14 @@ riscrivendola) e lo confronta con la cella attesa.
 🔑 Serve perché `PanelsLeaveTheCenterFree` è un gate **negativo**: dice che nessuna zona invade il centro, e
 passerebbe con tutte le zone schiacciate in un angolo. Questo dice dove sono.
 
-### 6.2 I tre gate esistenti
+### 6.2 I quattro gate esistenti
 
 | Test | Perché tiene |
 |---|---|
 | `PanelsLeaveTheCenterFree` | Misura i figli di primo livello del Canvas: le zone lo sono, il contenuto dei `NamedSlot` no. Misurerà otto zone invece di quattro. |
 | `TheHudMountsTheFeedThatExplainsTheTurn` | Il contenuto di un `NamedSlot` appartiene al `WidgetTree` di chi lo riempie, cioè `WBP_RT_TacticalHUD`. |
 | `NoNodeWearsTheNameOfAWidgetWithoutBeingOne` | Le zone si chiamano `Zone_*`, senza prefisso `WBP_`. |
+| `EveryZoneOwnerIsMountedByClass` | Resta verde per lo stesso motivo del secondo: verifica che ogni classe-inquilino sia montata nell'albero, e il contenuto di un `NamedSlot` appartiene al `WidgetTree` di chi lo riempie. |
 
 ⚠️ **Il secondo è l'assunzione meno solida di questo documento.** Dipende dal comportamento dei `NamedSlot` in
 UMG, che **non è stato misurato su questo albero**. Si verifica eseguendo il test dopo il rimontaggio; se cade

@@ -819,6 +819,12 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
  * ⚠️ **Limite dichiarato, e vale per tutti e tre i test di questo blocco**: `UWidgetTree::ForEachWidget`
  * cammina l'albero di QUESTO Blueprint e si ferma sui `UUserWidget` innestati, che hanno un albero loro.
  * Un segnaposto dentro `WBP_RT_ActionDock` o `WBP_RT_SelectedUnitPanel` non lo vede nessuno di qui.
+ *
+ * ⚠️ **Precisazione dopo il rimontaggio a otto zone**: il caso normale diventera' il `NamedSlot Content` di
+ * `WBP_RT_HudZone`, che NON e' un `UUserWidget` innestato con un albero separato — e' un punto d'innesto
+ * dentro QUESTO albero. `ForEachWidget` lo attraversa, scendendo negli `INamedSlotInterface` (verificato nel
+ * sorgente engine, `WidgetTree.cpp`): il limite sopra resta vero alla lettera, ma non si applica al
+ * contenuto delle zone.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMountsTheFeedTest,
 	"RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn",
@@ -1160,7 +1166,27 @@ namespace RTGrigliaZone
 		static const int32 Colonne[] = { 0, 1, 2,  0, 2,  0, 1, 2 };
 		static const int32 Righe[]   = { 0, 0, 0,  1, 1,  2, 2, 2 };
 
+		// ⚠️ Il trigger realistico non e' il Designer — `ZoneId` e' un `UENUM` e non lascia scegliere fuori
+		// range — ma la CRESCITA dell'enum: un nono valore allarga da solo `Conteggio` in
+		// `TheEightZonesAreDeclaredExactlyOnce` (dimensionato su `ERTHudZone::Count`), mentre queste due
+		// mappe, a dimensione fissa, resterebbero a otto. Lo static_assert lo ferma in compilazione.
+		static_assert(UE_ARRAY_COUNT(Colonne) == static_cast<int32>(ERTHudZone::Count),
+			"`Colonne` deve avere una voce per ogni zona: se l'enum cresce, va aggiornata insieme.");
+		static_assert(UE_ARRAY_COUNT(Righe) == static_cast<int32>(ERTHudZone::Count),
+			"`Righe` deve avere una voce per ogni zona: se l'enum cresce, va aggiornata insieme.");
+
 		static const float Bordi[] = { 0.f, TaglioBasso, TaglioAlto, 1.f };
+
+		// Guardia gemella, a runtime: l'indice arriva da un `ZoneId` letto dall'asset, non dal
+		// compilatore, quindi puo' essere fuori range anche quando le mappe sono dimensionate bene. Uscire
+		// con una cella fuori dalla griglia [0,1] la rende un mismatch rumoroso nel confronto del
+		// chiamante, invece di una lettura fuori array.
+		if (I < 0 || I >= UE_ARRAY_COUNT(Colonne))
+		{
+			Min = FVector2D(-1.0, -1.0);
+			Max = FVector2D(-1.0, -1.0);
+			return;
+		}
 
 		Min.X = Bordi[Colonne[I]];
 		Max.X = Bordi[Colonne[I] + 1];
@@ -1187,7 +1213,7 @@ bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
 
 	int32 Misurate = 0;
 
-	Tree->ForEachWidget([this, &Misurate, Tolleranza](UWidget* Widget)
+	Tree->ForEachWidget([this, Tree, &Misurate, Tolleranza](UWidget* Widget)
 	{
 		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
 		if (!Zona)
@@ -1205,6 +1231,22 @@ bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
 			return;
 		}
 
+		// ⚠️ Figlia DIRETTA del Canvas radice, non solo dentro un `UCanvasPanelSlot` qualunque: una zona
+		// annidata in un secondo Canvas avrebbe un anchor frazionario identico — combacerebbe con la
+		// griglia qui sotto — ma la sua posizione reale a schermo dipenderebbe anche dal Canvas che la
+		// contiene, cosa che ne' questo gate ne' `PanelsLeaveTheCenterFree` (che guarda solo i figli di
+		// primo livello) misurano.
+		if (Slot->Parent != Tree->RootWidget)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` non e' figlia diretta del Canvas radice (sta dentro `%s`): la sua ")
+				TEXT("posizione reale dipende anche da quel contenitore, e ne' questo gate ne' ")
+				TEXT("`PanelsLeaveTheCenterFree` la misurano."),
+				*Widget->GetName(),
+				Slot->Parent ? *Slot->Parent->GetName() : TEXT("<nessuno>")));
+			return;
+		}
+
 		FVector2D Min, Max;
 		RTGrigliaZone::CellaAttesa(Zona->ZoneId, Min, Max);
 
@@ -1214,12 +1256,36 @@ bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
 			static_cast<float>(Max.X) * RTCenterFree::RefWidth - RTGrigliaZone::Margine,
 			static_cast<float>(Max.Y) * RTCenterFree::RefHeight - RTGrigliaZone::Margine };
 
-		const RTCenterFree::FRect Reale = RTCenterFree::RettangoloDellaZona(Slot->GetLayout());
+		const FAnchorData Layout = Slot->GetLayout();
+		const RTCenterFree::FRect Reale = RTCenterFree::RettangoloDellaZona(Layout);
 		++Misurate;
 
 		AddInfo(FString::Printf(TEXT("  %-14s atteso %s   reale %s"),
 			*URTHudZoneWidget::ZoneName(Zona->ZoneId),
 			*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+
+		// ⚠️ **Il confronto sul rettangolo finale (`bCombacia`, sotto) puo' combaciare per caso anche con
+		// anchor a punto**: un anchor a punto con offset ritagliati a mano puo' produrre lo stesso
+		// rettangolo A QUESTA risoluzione e poi non scalare a un'altra — il difetto che §3.1 della spec
+		// dichiara. Questi due controlli guardano l'anchor stesso, non il suo effetto su un solo caso.
+		if (Layout.Anchors.Minimum.X == Layout.Anchors.Maximum.X)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` ha anchor A PUNTO sull'asse X (Min.X == Max.X == %.2f): il rettangolo ")
+				TEXT("dipende dall'Alignment invece di scalare con la risoluzione — il difetto che porto' ")
+				TEXT("`ZoneBottom` a `Y 1080..1280`, fuori schermo."),
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				static_cast<float>(Layout.Anchors.Minimum.X)));
+		}
+
+		if (Layout.Anchors.Minimum.Y == Layout.Anchors.Maximum.Y)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` ha anchor A PUNTO sull'asse Y (Min.Y == Max.Y == %.2f): stesso difetto ")
+				TEXT("dell'asse X, sull'altro asse."),
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				static_cast<float>(Layout.Anchors.Minimum.Y)));
+		}
 
 		const bool bCombacia =
 			FMath::IsNearlyEqual(Reale.Left, Atteso.Left, Tolleranza)
