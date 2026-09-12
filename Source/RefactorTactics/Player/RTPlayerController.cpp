@@ -79,7 +79,9 @@ namespace
 		if (OutUnits)
 		{
 			// Gli stessi indici dello snapshot: servono a distinguere i NEMICI (che una carica colpisce) dagli
-			// ostacoli (che la fermano). `FRTHexSimUnit` non porta la squadra, quindi la si legge dagli Actor.
+			// ostacoli (che la fermano). ⚠️ La si legge dagli Actor anche ora che `FRTHexSimUnit::TeamId`
+			// esiste (`#2984`): quel campo serve al resolver e sta FUORI da ogni hash, e leggerlo qui
+			// legherebbe una decisione di presentazione a un dato che lo snapshot non promette di portare.
 			*OutUnits = MoveTemp(Units);
 		}
 		return OutUnitId != INDEX_NONE;

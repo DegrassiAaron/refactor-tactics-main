@@ -68,6 +68,29 @@ struct FRTHexSimUnit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
 	ERTHexDirection Facing = ERTHexDirection::E;
 
+	/**
+	 * LA SQUADRA, e serve a una domanda sola: chi si puo' attraversare — `#2984`, [D-396].
+	 *
+	 * 🔑 **Lo zero e' `INDEX_NONE` e non `0`, e la differenza e' il comportamento di chi non lo
+	 * compila.** Con `0` come default ogni unita' costruita prima di questo campo diventerebbe compagna
+	 * di tutte le altre, e l'attraversamento si aprirebbe ovunque in silenzio — nei test, negli harness,
+	 * in ogni chiamante che non sa di doverlo dichiarare. Con `INDEX_NONE` nessuna coppia e' alleata
+	 * finche' qualcuno non lo dice, quindi il comportamento resta **identico** a prima.
+	 *
+	 * ⚠️ **E' un NUMERO, non una fazione**, per la stessa disciplina di `MoveCostModifier` e
+	 * `ExtraSlideCells` qui sopra: lo strato esagonale non conosce `ARTUnit`, e la traduzione avviene
+	 * una volta sola, in `ARTTurnManager::MakeSimUnit`.
+	 *
+	 * ⛔ **NON entra in nessun hash, e non e' fortuna: e' il tipo.** `URTMatchStateHashLibrary::HashMatchState`
+	 * legge `FRTUnitStateDigest`, che `BuildUnitDigests` costruisce da `ARTUnit` — questo struct non lo
+	 * attraversa mai. E `FRTHexSnapshot` dichiara di se' che *«NON va conservata oltre la fase che la
+	 * produce»*. 🔑 Il valore qui e' una COPIA transitoria di `ARTUnit::TeamId`, che esisteva gia': questo
+	 * campo non aggiunge stato competitivo, quindi replay e `StateHash` non si muovono. Stessa disciplina
+	 * con cui `FRTHexCover::bGenerated` dichiara di restare fuori dall'hash.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 TeamId = INDEX_NONE;
+
 	FRTHexSimUnit() = default;
 	FRTHexSimUnit(int32 InUnitId, const FRTCellId& InCell, int32 InMoveBudget = 0, bool bInAlive = true)
 		: UnitId(InUnitId), Cell(InCell), bAlive(bInAlive), MoveBudget(InMoveBudget) {}
@@ -218,6 +241,16 @@ struct FRTMovementResolutionState
 
 	/** Chi ATTRAVERSA le unita' ferme, tranne che sulla propria cella finale. */
 	TArray<bool> bPassThrough;
+
+	/**
+	 * La squadra di ogni unita', parallela a `Paths` — `#2984`, [D-396]. Vuoto o `INDEX_NONE` = non
+	 * dichiarata, e chi non la dichiara non attraversa nessuno: il comportamento di prima.
+	 *
+	 * ⚠️ **Un array parallelo e non le unita'**, come `Priorities` e `bPassThrough`: questo resolver
+	 * riceve percorsi e dati per indice, mai `FRTHexSimUnit`. Passargli le unita' per un solo campo
+	 * allargherebbe il suo ingresso a tutto lo stato di gioco.
+	 */
+	TArray<int32> Teams;
 
 	/** Posizione corrente di ogni unita'. */
 	TArray<FRTCellId> Pos;
