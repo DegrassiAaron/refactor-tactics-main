@@ -17,6 +17,11 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		E.StableUnitId = S.StableUnitId;
 		E.HeroId = S.HeroId;
 		E.HeroDisplayName = S.HeroDisplayName;
+		// ➕ **La squadra, scritta QUI e non in ciascun ramo** (`#3039`). Tre rami la aggiungono uguale, e
+		// la quarta uscita e' *nessuna voce*: metterla sopra la biforcazione toglie il difetto in cui un
+		// ramo aggiunto domani la dimentica. ⚠️ Non e' un dato nuovo — `ClassifyTarget` lo consuma gia'
+		// due righe piu' sotto per decidere se la voce esiste.
+		E.TeamId = S.TeamId;
 
 		if (S.TeamId == ObserverTeamId)
 		{

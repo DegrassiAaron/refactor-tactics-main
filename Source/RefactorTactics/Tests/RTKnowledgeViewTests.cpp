@@ -6,6 +6,8 @@
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTCombatLog.h" // URTCombatLogLibrary: il filtro, che non vive piu' nell'Actor
 #include "Unit/RTUnit.h"
+// La classificazione dei campi si legge dalla REFLECTION, non da un elenco scritto a mano (#3039).
+#include "UObject/UnrealType.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -761,6 +763,143 @@ bool FRTKnowledgeFrozenLineSurvivesForgettingTest::RunTest(const FString&)
 	TestEqual(TEXT("ma non per chi non lo vedeva"),
 		URTCombatLogLibrary::ComposeVisibleLogLines({ Line }, /*ObserverTeamId*/ 1).Num(), 0);
 
+	return true;
+}
+
+
+// --- AC-4 · i campi della voce sono classificati (`#3039`) -----------------------------------------------
+
+namespace
+{
+	/**
+	 * Cosa un campo di `FRTKnowledgeEntry` dice all'osservatore.
+	 *
+	 * 🔴 **Il produttore è uno solo — il corpo di `ViewForTeam`** — e questa tabella è un'asserzione
+	 * ESTERNA su di lui, non una seconda copia della regola. È la stessa disciplina di
+	 * `UI.IntentViewFieldsAreClassified`, e la ragione è la stessa: un campo aggiunto domani a un DTO di
+	 * privacy passerebbe ogni assert scritto sui campi di oggi.
+	 *
+	 * ⚠️ In un **array** e non in una `TMap`: una `TMap` da initializer list ingoia una chiave duplicata e
+	 * l'ultima riga vince in silenzio, quindi un campo elencato due volte in due classi diverse passerebbe
+	 * ogni confronto. Con l'array la duplicazione è misurabile, ed è misurata.
+	 */
+	enum class ERTKnowledgeEntryFieldClass : uint8
+	{
+		/** Scritto per OGNI voce, prima della biforcazione: è ciò che identifica il soggetto. */
+		Identity,
+		/** Dice COME lo si sa. ⚠️ `ContactTurn` ha significato solo per `Remembered`. */
+		Provenance,
+		/** La cella: attuale se `Live`, del contatto se `Remembered`. Chi legge non deve sapere quale. */
+		Position
+	};
+
+	struct FRTKnowledgeEntryFieldRow
+	{
+		FName Field;
+		ERTKnowledgeEntryFieldClass Class;
+	};
+
+	/**
+	 * `GET_MEMBER_NAME_CHECKED` e non un `FName` letterale: un campo RINOMINATO deve rompere la
+	 * COMPILAZIONE, non lasciare qui un nome che non esiste più.
+	 */
+	const TArray<FRTKnowledgeEntryFieldRow>& KnowledgeEntryFieldRows()
+	{
+		static const TArray<FRTKnowledgeEntryFieldRow> Rows = {
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, StableUnitId),    ERTKnowledgeEntryFieldClass::Identity },
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, TeamId),          ERTKnowledgeEntryFieldClass::Identity },
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, HeroId),          ERTKnowledgeEntryFieldClass::Identity },
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, HeroDisplayName), ERTKnowledgeEntryFieldClass::Identity },
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, Visibility),      ERTKnowledgeEntryFieldClass::Provenance },
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, ContactTurn),     ERTKnowledgeEntryFieldClass::Provenance },
+			{ GET_MEMBER_NAME_CHECKED(FRTKnowledgeEntry, Cell),            ERTKnowledgeEntryFieldClass::Position }
+		};
+		return Rows;
+	}
+
+	FString KvListed(const TSet<FName>& Names)
+	{
+		TArray<FString> Out;
+		for (const FName& N : Names) { Out.Add(N.ToString()); }
+		Out.Sort();
+		return FString::Join(Out, TEXT(", "));
+	}
+}
+
+/**
+ * ⛔ **Nessun campo di `FRTKnowledgeEntry` resta senza classe** — `#3039`.
+ *
+ * 🔑 **Il gate misura i CAMPI, non i valori**, ed è per questo che esiste: `#3039` ne ha aggiunto uno a un
+ * DTO `BlueprintType` che arriva al HUD, e il costo di quell'aggiunta non era l'informazione — era che il
+ * **prossimo** campo sarebbe entrato senza che nessuno se ne accorgesse. `FRTIntentView` e
+ * `FRTEnemyTacticalRegions` avevano già il proprio; questa struttura no.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTKnowledgeEntryFieldsAreClassifiedTest,
+	"RefactorTactics.Knowledge.KnowledgeEntryFieldsAreClassified",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTKnowledgeEntryFieldsAreClassifiedTest::RunTest(const FString&)
+{
+	const TArray<FRTKnowledgeEntryFieldRow>& Rows = KnowledgeEntryFieldRows();
+
+	TSet<FName> Reflected;
+	for (TFieldIterator<FProperty> It(FRTKnowledgeEntry::StaticStruct()); It; ++It)
+	{
+		Reflected.Add(It->GetFName());
+	}
+
+	// ANTI-VACUITÀ: una tabella vuota, o una reflection cieca, renderebbe verdi per assenza di soggetto
+	// tutti i confronti qui sotto.
+	if (!TestTrue(TEXT("la tabella classifica almeno un campo"), Rows.Num() > 0)) { return false; }
+	if (!TestTrue(TEXT("la reflection vede almeno un campo"), Reflected.Num() > 0)) { return false; }
+
+	// Duplicati: due righe per lo stesso campo passerebbero ogni `Contains`.
+	TSet<FName> Seen;
+	TSet<FName> Duplicati;
+	for (const FRTKnowledgeEntryFieldRow& Row : Rows)
+	{
+		if (Seen.Contains(Row.Field)) { Duplicati.Add(Row.Field); }
+		Seen.Add(Row.Field);
+	}
+	TestTrue(*FString::Printf(TEXT("nessun campo classificato due volte; duplicati: [%s]"),
+		*KvListed(Duplicati)), Duplicati.Num() == 0);
+
+	// Il cuore: nessun campo del DTO senza classe.
+	TSet<FName> NonClassificati;
+	for (const FName& N : Reflected)
+	{
+		if (!Seen.Contains(N)) { NonClassificati.Add(N); }
+	}
+	TestTrue(*FString::Printf(TEXT("ogni campo è classificato; non classificati: [%s]"),
+		*KvListed(NonClassificati)), NonClassificati.Num() == 0);
+
+	// Il difetto simmetrico: un nome nella tabella che non esiste più. `GET_MEMBER_NAME_CHECKED` lo
+	// previene già in compilazione, ma un gate che dipende dall'aver usato la macro giusta è una
+	// convenzione, non un gate.
+	TSet<FName> Fantasmi;
+	for (const FRTKnowledgeEntryFieldRow& Row : Rows)
+	{
+		if (!Reflected.Contains(Row.Field)) { Fantasmi.Add(Row.Field); }
+	}
+	TestTrue(*FString::Printf(TEXT("nessun nome fantasma; fantasmi: [%s]"),
+		*KvListed(Fantasmi)), Fantasmi.Num() == 0);
+
+	// ⚠️ **E la classificazione ha dei DENTI**: `Identity` significa *scritto per ogni voce*, e il campo
+	// aggiunto da `#3039` è il primo per cui questo poteva non essere vero. Una tabella che nominasse i
+	// campi senza che nessuno ne verificasse il senso sarebbe decorazione.
+	FRTTeamKnowledge K;
+	K.TeamId = 0;
+	K.TurnNumber = 3;
+	K.VisibleCells = { FRTCellId(1, 0) };
+
+	const TArray<FRTKnowledgeSubject> Soggetti = { KvSubject(42, /*Team*/ 1, FRTCellId(1, 0)) };
+	const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Soggetti, /*Observer*/ 0);
+
+	if (!TestEqual(TEXT("premessa: il nemico visibile produce una voce"), View.Entries.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Identity: la squadra è scritta anche per un avversario"), View.Entries[0].TeamId, 1);
+	TestEqual(TEXT("Identity: e l'id pure"), View.Entries[0].StableUnitId, 42);
 	return true;
 }
 

@@ -38,6 +38,11 @@ namespace
 	 *
 	 * Solo il soggetto porta un budget: gli altri sono ostacoli, e un budget su un ostacolo non ha
 	 * significato.
+	 *
+	 * ➕ **E ogni ostacolo porta la propria SQUADRA** (`#3039`, [D-396]). Senza, lo snapshot derivato
+	 * dice che nessuno e' alleato di nessuno, e il soggetto non attraversa le proprie compagne mentre il
+	 * resolver glielo permette: la regione disegnata si **restringe** quando l'osservatore acquisisce
+	 * informazione. 🔴 Misurato in un corridoio prima di scrivere questa riga: **9 celle contro 5**.
 	 */
 	TArray<FRTHexSimUnit> AuthorizedUnits(const TArray<FRTKnowledgeEntry>& Entries, int32 SubjectId, int32 SubjectBudget)
 	{
@@ -45,8 +50,10 @@ namespace
 		Units.Reserve(Entries.Num());
 		for (const FRTKnowledgeEntry& E : Entries)
 		{
-			Units.Add(FRTHexSimUnit(E.StableUnitId, E.Cell,
-				E.StableUnitId == SubjectId ? FMath::Max(0, SubjectBudget) : 0));
+			FRTHexSimUnit U(E.StableUnitId, E.Cell,
+				E.StableUnitId == SubjectId ? FMath::Max(0, SubjectBudget) : 0);
+			U.TeamId = E.TeamId;
+			Units.Add(MoveTemp(U));
 		}
 		return Units;
 	}
