@@ -46,9 +46,17 @@ l'agenda. Quando i fatti veri su uno stesso nome sono due, si scrivono due righe
 
 I `requires` **non** si rigenerano: sono giudizio d'autore, ognuno con la propria riga di prova
 in `docs/roadmap/plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e
-`compare_rassegna.py` rifiuta un bloccante che quel verbale non giustifica. `seed_wiring.py
---into` li **preserva** attraverso il riseminio, e si rifiuta di riseminare se una riga che ne
-portava uno non viene più prodotta.
+`compare_rassegna.py` rifiuta un bloccante la cui riga di verbale non lo giustifica — e una riga
+lo giustifica solo se **entrambe** le colonne portano qualcosa: la decisione ripete il token, *e*
+la prova non è vuota. `seed_wiring.py --into` li **preserva** attraverso il riseminio, e si
+rifiuta di riseminare se una riga che ne portava uno non viene più prodotta.
+
+⚠️ **Il confronto è per token esatto, non per sottostringa libera.** Scrivi la decisione coi
+token nella forma che questo file dichiara — `mount:WBP_RT_EventLogRight#2697`, non
+`` `mount:WBP_RT_EventLogRight` (#2697) `` con la issue fuori dal token, in prosa. La seconda
+forma è più naturale da leggere, ma il gate non la riconosce come prova per quel `requires`, e
+**fallisce di proposito**: un verbale scritto in una forma imprecisa deve fermarsi rumorosamente,
+non passare zitto.
 
 ## Cosa NON fa
 
