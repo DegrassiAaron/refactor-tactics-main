@@ -267,4 +267,88 @@ bool FRTTurnLogTargetUnknownIsDescribedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `TurnLog.EveryMoveOutcomeIsDescribed` — **ogni** valore di `ERTMoveOutcome` ha un testo, e il ramo di
+ * fallback resta raggiungibile (`#2628`).
+ *
+ * 🔴 **Il difetto che questo test esiste per rendere impossibile.** Misurato il 2026-09-12: `DescribeEntry`
+ * traduceva **13 valori su 20** e i restanti sette — `BlockedByTopology`, `BlockedByCycle` e le quattro
+ * cadute, piu' `StoppedByEdgeGuard` — cadevano nel fallback, che stampa *«esito di movimento non tradotto
+ * (15)»*. Due di loro si osservavano in una run normale della suite. Nulla era rosso: l'esaustivita'
+ * dell'enum non era coperta da nessuna parte, ed e' la ragione per cui quattro valori aggiunti dopo la
+ * stesura della issue erano gia' rimasti indietro a loro volta.
+ *
+ * ⚠️ **Il fallback NON viene tolto e questo test lo tiene vivo**, con la stessa disciplina anti-vacuita' di
+ * `TargetUnknownIsDescribed`: la prima asserzione lo raggiunge con un byte fuori enum. Senza, cancellare il
+ * `default` renderebbe il test verde per la ragione sbagliata — e il prossimo valore aggiunto in coda
+ * leggerebbe «resta» invece di dichiararsi non tradotto.
+ *
+ * ⛔ **Non asserisce QUALE sia il testo di ciascun esito**: quelle sono decisioni di vocabolario che
+ * appartengono al codice, e pinnarle qui renderebbe rosso ogni ritocco di una frase. Cio' che si fissa e'
+ * che un testo ci sia, che non sia il fallback, e che non sia quello di un altro esito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEveryMoveOutcomeIsDescribedTest,
+	"RefactorTactics.TurnLog.EveryMoveOutcomeIsDescribed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEveryMoveOutcomeIsDescribedTest::RunTest(const FString&)
+{
+	const FRTCellId Src(1, -2, 0);
+	const FRTCellId Tgt(2, -2, 1);
+
+	auto Describe = [&Src, &Tgt](uint8 RawOutcome)
+	{
+		return URTTurnLogLibrary::DescribeEntry(
+			MakeEntry(ERTMatchPhase::Move, ERTLogCategory::Move, RawOutcome, Src, Tgt, /*Amount=*/ 2));
+	};
+
+	// 🔑 **IL CONTROLLO POSITIVO, e viene prima.** `200` non e' un enumeratore e non lo diventera': e' la
+	// sonda che dimostra che il ramo di fallback e' ancora li' e ancora quello. Se un giorno sparisse, questa
+	// riga cade — e cade PRIMA che il resto del test dichiari verde un'esaustivita' ottenuta togliendo la rete.
+	const FString FuoriEnum = Describe(200);
+	TestTrue(TEXT("il ramo di fallback e' ancora raggiungibile e si dichiara tale"),
+		FuoriEnum.Contains(TEXT("non tradotto")) && FuoriEnum.Contains(TEXT("(200)")));
+
+	const UEnum* Enum = StaticEnum<ERTMoveOutcome>();
+	if (!TestNotNull(TEXT("l'enum degli esiti di movimento e' riflesso"), Enum))
+	{
+		return false;
+	}
+
+	// `NumEnums()` include il `_MAX` sintetico che UHT aggiunge: si sottrae.
+	const int32 Valori = Enum->NumEnums() - 1;
+	TestTrue(TEXT("l'enum ha dei valori da coprire"), Valori > 0);
+
+	TMap<FString, FString> TestoPerEsito;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const int64 Valore = Enum->GetValueByIndex(i);
+		const FString Nome = Enum->GetNameStringByIndex(i);
+		const FString Testo = Describe(static_cast<uint8>(Valore));
+
+		// Non cade nel fallback. Si guardano DUE cose e non una: il testo letterale della rete, che coglie
+		// anche un `default` riformulato, e l'uguaglianza con cio' che il fallback produrrebbe per QUESTO
+		// valore, che coglie un `case` scritto per copia e rimasto identico alla rete.
+		TestFalse(FString::Printf(TEXT("%s non cade nel ramo di fallback"), *Nome),
+			Testo.Contains(TEXT("non tradotto")));
+		TestNotEqual(FString::Printf(TEXT("%s non rende come il fallback"), *Nome),
+			Testo, FuoriEnum.Replace(TEXT("(200)"), *FString::Printf(TEXT("(%lld)"), Valore)));
+		TestFalse(FString::Printf(TEXT("%s ha un testo non vuoto"), *Nome), Testo.IsEmpty());
+
+		// ⚠️ **Due esiti con la STESSA riga sono un buco che le prove sopra non vedono.** La DoD di `#2628`
+		// chiede un testo che dica *«cosa e' successo»*, e due valori che si leggono identici non lo dicono:
+		// e' il modo in cui un `case` aggiunto per copia passa la revisione. Le quattro cadute sono
+		// precisamente il caso in cui e' facile che accada.
+		if (const FString* Gemello = TestoPerEsito.Find(Testo))
+		{
+			AddError(FString::Printf(TEXT("%s e %s si leggono identici: '%s'"), *Nome, **Gemello, *Testo));
+		}
+		else
+		{
+			TestoPerEsito.Add(Testo, Nome);
+		}
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -419,8 +419,9 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 
 	if (Entry.Category == ERTLogCategory::Move)
 	{
+		const ERTMoveOutcome Outcome = static_cast<ERTMoveOutcome>(Entry.Outcome);
 		const TCHAR* Reason = TEXT("");
-		switch (static_cast<ERTMoveOutcome>(Entry.Outcome))
+		switch (Outcome)
 		{
 		case ERTMoveOutcome::Moved:             Reason = TEXT("si muove"); break;
 		case ERTMoveOutcome::BlockedContested:  Reason = TEXT("fermo: cella contesa"); break;
@@ -474,8 +475,45 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// uniforme rispetto al motivo (unita', contesa, ciclo, muro), e nominarla richiederebbe di sapere CHI,
 		// che questa voce non porta e che [D-223] non autorizza a dedurre.
 		case ERTMoveOutcome::SlideBlocked:      Reason = TEXT("arriva: scivolamento impedito"); break;
+		// La TOPOLOGIA e' cambiata dopo la pianificazione (CP 9.3): una porta chiusa, un muro alzato, una
+		// cella sparita. Il resolver classificherebbe `Moved` — vero sul percorso troncato, falso su cio' che
+		// l'unita' aveva pianificato — e il chiamante lo sovrascrive. «cella occupata» manderebbe a cercare
+		// un'unita' e «cella contesa» un avversario: qui non c'e' nessuno dei due, c'e' un varco che si e'
+		// chiuso mentre l'unita' era in cammino.
+		case ERTMoveOutcome::BlockedByTopology: Reason = TEXT("fermo: il varco si e' chiuso"); break;
+		// Scambio `A↔B` o catena `A→B→C→A` fra unita' TUTTE in movimento (#1922, [D-295]). I tre vicini
+		// direbbero il falso, ed e' per questo che l'enumeratore esiste separato: `BlockedContested` dice «due
+		// unita' verso la STESSA cella» e qui le celle sono distinte, `BlockedByUnit` dice «c'era un'unita'
+		// FERMA» e qui sono tutte in movimento, `BlockedByImpact` e' lo scontro frontale fra due mobilita'
+		// lineari. Cio' che e' successo e' che nessuno puo' partire per primo.
+		case ERTMoveOutcome::BlockedByCycle:    Reason = TEXT("fermo: scambio o catena chiusa"); break;
+		// LE QUATTRO CADUTE (#2402/#2403, `spec-caduta-e-bordi.md` §4). Hanno quattro testi e non uno perche'
+		// hanno quattro valori, e i valori esistono perche' [D-352] ha misurato che la differenza fra loro e'
+		// dichiarata dalla spec: fonderle qui renderebbe illeggibile proprio cio' che l'enum e' stato
+		// allargato per distinguere. Nessuna delle quattro apre con «fermo»: chi cade si e' mosso eccome.
+		case ERTMoveOutcome::Fell:              Reason = TEXT("cade"); break;
+		case ERTMoveOutcome::FellToAlternative:
+			Reason = TEXT("cade: atterraggio occupato, finisce di lato"); break;
+		// Le ULTIME DUE finiscono entrambe su `LastStableCell`, e il testo deve dire PERCHE': sotto c'era
+		// qualcuno e non c'erano alternative (§4.3), oppure sotto non c'era niente affatto (§4). La `spec` §4
+		// chiama la seconda *«un quarto caso che non e' un esito di atterraggio»*, e due righe uguali
+		// rimetterebbero il lettore davanti alla distinzione che [D-352] ha creato il valore per dargli.
+		case ERTMoveOutcome::FellToLastStable:
+			Reason = TEXT("cade: sotto e' occupato e non c'e' alternativa, resta sul ciglio"); break;
+		case ERTMoveOutcome::FellWithoutLanding:
+			Reason = TEXT("cade: sotto non c'e' nessuna cella, resta sul ciglio"); break;
+		// PARAPETTO (#2401/#2403, [D-354]): il bordo dava sul vuoto ed era protetto. Non e' una caduta e non
+		// e' un muro, ed e' l'unica delle quattro qualifiche di bordo che sia AUTORATA invece che derivata —
+		// renderla illeggibile toglieva senso all'averla autorata.
+		case ERTMoveOutcome::StoppedByEdgeGuard:
+			Reason = TEXT("fermo sul ciglio: il bordo e' protetto"); break;
 		// Un valore aggiunto in coda all'enum e non tradotto qui: si legge lo stesso e DICE di non essere
 		// tradotto, invece di travestirsi da «resta». Chi lo incontra sa dove guardare.
+		//
+		// ⛔ **Il ramo RESTA anche ora che nessun valore vivo ci cade** (#2628): e' la rete che ha reso
+		// visibili i sette che ci cadevano, e toglierla perche' oggi e' vuota la renderebbe indisponibile
+		// esattamente quando servira' — al prossimo valore aggiunto in coda. Che sia vuota lo tiene
+		// `TurnLog.EveryMoveOutcomeIsDescribed`, non questo commento.
 		default:
 			return FString::Printf(TEXT("esito di movimento non tradotto (%d) %s"),
 				Entry.Outcome, *CellText(Entry.SrcCell));
@@ -486,23 +524,42 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// categoria di voce con `ActionId` diverso.
 		const FString Cause = ActionIdentitySuffix(Entry);
 
-		// `SupersededByDash` sta QUI e non nel ramo breve: la sua ragione d'essere e' la destinazione mai
-		// raggiunta, e un rendering che stampa solo `SrcCell` la nasconde. La coppia descrive la rotta
-		// scartata, ed e' la stessa forma di `Moved` — cambia il motivo, non la geometria.
-		// `Slid` sta qui per la stessa ragione di `SupersededByDash`: cio' che la voce deve far vedere e' la
-		// DESTINAZIONE, che non e' quella pianificata. Stampare la sola `SrcCell` nasconderebbe l'unica cosa
-		// che distingue lo scivolamento da un movimento riuscito.
-		// `SlideBlocked` sta qui perche' e' un movimento RIUSCITO: la destinazione e' quella che il giocatore
-		// aveva chiesto, e nasconderla lo lascerebbe con «impedito» senza sapere che il suo piano ha
-		// funzionato — cioe' con la lettura opposta a quella che l'esito esiste per dare.
-		if (static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Moved
-			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Displaced
-			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::Slid
-			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SlideBlocked
-			|| static_cast<ERTMoveOutcome>(Entry.Outcome) == ERTMoveOutcome::SupersededByDash)
+		// CHI STAMPA LA DESTINAZIONE. La riga lunga — `Src -> Tgt (n celle)` — appartiene agli esiti in cui
+		// l'unita' e' finita DA QUALCHE PARTE e il giocatore non lo saprebbe altrimenti; la riga breve a
+		// quelli che dicono «e' rimasta dov'e'». Il confine non e' stilistico, e ogni voce ha la sua ragione:
+		//
+		//   `SupersededByDash` — la destinazione mai raggiunta E' la sua ragione d'essere, e un rendering che
+		//     stampa solo `SrcCell` la nasconde. La coppia descrive la rotta scartata: stessa forma di
+		//     `Moved`, cambia il motivo e non la geometria.
+		//   `Slid` — cio' che la voce deve far vedere e' la DESTINAZIONE, che non e' quella pianificata.
+		//     Senza, nulla distingue lo scivolamento da un movimento riuscito.
+		//   `SlideBlocked` — e' un movimento RIUSCITO: la destinazione e' quella che il giocatore aveva
+		//     chiesto, e nasconderla lo lascerebbe con «impedito» senza sapere che il suo piano ha funzionato.
+		//   `Displaced` e le QUATTRO CADUTE (#2402/#2403) — `AppendDisplacementEntry` scrive `TgtCell` = dove
+		//     l'unita' e' finita e `Amount` = i passi percorsi. Per una caduta la cella d'arrivo cambia
+		//     LAYER, ed e' il fatto piu' importante della riga: il ramo breve lo tacerebbe.
+		//   `StoppedByEdgeGuard` — ha percorso celle e si e' fermata sul ciglio. Quante e dove e' la
+		//     differenza fra un parapetto e un muro adiacente.
+		//
+		// ⚠️ **`BlockedByTopology` resta BREVE con i suoi fratelli** benche' l'unita' abbia percorso il
+		// tronco del proprio percorso: promuoverlo e' una decisione sul vocabolario dei blocchi, non la
+		// traduzione che `#2628` chiede, e si prende dove si prendono le decisioni.
+		switch (Outcome)
 		{
+		case ERTMoveOutcome::Moved:
+		case ERTMoveOutcome::Displaced:
+		case ERTMoveOutcome::Slid:
+		case ERTMoveOutcome::SlideBlocked:
+		case ERTMoveOutcome::SupersededByDash:
+		case ERTMoveOutcome::Fell:
+		case ERTMoveOutcome::FellToAlternative:
+		case ERTMoveOutcome::FellToLastStable:
+		case ERTMoveOutcome::FellWithoutLanding:
+		case ERTMoveOutcome::StoppedByEdgeGuard:
 			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
 				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Cause);
+		default:
+			break;
 		}
 		return FString::Printf(TEXT("%s %s%s"), Reason, *CellText(Entry.SrcCell), *Cause);
 	}
