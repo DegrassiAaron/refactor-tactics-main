@@ -112,8 +112,57 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
 | `PIE-V01-KIT-HOTKEYS` | `SET-HEX-BOT` | — | `ARTPlayerController::GenericHotkeys()` (`grep -n 'GenericHotkeys' Source/RefactorTactics/Player/RTPlayerController.cpp` → righe 341, 363) cabla le cinque generiche su tasti propri dal 2026-08-31 (`#1439`, `MERGED`); i dieci tasti e il kit d'eroe sono raggiungibili in PIE, resta solo da premerli |
 | `PIE-V01-REACTCOND` | `SET-HEX-BOT` | — | il bloccante (`Ability5Action` inesistente) è caduto il 2026-08-26 con `#1439` (`MERGED`): i tasti abilità coprono `1`–`9`/`0`, `Hero.Aevik.ReactiveCapacitor` (indice 4) si arma col tasto **5** nella formazione di default — nessun prerequisito mancante |
 | `PIE-V01-SHIELD` | `SET-HEX-BOT` | — | già **PARZIALE, eseguita il 2026-09-05** (`e1ed997f`): tasto e ramo self confermati, effetto e cooldown confermati; resta solo da leggere la barra scudo nei tre momenti (`5 → 30 → 5`). `BP_Unit_Phase_C_0` è un nome d'istanza dell'Outliner, non un package — non genera un `asset:`. Il portatore (`Action.Shield`) è legale da [D-226](../decisions/RT_PDR_00_Decision_Log.md) |
-
-<!-- lotto successivo: SET-SCEN -->
+| `PIE-ACC-ENVIRONMENT` | `SET-SCEN` | — | scenario `Visual.Environment.Acceptance` tracciato (`Scenarios/Visual/Environment/Acceptance.json`); la riga di registro dichiara esplicitamente «nessun asset da preparare» — `rt.Test.Scenario Visual.Environment.Acceptance` porta con sé arena, unità e piani |
+| `PIE-ACC-GUARDBRACE` | `SET-SCEN` | — | scenario `Visual.Combat.GuardVsBraceUnderSmallHits` tracciato (`Scenarios/Visual/Combat/GuardVsBraceUnderSmallHits.json`), già verde headless (`PASS 7/7` il 2026-09-03); «nessun asset da preparare» nella riga di registro |
+| `PIE-ACC-MAP` | `SET-SCEN` | — | scenario `Visual.Map.Acceptance` tracciato (`Scenarios/Visual/Map/Acceptance.json`); «nessun asset da preparare» nella riga di registro |
+| `PIE-BAL1` | `SET-SCEN` | — | non in `RELEASE-V01`. Lo scenario `Spec.Brace.GuardAndBraceOnMixedHit` (`Scenarios/Spec/Brace/GuardAndBraceOnMixedHit.json`) è tracciato e dà oggi un esito **baseline**, legittimo secondo la riga stessa («uso legittimo prima dell'implementazione: girarla sulla coppia vecchia come baseline»). La domanda vera — Guard e Brace leggibili ora che hanno lo **stesso prezzo** — resta non ottenibile: verificato in `Source/RefactorTactics/Ability/RTCatalogLibrary.cpp` che `Action.Brace` applica ancora `Status.Braced`+`Status.Root` (non `Status.Slow`, righe 1493-1499) e `Action.Guard` non si auto-infligge `Status.Slow` (righe 1103-1106) — D-205/D-208 non sono atterrate in codice. Nessun `requires` dichiarato: l'unica issue trovata, [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403), è il gate umano di **questo stesso check** («resta il gate umano U20/PIE-BAL1», `docs/OPEN_DECISIONS.md:1710`) e chiuderebbe solo eseguendo questa voce — non è un owner che possa sbloccarla dall'esterno. Dettagli in coda al verbale |
+| `PIE-GEO-ANCHOR` | `SET-SCEN` | — | precondizione procedurale (tool Geometry attivo, gesto iniziato), nessun asset o scenario nominato; coperto headless da `Anchor.PaletteIsThirteen`, `Anchor.InexpressiblePairsAreRefused`, `Anchor.SnapNeverInventsTheInexpressible`, `Anchor.RefusesWhatItCannotSay`, `AnchorReadout.IncidenceObeysTheVerdict` — il residuo è il gesto a schermo |
+| `PIE-GEO-CALPESTABILE` | `SET-SCEN` | — | i due scenari che allestiscono i due versi sono tracciati: `Spec.Map.WallCrossesCellStillStandable` e `Spec.Map.FootprintCollisionBlocksCell` (`Scenarios/Spec/Map/`); precondizione procedurale (tool Geometry, `bShowOverlay`) |
+| `PIE-GEO-CENTRO` | `SET-SCEN` | — | precondizione procedurale (tool Geometry, overlay occupancy) più il comando `rt.Debug.DumpCellPlacement`, della stessa famiglia degli `rt.Debug.*` già confermati registrati per `PIE-V01-DEBUG` nel lotto precedente; nessun asset nominato mancante |
+| `PIE-GEO-INCIDENZA` | `SET-SCEN` | — | scenario `Spec.Map.IncidentWallsStillPlay` tracciato (`Scenarios/Spec/Map/IncidentWallsStillPlay.json`); precondizione procedurale (tool Geometry, un muro interno già disegnato) |
+| `PIE-HEXPLAY-6` | `SET-SCEN` | — | `RELEASE-V01`. Già **giudicata ❌** con evidenza estesa (log, `runId`, tre riaperture, verdetti d'autore verbatim). `WBP_RT_EventLogRight` è un nome di istanza dentro `WBP_RT_TacticalHUD`, non un package — stessa conclusione già scritta per `PIE-V01-SCREENHUD`/`PIE-V01-BLINDFIRE` in questo verbale; il montaggio è confermato (`[ok] EventLog: 1`, classe tracciata `WBP_RT_EventLog`, `oracles.asset_tracciati()` → `True`). Un check già giudicato è per definizione raggiungibile — resta ❌ finché una nuova seduta non lo rigiudica |
+| `PIE-HEXPLAY-8` | `SET-SCEN` | — | `RELEASE-V01`. Già **giudicata 🟡** con verdetto esplicito su entrambe le metà: la salita è ✅ (quota `z=140,0`, `LayerHeight` esatto, misurata il 2026-09-04), il crollo del ponte è **dichiarato NON OSSERVABILE in v0.1** — non in attesa di seduta — perché `Action.ModifyArc` resta senza esecutore per decisione (`D-046`); lo scenario `Spec.Map.BridgeBreaksThePath` (tracciato, `Scenarios/Spec/Map/BridgeBreaksThePath.json`) è stato corretto il 2026-09-08 per dichiararsi `BLOCKED` invece di passare a vuoto. Nessun asset mancante, nessun blocco d'accesso |
+| `PIE-ICON-02` | `SET-SCEN` | — | `DA_IconCatalog` tracciato e a 64 chiavi (`#2253` mergiata); scenario `Visual.Combat.UnbalancedAmplifiesPush` tracciato (`Scenarios/Visual/Combat/UnbalancedAmplifiesPush.json`) per produrre entrambe le icone nello stesso fotogramma; resta solo il giudizio a schermo da vicino |
+| `PIE-KNOW1` | `SET-SCEN` | — | scenario `Visual.Perception.Acceptance` tracciato (`Scenarios/Visual/Perception/Acceptance.json`), via alternativa `-dpcvars` documentata e verificata funzionante su un altro banco dello stesso corpus (`Visual.Environment.FireOnEnter`, banner `PASS` osservato); `ARTHUD::DrawHUD` esiste in codice — nessun asset mancante |
+| `PIE-KNOW2` | `SET-SCEN` | — | stesso allestimento di `PIE-KNOW1`; `ARTUnit::RefreshComponentVisibility` cablata da `ARTHUD::DrawHUD` e coperta headless da `Unit.RediscoveryDoesNotSelect` — nessun asset mancante, resta il cablaggio del ciclo di disegno da giudicare a schermo |
+| `PIE-KNOW3` | `SET-SCEN` | — | stesso allestimento; `M_LastContactGhost` **tracciato** (`Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset`, `oracles.asset_tracciati()` → `True`) e `ContactGhostMaterial` è un campo opzionale già letto (`Source/RefactorTactics/Unit/RTUnit.cpp:980-982`); nessuna riga dichiara il materiale non assegnato sui `BP_Unit_*` — nessun `requires` verificabile |
+| `PIE-KNOW4` | `SET-SCEN` | — | stesso allestimento; il comportamento atteso (`D-223`, `#1497`) è già atterrato, coperto headless da `Knowledge.OverlayAndGhostAreComplementary`; il comando di verifica `rt.Debug.DrawPaths 0` esiste — nessun asset mancante |
+| `PIE-KNOW5` | `SET-SCEN` | — | precondizione «`#1525` in main» verificata: PR #1875 (`fix/1525-tronca-playback-al-tratto-osservato`) mergiata, commit `42f33ba2` in storia (`git log --oneline --all \| grep 1525`); nessun asset mancante, il comando `rt.Debug.DrawPaths 0` è lo stesso di `PIE-KNOW4` |
+| `PIE-SCEN-PLAYBACK` | `SET-SCEN` | — | tab Tactical Designer eseguibile dal 2026-09-04 (`URTScenarioAuthoring::Run`, prima solo negli automation test); catena headless completa (trasporto #2095, stato da traccia #2173, identità id #2176, traduzione viste #2185); due difetti già trovati e corretti via MCP (#2224); nessun asset o widget mancante, resta solo il giudizio di leggibilità |
+| `PIE-V01-DOCKCLICK` | `SET-SCEN` | — | owner [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826) scope 1; scenario `Visual.Hud.FirstPlayable` tracciato (`Scenarios/Visual/Hud/FirstPlayable.json`); `WBP_RT_ActionDock`/`WBP_RT_ActionSlot` entrambi tracciati (`oracles.asset_tracciati()` → `True`); il caso fail-closed (slot vuoto) è dichiarato `N/A` **nella riga stessa** per assenza di kit col buco — non un `requires`, è un criterio già circoscritto dalla voce |
+| `PIE-V01-DOCKKEYS` | `SET-SCEN` | — | owner #2826 scope 3, stesso allestimento di `PIE-V01-DOCKCLICK`; il caso decimo-slot esiste solo su Muiren (10 voci nel roster tracciato) — precondizione già circoscritta nella riga, non un asset mancante; il fix del `10`→`0` (#2987) è già atterrato |
+| `PIE-V01-DOCKPROMPT` | `SET-SCEN` | — | owner #2826 scope 5, stesso allestimento; il cablaggio del dock (PR #2933) è mergiato, i cinque `HudViewModel.TargetPrompt*` sono verdi — nessun asset o widget mancante, resta il giudizio a schermo delle tre frasi |
+| `PIE-V01-DOCKREBUILD` | `SET-SCEN` | — | origine [#2989](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2989); stesso allestimento, con due unità di lunghezza kit diversa (Muiren 10, Aevik/Branth/Ivrin 9) già verificate nel roster tracciato; la riga stessa dichiara **coperta una sola metà** (il caso fra mouse-down e mouse-up è dichiarato non riproducibile a gesto, nessun input di selezione alternativo esiste — `CycleUnit`/`SelectNextUnit` danno zero in `Source/`) — non un `requires`, è un limite già circoscritto della voce |
+| `PIE-V01-DOCKTICK` | `SET-SCEN` | — | origine #2989, stesso allestimento di `PIE-V01-DOCKCLICK`; si giudica dal log di output, nessun asset o widget mancante — il difetto noto (#2963, 16388 righe per 4 chiavi) è già registrato come tale e non impedisce l'accesso |
+| `PIE-V01-INSPECT` | `SET-SCEN` | — | owner #705 (gesto) e #613 (pannello), atterrati con PR #3014 (`issue/705-resolve-outcome`, commit `f050b3f2` confermato in storia); stesso allestimento delle tre sorelle del dock; i quattro test citati sono verdi e validati per mutazione — nessun asset mancante |
+| `PIE-V01-PACKAGED` | `SET-SCEN` | — | già **ESEGUITA il 2026-09-04** (#959), due volte (PIE e packaged Development), con evidenza puntuale (correlazione al secondo fra scatto e log, banner AUTOBATTLE a schermo, materiale in `Saved/CP476/` e `Saved/CP476-PIE/`); i quattro blocchi storici (#1088, #1069, #79 fetta A, #1296) sono tutti chiusi — la voce è dimostrabilmente raggiungibile e già giudicata |
+| `PIE-V01-POINTER` | `SET-SCEN` | — | owner `spec-pointer-interaction.md`, CP 11.8; precondizione procedurale (partita in PIE, unità propria selezionata); nessun asset o widget nominato mancante |
+| `PIE-V01-PREPWINDOW` | `SET-SCEN` | — | condivide l'allestimento di `PIE-V01-PACKAGED` (`rt.Match.Autobattle=1`, `E47.1` già sbloccata); gli otto Automation Test citati sono verdi; `PrepWindowSeconds` di default è 3s — nessun asset mancante, mai eseguita ma non bloccata |
+| `PIE-V01-SPECTATOR-ROSTER` | `SET-SCEN` | — | precondizione `WBP_RT_TacticalHUD` montato — tracciato (`oracles.asset_tracciati()` → `True`); stesso allestimento di `PIE-V01-PACKAGED`. ⚠️ **La riga di registro è stale sul criterio (d)**: dice «`WBP_RT_EventLog` non è in `Content/`», ma `Content/RT/UI/Match/WBP_RT_EventLog.uasset` **è tracciato** (`oracles.asset_tracciati()` → `True`) — (d) non è quindi `N/A` per asset assente. Questo toglie un vincolo, non ne aggiunge uno: nessun `requires` |
+| `PIE-VELO-VIEWER` | `SET-SCEN` | — | eseguibile dal 2026-08-29 (`#1535`, commit `a5283719` confermato in storia); `ARTGameMode::ApplyKnowledgeVeilForViewer()` sottoscrive `OnTeamKnowledgeRefreshed`, coperto headless da `RTVeilTests.cpp` — nessun asset mancante |
+| `PIE-VIS-AREAGUARD` | `SET-SCEN` | — | scenario `Visual.Combat.AreaGuardFromImpactCenter` tracciato (`Scenarios/Visual/Combat/AreaGuardFromImpactCenter.json`); logica coperta da due test C++ e due scenari `Spec.*`; nata `NOT RUN` per assenza di riga nel corpus (#2062), non per un asset mancante |
+| `PIE-VIS-BRACE` | `SET-SCEN` | — | scenario `Visual.Combat.BraceReducesEveryHit` tracciato (`Scenarios/Visual/Combat/BraceReducesEveryHit.json`); descrive il comportamento **attuale** di `Action.Brace` (-10 a ogni colpo, `RTCatalogLibrary.cpp:1493-1499`) — non ancora toccato da D-204/D-208 (vedi `PIE-BAL1`), quindi lo scenario è valido oggi |
+| `PIE-VIS-CHARGE` | `SET-SCEN` | — | scenario `Visual.Movement.Charge` tracciato (`Scenarios/Visual/Movement/Charge.json`); nessun asset mancante |
+| `PIE-VIS-COMBO` | `SET-SCEN` | — | scenario `Visual.Combat.WaterElectric` tracciato (`Scenarios/Visual/Combat/WaterElectric.json`); nessun asset mancante |
+| `PIE-VIS-COORD` | `SET-SCEN` | — | scenario `Visual.Combat.WaterElectricCoordinated` tracciato (`Scenarios/Visual/Combat/WaterElectricCoordinated.json`); nessun asset mancante |
+| `PIE-VIS-COVER` | `SET-SCEN` | — | scenario `Visual.Map.LowCoverEdge` tracciato (`Scenarios/Visual/Map/LowCoverEdge.json`); nessun asset mancante |
+| `PIE-VIS-DOOR` | `SET-SCEN` | — | scenario `Visual.Map.ClosedDoor` tracciato (`Scenarios/Visual/Map/ClosedDoor.json`); nessun asset mancante |
+| `PIE-VIS-FALLBACK` | `SET-SCEN` | — | scenario `Visual.Combat.FallbackTargetMoved` tracciato (`Scenarios/Visual/Combat/FallbackTargetMoved.json`); nessun asset mancante |
+| `PIE-VIS-GUARD` | `SET-SCEN` | — | scenario `Visual.Combat.GuardReducesFirstHit` tracciato (`Scenarios/Visual/Combat/GuardReducesFirstHit.json`); descrive il comportamento attuale di `Action.Guard` (pool 15, `RTCatalogLibrary.cpp:1096-1106`, D-292+D-206 già atterrate) — nessun asset mancante |
+| `PIE-VIS-HIGH` | `SET-SCEN` | — | scenario `Visual.Map.HighGroundNoBonus` tracciato (`Scenarios/Visual/Map/HighGroundNoBonus.json`); nessun asset mancante |
+| `PIE-VIS-HIGHCOVER` | `SET-SCEN` | — | scenario `Visual.Map.HighCoverBlocks` tracciato (`Scenarios/Visual/Map/HighCoverBlocks.json`, fixture `CoverYard`); nessun asset mancante |
+| `PIE-VIS-ICE` | `SET-SCEN` | — | scenario `Visual.Environment.IceSlide` tracciato (`Scenarios/Visual/Environment/IceSlide.json`); nessun asset mancante |
+| `PIE-VIS-KO` | `SET-SCEN` | — | scenario `Visual.Combat.Defeat` tracciato (`Scenarios/Visual/Combat/Defeat.json`), già eseguito headless il 2026-08-31 (`PASS 4/4`, `turnsPlayed: 6`); nessun asset mancante, resta il giudizio sul tempo della sparizione |
+| `PIE-VIS-LEVEL` | `SET-SCEN` | — | scenario `Visual.Map.MultiLevel` tracciato (`Scenarios/Visual/Map/MultiLevel.json`); nessun asset mancante |
+| `PIE-VIS-PHASES` | `SET-SCEN` | — | scenario `Visual.Core.PhaseOrder` tracciato (`Scenarios/Visual/Core/PhaseOrder.json`), già eseguito headless il 2026-08-31 (`PASS 3/3`); nessun asset mancante |
+| `PIE-VIS-PRONE` | `SET-SCEN` | — | scenario `Visual.Movement.ProneStandUpCosts` tracciato (`Scenarios/Visual/Movement/ProneStandUpCosts.json`); la regola numerica è coperta headless (`Status.StandUpCostsOneMovePoint`); nessun asset mancante |
+| `PIE-VIS-ROUGH` | `SET-SCEN` | — | scenario `Visual.Movement.RoughRefusesCharge` tracciato (`Scenarios/Visual/Movement/RoughRefusesCharge.json`); nessun asset mancante |
+| `PIE-VIS-SIGHTLINE` | `SET-SCEN` | — | scenario `Visual.Environment.BlindFireThroughSightWall` tracciato (`Scenarios/Visual/Environment/BlindFireThroughSightWall.json`), nuovo il 2026-09-11; nessun asset mancante — mai eseguita, non bloccata |
+| `PIE-VIS-SIGHTWALL` | `SET-SCEN` | — | già **giudicata ❌**, con quattro riaperture e verdetti d'autore verbatim registrati; scenario `Visual.Map.SightWallIsWalkable` tracciato (`Scenarios/Visual/Map/SightWallIsWalkable.json`) — un check già giudicato è per definizione raggiungibile |
+| `PIE-VIS-SLIDESTATE` | `SET-SCEN` | — | stesso banco di `PIE-VIS-ICE` (`Visual.Environment.IceSlide`, stesso file tracciato); nessuno scenario nuovo da preparare — la riga stessa lo dichiara («non aggiungere uno scenario: è lo stesso file») |
+| `PIE-VIS-SMOKE` | `SET-SCEN` | — | scenario `Visual.Combat.SmokeCapsTargeting` tracciato (`Scenarios/Visual/Combat/SmokeCapsTargeting.json`); nessun asset mancante |
+| `PIE-VIS-UNBAL` | `SET-SCEN` | — | scenario `Visual.Combat.UnbalancedAmplifiesPush` tracciato (`Scenarios/Visual/Combat/UnbalancedAmplifiesPush.json`, lo stesso di `PIE-ICON-02`); nessun asset mancante |
+| `PIE-VIS-WETFIRE` | `SET-SCEN` | — | scenario `Visual.Environment.WetExtinguishesFire` tracciato (`Scenarios/Visual/Environment/WetExtinguishesFire.json`); nessun asset mancante |
 
 ## Cosa questa rassegna non ha deciso
 
@@ -122,8 +171,10 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
 - La **coda scoperta** — i check che nessuna riga di `wiring` cabla — non è entrata nel bacino.
   Fra essi `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE`, che la spec cita come casi `cue` canonici:
   non si può dichiarare il prerequisito di un check che non ha ancora un allestimento.
-- Il restante check del bacino (`SET-SCEN`) appartiene al lotto successivo di questo stesso
-  Task 6, non a questa fetta.
+- **Con questo lotto (`SET-SCEN`) la rassegna copre l'intero bacino**: nessun allestimento resta
+  fuori da questo verbale. Il conteggio esatto — quanti check, quanti `requires` — si rimisura
+  con `python tools/editor-sessions/compare_rassegna.py`, non si ripete qui in prosa perché
+  invecchierebbe.
 
 ## Dubbi sopravvissuti alla rassegna
 
@@ -146,3 +197,27 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
   l'unica ragione onesta disponibile: lo schema dei `requires` non ha un token per un gap che
   il repository stesso dichiara privo di issue owner — non perché il check sia oggi pienamente
   giudicabile su questo asse.
+- **`PIE-BAL1`** (`SET-SCEN`): la voce chiede se `Guard` e `Brace` si leggano come scelte diverse
+  «ora che hanno lo stesso prezzo» — e oggi non ce l'hanno. Verificato in
+  `Source/RefactorTactics/Ability/RTCatalogLibrary.cpp`: `Action.Brace` applica ancora
+  `Status.Braced` + `Status.Root` (righe 1493-1499, il comportamento pre-`D-204`), `Action.Guard`
+  non si auto-infligge `Status.Slow` (righe 1096-1106) — `D-205` e `D-208`
+  (`docs/decisions/RT_PDR_00_Decision_Log.md:218,221`, «Consolidata» il 2026-08-27) non sono
+  atterrate in codice. La riga di registro lo dice in chiaro: *«non eseguibile finché D-204…D-208
+  non sono implementate»*, e concede un solo uso legittimo oggi — una corsa **baseline** sulla
+  coppia vecchia, registrata come tale e mai come risposta a `BAL-1`. Non è quindi un `asset:`
+  mancante (lo scenario `Spec.Brace.GuardAndBraceOnMixedHit` è tracciato ed eseguibile), ed è un
+  caso che sembra fatto apposta per `feature:` — ma l'unica issue trovata per questa domanda,
+  [#403](https://github.com/DegrassiAaron/refactor-tactics-main/issues/403), non è un owner
+  esterno: `docs/OPEN_DECISIONS.md:1710` la nomina esplicitamente come *«il gate umano, non la
+  scelta»* di **questa stessa voce** — chiude quando `U20`/`PIE-BAL1` viene giudicata, non prima.
+  Dichiararla come `requires` significherebbe bloccare il check con la propria stessa
+  conclusione: un `#nnn` che nessuno può chiudere dall'esterno è esattamente il bloccante che il
+  divieto 2 del brief vieta di inventare. Nessuna issue distinta traccia l'atterraggio di
+  `D-205`/`D-208` nel catalogo (cercato in `docs/OPEN_DECISIONS.md`, nella roadmap
+  `action-phases-economy-handoff-2026-08-26.md` e via `gh issue list` locale: nessun candidato).
+  **La decisione resta `—`**, per la stessa ragione onesta di `PIE-V01-COVEREDIT`: non perché il
+  check sia oggi pienamente giudicabile sulla sua domanda vera, ma perché lo schema non ha un
+  token per «la decisione è presa e non ancora scritta in codice, e nessuno lo traccia
+  separatamente da questo stesso gate». Non è `RELEASE-V01`, quindi non tiene nulla fuori dalla
+  consegna.
