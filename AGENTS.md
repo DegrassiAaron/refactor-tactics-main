@@ -668,10 +668,13 @@ Unreal è **uno** e lo condividono tutti i checkout. Da cui:
 **2 · Prima di prendere: leggi chi c'è, e da dove.**
 
 ```powershell
-Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
+Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'LiveCoding%'" |
+    Select ProcessId, ParentProcessId, Name, CommandLine
 ```
 
 ⛔ **Un conteggio di processi non serve a niente.** La `CommandLine` porta il `.uproject`, quindi **quale clone**; `UnrealEditor.exe` contro `UnrealEditor-Cmd.exe` dice se è un Editor interattivo o una run headless; e `-abslog` dice **quale sessione**. Sono le tre cose che decidono se aspettare.
+
+⛔ **E `LiveCodingConsole` va nel filtro, perché non contiene `UnrealEditor`.** Tiene lo stesso lock di compilazione — di **tutti** i cloni — e sopravvive all’Editor che lo ha aperto: un filtro sul solo `UnrealEditor%` torna **vuoto** mentre la build resta bloccata su *«Unable to build while Live Coding is active … Exit the editor»*, e non c’è un Editor da chiudere. Per questo serve il `ParentProcessId`: se non risolve a un processo vivo **nello stesso campione**, quel `LiveCodingConsole` è **orfano**. [#2392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392) lo ha misurato; i gate di `tools/mutation/` lo classificano in `misura.classifica_livecoding()`.
 
 **3 · Quando prendi, rendi il tuo processo leggibile.** Ogni run headless passa `-abslog` dentro la propria directory di scratchpad di sessione:
 
@@ -689,6 +692,8 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select Proce
 | misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
 | qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
 | Editor interattivo sul **tuo** clone | build | **aspetta**: tiene il DLL |
+| `LiveCodingConsole` col **padre vivo** | build in qualunque clone | **aspetta**: il lock è di chi sta iterando, e chiuderglielo gli costa il lavoro non salvato |
+| `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**: nessuno lo rilascerà. Va terminato a mano; se un gate possa farlo da sé è la decisione aperta `GOV-7` |
 | qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
 
 **5 · Se non puoi aspettare, non misurare comunque.** Si dichiara `NOT RUN` con il motivo — *«motore occupato da `<clone>`»* — invece di produrre un verde in finestra sporca. Un `NOT RUN` onesto costa un giro; una misura invalida costa la fiducia in tutte le altre.

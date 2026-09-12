@@ -1,6 +1,6 @@
 # Decisioni aperte
 
-> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-10 (`GKPROC-1`, la contraddizione che il codice non puo' arbitrare; `INT-9`, `INT-10`; `BLIND-1` `BLIND-4` `BLIND-5` chiuse da [D-371] [D-373] [D-374]; il blocco di #2793 si sposta su `BLIND-2` -> `OBS-1`)
+> `OPEN` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-12 (`GOV-7`, se un gate possa terminare un `LiveCodingConsole` orfano — da #2392, dove era una casella di checklist)
 > **Cosa è**: l'elenco di ciò che **aspetta una persona**. Nessuna di queste voci può essere chiusa
 > deducendola dai documenti: o mancano i dati, o due fonti si contraddicono senza gerarchia.
 > **Cosa non è**: il registro delle decisioni prese — quello è il
@@ -22,6 +22,33 @@
 > risposta, ed è la disciplina che questo documento dichiara dodici righe più in alto.
 > 🔴 **`GBX-1` e `GBX-5` NON sono fra queste**: la sessione ne ha deciso il **metodo**
 > ([`D-283`](decisions/RT_PDR_00_Decision_Log.md)) e ha lasciato i **numeri aperti** fino a `U25`.
+
+---
+
+## Aperta — terminare un `LiveCodingConsole` orfano, dallo spec panel del 2026-09-12
+
+Origine: [#2392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392), dove era una casella di
+checklist — *«decidere se terminarlo automaticamente»* — e una casella che si spunta decidendo non ha
+Definition of Done. Estratta qui dallo spec panel del 2026-09-12, misurato su `394e7f5a`.
+Issue correlate: #2392 · #2359 · #2331 · #2346 (chiusa, precedente storico su `rt-suite`).
+
+🔑 **Perché non si deduce, e perché è una sola voce.** Il difetto tecnico di #2392 è misurato e non ha
+bisogno di una decisione: `LiveCodingConsole.exe` tiene il lock di compilazione di **tutti** i cloni e
+`tools/mutation/misura.py:182` non lo vede, perché classifica i processi «motore» con
+`if "UnrealEditor" in nome`. Classificare chi tiene il lock, e smettere di aspettarlo quando è un orfano, si
+fa in ogni caso. ⛔ **Ciò che non si deduce è se il gate possa TERMINARLO**, e la ragione è che i due
+interessi in gioco non sono confrontabili dal repository: da una parte minuti di macchina — la mezz'ora di
+`40 × 45 s` che `build()` spende ritentando (`misura.py:546`), più un verde che non vale: ⚠️ i `minuti=90`
+di `attendi_motore_libero` **non** si spendono in questo caso, e una prima stesura di questa voce li contava —
+con nessun `UnrealEditor*` vivo quella funzione torna `True` in **0,80 s**, misurato il 2026-09-12; dall'altra il
+lavoro non salvato di una persona che sta iterando in un Editor. ⚠️ **E il Decision Log è muto**:
+`grep -i -E "live coding|livecoding"` su [`RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) dà
+**0 righe**, quindi non c'è una decisione da applicare né da emendare. La pratica corrente — *attendere, non
+terminare* — è prescrizione operativa, non decisione registrata.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `GOV-7` | **Un gate automatico può terminare un `LiveCodingConsole` accertato orfano, o la terminazione resta un atto umano?** | 🔴 **Le due grandezze in conflitto non sono commensurabili, e nessuna misura le mette in scala.** Il costo dell'attesa si legge dalle costanti (`misura.py:200`, `misura.py:546`); il costo di uccidere la seduta sbagliata è il lavoro non salvato di qualcuno, che non ha unità di misura. ⚠️ **E «orfano» è un'inferenza, non un'osservazione**: si deduce da un `ppid` che non risolve a un processo vivo, su un **solo** campione. Windows ricicla i pid — ⛔ *non misurato qui*, ed è la prima cosa che chi scegliesse *(b)* deve escludere: il criterio disponibile è confrontare `CreationDate` di padre e figlio in `Win32_Process`, perché un padre creato **dopo** il proprio figlio è un pid riciclato, non un padre. **Uscite**: *(a)* **mai terminare — solo classificare, nominare il pid, e smettere di aspettare**: rischio **zero**, ed è già tutto ciò che serve a non bruciare i minuti; ⛔ ma l'orfano resta vivo, il build **successivo** fallisce identico, e il rimedio resta un atto che qualcuno deve ricordare — in una run non presidiata, nessuno. *(b)* **terminare l'orfano accertato**, con `CreationDate` a escludere il pid riciclato: il gate si sblocca da sé e il difetto smette di ripresentarsi; ⛔ ma un falso positivo costa una seduta altrui, e il margine fra «accertato» e «presunto» è tutto dentro un'euristica su un campione. *(c)* **stampare il comando invece di eseguirlo** (`taskkill /PID nnn`, col nome del clone da cui veniva il padre): rischio zero e rimedio a un copia-incolla; ⛔ ma in headless non presidiato equivale a *(a)*, e aggiunge una riga che chi non legge l'output non vedrà mai. ⛔ **Ciò che nessuna uscita autorizza**: reintrodurre un lease o un file di lock — [`D-347`](decisions/RT_PDR_00_Decision_Log.md) lo ha rimosso per scelta d'autore e [`D-362`](decisions/RT_PDR_00_Decision_Log.md) lo ha sostituito con *«il processo stesso è la dichiarazione di possesso»* — e terminare un `LiveCodingConsole` il cui padre è **vivo**, che in ogni uscita resta un Editor di qualcuno. 🔑 **Ciò che la misura HA stabilito** è che la decisione non blocca il lavoro: le consegne di #2392 — la funzione pura di classificazione, i quattro esiti (`orfano`/`attivo`/`assente`/`sconosciuto`), l'uscita immediata su `orfano` — sono identiche in tutte e tre le uscite. Questa voce governa **solo** l'atto di terminare. **Innesco**: la consegna **A** di #2392, che introduce la classificazione e quindi il punto dove la terminazione andrebbe chiamata; oppure il primo orfano che blocchi una run non presidiata — ed è il caso in cui *(a)* mostra il proprio costo |
 
 ---
 

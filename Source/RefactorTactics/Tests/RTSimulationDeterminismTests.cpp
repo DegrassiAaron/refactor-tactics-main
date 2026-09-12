@@ -786,6 +786,159 @@ bool FRTSimulationChecksumPermutationTest::RunTest(const FString&)
 }
 
 /**
+ * Permutare l'ingresso non cambia il **CONTENUTO del TurnLog**, e non solo lo stato finale
+ * (`#3031` CHECKPOINT H).
+ *
+ * 🔴 **Cosa aggiunge al gemello.** `Simulation.ChecksumStableAcrossPermutations` confronta `StateHash`,
+ * esito e numero di turni: dice che le due partite FINISCONO uguali. Non guarda il TurnLog, quindi non
+ * vedrebbe due esecuzioni che arrivano allo stesso stato finale **avendo raccontato turni diversi** — una
+ * finestra aperta in una e non nell'altra, un danno attribuito a un altro attore, una voce in piu' o in
+ * meno. E' il TurnLog che il giocatore rilegge e che un replay ricostruisce.
+ *
+ * ⚠️ **Su uno scenario CON decision boundary, e non su `Movement.Collision`.** Il gemello permuta un
+ * movimento puro: li' non c'e' nessuna finestra, nessuna risposta scriptata da appaiare, nessuna
+ * `OpportunityId` da derivare. L'appaiamento di una risposta scriptata avviene per CONTENUTO
+ * (`on: {reactor, reaction, triggerUnit}`), e questo e' il primo gate a chiedere che quel contenuto basti
+ * anche quando unita' e intent arrivano in ordine opposto. ⛔ Misurato: puntato su `Movement.Collision` la
+ * guardia delle decisioni cade — quello scenario non ne porta nessuna.
+ *
+ * 🔑 **Lo scenario e' `Spec.Resolver.IntegratedTurn`** (`#3031` CHECKPOINT H), e la scelta e' il punto: in
+ * un turno solo ci sono sei unita', tre ingressi scaglionati da durate d'arco diverse, due finestre di
+ * Overwatch decise in sequenza, un movimento troncato e una cella contesa. E' il caso in cui l'ordine
+ * d'inserimento ha il massimo numero di modi per contare — e nessuno deve contare. ⚠️ La struttura causale
+ * di quello scenario non e' asserita qui ma in `Resolver.IntegratedTurnIsCausallyExplained`: questo gate
+ * chiede che permutarlo non la cambi, non che sia giusta.
+ *
+ * ⛔ **Cio' che questo test NON puo' vedere, e va detto perche' una prima stesura pretendeva il contrario.**
+ * L'ordine di EMISSIONE delle voci e' irrecuperabile da questa fonte: `AllEntries` rilegge
+ * `Result.TurnTraces[].Bytes`, e il round-trip riporta la traccia in forma canonica — e' esattamente cio'
+ * che `TurnLog.OrderedHashIsLostBySerialization` pinna (*«il round-trip preserva l'hash canonico, ma NON
+ * quello ordinato: i byte tornano in forma canonica»*). ∴ qui si confrontano due **insiemi** di voci, non
+ * due sequenze di emissione, e chiamarlo altrimenti sarebbe una descrizione falsa di un gate verde.
+ *
+ * ⛔ **E `SortTurnLog` + `HashTurnLogOrdered` NON e' un modo di aggirarlo**: `HashTurnLog` copia, chiama lo
+ * stesso `SortTurnLog` e mescola con lo stesso FNV, quindi le due espressioni sono la stessa cosa. La prima
+ * stesura di questo test le usava credendo di confrontare le sequenze, con un commento che dichiarava vacuo
+ * proprio il confronto che stava facendo. Trovato in code review. Qui si usa `HashTurnLog`, che e' cio' che
+ * il confronto e' davvero.
+ *
+ * 🔑 **Le tre guardie anti-vacuita' sono la meta' del valore.** Due tracce vuote hanno lo stesso hash; due
+ * scenari senza finestre hanno zero decisioni; e — la piu' facile da dimenticare — `FiresP == Fires`
+ * e' soddisfatta da `0 == 0`, quindi una regressione che trasformasse il `FIRE` scriptato in un `HOLD`
+ * passerebbe con le decisioni ancora `> 0`. La terza guardia chiude quel caso, ed e' un rilievo di code
+ * review su questa stessa PR.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSimulationPermutationKeepsTheWholeTurnLogTest,
+	"RefactorTactics.Simulation.PermutationKeepsTheWholeTurnLog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSimulationPermutationKeepsTheWholeTurnLogTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Resolver.IntegratedTurn"), Scenario)) { return false; }
+	if (!TestTrue(TEXT("lo scenario ha almeno due unita' da permutare"), Scenario.Units.Num() >= 2))
+	{
+		return false;
+	}
+
+	const FRTTestResult Diretta = RTWorldFixtures::RunScenarioIsolated(Scenario);
+	if (Diretta.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("esecuzione diretta fallita: %s"), *Diretta.ErrorMessage));
+		return false;
+	}
+
+	// --- Le tre guardie anti-vacuita' ------------------------------------------------------------------
+	const TArray<FRTTurnLogEntry> VociDirette = AllEntries(Diretta);
+	if (!TestTrue(TEXT("la traccia diretta non e' vuota"), VociDirette.Num() > 0)) { return false; }
+
+	int32 Decisioni = 0, Fires = 0;
+	CountDecisionEntries(VociDirette, Decisioni, Fires);
+	if (!TestTrue(TEXT("la traccia porta almeno una decisione: senza finestra non si confronta niente"),
+		Decisioni > 0))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("e almeno un FIRE: con zero, l'uguaglianza dei FIRE sarebbe 0 == 0"), Fires > 0))
+	{
+		return false;
+	}
+
+	// --- La permutazione: unita' e intent al contrario, nient'altro -----------------------------------
+	FRTTestScenario Permutato = Scenario;
+	Algo::Reverse(Permutato.Units);
+	for (FRTScenarioTurn& Turn : Permutato.Turns)
+	{
+		Algo::Reverse(Turn.Intents);
+	}
+
+	const FRTTestResult Permutata = RTWorldFixtures::RunScenarioIsolated(Permutato);
+	if (Permutata.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("esecuzione permutata fallita: %s"), *Permutata.ErrorMessage));
+		return false;
+	}
+
+	// --- 1) Esito, turni, stato finale ----------------------------------------------------------------
+	TestEqual(TEXT("stesso esito"), Permutata.OutcomeString(), Diretta.OutcomeString());
+	TestEqual(TEXT("stesso numero di turni"), Permutata.TurnsPlayed, Diretta.TurnsPlayed);
+	TestEqual(FString::Printf(TEXT("stesso stato finale (%08x vs %08x)"),
+		Permutata.StateHash, Diretta.StateHash), Permutata.StateHash, Diretta.StateHash);
+
+	// --- 2) Le decisioni: quante, e quante hanno sparato ----------------------------------------------
+	const TArray<FRTTurnLogEntry> VociPermutate = AllEntries(Permutata);
+	int32 DecisioniP = 0, FiresP = 0;
+	CountDecisionEntries(VociPermutate, DecisioniP, FiresP);
+	TestEqual(TEXT("stesso numero di decisioni di reazione"), DecisioniP, Decisioni);
+	TestEqual(TEXT("e lo stesso numero di FIRE: la risposta scriptata si appaia per contenuto"),
+		FiresP, Fires);
+
+	// --- 3) L'INSIEME delle voci, che e' il punto di questo test --------------------------------------
+	TestEqual(TEXT("stesso numero di voci nel TurnLog"), VociPermutate.Num(), VociDirette.Num());
+
+	const uint32 CanonicoDiretto = URTTurnLogLibrary::HashTurnLog(VociDirette);
+	const uint32 CanonicoPermutato = URTTurnLogLibrary::HashTurnLog(VociPermutate);
+	TestEqual(FString::Printf(TEXT("stesso TurnLog canonico (%08x vs %08x)"),
+		CanonicoPermutato, CanonicoDiretto), CanonicoPermutato, CanonicoDiretto);
+
+	// --- 4) E per TURNO, per dire QUALE turno diverge invece di una sola riga rossa sulla partita -----
+	TestEqual(TEXT("stesso numero di tracce di turno"),
+		Permutata.TurnTraces.Num(), Diretta.TurnTraces.Num());
+	const int32 Turni = FMath::Min(Permutata.TurnTraces.Num(), Diretta.TurnTraces.Num());
+	for (int32 T = 0; T < Turni; ++T)
+	{
+		TArray<FRTTurnLogEntry> A, B;
+		const bool bA = URTTurnLogLibrary::DeserializeTurnLog(Diretta.TurnTraces[T].Bytes, A);
+		const bool bB = URTTurnLogLibrary::DeserializeTurnLog(Permutata.TurnTraces[T].Bytes, B);
+		if (!TestTrue(FString::Printf(TEXT("turno %d: entrambe le tracce si rileggono"), T + 1), bA && bB))
+		{
+			continue;
+		}
+		TestEqual(FString::Printf(TEXT("turno %d: stesso TurnLog canonico"), T + 1),
+			URTTurnLogLibrary::HashTurnLog(B), URTTurnLogLibrary::HashTurnLog(A));
+	}
+
+	// --- 5) CONTROPROVA: l'hash canonico del log non e' una costante ----------------------------------
+	//
+	// 🔴 Senza questa parte le uguaglianze qui sopra passerebbero anche se `HashTurnLog` restituisse sempre
+	// lo stesso numero, e non se ne accorgerebbe nessuno — e' la stessa controprova che
+	// `Simulation.StateHashDistinguishesOutcomes` fa per lo stato. Un'altra partita deve dare un altro log.
+	{
+		FRTTestScenario Altro;
+		if (LoadDeterminismScenario(*this, TEXT("Movement.Collision"), Altro))
+		{
+			const FRTTestResult Diversa = RTWorldFixtures::RunScenarioIsolated(Altro);
+			if (Diversa.Outcome != ERTTestOutcome::Error)
+			{
+				TestNotEqual(TEXT("un'altra partita produce un altro TurnLog canonico"),
+					URTTurnLogLibrary::HashTurnLog(AllEntries(Diversa)), CanonicoDiretto);
+			}
+		}
+	}
+
+	return true;
+}
+
+/**
  * L'hash NON e' una costante travestita da verifica.
  *
  * I due test sopra confrontano hash fra loro: passerebbero anche se `HashFinalState` restituisse sempre lo

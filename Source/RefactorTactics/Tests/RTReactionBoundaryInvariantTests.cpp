@@ -36,6 +36,7 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Ability/RTActionDef.h"             // ERTReactionTrigger: l'elenco che `TriggerSetStaysClosed` presidia
 #include "EngineUtils.h"
 #include "Map/RTCellId.h"
 #include "Misc/ScopeExit.h"                  // ON_SCOPE_EXIT: il mondo si distrugge anche sui `return false`
@@ -446,5 +447,82 @@ bool FRTReactionNoNestedBoundaryTest::RunTest(const FString&)
 	TestEqual(TEXT("le due decisioni cadono nello stesso micro-step"),
 		Entries[0].MicroStepIndex, Entries[1].MicroStepIndex);
 
+	return true;
+}
+
+// ======================================================================================================
+// L'elenco degli eventi che possono generare una reazione (#3031, CHECKPOINT E)
+// ======================================================================================================
+
+/**
+ * `ERTReactionTrigger` e' un elenco CHIUSO: chi ne aggiunge o toglie un valore deve passare di qui.
+ *
+ * 🔴 **E' un presidio, non una descrizione — la stessa forma di `BlindFire.BlastPreviewFieldsStayClosed` e
+ * di `Overwatch.OpportunityLeaksNoFuture`.** La domanda di #3031 CHECKPOINT E e' *«quali eventi possono
+ * generare reazioni?»*, e oggi la risposta e' questo enum: `URTReactionLibrary` ci si appoggia per decidere
+ * se un'unita' ha qualcosa da dire. Un valore in piu' e' un canale di reazione in piu', e nessun test lo
+ * vedeva arrivare.
+ *
+ * ⚠️ **E copre il motivo per cui `OnTileEntered` non esiste**, che e' il nodo di #3031 CHECKPOINT D.
+ * L'ingresso in cella NON e' un trigger di reazione: l'Overwatch vive nei micro-step del Move via
+ * `ARTTurnManager::ArmedOverwatches` (CP 14.5), e chi lo sorveglia e' `Overwatch.TriggersPerMicroStep`
+ * insieme a `Overwatch.TriggerReadsMicroStepFacing`. Aggiungere qui un `OnTileEntered` sposterebbe
+ * l'osservabilita' dell'ingresso dal ciclo del movimento al giro delle reazioni — due autorita' per lo
+ * stesso fatto. ⛔ Questo test non lo vieta: lo rende una DECISIONE invece di una deriva.
+ *
+ * ⛔ **Il verso opposto conta quanto il primo.** Un elenco che sorvegliasse soltanto le aggiunte resterebbe
+ * verde se un trigger venisse RINOMINATO o rimosso — e il trigger finisce nel TurnLog serializzato
+ * (`AboutToBeDisplaced` lo dichiara: *«i valori precedenti non si rinumerano»*), quindi perderne uno rompe
+ * la rilettura di un replay salvato. Perche' cada in entrambi i versi, la seconda meta' del test chiede che
+ * ogni nome atteso esista ancora.
+ *
+ * ⚠️ Cio' che questo test NON copre, e va detto: non dimostra che ogni valore abbia un produttore vivo, ne'
+ * che i produttori siano gli unici. Sorveglia l'elenco, non il suo consumo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionTriggerSetStaysClosedTest,
+	"RefactorTactics.Reactions.TriggerSetStaysClosed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReactionTriggerSetStaysClosedTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTReactionTrigger>();
+	if (!TestNotNull(TEXT("ERTReactionTrigger risolta dalla reflection"), Enum)) { return false; }
+
+	// Perche' ciascuno e' ammesso: `None` e' il dato incompleto; `HitByDirectAttack` e
+	// `AllyHitByDirectAttack` nascono dai colpi del Blast (CP 5.2, CP 5.3); `AboutToBeDisplaced` e
+	// `AboutToReceiveControl` da un evento della fase gia' deciso e non ancora applicato (CP 7.5);
+	// `CellBecameHazardous` dal terreno. Nessuno dei sei e' un ingresso in cella.
+	const TSet<FString> Ammessi = {
+		TEXT("None"),
+		TEXT("HitByDirectAttack"),
+		TEXT("AllyHitByDirectAttack"),
+		TEXT("AboutToBeDisplaced"),
+		TEXT("AboutToReceiveControl"),
+		TEXT("CellBecameHazardous")
+	};
+
+	// `NumEnums() - 1`: l'ultimo e' il `_MAX` sintetico che UHT aggiunge, e non e' un valore dichiarato.
+	// E' l'idioma che `RTScenarioLoader.cpp` usa per la stessa ragione.
+	for (int32 I = 0; I < Enum->NumEnums() - 1; ++I)
+	{
+		const FString Nome = Enum->GetNameStringByIndex(I);
+		if (!Ammessi.Contains(Nome))
+		{
+			AddError(FString::Printf(
+				TEXT("ERTReactionTrigger dichiara '%s', che non e' nell'elenco chiuso. Un valore nuovo e' un ")
+				TEXT("canale di reazione nuovo: va aggiunto qui con la ragione, e con il suo produttore. ")
+				TEXT("Se descrive un INGRESSO IN CELLA, non e' un trigger di reazione — quell'osservabilita' ")
+				TEXT("appartiene ai micro-step del Move (`ArmedOverwatches`, CP 14.5), e metterla anche qui ")
+				TEXT("creerebbe una seconda autorita' per lo stesso fatto (#3031)"), *Nome));
+		}
+	}
+
+	// E nessuno di quelli attesi e' scomparso o e' stato rinominato: il trigger e' serializzato nel TurnLog,
+	// quindi perderne uno rompe la rilettura di un replay salvato.
+	for (const FString& Atteso : Ammessi)
+	{
+		TestTrue(*FString::Printf(
+			TEXT("ERTReactionTrigger dichiara ancora '%s' (e' serializzato nel TurnLog)"), *Atteso),
+			Enum->GetIndexByNameString(Atteso) != INDEX_NONE);
+	}
 	return true;
 }

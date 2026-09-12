@@ -3940,10 +3940,20 @@ void ARTTurnManager::ResolvePrep()
 		Instance.TargetCell = Unit->Cell;
 		// ⚠️ **Un contatore, non `Instances.Num()`** (#2970). Qui `Num()` era corretto — l'`Add` e' la riga
 		// successiva — ma e' l'unico produttore il cui `EventSequence` viene davvero CONSUMATO
-		// (`SortActionInstances` e' chiamata trenta righe sotto), ed era rimasto sull'idioma che la stessa
-		// issue dichiara sbagliato altrove. Bastava inserire un `continue` fra le due righe, o un secondo
-		// `Add` condizionato — la stessa modifica che aveva rotto `CollectAttackIntents` — perche' la sola
-		// chiave viva smettesse di spareggiare in silenzio. Trovato in code review.
+		// (`SortActionInstances` la chiama il passo 2 di questa stessa funzione), ed era rimasto sull'idioma
+		// che la stessa issue dichiara sbagliato altrove. Bastava inserire un `continue` fra le due righe, o
+		// un secondo `Add` condizionato — la stessa modifica che aveva rotto `CollectAttackIntents` —
+		// perche' la sola chiave viva smettesse di spareggiare in silenzio. Trovato in code review.
+		//
+		// ⛔ **Qui c'era «trenta righe sotto», e la chiamata ne distava DIECI** (#3031). La sede si NOMINA
+		// invece di contarne la distanza: un numero del genere si sposta a ogni riga inserita sopra, nessun
+		// gate lo rimisura, e chi legge lo tratta come corrente (`AGENTS.md` §14).
+		//
+		// ⚠️ **Non e' una bonifica dell'idioma, e le altre due distanze di questa premessa restano** perche'
+		// misurate accurate: `RTActionQueue.h` dice «duecento righe» per l'`Add` di `CollectAttackIntents`
+		// (`EventSequence` a `RTTurnManager_Blast.cpp:771`, `Intents.Add` a `:978` -> 207) e
+		// `RTActionQueueLibrary.cpp` dice «venti righe» per `InstancesForPhase` (commento a `:82`,
+		// definizione a `:101` -> 19). Il difetto era il numero sbagliato, non il contare.
 		Instance.EventSequence = PrepDeclarationOrder++;
 		Instances.Add(Instance);
 	}
