@@ -37,8 +37,10 @@ bisogno di una decisione: `LiveCodingConsole.exe` tiene il lock di compilazione 
 `tools/mutation/misura.py:182` non lo vede, perché classifica i processi «motore» con
 `if "UnrealEditor" in nome`. Classificare chi tiene il lock, e smettere di aspettarlo quando è un orfano, si
 fa in ogni caso. ⛔ **Ciò che non si deduce è se il gate possa TERMINARLO**, e la ragione è che i due
-interessi in gioco non sono confrontabili dal repository: da una parte minuti di macchina — `minuti=90` di
-`attendi_motore_libero` più `40 × 45 s` di `build()`, entrambe costanti scritte in `misura.py`; dall'altra il
+interessi in gioco non sono confrontabili dal repository: da una parte minuti di macchina — la mezz'ora di
+`40 × 45 s` che `build()` spende ritentando (`misura.py:546`), più un verde che non vale: ⚠️ i `minuti=90`
+di `attendi_motore_libero` **non** si spendono in questo caso, e una prima stesura di questa voce li contava —
+con nessun `UnrealEditor*` vivo quella funzione torna `True` in **0,80 s**, misurato il 2026-09-12; dall'altra il
 lavoro non salvato di una persona che sta iterando in un Editor. ⚠️ **E il Decision Log è muto**:
 `grep -i -E "live coding|livecoding"` su [`RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) dà
 **0 righe**, quindi non c'è una decisione da applicare né da emendare. La pratica corrente — *attendere, non
