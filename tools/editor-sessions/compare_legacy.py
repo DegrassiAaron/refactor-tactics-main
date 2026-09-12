@@ -45,6 +45,7 @@ def confronta(gruppi, scoperta, sessioni: list[dict], stato: dict[str, dict]) ->
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mattoni", default=registry.MATTONI, type=Path)
     ap.add_argument("--vecchio", default=VECCHIO, type=Path)

@@ -17,11 +17,14 @@ python3 -m unittest discover -s tools/decision-log   -p '*_test.py'
 
 Dipendenze: Python 3.12 e `pyyaml`. Nient'altro.
 
-⚠️ **Su Windows, qualunque comando che stampi uno stato vuole
-`sys.stdout.reconfigure(encoding='utf-8')`**: la console e' `cp1252` e le emoji del registro la fanno
-esplodere con `UnicodeEncodeError`. I file invece si scrivono gia' con `encoding='utf-8'` esplicito.
-Limite noto: oggi solo `compare_rassegna.py` lo chiama; gli altri script di questa famiglia no. E' un
-difetto noto, differito di proposito — non uniformarlo per conto tuo.
+⚠️ **Su Windows, qualunque comando che stampi letterali non-ASCII (em-dash, emoji) vuole
+`sys.stdout.reconfigure(encoding='utf-8')`**: la console e' `cp1252` e li fa esplodere con
+`UnicodeEncodeError`. I file invece si scrivono gia' con `encoding='utf-8'` esplicito.
+Oggi lo chiamano `compare_rassegna.py` e `compare_legacy.py`, gli unici due che stampano
+letterali non-ASCII (i tre em-dash di `compare_legacy.py`, le emoji del registro citate da
+`compare_rassegna.py`). Gli altri script della famiglia stampano solo ASCII e non ne hanno
+bisogno oggi — se in futuro uno di loro comincia a stampare un letterale non-ASCII, la
+chiamata va con lui, non aggiunta agli altri per simmetria.
 
 ## I mattoni
 
