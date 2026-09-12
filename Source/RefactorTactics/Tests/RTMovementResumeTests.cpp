@@ -864,4 +864,265 @@ bool FRTSuspendedResumedMatchesSinglePassTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `Movement.MicroStepBudgetAccumulatesAcrossCalls` — il tetto conta la RISOLUZIONE, non l'invocazione
+ * (`#2856`).
+ *
+ * 🔴 **Il difetto misurato.** `Guard` era una locale in `ResolveMovement` e un'altra in
+ * `ResumeSuspendedResolution`: il tetto limitava un singolo pump, e l'`ensureMsgf` diceva *«risoluzione del
+ * movimento non terminata in 256 micro-step»* mentre cio' che scattava era *«questo pump non e' terminato in
+ * 256»*. Un resolver che non converge ma si sospende regolarmente attraversava l'asserzione indefinitamente
+ * — cioe' esattamente il fallimento che la guardia esiste per prevenire.
+ *
+ * 🔑 **Cosa dimostra questo test, e perche' basta.** Che il contatore ACCUMULA fra chiamate distinte a
+ * `AdvanceMovementResolution`, invece di ripartire con chi lo interroga. E' la stessa proprieta' che una
+ * sospensione mette alla prova — la ripresa e' un secondo ingresso nel pump — misurata senza dipendere da
+ * quante finestre un fixture apra: un test che si fidasse di quel numero sarebbe verde per fortuna.
+ * `MicroStepBudgetSurvivesSuspension`, qui sotto, la misura sul percorso vero.
+ *
+ * ⚠️ **Il valore atteso non e' scritto a mano.** Quanti micro-step serva un percorso e' un dettaglio del
+ * resolver, e pinnarlo qui renderebbe questo test rosso a ogni cambio di locomozione. Cio' che si asserisce
+ * e' la RELAZIONE: il contatore vale quanti `Advanced` sono stati restituiti, ne' piu' ne' meno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMicroStepBudgetAccumulatesTest,
+	"RefactorTactics.Movement.MicroStepBudgetAccumulatesAcrossCalls",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMicroStepBudgetAccumulatesTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// Un percorso di piu' celle: con una sola il contatore non potrebbe distinguere «accumula» da «e' a uno».
+	Mover->PlannedCell = FRTCellId(4, 0);
+
+	// Senza contesto non c'e' un budget da leggere, e la risposta lo dice invece di fingere uno zero — che
+	// sarebbe indistinguibile da una risoluzione appena cominciata.
+	TestEqual(TEXT("senza risoluzione in corso il budget non esiste"),
+		TM->GetMicroStepsSpentInResolution(), INDEX_NONE);
+
+	TM->BeginMovementResolution();
+	TestEqual(TEXT("una risoluzione appena aperta non ha speso nulla"),
+		TM->GetMicroStepsSpentInResolution(), 0);
+
+	// 🔑 **Chiamate DISTINTE, non un ciclo unico**: e' il punto. Ognuna e' un ingresso nuovo nel pump, come
+	// lo e' una ripresa dopo una finestra, e il contatore non deve accorgersene.
+	int32 Avanzati = 0;
+	int32 Iterazioni = 0;
+	while (Iterazioni < 512)
+	{
+		++Iterazioni;
+		const ERTMovementAdvanceResult Step = TM->AdvanceMovementResolution();
+		if (Step != ERTMovementAdvanceResult::Advanced)
+		{
+			break;
+		}
+		++Avanzati;
+
+		// ⛔ Il controllo e' DENTRO il ciclo e non solo alla fine: un contatore che si azzera a ogni chiamata
+		// e viene riletto una volta sola in coda mostrerebbe `1` e passerebbe per «accumula» se il percorso
+		// avesse un passo solo. Qui ogni passo deve trovare il numero al posto giusto.
+		if (TM->GetMicroStepsSpentInResolution() != Avanzati)
+		{
+			AddError(FString::Printf(
+				TEXT("il budget non accumula: dopo %d avanzamenti il contesto ne dichiara %d"),
+				Avanzati, TM->GetMicroStepsSpentInResolution()));
+			break;
+		}
+	}
+
+	// ⛔ ANTI-VACUITA': senza almeno due avanzamenti il ciclo sopra non ha misurato nessun accumulo.
+	TestTrue(FString::Printf(TEXT("anti-vacuita': la risoluzione ha piu' di un micro-step (%d)"), Avanzati),
+		Avanzati >= 2);
+
+	// Il ramo `Finished` non consuma budget: non ha risolto nessun micro-step, e contarlo renderebbe il
+	// numero «quante volte qualcuno ha chiesto» invece di «quanti passi sono avvenuti».
+	TestEqual(TEXT("l'ultima chiamata, che non avanza, non consuma budget"),
+		TM->GetMicroStepsSpentInResolution(), Avanzati);
+
+	TM->FinishMovementResolution();
+	TestEqual(TEXT("chiuso il contesto, il budget muore con lui"),
+		TM->GetMicroStepsSpentInResolution(), INDEX_NONE);
+
+	DestroyResumeWorld(World);
+	return true;
+}
+
+/**
+ * `Movement.MicroStepBudgetSurvivesSuspension` — il conteggio PROSEGUE attraverso una sospensione, invece di
+ * ripartire con la ripresa (`#2856`).
+ *
+ * 🔑 **E' l'asserzione che la correzione esiste per rendere vera**, e sul percorso vero: `LockInAndResolve`
+ * si ferma su una finestra, `ExpireReactionWindow` la chiude, e `ResumeSuspendedResolution` rientra nel pump.
+ * Prima di `#2856` quel rientro dichiarava una locale nuova e ricominciava da zero.
+ *
+ * ⛔ **Non asserisce che l'Overwatch spari**: sono regole d'ingaggio che questa issue non tocca, e legarcisi
+ * renderebbe il test rosso per motivi che non lo riguardano. Cio' di cui ha bisogno — due finestre, su
+ * boundary diversi — lo verifica prima di misurare, con due gate anti-vacuita' espliciti.
+ *
+ * ✅ **VALIDATO PER MUTAZIONE, e la prima stesura era vacua — vale la pena dire perche'.** Confrontava i
+ * campioni fra loro (`Campioni[i] >= Campioni[i-1]`). Con la mutazione «azzera il contatore all'ingresso del
+ * pump» i campioni diventano `[1, 1]` invece di `[1, 2]`, e `1 >= 1` **passa**: il test era verde col
+ * difetto dentro. L'ancoraggio giusto non e' il campione precedente ma il **boundary**, che e' un testimone
+ * indipendente perche' vive nello stato del resolver e non sullo stack. Con l'uguaglianza al boundary la
+ * stessa mutazione da' `finestra 1: budget=1 boundary=1, atteso 2` — misurato il 2026-09-12.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMicroStepBudgetSurvivesSuspensionTest,
+	"RefactorTactics.Movement.MicroStepBudgetSurvivesSuspension",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMicroStepBudgetSurvivesSuspensionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeResumeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnResumeMap(World);
+
+	ARTUnit* Mover = SpawnResumeUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0));
+	// 🔑 **DUE watcher, e non e' abbondanza.** Una sospensione sola non basta a questo test: il contatore e'
+	// osservabile solo mentre il contesto e' vivo, e con una finestra unica l'unico campione si prende PRIMA
+	// della ripresa — cioe' proprio dove il difetto non si vede. Servono due finestre perche' la seconda si
+	// apra DENTRO il pump di ripresa, che e' il ciclo che dichiarava la seconda locale.
+	ARTUnit* WatcherA = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, 0));
+	ARTUnit* WatcherB = SpawnResumeUnit(World, /*TeamId=*/ 1, FRTCellId(3, -1));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Mover"), Mover) || !TestNotNull(TEXT("WatcherA"), WatcherA)
+		|| !TestNotNull(TEXT("WatcherB"), WatcherB) || !TestNotNull(TEXT("TurnManager"), TM))
+	{
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// Stessa impalcatura di `Reactions.WindowSuspendsResolution`: il watcher e' umano, arma l'Overwatch nello
+	// slot dell'azione principale, e il cono guarda il mover. Vedi li' per il perche' di ognuna delle tre.
+	for (ARTUnit* W : { WatcherA, WatcherB })
+	{
+		W->bIsBotControlled = false;
+		W->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(W, TEXT("Action.Overwatch"), 3);
+		W->Facing = ERTHexDirection::W;
+		W->PlannedCell = W->Cell;
+	}
+	Mover->PlannedCell = FRTCellId(2, 0);
+
+	// 🔑 **Il campione si prende MENTRE la risoluzione e' viva.** Alla fine il contesto e' rilasciato e il
+	// contatore con lui: leggerlo dopo darebbe `INDEX_NONE` e non proverebbe niente. Il delegate scatta dentro
+	// il pump, che e' l'unico istante in cui il numero e' osservabile.
+	TArray<int32> Campioni;
+	TArray<int32> Boundary;
+	TM->OnReactionWindowOpened.BindLambda(
+		[&Campioni, &Boundary, TM](const FRTReactionWindowView& View, int32)
+		{
+			Campioni.Add(TM->GetMicroStepsSpentInResolution());
+			Boundary.Add(View.Key.MicroStepIndex);
+		});
+
+	TM->LockInAndResolve();
+
+	// ⛔ ANTI-VACUITA' 1: senza sospensione non c'e' niente da far sopravvivere, e il resto del test
+	// passerebbe misurando una risoluzione lineare.
+	if (!TestTrue(TEXT("anti-vacuita': la resolution si e' sospesa"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	const int32 PrimaDellaRipresa = TM->GetMicroStepsSpentInResolution();
+	TestTrue(FString::Printf(TEXT("anti-vacuita': qualche micro-step e' gia' stato speso (%d)"),
+		PrimaDellaRipresa), PrimaDellaRipresa > 0);
+
+	// La ripresa: ogni scadenza chiude una finestra e rientra nel pump. E' li' che viveva la seconda locale.
+	int32 Scadenze = 0;
+	int32 MinimoDopoLaRipresa = MAX_int32;
+	while (TM->IsResolutionSuspended() && Scadenze < 16)
+	{
+		TM->ExpireReactionWindow();
+		++Scadenze;
+
+		const int32 Ora = TM->GetMicroStepsSpentInResolution();
+		if (Ora != INDEX_NONE)
+		{
+			MinimoDopoLaRipresa = FMath::Min(MinimoDopoLaRipresa, Ora);
+		}
+	}
+
+	TestFalse(TEXT("scadute le finestre, la resolution e' conclusa"), TM->IsResolutionSuspended());
+	TestTrue(FString::Printf(TEXT("anti-vacuita': la ripresa e' avvenuta (%d scadenze)"), Scadenze),
+		Scadenze > 0);
+
+	for (int32 i = 0; i < Campioni.Num(); ++i)
+	{
+		AddInfo(FString::Printf(TEXT("finestra %d: budget=%d boundary=%d"), i, Campioni[i], Boundary[i]));
+	}
+
+	// ⛔ **ANTI-VACUITA' 2.** L'unico istante in cui il contatore e' osservabile DENTRO il pump di ripresa e'
+	// l'apertura di una finestra. Con un campione solo l'asserzione qui sotto non attraverserebbe mai una
+	// ripresa. Se questa riga diventa rossa il fixture ha smesso di aprire due finestre: si aggiusta il
+	// fixture, non si toglie la riga.
+	if (!TestTrue(FString::Printf(TEXT("anti-vacuita': si sono aperte almeno due finestre (%d)"),
+		Campioni.Num()), Campioni.Num() >= 2))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// ⛔ **ANTI-VACUITA' 3, e senza di lei l'asserzione seguente e' cieca.** Se tutte le finestre si aprissero
+	// sullo STESSO boundary, un contatore azzerato a ogni ripresa produrrebbe la stessa coppia di un
+	// contatore che accumula, e il test resterebbe verde col difetto dentro. Misurato: e' esattamente cosi'
+	// che una prima stesura di questo test — che confrontava i campioni fra loro con `>=` — passava sulla
+	// mutazione «azzera il contatore all'ingresso del pump».
+	if (!TestTrue(FString::Printf(TEXT("anti-vacuita': le finestre stanno su boundary diversi (%d -> %d)"),
+		Boundary[0], Boundary.Last()), Boundary.Last() > Boundary[0]))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyResumeWorld(World);
+		return false;
+	}
+
+	// 🔴 **L'ASSERZIONE, e l'ancoraggio non e' il campione precedente ma il BOUNDARY.**
+	//
+	// `FRTReactionOpportunityKey::MicroStepIndex` numera i micro-step dell'intera risoluzione: vive in
+	// `FRTMovementResolutionState`, che una sospensione attraversa per costruzione (`#2679` semina
+	// `CurrentMicroStepIndex` da li' proprio per non rinumerare i boundary). E' quindi il testimone
+	// indipendente di quanti micro-step la risoluzione ha davvero fatto, e il budget deve stargli accanto.
+	//
+	// 🔑 **La relazione e' `budget == boundary + 1`, ed e' strutturale**: `AdvanceMovementResolution` cattura
+	// `CurrentMicroStepIndex` PRIMA di risolvere, `ResolveNextHexMicroStep` incrementa
+	// `State.MicroStepIndex`, e subito dopo si incrementa `MicroStepsSpent`. Due contatori dello stesso
+	// evento, sfasati di uno. Misurato il 2026-09-12: `(budget=1, boundary=0)` alla prima finestra,
+	// `(budget=2, boundary=1)` alla seconda — cioe' dentro il pump di ripresa.
+	//
+	// ⚠️ **Con la locale di prima la coppia si sarebbe slegata alla ripresa**: `(1, 0)` e poi `(1, 1)`. Il
+	// boundary avanza perche' sta nello stato, il budget no perche' stava sullo stack. E' il difetto,
+	// espresso come uguaglianza che si rompe.
+	for (int32 i = 0; i < Campioni.Num(); ++i)
+	{
+		TestEqual(FString::Printf(
+			TEXT("finestra %d: il budget conta la risoluzione, non l'invocazione (boundary=%d)"),
+			i, Boundary[i]), Campioni[i], Boundary[i] + 1);
+	}
+
+	// La stessa proprieta' letta da fuori, quando la ripresa lascia il contesto vivo abbastanza da leggerlo.
+	// Si guarda il MINIMO e non l'ultimo valore: l'ultimo e' `INDEX_NONE` — il contesto rilasciato — e un
+	// azzeramento intermedio seguito da una risalita passerebbe inosservato.
+	if (MinimoDopoLaRipresa != MAX_int32)
+	{
+		TestTrue(FString::Printf(
+			TEXT("il conteggio prosegue anche visto da fuori (prima=%d, minimo dopo=%d)"),
+			PrimaDellaRipresa, MinimoDopoLaRipresa),
+			MinimoDopoLaRipresa >= PrimaDellaRipresa);
+	}
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyResumeWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
