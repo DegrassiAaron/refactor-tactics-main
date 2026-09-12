@@ -209,7 +209,10 @@ def innesta(testo: str, righe: list[dict]) -> str:
 
     Un round-trip yaml cancellerebbe i commenti — fra cui il marcatore
     `DRAFT — NON OWNER`, che e' l'unica cosa che tiene UN SOLO owner in ogni
-    istante. Quindi la testa si conserva come TESTO, byte per byte.
+    istante. Quindi la testa si conserva come STRINGA: questa funzione lavora su
+    testo gia' normalizzato a \n, non sui byte del file. E' chi chiama — `main`,
+    nel blocco `--into` — a leggere e riscrivere il file senza traduzione dei fine
+    riga, cosi' che la convenzione (CRLF o LF) del registro sopravviva sul disco.
 
     I `requires` gia' presenti si riportano sulle righe nuove. Se una riga che
     ne portava uno non viene piu' prodotta dal seme, l'innesto si RIFIUTA: quel
@@ -278,15 +281,24 @@ def main() -> int:
     if a.into is not None:
         if not a.into.exists():
             sys.exit(f"--into: registro non trovato: {a.into}")
-        prima = a.into.read_text(encoding="utf-8")
+        # newline="" disattiva la traduzione in LETTURA: i \r\n arrivano come sono, e possiamo
+        # vedere che convenzione usa il file invece di indovinarla da os.linesep — che dipende
+        # dalla macchina, non dal registro. Su Linux o in WSL, senza questo, un solo --into
+        # riscriverebbe TUTTO il file da CRLF a LF: il "diff totale" che rendi_righe evita.
+        # `Path.read_text` non accetta `newline` prima di Python 3.13: si apre a mano.
+        with a.into.open(encoding="utf-8", newline="") as f:
+            prima = f.read()
+        eol = "\r\n" if "\r\n" in prima else "\n"
         try:
-            dopo = innesta(prima, righe)
+            dopo = innesta(prima.replace("\r\n", "\n"), righe).replace("\n", eol)
         except InnestoError as e:
             sys.exit(f"innesto rifiutato: {e}")
         if dopo == prima:
             print(f"{a.into}: gia' allineato, nessuna scrittura")
         else:
-            a.into.write_text(dopo, encoding="utf-8")
+            # newline="" disattiva la traduzione anche in SCRITTURA: esce esattamente `eol`.
+            with a.into.open("w", encoding="utf-8", newline="") as f:
+                f.write(dopo)
             print(f"innestato in {a.into}: rileggi con `git diff` prima di committare")
 
     return 0

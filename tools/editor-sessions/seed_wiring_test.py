@@ -2,7 +2,12 @@
 """La semina deduce l'allestimento dalla prosa, e dichiara cio' che non sa dedurre."""
 from __future__ import annotations
 
+import contextlib
+import io
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 import yaml
 
@@ -223,6 +228,50 @@ class InnestaTest(unittest.TestCase):
     def test_un_registro_senza_sezione_wiring_si_rifiuta(self):
         with self.assertRaises(seed_wiring.InnestoError):
             seed_wiring.innesta(TESTA, [{"check": "PIE-A", "setup": "SET-A"}])
+
+
+class IntoSuFileTest(unittest.TestCase):
+    def test_il_giro_su_file_non_mischia_i_fine_riga_e_conserva_la_testa(self):
+        """Il percorso vero passa da `read_text`/`write_text`, non da `innesta` su
+        stringhe: e' quello che nessun altro test attraversa.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            cartella = Path(tmp)
+            sessioni = cartella / "vecchio.yaml"
+            sessioni.write_text("sessions: []\n", encoding="utf-8")
+
+            registro = cartella / "registro.yaml"
+            testa = (
+                b"# Registro di prova, CRLF.\r\n"
+                b"#\r\n"
+                b"# DRAFT - NON OWNER.\r\n"
+                b"\r\n"
+                b"setups:\r\n"
+                b"  - id: SET-A\r\n"
+                b"    map: L_Uno\r\n"
+                b"\r\n"
+            )
+            corpo = b"wiring:\r\n  # vecchio commento che il seme riscrive\r\n"
+            registro.write_bytes(testa + corpo)
+
+            out = cartella / "out.yaml"
+            argv_precedente = sys.argv
+            sys.argv = [
+                "seed_wiring.py",
+                "--sessioni", str(sessioni),
+                "--out", str(out),
+                "--into", str(registro),
+            ]
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    esito = seed_wiring.main()
+            finally:
+                sys.argv = argv_precedente
+
+            self.assertEqual(esito, 0)
+            dopo = registro.read_bytes()
+            self.assertEqual(dopo.count(b"\r\n"), dopo.count(b"\n"))
+            self.assertTrue(dopo.startswith(testa))
 
 
 if __name__ == "__main__":
