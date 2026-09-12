@@ -185,21 +185,35 @@ bool FRTShippedGameModePacingStaysShortTest::RunTest(const FString&)
 	TestEqual(TEXT("ne' sovrascrive la finestra di pianificazione (-1 = usa il formato)"),
 		Cdo->MatchPlanningSeconds, -1.f);
 
-	// ── ⚠️ **`DemoArenaRadius` NON e' asserito, ed e' una misura, non una dimenticanza.**
+	// ── **`DemoArenaRadius`**, l'ultima delle dieci, asserita da `#3083`.
 	//
-	// Misurato il 2026-09-12 su `main` `dbffc64b`: il Blueprint spedito porta **12**, il default C++ **4**. E'
-	// l'unica delle dieci proprieta' esposte che diverga, ed e' inerte **solo** perche' `MapSource` vale
-	// `LevelAsset` — che il test qui sopra pinna alla propria terza asserzione. Chi portasse `MapSource` a
-	// `DemoArena` otterrebbe un'arena di raggio 12 invece dei 4 dichiarati nell'header.
+	// 🔴 **Fino al 2026-09-12 il Blueprint spedito portava `12` contro i `4` dell'header**, ed era l'unica
+	// delle dieci a divergere. Non era una scelta: il token era gia' nel `.uasset` **prima** della pulizia di
+	// `#1069`, e `4eed5e0f` rimosse proprio il rig a cui serviva — l'override `GeneratedTestArena` di
+	// `MapSource`. E' sopravvissuto perche' non rompe l'allestimento, che e' la ragione strutturale per cui
+	// `#3067` esiste.
 	//
-	// ⛔ Non si asserisce perche' non e' noto quale dei due valori sia quello voluto: asserire `4` cancellerebbe
-	// una scelta d'autore, asserire `12` ne pinnerebbe una mai dichiarata. La domanda torna a `#3067`.
+	// 🔑 **Il reset e' stato misurato sui BYTE, non dedotto dal pannello.** In un CDO di Blueprint i valori
+	// sono delta-serializzati contro il CDO padre: scrivere il valore del padre NON lascia «un override che
+	// ripete il default» — la proprieta' smette di essere serializzata del tutto. Misurato: il token
+	// `DemoArenaRadius` nel `.uasset` passa da **1 a 0** e il package da **21152 a 21099** byte.
 	//
-	// 🔑 E nel frattempo quella divergenza e' la **prova empirica** che le righe qui sopra leggono davvero il
-	// Blueprint: se il CDO fosse quello C++, `DemoArenaRadius` varrebbe 4.
-	AddInfo(FString::Printf(
-		TEXT("[#3067] DemoArenaRadius: spedito=%d, default C++=%d — divergenza misurata, non asserita"),
-		Cdo->DemoArenaRadius, ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>()->DemoArenaRadius));
+	// ⚠️ **Con questa riga i due CDO concordano su tutte e dieci, e quella era la leva che rendeva questo
+	// test falsificabile dall'esterno**: la mutazione `M2` di `#3072` usava la divergenza per dimostrare che
+	// il CDO letto e' quello dell'asset. Cio' che resta al suo posto non e' una convinzione:
+	//
+	//   1. la guardia strutturale qui sopra — la classe caricata dev'essere una SOTTOCLASSE, non
+	//      `ARTGameMode::StaticClass()`;
+	//   2. la validazione per mutazione sul `.uasset`, eseguita in seduta `U46` il 2026-09-12 su `ebba4106`:
+	//      scritto `ScenarioTurnPauseSeconds = 15` nei Class Defaults, **solo** questo test diventa rosso e
+	//      `Scenario.AutoRunPacingHasShortDefault` resta verde (`#3067`, criterio 2).
+	//
+	// ⛔ Si confrontano i **due CDO**, non il letterale `4`: un numero scritto a mano qui invecchierebbe il
+	// giorno che il default C++ cambia, e direbbe meno di cio' che si vuole dire — che il Blueprint **non
+	// sovrascrive**.
+	TestEqual(TEXT("ne' il raggio dell'arena di ripiego (resta il default C++, nessun override)"),
+		Cdo->DemoArenaRadius,
+		ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>()->DemoArenaRadius);
 
 	return true;
 }
