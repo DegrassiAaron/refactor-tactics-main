@@ -802,6 +802,13 @@ bool FRTSimulationChecksumPermutationTest::RunTest(const FString&)
  * anche quando unita' e intent arrivano in ordine opposto. ⛔ Misurato: puntato su `Movement.Collision` la
  * guardia delle decisioni cade — quello scenario non ne porta nessuna.
  *
+ * 🔑 **Lo scenario e' `Spec.Resolver.IntegratedTurn`** (`#3031` CHECKPOINT H), e la scelta e' il punto: in
+ * un turno solo ci sono sei unita', tre ingressi scaglionati da durate d'arco diverse, due finestre di
+ * Overwatch decise in sequenza, un movimento troncato e una cella contesa. E' il caso in cui l'ordine
+ * d'inserimento ha il massimo numero di modi per contare — e nessuno deve contare. ⚠️ La struttura causale
+ * di quello scenario non e' asserita qui ma in `Resolver.IntegratedTurnIsCausallyExplained`: questo gate
+ * chiede che permutarlo non la cambi, non che sia giusta.
+ *
  * ⛔ **Cio' che questo test NON puo' vedere, e va detto perche' una prima stesura pretendeva il contrario.**
  * L'ordine di EMISSIONE delle voci e' irrecuperabile da questa fonte: `AllEntries` rilegge
  * `Result.TurnTraces[].Bytes`, e il round-trip riporta la traccia in forma canonica — e' esattamente cio'
@@ -827,7 +834,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSimulationPermutationKeepsTheWholeTurnLogTes
 bool FRTSimulationPermutationKeepsTheWholeTurnLogTest::RunTest(const FString&)
 {
 	FRTTestScenario Scenario;
-	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario)) { return false; }
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Resolver.IntegratedTurn"), Scenario)) { return false; }
 	if (!TestTrue(TEXT("lo scenario ha almeno due unita' da permutare"), Scenario.Units.Num() >= 2))
 	{
 		return false;
