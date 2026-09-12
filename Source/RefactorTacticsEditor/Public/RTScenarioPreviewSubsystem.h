@@ -338,6 +338,36 @@ private:
 	 */
 	bool bHasPreviousRun = false;
 
+#if WITH_DEV_AUTOMATION_TESTS
+public:
+	/**
+	 * Dimentica la corsa promossa al confronto (#3074).
+	 *
+	 * 🔴 **Esiste perche' questo stato non torna MAI indietro da solo, e nessuna via di produzione lo
+	 * azzera**: `ClearPreview()` *promuove* la corsa uscente invece di buttarla — e deve farlo, o il
+	 * paragone morirebbe a ogni corsa del pannello. Il subsystem vive quanto l'editor, quindi la prima corsa
+	 * della suite lascia `bHasPreviousRun` acceso per tutte quelle dopo.
+	 *
+	 * ⚠️ **La conseguenza e' che un test che apre un playback ne cambia uno che gira dopo di lui.**
+	 * `DevSandboxLauncher.PlaybackComparesWithThePreviousRun` asserisce che alla prima corsa il paragone non
+	 * ci sia, e quell'asserzione reggeva solo perche' era il primo test della suite ad aprirne uno — misurato
+	 * il 2026-09-12, quando i test del pannello di #3074 lo hanno preceduto in ordine alfabetico e l'hanno
+	 * fatto diventare rosso senza toccare una riga del suo codice. Chi apre un playback in un test chiude
+	 * anche questa memoria.
+	 *
+	 * ⛔ Nessun effetto sul comportamento del pannello o del subsystem in produzione: la guardia lo toglie
+	 * dalla Shipping, e nessuna via di gioco lo chiama.
+	 */
+	void TestForgetPreviousRun()
+	{
+		PreviousRunBoundaries.Reset();
+		PreviousRunScenarioId.Reset();
+		bHasPreviousRun = false;
+	}
+
+private:
+#endif
+
 	/** `StableUnitId` -> identita' d'authoring, per la corsa che il playback sta mostrando. */
 	TMap<int32, FString> PlaybackScenarioIds;
 
