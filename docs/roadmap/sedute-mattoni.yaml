@@ -21,7 +21,7 @@
 # `fetched`), non un dato vivo, quindi il check torna nell'agenda solo quando qualcuno rilancia
 # il fetch e ricalcola. Un numero che la cache non conosce e' un ERRORE DURO, non un
 # bloccante: rilancia
-#   python tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
+#   python3 tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
 #
 # Quando i fatti veri su uno stesso nome sono DUE, si scrivono DUE righe:
 #   requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]

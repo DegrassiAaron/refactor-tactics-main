@@ -33,7 +33,7 @@ TIPI_CON_ISSUE = ("mount", "cue", "anim", "feature")
 TIPI = ("asset",) + TIPI_CON_ISSUE
 
 COMANDO_FETCH = (
-    "python tools/decision-log/fetch_github_cache.py "
+    "python3 tools/decision-log/fetch_github_cache.py "
     "--also docs/roadmap/sedute-mattoni.yaml"
 )
 
