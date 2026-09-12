@@ -652,7 +652,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayVerifierCollapsedWindowTest,
 bool FRTReplayVerifierCollapsedWindowTest::RunTest(const FString&)
 {
 	FRTTestScenario Scenario;
-	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.HoldThenFire"), Scenario))
+	if (!LoadDeterminismScenario(*this, TEXT("Spec.Overwatch.ConditionCollapsesToHold"), Scenario))
 	{
 		return false;
 	}
