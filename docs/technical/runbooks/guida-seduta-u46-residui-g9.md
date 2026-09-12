@@ -48,13 +48,16 @@ grep '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-p
 ⌫ **Questa riga diceva *«resta una sola ❌, `PIE-HEXPLAY-6`, più `PIE-HEXPLAY-8` 🟡 che aspetta una decisione»*, e non vale più per entrambe le voci.** `PIE-HEXPLAY-6` è ✅ dal 2026-09-12 (seduta convocata da #2697, `runId 20260912-141110`, verdetto d'autore `PASS`); `PIE-HEXPLAY-8` è ✅ dalla stessa data per riduzione di criterio (`D-402`, #2911). ∴ del subset **non resta nessuna voce non verde**: `17 ✅ · 0 · 0`, e `G9` è ✅. Trovato in code review.
 `PIE-VIS-SIGHTWALL` si giudica **nello stesso Play e gratis**, e vale per #2534.
 
-🔑 **Le due voci `❌` si giudicano sullo STESSO banco, nello STESSO Play.** `PIE-HEXPLAY-6` e
-`PIE-VIS-SIGHTWALL` guardano entrambe `Visual.Map.SightWallIsWalkable`: la prima chiede che il blocco-vista
-sia comprensibile, la seconda registra il verdetto della vista di gioco sulla coppia lastra/colonna. La
-seconda non e' un'aggiunta di lavoro — e' la stessa scena, guardata per rispondere a una domanda in piu'.
+🔑 **Le due voci si giudicavano sullo STESSO banco, nello STESSO Play — e una è già stata giudicata.**
+`PIE-HEXPLAY-6` è ✅ dal 2026-09-12 (seduta convocata da [#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697), `runId 20260912-141110`,
+verdetto d'autore `PASS`). ⛔ **Resta `PIE-VIS-SIGHTWALL`**, ancora ❌ e **fuori** dal subset
+`RELEASE-V01`: non tocca `G9`, che è ✅, ma è una voce della DoD di [#2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534). Il banco non
+cambia — `Visual.Map.SightWallIsWalkable`, la stessa scena — e la voce registra il verdetto della vista
+di gioco sulla coppia lastra/colonna.
 
-∴ **questa seduta è una apertura, un banco, due verdetti** — più `PIE-V01-DEBUG`, che vuole un secondo
-allestimento e non entra nel `done_when`.
+∴ **questa seduta è una apertura, un banco, un verdetto** — più `PIE-V01-DEBUG`, che vuole un secondo
+allestimento e non entra nel `done_when`. ⌫ *Diceva «due verdetti», e il primo dei due è stato emesso il
+2026-09-12.*
 
 ⛔ **Il passo ③ non produce niente e va saltato.** `PIE-HEXPLAY-8` non aspetta una seduta: il suo residuo —
 che il crollo del ponte si veda — **non è osservabile in v0.1** perché `Action.ModifyArc` è senza owner nel
@@ -160,7 +163,11 @@ prodotto esattamente questo: un verdetto ❌ la cui causa è stata **ritirata lo
 
 ## 4. La seduta
 
-### Passo ① — `PIE-HEXPLAY-6` **e** `PIE-VIS-SIGHTWALL`, un solo Play
+### Passo ① — `PIE-VIS-SIGHTWALL`, un solo Play
+
+⌫ **Fino al 2026-09-12 questo passo serviva due voci.** `PIE-HEXPLAY-6` è stata giudicata ✅ quel giorno
+([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697), `runId 20260912-141110`, verdetto d'autore `PASS`): l'allestimento qui sotto resta
+invariato, ma la domanda ora è una sola.
 
 🔴 **Allestimento: una partita con PIANIFICAZIONE UMANA. Non l'auto-run di uno scenario** — §3.3.
 
