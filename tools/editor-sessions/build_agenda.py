@@ -6,8 +6,13 @@ guardo. L'uscita NON si committa: `build/` e' ignorato, e un ordine del giorno
 committato invecchierebbe in silenzio, che e' il modo in cui e' morta la vista
 rimossa da D-181.
 
-    python3 tools/decision-log/fetch_github_cache.py     # aggiorna la cache (serve `gh`)
+    python3 tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
+                                                           # aggiorna la cache (serve `gh`)
     python3 tools/editor-sessions/build_agenda.py --out build/ordine-del-giorno.md
+
+`--also` non e' facoltativo: senza, `fetch_github_cache.main()` ricostruisce `items` da
+zero e RIMUOVE dalla cache i numeri che i `requires` di questo registro citano — il primo
+`mount:`/`cue:`/`anim:`/`feature:` fara' uscire questo script con «non e' nella cache».
 """
 from __future__ import annotations
 
@@ -98,7 +103,7 @@ def main() -> int:
         gruppi, scoperta = agenda.calcola(
             setups, wires, stato, lambda r: oracles.valuta(r, inventario, chiuse, note)
         )
-    except (agenda.AgendaError, registry.RegistryError, ValueError) as e:
+    except (agenda.AgendaError, registry.RegistryError, oracles.OracoloError, ValueError) as e:
         sys.exit(f"calcolo rifiutato: {e}")
 
     a.out.parent.mkdir(parents=True, exist_ok=True)
@@ -106,6 +111,7 @@ def main() -> int:
     print(f"scritto {a.out}")
     print(f"aperture: {len([g for g in gruppi if g.liberi])}")
     print(f"voci in coda scoperta: {len(scoperta)}")
+    print(f"cache GitHub: istantanea {cache.get('fetched', 'senza data')}")
     return 0
 
 

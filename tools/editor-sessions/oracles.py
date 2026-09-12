@@ -12,8 +12,13 @@ Due oracoli soli, per scelta:
   <tipo>:<Nome>#<issue>        lo stabilisce chi possiede la issue. Chiusa =
                                soddisfatto. E' anche il modo in cui un
                                bloccante smette di nascondere un check per
-                               sempre: quando la issue chiude, il check torna
-                               nell'ordine del giorno da solo.
+                               sempre senza che nessuno debba ricordarsi di
+                               togliere la riga a mano: quando la issue
+                               chiude, il check torna nell'ordine del giorno
+                               — NON da solo, pero'. La cache e' un'istantanea
+                               (campo `fetched`), non un dato vivo: torna
+                               quando qualcuno rilancia `fetch_github_cache.py`
+                               e ricalcola l'agenda.
 
 Un prerequisito che non serve NON si dichiara. L'assenza di una riga e' gia'
 la dichiarazione, e un tipo per dire «non serve» sarebbe un campo in piu' che
@@ -26,6 +31,22 @@ from dataclasses import dataclass
 
 TIPI_CON_ISSUE = ("mount", "cue", "anim", "feature")
 TIPI = ("asset",) + TIPI_CON_ISSUE
+
+COMANDO_FETCH = (
+    "python3 tools/decision-log/fetch_github_cache.py "
+    "--also docs/roadmap/sedute-mattoni.yaml"
+)
+
+
+class OracoloError(Exception):
+    """L'oracolo non sa rispondere. Si rifiuta, non si finge un bloccante.
+
+    La cache GitHub e' versionata e popolata dai `#nnn` che i registri citano.
+    Se manca il numero che un `requires` nomina, l'unica risposta onesta e'
+    fermarsi: «bloccato» sarebbe vero per il motivo sbagliato, il check
+    uscirebbe dall'ordine del giorno, e chi legge non avrebbe modo di sapere
+    che manca un `fetch`. Precedente: D-182.
+    """
 
 
 @dataclass(frozen=True)
@@ -49,10 +70,25 @@ def asset_tracciati() -> set[str]:
 
 
 def issue_chiuse(cache: dict) -> set[int]:
-    """I numeri chiusi nella cache GitHub, nella forma di `tools/decision-log/`."""
-    return {
-        int(n) for n, v in (cache.get("items") or {}).items() if v.get("state") == "closed"
-    }
+    """I numeri SODDISFATTI nella cache GitHub: issue chiuse, PR mergiate.
+
+    Una issue vale la sola chiusura. Una PR chiusa e non mergiata e' lavoro
+    ABBANDONATO, non fatto: trattarla come un prerequisito soddisfatto e' il
+    falso positivo che questa famiglia di strumenti esiste per rifiutare — un
+    `requires` agganciato a quella PR risulterebbe sciolto, e il check che
+    blocca tornerebbe nell'ordine del giorno a vuoto. Il campo `merged` lo
+    scrive `fetch_github_cache.py:66` solo per le PR (`bool(pr.get("merged_at"))`);
+    una issue non lo porta, e per una issue `state == "closed"` resta l'unico
+    segnale che esiste.
+    """
+    chiuse: set[int] = set()
+    for n, v in (cache.get("items") or {}).items():
+        if v.get("state") != "closed":
+            continue
+        if v.get("type") == "pr" and not v.get("merged"):
+            continue
+        chiuse.add(int(n))
+    return chiuse
 
 
 def issue_note(cache: dict) -> set[int]:
@@ -77,7 +113,10 @@ def valuta(req: str, inventario: set[str], chiuse: set[int], note: set[int]) -> 
         raise ValueError(f"{tipo} richiede una issue owner nella forma nome#numero: {req!r}")
     n = int(numero)
     if n not in note:
-        return Esito(False, f"{tipo} {nome}: #{n} non e' nella cache — rilancia il fetch")
+        raise OracoloError(
+            f"{req}: #{n} non e' nella cache GitHub, quindi non si sa se sia aperta o chiusa. "
+            f"Rilancia:\n    {COMANDO_FETCH}"
+        )
     if n in chiuse:
         return Esito(True, f"{tipo} {nome}: #{n} chiusa")
     return Esito(False, f"{tipo} {nome}: #{n} aperta")

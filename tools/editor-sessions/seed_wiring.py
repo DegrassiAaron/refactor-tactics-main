@@ -11,6 +11,7 @@ una riga seminata male non puo' passare inosservata.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -33,6 +34,32 @@ MAPPA_SETUP: tuple[tuple[str, str], ...] = (
 )
 
 CAMPI_PROSA = ("title", "produces", "steps", "notes", "done_when")
+
+
+class InnestoError(Exception):
+    """L'innesto perderebbe qualcosa. Si rifiuta, non si sovrascrive."""
+
+
+# Una chiave di primo livello YAML: comincia a colonna zero, nessun rientro. Serve a
+# riconoscere se un'altra sezione segue `wiring:` — che altrimenti finirebbe cancellata
+# in silenzio da `innesta`, perche' quella funzione riscrive tutto cio' che sta da
+# `wiring:` in poi.
+CHIAVE_DI_PRIMO_LIVELLO = re.compile(r"(?m)^([A-Za-z_][\w.-]*):")
+
+
+INTESTAZIONE_WIRING = """wiring:
+  # Prodotto da `python tools/editor-sessions/seed_wiring.py --into docs/roadmap/sedute-mattoni.yaml`.
+  # Il seme e' l'euristica sulla prosa PIU' due tabelle di giudizio dichiarato che vivono nel
+  # sorgente del seminatore, non qui:
+  #   ALLESTIMENTO_DICHIARATO  le sedute la cui prosa non dice dove si guarda
+  #   CABLAGGIO_DICHIARATO     i check che due sedute rivendicano con allestimenti DIVERSI
+  # ⚠️ Correggere `check`, `setup` o `issue` QUI e' inutile: la decisione sta nelle tabelle, e il
+  #    prossimo seme ricalcola.
+  # 🔑 I `requires` invece si scrivono QUI, e il seme li PRESERVA: sono giudizio d'autore su un
+  #    prerequisito, non una deduzione dalla prosa. Ognuno ha la propria riga di prova nel verbale
+  #    `plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e `compare_rassegna.py` lo verifica.
+"""
+
 
 # Le sedute la cui prosa NON dichiara l'allestimento, e a cui e' stato assegnato per
 # giudizio il 2026-09-11. Non e' una deduzione: e' una decisione, e sta qui perche' la
@@ -151,10 +178,107 @@ def semina(
     return [righe[c] for c in sorted(righe)], orfani, conflitti
 
 
+def requires_esistenti(testo: str) -> dict[str, list[str]]:
+    """I `requires` gia' scritti, per check.
+
+    Legge il registro COME DATI: i commenti non contano, conta cio' che
+    `registry.load` leggerebbe. Se un giudizio e' scritto in un commento, per
+    questo strumento non esiste — ed e' corretto, perche' non esiste nemmeno
+    per il calcolo.
+    """
+    raw = yaml.safe_load(testo) or {}
+    return {
+        r["check"]: list(r["requires"])
+        for r in (raw.get("wiring") or [])
+        if r.get("requires")
+    }
+
+
+def rendi_righe(righe: list[dict]) -> str:
+    """Le righe nello stile del file: due spazi di rientro, `requires` in flusso.
+
+    Non si usa `yaml.safe_dump`: produce sequenze non indentate, che non e' lo
+    stile del registro, e trasformerebbe ogni riseminio in un diff totale
+    invece che nel diff di cio' che e' cambiato davvero.
+    """
+    out: list[str] = []
+    for r in righe:
+        out.append(f"  - check: {r['check']}")
+        out.append(f"    setup: {r['setup']}")
+        if r.get("requires"):
+            out.append("    requires: [ " + ", ".join(r["requires"]) + " ]")
+        if r.get("issue") is not None:
+            out.append(f"    issue: {r['issue']}")
+    return "\n".join(out) + "\n"
+
+
+def innesta(testo: str, righe: list[dict]) -> str:
+    """Riscrive la SOLA sezione `wiring:`, conservando tutto cio' che sta sopra.
+
+    Un round-trip yaml cancellerebbe i commenti — fra cui il marcatore
+    `DRAFT — NON OWNER`, che e' l'unica cosa che tiene UN SOLO owner in ogni
+    istante. Quindi la testa si conserva come STRINGA: questa funzione lavora su
+    testo gia' normalizzato a \n, non sui byte del file. E' chi chiama — `main`,
+    nel blocco `--into` — a leggere e riscrivere il file senza traduzione dei fine
+    riga, cosi' che la convenzione (CRLF o LF) del registro sopravviva sul disco.
+
+    I `requires` gia' presenti si riportano sulle righe nuove. Se una riga che
+    ne portava uno non viene piu' prodotta dal seme, l'innesto si RIFIUTA: quel
+    giudizio e' lavoro d'autore, e perderlo in silenzio e' esattamente cio' che
+    questa funzione esiste per impedire.
+
+    Lo stesso vale per cio' che segue `wiring:`. Oggi `wiring:` e' l'ultima chiave
+    del registro, quindi `testo[: i + 1] + ...` sotto non perde niente — ma se
+    domani un'altra sezione di primo livello la seguisse, quella riscrittura la
+    cancellerebbe in silenzio, perche' rimpiazza tutto da `wiring:` in poi. La
+    guardia esplicita rifiuta col nome della chiave, invece di fidarsi che
+    `wiring:` resti sempre l'ultima.
+    """
+    i = testo.find("\nwiring:")
+    if i < 0:
+        raise InnestoError("il registro non contiene una sezione `wiring:`")
+
+    dopo_wiring = testo[i + 1 :]
+    chiavi = list(CHIAVE_DI_PRIMO_LIVELLO.finditer(dopo_wiring))
+    # chiavi[0] e' `wiring:` stessa (il match a inizio stringa): una chiave
+    # successiva e' un'altra sezione di primo livello che l'innesto cancellerebbe.
+    if len(chiavi) > 1:
+        altra = chiavi[1].group(1)
+        raise InnestoError(
+            f"`{altra}:` segue `wiring:` come chiave di primo livello, e l'innesto "
+            "la cancellerebbe in silenzio riscrivendo tutto cio' che viene dopo "
+            "`wiring:`. Sposta `wiring:` in fondo al registro, o innesta a mano."
+        )
+
+    vecchi = requires_esistenti(testo)
+    prodotti = {r["check"] for r in righe}
+    orfani = sorted(set(vecchi) - prodotti)
+    if orfani:
+        raise InnestoError(
+            "questi check portano un `requires` e il seme non produce piu' la loro riga: "
+            + " ".join(orfani)
+            + ". Decidi prima di riseminare: o torna la riga, o il giudizio si sposta."
+        )
+
+    arricchite = []
+    for r in righe:
+        nuova = dict(r)
+        if r["check"] in vecchi:
+            nuova["requires"] = vecchi[r["check"]]
+        arricchite.append(nuova)
+
+    return testo[: i + 1] + INTESTAZIONE_WIRING + rendi_righe(arricchite)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--sessioni", default=VECCHIO, type=Path, help="il vecchio registro")
     ap.add_argument("--out", default=Path("build/wiring-seminato.yaml"), type=Path)
+    ap.add_argument(
+        "--into",
+        type=Path,
+        help="innesta la sezione `wiring:` in questo registro, preservando i `requires` gia' scritti",
+    )
     a = ap.parse_args()
 
     if not a.sessioni.exists():
@@ -180,6 +304,30 @@ def main() -> int:
         for check in sorted(conflitti):
             dove = ", ".join(f"{k}={v}" for k, v in sorted(conflitti[check].items()))
             print(f"  {check}: {dove}")
+
+    if a.into is not None:
+        if not a.into.exists():
+            sys.exit(f"--into: registro non trovato: {a.into}")
+        # newline="" disattiva la traduzione in LETTURA: i \r\n arrivano come sono, e possiamo
+        # vedere che convenzione usa il file invece di indovinarla da os.linesep — che dipende
+        # dalla macchina, non dal registro. Su Linux o in WSL, senza questo, un solo --into
+        # riscriverebbe TUTTO il file da CRLF a LF: il "diff totale" che rendi_righe evita.
+        # `Path.read_text` non accetta `newline` prima di Python 3.13: si apre a mano.
+        with a.into.open(encoding="utf-8", newline="") as f:
+            prima = f.read()
+        eol = "\r\n" if "\r\n" in prima else "\n"
+        try:
+            dopo = innesta(prima.replace("\r\n", "\n"), righe).replace("\n", eol)
+        except InnestoError as e:
+            sys.exit(f"innesto rifiutato: {e}")
+        if dopo == prima:
+            print(f"{a.into}: gia' allineato, nessuna scrittura")
+        else:
+            # newline="" disattiva la traduzione anche in SCRITTURA: esce esattamente `eol`.
+            with a.into.open("w", encoding="utf-8", newline="") as f:
+                f.write(dopo)
+            print(f"innestato in {a.into}: rileggi con `git diff` prima di committare")
+
     return 0
 
 

@@ -45,6 +45,7 @@ def confronta(gruppi, scoperta, sessioni: list[dict], stato: dict[str, dict]) ->
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--mattoni", default=registry.MATTONI, type=Path)
     ap.add_argument("--vecchio", default=VECCHIO, type=Path)
@@ -52,18 +53,22 @@ def main() -> int:
     ap.add_argument("--cache", default=CACHE, type=Path)
     a = ap.parse_args()
 
-    setups, wires = registry.load(a.mattoni)
     stato = pie_status.load(a.registro)
     cache = json.loads(a.cache.read_text(encoding="utf-8"))
     inventario = oracles.asset_tracciati()
     chiuse, note = oracles.issue_chiuse(cache), oracles.issue_note(cache)
-    gruppi, scoperta = agenda.calcola(
-        setups, wires, stato, lambda r: oracles.valuta(r, inventario, chiuse, note)
-    )
+    try:
+        setups, wires = registry.load(a.mattoni)
+        gruppi, scoperta = agenda.calcola(
+            setups, wires, stato, lambda r: oracles.valuta(r, inventario, chiuse, note)
+        )
+    except (agenda.AgendaError, registry.RegistryError, oracles.OracoloError, ValueError) as e:
+        sys.exit(f"calcolo rifiutato: {e}")
 
     vecchio = yaml.safe_load(a.vecchio.read_text(encoding="utf-8")) or {}
     r = confronta(gruppi, scoperta, vecchio.get("sessions") or [], stato)
 
+    print(f"cache GitHub: istantanea {cache.get('fetched', 'senza data')}")
     print(f"aperture calcolate: {r['aperture']}   sedute scritte: {r['sedute']}")
     print("PERSI — convocati da una seduta e non dall'agenda:")
     for c in r["persi"] or ["  (nessuno)"]:

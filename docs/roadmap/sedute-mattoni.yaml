@@ -8,13 +8,27 @@
 #    `docs/technical/test-manuali-pie.md`. In questo schema manca il campo dove scriverli, ed e'
 #    deliberato.
 #
-# Forma di un `requires`:
-#   asset:<Nome>              il package esiste fra quelli tracciati sotto Content/
-#   mount:<Nome>#<issue>      il widget esiste e nessuno lo monta; lo sblocca la chiusura della issue
+# Forma di un `requires` — un tipo, un oracolo:
+#   asset:<Nome>              il package NON esiste fra quelli tracciati sotto Content/
+#   mount:<Nome>#<issue>      il widget non e' montato dove il check lo cerca
 #   cue:<Nome>#<issue>        l'evento esiste e nessuno lo disegna
 #   anim:<Nome>#<issue>       la clip serve al verdetto e non c'e'
 #   feature:<Nome>#<issue>    la condizione non e' ottenibile
+#
+# `asset` interroga `git ls-files Content`. Gli altri quattro interrogano la cache GitHub e
+# NIENT'ALTRO: chi chiude la issue rende il bloccante soddisfatto, e nessuno deve ricordarsi di
+# togliere la riga a mano. Non succede pero' DA SOLO: la cache e' un'istantanea (campo
+# `fetched`), non un dato vivo, quindi il check torna nell'agenda solo quando qualcuno rilancia
+# il fetch e ricalcola. Un numero che la cache non conosce e' un ERRORE DURO, non un
+# bloccante: rilancia
+#   python3 tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
+#
+# Quando i fatti veri su uno stesso nome sono DUE, si scrivono DUE righe:
+#   requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]
+#
 # Un prerequisito che non serve NON si dichiara: l'assenza della riga e' gia' la dichiarazione.
+# Ogni `requires` scritto qui ha una riga che lo giustifica nel verbale
+# `plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e `compare_rassegna.py` lo verifica.
 
 setups:
   - id: SET-HEX-MATCH          # ex «A — partita hex avviata»
@@ -46,13 +60,16 @@ setups:
     given: "il pannello Tactical Designer, aperto dal dock"
 
 wiring:
-  # Prodotto da `python tools/editor-sessions/seed_wiring.py --out build/wiring-seminato.yaml`
-  # e innestato qui. Il seme e' l'euristica sulla prosa PIU' due tabelle di giudizio dichiarato
-  # che vivono nel sorgente del seminatore, non qui:
+  # Prodotto da `python tools/editor-sessions/seed_wiring.py --into docs/roadmap/sedute-mattoni.yaml`.
+  # Il seme e' l'euristica sulla prosa PIU' due tabelle di giudizio dichiarato che vivono nel
+  # sorgente del seminatore, non qui:
   #   ALLESTIMENTO_DICHIARATO  le sedute la cui prosa non dice dove si guarda
   #   CABLAGGIO_DICHIARATO     i check che due sedute rivendicano con allestimenti DIVERSI
-  # ⚠️ Correggere una riga QUI e' inutile: la decisione sta nelle tabelle, e il prossimo seme
-  #    ricalcola. Se una riga e' sbagliata, e' sbagliata la tabella.
+  # ⚠️ Correggere `check`, `setup` o `issue` QUI e' inutile: la decisione sta nelle tabelle, e il
+  #    prossimo seme ricalcola.
+  # 🔑 I `requires` invece si scrivono QUI, e il seme li PRESERVA: sono giudizio d'autore su un
+  #    prerequisito, non una deduzione dalla prosa. Ognuno ha la propria riga di prova nel verbale
+  #    `plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e `compare_rassegna.py` lo verifica.
   - check: PIE-ACC-ENVIRONMENT
     setup: SET-SCEN
     issue: 231
@@ -375,9 +392,11 @@ wiring:
     issue: 938
   - check: PIE-V01-FRONTEND-PAUSE
     setup: SET-FRONTEND
+    requires: [ asset:WBP_RT_PauseMenu ]
     issue: 941
   - check: PIE-V01-FRONTEND-RESULT
     setup: SET-FRONTEND
+    requires: [ asset:WBP_RT_ResultScreen ]
     issue: 940
   - check: PIE-V01-HUD
     setup: SET-HEX-MATCH

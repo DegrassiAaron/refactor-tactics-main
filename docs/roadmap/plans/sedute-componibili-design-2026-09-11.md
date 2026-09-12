@@ -162,15 +162,33 @@ dell'Editor, quel setup dichiarerebbe `reopen: true` e il calcolo lo spezzerebbe
 
 | tipo | significato | oracolo |
 |---|---|---|
-| `asset` | il file non esiste | `git ls-files Content`; i riferimenti *interni* ai `.uasset` restano di `tools/asset-refs` |
-| `mount` | il widget esiste e nessuno lo monta | l'issue owner — `WBP_RT_EventLogRight` → [#2697] |
+| `asset` | il package non esiste fra quelli tracciati | `git ls-files Content`; i riferimenti *interni* ai `.uasset` restano di `tools/asset-refs` |
+| `mount` | il widget non è montato dove il check lo cerca | l'issue owner |
 | `cue` | l'evento esiste e nessuno lo disegna | l'issue owner — `PIE-VIS-DEFLECT`, `-INTERPOSE` → [#2454] |
-| `anim` | la clip serve al verdetto, oppure è dichiarata non-oracolo | la riga «Animazioni:» del piano `S0`–`S9` |
-| `feature` | la condizione non è ottenibile | un `git grep` misurato, oppure un checkpoint il cui owner resta `roadmap-checkpoint.md` |
+| `anim` | la clip serve al verdetto e non c'è | l'issue owner |
+| `feature` | la condizione non è ottenibile | l'issue owner |
+
+**Un tipo, un oracolo.** `asset` interroga il filesystem; gli altri quattro interrogano la cache
+GitHub e nient'altro. Quando i fatti veri su uno stesso nome sono **due** — il widget non esiste
+*e* nessuno lo monta — si scrivono **due righe**, non un tipo che ne indovina due:
+
+```yaml
+requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]
+```
+
+Il bloccante stampato nomina l'anello che ha ceduto davvero, e il giorno che il widget compare la
+riga `mount` resta in piedi da sé: nessuno deve ricordarsi di riscrivere il prerequisito.
+
+⚠️ **Rettificato il 2026-09-12** (fetta 1). Questa tabella diceva che `WBP_RT_EventLogRight` è un
+caso `mount`, cioè un widget *esistente* e non montato. È falso: `git ls-files Content` non lo
+traccia — esistono `WBP_RT_EventLog` e `WBP_RT_EventLine`. §1.5 lo diceva già giusto. E dava ad
+`anim` e `feature` oracoli alternativi — la riga «Animazioni:» del piano `S0`–`S9`, un `git grep`,
+un checkpoint — che né la fetta 0 né la fetta 1 hanno implementato: una promessa che invecchiava.
 
 Il tipo `feature` ha già un caso misurato: il runbook `guida-seduta-u46-residui-g9.md` riporta che
 `git grep` di `bHumanPlanning|WaitForPlayer|Interactive|PauseForPlanning` in `ScenarioHarness/` dà **0**,
-quindi una finestra di pianificazione umana su un banco oggi non esiste.
+quindi una finestra di pianificazione umana su un banco oggi non esiste. La misura giustifica il `requires`;
+a stabilirlo resta l'issue owner.
 
 ### 3.3 `wiring:` — il cablaggio, e soltanto quello
 
@@ -178,9 +196,14 @@ quindi una finestra di pianificazione umana su un banco oggi non esiste.
 wiring:
   - check: PIE-V01-SCREENHUD
     setup: SET-FRONTEND
-    requires: [ mount:WBP_RT_TacticalHUD ]
+    requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]
     issue: 613
 ```
+
+⚠️ **Rettificato il 2026-09-12** (fetta 1). L'esempio diceva `requires: [ mount:WBP_RT_TacticalHUD ]`,
+che `oracles.valuta` rifiuta: i tipi con issue pretendono `nome#numero`, perché senza owner un
+bloccante non ha nessuno che possa toglierlo. (`WBP_RT_TacticalHUD` esiste davvero ed è un caso
+`mount` legittimo — gli mancava solo la issue.)
 
 Nessun esito, nessun criterio, nessuna prosa. `test-manuali-pie.md` resta l'unico owner di *cosa deve
 succedere* e di *com'è andata*. La regola che lo yaml oggi **enuncia** — «qui si citano gli ID, mai
@@ -322,6 +345,19 @@ invecchiare in silenzio — o lo rigeneri, o non esiste. E le issue sono il cana
 la chiusura di [#2697], quel check esce dall'agenda e nessuno se ne accorge. Mitigazione con macchinario
 già previsto: la cache GitHub conosce lo stato delle issue, quindi un `requires` il cui issue owner è
 **chiusa** viene stampato come sospetto. Sostituisce il gate senza costare un CI.
+
+⚠️ **Rettificato il 2026-09-12** (fetta 1). Questo paragrafo portava due difetti.
+
+L'esempio citava `mount:WBP_RT_EventLogRight` senza `#issue` — la forma che §3.3 rettifica lo stesso
+giorno dichiarando che `oracles.valuta` la **rifiuta** con `ValueError`: i tipi con issue pretendono
+`nome#numero`, perché senza owner un bloccante non ha nessuno che possa toglierlo. La forma corretta è
+`mount:WBP_RT_EventLogRight#2697`.
+
+E la mitigazione descritta — «un `requires` il cui issue owner è chiusa viene stampato come
+**sospetto**» — non è mai stata quella costruita: nessuno stampa un sospetto. §13 dichiara essa stessa
+questa proposta **superata**, perché `oracles.valuta` considera già *soddisfatto*, senza un passo
+intermedio, un `requires` la cui issue è chiusa — con la precisazione che §13 aggiunge nello stesso
+punto: non succede da sé, serve rilanciare il fetch della cache.
 
 **La migrazione della prosa stalla a metà e restano due verità.** Lo previene la regola di §5.3: un solo
 owner in ogni istante.
@@ -483,11 +519,101 @@ già da sé. Il registro ha **240** voci, non le 230 che §1 riportava.
 
 ---
 
+## 13. Esito della fetta 1
+
+**Misurato il 2026-09-12 su `c68bc717`.** Comandi e uscite:
+
+| | |
+|---|---|
+| `requires` dichiarati / righe di `wiring` — `compare_rassegna.py`; `grep -c '^  - check:' docs/roadmap/sedute-mattoni.yaml` | **2** / **169** |
+| check esaminati dal verbale / bacino | **118** / **118** |
+| `compare_legacy.py` | `PASS` — persi: nessuno, guadagnati: nessuno, coda scoperta: **47** |
+| `compare_rassegna.py` | `PASS` — comparsi dopo la rassegna: nessuno |
+| aperture calcolate — `compare_legacy.py` | **6** |
+| check stampati come bloccati — `build_agenda.py --out build/ordine-del-giorno.md`, poi ``grep -c "^- `PIE-.*` — " build/ordine-del-giorno.md`` | **2** |
+
+**La promessa di §12 è esercitata oppure no**: `PIE-V01-FRONTEND-PAUSE` compare sotto i bloccati
+di `SET-FRONTEND` con `WBP_RT_PauseMenu non esiste in Content/` — e `SET-FRONTEND` resta
+un'apertura, perché bloccare non è potare.
+
+### Cosa la fetta 1 ha scoperto, e che il design non sapeva
+
+**1. I candidati bloccanti del design erano in gran parte stantii.** La tabella §1.5 elencava nomi
+«che non esistono». Verificati uno per uno, **quattro** si sono rivelati falsi positivi:
+
+- `WBP_RT_EventLogRight` → non è un package, è un'**istanza di nodo** dentro `WBP_RT_TacticalHUD`
+  ([`guida-screen-hud-umg.md`](../../technical/runbooks/guida-screen-hud-umg.md) §3); e [#2697]
+  dichiara essa stessa che il montaggio è avvenuto in [PR #2834];
+- `L_CameraFeatureLab` → non compare nella riga di registro del check che avrebbe dovuto bloccare
+  (`PIE-PC-GYM` usa lo scenario `Visual.Input.PcGym`);
+- `WBP_RT_ScenarioComposer` → abbandonato di proposito: [#2789] **chiusa** col titolo «non è
+  raggiungibile da nessun codice»; oggi il soggetto è `SRTLauncherScenarioPanel`, una classe
+  C++/Slate;
+- `BP_Unit_Phase_C_0` → nome d'**istanza** dell'Outliner, non un package.
+
+**La conseguenza, ed è la lezione della fetta**: se quei `requires` fossero stati trascritti dal
+piano invece che verificati, quattro check eseguibili sarebbero spariti dall'ordine del giorno **in
+silenzio**. È il rischio che §7 nomina per primo, e si è materializzato in fase di scrittura.
+
+**2. Lo schema dei `requires` non copre tutto**, e i casi sono **due**, trovati indipendentemente in
+lotti diversi:
+
+- `PIE-V01-COVEREDIT`: il package `DA_HexMap_Sandbox` **esiste ma è vuoto**. Gap di *authoring*:
+  `asset:` non si applica, e i tipi con issue pretendono un `#numero` che `U13` dichiara non
+  esistere;
+- `PIE-BAL1`: `D-205`/`D-208` sono decise e non atterrate in codice, e l'unica issue candidata
+  ([#403]) è — per `docs/OPEN_DECISIONS.md:1710` — **il gate umano di quel check stesso**:
+  dichiararla lo bloccherebbe sulla propria conclusione.
+
+In entrambi la risposta è stata `—` con la ragione scritta, **mai** un `requires` inventato.
+
+**3. ⚠️ Il registro PIE è stantio in cinque punti**, trovati come effetto collaterale della
+rassegna. `docs/technical/test-manuali-pie.md` è l'**owner** dello stato, e in questi punti afferma
+il falso:
+
+- `PIE-V01-LOWCOVER`: dice «nessuna mesh rappresenta il riparo» — `RTCoverLowHeight`/
+  `RTCoverHighHeight` esistono (`RTHexMapActor.cpp:128-129`, usate a `2018` e `2077`);
+- `PIE-V01-REPLAY`: dice che `rt.Debug.DumpTurnLog`/`VerifyReplay` «non esistono ancora (CP 11.4)»
+  — sono registrati (`RTDebugConsole.cpp:358-366`);
+- `PIE-HEX-VIZ-UNDO`: consiglia `Content/RT/Maps/Dev/L_Throwaway.umap` come usa-e-getta sicuro —
+  `git check-ignore -q` dà **1** (non ignorato) su `Dev/` e **0** su `_Scratch/`. **Chi segue il
+  consiglio committa la mappa**;
+- `PIE-V01-INTERCEPT`: nomina `Heroes.RiktorInterposition…` e `Heroes.WraithDeflection…`, che non
+  esistono — [D-334] li ha rinominati `Branth`/`Ivrin`;
+- `PIE-V01-SPECTATOR-ROSTER` (`test-manuali-pie.md:1227`): dice che `WBP_RT_EventLog` non è in
+  `Content/` — è tracciato (`Content/RT/UI/Match/WBP_RT_EventLog.uasset`).
+
+⛔ **Questa fetta NON li ha corretti**, e il motivo è il design §6: questo lavoro non tocca il
+registro come owner dell'esito, e correggerne la prosa richiede giudizio sullo *stato* dei check. La
+propagazione al loro owner resta **aperta**, e il canale naturale è una issue dedicata.
+
+### Follow-up aperti dalla fetta 1
+
+- la propagazione dei cinque punti stantii a `test-manuali-pie.md` (vedi sopra);
+- un tipo di `requires` per il gap di authoring senza issue owner, con `PIE-V01-COVEREDIT` e
+  `PIE-BAL1` come motivazione misurata;
+- `SET-TD` dichiarato e mai usato — resta il follow-up aperto da §12, questa fetta non l'ha toccato;
+- **il rischio di §7 è ora archiviabile, con una precisazione.** `oracles.valuta` considera
+  **soddisfatto** un `requires` la cui issue è chiusa, quindi nessuno deve ricordarsi di
+  togliere a mano la riga quando il lavoro finisce — il «sospetto» che §7 proponeva non serve, e
+  l'implementazione risolve il rischio col meccanismo che già aveva per un altro scopo. Ma il
+  check **non** torna nell'agenda *da sé*: la cache GitHub è un'istantanea (campo `fetched`, ora
+  stampato da `build_agenda.py` e `compare_legacy.py`), non un dato vivo, quindi torna quando
+  qualcuno rilancia `fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml` e ricalcola
+  l'ordine del giorno — mai prima. ⚠️ **Rettificato il 2026-09-12**: questa stessa riga diceva
+  «torna nell'agenda da sé senza bisogno di un passo», che è falso come scritto.
+
+---
+
 [D-130]: ../../decisions/RT_PDR_00_Decision_Log.md
 [D-181]: ../../decisions/RT_PDR_00_Decision_Log.md
 [D-182]: ../../decisions/RT_PDR_00_Decision_Log.md
 [D-321]: ../../decisions/RT_PDR_00_Decision_Log.md
+[D-334]: ../../decisions/RT_PDR_00_Decision_Log.md
+[#403]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/403
 [#2297]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2297
 [#2454]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454
 [#2476]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2476
 [#2697]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697
+[#2789]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2789
+[PR #2834]: https://github.com/DegrassiAaron/refactor-tactics-main/pull/2834

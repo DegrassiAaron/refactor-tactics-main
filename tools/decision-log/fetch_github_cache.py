@@ -36,6 +36,18 @@ def referenced(log: Path) -> list[int]:
     return sorted({int(n) for n in ISSUE_RE.findall("\n".join(rows) + notes)})
 
 
+def referenced_extra(path: Path) -> list[int]:
+    """I `#nnn` che compaiono in un file qualunque.
+
+    `referenced` sopra legge SOLO le righe del Decision Log, perche' quella e'
+    la popolazione della vista HTML. Chi dichiara un prerequisito con un issue
+    owner — `mount:<Nome>#<issue>` in `docs/roadmap/sedute-mattoni.yaml` — cita
+    numeri che il Decision Log non nomina, e senza di essi l'oracolo di
+    `tools/editor-sessions/oracles.py` si rifiuta di rispondere.
+    """
+    return sorted({int(n) for n in ISSUE_RE.findall(path.read_text(encoding="utf-8"))})
+
+
 def fetch(number: int, repo: str) -> dict | None:
     cmd = ["gh", "api", f"repos/{repo}/issues/{number}"]
     try:
@@ -60,10 +72,28 @@ def main() -> int:
     ap.add_argument("--log", default=LOG, type=Path)
     ap.add_argument("--out", default=OUT, type=Path)
     ap.add_argument("--repo", default=REPO)
+    ap.add_argument(
+        "--also",
+        action="append",
+        default=[],
+        type=Path,
+        help="un altro file da cui raccogliere i #nnn (ripetibile). "
+        "Per i prerequisiti delle sedute: --also docs/roadmap/sedute-mattoni.yaml",
+    )
     args = ap.parse_args()
 
-    numbers = referenced(args.log)
-    print(f"{len(numbers)} riferimenti citati dal registro")
+    trovati = set(referenced(args.log))
+    print(f"{len(trovati)} riferimenti citati dal registro")
+    for extra in args.also:
+        # Rifiutare, non ignorare: un --also lasciato cadere produrrebbe una cache
+        # incompleta che sembra completa. Precedente: D-182, dove --wiki-root esce
+        # con sys.exit(2) invece di venire ignorato.
+        if not extra.exists():
+            sys.exit(f"--also: file non trovato: {extra}")
+        aggiunti = set(referenced_extra(extra))
+        print(f"  +{len(aggiunti - trovati)} da {extra}")
+        trovati |= aggiunti
+    numbers = sorted(trovati)
 
     items: dict[str, dict] = {}
     for i, n in enumerate(numbers, 1):

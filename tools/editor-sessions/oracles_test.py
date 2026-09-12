@@ -35,10 +35,18 @@ class IssueTest(unittest.TestCase):
         self.assertTrue(e.soddisfatto)
         self.assertIn("#2723", e.perche)
 
-    def test_issue_fuori_cache_blocca_e_lo_dichiara(self):
-        e = oracles.valuta("cue:Deflect#9999", INVENTARIO, CHIUSE, NOTE)
-        self.assertFalse(e.soddisfatto)
-        self.assertIn("cache", e.perche)
+    def test_issue_fuori_cache_viene_rifiutata_invece_di_bloccare(self):
+        """Un bloccante per colpa dell'attrezzatura e' il gemello del verde falso.
+
+        Se la cache non conosce il numero, l'oracolo non sa rispondere: fingere
+        «bloccato» nasconde il check con una ragione che non e' la sua, e
+        nessuno rilancia il fetch perche' l'agenda sembra sana.
+        """
+        with self.assertRaises(oracles.OracoloError) as e:
+            oracles.valuta("cue:Deflect#9999", INVENTARIO, CHIUSE, NOTE)
+        self.assertIn("#9999", str(e.exception))
+        self.assertIn("fetch_github_cache.py", str(e.exception))
+        self.assertIn("--also", str(e.exception))
 
 
 class FormaTest(unittest.TestCase):
@@ -63,6 +71,23 @@ class CacheTest(unittest.TestCase):
             },
         }
         self.assertEqual(oracles.issue_chiuse(cache), {2723})
+
+    def test_una_issue_chiusa_soddisfa(self):
+        cache = {"items": {"938": {"state": "closed", "type": "issue"}}}
+        self.assertEqual(oracles.issue_chiuse(cache), {938})
+
+    def test_una_pr_chiusa_e_mergiata_soddisfa(self):
+        cache = {"items": {"2834": {"state": "closed", "type": "pr", "merged": True}}}
+        self.assertEqual(oracles.issue_chiuse(cache), {2834})
+
+    def test_una_pr_chiusa_e_non_mergiata_non_soddisfa(self):
+        """Lavoro abbandonato: chiusa senza merge non e' fatta, non basta lo `state`."""
+        cache = {"items": {"351": {"state": "closed", "type": "pr", "merged": False}}}
+        self.assertEqual(oracles.issue_chiuse(cache), set())
+
+    def test_una_pr_aperta_non_soddisfa_anche_se_merged_manca(self):
+        cache = {"items": {"999": {"state": "open", "type": "pr"}}}
+        self.assertEqual(oracles.issue_chiuse(cache), set())
 
 
 if __name__ == "__main__":
