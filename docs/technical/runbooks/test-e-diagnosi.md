@@ -244,12 +244,22 @@ delle due cartelle; dopo, ne scrive uno con lo stesso hash della Development. La
 # tutti
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics;Quit" \
   -unattended -nopause -nullrhi -NoSound
 
 # una sola area (molto più veloce)
--ExecCmds="Automation RunTests RefactorTactics.Scenario+Quit"
+-ExecCmds="Automation RunTests RefactorTactics.Scenario;Quit"
 ```
+
+> 🔴 **`;Quit`, mai `+Quit`** — e questo runbook ha prescritto la seconda forma fino al 2026-09-12.
+> `+` separa **filtri**, non comandi (vedi §9): con `+Quit` la parola `Quit` diventa un secondo filtro che
+> non corrisponde a nessun test, il comando non viene **mai** eseguito, e il processo **non esce**. I test
+> girano, il log sembra a posto, e l'`UnrealEditor-Cmd` resta vivo a tenere il mutex del motore.
+>
+> Misurato con un esperimento controllato — stesso filtro, stessi flag, unica variabile il separatore:
+> `+Quit` ancora vivo dopo 240 s e **nessun** `**** TEST COMPLETE ****`; `;Quit` uscito dopo 61 s con
+> `EXIT CODE: 0`. Serie storica coerente: su venti log, cinque run su cinque con `+Quit` non sono mai
+> uscite ([#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)).
 
 Gli esiti finiscono in `Saved/Logs/RefactorTactics.log`, non nello stdout:
 
@@ -258,6 +268,23 @@ grep -aE "Test Completed. Result=" Saved/Logs/RefactorTactics.log \
   | sed 's/.*Result={/  /;s/} Name={/  /;s/}.*//'
 grep -a "tests performed" Saved/Logs/RefactorTactics.log | tail -1
 ```
+
+🔑 **E il log dice anche QUANDO la suite è finita — non aspettarlo dal processo.** I due numeri si
+confrontano, e quando coincidono la run è conclusa a prescindere da cosa faccia l'`UnrealEditor-Cmd`:
+
+```bash
+grep -ao "Found [0-9]* automation tests" Saved/Logs/RefactorTactics.log | tail -1
+grep -ac "Test Completed\." Saved/Logs/RefactorTactics.log
+```
+
+⚠️ **Serve perché il processo può non uscire.** Con `;Quit` capita di rado — un caso su tredici nella serie
+misurata — e allora l'esito è già tutto qui: leggilo, poi chiudi il processo. Un `taskkill /F` sul solo pid
+non basta, perché ciò che quel processo ha generato resta vivo: serve `/T`, che uccide l'albero.
+
+⛔ **Non aspettare un timeout.** Attendere l'uscita del processo quando il log dice già che la suite è
+finita è il difetto, non il rimedio; allungare o accorciare l'attesa non lo tocca
+([#3048](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3048),
+[#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)).
 
 ### Contarli
 
@@ -867,13 +894,31 @@ Ognuna è costata tempo almeno una volta.
 |---|---|---|
 | `LNK1104: impossibile aprire UnrealEditor-RefactorTactics.dll` | un `UnrealEditor-Cmd` di un run precedente non è uscito e tiene la DLL | chiudi il processo, poi ricompila |
 | I test «passano» ma sono di un run vecchio | `RefactorTactics.log` contiene ancora l'esecuzione precedente | controlla il **timestamp** delle righe, o attendi `tests performed` del run nuovo |
-| `-ExecCmds` sembra ignorare un filtro | `+` separa i **comandi**, non i filtri: `RunTests A+B` esegue `RunTests A` e poi il comando `B` | un solo filtro per esecuzione |
+| `-ExecCmds` sembra ignorare un filtro | ⌫ **Questa riga diceva l'opposto del vero fino al 2026-09-12**, e la correzione sta sotto la tabella | vedi ⚠️ qui sotto |
+| Il processo non esce, e il log dice che la suite è finita | il comando `Quit` non è stato eseguito: quasi sempre è stato scritto `+Quit` invece di `;Quit` | `;Quit`; se succede con `;Quit`, leggi l'esito dal log e chiudi il processo — non aspettare |
 | `rt.Test.Run` non fa nulla headless | senza una mappa caricata non esiste un mondo di gioco | usa l'Automation Test, o eseguilo in PIE |
 | Errori di simboli duplicati fra file di test | la *unity build* mette più `.cpp` nella stessa translation unit | dai **nomi distinti** agli helper nei namespace anonimi di ogni file |
 | Linee di debug invisibili | disegnate **sotto** la faccia del disco-cella (che sta a `z = 2.5`) | usa le costanti `RTLift*` di `RTHexMapActor.cpp`, che derivano dallo spessore reale |
 | Un `.md` dichiara un numero di test diverso | la documentazione è indietro rispetto al codice | fidati del comando di §2 |
 | Le unità si muovono **dopo** che lo scenario è finito | piani rimasti appesi ririsolti a ogni turno: corretto in `4e6c2e0` | se ricompare, guarda i **timestamp** — la riga `AUTO-RUN` viene prima di ogni turno visibile |
 | Parte uno scenario **diverso** da quello scelto nella tendina | una `rt.Test.Scenario` digitata prima è ancora attiva: le console variable durano quanto il processo dell'editor | `rt.Test.Scenario ""`, oppure leggi `(da: …)` nella riga `AUTO-RUN` del log |
+
+> ⚠️ **`+` separa i FILTRI, `;` separa i comandi — e questa tabella diceva il contrario.**
+>
+> Misurato il 2026-09-12 con due esperimenti controllati, e il log lo stampa:
+>
+> ```
+> RunTests A+B   ->  Found 2 automation tests based on 'A+B'        entrambi eseguiti
+> RunTests X+Quit ->  Found 1 automation tests based on 'X+Quit'   `Quit` resta NEL FILTRO
+> RunTests X;Quit ->  Found 1 automation tests based on 'X'        `Quit` e' un comando, il processo esce
+> ```
+>
+> Con `+`, `Quit` diventa un secondo **filtro** che non corrisponde a nessun test: i test girano, nessuno
+> si accorge di niente, e lo spegnimento non avviene **mai**. Con `;` il filtro resta pulito e `Quit` viene
+> eseguito dopo la suite.
+>
+> 🔑 Quindi `A+B` è legittimo e utile — *«i test che corrispondono ad A **o** a B»* — ma `A+Quit` no.
+> ⛔ E un timeout più corto non è un rimedio: è lo stesso difetto con un numero diverso.
 
 ---
 
@@ -887,7 +932,7 @@ Ognuna è costata tempo almeno una volta.
 # test di un'area
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Scenario+Quit" -unattended -nopause -nullrhi -NoSound
+  -ExecCmds="Automation RunTests RefactorTactics.Scenario;Quit" -unattended -nopause -nullrhi -NoSound
 
 # esiti e conteggio
 grep -aE "Test Completed. Result=" Saved/Logs/RefactorTactics.log
