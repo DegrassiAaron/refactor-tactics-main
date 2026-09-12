@@ -4,17 +4,24 @@ La seduta non e' un dato: e' il raggruppamento dei check che condividono un alle
 prerequisiti sono soddisfatti. Questo strumento lo calcola.
 
 ```bash
-python3 tools/decision-log/fetch_github_cache.py            # serve `gh` autenticata
+python3 tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
 python3 tools/editor-sessions/build_agenda.py               # -> build/ordine-del-giorno.md
 python3 tools/editor-sessions/compare_legacy.py             # il gate della fetta 0
+python3 tools/editor-sessions/compare_rassegna.py           # il gate del verbale (fetta 1)
 python3 -m unittest discover -s tools/editor-sessions -p '*_test.py'
+python3 -m unittest discover -s tools/decision-log   -p '*_test.py'
 ```
+
+⚠️ `--also` non è facoltativo: senza, la cache non conosce le issue che i `requires` citano, e
+`build_agenda` si **ferma** col comando da rilanciare.
 
 Dipendenze: Python 3.12 e `pyyaml`. Nient'altro.
 
 ⚠️ **Su Windows, qualunque comando che stampi uno stato vuole
 `sys.stdout.reconfigure(encoding='utf-8')`**: la console e' `cp1252` e le emoji del registro la fanno
 esplodere con `UnicodeEncodeError`. I file invece si scrivono gia' con `encoding='utf-8'` esplicito.
+Limite noto: oggi solo `compare_rassegna.py` lo chiama; gli altri script di questa famiglia no. E' un
+difetto noto, differito di proposito — non uniformarlo per conto tuo.
 
 ## I mattoni
 
@@ -27,6 +34,19 @@ giudizio dichiarato nel proprio sorgente:
 
 Correggere una riga del yaml non serve: la decisione sta nelle tabelle, e il prossimo seme ricalcola.
 
+### I prerequisiti
+
+`wiring.requires` dichiara perché un check **non si può guardare oggi**. Un tipo, un oracolo:
+`asset:<Nome>` interroga `git ls-files Content`; `mount|cue|anim|feature:<Nome>#<issue>`
+interrogano la cache GitHub, e chi chiude la issue toglie il bloccante. Quando i fatti veri su
+uno stesso nome sono due, si scrivono due righe.
+
+I `requires` **non** si rigenerano: sono giudizio d'autore, ognuno con la propria riga di prova
+in `docs/roadmap/plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e
+`compare_rassegna.py` rifiuta un bloccante che quel verbale non giustifica. `seed_wiring.py
+--into` li **preserva** attraverso il riseminio, e si rifiuta di riseminare se una riga che ne
+portava uno non viene più prodotta.
+
 ## Cosa NON fa
 
 - **Non possiede l'esito di un check.** Quello e' di `docs/technical/test-manuali-pie.md`, e in questo
@@ -37,6 +57,10 @@ Correggere una riga del yaml non serve: la decisione sta nelle tabelle, e il pro
 - **Non apre issue.** Quello arriva alla fetta 4, e solo con `--apply`.
 - **Non decide un conflitto.** Due sedute in disaccordo fermano la riga e stampano il conflitto:
   «vince la prima» sarebbe una decisione presa dall'ordine del documento.
+- **Non deduce un prerequisito.** La prosa del registro PIE cita `#nnn` come *riferimenti*, non
+  come bloccanti, e i nomi tipo-asset che contiene sono spesso istanze (`BP_Unit_Gadget_C_0`) o
+  prefissi (`WBP_RT_`). Un `requires` si dichiara dopo aver verificato, mai per euristica: un
+  falso positivo toglie un check dall'ordine del giorno in silenzio.
 
 ## Perche' l'uscita non si committa
 
