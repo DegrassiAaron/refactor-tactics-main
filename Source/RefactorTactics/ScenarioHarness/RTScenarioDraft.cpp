@@ -1307,6 +1307,11 @@ TArray<FRTCellId> FRTScenarioDraft::GetReachableCells(const FString& UnitId, UOb
 		Sim.Cell = Unit.Cell;
 		Sim.bAlive = true;
 		Sim.Facing = Unit.Facing;
+		// ➕ **La SQUADRA, o la preview smette di essere la stessa domanda** (`#2984`, [D-396]). Da quando
+		// `ReachableCells` attraversa le compagne, uno snapshot senza squadre e' uno snapshot in cui nessuno
+		// e' alleato di nessuno: l'editor mostrerebbe una regione piu' stretta di quella che il resolver
+		// concede, che e' esattamente il secondo pathfinder che `#1116` vieta.
+		Sim.TeamId = Unit.TeamId;
 
 		// Il budget viene dall'eroe, dalla stessa fonte da cui lo prende `ARTUnit` (`MoveRange =
 		// Hero->MovePoints`): non e' una stima, e' il valore. Un eroe che il catalogo non conosce non arriva
