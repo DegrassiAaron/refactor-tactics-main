@@ -824,6 +824,82 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// significa «non dichiarata» e non «priorita' zero».
 	const FString Tail = ActionIdentitySuffix(Entry);
 
+	// ➕ **Le voci AMBIENTALI hanno la loro guardia, e prima non l'avevano** (`#3110`).
+	//
+	// 🔴 `Entry.Outcome` e' un `uint8` CONDIVISO il cui enum dipende dalla CATEGORIA — lo dichiara
+	// `OutcomeEnumFor`, che per `Environment` restituisce `StaticEnum<ERTEnvironmentOutcome>()`. Senza questa
+	// guardia una voce ambientale cadeva nello switch qui sotto e veniva reinterpretata **per posizione**:
+	// `SurfaceChanged` (0) letta come `Hit` (0) usciva come *«N danni»*, e `SurfaceRejected` (2) come
+	// `Lethal` (2) usciva come *«N danni, eliminata»* — per una trasformazione che NON era avvenuta.
+	// Trovato leggendo il TurnLog di una partita vera: sette righe di danno per `Hero.Muiren.MistVeil`, che
+	// non dichiara danno.
+	//
+	// ⚠️ **E `Amount` non e' un danno**: per le superfici e' la DURATA in turni (`ApplyDynamicSurface`,
+	// `Entry.Amount = Turns`), per `CoverDamaged` e `BridgeDamaged` l'INTEGRITA' RESIDUA, come dichiara il
+	// commento dell'enum. Stamparlo come danno diceva un numero vero col nome sbagliato, che e' peggio che
+	// non dirlo.
+	//
+	// ⛔ **Nessun `default:` qui, ed e' deliberato**: un esito ambientale nuovo deve far scattare `-Wswitch`,
+	// non uscire in silenzio raccontato come un attacco. E' esattamente il modo in cui questo difetto e'
+	// nato — una caduta silenziosa — e chiuderlo con un `default:` lo riaprirebbe di lato.
+	if (Entry.Category == ERTLogCategory::Environment)
+	{
+		switch (static_cast<ERTEnvironmentOutcome>(Entry.Outcome))
+		{
+		case ERTEnvironmentOutcome::SurfaceChanged:
+			return FString::Printf(TEXT("%s: la superficie cambia (%d turni)%s"),
+				*CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTEnvironmentOutcome::SurfaceRestored:
+			return FString::Printf(TEXT("%s: la superficie torna com'era%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::SurfaceRejected:
+			return FString::Printf(TEXT("%s: la superficie non ammette la trasformazione%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::SurfaceExtinguished:
+			return FString::Printf(TEXT("%s: la superficie ne spegne un'altra%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::CoverDamaged:
+			return FString::Printf(TEXT("%s -> %s: copertura colpita, integrita' residua %d%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTEnvironmentOutcome::CoverDestroyed:
+			return FString::Printf(TEXT("%s -> %s: copertura abbattuta%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::DoorClosed:
+			return FString::Printf(TEXT("%s -> %s: porta chiusa%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::DoorOpened:
+			return FString::Printf(TEXT("%s -> %s: porta aperta%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::BridgeCreated:
+			return FString::Printf(TEXT("%s -> %s: ponte creato%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::BridgeRemoved:
+			return FString::Printf(TEXT("%s -> %s: ponte rimosso%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::BridgeDamaged:
+			return FString::Printf(TEXT("%s -> %s: ponte colpito, integrita' residua %d%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTEnvironmentOutcome::BridgeDestroyed:
+			return FString::Printf(TEXT("%s -> %s: ponte abbattuto%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		}
+	}
+
+	// ⛔ **Una categoria senza descrittore si DICHIARA, non si racconta come un attacco.** E' la riga che
+	// impedisce il ritorno di `#3110` da un altro lato: lo switch qui sotto non e' piu' raggiungibile per
+	// CADUTA, e chi aggiunge una categoria vede una frase che lo dice invece di leggere danni inventati.
+	//
+	// ⚠️ `ReactionClash` e `Objective` passano di qui oggi: non hanno un descrittore proprio, e se ne
+	// producano voci che arrivano fin qui **non e' stato misurato**. Questa riga le rende innocue, non
+	// descritte — e la misura resta un criterio aperto di `#3110`.
+	if (Entry.Category != ERTLogCategory::Combat)
+	{
+		return FString::Printf(TEXT("%s: voce di categoria %s senza descrittore%s"),
+			*CellText(Entry.TgtCell),
+			*StaticEnum<ERTLogCategory>()->GetNameStringByValue(static_cast<int64>(Entry.Category)),
+			*Tail);
+	}
+
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{
 	case ERTCombatOutcome::NoLineOfSight:

@@ -351,4 +351,53 @@ bool FRTEveryMoveOutcomeIsDescribedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una voce AMBIENTALE non si racconta come un attacco** (`#3110`).
+ *
+ * 🔴 `Entry.Outcome` e' un `uint8` condiviso il cui enum dipende dalla categoria. Prima di `#3110`
+ * `DescribeEntry` cadeva nello switch di `ERTCombatOutcome` senza guardia, e una voce ambientale veniva
+ * reinterpretata **per posizione**: `SurfaceChanged` (0) letta come `Hit` (0) usciva come *«N danni»*, con
+ * `Amount` — che per una superficie e' la DURATA IN TURNI — stampato come danno inflitto.
+ *
+ * Trovato leggendo il TurnLog di una partita vera: sette righe `2 danni (Hero.Muiren.MistVeil)` per
+ * un'azione che non dichiara danno, e il `2` era la durata del fumo.
+ *
+ * ⛔ **Verifica di mutazione**: tolta la guardia `Category == Environment` da `DescribeEntry`, i tre
+ * asserti qui sotto diventano rossi e il quarto — il colpo vero — resta verde. E' la coppia che distingue
+ * «il rendering ambientale e' sbagliato» da «il rendering e' sbagliato».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogEnvironmentIsNotCombatTest,
+	"RefactorTactics.TurnLog.EnvironmentEntriesAreNotNarratedAsCombat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogEnvironmentIsNotCombatTest::RunTest(const FString&)
+{
+	const FRTCellId C(1, 0, 0);
+
+	// La superficie creata: `Amount` sono i TURNI, non i danni.
+	FRTTurnLogEntry Surface = MakeEntry(ERTMatchPhase::Cleanup, ERTLogCategory::Environment,
+		static_cast<uint8>(ERTEnvironmentOutcome::SurfaceChanged), C, C, /*Amount*/ 2);
+	Surface.ActionId = FName(TEXT("Hero.Muiren.MistVeil"));
+	const FString SurfaceText = URTTurnLogLibrary::DescribeEntry(Surface);
+
+	TestFalse(TEXT("una superficie che cambia non infligge danni"),
+		SurfaceText.Contains(TEXT("danni")));
+	TestTrue(TEXT("e dice invece cosa e' successo"),
+		SurfaceText.Contains(TEXT("la superficie cambia")));
+
+	// 🔴 Il caso che costa di piu' se torna: un rifiuto raccontato come un'uccisione, perche'
+	// `SurfaceRejected` e `Lethal` valgono entrambi 2.
+	FRTTurnLogEntry Rejected = MakeEntry(ERTMatchPhase::Cleanup, ERTLogCategory::Environment,
+		static_cast<uint8>(ERTEnvironmentOutcome::SurfaceRejected), C, C, /*Amount*/ 0);
+	TestFalse(TEXT("una trasformazione RIFIUTATA non elimina nessuno"),
+		URTTurnLogLibrary::DescribeEntry(Rejected).Contains(TEXT("eliminata")));
+
+	// Il gemello che NON deve muoversi: stessa posizione d'enum, categoria `Combat`.
+	FRTTurnLogEntry Hit = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), C, C, /*Amount*/ 2);
+	TestTrue(TEXT("un colpo vero resta un colpo"),
+		URTTurnLogLibrary::DescribeEntry(Hit).Contains(TEXT("danni")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
