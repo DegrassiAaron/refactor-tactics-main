@@ -842,9 +842,20 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	ARTUnit* Mia = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0, 0));
 	ARTUnit* Nemica = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0, 0));
-	// ⚠️ L'ostacolo e' della squadra AVVERSARIA, non della mia: un alleato piazzato li' vedrebbe la nemica
-	// da un passo di distanza e la terrebbe `Live`, cioe' smonterebbe la premessa del test.
-	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(4, 0, 0));
+	// 🔑 **L'ostacolo sta su una TERZA squadra, e le due ragioni si vincolano a vicenda** (`#3053`).
+	//
+	// ⌫ Era squadra **1**, come la nemica, e per un motivo ancora valido: un'unita' della squadra **0**
+	// piazzata li' vedrebbe la nemica da un passo di distanza e la terrebbe `Live`, smontando la premessa
+	// del ricordo. 🔴 Ma da `#2984` due unita' della **stessa** squadra si attraversano: il Move che
+	// questo allestimento conta di veder BLOCCATO smetteva di esserlo, e la premessa cadeva dall'altro lato.
+	// Misurato su `main` prima di toccare una riga: la nemica finiva in `(3,0,L0)`, cioe' la sua
+	// destinazione, con `Outcome` di movimento riuscito.
+	//
+	// ➕ La squadra **2** soddisfa entrambi i vincoli per costruzione: non e' alleata della nemica,
+	// quindi blocca; e non e' la squadra che guarda, quindi non le porta vista. ⛔ E non e' una scelta
+	// arbitraria fra le due: e' l'unica che non dipende da quale regola di attraversamento sia in vigore,
+	// che e' precisamente cio' che ha rotto questo banco una volta.
+	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 2, FRTCellId(4, 0, 0));
 	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
 		|| !TestNotNull(TEXT("unita' mia"), Mia) || !TestNotNull(TEXT("unita' nemica"), Nemica)
 		|| !TestNotNull(TEXT("l'ostacolo"), Muro))
