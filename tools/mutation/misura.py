@@ -163,8 +163,9 @@ def _alberi_processi():
         esito = subprocess.run(
             [PWSH, "-NoProfile", "-NonInteractive", "-Command",
              "Get-CimInstance Win32_Process | "
-             "Select-Object ProcessId,ParentProcessId,Name | "
-             "ForEach-Object { '{0};{1};{2}' -f $_.ProcessId,$_.ParentProcessId,$_.Name }"],
+             "Select-Object ProcessId,ParentProcessId,Name,CommandLine | "
+             "ForEach-Object { '{0};{1};{2};{3}' -f $_.ProcessId,$_.ParentProcessId,$_.Name,"
+             "$(if ($_.Name -like 'Unreal*') { $_.CommandLine }) }"],
             capture_output=True, text=True, errors="replace")
     except OSError:
         # Interprete non risolvibile: PATH senza System32, container, host non-Windows.
@@ -182,21 +183,29 @@ def _parse_processi(righe):
     questa firma nessun test li vede**: `classifica_livecoding` riceve il dict GIA' costruito,
     quindi togliere un filtro da qui non farebbe cadere nessun caso che parte dal dict.
     """
-    motori, padre, livecoding = set(), {}, {}
+    motori, padre, livecoding, motori_info = set(), {}, {}, {}
     for riga in righe:
-        campi = riga.strip().split(";")
-        if len(campi) != 3 or not campi[0].isdigit():
+        # ⚠️ `maxsplit=3`: una `CommandLine` contiene `;`, e rispezzarla la troncherebbe.
+        # Il quarto campo si prende INTERO. Tre campi restano accettati: e' la forma che la query
+        # emetteva prima, e i casi del self-test che non hanno bisogno della CommandLine la usano.
+        campi = riga.strip().split(";", 3)
+        if len(campi) < 3 or not campi[0].isdigit():
             continue
         pid, ppid, nome = int(campi[0]), int(campi[1]) if campi[1].isdigit() else 0, campi[2]
+        cmdline = campi[3] if len(campi) > 3 else None
         padre[pid] = ppid
         if "UnrealEditor" in nome:
             motori.add(pid)
+            # #3044: il NOME dice interattivo contro headless, la `CommandLine` dice
+            # `-NoLiveCoding`. Sono i due dati che `D-400` richiede per poter terminare.
+            motori_info[pid] = (nome, cmdline)
         # 🔴 #2392: `LiveCodingConsole` NON contiene `UnrealEditor`, e tiene lo stesso lock
         # di compilazione. Letto QUI, nella stessa passata, perche' due query correlate non
         # concordano: fra due campioni un processo nasce o muore.
         if "LiveCoding" in nome:
             livecoding[pid] = ppid
-    return {"motori": motori, "padre": padre, "livecoding": livecoding}
+    return {"motori": motori, "padre": padre, "livecoding": livecoding,
+            "motori_info": motori_info}
 
 
 def _discende_da(pid, radici, padre, profondita=24):
@@ -580,7 +589,35 @@ def classifica_livecoding(livecoding, vivi):
     return ("orfano" if orfani else "attivo"), orfani
 
 
-def decide_ritentativo(testo, stato):
+def puo_terminare_orfano(motori):
+    """PURA. `(True, ragione)` se NESSUN motore vivo puo' star usando Live Coding — `D-400`.
+
+    `motori`: `{pid: (nome, cmdline)}` dei processi `UnrealEditor*` vivi.
+
+    🔑 **Il criterio e' la `CommandLine`, non il nome, e la differenza e' il caso che ha
+    motivato #2392**: il 2026-09-05 era vivo esattamente un motore, un `UnrealEditor-Cmd` di
+    automation lanciato con `-NoLiveCoding`. Un processo che non usa Live Coding non e' una
+    ragione per conservare l'orfano — e leggere «nessun `UnrealEditor*` vivo» alla lettera
+    avrebbe lasciato quel caso irrisolto.
+
+    ⛔ **`D-400` NON autorizza a terminare un `LiveCodingConsole` col padre vivo**, in nessun
+    caso: quella e' la seduta di qualcuno. Questa funzione risponde solo alla seconda domanda,
+    su un processo gia' classificato `orfano`.
+
+    ⚠️ Fail-closed due volte: una `CommandLine` illeggibile e una run headless senza il
+    flag valgono entrambe «non posso escluderlo», non «non lo usa».
+    """
+    for pid, (nome, cmdline) in sorted(motori.items()):
+        if "-Cmd" not in nome:
+            return False, "Editor interattivo vivo: pid %d (%s)" % (pid, nome)
+        if not cmdline:
+            return False, "pid %d: CommandLine illeggibile, non lo posso escludere" % pid
+        if "-nolivecoding" not in cmdline.lower():
+            return False, "pid %d: run headless senza -NoLiveCoding" % pid
+    return True, "nessun motore vivo puo' usare Live Coding"
+
+
+def decide_ritentativo(testo, stato, puo_terminare=False):
     """PURA. Cosa fare di un build fallito: `riprova` | `riprova-al-buio` | `ferma-orfano` |
     `ferma-compilazione`.
 
@@ -597,18 +634,25 @@ def decide_ritentativo(testo, stato):
     if LOCK_LIVE_CODING not in testo:
         return "riprova"
     if stato == "orfano":
-        return "ferma-orfano"
+        return "termina-orfano" if puo_terminare else "ferma-orfano"
     if stato == "sconosciuto":
         return "riprova-al-buio"
     return "riprova"
 
 
 def stato_livecoding():
-    """`classifica_livecoding` su un campione vero. Impura: la sola parte che legge la macchina."""
+    """Un campione, due risposte: `(stato, orfani, puo_terminare, ragione)`. Impura.
+
+    Un solo `_alberi_processi()`: chi tiene il lock e chi potrebbe usarlo si leggono dallo
+    STESSO istante, altrimenti si decide di terminare sulla base di un motore gia' morto.
+    """
     alberi = _alberi_processi()
     if alberi is None:
-        return classifica_livecoding(None, set())
-    return classifica_livecoding(alberi["livecoding"], set(alberi["padre"]))
+        stato, orfani = classifica_livecoding(None, set())
+        return stato, orfani, False, "enumerazione fallita"
+    stato, orfani = classifica_livecoding(alberi["livecoding"], set(alberi["padre"]))
+    ok, ragione = puo_terminare_orfano(alberi["motori_info"])
+    return stato, orfani, ok, ragione
 
 
 def build(tentativi=40, pausa=45, stampa=None):
@@ -623,6 +667,7 @@ def build(tentativi=40, pausa=45, stampa=None):
     mezz'ora — e non stampava niente. Si distingue la CONTESA (un Editor altrui, il mutex:
     si aspetta) dall'errore di compilazione (si esce subito, con la coda del compilatore).
     """
+    terminati = set()
     for tentativo in range(tentativi):
         r = subprocess.run([PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
                             "& '" + BUILD_BAT + "' RefactorTacticsEditor Win64 Development "
@@ -636,10 +681,14 @@ def build(tentativi=40, pausa=45, stampa=None):
         # 🔑 E si ricampiona a OGNI tentativo, non una volta: un Editor che muore a
         # metà attesa lascia dietro il proprio `LiveCodingConsole`, e dal giro dopo quella
         # che era una contesa legittima è un orfano. Costa un campione per tentativo.
-        stato, orfani = ("assente", [])
+        stato, orfani, puo_term, ragione = ("assente", [], False, "")
         if LOCK_LIVE_CODING in testo:
-            stato, orfani = stato_livecoding()
-        esito = decide_ritentativo(testo, stato)
+            stato, orfani, puo_term, ragione = stato_livecoding()
+        # ⛔ Un pid gia' terminato che ricompare NON si ritenta: se il `taskkill` non ha preso,
+        # riprovarlo quaranta volte non cambia esito e nasconde il vero motivo dietro un ciclo.
+        if any(pid in terminati for pid, _ in orfani):
+            puo_term, ragione = False, "gia' terminato una volta, e il lock c'e' ancora"
+        esito = decide_ritentativo(testo, stato, puo_term)
 
         if esito == "ferma-compilazione":
             if stampa:
@@ -648,6 +697,17 @@ def build(tentativi=40, pausa=45, stampa=None):
                 for riga in coda:
                     stampa("     " + riga.strip()[:150])
             return False
+        if esito == "termina-orfano":
+            if stampa:
+                stampa("   lock di Live Coding tenuto da un ORFANO, e %s: lo termino e ritento"
+                       " subito (`D-400`)." % ragione)
+            for pid, ppid in orfani:
+                if stampa:
+                    stampa("     taskkill LiveCodingConsole pid %d (il padre %d non esiste)"
+                           % (pid, ppid))
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+                terminati.add(pid)
+            continue            # il lock e' libero: si ritenta senza aspettare la pausa
         if esito == "ferma-orfano":
             if stampa:
                 stampa("   build FERMO: il lock di Live Coding e' tenuto da un processo ORFANO.")
@@ -656,9 +716,11 @@ def build(tentativi=40, pausa=45, stampa=None):
                            " non esiste piu'" % (pid, ppid))
                 stampa("   ⛔ Non c'e' un Editor da chiudere, e nessuna attesa lo risolve: il")
                 stampa("   messaggio di Unreal manda a cercare una finestra che non esiste.")
-                stampa("   Va terminato a mano (`taskkill /PID %d`); se il gate possa farlo"
-                       " da se'" % orfani[0][0])
-                stampa("   e' la decisione aperta `GOV-7`. Vedi #2392.")
+                stampa("   ⛔ Non lo termino: %s — `D-400` lo vieta finche' un motore vivo"
+                       " potrebbe" % ragione)
+                stampa("   star usando Live Coding. Va terminato a mano (`taskkill /PID %d`)"
+                       " quando quel" % orfani[0][0])
+                stampa("   motore ha finito. Vedi #2392 e #3044.")
             return False
         if stampa and tentativo == 0:
             if esito == "riprova-al-buio":
@@ -881,5 +943,49 @@ def self_test():
                  and set(letto["padre"]) == {7, 9, 13}, str(letto)))
     casi.append(("una riga malformata non entra e non solleva",
                  _parse_processi(["x;y;z", "", "9;7"])["livecoding"] == {}, "ok"))
+
+    # --- #3044 / `D-400`: si termina un orfano solo se nessun motore vivo puo' usare Live Coding --
+    # 🔑 **Il caso che porta il peso e' `-NoLiveCoding`**: il 2026-09-05 era vivo esattamente
+    # un motore, un `UnrealEditor-Cmd` di automation lanciato con quel flag. Se lo trattassimo come un
+    # utente di Live Coding, `D-400` non risolverebbe il caso che l'ha motivata — e questi test
+    # passerebbero comunque, perche' nessun altro caso distingue le due letture.
+    def terminabile(nome, atteso, motori):
+        ok, ragione = puo_terminare_orfano(motori)
+        casi.append((nome, ok == atteso,
+                     "atteso %s, ottenuto %s (%s)" % (atteso, ok, ragione)))
+
+    terminabile("nessun motore vivo: l'orfano e' detrito, si termina", True, {})
+    terminabile("una suite con -NoLiveCoding non lo usa: si termina", True,
+                {4242: ("UnrealEditor-Cmd.exe",
+                        "UnrealEditor-Cmd.exe X.uproject -unattended -NoLiveCoding -log=s.log")})
+    terminabile("un Editor interattivo vivo: NON si termina", False,
+                {7: ("UnrealEditor.exe", "UnrealEditor.exe X.uproject")})
+    terminabile("una suite SENZA -NoLiveCoding: non si esclude, NON si termina", False,
+                {4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject -log=s.log")})
+    terminabile("CommandLine illeggibile: fail-closed, NON si termina", False,
+                {4242: ("UnrealEditor-Cmd.exe", None)})
+    terminabile("un Editor interattivo accanto a una suite esente: NON si termina", False,
+                {7: ("UnrealEditor.exe", "UnrealEditor.exe X.uproject"),
+                 4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject -NoLiveCoding")})
+
+    decide("orfano e nessuno che possa usarlo: si TERMINA", "termina-orfano", LC, "orfano", True)
+    decide("orfano ma un motore che puo' usarlo: si esce, non si termina", "ferma-orfano", LC,
+           "orfano", False)
+    decide("`puo_terminare` non cambia nulla quando l'Editor e' VIVO", "riprova", LC, "attivo", True)
+
+    # La raccolta porta nome e CommandLine dei motori, nella stessa passata dei `LiveCoding*`.
+    pieno = _parse_processi([
+        "7;496;UnrealEditor.exe;UnrealEditor.exe D:/X.uproject",
+        "9;7;LiveCodingConsole.exe;LiveCodingConsole.exe",
+        "13;1;explorer.exe;C:/Windows/explorer.exe"])
+    casi.append(("la raccolta porta nome e CommandLine dei motori",
+                 pieno["motori_info"] == {7: ("UnrealEditor.exe",
+                                              "UnrealEditor.exe D:/X.uproject")},
+                 str(pieno.get("motori_info"))))
+    # ⚠️ Una CommandLine contiene `;`: il quarto campo si prende INTERO, non si rispezza.
+    conpv = _parse_processi(["7;496;UnrealEditor-Cmd.exe;cmd.exe /c a;b;c -NoLiveCoding"])
+    casi.append(("la CommandLine con `;` dentro non viene troncata",
+                 conpv["motori_info"][7][1] == "cmd.exe /c a;b;c -NoLiveCoding",
+                 str(conpv["motori_info"])))
 
     return casi
