@@ -633,6 +633,9 @@ def build(tentativi=40, pausa=45, stampa=None):
             return True
         # Il campione si paga SOLO quando la frase di Live Coding c'e': sul caso comune — una
         # mutazione scritta a mano che non compila — non si legge nessun processo.
+        # 🔑 E si ricampiona a OGNI tentativo, non una volta: un Editor che muore a
+        # metà attesa lascia dietro il proprio `LiveCodingConsole`, e dal giro dopo quella
+        # che era una contesa legittima è un orfano. Costa un campione per tentativo.
         stato, orfani = ("assente", [])
         if LOCK_LIVE_CODING in testo:
             stato, orfani = stato_livecoding()
