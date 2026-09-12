@@ -481,6 +481,12 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// ⚠️ Prima della migrazione questo test misurava il colpo dello STESSO turno, perche' lo Sprint
 	// risolveva pre-Blast. L'asserzione e' la stessa proprieta' — «chi ha corso allo scoperto incassa
 	// +5» — spostata nel turno in cui ora e' osservabile.
+	// 🔑 **Lo stato c'e' DAVVERO alla fine del turno che lo applica**, ed e' l'asserzione che separa i due
+	// modi di fallire: se cade qui il difetto e' in chi applica, se cade sul danno piu' sotto e' in chi
+	// legge. Senza, un rosso sul solo danno non direbbe quale dei due.
+	TestTrue(TEXT("dopo lo Sprint lo stato c'e': Exposed sopravvive al Cleanup del turno che lo applica"),
+		Runner->HasStatus(TAG_Status_Exposed));
+
 	const int32 HealthAfterSprint = Runner->Health;
 	Runner->PlannedMovementProfileId = NAME_None; // niente secondo scatto: lo stato in esame e' quello di prima
 	Runner->PlannedCell = Runner->Cell;
