@@ -1,3 +1,4 @@
+# tools/editor-sessions/compare_rassegna_test.py
 """Il gate del verbale: ogni bloccante ha la sua prova scritta."""
 from __future__ import annotations
 
@@ -22,6 +23,16 @@ STATO = {
     "PIE-D": {"stato": "⏳", "release": False},
     "PIE-E": {"stato": "✅", "release": False},
 }
+
+# Nomi reali del dominio (docs/roadmap/sedute-mattoni.yaml:25): un widget e la sua
+# variante `Right` sono voci distinte, e la seconda e' PREFISSATA dalla prima. E' il
+# caso che un confronto per sottostringa non distingue.
+VERBALE_EVENTLOG = """# Rassegna dei requires
+
+| check | allestimento | decisione | prova |
+|---|---|---|---|
+| `PIE-X` | `SET-A` | `asset:WBP_RT_EventLogRight`, `mount:WBP_RT_EventLogRight#2697` | non tracciato, e il feed e' di #2697 |
+"""
 
 
 class LeggiVerbaleTest(unittest.TestCase):
@@ -77,6 +88,24 @@ class ConfrontaTest(unittest.TestCase):
         ]
         r = compare_rassegna.confronta(VERBALE, wires, STATO)
         self.assertEqual(r["non_esaminati"], sorted(r["non_esaminati"]))
+
+    def test_un_requires_prefisso_di_un_altro_nome_non_e_giustificato(self):
+        """`asset:WBP_RT_EventLog` e' prefisso di `asset:WBP_RT_EventLogRight`: un
+        containment su stringa lo troverebbe comunque, ma non e' la prova che il
+        verbale ha scritto per QUEL nome."""
+        wires = [Wire(check="PIE-X", setup="SET-A", requires=("asset:WBP_RT_EventLog",))]
+        r = compare_rassegna.confronta(VERBALE_EVENTLOG, wires, STATO)
+        self.assertEqual(r["senza_prova"], ["PIE-X"])
+
+    def test_un_requires_che_combacia_esattamente_e_giustificato(self):
+        wires = [Wire(check="PIE-X", setup="SET-A", requires=("asset:WBP_RT_EventLogRight",))]
+        r = compare_rassegna.confronta(VERBALE_EVENTLOG, wires, STATO)
+        self.assertEqual(r["senza_prova"], [])
+
+    def test_stessa_forma_ma_issue_diversa_non_e_giustificato(self):
+        wires = [Wire(check="PIE-X", setup="SET-A", requires=("mount:WBP_RT_EventLogRight#2698",))]
+        r = compare_rassegna.confronta(VERBALE_EVENTLOG, wires, STATO)
+        self.assertEqual(r["senza_prova"], ["PIE-X"])
 
 
 if __name__ == "__main__":

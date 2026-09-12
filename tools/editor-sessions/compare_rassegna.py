@@ -1,3 +1,4 @@
+# tools/editor-sessions/compare_rassegna.py
 """Il gate del verbale: ogni bloccante dichiarato ha la sua prova scritta.
 
 Due direzioni, e non sono simmetriche.
@@ -23,6 +24,7 @@ import re
 import sys
 from pathlib import Path
 
+import oracles
 import pie_status
 import registry
 from registry import Wire
@@ -33,6 +35,12 @@ VERBALE = Path("docs/roadmap/plans/sedute-componibili-rassegna-requires-2026-09-
 # La classe include le MINUSCOLE per la stessa ragione di `pie_status.RIGA`: nove voci
 # reali portano un suffisso minuscolo, e una classe `[A-Z0-9-]` le SALTA in silenzio.
 RIGA = re.compile(r"^\|\s*`(PIE-[A-Za-z0-9-]+)`\s*\|[^|]*\|([^|]*)\|")
+
+# Un `requires` ha forma chiusa: <tipo>:<Nome> con un eventuale #<issue>. Estrarre i TOKEN
+# invece di cercare sottostringhe e' cio' che impedisce a `asset:WBP_RT_EventLog` di risultare
+# giustificato da un verbale che parla di `asset:WBP_RT_EventLogRight`: un nome che e' PREFISSO
+# di un altro passerebbe il containment, e il gate tacerebbe proprio dove deve parlare.
+PREREQ = re.compile(r"\b(?:" + "|".join(oracles.TIPI) + r"):[A-Za-z0-9_.-]+(?:#\d+)?")
 
 
 def leggi_verbale(testo: str) -> dict[str, str]:
@@ -59,8 +67,7 @@ def confronta(verbale: str, wires: list[Wire], stato: dict[str, dict]) -> dict:
     senza_prova = sorted(
         w.check
         for w in wires
-        if w.requires
-        and not all(r in deciso.get(w.check, "") for r in w.requires)
+        if w.requires and not set(w.requires) <= set(PREREQ.findall(deciso.get(w.check, "")))
     )
     esaminati = set(deciso)
     return {
