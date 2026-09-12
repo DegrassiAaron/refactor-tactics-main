@@ -251,6 +251,68 @@ def attendi_motore_libero(minuti=90, campionamento=45, stampa=None):
         atteso += campionamento
 
 
+def suite_finita(testo_log):
+    """PURA. `(finita, trovati, avviati, completati)` — la suite ha finito di girare?
+
+    🔑 **L'oracolo sono i CONTEGGI, e non e' una scelta di stile: e' l'unico segnale
+    presente in tutti i log misurati.** Il 2026-09-12, su quattro log e due modalita' di
+    invocazione (`;Quit` dentro `-ExecCmds` come fa `esegui_suite()`, `+Quit` separato per chi
+    lancia a mano), i due segnali che sembravano ovvi sono risultati disgiunti:
+
+    * `**** TEST COMPLETE. EXIT CODE:` — nei due log sani **si**, nei due appesi **no**;
+    * `...Automation Test Queue Empty N tests performed.` — nei due appesi **si**, nei log di
+      `esegui_suite()` **no**.
+
+    Le due modalita' scrivono righe diverse, quindi un oracolo misurato su una non si trasferisce
+    all'altra. I conteggi invece c'erano in tutti e quattro.
+
+    ⛔ **La soglia e' quella di `verdetto()`, non una piu' stretta.** `completati >= avviati - 1`
+    tollera UNA conclusione mancante, per la ragione che `verdetto()` documenta: nessuna suite
+    intera arriva con `completati == trovati`. Un oracolo `completati == trovati` direbbe «mai
+    finita» su ogni suite reale, e farebbe aspettare il gate per sempre — cioe' il difetto che
+    questa funzione esiste per togliere.
+
+    ⚠️ Dice **finita**, non **valida**: il verdetto resta di `verdetto()`.
+    """
+    completati = len(re.findall(r"Test Completed\.", testo_log))
+    avviati = len(re.findall(r"Test Started\.", testo_log))
+    m = re.search(r"Found (\d+) automation tests", testo_log)
+    trovati = int(m.group(1)) if m else None
+    finita = (trovati is not None and avviati >= trovati and completati >= avviati - 1)
+    return finita, trovati, avviati, completati
+
+
+def grazia_scaduta(finita_da, trascorso, grazia):
+    """PURA. La grazia si misura DA quando il log ha dichiarato la suite finita.
+
+    ⚠️ Estratta dal loop di `esegui_suite()` perche' una verifica di mutazione l'ha trovata
+    scoperta: `grazia_scaduta = False` lasciava il self-test verde, dato che i casi di
+    `decide_attesa` ricevono la grazia come INGRESSO e non vedono chi la calcola.
+
+    🔑 L'origine e' `finita_da`, non l'avvio della run: una suite di due ore che finisce
+    e non esce va terminata due minuti dopo la FINE, non due minuti dopo l'avvio.
+    """
+    return finita_da is not None and trascorso - finita_da >= grazia
+
+
+def decide_attesa(log_finito, processo_vivo, grazia_scaduta):
+    """PURA. `attendi` | `uscito` | `appeso`.
+
+    🔴 **`appeso` e' lo stato che prima non esisteva**, e costava `timeout_minuti` interi:
+    il log dichiara la suite finita, il processo non esce, e il gate lo leggeva come «nessuna
+    risposta». Ha risposto — e nel referto i due casi vanno distinti, perche' il primo e' un
+    motore morto e il secondo una misura **valida** che si puo' ancora raccogliere.
+
+    ⚠️ La grazia esiste perche' un processo sano esce qualche istante DOPO l'ultima riga di
+    log: terminare appena i conteggi tornano ucciderebbe run che stavano per uscire da se'.
+    """
+    if not processo_vivo:
+        return "uscito"
+    if log_finito and grazia_scaduta:
+        return "appeso"
+    return "attendi"
+
+
 def verdetto(prima, dopo, testo_log, filtro="", estranei=(), uscita_motore=0):
     """PURA. Torna `(verdetto, esito, rossi, eseguiti, problemi)`.
 
@@ -419,7 +481,7 @@ def verdetto(prima, dopo, testo_log, filtro="", estranei=(), uscita_motore=0):
 
 
 def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None,
-                 timeout_minuti=180, campionamento=20):
+                 timeout_minuti=180, campionamento=20, grazia=120):
     """Lancia la suite e torna `(verdetto, esito, rossi, eseguiti, problemi)`.
 
     Sede UNICA dell'invocazione del motore: gli argomenti di `UnrealEditor-Cmd`, la
@@ -480,12 +542,37 @@ def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None,
     # fail-open, cioe' esattamente cio' che questo campionamento esiste per chiudere.
     estranei = set()
     trascorso = 0
-    while avvio.poll() is None:
+    finita_da = None        # l'istante in cui il LOG ha dichiarato la suite finita
+    appeso = False
+    while True:
+        vivo = avvio.poll() is None
+        # 🔴 #3048: la fine si legge dal LOG, non dall'uscita del processo. Un
+        # `UnrealEditor-Cmd` che non esce dopo `Quit` e' un caso registrato e frequente, e
+        # attendere `poll()` costava `timeout_minuti` interi su una suite gia' finita, per poi
+        # dichiarare «nessuna risposta» — mentre il log portava i conteggi completi.
+        log_finito = False
+        if vivo and os.path.exists(log_path):
+            try:
+                log_finito = suite_finita(
+                    io.open(log_path, encoding="utf-8", errors="replace").read())[0]
+            except OSError:
+                log_finito = False   # il motore lo tiene aperto: si riprova al campione dopo
+        if log_finito and finita_da is None:
+            finita_da = trascorso
+        esito_attesa = decide_attesa(log_finito, vivo,
+                                     grazia_scaduta(finita_da, trascorso, grazia))
+        if esito_attesa == "uscito":
+            break
+        if esito_attesa == "appeso":
+            _termina_albero(avvio)
+            appeso = True
+            break
         if trascorso >= timeout_minuti * 60:
             _termina_albero(avvio)
-            return guasto("motore    nessuna risposta dopo %d minuti: albero di processi"
-                          " terminato. Il sorgente mutato e' ancora sul disco, ricostruire."
-                          % timeout_minuti)
+            return guasto("motore    nessuna risposta dopo %d minuti, e il log non dichiara la"
+                          " suite finita: albero di processi terminato. Il sorgente mutato e'"
+                          " ancora sul disco, ricostruire." % timeout_minuti)
+
         alberi = _alberi_processi()
         if alberi is not None:
             for pid in alberi["motori"]:
@@ -515,7 +602,16 @@ def esegui_suite(radice, engine_cmd, uproject, log_path, filtro, dll_glob=None,
     except GitNonLeggibile as e:
         return guasto("albero    non letto DOPO la run: %s" % e)
 
-    return verdetto(prima, dopo, testo, filtro, estranei, avvio.returncode)
+    v, esito, rossi, eseguiti, problemi = verdetto(prima, dopo, testo, filtro, estranei,
+                                                   avvio.returncode)
+    if appeso:
+        # ⚠️ AVVISO, non guasto, ed e' la distinzione che #3048 esiste per fare: il log
+        # porta i conteggi completi, quindi la misura e' raccoglibile. Prima questo caso
+        # diventava «nessuna risposta dopo 180 minuti», cioe' una misura persa.
+        problemi = list(problemi) + [
+            "avviso    la suite era FINITA e il processo non e' uscito: albero terminato dopo"
+            " %d s di grazia. I conteggi del log sono completi, quindi la misura vale." % grazia]
+    return v, esito, rossi, eseguiti, problemi
 
 
 def _termina_albero(processo):
@@ -987,5 +1083,72 @@ def self_test():
     casi.append(("la CommandLine con `;` dentro non viene troncata",
                  conpv["motori_info"][7][1] == "cmd.exe /c a;b;c -NoLiveCoding",
                  str(conpv["motori_info"])))
+
+    # --- #3048: quando la suite e' FINITA, e quando il processo e' APPESO ---------------------
+    # 🔑 **Misurato su quattro log veri, due modalita' di invocazione** (`;Quit` dentro
+    # `-ExecCmds` per `esegui_suite()`, `+Quit` separato per chi lancia a mano). I due segnali
+    # che sembravano ovvi NON reggono:
+    #   `**** TEST COMPLETE. EXIT CODE:`  presente nei sani, ASSENTE nei due appesi;
+    #   `...Queue Empty N tests performed.`  presente nei due appesi, ASSENTE nei log di
+    #   `esegui_suite()` — le due modalita' scrivono righe diverse, e l'oracolo non si trasferisce.
+    # Cio' che c'e' in TUTTI E QUATTRO sono i conteggi, ed e' la stessa coppia che `verdetto()`
+    # usa per decidere se una suite e' troncata.
+    #
+    # ⛔ **La soglia e' quella di `verdetto()`, non una piu' stretta**: `completati >= avviati - 1`
+    # tollera UNA conclusione mancante, perche' nessuna suite intera arriva con
+    # `completati == trovati`. Un oracolo `completati == trovati` direbbe «mai finita» su ogni
+    # suite reale — ed e' il caso `1232/1232/1231` qui sotto.
+
+    def finita(nome, atteso, log):
+        v = suite_finita(log)[0]
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s (%s)" % (atteso, v,
+                                                                        suite_finita(log))))
+
+    # I quattro log veri, coi loro numeri misurati il 2026-09-12.
+    finita("appeso 38/38/38 senza terminatore: la suite E' FINITA", True,
+           _log(trovati=38, avviati=38, completati=38, terminatore=False))
+    finita("appeso 1/1/1 senza terminatore: FINITA", True,
+           _log(trovati=1, avviati=1, completati=1, terminatore=False))
+    finita("sano 2/2/2 col terminatore: FINITA", True,
+           _log(trovati=2, avviati=2, completati=2))
+    finita("sano 6/6/6 col terminatore: FINITA", True,
+           _log(trovati=6, avviati=6, completati=6))
+    # ⚠️ IL CASO DELLA TOLLERANZA: se fosse `completati == trovati`, questo direbbe NON finita
+    # e il gate aspetterebbe per sempre ogni suite intera.
+    finita("1232/1232/1231 — manca UNA conclusione: FINITA come per `verdetto()`", True,
+           _log(trovati=1232, avviati=1232, completati=1231))
+    finita("troncata 100 trovati, 60 avviati: NON finita", False,
+           _log(trovati=100, avviati=60, completati=60))
+    finita("senza `Found N`: non si sa, quindi NON finita", False,
+           _log(avviati=3, completati=3))
+    finita("log vuoto: NON finita", False, "")
+
+    def attesa(nome, atteso, fin, vivo, grazia):
+        v = decide_attesa(fin, vivo, grazia)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
+
+    attesa("log incompleto e processo vivo: si attende", "attendi", False, True, False)
+    attesa("processo uscito: si esce dal loop, qualunque sia il log", "uscito", False, False,
+           False)
+    attesa("log finito, processo vivo, grazia non scaduta: si attende ancora", "attendi",
+           True, True, False)
+    # 🔑 Il caso che l'issue esiste per coprire: oggi questo aspetta fino al timeout.
+    attesa("log finito, processo vivo, grazia scaduta: APPESO", "appeso", True, True, True)
+
+    # ⛔ **Questi sei casi esistono perche' una mutazione e' SOPRAVVISSUTA.** Il calcolo della
+    # grazia viveva dentro il loop di `esegui_suite()`, e `grazia_scaduta = False` non faceva
+    # cadere nulla: i casi di `decide_attesa` ricevono la grazia come INGRESSO, quindi non
+    # vedevano chi la calcola. Estratto e misurato, la stessa mutazione ora cade.
+    def grazia(nome, atteso, finita_da, trascorso, secondi):
+        v = grazia_scaduta(finita_da, trascorso, secondi)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
+
+    grazia("il log non ha ancora dichiarato la fine: non scade", False, None, 9999, 120)
+    grazia("dichiarata adesso: non scade", False, 0, 0, 120)
+    grazia("un campione prima della soglia: non scade", False, 0, 119, 120)
+    grazia("esattamente alla soglia: scade", True, 0, 120, 120)
+    grazia("la soglia si misura DA quando il log ha dichiarato, non dall'avvio", False, 60, 179,
+           120)
+    grazia("...e scade 120 s dopo quel momento", True, 60, 180, 120)
 
     return casi
