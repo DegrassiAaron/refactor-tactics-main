@@ -1754,10 +1754,18 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				// ⛔ Il numero segue lo stesso filtro del messaggio: `RefusalForObserver` collassa su
 				// `Nothing` un bersaglio ignoto, e `SetTargetRefusal` scarta la portata per ogni esito che
 				// non sia `Range`. Un numero su un'ombra sarebbe un canale di conoscenza in piu' ([D-225]).
+				// `#3085`: DOVE il tiro si ferma, non solo che si e' fermato. `DescribeLineOfSight` e'
+				// la forma piena di cio' che `HasLineOfSight` riduce a un bool, e porta `BlockedAt`.
+				// ⛔ Si calcola a OGNI click e non solo sul ramo `NoLineOfSight`: e' la stessa disciplina
+				// della portata qui sotto — un valore aggiornato solo su alcuni esiti lascerebbe in campo
+				// la geometria del click precedente. Il filtro di conoscenza NON e' qui: sta in
+				// `ComputeRefusedShotLine`, che e' il punto in cui il segno diventa visibile.
 				Hud->SetTargetRefusal(
 					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
 					URTTerrainLibrary::EffectiveTargetingRange(
-						TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells));
+						TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells),
+					URTHexVisionLibrary::DescribeLineOfSight(TMap, SelectedUnit->Cell, ClickedUnit->Cell),
+					SelectedUnit->Cell, ClickedUnit->Cell);
 			}
 
 			// ── LA LINEA CHE NON PASSA (`#2742`), accanto al messaggio che dice perche' (`#2741`).

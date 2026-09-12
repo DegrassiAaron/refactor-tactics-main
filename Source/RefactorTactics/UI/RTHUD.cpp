@@ -54,7 +54,8 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
-void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange)
+void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange,
+	const FRTLineOfSightResult& Los, const FRTCellId& From, const FRTCellId& To)
 {
 	// Ogni click sostituisce il precedente, incluso il click che va a segno: `None` cancella. E' la
 	// durata dichiarata da `#2741` — il messaggio vive quanto la decisione che lo ha prodotto, e nessun
@@ -72,6 +73,13 @@ void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange)
 	// assegnazione la suite restava **93/0**, e il test che doveva difenderlo non cadeva. Una guardia che
 	// nessuna mutazione puo' far fallire non protegge niente: protegge la sua stessa presenza.
 	LastRefusalRange = EffectiveRange;
+
+	// `#3085`: la geometria segue l'esito nello stesso istante, per la stessa ragione della portata qui
+	// sopra. Il chiamante la calcola a ogni click — anche quando non c'e' blocco — quindi non esiste uno
+	// stato in cui il messaggio dica «Coperto» e la linea indichi il muro del click precedente.
+	LastRefusalLos = Los;
+	LastRefusalFrom = From;
+	LastRefusalTo = To;
 }
 
 /**
@@ -137,6 +145,45 @@ void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 			OutBlockerCells.Add(Line.BlockerCell);
 		}
 	}
+}
+
+FRTRefusedShotLine ARTHUD::ComputeRefusedShotLine(
+	ERTTargetRefusal Refusal, const FRTLineOfSightResult& Los,
+	const FRTCellId& From, const FRTCellId& To, const TSet<FRTCellId>& KnownCells)
+{
+	FRTRefusedShotLine Out;
+	Out.From = From;
+	Out.To = To;
+	Out.BreakAt = Los.BlockedAt;
+
+	// 🔴 **La conoscenza si valuta PRIMA della geometria, e l'ordine e' lo stesso requisito che
+	// `URTCombatLibrary::RefusalForObserver` dichiara**: *«il velo non e' un filtro applicato all'esito, e'
+	// la domanda che viene per prima»*. Qui pero' la domanda e' su una cella e non su un'unita': il rifiuto
+	// `Cover` arriva solo per un bersaglio gia' noto, ma la cella che BLOCCA puo' non essere mai stata
+	// osservata — e disegnarvi la rottura insegnerebbe che li' c'e' qualcosa. [D-225]
+	if (!KnownCells.Contains(Los.BlockedAt))
+	{
+		return Out;
+	}
+
+	// Solo la copertura. ⛔ `Range` non ha un ostacolo da indicare — il gesto che chiede e' «avvicinati», e
+	// il numero lo dice gia' `#2800`; disegnarvi una rottura significherebbe inventare un punto che la
+	// geometria non ha prodotto.
+	if (Refusal != ERTTargetRefusal::Cover)
+	{
+		return Out;
+	}
+
+	// ⚠️ **`IsClear()` e non `BlockedAt.IsValid()`**, ed e' la stessa trappola che `ComputeBlockerMarks`
+	// documenta poche righe piu' su: `IsValid()` verifica l'invariante cubica, VERA per la cella di default
+	// `(0,0,0)`. Un esito senza blocco marcherebbe l'origine dell'arena.
+	if (Los.IsClear())
+	{
+		return Out;
+	}
+
+	Out.bShow = true;
+	return Out;
 }
 
 void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerTeamId,
@@ -1023,6 +1070,51 @@ void ARTHUD::DrawHUD()
 			for (int32 I = 0; I < 6; ++I)
 			{
 				DrawLine(V[I].X, V[I].Y, V[(I + 1) % 6].X, V[(I + 1) % 6].Y, BlockerColor, 2.5f);
+			}
+		}
+
+		// `#3085` — dove il tiro rifiutato si ferma. Il messaggio di `#2741` dice che la linea e'
+		// interrotta; questi due tratti dicono DA COSA, ed e' il residuo *(c)* che `PIE-HEXPLAY-6` isola.
+		//
+		// ⛔ **La conoscenza si legge QUI e per la PROPRIA squadra.** `KnowledgeForTeamPublic` e' un canale
+		// non filtrato — il suo commento avverte che un chiamante potrebbe leggere la conoscenza
+		// dell'avversario — quindi l'argomento e' `PlayerTeamId` e non un parametro.
+		{
+			const FRTTeamKnowledge Conoscenza = TurnManager->KnowledgeForTeamPublic(PlayerTeamId);
+			TSet<FRTCellId> Conosciute;
+			Conosciute.Append(Conoscenza.VisibleCells);
+			Conosciute.Append(Conoscenza.ExploredCells); // il ricordo basta: la geometria non si muove
+
+			const FRTRefusedShotLine Rifiutata = ComputeRefusedShotLine(
+				LastRefusal, LastRefusalLos, LastRefusalFrom, LastRefusalTo, Conosciute);
+
+			if (Rifiutata.bShow)
+			{
+				const FVector A = Project(HexCellWorld(Rifiutata.From, Origin, HexSize, LayerH)
+					+ FVector(0.f, 0.f, WorldHeadOffset));
+				const FVector B = Project(HexCellWorld(Rifiutata.BreakAt, Origin, HexSize, LayerH)
+					+ FVector(0.f, 0.f, WorldHeadOffset));
+				const FVector C = Project(HexCellWorld(Rifiutata.To, Origin, HexSize, LayerH)
+					+ FVector(0.f, 0.f, WorldHeadOffset));
+
+				// Tutti e tre davanti alla camera, o non si disegna niente: mezza linea direbbe che il tiro
+				// si ferma dove invece finisce lo schermo.
+				if (A.Z > 0.f && B.Z > 0.f && C.Z > 0.f)
+				{
+					// Piena fin dove il tiro arriva, tratteggiata dove non arriva. Lo stesso ambra del
+					// contorno: i due segni parlano dello stesso ostacolo e non devono sembrare due cose.
+					DrawLine(A.X, A.Y, B.X, B.Y, BlockerColor, 2.5f);
+
+					constexpr int32 Tratti = 7; // dispari: il tratteggio inizia e finisce ACCESO
+					const FVector2D Inizio(B.X, B.Y);
+					const FVector2D Fine(C.X, C.Y);
+					for (int32 I = 0; I < Tratti; I += 2)
+					{
+						const FVector2D P0 = FMath::Lerp(Inizio, Fine, static_cast<float>(I) / Tratti);
+						const FVector2D P1 = FMath::Lerp(Inizio, Fine, static_cast<float>(I + 1) / Tratti);
+						DrawLine(P0.X, P0.Y, P1.X, P1.Y, BlockerColor, 1.5f);
+					}
+				}
 			}
 		}
 	}
