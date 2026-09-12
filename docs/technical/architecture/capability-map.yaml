@@ -709,7 +709,7 @@ capabilities:
       mutation: []
     verification: { pie: [PIE-HEXPLAY-8], packaged: [] }
     risks:
-      - "🔴 `Action.ModifyArc` E' SENZA ESECUTORE PER DECISIONE (D-046). Conseguenza misurata da
+      - "🔴 `Action.ModifyArc` E' SENZA OWNER NEL ROSTER PER DECISIONE (D-046). Conseguenza misurata da
          #2549: nessuna unita' puo' provocare il crollo del ponte, quindi PIE-HEXPLAY-8 non e'
          osservabile e il gate G9 non puo' raggiungere ✅ finche' regge D-046."
       - "#2828: `ERTResolvedEventType` non ha un valore per la struttura — il colpo a una

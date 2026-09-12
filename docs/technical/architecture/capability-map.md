@@ -559,7 +559,7 @@ misura di assenza; undici lo sono abbastanza da scriverlo.
 | Capability | Il buco | Evidenza |
 |---|---|---|
 | `RT-CAP-RESOLVED-TIMELINE` | `ERTResolvedEventType` **non ha un valore per la struttura** e `HazardDamage` non ha una fase che lo riproduca | #2828 · #2505 — due assenze nello stesso enum, che è il vocabolario della presentazione: ciò che non ha un valore **non ha un momento** |
-| `RT-CAP-STRUCTURES` | `Action.ModifyArc` è **senza esecutore per decisione** (`D-046`) | #2549: nessuna unità può provocare il crollo del ponte ⇒ `PIE-HEXPLAY-8` **non è osservabile** ⇒ `G9` non può raggiungere ✅ finché regge `D-046` |
+| `RT-CAP-STRUCTURES` | `Action.ModifyArc` è **senza owner nel roster per decisione** (`D-046`) | #2549: nessuna unità può provocare il crollo del ponte ⇒ `PIE-HEXPLAY-8` **non è osservabile** ⇒ `G9` non può raggiungere ✅ finché regge `D-046` |
 | `RT-CAP-TARGETING` | `TargetKindForAction` non produce mai `Object`: il ramo è **morto** | #2827 |
 | `RT-CAP-STATUS` | il motore **non ha immunità per categoria**; il framework è E36, v0.2 | commenti in [`RTCatalogLibrary.cpp`](../../../Source/RefactorTactics/Ability/RTCatalogLibrary.cpp) righe 512 e 822 |
 | `RT-CAP-SKILL-WORKBENCH` | il dato della variante è consegnato e **non ha un ingresso** | #2577 · il diff baseline↔variante è #2576 |

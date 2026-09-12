@@ -196,7 +196,7 @@ eseguita il 2026-09-05/06 (`#2476`, PR `#2541`, commit `6a677671` delle 10:01) �
 | `PIE-V01-POINTER` | `U43` | ⏳ |
 | `PIE-V01-ROSTER` | `U46` | ✅ 2026-09-06 |
 | `PIE-HEXPLAY-6` | `U46` | ❌ **rigiudicata 2026-09-06: la risposta si inverte, non è leggibile** (`#2534`) |
-| `PIE-HEXPLAY-8` | `U46` | 🟡 **non osservabile in v0.1, e non è in attesa di una seduta** ([#2549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2549)): il residuo è che il crollo del ponte si veda, e nessuna unità può provocarlo — `Action.ModifyArc` è senza esecutore per decisione (`D-046`). Non convocare `U46` per questa voce: non esiste un banco che possa mostrarla. La regola resta coperta headless (`Structures.Bridge.RemovalBreaksPath`, `NoTeleportOnRemoval`) |
+| `PIE-HEXPLAY-8` | `U46` | ✅ **CRITERIO RIDOTTO il 2026-09-12 alla metà osservabile, e su quello è verde** ([`D-402`](../decisions/RT_PDR_00_Decision_Log.md), [#2911](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2911)). ⛔ **Non convocare `U46` per questa voce**: la parte che non si poteva osservare è uscita dal criterio, non è stata osservata. ⌫ *Stato precedente:* 🟡 **non osservabile in v0.1, e non era in attesa di una seduta** ([#2549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2549)): il residuo è che il crollo del ponte si veda, e nessuna unità può provocarlo — `Action.ModifyArc` è senza owner nel roster per decisione (`D-046`). Non convocare `U46` per questa voce: non esiste un banco che possa mostrarla. La regola resta coperta headless (`Structures.Bridge.RemovalBreaksPath`, `NoTeleportOnRemoval`) |
 | `PIE-ICON-01` | `U9` | ⏳ — owner `#217` (E20) |
 | `PIE-VIS-DEFLECT`, `PIE-VIS-INTERPOSE`, `PIE-V01-GHOSTS` | 🔴 **nessuna** | ⏳ — da cui `#2622` |
 
