@@ -21,6 +21,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
+#include "Components/OverlaySlot.h" // e' lo SLOT a decidere se la zona riempie la cella, non il widget
 #include "Components/Image.h"
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
@@ -41,6 +42,8 @@ namespace
 	const TCHAR* const ActionDockPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionDock.WBP_RT_ActionDock_C");
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
+	// UNA zona: il contenitore che porta `ZoneId`, il bordo da cantiere e il `NamedSlot Content`.
+	const TCHAR* const HudZonePath = TEXT("/Game/RT/UI/Match/WBP_RT_HudZone.WBP_RT_HudZone_C");
 	// CP 14.6 (`#166`): la finestra di reazione. Il path entra QUI e non prima — questo file carica per
 	// path, e un path senza asset e' un test rosso che aspetta un file che nessuno ha creato.
 	const TCHAR* const FastDecisionPath = TEXT("/Game/RT/UI/Match/WBP_RT_FastDecision.WBP_RT_FastDecision_C");
@@ -1409,6 +1412,95 @@ bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
 	TestTrue(
 		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Misurate),
 		Misurate > 0);
+
+	return true;
+}
+
+// =====================================================================================================
+// Dentro UNA zona: il bordo riempie la cella, non si dimensiona sul proprio contenuto
+// =====================================================================================================
+//
+// 🔴 **Esiste per un difetto trovato in PIE il 2026-09-12, che nessun gate headless vedeva.** A schermo, al
+// posto di otto cornici sulle celle della griglia, comparivano otto **quadratini colorati** negli angoli, e
+// i pannelli sembravano «un vecchio HUD» rimasto fuori dalle zone. Non c'era nessun vecchio HUD: erano i
+// widget nuovi, gia' nelle posizioni giuste, accanto a bordi che non li circondavano.
+//
+// 🔑 **La causa e' che a decidere il riempimento e' lo SLOT, non il widget.**
+// `UBorder::Horizontal/VerticalAlignment` governa come il Border dispone il proprio **contenuto**; se il
+// Border riempia il genitore lo dice `UOverlaySlot`, il cui default e' `HAlign_Left` / `VAlign_Top`. Senza
+// `Fill` ogni figlio prende la propria *desired size* — per un `Border` vuoto con `padding 8` fanno
+// **16 px**, la misura esatta del quadratino osservato.
+//
+// ⚠️ **L'ipotesi ovvia era il brush, ed era FALSA**: `Draw As: Border` non disegna il centro. Misurato sul
+// sorgente dell'engine — `FSlateElementBatcher::AddBorderElement` costruisce `6 * (3 + 2 + 3)` indici, cioe'
+// OTTO quad, e il Middle ne ha due (`SlateCore/Private/Rendering/ElementBatcher.cpp`). Questo gate guarda
+// quindi lo slot, non il brush: presidiare il brush avrebbe presidiato un sintomo inesistente.
+//
+// ⛔ **Cosa NON copre, e va detto perche' il verde non prometta piu' di quanto misura**: che a schermo si
+// **veda** una cornice. Questo test legge un allineamento dichiarato nel `.uasset`; la resa resta di
+// `PIE-V01-SCREENHUD`. Un `Fill` corretto su un brush trasparente passerebbe di qui.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTZoneFillsItsCellTest,
+	"RefactorTactics.ScreenHud.TheZoneFillsItsCellInsteadOfItsContent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTZoneFillsItsCellTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, HudZonePath, TEXT("WBP_RT_HudZone"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	int32 Esaminati = 0;
+
+	Tree->ForEachWidget([&Esaminati, this](UWidget* Widget)
+	{
+		if (!Widget)
+		{
+			return;
+		}
+
+		// Solo i figli dell'`Overlay` radice: sono quelli la cui geometria decide se la zona e' una cornice
+		// sulla cella o un francobollo nell'angolo. Gli altri slot non rispondono a questa domanda.
+		const UOverlaySlot* Slot = Cast<UOverlaySlot>(Widget->Slot);
+		if (!Slot)
+		{
+			return;
+		}
+
+		++Esaminati;
+
+		AddInfo(FString::Printf(TEXT("  %-12s HAlign=%d VAlign=%d"),
+			*Widget->GetName(),
+			static_cast<int32>(Slot->HorizontalAlignment),
+			static_cast<int32>(Slot->VerticalAlignment)));
+
+		if (Slot->HorizontalAlignment != HAlign_Fill)
+		{
+			AddError(FString::Printf(
+				TEXT("`%s` non ha `HAlign_Fill` nel suo `UOverlaySlot`: prende la propria larghezza ")
+				TEXT("desiderata invece della cella. E' il difetto visto in PIE il 2026-09-12 — un bordo ")
+				TEXT("da `padding 8` diventa un quadratino di 16 px nell'angolo. L'allineamento va sullo ")
+				TEXT("SLOT: quello sul `UBorder` governa il suo contenuto, non lui."),
+				*Widget->GetName()));
+		}
+
+		if (Slot->VerticalAlignment != VAlign_Fill)
+		{
+			AddError(FString::Printf(
+				TEXT("`%s` non ha `VAlign_Fill` nel suo `UOverlaySlot`: stesso difetto dell'asse ")
+				TEXT("orizzontale, sull'altro asse."),
+				*Widget->GetName()));
+		}
+	});
+
+	// 🔴 **Senza questa riga il test sarebbe verde su un albero SENZA `UOverlaySlot`** — cioe' misurando
+	// zero, il modo in cui un gate diventa decorativo. E' la stessa controprova che gli altri tre gate
+	// dell'albero portano, per la stessa ragione.
+	TestTrue(
+		*FString::Printf(TEXT("la zona contiene degli `UOverlaySlot` da misurare (ne ha %d)"), Esaminati),
+		Esaminati > 0);
 
 	return true;
 }
