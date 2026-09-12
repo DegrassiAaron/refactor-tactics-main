@@ -318,6 +318,15 @@ quattro numeri sbagliati. Oggi la seconda vista non c'è — non è che sia torn
 > dichiara cosa esclude. **La divergenza è dichiarata, non sanata**: si chiude quando `E48` dichiara i propri
 > checkpoint o quando l'autore la sposta fuori dalla v0.1.
 >
+> ⌫ **Delle due uscite, una è stata chiusa il 2026-09-12: l'autore NON sposta il lavoro fuori dalla
+> v0.1.** Decisa la contraddizione fra [#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410) (`v0.1`/`P1`) e la sua unica
+> dipendenza [#653](https://github.com/DegrassiAaron/refactor-tactics-main/issues/653) (allora `post-v0.1`/`P2`), la label corretta è stata quella di
+> `#653`, che **entra nella v0.1** — e che lo stesso giorno è stata consegnata
+> ([#3102](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3102)). ∴ resta **una sola** uscita: `E48` dichiara i propri checkpoint.
+> ⛔ **E non se ne inventano qui**: la ragione scritta sopra vale ancora, e un `CP 48.x` si assegna
+> quando l'epic dichiara quali sono i suoi checkpoint, non quando servirebbe una riga. Registrato in
+> [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 98.
+>
 > ➕ Il corpo di [#14](https://github.com/DegrassiAaron/refactor-tactics-main/issues/14) è stato riconciliato
 > lo stesso giorno — non elencava `E23`, `E46`, `E47` né `E48` — e la sua copia di `21 epic, 100 checkpoint`
 > è stata **tolta**, come [#962](https://github.com/DegrassiAaron/refactor-tactics-main/issues/962) prescrive

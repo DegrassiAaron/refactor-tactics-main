@@ -136,17 +136,24 @@ di oggi:
 FRTActionDef                    ← struct ESISTENTE (RTActionDef.h)
   int32 MinStability = 0        // 0 = nessun requisito: l'azione si pianifica con qualunque profilo
 
-<il profilo di movimento>       ← ⚠️ NON esiste come tipo: `grep -rn MovementProfile Source/` dà zero
+FRTMovementProfile              ← struct ESISTENTE dal 2026-09-12 (RTMovementProfile.h, `#653`)
   int32 Stability               // fermo 3 · Sneak 2 · Move 1 · Sprint 0
 ```
 
-⚠️ **Il secondo non ha dove atterrare, e va detto invece di sottinteso.** I profili di movimento oggi vivono
-**solo nel catalogo markdown** (§2.1: `Move` 5 MP · `Sprint` 8 · `Withdraw` 2): nel codice non esiste nessuna
-struct che li rappresenti — `Sprint` è un `ActionId` con `MovementStyle::Budget`, non un profilo con
-proprietà. Quindi questa proposta ne richiede **la creazione**, ed è un costo che non appariva nel kit.
+> 🔑 **Aggiornato il 2026-09-12 — il secondo ha dove atterrare.** [`#653`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/653)
+> ha dato un tipo ai profili: `FRTMovementProfile` porta `Stability` accanto ai due budget di
+> [D-117](../decisions/RT_PDR_00_Decision_Log.md), e il catalogo dichiara i quattro valori proposti qui
+> sopra. ⚠️ **Ciò che questa spec chiede resta però da fare**: nessuna azione dichiara un `MinStability`, e
+> **nessuno confronta ancora i due numeri** — il campo sull'azione e il verdetto sono il lavoro di `#606`,
+> non di `#653`. Il paragrafo che segue registra la misura del 2026-08-12, quando il tipo non c'era.
 
-È anche l'unico punto in cui #606 tocca strutture invece che valori: se `AE-2` passa, il primo lavoro non è
-assegnare soglie, è **dare un tipo ai profili**.
+⚠️ **Il secondo non aveva dove atterrare, e andava detto invece che sottinteso.** Fino a `#653` i profili di movimento vivevano
+**solo nel catalogo markdown** (§2.1: `Move` 5 MP · `Sprint` 8 · `Withdraw` 2): nel codice non esisteva nessuna
+struct che li rappresentasse — `Sprint` è un `ActionId` con `MovementStyle::Budget`, non un profilo con
+proprietà. Quindi questa proposta ne richiedeva **la creazione**, ed era un costo che non appariva nel kit.
+
+È anche l'unico punto in cui #606 tocca strutture invece che valori: `AE-2` è passata, e il primo lavoro non
+è stato assegnare soglie ma **dare un tipo ai profili** — `#653`, chiuso prima di questa issue.
 
 **Il default `0` è il meccanismo, non una cortesia**: un'azione che non dichiara nulla si comporta
 esattamente come oggi, quindi il modello non richiede di compilare l'intero catalogo prima di funzionare e
