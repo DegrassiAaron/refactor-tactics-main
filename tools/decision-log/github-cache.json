@@ -188,24 +188,9 @@
    "title": "[EPIC] E19 · Classe di mappa e composizione",
    "type": "issue"
   },
-  "215": {
-   "state": "closed",
-   "title": "CP 19.1 · `MapClass` sul dato mappa",
-   "type": "issue"
-  },
   "217": {
    "state": "open",
    "title": "[EPIC] E20 · HUD Icon Language",
-   "type": "issue"
-  },
-  "219": {
-   "state": "open",
-   "title": "CP 20.2 · Categorie della v0.1",
-   "type": "issue"
-  },
-  "220": {
-   "state": "open",
-   "title": "CP 20.3 · I widget consumano il catalogo",
    "type": "issue"
   },
   "226": {
@@ -893,11 +878,6 @@
    "title": "Un pacchetto non puo' eseguire uno scenario: Scenarios non e' staged, e in Shipping -dpcvars e' compilato fuori",
    "type": "issue"
   },
-  "931": {
-   "state": "open",
-   "title": "Il gizmo dell'Arch si riaggancia in ritardo, e sparisce se si tocca la Transform dell'actor",
-   "type": "issue"
-  },
   "935": {
    "state": "closed",
    "title": "docs(926): i due documenti dicevano che gli scenari non entrano nel pacchetto, e ora entrano",
@@ -907,11 +887,6 @@
   "936": {
    "state": "closed",
    "title": "CP 46.1 · Frontend root e navigation controller",
-   "type": "issue"
-  },
-  "938": {
-   "state": "closed",
-   "title": "CP 46.3 · Main Menu, e il pacchetto che avvia da li'",
    "type": "issue"
   },
   "939": {
@@ -965,11 +940,6 @@
    "title": "L'identita' e' entrata in uno dei due hash, e il test del DoD guarda l'altro",
    "type": "issue"
   },
-  "996": {
-   "state": "open",
-   "title": "Un arco pendente sparisce modificando la Transform dell'actor: la causa non e' misurata",
-   "type": "issue"
-  },
   "1007": {
    "state": "closed",
    "title": "CP 47.2 — la velocita' di playback si sceglie, e il TurnLog non se ne accorge",
@@ -1005,11 +975,6 @@
   "1067": {
    "state": "closed",
    "title": "Il danno da terreno non lascia traccia: entrare nel fuoco uccide fuori dal TurnLog canonico",
-   "type": "issue"
-  },
-  "1069": {
-   "state": "closed",
-   "title": "Il BP_GameMode spedito porta un MatchFormat non versionato e forza l'arena di prova, entrati fuori dalla lease",
    "type": "issue"
   },
   "1077": {
@@ -1078,11 +1043,6 @@
    "title": "In una voce di hazard `UnitId` porta chi SUBISCE, e chi aggrega il danno inflitto otterra' un numero plausibile e sbagliato",
    "type": "issue"
   },
-  "1154": {
-   "state": "closed",
-   "title": "rt.Test.DumpResult stampa sempre 'selftest': FindLatestRunDirectory ordina per nome, non per tempo",
-   "type": "issue"
-  },
   "1155": {
    "state": "closed",
    "title": "HexSize passa da 100 a 150: la scala d'arte vince, e il costo e' due righe piu' un PIE che nessun grep puo' misurare",
@@ -1097,12 +1057,6 @@
    "state": "open",
    "title": "Riorganizzazione della documentazione — information architecture v2",
    "type": "issue"
-  },
-  "1178": {
-   "state": "closed",
-   "title": "feat(937): i cinque WBP_RT_* di U24, e un test che si copriva col proprio asset",
-   "type": "pr",
-   "merged": true
   },
   "1188": {
    "state": "closed",
@@ -1176,11 +1130,6 @@
   "1290": {
    "state": "closed",
    "title": "Il colore della board non sopravvive alla resa: nove superfici, due popolazioni di luminanza a schermo",
-   "type": "issue"
-  },
-  "1296": {
-   "state": "closed",
-   "title": "Sulla mappa d'autore i bot oscillano fra due celle e la partita non si decide: e' il fix di #1287 a produrlo",
    "type": "issue"
   },
   "1300": {
@@ -1292,12 +1241,6 @@
    "state": "closed",
    "title": "`ApplyInterrupts` guarda solo il primo intento della vittima, e una cura senza effetti utili sparisce in silenzio",
    "type": "issue"
-  },
-  "1439": {
-   "state": "closed",
-   "title": "feat(1409): i tasti abilità arrivano a tutto il kit, e ora è una domanda interrogabile",
-   "type": "pr",
-   "merged": true
   },
   "1443": {
    "state": "closed",
@@ -1445,12 +1388,6 @@
    "type": "pr",
    "merged": true
   },
-  "1556": {
-   "state": "closed",
-   "title": "feat(#220): il catalogo icone esiste e i widget lo raggiungono — 61 chiavi, 62 texture",
-   "type": "pr",
-   "merged": true
-  },
   "1563": {
    "state": "open",
    "title": "CP 22.3 · Richiudere è un'azione ordinaria, e una copertura distrutta non si richiude",
@@ -1492,11 +1429,6 @@
    "title": "Nel pacchetto gli eroi non hanno animazioni: 756 asset Paragon cotti, zero clip",
    "type": "issue"
   },
-  "1665": {
-   "state": "closed",
-   "title": "Nel pacchetto la board e' nera: le celle perdono il colore, e nero non e' nessuno dei due esiti previsti",
-   "type": "issue"
-  },
   "1697": {
    "state": "closed",
    "title": "Un AC che chiede di dimostrare una non-esistenza e' malformato: la regola manca, e il difetto e' gia' costato una tesi ritirata",
@@ -1526,11 +1458,6 @@
   "1733": {
    "state": "closed",
    "title": "Due unita' vive finiscono sulla stessa cella, e l'errore strutturale che lo vieta non lo guarda nessuno in partita",
-   "type": "issue"
-  },
-  "1738": {
-   "state": "closed",
-   "title": "U13-A · L'arena ha raggio 4 e il VisionRange piu' corto e' 5: sul banco che dovrebbe provarla, la percezione non e' osservabile",
    "type": "issue"
   },
   "1762": {
@@ -1688,12 +1615,6 @@
    "title": "Map Editor 0.1 — accettazione: Save/Reload, seduta PIE, parita' packaged e cook exclusion verificata",
    "type": "issue"
   },
-  "1875": {
-   "state": "closed",
-   "title": "fix(1525): il playback tronca al tratto osservato, come gia' fa la traccia",
-   "type": "pr",
-   "merged": true
-  },
   "1879": {
    "state": "closed",
    "title": "v0.1 · Resolution controls Vs Bot/Debug — Pause al boundary e StepMicroStep",
@@ -1738,12 +1659,6 @@
    "state": "closed",
    "title": "E49 significa due cose: il commento del damage model punta all'epic della camera, e nessun gate lo vede",
    "type": "issue"
-  },
-  "1900": {
-   "state": "closed",
-   "title": "fix(711): la sonda ricostruiva il roster eroi due volte per cella sorvolata, e l'Editor smetteva di seguire il mouse",
-   "type": "pr",
-   "merged": true
   },
   "1909": {
    "state": "closed",
@@ -1847,12 +1762,6 @@
    "type": "pr",
    "merged": true
   },
-  "2062": {
-   "state": "closed",
-   "title": "test(2009): D-302 (3) entra nel corpus — due scenari che cadono in direzioni opposte",
-   "type": "pr",
-   "merged": true
-  },
   "2064": {
    "state": "closed",
    "title": "feat(1802): la reazione si sceglie col punteggio, e il kit retrocede a spareggio — D-268",
@@ -1886,12 +1795,6 @@
    "title": "Gadget.SmokeEmitter: manca un'azione CORE che crei fumo",
    "type": "issue"
   },
-  "2095": {
-   "state": "closed",
-   "title": "feat(1625): la scala di velocità del playback, e i tre criteri headless di T1",
-   "type": "pr",
-   "merged": true
-  },
   "2098": {
    "state": "closed",
    "title": "replay: il filtro per osservatore e' sui CAMPI, non sulle VOCI — e il dato per farlo vive solo nel prodotto privato",
@@ -1900,11 +1803,6 @@
   "2102": {
    "state": "closed",
    "title": "Il turno 1 apre 348 ms prima che la board sia allestita: StartPlanningTimer non attende ERTLoadPhase::Ready",
-   "type": "issue"
-  },
-  "2115": {
-   "state": "closed",
-   "title": "L'anteprima di scenario tiene in vita il mondo vecchio, e cambiare livello fa crashare l'editor",
    "type": "issue"
   },
   "2128": {
@@ -1942,23 +1840,6 @@
    "title": "La posa non segue piu' il facing: dal 2026-09-03 il facing logico cambia a ogni passo e la mesh no, e il docstring dice che i BP_Unit lo attivano",
    "type": "issue"
   },
-  "2168": {
-   "state": "closed",
-   "title": "Launcher: il Tactical Designer si docka nel layout invece di aprirsi in una finestra",
-   "type": "issue"
-  },
-  "2173": {
-   "state": "closed",
-   "title": "feat(1625): la preview si muove — lo stato delle unita' ricostruito dalla traccia",
-   "type": "pr",
-   "merged": true
-  },
-  "2176": {
-   "state": "closed",
-   "title": "feat(1625): il ponte fra i due spazi di id di uno scenario",
-   "type": "pr",
-   "merged": true
-  },
   "2182": {
    "state": "open",
    "title": "L'allestimento e' il residuo della metrica di E50: 24 file su 75 spawnano un mondo che non usano",
@@ -1968,23 +1849,6 @@
    "state": "open",
    "title": "ARTHUD::DrawHUD e' 706 righe e la terza funzione piu' costosa, ma l'unica alta fuori dai resolver",
    "type": "issue"
-  },
-  "2185": {
-   "state": "closed",
-   "title": "feat(1625): la traduzione fra la traccia e le viste d'authoring",
-   "type": "pr",
-   "merged": true
-  },
-  "2193": {
-   "state": "closed",
-   "title": "il Ready anticipato non ha countdown ne' Unready: una voce PIE descrive un comportamento che non esiste",
-   "type": "issue"
-  },
-  "2224": {
-   "state": "closed",
-   "title": "fix(1625): due difetti del pannello, trovati pilotandolo via MCP",
-   "type": "pr",
-   "merged": true
   },
   "2244": {
    "state": "closed",
@@ -2042,17 +1906,6 @@
    "title": "Una porta del gray kit non si puo' posare su nessuna mappa: la catena e' pronta tranne l'anello che scrive",
    "type": "issue"
   },
-  "2337": {
-   "state": "closed",
-   "title": "feat(2330): una porta si puo' finalmente posare — primitiva, rifiuti e CLI",
-   "type": "pr",
-   "merged": true
-  },
-  "2358": {
-   "state": "closed",
-   "title": "Il countdown del Ready non si vede: due funzioni BlueprintPure e nessun consumatore",
-   "type": "issue"
-  },
   "2366": {
    "state": "closed",
    "title": "determinismo: il cooldown non entra nel checksum di stato, e due turni che differiscono solo per quello hanno lo stesso StateHash",
@@ -2061,11 +1914,6 @@
   "2367": {
    "state": "open",
    "title": "Una spinta silenzia un Overwatch armato: la zona è congelata, gli occhi ruotano",
-   "type": "issue"
-  },
-  "2370": {
-   "state": "closed",
-   "title": "v0.1 · Resolution playback — durata movimento per cella e ingresso-cella sul micro-step canonico",
    "type": "issue"
   },
   "2380": {
@@ -2111,11 +1959,6 @@
   "2453": {
    "state": "open",
    "title": "[EPIC] Combat Feedback — cue di combattimento, danno e status dal ResolvedEvent (v0.1 → v1.0)",
-   "type": "issue"
-  },
-  "2454": {
-   "state": "open",
-   "title": "[v0.1] Combat Feedback — evento → cue: attivazione, impatto e sconfitta senza logica di gameplay",
    "type": "issue"
   },
   "2455": {
@@ -2319,11 +2162,6 @@
    "type": "pr",
    "merged": true
   },
-  "2723": {
-   "state": "closed",
-   "title": "La finestra di reazione non è raggiungibile in partita: `OnReactionWindowOpened` non lo lega nessuno",
-   "type": "issue"
-  },
   "2725": {
    "state": "closed",
    "title": "Action.Sprint dichiara un prezzo che non paga: Exposed con durata 1 muore nel Cleanup dello stesso turno",
@@ -2348,11 +2186,6 @@
   "2747": {
    "state": "closed",
    "title": "Il criterio di uscita di D-045 e' scattato sul BOT: quanto spesso un giocatore perde il Move sotto Model A non l'ha misurato nessuno",
-   "type": "issue"
-  },
-  "2789": {
-   "state": "closed",
-   "title": "`WBP_RT_ScenarioComposer` non e' raggiungibile da nessun codice, e il suo contratto descrive gesti che nessuno puo' fare",
    "type": "issue"
   },
   "2791": {
@@ -2417,12 +2250,6 @@
    "state": "open",
    "title": "Il colpo a una struttura non ha un momento in cui essere mostrato: ERTResolvedEventType non ha un valore per la struttura, quindi nemmeno l'assenza e' censita",
    "type": "issue"
-  },
-  "2834": {
-   "state": "closed",
-   "title": "feat(2697): il feed arriva a schermo, e l'albero della HUD ha finalmente un oracolo",
-   "type": "pr",
-   "merged": true
   },
   "2847": {
    "state": "closed",
@@ -2516,21 +2343,9 @@
    "title": "Action.LineAttack dichiara di fermarsi sul primo bersaglio e colpisce solo quello puntato: ResolveLineAttack non ha chiamanti di produzione (D-386)",
    "type": "issue"
   },
-  "2933": {
-   "state": "closed",
-   "title": "feat(2826): il dock dice che cosa sta aspettando — il prompt di targeting a schermo",
-   "type": "pr",
-   "merged": true
-  },
   "2940": {
    "state": "closed",
    "title": "feat(2914): la durata del passo e' un dato, e chi attraversa resta sull'origine",
-   "type": "pr",
-   "merged": true
-  },
-  "2941": {
-   "state": "closed",
-   "title": "feat(172): la timeline del piano ha una voce per fase, e la reazione non e' la quinta",
    "type": "pr",
    "merged": true
   },
@@ -2557,16 +2372,6 @@
    "type": "pr",
    "merged": true
   },
-  "2963": {
-   "state": "open",
-   "title": "Il dock chiede icone per abilita' di eroe, il catalogo le indicizza per tipo di azione: `UI.Icon.Hero.*`, `Gadget.*` e `Reaction.*` non esistono in `DA_IconCatalog`",
-   "type": "issue"
-  },
-  "2964": {
-   "state": "open",
-   "title": "Il feed e' montato e il turno produce eventi, ma a schermo non compare nessuna riga",
-   "type": "issue"
-  },
   "2980": {
    "state": "closed",
    "title": "feat(2826): la riga dello slot esce dai test — tasto, stato armato e motivo diventano leggibili dal dock",
@@ -2586,11 +2391,6 @@
   "2988": {
    "state": "open",
    "title": "Lo stato di uno slot non e' un dato ma una deduzione del grafo, e due degli stati di §7 non hanno un produttore: `Planned` e `Disabled by phase` non arrivano alla vista",
-   "type": "issue"
-  },
-  "2989": {
-   "state": "open",
-   "title": "Il cablaggio del dock non ha nessun oracolo: quale valore il `ForEach` passi ad `ArmKitAbility`, e se un riquadro sia raggiungibile dal mouse, non li misura niente",
    "type": "issue"
   },
   "2990": {
