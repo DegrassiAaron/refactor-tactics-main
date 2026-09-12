@@ -323,6 +323,17 @@ ERTMovementAdvanceResult ARTTurnManager::AdvanceMovementResolution()
 		return ERTMovementAdvanceResult::Finished;
 	}
 
+	// 🔑 **Il budget si consuma QUI, dove un micro-step viene davvero risolto** (`#2856`, spec panel del
+	// 2026-09-10). Non nel pump: contarlo la' significherebbe che un avanzamento **richiesto** non consuma
+	// nulla, e la domanda aperta *«azzerare o accumulare»* rinascerebbe alla prima chiamata da fuori. Contato
+	// qui, un avanzamento richiesto e uno pompato incrementano lo stesso contatore, e la domanda si dissolve.
+	//
+	// ⚠️ **Il ramo `Finished` sopra non consuma**: non ha risolto nessun micro-step, e includerlo renderebbe
+	// il numero «quante volte qualcuno ha chiesto» invece di «quanti passi sono avvenuti» — che e' cio' che
+	// l'`ensureMsgf` dichiara. Il ritorno `Suspended` piu' sotto invece consuma: il passo e' avvenuto, ed e'
+	// dopo di lui che la finestra si apre.
+	++Ctx.MicroStepsSpent;
+
 	{
 		TArray<int32> MovedUnitIds;
 		for (int32 i = 0; i < Ctx.State.Num(); ++i)
@@ -354,21 +365,51 @@ ERTMovementAdvanceResult ARTTurnManager::AdvanceMovementResolution()
 	return ERTMovementAdvanceResult::Advanced;
 }
 
-void ARTTurnManager::ResolveMovement()
+int32 ARTTurnManager::GetMicroStepsSpentInResolution() const
 {
-	BeginMovementResolution();
+	const FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	return Ctx ? Ctx->MicroStepsSpent : INDEX_NONE;
+}
+
+ERTMovementAdvanceResult ARTTurnManager::PumpMovementToCompletion()
+{
+	FRTMovementResolutionContext* Ctx = PendingMovement.Get();
+	if (!Ctx)
+	{
+		return ERTMovementAdvanceResult::Finished;
+	}
 
 	// ⚠️ **La guardia non e' difensiva: e' il cap che impedisce a un difetto del resolver di appendere
 	// l'Editor invece di far fallire un test.** Un micro-step non supera la lunghezza del percorso piu'
 	// lungo, e `256` sta due ordini di grandezza sopra qualunque percorso di una mappa 2v2.
-	int32 Guard = 0;
+	//
+	// 🔴 **Il contatore vive nel CONTESTO e lo incrementa `AdvanceMovementResolution`, non questo ciclo**
+	// (`#2856`). Da locale limitava una invocazione del pump: una risoluzione che si sospendeva e riprendeva
+	// ripartiva da `0`, e un resolver che non converge ma si sospende regolarmente attraversava l'asserzione
+	// indefinitamente. Ora accumula per l'intera vita di `PendingMovement`, cioe' esattamente cio' che
+	// l'`ensureMsgf` dichiara di misurare.
 	ERTMovementAdvanceResult Step = ERTMovementAdvanceResult::Advanced;
-	while (Step == ERTMovementAdvanceResult::Advanced && Guard < 256)
+	while (Step == ERTMovementAdvanceResult::Advanced
+		&& Ctx->MicroStepsSpent < FRTMovementResolutionContext::MicroStepBudget)
 	{
 		Step = AdvanceMovementResolution();
-		++Guard;
 	}
-	ensureMsgf(Guard < 256, TEXT("risoluzione del movimento non terminata in 256 micro-step"));
+
+	// 🔑 **Si legge il contatore dal contesto e non da una copia**, perche' `FinishMovementResolution` non e'
+	// ancora stato chiamato: il ciclo esce, il contesto e' vivo, e questo e' l'ultimo istante in cui il
+	// numero e' quello della risoluzione intera.
+	ensureMsgf(Ctx->MicroStepsSpent < FRTMovementResolutionContext::MicroStepBudget,
+		TEXT("risoluzione del movimento non terminata in %d micro-step, sospensioni comprese"),
+		FRTMovementResolutionContext::MicroStepBudget);
+
+	return Step;
+}
+
+void ARTTurnManager::ResolveMovement()
+{
+	BeginMovementResolution();
+
+	const ERTMovementAdvanceResult Step = PumpMovementToCompletion();
 
 	// ⛔ **Questa e' la via SINCRONA, e una sospensione qui non puo' arrivare**: si sospende solo con
 	// `OnReactionWindowOpened` legato, cioe' con una UI che attende — e chi ha una UI non chiama
@@ -840,13 +881,10 @@ void ARTTurnManager::ResumeSuspendedResolution()
 	}
 	else
 	{
-		int32 Guard = 0;
-		ERTMovementAdvanceResult Step = ERTMovementAdvanceResult::Advanced;
-		while (Step == ERTMovementAdvanceResult::Advanced && Guard < 256)
-		{
-			Step = AdvanceMovementResolution();
-			++Guard;
-		}
+		// 🔑 **Lo STESSO pump della via sincrona** (`#2856`): il tetto lo legge dal contesto, quindi una
+		// ripresa non ricomincia a contare da zero. Era il difetto — due cicli scritti a mano, due locali, e
+		// una risoluzione che si sospende abbastanza volte da non essere mai limitata da nessuna delle due.
+		const ERTMovementAdvanceResult Step = PumpMovementToCompletion();
 
 		if (Step == ERTMovementAdvanceResult::Suspended)
 		{

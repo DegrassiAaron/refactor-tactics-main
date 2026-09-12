@@ -1413,6 +1413,26 @@ protected:
 	void ResolveMovement();
 
 	/**
+	 * Fa avanzare la risoluzione del movimento finche' ha micro-step da risolvere, e restituisce come si e'
+	 * fermata (`#2856`).
+	 *
+	 * 🔑 **Esiste perche' i chiamanti erano DUE cicli scritti a mano** — `ResolveMovement` e
+	 * `ResumeSuspendedResolution` — con la stessa guardia, la stessa costante e nessuno che li tenesse
+	 * d'accordo. Il difetto che `#2856` misura nasce li': la guardia era una locale per ciclo, quindi
+	 * limitava una invocazione del pump e non la risoluzione, e l'`ensureMsgf` affermava la seconda cosa
+	 * misurando la prima. Con un ingresso solo il tetto ha un solo lettore e un solo messaggio.
+	 *
+	 * ⛔ **NON e' l'avanzamento RICHIESTO di un singolo micro-step**, che e' la parte (b) di `#2856` e resta
+	 * sospesa per assenza di richiedenti: questo pump esaurisce, e la sua unica ragione di uscire prima e'
+	 * una finestra di reazione. Chi un giorno vorra' fermarsi dopo uno chiamera' `AdvanceMovementResolution`,
+	 * che e' gia' pubblica.
+	 *
+	 * ⚠️ **Senza contesto vivo ritorna `Finished`**, come `AdvanceMovementResolution`: non c'e' niente da far
+	 * avanzare, e dirlo e' meglio che presumere che il chiamante abbia verificato.
+	 */
+	ERTMovementAdvanceResult PumpMovementToCompletion();
+
+	/**
 	 * La risoluzione del movimento in tre momenti invece che in uno (`#2679` fetta 1, [D-355]).
 	 *
 	 * 🔑 **`ResolveMovement` resta, e non per compatibilita'**: e' la composizione delle tre, ed e' il GATE
@@ -1441,6 +1461,21 @@ public:
 	void BeginMovementResolution();
 	ERTMovementAdvanceResult AdvanceMovementResolution();
 	void FinishMovementResolution();
+
+	/**
+	 * Quanti micro-step la risoluzione in corso ha consumato, oppure `INDEX_NONE` se non ce n'e' una
+	 * (`#2856`).
+	 *
+	 * 🔑 **Serve perche' il budget e' l'unica cosa di `FRTMovementResolutionContext` che debba essere
+	 * OSSERVABILE da fuori.** La correzione di `#2856` sposta il contatore dallo stack dei pump al contesto
+	 * perche' sopravviva a una sospensione, e senza un lettore quell'affermazione non e' falsificabile: un
+	 * contatore che riparte da zero e uno che prosegue producono lo stesso esito di turno, lo stesso TurnLog
+	 * e lo stesso digest. Cio' che li distingue e' solo il numero — `Movement.MicroStepBudgetSurvivesSuspension`.
+	 *
+	 * ⛔ **Non e' stato canonico e nessuna regola competitiva lo legge**: e' il cap che impedisce a un
+	 * resolver che non converge di appendere l'Editor. Vive e muore col contesto.
+	 */
+	int32 GetMicroStepsSpentInResolution() const;
 
 	/** La coda della fase Blast, quando gli spostamenti sono risolti. Due chiamanti (`#2692`). */
 	void FinishBlastPhase(FRTBlastContext& Ctx);
