@@ -362,4 +362,62 @@ private:
 	TSharedPtr<SComboBox<TSharedPtr<ERTPlaybackSpeed>>> SpeedCombo;
 
 	TSharedPtr<SListView<TSharedPtr<FString>>> ListView;
+
+#if WITH_DEV_AUTOMATION_TESTS
+public:
+	/**
+	 * L'affaccio per gli automation test della SEQUENZA (#3074) — e la ragione per cui non e' nessuna delle
+	 * altre due forme che quella issue elencava.
+	 *
+	 * 🔑 **Cio' che qui manca a un test non e' lo stato: e' il GESTO.** I cinque difetti corretti da #2788 e
+	 * #2836 stavano tutti nell'ordine in cui questo guscio chiama le sue funzioni — `RefreshReadout()` in
+	 * fondo a `OnRunScenarioClicked` che richiudeva il playback appena aperto, `ClearSelection()` che non
+	 * passava di li' e quindi non chiudeva niente. Un test che non attraversa quelle funzioni non li vede,
+	 * per quanto bene osservi il risultato.
+	 *
+	 * ⛔ **Per questo lo stato NON e' stato estratto in una `struct` che un test costruisce.** Era la seconda
+	 * opzione di `DEC-2`, e sposta l'aggregato senza spostare la sequenza: il test continuerebbe a comporre a
+	 * mano i fatti che il pannello compone da solo, che e' esattamente cio' che
+	 * `DevSandboxLauncher.TransportForgetsTheRunOnDeselect` gia' fa — e che #2836 dichiara insufficiente.
+	 *
+	 * ⛔ **E non e' un `friend`**, la prima opzione: obbligherebbe questo header a nominare una classe di
+	 * test, cioe' a rompersi il giorno che quel test viene rinominato o sdoppiato. Un `#if` ha un blocco
+	 * solo e non sa chi lo chiama.
+	 *
+	 * ⚠️ La guardia toglie il blocco dalla **Shipping**, dove `WITH_DEV_AUTOMATION_TESTS` vale 0. Non e' una
+	 * dichiarazione di test in un header — quelle rompono Editor e non Shipping, ed e' un invariante
+	 * rovesciato che il presidio `Meta.TestHeadersDeclareNoAutomationTest` sorveglia: qui non c'e' nessuna
+	 * `IMPLEMENT_*_AUTOMATION_TEST`, solo due membri.
+	 */
+	struct FTestRunProbe
+	{
+		FString SelectedId;
+		ERTLauncherRunState RunState = ERTLauncherRunState::NotRun;
+		int32 RunTurns = 0;
+		bool bHasTrace = false;
+		FText RunDetail;
+	};
+
+	/** La memoria della corsa **e** la selezione, come il pannello le tiene adesso. Sola lettura. */
+	FTestRunProbe TestRunProbe() const
+	{
+		return FTestRunProbe{SelectedId, LastRunState, LastRunTurns, LastRunHasTrace, LastRunDetail};
+	}
+
+	/**
+	 * Il gesto della lista, per intero: un id sceglie quella riga, un puntatore **nullo** e' il clic nel
+	 * vuoto sotto le righe.
+	 *
+	 * ⚠️ **`OnMouseClick` e non `Direct`**, e non e' un dettaglio: `Direct` e' la riaffermazione che
+	 * `SListView` rifa' da sola dopo un refresh, e `OnScenarioSelected` la scarta in testa. Un test che
+	 * passasse di li' non eseguirebbe nessuna delle due strade che deve misurare.
+	 *
+	 * ⛔ Nessun automation test puo' sintetizzare quel clic dall'esterno: `SListView::ClearSelection()`
+	 * segnala `Direct`, e il vero gesto nasce da un `OnMouseButtonDown` che senza finestra non avviene.
+	 */
+	void TestApplySelection(TSharedPtr<FString> Item)
+	{
+		OnScenarioSelected(Item, ESelectInfo::OnMouseClick);
+	}
+#endif
 };
