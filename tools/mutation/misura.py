@@ -34,8 +34,16 @@ discendono dal proprio (`#2672`).
   modulo non ne e' il sostituto — vede cio' che passa, non impedisce che passi.
 * **Il codice di uscita del motore non entra nel verdetto**, e non e' una dimenticanza:
   `UnrealEditor-Cmd` esce `-1` quando la suite ha dei rossi. Vedi `verdetto()`.
-* **Il terminatore `**** TEST COMPLETE ****` e' un avviso, non un verdetto**, finche' non
-  sara' confermato su un log prodotto da `esegui_suite()`.
+* **Il terminatore `**** TEST COMPLETE ****` e' un avviso, non un verdetto** — e ora si sa
+  perche'. Misurato il 2026-09-12 su sei log: compare nei sani, ed e' ASSENTE in tutti e tre
+  quelli in cui il processo non e' uscito. Quindi e' confermato su un log di `esegui_suite()`
+  (`automation-mutazione.log`, `mut-M1.log`), ma **non e' un oracolo di fine**: attenderlo per
+  sapere se la suite e' finita significa attendere per sempre proprio nel caso da coprire.
+  Cio' che dice la fine sono i CONTEGGI — vedi `suite_finita()` (`#3048`).
+* **Ne' lo e' `...Automation Test Queue Empty N tests performed.`**, che nei log di
+  `esegui_suite()` non compare affatto: e' una riga della modalita' `+Quit`, e questo modulo
+  usa `;Quit` dentro `-ExecCmds`. Un oracolo misurato su una modalita' non si trasferisce
+  all'altra — la correlazione `+Quit` / processo che non esce sta in `#3049`.
 """
 
 import hashlib
