@@ -3,7 +3,8 @@
 // ⚠️ **Gemello di `RTFrontendWidgetAssetTests.cpp`, per la meta' che quello non copre.** Quel file prova
 // tre widget del Framework (`ErrorModal`, `FallbackBanner`, `LoadingScreen`) ed esiste per un difetto
 // misurato: il modale si armava e non compariva, e fra le due cose c'era un `FDelegateRuntimeBinding`
-// serializzato nel binario. I **sette** widget di `Content/RT/UI/Match/` non avevano nulla di equivalente:
+// serializzato nel binario. I widget di `Content/RT/UI/Match/` elencati in `Paths[]` non avevano nulla di
+// equivalente:
 // stessa classe di difetto, stessi gesti d'editor, meta' del perimetro scoperta.
 //
 // 🔴 **La domanda che questi test pongono e' una sola**: una funzione che il C++ espone al Blueprint e che
@@ -24,8 +25,10 @@
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
+#include "UI/RTHudZoneWidget.h"
 #include "Engine/Texture2D.h" // UTexture2D: il tipo che il gate rifiuta, esplicito e non ereditato
 #include "Tests/RTWidgetAssetTestHelpers.h"
+#include "Algo/Accumulate.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -202,7 +205,7 @@ namespace
 }
 
 /**
- * I sette widget di Match esistono e si caricano.
+ * I widget di Match elencati in `Paths[]` esistono e si caricano.
  *
  * E' la verifica piu' debole del file ed e' deliberato che sia separata: se un asset viene rinominato o
  * spostato, questo test dice **quale**, mentre gli altri direbbero soltanto che un binding manca.
@@ -388,8 +391,9 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
  * fonte. Una regola che vale solo dove il codice guarda e' una raccomandazione.
  *
  * Qui si guarda l'altra meta': le proprieta' **dichiarate dalla `UWidgetBlueprintGeneratedClass`**, cioe' le
- * variabili aggiunte dentro il `.uasset`. L'infrastruttura c'era gia' tutta in questo file — le sette classi
- * si caricano per `PIE-ICON-01` e per `ActionSlotHasIconSurface` — e mancava soltanto l'asserzione.
+ * variabili aggiunte dentro il `.uasset`. L'infrastruttura c'era gia' tutta in questo file — le classi di
+ * `Paths[]` si caricano per `PIE-ICON-01` e per `ActionSlotHasIconSurface` — e mancava soltanto
+ * l'asserzione.
  *
  * ⛔ **Cosa NON copre, e va detto perche' il verde non prometta piu' di quanto misura:**
  *
@@ -454,7 +458,8 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 	// Le due controprove della premessa. Senza, questo test sarebbe verde anche se gli asset non si
 	// caricassero affatto o se l'iterazione non guardasse niente — cioe' passerebbe **misurando zero**, che
 	// e' il modo in cui un gate diventa decorativo.
-	TestEqual(TEXT("i sette widget di Match si caricano"), Caricate, static_cast<int32>(UE_ARRAY_COUNT(Paths)));
+	TestEqual(TEXT("i widget di Match elencati in `Paths[]` si caricano"), Caricate,
+		static_cast<int32>(UE_ARRAY_COUNT(Paths)));
 	TestTrue(
 		FString::Printf(TEXT("l'iterazione ha guardato delle proprieta' dichiarate dai Blueprint (ne ha viste %d)"),
 			Ispezionate),
@@ -817,6 +822,12 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
  * ⚠️ **Limite dichiarato, e vale per tutti e tre i test di questo blocco**: `UWidgetTree::ForEachWidget`
  * cammina l'albero di QUESTO Blueprint e si ferma sui `UUserWidget` innestati, che hanno un albero loro.
  * Un segnaposto dentro `WBP_RT_ActionDock` o `WBP_RT_SelectedUnitPanel` non lo vede nessuno di qui.
+ *
+ * ⚠️ **Precisazione dopo il rimontaggio a otto zone**: il caso normale diventera' il `NamedSlot Content` di
+ * `WBP_RT_HudZone`, che NON e' un `UUserWidget` innestato con un albero separato — e' un punto d'innesto
+ * dentro QUESTO albero. `ForEachWidget` lo attraversa, scendendo negli `INamedSlotInterface` (verificato nel
+ * sorgente engine, `WidgetTree.cpp`): il limite sopra resta vero alla lettera, ma non si applica al
+ * contenuto delle zone.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMountsTheFeedTest,
 	"RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn",
@@ -930,12 +941,18 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 		const TCHAR* Issue;
 	};
 
+	// ⚠️ Il vocabolario e' quello a OTTO zone, non il TOP/LEFT/RIGHT/BOTTOM di prima. Il criterio non
+	// cambia — la domanda resta «c'e' un'istanza di questa classe?», e il test era verde prima ed e' verde
+	// dopo — ma l'etichetta finisce in un messaggio d'errore che rimanda a `guida-screen-hud-umg.md` §3, e
+	// quella sezione ora descrive la griglia 3x3. Un'etichetta che rimanda a una sezione cambiata sotto di
+	// lei manda chi legge a cercare una zona che non esiste piu'.
 	const FInquilino Attesi[] = {
-		{ URTTurnHeaderWidget::StaticClass(),        TEXT("TOP"),    TEXT("#613") },
-		{ URTTeamRosterWidget::StaticClass(),        TEXT("LEFT"),   TEXT("#613, #2744") },
-		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("RIGHT"),  TEXT("#2697, #1936 fetta F") },
-		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("BOTTOM"), TEXT("#613, #2760") },
-		{ URTActionDockWidget::StaticClass(),        TEXT("BOTTOM"), TEXT("#220, #2760") },
+		{ URTTurnHeaderWidget::StaticClass(),        TEXT("TopCenter"),    TEXT("#613") },
+		{ URTTeamRosterWidget::StaticClass(),        TEXT("TopLeft"),      TEXT("#613, #2744") },
+		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("MiddleRight"),  TEXT("#2697, #1936 fetta F") },
+		// ⚠️ MiddleLeft e non BottomLeft: Selected Unit cambia fascia col rimontaggio delle otto zone.
+		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("MiddleLeft"),   TEXT("#613, #2760") },
+		{ URTActionDockWidget::StaticClass(),        TEXT("BottomCenter"), TEXT("#220, #2760") },
 	};
 
 	for (const FInquilino& Atteso : Attesi)
@@ -949,7 +966,9 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 			}
 		});
 
-		AddInfo(FString::Printf(TEXT("  %-34s zona %-6s -> %d istanza/e"),
+		// `%-12s` e non `%-6s`: i nomi a otto zone arrivano a `BottomCenter`, e una colonna troppo stretta
+		// non tronca ma sfalsa tutte le righe successive, rendendo il report peggiore di nessun report.
+		AddInfo(FString::Printf(TEXT("  %-34s zona %-12s -> %d istanza/e"),
 			*Atteso.Classe->GetName(), Atteso.Zona, Conta));
 
 		if (Conta == 0)
@@ -1130,6 +1149,266 @@ bool FRTActionSlotCanReceiveAClickTest::RunTest(const FString&)
 			TEXT("sembra a posto: e' il difetto che questo gate esiste per trovare"),
 			RaggiungibiliDalPuntatore, Esaminati),
 		RaggiungibiliDalPuntatore > 0);
+
+	return true;
+}
+// =====================================================================================================
+// Le otto zone: ci sono tutte, una volta ciascuna
+// =====================================================================================================
+//
+// 🔴 **E' la domanda che prima di `URTHudZoneWidget` nessuno poteva porre**, e la ragione per cui quella
+// classe esiste. Una zona era un `UCanvasPanelSlot` con un nome scelto nel Designer: indistinguibile, per
+// un test, da qualunque altro nodo. E' anche la domanda che `cc5ca967` ha eluso — un salvataggio che ha
+// riportato l'albero allo stato precedente al fix di `#2760`, con la suite verde perche' nessun gate
+// guardava.
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTheEightZonesAreDeclaredExactlyOnceTest,
+	"RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTTheEightZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	// Quante istanze per ogni valore dell'enum. Zero e due sono due difetti diversi, e il report li deve
+	// distinguere: «manca» si corregge aggiungendo, «doppia» si corregge cambiando un `ZoneId`.
+	TArray<int32> Conteggio;
+	Conteggio.Init(0, static_cast<int32>(ERTHudZone::Count));
+
+	int32 FuoriEnum = 0;
+
+	Tree->ForEachWidget([&Conteggio, &FuoriEnum, this](UWidget* Widget)
+	{
+		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
+		if (!Zona)
+		{
+			return;
+		}
+
+		const int32 Indice = static_cast<int32>(Zona->ZoneId);
+		if (Conteggio.IsValidIndex(Indice))
+		{
+			++Conteggio[Indice];
+			AddInfo(FString::Printf(TEXT("  %-24s ZoneId=%s"),
+				*Widget->GetName(), *URTHudZoneWidget::ZoneName(Zona->ZoneId)));
+		}
+		else
+		{
+			++FuoriEnum;
+			AddError(FString::Printf(
+				TEXT("la zona `%s` porta un `ZoneId` che non e' una zona (indice %d). ")
+				TEXT("`ERTHudZone::Count` e' una sentinella per il conteggio, non un valore assegnabile."),
+				*Widget->GetName(), Indice));
+		}
+	});
+
+	for (int32 I = 0; I < Conteggio.Num(); ++I)
+	{
+		const FString Nome = URTHudZoneWidget::ZoneName(static_cast<ERTHudZone>(I));
+
+		if (Conteggio[I] == 0)
+		{
+			AddError(FString::Printf(
+				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le otto zone sono la griglia ")
+				TEXT("3x3 meno il centro (`guida-screen-hud-umg.md` §3): una che manca e' un buco nel ")
+				TEXT("layout, non uno spazio libero."), *Nome));
+		}
+		else if (Conteggio[I] > 1)
+		{
+			AddError(FString::Printf(
+				TEXT("`WBP_RT_TacticalHUD` dichiara %d zone `%s`. Due istanze con lo stesso `ZoneId` si ")
+				TEXT("sovrappongono a schermo, e il blockout smette di dire quale riquadro si guarda."),
+				Conteggio[I], *Nome));
+		}
+	}
+
+	// 🔴 **Senza questa riga il test sarebbe verde su un albero SENZA zone** — cioe' misurando zero, il modo
+	// in cui un gate diventa decorativo. Questo file lo ha gia' imparato una volta, in
+	// `PanelsLeaveTheCenterFree`.
+	const int32 Totale = Algo::Accumulate(Conteggio, 0) + FuoriEnum;
+	TestTrue(
+		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Totale),
+		Totale > 0);
+
+	return true;
+}
+
+// =====================================================================================================
+// Le otto zone: stanno dove devono
+// =====================================================================================================
+//
+// 🔑 **`PanelsLeaveTheCenterFree` e' un gate NEGATIVO**: dice che nessuna zona invade il centro, e
+// passerebbe con tutte e otto schiacciate in un angolo. Questo dice dove sono.
+//
+// La griglia e' 20% / 60% / 20% su entrambi gli assi, e non e' una scelta: il keep-out del centro e'
+// `RTCenterFree::CenterFraction` = 0.6 centrato, quindi i tagli cadono a 0.2 e 0.8.
+
+namespace RTGrigliaZone
+{
+	/** I tagli della griglia, in frazione di schermo. */
+	constexpr float TaglioBasso = 0.2f;
+	constexpr float TaglioAlto = 0.8f;
+
+	/** Gli offset uniformi di ogni zona: distacco visivo, e margine dal keep-out. */
+	constexpr float Margine = 4.f;
+
+	/** La cella attesa di una zona, in frazione di schermo: `Min` e `Max` degli anchor. */
+	void CellaAttesa(ERTHudZone Zona, FVector2D& Min, FVector2D& Max)
+	{
+		const int32 I = static_cast<int32>(Zona);
+
+		// Colonna: 0 = sinistra, 1 = centro, 2 = destra. Riga: 0 = alto, 1 = mezzo, 2 = basso.
+		// L'ordine dell'enum salta la cella centrale, quindi la mappa e' esplicita invece che calcolata.
+		static const int32 Colonne[] = { 0, 1, 2,  0, 2,  0, 1, 2 };
+		static const int32 Righe[]   = { 0, 0, 0,  1, 1,  2, 2, 2 };
+
+		// ⚠️ Il trigger realistico non e' il Designer — `ZoneId` e' un `UENUM` e non lascia scegliere fuori
+		// range — ma la CRESCITA dell'enum: un nono valore allarga da solo `Conteggio` in
+		// `TheEightZonesAreDeclaredExactlyOnce` (dimensionato su `ERTHudZone::Count`), mentre queste due
+		// mappe, a dimensione fissa, resterebbero a otto. Lo static_assert lo ferma in compilazione.
+		static_assert(UE_ARRAY_COUNT(Colonne) == static_cast<int32>(ERTHudZone::Count),
+			"`Colonne` deve avere una voce per ogni zona: se l'enum cresce, va aggiornata insieme.");
+		static_assert(UE_ARRAY_COUNT(Righe) == static_cast<int32>(ERTHudZone::Count),
+			"`Righe` deve avere una voce per ogni zona: se l'enum cresce, va aggiornata insieme.");
+
+		static const float Bordi[] = { 0.f, TaglioBasso, TaglioAlto, 1.f };
+
+		// Guardia gemella, a runtime: l'indice arriva da un `ZoneId` letto dall'asset, non dal
+		// compilatore, quindi puo' essere fuori range anche quando le mappe sono dimensionate bene. Uscire
+		// con una cella fuori dalla griglia [0,1] la rende un mismatch rumoroso nel confronto del
+		// chiamante, invece di una lettura fuori array.
+		if (I < 0 || I >= UE_ARRAY_COUNT(Colonne))
+		{
+			Min = FVector2D(-1.0, -1.0);
+			Max = FVector2D(-1.0, -1.0);
+			return;
+		}
+
+		Min.X = Bordi[Colonne[I]];
+		Max.X = Bordi[Colonne[I] + 1];
+		Min.Y = Bordi[Righe[I]];
+		Max.Y = Bordi[Righe[I] + 1];
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTZoneRectanglesMatchTheThreeByThreeGridTest,
+	"RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	// Un pixel di tolleranza: le geometrie sono float, e un arrotondamento non e' un difetto di layout.
+	constexpr float Tolleranza = 1.f;
+
+	int32 Misurate = 0;
+
+	Tree->ForEachWidget([this, Tree, &Misurate, Tolleranza](UWidget* Widget)
+	{
+		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
+		if (!Zona)
+		{
+			return;
+		}
+
+		const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot);
+		if (!Slot)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` non e' in un `Canvas Panel`: la sua geometria non e' dichiarata dal ")
+				TEXT("layout, e il centro libero smette di essere una proprieta' verificabile."),
+				*Widget->GetName()));
+			return;
+		}
+
+		// ⚠️ Figlia DIRETTA del Canvas radice, non solo dentro un `UCanvasPanelSlot` qualunque: una zona
+		// annidata in un secondo Canvas avrebbe un anchor frazionario identico — combacerebbe con la
+		// griglia qui sotto — ma la sua posizione reale a schermo dipenderebbe anche dal Canvas che la
+		// contiene, cosa che ne' questo gate ne' `PanelsLeaveTheCenterFree` (che guarda solo i figli di
+		// primo livello) misurano.
+		if (Slot->Parent != Tree->RootWidget)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` non e' figlia diretta del Canvas radice (sta dentro `%s`): la sua ")
+				TEXT("posizione reale dipende anche da quel contenitore, e ne' questo gate ne' ")
+				TEXT("`PanelsLeaveTheCenterFree` la misurano."),
+				*Widget->GetName(),
+				Slot->Parent ? *Slot->Parent->GetName() : TEXT("<nessuno>")));
+			return;
+		}
+
+		FVector2D Min, Max;
+		RTGrigliaZone::CellaAttesa(Zona->ZoneId, Min, Max);
+
+		const RTCenterFree::FRect Atteso{
+			static_cast<float>(Min.X) * RTCenterFree::RefWidth + RTGrigliaZone::Margine,
+			static_cast<float>(Min.Y) * RTCenterFree::RefHeight + RTGrigliaZone::Margine,
+			static_cast<float>(Max.X) * RTCenterFree::RefWidth - RTGrigliaZone::Margine,
+			static_cast<float>(Max.Y) * RTCenterFree::RefHeight - RTGrigliaZone::Margine };
+
+		const FAnchorData Layout = Slot->GetLayout();
+		const RTCenterFree::FRect Reale = RTCenterFree::RettangoloDellaZona(Layout);
+		++Misurate;
+
+		AddInfo(FString::Printf(TEXT("  %-14s atteso %s   reale %s"),
+			*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+			*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+
+		// ⚠️ **Il confronto sul rettangolo finale (`bCombacia`, sotto) puo' combaciare per caso anche con
+		// anchor a punto**: un anchor a punto con offset ritagliati a mano puo' produrre lo stesso
+		// rettangolo A QUESTA risoluzione e poi non scalare a un'altra — il difetto che §3.1 della spec
+		// dichiara. Questi due controlli guardano l'anchor stesso, non il suo effetto su un solo caso.
+		if (Layout.Anchors.Minimum.X == Layout.Anchors.Maximum.X)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` ha anchor A PUNTO sull'asse X (Min.X == Max.X == %.2f): il rettangolo ")
+				TEXT("dipende dall'Alignment invece di scalare con la risoluzione — il difetto che porto' ")
+				TEXT("`ZoneBottom` a `Y 1080..1280`, fuori schermo."),
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				static_cast<float>(Layout.Anchors.Minimum.X)));
+		}
+
+		if (Layout.Anchors.Minimum.Y == Layout.Anchors.Maximum.Y)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` ha anchor A PUNTO sull'asse Y (Min.Y == Max.Y == %.2f): stesso difetto ")
+				TEXT("dell'asse X, sull'altro asse."),
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				static_cast<float>(Layout.Anchors.Minimum.Y)));
+		}
+
+		const bool bCombacia =
+			FMath::IsNearlyEqual(Reale.Left, Atteso.Left, Tolleranza)
+			&& FMath::IsNearlyEqual(Reale.Top, Atteso.Top, Tolleranza)
+			&& FMath::IsNearlyEqual(Reale.Right, Atteso.Right, Tolleranza)
+			&& FMath::IsNearlyEqual(Reale.Bottom, Atteso.Bottom, Tolleranza);
+
+		if (!bCombacia)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` non occupa la sua cella della griglia 20/60/20: atteso %s, reale %s. ")
+				TEXT("Gli anchor devono essere STIRATI su entrambi gli assi — con anchor a punto il ")
+				TEXT("rettangolo dipende dall'Alignment, ed e' il difetto che porto' `ZoneBottom` a ")
+				TEXT("`Y 1080..1280`, fuori schermo."),
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+		}
+	});
+
+	TestTrue(
+		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Misurate),
+		Misurate > 0);
 
 	return true;
 }
