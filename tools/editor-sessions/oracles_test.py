@@ -72,6 +72,23 @@ class CacheTest(unittest.TestCase):
         }
         self.assertEqual(oracles.issue_chiuse(cache), {2723})
 
+    def test_una_issue_chiusa_soddisfa(self):
+        cache = {"items": {"938": {"state": "closed", "type": "issue"}}}
+        self.assertEqual(oracles.issue_chiuse(cache), {938})
+
+    def test_una_pr_chiusa_e_mergiata_soddisfa(self):
+        cache = {"items": {"2834": {"state": "closed", "type": "pr", "merged": True}}}
+        self.assertEqual(oracles.issue_chiuse(cache), {2834})
+
+    def test_una_pr_chiusa_e_non_mergiata_non_soddisfa(self):
+        """Lavoro abbandonato: chiusa senza merge non e' fatta, non basta lo `state`."""
+        cache = {"items": {"351": {"state": "closed", "type": "pr", "merged": False}}}
+        self.assertEqual(oracles.issue_chiuse(cache), set())
+
+    def test_una_pr_aperta_non_soddisfa_anche_se_merged_manca(self):
+        cache = {"items": {"999": {"state": "open", "type": "pr"}}}
+        self.assertEqual(oracles.issue_chiuse(cache), set())
+
 
 if __name__ == "__main__":
     unittest.main()

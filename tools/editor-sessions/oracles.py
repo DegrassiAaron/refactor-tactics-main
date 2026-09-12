@@ -65,10 +65,25 @@ def asset_tracciati() -> set[str]:
 
 
 def issue_chiuse(cache: dict) -> set[int]:
-    """I numeri chiusi nella cache GitHub, nella forma di `tools/decision-log/`."""
-    return {
-        int(n) for n, v in (cache.get("items") or {}).items() if v.get("state") == "closed"
-    }
+    """I numeri SODDISFATTI nella cache GitHub: issue chiuse, PR mergiate.
+
+    Una issue vale la sola chiusura. Una PR chiusa e non mergiata e' lavoro
+    ABBANDONATO, non fatto: trattarla come un prerequisito soddisfatto e' il
+    falso positivo che questa famiglia di strumenti esiste per rifiutare — un
+    `requires` agganciato a quella PR risulterebbe sciolto, e il check che
+    blocca tornerebbe nell'ordine del giorno a vuoto. Il campo `merged` lo
+    scrive `fetch_github_cache.py:66` solo per le PR (`bool(pr.get("merged_at"))`);
+    una issue non lo porta, e per una issue `state == "closed"` resta l'unico
+    segnale che esiste.
+    """
+    chiuse: set[int] = set()
+    for n, v in (cache.get("items") or {}).items():
+        if v.get("state") != "closed":
+            continue
+        if v.get("type") == "pr" and not v.get("merged"):
+            continue
+        chiuse.add(int(n))
+    return chiuse
 
 
 def issue_note(cache: dict) -> set[int]:
