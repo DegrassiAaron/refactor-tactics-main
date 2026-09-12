@@ -1051,6 +1051,96 @@ bool FRTNoNodeWearsAWidgetNameTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **UNO SLOT DEVE POTER RICEVERE UN CLICK — cioe' non essere interamente trasparente al puntatore**
+ * (`#2989`).
+ *
+ * 🔑 **E' il gate che manca alla catena, e il tratto che presidia non ne aveva nessuno.** La porta C++
+ * esiste ed e' testata — `ArmKitAbility` e' `BlueprintCallable`, e
+ * `PlayerInput.TheDockPortArmsAndDisarms` prova che armi e disarmi — ma fra il puntatore e quella porta
+ * c'e' un tratto che vive interamente dentro il `.uasset`, e su quel tratto la suite non aveva niente.
+ *
+ * ⚠️ **Questo gate copre una meta' sola, e va detto quale.** Misura che un click *possa arrivare* allo
+ * slot; **non** che ci sia qualcosa che lo riceva. Al 2026-09-11 l'albero di `WBP_RT_ActionSlot` contiene
+ * `ArmedBorder` (`Overlay`), `IconImage` e due `TextBlock`, e **nessuno di essi e' un `Button`**: un gate
+ * sull'altra meta' sarebbe rosso, e per la disciplina di questo file — *«fallisce finche' i binding non ci
+ * sono, ed e' voluto: per questo atterra INSIEME all'asset cablato, non prima»* — quello arrivera' col
+ * cablaggio. Qui si difende cio' che gia' vale.
+ *
+ * 🔴 **Il difetto che rende questo gate utile e' banale da introdurre e invisibile a occhio.** Chi cabla un
+ * bottone deve scegliere la `Visibility` di ogni antenato: uno solo su `Hit Test Invisible` e il click
+ * attraversa lo slot e finisce sulla mappa sotto — e a schermo lo slot sembra a posto, perche' la
+ * `Visibility` che lo nasconde al puntatore non lo nasconde all'occhio.
+ *
+ * ⛔ `SelfHitTestInvisible` su un CONTENITORE non e' un difetto, ed e' la ragione per cui questo gate
+ * guarda l'albero e non la radice: e' il valore corretto per un pannello che deve lasciar passare il
+ * puntatore ai propri figli, ed e' quello che `ArmedBorder` porta oggi.
+ *
+ * ⌫ **Questa riga nominava anche `SlotBox`, e sbagliava albero.** `SlotBox` e' l'`HorizontalBox` del
+ * **dock** — `RTHudScenarioTests.cpp` lo cerca in `Dock->WidgetTree`, e nell'albero dello slot ha **zero**
+ * occorrenze. Attribuirlo qui suggeriva che il contenitore degli slot vivesse dentro uno slot, cioe'
+ * esattamente la confusione fra i due `.uasset` che questo file esiste per tenere separati. Trovato da una
+ * seduta Editor su `#2826` il 2026-09-11.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotCanReceiveAClickTest,
+	"RefactorTactics.ScreenHud.ActionSlotIsNotTransparentToThePointer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionSlotCanReceiveAClickTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, ActionSlotPath,
+		TEXT("WBP_RT_ActionSlot"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	int32 Esaminati = 0;
+	int32 RaggiungibiliDalPuntatore = 0;
+
+	Tree->ForEachWidget([this, &Esaminati, &RaggiungibiliDalPuntatore](UWidget* Widget)
+	{
+		if (!Widget)
+		{
+			return;
+		}
+		++Esaminati;
+
+		const ESlateVisibility Vis = Widget->GetVisibility();
+
+		// `Visible` e' l'unico valore che fa ricevere il click al widget STESSO.
+		// ⛔ Gli altri quattro non lo sono, e per ragioni diverse: `Collapsed` e `Hidden` non disegnano
+		// affatto; `HitTestInvisible` disegna e lascia passare il puntatore **anche ai figli**;
+		// `SelfHitTestInvisible` disegna, non riceve, ma **i figli si'** — ed e' il valore giusto per un
+		// contenitore.
+		if (Vis == ESlateVisibility::Visible)
+		{
+			++RaggiungibiliDalPuntatore;
+		}
+
+		AddInfo(FString::Printf(TEXT("  %-24s %-20s visibility=%d"),
+			*Widget->GetName(), *Widget->GetClass()->GetName(), static_cast<int32>(Vis)));
+	});
+
+	// Controprova della premessa: senza, il gate passerebbe su un albero vuoto — cioe' misurando zero.
+	if (!TestTrue(
+		FString::Printf(TEXT("l'albero di WBP_RT_ActionSlot porta dei widget da esaminare (ne ha %d)"),
+			Esaminati),
+		Esaminati > 0))
+	{
+		return false;
+	}
+
+	TestTrue(
+		FString::Printf(
+			TEXT("almeno un widget dello slot puo' ricevere il puntatore (ne ha %d su %d). Uno slot ")
+			TEXT("interamente `Hit Test Invisible` lascia passare il click alla mappa sotto, e a schermo ")
+			TEXT("sembra a posto: e' il difetto che questo gate esiste per trovare"),
+			RaggiungibiliDalPuntatore, Esaminati),
+		RaggiungibiliDalPuntatore > 0);
+
+	return true;
+}
 // =====================================================================================================
 // Le otto zone: ci sono tutte, una volta ciascuna
 // =====================================================================================================

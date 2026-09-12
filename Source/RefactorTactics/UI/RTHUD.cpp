@@ -1208,8 +1208,19 @@ FRTHudTextLine ARTHUD::ComposeAbilityLine(const FRTAbilityCooldownView& Ability,
 {
 	FRTHudTextLine Line;
 
-	// Il numero e' 1-based: e' la scorciatoia che il giocatore preme, non l'indice del kit.
-	Line.Text = FString::Printf(TEXT("%d. %s"), Ability.AbilityIndex + 1, *Ability.DisplayName.ToString());
+	// 🔴 **Il tasto si LEGGE dalla vista, e questa riga diceva `AbilityIndex + 1`** (`#2987`). L'aritmetica
+	// rispondeva a qualunque indice, anche a quelli che nessun tasto raggiunge: per la posizione `9` — che
+	// `AbilityHotkeys()` chiude con `EKeys::Zero` — scriveva **«10.»** mentre il tasto e' **`0`**. Il
+	// commento che c'era dichiarava l'intenzione giusta, *«e' la scorciatoia che il giocatore preme»*, e la
+	// implementava con l'unica fonte che non e' la tabella dei binding.
+	//
+	// ⚠️ **Senza tasto non si scrive un numero.** Una posizione oltre la fila dei numeri — il kit a undici
+	// voci che `GenericHotkeys()` dichiara possibile — resta senza prefisso: annunciare `11.` la darebbe
+	// per premibile, ed e' il *«verde che mente»* nella sua forma visibile al giocatore.
+	const FString Etichetta = Ability.HotkeyLabel.ToString();
+	Line.Text = Etichetta.IsEmpty()
+		? Ability.DisplayName.ToString()
+		: FString::Printf(TEXT("%s. %s"), *Etichetta, *Ability.DisplayName.ToString());
 
 	// 🔴 **La ricarica e' l'UNICO motivo mostrabile, e non e' piu' una precedenza.**
 	//

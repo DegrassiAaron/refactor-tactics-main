@@ -15,6 +15,29 @@ struct FInputActionValue;
 struct FRTHexSnapshot;
 
 /**
+ * Da dove arriva una richiesta di armamento, per la TRACCIA e per nient'altro.
+ *
+ * 🔑 **Esiste perche' i percorsi sono due e il sintomo e' uno solo** (`#2986`). Fino a `#2826` l'unica
+ * strada per armare era la tastiera, e «premo e non succede niente» aveva un'origine sola da indagare; ora
+ * la stessa uscita puo' venire da un tasto o da un click su uno slot, e un log che non lo dicesse
+ * costringerebbe a indovinare quale dei due canali ha prodotto la riga.
+ *
+ * ⛔ **Non e' un reason code e non governa niente.** Nessun ramo di `SelectAbilityForCurrent` cambia
+ * decisione in base a questo valore: il toggle che distingue davvero un click da un tasto vive in
+ * `ArmKitAbility`, dove `#2826` l'ha messo di proposito. Se un giorno un ramo leggesse questo enum per
+ * decidere un esito, sarebbero due percorsi con regole proprie — cioe' esattamente cio' che la porta del
+ * dock e' stata scritta per NON essere.
+ *
+ * ⚠️ **Nessun default sul parametro che lo porta**, ed e' deliberato: un chiamante nuovo deve dichiarare
+ * la propria origine invece di ereditare in silenzio quella del vicino.
+ */
+enum class ERTAbilityRequestSource : uint8
+{
+	Hotkey,  // i dieci tasti del kit e le cinque generiche
+	Dock     // la porta di `#2826`: un click su uno slot
+};
+
+/**
  * Controller tattico. Costruisce Enhanced Input interamente in C++ (nessun .uasset richiesto):
  * pan della camera con WASD, zoom con la rotellina, selezione col click sinistro.
  */
@@ -290,6 +313,25 @@ protected:
 	UPROPERTY()
 	TObjectPtr<AActor> SelectedActor;
 
+	/**
+	 * L'unita' ISPEZIONATA: quella che si sta guardando, non quella che si comanda.
+	 *
+	 * 🔴 **E' un campo separato da `SelectedActor`, e la ragione e' una misura.** Da `SelectedActor` passa
+	 * `URTScreenHudWidgetBase::GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e
+	 * `BuildAbilityCooldowns`, cioe' l'Action Dock. Scriverci un'avversaria mostrerebbe al giocatore il suo
+	 * **piano** e il suo **kit con i cooldown**: due canali della stessa fuga, e il secondo non era nemmeno
+	 * previsto dal contratto finche' non e' stato misurato in `RTScreenHudWidgets.cpp`.
+	 *
+	 * ⚠️ **Convive con la selezione, non la sostituisce** (decisione del 2026-09-11): ispezionare un nemico
+	 * non fa perdere l'unita' comandata ne' l'azione armata. E persiste finche' non se ne ispeziona un'altra.
+	 *
+	 * ⛔ **Chi lo legge deve sopprimere cio' che non gli spetta.** Questo campo dice *quale* unita' si sta
+	 * guardando, non *quanto* se ne puo' mostrare: il filtro e' di chi disegna, e per il pannello e' `#613`,
+	 * con la regola di `#2757` — carta si', slot mai, **e nemmeno vuoti**.
+	 */
+	UPROPERTY()
+	TObjectPtr<class ARTUnit> InspectedUnit;
+
 	void OnPan(const FInputActionValue& Value);
 	void OnZoom(const FInputActionValue& Value);
 	void OnRotate(const FInputActionValue& Value);
@@ -509,6 +551,33 @@ public:
 	static const TArray<FKey>& AbilityHotkeys();
 
 	/**
+	 * L'ETICHETTA del tasto che arma questa voce di kit, o testo **vuoto** se nessun tasto la raggiunge
+	 * (`#2987`, estesa da [D-397] §4).
+	 *
+	 * 🔴 **Esiste perche' quell'etichetta veniva CALCOLATA invece che letta, e per l'ultima posizione era
+	 * falsa.** `ARTHUD::ComposeAbilityLine` scriveva `AbilityIndex + 1`, quindi per la posizione `9` — che
+	 * `AbilityHotkeys()` chiude con `EKeys::Zero` — la riga diceva **«10.»** mentre il tasto e' **`0`**.
+	 * L'aritmetica e la tabella erano due verita', e divergevano proprio dove il giocatore non ha un
+	 * secondo modo di scoprirlo.
+	 *
+	 * ⚠️ **Il vuoto e' un risultato, non un errore.** Il commento di `GenericHotkeys()` dichiara il caso:
+	 * *«un eroe con sei azioni porta il kit a undici voci contro i dieci tasti numerici»*. L'undicesima
+	 * posizione non ha un tasto, e mostrare `11.` la annuncerebbe come premibile — la forma scritta del
+	 * *«verde che mente»* che quel commento gia' nomina.
+	 *
+	 * 🔑 **L'ordine di risoluzione e' `GenericHotkeys()` per `ActionId` -> `AbilityHotkeys()` per posizione
+	 * -> vuoto, e lo fissa [D-397] §4.** `Action.Wait` si arma con `Z` **e** col numero della propria
+	 * posizione; si mostra la lettera perche' e' legata all'`ActionId`, mentre il numero dipende da quante
+	 * azioni porta l'eroe — *«una barra che rinumerasse le generiche insegnerebbe una mappa che scade»*.
+	 *
+	 * ⛔ **Una etichetta sola per slot**: il numero resta funzionante senza essere mostrato.
+	 *
+	 * ⚠️ Restituisce l'etichetta della `FKey`, non una stringa composta qui: la traduzione da tasto a nome
+	 * visibile appartiene all'engine, e ricomporla sarebbe la seconda verita' daccapo.
+	 */
+	static FText HotkeyLabelFor(const FName& ActionId, int32 KitIndex);
+
+	/**
 	 * Le azioni GENERICHE e il tasto che le arma, in coppia. Sono l'altro canale di selezione del kit, e
 	 * risolvono per **nome** invece che per posizione.
 	 *
@@ -637,7 +706,27 @@ private:
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
 	void RebuildPlannedPath();
 
-	void SelectAbilityForCurrent(int32 Index);
+	/**
+	 * Il punto comune di ogni richiesta di armamento: i dieci tasti, le cinque generiche e la porta del dock.
+	 *
+	 * 🔴 **Nessuna uscita e' muta, e l'ORDINE dei rami e' il contratto** (`#2986`). La riga che dichiara
+	 * l'azione armata sta DOPO l'ultimo ramo capace di rifiutare: prima stava sopra, e per una posizione di
+	 * kit vuota o una reazione in ricarica affermava un successo che la funzione non aveva prodotto. Chi
+	 * leggeva concludeva «armata, e' la presentazione a non mostrarla», cioe' mandava l'indagine su `#2764`
+	 * invece che sul kit.
+	 *
+	 * ⛔ **E un rifiuto non lascia `SelectedAbilityIndex` scritto.** `Unit->SelectAbility` si chiama dopo le
+	 * validazioni e non prima: uno stato armato sul modello con la reazione NON pianificata accendeva lo
+	 * slot del dock per un'azione che il pass delle reazioni non avrebbe mai trovato, e il giocatore lo
+	 * scopriva a turno risolto.
+	 *
+	 * ⚠️ `INDEX_NONE` e' il DISARMO e non un rifiuto: ha un ramo proprio, perche' passando da quello del
+	 * kit vuoto annunciava «armata la posizione -1».
+	 */
+	void SelectAbilityForCurrent(int32 Index, ERTAbilityRequestSource Source);
+
+	/** Come si nomina l'origine nella traccia. Frase gia' preposizionata: «dal tasto», «dallo slot del dock». */
+	static const TCHAR* DescribeAbilityRequestSource(ERTAbilityRequestSource Source);
 
 	/**
 	 * Arma l'azione con questo `ActionId` nel kit dell'unita' selezionata, cercandone l'indice.
@@ -654,6 +743,18 @@ private:
 public:
 	/** Unita' attualmente selezionata dal giocatore (nullo se nessuna). */
 	class ARTUnit* GetSelectedUnit() const;
+
+	/**
+	 * L'unita' che si sta **guardando**, che puo' non essere quella che si comanda.
+	 *
+	 * ⚠️ **Torna l'unita', non una vista sanificata**, ed e' deliberato: sanificare qui significherebbe
+	 * decidere in due posti quanto si puo' mostrare di un'avversaria. Il filtro appartiene a chi disegna —
+	 * `#613` per il pannello, con la regola di `#2757`: carta si', slot mai, **e nemmeno vuoti**.
+	 * ⛔ Chi la consuma non puo' leggerne il piano ne' il kit solo perche' il puntatore ne restituisce il
+	 * puntatore: quella e' la fuga che il campo separato esiste per non aprire.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
+	class ARTUnit* GetInspectedUnit() const { return InspectedUnit; }
 
 	/**
 	 * Decide cosa fare per un click su una CELLA: waypoint di movimento, scatto, oppure rifiuto col motivo.
@@ -689,6 +790,24 @@ public:
 	void HandleClickOnUnitForTest(class ARTUnit* ClickedUnit) { HandleClickOnUnit(ClickedUnit); }
 
 	/**
+	 * §5 — **applica la riga di matrice** a un click su un'unita': chiede l'esito a
+	 * `URTPointerLibrary::ResolveOutcome` e fa cio' che quell'esito comporta.
+	 *
+	 * ⚠️ **Separata da `OnSelect` perche' la decisione sia misurabile senza un raycast.** Stessa disciplina
+	 * di `HandleClickOnUnitForTest`: cio' che va verificato e' la decisione, non il trace che la precede.
+	 *
+	 * @return vero se il click e' stato consumato — `Inspect` o `Confirm`. Falso per `Select`, `NoOp` e
+	 *         `Blocked`: quei percorsi restano dove erano, e chi chiama prosegue.
+	 */
+	bool DispatchUnitClick(class ARTUnit* ClickedUnit, class ARTUnit* SelectedUnit);
+
+	/** Come sopra, per i test: il nome dichiara che il raycast e' stato saltato. */
+	bool DispatchUnitClickForTest(class ARTUnit* ClickedUnit, class ARTUnit* SelectedUnit)
+	{
+		return DispatchUnitClick(ClickedUnit, SelectedUnit);
+	}
+
+	/**
 	 * Il clic su una CELLA senza passare dal raycast, per i test (`#2518`).
 	 *
 	 * Stessa disciplina di `HandleClickOnUnitForTest`: cio' che va verificato e' la **decisione** — il
@@ -705,7 +824,10 @@ public:
 	 * secondo dei cinque siti che registrano un `ERTPlanningInput::Order` non sarebbe raggiungibile da un
 	 * test, e la sua guardia sarebbe l'unica delle cinque affermata invece che misurata (#971).
 	 */
-	void SelectAbilityForCurrentForTest(int32 Index) { SelectAbilityForCurrent(Index); }
+	void SelectAbilityForCurrentForTest(int32 Index)
+	{
+		SelectAbilityForCurrent(Index, ERTAbilityRequestSource::Hotkey);
+	}
 
 	/**
 	 * Il tasto di lock-in (Spazio) senza passare da un `FInputActionValue`, per i test.

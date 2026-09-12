@@ -1,4 +1,5 @@
-#include "Misc/AutomationTest.h"
+﻿#include "Misc/AutomationTest.h"
+#include "Ability/RTActionData.h"
 #include "Ability/RTActionDef.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -401,6 +402,210 @@ bool FRTIconValidatorTest::RunTest(const FString&)
 		TestTrue(TEXT("catalogo nullo: rifiutato"), URTIconLibrary::ValidateIconCatalog(nullptr).Num() > 0);
 	}
 
+	return true;
+}
+
+/**
+ * La chiave icona di un'azione porta il NOME dell'abilita', e il ripiego sulla core e' una funzione a parte.
+ *
+ * 🔑 **Il dock risponde a «quale abilita' e' questa»**, quindi due voci dello stesso kit devono avere chiavi
+ * diverse: tradurre verso la core le farebbe collassare sullo stesso disegno. La core resta come RIPIEGO,
+ * finche' l'asset proprio non e' disegnato.
+ *
+ * ⛔ Il difetto che questo test ferma e' silenzioso a suite verde: `MakeIconId` prefissa e basta, quindi
+ * `Hero.Muiren.TideGuard` diventerebbe `UI.Icon.Hero.…` — categoria che `D-031` non dichiara. E' cosi' che
+ * e' arrivato in PIE (`#2963`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionIconIdKeepsTheAbilityNameTest,
+	"RefactorTactics.Icons.ActionIconIdKeepsTheAbilityName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionIconIdKeepsTheAbilityNameTest::RunTest(const FString&)
+{
+	// ── Un'azione gia' in una categoria dichiarata non si tocca.
+	{
+		FRTActionDef Def;
+		Def.ActionId = FName(TEXT("Action.Move"));
+		TestEqual(TEXT("un'azione core attraversa entrambe le tassonomie e non si traduce"),
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Action.Move")));
+	}
+
+	// ── `Reaction` E' fra le dodici di D-031: legittima anche se la v0.1 non la disegna.
+	{
+		FRTActionDef Def;
+		Def.ActionId = FName(TEXT("Reaction.HazardEscape"));
+		TestEqual(TEXT("Reaction e' dichiarata: nessuna traduzione"),
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Reaction.HazardEscape")));
+	}
+
+	// ── 🔑 Il cuore: il PERCORSO sopravvive intero, il prefisso `Action.` lo qualifica.
+	//
+	// 🔴 Questo asserto diceva `UI.Icon.Action.Overload` — il solo nome — e passava. Passava contro una
+	// chiave che **nessun asset porta**: il generatore disegna `Action.Hero.Aevik.Overload`, con dentro il
+	// sigillo di Aevik, e il glifo restava irraggiungibile (`#2963`). Un test che pinna la regola sbagliata
+	// non e' piu' debole di uno assente: e' peggio, perche' difende il difetto.
+	{
+		FRTActionDef Def;
+		Def.ActionId = FName(TEXT("Hero.Aevik.Overload"));
+		TestEqual(TEXT("un'abilita' d'eroe tiene eroe E nome sotto Action"),
+			URTIconLibrary::MakeActionIconId(Def.ActionId), FName(TEXT("UI.Icon.Action.Hero.Aevik.Overload")));
+
+		FRTActionDef Gadget;
+		Gadget.ActionId = FName(TEXT("Gadget.Sprinkler"));
+		TestEqual(TEXT("e vale anche per un gadget"),
+			URTIconLibrary::MakeActionIconId(Gadget.ActionId), FName(TEXT("UI.Icon.Action.Gadget.Sprinkler")));
+	}
+
+	// ── ⚠️ **L'eroe e' la parte che distingue, e senza di lui due eroi collasserebbero.** Oggi nessuna
+	// coppia del roster condivide il nome d'abilita', quindi la regola vecchia non sbagliava per collisione:
+	// sbagliava perche' indirizzava un asset inesistente. Ma niente impone quell'unicita' — `ValidateHeroes`
+	// controlla `HeroId` duplicato, non i nomi d'abilita' — e il giorno che due kit avessero entrambi un
+	// `Overload`, la chiave corta li farebbe collassare in silenzio.
+	{
+		FRTActionDef A; FRTActionDef B;
+		A.ActionId = FName(TEXT("Hero.Aevik.Overload"));
+		B.ActionId = FName(TEXT("Hero.Branth.Overload"));
+		TestNotEqual(TEXT("lo stesso nome su due eroi resta due chiavi"),
+			URTIconLibrary::MakeActionIconId(A.ActionId), URTIconLibrary::MakeActionIconId(B.ActionId));
+	}
+
+	// ── ⚠️ Il controllo che rende il test NON vacuo: due abilita' dello stesso kit che derivano dalla STESSA
+	// core restano distinte. Se la traduzione andasse alla core, questo asserto cadrebbe — ed e' il difetto
+	// che la decisione del 2026-09-11 esiste per evitare.
+	{
+		FRTActionDef A; FRTActionDef B;
+		A.ActionId = FName(TEXT("Hero.Muiren.TideGuard"));
+		A.DerivedFromActionId = FName(TEXT("Action.Shield"));
+		B.ActionId = FName(TEXT("Hero.Muiren.SecondoScudo"));
+		B.DerivedFromActionId = FName(TEXT("Action.Shield"));
+		TestNotEqual(TEXT("due abilita' con la STESSA core hanno chiavi preferite DIVERSE"),
+			URTIconLibrary::MakeActionIconId(A.ActionId), URTIconLibrary::MakeActionIconId(B.ActionId));
+		TestEqual(TEXT("ma lo stesso ripiego, che e' il punto del ripiego"),
+			URTIconLibrary::MakeActionIconFallbackId(A), URTIconLibrary::MakeActionIconFallbackId(B));
+	}
+
+	// ── Il ripiego: `DerivedFromActionId` vince su `BaseActionId`, e si vede solo se DIVERGONO.
+	{
+		FRTActionDef Def;
+		Def.ActionId = FName(TEXT("Hero.Test.Entrambi"));
+		Def.BaseActionId = FName(TEXT("Action.BasicAttack"));
+		Def.DerivedFromActionId = FName(TEXT("Action.Charge"));
+		TestEqual(TEXT("il ripiego segue cio' che l'azione FA, non di che e' profilo"),
+			URTIconLibrary::MakeActionIconFallbackId(Def), FName(TEXT("UI.Icon.Action.Charge")));
+	}
+
+	// ── ⛔ Un'abilita' PROPRIA non ha ripiego: l'asset va disegnato, e il vuoto resta visibile.
+	{
+		FRTActionDef Def;
+		Def.ActionId = FName(TEXT("Hero.Aevik.Overload"));
+		TestEqual(TEXT("nessun ripiego per un'abilita' propria"),
+			URTIconLibrary::MakeActionIconFallbackId(Def), FName(NAME_None));
+	}
+
+	// ── Le categorie non si inventano.
+	{
+		TestFalse(TEXT("Hero non e' una delle dodici"),
+			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Hero.Aevik.Overload"))));
+		TestTrue(TEXT("Action si'"), URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Action.Move"))));
+		TestTrue(TEXT("Reaction si'"), URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Reaction.Counter"))));
+		TestFalse(TEXT("un id senza punto non ha categoria"),
+			URTIconLibrary::IsDeclaredIconCategory(FName(TEXT("Move"))));
+	}
+
+	return true;
+}
+
+/**
+ * Ogni abilita' del roster o trova il proprio glifo nel catalogo REALE, o dichiara un ripiego.
+ *
+ * 🔑 **E' il gate che tiene insieme due produttori che non si parlano.** La chiave la compone
+ * `MakeActionIconId` in C++; l'asset lo disegna `generate_hud_assets.py` in Python. Nessuno dei due
+ * legge l'altro, e per questo sono divergiuti in silenzio (`#2963`): il generatore scriveva
+ * `Action.Hero.Aevik.Overload`, il dock chiedeva `Action.Overload`, e venti glifi disegnati erano
+ * irraggiungibili mentre ogni test unitario restava verde.
+ *
+ * ⚠️ **Non confronta due stringhe scritte a mano** — sarebbe la terza copia della stessa regola. Passa
+ * dagli ASSET: se il glifo che il generatore ha prodotto non risponde alla chiave che il C++ compone,
+ * questo test se ne accorge, qualunque delle due parti si sia mossa.
+ *
+ * ⛔ **Un'abilita' senza glifo NON e' un errore qui**: `TideGuard`, `MortarShot` e `PhaseGuard` derivano
+ * da una core e mostrano la sua icona finche' la propria non e' disegnata. E' il ripiego che fa il suo
+ * mestiere. Cio' che questo gate vieta e' il terzo caso: ne' glifo proprio, ne' ripiego — un'icona di
+ * `MissingIcon` a schermo, che e' il difetto che ha aperto la issue.
+ *
+ * ⚠️ **Salta se il catalogo non e' caricabile**, come `RealCatalogCoversRequiredIds`: senza `Content/`
+ * montato l'assenza dell'asset non e' un difetto di chiavi. La riga di premessa distingue i due verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHeroAbilityIconIdsReachTheirAssetTest,
+	"RefactorTactics.IconCatalog.HeroAbilityIconIdsReachTheirAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHeroAbilityIconIdsReachTheirAssetTest::RunTest(const FString&)
+{
+	const URTIconCatalogData* Catalog = LoadObject<URTIconCatalogData>(
+		nullptr, TEXT("/Game/RT/UI/DA_IconCatalog.DA_IconCatalog"));
+
+	if (Catalog == nullptr)
+	{
+		AddWarning(TEXT("`/Game/RT/UI/DA_IconCatalog` non caricabile: chiavi d'eroe NON misurate"));
+		return true;
+	}
+
+	int32 Esaminate = 0;
+	int32 ConGlifoProprio = 0;
+
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		if (Hero == nullptr)
+		{
+			continue;
+		}
+
+		for (const URTActionData* Action : Hero->Actions)
+		{
+			if (Action == nullptr || Action->Def.ActionId.IsNone())
+			{
+				continue;
+			}
+
+			++Esaminate;
+			const FName Preferita = URTIconLibrary::MakeActionIconId(Action->Def.ActionId);
+
+			if (URTIconLibrary::CatalogHasIcon(Catalog, Preferita))
+			{
+				++ConGlifoProprio;
+				continue;
+			}
+
+			// Nessun glifo proprio: allora il ripiego deve esistere ED essere nel catalogo, o a schermo
+			// comparirebbe `MissingIcon`.
+			const FName Ripiego = URTIconLibrary::MakeActionIconFallbackId(Action->Def);
+			if (Ripiego.IsNone())
+			{
+				AddError(FString::Printf(
+					TEXT("`%s`: nessun glifo per `%s` e nessun ripiego dichiarato"),
+					*Action->Def.ActionId.ToString(), *Preferita.ToString()));
+			}
+			else if (!URTIconLibrary::CatalogHasIcon(Catalog, Ripiego))
+			{
+				AddError(FString::Printf(
+					TEXT("`%s`: nessun glifo per `%s`, e il ripiego `%s` non e' nel catalogo"),
+					*Action->Def.ActionId.ToString(), *Preferita.ToString(), *Ripiego.ToString()));
+			}
+		}
+	}
+
+	// ── Anti-vacuita', due volte, perche' questo gate ha due modi di essere verde per niente.
+	//
+	// ⚠️ Un roster vuoto non esaminerebbe nulla e passerebbe. E un roster i cui glifi propri fossero TUTTI
+	// spariti passerebbe lo stesso, per solo ripiego: sarebbe la regressione di `#2963` di nuovo, con ogni
+	// abilita' che mostra l'icona della sua core. La soglia e' deliberatamente bassa — dice «il canale del
+	// glifo proprio funziona», non «quante ne sono disegnate», che e' un totale e invecchia da solo.
+	TestTrue(TEXT("anti-vacuita': il roster dichiara abilita'"), Esaminate > 0);
+	TestTrue(TEXT("anti-vacuita': almeno un'abilita' raggiunge il PROPRIO glifo, non solo il ripiego"),
+		ConGlifoProprio > 0);
+
+	AddInfo(FString::Printf(TEXT("%d abilita' esaminate, %d con glifo proprio"),
+		Esaminate, ConGlifoProprio));
 	return true;
 }
 

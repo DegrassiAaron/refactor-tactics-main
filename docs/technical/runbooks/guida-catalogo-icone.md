@@ -10,10 +10,11 @@
 
 ## 0. Cosa stai per fare, in una riga
 
-Generare 62 PNG, importarli come texture, e scrivere un data asset che lega **61 chiavi semantiche** alle
-loro texture. Le chiavi non le digiti: le deriva `URTIconLibrary::RequiredIconIds()`, che è la stessa
+Generare i PNG, importarli come texture, e scrivere un data asset che lega ogni **chiave semantica** alla
+sua texture. Le chiavi non le digiti: le deriva `URTIconLibrary::RequiredIconIds()`, che è la stessa
 funzione che poi verifica la copertura. È il motivo per cui questa procedura è un commandlet e non una
-sessione di clic.
+sessione di clic — e il motivo per cui **quante** siano non è scritto qui: lo dice il comando, non questa
+pagina.
 
 Prerequisiti: branch di lavoro tuo, UE **5.8.1**, il progetto compila, Python 3 con `cairosvg`, e
 **GTK3 Runtime** — vedi la riga qui sotto, che è la sola parte non ovvia di questa procedura.
@@ -49,35 +50,72 @@ python3 tools/hud-assets/generate_hud_assets.py
 > c'era già. Il messaggio di ripiego del generatore diceva `pip install cairosvg` in **entrambi** i casi:
 > corretto nello stesso passaggio.
 
-Devi leggere esattamente questo:
+Devi leggere una cosa di questa **forma** — `xx` sta per un numero che cambia da solo:
 
 ```text
-121 icone + 9 cornici -> Content/RT/UI/_Generated
+xx icone + yy cornici -> Content/RT/UI/_Generated
 ✅ gate dell'alfabeto: T1 banda libera · T3 riquadro libero · T5 fasi note · T6 aperiodico · T7 fase derivata · T8 colore = fase · T9 palette distinguibile
-✅ copertura completa: 61 chiavi richieste, tutte disegnate
-ℹ️  60 icone fuori dal set richiesto (attese: ability degli eroi + censimento delle sette categorie)
-N PNG rasterizzati
+✅ copertura completa: xx chiavi richieste, tutte disegnate
+ℹ️  xx icone fuori dal set richiesto — <categoria> xx, ...
+xx PNG rasterizzati
 ```
 
-> ⚠️ **I numeri qui sopra sono stati rimisurati il 2026-08-28, e i precedenti erano stantî** — dicevano
-> «66 icone» e «5 fuori dal set» quando erano **121** e **60**, e omettevano del tutto la riga dei gate.
-> Il pack cresce, e un blocco che dice *«devi leggere esattamente questo»* invecchia da solo. **Confronta
-> la forma, non le cifre**: quattro righe di riepilogo più la riga dei gate; le due che contano davvero
-> sono `✅ gate dell'alfabeto` e `✅ copertura completa`. Il conteggio dei PNG dipende da `cairosvg` e
-> non è stato misurato qui — se manca la libreria, quella riga non compare e i gate `T1/T3` si dichiarano
-> «non misurabili» invece di tacere.
+> ⚠️ **Le cifre sono volatili, ed è il motivo per cui non stanno più qui.** Questo blocco ha portato
+> numeri stantî almeno due volte — diceva «66 icone» quando erano 121, poi «61 chiavi» quando erano 73 —
+> e ogni volta l'ha scoperto qualcuno che li confrontava a mano. Nessun gate rimisura un numero scritto in
+> prosa ([`AGENTS.md` §14](../../../AGENTS.md)). **Confronta la forma**: le due righe che contano sono
+> `✅ gate dell'alfabeto` e `✅ copertura completa`; se sono `⛔`, il generatore ti dice cosa manca.
+>
+> Se ti serve il numero corrente, misuralo invece di fidarti di questa pagina:
+>
+> ```bash
+> PYTHONIOENCODING=utf-8 python -c "import sys; sys.path.insert(0,'tools/hud-assets'); \
+>   import generate_hud_assets as g; print(len(g.required_icon_ids()), 'chiavi richieste')"
+> ```
+>
+> ⚠️ La riga dei PNG dipende da `cairosvg`: se manca la libreria non compare, e i gate `T1/T3` si
+> dichiarano «non misurabili» invece di tacere.
+
+> 🔴 **Fino al 2026-09-11 quelle righe non comparivano affatto su console Windows, e questo blocco
+> chiedeva di leggere qualcosa di irraggiungibile** ([#3002](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3002)).
+> `sys.stdout.encoding` vale `cp1252` e ogni riga di verdetto porta un simbolo che quella codifica non
+> ha: il generatore moriva di `UnicodeEncodeError` **dopo** aver scritto tutti i PNG. Gli asset erano
+> corretti, spariva solo ciò che dice com'è andata — compreso il `⛔` del paragrafo qui sotto, quello su
+> cui questo runbook ti dice di fermarti. Ora il verdetto esce sempre: i simboli veri dove il terminale
+> li accetta, sostituiti dove no.
+
+**Se lo lanci da uno script, leggi l'exit code invece dell'output:**
+
+| exit | significato |
+|---|---|
+| `0` | tutto a posto |
+| `1` | chiavi richieste senza icona — il caso in cui questo runbook dice di fermarsi |
+| `2` | gate dell'alfabeto caduti |
+
+> ⚠️ **Non metterlo in pipe se poi leggi `$?`.** `python … | tail` restituisce l'exit code di `tail`,
+> che è `0` quasi sempre: il fallimento scorre via e il comando sembra riuscito. Quando ti serve sia
+> l'output sia l'esito, passa da un file — `python … > gen.log 2>&1; echo $?`.
 
 **Se leggi `⛔ N chiavi richieste SENZA icona`, fermati qui.** Significa che il gioco ha guadagnato una
 chiave da quando il generatore è stato scritto — una azione nuova a catalogo, un tag `Status.` nuovo, un
 eroe in più. Il generatore stampa quali: vanno disegnate prima, non aggirate. Un catalogo con una chiave
 scoperta è rotto in un modo che la validazione non distingue da «qualcuno ha cancellato un'icona».
 
-Le 60 «fuori dal set richiesto» sono attese, e sono **due gruppi**: le **20 ability degli eroi**, che hanno
-una chiave regolare sotto `Action.` ma non stanno nel catalogo generico — `RequiredIconIds()` non le pretende,
-servono alla skill bar e non alla copertura — e le **40 chiavi del censimento delle sette categorie**
+Le «fuori dal set richiesto» sono attese, e sono **due gruppi**: le **ability d'eroe DERIVATE** da una
+core, e le **chiavi del censimento delle sette categorie**
 ([`10-catalogo-sette-categorie.md`](../../research/design/icon/visual-language/10-catalogo-sette-categorie.md)),
 che sono **asset e non chiavi richieste**: `RefactorTactics.IconCatalog.V01CategoriesPopulated` fallisce se una
 di loro comparisse in `RequiredIconIds()`, e la roadmap le assegna a **E25**.
+
+> 🔴 **Questo paragrafo diceva che le ability degli eroi stanno TUTTE fuori dal set richiesto, e dal
+> [#2963](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2963) è falso.** Il criterio non è
+> «sono d'eroe», è **non hanno dove degradare**: un'abilità DERIVATA mostra l'icona della sua core
+> (`TideGuard` quella di `Action.Shield`) e resta fuori; un'abilità **propria** non ha quella via —
+> `MakeActionIconFallbackId` torna `None` — e senza il proprio glifo il dock mostra `MissingIcon`. Quelle
+> sono ora chiavi richieste a pieno titolo, e il commandlet le pretende fail-closed.
+>
+> ⚠️ Se aggiungi un'abilità propria, il suo glifo va disegnato **prima**: non è un ripiego che manca, è
+> la regola che si autoalimenta.
 
 > ⚠️ L'output sta in `Content/RT/UI/_Generated/`, che è **ignorato da git**. È corretto: si rigenera. Non
 > aggiungerlo al repository.
@@ -107,13 +145,14 @@ UnrealEditor-Cmd RefactorTactics.uproject -run=RTBuildIconCatalog -DryRun
 abbia il suo PNG. Attesa:
 
 ```text
-Chiavi richieste: 61
+Chiavi richieste: xx
 Sorgente PNG: .../Content/RT/UI/_Generated/Icons (taglia 48)
-DryRun: 62 PNG presenti, nessun asset scritto. Rilancia senza -DryRun.
+DryRun: yy PNG presenti, nessun asset scritto. Rilancia senza -DryRun.
 ```
 
-62 e non 61 perché c'è anche `MissingIcon`, che non è una chiave del dizionario ma un campo di
-`URTIconCatalogData` — e senza di lei il catalogo **non passa la validazione**.
+🔑 **`yy` è sempre `xx + 1`, e quell'uno è `MissingIcon`**: non è una chiave del dizionario ma un campo di
+`URTIconCatalogData` — e senza di lei il catalogo **non passa la validazione**. È la relazione fra i due
+numeri a dover tornare, non il loro valore.
 
 ---
 
@@ -125,7 +164,7 @@ UnrealEditor-Cmd RefactorTactics.uproject -run=RTBuildIconCatalog
 
 Cosa fa, in ordine:
 
-1. importa i 62 PNG in `/Game/RT/UI/Icons/` con il nome derivato dalla chiave
+1. importa i PNG in `/Game/RT/UI/Icons/` con il nome derivato dalla chiave
    (`UI.Icon.Action.Move` → `RT_UI_Icon_Action_Move`);
 2. imposta ogni texture come icona di HUD — `TEXTUREGROUP_UI`, `UserInterface2D`, niente mipmap, sRGB,
    `NeverStream`. Non è estetica: con la compressione di default i bordi netti prendono artefatti, ed è
@@ -152,7 +191,7 @@ Il commandlet esce con codice **1** se una delle due non è a zero. Non salva un
 
 Apri `DA_IconCatalog` e controlla tre cose, in quest'ordine:
 
-1. `Icons` ha **61** voci;
+1. `Icons` ha una voce per chiave richiesta;
 2. `MissingIcon` è valorizzato (non `None`);
 3. apri due voci a caso e guarda che `Category` combaci col segmento dentro `IconId` — è il confronto che
    `ValidateIconCatalog` fa con `StartsWith`, e l'unico errore che un catalogo compilato a mano fa
@@ -170,7 +209,7 @@ Window → Test Automation → RefactorTactics.IconCatalog
 
 ⚠️ Qui, a differenza degli asset generati, **si committa**: `.gitignore` versiona esplicitamente
 `Content/RT/UI/**/*.uasset` (blocco «ECCEZIONE: UI e mappe di RT SONO versionate»). Entrano
-62 texture e 1 data asset.
+una texture per chiave richiesta, più `MissingIcon`, più 1 data asset.
 
 ⛔ E vale la regola dei binari: **un `.uasset` non si fonde**. Se qualcun altro sta importando icone
 sullo stesso branch, uno dei due lavori va perso senza conflitto visibile. Un import alla volta.
@@ -194,8 +233,8 @@ sullo stesso branch, uno dei due lavori va perso senza conflitto visibile. Un im
 
 Si può: *Content Browser → Add → Miscellaneous → Data Asset → RTIconCatalogData*, poi riempire `Icons`.
 
-Sono **61 righe**, ognuna con chiave, categoria e texture. Sono 61 occasioni di scrivere
-`UI.Icon.Status.Wett` senza che nessuno se ne accorga fino a schermo, e nessuna di quelle 61 righe è una
+Una riga per chiave, ognuna con chiave, categoria e texture. Sono altrettante occasioni di scrivere
+`UI.Icon.Status.Wett` senza che nessuno se ne accorga fino a schermo, e nessuna di quelle righe è una
 decisione: sono tutte derivabili. Se lo fai a mano, fallo per una voce sola — per capire la forma — e poi
 lascia fare il resto al commandlet.
 

@@ -1,4 +1,4 @@
-#include "Player/RTPlayerController.h"
+﻿#include "Player/RTPlayerController.h"
 #include "Player/RTPlayerState.h"
 #include "Camera/RTCameraPawn.h"
 #include "Selection/RTSelectable.h"
@@ -323,6 +323,41 @@ const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
 		EKeys::One,  EKeys::Two,   EKeys::Three, EKeys::Four, EKeys::Five,
 		EKeys::Six,  EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
 	return Hotkeys;
+}
+
+FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
+{
+	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
+	// `SelectAbilityForCurrent(5)`, `OnGeneric1` da `SelectAbilityByIdForCurrent` — quindi la domanda non e'
+	// quale funzioni, ma quale si MOSTRA. Il numero e' legato alla posizione, la lettera all'`ActionId`, e la
+	// posizione cambia col kit dell'eroe: *«una barra che rinumerasse le generiche insegnerebbe una mappa che
+	// scade»*.
+	//
+	// ⛔ **Una etichetta sola per slot**: il numero resta funzionante senza essere mostrato. E' l'estensione
+	// alla presentazione della disciplina che `PlayerInput.GenericHotkeyResolvesByNameNotPosition` pinna gia'
+	// sull'input.
+	if (!ActionId.IsNone())
+	{
+		for (const TPair<FName, FKey>& Generica : GenericHotkeys())
+		{
+			if (Generica.Key == ActionId)
+			{
+				return Generica.Value.GetDisplayName(/*bLongDisplayName=*/ false);
+			}
+		}
+	}
+
+
+	// 🔑 **Si INTERROGA la tabella, e il vuoto fuori range e' la meta' che conta.** Un `Index + 1` risponde
+	// a qualunque indice — anche a quelli che nessun tasto raggiunge — e quella e' esattamente la risposta
+	// che non esiste. Qui `IsValidIndex` e' il confine, ed e' lo stesso della bindatura.
+	if (!AbilityHotkeys().IsValidIndex(KitIndex))
+	{
+		return FText::GetEmpty();
+	}
+
+	// `bLongDisplayName = false`: si vuole cio' che sta su uno slot largo un'icona — `0`, non `Zero`.
+	return AbilityHotkeys()[KitIndex].GetDisplayName(/*bLongDisplayName=*/ false);
 }
 
 const TArray<TPair<FName, FKey>>& ARTPlayerController::GenericHotkeys()
@@ -1315,10 +1350,9 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		SelectedUnit = nullptr;
 	}
 
-	// Click su un'unita' nemica, con una nostra unita' selezionata -> pianifica l'abilita' attiva.
-	if (ClickedUnit && SelectedUnit && ClickedUnit != SelectedUnit && ClickedUnit->TeamId != SelectedUnit->TeamId)
+	// §5 — la riga di matrice decide, e la decisione e' ESTRAIBILE dal raycast: vedi `DispatchUnitClick`.
+	if (DispatchUnitClick(ClickedUnit, SelectedUnit))
 	{
-		HandleClickOnUnit(ClickedUnit);
 		return;
 	}
 
@@ -1499,6 +1533,59 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 		// Con il piano arrivano anche le zone: dove puo' arrivare e, se ha gia' un bersaglio, chi colpisce.
 		RefreshPlanningPreview(GetWorld(), NewUnit);
 	}
+}
+
+bool ARTPlayerController::DispatchUnitClick(ARTUnit* ClickedUnit, ARTUnit* SelectedUnit)
+{
+	// 🔑 **La riga di matrice la risponde una funzione PURA**, `URTPointerLibrary::ResolveOutcome`: il
+	// contesto decide, non una cascata di `if` sul tipo di Actor colpito — che e' una voce della DoD di
+	// `#705`. E' la casella ratificata il 2026-09-11: fuori da `Targeting` un'unita' che non comandi si
+	// **ispeziona** invece di non fare niente.
+	//
+	// ⚠️ **Sta qui e non dentro `OnSelect` perche' la decisione dev'essere misurabile senza un raycast**:
+	// `GetHitResultUnderCursor` non esiste in un test headless. E' la stessa disciplina di
+	// `HandleClickOnUnitForTest` — *«cio' che va verificato e' la decisione»*.
+	//
+	// ⚠️ `IsKnownToObserver()` e non una seconda vista di conoscenza: il velo ha **un** produttore
+	// (`ARTHUD::UpdateObserverVeil`) e chi consuma legge quel flag. Ricostruirla qui sarebbe la seconda
+	// risposta che puo' divergere, ed e' il motivo per cui gli altri consumatori di questo file la leggono
+	// cosi'.
+	//
+	// @return vero se il click e' stato consumato: chi chiama esce.
+	const bool bClickedCommandable = ClickedUnit && URTCombatLibrary::CanPlayerControlUnitInGroup(
+		ClickedUnit->TeamId, ClickedUnit->ControlGroup, ARTPlayerState::TeamIdOf(this),
+		ARTPlayerState::ControlGroupOf(this), ClickedUnit->bIsBotControlled);
+	const ERTPointerOutcome Outcome = URTPointerLibrary::ResolveOutcome(
+		GetPointerContext(), ClickedUnit != nullptr, bClickedCommandable,
+		ClickedUnit != nullptr && ClickedUnit->IsKnownToObserver());
+
+	// `Inspect` — il soggetto ISPEZIONATO, che non e' il soggetto comandato.
+	//
+	// ⛔ **Non si scrive `SelectedActor`, e non e' una sottigliezza.** Da quel campo passa
+	// `GetSelectedUnit()`, che alimenta `GetSlots()` — il piano del turno — e `BuildAbilityCooldowns`, cioe'
+	// il dock: puntarli su un'avversaria mostrerebbe il suo piano e il suo kit. Sono due canali della stessa
+	// fuga, e il secondo non era nemmeno nel contratto di comportamento finche' non e' stato misurato.
+	// ⚠️ E la selezione **non si tocca**: ispezionare non costa l'unita' comandata ne' l'azione armata.
+	if (Outcome == ERTPointerOutcome::Inspect)
+	{
+		InspectedUnit = ClickedUnit;
+		return true;
+	}
+
+	// `Confirm` — bersagliamento: il comportamento di prima, invariato. E' la meta' della decisione del
+	// 2026-09-11 che dice cosa NON cambia.
+	// ⚠️ La condizione tiene anche `SelectedUnit && ClickedUnit != SelectedUnit`: `ResolveOutcome` sa del
+	// contesto, non di **chi** sia selezionato adesso, e `HandleClickOnUnit` esce da sola senza una
+	// selezione. Tenerla qui rende esplicito che l'esito non basta, invece di fidarsi di quell'uscita.
+	if (Outcome == ERTPointerOutcome::Confirm && SelectedUnit && ClickedUnit != SelectedUnit)
+	{
+		HandleClickOnUnit(ClickedUnit);
+		return true;
+	}
+
+	// `Select`, `NoOp`, `Blocked`: il click non e' consumato qui. La selezione e i rifiuti restano dove
+	// erano — spostarli sarebbe un secondo cambiamento travestito da riordino.
+	return false;
 }
 
 void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
@@ -2251,28 +2338,41 @@ void ARTPlayerController::ArmKitAbility(int32 KitIndex)
 		// ⛔ Il disarmo NON scrive `SelectedAbilityIndex` da qui: passa dalla stessa funzione, quindi
 		// eredita le guardie su input bloccato e pianificazione inerte. Un click che disarmasse durante
 		// la risoluzione sarebbe un secondo canale con regole proprie.
-		SelectAbilityForCurrent(INDEX_NONE);
+		SelectAbilityForCurrent(INDEX_NONE, ERTAbilityRequestSource::Dock);
 		return;
 	}
 
-	SelectAbilityForCurrent(KitIndex);
+	SelectAbilityForCurrent(KitIndex, ERTAbilityRequestSource::Dock);
 }
 
-void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
+const TCHAR* ARTPlayerController::DescribeAbilityRequestSource(ERTAbilityRequestSource Source)
 {
+	// Frase intera e non una parola sola: «slot del dock» dentro «dal %s» darebbe «dal slot del dock».
+	return Source == ERTAbilityRequestSource::Dock ? TEXT("dallo slot del dock") : TEXT("dal tasto");
+}
+
+void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequestSource Source)
+{
+	// Ogni uscita di questa funzione nomina la STESSA richiesta e la stessa origine. Con `#2826` i percorsi
+	// che arrivano qui sono due, e «ho premuto e non e' successo niente» ha due cause possibili: un log che
+	// non dicesse da quale dei due canali viene la riga costringerebbe a indovinare.
+	const FString Richiesta = (Index == INDEX_NONE)
+		? FString::Printf(TEXT("richiesta di disarmo %s"), DescribeAbilityRequestSource(Source))
+		: FString::Printf(TEXT("richiesta di armare la posizione %d %s"),
+			Index, DescribeAbilityRequestSource(Source));
+
 	// Le `OnAbility*` sono one-liner che passano tutte di qui: la guardia sta nel punto comune invece che
 	// ripetuta dieci volte, cosi' un tasto abilita' in piu' la eredita per costruzione.
-	// 🔴 **Le tre uscite qui sotto erano MUTE, e la seduta `U49` del 2026-09-10 ha pagato il conto.**
-	// Un tasto abilita' che non produce effetto usciva da una di queste tre porte senza lasciare traccia:
-	// a schermo e nel log, «premo 1 e non succede niente» era indistinguibile da «l'azione e' armata ma il
-	// dock non la mostra». Sono due difetti di owner diversi, e senza queste righe si sceglieva a caso.
 	//
-	// ⚠️ `Display` e non `Warning`: nessuna delle tre e' un errore. Rifiutare l'input durante la
+	// ⚠️ `Display` e non `Warning`: nessuna di queste uscite e' un errore. Rifiutare l'input durante la
 	// risoluzione e' il comportamento corretto — cio' che mancava era dirlo.
+	//
+	// 🔴 **E la verbosita' e' UNA per tutto il percorso** (`#2986`). Le tre guardie qui sotto loggavano a
+	// `Display` e i rami di esito a `Log`: nella stessa indagine meta' delle uscite compariva col filtro di
+	// default e meta' no, che e' il modo piu' silenzioso in cui un log sembra completo senza esserlo.
 	if (IsGameplayInputBlocked())
 	{
-		UE_LOG(LogRT, Display,
-			TEXT("Hotkey abilita' %d ignorata: input di gameplay bloccato"), Index + 1);
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: input di gameplay bloccato"), *Richiesta);
 		return;
 	}
 
@@ -2281,37 +2381,79 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	if (IsPlanningInputInert())
 	{
 		UE_LOG(LogRT, Display,
-			TEXT("Hotkey abilita' %d ignorata: input di planning inerte (autobattle, o fase che non "
-				 "accetta ordini)"), Index + 1);
+			TEXT("[RT] %s ignorata: input di planning inerte (autobattle, o fase che non accetta ordini)"),
+			*Richiesta);
 		return;
 	}
 
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
-		UE_LOG(LogRT, Display,
-			TEXT("Hotkey abilita' %d ignorata: nessuna unita' selezionata"), Index + 1);
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: nessuna unita' selezionata"), *Richiesta);
 		return;
 	}
-	Unit->SelectAbility(Index);
 
-	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione.** Se compare, l'azione e'
-	// stata armata sul modello: cio' che resta da spiegare e' perche' il dock non lo mostri, ed e' un
-	// difetto di presentazione (`#2764`), non di input.
-	UE_LOG(LogRT, Display,
-		TEXT("Hotkey abilita' %d: armata la posizione %d su '%s'"),
-		Index + 1, Index, *Unit->GetName());
-	// Qui e non "in fondo alla funzione": sotto ci sono due return anticipati e il ramo bSelfTarget,
-	// quindi questo e' l'unico punto attraversato da ogni pressione di tasto che produca un effetto.
+	// ⚠️ **Il pacing resta QUI**, e la posizione e' una scelta di insieme e non un residuo del riordino:
+	// registra le pressioni che hanno superato le tre guardie e raggiunto un'unita' — le stesse di prima.
+	// Spostarlo sotto le validazioni cambierebbe QUALI input contano come decisione di turno (#971), che e'
+	// una regola di pacing e non una diagnostica.
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
 	}
+
+	// 🔑 **Il DISARMO ha un ramo proprio, e prima non ce l'aveva.** `SelectAbility` dichiara `INDEX_NONE` un
+	// ingresso legittimo — e' il ritorno al neutro di [D-128] con cui la porta di `#2826` spegne uno slot —
+	// ma qui cadeva in quello del kit vuoto: la riga di successo aveva gia' annunciato «armata la posizione
+	// -1» e l'uscita vera era muta.
+	if (Index == INDEX_NONE)
+	{
+		Unit->SelectAbility(INDEX_NONE);
+		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata"), *Richiesta, *Unit->GetName());
+		return;
+	}
+
+	// 🔴 **La posizione vuota si valida PRIMA di scrivere il modello.** Con la vecchia sequenza la riga di
+	// successo era gia' stata emessa e questo `return` era muto: per una posizione che il kit non copre il
+	// log diceva «armata» e non era vero. La diagnosi che quella riga prometteva — *«se compare, l'azione e'
+	// sul modello»* — diventava falsa nel solo caso in cui serviva, e mandava a cercare il difetto in
+	// presentazione.
 	const URTActionData* Ability = Unit->GetAbility(Index);
 	if (!Ability)
 	{
+		UE_LOG(LogRT, Display,
+			TEXT("[RT] %s ignorata: quella posizione del kit di '%s' e' vuota, non c'e' azione da armare"),
+			*Richiesta, *Unit->GetName());
 		return;
 	}
+
+	// 🔴 **Un rifiuto non lascia il modello ad affermare il contrario** (`#2986`). `SelectAbility` era gia'
+	// stato chiamato quando questi rami rifiutavano: `SelectedAbilityIndex` restava scritto e il dock
+	// accendeva lo slot, mentre `PlannedReactionAbility` non veniva mai posato. Il giocatore vedeva armato
+	// cio' che non lo era, e lo scopriva a turno risolto — che e' testualmente il difetto contro cui il log
+	// del rifiuto era stato scritto, applicato al solo log.
+	//
+	// ⚠️ **Il rifiuto in se' resta corretto e non cambia**: una reazione o un supporto in ricarica non si
+	// armano. A essere sbagliato era lo stato lasciato indietro, non la decisione.
+	//
+	// ⛔ E la guardia copre le DUE forme che gia' interrogavano `CanUseAbility`, non una terza: un'azione
+	// attiva in ricarica si arma ancora e viene fermata dal targeting, com'era. Cambiarlo sarebbe una regola
+	// di gioco nuova, e questa issue non ne introduce.
+	const bool bReazione = Ability->Def.Slot == ERTActionSlot::Reaction;
+	if ((bReazione || Ability->bSelfTarget) && !Unit->CanUseAbility(Index))
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] %s rifiutata: %s non pronta, nulla e' stato armato"),
+			*Richiesta, *Ability->DisplayName.ToString());
+		return;
+	}
+
+	Unit->SelectAbility(Index);
+
+	// 🔑 **La riga che rende la diagnosi POSITIVA invece che per esclusione — e ora non mente.** Se compare,
+	// l'azione e' stata armata sul modello: cio' che resta da spiegare e' perche' il dock non la mostri, ed
+	// e' un difetto di presentazione (`#2764`), non di input. Sta qui e non piu' in alto per la ragione che
+	// la rende utile: sopra di lei non c'e' piu' nessun ramo capace di rifiutare.
+	UE_LOG(LogRT, Display, TEXT("[RT] %s: armata su '%s'"), *Richiesta, *Unit->GetName());
 
 	// REAZIONE (`#601`): slot proprio, e va dichiarata prima degli altri due rami. Senza questo ramo una
 	// reazione selezionata finiva nello slot PRINCIPALE — dove il pass delle reazioni non la guarda mai — o
@@ -2320,39 +2462,26 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 	//
 	// E' l'anello che mancava alla catena di E5: il campo, le regole, i cinque punti di valutazione e i sette
 	// moduli esistevano, ma `PlannedReactionAbility` lo scrivevano **solo i test**.
-	if (Ability->Def.Slot == ERTActionSlot::Reaction)
+	if (bReazione)
 	{
-		if (!Unit->CanUseAbility(Index))
-		{
-			// Il rifiuto e' DETTO: una reazione in ricarica che sparisse in silenzio lascerebbe il giocatore
-			// convinto di averla armata, e la scoperta arriverebbe a turno risolto.
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta: reazione non armata"), *Ability->DisplayName.ToString());
-			return;
-		}
 		Unit->PlannedReactionAbility = Index;
-		UE_LOG(LogRT, Log, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
+		UE_LOG(LogRT, Display, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
 	}
 
 	if (Ability->bSelfTarget)
 	{
-		// Supporto: si pianifica immediatamente su se stessi (nessun bersaglio da cliccare).
-		if (Unit->CanUseAbility(Index))
-		{
-			Unit->PlannedAbilityIndex = Index;
-			// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
-			Unit->ClearPlannedAttack();
-			UE_LOG(LogRT, Log, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
-		}
-		else
-		{
-			UE_LOG(LogRT, Log, TEXT("[RT] %s non pronta"), *Ability->DisplayName.ToString());
-		}
+		// Supporto: si pianifica immediatamente su se stessi (nessun bersaglio da cliccare). La ricarica
+		// l'ha gia' verificata la guardia comune qui sopra, ed e' il punto: prima il controllo stava qui, e
+		// il suo ramo negativo usciva lasciando l'azione selezionata sul modello.
+		Unit->PlannedAbilityIndex = Index;
+		// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
+		Unit->ClearPlannedAttack();
+		UE_LOG(LogRT, Display, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
+		return;
 	}
-	else
-	{
-		UE_LOG(LogRT, Log, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
-	}
+
+	UE_LOG(LogRT, Display, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
 }
 
 // Selezionano per INDICE, non per azione. Uno scatto e' un'abilita' di fase
@@ -2367,16 +2496,16 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index)
 // esatto contro cui la riga qui sopra metteva in guardia. Le azioni di fase `FastMovement` si nominano:
 // `Hero.Ivrin.PassingBlade` la dichiara direttamente, `Hero.Muiren.FluidTrail` e `Hero.Branth.Ram` la
 // ereditano dai core `Action.Dodge` e `Action.Charge` via `MakeHeroActionFromCore`.
-void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0); }
-void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1); }
-void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2); }
-void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { SelectAbilityForCurrent(3); }
-void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { SelectAbilityForCurrent(4); }
-void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { SelectAbilityForCurrent(5); }
-void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { SelectAbilityForCurrent(6); }
-void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { SelectAbilityForCurrent(7); }
-void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { SelectAbilityForCurrent(8); }
-void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { SelectAbilityForCurrent(9); }
+void ARTPlayerController::OnAbility1(const FInputActionValue& Value)  { SelectAbilityForCurrent(0, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility2(const FInputActionValue& Value)  { SelectAbilityForCurrent(1, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility3(const FInputActionValue& Value)  { SelectAbilityForCurrent(2, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility4(const FInputActionValue& Value)  { SelectAbilityForCurrent(3, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility5(const FInputActionValue& Value)  { SelectAbilityForCurrent(4, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility6(const FInputActionValue& Value)  { SelectAbilityForCurrent(5, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility7(const FInputActionValue& Value)  { SelectAbilityForCurrent(6, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility8(const FInputActionValue& Value)  { SelectAbilityForCurrent(7, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility9(const FInputActionValue& Value)  { SelectAbilityForCurrent(8, ERTAbilityRequestSource::Hotkey); }
+void ARTPlayerController::OnAbility10(const FInputActionValue& Value) { SelectAbilityForCurrent(9, ERTAbilityRequestSource::Hotkey); }
 
 // Le generiche: il numero qui e' la riga di `GenericHotkeys()`, non una posizione del kit.
 void ARTPlayerController::OnGeneric1(const FInputActionValue& Value) { SelectGenericSlot(0); }
@@ -2409,7 +2538,9 @@ void ARTPlayerController::SelectAbilityByIdForCurrent(const FName& ActionId)
 		const URTActionData* Ability = Unit->GetAbility(i);
 		if (Ability && Ability->Def.ActionId == ActionId)
 		{
-			SelectAbilityForCurrent(i);
+			// Le cinque generiche arrivano da `SelectGenericSlot`, cioe' da `G B C X Z`: l'origine e' la
+			// tastiera anche se il canale e' un altro.
+			SelectAbilityForCurrent(i, ERTAbilityRequestSource::Hotkey);
 			return;
 		}
 	}

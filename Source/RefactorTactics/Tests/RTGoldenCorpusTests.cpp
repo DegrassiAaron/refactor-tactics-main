@@ -349,11 +349,21 @@ namespace
 	/**
 	 * Le partite di riferimento. **Poche e deterministiche**: un corpus lento non viene eseguito.
 	 *
-	 * ⚠️ Ogni voce e' qui perche' porta una CATEGORIA che le altre non portano — misurato, non scelto:
+	 * ⚠️ Ogni voce e' qui perche' porta una CATEGORIA che le altre non portano, **oppure un CAMMINO che
+	 * cambia la FORMA delle voci di una categoria che il corpus ha gia'** — misurato, non scelto:
 	 * `GoldenCorpusCoversItsCategories` stampa la copertura di ciascuna. Tre candidati sono stati provati e
 	 * scartati (`Combat.BasicAttack`, `Spec.Environment.ElectricPropagation`,
 	 * `Spec.ActionEconomy.CooldownBlocksWithSlotFree`): producono solo `Combat` e `Move`, che il corpus aveva
 	 * gia'. Aggiungere tracce che non allargano la rete costa tempo di esecuzione e non compra niente.
+	 *
+	 * 🔴 **La seconda meta' del criterio e' entrata con [D-395], e la prima da sola era un PROXY che
+	 * [D-381] ha rotto.** Finche' ogni scenario girava su terreno a costo `1` la categoria era un buon
+	 * indicatore del cammino percorso: un arco durava un micro-step e basta. Con la durata variabile esiste un
+	 * cammino che emette voci `Move` con una sequenza di `MicroStepIndex` che nessun'altra traccia produce
+	 * — e il corpus non se ne accorgeva. ⚠️ **La differenza dai tre candidati scartati resta netta, o
+	 * l'emendamento sarebbe una licenza**: quelli ripetevano voci identiche NELLA FORMA a quelle che c'erano
+	 * gia'; un cammino nuovo no. Chi invoca la seconda meta' del criterio dica **quale** cammino, e perche'
+	 * nessuna traccia esistente lo percorre.
 	 *
 	 *   Movement.Basic / Movement.Collision      Move          (le due storiche)
 	 *   Combat.CounterStrikesBack                Combat, Facing, Reaction, Status
@@ -478,6 +488,28 @@ namespace
 	 */
 	const TCHAR* GoldenScenarioIds[] = {
 		TEXT("Movement.Collision"), TEXT("Movement.Basic"),
+		// ➕ **`Movement.CostlyCorridor` entra con [D-395], ed e' la prima voce ammessa dalla SECONDA meta'
+		// del criterio**: non porta una categoria nuova — le sue voci sono `Move`, che il corpus ha gia' due
+		// volte — ma e' l'unico scenario del corpus che cammina su terreno costoso.
+		//
+		// 🔑 **La ragione e' misurata, e la misura e' il merge di `#2940`.** Quel cambiamento ha reso la
+		// durata di un passo funzione del costo pagato, e il corpus e' rimasto verde con **zero** tracce
+		// spostate. Non perche' il cambiamento fosse gratuito: `grep` su tutto `Scenarios/` dava **un solo**
+		// file che dichiarasse `moveCost` (`AutoBattle/Obstacles.json`), e non era fra i golden. ∴ il corpus
+		// era verde perche' **cieco**, e un corpus cieco su un cammino e' indistinguibile da uno che lo
+		// protegge.
+		//
+		// ⚠️ **E non e' ridondante con `Scenario.CostlyCorridorSeesTheDuration`**, che e' il suo oracolo
+		// dedicato e provato per mutazione: quel test guarda le **celle finali**. Una deriva che sposti la
+		// numerazione dei micro-step senza cambiare dove finiscono le unita' gli passa sotto — ed e' proprio
+		// quella che conta, perche' `FRTTurnLogEntry::MicroStepIndex` e' serializzato
+		// (`ERTTurnLogFormatVersion::WithMicroStep`) e alimenta `FRTReactionOpportunityKey`.
+		//
+		// ⛔ **Non muove la soglia di `GoldenCorpusCoversItsCategories`**: non porta categorie nuove, e chi
+		// legge questa nota non la alzi. Un turno solo, ∴ un solo `.rttl`; `repeatCount: 3` e' compatibile
+		// perche' l'aggregato prende le tracce della PRIMA run (`RTScenarioRunner.cpp:396`) e le ripetizioni
+		// restano un controllo di determinismo in piu'.
+		TEXT("Movement.CostlyCorridor"),
 		TEXT("Combat.CounterStrikesBack"),
 		TEXT("Spec.Environment.WaterQuenchesFire"),
 		TEXT("Spec.Predictive.WhiffOnEmptyCell"),

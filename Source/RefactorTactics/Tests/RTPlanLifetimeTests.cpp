@@ -151,6 +151,10 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	const int32 ReactionIdx = FindAbilityIndexBySlot(Attacker, ERTActionSlot::Reaction);
 
 	// Si dichiara TUTTO cio' che un giocatore puo' dichiarare in un turno.
+	// ⛔ **L'armamento va acceso, o l'asserzione su [D-397] §5 in fondo sarebbe VACUA**: `SelectedAbilityIndex`
+	// nasce gia' `INDEX_NONE`, quindi senza questa riga «torna al neutro» sarebbe vero senza che il Cleanup
+	// faccia niente.
+	Attacker->SelectAbility(MainIdx);
 	Attacker->PlannedAbilityIndex   = MainIdx;
 	Attacker->PlannedAttackTarget   = Target;
 	Attacker->PlannedReactionAbility = ReactionIdx;
@@ -200,6 +204,18 @@ bool FRTPlansDoNotSurviveTheTurnTest::RunTest(const FString&)
 	// dalla porta di servizio.
 	TestFalse(TEXT("la condizione della reazione non sopravvive"),
 		Attacker->PlannedReactionCondition.IsDeclared());
+
+	// 🔴 **E l'ARMAMENTO torna al neutro, per [D-397] §5.** Non e' parte del piano — `SelectedAbilityIndex`
+	// dice *«cosa sto per fare»*, non *«cosa ho dichiarato»* — ma muore nello stesso punto e per la stessa
+	// ragione: *«uno slot armato dopo che il piano e' stato consumato afferma una scelta che non esiste
+	// piu'»*. Con `bPlanned` (`#2988`) la contraddizione diventa visibile a schermo: **armato senza
+	// pianificato**.
+	//
+	// ⚠️ **Il cambio di UNITA' invece non disarma, e la decisione lo conferma** invece di correggerlo:
+	// l'armamento e' stato dell'unita', e ritrovarcelo e' la conseguenza del modello. E' pinnato da
+	// `HudViewModel.ArmingIsPerUnitAndReturnsToNeutralAtCleanup`, che prova le due meta' insieme.
+	TestEqual(TEXT("l'armamento torna al neutro di D-128 nel Cleanup"),
+		Attacker->SelectedAbilityIndex, static_cast<int32>(INDEX_NONE));
 
 	// Il movimento si riallinea da solo (`PlaceOnCell`): qui si verifica che sia davvero cosi', perche' e'
 	// la meta' dell'invariante che nessuno aveva mai controllato.

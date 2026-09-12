@@ -2026,4 +2026,76 @@ bool FRTVeilEveryFamilyDisappearsTest::RunTest(const FString&)
 }
 
 
+/**
+ * Le AREE d'anteprima non aggiungono un Actor ne' un component PER CELLA (`#1941`, casella 6).
+ *
+ * 🔑 **L'oracolo e' che il delta NON SCALI col numero di celle, non che valga zero.** Disegnare passa da
+ * `DrawDebugLine`, che accumula nel line batcher del mondo: quello puo' costare un Actor di servizio, una
+ * volta sola e indipendente dalla board. Un test che pretendesse zero misurerebbe la plumbing di Unreal e
+ * uscirebbe rosso per la ragione sbagliata; un test che confronta **37 celle contro 127** vede solo cio'
+ * che scala — che e' precisamente la violazione da intercettare.
+ *
+ * ⚠️ Si esercita il percorso vero: `TickActor` e' cio' che chiama `DrawPlanningPreview`, ed e' l'idioma
+ * gia' usato in questo file.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAreaOverlayPreviewAddsNoActorPerCellTest,
+	"RefactorTactics.AreaOverlay.PreviewAddsNoActorPerCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAreaOverlayPreviewAddsNoActorPerCellTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius=*/ 6));
+	if (!Actor)
+	{
+		AddError(TEXT("actor non spawnato"));
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	auto ContaAttori = [World]()
+	{
+		int32 N = 0;
+		for (TActorIterator<AActor> It(World); It; ++It) { ++N; }
+		return N;
+	};
+	auto DisegnaEMisura = [&](int32 Radius)
+	{
+		const TArray<FRTCellId> Celle = URTHexLibrary::HexArea(FRTCellId(0, 0, 0), Radius);
+		const int32 Prima = ContaAttori();
+		TArray<UActorComponent*> CompPrima;
+		Actor->GetComponents(CompPrima);
+
+		Actor->SetPreviewReachableCells(Celle);
+		Actor->SetPreviewHitCells(Celle, TArray<FRTCellId>());
+		Actor->SetPreviewPath(Celle);
+		Actor->TickActor(0.016f, LEVELTICK_All, Actor->PrimaryActorTick);
+
+		TArray<UActorComponent*> CompDopo;
+		Actor->GetComponents(CompDopo);
+		return TTuple<int32, int32, int32>(ContaAttori() - Prima, CompDopo.Num() - CompPrima.Num(), Celle.Num());
+	};
+
+	const auto Piccola = DisegnaEMisura(/*Radius=*/ 3);   // 37 celle
+	const auto Grande  = DisegnaEMisura(/*Radius=*/ 6);   // 127 celle
+
+	// La premessa: le due aree devono davvero differire, altrimenti il confronto non discrimina nulla.
+	if (!TestTrue(TEXT("le due aree hanno cardinalita' diverse"), Grande.Get<2>() > Piccola.Get<2>() * 3))
+	{
+		DestroyMapActorWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("gli actor aggiunti non scalano col numero di celle"),
+		Grande.Get<0>(), Piccola.Get<0>());
+	TestEqual(TEXT("e nemmeno i component"), Grande.Get<1>(), Piccola.Get<1>());
+
+	// Anti-vacuita': se le aree non fossero arrivate all'actor, i due delta sarebbero uguali per la
+	// ragione sbagliata e il test resterebbe verde col difetto.
+	TestEqual(TEXT("controllo positivo: l'ultima area e' davvero arrivata"),
+		Actor->NumPreviewReachableCells(), Grande.Get<2>());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

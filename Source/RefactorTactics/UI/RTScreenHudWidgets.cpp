@@ -1,4 +1,4 @@
-#include "UI/RTScreenHudWidgets.h"
+﻿#include "UI/RTScreenHudWidgets.h"
 
 #include "RefactorTactics.h"
 #include "Player/RTPlayerController.h"
@@ -21,6 +21,7 @@
 // bisogno» — resta soddisfatta a vuoto. Verificato compilando questo file FUORI dal blob unity.
 #include "Unit/RTUnit.h"
 #include "UI/RTIconLibrary.h"
+#include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "Kismet/GameplayStatics.h"
 #include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
@@ -167,6 +168,11 @@ void URTScreenHudWidgetBase::SetSelectedUnitForTest(ARTUnit* InUnit)
 	SelectedUnitForTest = InUnit;
 }
 
+void URTScreenHudWidgetBase::SetInspectedUnitForTest(ARTUnit* InUnit)
+{
+	InspectedUnitForTest = InUnit;
+}
+
 void URTScreenHudWidgetBase::SetReactionWindowForTest(URTReactionWindowViewModel* InViewModel)
 {
 	ReactionWindow = InViewModel;
@@ -197,6 +203,18 @@ const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
 
 	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer());
 	return PC ? PC->GetSelectedUnit() : nullptr;
+}
+
+const ARTUnit* URTScreenHudWidgetBase::GetInspectedUnit() const
+{
+	// Stessa forma della sorella, e per la stessa ragione headless: vedi `SetInspectedUnitForTest`.
+	if (const ARTUnit* Injected = InspectedUnitForTest.Get())
+	{
+		return Injected;
+	}
+
+	const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayer());
+	return PC ? PC->GetInspectedUnit() : nullptr;
 }
 
 const URTIconCatalogData* URTScreenHudWidgetBase::GetIconCatalog() const
@@ -242,6 +260,12 @@ TArray<FRTPlayerEventLineView> URTPlayerEventLogWidget::GetFeed() const
 	// resta una per voce dentro `Project` — non due proiezioni concatenate, che produrrebbero doppioni.
 	return URTHudViewModel::BuildPlayerEventFeed(GetTurnManager(), ResolveObserverTeamIds());
 }
+
+TArray<FString> URTPlayerEventLogWidget::DescribeFeedState() const
+{
+	return URTHudViewModel::DescribeFeedState(GetTurnManager(), ResolveObserverTeamIds());
+}
+
 
 FRTMatchHeaderView URTTurnHeaderWidget::GetHeader() const
 {
@@ -308,14 +332,53 @@ bool URTSelectedUnitPanelWidget::HasSelection() const
 	return GetSelectedUnit() != nullptr;
 }
 
+bool URTSelectedUnitPanelWidget::HasSubject() const
+{
+	// Il pannello ha qualcosa da mostrare se comanda un'unita' **oppure** ne sta guardando una.
+	return GetSubject() != nullptr;
+}
+
+const ARTUnit* URTSelectedUnitPanelWidget::GetSubject() const
+{
+	// 🔑 **Il comando VINCE sull'ispezione, e l'ordine e' la regola.** Se l'ispezione vincesse, guardare un
+	// nemico nasconderebbe l'unita' che stai comandando — cioe' ispezionare costerebbe qualcosa, che e'
+	// esattamente cio' che la decisione del 2026-09-11 ha escluso dicendo *«convive»*.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return Commanded;
+	}
+	return GetInspectedUnit();
+}
+
 FRTUnitCardView URTSelectedUnitPanelWidget::GetCard() const
 {
-	return URTHudViewModel::BuildUnitCard(GetSelectedUnit(), GetPlayerTeamId());
+	// La carta segue il soggetto, comandato o ispezionato: identita', salute e scudo sono cio' che
+	// `ARTHUD::ShouldDrawUnitOverlay` gia' autorizza sopra la testa di un'unita' osservata. `bIsAlly` lo
+	// deriva `BuildUnitCard` dalla squadra, quindi chi disegna sa gia' di chi sta guardando la carta.
+	return URTHudViewModel::BuildUnitCard(GetSubject(), GetPlayerTeamId());
 }
 
 FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 {
-	return URTHudViewModel::BuildUnitSlots(GetSelectedUnit());
+	// 🔴 **Gli slot seguono il COMANDO, non il soggetto — e questa e' la barriera di privacy.**
+	//
+	// `FRTUnitSlotsView` e' `{ Movement, Main, Reaction }`: il **piano del turno**. Costruirlo per un'unita'
+	// ispezionata significherebbe consegnare al giocatore il piano avversario, ed e' la ragione per cui
+	// `ARTPlayerController` tiene `InspectedUnit` separato da `SelectedActor` invece di riusarne uno solo.
+	//
+	// ⛔ **E non si costruisce-e-poi-nasconde**: per un soggetto non comandato `BuildUnitSlots` **non viene
+	// chiamata**. Il dato non lascia il core, quindi non c'e' niente da filtrare a valle e nessun filtro da
+	// dimenticare. Cio' che torna e' il default, con `bAuthorized` falso.
+	//
+	// ⚠️ **Chi disegna deve distinguere `bAuthorized == false` da un piano vuoto**: un'area slot mostrata
+	// vuota per un'avversaria direbbe *«non ha pianificato»*, che e' una lettura del suo piano. `#2757` lo
+	// vieta gia' in forma piu' forte — *«nessun conteggio o metadato da cui dedurre che un dato privato
+	// esiste»*.
+	if (const ARTUnit* Commanded = GetSelectedUnit())
+	{
+		return URTHudViewModel::BuildUnitSlots(Commanded);
+	}
+	return FRTUnitSlotsView{};
 }
 
 // =====================================================================================================
@@ -350,28 +413,116 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// ⚠️ L'evento va per ULTIMO: e' il Blueprint che disegna, e disegna leggendo i tre campi qui sopra. Se
 	// partisse prima, un'implementazione che chiama `GetResolvedIcon()` leggerebbe il catalogo del turno
 	// PRECEDENTE — un difetto che a schermo somiglia a un ritardo di un frame invece che a un errore.
+	// ── L'icona si risolve QUI, una volta per cambio azione, e non nel getter.
+	//
+	// 🔴 `ResolveIcon` logga le chiavi che non trova, ed e' cio' per cui esiste. Chiamarla da un property
+	// binding la valuta a ogni frame: la seduta del 2026-09-11 ha prodotto 16 388 righe per quattro chiavi.
+	// Il docstring di `GetResolvedIcon` prescriveva gia' «un evento, una volta per cambio azione» — questa
+	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
+	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
+
 	OnActionChanged();
+}
+
+void URTActionSlotWidget::SetArmingControllerForTest(ARTPlayerController* InController)
+{
+	ArmingControllerForTest = InController;
+}
+
+ARTPlayerController* URTActionSlotWidget::ResolveArmingController() const
+{
+	// L'iniezione dei test viene PRIMA, e solo perche' in gioco e' sempre nulla: senza un `ULocalPlayer`
+	// — che una run headless non ha — `GetOwningPlayer()` resta nullo e il click non sarebbe verificabile
+	// se non aprendo l'Editor. E' la stessa forma, con la stessa ragione misurata, di
+	// `URTScreenHudWidgetBase::GetSelectedUnit()`.
+	if (ARTPlayerController* Iniettato = ArmingControllerForTest.Get())
+	{
+		return Iniettato;
+	}
+
+	return Cast<ARTPlayerController>(GetOwningPlayer());
+}
+
+void URTActionSlotWidget::Activate()
+{
+	// ⛔ **Uno slot MAI assegnato porta `INDEX_NONE`, e `ArmKitAbility(INDEX_NONE)` DISARMA.** Senza questa
+	// guardia un riquadro vuoto — o sopravvissuto alla ricostruzione della lista — spegnerebbe l'azione
+	// armata da un altro. E' la guardia di `URTFastDecisionOptionWidget::Choose()` sul proprio proprietario,
+	// tradotta sul dato che qui fa le veci del legame.
+	//
+	// ⚠️ Non e' un controllo di DISPONIBILITA': una posizione di kit vuota porta comunque il proprio indice
+	// (`Cooldowns[i].AbilityIndex == i`, `#2987`) e passa di qui. A rifiutarla e' il core.
+	if (Action.AbilityIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// 🔑 **L'indice, non l'azione, e la stessa porta del tasto.** `ArmKitAbility` prende un `int32` e delega
+	// a `SelectAbilityForCurrent`: cooldown, slot reazione, self-target e input bloccato restano decisi in
+	// un posto solo, e un click non puo' aggirare un controllo che il tasto rispetta.
+	if (ARTPlayerController* PC = ResolveArmingController())
+	{
+		PC->ArmKitAbility(Action.AbilityIndex);
+	}
 }
 
 FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
 {
-	// Il consumer e' fisso qui e non arriva dal grafo: `ResolveIcon` lo usa per dire QUALE widget ha chiesto
-	// un'icona che non c'era, e sei slot che lo compongono ciascuno per conto proprio possono scriverci sei
-	// stringhe diverse — o nessuna. La warning perderebbe l'unica cosa per cui esiste.
-	return URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
+	// ⚠️ **Rende la cache e non ricalcola**: e' sicuro chiamarla da un binding, che e' esattamente cio' che
+	// il Blueprint fa. La risoluzione — e il suo log — avvengono in `SetAction`.
+	return CachedResolvedIcon;
 }
 
 FName URTActionSlotWidget::GetIconId() const
 {
-	// `Action.ActionId` e' il percorso semantico che il gioco usa gia': `MakeIconId` ne fa la chiave. Un'azione
-	// senza `ActionId` — quelle create in codice prima del motore azioni — non ha icona, e restituire `None`
-	// e' meglio di comporre `UI.Icon.` a vuoto: la risoluzione direbbe «chiave sconosciuta» nominando una
-	// chiave che nessuno ha mai dichiarato.
+	// Un'azione senza `ActionId` — quelle create in codice prima del motore azioni — non ha icona, e
+	// restituire `None` e' meglio di comporre `UI.Icon.` a vuoto: la risoluzione direbbe «chiave sconosciuta»
+	// nominando una chiave che nessuno ha mai dichiarato.
 	if (Action.ActionId.IsNone())
 	{
 		return NAME_None;
 	}
-	return URTIconLibrary::MakeIconId(Action.ActionId);
+
+	// 🔑 **Le due chiavi arrivano dalla VISTA, non si compongono qui.** E' la disciplina gia' dichiarata per
+	// i badge di stato (`RTHudViewModel.h`): *«porta l'`IconId` e non lascia che sia chi disegna a comporlo»*,
+	// perche' comporla nel widget sarebbe una seconda verita' sulla stessa regola. Qui lo slot **sceglie**
+	// fra due chiavi gia' derivate, e la derivazione resta in `URTIconLibrary`.
+	// ⚠️ **La vista puo' non portarla**: una `FRTAbilityCooldownView` costruita fuori da
+	// `BuildAbilityCooldowns` — un test, un grafo — avrebbe `IconId` vuoto, e leggere solo quel campo
+	// toglierebbe l'icona a chiunque non passi dal costruttore canonico. La chiave PREFERITA dipende dal solo
+	// `ActionId`, quindi si ricava lo stesso; e' il RIPIEGO che richiede il `Def`, e quello resta nella vista.
+	const FName Preferred = Action.IconId.IsNone()
+		? URTIconLibrary::MakeActionIconId(Action.ActionId)
+		: Action.IconId;
+	if (Preferred.IsNone())
+	{
+		return NAME_None;
+	}
+
+	// ── Ripiego, finche' l'asset proprio non e' disegnato: l'icona della core da cui l'azione deriva.
+	//
+	// ⚠️ **Si CHIEDE al catalogo con una query pura, e non si prova `ResolveIcon`**: quella logga, e provarla
+	// emetterebbe una warning ogni volta che il ripiego funziona — rumore al posto della diagnostica.
+	// ⛔ **`ReceivedCatalog` assente non e' «nessuna icona»**: e' un widget nato prima del catalogo, e allora
+	// si torna la preferita — sara' `ResolveIcon` a dire che non c'e' nulla da risolvere, nominando il consumer.
+	if (ReceivedCatalog != nullptr
+		&& !URTIconLibrary::CatalogHasIcon(ReceivedCatalog, Preferred)
+		&& !Action.FallbackIconId.IsNone())
+	{
+		return Action.FallbackIconId;
+	}
+
+	return Preferred;
+}
+
+FText URTActionSlotWidget::GetActionLine() const
+{
+	// Un inoltro, e la riga sopra e' il contratto: comporre qui sarebbe il secondo produttore della stessa
+	// stringa. `ComposeAbilityLine` sa gia' che il numero e' 1-based perche' e' il TASTO che il giocatore
+	// preme, e non l'indice del kit — e il dock mostra solo il kit numerato (`BuildAbilityCooldowns`), quindi
+	// quel numero e' davvero il tasto che arma questo slot. I cinque generici — `G` `B` `C` `X` `Z` di
+	// `ARTPlayerController::GenericHotkeys` — non passano da qui e non hanno bisogno di un ramo.
+	return FText::FromString(ARTHUD::ComposeAbilityLine(Action, bArmed).Text);
 }
 
 // =====================================================================================================

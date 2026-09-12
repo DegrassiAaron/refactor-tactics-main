@@ -347,20 +347,30 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 // [D-227] una cella gia' vista resta raggiungibile; per [D-249] una mai vista non e' bersaglio di movimento.
 // Un banco che puntasse al buio misurerebbe un percorso che il giocatore non puo' chiedere.
 //
-// ## LA MISURA — 2026-09-09, clone `refactor-tactics-dev`, su `47795187`, run dichiarata VALIDA
+// ## LA MISURA — 2026-09-10, clone `refactor-tactics-dev`, base `67a0d164` piu' le correzioni di questo
+// commit, run dichiarata VALIDA
 //
 //     CANALE INDIRETTO — un muro in (2,0), MAI OSSERVATA, contro la stessa cella libera
 //       mondo APERTO   costo 4:  (0,0) (1,0) (2,0) (3,0) (4,0)
 //       mondo MURO     costo 5:  (0,0) (1,0) (1,1) (2,1) (3,0) (4,0)
-//       celle in cui i tracciati differiscono E CHE L'OSSERVATORE VEDE:  (1,1) (2,1)
+//       differiscono E L'OSSERVATORE LE VEDE:   (1,1)
+//       differiscono ma restano NEL BUIO:       (2,0) (2,1)
 //
 //     CANALE DIRETTO — ricordo fermo a distanza 2
 //       ventaglio 61 celle, di cui MAI OSSERVATE: 42
 //
-// 🔴 **Il canale indiretto e' REALE, e la misura che conta e' la terza riga.** Non «i due tracciati
-// differiscono» — quello sarebbe ovvio e innocuo se la differenza stesse nel buio. Differiscono in **due
-// celle che l'osservatore ha diritto di vedere disegnate**: il giocatore guarda la strada girare in piena
-// luce, e da quella curva deduce che al buio c'e' un muro. Il muro non si vede; la sua **conseguenza** si'.
+// 🔴 **Il canale indiretto e' REALE, e la misura che conta e' la separazione fra le due righe.** Non «i due
+// tracciati differiscono» — quello sarebbe ovvio e innocuo se la differenza stesse tutta nel buio. La
+// differenza si SPACCA: due celle restano invisibili — `(2,0)`, il muro, e `(2,1)` sulla deviazione — e
+// **una resta illuminata**, `(1,1)`. Il giocatore guarda la strada girare in piena luce, e da quella curva
+// deduce che al buio c'e' un muro. Il muro non si vede; la sua **conseguenza** si'.
+//
+// ⚠️ **La prima stesura di questo banco aveva UNA sola cella al buio, e con essa la misura era tautologica**
+// — trovato in code review. Se l'unica cella non illuminata e' quella del muro, e il muro non puo' comparire
+// nel percorso deviato, allora *qualunque* differenza e' per forza illuminata: `LitDifference > 0`
+// coincideva con `PathOpen.Path != PathWalled.Path`, cioe' con la riga che questo commento dichiara
+// insufficiente. La seconda cella al buio e' cio' che rende la separazione una misura invece che
+// un'identita'.
 //
 // 🔴 **E il canale diretto non e' un caso limite: e' la maggioranza del ventaglio.** Con un ricordo fermo a
 // distanza 2, **42 celle su 61** che la portata offre sono celle che il velo non disegna. La portata conosce
@@ -373,8 +383,20 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 
 namespace
 {
-	/** La cella BUIA: mai osservata in entrambi i mondi, e nel mondo `Muro` e' il muro. */
+	/** La cella BUIA che nel mondo `Muro` ospita il muro: mai osservata in entrambi i mondi. */
 	const FRTCellId DarkCell{ 2, 0, 0 };
+
+	/**
+	 * La SECONDA cella al buio, e non e' un ornamento: sta **sulla deviazione** che il muro provoca.
+	 *
+	 * 🔴 **Senza, l'asserzione di testa sarebbe TAUTOLOGICA** — trovato in code review. Con una sola cella
+	 * non illuminata sull'intera board, e con quella cella occupata dal muro (quindi mai presente nel
+	 * percorso deviato), **qualunque** differenza fra i due tracciati e' per forza illuminata: la misura
+	 * `LitDifference > 0` collassa su `PathOpen.Path != PathWalled.Path` e non dice niente di piu'.
+	 * Ma la riga in testa a questo blocco distingue proprio le due cose. Con `(2,1)` al buio la deviazione
+	 * attraversa il buio, il filtro «illuminato» ha qualcosa da togliere, e la misura torna a discriminare.
+	 */
+	const FRTCellId DarkOnDetour{ 2, 1, 0 };
 	/** Destinazione RICORDATA — legale per [D-227] — che sta oltre la cella buia sulla stessa direttrice. */
 	const FRTCellId LitGoal{ 4, 0, 0 };
 
@@ -385,20 +407,22 @@ namespace
 	}
 
 	/**
-	 * Conoscenza in cui **tutto e' ricordato tranne `DarkCell`**: il minimo indispensabile perche' una sola
-	 * cella sia «mai osservata» e tutto il resto sia legalmente disegnabile e raggiungibile.
+	 * Conoscenza in cui tutto e' ricordato tranne una **tasca buia** di due celle: `DarkCell`, che nel mondo
+	 * `Muro` porta il muro, e `DarkOnDetour`, che sta sulla deviazione.
 	 *
-	 * 🔑 Minimale di proposito. Se il percorso piega per **una** cella al buio, piegherebbe a maggior ragione
-	 * per una regione.
+	 * 🔑 **Due e non una, ed e' una correzione da code review.** Con una sola cella al buio l'asserzione di
+	 * testa non poteva distinguere «la deviazione si vede» da «i tracciati differiscono»: vedi il commento
+	 * su `DarkOnDetour`.
 	 */
-	FRTTeamKnowledge KnowledgeWithOneDarkCell(const URTHexMapAsset* Map)
+	FRTTeamKnowledge KnowledgeWithDarkPocket(const URTHexMapAsset* Map)
 	{
 		FRTTeamKnowledge K;
 		K.TeamId = ObserverTeam;
 		K.TurnNumber = 1;
 		for (const FRTHexCellData& Cell : Map->Cells)
 		{
-			if (Cell.Id == DarkCell) { continue; }         // mai osservata: non entra nemmeno in `Explored`
+			// Mai osservate: non entrano nemmeno in `Explored`.
+			if (Cell.Id == DarkCell || Cell.Id == DarkOnDetour) { continue; }
 			K.ExploredCells.Add(Cell.Id);
 			if (URTHexLibrary::HexDistance(PlannerCell, Cell.Id) <= 1) { K.VisibleCells.Add(Cell.Id); }
 		}
@@ -463,10 +487,11 @@ bool FRTBlindActionsDarkWallBendsPathTest::RunTest(const FString&)
 	Walled->AddOrUpdateCell(Wall);
 	Walled->SortCells();
 
-	const FRTTeamKnowledge K = KnowledgeWithOneDarkCell(Open);
+	const FRTTeamKnowledge K = KnowledgeWithDarkPocket(Open);
 
 	// 🔴 Le premesse che rendono la misura leggibile, e senza le quali un delta non direbbe niente.
-	if (!TestTrue(TEXT("premessa: la cella del muro e' MAI OSSERVATA (ne' vista ne' ricordata)"), !IsLit(K, DarkCell)))
+	if (!TestTrue(TEXT("premessa: le due celle della tasca sono MAI OSSERVATE (ne' viste ne' ricordate)"),
+		!IsLit(K, DarkCell) && !IsLit(K, DarkOnDetour)))
 	{
 		return false;
 	}
@@ -489,6 +514,17 @@ bool FRTBlindActionsDarkWallBendsPathTest::RunTest(const FString&)
 		return false;
 	}
 
+	// 🔴 **E il mondo MURO deve avere un percorso, non l'assenza di uno** — trovato in code review.
+	// `FRTHexPathResult` nasce `NoPath` con `Path` vuoto e `TotalCost` a zero: se il muro facesse ABORTIRE
+	// la ricerca invece di farla deviare, `LitDifference` raccoglierebbe l'intero tracciato aperto e i costi
+	// differirebbero (4 contro 0). Entrambe le misure sotto passerebbero **a vuoto**, stampando «il percorso
+	// piega» dove non c'e' percorso da piegare. Il test gemello di sopra questa guardia ce l'ha gia'.
+	if (!TestTrue(TEXT("premessa: nel mondo MURO un percorso ESISTE — altrimenti non c'e' deviazione, c'e' assenza"),
+		PathWalled.Status == ERTHexPathStatus::Success))
+	{
+		return false;
+	}
+
 	// 🔴 **LA MISURA CHE CONTA**: non «i percorsi differiscono», ma «differiscono DOVE IL GIOCATORE GUARDA».
 	// Una differenza confinata alla cella buia non sarebbe un leak: quella cella non si disegna.
 	TArray<FRTCellId> LitDifference;
@@ -502,8 +538,31 @@ bool FRTBlindActionsDarkWallBendsPathTest::RunTest(const FString&)
 	}
 	LitDifference.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
 
+	// Le celle in cui i tracciati differiscono e che stanno NEL BUIO: non sono un leak, e servono a provare
+	// che il filtro «illuminato» ha davvero qualcosa da togliere.
+	TArray<FRTCellId> DarkDifference;
+	for (const FRTCellId& Cell : PathWalled.Path)
+	{
+		if (!PathOpen.Path.Contains(Cell) && !IsLit(K, Cell)) { DarkDifference.AddUnique(Cell); }
+	}
+	for (const FRTCellId& Cell : PathOpen.Path)
+	{
+		if (!PathWalled.Path.Contains(Cell) && !IsLit(K, Cell)) { DarkDifference.AddUnique(Cell); }
+	}
+	DarkDifference.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+
 	AddInfo(FString::Printf(TEXT("celle in cui i due tracciati differiscono E che l'osservatore VEDE: %s"),
 		*DescribeCells(LitDifference)));
+	AddInfo(FString::Printf(TEXT("celle in cui differiscono ma che restano NEL BUIO (non sono un leak):  %s"),
+		*DescribeCells(DarkDifference)));
+
+	// 🔴 **La premessa che toglie la tautologia**: se nessuna differenza cadesse nel buio, `LitDifference`
+	// coinciderebbe con «i tracciati differiscono» e la misura non direbbe niente di piu'.
+	if (!TestTrue(TEXT("premessa: la deviazione attraversa il buio, quindi il filtro ILLUMINATO discrimina"),
+		DarkDifference.Num() > 0))
+	{
+		return false;
+	}
 
 	// La misura, asserita come COMPORTAMENTO CORRENTE.
 	TestTrue(TEXT("oggi un muro MAI OSSERVATO fa piegare il percorso nella parte ILLUMINATA: il giocatore lo deduce senza vederlo"),
@@ -543,9 +602,22 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("ricordo fino a distanza 2 — ventaglio: %d celle, di cui MAI OSSERVATE: %d"),
 		Fan.Num(), Dark.Num()));
 
-	// Il controllo: con un ricordo che copre tutto, il numero sarebbe zero per costruzione e non direbbe nulla.
-	if (!TestTrue(TEXT("premessa: il ventaglio esce dal ricordo (budget sufficiente a superare la distanza 2)"),
-		Fan.Num() > K.ExploredCells.Num() / 2))
+	// 🔴 **La premessa dice cio' che serve davvero, e la prima stesura no** — trovato in code review.
+	// Diceva `Fan.Num() > ExploredCells.Num() / 2`, cioe' `61 > 9`: passava per un fattore sei, e avrebbe
+	// continuato a passare proprio nel caso che esiste per escludere — un budget abbassato, o un
+	// `ReachableCells` filtrato, che confinasse il ventaglio dentro il ricordo. La misura sotto sarebbe
+	// allora fallita dicendo «il leak e' chiuso» quando la causa vera e' «misura fuori portata».
+	//
+	// ⚠️ E la premessa non puo' essere «una cella del ventaglio sta oltre la distanza 2»: con questa
+	// conoscenza sarebbe **la misura stessa**, cioe' circolare. Deve parlare del BANCO, non dell'esito:
+	// la board ha celle oltre il ricordo, e il budget basta a uscirne.
+	int32 CellsBeyondMemory = 0;
+	for (const FRTHexCellData& Cell : Map->Cells)
+	{
+		if (URTHexLibrary::HexDistance(PlannerCell, Cell.Id) > 2) { ++CellsBeyondMemory; }
+	}
+	if (!TestTrue(TEXT("premessa: la board HA celle oltre il ricordo, e il budget basta a uscirne"),
+		CellsBeyondMemory > 0 && PlannerBudget > 2))
 	{
 		return false;
 	}

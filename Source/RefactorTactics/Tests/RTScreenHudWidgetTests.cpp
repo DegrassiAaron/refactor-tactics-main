@@ -1,4 +1,4 @@
-// Le classi BASE dei widget dello Screen HUD (§4.1, CP 11.7 / #613).
+﻿// Le classi BASE dei widget dello Screen HUD (§4.1, CP 11.7 / #613).
 //
 // Cio' che questi test possono provare e' la SUPERFICIE: cosa un Blueprint puo' leggere, e cosa non trova
 // perche' non esiste. Il layout, l'aspetto e il «centro libero» stanno nel `.uasset` e restano a
@@ -15,6 +15,7 @@
 #include "UI/RTReactionWindowViewModel.h" // idem, ed e' quella che porterebbe `SubmitResponse` nel grafo
 #include "UI/RTHudViewModel.h"           // il feed si prova anche SOTTO il widget: l'insieme vuoto (#2744)
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
+#include "UI/RTHUD.h"                    // ComposeAbilityLine: l'oracolo dell'uguaglianza, non una seconda riga
 #include "Misc/ScopeExit.h"              // ON_SCOPE_EXIT: il mondo si distrugge anche sui ritorni anticipati
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -130,6 +131,127 @@ bool FRTScreenHudIconKeyTest::RunTest(const FString&)
 	// La chiave e' quella che il catalogo si aspetta: si CHIEDE a `MakeIconId`, non si compone qui.
 	TestEqual(TEXT("la chiave e' quella del catalogo"),
 		Slot->GetIconId(), URTIconLibrary::MakeIconId(TEXT("Action.Move")));
+
+	DestroyHudWidgetWorld(nullptr); // no-op: questo test non ha un mondo
+	return true;
+}
+
+/**
+ * 🔴 **Lo slot dice il TASTO, lo stato armato e il MOTIVO — e li dice in TESTO**, che e' il canale non
+ * cromatico che `#2826` chiede: *«uno slot in cooldown o non disponibile e' distinguibile **senza**
+ * affidarsi al colore»*.
+ *
+ * L'oracolo non e' che la riga «ci sia»: sono le tre sottostringhe, ciascuna legata a un campo della vista.
+ * Una riga che perdesse il numero passerebbe un test scritto come *«non e' vuota»* — e il giocatore non
+ * saprebbe piu' quale tasto arma quello slot.
+ *
+ * ⚠️ **Il tasto si DICHIARA nella vista, e non si deduce piu' da `AbilityIndex`** (`#2987`). Fino a quel
+ * punto `ComposeAbilityLine` scriveva `Index + 1`, e questo test lo confermava passando `AbilityIndex = 3`
+ * e cercando `"4. "`: l'uguaglianza reggeva **per costruzione** su ogni posizione centrale, e nessuna delle
+ * due che sbagliano — la decima, dove il tasto e' `0`, e l'undicesima, che nessun tasto raggiunge — era
+ * provata. Ora `HotkeyLabel` viene da `AbilityHotkeys()` e le due sono coperte da
+ * `HudViewModel.ShortcutComesFromTheBindingTableNotTheIndex`.
+ *
+ * ⛔ **Il tasto GENERICO resta fuori.** `Action.Wait` si arma anche con `Z` (`GenericHotkeys()`), e quale
+ * dei due binding uno slot debba mostrare non e' deciso da nessuna fonte del progetto: e' `#2990`,
+ * domanda 4. Questo test pinna il numero perche' e' cio' che la vista porta oggi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudActionLineTest,
+	"RefactorTactics.ScreenHud.ActionSlotLineCarriesKeyArmedAndReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudActionLineTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("widget"), Slot)) { return false; }
+
+	FRTAbilityCooldownView Action;
+	Action.ActionId = TEXT("Action.Overload");
+	Action.DisplayName = FText::FromString(TEXT("Sovraccarico"));
+	Action.AbilityIndex = 3;        // quarta posizione del kit
+	Action.HotkeyLabel = FText::FromString(TEXT("4")); // il tasto, DICHIARATO: non piu' dedotto (#2987)
+	Action.TurnsRemaining = 2;      // in ricarica
+	Action.TotalTurns = 3;
+	Action.bUsableNow = false;
+
+	Slot->SetAction(Action, /*bArmed=*/ false);
+	const FString Spenta = Slot->GetActionLine().ToString();
+
+	TestTrue(TEXT("la riga nomina il tasto che arma lo slot"), Spenta.Contains(TEXT("4. ")));
+	TestTrue(TEXT("e il nome dell'azione"), Spenta.Contains(TEXT("Sovraccarico")));
+	TestTrue(TEXT("il motivo d'indisponibilita' e' leggibile senza aprire un log"),
+		Spenta.Contains(TEXT("(ricarica 2)")));
+	TestFalse(TEXT("non armata: nessun prefisso di selezione"), Spenta.StartsWith(TEXT("> ")));
+
+	// Armata: il canale NON cromatico e' il prefisso. E' la meta' che il colore da solo non puo' dare.
+	Slot->SetAction(Action, /*bArmed=*/ true);
+	const FString Armata = Slot->GetActionLine().ToString();
+
+	TestTrue(TEXT("armata: il prefisso lo dichiara in testo"), Armata.StartsWith(TEXT("> ")));
+	TestNotEqual(TEXT("armata e non armata NON sono la stessa riga"), Armata, Spenta);
+
+	// Pronta: il motivo sparisce invece di dire «ricarica 0», che sarebbe un motivo inventato.
+	FRTAbilityCooldownView Pronta = Action;
+	Pronta.TurnsRemaining = 0;
+	Pronta.bUsableNow = true;
+	Slot->SetAction(Pronta, /*bArmed=*/ false);
+
+	TestFalse(TEXT("un'azione pronta non porta un motivo"),
+		Slot->GetActionLine().ToString().Contains(TEXT("ricarica")));
+
+	DestroyHudWidgetWorld(nullptr); // no-op: questo test non ha un mondo
+	return true;
+}
+
+/**
+ * 🔑 **L'oracolo e' l'UGUAGLIANZA con `ARTHUD::ComposeAbilityLine`, e serve a impedire un secondo
+ * produttore** — la stessa disciplina che `#2826` impone al proprio percorso di armamento: *«stesso
+ * percorso, non un secondo»*.
+ *
+ * ⚠️ **Detto onestamente: oggi questo test e' tautologico**, perche' `GetActionLine` inoltra a quella
+ * funzione e a null'altro. Non e' un oracolo di contenuto — quello e'
+ * `ActionSlotLineCarriesKeyArmedAndReason` — ed e' un **rilevatore di cambiamento**: il giorno in cui
+ * qualcuno sostituisse l'inoltro con una composizione locale, o il grafo di `WBP_RT_ActionSlot`
+ * concatenasse numero e nome per conto proprio, le due stringhe divergerebbero al primo cambio di formato e
+ * questo test cadrebbe. E' l'unica cosa che promette, e la promette su tre forme di vista diverse perche'
+ * una sola non distinguerebbe un inoltro da una copia fortunata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudActionLineSameComposerTest,
+	"RefactorTactics.ScreenHud.ActionSlotLineIsTheSameComposerAsTheHud",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudActionLineSameComposerTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("widget"), Slot)) { return false; }
+
+	FRTAbilityCooldownView InRicarica;
+	InRicarica.ActionId = TEXT("Action.Overload");
+	InRicarica.DisplayName = FText::FromString(TEXT("Sovraccarico"));
+	InRicarica.AbilityIndex = 3;
+	InRicarica.TurnsRemaining = 2;
+	InRicarica.TotalTurns = 3;
+
+	FRTAbilityCooldownView Pronta;
+	Pronta.ActionId = TEXT("Action.Move");
+	Pronta.DisplayName = FText::FromString(TEXT("Muovi"));
+	Pronta.AbilityIndex = 0;
+	Pronta.bUsableNow = true;
+
+	// Terza forma: la vista NUDA, quella che un grafo o un test possono costruire ai default. Se un ramo
+	// locale comparisse, e' la forma su cui divergerebbe per prima.
+	const FRTAbilityCooldownView Nuda;
+
+	for (const FRTAbilityCooldownView& Vista : { InRicarica, Pronta, Nuda })
+	{
+		for (const bool bArmed : { false, true })
+		{
+			Slot->SetAction(Vista, bArmed);
+			TestEqual(
+				FString::Printf(TEXT("la riga dello slot e' quella dell'HUD (%s, armata=%d)"),
+					*Vista.ActionId.ToString(), bArmed ? 1 : 0),
+				Slot->GetActionLine().ToString(),
+				ARTHUD::ComposeAbilityLine(Vista, bArmed).Text);
+		}
+	}
 
 	DestroyHudWidgetWorld(nullptr); // no-op: questo test non ha un mondo
 	return true;
@@ -994,6 +1116,122 @@ bool FRTScreenHudMountReportTest::RunTest(const FString&)
 		Testo.Contains(TEXT("[MANCA] EventLog: 0")));
 	TestTrue(TEXT("l'header assente e' nominato"),
 		Testo.Contains(TEXT("[MANCA] TurnHeader: 0")));
+
+	return true;
+}
+
+/**
+ * La chiave si risolve UNA VOLTA per cambio azione, non a ogni lettura — e il test lo prova contando le
+ * warning, non ispezionando la cache.
+ *
+ * 🔴 **Il difetto che ferma e' misurato**: la seduta PIE del 2026-09-11 ha prodotto **16 388** righe
+ * `Icona non risolta` per **quattro** chiavi distinte. `ResolveIcon` logga — e' il suo scopo — ma il
+ * Blueprint chiama `GetResolvedIcon` da un property binding, cioe' a ogni frame. Il docstring del getter
+ * prescriveva gia' «un evento, una volta per cambio azione»; nulla lo rendeva vero.
+ *
+ * ⚠️ **Si contano le warning e non si guarda `CachedResolvedIcon`**: un test sul campo privato
+ * passerebbe anche se il getter continuasse a loggare, che e' esattamente il difetto. Il soggetto e' il
+ * RUMORE, quindi si misura quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotResolvesOncePerActionChangeTest,
+	"RefactorTactics.ScreenHud.ActionSlotResolvesOncePerActionChange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionSlotResolvesOncePerActionChangeTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("slot"), Slot)) { return false; }
+
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->MissingIcon = TSoftObjectPtr<UTexture2D>(
+		FSoftObjectPath(TEXT("/Game/Prova/T_Missing.T_Missing")));
+
+	// Un'abilita' PROPRIA: nessun ripiego, quindi la chiave non si risolve e `ResolveIcon` logga.
+	// E' il caso reale di `Hero.Aevik.Overload` — uno dei quattro che la seduta ha visto ripetersi.
+	FRTAbilityCooldownView Azione;
+	Azione.ActionId = TEXT("Hero.Aevik.Overload");
+
+	// 🔑 **Esattamente UNA**, non «almeno una»: `Occurrences 1` e' l'asserto di questo test. Con `0` —
+	// la forma usata altrove per dire «almeno una» — il difetto delle 16 388 righe passerebbe.
+	AddExpectedMessage(TEXT("Icona non risolta"), ELogVerbosity::Warning,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences*/ 1, /*IsRegex*/ false);
+
+	Slot->SetAction(Azione, /*bArmed=*/ false, Catalogo);
+
+	// Venti letture: e' cio' che un property binding fa in un terzo di secondo.
+	for (int32 i = 0; i < 20; ++i)
+	{
+		Slot->GetResolvedIcon();
+	}
+
+	// ⚠️ Il controllo che rende il test non vacuo: la risoluzione DEVE essere avvenuta. Senza, «una sola
+	// warning» sarebbe soddisfatto anche da un getter che non risolve mai.
+	const FRTIconResolution Esito = Slot->GetResolvedIcon();
+	TestFalse(TEXT("un'abilita' propria senza asset non si risolve"), Esito.bResolved);
+	TestFalse(TEXT("ma l'esito e' popolato: e' il missing-icon, non un valore vuoto"),
+		Esito.Asset.IsNull());
+
+	return true;
+}
+
+/**
+ * 🔴 **Il pannello non porta MAI il piano di un'unita' ispezionata, e il nemico di questo test UN PIANO CE
+ * L'HA.**
+ *
+ * ⚠️ **La premessa e' la meta' che conta.** Un test che ispezionasse un nemico senza piano passerebbe anche
+ * con un `GetSlots()` che consegna tutto: non ci sarebbe niente da consegnare. Qui l'avversaria ha un
+ * waypoint — quindi `BuildUnitSlots` la direbbe occupata — e il pannello continua a non dirlo.
+ *
+ * 🔑 **Il controllo positivo non e' cortesia**: senza il ramo sull'unita' comandata, un `GetSlots()` che
+ * tornasse sempre il default passerebbe questo test mentre rompe il pannello per tutti.
+ *
+ * ⛔ E `bAuthorized` distingue il caso dal piano vuoto: un'area slot mostrata vuota per un'avversaria
+ * direbbe *«non ha pianificato»*, che e' una lettura del suo piano — vietata da `#2757` in forma piu' forte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudInspectedSlotsTest,
+	"RefactorTactics.ScreenHud.InspectedEnemyNeverCarriesItsPlannedSlots",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudInspectedSlotsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	ON_SCOPE_EXIT { DestroyHudWidgetWorld(World); };
+
+	ARTUnit* Mine  = SpawnRosterUnit(World, 0, TEXT("Hero.Aevik"));
+	ARTUnit* Enemy = SpawnRosterUnit(World, 1, TEXT("Hero.Ivrin"));
+	URTSelectedUnitPanelWidget* Panel = NewObject<URTSelectedUnitPanelWidget>(World);
+	if (!TestNotNull(TEXT("pannello"), Panel) || !Mine || !Enemy) { return false; }
+
+	// **Entrambe** pianificano un movimento: senza il piano dell'avversaria non ci sarebbe nulla da NON
+	// mostrare, e il test sarebbe vacuo.
+	Mine->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+	Enemy->PlannedWaypoints.Add(FRTCellId(2, 0, 0));
+
+	// (1) Controllo POSITIVO — l'unita' comandata porta i suoi slot, autorizzati.
+	Panel->SetSelectedUnitForTest(Mine);
+	const FRTUnitSlotsView Comandata = Panel->GetSlots();
+	TestTrue(TEXT("la comandata e' autorizzata"), Comandata.bAuthorized);
+	TestTrue(TEXT("e il suo movimento risulta occupato"), Comandata.Movement.bOccupied);
+
+	// (2) Ispezionata — stesso pannello, soggetto avversario: niente slot, e NON perche' non ne ha.
+	Panel->SetSelectedUnitForTest(nullptr);
+	Panel->SetInspectedUnitForTest(Enemy);
+
+	TestFalse(TEXT("non si sta comandando nulla"), Panel->HasSelection());
+	TestTrue(TEXT("ma il pannello ha un soggetto"), Panel->HasSubject());
+
+	const FRTUnitSlotsView Ispezionata = Panel->GetSlots();
+	TestFalse(TEXT("gli slot NON sono autorizzati"), Ispezionata.bAuthorized);
+	TestFalse(TEXT("e il movimento dell'avversaria non trapela, benche' pianificato"),
+		Ispezionata.Movement.bOccupied);
+	TestFalse(TEXT("ne' la principale"), Ispezionata.Main.bOccupied);
+	TestFalse(TEXT("ne' la reazione"), Ispezionata.Reaction.bOccupied);
+
+	// La carta invece segue il soggetto: identita' e salute sono cio' che il velo gia' autorizza sopra la
+	// testa di un'unita' osservata. Senza questa riga il pannello potrebbe essere vuoto e il test passerebbe.
+	TestEqual(TEXT("la carta e' quella dell'avversaria che si sta guardando"),
+		Panel->GetCard().HeroId, Enemy->HeroId);
 
 	return true;
 }

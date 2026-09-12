@@ -1,4 +1,4 @@
-#include "UI/RTHudViewModel.h"
+﻿#include "UI/RTHudViewModel.h"
 
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMatchFormatData.h"
@@ -7,6 +7,7 @@
 #include "Ability/RTCatalogLibrary.h" // l'autorita' su quale slot consuma un'azione
 #include "Core/RTGameplayTags.h"      // TAG_Status_Reveal: cosa rende un piano visibile all'avversario
 #include "UI/RTIconLibrary.h"         // MakeIconId: la chiave dell'icona si deriva dal tag, non si compone
+#include "Player/RTPlayerController.h" // HotkeyLabelFor: il tasto si legge dalla tabella, generiche comprese (#2987, D-397)
 #include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
@@ -160,6 +161,13 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 		return Slots;
 	}
 
+	// ⚠️ **`bAuthorized` lo alza il fatto stesso di costruire, e la difesa non e' qui.** Questa funzione non
+	// sa CHI comanda l'unita' che le viene passata: chiederglielo significherebbe darle una seconda regola di
+	// autorizzazione accanto a quella di chi chiama. La barriera sta nel chiamante —
+	// `URTSelectedUnitPanelWidget::GetSlots()` non invoca questa funzione per un soggetto ispezionato, quindi
+	// il piano di un'avversaria non viene **costruito**, non «costruito e poi nascosto».
+	Slots.bAuthorized = true;
+
 	// --- movimento ---------------------------------------------------------------------------------------
 	// Due modi di occuparlo, e uno solo dei due ha un nome. Un percorso e' `PlannedWaypoints`: occupa lo slot
 	// e non e' un'azione scelta, quindi resta senza `ActionId` (vedi il commento su `FRTPlannedSlotView`).
@@ -308,6 +316,48 @@ TArray<FRTStatusBadgeView> URTHudViewModel::BuildStatusBadges(const ARTUnit* Uni
 	return Badges;
 }
 
+ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownView& Action, bool bArmed)
+{
+	// L'ordine di questi `if` E' la precedenza, ed e' l'unica sede in cui esiste.
+
+	// Nessuna azione: nient'altro puo' valere, e il campo che lo dice e' `ActionId` (`#2987`).
+	if (Action.ActionId.IsNone())
+	{
+		return ERTActionSlotState::Empty;
+	}
+
+	// 🔑 **Armata batte tutto il resto, ed e' la regola di `ARTHUD::ComposeAbilityLine`**, non una nuova:
+	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*. Un'ultimate
+	// armata e ancora in ricarica resta riconoscibile come quella scelta; il motivo lo dice il numero.
+	if (bArmed)
+	{
+		return ERTActionSlotState::Selected;
+	}
+
+	// Gia' nel piano: un impegno preso, che sopravvive al fatto che l'armamento sia passato ad altro.
+	if (Action.bPlanned)
+	{
+		return ERTActionSlotState::Planned;
+	}
+
+	// La ricarica prima dell'indisponibilita' generica: e' l'unico motivo che il giocatore puo' leggere come
+	// un numero, e passa da solo col tempo.
+	if (Action.TurnsRemaining > 0)
+	{
+		return ERTActionSlotState::Cooldown;
+	}
+
+	// ⚠️ Da [D-324] `bUsableNow` coincide con `TurnsRemaining == 0`, quindi questo ramo oggi non si
+	// raggiunge da una vista costruita dal simulatore. Resta perche' la vista e' una struct e un chiamante
+	// puo' comporla cosi' — ed e' la stessa ragione per cui `AbilityLineShowsCooldownOnly` prova quel caso.
+	if (!Action.bUsableNow)
+	{
+		return ERTActionSlotState::Unavailable;
+	}
+
+	return ERTActionSlotState::Available;
+}
+
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)
 {
 	TArray<FRTAbilityCooldownView> Cooldowns;
@@ -319,15 +369,49 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	for (int32 Index = 0; Index < Unit->NumAbilities(); ++Index)
 	{
 		const URTActionData* Action = Unit->GetAbility(Index);
+
+		// 🔴 **Una posizione vuota produce una RIGA, non un salto** (`#2987`). Il `continue` che stava qui
+		// accorciava l'array, e la posizione visiva si scollava da quella di kit — mentre il tasto continua
+		// a significare *«la posizione N»*: `OnAbility6` chiama `SelectAbilityForCurrent(5)` comunque.
+		// Saltare rendeva il sesto riquadro e il tasto `6` due cose diverse, senza che niente lo dicesse.
+		//
+		// ⚠️ **E rendeva VACUA l'asserzione che la difende**: `CooldownsMirrorTheSimulator` chiede
+		// `Num() == NumAbilities()` e `[i].AbilityIndex == i`, e gira su un kit senza buchi — cioe' pinnava
+		// il contratto esattamente nel caso in cui era gia' vero.
+		//
+		// 🔑 Il segnaposto porta **l'indice e il tasto**: sono le due cose vere anche di una posizione
+		// vuota — il tasto la preme lo stesso, e `SelectAbilityForCurrent` la rifiuta da li'. `ActionId`
+		// resta `None`, ed e' cio' da cui chi disegna riconosce il vuoto.
 		if (!Action)
 		{
+			FRTAbilityCooldownView Empty;
+			Empty.AbilityIndex = Index;
+			Empty.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(NAME_None, Index); // vuota non ha ActionId
+			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
+			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
+			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
+			Cooldowns.Add(Empty);
 			continue;
 		}
 
 		FRTAbilityCooldownView View;
 		View.ActionId = Action->Def.ActionId;
+		// Le due chiavi si derivano QUI, dove il `Def` completo esiste: lo slot ha solo questa vista, e
+		// `DerivedFromActionId`/`BaseActionId` non gli arriverebbero mai.
+		View.IconId = URTIconLibrary::MakeActionIconId(Action->Def.ActionId);
+		View.FallbackIconId = URTIconLibrary::MakeActionIconFallbackId(Action->Def);
 		View.DisplayName = Action->DisplayName;
 		View.AbilityIndex = Index;
+		// Il tasto si LEGGE dalla tabella che la bindatura percorre, e non si calcola da `Index` (`#2987`):
+		// e' la stessa disciplina delle due chiavi icona qui sopra — l'owner della regola risponde, chi
+		// disegna riceve.
+		View.HotkeyLabel = ARTPlayerController::HotkeyLabelFor(Action->Def.ActionId, Index);
+		// 🔑 **Tutti e TRE i campi del piano** (`#2988`): la principale, la reazione — che vive in un campo
+		// suo da `#601` — e lo scatto. Leggerne uno solo direbbe «non pianificata» di una reazione che il
+		// pass delle reazioni eseguira'.
+		View.bPlanned = (Unit->PlannedAbilityIndex == Index)
+			|| (Unit->PlannedReactionAbility == Index)
+			|| (Unit->PlannedDashAbility == Index);
 		View.Slot = Action->Def.Slot;
 
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista
@@ -557,6 +641,63 @@ TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const TArra
 		Line.bHasBlocker = Event.HasBlockerCell();
 	}
 	return Lines;
+}
+
+TArray<FString> URTHudViewModel::DescribeFeedState(const ARTTurnManager* TurnManager,
+	const TArray<int32>& ObserverTeamIds)
+{
+	TArray<FString> Righe;
+
+	if (TurnManager == nullptr)
+	{
+		Righe.Add(TEXT("[RT] Feed: nessun TurnManager acquisito — il widget non ha contesto."));
+		Righe.Add(TEXT("[RT]   NativeTick lo ricerca finche' non lo trova: se questa riga persiste a partita "
+					   "avviata, l'acquisizione non e' avvenuta e il vuoto NON e' privacy."));
+		return Righe;
+	}
+
+	const TArray<FRTTurnLogEntry>& Log = TurnManager->GetTurnLog();
+	const TArray<FRTPlayerEventLineView> Filtrato = BuildPlayerEventFeed(Log, ObserverTeamIds);
+
+	FString Osservatori;
+	for (const int32 Id : ObserverTeamIds)
+	{
+		Osservatori += (Osservatori.IsEmpty() ? TEXT("") : TEXT(", ")) + FString::FromInt(Id);
+	}
+
+	Righe.Add(FString::Printf(
+		TEXT("[RT] Feed: TurnLog=%d voci, osservatori={%s}, righe dopo filtro=%d, budget=%d"),
+		Log.Num(), Osservatori.IsEmpty() ? TEXT("vuoto") : *Osservatori, Filtrato.Num(), MaxFeedLines));
+
+	// ⚠️ **Il TurnLog e' l'ULTIMO turno risolto, non la cronaca della partita**: `LockInAndResolve` lo azzera
+	// al commit e lo ripopola durante le fasi. Zero voci PRIMA della prima risoluzione e' lo stato corretto,
+	// e chiamarlo difetto manderebbe a cercare un guasto che non c'e'.
+	if (Log.Num() == 0)
+	{
+		Righe.Add(TEXT("[RT]   Il TurnLog e' vuoto: nessun turno ancora risolto, oppure e' appena stato "
+					   "azzerato dal commit. Non e' un difetto finche' una risoluzione non e' avvenuta."));
+		return Righe;
+	}
+
+	// 🔴 Il caso che questa funzione esiste per nominare: il log ha voci, e a schermo non arriva niente.
+	if (Filtrato.Num() == 0)
+	{
+		Righe.Add(TEXT("[RT]   Il log ha voci ma NESSUNA passa il filtro dell'osservatore."));
+		Righe.Add(TEXT("[RT]   Se l'insieme degli osservatori qui sopra non e' quello atteso, la causa e' "
+					   "ResolveObserverTeamIds (sessione presidiata o no), non il feed."));
+		return Righe;
+	}
+
+	// ⛔ Se si arriva qui il ViewModel PRODUCE le righe: un vuoto a schermo e' a valle, nel widget che le
+	// disegna. E' la distinzione che `#2964` ha dovuto ricostruire a mano.
+	Righe.Add(FString::Printf(
+		TEXT("[RT]   Il ViewModel produce %d righe: se a schermo non compaiono, il difetto e' nel widget."),
+		Filtrato.Num()));
+	for (int32 i = 0; i < Filtrato.Num(); ++i)
+	{
+		Righe.Add(FString::Printf(TEXT("[RT]     %d) %s"), i + 1, *Filtrato[i].Text.ToString()));
+	}
+	return Righe;
 }
 
 TArray<FRTPlayerEventLineView> URTHudViewModel::BuildPlayerEventFeed(const ARTTurnManager* TurnManager,

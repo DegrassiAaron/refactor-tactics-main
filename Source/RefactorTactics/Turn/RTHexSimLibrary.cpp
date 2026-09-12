@@ -846,6 +846,87 @@ namespace
 	}
 
 	/** Microstep ancora da pagare per l'arco in corso di `UnitIdx`. Non inizializzato -> `1`. */
+	/**
+	 * C'e' un'unita' FERMA, diversa da `UnitIdx`, su `Cell`? Legge `Pos`, lo stato stabile del micro-step.
+	 *
+	 * 🔴 **FERMA, non semplicemente presente, e la differenza e' la catena del ciclo.** Un arco scavalca le
+	 * celle che copre, e quelle celle non compaiono in `Target`: la catena `target -> occupante` non le vede
+	 * ([D-398] §9b, il rischio che quella voce si era dichiarata). Scavalcando un'unita' che si MUOVE si
+	 * perderebbe lo scambio che quella catena esiste per prendere — misurato:
+	 * `HexSim.ResolveSwapBlockedEvenWhenPassingThrough` cade, e i due si incrociano invece di bloccarsi.
+	 *
+	 * 🔑 **E la restrizione non costa niente al difetto che [D-398] chiude**: quel difetto e' fermarsi
+	 * addosso a chi non se ne andra' mai, cioe' precisamente a un'unita' ferma. Chi si muove libera la cella
+	 * da solo, e se non ci riesce il blocco normale ferma chi arriva — su una cella legittima.
+	 */
+	bool CellHeldByStationaryOther(const FRTMovementResolutionState& State, int32 UnitIdx, const FRTCellId& Cell)
+	{
+		for (int32 j = 0; j < State.Pos.Num(); ++j)
+		{
+			if (j != UnitIdx && State.Done.IsValidIndex(j) && State.Done[j] && State.Pos[j] == Cell)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Apre l'arco di `UnitIdx`, se non ne ha gia' uno in corso — `#3012`, [D-398].
+	 *
+	 * 🔑 **L'arco copre le celle occupate CONSECUTIVE piu' la prima libera**, e si apre solo se quella
+	 * cella esiste dentro il percorso. Se non esiste, l'arco torna a un passo solo e il blocco normale
+	 * ferma l'unita' prima: e' un rifiuto, non un errore.
+	 *
+	 * ⛔ **Cosi' la co-occupazione a riposo diventa IRRAPPRESENTABILE** invece di essere vietata dopo
+	 * essere stata prodotta. Il guardiano che c'era — attraversa *«solo se quella cella non e' la sua
+	 * ULTIMA»* — proteggeva la destinazione **pianificata**, mentre un'unita' bloccata piu' avanti si ferma
+	 * dove **sta**: le due coincidono solo se il piano viene eseguito fino in fondo (`#3012`).
+	 *
+	 * ⚠️ **La durata e' la SOMMA** di quelle dei passi coperti ([D-398] §7a): pagarne una sola
+	 * renderebbe l'attraversamento un modo di muoversi piu' in fretta, che nessuno ha deciso.
+	 */
+	void BeginArcIfNeeded(FRTMovementResolutionState& State, int32 UnitIdx, bool bMayCross)
+	{
+		if (!State.ArcEnd.IsValidIndex(UnitIdx) || !State.Prog.IsValidIndex(UnitIdx)
+			|| !State.Paths.IsValidIndex(UnitIdx) || State.Done[UnitIdx])
+		{
+			return;
+		}
+		if (State.ArcEnd[UnitIdx] > State.Prog[UnitIdx])
+		{
+			return; // arco gia' aperto: la sua durata si sta ancora pagando
+		}
+
+		const TArray<FRTCellId>& Path = State.Paths[UnitIdx];
+		const int32 Next = State.Prog[UnitIdx] + 1;
+		if (!Path.IsValidIndex(Next))
+		{
+			return;
+		}
+
+		int32 End = Next;
+		if (bMayCross)
+		{
+			while (Path.IsValidIndex(End) && CellHeldByStationaryOther(State, UnitIdx, Path[End]))
+			{
+				++End;
+			}
+			if (!Path.IsValidIndex(End))
+			{
+				End = Next; // nessuna cella libera a valle: non si attraversa
+			}
+		}
+		State.ArcEnd[UnitIdx] = End;
+
+		int32 Durata = 0;
+		for (int32 k = Next; k <= End; ++k)
+		{
+			Durata += DurationOfStep(State, UnitIdx, k - 1);
+		}
+		State.StepRemaining[UnitIdx] = FMath::Max(1, Durata);
+	}
+
 	int32 RemainingForStep(const FRTMovementResolutionState& State, int32 UnitIdx)
 	{
 		return State.StepRemaining.IsValidIndex(UnitIdx)
@@ -880,10 +961,19 @@ namespace
 			// `Arriving` = completa l'arco QUI. Solo queste contendono una cella e solo queste liberano la
 			// propria: chi e' in transito occupa ancora l'origine ([D-382]).
 			TArray<bool> Arriving;    Arriving.SetNum(N);
+			// ➕ **L'arco si apre QUI, prima del punto fisso** (`#3012`, [D-398]). Un passaggio dedicato, su
+			// `Pos` ancora stabile: calcolarlo dentro il ciclo d'avanzamento leggerebbe posizioni aggiornate a
+			// meta' e l'esito dipenderebbe dall'ordine delle unita'.
+			for (int32 i = 0; i < N; ++i)
+			{
+				BeginArcIfNeeded(State, i, PassesThrough(i));
+			}
 			for (int32 i = 0; i < N; ++i)
 			{
 				Moving[i] = !Done[i];
-				Target[i] = Done[i] ? Pos[i] : Paths[i][Prog[i] + 1];
+				// 🔑 Il bersaglio e' la FINE DELL'ARCO, non il passo successivo: e' l'unica cella su cui
+				// l'unita' comparira', ed e' libera per costruzione quando l'arco attraversa qualcuno.
+				Target[i] = Done[i] ? Pos[i] : Paths[i][State.ArcEnd[i]];
 				Arriving[i] = Moving[i] && RemainingForStep(State, i) <= 1;
 			}
 
@@ -1016,16 +1106,25 @@ namespace
 
 					// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
 					//
-					// Chi ATTRAVERSA ci passa in mezzo, ma solo se quella cella non e' la sua ULTIMA: si
-					// transita dentro qualcuno, non ci si ferma. Due unita' nella stessa cella a fine turno non
-					// sono rappresentabili, e un'eccezione qui le renderebbe possibili per una sola azione.
-					const bool bFinalStep = Paths.IsValidIndex(i) && (Prog[i] + 1) == (Paths[i].Num() - 1);
-					const bool bCrossesStationary = PassesThrough(i) && !bFinalStep;
+					// ⌨ **QUI C'ERA IL PERMESSO D'ATTRAVERSAMENTO, ed e' sparito** (`#3012`, [D-398]). Diceva:
+					// *«chi ATTRAVERSA ci passa in mezzo, ma solo se quella cella non e' la sua ULTIMA»*, e
+					// avvertiva che un'eccezione avrebbe reso possibili due unita' nella stessa cella.
+					//
+					// 🔴 **L'eccezione non e' mai stata fatta, e le due unita' erano possibili lo stesso.**
+					// Il guardiano proteggeva la destinazione **pianificata**, mentre un'unita' bloccata piu'
+					// avanti si ferma dove **sta**: `Results[i].Final = Pos[i]`. Misurato su `origin/main`
+					// `1b9f6f36` — un `LinearPass` che attraversa e poi trova la destinazione occupata finisce
+					// addosso a chi aveva attraversato.
+					//
+					// 🔑 Ora non serve piu' nessun permesso QUI: `Target[i]` e' la fine di un arco che
+					// termina su una cella **libera** ([D-398]), quindi un occupante fermo non e' mai il
+					// bersaglio e non c'e' niente da ignorare. Lo stato illecito e' irrappresentabile invece che
+					// vietato dopo essere stato prodotto.
 					// ⚠️ **`!Arriving[j]`, non `!Moving[j]`** (`#2914`): un'unita' IN TRANSITO non ha ancora
 					// lasciato la propria cella, quindi la occupa esattamente come una ferma. E' la meta'
 					// osservabile di [D-382] — *«un'unita' lenta tappa il corridoio per l'intera durata del
 					// passo»* — e senza di essa un inseguitore entrerebbe dentro chi sta ancora uscendo.
-					if (!bBlocked && !bCrossesStationary)
+					if (!bBlocked)
 					{
 						for (int32 j = 0; j < N; ++j)
 						{
@@ -1084,18 +1183,21 @@ namespace
 					continue;
 				}
 				Pos[i] = Target[i];
-				Results[i].Entered.Add(Target[i]);
+				// ➕ `Entered` cresce su OGNI cella dell'arco (`#3012`, [D-398] §7b), non solo sull'arrivo:
+				// l'unita' vi e' passata davvero, e su questa crescita e' misurato `MovedUnitIds`, che arma i
+				// trigger d'Overwatch. Tacere le celle attraversate le renderebbe invisibili a una reazione.
+				for (int32 k = Prog[i] + 1; k <= State.ArcEnd[i]; ++k)
+				{
+					Results[i].Entered.Add(Paths[i][k]);
+				}
 				Results[i].Final = Target[i];
-				++Prog[i];
+				Prog[i] = State.ArcEnd[i];
 				if (Prog[i] >= Paths[i].Num() - 1)
 				{
 					Done[i] = true;
 				}
-				else
-				{
-					// Il prossimo arco parte con la propria durata.
-					State.StepRemaining[i] = DurationOfStep(State, i, Prog[i]);
-				}
+				// ⚠️ L'arco successivo NON si apre qui: `ArcEnd == Prog` lo segnala, e `BeginArcIfNeeded` lo
+				// calcolera' al prossimo micro-step, quando `Pos` sara' di nuovo stabile per tutti.
 				bAnyMoved = true;
 			}
 			++State.MicroStepIndex;
@@ -1221,6 +1323,7 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 	}
 
 	State.StepRemaining.SetNum(N);
+	State.ArcEnd.SetNum(N);
 	for (int32 i = 0; i < N; ++i)
 	{
 		State.Pos[i] = Paths[i].Num() > 0 ? Paths[i][0] : FRTCellId();
@@ -1230,6 +1333,10 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 		// Il primo arco parte con la propria durata; senza `StepDurations` vale `1` per ogni arco, e il
 		// resolver si comporta esattamente come prima di `#2914`.
 		State.StepRemaining[i] = DurationOfStep(State, i, 0);
+		// ⚠️ `ArcEnd == Prog` = nessun arco aperto. Il primo lo apre `BeginArcIfNeeded` al primo
+		// micro-step, quando tutte le posizioni sono state scritte: aprirlo qui leggerebbe un `Pos` che
+		// questo stesso ciclo sta ancora riempiendo (`#3012`).
+		State.ArcEnd[i] = 0;
 	}
 
 	// Motivo del PRIMO congelamento per unita' (reason code del TurnLog): resta quello, anche se un
