@@ -9,12 +9,16 @@
 // ⛔ **Ed e' la ragione per cui questo header sta in `Private/` dal 2026-09-12** (#2836). `RefactorTactics`
 // e' dichiarato `PrivateDependencyModuleName` in `RefactorTacticsEditor.Build.cs`: un header PUBBLICO che
 // include `Replay/RTReplayViewModel.h` promette a un modulo terzo un percorso di include che quella
-// dichiarazione non gli concede. Qui il costo e' zero — misurato, gli unici quattro file che lo includono
-// stanno tutti sotto `Private/`:
+// dichiarazione non gli concede. Qui il costo e' zero: chi lo include sta tutto sotto `Private/` — questo
+// header, il suo `.cpp`, `SRTLauncherScenarioPanel.h`, `Tests/RTLauncherScenarioBrowserTests.cpp` e
+// `Tests/RTScenarioPerspectiveTests.cpp`. Si rimisura con:
 //
 //     git grep -l 'RTLauncherScenarioBrowser.h' -- Source/
 //
-// e nessuno di loro e' fuori dal modulo. ⚠️ **Non e' un difetto isolato**: altri header di
+// ⚠️ **Quel comando conta anche QUESTA riga**, perche' il nome del file compare nel proprio commento: chi
+// lo esegue vede un file in piu' di quelli che includono davvero. E' anche la ragione per cui qui non c'e'
+// un numero — `CLAUDE.md` §15 vieta i totali che cambiano da soli, e un conteggio di chi-include e'
+// esattamente uno di quelli. ⚠️ **Non e' un difetto isolato**: altri header di
 // `RefactorTacticsEditor/Public/` includono header di `RefactorTactics` allo stesso modo. Quelli hanno un
 // owner diverso e restano dove sono; spostare questo non li corregge e non pretende di farlo.
 #include "Replay/RTReplayViewModel.h" // FRTReplayPosition
@@ -138,13 +142,19 @@ struct FRTLauncherTransportStatus
 	int32 TurnsPlayed = 0;
 
 	/**
-	 * C'e' una traccia confrontabile — `FRTScenarioRunReport::bHasTrace`, cioe' cio' che il RUNNER dichiara.
+	 * `FRTScenarioRunReport::bHasTrace`, e va letto per quello che e'.
 	 *
-	 * 🔴 **Esiste perche' `!bPlaybackOpen` non e' un sinonimo di «traccia assente»** (#2836).
+	 * ⚠️ **Non dice «la traccia si riproduce»**, e credere il contrario sarebbe la stessa deduzione
+	 * sbagliata girata di un passo: `FRTScenarioDraft::Run` lo scrive come `Scenario.Variants.Num() == 0`
+	 * (`RTScenarioDraft.cpp:1126`), cioe' risponde a *«questa corsa e' un aggregato a varianti?»*. Un
+	 * aggregato non porta ne' hash ne' TurnLog, quindi `false` significa **con certezza** che non c'e'
+	 * niente da riprodurre; `true` significa che una traccia e' stata prodotta, non che si decodifichi.
+	 *
+	 * 🔴 **Serve comunque, perche' `!bPlaybackOpen` non e' un sinonimo di «traccia assente»** (#2836).
 	 * `URTScenarioPreviewSubsystem::OpenPlayback` rifiuta per cause distinte — nessuna anteprima viva,
 	 * nessuna unita' posata, tracce vuote, una traccia che non si deserializza, la navigazione che non si
-	 * apre — e dedurne *«traccia non riproducibile»* accusa la traccia per un'anteprima morta. Il segnale
-	 * autorevole e' questo, e va passato invece che indovinato.
+	 * apre — e dedurne *«traccia non riproducibile»* accusa la traccia per un'anteprima morta. Con `true` e
+	 * il playback chiuso la causa **non e' conoscibile da qui**, e la riga lo dice invece di sceglierne una.
 	 */
 	bool bHasTrace = false;
 
@@ -309,17 +319,33 @@ public:
 	static ERTLauncherRunState ClassifyRun(const FRTScenarioRunReport& Report);
 
 	/**
-	 * Il motivo che il referto porta per gli esiti che ne hanno uno: `BlockedReason` oppure `ErrorMessage`.
-	 * Stringa vuota per `Pass` e `Fail`, che non ne hanno (#2836).
+	 * La riga `referto:` sotto il readout: il motivo che il referto porta, piu' la nota del viewport quando
+	 * il campo non e' stato posato (#2836). Vuota quando non c'e' niente da dire.
 	 *
 	 * 🔑 **Serve a far arrivare al readout il campo che il pannello scartava.** Senza, il designer legge
 	 * *«Corsa BLOCCATA»* e non sa **quale** capability manchi — che e' l'unica cosa da sapere per andare
 	 * avanti, e che il referto gia' contiene.
 	 *
-	 * ⚠️ Un esito che dichiara il motivo e non lo porta lo DICE, invece di restituire una stringa vuota che
-	 * a schermo diventa una riga assente: un referto incompleto e' un difetto, e va visto.
+	 * ⛔ **Non ripete l'esito**, che l'intestazione della riga di trasporto ha gia' detto: porta il MOTIVO e
+	 * basta. Un *«corsa BLOCCATA:»* premesso qui lo direbbe una terza volta nella stessa schermata.
+	 *
+	 * ⚠️ **`bFieldPlaced` e' un parametro e non una seconda frase scritta nel pannello.** Comporla li'
+	 * l'avrebbe messa fuori da ogni automation test, che e' proprio cio' che l'intestazione di
+	 * `SRTLauncherScenarioPanel.h` vieta — e sarebbe stata l'unica frase nuova senza copertura, oltre che
+	 * quella che parla quando il viewport ha gia' un problema.
+	 *
+	 * ⚠️ `FText` e non `FString`: il pannello la incornicia in un `LOCTEXT`, e restituire testo grezzo
+	 * produrrebbe una frase mezza tradotta sotto una locale non italiana.
 	 */
-	static FString DescribeRunDetail(const FRTScenarioRunReport& Report);
+	static FText DescribeRunDetail(const FRTScenarioRunReport& Report, bool bFieldPlaced);
+
+	/**
+	 * Perche' `Esegui` non ha nemmeno provato a correre (#2836): manca l'anteprima, oppure la facade.
+	 *
+	 * ⚠️ **Due cause e due frasi**, perche' mandano a guardare in due posti diversi: il viewport oppure il
+	 * draft. Confonderle manda nel posto sbagliato, ed e' il genere di risparmio che costa un giro.
+	 */
+	static FText DescribeRunPrevented(bool bPreviewAvailable);
 
 	/**
 	 * La riga di stato del trasporto: cosa il campo sta mostrando, e da quale gesto viene (#2788).

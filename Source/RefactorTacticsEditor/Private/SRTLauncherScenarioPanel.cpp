@@ -279,7 +279,7 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 							// motivo, e una riga «referto: » vuota sarebbe rumore sotto ogni corsa riuscita.
 							return LastRunDetail.IsEmpty()
 								? FText::GetEmpty()
-								: FText::Format(LOCTEXT("RunDetail", "referto: {0}"), FText::FromString(LastRunDetail));
+								: FText::Format(LOCTEXT("RunDetail", "referto: {0}"), LastRunDetail);
 						})
 					]
 				]
@@ -562,15 +562,29 @@ void SRTLauncherScenarioPanel::ClearSelection()
 	// FRASE anche se un giorno una strada nuova dimenticasse di dimenticare; questa riga tiene onesto il
 	// DATO, che e' l'altra meta': una memoria che sopravvive al suo soggetto e' sbagliata comunque venga
 	// letta.
-	LastRunState = ERTLauncherRunState::NotRun;
-	LastRunTurns = 0;
-	LastRunHasTrace = false;
-	LastRunDetail.Reset();
+	ForgetLastRun();
+
+	// 🔴 **E l'ANTEPRIMA, che e' la meta' che la prima stesura di #2836 aveva lasciato indietro.** Senza
+	// questa riga il playback restava aperto: `IsPlaybackOpen()` continuava a rispondere `true`, quindi
+	// `Riproduci`, i quattro passi e `Reset` restavano abilitati e i marcatori si muovevano — sotto un
+	// pannello che dichiarava nessuna selezione e una riga di stato che si rifiutava di dire dove fosse
+	// arrivato. E' lo stesso invariante che `RefreshReadout()` applica con `SelectedId` vuoto: nessuna
+	// selezione, nessuna anteprima. Qui mancava perche' `ClearSelection()` non passa di li'.
+	ClearScenarioPreview();
+	RefreshPerspectiveOptions();
 
 	// Senza scenario non ci sono unita' schierate: tenere il bersaglio precedente lascerebbe i tre pulsanti
 	// abilitati su un'unita' che nessuno puo' piu' raggiungere.
 	PlacedUnitOptions.Reset();
 	SelectedUnitId.Reset();
+}
+
+void SRTLauncherScenarioPanel::ForgetLastRun()
+{
+	LastRunState = ERTLauncherRunState::NotRun;
+	LastRunTurns = 0;
+	LastRunHasTrace = false;
+	LastRunDetail = FText::GetEmpty();
 }
 
 void SRTLauncherScenarioPanel::RefreshReadout()
@@ -586,10 +600,7 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 	// 🔑 **Ed e' la ragione per cui i due rami di rifiuto di `OnRunScenarioClicked` scrivono `Failed`
 	// DOPO aver chiamato questa funzione**, non prima: scritto prima, verrebbe cancellato qui. Vale identico
 	// per `ReadoutError`, che quei rami perdevano esattamente cosi'.
-	LastRunState = ERTLauncherRunState::NotRun;
-	LastRunTurns = 0;
-	LastRunHasTrace = false;
-	LastRunDetail.Reset();
+	ForgetLastRun();
 
 	if (SelectedId.IsEmpty())
 	{
@@ -923,24 +934,29 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 		// dall'interfaccia questo ramo non si raggiunge. Resta perche' la correttezza di una funzione non
 		// deve dipendere dall'abilitazione di un widget, e lo stato che scrive e' quello vero: senza
 		// scenario non c'e' nessuna corsa da ricordare.
-		LastRunState = ERTLauncherRunState::NotRun;
-		LastRunTurns = 0;
-		LastRunHasTrace = false;
-		LastRunDetail.Reset();
+		ForgetLastRun();
 		return FReply::Handled();
 	}
 
 	URTScenarioPreviewSubsystem* Preview = PreviewSubsystem();
 	if (!Preview || !Authoring.IsValid())
 	{
-		// Due cause distinte e due messaggi distinti: «non c'e' l'anteprima» manda a guardare il viewport,
-		// «non c'e' la facade» manda a guardare il draft, e confonderle manda nel posto sbagliato.
-		LastRunDetail = Preview
-			? TEXT("la facade d'authoring non e' disponibile: nessuna corsa")
-			: TEXT("l'anteprima di scenario non e' disponibile: nessuna corsa");
+		// ⚠️ **Prima si chiude cio' che era rimasto aperto.** Senza, un playback di una corsa PRECEDENTE
+		// sopravvive a questo rifiuto, e la riga comporrebbe *«Corsa fallita · Turno 3 · …»*: un gesto che
+		// non c'e' stato accostato alla posizione di un altro. Gli altri due rami di rifiuto ci arrivano
+		// gia' — passano da `RefreshReadout()`, che rifa' `ShowScenario` e quindi `ClearPreview` — questo no.
+		if (Preview)
+		{
+			ClearScenarioPreview();
+		}
+
+		ForgetLastRun();
 		LastRunState = ERTLauncherRunState::Failed;
-		LastRunTurns = 0;
-		LastRunHasTrace = false;
+
+		// Due cause distinte e due frasi distinte: «non c'e' l'anteprima» manda a guardare il viewport,
+		// «non c'e' la facade» manda a guardare il draft, e confonderle manda nel posto sbagliato. Le
+		// compone il browser, dove un test le vede — questo file e' un guscio.
+		LastRunDetail = FRTLauncherScenarioBrowser::DescribeRunPrevented(Preview != nullptr);
 		return FReply::Handled();
 	}
 
@@ -956,10 +972,8 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 		// prima, il messaggio sopravviveva solo perche' la riapertura falliva a sua volta e ne rimetteva uno
 		// identico — una stesura sbagliata che dava il risultato giusto.
 		ReadoutError = ApriErrore;
+		ForgetLastRun();
 		LastRunState = ERTLauncherRunState::Failed;
-		LastRunTurns = 0;
-		LastRunHasTrace = false;
-		LastRunDetail.Reset();
 		return FReply::Handled();
 	}
 
@@ -979,10 +993,8 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 		// fallire e' stata la CORSA e non l'apertura. Il messaggio della facade non raggiungeva quindi mai
 		// il pannello, mentre il criterio 3 di #2788 lo dava per acquisito.
 		ReadoutError = CorsaErrore;
+		ForgetLastRun();
 		LastRunState = ERTLauncherRunState::Failed;
-		LastRunTurns = 0;
-		LastRunHasTrace = false;
-		LastRunDetail.Reset();
 		return FReply::Handled();
 	}
 
@@ -1034,16 +1046,12 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 
 	// `BlockedReason` / `ErrorMessage` sul readout: senza, la riga dice *«Corsa BLOCCATA»* e non dice
 	// **quale** capability manchi, che e' l'unica cosa da sapere per andare avanti.
-	LastRunDetail = FRTLauncherScenarioBrowser::DescribeRunDetail(Referto);
-
-	if (!bCampoPosato)
-	{
-		// ⚠️ La corsa e' avvenuta lo stesso: si nomina il viewport, non la corsa. Fondere le due cose
-		// direbbe che l'esecuzione e' fallita, mentre il referto qui sopra dice il contrario.
-		LastRunDetail = LastRunDetail.IsEmpty()
-			? FString(TEXT("il viewport non ha posato lo scenario: nessun playback da aprire"))
-			: LastRunDetail + TEXT(" · il viewport non ha posato lo scenario: nessun playback da aprire");
-	}
+	//
+	// ⚠️ **La frase la compone il browser, non questo file**, e `bCampoPosato` e' un argomento invece di un
+	// `if` scritto qui: comporla nel guscio l'avrebbe messa fuori da ogni automation test — cioe' proprio
+	// la regola che l'intestazione di questo header dichiara — e sarebbe stata l'unica frase nuova senza
+	// copertura, oltre che quella che parla quando il viewport ha gia' un problema.
+	LastRunDetail = FRTLauncherScenarioBrowser::DescribeRunDetail(Referto, bCampoPosato);
 
 	return FReply::Handled();
 }

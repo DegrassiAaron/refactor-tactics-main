@@ -59,12 +59,27 @@ private:
 	void RefreshReadout();
 
 	/**
-	 * Dimentica la selezione, il readout **e la corsa** insieme. Sempre insieme: vedi `SelectedId`.
+	 * Dimentica la selezione, il readout, **la corsa e l'anteprima** insieme. Sempre insieme: vedi `SelectedId`.
 	 *
 	 * 🔴 La corsa e' entrata in questo elenco con #2836: prima restava, e la riga di trasporto continuava a
 	 * descriverla sopra un readout vuoto e senza nessuno scenario a schermo.
+	 *
+	 * 🔴 **E l'anteprima subito dopo, nello stesso giro.** Questa funzione non la chiudeva e non chiamava
+	 * `RefreshReadout()`, che e' l'unica sede che lo fa: dopo `Esegui` e un clic nel vuoto il playback
+	 * restava APERTO — i pulsanti di trasporto abilitati, i marcatori che si muovono — sotto un pannello che
+	 * dichiarava nessuna selezione. La prima stesura di #2836 rendeva la contraddizione peggiore invece di
+	 * toglierla: la riga smetteva di dire dove si era, e i comandi continuavano a funzionare.
 	 */
 	void ClearSelection();
+
+	/**
+	 * Dimentica la corsa e basta: i quattro campi `LastRun*` tornano al loro default.
+	 *
+	 * 🔑 **Esiste perche' il difetto di #2836 era esattamente «una sede se n'e' dimenticata».** Con
+	 * l'azzeramento scritto a mano in ogni punto, aggiungere un quinto campo domani significherebbe
+	 * ricordarselo in tutti — ed e' la stessa forma di errore, un giro dopo. Qui c'e' un posto solo.
+	 */
+	void ForgetLastRun();
 
 	/**
 	 * Ricostruisce le posizioni del selettore di prospettiva dalle squadre che l'anteprima sta mostrando
@@ -315,8 +330,11 @@ private:
 	 * ⚠️ **Non finisce in `ReadoutError`**, che si presenta come *«non leggibile: …»* e sostituisce il
 	 * readout: uno scenario bloccato si legge benissimo, e nasconderne terreno e squadre toglierebbe di
 	 * mezzo proprio cio' che serve a capire dove si e' fermato. Ha la sua riga, sotto il readout.
+	 *
+	 * ⚠️ `FText` e non `FString`: la compone `FRTLauncherScenarioBrowser`, dove un automation test la vede,
+	 * e il pannello la incornicia in un `LOCTEXT`. Testo grezzo qui darebbe una frase mezza tradotta.
 	 */
-	FString LastRunDetail;
+	FText LastRunDetail;
 
 	/**
 	 * La facade d'authoring usata per leggere il readout.

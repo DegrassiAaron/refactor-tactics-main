@@ -266,33 +266,84 @@ ERTLauncherRunState FRTLauncherScenarioBrowser::ClassifyRun(const FRTScenarioRun
 
 	// ⚠️ **Non un `Ran` di comodo.** Un esito che questa funzione non conosce e' un esito che nessuno ha
 	// tradotto: farlo passare per una corsa riuscita e' esattamente il difetto di #2836. `Errored` lo rende
-	// visibile, e il readout porta il testo che il referto ha scritto (`OutcomeText`).
+	// visibile, e `DescribeRunDetail` porta a schermo `OutcomeText` — il testo che il RUNNER ha scritto per
+	// quell'esito — invece di lasciare vuota la riga del referto.
 	return ERTLauncherRunState::Errored;
 }
 
-FString FRTLauncherScenarioBrowser::DescribeRunDetail(const FRTScenarioRunReport& Report)
+namespace
 {
-	switch (Report.Outcome)
+	/** Il solo MOTIVO, senza nominare l'esito: quello l'intestazione della riga l'ha gia' detto. */
+	FText DescribeReportReason(const FRTScenarioRunReport& Report)
 	{
-	case ERTTestOutcome::Blocked:
-		return Report.BlockedReason.IsEmpty()
-			// Un `Blocked` senza motivo e' un referto incompleto: dirlo e' l'unico modo di accorgersene.
-			? FString(TEXT("corsa BLOCCATA: il referto non dice quale capability manchi"))
-			: FString::Printf(TEXT("corsa BLOCCATA: %s"), *Report.BlockedReason);
+		switch (Report.Outcome)
+		{
+		case ERTTestOutcome::Blocked:
+			// ⚠️ Irraggiungibile da una corsa vera, e la guardia resta lo stesso. `RTScenarioSession`
+			// scrive `Outcome` e `BlockedReason` nella **stessa** istruzione di `Finish()`, quindi
+			// l'invariante e' del PRODUTTORE e qui non c'e' niente da verificare: a costruire un referto
+			// senza motivo puo' essere solo un chiamante che se lo fabbrica — Blueprint, o un test. Una
+			// stringa vuota diventerebbe una riga assente sotto un'intestazione che promette un motivo, ed
+			// e' la forma di silenzio che #2836 esiste per togliere.
+			return Report.BlockedReason.IsEmpty()
+				? LOCTEXT("ReasonBlockedMissing", "il referto non dice quale capability manchi")
+				: FText::FromString(Report.BlockedReason);
 
-	case ERTTestOutcome::Error:
-		return Report.ErrorMessage.IsEmpty()
-			? FString(TEXT("corsa in ERRORE: il referto non dice perche'"))
-			: FString::Printf(TEXT("corsa in ERRORE: %s"), *Report.ErrorMessage);
+		case ERTTestOutcome::Error:
+			return Report.ErrorMessage.IsEmpty()
+				? LOCTEXT("ReasonErrorMissing", "il referto non dice perche'")
+				: FText::FromString(Report.ErrorMessage);
 
-	case ERTTestOutcome::Pass:
-	case ERTTestOutcome::Fail:
-		// Nessun motivo da riportare: `PassedCount` / `FailedCount` e le assertion sono un'altra lettura,
-		// e non e' questa funzione a possederla.
-		break;
+		case ERTTestOutcome::Pass:
+		case ERTTestOutcome::Fail:
+			// Nessun motivo da riportare: `PassedCount` / `FailedCount` e le assertion sono un'altra
+			// lettura, e non e' questa funzione a possederla.
+			return FText::GetEmpty();
+		}
+
+		// 🔴 **Un esito che nessuno ha tradotto, e la riga NON resta vuota.** `ClassifyRun` lo mostra gia'
+		// come `Errored`; qui arriva il testo che il runner stesso ha scritto per quell'esito, che e'
+		// l'unica cosa vera che si possa dire. Il fallthrough non e' teorico: `ERTTestOutcome` e' dichiarato
+		// estendibile IN CODA (`RTTestScenario.h`), e su questo progetto il compilatore non intercetta il
+		// caso mancante — la misura sta in `DescribeEmptyState`.
+		FFormatNamedArguments Argomenti;
+		Argomenti.Add(TEXT("Esito"), Report.OutcomeText.IsEmpty()
+			? LOCTEXT("ReasonUnknownOutcome", "senza nome")
+			: FText::FromString(Report.OutcomeText));
+		return FText::Format(LOCTEXT("ReasonUnknown", "esito non tradotto dal pannello: {Esito}"), Argomenti);
+	}
+}
+
+FText FRTLauncherScenarioBrowser::DescribeRunDetail(const FRTScenarioRunReport& Report, bool bFieldPlaced)
+{
+	const FText Motivo = DescribeReportReason(Report);
+
+	if (bFieldPlaced)
+	{
+		return Motivo;
 	}
 
-	return FString();
+	// ⚠️ **Il viewport si nomina, la corsa no.** L'esecuzione e' avvenuta comunque — il referto qui sopra
+	// lo dice — e fondere le due cose farebbe leggere come fallita una corsa riuscita il cui campo non si e'
+	// posato. Sono due frasi perche' sono due fatti.
+	const FText Campo = LOCTEXT("DetailNoField", "il viewport non ha posato lo scenario: nessun playback da aprire");
+
+	if (Motivo.IsEmpty())
+	{
+		return Campo;
+	}
+
+	FFormatNamedArguments Argomenti;
+	Argomenti.Add(TEXT("Motivo"), Motivo);
+	Argomenti.Add(TEXT("Campo"), Campo);
+	return FText::Format(LOCTEXT("DetailBoth", "{Motivo} · {Campo}"), Argomenti);
+}
+
+FText FRTLauncherScenarioBrowser::DescribeRunPrevented(bool bPreviewAvailable)
+{
+	return bPreviewAvailable
+		? LOCTEXT("PreventedNoAuthoring", "la facade d'authoring non e' disponibile: nessuna corsa")
+		: LOCTEXT("PreventedNoPreview", "l'anteprima di scenario non e' disponibile: nessuna corsa");
 }
 
 namespace
@@ -364,7 +415,14 @@ namespace
 	{
 		if (Status.bPlaybackOpen)
 		{
-			return FRTLauncherScenarioBrowser::DescribePlaybackPosition(Status.Position);
+			// 🔴 **Tranne dopo un RIFIUTO** (#2836). Una corsa che non e' avvenuta non ha prodotto nessuna
+			// traccia, quindi un playback aperto qui e' quello di una corsa PRECEDENTE: comporre
+			// *«Corsa fallita · Turno 3 · Movimento»* accosterebbe un gesto che non c'e' stato alla posizione
+			// di un altro. E' una congiunzione FALSA — la stessa forma di difetto che questa funzione esiste
+			// per togliere, girata dall'altra parte.
+			return Status.Run == ERTLauncherRunState::Failed
+				? LOCTEXT("TailFailedStalePlayback", "il playback aperto e' di una corsa precedente.")
+				: FRTLauncherScenarioBrowser::DescribePlaybackPosition(Status.Position);
 		}
 
 		switch (Status.Run)
@@ -374,10 +432,13 @@ namespace
 			return LOCTEXT("TailFailed", "nessun playback. Il referto dice perche'.");
 
 		case ERTLauncherRunState::Blocked:
-			return LOCTEXT("TailBlocked", "il referto dice quale capability manca.");
+			// ⛔ **Dice CHE COSA, non «vai a leggere».** Il motivo e' gia' sulla riga `referto:` appena
+			// sotto, e rimandare a una riga visibile e' rumore: la terza volta che la stessa schermata
+			// dichiara lo stesso fatto.
+			return LOCTEXT("TailBlocked", "una capability non c'e' ancora.");
 
 		case ERTLauncherRunState::Errored:
-			return LOCTEXT("TailErrored", "il referto dice perche'.");
+			return LOCTEXT("TailErrored", "lo scenario non ha potuto giocare.");
 
 		case ERTLauncherRunState::NotRun:
 		case ERTLauncherRunState::Ran:

@@ -1345,7 +1345,7 @@ capabilities:
       - "FATTO: i consumatori di `FRTReplayViewModel` fuori dal core sono
          `ScenarioHarness/RTScenarioAuthoring.h`, `ScenarioHarness/RTScenarioDraft.h`,
          `RefactorTacticsEditor/Public/RTScenarioPreviewSubsystem.h` e
-         `RefactorTacticsEditor/Public/RTLauncherScenarioBrowser.h`. Il Tactical Designer
+         `RefactorTacticsEditor/Private/RTLauncherScenarioBrowser.h`. Il Tactical Designer
          CONSUMA il ViewModel — nessun secondo resolver."
 
   - id: RT-CAP-REPLAY-PRIVACY
@@ -2114,7 +2114,7 @@ capabilities:
         - Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.h
         - Source/RefactorTactics/ScenarioHarness/RTScenarioWriter.cpp
         - Source/RefactorTactics/ScenarioHarness/RTScenarioArena.h
-        - Source/RefactorTacticsEditor/Public/RTLauncherScenarioBrowser.h
+        - Source/RefactorTacticsEditor/Private/RTLauncherScenarioBrowser.h
     issues: { open: [1628, 1564, 1405, 1809], closed: [1115, 1705, 1682, 2190] }
     consumers: [RT-CAP-TACTICAL-DESIGNER]
     dependencies: [RT-CAP-MAP-TOPOLOGY, RT-CAP-SCENARIO-HARNESS]
