@@ -115,4 +115,93 @@ bool FRTShippedGameModeSetsUpAdvertisedMatchTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Il ritmo dell'auto-run resta corto NELLA CLASSE SPEDITA, non solo nel default di compilazione.**
+ *
+ * `Scenario.AutoRunPacingHasShortDefault` asserisce la stessa soglia su `SpawnActor<ARTGameMode>()`, cioe' sul
+ * default C++ — che nessun override di Blueprint puo' muovere. Ma il gioco gira su `BP_GameMode_C`
+ * (`Config/DefaultEngine.ini`, `GlobalDefaultGameMode`), e `ScenarioTurnPauseSeconds` e' `EditAnywhere`: un valore
+ * scritto nei Class Defaults viveva fuori da entrambi i gate.
+ *
+ * ⚠️ **E non lo copre il test qui sopra**, che pure carica la classe giusta: le sue tre asserzioni misurano
+ * l'ALLESTIMENTO — quattro unita', nessun fatale, la mappa non sostituita — e questa proprieta' e' un ritmo consumato
+ * DOPO il setup. E' la ragione per cui era l'unica del gruppo invisibile a tutti e due.
+ *
+ * 🔑 **Perche' la soglia conta**: un ritmo alto fa credere di giudicare il gioco mentre si guarda la scena FRA due
+ * risoluzioni, dove tutti i piani sono azzerati e nessuno sta pianificando. Il registro PIE ha gia' contato quattro
+ * verdetti presi cosi'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTShippedGameModePacingStaysShortTest,
+	"RefactorTactics.Startup.ShippedGameModePacingStaysShort",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTShippedGameModePacingStaysShortTest::RunTest(const FString&)
+{
+	// Stessa ragione del test qui sopra: il Blueprint spedito porta un riferimento a un package assente, e il
+	// caricamento lo dichiara. Asserire la presenza di quel rumore legherebbe il test al difetto.
+	AddExpectedMessage(TEXT("Failed to find object"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
+	AddExpectedMessage(TEXT("was not available"),
+		ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ -1);
+
+	UClass* Shipped = LoadClass<ARTGameMode>(nullptr, RTShippedGameMode::ClassPath);
+	if (!TestNotNull(*FString::Printf(TEXT("la classe spedita '%s' si carica"), RTShippedGameMode::ClassPath),
+		Shipped))
+	{
+		return false;
+	}
+
+	// 🔴 **La guardia che impedisce a questo test di diventare una copia vacua dell'altro.** Se `LoadClass`
+	// ripiegasse sulla classe C++ — asset rinominato, path cambiato — ogni asserzione qui sotto misurerebbe il
+	// default di compilazione e resterebbe verde per la ragione sbagliata, cioe' esattamente il difetto che
+	// questo file esiste per chiudere.
+	TestTrue(TEXT("la classe spedita e' una SOTTOCLASSE del GameMode C++, non il GameMode C++"),
+		Shipped != ARTGameMode::StaticClass());
+
+	// ⛔ Il CDO della classe CARICATA, non `ARTGameMode::StaticClass()`: e' la distinzione che questo test esiste
+	// per fare.
+	const ARTGameMode* Cdo = Shipped->GetDefaultObject<ARTGameMode>();
+	if (!TestNotNull(TEXT("il CDO della classe spedita"), Cdo)) { return false; }
+
+	TestTrue(TEXT("il ritmo spedito e' positivo"), Cdo->ScenarioTurnPauseSeconds >= 0.f);
+	TestTrue(*FString::Printf(
+		TEXT("il ritmo spedito e' molto piu' corto della pianificazione normale (30 s): vale %.2f"),
+		Cdo->ScenarioTurnPauseSeconds),
+		Cdo->ScenarioTurnPauseSeconds < 10.f);
+
+	// ── **Le altre leve di prova non sono armate nel Blueprint spedito** (`#3067`, criterio 3).
+	//
+	// Sono le proprieta' `EditAnywhere` che NON rompono l'allestimento, quindi le tre asserzioni del test qui
+	// sopra le attraversano senza vederle: una partita con `bAutobattle` acceso o un filtro di scenario armato
+	// monta comunque quattro unita', non produce fatali e non sostituisce la mappa.
+	//
+	// ⚠️ `ScenarioToRun` e' l'eccezione e si legge lo stesso: un valore qui fa uscire `SetupHexMatch` nel ramo
+	// dello scenario, quindi le unita' sarebbero ZERO e l'altro test cadrebbe. Asserirlo qui non e' ridondanza —
+	// e' il messaggio che nomina la causa invece di far contare le unita' a chi legge.
+	TestTrue(TEXT("il Blueprint spedito non arma uno scenario"), Cdo->ScenarioToRun.IsEmpty());
+	TestTrue(TEXT("ne' il filtro di scenario A"), Cdo->ScenarioFilterA.IsEmpty());
+	TestTrue(TEXT("ne' il filtro di scenario B"), Cdo->ScenarioFilterB.IsEmpty());
+	TestFalse(TEXT("il Blueprint spedito non accende l'autobattle"), Cdo->bAutobattle);
+	TestEqual(TEXT("ne' aggiunge alleati bot"), Cdo->BotAllyCount, 0);
+	TestEqual(TEXT("ne' sovrascrive la finestra di pianificazione (-1 = usa il formato)"),
+		Cdo->MatchPlanningSeconds, -1.f);
+
+	// ── ⚠️ **`DemoArenaRadius` NON e' asserito, ed e' una misura, non una dimenticanza.**
+	//
+	// Misurato il 2026-09-12 su `main` `dbffc64b`: il Blueprint spedito porta **12**, il default C++ **4**. E'
+	// l'unica delle dieci proprieta' esposte che diverga, ed e' inerte **solo** perche' `MapSource` vale
+	// `LevelAsset` — che il test qui sopra pinna alla propria terza asserzione. Chi portasse `MapSource` a
+	// `DemoArena` otterrebbe un'arena di raggio 12 invece dei 4 dichiarati nell'header.
+	//
+	// ⛔ Non si asserisce perche' non e' noto quale dei due valori sia quello voluto: asserire `4` cancellerebbe
+	// una scelta d'autore, asserire `12` ne pinnerebbe una mai dichiarata. La domanda torna a `#3067`.
+	//
+	// 🔑 E nel frattempo quella divergenza e' la **prova empirica** che le righe qui sopra leggono davvero il
+	// Blueprint: se il CDO fosse quello C++, `DemoArenaRadius` varrebbe 4.
+	AddInfo(FString::Printf(
+		TEXT("[#3067] DemoArenaRadius: spedito=%d, default C++=%d — divergenza misurata, non asserita"),
+		Cdo->DemoArenaRadius, ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>()->DemoArenaRadius));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
