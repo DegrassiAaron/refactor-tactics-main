@@ -1,4 +1,5 @@
 #include "Turn/RTTurnManager.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Turn/RTPacingLibrary.h"
 #include "Turn/RTPlaybackLibrary.h"
 #include "Unit/RTGraykitLibrary.h" // #2880: la posa si valuta sullo stesso Alpha del movimento
@@ -6102,7 +6103,27 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 
 FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
 {
-	FRTHexSimUnit SimUnit(Index, Unit->Cell, Unit->GetEffectiveMoveRange(), /*bAlive=*/ true);
+	// Il PROFILO DI MOVIMENTO che il piano dichiara (`#653`, [D-116] · [D-117]). Da qui vengono i due
+	// budget, non piu' direttamente da `MoveRange` dell'unita'.
+	//
+	// 🔑 **Il profilo si RICAVA dal piano invece di essere un campo accanto ad esso**: `MakePlanFor` legge i
+	// campi `Planned*` che giocatore e bot scrivono sull'Actor, e l'azione di movimento che vi trova NOMINA
+	// il proprio profilo. Cosi' la domanda «con che misura si muove» ha una risposta sola, e non due da
+	// tenere d'accordo.
+	//
+	// ⚠️ **Nessun comportamento cambia oggi, e la ragione e' nei profili, non qui**: `Move` e `Still`
+	// dichiarano `InheritFromUnit`, quindi `ResolveMoveBudget` restituisce esattamente
+	// `GetEffectiveMoveRange()` — lo stesso valore che questa riga passava prima. A spostare un numero
+	// sara' chi scegliera' un profilo diverso, cioe' [#641] per lo `Sprint`.
+	const int32 UnitMoveRange = Unit->GetEffectiveMoveRange();
+	const FRTMovementProfile Profile = URTMovementProfileLibrary::ProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
+
+	FRTHexSimUnit SimUnit(Index, Unit->Cell, Profile.ResolveMoveBudget(UnitMoveRange), /*bAlive=*/ true);
+	// **Passi** ([D-117] voce 1). Oggi coincide con l'asperita' sopra perche' ogni cella costa `1`; a
+	// separare i due valori sara' la funzione di costo di [#666]. Qui si separano i CAMPI, che e' il
+	// prerequisito che questo checkpoint consegna.
+	SimUnit.StepBudget = Profile.ResolveStepBudget(UnitMoveRange);
 	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
 	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 	// ricordare "quando" e' stato applicato.

@@ -34,6 +34,23 @@ struct FRTHexSimUnit
 	int32 MoveBudget = 0;
 
 	/**
+	 * **Passi**: quante celle si possono attraversare nel turno, una per cella ([D-117] voce 1, `#653`).
+	 *
+	 * ⚠️ **Oggi vale sempre quanto `MoveBudget`, e nessun consumatore lo legge ancora.** Le due misure —
+	 * quanto lontano arrivi, quanta asperita' assorbi — coincidono finche' ogni cella costa `1`, ed e' cio'
+	 * che il pathfinding fa in questo istante. A separarle e' la funzione di costo di [D-117] voce 2
+	 * (`max(0, MoveCost - 1 + MoveCostModifier)`), che e' [#666] e dipende da questo checkpoint.
+	 *
+	 * 🔑 **Il default lo popola il costruttore col valore di `MoveBudget`, e non e' una comodita'.** Un
+	 * default `0` renderebbe immobile ogni unita' costruita da un chiamante che non conosce questo campo —
+	 * test, harness, bot — nel momento stesso in cui [#666] gli dara' un lettore. Il valore che conserva il
+	 * comportamento e' «le due misure coincidono», non «zero passi». Stessa disciplina con cui `TeamId`
+	 * vale `INDEX_NONE` e non `0` qui sotto.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|HexSim")
+	int32 StepBudget = 0;
+
+	/**
 	 * Sovrapprezzo (intero, >= 0) aggiunto al costo di OGNI cella attraversata, per QUESTA unita' (`Action.Slow`,
 	 * CP 4.7): 0 = nessun sovrapprezzo. E' un costo di pathfinding, non una riduzione del budget totale — la
 	 * differenza conta perche' rende piu' cara la strada lunga senza rendere impossibile quella corta,
@@ -93,7 +110,8 @@ struct FRTHexSimUnit
 
 	FRTHexSimUnit() = default;
 	FRTHexSimUnit(int32 InUnitId, const FRTCellId& InCell, int32 InMoveBudget = 0, bool bInAlive = true)
-		: UnitId(InUnitId), Cell(InCell), bAlive(bInAlive), MoveBudget(InMoveBudget) {}
+		: UnitId(InUnitId), Cell(InCell), bAlive(bInAlive), MoveBudget(InMoveBudget),
+		  StepBudget(InMoveBudget) {}
 };
 
 /** Cella raggiungibile entro il budget, col costo cumulato dalla partenza. */
