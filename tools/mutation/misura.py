@@ -915,8 +915,8 @@ def self_test():
     casi.append(("l'orfano e' NOMINATO col suo pid e col padre che non c'e'",
                  orfani == [(9, 7)], str(orfani)))
 
-    def decide(nome, atteso, testo, stato):
-        v = decide_ritentativo(testo, stato)
+    def decide(nome, atteso, testo, stato, puo_terminare=False):
+        v = decide_ritentativo(testo, stato, puo_terminare)
         casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
 
     decide("Live Coding tenuto da un orfano: NON si ritenta", "ferma-orfano", LC, "orfano")
