@@ -8,13 +8,25 @@
 #    `docs/technical/test-manuali-pie.md`. In questo schema manca il campo dove scriverli, ed e'
 #    deliberato.
 #
-# Forma di un `requires`:
-#   asset:<Nome>              il package esiste fra quelli tracciati sotto Content/
-#   mount:<Nome>#<issue>      il widget esiste e nessuno lo monta; lo sblocca la chiusura della issue
+# Forma di un `requires` — un tipo, un oracolo:
+#   asset:<Nome>              il package NON esiste fra quelli tracciati sotto Content/
+#   mount:<Nome>#<issue>      il widget non e' montato dove il check lo cerca
 #   cue:<Nome>#<issue>        l'evento esiste e nessuno lo disegna
 #   anim:<Nome>#<issue>       la clip serve al verdetto e non c'e'
 #   feature:<Nome>#<issue>    la condizione non e' ottenibile
+#
+# `asset` interroga `git ls-files Content`. Gli altri quattro interrogano la cache GitHub e
+# NIENT'ALTRO: chi chiude la issue toglie il bloccante, ed e' l'unico modo in cui un check
+# torna nell'agenda da solo. Un numero che la cache non conosce e' un ERRORE DURO, non un
+# bloccante: rilancia
+#   python tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
+#
+# Quando i fatti veri su uno stesso nome sono DUE, si scrivono DUE righe:
+#   requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]
+#
 # Un prerequisito che non serve NON si dichiara: l'assenza della riga e' gia' la dichiarazione.
+# Ogni `requires` scritto qui ha una riga che lo giustifica nel verbale
+# `plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e `compare_rassegna.py` lo verifica.
 
 setups:
   - id: SET-HEX-MATCH          # ex «A — partita hex avviata»

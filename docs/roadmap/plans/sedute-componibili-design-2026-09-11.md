@@ -162,15 +162,33 @@ dell'Editor, quel setup dichiarerebbe `reopen: true` e il calcolo lo spezzerebbe
 
 | tipo | significato | oracolo |
 |---|---|---|
-| `asset` | il file non esiste | `git ls-files Content`; i riferimenti *interni* ai `.uasset` restano di `tools/asset-refs` |
-| `mount` | il widget esiste e nessuno lo monta | l'issue owner — `WBP_RT_EventLogRight` → [#2697] |
+| `asset` | il package non esiste fra quelli tracciati | `git ls-files Content`; i riferimenti *interni* ai `.uasset` restano di `tools/asset-refs` |
+| `mount` | il widget non è montato dove il check lo cerca | l'issue owner |
 | `cue` | l'evento esiste e nessuno lo disegna | l'issue owner — `PIE-VIS-DEFLECT`, `-INTERPOSE` → [#2454] |
-| `anim` | la clip serve al verdetto, oppure è dichiarata non-oracolo | la riga «Animazioni:» del piano `S0`–`S9` |
-| `feature` | la condizione non è ottenibile | un `git grep` misurato, oppure un checkpoint il cui owner resta `roadmap-checkpoint.md` |
+| `anim` | la clip serve al verdetto e non c'è | l'issue owner |
+| `feature` | la condizione non è ottenibile | l'issue owner |
+
+**Un tipo, un oracolo.** `asset` interroga il filesystem; gli altri quattro interrogano la cache
+GitHub e nient'altro. Quando i fatti veri su uno stesso nome sono **due** — il widget non esiste
+*e* nessuno lo monta — si scrivono **due righe**, non un tipo che ne indovina due:
+
+```yaml
+requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]
+```
+
+Il bloccante stampato nomina l'anello che ha ceduto davvero, e il giorno che il widget compare la
+riga `mount` resta in piedi da sé: nessuno deve ricordarsi di riscrivere il prerequisito.
+
+⚠️ **Rettificato il 2026-09-12** (fetta 1). Questa tabella diceva che `WBP_RT_EventLogRight` è un
+caso `mount`, cioè un widget *esistente* e non montato. È falso: `git ls-files Content` non lo
+traccia — esistono `WBP_RT_EventLog` e `WBP_RT_EventLine`. §1.5 lo diceva già giusto. E dava ad
+`anim` e `feature` oracoli alternativi — la riga «Animazioni:» del piano `S0`–`S9`, un `git grep`,
+un checkpoint — che né la fetta 0 né la fetta 1 hanno implementato: una promessa che invecchiava.
 
 Il tipo `feature` ha già un caso misurato: il runbook `guida-seduta-u46-residui-g9.md` riporta che
 `git grep` di `bHumanPlanning|WaitForPlayer|Interactive|PauseForPlanning` in `ScenarioHarness/` dà **0**,
-quindi una finestra di pianificazione umana su un banco oggi non esiste.
+quindi una finestra di pianificazione umana su un banco oggi non esiste. La misura giustifica il `requires`;
+a stabilirlo resta l'issue owner.
 
 ### 3.3 `wiring:` — il cablaggio, e soltanto quello
 
@@ -178,9 +196,14 @@ quindi una finestra di pianificazione umana su un banco oggi non esiste.
 wiring:
   - check: PIE-V01-SCREENHUD
     setup: SET-FRONTEND
-    requires: [ mount:WBP_RT_TacticalHUD ]
+    requires: [ asset:WBP_RT_EventLogRight, mount:WBP_RT_EventLogRight#2697 ]
     issue: 613
 ```
+
+⚠️ **Rettificato il 2026-09-12** (fetta 1). L'esempio diceva `requires: [ mount:WBP_RT_TacticalHUD ]`,
+che `oracles.valuta` rifiuta: i tipi con issue pretendono `nome#numero`, perché senza owner un
+bloccante non ha nessuno che possa toglierlo. (`WBP_RT_TacticalHUD` esiste davvero ed è un caso
+`mount` legittimo — gli mancava solo la issue.)
 
 Nessun esito, nessun criterio, nessuna prosa. `test-manuali-pie.md` resta l'unico owner di *cosa deve
 succedere* e di *com'è andata*. La regola che lo yaml oggi **enuncia** — «qui si citano gli ID, mai
