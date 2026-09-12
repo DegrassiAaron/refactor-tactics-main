@@ -124,8 +124,21 @@ FString ARTHUD::RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange)
 	case ERTTargetRefusal::Nothing: return FString();
 	}
 
-	// ⛔ Nessun `default:`, come in `RefusalForObserver`: un esito nuovo deve rompere la build qui, non
-	// scivolare in silenzio sul silenzio.
+	// ⌫ **QUESTA RIGA PROMETTEVA UNA GARANZIA CHE IL COMPILATORE NON DA'** (`#3080`). Diceva: *« un
+	// esito nuovo deve rompere la build qui »*. Uno `switch` senza `default:` produce un **warning**
+	// (MSVC C4061/C4062), non un errore, e la build non lo alza: `TooClose` e `OtherLayer` sono entrati
+	// a due issue di distanza e nessuno si e' fermato. Il difetto e' durato finche' qualcuno non ha
+	// mirato un bersaglio su un'altra piattaforma — dove `DrawHUD` chiama di qui a ogni frame.
+	//
+	// 🔑 **Cio' che regge davvero e' un banco, non un commento.**
+	// `RefactorTactics.HUD.RefusalTextCoversEveryOutcome` legge i valori dalla **reflection** e confronta
+	// PRIMA di chiamare: un valore aggiunto e non dichiarato lo rende **rosso**, nominandolo, invece di
+	// arrivare qui. Misurato — togliendo una riga alla sua tabella: 63 completati, 1 rosso, 0 fatali.
+	//
+	// ⚠️ `checkNoEntry()` resta, e resta l'ULTIMA difesa, non la prima: se ci si arriva comunque,
+	// morire rumorosamente e' preferibile a stampare una stringa vuota dove il giocatore aspetta una
+	// spiegazione. Misurato togliendo un `case`: il runner muore, 24 completati su 63 e due fatali —
+	// rumoroso, e in PIE sarebbe il crash che `#3080` ha chiuso.
 	checkNoEntry();
 	return FString();
 }
