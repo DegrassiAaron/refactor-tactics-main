@@ -4,8 +4,11 @@
 > come si risale alla causa quando qualcosa non torna.
 > **Complementare a** [`debug-vs-unreal.md`](debug-vs-unreal.md), che copre il *debugger* (breakpoint, step,
 > Live Coding). Qui si parla di **verifica automatica** e di **lettura degli esiti**.
-> `CURRENT` · **Ultimo aggiornamento**: 2026-08-08 (verificata contro `Scenarios/` e `ScenarioHarness/`:
-> cinque scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria).
+> `CURRENT` · **Ultimo aggiornamento**: 2026-09-12 — §1 acquisisce *«Perché i test sono compilati anche nel
+> target gioco»* ([#950](https://github.com/DegrassiAaron/refactor-tactics-main/issues/950)). ⚠️ Il resto del
+> documento porta ancora la verifica del **2026-08-08** (contro `Scenarios/` e `ScenarioHarness/`: cinque
+> scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria), e non è stato
+> rimisurato: le due date stanno insieme perché dicono cose diverse.
 > La **spec** dell'harness — schema, assertion, esiti, `StateHash` — è
 > [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md).
 
@@ -46,6 +49,59 @@ RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 \
 Packaged/Windows/RefactorTactics.exe -nullrhi -unattended -nosound -abslog=<log>
 grep "Partita finita" <log>   # la partita si gioca DA SOLA: i bot giocano entrambe le squadre
 ```
+
+#### Perché i test sono compilati anche nel target gioco, e chi paga il prezzo
+
+La domanda torna ogni volta che la guardia dimenticata rompe la Shipping — `RTHexSimTests.cpp` (2026-08-09),
+`RTNoisePropagationTests.cpp` (2026-08-11), `RTFrontendNavigationTests.cpp` (2026-08-23),
+`RTScenarioRunnerTests.cpp` (2026-08-24) e di nuovo `RTHexSimTests.cpp`
+([#2959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2959), 2026-09-10) — e ogni volta
+senza una risposta scritta ([#950](https://github.com/DegrassiAaron/refactor-tactics-main/issues/950)).
+La risposta è qui, e il commento che la ripete sta in `Source/RefactorTactics/RefactorTactics.Build.cs`,
+dove qualcuno sarebbe sul punto di aggiungere l'esclusione.
+
+| | |
+|---|---|
+| **Escludere `Tests/` è una riga in `Build.cs`?** | ⛔ **No.** `ModuleRules` non espone nessuna API di esclusione dei sorgenti — `grep -ic exclud Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` risponde **0** su UE 5.8. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`. L'alternativa vera è un **modulo separato** |
+| **Il target Game Development ha i test accesi?** | ✅ **Sì.** `WITH_DEV_AUTOMATION_TESTS` vale 1 in ogni configurazione tranne `Test` e `Shipping` (`UnrealBuildTool/Configuration/UEBuildTarget.cs:6311`). Il pacchetto del punto 2 qui sopra è `-clientconfig=Development`: lì i test sono nel binario del gioco **e istanziati**. ⚠️ È il **default**: tre flag di `TargetRules` lo scavalcano nelle due direzioni (`:6313-6324`), e questo progetto non ne imposta nessuno — misurato, non assunto |
+| **E in Shipping finiscono nella build distribuita?** | ⛔ **No, ed è una deduzione già falsificata.** `WITH_AUTOMATION_WORKER` vale 0 (`Core/Public/Misc/Build.h:127`), la macro definisce la classe senza istanziarla e `/OPT:REF` la scarta: togliere 89 test dal binario Shipping cambiò **1024 byte su 166 MB** ([#923](https://github.com/DegrassiAaron/refactor-tactics-main/issues/923)) |
+
+∴ il prezzo della scelta è che `#if WITH_DEV_AUTOMATION_TESTS` è **obbligatoria** in ogni `.cpp` di `Tests/`,
+e che dimenticarla si vede **solo** compilando la Shipping — cioè al punto 1 qui sopra.
+
+**L'unità di misura, che fino a oggi era doppia.** Il DoD di
+[#923](https://github.com/DegrassiAaron/refactor-tactics-main/issues/923) ne portava due incompatibili nello
+stesso elenco: *«nessuna **riga** di `Tests/` resta fuori»* e *«nessun file ha righe dopo il proprio
+`#endif`»*. Vince la seconda: il soggetto sono i **`.cpp`**.
+
+Gli header sono fuori dal criterio per una ragione misurata, non per comodità: i `.cpp` li includono **fuori**
+dalla propria guardia, quindi un header di `Tests/` è compilato in ogni target e deve compilare **senza** la
+macro. Racchiuderlo nella guardia lo renderebbe vuoto proprio dove serve che compili.
+
+Ciò che un header non può fare è **dichiarare un test**. 🔴 **E qui l'invariante si rovescia rispetto al resto
+di questa sezione**: in Shipping la macro emette la sola definizione di classe (`AutomationTest.h:4367`), che
+in un header `#pragma once` è ODR-legale e **compila**; in Editor e Development emette *anche* l'istanza in
+namespace anonimo (`:4297-4302`), e un header incluso da due `.cpp` la duplica nello stesso unity blob e
+registra lo stesso nome di test due volte. Il difetto lo incontra **chi lavora**, non chi impacchetta — ed è
+il contrario di quanto la prima stesura di questa sezione affermava, corretto in code review.
+
+Due oracoli tengono le due metà, e falliscono nella suite Editor invece che alla prossima build di release:
+
+| Oracolo | Soggetto | Cosa fallisce |
+|---|---|---|
+| `RefactorTactics.Meta.TestGuardClosesAtEndOfFile` | i `.cpp` di `Tests/` | codice dopo l'`#endif` della guardia |
+| `RefactorTactics.Meta.TestHeadersDeclareNoAutomationTest` | gli `.h` di `Tests/` | una dichiarazione di test in un header |
+
+⚠️ **Nessuno dei due copre la classe intera**, e la cella `G1` di
+[`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) lo dice: un **simbolo
+letto fuori dalla propria guardia** è sfuggito il 2026-08-27 (un'API solo-`WITH_METADATA`) e di nuovo il
+2026-09-05 (`bKnowledgeDebug` in `Map/`, cioè fuori da `Tests/` del tutto). Per quella forma resta vero che
+*«solo rieseguire i tre build la trova»*.
+
+⚠️ **E il loro rosso arriva dentro la suite, insieme agli altri.** Il 2026-09-10 un rosso di
+`TestGuardClosesAtEndOfFile` — diagnostico, con file, misura e target — è stato **attribuito male** perché
+arrivava in un elenco di quattro, e il difetto è rimasto su `main` un giorno. Un controllo isolato, eseguito
+*prima* della suite, è l'unica cosa che eviterebbe quel salto, e non esiste.
 
 **Scegliere la mappa da fuori**, senza aprire l'editor:
 
