@@ -155,6 +155,13 @@ wiring:
     issue: 613
 """
 
+# Oggi `wiring:` e' sempre l'ultima chiave del registro; questa fixture simula il
+# giorno in cui non lo fosse piu'.
+VECCHIO_CON_CODA = VECCHIO + """
+altra_sezione:
+  chiave: valore
+"""
+
 
 class RequiresEsistentiTest(unittest.TestCase):
     def test_legge_i_requires_per_check(self):
@@ -228,6 +235,15 @@ class InnestaTest(unittest.TestCase):
     def test_un_registro_senza_sezione_wiring_si_rifiuta(self):
         with self.assertRaises(seed_wiring.InnestoError):
             seed_wiring.innesta(TESTA, [{"check": "PIE-A", "setup": "SET-A"}])
+
+    def test_una_chiave_di_primo_livello_dopo_wiring_si_rifiuta_invece_di_sparire(self):
+        """Il caso invisibile oggi: `wiring:` e' l'ultima chiave, quindi niente la
+        segue e non si nota che `innesta` riscrive tutto cio' che viene dopo di lei.
+        Il giorno che qualcuno aggiungesse una sezione in coda, quella riscrittura
+        la cancellerebbe zitta — la guardia la rifiuta col nome, invece."""
+        with self.assertRaises(seed_wiring.InnestoError) as e:
+            seed_wiring.innesta(VECCHIO_CON_CODA, [{"check": "PIE-A", "setup": "SET-A"}])
+        self.assertIn("altra_sezione", str(e.exception))
 
 
 class IntoSuFileTest(unittest.TestCase):

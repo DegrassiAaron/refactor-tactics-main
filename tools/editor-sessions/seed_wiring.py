@@ -11,6 +11,7 @@ una riga seminata male non puo' passare inosservata.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -37,6 +38,13 @@ CAMPI_PROSA = ("title", "produces", "steps", "notes", "done_when")
 
 class InnestoError(Exception):
     """L'innesto perderebbe qualcosa. Si rifiuta, non si sovrascrive."""
+
+
+# Una chiave di primo livello YAML: comincia a colonna zero, nessun rientro. Serve a
+# riconoscere se un'altra sezione segue `wiring:` — che altrimenti finirebbe cancellata
+# in silenzio da `innesta`, perche' quella funzione riscrive tutto cio' che sta da
+# `wiring:` in poi.
+CHIAVE_DI_PRIMO_LIVELLO = re.compile(r"(?m)^([A-Za-z_][\w.-]*):")
 
 
 INTESTAZIONE_WIRING = """wiring:
@@ -218,10 +226,29 @@ def innesta(testo: str, righe: list[dict]) -> str:
     ne portava uno non viene piu' prodotta dal seme, l'innesto si RIFIUTA: quel
     giudizio e' lavoro d'autore, e perderlo in silenzio e' esattamente cio' che
     questa funzione esiste per impedire.
+
+    Lo stesso vale per cio' che segue `wiring:`. Oggi `wiring:` e' l'ultima chiave
+    del registro, quindi `testo[: i + 1] + ...` sotto non perde niente — ma se
+    domani un'altra sezione di primo livello la seguisse, quella riscrittura la
+    cancellerebbe in silenzio, perche' rimpiazza tutto da `wiring:` in poi. La
+    guardia esplicita rifiuta col nome della chiave, invece di fidarsi che
+    `wiring:` resti sempre l'ultima.
     """
     i = testo.find("\nwiring:")
     if i < 0:
         raise InnestoError("il registro non contiene una sezione `wiring:`")
+
+    dopo_wiring = testo[i + 1 :]
+    chiavi = list(CHIAVE_DI_PRIMO_LIVELLO.finditer(dopo_wiring))
+    # chiavi[0] e' `wiring:` stessa (il match a inizio stringa): una chiave
+    # successiva e' un'altra sezione di primo livello che l'innesto cancellerebbe.
+    if len(chiavi) > 1:
+        altra = chiavi[1].group(1)
+        raise InnestoError(
+            f"`{altra}:` segue `wiring:` come chiave di primo livello, e l'innesto "
+            "la cancellerebbe in silenzio riscrivendo tutto cio' che viene dopo "
+            "`wiring:`. Sposta `wiring:` in fondo al registro, o innesta a mano."
+        )
 
     vecchi = requires_esistenti(testo)
     prodotti = {r["check"] for r in righe}
