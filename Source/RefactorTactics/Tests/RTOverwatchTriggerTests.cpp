@@ -2049,4 +2049,88 @@ bool FRTSafeResponsePrefersHoldTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// LA CONSEGUENZA DI `#2951` SULLE REAZIONI (owner #152)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * ⛔ **UN OVERWATCH CONTROLLA IL PROPRIO PIANO, E SOLO QUELLO** — `#2951`, owner #152.
+ *
+ * 🔴 **Questa proprietà era vera «per costruzione» e non era misurata da nessuno**, ed è il motivo per cui
+ * il banco esiste. `#2951` ha reso la verticalità non-bersagliabile nel targeting — `ERTHexTargetReason::
+ * OtherLayer` — e ha lasciato scritto che la conseguenza sulle reazioni *«è coerente per costruzione, ma
+ * coerente per costruzione è precisamente ciò che un refactor rompe in silenzio»*. Questa è la misura che
+ * quella riga chiedeva.
+ *
+ * 🔑 **Il meccanismo, e dove sta la riga che decide.** `LineCells` genera ogni cella come
+ * `FRTCellId(From.X + ..., From.Y + ..., From.Layer)`: il piano è quello del guardiano, letteralmente
+ * copiato. `ResolveSuppression` e `BuildOverwatchTriggers` confrontano celle per uguaglianza, e `FRTCellId`
+ * include il layer — quindi un percorso su un altro piano non incontra nessuna cella controllata.
+ *
+ * ⚠️ **Non è «il layer 1 non funziona»**, e la terza parte lo dimostra: un guardiano SU quel piano lo
+ * controlla esattamente come il primo controlla il proprio. Ogni piano è un mondo a sé per la geometria
+ * lineare, ed è la stessa regola che `#2951` ha scritto per il targeting.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchWatchesItsOwnLayerTest,
+	"RefactorTactics.Overwatch.WatchesItsOwnLayerOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOverwatchWatchesItsOwnLayerTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeOverwatchMap();
+	if (!TestNotNull(TEXT("arena"), Map)) { return false; }
+
+	// La piattaforma: le stesse (X,Y) della linea, un piano più in alto. Senza queste celle il percorso di
+	// sopra correrebbe fuori mappa, e l'assenza di trigger non direbbe niente sul layer.
+	for (int32 X = 0; X <= 5; ++X)
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(X, 0, 1)));
+	}
+	Map->SortCells();
+
+	// --- 1. La zona vive sul piano del guardiano, ed è una misura non un commento -------------------------
+	FRTOverwatchWatcher Basso = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
+		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
+	Basso.TeamAwareness.Add(9, ERTAwareness::Detected);
+
+	if (!TestTrue(TEXT("premessa: la zona non è vuota"), Basso.Zone.Cells.Num() > 0)) { return false; }
+	for (const FRTCellId& C : Basso.Zone.Cells)
+	{
+		TestEqual(*FString::Printf(TEXT("ogni cella controllata sta sul layer del guardiano — (%d,%d,L%d)"),
+			C.X, C.Y, C.Layer), C.Layer, 0);
+	}
+
+	// --- 2. Chi passa SOPRA non apre nessuna opportunity --------------------------------------------------
+	const TArray<FRTCellId> Sopra = { FRTCellId(1, 0, 1), FRTCellId(2, 0, 1), FRTCellId(3, 0, 1) };
+	const TArray<FRTOverwatchTrigger> DaSopra = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 4, { Basso }, { MakeOverwatchMover(9, /*TeamId*/ 1, Sopra) });
+	TestEqual(TEXT("chi attraversa in piattaforma non fa scattare l'Overwatch di sotto"), DaSopra.Num(), 0);
+
+	// --- 3. ⛔ La metà falsificante: lo STESSO percorso sul piano del guardiano scatta ---------------------
+	// Senza, «zero trigger» sarebbe vero anche se l'Overwatch avesse smesso di funzionare del tutto.
+	const TArray<FRTCellId> Accanto = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0), FRTCellId(3, 0, 0) };
+	const TArray<FRTOverwatchTrigger> DaAccanto = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 4, { Basso }, { MakeOverwatchMover(9, /*TeamId*/ 1, Accanto) });
+	TestEqual(TEXT("lo stesso percorso sul piano del guardiano apre tre opportunity"), DaAccanto.Num(), 3);
+
+	// --- 4. ⚠️ E non è «il layer 1 non funziona»: un guardiano lassù controlla lassù ----------------------
+	FRTOverwatchWatcher Alto = MakeOverwatchWatcher(Map, /*OwnerId*/ 2, /*TeamId*/ 0,
+		FRTCellId(0, 0, 1), FRTCellId(1, 0, 1));
+	Alto.TeamAwareness.Add(9, ERTAwareness::Detected);
+	for (const FRTCellId& C : Alto.Zone.Cells)
+	{
+		TestEqual(*FString::Printf(TEXT("la zona del guardiano alto sta sul SUO piano — (%d,%d,L%d)"),
+			C.X, C.Y, C.Layer), C.Layer, 1);
+	}
+	const TArray<FRTOverwatchTrigger> AltoSuSopra = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 4, { Alto }, { MakeOverwatchMover(9, /*TeamId*/ 1, Sopra) });
+	TestEqual(TEXT("un guardiano in piattaforma scatta su chi passa in piattaforma"), AltoSuSopra.Num(), 3);
+
+	// E il simmetrico: non scatta su chi passa di sotto.
+	const TArray<FRTOverwatchTrigger> AltoSuAccanto = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
+		Map, /*TurnNumber*/ 4, { Alto }, { MakeOverwatchMover(9, /*TeamId*/ 1, Accanto) });
+	TestEqual(TEXT("e non su chi passa di sotto"), AltoSuAccanto.Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
