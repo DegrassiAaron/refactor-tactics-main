@@ -390,9 +390,11 @@ wiring:
     issue: 938
   - check: PIE-V01-FRONTEND-PAUSE
     setup: SET-FRONTEND
+    requires: [ asset:WBP_RT_PauseMenu ]
     issue: 941
   - check: PIE-V01-FRONTEND-RESULT
     setup: SET-FRONTEND
+    requires: [ asset:WBP_RT_ResultScreen ]
     issue: 940
   - check: PIE-V01-HUD
     setup: SET-HEX-MATCH
