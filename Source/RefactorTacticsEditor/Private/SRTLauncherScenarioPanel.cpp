@@ -260,6 +260,28 @@ void SRTLauncherScenarioPanel::Construct(const FArguments&)
 							return FText::FromString(FString::Join(ReadoutLines, TEXT("\n")));
 						})
 					]
+
+					// --- il referto dell'ultima corsa (#2836) --------------------------------------
+					//
+					// 🔑 **Una riga PROPRIA, e non `ReadoutError`.** Quel campo si presenta come
+					// *«non leggibile: …»* e **sostituisce** il readout: usarlo per un `Blocked` direbbe
+					// due cose false in una volta — che lo scenario non si legge, quando si legge
+					// benissimo, e nascondendo terreno, squadre e conteggi proprio a chi sta cercando di
+					// capire perche' la corsa si e' fermata.
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(STextBlock)
+						.AutoWrapText(true)
+						.Text_Lambda([this]()
+						{
+							// Vuota quando non c'e' niente da riportare: `Pass` e `Fail` non portano un
+							// motivo, e una riga «referto: » vuota sarebbe rumore sotto ogni corsa riuscita.
+							return LastRunDetail.IsEmpty()
+								? FText::GetEmpty()
+								: FText::Format(LOCTEXT("RunDetail", "referto: {0}"), FText::FromString(LastRunDetail));
+						})
+					]
 				]
 			]
 		]
@@ -531,6 +553,20 @@ void SRTLauncherScenarioPanel::ClearSelection()
 	ReadoutLines.Reset();
 	ReadoutError.Reset();
 
+	// 🔴 **E la corsa insieme a loro** (#2836). Questa funzione dimenticava il readout e non la memoria
+	// della corsa, e l'unica sede che la azzerava era `RefreshReadout()` — che da qui non viene chiamata.
+	// Riproduzione: `Esegui` su `Visual.Map.TwoLayersSameColumn`, poi clic nell'area vuota sotto la lista;
+	// la riga continuava a dire *«Corsa eseguita»* sopra un readout vuoto e senza nessuna selezione.
+	//
+	// ⚠️ **Non e' un doppione di `FRTLauncherTransportStatus::bScenarioSelected`.** Quello tiene onesta la
+	// FRASE anche se un giorno una strada nuova dimenticasse di dimenticare; questa riga tiene onesto il
+	// DATO, che e' l'altra meta': una memoria che sopravvive al suo soggetto e' sbagliata comunque venga
+	// letta.
+	LastRunState = ERTLauncherRunState::NotRun;
+	LastRunTurns = 0;
+	LastRunHasTrace = false;
+	LastRunDetail.Reset();
+
 	// Senza scenario non ci sono unita' schierate: tenere il bersaglio precedente lascerebbe i tre pulsanti
 	// abilitati su un'unita' che nessuno puo' piu' raggiungere.
 	PlacedUnitOptions.Reset();
@@ -552,6 +588,8 @@ void SRTLauncherScenarioPanel::RefreshReadout()
 	// per `ReadoutError`, che quei rami perdevano esattamente cosi'.
 	LastRunState = ERTLauncherRunState::NotRun;
 	LastRunTurns = 0;
+	LastRunHasTrace = false;
+	LastRunDetail.Reset();
 
 	if (SelectedId.IsEmpty())
 	{
@@ -869,9 +907,40 @@ FReply SRTLauncherScenarioPanel::OnRemoveUnitClicked()
 
 FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 {
-	URTScenarioPreviewSubsystem* Preview = PreviewSubsystem();
-	if (!Preview || SelectedId.IsEmpty() || !Authoring.IsValid())
+	// 🔴 **La guardia iniziale lasciava il pulsante MUTO** (#2836), ed era letteralmente il difetto di
+	// #2788 sopravvissuto nel quarto ramo mentre gli altri tre venivano corretti: ogni altra uscita di
+	// questa funzione scrive `Failed` o `Ran`, questa non scriveva niente. Con `Authoring` non valido — il
+	// caso in cui `CreateScenarioDraft` ha restituito `null` e `RefreshReadout` si e' limitata a impostare
+	// `ReadoutError` — il click su `Esegui` lasciava la riga su *«Nessun playback: esegui uno scenario.»* a
+	// chi aveva appena premuto Esegui.
+	//
+	// ⚠️ **Il criterio si verifica per ASSENZA**: da qui in giu' nessun `return` deve poter uscire senza
+	// aver scritto `LastRunState`. Enumerarli leggendo e' il controllo, e questa e' la ragione per cui i tre
+	// casi sono separati invece di stare in una condizione sola.
+	if (SelectedId.IsEmpty())
 	{
+		// Il pulsante e' disabilitato senza selezione (`IsEnabled_Lambda` in `BuildTransportRow`), quindi
+		// dall'interfaccia questo ramo non si raggiunge. Resta perche' la correttezza di una funzione non
+		// deve dipendere dall'abilitazione di un widget, e lo stato che scrive e' quello vero: senza
+		// scenario non c'e' nessuna corsa da ricordare.
+		LastRunState = ERTLauncherRunState::NotRun;
+		LastRunTurns = 0;
+		LastRunHasTrace = false;
+		LastRunDetail.Reset();
+		return FReply::Handled();
+	}
+
+	URTScenarioPreviewSubsystem* Preview = PreviewSubsystem();
+	if (!Preview || !Authoring.IsValid())
+	{
+		// Due cause distinte e due messaggi distinti: «non c'e' l'anteprima» manda a guardare il viewport,
+		// «non c'e' la facade» manda a guardare il draft, e confonderle manda nel posto sbagliato.
+		LastRunDetail = Preview
+			? TEXT("la facade d'authoring non e' disponibile: nessuna corsa")
+			: TEXT("l'anteprima di scenario non e' disponibile: nessuna corsa");
+		LastRunState = ERTLauncherRunState::Failed;
+		LastRunTurns = 0;
+		LastRunHasTrace = false;
 		return FReply::Handled();
 	}
 
@@ -889,6 +958,8 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 		ReadoutError = ApriErrore;
 		LastRunState = ERTLauncherRunState::Failed;
 		LastRunTurns = 0;
+		LastRunHasTrace = false;
+		LastRunDetail.Reset();
 		return FReply::Handled();
 	}
 
@@ -910,14 +981,24 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 		ReadoutError = CorsaErrore;
 		LastRunState = ERTLauncherRunState::Failed;
 		LastRunTurns = 0;
+		LastRunHasTrace = false;
+		LastRunDetail.Reset();
 		return FReply::Handled();
 	}
 
 	// ⚠️ Prima il campo torna a mostrare lo scenario: `OpenPlayback` pretende una preview viva, e muove i
 	// marcatori di QUELLA. Senza, una corsa lanciata mentre l'anteprima non c'e' non aprirebbe niente, e il
 	// pulsante sembrerebbe non funzionare.
-	Preview->ShowScenario(Authoring.Get());
-	Preview->OpenPlayback(Authoring.Get());
+	//
+	// 🔑 **E l'esito si CONTROLLA** (#2836). `ShowScenario` puo' rifiutare — nessun mondo d'editor, nessuna
+	// unita' posata — e in quel caso `OpenPlayback` rifiuta a sua volta. Senza questo controllo la riga
+	// attribuiva il playback chiuso alla TRACCIA, che invece c'e': e' la stessa deduzione sbagliata che
+	// `bHasTrace` toglie di mezzo, vista dal lato del pannello.
+	const bool bCampoPosato = Preview->ShowScenario(Authoring.Get());
+	if (bCampoPosato)
+	{
+		Preview->OpenPlayback(Authoring.Get());
+	}
 
 	Authoring->Close();
 
@@ -941,8 +1022,28 @@ FReply SRTLauncherScenarioPanel::OnRunScenarioClicked()
 	// 🔑 **Il conteggio viene dal referto della facade, non da un giro proprio.** `TurnsPlayed` e' cio' che
 	// il runner ha misurato; ricavarlo qui dalle tracce sarebbe una seconda autorita' su un numero che esiste
 	// gia', e divergerebbe sugli scenari a varianti — dove l'aggregato non porta traccia.
-	LastRunState = ERTLauncherRunState::Ran;
+	//
+	// 🔴 **E l'ESITO viene dal referto insieme a lui** (#2836). `Run() == Success` significa che
+	// l'esecuzione e' avvenuta, non che sia andata bene: `RTScenarioAuthoring.h` lo dichiara, e
+	// `RTScenarioSession` definisce `Blocked` ed `Error` proprio sul caso a zero turni. Scriverne `Ran` qui
+	// faceva leggere *«Corsa eseguita: nessun turno da riprodurre.»* sopra uno scenario bloccato su una
+	// capability mancante — un'affermazione falsa, prodotta dal pannello.
+	LastRunState = FRTLauncherScenarioBrowser::ClassifyRun(Referto);
 	LastRunTurns = Referto.TurnsPlayed;
+	LastRunHasTrace = Referto.bHasTrace;
+
+	// `BlockedReason` / `ErrorMessage` sul readout: senza, la riga dice *«Corsa BLOCCATA»* e non dice
+	// **quale** capability manchi, che e' l'unica cosa da sapere per andare avanti.
+	LastRunDetail = FRTLauncherScenarioBrowser::DescribeRunDetail(Referto);
+
+	if (!bCampoPosato)
+	{
+		// ⚠️ La corsa e' avvenuta lo stesso: si nomina il viewport, non la corsa. Fondere le due cose
+		// direbbe che l'esecuzione e' fallita, mentre il referto qui sopra dice il contrario.
+		LastRunDetail = LastRunDetail.IsEmpty()
+			? FString(TEXT("il viewport non ha posato lo scenario: nessun playback da aprire"))
+			: LastRunDetail + TEXT(" · il viewport non ha posato lo scenario: nessun playback da aprire");
+	}
 
 	return FReply::Handled();
 }
@@ -1281,6 +1382,12 @@ TSharedRef<SWidget> SRTLauncherScenarioPanel::BuildTransportRow()
 				FRTLauncherTransportStatus Stato;
 				Stato.Run = LastRunState;
 				Stato.TurnsPlayed = LastRunTurns;
+				Stato.bHasTrace = LastRunHasTrace;
+
+				// 🔑 **La selezione entra nello stato** (#2836): senza uno scenario a schermo la riga non
+				// deve descrivere la corsa di quello di prima, e farlo decidere qui — invece che sperare
+				// che qualcuno abbia azzerato la memoria — rende la contraddizione impossibile.
+				Stato.bScenarioSelected = !SelectedId.IsEmpty();
 
 				// L'apertura si richiede a OGNI ridisegno e non si ricorda: il playback puo' chiudersi da
 				// sotto — un `ClearPreview` per un'altra via — e una copia locale direbbe «aperto» su un
