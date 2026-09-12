@@ -2111,7 +2111,6 @@ bool FRTMovementPlannedLengthIsOrderIndependentTest::RunTest(const FString&)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS
 
 // ---------------------------------------------------------------------------------------------------------
 // #2914 — la durata del passo e' un dato, e chi attraversa resta sull'origine
@@ -2458,6 +2457,139 @@ bool FRTMovementTraversalDurationReadsTheEntryCostTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **PORTATA e VELOCITA' sono due manopole INDIPENDENTI, ed e' l'invariante per cui [D-381] esiste.**
+ * (`#3031` CHECKPOINT B)
+ *
+ * ## Cosa questo test difende, e perche' nessun altro lo fa
+ *
+ * `D-381` dichiara la durata d'arco un **campo separato** e non una lettura del costo, con una ragione
+ * scritta: *«se la durata fosse per contratto il costo, l'unico modo di rendere un profilo piu' RAPIDO
+ * sarebbe fargli costare MENO per cella — e costare meno significa andare piu' LONTANO: velocita' e portata
+ * sarebbero la stessa manopola per sempre, e `MOV-3` si chiuderebbe per inerzia invece che per playtest»*.
+ *
+ * Quella separazione **non aveva un gate**. `Movement.TraversalDurationReadsTheEntryCost` (sopra) verifica
+ * la formula della durata; `Movement.SameCostSpentArrivesTogether` e `Movement.ShorterMoveArrivesEarlier`
+ * verificano l'ordine d'arrivo. Nessuno dei tre cade se le due manopole tornano ad essere una: un
+ * `TruncatePathToBudget` che leggesse la durata, o un `TraversalDurationTicks` che leggesse il budget,
+ * passerebbero tutti e tre.
+ *
+ * ## Il metodo: si muove una manopola per volta
+ *
+ *   · **stesso terreno, budget DIVERSO** -> la portata cambia, la durata NO. E' il caso «due unita' con
+ *     scorte diverse vanno piu' o meno lontano, non piu' o meno veloci»;
+ *   · **stesso budget, modificatore di costo DIVERSO** (`Status.Slow`) -> cambiano ENTRAMBE, e non e' una
+ *     contraddizione: `MoveCostModifier` e' dichiarato *«l'asse cosa fai»* e agisce sul prezzo per cella,
+ *     quindi tocca legittimamente sia quanto lontano si arriva sia quanto ci si mette. Il test lo ASSERISCE
+ *     invece di lasciarlo implicito, perche' e' il caso che distingue «le due manopole sono indipendenti»
+ *     da «esiste una manopola che non le tocca mai insieme» — la seconda e' falsa, e dichiararla sarebbe
+ *     un gate che mente.
+ *
+ * ⚠️ **Cio' che NON copre, e va detto**: i profili di movimento non esistono come entita'. Il canone
+ * [D-015] dice *«`Sneak · Normal · Sprint` sono profili della famiglia `Move`»*, ma `Sneak` ha UNA
+ * occorrenza in tutto `Source/` — un commento in `RTCoreActionTests.cpp` — e i tre profili vivono come
+ * **portata** in `RangeCells` (`Move` 5 · `Sprint` 8 · `Withdraw` 2, `RTActionDef.h`), non come durata.
+ * ∴ «normale, sprint, stealth, ridotto» non e' oggi una dimensione parametrizzabile del resolver: questo
+ * test difende il fatto che lo POSSA diventare — cioe' l'indipendenza degli assi — e la copertura per
+ * profilo resta a #653 e #1410.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementRangeAndSpeedAreIndependentKnobsTest,
+	"RefactorTactics.Movement.RangeAndSpeedAreIndependentKnobs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementRangeAndSpeedAreIndependentKnobsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(4);
+
+	// Un corridoio di terreno difficile: ogni cella costa 2, quindi ogni arco dura 2 microstep e ogni passo
+	// consuma 2 di budget. Le due letture partono dallo stesso dato, ed e' proprio per questo che il test
+	// serve: e' la coincidenza che rende facile confonderle.
+	const TArray<FRTCellId> Corridoio = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == FRTCellId(1, 0) || Cell.Id == FRTCellId(2, 0) || Cell.Id == FRTCellId(3, 0))
+		{
+			Cell.MoveCost = 2;
+		}
+	}
+
+	// --- 1) Budget DIVERSO, terreno uguale: cambia la PORTATA, non la durata --------------------------
+	{
+		TArray<FRTHexSimUnit> Corte;
+		Corte.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 2));   // arriva a un passo
+		const FRTHexSnapshot SnapCorte = URTHexSimLibrary::MakeSnapshot(M, Corte);
+
+		TArray<FRTHexSimUnit> Lunghe;
+		Lunghe.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 6));  // arriva a tre
+		const FRTHexSnapshot SnapLunghe = URTHexSimLibrary::MakeSnapshot(M, Lunghe);
+
+		const TArray<FRTCellId> TroncoCorte =
+			URTHexSimLibrary::TruncatePathToBudget(SnapCorte, 0, Corridoio);
+		const TArray<FRTCellId> TroncoLunghe =
+			URTHexSimLibrary::TruncatePathToBudget(SnapLunghe, 0, Corridoio);
+
+		// La PORTATA risponde al budget — ed e' la premessa: se non cambiasse, la meta' sotto non
+		// significherebbe niente.
+		if (!TestTrue(TEXT("premessa: un budget maggiore porta piu' lontano"),
+			TroncoLunghe.Num() > TroncoCorte.Num()))
+		{
+			return false;
+		}
+		TestEqual(TEXT("budget 2 su terreno da 2: un solo passo"), TroncoCorte.Num(), 2);
+		TestEqual(TEXT("budget 6: tre passi"), TroncoLunghe.Num(), 4);
+
+		// 🔴 E la DURATA no: la stessa cella dura lo stesso, con qualunque scorta.
+		TestEqual(TEXT("la durata d'arco NON dipende dal budget: stessa cella, stessa durata"),
+			URTHexSimLibrary::TraversalDurationTicks(SnapLunghe, 0, FRTCellId(1, 0)),
+			URTHexSimLibrary::TraversalDurationTicks(SnapCorte, 0, FRTCellId(1, 0)));
+
+		// Fino a dove arrivano ENTRAMBE, arrivano nello stesso microstep: l'unita' con piu' scorte non e'
+		// piu' veloce sul tratto comune, e' solo capace di continuare.
+		TArray<TArray<FRTCellId>> Paths;
+		Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+		Paths.Add({ FRTCellId(0, 2), FRTCellId(1, 2) });
+		for (FRTHexCellData& Cell : M->Cells)
+		{
+			if (Cell.Id == FRTCellId(1, 2)) { Cell.MoveCost = 2; } // stesso terreno del gemello
+		}
+		TArray<TArray<int32>> Durate;
+		Durate.Add(URTHexSimLibrary::StepDurationsForPath(SnapCorte, 0, Paths[0]));
+		Durate.Add(URTHexSimLibrary::StepDurationsForPath(SnapLunghe, 0, Paths[1]));
+		if (Durate[0].Num() == 1 && Durate[1].Num() == 1)
+		{
+			TestEqual(TEXT("e le due durate d'arco coincidono, malgrado i budget diversi"),
+				Durate[1][0], Durate[0][0]);
+		}
+	}
+
+	// --- 2) Modificatore di costo diverso: cambiano ENTRAMBE, e va dichiarato ------------------------
+	//
+	// ⛔ Questa meta' esiste per NON dichiarare un'indipendenza piu' forte di quella vera. `MoveCostModifier`
+	// e' l'asse «cosa fai» di [D-117] e agisce sul prezzo per cella: e' legittimo che tocchi sia la portata
+	// sia la durata. Un gate che pretendesse il contrario sarebbe rosso su `Status.Slow`, che e' un
+	// comportamento voluto.
+	{
+		TArray<FRTHexSimUnit> Normale;
+		Normale.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 6));
+		const FRTHexSnapshot SnapNormale = URTHexSimLibrary::MakeSnapshot(M, Normale);
+
+		FRTHexSimUnit Rallentata(0, FRTCellId(0, 0), /*MoveBudget*/ 6);
+		Rallentata.MoveCostModifier = 1;
+		TArray<FRTHexSimUnit> Lente;
+		Lente.Add(Rallentata);
+		const FRTHexSnapshot SnapLenta = URTHexSimLibrary::MakeSnapshot(M, Lente);
+
+		TestTrue(TEXT("con Slow la stessa cella dura di piu'"),
+			URTHexSimLibrary::TraversalDurationTicks(SnapLenta, 0, FRTCellId(1, 0))
+			> URTHexSimLibrary::TraversalDurationTicks(SnapNormale, 0, FRTCellId(1, 0)));
+
+		TestTrue(TEXT("e con lo STESSO budget si arriva meno lontano: e' l'asse del prezzo, non della velocita'"),
+			URTHexSimLibrary::TruncatePathToBudget(SnapLenta, 0, Corridoio).Num()
+			< URTHexSimLibrary::TruncatePathToBudget(SnapNormale, 0, Corridoio).Num());
+	}
+
+	return true;
+}
+
+/**
  * 🔴 **Un convoglio su terreno costoso si SERIALIZZA**, e questo test lo dichiara invece di lasciarlo
  * scoprire (`#2940`).
  *
@@ -2619,3 +2751,646 @@ bool FRTMovementSlideCellsDoNotPayTerrainDurationTest::RunTest(const FString&)
 		Legacy.Num() == 2 ? Legacy[1] : -1, 3);
 	return true;
 }
+
+/**
+ * 🔴 **`MOV-7` si risponde qui: nessuna combinazione di durate produce un conflitto d'ARCO che l'occupancy
+ * non veda gia'** (`#2914`).
+ *
+ * La voce chiede se serva una *reservation* degli archi. Il candidato che la motivava — due transiti che si
+ * sovrappongono **parzialmente** sullo stesso arco in versi opposti — cade sotto [D-383]: entrambe le unita'
+ * restano sulla propria origine, entrambe sono `Moving`, e la catena si chiude.
+ *
+ * 🔑 **Ma «cade quel candidato» non e' «non ne esistono altri», ed e' la differenza che questo test misura.**
+ * Esercita l'head-on su **nove** combinazioni di durate — dalla simmetrica alla piu' sbilanciata — e pretende
+ * lo stesso esito in tutte. Se una sola combinazione producesse un attraversamento, o due reason code diversi,
+ * la reservation avrebbe un caso e `MOV-7` un lavoro.
+ *
+ * ⛔ **Perche' un arco non puo' essere conteso, dato [D-382]**: un'unita' e' sempre SU una cella — sulla
+ * propria origine finche' non completa. Due unita' non possono quindi «incrociarsi a meta' arco»: o vanno
+ * verso la cella dell'altra (ciclo), o verso celle diverse (nessun contatto). L'arco non e' una risorsa che
+ * qualcuno occupa, ed e' per questo che non serve prenotarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementNoArcConflictEscapesOccupancyTest,
+	"RefactorTactics.Movement.NoArcConflictEscapesOccupancy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementNoArcConflictEscapesOccupancyTest::RunTest(const FString&)
+{
+	const FRTCellId X(0, 0), Y(1, 0);
+
+	// Dalla simmetrica (1,1) alla piu' sbilanciata (1,5): se un varco esistesse, vivrebbe in una di queste.
+	const int32 Combos[][2] = { {1,1}, {1,2}, {2,1}, {1,4}, {4,1}, {2,3}, {3,2}, {1,5}, {5,1} };
+
+	for (const int32(&Combo)[2] : Combos)
+	{
+		TArray<TArray<FRTCellId>> Paths;
+		Paths.Add({ X, Y });
+		Paths.Add({ Y, X });
+
+		TArray<TArray<int32>> Durations;
+		Durations.Add({ Combo[0] });
+		Durations.Add({ Combo[1] });
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durations);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+
+		const FString Caso = FString::Printf(TEXT("durate %d/%d"), Combo[0], Combo[1]);
+
+		// 1. Nessuna delle due attraversa: e' l'esito che [D-295] impone, e che una reservation servirebbe a
+		//    ottenere se l'occupancy non ci arrivasse gia'.
+		TestTrue(*FString::Printf(TEXT("%s: nessuna ha percorso celle"), *Caso),
+			Out[0].Entered.Num() == 0 && Out[1].Entered.Num() == 0);
+
+		// 2. E lo stesso reason code su entrambe: un conflitto solo, non due.
+		TestEqual(*FString::Printf(TEXT("%s: ciclo per la prima"), *Caso),
+			Out[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+		TestEqual(*FString::Printf(TEXT("%s: ciclo per la seconda"), *Caso),
+			Out[1].Outcome, ERTMoveOutcome::BlockedByCycle);
+	}
+
+	// 🔑 **Il controllo che rende il test non vacuo**: su celle DIVERSE le stesse durate sbilanciate non
+	// bloccano nulla. Senza questa riga «tutto blocca sempre» passerebbe per un resolver rotto che ferma
+	// chiunque.
+	{
+		TArray<TArray<FRTCellId>> Liberi;
+		Liberi.Add({ FRTCellId(0, 3), FRTCellId(1, 3) });
+		Liberi.Add({ FRTCellId(0, 6), FRTCellId(1, 6) });
+
+		TArray<TArray<int32>> D;
+		D.Add({ 1 });
+		D.Add({ 5 });
+
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Liberi, TArray<int32>(),
+			TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), D);
+		const TArray<FRTHexMoveResult> Out = URTHexSimLibrary::FinishHexMovement(State);
+		TestEqual(TEXT("controllo: su corsie separate le stesse durate lasciano passare"),
+			Out[0].Outcome, ERTMoveOutcome::Moved);
+		TestEqual(TEXT("controllo: anche la piu' lenta"), Out[1].Outcome, ERTMoveOutcome::Moved);
+	}
+	return true;
+}
+
+/**
+ * 🔴 **L'oracolo di [D-384], nella forma in cui e' scrivibile — e la misura che ne restringe la portata**
+ * (`#2914`).
+ *
+ * `D-384` dice che lo spostamento **forzato** dura un micro-step per cella e non legge il costo del terreno.
+ * Misurando `ARTTurnManager::ApplyForcedDisplacement` si scopre pero' che quella famiglia **non genera
+ * micro-step affatto**: calcola `URTHexLibrary::HexLine(OldCell, NewCell)` e chiama `ApplyOnEnter` sulle celle
+ * attraversate, fuori dal ciclo del resolver. Push, knockback, fuga e caduta risolvono nel `Blast` o nel
+ * `Cleanup`, non nel `Move`.
+ *
+ * ∴ per quella meta' del `Forced` la durata non e' *«un micro-step per cella»*: e' **nessun micro-step**, e un
+ * oracolo su un tempo che non esiste sarebbe un test vacuo.
+ *
+ * ⚠️ **Cio' che resta misurabile e' lo SCIVOLAMENTO**, che e' spostamento subito e **passa** dal resolver:
+ * `ApplyIceSliding` accoda la cella al percorso, che poi attraversa i micro-step come il resto. E' li' che
+ * `D-384` ha un contenuto osservabile, ed e' quello che questo test pinna END-TO-END sul percorso reale —
+ * `Movement.SlideCellsDoNotPayTerrainDuration` lo fa sulla funzione pura, questo sulla catena che la usa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementForcedHasNoTerrainDurationTest,
+	"RefactorTactics.Movement.ForcedHasNoTerrainDuration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementForcedHasNoTerrainDurationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeSimMap(3);
+
+	const FRTCellId Start(0, 0), Planned(1, 0), Slide(2, 0);
+	for (FRTHexCellData& Cell : M->Cells)
+	{
+		if (Cell.Id == Slide) { Cell.MoveCost = 4; }   // la cella di scivolamento e' la piu' cara della mappa
+	}
+
+	TArray<FRTHexSimUnit> Units;
+	Units.Add(FRTHexSimUnit(0, Start, 10));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+
+	// Il percorso come `ResolveMovement` lo costruisce: due celle chieste dal giocatore, la terza aggiunta
+	// dal terreno. `PlannedLength` conta le CELLE, partenza inclusa.
+	const TArray<FRTCellId> Path = { Start, Planned, Slide };
+	const TArray<int32> Durations = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path, /*PlannedLength*/ 2);
+
+	TArray<TArray<FRTCellId>> Paths;   Paths.Add(Path);
+	TArray<TArray<int32>> AllDur;      AllDur.Add(Durations);
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), AllDur);
+
+	// Due micro-step in tutto: uno per la cella pianificata, uno per lo scivolamento — che di suo ne
+	// costerebbe QUATTRO.
+	int32 Ticks = 0;
+	while (URTHexSimLibrary::ResolveNextHexMicroStep(State)) { ++Ticks; }
+
+	TestEqual(TEXT("due micro-step: il piano e lo scivolamento, uno ciascuno"), Ticks, 2);
+
+	// 🔑 **Il controllo positivo, dentro il test**: la stessa cella, se fosse PIANIFICATA, ne costerebbe
+	// quattro. Senza questo confronto «due micro-step» non direbbe che lo scivolamento e' stato scontato —
+	// direbbe solo che il percorso e' corto.
+	const TArray<int32> SePianificata = URTHexSimLibrary::StepDurationsForPath(Snap, 0, Path, /*PlannedLength*/ 3);
+	TestEqual(TEXT("la stessa cella, pianificata, costerebbe quattro micro-step"),
+		SePianificata.Num() == 2 ? SePianificata[1] : -1, 4);
+	TestEqual(TEXT("e come scivolamento ne costa uno"),
+		Durations.Num() == 2 ? Durations[1] : -1, 1);
+	return true;
+}
+
+
+// ⚠️ **L'`#endif` della guardia deve restare l'ULTIMA riga del file** (`#2955`).
+// Ci sono cascato due volte in due giorni: `#2940` ha aggiunto il blocco di `#2914` dopo l'`#endif` in
+// `RTHexSimTests.cpp`, e `#2955` ha ripetuto l'errore qui. In Editor e Development
+// `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
+// namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
+// non vede niente di tutto questo.
+
+// ---------------------------------------------------------------------------------------------------------
+// L'ARCO D'ATTRAVERSAMENTO (`#3012`, [D-398])
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * \u26d4 Due unita' non finiscono il turno sulla stessa cella, nemmeno attraversando.
+ *
+ * \U0001f534 **E' il difetto che questo banco esiste per prendere, ed era su TRUNK.** Misurato su
+ * `origin/main` = `1b9f6f36`: `Final0 == Final1 == (1,0)`. Il guardiano di allora proteggeva la
+ * destinazione **pianificata** — *«solo se quella cella non e' la sua ULTIMA»* — mentre un'unita' bloccata
+ * piu' avanti si ferma dove **sta**, e `Results[i].Final = Pos[i]` promuove quella posizione a finale.
+ *
+ * \U0001f511 Con [D-398] l'arco termina su una cella **libera**, quindi il caso non e' piu' rappresentabile:
+ * A non entra affatto in `(1,0)`, perche' `(2,0)` e' occupata e nessuna cella libera segue.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcNeverRestsOnAnotherTest,
+	"RefactorTactics.HexSim.ArcNeverRestsOnAnother",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcNeverRestsOnAnotherTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa, e vorrebbe (2,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma sul passaggio
+	Paths.Add({ FRTCellId(2, 0) });                                   // ferma sulla destinazione
+
+	const TArray<bool> PassThrough = { true, false, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestNotEqual(TEXT("chi attraversa non finisce addosso a chi ha attraversato"), R[0].Final, R[1].Final);
+	TestNotEqual(TEXT("ne' addosso a chi sta sulla destinazione"), R[0].Final, R[2].Final);
+
+	// \u26d4 La meta' che dice DOVE si ferma: senza cella libera a valle non si attraversa affatto, e si
+	// resta alla partenza. E' un rifiuto, non un errore ([D-398] §7c).
+	TestEqual(TEXT("senza cella libera a valle l'arco non si apre"), R[0].Final, FRTCellId(0, 0));
+
+	// \u26a0\ufe0f E `Entered` non nomina una cella in cui non si e' entrati.
+	TestFalse(TEXT("e non risulta esservi entrata"), R[0].Entered.Contains(FRTCellId(1, 0)));
+	return true;
+}
+
+/**
+ * L'arco attraversa e ARRIVA quando una cella libera a valle c'e'.
+ *
+ * \U0001f511 **E' la meta' falsificante del banco sopra**: senza, «non si ferma addosso» sarebbe vero anche
+ * se l'attraversamento avesse smesso di funzionare del tutto, e [D-398] avrebbe chiuso il difetto
+ * togliendo la feature invece che riparandola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcCrossesAndLandsTest,
+	"RefactorTactics.HexSim.ArcCrossesAndLandsBeyond",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcCrossesAndLandsTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, 0) }); // ferma in mezzo, e (2,0) e' libera
+
+	const TArray<bool> PassThrough = { true, false };
+	const TArray<FRTHexMoveResult> R =
+		URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), PassThrough);
+
+	if (!TestEqual(TEXT("due risultati"), R.Num(), 2)) { return false; }
+	TestEqual(TEXT("chi attraversa arriva oltre"), R[0].Final, FRTCellId(2, 0));
+	TestEqual(TEXT("e chi e' stato attraversato non si e' mosso"), R[1].Final, FRTCellId(1, 0));
+
+	// \u2795 `Entered` nomina OGNI cella dell'arco ([D-398] §7b): e' la crescita su cui `MovedUnitIds` misura
+	// gli ingressi, quindi un Overwatch armato sulla cella attraversata deve poterla vedere.
+	TestTrue(TEXT("l'attraversata figura fra le celle in cui si e' entrati"),
+		R[0].Entered.Contains(FRTCellId(1, 0)));
+	TestTrue(TEXT("e l'arrivo pure"), R[0].Entered.Contains(FRTCellId(2, 0)));
+
+	// \u26d4 E senza il permesso, lo stesso allestimento si ferma prima: e' il controllo che prova che a
+	// muovere il risultato e' l'attraversamento e non la geometria.
+	const TArray<FRTHexMoveResult> Senza = URTHexSimLibrary::ResolveHexPaths(Paths);
+	TestEqual(TEXT("senza permesso ci si ferma davanti"), Senza[0].Final, FRTCellId(0, 0));
+	return true;
+}
+
+
+/**
+ * \u26d4 La CODA DI SCIVOLAMENTO non riapre il difetto: con la destinazione pianificata occupata, non si
+ * attraversa affatto.
+ *
+ * \U0001f534 **Era una delle due vie che allargavano il difetto** (`#3012`). `ApplyIceSliding` **appende** celle
+ * al percorso, quindi la cella che il giocatore aveva scelto come destinazione smette di essere l'ultima —
+ * e il vecchio guardiano, che leggeva esattamente *«e' l'ultima del percorso?»*, concedeva l'attraversamento
+ * proprio li'. Chi attraversava e poi trovava la coda bloccata restava dentro.
+ *
+ * \U0001f511 Con [D-398] la domanda non esiste piu': l'arco termina su una cella **libera**, e se non ce n'e'
+ * una non si apre. Il percorso puo' essere lungo quanto vuole.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimArcWithSlideTailTest,
+	"RefactorTactics.HexSim.ArcRefusesWhenSlideTailIsBlocked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimArcWithSlideTailTest::RunTest(const FString&)
+{
+	// Il giocatore pianifica UNA cella — `(1,0)` — e lo scivolamento appende `(2,0)`. Entrambe occupate.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, 0) }); // ferma sulla destinazione PIANIFICATA
+	Paths.Add({ FRTCellId(2, 0) }); // ferma sulla coda di scivolamento
+
+	const TArray<FRTPlannedMovement> Planned = {
+		PianoDelGiocatore(/*PlannedLength*/ 1, /*bSlideRequested*/ true),
+		PianoDelGiocatore(1, false),
+		PianoDelGiocatore(1, false)
+	};
+	const TArray<bool> PassThrough = { true, false, false };
+
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), PassThrough, Planned);
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::FinishHexMovement(State);
+
+	if (!TestEqual(TEXT("tre risultati"), R.Num(), 3)) { return false; }
+	TestEqual(TEXT("con la coda bloccata non si attraversa, e si resta alla partenza"), R[0].Final, FRTCellId(0, 0));
+	TestNotEqual(TEXT("e non si finisce sulla destinazione pianificata altrui"), R[0].Final, R[1].Final);
+	TestFalse(TEXT("ne' vi si e' entrati"), R[0].Entered.Contains(FRTCellId(1, 0)));
+	return true;
+}
+
+/**
+ * \u26d4 Fermare un'unita' a META' ATTRAVERSAMENTO la lascia dove e' PARTITA, non dentro qualcuno.
+ *
+ * \U0001f534 **Era l'altra via che allargava il difetto** (`#3012`): `StopUnitInPlace` — l'interruzione da
+ * Overwatch — congela l'unita' a `Pos` **senza alcun controllo di condivisione**, e con il vecchio permesso
+ * `Pos` poteva gia' essere la cella di chi era stato attraversato.
+ *
+ * \U0001f511 Con [D-398] non puo' esserlo: sotto [D-382] l'unita' resta sulla propria ORIGINE per tutta la
+ * durata dell'arco e compare direttamente sull'arrivo. A meta' arco `Pos` e' la cella di partenza — sua, e
+ * di nessun altro. L'interruzione non ha piu' un istante illecito su cui cadere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimStopMidArcTest,
+	"RefactorTactics.HexSim.StopMidArcLeavesTheMoverAtItsOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimStopMidArcTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // attraversa (1,0), arriva a (2,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma sul passaggio
+	const TArray<bool> PassThrough = { true, false };
+
+	// L'arco copre due passi, quindi dura due micro-step: dopo il primo l'unita' e' a META'.
+	FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), PassThrough);
+	URTHexSimLibrary::ResolveNextHexMicroStep(State);
+
+	// \u26a0\ufe0f La premessa, misurata e non assunta: l'unita' NON e' ancora arrivata.
+	if (!TestNotEqual(TEXT("premessa: a meta' arco non si e' ancora arrivati"),
+		State.Pos[0], FRTCellId(2, 0)))
+	{
+		return false;
+	}
+	TestEqual(TEXT("e a meta' arco si sta sulla PROPRIA origine"), State.Pos[0], FRTCellId(0, 0));
+
+	// L'interruzione cade proprio li'.
+	URTHexSimLibrary::StopUnitInPlace(State, 0, ERTMoveOutcome::BlockedByUnit);
+	const TArray<FRTHexMoveResult> R = URTHexSimLibrary::FinishHexMovement(State);
+
+	TestEqual(TEXT("chi viene fermato a meta' arco resta alla partenza"), R[0].Final, FRTCellId(0, 0));
+	TestNotEqual(TEXT("e non dentro chi stava attraversando"), R[0].Final, R[1].Final);
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// ATTRAVERSAMENTO FRA COMPAGNE (`#2984`, [D-396])
+// ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Risolve gli stessi percorsi cambiando SOLO le squadre: e' cio' che rende il confronto una misura. */
+	TArray<FRTHexMoveResult> RTResolveWithTeams(const TArray<TArray<FRTCellId>>& Paths, const TArray<int32>& Teams)
+	{
+		return URTHexSimLibrary::ResolveHexPaths(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>(), Teams);
+	}
+}
+
+/**
+ * Una compagna ferma sul passaggio si attraversa; un'avversaria nella STESSA posizione no.
+ *
+ * 🔑 **L'allestimento e' quello di `ResolveBlockedByStationary`**, che pinna il comportamento senza
+ * squadre: qui cambia **solo** l'array `Teams`, quindi la differenza misurata non puo' venire da altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliesCrossTest,
+	"RefactorTactics.HexSim.AlliesCrossEachOther",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliesCrossTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // vuole passare da (1,0)
+	Paths.Add({ FRTCellId(1, 0) });                                   // ferma proprio li'
+
+	const TArray<FRTHexMoveResult> Compagne = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("fra compagne A attraversa e arriva"), Compagne[0].Final, FRTCellId(2, 0));
+	TestEqual(TEXT("e la compagna attraversata resta dov'era"), Compagne[1].Final, FRTCellId(1, 0));
+
+	// ⛔ La meta' falsificante: stessa geometria, squadre diverse -> bloccata come prima.
+	const TArray<FRTHexMoveResult> Avversarie = RTResolveWithTeams(Paths, { 0, 1 });
+	TestEqual(TEXT("fra avversarie A resta ferma"), Avversarie[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il motivo resta BlockedByUnit"), Avversarie[0].Outcome, ERTMoveOutcome::BlockedByUnit);
+
+	// ⚠️ Squadra NON dichiarata: non e' alleata di nessuno, nemmeno di un'altra non dichiarata.
+	const TArray<FRTHexMoveResult> Ignote = RTResolveWithTeams(Paths, { INDEX_NONE, INDEX_NONE });
+	TestEqual(TEXT("due squadre non dichiarate non si attraversano"), Ignote[0].Final, FRTCellId(0, 0));
+
+	// E l'array vuoto e' il caso di ogni chiamante che non sa di questo campo: comportamento di prima.
+	const TArray<FRTHexMoveResult> Vuoto = RTResolveWithTeams(Paths, TArray<int32>());
+	TestEqual(TEXT("senza squadre l'esito e' quello storico"), Vuoto[0].Final, FRTCellId(0, 0));
+	return true;
+}
+
+/**
+ * ⛔ Due compagne non finiscono sulla stessa cella: il vincolo `!bFinalStep` regge.
+ *
+ * E' la meta' che [D-289] impone — un solo slot d'occupancy autorevole per `FRTCellId` — e che [D-396]
+ * dichiara intatta: *«si transita dentro una compagna, non ci si ferma»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliesDoNotStackTest,
+	"RefactorTactics.HexSim.AlliesDoNotShareTheFinalCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliesDoNotStackTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) }); // (1,0) e' la sua ULTIMA cella
+	Paths.Add({ FRTCellId(1, 0) });                  // e la compagna ci sta ferma
+
+	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("anche fra compagne non ci si ferma addosso"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il motivo resta BlockedByUnit"), R[0].Outcome, ERTMoveOutcome::BlockedByUnit);
+	return true;
+}
+
+/**
+ * ⌫ **UNA COMPAGNA IN TRANSITO NON SI ATTRAVERSA**, e la squadra non c'entra: decide l'arco.
+ *
+ * 🔴 **Questo banco chiedeva l'OPPOSTO, ed e' stato riscritto misurando** (`#2984` su [D-399]). La
+ * sua prima stesura poggiava su un precedente reale: `bCrossesStationary` saltava il ciclo INTERO, quindi
+ * un `LinearPass` attraversava anche chi stava ancora uscendo dalla propria cella. [D-396] concede alle
+ * compagne « le STESSE condizioni », e quelle erano le condizioni.
+ *
+ * 🔑 **Poi [D-399] ha ristretto quelle condizioni**, per una ragione misurata: un arco scavalca le
+ * celle che copre, e quelle celle non compaiono in `Target` — scavalcare chi si MUOVE perderebbe la
+ * catena `target -> occupante` su cui [D-394] chiude `MOV-7`. L'arco copre percio' i soli occupanti FERMI.
+ *
+ * ∴ « le stesse condizioni » e' un RIFERIMENTO, non un valore fissato: seguirlo al suo nuovo
+ * valore **applica** [D-396], non la cambia. E il banco lo misura invece di dedurlo — nello stesso
+ * allestimento un `LinearPass` aspetta esattamente come una compagna.
+ *
+ * ⛔ **L'oracolo e' il NUMERO DI MICRO-STEP, e le due stesure precedenti hanno sbagliato qui entrambe.**
+ * `Final` non serve: il blocco da unita' in transito e' TRANSITORIO, la cella si libera e tutti arrivano
+ * comunque — misurerebbe il tempo credendo di misurare il permesso. Ma **nemmeno `Pos` dopo un passo
+ * serve**: sotto [D-382] chi attraversa resta sulla propria origine per l'INTERA durata dell'arco, quindi
+ * *« non si e' mossi dopo un passo »* e' vero sia che si stia aspettando sia che si stia
+ * attraversando. ⚠️ Misurato, non dedotto: la mutazione che fa scavalcare anche gli occupanti in
+ * movimento lasciava quella stesura **verde**. Il tempo d'arrivo invece separa i due mondi — due
+ * micro-step se si attraversa, quanto la cella impiega a liberarsi se si aspetta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitWaitsTest,
+	"RefactorTactics.HexSim.AllyInTransitWaitsLikeEveryoneElse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // vorrebbe passare da (1,0)
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(1, 1) });                  // sta uscendo da (1,0), lentamente
+
+	TArray<TArray<int32>> Durate;
+	Durate.Add({ 1, 1 });
+	Durate.Add({ 5 }); // cinque micro-step per lasciare (1,0): in transito quando A ci arriva
+
+	// Micro-step al termine dei quali A e' su `(2,0)`, o `INDEX_NONE` se non ci arriva affatto.
+	auto PassiPerArrivare = [&Paths, &Durate](const TArray<int32>& Teams, bool bLinearPass)
+	{
+		TArray<bool> PassThrough;
+		if (bLinearPass)
+		{
+			PassThrough = { true, false };
+		}
+		FRTMovementResolutionState State = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+			TArray<bool>(), PassThrough, TArray<FRTPlannedMovement>(), Durate, Teams);
+		for (int32 Passo = 1; Passo <= 20; ++Passo)
+		{
+			URTHexSimLibrary::ResolveNextHexMicroStep(State);
+			if (State.Pos.IsValidIndex(0) && State.Pos[0] == FRTCellId(2, 0))
+			{
+				return Passo;
+			}
+		}
+		return (int32)INDEX_NONE;
+	};
+
+	const int32 Compagne = PassiPerArrivare({ 0, 0 }, /*bLinearPass*/ false);
+	if (!TestTrue(TEXT("premessa: prima o poi si arriva comunque"), Compagne > 0)) { return false; }
+
+	// 🔑 **La riga che porta il peso.** Due micro-step e' cio' che costa l'arco che scavalca ([D-398]
+	// §7a): arrivare piu' tardi significa aver ASPETTATO che la cella si liberasse.
+	TestTrue(TEXT("ma non attraversando: si aspetta che la cella si liberi"), Compagne > 2);
+
+	TestEqual(TEXT("fra avversarie, identico"),
+		PassiPerArrivare({ 0, 1 }, /*bLinearPass*/ false), Compagne);
+
+	// ⚠️ **La parita' si MISURA.** [D-396] concede alle compagne le stesse condizioni del
+	// `LinearPass`: qui si legge quali sono oggi, invece di assumerle da un commento.
+	TestEqual(TEXT("e un LinearPass aspetta esattamente come loro"),
+		PassiPerArrivare(TArray<int32>(), /*bLinearPass*/ true), Compagne);
+
+	// ⛔ **La meta' falsificante: con l'occupante FERMO il permesso e' vivo**, e si vede dal tempo. Senza
+	// di essa tutto quanto sopra resterebbe vero anche se l'attraversamento fra compagne non funzionasse.
+	TArray<TArray<FRTCellId>> Ferma;
+	Ferma.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Ferma.Add({ FRTCellId(1, 0) }); // nessun percorso da fare: e' ferma
+	FRTMovementResolutionState Stato = URTHexSimLibrary::BeginHexMovement(Ferma, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), { 0, 0 });
+	int32 PassiFerma = INDEX_NONE;
+	for (int32 Passo = 1; Passo <= 20 && PassiFerma == INDEX_NONE; ++Passo)
+	{
+		URTHexSimLibrary::ResolveNextHexMicroStep(Stato);
+		if (Stato.Pos.IsValidIndex(0) && Stato.Pos[0] == FRTCellId(2, 0))
+		{
+			PassiFerma = Passo;
+		}
+	}
+	TestEqual(TEXT("una compagna FERMA invece si attraversa, e l'arco costa i suoi due passi"), PassiFerma, 2);
+	TestTrue(TEXT("cioe' si arriva prima che aspettando"), PassiFerma < Compagne);
+	return true;
+}
+
+/**
+ * ⛔ Lo SCAMBIO fra compagne resta un ciclo: [D-396] non lo concede.
+ *
+ * 🔑 E la ragione e' scritta nella decisione: [D-394] chiude `MOV-7` poggiando sulla **totalita'**
+ * della catena `Target -> occupante`, e uno scambio permesso e' esattamente un ciclo che si vorrebbe far
+ * passare. Chi lo aprira' riapre quell'argomento con la propria esibizione, non per estensione di questa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedSwapIsStillACycleTest,
+	"RefactorTactics.HexSim.AlliedSwapIsStillACycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliedSwapIsStillACycleTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) }); // testa a testa
+
+	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("nemmeno fra compagne lo scambio passa"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il motivo e' il ciclo, non l'unita'"), R[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	return true;
+}
+
+/**
+ * ⛔ **Con le squadre in gioco l'esito non dipende dall'ORDINE, e il punto fisso resta MONOTONO.**
+ *
+ * 🔑 **La DoD di `#2984` chiede che si rimisuri, non che si deduca**, e la ragione e' che l'arco ha
+ * cambiato la forma del punto fisso: `BeginArcIfNeeded` legge `Pos` di **tutte** le altre unita', quindi
+ * un permesso che dipendesse dall'indice sarebbe visibile proprio qui. `ResolveOrderIndependent` esiste
+ * gia', ma non passa alcuna squadra: non interroga questo codice.
+ *
+ * ⚠️ L'allestimento mette un CONTESTO vero sulla cella d'arrivo dell'arco — chi attraversa la compagna
+ * vorrebbe `(2,0)`, e un'avversaria la vuole nello stesso istante. E' dove un'eventuale dipendenza
+ * dall'ordine si manifesterebbe, non un caso di passaggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedOrderIndependenceTest,
+	"RefactorTactics.HexSim.AlliedCrossingIsOrderIndependentAndMonotone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliedOrderIndependenceTest::RunTest(const FString&)
+{
+	const TArray<FRTCellId> Attraversa = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	const TArray<FRTCellId> Ferma      = { FRTCellId(1, 0) };                    // compagna, sul passaggio
+	// ⚠️ **L'avversaria punta alla cella ATTRAVERSATA, non all'arrivo, ed e' una correzione misurata.**
+	// Puntandola su `(2,0)` l'arco non si apriva affatto: la sua fine dev'essere **libera**, e un
+	// contendente vivo la rende contesa: i due si bloccavano a vicenda e il banco restava verde senza aver
+	// esercitato un solo attraversamento. La premessa qui sotto e' cio' che l'ha fatto vedere.
+	const TArray<FRTCellId> Contende   = { FRTCellId(1, 1), FRTCellId(1, 0) };   // avversaria, sul passaggio
+
+	TArray<TArray<FRTCellId>> OrdineA;
+	OrdineA.Add(Attraversa); OrdineA.Add(Ferma); OrdineA.Add(Contende);
+	TArray<TArray<FRTCellId>> OrdineB;
+	OrdineB.Add(Contende); OrdineB.Add(Ferma); OrdineB.Add(Attraversa);
+
+	const TArray<FRTHexMoveResult> A = RTResolveWithTeams(OrdineA, { 0, 0, 1 });
+	const TArray<FRTHexMoveResult> B = RTResolveWithTeams(OrdineB, { 1, 0, 0 });
+	if (!TestEqual(TEXT("tre risultati per ordine"), A.Num(), 3)
+		|| !TestEqual(TEXT("tre risultati per ordine"), B.Num(), 3))
+	{
+		return false;
+	}
+
+	// L'esito si legge PER RUOLO, non per indice: A[0] e B[2] sono la stessa unita'.
+	TestEqual(TEXT("chi attraversa: stessa cella nei due ordini"), A[0].Final, B[2].Final);
+	TestEqual(TEXT("chi attraversa: stesso motivo"), A[0].Outcome, B[2].Outcome);
+	TestEqual(TEXT("la compagna ferma: stessa cella"), A[1].Final, B[1].Final);
+	TestEqual(TEXT("chi contende: stessa cella"), A[2].Final, B[0].Final);
+	TestEqual(TEXT("chi contende: stesso motivo"), A[2].Outcome, B[0].Outcome);
+
+	// ⚠️ **La premessa che rende la misura non vuota**: la compagna e' stata davvero attraversata. Senza,
+	// tre unita' che non si toccano darebbero lo stesso verde senza aver esercitato nulla.
+	TestTrue(TEXT("premessa: l'arco ha davvero scavalcato la compagna"),
+		A[0].Entered.Contains(FRTCellId(1, 0)));
+
+	// ⛔ **Il punto fisso e' MONOTONO**: si passa da «in movimento» a «fermo», mai all'indietro. E' la
+	// proprieta' che rende l'esito indipendente dall'ordine per costruzione, e con l'arco va rimisurata:
+	// `BeginArcIfNeeded` scrive `StepRemaining`, cioe' tocca lo stato su cui il punto fisso itera.
+	FRTMovementResolutionState Stato = URTHexSimLibrary::BeginHexMovement(OrdineA, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), { 0, 0, 1 });
+	TArray<bool> Visto = Stato.Done;
+	for (int32 Passo = 0; Passo < 20 && URTHexSimLibrary::ResolveNextHexMicroStep(Stato); ++Passo)
+	{
+		for (int32 i = 0; i < Stato.Done.Num(); ++i)
+		{
+			if (Visto.IsValidIndex(i) && Visto[i] && !Stato.Done[i])
+			{
+				AddError(FString::Printf(TEXT("l'unita' %d e' tornata in movimento dopo essersi fermata"), i));
+				return false;
+			}
+		}
+		Visto = Stato.Done;
+	}
+	// ⛔ **`Done` vuol dire ARRIVATA, non ferma**, e la prima stesura ci aveva creduto: un'unita'
+	// bloccata per sempre non diventa mai `Done` — ritenta a ogni micro-step finche' nessuno si muove
+	// piu'. Il punto fisso e' finito quando `StepHexMovement` non muove nulla, ed e' `bFinished` a dirlo.
+	TestTrue(TEXT("e il punto fisso ha raggiunto la propria fine"), Stato.bFinished);
+	TestTrue(TEXT("con chi attraversava arrivato a destinazione"),
+		Stato.Pos.IsValidIndex(0) && Stato.Pos[0] == FRTCellId(2, 0));
+	return true;
+}
+
+
+/**
+ * Il PATHFINDER attraversa una compagna, e non si ferma sopra — `#2984`, [D-396] Scope 4.
+ *
+ * 🔑 **E' lo specchio di cio' che `StepHexMovement` gia' concede.** Se il resolver lascia passare e
+ * il pathfinder no, il bot continua a evitare rotte che il gioco permette — ed era il difetto che questa
+ * meta' della issue esiste per chiudere.
+ *
+ * ⛔ **Le due asserzioni vanno insieme.** Togliere le compagne dagli ostacoli senza proteggere la
+ * DESTINAZIONE farebbe scegliere all'A* la cella di una compagna come arrivo, che il resolver poi
+ * rifiuta: il bot proporrebbe una mossa illegale, cioe' l'invariante opposta a quella che si voleva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimPathCrossesAlliesTest,
+	"RefactorTactics.HexSim.PathCrossesAlliesButNotOntoThem",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimPathCrossesAlliesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+	if (!TestNotNull(TEXT("arena piatta"), Map)) { return false; }
+
+	auto Snapshot = [Map](int32 TeamOfOther)
+	{
+		TArray<FRTHexSimUnit> Units;
+		FRTHexSimUnit Me(1, FRTCellId(0, 0), /*budget*/ 6);
+		Me.TeamId = 0;
+		FRTHexSimUnit Other(2, FRTCellId(1, 0), /*budget*/ 0);
+		Other.TeamId = TeamOfOther;
+		Units.Add(Me);
+		Units.Add(Other);
+		return URTHexSimLibrary::MakeSnapshot(Map, Units);
+	};
+
+	// --- compagna: si attraversa -------------------------------------------------------------------
+	const FRTHexSnapshot Alleata = Snapshot(/*TeamOfOther*/ 0);
+	const FRTHexPathResult Oltre = URTHexSimLibrary::FindPathForUnit(Alleata, 1, FRTCellId(2, 0));
+	TestEqual(TEXT("la rotta OLTRE la compagna esiste"), Oltre.Status, ERTHexPathStatus::Success);
+	TestTrue(TEXT("e passa proprio dalla sua cella"), Oltre.Path.Contains(FRTCellId(1, 0)));
+
+	// ⛔ ...ma non ci si ferma sopra.
+	const FRTHexPathResult Addosso = URTHexSimLibrary::FindPathForUnit(Alleata, 1, FRTCellId(1, 0));
+	TestNotEqual(TEXT("la cella della compagna non e' una destinazione"), Addosso.Status, ERTHexPathStatus::Success);
+
+	// E la portata dice la stessa cosa, o overlay e pathfinding divergerebbero.
+	const TArray<FRTHexReachableCell> Portata = URTHexSimLibrary::ReachableCells(Alleata, 1);
+	const bool bOltreRaggiungibile = Portata.ContainsByPredicate(
+		[](const FRTHexReachableCell& R) { return R.Cell == FRTCellId(2, 0); });
+	const bool bSullaCompagna = Portata.ContainsByPredicate(
+		[](const FRTHexReachableCell& R) { return R.Cell == FRTCellId(1, 0); });
+	TestTrue(TEXT("la portata include la cella OLTRE la compagna"), bOltreRaggiungibile);
+	TestFalse(TEXT("e NON include quella della compagna"), bSullaCompagna);
+
+	// --- avversaria: la meta' falsificante ---------------------------------------------------------
+	const FRTHexSnapshot Nemica = Snapshot(/*TeamOfOther*/ 1);
+	const FRTHexPathResult Aggirata = URTHexSimLibrary::FindPathForUnit(Nemica, 1, FRTCellId(2, 0));
+	// ⚠️ **L'oracolo e' PER DOVE passa, non se arriva**, e la prima stesura sbagliava qui: su un esagono
+	// aperto l'A* gira semplicemente attorno, quindi anche con un'avversaria in mezzo la destinazione si
+	// raggiunge. Misurato: asserire il fallimento rendeva il test rosso su un comportamento corretto.
+	TestTrue(TEXT("verso un'avversaria la rotta esiste comunque, girando attorno"),
+		Aggirata.Status == ERTHexPathStatus::Success);
+	TestFalse(TEXT("ma NON passa dalla sua cella"), Aggirata.Path.Contains(FRTCellId(1, 0)));
+	TestTrue(TEXT("e costa piu' passi che attraversare una compagna"), Aggirata.Path.Num() > Oltre.Path.Num());
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

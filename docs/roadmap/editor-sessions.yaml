@@ -2876,7 +2876,26 @@ sessions:
       - PIE-VELO-VIEWER
       - PIE-V01-POINTER
       - PIE-V01-DOCKPROMPT
-    issues: [151, 2826]
+      # `DOCKKEYS` dichiarava «Seduta U43» nella propria cella del registro dal 2026-09-11 e non era mai
+      # entrata qui: `8f2c6aa5` ha scritto la riga e non l'elenco. Una voce che nessuna seduta convoca
+      # resta un ⏳ che nessuno esegue — il difetto misurato da #2188 e #2240.
+      - PIE-V01-DOCKKEYS
+      # `DOCKCLICK` nasce con il cablaggio del bottone (#2826): condivide l'allestimento delle due sorelle,
+      # e il click e il tasto vanno provati nella STESSA seduta — l'oracolo è che armino la stessa voce.
+      - PIE-V01-DOCKCLICK
+      # `INSPECT` nasce col gesto di `#705` e col pannello di `#613`: guardare un'avversaria senza
+      # comandarla. Sta QUI e non in una seduta propria perche' condivide l'allestimento delle tre sorelle
+      # del dock — stessa partita, stessa unita' selezionata — e perche' aprire una seduta nuova per una
+      # voce sola sprecherebbe un'esclusiva sul motore (`CLAUDE.md` §10).
+      - PIE-V01-INSPECT
+      # I due difetti del dock trovati cablando il click (#2989), stesso allestimento delle sorelle.
+      # SEPARATI di proposito: `DOCKTICK` e' un innesco sbagliato — il dock si ricostruisce su
+      # `EventTick` — mentre `DOCKREBUILD` e' distruzione di istanze sotto il puntatore, e vive anche
+      # senza il Tick: basta un cambio di lunghezza del kit. Fonderli farebbe sparire il secondo il
+      # giorno in cui qualcuno sposta il primo su un evento.
+      - PIE-V01-DOCKTICK
+      - PIE-V01-DOCKREBUILD
+    issues: [151, 705, 613, 2826, 2989]
     done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
@@ -2904,15 +2923,28 @@ sessions:
       Il giro: `Scenario To Run = Visual.Perception.Acceptance`, `Scenario Turn Pause Seconds` alto
       abbastanza da vedere i tre turni separati, Play. Le cinque `PIE-KNOW*` e `PIE-VELO-VIEWER` si
       giudicano lì dentro, nell'ordine in cui i `_turno` del file le nomina. Poi
-      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER` **e `PIE-V01-DOCKPROMPT`**, nello
-      stesso processo.
+      `Scenario To Run = Visual.Hud.FirstPlayable` per `PIE-V01-POINTER`, `PIE-V01-DOCKPROMPT`,
+      `PIE-V01-DOCKKEYS` **e `PIE-V01-DOCKCLICK`**, nello stesso processo.
 
-      🔑 **Le due voci del `FirstPlayable` si giudicano nello stesso giro e non si confondono**: `POINTER`
-      guarda **cosa fa il click**, `DOCKPROMPT` guarda **cosa il dock dichiara di aspettare prima** che il
-      click arrivi. Il percorso a tappe di `POINTER` qui sotto le attraversa entrambe — a ogni tappa in cui
-      il puntatore cambia contesto, il prompt del dock deve dire un'altra cosa. ⚠️ **Se il prompt resta
-      identico fra un'azione armata su unità e una su cella, `DOCKPROMPT` è rossa anche con `POINTER`
-      verde**: sono due oracoli sullo stesso gesto, e il secondo non è implicato dal primo.
+      🔑 **Le voci del `FirstPlayable` si giudicano nello stesso giro e non si confondono**, e guardano
+      quattro cose diverse sullo stesso dock: `POINTER` **cosa fa il click** sulla mappa, `DOCKPROMPT`
+      **cosa il dock dichiara di aspettare prima** che il click arrivi, `DOCKKEYS` **quale tasto ogni
+      riquadro dice di avere**, `DOCKCLICK` **se il riquadro stesso si può cliccare**. Il percorso a tappe
+      di `POINTER` qui sotto le attraversa tutte — a ogni tappa in cui il puntatore cambia contesto, il
+      prompt del dock deve dire un'altra cosa. ⚠️ **Se il prompt resta identico fra un'azione armata su
+      unità e una su cella, `DOCKPROMPT` è rossa anche con `POINTER` verde**: sono oracoli sullo stesso
+      gesto, e nessuno è implicato dall'altro.
+
+      🔴 **`DOCKKEYS` e `DOCKCLICK` vanno provate INSIEME, ed è il motivo per cui condividono la seduta**:
+      il tasto e il click devono armare la **stessa** voce, e due passate separate darebbero due verdi che
+      non dicono se i due canali coincidono. Su ogni riquadro: premere il tasto che mostra, annotare
+      cosa si arma, tornare al neutro, cliccarlo, e confrontare. ⚠️ **Un riquadro dove i due divergono è
+      rosso per entrambe**, e non è un difetto teorico: è quello che la lista del dock rendeva possibile
+      quando la vista rinumerava le posizioni e il tasto no (`#2987`).
+
+      ⏱️ **Niente conteggio in prosa, per la stessa ragione già scritta qui sopra**: la riga diceva «le due
+      voci del `FirstPlayable`» e con `DOCKKEYS` e `DOCKCLICK` sarebbe diventata falsa in silenzio. I nomi
+      sono sopra; chi vuole il numero conta `verifies`.
 
       ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
       benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
@@ -3559,3 +3591,77 @@ sessions:
       nella scelta e non nel cablaggio — e il rimedio e' una misura come quella, non un ritocco a occhio.
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
+  - id: U53
+    title: La linea che non arriva, e la cella che la ferma
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su leggibilita' della linea di tiro interrotta — esiste, non arriva, e si vede cosa la ferma
+    artifacts: []
+    # 🔑 **Perche' esiste.** Il codice di #2742 e' in `main` da `5149867f`: `URTSightLineLibrary` produce le
+    # linee autorizzate, `ERTOverlayMeaning::Vision` le disegna, e tre test le presidiano headless —
+    # `Sight.BlockedLineCarriesWhereItStops`, `Sight.HiddenStatesProduceTheSameLines`,
+    # `Sight.UnknownTargetProducesNoLine`. Nessuno di quei tre puo' dire se un giocatore **capisca** cosa sta
+    # guardando, ed e' l'unica meta' che resta.
+    #
+    # ⚠️ **La voce arriva DOPO la feature, ed e' il verso giusto.** Il precedente da non ripetere e' il
+    # marcatore d'ostacolo di #2707, a schermo tre sedute prima che qualcuno lo giudicasse; qui il rischio
+    # opposto — una feature spedita che nessuna voce convoca — era gia' realizzato, e questa seduta lo chiude.
+    #
+    # ⛔ **Non duplica `PIE-VIS-SIGHTWALL`.** Quella chiede se la **cella** che nega il tiro si distingua dal
+    # pavimento, ed e' ❌ dal 2026-09-06 con il verdetto d'autore *«ho visto solo l'esagono ambra, nessuna
+    # linea di tiro presente»*. Questa chiede se **la linea** ci sia e dica dove si ferma: e' esattamente la
+    # meta' che a quel verdetto mancava, e che nel frattempo e' stata costruita.
+    unblocked_by: []
+    # Vuoto e misurato: nessun `FColor` letterale resta in `DrawPlanningPreview` (zero, misurato il
+    # 2026-09-11), quindi la precondizione di #1941 che bloccava #2742 e' caduta.
+    shares_setup_with: []
+    # ⚠️ Vuoto perche' l'allestimento e' uno scenario suo — `Visual.Environment.BlindFireThroughSightWall` —
+    # e appoggiarsi a una partita normale lascerebbe fuori proprio il caso che rende la voce giudicabile:
+    # una linea che ESISTE e non arriva. In una partita normale un bersaglio non visibile non si punta.
+    verifies:
+      - PIE-VIS-SIGHTLINE
+
+  - id: U54
+    title: Il dock dice quale abilita', e il feed dice cosa e' successo
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: rilettura dei due criteri che tennero `PIE-V01-SCREENHUD` a 🟡 nella seduta U49
+    artifacts: []
+    # 🔑 **Perche' esiste.** `PIE-V01-SCREENHUD` e' 🟡 dal 2026-09-11 per DUE difetti, entrambi nel tratto
+    # che nessun test headless copre, ed entrambi hanno avuto una correzione in `main` da allora:
+    #
+    #   il dock mostrava il ripiego          -> #2963, `f9af87c5` e `bc5b3651`
+    #   il feed restava vuoto a schermo      -> #2964, `#2992`
+    #
+    # ⛔ **Nessuna delle due correzioni puo' dichiararsi verificata da se'.** Per le icone la suite dice che
+    # le chiavi risolvono e che il catalogo e' valido — 95/95 su `Icon+ScreenHud+Heroes` — ma misura il
+    # **ViewModel** e le chiavi che il catalogo **dichiara**: nessuno legge una texture a schermo, e un'icona
+    # che risolve puo' essere illeggibile a 24 px o indistinguibile dalla vicina. Per il feed vale la stessa
+    # asimmetria gia' scritta nella cella di U49: montato e verde headless non implica visibile.
+    #
+    # ⚠️ **Un criterio era `NOT RUN` per CAUSA di un altro**, e resta il primo da riprendere: l'aggiornamento
+    # della riga al KO non e' osservabile finche' il feed e' vuoto. Se il feed ora scrive, quel criterio
+    # diventa misurabile per la prima volta — e se non scrive, resta `NOT RUN` con la stessa causa, non con
+    # una nuova.
+    #
+    # 🔴 **Cosa guardare sulle icone, oltre a «c'e' o non c'e'».** Le otto abilita' senza ripiego hanno ora
+    # il glifo PROPRIO, che porta il sigillo dell'eroe; le derivate mostrano l'icona della loro core, ed e'
+    # corretto. ∴ due slot dello stesso kit possono legittimamente mostrare lo stesso disegno — `TideGuard` e
+    # un altro scudo — e questo NON e' il difetto di #2963 che torna: e' il ripiego che funziona. Il difetto
+    # sarebbe `MissingIcon`, o un glifo d'eroe sullo slot di un altro eroe.
+    #
+    # ⚠️ **D-233 lascia una deroga dichiarata che questa e' la prima seduta in grado di guardare**:
+    # `Move #0072B2` ha contrasto **2.89** su `BG_Raised`, sotto la soglia WCAG 1.4.11 di 3:1. Su superficie
+    # rialzata il glifo va bordato o schiarito, e la voce dice che «e' la prima cosa da guardare in una
+    # PIE-ICON-*». Qui gli slot del dock sono superficie rialzata.
+    unblocked_by: []
+    # Vuoto e misurato: entrambe le correzioni sono in `main` — `bc5b3651` per le icone, `#2992` per il feed
+    # — e il catalogo ricostruito e' committato (`f9af87c5`). Non serve rigenerare niente prima della seduta.
+    shares_setup_with: [U49]
+    # Stesso allestimento di U49: partita v0.1 con `WBP_RT_TacticalHUD` montato, `L_Frontend` -> `L_HexArena`.
+    # ⛔ **La calibrazione dei pack Paragon va rifatta PRIMA di giudicare**, come in U49: senza, un'assenza
+    # dovuta ai pack e' indistinguibile da un difetto dell'HUD, e il verdetto direbbe il falso.
+    verifies:
+      - PIE-V01-SCREENHUD

@@ -4,6 +4,7 @@
 #include "Ability/RTActionData.h"
 #include "Combat/RTCombatResolver.h"
 #include "Combat/RTHexCombatLibrary.h"
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal / RefusalForObserver (#2950)
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
@@ -877,6 +878,120 @@ bool FRTHexAreaFootprintStaysOnTargetLayerTest::RunTest(const FString&)
 
 	// La meta' che rende il test falsificabile: la cella sottostante, stesso X/Y e Layer 0, NON e' investita.
 	TestFalse(TEXT("e il piano sottostante non viene toccato"), Celle.Contains(FRTCellId(2, 0, 0)));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// PORTATA MINIMA: un'azione puo' dichiarare quanto VICINO smette di funzionare (`#2950`)
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Sotto il minimo dichiarato il bersaglio e' rifiutato, e il rifiuto **non e' `OutOfRange`**.
+ *
+ * 🔑 **Le due meta' sono separate perche' falliscono per ragioni diverse.** Un rifiuto che non arriva e un
+ * rifiuto che mente sono due difetti, e il secondo e' quello che `#2766` ha gia' pagato su questo enum:
+ * `ERTTargetRefusal::Range` porta scritto *«avvicinati»*, quindi riusarla per una distanza minima direbbe
+ * al giocatore di fare l'opposto di cio' che risolve.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMinRangeRefusesTooCloseTest,
+	"RefactorTactics.Combat.MinRangeRefusesTooClose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMinRangeRefusesTooCloseTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	const FRTCellId From(0, 0);
+
+	// Sotto il minimo: distanza 1, minimo 3.
+	TestEqual(TEXT("sotto il minimo il bersaglio e' rifiutato, e il motivo e' TooClose"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(1, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required, /*MinRange*/ 3),
+		ERTHexTargetReason::TooClose);
+
+	// Al minimo esatto: parte. E' il confine, ed e' la meta' che impedisce a un minimo troppo zelante di
+	// mangiarsi il caso legittimo.
+	TestEqual(TEXT("alla distanza minima esatta l'azione parte"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(3, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required, /*MinRange*/ 3),
+		ERTHexTargetReason::Ok);
+
+	// ⛔ Il default: chi non dichiara un minimo non cambia comportamento. E' l'invariante che protegge
+	// l'intero catalogo esistente.
+	TestEqual(TEXT("senza minimo dichiarato, la distanza 1 resta legittima"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(1, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::Ok);
+
+	// Il rifiuto raggiunge il giocatore con un gesto PROPRIO, non con quello opposto.
+	TestEqual(TEXT("l'osservatore legge «troppo vicino», non «troppo lontano»"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::TooClose, /*bKnown*/ true),
+		ERTTargetRefusal::TooClose);
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// IL PIANO: la verticalita' non e' un asse di targeting (`#2951`, [D-393])
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Puntare un altro `Layer` e' un rifiuto DICHIARATO, e non uno degli altri tre.
+ *
+ * 🔴 **Il difetto che chiude non era un rifiuto sbagliato: era l'ASSENZA di un rifiuto.** `HexLine`
+ * costruisce l'impronta di `Shape::Line` sul piano del TIRATORE, e `HexDistance` ignora il `Layer`: prima
+ * di [D-393] un colpo verso una piattaforma passava il gate e non toccava nessuno, senza una riga di log.
+ *
+ * 🔑 **La meta' falsificante e' la seconda asserzione.** Le stesse coordinate sullo STESSO piano
+ * danno `Ok`: senza, un test che vede `OtherLayer` non distinguerebbe «rifiutato per il piano» da
+ * «rifiutato perche' quella cella non esiste nella fixture».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetingRefusesOtherLayerTest,
+	"RefactorTactics.Combat.TargetingRefusesOtherLayer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTargetingRefusesOtherLayerTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MakeCombatMap(6);
+	const FRTCellId From(0, 0, 0);
+
+	// La piattaforma ESISTE nella fixture: altrimenti un rifiuto potrebbe venire da una cella assente
+	// invece che dal piano, e il test misurerebbe un'altra cosa.
+	for (const FRTCellId& Id : { FRTCellId(2, 0, 1), FRTCellId(5, 0, 1) })
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+
+	TestEqual(TEXT("un bersaglio su un altro piano e' rifiutato, e il motivo e' OtherLayer"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(2, 0, 1), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::OtherLayer);
+
+	// ⛔ La meta' che rende il test falsificabile: stesse coordinate, stesso piano -> ingaggiabile.
+	TestEqual(TEXT("le stesse coordinate sul PROPRIO piano restano ingaggiabili"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(2, 0, 0), /*Range*/ 6,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::Ok);
+
+	// La licenza del tiro indiretto toglie la LINEA e nient'altro: non scavalca un piano ([D-380]).
+	TestEqual(TEXT("nemmeno un tiro indiretto raggiunge un altro piano"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(2, 0, 1), /*Range*/ 6,
+			ERTLineOfSightPolicy::NotRequired),
+		ERTHexTargetReason::OtherLayer);
+
+	// ⚠️ Ordine: chi viola ANCHE la gittata conserva il motivo storico — la disciplina di `#2950`.
+	TestEqual(TEXT("fuori portata E su un altro piano: il motivo resta OutOfRange"),
+		URTCombatLibrary::ClassifyHexTargeting(Map, From, FRTCellId(5, 0, 1), /*Range*/ 2,
+			ERTLineOfSightPolicy::Required),
+		ERTHexTargetReason::OutOfRange);
+
+	// Il rifiuto raggiunge il giocatore con un gesto PROPRIO: ne' «avvicinati» ne' «allontanati».
+	TestEqual(TEXT("l'osservatore legge «altro piano»"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OtherLayer, /*bKnown*/ true),
+		ERTTargetRefusal::OtherLayer);
+
+	// ⛔ E il velo resta PRIMA della geometria: su un bersaglio ignoto non trapela nemmeno il piano.
+	TestEqual(TEXT("su un bersaglio ignoto il rifiuto resta Nothing"),
+		URTCombatLibrary::RefusalForObserver(ERTHexTargetReason::OtherLayer, /*bKnown*/ false),
+		ERTTargetRefusal::Nothing);
 	return true;
 }
 

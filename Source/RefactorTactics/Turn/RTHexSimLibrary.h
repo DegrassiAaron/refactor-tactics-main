@@ -271,7 +271,8 @@ public:
 	 */
 	static TArray<FRTHexMoveResult> ResolveHexPaths(const TArray<TArray<FRTCellId>>& Paths,
 		const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers,
-		const TArray<bool>& bPassThrough = TArray<bool>());
+		const TArray<bool>& bPassThrough = TArray<bool>(),
+		const TArray<int32>& Teams = TArray<int32>());
 
 	/**
 	 * Apre una risoluzione di movimento SOSPENDIBILE (CP 14.2): stesso input dei due `ResolveHexPaths`, ma
@@ -293,7 +294,8 @@ public:
 		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
 		const TArray<bool>& bPassThrough = TArray<bool>(),
 		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>(),
-		const TArray<TArray<int32>>& StepDurations = TArray<TArray<int32>>());
+		const TArray<TArray<int32>>& StepDurations = TArray<TArray<int32>>(),
+		const TArray<int32>& Teams = TArray<int32>());
 
 	/**
 	 * Quanti microstep dura l'ingresso in `Cell` per l'unita' `UnitId` dello snapshot

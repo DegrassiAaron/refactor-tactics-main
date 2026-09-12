@@ -792,5 +792,20 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	ERTLineResolution LineResolution = ERTLineResolution::None;
 
+	/**
+	 * Distanza MINIMA in celle: sotto questa, l'azione non parte (`#2950`). `0` = nessun minimo.
+	 *
+	 * 🔴 **Nasce perche' il vocabolario aveva un solo verso.** `RangeCells` e' un massimo e basta, quindi
+	 * nessuna azione poteva esistere che richiedesse distanza — un mortaio, un arco, un'arma pesante
+	 * inutile in mischia. L'unica via era un ramo per `ActionId` dentro il classificatore, cioe'
+	 * l'eccezione hard-coded che [D-046] esiste per togliere. Stesso difetto che [D-378] ha chiuso
+	 * sull'asse della linea di tiro.
+	 *
+	 * ⚠️ **Lo zero e' il default apposta**: ogni azione del catalogo prima di questo campo conserva il
+	 * comportamento che aveva, e un test lo prova sul catalogo invece che a memoria.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 MinRangeCells = 0;
+
 	FRTActionDef() = default;
 };

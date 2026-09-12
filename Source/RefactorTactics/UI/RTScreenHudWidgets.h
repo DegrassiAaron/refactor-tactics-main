@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
@@ -7,6 +7,7 @@
 #include "Turn/RTReactionWindowView.h" // idem per FRTReactionWindowView, reso per valore da `URTFastDecisionWidget`
 #include "RTScreenHudWidgets.generated.h"
 
+class ARTPlayerController;
 class ARTTurnManager;
 class ARTUnit;
 class URTIconCatalogData;
@@ -92,6 +93,9 @@ public:
 	 */
 	void SetSelectedUnitForTest(ARTUnit* InUnit);
 
+	/** Come sopra, per il soggetto **ispezionato** (`#705`): quello che si guarda, non quello che si comanda. */
+	void SetInspectedUnitForTest(ARTUnit* InUnit);
+
 	/**
 	 * Inietta il VIEW MODEL della finestra di reazione senza un `PlayerController` (CP 14.6, `#166`).
 	 *
@@ -160,6 +164,15 @@ protected:
 	const ARTUnit* GetSelectedUnit() const;
 
 	/**
+	 * L'unita' che si sta **guardando**, che puo' non essere quella che si comanda (`#705`).
+	 *
+	 * ⛔ **Non e' un secondo `GetSelectedUnit()`, e chi la usa deve saperlo**: un soggetto ispezionato puo'
+	 * essere avversario, quindi da qui **non** si costruiscono ne' gli slot pianificati ne' il dock delle
+	 * azioni. Protetta come la sorella, e per la stessa ragione: i Blueprint vedono le viste, non le unita'.
+	 */
+	const ARTUnit* GetInspectedUnit() const;
+
+	/**
 	 * Il view model della finestra di reazione di questo client, o `nullptr` (CP 14.6, `#166`).
 	 *
 	 * 🔴 **`protected`, e la differenza NON e' stilistica.** `URTReactionWindowViewModel::SubmitResponse` e'
@@ -218,6 +231,14 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<ARTUnit> SelectedUnitForTest;
+
+	/**
+	 * Gemella della precedente per il soggetto **ispezionato** (`#705`), e per la stessa ragione: senza un
+	 * `ULocalPlayer` — che una run headless non ha — `GetOwningPlayer()` resta nullo e il pannello non
+	 * sarebbe verificabile. Nulla in gioco: l'ispezione vera resta del `PlayerController`.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ARTUnit> InspectedUnitForTest;
 
 	/**
 	 * La finestra di reazione, risolta dal proprietario in `AcquireMatchContext` oppure iniettata da un test.
@@ -292,6 +313,13 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTPlayerEventLineView> GetFeed() const;
+
+	/** Perche' il feed e' vuoto, per `rt.Debug.ScreenHud`: inoltra al view model, che ha il tipo completo.
+	 *
+	 * ⚠️ **Il manager si PASSA e non si dereferenzia qui**, come in `GetFeed`: leggere `GetTurnLog()` da
+	 * questo file rivorrebbe l'header che `#2257` ha tolto.
+	 */
+	TArray<FString> DescribeFeedState() const;
 };
 
 /**
@@ -342,9 +370,25 @@ class REFACTORTACTICS_API URTSelectedUnitPanelWidget : public URTScreenHudWidget
 	GENERATED_BODY()
 
 public:
-	/** Falso quando non c'e' selezione: il pannello si nasconde invece di mostrare una carta vuota. */
+	/**
+	 * Falso quando non c'e' selezione: il pannello si nasconde invece di mostrare una carta vuota.
+	 *
+	 * ⚠️ **Significa «comando un'unita'», non «il pannello ha qualcosa da mostrare»**: da `#705` il soggetto
+	 * puo' essere anche un'unita' **ispezionata**, che non si comanda. Per «c'e' qualcosa da mostrare» esiste
+	 * `HasSubject()`. Il nome resta questo perche' i grafi esistenti lo leggono col significato di sempre, e
+	 * cambiarlo sotto di loro avrebbe spostato il difetto invece di aggiungere il caso.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	bool HasSelection() const;
+
+	/**
+	 * Vero quando il pannello ha un soggetto: comandato **oppure** ispezionato (`#705`).
+	 *
+	 * ⚠️ Chi disegna distingue i due casi con `HasSelection()` e con `GetSlots().bAuthorized`, non con
+	 * questo: qui si risponde solo *«c'e' qualcosa da mostrare»*.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	bool HasSubject() const;
 
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTUnitCardView GetCard() const;
@@ -355,6 +399,16 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTUnitSlotsView GetSlots() const;
+
+protected:
+	/**
+	 * Il soggetto del pannello: l'unita' comandata se c'e', altrimenti quella ispezionata (`#705`).
+	 *
+	 * ⛔ **Non e' `UFUNCTION`, e resta protetta**: i Blueprint vedono le **viste**, mai le unita' — la stessa
+	 * regola di `GetSelectedUnit()`. E chi la usa in C++ deve sapere che il soggetto puo' essere avversario:
+	 * `GetSlots()` non passa da qui, di proposito.
+	 */
+	const ARTUnit* GetSubject() const;
 };
 
 /** `WBP_RT_ActionDock` — le azioni della selezionata, con stato disponibile / armata / in ricarica. */
@@ -431,6 +485,58 @@ public:
 		const URTIconCatalogData* InCatalog = nullptr);
 
 	/**
+	 * 🔴 **Il click: inoltra ad `ARTPlayerController::ArmKitAbility` il PROPRIO indice di kit, e nient'altro**
+	 * (`#2826`).
+	 *
+	 * 🔑 **Esiste perche' lo slot non aveva nessuna porta in USCITA.** `SetAction` e' entrante,
+	 * `GetResolvedIcon`, `GetIconId` e `GetActionLine` sono pure: il dock mostrava l'azione e il click non
+	 * aveva dove andare. Il contrasto si misura — `ArmKitAbility` e' `BlueprintCallable`, ed e' testata da
+	 * `PlayerInput.TheDockPortArmsAndDisarms`, ma `git grep -l ArmKitAbility -- Content/` non trovava
+	 * **nessun** chiamante: la porta c'era e nessuno ci bussava.
+	 *
+	 * ⛔ **Nessuna formula, nessun controllo di disponibilita', nessun reason code qui dentro.** Cooldown,
+	 * slot reazione, self-target e input bloccato li decide `SelectAbilityForCurrent`, che e' anche il corpo
+	 * che i dieci tasti numerici attraversano: **la stessa porta del tasto, non una seconda**. Un controllo
+	 * scritto qui sarebbe un secondo giudice con la propria copia delle regole, e divergerebbe al primo
+	 * cambio — il difetto che `#2826` nomina per il proprio percorso di armamento.
+	 *
+	 * ⚠️ **E il grafo non deve comporre la chiamata da se'.** Un `Get Player Controller` + `Cast` dentro
+	 * `WBP_RT_ActionSlot` metterebbe la risoluzione del proprietario in chi disegna, e sei slot potrebbero
+	 * risolverne sei diversi. Il `.uasset` chiama **questa**, e basta.
+	 *
+	 * ⛔ **Fail-closed su uno slot MAI assegnato**, ed e' la stessa guardia che `URTFastDecisionOptionWidget::Choose()`
+	 * ha sul proprio proprietario. `Action.AbilityIndex` vale `INDEX_NONE` finche' `SetAction` non passa una
+	 * posizione, e `ArmKitAbility(INDEX_NONE)` **DISARMA**: senza la guardia un riquadro rimasto vuoto — o
+	 * sopravvissuto alla ricostruzione della lista — spegnerebbe l'azione armata da un altro.
+	 *
+	 * ⚠️ **Non e' un controllo di disponibilita', e la differenza e' misurabile**: una posizione di kit
+	 * **vuota** porta comunque il proprio indice — `Cooldowns[i].AbilityIndex == i` vale per costruzione
+	 * (`#2987`) — quindi passa di qui e a rifiutarla e' il core.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void Activate();
+
+	/**
+	 * Inietta il controller a cui `Activate()` inoltra, senza passare da un `ULocalPlayer`. E' il modo in cui
+	 * i test guidano questo widget, ed e' la stessa forma delle tre iniezioni di `URTScreenHudWidgetBase`.
+	 *
+	 * 🔴 **Senza, `Activate()` non sarebbe verificabile affatto in headless — e il difetto si presenterebbe
+	 * come un VERDE.** `UUserWidget::SetOwningPlayer` memorizza il **`ULocalPlayer`**, che una run headless
+	 * non ha: `GetOwningPlayer()` resta nullo anche dopo aver spawnato un `ARTPlayerController` e avergli
+	 * selezionato un'unita'. Un test scritto senza questa porta misurerebbe il ramo «nessun proprietario»
+	 * credendo di misurare il click. Il prezzo e' gia' stato pagato una volta su questa stessa famiglia di
+	 * widget, e lo racconta `SetSelectedUnitForTest`: *«il Blueprint passava `false` fisso, e
+	 * `ActionDockShowsTheNeutralState` era verde»*.
+	 *
+	 * In gioco resta nulla e la verita' e' `GetOwningPlayer()`. **Non** e' esposta ai Blueprint: sarebbe un
+	 * secondo canale per decidere a chi arriva il click.
+	 *
+	 * ⚠️ Definita nel `.cpp` come le sorelle: `ARTPlayerController` e' solo forward-declared qui, e
+	 * `TWeakObjectPtr::operator=` vuole il tipo completo.
+	 */
+	void SetArmingControllerForTest(ARTPlayerController* InController);
+
+	/**
 	 * L'icona di questa azione, risolta dal catalogo — o il missing-icon.
 	 *
 	 * 🔴 **Esiste perche' il Blueprint non deve comporre la chiamata da solo.** `ResolveIcon` vuole tre
@@ -446,6 +552,36 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTIconResolution GetResolvedIcon() const;
 
+	private:
+	/** L'icona risolta UNA VOLTA, in `SetAction`. `GetResolvedIcon` la rende senza ricalcolare.
+	 *
+	 * 🔴 **Non e' un'ottimizzazione: e' il contratto dichiarato reso vero.** `ResolveIcon` LOGGA quando una
+	 * chiave non si risolve, e il docstring di `GetResolvedIcon` prescrive «un evento, una volta per cambio
+	 * azione» proprio per questo. Ma nulla lo impediva, e un property binding la chiama a ogni frame: nella
+	 * seduta del 2026-09-11 sono state **16 388** righe di warning per **quattro** chiavi distinte, cioe' la
+	 * stessa diagnostica ripetuta finche' non e' illeggibile.
+	 *
+	 * ⚠️ **E il costo non era solo il log**: `GetIconId` interroga il catalogo per scegliere fra chiave
+	 * preferita e ripiego, e da un binding quell'attraversamento andava a ogni frame per ogni slot.
+	 */
+	FRTIconResolution CachedResolvedIcon;
+
+	/**
+	 * Vedi `SetArmingControllerForTest`. **Nullo in gioco**: il proprietario vero resta `GetOwningPlayer()`,
+	 * e questo campo esiste solo perche' in headless quello non c'e'.
+	 */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<ARTPlayerController> ArmingControllerForTest;
+
+	/**
+	 * Il controller a cui inoltrare: l'iniezione dei test PRIMA, il proprietario poi.
+	 *
+	 * ⚠️ **L'ordine e' lo stesso di `URTScreenHudWidgetBase::GetSelectedUnit()`, e per la stessa ragione
+	 * misurata**: in gioco l'iniezione e' sempre nulla, quindi anteporla non puo' scavalcare niente.
+	 */
+	ARTPlayerController* ResolveArmingController() const;
+	public:
+
 	/** Ridisegna. Il Blueprint la implementa: qui non c'e' layout. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
 	void OnActionChanged();
@@ -459,6 +595,28 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FName GetIconId() const;
+
+	/**
+	 * La riga testuale dello slot: **tasto**, nome, stato armato e motivo d'indisponibilita', gia' composti.
+	 *
+	 * 🔑 **Inoltra a `ARTHUD::ComposeAbilityLine` e non compone niente**, ed e' l'unica ragione per cui questa
+	 * funzione puo' stare su un widget. Quella riga esisteva, era testata e **non aveva un chiamante fuori dai
+	 * test** — il suo commento lo dichiarava: *«finche' #613 non la consuma, il suo unico chiamante sono i
+	 * test»*. Non era raggiungibile dal Blueprint perche' non e' una `UFUNCTION`: il dato c'era e la porta no.
+	 *
+	 * ⛔ **Non aggiunge un secondo produttore della stessa stringa.** Se il grafo di `WBP_RT_ActionSlot`
+	 * concatenasse da se' numero, nome e ricarica, due composizioni divergerebbero al primo cambio di formato
+	 * — ed e' il difetto che `#2826` nomina per il proprio percorso di armamento: *«stesso percorso, non un
+	 * secondo»*. `ScreenHud.ActionSlotLineIsTheSameComposerAsTheHud` lo pinna per **uguaglianza**, quindi una
+	 * composizione locale non lo fa passare.
+	 *
+	 * ⚠️ **Torna il solo `Text`, non il colore.** La grammatica visiva dello stato armato resta nel Blueprint:
+	 * portarla qui sposterebbe il dominio dentro la presentazione, ed e' cio' che lo spec panel del
+	 * 2026-09-10 ha escluso per iscritto. Cio' che questa riga garantisce e' che lo stato sia leggibile anche
+	 * **senza** colore — il prefisso `> ` dell'armata e il `(ricarica N)` sono testo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetActionLine() const;
 };
 
 /**

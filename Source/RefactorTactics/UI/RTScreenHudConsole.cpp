@@ -1,4 +1,4 @@
-// `rt.Debug.ScreenHud` — l'albero del §4.1 A REGIME, che il log al montaggio non puo' dare.
+﻿// `rt.Debug.ScreenHud` — l'albero del §4.1 A REGIME, che il log al montaggio non puo' dare.
 //
 // 🔴 **Perche' il dump di `NativeConstruct` non basta, e la ragione e' misurata.** Quello fotografa
 // l'albero nell'istante in cui la radice si costruisce, e gli `WBP_RT_ActionSlot` non ci sono ancora: li
@@ -56,6 +56,24 @@ static void RTDebugScreenHudCommand(const TArray<FString>& /*Args*/, UWorld* Wor
 	for (const FString& Riga : URTTacticalHUDWidget::ComposeMountReport(Radice))
 	{
 		Ar.Logf(TEXT("%s"), *Riga);
+	}
+
+	// ── Perche' il feed e' vuoto, che l'albero da solo non dice.
+	//
+	// 🔑 **Un `EventLog` MONTATO e VUOTO e un `EventLog` assente hanno lo stesso aspetto a schermo**, e il
+	// mount report qui sopra distingue solo il secondo. Nella seduta `U49` il report diceva `[ok] EventLog: 1`
+	// mentre la zona destra restava vuota per cinque turni: due letture vere, nessuna delle due sufficiente.
+	for (TObjectIterator<URTPlayerEventLogWidget> It; It; ++It)
+	{
+		if (*It == nullptr || It->IsTemplate() || It->GetWorld() != World)
+		{
+			continue;
+		}
+		for (const FString& Riga : It->DescribeFeedState())
+		{
+			Ar.Logf(TEXT("%s"), *Riga);
+		}
+		break;
 	}
 }
 

@@ -37,8 +37,47 @@ struct FRTActionInstance
 	FRTCellId TargetCell;
 
 	/**
-	 * Ordine di dichiarazione dell'azione nel turno: ULTIMO tie-break dell'ordinamento.
-	 * Serve a rendere l'ordine TOTALE quando tutto il resto coincide — non e' una priorita' nascosta.
+	 * Ordine di dichiarazione dell'azione nel turno. Non e' una priorita' nascosta.
+	 *
+	 * 🔑 **Si conta dove l'istanza NASCE, con un contatore incrementato di suo** (#2970). Non e' una
+	 * preferenza di stile: `Num()` letto su un altro array — o sullo stesso, ma piu' in la' nel ciclo —
+	 * **non e' questo numero**, e i modi di sbagliarlo sono gia' stati misurati tutti e tre:
+	 *
+	 * | Sede | Cosa scriveva | Perche' non spareggiava |
+	 * |---|---|---|
+	 * | `ARTTurnManager::CollectAttackIntents` | `Intents.Num()` | l'`Add` e' duecento righe sotto ed e' condizionato: dopo un `continue` il contatore resta fermo |
+	 * | `ARTTurnManager::ResolveCombatPasses` | `Plan.Hits.Num()` | dentro un range-for su `Plan.Hits` e' una **costante**: ogni istanza usciva con lo stesso numero |
+	 * | `URTReactionLibrary::BuildReactionEvents` | `Events.Num()` | conta gli EVENTI prodotti, e uno spec che non ne produce lascia il contatore fermo |
+	 *
+	 * ⚠️ **Nessuna delle tre produceva un rosso**, e la ragione va detta perche' e' anche il motivo per cui
+	 * sono rimaste: delle due porte d'ingresso all'ordinamento fuori dai test, solo `ARTTurnManager::ResolvePrep`
+	 * riceve istanze reali — ed era anche l'unica a numerare davvero. La chiave sbagliata stava su istanze che
+	 * nessuno ordinava — inerte, finche' qualcuno non le ordina.
+	 *
+	 * ⚠️ **Le porte sono DUE, e una stesura precedente ne dichiarava una** (#3004): `URTActionQueueLibrary::InstancesForPhase`
+	 * chiama anch'essa `SortActionInstances`. Nessun array reale ci passa, e la ragione e' **una sola: oggi
+	 * non ha chiamanti**. ⛔ Non e' protetta da altro — e' `static` pubblica su una `BlueprintFunctionLibrary`,
+	 * quindi un qualunque commit C++ puo' darle il primo chiamante senza toccare questo file e senza far
+	 * cadere alcun gate. E' la sede da cui un secondo produttore arriverebbe senza annunciarsi, ed e' li' che
+	 * va guardato prima di dare per buona la premessa qui sotto.
+	 *
+	 * ⛔ **Non dedurre quella protezione dal fatto che non sia `UFUNCTION`**: in `RTActionQueueLibrary.h`
+	 * non lo e' nessuno — nemmeno `SortActionInstances` o `InstanceLess` — quindi la proprieta' e' vera
+	 * anche della porta che le istanze reali le riceve, e non distingue niente. Trovato in code review.
+	 *
+	 * ⚠️ **`ARTTurnManager::ResolvePrep` e' passato al contatore benche' il suo `Instances.Num()` fosse
+	 * corretto**, e non e' pulizia: e' l'unica sede il cui `EventSequence` viene davvero consumato, quindi e'
+	 * anche la sola in cui un `continue` inserito fra la lettura e l'`Add` costerebbe qualcosa. Reggeva per
+	 * adiacenza di due righe, non per costruzione.
+	 *
+	 * ⛔ **Questa convenzione NON ha un gate, e va detto invece di lasciarlo intendere.** Il campo si legge
+	 * solo da `InstanceLess`, e solo le istanze di `ResolvePrep` passano da un sort: i quattro siti restanti
+	 * si possono riportare all'idioma sbagliato con la suite interamente verde. A coprirli servirebbe un test
+	 * che osservi i produttori — cioe' un mondo — e #2970 dichiara di non introdurlo. Il giorno in cui #1818
+	 * desse piu' chiamanti a `SortActionInstances`, quel test diventa necessario prima del refactor, non dopo.
+	 *
+	 * ⛔ **Non e' piu' l'ULTIMO tie-break**, e il commento lo diceva: da #2970 seguono `TargetUnitId`,
+	 * `TargetCell` e `bInterrupted`, perche' cinque chiavi non erano un ordine totale.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Actions")
 	int32 EventSequence = 0;

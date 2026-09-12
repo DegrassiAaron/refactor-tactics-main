@@ -29,7 +29,7 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 
 ### S1 — Screen HUD, card selezionata e Action Dock
 
-**Stato:** eseguire dopo la correzione di #2826; così una sola apertura giudica tutto il layer.  
+**Stato:** ⚠️ **aggiornato il 2026-09-12 — il blocker è caduto.** Diceva *«eseguire dopo la correzione di #2826»*: la metà che bloccava è su `main` (#3007, `5bc6849d`) — lo slot ha una superficie cliccabile e `URTActionSlotWidget::Activate()` inoltra il proprio indice alla porta del tasto, con `ArmKitAbility` e `GetOwningPlayer` a **zero occorrenze** nel `.uasset`, cioè la prova sui byte che il grafo non compone la chiamata da sé. Di #2826 resta aperta **solo** la PIE, che è questa. Così una sola apertura giudica tutto il layer.  
 **Mappa/setup:** avviare da `L_Frontend`, premere `PLAY`, poi `Home`. Non aprire direttamente `L_HexArena`.
 
 **Controlli:**
@@ -37,13 +37,15 @@ Fonte normativa: repository/runtime/TurnLog. Le tavole 05–09 sono riferimenti 
 - `PIE-V01-SCREENHUD`: zone Top/Left/Right/Bottom popolate, centro libero, round/fase/timer leggibili;
 - feed a destra: massimo 12 righe del turno corrente e aggiornamento in-place quando un attacco diventa KO;
 - `PIE-HUD-CARD-ZERO`: prima selezione, barra HP corretta senza frame vuoto/divisione per zero;
-- click sugli slot del dock: l'azione si arma davvero e lo stato selezionato/cooldown cambia;
+- il dock ha ora **tre voci proprie nel registro**, e sostituiscono il controllo in prosa che stava qui — *«click sugli slot del dock: l'azione si arma davvero»*: `PIE-V01-DOCKCLICK` (cliccare arma, e il click non attraversa il dock), `PIE-V01-DOCKKEYS` (il tasto che lo slot mostra è quello che lo arma), `PIE-V01-DOCKPROMPT` (il dock dice cosa sta aspettando). 🔗 **Le convoca `U43`** in [`editor-sessions.yaml`](../editor-sessions.yaml), che ne è l'owner del raggruppamento: qui si citano gli ID, non si ridecidono i criteri;
+- 🔑 **`PIE-V01-DOCKKEYS` va eseguita selezionando `A2` (Muiren)**, e non è indifferente: nel roster v0.1 il kit arriva a dieci voci solo per lei, quindi è l'unica in cui esiste la posizione che mostra `0`. Su `A1` il caso che quella voce esiste per trovare non compare, e il verdetto sarebbe verde per assenza;
+- ⛔ **Il criterio fail-closed di `PIE-V01-DOCKCLICK` — cliccare uno slot VUOTO — non è allestito da nessuno scenario**, perché nessun kit del roster ha un buco: è `N/A` per assenza di allestimento, non `PASS`;
 - debug assente nella vista giocatore; icone risolte per chiave, nessun fallback testuale.
 
 **UI/HUD richiesti:** `WBP_RT_TacticalHUD`, `TurnHeader`, `TeamRoster`, `SelectedUnitPanel`, `ActionDock`, `ActionSlot`, `UnitCard`, `EventLog`.  
 **Animazioni:** non necessarie al verdetto.  
 **Asset:** risultano presenti; modifiche solo se il test fallisce.  
-**Issue:** [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764), [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896), **blocker** [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826).
+**Issue:** [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764), [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896), [#2826](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2826) — ⌫ **non più blocker**: la sua metà C++ e asset è mergiata, resta la sola voce PIE.
 
 ### S2 — Pianificazione umana, pointer, rifiuti e muro LOS
 

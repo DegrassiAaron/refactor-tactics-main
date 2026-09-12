@@ -1,0 +1,94 @@
+{
+  "scenarioId": "Spec.Resolver.IntegratedTurn",
+  "tags": ["spec", "resolver", "movement", "overwatch", "reactions", "turnlog", "determinism"],
+  "version": 5,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "#3031 CHECKPOINT H — lo scenario INTEGRATO. Il corpus golden ha scenari per categoria (`Movement.Basic`, `Movement.Collision`, `Movement.CostlyCorridor`, `Spec.Overwatch.HoldThenFire`) e nessuno che faccia interagire piu' meccaniche nello stesso turno. Le proprieta' di questo file non sono quelle dei singoli pezzi — sono le loro INTERAZIONI: un'ETA che decide QUALE nemico trova la finestra aperta, un troncamento che cade nello stesso turno di una cella contesa, e un TurnLog che spiega tutto e tre insieme.",
+
+  "_nota_le_ETA_servono_l_overwatch": "🔑 **Il cardine del progetto, e non e' un abbellimento.** La zona di `Action.Overwatch` e' una LINEA: tre nemici che la attraversano dovrebbero incrociarsi sulle stesse celle e bloccarsi a vicenda. Qui entrano su TRE celle diverse della linea in TRE micro-step diversi, e cio' che li scaglione e' il `moveCost` della cella d'arrivo — la durata d'arco di [D-381]. ∴ l'elemento «ETA differenti» non e' verificato a parte: e' la condizione che rende osservabile l'Overwatch selettivo. ✅ **Misurato, non presunto**: portando tutte e tre le `moveCost` a 1 lo scenario NON passa, e cade con «decisione dichiarata per 'W1 on Action.Overwatch <- M2' (FIRE) e mai consumata — nessuna finestra ha soddisfatto il selettore». I tre entrano insieme, la finestra e' UNA con tre bersagli (`SimultaneousTargetsSingleOpportunity`), e un selettore per-bersaglio non trova nulla.",
+
+  "_nota_la_carica_e_una": "M1 trova la finestra e si risponde HOLD: la carica NON si spende, ed e' il bait di ADR-0004. M2 la trova al micro-step dopo e si risponde FIRE: la carica si spende E il movimento residuo di M2 viene troncato. M3 arriva al terzo micro-step e non trova nulla. E' misurata da `RefactorTactics.Resolver.IntegratedTurnIsCausallyExplained`, che legge i micro-step delle finestre e rifa' la partita con il FIRE convertito in HOLD: a carica intatta le finestre diventano TRE, ai micro-step 0/1/2. ⚠️ **La carica in gioco e' `FRTArmedOverwatch::bCharged`, cioe' quella vera.** Un primo tentativo la misurava sul DTO scrivendo a mano `FRTOverwatchWatcher::bArmed`, che non e' la carica e in partita e' sempre vero: quel test e' stato rimosso in code review, e cio' che resta a quel livello e' il presidio strutturale `Overwatch.WatcherCarriesNoPerTargetState`.",
+
+  "_nota_il_troncamento_e_osservabile": "⚠️ **M2 chiede DUE passi e ne fa uno**, e non e' un dettaglio: se il suo percorso finisse sulla cella d'ingresso, il FIRE non avrebbe niente da troncare e `UnitAtCell M2` sarebbe soddisfatta anche da un HOLD. E' la stessa cautela che `Spec.Facing.OverwatchHitCameFromSide` prende con il suo secondo passo.",
+
+  "_nota_la_contesa_sta_fuori_dalla_linea": "⛔ La coppia contesa (`C0`/`C1`) converge su (-2,1,0), che e' FUORI dalla linea dell'Overwatch. E' deliberato: se cadesse dentro, il watcher aprirebbe finestre anche su loro e le decisioni scriptate non basterebbero piu' a coprire il turno — il conteggio delle decisioni direbbe un numero giusto per la ragione sbagliata.",
+
+  "_nota_cosa_NON_copre": "La TRAPPOLA non c'e', ed e' dichiarato: il loader accetta `blocksMovement`, `blocksLineOfSight`, `moveCost`, `occupancySurcharge` e `objective`, e nessuna chiave hazard o trap. Il trigger appartiene alla trap e non alla mappa (#1574, aperta), quindi l'elemento resta `NOT RUN` con quella dipendenza invece di essere simulato con un terreno che non e' una trappola. Non copre nemmeno la MORTE: qui il colpo ferisce, e un'unita' che muore a meta' turno cambia le collisioni successive — e' una seconda proprieta', non un'aggiunta gratuita a questa.",
+
+  "cells": [
+    { "_cella": "La linea dell'Overwatch, scaglionata dal costo. (3,0,0) costa 1 -> M1 entra al micro-step 1.",
+      "cell": [3, 0, 0], "moveCost": 1 },
+    { "_cella": "(2,0,0) costa 2 -> M2 entra al micro-step 2, quando la carica e' ancora intatta perche' su M1 si e' risposto HOLD.",
+      "cell": [2, 0, 0], "moveCost": 2 },
+    { "_cella": "(1,0,0) costa 3 -> M3 entra al micro-step 3, quando la carica e' spesa.",
+      "cell": [1, 0, 0], "moveCost": 3 }
+  ],
+
+  "units": [
+    { "_unita": "Il watcher. `facing` sta fra le UNITA' e non fra gli intent: la zona nasce dal facing letto in PREP, e una rotazione dichiarata si applica dentro `ResolveMovement` — troppo tardi per il proprio cono. E' la lezione che `Spec/Overwatch/HoldThenFire.json` ha gia' pagato.",
+      "id": "W1", "hero": "Hero.Ivrin", "team": 1, "cell": [4, 0, 0], "facing": "W" },
+
+    { "_unita": "M1 entra per primo: su lui si risponde HOLD.",
+      "id": "M1", "hero": "Hero.Aevik", "team": 0, "cell": [3, 1, 0] },
+    { "_unita": "M2 entra per secondo e chiede DUE passi: il FIRE lo tronca sul primo.",
+      "id": "M2", "hero": "Hero.Muiren", "team": 0, "cell": [2, 1, 0] },
+    { "_unita": "M3 entra per terzo, a carica spesa, e completa.",
+      "id": "M3", "hero": "Hero.Branth", "team": 0, "cell": [1, 1, 0] },
+
+    { "_unita": "La coppia contesa, fuori dalla linea: convergono su (-2,1,0) a parita' di priorita'.",
+      "id": "C0", "hero": "Hero.Aevik", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "C1", "hero": "Hero.Branth", "team": 1, "cell": [-2, 2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — W1 arma l'Overwatch sul varco che gia' controlla. Nello stesso turno: tre nemici entrano nella linea scaglionati dal costo del terreno, e due unita' estranee contendono una cella fuori dalla linea.",
+      "requires": ["DecisionBoundary"],
+      "intents": [
+        { "unit": "W1", "ability": "Action.Overwatch" },
+        { "unit": "M1", "move": [[3, 0, 0]] },
+        { "unit": "M2", "move": [[2, 0, 0], [2, -1, 0]] },
+        { "unit": "M3", "move": [[1, 0, 0]] },
+        { "unit": "C0", "move": [[-2, 1, 0]] },
+        { "unit": "C1", "move": [[-2, 1, 0]] }
+      ],
+      "decisions": [
+        { "_decisione": "Sul primo si lascia passare: la carica non si spende.",
+          "on": { "reactor": "W1", "reaction": "Action.Overwatch", "triggerUnit": "M1" },
+          "respond": "HOLD" },
+        { "_decisione": "Sul secondo si spara: la carica si spende e il movimento residuo si tronca.",
+          "on": { "reactor": "W1", "reaction": "Action.Overwatch", "triggerUnit": "M2" },
+          "respond": "FIRE", "target": "M2" }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "_assertion": "PREMESSA — due decisioni e SOLO due. E' anche la riga che prova che il terzo micro-step non ha aperto nulla: se la carica si spendesse per coppia watcher-bersaglio, M3 troverebbe la sua finestra e qui ci sarebbero tre voci. ⚠️ `Chosen` dice che qualcuno ha deciso, non cosa ha risposto (#1118): a dire che si e' sparato e' il troncamento, sotto.",
+      "type": "LogEventCount", "category": "ReactionDecision", "outcome": "Chosen", "value": 2 },
+
+    { "_assertion": "M1 e' passato: HOLD perde l'opportunity, non la reaction, e non tocca il movimento.",
+      "type": "UnitAtCell", "unit": "M1", "cell": [3, 0, 0] },
+
+    { "_assertion": "IL DISCRIMINANTE DEL FUOCO — M2 chiedeva anche (2,-1,0) e non ci arriva. Con un HOLD completerebbe il percorso, quindi questa riga distingue FIRE da HOLD senza leggere la risposta.",
+      "type": "UnitAtCell", "unit": "M2", "cell": [2, 0, 0] },
+
+    { "_assertion": "🔑 M3 e' arrivato INDISTURBATO: la carica era spesa. Insieme al conteggio di due decisioni, e' la meta' osservabile di «una carica per watcher, non per bersaglio» su una partita vera.",
+      "type": "UnitAtCell", "unit": "M3", "cell": [1, 0, 0] },
+
+    { "_assertion": "La cella contesa a parita' di priorita' ferma ENTRAMBE: nessun vantaggio a team, owner o ordine di dichiarazione. C0 resta dove era.",
+      "type": "UnitAtCell", "unit": "C0", "cell": [-2, 0, 0] },
+    { "_assertion": "E C1 anche: sono due, e la contesa non ne premia una.",
+      "type": "UnitAtCell", "unit": "C1", "cell": [-2, 2, 0] },
+
+    { "_assertion": "Il watcher non si e' mosso.",
+      "type": "UnitAtCell", "unit": "W1", "cell": [4, 0, 0] },
+
+    { "_assertion": "Il colpo ha ferito e non ucciso: la morte a meta' turno cambierebbe le collisioni successive, ed e' una proprieta' diversa da questa.",
+      "type": "UnitAlive", "unit": "M2", "value": 1 },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

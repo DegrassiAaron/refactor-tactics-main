@@ -46,8 +46,14 @@ bool FRTHudAbilityLineReasonTest::RunTest(const FString&)
 	Ability.AbilityIndex = 0;
 	Ability.DisplayName = FText::FromString(TEXT("Scatto"));
 	Ability.bUsableNow = true;
+	// 🔑 **Il tasto si DICHIARA, e prima si deduceva da `AbilityIndex`** (`#2987`). Comporlo qui è ciò che
+	// rende questo test cieco al difetto che `ComposeAbilityLine` aveva: finché la riga calcolava
+	// `Index + 1`, una vista con `AbilityIndex = 0` produceva `1.` **qualunque** tabella di binding
+	// esistesse. Ora la riga porta ciò che la vista dichiara, e chi la dichiara è `BuildAbilityCooldowns`
+	// leggendo `AbilityHotkeys()`.
+	Ability.HotkeyLabel = FText::FromString(TEXT("1"));
 
-	// Il numero mostrato è 1-based: è la scorciatoia che il giocatore preme, non l'indice del kit.
+	// Il tasto viene dalla vista, non dall'indice: è la scorciatoia che il giocatore preme.
 	TestEqualSensitive(TEXT("pronta: numero e nome, nessun motivo"),
 		ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ false).Text,
 		FString(TEXT("1. Scatto")));
@@ -99,6 +105,7 @@ bool FRTHudAbilityLineArmedTest::RunTest(const FString&)
 	Ability.AbilityIndex = 2;
 	Ability.DisplayName = FText::FromString(TEXT("Guardia"));
 	Ability.bUsableNow = true;
+	Ability.HotkeyLabel = FText::FromString(TEXT("3")); // dichiarato, non dedotto da `AbilityIndex` (#2987)
 
 	const FRTHudTextLine Armata = ARTHUD::ComposeAbilityLine(Ability, /*bArmed=*/ true);
 	TestEqualSensitive(TEXT("armata: il prefisso davanti al numero"),
@@ -172,6 +179,71 @@ bool FRTHudPreviewZoneTest::RunTest(const FString&)
 	// Il colore dipende dalla PRESENZA di alleati, non da quanti: uno solo basta a cambiarlo.
 	TestTrue(TEXT("il colore cambia gia' col primo alleato"),
 		!Uno.Color.Equals(Pulita.Color));
+
+	return true;
+}
+
+/**
+ * 🔴 **LA RIGA MOSTRA IL TASTO DELLA VISTA ANCHE QUANDO DIVERGE DALL'INDICE** (`#2987`).
+ *
+ * 🔑 **Esiste perche' senza di lui la correzione non sarebbe misurata da niente, e questo va detto per
+ * intero.** Ogni altro test di `ComposeAbilityLine` costruisce viste in cui `HotkeyLabel` vale
+ * `AbilityIndex + 1` — `0`→`"1"`, `2`→`"3"`, `3`→`"4"` — perche' quelle sono le posizioni normali del kit.
+ * Su quelle viste l'aritmetica di prima e la lettura di adesso danno **la stessa stringa**: rimettere
+ * `Index + 1` le lascerebbe tutte verdi. Il verde sarebbe vacuo esattamente come quello che `#2987`
+ * denuncia in `ActionSlotLineCarriesKeyArmedAndReason`.
+ *
+ * ∴ i due casi qui sotto sono gli **unici** in cui le due formule divergono, e sono anche i due che il
+ * difetto sbagliava in produzione:
+ *
+ *  - **A** — la decima posizione. `AbilityHotkeys()` chiude con `EKeys::Zero`, quindi l'indice `9` porta il
+ *    tasto `0` e l'aritmetica direbbe `10`;
+ *  - **B** — una posizione oltre la fila dei numeri, che `GenericHotkeys()` dichiara possibile (*«un eroe
+ *    con sei azioni porta il kit a undici voci contro i dieci tasti numerici»*). Li' non c'e' un tasto, e
+ *    l'aritmetica ne annuncerebbe uno.
+ *
+ * ⚠️ **Le etichette sono scritte a mano qui, e non lette da `AbilityHotkeys()`, di proposito.** Questo test
+ * misura `ComposeAbilityLine`, che riceve una vista gia' composta: chi legge la tabella e' il ViewModel, e
+ * l'oracolo di **quella** meta' e' `HudViewModel.ShortcutComesFromTheBindingTableNotTheIndex`. Interrogare
+ * la tabella anche qui confonderebbe le due responsabilita' in un test solo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudAbilityLineUsesTheDeclaredKeyTest,
+	"RefactorTactics.HUD.AbilityLineUsesTheDeclaredKeyNotTheIndex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudAbilityLineUsesTheDeclaredKeyTest::RunTest(const FString&)
+{
+	// --- A. il tasto e' `0` dove l'aritmetica direbbe `10` --------------------------------------------
+	FRTAbilityCooldownView Decima;
+	Decima.AbilityIndex = 9;
+	Decima.HotkeyLabel = FText::FromString(TEXT("0"));
+	Decima.DisplayName = FText::FromString(TEXT("Attesa"));
+	Decima.bUsableNow = true;
+
+	TestEqualSensitive(TEXT("A: la decima posizione porta il tasto `0`, non un `10` calcolato"),
+		ARTHUD::ComposeAbilityLine(Decima, /*bArmed=*/ false).Text,
+		FString(TEXT("0. Attesa")));
+
+	// --- B. senza tasto, nessun numero ----------------------------------------------------------------
+	// ⛔ L'aritmetica risponde anche qui — direbbe `11.` — ed e' la risposta che non esiste: nessun tasto
+	// arma quella posizione, e annunciarne uno la darebbe per premibile.
+	FRTAbilityCooldownView Irraggiungibile;
+	Irraggiungibile.AbilityIndex = 10;
+	Irraggiungibile.HotkeyLabel = FText::GetEmpty();
+	Irraggiungibile.DisplayName = FText::FromString(TEXT("Interagisci"));
+	Irraggiungibile.bUsableNow = true;
+
+	const FString Riga = ARTHUD::ComposeAbilityLine(Irraggiungibile, /*bArmed=*/ false).Text;
+	TestEqualSensitive(TEXT("B: senza tasto la riga porta il solo nome"),
+		Riga, FString(TEXT("Interagisci")));
+	TestFalse(TEXT("B: e non annuncia un tasto che non esiste"), Riga.Contains(TEXT("11")));
+
+	// --- C. il resto della riga non cambia ------------------------------------------------------------
+	// Senza questo, togliere prefisso E motivo insieme passerebbe i due controlli qui sopra.
+	Irraggiungibile.TurnsRemaining = 2;
+	Irraggiungibile.bUsableNow = false;
+	TestEqualSensitive(TEXT("C: senza tasto restano prefisso di selezione e motivo"),
+		ARTHUD::ComposeAbilityLine(Irraggiungibile, /*bArmed=*/ true).Text,
+		FString(TEXT("> Interagisci  (ricarica 2)")));
 
 	return true;
 }

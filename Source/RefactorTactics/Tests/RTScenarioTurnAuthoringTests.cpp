@@ -289,6 +289,12 @@ bool FRTScenarioPreviewComesFromTheRuntimeTest::RunTest(const FString&)
 		Sim.Cell = Unit.Cell;
 		Sim.bAlive = true;
 		Sim.Facing = Unit.Facing;
+		// ⌫ **Questo specchio COPIAVA l'omissione che doveva prendere** (`#2984`). La costruzione qui
+		// sotto e' scritta a mano accanto a quella della preview, campo per campo: finche' i due lati
+		// dimenticano la stessa cosa, il confronto e' una tautologia su quell'asse. Il caso che lo fa
+		// cadere davvero e' `ReachabilityPreviewCarriesTheTeam`, qui sotto; questa riga tiene lo specchio
+		// fedele al RUNTIME, che la squadra ce l'ha.
+		Sim.TeamId = Unit.TeamId;
 		URTHeroData* const* Found = Roster.FindByPredicate(
 			[&Unit](const URTHeroData* H) { return H && H->HeroId == Unit.HeroId; });
 		Sim.MoveBudget = (Found && *Found) ? (*Found)->MovePoints : 0;
@@ -1208,6 +1214,82 @@ bool FRTScenarioTurnOrderSurvivesSaveLoadTest::RunTest(const FString&)
 				Intents[0].Ability, FName(Abilities[T]));
 		}
 	}
+	return true;
+}
+
+
+/**
+ * ⛔ **La preview porta la SQUADRA, o mostra una regione che il resolver contraddice** (`#2984`, [D-396]).
+ *
+ * 🔴 **Il gate che avrebbe dovuto prenderlo era cieco su questo asse.**
+ * `ReachabilityPreviewComesFromTheRuntimeService` confronta la preview con una ricostruzione **scritta a
+ * mano accanto** alla sua, campo per campo: quando la preview ha smesso di copiare `TeamId`, lo specchio
+ * aveva gia' smesso anche lui, e il confronto e' rimasto verde.
+ *
+ * 🔑 Questo banco non confronta due costruzioni: asserisce il **comportamento**. Con una compagna in
+ * mezzo a un corridoio, la regione deve contenere la cella OLTRE e non quella della compagna — e nessuna
+ * copia della costruzione puo' renderlo vacuo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPreviewCarriesTheTeamTest,
+	"RefactorTactics.Scenario.ReachabilityPreviewCarriesTheTeam",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPreviewCarriesTheTeamTest::RunTest(const FString&)
+{
+	FRTScenarioDraft Draft;
+	FString Error;
+	if (!TestTrue(TEXT("scenario di partenza caricato"), OpenTurnDraft(Draft, Error)))
+	{
+		AddError(Error);
+		return false;
+	}
+
+	// Un CORRIDOIO: tutto cio' che non sta sulla riga `Y == 0` e' muro. Senza, l'A* gira semplicemente
+	// attorno alla compagna e l'attraversamento non e' osservabile — errore gia' fatto una volta su
+	// `#2984`, e la ragione per cui qui la geometria e' vincolata invece che aperta.
+	for (int32 X = -3; X <= 3; ++X)
+	{
+		for (int32 Y = -3; Y <= 3; ++Y)
+		{
+			if (Y == 0 || FMath::Max3(FMath::Abs(X), FMath::Abs(Y), FMath::Abs(X + Y)) > 3)
+			{
+				continue;
+			}
+			FRTScenarioCell Muro;
+			Muro.Cell = FRTCellId(X, Y, 0);
+			Muro.bBlocksMovement = true;
+			Draft.MutableScenario().Cells.Add(Muro);
+		}
+	}
+
+	// A1 e' in `(-2,0)` di squadra 0. La COMPAGNA gli si mette davanti, sull'unica via verso destra.
+	FRTScenarioUnit Compagna;
+	Compagna.Id = TEXT("A2");
+	Compagna.HeroId = TEXT("Hero.Aevik");
+	Compagna.TeamId = 0;
+	Compagna.Cell = FRTCellId(-1, 0, 0);
+	Draft.MutableScenario().Units.Add(Compagna);
+
+	const TArray<FRTCellId> Regione = Draft.GetReachableCells(TEXT("A1"), GetTransientPackage(), Error);
+	if (!TestTrue(*FString::Printf(TEXT("la preview risponde (errore: %s)"), *Error), Error.IsEmpty()))
+	{
+		return false;
+	}
+
+	// 🔑 La riga che porta il peso: oltre la compagna si arriva, perche' la si attraversa.
+	TestTrue(TEXT("la preview offre la cella OLTRE la compagna"), Regione.Contains(FRTCellId(0, 0, 0)));
+	// ⛔ ...ma non ci si ferma sopra ([D-289]).
+	TestFalse(TEXT("e non offre quella della compagna"), Regione.Contains(FRTCellId(-1, 0, 0)));
+
+	// ⚠️ **La meta' falsificante**: la stessa geometria con l'unita' in mezzo di squadra AVVERSA
+	// deve fermare A1. Senza, le due righe sopra passerebbero anche se gli ostacoli fossero spariti del tutto.
+	for (FRTScenarioUnit& U : Draft.MutableScenario().Units)
+	{
+		if (U.Id == TEXT("A2")) { U.TeamId = 1; }
+	}
+	const TArray<FRTCellId> Avversaria = Draft.GetReachableCells(TEXT("A1"), GetTransientPackage(), Error);
+	TestTrue(TEXT("la seconda preview risponde"), Error.IsEmpty());
+	TestFalse(TEXT("con un'avversaria in mezzo la cella oltre NON si offre"),
+		Avversaria.Contains(FRTCellId(0, 0, 0)));
 	return true;
 }
 

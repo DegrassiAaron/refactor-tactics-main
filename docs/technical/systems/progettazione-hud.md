@@ -380,6 +380,29 @@ Non deve mai sembrare:
 > Questa sezione ne elencava `Move · Wait · Guard · Overwatch` e ometteva `BasicAttack`, `Brace` e
 > `Interact`. L'elenco canonico è `Wait · Move · BasicAttack · Guard · Brace · Interact · Overwatch`.
 
+
+> ⚠️ **2026-09-11 — [D-397](../../decisions/RT_PDR_00_Decision_Log.md): le corsie restano un aiuto alla lettura, e in v0.1 NON riordinano la lista.**
+> Il numero sullo slot è ora un **binding letto** (`FRTAbilityCooldownView::HotkeyLabel`, da
+> `ARTPlayerController::HotkeyLabelForKitIndex`) e non più la posizione visiva: mostrando ogni slot il proprio
+> tasto, un raggruppamento non romperebbe l'identità dell'hotkey. Resta differito per un'altra ragione — **due
+> di queste quattro corsie non hanno un produttore**:
+>
+> - **`Attack`** ce l'ha, ed è l'eroe: `MakeHeroBasicAttack` mette `BasicAttack` all'indice `[0]` del kit,
+>   quindi è già nella dock col primo tasto. La corsia non aggiunge nulla, descrive dove l'azione già sta.
+> - **`Movement` non ce l'ha, e non deve averne uno qui.** `Move` si pianifica cliccando le celle
+>   (`HandleClickOnCell`): dargli uno slot aprirebbe un **secondo canale** verso lo stesso intento. `Sprint`
+>   è a catalogo e nel kit di nessun eroe; i `Dash` sono abilità d'eroe di fase `FastMovement` e stanno già
+>   nel kit. Il selettore di profilo è [#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410),
+>   che dipende da [#653](https://github.com/DegrassiAaron/refactor-tactics-main/issues/653) per l'entità.
+>
+> ⛔ Nessun pulsante di movimento nella dock prima di quelle due. 🔑 E l'ordine che `GetActions()` produce è
+> **identità**, non layout: `PlannedAbilityIndex` è un indice in quella lista, e il widget non deve mai
+> dedurre un indice dalla propria posizione — lo riceve in `FRTAbilityCooldownView::AbilityIndex`.
+>
+> ➕ **Una generica mostra la propria lettera** — `G` `B` `C` `X` `Z` di `GenericHotkeys()` — e non il numero
+> della posizione di kit che occupa: la lettera è legata all'`ActionId`, il numero alla posizione, e la
+> posizione cambia col kit dell'eroe. Entrambi i tasti armano; se ne mostra **uno solo**, quello stabile.
+
 Separare visivamente:
 
 ### Universal Actions
