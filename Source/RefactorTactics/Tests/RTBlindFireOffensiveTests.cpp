@@ -616,4 +616,61 @@ bool FRTBothTeamsLearnWhatTheyHitTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **La CATENA, non la sola funzione di targeting** (`#3063`).
+ *
+ * 🔴 `MortarIsTargetableThroughABlockerFromPlayerInput`, qui sopra, porta *«FromPlayerInput»* nel nome e
+ * chiama `HandleTargetCell` **direttamente**. Pinna il targeting ed e' cieco alla catena che dovrebbe
+ * raggiungerlo — e quella catena era rotta: misurato il 2026-09-12, `HandleTargetCell` non aveva **nessun**
+ * chiamante fuori dai test, e un click sulla cella finiva in un waypoint di movimento.
+ *
+ * Questo test entra un passo PRIMA, da `HandleClickOnCell`, che e' il punto in cui la decisione si prende
+ * ed e' verificabile headless.
+ *
+ * ⛔ **Verifica di mutazione**: togliere il dispatch a `URTPointerLibrary::ResolveTarget` da
+ * `HandleClickOnCell` deve rendere ROSSO questo test e lasciare VERDE quello qui sopra — che e' la prova
+ * che il buco era della catena e non del targeting.
+ *
+ * ⚠️ **Cio' che questo test NON copre, e va detto invece che sottinteso**: la guardia del trace in
+ * `OnSelect`, che e' l'altra meta' di `#3063`. `GetHitResultUnderCursor` non esiste senza viewport, quindi
+ * quella meta' non ha un guardiano headless: la sua evidenza e' la seduta PIE.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellClickReachesTargetingTest,
+	"RefactorTactics.BlindFireOffensive.CellClickReachesTargetingNotTheWaypoint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellClickReachesTargetingTest::RunTest(const FString&)
+{
+	FMortarBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return false; }
+
+	const int32 Idx = FindOffensiveBlindFire(B.Mine);
+	if (!TestTrue(TEXT("il kit contiene un'offensiva a tiro indiretto"), Idx != INDEX_NONE))
+	{
+		DestroyMortarWorld(B.World); return false;
+	}
+
+	B.PC->SelectActorForTest(B.Mine);
+	B.Mine->SelectAbility(Idx);
+
+	// Premesse MISURATE: senza, un «nessun waypoint» finale direbbe «il click ha bersagliato» anche quando la
+	// ragione vera fosse che non c'era nulla di armato.
+	TestEqual(TEXT("premessa: il contesto e' Targeting"),
+		B.PC->GetPointerContext(), ERTPointerContext::Targeting);
+	TestEqual(TEXT("premessa: e cio' che si chiede e' una CELLA"),
+		B.PC->GetPointerTargetKind(), ERTPointerTargetKind::Cell);
+	TestEqual(TEXT("premessa: nessun waypoint prima del click"), B.Mine->PlannedWaypoints.Num(), 0);
+
+	const FRTCellId Oltre(1, 0, 0);
+	B.PC->HandleClickOnCellForTest(Oltre);
+
+	TestTrue(TEXT("il click sulla cella produce un BERSAGLIO"), B.Mine->bAttackTargetsCell);
+	TestTrue(TEXT("ed e' la cella cliccata"), B.Mine->PlannedAttackCell == Oltre);
+	TestEqual(TEXT("con l'azione armata"), B.Mine->PlannedAbilityIndex, Idx);
+	TestEqual(TEXT("e NESSUN waypoint: verso un bersaglio non si cammina"),
+		B.Mine->PlannedWaypoints.Num(), 0);
+
+	DestroyMortarWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

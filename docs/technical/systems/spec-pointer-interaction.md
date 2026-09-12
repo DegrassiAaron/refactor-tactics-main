@@ -559,6 +559,8 @@ collega e' un lavoro suo, non un effetto di questa correzione. ⛔ Scriverne uno
 test **verde su un percorso che nessuno esercita**, che e' esattamente la classe di difetto gia' registrata
 qui sopra.
 
+➕ **`ResolveTarget` ha un chiamante di produzione dal 2026-09-12** ([#3063](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3063)): `ARTPlayerController::HandleClickOnCell` costruisce i candidati e gli chiede il bersaglio, e da li' il click del giocatore raggiunge `HandleTargetCell`. ⚠️ **È una fetta sola, dichiarata**: solo `Targeting`/`Cell` cambia strada, ogni altro contesto ricade sul waypoint come prima. Restano a [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) la precedenza `Modal/Reaction > HUD > mondo`, il click-through HUD, il ramo `Object` e i reason a schermo — e con essi la voce *«contesto esplicito»* della sua DoD, che resta **parzialmente** eseguita.
+
 ✅ **Due di quegli otto ora esistono** — [#1766](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1766),
 2026-09-01, scritti perche' erano i soli che si posassero su comportamento **gia' esistente**:
 
