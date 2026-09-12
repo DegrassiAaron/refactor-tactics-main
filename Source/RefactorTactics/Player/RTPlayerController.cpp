@@ -1328,13 +1328,23 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None, INDEX_NONE);
 	}
 
+	// 🔴 **Il colpo a vuoto NON esce piu' di qui** (`#3063`). Questo `return` rendeva il click su una cella
+	// MAI OSSERVATA un non-evento: nessun piano, nessun rifiuto, nessuna riga di log. Una cella mai vista non
+	// ha geometria da colpire — il velo le da' scala zero ([D-225]) — quindi il trace fallisce e la cella
+	// restava irraggiungibile, benche' `ResolveCellUnderCursor` fosse stata scritta apposta per risolverla
+	// **senza** colpo.
+	//
+	// ⚠️ Misurato in PIE il 2026-09-12: click su cella disegnata -> una riga di log; click su `(q=-4,r=3,L=0)`,
+	// dentro la mappa e mai vista -> **zero** righe. E lo stesso ripiego serviva gia' hover (`:794`) e pivot
+	// camera (`:993`), che infatti su quella cella funzionavano: solo il click di pianificazione non lo vedeva.
+	//
+	// ⛔ I rami che dipendono dall'ATTORE restano guardati da `HitActor`: senza colpo non c'e' unita' da
+	// cliccare, da selezionare o da rifiutare, e saltarli e' cio' che conserva il comportamento di prima nel
+	// caso in cui il raggio colpisce.
 	FHitResult Hit;
-	if (!GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit) || !Hit.GetActor())
-	{
-		return;
-	}
-
-	AActor* HitActor = Hit.GetActor();
+	AActor* HitActor = GetHitResultUnderCursor(ECC_Visibility, /*bTraceComplex=*/ false, Hit)
+		? Hit.GetActor()
+		: nullptr;
 	ARTUnit* ClickedUnit = Cast<ARTUnit>(HitActor);
 	ARTUnit* SelectedUnit = Cast<ARTUnit>(SelectedActor);
 
@@ -1353,7 +1363,7 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	}
 
 	// §5 — la riga di matrice decide, e la decisione e' ESTRAIBILE dal raycast: vedi `DispatchUnitClick`.
-	if (DispatchUnitClick(ClickedUnit, SelectedUnit))
+	if (HitActor && DispatchUnitClick(ClickedUnit, SelectedUnit))
 	{
 		return;
 	}
@@ -1878,6 +1888,46 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	if (!Map->ContainsCell(Cell))
 	{
 		return; // click fuori dalla mappa: nessun piano, nessun rumore nel log
+	}
+
+	// ➕ **IL DISPATCH MONDO→BERSAGLIO: da qui il click del giocatore raggiunge `HandleTargetCell`** (`#3063`).
+	//
+	// 🔴 **Prima di questa riga non lo raggiungeva nessuno.** `URTPointerLibrary::ResolveTarget` — il router
+	// che la spec §4.1 progetta — non aveva chiamanti di produzione, e `spec-pointer-interaction.md` §556 lo
+	// dichiarava codice morto: *«solo dichiarazione, definizione e test»*. 🔑 E `HandleTargetCell`,
+	// `HandleTargetUnit` e `HandleTargetEdge` non erano tre orfani indipendenti — sono i tre bracci di QUESTO
+	// dispatch, ed e' il motivo per cui avevano zero chiamanti non-test tutti e tre insieme.
+	//
+	// ⚠️ **E' una fetta DICHIARATA di `#705`**, non un ramo su misura: si costruiscono i candidati e si chiede
+	// al router, che e' la forma progettata. Cio' che `#705` conserva non passa di qui — precedenza
+	// `Modal/Reaction > HUD > mondo`, click-through HUD, ramo `Object`, reason a schermo.
+	//
+	// ⛔ **Solo `Targeting`/`Cell` cambia strada**, e ogni altro contesto ricade sul waypoint come prima. La
+	// tabella §4.1 dice altro anche per `Targeting`/`Unit` — nessun bersaglio, non un waypoint — ma cambiarlo
+	// e' fuori dalla fetta dichiarata e vuole la sua misura.
+	//
+	// ⚠️ `Cell` si riempie SEMPRE, anche quando il raggio ha colpito un'unita' (§4.1 conseguenza 2): e' cio'
+	// che rende un'area centrabile su chi la occupa. Qui la cella arriva gia' risolta dal chiamante, che la
+	// prende dal PIANO ATTIVO e non dall'actor colpito, quindi l'invariante vale per costruzione.
+	//
+	// ⛔ Si esce comunque, anche se `HandleTargetCell` rifiuta: un rifiuto e' un esito DICHIARATO (lo logga), e
+	// ricadere sul waypoint dopo un bersaglio rifiutato farebbe muovere un'unita' a cui si era chiesto di
+	// mirare.
+	const ERTPointerContext Context = GetPointerContext();
+	if (Context == ERTPointerContext::Targeting)
+	{
+		FRTPointerCandidates Candidates;
+		Candidates.bHasCell = true;
+		Candidates.Cell = Cell;
+
+		const FRTPointerTarget Target = URTPointerLibrary::ResolveTarget(
+			Context, GetPointerTargetKind(), Candidates);
+
+		if (Target.Kind == ERTPointerTargetKind::Cell)
+		{
+			HandleTargetCell(Target.Cell);
+			return;
+		}
 	}
 
 	// Stato autorevole per la validazione: lo fornisce il TurnManager, il client non se lo ricostruisce.
@@ -2821,6 +2871,10 @@ ERTPointerContext ARTPlayerController::GetPointerContext() const
 		// a `MatchEnded` (`RTTurnManager.cpp:3577`). Il predicato era `Phase != Planning && Phase !=
 		// MatchEnded`, cioe' **irraggiungibile**: `ResolutionPlayback` non veniva mai prodotto, e i due
 		// consumatori gia' scritti — `URTPointerLibrary::ResolveTarget` e `ResolveBack` — erano codice morto.
+		//
+		// ⚠️ **E riparare il produttore non li ha risvegliati entrambi**, come `spec-pointer-interaction.md`
+		// §556 aveva registrato: `ResolveBack` ha ripreso a girare con `ApplyBack`, `ResolveTarget` e' rimasto
+		// senza chiamanti fino a `#3063`, che gliene da' uno in `HandleClickOnCell`.
 		//
 		// 🔑 **Lo stato del playback e' `bIsResolving`, non la fase.** Sono due cose diverse: la risoluzione
 		// logica finisce dentro `LockInAndResolve`, mentre il playback continua a scorrere finche'
