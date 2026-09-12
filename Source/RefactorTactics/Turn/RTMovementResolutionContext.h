@@ -113,6 +113,34 @@ struct FRTMovementResolutionContext
 	bool bActive = false;
 
 	/**
+	 * Quanti micro-step questa risoluzione ha gia' consumato, e il tetto oltre il quale si dichiara non
+	 * terminata (`#2856`).
+	 *
+	 * 🔴 **Il contatore stava sullo stack dei pump, e li' non limitava cio' che dichiarava di limitare.**
+	 * `ResolveMovement` e `ResumeSuspendedResolution` avevano ognuna una locale `Guard`: una risoluzione che
+	 * si sospende e riprende ripartiva da `0`, e l'`ensureMsgf` diceva *«risoluzione del movimento non
+	 * terminata in 256 micro-step»* mentre cio' che scattava era *«questo pump non e' terminato in 256»*. Non
+	 * e' pignoleria di wording: un resolver che non converge ma si sospende regolarmente attraversava
+	 * l'asserzione indefinitamente — il fallimento che la guardia esiste per prevenire e' precisamente quello
+	 * che sopravviveva all'azzeramento.
+	 *
+	 * 🔑 **Vive qui perche' cio' che deve limitare e' la vita di `PendingMovement`**, e quello stato ha gia'
+	 * una sede: nasce con il contesto e muore quando `FinishMovementResolution` lo rilascia, cioe' esattamente
+	 * quando finisce la risoluzione che misura. Il costo e' un `int32` in una struct che ne ha gia'.
+	 *
+	 * ⚠️ **La taratura del tetto ha una premessa, e `#2902` la rilegge.** Il numero regge finche' un arco
+	 * dura un micro-step — *«un micro-step non supera la lunghezza del percorso piu' lungo, e `256` sta due
+	 * ordini di grandezza sopra qualunque percorso di una mappa 2v2»*. Se la durata di un attraversamento
+	 * diventa il costo d'ingresso della cella, il conteggio di un turno non e' piu' la lunghezza del percorso
+	 * ma la somma dei costi, e la giustificazione va misurata sul corpus invece che stimata.
+	 *
+	 * ⛔ **Non e' un budget di gioco**: e' il cap che impedisce a un difetto del resolver di appendere
+	 * l'Editor invece di far fallire un test. Nessuna regola competitiva lo legge.
+	 */
+	int32 MicroStepsSpent = 0;
+	static constexpr int32 MicroStepBudget = 256;
+
+	/**
 	 * I trigger del micro-step corrente non ancora risolti, e a che punto e' arrivato il consumo
 	 * (`#2679` fetta 2).
 	 *
