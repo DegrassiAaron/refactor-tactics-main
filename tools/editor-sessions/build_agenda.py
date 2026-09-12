@@ -98,7 +98,7 @@ def main() -> int:
         gruppi, scoperta = agenda.calcola(
             setups, wires, stato, lambda r: oracles.valuta(r, inventario, chiuse, note)
         )
-    except (agenda.AgendaError, registry.RegistryError, ValueError) as e:
+    except (agenda.AgendaError, registry.RegistryError, oracles.OracoloError, ValueError) as e:
         sys.exit(f"calcolo rifiutato: {e}")
 
     a.out.parent.mkdir(parents=True, exist_ok=True)

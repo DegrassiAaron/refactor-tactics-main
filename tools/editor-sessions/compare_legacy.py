@@ -52,14 +52,17 @@ def main() -> int:
     ap.add_argument("--cache", default=CACHE, type=Path)
     a = ap.parse_args()
 
-    setups, wires = registry.load(a.mattoni)
     stato = pie_status.load(a.registro)
     cache = json.loads(a.cache.read_text(encoding="utf-8"))
     inventario = oracles.asset_tracciati()
     chiuse, note = oracles.issue_chiuse(cache), oracles.issue_note(cache)
-    gruppi, scoperta = agenda.calcola(
-        setups, wires, stato, lambda r: oracles.valuta(r, inventario, chiuse, note)
-    )
+    try:
+        setups, wires = registry.load(a.mattoni)
+        gruppi, scoperta = agenda.calcola(
+            setups, wires, stato, lambda r: oracles.valuta(r, inventario, chiuse, note)
+        )
+    except (agenda.AgendaError, registry.RegistryError, oracles.OracoloError, ValueError) as e:
+        sys.exit(f"calcolo rifiutato: {e}")
 
     vecchio = yaml.safe_load(a.vecchio.read_text(encoding="utf-8")) or {}
     r = confronta(gruppi, scoperta, vecchio.get("sessions") or [], stato)

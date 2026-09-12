@@ -27,6 +27,22 @@ from dataclasses import dataclass
 TIPI_CON_ISSUE = ("mount", "cue", "anim", "feature")
 TIPI = ("asset",) + TIPI_CON_ISSUE
 
+COMANDO_FETCH = (
+    "python tools/decision-log/fetch_github_cache.py "
+    "--also docs/roadmap/sedute-mattoni.yaml"
+)
+
+
+class OracoloError(Exception):
+    """L'oracolo non sa rispondere. Si rifiuta, non si finge un bloccante.
+
+    La cache GitHub e' versionata e popolata dai `#nnn` che i registri citano.
+    Se manca il numero che un `requires` nomina, l'unica risposta onesta e'
+    fermarsi: «bloccato» sarebbe vero per il motivo sbagliato, il check
+    uscirebbe dall'ordine del giorno, e chi legge non avrebbe modo di sapere
+    che manca un `fetch`. Precedente: D-182.
+    """
+
 
 @dataclass(frozen=True)
 class Esito:
@@ -77,7 +93,10 @@ def valuta(req: str, inventario: set[str], chiuse: set[int], note: set[int]) -> 
         raise ValueError(f"{tipo} richiede una issue owner nella forma nome#numero: {req!r}")
     n = int(numero)
     if n not in note:
-        return Esito(False, f"{tipo} {nome}: #{n} non e' nella cache — rilancia il fetch")
+        raise OracoloError(
+            f"{req}: #{n} non e' nella cache GitHub, quindi non si sa se sia aperta o chiusa. "
+            f"Rilancia:\n    {COMANDO_FETCH}"
+        )
     if n in chiuse:
         return Esito(True, f"{tipo} {nome}: #{n} chiusa")
     return Esito(False, f"{tipo} {nome}: #{n} aperta")
