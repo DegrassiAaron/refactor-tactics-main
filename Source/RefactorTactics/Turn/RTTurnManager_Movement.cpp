@@ -23,6 +23,7 @@
 #include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
+#include "Turn/RTPlanValidationLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTReactionLibrary.h"
@@ -1253,6 +1254,65 @@ void ARTTurnManager::FinishMovementResolution()
 		// difendibili e nessuna decisione la sceglie; la traccia della rotta ne ha una terza ancora, un
 		// verdetto **per cella** (`FreezeRouteVerdicts`). Aperta in `#2148` invece che risolta qui.
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);
+	}
+
+	// 🔴 **Gli effetti DICHIARATI dall'azione di movimento** (`#641`, [D-116]).
+	//
+	// Finche' `Action.Sprint` risolveva in `FastMovement`, il suo `Status.Exposed` lo applicava
+	// `ResolveDash`, insieme agli effetti di ogni altra mobilita' rapida. Con lo scatto spostato **dopo il
+	// Blast** quel codice non gira piu' per lui: senza questo blocco la migrazione renderebbe `Exposed`
+	// non «inerte» — che e' il difetto che [D-116] voce 4 previene alzandolo a 2 turni — ma
+	// **inesistente**, e lo Sprint perderebbe in silenzio due dei tre prezzi che paga.
+	//
+	// 🔑 **Stesso registry di Prep, Blast e Dash**: `ProduceEvents` traduce il `Def`, e l'orchestratore non
+	// sa quale stato sia ne' perche'. Un'azione di movimento che domani dichiarasse un altro effetto e'
+	// coperta senza toccare questa riga.
+	//
+	// ⚠️ **Si applica a chi ha DICHIARATO il profilo, non a chi si e' mosso davvero**, ed e' la stessa
+	// scelta del divieto di reazione in `ARTTurnManager`: [D-116] voce 3 fonda il prezzo dello Sprint
+	// sull'**impegno del turno** — *«hai speso il turno a coprire distanza»* — e difende esplicitamente il
+	// caso dell'unita' che paga per un movimento che non avviene. Legare l'effetto all'esito darebbe due
+	// regole diverse per lo stesso prezzo, e renderebbe conveniente dichiarare uno scatto impossibile.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		if (!IsValid(Unit))
+		{
+			continue;
+		}
+		for (const FRTPlannedAction& Planned : URTPlanValidationLibrary::MakePlanFor(Unit))
+		{
+			if (Planned.Def.Slot != ERTActionSlot::Movement || Planned.Def.Effects.Num() == 0)
+			{
+				continue;
+			}
+			FRTActionInstance Instance;
+			Instance.Def = Planned.Def;
+			Instance.SourceUnitId = i;
+			Instance.TargetUnitId = i; // una mobilita' del vertical slice applica i propri effetti a chi la usa
+			Instance.TargetCell = Unit->Cell;
+			// L'ordine e' l'indice dell'unita' nella risoluzione, gia' reso stabile da
+			// `SortUnitsForResolution`: non un contatore di dichiarazione, che qui non esiste.
+			Instance.EventSequence = i;
+			for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
+			{
+				if (Event.Kind != ERTActionEffect::Status)
+				{
+					continue;
+				}
+				ApplyStatusLogged(Unit, Event.StatusTag, Event.Amount);
+				// Stessa guardia del sito del Dash: nessuna voce di nascita se `ApplyStatus` non ha
+				// applicato niente.
+				if (Event.Amount == ARTUnit::PersistentWhileOnCell || Event.Amount > 0)
+				{
+					FRTTurnLogEntry Nato = MakeStatusBirthEntry(ERTMatchPhase::Move, Event.StatusTag,
+						Unit->Cell, Event.Amount, /*bFromTerrain=*/ false);
+					AppendLogEntry(Nato, Unit);
+				}
+				AddLogEvent(FString::Printf(TEXT("%s: %s per %d turno/i"),
+					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount), FRTLogSubject::Unit(Unit));
+			}
+		}
 	}
 	// ⛔ **Niente `AddLogEvent` per le mosse bloccate**, e la riga che c'era qui non era di troppo fin
 	// dall'inizio: e' diventata un duplicato con `#1932`.
