@@ -241,6 +241,30 @@ delle due cartelle; dopo, ne scrive uno con lo stesso hash della Development. La
 ### Eseguirli
 
 ```bash
+python tools/suite/esegui.py RefactorTactics.ScreenHud
+python tools/suite/esegui.py RefactorTactics            # tutti
+python tools/suite/esegui.py RefactorTactics.HexSim -v  # con l'avanzamento
+```
+
+🔑 **Usa questo, non l'invocazione cruda**, e la ragione è meccanica: lo strumento **attende sul
+log**, non sull'uscita del processo. Un `UnrealEditor-Cmd` che non esce dopo `Quit` è un caso
+frequente — e chi aspetta il processo aspetta per sempre su una suite che è già finita, col log che
+porta i conteggi completi. Quando succede, lo strumento termina l'albero (`taskkill /T`, perché il
+solo pid non basta) e **lo dichiara nel referto** invece di nasconderlo, conservando la misura.
+
+Rende `0` se la suite è finita senza rossi, `1` se ci sono rossi o il log non la dichiara finita.
+`--autotest` prova le sue funzioni pure senza toccare il motore.
+
+⛔ **Non giudica se la misura sia VALIDA** — quello resta di `tools/mutation/misura.py`, che confronta
+l'albero git prima e dopo. Per una verifica di mutazione si usano i gate, non questo.
+
+<details>
+<summary>L'invocazione cruda, per chi ha bisogno di flag propri</summary>
+
+⚠️ Se la usi, il processo può non uscire: leggi l'esito dal log come descritto sotto, e chiudi
+l'albero con `taskkill /T /F /PID <pid>`.
+
+```bash
 # tutti
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
@@ -260,6 +284,8 @@ delle due cartelle; dopo, ne scrive uno con lo stesso hash della Development. La
 > `+Quit` ancora vivo dopo 240 s e **nessun** `**** TEST COMPLETE ****`; `;Quit` uscito dopo 61 s con
 > `EXIT CODE: 0`. Serie storica coerente: su venti log, cinque run su cinque con `+Quit` non sono mai
 > uscite ([#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)).
+
+</details>
 
 Gli esiti finiscono in `Saved/Logs/RefactorTactics.log`, non nello stdout:
 
