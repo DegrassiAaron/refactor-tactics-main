@@ -3119,6 +3119,83 @@ bool FRTHexSimAlliedSwapIsStillACycleTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⛔ **Con le squadre in gioco l'esito non dipende dall'ORDINE, e il punto fisso resta MONOTONO.**
+ *
+ * 🔑 **La DoD di `#2984` chiede che si rimisuri, non che si deduca**, e la ragione e' che l'arco ha
+ * cambiato la forma del punto fisso: `BeginArcIfNeeded` legge `Pos` di **tutte** le altre unita', quindi
+ * un permesso che dipendesse dall'indice sarebbe visibile proprio qui. `ResolveOrderIndependent` esiste
+ * gia', ma non passa alcuna squadra: non interroga questo codice.
+ *
+ * ⚠️ L'allestimento mette un CONTESTO vero sulla cella d'arrivo dell'arco — chi attraversa la compagna
+ * vorrebbe `(2,0)`, e un'avversaria la vuole nello stesso istante. E' dove un'eventuale dipendenza
+ * dall'ordine si manifesterebbe, non un caso di passaggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedOrderIndependenceTest,
+	"RefactorTactics.HexSim.AlliedCrossingIsOrderIndependentAndMonotone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliedOrderIndependenceTest::RunTest(const FString&)
+{
+	const TArray<FRTCellId> Attraversa = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) };
+	const TArray<FRTCellId> Ferma      = { FRTCellId(1, 0) };                    // compagna, sul passaggio
+	// ⚠️ **L'avversaria punta alla cella ATTRAVERSATA, non all'arrivo, ed e' una correzione misurata.**
+	// Puntandola su `(2,0)` l'arco non si apriva affatto: la sua fine dev'essere **libera**, e un
+	// contendente vivo la rende contesa: i due si bloccavano a vicenda e il banco restava verde senza aver
+	// esercitato un solo attraversamento. La premessa qui sotto e' cio' che l'ha fatto vedere.
+	const TArray<FRTCellId> Contende   = { FRTCellId(1, 1), FRTCellId(1, 0) };   // avversaria, sul passaggio
+
+	TArray<TArray<FRTCellId>> OrdineA;
+	OrdineA.Add(Attraversa); OrdineA.Add(Ferma); OrdineA.Add(Contende);
+	TArray<TArray<FRTCellId>> OrdineB;
+	OrdineB.Add(Contende); OrdineB.Add(Ferma); OrdineB.Add(Attraversa);
+
+	const TArray<FRTHexMoveResult> A = RTResolveWithTeams(OrdineA, { 0, 0, 1 });
+	const TArray<FRTHexMoveResult> B = RTResolveWithTeams(OrdineB, { 1, 0, 0 });
+	if (!TestEqual(TEXT("tre risultati per ordine"), A.Num(), 3)
+		|| !TestEqual(TEXT("tre risultati per ordine"), B.Num(), 3))
+	{
+		return false;
+	}
+
+	// L'esito si legge PER RUOLO, non per indice: A[0] e B[2] sono la stessa unita'.
+	TestEqual(TEXT("chi attraversa: stessa cella nei due ordini"), A[0].Final, B[2].Final);
+	TestEqual(TEXT("chi attraversa: stesso motivo"), A[0].Outcome, B[2].Outcome);
+	TestEqual(TEXT("la compagna ferma: stessa cella"), A[1].Final, B[1].Final);
+	TestEqual(TEXT("chi contende: stessa cella"), A[2].Final, B[0].Final);
+	TestEqual(TEXT("chi contende: stesso motivo"), A[2].Outcome, B[0].Outcome);
+
+	// ⚠️ **La premessa che rende la misura non vuota**: la compagna e' stata davvero attraversata. Senza,
+	// tre unita' che non si toccano darebbero lo stesso verde senza aver esercitato nulla.
+	TestTrue(TEXT("premessa: l'arco ha davvero scavalcato la compagna"),
+		A[0].Entered.Contains(FRTCellId(1, 0)));
+
+	// ⛔ **Il punto fisso e' MONOTONO**: si passa da «in movimento» a «fermo», mai all'indietro. E' la
+	// proprieta' che rende l'esito indipendente dall'ordine per costruzione, e con l'arco va rimisurata:
+	// `BeginArcIfNeeded` scrive `StepRemaining`, cioe' tocca lo stato su cui il punto fisso itera.
+	FRTMovementResolutionState Stato = URTHexSimLibrary::BeginHexMovement(OrdineA, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), { 0, 0, 1 });
+	TArray<bool> Visto = Stato.Done;
+	for (int32 Passo = 0; Passo < 20 && URTHexSimLibrary::ResolveNextHexMicroStep(Stato); ++Passo)
+	{
+		for (int32 i = 0; i < Stato.Done.Num(); ++i)
+		{
+			if (Visto.IsValidIndex(i) && Visto[i] && !Stato.Done[i])
+			{
+				AddError(FString::Printf(TEXT("l'unita' %d e' tornata in movimento dopo essersi fermata"), i));
+				return false;
+			}
+		}
+		Visto = Stato.Done;
+	}
+	// ⛔ **`Done` vuol dire ARRIVATA, non ferma**, e la prima stesura ci aveva creduto: un'unita'
+	// bloccata per sempre non diventa mai `Done` — ritenta a ogni micro-step finche' nessuno si muove
+	// piu'. Il punto fisso e' finito quando `StepHexMovement` non muove nulla, ed e' `bFinished` a dirlo.
+	TestTrue(TEXT("e il punto fisso ha raggiunto la propria fine"), Stato.bFinished);
+	TestTrue(TEXT("con chi attraversava arrivato a destinazione"),
+		Stato.Pos.IsValidIndex(0) && Stato.Pos[0] == FRTCellId(2, 0));
+	return true;
+}
+
 
 /**
  * Il PATHFINDER attraversa una compagna, e non si ferma sopra — `#2984`, [D-396] Scope 4.

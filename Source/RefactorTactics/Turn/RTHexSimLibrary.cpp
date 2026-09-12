@@ -28,6 +28,21 @@ namespace
 	}
 
 	/**
+	 * Due squadre sono ALLEATE? — `#2984`, [D-396]. **L'unica sede del predicato.**
+	 *
+	 * ⚠️ Una squadra non dichiarata (`INDEX_NONE`) non e' alleata di nessuno, **nemmeno di un'altra
+	 * non dichiarata**: il permesso si concede, non si deduce dall'assenza di dato.
+	 *
+	 * ⛔ Vive qui, e non una copia per consumatore, perche' i due lati che lo interrogano — il resolver
+	 * su `FRTMovementResolutionState` e il pathfinder su `FRTHexSnapshot` — non condividono un tipo, e
+	 * riscriverlo due volte e' esattamente il modo in cui uno dei due smette di seguire l'altro.
+	 */
+	bool TeamsAreAllied(int32 A, int32 B)
+	{
+		return A != INDEX_NONE && A == B;
+	}
+
+	/**
 	 * Celle occupate da unita' vive DIVERSE da ForUnitId: ostacoli dinamici (non appartengono all'asset mappa).
 	 *
 	 * ➕ **Una COMPAGNA non e' un ostacolo per la ROTTA, ma lo resta come DESTINAZIONE** — `#2984`,
@@ -56,7 +71,7 @@ namespace
 				continue;
 			}
 			const FRTHexSimUnit* Other = FindUnit(Snapshot, Entry.Value);
-			const bool bAlly = Other && MyTeam != INDEX_NONE && Other->TeamId == MyTeam;
+			const bool bAlly = Other && TeamsAreAllied(MyTeam, Other->TeamId);
 			if (bAlly && !(Goal && *Goal == Entry.Key))
 			{
 				continue; // si attraversa, ma non e' questa la destinazione
@@ -916,10 +931,11 @@ namespace
 	}
 
 	/**
-	 * Due unita' sono COMPAGNE? — `#2984`, [D-396].
+	 * Due unita' del resolver sono COMPAGNE? — `#2984`. Il predicato e' `TeamsAreAllied`; qui si
+	 * aggiunge solo la lettura dell'array.
 	 *
-	 * ⚠️ Una squadra non dichiarata (`INDEX_NONE`, o l'array vuoto) non e' alleata di nessuno, nemmeno
-	 * di un'altra non dichiarata: il permesso si **concede**, non si deduce dall'assenza di dato.
+	 * ⚠️ `Teams` vuoto — ogni chiamante che non sa di questo campo — e' *nessuna squadra
+	 * dichiarata*, quindi nessuna alleanza e comportamento identico a prima di questa issue.
 	 */
 	bool AreAllies(const FRTMovementResolutionState& State, int32 A, int32 B)
 	{
@@ -927,7 +943,7 @@ namespace
 		{
 			return false;
 		}
-		return State.Teams[A] != INDEX_NONE && State.Teams[A] == State.Teams[B];
+		return TeamsAreAllied(State.Teams[A], State.Teams[B]);
 	}
 
 	/**
