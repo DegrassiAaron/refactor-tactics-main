@@ -104,6 +104,22 @@ FString ARTHUD::RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange)
 			? FString::Printf(TEXT("Troppo lontano (portata %d)"), EffectiveRange)
 			: FString(TEXT("Troppo lontano per questa abilita'"));
 
+	// ➕ **I due rifiuti che chiedono un gesto PROPRIO** (`#3080`). Fino a `5fb8ea07` non avevano un
+	// `case`, e cadevano nel `checkNoEntry()` in fondo: `DrawHUD` chiama questa funzione a ogni frame
+	// tramite `CurrentRefusalText`, quindi mirare un bersaglio su un'altra piattaforma — o troppo
+	// vicino — faceva ASSERIRE il gioco. Misurato: `exit code 3`, zero test completati.
+	//
+	// 🔑 **Frasi diverse perche' i gesti sono diversi**, che e' la ragione per cui i due valori
+	// esistono. `Range` dice *avvicinati*; `TooClose` deve dire l'opposto, o manda il giocatore a
+	// peggiorare la propria posizione. `OtherLayer` non e' ne' l'uno ne' l'altro ([D-393]): nessun
+	// movimento NEL piano risolve, e prometterlo sarebbe peggio del silenzio.
+	case ERTTargetRefusal::TooClose: return TEXT("Troppo vicino: allontanati per colpire");
+
+		// ⚠️ Nessun numero, a differenza di `Range`, e non e' una dimenticanza: la firma porta una
+		// portata sola. Stampare QUELLA accanto a *su un altro piano* suggerirebbe che il problema sia la
+		// distanza, cioe' esattamente cio' che questo rifiuto esiste per negare.
+	case ERTTargetRefusal::OtherLayer: return TEXT("Su un altro piano: non si tira da qui");
+
 	case ERTTargetRefusal::None:
 	case ERTTargetRefusal::Nothing: return FString();
 	}
