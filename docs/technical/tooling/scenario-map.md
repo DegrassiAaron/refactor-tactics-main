@@ -1113,7 +1113,7 @@ riproduce i numeri: `PIE-HEXPLAY-4` apre con `⚠️` e la sua ✅ arriva 631 ca
 | `PIE-HEXPLAY-4` | risoluzione e playback senza deriva | ✅ |
 | `PIE-HEXPLAY-5` | collisione simultanea, nessuna sovrapposizione | ✅ |
 | `PIE-HEXPLAY-6` | LOS esagonale, e che il giocatore capisca perché il colpo non parte | ✅ |
-| `PIE-HEXPLAY-8` | **multilivello**: il movimento via arco, esplicitamente nominato da G10 | 🟡 |
+| `PIE-HEXPLAY-8` | **multilivello**: il movimento via arco, esplicitamente nominato da G10 | ✅ *(criterio ridotto alla metà osservabile il 2026-09-12 — [`D-402`](../decisions/RT_PDR_00_Decision_Log.md), #2911: la terza parte esce dal criterio, non dalla copertura)* |
 | `PIE-HEXPLAY-9` | HUD e anteprima piani sui centri esagonali | ✅ |
 | `PIE-FACING-1` | l'orientamento che si **vede** è quello che il resolver ha **usato** | ✅ |
 | `PIE-HEXPLAY-10` | **partita completa fino alla vittoria** — è G10 | ✅ |

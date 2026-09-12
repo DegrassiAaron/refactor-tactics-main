@@ -26,9 +26,9 @@ Stato al 2026-09-10, letto voce per voce con la **prima icona di stato per posiz
 | `PIE-V01-LOG` | `RELEASE-V01` | ✅ | — chiusa |
 | `PIE-V01-ROSTER` | `RELEASE-V01` | ✅ | — chiusa |
 | `PIE-VIS-TWOLAYERS` | — | ✅ | — chiusa |
-| **`PIE-HEXPLAY-6`** | **`RELEASE-V01`** | ❌ | **un occhio** — ed è **l'unica ❌ che blocca `G9`** |
-| **`PIE-VIS-SIGHTWALL`** | — *(fuori subset)* | ❌ | **un occhio** — non blocca `G9`, ma è la DoD di [#2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534) |
-| `PIE-HEXPLAY-8` | `RELEASE-V01` | 🟡 | **una decisione** — [#2911](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2911) |
+| **`PIE-HEXPLAY-6`** | **`RELEASE-V01`** | ✅ | **niente: la seduta è stata fatta** — il 2026-09-12, convocata da [#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697), `runId 20260912-141110`, e per la prima volta il verdetto d'autore è `PASS`. ⌫ *Diceva «un occhio — ed è l'unica ❌ che blocca `G9`»: non blocca più niente, e `G9` è ✅* |
+| **`PIE-VIS-SIGHTWALL`** | — *(fuori subset)* | ❌ **e resta l'unica ❌ di questa tabella** | **un occhio** — non blocca `G9` (che è ✅ dal 2026-09-12), ma è la DoD di [#2534](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2534) |
+| `PIE-HEXPLAY-8` | `RELEASE-V01` | ✅ | **niente: la decisione è stata presa** — [`D-402`](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-09-12 ha ridotto il criterio alla metà osservabile, e su quello la voce è verde. ⛔ Non convocare la seduta per questa voce |
 | `PIE-V01-DEBUG` *(opportunistica)* | — | 🟡 | un occhio, su un altro allestimento |
 
 ⚠️ **`PIE-VIS-SIGHTWALL` NON è nel subset di release, e la distinzione è quella che la stessa
@@ -45,7 +45,7 @@ grep '^| \*\*PIE-[A-Za-z0-9.-]*\*\* `RELEASE-V01`' docs/technical/test-manuali-p
 # verde=15 parziale=1 fallita=1 aperta=0     ← 2026-09-10, main = 5d44e38e
 ```
 
-∴ del subset resta **una sola ❌**, `PIE-HEXPLAY-6`, più `PIE-HEXPLAY-8` 🟡 che aspetta una decisione.
+⌫ **Questa riga diceva *«resta una sola ❌, `PIE-HEXPLAY-6`, più `PIE-HEXPLAY-8` 🟡 che aspetta una decisione»*, e non vale più per entrambe le voci.** `PIE-HEXPLAY-6` è ✅ dal 2026-09-12 (seduta convocata da #2697, `runId 20260912-141110`, verdetto d'autore `PASS`); `PIE-HEXPLAY-8` è ✅ dalla stessa data per riduzione di criterio (`D-402`, #2911). ∴ del subset **non resta nessuna voce non verde**: `17 ✅ · 0 · 0`, e `G9` è ✅. Trovato in code review.
 `PIE-VIS-SIGHTWALL` si giudica **nello stesso Play e gratis**, e vale per #2534.
 
 🔑 **Le due voci `❌` si giudicano sullo STESSO banco, nello STESSO Play.** `PIE-HEXPLAY-6` e
@@ -59,7 +59,7 @@ allestimento e non entra nel `done_when`.
 ⛔ **Il passo ③ non produce niente e va saltato.** `PIE-HEXPLAY-8` non aspetta una seduta: il suo residuo —
 che il crollo del ponte si veda — **non è osservabile in v0.1** perché `Action.ModifyArc` è senza owner nel
 roster ([D-046](../../decisions/RT_PDR_00_Decision_Log.md)). Chi apre l'Editor per quella voce non troverà
-nulla da guardare. La domanda è passata a #2911.
+nulla da guardare. La domanda è passata a #2911, **che l'ha chiusa il 2026-09-12** con `D-402`: il criterio si riduce alla metà osservabile e `D-046` non si riapre.
 
 ---
 
