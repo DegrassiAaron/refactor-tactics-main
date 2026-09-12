@@ -12,6 +12,7 @@
 #include "UI/RTHudViewModel.h" // FRTPlayerEventLineView: le righe da cui i marcatori si derivano (#2697)
 #include "UI/RTHUD.h"
 #include "Turn/RTTurnManager.h"     // il ciclo del turno: e' cio' che D-359 usa come confine
+#include "Map/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto (#3085)
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -567,6 +568,102 @@ bool FRTRefusalTextFollowsTheLastClickTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il tiro rifiutato per copertura mostra DOVE si ferma — `#3085`.
+ *
+ * Il messaggio di `#2741` dice *«Coperto: la linea di tiro e' interrotta»* e non dice **da cosa**: e' lo
+ * stesso residuo che `PIE-HEXPLAY-6` isola dal 2026-08-24, dove la riga del feed non nomina il muro e la
+ * comprensibilita' resta appesa al solo contorno marcato — quello che `#3077` ha trovato ruotato di 30
+ * gradi e che l'autore della seduta ha descritto «poco visibile».
+ *
+ * 🔑 **Cio' che questo test asserisce e' il PUNTO DI ROTTURA, non il numero di tratti.** Contare due
+ * segmenti sarebbe verde anche su una linea che si spezza nella cella sbagliata — ed e' esattamente il
+ * modo in cui `#3077` e' sopravvissuto a quattro sedute: `RTHUDMarksTests.cpp` copriva il marcatore e non
+ * ne asseriva l'orientamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusedShotBreaksAtTheBlockerTest,
+	"RefactorTactics.HUD.RefusedShotBreaksAtTheBlocker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusedShotBreaksAtTheBlockerTest::RunTest(const FString&)
+{
+	const FRTCellId Tiratore(-1, 0, 0);
+	const FRTCellId Muro(0, 0, 0);
+	const FRTCellId Bersaglio(1, 0, 0);
+
+	// Il muro e' stato osservato: e' la precondizione di privacy, e sotto c'e' la sua controprova.
+	TSet<FRTCellId> Conosciute;
+	Conosciute.Add(Tiratore);
+	Conosciute.Add(Muro);
+	Conosciute.Add(Bersaglio);
+
+	FRTLineOfSightResult Bloccata;
+	Bloccata.Block = ERTLineOfSightBlock::CellBlocker;
+	Bloccata.BlockedAt = Muro;
+	Bloccata.BlockedFrom = Tiratore;
+	Bloccata.StepIndex = 1;
+
+	// --- il caso che la issue chiede ---
+	{
+		const FRTRefusedShotLine Linea = ARTHUD::ComputeRefusedShotLine(
+			ERTTargetRefusal::Cover, Bloccata, Tiratore, Bersaglio, Conosciute);
+
+		TestTrue(TEXT("il tiro rifiutato per copertura si disegna"), Linea.bShow);
+		// 🔑 L'asserzione che porta il difetto: DOVE si spezza, non quanti tratti ha.
+		TestEqual(TEXT("si spezza sulla cella che blocca"), Linea.BreakAt, Muro);
+		TestEqual(TEXT("parte dal tiratore"), Linea.From, Tiratore);
+		TestEqual(TEXT("il tratto morto punta al bersaglio voluto"), Linea.To, Bersaglio);
+	}
+
+	// --- controprova 1: senza rifiuto non si disegna niente ---
+	{
+		FRTLineOfSightResult Libera;
+		Libera.Block = ERTLineOfSightBlock::None;
+
+		const FRTRefusedShotLine Linea = ARTHUD::ComputeRefusedShotLine(
+			ERTTargetRefusal::None, Libera, Tiratore, Bersaglio, Conosciute);
+
+		TestFalse(TEXT("su bersaglio ingaggiabile non compare nessun tratto di rifiuto"), Linea.bShow);
+	}
+
+	// --- controprova 2: il rifiuto per PORTATA non ha un ostacolo da indicare (#2800 dice il numero) ---
+	{
+		FRTLineOfSightResult Libera;
+		Libera.Block = ERTLineOfSightBlock::None;
+
+		const FRTRefusedShotLine Linea = ARTHUD::ComputeRefusedShotLine(
+			ERTTargetRefusal::Range, Libera, Tiratore, Bersaglio, Conosciute);
+
+		TestFalse(TEXT("il rifiuto per portata non disegna una rottura che non esiste"), Linea.bShow);
+
+		// ⚠️ Lo stesso per i due esiti che `#3080` ha aggiunto DOPO questo test: nessuno dei due nasce da
+		// un ostacolo sulla traiettoria — `TooClose` chiede di allontanarsi, `OtherLayer` e' la regola di
+		// elevazione — e una rottura disegnata li' sarebbe un punto che la geometria non ha prodotto.
+		for (const ERTTargetRefusal Senza : { ERTTargetRefusal::TooClose, ERTTargetRefusal::OtherLayer })
+		{
+			const FRTRefusedShotLine Altro = ARTHUD::ComputeRefusedShotLine(
+				Senza, Libera, Tiratore, Bersaglio, Conosciute);
+			TestFalse(TEXT("solo la copertura disegna la rottura"), Altro.bShow);
+		}
+	}
+
+	// --- controprova 3, la PRIVACY: un muro mai osservato non si rivela ---
+	{
+		// 🔴 `RefusalForObserver` valuta la conoscenza PRIMA della geometria — «il velo non e' un filtro
+		// applicato all'esito: e' la domanda che viene per prima» — e questo segno segue la stessa regola.
+		// Disegnare la rottura su una cella mai vista insegnerebbe al giocatore che li' c'e' qualcosa.
+		TSet<FRTCellId> SenzaIlMuro;
+		SenzaIlMuro.Add(Tiratore);
+		SenzaIlMuro.Add(Bersaglio);
+
+		const FRTRefusedShotLine Linea = ARTHUD::ComputeRefusedShotLine(
+			ERTTargetRefusal::Cover, Bloccata, Tiratore, Bersaglio, SenzaIlMuro);
+
+		TestFalse(TEXT("un ostacolo mai osservato non viene rivelato dalla linea"), Linea.bShow);
+	}
+
+
+	return true;
+}
 
 // --- #3080 · ogni rifiuto ha una frase, o il silenzio dichiarato -----------------------------------------
 

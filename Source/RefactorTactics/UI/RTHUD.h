@@ -4,8 +4,43 @@
 #include "GameFramework/HUD.h"
 #include "Map/RTCellId.h"
 #include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: l'esito gia' filtrato per l'osservatore (#2741)
+#include "Map/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto del blocco (#3085)
 #include "Perception/RTKnowledgeView.h" // FRTKnowledgeView: l'HUD legge la vista, non lo stato
 #include "RTHUD.generated.h"
+
+/**
+ * I due tratti con cui un tiro rifiutato per copertura si mostra a schermo — `#3085`.
+ *
+ * 🔑 **Esiste perche' il messaggio di `#2741` dice che la linea e' interrotta e non da COSA.** E' il
+ * residuo *(c)* che `PIE-HEXPLAY-6` isola dal 2026-08-24: la riga del feed non nomina il muro
+ * (`RTTurnLogLibrary.cpp:329`), la forma lunga `(muro in ...)` vive solo nel combat log, e la
+ * comprensibilita' resta appesa al solo contorno marcato.
+ *
+ * ⛔ **Non e' un piano.** Il click rifiutato non scrive `PlannedAttackTarget` e non entra nello stato
+ * canonico: questo e' stato di PRESENTAZIONE, nasce da un click e muore col click seguente, esattamente
+ * come il messaggio che accompagna (`CLAUDE.md` §11).
+ */
+USTRUCT(BlueprintType)
+struct FRTRefusedShotLine
+{
+	GENERATED_BODY()
+
+	/** Falso quando non c'e' niente da disegnare: nessun rifiuto, nessun ostacolo, o ostacolo non conosciuto. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bShow = false;
+
+	/** Il tiratore. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId From;
+
+	/** La cella in cui il tiro si ferma: `FRTLineOfSightResult::BlockedAt`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId BreakAt;
+
+	/** Il bersaglio VOLUTO, che il tiro non raggiunge. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTCellId To;
+};
 
 /**
  * Una riga della terna di slot, gia' composta e pronta da disegnare.
@@ -274,6 +309,17 @@ public:
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
 
 	/**
+	 * I due tratti del tiro rifiutato per copertura, in CELLE — `#3085`.
+	 *
+	 * Pieno da `From` a `BreakAt`, tratteggiato da `BreakAt` a `To`: il primo dice dove il tiro arriva, il
+	 * secondo dove voleva arrivare. ⛔ **Celle e non pixel**: la proiezione appartiene a `DrawHUD`, e una
+	 * firma che parlasse di schermo non sarebbe verificabile senza un viewport.
+	 */
+	static FRTRefusedShotLine ComputeRefusedShotLine(
+		ERTTargetRefusal Refusal, const FRTLineOfSightResult& Los,
+		const FRTCellId& From, const FRTCellId& To, const TSet<FRTCellId>& KnownCells);
+
+	/**
 	 * Registra il rifiuto di bersaglio da mostrare a chi gioca — `#2741`.
 	 *
 	 * ⛔ **Riceve un esito GIA' filtrato per l'osservatore** (`URTCombatLibrary::RefusalForObserver`), e non
@@ -286,8 +332,15 @@ public:
 	 * @param Refusal         l'esito gia' filtrato per l'osservatore
 	 * @param EffectiveRange  la portata DAVVERO applicata dal classificatore, per il solo esito
 	 *                        `Range` (`#2800`). `INDEX_NONE` quando non c'e' un limite da mostrare.
+	 * @param Los             l'esito geometrico della linea, per mostrare DOVE il tiro si ferma (`#3085`).
+	 *                        Il default e' un esito senza blocco: e' il caso del reset a ogni click, dove
+	 *                        non c'e' niente da disegnare.
+	 * @param From            il tiratore, e `To` il bersaglio voluto. Servono solo al tratto di `#3085`.
 	 */
-	void SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange);
+	void SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange,
+		const FRTLineOfSightResult& Los = FRTLineOfSightResult(),
+		const FRTCellId& From = FRTCellId(0, 0, INDEX_NONE),
+		const FRTCellId& To = FRTCellId(0, 0, INDEX_NONE));
 
 	/**
 	 * L'ultimo rifiuto mostrato al giocatore — `CP 11.5` (`#172`).
@@ -635,6 +688,20 @@ private:
 	 * messaggio resti a schermo.
 	 */
 	ERTTargetRefusal LastRefusal = ERTTargetRefusal::None;
+
+	/**
+	 * La geometria dell'ultimo rifiuto: dove la linea si e' fermata — `#3085`.
+	 *
+	 * 🔑 **Vive nello stesso istante di `LastRefusal`, e non e' un secondo canale.** `SetTargetRefusal` li
+	 * scrive insieme per la stessa ragione per cui `LastRefusalRange` lo fa: *«non esiste un istante in cui
+	 * vengano da due decisioni diverse»*. Un secondo setter permetterebbe uno stato in cui il messaggio dice
+	 * «Coperto» e la linea indica il muro di un click precedente.
+	 */
+	FRTLineOfSightResult LastRefusalLos;
+
+	/** Il tiratore e il bersaglio VOLUTO dell'ultimo rifiuto — `#3085`. Sentinella: `Layer == INDEX_NONE`. */
+	FRTCellId LastRefusalFrom = FRTCellId(0, 0, INDEX_NONE);
+	FRTCellId LastRefusalTo = FRTCellId(0, 0, INDEX_NONE);
 
 	/**
 	 * La portata APPLICATA dell'ultimo rifiuto per distanza — `#2800`.
