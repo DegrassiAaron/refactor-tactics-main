@@ -234,24 +234,42 @@ class IntoSuFileTest(unittest.TestCase):
     def test_il_giro_su_file_non_mischia_i_fine_riga_e_conserva_la_testa(self):
         """Il percorso vero passa da `read_text`/`write_text`, non da `innesta` su
         stringhe: e' quello che nessun altro test attraversa.
+
+        Si provano ENTRAMBE le convenzioni di fine riga, non una sola: la lettura
+        e la scrittura che questo test vuole coprire traducono i fine riga in base
+        a `os.linesep`, quindi il caso la cui convenzione GIA' COINCIDE con quella
+        della macchina non e' probante da solo -- il codice pre-fix e quello
+        corretto produrrebbero lo stesso file, e il test passerebbe anche contro
+        il bug. E' l'altro caso, quello OPPOSTO a `os.linesep`, a fallire contro
+        il bug: qui si esercitano entrambi, cosi' che su qualunque piattaforma
+        almeno uno dei due sia l'opposto e protegga davvero.
         """
+        for eol in ("\r\n", "\n"):
+            with self.subTest(eol=repr(eol)):
+                self._verifica_il_giro_su_file(eol)
+
+    def _verifica_il_giro_su_file(self, eol):
+        eol_bytes = eol.encode("ascii")
         with tempfile.TemporaryDirectory() as tmp:
             cartella = Path(tmp)
             sessioni = cartella / "vecchio.yaml"
             sessioni.write_text("sessions: []\n", encoding="utf-8")
 
             registro = cartella / "registro.yaml"
-            testa = (
-                b"# Registro di prova, CRLF.\r\n"
-                b"#\r\n"
-                b"# DRAFT - NON OWNER.\r\n"
-                b"\r\n"
-                b"setups:\r\n"
-                b"  - id: SET-A\r\n"
-                b"    map: L_Uno\r\n"
-                b"\r\n"
-            )
-            corpo = b"wiring:\r\n  # vecchio commento che il seme riscrive\r\n"
+            testa = eol_bytes.join([
+                b"# Registro di prova.",
+                b"#",
+                b"# DRAFT - NON OWNER.",
+                b"",
+                b"setups:",
+                b"  - id: SET-A",
+                b"    map: L_Uno",
+                b"",
+            ]) + eol_bytes
+            corpo = eol_bytes.join([
+                b"wiring:",
+                b"  # vecchio commento che il seme riscrive",
+            ]) + eol_bytes
             registro.write_bytes(testa + corpo)
 
             out = cartella / "out.yaml"
@@ -270,7 +288,13 @@ class IntoSuFileTest(unittest.TestCase):
 
             self.assertEqual(esito, 0)
             dopo = registro.read_bytes()
-            self.assertEqual(dopo.count(b"\r\n"), dopo.count(b"\n"))
+            # "nessun fine-riga misto" dipende dalla convenzione in prova: per CRLF,
+            # ogni \n deve avere il suo \r davanti; per LF, non deve comparire
+            # nessun \r (altrimenti sarebbe un CRLF infilato in un file altrimenti LF).
+            if eol == "\r\n":
+                self.assertEqual(dopo.count(b"\r\n"), dopo.count(b"\n"))
+            else:
+                self.assertNotIn(b"\r", dopo)
             self.assertTrue(dopo.startswith(testa))
 
 
