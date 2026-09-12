@@ -1131,4 +1131,119 @@ bool FRTTheEightZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// Le otto zone: stanno dove devono
+// =====================================================================================================
+//
+// 🔑 **`PanelsLeaveTheCenterFree` e' un gate NEGATIVO**: dice che nessuna zona invade il centro, e
+// passerebbe con tutte e otto schiacciate in un angolo. Questo dice dove sono.
+//
+// La griglia e' 20% / 60% / 20% su entrambi gli assi, e non e' una scelta: il keep-out del centro e'
+// `RTCenterFree::CenterFraction` = 0.6 centrato, quindi i tagli cadono a 0.2 e 0.8.
+
+namespace RTGrigliaZone
+{
+	/** I tagli della griglia, in frazione di schermo. */
+	constexpr float TaglioBasso = 0.2f;
+	constexpr float TaglioAlto = 0.8f;
+
+	/** Gli offset uniformi di ogni zona: distacco visivo, e margine dal keep-out. */
+	constexpr float Margine = 4.f;
+
+	/** La cella attesa di una zona, in frazione di schermo: `Min` e `Max` degli anchor. */
+	void CellaAttesa(ERTHudZone Zona, FVector2D& Min, FVector2D& Max)
+	{
+		const int32 I = static_cast<int32>(Zona);
+
+		// Colonna: 0 = sinistra, 1 = centro, 2 = destra. Riga: 0 = alto, 1 = mezzo, 2 = basso.
+		// L'ordine dell'enum salta la cella centrale, quindi la mappa e' esplicita invece che calcolata.
+		static const int32 Colonne[] = { 0, 1, 2,  0, 2,  0, 1, 2 };
+		static const int32 Righe[]   = { 0, 0, 0,  1, 1,  2, 2, 2 };
+
+		static const float Bordi[] = { 0.f, TaglioBasso, TaglioAlto, 1.f };
+
+		Min.X = Bordi[Colonne[I]];
+		Max.X = Bordi[Colonne[I] + 1];
+		Min.Y = Bordi[Righe[I]];
+		Max.Y = Bordi[Righe[I] + 1];
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTZoneRectanglesMatchTheThreeByThreeGridTest,
+	"RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTZoneRectanglesMatchTheThreeByThreeGridTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
+		TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	// Un pixel di tolleranza: le geometrie sono float, e un arrotondamento non e' un difetto di layout.
+	constexpr float Tolleranza = 1.f;
+
+	int32 Misurate = 0;
+
+	Tree->ForEachWidget([this, &Misurate, Tolleranza](UWidget* Widget)
+	{
+		const URTHudZoneWidget* Zona = Cast<URTHudZoneWidget>(Widget);
+		if (!Zona)
+		{
+			return;
+		}
+
+		const UCanvasPanelSlot* Slot = Cast<UCanvasPanelSlot>(Widget->Slot);
+		if (!Slot)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` non e' in un `Canvas Panel`: la sua geometria non e' dichiarata dal ")
+				TEXT("layout, e il centro libero smette di essere una proprieta' verificabile."),
+				*Widget->GetName()));
+			return;
+		}
+
+		FVector2D Min, Max;
+		RTGrigliaZone::CellaAttesa(Zona->ZoneId, Min, Max);
+
+		const RTCenterFree::FRect Atteso{
+			static_cast<float>(Min.X) * RTCenterFree::RefWidth + RTGrigliaZone::Margine,
+			static_cast<float>(Min.Y) * RTCenterFree::RefHeight + RTGrigliaZone::Margine,
+			static_cast<float>(Max.X) * RTCenterFree::RefWidth - RTGrigliaZone::Margine,
+			static_cast<float>(Max.Y) * RTCenterFree::RefHeight - RTGrigliaZone::Margine };
+
+		const RTCenterFree::FRect Reale = RTCenterFree::RettangoloDellaZona(Slot->GetLayout());
+		++Misurate;
+
+		AddInfo(FString::Printf(TEXT("  %-14s atteso %s   reale %s"),
+			*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+			*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+
+		const bool bCombacia =
+			FMath::IsNearlyEqual(Reale.Left, Atteso.Left, Tolleranza)
+			&& FMath::IsNearlyEqual(Reale.Top, Atteso.Top, Tolleranza)
+			&& FMath::IsNearlyEqual(Reale.Right, Atteso.Right, Tolleranza)
+			&& FMath::IsNearlyEqual(Reale.Bottom, Atteso.Bottom, Tolleranza);
+
+		if (!bCombacia)
+		{
+			AddError(FString::Printf(
+				TEXT("la zona `%s` non occupa la sua cella della griglia 20/60/20: atteso %s, reale %s. ")
+				TEXT("Gli anchor devono essere STIRATI su entrambi gli assi — con anchor a punto il ")
+				TEXT("rettangolo dipende dall'Alignment, ed e' il difetto che porto' `ZoneBottom` a ")
+				TEXT("`Y 1080..1280`, fuori schermo."),
+				*URTHudZoneWidget::ZoneName(Zona->ZoneId),
+				*RTCenterFree::Descrivi(Atteso), *RTCenterFree::Descrivi(Reale)));
+		}
+	});
+
+	TestTrue(
+		*FString::Printf(TEXT("l'albero contiene delle zone da misurare (ne ha %d)"), Misurate),
+		Misurate > 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
