@@ -27,7 +27,7 @@ e senza una ricetta scritta quell'ultimo passo si rifà a memoria ogni volta.
 | Viste sanitizzate (round, roster, slot, cooldown) | `URTHudViewModel` | ✅ |
 | Catalogo icone (chiave → asset) | `URTIconCatalogData` + `URTIconLibrary` + `Content/RT/UI/DA_IconCatalog.uasset` | 🟡 esiste, **indietro di una chiave** ([#2551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2551)); il consumo dai widget è [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) |
 | Il layer che lo mette a schermo | `URTFrontendNavigator::PresentMatchHud` | ✅ **dal 2026-08-26** (#613, Task 1) |
-| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono e sono montati** — vedi §2 e §3. `WBP_RT_EventLog` ha radice, contenitore e grafo (#2784, `a7c189f9`) ed è nella `ZoneRight` dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) |
+| I `WBP_RT_*` di partita | `Content/RT/UI/Match/` | ✅ **esistono e sono montati** — vedi §2 e §3. `WBP_RT_EventLog` ha radice, contenitore e grafo (#2784, `a7c189f9`) ed è montato dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) — in `Zone_MiddleRight` dal rimontaggio del 2026-09-12, `ZoneRight` prima |
 
 > 🔁 **Corretto il 2026-09-09.** Due righe di questa tabella descrivevano come futuro ciò che è già in
 > `main`, misurato su `a897de28`. **(1)** *«Catalogo icone — il `.uasset` no»*: `Content/RT/UI/DA_IconCatalog.uasset`
@@ -84,8 +84,9 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 > altro `.uasset` tracciato la nominava. La riga riportava ciò che lo strumento di authoring aveva risposto,
 > **non ciò che il pacchetto conteneva dopo il salvataggio**.
 >
-> ✅ **Ora è vero, e lo è per misura**: `WBP_RT_EventLogRight` (classe `WBP_RT_EventLog_C`) è nella
-> `ZoneRight`, riletto dal `.uasset` dopo il salvataggio e presidiato da
+> ✅ **Ora è vero, e lo è per misura**: `WBP_RT_EventLogRight` (classe `WBP_RT_EventLog_C`) è montato —
+> nella `ZoneRight` allora, nel `Content` di `Zone_MiddleRight` dal rimontaggio del 2026-09-12 — riletto dal
+> `.uasset` dopo il salvataggio e presidiato da
 > `RefactorTactics.ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — che sull'asset precedente **fallisce**,
 > verificato eseguendolo su entrambi. ⛔ **Un `.uasset` si dichiara rileggendolo, non dalla risposta di chi
 > lo ha scritto.**
@@ -94,29 +95,69 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 ## 3. Il layout di `WBP_RT_TacticalHUD`
 
-Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro sono ancorate ai bordi; la quinta
-è definita da ciò che **non** contiene.
+Otto zone — la griglia 3×3 **meno il centro**, a fasce 20% / 60% / 20% su entrambi gli assi. Le otto celle
+sono zone; la nona, quella di mezzo, è definita da ciò che **non** contiene.
+
+⌫ *Fino al 2026-09-12 questa sezione descriveva cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER` —
+ancorate ai bordi. Non è una rinomina: `MiddleLeft` e `BottomLeft` sono due celle distinte dove prima c'era
+un solo `BOTTOM`, e **Selected Unit cambia fascia**.*
 
 ```text
-┌─────────────────────────────────────────┐
-│  TOP — TurnHeader                       │
-├──────────┬───────────────────┬──────────┤
-│ LEFT     │  CENTER           │ RIGHT    │
-│ Team     │  nessun pannello  │ Event    │
-│ Roster   │  battlefield §4.2 │ Log      │
-│          │                   │          │
-├──────────┴───────────────────┴──────────┤
-│  BOTTOM — SelectedUnitPanel + ActionDock│
-└─────────────────────────────────────────┘
+        0.0        0.2                    0.8        1.0
+   0.0  ┌──────────┬──────────────────────┬──────────┐
+        │ TopLeft  │     TopCenter        │ TopRight │   20%   0 .. 216 px
+   0.2  ├──────────┼──────────────────────┼──────────┤
+        │ Middle   │      ⛔ CENTRO        │  Middle  │
+        │ Left     │      keep-out        │  Right   │   60%   216 .. 864 px
+   0.8  ├──────────┼──────────────────────┼──────────┤
+        │ Bottom   │    BottomCenter      │  Bottom  │
+        │ Left     │                      │  Right   │   20%   864 .. 1080 px
+   1.0  └──────────┴──────────────────────┴──────────┘
+             20%            60%               20%
 ```
 
-| Zona | Contiene oggi | Owner del comportamento |
-|---|---|---|
-| `TOP` | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
-| `LEFT` | `WBP_RT_TeamRoster` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
-| `RIGHT` | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)). ⌫ *Fino a lì c'era ancora `WBP_RT_SelectedUnitPanelRight`, che questa tabella dava già per sostituito* | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
-| `BOTTOM` | `WBP_RT_SelectedUnitPanelBottom` (+ `WBP_RT_UnitCard`) e `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`), dentro `ZoneBottomContainer`; `WBP_RT_FastDecision` a runtime. ⌫ *Erano tornati due `HorizontalBox` vuoti col nome dei widget — la regressione di [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) descritta sotto* | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) |
-| `CENTER` | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+🔑 **I tagli a 0.2 e 0.8 non sono una scelta estetica**: il keep-out di `PanelsLeaveTheCenterFree` è il 60%
+centrato (`RTCenterFree::CenterFraction`), quindi il centro libero **è** la cella di mezzo di questa griglia.
+
+Ogni zona è un'istanza di `WBP_RT_HudZone` figlia **diretta** del `Canvas Panel` radice, con anchor stirati
+su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inquilino sta nel suo
+`NamedSlot Content`.
+
+| Zona | Anchors Min → Max | Contiene oggi | Owner del comportamento |
+|---|---|---|---|
+| `Zone_TopLeft` | (0.0, 0.0) → (0.2, 0.2) | `WBP_RT_TeamRosterLeft` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
+| `Zone_TopCenter` | (0.2, 0.0) → (0.8, 0.2) | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
+| `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | *vuota* — Objective, da progettare | `progettazione-hud.md` §6 |
+| `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `WBP_RT_UnitCard`) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
+| `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
+| `Zone_BottomLeft` | (0.0, 0.8) → (0.2, 1.0) | *vuota* — dichiarata senza inquilino, ed è il posto che si guarda per decidere cosa ci va | — |
+| `Zone_BottomCenter` | (0.2, 0.8) → (0.8, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
+| `Zone_BottomRight` | (0.8, 0.8) → (1.0, 1.0) | *vuota* — Confirm · Undo, da progettare | `progettazione-hud.md` §6 |
+| *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+
+⚠️ **`WBP_RT_FastDecision` NON è montato da nessuna parte**, e fino al 2026-09-12 questa tabella diceva che
+il `BOTTOM` lo conteneva *«a runtime»*. È falso, misurato:
+
+```
+python tools/uasset/names.py Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset --filtro FastDecision
+#   -> 0 nomi
+grep -rn "URTFastDecisionWidget" Source/RefactorTactics/ --include=*.cpp | grep -v /Tests/
+#   -> solo i metodi della classe: nessun CreateWidget, nessun AddChild
+```
+
+L'asset non lo referenzia e nessun C++ lo crea: la finestra di reazione di
+[#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) non può comparire in partita. Il
+montaggio sarebbe a runtime, quindi un gate sull'albero non basterebbe — ci vuole una prova che la finestra
+compaia quando la reazione si apre. Segue in
+[#3047](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3047).
+
+✅ **Due gate nuovi guardano questa griglia dal 2026-09-12**, e chiedono cose diverse:
+`RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce` — c'è una zona per ogni valore di
+`ERTHudZone`, nessuna mancante e nessuna doppia — e
+`RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`, che ricalcola il rettangolo di ogni
+zona con la formula di `SConstraintCanvas::OnArrangeChildren` e lo confronta con la sua cella. Il secondo
+esiste perché `PanelsLeaveTheCenterFree` è un gate **negativo**: dice che nessuna zona invade il centro, e
+passerebbe con tutte e otto schiacciate in un angolo.
 
 > 🔴 **Per un giorno il diagramma e la colonna «contiene oggi» hanno descritto un albero che il `.uasset`
 > non conteneva, e la ragione va ricordata perché è ripetibile.** `cc5ca967` — il commit che dichiarava
@@ -136,16 +177,23 @@ Cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER`. Le prime quattro son
 > ⚠️ **Chi rimonta un widget rilegga comunque il `.uasset` DOPO il salvataggio.** È il passo che mancava alle
 > tre dichiarazioni sbagliate; i due test lo rendono automatico solo per l'albero della HUD.
 
-🔑 **`CENTER` è una zona a contratto negativo**, e per questo non ha un `WBP_RT_CenterPanel`: si definisce
+🔑 **Il centro è una zona a contratto negativo**, e per questo non ha un `WBP_RT_CenterPanel`: si definisce
 per ciò che non deve contenere. Il criterio è misurabile — *la Screen HUD non occupa permanentemente il
 centro e non oscura le celle necessarie alla decisione* — e chi lo violasse lo farebbe allargando una delle
-altre quattro, non aggiungendo la quinta.
+altre otto, non aggiungendo la nona.
 
-⚠️ **`LEFT` è la squadra e `RIGHT` il contesto locale**, non il contrario. È l'assegnazione implementata e
-compilata; una lettura che le scambi è un **re-layout**, non una correzione, e passerebbe dal giudizio di
-`PIE-V01-SCREENHUD` sull'ingombro.
+🔑 **Per la stessa ragione il centro NON è un valore di `ERTHudZone`.** L'enum ha otto zone più la
+sentinella `Count`; un `ERTHudZone::Center` sarebbe un invito a riempirlo, cioè esattamente il difetto che
+`progettazione-hud.md` §3.1 vieta.
 
-> 🔁 **Corretto il 2026-09-09, poche ore dopo essere stato scritto sbagliato.** Questa tabella dichiarava
+⚠️ **`Zone_TopLeft` è la squadra e `Zone_MiddleRight` il contesto locale**, non il contrario. È
+l'assegnazione implementata e compilata; una lettura che le scambi è un **re-layout**, non una correzione,
+e passerebbe dal giudizio di `PIE-V01-SCREENHUD` sull'ingombro.
+
+> 🔁 **Corretto il 2026-09-09, poche ore dopo essere stato scritto sbagliato.** ⌫ *I nomi di nodo citati qui
+> sotto — `Zone_Top`, `ZoneLeft`, `ZoneRight`, `ZoneBottom` — sono quelli di **allora**: il rimontaggio del
+> 2026-09-12 li ha sostituiti con le otto celle della tabella qui sopra. Il riquadro resta perché è la
+> ragione per cui i gate esistono, non perché descriva l'albero corrente.* Questa tabella dichiarava
 > `RIGHT` **vuota**, *«e non è un difetto»*. **Falso.** Il tree è stato misurato col ponte MCP
 > (`UMGToolSet.GetWidgetDescription` su `WBP_RT_TacticalHUD`) e depositato in
 > [`test-manuali-pie.md`](../test-manuali-pie.md): *«le quattro zone reali e popolate — `Zone_Top` →

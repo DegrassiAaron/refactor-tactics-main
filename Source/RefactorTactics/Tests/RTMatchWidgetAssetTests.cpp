@@ -3,7 +3,8 @@
 // ⚠️ **Gemello di `RTFrontendWidgetAssetTests.cpp`, per la meta' che quello non copre.** Quel file prova
 // tre widget del Framework (`ErrorModal`, `FallbackBanner`, `LoadingScreen`) ed esiste per un difetto
 // misurato: il modale si armava e non compariva, e fra le due cose c'era un `FDelegateRuntimeBinding`
-// serializzato nel binario. I **sette** widget di `Content/RT/UI/Match/` non avevano nulla di equivalente:
+// serializzato nel binario. I widget di `Content/RT/UI/Match/` elencati in `Paths[]` non avevano nulla di
+// equivalente:
 // stessa classe di difetto, stessi gesti d'editor, meta' del perimetro scoperta.
 //
 // 🔴 **La domanda che questi test pongono e' una sola**: una funzione che il C++ espone al Blueprint e che
@@ -204,7 +205,7 @@ namespace
 }
 
 /**
- * I sette widget di Match esistono e si caricano.
+ * I widget di Match elencati in `Paths[]` esistono e si caricano.
  *
  * E' la verifica piu' debole del file ed e' deliberato che sia separata: se un asset viene rinominato o
  * spostato, questo test dice **quale**, mentre gli altri direbbero soltanto che un binding manca.
@@ -390,8 +391,9 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
  * fonte. Una regola che vale solo dove il codice guarda e' una raccomandazione.
  *
  * Qui si guarda l'altra meta': le proprieta' **dichiarate dalla `UWidgetBlueprintGeneratedClass`**, cioe' le
- * variabili aggiunte dentro il `.uasset`. L'infrastruttura c'era gia' tutta in questo file — le sette classi
- * si caricano per `PIE-ICON-01` e per `ActionSlotHasIconSurface` — e mancava soltanto l'asserzione.
+ * variabili aggiunte dentro il `.uasset`. L'infrastruttura c'era gia' tutta in questo file — le classi di
+ * `Paths[]` si caricano per `PIE-ICON-01` e per `ActionSlotHasIconSurface` — e mancava soltanto
+ * l'asserzione.
  *
  * ⛔ **Cosa NON copre, e va detto perche' il verde non prometta piu' di quanto misura:**
  *
@@ -456,7 +458,8 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 	// Le due controprove della premessa. Senza, questo test sarebbe verde anche se gli asset non si
 	// caricassero affatto o se l'iterazione non guardasse niente — cioe' passerebbe **misurando zero**, che
 	// e' il modo in cui un gate diventa decorativo.
-	TestEqual(TEXT("i sette widget di Match si caricano"), Caricate, static_cast<int32>(UE_ARRAY_COUNT(Paths)));
+	TestEqual(TEXT("i widget di Match elencati in `Paths[]` si caricano"), Caricate,
+		static_cast<int32>(UE_ARRAY_COUNT(Paths)));
 	TestTrue(
 		FString::Printf(TEXT("l'iterazione ha guardato delle proprieta' dichiarate dai Blueprint (ne ha viste %d)"),
 			Ispezionate),
@@ -938,12 +941,18 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 		const TCHAR* Issue;
 	};
 
+	// ⚠️ Il vocabolario e' quello a OTTO zone, non il TOP/LEFT/RIGHT/BOTTOM di prima. Il criterio non
+	// cambia — la domanda resta «c'e' un'istanza di questa classe?», e il test era verde prima ed e' verde
+	// dopo — ma l'etichetta finisce in un messaggio d'errore che rimanda a `guida-screen-hud-umg.md` §3, e
+	// quella sezione ora descrive la griglia 3x3. Un'etichetta che rimanda a una sezione cambiata sotto di
+	// lei manda chi legge a cercare una zona che non esiste piu'.
 	const FInquilino Attesi[] = {
-		{ URTTurnHeaderWidget::StaticClass(),        TEXT("TOP"),    TEXT("#613") },
-		{ URTTeamRosterWidget::StaticClass(),        TEXT("LEFT"),   TEXT("#613, #2744") },
-		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("RIGHT"),  TEXT("#2697, #1936 fetta F") },
-		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("BOTTOM"), TEXT("#613, #2760") },
-		{ URTActionDockWidget::StaticClass(),        TEXT("BOTTOM"), TEXT("#220, #2760") },
+		{ URTTurnHeaderWidget::StaticClass(),        TEXT("TopCenter"),    TEXT("#613") },
+		{ URTTeamRosterWidget::StaticClass(),        TEXT("TopLeft"),      TEXT("#613, #2744") },
+		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("MiddleRight"),  TEXT("#2697, #1936 fetta F") },
+		// ⚠️ MiddleLeft e non BottomLeft: Selected Unit cambia fascia col rimontaggio delle otto zone.
+		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("MiddleLeft"),   TEXT("#613, #2760") },
+		{ URTActionDockWidget::StaticClass(),        TEXT("BottomCenter"), TEXT("#220, #2760") },
 	};
 
 	for (const FInquilino& Atteso : Attesi)
@@ -957,7 +966,9 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 			}
 		});
 
-		AddInfo(FString::Printf(TEXT("  %-34s zona %-6s -> %d istanza/e"),
+		// `%-12s` e non `%-6s`: i nomi a otto zone arrivano a `BottomCenter`, e una colonna troppo stretta
+		// non tronca ma sfalsa tutte le righe successive, rendendo il report peggiore di nessun report.
+		AddInfo(FString::Printf(TEXT("  %-34s zona %-12s -> %d istanza/e"),
 			*Atteso.Classe->GetName(), Atteso.Zona, Conta));
 
 		if (Conta == 0)
