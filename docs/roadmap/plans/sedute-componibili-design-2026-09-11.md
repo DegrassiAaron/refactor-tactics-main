@@ -525,12 +525,12 @@ già da sé. Il registro ha **240** voci, non le 230 che §1 riportava.
 
 | | |
 |---|---|
-| `requires` dichiarati / righe di `wiring` | **2** / **169** |
+| `requires` dichiarati / righe di `wiring` — `compare_rassegna.py`; `grep -c '^  - check:' docs/roadmap/sedute-mattoni.yaml` | **2** / **169** |
 | check esaminati dal verbale / bacino | **118** / **118** |
 | `compare_legacy.py` | `PASS` — persi: nessuno, guadagnati: nessuno, coda scoperta: **47** |
 | `compare_rassegna.py` | `PASS` — comparsi dopo la rassegna: nessuno |
-| aperture calcolate | **6** |
-| check stampati come bloccati | **2** |
+| aperture calcolate — `compare_legacy.py` | **6** |
+| check stampati come bloccati — `build_agenda.py --out build/ordine-del-giorno.md`, poi ``grep -c "^- `PIE-.*` — " build/ordine-del-giorno.md`` | **2** |
 
 **La promessa di §12 è esercitata oppure no**: `PIE-V01-FRONTEND-PAUSE` compare sotto i bloccati
 di `SET-FRONTEND` con `WBP_RT_PauseMenu non esiste in Content/` — e `SET-FRONTEND` resta
