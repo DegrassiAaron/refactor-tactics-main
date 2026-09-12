@@ -724,6 +724,12 @@ stesso checkpoint.
 > è la misura che quella catena è davvero esercitata, non solo compilata.
 > ⛔ **Il branch citato sopra non esiste più**, e i riferimenti di riga di questo riquadro sono anteriori
 > allo spostamento di `RTTurnManager.cpp` sotto `Turn/`.
+>
+> ⚠️ **E `#653` è `v0.1`, mentre questa epic resta `post-v0.1`.** Il perimetro è stato deciso lo
+> stesso giorno: `CP 38.7` è entrata nella release perché [#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410) la richiedeva, e
+> `E38` non si è mossa. Il checkpoint **attraversa** le release, ed è un'eccezione dichiarata — non un
+> residuo da riconciliare, e non un motivo per portare qui il resto dell'epic. `#641` e `#666`
+> restano `post-v0.1`. Registrato in [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 98.
 
 **Non fa**: i valori (`AE-5` per lo `Sneak`; ~~`AE-4` per la risorsa firma~~ — chiusa da `D-265`/`D-324`, vedi #2357) · il costo del pivot (`FAC-12`, che
 si guarda alla revisione dei numeri di ADR-0008) · i fatti del percorso (`AE-3`) · il workbook di
