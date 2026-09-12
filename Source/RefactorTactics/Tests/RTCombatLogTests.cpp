@@ -842,9 +842,19 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
 	ARTUnit* Mia = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 0, FRTCellId(0, 0, 0));
 	ARTUnit* Nemica = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(1, 0, 0));
-	// ⚠️ L'ostacolo e' della squadra AVVERSARIA, non della mia: un alleato piazzato li' vedrebbe la nemica
-	// da un passo di distanza e la terrebbe `Live`, cioe' smonterebbe la premessa del test.
-	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 1, FRTCellId(4, 0, 0));
+	// ⚠️ L'ostacolo non e' della MIA squadra: un alleato piazzato li' vedrebbe la nemica da un passo di
+	// distanza e la terrebbe `Live`, cioe' smonterebbe la premessa del test.
+	//
+	// 🔴 **E non e' nemmeno della squadra della NEMICA, dal 2026-09-11** (#3051). Era `TeamId = 1` come lei,
+	// e #2984 ([D-396], *«le compagne si attraversano — il permesso viene dalla squadra»*) ha aggiunto al
+	// ciclo dell'arco la seconda permissione: `if (!bMayCross && !AreAllies(State, UnitIdx, Occupante))`.
+	// Fra COMPAGNE l'attraversamento non passa da `bMayCross`, quindi il muro veniva scavalcato, la nemica
+	// arrivava a destinazione e **nessuna voce Move bloccata** entrava nel TurnLog: la premessa piu' sotto
+	// cadeva, e la suite era rossa su `main`.
+	//
+	// 🔑 **Una TERZA squadra soddisfa entrambi i vincoli**, che sono opposti e vanno tenuti insieme: non
+	// alleata di `Mia` — la nemica resta un ricordo — e non alleata della `Nemica` — l'arco non la scavalca.
+	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 2, FRTCellId(4, 0, 0));
 	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
 		|| !TestNotNull(TEXT("unita' mia"), Mia) || !TestNotNull(TEXT("unita' nemica"), Nemica)
 		|| !TestNotNull(TEXT("l'ostacolo"), Muro))
@@ -866,19 +876,12 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	// Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
 	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno.
 	//
-	// 🔴 **Il percorso finisce SULL'ostacolo, e dal 2026-09-11 non e' un dettaglio** (#3051). Prima puntava
-	// a `(3,0,0)`, una cella oltre il muro, e il blocco arrivava lo stesso perche' qualunque occupante
-	// fermava chi passava. Poi #3012 ha stabilito che un arco di attraversamento **scavalca gli occupanti
-	// FERMI** (`CellHeldByStationaryOther`, `RTHexSimLibrary.cpp`): il muro e' fermo per costruzione, quindi
-	// veniva scavalcato, la nemica arrivava a `(3,0,0)` e **nessuna voce Move bloccata** entrava nel
-	// TurnLog. La premessa qui sotto cadeva, ed e' cosi' che il difetto si e' visto.
-	//
-	// 🔑 **Cio' che blocca ora e' l'assenza di una cella libera a valle**, che e' l'altro ramo dichiarato
-	// dallo stesso commit: *«nessuna cella libera a valle -> non si attraversa affatto»*. Con il percorso
-	// che termina sulla cella del muro, l'arco non ha dove atterrare e il blocco torna — **senza** toccare
-	// la regola nuova, che e' accettata.
-	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0) };
-	Nemica->PlannedCell = FRTCellId(4, 0, 0);
+	// ⚠️ **La destinazione deve restare LIBERA.** Puntare il piano sulla cella del muro bloccherebbe anche
+	// oggi, ma dichiarerebbe una meta che nessun produttore legale genera: [D-396] tiene l'occupante nel
+	// blocked-set quando *e'* la meta, e `ReachableCells` toglie le celle occupate. Reggerebbe solo finche'
+	// `ResolveMovement` prende `PlannedPath` alla lettera senza rivalidare l'arrivo. Trovato in code review.
+	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0), FRTCellId(3, 0, 0) };
+	Nemica->PlannedCell = FRTCellId(3, 0, 0);
 	Muro->PlannedCell = Muro->Cell; // fermo: e' l'ostacolo
 	RTCombatLogFixture::RunTurn(TM);
 
