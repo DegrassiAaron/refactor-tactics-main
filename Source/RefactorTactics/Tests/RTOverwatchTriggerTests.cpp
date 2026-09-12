@@ -836,112 +836,81 @@ bool FRTOverwatchHoldKeepsArmedTest::RunTest(const FString&)
 
 
 /**
- * TRE nemici in fila: il primo non consuma l'Overwatch, il secondo si', il terzo passa indisturbato
- * (#3031 CHECKPOINT D).
+ * `FRTOverwatchWatcher` non porta stato PER BERSAGLIO, quindi una carica per bersaglio non e'
+ * rappresentabile a questo livello (`#3031` CHECKPOINT D).
  *
- * 🔴 **La proprieta' e' che la charge sia UNA PER WATCHER, non una per bersaglio**, e nessun gate la
- * osservava. `Overwatch.HoldKeepsArmed` prova il `HOLD` e lo `Spent` su **un solo** bersaglio, che e' lo
- * stesso in entrambi i passi; `Overwatch.TriggersPerMicroStep` conta le finestre di **un** mover. Nessuno dei
- * due distingue un'implementazione che tenga il consumo per COPPIA watcher-bersaglio — la quale sparerebbe
- * tre volte con un solo armamento e resterebbe verde su tutto questo file.
+ * 🔴 **E' cio' che resta di un test che pretendeva di misurare altro, ed e' una correzione fatta in code
+ * review.** La prima stesura si chiamava `ChargeIsPerWatcherNotPerTarget` e costruiva tre nemici in fila per
+ * dimostrare che «il primo non consuma, il secondo si', il terzo non trova nulla». **Non poteva cadere sul
+ * difetto che nominava**, e la ragione e' che modellava il `FIRE` scrivendosi da se' `bArmed = false`:
  *
- * Lo scenario, tre nemici distinti che entrano in tre micro-step distinti:
+ *   · `FRTOverwatchWatcher::bArmed` NON e' la carica. La carica e' `FRTArmedOverwatch::bCharged`
+ *     (`RTTurnManager.h`), la consuma `ARTTurnManager::ApplyReactionDecision` e la filtra
+ *     `ARTTurnManager::BuildOverwatchTriggersForMicroStep` **prima** di costruire il watcher;
+ *   · li' `W.bArmed = true` si scrive **incondizionatamente** (`RTTurnManager_Movement.cpp`), quindi in
+ *     partita quel flag e' sempre vero e l'unico consumatore e' la guardia
+ *     `if (!Watcher.bArmed || …) continue` di `BuildOverwatchTriggers`;
+ *   · ∴ un'implementazione che tenesse la carica per COPPIA watcher-bersaglio non toccherebbe `bArmed`, il
+ *     test gli passerebbe comunque `false` a mano, osserverebbe `0` e resterebbe verde.
  *
- * | Passo | Chi entra | Risposta | `bArmed` dopo |
- * |---|---|---|---|
- * | 0 | `7` in `(1,0,0)` | `HOLD` — si lascia passare per il bait | resta `true` |
- * | 1 | `8` in `(2,0,0)` | `FIRE` sul bersaglio `8` | diventa `false` |
- * | 2 | `9` in `(3,0,0)` | nessuna finestra: la charge e' spesa | `false` |
+ * ⚠️ La mutazione che avevo eseguito — `bArmed` che non si spende — falsificava solo *«il flag viene
+ * letto»*, ed era soddisfatta anche dal gemello `Overwatch.HoldKeepsArmed`. Un'assertion che scatta non e'
+ * la prova che il gate misuri la proprieta': e' precisamente il difetto che
+ * `Actions.CanonicalOrderCoversInstanceFields` esiste per chiudere, nella stessa PR.
  *
- * ⛔ **Il controfattuale del passo 2 non e' un extra, e' cio' che rende `0` un'evidenza.** Senza di lui lo
- * zero finale potrebbe venire dalla geometria — `(3,0,0)` fuori zona, o il nemico `9` non dichiarato
- * `Detected` — invece che dal consumo, e il test direbbe verde su un difetto diverso. La riga con il watcher
- * ancora armato deve dare `1` sullo STESSO mover.
+ * 🔑 **Cio' che a QUESTO livello e' misurabile, ed e' questo test**: il DTO del watcher non ha un campo in
+ * cui uno stato per-bersaglio potrebbe vivere. Finche' resta cosi', `BuildOverwatchTriggers` non PUO'
+ * discriminare fra bersagli, e la proprieta' e' vera per costruzione — che e' un fatto forte, purche'
+ * qualcuno lo sorvegli. Stessa forma di `BlindFire.BlastPreviewFieldsStayClosed` e di
+ * `Overwatch.OpportunityLeaksNoFuture`.
  *
- * ⚠️ Cio' che questo test NON copre, e va detto: non applica la risposta attraverso il boundary reale
- * (`ApplyReactionDecision`) — il `FIRE` e' modellato azzerando `bArmed`, che e' cio' che il boundary fa e
- * che `Overwatch.HoldKeepsArmed` dichiara (*«`bArmed` e' cio' che il boundary azzera su un `FIRE`»*). Il
- * troncamento del movimento e' `Overwatch.FireTruncatesFutureMovement`; qui si misura la charge.
+ * ⛔ **La meta' COMPORTAMENTALE non vive qui e non e' stata abbandonata**: appartiene a una partita vera,
+ * dove `bCharged` e' la carica, e la porta lo scenario `Spec.Resolver.IntegratedTurn` (#3031 CHECKPOINT H).
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchChargeIsPerWatcherNotPerTargetTest,
-	"RefactorTactics.Overwatch.ChargeIsPerWatcherNotPerTarget",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOverwatchWatcherCarriesNoPerTargetStateTest,
+	"RefactorTactics.Overwatch.WatcherCarriesNoPerTargetState",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTOverwatchChargeIsPerWatcherNotPerTargetTest::RunTest(const FString&)
+bool FRTOverwatchWatcherCarriesNoPerTargetStateTest::RunTest(const FString&)
 {
-	URTHexMapAsset* Map = MakeOverwatchMap();
+	UScriptStruct* Struct = FRTOverwatchWatcher::StaticStruct();
+	if (!TestNotNull(TEXT("FRTOverwatchWatcher risolta dalla reflection"), Struct)) { return false; }
 
-	// Sentinella in (0,0,0) verso est: controlla (1,0,0)...(4,0,0). Tutti e tre i nemici sono VISTI, cosi'
-	// nessuno dei tre zeri puo' venire dalla conoscenza.
-	FRTOverwatchWatcher Armed = MakeOverwatchWatcher(Map, /*OwnerId*/ 1, /*TeamId*/ 0,
-		FRTCellId(0, 0, 0), FRTCellId(1, 0, 0));
-	Armed.TeamAwareness.Add(7, ERTAwareness::Detected);
-	Armed.TeamAwareness.Add(8, ERTAwareness::Detected);
-	Armed.TeamAwareness.Add(9, ERTAwareness::Detected);
+	// Perche' ciascuno e' ammesso, e perche' NESSUNO puo' ospitare un contatore per bersaglio:
+	//   `Zone` / `OwnerCell`          — geometria, che non dipende da chi la attraversa;
+	//   `ReactionDefId`               — quale reaction, non contro chi;
+	//   `DeclaredCondition`           — la condizione dichiarata in pianificazione;
+	//   `TeamAwareness`               — l'unica mappa indicizzata per unita', e dice cosa la SQUADRA vede:
+	//                                   e' un ingresso della condizione di trigger, non una carica spesa;
+	//   i quattro `*Priority`/`*Id`   — i tie-break di ADR-0004 §4 e l'identita' della reaction;
+	//   `bArmed`                      — per WATCHER, e in partita sempre vero (vedi sopra).
+	const TSet<FString> Ammessi = {
+		TEXT("Zone"), TEXT("OwnerCell"), TEXT("ReactionDefId"), TEXT("DeclaredCondition"),
+		TEXT("TeamAwareness"), TEXT("ReactionPriority"), TEXT("AbilityPriority"),
+		TEXT("UnitInitiative"), TEXT("StableUnitId"), TEXT("ReactionInstanceId"), TEXT("bArmed")
+	};
 
-	const FRTSuppressionMover Primo   = MakeOverwatchMover(7, /*TeamId*/ 1, { FRTCellId(1, 0, 0) });
-	const FRTSuppressionMover Secondo = MakeOverwatchMover(8, /*TeamId*/ 1, { FRTCellId(2, 0, 0) });
-	const FRTSuppressionMover Terzo   = MakeOverwatchMover(9, /*TeamId*/ 1, { FRTCellId(3, 0, 0) });
-
-	// --- Passo 0: il primo entra, e si risponde HOLD ----------------------------------------------------
-	const TArray<FRTOverwatchTrigger> Passo0 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 5, { Armed }, { Primo }, {}, /*Step*/ 0);
-	if (!TestEqual(TEXT("il primo nemico apre una finestra"), Passo0.Num(), 1)) { return false; }
-	TestEqual(TEXT("e il bersaglio offerto e' il primo"), Passo0[0].TargetUnitIds, TArray<int32>{ 7 });
-
-	// `HOLD` non spende la charge: il watcher del passo dopo e' ANCORA questo, non una copia disarmata.
-	FRTOverwatchWatcher DopoHold = Armed;
-
-	// --- Passo 1: il secondo entra, la finestra si apre ancora, e si risponde FIRE ----------------------
-	const TArray<FRTOverwatchTrigger> Passo1 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 5, { DopoHold }, { Secondo }, {}, /*Step*/ 1);
-	if (!TestEqual(TEXT("dopo l'HOLD sul primo, il secondo apre la sua finestra"), Passo1.Num(), 1))
+	for (TFieldIterator<FProperty> It(Struct); It; ++It)
 	{
-		return false;
-	}
-	TestEqual(TEXT("il bersaglio offerto e' il secondo, non quello lasciato passare"),
-		Passo1[0].TargetUnitIds, TArray<int32>{ 8 });
-	TestTrue(TEXT("fra le risposte c'e' il FIRE sul secondo"),
-		Passo1[0].Opportunity.AllowedResponses.Contains(URTReactionOpportunityLibrary::FireResponse(8)));
-
-	// Le due finestre sono DISTINTE: se condividessero l'id, il replay attribuirebbe l'HOLD del primo alla
-	// decisione presa sul secondo.
-	TestNotEqual(TEXT("le due finestre hanno due id distinti"),
-		URTReactionOpportunityLibrary::DeriveOpportunityId(Passo0[0].Opportunity.Key),
-		URTReactionOpportunityLibrary::DeriveOpportunityId(Passo1[0].Opportunity.Key));
-
-	// Il `FIRE` spende la charge: e' cio' che il boundary fa.
-	FRTOverwatchWatcher DopoFire = DopoHold;
-	DopoFire.bArmed = false;
-
-	// --- Passo 2: il terzo entra, e non trova niente ----------------------------------------------------
-	const TArray<FRTOverwatchTrigger> Passo2 = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 5, { DopoFire }, { Terzo }, {}, /*Step*/ 2);
-	TestEqual(TEXT("speso il colpo sul secondo, il terzo nemico passa senza finestra"), Passo2.Num(), 0);
-
-	// --- Il CONTROFATTUALE: lo stesso passo 2, con la charge ancora intatta ------------------------------
-	//
-	// ⛔ Senza questa riga lo zero qui sopra non prova il consumo: proverebbe solo che al passo 2 non si apre
-	// nulla, e la ragione potrebbe essere la geometria o la conoscenza. Stesso mover, stesso passo, stessa
-	// mappa — cambia SOLO `bArmed`.
-	const TArray<FRTOverwatchTrigger> Controfattuale = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 5, { DopoHold }, { Terzo }, {}, /*Step*/ 2);
-	if (TestEqual(TEXT("controfattuale: col colpo ancora intatto il terzo APRIREBBE una finestra"),
-		Controfattuale.Num(), 1))
-	{
-		TestEqual(TEXT("e il bersaglio sarebbe il terzo"),
-			Controfattuale[0].TargetUnitIds, TArray<int32>{ 9 });
+		const FString Nome = It->GetName();
+		if (!Ammessi.Contains(Nome))
+		{
+			AddError(FString::Printf(
+				TEXT("FRTOverwatchWatcher espone il campo '%s', che non e' nell'elenco chiuso. Se puo' tenere ")
+				TEXT("uno stato PER BERSAGLIO — «su questo ho gia' sparato», «su questo ho gia' chiesto» — ")
+				TEXT("allora `BuildOverwatchTriggers` puo' discriminare fra bersagli, e la carica smette di ")
+				TEXT("essere una per watcher: la sede della carica e' `FRTArmedOverwatch::bCharged`, non ")
+				TEXT("questo DTO. Se invece NON lo e', aggiungilo qui con la ragione (#3031)"), *Nome));
+		}
 	}
 
-	// --- E il verso che smaschera il consumo per COPPIA -------------------------------------------------
-	//
-	// 🔴 Un'implementazione che tenesse la charge per watcher-bersaglio direbbe: «sul 9 non ho ancora
-	// sparato, quindi posso». Il watcher e' speso, e nessun bersaglio nuovo la riapre — nemmeno uno che non
-	// ha mai visto. Qui il terzo e' proprio quello: `DopoFire` non ha mai avuto una finestra su `9`.
-	const TArray<FRTOverwatchTrigger> BersaglioMaiVisto = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
-		Map, /*TurnNumber*/ 5, { DopoFire }, { Terzo, Secondo, Primo }, {}, /*Step*/ 2);
-	TestEqual(TEXT("un watcher speso non riapre per nessun bersaglio, nemmeno tutti e tre insieme"),
-		BersaglioMaiVisto.Num(), 0);
-
+	// E il verso opposto: `bArmed` e' ancora l'unico booleano di stato, e `TeamAwareness` l'unica mappa per
+	// unita'. Se uno dei due scomparisse, l'elenco qui sopra descriverebbe una struttura che non esiste piu'
+	// e il presidio diventerebbe una lista di nomi morti.
+	for (const FString& Atteso : Ammessi)
+	{
+		TestNotNull(*FString::Printf(TEXT("FRTOverwatchWatcher dichiara ancora '%s'"), *Atteso),
+			Struct->FindPropertyByName(FName(*Atteso)));
+	}
 	return true;
 }
 
