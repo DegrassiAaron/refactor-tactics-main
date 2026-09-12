@@ -58,25 +58,37 @@ public class RefactorTactics : ModuleRules
 		// #950 / #923: `Tests/` E' COMPILATA IN OGNI TARGET, E NON E' UNA DIMENTICANZA.
 		//
 		// Qui non c'e' nessuna condizione su `Target.Configuration` che escluda `Tests/`, e la ragione va
-		// scritta qui perche' e' qui che verrebbe voglia di aggiungerla. Tre volte — 2026-08-09
-		// (`RTHexSimTests.cpp`), 2026-08-11 (`RTNoisePropagationTests.cpp`), 2026-08-23/24
-		// (`RTFrontendNavigationTests.cpp` e `RTScenarioRunnerTests.cpp`) — codice di test lasciato fuori
-		// da `#if WITH_DEV_AUTOMATION_TESTS` ha rotto la sola build Shipping, e ogni volta la domanda
+		// scritta qui perche' e' qui che verrebbe voglia di aggiungerla. E' successo in `RTHexSimTests.cpp`
+		// (2026-08-09), `RTNoisePropagationTests.cpp` (2026-08-11), `RTFrontendNavigationTests.cpp`
+		// (2026-08-23, #1292), `RTScenarioRunnerTests.cpp` (2026-08-24, #1312) e di nuovo in
+		// `RTHexSimTests.cpp` (2026-09-10, #2959): ogni volta codice di test lasciato fuori da
+		// `#if WITH_DEV_AUTOMATION_TESTS` ha rotto la sola build Shipping, e ogni volta la domanda
 		// «perche' non escludiamo i test dal target gioco?» e' tornata senza trovare una risposta scritta.
+		// ⛔ L'elenco e' per NOME e non per conteggio di proposito: un numero in prosa invecchia da solo, e
+		// questo e' cresciuto due volte da quando #923 lo dava per «due».
 		//
 		// ⛔ **Non si escludono con una riga qui, e questo e' il primo fatto**: `ModuleRules` non espone
-		// nessuna API di esclusione dei sorgenti — `grep -n "Exclude"` su
-		// `Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` (UE 5.8) trova un
-		// commento su unity build e zero proprieta'. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`.
-		// L'alternativa vera non e' una condizione: e' un **modulo separato**, con i suoi `.Build.cs`, il
-		// suo posto nel `.uproject` e l'export dei simboli che oggi i test raggiungono perche' stanno
-		// dentro lo stesso modulo. E' un lavoro, non una riga.
+		// nessuna API di esclusione dei sorgenti —
+		// `grep -ic exclud Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` risponde
+		// **0** su UE 5.8. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`. L'alternativa vera non e'
+		// una condizione: e' un **modulo separato**, con i suoi `.Build.cs`, il suo posto nel `.uproject` e
+		// l'export dei simboli che oggi i test raggiungono perche' stanno dentro lo stesso modulo. E' un
+		// lavoro, non una riga.
+		// ⚠️ La prima stesura di questo commento diceva che quel grep «trova un commento su unity build»: era
+		// falso, ed e' stato corretto in code review. Il match veniva da una ricerca piu' larga, su
+		// `SourceFiles`. Un'evidenza che non riproduce scredita il blocco che dovrebbe sostenere.
 		//
 		// 🔑 **E il target Game Development ha i test ACCESI**: `WITH_DEV_AUTOMATION_TESTS` vale 1 in ogni
 		// configurazione tranne `Test` e `Shipping` (`UnrealBuildTool/Configuration/UEBuildTarget.cs:6311`,
 		// UE 5.8). Il pacchetto che il runbook costruisce e' `-clientconfig=Development`
 		// (`docs/technical/runbooks/test-e-diagnosi.md` §1): li' i test sono nel binario del gioco **e
 		// istanziati**, cioe' interrogabili fuori dall'editor. Escluderli toglierebbe quella possibilita'.
+		// ⚠️ **Quella riga e' il DEFAULT, e tre flag di `TargetRules` lo scavalcano nelle due direzioni**
+		// (`UEBuildTarget.cs:6313-6324`): `bForceCompileDevelopmentAutomationTests` lo forza a 1 **anche in
+		// Shipping**, `bForceDisableAutomationTests` lo forza a 0 **anche in Development**. Misurato il
+		// 2026-09-12: `grep -r` su `Source/` non ne trova nessuno, quindi qui il default vale — ed e' questo
+		// il fatto, non un invariante del motore. Chi ne impostasse uno in un `*.Target.cs` inverte in
+		// silenzio tutto il ragionamento di questo commento.
 		//
 		// ⚠️ **In Shipping invece NON sono nel binario, e la deduzione contraria e' gia' stata falsificata
 		// una volta**: `WITH_AUTOMATION_WORKER` vale 0 (`Core/Public/Misc/Build.h:127`), la macro prende il

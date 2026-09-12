@@ -4,8 +4,11 @@
 > come si risale alla causa quando qualcosa non torna.
 > **Complementare a** [`debug-vs-unreal.md`](debug-vs-unreal.md), che copre il *debugger* (breakpoint, step,
 > Live Coding). Qui si parla di **verifica automatica** e di **lettura degli esiti**.
-> `CURRENT` · **Ultimo aggiornamento**: 2026-08-08 (verificata contro `Scenarios/` e `ScenarioHarness/`:
-> cinque scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria).
+> `CURRENT` · **Ultimo aggiornamento**: 2026-09-12 — §1 acquisisce *«Perché i test sono compilati anche nel
+> target gioco»* ([#950](https://github.com/DegrassiAaron/refactor-tactics-main/issues/950)). ⚠️ Il resto del
+> documento porta ancora la verifica del **2026-08-08** (contro `Scenarios/` e `ScenarioHarness/`: cinque
+> scenari, quattro comandi console, percorsi corretti — nessuna correzione necessaria), e non è stato
+> rimisurato: le due date stanno insieme perché dicono cose diverse.
 > La **spec** dell'harness — schema, assertion, esiti, `StateHash` — è
 > [`test-automatico-unreal.md`](../tooling/test-automatico-unreal.md).
 
@@ -49,15 +52,18 @@ grep "Partita finita" <log>   # la partita si gioca DA SOLA: i bot giocano entra
 
 #### Perché i test sono compilati anche nel target gioco, e chi paga il prezzo
 
-La domanda torna ogni volta che la guardia dimenticata rompe la Shipping — tre volte finora, e ogni volta
+La domanda torna ogni volta che la guardia dimenticata rompe la Shipping — `RTHexSimTests.cpp` (2026-08-09),
+`RTNoisePropagationTests.cpp` (2026-08-11), `RTFrontendNavigationTests.cpp` (2026-08-23),
+`RTScenarioRunnerTests.cpp` (2026-08-24) e di nuovo `RTHexSimTests.cpp`
+([#2959](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2959), 2026-09-10) — e ogni volta
 senza una risposta scritta ([#950](https://github.com/DegrassiAaron/refactor-tactics-main/issues/950)).
 La risposta è qui, e il commento che la ripete sta in `Source/RefactorTactics/RefactorTactics.Build.cs`,
 dove qualcuno sarebbe sul punto di aggiungere l'esclusione.
 
 | | |
 |---|---|
-| **Escludere `Tests/` è una riga in `Build.cs`?** | ⛔ **No.** `ModuleRules` non espone nessuna API di esclusione dei sorgenti — `grep -n "Exclude"` su `Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` (UE 5.8) trova un commento su unity build e zero proprietà. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`. L'alternativa vera è un **modulo separato** |
-| **Il target Game Development ha i test accesi?** | ✅ **Sì.** `WITH_DEV_AUTOMATION_TESTS` vale 1 in ogni configurazione tranne `Test` e `Shipping` (`UnrealBuildTool/Configuration/UEBuildTarget.cs:6311`). Il pacchetto del punto 2 qui sopra è `-clientconfig=Development`: lì i test sono nel binario del gioco **e istanziati** |
+| **Escludere `Tests/` è una riga in `Build.cs`?** | ⛔ **No.** `ModuleRules` non espone nessuna API di esclusione dei sorgenti — `grep -ic exclud Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/ModuleRules.cs` risponde **0** su UE 5.8. UBT compila **tutti** i `.cpp` sotto `ModuleDirectory`. L'alternativa vera è un **modulo separato** |
+| **Il target Game Development ha i test accesi?** | ✅ **Sì.** `WITH_DEV_AUTOMATION_TESTS` vale 1 in ogni configurazione tranne `Test` e `Shipping` (`UnrealBuildTool/Configuration/UEBuildTarget.cs:6311`). Il pacchetto del punto 2 qui sopra è `-clientconfig=Development`: lì i test sono nel binario del gioco **e istanziati**. ⚠️ È il **default**: tre flag di `TargetRules` lo scavalcano nelle due direzioni (`:6313-6324`), e questo progetto non ne imposta nessuno — misurato, non assunto |
 | **E in Shipping finiscono nella build distribuita?** | ⛔ **No, ed è una deduzione già falsificata.** `WITH_AUTOMATION_WORKER` vale 0 (`Core/Public/Misc/Build.h:127`), la macro definisce la classe senza istanziarla e `/OPT:REF` la scarta: togliere 89 test dal binario Shipping cambiò **1024 byte su 166 MB** ([#923](https://github.com/DegrassiAaron/refactor-tactics-main/issues/923)) |
 
 ∴ il prezzo della scelta è che `#if WITH_DEV_AUTOMATION_TESTS` è **obbligatoria** in ogni `.cpp` di `Tests/`,
@@ -70,8 +76,14 @@ stesso elenco: *«nessuna **riga** di `Tests/` resta fuori»* e *«nessun file h
 
 Gli header sono fuori dal criterio per una ragione misurata, non per comodità: i `.cpp` li includono **fuori**
 dalla propria guardia, quindi un header di `Tests/` è compilato in ogni target e deve compilare **senza** la
-macro. Racchiuderlo nella guardia lo renderebbe vuoto proprio dove serve che compili. Ciò che un header non
-può fare è **dichiarare un test**, perché quella dichiarazione sfuggirebbe all'oracolo che guarda i `.cpp`.
+macro. Racchiuderlo nella guardia lo renderebbe vuoto proprio dove serve che compili.
+
+Ciò che un header non può fare è **dichiarare un test**. 🔴 **E qui l'invariante si rovescia rispetto al resto
+di questa sezione**: in Shipping la macro emette la sola definizione di classe (`AutomationTest.h:4367`), che
+in un header `#pragma once` è ODR-legale e **compila**; in Editor e Development emette *anche* l'istanza in
+namespace anonimo (`:4297-4302`), e un header incluso da due `.cpp` la duplica nello stesso unity blob e
+registra lo stesso nome di test due volte. Il difetto lo incontra **chi lavora**, non chi impacchetta — ed è
+il contrario di quanto la prima stesura di questa sezione affermava, corretto in code review.
 
 Due oracoli tengono le due metà, e falliscono nella suite Editor invece che alla prossima build di release:
 
