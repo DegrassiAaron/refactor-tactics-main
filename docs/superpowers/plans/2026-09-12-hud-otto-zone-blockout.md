@@ -19,6 +19,8 @@
   ```
   Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
   ```
+- 🔴 **Usa `;Quit`, mai `+Quit`**, dentro `-ExecCmds`. Non è stile: correlazione misurata il 2026-09-12 su venti log di `Saved/Logs/` di questo clone — **cinque run su cinque con `+Quit` non hanno mai scritto il terminatore `**** TEST COMPLETE. EXIT CODE: n ****`**, cioè il processo non è mai uscito ed è rimasto a tenere il mutex del motore; con `;Quit` è accaduto in un caso su tredici. L'ipotesi, **non verificata sul parser**, è che con `+` il comando `Quit` venga assorbito nel filtro dei test — che continua a funzionare per prefisso, quindi i test girano e nessuno si accorge di niente — e lo spegnimento non avvenga mai. ⛔ `test-e-diagnosi.md` §2 prescrive tuttora `+Quit`: è la fonte dell'errore, ed è il punto 0 di [#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049).
+- ⚠️ **Anche con `;Quit` il processo può restare appeso.** Se succede, **non aspettarlo**: l'esito vero sta in `Saved/Logs/RefactorTactics.log`, e si riconosce col confronto dei conteggi — `Found N` contro le righe `Test Completed.`. Quando combaciano, la suite è finita a prescindere da cosa faccia il processo; a quel punto terminalo. Un timeout più corto non è un rimedio: è lo stesso difetto con un numero diverso.
 - **Lingua**: commenti e messaggi di test in italiano, come il resto di `Source/RefactorTactics/UI/` e `Tests/`.
 - **Niente totali volatili** nei commit, nelle issue e nei documenti (`AGENTS.md` §14). Un conteggio che è *evidenza misurata* resta, col comando che lo produce.
 - **Palette**: ⛔ i colori del blockout **non** usano le tinte Okabe-Ito del gioco (`#009E73` Movement, `#D55E00` Attack, `#0072B2` Utility, `#56B4E9` Defense): sono già impegnate semanticamente.
@@ -342,7 +344,7 @@ Atteso: `Build succeeded`.
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
   "D:\Repositories\refactor-tactics-refactor\RefactorTactics.uproject" `
-  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.HudZone+Quit" `
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.HudZone;Quit" `
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -505,7 +507,7 @@ Atteso: `Build succeeded`.
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
   "D:\Repositories\refactor-tactics-refactor\RefactorTactics.uproject" `
-  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce+Quit" `
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce;Quit" `
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -686,7 +688,7 @@ Atteso: `Build succeeded`.
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
   "D:\Repositories\refactor-tactics-refactor\RefactorTactics.uproject" `
-  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid+Quit" `
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid;Quit" `
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -701,7 +703,7 @@ grep -E "ZoneRectangles|Test Completed|Failed" Saved/Logs/RefactorTactics.log | 
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
   "D:\Repositories\refactor-tactics-refactor\RefactorTactics.uproject" `
-  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud+Quit" `
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud;Quit" `
   -unattended -nopause -nullrhi -NoSound
 ```
 
@@ -923,7 +925,7 @@ Atteso: gli stessi widget dello Step 1 (con `SelectedUnitPanelLeft` al posto di 
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" `
   "D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" `
-  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud+Quit" `
+  -ExecCmds="Automation RunTests RefactorTactics.ScreenHud;Quit" `
   -unattended -nopause -nullrhi -NoSound
 ```
 
