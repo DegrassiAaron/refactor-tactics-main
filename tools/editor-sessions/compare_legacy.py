@@ -67,6 +67,7 @@ def main() -> int:
     vecchio = yaml.safe_load(a.vecchio.read_text(encoding="utf-8")) or {}
     r = confronta(gruppi, scoperta, vecchio.get("sessions") or [], stato)
 
+    print(f"cache GitHub: istantanea {cache.get('fetched', 'senza data')}")
     print(f"aperture calcolate: {r['aperture']}   sedute scritte: {r['sedute']}")
     print("PERSI — convocati da una seduta e non dall'agenda:")
     for c in r["persi"] or ["  (nessuno)"]:

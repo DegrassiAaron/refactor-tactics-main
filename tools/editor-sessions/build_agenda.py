@@ -111,6 +111,7 @@ def main() -> int:
     print(f"scritto {a.out}")
     print(f"aperture: {len([g for g in gruppi if g.liberi])}")
     print(f"voci in coda scoperta: {len(scoperta)}")
+    print(f"cache GitHub: istantanea {cache.get('fetched', 'senza data')}")
     return 0
 
 

@@ -16,8 +16,10 @@
 #   feature:<Nome>#<issue>    la condizione non e' ottenibile
 #
 # `asset` interroga `git ls-files Content`. Gli altri quattro interrogano la cache GitHub e
-# NIENT'ALTRO: chi chiude la issue toglie il bloccante, ed e' l'unico modo in cui un check
-# torna nell'agenda da solo. Un numero che la cache non conosce e' un ERRORE DURO, non un
+# NIENT'ALTRO: chi chiude la issue rende il bloccante soddisfatto, e nessuno deve ricordarsi di
+# togliere la riga a mano. Non succede pero' DA SOLO: la cache e' un'istantanea (campo
+# `fetched`), non un dato vivo, quindi il check torna nell'agenda solo quando qualcuno rilancia
+# il fetch e ricalcola. Un numero che la cache non conosce e' un ERRORE DURO, non un
 # bloccante: rilancia
 #   python tools/decision-log/fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml
 #

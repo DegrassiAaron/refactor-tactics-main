@@ -12,8 +12,13 @@ Due oracoli soli, per scelta:
   <tipo>:<Nome>#<issue>        lo stabilisce chi possiede la issue. Chiusa =
                                soddisfatto. E' anche il modo in cui un
                                bloccante smette di nascondere un check per
-                               sempre: quando la issue chiude, il check torna
-                               nell'ordine del giorno da solo.
+                               sempre senza che nessuno debba ricordarsi di
+                               togliere la riga a mano: quando la issue
+                               chiude, il check torna nell'ordine del giorno
+                               — NON da solo, pero'. La cache e' un'istantanea
+                               (campo `fetched`), non un dato vivo: torna
+                               quando qualcuno rilancia `fetch_github_cache.py`
+                               e ricalcola l'agenda.
 
 Un prerequisito che non serve NON si dichiara. L'assenza di una riga e' gia'
 la dichiarazione, e un tipo per dire «non serve» sarebbe un campo in piu' che

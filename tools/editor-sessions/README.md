@@ -38,8 +38,11 @@ Correggere una riga del yaml non serve: la decisione sta nelle tabelle, e il pro
 
 `wiring.requires` dichiara perché un check **non si può guardare oggi**. Un tipo, un oracolo:
 `asset:<Nome>` interroga `git ls-files Content`; `mount|cue|anim|feature:<Nome>#<issue>`
-interrogano la cache GitHub, e chi chiude la issue toglie il bloccante. Quando i fatti veri su
-uno stesso nome sono due, si scrivono due righe.
+interrogano la cache GitHub, e chi chiude la issue rende il bloccante soddisfatto — nessuno deve
+ricordarsi di togliere la riga a mano. Ma non succede **da sé**: la cache è un'istantanea
+(campo `fetched`), non un dato vivo, quindi il check torna nell'ordine del giorno solo quando
+qualcuno rilancia `fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml` e ricalcola
+l'agenda. Quando i fatti veri su uno stesso nome sono due, si scrivono due righe.
 
 I `requires` **non** si rigenerano: sono giudizio d'autore, ognuno con la propria riga di prova
 in `docs/roadmap/plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e

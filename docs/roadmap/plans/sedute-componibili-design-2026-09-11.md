@@ -580,10 +580,15 @@ propagazione al loro owner resta **aperta**, e il canale naturale è una issue d
 - un tipo di `requires` per il gap di authoring senza issue owner, con `PIE-V01-COVEREDIT` e
   `PIE-BAL1` come motivazione misurata;
 - `SET-TD` dichiarato e mai usato — resta il follow-up aperto da §12, questa fetta non l'ha toccato;
-- **il rischio di §7 è ora archiviabile**: `oracles.valuta` considera **soddisfatto** un `requires`
-  la cui issue è chiusa, quindi il check torna nell'agenda da sé senza bisogno di un passo di
-  sospetto separato. Il «sospetto» che §7 proponeva non serve — l'implementazione risolve il rischio
-  con il meccanismo che già aveva per un altro scopo.
+- **il rischio di §7 è ora archiviabile, con una precisazione.** `oracles.valuta` considera
+  **soddisfatto** un `requires` la cui issue è chiusa, quindi nessuno deve ricordarsi di
+  togliere a mano la riga quando il lavoro finisce — il «sospetto» che §7 proponeva non serve, e
+  l'implementazione risolve il rischio col meccanismo che già aveva per un altro scopo. Ma il
+  check **non** torna nell'agenda *da sé*: la cache GitHub è un'istantanea (campo `fetched`, ora
+  stampato da `build_agenda.py` e `compare_legacy.py`), non un dato vivo, quindi torna quando
+  qualcuno rilancia `fetch_github_cache.py --also docs/roadmap/sedute-mattoni.yaml` e ricalcola
+  l'ordine del giorno — mai prima. ⚠️ **Rettificato il 2026-09-12**: questa stessa riga diceva
+  «torna nell'agenda da sé senza bisogno di un passo», che è falso come scritto.
 
 ---
 
