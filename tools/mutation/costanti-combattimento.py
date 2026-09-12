@@ -37,6 +37,11 @@ errore di compilazione non cambia col tempo, e ritentarlo costava mezz'ora di si
 sta in `misura.CONTESA`, e `OtherCompilationError` non vi appartiene — UBT lo emette anche per un errore
 C++ vero, che e' il caso comune quando una mutazione scritta a mano non compila.
 
+⛔ **E non su TUTTA la contesa.** Se il lock di Live Coding e' tenuto da un `LiveCodingConsole`
+**orfano** — il processo che lo ha aperto non esiste piu' — si esce subito col pid, perche' nessuna
+attesa lo rilascia: il messaggio di Unreal manda a chiudere un Editor che non c'e'. La classificazione
+e' `misura.classifica_livecoding()`, misurata da #2392.
+
 🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** La suite puo' restare in attesa del motore fino a 90
 minuti, e in quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di validita'
 copre il binario che cambia DURANTE la run, non uno gia' stantio all'avvio. E' la regola di `AGENTS.md` e

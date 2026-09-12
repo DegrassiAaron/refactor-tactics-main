@@ -483,13 +483,31 @@ def sporco(rel):
 
 
 def build(tentativi=40):
-    """Ricostruisce, e distingue la contesa dall'errore di compilazione. Vedi `misura.build`.
+    """Ricostruisce. Cosa fare di un fallimento lo decide `misura.decide_ritentativo()`.
 
     🔴 Un build fallito lascia il binario VECCHIO: la suite girerebbe sul codice NON mutato e
     riporterebbe «nessun test se ne accorge» - indistinguibile da una lacuna vera, e la peggiore
-    risposta possibile. Si ritenta quando la causa e' un Editor su un altro checkout
-    (`Unable to build while Live Coding is active`, `Failed (OtherCompilationError)` di #971);
-    su un errore di compilazione si esce subito, con la coda del compilatore."""
+    risposta possibile.
+
+    Quattro esiti, non due:
+
+    * **si ritenta** quando il motore e' conteso e l'attesa lo risolve - il mutex, l'altra istanza,
+      oppure `Unable to build while Live Coding is active` con l'Editor che lo tiene ancora VIVO;
+    * **si esce subito** su un errore di compilazione, con la coda del compilatore;
+    * **si esce subito** anche quando quello stesso lock e' tenuto da un `LiveCodingConsole`
+      **orfano** - il processo che lo ha aperto non esiste piu' - perche' nessuna attesa lo
+      rilascia. Prima finiva nel primo ramo e costava `tentativi x pausa` ([#2392]);
+    * si ritenta **dichiarandolo** quando l'enumerazione dei processi non risponde: non sapere
+      non e' «nessun orfano».
+
+    ⛔ **`Failed (OtherCompilationError)` NON e' fra le cause di ritentativo, ed e' misurato.**
+    UBT lo emette anche per un errore C++ vero, e una mutazione scritta a mano spesso non compila:
+    includerlo faceva ritentare quaranta volte in silenzio proprio il caso che si vuole far fallire
+    subito. La ragione per esteso sta accanto a `misura.CONTESA`, e la politica e' di [#2672].
+
+    [#2392]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392
+    [#2672]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/2672
+    """
     return regola.build(tentativi, stampa=print)
 
 
