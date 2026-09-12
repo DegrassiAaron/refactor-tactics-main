@@ -28,9 +28,9 @@ PY
 
 → **118** al 2026-09-12, su `c8a2116a`.
 
-Questa fetta esamina **9** di quei check — il primo lotto del Task 6, gli allestimenti
-`SET-FRONTEND`, `SET-GRAYKIT`, `SET-HEX-TURN`. I lotti successivi coprono il resto (vedi la
-riga in coda alla tabella).
+Il Task 6 esamina il bacino a lotti, per allestimento: il primo lotto copre `SET-FRONTEND`,
+`SET-GRAYKIT`, `SET-HEX-TURN`; il secondo aggiunge `SET-SANDBOX` e `SET-GEN-ARENA`. I lotti
+successivi coprono il resto (vedi la riga in coda alla tabella).
 
 ## Il criterio
 
@@ -54,8 +54,36 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
 | `PIE-TD-DOCK` | `SET-GRAYKIT` | — | nessun artifact (`U31: artifacts: []`); il difetto che lo rendeva rosso (#2168) è `CLOSED` dal 2026-09-03, mai riverificato ma non bloccato — la precondizione (`Load Layout → Default Editor Layout`) è procedurale, non un prerequisito mancante |
 | `PIE-TD-PRESENT` | `SET-GRAYKIT` | — | nessun artifact (`U31: artifacts: []`); `L_DevSandbox` tracciato; la parte confermata il 2026-09-02 resta valida, il resto fu interrotto dallo stesso #2115, `CLOSED` lo stesso giorno |
 | `PIE-PREVIEW-GHOST` | `SET-HEX-TURN` | — | nessun artifact (`U52: artifacts: []`); il codice è in `main` da #2941, coperto headless da sette `Preview.*`; la precondizione è CVar da console + un piano costruito a mano, nessun asset o widget mancante — non ancora eseguita perché nessuna sessione precedente aveva uno schermo da guardare, non perché manchi un prerequisito |
+| `PIE-AS2` | `SET-SANDBOX` | — | eseguibile col roster tracciato; nome ritirato, difetto di prosa, owner [#2297] |
+| `PIE-AS4b` | `SET-SANDBOX` | — | stessa condizione di `PIE-AS2`: i quattro `BP_Unit_*` citati sono nomi ritirati, difetto di prosa, owner [#2297]; seduta `U8` ha `artifacts: []` **di proposito** — dal 2026-09-05 i tre ruoli (Cast/Hit/Death) sono dati nel CDO di `URTUnitAnimInstance`, non `.uasset`; eseguibile su una partita 2v2 normale (stessa configurazione su cui `PIE-AS4a` è ✅), non sul banco del corpus |
+| `PIE-AS4c` | `SET-SANDBOX` | — | stessa condizione di `PIE-AS4b`, stesso banco (`Visual.Combat.Defeat`, seduta `U8`); nome ritirato, difetto di prosa, owner [#2297] |
+| `PIE-FMT-01` | `SET-SANDBOX` | — | precondizione «CP 19.1 atterrato»: `#215` chiusa 2026-08-09, Epic `E19` chiusa 2026-09-02 (`gh issue view 215`; `docs/roadmap/roadmap-v0.1.md:217`); la riga di registro non nomina asset o widget mancanti |
+| `PIE-GBX-COVER` | `SET-SANDBOX` | — | `SM_Graybox_Cover_Low` e `SM_Graybox_Cover_High` tracciati (`oracles.asset_tracciati()` → `True`); seduta `U25`: `artifacts: []`; `FixtureId = CoverYard` è una fixture di codice (`RTHexMapActor.h:270`, `URTMatchSetupLibrary::MakeFixtureArena`), non un asset |
+| `PIE-GBX-DOOR` | `SET-SANDBOX` | — | `SM_Graybox_Door_Panel` e `SM_Graybox_Door_Locked` tracciati; il comando `RTSetCellDoor` (da #2337, mergiata) posa le quattro celle senza toccare il Details; nessun package mancante |
+| `PIE-GBX-FIT` | `SET-SANDBOX` | — | riusa `FixtureId = CoverYard`, la stessa fixture di codice di `PIE-GBX-COVER`; nessun asset separato nominato mancante |
+| `PIE-GBX-SURFACE` | `SET-SANDBOX` | — | `SM_Graybox_Surface_Water` e `SM_Graybox_Surface_Ice` tracciati; il dato `ERTHexSurface` esiste già e si dipinge col tool Paint, nessun package mancante |
+| `PIE-GBX-VOLUME` | `SET-SANDBOX` | — | `BP_Graybox_CellPlacementVolume` tracciato; nessun asset o widget nominato mancante |
+| `PIE-GBX-ZOOM` | `SET-SANDBOX` | — | dipende dalle cinque voci `PIE-GBX-*` sopra, tutte eseguibili oggi (asset tracciati); la scena di `U25` non aspetta altro |
+| `PIE-HEX-COORD-COSTO` | `SET-SANDBOX` | — | seduta `U39`: `artifacts: []`; la mappa si genera col gesto `Generate Into Asset` sull'`ARTHexMapActor` già in livello (`RTHexMapActor.cpp:1736`); resta solo il giudizio a schermo sulla fluidità, non un prerequisito mancante |
+| `PIE-HEX-MOVEMENT-PROBE` | `SET-SANDBOX` | — | `ProbeYard` è una fixture di codice (`URTMatchSetupLibrary::MakeFixtureArena`, `RTHexMapActor.h:270`, testata in `RTProbeYardFixtureTests.cpp`), non un asset; seduta `U26`: `artifacts: []` |
+| `PIE-HEX-MOVEMENT-PROBE-FLUIDITA` | `SET-SANDBOX` | — | stesso `ProbeYard` di codice della voce sopra; il fix di #1900 è già in `main`, resta solo il giudizio a schermo sull'attraversamento di molte celle escluse |
+| `PIE-HEX-MOVEMENT-PROBE-SURFACE` | `SET-SANDBOX` | — | stesso `ProbeYard` di codice più il tool Paint, già disponibile; nessun asset o widget mancante |
+| `PIE-ICON-01` | `SET-SANDBOX` | — | `DA_IconCatalog` tracciato (`oracles.asset_tracciati()` → `True`) e popolato — 61 chiavi/62 texture, cinque categorie v0.1 (`docs/roadmap/roadmap-v0.1.md:218`); i widget lo consumano dal 2026-08-28 (#1556, mergiata); `#219`/`#220` restano `OPEN` (`gh issue view`) ma solo perché questa stessa voce non è ancora stata eseguita, non per un prerequisito mancante |
+| `PIE-SCEN-COMPOSER` | `SET-SANDBOX` | — | il candidato `asset:WBP_RT_ScenarioComposer` del brief è superato dalla riga stessa: quell'asset si è ritirato il 2026-09-09 (#2789) — non tracciato, confermato (`oracles.asset_tracciati()` → `False`, `git ls-files 'Content/RT/Editor/**/WBP_RT_ScenarioComposer*'` → vuoto) — ma non è più il soggetto del DoD. Il DoD si esegue su `SRTLauncherScenarioPanel` (classe C++/Slate in `Source/RefactorTacticsEditor/`, non un asset), tab Tactical Designer su `L_DevSandbox`; seduta `U50` (`artifacts: []`) lo rivendica dal 2026-09-10 |
+| `PIE-TD-FILTERS` | `SET-SANDBOX` | — | stessa precondizione di `PIE-SCEN-COMPOSER` («come sopra»); seduta `U32`: `artifacts: []`, già confermata nell'insieme il 2026-08-30 |
+| `PIE-V01-COVEREDIT` | `SET-SANDBOX` | — | `DA_HexMap_Sandbox` tracciato (`oracles.asset_tracciati()` → `True`); è vuoto (0 celle) ma la riga lo dichiara già apertamente, e popolarlo è authoring nella stessa apertura (`Generate Into Asset`, lo stesso gesto di `PIE-HEX-COORD-COSTO`) — non un package/widget/anim/feature mancante; `#1738` (cablata) è `CLOSED`, su un tema diverso (percezione su `VisionSplit`, non questo) |
+| `PIE-AI-01` | `SET-GEN-ARENA` | — | seduta `U5`: `artifacts: []`, allestimento `MapSource = GeneratedTestArena` (codice, non asset); nessun package o widget nominato mancante nella riga di registro |
+| `PIE-AI-02` | `SET-GEN-ARENA` | — | stessa seduta `U5`, stesso allestimento di `PIE-AI-01`; nessun asset o widget mancante |
+| `PIE-AI-03` | `SET-GEN-ARENA` | — | stessa seduta `U5`, stesso allestimento; nessun asset o widget mancante |
+| `PIE-AI-04` | `SET-GEN-ARENA` | — | stessa seduta `U5`, stesso allestimento; nessun asset o widget mancante |
+| `PIE-AI-05` | `SET-GEN-ARENA` | — | stessa seduta `U5`, stesso allestimento; nessun asset o widget mancante |
+| `PIE-HEX-MODE-H` | `SET-GEN-ARENA` | — | seduta `U1`: `L_HexArena` e `DA_HexMap_Arena` entrambi tracciati; lo stato ❌ è un esito osservato in editor (due comportamenti del gizmo), non un blocco d'accesso — `#931` e `#996` tracciano i difetti trovati, non l'eseguibilità del check |
+| `PIE-HEXPLAY-4` | `SET-GEN-ARENA` | — | seduta `U2`: `artifacts: []`, `MapSource = GeneratedTestArena`; il verdetto di questa voce è già ✅ (2026-08-29); il richiamo a #2370 nella riga riguarda un'osservazione diversa dallo stesso banco, dichiarata come tale («non è un residuo di questa voce e non ne cambia il glifo») |
+| `PIE-HEXPLAY-7` | `SET-GEN-ARENA` | — | seduta `U5`: `artifacts: []`; free-run `AutoBattle.ArenaV01` già eseguita (22 turni, `PASS`); nessun asset mancante, resta solo il giudizio a schermo sul comportamento, già dichiarato ⏳ nella riga |
+| `PIE-PC-GYM` | `SET-GEN-ARENA` | — | il candidato `asset:L_CameraFeatureLab` del brief non serve: non compare né nella riga di registro né in `U37.artifacts` (`[]`); `U37` dichiara `MapSource = GeneratedTestArena`, stesso allestimento di `U2..U6`, «si esegue senza riavviare»; `L_CameraFeatureLab` non è tracciato (`oracles.asset_tracciati()` → `False`) ma non è il soggetto del check |
+| `PIE-PREVIEW-PERSIST` | `SET-GEN-ARENA` | — | seduta `U3`: `artifacts: []`; la riga di registro descrive un difetto di comportamento già riprodotto («oggi spariscono»), non un asset o widget assente — il check è già eseguibile e il suo esito atteso è proprio osservare quel difetto |
 
-<!-- lotti successivi: SET-SANDBOX, SET-GEN-ARENA, SET-HEX-MATCH, SET-HEX-BOT, SET-SCEN -->
+<!-- lotti successivi: SET-HEX-MATCH, SET-HEX-BOT, SET-SCEN -->
 
 ## Cosa questa rassegna non ha deciso
 
@@ -64,5 +92,5 @@ giorno **in silenzio**, un falso negativo si vede aprendo l'Editor. Gli errori n
 - La **coda scoperta** — i check che nessuna riga di `wiring` cabla — non è entrata nel bacino.
   Fra essi `PIE-VIS-DEFLECT` e `PIE-VIS-INTERPOSE`, che la spec cita come casi `cue` canonici:
   non si può dichiarare il prerequisito di un check che non ha ancora un allestimento.
-- I restanti check del bacino (`SET-SANDBOX`, `SET-GEN-ARENA`, `SET-HEX-MATCH`, `SET-HEX-BOT`,
-  `SET-SCEN`) appartengono ai lotti successivi di questo stesso Task 6, non a questa fetta.
+- I restanti check del bacino (`SET-HEX-MATCH`, `SET-HEX-BOT`, `SET-SCEN`) appartengono ai
+  lotti successivi di questo stesso Task 6, non a questa fetta.
