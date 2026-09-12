@@ -591,6 +591,22 @@ struct FRTActionDef
 	ERTMovementStyle MovementStyle = ERTMovementStyle::None;
 
 	/**
+	 * Quale PROFILO DI MOVIMENTO l'azione dichiara (`MovementProfile.Move`, `...Sprint`, ...), `NAME_None`
+	 * per tutto cio' che non e' un movimento con un budget proprio (`#653`, [D-116] · [D-117]).
+	 *
+	 * 🔑 **E' il campo che rende il profilo RICAVABILE dal piano** invece che dichiarato una seconda volta
+	 * accanto ad esso: `URTMovementProfileLibrary::ProfileForPlan` legge questo, e per costruzione non puo'
+	 * contraddire l'azione che il giocatore ha scelto.
+	 *
+	 * ⚠️ **Non e' un doppione di `MovementStyle`, e la differenza si vede su `Action.Sprint`**: lo stile
+	 * dice *come* il resolver sposta (a budget, in linea, ...), il profilo dice *con quanta misura* e *con
+	 * quanta stabilita'*. Due mobilita' con lo stesso stile possono avere profili diversi, ed e'
+	 * esattamente il caso di `Move` e `Sprint`, entrambi `MovementStyle::Budget`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName MovementProfileId;
+
+	/**
 	 * Che cosa l'azione fa a una STRUTTURA di bordo (CP 9.5). `None` per tutto il resto.
 	 *
 	 * Esiste per la stessa ragione di `MovementStyle`, e la sua assenza si sarebbe pagata subito: erigere una

@@ -1,4 +1,5 @@
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
 #include "Ability/RTEquipmentData.h"
@@ -1066,6 +1067,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
+	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava gli `8` punti senza
+	// che nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.
+	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileSprint;
 
 	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
 	// perche' e' cio' in cui `Fallback.Wait` trasforma un'azione: senza, il fallback dovrebbe inventarsi in
@@ -1084,6 +1088,10 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Move"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
 		/*Range (MP)*/ 5, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
+	// Il profilo neutro (`#653`). ⚠️ **Eredita il budget dall'unita', quindi il `5` qui sopra resta il numero
+	// morto che era**: il movimento normale non lo ha mai letto — prende `ARTUnit::GetEffectiveMoveRange()`
+	// — e questo checkpoint non gli da' improvvisamente voce, perche' lo farebbe per tutti gli eroi insieme.
+	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileMove;
 
 	// `Action.BasicAttack` — identita', fase, priorita' e fallback stanno qui; DANNO e PORTATA no, perche'
 	// dipendono dall'eroe e dalla sua arma (catalogo §1, tabella delle fasce). Li applica MakeBasicAttack:
