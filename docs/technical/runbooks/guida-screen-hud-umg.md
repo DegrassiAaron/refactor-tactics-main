@@ -133,23 +133,35 @@ su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inq
 | `Zone_BottomLeft` | (0.0, 0.8) → (0.2, 1.0) | *vuota* — dichiarata senza inquilino, ed è il posto che si guarda per decidere cosa ci va | — |
 | `Zone_BottomCenter` | (0.2, 0.8) → (0.8, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
 | `Zone_BottomRight` | (0.8, 0.8) → (1.0, 1.0) | *vuota* — Confirm · Undo, da progettare | `progettazione-hud.md` §6 |
-| *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD STATICO** — battlefield e Tactical World Overlay §4.2 | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
+| *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
-⚠️ **`WBP_RT_FastDecision` NON è montato da nessuna parte**, e fino al 2026-09-12 questa tabella diceva che
-il `BOTTOM` lo conteneva *«a runtime»*. È falso, misurato:
+✅ **`WBP_RT_FastDecision` è montato dal 2026-09-12**, nel `Canvas Panel` **radice** — non in una zona,
+e non a runtime. Fino a quel giorno non era montato da nessuna parte, e fino allo stesso giorno questa
+tabella diceva che il `BOTTOM` lo conteneva *«a runtime»*: era falso in entrambe le direzioni. Resta
+scritto perché la correzione non si legga come se il difetto non ci fosse mai stato.
 
-```
-python tools/uasset/names.py Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset --filtro FastDecision
-#   -> 0 nomi
-grep -rn "URTFastDecisionWidget" Source/RefactorTactics/ --include=*.cpp | grep -v /Tests/
-#   -> solo i metodi della classe: nessun CreateWidget, nessun AddChild
-```
+| Proprietà | Valore |
+|---|---|
+| **Anchors** | preset **centro** — `(0.5, 0.5)` → `(0.5, 0.5)` |
+| **Alignment** | `0.5, 0.5` — ⚠️ **senza, al centro finisce l'ANGOLO del widget** |
+| **Position X / Y** | `0, 0` |
+| **Size** | `600 × 200` |
+| **ZOrder** | `10` — sopra le zone |
 
-L'asset non lo referenzia e nessun C++ lo crea: la finestra di reazione di
-[#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) non può comparire in partita. Il
-montaggio sarebbe a runtime, quindi un gate sull'albero non basterebbe — ci vuole una prova che la finestra
-compaia quando la reazione si apre. Segue in
-[#3047](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3047).
+🔑 **La visibilità NON si lega qui**, e cercare quel binding nell'albero della HUD è il giro sbagliato:
+`GetWindowVisibility` è un membro di `URTFastDecisionWidget`, **non** di `URTTacticalHUDWidget`, quindi il
+menu `Bind` della HUD non lo offre. Il binding vive **dentro** `WBP_RT_FastDecision`, su `WindowRoot`, dove
+`RefactorTactics.ScreenHud.FastDecisionBindingsAreWiredToTheRightNodes` lo pinna. L'istanza nella HUD resta
+visibile: è il suo **contenuto** a collassare, ed è quello che si vede a schermo.
+
+⚖️ **L'esenzione dal centro libero è dichiarata, non silenziosa.** `ScreenHud.PanelsLeaveTheCenterFree` la
+concede per **classe** e **solo** per il criterio del centro: `AutoSize` e fuori-viewport restano misurati
+anche sulla finestra, e una seconda istanza esente è un rosso. La ragione è che `progettazione-hud.md`
+§3.1 vieta ciò che occupa il centro **permanentemente**, mentre §47-bis.2 vuole il countdown al centro e
+non come «animazione periferica».
+
+⛔ **Resta scoperto ciò che l'archetipo non può mostrare**: che la finestra *compaia* quando la reazione si
+apre è una prova di partita, non d'albero — [#3047](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3047).
 
 ✅ **Due gate nuovi guardano questa griglia dal 2026-09-12**, e chiedono cose diverse:
 `RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce` — c'è una zona per ogni valore di

@@ -634,6 +634,16 @@ bool FRTRefusedShotBreaksAtTheBlockerTest::RunTest(const FString&)
 			ERTTargetRefusal::Range, Libera, Tiratore, Bersaglio, Conosciute);
 
 		TestFalse(TEXT("il rifiuto per portata non disegna una rottura che non esiste"), Linea.bShow);
+
+		// ⚠️ Lo stesso per i due esiti che `#3080` ha aggiunto DOPO questo test: nessuno dei due nasce da
+		// un ostacolo sulla traiettoria — `TooClose` chiede di allontanarsi, `OtherLayer` e' la regola di
+		// elevazione — e una rottura disegnata li' sarebbe un punto che la geometria non ha prodotto.
+		for (const ERTTargetRefusal Senza : { ERTTargetRefusal::TooClose, ERTTargetRefusal::OtherLayer })
+		{
+			const FRTRefusedShotLine Altro = ARTHUD::ComputeRefusedShotLine(
+				Senza, Libera, Tiratore, Bersaglio, Conosciute);
+			TestFalse(TEXT("solo la copertura disegna la rottura"), Altro.bShow);
+		}
 	}
 
 	// --- controprova 3, la PRIVACY: un muro mai osservato non si rivela ---
@@ -651,6 +661,130 @@ bool FRTRefusedShotBreaksAtTheBlockerTest::RunTest(const FString&)
 		TestFalse(TEXT("un ostacolo mai osservato non viene rivelato dalla linea"), Linea.bShow);
 	}
 
+
+	return true;
+}
+
+// --- #3080 · ogni rifiuto ha una frase, o il silenzio dichiarato -----------------------------------------
+
+namespace
+{
+	/** Cosa il giocatore deve LEGGERE per un rifiuto: una frase, o niente. */
+	enum class ERTRefusalVoice : uint8
+	{
+		/** ⛔ Silenzio DICHIARATO ([D-225]): una frase qui sarebbe essa stessa il canale. */
+		Silenzioso,
+		/** Una frase propria, perche' il gesto che chiede e' diverso da quello degli altri. */
+		Parlante
+	};
+
+	struct FRTRefusalVoiceRow
+	{
+		ERTTargetRefusal Value;
+		ERTRefusalVoice Voice;
+	};
+
+	/**
+	 * La voce di OGNI valore di `ERTTargetRefusal`.
+	 *
+	 * 🔴 **Un valore aggiunto e non elencato qui rende ROSSO il banco, non fatale il processo**, ed è la
+	 * ragione per cui la tabella esiste. `RefusalText` finisce in `checkNoEntry()`: chiamarla con un valore
+	 * scoperto **uccide il runner**, e un runner morto riporta zero test — cioè nasconde sé stesso. Il
+	 * confronto con la reflection avviene PRIMA di qualunque chiamata, e fallisce prima di sparare.
+	 *
+	 * ⌫ È il difetto misurato in #3080: `TooClose` (#2950) e `OtherLayer` (#2951) erano entrati senza un
+	 * `case`, e nessun banco li aveva mai passati alla funzione perché l'elenco dei valori era scritto a
+	 * mano, caso per caso.
+	 */
+	const TArray<FRTRefusalVoiceRow>& RefusalVoiceRows()
+	{
+		static const TArray<FRTRefusalVoiceRow> Rows = {
+			{ ERTTargetRefusal::None,       ERTRefusalVoice::Silenzioso },
+			{ ERTTargetRefusal::Nothing,    ERTRefusalVoice::Silenzioso },
+			{ ERTTargetRefusal::Cover,      ERTRefusalVoice::Parlante },
+			{ ERTTargetRefusal::Range,      ERTRefusalVoice::Parlante },
+			{ ERTTargetRefusal::TooClose,   ERTRefusalVoice::Parlante },
+			{ ERTTargetRefusal::OtherLayer, ERTRefusalVoice::Parlante }
+		};
+		return Rows;
+	}
+}
+
+/**
+ * ⛔ **OGNI valore di `ERTTargetRefusal` ha una voce, e la si chiede alla REFLECTION** — `#3080`.
+ *
+ * 🔴 **Il difetto che questo banco esiste per prendere era un CRASH, non un rosso.** `RefusalText` copriva
+ * quattro valori su sei; gli altri due cadevano in `checkNoEntry()`, e `DrawHUD` chiama quella funzione a
+ * ogni frame. Mirare un bersaglio su un'altra piattaforma faceva asserire il gioco — misurato su
+ * `origin/main` = `5fb8ea07`: `exit code 3`, **zero test completati**.
+ *
+ * 🔑 **L'Automation non poteva vederlo**: `RefusalTextSaysNothingForNothing` passa esattamente i quattro
+ * valori coperti. Un elenco scritto a mano non trova mai il valore che nessuno ha pensato di elencare, ed è
+ * per questo che qui i valori si leggono da `StaticEnum`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalTextCoversEveryOutcomeTest,
+	"RefactorTactics.HUD.RefusalTextCoversEveryOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalTextCoversEveryOutcomeTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTTargetRefusal>();
+	if (!TestNotNull(TEXT("la reflection conosce ERTTargetRefusal"), Enum)) { return false; }
+
+	// `NumEnums() - 1`: l'ultima voce è il `_MAX` sintetico che UHT aggiunge, e non è un esito.
+	const int32 Valori = Enum->NumEnums() - 1;
+	if (!TestTrue(TEXT("anti-vacuità: la reflection vede almeno un valore"), Valori > 0)) { return false; }
+
+	const TArray<FRTRefusalVoiceRow>& Rows = RefusalVoiceRows();
+
+	// ⛔ **Il confronto viene PRIMA di ogni chiamata.** Un valore scoperto ucciderebbe il runner dentro
+	// `checkNoEntry()`, e un processo morto non riporta il proprio fallimento: qui si fallisce prima di
+	// sparare, e il messaggio nomina il valore mancante.
+	TArray<FString> NonElencati;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const ERTTargetRefusal V = static_cast<ERTTargetRefusal>(Enum->GetValueByIndex(i));
+		if (!Rows.ContainsByPredicate([V](const FRTRefusalVoiceRow& R) { return R.Value == V; }))
+		{
+			NonElencati.Add(Enum->GetNameStringByIndex(i));
+		}
+	}
+	if (!TestTrue(*FString::Printf(TEXT("ogni valore dell'enum ha una voce dichiarata; scoperti: [%s]"),
+		*FString::Join(NonElencati, TEXT(", "))), NonElencati.Num() == 0))
+	{
+		return false; // ⛔ non si prosegue: chiamare `RefusalText` da qui in poi sarebbe fatale
+	}
+
+	// Il difetto simmetrico: una riga che nomina un valore che l'enum non ha più.
+	TestEqual(TEXT("la tabella non porta valori fantasma"), Rows.Num(), Valori);
+
+	// --- E ora si chiama, con la certezza che nessun valore sia scoperto ----------------------------------
+	for (const FRTRefusalVoiceRow& Row : Rows)
+	{
+		const FString Testo = ARTHUD::RefusalText(Row.Value, /*EffectiveRange*/ 3);
+		const FString Nome = Enum->GetNameStringByValue(static_cast<int64>(Row.Value));
+		if (Row.Voice == ERTRefusalVoice::Silenzioso)
+		{
+			TestTrue(*FString::Printf(TEXT("%s tace, come [D-225] impone"), *Nome), Testo.IsEmpty());
+		}
+		else
+		{
+			TestFalse(*FString::Printf(TEXT("%s ha una frase propria"), *Nome), Testo.IsEmpty());
+		}
+	}
+
+	// ⚠️ **Le frasi dei due gesti opposti devono DIFFERIRE**, e non basta che siano entrambe non vuote:
+	// `TooClose` chiede di allontanarsi dove `Range` chiede di avvicinarsi, e riusare la stessa frase
+	// manderebbe il giocatore a peggiorare la propria posizione. È la ragione per cui #2950 le ha dato un
+	// valore proprio invece di riusare `Range`.
+	const FString Lontano = ARTHUD::RefusalText(ERTTargetRefusal::Range, 3);
+	const FString Vicino = ARTHUD::RefusalText(ERTTargetRefusal::TooClose, 3);
+	const FString Altrove = ARTHUD::RefusalText(ERTTargetRefusal::OtherLayer, 3);
+	TestNotEqual(TEXT("«troppo vicino» non dice la stessa cosa di «troppo lontano»"), Vicino, Lontano);
+	TestNotEqual(TEXT("«su un altro piano» non dice la stessa cosa di «troppo lontano»"), Altrove, Lontano);
+	TestNotEqual(TEXT("ne' la stessa di «troppo vicino»"), Altrove, Vicino);
+
+	// ⛔ E non promette una distanza: il problema non è quanto si è lontani.
+	TestFalse(TEXT("«su un altro piano» non stampa un numero di portata"), Altrove.Contains(TEXT("3")));
 	return true;
 }
 

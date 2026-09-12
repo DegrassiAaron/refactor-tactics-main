@@ -112,12 +112,41 @@ FString ARTHUD::RefusalText(ERTTargetRefusal Refusal, int32 EffectiveRange)
 			? FString::Printf(TEXT("Troppo lontano (portata %d)"), EffectiveRange)
 			: FString(TEXT("Troppo lontano per questa abilita'"));
 
+	// ➕ **I due rifiuti che chiedono un gesto PROPRIO** (`#3080`). Fino a `5fb8ea07` non avevano un
+	// `case`, e cadevano nel `checkNoEntry()` in fondo: `DrawHUD` chiama questa funzione a ogni frame
+	// tramite `CurrentRefusalText`, quindi mirare un bersaglio su un'altra piattaforma — o troppo
+	// vicino — faceva ASSERIRE il gioco. Misurato: `exit code 3`, zero test completati.
+	//
+	// 🔑 **Frasi diverse perche' i gesti sono diversi**, che e' la ragione per cui i due valori
+	// esistono. `Range` dice *avvicinati*; `TooClose` deve dire l'opposto, o manda il giocatore a
+	// peggiorare la propria posizione. `OtherLayer` non e' ne' l'uno ne' l'altro ([D-393]): nessun
+	// movimento NEL piano risolve, e prometterlo sarebbe peggio del silenzio.
+	case ERTTargetRefusal::TooClose: return TEXT("Troppo vicino: allontanati per colpire");
+
+		// ⚠️ Nessun numero, a differenza di `Range`, e non e' una dimenticanza: la firma porta una
+		// portata sola. Stampare QUELLA accanto a *su un altro piano* suggerirebbe che il problema sia la
+		// distanza, cioe' esattamente cio' che questo rifiuto esiste per negare.
+	case ERTTargetRefusal::OtherLayer: return TEXT("Su un altro piano: non si tira da qui");
+
 	case ERTTargetRefusal::None:
 	case ERTTargetRefusal::Nothing: return FString();
 	}
 
-	// ⛔ Nessun `default:`, come in `RefusalForObserver`: un esito nuovo deve rompere la build qui, non
-	// scivolare in silenzio sul silenzio.
+	// ⌫ **QUESTA RIGA PROMETTEVA UNA GARANZIA CHE IL COMPILATORE NON DA'** (`#3080`). Diceva: *« un
+	// esito nuovo deve rompere la build qui »*. Uno `switch` senza `default:` produce un **warning**
+	// (MSVC C4061/C4062), non un errore, e la build non lo alza: `TooClose` e `OtherLayer` sono entrati
+	// a due issue di distanza e nessuno si e' fermato. Il difetto e' durato finche' qualcuno non ha
+	// mirato un bersaglio su un'altra piattaforma — dove `DrawHUD` chiama di qui a ogni frame.
+	//
+	// 🔑 **Cio' che regge davvero e' un banco, non un commento.**
+	// `RefactorTactics.HUD.RefusalTextCoversEveryOutcome` legge i valori dalla **reflection** e confronta
+	// PRIMA di chiamare: un valore aggiunto e non dichiarato lo rende **rosso**, nominandolo, invece di
+	// arrivare qui. Misurato — togliendo una riga alla sua tabella: 63 completati, 1 rosso, 0 fatali.
+	//
+	// ⚠️ `checkNoEntry()` resta, e resta l'ULTIMA difesa, non la prima: se ci si arriva comunque,
+	// morire rumorosamente e' preferibile a stampare una stringa vuota dove il giocatore aspetta una
+	// spiegazione. Misurato togliendo un `case`: il runner muore, 24 completati su 63 e due fatali —
+	// rumoroso, e in PIE sarebbe il crash che `#3080` ha chiuso.
 	checkNoEntry();
 	return FString();
 }
