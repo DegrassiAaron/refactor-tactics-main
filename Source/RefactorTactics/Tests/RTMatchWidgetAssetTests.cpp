@@ -711,8 +711,9 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
 	constexpr float Tolleranza = 0.5f;
 
 	int32 ZoneMisurate = 0;
+	int32 FinestreEsentate = 0;
 
-	Tree->ForEachWidget([this, &Centro, &ZoneMisurate, Radice, Tolleranza](UWidget* Widget)
+	Tree->ForEachWidget([this, &Centro, &ZoneMisurate, &FinestreEsentate, Radice, Tolleranza](UWidget* Widget)
 	{
 		if (!Widget)
 		{
@@ -769,6 +770,30 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
 				RTCenterFree::RefWidth, RTCenterFree::RefHeight));
 		}
 
+		// ⚖️ **La finestra di reazione e' l'UNICA esenzione dal centro libero** (`#166`, CP 14.6).
+		//
+		// 🔑 **La regola che il centro libero difende parla di PERMANENZA, non di presenza.**
+		// `progettazione-hud.md` §3.1 si intitola *«cosa NON deve occupare PERMANENTEMENTE il centro»*, ed
+		// elenca pannelli, minimappe e liste: cose che ci stanno sempre. La finestra di reazione non e' fra
+		// quelle — la sua `Visibility` segue l'APERTURA (`GetWindowVisibility` su `WindowRoot`, che
+		// `FastDecisionBindingsAreWiredToTheRightNodes` pinna), quindi il centro resta sgombro tranne nei
+		// secondi in cui la decisione e' l'unica cosa che conta. E §47-bis.2 la vuole proprio li': il
+		// countdown «**sempre visibile**, non un'animazione periferica».
+		//
+		// ⚠️ **L'esenzione e' per CLASSE e SOLO per il centro.** `AutoSize` e fuori-viewport restano
+		// misurati anche su di lei — sopra, e prima di questo `return`. Cio' che si concede e' l'invasione
+		// del riquadro, non il diritto di non essere misurabile: un pannello statico qualunque al centro
+		// resta un rosso, e una SECONDA finestra esente pure (il controllo e' in fondo alla funzione).
+		if (Widget->IsA(URTFastDecisionWidget::StaticClass()))
+		{
+			++FinestreEsentate;
+			AddInfo(FString::Printf(
+				TEXT("  ^ `%s` e' la finestra di reazione: esente dal centro libero (#166), perche' la sua ")
+				TEXT("visibilita' segue l'apertura e non e' un pannello permanente."),
+				*Widget->GetName()));
+			return;
+		}
+
 		if (RTCenterFree::SiToccano(Zona, Centro))
 		{
 			const RTCenterFree::FRect Invasione = RTCenterFree::Intersezione(Zona, Centro);
@@ -784,9 +809,21 @@ bool FRTPanelsLeaveTheCenterFreeTest::RunTest(const FString&)
 
 	// Senza questa riga il test sarebbe verde su un albero senza zone — cioe' misurando zero, che e' il
 	// modo in cui un gate diventa decorativo. Questo file lo ha gia' imparato una volta, piu' su.
+	// ⚠️ **Le esenzioni si SOTTRAGGONO.** Un albero che contenesse solo la finestra di reazione non ha
+	// misurato nessuna zona, e senza la sottrazione questo controllo — che esiste apposta contro il verde
+	// su zero — lo dichiarerebbe a posto.
 	TestTrue(
-		*FString::Printf(TEXT("il Canvas radice dichiara delle zone da misurare (ne ha %d)"), ZoneMisurate),
-		ZoneMisurate > 0);
+		*FString::Printf(TEXT("il Canvas radice dichiara delle zone da misurare (ne ha %d, oltre a %d esenti)"),
+			ZoneMisurate - FinestreEsentate, FinestreEsentate),
+		ZoneMisurate - FinestreEsentate > 0);
+
+	// ⛔ **UNA finestra di reazione, non «almeno una».** Due istanze si sovrappongono al centro leggendo
+	// lo stesso view model, ed e' lo stesso difetto che `TheHudMountsTheFeedThatExplainsTheTurn` ha gia'
+	// dovuto correggere in code review: il contatore c'era e il test guardava solo lo zero.
+	TestTrue(
+		*FString::Printf(TEXT("al piu' UNA finestra di reazione e' esente dal centro libero (ne ha %d)"),
+			FinestreEsentate),
+		FinestreEsentate <= 1);
 
 	return true;
 }
