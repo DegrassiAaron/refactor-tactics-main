@@ -200,7 +200,7 @@ eseguita il 2026-09-05/06 (`#2476`, PR `#2541`, commit `6a677671` delle 10:01) �
 | `PIE-ICON-01` | `U9` | ⏳ — owner `#217` (E20) |
 | `PIE-VIS-DEFLECT`, `PIE-VIS-INTERPOSE`, `PIE-V01-GHOSTS` | 🔴 **nessuna** | ⏳ — da cui `#2622` |
 
-### 🔴 `PIE-HEXPLAY-6` è un `FAIL` su una voce `RELEASE-V01`
+### ⌫ `PIE-HEXPLAY-6` è STATA un `FAIL` su una voce `RELEASE-V01`, fino al 2026-09-12
 
 ⌫ **Superato il 2026-09-12**: `PIE-HEXPLAY-6` è ✅ (seduta convocata da #2697, `runId 20260912-141110`) e `PIE-HEXPLAY-8` è ✅ per riduzione di criterio (`D-402`, #2911), quindi il subset è `17 ✅ · 0 · 0` e **`G9` è ✅**. Il paragrafo resta come cronologia del blocco, e diceva: «`PIE-HEXPLAY-6` appartiene al subset `RELEASE-V01`, quindi **blocca `G9`**, che
 `PIA-3` mappa. Il documento lo registra invece di ereditarlo in silenzio: `PIA-3` non può essere `PASS` finché

@@ -3111,6 +3111,8 @@ sessions:
     # ⌫ Diceva `[1246]` fino al 2026-09-09, e #1246 e' il difetto della vista a picco — non una issue che
     # convochi questa seduta. Aggiunte le due che la convocano davvero: #2476 (la seduta stessa) e #2534,
     # la cui DoD chiede la rigiudicazione di `PIE-HEXPLAY-6` e `PIE-VIS-SIGHTWALL` **su questo banco**.
+    # ⌫ Dal 2026-09-12 ne resta UNA: `PIE-HEXPLAY-6` e' stata rigiudicata (#2697, runId 20260912-141110,
+    #   verdetto d'autore PASS) e il suo esito e' nel registro. Resta `PIE-VIS-SIGHTWALL`.
     # 🔑 La rigiudicazione e' **una sola**: si consuntiva in `test-manuali-pie.md`, mai in due issue.
     done_when: >-
       cinque voci hanno un esito reale nel registro, in un verso o nell'altro — tre del gate `G9`

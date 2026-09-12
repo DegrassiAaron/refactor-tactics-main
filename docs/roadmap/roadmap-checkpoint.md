@@ -193,14 +193,16 @@ chiudevano una alla volta. Ecco cosa c'è davvero, con i comandi per rimisurarlo
 |---|---:|---|
 | Voci nel registro PIE | **203** | `grep -c '^\| \*\*PIE-' docs/technical/test-manuali-pie.md` |
 | Non verdi (⏳ · 🟡 · ❌) | **127** | il comando canonico in testa a `test-manuali-pie.md` |
-| **Gate `G9`** — subset `RELEASE-V01` | **17 voci: 13 ✅ · 4 🟡 · 0 ⏳** | `grep -c '^\| \*\*PIE-[A-Za-z0-9.-]*\*\* \`RELEASE-V01\`'` |
+| **Gate `G9`** — subset `RELEASE-V01` | **17 voci: 17 ✅ · 0 🟡 · 0 ⏳** — rimisurato il 2026-09-12 | `grep -c '^\| \*\*PIE-[A-Za-z0-9.-]*\*\* \`RELEASE-V01\`'` |
 | Sedute che convocano voci | **44**, per **138** voci assegnate | `editor-sessions.yaml`, campo `verifies` |
 | ⚠️ Voci **orfane** e non verdi | **33** | nessuna seduta le nomina — vedi sotto |
 
-🔑 **Il gate di release è a 13 su 17, e nessuna delle quattro che restano è aperta**: sono tutte 🟡 —
-`PIE-HEXPLAY-6` e `-8`, `PIE-V01-ROSTER` (la cui precondizione chiede un asset che non esiste e va
-riscritta) e `PIE-V01-LOG` (che aspetta il formato del combat log). `G9` non è il collo di bottiglia della
-v0.1: nessuna delle quattro è ⏳. ⏱️ *Questa riga diceva `15 · 2` ed è stata rimisurata poche ore dopo,
+🔑 **Il subset `RELEASE-V01` è interamente verde dal 2026-09-12**, e nessuna delle sue voci aspetta più
+lavoro: `PIE-HEXPLAY-6` per la seduta di [#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697), `-8` per la riduzione di criterio di
+`D-402` ([#2911](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2911)), `PIE-V01-ROSTER` e `PIE-V01-LOG` chiuse prima. ∴ **`G9` è ✅**, e l’autorità resta la sua cella canonica —
+[`v0.1-definition-of-done.md`](v0.1-definition-of-done.md) §3, che si rilegge col comando accanto
+e non da qui.
+⌫ *Diceva **13 su 17**, con le quattro restanti tutte 🟡.* ⏱️ *Questa riga diceva `15 · 2` ed è stata rimisurata poche ore dopo,
 risolvendo un merge: `-6` e `-8` si erano mosse. Il comando accanto alla tabella è l'oracolo, non la cifra.*
 
 ⚠️ **Le 33 voci orfane sono il collo di bottiglia vero**, e non perché siano difficili: *«una voce che non
