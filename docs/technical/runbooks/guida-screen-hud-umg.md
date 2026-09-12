@@ -583,9 +583,16 @@ Cosa **non** serve la PIE per verificarlo, e quindi non va rimandato lì:
 ```bash
 "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" \
   "D:/Repositories/refactor-tactics-main/RefactorTactics.uproject" \
-  -ExecCmds="Automation RunTests RefactorTactics.Frontend+Quit" \
+  -ExecCmds="Automation RunTests RefactorTactics.Frontend;Quit" \
   -unattended -nopause -nullrhi -NoSound
 ```
+
+> ⚠️ **`;Quit`, non `+Quit`** — questa riga ha prescritto la seconda forma fino al 2026-09-12. `+` separa
+> **filtri**, non comandi: con `+Quit` la parola diventa un secondo filtro che non corrisponde a nulla, il
+> comando non viene eseguito e il processo **non esce**, restando a tenere il mutex del motore. I test
+> girano lo stesso, quindi non c'è niente che lo segnali.
+> [`test-e-diagnosi.md` §9](test-e-diagnosi.md) porta la misura; l'origine è
+> [#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049).
 
 I quattro `RefactorTactics.Frontend.MatchHud*` provano il ciclo di vita del layer senza aprire l'Editor.
 
