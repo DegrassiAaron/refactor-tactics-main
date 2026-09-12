@@ -172,8 +172,18 @@ def _alberi_processi():
         return None
     if esito.returncode != 0:
         return None
-    motori, padre = set(), {}
-    for riga in (esito.stdout or "").splitlines():
+    return _parse_processi((esito.stdout or "").splitlines())
+
+
+def _parse_processi(righe):
+    """PURA. `{'motori': {pid}, 'padre': {pid: ppid}, 'livecoding': {pid: ppid}}`.
+
+    🔴 **Separata da `_alberi_processi` perche' i due filtri sono la sostanza, e senza
+    questa firma nessun test li vede**: `classifica_livecoding` riceve il dict GIA' costruito,
+    quindi togliere un filtro da qui non farebbe cadere nessun caso che parte dal dict.
+    """
+    motori, padre, livecoding = set(), {}, {}
+    for riga in righe:
         campi = riga.strip().split(";")
         if len(campi) != 3 or not campi[0].isdigit():
             continue
@@ -181,7 +191,12 @@ def _alberi_processi():
         padre[pid] = ppid
         if "UnrealEditor" in nome:
             motori.add(pid)
-    return {"motori": motori, "padre": padre}
+        # 🔴 #2392: `LiveCodingConsole` NON contiene `UnrealEditor`, e tiene lo stesso lock
+        # di compilazione. Letto QUI, nella stessa passata, perche' due query correlate non
+        # concordano: fra due campioni un processo nasce o muore.
+        if "LiveCoding" in nome:
+            livecoding[pid] = ppid
+    return {"motori": motori, "padre": padre, "livecoding": livecoding}
 
 
 def _discende_da(pid, radici, padre, profondita=24):
@@ -539,8 +554,61 @@ PWSH = "pwsh"
 # causato da sei asserzioni che chiamavano `GetBoolMetaData`. Includerlo faceva ritentare
 # quaranta volte in silenzio proprio il caso che questa lista esiste per far fallire subito
 # — e una mutazione scritta a mano spesso non compila, quindi e' il caso comune.
-CONTESA = ("Unable to build while Live Coding is active",
-           "waiting for another instance", "mutex")
+LOCK_LIVE_CODING = "Unable to build while Live Coding is active"
+CONTESA = (LOCK_LIVE_CODING, "waiting for another instance", "mutex")
+
+
+def classifica_livecoding(livecoding, vivi):
+    """PURA. Chi tiene il lock di Live Coding. Torna `(stato, orfani)`.
+
+    `livecoding`: `{pid: ppid}` dei processi `LiveCoding*`, o `None` se l'enumerazione e' fallita.
+    `vivi`: i pid visti nello STESSO campione. `stato`: `sconosciuto` | `assente` | `orfano` |
+    `attivo`. `orfani`: `[(pid, ppid)]` ordinati, vuoto quando lo stato non e' `orfano`.
+
+    🔴 **`sconosciuto` NON e' `assente`**, per la stessa ragione per cui `processi_motore()`
+    torna `None` invece di `[]`: un'enumerazione fallita che dicesse «nessun LiveCoding» direbbe
+    «non c'e' un orfano» per dire «non lo so».
+
+    🔑 **Un orfano accanto a un attivo vince.** Due cloni, uno ha chiuso l'Editor e l'altro
+    no: il lock dell'orfano resta comunque, e nessuna attesa lo rilascia.
+    """
+    if livecoding is None:
+        return "sconosciuto", []
+    if not livecoding:
+        return "assente", []
+    orfani = sorted((pid, ppid) for pid, ppid in livecoding.items() if ppid not in vivi)
+    return ("orfano" if orfani else "attivo"), orfani
+
+
+def decide_ritentativo(testo, stato):
+    """PURA. Cosa fare di un build fallito: `riprova` | `riprova-al-buio` | `ferma-orfano` |
+    `ferma-compilazione`.
+
+    🔴 **Il caso che questa funzione esiste per distinguere** e' `LOCK_LIVE_CODING` con
+    `stato` `orfano`: prima finiva in `riprova` e costava `tentativi × pausa` — mezz'ora sui
+    valori di default — su un lock che nessuno rilascera', perche' il processo che lo tiene non ha
+    piu' un padre che possa chiuderlo (#2392).
+
+    ⚠️ Il mutex e l'altra istanza restano `riprova` anche con Live Coding `assente`: non
+    sono lo stesso guasto, e su quelli l'attesa funziona.
+    """
+    if not any(f in testo for f in CONTESA):
+        return "ferma-compilazione"
+    if LOCK_LIVE_CODING not in testo:
+        return "riprova"
+    if stato == "orfano":
+        return "ferma-orfano"
+    if stato == "sconosciuto":
+        return "riprova-al-buio"
+    return "riprova"
+
+
+def stato_livecoding():
+    """`classifica_livecoding` su un campione vero. Impura: la sola parte che legge la macchina."""
+    alberi = _alberi_processi()
+    if alberi is None:
+        return classifica_livecoding(None, set())
+    return classifica_livecoding(alberi["livecoding"], set(alberi["padre"]))
 
 
 def build(tentativi=40, pausa=45, stampa=None):
@@ -563,15 +631,38 @@ def build(tentativi=40, pausa=45, stampa=None):
         testo = (r.stdout or "") + (r.stderr or "")   # UBT manda alcune righe su stderr
         if "Result: Succeeded" in testo:
             return True
-        if not any(f in testo for f in CONTESA):
+        # Il campione si paga SOLO quando la frase di Live Coding c'e': sul caso comune — una
+        # mutazione scritta a mano che non compila — non si legge nessun processo.
+        stato, orfani = ("assente", [])
+        if LOCK_LIVE_CODING in testo:
+            stato, orfani = stato_livecoding()
+        esito = decide_ritentativo(testo, stato)
+
+        if esito == "ferma-compilazione":
             if stampa:
                 coda = [x for x in testo.strip().split("\n") if x.strip()][-6:]
                 stampa("   build FALLITO, e non e' contesa del motore:")
                 for riga in coda:
                     stampa("     " + riga.strip()[:150])
             return False
+        if esito == "ferma-orfano":
+            if stampa:
+                stampa("   build FERMO: il lock di Live Coding e' tenuto da un processo ORFANO.")
+                for pid, ppid in orfani:
+                    stampa("     LiveCodingConsole pid %d — il processo %d che lo ha aperto"
+                           " non esiste piu'" % (pid, ppid))
+                stampa("   ⛔ Non c'e' un Editor da chiudere, e nessuna attesa lo risolve: il")
+                stampa("   messaggio di Unreal manda a cercare una finestra che non esiste.")
+                stampa("   Va terminato a mano (`taskkill /PID %d`); se il gate possa farlo"
+                       " da se'" % orfani[0][0])
+                stampa("   e' la decisione aperta `GOV-7`. Vedi #2392.")
+            return False
         if stampa and tentativo == 0:
-            stampa("   motore conteso, attendo e ritento (fino a %d volte)" % tentativi)
+            if esito == "riprova-al-buio":
+                stampa("   motore conteso, ma l'enumerazione dei processi NON ha risposto: non")
+                stampa("   so se il lock sia di un Editor vivo o di un orfano. Ritento comunque.")
+            else:
+                stampa("   motore conteso, attendo e ritento (fino a %d volte)" % tentativi)
         time.sleep(pausa)
     return False
 
@@ -735,5 +826,57 @@ def self_test():
     casi.append(("drift e crash insieme riportano entrambi",
                  any(p.startswith("albero") for p in problemi)
                  and any(p.startswith("motore") for p in problemi), str(len(problemi))))
+
+    # --- #2392: chi tiene il lock di Live Coding, e se lo si deve aspettare --------------------
+    # 🔑 **Il caso che porta il peso e' l'ULTIMO**: con lo stato `assente` — cio' che il filtro
+    # `"UnrealEditor" in nome` produceva su un orfano — la decisione torna `riprova`, cioe' mezz'ora
+    # di ritentativi su un lock che nessuno rilascera'. Se rispondesse `ferma-orfano` in entrambi i
+    # casi, la distinzione non porterebbe niente e questi test sarebbero vacui.
+    LC = "Unable to build while Live Coding is active"
+
+    def livecoding(nome, atteso, processi, vivi):
+        stato, orfani = classifica_livecoding(processi, vivi)
+        casi.append((nome, stato == atteso,
+                     "atteso %s, ottenuto %s (orfani: %s)" % (atteso, stato, orfani)))
+
+    livecoding("LiveCoding col padre morto e' ORFANO", "orfano", {9: 7}, {9})
+    livecoding("LiveCoding col padre vivo e' ATTIVO", "attivo", {9: 7}, {7, 9})
+    livecoding("nessun LiveCoding e' ASSENTE", "assente", {}, {7, 9})
+    livecoding("enumerazione fallita e' SCONOSCIUTO, non assente", "sconosciuto", None, set())
+    # Due cloni: uno ha chiuso l'Editor, l'altro no. Il lock resta, quindi vince l'orfano.
+    livecoding("un orfano accanto a un attivo vince", "orfano", {9: 7, 11: 10}, {9, 10, 11})
+
+    _, orfani = classifica_livecoding({9: 7, 11: 10}, {9, 10, 11})
+    casi.append(("l'orfano e' NOMINATO col suo pid e col padre che non c'e'",
+                 orfani == [(9, 7)], str(orfani)))
+
+    def decide(nome, atteso, testo, stato):
+        v = decide_ritentativo(testo, stato)
+        casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
+
+    decide("Live Coding tenuto da un orfano: NON si ritenta", "ferma-orfano", LC, "orfano")
+    decide("Live Coding tenuto da un Editor vivo: si attende, come prima", "riprova", LC, "attivo")
+    decide("un errore di compilazione esce subito, come prima", "ferma-compilazione",
+           "error C2065: 'bKnowledgeDebug' non dichiarato", "assente")
+    decide("il mutex senza Live Coding si ritenta, come prima", "riprova",
+           "waiting for another instance", "assente")
+    # ⚠️ `sconosciuto` non e' `assente`: si ritenta lo stesso — un'enumerazione fallita non dice che
+    # c'e' un orfano — ma l'esito e' distinto perche' `build()` lo deve DIRE invece di tacerlo.
+    decide("enumerazione fallita: si ritenta, ma non in silenzio", "riprova-al-buio", LC,
+           "sconosciuto")
+    decide("col filtro vecchio lo stato era `assente` e si ritentava: e' il difetto di #2392",
+           "riprova", LC, "assente")
+
+    # 🔴 **E la RACCOLTA va esercitata, non solo la classificazione.** `classifica_livecoding`
+    # riceve il dict gia' costruito: togliere il filtro `"LiveCoding" in nome` da `_parse_processi`
+    # non farebbe cadere nessuno dei casi qui sopra — verificherebbero il proprio scaffolding.
+    # Questa riga e' l'unica che lega la classificazione a CIO' CHE LEGGE la macchina.
+    righe = ["7;496;UnrealEditor.exe", "9;7;LiveCodingConsole.exe", "13;1;explorer.exe"]
+    letto = _parse_processi(righe)
+    casi.append(("la raccolta vede il LiveCodingConsole accanto al motore",
+                 letto["livecoding"] == {9: 7} and letto["motori"] == {7}
+                 and set(letto["padre"]) == {7, 9, 13}, str(letto)))
+    casi.append(("una riga malformata non entra e non solleva",
+                 _parse_processi(["x;y;z", "", "9;7"])["livecoding"] == {}, "ok"))
 
     return casi
