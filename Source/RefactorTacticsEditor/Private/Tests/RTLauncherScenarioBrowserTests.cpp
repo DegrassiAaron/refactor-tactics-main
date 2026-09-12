@@ -480,6 +480,17 @@ bool FRTLauncherPlaybackPositionNamesItselfTest::RunTest(const FString&)
 	TestFalse(TEXT("prima dell'inizio non si annuncia nessun turno"),
 		DaInizio.ToString().Contains(TEXT("Turno")));
 
+	// 🔴 **Le disuguaglianze qui sopra NON bloccano il difetto storico** (#2836), ed e' la segnalazione che
+	// #2832 lascia aperta. Una stesura che scrivesse *«Posa iniziale.»* alla fine e, poniamo, *«Inizio.»*
+	// all'inizio passerebbe tutti i confronti: sono diversi. Il sintomo esatto era che la fine **si leggeva
+	// come l'inizio**, e il solo modo di escluderlo e' un'asserzione POSITIVA — che il testo nomini la fine.
+	TestTrue(FString::Printf(TEXT("la fine si NOMINA, non e' solo diversa dall'inizio: %s"), *DaFine.ToString()),
+		DaFine.ToString().Contains(TEXT("Fine")));
+
+	// E la posa iniziale nomina se stessa, per la stessa ragione e dall'altro capo.
+	TestTrue(FString::Printf(TEXT("l'inizio si nomina: %s"), *DaInizio.ToString()),
+		DaInizio.ToString().Contains(TEXT("iniziale")));
+
 	return true;
 }
 
@@ -495,7 +506,13 @@ bool FRTLauncherPlaybackPositionNamesItselfTest::RunTest(const FString&)
  *
  * ⚠️ **Questo test copre la traduzione, non il gesto.** Che il click chiami la facade, che il playback si
  * apra e che la riga si ridisegni sono Slate su un editor vivo: restano voce di seduta
- * (`PIE-SCEN-COMPOSER`), e nessuna asserzione qui li tocca.
+ * **`PIE-SCEN-PLAYBACK`** (seduta `U44`), e nessuna asserzione qui li tocca.
+ *
+ * ⛔ **Non `PIE-SCEN-COMPOSER`, che e' cio' che questa riga diceva** (#2836). Quella voce verifica il
+ * piazzamento delle unita' — *«piazza almeno due unita', salva, riapri»* — non il trasporto. L'equivoco era
+ * gia' corretto nella descrizione di #2832 e lasciato nel SORGENTE, che e' l'unico dei due che qualcuno
+ * legge mentre esegue il gate: chi apriva la seduta da questo commento verificava il pannello sbagliato, e
+ * il trasporto restava `NOT RUN` credendo di essere coperto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTransportNamesTheRunTest,
 	"RefactorTactics.DevSandboxLauncher.TransportNamesTheRun",
@@ -506,17 +523,25 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
 	Inizio.State = ERTReplayPositionState::BeforeStart;
 
 	// 1. Mai eseguito: nessun playback aperto, e la riga invita a eseguire.
+	//
+	// ⚠️ `bScenarioSelected` esplicito in OGNI stato di questo test, e il default e' `false` (#2836): uno
+	// stato che non dichiara la selezione descrive un pannello senza scenario a schermo, dove la riga non
+	// deve parlare di corse. Qui lo scenario c'e' sempre — cio' che varia e' cosa `Esegui` ha prodotto.
 	FRTLauncherTransportStatus MaiEseguito;
+	MaiEseguito.bScenarioSelected = true;
 
 	// 2. Eseguito senza turni: la corsa e' avvenuta e non ha aperto niente, perche' non c'era niente da
 	//    aprire. E' l'esito legittimo che si leggeva come un pulsante rotto.
 	FRTLauncherTransportStatus SenzaTurni;
+	SenzaTurni.bScenarioSelected = true;
 	SenzaTurni.Run = ERTLauncherRunState::Ran;
 	SenzaTurni.TurnsPlayed = 0;
 
 	// 3. Eseguito con turni: il playback e' aperto sul turno 0 della TRACCIA — la stessa posizione che,
 	//    da sola, si legge «Posa iniziale».
 	FRTLauncherTransportStatus ConTraccia;
+	ConTraccia.bScenarioSelected = true;
+	ConTraccia.bHasTrace = true;
 	ConTraccia.Run = ERTLauncherRunState::Ran;
 	ConTraccia.TurnsPlayed = 22;
 	ConTraccia.bPlaybackOpen = true;
@@ -524,6 +549,7 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
 
 	// 4. Corsa rifiutata dalla facade: nessun playback, e il readout porta il messaggio.
 	FRTLauncherTransportStatus Fallita;
+	Fallita.bScenarioSelected = true;
 	Fallita.Run = ERTLauncherRunState::Failed;
 
 	const FText Mai = FRTLauncherScenarioBrowser::DescribeTransport(MaiEseguito);
@@ -555,6 +581,31 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
 		Traccia.ToString().Contains(TEXT("22")));
 
 	// --- criterio 3: il rifiuto resta distinto da entrambi ----------------------------------------------
+	//
+	// 🔴 **E non si compone con la posizione di una corsa PRECEDENTE** (#2836). Un rifiuto non produce
+	// tracce, quindi un playback aperto qui e' di un'altra corsa: *«Corsa fallita · Turno 3 · Movimento»*
+	// accosterebbe un gesto che non c'e' stato alla posizione di un altro — una congiunzione falsa, che e'
+	// la stessa forma di difetto vista dall'altra parte.
+	{
+		FRTReplayPosition Dentro;
+		Dentro.State = ERTReplayPositionState::AtPhase;
+		Dentro.TurnNumber = 3;
+		Dentro.Phase = ERTMatchPhase::Move;
+
+		FRTLauncherTransportStatus FallitaConTracciaVecchia;
+		FallitaConTracciaVecchia.bScenarioSelected = true;
+		FallitaConTracciaVecchia.Run = ERTLauncherRunState::Failed;
+		FallitaConTracciaVecchia.bPlaybackOpen = true;
+		FallitaConTracciaVecchia.Position = Dentro;
+
+		const FString Congiunta =
+			FRTLauncherScenarioBrowser::DescribeTransport(FallitaConTracciaVecchia).ToString();
+		TestFalse(FString::Printf(TEXT("un rifiuto non annuncia il turno di un'altra corsa: %s"), *Congiunta),
+			Congiunta.Contains(TEXT("Turno 3")));
+		TestTrue(TEXT("e dichiara a chi appartiene il playback rimasto aperto"),
+			Congiunta.Contains(TEXT("precedente")));
+	}
+
 	TestFalse(TEXT("una corsa fallita non si legge come un pulsante mai premuto"),
 		Rifiutata.EqualTo(Mai));
 	TestFalse(TEXT("una corsa fallita non si legge come una corsa senza turni"),
@@ -568,8 +619,12 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
 	// `TurnTraces` all'aggregato (`FRTScenarioRunReport::bHasTrace`). Fondere questo caso con «nessun
 	// turno» direbbe che la partita non ha giocato niente, mentre ha giocato e non e' ispezionabile.
 	FRTLauncherTransportStatus NonRiproducibile;
+	NonRiproducibile.bScenarioSelected = true;
 	NonRiproducibile.Run = ERTLauncherRunState::Ran;
 	NonRiproducibile.TurnsPlayed = 7;
+
+	// ⛔ **`bHasTrace` resta `false`, ed e' cio' che autorizza la frase** (#2836). Prima si deduceva da
+	// `!bPlaybackOpen`, che e' vero anche per un'anteprima morta: il segnale autorevole e' il referto.
 
 	const FText Muta = FRTLauncherScenarioBrowser::DescribeTransport(NonRiproducibile);
 	TestFalse(TEXT("una traccia mancante non si legge come una corsa senza turni"), Muta.EqualTo(Vuota));
@@ -577,6 +632,8 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
 
 	// --- il singolare, su `Movement.Basic`, che di turno ne ha esattamente uno --------------------------
 	FRTLauncherTransportStatus UnTurno;
+	UnTurno.bScenarioSelected = true;
+	UnTurno.bHasTrace = true;
 	UnTurno.Run = ERTLauncherRunState::Ran;
 	UnTurno.TurnsPlayed = 1;
 	UnTurno.bPlaybackOpen = true;
@@ -591,6 +648,7 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
 	// ⛔ Nessun conteggio inventato: si dice dove si e', che e' l'unica cosa che si sa. Scrivere «corsa di 0
 	// turni» su una traccia aperta — che quindi di turni ne ha — sarebbe un numero falso.
 	FRTLauncherTransportStatus SenzaMemoria;
+	SenzaMemoria.bScenarioSelected = true;
 	SenzaMemoria.bPlaybackOpen = true;
 	SenzaMemoria.Position = Inizio;
 
@@ -620,7 +678,15 @@ bool FRTLauncherTransportNamesTheRunTest::RunTest(const FString&)
  * ⚠️ **Cosa questo test NON dimostra.** Non apre nessun playback — `OpenPlayback` pretende un'anteprima
  * viva nel viewport, che headless non c'e' — e non preme nessun pulsante. Dimostra i FATTI da cui lo stato
  * del pannello dipende: quanti turni la corsa gioca e se lascia una traccia da riprodurre. Che il click li
- * legga resta la seduta `PIE-SCEN-COMPOSER`.
+ * legga resta la seduta **`PIE-SCEN-PLAYBACK`** (`U44`), non `PIE-SCEN-COMPOSER` (#2836).
+ *
+ * ⚠️ **Questo test ESEGUE due partite vere, in un file che prima non ne eseguiva nessuna**, e vincola il
+ * contenuto di due scenari che questo dominio non possiede: `Movement.Basic` deve giocare **1** turno e
+ * `Visual.Map.TwoLayersSameColumn` **0**. La segnalazione e' confermata, e il baratto e' accettato con gli
+ * occhi aperti: sono i due fatti da cui la riga di trasporto dipende, e misurarli su dati inventati non
+ * direbbe niente sul corpus reale. ⛔ **Cio' che NON e' accettabile e' un rosso mal attribuito**, quindi i
+ * messaggi di queste asserzioni nominano il corpus: se un giorno diventano rossi per una modifica di
+ * scenario, si legge che e' cambiato il corpus e non che e' rotto il trasporto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTransportMatchesTheCorpusTest,
 	"RefactorTactics.DevSandboxLauncher.TransportMatchesTheCorpus",
@@ -629,7 +695,12 @@ bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
 {
 	// Apre, esegue, richiude. La facade e' la stessa che il pannello usa, e come li' il draft non resta
 	// aperto: il ciclo e' quello, non una scorciatoia del test.
-	auto Corri = [this](const TCHAR* Id, int32& OutTurniGiocati, int32& OutTracce) -> bool
+	// ⚠️ **Il referto esce dalla lambda** (#2836). Prima usciva il solo `TurnsPlayed` e lo stato veniva
+	// scritto a mano — `Stato.Run = Ran` — cioe' il test eseguiva due partite vere e poi buttava via
+	// l'unica cosa che questa passata ha aggiunto: la traduzione da `Outcome` a stato di corsa. Uno
+	// scenario che un giorno diventasse `Blocked` avrebbe lasciato questo test VERDE mentre il pannello
+	// mostrava «Corsa BLOCCATA».
+	auto Corri = [this](const TCHAR* Id, FRTScenarioRunReport& OutReferto, int32& OutTracce) -> bool
 	{
 		TStrongObjectPtr<URTScenarioAuthoring> Facade(
 			URTScenarioAuthoring::CreateScenarioDraft(GetTransientPackage()));
@@ -650,11 +721,9 @@ bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
 			return false;
 		}
 
-		FRTScenarioRunReport Referto;
 		FString CorsaErrore;
-		const bool bCorsa = Facade->Run(Referto, CorsaErrore) == ERTScenarioAuthoringResult::Success;
+		const bool bCorsa = Facade->Run(OutReferto, CorsaErrore) == ERTScenarioAuthoringResult::Success;
 
-		OutTurniGiocati = Referto.TurnsPlayed;
 		OutTracce = Facade->GetLastRunTraces().Num();
 		Facade->Close();
 
@@ -662,19 +731,24 @@ bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
 	};
 
 	// --- uno scenario a turni authorati: la corsa produce una traccia -----------------------------------
-	int32 TurniBasic = -1;
+	FRTScenarioRunReport RefertoBasic;
 	int32 TracceBasic = -1;
-	if (Corri(TEXT("Movement.Basic"), TurniBasic, TracceBasic))
+	if (Corri(TEXT("Movement.Basic"), RefertoBasic, TracceBasic))
 	{
-		TestEqual(TEXT("Movement.Basic gioca il turno che dichiara"), TurniBasic, 1);
-		TestTrue(TEXT("e lascia una traccia da riprodurre"), TracceBasic > 0);
+		const int32 TurniBasic = RefertoBasic.TurnsPlayed;
+		TestEqual(TEXT("CORPUS: Movement.Basic gioca il turno che dichiara (rosso qui = scenario cambiato)"),
+			TurniBasic, 1);
+		TestTrue(TEXT("CORPUS: e Movement.Basic lascia una traccia da riprodurre"), TracceBasic > 0);
 
-		// Lo stato che il pannello costruisce da questi due fatti, con il playback aperto sulla posa.
+		// 🎯 **Lo stato si TRADUCE dal referto**, non si scrive a mano: e' la funzione che #2836 aggiunge,
+		// misurata su una corsa vera invece che su un aggregato costruito qui.
 		FRTReplayPosition Inizio;
 		Inizio.State = ERTReplayPositionState::BeforeStart;
 
 		FRTLauncherTransportStatus Stato;
-		Stato.Run = ERTLauncherRunState::Ran;
+		Stato.bScenarioSelected = true;
+		Stato.bHasTrace = RefertoBasic.bHasTrace;
+		Stato.Run = FRTLauncherScenarioBrowser::ClassifyRun(RefertoBasic);
 		Stato.TurnsPlayed = TurniBasic;
 		Stato.bPlaybackOpen = true;
 		Stato.Position = Inizio;
@@ -689,19 +763,31 @@ bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
 	}
 
 	// --- uno scenario la cui corsa NON gioca turni ------------------------------------------------------
-	int32 TurniVuoto = -1;
+	FRTScenarioRunReport RefertoVuoto;
 	int32 TracceVuoto = -1;
-	if (Corri(TEXT("Visual.Map.TwoLayersSameColumn"), TurniVuoto, TracceVuoto))
+	if (Corri(TEXT("Visual.Map.TwoLayersSameColumn"), RefertoVuoto, TracceVuoto))
 	{
-		TestEqual(TEXT("uno scenario senza turni authorati non ne gioca"), TurniVuoto, 0);
+		const int32 TurniVuoto = RefertoVuoto.TurnsPlayed;
+		TestEqual(TEXT("CORPUS: Visual.Map.TwoLayersSameColumn non gioca turni (rosso qui = scenario cambiato)"),
+			TurniVuoto, 0);
+
+		// 🔴 **E' il posto piu' prezioso del corpus per questa asserzione.** `TurnsPlayed == 0` e' la
+		// FORMA ESATTA con cui `RTScenarioSession` definisce anche `Blocked` ed `Error`: se questo scenario
+		// smettesse un giorno di essere un `Pass`, il pannello direbbe «Corsa BLOCCATA» e un test che si
+		// scrivesse `Ran` a mano resterebbe verde asserendo una frase che il pannello non produce piu'.
+		TestEqual(TEXT("CORPUS: e la sua corsa e' un Pass, non un blocco travestito da zero turni"),
+			static_cast<int32>(FRTLauncherScenarioBrowser::ClassifyRun(RefertoVuoto)),
+			static_cast<int32>(ERTLauncherRunState::Ran));
 
 		// 🔑 **E' questa la ragione per cui il playback non si apriva, e la riga taceva.**
 		// `URTScenarioPreviewSubsystem::OpenPlayback` rifiuta quando `GetLastRunTraces()` e' vuota, e il
 		// pannello restava sulla frase che invita a eseguire — detta a chi aveva appena eseguito.
-		TestEqual(TEXT("e non lascia nessuna traccia da riprodurre"), TracceVuoto, 0);
+		TestEqual(TEXT("CORPUS: e non lascia nessuna traccia da riprodurre"), TracceVuoto, 0);
 
 		FRTLauncherTransportStatus Stato;
-		Stato.Run = ERTLauncherRunState::Ran;
+		Stato.bScenarioSelected = true;
+		Stato.Run = FRTLauncherScenarioBrowser::ClassifyRun(RefertoVuoto);
+		Stato.bHasTrace = RefertoVuoto.bHasTrace;
 		Stato.TurnsPlayed = TurniVuoto;
 		Stato.bPlaybackOpen = false;
 
@@ -710,6 +796,7 @@ bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
 			Riga.ToString().Contains(TEXT("nessun turno")));
 
 		FRTLauncherTransportStatus MaiEseguito;
+		MaiEseguito.bScenarioSelected = true;
 		TestFalse(TEXT("e non si legge come un pulsante mai premuto"),
 			Riga.EqualTo(FRTLauncherScenarioBrowser::DescribeTransport(MaiEseguito)));
 	}
@@ -732,11 +819,328 @@ bool FRTLauncherTransportMatchesTheCorpusTest::RunTest(const FString&)
 		{
 			// 🔴 Il readout dice «turni 0», e la partita ne gioca decine: e' la divergenza che ha fatto
 			// leggere come rotto un pulsante che funzionava.
-			TestEqual(TEXT("il readout di ArenaV01 dichiara zero turni authorati"),
+			TestEqual(TEXT("CORPUS: il readout di ArenaV01 dichiara zero turni authorati"),
 				Facade->GetSummary().TurnCount, 0);
 			Facade->Close();
 		}
 	}
+
+	return true;
+}
+
+
+/**
+ * Il pannello legge l'ESITO del referto, non solo il fatto che una corsa sia avvenuta (#2836).
+ *
+ * 🔴 **Il difetto, e perche' la suite non lo vedeva.** `URTScenarioAuthoring::Run` restituisce `Success`
+ * quando *«l'esecuzione e' avvenuta»* — lo dichiara `RTScenarioAuthoring.h` — e il pannello ne scriveva
+ * `Ran` senza guardare `FRTScenarioRunReport::Outcome`. Il solo campo che leggeva era `TurnsPlayed`, e
+ * `RTScenarioSession` definisce `Blocked` ed `Error` **proprio** sul caso a zero turni:
+ *
+ *     const bool bBlocked      = !BlockedBy.IsEmpty() && Result.TurnsPlayed == 0;
+ *     const bool bNonHaGiocato = !ErroredBy.IsEmpty() && Result.TurnsPlayed == 0;
+ *
+ * ∴ uno scenario bloccato su una capability mancante entrava nel ramo di successo e la riga dichiarava
+ * *«Corsa eseguita: nessun turno da riprodurre.»*. ⚠️ **Nessun test poteva accorgersene**: `ClassifyRun`
+ * non esisteva e la traduzione avveniva per omissione dentro un `FReply` di Slate.
+ *
+ * ⛔ **`Fail` resta `Ran`, ed e' asserito qui insieme al resto.** Un `FAIL` e' un difetto del GIOCO su una
+ * partita giocata, e travestirlo da guasto dello strumento e' lo stesso errore girato dall'altra parte.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherRunStateReadsTheOutcomeTest,
+	"RefactorTactics.DevSandboxLauncher.RunStateReadsTheOutcome",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherRunStateReadsTheOutcomeTest::RunTest(const FString&)
+{
+	auto Referto = [](ERTTestOutcome Esito, int32 Turni) -> FRTScenarioRunReport
+	{
+		FRTScenarioRunReport R;
+		R.Outcome = Esito;
+		R.TurnsPlayed = Turni;
+		R.bHasRun = true;
+		return R;
+	};
+
+	// ⚠️ **Il nome e non il numero.** `TestEqual` sugli `enum class` non compila — il suo `ReportError`
+	// generico chiama `Actual.ToString()` — e un `static_cast<int32>` compilerebbe stampando *«3 != 2»*,
+	// che in un rosso non dice quale esito sia arrivato. Il nome lo dice.
+	auto Nome = [](ERTLauncherRunState Stato) -> FString
+	{
+		switch (Stato)
+		{
+		case ERTLauncherRunState::NotRun:  return TEXT("NotRun");
+		case ERTLauncherRunState::Failed:  return TEXT("Failed");
+		case ERTLauncherRunState::Ran:     return TEXT("Ran");
+		case ERTLauncherRunState::Blocked: return TEXT("Blocked");
+		case ERTLauncherRunState::Errored: return TEXT("Errored");
+		}
+		// Uno stato aggiunto e non nominato: qui il rosso e' il messaggio.
+		return TEXT("<stato non nominato da questo test>");
+	};
+
+	auto Tradotto = [&Nome](const FRTScenarioRunReport& R) -> FString
+	{
+		return Nome(FRTLauncherScenarioBrowser::ClassifyRun(R));
+	};
+
+	// --- la traduzione: quattro esiti, tre stati, e nessuno che diventi un successo per omissione -------
+	TestEqual(TEXT("Pass e' una corsa avvenuta"),
+		Tradotto(Referto(ERTTestOutcome::Pass, 3)), Nome(ERTLauncherRunState::Ran));
+
+	TestEqual(TEXT("e Fail pure: la partita si e' giocata, e l'esito lo dice il referto"),
+		Tradotto(Referto(ERTTestOutcome::Fail, 3)), Nome(ERTLauncherRunState::Ran));
+
+	TestEqual(TEXT("Blocked NON e' una corsa riuscita"),
+		Tradotto(Referto(ERTTestOutcome::Blocked, 0)), Nome(ERTLauncherRunState::Blocked));
+
+	TestEqual(TEXT("ed Error nemmeno"),
+		Tradotto(Referto(ERTTestOutcome::Error, 0)), Nome(ERTLauncherRunState::Errored));
+
+	// --- il motivo arriva a destinazione ---------------------------------------------------------------
+	//
+	// 🔑 Senza, la riga dice «Corsa BLOCCATA» e non dice QUALE capability manchi — che e' l'unica cosa da
+	// sapere per andare avanti, ed e' gia' nel referto.
+	// `bFieldPlaced = true`: il caso normale, in cui il viewport ha posato lo scenario.
+	auto Dettaglio = [](const FRTScenarioRunReport& R) -> FString
+	{
+		return FRTLauncherScenarioBrowser::DescribeRunDetail(R, /*bFieldPlaced*/ true).ToString();
+	};
+
+	FRTScenarioRunReport Bloccato = Referto(ERTTestOutcome::Blocked, 0);
+	Bloccato.BlockedReason = TEXT("scenario: manca la capability 'Overwatch'");
+	TestTrue(TEXT("il motivo del blocco raggiunge il readout"),
+		Dettaglio(Bloccato).Contains(TEXT("Overwatch")));
+
+	FRTScenarioRunReport Rotto = Referto(ERTTestOutcome::Error, 0);
+	Rotto.ErrorMessage = TEXT("'U1' non possiede l'abilita' 'Blink' (turno 2)");
+	TestTrue(TEXT("il messaggio d'errore raggiunge il readout"),
+		Dettaglio(Rotto).Contains(TEXT("Blink")));
+
+	// ⛔ E i due non si leggono uguali: «il test e' scritto male» e «il progetto non c'e' ancora» sono la
+	// distinzione per cui `ERTTestOutcome` ha quattro valori invece di due.
+	TestNotEqual(TEXT("un blocco e un errore non si leggono uguali"),
+		Dettaglio(Bloccato), Dettaglio(Rotto));
+
+	// ⛔ **E la riga del referto NON ripete l'esito**, che l'intestazione del trasporto ha gia' detto: una
+	// schermata che dichiara tre volte lo stesso fatto nasconde l'unica parte nuova, cioe' il motivo.
+	TestFalse(FString::Printf(TEXT("il dettaglio non ripete «BLOCCATA»: %s"), *Dettaglio(Bloccato)),
+		Dettaglio(Bloccato).Contains(TEXT("BLOCCATA")));
+	TestFalse(FString::Printf(TEXT("ne' «ERRORE»: %s"), *Dettaglio(Rotto)),
+		Dettaglio(Rotto).Contains(TEXT("ERRORE")));
+
+	// Una corsa riuscita non porta nessun motivo: una riga «referto: » vuota sotto ogni corsa sarebbe rumore.
+	TestTrue(TEXT("Pass non porta nessun motivo da riportare"),
+		FRTLauncherScenarioBrowser::DescribeRunDetail(Referto(ERTTestOutcome::Pass, 3), true).IsEmpty());
+
+	// ⚠️ Un referto che dichiara il motivo e non lo porta lo DICE, invece di restituire una stringa vuota
+	// che a schermo diventa una riga assente. ⛔ **E' l'unico dei due lati che il pannello controlla**: il
+	// produttore scrive `Outcome` e `BlockedReason` nella stessa istruzione, quindi da una corsa vera questo
+	// non arriva — a fabbricarlo puo' essere solo un chiamante che si costruisce il referto a mano.
+	TestFalse(TEXT("un blocco senza motivo non tace"),
+		FRTLauncherScenarioBrowser::DescribeRunDetail(Referto(ERTTestOutcome::Blocked, 0), true).IsEmpty());
+
+	// --- un esito che il pannello non conosce: `OutcomeText` e' l'unica cosa vera che si possa dire ------
+	//
+	// 🔴 **`ERTTestOutcome` e' dichiarato estendibile IN CODA**, e su questo progetto il compilatore non
+	// segnala il caso mancante (`SwitchUnhandledEnumeratorWarningLevel` e' `Off`). Senza questo ramo la riga
+	// `referto:` resterebbe VUOTA sotto un'intestazione che annuncia un errore — cioe' il silenzio che
+	// #2836 esiste per togliere, ricomparso un valore piu' in la'.
+	FRTScenarioRunReport Ignoto = Referto(static_cast<ERTTestOutcome>(99), 0);
+	Ignoto.OutcomeText = TEXT("TIMEOUT");
+	TestEqual(TEXT("un esito sconosciuto non passa per una corsa riuscita"),
+		Nome(FRTLauncherScenarioBrowser::ClassifyRun(Ignoto)), Nome(ERTLauncherRunState::Errored));
+	TestTrue(FString::Printf(TEXT("e il testo del runner arriva a schermo: %s"), *Dettaglio(Ignoto)),
+		Dettaglio(Ignoto).Contains(TEXT("TIMEOUT")));
+
+	// --- il viewport che non posa il campo: due fatti, due frasi, nessuno dei due mangia l'altro --------
+	const FString ConCampoMancante =
+		FRTLauncherScenarioBrowser::DescribeRunDetail(Bloccato, /*bFieldPlaced*/ false).ToString();
+	TestTrue(TEXT("il motivo del referto resta"), ConCampoMancante.Contains(TEXT("Overwatch")));
+	TestTrue(TEXT("e il viewport si nomina accanto"), ConCampoMancante.Contains(TEXT("viewport")));
+
+	// Con un referto che non porta motivi resta la sola nota del viewport, e non una riga vuota.
+	const FString SoloCampoMancante =
+		FRTLauncherScenarioBrowser::DescribeRunDetail(Referto(ERTTestOutcome::Pass, 3), false).ToString();
+	TestTrue(FString::Printf(TEXT("senza motivo resta la nota del viewport: %s"), *SoloCampoMancante),
+		SoloCampoMancante.Contains(TEXT("viewport")));
+
+	// --- `Esegui` che non ha nemmeno provato: due cause, due frasi --------------------------------------
+	//
+	// ⚠️ Mandano a guardare in due posti diversi — il viewport oppure il draft — e confonderle manda nel
+	// posto sbagliato. La frase sta nel browser e non nel pannello proprio perche' qui la si possa leggere.
+	TestNotEqual(TEXT("«manca l'anteprima» e «manca la facade» non si leggono uguali"),
+		FRTLauncherScenarioBrowser::DescribeRunPrevented(/*bPreviewAvailable*/ false),
+		FRTLauncherScenarioBrowser::DescribeRunPrevented(/*bPreviewAvailable*/ true));
+
+	// --- e la FRASE che ne esce: e' qui che il difetto si vedeva ----------------------------------------
+	auto Riga = [](ERTLauncherRunState Stato, int32 Turni) -> FString
+	{
+		FRTLauncherTransportStatus S;
+		S.bScenarioSelected = true;
+		S.Run = Stato;
+		S.TurnsPlayed = Turni;
+		return FRTLauncherScenarioBrowser::DescribeTransport(S).ToString();
+	};
+
+	const FString Eseguita = Riga(ERTLauncherRunState::Ran, 0);
+	const FString Bloccata = Riga(ERTLauncherRunState::Blocked, 0);
+	const FString Errata = Riga(ERTLauncherRunState::Errored, 0);
+
+	// 🎯 **L'asserzione che chiude la issue.** A zero turni i tre casi collassavano su questa frase, e due
+	// dei tre la rendevano falsa.
+	TestFalse(FString::Printf(TEXT("una corsa BLOCCATA non si legge come una eseguita: %s"), *Bloccata),
+		Bloccata == Eseguita);
+	TestFalse(FString::Printf(TEXT("una corsa in ERRORE non si legge come una eseguita: %s"), *Errata),
+		Errata == Eseguita);
+	TestFalse(TEXT("e il blocco non si legge come l'errore"), Bloccata == Errata);
+
+	// ⛔ Nessuna delle due afferma un esito che il referto non conferma: la parola «eseguita» non compare.
+	TestFalse(FString::Printf(TEXT("la riga di un blocco non dichiara la corsa eseguita: %s"), *Bloccata),
+		Bloccata.Contains(TEXT("eseguita")));
+	TestFalse(FString::Printf(TEXT("ne' quella di un errore: %s"), *Errata),
+		Errata.Contains(TEXT("eseguita")));
+
+	// E si nominano, invece di essere solo diverse — la stessa asticella di `PlaybackPositionNamesItself`.
+	TestTrue(FString::Printf(TEXT("il blocco si nomina: %s"), *Bloccata), Bloccata.Contains(TEXT("BLOCCATA")));
+	TestTrue(FString::Printf(TEXT("l'errore si nomina: %s"), *Errata), Errata.Contains(TEXT("ERRORE")));
+
+	// --- gli stessi due esiti con dei turni giocati -----------------------------------------------------
+	//
+	// ⚠️ Non sono solo il caso a zero turni: `Finish()` assegna `Error` anche a meta' partita (`ErroredBy`
+	// ha la precedenza su tutto). La riga deve nominarli anche li', e dire quanti turni sono passati.
+	const FString ErrataInCorsa = Riga(ERTLauncherRunState::Errored, 5);
+	TestTrue(FString::Printf(TEXT("un errore a meta' partita porta i turni giocati: %s"), *ErrataInCorsa),
+		ErrataInCorsa.Contains(TEXT("5")));
+	TestTrue(TEXT("e si nomina lo stesso"), ErrataInCorsa.Contains(TEXT("ERRORE")));
+
+	return true;
+}
+
+/**
+ * La memoria della corsa non sopravvive alla deselezione (#2836).
+ *
+ * 🔴 **Riproduzione misurata**: seleziona `Visual.Map.TwoLayersSameColumn`, premi `Esegui` — che produce
+ * `Ran` con `TurnsPlayed = 0` — poi clicca nell'area vuota sotto la lista. `ClearSelection()` azzerava
+ * `SelectedId`, `ReadoutLines`, `ReadoutError`, `PlacedUnitOptions` e `SelectedUnitId`, e **non** la corsa:
+ * l'unica sede che azzerava `LastRunState` era `RefreshReadout()`, che da li' non viene chiamata. La riga
+ * continuava a dire *«Corsa eseguita: nessun turno da riprodurre.»* sopra un readout vuoto e senza nessuno
+ * scenario a schermo.
+ *
+ * ⚠️ **Perche' il test sta QUI e non sul pannello.** `ClearSelection()` e' un membro privato di uno Slate
+ * widget: headless non lo raggiunge nessuno. La correzione e' quindi doppia, e non per ridondanza —
+ * `ClearSelection()` dimentica la corsa (il DATO), e `bScenarioSelected` impedisce alla riga di usarla (la
+ * FRASE). Questo test misura la seconda meta', che e' quella che lo schermo mostra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTransportForgetsTheRunOnDeselectTest,
+	"RefactorTactics.DevSandboxLauncher.TransportForgetsTheRunOnDeselect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherTransportForgetsTheRunOnDeselectTest::RunTest(const FString&)
+{
+	// Lo stato subito dopo `Esegui` su uno scenario la cui corsa non gioca turni.
+	FRTLauncherTransportStatus DopoEsegui;
+	DopoEsegui.bScenarioSelected = true;
+	DopoEsegui.Run = ERTLauncherRunState::Ran;
+	DopoEsegui.TurnsPlayed = 0;
+
+	const FString ConScenario = FRTLauncherScenarioBrowser::DescribeTransport(DopoEsegui).ToString();
+	TestTrue(FString::Printf(TEXT("con lo scenario a schermo la corsa si annuncia: %s"), *ConScenario),
+		ConScenario.Contains(TEXT("nessun turno")));
+
+	// 🎯 **Il clic nel vuoto.** La memoria della corsa e' rimasta identica — e' esattamente cio' che il
+	// difetto lasciava indietro — e cambia solo la selezione.
+	FRTLauncherTransportStatus DopoClicNelVuoto = DopoEsegui;
+	DopoClicNelVuoto.bScenarioSelected = false;
+
+	const FString SenzaScenario = FRTLauncherScenarioBrowser::DescribeTransport(DopoClicNelVuoto).ToString();
+	TestFalse(FString::Printf(TEXT("senza scenario la riga non descrive piu' la corsa: %s"), *SenzaScenario),
+		SenzaScenario == ConScenario);
+	TestFalse(TEXT("e non annuncia nessuna corsa"), SenzaScenario.Contains(TEXT("Corsa")));
+
+	// ⛔ **E non si legge nemmeno come «esegui uno scenario»**, che invita a un gesto impossibile: senza
+	// selezione il pulsante `Esegui` e' disabilitato, e mandare a premerlo manda contro un muro.
+	FRTLauncherTransportStatus MaiEseguito;
+	MaiEseguito.bScenarioSelected = true;
+	TestFalse(TEXT("ne' come un pulsante mai premuto, che sarebbe un invito impossibile"),
+		SenzaScenario == FRTLauncherScenarioBrowser::DescribeTransport(MaiEseguito).ToString());
+
+	// La frase dice cosa fare per davvero: scegliere dalla lista.
+	TestTrue(FString::Printf(TEXT("dice cosa fare: %s"), *SenzaScenario),
+		SenzaScenario.Contains(TEXT("lista")));
+
+	// ⚠️ Vale per OGNI stato di corsa, non solo per quello che ha prodotto la riproduzione: la selezione e'
+	// la condizione perche' esista un soggetto di cui parlare, e non un caso particolare di `Ran`.
+	//
+	// ⚠️ **Il messaggio nomina lo stato**, e non e' pedanteria: se un giorno una strada nuova sfuggisse al
+	// cancello per `Errored` soltanto, un messaggio costante direbbe che «uno» stato parla senza dire quale,
+	// e chi legge il rosso dovrebbe ricavarlo da capo.
+	int32 Indice = 0;
+	for (const ERTLauncherRunState Stato : {
+		ERTLauncherRunState::NotRun, ERTLauncherRunState::Failed, ERTLauncherRunState::Ran,
+		ERTLauncherRunState::Blocked, ERTLauncherRunState::Errored })
+	{
+		FRTLauncherTransportStatus Orfano;
+		Orfano.Run = Stato;
+		Orfano.TurnsPlayed = 9;
+		Orfano.bPlaybackOpen = true;
+
+		const FString Riga = FRTLauncherScenarioBrowser::DescribeTransport(Orfano).ToString();
+		TestTrue(FString::Printf(TEXT("lo stato #%d parla senza uno scenario a schermo: %s"), Indice, *Riga),
+			Riga == SenzaScenario);
+		++Indice;
+	}
+
+	return true;
+}
+
+/**
+ * «Traccia non riproducibile» si dice dal REFERTO, non dal playback chiuso (#2836).
+ *
+ * 🔴 **La deduzione era sbagliata, e accusava la cosa sbagliata.**
+ * `URTScenarioPreviewSubsystem::OpenPlayback` rifiuta per cause distinte — nessuna anteprima viva
+ * (`!IsShowing()`), nessuna unita' posata (`AllUnits.Num() == 0`), tracce vuote, una traccia che non si
+ * deserializza, la navigazione che non si apre — e la riga le traduceva tutte in *«traccia non
+ * riproducibile»*. Con un viewport che non ha posato lo scenario, la traccia c'e' eccome: la frase
+ * incolpava il runner per un difetto della preview, e mandava a cercare nel posto sbagliato.
+ *
+ * 🔑 Il segnale autorevole e' `FRTScenarioRunReport::bHasTrace`, che il RUNNER scrive — ed e' `false`
+ * proprio negli aggregati a varianti, dove ne' hash ne' TurnLog esistono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTransportBlamesTheReportNotThePlaybackTest,
+	"RefactorTactics.DevSandboxLauncher.TransportBlamesTheReportNotThePlayback",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLauncherTransportBlamesTheReportNotThePlaybackTest::RunTest(const FString&)
+{
+	// Due stati identici in tutto, tranne il campo che il referto dichiara.
+	FRTLauncherTransportStatus SenzaTraccia;
+	SenzaTraccia.bScenarioSelected = true;
+	SenzaTraccia.Run = ERTLauncherRunState::Ran;
+	SenzaTraccia.TurnsPlayed = 7;
+	SenzaTraccia.bHasTrace = false;
+	SenzaTraccia.bPlaybackOpen = false;
+
+	FRTLauncherTransportStatus ConTracciaChiusa = SenzaTraccia;
+	ConTracciaChiusa.bHasTrace = true;
+
+	const FString Muta = FRTLauncherScenarioBrowser::DescribeTransport(SenzaTraccia).ToString();
+	const FString Chiusa = FRTLauncherScenarioBrowser::DescribeTransport(ConTracciaChiusa).ToString();
+
+	TestFalse(FString::Printf(TEXT("una traccia che esiste non si legge come una che manca: %s"), *Chiusa),
+		Chiusa == Muta);
+
+	// L'aggregato a varianti: il referto dichiara che non c'e' niente da confrontare, e la riga lo ripete.
+	TestTrue(FString::Printf(TEXT("senza traccia lo si dice: %s"), *Muta),
+		Muta.Contains(TEXT("traccia non riproducibile")));
+
+	// ⛔ **E con la traccia NON lo si dice**, che e' l'asserzione che blocca il difetto: si nomina il
+	// playback, che e' cio' che non si e' aperto.
+	TestFalse(FString::Printf(TEXT("con la traccia non si accusa la traccia: %s"), *Chiusa),
+		Chiusa.Contains(TEXT("traccia non riproducibile")));
+	TestTrue(TEXT("si nomina il playback, che e' cio' che non si e' aperto"),
+		Chiusa.Contains(TEXT("playback")));
+
+	// ⚠️ Entrambe portano i turni giocati: la partita c'e' stata comunque, ed e' l'altra meta' della frase.
+	TestTrue(TEXT("senza traccia i turni si dichiarano lo stesso"), Muta.Contains(TEXT("7")));
+	TestTrue(TEXT("e con la traccia pure"), Chiusa.Contains(TEXT("7")));
 
 	return true;
 }

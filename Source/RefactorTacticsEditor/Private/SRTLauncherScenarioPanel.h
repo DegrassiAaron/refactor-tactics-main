@@ -58,8 +58,28 @@ private:
 	/** Apre lo scenario selezionato **da solo** e ne costruisce il readout. Un'apertura, non novanta. */
 	void RefreshReadout();
 
-	/** Dimentica la selezione e il readout insieme. Sempre insieme: vedi `SelectedId`. */
+	/**
+	 * Dimentica la selezione, il readout, **la corsa e l'anteprima** insieme. Sempre insieme: vedi `SelectedId`.
+	 *
+	 * 🔴 La corsa e' entrata in questo elenco con #2836: prima restava, e la riga di trasporto continuava a
+	 * descriverla sopra un readout vuoto e senza nessuno scenario a schermo.
+	 *
+	 * 🔴 **E l'anteprima subito dopo, nello stesso giro.** Questa funzione non la chiudeva e non chiamava
+	 * `RefreshReadout()`, che e' l'unica sede che lo fa: dopo `Esegui` e un clic nel vuoto il playback
+	 * restava APERTO — i pulsanti di trasporto abilitati, i marcatori che si muovono — sotto un pannello che
+	 * dichiarava nessuna selezione. La prima stesura di #2836 rendeva la contraddizione peggiore invece di
+	 * toglierla: la riga smetteva di dire dove si era, e i comandi continuavano a funzionare.
+	 */
 	void ClearSelection();
+
+	/**
+	 * Dimentica la corsa e basta: i quattro campi `LastRun*` tornano al loro default.
+	 *
+	 * 🔑 **Esiste perche' il difetto di #2836 era esattamente «una sede se n'e' dimenticata».** Con
+	 * l'azzeramento scritto a mano in ogni punto, aggiungere un quinto campo domani significherebbe
+	 * ricordarselo in tutti — ed e' la stessa forma di errore, un giro dopo. Qui c'e' un posto solo.
+	 */
+	void ForgetLastRun();
 
 	/**
 	 * Ricostruisce le posizioni del selettore di prospettiva dalle squadre che l'anteprima sta mostrando
@@ -281,11 +301,40 @@ private:
 	 * ⚠️ **Vale per la posa corrente e non oltre.** `RefreshReadout()` la dimentica, perche' quella
 	 * funzione richiude il playback e rimette a schermo lo schieramento d'authoring: la memoria di una corsa
 	 * non deve sopravvivere alla traccia che descriveva.
+	 *
+	 * 🔴 **E `ClearSelection()` la dimentica dal 2026-09-12** (#2836). Non lo faceva, e `RefreshReadout()`
+	 * — l'unica sede che azzerava questi campi — da li' non viene chiamata: dopo `Esegui` e un clic nel
+	 * vuoto la riga annunciava una corsa sopra un readout vuoto, senza nessuno scenario selezionato.
+	 *
+	 * ⛔ **Porta l'esito del REFERTO, non un successo dedotto.** `Blocked` ed `Errored` esistono perche'
+	 * `URTScenarioAuthoring::Run` restituisce `Success` anche quando lo scenario si e' fermato su una
+	 * capability mancante: quel `Success` dice che l'esecuzione e' avvenuta, e basta.
 	 */
 	ERTLauncherRunState LastRunState = ERTLauncherRunState::NotRun;
 
 	/** I turni che quella corsa ha GIOCATO, dal referto della facade. Senza significato con `NotRun`. */
 	int32 LastRunTurns = 0;
+
+	/**
+	 * `FRTScenarioRunReport::bHasTrace` dell'ultima corsa (#2836).
+	 *
+	 * ⚠️ **E' il solo modo di dire «traccia non riproducibile» senza indovinarlo.** Il playback chiuso ha
+	 * cause distinte — anteprima non viva, nessuna unita' posata, traccia illeggibile — e dedurne l'assenza
+	 * della traccia accusa la traccia per un difetto del viewport.
+	 */
+	bool LastRunHasTrace = false;
+
+	/**
+	 * Il motivo che il referto porta: `BlockedReason` oppure `ErrorMessage` (#2836).
+	 *
+	 * ⚠️ **Non finisce in `ReadoutError`**, che si presenta come *«non leggibile: …»* e sostituisce il
+	 * readout: uno scenario bloccato si legge benissimo, e nasconderne terreno e squadre toglierebbe di
+	 * mezzo proprio cio' che serve a capire dove si e' fermato. Ha la sua riga, sotto il readout.
+	 *
+	 * ⚠️ `FText` e non `FString`: la compone `FRTLauncherScenarioBrowser`, dove un automation test la vede,
+	 * e il pannello la incornicia in un `LOCTEXT`. Testo grezzo qui darebbe una frase mezza tradotta.
+	 */
+	FText LastRunDetail;
 
 	/**
 	 * La facade d'authoring usata per leggere il readout.

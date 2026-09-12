@@ -5,8 +5,25 @@
 // `FRTReplayPosition` **per valore**, e un tipo incompleto non ha dimensione. Passarla per riferimento
 // avrebbe evitato l'include e imposto al chiamante di tenerla viva: per un aggregato che si costruisce
 // sullo stack a ogni ridisegno, e' il baratto sbagliato.
+//
+// ⛔ **Ed e' la ragione per cui questo header sta in `Private/` dal 2026-09-12** (#2836). `RefactorTactics`
+// e' dichiarato `PrivateDependencyModuleName` in `RefactorTacticsEditor.Build.cs`: un header PUBBLICO che
+// include `Replay/RTReplayViewModel.h` promette a un modulo terzo un percorso di include che quella
+// dichiarazione non gli concede. Qui il costo e' zero: chi lo include sta tutto sotto `Private/` — questo
+// header, il suo `.cpp`, `SRTLauncherScenarioPanel.h`, `Tests/RTLauncherScenarioBrowserTests.cpp` e
+// `Tests/RTScenarioPerspectiveTests.cpp`. Si rimisura con:
+//
+//     git grep -l 'RTLauncherScenarioBrowser.h' -- Source/
+//
+// ⚠️ **Quel comando conta anche QUESTA riga**, perche' il nome del file compare nel proprio commento: chi
+// lo esegue vede un file in piu' di quelli che includono davvero. E' anche la ragione per cui qui non c'e'
+// un numero — `CLAUDE.md` §15 vieta i totali che cambiano da soli, e un conteggio di chi-include e'
+// esattamente uno di quelli. ⚠️ **Non e' un difetto isolato**: altri header di
+// `RefactorTacticsEditor/Public/` includono header di `RefactorTactics` allo stesso modo. Quelli hanno un
+// owner diverso e restano dove sono; spostare questo non li corregge e non pretende di farlo.
 #include "Replay/RTReplayViewModel.h" // FRTReplayPosition
 
+struct FRTScenarioRunReport;
 struct FRTScenarioSummary;
 struct FRTScenarioUnitView;
 
@@ -53,6 +70,12 @@ enum class ERTLauncherListState : uint8
  * `FRTScenarioRunReport::Outcome` e non e' cio' che il trasporto descrive: uno scenario che fallisce le
  * sue attese ha comunque prodotto una traccia da riprodurre, e sono due letture diverse dello stesso
  * gesto.
+ *
+ * 🔴 **Ma `Blocked` e `Error` SI'** (#2836), ed e' la distinzione che mancava. `Ran` copriva tutti e
+ * quattro gli esiti del referto, e con `TurnsPlayed == 0` la riga diceva *«Corsa eseguita: nessun turno da
+ * riprodurre.»* — cioe' affermava un successo — su uno scenario **bloccato** da una capability mancante o
+ * andato in **errore**. Il difetto che #2788 correggeva era muto; questo era assertivo, che e' peggio: una
+ * riga che non dice niente lascia a cercare, una che dichiara il falso manda altrove con una certezza.
  */
 enum class ERTLauncherRunState : uint8
 {
@@ -65,11 +88,41 @@ enum class ERTLauncherRunState : uint8
 	 * ⚠️ Distinto da `NotRun` e non fuso con esso: dopo un rifiuto la riga direbbe altrimenti «esegui uno
 	 * scenario» a chi lo ha appena eseguito senza successo, cioe' inviterebbe a ripetere il gesto invece di
 	 * mandare a leggere il perche'.
+	 *
+	 * ⛔ **Non e' un esito del gioco**: qui la corsa non e' proprio avvenuta. `Blocked` e `Errored` sono
+	 * l'opposto — l'esecuzione c'e' stata e il REFERTO dice com'e' finita.
 	 */
 	Failed,
 
-	/** La corsa e' avvenuta. Quanti turni abbia prodotto lo dice `FRTLauncherTransportStatus::TurnsPlayed`. */
+	/**
+	 * La corsa e' avvenuta e il referto la conferma: `Pass` oppure `Fail`.
+	 *
+	 * ⚠️ **`Fail` sta qui, e non e' una svista.** `RTScenarioAuthoring.h` lo dichiara per la facade —
+	 * *«un `FAIL` e' l'informazione piu' preziosa che questo strumento produce, e farlo apparire come un
+	 * guasto dello strumento la butterebbe via»* — e vale identico per la riga di trasporto: uno scenario
+	 * che fallisce le sue attese ha giocato i suoi turni e ha una traccia da riprodurre. L'esito lo dice il
+	 * referto, non il trasporto.
+	 */
 	Ran,
+
+	/**
+	 * L'esecuzione e' avvenuta e si e' fermata su una **capability non ancora costruita** (`ERTTestOutcome::Blocked`).
+	 *
+	 * 🔴 Aggiunto da #2836. Prima cadeva in `Ran`, e a zero turni — che e' il caso in cui
+	 * `RTScenarioSession` lo definisce — diventava indistinguibile da uno scenario legittimamente senza
+	 * turni. `FRTScenarioRunReport::BlockedReason` dice quale capability manca, e senza questo valore
+	 * nessuno lo andava a leggere.
+	 */
+	Blocked,
+
+	/**
+	 * L'esecuzione e' avvenuta e lo scenario non ha potuto giocare (`ERTTestOutcome::Error`).
+	 *
+	 * 🔴 Aggiunto da #2836, per la stessa ragione di `Blocked`: e' un difetto **del test**, non del gioco,
+	 * e `FRTScenarioRunReport::ErrorMessage` dice quale. Presentarlo come una corsa riuscita manda a
+	 * cercare un bug di gioco che non c'e'.
+	 */
+	Errored,
 };
 
 /**
@@ -87,6 +140,34 @@ struct FRTLauncherTransportStatus
 
 	/** I turni che la corsa ha GIOCATO — `FRTScenarioRunReport::TurnsPlayed`, non i turni authorati. */
 	int32 TurnsPlayed = 0;
+
+	/**
+	 * `FRTScenarioRunReport::bHasTrace`, e va letto per quello che e'.
+	 *
+	 * ⚠️ **Non dice «la traccia si riproduce»**, e credere il contrario sarebbe la stessa deduzione
+	 * sbagliata girata di un passo: `FRTScenarioDraft::Run` lo scrive come `Scenario.Variants.Num() == 0`
+	 * (`RTScenarioDraft.cpp:1126`), cioe' risponde a *«questa corsa e' un aggregato a varianti?»*. Un
+	 * aggregato non porta ne' hash ne' TurnLog, quindi `false` significa **con certezza** che non c'e'
+	 * niente da riprodurre; `true` significa che una traccia e' stata prodotta, non che si decodifichi.
+	 *
+	 * 🔴 **Serve comunque, perche' `!bPlaybackOpen` non e' un sinonimo di «traccia assente»** (#2836).
+	 * `URTScenarioPreviewSubsystem::OpenPlayback` rifiuta per cause distinte — nessuna anteprima viva,
+	 * nessuna unita' posata, tracce vuote, una traccia che non si deserializza, la navigazione che non si
+	 * apre — e dedurne *«traccia non riproducibile»* accusa la traccia per un'anteprima morta. Con `true` e
+	 * il playback chiuso la causa **non e' conoscibile da qui**, e la riga lo dice invece di sceglierne una.
+	 */
+	bool bHasTrace = false;
+
+	/**
+	 * C'e' uno scenario selezionato nel pannello.
+	 *
+	 * 🔴 **Senza, la riga descriveva la corsa di uno scenario che non e' piu' a schermo** (#2836).
+	 * `ClearSelection()` dimenticava il readout e non la corsa: dopo `Esegui` su
+	 * `Visual.Map.TwoLayersSameColumn` e un clic nel vuoto, la riga continuava a dire *«Corsa eseguita»*
+	 * sopra un readout vuoto e senza nessuna selezione. `false` e' il default apposta: uno stato che non
+	 * dichiara una selezione non ne ha una, e sbagliare in questo verso tace invece di mentire.
+	 */
+	bool bScenarioSelected = false;
 
 	bool bPlaybackOpen = false;
 
@@ -220,6 +301,53 @@ public:
 	static FText DescribePlaybackPosition(const FRTReplayPosition& Position);
 
 	/**
+	 * Quale stato di corsa il REFERTO descrive (#2836).
+	 *
+	 * 🔴 **E' la traduzione che il pannello faceva per omissione**, e che sbagliava: qualunque
+	 * `Run() == Success` diventava `Ran`, mentre `Success` significa soltanto che *«l'esecuzione e'
+	 * avvenuta»* — `RTScenarioAuthoring.h` lo dichiara a parole. L'esito del gioco sta in
+	 * `FRTScenarioRunReport::Outcome`, e a zero turni `Blocked` ed `Error` sono proprio i casi che
+	 * `RTScenarioSession` produce.
+	 *
+	 * ⛔ **`Fail` torna `Ran`, deliberatamente.** Un `FAIL` e' un difetto del GIOCO su una partita che si e'
+	 * giocata: ha i suoi turni e la sua traccia, e travestirlo da guasto dello strumento butterebbe via
+	 * l'informazione piu' preziosa che questo strumento produce.
+	 *
+	 * ⚠️ Prende il referto per riferimento costante e non per valore: `FRTScenarioRunReport` porta gli array
+	 * delle assertion e delle note, e qui non se ne legge nessuno.
+	 */
+	static ERTLauncherRunState ClassifyRun(const FRTScenarioRunReport& Report);
+
+	/**
+	 * La riga `referto:` sotto il readout: il motivo che il referto porta, piu' la nota del viewport quando
+	 * il campo non e' stato posato (#2836). Vuota quando non c'e' niente da dire.
+	 *
+	 * 🔑 **Serve a far arrivare al readout il campo che il pannello scartava.** Senza, il designer legge
+	 * *«Corsa BLOCCATA»* e non sa **quale** capability manchi — che e' l'unica cosa da sapere per andare
+	 * avanti, e che il referto gia' contiene.
+	 *
+	 * ⛔ **Non ripete l'esito**, che l'intestazione della riga di trasporto ha gia' detto: porta il MOTIVO e
+	 * basta. Un *«corsa BLOCCATA:»* premesso qui lo direbbe una terza volta nella stessa schermata.
+	 *
+	 * ⚠️ **`bFieldPlaced` e' un parametro e non una seconda frase scritta nel pannello.** Comporla li'
+	 * l'avrebbe messa fuori da ogni automation test, che e' proprio cio' che l'intestazione di
+	 * `SRTLauncherScenarioPanel.h` vieta — e sarebbe stata l'unica frase nuova senza copertura, oltre che
+	 * quella che parla quando il viewport ha gia' un problema.
+	 *
+	 * ⚠️ `FText` e non `FString`: il pannello la incornicia in un `LOCTEXT`, e restituire testo grezzo
+	 * produrrebbe una frase mezza tradotta sotto una locale non italiana.
+	 */
+	static FText DescribeRunDetail(const FRTScenarioRunReport& Report, bool bFieldPlaced);
+
+	/**
+	 * Perche' `Esegui` non ha nemmeno provato a correre (#2836): manca l'anteprima, oppure la facade.
+	 *
+	 * ⚠️ **Due cause e due frasi**, perche' mandano a guardare in due posti diversi: il viewport oppure il
+	 * draft. Confonderle manda nel posto sbagliato, ed e' il genere di risparmio che costa un giro.
+	 */
+	static FText DescribeRunPrevented(bool bPreviewAvailable);
+
+	/**
 	 * La riga di stato del trasporto: cosa il campo sta mostrando, e da quale gesto viene (#2788).
 	 *
 	 * 🔴 **La domanda a cui risponde non e' «dove sono nella traccia», e' «cosa sto guardando».** Prima
@@ -232,6 +360,11 @@ public:
 	 * ⛔ **Non decide se il playback e' apribile.** Riceve `bPlaybackOpen` gia' misurato dal sottosistema:
 	 * una funzione pura che provasse a dedurlo dai turni direbbe «aperto» per una traccia che non si e'
 	 * decodificata.
+	 *
+	 * 🔴 **E non afferma un esito che il referto non conferma** (#2836). La frase si compone di due
+	 * proposizioni — cosa il gesto ha prodotto, e cosa c'e' da guardare — e ogni valore di
+	 * `ERTLauncherRunState` ha la sua: `Blocked` ed `Errored` si leggono come tali anche a zero turni,
+	 * dove prima diventavano *«Corsa eseguita»*.
 	 */
 	static FText DescribeTransport(const FRTLauncherTransportStatus& Status);
 };

@@ -56,10 +56,16 @@ ERTLauncherListState FRTLauncherScenarioBrowser::Classify(int32 FilteredCount, i
 
 FText FRTLauncherScenarioBrowser::DescribeEmptyState(ERTLauncherListState State)
 {
-	// ⚠️ Nessun `default:`, e non e' pedanteria: e' un enum cha ha per unico scopo tenere distinte delle
-	// cause. Con un `default` uno stato aggiunto domani si tradurrebbe in silenzio in «nessun messaggio»,
-	// cioe' in un elenco vuoto che non dice piu' perche' — il difetto che l'enum esiste per impedire. Senza,
-	// il compilatore indica l'unico punto che va aggiornato.
+	// ⚠️ Nessun `default:`, e non e' pedanteria: e' un enum che ha per unico scopo tenere distinte delle
+	// cause, e un `default` tradurrebbe uno stato nuovo nel messaggio di un altro.
+	//
+	// 🔴 **Ma il compilatore NON lo intercetta, e questo commento diceva il contrario** (#2836). Misurato:
+	// `CppCompileWarnings.SwitchUnhandledEnumeratorWarningLevel` ha `[BasicWarningLevelDefault(WarningLevel.Off)]`
+	// in `Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/CppCompileWarnings.cs`, e nessuno dei
+	// due `Source/*.Target.cs` lo alza — ne' `/we4061` su MSVC ne' `-Wswitch-enum` su Clang. Uno stato
+	// aggiunto domani **cade in fondo**, dove c'e' `FText::GetEmpty()`. Qui la stringa vuota e' comunque la
+	// risposta giusta — e' quella che `Populated` usa, e un messaggio sotto un elenco pieno sarebbe peggio —
+	// quindi il rimedio non e' cambiare il ritorno: e' non fidarsi di una guardia che non esiste.
 	switch (State)
 	{
 	case ERTLauncherListState::Populated:
@@ -239,63 +245,249 @@ FText FRTLauncherScenarioBrowser::DescribePlaybackPosition(const FRTReplayPositi
 		FText::AsNumber(Position.TurnNumber), Fase);
 }
 
-FText FRTLauncherScenarioBrowser::DescribeTransport(const FRTLauncherTransportStatus& Status)
+ERTLauncherRunState FRTLauncherScenarioBrowser::ClassifyRun(const FRTScenarioRunReport& Report)
 {
-	// I turni come argomento NUMERICO e non come testo gia' formattato: e' cio' che rende usabile
-	// `|plural(...)`. «1 turni» su `Movement.Basic` — che di turno ne ha esattamente uno — sarebbe la prima
-	// cosa che si nota, e la meno interessante.
-	FFormatNamedArguments Argomenti;
-	Argomenti.Add(TEXT("Turni"), Status.TurnsPlayed);
-
-	if (Status.bPlaybackOpen)
+	switch (Report.Outcome)
 	{
-		if (Status.Run != ERTLauncherRunState::Ran)
-		{
-			// ⚠️ Un playback aperto di cui questo pannello non ha memoria — ricostruito dopo che la corsa
-			// era gia' stata lanciata, per esempio. Si dice dove si e' e **non** «corsa di 0 turni», che
-			// sarebbe un conteggio inventato su una traccia che invece ne ha.
-			return DescribePlaybackPosition(Status.Position);
-		}
+	case ERTTestOutcome::Blocked:
+		return ERTLauncherRunState::Blocked;
 
-		// 🔑 **Qui sta la distinzione che #2788 chiede.** La stessa `Posa iniziale.` che prima si leggeva
-		// come «non e' successo niente» ora arriva preceduta dalla corsa che l'ha prodotta: il campo mostra
-		// il turno 0 **di una traccia**, non lo schieramento d'authoring.
-		Argomenti.Add(TEXT("Posizione"), DescribePlaybackPosition(Status.Position));
-		return FText::Format(
-			LOCTEXT("TransportRan", "Corsa di {Turni} {Turni}|plural(one=turno,other=turni) · {Posizione}"),
-			Argomenti);
+	case ERTTestOutcome::Error:
+		return ERTLauncherRunState::Errored;
+
+	case ERTTestOutcome::Pass:
+	case ERTTestOutcome::Fail:
+		// ⛔ **`Fail` non e' un guasto dello strumento**, ed e' la regola che `RTScenarioAuthoring.h`
+		// enuncia per la facade: la partita si e' giocata, ha i suoi turni e la sua traccia, e l'esito lo
+		// dice il referto. Mostrarlo come una corsa mancata sarebbe la stessa classe di errore che questa
+		// funzione esiste per togliere di mezzo, girata dall'altra parte.
+		return ERTLauncherRunState::Ran;
 	}
 
-	// ⚠️ Nessun `default:`, come in `DescribeEmptyState` e per la stessa ragione: uno stato aggiunto domani
-	// deve rompere la compilazione qui, non tradursi in silenzio nella frase di un altro.
-	switch (Status.Run)
+	// ⚠️ **Non un `Ran` di comodo.** Un esito che questa funzione non conosce e' un esito che nessuno ha
+	// tradotto: farlo passare per una corsa riuscita e' esattamente il difetto di #2836. `Errored` lo rende
+	// visibile, e `DescribeRunDetail` porta a schermo `OutcomeText` — il testo che il RUNNER ha scritto per
+	// quell'esito — invece di lasciare vuota la riga del referto.
+	return ERTLauncherRunState::Errored;
+}
+
+namespace
+{
+	/** Il solo MOTIVO, senza nominare l'esito: quello l'intestazione della riga l'ha gia' detto. */
+	FText DescribeReportReason(const FRTScenarioRunReport& Report)
 	{
-	case ERTLauncherRunState::NotRun:
-		return LOCTEXT("TransportNoPlayback", "Nessun playback: esegui uno scenario.");
+		switch (Report.Outcome)
+		{
+		case ERTTestOutcome::Blocked:
+			// ⚠️ Irraggiungibile da una corsa vera, e la guardia resta lo stesso. `RTScenarioSession`
+			// scrive `Outcome` e `BlockedReason` nella **stessa** istruzione di `Finish()`, quindi
+			// l'invariante e' del PRODUTTORE e qui non c'e' niente da verificare: a costruire un referto
+			// senza motivo puo' essere solo un chiamante che se lo fabbrica — Blueprint, o un test. Una
+			// stringa vuota diventerebbe una riga assente sotto un'intestazione che promette un motivo, ed
+			// e' la forma di silenzio che #2836 esiste per togliere.
+			return Report.BlockedReason.IsEmpty()
+				? LOCTEXT("ReasonBlockedMissing", "il referto non dice quale capability manchi")
+				: FText::FromString(Report.BlockedReason);
 
-	case ERTLauncherRunState::Failed:
-		// Manda a leggere, invece di invitare a ripetere il gesto: il messaggio della facade e' nel readout.
-		return LOCTEXT("TransportFailed", "Corsa fallita: nessun playback. Il referto dice perche'.");
+		case ERTTestOutcome::Error:
+			return Report.ErrorMessage.IsEmpty()
+				? LOCTEXT("ReasonErrorMissing", "il referto non dice perche'")
+				: FText::FromString(Report.ErrorMessage);
 
-	case ERTLauncherRunState::Ran:
+		case ERTTestOutcome::Pass:
+		case ERTTestOutcome::Fail:
+			// Nessun motivo da riportare: `PassedCount` / `FailedCount` e le assertion sono un'altra
+			// lettura, e non e' questa funzione a possederla.
+			return FText::GetEmpty();
+		}
+
+		// 🔴 **Un esito che nessuno ha tradotto, e la riga NON resta vuota.** `ClassifyRun` lo mostra gia'
+		// come `Errored`; qui arriva il testo che il runner stesso ha scritto per quell'esito, che e'
+		// l'unica cosa vera che si possa dire. Il fallthrough non e' teorico: `ERTTestOutcome` e' dichiarato
+		// estendibile IN CODA (`RTTestScenario.h`), e su questo progetto il compilatore non intercetta il
+		// caso mancante — la misura sta in `DescribeEmptyState`.
+		FFormatNamedArguments Argomenti;
+		Argomenti.Add(TEXT("Esito"), Report.OutcomeText.IsEmpty()
+			? LOCTEXT("ReasonUnknownOutcome", "senza nome")
+			: FText::FromString(Report.OutcomeText));
+		return FText::Format(LOCTEXT("ReasonUnknown", "esito non tradotto dal pannello: {Esito}"), Argomenti);
+	}
+}
+
+FText FRTLauncherScenarioBrowser::DescribeRunDetail(const FRTScenarioRunReport& Report, bool bFieldPlaced)
+{
+	const FText Motivo = DescribeReportReason(Report);
+
+	if (bFieldPlaced)
+	{
+		return Motivo;
+	}
+
+	// ⚠️ **Il viewport si nomina, la corsa no.** L'esecuzione e' avvenuta comunque — il referto qui sopra
+	// lo dice — e fondere le due cose farebbe leggere come fallita una corsa riuscita il cui campo non si e'
+	// posato. Sono due frasi perche' sono due fatti.
+	const FText Campo = LOCTEXT("DetailNoField", "il viewport non ha posato lo scenario: nessun playback da aprire");
+
+	if (Motivo.IsEmpty())
+	{
+		return Campo;
+	}
+
+	FFormatNamedArguments Argomenti;
+	Argomenti.Add(TEXT("Motivo"), Motivo);
+	Argomenti.Add(TEXT("Campo"), Campo);
+	return FText::Format(LOCTEXT("DetailBoth", "{Motivo} · {Campo}"), Argomenti);
+}
+
+FText FRTLauncherScenarioBrowser::DescribeRunPrevented(bool bPreviewAvailable)
+{
+	return bPreviewAvailable
+		? LOCTEXT("PreventedNoAuthoring", "la facade d'authoring non e' disponibile: nessuna corsa")
+		: LOCTEXT("PreventedNoPreview", "l'anteprima di scenario non e' disponibile: nessuna corsa");
+}
+
+namespace
+{
+	/**
+	 * Cosa il gesto ha PRODOTTO, senza punto finale: la prima meta' della riga di trasporto (#2836).
+	 *
+	 * ⚠️ **Ogni stato ha la sua frase, e a zero turni restano distinti.** E' il punto: `Blocked` ed
+	 * `Errored` con `TurnsPlayed == 0` sono proprio i casi che `RTScenarioSession` produce, e sono quelli
+	 * che prima si leggevano *«Corsa eseguita»*.
+	 */
+	FText DescribeRunHeadline(const FRTLauncherTransportStatus& Status)
+	{
+		// I turni come argomento NUMERICO e non come testo gia' formattato: e' cio' che rende usabile
+		// `|plural(...)`. «1 turni» su `Movement.Basic` — che di turno ne ha esattamente uno — sarebbe la
+		// prima cosa che si nota, e la meno interessante.
+		FFormatNamedArguments Argomenti;
+		Argomenti.Add(TEXT("Turni"), Status.TurnsPlayed);
+
+		switch (Status.Run)
+		{
+		case ERTLauncherRunState::NotRun:
+			// `DescribeTransport` lo intercetta prima di arrivare qui: raggiungerlo significherebbe che
+			// qualcuno ha aperto una seconda strada verso questa funzione.
+			break;
+
+		case ERTLauncherRunState::Failed:
+			return LOCTEXT("HeadlineFailed", "Corsa fallita");
+
+		case ERTLauncherRunState::Blocked:
+			return Status.TurnsPlayed == 0
+				? LOCTEXT("HeadlineBlockedNoTurns", "Corsa BLOCCATA")
+				: FText::Format(LOCTEXT("HeadlineBlocked",
+					"Corsa BLOCCATA dopo {Turni} {Turni}|plural(one=turno,other=turni)"), Argomenti);
+
+		case ERTLauncherRunState::Errored:
+			return Status.TurnsPlayed == 0
+				? LOCTEXT("HeadlineErroredNoTurns", "Corsa in ERRORE")
+				: FText::Format(LOCTEXT("HeadlineErrored",
+					"Corsa in ERRORE dopo {Turni} {Turni}|plural(one=turno,other=turni)"), Argomenti);
+
+		case ERTLauncherRunState::Ran:
+			return Status.TurnsPlayed == 0
+				? LOCTEXT("HeadlineRanNoTurns", "Corsa eseguita")
+				: FText::Format(LOCTEXT("HeadlineRan",
+					"Corsa di {Turni} {Turni}|plural(one=turno,other=turni)"), Argomenti);
+		}
+
+		// 🔴 **Una frase, non `FText::GetEmpty()`, e la ragione e' MISURATA** (#2836). Il commento che stava
+		// qui prometteva che *«uno stato aggiunto domani deve rompere la compilazione»*, e non e' vero su
+		// questo progetto: `CppCompileWarnings.SwitchUnhandledEnumeratorWarningLevel` ha
+		// `[BasicWarningLevelDefault(WarningLevel.Off)]` in
+		// `Engine/Source/Programs/UnrealBuildTool/Configuration/Rules/CppCompileWarnings.cs`, e nessuno dei
+		// due `Source/*.Target.cs` lo alza — quindi ne' `/we4061` su MSVC ne' `-Wswitch-enum` su Clang
+		// arrivano alla riga di comando. Uno stato nuovo cadrebbe qui in silenzio, e con una stringa vuota
+		// la riga SPARIREBBE dallo schermo: peggio della frase sbagliata, perche' non lascia niente da
+		// notare. Cosi' invece si legge, e chi la legge sa cosa aggiungere.
+		return LOCTEXT("HeadlineUnknown", "Corsa di esito non descritto");
+	}
+
+	/**
+	 * Cosa c'e' DA GUARDARE, con il punto finale: la seconda meta' della riga (#2836).
+	 *
+	 * 🔑 Il playback aperto vince su tutto, perche' e' l'unica informazione che il pannello non puo'
+	 * dedurre — e perche' e' la distinzione che #2788 chiede: la `Posa iniziale.` arriva preceduta dalla
+	 * corsa che l'ha prodotta, quindi il campo mostra il turno 0 **di una traccia** e non lo schieramento.
+	 */
+	FText DescribeRunTail(const FRTLauncherTransportStatus& Status)
+	{
+		if (Status.bPlaybackOpen)
+		{
+			// 🔴 **Tranne dopo un RIFIUTO** (#2836). Una corsa che non e' avvenuta non ha prodotto nessuna
+			// traccia, quindi un playback aperto qui e' quello di una corsa PRECEDENTE: comporre
+			// *«Corsa fallita · Turno 3 · Movimento»* accosterebbe un gesto che non c'e' stato alla posizione
+			// di un altro. E' una congiunzione FALSA — la stessa forma di difetto che questa funzione esiste
+			// per togliere, girata dall'altra parte.
+			return Status.Run == ERTLauncherRunState::Failed
+				? LOCTEXT("TailFailedStalePlayback", "il playback aperto e' di una corsa precedente.")
+				: FRTLauncherScenarioBrowser::DescribePlaybackPosition(Status.Position);
+		}
+
+		switch (Status.Run)
+		{
+		case ERTLauncherRunState::Failed:
+			// Manda a leggere, invece di invitare a ripetere il gesto: il messaggio della facade e' nel readout.
+			return LOCTEXT("TailFailed", "nessun playback. Il referto dice perche'.");
+
+		case ERTLauncherRunState::Blocked:
+			// ⛔ **Dice CHE COSA, non «vai a leggere».** Il motivo e' gia' sulla riga `referto:` appena
+			// sotto, e rimandare a una riga visibile e' rumore: la terza volta che la stessa schermata
+			// dichiara lo stesso fatto.
+			return LOCTEXT("TailBlocked", "una capability non c'e' ancora.");
+
+		case ERTLauncherRunState::Errored:
+			return LOCTEXT("TailErrored", "lo scenario non ha potuto giocare.");
+
+		case ERTLauncherRunState::NotRun:
+		case ERTLauncherRunState::Ran:
+			break;
+		}
+
 		if (Status.TurnsPlayed == 0)
 		{
 			// 🎯 **Il caso che ha ingannato un lettore.** Una corsa senza turni non apre nessun playback, e
 			// la riga diceva «esegui uno scenario» a chi lo aveva appena eseguito. Non e' un errore: e' un
-			// esito legittimo, e va detto come tale.
-			return LOCTEXT("TransportNoTurns", "Corsa eseguita: nessun turno da riprodurre.");
+			// esito legittimo, e va detto come tale — ma solo qui, dove l'esito e' davvero `Ran`.
+			return LOCTEXT("TailNoTurns", "nessun turno da riprodurre.");
 		}
 
-		// Turni giocati ma niente da riprodurre: traccia non decodificabile, oppure aggregato a varianti,
-		// che non porta ne' hash ne' TurnLog (`FRTScenarioRunReport::bHasTrace`). Dirlo separa il guasto
-		// dello strumento dall'esito vuoto qui sopra.
-		return FText::Format(
-			LOCTEXT("TransportNotPlayable",
-				"Corsa di {Turni} {Turni}|plural(one=turno,other=turni): traccia non riproducibile."),
-			Argomenti);
+		// ⛔ **`bHasTrace` e non `!bPlaybackOpen`** (#2836). `OpenPlayback` rifiuta anche per un'anteprima
+		// non viva, per nessuna unita' posata e per una navigazione che non si apre: dedurne «traccia non
+		// riproducibile» accuserebbe la traccia di un difetto del viewport. Il segnale autorevole e' quello
+		// che il runner scrive nel referto.
+		return Status.bHasTrace
+			? LOCTEXT("TailPlaybackClosed", "il playback non si e' aperto.")
+			: LOCTEXT("TailNoTrace", "traccia non riproducibile.");
+	}
+}
+
+FText FRTLauncherScenarioBrowser::DescribeTransport(const FRTLauncherTransportStatus& Status)
+{
+	// 🔴 **Senza scenario a schermo non c'e' nessuna corsa di cui parlare** (#2836). `ClearSelection()`
+	// dimenticava il readout e non la corsa, e la riga continuava a dire *«Corsa eseguita»* sopra un
+	// readout vuoto: una schermata che si contraddice. Qui la contraddizione e' impossibile per
+	// costruzione — la memoria puo' anche restare, la frase non la usa.
+	if (!Status.bScenarioSelected)
+	{
+		return LOCTEXT("TransportNoSelection", "Nessuno scenario selezionato: scegline uno dalla lista.");
 	}
 
-	return FText::GetEmpty();
+	if (Status.Run == ERTLauncherRunState::NotRun)
+	{
+		// ⚠️ Un playback aperto di cui questo pannello non ha memoria — ricostruito dopo che la corsa era
+		// gia' stata lanciata, per esempio. Si dice dove si e' e **non** «corsa di 0 turni», che sarebbe un
+		// conteggio inventato su una traccia che invece ne ha.
+		return Status.bPlaybackOpen
+			? DescribePlaybackPosition(Status.Position)
+			: LOCTEXT("TransportNoPlayback", "Nessun playback: esegui uno scenario.");
+	}
+
+	FFormatNamedArguments Argomenti;
+	Argomenti.Add(TEXT("Corsa"), DescribeRunHeadline(Status));
+	Argomenti.Add(TEXT("Seguito"), DescribeRunTail(Status));
+	return FText::Format(LOCTEXT("TransportLine", "{Corsa} · {Seguito}"), Argomenti);
 }
 
 #undef LOCTEXT_NAMESPACE
