@@ -346,6 +346,19 @@ la chiusura di [#2697], quel check esce dall'agenda e nessuno se ne accorge. Mit
 già previsto: la cache GitHub conosce lo stato delle issue, quindi un `requires` il cui issue owner è
 **chiusa** viene stampato come sospetto. Sostituisce il gate senza costare un CI.
 
+⚠️ **Rettificato il 2026-09-12** (fetta 1). Questo paragrafo portava due difetti.
+
+L'esempio citava `mount:WBP_RT_EventLogRight` senza `#issue` — la forma che §3.3 rettifica lo stesso
+giorno dichiarando che `oracles.valuta` la **rifiuta** con `ValueError`: i tipi con issue pretendono
+`nome#numero`, perché senza owner un bloccante non ha nessuno che possa toglierlo. La forma corretta è
+`mount:WBP_RT_EventLogRight#2697`.
+
+E la mitigazione descritta — «un `requires` il cui issue owner è chiusa viene stampato come
+**sospetto**» — non è mai stata quella costruita: nessuno stampa un sospetto. §13 dichiara essa stessa
+questa proposta **superata**, perché `oracles.valuta` considera già *soddisfatto*, senza un passo
+intermedio, un `requires` la cui issue è chiusa — con la precisazione che §13 aggiunge nello stesso
+punto: non succede da sé, serve rilanciare il fetch della cache.
+
 **La migrazione della prosa stalla a metà e restano due verità.** Lo previene la regola di §5.3: un solo
 owner in ogni istante.
 
