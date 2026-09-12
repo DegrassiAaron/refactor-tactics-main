@@ -176,6 +176,16 @@ void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 	}
 }
 
+TArray<FVector> ARTHUD::CellOutlineWorld(const FRTCellId& Cell, const FVector& Origin,
+	float HexSize, float LayerHeight)
+{
+	// ⛔ **Una riga, e deve restare una riga.** Il valore di questa funzione e' di NON contenere geometria:
+	// `URTHexLibrary::CellCorners` compone `AxialToWorld` e `HexCorners`, che il repository dichiara come
+	// gli unici due posti in cui la convenzione pointy-top e' scritta. Il difetto di `#3077` nasce da una
+	// copia locale di quella trigonometria, e una seconda copia qui la reintrodurrebbe.
+	return URTHexLibrary::CellCorners(Cell, Origin, HexSize, LayerHeight);
+}
+
 FRTRefusedShotLine ARTHUD::ComputeRefusedShotLine(
 	ERTTargetRefusal Refusal, const FRTLineOfSightResult& Los,
 	const FRTCellId& From, const FRTCellId& To, const TSet<FRTCellId>& KnownCells)
@@ -1081,16 +1091,20 @@ void ARTHUD::DrawHUD()
 				continue; // dietro la camera: `Project` non da' una posizione utile
 			}
 
-			// Sei vertici, presi allo stesso raggio con cui la mappa disegna la cella. Il ciclo chiude
-			// l'anello con `% 6`, cosi' l'ultimo segmento torna al primo vertice senza un caso speciale.
+			// Sei vertici presi dalla SORGENTE della griglia, non ricalcolati qui. Il ciclo chiude l'anello
+			// con `% 6`, cosi' l'ultimo segmento torna al primo vertice senza un caso speciale.
+			//
+			// 🔴 **Qui la trigonometria era riscritta, e sbagliata** (`#3077`): `60 * I` dava il primo
+			// vertice a `0` gradi — un flat-top — mentre la griglia e' pointy-top con primo vertice a
+			// `-30`. Trenta gradi di scarto: il contorno tagliava i lati della cella invece di seguirli,
+			// quindi non la chiudeva. Il contratto di `CellCorners` lo diceva gia' — *«chi disegna il
+			// prisma chiama questa, non riscrive la trigonometria in Blueprint»* — e valeva anche per il C++.
+			const TArray<FVector> Corners = CellOutlineWorld(Cell, Origin, HexSize, LayerH);
 			FVector2D V[6];
-			bool bAllVisible = true;
-			for (int32 I = 0; I < 6; ++I)
+			bool bAllVisible = Corners.Num() == 6;
+			for (int32 I = 0; bAllVisible && I < 6; ++I)
 			{
-				const float Angle = FMath::DegreesToRadians(60.f * I);
-				const FVector WorldVertex = HexCellWorld(Cell, Origin, HexSize, LayerH)
-					+ FVector(HexSize * FMath::Cos(Angle), HexSize * FMath::Sin(Angle), 0.f);
-				const FVector Screen = Project(WorldVertex);
+				const FVector Screen = Project(Corners[I]);
 				if (Screen.Z <= 0.f) { bAllVisible = false; break; }
 				V[I] = FVector2D(Screen.X, Screen.Y);
 			}

@@ -309,6 +309,22 @@ public:
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
 
 	/**
+	 * I sei vertici-mondo del contorno con cui si marca una cella — `#3077`.
+	 *
+	 * ⛔ **Delega a `URTHexLibrary::CellCorners` e non riscrive la trigonometria**, che e' esattamente cio'
+	 * che il contratto di quella funzione prescrive: *«chi disegna il prisma chiama questa»*, e
+	 * `AxialToWorld` piu' `HexCorners` restano **gli unici due posti** in cui la convenzione pointy-top e'
+	 * scritta.
+	 *
+	 * 🔴 **Esiste perche' qui la trigonometria ERA riscritta, e sbagliata**: `60 * I` invece di `60 * I - 30`
+	 * disegnava un flat-top su una griglia pointy-top, trenta gradi fuori. Il contorno tagliava i lati della
+	 * cella invece di seguirli, e quattro sedute PIE non l'hanno preso perche' nessun test guardava DOVE
+	 * cadono i vertici — solo che fossero sei.
+	 */
+	static TArray<FVector> CellOutlineWorld(const FRTCellId& Cell, const FVector& Origin,
+		float HexSize, float LayerHeight);
+
+	/**
 	 * I due tratti del tiro rifiutato per copertura, in CELLE — `#3085`.
 	 *
 	 * Pieno da `From` a `BreakAt`, tratteggiato da `BreakAt` a `To`: il primo dice dove il tiro arriva, il
