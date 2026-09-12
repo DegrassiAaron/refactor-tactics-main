@@ -258,8 +258,17 @@ void ARTTurnManager::BeginMovementResolution()
 	//
 	// La via a passi e quella in blocco sono LO STESSO codice — `ResolveHexPaths` e' esattamente questo ciclo
 	// — quindi il comportamento senza Overwatch armati e' invariato per costruzione, non per verifica.
+	// La squadra, parallela a `Ctx.Paths` (`#2984`, [D-396]): decide chi si puo' attraversare.
+	// `INDEX_NONE` per chi non ce l'ha, cosi' l'assenza di dato non concede niente.
+	TArray<int32> Teams;
+	Teams.Init(INDEX_NONE, Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (Units[i]) { Teams[i] = Units[i]->TeamId; }
+	}
+
 	Ctx.State = URTHexSimLibrary::BeginHexMovement(Ctx.Paths, TArray<int32>(),
-		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations);
+		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations, Teams);
 
 	// Le unita' passano nel contesto come riferimenti DEBOLI: fra due micro-step, in prospettiva, passa una
 	// finestra di reazione. Gli indici di `Ctx.State` sono indici di QUESTO array.
