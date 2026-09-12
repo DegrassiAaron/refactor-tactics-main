@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import unittest
 
+import yaml
+
 import seed_wiring
 
 
@@ -126,6 +128,101 @@ class SeminaTest(unittest.TestCase):
         sessioni = [{"id": "U1", "verifies": ["PIE-Z", "PIE-A"], "steps": "L_HexArena"}]
         righe, _, _ = seed_wiring.semina(sessioni)
         self.assertEqual([r["check"] for r in righe], ["PIE-A", "PIE-Z"])
+
+
+TESTA = """# Sedute — i MATTONI: allestimenti e cablaggio.
+#
+# ⛔ DRAFT — NON OWNER.
+
+setups:
+  - id: SET-A
+    map: L_Uno
+"""
+
+VECCHIO = TESTA + """
+wiring:
+  # un commento che il seme riscrive
+  - check: PIE-A
+    setup: SET-A
+    requires: [ asset:WBP_RT_PauseMenu ]
+  - check: PIE-B
+    setup: SET-A
+    issue: 613
+"""
+
+
+class RequiresEsistentiTest(unittest.TestCase):
+    def test_legge_i_requires_per_check(self):
+        self.assertEqual(
+            seed_wiring.requires_esistenti(VECCHIO),
+            {"PIE-A": ["asset:WBP_RT_PauseMenu"]},
+        )
+
+    def test_un_registro_senza_requires_da_una_mappa_vuota(self):
+        self.assertEqual(seed_wiring.requires_esistenti(TESTA + "\nwiring: []\n"), {})
+
+
+class RendiRigheTest(unittest.TestCase):
+    def test_lo_stile_e_quello_del_file_e_i_requires_stanno_in_flusso(self):
+        reso = seed_wiring.rendi_righe(
+            [
+                {"check": "PIE-A", "setup": "SET-A", "requires": ["asset:X", "mount:X#7"]},
+                {"check": "PIE-B", "setup": "SET-A", "issue": 613},
+            ]
+        )
+        self.assertEqual(
+            reso,
+            "  - check: PIE-A\n"
+            "    setup: SET-A\n"
+            "    requires: [ asset:X, mount:X#7 ]\n"
+            "  - check: PIE-B\n"
+            "    setup: SET-A\n"
+            "    issue: 613\n",
+        )
+
+    def test_cio_che_rende_si_rilegge(self):
+        """La forma scritta deve tornare dentro `yaml.safe_load` uguale a com'e' uscita."""
+        righe = [{"check": "PIE-A", "setup": "SET-A", "requires": ["asset:X", "mount:X#7"]}]
+        riletto = yaml.safe_load("wiring:\n" + seed_wiring.rendi_righe(righe))
+        self.assertEqual(riletto["wiring"], righe)
+
+
+class InnestaTest(unittest.TestCase):
+    def test_la_testa_si_conserva_byte_per_byte(self):
+        nuovo = seed_wiring.innesta(VECCHIO, [{"check": "PIE-A", "setup": "SET-A"}])
+        self.assertTrue(nuovo.startswith(TESTA))
+        self.assertIn("DRAFT — NON OWNER", nuovo)
+
+    def test_i_requires_esistenti_sopravvivono_al_seme(self):
+        """Il seme non sa niente dei prerequisiti: se non li preservasse, li cancellerebbe."""
+        nuovo = seed_wiring.innesta(
+            VECCHIO,
+            [{"check": "PIE-A", "setup": "SET-B"}, {"check": "PIE-B", "setup": "SET-A"}],
+        )
+        riletto = {r["check"]: r for r in yaml.safe_load(nuovo)["wiring"]}
+        self.assertEqual(riletto["PIE-A"]["requires"], ["asset:WBP_RT_PauseMenu"])
+        self.assertEqual(riletto["PIE-A"]["setup"], "SET-B")  # il seme aggiorna il setup
+        self.assertNotIn("requires", riletto["PIE-B"])
+
+    def test_un_requires_che_perde_la_propria_riga_ferma_tutto(self):
+        """Il caso pericoloso: il seme non produce piu' la riga che portava il giudizio.
+
+        Scriverla via sarebbe una perdita silenziosa di lavoro d'autore. Si
+        rifiuta col nome del check, e chi legge decide.
+        """
+        with self.assertRaises(seed_wiring.InnestoError) as e:
+            seed_wiring.innesta(VECCHIO, [{"check": "PIE-B", "setup": "SET-A"}])
+        self.assertIn("PIE-A", str(e.exception))
+
+    def test_e_idempotente(self):
+        righe = [{"check": "PIE-A", "setup": "SET-A"}, {"check": "PIE-B", "setup": "SET-A"}]
+        una = seed_wiring.innesta(VECCHIO, righe)
+        due = seed_wiring.innesta(una, righe)
+        self.assertEqual(una, due)
+
+    def test_un_registro_senza_sezione_wiring_si_rifiuta(self):
+        with self.assertRaises(seed_wiring.InnestoError):
+            seed_wiring.innesta(TESTA, [{"check": "PIE-A", "setup": "SET-A"}])
 
 
 if __name__ == "__main__":

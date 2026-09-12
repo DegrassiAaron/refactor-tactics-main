@@ -58,13 +58,16 @@ setups:
     given: "il pannello Tactical Designer, aperto dal dock"
 
 wiring:
-  # Prodotto da `python tools/editor-sessions/seed_wiring.py --out build/wiring-seminato.yaml`
-  # e innestato qui. Il seme e' l'euristica sulla prosa PIU' due tabelle di giudizio dichiarato
-  # che vivono nel sorgente del seminatore, non qui:
+  # Prodotto da `python tools/editor-sessions/seed_wiring.py --into docs/roadmap/sedute-mattoni.yaml`.
+  # Il seme e' l'euristica sulla prosa PIU' due tabelle di giudizio dichiarato che vivono nel
+  # sorgente del seminatore, non qui:
   #   ALLESTIMENTO_DICHIARATO  le sedute la cui prosa non dice dove si guarda
   #   CABLAGGIO_DICHIARATO     i check che due sedute rivendicano con allestimenti DIVERSI
-  # ⚠️ Correggere una riga QUI e' inutile: la decisione sta nelle tabelle, e il prossimo seme
-  #    ricalcola. Se una riga e' sbagliata, e' sbagliata la tabella.
+  # ⚠️ Correggere `check`, `setup` o `issue` QUI e' inutile: la decisione sta nelle tabelle, e il
+  #    prossimo seme ricalcola.
+  # 🔑 I `requires` invece si scrivono QUI, e il seme li PRESERVA: sono giudizio d'autore su un
+  #    prerequisito, non una deduzione dalla prosa. Ognuno ha la propria riga di prova nel verbale
+  #    `plans/sedute-componibili-rassegna-requires-2026-09-12.md`, e `compare_rassegna.py` lo verifica.
   - check: PIE-ACC-ENVIRONMENT
     setup: SET-SCEN
     issue: 231
