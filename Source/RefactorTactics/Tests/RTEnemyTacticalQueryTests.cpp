@@ -1158,4 +1158,113 @@ bool FRTEnemyTacticalRegionsFieldsAreClassifiedTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * ⛔ **La regione non cambia perché l'osservatore vede di più, e il soggetto attraversa le proprie
+ * compagne** — `#3039`, [D-396].
+ *
+ * 🔴 **Il difetto che questo banco esiste per prendere era misurato prima di essere scritto.** Nello
+ * stesso corridoio, con la compagna del soggetto visibile la regione era di **5** celle e con la stessa
+ * compagna non vista di **9**: si restringeva quando l'osservatore acquisiva informazione, perché
+ * `AuthorizedUnits` costruiva ogni ostacolo senza squadra e nessuno era alleato di nessuno.
+ *
+ * 🔑 **Il corridoio non è decorazione.** Su un esagono aperto l'A* gira attorno alla compagna e
+ * l'attraversamento non è osservabile: la differenza si vedrebbe su una cella sola — quella su cui non ci
+ * si può fermare comunque — e il banco resterebbe verde su un difetto vivo. È l'errore già fatto una
+ * volta su `#2984`, e la ragione per cui qui la geometria è vincolata.
+ *
+ * ⚠️ **Ciò che questo banco NON chiede.** Con la compagna non vista la regione include la sua cella, dove
+ * il soggetto non potrebbe terminare ([D-289]). È un sovra-riporto reale e **non si ripara**: escludere
+ * quella cella renderebbe il buco una deduzione affidabile sulla posizione di un'unità non vista, che è
+ * l'esposizione che `EnemyQueryHidesUnobservedState` vieta. Prezzo dichiarato, non difetto da chiudere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyQueryCrossesSubjectAlliesTest,
+	"RefactorTactics.Perception.EnemyReachCrossesTheSubjectAllies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEnemyQueryCrossesSubjectAlliesTest::RunTest(const FString&)
+{
+	// Un CORRIDOIO di una cella: tutto ciò che non sta su `Y == 0` è muro.
+	URTHexMapAsset* Map = MakeQueryArena(6);
+	if (!TestNotNull(TEXT("arena"), Map)) { return false; }
+	for (int32 X = -6; X <= 6; ++X)
+	{
+		for (int32 Y = -6; Y <= 6; ++Y)
+		{
+			if (Y != 0 && FMath::Max3(FMath::Abs(X), FMath::Abs(Y), FMath::Abs(X + Y)) <= 6)
+			{
+				PutBlocker(Map, FRTCellId(X, Y));
+			}
+		}
+	}
+
+	URTHeroData* Hero = MeleeHero(/*MovePoints*/ 4);
+
+	// L'osservatore è la squadra 0. Il soggetto è l'unità 7 della squadra 1, con una COMPAGNA in `(1,0)`.
+	const FRTCellId CellaSoggetto(0, 0);
+	const FRTCellId CellaCompagna(1, 0);
+
+	auto RegioneVedendo = [&](const TArray<FRTCellId>& Visibili, int32 SquadraDellAltra)
+	{
+		FRTTeamKnowledge K;
+		K.TeamId = 0;
+		K.TurnNumber = 1;
+		K.VisibleCells = Visibili;
+
+		TArray<FRTKnowledgeSubject> Autorevoli;
+		Autorevoli.Add(Subject(7, /*Team*/ 1, CellaSoggetto, Hero->HeroId));
+		Autorevoli.Add(Subject(9, SquadraDellAltra, CellaCompagna, TEXT("Hero.Other")));
+
+		const FRTKnowledgeView View = URTKnowledgeViewLibrary::ViewForTeam(K, Autorevoli, /*Observer*/ 0);
+		FRTEnemyTacticalRegions Regioni;
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, /*Subject*/ 7, Hero, Regioni);
+		return Regioni;
+	};
+
+	// --- AC-1: vedere la compagna non cambia la regione ---------------------------------------------
+	const FRTEnemyTacticalRegions NonVista = RegioneVedendo({ CellaSoggetto }, /*Squadra*/ 1);
+	const FRTEnemyTacticalRegions Vista = RegioneVedendo({ CellaSoggetto, CellaCompagna }, /*Squadra*/ 1);
+
+	if (!TestTrue(TEXT("premessa: la regione non è vuota"), NonVista.ReachableCells.Num() > 0))
+	{
+		return false;
+	}
+	// ⌫ **AC-1 era scritto « le due regioni coincidono », ed è insoddisfacibile.** Misurato: **8 contro
+	// 9**, e la differenza è una cella sola — quella della compagna. Non vedendola, nulla la occupa e la
+	// regione la offre come destinazione; vedendola, [D-289] la esclude. È il sovra-riporto che la issue
+	// dichiara **non riparabile**: toglierla anche quando non si vede renderebbe il buco una deduzione sulla
+	// sua posizione.
+	//
+	// 🔑 La proprietà vera — e quella che il difetto violava — è che la differenza si ferma **a quella
+	// cella**: ciò che sta OLTRE non può dipendere da quanto l'osservatore vede. Prima valeva 5 contro 9.
+	for (const FRTCellId& C : NonVista.ReachableCells)
+	{
+		if (C == CellaCompagna) { continue; }
+		TestTrue(*FString::Printf(TEXT("AC-1: (%d,%d) resta raggiungibile anche vedendo la compagna"), C.X, C.Y),
+			Has(Vista.ReachableCells, C));
+	}
+	for (const FRTCellId& C : Vista.ReachableCells)
+	{
+		TestTrue(*FString::Printf(TEXT("AC-1: vedere non AGGIUNGE celle — (%d,%d)"), C.X, C.Y),
+			Has(NonVista.ReachableCells, C));
+	}
+	TestEqual(TEXT("AC-1: e la differenza è esattamente una cella, la sua"),
+		NonVista.ReachableCells.Num() - Vista.ReachableCells.Num(), 1);
+
+	// --- AC-2: si attraversa, non ci si ferma sopra --------------------------------------------------
+	TestTrue(TEXT("AC-2: la cella OLTRE la compagna è raggiungibile"),
+		Has(Vista.ReachableCells, FRTCellId(2, 0)));
+	TestFalse(TEXT("AC-2: quella della compagna no ([D-289])"),
+		Has(Vista.ReachableCells, CellaCompagna));
+
+	// --- AC-3: la metà falsificante ------------------------------------------------------------------
+	// ⛔ Stessa geometria, stessa visibilità, unità in mezzo di squadra DIVERSA dal soggetto: deve fermarlo.
+	// Senza, AC-1 e AC-2 passerebbero anche se gli ostacoli fossero spariti del tutto.
+	const FRTEnemyTacticalRegions Avversaria = RegioneVedendo({ CellaSoggetto, CellaCompagna }, /*Squadra*/ 0);
+	TestFalse(TEXT("AC-3: con un'estranea in mezzo la cella oltre NON si offre"),
+		Has(Avversaria.ReachableCells, FRTCellId(2, 0)));
+	TestTrue(TEXT("AC-3: e la regione è più piccola di quella con la compagna"),
+		Avversaria.ReachableCells.Num() < Vista.ReachableCells.Num());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -62,6 +62,21 @@ struct FRTKnowledgeEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
 	int32 StableUnitId = INDEX_NONE;
 
+	/**
+	 * La squadra del soggetto — `#3039`, [D-396].
+	 *
+	 * 🔑 **Non è informazione nuova, ed è il motivo per cui può stare qui.** La squadra è già
+	 * l'ingresso di `ClassifyTarget`, cioè di cio' che decide **se questa voce esiste**: una voce che
+	 * esiste è una voce autorizzata, e porta già `HeroId` e `HeroDisplayName`. Propagarla non allarga
+	 * cio' che l'osservatore sa, rende leggibile cio' che già sapeva.
+	 *
+	 * ⚠️ Serve perché la domanda a valle non è *« è alleata dell'osservatore? »* ma *« queste due
+	 * unità osservate sono alleate fra loro? »*: un `bool` relativo all'osservatore funzionerebbe per
+	 * caso con due squadre e si romperebbe in silenzio alla terza.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
+	int32 TeamId = INDEX_NONE;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Knowledge")
 	ERTKnowledgeVisibility Visibility = ERTKnowledgeVisibility::Live;
 
