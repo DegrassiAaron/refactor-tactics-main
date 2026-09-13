@@ -235,6 +235,30 @@ def g_move() -> str:
     ])
 
 
+def g_withdraw() -> str:
+    """`Withdraw` = `◄──•──●`: la famiglia di `Move`, **al contrario** e piu' corta.
+
+    Tre cose lo separano dal `Move`, e ognuna dice un pezzo di [D-070]:
+
+    - **la direzione e' invertita** (`arrow_head_left`): e' un ripiegamento, non un avanzamento. E' la
+      sola differenza che si legge ancora a 16 px, quindi porta il significato principale;
+    - **un nodo intermedio invece di due**: il `Move` ne dichiara due perche' i nodi SONO cio' che lo
+      definisce (§5); qui la traccia e' piu' corta perche' il budget e' `2` contro `5`. Il conteggio dei
+      nodi resta un rapporto, non una misura — non si legge «due punti» dal glifo;
+    - **nessun endpoint che chiude**, che e' di `Sprint` e dice «nega la reazione». Il `Withdraw` non la
+      nega: chi ripiega ha armato l'`Overwatch`, cioe' proprio una reazione.
+
+    ⚠️ **Non porta un segno di «imposto»**, ed e' una scelta: il vincolo di D-070 e' una proprieta' del
+    turno — lo slot e' riservato — non del gesto. Un lucchetto nel glifo lo direbbe due volte, e a 16 px
+    ruberebbe spazio alla direzione, che e' l'unica cosa che deve sopravvivere.
+    """
+    return '\n'.join([
+        path("M20 12 L15.6 12 L11.6 18 L7.6 18"),
+        dot(20, 12, 1.5), dot(15.6, 12),
+        arrow_head_left(4.8, 18, 2.9),
+    ])
+
+
 def g_sprint() -> str:
     """`Sprint`: stessa famiglia di Move, stride lungo, doppia trail, **endpoint che chiude**.
 
@@ -2125,6 +2149,8 @@ ICONS = [
      "mock 05/11 — invariato"),
     ("Action.Sprint", g_sprint, "Movement",
      "mock 05/12 — endpoint che chiude: Sprint nega la reazione"),
+    ("Action.Withdraw", g_withdraw, "Movement",
+     "assente dal mock — famiglia Move invertita, D-070"),
     ("Action.Dodge", g_dash, "Movement",
      "mock 05/13 — glifo invariato, chiave rinominata da Action.Dash (D-230)"),
     ("Action.Charge", g_charge, "Movement",
