@@ -31,7 +31,12 @@ Misurato su `origin/main` = `a2d23509`.
 contenuto vive ora in tre sedi che hanno un owner — le voci di registro, i due documenti `gameplay/`, e le
 domande di `OPEN_DECISIONS.md` — e lasciarne una quarta copia in radice avrebbe prodotto la doppia verità
 che [D-023](decisions/RT_PDR_00_Decision_Log.md) e [D-115](decisions/RT_PDR_00_Decision_Log.md) hanno
-eliminato altrove. La storia git lo conserva.
+eliminato altrove.
+
+⛔ **E la storia git NON lo conserva**, contrariamente a quanto una prima stesura di questa voce diceva: il
+documento è arrivato **non tracciato** e non è mai stato committato, quindi `git log --all -- <percorso>` è
+vuoto. Ciò che ne resta è quanto queste pagine ne hanno recepito — ed è la ragione per cui il referto cita
+la sorgente per sezione (`§2`, `§10.2`, `§13.2`) invece di rimandare a un file.
 
 ### ⚠️ Il documento nuovo NON descrive il gioco di oggi
 

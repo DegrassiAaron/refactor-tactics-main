@@ -39,7 +39,7 @@ della HUD, e chi la legge come specifica di UI la legge male.
 La sorgente d'autore chiama `Brace` lo slot della difesa caratteristica, e dichiara che *«non è una
 riduzione di danno universale»*. **Nel repository `Action.Brace` è esattamente quello**: una delle sette
 generiche di [`D-025`](../decisions/RT_PDR_00_Decision_Log.md), che applica `Braced` (−10 a ogni colpo, da
-**ogni** lato) e `Root` (`Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:1532`).
+**ogni** lato) e `Root` (`Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:1523`).
 
 Due entità con lo stesso nome, di cui una è il contrario dell'altra, si pagano a ogni lettura del TurnLog.
 Stesso criterio di [`D-082`](../decisions/RT_PDR_00_Decision_Log.md) e

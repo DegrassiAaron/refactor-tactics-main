@@ -95,13 +95,16 @@ dipende da quale colpo è arrivato prima»*. A scegliere era l'indice dell'attac
 Ciò che cambia è il tetto — un pool limita la mitigazione totale, una riduzione per colpo no — e con esso il
 prezzo della Guardia contro sequenze di colpi piccoli, che la spec §13.8 riconosce e dichiara voluto.
 
-⛔ **Costo**: dodici test la pinnano, in cinque file. `Combat.GuardPoolIsPermutationInvariant` ·
+⛔ **Costo**: la pinnano i test qui sotto, in `RTCombatResolverTests.cpp` · `RTCoreActionTests.cpp` · `RTDamageBreakdownTests.cpp` · `RTFacingDefenseTests.cpp` · `RTHexCombatIntegrationTests.cpp`. `Combat.GuardPoolIsPermutationInvariant` ·
 `GuardPoolRemainderIsNotWasted` · `GuardPoolIsNotConsumedFromBehind` · `SingleHitAgainstGuardIsUnchanged` ·
 `DeflectPoolAbsorbsBeforeGuardPool` · `GuardAndDeflectAbsorbInDeclaredOrder` · `AreaGuardUsesImpactCenter` ·
 `AreaGuardIsBypassedWhenImpactCenterIsBehind` · `BackAttackIgnoresGuard` · `Actions.Guard.FirstHitOnly` ·
 `Actions.Guard.ReducesFirstDirectDamageInMatch` · `Actions.Guard.ResistsSinglePush`. E
 [`D-309`](../../decisions/RT_PDR_00_Decision_Log.md) ha esteso **la stessa forma** a `Deflect`: cambiare solo
 la Guardia lascia due modelli difensivi diversi dove oggi ce n'è uno.
+
+⚠️ *L'elenco è la misura di questo passaggio, non un totale: si conta con*
+`grep -rlE "GuardPool|Guard\\.(FirstHitOnly|Resists|Reduces)" Source/RefactorTactics/Tests/`.
 
 ⚠️ **E due sotto-voci della stessa sezione vanno nel verso opposto al repository, con un test ciascuna.**
 *«Un'esplosione centrata sull'esagono del difensore supera Guardia»*: il codice dice l'opposto e lo motiva
@@ -141,7 +144,7 @@ silenziosa»*, ma `Action.Dodge` porta **rumore 6**, il massimo della scala dell
 La specifica usa `Brace` come **nome dello slot/famiglia** della difesa caratteristica, e lo dichiara:
 *«non una riduzione di danno universale»*. Nel repository `Action.Brace` **è** esattamente una riduzione di
 danno universale — una delle sette generiche di [`D-025`](../../decisions/RT_PDR_00_Decision_Log.md):
-`Braced` (−10 a ogni colpo, **da ogni lato**) più `Root` (`RTCatalogLibrary.cpp:1532`).
+`Braced` (−10 a ogni colpo, **da ogni lato**) più `Root` (`RTCatalogLibrary.cpp:1505` su `origin/main`).
 
 E `ERTActionSlot` non ha un valore `Brace`: è `{ None, Movement, Main, MovementAndMain, Reaction }`
 (`RTActionDef.h:71-88`).
@@ -177,7 +180,7 @@ dice in tre sedi che concordano: `RTCatalogLibrary.cpp:1181` (`ERTResolutionPhas
 è **Blast**»*.
 
 🔑 **La collocazione ha una ragione architetturale, e non è inerzia**: la topologia muta nel Blast **perché
-il Move dello stesso turno la veda**. Il test che lo pinna si chiama `Interaction.TopologyChangesInBlast` —
+il Move dello stesso turno la veda**. ⚠️ **E il test che lo pinnerebbe non esiste**: `Interaction.TopologyChangesInBlast` è un nome dichiarato nel DoD di [`spec-interazioni-mappa-cp101.md`](../../gameplay/spec-interazioni-mappa-cp101.md), e `grep -rn` in `Source/` risponde **0** —
 *«la mutazione avviene nel Blast e la revisione si incrementa **prima** del Move»*. Spostare Interact nel Move
 significa decidere che cosa vede chi cammina attraverso una porta aperta nello stesso turno.
 
@@ -374,25 +377,55 @@ suo catalogo e i test che lo pinnano, e non attraversa né il combat resolver n�
 |---|---|
 | `Ability/RTMovementProfile.h` | `StepBudget`/`MoveBudget` diventano `StepBudgetPercent`/`MoveBudgetPercent`; `InheritFromUnit` → `NeutralPercent` (100); `ScaleBudget` fa il troncamento in aritmetica intera |
 | `Ability/RTMovementProfileLibrary.cpp` | `Sprint` 200 · `Withdraw` 25 · `Sneak` 50 e **pianificabile** · `Move`/`Still` 100 |
-| `Ability/RTCatalogLibrary.cpp` | **`Action.Sneak`** — senza di essa il profilo resta irraggiungibile dal piano e la chiusura di `AE-5` sarebbe cosmetica |
+| `Ability/RTCatalogLibrary.cpp` | solo una **nota**: perché `Action.Sneak` NON entra — vedi sotto |
 | `Turn/RTTurnManager.cpp` | solo il commento di `MakeSimUnit`, che dichiarava `InheritFromUnit` |
 | `Tests/RTMovementProfileTests.cpp` | tre test riscritti sul modello nuovo |
-| `Tests/RTMovementActionTests.cpp` · `Tests/RTCatalogTests.cpp` | `Action.Sneak` entra nei due gate di catalogo |
+| `Tests/RTCatalogTests.cpp` | tolto un totale volatile da un commento (`CLAUDE.md` §15) |
 
-🔑 **Due misure rendono la migrazione meno rischiosa di quanto sembri.** `MoveRange` di default vale **4**
-(`Source/RefactorTactics/Unit/RTUnit.h:103`), quindi `Sprint` ×2 dà **8** — esattamente l'assoluto che
-portava prima: per l'unità tipica il numero **non si muove**. E `Withdraw` ×0,25 dà **1** invece di 2, che è
-ciò che la sorgente §10.2 prevede quando osserva che *«Withdraw diventava 2 solo con base almeno 8»*.
+⛔ **`Action.Sneak` NON entra, e la revisione avversariale ha trovato perché.** Una voce del catalogo core
+rende obbligatoria la propria chiave icona — `URTIconLibrary::RequiredIconIds()` la deriva da **ogni** azione
+— e `DA_IconCatalog` non ha `UI.Icon.Action.Sneak`: il gate
+`RefactorTactics.IconCatalog.RealCatalogCoversRequiredIds` sarebbe diventato **rosso**.
+
+🔴 **E la prima misura non l'avrebbe visto**: il filtro dichiarato in §12 contiene `RefactorTactics.Catalog`,
+che **non** è un prefisso di `RefactorTactics.IconCatalog.*`. Misurato: su `origin/main` le azioni core senza
+icona sono **zero**; con l'aggiunta ne sarebbe stata una. ∴ il verde di 649 test era vero e **cieco su
+quel gate**.
+
+🔑 **Il rinvio non è una scorciatoia: è il confine giusto.** `D-412` chiude `AE-5` dando i numeri al
+**profilo**, e il profilo non ha bisogno dell'azione finché non esiste chi la sceglie. L'azione — col suo
+glifo e la sua voce di catalogo icone — appartiene a
+[#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410), che porta il selettore e che
+sta già aggiungendo `Action.Withdraw` per la stessa ragione.
+
+🔴 **I numeri si muovono, e per quasi tutto il roster.** Il budget base non è il `MoveRange = 4` del
+default di classe: è `ARTUnit::GetEffectiveMoveRange()`, che parte da `Hero->MovePoints`
+(`Source/RefactorTactics/Unit/RTUnit.cpp:1600`), e il roster spedito dichiara **5 · 5 · 4 · 6**.
+
+| Profilo | Prima | Ora | Sul roster |
+|---|---|---|---|
+| `Sprint` | **8** per tutti | ×2 | **10 · 10 · 8 · 12** |
+| `Withdraw` | **2** per tutti | ×0,25 | **1** per tutti |
+| `Sneak` | non definito | ×0,5 | **2 · 2 · 2 · 3** |
+
+⚠️ **È un cambiamento di bilanciamento, non una riscrittura a parità di numeri**, e va detto così: lo
+Sprint cambia per tre eroi su quattro, il `Withdraw` dimezza per tutti. Ciò che il moltiplicatore
+*corregge* è un difetto che l'assoluto aveva — con `8` cablato, un eroe da 9 aveva lo scatto **più corto
+del passo**.
 
 🔑 **E il moltiplicatore corregge un difetto che l'assoluto aveva.** Con `Sprint` cablato a `8`, un eroe da
 `MoveRange 9` aveva uno **scatto più corto del proprio passo**. Il nuovo test lo pinna su sette valori di
 `MoveRange` invece di asserire un numero solo.
 
-⚠️ **Un pezzo di `D-412` NON è implementato, e il test lo dichiara invece di tacerlo**: il **primo passo
-garantito** vive nel pathfinding — `RTHexSimLibrary.cpp` lo gaterebbe in quattro punti — e sotto
-`MoveRange 4` il quarto del `Withdraw` è **zero**. Nessun eroe spedito è in quel caso, ma
-`MovementProfile.CatalogDeclaresTheProfiles` asserisce quello zero con la ragione scritta accanto, invece di
-lasciarlo scoprire a chi abbassa un `MoveRange`.
+🔴 **Un pezzo di `D-412` NON è implementato, e il caso si raggiunge in partita**: il **primo passo
+garantito** vive nel pathfinding — `RTHexSimLibrary.cpp` lo gaterebbe in quattro punti — e sotto un budget
+di `4` il quarto del `Withdraw` è **zero**.
+
+⛔ **E non è un caso teorico**, come una prima stesura di questa sezione sosteneva: `GetEffectiveMoveRange()`
+applica lo `StandUp` di [`D-319`](../../decisions/RT_PDR_00_Decision_Log.md), quindi l'eroe che spedisce
+`MovePoints = 4` scende a `3` quando si rialza — e con l'Overwatch armato **non ripiega affatto**.
+`MovementProfile.CatalogDeclaresTheProfiles` asserisce quello zero con la ragione accanto, ma l'asserzione
+non è la correzione: la correzione è il primo passo garantito, e non c'è.
 
 ⛔ **E la scala 12 PM non è entrata nel codice**, benché la sessione l'abbia adottata (§7): il denominatore
 che la rende sensata — il costo per cella per terreno — è
@@ -491,11 +524,14 @@ cinque che questa migrazione tocca (`MovementProfile` · `Actions` · `Catalog` 
 **`Reactions`**, aggiunta dopo il merge perché [`D-406`](../../decisions/RT_PDR_00_Decision_Log.md) tocca il
 divieto di reazione dello `Sprint`.
 
-Gli undici test scritti o riscritti da `D-412`, tutti `Success`:
-`MovementProfile.CatalogDeclaresTheProfiles` · `MoveInheritsUnitBudget` · `SneakIsPlannableWithItsNumbers` ·
-`StillKeepsUnitCapacity` · `SnapshotCarriesBothBudgets` · `PlanDeclaresTheProfile` ·
-`CoreActionsNameTheirProfile` · `StabilityIsOrdered` · `Actions.MovementActionsDeclareStyleAndPhase` ·
-`Catalog.EveryCoreActionIsReachableOrDeclared` · `Bot.SlowReachesTheWithdrawBudget`.
+⚠️ **I test che `D-412` ha davvero riscritto sono TRE**, e sono questi:
+`MovementProfile.CatalogDeclaresTheProfiles` · `MovementProfile.MoveInheritsUnitBudget` ·
+`MovementProfile.SneakIsPlannableWithItsNumbers` (rovesciato da `SneakIsDeclaredButNotPlannable`).
+
+Gli altri della stessa famiglia — `StillKeepsUnitCapacity`, `SnapshotCarriesBothBudgets`,
+`PlanDeclaresTheProfile`, `CoreActionsNameTheirProfile`, `StabilityIsOrdered`, `OnlySprintIsARun` — la PR
+**non li tocca**, e sono verdi come prova che la migrazione non li ha rotti. ⛔ Contarli fra i propri
+gonfierebbe il lavoro fatto, ed è la ragione per cui la riga è stata riscritta.
 
 ### ✅ Il merge di `#641`, e la prova che i due modelli convivono
 

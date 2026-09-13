@@ -208,11 +208,34 @@ non controlli impeditivi — e vale **solo** per il primo passo.
 ✅ **`AE-5` è chiusa**: `Sneak` ha i suoi numeri — budget ×0,5, cadenza 1 passo ogni 2 tick, **sempre
 silenzioso** indipendentemente dal terreno — e diventa pianificabile.
 
-⚠️ **Nessuna riga di codice lo esprime oggi.** Il catalogo porta ancora gli assoluti — `Move` eredita da
-`ARTUnit::MoveRange`, `Sprint` 8, `Withdraw` 2, `Sneak` senza numeri e `bPlannable = false`
-(`Source/RefactorTactics/Ability/RTMovementProfileLibrary.cpp:47-70`) — ed è la migrazione che `D-412`
-apre. ✅ La sede però c'è già: `FRTMovementProfile::InheritFromUnit` significa *«il budget lo dichiara
-l'unità»*, cioè esattamente il posto dove un moltiplicatore atterra senza coniare un campo.
+✅ **Il codice lo esprime**, dal 2026-09-13: `FRTMovementProfile` porta `StepBudgetPercent` e
+`MoveBudgetPercent`, e `ScaleBudget` fa il troncamento in aritmetica intera — niente `float`, perché la
+risoluzione dev'essere deterministica ([D-096](../decisions/RT_PDR_00_Decision_Log.md)).
+
+🔴 **E i numeri si muovono davvero, per quasi tutto il roster.** Il budget base è
+`ARTUnit::GetEffectiveMoveRange()`, che parte da `Hero->MovePoints` (`Source/RefactorTactics/Unit/RTUnit.cpp:1600`)
+— e il roster spedito dichiara **5 · 5 · 4 · 6**, non un valore solo:
+
+| Profilo | Prima (assoluto) | Ora | Sul roster spedito |
+|---|---|---|---|
+| `Sprint` | **8** per tutti | ×2 | **10 · 10 · 8 · 12** |
+| `Withdraw` | **2** per tutti | ×0,25 | **1** per tutti |
+| `Sneak` | non definito | ×0,5 | **2 · 2 · 2 · 3** |
+| `Move` · `Still` | budget dell'unità | ×1 | invariato |
+
+⚠️ **Lo `Sprint` cambia per tre eroi su quattro e il `Withdraw` dimezza per tutti.** È la conseguenza voluta
+del moltiplicatore — un `8` cablato rendeva lo scatto più corto del passo per chi vale 9 — ma è un
+cambiamento di **bilanciamento**, non una riscrittura a parità di numeri.
+
+⛔ **Sotto un budget di 4 il quarto del `Withdraw` è ZERO, e ci si arriva in gioco**: `GetEffectiveMoveRange()`
+applica anche lo `StandUp` di [D-319](../decisions/RT_PDR_00_Decision_Log.md), quindi l'eroe da `4` che si
+rialza vale `3` e non ripiega. È il caso per cui `D-412` prescrive il **primo passo garantito**, che vive nel
+pathfinding e **non è implementato**.
+
+⛔ **L'azione che nomina il profilo `Sneak` non entra qui**: una voce del catalogo core rende obbligatoria la
+propria chiave icona, e `DA_IconCatalog` non ha `UI.Icon.Action.Sneak`. L'azione arriva con
+[#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410), che porta il selettore e il
+glifo. `AE-5` chiedeva i **numeri** del profilo, e quelli ci sono.
 
 ⚠️ **E i moltiplicatori valgono su ENTRAMBI i budget di [D-117](../decisions/RT_PDR_00_Decision_Log.md)**,
 passi e asperità — che è il punto di contatto con
@@ -220,8 +243,7 @@ passi e asperità — che è il punto di contatto con
 per cella.
 
 ⏱️ *Fino al 2026-09-13 questo paragrafo diceva: «I budget sono nel catalogo (`Move` 5 MP · `Sprint` 8 ·
-`Withdraw` 2; `Sneak` non è definito da nessuna fonte corrente e non si inventa)». È ancora ciò che il
-CODICE fa; non è più ciò che il contratto dice.*
+`Withdraw` 2; `Sneak` non è definito da nessuna fonte corrente e non si inventa)».*
 
 **`Sprint` sta migrando, e conviene sapere da dove a dove.** Appartiene alla famiglia `Move` — percorso a
 budget, pathfinding, slot movimento — ma **oggi nel codice risolve pre-Blast**, in

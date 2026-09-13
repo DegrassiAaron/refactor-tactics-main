@@ -487,12 +487,6 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire fra le esclusioni.
 		// Bloccata da una migrazione decisa e non fatta.
 		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
-		// `Action.Sneak` entra qui il 2026-09-13 con [D-412], che chiude `AE-5` dandogli i numeri che gli
-		// mancavano. ⚠️ **E' dichiarata e non raggiungibile per la STESSA ragione dello `Sprint` qui sopra**,
-		// non per una nuova: nessun kit d'eroe la nomina, e a metterla in un piano sara' il selettore di
-		// profilo di `#1410`. ⛔ Non e' «aspetta il suo eroe» — non lo aspetta: e' una generica, e il canale
-		// che la rendera' raggiungibile e' l'input, non un loadout.
-		{ TEXT("Action.Sneak"),           TEXT("E38: profilo scegliibile da #1410, nessun kit la nomina") },
 		// Contenuto che aspetta il suo portatore: diventeranno raggiungibili quando entrera' l'eroe che le
 		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
 		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },

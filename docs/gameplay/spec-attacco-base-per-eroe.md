@@ -150,8 +150,12 @@ sulla linea visiva a ogni passo, quindi «tornare nascosti» è già il comporta
 
 ⚠️ **Il rumore fuori vista non ha numeri, e non se ne inventano.**
 [`D-267`](../decisions/RT_PDR_00_Decision_Log.md) ha deciso che il rumore appartiene al **produttore
-concreto** e che non esistono valori fissi per azione generica. Ciò che `D-412` aggiunge è che `Sneak` e
-`Withdraw` sono **sempre silenziosi**: un profilo silenzioso non ha bisogno di un raggio.
+concreto** e che non esistono valori fissi per azione generica. Ciò che `D-412` aggiunge riguarda il solo
+`Sneak`, ed è che è **sempre silenzioso**: un profilo silenzioso non ha bisogno di un raggio.
+
+⛔ **Il `Withdraw` NON è coperto da `D-412`.** La sorgente §10.4 lo dice silenzioso insieme allo `Sneak`, ma
+`D-412` risponde a `AE-5`, che poneva la domanda sul solo `Sneak`: attribuirgli anche il ripiegamento
+sarebbe estendere una decisione oltre ciò che ha deliberato.
 
 ## Rapporto con gli altri documenti
 
