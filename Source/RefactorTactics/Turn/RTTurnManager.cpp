@@ -1869,6 +1869,8 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 			Ev.ActionId = Cause->ActionId;
 			Ev.BaseActionId = Cause->BaseActionId;
 		}
+		// `#3117`: gli stati di chi SUBISCE lo spostamento, al momento in cui lo subisce.
+		Ev.SourceStatusNames = Unit->GetActiveStatusNames();
 		ResolvedTimeline.Add(Ev);
 	}
 
@@ -4345,6 +4347,8 @@ void ARTTurnManager::ResolveDash()
 				Ev.ActionId = DashDef->Def.ActionId;
 				Ev.BaseActionId = DashDef->Def.BaseActionId;
 			}
+			// `#3117`: gli stati di chi scatta, al momento dello scatto.
+			Ev.SourceStatusNames = Units[i]->GetActiveStatusNames();
 			// 🔴 **Lo STESSO verdetto della traccia, copiato e non ricalcolato** (`#1525`). Questa era la
 			// «seconda strada» che la stessa rotta prendeva due righe piu' sotto: `LastMoveRoutes` moriva
 			// nel `Reset()` del Move e non arrivava a schermo, mentre questo evento ci arrivava — senza
@@ -7052,6 +7056,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			FRTMoveAnim Anim;
 			Anim.Unit = Src;
 			Anim.Phase = Ev.Phase; // Dash o Move
+			Anim.SourceStatusNames = Ev.SourceStatusNames; // `#3117`: copiati, non riletti dall'unita'
 			Anim.World.Reserve(Visible);
 			Anim.Cells.Reserve(Visible);
 			for (int32 i = 0; i < Visible; ++i)

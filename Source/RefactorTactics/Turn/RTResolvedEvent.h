@@ -302,5 +302,36 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	ERTStatusOutcome StatusOutcome = ERTStatusOutcome::AppliedByAction;
 
+	/**
+	 * Gli stati attivi sull'unita' SORGENTE nell'istante in cui l'azione e' stata risolta (`#3117`).
+	 *
+	 * 🔑 **Non e' `StatusTag` con piu' valori, e la differenza e' tutto il punto.** `StatusTag` +
+	 * `StatusOutcome` dicono *«questo stato e' nato o morto adesso»*, e il loro docstring dichiara di
+	 * valere **solo per `StatusChanged`** — ogni altro `Type` porta `NAME_None`. Questo campo risponde a
+	 * un'altra domanda: *«di quali stati era portatrice l'unita' mentre faceva questa cosa»*, e vale su
+	 * qualunque `Type` che abbia una sorgente.
+	 *
+	 * 🔴 **Esiste perche' il consumatore altrimenti leggerebbe l'unita' VIVA.** Al punto di playback
+	 * `FRTMoveAnim::Unit` e' a portata di mano, e derivare l'andatura da `Unit->HasStatus(...)` costerebbe
+	 * una riga — la riga sbagliata: darebbe lo stato al momento del *playback*, non dell'*azione*.
+	 * Riprodurre lo stesso evento dopo la scadenza dello stato sceglierebbe un'altra andatura, e la posa
+	 * smetterebbe di essere una funzione del tempo normalizzato, che e' cio' che
+	 * `RefactorTactics.Graykit.Determinismo` misura.
+	 *
+	 * ⚠️ **E' una COPIA, non un riferimento**, ed e' la proprieta' che il test difende: l'unita' puo'
+	 * perdere lo stato subito dopo, e questo campo conserva cio' che era vero quando e' stato scritto.
+	 *
+	 * L'ordine e' quello di `ARTUnit::GetActiveStatusNames`, che lo dichiara **parte del contratto**: le
+	 * due sorgenti sono `TMap` e `TSet`, la cui iterazione non e' deterministica (invariante #4).
+	 *
+	 * ⛔ **`FName` e non `FGameplayTag`**, per la stessa ragione gia' scritta su `StatusTag`: un tag
+	 * costringerebbe a un `RequestGameplayTag` per evento — una risoluzione che puo' fallire — per
+	 * riottenere cio' che il produttore aveva gia' in mano.
+	 *
+	 * Vuoto = nessuno stato attivo, oppure un `Type` che non ha un'unita' sorgente.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	TArray<FName> SourceStatusNames;
+
 	FRTResolvedEvent() = default;
 };

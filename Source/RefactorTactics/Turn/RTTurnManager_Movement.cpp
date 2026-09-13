@@ -1121,6 +1121,10 @@ void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
 		// mai un secondo letterale. `BaseActionId` resta `NAME_None`: `Action.Move` E' l'azione generica,
 		// e non e' il profilo di nient'altro.
 		Ev.ActionId = MoveCauseActionId;
+		// `#3117`: di quali stati era portatrice l'unita' MENTRE si muoveva. Si copia qui, dove il fatto
+		// e' vero, e non si rilegge al playback — dove l'unita' e' ancora raggiungibile e direbbe un'altra
+		// cosa. E' la stessa disciplina con cui `CellVerdicts` e' congelato due righe sopra.
+		Ev.SourceStatusNames = Units[i]->GetActiveStatusNames();
 		ResolvedTimeline.Add(Ev);
 	}
 }
