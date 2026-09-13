@@ -1095,6 +1095,21 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::None, ERTActionSlot::None));
 
+	// `Action.Withdraw` — il RIPIEGAMENTO dichiarato, **2 punti** ([D-070]).
+	//
+	// 🔴 **Non esisteva come azione fino al 2026-09-13**, e la sua assenza non era neutra: [D-070] riserva
+	// lo slot movimento di chi arma l'`Overwatch` al solo `Withdraw`, quindi senza questa voce quella
+	// riserva inchiodava l'unita' all'immobilita' invece che al ripiegamento. Il PROFILO esisteva gia'
+	// (`#653`); mancava l'azione che lo nomina, cioe' il modo di metterlo in un piano.
+	//
+	// ⚠️ **Fase `NormalMovement` come il `Move`**: il ripiegamento e' un profilo della stessa famiglia
+	// ([D-015]), non una mobilita' rapida. `Fallback::Stop` per la stessa ragione del `Move` — chi non
+	// riesce a ripiegare si ferma, non annulla il turno.
+	Catalog.Add(ShippedAction(TEXT("Action.Withdraw"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
+		/*Range (punti)*/ 2, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
+	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileWithdraw;
+
 	// `Action.Move` — il percorso normale, dopo il Blast (ADR-0003 §3). Nessun effetto dichiarato: a muovere
 	// l'unita' e' il resolver dei percorsi, che avanza a micro-step sullo snapshot. Un effetto "MoveTo" qui
 	// duplicherebbe quella decisione in un secondo posto.
@@ -1218,6 +1233,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Overwatch"), ERTResolutionPhase::Preparation, /*Priority*/ 45,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		ERTInterruptPolicy::None, ERTActionSlot::Main));
+	// [D-070]: armare l'Overwatch **riserva lo slot movimento al solo `Withdraw`**. Non e' un divieto di
+	// `Dash` scritto a parte — lo slot e' gia' impegnato, quindi il divieto e' una *conseguenza*.
+	Catalog.Last().ReservesMovementProfileId = URTMovementProfileLibrary::ProfileWithdraw;
 	// Come `Guard` e `Brace`: in pianificazione non si sceglie un bersaglio — l'Overwatch arma una zona, e chi
 	// entrera' nel cono e' esattamente cio' che al momento di armare non si sa. Il bersaglio si sceglie al
 	// `FIRE`, dentro la finestra, e non e' un dato di catalogo.

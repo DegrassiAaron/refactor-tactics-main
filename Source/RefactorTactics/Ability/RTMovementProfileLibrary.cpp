@@ -168,3 +168,16 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::OfferableProfiles()
 	}
 	return Offerable;
 }
+
+
+FName URTMovementProfileLibrary::ReservedProfileForPlan(const TArray<FRTPlannedAction>& Plan)
+{
+	for (const FRTPlannedAction& Planned : Plan)
+	{
+		if (!Planned.Def.ReservesMovementProfileId.IsNone())
+		{
+			return Planned.Def.ReservesMovementProfileId;
+		}
+	}
+	return NAME_None;
+}

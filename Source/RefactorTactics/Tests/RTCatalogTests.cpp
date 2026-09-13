@@ -490,8 +490,15 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// `Action.Purge` e' USCITA da questo elenco il 2026-08-27 ([D-218], `#1403`): `Reaction.Cleanse` e'
 		// il modulo di default di Branth, quindi la base e' raggiungibile. La riga la toglie il gate stesso,
 		// che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire fra le esclusioni.
-		// Bloccata da una migrazione decisa e non fatta.
-		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
+		// 🔴 **Migrata il 2026-09-13** ([D-116], `#641`): la riga resta, e cambia CATEGORIA. Non e' piu'
+		// «bloccata da una migrazione decisa e non fatta» — e' scritta dal motore, come `Action.Move` qui
+		// sopra, perche' `MakePlanFor` la aggiunge quando il giocatore sceglie quel profilo di movimento.
+		// Esce da questo elenco il giorno in cui un eroe la portasse nel proprio kit, non prima.
+		{ TEXT("Action.Sprint"),          TEXT("Motore: MakePlanFor la aggiunge quando il profilo scelto e' Sprint") },
+		// Stessa via, e un vincolo in piu': non la SCEGLIE il giocatore — la impone l'Overwatch ([D-070]),
+		// che riserva lo slot movimento al solo ripiegamento. Offrirla fra le scelte sarebbe una seconda
+		// verita' sullo stesso vincolo (`#1410` `AC-4`).
+		{ TEXT("Action.Withdraw"),        TEXT("Motore: imposta da chi arma l'Overwatch, D-070") },
 		// Contenuto che aspetta il suo portatore: diventeranno raggiungibili quando entrera' l'eroe che le
 		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
 		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },

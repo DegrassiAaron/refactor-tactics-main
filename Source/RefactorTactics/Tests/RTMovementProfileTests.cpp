@@ -340,8 +340,11 @@ bool FRTMovementProfileActionForProfileIsTheInverse::RunTest(const FString&)
 		URTMovementProfileLibrary::ProfileSprint);
 
 	// ⛔ Un profilo che nessuna azione nomina non produce un'azione inventata.
+	// ⚠️ Il soggetto e' `Still`, non piu' `Withdraw`: dal 2026-09-13 il ripiegamento ha la propria azione
+	// (`#1410` `AC-5`), mentre «fermo» resta per costruzione senza — lo si ottiene non muovendosi, e
+	// un'azione che lo nomini non avrebbe niente da eseguire.
 	TestTrue(TEXT("un profilo senza azione non produce un Def"),
-		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileWithdraw)
+		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileStill)
 			.ActionId.IsNone());
 	return true;
 }
@@ -392,6 +395,94 @@ bool FRTMovementProfileSprintPaysItsPrices::RunTest(const FString&)
 	TestTrue(TEXT("Action.Move e' nel catalogo"), FindCoreAction(TEXT("Action.Move"), Move));
 	TestTrue(TEXT("il Move normale conserva la reazione"), Move.bAllowsReaction);
 	TestEqual(TEXT("e non applica effetti"), Move.Effects.Num(), 0);
+	return true;
+}
+
+
+/**
+ * `AC-5` di `#1410`: armare l'`Overwatch` RISERVA lo slot movimento al `Withdraw` ([D-070]).
+ *
+ * 🔑 **Il vincolo e' un DATO sull'azione, non un `if` sull'`ActionId`**: il consumatore legge
+ * `ReservesMovementProfileId` e non ha bisogno di sapere quale azione lo ha imposto. Un kit che
+ * dichiarasse un'altra azione «questa ti inchioda a un ripiegamento» e' coperto senza toccare il
+ * controller.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileOverwatchReservesTheSlot,
+	"RefactorTactics.MovementProfile.OverwatchReservesTheMovementSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileOverwatchReservesTheSlot::RunTest(const FString&)
+{
+	FRTActionDef Overwatch;
+	if (!TestTrue(TEXT("Action.Overwatch e' nel catalogo"),
+		FindCoreAction(TEXT("Action.Overwatch"), Overwatch)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("l'Overwatch riserva lo slot movimento al Withdraw (D-070)"),
+		Overwatch.ReservesMovementProfileId, URTMovementProfileLibrary::ProfileWithdraw);
+
+	// ⛔ E il vincolo si LEGGE dal piano: e' cosi' che il selettore sa di dover rifiutare.
+	FRTPlannedAction Planned;
+	Planned.Def = Overwatch;
+	const TArray<FRTPlannedAction> WithOverwatch = { Planned };
+	TestEqual(TEXT("il piano che arma l'Overwatch dichiara la riserva"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(WithOverwatch),
+		URTMovementProfileLibrary::ProfileWithdraw);
+
+	// Controprova: un piano che non arma niente non riserva nulla, altrimenti l'asserzione sopra sarebbe
+	// vera per qualunque piano e il test non distinguerebbe.
+	FRTPlannedAction Attack;
+	Attack.Def.ActionId = TEXT("Action.BasicAttack");
+	const TArray<FRTPlannedAction> WithoutOverwatch = { Attack };
+	TestTrue(TEXT("un piano senza riserve non ne dichiara"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(WithoutOverwatch).IsNone());
+
+	// ⚠️ Nessuna ALTRA azione del catalogo riserva lo slot: se domani ne comparisse una per sbaglio, il
+	// giocatore si troverebbe il movimento inchiodato senza che nulla lo dichiari.
+	int32 Reserving = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		if (!Def.ReservesMovementProfileId.IsNone()) { ++Reserving; }
+	}
+	TestEqual(TEXT("e l'Overwatch e' la sola a riservarlo"), Reserving, 1);
+	return true;
+}
+
+/**
+ * `#1410` `AC-5`, la meta' senza la quale la riserva sarebbe immobilita': `Withdraw` **e' pianificabile**.
+ *
+ * 🔴 **L'azione non esisteva fino al 2026-09-13.** Il PROFILO era arrivato con `#653` — era il suo
+ * criterio, *«`Withdraw` diventa esprimibile»* — ma un profilo che nessuna azione nomina non entra in un
+ * piano: `ProfileForPlan` non lo restituirebbe mai. Senza questa voce, [D-070] avrebbe inchiodato chi arma
+ * l'`Overwatch` all'immobilita' invece che al ripiegamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileWithdrawIsPlannable,
+	"RefactorTactics.MovementProfile.WithdrawIsPlannable",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileWithdrawIsPlannable::RunTest(const FString&)
+{
+	const FRTActionDef Withdraw =
+		URTMovementProfileLibrary::FindActionForProfile(URTMovementProfileLibrary::ProfileWithdraw);
+
+	TestEqual(TEXT("il profilo Withdraw ha un'azione che lo nomina"),
+		Withdraw.ActionId, FName(TEXT("Action.Withdraw")));
+	TestEqual(TEXT("che vale i 2 punti di D-070"), Withdraw.RangeCells, 2);
+	TestEqual(TEXT("e occupa il solo slot movimento"), Withdraw.Slot, ERTActionSlot::Movement);
+
+	// ⚠️ **Fase `Move` e non `Dash`**: il ripiegamento e' un profilo della famiglia `Move` ([D-015]), non
+	// una mobilita' rapida. Se risolvesse prima del Blast sarebbe uno scatto, e D-070 non dice questo.
+	TestEqual(TEXT("e risolve dopo il Blast, come gli altri profili"),
+		Withdraw.ResolutionPhase, ERTResolutionPhase::NormalMovement);
+
+	// ⛔ Resta comunque fuori dal selettore: lo si ottiene armando l'Overwatch, non scegliendolo.
+	TArray<FName> Offerable;
+	for (const FRTMovementProfile& P : URTMovementProfileLibrary::OfferableProfiles())
+	{
+		Offerable.Add(P.Id);
+	}
+	TestFalse(TEXT("ma non e' offerto come scelta libera (AC-4)"),
+		Offerable.Contains(URTMovementProfileLibrary::ProfileWithdraw));
 	return true;
 }
 

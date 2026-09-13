@@ -87,4 +87,15 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
 	static TArray<FRTMovementProfile> OfferableProfiles();
+
+	/**
+	 * Il profilo a cui il PIANO riserva lo slot movimento, o `NAME_None` se nessuna voce lo fa
+	 * (`#1410` `AC-5`, [D-070]).
+	 *
+	 * Legge `FRTActionDef::ReservesMovementProfileId`, quindi vale per qualunque azione lo dichiari e non
+	 * per il solo `Action.Overwatch`: chi la consuma non ha bisogno di sapere **quale** azione ha imposto
+	 * il vincolo, solo che c'e' e a cosa costringe.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Movement")
+	static FName ReservedProfileForPlan(const TArray<FRTPlannedAction>& Plan);
 };

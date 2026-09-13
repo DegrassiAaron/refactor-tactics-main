@@ -530,6 +530,86 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `AC-2` di `#1410` e `DEC-A`: la voce di movimento si legge come **azione base · profilo**.
+ *
+ * 🔑 **La sede esiste dalla versione 5 del formato** (`WithBaseActionId`, `#354`) e dichiara di servire a
+ * [D-033] — *«una traccia dev'essere spiegabile come azione base + profilo»*. Questo test e' il fratello di
+ * `TurnLog.BasicAttackLogsBaseAndProfile`: lo stesso fatto per un'altra azione generica.
+ *
+ * ⛔ **E il formato non cambia versione**: `BaseActionId` sta fuori dall'hash, e l'`ActionId` del profilo
+ * neutro resta quello di sempre. Le due asserzioni finali lo pinnano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLogsBaseAndProfileTest,
+	"RefactorTactics.TurnLog.MoveLogsBaseAndProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	// Sei celle: fuori dai 5 punti del neutro, dentro gli 8 del profilo.
+	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	Runner->PlannedCell = FRTCellId(6, 0);
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	auto MoveEntryFor = [](const ARTTurnManager* Manager, const ARTUnit* Unit, FName& OutBase, FName& OutAction)
+	{
+		for (const FRTTurnLogEntry& E : Manager->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Move && E.UnitId == Unit->StableUnitId)
+			{
+				OutBase = E.BaseActionId;
+				OutAction = E.ActionId;
+				return true;
+			}
+		}
+		return false;
+	};
+
+	FName Base, Action;
+	if (!TestTrue(TEXT("il movimento ha lasciato una voce"), MoveEntryFor(TM, Runner, Base, Action)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("l'azione BASE e' il Move generico"), Base, FName(TEXT("Action.Move")));
+	TestEqual(TEXT("e il profilo e' quello dichiarato"), Action,
+		URTMovementProfileLibrary::ProfileSprint);
+
+	// Controprova: il profilo NEUTRO scrive i due uguali, e `DescribeAction` li rende con un nome solo —
+	// *«un'azione generica usata direttamente e' il profilo di se stessa»*. E' cio' che tiene invariata la
+	// traccia di chi non sceglie, hash compreso.
+	ARTUnit* Walker = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2));
+	if (!Walker) { DestroyHexMoveWorld(World); return false; }
+	Walker->PlannedCell = FRTCellId(2, 2);
+	Runner->PlannedMovementProfileId = NAME_None;
+	Runner->PlannedCell = Runner->Cell;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	FName WalkBase, WalkAction;
+	if (TestTrue(TEXT("anche il cammino lascia una voce"), MoveEntryFor(TM, Walker, WalkBase, WalkAction)))
+	{
+		TestEqual(TEXT("il neutro scrive l'azione base e il profilo uguali"), WalkBase, WalkAction);
+		TestEqual(TEXT("e sono l'Action.Move di sempre: l'hash non si muove"),
+			WalkAction, FName(TEXT("Action.Move")));
+	}
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintConsumesSlotsTest,
 	"RefactorTactics.Actions.Sprint.ConsumesOnlyMovement",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

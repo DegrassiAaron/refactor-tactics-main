@@ -2542,6 +2542,33 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 **Un'azione che RISERVA lo slot movimento azzera il piano gia' dichiarato** ([D-401], innesco
+	// «imposto»; `AC-5` nei due ordini).
+	//
+	// ⚠️ **I due inneschi di D-401 differiscono, ed e' voluto**: un percorso corto sopravvive a un cambio
+	// VOLONTARIO di profilo e non sopravvive qui. La ragione e' [D-070] — il `Withdraw` *«si pianifica in
+	// Planning insieme al settore e al facing»*, cioe' e' parte della dichiarazione dell'Overwatch, non un
+	// profilo scelto sopra un movimento che esisteva gia'. Il percorso si RIDICHIARA.
+	//
+	// ⛔ E il rifiuto registrato si azzera col piano ([D-404]): il piano di cui faceva parte non esiste piu'.
+	if (!Ability->Def.ReservesMovementProfileId.IsNone())
+	{
+		Unit->PlannedWaypoints.Reset();
+		Unit->PlannedPath.Reset();
+		Unit->PlannedCell = Unit->Cell;
+		Unit->ClearMovePlanRejection();
+		Unit->PlannedMovementProfileId = Ability->Def.ReservesMovementProfileId;
+
+		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
+		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
+		{
+			HM->SetPreviewPath(Unit->PlannedPath);
+		}
+		RefreshPlanningPreview(GetWorld(), Unit);
+		UE_LOG(LogRT, Display, TEXT("[RT] %s: slot movimento riservato a %s — il piano si ridichiara"),
+			*Unit->GetName(), *Ability->Def.ReservesMovementProfileId.ToString());
+	}
+
 	if (Ability->bSelfTarget)
 	{
 		// Supporto: si pianifica immediatamente su se stessi (nessun bersaglio da cliccare). La ricarica
@@ -2730,6 +2757,18 @@ void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Valu
 	ARTUnit* Unit = GetSelectedUnit();
 	if (!Unit)
 	{
+		return;
+	}
+
+	// 🔑 **Lo slot movimento puo' essere RISERVATO da un'altra azione del piano** ([D-070], `AC-5`): chi ha
+	// armato l'`Overwatch` puo' solo ripiegare. Il rifiuto e' PARLANTE — dice che lo slot e' riservato e a
+	// cosa — invece di non fare niente, che e' la differenza che lo Scope di `#1410` chiede.
+	const FName Reserved = URTMovementProfileLibrary::ReservedProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
+	if (!Reserved.IsNone())
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: slot riservato a %s — un'azione pianificata lo impone."),
+			*Reserved.ToString());
 		return;
 	}
 

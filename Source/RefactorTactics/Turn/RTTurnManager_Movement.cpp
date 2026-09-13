@@ -1167,6 +1167,10 @@ void ARTTurnManager::FinishMovementResolution()
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
 	// Causa dichiarata (#307): questo e' il movimento VOLONTARIO della fase Move. Scatto e spostamento
 	// forzato hanno altri produttori e dichiareranno la propria.
+	// ⚠️ **`Priority` si legge dall'azione BASE, e dopo `#1410` la distinzione conta** (`DEC-A`). La voce
+	// puo' ora portare un `ActionId` che e' un profilo (`MovementProfile.Sprint`), e `FindCoreAction` su
+	// quella chiave non troverebbe niente: il numero deve venire da `MoveCauseActionId`, che e'
+	// `Action.Move`, cioe' il `BaseActionId` della voce. Il valore non cambia — la chiave si'.
 	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Ctx.Paths, Resolved, MoveCauseActionId,
 		URTCatalogLibrary::FindCoreAction(MoveCauseActionId).Priority);
 
@@ -1253,6 +1257,29 @@ void ARTTurnManager::FinishMovementResolution()
 		// soggetto e voce si accordano. «Chi puo' leggere che quest'unita' si e' mossa» ammette due risposte
 		// difendibili e nessuna decisione la sceglie; la traccia della rotta ne ha una terza ancora, un
 		// verdetto **per cella** (`FreezeRouteVerdicts`). Aperta in `#2148` invece che risolta qui.
+		// 🔑 **La coppia `azione base · profilo`** (`#1410` `AC-2`, `DEC-A`, [D-033]).
+		//
+		// `BaseActionId` e' l'azione generica — `Action.Move` — e `ActionId` il PROFILO con cui e' stata
+		// usata. E' la sede che il formato ha dalla versione **5** (`WithBaseActionId`, `#354`) e che
+		// dichiara di esistere proprio per questo: *«l'azione generica di cui `ActionId` e' un profilo …
+		// serve a D-033, che chiede che una traccia sia spiegabile come azione base + profilo»*.
+		//
+		// ⚠️ **Per il profilo NEUTRO i due coincidono, e non e' un caso degenere**: `DescribeAction` rende
+		// `BaseActionId == ActionId` con un nome solo — *«un'azione generica usata direttamente e' il
+		// profilo di se stessa»* — quindi la riga resta `Action.Move` esattamente come prima di `#1410`.
+		// ⛔ E l'**hash non si muove** per chi non sceglie: `BaseActionId` sta fuori dall'hash (e' una
+		// funzione di `ActionId`), e l'`ActionId` del neutro resta quello di sempre. Chi sprinta scrive un
+		// `ActionId` diverso e cambia il proprio digest — ma e' un comportamento che prima non esisteva,
+		// non una traccia esistente che cambia significato. Nessun bump di `ERTTurnLogFormatVersion`.
+		if (Units.IsValidIndex(i) && IsValid(Units[i]))
+		{
+			const FName Declared = Units[i]->PlannedMovementProfileId;
+			MoveLog[i].BaseActionId = MoveCauseActionId;
+			MoveLog[i].ActionId = Declared.IsNone()
+				? MoveCauseActionId
+				: Declared;
+		}
+
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);
 	}
 
