@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Stato**: revisione chiusa. Le decisioni che ne discendono sono `D-407` … `D-415`. Del codice
 > è migrata **una sola** delle nove — `D-412`, §10-bis — e §10 dice perché le altre no.
-> ✅ **Compile e Tests `PASS`** su `HEAD f075651f`: 571 test, 571 `Success`, 0 `Fail` — §12.
+> ✅ **Compile e Tests `PASS`** su `HEAD f3518079`: 649 test, 649 `Success`, 0 `Fail` — §12.
 > **Data**: 2026-09-13
 > **HEAD della revisione**: `origin/main` = `a2d23509`. Le citazioni `file:riga` sono state **rimisurate**
 > su questo commit — vedi la nota di metodo in §1 — in un worktree isolato (`spec/skill-bar-2026-09-13`),
@@ -360,7 +360,7 @@ un test rosso per progetto va riscritto insieme al codice che lo rende tale, non
 la specifica **autorevole**; le issue di §11 la rendono **eseguibile**, una migrazione per volta.
 
 ⚠️ **E il verde di §12 copre `D-412`, non le altre otto.** `CLAUDE.md` §6: chi scrive una correzione non ne
-emette da solo il verdetto sui sistemi che tocca. La suite è verde — 571 su 571 — su un perimetro scelto per
+emette da solo il verdetto sui sistemi che tocca. La suite è verde — 649 su 649 — su un perimetro scelto per
 **questa** migrazione: dice che il moltiplicatore non ha rotto nulla di ciò che esisteva, e non dice niente
 sulle sette che restano. Ciascuna dovrà allargare il proprio filtro, e `D-414` dovrà aggiungere il corpus
 golden che qui manca.
@@ -466,12 +466,12 @@ perimetro, e finché non si sa se la v0.1 lo riapre non hanno un soggetto su cui
 
 ## 12. Verifica
 
-Misurato su `HEAD f075651f`, albero pulito, verificato **prima e dopo** ciascuna delle due misure.
+Misurato su `HEAD f3518079` — il merge di `origin/main` — con albero pulito verificato **prima e dopo**.
 
 | Gate | Esito |
 |---|---|
 | Compile | ✅ **`PASS`** — `Result: Succeeded`, 0 errori |
-| Tests | ✅ **`PASS`** — **571** test, **571** `Success`, **0** `Fail` |
+| Tests | ✅ **`PASS`** — **649** test, **649** `Success`, **0** `Fail` |
 | Determinism | `NOT RUN` — nessuna famiglia golden nel filtro; vedi sotto |
 | Replay | `N/A` — nessun formato di traccia cambia in questo passaggio |
 | Privacy | `N/A` per il codice; ⚠️ **rilevata** una questione di boundary in §5, aperta come `SKB-3` |
@@ -481,19 +481,40 @@ Misurato su `HEAD f075651f`, albero pulito, verificato **prima e dopo** ciascuna
 ### Le due misure, e cosa le rende valide
 
 **Compile.** `Build.bat RefactorTacticsEditor Win64 Development` sul worktree, `-MaxParallelActions=6` per
-non saturare la macchina mentre un'altra sessione girava la propria suite: **`Result: Succeeded`** in 22,36 s.
-I quattro `warning C4996` sono deprecazioni UE preesistenti in `RTMatchWidgetAssetTests.cpp`, un file che
-questo passaggio non tocca.
+non saturare la macchina mentre un'altra sessione girava la propria suite: **`Result: Succeeded`** in 53,63 s.
+I `warning C4996` sono deprecazioni UE preesistenti in `RTMatchWidgetAssetTests.cpp`, un file che questo
+passaggio non tocca.
 
 **Tests.** Le sette famiglie che `AGENTS.md` §9 impone a chi tocca il resolver del movimento —
 `HexSim` · `HexMatch` · `HexOccupancy` · `Movement` · `HexMove` · `ForcedMovement` · `Scenario` — più le
-cinque che questa migrazione tocca: `MovementProfile` · `Actions` · `Catalog` · `Bot` · `Combat`.
+cinque che questa migrazione tocca (`MovementProfile` · `Actions` · `Catalog` · `Bot` · `Combat`) e
+**`Reactions`**, aggiunta dopo il merge perché [`D-406`](../../decisions/RT_PDR_00_Decision_Log.md) tocca il
+divieto di reazione dello `Sprint`.
 
 Gli undici test scritti o riscritti da `D-412`, tutti `Success`:
 `MovementProfile.CatalogDeclaresTheProfiles` · `MoveInheritsUnitBudget` · `SneakIsPlannableWithItsNumbers` ·
 `StillKeepsUnitCapacity` · `SnapshotCarriesBothBudgets` · `PlanDeclaresTheProfile` ·
 `CoreActionsNameTheirProfile` · `StabilityIsOrdered` · `Actions.MovementActionsDeclareStyleAndPhase` ·
 `Catalog.EveryCoreActionIsReachableOrDeclared` · `Bot.SlowReachesTheWithdrawBudget`.
+
+### ✅ Il merge di `#641`, e la prova che i due modelli convivono
+
+`#641` è stato mergiato su `main` **mentre questa PR era aperta**, e tocca gli stessi tre file: porta
+[`D-406`](../../decisions/RT_PDR_00_Decision_Log.md), il campo `bIsRun` che dà un soggetto a
+[`D-319`](../../decisions/RT_PDR_00_Decision_Log.md) — *«chi ha perso l'equilibrio non corre»*.
+
+🔑 **I due cambiamenti sono ortogonali, e il conflitto era solo testuale**: `bIsRun` dice **che cosa** il
+profilo è, la percentuale di `D-412` dice **quanto** concede. `MakeProfile` ha ora una firma fusa, e lo
+`Sprint` è `200` **e** una corsa.
+
+✅ **A dirlo non è il ragionamento, è il test di qualcun altro**: `MovementProfile.OnlySprintIsARun` — scritto
+da `#641`, non da qui — è `Success` sull'albero mergiato. Se la fusione avesse perso `bIsRun` o l'avesse
+attribuito al profilo sbagliato, quello sarebbe rosso.
+
+⚠️ **E una cosa è stata misurata invece che assunta**: `#641` ha consegnato il **solo prerequisito**.
+`Action.Sprint` resta a `FastMovement` e il test si chiama ancora
+`Actions.SprintIsAMoveProfileResolvedPreBlast`. La migrazione di fase è ancora davanti, e le righe di
+`D-412` le restano coerenti.
 
 ### ⚠️ Tre limiti dichiarati, perché un verde senza perimetro non dice niente
 
@@ -503,9 +524,10 @@ Gli undici test scritti o riscritti da `D-412`, tutti `Success`:
 2. **`Content/FabAsset` non esiste**, e il log porta warning su animazioni Paragon mancanti. ✅ **Non è un
    artefatto del worktree**: è assente **anche nel clone principale**, quindi il perimetro coperto è lo
    stesso di qualunque altro checkout. Verificato invece di assunto.
-3. **Otto famiglie della suite non sono nel filtro** — fra cui `Reactions`, `Knowledge`, `Overwatch`,
-   `Veil`. `AGENTS.md` §9 lo prescrive: *«se tocchi anche reazioni, conoscenza o presentazione, aggiungi le
-   loro»*. `D-412` non le tocca; le otto migrazioni di §11.3 sì, e ciascuna dovrà allargare il proprio.
+3. **Alcune famiglie restano fuori dal filtro** — fra cui `Knowledge`, `Overwatch`, `Veil`. `AGENTS.md`
+   §9 lo prescrive: *«se tocchi anche reazioni, conoscenza o presentazione, aggiungi le loro»*, e
+   `Reactions` è stata aggiunta per questo dopo il merge di `#641`. `D-412` non tocca le altre; le otto
+   migrazioni di §11.3 sì, e ciascuna dovrà allargare il proprio.
 
 ### ⏱️ La prima misura è stata scartata, e la seconda ha trovato un errore vero
 
