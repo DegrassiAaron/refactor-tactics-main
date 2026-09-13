@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Stato**: revisione chiusa. Le decisioni che ne discendono sono `D-407` … `D-415`. Del codice
 > è migrata **una sola** delle nove — `D-412`, §10-bis — e §10 dice perché le altre no.
-> 🔴 **Compile `NOT RUN`**: il Live Coding di un altro clone blocca la build, §12.
+> ✅ **Compile e Tests `PASS`** su `HEAD f075651f`: 571 test, 571 `Success`, 0 `Fail` — §12.
 > **Data**: 2026-09-13
 > **HEAD della revisione**: `origin/main` = `a2d23509`. Le citazioni `file:riga` sono state **rimisurate**
 > su questo commit — vedi la nota di metodo in §1 — in un worktree isolato (`spec/skill-bar-2026-09-13`),
@@ -359,9 +359,11 @@ conoscenza e le finestre di reazione. Ciascuno ha una famiglia di test che diven
 un test rosso per progetto va riscritto insieme al codice che lo rende tale, non dopo. Le voci di §8 rendono
 la specifica **autorevole**; le issue di §11 la rendono **eseguibile**, una migrazione per volta.
 
-⚠️ **E questa sessione non poteva firmare la misura comunque.** `CLAUDE.md` §6: chi scrive una correzione non
-ne emette da solo il verdetto sui sistemi che tocca. La suite **non** è stata eseguita: `NOT RUN`, e il
-motivo è dichiarato invece di essere omesso.
+⚠️ **E il verde di §12 copre `D-412`, non le altre otto.** `CLAUDE.md` §6: chi scrive una correzione non ne
+emette da solo il verdetto sui sistemi che tocca. La suite è verde — 571 su 571 — su un perimetro scelto per
+**questa** migrazione: dice che il moltiplicatore non ha rotto nulla di ciò che esisteva, e non dice niente
+sulle sette che restano. Ciascuna dovrà allargare il proprio filtro, e `D-414` dovrà aggiungere il corpus
+golden che qui manca.
 
 ## 10-bis. L'unica migrazione fatta: `D-412`
 
@@ -464,31 +466,60 @@ perimetro, e finché non si sa se la v0.1 lo riapre non hanno un soggetto su cui
 
 ## 12. Verifica
 
+Misurato su `HEAD f075651f`, albero pulito, verificato **prima e dopo** ciascuna delle due misure.
+
 | Gate | Esito |
 |---|---|
-| Compile | 🔴 **`NOT RUN`** — vedi sotto |
-| Tests | `NOT RUN` |
-| Determinism | `NOT RUN` |
+| Compile | ✅ **`PASS`** — `Result: Succeeded`, 0 errori |
+| Tests | ✅ **`PASS`** — **571** test, **571** `Success`, **0** `Fail` |
+| Determinism | `NOT RUN` — nessuna famiglia golden nel filtro; vedi sotto |
 | Replay | `N/A` — nessun formato di traccia cambia in questo passaggio |
 | Privacy | `N/A` per il codice; ⚠️ **rilevata** una questione di boundary in §5, aperta come `SKB-3` |
 | PIE | `N/A` |
 | Packaged | `N/A` |
 
-🔴 **Compile `NOT RUN`, e il motivo è misurato, non presunto.** `Build.bat RefactorTacticsEditor Win64
-Development` sul worktree esce **6** in 34,79 s con il messaggio dell'engine:
+### Le due misure, e cosa le rende valide
 
-```text
-Unable to build while Live Coding is active. Exit the editor and game,
-or press Ctrl+Alt+F11 if iterating on code in the editor or game
-Result: Failed (OtherCompilationError)
-```
+**Compile.** `Build.bat RefactorTacticsEditor Win64 Development` sul worktree, `-MaxParallelActions=6` per
+non saturare la macchina mentre un'altra sessione girava la propria suite: **`Result: Succeeded`** in 22,36 s.
+I quattro `warning C4996` sono deprecazioni UE preesistenti in `RTMatchWidgetAssetTests.cpp`, un file che
+questo passaggio non tocca.
 
-Il Live Coding non è di questa sessione: lo tiene un `UnrealEditor.exe` aperto su
-**`D:\Repositories\refactor-tactics-main`** (`L_DevSandbox`), con il suo `LiveCodingConsole.exe` nel gruppo
-`UE_RefactorTactics_0xb4acb639`. ⚠️ **Il mutex è sull'eseguibile dell'engine condiviso, non sul checkout**:
-un worktree separato non lo elimina, ed è la ragione per cui `CLAUDE.md` §10 prescrive di dichiarare
-`NOT RUN` **col nome del clone che tiene il motore** invece di cercare un verde in finestra sporca.
+**Tests.** Le sette famiglie che `AGENTS.md` §9 impone a chi tocca il resolver del movimento —
+`HexSim` · `HexMatch` · `HexOccupancy` · `Movement` · `HexMove` · `ForcedMovement` · `Scenario` — più le
+cinque che questa migrazione tocca: `MovementProfile` · `Actions` · `Catalog` · `Bot` · `Combat`.
 
-⛔ **Le modifiche C++ di §10-bis sono quindi NON COMPILATE.** Chi le riprende esegua il gate prima di
-trattarle come funzionanti: sono contenute — un rinomino di campo, un valore di catalogo, un'azione nuova e
-quattro file di test — ma «contenute» non è un sinonimo di «verificate».
+Gli undici test scritti o riscritti da `D-412`, tutti `Success`:
+`MovementProfile.CatalogDeclaresTheProfiles` · `MoveInheritsUnitBudget` · `SneakIsPlannableWithItsNumbers` ·
+`StillKeepsUnitCapacity` · `SnapshotCarriesBothBudgets` · `PlanDeclaresTheProfile` ·
+`CoreActionsNameTheirProfile` · `StabilityIsOrdered` · `Actions.MovementActionsDeclareStyleAndPhase` ·
+`Catalog.EveryCoreActionIsReachableOrDeclared` · `Bot.SlowReachesTheWithdrawBudget`.
+
+### ⚠️ Tre limiti dichiarati, perché un verde senza perimetro non dice niente
+
+1. **`Determinism` resta `NOT RUN`**: il filtro non include `Simulation.GoldenCorpus*`. Per `D-412` non è
+   il gate che conta — nessun formato di traccia cambia — ma per [`D-414`](../../decisions/RT_PDR_00_Decision_Log.md)
+   lo sarà, e quella misura va fatta **prima** di spostare la sede di scrittura del cooldown.
+2. **`Content/FabAsset` non esiste**, e il log porta warning su animazioni Paragon mancanti. ✅ **Non è un
+   artefatto del worktree**: è assente **anche nel clone principale**, quindi il perimetro coperto è lo
+   stesso di qualunque altro checkout. Verificato invece di assunto.
+3. **Otto famiglie della suite non sono nel filtro** — fra cui `Reactions`, `Knowledge`, `Overwatch`,
+   `Veil`. `AGENTS.md` §9 lo prescrive: *«se tocchi anche reazioni, conoscenza o presentazione, aggiungi le
+   loro»*. `D-412` non le tocca; le otto migrazioni di §11.3 sì, e ciascuna dovrà allargare il proprio.
+
+### ⏱️ La prima misura è stata scartata, e la seconda ha trovato un errore vero
+
+*Fino a poche ore fa questa sezione diceva `Compile: NOT RUN`, e il motivo era che il Live Coding di un
+Editor aperto su `D:\Repositories\refactor-tactics-main` faceva uscire `Build.bat` con **6** —* «Unable to
+build while Live Coding is active» *— e il mutex è sull'eseguibile dell'engine condiviso, non sul checkout.*
+
+🔴 **Poi la finestra si è aperta, e il compilatore ha trovato un difetto che nessuna rilettura aveva
+visto**: `RTMovementProfileTests.cpp(194)` chiamava `URTMovementProfileLibrary::OfferableProfiles()`, che
+**non esiste su `origin/main`** — la porta [#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410)
+insieme al selettore. È la stessa causa delle diciassette citazioni corrette in §1: un simbolo visto nel
+clone principale, che porta lavoro non mergiato. ∴ **la nota di metodo di §1 vale anche per il codice, non
+solo per i numeri di riga** — ed è la ragione per cui il gate va eseguito e non dedotto.
+
+⚠️ **Una misura intermedia è stata scartata da sé stessa**: l'albero è cambiato mentre girava (una nota di
+commento), e `AGENTS.md` §9 dice che una misura che non osserva lo stesso working tree dall'inizio alla fine
+è `NON VALIDA`. È servita a trovare l'errore, non a firmare un verde.
