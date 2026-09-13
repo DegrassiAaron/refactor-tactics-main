@@ -2783,16 +2783,79 @@ void ARTTurnManager::ValidatePlansAtLockIn()
 	TArray<ARTUnit*> Units;
 	CollectLivingUnits(Units);
 
+	// Fresca per il turno, come `ReactionBlockedThisTurn`: quello che il lock-in rifiuta lo racconta la fase
+	// Move di QUESTO turno, e una voce sopravvissuta al turno precedente la racconterebbe due volte.
+	RunRefusedThisTurn.Reset();
+
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		// `CollectLivingUnits` aggiunge solo puntatori che hanno passato `Unit && Unit->IsAlive()`:
 		// un controllo di nullita' qui difenderebbe da niente.
 		ARTUnit* Unit = Units[i];
 
-		const TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
+		TArray<FRTPlannedAction> Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
 		if (Plan.Num() == 0)
 		{
 			continue; // nessuna voce: niente da giudicare
+		}
+
+		// `Status.Unbalanced` NEGA la corsa ([D-319], `#2253`), e il rifiuto e' QUI ([D-405]).
+		//
+		// 🔑 **Prima stava nella risoluzione del Dash, e [#641] lo avrebbe reso inerte**: il criterio leggeva
+		// lo stile da `PlannedDashAbility`, cioe' dentro una fase da cui `Action.Sprint` e' appena uscito.
+		// Il commento di `ERTActionInvalidReason::Unbalanced` dichiarava gia' «Rifiuto in VALIDAZIONE»: e'
+		// il codice ad allinearsi al proprio contratto scritto, non il contrario.
+		//
+		// ⛔ **Il criterio e' `bIsRun` del PROFILO, non piu' lo stile** ([D-406]). `Action.Move` e
+		// `Action.Sprint` dichiarano entrambi `ERTMovementStyle::Budget`: fuori dal recinto del Dash lo stile
+		// non distingue il correre dal camminare, e portarlo com'era avrebbe reso `Unbalanced`
+		// un'immobilizzazione totale — che [D-319] non dice. Il criterio resta un DATO dichiarato, quindi una
+		// mobilita' nuova si copre dichiarandola invece di modificare questa condizione.
+		//
+		// ⚠️ **Rifiutare QUI toglie la voce dal piano, ed e' voluto**: `ResolveDash` legge il piano per
+		// registrare il divieto di reazione ([D-405]) e gira dopo, quindi chi si vede rifiutare la corsa non
+		// ne paga il prezzo. E' esattamente la ragione per cui quel divieto puo' stare sul piano.
+		//
+		// 🔴 **Solo combat log, nessuna voce di TurnLog**, per la ragione dichiarata poche righe piu' sotto:
+		// una voce scritta al lock-in porterebbe una `Phase` che nessun consumatore del replay ha mai visto.
+		// E qui non c'e' nemmeno niente da raccontare al replay: il piano non contiene piu' la corsa, quindi
+		// il turno non la scarta — non la ha. La visibilita' PRIMA del commit e' di [#1410], che rifiuta il
+		// profilo nel selettore invece di lasciarlo dichiarare.
+		if (Unit->HasStatus(TAG_Status_Unbalanced)
+			&& URTMovementProfileLibrary::ProfileForPlan(Plan).bIsRun)
+		{
+			// Si azzera lo SLOT che porta la corsa, non l'intero piano: il resto resta del giocatore.
+			const int32 Slots[] = { Unit->PlannedDashAbility, Unit->PlannedAbilityIndex };
+			for (int32 Idx : Slots)
+			{
+				const URTActionData* Azione = Unit->GetAbility(Idx);
+				if (!Azione
+					|| !URTMovementProfileLibrary::FindProfile(Azione->Def.MovementProfileId).bIsRun)
+				{
+					continue;
+				}
+
+				// La cella accanto all'etichetta: l'etichetta e' per eroe, e due unita' dello stesso eroe
+				// sarebbero indistinguibili senza.
+				AddLogEvent(FString::Printf(TEXT("%s (q=%d,r=%d,L=%d): sbilanciato, non puo' correre (%s)"),
+						*ARTUnit::LogLabel(Unit), Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer,
+						*Azione->Def.ActionId.ToString()),
+					FRTLogSubject::Unit(Unit));
+
+				// La traccia la scrive la fase Move, non questa: vedi `RunRefusedThisTurn`.
+				RunRefusedThisTurn.Add(Unit, Azione->Def.ActionId);
+
+				if (Idx == Unit->PlannedDashAbility) { Unit->PlannedDashAbility = INDEX_NONE; }
+				else { Unit->PlannedAbilityIndex = INDEX_NONE; }
+				break;
+			}
+
+			// Il piano e' cambiato: il verdetto sotto giudica quello NUOVO, non quello appena rifiutato.
+			Plan = URTPlanValidationLibrary::MakePlanFor(Unit);
+			if (Plan.Num() == 0)
+			{
+				continue;
+			}
 		}
 
 		const FRTPlanValidation Verdict = URTPlanValidationLibrary::ValidatePlan(MakeSimUnit(i, Unit), Plan);
@@ -4047,6 +4110,37 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
+	// ...e chi ha DICHIARATO un'azione che nega la reazione ([D-405]). Si legge il PIANO, non lo scatto.
+	//
+	// 🔑 **Prima era chiavato sull'abilita' di scatto effettivamente usata, piu' in basso in questa stessa
+	// funzione, e [#641] lo avrebbe fatto sparire in silenzio**: uscendo da `FastMovement`, `Action.Sprint`
+	// non passa piu' dal ciclo del Dash, quindi `bAllowsReaction = false` sarebbe rimasto vero nel dato
+	// senza che nessuno lo leggesse. Il divieto non sarebbe arrivato tardi: non sarebbe arrivato.
+	//
+	// ⛔ **E non puo' stare nel Move.** Le due enum di fase non hanno lo stesso ordine, ed e' voluto:
+	// `ERTMatchPhase` e' `Dash · Blast · Move`, e `MapResolutionPhase` manda `NormalMovement` -> `Move`,
+	// che il Blast lo segue. Le reazioni si valutano nel Blast: da li' in poi e' tardi.
+	//
+	// ⚠️ **Qui e non a `ValidatePlansAtLockIn`, e la ragione e' l'ordine**: il `Reset()` poche righe sopra
+	// gira DOPO il lock-in, quindi un divieto scritto li' verrebbe cancellato da questa stessa funzione.
+	// Questo e' il primo punto dopo la nascita del set, ed e' prima di ogni fase che valuti una reazione.
+	//
+	// ⚠️ **E prima che il ciclo sotto consumi `PlannedDashAbility`**: `MakePlanFor` legge quel campo, e piu'
+	// in basso viene azzerato «consumato per questo turno». Invertire i due significherebbe leggere un
+	// piano a cui e' gia' stata tolta una voce.
+	for (ARTUnit* Unit : Units)
+	{
+		if (!IsValid(Unit)) { continue; }
+		for (const FRTPlannedAction& Dichiarata : URTPlanValidationLibrary::MakePlanFor(Unit))
+		{
+			if (!Dichiarata.Def.bAllowsReaction)
+			{
+				ReactionBlockedThisTurn.Add(Unit);
+				break;
+			}
+		}
+	}
+
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
 	TArray<int32> PendingImpactAttackerIdx;
@@ -4105,27 +4199,16 @@ void ARTTurnManager::ResolveDash()
 		// ⚠️ **`PlannedDashAbility` e' gia' azzerato** dalla riga sopra: l'azione e' consumata per il turno
 		// comunque, esattamente come per ogni altro scatto che non si compie. Chi ha pianificato `Sprint`
 		// resta fermo — lo `Sprint` occupa lo slot movimento, quindi non c'e' un Move da ripiegare.
-		if (Unit->HasStatus(TAG_Status_Unbalanced)
-			&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
-		{
-			FRTTurnLogEntry Rifiutata;
-			Rifiutata.Phase = ERTMatchPhase::Dash;
-			Rifiutata.Category = ERTLogCategory::Fallback;
-			Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-			Rifiutata.ActionId = Dash->Def.ActionId;
-			Rifiutata.BaseActionId = Dash->Def.BaseActionId;
-			Rifiutata.Priority = Dash->Def.Priority;
-			Rifiutata.SrcCell = Unit->Cell;
-			Rifiutata.TgtCell = Unit->Cell;
-			Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Unbalanced);
-			AppendLogEntry(Rifiutata, Unit);
-
-			// La cella per la stessa ragione della riga gemella piu' sotto: l'etichetta e' per eroe.
-			AddLogEvent(FString::Printf(TEXT("%s (q=%d,r=%d,L=%d): sbilanciato, non puo' correre"),
-					*ARTUnit::LogLabel(Unit), Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer),
-				FRTLogSubject::Unit(Unit));
-			continue;
-		}
+		// ⌫ **Qui stava il rifiuto per `Status.Unbalanced`, ed e' salito in `ValidatePlansAtLockIn`**
+		// ([D-405] · [D-406]). Non e' stato lasciato anche qui, e la ragione non e' la pulizia: due criteri
+		// sarebbero due AUTORITA'. Quello di qui leggeva lo STILE, che dopo [#641] non discrimina — `Move` e
+		// `Sprint` dichiarano entrambi `Budget` — quindi una mobilita' rapida a budget verrebbe rifiutata
+		// qui **senza** aver dichiarato `bIsRun`, cioe' contro la regola che [D-406] ha appena scritto.
+		//
+		// ⚠️ **Con la voce di TurnLog e' sparito anche cio' che essa raccontava**, e va detto: il rifiuto ora
+		// avviene prima che il turno esista, quindi non c'e' uno scarto da riprodurre. Chi rilegge un replay
+		// non trova piu' una `Fallback`/`Cancelled` per questo caso — trova un turno in cui la corsa non e'
+		// mai stata pianificata, che e' quello che davvero succede.
 
 		// Budget della fase Dash: la portata dichiarata dall'azione (con gli status), non il movimento del
 		// turno. Per un'azione catalogata la verita' e' il `Def`: `Action.Sprint` vale 8 MP e quel numero sta
@@ -4499,14 +4582,12 @@ void ARTTurnManager::ResolveDash()
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
 
-		// Chi ha usato un'azione che nega la reazione (CP 5.1: `Action.Sprint`) non ne tiene pronta una in
-		// questo turno, comunque sia pianificata — vale QUI, non dove lo scatto e' stato solo pianificato,
-		// perche' qui e' l'unico punto in cui l'azione risulta EFFETTIVAMENTE usata (non su cooldown, non
-		// scartata dal fallback).
-		if (!Used->Def.bAllowsReaction)
-		{
-			ReactionBlockedThisTurn.Add(Unit);
-		}
+		// ⌫ **Qui stava il divieto di reazione, ed e' salito in cima a questa funzione** ([D-405]): si
+		// registra sul PIANO, non sullo scatto effettivamente usato. La giustificazione di allora — «l'unico
+		// punto in cui l'azione risulta EFFETTIVAMENTE usata (non su cooldown, non scartata dal fallback)» —
+		// aveva due vie di fuga, e sono state chiuse invece che accettate: `Action.Sprint` ha `Cooldown 0`,
+		// e lo scarto per `Status.Unbalanced` e' diventato un rifiuto in VALIDAZIONE (`ValidatePlansAtLockIn`).
+		// ∴ una dichiarazione esegue sempre, e leggerla dal piano non toglie niente a chi poi non corre.
 
 		// SLOT consumati: lo dice il catalogo, non l'ActionId. Il movimento e' gia' speso qui sopra per OGNI
 		// mobilita' rapida (D-028); resta da spendere la principale per chi dichiara `MovementAndMain`.

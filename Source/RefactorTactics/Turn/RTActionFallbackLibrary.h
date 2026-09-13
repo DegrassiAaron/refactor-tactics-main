@@ -129,16 +129,23 @@ enum class ERTActionInvalidReason : uint8
 	 * Chi ha perso l'equilibrio non corre: `Status.Unbalanced` rifiuta la mobilita' rapida a BUDGET
 	 * ([D-319], `#2253`) — oggi il solo `Action.Sprint`.
 	 *
-	 * 🔑 **Il criterio e' `ERTMovementStyle::Budget` dentro `FastMovement`, non l'`ActionId`.** Una
-	 * mobilita' a budget attraversa celle scelte una per una nel momento in cui si corre; una LINEARE
-	 * (`Dash`, `Charge`, `Leap`, `Reposition`) e' uno slancio in una direzione, deciso prima e pagato tutto
-	 * insieme. E' la seconda che uno sbilanciato puo' ancora fare, ed e' anche il modo in cui il divieto
-	 * resta vero per la prossima azione a budget che qualcuno aggiungera' — un `if` sull'`ActionId` la
-	 * lascerebbe fuori senza che nulla diventi rosso.
+	 * 🔑 **Il criterio e' `FRTMovementProfile::bIsRun`, non l'`ActionId` e non piu' lo stile** ([D-406]).
+	 * Chi corre attraversa celle scelte una per una nel momento in cui corre; uno slancio LINEARE (`Dash`,
+	 * `Charge`, `Leap`, `Reposition`) e' deciso prima e pagato tutto insieme, ed e' quello che uno
+	 * sbilanciato puo' ancora fare.
 	 *
-	 * ⚠️ **Rifiuto in VALIDAZIONE, non scarto muto alla risoluzione**: l'azione lascia una voce
-	 * `Fallback`/`Cancelled` che nomina questa causa, e chi rilegge il turno vede *perche'* la corsa non
-	 * c'e' stata invece di un buco. Il costo e' il valore qui sotto; l'alternativa chiedeva un evento nuovo.
+	 * ⌫ **Diceva `ERTMovementStyle::Budget` dentro `FastMovement`, e [#641] lo ha reso insufficiente**:
+	 * `Action.Move` e `Action.Sprint` dichiarano **lo stesso** stile, quindi fuori dal recinto della fase
+	 * Dash quel criterio rifiuterebbe anche il Move normale. La proprieta' per cui lo stile era stato
+	 * scelto — *«un `if` sull'`ActionId` lascerebbe fuori la prossima azione a budget senza che nulla
+	 * diventi rosso»* — e' conservata: `bIsRun` e' un DATO del profilo, e una mobilita' nuova si copre
+	 * dichiarandolo.
+	 *
+	 * ⚠️ **Rifiuto in VALIDAZIONE, non scarto muto alla risoluzione**: lo decide `ValidatePlansAtLockIn`,
+	 * e la corsa esce dal piano **prima** che il turno risolva — quindi non costa nemmeno il divieto di
+	 * reazione che [D-405] mette sul piano. La voce `Fallback`/`Cancelled` che nomina questa causa la
+	 * scrive la fase **Move**, dove la corsa sarebbe stata risolta: chi rilegge il turno vede *perche'* non
+	 * c'e' stata, invece di un buco, e il replay non incontra una `Phase` che non conosce.
 	 *
 	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect` e `Neutralised` prima: il motivo viaggia come intero
 	 * grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il significato di ogni traccia

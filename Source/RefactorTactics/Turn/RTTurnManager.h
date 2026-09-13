@@ -2920,11 +2920,35 @@ protected:
 
 	/**
 	 * Unita' a cui, in QUESTO turno, un'altra azione gia' risolta ha negato la reazione (`Action.Sprint`:
-	 * `FRTActionDef::bAllowsReaction = false`). Popolato da `ResolveDash` (l'unica fase, oggi, con un'azione
-	 * del genere) e riletto da `ResolveCombat` — la reazione risolve nel Blast, DOPO il Dash, quindi il divieto
-	 * deve sopravvivere al cambio di fase. Svuotato a inizio `ResolveDash`: e' sempre fresco per il turno.
+	 * `FRTActionDef::bAllowsReaction = false`). Popolato a inizio `ResolveDash` leggendo il PIANO ([D-405])
+	 * e riletto da `ResolveCombat` — la reazione risolve nel Blast, DOPO il Dash, quindi il divieto deve
+	 * sopravvivere al cambio di fase. Svuotato li' stesso: e' sempre fresco per il turno.
+	 *
+	 * ⌫ **Diceva «popolato da `ResolveDash` (l'unica fase, oggi, con un'azione del genere)», e [#641] lo ha
+	 * reso falso**: `Action.Sprint` e' passato a `NormalMovement`, quindi il Dash non ha piu' nessuna azione
+	 * che nega la reazione. Il set si popola ancora li' — e' il primo punto dopo la propria nascita e precede
+	 * il Blast — ma leggendo il piano invece dello scatto usato.
 	 */
 	TSet<TWeakObjectPtr<ARTUnit>> ReactionBlockedThisTurn;
+
+	/**
+	 * Unita' a cui il lock-in ha RIFIUTATO la corsa perche' sbilanciate, e l'azione che portavano
+	 * ([D-405] · [D-406] · [D-319], `#2253`). La chiave e' l'unita', il valore l'`ActionId` rifiutato.
+	 *
+	 * 🔑 **Due momenti, e per una ragione scritta in entrambe le sedi.** Il rifiuto si DECIDE in
+	 * `ValidatePlansAtLockIn`, perche' una corsa rifiutata non deve costare il divieto di reazione che
+	 * [D-405] mette sul piano — e `ResolveDash` legge quel piano dopo. Ma la voce di TurnLog **non** si
+	 * scrive li': quella funzione dichiara di non scriverne, *«una voce scritta al lock-in porterebbe una
+	 * `Phase` che nessun consumatore del replay ha mai visto»*, e prescrive l'alternativa — *«cio' che il
+	 * turno scarta davvero lo dice dove lo scarta»*. Dopo [#641] quel posto e' la fase **Move**.
+	 *
+	 * ⛔ **Senza questa mappa la traccia sparirebbe**, e con lei la proprieta' che `#2253` pinna: il rifiuto
+	 * e' DICHIARATO, non uno scarto muto. Il suo test legge `ERTActionInvalidReason::Unbalanced` in
+	 * `FRTTurnLogEntry::Amount`.
+	 *
+	 * Svuotata a inizio `ValidatePlansAtLockIn`: sempre fresca per il turno, come la gemella qui sopra.
+	 */
+	TMap<TWeakObjectPtr<ARTUnit>, FName> RunRefusedThisTurn;
 
 private:
 	/** Animazione di movimento di una singola unita': waypoint gia' convertiti in mondo + fase (Dash/Move). */

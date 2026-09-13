@@ -99,6 +99,32 @@ void ARTTurnManager::BeginMovementResolution()
 		return;
 	}
 
+	// La corsa rifiutata al lock-in lascia la sua traccia QUI, nella fase in cui sarebbe risolta
+	// ([D-405] · [D-406], e la prescrizione di `ValidatePlansAtLockIn`: *«cio' che il turno scarta davvero lo
+	// dice dove lo scarta»*). Prima di ogni altra voce del Move, cosi' l'ordine racconta il turno: prima cio'
+	// che non e' potuto accadere, poi cio' che e' accaduto.
+	//
+	// ⚠️ **`Phase = Move` e non `Planning`**: e' il formato che i replay confrontano, e una fase che nessun
+	// consumatore ha mai visto lo romperebbe. La decisione e' del lock-in, la traccia e' del turno.
+	for (const TPair<TWeakObjectPtr<ARTUnit>, FName>& Rifiutata : RunRefusedThisTurn)
+	{
+		ARTUnit* Unit = Rifiutata.Key.Get();
+		if (!IsValid(Unit)) { continue; }
+
+		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(Rifiutata.Value);
+		FRTTurnLogEntry Voce;
+		Voce.Phase = ERTMatchPhase::Move;
+		Voce.Category = ERTLogCategory::Fallback;
+		Voce.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Voce.ActionId = Def.ActionId;
+		Voce.BaseActionId = Def.BaseActionId;
+		Voce.Priority = Def.Priority;
+		Voce.SrcCell = Unit->Cell;
+		Voce.TgtCell = Unit->Cell;
+		Voce.Amount = static_cast<int32>(ERTActionInvalidReason::Unbalanced);
+		AppendLogEntry(Voce, Unit);
+	}
+
 	PendingMovement = MakeUnique<FRTMovementResolutionContext>();
 	FRTMovementResolutionContext& Ctx = *PendingMovement;
 	Ctx.bActive = true;
