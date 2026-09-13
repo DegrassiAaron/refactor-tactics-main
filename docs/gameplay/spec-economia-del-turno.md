@@ -190,8 +190,38 @@ lo stesso slot e la stessa macro-fase. Cambiano **distanza, rumore ed esposizion
 ([D-015](../decisions/RT_PDR_00_Decision_Log.md)). `Withdraw` è il quarto profilo e **non si sceglie**: lo
 impone l'`Overwatch`.
 
-I budget sono nel catalogo (`Move` 5 MP · `Sprint` 8 · `Withdraw` 2; **`Sneak` non è definito da nessuna
-fonte corrente** e non si inventa).
+🔴 **I budget sono MOLTIPLICATORI del budget base dell'unità, e non più assoluti per profilo**
+([D-412](../decisions/RT_PDR_00_Decision_Log.md), 2026-09-13):
+
+| Profilo | Moltiplicatore |
+|---|---:|
+| `Withdraw` | **×0,25** |
+| `Sneak` | **×0,5** |
+| `Move` | **×1** |
+| `Sprint` | **×2** |
+
+Arrotondati **per difetto**, e con un **primo passo garantito**: ogni abilità di movimento concede un passo
+verso una cella adiacente legalmente raggiungibile anche se il costo supera il budget; se lo supera, il
+movimento termina lì. ⛔ La garanzia supera il solo **costo** — non ostacoli invalicabili, non occupazione,
+non controlli impeditivi — e vale **solo** per il primo passo.
+
+✅ **`AE-5` è chiusa**: `Sneak` ha i suoi numeri — budget ×0,5, cadenza 1 passo ogni 2 tick, **sempre
+silenzioso** indipendentemente dal terreno — e diventa pianificabile.
+
+⚠️ **Nessuna riga di codice lo esprime oggi.** Il catalogo porta ancora gli assoluti — `Move` eredita da
+`ARTUnit::MoveRange`, `Sprint` 8, `Withdraw` 2, `Sneak` senza numeri e `bPlannable = false`
+(`Source/RefactorTactics/Ability/RTMovementProfileLibrary.cpp:47-70`) — ed è la migrazione che `D-412`
+apre. ✅ La sede però c'è già: `FRTMovementProfile::InheritFromUnit` significa *«il budget lo dichiara
+l'unità»*, cioè esattamente il posto dove un moltiplicatore atterra senza coniare un campo.
+
+⚠️ **E i moltiplicatori valgono su ENTRAMBI i budget di [D-117](../decisions/RT_PDR_00_Decision_Log.md)**,
+passi e asperità — che è il punto di contatto con
+[#666](https://github.com/DegrassiAaron/refactor-tactics-main/issues/666), owner della funzione di costo
+per cella.
+
+⏱️ *Fino al 2026-09-13 questo paragrafo diceva: «I budget sono nel catalogo (`Move` 5 MP · `Sprint` 8 ·
+`Withdraw` 2; `Sneak` non è definito da nessuna fonte corrente e non si inventa)». È ancora ciò che il
+CODICE fa; non è più ciò che il contratto dice.*
 
 **`Sprint` sta migrando, e conviene sapere da dove a dove.** Appartiene alla famiglia `Move` — percorso a
 budget, pathfinding, slot movimento — ma **oggi nel codice risolve pre-Blast**, in

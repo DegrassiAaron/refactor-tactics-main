@@ -325,6 +325,12 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
 		{ TEXT("Action.Leap"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearLeap,   3, 2 },
 		{ TEXT("Action.Reposition"), ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   2, 1 },
 		{ TEXT("Action.Move"),       ERTMatchPhase::Move, ERTMovementStyle::Budget,       5, 0 },
+		// `Action.Sneak` entra il 2026-09-13 con [D-412]. ⚠️ **La sua portata dichiarata e' `0`, e non e' una
+		// dimenticanza**: il budget e' del PROFILO (×0,5), e cablare qui un assoluto rifarebbe la divergenza
+		// che lo `Sprint` ha gia' — dove `RangeCells 8` e il moltiplicatore ×2 raccontano due numeri diversi.
+		// 🔑 Il precedente e' `Action.Move`, il cui `5` il codice dichiara «un numero morto»: il movimento
+		// normale il budget l'ha sempre preso da `ARTUnit::MoveRange`, non da qui.
+		{ TEXT("Action.Sneak"),      ERTMatchPhase::Move, ERTMovementStyle::Budget,       0, 0 },
 	};
 
 	for (const FExpected& E : Expected)

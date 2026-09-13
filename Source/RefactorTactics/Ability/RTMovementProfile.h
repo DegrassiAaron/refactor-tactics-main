@@ -26,25 +26,36 @@ struct FRTMovementProfile
 	FName Id;
 
 	/**
-	 * **Passi**: quanto lontano si arriva — ogni cella attraversata vale `1` ([D-117] voce 1).
+	 * **Passi**: quanto lontano si arriva, in **percentuale del budget base dell'unita'** ([D-412]).
+	 * Ogni cella attraversata vale `1` ([D-117] voce 1).
 	 *
-	 * `InheritFromUnit` significa «lo dichiara l'unita'», ed e' il valore del profilo `Move`: e' cio' che
-	 * rende vera la clausola di `#653` per cui **nessun comportamento attuale cambia** finche' nessuno
-	 * sceglie un altro profilo. Un numero cablato qui sovrascriverebbe il `MoveRange` dell'eroe.
+	 * 🔴 **Era un ASSOLUTO fino al 2026-09-13, e [D-412] lo rende un MOLTIPLICATORE**: `Withdraw` ×0,25 ·
+	 * `Sneak` ×0,5 · `Move` ×1 · `Sprint` ×2, cioe' `25` · `50` · `100` · `200` qui. Il valore precedente —
+	 * `Sprint` 8, `Withdraw` 2 e `InheritFromUnit` per il neutro — cablava numeri che non seguivano l'eroe:
+	 * uno `Sprint` da 8 era piu' lento del `Move` di chi ne vale 9.
+	 *
+	 * 🔑 **Percentuale intera e non `float`, e non e' pedanteria**: la risoluzione dev'essere deterministica
+	 * ([D-096]), e un moltiplicatore in virgola mobile porterebbe l'arrotondamento dell'hardware dentro il
+	 * budget. La divisione intera **tronca**, che e' esattamente l'*«arrotondare per difetto»* che [D-412]
+	 * prescrive.
+	 *
+	 * ⚠️ **Il valore `100` NON e' un default innocuo**: e' la dichiarazione «questo profilo vale quanto
+	 * l'unita'», che prima si scriveva `InheritFromUnit`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
-	int32 StepBudget = InheritFromUnit;
+	int32 StepBudgetPercent = NeutralPercent;
 
 	/**
-	 * **Asperita'**: quanta ne assorbe il movimento ([D-117] voce 2).
+	 * **Asperita'**: quanta ne assorbe il movimento ([D-117] voce 2), nella stessa percentuale.
 	 *
-	 * ⚠️ **Oggi porta lo stesso valore di `StepBudget`, e non e' una svista.** La funzione di costo che
-	 * separa le due misure — `max(0, MoveCost - 1 + MoveCostModifier)` — e' [#666], che dipende da questo
-	 * checkpoint. Finche' quella non esiste, ogni cella costa `1` e le due misure coincidono: separare qui i
-	 * CAMPI senza separare ancora i VALORI e' esattamente il prerequisito che `#653` doveva consegnare.
+	 * ⚠️ **Oggi porta lo stesso valore di `StepBudgetPercent`, e non e' una svista.** La funzione di costo
+	 * che separa le due misure — `max(0, MoveCost - 1 + MoveCostModifier)` — e' [#666]. Finche' quella non
+	 * esiste, ogni cella costa `1` e le due misure coincidono: separare qui i CAMPI senza separare ancora i
+	 * VALORI e' il prerequisito che `#653` ha consegnato. 🔑 **E [D-412] vale su ENTRAMBI**: il
+	 * moltiplicatore e' del profilo, non di uno dei due budget.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
-	int32 MoveBudget = InheritFromUnit;
+	int32 MoveBudgetPercent = NeutralPercent;
 
 	/**
 	 * Quanta stabilita' il profilo CONCEDE, contro il `MinStability` che l'azione RICHIEDE
@@ -63,29 +74,55 @@ struct FRTMovementProfile
 	/**
 	 * Se il profilo si possa SCEGLIERE in Planning.
 	 *
-	 * ⛔ **`Sneak` e' `false`, ed e' il punto di `AE-5`**: il catalogo markdown gli assegna «—» invece di un
-	 * budget, cioe' non ha numeri. Il tipo lo PREVEDE — sta nel catalogo, con la sua `Stability` — ma il
-	 * dato non c'e', e un profilo senza budget non e' pianificabile senza inventare il numero che manca.
-	 * Ometterlo dal catalogo avrebbe nascosto la lacuna invece di dichiararla.
+	 * ✅ **`Sneak` e' tornato `true` il 2026-09-13**: `AE-5` e' chiusa da [D-412], che gli da' i tre numeri
+	 * che mancavano — budget ×0,5, cadenza 1 passo ogni 2 tick, **sempre silenzioso**. ⏱️ *Era `false`, ed
+	 * era giusto che lo fosse: il catalogo gli assegnava «—» invece di un budget, e un profilo senza numeri
+	 * non e' pianificabile senza inventare quello che manca.*
+	 *
+	 * ⚠️ **Il campo resta**, e non e' un residuo: `Still` e `Withdraw` non si scelgono per due ragioni
+	 * diverse — il primo e' DERIVATO dall'assenza di waypoint, il secondo e' RISERVATO da chi lo impone —
+	 * e nessuna delle due e' «non ha numeri». Le tre esclusioni vivono in `OfferableProfiles`.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
 	bool bPlannable = true;
 
-	/** «Il budget lo dichiara l'unita'»: si veda `StepBudget`. Non e' un budget di valore negativo. */
-	static constexpr int32 InheritFromUnit = INDEX_NONE;
+	/** Il profilo neutro: vale quanto l'unita' dichiara. `Move` e' questo ([D-412]). */
+	static constexpr int32 NeutralPercent = 100;
 
 	/** Il profilo esiste (`FindProfile` ha trovato qualcosa). */
 	bool IsValid() const { return !Id.IsNone(); }
 
-	/** Il budget dei passi per QUESTA unita': quello del profilo, o quello dell'unita' se ereditato. */
+	/** Il budget dei passi per QUESTA unita': la percentuale del profilo, troncata per difetto ([D-412]). */
 	int32 ResolveStepBudget(int32 UnitMoveRange) const
 	{
-		return StepBudget == InheritFromUnit ? UnitMoveRange : StepBudget;
+		return ScaleBudget(UnitMoveRange, StepBudgetPercent);
 	}
 
-	/** Il budget di asperita' per QUESTA unita': quello del profilo, o quello dell'unita' se ereditato. */
+	/** Il budget di asperita' per QUESTA unita': stessa percentuale, stesso troncamento ([D-412]). */
 	int32 ResolveMoveBudget(int32 UnitMoveRange) const
 	{
-		return MoveBudget == InheritFromUnit ? UnitMoveRange : MoveBudget;
+		return ScaleBudget(UnitMoveRange, MoveBudgetPercent);
+	}
+
+private:
+	/**
+	 * `base × percentuale / 100`, in **aritmetica intera** e con un pavimento a zero.
+	 *
+	 * 🔑 **Il troncamento E' la regola**, non un effetto collaterale della divisione intera: [D-412]
+	 * prescrive di arrotondare **per difetto**, e con operandi non negativi `/` in C++ tronca verso lo zero,
+	 * cioe' fa esattamente questo. Scriverlo con un `FMath::FloorToInt` su un `float` darebbe lo stesso
+	 * numero e porterebbe la virgola mobile dentro una risoluzione che dev'essere deterministica ([D-096]).
+	 *
+	 * ⚠️ **Il pavimento a zero protegge da un dato malformato, non da un caso di gioco**: nessun profilo
+	 * del catalogo dichiara una percentuale negativa, e se uno lo facesse il posto in cui deve fallire e' il
+	 * test del catalogo — qui si evita solo che un budget negativo raggiunga il pathfinding.
+	 */
+	static int32 ScaleBudget(int32 UnitMoveRange, int32 Percent)
+	{
+		if (UnitMoveRange <= 0 || Percent <= 0)
+		{
+			return 0;
+		}
+		return (UnitMoveRange * Percent) / NeutralPercent;
 	}
 };
