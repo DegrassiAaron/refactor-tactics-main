@@ -137,17 +137,35 @@ namespace
 	}
 
 	/**
-	 * Lo stesso soggetto, piu' `Action.Sprint` — la mobilita' rapida A BUDGET del catalogo spedito (`#2632`).
+	 * Una mobilita' rapida **a budget**, dichiarata dal KIT e non presa dal catalogo spedito.
 	 *
-	 * ⚠️ Il budget dello scatto NON e' un parametro di questo helper: viene da `FindCoreAction`, quindi dal
-	 * catalogo. Scriverlo qui renderebbe i test una misura su una copia locale, che e' esattamente il difetto
-	 * che `BudgetComesFromTheCatalogNotAConstant` esiste per escludere.
+	 * 🔴 **Dal 2026-09-13 il catalogo di serie non ne ha piu' nessuna, ed e' una conseguenza voluta.**
+	 * `Action.Sprint` era l'unica ([#2632]), e [D-116] l'ha spostata in `NormalMovement`: **non e' piu' una
+	 * minaccia pre-Blast**, che era precisamente lo scopo della decisione. Le rapide rimaste — `Dodge`,
+	 * `Charge`, `Leap`, `Reposition` — sono tutte LINEARI.
+	 *
+	 * ⛔ **Il ramo a budget della query non e' pero' morto, e per questo va ancora coperto**: e' il
+	 * meccanismo con cui un kit puo' dichiarare uno scatto a budget, esattamente come
+	 * `Actions.KitCanDeclareAMobilityThatCostsBothSlots` copre il ramo `MovementAndMain` che nessun dato
+	 * spedito attraversa. Un ramo che nessun test percorre e' un ramo che nessuno difende.
+	 *
+	 * ⚠️ Si parte dal `Def` del catalogo e si cambia **la sola fase**: tutto il resto — il budget compreso —
+	 * resta quello spedito, cosi' `BudgetComesFromTheCatalogNotAConstant` continua a misurare il catalogo e
+	 * non una copia locale.
 	 */
+	URTActionData* MakeFastBudgetAction()
+	{
+		URTActionData* A = MakeQueryAction(TEXT("Action.Sprint"));
+		A->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+		return A;
+	}
+
+	/** Lo stesso soggetto, piu' una mobilita' rapida a budget (si veda `MakeFastBudgetAction`). */
 	URTHeroData* SprintHero(int32 MovePoints = 5)
 	{
 		return MakeQueryHero(TEXT("Hero.QueryProbe"), MovePoints,
 			{ MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1),
-			  MakeQueryAction(TEXT("Action.Sprint")) });
+			  MakeFastBudgetAction() });
 	}
 
 	/** Il budget dichiarato dal catalogo per un'azione, con la stessa precedenza di `RTTurnManager.cpp:1461`. */
@@ -328,15 +346,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyQueryRegionsAreStablyOrderedTest,
 bool FRTEnemyQueryRegionsAreStablyOrderedTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(5);
-	// ⚠️ `Action.Sprint` accanto a `Action.Reposition`, e la ragione e' misurata: `Reposition` e' DUE celle in
-	// linea (`RTCatalogLibrary.cpp:1259`), quindi con `MovePoints` 3 ogni sua destinazione cade DENTRO il
-	// passo e la regione dello scatto resta vuota — correttamente. Senza lo scatto a budget, il controllo di
-	// non vacuita' su `DashOnlyCells` sarebbe impossibile da soddisfare (#2632).
+	// ⚠️ Uno scatto **a budget** accanto ad `Action.Reposition`, e la ragione e' misurata: `Reposition` e'
+	// DUE celle in linea, quindi con `MovePoints` 3 ogni sua destinazione cade DENTRO il passo e la regione
+	// dello scatto resta vuota — correttamente. Senza lo scatto a budget, il controllo di non vacuita' su
+	// `DashOnlyCells` sarebbe impossibile da soddisfare (#2632).
+	//
+	// 🔴 Dal 2026-09-13 quello a budget lo dichiara il KIT e non il catalogo: `Action.Sprint` non e' piu'
+	// una mobilita' rapida ([D-116]). Si veda `MakeFastBudgetAction`.
 	URTHeroData* Hero = MakeQueryHero(TEXT("Hero.QueryProbe"), 3,
 		{
 			MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 2),
 			MakeQueryAction(TEXT("Action.Reposition")),
-			MakeQueryAction(TEXT("Action.Sprint"))
+			MakeFastBudgetAction()
 		});
 
 	FRTKnowledgeView Forward;
