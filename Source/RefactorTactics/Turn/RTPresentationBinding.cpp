@@ -1,5 +1,7 @@
 #include "Turn/RTPresentationBinding.h"
 
+#include "Core/RTGameplayTags.h" // #2881: gli stati che riducono l'andatura, dal tag e non da un letterale
+
 TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 {
 	TArray<FRTPresentationBinding> Out;
@@ -314,8 +316,39 @@ TArray<FString> URTPresentationBindingLibrary::FindMissingBindings(
 	return Missing;
 }
 
-ERTGraykitLocomotionStyle URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase Phase)
+namespace
 {
+	/**
+	 * Gli stati che RIDUCONO l'andatura.
+	 *
+	 * 🔑 **Una tabella, non un `if` sparso**, per la ragione che [`D-406`] ha scritto per un criterio
+	 * vicino: un confronto per nome disseminato *«lascerebbe fuori la prossima senza che nulla diventi
+	 * rosso»*. Una voce nuova si aggiunge QUI, e il test che la enumera cade se qualcuno la dimentica.
+	 *
+	 * ⚠️ Il nome arriva dal TAG e non da un letterale: se `Status.Slow` viene rinominato, questo segue.
+	 * ⛔ `Status.Root` NON e' in elenco: azzera il budget, quindi l'unita' non si muove affatto e non
+	 * esiste un'anim da rendere. Un'andatura per chi sta fermo sarebbe un segnale senza referente.
+	 */
+	bool ReducesGait(const FName& StatusName)
+	{
+		return StatusName == TAG_Status_Slow.GetTag().GetTagName();
+	}
+}
+
+ERTGraykitLocomotionStyle URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase Phase,
+	const TArray<FName>& ActiveStatusNames)
+{
+	// `#2881` — lo stato del corpo viene PRIMA della fase. Gli stati arrivano da
+	// `FRTResolvedEvent::SourceStatusNames` (`#3117`), cioe' da com'era l'unita' **quando si e' mossa**:
+	// ⛔ chi chiama non deve leggerli dall'unita' viva, che al playback direbbe un'altra cosa.
+	for (const FName& StatusName : ActiveStatusNames)
+	{
+		if (ReducesGait(StatusName))
+		{
+			return ERTGraykitLocomotionStyle::Reduced;
+		}
+	}
+
 	switch (Phase)
 	{
 	case ERTMatchPhase::Dash:
