@@ -87,6 +87,30 @@ struct FRTMovementProfile
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
 	bool bPlannable = true;
 
+	/**
+	 * Se questo profilo sia una CORSA: [D-319] dice che «chi ha perso l'equilibrio non corre», e questo
+	 * campo e' il soggetto di quella frase ([D-406]).
+	 *
+	 * 🔑 **Perche' un campo e non lo stile.** Il criterio era `ERTMovementStyle::Budget` e non l'`ActionId`,
+	 * scelta esplicita di [D-319] «perche' resti vero per la prossima azione a budget». Ma `Action.Move` e
+	 * `Action.Sprint` dichiarano **lo stesso** stile — entrambi `Budget`, e lo asserisce
+	 * `Actions.SprintIsAMoveProfileResolvedPreBlast` — quindi lo stile non distingue il correre dal
+	 * camminare: oggi discrimina solo perche' il criterio e' racchiuso nel ciclo del Dash, dove lo `Sprint`
+	 * e' l'unica mobilita' a budget che puo' stare. Con [#641] quel recinto sparisce, e il criterio portato
+	 * com'e' rifiuterebbe anche il Move normale — cioe' renderebbe `Unbalanced` un'immobilizzazione totale,
+	 * che [D-319] non dice.
+	 *
+	 * ⛔ **E non e' un `if` sul nome del profilo**, che sarebbe lo stesso difetto con un altro campo: la
+	 * proprieta' che [D-319] voleva — una mobilita' nuova si copre **dichiarandola**, non modificando una
+	 * condizione — e' conservata perche' il criterio resta un DATO.
+	 *
+	 * ⚠️ **`Withdraw` e' `false`, e non e' una dimenticanza**: [D-070] lo IMPONE a chi arma l'`Overwatch`,
+	 * quindi un criterio che lo rifiutasse lascerebbe uno sbilanciato con lo slot movimento riservato a un
+	 * profilo che non gli e' permesso. E' la ragione per cui il criterio non e' «il budget non eredita».
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
+	bool bIsRun = false;
+
 	/** Il profilo neutro: vale quanto l'unita' dichiara. `Move` e' questo ([D-412]). */
 	static constexpr int32 NeutralPercent = 100;
 

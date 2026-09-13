@@ -11,7 +11,12 @@ namespace
 	// ⚠️ **Un solo `Percent` per profilo, e non due parametri**: [D-412] dichiara il moltiplicatore **del
 	// profilo**, non uno per ciascuno dei due budget di [D-117]. Passarne due qui inviterebbe a divergerli
 	// senza una decisione che lo autorizzi — e la separazione dei VALORI e' [#666], non questa firma.
-	FRTMovementProfile MakeProfile(FName Id, int32 BudgetPercent, int32 Stability, bool bPlannable = true)
+	//
+	// ⏱️ *La firma prendeva `StepBudget` e `MoveBudget` come ASSOLUTI fino al merge di [#641]: [D-412] li
+	// fonde in una percentuale sola. `bIsRun` arriva da [D-406] e resta dov'era — i due cambiamenti sono
+	// ortogonali, e questa riga e' il punto in cui si sono incontrati.*
+	FRTMovementProfile MakeProfile(FName Id, int32 BudgetPercent, int32 Stability,
+		bool bPlannable = true, bool bIsRun = false)
 	{
 		FRTMovementProfile Profile;
 		Profile.Id = Id;
@@ -19,6 +24,7 @@ namespace
 		Profile.MoveBudgetPercent = BudgetPercent;
 		Profile.Stability = Stability;
 		Profile.bPlannable = bPlannable;
+		Profile.bIsRun = bIsRun;
 		return Profile;
 	}
 }
@@ -48,11 +54,19 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 
 	// `Sprint` — **×2** ([D-412]). `Stability 0`: «hai speso il turno a coprire distanza» ([D-116] voce 3).
 	//
+	// ⚠️ **L'unico profilo che e' una CORSA** ([D-406]): e' il soggetto di [D-319] «chi ha perso
+	// l'equilibrio non corre». Con [#641] il criterio esce dal ciclo del Dash, e senza questo campo
+	// rifiuterebbe anche il Move normale — cioe' renderebbe `Unbalanced` un'immobilizzazione totale.
+	//
 	// ⏱️ *Valeva `8` assoluti fino al 2026-09-13, il numero che `Action.Sprint` porta come `RangeCells`.*
 	// 🔴 **Il moltiplicatore non e' una riscrittura dello stesso valore**: un `8` cablato rendeva lo Sprint
 	// piu' LENTO del `Move` di un eroe che ne vale 9, ed e' precisamente l'*upgrade puro* rovesciato. Con
 	// `200` il rapporto e' garantito per ogni eroe, che e' cio' che [D-015] chiede a un profilo.
-	Catalog.Add(MakeProfile(ProfileSprint, /*×2*/ 200, /*Stability*/ 0));
+	//
+	// 🔑 **E i due cambiamenti non si toccano**: `bIsRun` dice *che cosa* il profilo e', la percentuale dice
+	// *quanto* concede. Il merge di [#641] e [D-412] li ha messi sulla stessa riga senza fonderli.
+	Catalog.Add(MakeProfile(ProfileSprint, /*×2*/ 200, /*Stability*/ 0,
+		/*bPlannable*/ true, /*bIsRun*/ true));
 
 	// `Withdraw` — **×0,25** ([D-412]), il ripiegamento che [D-070] riserva allo slot movimento di chi arma
 	// l'Overwatch.

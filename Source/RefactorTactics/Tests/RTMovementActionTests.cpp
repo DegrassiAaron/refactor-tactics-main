@@ -294,8 +294,10 @@ bool FRTSprintNoReactionTest::RunTest(const FString&)
 
 	// Le altre mobilita' invece la consentono: la differenza e' il punto: se tutte la negassero, il dato non
 	// distinguerebbe nulla.
+	// ➕ `Action.Sneak` entra qui con [D-412]: e' l'altra mobilita' a budget, e se il divieto di reazione
+	// scivolasse dallo Sprint al profilo silenzioso questa riga sarebbe l'unica ad accorgersene.
 	const TCHAR* Others[] = { TEXT("Action.Dodge"), TEXT("Action.Charge"), TEXT("Action.Leap"),
-		TEXT("Action.Reposition"), TEXT("Action.Move"), TEXT("Action.Wait") };
+		TEXT("Action.Reposition"), TEXT("Action.Move"), TEXT("Action.Sneak"), TEXT("Action.Wait") };
 	for (const TCHAR* Id : Others)
 	{
 		const FRTActionDef Def = URTCatalogLibrary::FindCoreAction(FName(Id));
