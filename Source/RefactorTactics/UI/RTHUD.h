@@ -620,9 +620,21 @@ public:
 	 *
 	 * ⛔ Il CORPO dell'etichetta resta di `ComposeIntentLabel`, che questa chiama: qui si aggiunge solo il
 	 * prefisso, che prima era deciso in `DrawHUD` e quindi scoperto. L'etichetta completa ha ora una sede sola.
+	 *
+	 * @param bIsSelected  l'unita' che il giocatore sta pianificando ADESSO (`#3115`).
+	 *
+	 * 🔴 **E' un parametro, non un campo della vista, ed e' il punto architetturale della issue.**
+	 * `FilterForTeam` risponde a *«cosa ho diritto di sapere»*; *«quale sto pianificando»* e' stato LOCALE
+	 * di selezione. Metterlo in `FRTIntentView` aggiungerebbe una seconda risposta alla domanda che
+	 * `ARTPlayerState::TeamIdOf` possiede — il debito che [`D-242`] punto (5) ha chiuso — e spedirebbe in
+	 * rete un dato che non attraversa la rete.
+	 *
+	 * ⚠️ **Default `false`, e serve a una cosa sola**: i due test che pinnano la resa a due classi
+	 * continuano a compilare senza che il loro corpo cambi. Un terzo stato non deve poter entrare di
+	 * soppiatto in una sede che ne dichiarava due.
 	 */
 	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
-		const FRTIntentCertaintyStyle& Style);
+		const FRTIntentCertaintyStyle& Style, bool bIsSelected = false);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
