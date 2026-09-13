@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Map/RTCellId.h" // FRTCellId nelle strutture di sonda (#3107)
 #include "Turn/RTTurnLogLibrary.h"
 #include "RTDebugReportLibrary.generated.h"
 
@@ -35,6 +36,75 @@ struct FRTDebugReplayVerdict
 
 	/** Le righe da stampare. Il comando le passa a `FOutputDevice`; il test guarda i due campi sopra. */
 	TArray<FString> Lines;
+};
+
+/** Un'unita' in campo, ridotta a cio' che serve per sapere se un tiro sarebbe rifiutato — `#3107`. */
+USTRUCT()
+struct FRTRefusalProbeUnit
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 UnitId = INDEX_NONE;
+
+	UPROPERTY()
+	int32 TeamId = INDEX_NONE;
+
+	UPROPERTY()
+	FRTCellId Cell;
+
+	/**
+	 * Se l'osservatore la conosce. ⛔ **Si LEGGE da `ARTUnit::IsKnownToObserver()`, non si ricostruisce**:
+	 * il velo ha un produttore solo (`ARTHUD::UpdateObserverVeil`) e una seconda vista di conoscenza qui
+	 * sarebbe la risposta che diverge — la stessa disciplina che `DispatchUnitClick` dichiara.
+	 */
+	UPROPERTY()
+	bool bKnownToObserver = false;
+};
+
+/**
+ * Se un rifiuto per COPERTURA sia raggiungibile adesso, e con quali unita' — `#3107`.
+ *
+ * 🔑 **Esiste perche' il caso non si lascia trovare a occhio.** La seduta del 2026-09-12 ci ha provato
+ * cinque volte in partita libera senza riuscirci: il rifiuto `Cover` vive in una fessura — la conoscenza e'
+ * di SQUADRA, la linea di tiro e' per UNITA' — e serve un compagno che veda mentre un altro non ha la
+ * linea. Nessuna delle due meta' si vede guardando lo schermo.
+ */
+USTRUCT()
+struct FRTRefusalReachability
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool bReachable = false;
+
+	/** L'unita' da SELEZIONARE: e' quella senza linea di tiro. */
+	UPROPERTY()
+	int32 ShooterUnitId = INDEX_NONE;
+
+	/** L'unita' da CLICCARE. */
+	UPROPERTY()
+	int32 TargetUnitId = INDEX_NONE;
+
+	/** Chi rende noto il bersaglio: e' la meta' del caso che nessuno vede guardando il campo. */
+	UPROPERTY()
+	int32 WitnessUnitId = INDEX_NONE;
+
+	UPROPERTY()
+	FRTCellId ShooterCell;
+
+	UPROPERTY()
+	FRTCellId TargetCell;
+
+	/**
+	 * Perche' NON e' raggiungibile, quando non lo e'.
+	 *
+	 * ⛔ **Non e' decorazione**: un comando che rispondesse solo «no» lascerebbe chi legge davanti alle
+	 * stesse cinque ipotesi che hanno bruciato la seduta — nessun nemico noto? tutti in vista? nessuna
+	 * unita' propria? La ragione e' la meta' utile della risposta negativa.
+	 */
+	UPROPERTY()
+	FString Reason;
 };
 
 /**
@@ -128,6 +198,29 @@ public:
 
 	/** Le righe di `rt.Debug.DumpSnapshot`: intestazione, unita' e celle notevoli dello snapshot. */
 	static TArray<FString> DescribeSnapshot(const FRTHexSnapshot& Snapshot);
+
+	/**
+	 * Se un rifiuto per COPERTURA sia raggiungibile adesso, e con quali unita' — `#3107`.
+	 *
+	 * Cerca un bersaglio **noto** all'osservatore che una sua unita' NON possa colpire per mancanza di linea
+	 * di tiro. E' la fessura in cui `ERTTargetRefusal::Cover` vive:
+	 *
+	 *     la conoscenza e' di SQUADRA    -> basta che UN compagno veda il nemico
+	 *     la linea di tiro e' per UNITA' -> il tiratore puo' non averla
+	 *
+	 * 🔑 **`WitnessUnitId` non e' un di piu'**: e' la meta' del caso che non si vede guardando il campo, e
+	 * senza di essa la risposta «si, e' raggiungibile» resta inspiegabile a chi la legge.
+	 *
+	 * ⛔ **`bKnownToObserver` arriva GIA' DECISO** e qui non si rifiltra: il velo ha un produttore solo, e
+	 * ricostruirlo sarebbe la seconda risposta che diverge ([D-225]). Questa funzione compone due fatti che
+	 * altri hanno prodotto — la conoscenza e la geometria — e non ne inventa un terzo.
+	 *
+	 * ⚠️ **Non risponde «il tiro andrebbe a segno»**: `Range`, cooldown e legalita' non si guardano. Risponde
+	 * alla sola domanda per cui esiste — se il RIFIUTO PER COPERTURA sia producibile con un click.
+	 */
+	static FRTRefusalReachability DescribeRefusalReachability(
+		const class URTHexMapAsset* Map, int32 ObserverTeamId,
+		const TArray<FRTRefusalProbeUnit>& Units);
 
 	/** Le righe di `rt.Debug.DumpTurnLog`: una per voce, piu' un'intestazione col conteggio e l'hash. */
 	static TArray<FString> DescribeTurnLogEntries(const TArray<FRTTurnLogEntry>& Entries);

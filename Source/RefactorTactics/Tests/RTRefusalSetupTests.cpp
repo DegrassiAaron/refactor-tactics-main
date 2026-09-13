@@ -24,6 +24,7 @@
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
+#include "Debug/RTDebugReportLibrary.h" // la stessa funzione che rt.Debug.Refusal usa (#3107)
 #include "Turn/RTMatchSetupLibrary.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -147,6 +148,107 @@ bool FRTRefusalSetupProbeTest::RunTest(const FString&)
 	// produce», che e' una risposta diversa e porterebbe a scrivere una fixture che forse gia' esiste.
 	TestTrue(TEXT("la sonda ha esaminato almeno una fixture"),
 		URTMatchSetupLibrary::KnownFixtureIds().Num() > 0);
+	return true;
+}
+
+/**
+ * La sonda distingue i tre casi, e non ne confonde due — `#3107`.
+ *
+ * 🔑 **La stessa funzione che `rt.Debug.Refusal` usa a runtime.** Prima di questo test la logica viveva
+ * solo qui dentro, in `Tests/`, cioe' non era raggiungibile da una partita: e' esattamente la ragione per
+ * cui la seduta del 2026-09-12 ha dovuto indovinare per cinque tentativi.
+ *
+ * ⛔ **Le tre risposte negative NON sono intercambiabili**, ed e' il punto del test. «Nessun nemico noto» e
+ * «tutti in vista» portano a due gesti opposti — avvicinare un compagno, oppure spostare il tiratore — e un
+ * comando che rispondesse «no» senza distinguerli lascerebbe chi legge davanti alle stesse ipotesi che
+ * hanno bruciato la seduta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalReachabilityTellsTheCasesApartTest,
+	"RefactorTactics.Setup.RefusalReachabilityTellsTheCasesApart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalReachabilityTellsTheCasesApartTest::RunTest(const FString&)
+{
+	const URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFixtureArena(GetTransientPackage(), TEXT("CoverYard"));
+	if (!TestNotNull(TEXT("la fixture CoverYard si costruisce"), Map))
+	{
+		return false;
+	}
+
+	// Le celle che la sonda di questo stesso file misura su `CoverYard`: il tiratore non vede il nemico,
+	// il compagno si'.
+	const FRTCellId CellaCoperto(-3, 0, 0);
+	const FRTCellId CellaVede(-3, 1, 0);
+	const FRTCellId CellaNemico(3, 0, 0);
+
+	auto Unita = [](int32 Id, int32 Team, const FRTCellId& Cella, bool bNoto)
+	{
+		FRTRefusalProbeUnit U;
+		U.UnitId = Id;
+		U.TeamId = Team;
+		U.Cell = Cella;
+		U.bKnownToObserver = bNoto;
+		return U;
+	};
+
+	// --- il caso che il comando esiste per trovare ---
+	{
+		const TArray<FRTRefusalProbeUnit> Campo = {
+			Unita(1, 0, CellaCoperto, false),
+			Unita(2, 0, CellaVede,    false),
+			Unita(3, 1, CellaNemico,  true) };
+
+		const FRTRefusalReachability R =
+			URTDebugReportLibrary::DescribeRefusalReachability(Map, 0, Campo);
+
+		TestTrue(TEXT("il caso e' raggiungibile"), R.bReachable);
+		TestEqual(TEXT("indica come tiratore quello SENZA linea di tiro"), R.ShooterUnitId, 1);
+		TestEqual(TEXT("indica come bersaglio il nemico noto"), R.TargetUnitId, 3);
+		// 🔑 Il testimone e' la meta' del caso che non si vede guardando il campo.
+		TestEqual(TEXT("nomina il compagno che lo rende noto"), R.WitnessUnitId, 2);
+	}
+
+	// --- negativo 1: il nemico NON e' noto -> il rifiuto sarebbe `Nothing`, non `Cover` ---
+	{
+		const TArray<FRTRefusalProbeUnit> Campo = {
+			Unita(1, 0, CellaCoperto, false),
+			Unita(3, 1, CellaNemico,  false) };
+
+		const FRTRefusalReachability R =
+			URTDebugReportLibrary::DescribeRefusalReachability(Map, 0, Campo);
+
+		TestFalse(TEXT("senza un nemico noto il caso non c'e'"), R.bReachable);
+		// ⚠️ Il discriminante e' `Nothing`, il nome dell'esito, e non la parola «noto»: quella compare in
+		// ENTRAMBE le ragioni, e `FString::Contains` ignora le maiuscole di default — un'asserzione su
+		// «NOTO» sarebbe verde su tutte e due, cioe' non distinguerebbe i due casi che questo test separa.
+		TestTrue(TEXT("e la ragione nomina l'esito che ne seguirebbe"),
+			R.Reason.Contains(TEXT("Nothing")));
+	}
+
+	// --- negativo 2: tutti hanno la linea -> niente da rifiutare, ed e' una ragione DIVERSA ---
+	{
+		const TArray<FRTRefusalProbeUnit> Campo = {
+			Unita(2, 0, CellaVede,   false),
+			Unita(3, 1, CellaNemico, true) };
+
+		const FRTRefusalReachability R =
+			URTDebugReportLibrary::DescribeRefusalReachability(Map, 0, Campo);
+
+		TestFalse(TEXT("se l'unica unita' propria ha la linea, non c'e' copertura da rifiutare"), R.bReachable);
+		// ⛔ L'asserzione che impedisce di confondere i due negativi: la ragione dev'essere un'ALTRA.
+		TestFalse(TEXT("e la ragione NON e' quella della conoscenza"),
+			R.Reason.Contains(TEXT("Nothing")));
+		TestTrue(TEXT("la ragione nomina la linea di tiro"),
+			R.Reason.Contains(TEXT("linea di tiro")));
+	}
+
+	// --- negativo 3: senza mappa non si finge una risposta ---
+	{
+		const FRTRefusalReachability R =
+			URTDebugReportLibrary::DescribeRefusalReachability(nullptr, 0, {});
+		TestFalse(TEXT("senza mappa il caso non e' raggiungibile"), R.bReachable);
+		TestFalse(TEXT("e la ragione non e' vuota"), R.Reason.IsEmpty());
+	}
+
 	return true;
 }
 

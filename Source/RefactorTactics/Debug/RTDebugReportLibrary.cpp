@@ -6,6 +6,7 @@
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexVisionLibrary.h" // HasLineOfSight: la geometria non si riscrive qui (#3107)
 #include "Replay/RTBoundaryChecksum.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTHexSim.h"
@@ -402,4 +403,83 @@ TArray<FString> URTDebugReportLibrary::DescribeBoundaryDivergence(const TArray<F
 	// gia' «(%d contro %d)», e ripeterli sotto direbbe due volte la stessa cosa con due nomi diversi.
 	Lines.Add(FString::Printf(TEXT("[RT] %s"), *Messaggio));
 	return Lines;
+}
+
+
+FRTRefusalReachability URTDebugReportLibrary::DescribeRefusalReachability(
+	const URTHexMapAsset* Map, int32 ObserverTeamId, const TArray<FRTRefusalProbeUnit>& Units)
+{
+	FRTRefusalReachability Out;
+
+	// Fail-closed sul VALORE, non sulla domanda: senza mappa la linea di tiro non si valuta, e rispondere
+	// «no» senza dire perche' manderebbe chi legge a cercare il difetto nelle unita'.
+	if (!Map)
+	{
+		Out.Reason = TEXT("nessuna mappa esagonale: la linea di tiro non e' valutabile");
+		return Out;
+	}
+
+	TArray<const FRTRefusalProbeUnit*> Proprie;
+	TArray<const FRTRefusalProbeUnit*> NotiAvversari;
+	for (const FRTRefusalProbeUnit& U : Units)
+	{
+		if (U.TeamId == ObserverTeamId)
+		{
+			Proprie.Add(&U);
+		}
+		else if (U.bKnownToObserver)
+		{
+			// ⛔ Solo i NOTI: su un bersaglio ignoto `RefusalForObserver` collassa su `Nothing`, non `Cover`
+			// — la conoscenza e' la domanda che viene per prima, non un filtro applicato all'esito.
+			NotiAvversari.Add(&U);
+		}
+	}
+
+	if (Proprie.Num() == 0)
+	{
+		Out.Reason = TEXT("nessuna unita' propria in campo");
+		return Out;
+	}
+	if (NotiAvversari.Num() == 0)
+	{
+		// E' il caso che ha bruciato tre tentativi della seduta del 2026-09-12: senza un nemico NOTO il
+		// rifiuto non e' `Cover`, e chi guarda lo schermo non ha modo di saperlo.
+		Out.Reason = TEXT("nessun avversario NOTO: il rifiuto sarebbe 'Nothing', non 'Cover'");
+		return Out;
+	}
+
+	for (const FRTRefusalProbeUnit* Bersaglio : NotiAvversari)
+	{
+		for (const FRTRefusalProbeUnit* Tiratore : Proprie)
+		{
+			if (URTHexVisionLibrary::HasLineOfSight(Map, Tiratore->Cell, Bersaglio->Cell))
+			{
+				continue; // questa unita' il tiro ce l'ha: non produrrebbe un rifiuto
+			}
+
+			// 🔑 Chi lo rende noto: un'altra unita' propria CON la linea. Non e' sempre determinabile — la
+			// conoscenza puo' venire da un ricordo o da un contatto acustico — e in quel caso resta
+			// `INDEX_NONE` invece di indicare un testimone inventato.
+			Out.WitnessUnitId = INDEX_NONE;
+			for (const FRTRefusalProbeUnit* Teste : Proprie)
+			{
+				if (Teste != Tiratore
+					&& URTHexVisionLibrary::HasLineOfSight(Map, Teste->Cell, Bersaglio->Cell))
+				{
+					Out.WitnessUnitId = Teste->UnitId;
+					break;
+				}
+			}
+
+			Out.bReachable = true;
+			Out.ShooterUnitId = Tiratore->UnitId;
+			Out.ShooterCell = Tiratore->Cell;
+			Out.TargetUnitId = Bersaglio->UnitId;
+			Out.TargetCell = Bersaglio->Cell;
+			return Out;
+		}
+	}
+
+	Out.Reason = TEXT("ogni unita' propria ha la linea di tiro su ogni avversario noto: nessuna copertura da rifiutare");
+	return Out;
 }
