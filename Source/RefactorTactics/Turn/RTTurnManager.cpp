@@ -4082,6 +4082,53 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
+	// 🔴 **`Status.Unbalanced` nega la CORSA, e dopo la migrazione va negata sul PROFILO** ([D-319],
+	// `#2253`, `#641`).
+	//
+	// Il criterio era *«stile a budget e non lineare»*, e distingueva perche' `Action.Sprint` era l'unica
+	// mobilita' rapida a budget. Dal 2026-09-13 **non distingue piu' niente**: lo Sprint e' un profilo del
+	// `Move`, e i due dichiarano lo STESSO `MovementStyle::Budget`. Applicare quel criterio al movimento
+	// normale avrebbe negato anche il CAMMINO a chi ha perso l'equilibrio, che [D-319] non dice.
+	//
+	// 🔑 **Il profilo e' cio' che ora separa le due andature**, ed e' per questo che il criterio diventa
+	// «un profilo diverso dal neutro». Chi e' sbilanciato cammina ancora; non corre.
+	//
+	// ⚠️ **Rifiuto DICHIARATO, non scarto muto**, nella stessa forma del ramo gemello dello scatto piu'
+	// sotto: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi rilegge il turno vede *perche'* la
+	// corsa non c'e' stata. E il profilo torna al neutro invece di annullare il movimento: lo slot e' lo
+	// stesso, e chi aveva dichiarato una destinazione raggiungibile a piedi ci arriva.
+	for (ARTUnit* Unit : Units)
+	{
+		if (!IsValid(Unit) || !Unit->HasStatus(TAG_Status_Unbalanced))
+		{
+			continue;
+		}
+		const FName Declared = Unit->PlannedMovementProfileId;
+		if (Declared.IsNone() || Declared == URTMovementProfileLibrary::ProfileMove)
+		{
+			continue; // il neutro non e' una corsa
+		}
+
+		const FRTActionDef Refused = URTMovementProfileLibrary::FindActionForProfile(Declared);
+		FRTTurnLogEntry Rifiutata;
+		Rifiutata.Phase = ERTMatchPhase::Move;
+		Rifiutata.Category = ERTLogCategory::Fallback;
+		Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Rifiutata.ActionId = Refused.ActionId;
+		Rifiutata.BaseActionId = Refused.BaseActionId;
+		Rifiutata.Priority = Refused.Priority;
+		Rifiutata.SrcCell = Unit->Cell;
+		Rifiutata.TgtCell = Unit->Cell;
+		Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Unbalanced);
+		AppendLogEntry(Rifiutata, Unit);
+
+		AddLogEvent(FString::Printf(TEXT("%s (q=%d,r=%d,L=%d): sbilanciato, non puo' correre"),
+				*ARTUnit::LogLabel(Unit), Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer),
+			FRTLogSubject::Unit(Unit));
+
+		Unit->PlannedMovementProfileId = NAME_None; // si ripiega sul neutro, non si annulla il movimento
+	}
+
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
 	TArray<int32> PendingImpactAttackerIdx;

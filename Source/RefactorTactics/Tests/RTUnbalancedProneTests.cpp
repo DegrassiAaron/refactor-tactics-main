@@ -13,6 +13,7 @@
 // l'intenzione e la fine del Move ci sono microstep, Overwatch e predizioni che possono fermare l'unita'.
 
 #include "Misc/AutomationTest.h"
+#include "Ability/RTMovementProfileLibrary.h"
 
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
@@ -803,8 +804,10 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 
 	Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 	Runner->PlannedAbilityIndex = INDEX_NONE;
-	Runner->PlannedDashAbility = SprintIdx;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
+	// 🔴 **Lo Sprint si dichiara come PROFILO dal 2026-09-13** ([D-116], `#641`): non e' piu' una mobilita'
+	// rapida, quindi non passa da `PlannedDashAbility`. Con esso cambia anche il criterio del rifiuto —
+	// `Move` e `Sprint` dichiarano ormai lo STESSO `MovementStyle::Budget`, e a distinguerli e' il profilo.
+	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
 	Runner->PlannedCell = Runner->Cell;
 	NeutralizeAllIntents(Foe);
 
