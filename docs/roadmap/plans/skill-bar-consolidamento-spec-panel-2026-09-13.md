@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Stato**: revisione chiusa. Le decisioni che ne discendono sono `D-407` … `D-415`. Del codice
 > è migrata **una sola** delle nove — `D-412`, §10-bis — e §10 dice perché le altre no.
-> ✅ **Compile e Tests `PASS`** su `HEAD e537b4aa`: 657 test, 657 `Success`, 0 `Fail` — §12.
+> ✅ **Compile e Tests `PASS`** su `HEAD a95e68db`: 657 test, 657 `Success`, 0 `Fail` — §12.
 > **Data**: 2026-09-13
 > **HEAD della revisione**: `origin/main` = `a2d23509`. Le citazioni `file:riga` sono state **rimisurate**
 > su questo commit — vedi la nota di metodo in §1 — in un worktree isolato (`spec/skill-bar-2026-09-13`),
@@ -499,12 +499,17 @@ perimetro, e finché non si sa se la v0.1 lo riapre non hanno un soggetto su cui
 
 ## 12. Verifica
 
-Misurato su `HEAD e537b4aa` — dopo le correzioni della revisione avversariale — con albero pulito
-verificato **prima e dopo**.
+Misurato su `HEAD a95e68db` — l'albero **mergiato**, dopo le correzioni della revisione avversariale e
+l'allineamento a `origin/main` — con albero pulito verificato **prima e dopo**.
+
+🔑 **La misura è stata rifatta su questo commit e non sul precedente**, e la ragione è una sovrapposizione
+di un file solo: `RTTurnManager.cpp` lo tocca anche [#3117](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3117).
+Git non vedeva conflitto, ma l'albero risultante non era stato eseguito da nessuno — e *«nessun conflitto
+testuale»* non è *«misurato»*.
 
 | Gate | Esito |
 |---|---|
-| Compile | ✅ **`PASS`** — `Result: Succeeded`, 0 errori, 14,39 s |
+| Compile | ✅ **`PASS`** — `Result: Succeeded`, 0 errori, 71,12 s |
 | Tests | ✅ **`PASS`** — **657** test, **657** `Success`, **0** `Fail` |
 | Determinism | `NOT RUN` — nessuna famiglia golden nel filtro; vedi sotto |
 | Replay | `N/A` — nessun formato di traccia cambia in questo passaggio |
