@@ -2,7 +2,7 @@
 
 > `CURRENT` · **Stato**: revisione chiusa. Le decisioni che ne discendono sono `D-407` … `D-415`. Del codice
 > è migrata **una sola** delle nove — `D-412`, §10-bis — e §10 dice perché le altre no.
-> ✅ **Compile e Tests `PASS`** su `HEAD f3518079`: 649 test, 649 `Success`, 0 `Fail` — §12.
+> ✅ **Compile e Tests `PASS`** su `HEAD e537b4aa`: 657 test, 657 `Success`, 0 `Fail` — §12.
 > **Data**: 2026-09-13
 > **HEAD della revisione**: `origin/main` = `a2d23509`. Le citazioni `file:riga` sono state **rimisurate**
 > su questo commit — vedi la nota di metodo in §1 — in un worktree isolato (`spec/skill-bar-2026-09-13`),
@@ -363,7 +363,7 @@ un test rosso per progetto va riscritto insieme al codice che lo rende tale, non
 la specifica **autorevole**; le issue di §11 la rendono **eseguibile**, una migrazione per volta.
 
 ⚠️ **E il verde di §12 copre `D-412`, non le altre otto.** `CLAUDE.md` §6: chi scrive una correzione non ne
-emette da solo il verdetto sui sistemi che tocca. La suite è verde — 649 su 649 — su un perimetro scelto per
+emette da solo il verdetto sui sistemi che tocca. La suite è verde — 657 su 657 — su un perimetro scelto per
 **questa** migrazione: dice che il moltiplicatore non ha rotto nulla di ciò che esisteva, e non dice niente
 sulle sette che restano. Ciascuna dovrà allargare il proprio filtro, e `D-414` dovrà aggiungere il corpus
 golden che qui manca.
@@ -499,12 +499,13 @@ perimetro, e finché non si sa se la v0.1 lo riapre non hanno un soggetto su cui
 
 ## 12. Verifica
 
-Misurato su `HEAD f3518079` — il merge di `origin/main` — con albero pulito verificato **prima e dopo**.
+Misurato su `HEAD e537b4aa` — dopo le correzioni della revisione avversariale — con albero pulito
+verificato **prima e dopo**.
 
 | Gate | Esito |
 |---|---|
-| Compile | ✅ **`PASS`** — `Result: Succeeded`, 0 errori |
-| Tests | ✅ **`PASS`** — **649** test, **649** `Success`, **0** `Fail` |
+| Compile | ✅ **`PASS`** — `Result: Succeeded`, 0 errori, 14,39 s |
+| Tests | ✅ **`PASS`** — **657** test, **657** `Success`, **0** `Fail` |
 | Determinism | `NOT RUN` — nessuna famiglia golden nel filtro; vedi sotto |
 | Replay | `N/A` — nessun formato di traccia cambia in questo passaggio |
 | Privacy | `N/A` per il codice; ⚠️ **rilevata** una questione di boundary in §5, aperta come `SKB-3` |
@@ -520,9 +521,18 @@ passaggio non tocca.
 
 **Tests.** Le sette famiglie che `AGENTS.md` §9 impone a chi tocca il resolver del movimento —
 `HexSim` · `HexMatch` · `HexOccupancy` · `Movement` · `HexMove` · `ForcedMovement` · `Scenario` — più le
-cinque che questa migrazione tocca (`MovementProfile` · `Actions` · `Catalog` · `Bot` · `Combat`) e
-**`Reactions`**, aggiunta dopo il merge perché [`D-406`](../../decisions/RT_PDR_00_Decision_Log.md) tocca il
-divieto di reazione dello `Sprint`.
+cinque che questa migrazione tocca (`MovementProfile` · `Actions` · `Catalog` · `Bot` · `Combat`),
+**`Reactions`** — aggiunta dopo il merge di `#641`, perché [`D-406`](../../decisions/RT_PDR_00_Decision_Log.md)
+tocca il divieto di reazione dello `Sprint` — e **`IconCatalog`**.
+
+🔴 **`IconCatalog` c'è perché la revisione avversariale ha mostrato che mancava, ed è la lezione di questo
+referto.** `RefactorTactics.Catalog` **non** è un prefisso di `RefactorTactics.IconCatalog.*`: il filtro lo
+escludeva senza che nulla lo segnalasse, e il verde precedente era vero e cieco proprio sul gate che la
+prima stesura della PR avrebbe reso rosso. ✅ Ora `IconCatalog.RealCatalogCoversRequiredIds` è nel perimetro
+ed è `Success`.
+
+⚠️ **Il criterio generale, per chi allarga un filtro**: una famiglia si include verificando il **match di
+sottostringa**, non l'intuizione sul nome — `Catalog` sembra coprire `IconCatalog` e non lo fa.
 
 ⚠️ **I test che `D-412` ha davvero riscritto sono TRE**, e sono questi:
 `MovementProfile.CatalogDeclaresTheProfiles` · `MovementProfile.MoveInheritsUnitBudget` ·
