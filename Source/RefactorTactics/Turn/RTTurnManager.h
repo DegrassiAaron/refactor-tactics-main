@@ -2945,6 +2945,11 @@ private:
 		TArray<FRTCellId> Cells;
 
 		ERTMatchPhase Phase = ERTMatchPhase::Move; // fase in cui va riprodotta (Dash o Move)
+
+		// `#3117`: gli stati che l'unita' portava QUANDO si e' mossa, copiati dall'evento risolto.
+		// ⛔ **Non si rilegge `Unit` per averli**, benche' sia proprio li' sopra: darebbe lo stato al
+		// momento del playback, e la posa smetterebbe di essere una funzione del solo tempo normalizzato.
+		TArray<FName> SourceStatusNames;
 	};
 
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */

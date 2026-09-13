@@ -821,4 +821,106 @@ bool FRTStatusOutcomeDirectionIsExhaustiveTest::RunTest(const FString&)
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
+
+/**
+ * `#3117` — l'evento di movimento porta gli stati che l'unita' aveva MENTRE si muoveva, e li conserva.
+ *
+ * 🔴 **Il difetto che questo test chiude**: al punto di playback `FRTMoveAnim::Unit` e' a portata di
+ * mano, e derivare l'andatura da `Unit->HasStatus(...)` costa una riga. E' la riga sbagliata: darebbe lo
+ * stato al momento del *playback* invece che dell'*azione*, e riprodurre lo stesso evento dopo la
+ * scadenza dello stato sceglierebbe un'altra andatura.
+ *
+ * ⚠️ **Anti-vacuita'**: si misura anche un'unita' SENZA stati, che deve dare un campo vuoto. Un
+ * popolamento che copiasse sempre qualcosa passerebbe un test che guarda solo l'unita' rallentata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveEventCarriesStatusesAtActionTimeTest,
+	"RefactorTactics.Status.MoveEventCarriesStatusesAtActionTime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveEventCarriesStatusesAtActionTimeTest::RunTest(const FString&)
+{
+	UWorld* World = MakeStatusWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	// La cella speciale sta FUORI da entrambe le rotte: qui l'acqua non e' la materia del test.
+	SpawnStatusMap(World, /*Radius=*/ 4, FRTCellId(0, 3, 0), ERTHexSurface::ShallowWater, /*MoveCost=*/ 2);
+
+	ARTUnit* Rallentato = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Sano = SpawnStatusUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 1));
+	ARTUnit* Foe = SpawnStatusUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Rallentato || !Sano || !Foe) { DestroyStatusWorld(World); return false; }
+
+	Rallentato->ApplyStatus(TAG_Status_Slow, /*Turns=*/ 3);
+	if (!TestTrue(TEXT("premessa: lo stato e' attivo prima del turno"),
+		Rallentato->HasStatus(TAG_Status_Slow)))
+	{
+		DestroyStatusWorld(World);
+		return false;
+	}
+
+	// Una cella sola per ciascuno: `Slow` dimezza il range, e una rotta lunga rischierebbe di non
+	// produrre affatto l'evento — cioe' di far passare il test per il motivo sbagliato.
+	Rallentato->PlannedAbilityIndex = INDEX_NONE;
+	Rallentato->PlannedPath = { FRTCellId(0, 0), FRTCellId(1, 0) };
+	Rallentato->PlannedCell = FRTCellId(1, 0);
+	Sano->PlannedAbilityIndex = INDEX_NONE;
+	Sano->PlannedPath = { FRTCellId(0, 1), FRTCellId(1, 1) };
+	Sano->PlannedCell = FRTCellId(1, 1);
+	StandStill(Foe);
+	RunStatusTurn(TM);
+
+	const FName NomeSlow = TAG_Status_Slow.GetTag().GetTagName();
+
+	auto MoveEventOf = [TM](int32 StableId) -> const FRTResolvedEvent*
+	{
+		return TM->ResolvedTimelineForTest().FindByPredicate([StableId](const FRTResolvedEvent& E)
+		{
+			return E.Type == ERTResolvedEventType::Move && E.SourceStableUnitId == StableId;
+		});
+	};
+
+	const FRTResolvedEvent* EvRallentato = MoveEventOf(Rallentato->StableUnitId);
+	if (!TestNotNull(TEXT("premessa: il movimento del rallentato e' nella timeline"), EvRallentato))
+	{
+		DestroyStatusWorld(World);
+		return false;
+	}
+
+	// AC-1 — l'evento porta lo stato che l'unita' aveva mentre si muoveva.
+	TestTrue(TEXT("AC-1: l'evento del rallentato porta Status.Slow"),
+		EvRallentato->SourceStatusNames.Contains(NomeSlow));
+
+	// ⛔ Anti-vacuita': l'unita' senza stati non porta niente. Senza questa, un popolamento che copiasse
+	// una lista fissa — o gli stati di CHIUNQUE — passerebbe AC-1 senza dire nulla di vero.
+	if (const FRTResolvedEvent* EvSano = MoveEventOf(Sano->StableUnitId))
+	{
+		TestFalse(TEXT("anti-vacuita': l'unita' sana non porta Slow"),
+			EvSano->SourceStatusNames.Contains(NomeSlow));
+		TestEqual(TEXT("anti-vacuita': l'unita' sana non porta alcuno stato"),
+			EvSano->SourceStatusNames.Num(), 0);
+	}
+	else
+	{
+		AddError(TEXT("premessa: il movimento dell'unita' sana non e' nella timeline"));
+	}
+
+	// AC-2 — ⛔ la meta' falsificante: il campo e' uno SNAPSHOT, non una lettura dell'unita'. Si toglie lo
+	// stato DOPO l'emissione e si rilegge la timeline: se il valore seguisse l'unita', qui cadrebbe.
+	const TArray<FName> PrimaDellaRimozione = EvRallentato->SourceStatusNames;
+	Rallentato->RemoveStatus(TAG_Status_Slow);
+	TestFalse(TEXT("AC-2 premessa: l'unita' non ha piu' lo stato"),
+		Rallentato->HasStatus(TAG_Status_Slow));
+
+	const FRTResolvedEvent* EvDopo = MoveEventOf(Rallentato->StableUnitId);
+	if (TestNotNull(TEXT("AC-2: l'evento e' ancora nella timeline"), EvDopo))
+	{
+		TestTrue(TEXT("AC-2: l'evento porta ANCORA Status.Slow dopo che l'unita' l'ha perso"),
+			EvDopo->SourceStatusNames.Contains(NomeSlow));
+		TestEqual(TEXT("AC-2: il valore non e' cambiato"),
+			EvDopo->SourceStatusNames, PrimaDellaRimozione);
+	}
+
+	DestroyStatusWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
