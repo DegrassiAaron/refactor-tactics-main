@@ -1,0 +1,42 @@
+{
+  "scenarioId": "Visual.Map.SightSlabOnTheArena",
+  "tags": ["map", "vision", "cover", "aevik", "branth"],
+  "version": 1,
+  "seed": 0,
+  "fixture": "ArenaV01",
+
+  "_nota": "LA LASTRA SOLA, SULLA GEOMETRIA DELLA MAPPA DI GIOCO. `Visual.Map.SightWallIsWalkable` fa la stessa domanda sulla `TestArena`; questo la fa su `ArenaV01`, cioe' la forma che `DA_HexMap_Arena` porta in `L_HexArena` — la mappa su cui la seduta `U46` giudica `PIE-VIS-SIGHTWALL`. Un banco che gira su un'altra arena non dice niente di quella che si guarda a schermo.",
+
+  "_nota_perche_queste_celle": "Misurato il 2026-09-13 sull'asset d'autore, non dedotto dalla fixture: caricando `DA_HexMap_Arena` e interrogando `URTHexVisionLibrary::DescribeLineOfSight` su tutte le coppie del layer 0, le celle che negano la VISTA e lasciano passare il MOVIMENTO sono ESATTAMENTE DUE — (2,1,L0) e (3,1,L0) — e nessuna cella nega il solo movimento. Le altre nove bloccanti portano entrambi i flag: sono la barriera q=0 con le sue spalle (-1,0) e (1,0), dove lastra e colonna si sovrappongono e non si giudicano separate. La coppia scelta e' simmetrica — A1 a (2,0), B1 a (2,2) — con (2,1) esattamente in mezzo: fra le 40 coppie allestibili a distanza <= 3 e' quella in cui la cella che ferma il colpo non puo' essere confusa con nessun'altra.",
+
+  "_nota_perche_non_la_barriera": "Le celle della barriera centrale sono la ragione per cui `guida-seduta-u46-residui-g9.md` dichiarava che sulla via A la lastra non si isola: li' `RebuildInstances` posa due volumi sovrapposti — lastra 0,75 x 10 cm da `bBlocksLineOfSight`, colonna 0,40 x 55 cm da `bBlocksMovement` — e chi guarda vede la colonna credendo di guardare la lastra. E' l'errore che il registro ha gia' contato. Su (2,1) e (3,1) la colonna non c'e'.",
+
+  "_nota_cosa_questo_banco_NON_puo_fare": "⛔ NON puo' chiudere `PIE-VIS-SIGHTWALL`, e va detto qui perche' nessuno ci provi. Quella voce chiede se chi guarda COLLEGHI la riga del feed al segno sulla cella, e la risposta vuole una PIANIFICAZIONE VIVA: in auto-run `FRTScenarioSession::Step` durante la pausa esegue solo `PauseElapsed += DeltaSeconds`, `BeginTurn()` azzera i piani e committa nello stesso frame, e la guardia della linea d'intento vuole `Phase == Planning && !IsResolving() && View.bHasTarget` — la terza e' falsa per tutta la pausa. Alzare `ScenarioTurnPauseSeconds` da' piu' tempo per guardare una scena in cui nessuno sta pianificando, ed e' l'errore gia' registrato quattro volte su quella voce. Questo banco prova che la lastra NEGHI il tiro e si LASCI attraversare, sulla mappa giusta; il giudizio percettivo resta una partita umana.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [2, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "Il colpo NON parte: (2,1,0) sta fra i due e nega la linea di tiro.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "La stessa cella che ha fermato il colpo si attraversa a piedi: nega la vista, non il passo.",
+      "intents": [
+        { "unit": "A1", "move": [[2, 1, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",   "unit": "B1", "value": 120 },
+    { "type": "UnitAlive",      "unit": "B1", "value": true },
+    { "type": "UnitAtCell",     "unit": "A1", "cell": [2, 1, 0] },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
