@@ -487,6 +487,14 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	TestTrue(TEXT("dopo lo Sprint lo stato c'e': Exposed sopravvive al Cleanup del turno che lo applica"),
 		Runner->HasStatus(TAG_Status_Exposed));
 
+	// 🔴 **Lo scudo si RICARICA a fine turno, e con due turni l'azzeramento iniziale non basta piu'.**
+	// [D-224] fa scadere il temporaneo e poi chiama `RechargeBaseShield()`, cosi' che *«a fine turno ogni
+	// unita' viva ha esattamente lo scudo base»*: il `Runner->Shield = 0` in testa al test valeva finche' il
+	// colpo arrivava nello STESSO turno. Ora arriva in quello dopo, e i 5 punti tornati assorbirebbero
+	// esattamente il bonus in esame — `26 - 5 = 21`, cioe' un rosso che accusa `Exposed` di non essere stato
+	// applicato mentre lo era. Misurato con una sonda su `ApplyFirstHitDelta` il 2026-09-13.
+	Runner->Shield = 0;
+
 	const int32 HealthAfterSprint = Runner->Health;
 	Runner->PlannedMovementProfileId = NAME_None; // niente secondo scatto: lo stato in esame e' quello di prima
 	Runner->PlannedCell = Runner->Cell;
@@ -504,7 +512,10 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 
 	// Controprova: stessa unita', stesso colpo, ma senza Sprint nel turno precedente -> danno nominale.
 	// Senza di lei il `+5` potrebbe venire dall'attacco invece che dallo stato, e il test non lo saprebbe.
+	// Lo scudo si azzera di nuovo per la ragione detta sopra: altrimenti la controprova misurerebbe
+	// `FullHit - 5` e passerebbe per il motivo sbagliato.
 	Runner->ApplyCombatState(StartHealth, 0);
+	Runner->Shield = 0;
 	Runner->PlannedCell = Runner->Cell;
 	Foe->PlannedCell = Foe->Cell;
 	Foe->PlannedAbilityIndex = 0;
