@@ -152,6 +152,55 @@ bool FRTMovementProfileSneakIsDeclaredButNotPlannable::RunTest(const FString&)
  * 🔑 Lo dichiara RICAVANDOLO, non con un campo parallelo: e' la ragione per cui non puo' esistere un piano
  * che dica `Sprint` come azione e `Move` come profilo.
  */
+/**
+ * 🔑 **Una sola CORSA fra i cinque profili, e il criterio e' un dato** ([D-406]).
+ *
+ * [D-319] dice «chi ha perso l'equilibrio non corre», e fino a [#641] il soggetto di quella frase e'
+ * implicito: il criterio e' `ERTMovementStyle::Budget` **dentro il ciclo del Dash**, dove lo `Sprint` e'
+ * l'unica mobilita' a budget che puo' stare. ⛔ Lo stile da solo **non** distingue — `Action.Move` dichiara
+ * lo stesso `Budget`, e `Actions.SprintIsAMoveProfileResolvedPreBlast` lo asserisce — quindi con la
+ * migrazione il recinto sparisce e il criterio portato com'e' rifiuterebbe anche il Move normale.
+ *
+ * ⚠️ **Questo test cade se qualcuno dichiara una seconda corsa senza deciderlo**, ed e' il punto: `Withdraw`
+ * in particolare deve restare `false` perche' [D-070] lo IMPONE a chi arma l'`Overwatch` — un criterio che
+ * lo rifiutasse lascerebbe uno sbilanciato con lo slot movimento riservato a un profilo vietato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileOnlySprintIsARun,
+	"RefactorTactics.MovementProfile.OnlySprintIsARun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileOnlySprintIsARun::RunTest(const FString&)
+{
+	const TArray<FRTMovementProfile> Catalogo = URTMovementProfileLibrary::GetCoreMovementProfileCatalog();
+	if (!TestTrue(TEXT("il catalogo dei profili non e' vuoto"), Catalogo.Num() > 0))
+	{
+		return false;
+	}
+
+	// Si enumerano le CORSE invece di contarle: un totale direbbe «una» senza dire quale, e il giorno in cui
+	// cambiasse il messaggio non aiuterebbe chi legge il rosso.
+	TArray<FName> Corse;
+	for (const FRTMovementProfile& Profilo : Catalogo)
+	{
+		if (Profilo.bIsRun)
+		{
+			Corse.Add(Profilo.Id);
+		}
+	}
+
+	TestTrue(TEXT("lo Sprint e' una corsa"), Corse.Contains(URTMovementProfileLibrary::ProfileSprint));
+	TestFalse(TEXT("il Move normale non lo e': camminare non e' correre"),
+		Corse.Contains(URTMovementProfileLibrary::ProfileMove));
+	TestFalse(TEXT("ne' il fermo"), Corse.Contains(URTMovementProfileLibrary::ProfileStill));
+	TestFalse(TEXT("ne' lo Sneak, che e' l'opposto di una corsa"),
+		Corse.Contains(URTMovementProfileLibrary::ProfileSneak));
+	// D-070: il ripiegamento e' IMPOSTO dall'Overwatch, non scelto. Se fosse una corsa, uno sbilanciato si
+	// troverebbe lo slot movimento riservato a un profilo che il criterio gli vieta.
+	TestFalse(TEXT("ne' il Withdraw, che l'Overwatch impone invece di offrire"),
+		Corse.Contains(URTMovementProfileLibrary::ProfileWithdraw));
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfilePlanDeclaresTheProfile,
 	"RefactorTactics.MovementProfile.PlanDeclaresTheProfile",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
