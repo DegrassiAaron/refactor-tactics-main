@@ -9,7 +9,7 @@ const FName URTMovementProfileLibrary::ProfileSneak(TEXT("MovementProfile.Sneak"
 namespace
 {
 	FRTMovementProfile MakeProfile(FName Id, int32 StepBudget, int32 MoveBudget, int32 Stability,
-		bool bPlannable = true)
+		bool bPlannable = true, bool bIsRun = false)
 	{
 		FRTMovementProfile Profile;
 		Profile.Id = Id;
@@ -17,6 +17,7 @@ namespace
 		Profile.MoveBudget = MoveBudget;
 		Profile.Stability = Stability;
 		Profile.bPlannable = bPlannable;
+		Profile.bIsRun = bIsRun;
 		return Profile;
 	}
 }
@@ -48,7 +49,14 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 
 	// `Sprint` — 8, il numero che `Action.Sprint` porta gia' come `RangeCells` nel catalogo core e che oggi
 	// legge solo `ResolveDash`. `Stability 0`: «hai speso il turno a coprire distanza» ([D-116] voce 3).
-	Catalog.Add(MakeProfile(ProfileSprint, /*Passi*/ 8, /*Asperita'*/ 8, /*Stability*/ 0));
+	// ⚠️ **L'unico profilo che e' una CORSA** ([D-406]): e' il soggetto di [D-319] «chi ha perso
+	// l'equilibrio non corre». Finche' il criterio del rifiuto `Unbalanced` vive dentro il ciclo del Dash
+	// questo campo non ha lettori — lo Sprint e' gia' l'unica mobilita' a budget che ci sta — ma con [#641]
+	// il recinto sparisce, e senza il campo il criterio rifiuterebbe anche il Move normale. Sta qui per la
+	// stessa ragione per cui `Stability` sta nel profilo senza che nessuno la confronti ancora: la issue che
+	// lo consuma ha bisogno che ESISTA prima di poterci atterrare.
+	Catalog.Add(MakeProfile(ProfileSprint, /*Passi*/ 8, /*Asperita'*/ 8, /*Stability*/ 0,
+		/*bPlannable*/ true, /*bIsRun*/ true));
 
 	// `Withdraw` — 2, il ripiegamento dichiarato che [D-070] riserva allo slot movimento di chi arma
 	// l'Overwatch. Prima di `#653` non era ESPRIMIBILE: non essendoci un profilo, non c'era dove scrivere
