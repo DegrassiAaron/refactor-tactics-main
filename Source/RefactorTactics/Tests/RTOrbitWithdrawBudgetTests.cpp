@@ -14,6 +14,13 @@
 // `D-070` dice che armare l'`Overwatch` riserva lo slot movimento a `Withdraw`, 2 MP. Misurato il
 // 2026-08-29 su `HEAD bbf0d780`:
 //
+// ⏱️ **Il «2 MP» di questa riga non e' piu' un assoluto dal 2026-09-13** ([D-412]): il budget del `Withdraw`
+// e' ×0,25 di quello dell'unita', quindi un eroe da `MoveRange 4` ripiega di **1**, e i 2 MP tornano solo da
+// `8` in su. ✅ **Il test qui sotto non ne dipende, ed e' la ragione per cui resta com'e'**: il `2` che passa
+// a `ConfrontaRallentato` e' una **proprieta' della board** — «fin dove si arriva con due punti» — non il
+// budget letto dal catalogo. La riga sopra resta perche' registra cosa `D-070` diceva quando la misura fu
+// fatta; questa nota esiste perche' altrimenti la si leggerebbe come vera oggi.
+//
 //   · `Withdraw` compare in **un solo posto** in tutto `Source/`: un commento di `RTActionDef.h`. Nessuna
 //     `Action.Withdraw`, nessuna voce di catalogo runtime, nessun codice che riservi lo slot movimento.
 //   · Nessun punto del runtime porta `MoveBudget` a 2: viene da `MovePoints` dell'eroe

@@ -8,13 +8,20 @@ const FName URTMovementProfileLibrary::ProfileSneak(TEXT("MovementProfile.Sneak"
 
 namespace
 {
-	FRTMovementProfile MakeProfile(FName Id, int32 StepBudget, int32 MoveBudget, int32 Stability,
+	// ⚠️ **Un solo `Percent` per profilo, e non due parametri**: [D-412] dichiara il moltiplicatore **del
+	// profilo**, non uno per ciascuno dei due budget di [D-117]. Passarne due qui inviterebbe a divergerli
+	// senza una decisione che lo autorizzi — e la separazione dei VALORI e' [#666], non questa firma.
+	//
+	// ⏱️ *La firma prendeva `StepBudget` e `MoveBudget` come ASSOLUTI fino al merge di [#641]: [D-412] li
+	// fonde in una percentuale sola. `bIsRun` arriva da [D-406] e resta dov'era — i due cambiamenti sono
+	// ortogonali, e questa riga e' il punto in cui si sono incontrati.*
+	FRTMovementProfile MakeProfile(FName Id, int32 BudgetPercent, int32 Stability,
 		bool bPlannable = true, bool bIsRun = false)
 	{
 		FRTMovementProfile Profile;
 		Profile.Id = Id;
-		Profile.StepBudget = StepBudget;
-		Profile.MoveBudget = MoveBudget;
+		Profile.StepBudgetPercent = BudgetPercent;
+		Profile.MoveBudgetPercent = BudgetPercent;
 		Profile.Stability = Stability;
 		Profile.bPlannable = bPlannable;
 		Profile.bIsRun = bIsRun;
@@ -31,50 +38,62 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// degenere da trattare a parte nel chiamante: e' un profilo come gli altri, ed e' il motivo per cui
 	// `ProfileForPlan` non restituisce mai un profilo invalido.
 	//
-	// ⛔ **I budget EREDITANO, e non valgono `0`.** Il numero nello snapshot e' una CAPACITA' — «quanto
+	// ⛔ **Il budget e' quello dell'unita', e non `0`.** Il numero nello snapshot e' una CAPACITA' — «quanto
 	// potrei spendere» — non una dichiarazione di spesa: chi non ha pianificato movimento riceve oggi
 	// `GetEffectiveMoveRange()` come tutti, e da quel valore dipende cio' che vede chi sta ancora
 	// pianificando (le celle raggiungibili) e chi valuta un'alternativa (il bot). Azzerarlo qui avrebbe
-	// reso immobili le unita' senza piano, che e' esattamente il comportamento che `#653` promette di non
-	// cambiare. La spec assegna a «fermo» una `Stability`, non un budget: qui non se ne inventa uno.
-	Catalog.Add(MakeProfile(ProfileStill, FRTMovementProfile::InheritFromUnit,
-		FRTMovementProfile::InheritFromUnit, /*Stability*/ 3));
+	// reso immobili le unita' senza piano. La spec assegna a «fermo» una `Stability`, non un budget: qui
+	// non se ne inventa uno, e il `100%` dice esattamente «quello dell'unita'».
+	Catalog.Add(MakeProfile(ProfileStill, FRTMovementProfile::NeutralPercent, /*Stability*/ 3));
 
-	// `Move` — il profilo neutro. ⚠️ **I budget si EREDITANO dall'unita', e qui sta la clausola per cui
-	// `#653` non cambia niente**: il catalogo markdown §2.1 gli attribuisce `5`, ma nel codice il budget
-	// del movimento normale e' sempre venuto da `ARTUnit::MoveRange` via `GetEffectiveMoveRange()`, che
-	// varia per eroe. Cablare `5` qui abbasserebbe o alzerebbe in silenzio ogni eroe che non vale 5.
-	Catalog.Add(MakeProfile(ProfileMove, FRTMovementProfile::InheritFromUnit,
-		FRTMovementProfile::InheritFromUnit, /*Stability*/ 1));
+	// `Move` — il profilo neutro, ×1 per definizione ([D-412]). Il budget del movimento normale e' sempre
+	// venuto da `ARTUnit::MoveRange` via `GetEffectiveMoveRange()`, che varia per eroe: il `100%` conserva
+	// quel comportamento invece di cablare il `5` del catalogo markdown, che abbasserebbe o alzerebbe in
+	// silenzio ogni eroe che non vale 5.
+	Catalog.Add(MakeProfile(ProfileMove, FRTMovementProfile::NeutralPercent, /*Stability*/ 1));
 
-	// `Sprint` — 8, il numero che `Action.Sprint` porta gia' come `RangeCells` nel catalogo core e che oggi
-	// legge solo `ResolveDash`. `Stability 0`: «hai speso il turno a coprire distanza» ([D-116] voce 3).
+	// `Sprint` — **×2** ([D-412]). `Stability 0`: «hai speso il turno a coprire distanza» ([D-116] voce 3).
+	//
 	// ⚠️ **L'unico profilo che e' una CORSA** ([D-406]): e' il soggetto di [D-319] «chi ha perso
-	// l'equilibrio non corre». Finche' il criterio del rifiuto `Unbalanced` vive dentro il ciclo del Dash
-	// questo campo non ha lettori — lo Sprint e' gia' l'unica mobilita' a budget che ci sta — ma con [#641]
-	// il recinto sparisce, e senza il campo il criterio rifiuterebbe anche il Move normale. Sta qui per la
-	// stessa ragione per cui `Stability` sta nel profilo senza che nessuno la confronti ancora: la issue che
-	// lo consuma ha bisogno che ESISTA prima di poterci atterrare.
-	Catalog.Add(MakeProfile(ProfileSprint, /*Passi*/ 8, /*Asperita'*/ 8, /*Stability*/ 0,
+	// l'equilibrio non corre». Con [#641] il criterio esce dal ciclo del Dash, e senza questo campo
+	// rifiuterebbe anche il Move normale — cioe' renderebbe `Unbalanced` un'immobilizzazione totale.
+	//
+	// ⏱️ *Valeva `8` assoluti fino al 2026-09-13, il numero che `Action.Sprint` porta come `RangeCells`.*
+	// 🔴 **Il moltiplicatore non e' una riscrittura dello stesso valore**: un `8` cablato rendeva lo Sprint
+	// piu' LENTO del `Move` di un eroe che ne vale 9, ed e' precisamente l'*upgrade puro* rovesciato. Con
+	// `200` il rapporto e' garantito per ogni eroe, che e' cio' che [D-015] chiede a un profilo.
+	//
+	// 🔑 **E i due cambiamenti non si toccano**: `bIsRun` dice *che cosa* il profilo e', la percentuale dice
+	// *quanto* concede. Il merge di [#641] e [D-412] li ha messi sulla stessa riga senza fonderli.
+	Catalog.Add(MakeProfile(ProfileSprint, /*×2*/ 200, /*Stability*/ 0,
 		/*bPlannable*/ true, /*bIsRun*/ true));
 
-	// `Withdraw` — 2, il ripiegamento dichiarato che [D-070] riserva allo slot movimento di chi arma
-	// l'Overwatch. Prima di `#653` non era ESPRIMIBILE: non essendoci un profilo, non c'era dove scrivere
-	// un budget diverso da quello dell'unita'.
+	// `Withdraw` — **×0,25** ([D-412]), il ripiegamento che [D-070] riserva allo slot movimento di chi arma
+	// l'Overwatch.
 	//
-	// ⚠️ **`Stability 1` qui e' un SEGNAPOSTO, e va detto invece di lasciarlo sembrare derivato.** La
-	// tabella di `spec-compatibilita-azioni-movimento.md` §3.2 dichiara quattro valori — fermo `3`, Sneak
-	// `2`, Move `1`, Sprint `0` — e `Withdraw` **non e' fra questi**. Gli si da' il valore del profilo
-	// neutro perche' e' quello che non cambia nessun verdetto (nessuna azione dichiara oggi un
-	// `MinStability`), e la taratura e' [#606], che la spec stessa dichiara «la parte da playtestare».
-	Catalog.Add(MakeProfile(ProfileWithdraw, /*Passi*/ 2, /*Asperita'*/ 2, /*Stability*/ 1));
+	// ⏱️ *Valeva `2` assoluti fino al 2026-09-13.* ⚠️ **Con un eroe da 5 il nuovo valore e' `1`, non `2`**:
+	// la divisione tronca, ed e' l'*«arrotondare per difetto»* di [D-412]. La sorgente lo sapeva — «Withdraw
+	// diventava 2 solo con base almeno 8» — e non ha corretto il moltiplicatore per conservare il vecchio
+	// numero: e' il numero a seguire la regola.
+	//
+	// ⚠️ **`Stability 1` e' un SEGNAPOSTO, e va detto invece di lasciarlo sembrare derivato.** La tabella di
+	// `spec-compatibilita-azioni-movimento.md` §3.2 dichiara quattro valori — fermo `3`, Sneak `2`, Move `1`,
+	// Sprint `0` — e `Withdraw` **non e' fra questi**. Gli si da' il valore del profilo neutro perche' e'
+	// quello che non cambia nessun verdetto (nessuna azione dichiara oggi un `MinStability`), e la taratura
+	// e' [#606], che la spec stessa dichiara «la parte da playtestare».
+	Catalog.Add(MakeProfile(ProfileWithdraw, /*×0,25*/ 25, /*Stability*/ 1));
 
-	// `Sneak` — ⛔ **senza numeri, e sta nel catalogo proprio per questo** (`AE-5`). Il catalogo markdown
-	// §2.1 gli assegna «—» al posto di un budget: il profilo e' previsto, il dato non c'e'. `bPlannable`
-	// falso lo rende non scegliibile finche' quel numero non viene deciso; i budget restano `InheritFromUnit`
-	// perche' un `0` avrebbe significato «immobile», che e' un'affermazione diversa da «non si sa».
-	Catalog.Add(MakeProfile(ProfileSneak, FRTMovementProfile::InheritFromUnit,
-		FRTMovementProfile::InheritFromUnit, /*Stability*/ 2, /*bPlannable*/ false));
+	// `Sneak` — **×0,5, e PIANIFICABILE** ([D-412], che chiude `AE-5`).
+	//
+	// ⏱️ *Fino al 2026-09-13 stava qui senza numeri e con `bPlannable = false`, ed era la dichiarazione di
+	// una lacuna: «il profilo e' previsto, il dato non c'e'».* ✅ Ora il dato c'e', e sono tre: budget ×0,5,
+	// cadenza 1 passo ogni 2 tick, **sempre silenzioso** indipendentemente dal terreno.
+	//
+	// ⛔ **La cadenza NON e' qui, e non e' una dimenticanza**: «1 passo ogni 2 tick» e' una proprieta' della
+	// risoluzione, non del budget, e il calendario dei sotto-passi che la renderebbe deterministica e'
+	// `SKB-2` in `OPEN_DECISIONS.md` — dichiarato `CRITICO` e aperto dalla sorgente stessa. Scriverla qui
+	// come un numero significherebbe inventare l'ordine che quella domanda deve ancora decidere.
+	Catalog.Add(MakeProfile(ProfileSneak, /*×0,5*/ 50, /*Stability*/ 2));
 
 	return Catalog;
 }

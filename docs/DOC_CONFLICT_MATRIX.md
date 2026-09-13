@@ -1,6 +1,6 @@
 # Matrice dei conflitti documentali
 
-> `CURRENT` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-06 · **Owner**: questo file
+> `CURRENT` · **Stato**: vivo · **Ultimo aggiornamento**: 2026-09-13 (nove punti superati dalla skill bar consolidata, `D-407`…`D-415`) · *precedente*: 2026-09-06 · **Owner**: questo file
 > **Scopo**: registrare dove due documenti dicono cose diverse, e cosa vale oggi.
 > **Regola**: un conflitto non si risolve in silenzio. O si registra `SUPERSEDED` con la fonte che prevale,
 > o diventa una voce di [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md). Mai una scelta implicita.
@@ -47,6 +47,44 @@ riferimento, comprese le sue deleghe esplicite. Ciò che `D-282` nega è che que
 registra in questa matrice come `CONFLICT` e si **escala** all'owner competente. Chiuderlo scegliendo la fonte
 più recente, più specifica o più comoda è precisamente il difetto che `D-282` vieta.
 
+
+## `SUPERSEDED` — la skill bar consolidata supera nove punti del canone (2026-09-13)
+
+Registrato dallo spec panel del 2026-09-13 sulla specifica consolidata della skill bar consegnata
+dall'autore. Fonti che prevalgono: [`D-407`](decisions/RT_PDR_00_Decision_Log.md) …
+[`D-415`](decisions/RT_PDR_00_Decision_Log.md) — decisioni esplicite, quindi in cima alla scala. Referto
+completo, con le evidenze `file:riga`:
+[`roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md`](roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md).
+
+🔴 **Nessuna di queste righe è implementata.** Prevalgono come **contratto**, non come descrizione del
+comportamento: il codice fa tuttora ciò che la colonna «Diceva» riporta, ed è la ragione per cui ogni riga
+nomina il test che diventerà rosso. ⛔ Chi legge questa tabella come una misura di ciò che il gioco fa oggi
+la legge al contrario.
+
+| Dove | Diceva | Vale oggi |
+|---|---|---|
+| [`D-292`](decisions/RT_PDR_00_Decision_Log.md) e `URTCombatLibrary::GuardFirstHitReduction` | «la `Guard` è un **pool** di 15 danni assorbibili, valore unico per tutti» | `SUPERSEDED` da [`D-408`](decisions/RT_PDR_00_Decision_Log.md), **per la sola `Guard`**: riduzione **per colpo**, valore **per personaggio**. ⚠️ [`D-309`](decisions/RT_PDR_00_Decision_Log.md) **non** è superata: `Deflect` resta un pool, e la divergenza è dichiarata in `D-408` punto (4). 🔑 L'invariante di permutazione che `D-292` difendeva **resta vera** ed è la cosa da ri-asserire: `Combat.GuardPoolIsPermutationInvariant` si **riscrive**, non si cancella |
+| [`D-028`](decisions/RT_PDR_00_Decision_Log.md) e [`D-191`](decisions/RT_PDR_00_Decision_Log.md) | «una mobilità rapida occupa il **movimento**; il danno non conta, lo stile non conta» | **Non superate — derogate** da [`D-409`](decisions/RT_PDR_00_Decision_Log.md) per il **solo** slot `SignatureDefense`. `Action.Dodge`, `Charge`, `Leap`, `Reposition` restano sotto la regola. ⛔ La «Schivata» della sorgente **non è** `Action.Dodge`: è `Evasion`, e la distinzione è una collisione di nome risolta come [`D-230`](decisions/RT_PDR_00_Decision_Log.md) |
+| La sorgente d'autore §2, che chiama `Brace` lo slot della difesa caratteristica | «`Brace` è il nome dello slot/famiglia, non una riduzione di danno universale» | **Respinta** da [`D-407`](decisions/RT_PDR_00_Decision_Log.md): `Action.Brace` **è** una riduzione universale (una delle sette di [`D-025`](decisions/RT_PDR_00_Decision_Log.md)) e resta ciò che è. Lo slot si chiama **`SignatureDefense`**. ⛔ Due ragioni, non una: `Action.Brace` ha Stable ID e tracce versionate, e il suo `Root` **contraddice** la regola stessa che lo slot dovrebbe portare (le difese di quello slot consentono il `Withdraw`) |
+| `docs/balance/RT_ActionCatalog_v0.1.md` §2.1 e `URTMovementProfileLibrary::GetCoreMovementProfileCatalog` | «budget **assoluti** per profilo: `Move` 5 · `Sprint` 8 · `Withdraw` 2 · `Sneak` non definito» | `SUPERSEDED` da [`D-412`](decisions/RT_PDR_00_Decision_Log.md): il budget è un **moltiplicatore** del budget base — `Withdraw` ×0,25 · `Sneak` ×0,5 · `Move` ×1 · `Sprint` ×2, arrotondati per difetto. ✅ Chiude `AE-5`. ⚠️ La scala PM che rende i moltiplicatori dei numeri entra come **taratura di prototipo**, non come calibrazione d'autore: la sorgente la marca `NON APPROVATA` |
+| [`D-169`](decisions/RT_PDR_00_Decision_Log.md), sulla sola cadenza delle occasioni | «l'occasione di Overwatch nasce a ogni **micro-step**» — `Overwatch.TriggersPerMicroStep` | `SUPERSEDED` da [`D-411`](decisions/RT_PDR_00_Decision_Log.md): **una richiesta per nemico per turno**; `HOLD` e timeout escludono quel nemico per il resto del turno. ⛔ **Il resto di `D-169` NON è superato**: la zona resta una **linea larga una cella** (niente ampiezza per personaggio) e il movimento forzato **rilocalizza** il watcher invece di invalidarlo. Così [`D-367`](decisions/RT_PDR_00_Decision_Log.md): il facing letto è quello **dichiarato all'armamento** |
+| `Action.Interact`, catalogo riga 122 e [`spec-interazioni-mappa-cp101.md`](gameplay/spec-interazioni-mappa-cp101.md):181 | «`Action.Interact` è **Blast**» | **Confermato** da [`D-413`](decisions/RT_PDR_00_Decision_Log.md), che **non** adotta il «sempre in Move» della sorgente. 🔑 §13.1 della sorgente rivela che la correzione era contro il **Prep**, non contro il Blast, e la collocazione ha una ragione architetturale: la topologia muta nel Blast perché il Move dello stesso turno la veda. ⚠️ Il test che lo pinnerebbe — `Interaction.TopologyChangesInBlast` — è **dichiarato e non scritto**: `grep -rn` in `Source/` risponde **0**. Entra invece la parte nuova: **la sequenza rispetto al percorso si dichiara in Planning** |
+| La sorgente d'autore §11, sull'adiacenza | «normalmente richiede la **stessa cella**; muri e bordi sono l'eccezione» | **Respinta** da [`D-413`](decisions/RT_PDR_00_Decision_Log.md) punto (5): [`D-149`](decisions/RT_PDR_00_Decision_Log.md) fissa `RangeCells = 1` e **l'adiacenza è la norma** — *«il giocatore punta la sorgente, che è adiacente»*. La sorgente non mostra di averla considerata |
+| [`D-200`](decisions/RT_PDR_00_Decision_Log.md) e [`D-209`](decisions/RT_PDR_00_Decision_Log.md), su due casi | «il cooldown si paga solo se l'azione è **partita**, e si scrive in **risoluzione**» | `SUPERSEDED` da [`D-414`](decisions/RT_PDR_00_Decision_Log.md) su **due** casi e non su tutta la regola: l'azione annullata da `Action.Interrupt` **paga**, e il numero si scrive al **piano definitivo**. ✅ Il caso «fuori portata non paga» **coincide** nelle due letture: un piano fuori portata non diventa un piano valido definitivo. 🔴 Il secondo punto tocca snapshot e digest: va misurato sul corpus golden **prima** dell'implementazione |
+| [`ADR-0005`](decisions/adr-0005-orientamento.md) §4a | «`Deflect`, `Brace`, `Shield` e gli scudi restano validi da **ogni direzione** — proteggono la persona, non un lato» | **Derogato** da [`D-410`](decisions/RT_PDR_00_Decision_Log.md) per la sola famiglia `Reflect`, che è **direzionale per progetto**: un settore di 120° è ciò che la distingue da uno scudo. ⛔ La deroga vale per `Reflect` e per nessun altro: `Deflect`, `Brace` e `Shield` restano omnidirezionali |
+| La catena [`D-086`](decisions/RT_PDR_00_Decision_Log.md)…[`D-100`](decisions/RT_PDR_00_Decision_Log.md), e il prezzo di [`D-380`](decisions/RT_PDR_00_Decision_Log.md) | «l'attacco base **dipende** dall'arma equipaggiata» · «la mira **insegue** il bersaglio» · «il tiro alla cieca è una **licenza** che si paga» | `SUPERSEDED` da [`D-415`](decisions/RT_PDR_00_Decision_Log.md). 🔴 **È la riga più cara della tabella, e apre due code invece di chiuderle**: le varianti arma perdono il loro unico consumatore (`SKB-4`) e i 6 danni con cui `Action.Mortar` ha pagato il tiro indiretto diventano senza oggetto (`SKB-5`). Entrambe in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md), ed entrambe **precedono** l'implementazione |
+
+### ⚠️ Tre affermazioni della sorgente NON entrano, ed è una scelta registrata
+
+Non sono `SUPERSEDED` in nessuna direzione: sono **respinte** perché la sorgente non mostra di aver
+considerato la fonte che contraddicono, e superarla per inerzia è ciò che
+[`D-282`](decisions/RT_PDR_00_Decision_Log.md) vieta.
+
+| Affermazione | Perché non entra |
+|---|---|
+| *«Il terreno aumenta il costo, non rallenta la cadenza»* (§10.1) | [`D-381`](decisions/RT_PDR_00_Decision_Log.md), 2026-09-10, **implementata**: *«la durata di un attraversamento è un dato proprio del passo»*. `SKB-2` chiede a chi risponde sul calendario dei sotto-passi di dire anche se `D-381` resta |
+| *«Uno stun impedisce / fa decadere / disabilita»* (§4, §6, §7, §8, §9, §11) | **Lo stordimento non esiste** — [`D-169`](decisions/RT_PDR_00_Decision_Log.md), misurato: **1** occorrenza in `Source/`, ed è un sottotesto. Le regole non sono false, sono **senza soggetto**: `SKB-1` |
+| *«Anche energia e cariche sono consumate al piano definitivo»* (§3.2) · *«un CD di N indica N turni successivi»* | [`D-324`](decisions/RT_PDR_00_Decision_Log.md) ha tolto `Energy` dal gameplay; [`D-090`](decisions/RT_PDR_00_Decision_Log.md) ha **misurato e scartato** quella traduzione del cooldown. La prima resta valida *in astratto*, per il primo kit che adotti una risorsa propria |
 
 ## `SUPERSEDED` — la calpestabilità non si conta e non dipende dal centro (2026-08-30)
 

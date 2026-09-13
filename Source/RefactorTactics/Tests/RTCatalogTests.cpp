@@ -517,7 +517,8 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 	TestTrue(TEXT("Charge e' raggiungibile: la porta Hero.Branth.Ram"),
 		Raggiungibili.Contains(FName(TEXT("Action.Charge"))));
 
-	// Il catalogo si costruisce UNA volta: `GetCoreActionCatalog()` istanzia 37 `FRTActionDef` per valore,
+	// Il catalogo si costruisce UNA volta: `GetCoreActionCatalog()` istanzia un `FRTActionDef` per voce, per
+	// valore (quante siano lo dice `grep -c "Catalog.Add(" RTCatalogLibrary.cpp`, e cambia da solo),
 	// ognuno coi suoi `TArray` annidati, a ogni chiamata — e `FindCoreAction` non fa che scorrerlo. Il
 	// verso 3 qui sotto lo interrogava una volta per riga dichiarata: ventidue ricostruzioni per rispondere
 	// a domande che questo ciclo ha gia' in mano.

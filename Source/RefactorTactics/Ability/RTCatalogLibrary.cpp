@@ -1067,9 +1067,33 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
-	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava gli `8` punti senza
-	// che nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.
+	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava il budget senza che
+	// nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.
+	//
+	// 🔴 **E dal 2026-09-13 i due numeri DIVERGONO, e va detto invece di lasciarlo scoprire.** [D-412] rende
+	// il budget del profilo un **moltiplicatore** (`Sprint` ×2, cioe' 10 per un eroe da 5), mentre
+	// `RangeCells` qui resta l'assoluto `8`.
+	//
+	// ⛔ **E `RangeCells` NON e' letto solo da `ResolveDash`**, come una prima stesura di questa nota
+	// sosteneva: lo leggono anche `RTActionFallbackLibrary`, `RTBotPlanningLibrary`, `RTActionReadout`,
+	// `RTAbilityLab` e `RTActionQueueLibrary`. ∴ la divergenza non e' confinata al Dash — il bot e la resa
+	// dell'abilita' vedono `8` mentre il resolver del movimento vedra' il moltiplicatore.
+	//
+	// ⚠️ **Va chiusa da chi porta lo Sprint fuori da `FastMovement`** ([#641]/[D-116]): quella e' la
+	// migrazione che rende il numero qui morto, e lasciarne due vivi e' la doppia sede che [D-023] e [D-115]
+	// hanno eliminato altrove. Finche' dura, questa nota e' il posto in cui la divergenza e' dichiarata.
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+
+	// ⛔ **`Action.Sneak` NON entra in questo passaggio, e la ragione e' misurata.** Una voce del catalogo
+	// core rende obbligatoria la chiave icona corrispondente — `URTIconLibrary::RequiredIconIds()` la deriva
+	// da OGNI azione — e `DA_IconCatalog` non ha `UI.Icon.Action.Sneak`: il gate
+	// `RefactorTactics.IconCatalog.RealCatalogCoversRequiredIds` diventerebbe rosso. Misurato: su `main` le
+	// azioni core senza icona sono **zero**, e con l'aggiunta sarebbe stata una.
+	//
+	// 🔑 **E non e' un rinvio per comodita': e' il confine giusto.** [D-412] chiude `AE-5` dando i numeri al
+	// PROFILO, e il profilo non ha bisogno dell'azione finche' non esiste chi la sceglie. L'azione che nomina
+	// `MovementProfile.Sneak` — con il suo glifo e la sua voce di catalogo icone — appartiene a [#1410],
+	// che porta il selettore e che sta gia' aggiungendo `Action.Withdraw` per la stessa ragione.
 
 	// `Action.Wait` (catalogo v0.1 §1) — non fa nulla e risolve per ultima (priorita' 100). Serve gia' ora
 	// perche' e' cio' in cui `Fallback.Wait` trasforma un'azione: senza, il fallback dovrebbe inventarsi in

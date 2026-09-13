@@ -6115,10 +6115,15 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) cons
 	// il proprio profilo. Cosi' la domanda «con che misura si muove» ha una risposta sola, e non due da
 	// tenere d'accordo.
 	//
-	// ⚠️ **Nessun comportamento cambia oggi, e la ragione e' nei profili, non qui**: `Move` e `Still`
-	// dichiarano `InheritFromUnit`, quindi `ResolveMoveBudget` restituisce esattamente
-	// `GetEffectiveMoveRange()` — lo stesso valore che questa riga passava prima. A spostare un numero
-	// sara' chi scegliera' un profilo diverso, cioe' [#641] per lo `Sprint`.
+	// ⚠️ **Chi non sceglie un profilo non vede cambiare niente, e la ragione e' nei profili, non qui**:
+	// `Move` e `Still` valgono il **100%** del budget dell'unita' ([D-412]), quindi `ResolveMoveBudget`
+	// restituisce esattamente `GetEffectiveMoveRange()` — lo stesso valore che questa riga passava prima
+	// che i profili esistessero. A spostare un numero e' chi sceglie un profilo diverso.
+	//
+	// 🔑 **Dal 2026-09-13 il budget e' una PERCENTUALE del valore qui sotto** ([D-412]): `Withdraw` 25,
+	// `Sneak` 50, `Move` e `Still` 100, `Sprint` 200. ⛔ Il troncamento e' la regola — *«arrotondare per
+	// difetto»* — quindi un eroe da `5` ripiega di `1`, non di `2`: il numero segue il moltiplicatore, e non
+	// il contrario.
 	const int32 UnitMoveRange = Unit->GetEffectiveMoveRange();
 	const FRTMovementProfile Profile = URTMovementProfileLibrary::ProfileForPlan(
 		URTPlanValidationLibrary::MakePlanFor(Unit));
