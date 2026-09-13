@@ -215,6 +215,54 @@ bool FRTShippedGameModePacingStaysShortTest::RunTest(const FString&)
 		Cdo->DemoArenaRadius,
 		ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>()->DemoArenaRadius);
 
+	// ── **Le quattro che la prima stesura non aveva contato** (`#3121`).
+	//
+	// 🔴 `#3067` chiese *«la stessa domanda»* alle proprieta' `EditAnywhere` e la tabella di `#3072` ne
+	// enumero' **dieci**. Sono **quattordici**, e le quattro rimaste sono invisibili per la stessa ragione
+	// strutturale delle altre: un roster diverso schiera comunque quattro unita', un `HeroUnitClasses` vuoto
+	// si risolve per fallback, un `ShippedFormatId` diverso-ma-esistente da' comunque un formato valido.
+	// Nessuna rompe l'allestimento, quindi `ShippedGameModeSetsUpTheAdvertisedMatch` le attraversa.
+	//
+	// ⚠️ `Team0Heroes` e' la sola del gruppo che una **seduta** debba modificare a mano: `PIE-V01-MORTAR`
+	// chiede `Hero.Branth` in squadra 0 e **non esiste una console variable per il roster**, quindi l'unica
+	// strada e' il pannello Details. Senza questa riga, chi dimentica di ripristinare spedisce una partita
+	// diversa da quella dichiarata, e a schermo sembra normale.
+	const ARTGameMode* CppCdo = ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>();
+	TestTrue(TEXT("ne' il roster della squadra 0"), Cdo->Team0Heroes == CppCdo->Team0Heroes);
+	TestTrue(TEXT("ne' quello della squadra 1"),    Cdo->Team1Heroes == CppCdo->Team1Heroes);
+	TestTrue(TEXT("ne' la mappa eroe->Blueprint"),
+		Cdo->HeroUnitClasses.OrderIndependentCompareEqual(CppCdo->HeroUnitClasses));
+	TestTrue(TEXT("ne' l'id del formato spedito"),  Cdo->ShippedFormatId == CppCdo->ShippedFormatId);
+
+	// ── ➕ **La riga che guarda avanti: la QUINDICESIMA non deve nascere scoperta** (`#3121`).
+	//
+	// 🔑 Tutto cio' che sta sopra ripara il passato. Questo lo impedisce: si enumerano per RIFLESSIONE le
+	// proprieta' editabili di `ARTGameMode` e si pretende che ognuna sia in un elenco DELIBERATO — o perche'
+	// asserita qui, o perche' coperta altrove e dichiarato dove. Aggiungerne una senza decidere fa cadere
+	// questo test, che e' esattamente cio' che non e' successo quando le dieci sono diventate quattordici.
+	//
+	// ⛔ Non e' un conteggio: un numero qui invecchierebbe da solo. E' un **insieme di nomi**, e il messaggio
+	// nomina la proprieta' scoperta invece di dire che il totale non torna.
+	static const TSet<FName> Considerate = {
+		// asserite in questo test, dal CDO spedito
+		TEXT("ScenarioToRun"), TEXT("ScenarioFilterA"), TEXT("ScenarioFilterB"),
+		TEXT("bAutobattle"), TEXT("BotAllyCount"), TEXT("MatchPlanningSeconds"),
+		TEXT("ScenarioTurnPauseSeconds"), TEXT("DemoArenaRadius"),
+		TEXT("Team0Heroes"), TEXT("Team1Heroes"), TEXT("HeroUnitClasses"), TEXT("ShippedFormatId"),
+		// coperte da `ShippedGameModeSetsUpTheAdvertisedMatch`: `MapSource` dalla 3a asserzione (la mappa del
+		// livello non e' sostituita), `MatchFormat` dalla 2a (nessun esito fatale con il formato di ripiego)
+		TEXT("MapSource"), TEXT("MatchFormat"),
+	};
+	for (TFieldIterator<FProperty> It(ARTGameMode::StaticClass()); It; ++It)
+	{
+		if (!It->HasAnyPropertyFlags(CPF_Edit)) { continue; }
+		if (It->GetOwnerClass() != ARTGameMode::StaticClass()) { continue; }
+		TestTrue(*FString::Printf(
+			TEXT("la proprieta' editabile '%s' e' stata CONSIDERATA: asseriscila qui, o dichiara dove e' "
+				 "coperta e aggiungila all'elenco (`#3121`)"), *It->GetName()),
+			Considerate.Contains(FName(*It->GetName())));
+	}
+
 	return true;
 }
 
