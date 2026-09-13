@@ -227,20 +227,33 @@ public:
 	 * nello **stesso** `FRTResolvedEvent` (campo `Phase`) e che `FRTMoveAnim::Phase` consegna gia' al punto
 	 * di playback.
 	 *
-	 * ## Cio' che questa funzione NON puo' fare, e perche'
+	 * ## Perche' NON si chiama piu' `StyleForPhase` (`#2881`)
 	 *
-	 * ⛔ **Non restituisce mai `Reduced` ne' `Stealth`**, e non e' una dimenticanza:
+	 * 🔑 Con la fase **e** gli stati non e' piu' «per fase», e un nome che lo dicesse mentirebbe come i due
+	 * commenti su `Slow` corretti in `ceb1b29`. Il vecchio nome non resta come wrapper: sarebbe una seconda
+	 * risposta alla stessa domanda.
 	 *
-	 * - `Reduced` sarebbe derivabile da `TAG_Status_Slow`, ma **solo leggendo l'unita' viva** — cioe' lo
-	 *   stato *corrente*, non quello al momento dell'azione. Rieseguire lo stesso turno dopo la scadenza
-	 *   dello Slow sceglierebbe un'altra andatura, e la posa smetterebbe di essere una funzione del tempo
-	 *   normalizzato — l'invariante che `RefactorTactics.Graykit.Determinismo` misura. Serve un campo
-	 *   nell'evento risolto, che appartiene a chi possiede `StatusChanged` (#2453).
-	 * - `Stealth` non ha **nessun** consumatore: ne' azione, ne' tag, ne' chiamante. Implementarlo
-	 *   significherebbe inventare chi lo chiede.
+	 * ## `Reduced` batte la fase, e non e' arbitrario
 	 *
-	 * `FRTPresentationStyleExcludesUnreachableTest` difende entrambe le esclusioni: aggiungerle in futuro
-	 * deve costare la modifica di un test, non uno scivolamento.
+	 * Uno stato che riduce il movimento descrive la **condizione del corpo**, che si vede comunque; la fase
+	 * descrive cosa l'unita' sta facendo. Un'unita' rallentata che scatta **scatta meno**, e renderla con
+	 * l'andatura di corsa piena direbbe al giocatore il contrario di cio' che la simulazione ha appena
+	 * applicato. ⚠️ E' una scelta di presentazione, non una regola: `AndaturaRidottaBatteLaCorsa` la pinna,
+	 * e cambiarla deve costare la modifica di quel test.
+	 *
+	 * ## Cio' che questa funzione ancora NON fa
+	 *
+	 * ⛔ **Non restituisce mai `Stealth`**, e non e' una dimenticanza: non ha **nessun** consumatore — ne'
+	 * azione, ne' tag, ne' chiamante. `MovementProfile.Sneak` esiste ma e' dichiarato **senza numeri**
+	 * (`AE-5`), quindi non pianificabile. Implementarlo significherebbe inventare chi lo chiede, e
+	 * `AndaturaPerFase` continua a difendere quell'esclusione per ogni ingresso dell'enum.
+	 *
+	 * ⛔ **Non legge `FRTMovementProfile::bIsRun`** ([`D-406`]), benche' dichiari *«questo profilo e' una
+	 * corsa»*. Due ragioni misurate: quel campo nasce per il rifiuto `Unbalanced` ([`D-319`], [`D-405`]),
+	 * non per la locomozione; e nel catalogo **solo** `Sprint` e `Move` dichiarano un `MovementProfileId`,
+	 * mentre le azioni a stile lineare non ne hanno — leggerlo farebbe **perdere** loro il `Run` che oggi
+	 * hanno dalla fase.
 	 */
-	static ERTGraykitLocomotionStyle StyleForPhase(ERTMatchPhase Phase);
+	static ERTGraykitLocomotionStyle StyleForMovement(ERTMatchPhase Phase,
+		const TArray<FName>& ActiveStatusNames);
 };

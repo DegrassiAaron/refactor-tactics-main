@@ -7540,7 +7540,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// del filtro), ma il primo e' il dato che appartiene all'ANIM — cioe' all'azione — mentre il
 				// secondo e' lo stato del riproduttore. Se un giorno il ciclo smettesse di filtrare per fase,
 				// questa riga resterebbe giusta.
-				const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForPhase(A.Phase);
+				// `#2881`: la fase dice COSA sta facendo, gli stati dicono in che condizione lo fa. Entrambi
+				// vengono dall'ANIM — cioe' dall'evento risolto — e ⛔ **nessuno dei due da `A.Unit`**, che e'
+				// qui accanto e al playback direbbe lo stato di ADESSO invece di quello dell'azione.
+				const ERTGraykitLocomotionStyle Style =
+					URTPresentationBindingLibrary::StyleForMovement(A.Phase, A.SourceStatusNames);
 				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
 					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
 			}
