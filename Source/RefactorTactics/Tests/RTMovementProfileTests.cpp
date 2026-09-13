@@ -161,7 +161,7 @@ bool FRTMovementProfileStillKeepsUnitCapacity::RunTest(const FString&)
  * test dichiarava non c'e' piu'.*
  *
  * 🔑 **Il test non e' stato cancellato ma ROVESCIATO**, e la ragione e' che serve ancora: `bPlannable`
- * distingue *«non ha numeri»* dalle **altre due** esclusioni di `OfferableProfiles` — `Still`, che e'
+ * distingue *«non ha numeri»* dalle **altre due** ragioni per cui un profilo non si offre — `Still`, che e'
  * derivato, e `Withdraw`, che e' riservato. Un `bPlannable` senza nessun `false` non proverebbe piu' che
  * quella distinzione esiste, ed e' cio' che `#1410` `AC-4` chiede di non confondere.
  */
@@ -186,16 +186,23 @@ bool FRTMovementProfileSneakIsPlannableWithItsNumbers::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("%s e' pianificabile"), *Profile.Id.ToString()), Profile.bPlannable);
 	}
 
-	// 🔑 **La prova che la chiusura di `AE-5` ARRIVA al giocatore**, e non resta un dato di catalogo: lo
-	// Sneak deve comparire fra i profili offribili. Prima di [D-412] non compariva per due ragioni
-	// sovrapposte — `bPlannable` falso **e** nessuna azione che lo nominasse — e correggerne una sola
-	// avrebbe lasciato il selettore identico a prima.
-	bool bSneakIsOffered = false;
-	for (const FRTMovementProfile& Profile : URTMovementProfileLibrary::OfferableProfiles())
-	{
-		bSneakIsOffered = bSneakIsOffered || Profile.Id == URTMovementProfileLibrary::ProfileSneak;
-	}
-	TestTrue(TEXT("e arriva al selettore: OfferableProfiles lo contiene"), bSneakIsOffered);
+	// 🔑 **La prova che la chiusura di `AE-5` e' RAGGIUNGIBILE, e non resta un dato di catalogo.** Prima di
+	// [D-412] lo Sneak era fuori gioco per **due** ragioni sovrapposte — `bPlannable` falso **e** nessuna
+	// azione che lo nominasse — e correggerne una sola non avrebbe cambiato niente. Qui si verifica la
+	// seconda: un piano che contiene `Action.Sneak` dichiara il profilo `Sneak`.
+	//
+	// ⛔ **Non si passa da `OfferableProfiles`, e non e' una scelta di comodo**: quella funzione non esiste
+	// su `origin/main` — la porta [#1410] insieme al selettore, e un test che la chiamasse non compilerebbe
+	// qui. Cio' che questa asserzione copre e' il **prerequisito** che `#1410` consuma: senza un'azione che
+	// nomini il profilo, il suo selettore non avrebbe niente da offrire.
+	const TArray<FRTPlannedAction> SneakPlan = {
+		PlanEntryWithProfile(TEXT("Action.Sneak"), URTMovementProfileLibrary::ProfileSneak),
+	};
+	TestEqual(TEXT("e un piano che sguscia dichiara lo Sneak"),
+		URTMovementProfileLibrary::ProfileForPlan(SneakPlan).Id,
+		URTMovementProfileLibrary::ProfileSneak);
+	TestEqual(TEXT("col budget dimezzato che il profilo porta"),
+		URTMovementProfileLibrary::ProfileForPlan(SneakPlan).ResolveMoveBudget(4), 2);
 	return true;
 }
 

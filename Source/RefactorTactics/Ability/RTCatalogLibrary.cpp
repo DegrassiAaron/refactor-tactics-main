@@ -1082,8 +1082,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// 🔴 **Non esisteva fino al 2026-09-13**, e la sua assenza era la conseguenza di una lacuna dichiarata:
 	// senza numeri il profilo non era pianificabile, e senza un'azione che lo nomini non era nemmeno
-	// *raggiungibile* dal piano — `OfferableProfiles` scarta i profili che nessuna azione dichiara. `AE-5` ha
-	// dato i numeri; questa voce da' il modo di metterli in un piano.
+	// *raggiungibile* dal piano — `ProfileForPlan` ricava il profilo dall'azione di movimento, quindi un
+	// profilo che nessuna azione dichiara non arriva mai al resolver. `AE-5` ha dato i numeri; questa voce
+	// da' il modo di metterli in un piano, ed e' il prerequisito che il selettore di [#1410] consuma.
 	//
 	// ⚠️ **Fase `NormalMovement` come il `Move`, non `FastMovement`**: e' un profilo della stessa famiglia
 	// ([D-015]) — cambia distanza, rumore ed esposizione, non l'economia del turno. `Fallback::Stop` per la

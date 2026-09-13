@@ -81,7 +81,8 @@ struct FRTMovementProfile
 	 *
 	 * ⚠️ **Il campo resta**, e non e' un residuo: `Still` e `Withdraw` non si scelgono per due ragioni
 	 * diverse — il primo e' DERIVATO dall'assenza di waypoint, il secondo e' RISERVATO da chi lo impone —
-	 * e nessuna delle due e' «non ha numeri». Le tre esclusioni vivono in `OfferableProfiles`.
+	 * e nessuna delle due e' «non ha numeri». Le tre esclusioni vivranno insieme nel selettore di [#1410],
+	 * che su `origin/main` non esiste ancora.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
 	bool bPlannable = true;
