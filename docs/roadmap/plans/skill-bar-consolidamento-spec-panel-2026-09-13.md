@@ -243,7 +243,7 @@ Tre affermazioni di §5 contraddicono catene di decisioni **con un prezzo già p
 
 | Spec §5 | Repository |
 |---|---|
-| *«non dipende dall'equipaggiamento»* | `URTCatalogLibrary::EquipWeaponVariant(Abilities[0], Piece)` — `RTUnit.cpp:1661`. `Abilities[0]` **è** l'attacco base (ADR-0007 §6). Le varianti arma sono `D-086`…`D-100` |
+| *«non dipende dall'equipaggiamento»* | `URTCatalogLibrary::EquipWeaponVariant(Abilities[0], Piece)` — `RTUnit.cpp:1661`. `Abilities[0]` **è** l'attacco base (ADR-0007 §6). Le varianti arma sono `D-086`…`D-100` 🔁 **Esito 2026-09-14: `D-417` RITIRA questa voce di `D-415`** — il legame resta, e la catena non è superata |
 | *«la mira è fissata in pianificazione; non insegue il bersaglio»* | `const FRTCellId AimCell = bTargetsUnit ? Units[Intent.TargetId].Cell : Intent.TargetCell;` — `RTHexCombatLibrary.cpp:352`. `Units` è lo stato **al Blast**: con bersaglio-unità la mira **insegue** |
 | *«si può sparare alla cieca verso un esagono non visibile»* | `ERTLineOfSightPolicy::Required` è il default (`RTActionDef.h:787`). Il tiro indiretto è una **licenza dichiarata**, e [`D-380`](../../decisions/RT_PDR_00_Decision_Log.md) l'ha **pagata**: `Action.Mortar` scende a 12 danni da 18 e sale a ricarica 3 da 2 |
 
@@ -328,7 +328,7 @@ quali tocca il registro (verificato sui `files`, non sui titoli).
 | `D-412` | Il budget di movimento è un **moltiplicatore** del budget base; chiude `AE-5`; la scala PM entra come taratura | supera `D-117` in parte |
 | `D-413` | `Interact` dichiara la propria sequenza rispetto al percorso, e resta nel Blast | precisa `D-149` |
 | `D-414` | Costi e cooldown si consumano al **piano definitivo** | supera `D-200`/`D-209` in parte |
-| `D-415` | L'attacco base non dipende dall'arma, non insegue il bersaglio, e può sparare alla cieca | supera `D-086`…`D-100` nel loro unico consumatore; svuota il prezzo di `D-380` |
+| `D-415` | L'attacco base non dipende dall'arma, non insegue il bersaglio, e può sparare alla cieca | 🔁 **il punto (2) è stato ritirato il 2026-09-14 da `D-417`**: la catena `D-086`…`D-100` **non è superata**. Restano (3) — precisato da `D-419` — e (4), col prezzo di `D-380` **riqualificato** da `D-418` |
 
 🔴 **`D-415` è la più cara delle nove, e va letta prima delle altre.** Le sue tre voci non sono argomentate
 dalla sorgente — che non nomina mai né le varianti arma né il tiro indiretto — e ciascuna costa più di quanto

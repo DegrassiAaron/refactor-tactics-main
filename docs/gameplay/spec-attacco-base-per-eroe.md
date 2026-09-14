@@ -8,14 +8,22 @@
 > [`../roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md`](../roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md).
 >
 > ⚠️ **Questa pagina descrive due stati diversi, e li tiene separati.** §1–§4 sono **in vigore**: il codice
-> le esegue. §5 è **decisa e non implementata** ([`D-415`](../decisions/RT_PDR_00_Decision_Log.md)): nessuna
-> riga di codice la esprime oggi, e il repository fa tuttora il contrario. Chi legge §5 come descrizione del
-> comportamento corrente la legge male.
+> le esegue. §5 è **decisa e non implementata** — nessuna riga di codice la esprime oggi, e il repository fa
+> tuttora il contrario. Chi legge §5 come descrizione del comportamento corrente la legge male.
+>
+> 🔁 **Aggiornata il 2026-09-14, dopo l'istruttoria sui punti aperti.** Delle tre voci di
+> [`D-415`](../decisions/RT_PDR_00_Decision_Log.md), la §5.1 è stata **ritirata**
+> ([`D-417`](../decisions/RT_PDR_00_Decision_Log.md)), la §5.2 **precisata**
+> ([`D-419`](../decisions/RT_PDR_00_Decision_Log.md)) e la §5.3 confermata con il prezzo del mortaio
+> **riqualificato** ([`D-418`](../decisions/RT_PDR_00_Decision_Log.md)).
 >
 > **Decisioni**: [`D-058`](../decisions/RT_PDR_00_Decision_Log.md) (ADR-0007) ·
 > [`D-096`](../decisions/RT_PDR_00_Decision_Log.md) (nessun RNG) ·
 > [`D-221`](../decisions/RT_PDR_00_Decision_Log.md) (`bCountsAsAttack`) ·
-> [`D-415`](../decisions/RT_PDR_00_Decision_Log.md) (§5).
+> [`D-415`](../decisions/RT_PDR_00_Decision_Log.md) (§5) ·
+> [`D-417`](../decisions/RT_PDR_00_Decision_Log.md) (§5.1 ritirata) ·
+> [`D-418`](../decisions/RT_PDR_00_Decision_Log.md) (§5.3) ·
+> [`D-419`](../decisions/RT_PDR_00_Decision_Log.md) (§5.2).
 > **Issue**: [#315](https://github.com/DegrassiAaron/refactor-tactics-main/issues/315).
 
 ## Perché esiste
@@ -74,20 +82,35 @@ divieto: il primo kit che ne abbia bisogno la apre.
 
 ## 5. 🔴 Deciso e NON implementato — [`D-415`](../decisions/RT_PDR_00_Decision_Log.md)
 
-⛔ **Il codice fa oggi il contrario di tutte e tre.** Nessuna delle righe qui sotto descrive il
-comportamento corrente, e ciascuna ha una coda aperta.
+⛔ **Il codice fa oggi il contrario di quelle che restano**, e nessuna delle righe qui sotto descrive il
+comportamento corrente.
 
-### 5.1 L'attacco base non dipende dall'equipaggiamento
+✅ **Le due code che `D-415` apriva sono chiuse**: `SKB-4` da [`D-417`](../decisions/RT_PDR_00_Decision_Log.md)
+(la §5.1 si ritira) e `SKB-5` da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md) (il mortaio non si
+riprezza). Restano **due** voci da implementare, non tre.
 
-**Regola decisa**: il payload dell'attacco base è dell'**eroe**, e l'arma equipaggiata non lo modifica.
+### 5.1 ~~L'attacco base non dipende dall'equipaggiamento~~ — ✅ **RITIRATA il 2026-09-14**
 
-**Stato**: oggi lo modifica — `URTCatalogLibrary::EquipWeaponVariant(Abilities[0], Piece)`
-(`Source/RefactorTactics/Unit/RTUnit.cpp:1661`), e `Abilities[0]` **è** l'attacco base.
+⏱️ *Questa sezione dichiarava «decisa e non implementata» la regola per cui il payload dell'attacco base è
+dell'eroe e l'arma non lo modifica.* 🔁 **[`D-417`](../decisions/RT_PDR_00_Decision_Log.md) ritira il punto
+(2) di [`D-415`](../decisions/RT_PDR_00_Decision_Log.md)**: l'attacco base **continua a dipendere dall'arma
+equipaggiata**, e `URTCatalogLibrary::EquipWeaponVariant(Abilities[0], Piece)`
+(`Source/RefactorTactics/Unit/RTUnit.cpp:1661`) resta il canale. La catena `D-086`…`D-100` **non è
+superata**.
 
-🔴 **Coda aperta**: le varianti arma (`D-086`…`D-100`) hanno nell'attacco base il **loro unico consumatore di
-gameplay**. Recidere il legame non sposta una dipendenza, **svuota** le varianti. *Su cosa agiscono adesso*
-è una domanda aperta in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), e va risposta **prima**
-dell'implementazione, non dopo.
+🔑 **Non è stata ritirata per costo: è stata ritirata perché la domanda che apriva ha ricevuto una risposta
+diversa da quella che si aspettava.** `SKB-4` chiedeva *su cosa* agiscano le varianti staccate dall'attacco
+base; la misura ha risposto che **la ragione per cui esistono non è esercitata da nessuno**: la loro
+giustificazione è la **scelta orizzontale** ([`D-086`](../decisions/RT_PDR_00_Decision_Log.md)), e nessuna
+UI di loadout la offre — `SelectLoadout`, `LoadoutWidget`, `EquipmentWidget`, `PreMatch` danno **zero**.
+Spostarle avrebbe costruito un meccanismo per una scelta che il giocatore non compie.
+
+⚠️ **La scelta orizzontale resta senza sede.** Se un'UI di loadout arriverà, `SKB-4` si riapre con una
+domanda diversa: non «dove metterle» ma «quante e quali».
+
+✅ **Le altre due voci di `D-415` restano accettate**: §5.2 (la mira, ora precisata da
+[`D-419`](../decisions/RT_PDR_00_Decision_Log.md)) e §5.3 (il tiro alla cieca, con il prezzo del mortaio
+riqualificato da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md)).
 
 ### 5.2 La mira è fissata in pianificazione e non insegue
 
@@ -95,13 +118,34 @@ dell'implementazione, non dopo.
 seguito**. Può ancora subire un impatto se la nuova posizione ricade nella traiettoria o nell'area effettiva
 — e questo è **già vero** oggi.
 
-**Stato**: oggi insegue, e per una riga sola —
-`const FRTCellId AimCell = bTargetsUnit ? Units[Intent.TargetId].Cell : Intent.TargetCell;`
-(`Source/RefactorTactics/Combat/RTHexCombatLibrary.cpp:352`) legge `Units` allo stato del **Blast**.
+🔁 **Precisata il 2026-09-14 da [`D-419`](../decisions/RT_PDR_00_Decision_Log.md): è una regola UNIVERSALE**,
+non una proprietà dichiarata per azione. Un'azione che voglia agganciare lo dichiara, e oggi nessuna lo fa.
 
-✅ **È la voce più coerente delle tre**: una mira fissata in Planning è ciò che rende leggibile una fase
-simultanea. ⛔ Cade `ERTActionFallback::AttackTarget` come default sensato per un attacco base; resta
-legittimo per le abilità che **dichiarano** di agganciare.
+⏱️ *Questa sezione diceva «oggi insegue, e per una riga sola: `RTHexCombatLibrary.cpp:352`».* 🔴 **La misura
+dice altro, ed è la correzione che conta.** Il Blast **precede** il Move (`RTTurnRules.cpp:7-12`),
+`HexUnits[].Cell` nasce a inizio Blast e nessuno la riscrive prima di `CollectHexAttacks`: quella riga e
+`Intent.TargetCell` portano oggi **lo stesso valore**. Toccarla costa **34 test rossi** e cambia **zero
+esiti**. L'inseguimento vero vive in **`RTTurnManager_Blast.cpp:770`**, e **il piano non ha da dove leggere una cella
+di pianificazione nel ramo a bersaglio-unità**: `ARTUnit::PlannedAttackCell` esiste, ma la scrive solo
+`DeclareAttackOnCell`.
+
+∴ **il costo non è una riga: è un campo di schema del piano**, più due voci del corpus golden da rigenerare.
+
+🔑 **E il difetto che chiude non è nel resolver.** `MakeBlastPreview` legge la cella di **pianificazione**
+(`RTHexCombatLibrary.cpp:886-889`) e il bot punteggia sulla stessa (`RTHexBotLibrary.cpp:281-295`):
+anteprima e bot modellano **già** una mira ferma, e il resolver ne usa una che insegue. È la classe di
+divergenza che [`D-378`](../decisions/RT_PDR_00_Decision_Log.md) esiste per impedire — il giocatore vede una
+cosa e il turno ne esegue un'altra.
+
+⛔ **Il costo di gioco, che `D-419` accetta esplicitamente.** Con `ERTAbilityShape::Single` l'area colpita è
+**una cella**: chi si sposta di **un** esagono prima del Blast diventa **immune a ogni attacco a bersaglio
+singolo**. E `Single` è il **default**: `FRTActionDef` non porta uno `Shape` (`RTActionDef.h:801`), quindi
+lo evita solo un'azione che dichiari `Area`, `Line` o `Cone`. ⚠️ **Il corollario
+qui sopra — «può comunque essere colpito se la nuova posizione ricade nell'area» — è vero e NON copre il
+caso principale**: vale per `Area`, `Line` e `Cone`, non per `Single`.
+
+⛔ Cade `ERTActionFallback::AttackTarget` come default sensato per un attacco base; resta legittimo per le
+abilità che **dichiarano** di agganciare.
 
 ⚠️ Corollario deciso e privo di implementazione: uno spostamento forzato cambia l'origine **ma non l'esagono
 di mira** — l'attacco parte comunque verso di esso, fino alla gittata massima, se ora è fuori portata.
@@ -117,8 +161,17 @@ e il tiro indiretto è una **licenza dichiarata** che ogni azione deve chiedere.
 🔴 **È la più cara delle tre, e il prezzo è documentato.**
 [`D-380`](../decisions/RT_PDR_00_Decision_Log.md) ha **pagato** quella licenza per `Action.Mortar`: **12**
 danni invece di 18, ricarica **3** invece di 2. Concederla a quattro attacchi base gratuiti e senza cooldown
-significa che quel prezzo non comprava una capacità, comprava un'**esclusiva**. *Come si riprezza
-`Action.Mortar`* è la seconda coda aperta di `D-415`.
+significa che quel prezzo non comprava una capacità, comprava un'**esclusiva**.
+
+✅ **Risolto il 2026-09-14 da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md): il mortaio NON si
+riprezza.** I suoi numeri restano, e comprano **area, gittata e traiettoria** invece dell'esclusiva — una
+**riqualificazione** del prezzo, non una sua conferma passiva. 🔑 La misura che ha deciso: a **18 / cd 2** il
+mortaio eguaglia `Action.CircularAoE` su tutti e cinque i valori (`Attack` · 65 · **portata** 4 · cd 2 · 18)
+**e conserva in più il tiro indiretto**, che quella non dichiara: restituirgli i sei danni produrrebbe
+un'abilità **strettamente superiore** a una che esiste già.
+
+⛔ **E non è a costo zero**: **tre** test di `RTBlindFireOffensiveTests.cpp` identificano il mortaio dalla
+proprietà che questa sezione rende comune. Vanno riscritti **insieme** all'implementazione, non dopo.
 
 ## 6. La rivelazione dell'attaccante — decisa nella sostanza, **non** nel nome
 
