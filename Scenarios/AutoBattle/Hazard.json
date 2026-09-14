@@ -11,6 +11,10 @@
 
   "_nota_spawn": "Le squadre partono agli estremi (raggio 5), fuori da ogni patch: tutte le superfici di `RelayLite` stanno entro raggio 2. Chi attraversa il centro lo fa perche' il pianificatore lo ha scelto, non perche' ci e' nato sopra.",
 
+  "_nota_determinismo": "PIA-5.1 (#2620) chiede il determinismo su tre percorsi e questo era il terzo, scoperto senza copertura il 2026-09-12: nessun test caricava questo file, e `Scenario.EveryShippedScenarioRuns` lo esegue una volta sola. Lo copre `Scenario.FreeRun.HazardRunsAreIdentical`, che lo rigioca due volte col `repeatCount` del runner. ⚠️ Il `repeatCount` sta NEL TEST e non qui: messo nel file, il corpus pagherebbe due partite complete a ogni passata di `EveryShippedScenarioRuns` per una proprieta' che un solo test misura.",
+
+  "_nota_cosa_il_campo_fa_davvero": "🔴 Misurato il 2026-09-12 su `17fbc400`, 12 turni: il campo produce **13** voci `Status` che dichiarano la propria origine nel terreno (`AppliedByTerrain`, `AppliedWhileOnCell`, `Revoked`) e **0** voci di categoria `Environment`. Cioe' le superfici toccano chi ci passa, ma in questa partita nessuna fa DANNO — e la riga di `scenario-map.md` che promette *«una superficie pericolosa modifica l'esito in modo deterministico»* e' oggi vera solo per la meta' degli stati. Non e' un difetto del determinismo, che e' verde: e' un residuo di questo scenario, e chi lo stringera' parta da qui invece di riscoprirlo.",
+
   "freeRun": true,
   "maxTurns": 40,
 
