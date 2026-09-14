@@ -2,6 +2,51 @@
 
 ---
 
+## 2026-09-14 — I due punti aperti della skill bar si chiudono, e uno ritira una voce di `D-415`
+
+**Origine**: istruttoria sui punti lasciati aperti dallo spec panel del 2026-09-13 — `SKB-1` e `D-415` con
+le sue code `SKB-4`/`SKB-5`. Misurato su `origin/main` = `6ee943d7`.
+
+### Le quattro decisioni
+
+| ID | Che cosa decide |
+|---|---|
+| `D-416` | `Status.Stunned` entra nella v0.1 come **terzo** stato di controllo — chiude `SKB-1` |
+| `D-417` | Il punto (2) di `D-415` **si ritira**: l'attacco base continua a dipendere dall'arma — chiude `SKB-4` |
+| `D-418` | `Action.Mortar` **non si riprezza**: il prezzo compra area, gittata e traiettoria — chiude `SKB-5` |
+| `D-419` | La mira si congela al lock-in, come regola **universale** — precisa `D-415` punto (3) |
+
+### 🔴 Una riga della matrice dei conflitti era diventata falsa
+
+`DOC_CONFLICT_MATRIX.md` registrava `D-086`…`D-100` come `SUPERSEDED` da `D-415`. Con `D-417` **non lo sono
+più**. La riga è stata **corretta in loco**, non rimossa: una matrice che registra i conflitti deve
+registrare anche i propri, e per un giorno quella ha dichiarato superata una catena che non lo era.
+
+Le tre affermazioni che stavano in una riga sola ora ne hanno tre, perché hanno avuto tre destini diversi:
+la dipendenza dall'arma **non è superata**, il prezzo del mortaio è **riqualificato**, la mira è
+**superata e precisata**.
+
+### ⚠️ L'istruttoria ha corretto la premessa di tre domande su quattro
+
+- **`SKB-1` non bloccava cinque migrazioni**: delle cinque decisioni, `grep -ciE 'stordi|stun'` ne trova
+  **una** che nomina lo stordimento (`D-413`). Il blocco era documentale.
+- **`D-169` non aveva «chiuso misurando»** lo `Stun`: misura un'assenza e **declina di autorizzare** uno
+  stato nuovo, e `ADR-0004`:175 scrive la via di rientro. Declinare non è rifiutare.
+- **La mira non insegue in modo osservabile**: il Blast precede il Move, quindi `AimCell` e
+  `Intent.TargetCell` portano lo stesso valore. `D-415` diceva «una riga sola»; il costo vero è un **campo
+  di schema del piano**.
+
+🔑 **Le decisioni sono state prese dopo quelle correzioni, non prima** — ed è la ragione per cui due delle
+quattro sono andate nella direzione opposta a come la domanda era posta.
+
+### E ogni uscita proposta è risultata più cara del preventivo
+
+Ventitré uscite passate a verificatori ostili: **ventitré** sono tornate `COSTO_SOTTOSTIMATO`. Nessuna era
+sbagliata; tutte omettevano qualcosa. I costi nelle voci di registro sono quelli **verificati**, non quelli
+proposti.
+
+---
+
 ## 2026-09-13 — La specifica consolidata della skill bar entra nel canone, e ne supera nove punti
 
 **Origine**: `RefactorTactics-Specifica-Skill-Bar-2026-09-13.md`, consegnato dall'autore in `docs/` e
