@@ -95,6 +95,25 @@ public:
 
 private:
 	/** Corpo del marcatore: il cilindro di `ARTUnit`, non una forma nuova. */
+	/**
+	 * Materiale del corpo: deve leggere i tre `PerInstanceCustomData` che `ShowUnits` scrive (#3104).
+	 *
+	 * ⚠️ **Default `M_HexCell`, ed e' un PRESTITO dichiarato.** E' l'unico materiale versionato del progetto
+	 * che oggi legge i custom data per istanza (`ARTHexMapActor::CellMaterial`, che li usa come Emissive).
+	 * Il nome parla della griglia e non delle unita': se un giorno l'anteprima vorra' una resa propria, la
+	 * sostituzione e' **questa riga** e non una ricerca nel codice — che e' la ragione per cui e' una
+	 * proprieta' invece di una costante.
+	 *
+	 * 🔴 **E il riuso su un secondo ISM e' un rischio che `D-183` ha gia' dichiarato NON verificato**:
+	 * *«e' dedotto dal docstring di `RTHexMapActor.h`, che descrive l'intento del materiale e non il suo
+	 * grafo. Nessuna sessione Unreal e' stata aperta.»* Qui e' il secondo caso, e vale identico: se a schermo
+	 * il corpo non si tinge, serve un materiale proprio — cioe' un `.uasset`, cioe' lavoro d'autore. Lo dice
+	 * la seduta, non un test.
+	 */
+	UPROPERTY(EditAnywhere, Category = "RefactorTactics|Preview")
+	TSoftObjectPtr<UMaterialInterface> BodyMaterial =
+		TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/RT/Core/Grid/M_HexCell.M_HexCell")));
+
 	UPROPERTY()
 	TObjectPtr<UInstancedStaticMeshComponent> Bodies;
 
