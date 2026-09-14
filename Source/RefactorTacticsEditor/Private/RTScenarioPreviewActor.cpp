@@ -60,6 +60,18 @@ ARTScenarioPreviewActor::ARTScenarioPreviewActor()
 	};
 
 	Bodies = MakeLayer(TEXT("Bodies"), CylinderMesh.Succeeded() ? CylinderMesh.Object : nullptr);
+
+	// 🔴 **Tre float per istanza, e sono la correzione di #3104.** Senza, il corpo rende col materiale di
+	// default della mesh engine — grigio per tutti — ed e' esattamente cio' che la seduta `U44` ha giudicato.
+	//
+	// ⚠️ **Solo `Bodies`.** L'anello porta gia' la squadra nel RAGGIO e il cuneo dice il facing: tingerli
+	// direbbe la stessa cosa tre volte e toglierebbe all'occhio la riga che cambia. E' lo stesso criterio con
+	// cui `ARTHexMapActor` tinge `Cells` e lascia grigi i blocchi di rilievo — *«tingerli col colore della
+	// superficie direbbe una cosa falsa»*.
+	if (Bodies)
+	{
+		Bodies->NumCustomDataFloats = 3;
+	}
 	TeamRings = MakeLayer(TEXT("TeamRings"), CylinderMesh.Succeeded() ? CylinderMesh.Object : nullptr);
 	FacingWedges = MakeLayer(TEXT("FacingWedges"), CubeMesh.Succeeded() ? CubeMesh.Object : nullptr);
 	BorderPanels = MakeLayer(TEXT("BorderPanels"), CubeMesh.Succeeded() ? CubeMesh.Object : nullptr);
@@ -123,6 +135,17 @@ void ARTScenarioPreviewActor::ShowUnits(const TArray<FRTScenarioUnitView>& Units
 		return;
 	}
 
+	// ⚠️ **Caricato qui e non nel costruttore**: un `ConstructorHelpers` su un asset di `/Game/` lega il CDO
+	// a quel percorso e fallisce rumorosamente dove il contenuto non c'e'. E' la stessa scelta di
+	// `ARTHexMapActor::CellMaterial`, che e' soft e si risolve al momento della ricostruzione.
+	//
+	// ⛔ Se il materiale non c'e' si posa lo stesso, in grigio: un'anteprima assente sarebbe peggio di una
+	// che non dice ancora chi e' chi — ed e' anche cio' che si vedeva prima di #3104.
+	if (UMaterialInterface* Tinta = BodyMaterial.LoadSynchronous())
+	{
+		Bodies->SetMaterial(0, Tinta);
+	}
+
 	for (const FRTScenarioUnitView& Unit : Units)
 	{
 		// L'unico punto in cui si decide DOVE e VERSO DOVE. Il resto qui sotto e' taglia e quota.
@@ -130,7 +153,14 @@ void ARTScenarioPreviewActor::ShowUnits(const TArray<FRTScenarioUnitView>& Units
 			Unit.Cell, Unit.Facing, Origin, HexSize, LayerHeight);
 
 		FTransform Body(FRotator::ZeroRotator, FVector(0.f, 0.f, BodyHalfHeight), BodyScale);
-		Bodies->AddInstance(Body * Base, /*bWorldSpace=*/ true);
+		const int32 BodyIndex = Bodies->AddInstance(Body * Base, /*bWorldSpace=*/ true);
+
+		// ⚠️ **Dopo `AddInstance`, che restituisce l'indice**: scritto prima non avrebbe nessuna istanza a cui
+		// appartenere, e `SetCustomDataValue` uscirebbe senza dire niente.
+		const FLinearColor BodyColor = RTScenarioViewport::TeamBodyColor(Unit.TeamId);
+		Bodies->SetCustomDataValue(BodyIndex, 0, BodyColor.R);
+		Bodies->SetCustomDataValue(BodyIndex, 1, BodyColor.G);
+		Bodies->SetCustomDataValue(BodyIndex, 2, BodyColor.B, /*bMarkRenderStateDirty=*/ true);
 
 		const float RingScale = RTScenarioViewport::TeamRingScale(Unit.TeamId);
 		FTransform Ring(FRotator::ZeroRotator, FVector(0.f, 0.f, RingLocalZ),

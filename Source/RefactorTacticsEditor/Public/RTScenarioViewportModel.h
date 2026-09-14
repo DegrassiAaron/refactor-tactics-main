@@ -79,6 +79,30 @@ namespace RTScenarioViewport
 	float MaxTeamRingScale();
 
 	/**
+	 * Il colore con cui il CORPO di una unita' dichiara la propria squadra (#3104).
+	 *
+	 * 🔴 **Esiste perche' la seduta `U44` del 2026-09-12 e' stata giudicata ❌**, verbatim: *«si vedono dei
+	 * cilindri grigi che si muovono nell'editor, non si capisce»*. L'anteprima posava per ogni unita' istanze
+	 * di mesh engine **senza alcun materiale**, e l'unica cosa che distingueva due squadre era il RAGGIO
+	 * dell'anello: chi guardava non aveva modo di sapere da che parte stesse cio' che si muoveva.
+	 *
+	 * ⛔ **La regola id -> colore non nasce qui**: la possiede `ARTUnit::TeamColorFor`, che il HUD gia' riusa
+	 * (`RTHudViewModel.cpp:235`). Questa funzione sceglie la COPPIA e delega a quella. Una seconda tabella
+	 * dentro il modulo Editor divergerebbe dal HUD al primo cambio, in silenzio.
+	 *
+	 * ⚠️ **Assoluto per `TeamId`, non relativo alla prospettiva selezionata**, ed e' una decisione, non un
+	 * default: il HUD colora alleato/nemico perche' in partita esiste un «chi guarda»; il Tactical Designer
+	 * e' uno strumento d'authoring il cui default e' `Omniscient`, dove quel soggetto non esiste. E' anche la
+	 * convenzione che il pannello gia' applica — `DescribePerspective` numera le posizioni con l'**id della
+	 * squadra**, non con la posizione nel selettore, per poterle confrontare con `rt.Debug.Knowledge <team>`.
+	 *
+	 * ⚠️ **Oltre l'ultima squadra distinta si FERMA invece di riavvolgersi**, esattamente come
+	 * `TeamRingScale` e per la stessa ragione scritta li': due squadre che condividono l'ultimo colore sono
+	 * leggibili, due che se lo scambiano no.
+	 */
+	FLinearColor TeamBodyColor(int32 TeamId);
+
+	/**
 	 * Dove sta e come e' ruotato il pannello che segna un lato ESPOSTO del confine visibile (#1754).
 	 *
 	 * 🔑 **Il punto e l'orientamento si CHIEDONO alla libreria** — `URTHexLibrary::EdgeMidpointWorld` e
