@@ -125,8 +125,9 @@ non una proprietà dichiarata per azione. Un'azione che voglia agganciare lo dic
 dice altro, ed è la correzione che conta.** Il Blast **precede** il Move (`RTTurnRules.cpp:7-12`),
 `HexUnits[].Cell` nasce a inizio Blast e nessuno la riscrive prima di `CollectHexAttacks`: quella riga e
 `Intent.TargetCell` portano oggi **lo stesso valore**. Toccarla costa **34 test rossi** e cambia **zero
-esiti**. L'inseguimento vero vive a `:770`, e **il piano non ha da dove leggere una cella di
-pianificazione** — i tredici campi `Planned*` di `ARTUnit` non ne contengono una.
+esiti**. L'inseguimento vero vive in **`RTTurnManager_Blast.cpp:770`**, e **il piano non ha da dove leggere una cella
+di pianificazione nel ramo a bersaglio-unità**: `ARTUnit::PlannedAttackCell` esiste, ma la scrive solo
+`DeclareAttackOnCell`.
 
 ∴ **il costo non è una riga: è un campo di schema del piano**, più due voci del corpus golden da rigenerare.
 
@@ -138,7 +139,8 @@ cosa e il turno ne esegue un'altra.
 
 ⛔ **Il costo di gioco, che `D-419` accetta esplicitamente.** Con `ERTAbilityShape::Single` l'area colpita è
 **una cella**: chi si sposta di **un** esagono prima del Blast diventa **immune a ogni attacco a bersaglio
-singolo**. E `Single` è il default di tutte le azioni core più sei delle dodici d'eroe. ⚠️ **Il corollario
+singolo**. E `Single` è il **default**: `FRTActionDef` non porta uno `Shape` (`RTActionDef.h:801`), quindi
+lo evita solo un'azione che dichiari `Area`, `Line` o `Cone`. ⚠️ **Il corollario
 qui sopra — «può comunque essere colpito se la nuova posizione ricade nell'area» — è vero e NON copre il
 caso principale**: vale per `Area`, `Line` e `Cone`, non per `Single`.
 
@@ -164,8 +166,9 @@ significa che quel prezzo non comprava una capacità, comprava un'**esclusiva**.
 ✅ **Risolto il 2026-09-14 da [`D-418`](../decisions/RT_PDR_00_Decision_Log.md): il mortaio NON si
 riprezza.** I suoi numeri restano, e comprano **area, gittata e traiettoria** invece dell'esclusiva — una
 **riqualificazione** del prezzo, non una sua conferma passiva. 🔑 La misura che ha deciso: a **18 / cd 2** il
-mortaio diventa numericamente **identico** ad `Action.CircularAoE` (`Attack` · 65 · raggio 4 · cd 2 · 18), e
-restituirgli i sei danni produrrebbe un **duplicato**.
+mortaio eguaglia `Action.CircularAoE` su tutti e cinque i valori (`Attack` · 65 · **portata** 4 · cd 2 · 18)
+**e conserva in più il tiro indiretto**, che quella non dichiara: restituirgli i sei danni produrrebbe
+un'abilità **strettamente superiore** a una che esiste già.
 
 ⛔ **E non è a costo zero**: **tre** test di `RTBlindFireOffensiveTests.cpp` identificano il mortaio dalla
 proprietà che questa sezione rende comune. Vanno riscritti **insieme** all'implementazione, non dopo.
