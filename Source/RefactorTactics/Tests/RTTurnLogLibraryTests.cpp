@@ -442,47 +442,90 @@ bool FRTTurnLogObjectiveIsDescribedTest::RunTest(const FString&)
 		return URTTurnLogLibrary::DescribeEntry(E);
 	};
 
-	const FString Segna = Obiettivo(ERTObjectiveOutcome::Team0Scores, /*Punti*/ 1);
+	// 🔑 **IL CONTROLLO POSITIVO, e viene prima** -- la stessa disciplina di
+	// `EveryMoveOutcomeIsDescribed`. Dare a `Objective` il suo descrittore lo toglie dalla rete, e vi lascia
+	// `ReactionClash` come unico consumatore: senza questa riga, un refactor che cancellasse la guardia
+	// `Category != Combat` non farebbe cadere NIENTE qui, e le voci di clash tornerebbero a uscire come danni
+	// -- cioe' `#3110` verbatim, sulla sola categoria che questa misura ha lasciato di proposito alla rete.
+	const FRTTurnLogEntry Clash = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::ReactionClash,
+		static_cast<uint8>(ERTClashLogEvent::OpportunityCreated), O, O, /*Amount*/ 3);
+	TestTrue(TEXT("la rete e' ancora li': una categoria senza descrittore si DICHIARA"),
+		URTTurnLogLibrary::DescribeEntry(Clash).Contains(TEXT("senza descrittore")));
+
+	const FString Segna0 = Obiettivo(ERTObjectiveOutcome::Team0Scores, /*Punti*/ 1);
 	TestFalse(TEXT("una squadra che segna non esce piu' come categoria senza descrittore"),
-		Segna.Contains(TEXT("senza descrittore")));
-	TestTrue(TEXT("dice CHI controlla l'obiettivo"), Segna.Contains(TEXT("squadra 0")));
-	TestTrue(TEXT("e quanti punti ha preso"), Segna.Contains(TEXT("+1")));
+		Segna0.Contains(TEXT("senza descrittore")));
+	TestTrue(TEXT("dice CHI controlla l'obiettivo"), Segna0.Contains(TEXT("squadra 0")));
+	TestTrue(TEXT("e quanti punti ha preso"), Segna0.Contains(TEXT("(+1)")));
 	TestFalse(TEXT("e non elimina nessuno: `Team0Scores` e `Lethal` valgono entrambi 2"),
-		Segna.Contains(TEXT("eliminata")));
+		Segna0.Contains(TEXT("eliminata")));
+
+	// La SIMMETRICA, e non e' ridondante: senza, l'unico rilevatore di un `case` copiato sarebbe la mappa dei
+	// gemelli qui sotto, che distingue le due squadre SOLO perche' i loro `Amount` coincidono. Cambiane uno e
+	// un punto della squadra 1 verrebbe raccontato come un punto della squadra 0, con la suite verde.
+	const FString Segna1 = Obiettivo(ERTObjectiveOutcome::Team1Scores, /*Punti*/ 1);
+	TestTrue(TEXT("e la squadra 1 e' la squadra 1"), Segna1.Contains(TEXT("squadra 1")));
 
 	// Conteso: la voce si scrive anche quando il punteggio non si muove, ed e' voluto -- senza, un turno
 	// conteso e un turno vuoto sarebbero indistinguibili, e la contesa e' cio' che il checkpoint aggiunge.
 	const FString Conteso = Obiettivo(ERTObjectiveOutcome::Contested, /*Punti*/ 0);
 	TestFalse(TEXT("un obiettivo conteso non esce come categoria senza descrittore"),
 		Conteso.Contains(TEXT("senza descrittore")));
-	TestFalse(TEXT("e non assegna punti a nessuno"), Conteso.Contains(TEXT("+")));
+	// `"(+"` e non `"+"`: il secondo scandaglia la riga INTERA -- cella e coda dell'azione comprese -- e
+	// passerebbe per accidente, cadendo il giorno in cui un `ActionId` o un assiale firmato portasse un `+`.
+	TestFalse(TEXT("e non assegna punti a nessuno"), Conteso.Contains(TEXT("(+")));
 
-	// I quattro esiti devono LEGGERSI diversi: due frasi identiche renderebbero il log incapace di
-	// distinguere «nessuno era presente» da «erano in due».
-	TMap<FString, FString> TestoPerEsito;
-	const TArray<TPair<ERTObjectiveOutcome, FString>> Esiti = {
-		{ ERTObjectiveOutcome::Unclaimed,   TEXT("Unclaimed") },
-		{ ERTObjectiveOutcome::Contested,   TEXT("Contested") },
-		{ ERTObjectiveOutcome::Team0Scores, TEXT("Team0Scores") },
-		{ ERTObjectiveOutcome::Team1Scores, TEXT("Team1Scores") },
-	};
-	for (const TPair<ERTObjectiveOutcome, FString>& Voce : Esiti)
+	// `Amount` FUORI DAL PLAUSIBILE. `DescribeEntry` gira anche su tracce deserializzate e su log di scenario,
+	// dove `Outcome` e `Amount` sono campi indipendenti: un `Team0Scores` con zero punti e' una contraddizione
+	// -- dice «segna» e «niente» -- e `(+0)` la renderebbe come una frase sicura e sbagliata. E' la stessa
+	// ragione per cui `HitCameFromSide` rifiuta di indovinare invece di clampare.
+	const FString Assurdo = Obiettivo(ERTObjectiveOutcome::Team0Scores, /*Punti*/ 0);
+	TestFalse(TEXT("una squadra che segna zero punti non dichiara «+0»"),
+		Assurdo.Contains(TEXT("(+0)")));
+	TestTrue(TEXT("lo dichiara non tradotto, invece di indovinare"),
+		Assurdo.Contains(TEXT("non tradotti")));
+
+	// 🔑 **L'esaustivita' si RIFLETTE, non si elenca a mano.** Un quinto enumeratore aggiunto domani in
+	// `ERTObjectiveOutcome` finisce qui da solo; un elenco scritto a mano lo mancherebbe, e la voce nuova
+	// cadrebbe nella rete -- cioe' proprio lo stato che `#3110` esiste per chiudere -- con questo test verde.
+	// ⚠️ E la rete NON e' `-Wswitch`: la build non promuove i warning a errori (nessun `bWarningsAsErrors`
+	// nei `.Build.cs` ne' nei `.Target.cs`, misurato), quindi il gate e' questo ciclo e nient'altro.
+	const UEnum* Enum = StaticEnum<ERTObjectiveOutcome>();
+	if (!TestNotNull(TEXT("l'enum degli esiti di obiettivo e' riflesso"), Enum))
 	{
-		const bool bSegna = Voce.Key == ERTObjectiveOutcome::Team0Scores
-			|| Voce.Key == ERTObjectiveOutcome::Team1Scores;
-		const FString Testo = Obiettivo(Voce.Key, bSegna ? 1 : 0);
+		return false;
+	}
+
+	// `NumEnums()` include il `_MAX` sintetico che UHT aggiunge: si sottrae.
+	const int32 Valori = Enum->NumEnums() - 1;
+	TestTrue(TEXT("l'enum ha dei valori da coprire"), Valori > 0);
+
+	TMap<FString, FString> TestoPerEsito;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const FString Nome = Enum->GetNameStringByIndex(i);
+		const FString Testo = Obiettivo(
+			static_cast<ERTObjectiveOutcome>(Enum->GetValueByIndex(i)), /*Punti*/ 1);
+
+		TestFalse(FString::Printf(TEXT("%s ha il suo descrittore"), *Nome),
+			Testo.Contains(TEXT("senza descrittore")));
+
+		// Due frasi identiche renderebbero il log incapace di distinguere «nessuno era presente» da «erano in
+		// due», che e' precisamente cio' che la contesa aggiunge alla partita.
 		if (const FString* Gemello = TestoPerEsito.Find(Testo))
 		{
 			AddError(FString::Printf(TEXT("%s e %s si leggono identici: '%s'"),
-				*Voce.Value, **Gemello, *Testo));
+				*Nome, **Gemello, *Testo));
 		}
 		else
 		{
-			TestoPerEsito.Add(Testo, Voce.Value);
+			TestoPerEsito.Add(Testo, Nome);
 		}
 	}
 
-	// Il controllo, che distingue «il rendering dell'obiettivo e' sbagliato» da «il rendering e' sbagliato».
+	// Il controllo di combattimento, che distingue «il rendering dell'obiettivo e' sbagliato» da «il rendering
+	// e' sbagliato». ⚠️ Duplica quello di `EnvironmentEntriesAreNotNarratedAsCombat`: estrarlo tocca un test
+	// gia' mergiato, ed e' FOLLOW-UP -- un helper usato da uno solo non e' un helper.
 	const FRTTurnLogEntry Colpo = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
 		static_cast<uint8>(ERTCombatOutcome::Hit), O, O, /*Amount*/ 2);
 	TestTrue(TEXT("un colpo vero resta un colpo"),
