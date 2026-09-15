@@ -76,8 +76,25 @@ non erano nella misura del 2026-08-12.
 
 | Fatto | Evidenza |
 |---|---|
-| **Non esiste uno stato «nessuna abilità armata».** `SelectedAbilityIndex` nasce a `0` e nessuno lo riporta a un valore non valido: le sole scritture sono `ARTUnit::SelectAbility`, chiamata dagli hotkey, e l'harness | `RTUnit.h:170` · `ARTUnit::SelectAbility` (`RTUnit.cpp:525-531`) · `RTPlayerController.cpp:785` · `RTScenarioSession.cpp:473` |
+| ~~**Non esiste uno stato «nessuna abilità armata».** `SelectedAbilityIndex` nasce a `0` e nessuno lo riporta a un valore non valido: le sole scritture sono `ARTUnit::SelectAbility`, chiamata dagli hotkey, e l'harness~~ — ✅ **superata**, vedi il riquadro sotto la tabella | `RTUnit.h:170` · `ARTUnit::SelectAbility` (`RTUnit.cpp:525-531`) · `RTPlayerController.cpp:785` · `RTScenarioSession.cpp:473` |
 | **Tre campi di piano sono consumati dal resolver e non hanno produttore nel gioco.** `PlannedAttackCell`/`bAttackTargetsCell`, `PlannedCoverEdge`/`bHasPlannedCoverEdge`, `PlannedFacing`/`bDeclaresPlannedFacing` sono letti dal `TurnManager`, ma le sole assegnazioni fuori dai test stanno nello Scenario Harness | letture: `RTTurnManager.cpp:2036-2045,2329-2333,3239-3241,4972-4980` · scritture: `RTScenarioSession.cpp:666-675` — **nessuna** in `Player/` o `UI/` |
+
+> ## ✅ La prima riga è superata — misurato il 2026-09-15 su `main` @ `b0d7de96`
+>
+> **Il neutro esiste, ed è rappresentabile.** `ARTUnit::SelectedAbilityIndex` nasce a `INDEX_NONE`
+> (`Source/RefactorTactics/Unit/RTUnit.h:281`) e `ARTUnit::SelectAbility` accetta `INDEX_NONE` come
+> **disarmo dichiarato** (`RTUnit.cpp:1747-1756`: *«senza di esso non esisterebbe un modo di tornare allo
+> stato neutro di [D-128], e `RMB` non potrebbe uscire da un targeting»*). Il canale che lo produce in
+> partita è `ARTPlayerController::SelectAbilityForCurrent`, che dichiara `INDEX_NONE` un ingresso legittimo
+> col proprio ramo di uscita.
+>
+> ⚠️ **La conseguenza va letta fino in fondo**: il contesto `Planning` della tabella di §4 — *«unità propria
+> selezionata, nessuna abilità armata»* — **non è più** «ciò che CP 11.8 deve costruire». È lo stato di
+> riposo di ogni unità appena selezionata, e [D-128] è implementabile perché il neutro in cui il click
+> ispeziona adesso c'è.
+>
+> ⛔ **Il riquadro non cancella la riga**: resta barrata come misura d'origine, per la stessa disciplina con
+> cui è trattata la seconda.
 
 La seconda riga si verifica in un comando, e conviene rifarla invece di crederci:
 
@@ -176,11 +193,15 @@ dell'interazione, e vale insieme alla fase.
 > chiama «`LMB` non deve avere due significati concorrenti nello stesso stato»: qui non ce l'ha, perché gli
 > stati sono due.
 
-> 🔴 **`Planning` non è rappresentabile oggi**, ed è la voce 4 di §2.1: `SelectedAbilityIndex` nasce a `0` e
+> ~~🔴 **`Planning` non è rappresentabile oggi**, ed è la voce 4 di §2.1: `SelectedAbilityIndex` nasce a `0` e
 > nessuno lo riporta a un valore non valido, quindi un'abilità è **sempre** armata e il contesto neutro non
 > esiste. La riga della tabella dice «nessuna abilità armata» perché è ciò che CP 11.8 deve costruire, non
 > ciò che si misura. Senza quello stato, [D-128](../../decisions/RT_PDR_00_Decision_Log.md) non è implementabile:
-> non c'è un «neutro» in cui il click possa ispezionare.
+> non c'è un «neutro» in cui il click possa ispezionare.~~
+>
+> ✅ **Superata — misurato il 2026-09-15 su `main` @ `b0d7de96`** (riquadro di §2.1). `SelectedAbilityIndex`
+> nasce a `INDEX_NONE` e il disarmo è un ingresso dichiarato: `Planning` **è** lo stato di riposo, e
+> [D-128](../../decisions/RT_PDR_00_Decision_Log.md) ha il neutro in cui il click ispeziona.
 
 ### `Targeting` ha un `TargetKind`
 
@@ -500,6 +521,52 @@ avrebbe creato una seconda fonte di verità accanto a due che lo dicevano già.
 > `BLOCKED` e la suite resta **verde**. `RefactorTactics.Scenario.DeclaredRotationScenariosPass` pinna
 > l'esito a `Pass` — la stessa disciplina di #601 per la reazione. Quando una capability atterra, l'ancora
 > va scritta **nello stesso commit**.
+
+### 6.6 ⛔ Aperta — il giocatore non può cambiare unità dalla tastiera, e l'ordine di dichiarazione non è nella matrice
+
+> Issue: [#3145](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3145).
+
+Misurato il **2026-09-15** su `main` @ `b0d7de96`, da uno spec panel sull'atto del giocatore.
+
+**(1) Nessun ciclo di selezione.** `git grep -n "EKeys::Tab" -- Source/` non stampa nulla: la sola via per
+cambiare unità è cliccarla nel mondo (`SelectAction`) o nel roster HUD (§5.2). ⚠️ **Non è una comodità
+mancante**: [`progettazione-hud.md`](progettazione-hud.md) §47-bis.2 chiede *percorso tastiera e controller
+equivalente a quello del mouse* per ogni Decision Window, e la selezione dell'unità è il primo gesto di
+ognuna. La forma proposta, che resta da decidere:
+
+```text
+TAB        la propria unità successiva fra quelle VIVE e NON ancora in lock-in
+ordine     id stabile — mai l'ordine di iterazione degli Actor
+armato     lo stato di targeting dell'unità lasciata è CONSERVATO
+```
+
+🔴 **L'ordine stabile è un requisito, non uno stile**: un ciclo che dipendesse dall'iterazione degli Actor
+renderebbe non riproducibile un input di planning — la disciplina per cui `FRTActionInstance` porta un
+`SourceUnitId` intero e non un pointer.
+
+⚠️ **E «conserva l'armato» ha un prezzo che va pagato nello stesso lavoro**: un'unità può restare in
+`Targeting` mentre il giocatore ne guarda un'altra, e quello stato riemerge al commit. L'HUD deve dire
+**quali unità hanno una dichiarazione incompleta** prima del lock-in, o `TAB` diventa un modo silenzioso di
+perdere un turno.
+
+**(2) La matrice non dice in che ORDINE si dichiara.** §5.1 dice cosa fa un click in ciascun contesto, ma
+non che dopo aver confermato un bersaglio si **torna a poter posare waypoint**: l'arco
+`Targeting → Pathing` non compare in §4, e oggi `HandleClickOnCell` esce dal ramo `Targeting` con un
+`return` (`RTPlayerController.cpp:1917-1930`). L'arco proposto:
+
+| Da | Input | A | Effetto |
+|---|---|---|---|
+| `Targeting` | `LMB` su bersaglio legale | `Pathing` | bersaglio scritto; il movimento resta dichiarabile |
+
+⛔ **Non tocca il `RMB`**: §5.5 resta parola per parola, e il movimento resta su `LMB` — la variante
+«`RMB` = muovi qui» è stata esaminata il 2026-09-15 e **scartata**, perché `Esc` è già `PauseAction`
+(`RTPlayerController.cpp:609`) e il targeting resterebbe senza uscita sul dispositivo in uso.
+
+⚠️ **Ciò che succede ai waypoint quando il profilo cambia NON è di questa voce**: lo possiede
+[#1410](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1410) (*«il percorso già disegnato
+deve reagire al cambio di profilo»*), ed è in review in
+[#3124](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3124), che ha scelto il **reset** con la
+motivazione di [D-070] — il percorso si ridichiara.
 
 ---
 

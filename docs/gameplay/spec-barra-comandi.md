@@ -95,7 +95,7 @@ l'Overwatch **non è una regola a sé**: lo slot è già impegnato, quindi è un
 
 ⚠️ **`Withdraw` non ha una `Stability` nella tabella di `D-116`**, che ne dichiara quattro — fermo `3`,
 `Sneak` `2`, `Move` `1`, `Sprint` `0`. Il catalogo gli dà oggi `1` **come segnaposto dichiarato**
-(`Source/RefactorTactics/Ability/RTMovementProfileLibrary.cpp:70`), ed è taratura di
+(`Source/RefactorTactics/Ability/RTMovementProfileLibrary.cpp:84`), ed è taratura di
 [#606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/606).
 
 ### 3.2 Chi riserva lo slot è un DATO, non un `if`
