@@ -1875,6 +1875,37 @@ FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Sna
 	}
 }
 
+int32 ARTPlayerController::TruncateWaypointsToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+	TArray<FRTCellId>& Waypoints, int32 StepBudget, int32 CostBudget, FRTHexPathResult& OutPath)
+{
+	OutPath = FRTHexPathResult();
+
+	int32 Dropped = 0;
+	while (Waypoints.Num() > 0)
+	{
+		const FRTHexPathResult Path = URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, Waypoints);
+		// I passi sono le celle ATTRAVERSATE: la partenza non si percorre ([D-117] voce 1). E' la stessa
+		// riga di `CycleMovementProfile`, e viene da li'.
+		const int32 Steps = FMath::Max(0, Path.Path.Num() - 1);
+		if (Path.Status == ERTHexPathStatus::Success && Steps <= StepBudget && Path.TotalCost <= CostBudget)
+		{
+			OutPath = Path;
+			return Dropped;
+		}
+
+		// ⚠️ `Pop` e non un taglio di `Path`: si scarta la DICHIARAZIONE del giocatore, non il percorso
+		// calcolato. Togliere celle da `Path` lascerebbe `Waypoints` a promettere una destinazione che il
+		// piano non raggiunge piu', ed e' la divergenza fra i due campi che `RebuildPlannedPath` esiste per
+		// impedire.
+		Waypoints.Pop();
+		++Dropped;
+	}
+
+	// Nessun waypoint regge: l'unita' resta dov'e'. ⛔ Non e' un caso degenere da trattare a parte nel
+	// chiamante — un `StepBudget` di `0` ci finisce per costruzione, ed e' la risposta giusta.
+	return Dropped;
+}
+
 void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 {
 	// `#2518` — scrive `PlannedWaypoints`/`PlannedPath` e riaccende l'anteprima. Era la porta piu' grande
@@ -2542,22 +2573,63 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
-	// 🔴 **Un'azione che RISERVA lo slot movimento azzera il piano gia' dichiarato** ([D-401], innesco
-	// «imposto»; `AC-5` nei due ordini).
+	// 🔴 **Un'azione che RISERVA lo slot movimento TRONCA il piano gia' dichiarato al budget del profilo
+	// riservato** ([D-401], innesco «imposto»; `AC-5` nei due ordini).
 	//
-	// ⚠️ **I due inneschi di D-401 differiscono, ed e' voluto**: un percorso corto sopravvive a un cambio
-	// VOLONTARIO di profilo e non sopravvive qui. La ragione e' [D-070] — il `Withdraw` *«si pianifica in
-	// Planning insieme al settore e al facing»*, cioe' e' parte della dichiarazione dell'Overwatch, non un
-	// profilo scelto sopra un movimento che esisteva gia'. Il percorso si RIDICHIARA.
+	// ⏱️ *Fino al 2026-09-15 lo AZZERAVA*, e i due inneschi di [D-401] differivano: un percorso corto
+	// sopravviveva a un cambio VOLONTARIO di profilo e non sopravviveva qui, con la ragione che il
+	// `Withdraw` *«si pianifica in Planning insieme al settore e al facing»* ([D-070]).
 	//
-	// ⛔ E il rifiuto registrato si azzera col piano ([D-404]): il piano di cui faceva parte non esiste piu'.
+	// 🔑 **Cio' che [D-070] riserva e' il PROFILO, non il percorso**, e la distinzione regge il cambio: chi
+	// arma l'Overwatch non sceglie il `Withdraw` — quello resta imposto — ma il percorso che *sta* nel
+	// `Withdraw` e' un percorso legale, e cancellarlo faceva ricliccare una dichiarazione che il budget
+	// nuovo accettava. Col troncamento la regola dei due inneschi diventa una sola: **si tiene cio' che il
+	// profilo nuovo consente**.
+	//
+	// ⛔ E il rifiuto registrato si azzera **solo se il piano e' cambiato** ([D-404]): un percorso che regge
+	// intatto porta con se' il proprio rifiuto, come nell'innesco volontario.
 	if (!Ability->Def.ReservesMovementProfileId.IsNone())
 	{
-		Unit->PlannedWaypoints.Reset();
-		Unit->PlannedPath.Reset();
-		Unit->PlannedCell = Unit->Cell;
-		Unit->ClearMovePlanRejection();
 		Unit->PlannedMovementProfileId = Ability->Def.ReservesMovementProfileId;
+
+		const FRTMovementProfile Reserved =
+			URTMovementProfileLibrary::FindProfile(Ability->Def.ReservesMovementProfileId);
+		const int32 UnitRange = Unit->GetEffectiveMoveRange();
+		const int32 Steps = Reserved.ResolveStepBudget(UnitRange);
+		const int32 Cost = Reserved.ResolveMoveBudget(UnitRange);
+
+		int32 Dropped = 0;
+		if (Unit->PlannedWaypoints.Num() > 0)
+		{
+			FRTHexSnapshot Snapshot;
+			int32 UnitId = INDEX_NONE;
+			if (PlanningSnapshotFor(this, Unit, Snapshot, UnitId))
+			{
+				FRTHexPathResult Kept;
+				Dropped = TruncateWaypointsToBudget(
+					Snapshot, UnitId, Unit->PlannedWaypoints, Steps, Cost, Kept);
+				Unit->PlannedPath = Kept.Path;
+				Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
+			}
+			else
+			{
+				// ⛔ Senza snapshot il budget non e' misurabile, e un percorso tenuto **senza** averlo
+				// verificato sarebbe peggio di uno perso: si ricade sull'azzeramento, che e' il
+				// comportamento precedente, e lo si dichiara nel log invece di lasciarlo sembrare un taglio.
+				Dropped = Unit->PlannedWaypoints.Num();
+				Unit->PlannedWaypoints.Reset();
+				Unit->PlannedPath.Reset();
+				Unit->PlannedCell = Unit->Cell;
+				UE_LOG(LogRT, Warning,
+					TEXT("[RT] %s non e' nello snapshot: piano azzerato invece che troncato"),
+					*Unit->GetName());
+			}
+		}
+
+		if (Dropped > 0)
+		{
+			Unit->ClearMovePlanRejection();
+		}
 
 		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
 		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
@@ -2565,8 +2637,10 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 			HM->SetPreviewPath(Unit->PlannedPath);
 		}
 		RefreshPlanningPreview(GetWorld(), Unit);
-		UE_LOG(LogRT, Display, TEXT("[RT] %s: slot movimento riservato a %s — il piano si ridichiara"),
-			*Unit->GetName(), *Ability->Def.ReservesMovementProfileId.ToString());
+		UE_LOG(LogRT, Display,
+			TEXT("[RT] %s: slot movimento riservato a %s — %d waypoint scartati, ne restano %d (passi %d, asperita' %d)"),
+			*Unit->GetName(), *Ability->Def.ReservesMovementProfileId.ToString(),
+			Dropped, Unit->PlannedWaypoints.Num(), Steps, Cost);
 	}
 
 	if (Ability->bSelfTarget)
@@ -2849,14 +2923,24 @@ void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Valu
 		Reason = TEXT("percorso non piu' percorribile");
 	}
 
-	UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: %s — piano azzerato (%s: %d passi/%d, costo %d/%d)."),
-		*Next.Id.ToString(), Reason, PathSteps, NewSteps, Composite.TotalCost, NewCost);
+	// ⏱️ *Fino al 2026-09-15 il piano si AZZERAVA qui.* Ora si **tronca**: si scartano i waypoint dalla fine
+	// finche' cio' che resta sta nel budget nuovo, e il giocatore riparte da dove il profilo lo lascia
+	// arrivare invece che da capo. Il perche' del taglio per waypoint interi sta su
+	// `TruncateWaypointsToBudget`.
+	FRTHexPathResult Kept;
+	const int32 Dropped =
+		TruncateWaypointsToBudget(Snapshot, UnitId, Unit->PlannedWaypoints, NewSteps, NewCost, Kept);
+	Unit->PlannedPath = Kept.Path;
+	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
 
-	Unit->PlannedWaypoints.Reset();
-	Unit->PlannedPath.Reset();
-	Unit->PlannedCell = Unit->Cell;
-	// ➕ [D-404]: col percorso azzerato il rifiuto e' azzerato con lui — non perche' il cambio di profilo lo
-	// tocchi, ma perche' il piano di cui faceva parte non esiste piu'.
+	UE_LOG(LogRT, Log,
+		TEXT("[RT] Profilo di movimento: %s — %d waypoint scartati (%s: %d passi/%d, costo %d/%d), ne restano %d."),
+		*Next.Id.ToString(), Dropped, Reason, PathSteps, NewSteps, Composite.TotalCost, NewCost,
+		Unit->PlannedWaypoints.Num());
+
+	// ➕ [D-404]: il rifiuto si azzera col PIANO CAMBIATO — non perche' il cambio di profilo lo tocchi, ma
+	// perche' il piano di cui faceva parte non e' piu' quello. ⛔ Qui `Dropped > 0` per costruzione: si
+	// arriva a questa riga solo dal ramo in cui il percorso NON reggeva.
 	Unit->ClearMovePlanRejection();
 
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
