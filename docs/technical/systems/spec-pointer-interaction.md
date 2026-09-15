@@ -535,10 +535,23 @@ equivalente a quello del mouse* per ogni Decision Window, e la selezione dell'un
 ognuna. La forma proposta, che resta da decidere:
 
 ```text
-TAB        la propria unità successiva fra quelle VIVE e NON ancora in lock-in
+TAB        la propria unità successiva fra quelle VIVE e che non hanno DICHIARATO il piano
 ordine     id stabile — mai l'ordine di iterazione degli Actor
 armato     lo stato di targeting dell'unità lasciata è CONSERVATO
+Enter      dichiara (e ritratta) «ho deciso le mosse di questa unità»
 ```
+
+> ✅ **Il filtro ha un soggetto dal 2026-09-15**, e prima non ce l'aveva. La stesura di questa voce diceva
+> «non ancora in lock-in», ma il lock-in è del **turno** (`ARTTurnManager::LockInAndResolve`) e `ARTUnit` non
+> portava alcuno stato di dichiarazione conclusa. Decisione d'autore: lo stato è **dichiarato**, non derivato
+> dai campi `Planned*` — `ARTUnit::bTurnPlanDeclared`, implementato in
+> [#3149](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3149).
+>
+> 🔑 **Il caso che ha deciso**: un'unità che ha scelto di **non fare niente** è conclusa quanto le altre, e
+> nessuna formula sui campi la distingue da una che non è stata ancora guardata.
+>
+> ⛔ **`Enter` non è `SpaceBar`**: quello chiude il turno per tutti, questo chiude la dichiarazione di una
+> unità e non risolve niente. La matrice di §5.5 non cambia.
 
 🔴 **L'ordine stabile è un requisito, non uno stile**: un ciclo che dipendesse dall'iterazione degli Actor
 renderebbe non riproducibile un input di planning — la disciplina per cui `FRTActionInstance` porta un
