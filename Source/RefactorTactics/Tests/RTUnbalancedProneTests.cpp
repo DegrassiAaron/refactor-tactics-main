@@ -1111,39 +1111,65 @@ bool FRTStunDeniesActionNotMovementTest::RunTest(const FString&)
 /**
  * 🔴 **Lo stordimento cancella l'azione principale, e il turno DICE perche'.**
  *
- * Due bracci, e il primo e' obbligatorio: senza, uno zero danni non distingue *«l'azione e' stata
+ * Due bracci, e il primo e' obbligatorio: senza, uno zero colpi non distingue *«l'azione e' stata
  * rifiutata»* da *«il banco non colpisce comunque»*. Il braccio `A` fissa che il colpo arrivi davvero; solo
  * allora lo zero del braccio `B` significa qualcosa.
  *
- * ⚠️ **Si asserisce anche la VOCE, non solo il danno mancato.** Un'azione che sparisce in silenzio e'
+ * ⚠️ **Si asserisce anche la VOCE, non solo il colpo mancato.** Un'azione che sparisce in silenzio e'
  * indistinguibile da un difetto — e' la disciplina che `Fallback`/`Cancelled` esiste per applicare, la
  * stessa del rifiuto per `Unbalanced` in `ResolveDash`. Il motivo viaggia in `Amount`.
+ *
+ * 🔑 **E il braccio `A` asserisce anche l'ASSENZA del rifiuto**: senza, un'implementazione che scrivesse la
+ * voce sempre — stordito o no — passerebbe il braccio `B` e nessuno se ne accorgerebbe.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunCancelsMainActionTest,
 	"RefactorTactics.Status.StunCancelsTheMainActionWithItsReason",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStunCancelsMainActionTest::RunTest(const FString&)
 {
-	// Torna il danno subito dal bersaglio, e riempie `OutMotivo` con il motivo letto dal TurnLog
-	// (`INDEX_NONE` se nessuna voce `Fallback`/`Cancelled` lo nomina).
-	auto DannoInflitto = [this](bool bStordito, int32& OutMotivo, FString& OutNota) -> int32
+	// Riempie `OutColpi` col numero di voci `Combat` del turno e `OutRifiutata` con true se il TurnLog porta
+	// il rifiuto per stordimento. Torna `false` se il montaggio non e' riuscito.
+	//
+	// 🔑 **Si misura il TURNLOG e non la salute, ed e' una correzione pagata.** La prima stesura confrontava
+	// `Health + Shield` prima e dopo, e il braccio di controllo tornava **-5**: lo scudo base che l'unita'
+	// riceve nel turno entra nella stessa somma, quindi il delta non era il danno. Il colpo e' un EVENTO, e
+	// l'evento e' quello che il turno registra.
+	auto GiraIlTurno = [this](bool bStordito, int32& OutColpi, bool& OutRifiutata, FString& OutNota) -> bool
 	{
-		OutMotivo = INDEX_NONE;
+		OutColpi = 0;
+		OutRifiutata = false;
 		OutNota.Reset();
 
 		UWorld* World = MakeFallWorld();
-		if (!World) { OutNota = TEXT("world non creato"); return -1; }
+		if (!World) { OutNota = TEXT("world non creato"); return false; }
 		SpawnFallMap(World, /*Radius=*/ 5);
 
 		ARTUnit* Attaccante = SpawnFallUnit(World, 0, FRTCellId(0, 0));
 		ARTUnit* Bersaglio = SpawnFallUnit(World, 1, FRTCellId(1, 0));
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-		if (!TM || !Attaccante || !Bersaglio) { DestroyFallWorld(World); OutNota = TEXT("spawn fallito"); return -1; }
+		if (!TM || !Attaccante || !Bersaglio) { DestroyFallWorld(World); OutNota = TEXT("spawn fallito"); return false; }
 
-		if (PlanCoreAttack(Attaccante, TEXT("Action.BasicAttack"), Bersaglio) == INDEX_NONE)
+		// ⛔ **L'attacco base e' quello dell'EROE, non `Action.BasicAttack` del catalogo generico.** Quella
+		// riga dichiara identita', fase e priorita' e lascia fuori DANNO e PORTATA di proposito — li mette
+		// `MakeBasicAttack` per arma (`RTCatalogLibrary.cpp:1120-1125`). Installarla con
+		// `AddCoreAbility` da' un'azione con portata 0 e nessun effetto: e' il difetto per cui il braccio di
+		// controllo di questo test, alla prima stesura, non produceva nessun colpo.
+		//
+		// Si cerca per `BaseActionId`, che e' la stessa disciplina con cui l'Overwatch trova l'arma da cui
+		// prende portata e danno (`RTTurnManager.cpp`, `Heroes.BasicAttackDeclaresItsBaseAction`).
+		int32 AttaccoBase = INDEX_NONE;
+		for (int32 A = 0; A < Attaccante->NumAbilities(); ++A)
 		{
-			DestroyFallWorld(World); OutNota = TEXT("Action.BasicAttack non installabile"); return -1;
+			const URTActionData* Arma = Attaccante->GetAbility(A);
+			if (Arma && Arma->Def.BaseActionId == FName(TEXT("Action.BasicAttack"))) { AttaccoBase = A; break; }
 		}
+		if (AttaccoBase == INDEX_NONE)
+		{
+			DestroyFallWorld(World); OutNota = TEXT("l'eroe non dichiara un attacco base"); return false;
+		}
+		Attaccante->PlannedAbilityIndex = AttaccoBase;
+		Attaccante->PlannedAttackTarget = Bersaglio;
+		Attaccante->PlannedCell = Attaccante->Cell;
 		NeutralizeAllIntents(Bersaglio);
 
 		if (bStordito)
@@ -1151,52 +1177,56 @@ bool FRTStunCancelsMainActionTest::RunTest(const FString&)
 			Attaccante->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
 		}
 
-		const int32 SaluteIniziale = Bersaglio->Health + Bersaglio->Shield;
 		RunFallTurn(TM);
-		const int32 Danno = SaluteIniziale - (Bersaglio->Health + Bersaglio->Shield);
 
-		// ⚠️ **Si cerca il motivo ATTESO, non l'ultima voce annullata.** Prendere l'ultima renderebbe il
-		// verdetto dipendente da quante altre voci il turno produce dopo — e un fallimento direbbe «il
-		// motivo e' sbagliato» dove il difetto vero e' «la voce non c'e' affatto».
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
+			if (E.Category == ERTLogCategory::Combat) { ++OutColpi; }
+
+			// ⚠️ **Si cerca il motivo ATTESO, non l'ultima voce annullata.** Prendere l'ultima renderebbe il
+			// verdetto dipendente da quante altre voci il turno produce dopo — e un fallimento direbbe «il
+			// motivo e' sbagliato» dove il difetto vero e' «la voce non c'e' affatto».
 			if (E.Category == ERTLogCategory::Fallback
 				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
 				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned))
 			{
-				OutMotivo = E.Amount;
-				break;
+				OutRifiutata = true;
 			}
 		}
 
-		OutNota = FString::Printf(TEXT("stordito=%d | danno=%d | motivo=%d"),
-			bStordito ? 1 : 0, Danno, OutMotivo);
+		OutNota = FString::Printf(TEXT("stordito=%d | colpi=%d | rifiutata=%d"),
+			bStordito ? 1 : 0, OutColpi, OutRifiutata ? 1 : 0);
 
 		DestroyFallWorld(World);
-		return Danno;
+		return true;
 	};
 
-	int32 MotivoA = INDEX_NONE;
-	FString NotaA;
-	const int32 DannoA = DannoInflitto(/*bStordito=*/ false, MotivoA, NotaA);
-
-	int32 MotivoB = INDEX_NONE;
-	FString NotaB;
-	const int32 DannoB = DannoInflitto(/*bStordito=*/ true, MotivoB, NotaB);
-
-	// (A) IL CONTROLLO. Senza questo, lo zero del caso (B) non e' una misura.
-	if (!TestTrue(FString::Printf(TEXT("A — non stordito, l'attacco arriva [%s]"), *NotaA), DannoA > 0))
+	int32 ColpiA = 0; bool RifiutataA = false; FString NotaA;
+	if (!TestTrue(TEXT("il montaggio A regge"), GiraIlTurno(/*bStordito=*/ false, ColpiA, RifiutataA, NotaA)))
 	{
 		return false;
 	}
 
-	// (B) IL CUORE.
-	TestEqual(FString::Printf(TEXT("B — stordito, nessun danno [%s]"), *NotaB), DannoB, 0);
-	TestEqual(TEXT("e il turno dice PERCHE': il motivo e' lo stordimento"),
-		MotivoB, static_cast<int32>(ERTActionInvalidReason::Stunned));
+	int32 ColpiB = 0; bool RifiutataB = false; FString NotaB;
+	if (!TestTrue(TEXT("il montaggio B regge"), GiraIlTurno(/*bStordito=*/ true, ColpiB, RifiutataB, NotaB)))
+	{
+		return false;
+	}
 
-	// La frase che il giocatore legge esiste e non e' la resa generica: e' la stessa proprieta' che
-	// `RefactorTactics.Actions.SprintRefusedOnRough` sorveglia per il proprio motivo.
+	// (A) IL CONTROLLO. Senza questo, lo zero del caso (B) non e' una misura: direbbe «non ha colpito» anche
+	// se il banco non colpisse comunque.
+	if (!TestTrue(FString::Printf(TEXT("A — non stordito, il colpo c'e' [%s]"), *NotaA), ColpiA > 0))
+	{
+		return false;
+	}
+	TestFalse(TEXT("A — e nessuna voce parla di stordimento"), RifiutataA);
+
+	// (B) IL CUORE.
+	TestEqual(FString::Printf(TEXT("B — stordito, nessun colpo [%s]"), *NotaB), ColpiB, 0);
+	TestTrue(TEXT("B — e il turno dice PERCHE': la voce porta il motivo `Stunned`"), RifiutataB);
+
+	// La frase che il giocatore legge esiste e non e' la resa generica: e' la stessa proprieta' che il giro
+	// sull'enum di `DescribeInvalidReason` sorveglia per ogni motivo nuovo.
 	const FString Detto = URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::Stunned);
 	TestNotEqual(TEXT("il motivo e' tradotto, non generico"), Detto, FString(TEXT("non eseguibile")));
 
@@ -1204,31 +1234,42 @@ bool FRTStunCancelsMainActionTest::RunTest(const FString&)
 }
 
 /**
- * 🔴 **Chi e' stordito non reagisce, e l'Overwatch che aveva armato non spara.**
+ * 🔴 **Un guardiano stordito non spara, e le due strade per cui non spara sono DUE regole diverse.**
  *
  * Stesso banco della caduta — il guardiano ha il varco davanti a se' — perche' la geometria e' gia' stata
  * pagata li': il commento di `ProneDisarmsOverwatchAndSpendsCharge` spiega perche' un montaggio ingenuo
  * finisce per misurare la rotazione del facing invece del disarmo.
  *
- * ⚠️ **Qui non c'e' spinta, e per questo bastano DUE bracci invece di tre**: fra il caso di controllo e
- * quello sotto esame cambia **una** cosa sola — lo stato. Il terzo termine serviva li' perche' il guardiano
- * veniva anche spostato.
+ * ⚠️ **TRE bracci, e ciascuno isola una cosa sola.**
+ *   `A` guardiano lucido — fissa che in questo montaggio l'Overwatch spari davvero. Senza, gli zeri di `B`
+ *       e `C` non sarebbero misure.
+ *   `B` gia' stordito PRIMA del turno — non arriva nemmeno ad armare: armare costa l'azione principale
+ *       (catalogo §1) e lo stordimento la nega nel **Prep**.
+ *   `C` arma, e viene stordito DOPO — nel Blast, da un'azione nemica. Qui l'Overwatch c'e' ed e'
+ *       `DisarmPreparedReactions` a spegnerlo, cioe' la stessa funzione che usa `Prone`.
  *
- * 🔑 **La strada che si misura e' la guardia di inizio turno**, quella che rimette in
- * `ReactionBlockedThisTurn` chi e' ancora stordito: e' cio' che rende vero il divieto nel turno `N+1`, il
- * primo in cui lo stordimento ha davvero un'azione e una reazione da togliere.
+ * 🔑 **`C` e' il braccio che misura la riga di [D-416] «disattiva cio' che l'unita' aveva armato»**, e
+ * senza di lui il test direbbe solo che uno stordito non puo' armare — che e' vero, ma e' un'altra frase.
  *
- * ⛔ **La charge spesa NON e' coperta da qui.** Quel ramo di `DisarmPreparedReactions` resta pinnato da
- * `ProneDisarmsOverwatchAndSpendsCharge`, che dopo l'estrazione attraversa la stessa funzione: dichiarato
- * come copertura indiretta invece che sottinteso come copertura propria.
+ * ⏱️ **La prima stesura aveva due bracci e il braccio `B` FALLIVA**, con `danno=16`: il rifiuto
+ * dell'azione principale esisteva nel solo Blast, e l'Overwatch si arma nel Prep. Il difetto era nel
+ * prodotto, non nel banco, ed e' stato corretto aggiungendo il secondo sito del rifiuto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunSilencesTheWatcherTest,
 	"RefactorTactics.Status.StunSilencesAnArmedWatcher",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
 {
-	auto DannoNelVarco = [this](bool bStordito, FString& OutNota) -> int32
+	// Quando lo stordimento colpisce il guardiano.
+	enum class EQuando : uint8 { Mai, PrimaDelTurno, NelBlast };
+
+	// `OutDecisioni` conta le finestre di reazione decise — e' il vero soggetto: l'Overwatch che spara e'
+	// un EVENTO, e un delta di salute non lo e'. `OutRifiutataInPrep` distingue il braccio `B` dal `C`.
+	auto DannoNelVarco = [this](EQuando Quando, int32& OutDecisioni, bool& OutRifiutataInPrep,
+		FString& OutNota) -> int32
 	{
+		OutDecisioni = 0;
+		OutRifiutataInPrep = false;
 		OutNota.Reset();
 
 		UWorld* World = MakeFallWorld();
@@ -1259,9 +1300,43 @@ bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
 		Watcher->PlannedAbilityIndex = OverwatchIdx;
 		Watcher->PlannedCell = Watcher->Cell;
 
-		if (bStordito)
+		if (Quando == EQuando::PrimaDelTurno)
 		{
 			Watcher->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+		}
+
+		// LO STORDITORE, solo per il braccio `C`. Sta a OVEST del guardiano — dietro di lui, fuori dal
+		// corridoio sorvegliato — perche' il banco non misuri per sbaglio un'occlusione.
+		//
+		// ⛔ **L'azione e' SINTETICA e dichiarata qui**: [D-416] non assegna produttori allo stordimento, e
+		// nessuna azione di catalogo lo infligge. Costruirla e' l'unico modo di misurare il percorso vero —
+		// l'applicazione passa da `ApplyStatusLogged`, quindi da `DisarmPreparedReactions` — ed e' lo stesso
+		// idioma di `MakePush2Def` in `RTControlActionTests`. La forma copia `Action.Root`
+		// (`RTCatalogLibrary.cpp`): fase `Control`, effetto `Status`, aggressione dichiarata.
+		if (Quando == EQuando::NelBlast)
+		{
+			ARTUnit* Storditore = SpawnFallUnit(World, 1, FRTCellId(-3, 0));
+			if (!Storditore) { DestroyFallWorld(World); OutNota = TEXT("storditore non spawnato"); return -1; }
+
+			URTActionData* Azione = NewObject<URTActionData>(Storditore);
+			FRTActionDef Def;
+			Def.ActionId = TEXT("Test.Stun");
+			Def.ResolutionPhase = ERTResolutionPhase::Control;
+			Def.Priority = 25;
+			Def.RangeCells = 3;
+			Def.CooldownTurns = 0;
+			Def.Fallback = ERTActionFallback::Cancel;
+			Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Stunned,
+				URTCombatLibrary::StunnedDurationTurns));
+			Def.bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo [`INT-8`]
+			Azione->Def = Def;
+			Azione->RangeCells = Def.RangeCells;
+			Azione->Power = 0;
+			Storditore->Abilities.Add(Azione);
+
+			Storditore->PlannedAbilityIndex = Storditore->Abilities.Num() - 1;
+			Storditore->PlannedAttackTarget = Watcher;
+			Storditore->PlannedCell = Storditore->Cell;
 		}
 
 		Mover->PlannedAbilityIndex = INDEX_NONE;
@@ -1272,33 +1347,61 @@ bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
 		RunFallTurn(TM);
 		const int32 Danno = SaluteIniziale - (Mover->Health + Mover->Shield);
 
-		int32 Opportunita = 0;
 		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
 		{
-			if (E.Category == ERTLogCategory::ReactionDecision) { ++Opportunita; }
+			if (E.Category == ERTLogCategory::ReactionDecision) { ++OutDecisioni; }
+
+			// Il rifiuto dell'azione principale nel **Prep**: e' cio' che accade a chi e' gia' stordito
+			// quando prova ad armare. Nel braccio `C` NON deve esserci — li' il guardiano arma davvero, e
+			// lo stordimento arriva dopo.
+			if (E.Phase == ERTMatchPhase::Prep
+				&& E.Category == ERTLogCategory::Fallback
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned))
+			{
+				OutRifiutataInPrep = true;
+			}
 		}
 
-		OutNota = FString::Printf(TEXT("stordito=%d | mover (q=%d,r=%d) | decisioni=%d | danno=%d"),
-			bStordito ? 1 : 0, Mover->Cell.X, Mover->Cell.Y, Opportunita, Danno);
+		OutNota = FString::Printf(
+			TEXT("quando=%d | stordito=%d | mover (q=%d,r=%d) | decisioni=%d | rifiutoPrep=%d | danno=%d"),
+			static_cast<int32>(Quando), Watcher->HasStatus(TAG_Status_Stunned) ? 1 : 0,
+			Mover->Cell.X, Mover->Cell.Y, OutDecisioni, OutRifiutataInPrep ? 1 : 0, Danno);
 
 		DestroyFallWorld(World);
 		return Danno;
 	};
 
-	FString NotaA;
-	const int32 DannoA = DannoNelVarco(/*bStordito=*/ false, NotaA);
+	int32 DecisioniA = 0; bool PrepA = false; FString NotaA;
+	const int32 DannoA = DannoNelVarco(EQuando::Mai, DecisioniA, PrepA, NotaA);
 
-	FString NotaB;
-	const int32 DannoB = DannoNelVarco(/*bStordito=*/ true, NotaB);
+	int32 DecisioniB = 0; bool PrepB = false; FString NotaB;
+	const int32 DannoB = DannoNelVarco(EQuando::PrimaDelTurno, DecisioniB, PrepB, NotaB);
+
+	int32 DecisioniC = 0; bool PrepC = false; FString NotaC;
+	const int32 DannoC = DannoNelVarco(EQuando::NelBlast, DecisioniC, PrepC, NotaC);
+
+	// ⚠️ **Sul danno si asserisce `<= 0`, non `== 0`, e la ragione e' misurata.** Lo scudo base che l'unita'
+	// riceve nel turno entra nella stessa somma `Health + Shield`: il delta del braccio `B` e' **-5** anche
+	// quando non arriva un solo colpo. Il soggetto vero e' il numero di finestre decise — l'Overwatch che
+	// spara e' un evento — e il danno resta come conferma, non come misura.
 
 	// (A) IL CONTROLLO: in questo montaggio l'Overwatch spara davvero.
-	if (!TestTrue(FString::Printf(TEXT("A — guardiano lucido, l'Overwatch spara [%s]"), *NotaA), DannoA > 0))
+	if (!TestTrue(FString::Printf(TEXT("A — guardiano lucido, l'Overwatch spara [%s]"), *NotaA),
+		DannoA > 0 && DecisioniA > 0))
 	{
 		return false;
 	}
 
-	// (B) IL CUORE.
-	TestEqual(FString::Printf(TEXT("B — guardiano stordito, l'Overwatch tace [%s]"), *NotaB), DannoB, 0);
+	// (B) Gia' stordito: non arma nemmeno, perche' armare costa l'azione principale — e il turno lo DICE,
+	// con un rifiuto in fase Prep.
+	TestEqual(FString::Printf(TEXT("B — nessuna finestra aperta [%s]"), *NotaB), DecisioniB, 0);
+	TestTrue(TEXT("B — e il rifiuto e' dichiarato nel Prep, dove si sarebbe armato"), PrepB);
+	TestTrue(TEXT("B — il varco non fa male"), DannoB <= 0);
+
+	// (C) IL CUORE: aveva armato — nessun rifiuto in Prep lo prova — ed e' il DISARMO a spegnerlo.
+	TestEqual(FString::Printf(TEXT("C — nessuna finestra aperta [%s]"), *NotaC), DecisioniC, 0);
+	TestFalse(TEXT("C — e il guardiano AVEVA armato: nessun rifiuto in Prep"), PrepC);
+	TestTrue(TEXT("C — il varco non fa male"), DannoC <= 0);
 
 	return true;
 }

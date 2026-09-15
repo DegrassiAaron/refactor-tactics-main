@@ -485,6 +485,37 @@ void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Tu
 	}
 }
 
+bool ARTTurnManager::RefuseMainActionIfStunned(ARTUnit* Unit, const FRTActionDef& Def,
+	ERTMatchPhase InPhase, const FRTCellId& TargetCell)
+{
+	if (!IsValid(Unit) || !Unit->HasStatus(TAG_Status_Stunned))
+	{
+		return false;
+	}
+
+	// 🔑 **Rifiuto DICHIARATO, non scarto muto**: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi
+	// rilegge il turno vede *perche'* l'azione non c'e' stata invece di un buco — la stessa disciplina del
+	// rifiuto per `Unbalanced` in `ResolveDash`.
+	FRTTurnLogEntry Rifiutata;
+	// `InPhase` e non `Phase`: quest'ultimo e' un membro di `ARTTurnManager`, e ombreggiarlo e' un errore
+	// (`C4458`) prima ancora che una confusione. Stesso nome che usa gia' `MakeStatusDeathEntry`.
+	Rifiutata.Phase = InPhase;
+	Rifiutata.Category = ERTLogCategory::Fallback;
+	Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+	// La tripla completa, come ogni altro produttore `Fallback` ([D-196]).
+	Rifiutata.ActionId = Def.ActionId;
+	Rifiutata.BaseActionId = Def.BaseActionId;
+	Rifiutata.Priority = Def.Priority;
+	Rifiutata.SrcCell = Unit->Cell;
+	Rifiutata.TgtCell = TargetCell;
+	Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Stunned);
+	AppendLogEntry(Rifiutata, Unit);
+
+	AddLogEvent(FString::Printf(TEXT("%s: %s"),
+		*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Rifiutata)), FRTLogSubject::Unit(Unit));
+	return true;
+}
+
 void ARTTurnManager::DisarmPreparedReactions(ARTUnit* Unit)
 {
 	if (!IsValid(Unit))
@@ -3891,6 +3922,22 @@ void ARTTurnManager::ResolvePrep()
 		const URTActionData* Ability = Unit->GetAbility(Index);
 		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
 		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
+
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e il Prep e' **il primo** dei due siti
+		// in cui una principale si consuma: qui si ARMANO Overwatch e predittive, e armare costa l'azione
+		// principale (catalogo §1). Senza questa riga uno stordito armava l'Overwatch e sparava nel Move — non
+		// e' un'ipotesi, e' cio' che `Status.StunSilencesAnArmedWatcher` ha misurato prima che ci fosse.
+		//
+		// ⚠️ **L'abilita' NON si consuma**: qui il rifiuto precede `ConsumeAbility`, quindi il cooldown non
+		// parte per una scommessa che non e' stata piazzata. E' l'opposto del caso Blast, dove il piano e' gia'
+		// stato azzerato in cima al ciclo.
+		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
+			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+		{
+			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->ClearPlannedAttack();
+			continue;
+		}
 
 		// PREDITTIVA (E18 CP 18.2): si ARMA qui e risolve al boundary del Move, quindi NON entra fra le
 		// istanze che producono eventi adesso. Tenercela dentro le farebbe tradurre il proprio `Damage` in un

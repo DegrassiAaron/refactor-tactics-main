@@ -2707,6 +2707,20 @@ protected:
 	void DisarmPreparedReactions(ARTUnit* Unit);
 
 	/**
+	 * Se l'unita' e' **stordita**, cancella l'azione principale che stava per risolvere e lascia la voce che
+	 * ne dice il motivo. Torna `true` quando ha rifiutato, cioe' quando il chiamante deve saltare l'azione.
+	 *
+	 * 🔑 **Una funzione e non due blocchi**, perche' i siti sono **due**: l'azione principale si consuma nel
+	 * **Prep** (Overwatch e predittive si ARMANO li') e nel **Blast** (tutto il resto). Scrivere il rifiuto
+	 * una volta sola e' cio' che impedisce il difetto misurato la prima volta che questo lavoro ha girato la
+	 * suite: il rifiuto stava nel solo Blast, e un'unita' stordita armava l'Overwatch lo stesso.
+	 *
+	 * ⛔ **Non tocca il movimento** ([D-416]): rifiuta l'azione, non il percorso. Quello e' `Root`.
+	 */
+	bool RefuseMainActionIfStunned(ARTUnit* Unit, const FRTActionDef& Def, ERTMatchPhase InPhase,
+		const FRTCellId& TargetCell);
+
+	/**
 	 * Gli EFFETTI della caduta gravitazionale (#2430, [D-357]): danno e, per chi cade, `Exposed`.
 	 *
 	 * 🔑 **Gli effetti non sono la posizione** (`spec-caduta-e-bordi.md` §5), ed e' il motivo per cui

@@ -709,9 +709,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// (`FRTHexCombatUnit`), che non porta gli status. E' la stessa sede in cui `Status.Unbalanced` nega
 		// la corsa — un rifiuto che nasce da uno STATO di chi agisce, non da una proprieta' del bersaglio.
 		//
-		// 🔑 **Rifiuto DICHIARATO, non scarto muto**: famiglia `Fallback`/`Cancelled`, causa in `Amount`.
-		// Chi rilegge il turno vede *perche'* l'azione non c'e' stata, invece di un buco. E' la stessa
-		// disciplina del rifiuto per `Unbalanced` in `ResolveDash` e di quello per portata qui sopra.
+		// 🔑 **La forma del rifiuto vive in `RefuseMainActionIfStunned`**, non qui: i siti sono DUE — il Prep,
+		// dove Overwatch e predittive si armano spendendo la principale, e questo. La prima stesura lo aveva
+		// solo qui, e `Status.StunSilencesAnArmedWatcher` ha misurato il buco: uno stordito armava
+		// l'Overwatch e sparava nel Move.
 		//
 		// ⛔ **Non tocca il movimento**, ed e' il confine con `Root`: questo `continue` salta l'azione, non
 		// il percorso, e il Move di questa unita' risolve come se lo stordimento non ci fosse. Due stati che
@@ -720,22 +721,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ⚠️ **L'abilita' resta consumata per il turno** — il piano e' gia' azzerato in cima al ciclo —
 		// esattamente come per la corsa rifiutata a chi ha perso l'equilibrio. Il cooldown no: `MarkAbilitySpent`
 		// non viene chiamato, e paga solo cio' che ha davvero toccato la mappa.
-		if (Unit->HasStatus(TAG_Status_Stunned))
+		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Blast,
+			bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell)))
 		{
-			FRTTurnLogEntry Stordita;
-			Stordita.Phase = ERTMatchPhase::Blast;
-			Stordita.Category = ERTLogCategory::Fallback;
-			Stordita.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
-			// La tripla completa, come gli altri produttori `Fallback` di questo file ([D-196]).
-			Stordita.ActionId = Ability->Def.ActionId;
-			Stordita.BaseActionId = Ability->Def.BaseActionId;
-			Stordita.Priority = Ability->Def.Priority;
-			Stordita.SrcCell = Unit->Cell;
-			Stordita.TgtCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
-			Stordita.Amount = static_cast<int32>(ERTActionInvalidReason::Stunned);
-			AppendLogEntry(Stordita, Unit);
-			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Stordita)), FRTLogSubject::Unit(Unit));
 			continue;
 		}
 
