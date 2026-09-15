@@ -885,13 +885,49 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		}
 	}
 
+	// `Objective` **ha** un produttore non-test raggiungibile in partita -- `ARTTurnManager` nel Cleanup
+	// (`Objective.Control`), che la scrive a OGNI turno in cui la mappa ha un obiettivo, `Unclaimed` e
+	// `Contested` comprese: senza quelle due un turno conteso e un turno vuoto sarebbero indistinguibili nel
+	// log, e la contesa e' precisamente cio' che il checkpoint aggiunge alla partita. Misura in `#3110`,
+	// criterio 2.
+	//
+	// ⚠️ **`Amount` porta i PUNTI assegnati, non danni** -- zero quando l'obiettivo e' conteso o di nessuno,
+	// come dichiara la riga che lo scrive. Un lettore che somma quella colonna ottiene il punteggio.
+	//
+	// 🔑 **La collisione da cui `#3110` nasce e' viva anche qui**: `Team0Scores` e `ERTCombatOutcome::Lethal`
+	// valgono **entrambi 2**. Prima di questa guardia una squadra che segna non usciva raccontata come un
+	// attacco solo perche' il ramo qui sotto la dichiarava -- cioe' era innocua, non descritta.
+	//
+	// ⛔ **Nessun `default:`**, per la stessa ragione del blocco ambientale: un esito nuovo deve far scattare
+	// `-Wswitch`, non uscire in silenzio.
+	if (Entry.Category == ERTLogCategory::Objective)
+	{
+		switch (static_cast<ERTObjectiveOutcome>(Entry.Outcome))
+		{
+		case ERTObjectiveOutcome::Unclaimed:
+			return FString::Printf(TEXT("%s: obiettivo di nessuno%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTObjectiveOutcome::Contested:
+			return FString::Printf(TEXT("%s: obiettivo conteso, nessuno avanza%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTObjectiveOutcome::Team0Scores:
+			return FString::Printf(TEXT("%s: la squadra 0 controlla l'obiettivo (+%d)%s"),
+				*CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTObjectiveOutcome::Team1Scores:
+			return FString::Printf(TEXT("%s: la squadra 1 controlla l'obiettivo (+%d)%s"),
+				*CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		}
+	}
+
 	// ⛔ **Una categoria senza descrittore si DICHIARA, non si racconta come un attacco.** E' la riga che
 	// impedisce il ritorno di `#3110` da un altro lato: lo switch qui sotto non e' piu' raggiungibile per
 	// CADUTA, e chi aggiunge una categoria vede una frase che lo dice invece di leggere danni inventati.
 	//
-	// ⚠️ `ReactionClash` e `Objective` passano di qui oggi: non hanno un descrittore proprio, e se ne
-	// producano voci che arrivano fin qui **non e' stato misurato**. Questa riga le rende innocue, non
-	// descritte — e la misura resta un criterio aperto di `#3110`.
+	// ⚠️ **`ReactionClash` passa di qui, ed e' MISURATO** (`#3110`, criterio 2): `MakeClashLogEntries` ha
+	// tre chiamanti e sono **tutti test**. `RTScenarioSession.cpp` lo dichiara -- *«nessun punto del resolver
+	// le chiama»* -- ed e' la capability BLOCCATA di `#314`. Il suo descrittore nasce col chiamante: scriverlo
+	// adesso sarebbe la guardia a tappeto che il criterio vieta, cioe' la stessa scorciatoia che ha prodotto
+	// questo difetto. `Objective` non passa piu' di qui: ha il suo, qui sopra.
 	if (Entry.Category != ERTLogCategory::Combat)
 	{
 		return FString::Printf(TEXT("%s: voce di categoria %s senza descrittore%s"),

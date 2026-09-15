@@ -400,4 +400,95 @@ bool FRTTurnLogEnvironmentIsNotCombatTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una voce di OBIETTIVO si descrive** (`#3110`, criterio 2).
+ *
+ * `#3114` ha chiuso la caduta nello switch di combattimento, ma ha lasciato aperta la domanda che questo
+ * test risponde: `ReactionClash` e `Objective` passavano dal ramo che le DICHIARA senza descrittore, e se
+ * producessero voci reali **non era stato misurato**.
+ *
+ * Misurato su `origin/main` `b0d7de96`, e le due meta' hanno esito opposto:
+ *
+ * - `Objective` **ha** un produttore non-test raggiungibile in partita -- `ARTTurnManager`, nel Cleanup,
+ *   `Objective.Control` (`RTTurnManager.cpp:1780`), scritto a ogni turno in cui la mappa ha un obiettivo,
+ *   `Unclaimed` e `Contested` compresi. Serve il suo descrittore, ed e' questo test;
+ * - `ReactionClash` **non ne ha**: `MakeClashLogEntries` ha tre chiamanti e sono **tutti test**
+ *   (`RTOverwatchTriggerTests.cpp`). `RTScenarioSession.cpp:336` lo dichiara -- *«nessun punto del resolver
+ *   le chiama»* -- ed e' la capability BLOCCATA di `#314`. Resta al ramo che la dichiara: il suo descrittore
+ *   nascera' col chiamante, e scriverlo ora sarebbe la guardia a tappeto che il criterio vieta.
+ *
+ * `Amount` porta i PUNTI assegnati, non danni: zero quando l'obiettivo e' conteso o di nessuno -- lo
+ * dichiara la riga che lo scrive.
+ *
+ * 🔑 La collisione da cui #3110 nasce e' viva anche qui: `Team0Scores` e `ERTCombatOutcome::Lethal` valgono
+ * **entrambi 2**. Senza guardia una squadra che segna uscirebbe come un'unita' eliminata.
+ *
+ * ⛔ **Verifica di mutazione**: tolta la guardia `Category == Objective`, le voci tornano al ramo
+ * *«senza descrittore»* e i primi asserti diventano rossi; il colpo vero -- il controllo -- resta verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogObjectiveIsDescribedTest,
+	"RefactorTactics.TurnLog.ObjectiveEntriesAreDescribed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogObjectiveIsDescribedTest::RunTest(const FString&)
+{
+	// Le due celle coincidono, come le scrive il produttore: la voce non descrive uno spostamento.
+	const FRTCellId O(2, -1, 0);
+
+	auto Obiettivo = [&O](ERTObjectiveOutcome Esito, int32 Punti)
+	{
+		FRTTurnLogEntry E = MakeEntry(ERTMatchPhase::Cleanup, ERTLogCategory::Objective,
+			static_cast<uint8>(Esito), O, O, Punti);
+		E.ActionId = FName(TEXT("Objective.Control"));
+		return URTTurnLogLibrary::DescribeEntry(E);
+	};
+
+	const FString Segna = Obiettivo(ERTObjectiveOutcome::Team0Scores, /*Punti*/ 1);
+	TestFalse(TEXT("una squadra che segna non esce piu' come categoria senza descrittore"),
+		Segna.Contains(TEXT("senza descrittore")));
+	TestTrue(TEXT("dice CHI controlla l'obiettivo"), Segna.Contains(TEXT("squadra 0")));
+	TestTrue(TEXT("e quanti punti ha preso"), Segna.Contains(TEXT("+1")));
+	TestFalse(TEXT("e non elimina nessuno: `Team0Scores` e `Lethal` valgono entrambi 2"),
+		Segna.Contains(TEXT("eliminata")));
+
+	// Conteso: la voce si scrive anche quando il punteggio non si muove, ed e' voluto -- senza, un turno
+	// conteso e un turno vuoto sarebbero indistinguibili, e la contesa e' cio' che il checkpoint aggiunge.
+	const FString Conteso = Obiettivo(ERTObjectiveOutcome::Contested, /*Punti*/ 0);
+	TestFalse(TEXT("un obiettivo conteso non esce come categoria senza descrittore"),
+		Conteso.Contains(TEXT("senza descrittore")));
+	TestFalse(TEXT("e non assegna punti a nessuno"), Conteso.Contains(TEXT("+")));
+
+	// I quattro esiti devono LEGGERSI diversi: due frasi identiche renderebbero il log incapace di
+	// distinguere «nessuno era presente» da «erano in due».
+	TMap<FString, FString> TestoPerEsito;
+	const TArray<TPair<ERTObjectiveOutcome, FString>> Esiti = {
+		{ ERTObjectiveOutcome::Unclaimed,   TEXT("Unclaimed") },
+		{ ERTObjectiveOutcome::Contested,   TEXT("Contested") },
+		{ ERTObjectiveOutcome::Team0Scores, TEXT("Team0Scores") },
+		{ ERTObjectiveOutcome::Team1Scores, TEXT("Team1Scores") },
+	};
+	for (const TPair<ERTObjectiveOutcome, FString>& Voce : Esiti)
+	{
+		const bool bSegna = Voce.Key == ERTObjectiveOutcome::Team0Scores
+			|| Voce.Key == ERTObjectiveOutcome::Team1Scores;
+		const FString Testo = Obiettivo(Voce.Key, bSegna ? 1 : 0);
+		if (const FString* Gemello = TestoPerEsito.Find(Testo))
+		{
+			AddError(FString::Printf(TEXT("%s e %s si leggono identici: '%s'"),
+				*Voce.Value, **Gemello, *Testo));
+		}
+		else
+		{
+			TestoPerEsito.Add(Testo, Voce.Value);
+		}
+	}
+
+	// Il controllo, che distingue «il rendering dell'obiettivo e' sbagliato» da «il rendering e' sbagliato».
+	const FRTTurnLogEntry Colpo = MakeEntry(ERTMatchPhase::Blast, ERTLogCategory::Combat,
+		static_cast<uint8>(ERTCombatOutcome::Hit), O, O, /*Amount*/ 2);
+	TestTrue(TEXT("un colpo vero resta un colpo"),
+		URTTurnLogLibrary::DescribeEntry(Colpo).Contains(TEXT("danni")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
