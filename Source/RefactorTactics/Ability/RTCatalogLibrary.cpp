@@ -1063,9 +1063,22 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	//
 	// Lo svantaggio dello scatto lungo e' `Exposed`, dichiarato come EFFETTO: chi corre allo scoperto incassa
 	// +5 dal primo colpo. Niente di tutto cio' e' scritto nell'orchestratore.
-	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::FastMovement, /*Priority*/ 60,
+	//
+	// 🔴 **Migrato a `NormalMovement` il 2026-09-12** ([D-116] voce 1, `#641`): lo scatto **smette di
+	// sparare da una posizione nuova**, che e' cio' che il catalogo §2.1 gli attribuiva da sempre e che
+	// questo codice contraddiceva. Supera [D-068].
+	//
+	// ⚠️ **La migrazione non si fa da sola, e le voci di D-116 non sono separabili**: la fase da sola
+	// produrrebbe l'**upgrade puro** che [D-015] vieta — 8 punti contro 5, nessun cooldown, `Exposed`
+	// inerte. Gli altri due prezzi che accompagnano questa riga sono `Exposed` a **2** turni (qui sotto) e
+	// il divieto di reazione, che da oggi si valuta **sul piano** e non piu' dentro `ResolveDash`, dove
+	// uno scatto in fase Move non passa piu' (`ARTTurnManager::ValidatePlansAtLockIn`).
+	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::NormalMovement, /*Priority*/ 60,
 		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
-		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 1) },
+		// `Exposed` **2** turni ([D-116] voce 4): con lo scatto dopo il Blast, un turno solo lo renderebbe
+		// **inerte** — verrebbe applicato quando tutti hanno gia' sparato, e scadrebbe nel Cleanup subito
+		// dopo. Due turni sono cio' che restituisce allo Sprint il prezzo che la migrazione gli toglie.
+		{ FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, /*Turni*/ 2) },
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava il budget senza che
 	// nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.
@@ -1105,6 +1118,21 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Wait"), ERTResolutionPhase::NormalMovement, /*Priority*/ 100,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::None, ERTActionSlot::None));
+
+	// `Action.Withdraw` — il RIPIEGAMENTO dichiarato, **2 punti** ([D-070]).
+	//
+	// 🔴 **Non esisteva come azione fino al 2026-09-13**, e la sua assenza non era neutra: [D-070] riserva
+	// lo slot movimento di chi arma l'`Overwatch` al solo `Withdraw`, quindi senza questa voce quella
+	// riserva inchiodava l'unita' all'immobilita' invece che al ripiegamento. Il PROFILO esisteva gia'
+	// (`#653`); mancava l'azione che lo nomina, cioe' il modo di metterlo in un piano.
+	//
+	// ⚠️ **Fase `NormalMovement` come il `Move`**: il ripiegamento e' un profilo della stessa famiglia
+	// ([D-015]), non una mobilita' rapida. `Fallback::Stop` per la stessa ragione del `Move` — chi non
+	// riesce a ripiegare si ferma, non annulla il turno.
+	Catalog.Add(ShippedAction(TEXT("Action.Withdraw"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
+		/*Range (punti)*/ 2, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
+	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileWithdraw;
 
 	// `Action.Move` — il percorso normale, dopo il Blast (ADR-0003 §3). Nessun effetto dichiarato: a muovere
 	// l'unita' e' il resolver dei percorsi, che avanza a micro-step sullo snapshot. Un effetto "MoveTo" qui
@@ -1229,6 +1257,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	Catalog.Add(ShippedAction(TEXT("Action.Overwatch"), ERTResolutionPhase::Preparation, /*Priority*/ 45,
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Cancel, {},
 		ERTInterruptPolicy::None, ERTActionSlot::Main));
+	// [D-070]: armare l'Overwatch **riserva lo slot movimento al solo `Withdraw`**. Non e' un divieto di
+	// `Dash` scritto a parte — lo slot e' gia' impegnato, quindi il divieto e' una *conseguenza*.
+	Catalog.Last().ReservesMovementProfileId = URTMovementProfileLibrary::ProfileWithdraw;
 	// Come `Guard` e `Brace`: in pianificazione non si sceglie un bersaglio — l'Overwatch arma una zona, e chi
 	// entrera' nel cono e' esattamente cio' che al momento di armare non si sa. Il bersaglio si sceglie al
 	// `FIRE`, dentro la finestra, e non e' un dato di catalogo.

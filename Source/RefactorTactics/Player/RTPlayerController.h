@@ -13,6 +13,7 @@ class URTReactionWindowViewModel;
 class ARTUnit;
 struct FInputActionValue;
 struct FRTHexSnapshot;
+struct FRTHexPathResult;
 
 /**
  * Da dove arriva una richiesta di armamento, per la TRACCIA e per nient'altro.
@@ -283,6 +284,17 @@ protected:
 	TObjectPtr<UInputAction> PrepWindowPauseAction;
 
 	/**
+	 * Cicla il PROFILO DI MOVIMENTO dichiarato per l'unita' selezionata (`#1410`, `AC-1`).
+	 *
+	 * ⚠️ **Un gesto solo per tutti i profili, e non una hotkey per ciascuno.** I profili non sono azioni
+	 * ([D-015]: sono alternative sullo stesso slot), quindi non passano dalla tabella delle hotkey per
+	 * `ActionId` di `#1409` — che assegna un tasto a un'AZIONE del kit. Dargliene uno ciascuno avrebbe
+	 * dichiarato il contrario: che scegliere `Sprint` e' come premere `Guard`.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MovementProfileAction;
+
+	/**
 	 * `K`: ferma e riprende il **playback della risoluzione** (`#2858`, comandi di `#1879`).
 	 *
 	 * 🔴 **NON `P`, e la scelta va detta perche' le due pause si somigliano.** `P` e' la pausa della
@@ -520,6 +532,38 @@ public:
 	static FString DescribeWaypointRejection(const FRTHexSnapshot& Snapshot, const TArray<ARTUnit*>& Units,
 		int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget);
 
+	/**
+	 * Scarta dalla FINE i waypoint che non stanno nel budget del profilo, e restituisce quanti ne sono
+	 * caduti. `OutPath` porta il percorso sopravvissuto — vuoto quando non ne resta nessuno.
+	 *
+	 * 🔴 **Si tronca per WAYPOINT INTERI, mai a meta' segmento**, ed e' il vincolo che decide la forma di
+	 * questa funzione. Il repository rifiuta in due punti un percorso che finisca su una cella che il
+	 * giocatore non ha scelto: *«o si arriva sulla cella RICHIESTA, o lo scatto non si pianifica. Niente
+	 * scatto a meta' verso una cella che il giocatore non ha scelto — stessa disciplina dei waypoint
+	 * compositi»* (`HandleClickOnCell`, ramo della mobilita' lineare), e il waypoint che sfora torna
+	 * indietro con un `Pop` invece di lasciare un percorso a meta'. Tagliare al costo esatto produrrebbe
+	 * una destinazione che nessuno ha cliccato.
+	 *
+	 * 🔑 **Sostituisce l'azzeramento nei DUE inneschi di [D-401]**, che prima si comportavano in modo
+	 * diverso — il cambio volontario di profilo conservava un percorso corto, la riserva azzerava sempre.
+	 * Col troncamento la regola diventa una sola: *si tiene cio' che il profilo nuovo consente*. La
+	 * distinzione fra «imposto» e «volontario» resta vera per il **profilo** — chi arma l'Overwatch non
+	 * sceglie il `Withdraw` — e smette di valere per il **percorso**, che non e' cio' che [D-070] riserva.
+	 *
+	 * ⚠️ **Ricalcola il percorso a ogni scarto** invece di sottrarre i costi: `BuildCompositeHexPath` e' la
+	 * sola autorita' sul percorso composito, e un conteggio parallelo sarebbe la seconda verita' che
+	 * diverge. Il ciclo e' O(waypoint), e i waypoint sono limitati dal budget dei passi.
+	 *
+	 * @param Snapshot    lo snapshot di pianificazione.
+	 * @param UnitId      l'indice di chi pianifica nello snapshot.
+	 * @param Waypoints   i waypoint dichiarati; **modificato in luogo**.
+	 * @param StepBudget  quanti passi il profilo concede ([D-117] voce 1).
+	 * @param CostBudget  quanta asperita' il profilo assorbe ([D-117] voce 2).
+	 * @param OutPath     il percorso sopravvissuto.
+	 */
+	static int32 TruncateWaypointsToBudget(const FRTHexSnapshot& Snapshot, int32 UnitId,
+		TArray<FRTCellId>& Waypoints, int32 StepBudget, int32 CostBudget, FRTHexPathResult& OutPath);
+
 	/** Arma o disarma il gesto, come farebbe il tasto centrale (per i test). */
 	void SetOrbitingForTest(bool bInOrbiting) { bOrbiting = bInOrbiting; }
 
@@ -707,6 +751,19 @@ private:
 	 * un senso. E' la stessa scelta gia' fatta per `OnCyclePlaybackSpeed`, che pure non ne ha.
 	 */
 	void OnTogglePrepWindowPause(const FInputActionValue& Value);
+
+	/**
+	 * Cicla il profilo di movimento dell'unita' selezionata, e applica al percorso gia' disegnato la regola
+	 * di [D-401]: il cambio e' **sempre accettato**, il percorso **sopravvive** se resta legale col profilo
+	 * nuovo ed e' **azzerato** se non lo e' (`#1410` `AC-3`).
+	 *
+	 * ⛔ **Non passa da `RebuildPlannedPath`, e la differenza e' [D-404].** Quella azzera il rifiuto di
+	 * `NoteMovePlanRejection` perche' l'insieme dei waypoint e' cambiato; un cambio di profilo non ne toglie
+	 * nessuno, e applicarle lo stesso azzeramento declasserebbe **in silenzio** un «fermo: cella occupata»
+	 * vero — la falsita' esatta per cui `#79` esiste. Qui il rifiuto segue il percorso: sopravvive con lui,
+	 * si azzera con lui.
+	 */
+	void OnCycleMovementProfile(const FInputActionValue& Value);
 
 	/**
 	 * `K` — ferma o riprende il playback della risoluzione (`#2858`).

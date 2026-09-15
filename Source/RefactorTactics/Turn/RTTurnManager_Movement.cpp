@@ -23,6 +23,7 @@
 #include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
+#include "Turn/RTPlanValidationLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTReactionLibrary.h"
@@ -1170,6 +1171,10 @@ void ARTTurnManager::FinishMovementResolution()
 	// dopo PlaceOnCell. BuildMoveLog produce una voce per unita' nell'ordine dell'input.
 	// Causa dichiarata (#307): questo e' il movimento VOLONTARIO della fase Move. Scatto e spostamento
 	// forzato hanno altri produttori e dichiareranno la propria.
+	// ⚠️ **`Priority` si legge dall'azione BASE, e dopo `#1410` la distinzione conta** (`DEC-A`). La voce
+	// puo' ora portare un `ActionId` che e' un profilo (`MovementProfile.Sprint`), e `FindCoreAction` su
+	// quella chiave non troverebbe niente: il numero deve venire da `MoveCauseActionId`, che e'
+	// `Action.Move`, cioe' il `BaseActionId` della voce. Il valore non cambia — la chiave si'.
 	TArray<FRTTurnLogEntry> MoveLog = URTHexSimLibrary::BuildMoveLog(Ctx.Paths, Resolved, MoveCauseActionId,
 		URTCatalogLibrary::FindCoreAction(MoveCauseActionId).Priority);
 
@@ -1256,7 +1261,89 @@ void ARTTurnManager::FinishMovementResolution()
 		// soggetto e voce si accordano. «Chi puo' leggere che quest'unita' si e' mossa» ammette due risposte
 		// difendibili e nessuna decisione la sceglie; la traccia della rotta ne ha una terza ancora, un
 		// verdetto **per cella** (`FreezeRouteVerdicts`). Aperta in `#2148` invece che risolta qui.
+		// 🔑 **La coppia `azione base · profilo`** (`#1410` `AC-2`, `DEC-A`, [D-033]).
+		//
+		// `BaseActionId` e' l'azione generica — `Action.Move` — e `ActionId` il PROFILO con cui e' stata
+		// usata. E' la sede che il formato ha dalla versione **5** (`WithBaseActionId`, `#354`) e che
+		// dichiara di esistere proprio per questo: *«l'azione generica di cui `ActionId` e' un profilo …
+		// serve a D-033, che chiede che una traccia sia spiegabile come azione base + profilo»*.
+		//
+		// ⚠️ **Per il profilo NEUTRO i due coincidono, e non e' un caso degenere**: `DescribeAction` rende
+		// `BaseActionId == ActionId` con un nome solo — *«un'azione generica usata direttamente e' il
+		// profilo di se stessa»* — quindi la riga resta `Action.Move` esattamente come prima di `#1410`.
+		// ⛔ E l'**hash non si muove** per chi non sceglie: `BaseActionId` sta fuori dall'hash (e' una
+		// funzione di `ActionId`), e l'`ActionId` del neutro resta quello di sempre. Chi sprinta scrive un
+		// `ActionId` diverso e cambia il proprio digest — ma e' un comportamento che prima non esisteva,
+		// non una traccia esistente che cambia significato. Nessun bump di `ERTTurnLogFormatVersion`.
+		if (Units.IsValidIndex(i) && IsValid(Units[i]))
+		{
+			const FName Declared = Units[i]->PlannedMovementProfileId;
+			MoveLog[i].BaseActionId = MoveCauseActionId;
+			MoveLog[i].ActionId = Declared.IsNone()
+				? MoveCauseActionId
+				: Declared;
+		}
+
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);
+	}
+
+	// 🔴 **Gli effetti DICHIARATI dall'azione di movimento** (`#641`, [D-116]).
+	//
+	// Finche' `Action.Sprint` risolveva in `FastMovement`, il suo `Status.Exposed` lo applicava
+	// `ResolveDash`, insieme agli effetti di ogni altra mobilita' rapida. Con lo scatto spostato **dopo il
+	// Blast** quel codice non gira piu' per lui: senza questo blocco la migrazione renderebbe `Exposed`
+	// non «inerte» — che e' il difetto che [D-116] voce 4 previene alzandolo a 2 turni — ma
+	// **inesistente**, e lo Sprint perderebbe in silenzio due dei tre prezzi che paga.
+	//
+	// 🔑 **Stesso registry di Prep, Blast e Dash**: `ProduceEvents` traduce il `Def`, e l'orchestratore non
+	// sa quale stato sia ne' perche'. Un'azione di movimento che domani dichiarasse un altro effetto e'
+	// coperta senza toccare questa riga.
+	//
+	// ⚠️ **Si applica a chi ha DICHIARATO il profilo, non a chi si e' mosso davvero**, ed e' la stessa
+	// scelta del divieto di reazione in `ARTTurnManager`: [D-116] voce 3 fonda il prezzo dello Sprint
+	// sull'**impegno del turno** — *«hai speso il turno a coprire distanza»* — e difende esplicitamente il
+	// caso dell'unita' che paga per un movimento che non avviene. Legare l'effetto all'esito darebbe due
+	// regole diverse per lo stesso prezzo, e renderebbe conveniente dichiarare uno scatto impossibile.
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		ARTUnit* Unit = Units[i];
+		if (!IsValid(Unit))
+		{
+			continue;
+		}
+		for (const FRTPlannedAction& Planned : URTPlanValidationLibrary::MakePlanFor(Unit))
+		{
+			if (Planned.Def.Slot != ERTActionSlot::Movement || Planned.Def.Effects.Num() == 0)
+			{
+				continue;
+			}
+			FRTActionInstance Instance;
+			Instance.Def = Planned.Def;
+			Instance.SourceUnitId = i;
+			Instance.TargetUnitId = i; // una mobilita' del vertical slice applica i propri effetti a chi la usa
+			Instance.TargetCell = Unit->Cell;
+			// L'ordine e' l'indice dell'unita' nella risoluzione, gia' reso stabile da
+			// `SortUnitsForResolution`: non un contatore di dichiarazione, che qui non esiste.
+			Instance.EventSequence = i;
+			for (const FRTActionEvent& Event : URTActionEffectLibrary::ProduceEvents(Instance))
+			{
+				if (Event.Kind != ERTActionEffect::Status)
+				{
+					continue;
+				}
+				ApplyStatusLogged(Unit, Event.StatusTag, Event.Amount);
+				// Stessa guardia del sito del Dash: nessuna voce di nascita se `ApplyStatus` non ha
+				// applicato niente.
+				if (Event.Amount == ARTUnit::PersistentWhileOnCell || Event.Amount > 0)
+				{
+					FRTTurnLogEntry Nato = MakeStatusBirthEntry(ERTMatchPhase::Move, Event.StatusTag,
+						Unit->Cell, Event.Amount, /*bFromTerrain=*/ false);
+					AppendLogEntry(Nato, Unit);
+				}
+				AddLogEvent(FString::Printf(TEXT("%s: %s per %d turno/i"),
+					*Unit->GetName(), *Event.StatusTag.ToString(), Event.Amount), FRTLogSubject::Unit(Unit));
+			}
+		}
 	}
 	// ⛔ **Niente `AddLogEvent` per le mosse bloccate**, e la riga che c'era qui non era di troppo fin
 	// dall'inizio: e' diventata un duplicato con `#1932`.

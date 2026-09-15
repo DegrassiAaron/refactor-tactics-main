@@ -607,6 +607,23 @@ struct FRTActionDef
 	FName MovementProfileId;
 
 	/**
+	 * L'azione RISERVA lo slot movimento a un profilo solo, e questo e' quel profilo. `NAME_None` per
+	 * tutto ciò che non impone niente (`#1410` `AC-5`, [D-070]).
+	 *
+	 * Il caso che lo motiva e' uno: armare l'`Overwatch` *«riserva lo slot movimento al solo `Withdraw`,
+	 * pianificato in Planning insieme al settore e al facing»*. Il divieto di `Dash` che ne consegue
+	 * **non e' una regola a se'** — lo slot e' gia' impegnato — ed e' la ragione per cui qui basta un
+	 * profilo invece di un elenco di azioni vietate.
+	 *
+	 * 🔑 **Un dato e non un `if` sull'`ActionId`**, come per `MovementProfileId` qui sopra: un kit che
+	 * dichiarasse un'altra azione «questa ti inchioda a un ripiegamento» e' coperto senza toccare il
+	 * controller. ⚠️ Non si confonde con `Slot`: quello dice **quale** slot l'azione consuma, questo dice
+	 * a quale profilo l'azione COSTRINGE un altro slot che non consuma.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	FName ReservesMovementProfileId;
+
+	/**
 	 * Che cosa l'azione fa a una STRUTTURA di bordo (CP 9.5). `None` per tutto il resto.
 	 *
 	 * Esiste per la stessa ragione di `MovementStyle`, e la sua assenza si sarebbe pagata subito: erigere una

@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
@@ -447,46 +448,163 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// e' «Exposed aggiunge 5 al primo colpo», non l'assorbimento.
 	Runner->Shield = 0;
 
-	const int32 SprintIdx = AddSprintAbility(Runner);
 	const int32 StartHealth = Runner->Health;
 
-	// Sei celle di scatto: oltre la portata 5 dello scatto del Ranger, dentro gli 8 MP dello Sprint.
-	Runner->PlannedCell = Runner->Cell; // nessun movimento normale pianificato
-	Runner->PlannedDashAbility = SprintIdx;
-	Runner->PlannedDashCell = FRTCellId(2, 0);
+	// 🔴 **Lo Sprint si dichiara come PROFILO del movimento, non come scatto** ([D-116] voce 1, `#641`,
+	// 2026-09-12). Prima di quel giorno queste righe erano `PlannedDashAbility` + `PlannedDashCell`, perche'
+	// `Action.Sprint` risolveva in `FastMovement`: ora risolve in `NormalMovement`, cioe' e' un profilo
+	// della famiglia `Move` come [D-015] lo descrive, e si pianifica come un movimento.
+	//
+	// Sei celle: oltre i 5 punti del `Move` neutro, dentro gli 8 che il profilo dichiara.
+	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	Runner->PlannedCell = FRTCellId(2, 0);
 
-	// L'avversario resta fermo e tira su chi gli arriva davanti (Tiro, 25 danni, portata 6).
+	// Turno 1: l'avversario non spara. Da `(8,0)` il Runner e' comunque fuori dalla portata 6 del Tiro, ed
+	// e' il punto — il colpo di QUESTO turno parte prima che lo Sprint muova.
 	Foe->PlannedCell = Foe->Cell;
-	Foe->PlannedAbilityIndex = 0;
-	Foe->PlannedAttackTarget = Runner;
 
 	RunTurn(TM);
 
-	if (!TestTrue(TEXT("lo Sprint copre 6 celle: il budget e' quello del catalogo (8 MP)"),
+	if (!TestTrue(TEXT("lo Sprint copre 6 celle: il budget e' quello del profilo (8)"),
 		Runner->Cell == FRTCellId(2, 0)))
 	{
 		DestroyHexMoveWorld(World);
 		return false;
 	}
-	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «Exposed aggiunge 5 al primo
-	// colpo diretto», non «il colpo fa 30». Prima erano 25 + 5, cioe' il danno del Ranger legacy.
-	const int32 FullHit = Foe->AttackPower;
-	TestEqual(TEXT("chi ha sprintato incassa FullHit + 5 dal primo colpo diretto"),
-		StartHealth - Runner->Health, FullHit + 5);
 
-	// Controprova: stessa unita', stesso colpo, ma senza Sprint -> il danno torna nominale.
-	Runner->PlaceOnCell(FRTCellId(2, 0), FVector::ZeroVector, 100.f, 250.f);
-	Runner->ApplyCombatState(StartHealth, 0);
+	// 🔴 **Il +5 si misura sul turno DOPO, e questa e' la ragione per cui [D-116] porta `Exposed` a 2
+	// turni** (voce 4). Con lo Sprint in `NormalMovement` lo stato viene applicato **dopo** che tutti hanno
+	// sparato: con `Turni = 1` scadrebbe nel Cleanup immediatamente successivo senza che nessuna fase lo
+	// legga mai — *«lo spostamento di fase lo renderebbe inerte»*. Con `2` sopravvive al Cleanup e vale per
+	// il primo colpo del turno seguente, che e' il prezzo che lo scatto paga.
+	//
+	// ⚠️ Prima della migrazione questo test misurava il colpo dello STESSO turno, perche' lo Sprint
+	// risolveva pre-Blast. L'asserzione e' la stessa proprieta' — «chi ha corso allo scoperto incassa
+	// +5» — spostata nel turno in cui ora e' osservabile.
+	// 🔑 **Lo stato c'e' DAVVERO alla fine del turno che lo applica**, ed e' l'asserzione che separa i due
+	// modi di fallire: se cade qui il difetto e' in chi applica, se cade sul danno piu' sotto e' in chi
+	// legge. Senza, un rosso sul solo danno non direbbe quale dei due.
+	TestTrue(TEXT("dopo lo Sprint lo stato c'e': Exposed sopravvive al Cleanup del turno che lo applica"),
+		Runner->HasStatus(TAG_Status_Exposed));
+
+	// 🔴 **Lo scudo si RICARICA a fine turno, e con due turni l'azzeramento iniziale non basta piu'.**
+	// [D-224] fa scadere il temporaneo e poi chiama `RechargeBaseShield()`, cosi' che *«a fine turno ogni
+	// unita' viva ha esattamente lo scudo base»*: il `Runner->Shield = 0` in testa al test valeva finche' il
+	// colpo arrivava nello STESSO turno. Ora arriva in quello dopo, e i 5 punti tornati assorbirebbero
+	// esattamente il bonus in esame — `26 - 5 = 21`, cioe' un rosso che accusa `Exposed` di non essere stato
+	// applicato mentre lo era. Misurato con una sonda su `ApplyFirstHitDelta` il 2026-09-13.
+	Runner->Shield = 0;
+
+	const int32 HealthAfterSprint = Runner->Health;
+	Runner->PlannedMovementProfileId = NAME_None; // niente secondo scatto: lo stato in esame e' quello di prima
 	Runner->PlannedCell = Runner->Cell;
-	Runner->PlannedDashAbility = INDEX_NONE;
+	Foe->PlannedCell = Foe->Cell;
+	Foe->PlannedAbilityIndex = 0;                 // Tiro: da `(0,0)` a `(2,0)` sono due celle
+	Foe->PlannedAttackTarget = Runner;
+
+	RunTurn(TM);
+
+	// Il colpo pieno lo dichiara l'attacco base di chi spara: la proprieta' e' «Exposed aggiunge 5 al primo
+	// colpo diretto», non «il colpo fa 30».
+	const int32 FullHit = Foe->AttackPower;
+	TestEqual(TEXT("chi ha sprintato incassa FullHit + 5 dal primo colpo del turno seguente"),
+		HealthAfterSprint - Runner->Health, FullHit + 5);
+
+	// Controprova: stessa unita', stesso colpo, ma senza Sprint nel turno precedente -> danno nominale.
+	// Senza di lei il `+5` potrebbe venire dall'attacco invece che dallo stato, e il test non lo saprebbe.
+	// Lo scudo si azzera di nuovo per la ragione detta sopra: altrimenti la controprova misurerebbe
+	// `FullHit - 5` e passerebbe per il motivo sbagliato.
+	Runner->ApplyCombatState(StartHealth, 0);
+	Runner->Shield = 0;
+	Runner->PlannedCell = Runner->Cell;
 	Foe->PlannedCell = Foe->Cell;
 	Foe->PlannedAbilityIndex = 0;
 	Foe->PlannedAttackTarget = Runner;
 
 	RunTurn(TM);
 
-	TestEqual(TEXT("senza Sprint lo stesso colpo arriva nominale: il +5 viene dallo stato, non dall'attacco"),
+	TestEqual(TEXT("esaurito lo stato, lo stesso colpo arriva nominale"),
 		StartHealth - Runner->Health, FullHit);
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * `AC-2` di `#1410` e `DEC-A`: la voce di movimento si legge come **azione base · profilo**.
+ *
+ * 🔑 **La sede esiste dalla versione 5 del formato** (`WithBaseActionId`, `#354`) e dichiara di servire a
+ * [D-033] — *«una traccia dev'essere spiegabile come azione base + profilo»*. Questo test e' il fratello di
+ * `TurnLog.BasicAttackLogsBaseAndProfile`: lo stesso fatto per un'altra azione generica.
+ *
+ * ⛔ **E il formato non cambia versione**: `BaseActionId` sta fuori dall'hash, e l'`ActionId` del profilo
+ * neutro resta quello di sempre. Le due asserzioni finali lo pinnano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMoveLogsBaseAndProfileTest,
+	"RefactorTactics.TurnLog.MoveLogsBaseAndProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMap(World, /*Radius=*/ 8);
+
+	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(8, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	// Sei celle: fuori dai 5 punti del neutro, dentro gli 8 del profilo.
+	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	Runner->PlannedCell = FRTCellId(6, 0);
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	auto MoveEntryFor = [](const ARTTurnManager* Manager, const ARTUnit* Unit, FName& OutBase, FName& OutAction)
+	{
+		for (const FRTTurnLogEntry& E : Manager->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Move && E.UnitId == Unit->StableUnitId)
+			{
+				OutBase = E.BaseActionId;
+				OutAction = E.ActionId;
+				return true;
+			}
+		}
+		return false;
+	};
+
+	FName Base, Action;
+	if (!TestTrue(TEXT("il movimento ha lasciato una voce"), MoveEntryFor(TM, Runner, Base, Action)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	TestEqual(TEXT("l'azione BASE e' il Move generico"), Base, FName(TEXT("Action.Move")));
+	TestEqual(TEXT("e il profilo e' quello dichiarato"), Action,
+		URTMovementProfileLibrary::ProfileSprint);
+
+	// Controprova: il profilo NEUTRO scrive i due uguali, e `DescribeAction` li rende con un nome solo —
+	// *«un'azione generica usata direttamente e' il profilo di se stessa»*. E' cio' che tiene invariata la
+	// traccia di chi non sceglie, hash compreso.
+	ARTUnit* Walker = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2));
+	if (!Walker) { DestroyHexMoveWorld(World); return false; }
+	Walker->PlannedCell = FRTCellId(2, 2);
+	Runner->PlannedMovementProfileId = NAME_None;
+	Runner->PlannedCell = Runner->Cell;
+	Foe->PlannedCell = Foe->Cell;
+
+	RunTurn(TM);
+
+	FName WalkBase, WalkAction;
+	if (TestTrue(TEXT("anche il cammino lascia una voce"), MoveEntryFor(TM, Walker, WalkBase, WalkAction)))
+	{
+		TestEqual(TEXT("il neutro scrive l'azione base e il profilo uguali"), WalkBase, WalkAction);
+		TestEqual(TEXT("e sono l'Action.Move di sempre: l'hash non si muove"),
+			WalkAction, FName(TEXT("Action.Move")));
+	}
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -508,25 +626,35 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	SpawnHexMap(World, /*Radius=*/ 8);
 
 	ARTUnit* Runner = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0));
+	// ⚠️ **A quattro celle e non a sei, dal 2026-09-12**: con lo Sprint dopo il Blast il colpo parte dalla
+	// posizione INIZIALE ([D-116] voce 1), quindi il bersaglio dev'essere a tiro da li'. A `(6,0)` questo
+	// test misurava implicitamente la portata guadagnata scattando — cioe' proprio cio' che D-116 toglie.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(4, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	const int32 SprintIdx = AddSprintAbility(Runner);
 	const int32 FoeHealth = Foe->Health;
 	const int32 FoeShield = Foe->Shield;
 
-	Runner->PlannedDashAbility = SprintIdx;
-	Runner->PlannedDashCell = FRTCellId(3, 0);
-	Runner->PlannedAbilityIndex = 0;          // Tiro (portata 6): da (3,0) il Guardian sarebbe a tiro
+	// Lo Sprint occupa il solo slot MOVIMENTO ([D-028]): l'azione principale resta spendibile.
+	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	Runner->PlannedCell = FRTCellId(3, 0);
+	Runner->PlannedAbilityIndex = 0;          // Tiro, portata 6
 	Runner->PlannedAttackTarget = Foe;
-	Runner->PlannedCell = FRTCellId(5, 0);    // e dopo lo scatto vorrebbe pure avanzare di due celle
 	Foe->PlannedCell = Foe->Cell;
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("il movimento e' finito con lo scatto: nessun Move oltre"), Runner->Cell == FRTCellId(3, 0));
-	// L'azione principale NON e' spesa dallo sprint: il colpo parte da (3,0), dove il Guardian e' a tiro.
+	TestTrue(TEXT("lo Sprint porta il Ranger dove ha dichiarato"), Runner->Cell == FRTCellId(3, 0));
+
+	// 🔑 **E il colpo parte dalla posizione INIZIALE, non da quella nuova** — e' il punto di [D-116] voce 1:
+	// con lo Sprint dopo il Blast *«smette di sparare da una posizione nuova»*. Il Guardian e' a `(4,0)`,
+	// cioe' gia' a tiro dalla partenza `(0,0)`: il colpo arriva perche' era gia' raggiungibile, non perche'
+	// lo scatto lo abbia avvicinato.
+	//
+	// ⚠️ Prima della migrazione questo assert era vero per la ragione opposta: *«il colpo parte da (3,0),
+	// dove il Guardian sarebbe a tiro»*. Stessa asserzione, causa rovesciata — ed e' esattamente cio' che
+	// D-116 voleva cambiare.
 	TestTrue(TEXT("l'azione principale resta: il Guardian viene colpito"),
 		(Foe->Health + Foe->Shield) < (FoeHealth + FoeShield));
 

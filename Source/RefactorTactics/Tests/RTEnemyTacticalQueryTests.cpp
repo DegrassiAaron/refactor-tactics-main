@@ -137,17 +137,35 @@ namespace
 	}
 
 	/**
-	 * Lo stesso soggetto, piu' `Action.Sprint` — la mobilita' rapida A BUDGET del catalogo spedito (`#2632`).
+	 * Una mobilita' rapida **a budget**, dichiarata dal KIT e non presa dal catalogo spedito.
 	 *
-	 * ⚠️ Il budget dello scatto NON e' un parametro di questo helper: viene da `FindCoreAction`, quindi dal
-	 * catalogo. Scriverlo qui renderebbe i test una misura su una copia locale, che e' esattamente il difetto
-	 * che `BudgetComesFromTheCatalogNotAConstant` esiste per escludere.
+	 * 🔴 **Dal 2026-09-13 il catalogo di serie non ne ha piu' nessuna, ed e' una conseguenza voluta.**
+	 * `Action.Sprint` era l'unica ([#2632]), e [D-116] l'ha spostata in `NormalMovement`: **non e' piu' una
+	 * minaccia pre-Blast**, che era precisamente lo scopo della decisione. Le rapide rimaste — `Dodge`,
+	 * `Charge`, `Leap`, `Reposition` — sono tutte LINEARI.
+	 *
+	 * ⛔ **Il ramo a budget della query non e' pero' morto, e per questo va ancora coperto**: e' il
+	 * meccanismo con cui un kit puo' dichiarare uno scatto a budget, esattamente come
+	 * `Actions.KitCanDeclareAMobilityThatCostsBothSlots` copre il ramo `MovementAndMain` che nessun dato
+	 * spedito attraversa. Un ramo che nessun test percorre e' un ramo che nessuno difende.
+	 *
+	 * ⚠️ Si parte dal `Def` del catalogo e si cambia **la sola fase**: tutto il resto — il budget compreso —
+	 * resta quello spedito, cosi' `BudgetComesFromTheCatalogNotAConstant` continua a misurare il catalogo e
+	 * non una copia locale.
 	 */
-	URTHeroData* SprintHero(int32 MovePoints = 5)
+	URTActionData* MakeFastBudgetAction()
+	{
+		URTActionData* A = MakeQueryAction(TEXT("Action.Sprint"));
+		A->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+		return A;
+	}
+
+	/** Lo stesso soggetto, piu' una mobilita' rapida a budget (si veda `MakeFastBudgetAction`). */
+	URTHeroData* FastBudgetHero(int32 MovePoints = 5)
 	{
 		return MakeQueryHero(TEXT("Hero.QueryProbe"), MovePoints,
 			{ MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1),
-			  MakeQueryAction(TEXT("Action.Sprint")) });
+			  MakeFastBudgetAction() });
 	}
 
 	/** Il budget dichiarato dal catalogo per un'azione, con la stessa precedenza di `RTTurnManager.cpp:1461`. */
@@ -328,15 +346,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEnemyQueryRegionsAreStablyOrderedTest,
 bool FRTEnemyQueryRegionsAreStablyOrderedTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(5);
-	// ⚠️ `Action.Sprint` accanto a `Action.Reposition`, e la ragione e' misurata: `Reposition` e' DUE celle in
-	// linea (`RTCatalogLibrary.cpp:1259`), quindi con `MovePoints` 3 ogni sua destinazione cade DENTRO il
-	// passo e la regione dello scatto resta vuota — correttamente. Senza lo scatto a budget, il controllo di
-	// non vacuita' su `DashOnlyCells` sarebbe impossibile da soddisfare (#2632).
+	// ⚠️ Uno scatto **a budget** accanto ad `Action.Reposition`, e la ragione e' misurata: `Reposition` e'
+	// DUE celle in linea, quindi con `MovePoints` 3 ogni sua destinazione cade DENTRO il passo e la regione
+	// dello scatto resta vuota — correttamente. Senza lo scatto a budget, il controllo di non vacuita' su
+	// `DashOnlyCells` sarebbe impossibile da soddisfare (#2632).
+	//
+	// 🔴 Dal 2026-09-13 quello a budget lo dichiara il KIT e non il catalogo: `Action.Sprint` non e' piu'
+	// una mobilita' rapida ([D-116]). Si veda `MakeFastBudgetAction`.
 	URTHeroData* Hero = MakeQueryHero(TEXT("Hero.QueryProbe"), 3,
 		{
 			MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 2),
 			MakeQueryAction(TEXT("Action.Reposition")),
-			MakeQueryAction(TEXT("Action.Sprint"))
+			MakeFastBudgetAction()
 		});
 
 	FRTKnowledgeView Forward;
@@ -650,13 +671,13 @@ bool FRTEnemyQueryThreatRequiresLineOfSightTest::RunTest(const FString&)
  * 🔑 Rende falsificabile la premessa della issue: se `DashOnlyCells` fosse un alias di `ReachableCells`, o
  * restasse vuota, questo diventa rosso.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWalkAndSprintAreDistinctRegionsTest,
-	"RefactorTactics.Perception.WalkAndSprintAreDistinctRegions",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWalkAndDashAreDistinctRegionsTest,
+	"RefactorTactics.Perception.WalkAndDashAreDistinctRegions",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTWalkAndSprintAreDistinctRegionsTest::RunTest(const FString&)
+bool FRTWalkAndDashAreDistinctRegionsTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(5);
-	URTHeroData* Hero = SprintHero(/*MovePoints*/ 2);
+	URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 2);
 
 	FRTKnowledgeView View;
 	View.ObserverTeamId = 0;
@@ -686,13 +707,13 @@ bool FRTWalkAndSprintAreDistinctRegionsTest::RunTest(const FString&)
  * E' la stessa disciplina con cui `PostDashThreat` esce al netto di `ImmediateThreat`. Senza, un consumatore
  * che disegna le due aree sovrapporrebbe due significati sulla stessa cella.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintRegionExcludesWalkRegionTest,
-	"RefactorTactics.Perception.SprintRegionExcludesWalkRegion",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashRegionExcludesWalkRegionTest,
+	"RefactorTactics.Perception.DashRegionExcludesWalkRegion",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSprintRegionExcludesWalkRegionTest::RunTest(const FString&)
+bool FRTDashRegionExcludesWalkRegionTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(5);
-	URTHeroData* Hero = SprintHero(/*MovePoints*/ 3);
+	URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 3);
 
 	FRTKnowledgeView View;
 	View.ObserverTeamId = 0;
@@ -721,22 +742,22 @@ bool FRTSprintRegionExcludesWalkRegionTest::RunTest(const FString&)
  * soggetto non osservato risponde `false` e non produce regioni. Un consumatore che li trattasse allo stesso
  * modo mostrerebbe «non puo' scattare» dove la risposta e' «non lo so».
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSprintRegionIsEmptyWithoutFastMovementTest,
-	"RefactorTactics.Perception.SprintRegionIsEmptyWithoutFastMovement",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashRegionIsEmptyWithoutFastMovementTest,
+	"RefactorTactics.Perception.DashRegionIsEmptyWithoutFastMovement",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTSprintRegionIsEmptyWithoutFastMovementTest::RunTest(const FString&)
+bool FRTDashRegionIsEmptyWithoutFastMovementTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(4);
-	URTHeroData* NoSprint = MeleeHero(/*MovePoints*/ 2);   // solo `Action.BasicAttack`
-	URTHeroData* WithSprint = SprintHero(/*MovePoints*/ 2);
+	URTHeroData* NoFastBudget = MeleeHero(/*MovePoints*/ 2);   // solo `Action.BasicAttack`
+	URTHeroData* WithFastBudget = FastBudgetHero(/*MovePoints*/ 2);
 
 	FRTKnowledgeView View;
 	View.ObserverTeamId = 0;
-	View.Entries.Add(LiveEntry(7, FRTCellId(0, 0), NoSprint->HeroId));
+	View.Entries.Add(LiveEntry(7, FRTCellId(0, 0), NoFastBudget->HeroId));
 
 	FRTEnemyTacticalRegions Without;
 	if (!TestTrue(TEXT("un soggetto senza scatto risponde comunque"),
-		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, NoSprint, Without))) { return false; }
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, NoFastBudget, Without))) { return false; }
 	TestEqual(TEXT("e la sua regione dello scatto e' vuota"), Without.DashOnlyCells.Num(), 0);
 	TestTrue(TEXT("mentre il passo resta popolato: la risposta c'e'"), Without.ReachableCells.Num() > 1);
 
@@ -744,13 +765,13 @@ bool FRTSprintRegionIsEmptyWithoutFastMovementTest::RunTest(const FString&)
 	// campo non venisse mai riempito da nessuno.
 	FRTEnemyTacticalRegions With;
 	if (!TestTrue(TEXT("lo stesso soggetto con lo scatto risponde"),
-		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, WithSprint, With))) { return false; }
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, WithFastBudget, With))) { return false; }
 	TestTrue(TEXT("e la sua regione dello scatto NON e' vuota"), With.DashOnlyCells.Num() > 0);
 
 	// E il non-esito resta distinto: un soggetto che la vista non conosce non produce regioni.
 	FRTEnemyTacticalRegions Unknown;
 	TestFalse(TEXT("un soggetto non osservato non produce regioni"),
-		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, /*Subject*/ 42, NoSprint, Unknown));
+		URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, /*Subject*/ 42, NoFastBudget, Unknown));
 
 	return true;
 }
@@ -779,8 +800,8 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 		View.ObserverTeamId = 0;
 		View.Entries.Add(LiveEntry(7, FRTCellId(0, 0), TEXT("Hero.QueryProbe")));
 
-		URTHeroData* Slow = SprintHero(/*MovePoints*/ 2);
-		URTHeroData* Fast = SprintHero(/*MovePoints*/ 4);
+		URTHeroData* Slow = FastBudgetHero(/*MovePoints*/ 2);
+		URTHeroData* Fast = FastBudgetHero(/*MovePoints*/ 4);
 
 		FRTEnemyTacticalRegions RSlow;
 		FRTEnemyTacticalRegions RFast;
@@ -797,7 +818,7 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 		// E nessuno dei due coincide con cio' che `Action.Move.RangeCells` imporrebbe, uguale per tutti.
 		const int32 MoveDef = CatalogBudget(TEXT("Action.Move"));
 		if (!TestTrue(TEXT("il catalogo dichiara un RangeCells per Action.Move"), MoveDef > 0)) { return false; }
-		URTHeroData* AsActionDef = SprintHero(/*MovePoints*/ MoveDef);
+		URTHeroData* AsActionDef = FastBudgetHero(/*MovePoints*/ MoveDef);
 		FRTEnemyTacticalRegions RDef;
 		if (!TestTrue(TEXT("il profilo a budget-da-ActionDef risponde"),
 			URTEnemyTacticalQueryLibrary::RegionsFor(Map, View, 7, AsActionDef, RDef))) { return false; }
@@ -816,7 +837,7 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 
 		// Arena piu' larga del budget: il limite che si osserva e' quello dell'azione, non quello del bordo.
 		URTHexMapAsset* Map = MakeQueryArena(SprintBudget + 1);
-		URTHeroData* Hero = SprintHero(/*MovePoints*/ 1);
+		URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 1);
 
 		FRTKnowledgeView View;
 		View.ObserverTeamId = 0;
@@ -841,7 +862,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWallTruncatesBothRegionsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTWallTruncatesBothRegionsTest::RunTest(const FString&)
 {
-	URTHeroData* Hero = SprintHero(/*MovePoints*/ 2);
+	URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 2);
 
 	FRTKnowledgeView View;
 	View.ObserverTeamId = 0;
@@ -923,7 +944,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHiddenStateDoesNotChangeEitherRegionTest,
 bool FRTHiddenStateDoesNotChangeEitherRegionTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(6);
-	URTHeroData* Hero = SprintHero(/*MovePoints*/ 2);
+	URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 2);
 
 	const FRTCellId SubjectCell(0, 0);
 	const FRTCellId HiddenCell(1, 0); // dentro il passo: bloccherebbe entrambe le regioni, se si sapesse
@@ -978,7 +999,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHiddenHazardIsNotDeducibleFromTheRegionDiffe
 bool FRTHiddenHazardIsNotDeducibleFromTheRegionDifferenceTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeQueryArena(6);
-	URTHeroData* Hero = SprintHero(/*MovePoints*/ 2);
+	URTHeroData* Hero = FastBudgetHero(/*MovePoints*/ 2);
 
 	const FRTCellId SubjectCell(0, 0);
 	// 🔑 FUORI dal passo (2), DENTRO lo scatto: tocca SOLO la regione lunga, che e' il caso nuovo.

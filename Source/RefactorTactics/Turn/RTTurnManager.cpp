@@ -4174,6 +4174,88 @@ void ARTTurnManager::ResolveDash()
 		}
 	}
 
+	// 🔴 **Il divieto dichiarato dal PIANO, e non piu' solo dall'azione effettivamente usata** ([D-116],
+	// `#641`, deciso il 2026-09-12).
+	//
+	// Finche' `Action.Sprint` risolveva in `FastMovement`, il divieto si registrava dove lo scatto risultava
+	// usato — piu' in basso in questa stessa funzione, e il commento la' spiega perche' quel punto era
+	// l'unico onesto. Con lo Sprint spostato **dopo il Blast** quel punto **non gira piu' per lui**, e la
+	// reazione sarebbe gia' scattata prima che qualcuno si accorgesse del divieto: il prezzo sparirebbe da
+	// solo, senza che nessuna decisione lo avesse tolto.
+	//
+	// 🔑 **Si legge il piano e non l'`ActionId`**: `MakePlanFor` compone le voci che il giocatore ha
+	// dichiarato, e ognuna porta il proprio `bAllowsReaction` dal catalogo. Cosi' un kit che dichiarasse
+	// un'altra azione «chi la usa non para» e' coperto senza toccare questa riga — la stessa disciplina per
+	// cui lo slot lo dice il catalogo e non il campo in cui l'azione e' scritta.
+	//
+	// ⚠️ **Si paga l'IMPEGNO DICHIARATO, non il movimento avvenuto**, ed e' la conseguenza accettata della
+	// decisione: chi dichiara lo Sprint e poi non si muove davvero — fallback, cella occupata — perde la
+	// reazione comunque. E' la stessa giustificazione con cui [D-116] difende il caso dell'unita' radicata
+	// da `Action.Root`, che paga la penalita' per un movimento che non avviene: *«e' la regola, perche'
+	// colpisce l'impegno dichiarato»*.
+	for (ARTUnit* Unit : Units)
+	{
+		if (!IsValid(Unit))
+		{
+			continue;
+		}
+		for (const FRTPlannedAction& Planned : URTPlanValidationLibrary::MakePlanFor(Unit))
+		{
+			if (!Planned.Def.bAllowsReaction)
+			{
+				ReactionBlockedThisTurn.Add(Unit);
+				break;
+			}
+		}
+	}
+
+	// 🔴 **`Status.Unbalanced` nega la CORSA, e dopo la migrazione va negata sul PROFILO** ([D-319],
+	// `#2253`, `#641`).
+	//
+	// Il criterio era *«stile a budget e non lineare»*, e distingueva perche' `Action.Sprint` era l'unica
+	// mobilita' rapida a budget. Dal 2026-09-13 **non distingue piu' niente**: lo Sprint e' un profilo del
+	// `Move`, e i due dichiarano lo STESSO `MovementStyle::Budget`. Applicare quel criterio al movimento
+	// normale avrebbe negato anche il CAMMINO a chi ha perso l'equilibrio, che [D-319] non dice.
+	//
+	// 🔑 **Il profilo e' cio' che ora separa le due andature**, ed e' per questo che il criterio diventa
+	// «un profilo diverso dal neutro». Chi e' sbilanciato cammina ancora; non corre.
+	//
+	// ⚠️ **Rifiuto DICHIARATO, non scarto muto**, nella stessa forma del ramo gemello dello scatto piu'
+	// sotto: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi rilegge il turno vede *perche'* la
+	// corsa non c'e' stata. E il profilo torna al neutro invece di annullare il movimento: lo slot e' lo
+	// stesso, e chi aveva dichiarato una destinazione raggiungibile a piedi ci arriva.
+	for (ARTUnit* Unit : Units)
+	{
+		if (!IsValid(Unit) || !Unit->HasStatus(TAG_Status_Unbalanced))
+		{
+			continue;
+		}
+		const FName Declared = Unit->PlannedMovementProfileId;
+		if (Declared.IsNone() || Declared == URTMovementProfileLibrary::ProfileMove)
+		{
+			continue; // il neutro non e' una corsa
+		}
+
+		const FRTActionDef Refused = URTMovementProfileLibrary::FindActionForProfile(Declared);
+		FRTTurnLogEntry Rifiutata;
+		Rifiutata.Phase = ERTMatchPhase::Move;
+		Rifiutata.Category = ERTLogCategory::Fallback;
+		Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+		Rifiutata.ActionId = Refused.ActionId;
+		Rifiutata.BaseActionId = Refused.BaseActionId;
+		Rifiutata.Priority = Refused.Priority;
+		Rifiutata.SrcCell = Unit->Cell;
+		Rifiutata.TgtCell = Unit->Cell;
+		Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Unbalanced);
+		AppendLogEntry(Rifiutata, Unit);
+
+		AddLogEvent(FString::Printf(TEXT("%s (q=%d,r=%d,L=%d): sbilanciato, non puo' correre"),
+				*ARTUnit::LogLabel(Unit), Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer),
+			FRTLogSubject::Unit(Unit));
+
+		Unit->PlannedMovementProfileId = NAME_None; // si ripiega sul neutro, non si annulla il movimento
+	}
+
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
 	// dopo la risoluzione simultanea, se la collisione ha bloccato il caricatore prima del contatto (CP 4.8).
 	TArray<int32> PendingImpactAttackerIdx;
@@ -4628,10 +4710,17 @@ void ARTTurnManager::ResolveDash()
 		const URTActionData* Used = Unit->GetAbility(DashAbilityIdx[i]);
 		if (!Used) { continue; }
 
-		// Chi ha usato un'azione che nega la reazione (CP 5.1: `Action.Sprint`) non ne tiene pronta una in
-		// questo turno, comunque sia pianificata — vale QUI, non dove lo scatto e' stato solo pianificato,
-		// perche' qui e' l'unico punto in cui l'azione risulta EFFETTIVAMENTE usata (non su cooldown, non
-		// scartata dal fallback).
+		// Chi ha usato un'azione che nega la reazione non ne tiene pronta una in questo turno. Vale QUI per
+		// le mobilita' che risolvono in `FastMovement`: qui l'azione risulta EFFETTIVAMENTE usata — non su
+		// cooldown, non scartata dal fallback.
+		//
+		// ⚠️ **Dal 2026-09-12 questo ramo non ha piu' soggetti nel catalogo di serie, e non e' morto.**
+		// `Action.Sprint` era l'unica azione con `bAllowsReaction = false` ed e' migrata a
+		// `NormalMovement` ([D-116], `#641`): per lei il divieto si valuta ora sul **piano**, all'inizio di
+		// questa stessa funzione. Il ramo resta perche' e' il meccanismo con cui una mobilita' RAPIDA
+		// dichiara lo stesso divieto, e per quelle «usata davvero» e «dichiarata» restano due fatti
+		// diversi — la ragione per cui questo punto fu scelto vale ancora, per loro.
+		// ⛔ Il doppio conteggio non e' un rischio: `ReactionBlockedThisTurn` e' un `TSet`.
 		if (!Used->Def.bAllowsReaction)
 		{
 			ReactionBlockedThisTurn.Add(Unit);

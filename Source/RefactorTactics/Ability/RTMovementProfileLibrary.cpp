@@ -1,4 +1,5 @@
 #include "Ability/RTMovementProfileLibrary.h"
+#include "Ability/RTCatalogLibrary.h"
 
 const FName URTMovementProfileLibrary::ProfileStill(TEXT("MovementProfile.Still"));
 const FName URTMovementProfileLibrary::ProfileMove(TEXT("MovementProfile.Move"));
@@ -135,4 +136,75 @@ FRTMovementProfile URTMovementProfileLibrary::ProfileForPlan(const TArray<FRTPla
 		}
 	}
 	return FindProfile(ProfileStill);
+}
+
+
+FRTActionDef URTMovementProfileLibrary::FindActionForProfile(FName ProfileId)
+{
+	if (ProfileId.IsNone())
+	{
+		return FRTActionDef();
+	}
+
+	// Il catalogo si scorre UNA volta: `GetCoreActionCatalog()` costruisce a ogni invocazione una trentina
+	// di `FRTActionDef` con i loro `TArray` annidati, e questa funzione la chiama il compositore del piano —
+	// cioe' la HUD a ogni click. Stessa cura, stessa causa, di `MakePlanFor` e `GetReactionProfileCatalog`.
+	static const TMap<FName, FRTActionDef> ByProfile = []
+	{
+		TMap<FName, FRTActionDef> Map;
+		for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+		{
+			if (!Def.MovementProfileId.IsNone())
+			{
+				// ⚠️ `Add` e non `FindOrAdd`: se due azioni dichiarassero lo STESSO profilo vincerebbe
+				// l'ultima, e sarebbe un difetto di catalogo da vedere in un test — non da mediare qui.
+				Map.Add(Def.MovementProfileId, Def);
+			}
+		}
+		return Map;
+	}();
+
+	const FRTActionDef* Found = ByProfile.Find(ProfileId);
+	return Found ? *Found : FRTActionDef();
+}
+
+TArray<FRTMovementProfile> URTMovementProfileLibrary::OfferableProfiles()
+{
+	TArray<FRTMovementProfile> Offerable;
+	for (const FRTMovementProfile& Profile : GetCoreMovementProfileCatalog())
+	{
+		// Senza numeri non si sceglie: `Sneak` (`AE-5`).
+		if (!Profile.bPlannable)
+		{
+			continue;
+		}
+		// `Still` e' DERIVATO — lo produce l'assenza di waypoint — e `Withdraw` e' RISERVATO: lo impone
+		// l'`Overwatch` ([D-070]). Due esclusioni, due ragioni diverse, e chi le comunica non deve
+		// confonderle (`#1410` `AC-4`).
+		if (Profile.Id == ProfileStill || Profile.Id == ProfileWithdraw)
+		{
+			continue;
+		}
+		// ⛔ Un profilo che nessuna azione nomina non e' raggiungibile dal piano: offrirlo mostrerebbe una
+		// scelta che non arriva mai al resolver.
+		if (FindActionForProfile(Profile.Id).ActionId.IsNone())
+		{
+			continue;
+		}
+		Offerable.Add(Profile);
+	}
+	return Offerable;
+}
+
+
+FName URTMovementProfileLibrary::ReservedProfileForPlan(const TArray<FRTPlannedAction>& Plan)
+{
+	for (const FRTPlannedAction& Planned : Plan)
+	{
+		if (!Planned.Def.ReservesMovementProfileId.IsNone())
+		{
+			return Planned.Def.ReservesMovementProfileId;
+		}
+	}
+	return NAME_None;
 }

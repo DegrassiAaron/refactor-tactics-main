@@ -245,19 +245,24 @@ bool FRTCatalogCoreActionsTest::RunTest(const FString&)
 	for (const FString& E : Errors) { AddError(E); }
 	TestEqual(TEXT("le azioni generiche sono valide"), Errors.Num(), 0);
 
-	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: mobilita' rapida, 8 MP, slot movimento.
+	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: 8 punti, slot movimento — e dal 2026-09-12
+	// PROFILO del movimento normale, non mobilita' rapida ([D-116] voce 1, `#641`).
 	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint")));
-	TestTrue(TEXT("Sprint risolve nella fase Dash (mobilita' rapida)"),
-		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Dash);
+	TestTrue(TEXT("Sprint risolve nella fase Move, dopo il Blast (D-116)"),
+		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Move);
 	TestEqual(TEXT("Sprint vale 8 punti movimento"), Sprint.RangeCells, 8);
 	// D-028: il solo slot movimento. Prima era `MovementAndMain`, e il costo dello scatto lungo era
 	// strutturale; ora il prezzo e' tutto nei dati (`Exposed` e nessuna reazione) — vedi `BAL-1`.
 	TestTrue(TEXT("Sprint consuma il solo slot movimento"), Sprint.Slot == ERTActionSlot::Movement);
 	TestEqual(TEXT("Sprint dichiara un solo effetto: lo stato"), Sprint.Effects.Num(), 1);
-	TestTrue(TEXT("e quell'effetto e' Status.Exposed per un turno"),
+	// ⚠️ **DUE turni, e il numero e' legato alla fase qui sopra** ([D-116] voce 4): con lo Sprint dopo il
+	// Blast nessuna fase legge `Exposed` prima del Cleanup, quindi `1` lo renderebbe inerte. Le due
+	// asserzioni cadono insieme se qualcuno migra la fase e lascia indietro il prezzo — che e' il solo caso
+	// che la decisione vuole impedire.
+	TestTrue(TEXT("e quell'effetto e' Status.Exposed per DUE turni (D-116)"),
 		Sprint.Effects.Num() == 1 && Sprint.Effects[0].Effect == ERTActionEffect::Status
-		&& Sprint.Effects[0].StatusTag == TAG_Status_Exposed && Sprint.Effects[0].StatusDuration == 1);
+		&& Sprint.Effects[0].StatusTag == TAG_Status_Exposed && Sprint.Effects[0].StatusDuration == 2);
 
 	// Un ID non catalogato non inventa un'azione: torna una definizione vuota.
 	TestTrue(TEXT("ID sconosciuto -> definizione vuota"),
@@ -485,8 +490,15 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		// `Action.Purge` e' USCITA da questo elenco il 2026-08-27 ([D-218], `#1403`): `Reaction.Cleanse` e'
 		// il modulo di default di Branth, quindi la base e' raggiungibile. La riga la toglie il gate stesso,
 		// che dice «ORA e' raggiungibile: togli la riga» invece di lasciarla marcire fra le esclusioni.
-		// Bloccata da una migrazione decisa e non fatta.
-		{ TEXT("Action.Sprint"),          TEXT("E38: forma canonica profilo Move (D-015/D-116), il codice ha FastMovement") },
+		// 🔴 **Migrata il 2026-09-13** ([D-116], `#641`): la riga resta, e cambia CATEGORIA. Non e' piu'
+		// «bloccata da una migrazione decisa e non fatta» — e' scritta dal motore, come `Action.Move` qui
+		// sopra, perche' `MakePlanFor` la aggiunge quando il giocatore sceglie quel profilo di movimento.
+		// Esce da questo elenco il giorno in cui un eroe la portasse nel proprio kit, non prima.
+		{ TEXT("Action.Sprint"),          TEXT("Motore: MakePlanFor la aggiunge quando il profilo scelto e' Sprint") },
+		// Stessa via, e un vincolo in piu': non la SCEGLIE il giocatore — la impone l'Overwatch ([D-070]),
+		// che riserva lo slot movimento al solo ripiegamento. Offrirla fra le scelte sarebbe una seconda
+		// verita' sullo stesso vincolo (`#1410` `AC-4`).
+		{ TEXT("Action.Withdraw"),        TEXT("Motore: imposta da chi arma l'Overwatch, D-070") },
 		// Contenuto che aspetta il suo portatore: diventeranno raggiungibili quando entrera' l'eroe che le
 		// usa, ed e' la ragione per cui sono dichiarate invece che corrette. Non sono difetti (E6).
 		{ TEXT("Action.CircularAoE"),     TEXT("Aspetta il suo eroe") },

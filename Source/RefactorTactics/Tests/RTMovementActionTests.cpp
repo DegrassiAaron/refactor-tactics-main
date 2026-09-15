@@ -319,7 +319,10 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
 	// mobilita' speciali risolvono nel Dash; solo `Action.Move` risolve nel Move, dopo il Blast.
 	struct FExpected { const TCHAR* Id; ERTMatchPhase Macro; ERTMovementStyle Style; int32 Range; int32 Cooldown; };
 	const FExpected Expected[] = {
-		{ TEXT("Action.Sprint"),     ERTMatchPhase::Dash, ERTMovementStyle::Budget,       8, 0 },
+		// ⚠️ **`Move` e non `Dash` dal 2026-09-12** ([D-116] voce 1, `#641`): lo Sprint e' un profilo della
+		// famiglia `Move` e risolve dopo il Blast. Lo stile era gia' `Budget` — i due terzi della
+		// migrazione che [D-068] aveva misurato come gia' avvenuti.
+		{ TEXT("Action.Sprint"),     ERTMatchPhase::Move, ERTMovementStyle::Budget,       8, 0 },
 		{ TEXT("Action.Dodge"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   3, 1 },
 		{ TEXT("Action.Charge"),     ERTMatchPhase::Dash, ERTMovementStyle::LinearCharge, 3, 2 },
 		{ TEXT("Action.Leap"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearLeap,   3, 2 },
