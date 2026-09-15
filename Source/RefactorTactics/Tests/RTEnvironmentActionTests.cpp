@@ -441,6 +441,121 @@ bool FRTActionModifyArcTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `Status.Stunned` contro i due siti che il rifiuto NON copriva ([D-416], `#3142`).
+//
+// 🔴 **Nati da una code review, non da un'intuizione.** L'implementazione metteva la guardia in
+// `ResolvePrep` e a meta' di `CollectAttackIntents`, e i siti che consumano un'azione principale sono
+// **tre**: il ramo `ModifyArc` la PRECEDE dentro lo stesso ciclo, e le ambientali risolvono altrove.
+// Un'unita' stordita cambiava la topologia della mappa e accendeva incendi.
+//
+// ⚠️ **Entrambi i test hanno un braccio di CONTROLLO**, e non e' abbondanza: senza, un'asserzione «non e'
+// successo niente» sarebbe verde anche se il banco non facesse succedere niente comunque. I bracci di
+// controllo sono i test qui sopra — `BumpsChunkRevision` e `BurnsOnlyTheTargetCell` — quindi qui si
+// asserisce lo stato PRIMA e DOPO sulla stessa istanza, che e' la stessa protezione in forma piu' corta.
+// =====================================================================================================
+
+/**
+ * Uno stordito non cambia la topologia: `Action.ModifyArc` e' un'azione **principale**.
+ *
+ * Lo slot non e' un'opinione: `ShippedAction` ha `ERTActionSlot::Main` come default e la riga di
+ * `Action.ModifyArc` non lo sovrascrive. ∴ [D-416] la nega, e il ramo che la intercetta prima della
+ * raccolta degli intenti deve passare dalla guardia come tutto il resto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterDoesNotModifyArcTest,
+	"RefactorTactics.Actions.ModifyArc.StunnedCasterChangesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedCasterDoesNotModifyArcTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	const int32 RevisionBefore = MapActor->MapAsset->Revision;
+	const int32 ArcsBefore = MapActor->MapAsset->Transitions.Num();
+
+	Caster->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+	PlanEnvAction(Caster, TEXT("Action.ModifyArc"), Target);
+	RunEnvTurn(TM);
+
+	TestEqual(TEXT("nessun collegamento nuovo: l'azione non e' partita"),
+		MapActor->MapAsset->Transitions.Num(), ArcsBefore);
+	TestEqual(TEXT("e la revisione non si muove"), MapActor->MapAsset->Revision, RevisionBefore);
+
+	// ⚠️ **Il turno lo DICE**: un'azione che sparisce in silenzio e' indistinguibile da un difetto. E' la
+	// disciplina che `Fallback`/`Cancelled` esiste per applicare, e il motivo viaggia in `Amount`.
+	bool bRifiutata = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned))
+		{
+			bRifiutata = true;
+		}
+	}
+	TestTrue(TEXT("il TurnLog porta il rifiuto per stordimento"), bRifiutata);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
+/**
+ * Uno stordito non accende: le azioni **ambientali** sono principali, e risolvono nel terzo sito.
+ *
+ * `Action.Ignite` esce da `CollectAttackIntents` col piano INTATTO — quel ciclo lascia passare la fase
+ * `Cleanup` apposta — e lo consuma `ResolveEnvironment`. Senza una guardia li', il rifiuto degli altri due
+ * siti non la tocca: e' esattamente il buco che questo test pinna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunnedCasterDoesNotIgniteTest,
+	"RefactorTactics.Actions.Ignite.StunnedCasterLightsNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunnedCasterDoesNotIgniteTest::RunTest(const FString&)
+{
+	UWorld* World = MakeEnvWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ARTHexMapActor* MapActor = SpawnEnvMap(World);
+
+	ARTUnit* Caster = SpawnEnvUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Target = SpawnEnvUnit(World, 1, FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caster"), Caster) || !TestNotNull(TEXT("Target"), Target) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyEnvWorld(World);
+		return false;
+	}
+
+	Caster->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+	PlanEnvAction(Caster, TEXT("Action.Ignite"), Target);
+	RunEnvTurn(TM);
+
+	const FRTHexCellData* Data = MapActor->MapAsset ? MapActor->MapAsset->FindCell(FRTCellId(2, 0)) : nullptr;
+	const ERTHexSurface Superficie = Data ? Data->Surface : ERTHexSurface::Floor;
+	TestTrue(TEXT("la cella bersaglio NON brucia"), Superficie != ERTHexSurface::Fire);
+
+	bool bRifiutata = false;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Fallback
+			&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned))
+		{
+			bRifiutata = true;
+		}
+	}
+	TestTrue(TEXT("il TurnLog porta il rifiuto per stordimento"), bRifiutata);
+
+	DestroyEnvWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionModifyArcRangeTest,
 	"RefactorTactics.Actions.ModifyArc.RejectsOutOfRange",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

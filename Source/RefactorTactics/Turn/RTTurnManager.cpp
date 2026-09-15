@@ -2978,6 +2978,24 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		const FRTCellId PlannedCell = Caster->PlannedAttackCell;
 		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
 		Caster->ClearPlannedAttack();
+
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e questo e' il TERZO dei tre siti in
+		// cui una principale si consuma — gli altri due sono `ResolvePrep` e `CollectAttackIntents`. Le
+		// ambientali (`Ignite`, `CreateWater`, `Electrify`, `MistVeil`) sono principali a tutti gli effetti:
+		// `ERTActionSlot::Main` e' il default di `ShippedAction`, e nessuna di loro lo sovrascrive.
+		//
+		// 🔴 **La prima stesura copriva due siti su tre**, e un'unita' stordita accendeva un incendio.
+		// Pinnata da `Actions.Ignite.StunnedCasterLightsNothing`.
+		//
+		// ⚠️ **Dopo il consumo del piano e prima del cooldown**: l'azione si perde per il turno — come ogni
+		// principale che non parte — ma `ConsumeAbility` non viene chiamato piu' in basso, quindi la ricarica
+		// non paga per un'azione che non e' avvenuta.
+		if (RefuseMainActionIfStunned(Caster, Ability->Def, ERTMatchPhase::Cleanup,
+			bTargetsCell ? PlannedCell : (Target ? Target->Cell : Caster->Cell)))
+		{
+			continue;
+		}
+
 		if (!Caster->CanUseAbility(AbilityIndex)) { continue; }
 
 		// Il fallback dichiarato di `Action.Electrify` e' `Cancel`: senza bersaglio valido non succede nulla,
@@ -3928,9 +3946,9 @@ void ARTTurnManager::ResolvePrep()
 		// principale (catalogo §1). Senza questa riga uno stordito armava l'Overwatch e sparava nel Move — non
 		// e' un'ipotesi, e' cio' che `Status.StunSilencesAnArmedWatcher` ha misurato prima che ci fosse.
 		//
-		// ⚠️ **L'abilita' NON si consuma**: qui il rifiuto precede `ConsumeAbility`, quindi il cooldown non
-		// parte per una scommessa che non e' stata piazzata. E' l'opposto del caso Blast, dove il piano e' gia'
-		// stato azzerato in cima al ciclo.
+		// ⚠️ **Il piano si perde, la RICARICA no**, ed e' cosi' in tutti e tre i siti: il rifiuto precede
+		// `ConsumeAbility`, quindi il cooldown non parte per una scommessa che non e' stata piazzata. Cio'
+		// che cambia fra i siti e' solo CHI azzera il piano — qui la riga sotto, nel Blast la cima del ciclo.
 		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
 			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
 		{

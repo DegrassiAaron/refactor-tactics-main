@@ -635,6 +635,26 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			continue; // il piano resta: lo consuma `ResolveEnvironment`
 		}
 
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e la guardia sta QUI — sopra il ramo
+		// `ModifyArc` e sopra la raccolta — perche' `Action.ModifyArc` **e' una principale**
+		// (`ERTActionSlot::Main`, il default di `ShippedAction`) e si intercetta prima di tutto il resto.
+		//
+		// 🔴 **La prima stesura la metteva sotto, e un'unita' stordita cambiava la topologia della mappa.**
+		// E' il secondo buco della stessa famiglia del Prep: i siti che consumano una principale sono TRE —
+		// `ResolvePrep`, questo e `ResolveEnvironment` — e una guardia per sito e' una regola che il quarto
+		// sito non erediterà. Pinnata da `Actions.ModifyArc.StunnedCasterChangesNothing`.
+		//
+		// ⚠️ **Sotto il guard delle AMBIENTALI, non sopra**: quelle escono da questo ciclo col piano INTATTO
+		// (lo consuma `ResolveEnvironment`, che ha la propria guardia). Rifiutarle qui ne consumerebbe il
+		// piano nella fase sbagliata, e il rifiuto uscirebbe due volte.
+		if (PlannedNow && RefuseMainActionIfStunned(Unit, PlannedNow->Def, ERTMatchPhase::Blast,
+			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+		{
+			Unit->ClearPlannedAttack();
+			Unit->PlannedAbilityIndex = INDEX_NONE; // consumato nel turno, come ogni principale che non parte
+			continue;
+		}
+
 		// `Action.ModifyArc` (CP 9.4) risolve QUI, ma non e' un intento d'attacco: si intercetta PRIMA della
 		// raccolta perche' il percorso normale leggerebbe il danno dagli effetti e, non trovandone, ripiegherebbe
 		// sul campo legacy `Ability->Power` — un'azione che cambia la topologia si metterebbe a fare danno.
@@ -704,28 +724,12 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
 		}
 
-		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`). Qui, e non in `ValidateInstance`: la
-		// validazione dell'istanza giudica bersaglio, portata e traiettoria su uno **snapshot**
-		// (`FRTHexCombatUnit`), che non porta gli status. E' la stessa sede in cui `Status.Unbalanced` nega
-		// la corsa — un rifiuto che nasce da uno STATO di chi agisce, non da una proprieta' del bersaglio.
+		// ⛔ **Lo stordimento e' gia' stato rifiutato in cima al ciclo**, sopra il ramo `ModifyArc`: una
+		// seconda guardia qui non sarebbe difesa in profondita', sarebbe una seconda regola da tenere
+		// d'accordo con la prima — e scriverebbe due voci di rifiuto per lo stesso turno.
 		//
-		// 🔑 **La forma del rifiuto vive in `RefuseMainActionIfStunned`**, non qui: i siti sono DUE — il Prep,
-		// dove Overwatch e predittive si armano spendendo la principale, e questo. La prima stesura lo aveva
-		// solo qui, e `Status.StunSilencesAnArmedWatcher` ha misurato il buco: uno stordito armava
-		// l'Overwatch e sparava nel Move.
-		//
-		// ⛔ **Non tocca il movimento**, ed e' il confine con `Root`: questo `continue` salta l'azione, non
-		// il percorso, e il Move di questa unita' risolve come se lo stordimento non ci fosse. Due stati che
-		// negassero la stessa cosa sarebbero un solo stato scritto due volte.
-		//
-		// ⚠️ **L'abilita' resta consumata per il turno** — il piano e' gia' azzerato in cima al ciclo —
-		// esattamente come per la corsa rifiutata a chi ha perso l'equilibrio. Il cooldown no: `MarkAbilitySpent`
-		// non viene chiamato, e paga solo cio' che ha davvero toccato la mappa.
-		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Blast,
-			bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell)))
-		{
-			continue;
-		}
+		// ⛔ **Il movimento non passa di qui**, ed e' il confine con `Root`: il rifiuto salta l'azione, non
+		// il percorso, e il Move di un'unita' stordita risolve come se lo stordimento non ci fosse.
 
 		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
 		// non ne tiene pronta una in questo turno. `Action.Sprint` (l'unico caso reale) passa dallo scatto,
