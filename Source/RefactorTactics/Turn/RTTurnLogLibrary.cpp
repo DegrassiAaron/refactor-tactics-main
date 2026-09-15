@@ -886,13 +886,72 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		}
 	}
 
+	// `Objective` **ha** un produttore non-test raggiungibile in partita -- `ARTTurnManager` nel Cleanup
+	// (`Objective.Control`), che la scrive a OGNI turno in cui la mappa ha un obiettivo, `Unclaimed` e
+	// `Contested` comprese: senza quelle due un turno conteso e un turno vuoto sarebbero indistinguibili nel
+	// log, e la contesa e' precisamente cio' che il checkpoint aggiunge alla partita. Misura in `#3110`,
+	// criterio 2.
+	//
+	// Vale qui tutto cio' che il blocco ambientale qui sopra dichiara -- `Amount` non e' un danno, la
+	// collisione per POSIZIONE d'enum, nessun `default:` -- e non si ripete: `Team0Scores` e
+	// `ERTCombatOutcome::Lethal` valgono entrambi 2, e `Amount` porta i PUNTI assegnati.
+	//
+	// ⛔ **La rete dell'esaustivita' NON e' `-Wswitch`.** La build non promuove i warning a errori -- nessun
+	// `bWarningsAsErrors` nei `.Build.cs` ne' nei `.Target.cs`, misurato -- e nessun gate legge il log di
+	// compilazione. Cio' che fa cadere un esito aggiunto e non tradotto e'
+	// `RefactorTactics.TurnLog.ObjectiveEntriesAreDescribed`, che **riflette** `StaticEnum<ERTObjectiveOutcome>()`
+	// invece di elencare i valori a mano. Chi toglie quel ciclo toglie la rete, e il `default:` che manca qui
+	// non lo sostituisce: lo riaprirebbe in silenzio.
+	if (Entry.Category == ERTLogCategory::Objective)
+	{
+		switch (static_cast<ERTObjectiveOutcome>(Entry.Outcome))
+		{
+		case ERTObjectiveOutcome::Unclaimed:
+			return FString::Printf(TEXT("%s: obiettivo di nessuno%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTObjectiveOutcome::Contested:
+			return FString::Printf(TEXT("%s: obiettivo conteso, nessuno avanza%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		// I due esiti che segnano condividono il ramo, e il numero di squadra si LEGGE dall'esito: scritti
+		// separati, l'unico modo in cui potevano rompersi era una copia-incolla che lasciava «squadra 0» nel
+		// ramo della squadra 1 -- un difetto che nessuna asimmetria del codice avrebbe reso visibile.
+		case ERTObjectiveOutcome::Team0Scores:
+		case ERTObjectiveOutcome::Team1Scores:
+		{
+			const int32 Squadra =
+				(static_cast<ERTObjectiveOutcome>(Entry.Outcome) == ERTObjectiveOutcome::Team0Scores) ? 0 : 1;
+
+			// ⚠️ **Un punteggio non positivo CONTRADDICE l'esito**, e non si indovina. `DescribeEntry` gira
+			// anche su tracce deserializzate e su log di scenario, dove `Outcome` e `Amount` sono campi
+			// indipendenti: `(+0)` sarebbe una riga che dichiara un punto mai assegnato, e `(+-1)` una frase
+			// malformata. E' la stessa scelta di `HitCameFromSide`, che rifiuta un `Amount` fuori intervallo
+			// invece di clamparlo -- «una frase sicura e sbagliata» e' il modo in cui `#3110` e' nato.
+			if (Entry.Amount <= 0)
+			{
+				return FString::Printf(TEXT("%s: la squadra %d controlla l'obiettivo, punti non tradotti (%d)%s"),
+					*CellText(Entry.TgtCell), Squadra, Entry.Amount, *Tail);
+			}
+
+			return FString::Printf(TEXT("%s: la squadra %d controlla l'obiettivo (+%d)%s"),
+				*CellText(Entry.TgtCell), Squadra, Entry.Amount, *Tail);
+		}
+		}
+	}
+
 	// ⛔ **Una categoria senza descrittore si DICHIARA, non si racconta come un attacco.** E' la riga che
 	// impedisce il ritorno di `#3110` da un altro lato: lo switch qui sotto non e' piu' raggiungibile per
 	// CADUTA, e chi aggiunge una categoria vede una frase che lo dice invece di leggere danni inventati.
 	//
-	// ⚠️ `ReactionClash` e `Objective` passano di qui oggi: non hanno un descrittore proprio, e se ne
-	// producano voci che arrivano fin qui **non e' stato misurato**. Questa riga le rende innocue, non
-	// descritte — e la misura resta un criterio aperto di `#3110`.
+	// ⚠️ **`ReactionClash` passa di qui, ed e' MISURATO** (`#3110`, criterio 2). I soli chiamanti di
+	// `MakeClashLogEntries` stanno in `Tests/RTOverwatchTriggerTests.cpp` -- il nome, non il conteggio, che
+	// scadrebbe da solo il giorno in cui `#314` ne aggiunge uno:
+	//
+	//     git grep -n "MakeClashLogEntries" -- Source/
+	//
+	// `ScenarioHarness/RTScenarioSession.cpp` lo dichiara a sua volta -- *«nessun punto del resolver le
+	// chiama»* -- ed e' la capability BLOCCATA di `#314`. Il suo descrittore nasce col chiamante: scriverlo
+	// adesso sarebbe la guardia a tappeto che il criterio vieta, cioe' la stessa scorciatoia che ha prodotto
+	// questo difetto. `Objective` non passa piu' di qui: ha il suo, qui sopra.
 	if (Entry.Category != ERTLogCategory::Combat)
 	{
 		return FString::Printf(TEXT("%s: voce di categoria %s senza descrittore%s"),

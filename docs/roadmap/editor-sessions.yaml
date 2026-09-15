@@ -3083,7 +3083,20 @@ sessions:
   - id: U46
     title: I residui del gate G9, in una sola apertura
     block: 6
-    critical: true
+    critical: false
+    # ⌫ Era `true` fino al 2026-09-15, e il campo significa **«blocca la v0.1»** (elenco dei campi in
+    #   testa a questo file). Non la blocca piu', per due fatti misurati e non per un giudizio:
+    #     (1) `G9` e' ✅ dal 2026-09-12 in `docs/roadmap/v0.1-definition-of-done.md`, dopo la riduzione
+    #         di criterio di `PIE-HEXPLAY-8` ([D-402], #2911). Comando canonico del registro rieseguito
+    #         su `origin/main = b0d7de96`:  17 -> verde=17 parziale=0 fallita=0 aperta=0;
+    #     (2) l'unica voce che resta a questa seduta, `PIE-VIS-SIGHTWALL`, **non e' nel subset**
+    #         `RELEASE-V01` — lo dichiara gia' il commento sotto `runbook`, e resta vero.
+    #   ⚠️ `critical` non ha **nessun** consumatore in `tools/` (`grep -rn critical tools/` → 0): e' una
+    #   dichiarazione che si legge, quindi una dichiarazione falsa non fa rosso da nessuna parte. E'
+    #   la ragione per cui questa correzione va fatta a mano, e per cui era rimasta in piedi tre giorni.
+    #   ⛔ Non significa che la seduta sia facoltativa: significa che il suo residuo non e' un gate di
+    #   release. La seduta resta convocata da #2476, che e' scesa a `P2` lo stesso giorno e per lo
+    #   stesso motivo.
     execution_lane: pie
     runbook: docs/technical/runbooks/guida-seduta-u46-residui-g9.md
     # Aggiunto il 2026-09-10 con la guida. La guida corregge due prescrizioni di questi `steps`, e chi
