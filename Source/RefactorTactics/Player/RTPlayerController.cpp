@@ -461,6 +461,9 @@ void ARTPlayerController::BuildInputMappings()
 	CycleSelectionAction = NewObject<UInputAction>(this, TEXT("IA_CycleSelection"));
 	CycleSelectionAction->ValueType = EInputActionValueType::Boolean;
 
+	DeclarePlanAction = NewObject<UInputAction>(this, TEXT("IA_DeclarePlan"));
+	DeclarePlanAction->ValueType = EInputActionValueType::Boolean;
+
 	RecenterAction = NewObject<UInputAction>(this, TEXT("IA_Recenter"));
 	RecenterAction->ValueType = EInputActionValueType::Boolean;
 
@@ -561,6 +564,11 @@ void ARTPlayerController::BuildInputMappings()
 	// un elenco scritto a mano ma `PlayerInput.HotkeysDoNotCollide`, che interroga il
 	// `UInputMappingContext` REALE: da qui in poi il controllo vede questa riga da se'.
 	MappingContext->MapKey(CycleSelectionAction, EKeys::Tab);
+
+	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
+	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
+	// fanno cose diverse vanno su tasti che non si sfiorano.
+	MappingContext->MapKey(DeclarePlanAction, EKeys::Enter);
 
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
@@ -734,6 +742,7 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(CycleSelectionAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleSelection);
+		EIC->BindAction(DeclarePlanAction, ETriggerEvent::Started, this, &ARTPlayerController::OnDeclarePlan);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 
 		// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
@@ -1126,6 +1135,50 @@ void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
 	CycleSelection();
 }
 
+void ARTPlayerController::OnDeclarePlan(const FInputActionValue& Value)
+{
+	ToggleTurnPlanDeclared();
+}
+
+bool ARTPlayerController::ToggleTurnPlanDeclared()
+{
+	if (IsGameplayInputBlocked())
+	{
+		return false;
+	}
+
+	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `TAB`: dichiarare che le mosse
+	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle, o in una fase che non
+	// accetta ordini, non c'e' niente da dichiarare.
+	if (IsPlanningInputInert())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: input di planning inerte"));
+		return false;
+	}
+
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: nessuna unita' selezionata"));
+		return false;
+	}
+
+	const bool bNuovo = !Unit->bTurnPlanDeclared;
+	if (!Unit->SetTurnPlanDeclared(bNuovo))
+	{
+		// L'unico rifiuto possibile e' su un'unita' non viva, e va detto invece di restare muto.
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: '%s' non puo' dichiarare un piano"), *Unit->GetName());
+		return false;
+	}
+
+	// ⛔ Nessun `RecordPlanningInput(Order)`: la dichiarazione non aggiunge una mossa al piano, dice che
+	// quelle gia' dichiarate bastano. Contarla come ordine falserebbe il pacing di `#971`, che misura le
+	// decisioni di turno per capire se la sessione e' presidiata — e questo gesto non ne produce una nuova.
+	UE_LOG(LogRT, Display, TEXT("[RT] %s: piano %s"),
+		*Unit->GetName(), bNuovo ? TEXT("DICHIARATO") : TEXT("ritrattato"));
+	return true;
+}
+
 bool ARTPlayerController::CycleSelection()
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva, come per ogni altro gesto.
@@ -1152,6 +1205,7 @@ bool ARTPlayerController::CycleSelection()
 	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Comandabili;
+	int32 Dichiarate = 0;
 	for (AActor* Actor : Actors)
 	{
 		ARTUnit* Unit = Cast<ARTUnit>(Actor);
@@ -1163,16 +1217,43 @@ bool ARTPlayerController::CycleSelection()
 		// `CanPlayerControlUnitInGroup`, quindi `TAB` raggiunge esattamente le unita' che il mouse
 		// raggiunge. E' l'equivalenza che questo tasto esiste per stabilire — una seconda condizione qui
 		// la romperebbe al primo gruppo di controllo.
-		if (URTCombatLibrary::CanPlayerControlUnitInGroup(
+		if (!URTCombatLibrary::CanPlayerControlUnitInGroup(
 			Unit->TeamId, Unit->ControlGroup, MyTeam, MyGroup, Unit->bIsBotControlled))
 		{
-			Comandabili.Add(Unit);
+			continue;
 		}
+
+		// ➡️ **Chi ha DICHIARATO le proprie mosse esce dal ciclo** ([#3145]): `TAB` porta dove c'e'
+		// ancora da decidere, ed e' l'intero motivo per cui il flag e' dichiarato invece che dedotto dai
+		// campi `Planned*` — un'unita' che ha deciso di non fare niente e' conclusa quanto le altre.
+		//
+		// ⛔ **Il click la raggiunge ancora**: la dichiarazione toglie dal CICLO, non dal gioco. Chi
+		// cambia idea la riseleziona col mouse e ritratta.
+		if (Unit->bTurnPlanDeclared)
+		{
+			++Dichiarate;
+			continue;
+		}
+
+		Comandabili.Add(Unit);
 	}
 
 	if (Comandabili.Num() == 0)
 	{
-		UE_LOG(LogRT, Display, TEXT("[RT] TAB: nessuna unita' comandabile da selezionare"));
+		// 🔴 **I due silenzi non sono lo stesso silenzio.** «Non hai unita'» e «le hai dichiarate
+		// tutte» producono entrambi un `TAB` che non fa niente, e per il giocatore sono situazioni opposte:
+		// nella seconda il turno e' pronto da chiudere. Un log solo per entrambe manderebbe a cercare un
+		// tasto rotto.
+		if (Dichiarate > 0)
+		{
+			UE_LOG(LogRT, Display,
+				TEXT("[RT] TAB: tutte le %d unita' comandabili hanno il piano dichiarato — non resta niente da decidere"),
+				Dichiarate);
+		}
+		else
+		{
+			UE_LOG(LogRT, Display, TEXT("[RT] TAB: nessuna unita' comandabile da selezionare"));
+		}
 		return false;
 	}
 

@@ -2020,4 +2020,85 @@ bool FRTCycleSelectionTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * La dichiarazione «ho deciso le mie mosse»: `TAB` salta chi l'ha data, e il flag non sopravvive al turno.
+ *
+ * 🔴 **La prima asserzione e' quella che distingue il DICHIARATO dal DERIVATO**: l'unita' che dichiara in
+ * questo test non ha pianificato **niente**. Ogni formula sui campi `Planned*` la direbbe «non ancora
+ * guardata»; solo un flag dichiarato la distingue da chi non e' stato aperto. E' il caso su cui la
+ * decisione d'autore del 2026-09-15 ha scelto fra le tre uscite.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeclaredTurnPlanTest,
+	"RefactorTactics.PlayerInput.DeclaredPlanLeavesTheTabCycle",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeclaredTurnPlanTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* A = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, -2, 0));
+	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("A"), A) || !TestNotNull(TEXT("B"), B)
+		|| !TestNotNull(TEXT("turn manager"), TM))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	A->StableUnitId = 10;
+	B->StableUnitId = 20;
+
+	// --- 1. 🔴 Si dichiara SENZA aver pianificato niente --------------------------------------------
+	{
+		PC->SelectActorForTest(A);
+		TestEqual(TEXT("premessa: A non ha pianificato nulla"), A->PlannedWaypoints.Num(), 0);
+		TestFalse(TEXT("premessa: A non ha dichiarato"), A->bTurnPlanDeclared);
+
+		TestTrue(TEXT("Enter dichiara"), PC->ToggleTurnPlanDeclaredForTest());
+		TestTrue(TEXT("A risulta dichiarata pur senza piano"), A->bTurnPlanDeclared);
+	}
+
+	// --- 2. TAB salta chi ha dichiarato --------------------------------------------------------------
+	{
+		PC->SelectActorForTest(nullptr);
+		TestTrue(TEXT("il ciclo trova ancora qualcuno"), PC->CycleSelectionForTest());
+		TestEqual(TEXT("e non e' A, che ha dichiarato"), PC->GetSelectedUnit(), B);
+
+		// Un secondo giro non riporta su A: resta fuori dal ciclo finche' non ritratta.
+		PC->CycleSelectionForTest();
+		TestEqual(TEXT("il ciclo resta su B"), PC->GetSelectedUnit(), B);
+	}
+
+	// --- 3. Si ritratta, e il ciclo la riprende -----------------------------------------------------
+	{
+		PC->SelectActorForTest(A);
+		TestTrue(TEXT("Enter ritratta"), PC->ToggleTurnPlanDeclaredForTest());
+		TestFalse(TEXT("A non e' piu' dichiarata"), A->bTurnPlanDeclared);
+
+		PC->SelectActorForTest(B);
+		PC->CycleSelectionForTest();
+		TestEqual(TEXT("il ciclo torna su A"), PC->GetSelectedUnit(), A);
+	}
+
+	// --- 4. 🔴 Il flag non sopravvive al turno -------------------------------------------------------
+	{
+		PC->SelectActorForTest(A);
+		PC->ToggleTurnPlanDeclaredForTest();
+		B->SetTurnPlanDeclared(true);
+		TestTrue(TEXT("premessa: entrambe dichiarate"), A->bTurnPlanDeclared && B->bTurnPlanDeclared);
+
+		TM->LockInAndResolve();
+
+		TestFalse(TEXT("A riparte non dichiarata"), A->bTurnPlanDeclared);
+		TestFalse(TEXT("B riparte non dichiarata"), B->bTurnPlanDeclared);
+	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

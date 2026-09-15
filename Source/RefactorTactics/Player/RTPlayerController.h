@@ -219,6 +219,16 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CycleSelectionAction;
 
+	/**
+	 * `Enter` — dichiara (o ritratta) che le mosse dell'unita' selezionata sono decise ([#3145]).
+	 *
+	 * ⛔ **Non e' il `LockIn` di `SpaceBar`**, e i due tasti stanno vicini per semantica ma non per
+	 * effetto: `SpaceBar` chiude il TURNO per tutti, `Enter` chiude la dichiarazione di UNA unita' e non
+	 * risolve niente.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> DeclarePlanAction;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RecenterAction;
 
@@ -715,6 +725,20 @@ private:
 	/** `TAB`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
 	void OnCycleSelection(const FInputActionValue& Value);
 
+	/** `Enter`: il gesto. La regola sta in `ToggleTurnPlanDeclared`. */
+	void OnDeclarePlan(const FInputActionValue& Value);
+
+	/**
+	 * Dichiara o ritratta il piano dell'unita' selezionata ([#3145]).
+	 *
+	 * 🔑 **E' un interruttore, non una porta a senso unico**: la matrice del puntatore dichiara ogni
+	 * intenzione *«revocabile fino a `LockIn`»*, e una dichiarazione che non si potesse ritrattare sarebbe
+	 * l'unica eccezione a quella regola — per giunta su un gesto che non produce nulla di irreversibile.
+	 *
+	 * @return vero se il flag e' cambiato.
+	 */
+	bool ToggleTurnPlanDeclared();
+
 	/**
 	 * Passa alla propria unita' successiva, in ordine **stabile** ([#3145]).
 	 *
@@ -918,6 +942,9 @@ public:
 
 	/** `TAB` senza premere `TAB`: la regola e' in `CycleSelection`, il tasto e' solo il suo innesco. */
 	bool CycleSelectionForTest() { return CycleSelection(); }
+
+	/** `Enter` senza premere `Enter`. */
+	bool ToggleTurnPlanDeclaredForTest() { return ToggleTurnPlanDeclared(); }
 
 	/** Ricostruisce il percorso dai waypoint correnti, come fa l'annullamento (per i test dell'interazione). */
 	void RebuildPlannedPathForTest() { RebuildPlannedPath(); }
