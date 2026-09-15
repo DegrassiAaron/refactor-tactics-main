@@ -2104,8 +2104,13 @@ bool FRTReserveTruncatesInsteadOfClearingTest::RunTest(const FString&)
 		// 🔴 L'asserzione che distingue le due regole: con l'azzeramento sarebbe `0`.
 		TestTrue(TEXT("il piano NON e' azzerato: qualche waypoint sopravvive"),
 			Unit->PlannedWaypoints.Num() > 0);
+		// ⚠️ **La guardia e' `Num() > 0`, non `Num() <= Dichiarati.Num()`**, e la differenza l'ha trovata una
+		// verifica di mutazione: col vecchio azzeramento il primo confronto e' `0 <= 2`, cioe' VERO, e
+		// l'indice `[0]` andava a leggere un array vuoto — il test **crashava** invece di fallire, portandosi
+		// dietro il worker e gli altri test della run. Un test deve sopravvivere alla mutazione che rileva.
 		TestTrue(TEXT("e sopravvivono i PRIMI, in ordine"),
-			Unit->PlannedWaypoints.Num() <= Dichiarati.Num()
+			Unit->PlannedWaypoints.Num() > 0
+			&& Unit->PlannedWaypoints.Num() <= Dichiarati.Num()
 			&& Unit->PlannedWaypoints[0] == Dichiarati[0]);
 		TestTrue(*FString::Printf(TEXT("il percorso sta nel budget del Withdraw (%d passi)"), Passi),
 			FMath::Max(0, Unit->PlannedPath.Num() - 1) <= Passi);
