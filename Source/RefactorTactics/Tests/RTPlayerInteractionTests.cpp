@@ -1933,126 +1933,6 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	return true;
 }
 
-/**
- * Il troncamento del piano al budget di un profilo: si scartano waypoint INTERI, dalla fine.
- *
- * 🔴 **L'asserzione che porta il peso e' la terza**: la cella finale e' sempre una che il giocatore ha
- * CLICCATO. Un troncamento al costo esatto — fermarsi a meta' fra due waypoint — passerebbe le prime due e
- * cadrebbe su questa, ed e' esattamente la mutazione contro cui il test esiste: il repository rifiuta in
- * due punti un percorso che finisca dove nessuno ha chiesto di andare.
- *
- * ⚠️ Il budget dello snapshot e' volutamente ALTO (`9`): il vincolo che si misura dev'essere quello passato
- * alla funzione, non quello che `BuildCompositeHexPath` applica per conto suo. Con un budget stretto
- * nello snapshot il test resterebbe verde anche se la funzione non troncasse nulla.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTruncateWaypointsToBudgetTest,
-	"RefactorTactics.PlayerInput.TruncationDropsWholeWaypoints",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTTruncateWaypointsToBudgetTest::RunTest(const FString&)
-{
-	UWorld* World = MakeInteractionWorld();
-	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
-
-	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 3);
-	if (!TestNotNull(TEXT("mappa pulita"), MapActor))
-	{
-		DestroyInteractionWorld(World); return false;
-	}
-
-	const FRTCellId Partenza(0, 0, 0);
-	const FRTCellId W1(1, 0, 0);
-	const FRTCellId W2(2, 0, 0);
-	const FRTCellId W3(3, 0, 0);
-
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
-		FRTHexSimUnit(0, Partenza, /*MoveBudget=*/ 9)
-	});
-
-	// --- 1. Un percorso che sta nel budget non perde niente ------------------------------------------
-	{
-		TArray<FRTCellId> Waypoints = { W1, W2, W3 };
-		FRTHexPathResult Kept;
-		const int32 Dropped = ARTPlayerController::TruncateWaypointsToBudget(
-			Snap, /*UnitId=*/ 0, Waypoints, /*StepBudget=*/ 5, /*CostBudget=*/ 5, Kept);
-
-		TestEqual(TEXT("nessun waypoint scartato"), Dropped, 0);
-		TestEqual(TEXT("i tre waypoint restano"), Waypoints.Num(), 3);
-		TestEqual(TEXT("e il percorso arriva all'ultimo"), Kept.Path.Last(), W3);
-	}
-
-	// --- 2. Un percorso oltre il budget perde i waypoint finali, non i primi -------------------------
-	{
-		TArray<FRTCellId> Waypoints = { W1, W2, W3 };
-		FRTHexPathResult Kept;
-		const int32 Dropped = ARTPlayerController::TruncateWaypointsToBudget(
-			Snap, /*UnitId=*/ 0, Waypoints, /*StepBudget=*/ 2, /*CostBudget=*/ 2, Kept);
-
-		TestEqual(TEXT("uno scartato"), Dropped, 1);
-		TestEqual(TEXT("ne restano due"), Waypoints.Num(), 2);
-		// ⛔ Il primo waypoint e' quello che sopravvive: si taglia dalla FINE.
-		TestEqual(TEXT("e il primo e' intatto"), Waypoints[0], W1);
-		TestTrue(TEXT("il percorso sta nel budget"), Kept.Path.Num() - 1 <= 2);
-	}
-
-	// --- 3. 🔴 La cella finale e' sempre una che il giocatore ha cliccato ----------------------------
-	{
-		// Budget 2 su un percorso da 3: un taglio al costo esatto si fermerebbe su `W2` **passando per**
-		// celle intermedie, e con budget dispari finirebbe su una cella mai cliccata. Qui si verifica la
-		// proprieta' direttamente, per ogni budget fra 0 e 4.
-		for (int32 Budget = 0; Budget <= 4; ++Budget)
-		{
-			TArray<FRTCellId> Waypoints = { W1, W2, W3 };
-			FRTHexPathResult Kept;
-			ARTPlayerController::TruncateWaypointsToBudget(
-				Snap, /*UnitId=*/ 0, Waypoints, Budget, Budget, Kept);
-
-			if (Kept.Path.Num() > 0)
-			{
-				const FRTCellId Finale = Kept.Path.Last();
-				const bool bCliccata = (Finale == W1) || (Finale == W2) || (Finale == W3);
-				TestTrue(*FString::Printf(
-					TEXT("budget %d: la destinazione (%d,%d) e' un waypoint cliccato"),
-					Budget, Finale.X, Finale.Y), bCliccata);
-			}
-			else
-			{
-				TestEqual(*FString::Printf(TEXT("budget %d: senza percorso non resta alcun waypoint"), Budget),
-					Waypoints.Num(), 0);
-			}
-		}
-	}
-
-	// --- 4. Budget nullo: non resta niente, e non e' un caso a parte ---------------------------------
-	{
-		TArray<FRTCellId> Waypoints = { W1, W2, W3 };
-		FRTHexPathResult Kept;
-		const int32 Dropped = ARTPlayerController::TruncateWaypointsToBudget(
-			Snap, /*UnitId=*/ 0, Waypoints, /*StepBudget=*/ 0, /*CostBudget=*/ 0, Kept);
-
-		TestEqual(TEXT("scartati tutti e tre"), Dropped, 3);
-		TestEqual(TEXT("nessun waypoint resta"), Waypoints.Num(), 0);
-		TestEqual(TEXT("e nessun percorso"), Kept.Path.Num(), 0);
-	}
-
-	DestroyInteractionWorld(World);
-	return true;
-}
-
-/**
- * L'ANCORA DEL CHIAMANTE: armare un'azione che riserva il profilo **tronca** il piano, non lo azzera.
- *
- * 🔴 **Esiste perche' il test della funzione pura non basta.** `TruncationDropsWholeWaypoints` verifica
- * `TruncateWaypointsToBudget`, e resterebbe **verde** se `SelectAbilityForCurrent` tornasse a chiamare
- * `PlannedWaypoints.Reset()`: e' il modulo puro verde mentre il chiamante sbaglia. Questo test guarda il
- * campo DOPO il gesto, che e' l'unico posto in cui la differenza fra le due regole si vede.
- *
- * ⚠️ **Il budget non e' cablato**: `Withdraw` e' una percentuale del movimento dell'eroe ([D-412]), quindi
- * il numero atteso si RICAVA dal profilo. Scrivere `1` qui renderebbe il test una funzione del roster.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReserveTruncatesInsteadOfClearingTest,
-	"RefactorTactics.PlayerInput.ReservingAProfileTruncatesThePlan",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTReserveTruncatesInsteadOfClearingTest::RunTest(const FString&)
 // --- #3145 · `TAB`: il percorso tastiera della selezione ----------------------------------------------
 
 /**
@@ -2079,9 +1959,6 @@ bool FRTCycleSelectionTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
-	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
-	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
 	// Tre proprie e una avversaria: l'avversaria non deve mai entrare nel ciclo.
 	ARTUnit* A = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, -2, 0));
 	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -2, 0));
@@ -2094,60 +1971,6 @@ bool FRTCycleSelectionTest::RunTest(const FString&)
 		DestroyInteractionWorld(World); return false;
 	}
 
-	PC->SelectActorForTest(Unit);
-	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
-	PC->HandleClickOnCell(FRTCellId(3, -1, 0));
-	if (!TestEqual(TEXT("premessa: due waypoint posati"), Unit->PlannedWaypoints.Num(), 2))
-	{
-		DestroyInteractionWorld(World); return false;
-	}
-	const TArray<FRTCellId> Dichiarati = Unit->PlannedWaypoints;
-
-	// L'indice si CERCA: le generiche sono accodate al kit, quindi la posizione dipende dall'eroe.
-	int32 IdxOverwatch = INDEX_NONE;
-	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
-	{
-		const URTActionData* A = Unit->GetAbility(i);
-		if (A && A->Def.ActionId == TEXT("Action.Overwatch")) { IdxOverwatch = i; break; }
-	}
-	if (!TestTrue(TEXT("premessa: l'eroe ha Action.Overwatch nel kit"), IdxOverwatch != INDEX_NONE))
-	{
-		DestroyInteractionWorld(World); return false;
-	}
-
-	const FRTMovementProfile Withdraw =
-		URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileWithdraw);
-	const int32 Passi = Withdraw.ResolveStepBudget(Unit->GetEffectiveMoveRange());
-
-	PC->SelectAbilityForCurrentForTest(IdxOverwatch);
-
-	TestEqual(TEXT("il profilo e' riservato al Withdraw"),
-		Unit->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileWithdraw);
-
-	if (Passi >= 1)
-	{
-		// 🔴 L'asserzione che distingue le due regole: con l'azzeramento sarebbe `0`.
-		TestTrue(TEXT("il piano NON e' azzerato: qualche waypoint sopravvive"),
-			Unit->PlannedWaypoints.Num() > 0);
-		// ⚠️ **La guardia e' `Num() > 0`, non `Num() <= Dichiarati.Num()`**, e la differenza l'ha trovata una
-		// verifica di mutazione: col vecchio azzeramento il primo confronto e' `0 <= 2`, cioe' VERO, e
-		// l'indice `[0]` andava a leggere un array vuoto — il test **crashava** invece di fallire, portandosi
-		// dietro il worker e gli altri test della run. Un test deve sopravvivere alla mutazione che rileva.
-		TestTrue(TEXT("e sopravvivono i PRIMI, in ordine"),
-			Unit->PlannedWaypoints.Num() > 0
-			&& Unit->PlannedWaypoints.Num() <= Dichiarati.Num()
-			&& Unit->PlannedWaypoints[0] == Dichiarati[0]);
-		TestTrue(*FString::Printf(TEXT("il percorso sta nel budget del Withdraw (%d passi)"), Passi),
-			FMath::Max(0, Unit->PlannedPath.Num() - 1) <= Passi);
-		// La destinazione e' una cella CLICCATA, mai una intermedia.
-		TestTrue(TEXT("e la destinazione e' un waypoint dichiarato"),
-			Unit->PlannedPath.Num() == 0 || Dichiarati.Contains(Unit->PlannedPath.Last()));
-	}
-	else
-	{
-		// Un `Withdraw` che non concede passi azzera per costruzione, e non e' un difetto: e' il troncamento
-		// che arriva fino in fondo. Si dichiara invece di lasciare il ramo muto.
-		TestEqual(TEXT("budget nullo: nessun waypoint sopravvive"), Unit->PlannedWaypoints.Num(), 0);
 	// Id distinti e dichiarati: l'ordine atteso e' il loro, non quello di spawn.
 	A->StableUnitId = 30;
 	B->StableUnitId = 10;
@@ -2274,6 +2097,202 @@ bool FRTDeclaredTurnPlanTest::RunTest(const FString&)
 
 		TestFalse(TEXT("A riparte non dichiarata"), A->bTurnPlanDeclared);
 		TestFalse(TEXT("B riparte non dichiarata"), B->bTurnPlanDeclared);
+	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * Il troncamento del piano al budget di un profilo: si scartano waypoint INTERI, dalla fine.
+ *
+ * 🔴 **L'asserzione che porta il peso e' la terza**: la cella finale e' sempre una che il giocatore ha
+ * CLICCATO. Un troncamento al costo esatto — fermarsi a meta' fra due waypoint — passerebbe le prime due e
+ * cadrebbe su questa, ed e' esattamente la mutazione contro cui il test esiste: il repository rifiuta in
+ * due punti un percorso che finisca dove nessuno ha chiesto di andare.
+ *
+ * ⚠️ Il budget dello snapshot e' volutamente ALTO (`9`): il vincolo che si misura dev'essere quello passato
+ * alla funzione, non quello che `BuildCompositeHexPath` applica per conto suo. Con un budget stretto
+ * nello snapshot il test resterebbe verde anche se la funzione non troncasse nulla.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTruncateWaypointsToBudgetTest,
+	"RefactorTactics.PlayerInput.TruncationDropsWholeWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTruncateWaypointsToBudgetTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnCleanInteractionMap(World, /*Radius=*/ 3);
+	if (!TestNotNull(TEXT("mappa pulita"), MapActor))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const FRTCellId Partenza(0, 0, 0);
+	const FRTCellId W1(1, 0, 0);
+	const FRTCellId W2(2, 0, 0);
+	const FRTCellId W3(3, 0, 0);
+
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+		FRTHexSimUnit(0, Partenza, /*MoveBudget=*/ 9)
+	});
+
+	// --- 1. Un percorso che sta nel budget non perde niente ------------------------------------------
+	{
+		TArray<FRTCellId> Waypoints = { W1, W2, W3 };
+		FRTHexPathResult Kept;
+		const int32 Dropped = ARTPlayerController::TruncateWaypointsToBudget(
+			Snap, /*UnitId=*/ 0, Waypoints, /*StepBudget=*/ 5, /*CostBudget=*/ 5, Kept);
+
+		TestEqual(TEXT("nessun waypoint scartato"), Dropped, 0);
+		TestEqual(TEXT("i tre waypoint restano"), Waypoints.Num(), 3);
+		TestEqual(TEXT("e il percorso arriva all'ultimo"), Kept.Path.Last(), W3);
+	}
+
+	// --- 2. Un percorso oltre il budget perde i waypoint finali, non i primi -------------------------
+	{
+		TArray<FRTCellId> Waypoints = { W1, W2, W3 };
+		FRTHexPathResult Kept;
+		const int32 Dropped = ARTPlayerController::TruncateWaypointsToBudget(
+			Snap, /*UnitId=*/ 0, Waypoints, /*StepBudget=*/ 2, /*CostBudget=*/ 2, Kept);
+
+		TestEqual(TEXT("uno scartato"), Dropped, 1);
+		TestEqual(TEXT("ne restano due"), Waypoints.Num(), 2);
+		// ⛔ Il primo waypoint e' quello che sopravvive: si taglia dalla FINE.
+		TestEqual(TEXT("e il primo e' intatto"), Waypoints[0], W1);
+		TestTrue(TEXT("il percorso sta nel budget"), Kept.Path.Num() - 1 <= 2);
+	}
+
+	// --- 3. 🔴 La cella finale e' sempre una che il giocatore ha cliccato ----------------------------
+	{
+		// Budget 2 su un percorso da 3: un taglio al costo esatto si fermerebbe su `W2` **passando per**
+		// celle intermedie, e con budget dispari finirebbe su una cella mai cliccata. Qui si verifica la
+		// proprieta' direttamente, per ogni budget fra 0 e 4.
+		for (int32 Budget = 0; Budget <= 4; ++Budget)
+		{
+			TArray<FRTCellId> Waypoints = { W1, W2, W3 };
+			FRTHexPathResult Kept;
+			ARTPlayerController::TruncateWaypointsToBudget(
+				Snap, /*UnitId=*/ 0, Waypoints, Budget, Budget, Kept);
+
+			if (Kept.Path.Num() > 0)
+			{
+				const FRTCellId Finale = Kept.Path.Last();
+				const bool bCliccata = (Finale == W1) || (Finale == W2) || (Finale == W3);
+				TestTrue(*FString::Printf(
+					TEXT("budget %d: la destinazione (%d,%d) e' un waypoint cliccato"),
+					Budget, Finale.X, Finale.Y), bCliccata);
+			}
+			else
+			{
+				TestEqual(*FString::Printf(TEXT("budget %d: senza percorso non resta alcun waypoint"), Budget),
+					Waypoints.Num(), 0);
+			}
+		}
+	}
+
+	// --- 4. Budget nullo: non resta niente, e non e' un caso a parte ---------------------------------
+	{
+		TArray<FRTCellId> Waypoints = { W1, W2, W3 };
+		FRTHexPathResult Kept;
+		const int32 Dropped = ARTPlayerController::TruncateWaypointsToBudget(
+			Snap, /*UnitId=*/ 0, Waypoints, /*StepBudget=*/ 0, /*CostBudget=*/ 0, Kept);
+
+		TestEqual(TEXT("scartati tutti e tre"), Dropped, 3);
+		TestEqual(TEXT("nessun waypoint resta"), Waypoints.Num(), 0);
+		TestEqual(TEXT("e nessun percorso"), Kept.Path.Num(), 0);
+	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * L'ANCORA DEL CHIAMANTE: armare un'azione che riserva il profilo **tronca** il piano, non lo azzera.
+ *
+ * 🔴 **Esiste perche' il test della funzione pura non basta.** `TruncationDropsWholeWaypoints` verifica
+ * `TruncateWaypointsToBudget`, e resterebbe **verde** se `SelectAbilityForCurrent` tornasse a chiamare
+ * `PlannedWaypoints.Reset()`: e' il modulo puro verde mentre il chiamante sbaglia. Questo test guarda il
+ * campo DOPO il gesto, che e' l'unico posto in cui la differenza fra le due regole si vede.
+ *
+ * ⚠️ **Il budget non e' cablato**: `Withdraw` e' una percentuale del movimento dell'eroe ([D-412]), quindi
+ * il numero atteso si RICAVA dal profilo. Scrivere `1` qui renderebbe il test una funzione del roster.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReserveTruncatesInsteadOfClearingTest,
+	"RefactorTactics.PlayerInput.ReservingAProfileTruncatesThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReserveTruncatesInsteadOfClearingTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	PC->SelectActorForTest(Unit);
+	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	PC->HandleClickOnCell(FRTCellId(3, -1, 0));
+	if (!TestEqual(TEXT("premessa: due waypoint posati"), Unit->PlannedWaypoints.Num(), 2))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	const TArray<FRTCellId> Dichiarati = Unit->PlannedWaypoints;
+
+	// L'indice si CERCA: le generiche sono accodate al kit, quindi la posizione dipende dall'eroe.
+	int32 IdxOverwatch = INDEX_NONE;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Unit->GetAbility(i);
+		if (A && A->Def.ActionId == TEXT("Action.Overwatch")) { IdxOverwatch = i; break; }
+	}
+	if (!TestTrue(TEXT("premessa: l'eroe ha Action.Overwatch nel kit"), IdxOverwatch != INDEX_NONE))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const FRTMovementProfile Withdraw =
+		URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileWithdraw);
+	const int32 Passi = Withdraw.ResolveStepBudget(Unit->GetEffectiveMoveRange());
+
+	PC->SelectAbilityForCurrentForTest(IdxOverwatch);
+
+	TestEqual(TEXT("il profilo e' riservato al Withdraw"),
+		Unit->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileWithdraw);
+
+	if (Passi >= 1)
+	{
+		// 🔴 L'asserzione che distingue le due regole: con l'azzeramento sarebbe `0`.
+		TestTrue(TEXT("il piano NON e' azzerato: qualche waypoint sopravvive"),
+			Unit->PlannedWaypoints.Num() > 0);
+		// ⚠️ **La guardia e' `Num() > 0`, non `Num() <= Dichiarati.Num()`**, e la differenza l'ha trovata una
+		// verifica di mutazione: col vecchio azzeramento il primo confronto e' `0 <= 2`, cioe' VERO, e
+		// l'indice `[0]` andava a leggere un array vuoto — il test **crashava** invece di fallire, portandosi
+		// dietro il worker e gli altri test della run. Un test deve sopravvivere alla mutazione che rileva.
+		TestTrue(TEXT("e sopravvivono i PRIMI, in ordine"),
+			Unit->PlannedWaypoints.Num() > 0
+			&& Unit->PlannedWaypoints.Num() <= Dichiarati.Num()
+			&& Unit->PlannedWaypoints[0] == Dichiarati[0]);
+		TestTrue(*FString::Printf(TEXT("il percorso sta nel budget del Withdraw (%d passi)"), Passi),
+			FMath::Max(0, Unit->PlannedPath.Num() - 1) <= Passi);
+		// La destinazione e' una cella CLICCATA, mai una intermedia.
+		TestTrue(TEXT("e la destinazione e' un waypoint dichiarato"),
+			Unit->PlannedPath.Num() == 0 || Dichiarati.Contains(Unit->PlannedPath.Last()));
+	}
+	else
+	{
+		// Un `Withdraw` che non concede passi azzera per costruzione, e non e' un difetto: e' il troncamento
+		// che arriva fino in fondo. Si dichiara invece di lasciare il ramo muto.
+		TestEqual(TEXT("budget nullo: nessun waypoint sopravvive"), Unit->PlannedWaypoints.Num(), 0);
 	}
 
 	DestroyInteractionWorld(World);
