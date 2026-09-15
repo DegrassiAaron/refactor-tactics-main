@@ -2010,7 +2010,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 }
 
 FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Snapshot,
-	const TArray<ARTUnit*>& Units, int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget)
+	const TArray<ARTUnit*>& Units, int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost)
 {
 	// Il nome di chi pianifica: e' il soggetto corretto di TRE rami su quattro — dicono di chi e' il piano
 	// rifiutato — e resta utile anche nel quarto, dove pero' non e' l'occupante.
@@ -2051,9 +2051,18 @@ FString ARTPlayerController::DescribeWaypointRejection(const FRTHexSnapshot& Sna
 
 	case ERTHexWaypointReason::Ok:
 	default:
+	{
 		// La cella e' percorribile e libera: quel che manca sono punti movimento.
+		//
+		// 🔑 **Il tetto si legge dallo SNAPSHOT, che e' cio' che ha rifiutato.** Lo costruisce
+		// `MakeSimUnit` applicando il profilo dichiarato ([D-412]), quindi sotto `Sprint` vale il doppio
+		// della portata dell'unita' e sotto `Withdraw` un quarto. Nominare la portata nuda direbbe un
+		// numero che non ha rifiutato niente.
+		const int32 Budget = Snapshot.Units.IsValidIndex(PlannerIndex)
+			? Snapshot.Units[PlannerIndex].MoveBudget : 0;
 		return Dove + FString::Printf(TEXT("oltre il budget (gia' spesi %d di %d) per %s"),
 			SpentCost, Budget, *PlannerName);
+	}
 	}
 }
 
@@ -2289,7 +2298,7 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		const FRTHexPathResult Kept =
 			URTHexSimLibrary::BuildCompositeHexPath(Snapshot, UnitId, SelectedUnit->PlannedWaypoints);
 		UE_LOG(LogRT, Log, TEXT("%s"), *DescribeWaypointRejection(Snapshot, SnapshotUnits, UnitId, Cell,
-			Kept.TotalCost, SelectedUnit->GetEffectiveMoveRange()));
+			Kept.TotalCost));
 		return;
 	}
 

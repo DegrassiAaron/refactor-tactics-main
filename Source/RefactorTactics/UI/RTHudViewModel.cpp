@@ -10,6 +10,8 @@
 #include "Player/RTPlayerController.h" // HotkeyLabelFor: il tasto si legge dalla tabella, generiche comprese (#2987, D-397)
 #include "Turn/RTReactionLibrary.h"   // ControlSeverityRank: la gravita' dei controlli ha gia' un owner (#2274)
 #include "Turn/RTIntentPrivacyLibrary.h"
+#include "Ability/RTMovementProfileLibrary.h" // ProfileForPlan: l'autorita' sul profilo, non un secondo lettore
+#include "Turn/RTPlanValidationLibrary.h"     // MakePlanFor: il piano da cui il profilo si ricava
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 
@@ -201,6 +203,16 @@ FRTUnitSlotsView URTHudViewModel::BuildUnitSlots(const ARTUnit* Unit)
 			}
 		}
 	}
+
+	// --- il profilo dello slot movimento -----------------------------------------------------------------
+	// 🔑 **Si interroga `ProfileForPlan`, non si legge `PlannedMovementProfileId`.** E' la stessa autorita'
+	// che `ARTTurnManager::MakeSimUnit` usa per ricavare i due budget: qualunque altra lettura sarebbe una
+	// seconda derivazione, e la HUD mostrerebbe un profilo con cui il turno non si risolve.
+	//
+	// → Chi non ha mai toccato il selettore legge `Move` con un percorso e `Still` senza: e' la stessa
+	// risposta che dara' il resolver, non un caso speciale della vista.
+	Slots.MovementProfileId = URTMovementProfileLibrary::ProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit)).Id;
 
 	// --- reazione ----------------------------------------------------------------------------------------
 	// Slot indipendente (CP 5.1): un eroe puo' muoversi, agire E tenere una reazione pronta nello stesso turno.
