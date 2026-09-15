@@ -7,6 +7,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHudViewModel.h"
+#include "Ability/RTMovementProfileLibrary.h" // i profili di movimento: la vista ne porta l'id
 #include "UI/RTIconLibrary.h"      // MakeIconId: la chiave che la vista porta gia' derivata (#2274)
 #include "UI/RTUnitOverlayWidget.h" // ComposeStatusDurationLabel: la regola di formato di uno stato (#2336)
 #include "Core/RTGameplayTags.h"   // i tag di stato usati dai test dei badge (#2274)
@@ -1908,6 +1909,82 @@ bool FRTHudVmArmingLifecycleTest::RunTest(const FString&)
 	// --- D. un indice fuori range non arma e non disarma -----------------------------------------------
 	Seconda->SelectAbility(9999);
 	TestEqual(TEXT("D: un indice non valido lascia l'armamento dov'era"), Seconda->SelectedAbilityIndex, 0);
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * Lo slot movimento porta il PROFILO con cui sara' speso (`#1410` `AC-1`).
+ *
+ * Senza, il gesto del selettore esiste e il suo esito non si vede: `AC-1` chiede che il profilo attivo sia
+ * leggibile **prima del lock-in**, che e' l'unico momento in cui cambiarlo serve ancora a qualcosa.
+ *
+ * 🔴 **L'asserzione che porta il peso e' la prima**: senza piano il profilo e' `Still`, **non** `None`.
+ * Un campo vuoto costringerebbe chi disegna a inventarsi che cosa significhi, e le due risposte possibili —
+ * «non ha dichiarato» e «ha dichiarato di stare fermo» — sono la stessa distinzione che `AC-4` tiene
+ * separata fra `Withdraw` **riservato** e `Still` **derivato**.
+ *
+ * ⚠️ **Il profilo si ricava dal PIANO**, quindi il terzo caso dichiara `Action.Sprint` invece di scrivere
+ * `PlannedMovementProfileId` a mano: scriverlo direttamente verificherebbe che la vista copia un campo, non
+ * che legge la stessa autorita' del resolver.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmMovementProfileTest,
+	"RefactorTactics.HudViewModel.SlotsCarryTheMovementProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmMovementProfileTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	// 1. Nessun piano: il profilo e' `Still`, che e' un'informazione, non un vuoto.
+	{
+		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+		TestEqual(TEXT("senza piano il profilo e' Still"),
+			Slots.MovementProfileId, URTMovementProfileLibrary::ProfileStill);
+		TestFalse(TEXT("e NON e' un campo vuoto"), Slots.MovementProfileId.IsNone());
+	}
+
+	// 2. Un percorso senza scelta esplicita: il neutro, cioe' `Move`. E' cio' che leggera' il resolver per
+	//    chi non ha mai toccato il selettore.
+	{
+		// ⚠️ **Non basta il waypoint, e la differenza e' documentata**: un movimento e' DICHIARATO quando
+		// `HasPlannedNormalMove()` e' vero — `PlannedCell != Cell || PlannedPath.Num() > 1` — e quel
+		// predicato non guarda `PlannedWaypoints`. Il gesto reale scrive entrambi, e qui si fa lo stesso:
+		// dichiarare il solo waypoint verificherebbe uno stato che `HandleClickOnCell` non produce mai.
+		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+		Unit->PlannedCell = FRTCellId(1, 0, 0);
+		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+		TestEqual(TEXT("un percorso senza scelta e' il profilo neutro"),
+			Slots.MovementProfileId, URTMovementProfileLibrary::ProfileMove);
+		Unit->PlannedWaypoints.Reset();
+		Unit->PlannedCell = Unit->Cell;
+	}
+
+	// 3. Il profilo DICHIARATO arriva alla vista. Si dichiara passando dal campo che il selettore scrive, e
+	//    si verifica che la vista risponda con cio' che il PIANO dice, non con una copia di quel campo.
+	{
+		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+		Unit->PlannedCell = FRTCellId(1, 0, 0);
+		Unit->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
+		TestEqual(TEXT("lo Sprint dichiarato si vede"),
+			Slots.MovementProfileId, URTMovementProfileLibrary::ProfileSprint);
+		Unit->PlannedMovementProfileId = NAME_None;
+		Unit->PlannedWaypoints.Reset();
+		Unit->PlannedCell = Unit->Cell;
+	}
+
+	// 4. ⛔ Non autorizzato = nessun profilo. La vista di un'unita' non comandata non si COSTRUISCE, e il
+	//    default del tipo e' la sola risposta che non racconta niente del piano altrui.
+	{
+		const FRTUnitSlotsView Vuota;
+		TestFalse(TEXT("il default non e' autorizzato"), Vuota.bAuthorized);
+		TestTrue(TEXT("e non porta nessun profilo"), Vuota.MovementProfileId.IsNone());
+	}
 
 	DestroyHudVmWorld(World);
 	return true;
