@@ -74,6 +74,32 @@ che è una decisione a sé e non un dettaglio di queste pagine.
 ⚠️ **È la correzione più economica dell'intero referto**: non chiede di scegliere fra due design, chiede di
 nominare il soggetto giusto.
 
+### ⏱️ 2026-09-15 — il soggetto esiste, e le sei sezioni hanno ciascuna la propria sede
+
+`SKB-1` è stata decisa il 2026-09-14: [`D-416`](../../decisions/RT_PDR_00_Decision_Log.md) fa entrare
+`Status.Stunned` nella v0.1 come **terzo** stato di controllo, e
+[#3142](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3142) lo implementa. La premessa di
+questa sezione — *«lo stordimento non esiste»* — **non è più vera dal commit che attua `D-416`**, e la
+riga misurata qui sopra (`grep` → 1 occorrenza) resta valida solo come fotografia del 2026-09-13.
+
+🔑 **Avere il soggetto non scrive le sei regole**, e la distinzione è il punto di questa nota: `#3142`
+consegna lo stato — che cosa nega, quanto dura, dove sta nell'ordine di gravità — mentre ciascuna regola
+resta al proprio owner. Dichiarate una per una:
+
+| § della sorgente | Che cosa il soggetto le dà | Sede della regola |
+|---|---|---|
+| §4 · simultaneità | uno stato che nega l'azione senza negare il movimento, quindi due unità nello stesso tick possono essere asimmetriche | ⛔ **non è di `#3142`**: dipende dal calendario dei sotto-passi, cioè da [`SKB-2`](../../OPEN_DECISIONS.md) / [#3136](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3136), ancora aperta |
+| §6 · decadenza della Guardia | il soggetto c'è | ⚠️ **fuori da `D-408`**, che lo dichiara: *«la decadenza al movimento e a fine Move … non è in `D-408` e va decisa a parte»*. [#3129](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3129) non la implementa |
+| §7 · Schivata disabilitata in Planning | il soggetto c'è | [#3130](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3130) (`D-407`/`D-409`) |
+| §8 · Reflect | il soggetto c'è | [#3131](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3131) (`D-410`) |
+| §9 · Overwatch interrotto | ✅ **attuata qui**: lo stordimento disarma l'Overwatch armato e spende la charge, riusando `ARTTurnManager::DisarmPreparedReactions` — la stessa funzione di `Prone` | il **perimetro** dell'occasione (una per nemico e per turno) resta a [#3132](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3132) (`D-411`) |
+| §11 · Interact impedito | il soggetto c'è — ed è l'unica delle cinque migrazioni la cui decisione **nomina** lo stordimento | [#3133](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3133) (`D-413`) |
+
+⛔ **Il blocco che §11.3 dichiarava era documentale, non testuale.** `D-416` §(6) lo misura:
+`grep -ciE 'stordi|stun'` sulle decisioni dà `D-408` 0 · `D-409` 0 · `D-410` 0 · `D-411` 0 · **`D-413` 1**.
+∴ `#3129`, `#3130`, `#3131` e `#3132` non aspettavano `SKB-1`, e non aspettano `#3142`: **guadagnano** qui
+il soggetto delle proprie clausole di controllo, che è un'altra cosa.
+
 ## 3. I sette conflitti strutturali
 
 Ordinati per costo di migrazione decrescente. Ciascuno è stato **verificato in prima persona** dopo la

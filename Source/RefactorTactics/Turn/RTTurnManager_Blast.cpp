@@ -704,6 +704,41 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			continue; // nessuna azione di Blast pianificata: non c'e' un'azione da far fallire
 		}
 
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`). Qui, e non in `ValidateInstance`: la
+		// validazione dell'istanza giudica bersaglio, portata e traiettoria su uno **snapshot**
+		// (`FRTHexCombatUnit`), che non porta gli status. E' la stessa sede in cui `Status.Unbalanced` nega
+		// la corsa — un rifiuto che nasce da uno STATO di chi agisce, non da una proprieta' del bersaglio.
+		//
+		// 🔑 **Rifiuto DICHIARATO, non scarto muto**: famiglia `Fallback`/`Cancelled`, causa in `Amount`.
+		// Chi rilegge il turno vede *perche'* l'azione non c'e' stata, invece di un buco. E' la stessa
+		// disciplina del rifiuto per `Unbalanced` in `ResolveDash` e di quello per portata qui sopra.
+		//
+		// ⛔ **Non tocca il movimento**, ed e' il confine con `Root`: questo `continue` salta l'azione, non
+		// il percorso, e il Move di questa unita' risolve come se lo stordimento non ci fosse. Due stati che
+		// negassero la stessa cosa sarebbero un solo stato scritto due volte.
+		//
+		// ⚠️ **L'abilita' resta consumata per il turno** — il piano e' gia' azzerato in cima al ciclo —
+		// esattamente come per la corsa rifiutata a chi ha perso l'equilibrio. Il cooldown no: `MarkAbilitySpent`
+		// non viene chiamato, e paga solo cio' che ha davvero toccato la mappa.
+		if (Unit->HasStatus(TAG_Status_Stunned))
+		{
+			FRTTurnLogEntry Stordita;
+			Stordita.Phase = ERTMatchPhase::Blast;
+			Stordita.Category = ERTLogCategory::Fallback;
+			Stordita.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+			// La tripla completa, come gli altri produttori `Fallback` di questo file ([D-196]).
+			Stordita.ActionId = Ability->Def.ActionId;
+			Stordita.BaseActionId = Ability->Def.BaseActionId;
+			Stordita.Priority = Ability->Def.Priority;
+			Stordita.SrcCell = Unit->Cell;
+			Stordita.TgtCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+			Stordita.Amount = static_cast<int32>(ERTActionInvalidReason::Stunned);
+			AppendLogEntry(Stordita, Unit);
+			AddLogEvent(FString::Printf(TEXT("%s: %s"),
+				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Stordita)), FRTLogSubject::Unit(Unit));
+			continue;
+		}
+
 		// Chi usa un'azione principale che nega la reazione (CP 5.1: nessuna oggi, ma il dato e' generico)
 		// non ne tiene pronta una in questo turno. `Action.Sprint` (l'unico caso reale) passa dallo scatto,
 		// non da qui: e' `ResolveDash` a registrarlo, perche' risolve prima e consuma lo slot principale.
@@ -2096,30 +2131,13 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 		ApplyStatusLogged(T, TAG_Status_Prone, URTCombatLibrary::ProneDurationTurns);
 		AppendLogEntry(Caduto, T);
 
-		// (1) NIENTE REAZIONE per il resto del turno. Si riusa `ReactionBlockedThisTurn`, che e' il
-		// meccanismo con cui `Action.Sprint` gia' fa la stessa cosa (CP 5.1): entrambi i punti che
-		// producono `ERTReactionOutcome::Unavailable` — quello generico e quello dell'interposizione — lo
-		// leggono gia'. Un terzo controllo scritto a mano in due `if` sarebbe una seconda regola da tenere
-		// d'accordo con la prima.
-		// ⚠️ **Copre il resto di QUESTO turno**; il turno successivo lo copre `ResolveDash`, che al reset
-		// rimette dentro chi e' ancora a terra — `Prone` dura 2 apposta.
-		ReactionBlockedThisTurn.Add(T);
-
-		// (2) OVERWATCH DISARMATO, con la CHARGE SPESA. `bCharged = false` e' esattamente il
-		// `ReactionStillArmed` di ADR-0004 §6 che il ciclo dei watcher legge per primo: l'armamento resta
-		// nella lista — quindi il replay lo vede — e non spara piu'. Perdere la charge e' il punto: apre la
-		// linea di gioco «spingo per disarmare», che e' cio' per cui [D-319] mette il blocco su `Prone` e
-		// non su `Unbalanced`.
-		for (FRTArmedOverwatch& Armed : ArmedOverwatches)
-		{
-			if (Armed.Owner.Get() == T) { Armed.bCharged = false; }
-		}
-
-		// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'**
-		// lo stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Ivrin.InterceptShot`: una scelta
-		// dichiarata e pagata un turno prima viene cancellata da una spinta, ed e' il punto che il brief §8.4
-		// lascia da confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
-		ArmedPredictions.RemoveAll([T](const FRTArmedPrediction& A) { return A.Shooter.Get() == T; });
+		// I TRE EFFETTI DEL DISARMO — reazione del turno, Overwatch con la charge spesa, predittive perse —
+		// li ha gia' applicati `ApplyStatusLogged` due righe sopra, che e' il passaggio obbligato di ogni
+		// applicazione di stato: sono in `ARTTurnManager::DisarmPreparedReactions`.
+		//
+		// 🔑 **Estratti li' e non ricopiati qui** ([D-416] punto 5, `#3142`): `Status.Stunned` deve fare
+		// esattamente le stesse tre cose, e due copie della stessa regola divergono al primo cambiamento.
+		// Il comportamento di `Prone` non cambia — cambia solo dove e' scritto.
 	};
 
 	// LA CADUTA GRAVITAZIONALE (#2402, `spec-caduta-e-bordi.md` §3–§4). Una sola regola, due chiamanti:

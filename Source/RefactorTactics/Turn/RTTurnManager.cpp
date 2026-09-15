@@ -467,6 +467,55 @@ void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Tu
 			MakeStatusDeathEntry(TAG_Status_Burning, Unit->Cell, ERTStatusOutcome::Extinguished);
 		AppendLogEntry(Spento, Unit);
 	}
+
+	// 🔴 **Il disarmo vive QUI per la stessa ragione per cui ci vive la voce di spegnimento** (`#1314`): e'
+	// una regola che deve valere su **ogni** sorgente che applica lo stato, non sul sito che si e' ricordato
+	// di scriverla. `Prone` ha oggi un solo produttore e `Stunned` non ne ha ancora nessuno ([D-416] non ne
+	// assegna): metterla nei siti invece che nel passaggio obbligato significherebbe che il primo kit che
+	// infligge lo stordimento lo fa senza disarmare, e nulla diventerebbe rosso.
+	//
+	// ⚠️ **Fuori dall'`if`**: il valore di ritorno di `ApplyStatus` dice se ha spento un `Burning`, non se
+	// lo stato e' entrato. Dentro l'`if` il disarmo avverrebbe solo per chi stava bruciando.
+	//
+	// 🔑 **Si verifica che lo stato ci sia DAVVERO**: `ApplyStatus` e' un no-op per `Turns <= 0`, e un
+	// disarmo su una durata nulla toglierebbe una charge senza che nessuno stato la giustifichi.
+	if ((Tag == TAG_Status_Prone || Tag == TAG_Status_Stunned) && Unit->HasStatus(Tag))
+	{
+		DisarmPreparedReactions(Unit);
+	}
+}
+
+void ARTTurnManager::DisarmPreparedReactions(ARTUnit* Unit)
+{
+	if (!IsValid(Unit))
+	{
+		return;
+	}
+
+	// (1) NIENTE REAZIONE per il resto del turno. Si riusa `ReactionBlockedThisTurn`, che e' il meccanismo
+	// con cui `Action.Sprint` gia' fa la stessa cosa (CP 5.1): entrambi i punti che producono
+	// `ERTReactionOutcome::Unavailable` — quello generico e quello dell'interposizione — lo leggono gia'.
+	// Un terzo controllo scritto a mano in due `if` sarebbe una seconda regola da tenere d'accordo con la
+	// prima.
+	// ⚠️ **Copre il resto di QUESTO turno**; il turno successivo lo copre `ResolveDash`, che al reset
+	// rimette dentro chi e' ancora a terra o stordito — `Prone` e `Stunned` durano 2 apposta.
+	ReactionBlockedThisTurn.Add(Unit);
+
+	// (2) OVERWATCH DISARMATO, con la CHARGE SPESA. `bCharged = false` e' esattamente il
+	// `ReactionStillArmed` di ADR-0004 §6 che il ciclo dei watcher legge per primo: l'armamento resta nella
+	// lista — quindi il replay lo vede — e non spara piu'. Perdere la charge e' il punto: apre la linea di
+	// gioco «spingo per disarmare», che e' cio' per cui [D-319] mette il blocco su `Prone` e non su
+	// `Unbalanced`.
+	for (FRTArmedOverwatch& Armed : ArmedOverwatches)
+	{
+		if (Armed.Owner.Get() == Unit) { Armed.bCharged = false; }
+	}
+
+	// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'** lo
+	// stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Ivrin.InterceptShot`: una scelta
+	// dichiarata e pagata un turno prima viene cancellata, ed e' il punto che il brief §8.4 lascia da
+	// confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
+	ArmedPredictions.RemoveAll([Unit](const FRTArmedPrediction& A) { return A.Shooter.Get() == Unit; });
 }
 
 FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
@@ -4041,9 +4090,14 @@ void ARTTurnManager::ResolveDash()
 	// del Dash, cioe' prima di ogni punto che valuta una reazione; aggiungere altrove significherebbe
 	// coprire solo i pass a valle. E' lo stesso ragionamento per cui `Action.Sprint` viene registrato dove
 	// risulta *effettivamente usato* invece che dove e' stato pianificato.
+	//
+	// ⚠️ **`Stunned` accanto a `Prone`, e per la stessa ragione** ([D-416], `#3142`): il disarmo che accade
+	// alla nascita dello stato copre il turno in cui nasce, non quello dopo. Entrambi durano **2** apposta,
+	// e senza questa riga il secondo turno di stordimento — l'unico in cui c'e' davvero un'azione da
+	// togliere — restituirebbe la reazione a chi non dovrebbe averla.
 	for (ARTUnit* Unit : Units)
 	{
-		if (IsValid(Unit) && Unit->HasStatus(TAG_Status_Prone))
+		if (IsValid(Unit) && (Unit->HasStatus(TAG_Status_Prone) || Unit->HasStatus(TAG_Status_Stunned)))
 		{
 			ReactionBlockedThisTurn.Add(Unit);
 		}

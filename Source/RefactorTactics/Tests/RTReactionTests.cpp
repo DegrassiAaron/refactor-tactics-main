@@ -432,22 +432,35 @@ bool FRTReactionTriggersHaveAPassPointTest::RunTest(const FString&)
 // CP 7.5 (`#505`) — quali stati sono di CONTROLLO, e in che ordine di gravita'.
 //
 // La lista vive nel codice e non nel catalogo (la v0.1 non ha un campo per dirlo), quindi e' un limite
-// dichiarato: questo test lo pinna. Diventa rosso quando nasce un terzo stato di controllo, che e'
-// esattamente il momento in cui qualcuno deve decidere dove metterlo — invece di scoprire tre mesi dopo
-// che `Reaction.Cleanse` non lo vedeva.
+// dichiarato: questo test lo pinna. Diventa rosso quando ne nasce uno nuovo, che e' esattamente il momento
+// in cui qualcuno deve decidere dove metterlo — invece di scoprire tre mesi dopo che `Reaction.Cleanse`
+// non lo vedeva.
+//
+// ⏱️ **Si chiamava `ControlStatusesAreTwo` ed E' CADUTO COME DOVEVA**: [D-416] (2026-09-14) ha fatto
+// entrare `Status.Stunned` come terzo controllo, e questo pin era scritto apposta per essere la sveglia di
+// quel momento. E' stato **riscritto**, non cancellato — cio' che difende non e' il numero `2`, e' che la
+// lista non cresca in silenzio e che l'ordine sia una scelta invece di un accidente.
+//
+// 🔴 **L'ordine, e perche' e' quello.** Il criterio e' **quanta capacita' toglie**, perche' questa lista
+// serve a `Reaction.Cleanse`, che di due controlli arrivati nello stesso Blast ne annulla **uno**:
+//   `Stunned` toglie l'azione principale, la reazione, e — unico dei tre — cio' che era gia' stato armato;
+//   `Root`    azzera il budget di movimento e lascia intatto l'agire;
+//   `Slow`    non toglie niente: rende piu' caro il passo.
 // =====================================================================================================
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlStatusesAreTwoTest,
-	"RefactorTactics.Reaction.ControlStatusesAreTwo",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTControlStatusesAreThreeTest,
+	"RefactorTactics.Reaction.ControlStatusesAreThree",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTControlStatusesAreTwoTest::RunTest(const FString&)
+bool FRTControlStatusesAreThreeTest::RunTest(const FString&)
 {
 	const TArray<FGameplayTag>& Controls = URTReactionLibrary::ControlStatusesBySeverity();
-	if (!TestEqual(TEXT("gli stati di controllo della v0.1 sono due"), Controls.Num(), 2)) { return false; }
+	if (!TestEqual(TEXT("gli stati di controllo della v0.1 sono tre"), Controls.Num(), 3)) { return false; }
 
-	// L'ORDINE e' il contratto, non l'insieme: `Root` azzera il budget di movimento, `Slow` ne aumenta il
-	// costo. Con due controlli nello stesso Blast si annulla il primo di questa lista.
-	TestEqual(TEXT("`Root` e' il piu' grave"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Root), 0);
-	TestEqual(TEXT("`Slow` viene dopo"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Slow), 1);
+	// L'ORDINE e' il contratto, non l'insieme. Con due controlli nello stesso Blast si annulla il primo di
+	// questa lista, quindi scambiarne due cambia quale capacita' il giocatore si riprende.
+	TestEqual(TEXT("`Stunned` e' il piu' grave"),
+		URTReactionLibrary::ControlSeverityRank(TAG_Status_Stunned), 0);
+	TestEqual(TEXT("`Root` viene dopo"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Root), 1);
+	TestEqual(TEXT("`Slow` per ultimo"), URTReactionLibrary::ControlSeverityRank(TAG_Status_Slow), 2);
 
 	// Uno stato che NON e' controllo non deve entrare nel confronto: senza questo, un rank di -1 usato come
 	// indice sarebbe un difetto silenzioso.

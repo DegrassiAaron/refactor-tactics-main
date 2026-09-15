@@ -2692,6 +2692,21 @@ protected:
 	void ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Turns);
 
 	/**
+	 * Spegne cio' che l'unita' aveva preparato: la reazione del turno, l'Overwatch armato (spendendone la
+	 * **charge**) e le predittive gia' dichiarate.
+	 *
+	 * 🔑 **Una funzione e non tre blocchi ripetuti** ([D-416] punto 5, `#3142`). I tre effetti nascono con
+	 * `Status.Prone` ([D-319], `#2253`) e sono esattamente cio' che `Status.Stunned` deve fare: scriverli
+	 * una seconda volta produrrebbe due verita' sullo stesso effetto, e il giorno in cui una cambia l'altra
+	 * resta indietro in silenzio. Chiamata da `ApplyStatusLogged` per **entrambi** i tag, quindi il punto
+	 * in cui accade e' il punto in cui lo stato nasce, qualunque sia la sorgente che lo applica.
+	 *
+	 * ⚠️ **Non scrive voci di TurnLog**, ed e' il motivo per cui puo' vivere dentro `ApplyStatusLogged`
+	 * senza spostare l'ordine delle tracce gia' scritte: il disarmo e' uno stato, non un evento.
+	 */
+	void DisarmPreparedReactions(ARTUnit* Unit);
+
+	/**
 	 * Gli EFFETTI della caduta gravitazionale (#2430, [D-357]): danno e, per chi cade, `Exposed`.
 	 *
 	 * 🔑 **Gli effetti non sono la posizione** (`spec-caduta-e-bordi.md` §5), ed e' il motivo per cui

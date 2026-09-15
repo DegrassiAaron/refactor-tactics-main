@@ -31,6 +31,7 @@
 #include "Turn/RTHexSimLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h"
+#include "Turn/RTReactionLibrary.h" // ControlSeverityRank: la gravita' si CHIEDE, non si ricopia
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTTurnManager.h"
@@ -1040,6 +1041,264 @@ bool FRTRealIconCatalogCoversRequiredIdsTest::RunTest(const FString&)
 		URTIconLibrary::RequiredIconIds().Contains(FName(TEXT("UI.Icon.Status.Unbalanced"))));
 	TestTrue(TEXT("`UI.Icon.Status.Prone` e' fra le chiavi richieste"),
 		URTIconLibrary::RequiredIconIds().Contains(FName(TEXT("UI.Icon.Status.Prone"))));
+
+	return true;
+}
+
+
+// =====================================================================================================
+// `Status.Stunned` — il TERZO stato di controllo ([D-416], `#3142`).
+//
+// Vive in questo file e non in uno proprio perche' condivide con `Prone` il banco e, soprattutto, il
+// MECCANISMO: i tre effetti del disarmo sono la stessa funzione (`DisarmPreparedReactions`), e misurarli
+// da due montaggi diversi renderebbe possibile che uno dei due resti verde mentre l'altro cade.
+//
+// ⛔ **Nessuna azione e nessun eroe infligge lo stordimento**: [D-416] non assegna produttori. Questi test
+// applicano lo stato direttamente, ed e' la stessa cosa che fara' il primo kit che lo dichiari.
+// =====================================================================================================
+
+/**
+ * 🔴 **Lo stordimento NON tocca il movimento, e `Root` si': e' il confine che li tiene due stati.**
+ *
+ * [D-416] lo scrive come vincolo — *«due stati che negano la stessa cosa sono uno stato solo scritto due
+ * volte»* — e senza questo test la distinzione resterebbe una frase nel Decision Log. Il montaggio e'
+ * costruito perche' cada in ENTRAMBI i versi: se `Stunned` finisse per azzerare il budget sarebbe rosso il
+ * primo asserto, e se `Root` smettesse di azzerarlo sarebbe rosso il secondo.
+ *
+ * ⚠️ **Due unita' e non una riusata**: `RemoveStatus` fra i due casi misurerebbe anche la rimozione, che e'
+ * un'altra proprieta'. Con due soggetti lo zero del secondo non puo' venire da un residuo del primo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunDeniesActionNotMovementTest,
+	"RefactorTactics.Status.StunDeniesTheActionNotTheMovement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunDeniesActionNotMovementTest::RunTest(const FString&)
+{
+	UWorld* World = MakeFallWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnFallMap(World, /*Radius=*/ 4);
+
+	ARTUnit* Stordito = SpawnFallUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Radicato = SpawnFallUnit(World, 0, FRTCellId(2, 0));
+	if (!Stordito || !Radicato) { DestroyFallWorld(World); return false; }
+
+	const int32 BudgetPieno = Stordito->GetEffectiveMoveRange();
+	if (!TestTrue(TEXT("il banco parte da un budget non nullo, altrimenti non distingue niente"),
+		BudgetPieno > 0))
+	{
+		DestroyFallWorld(World);
+		return false;
+	}
+
+	Stordito->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+	Radicato->ApplyStatus(TAG_Status_Root, /*Turni=*/ 1);
+
+	TestEqual(TEXT("chi e' stordito cammina: il budget non cambia"),
+		Stordito->GetEffectiveMoveRange(), BudgetPieno);
+	TestEqual(TEXT("chi e' radicato no: il budget e' azzerato"),
+		Radicato->GetEffectiveMoveRange(), 0);
+
+	// ⚠️ Il rango di gravita' e' l'altra meta' della distinzione, e si chiede a chi la possiede invece di
+	// riscriverla: `Stunned` toglie di piu', quindi viene prima. Se i due si scambiassero, `Reaction.Cleanse`
+	// annullerebbe il controllo sbagliato quando arrivano insieme.
+	TestTrue(TEXT("`Stunned` e' piu' grave di `Root`"),
+		URTReactionLibrary::ControlSeverityRank(TAG_Status_Stunned)
+			< URTReactionLibrary::ControlSeverityRank(TAG_Status_Root));
+
+	DestroyFallWorld(World);
+	return true;
+}
+
+/**
+ * 🔴 **Lo stordimento cancella l'azione principale, e il turno DICE perche'.**
+ *
+ * Due bracci, e il primo e' obbligatorio: senza, uno zero danni non distingue *«l'azione e' stata
+ * rifiutata»* da *«il banco non colpisce comunque»*. Il braccio `A` fissa che il colpo arrivi davvero; solo
+ * allora lo zero del braccio `B` significa qualcosa.
+ *
+ * ⚠️ **Si asserisce anche la VOCE, non solo il danno mancato.** Un'azione che sparisce in silenzio e'
+ * indistinguibile da un difetto — e' la disciplina che `Fallback`/`Cancelled` esiste per applicare, la
+ * stessa del rifiuto per `Unbalanced` in `ResolveDash`. Il motivo viaggia in `Amount`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunCancelsMainActionTest,
+	"RefactorTactics.Status.StunCancelsTheMainActionWithItsReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunCancelsMainActionTest::RunTest(const FString&)
+{
+	// Torna il danno subito dal bersaglio, e riempie `OutMotivo` con il motivo letto dal TurnLog
+	// (`INDEX_NONE` se nessuna voce `Fallback`/`Cancelled` lo nomina).
+	auto DannoInflitto = [this](bool bStordito, int32& OutMotivo, FString& OutNota) -> int32
+	{
+		OutMotivo = INDEX_NONE;
+		OutNota.Reset();
+
+		UWorld* World = MakeFallWorld();
+		if (!World) { OutNota = TEXT("world non creato"); return -1; }
+		SpawnFallMap(World, /*Radius=*/ 5);
+
+		ARTUnit* Attaccante = SpawnFallUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Bersaglio = SpawnFallUnit(World, 1, FRTCellId(1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Attaccante || !Bersaglio) { DestroyFallWorld(World); OutNota = TEXT("spawn fallito"); return -1; }
+
+		if (PlanCoreAttack(Attaccante, TEXT("Action.BasicAttack"), Bersaglio) == INDEX_NONE)
+		{
+			DestroyFallWorld(World); OutNota = TEXT("Action.BasicAttack non installabile"); return -1;
+		}
+		NeutralizeAllIntents(Bersaglio);
+
+		if (bStordito)
+		{
+			Attaccante->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+		}
+
+		const int32 SaluteIniziale = Bersaglio->Health + Bersaglio->Shield;
+		RunFallTurn(TM);
+		const int32 Danno = SaluteIniziale - (Bersaglio->Health + Bersaglio->Shield);
+
+		// ⚠️ **Si cerca il motivo ATTESO, non l'ultima voce annullata.** Prendere l'ultima renderebbe il
+		// verdetto dipendente da quante altre voci il turno produce dopo — e un fallimento direbbe «il
+		// motivo e' sbagliato» dove il difetto vero e' «la voce non c'e' affatto».
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback
+				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Stunned))
+			{
+				OutMotivo = E.Amount;
+				break;
+			}
+		}
+
+		OutNota = FString::Printf(TEXT("stordito=%d | danno=%d | motivo=%d"),
+			bStordito ? 1 : 0, Danno, OutMotivo);
+
+		DestroyFallWorld(World);
+		return Danno;
+	};
+
+	int32 MotivoA = INDEX_NONE;
+	FString NotaA;
+	const int32 DannoA = DannoInflitto(/*bStordito=*/ false, MotivoA, NotaA);
+
+	int32 MotivoB = INDEX_NONE;
+	FString NotaB;
+	const int32 DannoB = DannoInflitto(/*bStordito=*/ true, MotivoB, NotaB);
+
+	// (A) IL CONTROLLO. Senza questo, lo zero del caso (B) non e' una misura.
+	if (!TestTrue(FString::Printf(TEXT("A — non stordito, l'attacco arriva [%s]"), *NotaA), DannoA > 0))
+	{
+		return false;
+	}
+
+	// (B) IL CUORE.
+	TestEqual(FString::Printf(TEXT("B — stordito, nessun danno [%s]"), *NotaB), DannoB, 0);
+	TestEqual(TEXT("e il turno dice PERCHE': il motivo e' lo stordimento"),
+		MotivoB, static_cast<int32>(ERTActionInvalidReason::Stunned));
+
+	// La frase che il giocatore legge esiste e non e' la resa generica: e' la stessa proprieta' che
+	// `RefactorTactics.Actions.SprintRefusedOnRough` sorveglia per il proprio motivo.
+	const FString Detto = URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason::Stunned);
+	TestNotEqual(TEXT("il motivo e' tradotto, non generico"), Detto, FString(TEXT("non eseguibile")));
+
+	return true;
+}
+
+/**
+ * 🔴 **Chi e' stordito non reagisce, e l'Overwatch che aveva armato non spara.**
+ *
+ * Stesso banco della caduta — il guardiano ha il varco davanti a se' — perche' la geometria e' gia' stata
+ * pagata li': il commento di `ProneDisarmsOverwatchAndSpendsCharge` spiega perche' un montaggio ingenuo
+ * finisce per misurare la rotazione del facing invece del disarmo.
+ *
+ * ⚠️ **Qui non c'e' spinta, e per questo bastano DUE bracci invece di tre**: fra il caso di controllo e
+ * quello sotto esame cambia **una** cosa sola — lo stato. Il terzo termine serviva li' perche' il guardiano
+ * veniva anche spostato.
+ *
+ * 🔑 **La strada che si misura e' la guardia di inizio turno**, quella che rimette in
+ * `ReactionBlockedThisTurn` chi e' ancora stordito: e' cio' che rende vero il divieto nel turno `N+1`, il
+ * primo in cui lo stordimento ha davvero un'azione e una reazione da togliere.
+ *
+ * ⛔ **La charge spesa NON e' coperta da qui.** Quel ramo di `DisarmPreparedReactions` resta pinnato da
+ * `ProneDisarmsOverwatchAndSpendsCharge`, che dopo l'estrazione attraversa la stessa funzione: dichiarato
+ * come copertura indiretta invece che sottinteso come copertura propria.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStunSilencesTheWatcherTest,
+	"RefactorTactics.Status.StunSilencesAnArmedWatcher",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
+{
+	auto DannoNelVarco = [this](bool bStordito, FString& OutNota) -> int32
+	{
+		OutNota.Reset();
+
+		UWorld* World = MakeFallWorld();
+		if (!World) { OutNota = TEXT("world non creato"); return -1; }
+		SpawnFallMap(World, /*Radius=*/ 7);
+
+		ARTUnit* Watcher = SpawnFallUnit(World, 0, FRTCellId(-1, 0));
+		ARTUnit* Mover = SpawnFallUnit(World, 1, FRTCellId(0, 1));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Watcher || !Mover) { DestroyFallWorld(World); OutNota = TEXT("spawn fallito"); return -1; }
+
+		TM->ReactionDecider.BindLambda(
+			[](const FRTReactionOpportunity& Opportunity, int32) -> FString
+			{
+				for (const FString& Response : Opportunity.AllowedResponses)
+				{
+					if (URTReactionOpportunityLibrary::FireResponseTarget(Response) != INDEX_NONE)
+					{
+						return Response;
+					}
+				}
+				return FString();
+			});
+
+		const int32 OverwatchIdx = RTAbilityFixtures::AddCoreAbilityInSlot(
+			Watcher, TEXT("Action.Overwatch"), /*SlotIndex=*/ 3);
+		if (OverwatchIdx == INDEX_NONE) { DestroyFallWorld(World); OutNota = TEXT("Action.Overwatch non installabile"); return -1; }
+		Watcher->PlannedAbilityIndex = OverwatchIdx;
+		Watcher->PlannedCell = Watcher->Cell;
+
+		if (bStordito)
+		{
+			Watcher->ApplyStatus(TAG_Status_Stunned, URTCombatLibrary::StunnedDurationTurns);
+		}
+
+		Mover->PlannedAbilityIndex = INDEX_NONE;
+		Mover->PlannedPath = { FRTCellId(0, 1), FRTCellId(0, 0) };
+		Mover->PlannedCell = FRTCellId(0, 0);
+
+		const int32 SaluteIniziale = Mover->Health + Mover->Shield;
+		RunFallTurn(TM);
+		const int32 Danno = SaluteIniziale - (Mover->Health + Mover->Shield);
+
+		int32 Opportunita = 0;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::ReactionDecision) { ++Opportunita; }
+		}
+
+		OutNota = FString::Printf(TEXT("stordito=%d | mover (q=%d,r=%d) | decisioni=%d | danno=%d"),
+			bStordito ? 1 : 0, Mover->Cell.X, Mover->Cell.Y, Opportunita, Danno);
+
+		DestroyFallWorld(World);
+		return Danno;
+	};
+
+	FString NotaA;
+	const int32 DannoA = DannoNelVarco(/*bStordito=*/ false, NotaA);
+
+	FString NotaB;
+	const int32 DannoB = DannoNelVarco(/*bStordito=*/ true, NotaB);
+
+	// (A) IL CONTROLLO: in questo montaggio l'Overwatch spara davvero.
+	if (!TestTrue(FString::Printf(TEXT("A — guardiano lucido, l'Overwatch spara [%s]"), *NotaA), DannoA > 0))
+	{
+		return false;
+	}
+
+	// (B) IL CUORE.
+	TestEqual(FString::Printf(TEXT("B — guardiano stordito, l'Overwatch tace [%s]"), *NotaB), DannoB, 0);
 
 	return true;
 }

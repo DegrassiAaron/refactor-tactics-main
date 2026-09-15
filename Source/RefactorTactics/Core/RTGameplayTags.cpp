@@ -13,3 +13,4 @@ UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Obscured, "Status.Obscured");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Electrified, "Status.Electrified");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Unbalanced, "Status.Unbalanced");
 UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Prone, "Status.Prone");
+UE_DEFINE_GAMEPLAY_TAG(TAG_Status_Stunned, "Status.Stunned");

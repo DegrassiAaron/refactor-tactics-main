@@ -344,6 +344,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
+	case ERTActionInvalidReason::Stunned:        return TEXT("stordito: non puo' agire");
 	// ⚠️ Il testo nomina il TERRENO e dice cosa gli si puo' fare, perche' la voce `PIE-V01-LOG` non chiede
 	// se il log registri l'evento — chiede se chi lo apre **senza sapere cosa cercare** capisca perche'
 	// l'azione e' stata sostituita. «Terreno che nega lo scatto» descriverebbe il dato e lascerebbe il
