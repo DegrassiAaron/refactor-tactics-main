@@ -508,6 +508,59 @@ public:
 		WalkedThisTurn.Reset();
 	}
 
+	/**
+	 * Il giocatore ha DICHIARATO di aver deciso le mosse di questa unita' per il turno corrente
+	 * ([#3145], decisione d'autore 2026-09-15).
+	 *
+	 * 🔑 **E' dichiarato, non derivato, ed e' stata una scelta fra tre.** Le altre due — «ha dichiarato
+	 * qualcosa» e «ha dichiarato movimento E azione» — si calcolavano dai campi `Planned*` e non avrebbero
+	 * avuto schema; entrambe pero' rispondono male allo stesso caso: un'unita' che ha deciso di **non**
+	 * fare niente (`Action.Wait`, o restare ferma) e' conclusa quanto le altre, e nessuna formula sui campi
+	 * lo distingue dall'unita' che non e' stata ancora guardata. Solo il giocatore lo sa, quindi solo il
+	 * giocatore lo dice.
+	 *
+	 * ⛔ **Non e' il lock-in.** Il lock-in e' del TURNO e lo chiude per tutti
+	 * (`ARTTurnManager::LockInAndResolve`, `SpaceBar`); questo e' di UNA unita' e non chiude niente —
+	 * dichiara soltanto che non serve tornarci sopra. Un giocatore puo' dichiarare tutte le proprie unita' e
+	 * non essere pronto, o essere pronto senza averne dichiarata nessuna.
+	 *
+	 * ⛔ **E non e' `FRTHudSlotLine::bPlanned`**, che dice se uno SLOT porta un'azione pianificata. Due
+	 * entita' con lo stesso nome si pagano a ogni lettura ([D-407] §1.1): il nome lungo e' il prezzo di non
+	 * confonderle.
+	 *
+	 * ⚠️ **Non entra nello snapshot e non e' replicato**, per ora deliberatamente: e' stato di
+	 * pianificazione locale, la simulazione non lo legge, e un avversario che sapesse quali unita' hai
+	 * chiuso leggerebbe il ritmo del tuo planning. Il giorno in cui la HUD di un alleato dovesse mostrarlo,
+	 * e' una proiezione da progettare in `RTIntentPrivacyLibrary`, non un campo da replicare.
+	 *
+	 * Si azzera dove i piani smettono di valere: `ARTTurnManager::ConcludeResolution`, accanto a
+	 * `ClearReactionPlan()`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Turn")
+	bool bTurnPlanDeclared = false;
+
+	/**
+	 * Dichiara (o ritratta) che le mosse di questa unita' sono decise.
+	 *
+	 * ⛔ **Un morto non dichiara**: chi non e' vivo non ha un turno da chiudere, e lasciarglielo fare
+	 * produrrebbe un'unita' «conclusa» che `TAB` salta per la ragione sbagliata.
+	 *
+	 * @return vero se il flag e' CAMBIATO.
+	 */
+	bool SetTurnPlanDeclared(bool bDeclared)
+	{
+		if (!IsAlive() && bDeclared)
+		{
+			return false;
+		}
+		if (bTurnPlanDeclared == bDeclared)
+		{
+			return false;
+		}
+		bTurnPlanDeclared = bDeclared;
+		return true;
+	}
+
 	/** Abilita' di scatto pianificata per il turno (INDEX_NONE = nessuno scatto). Si risolve in fase Dash. */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	int32 PlannedDashAbility = INDEX_NONE;

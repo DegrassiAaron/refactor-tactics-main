@@ -1798,6 +1798,12 @@ void ARTTurnManager::ConcludeResolution()
 			// il turno finisce, ed e' qui — lo stesso punto in cui il piano smette di valere.
 			Unit->ReactionActivationsThisTurn = 0;
 
+			// ➕ **E la dichiarazione «ho deciso le mie mosse» ([#3145])**, per la ragione che questo blocco
+			// dichiara da tre commenti: e' del TURNO, quindi finisce col turno. Sopravvivendo, il turno nuovo
+			// comincerebbe con le unita' gia' concluse — `TAB` le salterebbe tutte e il giocatore si
+			// troverebbe un ciclo vuoto senza aver dichiarato niente.
+			Unit->SetTurnPlanDeclared(false);
+
 			// 🔴 **E l'ARMAMENTO torna al neutro, per [D-397] §5** (`#2988`). Un piano consumato lasciava
 			// `SelectedAbilityIndex` scritto: il dock leggeva `GetArmedActionIndex()` e accendeva uno slot
 			// che affermava una scelta gia' spesa. Con `bPlanned` la contraddizione diventa **visibile** —
