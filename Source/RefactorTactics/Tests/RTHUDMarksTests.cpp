@@ -13,6 +13,7 @@
 #include "UI/RTHUD.h"
 #include "Turn/RTTurnManager.h"     // il ciclo del turno: e' cio' che D-359 usa come confine
 #include "Map/RTHexVisionLibrary.h" // FRTLineOfSightResult: la ragione E il punto (#3085)
+#include "Map/RTHexLibrary.h" // CellCorners/AxialToWorld: la sorgente della convenzione (#3077)
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -785,6 +786,77 @@ bool FRTRefusalTextCoversEveryOutcomeTest::RunTest(const FString&)
 
 	// ⛔ E non promette una distanza: il problema non è quanto si è lontani.
 	TestFalse(TEXT("«su un altro piano» non stampa un numero di portata"), Altrove.Contains(TEXT("3")));
+	return true;
+}
+
+/**
+ * Il contorno che marca l'ostacolo COMBACIA con la cella — `#3077`.
+ *
+ * 🔴 **Il difetto che questo test esiste per prendere, e che e' passato sotto QUATTRO sedute.**
+ * `ARTHUD::DrawHUD` costruiva i sei vertici con `FMath::DegreesToRadians(60.f * I)`, cioe' primo vertice a
+ * `0` gradi — un **flat-top** — mentre la griglia e' **pointy-top con primo vertice a -30 gradi**
+ * (`URTHexLibrary::CellCorners`, e la convenzione e' dichiarata in otto file di `Map/`). Trenta gradi esatti
+ * di scarto: il contorno taglia i lati della cella invece di seguirli, quindi non la chiude e lo sguardo non
+ * la isola. Il verdetto d'autore della seduta del 2026-09-12 lo ha descritto «cella giusta ma non combacia,
+ * sembra ruotato di 30 o 60 gradi, comunque e' poco visibile».
+ *
+ * ⛔ **Contare i vertici non basta, ed e' precisamente il motivo per cui il difetto e' sopravvissuto**:
+ * un esagono ruotato ne ha comunque sei. Questo test asserisce **dove cadono**.
+ *
+ * 🔑 **La prima asserzione non guarda l'implementazione**: misura l'angolo del primo vertice rispetto al
+ * centro e pretende `-30` gradi. Vale anche se domani il contorno venisse ricalcolato altrove, ed e' cio'
+ * che distingue un presidio della CONVENZIONE da un confronto fra due copie della stessa riga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlockerOutlineMatchesTheCellTest,
+	"RefactorTactics.HUD.BlockerOutlineMatchesTheCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlockerOutlineMatchesTheCellTest::RunTest(const FString&)
+{
+	const FRTCellId Cella(2, -1, 0);
+	const FVector Origine(520.f, -30.f, -200.f); // l'origine board misurata su `L_HexArena`
+	constexpr float HexSize = 75.f;
+	constexpr float LayerH = 200.f;
+
+	const TArray<FVector> Contorno = ARTHUD::CellOutlineWorld(Cella, Origine, HexSize, LayerH);
+	if (!TestEqual(TEXT("il contorno ha sei vertici"), Contorno.Num(), 6))
+	{
+		return false;
+	}
+
+	const FVector Centro = URTHexLibrary::AxialToWorld(Cella, Origine, HexSize, LayerH);
+
+	// --- l'asserzione che porta il difetto: DOVE cade il primo vertice ---
+	{
+		const FVector R = Contorno[0] - Centro;
+		const float Gradi = FMath::RadiansToDegrees(FMath::Atan2(R.Y, R.X));
+		// ⚠️ `-30` e non `0`: e' la convenzione pointy-top che `URTHexLibrary` dichiara. Con la stesura
+		// precedente questo valore era `0`, e il test cade.
+		TestTrue(FString::Printf(TEXT("il primo vertice sta a -30 gradi (misurato %.2f)"), Gradi),
+			FMath::Abs(FMath::FindDeltaAngleDegrees(Gradi, -30.f)) < 1.f);
+	}
+
+	// --- e il contorno intero e' quello della cella, non uno suo omologo ruotato ---
+	{
+		const TArray<FVector> Celle = URTHexLibrary::CellCorners(Cella, Origine, HexSize, LayerH);
+		if (TestEqual(TEXT("la sorgente ne da' sei"), Celle.Num(), 6))
+		{
+			for (int32 I = 0; I < 6; ++I)
+			{
+				TestTrue(FString::Printf(TEXT("il vertice %d combacia con quello della cella"), I),
+					Contorno[I].Equals(Celle[I], 0.01f));
+			}
+		}
+	}
+
+	// --- controprova del metodo: un contorno FLAT-TOP, cioe' il difetto, verrebbe respinto ---
+	{
+		// Se questa non cadesse, l'asserzione qui sopra non distinguerebbe le due convenzioni e il test
+		// sarebbe verde su entrambe — che e' lo stato da cui `#3077` viene.
+		const FVector VertaFlatTop = Centro + FVector(HexSize, 0.f, 0.f); // 0 gradi
+		TestFalse(TEXT("un primo vertice a 0 gradi NON combacia con la cella"),
+			VertaFlatTop.Equals(Contorno[0], 0.01f));
+	}
+
 	return true;
 }
 

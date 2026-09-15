@@ -210,6 +210,26 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> UndoAction;
 
+	/**
+	 * `TAB` — passa alla propria unita' successiva senza toccare il mouse ([#3145]).
+	 *
+	 * ⚠️ **Non e' una comodita'**: `progettazione-hud.md` §47-bis.2 chiede *percorso tastiera e controller
+	 * equivalente a quello del mouse* per ogni Decision Window, e la selezione dell'unita' e' il **primo**
+	 * gesto di ognuna — senza, l'equivalenza e' falsa a monte di tutte le altre voci.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CycleSelectionAction;
+
+	/**
+	 * `Enter` — dichiara (o ritratta) che le mosse dell'unita' selezionata sono decise ([#3145]).
+	 *
+	 * ⛔ **Non e' il `LockIn` di `SpaceBar`**, e i due tasti stanno vicini per semantica ma non per
+	 * effetto: `SpaceBar` chiude il TURNO per tutti, `Enter` chiude la dichiarazione di UNA unita' e non
+	 * risolve niente.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> DeclarePlanAction;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RecenterAction;
 
@@ -758,6 +778,43 @@ private:
 	void OnStepPlaybackMicroStep(const FInputActionValue& Value);
 
 	void OnRecenter(const FInputActionValue& Value);
+
+	/** `TAB`: il gesto. La regola sta in `CycleSelection`, perche' un test non deve premere un tasto. */
+	void OnCycleSelection(const FInputActionValue& Value);
+
+	/** `Enter`: il gesto. La regola sta in `ToggleTurnPlanDeclared`. */
+	void OnDeclarePlan(const FInputActionValue& Value);
+
+	/**
+	 * Dichiara o ritratta il piano dell'unita' selezionata ([#3145]).
+	 *
+	 * 🔑 **E' un interruttore, non una porta a senso unico**: la matrice del puntatore dichiara ogni
+	 * intenzione *«revocabile fino a `LockIn`»*, e una dichiarazione che non si potesse ritrattare sarebbe
+	 * l'unica eccezione a quella regola — per giunta su un gesto che non produce nulla di irreversibile.
+	 *
+	 * @return vero se il flag e' cambiato.
+	 */
+	bool ToggleTurnPlanDeclared();
+
+	/**
+	 * Passa alla propria unita' successiva, in ordine **stabile** ([#3145]).
+	 *
+	 * 🔴 **L'ordine e' per `StableUnitId`, mai quello di `TActorIterator`.** Un ciclo che dipendesse
+	 * dall'iterazione degli Actor renderebbe non riproducibile un input di planning — la stessa disciplina
+	 * per cui `FRTActionInstance` porta un `SourceUnitId` intero invece di un pointer.
+	 *
+	 * ⛔ **Non scrive NIENTE nel piano.** Selezionare non e' dichiarare: nessun campo `Planned*` viene
+	 * toccato, e lo stato armato dell'unita' che si lascia (`SelectedAbilityIndex`) resta dov'e'.
+	 *
+	 * ⚠️ **Il filtro «solo le unita' non ancora pronte» NON e' implementato, e non e' una dimenticanza: non
+	 * ha un soggetto.** Misurato il 2026-09-15: il lock-in e' del TURNO (`ARTTurnManager::LockInAndResolve`,
+	 * `IsReadyCountdownActive`), e `ARTUnit` non porta alcuno stato di «dichiarazione conclusa» —
+	 * `git grep -n "LockedIn\|bReady" -- Source/RefactorTactics/Unit/RTUnit.h` non stampa nulla. Il giorno in
+	 * cui quello stato esistesse, il filtro e' una riga in piu' in questo ciclo.
+	 *
+	 * @return vero se la selezione e' cambiata.
+	 */
+	bool CycleSelection();
 	void OnFocusSelected(const FInputActionValue& Value);
 
 	/** Ricostruisce PlannedPath dell'unita' dai PathWaypoints correnti (o lo azzera se vuoti). */
@@ -939,6 +996,12 @@ public:
 	 * `ARTUnit*` perche' qui `ARTUnit` e' solo dichiarato: la conversione al puntatore base non sarebbe visibile.
 	 */
 	void SelectActorForTest(AActor* Actor) { SelectedActor = Actor; }
+
+	/** `TAB` senza premere `TAB`: la regola e' in `CycleSelection`, il tasto e' solo il suo innesco. */
+	bool CycleSelectionForTest() { return CycleSelection(); }
+
+	/** `Enter` senza premere `Enter`. */
+	bool ToggleTurnPlanDeclaredForTest() { return ToggleTurnPlanDeclared(); }
 
 	/** Ricostruisce il percorso dai waypoint correnti, come fa l'annullamento (per i test dell'interazione). */
 	void RebuildPlannedPathForTest() { RebuildPlannedPath(); }

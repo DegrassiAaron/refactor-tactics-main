@@ -182,13 +182,18 @@ public:
 	 * Gli stati che contano come CONTROLLO, dal **piu' grave al meno grave** (CP 7.5, `#505`).
 	 *
 	 * Ordine, non insieme: con due controlli nello stesso Blast `Reaction.Cleanse` ne annulla uno solo, e
-	 * quale non puo' dipendere da chi ha colpito per primo. `Root` azzera il budget di movimento, `Slow` ne
-	 * aumenta il costo per cella: il primo fa perdere il turno, il secondo lo rende piu' caro.
+	 * quale non puo' dipendere da chi ha colpito per primo. Il criterio e' **quanta capacita' toglie**:
+	 * `Stunned` toglie l'azione principale, la reazione e cio' che era gia' armato ([D-416]); `Root` azzera
+	 * il budget di movimento e lascia intatto l'agire; `Slow` non toglie niente, rende piu' caro il passo.
 	 *
 	 * ⚠️ **Limite dichiarato**: e' una lista nel codice, non un dato del catalogo. Uno stato di controllo
 	 * aggiunto domani non entra qui da solo e il modulo smetterebbe di vederlo — lo stesso difetto che
 	 * `PassPointFor` esiste per impedire, qui non evitabile senza un campo nel catalogo degli stati (che la
-	 * v0.1 non ha). Pinnato da `Reaction.ControlStatusesAreTwo`, che cade quando ne nasce un terzo.
+	 * v0.1 non ha). Pinnato da `Reaction.ControlStatusesAreThree`, che cade quando ne nasce un quarto.
+	 *
+	 * ⏱️ Il pin si chiamava `Reaction.ControlStatusesAreTwo` ed e' caduto come previsto quando [D-416] ha
+	 * fatto nascere il terzo: e' stato **riscritto**, non cancellato — cio' che difende e' che la lista non
+	 * cresca in silenzio, non il numero `2`.
 	 */
 	static const TArray<FGameplayTag>& ControlStatusesBySeverity();
 

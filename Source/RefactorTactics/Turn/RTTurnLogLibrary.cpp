@@ -344,6 +344,7 @@ FString URTTurnLogLibrary::DescribeInvalidReason(ERTActionInvalidReason Reason)
 	// ⚠️ Diverso da «interrotta»: quella e' stata CANCELLATA, questa e' avvenuta senza ottenere niente.
 	case ERTActionInvalidReason::Neutralised:    return TEXT("neutralizzata da un'interruzione reciproca");
 	case ERTActionInvalidReason::Unbalanced:     return TEXT("sbilanciato: non puo' correre");
+	case ERTActionInvalidReason::Stunned:        return TEXT("stordito: non puo' agire");
 	// ⚠️ Il testo nomina il TERRENO e dice cosa gli si puo' fare, perche' la voce `PIE-V01-LOG` non chiede
 	// se il log registri l'evento — chiede se chi lo apre **senza sapere cosa cercare** capisca perche'
 	// l'azione e' stata sostituita. «Terreno che nega lo scatto» descriverebbe il dato e lascerebbe il
@@ -823,6 +824,141 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 	// voce la dichiara: `p0` su ogni riga sarebbe rumore su tracce scritte prima della v7, dove lo zero
 	// significa «non dichiarata» e non «priorita' zero».
 	const FString Tail = ActionIdentitySuffix(Entry);
+
+	// ➕ **Le voci AMBIENTALI hanno la loro guardia, e prima non l'avevano** (`#3110`).
+	//
+	// 🔴 `Entry.Outcome` e' un `uint8` CONDIVISO il cui enum dipende dalla CATEGORIA — lo dichiara
+	// `OutcomeEnumFor`, che per `Environment` restituisce `StaticEnum<ERTEnvironmentOutcome>()`. Senza questa
+	// guardia una voce ambientale cadeva nello switch qui sotto e veniva reinterpretata **per posizione**:
+	// `SurfaceChanged` (0) letta come `Hit` (0) usciva come *«N danni»*, e `SurfaceRejected` (2) come
+	// `Lethal` (2) usciva come *«N danni, eliminata»* — per una trasformazione che NON era avvenuta.
+	// Trovato leggendo il TurnLog di una partita vera: sette righe di danno per `Hero.Muiren.MistVeil`, che
+	// non dichiara danno.
+	//
+	// ⚠️ **E `Amount` non e' un danno**: per le superfici e' la DURATA in turni (`ApplyDynamicSurface`,
+	// `Entry.Amount = Turns`), per `CoverDamaged` e `BridgeDamaged` l'INTEGRITA' RESIDUA, come dichiara il
+	// commento dell'enum. Stamparlo come danno diceva un numero vero col nome sbagliato, che e' peggio che
+	// non dirlo.
+	//
+	// ⛔ **Nessun `default:` qui, ed e' deliberato**: un esito ambientale nuovo deve far scattare `-Wswitch`,
+	// non uscire in silenzio raccontato come un attacco. E' esattamente il modo in cui questo difetto e'
+	// nato — una caduta silenziosa — e chiuderlo con un `default:` lo riaprirebbe di lato.
+	if (Entry.Category == ERTLogCategory::Environment)
+	{
+		switch (static_cast<ERTEnvironmentOutcome>(Entry.Outcome))
+		{
+		case ERTEnvironmentOutcome::SurfaceChanged:
+			return FString::Printf(TEXT("%s: la superficie cambia (%d turni)%s"),
+				*CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTEnvironmentOutcome::SurfaceRestored:
+			return FString::Printf(TEXT("%s: la superficie torna com'era%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::SurfaceRejected:
+			return FString::Printf(TEXT("%s: la superficie non ammette la trasformazione%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::SurfaceExtinguished:
+			return FString::Printf(TEXT("%s: la superficie ne spegne un'altra%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::CoverDamaged:
+			return FString::Printf(TEXT("%s -> %s: copertura colpita, integrita' residua %d%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTEnvironmentOutcome::CoverDestroyed:
+			return FString::Printf(TEXT("%s -> %s: copertura abbattuta%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::DoorClosed:
+			return FString::Printf(TEXT("%s -> %s: porta chiusa%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::DoorOpened:
+			return FString::Printf(TEXT("%s -> %s: porta aperta%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::BridgeCreated:
+			return FString::Printf(TEXT("%s -> %s: ponte creato%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::BridgeRemoved:
+			return FString::Printf(TEXT("%s -> %s: ponte rimosso%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		case ERTEnvironmentOutcome::BridgeDamaged:
+			return FString::Printf(TEXT("%s -> %s: ponte colpito, integrita' residua %d%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Tail);
+		case ERTEnvironmentOutcome::BridgeDestroyed:
+			return FString::Printf(TEXT("%s -> %s: ponte abbattuto%s"),
+				*CellText(Entry.SrcCell), *CellText(Entry.TgtCell), *Tail);
+		}
+	}
+
+	// `Objective` **ha** un produttore non-test raggiungibile in partita -- `ARTTurnManager` nel Cleanup
+	// (`Objective.Control`), che la scrive a OGNI turno in cui la mappa ha un obiettivo, `Unclaimed` e
+	// `Contested` comprese: senza quelle due un turno conteso e un turno vuoto sarebbero indistinguibili nel
+	// log, e la contesa e' precisamente cio' che il checkpoint aggiunge alla partita. Misura in `#3110`,
+	// criterio 2.
+	//
+	// Vale qui tutto cio' che il blocco ambientale qui sopra dichiara -- `Amount` non e' un danno, la
+	// collisione per POSIZIONE d'enum, nessun `default:` -- e non si ripete: `Team0Scores` e
+	// `ERTCombatOutcome::Lethal` valgono entrambi 2, e `Amount` porta i PUNTI assegnati.
+	//
+	// ⛔ **La rete dell'esaustivita' NON e' `-Wswitch`.** La build non promuove i warning a errori -- nessun
+	// `bWarningsAsErrors` nei `.Build.cs` ne' nei `.Target.cs`, misurato -- e nessun gate legge il log di
+	// compilazione. Cio' che fa cadere un esito aggiunto e non tradotto e'
+	// `RefactorTactics.TurnLog.ObjectiveEntriesAreDescribed`, che **riflette** `StaticEnum<ERTObjectiveOutcome>()`
+	// invece di elencare i valori a mano. Chi toglie quel ciclo toglie la rete, e il `default:` che manca qui
+	// non lo sostituisce: lo riaprirebbe in silenzio.
+	if (Entry.Category == ERTLogCategory::Objective)
+	{
+		switch (static_cast<ERTObjectiveOutcome>(Entry.Outcome))
+		{
+		case ERTObjectiveOutcome::Unclaimed:
+			return FString::Printf(TEXT("%s: obiettivo di nessuno%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		case ERTObjectiveOutcome::Contested:
+			return FString::Printf(TEXT("%s: obiettivo conteso, nessuno avanza%s"),
+				*CellText(Entry.TgtCell), *Tail);
+		// I due esiti che segnano condividono il ramo, e il numero di squadra si LEGGE dall'esito: scritti
+		// separati, l'unico modo in cui potevano rompersi era una copia-incolla che lasciava «squadra 0» nel
+		// ramo della squadra 1 -- un difetto che nessuna asimmetria del codice avrebbe reso visibile.
+		case ERTObjectiveOutcome::Team0Scores:
+		case ERTObjectiveOutcome::Team1Scores:
+		{
+			const int32 Squadra =
+				(static_cast<ERTObjectiveOutcome>(Entry.Outcome) == ERTObjectiveOutcome::Team0Scores) ? 0 : 1;
+
+			// ⚠️ **Un punteggio non positivo CONTRADDICE l'esito**, e non si indovina. `DescribeEntry` gira
+			// anche su tracce deserializzate e su log di scenario, dove `Outcome` e `Amount` sono campi
+			// indipendenti: `(+0)` sarebbe una riga che dichiara un punto mai assegnato, e `(+-1)` una frase
+			// malformata. E' la stessa scelta di `HitCameFromSide`, che rifiuta un `Amount` fuori intervallo
+			// invece di clamparlo -- «una frase sicura e sbagliata» e' il modo in cui `#3110` e' nato.
+			if (Entry.Amount <= 0)
+			{
+				return FString::Printf(TEXT("%s: la squadra %d controlla l'obiettivo, punti non tradotti (%d)%s"),
+					*CellText(Entry.TgtCell), Squadra, Entry.Amount, *Tail);
+			}
+
+			return FString::Printf(TEXT("%s: la squadra %d controlla l'obiettivo (+%d)%s"),
+				*CellText(Entry.TgtCell), Squadra, Entry.Amount, *Tail);
+		}
+		}
+	}
+
+	// ⛔ **Una categoria senza descrittore si DICHIARA, non si racconta come un attacco.** E' la riga che
+	// impedisce il ritorno di `#3110` da un altro lato: lo switch qui sotto non e' piu' raggiungibile per
+	// CADUTA, e chi aggiunge una categoria vede una frase che lo dice invece di leggere danni inventati.
+	//
+	// ⚠️ **`ReactionClash` passa di qui, ed e' MISURATO** (`#3110`, criterio 2). I soli chiamanti di
+	// `MakeClashLogEntries` stanno in `Tests/RTOverwatchTriggerTests.cpp` -- il nome, non il conteggio, che
+	// scadrebbe da solo il giorno in cui `#314` ne aggiunge uno:
+	//
+	//     git grep -n "MakeClashLogEntries" -- Source/
+	//
+	// `ScenarioHarness/RTScenarioSession.cpp` lo dichiara a sua volta -- *«nessun punto del resolver le
+	// chiama»* -- ed e' la capability BLOCCATA di `#314`. Il suo descrittore nasce col chiamante: scriverlo
+	// adesso sarebbe la guardia a tappeto che il criterio vieta, cioe' la stessa scorciatoia che ha prodotto
+	// questo difetto. `Objective` non passa piu' di qui: ha il suo, qui sopra.
+	if (Entry.Category != ERTLogCategory::Combat)
+	{
+		return FString::Printf(TEXT("%s: voce di categoria %s senza descrittore%s"),
+			*CellText(Entry.TgtCell),
+			*StaticEnum<ERTLogCategory>()->GetNameStringByValue(static_cast<int64>(Entry.Category)),
+			*Tail);
+	}
 
 	switch (static_cast<ERTCombatOutcome>(Entry.Outcome))
 	{

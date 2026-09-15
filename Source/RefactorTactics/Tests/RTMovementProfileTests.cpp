@@ -51,12 +51,42 @@ bool FRTMovementProfileCatalogDeclaresTheProfiles::RunTest(const FString&)
 		URTMovementProfileLibrary::ProfileWithdraw);
 
 	TestTrue(TEXT("lo Sprint e' un profilo"), Sprint.IsValid());
-	TestEqual(TEXT("lo Sprint porta gli 8 punti del catalogo par. 2.1"), Sprint.MoveBudget, 8);
-	TestEqual(TEXT("e gli 8 passi, finche' ogni cella costa 1"), Sprint.StepBudget, 8);
+	TestEqual(TEXT("lo Sprint raddoppia il budget (D-412)"), Sprint.MoveBudgetPercent, 200);
+	TestEqual(TEXT("e i passi seguono lo stesso moltiplicatore"), Sprint.StepBudgetPercent, 200);
 
-	// `Withdraw` e' il criterio esplicito di `#653`: «oggi non e' esprimibile». Il numero e' [D-070].
+	// `Withdraw` e' il criterio esplicito di `#653`: «oggi non e' esprimibile». Il moltiplicatore e' [D-412].
 	TestTrue(TEXT("il Withdraw e' un profilo"), Withdraw.IsValid());
-	TestEqual(TEXT("il Withdraw porta i 2 punti di D-070"), Withdraw.MoveBudget, 2);
+	TestEqual(TEXT("il Withdraw ripiega a un quarto del budget (D-412)"), Withdraw.MoveBudgetPercent, 25);
+
+	// ⏱️ *Fino al 2026-09-13 queste tre righe asserivano ASSOLUTI — Sprint `8`, Withdraw `2` — e [D-412] le
+	// ha rese percentuali. Il numero assoluto non e' sparito: e' diventato una CONSEGUENZA del budget
+	// dell'eroe, ed e' il caso che il test qui sotto esibisce invece di lasciarlo dedurre.*
+	// 🔴 **E il numero si muove per quasi tutto il roster.** Il budget non e' il `MoveRange = 4` del default
+	// di classe: e' `GetEffectiveMoveRange()`, che parte da `Hero->MovePoints` (`RTUnit.cpp:1600`), e gli
+	// eroi spediti dichiarano **5 · 5 · 4 · 6**. ∴ lo Sprint passa da `8` fisso a **10 · 10 · 8 · 12**, e
+	// solo per uno dei quattro resta dov'era. Le righe qui sotto coprono i due estremi.
+	TestEqual(TEXT("l'eroe da 4 scatta di 8, come l'assoluto di prima"), Sprint.ResolveMoveBudget(4), 8);
+	TestEqual(TEXT("quello da 6 scatta di 12, che l'assoluto non gli dava"), Sprint.ResolveMoveBudget(6), 12);
+
+	// ⛔ **Il troncamento e' la regola, non un residuo dell'aritmetica intera**: [D-412] prescrive di
+	// arrotondare **per difetto**. Senza questa riga la migrazione passerebbe anche se qualcuno arrotondasse
+	// per eccesso «per conservare il 2 di prima».
+	TestEqual(TEXT("un eroe da 5 ripiega di 1, non di 2"), Withdraw.ResolveMoveBudget(5), 1);
+	TestEqual(TEXT("e uno da 8 di 2, che e' il caso in cui il vecchio assoluto era giusto"),
+		Withdraw.ResolveMoveBudget(8), 2);
+
+	// 🔴 **Sotto `4` il quarto e' ZERO, e il caso si raggiunge in partita.** Non e' un difetto del
+	// moltiplicatore: e' esattamente il caso per cui [D-412] prescrive il **primo passo garantito**, che
+	// vive nel pathfinding e **non e' implementato**.
+	//
+	// ⛔ **E non basta dire «nessun eroe spedito e' in quel caso»**, come una prima stesura di questa nota
+	// sosteneva guardando il `MoveRange = 4` del default di classe. Il budget passa da
+	// `GetEffectiveMoveRange()`, che applica anche lo `StandUp` di [D-319]: l'eroe che dichiara
+	// `MovePoints = 4` scende a **3** quando si rialza, e con l'`Overwatch` armato — che [D-070] gli riserva
+	// al solo `Withdraw` — **non ripiega affatto**. La riga asserisce lo zero; a correggerlo sara' il primo
+	// passo garantito.
+	TestEqual(TEXT("budget 3: il quarto e' zero, e serve il primo passo garantito che non c'e' ancora"),
+		Withdraw.ResolveMoveBudget(3), 0);
 
 	// Un profilo che nessuno ha dichiarato non si inventa.
 	TestFalse(TEXT("un Id sconosciuto non produce un profilo"),
@@ -79,19 +109,36 @@ bool FRTMovementProfileMoveInheritsUnitBudget::RunTest(const FString&)
 	const FRTMovementProfile Move = URTMovementProfileLibrary::FindProfile(
 		URTMovementProfileLibrary::ProfileMove);
 
-	TestEqual(TEXT("il Move dichiara di ereditare i passi"),
-		Move.StepBudget, FRTMovementProfile::InheritFromUnit);
-	TestEqual(TEXT("e l'asperita'"), Move.MoveBudget, FRTMovementProfile::InheritFromUnit);
+	TestEqual(TEXT("il Move vale il 100% dei passi dell'unita'"),
+		Move.StepBudgetPercent, FRTMovementProfile::NeutralPercent);
+	TestEqual(TEXT("e il 100% dell'asperita'"), Move.MoveBudgetPercent, FRTMovementProfile::NeutralPercent);
 
 	// Un eroe da 7 resta da 7, non diventa da 5.
 	TestEqual(TEXT("un eroe da 7 conserva 7"), Move.ResolveMoveBudget(7), 7);
 	TestEqual(TEXT("un eroe da 3 conserva 3"), Move.ResolveMoveBudget(3), 3);
-	TestEqual(TEXT("i passi seguono la stessa eredita'"), Move.ResolveStepBudget(7), 7);
+	TestEqual(TEXT("i passi seguono lo stesso moltiplicatore"), Move.ResolveStepBudget(7), 7);
 
-	// Lo Sprint invece IGNORA l'unita': e' il primo profilo che sposta davvero un numero.
+	// Lo Sprint invece SCALA l'unita' invece di ignorarla, ed e' cio' che [D-412] ha cambiato.
+	//
+	// ⏱️ *Questa riga diceva «lo Sprint vale 8 anche per un eroe da 3», e asseriva l'assoluto: era il
+	// comportamento di prima, e conteneva il difetto che il moltiplicatore corregge — un eroe da 9 aveva uno
+	// Sprint piu' CORTO del proprio Move.*
 	const FRTMovementProfile Sprint = URTMovementProfileLibrary::FindProfile(
 		URTMovementProfileLibrary::ProfileSprint);
-	TestEqual(TEXT("lo Sprint vale 8 anche per un eroe da 3"), Sprint.ResolveMoveBudget(3), 8);
+	TestEqual(TEXT("lo Sprint di un eroe da 3 vale 6, non l'assoluto 8"), Sprint.ResolveMoveBudget(3), 6);
+	// 🔑 **L'invariante che l'assoluto NON garantiva, ed e' la ragione del moltiplicatore**: lo scatto e'
+	// STRETTAMENTE piu' lungo del passo per ogni eroe che si muove. Con `8` cablato un eroe da 9 lo smentiva.
+	//
+	// ⚠️ **`>` e non `>=`, e la differenza non e' pedanteria**: con `>=` l'asserzione sarebbe vera anche se
+	// qualcuno riportasse lo Sprint a `100`, cioe' se il profilo smettesse di essere uno scatto. Il caso
+	// `Range == 0` e' escluso apposta — li' entrambi valgono zero, e non c'e' scatto da confrontare.
+	for (const int32 Range : { 1, 3, 4, 5, 7, 9, 12 })
+	{
+		TestTrue(*FString::Printf(TEXT("con budget %d lo Sprint e' piu' lungo del Move"), Range),
+			Sprint.ResolveMoveBudget(Range) > Move.ResolveMoveBudget(Range));
+	}
+	// ⛔ E il pavimento vale per entrambi: un budget nullo non produce uno scatto negativo.
+	TestEqual(TEXT("budget zero: nessuno dei due va sotto zero"), Sprint.ResolveMoveBudget(0), 0);
 	return true;
 }
 
@@ -117,32 +164,59 @@ bool FRTMovementProfileStillKeepsUnitCapacity::RunTest(const FString&)
 }
 
 /**
- * ⛔ `Sneak` e' dichiarato SENZA numeri (`AE-5`), e sta nel catalogo proprio per questo.
+ * ✅ `Sneak` ha i suoi numeri, e da quel momento si sceglie ([D-412], che chiude `AE-5`).
  *
- * Ometterlo avrebbe nascosto la lacuna; dargli un budget l'avrebbe inventata. Il tipo lo prevede, il dato
- * no, e `bPlannable` e' il campo che lo dice invece di lasciarlo intuire.
+ * ⏱️ *Questo test si chiamava `SneakIsDeclaredButNotPlannable` e asseriva l'opposto — `bPlannable` falso —
+ * ed era giusto: il catalogo markdown gli assegnava «—» al posto di un budget, e dargliene uno l'avrebbe
+ * inventato. `AE-5` ha risposto alle tre domande che poneva (costo, portata, rumore), e la lacuna che il
+ * test dichiarava non c'e' piu'.*
+ *
+ * 🔑 **Il test non e' stato cancellato ma ROVESCIATO**, e la ragione e' che serve ancora: `bPlannable`
+ * distingue *«non ha numeri»* dalle **altre due** ragioni per cui un profilo non si offre — `Still`, che e'
+ * derivato, e `Withdraw`, che e' riservato. Un `bPlannable` senza nessun `false` non proverebbe piu' che
+ * quella distinzione esiste, ed e' cio' che `#1410` `AC-4` chiede di non confondere.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileSneakIsDeclaredButNotPlannable,
-	"RefactorTactics.MovementProfile.SneakIsDeclaredButNotPlannable",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileSneakIsPlannableWithItsNumbers,
+	"RefactorTactics.MovementProfile.SneakIsPlannableWithItsNumbers",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTMovementProfileSneakIsDeclaredButNotPlannable::RunTest(const FString&)
+bool FRTMovementProfileSneakIsPlannableWithItsNumbers::RunTest(const FString&)
 {
 	const FRTMovementProfile Sneak = URTMovementProfileLibrary::FindProfile(
 		URTMovementProfileLibrary::ProfileSneak);
 
 	TestTrue(TEXT("lo Sneak esiste come tipo"), Sneak.IsValid());
-	TestFalse(TEXT("ma non si puo' pianificare: non ha numeri (AE-5)"), Sneak.bPlannable);
+	TestTrue(TEXT("e ora si puo' pianificare: AE-5 e' chiusa da D-412"), Sneak.bPlannable);
+	TestEqual(TEXT("meta' del budget (D-412)"), Sneak.MoveBudgetPercent, 50);
+	TestEqual(TEXT("un eroe da 4 sguscia di 2"), Sneak.ResolveMoveBudget(4), 2);
 
-	// Ogni altro profilo del catalogo e' invece scegliibile: senza questo confronto il test sopra passerebbe
-	// anche se nessun profilo lo fosse.
+	// ⛔ **Ogni profilo del catalogo e' ora pianificabile, e il campo resta comunque necessario**: le
+	// esclusioni dall'offerta sono TRE e solo una di esse e' «non ha numeri». Senza questa asserzione
+	// nessuno noterebbe che il campo ha smesso di distinguere qualcosa.
 	for (const FRTMovementProfile& Profile : URTMovementProfileLibrary::GetCoreMovementProfileCatalog())
 	{
-		if (Profile.Id != URTMovementProfileLibrary::ProfileSneak)
-		{
-			TestTrue(*FString::Printf(TEXT("%s e' pianificabile"), *Profile.Id.ToString()),
-				Profile.bPlannable);
-		}
+		TestTrue(*FString::Printf(TEXT("%s e' pianificabile"), *Profile.Id.ToString()), Profile.bPlannable);
 	}
+
+	// 🔑 **I numeri arrivano fino al piano, e non restano un dato di catalogo.** Un piano che nomina il
+	// profilo `Sneak` lo dichiara, col budget dimezzato: e' cio' che [D-412] rende vero, ed e' verificabile
+	// **senza** che un'azione del catalogo lo nomini — `ProfileForPlan` legge `MovementProfileId` dalla voce
+	// di piano, chiunque l'abbia messa.
+	//
+	// ⛔ **Nessuna `Action.Sneak` esiste, ed e' voluto.** Una voce del catalogo core rende obbligatoria la
+	// propria chiave icona, e `DA_IconCatalog` non ha `UI.Icon.Action.Sneak`: l'azione entra con [#1410],
+	// che porta il selettore e il glifo. Qui si prova la META' che [D-412] possiede — il profilo ha i suoi
+	// numeri — e non quella che non gli appartiene.
+	//
+	// ⛔ **E non si passa da `OfferableProfiles`**: quella funzione non esiste su `origin/main`, la porta
+	// `#1410`, e un test che la chiamasse non compilerebbe.
+	const TArray<FRTPlannedAction> SneakPlan = {
+		PlanEntryWithProfile(TEXT("Action.Sneak"), URTMovementProfileLibrary::ProfileSneak),
+	};
+	TestEqual(TEXT("un piano che nomina lo Sneak dichiara quel profilo"),
+		URTMovementProfileLibrary::ProfileForPlan(SneakPlan).Id,
+		URTMovementProfileLibrary::ProfileSneak);
+	TestEqual(TEXT("col budget dimezzato che il profilo porta"),
+		URTMovementProfileLibrary::ProfileForPlan(SneakPlan).ResolveMoveBudget(4), 2);
 	return true;
 }
 
@@ -152,6 +226,55 @@ bool FRTMovementProfileSneakIsDeclaredButNotPlannable::RunTest(const FString&)
  * 🔑 Lo dichiara RICAVANDOLO, non con un campo parallelo: e' la ragione per cui non puo' esistere un piano
  * che dica `Sprint` come azione e `Move` come profilo.
  */
+/**
+ * 🔑 **Una sola CORSA fra i cinque profili, e il criterio e' un dato** ([D-406]).
+ *
+ * [D-319] dice «chi ha perso l'equilibrio non corre», e fino a [#641] il soggetto di quella frase e'
+ * implicito: il criterio e' `ERTMovementStyle::Budget` **dentro il ciclo del Dash**, dove lo `Sprint` e'
+ * l'unica mobilita' a budget che puo' stare. ⛔ Lo stile da solo **non** distingue — `Action.Move` dichiara
+ * lo stesso `Budget`, e `Actions.SprintIsAMoveProfileResolvedPreBlast` lo asserisce — quindi con la
+ * migrazione il recinto sparisce e il criterio portato com'e' rifiuterebbe anche il Move normale.
+ *
+ * ⚠️ **Questo test cade se qualcuno dichiara una seconda corsa senza deciderlo**, ed e' il punto: `Withdraw`
+ * in particolare deve restare `false` perche' [D-070] lo IMPONE a chi arma l'`Overwatch` — un criterio che
+ * lo rifiutasse lascerebbe uno sbilanciato con lo slot movimento riservato a un profilo vietato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileOnlySprintIsARun,
+	"RefactorTactics.MovementProfile.OnlySprintIsARun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileOnlySprintIsARun::RunTest(const FString&)
+{
+	const TArray<FRTMovementProfile> Catalogo = URTMovementProfileLibrary::GetCoreMovementProfileCatalog();
+	if (!TestTrue(TEXT("il catalogo dei profili non e' vuoto"), Catalogo.Num() > 0))
+	{
+		return false;
+	}
+
+	// Si enumerano le CORSE invece di contarle: un totale direbbe «una» senza dire quale, e il giorno in cui
+	// cambiasse il messaggio non aiuterebbe chi legge il rosso.
+	TArray<FName> Corse;
+	for (const FRTMovementProfile& Profilo : Catalogo)
+	{
+		if (Profilo.bIsRun)
+		{
+			Corse.Add(Profilo.Id);
+		}
+	}
+
+	TestTrue(TEXT("lo Sprint e' una corsa"), Corse.Contains(URTMovementProfileLibrary::ProfileSprint));
+	TestFalse(TEXT("il Move normale non lo e': camminare non e' correre"),
+		Corse.Contains(URTMovementProfileLibrary::ProfileMove));
+	TestFalse(TEXT("ne' il fermo"), Corse.Contains(URTMovementProfileLibrary::ProfileStill));
+	TestFalse(TEXT("ne' lo Sneak, che e' l'opposto di una corsa"),
+		Corse.Contains(URTMovementProfileLibrary::ProfileSneak));
+	// D-070: il ripiegamento e' IMPOSTO dall'Overwatch, non scelto. Se fosse una corsa, uno sbilanciato si
+	// troverebbe lo slot movimento riservato a un profilo che il criterio gli vieta.
+	TestFalse(TEXT("ne' il Withdraw, che l'Overwatch impone invece di offrire"),
+		Corse.Contains(URTMovementProfileLibrary::ProfileWithdraw));
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfilePlanDeclaresTheProfile,
 	"RefactorTactics.MovementProfile.PlanDeclaresTheProfile",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

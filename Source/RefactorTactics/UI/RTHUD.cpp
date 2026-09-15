@@ -6,6 +6,7 @@
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
 #include "Player/RTPlayerState.h"
+#include "Player/RTPlayerController.h" // #3115: GetSelectedUnit — quale piano si sta scrivendo adesso
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTMoveRoute.h" // FRTMoveRoute + URTMoveRouteLibrary::VisibleTrailFor
 #include "Turn/RTPlaybackLibrary.h"
@@ -174,6 +175,16 @@ void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 			OutBlockerCells.Add(Line.BlockerCell);
 		}
 	}
+}
+
+TArray<FVector> ARTHUD::CellOutlineWorld(const FRTCellId& Cell, const FVector& Origin,
+	float HexSize, float LayerHeight)
+{
+	// ⛔ **Una riga, e deve restare una riga.** Il valore di questa funzione e' di NON contenere geometria:
+	// `URTHexLibrary::CellCorners` compone `AxialToWorld` e `HexCorners`, che il repository dichiara come
+	// gli unici due posti in cui la convenzione pointy-top e' scritta. Il difetto di `#3077` nasce da una
+	// copia locale di quella trigonometria, e una seconda copia qui la reintrodurrebbe.
+	return URTHexLibrary::CellCorners(Cell, Origin, HexSize, LayerHeight);
 }
 
 FRTRefusedShotLine ARTHUD::ComputeRefusedShotLine(
@@ -895,6 +906,27 @@ void ARTHUD::DrawHUD()
 		};
 
 		// 3. DISEGNA le sole viste ricevute.
+		// `#3115` — quale unita' il giocatore sta pianificando ADESSO, chiesta UNA volta per frame.
+		//
+		// 🔑 **Si identifica per CELLA, non per pointer**, come ogni altra cosa in questo blocco: la vista
+		// porta `OwnerCell` e non sa nulla di `ARTUnit`, e la cella e' l'identita' stabile (max 1 unita' per
+		// cella). Confrontare pointer significherebbe far rientrare l'Actor in una pipeline da cui
+		// `FilterForTeam` lo ha tolto apposta.
+		//
+		// ⚠️ **Nessuna selezione e' il caso normale, non un errore**: in autobattle non c'e' un giocatore che
+		// seleziona, e `IsUnattendedSession()` porta qui viste di entrambe le squadre. `bHasSelection` resta
+		// falso e nessuna riga viene marcata — che e' esattamente cio' che uno spettatore deve vedere.
+		FRTCellId SelectedCell;
+		bool bHasSelection = false;
+		if (const ARTPlayerController* PC = Cast<ARTPlayerController>(GetOwningPlayerController()))
+		{
+			if (const ARTUnit* Selezionata = PC->GetSelectedUnit())
+			{
+				SelectedCell = Selezionata->Cell;
+				bHasSelection = true;
+			}
+		}
+
 		for (const FRTIntentView& View : Views)
 		{
 			// CP 11.2 — la resa arriva dal livello che la vista PORTA gia' calcolato. Nessun `View.bMoving`
@@ -906,7 +938,8 @@ void ARTHUD::DrawHUD()
 			// con la geometria e non lo erano — `bOwn` era `View.bIsAlly` e nient'altro. Ora vivono in una
 			// statica pura coi suoi test (#2184), **prefisso compreso**: quello era deciso venti righe piu'
 			// sotto, fuori da `ComposeIntentLabel`, e quindi l'etichetta completa non aveva una sede sola.
-			const FRTIntentPresentation Intento = ComposeIntentPresentation(View, Style);
+			const bool bIsSelected = bHasSelection && View.OwnerCell == SelectedCell;
+			const FRTIntentPresentation Intento = ComposeIntentPresentation(View, Style, bIsSelected);
 			if (!Intento.bShow)
 			{
 				continue;
@@ -1081,16 +1114,20 @@ void ARTHUD::DrawHUD()
 				continue; // dietro la camera: `Project` non da' una posizione utile
 			}
 
-			// Sei vertici, presi allo stesso raggio con cui la mappa disegna la cella. Il ciclo chiude
-			// l'anello con `% 6`, cosi' l'ultimo segmento torna al primo vertice senza un caso speciale.
+			// Sei vertici presi dalla SORGENTE della griglia, non ricalcolati qui. Il ciclo chiude l'anello
+			// con `% 6`, cosi' l'ultimo segmento torna al primo vertice senza un caso speciale.
+			//
+			// 🔴 **Qui la trigonometria era riscritta, e sbagliata** (`#3077`): `60 * I` dava il primo
+			// vertice a `0` gradi — un flat-top — mentre la griglia e' pointy-top con primo vertice a
+			// `-30`. Trenta gradi di scarto: il contorno tagliava i lati della cella invece di seguirli,
+			// quindi non la chiudeva. Il contratto di `CellCorners` lo diceva gia' — *«chi disegna il
+			// prisma chiama questa, non riscrive la trigonometria in Blueprint»* — e valeva anche per il C++.
+			const TArray<FVector> Corners = CellOutlineWorld(Cell, Origin, HexSize, LayerH);
 			FVector2D V[6];
-			bool bAllVisible = true;
-			for (int32 I = 0; I < 6; ++I)
+			bool bAllVisible = Corners.Num() == 6;
+			for (int32 I = 0; bAllVisible && I < 6; ++I)
 			{
-				const float Angle = FMath::DegreesToRadians(60.f * I);
-				const FVector WorldVertex = HexCellWorld(Cell, Origin, HexSize, LayerH)
-					+ FVector(HexSize * FMath::Cos(Angle), HexSize * FMath::Sin(Angle), 0.f);
-				const FVector Screen = Project(WorldVertex);
+				const FVector Screen = Project(Corners[I]);
 				if (Screen.Z <= 0.f) { bAllVisible = false; break; }
 				V[I] = FVector2D(Screen.X, Screen.Y);
 			}
@@ -1409,7 +1446,7 @@ FRTHudTextLine ARTHUD::ComposePreviewZoneLine(int32 NumHitCells, int32 NumAllyHi
 }
 
 FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& View,
-	const FRTIntentCertaintyStyle& Style)
+	const FRTIntentCertaintyStyle& Style, bool bIsSelected)
 {
 	FRTIntentPresentation Out;
 
@@ -1434,13 +1471,29 @@ FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& Vie
 	// Il prefisso dice DI CHI e' il piano; il corpo lo compone `ComposeIntentLabel`, che ha i suoi test in
 	// `RTIntentPrivacyTests` e resta l'owner della grammatica dell'etichetta. Qui si aggiunge solo il
 	// prefisso, che prima viveva in `DrawHUD` e quindi non era coperto da niente.
-	Out.Label = FString(bOwn ? TEXT("[PIANO] ") : TEXT("[REVEAL] ")) + ComposeIntentLabel(View, Style);
+	// 🔑 **Tre prefissi, due confini.** `[REVEAL]` contro `[PIANO]` dice DI CHI e' il piano; l'asterisco
+	// dice quale dei propri si sta scrivendo adesso (`#3115`). Il secondo confine vive DENTRO il primo: un
+	// avversario rivelato non diventa un'altra cosa perche' io ho selezionato un'unita', ed e' per questo
+	// che `bIsSelected` non compare nel ramo `[REVEAL]`. Toglierlo da li' e' la lettura simmetrica, e
+	// sbagliata, gia' segnalata poche righe sopra per `bHasPlan`.
+	//
+	// ⚠️ **Il marcatore e' un PREFISSO, non una riscrittura del corpo**: `ComposeIntentLabel` resta l'owner
+	// della grammatica dell'etichetta, e nessuno dei tre rami la tocca.
+	const TCHAR* Prefisso = bOwn
+		? (bIsSelected ? TEXT("[PIANO *] ") : TEXT("[PIANO] "))
+		: TEXT("[REVEAL] ");
+	Out.Label = FString(Prefisso) + ComposeIntentLabel(View, Style);
 
 	// Lo stesso confine detto una seconda volta, col colore: l'etichetta e' piccola e sta sopra una mappa,
 	// e il colore regge dove il testo non si legge. ⚠️ Sbagliarne uno solo e' peggio che sbagliarli
 	// entrambi, perche' produce due segnali che dissentono.
+	// ⛔ **`bIsSelected` NON entra qui, ed e' un vincolo misurato, non uno scrupolo.** Il colore e' gia'
+	// l'identita' di squadra, e la coppia ciano/giallo e' tenuta dal gate `T9` con le distanze calcolate in
+	// dicromazia ([D-233], [D-234]). Una terza tinta andrebbe rimisurata contro entrambe in tre dicromazie
+	// prima di poter essere disegnata; e una quarta semantica su un canale che ne porta gia' una e' lo
+	// stesso errore per cui la certezza e' stata tolta da qui e data al tratteggio.
 	Out.Color = bOwn
-		? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita'
+		? FLinearColor(0.2f, 0.9f, 1.f, 1.f)   // ciano: le tue unita', selezionata o no
 		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
 
 	return Out;

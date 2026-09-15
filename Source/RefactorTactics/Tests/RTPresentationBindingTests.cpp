@@ -2,6 +2,7 @@
 #include "Turn/RTPresentationBinding.h"
 #include "Turn/RTTurnRules.h" // ERTMatchPhase
 #include "Turn/RTResolvedEvent.h"
+#include "Core/RTGameplayTags.h" // #2881: TAG_Status_Slow / TAG_Status_Root
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -503,21 +504,21 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 // ---------------------------------------------------------------------------------------------------------
 // L'andatura di una fase (#2881): tabella completa, purezza, e le due esclusioni difese.
 // ---------------------------------------------------------------------------------------------------------
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStyleForPhaseIsTotalTest,
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStyleForMovementIsTotalTest,
 	"RefactorTactics.Presentation.AndaturaPerFase", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTPresentationStyleForPhaseIsTotalTest::RunTest(const FString& Parameters)
+bool FRTPresentationStyleForMovementIsTotalTest::RunTest(const FString& Parameters)
 {
 	// 🔑 Solo il Dash corre. E' la sola riga di questa tabella che porta informazione.
 	TestEqual(TEXT("Dash -> Run"),
-		URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase::Dash), ERTGraykitLocomotionStyle::Run);
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, {}), ERTGraykitLocomotionStyle::Run);
 
 	// ⚠️ Il Blast MUOVE le unita' (knockback) e resta `Normal`: un knockback non e' una corsa, e' uno
 	// spostamento subito. E' il caso che una scorciatoia «se si muove allora corre» sbaglierebbe.
 	TestEqual(TEXT("Move -> Normal"),
-		URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase::Move), ERTGraykitLocomotionStyle::Normal);
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Move, {}), ERTGraykitLocomotionStyle::Normal);
 	TestEqual(TEXT("Blast -> Normal (il knockback non e' una corsa)"),
-		URTPresentationBindingLibrary::StyleForPhase(ERTMatchPhase::Blast), ERTGraykitLocomotionStyle::Normal);
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Blast, {}), ERTGraykitLocomotionStyle::Normal);
 
 	// La funzione e' TOTALE: si itera l'enum vero, non una lista scritta a mano — stessa disciplina del gate
 	// di `DeclaredBindings`. Un valore aggiunto domani e' coperto per costruzione.
@@ -531,26 +532,97 @@ bool FRTPresentationStyleForPhaseIsTotalTest::RunTest(const FString& Parameters)
 	for (int32 i = 0; i < PhaseCount; ++i)
 	{
 		const ERTMatchPhase Phase = static_cast<ERTMatchPhase>(PhaseEnum->GetValueByIndex(i));
-		const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForPhase(Phase);
+		const ERTGraykitLocomotionStyle Style = URTPresentationBindingLibrary::StyleForMovement(Phase, {});
 
-		// ⛔ **Le due esclusioni, difese per OGNI ingresso.** `Reduced` non e' derivabile
-		// deterministicamente — richiederebbe di leggere l'unita' viva, cioe' lo stato corrente invece di
-		// quello al momento dell'azione — e `Stealth` non ha nessun consumatore. Aggiungerli in futuro deve
-		// costare la modifica di questo test, non uno scivolamento.
-		TestTrue(FString::Printf(TEXT("la fase %s non produce Reduced"), *PhaseEnum->GetNameStringByIndex(i)),
+		// ⛔ **Le esclusioni, difese per OGNI ingresso** — ma una delle due e' cambiata di natura con
+		// `#2881`, e va letta per quello che ora dice.
+		//
+		// 🔑 `Reduced` non e' piu' irraggiungibile: e' irraggiungibile **DALLA SOLA FASE**. Prima
+		// l'esclusione era assoluta perche' il dato non esisteva (`#3117` lo ha consegnato); ora la
+		// proprieta' difesa e' piu' stretta e piu' utile — nessuna fase, da sola, puo' produrre un'andatura
+		// ridotta. Un giorno in cui il `Blast` cominciasse a dedurla dal knockback, questo cadrebbe.
+		TestTrue(FString::Printf(TEXT("la fase %s, SENZA stati, non produce Reduced"),
+			*PhaseEnum->GetNameStringByIndex(i)),
 			Style != ERTGraykitLocomotionStyle::Reduced);
+		// ⛔ `Stealth` resta escluso SENZA condizioni, e per un motivo diverso da quello di `Reduced`: non
+		// gli manca un dato, gli manca un richiedente — `MovementProfile.Sneak` e' dichiarato senza numeri
+		// (`AE-5`) e non e' pianificabile. Nessuno stato lo produce, nessuna fase lo produce.
 		TestTrue(FString::Printf(TEXT("la fase %s non produce Stealth"), *PhaseEnum->GetNameStringByIndex(i)),
 			Style != ERTGraykitLocomotionStyle::Stealth);
 
 		// Purezza: due chiamate coincidono, perche' non si legge nessuno stato.
 		TestEqual(FString::Printf(TEXT("la fase %s da' sempre lo stesso stile"), *PhaseEnum->GetNameStringByIndex(i)),
-			URTPresentationBindingLibrary::StyleForPhase(Phase), Style);
+			URTPresentationBindingLibrary::StyleForMovement(Phase, {}), Style);
 	}
 
 	// Un valore fuori dall'enum ricade su `Normal` senza crash: e' cio' che arriva da una build piu' nuova.
 	TestEqual(TEXT("una fase sconosciuta ricade su Normal"),
-		URTPresentationBindingLibrary::StyleForPhase(static_cast<ERTMatchPhase>(200)),
+		URTPresentationBindingLibrary::StyleForMovement(static_cast<ERTMatchPhase>(200), {}),
 		ERTGraykitLocomotionStyle::Normal);
+
+	return true;
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+/**
+ * `#2881` — uno stato che riduce il movimento batte la fase, e non qualunque stato lo fa.
+ *
+ * 🔑 **Gli stati arrivano dall'EVENTO, non dall'unita'** (`#3117`): e' cio' che rende la scelta una
+ * funzione del tempo normalizzato invece che dell'istante di playback. Qui si misura la regola; che il
+ * dato sia uno snapshot lo misura `RefactorTactics.Status.MoveEventCarriesStatusesAtActionTime`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationReducedBeatsRunTest,
+	"RefactorTactics.Presentation.AndaturaRidottaBatteLaCorsa",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTPresentationReducedBeatsRunTest::RunTest(const FString& Parameters)
+{
+	const FName Slow = TAG_Status_Slow.GetTag().GetTagName();
+	const FName Root = TAG_Status_Root.GetTag().GetTagName();
+
+	// Il caso base: rallentata mentre si muove normalmente.
+	TestEqual(TEXT("Move + Slow -> Reduced"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Move, { Slow }),
+		ERTGraykitLocomotionStyle::Reduced);
+
+	// 🔑 **La precedenza, che e' la sola riga di design di questa funzione.** Un'unita' rallentata che
+	// scatta scatta MENO: renderla con la corsa piena direbbe al giocatore il contrario di cio' che la
+	// simulazione ha appena applicato. Se un giorno si decidesse che lo scatto vince, e' QUI che si vede.
+	TestEqual(TEXT("Dash + Slow -> Reduced (lo stato del corpo batte la fase)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow }),
+		ERTGraykitLocomotionStyle::Reduced);
+
+	// ⛔ **Anti-vacuita': non e' «un qualunque stato riduce».** Senza questa, un'implementazione che
+	// tornasse `Reduced` appena l'array non e' vuoto passerebbe le due righe qui sopra.
+	TestEqual(TEXT("Dash + uno stato che non riduce -> Run"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { FName(TEXT("Status.Wet")) }),
+		ERTGraykitLocomotionStyle::Run);
+	TestEqual(TEXT("Dash senza stati -> Run (il comportamento di prima, intatto)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, {}),
+		ERTGraykitLocomotionStyle::Run);
+
+	// ⛔ `Root` NON riduce: azzera il budget, quindi l'unita' non si muove e non c'e' un'anim da rendere.
+	// Un'andatura per chi sta fermo sarebbe un segnale senza referente.
+	TestEqual(TEXT("Move + Root -> Normal (Root non e' un'andatura ridotta)"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Move, { Root }),
+		ERTGraykitLocomotionStyle::Normal);
+
+	// Lo stato che riduce vince anche se non e' il primo dell'elenco: l'ordine di
+	// `GetActiveStatusNames` e' un contratto, ma questa regola non deve dipenderne.
+	TestEqual(TEXT("l'ordine nell'elenco non cambia l'esito"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Root, FName(TEXT("Status.Wet")), Slow }),
+		ERTGraykitLocomotionStyle::Reduced);
+
+	// Purezza: due chiamate identiche coincidono.
+	TestEqual(TEXT("due chiamate identiche coincidono"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow }),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow }));
+
+	// ⛔ `Stealth` resta irraggiungibile anche per questa via: nessuno stato lo produce.
+	TestNotEqual(TEXT("nessuno stato produce Stealth"),
+		URTPresentationBindingLibrary::StyleForMovement(ERTMatchPhase::Dash, { Slow, Root }),
+		ERTGraykitLocomotionStyle::Stealth);
 
 	return true;
 }

@@ -4,6 +4,7 @@
 #include "UObject/UnrealType.h"
 #include "RTScenarioPreviewSubsystem.h"
 #include "RTScenarioViewportModel.h"
+#include "Unit/RTUnit.h" // ARTUnit::TeamColorFor, per il criterio 5
 
 #include "Editor.h"
 #include "Map/RTHexLibrary.h"
@@ -529,6 +530,103 @@ bool FRTScenarioPreviewClearsOnMapLoadTest::RunTest(const FString&)
 	TestTrue(TEXT("il caricamento resta permesso"), CanLoad.Get());
 
 	Preview->ClearPreview();
+	return true;
+}
+
+/**
+ * Il corpo dell'unita' dichiara la sua squadra col COLORE, e non lo inventa (#3104).
+ *
+ * 🔴 **La seduta `U44` del 2026-09-12 e' stata giudicata ❌** — *«si vedono dei cilindri grigi che si
+ * muovono nell'editor, non si capisce»* — e la causa era misurata nel codice: l'anteprima posava istanze
+ * di mesh engine **senza materiale**, e l'unica differenza fra due squadre era il RAGGIO di un anello.
+ *
+ * ⚠️ **Cosa questo test NON puo' dire, ed e' la meta' che conta.** Che a schermo si veda un azzurro e un
+ * rosso e' un giudizio percettivo su un viewport d'Editor: lo chiude la riesecuzione di `U44`, non un
+ * automation test. Qui si misura che i colori **siano decisi, distinti e presi dall'owner giusto** —
+ * cioe' cio' che puo' sbagliare in silenzio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioViewportTeamBodyColorTest,
+	"RefactorTactics.ScenarioViewport.TeamBodyColorNamesTheSide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioViewportTeamBodyColorTest::RunTest(const FString&)
+{
+	// --- criterio 1: due squadre non si leggono uguali ---------------------------------------------
+	//
+	// ⛔ **L'oracolo e' una DISTANZA, non una disuguaglianza.** Due colori possono differire di un bit ed
+	// essere indistinguibili a occhio: passerebbero `!=` e fallirebbero la seduta, cioe' il test direbbe
+	// verde proprio sul difetto che esiste per bloccare. La soglia e' la stessa famiglia di
+	// `RefactorTactics.Hex.SurfaceColorsAreDistinguishable` — somma delle differenze per canale.
+	auto Distanza = [](const FLinearColor& A, const FLinearColor& B)
+	{
+		return FMath::Abs(A.R - B.R) + FMath::Abs(A.G - B.G) + FMath::Abs(A.B - B.B);
+	};
+
+	const FLinearColor Zero = RTScenarioViewport::TeamBodyColor(0);
+	const FLinearColor Uno = RTScenarioViewport::TeamBodyColor(1);
+
+	TestTrue(FString::Printf(TEXT("le due squadre si distinguono: distanza %.2f"), Distanza(Zero, Uno)),
+		Distanza(Zero, Uno) > 0.4f);
+
+	// --- criterio 2: nessuna coppia collide, fino all'ultima squadra distinta ------------------------
+	TArray<FLinearColor> Tavolozza;
+	for (int32 Team = 0; Team < 4; ++Team)
+	{
+		Tavolozza.Add(RTScenarioViewport::TeamBodyColor(Team));
+	}
+
+	for (int32 A = 0; A < Tavolozza.Num(); ++A)
+	{
+		for (int32 B = A + 1; B < Tavolozza.Num(); ++B)
+		{
+			TestTrue(FString::Printf(TEXT("le squadre %d e %d non collidono: distanza %.2f"),
+					A, B, Distanza(Tavolozza[A], Tavolozza[B])),
+				Distanza(Tavolozza[A], Tavolozza[B]) > 0.25f);
+		}
+	}
+
+	// --- criterio 3: nessun colore e' il GRIGIO che la seduta ha bocciato ----------------------------
+	//
+	// 🎯 Il difetto verbatim era «cilindri **grigi**». Un colore i cui tre canali coincidono e' grigio, e
+	// sarebbe la stessa schermata con un altro nome.
+	for (int32 Team = 0; Team < Tavolozza.Num(); ++Team)
+	{
+		const FLinearColor C = Tavolozza[Team];
+		const float Spread = FMath::Max3(C.R, C.G, C.B) - FMath::Min3(C.R, C.G, C.B);
+		TestTrue(FString::Printf(TEXT("il colore della squadra %d non e' un grigio: spread %.2f"), Team, Spread),
+			Spread > 0.15f);
+	}
+
+	// --- criterio 4: si FERMA invece di riavvolgersi -------------------------------------------------
+	//
+	// ⚠️ Con il modulo, la squadra oltre l'ultima tornerebbe al colore della `0`: due squadre che si
+	// SCAMBIANO il colore, che e' peggio di due che lo condividono — la prima si legge sbagliata, la
+	// seconda si legge ambigua. E' la stessa scelta gia' fatta su `TeamRingScale`.
+	TestEqual(TEXT("oltre l'ultima squadra il colore si ferma"),
+		RTScenarioViewport::TeamBodyColor(9).ToFColor(true),
+		RTScenarioViewport::TeamBodyColor(3).ToFColor(true));
+
+	TestNotEqual(TEXT("e non torna a quello della squadra 0"),
+		RTScenarioViewport::TeamBodyColor(9).ToFColor(true),
+		RTScenarioViewport::TeamBodyColor(0).ToFColor(true));
+
+	// Un id negativo non e' un caso previsto dal formato, e non deve produrre un indice fuori range.
+	TestEqual(TEXT("un id negativo non esce dalla tavolozza"),
+		RTScenarioViewport::TeamBodyColor(-3).ToFColor(true),
+		RTScenarioViewport::TeamBodyColor(0).ToFColor(true));
+
+	// --- criterio 5: le prime due VENGONO dal HUD, non da una tabella parallela ----------------------
+	//
+	// 🔑 **E' l'asserzione che impedisce la seconda autorita'.** Se un giorno il HUD cambiasse i suoi due
+	// colori e l'anteprima no, i due schermi direbbero cose diverse sulla stessa squadra — in silenzio, e
+	// nessun altro controllo lo vedrebbe. Qui si ricostruisce la chiamata del HUD e si confronta.
+	const FLinearColor HudZero = ARTUnit::TeamColorFor(0,
+		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+	const FLinearColor HudUno = ARTUnit::TeamColorFor(1,
+		FLinearColor(0.55f, 0.75f, 1.f, 1.f), FLinearColor(1.f, 0.62f, 0.55f, 1.f));
+
+	TestEqual(TEXT("la squadra 0 porta l'azzurro del HUD"), Zero.ToFColor(true), HudZero.ToFColor(true));
+	TestEqual(TEXT("la squadra 1 porta il rosso del HUD"), Uno.ToFColor(true), HudUno.ToFColor(true));
+
 	return true;
 }
 

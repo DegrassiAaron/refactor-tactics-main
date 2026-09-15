@@ -3,6 +3,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTMapVisuals.h"
 #include "ScenarioHarness/RTScenarioDraft.h" // FRTScenarioUnitView
+#include "Unit/RTUnit.h"                     // ARTUnit::TeamColorFor — la regola id -> colore vive li'
 
 namespace RTScenarioViewport
 {
@@ -114,6 +115,31 @@ namespace RTScenarioViewport
 	float MaxTeamRingScale()
 	{
 		return TeamRingScale(MaxDistinctTeams - 1);
+	}
+
+	FLinearColor TeamBodyColor(int32 TeamId)
+	{
+		// `Clamp` e non `%`, per la ragione gia' scritta su `TeamRingScale`: la squadra che tornasse al colore
+		// della `0` sarebbe una coppia indistinguibile, e riavvolgersi e' peggio che fermarsi.
+		const int32 Step = FMath::Clamp(TeamId, 0, MaxDistinctTeams - 1);
+
+		// 🔑 **Le prime due sono le stesse del HUD**, verbatim da `RTHudViewModel.cpp:235`: un designer che
+		// guarda l'anteprima e poi la partita deve vedere lo stesso azzurro e lo stesso rosso, altrimenti i
+		// due schermi si contraddicono su una cosa che entrambi dichiarano.
+		//
+		// ⚠️ **La terza e la quarta non hanno un owner altrove, e non ne inventano uno**: sono le uniche due
+		// aggiunte qui, per le squadre che il HUD non ha mai dovuto mostrare — in partita chi guarda vede
+		// alleato o nemico, e la distinzione fra tre avversari non gli e' mai stata posta.
+		static const FLinearColor Palette[MaxDistinctTeams] = {
+			FLinearColor(0.55f, 0.75f, 1.f, 1.f),   // 0 — l'azzurro del HUD
+			FLinearColor(1.f, 0.62f, 0.55f, 1.f),   // 1 — il rosso del HUD
+			FLinearColor(0.62f, 1.f, 0.60f, 1.f),   // 2
+			FLinearColor(1.f, 0.92f, 0.55f, 1.f),   // 3
+		};
+
+		// ⛔ La scelta fra i primi due passa da `ARTUnit::TeamColorFor` e non da un ternario scritto qui:
+		// quella funzione possiede la regola ed e' dichiarata pura proprio per poter essere riusata.
+		return Step <= 1 ? ARTUnit::TeamColorFor(Step, Palette[0], Palette[1]) : Palette[Step];
 	}
 
 	FTransform BorderEdgeTransform(const FRTCellId& Cell, ERTHexDirection Dir,

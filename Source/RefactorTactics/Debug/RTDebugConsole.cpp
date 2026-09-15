@@ -17,6 +17,7 @@
 #include "Debug/RTDebugReportLibrary.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/RTPlayerState.h" // TeamIdOf: l'osservatore e' la squadra di chi gioca (#3107)
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
@@ -344,6 +345,93 @@ static void RTDebugDumpCellPlacementCommand(const TArray<FString>& Args, UWorld*
 // ---------------------------------------------------------------------------------------------------
 // Registrazione
 // ---------------------------------------------------------------------------------------------------
+
+// `rt.Debug.Refusal` — il caso che la seduta del 2026-09-12 non e' riuscita a raggiungere in cinque
+// tentativi (`#3107`). Due modi, e la differenza e' dichiarata nel nome:
+//
+//     rt.Debug.Refusal setup   ALLESTISCE: sceglie la fixture e spegne l'auto-run
+//     rt.Debug.Refusal         LEGGE: dice se il caso e' in campo adesso, e con quali unita'
+//
+// ⚠️ **`setup` MUTA**, ed e' l'unica funzione di questo file che lo fa. Il resto di `rt.Debug.*` e' sola
+// lettura per contratto; qui la deroga e' esplicita perche' il gesto che serviva era uno, non due, e
+// perche' le due cvar che tocca sono **d'allestimento**, non di stato di gioco.
+extern TAutoConsoleVariable<FString> CVarRTMapFixture;
+extern TAutoConsoleVariable<FString> CVarRTTestScenario;
+
+static void RTDebugRefusalCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+{
+	if (Args.Num() > 0 && Args[0].Equals(TEXT("setup"), ESearchCase::IgnoreCase))
+	{
+		// `CoverYard` non e' scelta a gusto: e' una delle due fixture che
+		// `Setup.WhichFixturesAllowACoverRefusal` misura come produttrici del caso al turno 1.
+		CVarRTMapFixture->Set(TEXT("CoverYard"), ECVF_SetByConsole);
+
+		// ⛔ **E questo e' il passo che da solo ha bruciato un tentativo**: con `rt.Test.Scenario` residua
+		// il GameMode esegue uno scenario in AUTO-RUN invece della partita, e in auto-run non esiste
+		// pianificazione — nessun click, quindi nessun rifiuto possibile.
+		CVarRTTestScenario->Set(TEXT(""), ECVF_SetByConsole);
+
+		Ar.Log(TEXT("[RT] Allestimento del rifiuto per copertura:"));
+		Ar.Log(TEXT("[RT]   rt.Map.Fixture   = CoverYard   (la mappa del livello sara' ignorata)"));
+		Ar.Log(TEXT("[RT]   rt.Test.Scenario = <vuoto>     (partita normale, non auto-run)"));
+		Ar.Log(TEXT("[RT] Ora premi Play, e AL TURNO 1 lancia 'rt.Debug.Refusal' per sapere chi selezionare."));
+		Ar.Log(TEXT("[RT] ⚠️ Al turno 1: i bot si muovono alla risoluzione e il caso si dissolve."));
+		return;
+	}
+
+	if (!World) { Ar.Log(TEXT("[RT] Nessun mondo attivo.")); return; }
+
+	ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(World);
+	const URTHexMapAsset* Map = HexMap ? HexMap->MapAsset : nullptr;
+	if (!Map) { Ar.Log(TEXT("[RT] Nessuna mappa esagonale nel livello.")); return; }
+
+	ARTTurnManager* TM = FindTurnManager(World, Ar);
+	if (!TM) { return; }
+
+	TArray<ARTUnit*> Units;
+	TM->MakeCurrentSnapshot(Units);
+
+	// L'osservatore e' la squadra di chi gioca. ⛔ Non un argomento: un comando che accettasse un team
+	// qualunque leggerebbe la conoscenza dell'avversario, che e' il canale che [D-225] chiude.
+	const int32 ObserverTeamId = ARTPlayerState::TeamIdOf(World->GetFirstPlayerController());
+
+	TArray<FRTRefusalProbeUnit> Sonda;
+	for (const ARTUnit* U : Units)
+	{
+		if (!U || !U->IsAlive()) { continue; }
+		FRTRefusalProbeUnit P;
+		P.UnitId = U->StableUnitId;
+		P.TeamId = U->TeamId;
+		P.Cell = U->Cell;
+		P.bKnownToObserver = U->IsKnownToObserver();
+		Sonda.Add(P);
+	}
+
+	const FRTRefusalReachability R =
+		URTDebugReportLibrary::DescribeRefusalReachability(Map, ObserverTeamId, Sonda);
+
+	if (!R.bReachable)
+	{
+		Ar.Log(*FString::Printf(TEXT("[RT] Rifiuto per copertura NON raggiungibile: %s"), *R.Reason));
+		return;
+	}
+
+	Ar.Log(TEXT("[RT] Rifiuto per copertura RAGGIUNGIBILE ora:"));
+	Ar.Log(*FString::Printf(TEXT("[RT]   seleziona  unita' %d  in %s"),
+		R.ShooterUnitId, *R.ShooterCell.ToString()));
+	Ar.Log(*FString::Printf(TEXT("[RT]   clicca     unita' %d  in %s"),
+		R.TargetUnitId, *R.TargetCell.ToString()));
+	if (R.WitnessUnitId != INDEX_NONE)
+	{
+		Ar.Log(*FString::Printf(TEXT("[RT]   (e' noto perche' lo vede l'unita' %d)"), R.WitnessUnitId));
+	}
+	Ar.Log(TEXT("[RT] Atteso: «Coperto: la linea di tiro e' interrotta» piu' due tratti ambra."));
+}
+
+static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugRefusal(
+	TEXT("rt.Debug.Refusal"),
+	TEXT("Se un rifiuto per copertura sia raggiungibile ora, e con quali unita'. 'setup' allestisce la partita."),
+	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugRefusalCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDumpCellPlacement(
 	TEXT("rt.Debug.DumpCellPlacement"),

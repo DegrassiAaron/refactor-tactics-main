@@ -18,6 +18,17 @@
 >
 > **Le categorie nominate dall'autore**, che diventano il primo lavoro di assegnazione: **attacchi di
 > precisione · azioni di preparazione · azioni pesanti**. I valori restano taratura.
+>
+> ➕ **L'assegnazione è arrivata il 2026-09-13**, dalla specifica consolidata della skill bar:
+> [`spec-barra-comandi.md`](spec-barra-comandi.md) §3 porta la tabella azione per azione
+> ([`D-407`](../decisions/RT_PDR_00_Decision_Log.md)). 🔑 **È un'assegnazione, non un secondo modello**: le
+> sue righe si esprimono con la **soglia** di questa pagina oppure con la **riserva** di
+> [`D-070`](../decisions/RT_PDR_00_Decision_Log.md), e se una riga non fosse esprimibile con nessuna delle
+> due è la riga a essere sbagliata. ⚠️ **`Withdraw` non ha ancora una `Stability` decisa**: la tabella §3.2
+> ne dichiara quattro e non lo comprende, e il catalogo gli dà `1` **come segnaposto dichiarato**.
+> ✅ **`Sneak` invece ora è pianificabile**: `AE-5` è chiusa da
+> [`D-412`](../decisions/RT_PDR_00_Decision_Log.md), e la colonna che questa pagina gli attribuisce ha
+> finalmente un profilo scegliibile sotto.
 
 ## 1. Il problema, che non è nuovo
 

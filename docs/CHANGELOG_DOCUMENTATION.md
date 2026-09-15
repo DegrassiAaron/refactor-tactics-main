@@ -2,6 +2,103 @@
 
 ---
 
+## 2026-09-14 — I due punti aperti della skill bar si chiudono, e uno ritira una voce di `D-415`
+
+**Origine**: istruttoria sui punti lasciati aperti dallo spec panel del 2026-09-13 — `SKB-1` e `D-415` con
+le sue code `SKB-4`/`SKB-5`. Misurato su `origin/main` = `6ee943d7`.
+
+### Le quattro decisioni
+
+| ID | Che cosa decide |
+|---|---|
+| `D-416` | `Status.Stunned` entra nella v0.1 come **terzo** stato di controllo — chiude `SKB-1` |
+| `D-417` | Il punto (2) di `D-415` **si ritira**: l'attacco base continua a dipendere dall'arma — chiude `SKB-4` |
+| `D-418` | `Action.Mortar` **non si riprezza**: il prezzo compra area, gittata e traiettoria — chiude `SKB-5` |
+| `D-419` | La mira si congela al lock-in, come regola **universale** — precisa `D-415` punto (3) |
+
+### 🔴 Una riga della matrice dei conflitti era diventata falsa
+
+`DOC_CONFLICT_MATRIX.md` registrava `D-086`…`D-100` come `SUPERSEDED` da `D-415`. Con `D-417` **non lo sono
+più**. La riga è stata **corretta in loco**, non rimossa: una matrice che registra i conflitti deve
+registrare anche i propri, e per un giorno quella ha dichiarato superata una catena che non lo era.
+
+Le tre affermazioni che stavano in una riga sola ora ne hanno tre, perché hanno avuto tre destini diversi:
+la dipendenza dall'arma **non è superata**, il prezzo del mortaio è **riqualificato**, la mira è
+**superata e precisata**.
+
+### ⚠️ L'istruttoria ha corretto la premessa di tre domande su quattro
+
+- **`SKB-1` non bloccava cinque migrazioni**: delle cinque decisioni, `grep -ciE 'stordi|stun'` ne trova
+  **una** che nomina lo stordimento (`D-413`). Il blocco era documentale.
+- **`D-169` non aveva «chiuso misurando»** lo `Stun`: misura un'assenza e **declina di autorizzare** uno
+  stato nuovo, e `ADR-0004`:175 scrive la via di rientro. Declinare non è rifiutare.
+- **La mira non insegue in modo osservabile**: il Blast precede il Move, quindi `AimCell` e
+  `Intent.TargetCell` portano lo stesso valore. `D-415` diceva «una riga sola»; il costo vero è un **campo
+  di schema del piano**.
+
+🔑 **Le decisioni sono state prese dopo quelle correzioni, non prima** — ed è la ragione per cui due delle
+quattro sono andate nella direzione opposta a come la domanda era posta.
+
+### E ogni uscita proposta è risultata più cara del preventivo
+
+Ventitré uscite passate a verificatori ostili: **ventitré** sono tornate `COSTO_SOTTOSTIMATO`. Nessuna era
+sbagliata; tutte omettevano qualcosa. I costi nelle voci di registro sono quelli **verificati**, non quelli
+proposti.
+
+---
+
+## 2026-09-13 — La specifica consolidata della skill bar entra nel canone, e ne supera nove punti
+
+**Origine**: `RefactorTactics-Specifica-Skill-Bar-2026-09-13.md`, consegnato dall'autore in `docs/` e
+**consumato**. Referto:
+[`roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md`](roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md).
+Misurato su `origin/main` = `a2d23509`.
+
+### Cosa è cambiato
+
+| File | Modifica |
+|---|---|
+| `RefactorTactics-Specifica-Skill-Bar-2026-09-13.md` | **rimosso** — consumato |
+| `roadmap/plans/skill-bar-consolidamento-spec-panel-2026-09-13.md` | **creato** — il referto, con le evidenze `file:riga` |
+| `gameplay/spec-attacco-base-per-eroe.md` | **creato** — la sede che `ADR-0007` dichiarava *«da creare»* dal 2026-08-09 |
+| `gameplay/spec-barra-comandi.md` | **creato** — gli undici comandi e l'assegnazione azione↔movimento |
+| `decisions/RT_PDR_00_Decision_Log.md` | `D-407` … `D-415`, più la nota della misura a tre posti |
+| `DOC_CONFLICT_MATRIX.md` | blocco `SUPERSEDED` con nove punti, più tre affermazioni **respinte** |
+| `OPEN_DECISIONS.md` | `SKB-1` … `SKB-7` aperte; `AE-5` ✅ chiusa da `D-412` |
+| `gameplay/spec-economia-del-turno.md` | §3.1: i budget diventano moltiplicatori |
+| `gameplay/spec-compatibilita-azioni-movimento.md` | rimanda all'assegnazione, e dichiara il buco di `Stability` del `Withdraw` |
+| `decisions/adr-0007-attacco-base-per-eroe.md` | la riga *«Owner spec: da creare»* ora punta al file che esiste |
+
+### Perché il documento è stato rimosso e non archiviato
+
+[`CONTEXT_INDEX.md`](CONTEXT_INDEX.md) §«Esclusioni di contesto» tiene fuori dal contesto autorevole gli
+*«handoff/prompt temporanei… salvo che il task chieda proprio di consolidarli»*, e questo era il task. Il
+contenuto vive ora in tre sedi che hanno un owner — le voci di registro, i due documenti `gameplay/`, e le
+domande di `OPEN_DECISIONS.md` — e lasciarne una quarta copia in radice avrebbe prodotto la doppia verità
+che [D-023](decisions/RT_PDR_00_Decision_Log.md) e [D-115](decisions/RT_PDR_00_Decision_Log.md) hanno
+eliminato altrove.
+
+⛔ **E la storia git NON lo conserva**, contrariamente a quanto una prima stesura di questa voce diceva: il
+documento è arrivato **non tracciato** e non è mai stato committato, quindi `git log --all -- <percorso>` è
+vuoto. Ciò che ne resta è quanto queste pagine ne hanno recepito — ed è la ragione per cui il referto cita
+la sorgente per sezione (`§2`, `§10.2`, `§13.2`) invece di rimandare a un file.
+
+### ⚠️ Il documento nuovo NON descrive il gioco di oggi
+
+🔴 **Nessuna delle nove decisioni è implementata.** Le pagine create dichiarano quali sezioni sono in vigore
+e quali sono `deciso e non implementato`, e la matrice dei conflitti lo ripete in testa al blocco: il codice
+fa tuttora ciò che la colonna «Diceva» riporta. Chi legge quelle pagine come una misura dello stato corrente
+le legge al contrario.
+
+### 🔴 Una calibrazione entra senza essere approvata dall'autore, ed è dichiarato
+
+La scala in Punti Movimento — 12 PM base, 2,4 · 3 · 4 per terreno — la sorgente la marca **`PROPOSTA
+NUMERICA NON APPROVATA COME CALIBRAZIONE DEFINITIVA`**. Entra come **taratura di prototipo** per decisione
+esplicita della sessione, non come scelta d'autore: sta scritto in `D-412` punto (3), nella nota della
+misura e in §7 del referto, perché è il tipo di provenienza che si perde per primo.
+
+---
+
 ## 2026-09-01 — L'ultimo file non-Markdown esce dalla radice, e il criterio che lo cercava era troppo largo
 
 **Origine**: [#1723](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1723) — coda di

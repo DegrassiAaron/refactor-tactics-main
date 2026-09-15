@@ -309,6 +309,22 @@ public:
 		TSet<FRTCellId>& OutHitCells, TSet<FRTCellId>& OutAllyHitCells);
 
 	/**
+	 * I sei vertici-mondo del contorno con cui si marca una cella — `#3077`.
+	 *
+	 * ⛔ **Delega a `URTHexLibrary::CellCorners` e non riscrive la trigonometria**, che e' esattamente cio'
+	 * che il contratto di quella funzione prescrive: *«chi disegna il prisma chiama questa»*, e
+	 * `AxialToWorld` piu' `HexCorners` restano **gli unici due posti** in cui la convenzione pointy-top e'
+	 * scritta.
+	 *
+	 * 🔴 **Esiste perche' qui la trigonometria ERA riscritta, e sbagliata**: `60 * I` invece di `60 * I - 30`
+	 * disegnava un flat-top su una griglia pointy-top, trenta gradi fuori. Il contorno tagliava i lati della
+	 * cella invece di seguirli, e quattro sedute PIE non l'hanno preso perche' nessun test guardava DOVE
+	 * cadono i vertici — solo che fossero sei.
+	 */
+	static TArray<FVector> CellOutlineWorld(const FRTCellId& Cell, const FVector& Origin,
+		float HexSize, float LayerHeight);
+
+	/**
 	 * I due tratti del tiro rifiutato per copertura, in CELLE — `#3085`.
 	 *
 	 * Pieno da `From` a `BreakAt`, tratteggiato da `BreakAt` a `To`: il primo dice dove il tiro arriva, il
@@ -604,9 +620,21 @@ public:
 	 *
 	 * ⛔ Il CORPO dell'etichetta resta di `ComposeIntentLabel`, che questa chiama: qui si aggiunge solo il
 	 * prefisso, che prima era deciso in `DrawHUD` e quindi scoperto. L'etichetta completa ha ora una sede sola.
+	 *
+	 * @param bIsSelected  l'unita' che il giocatore sta pianificando ADESSO (`#3115`).
+	 *
+	 * 🔴 **E' un parametro, non un campo della vista, ed e' il punto architetturale della issue.**
+	 * `FilterForTeam` risponde a *«cosa ho diritto di sapere»*; *«quale sto pianificando»* e' stato LOCALE
+	 * di selezione. Metterlo in `FRTIntentView` aggiungerebbe una seconda risposta alla domanda che
+	 * `ARTPlayerState::TeamIdOf` possiede — il debito che [`D-242`] punto (5) ha chiuso — e spedirebbe in
+	 * rete un dato che non attraversa la rete.
+	 *
+	 * ⚠️ **Default `false`, e serve a una cosa sola**: i due test che pinnano la resa a due classi
+	 * continuano a compilare senza che il loro corpo cambi. Un terzo stato non deve poter entrare di
+	 * soppiatto in una sede che ne dichiarava due.
 	 */
 	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
-		const FRTIntentCertaintyStyle& Style);
+		const FRTIntentCertaintyStyle& Style, bool bIsSelected = false);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:

@@ -1,5 +1,5 @@
 #include "Turn/RTReactionLibrary.h"
-#include "Core/RTGameplayTags.h" // TAG_Status_Root/Slow: la lista degli stati di controllo (CP 7.5)
+#include "Core/RTGameplayTags.h" // TAG_Status_Stunned/Root/Slow: la lista degli stati di controllo (CP 7.5)
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexVisionLibrary.h"
 #include "Pathfinding/RTHexPathLibrary.h" // GraphNeighbors: uno scarto passa dal grafo, non dai vicini geometrici
@@ -147,7 +147,21 @@ const TArray<FGameplayTag>& URTReactionLibrary::ControlStatusesBySeverity()
 {
 	// `static` e non ricostruito a ogni chiamata: e' consultato una volta per stato in arrivo, dentro il
 	// Blast. L'ordine E' il contratto — vedi il commento nell'header.
-	static const TArray<FGameplayTag> Controls = { TAG_Status_Root, TAG_Status_Slow };
+	//
+	// 🔴 **`Stunned` e' il piu' grave, ed e' una scelta argomentata ([D-416], `#3142`).** Il criterio non e'
+	// «quanto fa male», che non e' misurabile: e' **quanto toglie**, perche' questa lista serve a
+	// `Reaction.Cleanse`, che di due controlli arrivati nello stesso Blast ne annulla **uno**.
+	//
+	//   `Stunned` toglie l'azione principale, la reazione, e — l'unico dei tre a farlo — **cio' che era gia'
+	//             stato armato**: la charge dell'Overwatch e le predittive, cioe' una spesa fatta in un
+	//             turno PRECEDENTE. E' il solo controllo che distrugge un investimento gia' pagato.
+	//   `Root`    azzera il budget di movimento. Chi lo subisce perde la posizione e conserva l'agire:
+	//             colpisce, reagisce, tiene armato cio' che aveva armato.
+	//   `Slow`    aumenta il costo per cella. Non toglie: rende piu' caro.
+	//
+	// ∴ l'ordine e' per quantita' di capacita' sottratta, e `Stunned` ne sottrae un insieme che contiene
+	// propriamente quello di `Root` in tutto tranne il movimento — piu' la distruzione retroattiva.
+	static const TArray<FGameplayTag> Controls = { TAG_Status_Stunned, TAG_Status_Root, TAG_Status_Slow };
 	return Controls;
 }
 

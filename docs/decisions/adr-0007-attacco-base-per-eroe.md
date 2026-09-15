@@ -3,7 +3,7 @@
 - **Stato:** Accepted
 - **Data:** 2026-08-09
 - **Decision Log:** [D-058](RT_PDR_00_Decision_Log.md) *(assegnata il 2026-08-09 verificando il massimo su **tutti** i branch remoti, non solo su `main`: il progetto ha già avuto sei collisioni di contatore, e due branch aperti rivendicavano ID non ancora mergiati)*
-- **Owner spec:** da creare (`../gameplay/spec-attacco-base-per-eroe.md`)
+- **Owner spec:** ✅ **creata il 2026-09-13** — [`../gameplay/spec-attacco-base-per-eroe.md`](../gameplay/spec-attacco-base-per-eroe.md). La riga diceva *«da creare»* dal 2026-08-09; il contenuto è arrivato dalla specifica consolidata della skill bar, consumata dallo spec panel del 2026-09-13. ⚠️ Quella pagina porta anche regole **decise e non implementate** che toccano questo ADR. 🔁 **Erano tre, e dal 2026-09-14 sono DUE**: [`D-417`](RT_PDR_00_Decision_Log.md) ha **ritirato** il punto (2) di [`D-415`](RT_PDR_00_Decision_Log.md), quindi l'attacco base **continua a dipendere dall'arma equipaggiata** e la convenzione `Actions[0]` di §6 resta il canale per cui le varianti lo modificano. Restano la mira che non insegue — precisata da [`D-419`](RT_PDR_00_Decision_Log.md) — e il tiro alla cieca, col prezzo del mortaio riqualificato da [`D-418`](RT_PDR_00_Decision_Log.md). ⏱️ *Questa riga diceva «tre regole … l'attacco base smette di dipendere dall'arma equipaggiata»: la seconda metà non è più vera*
 - **Issue:** [#315](https://github.com/DegrassiAaron/refactor-tactics-main/issues/315)
 - **Provenienza:** consolidamento `RefactorTactics_BasicAttack_Consolidation_Claude_2026-08-09.md`, rivisto contro il codice
 

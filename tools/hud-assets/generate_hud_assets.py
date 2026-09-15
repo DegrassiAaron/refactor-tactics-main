@@ -1117,6 +1117,33 @@ def g_status_prone() -> str:
     ]))
 
 
+def g_status_stunned() -> str:
+    """`Status.Stunned`: stordito ([D-416], `#3142`).
+
+    🔑 **La marca e' una SPIRALE, ed e' l'unica forma che il set non avesse gia' occupata.** Il resto
+    della famiglia `Status.*` e' pieno: zigzag (`Electrified`), onde (`Wet`), cupola (`Guarded`), cuneo
+    (`Braced`), cerchio con ago (`Reveal`), tratteggio (`Obscured`), barriera spezzata (`Exposed`),
+    fiamma (`Burning`), chevron (`Slow`) e le tre pose del corpo (`Root`, `Unbalanced`, `Prone`).
+
+    ⛔ **La prima stesura era un arco con due punti, ed e' stata scartata prima di entrare**: un arco
+    aperto sopra il punto unita' e' esattamente `Status.Guarded` — `arc_deg(12, STATUS_UNIT_Y, 6.2, ...)`
+    — che a 16 px non si sarebbe distinto. E `Guarded` e' una PROTEZIONE, cioe' il contrario di cio' che
+    questo stato dice.
+
+    ⚠️ **E non e' una scelta estetica: e' la semantica.** Lo stordimento e' l'unico controllo che NON
+    tocca il movimento — [D-416] lo scrive come vincolo — quindi disegnarlo come una posa del corpo
+    direbbe la cosa sbagliata. Cio' che toglie e' l'AGIRE: la spirale sta SOPRA il punto unita', dove il
+    corpo non e', ed e' il segno con cui il repertorio dice «non c'e' con la testa».
+
+    Due semicerchi di raggio decrescente (4.4 -> 3.5) coi centri sfalsati: si toccano in `(16.4, 10.6)`,
+    quindi il tratto e' continuo e la spirale si STRINGE invece di chiudersi in un anello.
+    """
+    return _status("\n".join([
+        arc_deg(12, 10.6, 4.4, 180, 360, stroke_width=1.6),
+        arc_deg(12.9, 10.6, 3.5, 0, 180, stroke_width=1.6),
+    ]))
+
+
 def g_status_slow() -> str:
     return _status("\n".join([
         chevron(6.4, 10.4, 2.6, 3.0),
@@ -2147,9 +2174,21 @@ ICONS = [
     # (semantica dopo `UI.Icon.`, glifo, tinta suggerita, origine)
     ("Action.Move", g_move, "Movement",
      "mock 05/11 — invariato"),
-    ("Action.Sprint", g_sprint, "Movement",
-     "mock 05/12 — endpoint che chiude: Sprint nega la reazione"),
-    ("Action.Withdraw", g_withdraw, "Movement",
+    # 🔴 **`Utility` e non `Movement`, e non e' una scelta estetica**: da `#641` lo `Sprint`
+    # risolve in `NormalMovement` (macro-fase `Move`), non piu' in `FastMovement` (`Dash`). Il colore dice
+    # la FASE ([D-232], palette [D-233]), quindi la tinta ha seguito la migrazione: `PHASE_INK["Move"]` e'
+    # `SEMANTIC["Utility"]`.
+    #
+    # ⚠️ **E' il QUARTO prezzo della migrazione**, accanto ai tre che `#641` dichiara — fase,
+    # `Exposed` a 2 turni, divieto di reazione. Il gate T8 lo ha trovato da se': lo `Sprint` esisteva da
+    # prima e teneva il verde di una fase che aveva smesso di essere la sua.
+    #
+    # ⛔ **`Action.Dodge` resta `Movement` e non e' un'incoerenza**: risolve davvero in `Dash`, e
+    # `PHASE_INK["Dash"]` e' `Movement`. A separarle e' la fase, che e' il punto della regola.
+    ("Action.Sprint", g_sprint, "Utility",
+     "mock 05/12 — endpoint che chiude: Sprint nega la reazione; tinta migrata a Utility con #641"),
+    # `Withdraw` nasce gia' in fase `Move` ([D-070]): non migra, parte conforme.
+    ("Action.Withdraw", g_withdraw, "Utility",
      "assente dal mock — famiglia Move invertita, D-070"),
     ("Action.Dodge", g_dash, "Movement",
      "mock 05/13 — glifo invariato, chiave rinominata da Action.Dash (D-230)"),
@@ -2306,6 +2345,8 @@ ICONS = [
      "assente dal mock"),
     ("Status.Slow", g_status_slow, "Hazard",
      "assente dal mock"),
+    ("Status.Stunned", g_status_stunned, "Hazard",
+     "assente dal mock — [D-416]/#3142, terzo stato di controllo"),
     ("Status.Unbalanced", g_status_unbalanced, "Hazard",
      "assente dal mock — [D-319]/#2253, coppia con Status.Prone"),
     ("Status.Wet", g_status_wet, "Utility",

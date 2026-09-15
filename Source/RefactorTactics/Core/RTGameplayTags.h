@@ -119,3 +119,32 @@ UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Unbalanced);
  * una chiave che pretende un'icona per un nodo dietro cui non c'e' nessuno stato.
  */
 UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Prone);
+
+/**
+ * Stordito. Il TERZO stato di controllo della v0.1, e il piu' grave ([D-416], 2026-09-14): toglie
+ * l'**azione principale** e la **reazione** per la sua durata, e disattiva cio' che l'unita' aveva gia'
+ * armato — Overwatch e predittive.
+ *
+ * ⛔ **Non tocca il movimento**, ed e' il confine che lo tiene distinto da `Status.Root`. Due stati che
+ * negano la stessa cosa sono un solo stato scritto due volte: `Root` toglie la posizione, `Stunned` toglie
+ * l'agire. Chi e' stordito cammina; chi e' radicato colpisce.
+ *
+ * **Durata**: `URTCombatLibrary::StunnedDurationTurns`, e il numero ha una ragione di fase — vedi il
+ * commento sulla costante.
+ *
+ * **Chi lo applica**: ⛔ **nessuno.** [D-416] anticipa **un** solo stato del framework di hard control che
+ * [D-072] colloca in v0.2, e dichiara esplicitamente di non assegnare produttori: nessuna azione e nessun
+ * eroe lo infligge finche' un kit non lo dichiara. Il soggetto esiste perche' le regole che lo
+ * presupponevano possano essere scritte, non perche' una partita lo produca oggi.
+ *
+ * ⚠️ **`Status.Stunned` e non `Status.Control.Stunned`**, per la ragione gia' misurata su `Prone`:
+ * `RequestGameplayTagChildren` restituisce anche i nodi impliciti, quindi un terzo livello farebbe entrare
+ * in `URTIconLibrary::RequiredIconIds()` la chiave `UI.Icon.Status.Control` — un'icona pretesa per un nodo
+ * dietro cui non c'e' nessuno stato.
+ *
+ * 🔴 **Un tag nuovo obbliga la propria icona**: `RequiredIconIds()` deriva una chiave da ogni tag sotto
+ * `Status.`, quindi senza `UI.Icon.Status.Stunned` in `DA_IconCatalog` il gate
+ * `IconCatalog.RealCatalogCoversRequiredIds` diventa rosso. Non e' un effetto collaterale: e' il
+ * meccanismo che impedisce a uno stato di nascere muto a schermo.
+ */
+UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_Status_Stunned);

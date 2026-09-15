@@ -119,4 +119,74 @@ bool FRTHudIntentOwnershipTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * `#3115` — il piano dell'unita' che stai pianificando ADESSO si distingue da quello dell'altra tua.
+ *
+ * 🔴 **Il difetto che questo test chiude**: `bOwn` valeva `View.bIsAlly` e nient'altro, quindi le due
+ * unita' di `Format.Skirmish2v2` — `UnitsPerPlayer = 2` su `UnitsPerTeam = 2`, un gruppo solo — ricevevano
+ * lo STESSO prefisso e lo STESSO colore. Sulla mappa: due rotte ciano tratteggiate identiche, e nessun
+ * segnale su quale delle due si stia scrivendo.
+ *
+ * ⚠️ L'anello di selezione (`ARTUnit::ShouldShowSelectionRing`) diceva gia' quale unita' e' selezionata.
+ * Il suo PIANO no, ed e' li' che il giocatore guarda mentre pianifica una rotta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudIntentSelectedPlanTest,
+	"RefactorTactics.HUD.IntentLineMarksTheSelectedPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudIntentSelectedPlanTest::RunTest(const FString&)
+{
+	const FRTIntentCertaintyStyle Style;
+
+	// Due viste PROPRIE identiche in ogni campo: differiscono solo per la selezione, che non e' un campo
+	// della vista. E' la geometria del difetto, riprodotta.
+	FRTIntentView Vista;
+	Vista.bIsAlly = true;
+	Vista.bMoving = true;
+
+	const FRTIntentPresentation Selezionata = ARTHUD::ComposeIntentPresentation(Vista, Style, /*bIsSelected=*/ true);
+	const FRTIntentPresentation Altra       = ARTHUD::ComposeIntentPresentation(Vista, Style, /*bIsSelected=*/ false);
+
+	// AC-1 — le due presentazioni differiscono su almeno un canale osservabile.
+	TestNotEqual(TEXT("AC-1: il piano selezionato non ha la stessa etichetta dell'altro"),
+		Selezionata.Label, Altra.Label);
+
+	// AC-2 — la distinzione e' funzione della SELEZIONE, non dell'identita' dell'unita': la stessa vista
+	// chiesta due volte come non selezionata da due volte la stessa cosa.
+	const FRTIntentPresentation AltraDiNuovo = ARTHUD::ComposeIntentPresentation(Vista, Style, /*bIsSelected=*/ false);
+	TestEqual(TEXT("AC-2: deselezionate, le due presentazioni coincidono"),
+		Altra.Label, AltraDiNuovo.Label);
+
+	// ⛔ AC-3, la meta' falsificante. Senza questa, AC-1 passerebbe anche promuovendo la selezione a una
+	// TERZA classe di appartenenza — che e' il confine sbagliato: un nemico rivelato non diventa un'altra
+	// cosa perche' io ho un'unita' selezionata.
+	FRTIntentView Nemica;
+	Nemica.bIsAlly = false;
+	Nemica.bMoving = true;
+	const FRTIntentPresentation NemicaConSel = ARTHUD::ComposeIntentPresentation(Nemica, Style, /*bIsSelected=*/ true);
+	const FRTIntentPresentation NemicaSenza  = ARTHUD::ComposeIntentPresentation(Nemica, Style, /*bIsSelected=*/ false);
+	TestEqual(TEXT("AC-3: il nemico rivelato non cambia con la selezione (etichetta)"),
+		NemicaConSel.Label, NemicaSenza.Label);
+	TestTrue(TEXT("AC-3: il nemico rivelato resta [REVEAL]"),
+		NemicaConSel.Label.StartsWith(TEXT("[REVEAL] "), ESearchCase::CaseSensitive));
+
+	// AC-4 — il canale NON e' il colore. Ciano e' l'identita' di squadra, e la coppia ciano/giallo e'
+	// protetta dal gate `T9` con le distanze misurate in dicromazia ([D-233], [D-234]). Una stesura
+	// precedente ci aveva gia' sovrapposto la certezza ed e' stata ritirata: due semantiche sullo stesso
+	// canale, e la seconda pagata dalla prima.
+	TestTrue(TEXT("AC-4: la selezione non tocca il colore"),
+		Selezionata.Color.Equals(Altra.Color));
+	TestTrue(TEXT("AC-4: il ciano di squadra resta quello"),
+		Selezionata.Color.Equals(FLinearColor(0.2f, 0.9f, 1.f, 1.f)));
+
+	// Il corpo dell'etichetta resta di `ComposeIntentLabel`: entrambe lo portano, e questa sede non lo
+	// riscrive. Si verifica che il marcatore sia un PREFISSO, non una riscrittura del corpo.
+	TestTrue(TEXT("selezionata: il corpo dell'etichetta e' ancora attaccato"),
+		Selezionata.Label.EndsWith(ARTHUD::ComposeIntentLabel(Vista, Style)));
+	TestTrue(TEXT("non selezionata: idem"),
+		Altra.Label.EndsWith(ARTHUD::ComposeIntentLabel(Vista, Style)));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
