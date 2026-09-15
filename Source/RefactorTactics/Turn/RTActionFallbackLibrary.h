@@ -207,7 +207,24 @@ enum class ERTActionInvalidReason : uint8
 	 * un secondo dato, e dire CHI blocca chiederebbe un'identita' che questa voce non trasporta — la
 	 * stessa clausola con cui `ERTMoveOutcome::SlideBlocked` rinuncia a nominare la causa.
 	 */
-	DashPathBlocked
+	DashPathBlocked,
+	/**
+	 * Chi e' **stordito** non agisce: `Status.Stunned` nega l'**azione principale** per la propria durata
+	 * ([D-416], `#3142`).
+	 *
+	 * 🔑 **Motivo PROPRIO e non `Unbalanced`**, benche' entrambi nascano da uno stato di controllo: quello
+	 * dice *«hai perso l'equilibrio, non puoi CORRERE»* e lascia intatta l'azione; questo dice *«non puoi
+	 * AGIRE»* e lascia intatto il movimento. Sono i due divieti complementari, e un motivo solo per
+	 * entrambi manderebbe il giocatore a cercare il rimedio sbagliato.
+	 *
+	 * ⛔ **Non dice niente sul movimento**, ed e' la distinzione da `Root` che [D-416] mette per iscritto:
+	 * `Root` non passa di qui, perche' non rifiuta un'azione — azzera un budget, che e' un'altra sede.
+	 *
+	 * ⚠️ **In coda**, come `Interrupted`, `NoEffect`, `Neutralised`, `DoorLocked` e le altre prima: il
+	 * motivo viaggia come intero grezzo in `FRTTurnLogEntry::Amount`, e inserirne uno in mezzo riscrive il
+	 * significato di ogni traccia gia' archiviata che ne porti uno successivo.
+	 */
+	Stunned
 };
 
 /** Esito dell'applicazione di un fallback: cosa si esegue davvero, e cosa e' stato applicato. */

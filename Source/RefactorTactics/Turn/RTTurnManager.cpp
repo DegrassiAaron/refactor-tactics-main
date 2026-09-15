@@ -467,6 +467,86 @@ void ARTTurnManager::ApplyStatusLogged(ARTUnit* Unit, FGameplayTag Tag, int32 Tu
 			MakeStatusDeathEntry(TAG_Status_Burning, Unit->Cell, ERTStatusOutcome::Extinguished);
 		AppendLogEntry(Spento, Unit);
 	}
+
+	// 🔴 **Il disarmo vive QUI per la stessa ragione per cui ci vive la voce di spegnimento** (`#1314`): e'
+	// una regola che deve valere su **ogni** sorgente che applica lo stato, non sul sito che si e' ricordato
+	// di scriverla. `Prone` ha oggi un solo produttore e `Stunned` non ne ha ancora nessuno ([D-416] non ne
+	// assegna): metterla nei siti invece che nel passaggio obbligato significherebbe che il primo kit che
+	// infligge lo stordimento lo fa senza disarmare, e nulla diventerebbe rosso.
+	//
+	// ⚠️ **Fuori dall'`if`**: il valore di ritorno di `ApplyStatus` dice se ha spento un `Burning`, non se
+	// lo stato e' entrato. Dentro l'`if` il disarmo avverrebbe solo per chi stava bruciando.
+	//
+	// 🔑 **Si verifica che lo stato ci sia DAVVERO**: `ApplyStatus` e' un no-op per `Turns <= 0`, e un
+	// disarmo su una durata nulla toglierebbe una charge senza che nessuno stato la giustifichi.
+	if ((Tag == TAG_Status_Prone || Tag == TAG_Status_Stunned) && Unit->HasStatus(Tag))
+	{
+		DisarmPreparedReactions(Unit);
+	}
+}
+
+bool ARTTurnManager::RefuseMainActionIfStunned(ARTUnit* Unit, const FRTActionDef& Def,
+	ERTMatchPhase InPhase, const FRTCellId& TargetCell)
+{
+	if (!IsValid(Unit) || !Unit->HasStatus(TAG_Status_Stunned))
+	{
+		return false;
+	}
+
+	// 🔑 **Rifiuto DICHIARATO, non scarto muto**: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi
+	// rilegge il turno vede *perche'* l'azione non c'e' stata invece di un buco — la stessa disciplina del
+	// rifiuto per `Unbalanced` in `ResolveDash`.
+	FRTTurnLogEntry Rifiutata;
+	// `InPhase` e non `Phase`: quest'ultimo e' un membro di `ARTTurnManager`, e ombreggiarlo e' un errore
+	// (`C4458`) prima ancora che una confusione. Stesso nome che usa gia' `MakeStatusDeathEntry`.
+	Rifiutata.Phase = InPhase;
+	Rifiutata.Category = ERTLogCategory::Fallback;
+	Rifiutata.Outcome = static_cast<uint8>(ERTFallbackOutcome::Cancelled);
+	// La tripla completa, come ogni altro produttore `Fallback` ([D-196]).
+	Rifiutata.ActionId = Def.ActionId;
+	Rifiutata.BaseActionId = Def.BaseActionId;
+	Rifiutata.Priority = Def.Priority;
+	Rifiutata.SrcCell = Unit->Cell;
+	Rifiutata.TgtCell = TargetCell;
+	Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Stunned);
+	AppendLogEntry(Rifiutata, Unit);
+
+	AddLogEvent(FString::Printf(TEXT("%s: %s"),
+		*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Rifiutata)), FRTLogSubject::Unit(Unit));
+	return true;
+}
+
+void ARTTurnManager::DisarmPreparedReactions(ARTUnit* Unit)
+{
+	if (!IsValid(Unit))
+	{
+		return;
+	}
+
+	// (1) NIENTE REAZIONE per il resto del turno. Si riusa `ReactionBlockedThisTurn`, che e' il meccanismo
+	// con cui `Action.Sprint` gia' fa la stessa cosa (CP 5.1): entrambi i punti che producono
+	// `ERTReactionOutcome::Unavailable` — quello generico e quello dell'interposizione — lo leggono gia'.
+	// Un terzo controllo scritto a mano in due `if` sarebbe una seconda regola da tenere d'accordo con la
+	// prima.
+	// ⚠️ **Copre il resto di QUESTO turno**; il turno successivo lo copre `ResolveDash`, che al reset
+	// rimette dentro chi e' ancora a terra o stordito — `Prone` e `Stunned` durano 2 apposta.
+	ReactionBlockedThisTurn.Add(Unit);
+
+	// (2) OVERWATCH DISARMATO, con la CHARGE SPESA. `bCharged = false` e' esattamente il
+	// `ReactionStillArmed` di ADR-0004 §6 che il ciclo dei watcher legge per primo: l'armamento resta nella
+	// lista — quindi il replay lo vede — e non spara piu'. Perdere la charge e' il punto: apre la linea di
+	// gioco «spingo per disarmare», che e' cio' per cui [D-319] mette il blocco su `Prone` e non su
+	// `Unbalanced`.
+	for (FRTArmedOverwatch& Armed : ArmedOverwatches)
+	{
+		if (Armed.Owner.Get() == Unit) { Armed.bCharged = false; }
+	}
+
+	// (3) PREDICTIVE ARMATA PERSA. `FRTArmedPrediction` non ha una charge da spegnere — la lista **e'** lo
+	// stato — quindi si rimuove. ⚠️ Tocca il thin slice v0.1 `Hero.Ivrin.InterceptShot`: una scelta
+	// dichiarata e pagata un turno prima viene cancellata, ed e' il punto che il brief §8.4 lascia da
+	// confermare con E18 davanti. Implementato come [D-319] lo descrive, non oltre.
+	ArmedPredictions.RemoveAll([Unit](const FRTArmedPrediction& A) { return A.Shooter.Get() == Unit; });
 }
 
 FRTTurnLogEntry ARTTurnManager::MakeStatusDeathEntry(FGameplayTag Tag, const FRTCellId& Cell,
@@ -2898,6 +2978,24 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		const FRTCellId PlannedCell = Caster->PlannedAttackCell;
 		Caster->PlannedAbilityIndex = INDEX_NONE; // consumato: attivata o no, il piano non sopravvive al turno
 		Caster->ClearPlannedAttack();
+
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e questo e' il TERZO dei tre siti in
+		// cui una principale si consuma — gli altri due sono `ResolvePrep` e `CollectAttackIntents`. Le
+		// ambientali (`Ignite`, `CreateWater`, `Electrify`, `MistVeil`) sono principali a tutti gli effetti:
+		// `ERTActionSlot::Main` e' il default di `ShippedAction`, e nessuna di loro lo sovrascrive.
+		//
+		// 🔴 **La prima stesura copriva due siti su tre**, e un'unita' stordita accendeva un incendio.
+		// Pinnata da `Actions.Ignite.StunnedCasterLightsNothing`.
+		//
+		// ⚠️ **Dopo il consumo del piano e prima del cooldown**: l'azione si perde per il turno — come ogni
+		// principale che non parte — ma `ConsumeAbility` non viene chiamato piu' in basso, quindi la ricarica
+		// non paga per un'azione che non e' avvenuta.
+		if (RefuseMainActionIfStunned(Caster, Ability->Def, ERTMatchPhase::Cleanup,
+			bTargetsCell ? PlannedCell : (Target ? Target->Cell : Caster->Cell)))
+		{
+			continue;
+		}
+
 		if (!Caster->CanUseAbility(AbilityIndex)) { continue; }
 
 		// Il fallback dichiarato di `Action.Electrify` e' `Cancel`: senza bersaglio valido non succede nulla,
@@ -3843,6 +3941,22 @@ void ARTTurnManager::ResolvePrep()
 		if (!Ability || !Unit->CanUseAbility(Index)) { continue; }
 		if (URTCatalogLibrary::MapResolutionPhase(Ability->Def.ResolutionPhase) != ERTMatchPhase::Prep) { continue; }
 
+		// `Status.Stunned` NEGA L'AZIONE PRINCIPALE ([D-416], `#3142`), e il Prep e' **il primo** dei due siti
+		// in cui una principale si consuma: qui si ARMANO Overwatch e predittive, e armare costa l'azione
+		// principale (catalogo §1). Senza questa riga uno stordito armava l'Overwatch e sparava nel Move — non
+		// e' un'ipotesi, e' cio' che `Status.StunSilencesAnArmedWatcher` ha misurato prima che ci fosse.
+		//
+		// ⚠️ **Il piano si perde, la RICARICA no**, ed e' cosi' in tutti e tre i siti: il rifiuto precede
+		// `ConsumeAbility`, quindi il cooldown non parte per una scommessa che non e' stata piazzata. Cio'
+		// che cambia fra i siti e' solo CHI azzera il piano — qui la riga sotto, nel Blast la cima del ciclo.
+		if (RefuseMainActionIfStunned(Unit, Ability->Def, ERTMatchPhase::Prep,
+			Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell))
+		{
+			Unit->PlannedAbilityIndex = INDEX_NONE;
+			Unit->ClearPlannedAttack();
+			continue;
+		}
+
 		// PREDITTIVA (E18 CP 18.2): si ARMA qui e risolve al boundary del Move, quindi NON entra fra le
 		// istanze che producono eventi adesso. Tenercela dentro le farebbe tradurre il proprio `Damage` in un
 		// evento verso se stessa — oggi innocuo perche' la Prep ignora il danno, ma sarebbe un difetto latente
@@ -4041,9 +4155,14 @@ void ARTTurnManager::ResolveDash()
 	// del Dash, cioe' prima di ogni punto che valuta una reazione; aggiungere altrove significherebbe
 	// coprire solo i pass a valle. E' lo stesso ragionamento per cui `Action.Sprint` viene registrato dove
 	// risulta *effettivamente usato* invece che dove e' stato pianificato.
+	//
+	// ⚠️ **`Stunned` accanto a `Prone`, e per la stessa ragione** ([D-416], `#3142`): il disarmo che accade
+	// alla nascita dello stato copre il turno in cui nasce, non quello dopo. Entrambi durano **2** apposta,
+	// e senza questa riga il secondo turno di stordimento — l'unico in cui c'e' davvero un'azione da
+	// togliere — restituirebbe la reazione a chi non dovrebbe averla.
 	for (ARTUnit* Unit : Units)
 	{
-		if (IsValid(Unit) && Unit->HasStatus(TAG_Status_Prone))
+		if (IsValid(Unit) && (Unit->HasStatus(TAG_Status_Prone) || Unit->HasStatus(TAG_Status_Stunned)))
 		{
 			ReactionBlockedThisTurn.Add(Unit);
 		}

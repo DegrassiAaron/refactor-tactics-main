@@ -1001,10 +1001,11 @@ public:
 	 * 🔴 **Chiude una duplicazione che esisteva**: `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un
 	 * `if`/`else if` — lo **stesso** ordine di `ControlStatusesBySeverity`, ricopiato a mano. Se quella lista
 	 * cambiasse, o nascesse un terzo controllo, l'HUD sarebbe rimasto fermo e nessun test lo avrebbe detto:
-	 * `Reaction.ControlStatusesAreTwo` sorveglia la lista, non chi la copia.
+	 * `Reaction.ControlStatusesAreThree` sorveglia la lista, non chi la copia.
 	 *
-	 * ⛔ **Non inventa una gravita' per gli altri otto stati.** `ControlStatusesBySeverity` ne copre **due** e
-	 * dichiara il proprio limite (*«e' una lista nel codice, non un dato del catalogo»*); una scala completa e'
+	 * ⛔ **Non inventa una gravita' per gli stati che controlli non sono.** `ControlStatusesBySeverity` copre
+	 * i soli che dichiara — `Stunned`, `Root`, `Slow` — e dichiara anche il proprio limite (*«e' una lista nel
+	 * codice, non un dato del catalogo»*); una scala completa e'
 	 * `E36`, **v0.2**. Inventarla qui creerebbe una seconda tassonomia che quell'epic dovrebbe riconciliare.
 	 *
 	 * ⚠️ **Non tronca.** Quante icone stiano sopra un cilindro e' una domanda di layout, e la risposta

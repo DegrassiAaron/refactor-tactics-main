@@ -266,7 +266,11 @@ TArray<FRTStatusBadgeView> URTHudViewModel::BuildStatusBadges(const ARTUnit* Uni
 	// 🔑 **La gravita' si CHIEDE, non si ricopia.** `ARTHUD::DrawHUD` mostrava `ROOT` e poi `SLOW` in un
 	// `if`/`else if`: lo stesso ordine di `ControlStatusesBySeverity`, scritto una seconda volta. Se quella
 	// lista cambiasse — o nascesse un terzo controllo — l'HUD sarebbe rimasto fermo, e il guardiano
-	// `Reaction.ControlStatusesAreTwo` non se ne sarebbe accorto: sorveglia la lista, non chi la copia.
+	// `Reaction.ControlStatusesAreThree` non se ne sarebbe accorto: sorveglia la lista, non chi la copia.
+	//
+	// ✅ **Ed e' successo davvero**: [D-416] ha fatto nascere il terzo controllo (`Status.Stunned`) e questa
+	// funzione non e' stata toccata — chiede il rango invece di conoscerlo. E' la prova che la duplicazione
+	// era chiusa, non solo dichiarata tale.
 	//
 	// 🔴 **Si ordina sui TAG e non sulle viste** perche' il rango si chiede a un `FGameplayTag`: ordinare
 	// dopo costringerebbe a risolvere ogni `FName` indietro con `RequestGameplayTag` — dentro un

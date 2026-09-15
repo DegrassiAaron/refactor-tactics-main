@@ -1173,7 +1173,7 @@ bool FRTOverwatchPromptCapTest::RunTest(const FString&)
 	const int32 Cap = URTReactionOpportunityLibrary::MaxPromptsPerReaction();
 
 	// Il valore E' quello dell'ADR, non «un numero ragionevole»: se qualcuno lo cambia, deve passare di qui e
-	// dichiarare perche' — che e' la stessa disciplina di `Reaction.ControlStatusesAreTwo`.
+	// dichiarare perche' — che e' la stessa disciplina di `Reaction.ControlStatusesAreThree`.
 	TestEqual(TEXT("il cap e' quello di ADR-0004 §8"), Cap, 3);
 
 	// La regola applicata come la applica il resolver: si salta il watcher quando i prompt sono esauriti.
