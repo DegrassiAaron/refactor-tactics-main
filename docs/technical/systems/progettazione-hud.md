@@ -316,8 +316,30 @@ lista resta progetto.
 |---|---|---|
 | Punteggio per squadra | `FRTMatchHeaderView::Team0Score` · `Team1Score` | ✅ nel ViewModel, misurato da `HudViewModel.ObjectiveProgressReachesTheHud` |
 | Soglia di vittoria | `FRTMatchHeaderView::ScoreToWin`, dal **formato** | ✅ stessa disciplina di `RoundLimit`: `0` = via per obiettivo **disattivata**, non «si vince a zero» |
-| Riga disegnata | `ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)` | ✅ in Canvas, dietro `rt.HUD.CanvasPanels` |
+| Riga disegnata | `ARTHUD::ComposeMatchStatusLine`, barra di stato: `Obiettivo 2-1 (a 3)` | 🔴 **composta, non disegnata** dal 2026-09-07 — vedi la nota qui sotto |
 | Nome · stato · contestato · countdown · cambio recente | — | ⏳ progetto |
+
+> 🔴 **Rimisurato il 2026-09-15 su `6144b5d0`: il punteggio dell'obiettivo non raggiunge più lo schermo.**
+> Quella cella diceva ~~«✅ in Canvas, dietro `rt.HUD.CanvasPanels`»~~, e nessuna delle due metà regge più:
+> la CVar è uscita con la §A di [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936)
+> (`34b7a496`, 2026-09-07) insieme ai pannelli screen-space che la consumavano, e la barra di stato con lei.
+>
+> ```bash
+> grep -rn "TAutoConsoleVariable.*CanvasPanels" Source/ | wc -l          # → 0
+> grep -rn "ComposeMatchStatusLine" Source/ --include=*.cpp |
+>   grep -v "/Tests/" |
+>   grep -vE "ARTHUD::ComposeMatchStatusLine\(" |
+>   grep -vE "^\S+:[0-9]+:\s*(//|\*)"                              # → nessun risultato
+> ```
+>
+> ⚠️ **Con controllo di calibrazione**, senza il quale un filtro rotto direbbe «zero» a tutto: lo stesso
+> comando su `ComposeAbilityLine` trova il suo chiamante vivo — `RTScreenHudWidgets.cpp:525`.
+>
+> ⛔ **Non è codice morto.** `ComposeMatchStatusLine` è pura e coperta dai suoi test: ciò che manca è il
+> consumatore in UMG, ed è il difetto che possiede
+> [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764). Finché non arriva, le quattro
+> **reticenze** della barra — niente `/0`, countdown solo in Pianificazione, obiettivo solo se la mappa ne
+> dichiara uno — restano verificate headless e invisibili in partita.
 
 ⚠️ **La riga si mostra solo se la mappa dichiara un obiettivo.** Su una mappa che non ne ha, `0-0` non
 sarebbe una parità: sarebbe un punteggio inventato per una gara che non si sta correndo. È la stessa
@@ -1244,15 +1266,29 @@ Non alterano:
 
 | Controllo | v0.1 | Dove |
 |---|---|---|
-| **skip** | ✅ esiste | `ARTHUD::DrawHUD`, tasto `Spazio`, etichetta `(Spazio: salta)` |
-| **speed** | ✅ esiste — `x1 · x2 · x4` | `ARTHUD::ComposePlaybackSpeedLabel` + `ARTPlayerController`, tasto `V` |
+| **skip** | ⚠️ il **comando** sì, l'**etichetta** no | `Spazio` → `ARTPlayerController.cpp:2109` → `SkipPlayback()`. L'etichetta `(Spazio: salta)` sta dentro `ComposeMatchStatusLine`, che nessuno chiama |
+| **speed** | ⚠️ il **comando** sì, l'**etichetta** no | `V` → `ARTPlayerController.cpp:2215` → `OnCyclePlaybackSpeed`. L'etichetta `x1 · x2 · x4` è `ComposePlaybackSpeedLabel`, che nessuno chiama |
 | **pause visiva** | ⛔ **fuori scope dichiarato** | è del Replay Player (`RT-FEAT-REPLAY-ARCHIVE`, #472/#999): lì si guarda una partita **registrata**, qui una **in corso** |
 | **focus event** | ⏳ non deciso | nessuna issue |
 
-⚠️ **La `speed` è resa in Canvas, non come widget §4.1, ed è una deviazione consapevole da §13.2.**
-La §13.2 elenca i `playback controls` fra gli elementi promossi nel `Resolution HUD`, cioè nel layer §4.1
-— che è UMG. In v0.1 il controllo vive nella riga di stato del Canvas, insieme a `skip`. Le due ragioni,
-in ordine di peso:
+> 🔴 **Rimisurato il 2026-09-15 su `6144b5d0`: entrambe le etichette sono uscite dallo schermo, e i
+> due comandi no.** Le due celle dicevano ~~«✅ esiste»~~ e rimandavano al Canvas: la §A di
+> [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) ha rimosso i pannelli
+> screen-space (`34b7a496`, 2026-09-07), e con la barra di stato se ne sono andati `(Spazio: salta)` e
+> `x1 · x2 · x4`. I due tasti restano bindati e funzionanti — **il giocatore comanda il playback senza
+> vedere che cosa sta comandando**: un comando muto non somiglia a un difetto, somiglia a un tasto che non fa nulla.
+>
+> Il buco è dichiarato e ha un owner: è la §F che deve portare quelle righe in UMG, dove la §4.1 le vuole,
+> e il difetto dei compositori senza consumatore è
+> [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764).
+
+⚠️ ~~**La `speed` è resa in Canvas, non come widget §4.1, ed è una deviazione consapevole da §13.2.**~~
+**La `speed` non è resa affatto, e la deviazione da §13.2 resta.** La §13.2 elenca i `playback controls`
+fra gli elementi promossi nel `Resolution HUD`, cioè nel layer §4.1 — che è UMG. ~~In v0.1 il controllo vive
+nella riga di stato del Canvas, insieme a `skip`.~~ Quella riga non esiste più (vedi la nota qui sopra): la
+deviazione si è trasformata da «resa altrove» in «non resa», che è **peggio** e non «uguale». Le due ragioni
+che l'avevano motivata reggono ancora, ed è il motivo per cui questa sottosezione si corregge invece di
+cancellarsi; in ordine di peso:
 
 1. **Il contratto §4.1 vieta al widget di raggiungere il modello.** `URTScreenHudWidgetBase` non espone
    l'`ARTTurnManager` ai Blueprint — *«se non c'è il puntatore, non c'è il modo di ricalcolare»* — e
