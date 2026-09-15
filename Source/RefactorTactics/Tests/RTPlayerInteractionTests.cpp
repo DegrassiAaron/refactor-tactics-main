@@ -1931,4 +1931,93 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	return true;
 }
 
+// --- #3145 · `TAB`: il percorso tastiera della selezione ----------------------------------------------
+
+/**
+ * `TAB` cicla le proprie unita' in ordine STABILE, e non dichiara niente.
+ *
+ * 🔴 **L'asserzione che porta il peso e' la seconda**: due cicli completi sullo stesso stato danno la
+ * stessa sequenza. Un ciclo che seguisse l'ordine di `GetAllActorsOfClass` potrebbe darne due diverse, e
+ * sarebbe un input di planning non riproducibile — il difetto contro cui l'ordinamento per `StableUnitId`
+ * esiste.
+ *
+ * ⚠️ **Il filtro «solo le unita' non ancora pronte» non e' qui perche' non e' esprimibile**: `ARTUnit` non
+ * porta uno stato di dichiarazione conclusa, e il lock-in e' del turno. Sta scritto su `CycleSelection`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCycleSelectionTest,
+	"RefactorTactics.PlayerInput.TabCyclesOwnUnitsInStableOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCycleSelectionTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	// Tre proprie e una avversaria: l'avversaria non deve mai entrare nel ciclo.
+	ARTUnit* A = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, -2, 0));
+	ARTUnit* B = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, -2, 0));
+	ARTUnit* C = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(3, -1, 0));
+	ARTUnit* Nemica = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-2, 2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("A"), A)
+		|| !TestNotNull(TEXT("B"), B) || !TestNotNull(TEXT("C"), C) || !TestNotNull(TEXT("nemica"), Nemica))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// Id distinti e dichiarati: l'ordine atteso e' il loro, non quello di spawn.
+	A->StableUnitId = 30;
+	B->StableUnitId = 10;
+	C->StableUnitId = 20;
+	Nemica->StableUnitId = 5;
+
+	// --- 1. Il ciclo tocca le proprie, in ordine di StableUnitId ------------------------------------
+	TArray<FString> Prima;
+	for (int32 i = 0; i < 3; ++i)
+	{
+		PC->CycleSelectionForTest();
+		const ARTUnit* Sel = PC->GetSelectedUnit();
+		if (!TestNotNull(TEXT("il ciclo seleziona qualcuno"), Sel))
+		{
+			DestroyInteractionWorld(World); return false;
+		}
+		Prima.Add(Sel->GetName());
+		TestTrue(TEXT("mai l'unita' avversaria"), Sel != Nemica);
+	}
+	TestEqual(TEXT("primo giro: B (10)"), Prima[0], B->GetName());
+	TestEqual(TEXT("poi C (20)"), Prima[1], C->GetName());
+	TestEqual(TEXT("poi A (30)"), Prima[2], A->GetName());
+
+	// --- 2. 🔴 Lo stesso stato da' la stessa sequenza ------------------------------------------------
+	TArray<FString> Dopo;
+	for (int32 i = 0; i < 3; ++i)
+	{
+		PC->CycleSelectionForTest();
+		Dopo.Add(PC->GetSelectedUnit()->GetName());
+	}
+	TestEqual(TEXT("il secondo giro ripete il primo"), Dopo, Prima);
+
+	// --- 3. TAB non dichiara niente ------------------------------------------------------------------
+	{
+		PC->SelectActorForTest(A);
+		PC->HandleClickOnCell(FRTCellId(3, -3, 0));
+		const int32 WaypointDiA = A->PlannedWaypoints.Num();
+		const int32 ArmataDiA = A->SelectedAbilityIndex;
+
+		PC->CycleSelectionForTest();
+
+		TestEqual(TEXT("i waypoint di chi si lascia restano"), A->PlannedWaypoints.Num(), WaypointDiA);
+		TestEqual(TEXT("e lo stato armato con loro"), A->SelectedAbilityIndex, ArmataDiA);
+		TestTrue(TEXT("chi si prende non ha waypoint inventati"),
+			PC->GetSelectedUnit()->PlannedWaypoints.Num() == 0);
+	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

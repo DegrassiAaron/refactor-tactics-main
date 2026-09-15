@@ -458,6 +458,9 @@ void ARTPlayerController::BuildInputMappings()
 	UndoAction = NewObject<UInputAction>(this, TEXT("IA_UndoWaypoint"));
 	UndoAction->ValueType = EInputActionValueType::Boolean;
 
+	CycleSelectionAction = NewObject<UInputAction>(this, TEXT("IA_CycleSelection"));
+	CycleSelectionAction->ValueType = EInputActionValueType::Boolean;
+
 	RecenterAction = NewObject<UInputAction>(this, TEXT("IA_Recenter"));
 	RecenterAction->ValueType = EInputActionValueType::Boolean;
 
@@ -554,6 +557,11 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
+	// `TAB` — il ciclo di selezione (`#3145`). Nessun altro `MapKey` lo rivendica, e a verificarlo non e'
+	// un elenco scritto a mano ma `PlayerInput.HotkeysDoNotCollide`, che interroga il
+	// `UInputMappingContext` REALE: da qui in poi il controllo vede questa riga da se'.
+	MappingContext->MapKey(CycleSelectionAction, EKeys::Tab);
+
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
 
@@ -725,6 +733,7 @@ void ARTPlayerController::SetupInputComponent()
 		// resterebbe armato e ogni movimento del mouse continuerebbe a zoomare.
 		EIC->BindAction(UndoAction, ETriggerEvent::Completed, this, &ARTPlayerController::OnUndoReleased);
 		EIC->BindAction(UndoAction, ETriggerEvent::Canceled, this, &ARTPlayerController::OnUndoReleased);
+		EIC->BindAction(CycleSelectionAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleSelection);
 		EIC->BindAction(RecenterAction, ETriggerEvent::Started, this, &ARTPlayerController::OnRecenter);
 
 		// #1771 — il modificatore. `Canceled` insieme a `Completed` per la stessa ragione di
@@ -1110,6 +1119,98 @@ void ARTPlayerController::UpdatePeekReturn(float DeltaTime)
 	const float Alpha = FMath::Clamp(FMath::Max(PeekReturnSpeed, 0.f) * DeltaTime, 0.f, 1.f);
 	const FVector Next = FMath::Lerp(Current, FVector::ZeroVector, Alpha);
 	Cam->SetPeekOffset(Next.SizeSquared() < 1.0 ? FVector::ZeroVector : Next);
+}
+
+void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
+{
+	CycleSelection();
+}
+
+bool ARTPlayerController::CycleSelection()
+{
+	// Una schermata bloccante copre la partita: questo input non le arriva, come per ogni altro gesto.
+	if (IsGameplayInputBlocked())
+	{
+		return false;
+	}
+
+	// ⛔ **Niente guardia `IsPlanningInputInert`, e la differenza e' voluta**: quella ferma gli ORDINI in
+	// autobattle e in una fase che non li accetta. `TAB` non ordina niente — cambia soltanto il soggetto
+	// delle operazioni successive — e guardare la propria squadra mentre i bot giocano e' esattamente cio'
+	// che una sessione non presidiata deve poter fare. Per la stessa ragione non chiama
+	// `RecordPlanningInput`: non e' una decisione di turno.
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	const int32 MyTeam = ARTPlayerState::TeamIdOf(this);
+	const int32 MyGroup = ARTPlayerState::ControlGroupOf(this);
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
+
+	TArray<ARTUnit*> Comandabili;
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* Unit = Cast<ARTUnit>(Actor);
+		if (!IsValid(Unit) || !Unit->IsAlive())
+		{
+			continue;
+		}
+		// 🔑 **La stessa domanda che fa il CLICK**, e non una riscritta a mano: `HandleClickOnUnit` usa
+		// `CanPlayerControlUnitInGroup`, quindi `TAB` raggiunge esattamente le unita' che il mouse
+		// raggiunge. E' l'equivalenza che questo tasto esiste per stabilire — una seconda condizione qui
+		// la romperebbe al primo gruppo di controllo.
+		if (URTCombatLibrary::CanPlayerControlUnitInGroup(
+			Unit->TeamId, Unit->ControlGroup, MyTeam, MyGroup, Unit->bIsBotControlled))
+		{
+			Comandabili.Add(Unit);
+		}
+	}
+
+	if (Comandabili.Num() == 0)
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] TAB: nessuna unita' comandabile da selezionare"));
+		return false;
+	}
+
+	// 🔴 **L'ordine e' DICHIARATO, non quello in cui il mondo restituisce gli Actor.**
+	// `GetAllActorsOfClass` non promette alcun ordine, e un ciclo che ne dipendesse darebbe due sequenze
+	// diverse per lo stesso stato — cioe' un input di planning non riproducibile.
+	Comandabili.Sort([](const ARTUnit& A, const ARTUnit& B)
+	{
+		if (A.StableUnitId != B.StableUnitId)
+		{
+			return A.StableUnitId < B.StableUnitId;
+		}
+		// Due unita' con lo stesso `StableUnitId` sono un difetto di setup, non un caso da gestire: il
+		// `GetName()` tiene comunque l'ordine TOTALE, che e' cio' che serve perche' il ciclo non salti.
+		return A.GetName() < B.GetName();
+	});
+
+	const ARTUnit* Corrente = Cast<ARTUnit>(SelectedActor);
+	const int32 IndiceCorrente = Corrente ? Comandabili.IndexOfByKey(const_cast<ARTUnit*>(Corrente)) : INDEX_NONE;
+	// Senza selezione si parte dalla prima; altrimenti dalla successiva, in cerchio.
+	const int32 Prossimo = (IndiceCorrente == INDEX_NONE) ? 0 : (IndiceCorrente + 1) % Comandabili.Num();
+
+	ARTUnit* Scelta = Comandabili[Prossimo];
+	if (Scelta == Corrente)
+	{
+		// Una sola unita' comandabile: il ciclo torna su se stesso, e non e' un fallimento da tacere.
+		UE_LOG(LogRT, Display, TEXT("[RT] TAB: '%s' e' l'unica unita' comandabile"), *Scelta->GetName());
+		return false;
+	}
+
+	// ⛔ `SelectUnit` e non una scrittura diretta di `SelectedActor`: la selezione ha effetti collaterali
+	// (evidenziazione, anteprima, telemetria) e averne due copie significa che una smettera' di essere
+	// aggiornata. ⚠️ Nessun campo `Planned*` viene toccato qui, ne' su chi si lascia ne' su chi si prende:
+	// selezionare non e' dichiarare, e lo stato armato dell'unita' lasciata resta il suo.
+	SelectUnit(Scelta, /*bRecordAsPlayerInput=*/ true);
+	UE_LOG(LogRT, Display, TEXT("[RT] TAB: selezionata '%s' (%d di %d comandabili)"),
+		*Scelta->GetName(), Prossimo + 1, Comandabili.Num());
+	return true;
 }
 
 void ARTPlayerController::OnRecenter(const FInputActionValue& Value)
