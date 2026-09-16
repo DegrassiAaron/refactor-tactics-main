@@ -1894,14 +1894,26 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	// Raggio largo: la cella oltre il budget deve restare DENTRO la mappa, altrimenti il rifiuto
 	// sarebbe «fuori dalla mappa» e il test misurerebbe un motivo diverso da quello che dice.
-	if (!TestNotNull(TEXT("mappa ampia e senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 12)))
+	//
+	// ⏱️ *Il raggio era il letterale `12` fino al 2026-09-15, e [D-425] lo ha reso insufficiente da
+	// sotto*: col tetto a `2x` quel numero e' diventato esattamente il tetto di Ivrin, e la cella
+	// «fuori portata» sarebbe finita fuori MAPPA — cioe' il rifiuto giusto per il motivo sbagliato, che
+	// e' il difetto contro cui questo stesso commento metteva in guardia. Ora si ricava dall'eroe.
+	const URTHeroData* Eroe = URTHeroCatalogLibrary::MakeIvrin();
+	if (!TestNotNull(TEXT("l'eroe del catalogo"), Eroe))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	const int32 Raggio = 2 * Eroe->MovePoints + 4;
+	if (!TestNotNull(TEXT("mappa ampia e senza ostacoli"), SpawnCleanInteractionMap(World, Raggio)))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
 
 	const FRTCellId Partenza(0, 0);
-	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, Eroe, Partenza);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), Chi) || !TestNotNull(TEXT("controller"), PC)
@@ -1918,13 +1930,27 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	// e un letterale renderebbe il test verde su un click che il budget copre ancora. E' la stessa
 	// trappola gia' misurata su `WaypointClicksBuildAndRejectPlans`, dove quattro celle bastavano al
 	// Ranger legacy e non piu' a chi lo ha sostituito.
-	const int32 Budget = Chi->GetEffectiveMoveRange();
-	if (!TestTrue(TEXT("premessa: l'eroe ha un budget di movimento"), Budget > 0))
+	// Dal 2026-09-15 il numero da chiedere e' il TETTO, non il movimento base: [D-425] punto (9) porta
+	// a `2x` quanto si puo' PIANIFICARE senza dichiarare niente. Con `GetEffectiveMoveRange() + 2` la
+	// cella «fuori portata» e' finita DENTRO il tetto, e la premessa del test e' diventata falsa — la
+	// stessa trappola che il commento qui sopra descrive, scattata una seconda volta per un confine
+	// che si e' spostato invece che per un eroe ribilanciato.
+	const int32 Budget = URTMovementProfileLibrary::CeilingProfile(
+		Chi->PlannedMovementProfileId, NAME_None).ResolveStepBudget(Chi->GetEffectiveMoveRange());
+	if (!TestTrue(TEXT("premessa: l'eroe ha un tetto di movimento"), Budget > 0))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
-	const FRTCellId Lontana(Budget + 2, 0, 0); // libera, sulla mappa, e fuori portata
+	const FRTCellId Lontana(Budget + 2, 0, 0); // libera, sulla mappa, e fuori dal tetto
+	// ⛔ La premessa «sulla mappa» si ASSERISCE: se cadesse, il rifiuto arriverebbe lo stesso e il test
+	// resterebbe verde misurando «fuori dalla mappa» invece di «oltre il tetto».
+	if (!TestTrue(TEXT("premessa: la cella oltre il tetto e' ancora DENTRO la mappa"),
+		Lontana.X <= Raggio))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
 
 	PC->HandleClickOnCell(Lontana);
 	if (!TestEqual(TEXT("premessa: il waypoint e' stato rifiutato"), Chi->PlannedWaypoints.Num(), 0))
