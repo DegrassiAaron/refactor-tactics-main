@@ -495,6 +495,36 @@ public:
 	static TArray<FRTSlotLine> ComposeSlotLines(const struct FRTUnitSlotsView& Slots);
 
 	/**
+	 * Come si legge l'ANDATURA dello slot movimento, o un testo **vuoto** quando non c'e' niente da dire
+	 * (`#1410` `AC-1`, [D-425]).
+	 *
+	 * ```
+	 * Still  · Move  ->  «»               il cammino non si nomina
+	 * Sprint            ->  «percorso, di corsa»
+	 * Sneak             ->  «percorso, furtivo»
+	 * Withdraw          ->  «ripiegamento»
+	 * ```
+	 *
+	 * 🔑 **Restituisce il descrittore INTERO dello slot, non un suffisso da incollare.** E' cio' che rende
+	 * il `Withdraw` esprimibile senza un secondo ramo nel compositore: il ripiegamento non e' un percorso
+	 * con un aggettivo, e' un'altra cosa. Una funzione che rendesse *«di corsa»* costringerebbe chi la usa a
+	 * sapere quando concatenare e quando sostituire — cioe' a riscrivere qui meta' della regola.
+	 *
+	 * ⛔ **Il cammino e il fermo rendono VUOTO, ed e' la meta' che conta.** `Move` e' il caso normale:
+	 * nominarlo aggiungerebbe una parola a ogni unita' di ogni turno e renderebbe l'andatura una cosa da
+	 * leggere invece che da notare. Si scrive solo cio' che devia — la stessa disciplina con cui la voce di
+	 * TurnLog del neutro resta `Action.Move`. Il vuoto e' un valore di ritorno legittimo, non un errore, e
+	 * il chiamante ricade sul descrittore che aveva prima.
+	 *
+	 * ⚠️ **La differenza fra DICHIARATO e DERIVATO non la porta questa stringa**, ed e' una scelta:
+	 * `Sneak` lo si e' premuto, `Sprint` lo si e' causato cliccando lontano, e a distinguerli e' il gesto.
+	 * Un marcatore tipografico sarebbe un vocabolario nuovo su una superficie sola. ⏳ Il rischio dichiarato
+	 * e' che qualcuno cerchi un tasto per *«di corsa»*: se il playtest lo mostra, la sede da cambiare e'
+	 * questa funzione e nessun'altra.
+	 */
+	static FText DescribeMovementProfile(FName MovementProfileId);
+
+	/**
 	 * Il colore di una riga della terna: bianco per lo slot speso, grigio per quello libero.
 	 *
 	 * ⚠️ **Il colore e' l'unico canale.** Il testo di uno slot libero («Reazione: libero») e di uno speso

@@ -400,6 +400,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTUnitSlotsView GetSlots() const;
 
+	/**
+	 * L'ANDATURA dello slot movimento, pronta da legare a un `TextBlock` (`#1410` `AC-1`, [D-425]).
+	 *
+	 * 🔑 **Delega a `ARTHUD::DescribeMovementProfile`, che e' la sede unica.** La stessa stringa la
+	 * compone `ComposeSlotLines` per il Canvas: due rese dello stesso fatto divergerebbero al primo profilo
+	 * nuovo, e il giocatore leggerebbe un'andatura diversa a seconda di quale HUD sta guardando.
+	 *
+	 * ⚠️ **Vuoto significa «cammino, o niente da dire»**, non «dato mancante«: `Move` e `Still` non si
+	 * nominano. Chi lo disegna nasconda il blocco quando e' vuoto invece di lasciare una riga spenta.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetMovementProfileText() const;
+
 protected:
 	/**
 	 * Il soggetto del pannello: l'unita' comandata se c'e', altrimenti quella ispezionata (`#705`).

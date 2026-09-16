@@ -15,6 +15,7 @@
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
 #include "UI/RTHudViewModel.h"
+#include "Ability/RTMovementProfileLibrary.h" // gli id dei profili, mai scritti a mano
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -117,6 +118,93 @@ bool FRTHUDPathHasNoNameTest::RunTest(const FString&)
 	TestTrue(TEXT("la principale occupata senza nome non si chiama percorso"),
 		!MainLines[1].Text.Contains(TEXT("percorso")));
 	TestTrue(TEXT("ma dice comunque di essere occupata"), MainLines[1].bOccupied);
+
+	return true;
+}
+
+/**
+ * `#1410` `AC-1`: l'ANDATURA si legge nella riga del movimento, e **solo quando devia dal cammino**.
+ *
+ * La regola di [D-425] resa in testo, con la sua asimmetria: `Move` e `Still` NON si nominano perche' sono
+ * il caso normale; `Sprint` e `Sneak` aggettivano il percorso; `Withdraw` lo SOSTITUISCE, perche' il
+ * ripiegamento non e' un cammino svolto in un certo modo.
+ *
+ * Gli id non si scrivono a mano: vengono dalla libreria, o il test si romperebbe in silenzio il giorno in
+ * cui un profilo cambia nome — e resterebbe verde asserendo su una stringa che non esiste piu'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDMovementProfileReadsOnTheLineTest,
+	"RefactorTactics.HUD.MovementProfileReadsOnTheMovementLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHUDMovementProfileReadsOnTheLineTest::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	auto RigaMovimento = [](FName Profilo)
+	{
+		FRTUnitSlotsView Slots;
+		Slots.Movement = MakeSlotLineFixture(true);
+		Slots.MovementProfileId = Profilo;
+		return ARTHUD::ComposeSlotLines(Slots)[0].Text;
+	};
+
+	// --- il cammino non si nomina, ed e' la meta' che conta -------------------------------------------
+	const FString Cammino = RigaMovimento(Lib::ProfileMove);
+	TestTrue(TEXT("il Move resta «percorso»"), Cammino.Contains(TEXT("percorso")));
+	TestFalse(TEXT("e non guadagna nessun aggettivo"), Cammino.Contains(TEXT(",")));
+	TestEqual(TEXT("un piano senza profilo dichiarato legge come il Move"),
+		RigaMovimento(NAME_None), Cammino);
+	TestEqual(TEXT("e il fermo pure: non e' un'andatura diversa"),
+		RigaMovimento(Lib::ProfileStill), Cammino);
+
+	// --- le due andature che deviano ------------------------------------------------------------------
+	const FString Corsa = RigaMovimento(Lib::ProfileSprint);
+	TestTrue(TEXT("lo Sprint si legge «di corsa»"), Corsa.Contains(TEXT("di corsa")));
+	TestTrue(TEXT("e resta un percorso"), Corsa.Contains(TEXT("percorso")));
+
+	const FString Furtivo = RigaMovimento(Lib::ProfileSneak);
+	TestTrue(TEXT("lo Sneak si legge «furtivo»"), Furtivo.Contains(TEXT("furtivo")));
+	TestTrue(TEXT("e resta un percorso"), Furtivo.Contains(TEXT("percorso")));
+
+	// ⛔ **Il ripiegamento SOSTITUISCE il percorso, non lo aggettiva.** Senza questa riga negativa la
+	// funzione potrebbe concatenare come le altre due e il test resterebbe verde: «percorso, ripiegamento»
+	// direbbe che l'`Overwatch` impone un modo di camminare invece di un'altra cosa.
+	const FString Ripiego = RigaMovimento(Lib::ProfileWithdraw);
+	TestTrue(TEXT("il Withdraw si legge «ripiegamento»"), Ripiego.Contains(TEXT("ripiegamento")));
+	TestFalse(TEXT("e NON e' un percorso"), Ripiego.Contains(TEXT("percorso")));
+
+	// --- le tre righe restano tre, e le altre due non cambiano ----------------------------------------
+	FRTUnitSlotsView Piena;
+	Piena.Movement = MakeSlotLineFixture(true);
+	Piena.Main = MakeSlotLineFixture(true);
+	Piena.Reaction = MakeSlotLineFixture(true);
+	Piena.MovementProfileId = Lib::ProfileSprint;
+	const TArray<FRTSlotLine> Tre = ARTHUD::ComposeSlotLines(Piena);
+	if (!TestEqual(TEXT("tre slot, tre righe: l'andatura non ne aggiunge una quarta"), Tre.Num(), 3))
+	{
+		return false;
+	}
+	TestFalse(TEXT("la principale non prende l'andatura del movimento"),
+		Tre[1].Text.Contains(TEXT("di corsa")));
+	TestFalse(TEXT("ne' la reazione"), Tre[2].Text.Contains(TEXT("di corsa")));
+
+	// --- il NOME dell'azione vince sull'andatura -------------------------------------------------------
+	// Una mobilita' che occupa lo slot si chiama col proprio nome: l'andatura parla del movimento SENZA
+	// nome, che e' il caso di cui D-425 si occupa. Senza questa riga, un'andatura che scavalcasse il nome
+	// non si vedrebbe da nessun altro assert.
+	FRTUnitSlotsView ConNome;
+	ConNome.Movement = MakeSlotLineFixture(true, TEXT("Scatto"));
+	ConNome.MovementProfileId = Lib::ProfileSprint;
+	const FString RigaConNome = ARTHUD::ComposeSlotLines(ConNome)[0].Text;
+	TestTrue(TEXT("l'azione che occupa lo slot si chiama col proprio nome"),
+		RigaConNome.Contains(TEXT("Scatto")));
+	TestFalse(TEXT("e l'andatura non lo scavalca"), RigaConNome.Contains(TEXT("di corsa")));
+
+	// --- un id sconosciuto non finisce a schermo -------------------------------------------------------
+	// ⛔ Un `FName` grezzo davanti al giocatore sarebbe un difetto di catalogo trasformato in testo. Ricade
+	// sul cammino, e il posto dove quel difetto deve farsi vedere e' il test del catalogo.
+	const FString Ignoto = RigaMovimento(FName(TEXT("MovementProfile.NonEsiste")));
+	TestEqual(TEXT("un profilo sconosciuto legge come il cammino"), Ignoto, Cammino);
+	TestFalse(TEXT("e non stampa il proprio id"), Ignoto.Contains(TEXT("NonEsiste")));
 
 	return true;
 }
