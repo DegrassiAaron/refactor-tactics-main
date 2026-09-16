@@ -301,13 +301,20 @@ says **which session**. Those three decide whether you wait.
 session's own scratchpad directory. A process that dies takes its declaration with it; a lock file would
 not.
 
-| What is running | You want | |
-|---|---|---|
-| build or suite in **another** clone | build or suite | **do not wait** |
-| **performance** measurement in any clone | anything on the engine | **wait**: CPU contention moves timings |
-| anything in **your** clone | anything | **wait**: same `Binaries/` |
-| interactive Editor on **your** clone | build | **wait**: it holds the DLL |
-| anything | build of an **Engine** target | **wait**, and warn: the argument below lapses |
+⛔ **The wait table is not repeated here.** It lives in [`AGENTS.md`](../../../AGENTS.md)
+§11 *«Prendere il motore, senza un lease»*, which owns it — read it there and follow it.
+
+⌫ **This section carried its own copy until 2026-09-16, and the copy had diverged.** Two of its rows
+were false: *«build or suite in another clone → do not wait»* read as covering an interactive Editor
+too, and *«interactive Editor on **your** clone → it holds the DLL»* implied that an Editor in another
+clone does not block. It does, and the mechanism is not the DLL: **Live Coding is a machine-wide mutex**,
+so an interactive Editor anywhere makes `Build.bat` fail in every clone. Measured twice — 2026-09-11
+(`AGENTS.md` §*Build Editor*) and again 2026-09-16, independently, by a session whose build returned
+`exit 6` while another clone held an Editor, then passed once that Editor used `-NoLiveCoding`.
+
+🔑 **The copy is what allowed the divergence**, and it went unnoticed for five days. The fix is not
+a better table: it is **one table**. The owner's version also carries two `LiveCodingConsole` rows —
+parent alive against orphaned — that this copy never had.
 
 🔑 **A build in clone A does not invalidate a suite in clone B.** `Binaries/` is per clone and the engine
 is an *installed build* (`Engine/Build/InstalledBuild.txt`), so a project target cannot rewrite Engine
@@ -458,7 +465,9 @@ public APIs later flows need   Build.cs / Target.cs       replication
 plugins                        asset schema               dependencies that blur attribution
 ```
 
-Respect the exclusion policy between Editor and build: an interactive Editor on this clone holds the DLL.
+Respect the exclusion policy between Editor and build: an interactive Editor in **any** clone blocks
+`Build.bat` everywhere, because Live Coding is a machine-wide mutex. ⌫ Said *«on this clone … holds the
+DLL»* until 2026-09-16. If you must keep an Editor open while others build, pass `-NoLiveCoding`.
 
 ## What makes a measurement valid
 

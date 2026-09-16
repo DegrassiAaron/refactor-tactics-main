@@ -714,7 +714,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'L
 | build o suite in un **altro** clone | build o suite | **non aspettare** — §9 |
 | misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
 | qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
-| Editor interattivo sul **tuo** clone | build | **aspetta**: tiene il DLL |
+| Editor interattivo in **qualunque** clone | build | **aspetta**: Live Coding è un mutex di **macchina**, non di progetto — vedi §*Build Editor*. ⚠️ Diceva *«sul **tuo** clone — tiene il DLL»* fino al 2026-09-16: sbagliava **sede** e **meccanismo**, e contraddiceva §*Build Editor* nello stesso documento |
 | `LiveCodingConsole` col **padre vivo** | build in qualunque clone | **aspetta**: il lock è di chi sta iterando, e chiuderglielo gli costa il lavoro non salvato |
 | `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**: nessuno lo rilascerà, si **termina**. I gate di `tools/mutation/` lo fanno da sé, ma solo quando nessun motore vivo potrebbe usare Live Coding — interattivo no, headless con `-NoLiveCoding` sì ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)) |
 | qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
