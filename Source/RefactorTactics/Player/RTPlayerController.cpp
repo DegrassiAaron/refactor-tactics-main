@@ -33,6 +33,7 @@
 #include "Engine/GameInstance.h"
 #include "UI/RTHUD.h" // CP 47.7: la scala x1/x2/x4 e' vocabolario di presentazione e vive nell'HUD
 #include "Core/RTTypes.h"
+#include "Core/RTGameplayTags.h" // Unbalanced: [D-319] abbassa il TETTO, e il tetto si mostra qui
 #include "RefactorTactics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -77,6 +78,32 @@ namespace
 		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
+
+		// 🔑 **Il TETTO di [D-425], e vive QUI perche' qui si pianifica.** Lo snapshot che il turno usa per
+		// risolvere porta la **banda** — quanto l'unita' ha chiesto — e non potrebbe portare altro: e' la
+		// misura che descrive un piano gia' scritto. Questo snapshot invece serve a **scrivere** quel piano,
+		// e la domanda che gli si fa e' l'altra: *fin dove ho il permesso di arrivare*.
+		//
+		// ⛔ **Senza questa riga la banda `Sprint` sarebbe irraggiungibile.** Chi non ha ancora pianificato
+		// niente ha banda `Still`, cioe' `1×`: il primo clic oltre la portata verrebbe rifiutato, e nessuno
+		// potrebbe mai superare `1×` — *«una banda che non e' una banda»*, l'alternativa che [D-425] punto
+		// (9) scarta. ⚠️ E si alza il budget della SOLA unita' che sta pianificando: gli altri restano come
+		// il turno li vede, perche' e' contro la loro occupazione reale che questo percorso va validato.
+		if (OutSnapshot.Units.IsValidIndex(OutUnitId))
+		{
+			const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
+				Unit->PlannedMovementProfileId,
+				URTMovementProfileLibrary::ReservedProfileForPlan(
+					URTPlanValidationLibrary::MakePlanFor(Unit)),
+				Unit->HasStatus(TAG_Status_Unbalanced));
+			const int32 Base = Unit->GetEffectiveMoveRange();
+			// ⚠️ `Max` e non assegnazione: il tetto non deve mai ABBASSARE cio' che lo snapshot concede —
+			// `Slow` e gli altri modificatori mordono dentro il pathfinding, e scavalcarli qui li
+			// cancellerebbe in pianificazione lasciandoli vivi in risoluzione.
+			FRTHexSimUnit& Planner = OutSnapshot.Units[OutUnitId];
+			Planner.MoveBudget = FMath::Max(Planner.MoveBudget, Ceiling.ResolveMoveBudget(Base));
+			Planner.StepBudget = FMath::Max(Planner.StepBudget, Ceiling.ResolveStepBudget(Base));
+		}
 		if (OutUnits)
 		{
 			// Gli stessi indici dello snapshot: servono a distinguere i NEMICI (che una carica colpisce) dagli
@@ -476,8 +503,8 @@ void ARTPlayerController::BuildInputMappings()
 	PrepWindowPauseAction = NewObject<UInputAction>(this, TEXT("IA_PausePrepWindow"));
 	PrepWindowPauseAction->ValueType = EInputActionValueType::Boolean;
 
-	MovementProfileAction = NewObject<UInputAction>(this, TEXT("IA_CycleMovementProfile"));
-	MovementProfileAction->ValueType = EInputActionValueType::Boolean;
+	SneakAction = NewObject<UInputAction>(this, TEXT("IA_DeclareSneak"));
+	SneakAction->ValueType = EInputActionValueType::Boolean;
 	PlaybackSpeedAction->ValueType = EInputActionValueType::Boolean;
 
 	// `#2858`: i due comandi che mancavano alla matrice di `#1881`. Nascono sempre — anche in Shipping,
@@ -606,13 +633,13 @@ void ARTPlayerController::BuildInputMappings()
 	// invece che su una lista scritta a mano, quindi questa riga non ha bisogno di essere ricordata altrove.
 	MappingContext->MapKey(PrepWindowPauseAction, EKeys::P);
 
-	// `M` come "movimento": cicla il profilo dichiarato (`#1410`).
+	// `M` come "movimento silenzioso": dichiara o annulla lo `Sneak` (`#1410`, [D-425] punto (7)).
 	//
 	// ⚠️ **Il tasto e' lontano da `WASD` e non e' un ripiego.** Le hotkey delle azioni stanno sotto la
 	// sinistra perche' si premono mentre quella mano guida la camera; questo gesto si usa **mentre si
 	// disegna il percorso col mouse**, cioe' con la sinistra ferma. `M` e' libero, e
 	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista.
-	MappingContext->MapKey(MovementProfileAction, EKeys::M);
+	MappingContext->MapKey(SneakAction, EKeys::M);
 
 	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
 	//
@@ -778,7 +805,7 @@ void ARTPlayerController::SetupInputComponent()
 			&ARTPlayerController::OnSelectReleased);
 		EIC->BindAction(PlaybackSpeedAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCyclePlaybackSpeed);
 		EIC->BindAction(PrepWindowPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePrepWindowPause);
-		EIC->BindAction(MovementProfileAction, ETriggerEvent::Started, this, &ARTPlayerController::OnCycleMovementProfile);
+		EIC->BindAction(SneakAction, ETriggerEvent::Started, this, &ARTPlayerController::OnToggleSneak);
 		// `#2858`: i comandi di playback sullo STESSO percorso della velocita', non un secondo. Un altro
 		// produttore d'input divergerebbe il giorno in cui uno dei due impara una regola nuova.
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
@@ -2781,8 +2808,11 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// intatto porta con se' il proprio rifiuto, come nell'innesco volontario.
 	if (!Ability->Def.ReservesMovementProfileId.IsNone())
 	{
-		Unit->PlannedMovementProfileId = Ability->Def.ReservesMovementProfileId;
-
+		// ⏱️ *Fino al 2026-09-15 questa riga scriveva anche `Unit->PlannedMovementProfileId`.* Con [D-425]
+		// quel campo porta la sola **dichiarazione** del giocatore — oggi lo `Sneak` — mentre cio' che
+		// l'`Overwatch` impone si legge dal PIANO, via `ReservedProfileForPlan`. ⛔ Copiarlo sull'unita'
+		// sarebbe una seconda verita' sullo stesso vincolo: disarmare l'azione avrebbe lasciato il campo a
+		// `Withdraw`, cioe' un ripiegamento imposto da niente.
 		const FRTMovementProfile Reserved =
 			URTMovementProfileLibrary::FindProfile(Ability->Def.ReservesMovementProfileId);
 		const int32 UnitRange = Unit->GetEffectiveMoveRange();
@@ -3011,7 +3041,7 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		Unit ? Unit->PlannedWaypoints.Num() : 0);
 }
 
-void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Value*/)
+void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva.
 	if (IsGameplayInputBlocked())
@@ -3026,54 +3056,45 @@ void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Valu
 	}
 
 	// 🔑 **Lo slot movimento puo' essere RISERVATO da un'altra azione del piano** ([D-070], `AC-5`): chi ha
-	// armato l'`Overwatch` puo' solo ripiegare. Il rifiuto e' PARLANTE — dice che lo slot e' riservato e a
-	// cosa — invece di non fare niente, che e' la differenza che lo Scope di `#1410` chiede.
+	// armato l'`Overwatch` puo' solo ripiegare, e il ripiegamento e' gia' un tetto. Il rifiuto e' PARLANTE
+	// — dice che lo slot e' riservato e a cosa — invece di non fare niente.
 	const FName Reserved = URTMovementProfileLibrary::ReservedProfileForPlan(
 		URTPlanValidationLibrary::MakePlanFor(Unit));
 	if (!Reserved.IsNone())
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: slot riservato a %s — un'azione pianificata lo impone."),
+		UE_LOG(LogRT, Log, TEXT("[RT] Sneak: slot movimento riservato a %s — un'azione pianificata lo impone."),
 			*Reserved.ToString());
 		return;
 	}
 
-	const TArray<FRTMovementProfile> Offerable = URTMovementProfileLibrary::OfferableProfiles();
-	if (Offerable.Num() < 2)
-	{
-		// ⚠️ **Un solo profilo offribile non e' un errore, ed e' lo stato di oggi**: il selettore esiste e
-		// non ha niente fra cui scegliere finche' un secondo profilo non diventa raggiungibile. Dirlo e'
-		// meglio che non reagire — chi preme il tasto deve sapere se il gesto non esiste o se e' vuoto.
-		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: nessuna alternativa disponibile (%d offribile)."),
-			Offerable.Num());
-		return;
-	}
+	// ⏱️ *Fino al 2026-09-15 questo tasto CICLAVA fra quattro profili.* [D-425] lo ha smontato: `Move` e
+	// `Sprint` non si dichiarano — si leggono da quanto si e' pianificato — e il ciclo chiedeva al giocatore
+	// di dichiarare cio' che il suo percorso gia' diceva.
+	//
+	// 🔑 **Quello che resta e' un INTERRUTTORE per un profilo solo, e il suo effetto e' un numero**: `Sneak`
+	// dimezza il tetto ([D-412] ×0,5). Non e' un'etichetta appiccicata sopra un movimento — e' la rinuncia
+	// a meta' distanza in cambio del silenzio ([D-425] punto (8)), ed e' per questo che si dichiara invece
+	// di essere letta: nessuna distanza la rivelerebbe, perche' il passo corto e' il caso normale.
+	const bool bWasSneaking = Unit->PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
+	Unit->PlannedMovementProfileId = bWasSneaking
+		? NAME_None
+		: URTMovementProfileLibrary::ProfileSneak;
 
-	// Il profilo corrente, per nome: `NAME_None` significa il neutro, come in `MakePlanFor`.
-	const FName CurrentId = Unit->PlannedMovementProfileId.IsNone()
-		? URTMovementProfileLibrary::ProfileMove
-		: Unit->PlannedMovementProfileId;
-
-	int32 CurrentIndex = Offerable.IndexOfByPredicate(
-		[&CurrentId](const FRTMovementProfile& P) { return P.Id == CurrentId; });
-	// Un profilo dichiarato che non e' piu' offribile — il catalogo puo' cambiare fra un turno e l'altro —
-	// non blocca il ciclo: si riparte dal primo invece di restare fermi su una scelta irraggiungibile.
-	if (CurrentIndex == INDEX_NONE)
-	{
-		CurrentIndex = Offerable.Num() - 1;
-	}
-
-	const FRTMovementProfile& Next = Offerable[(CurrentIndex + 1) % Offerable.Num()];
-	Unit->PlannedMovementProfileId = Next.Id;
-
-	// Il cambio e' SEMPRE accettato ([D-401]): quello che puo' cadere e' il percorso, non la scelta.
+	// La dichiarazione e' SEMPRE accettata: quello che puo' cadere e' il percorso, non la scelta. Il tetto
+	// nuovo e' quello che `MakeSimUnit` usera' da adesso, e si chiede alla stessa funzione — un secondo
+	// calcolo qui sarebbe la seconda autorita' che [D-425] evita.
+	const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
+		Unit->PlannedMovementProfileId, /*ReservedProfileId*/ NAME_None,
+		Unit->HasStatus(TAG_Status_Unbalanced));
 	const int32 UnitRange = Unit->GetEffectiveMoveRange();
-	const int32 NewSteps = Next.ResolveStepBudget(UnitRange);
-	const int32 NewCost = Next.ResolveMoveBudget(UnitRange);
+	const int32 NewSteps = Ceiling.ResolveStepBudget(UnitRange);
+	const int32 NewCost = Ceiling.ResolveMoveBudget(UnitRange);
 
 	if (Unit->PlannedWaypoints.Num() == 0)
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: %s (passi %d, asperita' %d)."),
-			*Next.Id.ToString(), NewSteps, NewCost);
+		UE_LOG(LogRT, Log, TEXT("[RT] Sneak %s — tetto %s (passi %d, asperita' %d)."),
+			bWasSneaking ? TEXT("annullato") : TEXT("dichiarato"),
+			*Ceiling.Id.ToString(), NewSteps, NewCost);
 		return;
 	}
 
@@ -3094,9 +3115,11 @@ void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Valu
 
 	if (Composite.Status == ERTHexPathStatus::Success && !bOverSteps && !bOverCost)
 	{
-		// Il percorso REGGE col profilo nuovo: sopravvive, e con lui il rifiuto ([D-404]).
-		UE_LOG(LogRT, Log, TEXT("[RT] Profilo di movimento: %s — percorso invariato (%d passi/%d, costo %d/%d)."),
-			*Next.Id.ToString(), PathSteps, NewSteps, Composite.TotalCost, NewCost);
+		// Il percorso REGGE col tetto nuovo: sopravvive, e con lui il rifiuto registrato — che non dipende
+		// dal budget e quindi non puo' essere stato prodotto da un tetto ([D-404]).
+		UE_LOG(LogRT, Log, TEXT("[RT] Sneak %s — tetto %s, percorso invariato (%d passi/%d, costo %d/%d)."),
+			bWasSneaking ? TEXT("annullato") : TEXT("dichiarato"),
+			*Ceiling.Id.ToString(), PathSteps, NewSteps, Composite.TotalCost, NewCost);
 		return;
 	}
 
@@ -3125,8 +3148,9 @@ void ARTPlayerController::OnCycleMovementProfile(const FInputActionValue& /*Valu
 	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
 
 	UE_LOG(LogRT, Log,
-		TEXT("[RT] Profilo di movimento: %s — %d waypoint scartati (%s: %d passi/%d, costo %d/%d), ne restano %d."),
-		*Next.Id.ToString(), Dropped, Reason, PathSteps, NewSteps, Composite.TotalCost, NewCost,
+		TEXT("[RT] Sneak %s — tetto %s: %d waypoint scartati (%s: %d passi/%d, costo %d/%d), ne restano %d."),
+		bWasSneaking ? TEXT("annullato") : TEXT("dichiarato"),
+		*Ceiling.Id.ToString(), Dropped, Reason, PathSteps, NewSteps, Composite.TotalCost, NewCost,
 		Unit->PlannedWaypoints.Num());
 
 	// ➕ [D-404]: il rifiuto si azzera col PIANO CAMBIATO — non perche' il cambio di profilo lo tocchi, ma
@@ -3237,6 +3261,11 @@ bool ARTPlayerController::IsGameplayInputBlocked() const
 void ARTPlayerController::OnLockInForTest()
 {
 	OnLockIn(FInputActionValue());
+}
+
+void ARTPlayerController::ToggleSneakForTest()
+{
+	OnToggleSneak(FInputActionValue());
 }
 
 void ARTPlayerController::OnTogglePrepWindowPauseForTest()

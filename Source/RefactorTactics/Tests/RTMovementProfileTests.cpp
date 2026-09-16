@@ -207,8 +207,9 @@ bool FRTMovementProfileSneakIsPlannableWithItsNumbers::RunTest(const FString&)
 	// che porta il selettore e il glifo. Qui si prova la META' che [D-412] possiede — il profilo ha i suoi
 	// numeri — e non quella che non gli appartiene.
 	//
-	// ⛔ **E non si passa da `OfferableProfiles`**: quella funzione non esiste su `origin/main`, la porta
-	// `#1410`, e un test che la chiamasse non compilerebbe.
+	// ⛔ **E non si passa da nessun elenco di profili offribili**: `OfferableProfiles()` e' uscita con
+	// [D-425] insieme al selettore che la consumava. Cio' che qui si prova e' la META' che [D-412]
+	// possiede — il profilo ha i suoi numeri — non che qualcuno lo scelga.
 	const TArray<FRTPlannedAction> SneakPlan = {
 		PlanEntryWithProfile(TEXT("Action.Sneak"), URTMovementProfileLibrary::ProfileSneak),
 	};
@@ -399,42 +400,54 @@ bool FRTMovementProfileSnapshotCarriesBothBudgets::RunTest(const FString&)
 
 
 /**
- * `AC-4` e `AC-6` di `#1410`: quali profili il selettore OFFRE, e le tre ragioni diverse per cui gli altri
- * restano fuori.
+ * `AC-4` di `#1410`: **un solo profilo si dichiara**, e le altre quattro esclusioni hanno quattro ragioni
+ * diverse che non vanno confuse.
  *
- * ⚠️ **Le tre esclusioni non sono la stessa cosa, e il test le tiene separate**: `Sneak` non ha numeri
- * (`AE-5`), `Still` e' derivato dall'assenza di piano, `Withdraw` e' riservato all'`Overwatch` ([D-070]).
- * Un test che asserisse solo la cardinalita' resterebbe verde se una delle tre uscisse per la ragione
- * sbagliata.
+ * ⏱️ *Questo test si chiamava `OfferableExcludesForThreeReasons` e interrogava `OfferableProfiles()`, cioe'
+ * l'elenco che il selettore mostrava.* [D-425] ha smontato il selettore: `Move` e `Sprint` si LEGGONO dalla
+ * distanza, quindi la domanda non e' piu' *«quali compaiono nell'elenco»* ma **«quali si possono
+ * dichiarare»**, e le ragioni passano da tre a quattro perche' i due profili derivati sono due.
+ *
+ * ⛔ **Non basta asserire il predicato: il test chiude anche il CANALE.** `IsDeclarableProfile` potrebbe
+ * dire il vero mentre `CeilingProfile` onora comunque un `MovementProfile.Sprint` scritto nel campo del
+ * piano — ed e' precisamente il canale che l'`AC-4` nomina. Le ultime due asserzioni lo verificano dove la
+ * dichiarazione ha effetto, non dove e' descritta.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileOfferableExcludesForThreeReasons,
-	"RefactorTactics.MovementProfile.OfferableExcludesForThreeReasons",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileOnlySneakIsDeclarable,
+	"RefactorTactics.MovementProfile.OnlySneakIsDeclarable",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTMovementProfileOfferableExcludesForThreeReasons::RunTest(const FString&)
+bool FRTMovementProfileOnlySneakIsDeclarable::RunTest(const FString&)
 {
-	TArray<FName> Ids;
-	for (const FRTMovementProfile& Profile : URTMovementProfileLibrary::OfferableProfiles())
-	{
-		Ids.Add(Profile.Id);
-	}
+	// `Sneak` si dichiara: e' la rinuncia a meta' distanza in cambio del silenzio ([D-425] punto (8)).
+	TestTrue(TEXT("Sneak si dichiara"),
+		URTMovementProfileLibrary::IsDeclarableProfile(URTMovementProfileLibrary::ProfileSneak));
 
-	// `Sneak`: senza numeri finche' `AE-5` e' aperta. Senza questo test, il giorno in cui qualcuno inventa
-	// quei numeri il selettore lo mostra e `AE-5` si chiude per inerzia.
-	TestFalse(TEXT("Sneak non e' offribile: non ha numeri (AE-5)"),
-		Ids.Contains(URTMovementProfileLibrary::ProfileSneak));
+	// `Move` e `Sprint` sono LETTI dalla distanza: dichiararli sarebbe il selettore che D-425 smonta.
+	TestFalse(TEXT("Move non si dichiara: lo legge la distanza"),
+		URTMovementProfileLibrary::IsDeclarableProfile(URTMovementProfileLibrary::ProfileMove));
+	TestFalse(TEXT("Sprint non si dichiara: lo legge la distanza"),
+		URTMovementProfileLibrary::IsDeclarableProfile(URTMovementProfileLibrary::ProfileSprint));
 
-	// `Still`: e' la lettura di «non mi muovo», e si ottiene cancellando i waypoint.
-	TestFalse(TEXT("Still non e' offribile: e' derivato dall'assenza di piano"),
-		Ids.Contains(URTMovementProfileLibrary::ProfileStill));
+	// `Still` e' derivato dall'assenza di piano; `Withdraw` lo impone l'Overwatch ([D-070]).
+	TestFalse(TEXT("Still non si dichiara: e' l'assenza di piano"),
+		URTMovementProfileLibrary::IsDeclarableProfile(URTMovementProfileLibrary::ProfileStill));
+	TestFalse(TEXT("Withdraw non si dichiara: lo impone l'Overwatch"),
+		URTMovementProfileLibrary::IsDeclarableProfile(URTMovementProfileLibrary::ProfileWithdraw));
 
-	// `Withdraw`: lo impone l'`Overwatch`, e sceglierlo a mano sarebbe una seconda verita' sullo stesso
-	// vincolo.
-	TestFalse(TEXT("Withdraw non e' offribile: lo riserva l'Overwatch (D-070)"),
-		Ids.Contains(URTMovementProfileLibrary::ProfileWithdraw));
+	// ⛔ **E il campo del piano non e' una scorciatoia.** Un eroe da 4 che ha pianificato UN passo cammina,
+	// e ci cammina anche se qualcuno gli ha scritto `Sprint` nella dichiarazione: la banda viene dalla
+	// distanza, e il canale e' chiuso dove produce effetti.
+	TestEqual(TEXT("dichiarare Sprint non fa sprintare chi ha pianificato un passo"),
+		URTMovementProfileLibrary::ProfileForPlannedSteps(/*Passi*/ 1, /*Base*/ 4,
+			URTMovementProfileLibrary::ProfileSprint, NAME_None).Id,
+		URTMovementProfileLibrary::ProfileMove);
 
-	// ⛔ E il selettore non e' vuoto: il neutro c'e' sempre, altrimenti i tre `TestFalse` sopra sarebbero
-	// veri anche con un elenco vuoto — il verde per vacuita' che questo assert impedisce.
-	TestTrue(TEXT("il Move e' offribile"), Ids.Contains(URTMovementProfileLibrary::ProfileMove));
+	// ⛔ E nemmeno abbassa un tetto: dichiarare `Withdraw` non da' il ripiegamento a chi non ha armato
+	// niente. Senza questa riga il predicato sopra resterebbe vero e il canale aperto lo stesso.
+	TestEqual(TEXT("dichiarare Withdraw non riserva niente: il tetto resta quello nudo"),
+		URTMovementProfileLibrary::CeilingProfile(
+			URTMovementProfileLibrary::ProfileWithdraw, NAME_None).Id,
+		URTMovementProfileLibrary::ProfileSprint);
 	return true;
 }
 
@@ -598,14 +611,117 @@ bool FRTMovementProfileWithdrawIsPlannable::RunTest(const FString&)
 	TestEqual(TEXT("e risolve dopo il Blast, come gli altri profili"),
 		Withdraw.ResolutionPhase, ERTResolutionPhase::NormalMovement);
 
-	// ⛔ Resta comunque fuori dal selettore: lo si ottiene armando l'Overwatch, non scegliendolo.
-	TArray<FName> Offerable;
-	for (const FRTMovementProfile& P : URTMovementProfileLibrary::OfferableProfiles())
+	// ⛔ Resta comunque IMPOSTO e non scelto: lo si ottiene armando l'Overwatch ([D-070]), e dichiararlo
+	// non fa niente. ⏱️ *Fino al 2026-09-15 la stessa cosa si asseriva su `OfferableProfiles()`, cioe'
+	// sull'elenco del selettore; [D-425] lo ha smontato, e la domanda si pone dove la riserva ha effetto.*
+	TestFalse(TEXT("ma non e' dichiarabile (AC-4)"),
+		URTMovementProfileLibrary::IsDeclarableProfile(URTMovementProfileLibrary::ProfileWithdraw));
+	TestEqual(TEXT("e la riserva arriva dal PIANO, non dalla dichiarazione"),
+		URTMovementProfileLibrary::CeilingProfile(
+			NAME_None, URTMovementProfileLibrary::ProfileWithdraw).Id,
+		URTMovementProfileLibrary::ProfileWithdraw);
+	return true;
+}
+
+/**
+ * `AC-2` di `#1410`, il cuore di [D-425]: **la banda segue la distanza pianificata**.
+ *
+ * 🔑 **Il denominatore e' sempre il movimento BASE dell'unita'** ([D-425] punto (1)), e il test lo prova
+ * misurando due eroi diversi sulla stessa distanza: quattro passi sono un cammino per chi vale `4` e una
+ * corsa per chi vale `2`. Un test su un solo eroe resterebbe verde anche con una soglia cablata.
+ *
+ * ⛔ **Le soglie si asseriscono AI BORDI, non al centro.** `4 <= 4` e' `Move`, `5` e' `Sprint`: un test che
+ * chiedesse `2` e `7` resterebbe verde con la soglia spostata di uno, che e' l'errore piu' probabile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileBandFollowsThePlannedDistance,
+	"RefactorTactics.MovementProfile.BandFollowsThePlannedDistance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileBandFollowsThePlannedDistance::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+	auto Banda = [](int32 Passi, int32 Base)
 	{
-		Offerable.Add(P.Id);
-	}
-	TestFalse(TEXT("ma non e' offerto come scelta libera (AC-4)"),
-		Offerable.Contains(URTMovementProfileLibrary::ProfileWithdraw));
+		return Lib::ProfileForPlannedSteps(Passi, Base, NAME_None, NAME_None).Id;
+	};
+
+	// Nessun passo: il fermo, che e' un profilo e non un'assenza.
+	TestEqual(TEXT("zero passi: Still"), Banda(0, 4), Lib::ProfileStill);
+
+	// Eroe da 4 — la banda `Move` arriva a `1x` INCLUSO, e il primo passo oltre e' gia' corsa.
+	TestEqual(TEXT("1 passo su base 4: Move"), Banda(1, 4), Lib::ProfileMove);
+	TestEqual(TEXT("4 passi su base 4: ancora Move, il bordo e' incluso"), Banda(4, 4), Lib::ProfileMove);
+	TestEqual(TEXT("5 passi su base 4: Sprint, il primo passo oltre 1x"), Banda(5, 4), Lib::ProfileSprint);
+	TestEqual(TEXT("8 passi su base 4: Sprint, il bordo alto"), Banda(8, 4), Lib::ProfileSprint);
+
+	// 🔑 Stessa distanza, eroe diverso, banda diversa: e' cio' che prova che il denominatore e' l'eroe.
+	TestEqual(TEXT("4 passi su base 2 sono una corsa, non un cammino"), Banda(4, 2), Lib::ProfileSprint);
+
+	// ⛔ Oltre OGNI tetto si legge `Sprint`, non `Move`: un percorso che nessun tetto copre non deve
+	// pagare il prezzo piu' basso. Non dovrebbe accadere — il troncamento lo previene — e se accade si vede.
+	TestEqual(TEXT("oltre il tetto piu' alto: Sprint, non Move"), Banda(99, 4), Lib::ProfileSprint);
+
+	// ⚠️ **Un tetto dichiarato o imposto E' il profilo, e sopra di esso non si legge nessuna banda.** Un
+	// passo solo resta `Sneak` per chi lo ha dichiarato e `Withdraw` per chi ha armato: le due bande basse
+	// si sovrappongono, e la distanza da sola non le separerebbe mai.
+	TestEqual(TEXT("un passo, Sneak dichiarato: Sneak"),
+		Lib::ProfileForPlannedSteps(1, 4, Lib::ProfileSneak, NAME_None).Id, Lib::ProfileSneak);
+	TestEqual(TEXT("un passo, Withdraw imposto: Withdraw"),
+		Lib::ProfileForPlannedSteps(1, 4, NAME_None, Lib::ProfileWithdraw).Id, Lib::ProfileWithdraw);
+	TestEqual(TEXT("e la riserva vince sulla dichiarazione (D-070)"),
+		Lib::ProfileForPlannedSteps(1, 4, Lib::ProfileSneak, Lib::ProfileWithdraw).Id,
+		Lib::ProfileWithdraw);
+
+	// [D-319]: chi ha perso l'equilibrio non corre, e ora «non corre» significa «non arriva cosi' lontano».
+	// Il piano da 6 passi resta, ma la banda che ne risulta e' un cammino — e il prezzo dello Sprint non
+	// scatta per una corsa che il troncamento gli ha gia' tolto.
+	TestEqual(TEXT("sbilanciato: 6 passi su base 4 si leggono Move, non Sprint"),
+		Lib::ProfileForPlannedSteps(6, 4, NAME_None, NAME_None, /*bRunDenied*/ true).Id,
+		Lib::ProfileMove);
+	TestEqual(TEXT("ma sgusciare non e' correre: lo Sneak dichiarato sopravvive"),
+		Lib::ProfileForPlannedSteps(2, 4, Lib::ProfileSneak, NAME_None, /*bRunDenied*/ true).Id,
+		Lib::ProfileSneak);
+	return true;
+}
+
+/**
+ * [D-425] punto (9): **il tetto nudo e' `2x`**, e la banda alta e' raggiungibile senza dichiarare niente.
+ *
+ * ⛔ **E' la meta' che un test sulle bande non copre.** `BandFollowsThePlannedDistance` prova che `5` passi
+ * su base `4` si LEGGONO `Sprint`; questo prova che `5` passi si possono **pianificare**. Con il tetto a
+ * `1x` la prima asserzione resterebbe verde e la banda `Sprint` non sarebbe raggiungibile da nessuno —
+ * cioe' una banda che non e' una banda, l'alternativa che [D-425] scarta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileNakedCeilingIsTwiceTheBase,
+	"RefactorTactics.MovementProfile.NakedCeilingIsTwiceTheBase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileNakedCeilingIsTwiceTheBase::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	const FRTMovementProfile Nudo = Lib::CeilingProfile(NAME_None, NAME_None);
+	TestEqual(TEXT("senza dichiarazioni il tetto e' il doppio dei passi"),
+		Nudo.ResolveStepBudget(4), 8);
+	TestEqual(TEXT("e il doppio dell'asperita'"), Nudo.ResolveMoveBudget(4), 8);
+
+	// 🔑 **La riprova che chiude il cerchio**: pianificati fin la', i passi si leggono `Sprint`. Senza
+	// questa riga il tetto potrebbe valere `8` mentre la banda alta resta irraggiungibile per una soglia
+	// scritta altrove.
+	TestEqual(TEXT("e la distanza che concede si legge Sprint"),
+		Lib::ProfileForPlannedSteps(Nudo.ResolveStepBudget(4), 4, NAME_None, NAME_None).Id,
+		Lib::ProfileSprint);
+
+	// Dichiarare `Sneak` DIMEZZA: e' il prezzo di [D-425] punto (8), pagato in distanza.
+	TestEqual(TEXT("dichiarare Sneak dimezza il tetto"),
+		Lib::CeilingProfile(Lib::ProfileSneak, NAME_None).ResolveStepBudget(4), 2);
+
+	// L'`Overwatch` lo porta a un quarto ([D-070] + [D-412]). ⚠️ Su base `4` fa `1`, non `2`: la divisione
+	// tronca, ed e' l'«arrotondare per difetto» che il catalogo dichiara.
+	TestEqual(TEXT("l'Overwatch lo porta a un quarto"),
+		Lib::CeilingProfile(NAME_None, Lib::ProfileWithdraw).ResolveStepBudget(4), 1);
+
+	// [D-319]: negare la corsa e' abbassare il tetto a `1x`, non rifiutare una dichiarazione.
+	TestEqual(TEXT("sbilanciato: il tetto nudo scende a 1x"),
+		Lib::CeilingProfile(NAME_None, NAME_None, /*bRunDenied*/ true).ResolveStepBudget(4), 4);
 	return true;
 }
 

@@ -788,10 +788,14 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 {
 	UWorld* World = MakeFallWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	SpawnFallMap(World, /*Radius=*/ 6);
+	// ⛔ **Raggio 14 e non 6, e la differenza l'ha trovata una verifica di mutazione.** Con `6` la
+	// destinazione «oltre `1x`» di un eroe che vale 6 cadeva FUORI dalla mappa: l'unita' restava ferma
+	// perche' non esisteva un percorso, non perche' [D-319] le negasse la corsa. Il test era verde sul
+	// candidato sano **e** sulla mutazione che toglie il clamp — cioe' non misurava niente.
+	SpawnFallMap(World, /*Radius=*/ 14);
 
 	ARTUnit* Runner = SpawnFallUnit(World, 0, FRTCellId(0, 0));
-	ARTUnit* Foe = SpawnFallUnit(World, 1, FRTCellId(6, 0));
+	ARTUnit* Foe = SpawnFallUnit(World, 1, FRTCellId(-6, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyFallWorld(World); return false; }
 
@@ -805,16 +809,60 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 
 	Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 	Runner->PlannedAbilityIndex = INDEX_NONE;
-	// 🔴 **Lo Sprint si dichiara come PROFILO dal 2026-09-13** ([D-116], `#641`): non e' piu' una mobilita'
-	// rapida, quindi non passa da `PlannedDashAbility`. Con esso cambia anche il criterio del rifiuto —
-	// `Move` e `Sprint` dichiarano ormai lo STESSO `MovementStyle::Budget`, e a distinguerli e' il profilo.
-	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
-	Runner->PlannedCell = Runner->Cell;
+	// Lo Sprint si dichiarava come PROFILO dal 2026-09-13 ([D-116], `#641`), e questo test scriveva
+	// `PlannedMovementProfileId = ProfileSprint` con `PlannedCell = Cell` — cioe' una corsa dichiarata
+	// e zero celle percorse. [D-425] ha tolto quel canale: correre e' ANDARE LONTANO, quindi il
+	// soggetto del rifiuto e' una destinazione oltre `1x` e non un'etichetta.
+	//
+	// La destinazione si ricava dal movimento base invece di essere cablata: un `6` scritto qui
+	// renderebbe il test una funzione del roster, e il giorno in cui Ivrin valesse 6 la premessa
+	// diventerebbe falsa in silenzio — il piano starebbe nel neutro e non ci sarebbe nulla da rifiutare.
+	const int32 Base = Runner->GetEffectiveMoveRange();
+	const int32 Oltre = Base + 1;
+	Runner->PlannedCell = FRTCellId(Oltre, 0);
+	// ⛔ **La premessa si ASSERISCE**: una destinazione fuori mappa fermerebbe l'unita' per mancanza di
+	// percorso, e il test misurerebbe la topologia invece di [D-319].
+	if (!TestTrue(TEXT("premessa: la destinazione oltre 1x e' DENTRO la mappa"), Oltre <= 14))
+	{
+		DestroyFallWorld(World);
+		return false;
+	}
+	// 🔴 **IL CONTROLLO POSITIVO, e senza di lui il test non prova niente.** Un gemello identico che NON
+	// e' sbilanciato, con la stessa distanza in un'altra direzione: se arriva, allora mappa, budget e
+	// pathfinding consentono quel percorso, e il fatto che il primo non arrivi e' [D-319] e nient'altro.
+	//
+	// ⛔ **Serve perche' l'asserzione principale e' NEGATIVA**, e una negativa e' vera per troppe ragioni:
+	// destinazione fuori mappa, cella bloccata, unita' mai spawnata. La prima stesura di questo test ne ha
+	// centrata una davvero — raggio `6` contro una destinazione a `7` — e restava verde sia sul candidato
+	// sano sia su una mutazione che toglieva il clamp.
+	ARTUnit* Gemello = SpawnFallUnit(World, 0, FRTCellId(0, 3));
+	if (!TestNotNull(TEXT("il gemello del controllo positivo"), Gemello))
+	{
+		DestroyFallWorld(World); return false;
+	}
+	Gemello->PlannedAbilityIndex = INDEX_NONE;
+	Gemello->PlannedCell = FRTCellId(Oltre, 3);
+
 	NeutralizeAllIntents(Foe);
 
 	RunFallTurn(TM);
 
-	TestEqual(TEXT("non ha corso: e' rimasto dov'era"), Runner->Cell, FRTCellId(0, 0));
+	// La regola: chi e' sbilanciato non corre, quindi non arriva dove la corsa lo avrebbe portato.
+	TestTrue(*FString::Printf(TEXT("non ha corso: non e' arrivato a %d celle (e' a q=%d)"),
+			Oltre, Runner->Cell.X),
+		Runner->Cell.X < Oltre);
+
+	// Il controllo: lo stesso piano, senza lo status, ARRIVA — e ci arriva perche' oltre `1x` la banda e'
+	// `Sprint`, che e' anche la prova che la banda alta e' raggiungibile senza dichiararla.
+	TestEqual(TEXT("controllo positivo: senza lo status lo stesso piano arriva"),
+		Gemello->Cell, FRTCellId(Oltre, 3));
+
+	// ⚠️ **E il primo resta FERMO, non a meta' strada**, perche' un piano a sola destinazione e'
+	// tutto-o-niente: `FindPathForUnit` cerca una rotta ENTRO il budget verso la cella richiesta, e se non
+	// c'e' non ne consegna una piu' corta. Il troncamento parziale appartiene ai piani a waypoint, ed e' la
+	// ragione per cui `PlayerInput.DeclaringSneakTruncatesToHalf` misura quello e non questo.
+	TestEqual(TEXT("e resta dov'era: senza rotta nel budget non si parte a meta'"),
+		Runner->Cell, FRTCellId(0, 0));
 
 	int32 Rifiuti = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())

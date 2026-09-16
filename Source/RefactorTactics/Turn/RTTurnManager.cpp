@@ -4217,26 +4217,45 @@ void ARTTurnManager::ResolveDash()
 	// `Move`, e i due dichiarano lo STESSO `MovementStyle::Budget`. Applicare quel criterio al movimento
 	// normale avrebbe negato anche il CAMMINO a chi ha perso l'equilibrio, che [D-319] non dice.
 	//
-	// 🔑 **Il profilo e' cio' che ora separa le due andature**, ed e' per questo che il criterio diventa
-	// «un profilo diverso dal neutro». Chi e' sbilanciato cammina ancora; non corre.
+	// ⏱️ *Fino al 2026-09-15 il criterio era «un profilo diverso dal neutro», e leggeva la DICHIARAZIONE
+	// del giocatore.* Con [D-425] non si dichiara piu' di correre: si sceglie fin dove arrivare, e la corsa
+	// e' la banda che ne risulta. ∴ il criterio diventa **«la banda che il piano produrrebbe e' una
+	// corsa»** — `FRTMovementProfile::bIsRun`, il campo che [D-406] ha introdotto per nominare proprio
+	// questa distinzione.
 	//
-	// ⚠️ **Rifiuto DICHIARATO, non scarto muto**, nella stessa forma del ramo gemello dello scatto piu'
-	// sotto: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi rilegge il turno vede *perche'* la
-	// corsa non c'e' stata. E il profilo torna al neutro invece di annullare il movimento: lo slot e' lo
-	// stesso, e chi aveva dichiarato una destinazione raggiungibile a piedi ci arriva.
+	// 🔑 **Il rifiuto e' DICHIARATIVO, e la corsa l'ha gia' negata il tetto.** `MakeSimUnit` abbassa a `1×`
+	// il tetto di chi e' `Unbalanced`, e `TruncatePathToBudget` accorcia il percorso per conseguenza: qui
+	// non si toglie niente a nessuno, si **scrive nel TurnLog perche'** quella distanza non e' stata
+	// percorsa. ⛔ Senza questa voce il piano si accorcerebbe in silenzio, che e' il difetto che l'intero
+	// enum dei reason code esiste per evitare.
+	//
+	// ⏱️ *La riga `PlannedMovementProfileId = NAME_None` e' uscita con [D-425]*: quel campo non porta piu'
+	// l'andatura — porta la sola dichiarazione di `Sneak` — e azzerarlo qui avrebbe cancellato in silenzio
+	// una dichiarazione che `Unbalanced` non tocca, visto che sgusciare non e' correre.
 	for (ARTUnit* Unit : Units)
 	{
 		if (!IsValid(Unit) || !Unit->HasStatus(TAG_Status_Unbalanced))
 		{
 			continue;
 		}
-		const FName Declared = Unit->PlannedMovementProfileId;
-		if (Declared.IsNone() || Declared == URTMovementProfileLibrary::ProfileMove)
+		// ⚠️ **Si chiede la banda SENZA il divieto**, cioe' quella che il piano produrrebbe se l'unita' non
+		// fosse sbilanciata: e' l'unico modo di sapere che cosa le e' stato tolto. Passando `bRunDenied` la
+		// risposta sarebbe `Move` per costruzione, e il rifiuto non si accorgerebbe mai di dover esistere.
+		const FRTMovementProfile Intended = URTMovementProfileLibrary::ProfileForPlannedSteps(
+			Unit->PlannedPath.Num() >= 2
+				? Unit->PlannedPath.Num() - 1
+				: URTHexLibrary::HexDistance(Unit->Cell, Unit->PlannedCell),
+			Unit->GetEffectiveMoveRange(),
+			Unit->PlannedMovementProfileId,
+			URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),
+			/*bRunDenied*/ false);
+
+		if (!Intended.bIsRun)
 		{
-			continue; // il neutro non e' una corsa
+			continue; // camminare, sgusciare e ripiegare non sono corse: [D-319] non li tocca
 		}
 
-		const FRTActionDef Refused = URTMovementProfileLibrary::FindActionForProfile(Declared);
+		const FRTActionDef Refused = URTMovementProfileLibrary::FindActionForProfile(Intended.Id);
 		FRTTurnLogEntry Rifiutata;
 		Rifiutata.Phase = ERTMatchPhase::Move;
 		Rifiutata.Category = ERTLogCategory::Fallback;
@@ -4252,8 +4271,6 @@ void ARTTurnManager::ResolveDash()
 		AddLogEvent(FString::Printf(TEXT("%s (q=%d,r=%d,L=%d): sbilanciato, non puo' correre"),
 				*ARTUnit::LogLabel(Unit), Unit->Cell.X, Unit->Cell.Y, Unit->Cell.Layer),
 			FRTLogSubject::Unit(Unit));
-
-		Unit->PlannedMovementProfileId = NAME_None; // si ripiega sul neutro, non si annulla il movimento
 	}
 
 	// Indice (in Units) dell'attaccante per ogni impatto accodato in QUESTO scatto: serve a scartare l'impatto,
@@ -6321,23 +6338,30 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 
 FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
 {
-	// Il PROFILO DI MOVIMENTO che il piano dichiara (`#653`, [D-116] · [D-117]). Da qui vengono i due
-	// budget, non piu' direttamente da `MoveRange` dell'unita'.
+	// La **BANDA** di movimento che il piano produce ([D-425]). Da qui vengono i due budget, non piu'
+	// direttamente da `MoveRange` dell'unita'.
 	//
-	// 🔑 **Il profilo si RICAVA dal piano invece di essere un campo accanto ad esso**: `MakePlanFor` legge i
-	// campi `Planned*` che giocatore e bot scrivono sull'Actor, e l'azione di movimento che vi trova NOMINA
-	// il proprio profilo. Cosi' la domanda «con che misura si muove» ha una risposta sola, e non due da
-	// tenere d'accordo.
+	// 🔑 **Qui va la BANDA, non il TETTO, e la distinzione e' misurata invece che preferita.** [D-425]
+	// distingue cio' che si **dichiara** — un tetto, *fin dove posso arrivare* — da cio' che si **deriva**
+	// — una banda, *quanto ho effettivamente chiesto*. Il tetto e' il permesso di PIANIFICARE e vive dove
+	// si pianifica (`PlanningSnapshotFor`); qui il piano e' gia' scritto, e il numero giusto e' quello che
+	// descrive il piano.
 	//
-	// ⚠️ **Chi non sceglie un profilo non vede cambiare niente, e la ragione e' nei profili, non qui**:
-	// `Move` e `Still` valgono il **100%** del budget dell'unita' ([D-412]), quindi `ResolveMoveBudget`
-	// restituisce esattamente `GetEffectiveMoveRange()` — lo stesso valore che questa riga passava prima
-	// che i profili esistessero. A spostare un numero e' chi sceglie un profilo diverso.
+	// 🔴 **Il tetto qui renderebbe FALSO il punto (6) della decisione che lo introduce.** Misurato sul
+	// candidato `79bb9c00`, che passava `CeilingProfile`: **2545 Success / 15 Fail**, e dieci di quei
+	// rossi erano il budget nudo passato da `1×` a `2×` per chiunque — `Spec.Map.ConstrainedCellCostsMore`
+	// arrivava a `(3,0,0)` invece che a `(-2,0,0)`, lo `Slow` non fermava piu' nessuno, `ArenaV01` non
+	// chiudeva entro 40 turni. Con la banda il corpus **non si muove**, che e' cio' che [D-425] punto (6)
+	// dichiara: ogni voce che si muove sta sotto `1×`, quindi la sua banda e' `Move` e il suo budget e'
+	// quello di sempre.
 	//
-	// 🔑 **Dal 2026-09-13 il budget e' una PERCENTUALE del valore qui sotto** ([D-412]): `Withdraw` 25,
-	// `Sneak` 50, `Move` e `Still` 100, `Sprint` 200. ⛔ Il troncamento e' la regola — *«arrotondare per
-	// difetto»* — quindi un eroe da `5` ripiega di `1`, non di `2`: il numero segue il moltiplicatore, e non
-	// il contrario.
+	// 🔑 **E la banda copre sempre il piano, per costruzione**: e' la piu' stretta che contiene i passi
+	// pianificati. Cio' che puo' ancora troncare e' l'**asperita'** — terreno difficile, `Slow` — ed e'
+	// esattamente il morso che deve restare.
+	//
+	// 🔑 **I budget restano PERCENTUALI del valore qui sotto** ([D-412]): `Withdraw` 25, `Sneak` 50, `Move`
+	// e `Still` 100, `Sprint` 200. ⛔ Il troncamento e' la regola — *«arrotondare per difetto»* — quindi un
+	// eroe da `5` ripiega di `1`, non di `2`: il numero segue il moltiplicatore, e non il contrario.
 	const int32 UnitMoveRange = Unit->GetEffectiveMoveRange();
 	const FRTMovementProfile Profile = URTMovementProfileLibrary::ProfileForPlan(
 		URTPlanValidationLibrary::MakePlanFor(Unit));

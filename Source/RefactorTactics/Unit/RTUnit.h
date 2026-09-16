@@ -407,24 +407,31 @@ public:
 	TArray<FRTCellId> PlannedWaypoints;
 
 	/**
-	 * Il PROFILO DI MOVIMENTO dichiarato per questo turno (`#1410`, [D-401]): `MovementProfile.Move`,
-	 * `...Sprint`, ... Vive accanto ai waypoint perche' e' **la seconda decisione di movimento**, dopo la
-	 * destinazione — e come loro si edita fino al lock-in.
+	 * Il profilo di movimento **DICHIARATO** per questo turno — oggi `MovementProfile.Sneak`, o vuoto
+	 * (`#1410`, [D-425]). Vive accanto ai waypoint perche' come loro si edita fino al lock-in.
 	 *
-	 * 🔑 **`NAME_None` significa «il neutro», e lo traduce chi legge.** Il campo nasce vuoto — e' il
-	 * default di un `FName`, e un'unita' deserializzata da un salvataggio anteriore a `#1410` lo troverebbe
-	 * vuoto comunque — quindi la traduzione sta in `URTPlanValidationLibrary::MakePlanFor`, in un punto
-	 * solo: vuoto ⇒ `Action.Move`, cioe' il comportamento identico a prima di questa issue. Inizializzarlo
-	 * nel costruttore avrebbe lasciato il caso della deserializzazione scoperto e due verita' sul default.
+	 * ⏱️ *Fino al 2026-09-15 questo campo portava l'ANDATURA, scelta ciclando fra quattro etichette.*
+	 * [D-425] ha rovesciato la derivazione: `Move` e `Sprint` si **leggono** da quanto si e' pianificato e
+	 * non si dichiarano affatto, `Still` e' l'assenza di piano, e il `Withdraw` lo **impone** l'`Overwatch`
+	 * e si legge dal piano (`ReservedProfileForPlan`), non da qui.
 	 *
-	 * ⛔ **`MovementProfile.Still` NON si scrive qui**: quello e' la lettura di un piano *senza* movimento,
-	 * che `ProfileForPlan` ricava dall'assenza di una voce di movimento. Scriverlo darebbe due modi di
-	 * dire «fermo» — questo campo e l'assenza di waypoint — che possono contraddirsi.
+	 * 🔑 **Cio' che resta qui e' un TETTO, non un'etichetta** ([D-425] punto (2)): dichiarare `Sneak`
+	 * dimezza la distanza pianificabile. E' l'unica cosa che il giocatore dichiara sullo slot movimento, ed
+	 * e' il motivo per cui il campo sopravvive al selettore che lo riempiva.
+	 *
+	 * 🔑 **`NAME_None` significa «nessuna dichiarazione», e lo traduce chi legge.** Il campo nasce vuoto —
+	 * e' il default di un `FName`, e un'unita' deserializzata da un salvataggio precedente lo troverebbe
+	 * vuoto comunque — quindi la traduzione sta in `CeilingProfile`, in un punto solo: vuoto ⇒ il tetto
+	 * nudo, `2×`.
+	 *
+	 * ⛔ **`Still`, `Move`, `Sprint` e `Withdraw` NON si scrivono qui.** I primi tre sono derivati e il
+	 * quarto e' imposto: scriverne uno darebbe due modi di dire la stessa cosa — questo campo e la sua
+	 * derivazione — che possono contraddirsi.
 	 *
 	 * ⛔ **Non e' replicato, come `PlannedWaypoints` e `PlannedCell` qui sopra, e non e' un dettaglio.**
-	 * Il profilo e' intento di pianificazione: dire a un avversario *«questo sprinta»* prima del lock-in
-	 * gli anticipa la distanza che quell'unita' puo' coprire, cioe' esattamente l'informazione che la
-	 * simultaneita' esiste per nascondere.
+	 * La dichiarazione e' intento di pianificazione: dire a un avversario *«questo sguscia»* prima del
+	 * lock-in gli anticipa la distanza che quell'unita' puo' coprire, cioe' esattamente l'informazione che
+	 * la simultaneita' esiste per nascondere.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "RefactorTactics|Turn")
 	FName PlannedMovementProfileId;

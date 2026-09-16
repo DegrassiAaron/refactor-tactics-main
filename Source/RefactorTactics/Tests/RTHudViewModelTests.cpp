@@ -1964,15 +1964,28 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 		Unit->PlannedCell = Unit->Cell;
 	}
 
-	// 3. Il profilo DICHIARATO arriva alla vista. Si dichiara passando dal campo che il selettore scrive, e
-	//    si verifica che la vista risponda con cio' che il PIANO dice, non con una copia di quel campo.
+	// 3. La banda DERIVATA arriva alla vista, e il gesto che si dichiara arriva con lei.
+	//
+	//    Fino al 2026-09-15 questo blocco scriveva `PlannedMovementProfileId = ProfileSprint` e
+	//    verificava che la vista lo ripetesse. [D-425] ha tolto quel canale: `Sprint` si LEGGE dalla
+	//    distanza, e a dichiararsi resta il solo `Sneak`. Le due meta' si verificano separate, perche'
+	//    hanno due sorgenti diverse e un test solo le confonderebbe.
 	{
-		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
-		Unit->PlannedCell = FRTCellId(1, 0, 0);
-		Unit->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
-		const FRTUnitSlotsView Slots = URTHudViewModel::BuildUnitSlots(Unit);
-		TestEqual(TEXT("lo Sprint dichiarato si vede"),
-			Slots.MovementProfileId, URTMovementProfileLibrary::ProfileSprint);
+		// a) la banda alta, prodotta da una destinazione oltre `1x` e da nessuna dichiarazione.
+		const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
+		Unit->PlannedWaypoints.Add(FRTCellId(Oltre, 0, 0));
+		Unit->PlannedCell = FRTCellId(Oltre, 0, 0);
+		const FRTUnitSlotsView Corsa = URTHudViewModel::BuildUnitSlots(Unit);
+		TestEqual(TEXT("oltre 1x la vista legge Sprint, senza che nessuno l'abbia dichiarato"),
+			Corsa.MovementProfileId, URTMovementProfileLibrary::ProfileSprint);
+		TestTrue(TEXT("e nessuno ha dichiarato niente"), Unit->PlannedMovementProfileId.IsNone());
+
+		// b) lo `Sneak` dichiarato: e' un TETTO, quindi vince sulla distanza invece di esserne prodotto.
+		Unit->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSneak;
+		const FRTUnitSlotsView Furtiva = URTHudViewModel::BuildUnitSlots(Unit);
+		TestEqual(TEXT("lo Sneak dichiarato si vede, e copre la banda"),
+			Furtiva.MovementProfileId, URTMovementProfileLibrary::ProfileSneak);
+
 		Unit->PlannedMovementProfileId = NAME_None;
 		Unit->PlannedWaypoints.Reset();
 		Unit->PlannedCell = Unit->Cell;

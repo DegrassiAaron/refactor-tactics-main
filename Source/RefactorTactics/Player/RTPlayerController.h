@@ -284,15 +284,19 @@ protected:
 	TObjectPtr<UInputAction> PrepWindowPauseAction;
 
 	/**
-	 * Cicla il PROFILO DI MOVIMENTO dichiarato per l'unita' selezionata (`#1410`, `AC-1`).
+	 * Dichiara o annulla lo **`Sneak`** per l'unita' selezionata (`#1410` `AC-1`, [D-425] punto (7)).
 	 *
-	 * ⚠️ **Un gesto solo per tutti i profili, e non una hotkey per ciascuno.** I profili non sono azioni
-	 * ([D-015]: sono alternative sullo stesso slot), quindi non passano dalla tabella delle hotkey per
-	 * `ActionId` di `#1409` — che assegna un tasto a un'AZIONE del kit. Dargliene uno ciascuno avrebbe
-	 * dichiarato il contrario: che scegliere `Sprint` e' come premere `Guard`.
+	 * ⏱️ *Fino al 2026-09-15 questo input CICLAVA fra quattro profili.* [D-425] lo ha smontato: `Move` e
+	 * `Sprint` si **leggono** da quanto si e' pianificato, e un ciclo chiedeva al giocatore di dichiarare
+	 * cio' che il suo percorso gia' diceva.
+	 *
+	 * 🔑 **Resta un interruttore per UN profilo, e il suo effetto e' un numero**: `Sneak` dimezza il
+	 * tetto. ⛔ Non passa dalla tabella delle hotkey per `ActionId` di `#1409` — quella assegna un tasto a
+	 * un'AZIONE del kit, e `Sneak` non e' un'azione: non ne esiste una che lo nomini, ed e' [D-425] a dire
+	 * che non deve esistere.
 	 */
 	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> MovementProfileAction;
+	TObjectPtr<UInputAction> SneakAction;
 
 	/**
 	 * `K`: ferma e riprende il **playback della risoluzione** (`#2858`, comandi di `#1879`).
@@ -759,17 +763,17 @@ private:
 	void OnTogglePrepWindowPause(const FInputActionValue& Value);
 
 	/**
-	 * Cicla il profilo di movimento dell'unita' selezionata, e applica al percorso gia' disegnato la regola
-	 * di [D-401]: il cambio e' **sempre accettato**, il percorso **sopravvive** se resta legale col profilo
-	 * nuovo ed e' **azzerato** se non lo e' (`#1410` `AC-3`).
+	 * Dichiara o annulla lo `Sneak`, e applica al percorso gia' disegnato il **tetto** che ne risulta: la
+	 * dichiarazione e' **sempre accettata**, il percorso **sopravvive** se ci sta e viene **troncato** dalla
+	 * fine se non ci sta ([D-420], `#1410` `AC-3`).
 	 *
 	 * ⛔ **Non passa da `RebuildPlannedPath`, e la differenza e' [D-404].** Quella azzera il rifiuto di
-	 * `NoteMovePlanRejection` perche' l'insieme dei waypoint e' cambiato; un cambio di profilo non ne toglie
-	 * nessuno, e applicarle lo stesso azzeramento declasserebbe **in silenzio** un «fermo: cella occupata»
-	 * vero — la falsita' esatta per cui `#79` esiste. Qui il rifiuto segue il percorso: sopravvive con lui,
-	 * si azzera con lui.
+	 * `NoteMovePlanRejection` perche' l'insieme dei waypoint e' cambiato; abbassare un tetto non ne toglie
+	 * nessuno di per se', e applicarle lo stesso azzeramento declasserebbe **in silenzio** un «fermo: cella
+	 * occupata» vero — la falsita' esatta per cui `#79` esiste. Qui il rifiuto segue il percorso:
+	 * sopravvive con lui, si azzera con lui.
 	 */
-	void OnCycleMovementProfile(const FInputActionValue& Value);
+	void OnToggleSneak(const FInputActionValue& Value);
 
 	/**
 	 * `K` — ferma o riprende il playback della risoluzione (`#2858`).
@@ -948,6 +952,19 @@ public:
 	{
 		SelectAbilityForCurrent(Index, ERTAbilityRequestSource::Hotkey);
 	}
+
+	/**
+	 * Dichiara o annulla lo `Sneak` come farebbe il tasto `M` (per i test).
+	 *
+	 * Stessa disciplina di `HandleClickOnCellForTest`: cio' che va verificato e' la **decisione** — il
+	 * tetto scende a meta' e il piano che non ci sta si tronca — non il trasporto dell'input, che chiede
+	 * un `FInputActionValue` e un viewport. ⛔ Senza questo, l'unico gesto che `#1410` consegna sarebbe
+	 * l'unico non raggiungibile da un test.
+	 *
+	 * ⚠️ Definita nel `.cpp` e non qui, come `OnLockInForTest`: `FInputActionValue` in questo header e'
+	 * solo dichiarato in avanti, e costruirne uno inline non compilerebbe.
+	 */
+	void ToggleSneakForTest();
 
 	/**
 	 * Il tasto di lock-in (Spazio) senza passare da un `FInputActionValue`, per i test.

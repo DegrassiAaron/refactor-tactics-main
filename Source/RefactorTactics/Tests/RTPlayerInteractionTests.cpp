@@ -13,6 +13,7 @@
 #include "Ability/RTActionData.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // il profilo Withdraw, di cui il test ricava il budget
+#include "Turn/RTPlanValidationLibrary.h" // MakePlanFor: la riserva e la banda si leggono dal PIANO
 #include "Pathfinding/RTHexPath.h" // il FRTHexPathResult che il test del troncamento riceve
 #include "Turn/RTHexSimLibrary.h" // #1939: lo snapshot e la sua Occupancy, che il test del rifiuto costruisce
 #include "Map/RTHexMapActor.h"
@@ -1893,14 +1894,26 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	// Raggio largo: la cella oltre il budget deve restare DENTRO la mappa, altrimenti il rifiuto
 	// sarebbe «fuori dalla mappa» e il test misurerebbe un motivo diverso da quello che dice.
-	if (!TestNotNull(TEXT("mappa ampia e senza ostacoli"), SpawnCleanInteractionMap(World, /*Radius=*/ 12)))
+	//
+	// ⏱️ *Il raggio era il letterale `12` fino al 2026-09-15, e [D-425] lo ha reso insufficiente da
+	// sotto*: col tetto a `2x` quel numero e' diventato esattamente il tetto di Ivrin, e la cella
+	// «fuori portata» sarebbe finita fuori MAPPA — cioe' il rifiuto giusto per il motivo sbagliato, che
+	// e' il difetto contro cui questo stesso commento metteva in guardia. Ora si ricava dall'eroe.
+	const URTHeroData* Eroe = URTHeroCatalogLibrary::MakeIvrin();
+	if (!TestNotNull(TEXT("l'eroe del catalogo"), Eroe))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
+	const int32 Raggio = 2 * Eroe->MovePoints + 4;
+	if (!TestNotNull(TEXT("mappa ampia e senza ostacoli"), SpawnCleanInteractionMap(World, Raggio)))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
 
 	const FRTCellId Partenza(0, 0);
-	ARTUnit* Chi = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
+	ARTUnit* Chi = SpawnInteractionUnit(World, 0, Eroe, Partenza);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TestNotNull(TEXT("unita'"), Chi) || !TestNotNull(TEXT("controller"), PC)
@@ -1917,13 +1930,27 @@ bool FRTBudgetDenialIsNotAUnitDenialTest::RunTest(const FString&)
 	// e un letterale renderebbe il test verde su un click che il budget copre ancora. E' la stessa
 	// trappola gia' misurata su `WaypointClicksBuildAndRejectPlans`, dove quattro celle bastavano al
 	// Ranger legacy e non piu' a chi lo ha sostituito.
-	const int32 Budget = Chi->GetEffectiveMoveRange();
-	if (!TestTrue(TEXT("premessa: l'eroe ha un budget di movimento"), Budget > 0))
+	// Dal 2026-09-15 il numero da chiedere e' il TETTO, non il movimento base: [D-425] punto (9) porta
+	// a `2x` quanto si puo' PIANIFICARE senza dichiarare niente. Con `GetEffectiveMoveRange() + 2` la
+	// cella «fuori portata» e' finita DENTRO il tetto, e la premessa del test e' diventata falsa — la
+	// stessa trappola che il commento qui sopra descrive, scattata una seconda volta per un confine
+	// che si e' spostato invece che per un eroe ribilanciato.
+	const int32 Budget = URTMovementProfileLibrary::CeilingProfile(
+		Chi->PlannedMovementProfileId, NAME_None).ResolveStepBudget(Chi->GetEffectiveMoveRange());
+	if (!TestTrue(TEXT("premessa: l'eroe ha un tetto di movimento"), Budget > 0))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
-	const FRTCellId Lontana(Budget + 2, 0, 0); // libera, sulla mappa, e fuori portata
+	const FRTCellId Lontana(Budget + 2, 0, 0); // libera, sulla mappa, e fuori dal tetto
+	// ⛔ La premessa «sulla mappa» si ASSERISCE: se cadesse, il rifiuto arriverebbe lo stesso e il test
+	// resterebbe verde misurando «fuori dalla mappa» invece di «oltre il tetto».
+	if (!TestTrue(TEXT("premessa: la cella oltre il tetto e' ancora DENTRO la mappa"),
+		Lontana.X <= Raggio))
+	{
+		DestroyInteractionWorld(World);
+		return false;
+	}
 
 	PC->HandleClickOnCell(Lontana);
 	if (!TestEqual(TEXT("premessa: il waypoint e' stato rifiutato"), Chi->PlannedWaypoints.Num(), 0))
@@ -2286,8 +2313,14 @@ bool FRTReserveTruncatesInsteadOfClearingTest::RunTest(const FString&)
 
 	PC->SelectAbilityForCurrentForTest(IdxOverwatch);
 
-	TestEqual(TEXT("il profilo e' riservato al Withdraw"),
-		Unit->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileWithdraw);
+	// Fino al 2026-09-15 qui si leggeva `Unit->PlannedMovementProfileId`. Con [D-425] quel campo porta
+	// la sola DICHIARAZIONE del giocatore: cio' che l'`Overwatch` impone si legge dal PIANO, ed e' la sede
+	// che non puo' restare stantia quando l'azione viene disarmata.
+	TestEqual(TEXT("il piano riserva lo slot movimento al Withdraw"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),
+		URTMovementProfileLibrary::ProfileWithdraw);
+	TestTrue(TEXT("e la riserva NON si copia sul campo dichiarato: nessuno l'ha dichiarata"),
+		Unit->PlannedMovementProfileId.IsNone());
 
 	if (Passi >= 1)
 	{
@@ -2314,6 +2347,155 @@ bool FRTReserveTruncatesInsteadOfClearingTest::RunTest(const FString&)
 		// che arriva fino in fondo. Si dichiara invece di lasciare il ramo muto.
 		TestEqual(TEXT("budget nullo: nessun waypoint sopravvive"), Unit->PlannedWaypoints.Num(), 0);
 	}
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * `AC-3` di `#1410`: **dichiarare `Sneak` abbassa il tetto a meta', e il piano che non ci sta si tronca.**
+ *
+ * E' l'ancora del CHIAMANTE, non del predicato. `MovementProfile.NakedCeilingIsTwiceTheBase` prova
+ * che `CeilingProfile` risponde a una dichiarazione; questo prova che **premere il tasto** produce
+ * quella dichiarazione e che il percorso gia' disegnato la subisce. Il primo resterebbe verde se
+ * `OnToggleSneak` scrivesse nel campo sbagliato, o non troncasse affatto.
+ *
+ * Il budget non e' cablato: `Sneak` e' una percentuale del movimento dell'eroe ([D-412]), quindi il
+ * numero atteso si RICAVA dal profilo. Scrivere `2` qui renderebbe il test una funzione del roster.
+ *
+ * E il gesto e' un INTERRUTTORE, non un ciclo: la seconda pressione torna al tetto nudo. Senza
+ * l'ultima asserzione, un ciclo fra quattro profili che passasse per `Sneak` supererebbe questo test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeclaringSneakTruncatesToHalfTest,
+	"RefactorTactics.PlayerInput.DeclaringSneakTruncatesToHalf",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeclaringSneakTruncatesToHalfTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const int32 Base = Unit->GetEffectiveMoveRange();
+	const FRTMovementProfile Sneak =
+		URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileSneak);
+	const int32 PassiSneak = Sneak.ResolveStepBudget(Base);
+
+	PC->SelectActorForTest(Unit);
+
+	// Un piano che sta nel tetto NUDO e non in quello dello `Sneak`: e' l'unico che distingue le due
+	// regole. La lunghezza si RICAVA dal movimento base — `Base` passi contro un tetto di `Base/2` —
+	// invece di essere cablata: due waypoint bastavano su un eroe da 4 e non su uno da 6, e la prima
+	// stesura di questo test e' fallita esattamente cosi' (piano da 2 passi, tetto da 3).
+	for (int32 Passo = 1; Passo <= Base; ++Passo)
+	{
+		PC->HandleClickOnCellForTest(FRTCellId(-4 + Passo, 0, 0));
+	}
+	const int32 PassiPrima = FMath::Max(0, Unit->PlannedPath.Num() - 1);
+	if (!TestTrue(*FString::Printf(
+			TEXT("premessa: il piano (%d passi) eccede il tetto dello Sneak (%d)"), PassiPrima, PassiSneak),
+		PassiPrima > PassiSneak))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	const TArray<FRTCellId> Dichiarati = Unit->PlannedWaypoints;
+
+	PC->ToggleSneakForTest();
+
+	TestEqual(TEXT("lo Sneak e' dichiarato sul campo del piano"),
+		Unit->PlannedMovementProfileId, URTMovementProfileLibrary::ProfileSneak);
+	TestTrue(*FString::Printf(TEXT("e il percorso sta nel tetto dimezzato (%d passi)"), PassiSneak),
+		FMath::Max(0, Unit->PlannedPath.Num() - 1) <= PassiSneak);
+
+	if (PassiSneak >= 1)
+	{
+		// L'asserzione che distingue il troncamento dall'azzeramento: con `Reset()` sarebbe `0`.
+		// La guardia e' `Num() > 0` PRIMA di indicizzare, per la stessa ragione misurata su
+		// `ReservingAProfileTruncatesThePlan`: `Num() <= Dichiarati.Num()` e' vero anche per un array vuoto,
+		// e l'indice `[0]` farebbe crashare il worker invece di far fallire il test.
+		TestTrue(TEXT("il piano NON e' azzerato: qualche waypoint sopravvive"),
+			Unit->PlannedWaypoints.Num() > 0);
+		TestTrue(TEXT("e sopravvivono i PRIMI, in ordine"),
+			Unit->PlannedWaypoints.Num() > 0
+			&& Unit->PlannedWaypoints.Num() <= Dichiarati.Num()
+			&& Unit->PlannedWaypoints[0] == Dichiarati[0]);
+	}
+
+	// Seconda pressione: si torna al tetto nudo. E' cio' che rende il gesto un interruttore invece di
+	// un ciclo - la forma che [D-425] punto (7) chiede esplicitamente.
+	PC->ToggleSneakForTest();
+	TestTrue(TEXT("la seconda pressione annulla la dichiarazione"),
+		Unit->PlannedMovementProfileId.IsNone());
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * [D-425] punto (9): **col movimento nudo si pianifica fino a `2x`**, e la banda `Sprint` e' raggiungibile
+ * senza dichiarare niente ne' equipaggiare una skill.
+ *
+ * E' l'ancora che chiude il cerchio fra tetto e banda, e nessuna delle due meta' la copre da sola.
+ * Il test puro prova che `CeilingProfile` risponde `2x`; questo prova che un giocatore che clicca **ci
+ * arriva davvero** - cioe' che il tetto attraversa `MakeSimUnit`, lo snapshot e `HandleClickOnCell` senza
+ * essere abbassato da nessuno lungo la strada. Con il tetto vecchio a `1x` il waypoint oltre la portata
+ * sarebbe stato rifiutato, e la banda alta irraggiungibile: una banda che non e' una banda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNakedPlanningReachesTwiceTheBaseTest,
+	"RefactorTactics.PlayerInput.NakedPlanningReachesTwiceTheBase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNakedPlanningReachesTwiceTheBaseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const int32 Base = Unit->GetEffectiveMoveRange();
+	if (!TestTrue(TEXT("premessa: l'eroe ha un movimento base"), Base >= 2))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	PC->SelectActorForTest(Unit);
+
+	// Si clicca UNA cella alla volta lungo una riga, oltre `1x`: e' il gesto reale, e ogni passo che il
+	// tetto vecchio avrebbe rifiutato si vedrebbe qui come un piano che smette di crescere.
+	for (int32 Passo = 1; Passo <= Base + 1; ++Passo)
+	{
+		PC->HandleClickOnCellForTest(FRTCellId(-4 + Passo, 0, 0));
+	}
+
+	const int32 Passi = FMath::Max(0, Unit->PlannedPath.Num() - 1);
+	TestTrue(*FString::Printf(TEXT("si pianifica oltre 1x: %d passi su base %d"), Passi, Base),
+		Passi > Base);
+
+	// E cio' che si e' pianificato si LEGGE `Sprint`, senza che nessuno lo abbia dichiarato: e' la forma
+	// di [D-425] punto (2) - il prezzo segue la distanza, non una scelta.
+	TestEqual(TEXT("e la banda che ne risulta e' Sprint, senza dichiararlo"),
+		URTMovementProfileLibrary::ProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)).Id,
+		URTMovementProfileLibrary::ProfileSprint);
+	TestTrue(TEXT("e nessuno ha dichiarato niente"), Unit->PlannedMovementProfileId.IsNone());
 
 	DestroyInteractionWorld(World);
 	return true;
