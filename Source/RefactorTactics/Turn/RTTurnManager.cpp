@@ -6338,40 +6338,39 @@ FRTTeamKnowledge ARTTurnManager::KnowledgeForTeam(int32 TeamId) const
 
 FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) const
 {
-	// Il **TETTO** di movimento ([D-425] punti (1) e (9)). Da qui vengono i due budget, non piu'
+	// La **BANDA** di movimento che il piano produce ([D-425]). Da qui vengono i due budget, non piu'
 	// direttamente da `MoveRange` dell'unita'.
 	//
-	// 🔑 **Il budget e' il TETTO, non la banda, ed e' la distinzione che [D-425] introduce.** Cio' che si
-	// dichiara — `Sneak` a ½ — e cio' che si impone — il `Withdraw` dell'`Overwatch` a ¼ — dicono *fin
-	// dove si puo' arrivare*, e sono il numero che serve qui. La **banda** (`Move` contro `Sprint`) e'
-	// invece la LETTURA di quanto si e' pianificato, non un permesso: chiederla qui darebbe a chi non ha
-	// ancora pianificato niente il budget del fermo, e nessuno potrebbe pianificare il primo passo.
+	// 🔑 **Qui va la BANDA, non il TETTO, e la distinzione e' misurata invece che preferita.** [D-425]
+	// distingue cio' che si **dichiara** — un tetto, *fin dove posso arrivare* — da cio' che si **deriva**
+	// — una banda, *quanto ho effettivamente chiesto*. Il tetto e' il permesso di PIANIFICARE e vive dove
+	// si pianifica (`PlanningSnapshotFor`); qui il piano e' gia' scritto, e il numero giusto e' quello che
+	// descrive il piano.
 	//
-	// ⏱️ *Fino al 2026-09-15 questa riga chiedeva `ProfileForPlan`, cioe' il profilo DICHIARATO dal piano,
-	// e il tetto nudo valeva `1×`.* Con [D-425] il nudo e' **`2×`**: si pianifica fino al doppio del
-	// movimento base, e superare `1×` fa scattare da se' i prezzi dello Sprint. ⚠️ **Nessuna traccia
-	// esistente si muove**: sul corpus golden ogni voce che si muove sta sotto `1×`, caso peggiore compreso
-	// ([D-425] punto (6)), quindi un tetto piu' alto non cambia nessun percorso gia' registrato.
+	// 🔴 **Il tetto qui renderebbe FALSO il punto (6) della decisione che lo introduce.** Misurato sul
+	// candidato `79bb9c00`, che passava `CeilingProfile`: **2545 Success / 15 Fail**, e dieci di quei
+	// rossi erano il budget nudo passato da `1×` a `2×` per chiunque — `Spec.Map.ConstrainedCellCostsMore`
+	// arrivava a `(3,0,0)` invece che a `(-2,0,0)`, lo `Slow` non fermava piu' nessuno, `ArenaV01` non
+	// chiudeva entro 40 turni. Con la banda il corpus **non si muove**, che e' cio' che [D-425] punto (6)
+	// dichiara: ogni voce che si muove sta sotto `1×`, quindi la sua banda e' `Move` e il suo budget e'
+	// quello di sempre.
+	//
+	// 🔑 **E la banda copre sempre il piano, per costruzione**: e' la piu' stretta che contiene i passi
+	// pianificati. Cio' che puo' ancora troncare e' l'**asperita'** — terreno difficile, `Slow` — ed e'
+	// esattamente il morso che deve restare.
 	//
 	// 🔑 **I budget restano PERCENTUALI del valore qui sotto** ([D-412]): `Withdraw` 25, `Sneak` 50, `Move`
 	// e `Still` 100, `Sprint` 200. ⛔ Il troncamento e' la regola — *«arrotondare per difetto»* — quindi un
 	// eroe da `5` ripiega di `1`, non di `2`: il numero segue il moltiplicatore, e non il contrario.
-	//
-	// ⚠️ **`Unbalanced` entra QUI e non nella dichiarazione** ([D-319]): ora che correre e' una distanza,
-	// negare la corsa significa abbassare il tetto a `1×` — e da quel momento `TruncatePathToBudget`
-	// accorcia da se' il percorso di chi aveva pianificato piu' lontano, senza che nessuno debba scrivere
-	// una seconda troncatura.
 	const int32 UnitMoveRange = Unit->GetEffectiveMoveRange();
-	const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
-		Unit->PlannedMovementProfileId,
-		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),
-		Unit->HasStatus(TAG_Status_Unbalanced));
+	const FRTMovementProfile Profile = URTMovementProfileLibrary::ProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
 
-	FRTHexSimUnit SimUnit(Index, Unit->Cell, Ceiling.ResolveMoveBudget(UnitMoveRange), /*bAlive=*/ true);
+	FRTHexSimUnit SimUnit(Index, Unit->Cell, Profile.ResolveMoveBudget(UnitMoveRange), /*bAlive=*/ true);
 	// **Passi** ([D-117] voce 1). Oggi coincide con l'asperita' sopra perche' ogni cella costa `1`; a
 	// separare i due valori sara' la funzione di costo di [#666]. Qui si separano i CAMPI, che e' il
 	// prerequisito che questo checkpoint consegna.
-	SimUnit.StepBudget = Ceiling.ResolveStepBudget(UnitMoveRange);
+	SimUnit.StepBudget = Profile.ResolveStepBudget(UnitMoveRange);
 	// `Action.Slow` (CP 4.7): +1 al costo di ogni cella, letto FRESCO a ogni costruzione — cosi' uno Slow
 	// applicato nel Blast (stesso turno) si riflette gia' sulla fase Move che segue, senza bisogno di
 	// ricordare "quando" e' stato applicato.

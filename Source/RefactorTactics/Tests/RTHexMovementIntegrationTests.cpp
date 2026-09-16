@@ -455,8 +455,12 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	// `Action.Sprint` risolveva in `FastMovement`: ora risolve in `NormalMovement`, cioe' e' un profilo
 	// della famiglia `Move` come [D-015] lo descrive, e si pianifica come un movimento.
 	//
-	// Sei celle: oltre i 5 punti del `Move` neutro, dentro gli 8 che il profilo dichiara.
-	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	// Sei celle: oltre i 5 punti del `Move` neutro, dentro i 10 della banda alta.
+	//
+	// Fino al 2026-09-15 questa riga era preceduta da `PlannedMovementProfileId = ProfileSprint`.
+	// [D-425] l'ha tolta: lo Sprint non si DICHIARA, si legge dalla distanza pianificata. La riga
+	// cancellata non e' stata sostituita da un'altra dichiarazione — a produrre la banda e' la
+	// destinazione, ed e' precisamente cio' che il test ora prova invece di assumere.
 	Runner->PlannedCell = FRTCellId(2, 0);
 
 	// Turno 1: l'avversario non spara. Da `(8,0)` il Runner e' comunque fuori dalla portata 6 del Tiro, ed
@@ -496,8 +500,7 @@ bool FRTSprintAppliesExposedTest::RunTest(const FString&)
 	Runner->Shield = 0;
 
 	const int32 HealthAfterSprint = Runner->Health;
-	Runner->PlannedMovementProfileId = NAME_None; // niente secondo scatto: lo stato in esame e' quello di prima
-	Runner->PlannedCell = Runner->Cell;
+	Runner->PlannedCell = Runner->Cell; // niente secondo scatto: lo stato in esame e' quello di prima
 	Foe->PlannedCell = Foe->Cell;
 	Foe->PlannedAbilityIndex = 0;                 // Tiro: da `(0,0)` a `(2,0)` sono due celle
 	Foe->PlannedAttackTarget = Runner;
@@ -554,8 +557,8 @@ bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Runner || !Foe) { DestroyHexMoveWorld(World); return false; }
 
-	// Sei celle: fuori dai 5 punti del neutro, dentro gli 8 del profilo.
-	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
+	// Sei celle: fuori dai 5 punti del neutro, dentro i 10 della banda alta. Nessuna dichiarazione —
+	// [D-425]: e' la distanza a produrre la banda, e la voce del TurnLog la riceve da li'.
 	Runner->PlannedCell = FRTCellId(6, 0);
 	Foe->PlannedCell = Foe->Cell;
 
@@ -583,7 +586,7 @@ bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
 	}
 
 	TestEqual(TEXT("l'azione BASE e' il Move generico"), Base, FName(TEXT("Action.Move")));
-	TestEqual(TEXT("e il profilo e' quello dichiarato"), Action,
+	TestEqual(TEXT("e il profilo e' quello DERIVATO dalla distanza"), Action,
 		URTMovementProfileLibrary::ProfileSprint);
 
 	// Controprova: il profilo NEUTRO scrive i due uguali, e `DescribeAction` li rende con un nome solo —
@@ -592,7 +595,6 @@ bool FRTMoveLogsBaseAndProfileTest::RunTest(const FString&)
 	ARTUnit* Walker = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 2));
 	if (!Walker) { DestroyHexMoveWorld(World); return false; }
 	Walker->PlannedCell = FRTCellId(2, 2);
-	Runner->PlannedMovementProfileId = NAME_None;
 	Runner->PlannedCell = Runner->Cell;
 	Foe->PlannedCell = Foe->Cell;
 
@@ -637,8 +639,10 @@ bool FRTSprintConsumesSlotsTest::RunTest(const FString&)
 	const int32 FoeShield = Foe->Shield;
 
 	// Lo Sprint occupa il solo slot MOVIMENTO ([D-028]): l'azione principale resta spendibile.
-	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
-	Runner->PlannedCell = FRTCellId(3, 0);
+	// Da `(8,0)` a `(3,0)` sono 5 celle... che stanno nel neutro. Si va a `(2,0)`, sei celle, perche'
+	// dal 2026-09-15 e' la DISTANZA a produrre la banda: una meta' piu' vicina non sarebbe uno Sprint
+	// e il test verificherebbe lo slot di un'azione che nessuno ha usato.
+	Runner->PlannedCell = FRTCellId(2, 0);
 	Runner->PlannedAbilityIndex = 0;          // Tiro, portata 6
 	Runner->PlannedAttackTarget = Foe;
 	Foe->PlannedCell = Foe->Cell;

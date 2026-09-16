@@ -78,6 +78,32 @@ namespace
 		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
+
+		// 🔑 **Il TETTO di [D-425], e vive QUI perche' qui si pianifica.** Lo snapshot che il turno usa per
+		// risolvere porta la **banda** — quanto l'unita' ha chiesto — e non potrebbe portare altro: e' la
+		// misura che descrive un piano gia' scritto. Questo snapshot invece serve a **scrivere** quel piano,
+		// e la domanda che gli si fa e' l'altra: *fin dove ho il permesso di arrivare*.
+		//
+		// ⛔ **Senza questa riga la banda `Sprint` sarebbe irraggiungibile.** Chi non ha ancora pianificato
+		// niente ha banda `Still`, cioe' `1×`: il primo clic oltre la portata verrebbe rifiutato, e nessuno
+		// potrebbe mai superare `1×` — *«una banda che non e' una banda»*, l'alternativa che [D-425] punto
+		// (9) scarta. ⚠️ E si alza il budget della SOLA unita' che sta pianificando: gli altri restano come
+		// il turno li vede, perche' e' contro la loro occupazione reale che questo percorso va validato.
+		if (OutSnapshot.Units.IsValidIndex(OutUnitId))
+		{
+			const FRTMovementProfile Ceiling = URTMovementProfileLibrary::CeilingProfile(
+				Unit->PlannedMovementProfileId,
+				URTMovementProfileLibrary::ReservedProfileForPlan(
+					URTPlanValidationLibrary::MakePlanFor(Unit)),
+				Unit->HasStatus(TAG_Status_Unbalanced));
+			const int32 Base = Unit->GetEffectiveMoveRange();
+			// ⚠️ `Max` e non assegnazione: il tetto non deve mai ABBASSARE cio' che lo snapshot concede —
+			// `Slow` e gli altri modificatori mordono dentro il pathfinding, e scavalcarli qui li
+			// cancellerebbe in pianificazione lasciandoli vivi in risoluzione.
+			FRTHexSimUnit& Planner = OutSnapshot.Units[OutUnitId];
+			Planner.MoveBudget = FMath::Max(Planner.MoveBudget, Ceiling.ResolveMoveBudget(Base));
+			Planner.StepBudget = FMath::Max(Planner.StepBudget, Ceiling.ResolveStepBudget(Base));
+		}
 		if (OutUnits)
 		{
 			// Gli stessi indici dello snapshot: servono a distinguere i NEMICI (che una carica colpisce) dagli

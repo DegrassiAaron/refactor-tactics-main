@@ -2353,7 +2353,7 @@ bool FRTDeclaringSneakTruncatesToHalfTest::RunTest(const FString&)
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 
-	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(-4, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit))
 	{
@@ -2367,11 +2367,14 @@ bool FRTDeclaringSneakTruncatesToHalfTest::RunTest(const FString&)
 
 	PC->SelectActorForTest(Unit);
 
-	// Un piano che sta nel tetto NUDO e non in quello dello `Sneak`: e' l'unico che distingue le due regole.
-	// La premessa si asserisce invece di essere assunta - su un eroe le cui percentuali dessero lo stesso
-	// numero il test non proverebbe niente, e tacerebbe.
-	PC->HandleClickOnCellForTest(FRTCellId(3, -2, 0));
-	PC->HandleClickOnCellForTest(FRTCellId(3, -1, 0));
+	// Un piano che sta nel tetto NUDO e non in quello dello `Sneak`: e' l'unico che distingue le due
+	// regole. La lunghezza si RICAVA dal movimento base — `Base` passi contro un tetto di `Base/2` —
+	// invece di essere cablata: due waypoint bastavano su un eroe da 4 e non su uno da 6, e la prima
+	// stesura di questo test e' fallita esattamente cosi' (piano da 2 passi, tetto da 3).
+	for (int32 Passo = 1; Passo <= Base; ++Passo)
+	{
+		PC->HandleClickOnCellForTest(FRTCellId(-4 + Passo, 0, 0));
+	}
 	const int32 PassiPrima = FMath::Max(0, Unit->PlannedPath.Num() - 1);
 	if (!TestTrue(*FString::Printf(
 			TEXT("premessa: il piano (%d passi) eccede il tetto dello Sneak (%d)"), PassiPrima, PassiSneak),

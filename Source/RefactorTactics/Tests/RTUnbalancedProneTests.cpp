@@ -805,16 +805,26 @@ bool FRTSprintRefusedWhileUnbalancedTest::RunTest(const FString&)
 
 	Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
 	Runner->PlannedAbilityIndex = INDEX_NONE;
-	// 🔴 **Lo Sprint si dichiara come PROFILO dal 2026-09-13** ([D-116], `#641`): non e' piu' una mobilita'
-	// rapida, quindi non passa da `PlannedDashAbility`. Con esso cambia anche il criterio del rifiuto —
-	// `Move` e `Sprint` dichiarano ormai lo STESSO `MovementStyle::Budget`, e a distinguerli e' il profilo.
-	Runner->PlannedMovementProfileId = URTMovementProfileLibrary::ProfileSprint;
-	Runner->PlannedCell = Runner->Cell;
+	// Lo Sprint si dichiarava come PROFILO dal 2026-09-13 ([D-116], `#641`), e questo test scriveva
+	// `PlannedMovementProfileId = ProfileSprint` con `PlannedCell = Cell` — cioe' una corsa dichiarata
+	// e zero celle percorse. [D-425] ha tolto quel canale: correre e' ANDARE LONTANO, quindi il
+	// soggetto del rifiuto e' una destinazione oltre `1x` e non un'etichetta.
+	//
+	// La destinazione si ricava dal movimento base invece di essere cablata: un `6` scritto qui
+	// renderebbe il test una funzione del roster, e il giorno in cui Ivrin valesse 6 la premessa
+	// diventerebbe falsa in silenzio — il piano starebbe nel neutro e non ci sarebbe nulla da rifiutare.
+	const int32 Oltre = Runner->GetEffectiveMoveRange() + 1;
+	Runner->PlannedCell = FRTCellId(Oltre, 0);
 	NeutralizeAllIntents(Foe);
 
 	RunFallTurn(TM);
 
-	TestEqual(TEXT("non ha corso: e' rimasto dov'era"), Runner->Cell, FRTCellId(0, 0));
+	// Chi e' sbilanciato cammina ancora: il tetto scende a `1x`, non a zero ([D-319] letta da [D-425]).
+	// L'asserzione e' quindi *«non e' arrivato dove aveva chiesto»*, non *«non si e' mosso»* — e la
+	// seconda sarebbe FALSA, perche' le prime celle le percorre.
+	TestTrue(*FString::Printf(TEXT("non ha corso: non e' arrivato a %d celle (e' a q=%d)"),
+			Oltre, Runner->Cell.X),
+		Runner->Cell.X < Oltre);
 
 	int32 Rifiuti = 0;
 	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
