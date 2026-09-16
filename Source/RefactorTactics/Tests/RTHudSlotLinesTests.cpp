@@ -209,4 +209,75 @@ bool FRTHUDMovementProfileReadsOnTheLineTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * IL CANCELLO CHE MANCAVA: ogni profilo del catalogo ha una resa, o e' dichiarato liscio.
+ *
+ * `MovementProfileReadsOnTheMovementLine` enumera i cinque profili **a mano**, quindi un sesto sarebbe
+ * entrato a catalogo e si sarebbe letto «percorso» liscio senza che niente fallisse. Il commento di
+ * `DescribeMovementProfile` dichiarava che il caso lo copriva *«il test del catalogo»*:
+ * `MovementProfile.CatalogDeclaresTheProfiles` verifica `Sprint` e `Withdraw` **per nome** e non itera,
+ * quindi quella frase era falsa. Trovata da una review esterna il 2026-09-16.
+ *
+ * 🔑 **Elencare cio' che e' VOLUTAMENTE liscio, invece di cio' che deve avere una resa.** Un profilo nuovo
+ * nasce cosi' nella meta' che fallisce, e chi lo vuole silenzioso deve passare da qui e dirlo. La lista
+ * opposta — «questi devono avere un testo» — lascerebbe il nuovo fuori da entrambe le meta', cioe' nel
+ * silenzio che questo test esiste per togliere.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDEveryCatalogProfileHasAReadingTest,
+	"RefactorTactics.HUD.EveryCatalogProfileHasAReading",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHUDEveryCatalogProfileHasAReadingTest::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	// I due che non si nominano, e il PERCHE' sta accanto al nome: il cammino e' il caso normale, il fermo
+	// lo dice gia' «Movimento: libero». Chi aggiunge un terzo qui deve poter scrivere la stessa riga.
+	const TArray<FName> Lisci = { Lib::ProfileMove, Lib::ProfileStill };
+
+	const TArray<FRTMovementProfile> Catalogo = Lib::GetCoreMovementProfileCatalog();
+	if (!TestTrue(TEXT("premessa: il catalogo dei profili non e' vuoto"), Catalogo.Num() > 0))
+	{
+		return false;
+	}
+
+	int32 ConResa = 0;
+	for (const FRTMovementProfile& Profilo : Catalogo)
+	{
+		const FText Resa = ARTHUD::DescribeMovementProfile(Profilo.Id);
+		if (Lisci.Contains(Profilo.Id))
+		{
+			TestTrue(*FString::Printf(TEXT("%s e' dichiarato liscio: la resa resta vuota"),
+					*Profilo.Id.ToString()),
+				Resa.IsEmpty());
+		}
+		else
+		{
+			// 🔴 Il cuore: un profilo a catalogo che nessuno ha dichiarato liscio DEVE avere una resa.
+			TestFalse(*FString::Printf(
+					TEXT("%s ha una resa: se e' nuovo, aggiungila in DescribeMovementProfile o "
+						 "dichiaralo liscio qui"), *Profilo.Id.ToString()),
+				Resa.IsEmpty());
+			++ConResa;
+		}
+	}
+
+	// ⛔ **ANTI-VACUITA'.** Senza questa riga il test resterebbe verde su un catalogo fatto di soli profili
+	// lisci — cioe' nel mondo in cui il ramo che conta non viene mai eseguito. E' lo stesso difetto che una
+	// verifica di mutazione ha trovato oggi su `SprintRefusedWhileUnbalanced`, in un altro file.
+	TestTrue(TEXT("e il ramo che conta e' stato davvero percorso"), ConResa > 0);
+
+	// ⛔ **E l'elenco dei lisci non nomina profili morti.** Un `Id` rinominato lascerebbe qui una voce che
+	// non esclude piu' niente, e il profilo rinominato cadrebbe nel ramo severo senza che si capisca
+	// perche' — oppure, peggio, qualcuno la ri-aggiungerebbe allargando il silenzio.
+	for (const FName& Liscio : Lisci)
+	{
+		TestTrue(*FString::Printf(TEXT("%s, dichiarato liscio, esiste ancora a catalogo"),
+				*Liscio.ToString()),
+			Catalogo.ContainsByPredicate(
+				[&Liscio](const FRTMovementProfile& P) { return P.Id == Liscio; }));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
