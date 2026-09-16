@@ -1331,7 +1331,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	// --- 1. 🔴 Il ramo che era sbagliato -------------------------------------------------------------
 	{
 		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
-			Snap, Units, /*PlannerIndex=*/ 0, Loro, /*SpentCost=*/ 0, /*Budget=*/ 4);
+			Snap, Units, /*PlannerIndex=*/ 0, Loro, /*SpentCost=*/ 0);
 
 		TestTrue(*FString::Printf(TEXT("nomina CHI OCCUPA: %s"), *Riga), Riga.Contains(Alt->GetName()));
 		// La riga resta utile anche su chi ha pianificato: sono due identita' diverse, e servono entrambe.
@@ -1344,16 +1344,36 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	// --- 2. La propria cella non e' «occupata»: e' un waypoint legittimo, quindi il motivo e' il budget --
 	{
 		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
-			Snap, Units, /*PlannerIndex=*/ 0, Mia, /*SpentCost=*/ 3, /*Budget=*/ 4);
+			Snap, Units, /*PlannerIndex=*/ 0, Mia, /*SpentCost=*/ 3);
 		TestTrue(*FString::Printf(TEXT("la propria cella non e' un'occupazione: %s"), *Riga),
 			Riga.Contains(TEXT("oltre il budget")));
 		TestTrue(*FString::Printf(TEXT("e il budget si legge: %s"), *Riga), Riga.Contains(TEXT("3 di 4")));
 	}
 
+	// --- 2bis. 🔴 Il tetto nominato viene dallo SNAPSHOT, non dalla portata nuda dell'unita' ---------
+	// Il difetto che questo caso chiude (`#1410`): il chiamante di produzione passava
+	// `GetEffectiveMoveRange()` mentre a rifiutare era il budget del PROFILO, che per [D-412] ne e' una
+	// percentuale. Sotto `Sprint` la riga prometteva un tetto di `5` dopo averne dichiarati spesi `10`.
+	//
+	// ⚠️ **Il budget qui e' `9`, diverso da quello degli altri casi**: e' cio' che distingue «lo legge dallo
+	// snapshot» da «porta un numero che per caso coincide». Con un solo valore in tutto il test, una
+	// costante cablata sarebbe indistinguibile dalla lettura giusta.
+	{
+		const FRTHexSnapshot Largo = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+			FRTHexSimUnit(0, Mia,  /*MoveBudget=*/ 9),
+			FRTHexSimUnit(1, Loro, /*MoveBudget=*/ 9)
+		});
+		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
+			Largo, Units, /*PlannerIndex=*/ 0, Mia, /*SpentCost=*/ 3);
+		TestTrue(*FString::Printf(TEXT("il tetto segue lo snapshot: %s"), *Riga), Riga.Contains(TEXT("3 di 9")));
+		TestFalse(*FString::Printf(TEXT("e non e' quello dell'altro snapshot: %s"), *Riga),
+			Riga.Contains(TEXT("3 di 4")));
+	}
+
 	// --- 3. Fuori mappa: soggetto = chi pianifica, ed e' corretto -------------------------------------
 	{
 		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
-			Snap, Units, /*PlannerIndex=*/ 0, FRTCellId(99, 99, 0), 0, 4);
+			Snap, Units, /*PlannerIndex=*/ 0, FRTCellId(99, 99, 0), 0);
 		TestTrue(*FString::Printf(TEXT("dice fuori dalla mappa: %s"), *Riga),
 			Riga.Contains(TEXT("fuori dalla mappa")));
 		TestTrue(*FString::Printf(TEXT("e nomina chi pianifica: %s"), *Riga), Riga.Contains(Chi->GetName()));
@@ -1363,7 +1383,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	{
 		const TArray<ARTUnit*> Monca = { Chi }; // l'occupante non ha un Actor a cui corrispondere
 		const FString Riga = ARTPlayerController::DescribeWaypointRejection(
-			Snap, Monca, /*PlannerIndex=*/ 0, Loro, 0, 4);
+			Snap, Monca, /*PlannerIndex=*/ 0, Loro, 0);
 		TestTrue(*FString::Printf(TEXT("resta un rifiuto per occupazione: %s"), *Riga),
 			Riga.Contains(TEXT("occupata da")));
 		TestFalse(*FString::Printf(TEXT("e NON attribuisce l'occupazione a chi pianifica: %s"), *Riga),

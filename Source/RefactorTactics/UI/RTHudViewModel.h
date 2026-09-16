@@ -285,6 +285,32 @@ struct FRTUnitSlotsView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bAuthorized = false;
+
+	/**
+	 * Il profilo con cui lo slot movimento sara' speso: `MovementProfile.Still` · `.Move` · `.Sprint`
+	 * · `.Withdraw` (`#1410` `AC-1`, [D-015]).
+	 *
+	 * 🔑 **E' la seconda decisione di movimento del giocatore, dopo la destinazione**, e finche' non
+	 * arriva qui il gesto esiste senza che si veda che cosa ha prodotto: `AC-1` chiede che il profilo
+	 * attivo sia visibile **prima del lock-in**, che e' l'unico momento in cui cambiarlo serve ancora.
+	 *
+	 * ⛔ **Si RICAVA dal piano, non dal campo dichiarato sull'unita'.** `ProfileForPlan` e' la stessa
+	 * autorita' che `MakeSimUnit` interroga per i due budget: leggere `PlannedMovementProfileId` qui
+	 * darebbe una seconda derivazione, e il giorno in cui le due divergessero la HUD mostrerebbe un
+	 * profilo con cui il turno non si risolve. → chi non ha mai toccato il selettore legge `Move` con
+	 * un percorso e `Still` senza, che e' cio' che il resolver fara'.
+	 *
+	 * ⚠️ **`None` quando `bAuthorized` e' falso**, e non e' un caso degenere: il profilo dichiarato e'
+	 * planning privato — `ARTUnit::PlannedMovementProfileId` non e' replicato apposta — e dire a un
+	 * avversario *«questa sprinta»* prima del lock-in gli anticipa la distanza che la simultaneita'
+	 * esiste per nascondere.
+	 *
+	 * ⛔ **Porta l'`FName` e nessuna etichetta.** I profili non dichiarano un nome leggibile, e
+	 * inventarne uno qui sarebbe il numero nuovo che `AC-6` vieta: quando una sede per le etichette
+	 * esistera', questo campo restera' la chiave con cui interrogarla.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName MovementProfileId;
 };
 
 /**

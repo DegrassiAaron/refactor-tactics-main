@@ -527,10 +527,16 @@ public:
 	 * @param PlannerIndex l'indice di chi sta pianificando: la sua cella non e' «occupata» per lui.
 	 * @param Cell         la cella cliccata.
 	 * @param SpentCost    quanto costa il percorso ancora valido (solo per il ramo del budget).
-	 * @param Budget       i punti movimento disponibili (solo per il ramo del budget).
+	 *
+	 * 🔴 **Il budget NON e' un parametro, e non lo e' piu' da `#1410`.** Lo legge dallo snapshot, che e'
+	 * l'autorita' che ha prodotto il rifiuto. Finche' arrivava da fuori, il chiamante di produzione
+	 * passava `GetEffectiveMoveRange()` — la portata **nuda** dell'unita' — mentre a rifiutare era il
+	 * budget del **profilo**, che per [D-412] ne e' una percentuale: sotto `Sprint` la riga prometteva
+	 * un tetto di `5` dopo averne spesi `10`. Un argomento che si puo' sbagliare si sbaglia; tolto
+	 * l'argomento, il difetto non e' piu' esprimibile.
 	 */
 	static FString DescribeWaypointRejection(const FRTHexSnapshot& Snapshot, const TArray<ARTUnit*>& Units,
-		int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost, int32 Budget);
+		int32 PlannerIndex, const FRTCellId& Cell, int32 SpentCost);
 
 	/**
 	 * Scarta dalla FINE i waypoint che non stanno nel budget del profilo, e restituisce quanti ne sono
