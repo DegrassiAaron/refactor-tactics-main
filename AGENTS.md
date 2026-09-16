@@ -405,7 +405,30 @@ Con Unreal Editor chiuso:
 
 `-Project` col percorso **virgolettato** e `-WaitMutex` non sono opzionali: senza il secondo, due build concorrenti si sovrascrivono gli oggetti intermedi.
 
-⚠️ Ricompilare mentre un altro checkout ha una suite in corso rende `NON VALIDA` la sua misura, per l'invariante «binario» qui sopra — [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529). Il guard che lo impediva è stato rimosso: verifica che nessuno stia misurando.
+> ⌫ **Questa riga diceva** *«Ricompilare mentre un altro checkout ha una suite in corso rende `NON VALIDA` la sua misura, per l'invariante binario qui sopra — [#2529](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2529)»*. **È la stessa premessa che §9 e §11 dichiarano falsa dal 2026-09-09** e che era già stata corretta là: `Binaries/` è **per clone**, quindi una build non riscrive il modulo che la suite di un altro checkout ha caricato. La correzione non era arrivata fin qui, e applicata alla lettera bloccava lavoro che poteva procedere.
+
+Cosa vale, e dove sta la misura:
+
+- **build in un clone + suite in un altro**: non si calpestano — §9, col ragionamento e i comandi;
+- **stesso clone**, qualunque combinazione: si calpestano, ed è una coda;
+- **misura di performance** in qualunque clone: aspetta, perché la contesa di CPU falsa i tempi;
+- **target Engine**: aspetta e avvisa, perché decade l'argomento di §9.
+
+🔴 **E c'è un caso che nessuna delle due sezioni copriva: un Editor INTERATTIVO blocca `Build.bat` su tutti i cloni.** Live Coding è un mutex di **macchina**, non di progetto. Misurato il 2026-09-11: con `UnrealEditor.exe` aperto sul clone principale per una seduta di authoring, una build in un **worktree diverso** è fallita dopo 35s con
+
+```
+Unable to build while Live Coding is active. Exit the editor and game,
+or press Ctrl+Alt+F11 if iterating on code in the editor or game
+Result: Failed (OtherCompilationError)
+```
+
+⚠️ **La distinzione non è fra cloni, è fra Editor interattivo e run headless**: una suite parte con `-NoLiveCoding` e non blocca nessuno; un Editor aperto senza quel flag blocca tutti. ∴ **per una seduta di authoring asset passa `-NoLiveCoding`** — l'MCP non ne ha bisogno, Live Coding serve a ricompilare C++ senza riavviare — e gli altri possono continuare a compilare. Chi trova una build rifiutata così non cerchi il proprio clone: cerchi l'Editor, con
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
+```
+
+⛔ **E non lo chiuda da fuori**: chi authora asset ha lavoro non salvato in memoria, e un Editor chiuso dall'esterno lo porta via — vedi §11 *«Prendere il motore, senza un lease»*.
 
 ### Tooling locale
 
