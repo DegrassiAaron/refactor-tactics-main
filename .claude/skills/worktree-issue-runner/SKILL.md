@@ -301,20 +301,26 @@ says **which session**. Those three decide whether you wait.
 session's own scratchpad directory. A process that dies takes its declaration with it; a lock file would
 not.
 
-⛔ **The wait table is not repeated here.** It lives in [`AGENTS.md`](../../../AGENTS.md)
-§11 *«Prendere il motore, senza un lease»*, which owns it — read it there and follow it.
+⛔ **Default: wait.** The one case you can act on **without reading further** is a build or suite in
+another clone (§9, and the 🔑 below). Everything else — performance, same clone, an interactive Editor
+**anywhere**, an Engine target, `LiveCodingConsole` — is in [`AGENTS.md`](../../../AGENTS.md) §11
+*«Prendere il motore, senza un lease»*, which owns the list **including the cases where the answer is
+«don't wait»**. ⚠️ One of those is an **orphaned** `LiveCodingConsole`: there «wait» is not safe, it is
+stuck — nobody will release it.
 
-⌫ **This section carried its own copy until 2026-09-16, and the copy had diverged.** Two of its rows
-were false: *«build or suite in another clone → do not wait»* read as covering an interactive Editor
-too, and *«interactive Editor on **your** clone → it holds the DLL»* implied that an Editor in another
-clone does not block. It does, and the mechanism is not the DLL: **Live Coding is a machine-wide mutex**,
-so an interactive Editor anywhere makes `Build.bat` fail in every clone. Measured twice — 2026-09-11
-(`AGENTS.md` §*Build Editor*) and again 2026-09-16, independently, by a session whose build returned
-`exit 6` while another clone held an Editor, then passed once that Editor used `-NoLiveCoding`.
+🔑 **The mechanism, because the precondition below depends on it.** The Live Coding lock is keyed on
+`Global\LiveCoding_` **+ the engine executable path** (`HotReload.cs`), **not** on the `.uproject`. For a
+project target against an installed build that path is shared by every checkout — so an interactive
+Editor **anywhere** makes `Build.bat` fail in **every** clone, and `-NoLiveCoding` is what lets one stay
+open without blocking the others. ⚠️ It collides *if and only if* you resolve to the same engine
+binary, which is why the `InstalledBuild.txt` caveat below is the same statement and not an extra caution.
 
-🔑 **The copy is what allowed the divergence**, and it went unnoticed for five days. The fix is not
-a better table: it is **one table**. The owner's version also carries two `LiveCodingConsole` rows —
-parent alive against orphaned — that this copy never had.
+⌫ **This section carried its own copy of that table until 2026-09-16, and the copy had diverged.** One
+row was false — *«interactive Editor on **your** clone → it holds the DLL»*, wrong in both scope and
+mechanism — and a second could be **misread** as covering an Editor. The copy also never had the two
+`LiveCodingConsole` rows, parent alive against orphaned: they are the ones that stop a `UnrealEditor%`
+filter from reporting a free engine while the build stays blocked. Measured 2026-09-11, `AGENTS.md`
+§*Build Editor*. The fix is not a better table: it is **one** table.
 
 🔑 **A build in clone A does not invalidate a suite in clone B.** `Binaries/` is per clone and the engine
 is an *installed build* (`Engine/Build/InstalledBuild.txt`), so a project target cannot rewrite Engine
