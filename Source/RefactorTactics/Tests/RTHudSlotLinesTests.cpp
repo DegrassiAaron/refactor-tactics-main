@@ -253,8 +253,18 @@ bool FRTHUDEveryCatalogProfileHasAReadingTest::RunTest(const FString&)
 		else
 		{
 			// 🔴 Il cuore: un profilo a catalogo che nessuno ha dichiarato liscio DEVE avere una resa.
+			//
+			// ⚠️ **Il messaggio nomina la CONDIZIONE, non l'esito voluto**, e su un `TestFalse` la
+			// differenza si vede solo nel log: la macro stampa *«Expected '<msg>' to be false»*, quindi un
+			// messaggio scritto *«X ha una resa»* produce *«Expected 'X ha una resa' to be false»* — cioe'
+			// l'opposto del punto, davanti a chi sta cercando di capire cosa ha rotto.
+			//
+			// ⏱️ *Era scritto cosi' fino al 2026-09-16*, e l'ha visto una review esterna leggendo il log
+			// della mutazione invece del sorgente. 🔑 Qui pesa piu' del solito: il valore di questo test e'
+			// per intero la frase che legge il prossimo — la stessa ragione per cui la riga di
+			// `DescribeMovementProfile` era dannosa invece che soltanto inutile.
 			TestFalse(*FString::Printf(
-					TEXT("%s ha una resa: se e' nuovo, aggiungila in DescribeMovementProfile o "
+					TEXT("la resa di %s e' vuota: se e' nuovo, aggiungila in DescribeMovementProfile o "
 						 "dichiaralo liscio qui"), *Profilo.Id.ToString()),
 				Resa.IsEmpty());
 			++ConResa;
