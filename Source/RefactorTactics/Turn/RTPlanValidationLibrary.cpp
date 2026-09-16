@@ -3,6 +3,8 @@
 
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
+#include "Core/RTGameplayTags.h" // Unbalanced: [D-319] nega la CORSA, che dal 2026-09-16 e' una distanza
+#include "Map/RTHexLibrary.h"    // HexDistance: i passi di chi dichiara la sola destinazione (il bot)
 #include "Unit/RTUnit.h"
 
 namespace
@@ -91,18 +93,57 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 		// preview della HUD a ogni click, il bot a ogni turno), quindi quell'allocazione cadrebbe una volta
 		// per unita' che si muove. E' lo stesso rimedio, per la stessa causa, gia' applicato a
 		// `GetReactionProfileCatalog` dopo una misura di code review.
-		// 🔑 **Il PROFILO dichiarato decide quale azione di movimento entra nel piano** (`#1410`, [D-401]).
-		// Il giocatore sceglie un profilo; il piano porta un'azione, ed e' `FindActionForProfile` a fare la
-		// conversione — l'inversa di `FRTActionDef::MovementProfileId`, in un punto solo.
+		// 🔑 **Il profilo si DERIVA da quanto si e' pianificato** ([D-425]), e questo e' il punto unico in
+		// cui la derivazione avviene. Tutto cio' che sta a valle — `ProfileForPlan`, i due budget dello
+		// snapshot, la voce del TurnLog, la HUD — legge il risultato da qui invece di ricalcolarlo, che e'
+		// la ragione per cui non ci sono due risposte alla domanda «con che andatura si muove».
 		//
-		// ⚠️ **`NAME_None` significa «il neutro», e la traduzione avviene QUI.** Il campo sull'unita' nasce
-		// vuoto, e un'unita' deserializzata da un salvataggio anteriore a `#1410` lo trova vuoto comunque:
-		// tradurlo in un punto solo e' cio' che rende vero *«chi non ha mai toccato il selettore si muove
-		// come prima»*, senza che ogni lettore debba conoscere un terzo caso.
-		const FName DeclaredProfile = Unit->PlannedMovementProfileId;
-		const FRTActionDef Movement = DeclaredProfile.IsNone()
-			? URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"))
-			: URTMovementProfileLibrary::FindActionForProfile(DeclaredProfile);
+		// ⏱️ *Fino al 2026-09-15 il profilo era DICHIARATO*: il giocatore ciclava fra quattro etichette e
+		// questa riga traduceva la sua scelta in un'azione. [D-425] ha rovesciato la derivazione — da
+		// *profilo → azione → budget* a *distanza → banda* — dopo una sonda sul corpus golden che ha
+		// mostrato che il selettore chiedeva al giocatore di dichiarare cio' che il suo percorso gia' diceva.
+		//
+		// ⚠️ **I passi si leggono dal PERCORSO quando c'e', e dalla distanza quando non c'e'.** Le due fonti
+		// non sono equivalenti e nessuna copre l'altra: player e harness scrivono `PlannedPath`, il bot
+		// dichiara la sola `PlannedCell` e il suo percorso nasce dentro la fase Move
+		// (`RTTurnManager_Movement.cpp`). ⛔ Qui NON si ricostruisce il percorso: `MakePlanFor` e' il
+		// compositore che la HUD chiama a ogni click, e un pathfinding per click sarebbe il costo che il
+		// `static const` poche righe sopra esiste per evitare. La distanza esagonale e' un limite INFERIORE
+		// ai passi reali — un percorso che aggira costa di piu', mai di meno — quindi puo' far leggere
+		// `Move` dove il percorso reale dira' `Sprint`, e mai il contrario: sbaglia verso il prezzo piu'
+		// alto per nessuno, non verso il piu' basso per qualcuno.
+		const int32 PlannedSteps = Unit->PlannedPath.Num() >= 2
+			? Unit->PlannedPath.Num() - 1
+			: URTHexLibrary::HexDistance(Unit->Cell, Unit->PlannedCell);
+
+		// ⚠️ **`ReservedProfileForPlan(Plan)` legge il piano COSTRUITO FIN QUI**, cioe' le tre abilita'
+		// aggiunte sopra e non la voce di movimento che stiamo per aggiungere. Non e' un ordine fragile: e'
+		// l'unico che chiude il cerchio, perche' cio' che riserva lo slot movimento e' sempre un'ALTRA
+		// azione del piano ([D-070]).
+		const FRTMovementProfile Band = URTMovementProfileLibrary::ProfileForPlannedSteps(
+			PlannedSteps,
+			Unit->GetEffectiveMoveRange(),
+			Unit->PlannedMovementProfileId,
+			URTMovementProfileLibrary::ReservedProfileForPlan(Plan),
+			Unit->HasStatus(TAG_Status_Unbalanced));
+
+		// L'azione che porta la banda, quando ce n'e' una: `Action.Sprint` e `Action.Withdraw` la nominano,
+		// ed e' da loro che vengono i PREZZI della banda — `Status.Exposed` per due turni e nessuna reazione
+		// ([D-116]). Chi si limita a camminare, e chi sguscia, porta `Action.Move`.
+		//
+		// ⛔ **`Sneak` non ha un'azione, e non deve averne una** ([D-425]): si dichiara, non si nomina. La
+		// voce porta `Action.Move` con il profilo stampato sopra, ed e' il profilo — non l'azione — a dire
+		// al resolver con che misura si muove.
+		FRTActionDef Movement = URTMovementProfileLibrary::FindActionForProfile(Band.Id);
+		if (Movement.ActionId.IsNone())
+		{
+			Movement = URTCatalogLibrary::FindCoreAction(TEXT("Action.Move"));
+		}
+		// 🔑 **Il profilo viaggia come DATO della voce, non come identita' dell'azione.** E' cio' che rende
+		// vera la clausola di [D-425] *«senza che nessuna azione la nomini»* senza toccare il formato: chi
+		// legge il piano trova `MovementProfileId` dov'e' sempre stato, e il catalogo non cresce di una voce
+		// per ogni andatura.
+		Movement.MovementProfileId = Band.Id;
 
 		if (!Movement.ActionId.IsNone())
 		{
@@ -110,10 +151,6 @@ TArray<FRTPlannedAction> URTPlanValidationLibrary::MakePlanFor(const ARTUnit* Un
 			Entry.Def = Movement;
 			Plan.Add(Entry);
 		}
-		// ⛔ Un profilo dichiarato che nessuna azione nomina **non** ripiega sul `Move`: la voce non si
-		// aggiunge, esattamente come per un'abilita' senza `ActionId` qui sopra. Ripiegare darebbe al
-		// giocatore il budget del neutro dopo avergli mostrato un'altra scelta, che e' peggio del non
-		// muoversi — e il posto dove quel difetto deve farsi vedere e' il test del catalogo.
 	}
 
 	return Plan;

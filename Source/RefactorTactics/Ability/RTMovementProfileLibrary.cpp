@@ -168,32 +168,120 @@ FRTActionDef URTMovementProfileLibrary::FindActionForProfile(FName ProfileId)
 	return Found ? *Found : FRTActionDef();
 }
 
-TArray<FRTMovementProfile> URTMovementProfileLibrary::OfferableProfiles()
+namespace
 {
-	TArray<FRTMovementProfile> Offerable;
-	for (const FRTMovementProfile& Profile : GetCoreMovementProfileCatalog())
+	/**
+	 * Il profilo che una **dichiarazione** o una **riserva** nomina, o un profilo vuoto quando non ce n'e'
+	 * nessuna — cioe' quando il tetto e' quello nudo.
+	 *
+	 * La riserva vince sulla dichiarazione, ed e' l'ordine di [D-425] punto (1): l'`Overwatch` riserva lo
+	 * slot movimento al `Withdraw` ([D-070]), e chi ha armato non sceglie di sgusciare.
+	 *
+	 * ⚠️ **Un `Id` che il catalogo non conosce si comporta come «nessuna dichiarazione», e non solleva
+	 * niente**: e' la stessa scelta PERMISSIVA che `ProfileForPlan` dichiara poche righe sopra — un `Id`
+	 * scritto male e' un difetto di catalogo, e il posto in cui deve farsi vedere e' il test del catalogo,
+	 * non la partita di qualcuno.
+	 *
+	 * ⛔ **Una corsa dichiarata mentre la corsa e' negata non e' un tetto**, e cade qui invece che nei
+	 * chiamanti: [D-319] nega l'andatura, e un tetto che restasse in piedi la concederebbe per la porta di
+	 * servizio. Oggi nessuna dichiarazione e' una corsa — si dichiara il solo `Sneak` — e la riga vale per
+	 * il giorno in cui una lo fosse.
+	 */
+	FRTMovementProfile DeclaredOrImposedCeiling(FName DeclaredProfileId, FName ReservedProfileId,
+		bool bRunDenied)
 	{
-		// Senza numeri non si sceglie: `Sneak` (`AE-5`).
-		if (!Profile.bPlannable)
+		// ⚠️ **I due canali non accettano lo stesso insieme, ed e' l'`AC-4` di `#1410`.** La RISERVA vale
+		// per qualunque profilo un'azione dichiari di imporre — chi la scrive e' il catalogo, non il
+		// giocatore. La DICHIARAZIONE passa da `IsDeclarableProfile`, senza il quale scrivere
+		// `MovementProfile.Sprint` nel campo del piano sarebbe un canale per dichiarare la corsa: cioe'
+		// esattamente cio' che [D-425] toglie, rientrato dalla porta di servizio.
+		const FRTMovementProfile Imposed = URTMovementProfileLibrary::FindProfile(ReservedProfileId);
+		const FRTMovementProfile Declared =
+			URTMovementProfileLibrary::IsDeclarableProfile(DeclaredProfileId)
+				? URTMovementProfileLibrary::FindProfile(DeclaredProfileId)
+				: FRTMovementProfile();
+
+		for (const FRTMovementProfile& Candidate : { Imposed, Declared })
 		{
-			continue;
+			if (Candidate.IsValid() && !(bRunDenied && Candidate.bIsRun))
+			{
+				return Candidate;
+			}
 		}
-		// `Still` e' DERIVATO — lo produce l'assenza di waypoint — e `Withdraw` e' RISERVATO: lo impone
-		// l'`Overwatch` ([D-070]). Due esclusioni, due ragioni diverse, e chi le comunica non deve
-		// confonderle (`#1410` `AC-4`).
-		if (Profile.Id == ProfileStill || Profile.Id == ProfileWithdraw)
-		{
-			continue;
-		}
-		// ⛔ Un profilo che nessuna azione nomina non e' raggiungibile dal piano: offrirlo mostrerebbe una
-		// scelta che non arriva mai al resolver.
-		if (FindActionForProfile(Profile.Id).ActionId.IsNone())
-		{
-			continue;
-		}
-		Offerable.Add(Profile);
+		return FRTMovementProfile();
 	}
-	return Offerable;
+}
+
+bool URTMovementProfileLibrary::IsDeclarableProfile(FName ProfileId)
+{
+	// ⛔ **Un nome solo, e sta qui.** Un predicato che elencasse le quattro esclusioni si romperebbe in
+	// silenzio il giorno in cui un sesto profilo entrasse nel catalogo: nascerebbe dichiarabile senza che
+	// nessuno lo avesse deciso. Elencare invece cio' che si dichiara fa nascere il nuovo **non**
+	// dichiarabile, che e' il default giusto — e obbliga chi lo vuole offrire a passare di qui.
+	return ProfileId == ProfileSneak;
+}
+
+FRTMovementProfile URTMovementProfileLibrary::CeilingProfile(FName DeclaredProfileId,
+	FName ReservedProfileId, bool bRunDenied)
+{
+	const FRTMovementProfile Named =
+		DeclaredOrImposedCeiling(DeclaredProfileId, ReservedProfileId, bRunDenied);
+	if (Named.IsValid())
+	{
+		return Named;
+	}
+
+	// Il tetto NUDO e' `Sprint`, cioe' **2×** ([D-425] punto (9)): tutte le bande sono raggiungibili senza
+	// dichiarare niente, e superare `1×` fa scattare da se' i prezzi che lo Sprint gia' porta —
+	// `Status.Exposed` per due turni e nessuna reazione. ⛔ Con `Move` la banda alta sarebbe irraggiungibile
+	// col movimento normale, cioe' una banda che non e' una banda: e' l'alternativa che [D-425] scarta.
+	//
+	// ⚠️ **E con la corsa negata il nudo scende a `Move`** ([D-319]): non si rifiuta una dichiarazione —
+	// non ce n'e' una — si toglie la distanza che rendeva quella banda raggiungibile.
+	return FindProfile(bRunDenied ? ProfileMove : ProfileSprint);
+}
+
+FRTMovementProfile URTMovementProfileLibrary::ProfileForPlannedSteps(int32 PlannedSteps,
+	int32 UnitMoveRange, FName DeclaredProfileId, FName ReservedProfileId, bool bRunDenied)
+{
+	// (a)+(b) Un tetto imposto o dichiarato **e'** il profilo, e sopra di esso non si legge nessuna banda:
+	// chi ripiega ripiega anche di un passo solo, e chi sguscia sguscia. E' la meta' di [D-425] punto (2)
+	// per cui questi due si DICHIARANO invece di essere letti — e la ragione per cui le bande `¼` e `½` si
+	// sovrappongono in basso senza che la distanza debba separarle.
+	const FRTMovementProfile Named =
+		DeclaredOrImposedCeiling(DeclaredProfileId, ReservedProfileId, bRunDenied);
+	if (Named.IsValid())
+	{
+		return Named;
+	}
+
+	// (c) Nessun passo pianificato: `Still`. E' la lettura di «non ho pianificato movimento», non una
+	// scelta — la ragione per cui non si offre da nessuna parte (`#1410` `AC-4`).
+	const int32 Steps = FMath::Max(0, PlannedSteps);
+	if (Steps == 0)
+	{
+		return FindProfile(ProfileStill);
+	}
+
+	// (d) La banda, letta sui passi CLAMPATI al tetto.
+	//
+	// 🔑 **Il clamp non e' una difesa, e' la giuntura fra le due meta'.** `TruncatePathToBudget` accorcia
+	// il percorso al budget FRESCO al momento della risoluzione; senza il clamp, un piano scritto quando il
+	// tetto era piu' alto — o da un'unita' diventata `Unbalanced` dopo averlo scritto — leggerebbe qui la
+	// banda `Sprint`, e l'unita' pagherebbe `Status.Exposed` per una corsa che il troncamento le ha gia'
+	// tolto. Le due riduzioni devono essere la stessa riduzione.
+	const FRTMovementProfile Ceiling = CeilingProfile(DeclaredProfileId, ReservedProfileId, bRunDenied);
+	const int32 Capped = FMath::Min(Steps, Ceiling.ResolveStepBudget(UnitMoveRange));
+
+	const FRTMovementProfile Walk = FindProfile(ProfileMove);
+	if (Capped <= Walk.ResolveStepBudget(UnitMoveRange))
+	{
+		return Walk;
+	}
+	// ⛔ **Oltre `1×` si legge `Sprint`, e una distanza oltre OGNI tetto la legge comunque.** Non dovrebbe
+	// accadere — il troncamento la previene — ma dire «cammino» di un percorso che nessun tetto copre
+	// nasconderebbe il difetto invece di mostrarlo, e il prezzo sbagliato sarebbe quello piu' basso.
+	return FindProfile(ProfileSprint);
 }
 
 

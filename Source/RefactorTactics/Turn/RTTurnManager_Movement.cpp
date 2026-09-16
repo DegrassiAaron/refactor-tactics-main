@@ -24,6 +24,7 @@
 #include "Turn/RTActionQueueLibrary.h"
 #include "Turn/RTActionEffectLibrary.h"
 #include "Turn/RTPlanValidationLibrary.h"
+#include "Ability/RTMovementProfileLibrary.h" // la BANDA di [D-425], congelata a inizio risoluzione
 #include "Turn/RTActionFallbackLibrary.h"
 #include "Turn/RTMovementActionLibrary.h"
 #include "Turn/RTReactionLibrary.h"
@@ -127,6 +128,12 @@ void ARTTurnManager::BeginMovementResolution()
 	// La destinazione richiesta e negata, per indice. Viaggia accanto al flag e non dentro `Ctx.Paths`: in
 	// `Ctx.Paths` sarebbe una cella che qualcuno potrebbe percorrere, e nessuno l'ha percorsa.
 	Ctx.DeniedDestination.Init(FRTCellId(), Units.Num());
+	// La BANDA di movimento, congelata qui ([D-425]). Si legge dal piano PRIMA che la risoluzione lo
+	// consumi, per la stessa ragione per cui `Ctx.Paths` porta i percorsi invece di rileggerli alla fine:
+	// `FinishMovementResolution` troverebbe `PlannedPath` gia' svuotato e scriverebbe `Still` nel TurnLog
+	// di chi si e' mosso. ⚠️ `Init` e non `Add` in coda: l'indice deve restare quello di `Units` anche se un
+	// ramo del ciclo esce prima di accodare.
+	Ctx.MovementProfiles.Init(NAME_None, Units.Num());
 	// Quanto di ogni percorso il GIOCATORE ha chiesto, e se il terreno voleva portare l'unita' oltre
 	// (`#2314`). E' l'informazione che il resolver non puo' ricostruire — riceve un percorso gia' esteso e
 	// non sa che l'ultima cella non era pianificata — e che solo questo ciclo possiede, perche' e' qui che
@@ -142,6 +149,16 @@ void ARTTurnManager::BeginMovementResolution()
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
+
+		// 🔑 **La banda si congela QUI, sul piano ancora intatto** ([D-425]). E' la stessa autorita' che ha
+		// dato il budget allo snapshot poche righe sopra — `MakePlanFor` compone, `ProfileForPlan` legge —
+		// quindi la voce del TurnLog e i prezzi pagati dall'azione vengono dalla stessa derivazione, e non
+		// possono divergere.
+		if (IsValid(Unit))
+		{
+			Ctx.MovementProfiles[i] = URTMovementProfileLibrary::ProfileForPlan(
+				URTPlanValidationLibrary::MakePlanFor(Unit)).Id;
+		}
 
 		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata
 		// verso la destinazione singola. La validazione e' AUTOREVOLE e passa dallo strato puro esagonale:
@@ -1277,11 +1294,21 @@ void ARTTurnManager::FinishMovementResolution()
 		// non una traccia esistente che cambia significato. Nessun bump di `ERTTurnLogFormatVersion`.
 		if (Units.IsValidIndex(i) && IsValid(Units[i]))
 		{
-			const FName Declared = Units[i]->PlannedMovementProfileId;
+			// ⏱️ *Fino al 2026-09-15 si leggeva `PlannedMovementProfileId`, il profilo DICHIARATO.* Con
+			// [D-425] il profilo si **deriva**, e la derivazione e' congelata in `Ctx.MovementProfiles` da
+			// `BeginMovementResolution` — dove il piano era ancora intatto.
+			const FName Band = Ctx.MovementProfiles.IsValidIndex(i)
+				? Ctx.MovementProfiles[i]
+				: NAME_None;
 			MoveLog[i].BaseActionId = MoveCauseActionId;
-			MoveLog[i].ActionId = Declared.IsNone()
+			// ⛔ **La banda NEUTRA riscrive `Action.Move`, non `MovementProfile.Move`, e non e' cosmesi**:
+			// l'`ActionId` entra nell'hash della traccia, e ogni voce di movimento gia' registrata porta
+			// `Action.Move`. Scriverci il nome del profilo muoverebbe il digest di chi cammina — cioe' di
+			// tutti — ed e' esattamente il costo che [D-425] punto (6) misura essere zero.
+			MoveLog[i].ActionId = (Band.IsNone() || Band == URTMovementProfileLibrary::ProfileMove
+					|| Band == URTMovementProfileLibrary::ProfileStill)
 				? MoveCauseActionId
-				: Declared;
+				: Band;
 		}
 
 		AppendLogEntry(MoveLog[i], Units.IsValidIndex(i) ? Units[i] : nullptr);

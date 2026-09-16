@@ -80,6 +80,19 @@ struct FRTMovementResolutionContext
 	/** I percorsi come il turno li ha pianificati, per `BuildMoveLog`. */
 	TArray<TArray<FRTCellId>> Paths;
 
+	/**
+	 * La **banda di movimento** di ogni unita', congelata quando il piano e' stato letto ([D-425]).
+	 *
+	 * 🔑 **Viaggia qui e non si ricalcola alla fine, ed e' la stessa ragione di `Paths`.** La banda si
+	 * deriva da `ARTUnit::PlannedPath`, che fra l'inizio e la fine della risoluzione puo' essere consumato:
+	 * rileggerlo in `FinishMovementResolution` darebbe `Still` a chi si e' mosso, cioe' una voce di TurnLog
+	 * che contraddice il movimento che descrive.
+	 *
+	 * ⚠️ **`NAME_None` per chi non si muove**, e la voce del log ricade sul proprio `ActionId` generico —
+	 * non e' un profilo mancante, e' l'assenza di un piano di movimento.
+	 */
+	TArray<FName> MovementProfiles;
+
 	/** Chi e' stato accorciato dalla TOPOLOGIA: il resolver non puo' saperlo, questo ciclo si'. */
 	TArray<bool> bStoppedByTopology;
 
