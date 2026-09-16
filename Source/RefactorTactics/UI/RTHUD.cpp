@@ -5,6 +5,7 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTActionData.h"
+#include "Ability/RTMovementProfileLibrary.h" // l'andatura di [D-425]: si legge, non si dichiara
 #include "Player/RTPlayerState.h"
 #include "Player/RTPlayerController.h" // #3115: GetSelectedUnit — quale piano si sta scrivendo adesso
 #include "Turn/RTTurnManager.h"
@@ -331,10 +332,50 @@ namespace
 	}
 }
 
+FText ARTHUD::DescribeMovementProfile(FName MovementProfileId)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	// Il RIPIEGAMENTO non e' un percorso con un aggettivo: l'`Overwatch` lo impone al posto del movimento
+	// normale ([D-070]), e chiamarlo «percorso, ripiegando» direbbe che e' un cammino svolto in un certo
+	// modo. E' la ragione per cui questa funzione rende il descrittore INTERO.
+	if (MovementProfileId == Lib::ProfileWithdraw)
+	{
+		return NSLOCTEXT("RTHud", "MovementProfileWithdraw", "ripiegamento");
+	}
+	// Le due andature che DEVIANO dal cammino: una causata dalla distanza, una dichiarata col tasto.
+	if (MovementProfileId == Lib::ProfileSprint)
+	{
+		return NSLOCTEXT("RTHud", "MovementProfileSprint", "percorso, di corsa");
+	}
+	if (MovementProfileId == Lib::ProfileSneak)
+	{
+		return NSLOCTEXT("RTHud", "MovementProfileSneak", "percorso, furtivo");
+	}
+
+	// ⛔ **`Move`, `Still`, `NAME_None` e qualunque id sconosciuto rendono VUOTO, e il ramo e' uno solo.**
+	// Il cammino e' il caso normale e non si nomina; il fermo lo dice gia' «Movimento: libero». Un id che
+	// il catalogo non conosce ricade qui invece di stampare se stesso: un `FName` grezzo a schermo sarebbe
+	// un difetto di catalogo trasformato in testo per il giocatore, e il posto dove deve farsi vedere e' il
+	// test del catalogo. La scelta e' la stessa, permissiva, di `ProfileForPlan`.
+	return FText::GetEmpty();
+}
+
 TArray<FRTSlotLine> ARTHUD::ComposeSlotLines(const FRTUnitSlotsView& Slots)
 {
+	// 🔑 **L'andatura raffina il descrittore dello slot movimento, e non aggiunge una quarta riga.** Gli
+	// slot sono TRE ([D-028]): una riga in piu' direbbe che ce n'e' un quarto. E si innesta esattamente su
+	// `BusyWithoutName`, il parametro che il docstring di `ComposeOneSlotLine` gia' dichiara diverso per
+	// slot e non costante — *«sul movimento e' un percorso tracciato a waypoint»*.
+	//
+	// ⚠️ **Non scavalca il nome dell'azione.** `ComposeOneSlotLine` preferisce `DisplayName` quando c'e',
+	// quindi una mobilita' che occupa lo slot continua a chiamarsi col proprio nome: l'andatura parla solo
+	// del movimento senza nome, che e' il caso di cui [D-425] si occupa.
+	const FText Andatura = DescribeMovementProfile(Slots.MovementProfileId);
+	const FString Movimento = Andatura.IsEmpty() ? FString(TEXT("percorso")) : Andatura.ToString();
+
 	return {
-		ComposeOneSlotLine(TEXT("Movimento"),  TEXT("percorso"),  Slots.Movement),
+		ComposeOneSlotLine(TEXT("Movimento"),  *Movimento,        Slots.Movement),
 		ComposeOneSlotLine(TEXT("Principale"), TEXT("occupata"),  Slots.Main),
 		ComposeOneSlotLine(TEXT("Reazione"),   TEXT("armata"),    Slots.Reaction),
 	};

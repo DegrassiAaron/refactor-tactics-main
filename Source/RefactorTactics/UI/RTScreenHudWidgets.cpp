@@ -381,6 +381,12 @@ FRTUnitSlotsView URTSelectedUnitPanelWidget::GetSlots() const
 	return FRTUnitSlotsView{};
 }
 
+FText URTSelectedUnitPanelWidget::GetMovementProfileText() const
+{
+	// Nessuna regola qui: la sede e' `ARTHUD::DescribeMovementProfile`, e questa e' la porta per UMG.
+	return ARTHUD::DescribeMovementProfile(GetSlots().MovementProfileId);
+}
+
 // =====================================================================================================
 // Action dock
 // =====================================================================================================
