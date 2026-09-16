@@ -356,8 +356,19 @@ FText ARTHUD::DescribeMovementProfile(FName MovementProfileId)
 	// ⛔ **`Move`, `Still`, `NAME_None` e qualunque id sconosciuto rendono VUOTO, e il ramo e' uno solo.**
 	// Il cammino e' il caso normale e non si nomina; il fermo lo dice gia' «Movimento: libero». Un id che
 	// il catalogo non conosce ricade qui invece di stampare se stesso: un `FName` grezzo a schermo sarebbe
-	// un difetto di catalogo trasformato in testo per il giocatore, e il posto dove deve farsi vedere e' il
-	// test del catalogo. La scelta e' la stessa, permissiva, di `ProfileForPlan`.
+	// un difetto di catalogo trasformato in testo per il giocatore. La scelta e' la stessa, permissiva, di
+	// `ProfileForPlan`.
+	//
+	// ⏱️ *Fino al 2026-09-16 questa riga diceva «il posto dove deve farsi vedere e' il test del catalogo».*
+	// 🔴 **Era FALSA, e la falsita' era attiva**: nessun test collegava il catalogo a questo `switch`, quindi
+	// un profilo NUOVO sarebbe entrato a catalogo, avrebbe passato il test del catalogo — che verifica
+	// `Sprint` e `Withdraw` **per nome** e non itera — e si sarebbe letto «percorso» liscio senza che niente
+	// fallisse. Un test che manca lascia il lettore a cercare; una frase che dichiara la copertura lo
+	// **ferma**. Trovata da una review esterna, non da una rilettura dell'autore.
+	//
+	// ✅ Il collegamento adesso esiste: `HUD.EveryCatalogProfileHasAReading` itera
+	// `GetCoreMovementProfileCatalog()` e pretende che ogni profilo abbia una resa non vuota **oppure** sia
+	// in un elenco esplicito di «volutamente lisci». Un sesto profilo non passa piu' in silenzio.
 	return FText::GetEmpty();
 }
 
