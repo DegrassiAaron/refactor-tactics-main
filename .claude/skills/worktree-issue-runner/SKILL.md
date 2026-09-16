@@ -301,10 +301,12 @@ says **which session**. Those three decide whether you wait.
 session's own scratchpad directory. A process that dies takes its declaration with it; a lock file would
 not.
 
-⛔ **Default: wait.** The only case where you do **not** is a **build or suite in another clone** (§9,
-and the 🔑 below). Every other combination — performance, same clone, an interactive Editor
-**anywhere**, an Engine target, `LiveCodingConsole` — lives in [`AGENTS.md`](../../../AGENTS.md) §11
-*«Prendere il motore, senza un lease»*, which owns it. Read it there before you take the engine.
+⛔ **Default: wait.** The one case you can act on **without reading further** is a build or suite in
+another clone (§9, and the 🔑 below). Everything else — performance, same clone, an interactive Editor
+**anywhere**, an Engine target, `LiveCodingConsole` — is in [`AGENTS.md`](../../../AGENTS.md) §11
+*«Prendere il motore, senza un lease»*, which owns the list **including the cases where the answer is
+«don't wait»**. ⚠️ One of those is an **orphaned** `LiveCodingConsole`: there «wait» is not safe, it is
+stuck — nobody will release it.
 
 🔑 **The mechanism, because the precondition below depends on it.** The Live Coding lock is keyed on
 `Global\LiveCoding_` **+ the engine executable path** (`HotReload.cs`), **not** on the `.uproject`. For a
