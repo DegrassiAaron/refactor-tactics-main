@@ -387,6 +387,12 @@ FText URTSelectedUnitPanelWidget::GetMovementProfileText() const
 	return ARTHUD::DescribeMovementProfile(GetSlots().MovementProfileId);
 }
 
+FText URTSelectedUnitPanelWidget::GetMovementSlotText() const
+{
+	// Nessuna regola qui: la sede e' `ARTHUD::DescribeMovementSlot`, la stessa da cui il Canvas compone.
+	return ARTHUD::DescribeMovementSlot(GetSlots());
+}
+
 // =====================================================================================================
 // Action dock
 // =====================================================================================================

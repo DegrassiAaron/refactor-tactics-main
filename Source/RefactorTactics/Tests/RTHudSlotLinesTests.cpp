@@ -290,4 +290,70 @@ bool FRTHUDEveryCatalogProfileHasAReadingTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * LA SEDE E' UNA: la riga del Canvas si compone da `DescribeMovementSlot`, non da una regola parallela.
+ *
+ * 🔴 **Il difetto che questo test chiude esisteva prima di [D-425].** Il pannello `WBP_RT_SelectedUnitPanel`
+ * legava `GetSlots()` e mostrava il `DisplayName` grezzo, mentre `ComposeSlotLines` componeva la riga:
+ * due rese dello stesso fatto, gia' divergenti, e l'andatura sarebbe stata la terza. Ora entrambe passano
+ * da `DescribeMovementSlot` — il Canvas qui, il widget via `GetMovementSlotText()`.
+ *
+ * ⛔ **Non si puo' istanziare il widget headless**, quindi il legame si verifica dove e' verificabile: la
+ * riga del Canvas deve CONTENERE il contenuto della sede unica. Se qualcuno reintroducesse una
+ * composizione parallela in `ComposeSlotLines`, il contenimento cadrebbe. E' meno di una prova
+ * end-to-end e piu' di niente, ed e' dichiarato invece di essere spacciato per l'una.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHUDCanvasComposesFromTheSingleSeatTest,
+	"RefactorTactics.HUD.CanvasAndPanelShareTheMovementSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHUDCanvasComposesFromTheSingleSeatTest::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	auto Verifica = [this](const TCHAR* Caso, const FRTUnitSlotsView& Slots)
+	{
+		const FString Riga = ARTHUD::ComposeSlotLines(Slots)[0].Text;
+		const FString Sede = ARTHUD::DescribeMovementSlot(Slots).ToString();
+		TestFalse(*FString::Printf(TEXT("%s: la sede unica non e' vuota"), Caso), Sede.IsEmpty());
+		TestTrue(*FString::Printf(TEXT("%s: la riga del Canvas contiene la sede unica (\"%s\" in \"%s\")"),
+				Caso, *Sede, *Riga),
+			Riga.Contains(Sede));
+	};
+
+	// Slot libero.
+	FRTUnitSlotsView Libero;
+	Verifica(TEXT("libero"), Libero);
+
+	// Occupato SENZA nome: e' il caso di cui [D-425] si occupa, e va provato su ogni andatura.
+	for (const FName& Profilo : { Lib::ProfileMove, Lib::ProfileSprint, Lib::ProfileSneak,
+			Lib::ProfileWithdraw, Lib::ProfileStill })
+	{
+		FRTUnitSlotsView Slots;
+		Slots.Movement = MakeSlotLineFixture(true);
+		Slots.MovementProfileId = Profilo;
+		Verifica(*FString::Printf(TEXT("percorso, %s"), *Profilo.ToString()), Slots);
+	}
+
+	// Occupato CON nome: l'azione vince, e la sede deve dirlo — non l'andatura.
+	FRTUnitSlotsView ConNome;
+	ConNome.Movement = MakeSlotLineFixture(true, TEXT("Scatto"));
+	ConNome.MovementProfileId = Lib::ProfileSprint;
+	Verifica(TEXT("con nome"), ConNome);
+	TestEqual(TEXT("e la sede rende il NOME dell'azione, non l'andatura"),
+		ARTHUD::DescribeMovementSlot(ConNome).ToString(), FString(TEXT("Scatto")));
+
+	// ⛔ **ANTI-VACUITA'**: senza, un `DescribeMovementSlot` che rendesse sempre la stessa stringa
+	// passerebbe ogni contenimento qui sopra. I casi devono produrre rese DIVERSE fra loro.
+	FRTUnitSlotsView Corsa;  Corsa.Movement  = MakeSlotLineFixture(true); Corsa.MovementProfileId  = Lib::ProfileSprint;
+	FRTUnitSlotsView Ripiego; Ripiego.Movement = MakeSlotLineFixture(true); Ripiego.MovementProfileId = Lib::ProfileWithdraw;
+	TestNotEqual(TEXT("corsa e ripiegamento non rendono la stessa cosa"),
+		ARTHUD::DescribeMovementSlot(Corsa).ToString(),
+		ARTHUD::DescribeMovementSlot(Ripiego).ToString());
+	TestNotEqual(TEXT("ne' il libero e il percorso"),
+		ARTHUD::DescribeMovementSlot(Libero).ToString(),
+		ARTHUD::DescribeMovementSlot(Corsa).ToString());
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
