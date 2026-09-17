@@ -228,9 +228,11 @@ Do not resolve workspace taxonomy conflicts by inference.
 could proceed.** Measured 2026-09-09: a build in one clone does **not** invalidate a suite running in
 another, because `Binaries/` is per-clone and the engine is an *installed build*
 (`Engine/Build/InstalledBuild.txt`), so project targets cannot rewrite Engine modules. Still
-exclusive: two runs in the **same** clone, an Editor holding that clone's DLL, anything touching the
+exclusive: two runs in the **same** clone, an interactive Editor in **any** clone, anything touching the
 Engine, and every **performance** measurement. When planning parallelism, allocate by **clone**, not
 by "the machine". `AGENTS.md` §9 owns the rule and the verification commands.
+
+⌫ **Said *«an Editor holding that clone's DLL»* until 2026-09-17, which was wrong in both scope and mechanism.** The Live Coding lock is keyed on `Global\LiveCoding_` + the engine **executable path**, not on the `.uproject`, so an interactive Editor **anywhere** makes `Build.bat` fail in **every** clone. Same false row that #3159 removed from `worktree-issue-runner` §6 and from `AGENTS.md` §11; this copy was never compared until #3166. `AGENTS.md` §11 owns the list.
 
 ⚠️ And when checking who holds Unreal, read the process `CommandLine`: it names the clone. A count of
 processes does not distinguish another session's suite from your own.

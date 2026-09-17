@@ -8,6 +8,21 @@ Obiettivo: modifiche **piccole, verificabili, coerenti con gli owner correnti e 
 > ⚠️ **E non copiarli nemmeno in ciò che produci**: la regola vale per questo file *e* per referti, corpi di
 > issue, commenti e PR. Vedi **§14**.
 
+> 🔑 **Questo file è sintetizzato altrove, e le sintesi non si aggiornano da sole.** Chi corregge una
+> sezione qui deve verificare se una di queste la duplica — oggi `feature-behavior`, `implement-feature`,
+> `rt-editor-session` e `worktree-issue-runner`, ciascuna in `.claude/skills/<nome>/SKILL.md`:
+>
+> ```
+> grep -rl "AGENTS\.md" .claude/
+> ```
+>
+> ⚠️ **Il legame è nato in una sola direzione**: le sintesi nominavano questo file, questo file non
+> nominava loro, e nessun comando poteva scoprirle da qui. È così che [#3022](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3022)
+> corresse §*Build Editor* lasciando indietro §11 **nello stesso file**, e che
+> [#3159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3159) trovò una copia divergente
+> da cinque giorni. ⛔ Il comando qui sopra rende il giro **possibile**, non automatico: non è un cancello,
+> e nessuno lo esegue al posto tuo.
+
 ## 1. Progetto in 30 secondi
 
 **RefactorTactics** è un tattico competitivo a turni simultanei in **Unreal Engine 5.8.1**.

@@ -42,19 +42,31 @@ Prima di occupare l'Editor, dichiara un contratto breve con:
 
 Il punto 1 dice di restare dove sei, e vale per **tutto tranne una cosa**: creare, modificare, rinominare, spostare, cancellare, importare o **salvare** un asset Unreal via MCP appartiene al **clone principale**, quello che ospita il bridge (`CLAUDE.md` §10, `AGENTS.md` §11, [`D-347`](../../../docs/decisions/RT_PDR_00_Decision_Log.md)).
 
+⛔ **Due pericoli distinti, e servono due misure.** Il primo è il **worktree**; il secondo è un **clone che non ospita il bridge**, e il test qui sotto a sinistra non lo vede.
+
 ```powershell
-git rev-parse --git-dir            # nel clone principale: .git
-git rev-parse --git-common-dir     # se DIFFERISCE, sei in un worktree
+# (A) sono un worktree?  -> se i due DIFFERISCONO, sì
+git rev-parse --absolute-git-dir
+git rev-parse --path-format=absolute --git-common-dir
+
+# (B) il bridge risponde per il MIO checkout?
+Select-String -Path .mcp.json -Pattern "127\.0\.0\.1:(\d+)"      # la porta
+Get-NetTCPConnection -State Listen -LocalPort <porta>             # chi ascolta
+Get-CimInstance Win32_Process -Filter "ProcessId = <pid>" |
+    Select-Object CommandLine                                     # quale .uproject
+# confronta con la radice misurata al Preflight
 ```
 
-⚠️ **La ragione è tecnica e silenziosa, ed è per questo che va scritta accanto alla regola**: un worktree **non ha i file gitignorati**, quindi i riferimenti duri di un asset vi leggono `None` e **salvarlo li azzera** — senza errore, e ce ne si accorge dopo. Il bridge MCP è inoltre **uno solo**: usarlo da un altro checkout muta gli asset del principale mentre leggi il `git status` del tuo.
+⌫ **Fino al 2026-09-17 questa sezione portava solo (A)**, e la usava come condizione di `BLOCKED`. 🔴 **(A) misura worktree-contro-clone, non ospite-contro-non-ospite del bridge**: ogni clone proprio la passa. Misurato il 2026-09-17 su questa macchina — `refactor-tactics-designer`, `-dev`, `-main` e `-refactor` hanno tutti `--git-dir` uguale a `--git-common-dir`, quindi (A) da sola avrebbe autorizzato un `author` da qualunque dei quattro. Trovato da [#3166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3166), non da una rilettura.
 
-| `intent` | Dove può avvenire |
-|---|---|
-| `inspect`, `verify`, `reproduce` — lettura, PIE, automation | **qualunque** checkout |
-| `author` su `.uasset`/`.umap` via MCP | **solo** il clone che ospita il bridge |
+I due pericoli, e perché nessuno dei due copre l'altro:
 
-⛔ Se i due `git-dir` differiscono e l'intent è `author` su binari, termina con `BLOCKED` nominando il clone che ospita il bridge. Non aggirarlo, e non dedurre da dove sei dal nome della directory né dal prompt.
+| Misura | Cosa intercetta | Come si rompe se la salti |
+|---|---|---|
+| **(A)** worktree | i file **gitignorati** non ci sono, i riferimenti duri leggono `None` | salvare **li azzera**, senza errore, e ce ne si accorge dopo |
+| **(B)** non-ospite del bridge | il bridge è **uno solo**, e serve il checkout che lo ospita | muti gli asset di *quel* checkout mentre leggi il `git status` del **tuo** |
+
+⛔ Se (A) dice worktree **oppure** (B) risponde per un altro checkout, e l'intent è `author` su binari, termina con `BLOCKED` nominando il checkout che ospita il bridge. Non aggirarlo, e non dedurre dove sei dal nome della directory né dal prompt. ⚠️ Se **nessuno** ascolta su quella porta il bridge non è attivo: non è un via libera, è una misura che non si può fare — e un `author` senza bridge non parte comunque.
 
 Non invocare, ripristinare o dipendere da RT3, RTI o relativi processi e comandi legacy.
 
