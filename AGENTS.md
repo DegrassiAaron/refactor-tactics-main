@@ -457,19 +457,30 @@ Output binary: <engine>\Engine\Binaries\Win64\UnrealEditor.exe
 
 Quando l'Editor che tiene il mutex sta in un **altro** clone, i suoi object file sono altri — `Binaries/` è per clone — quindi riscrivere i propri non lo disturba.
 
+🔑 **Chi ti BLOCCA e chi DANNEGGERESTI non hanno lo stesso ambito, e le due frasi qui sopra non si contraddicono.** Ti blocca un Editor in **qualunque** clone, perché il mutex è chiavato sull'eseguibile del motore. Danneggeresti solo un Editor sul **tuo** clone, perché è l'unico che ha caricato le DLL di *questo* `Binaries/`. ∴ la leva è sicura precisamente nel caso in cui serve: quando chi blocca sta altrove.
+
 🔴 **E quando la leva è SBAGLIATA: Editor vivo di un'altra sessione.** Lì si **aspetta** (§11), e usare il flag è precisamente l'uso che quel check esiste per impedire. La leva serve quando il mutex è tenuto da un processo che **non lo rilascerà**, non quando è tenuto da qualcuno che sta lavorando.
 
-⚠️ **L'Editor *zombie* è un terzo caso, e non è il `LiveCodingConsole` orfano di §11**: sono processi diversi, quindi il `Name` del filtro li distingue già. L'orfano è `LiveCodingConsole.exe` col `ParentProcessId` che non risolve; lo zombie è un `UnrealEditor.exe` morto male il cui mutex sopravvive. Si riconosce dai campi, non dalla presenza:
+⚠️ **L'Editor *zombie* è un terzo caso, e non è il `LiveCodingConsole` orfano di §11**: sono processi diversi, quindi il `Name` del filtro li distingue già. L'orfano è `LiveCodingConsole.exe` col `ParentProcessId` che non risolve; lo zombie è un `UnrealEditor.exe` morto male il cui mutex sopravvive.
 
-| Campo | Zombie | Editor vivo |
+⛔ **Quelli che seguono sono DUE ANCORE, non soglie.** C'è **un** quadro zombie (2026-08-24) e **un** quadro di Editor vivo (2026-09-11): due osservazioni, non una distribuzione. Un valore intermedio — un Editor a metà chiusura, per dire — non è mai stato osservato, quindi questa tabella non lo classifica male: **non può classificarlo**. Chi ne incontra uno è fuori dai dati, e deve saperlo invece di arrotondare all'ancora più vicina.
+
+I tre campi che **discriminano**:
+
+| Campo | Zombie (2026-08-24) | Editor vivo (2026-09-11) |
 |---|---|---|
-| `Threads.Count` | `1` | decine — `93` nella controprova |
+| `Threads.Count` | `1` | `93` |
 | `MainWindowHandle` | `0`, titolo vuoto | non nullo |
 | `WorkingSet64` | ~`0,2 MB` | ~`3,6 GB` |
-| `CPU` | ore accumulate — *era* un Editor vero | cresce |
-| `Responding` | `True`, e **non significa niente** senza finestra | `True` |
 
-⛔ **Provenienza, perché non è riverificabile come il resto di questa sezione**: misurato da `refactor-tactics-dev` il 2026-08-24, con controprova su un Editor vivo il 2026-09-11; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Da rimisurare, con `-abslog`, la prossima volta che uno zombie ricapita. ⛔ E non è scritto qui che il flag sia *l'unica* uscita da uno zombie: nessuno ha mai provato a terminarlo, quindi è una misura da fare e non un'affermazione da citare.
+E i due che **non** discriminano, elencati perché altrimenti qualcuno li userà come conferma:
+
+- `CPU` **alto è contesto, non criterio**: dice che quel processo *era stato* un Editor vero (`72 h` accumulate nel quadro zombie), non che adesso sia morto;
+- ⛔ `Responding` **è rumore**: valeva `True` nello zombie, e per un processo senza finestra non significa niente. È l'unico dei cinque campi che non conferma nulla, e va letto come se non ci fosse.
+
+⛔ **Provenienza, perché questa parte non è riverificabile come il resto della sezione**: misurato da `refactor-tactics-dev`, con controprova su Editor vivo; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Da rimisurare, con `-abslog`, la prossima volta che uno zombie ricapita.
+
+⛔ **E non è scritto qui che il flag sia l'*unica* uscita da uno zombie**: nessuno ha mai provato a terminare il processo, quindi è una misura da fare e non un'affermazione da citare. ⚠️ Di conseguenza non c'è nemmeno un ripiego per *«il flag non è bastato»*: scriverne uno nominerebbe la stessa domanda aperta una seconda volta, e la seconda si leggerebbe come una risposta. 🔑 **Quello che si può dire — ed è deduzione dalla struttura dei due casi, non misura — è che lì va rifatta la *diagnosi*, non cambiato il rimedio**: i due rimedi sono opposti, quindi «il flag non ha funzionato» è più probabilmente una classificazione sbagliata che un limite del flag.
 
 ### Tooling locale
 
