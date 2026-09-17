@@ -387,6 +387,37 @@ FText URTSelectedUnitPanelWidget::GetMovementProfileText() const
 	return ARTHUD::DescribeMovementProfile(GetSlots().MovementProfileId);
 }
 
+FText URTSelectedUnitPanelWidget::GetMovementSlotText() const
+{
+	const FRTUnitSlotsView Slots = GetSlots();
+
+	// 🔴 **LA BARRIERA DI PRIVACY, e sta qui perche' qui i test la raggiungono.**
+	//
+	// `GetSlots()` non costruisce il piano di un soggetto non comandato: torna il **default**, con
+	// `bAuthorized` falso e gli slot vuoti. ⛔ Passarlo a `DescribeMovementSlot` renderebbe **«libero»**,
+	// cioe' *«quell'unita' non ha pianificato movimento»* — una lettura del piano avversario. Il docstring
+	// di `GetSlots()` lo dichiara come obbligo di chi disegna: *«chi disegna deve distinguere
+	// `bAuthorized == false` da un piano vuoto»*, e `#2757` lo vieta in forma piu' forte.
+	//
+	// 🔑 **L'obbligo si sposta dal grafo del widget al C++**, ed e' la ragione per cui questa funzione
+	// esiste invece di far comporre il `Select` al binding: in un grafo di Blueprint nessun test lo
+	// raggiunge, qui `ScreenHud.MovementSlotSaysNothingWhenUnauthorized` lo pianta. Il binding diventa una
+	// chiamata sola, e cio' che puo' sbagliare sta dove qualcosa lo guarda.
+	//
+	// ⚠️ **Il segnaposto e' il trattino, come il binding faceva prima**: non e' un testo nuovo, e' quello
+	// che il pannello ha sempre mostrato per chi non si comanda.
+	if (!Slots.bAuthorized)
+	{
+		return NSLOCTEXT("RTHud", "SlotUnauthorized", "-");
+	}
+
+	// Da qui in giu' nessuna regola: la sede e' `ARTHUD::DescribeMovementSlot`, la stessa da cui il Canvas
+	// compone. ⛔ La guardia NON sta li' dentro: quella funzione e' pura e la usano anche i test del
+	// Canvas, che costruiscono viste con `bAuthorized` al proprio default — spostarcela dentro renderebbe
+	// «-» ogni loro caso e trasformerebbe una regola di privacy in un difetto di composizione.
+	return ARTHUD::DescribeMovementSlot(Slots);
+}
+
 // =====================================================================================================
 // Action dock
 // =====================================================================================================

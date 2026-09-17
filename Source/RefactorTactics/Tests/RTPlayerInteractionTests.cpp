@@ -2501,4 +2501,81 @@ bool FRTNakedPlanningReachesTwiceTheBaseTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `AC-1` di `#1410`: dichiarare `Sneak` **ridisegna le celle raggiungibili**, subito.
+ *
+ * Trovato in PIE dall'utente il 2026-09-17: *«se premo M gli esagoni verdi non cambiano immediatamente»*.
+ * La causa era che `RefreshPlanningPreview` viveva nel solo ramo del TRONCAMENTO, e i due rami che escono
+ * prima — piano vuoto, e percorso che ci sta gia' — lo saltavano. Il primo e' il caso normale: chi preme
+ * `M` prima di cliccare vedeva le celle del tetto VECCHIO.
+ *
+ * 🔴 **Nessun test lo prendeva, e la ragione e' istruttiva**: `DeclaringSneakTruncatesToHalf` guarda
+ * `PlannedMovementProfileId` e `PlannedWaypoints`, che erano **corretti** — la dichiarazione arrivava, il
+ * piano si troncava. A mentire era solo cio' che il giocatore VEDE, e nessuna asserzione lo guardava. E'
+ * il modulo verde mentre il chiamante sbaglia, con la presentazione al posto del modulo.
+ *
+ * ⚠️ **Il caso in esame e' SENZA waypoint**, perche' e' quello che il difetto colpiva e quello in cui il
+ * giocatore preme il tasto: prima di disegnare, per sapere fin dove puo' arrivare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakRedrawsReachablePreviewTest,
+	"RefactorTactics.PlayerInput.SneakRedrawsTheReachablePreview",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSneakRedrawsReachablePreviewTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit)
+		|| !TestNotNull(TEXT("actor mappa"), MapActor))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// ⚠️ **`SelectUnit` e non `SelectActorForTest` ne' `HandleClickOnUnitForTest`.** Il primo scrive il
+	// campo e basta — l'anteprima resterebbe vuota. Il secondo e' il clic su un'unita' *mentre un'altra e'
+	// gia' selezionata* (targeting) ed esce subito senza selezione preesistente: misurato, da' `0` celle.
+	// `SelectUnit` e' il punto in cui la selezione DISEGNA, ed e' la ragione per cui la premessa qui sotto
+	// e' asserita invece che assunta — con zero contro zero il test sarebbe passato dicendo niente.
+	PC->SelectUnit(Unit);
+
+	const int32 Prima = MapActor->NumPreviewReachableCells();
+	if (!TestTrue(*FString::Printf(
+			TEXT("premessa: selezionare disegna un'anteprima non vuota (%d celle)"), Prima), Prima > 0))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+	if (!TestEqual(TEXT("premessa: nessun waypoint posato, come quando si preme M per primo"),
+		Unit->PlannedWaypoints.Num(), 0))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// --- dichiarare Sneak dimezza il tetto: le celle raggiungibili devono CALARE, e subito ---------------
+	PC->ToggleSneakForTest();
+	const int32 Dopo = MapActor->NumPreviewReachableCells();
+
+	TestTrue(*FString::Printf(TEXT("l'anteprima si restringe col tetto dimezzato (%d -> %d)"), Prima, Dopo),
+		Dopo < Prima);
+	// ⛔ **E non si svuota**: sgusciare e' andare meno lontano, non restare fermi. Senza questa riga un
+	// ridisegno che azzerasse l'anteprima passerebbe il confronto qui sopra.
+	TestTrue(TEXT("ma non si svuota: lo Sneak riduce la distanza, non la annulla"), Dopo > 0);
+
+	// --- annullare la dichiarazione la fa TORNARE -------------------------------------------------------
+	// 🔑 E' l'asserzione piu' forte delle tre: prova che il ridisegno avviene nei DUE versi. Un ridisegno
+	// che restringesse soltanto — o che avvenisse una volta sola — cadrebbe qui.
+	PC->ToggleSneakForTest();
+	TestEqual(TEXT("annullando lo Sneak l'anteprima torna quella di prima"),
+		MapActor->NumPreviewReachableCells(), Prima);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

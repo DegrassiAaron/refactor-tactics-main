@@ -1317,4 +1317,62 @@ bool FRTScreenHudInspectedSlotsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * PRIVACY: lo slot movimento di un soggetto NON comandato non dice «libero».
+ *
+ * 🔴 **«libero» sarebbe una lettura del piano avversario**: direbbe *«quell'unita' non ha pianificato
+ * movimento»*. Il docstring di `GetSlots()` lo dichiara come obbligo di chi disegna — *«chi disegna deve
+ * distinguere `bAuthorized == false` da un piano vuoto»* — e [#2757] lo vieta in forma piu' forte:
+ * *«nessun conteggio o metadato da cui dedurre che un dato privato esiste»*.
+ *
+ * 🔑 **Il test esiste perche' l'obbligo e' stato spostato dal GRAFO del widget al C++.** Il binding di
+ * `MovementText` componeva un `Select` sull'autorizzazione dentro il Blueprint, dove nessun test lo
+ * raggiunge: ora e' una riga di `GetMovementSlotText()`, e questa la guarda.
+ *
+ * ⚠️ **Un widget appena costruito NON ha un'unita' comandata**, quindi `GetSlots()` rende il default con
+ * `bAuthorized` falso: e' esattamente lo stato in esame, e non serve montare una partita per ottenerlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudMovementSlotUnauthorizedTest,
+	"RefactorTactics.ScreenHud.MovementSlotSaysNothingWhenUnauthorized",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudMovementSlotUnauthorizedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudWidgetWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTSelectedUnitPanelWidget* Panel = NewObject<URTSelectedUnitPanelWidget>(World);
+	if (!TestNotNull(TEXT("pannello"), Panel)) { DestroyHudWidgetWorld(World); return false; }
+
+	// Premessa: senza un'unita' comandata la vista non e' autorizzata. Si asserisce invece di assumerla —
+	// se un giorno `GetSlots()` cambiasse, il test misurerebbe un altro stato senza accorgersene.
+	if (!TestFalse(TEXT("premessa: la vista non e' autorizzata"), Panel->GetSlots().bAuthorized))
+	{
+		DestroyHudWidgetWorld(World); return false;
+	}
+
+	const FString Reso = Panel->GetMovementSlotText().ToString();
+
+	// 🔴 Il cuore: non deve dire niente del piano, e «libero» ne direbbe.
+	TestFalse(*FString::Printf(TEXT("non dice «libero» a chi non si comanda (reso: \"%s\")"), *Reso),
+		Reso.Contains(TEXT("libero")));
+	TestFalse(TEXT("ne' nomina un'andatura"), Reso.Contains(TEXT("percorso")));
+	TestFalse(TEXT("ne' il ripiegamento"), Reso.Contains(TEXT("ripiegamento")));
+
+	// ⛔ **ANTI-VACUITA'**: un reso vuoto passerebbe tutti i `TestFalse` qui sopra senza dire niente al
+	// giocatore, e a schermo sarebbe un buco invece di un segnaposto. Il trattino e' quello che il binding
+	// mostrava prima, e resta.
+	TestFalse(TEXT("e non e' vuoto: a schermo resta un segnaposto"), Reso.IsEmpty());
+	TestEqual(TEXT("ed e' il trattino, come prima"), Reso, FString(TEXT("-")));
+
+	// 🔑 **La controprova che lo rende non vacuo dall'altro verso**: la stessa funzione, su una vista
+	// AUTORIZZATA, dice «libero». Senza, un `GetMovementSlotText()` che rendesse sempre «-» passerebbe.
+	FRTUnitSlotsView Autorizzata;
+	Autorizzata.bAuthorized = true;
+	TestEqual(TEXT("controllo positivo: autorizzata e senza piano dice «libero»"),
+		ARTHUD::DescribeMovementSlot(Autorizzata).ToString(), FString(TEXT("libero")));
+
+	DestroyHudWidgetWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

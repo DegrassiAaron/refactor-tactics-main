@@ -525,6 +525,32 @@ public:
 	static FText DescribeMovementProfile(FName MovementProfileId);
 
 	/**
+	 * Che cosa RIEMPIE uno slot: il nome dell'azione che lo occupa, il ripiego di chi lo occupa senza
+	 * nome, o «libero».
+	 *
+	 * `BusyWithoutName` arriva da fuori perche' il ripiego non e' lo stesso per i tre slot: sul movimento
+	 * e' un percorso tracciato a waypoint — il caso piu' comune del gioco — mentre su principale e reazione
+	 * un'occupazione senza azione non ha un nome proprio, e chiamarla «percorso» mentirebbe.
+	 *
+	 * ⛔ **Rende il CONTENUTO, non la riga**: l'etichetta «Movimento: » la aggiunge chi compone una riga, e
+	 * il pannello UMG non ne ha una — i suoi tre `TextBlock` mostrano il solo valore.
+	 */
+	static FText DescribeSlotContents(const struct FRTPlannedSlotView& Slot, const FText& BusyWithoutName);
+
+	/**
+	 * Che cosa riempie lo slot MOVIMENTO, andatura compresa (`#1410` `AC-1`, [D-425]).
+	 *
+	 * 🔑 **E' la sede UNICA, e la sua ragione e' un difetto misurato.** `ComposeSlotLines` la usa per il
+	 * Canvas e `URTSelectedUnitPanelWidget::GetMovementSlotText()` per il widget UMG: prima il pannello
+	 * legava `GetSlots()` e mostrava il `DisplayName` grezzo mentre il Canvas componeva la riga, cioe' due
+	 * rese dello stesso fatto che divergevano gia' — e l'andatura avrebbe aggiunto la terza.
+	 *
+	 * ⚠️ **L'andatura RAFFINA il ripiego, non lo scavalca**: un'azione che occupa lo slot resta chiamata
+	 * col proprio nome. L'andatura parla del movimento senza nome, che e' il caso di cui [D-425] si occupa.
+	 */
+	static FText DescribeMovementSlot(const struct FRTUnitSlotsView& Slots);
+
+	/**
 	 * Il colore di una riga della terna: bianco per lo slot speso, grigio per quello libero.
 	 *
 	 * ⚠️ **Il colore e' l'unico canale.** Il testo di uno slot libero («Reazione: libero») e di uno speso

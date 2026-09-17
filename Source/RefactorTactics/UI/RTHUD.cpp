@@ -309,27 +309,40 @@ namespace
 	 *
 	 * «libero» invece resta costante: uno slot vuoto e' vuoto allo stesso modo su tutti e tre.
 	 */
-	FRTSlotLine ComposeOneSlotLine(const TCHAR* SlotLabel, const TCHAR* BusyWithoutName,
+	FRTSlotLine ComposeOneSlotLine(const TCHAR* SlotLabel, const FText& BusyWithoutName,
 		const FRTPlannedSlotView& Slot)
 	{
 		FRTSlotLine Line;
 		Line.bOccupied = Slot.bOccupied;
-
-		if (!Slot.bOccupied)
-		{
-			Line.Text = FString::Printf(TEXT("%s: libero"), SlotLabel);
-		}
-		else if (!Slot.DisplayName.IsEmpty())
-		{
-			Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel, *Slot.DisplayName.ToString());
-		}
-		else
-		{
-			Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel, BusyWithoutName);
-		}
-
+		Line.Text = FString::Printf(TEXT("%s: %s"), SlotLabel,
+			*ARTHUD::DescribeSlotContents(Slot, BusyWithoutName).ToString());
 		return Line;
 	}
+}
+
+FText ARTHUD::DescribeSlotContents(const FRTPlannedSlotView& Slot, const FText& BusyWithoutName)
+{
+	if (!Slot.bOccupied)
+	{
+		// «libero» resta costante: uno slot vuoto e' vuoto allo stesso modo su tutti e tre.
+		return NSLOCTEXT("RTHud", "SlotFree", "libero");
+	}
+	// Il NOME dell'azione vince su tutto il resto: chi occupa lo slot si chiama come si chiama.
+	if (!Slot.DisplayName.IsEmpty())
+	{
+		return Slot.DisplayName;
+	}
+	return BusyWithoutName;
+}
+
+FText ARTHUD::DescribeMovementSlot(const FRTUnitSlotsView& Slots)
+{
+	// 🔑 **L'andatura raffina il ripiego dello slot movimento**, e non lo scavalca: se un'azione occupa lo
+	// slot, `DescribeSlotContents` le lascia il proprio nome. L'andatura parla del movimento SENZA nome —
+	// il percorso a waypoint, che e' il caso piu' comune del gioco — ed e' il caso di cui [D-425] si occupa.
+	const FText Andatura = DescribeMovementProfile(Slots.MovementProfileId);
+	return DescribeSlotContents(Slots.Movement,
+		Andatura.IsEmpty() ? NSLOCTEXT("RTHud", "MovementSlotPath", "percorso") : Andatura);
 }
 
 FText ARTHUD::DescribeMovementProfile(FName MovementProfileId)
@@ -382,13 +395,18 @@ TArray<FRTSlotLine> ARTHUD::ComposeSlotLines(const FRTUnitSlotsView& Slots)
 	// ⚠️ **Non scavalca il nome dell'azione.** `ComposeOneSlotLine` preferisce `DisplayName` quando c'e',
 	// quindi una mobilita' che occupa lo slot continua a chiamarsi col proprio nome: l'andatura parla solo
 	// del movimento senza nome, che e' il caso di cui [D-425] si occupa.
-	const FText Andatura = DescribeMovementProfile(Slots.MovementProfileId);
-	const FString Movimento = Andatura.IsEmpty() ? FString(TEXT("percorso")) : Andatura.ToString();
+	// ⏱️ *Fino al 2026-09-17 la riga del movimento componeva l'andatura QUI.* Ora passa da
+	// `DescribeMovementSlot`, che e' la sede unica: il pannello UMG lega la stessa funzione, quindi Canvas e
+	// widget non possono divergere su cosa riempie lo slot. Era gia' successo — il pannello mostrava il
+	// `DisplayName` grezzo mentre il Canvas componeva la riga — ed e' il difetto che questa sede chiude.
+	FRTSlotLine Movimento;
+	Movimento.bOccupied = Slots.Movement.bOccupied;
+	Movimento.Text = FString::Printf(TEXT("Movimento: %s"), *DescribeMovementSlot(Slots).ToString());
 
 	return {
-		ComposeOneSlotLine(TEXT("Movimento"),  *Movimento,        Slots.Movement),
-		ComposeOneSlotLine(TEXT("Principale"), TEXT("occupata"),  Slots.Main),
-		ComposeOneSlotLine(TEXT("Reazione"),   TEXT("armata"),    Slots.Reaction),
+		Movimento,
+		ComposeOneSlotLine(TEXT("Principale"), NSLOCTEXT("RTHud", "SlotBusyMain", "occupata"), Slots.Main),
+		ComposeOneSlotLine(TEXT("Reazione"),   NSLOCTEXT("RTHud", "SlotBusyReaction", "armata"), Slots.Reaction),
 	};
 }
 

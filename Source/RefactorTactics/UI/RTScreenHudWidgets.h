@@ -413,6 +413,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetMovementProfileText() const;
 
+	/**
+	 * Che cosa riempie lo slot MOVIMENTO, pronto da legare al `Text` di `MovementText` (`#1410` `AC-1`).
+	 *
+	 * 🔑 **Delega a `ARTHUD::DescribeMovementSlot`, che e' la sede unica**: e' la stessa funzione da cui il
+	 * Canvas compone la propria riga. ⏱️ *Fino al 2026-09-17 il binding di `MovementText` leggeva
+	 * `GetSlots()` e mostrava il `DisplayName` grezzo* — due rese dello stesso fatto che divergevano gia'
+	 * prima che [D-425] aggiungesse l'andatura.
+	 *
+	 * ⛔ **Rende il CONTENUTO senza etichetta**: i tre `TextBlock` del pannello mostrano il solo valore, e
+	 * anteporre «Movimento: » qui lo farebbe comparire due volte a chi guarda.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetMovementSlotText() const;
+
 protected:
 	/**
 	 * Il soggetto del pannello: l'unita' comandata se c'e', altrimenti quella ispezionata (`#705`).

@@ -97,12 +97,23 @@ namespace
 					URTPlanValidationLibrary::MakePlanFor(Unit)),
 				Unit->HasStatus(TAG_Status_Unbalanced));
 			const int32 Base = Unit->GetEffectiveMoveRange();
-			// ⚠️ `Max` e non assegnazione: il tetto non deve mai ABBASSARE cio' che lo snapshot concede —
-			// `Slow` e gli altri modificatori mordono dentro il pathfinding, e scavalcarli qui li
-			// cancellerebbe in pianificazione lasciandoli vivi in risoluzione.
+
+			// 🔴 **Il tetto SOSTITUISCE il budget, non lo alza soltanto.**
+			//
+			// ⏱️ *Fino al 2026-09-17 questa riga era `FMath::Max(Planner.MoveBudget, ...)`*, scritta per
+			// non scavalcare i modificatori. Era sbagliata, e il difetto e' arrivato da PIE: con `Max` il
+			// tetto diventa un **pavimento**, quindi dichiarare `Sneak` — che lo DIMEZZA — non toglieva
+			// niente all'anteprima. Le celle verdi restavano quelle del movimento pieno mentre il piano si
+			// troncava davvero: l'anteprima mentiva sul budget con cui il turno si sarebbe risolto.
+			//
+			// 🔑 **E il timore che aveva motivato il `Max` non regge, misurato**: `Base` e'
+			// `GetEffectiveMoveRange()`, cioe' lo STESSO valore da cui `MakeSimUnit` deriva il budget —
+			// `Root` e `Prone` sono gia' dentro. Cio' che il tetto potrebbe scavalcare non esiste: `Slow`
+			// non e' una riduzione di budget ma un costo PER CELLA (`MoveCostModifier`), e questa riga non
+			// lo tocca.
 			FRTHexSimUnit& Planner = OutSnapshot.Units[OutUnitId];
-			Planner.MoveBudget = FMath::Max(Planner.MoveBudget, Ceiling.ResolveMoveBudget(Base));
-			Planner.StepBudget = FMath::Max(Planner.StepBudget, Ceiling.ResolveStepBudget(Base));
+			Planner.MoveBudget = Ceiling.ResolveMoveBudget(Base);
+			Planner.StepBudget = Ceiling.ResolveStepBudget(Base);
 		}
 		if (OutUnits)
 		{
@@ -3080,6 +3091,17 @@ void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 		? NAME_None
 		: URTMovementProfileLibrary::ProfileSneak;
 
+	// 🔴 **Da qui in giu' il tetto E' GIA' CAMBIATO, quindi l'anteprima va ridisegnata COMUNQUE.** Il corpo
+	// sta in una lambda e il ridisegno dopo, invece che in fondo a ciascun ramo: cosi' non e' una riga da
+	// ricordarsi, e un ramo nuovo non puo' dimenticarla.
+	//
+	// ⏱️ *Fino al 2026-09-17 `RefreshPlanningPreview` stava nel solo ramo del troncamento*, e i due rami che
+	// escono prima — piano vuoto, e percorso che ci sta gia' — la saltavano. 🔴 **Il primo e' il caso
+	// normale**: chi preme `M` prima di cliccare vedeva le celle raggiungibili restare quelle del tetto
+	// vecchio, cioe' un'anteprima che mente sul budget con cui il turno si risolvera'. Trovato in PIE
+	// dall'utente, non da un test — e il test che lo avrebbe preso e' quello che questo commit aggiunge.
+	[&]()
+	{
 	// La dichiarazione e' SEMPRE accettata: quello che puo' cadere e' il percorso, non la scelta. Il tetto
 	// nuovo e' quello che `MakeSimUnit` usera' da adesso, e si chiede alla stessa funzione — un secondo
 	// calcolo qui sarebbe la seconda autorita' che [D-425] evita.
@@ -3163,6 +3185,11 @@ void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 	{
 		HexMap->SetPreviewPath(Unit->PlannedPath);
 	}
+	}();
+
+	// 🔑 **Il ridisegno e' fuori da ogni ramo**, perche' la sua causa non e' il troncamento: e' il TETTO che
+	// e' cambiato. Le celle raggiungibili vengono da `PlanningSnapshotFor`, che il tetto lo legge — quindi
+	// un'anteprima non ridisegnata mostra il budget di prima e contraddice il turno che seguira'.
 	RefreshPlanningPreview(GetWorld(), Unit);
 }
 
