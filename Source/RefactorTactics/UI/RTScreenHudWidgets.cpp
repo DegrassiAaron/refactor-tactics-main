@@ -784,6 +784,24 @@ namespace
 	 * Scende RICORSIVAMENTE. Ogni `UUserWidget` ha un `WidgetTree` suo e `ForEachWidget` non ci entra:
 	 * senza questa discesa un `WBP_RT_ActionSlot` dentro il dock resterebbe invisibile, ed e' esattamente
 	 * il caso che si voleva vedere.
+	 *
+	 * 🔴 **Ma due strade portano allo stesso widget, e senza la guardia qui sotto il rapporto CONTA
+	 * DOPPIO.** Misurato in PIE il 2026-09-16: `ActionSlot: 20` con dieci slot in campo (`_23`..`_32`,
+	 * elencati due volte ciascuno), `EventLog: 2` con un solo feed.
+	 *
+	 * La causa e' `UWidgetTree::ForWidgetAndChildren`, che **scende gia' da se'** nei named slot del widget
+	 * che incontra: una `WBP_RT_HudZone` e' un `UUserWidget` con un `NamedSlot Content`, quindi camminare
+	 * l'albero della RADICE emette gia' il suo inquilino. Poi questa ricorsione entra anche nel
+	 * `WidgetTree` della zona e lo emette una seconda volta. Si vede nella forma dell'output: le `Zone_*`
+	 * compaiono una volta, i loro inquilini due.
+	 *
+	 * ⚠️ **Non e' cosmesi.** Un diagnostico che dice «20» quando sono dieci manda a cercare widget che non
+	 * esistono, ed e' il contrario di cio' per cui il rapporto esiste. Ha gia' prodotto un dato da
+	 * rileggere: la seduta `U49` annoto' `EventLog: 1` e oggi si legge `2` — stesso widget, non uno in piu'.
+	 *
+	 * ⚠️ `Contains` e non un `TSet` parallelo: l'albero del §4.1 sono decine di widget, e una seconda
+	 * struttura da tenere allineata a `Fuori` e' un modo in piu' di sbagliare per un guadagno che qui non
+	 * si misura. L'ordine di prima visita resta quello del rapporto.
 	 */
 	void RTRaccogliWidgetInnestati(const UUserWidget* Radice, TArray<const UUserWidget*>& Fuori)
 	{
@@ -796,6 +814,13 @@ namespace
 		{
 			if (const UUserWidget* Innestato = Cast<UUserWidget>(Widget))
 			{
+				// La guardia copre anche la RICORSIONE, non solo la riga: reincamminare l'albero di un
+				// widget gia' visto rifarebbe lo stesso giro un livello piu' sotto.
+				if (Fuori.Contains(Innestato))
+				{
+					return;
+				}
+
 				Fuori.Add(Innestato);
 				RTRaccogliWidgetInnestati(Innestato, Fuori);
 			}

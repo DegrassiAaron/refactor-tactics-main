@@ -22,6 +22,7 @@
 #include "Engine/Texture2D.h"
 #include "UObject/UObjectIterator.h" // TObjectIterator: le classi widget si interrogano, non si elencano
 #include "Blueprint/WidgetTree.h"    // l'albero si COSTRUISCE qui: e' l'unico modo di provare la ricorsione
+#include "Components/VerticalBox.h" // un pannello vero: serve per dare a UN widget DUE strade nell'albero
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1116,6 +1117,86 @@ bool FRTScreenHudMountReportTest::RunTest(const FString&)
 		Testo.Contains(TEXT("[MANCA] EventLog: 0")));
 	TestTrue(TEXT("l'header assente e' nominato"),
 		Testo.Contains(TEXT("[MANCA] TurnHeader: 0")));
+
+	return true;
+}
+
+/**
+ * Lo stesso widget raggiunto da DUE strade si conta UNA volta.
+ *
+ * 🔴 **Il rapporto contava doppio, e lo si e' visto solo in PIE** (2026-09-16, `#2964`): `ActionSlot: 20`
+ * con dieci slot in campo — `_23`..`_32`, elencati due volte ciascuno — e `EventLog: 2` con un feed solo.
+ * Il test che gia' esiste non poteva coglierlo: il suo albero da' a ogni widget **una** strada sola.
+ *
+ * La causa in partita e' `UWidgetTree::ForWidgetAndChildren`, che scende gia' da se' nei named slot del
+ * widget che incontra: una `WBP_RT_HudZone` e' un `UUserWidget` con un `NamedSlot Content`, quindi la
+ * camminata della radice emette gia' il suo inquilino, e la ricorsione dentro l'albero della zona lo emette
+ * di nuovo.
+ *
+ * ⚠️ **Questa fixture riproduce la FORMA, non il meccanismo**, e va detto: costruire un named slot vivo
+ * fuori da una classe generata da Blueprint dipende da come `GetSlotNames` e `GetContentForSlot` si
+ * comportano su un `UUserWidget` istanziato a mano — cioe' da un dettaglio del motore che un test del
+ * progetto non dovrebbe fissare. Qui le due strade si danno esplicitamente: lo slot e' figlio del pannello
+ * della radice **e** radice dell'albero del dock. Cio' che il codice promette — *«una volta, comunque lo si
+ * raggiunga»* — e' lo stesso, e questa forma lo misura senza dipendere dal motore.
+ *
+ * 🔑 **E il numero e' asseribile nei due versi**: `ActionSlot: 1` passerebbe anche con la deduplica rotta se
+ * lo slot fosse raggiungibile una volta sola, quindi il test verifica PRIMA che le due strade esistano
+ * davvero — il dock e' contato, e lo slot sta nel suo albero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudMountReportNoDoubleCountTest,
+	"RefactorTactics.ScreenHud.MountReportCountsEachWidgetOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudMountReportNoDoubleCountTest::RunTest(const FString&)
+{
+	URTTacticalHUDWidget* Radice = NewObject<URTTacticalHUDWidget>(GetTransientPackage());
+	if (!TestNotNull(TEXT("radice di prova"), Radice)) { return false; }
+
+	Radice->WidgetTree = NewObject<UWidgetTree>(Radice);
+	UVerticalBox* Pannello = Radice->WidgetTree->ConstructWidget<UVerticalBox>(
+		UVerticalBox::StaticClass(), TEXT("PannelloDiProva"));
+	if (!TestNotNull(TEXT("pannello di prova"), Pannello)) { return false; }
+	Radice->WidgetTree->RootWidget = Pannello;
+
+	URTActionDockWidget* Dock = Radice->WidgetTree->ConstructWidget<URTActionDockWidget>(
+		URTActionDockWidget::StaticClass(), TEXT("DockDiProva"));
+	URTActionSlotWidget* Slot = Radice->WidgetTree->ConstructWidget<URTActionSlotWidget>(
+		URTActionSlotWidget::StaticClass(), TEXT("SlotDiProva"));
+	if (!TestNotNull(TEXT("dock di prova"), Dock)) { return false; }
+	if (!TestNotNull(TEXT("slot di prova"), Slot)) { return false; }
+
+	// Strada 1: lo slot e' figlio del pannello della radice, come un inquilino di named slot e' autorato
+	// nell'albero ESTERNO.
+	Pannello->AddChild(Dock);
+	Pannello->AddChild(Slot);
+
+	// Strada 2: lo stesso slot e' anche cio' che la ricorsione trova scendendo nell'albero del dock —
+	// `RootWidget` e' un puntatore, non uno slot di parentela, quindi le due strade convivono.
+	Dock->WidgetTree = NewObject<UWidgetTree>(Dock);
+	Dock->WidgetTree->RootWidget = Slot;
+
+	const TArray<FString> Report = URTTacticalHUDWidget::ComposeMountReport(Radice);
+	const FString Testo = FString::Join(Report, TEXT("|"));
+
+	// Controllo che le due strade ESISTANO: senza, l'asserzione sul conteggio sarebbe vacua.
+	TestTrue(TEXT("il dock e' nell'albero della radice"), Testo.Contains(TEXT("[ok]    ActionDock: 1")));
+	TestTrue(TEXT("e lo slot e' la radice dell'albero del dock"), Dock->WidgetTree->RootWidget == Slot);
+	TestTrue(TEXT("e lo slot e' anche figlio del pannello della radice"), Slot->GetParent() == Pannello);
+
+	// 🔴 LA RIGA: due strade, un conteggio.
+	TestTrue(TEXT("lo slot raggiungibile da due strade e' contato UNA volta"),
+		Testo.Contains(TEXT("[ok]    ActionSlot: 1")));
+
+	// E l'elenco non lo nomina due volte, che e' la meta' che si legge a occhio in un log.
+	int32 Occorrenze = 0;
+	for (const FString& Riga : Report)
+	{
+		if (Riga.Contains(TEXT("SlotDiProva")))
+		{
+			++Occorrenze;
+		}
+	}
+	TestEqual(TEXT("e l'elenco lo nomina una volta sola"), Occorrenze, 1);
 
 	return true;
 }
