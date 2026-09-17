@@ -414,7 +414,7 @@ Cosa vale, e dove sta la misura:
 - **misura di performance** in qualunque clone: aspetta, perché la contesa di CPU falsa i tempi;
 - **target Engine**: aspetta e avvisa, perché decade l'argomento di §9.
 
-🔴 **E c'è un caso che nessuna delle due sezioni copriva: un Editor INTERATTIVO blocca `Build.bat` su tutti i cloni.** Live Coding è un mutex di **macchina**, non di progetto. Misurato il 2026-09-11: con `UnrealEditor.exe` aperto sul clone principale per una seduta di authoring, una build in un **worktree diverso** è fallita dopo 35s con
+🔴 **E c'è un caso che nessuna delle due sezioni copriva: un Editor INTERATTIVO blocca `Build.bat` su tutti i cloni.** Live Coding è chiavato sul percorso dell'**eseguibile** di target, non sul `.uproject`. Misurato il 2026-09-11: con `UnrealEditor.exe` aperto sul clone principale per una seduta di authoring, una build in un **worktree diverso** è fallita dopo 35s con
 
 ```
 Unable to build while Live Coding is active. Exit the editor and game,
@@ -429,6 +429,47 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select Proce
 ```
 
 ⛔ **E non lo chiuda da fuori**: chi authora asset ha lavoro non salvato in memoria, e un Editor chiuso dall'esterno lo porta via — vedi §11 *«Prendere il motore, senza un lease»*.
+
+#### E se la build non può aspettare: la leva del builder
+
+`-NoLiveCoding` qui sopra è la leva di chi **apre** l'Editor. Ma chi resta bloccato è chi **compila**, e sull'Editor di un'altra sessione non può fare niente — non può chiuderlo (⛔ qui sopra) e non può passargli un flag a posteriori. La sua leva è `-NoHotReloadFromIDE`, su `Build.bat`:
+
+```powershell
+& "<engine>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development `
+    -Project="<repo>/RefactorTactics.uproject" -WaitMutex -NoHotReloadFromIDE
+```
+
+⛔ **Non «forza» la build, e non tocca il mutex.** In `Engine/Source/Programs/UnrealBuildTool/`, `Configuration/BuildConfiguration.cs` dichiara `[CommandLine("-NoHotReloadFromIDE", Value = "false")]` su `bAllowHotReloadFromIDE` (default `true`), e in `System/HotReload.cs` la guardia di `CheckForLiveCodingSessionActive` è `if (bAllowHotReloadFromIDE && … && IsLiveCodingSessionActive(…)) throw`. ∴ il flag manda la guardia **in corto prima** che il mutex venga interrogato: non vince una gara, non partecipa.
+
+🔑 **Perché serva sapere com'è fatta la chiave.** In `IsLiveCodingSessionActive` il nome del mutex è `Global\LiveCoding_` **+ il percorso completo dell'eseguibile di target** (`Makefile.ExecutableFile.FullName`, con `/`, `\` e `:` sostituiti da `+`). Il `.uproject` **non entra nella chiave**: collide chi risolve allo **stesso binario**, non chi sta sulla stessa macchina. Per un target Editor di progetto contro una installed build quel binario è condiviso da tutti i checkout, e lo dice la build stessa in coda all'output:
+
+```
+Output binary: <engine>\Engine\Binaries\Win64\UnrealEditor.exe
+```
+
+∴ è la stessa frase della precondizione `InstalledBuild.txt` di §9, non una cautela in più.
+
+**Le tre precondizioni, e da dove discendono.** Il commento di `IsLiveCodingSessionActive` dichiara lo scopo del check: impedire di modificare object file **prima che siano stati caricati** da una sessione viva. Da lì seguono, invece di essere asserite:
+
+- ⛔ **nessun Editor sul *proprio* clone** — ha caricato le DLL di *questo* `Binaries/`, ed è esattamente ciò che la build riscriverebbe;
+- ⛔ **target di *progetto*, non Engine** — un target Engine scrive in `Engine/Binaries/`, che è condiviso ed è ciò che l'Editor altrui ha caricato;
+- ⛔ **`Engine/Build/InstalledBuild.txt` presente** — è la garanzia che un target di progetto non possa riscrivere moduli Engine.
+
+Quando l'Editor che tiene il mutex sta in un **altro** clone, i suoi object file sono altri — `Binaries/` è per clone — quindi riscrivere i propri non lo disturba.
+
+🔴 **E quando la leva è SBAGLIATA: Editor vivo di un'altra sessione.** Lì si **aspetta** (§11), e usare il flag è precisamente l'uso che quel check esiste per impedire. La leva serve quando il mutex è tenuto da un processo che **non lo rilascerà**, non quando è tenuto da qualcuno che sta lavorando.
+
+⚠️ **L'Editor *zombie* è un terzo caso, e non è il `LiveCodingConsole` orfano di §11**: sono processi diversi, quindi il `Name` del filtro li distingue già. L'orfano è `LiveCodingConsole.exe` col `ParentProcessId` che non risolve; lo zombie è un `UnrealEditor.exe` morto male il cui mutex sopravvive. Si riconosce dai campi, non dalla presenza:
+
+| Campo | Zombie | Editor vivo |
+|---|---|---|
+| `Threads.Count` | `1` | decine — `93` nella controprova |
+| `MainWindowHandle` | `0`, titolo vuoto | non nullo |
+| `WorkingSet64` | ~`0,2 MB` | ~`3,6 GB` |
+| `CPU` | ore accumulate — *era* un Editor vero | cresce |
+| `Responding` | `True`, e **non significa niente** senza finestra | `True` |
+
+⛔ **Provenienza, perché non è riverificabile come il resto di questa sezione**: misurato da `refactor-tactics-dev` il 2026-08-24, con controprova su un Editor vivo il 2026-09-11; **i log non sono stati conservati**, quindi i numeri sono riportati e non allegati. Da rimisurare, con `-abslog`, la prossima volta che uno zombie ricapita. ⛔ E non è scritto qui che il flag sia *l'unica* uscita da uno zombie: nessuno ha mai provato a terminarlo, quindi è una misura da fare e non un'affermazione da citare.
 
 ### Tooling locale
 
@@ -714,7 +755,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'L
 | build o suite in un **altro** clone | build o suite | **non aspettare** — §9 |
 | misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
 | qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
-| Editor interattivo in **qualunque** clone | build | **aspetta**: Live Coding è un mutex di **macchina**, non di progetto — vedi §*Build Editor*. ⚠️ Diceva *«sul **tuo** clone — tiene il DLL»* fino al 2026-09-16: sbagliava **sede** e **meccanismo**, e contraddiceva §*Build Editor* nello stesso documento |
+| Editor interattivo in **qualunque** clone | build | **aspetta**: Live Coding è chiavato sul percorso dell'**eseguibile** di target, non sul `.uproject` — vedi §*Build Editor*. ⚠️ Diceva *«sul **tuo** clone — tiene il DLL»* fino al 2026-09-16: sbagliava **sede** e **meccanismo**, e contraddiceva §*Build Editor* nello stesso documento |
 | `LiveCodingConsole` col **padre vivo** | build in qualunque clone | **aspetta**: il lock è di chi sta iterando, e chiuderglielo gli costa il lavoro non salvato |
 | `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**: nessuno lo rilascerà, si **termina**. I gate di `tools/mutation/` lo fanno da sé, ma solo quando nessun motore vivo potrebbe usare Live Coding — interattivo no, headless con `-NoLiveCoding` sì ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)) |
 | qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
