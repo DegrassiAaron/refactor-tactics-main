@@ -440,7 +440,8 @@ export const KNOWN_DIVERGENCES: KnownDivergence[] = [
     field: 'phase',
     reason:
       "il codice e' stato migrato a `NormalMovement` il 2026-09-12 (D-116 voce 1, #641 CHIUSA) e il " +
-      'catalogo §2.2 dichiara ancora `Dash`: il documento e\' indietro rispetto a una decisione accettata',
+      'catalogo §2.2 dichiara ancora `Dash`: il documento e\' indietro rispetto a una decisione ' +
+      'accettata — #3186 la possiede',
   },
   ...['Action.Anchor', 'Action.CreateSmoke', 'Action.Evade', 'Action.Mortar', 'Action.Purge', 'Action.Withdraw'].map(
     (actionId): KnownDivergence => ({
@@ -448,7 +449,7 @@ export const KNOWN_DIVERGENCES: KnownDivergence[] = [
       side: 'cpp',
       reason:
         'azione core costruita da `GetCoreActionCatalog()` e non dichiarata da nessuna tabella del ' +
-        "catalogo: D-023 rende il catalogo l'autorita' dei numeri, e questi non ce li ha",
+        "catalogo: D-023 rende il catalogo l'autorita' dei numeri, e questi non ce li ha — #3187 le possiede",
     }),
   ),
 ];
