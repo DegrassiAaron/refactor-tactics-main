@@ -31,6 +31,21 @@ import { posix, join, relative, sep } from 'node:path';
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const DOCS_DIR = fileURLToPath(new URL('../../docs/', import.meta.url));
 
+/** I contratti operativi in `.claude/`: portano tabelle e link come i documenti di `docs/`, e #3166 ha
+ *  misurato che **due** delle tre sintesi mai confrontate divergevano dal proprietario. Un cancello non
+ *  vede una divergenza semantica — quella richiede il confronto — ma vede cio' per cui esiste: una
+ *  tabella che si rompe e un percorso che non arriva.
+ *
+ *  ⚠️ **Entrati nel perimetro il 2026-09-18 a superficie verde**: `0` tabelle rotte, `0` link morti e `0`
+ *  etichette stantie su nove documenti, misurati PRIMA di accendere il gate applicando le funzioni
+ *  esportate qui sotto. Accendere un cancello quando e' gia' rosso e' il modo noto di farlo disattivare —
+ *  e' la stessa ragione per cui `ROOT_DOCS` e' una lista e non un glob.
+ *
+ *  ⛔ Il perimetro era stato dichiarato assente **quattro volte** (#3159, #3165, #3166, #3169) sulla base
+ *  di `DOCS_DIR` letto senza `main()`: `AGENTS.md` era gia' coperto da `ROOT_DOCS`, `.claude/` no. */
+const CLAUDE_DIR = fileURLToPath(new URL('../../.claude/', import.meta.url));
+
+
 /** Un riferimento a un file del repository, scritto come link Markdown. */
 export interface DocLink {
   /** Testo fra parentesi quadre. */
@@ -182,6 +197,7 @@ function main() {
     ...markdownFiles(DOCS_DIR).filter(
       (f) => withArchive || !relative(DOCS_DIR, f).startsWith('archive'),
     ),
+    ...(existsSync(CLAUDE_DIR) ? markdownFiles(CLAUDE_DIR) : []),
   ];
 
   const problems: string[] = [];
@@ -204,7 +220,7 @@ function main() {
   // La copertura si stampa **anche in verde**: un gate che non dice quanto ha guardato non e'
   // distinguibile da uno che non guarda (#576).
   console.error(
-    `link esaminati: ${links} in ${files.length} documenti` +
+    `link esaminati: ${links} in ${files.length} documenti (radice, docs/ e .claude/)` +
       (withArchive ? '' : ' (docs/archive/ escluso: passa --with-archive)'),
   );
 
