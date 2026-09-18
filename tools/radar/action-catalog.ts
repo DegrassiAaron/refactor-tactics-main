@@ -435,19 +435,16 @@ export interface KnownDivergence {
 }
 
 export const KNOWN_DIVERGENCES: KnownDivergence[] = [
-  // ✅ `Action.Sprint` non e' piu' qui: la divergenza di fase e' stata chiusa il 2026-09-18 (#3186) e la
-  //    riga e' stata TOLTA nello stesso passaggio. E' il ciclo che questo elenco deve avere — una voce che
-  //    sopravvive al proprio difetto fa fallire il gate come esenzione stantia, ed e' voluto. Verificato
-  //    rimettendola: `errore: 1 divergenze dichiarate non si verificano piu' — stantia Action.Sprint.phase`.
-  ...['Action.Anchor', 'Action.CreateSmoke', 'Action.Evade', 'Action.Mortar', 'Action.Purge', 'Action.Withdraw'].map(
-    (actionId): KnownDivergence => ({
-      actionId,
-      side: 'cpp',
-      reason:
-        'azione core costruita da `GetCoreActionCatalog()` e non dichiarata da nessuna tabella del ' +
-        "catalogo: D-023 rende il catalogo l'autorita' dei numeri, e questi non ce li ha — #3187 le possiede",
-    }),
-  ),
+  // ✅ **Vuoto, ed e' lo stato che questo elenco deve tendere ad avere.**
+  //
+  // Le due divergenze del primo run — 2026-09-18 — sono state riparate e le loro righe TOLTE nello stesso
+  // passaggio: la fase di `Action.Sprint` (#3186) e le sei azioni core che nessuna tabella dichiarava
+  // (#3187). Una voce che sopravvive al proprio difetto fa fallire il gate come esenzione stantia, ed e'
+  // voluto: verificato rimettendo quella dello Sprint a divergenza riparata —
+  // `errore: 1 divergenze dichiarate non si verificano piu' — stantia Action.Sprint.phase`.
+  //
+  // ⚠️ Una riga nuova qui dentro e' un debito, non una soluzione: va aggiunta solo quando la riparazione
+  // appartiene a qualcun altro, e deve nominare la issue che la possiede.
 ];
 
 /** Separa le divergenze **nuove** da quelle dichiarate, e trova le esenzioni **stantie** — quelle che non
