@@ -2247,19 +2247,25 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// 🔑 **Le celle sono interne alla mappa (`mapRadius: 3`, e `(1,1)` dista 2), per igiene del banco.**
 	//
 	// ⌫ **Una stesura precedente di questo commento diceva che le celle fuori arena facevano rifiutare lo
-	// scenario «dalla validazione di mappa», e la spiegazione era FALSA.** Misurato: `FlatArenaContains` e'
-	// chiamato in tre punti soltanto — `cells`, le unita' di variante e `units` — e **nessuno riguarda**
-	// `targetCell` o `dashTo`, che non sono mai validati contro l'arena. `"targetCell": [3, 4]` su
-	// `mapRadius: 3` si carica benissimo.
+	// scenario «dalla validazione di mappa», e la spiegazione era FALSA quando fu scritta.** Misurato
+	// allora: `FlatArenaContains` era chiamata in tre punti soltanto — `cells`, le unita' di variante e
+	// `units` — e nessuno riguardava `targetCell` o `dashTo`.
+	//
+	// ⚠️ **Da `#2698` le celle dell'intent SONO validate contro l'arena**, in testa al ciclo di
+	// `ValidateScenarioTurns`, `bUsesFixture` escluso. La riga qui sopra resta perche' spiega perche' il
+	// banco e' costruito cosi', ma la sua conclusione non vale piu': oggi una cella fuori arena viene
+	// rifiutata, e il caso ha un proprietario — `Scenario.LoaderRejectsMalformedIntentFields`.
 	//
 	// La causa vera del vuoto era un'altra, ed era nel METODO: la prima mutazione M1 sostituiva solo la
 	// CONDIZIONE dell'`if` e lasciava dentro le chiamate a `ParseCell`, quindi la guardia mutata entrava e
 	// il fix rifiutava lo stesso. Il test non era vacuo — era la misura a non rimuovere il fix.
 	//
-	// ⚠️ E c'e' un difetto ADIACENTE che questa nota registra invece di lasciarlo implicito: `Validate`
+	// ⌫ **Il difetto ADIACENTE che questa nota registrava e' stato chiuso da `#2698`.** Diceva: `Validate`
 	// porta il commento «una cella bersaglio segue le stesse regole di ogni altra cella dello scenario:
-	// fuori dall'arena e' un errore di scrittura» sopra un `continue` che **non controlla niente**. La
-	// regola e' dichiarata e non applicata; chi la implementera' trovera' questi casi gia' dentro l'arena.
+	// fuori dall'arena e' un errore di scrittura» sopra un `continue` che **non controlla niente** — regola
+	// dichiarata e non applicata. Ora e' applicata, e i casi di questo banco restano dentro l'arena per la
+	// ragione per cui erano stati scelti: qui si misura l'ARITA', e una cella fuori arena farebbe cadere il
+	// test su un'altra guardia.
 	// ---- targetCell -------------------------------------------------------------------------------
 
 	// (1) Tre elementi: accettato. E' il controllo POSITIVO — senza, ogni riga sotto sarebbe verde anche
@@ -2403,6 +2409,119 @@ bool FRTScenarioLoaderIntentCellArityTest::RunTest(const FString&)
 	// e a runtime `RTScenarioSession` salta il dash — `dashTo` viene letto e consumato da nessuno. Non e'
 	// stato introdotto da questa passata e non si chiude qui: chiuderlo chiede di decidere se `"None"` sia
 	// un identificatore legale o un refuso, e la sede della decisione e' un'issue.
+
+	return true;
+}
+
+/**
+ * **Ogni campo dell'intent distingue ASSENTE da PRESENTE-E-MALFORMATO** (`#2698`).
+ *
+ * 🔴 **Il difetto che questo test chiude non produceva un rosso: produceva un VERDE su un'altra partita.**
+ * `TryGetStringField` risponde `false` sia per una chiave assente sia per una del tipo sbagliato, quindi
+ * `"ability": ""` e `"ability": ["Hero.Aevik.ArcPulse"]` facevano saltare l'intero blocco in silenzio:
+ * l'unita' non usava nessuna abilita', lo scenario riportava `PASS`, e nessuno aveva scritto un test su
+ * quella partita. E' la stessa formula che `#2546` ha chiuso sui tre campi ARRAY, applicata ai campi
+ * STRINGA che fanno da guardia.
+ *
+ * 🔑 **Le decisioni non ovvie sono state prese misurando il writer e il corpus, non discutendole:**
+ *
+ *   * **stringa vuota** — `RTScenarioWriter` scrive ogni campo stringa sotto `!IsEmpty()` / `!IsNone()`,
+ *     quindi non la emette mai: rifiutarla non puo' rompere il round-trip;
+ *   * **`"None"`** (caso D.2) — `FName(TEXT("None"))` **e'** `NAME_None`, e la guardia d'esecuzione di
+ *     `RTScenarioSession` e' `!Intent.Dash.IsNone()`: il campo caricava verde e a runtime nessuno lo
+ *     consumava. Zero occorrenze nel corpus;
+ *   * **`"move": []`** (caso D.1) — il writer emette `move` sotto `if (Num() > 0)`, e
+ *     `grep -rn '"move"\s*:\s*\[\s*\]' Scenarios/` risponde **0**. Un'unita' ferma OMETTE il campo.
+ *
+ * ⛔ **Cio' che questo test NON chiede: il CONSUMO.** «Un `target` senza `ability` chi lo usa?» e' la
+ * domanda che il 2026-09-09 ha rotto il round-trip e i cui controlli sono stati ritirati — il writer
+ * emette davvero quella forma. Qui si guarda il tipo, non chi consuma.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioLoaderIntentFieldFormTest,
+	"RefactorTactics.Scenario.LoaderRejectsMalformedIntentFields",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioLoaderIntentFieldFormTest::RunTest(const FString&)
+{
+	auto WithIntent = [](const FString& IntentBody) -> FString
+	{
+		return FString::Printf(TEXT(R"({"scenarioId":"X","mapRadius":3,)")
+			TEXT(R"("units":[{"id":"A","hero":"Hero.Aevik","team":0,"cell":[0,0,0]},)")
+			TEXT(R"({"id":"B","hero":"Hero.Muiren","team":1,"cell":[2,0,0]}],)")
+			TEXT(R"("turns":[{"intents":[%s]}],)")
+			TEXT(R"("expect":[{"type":"TurnsCompleted","value":1}]})"), *IntentBody);
+	};
+
+	auto Rifiuta = [this](const FString& Json, const TCHAR* DeveCitare, const TCHAR* Cosa)
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(*Json, Scenario, Error);
+		TestFalse(FString::Printf(TEXT("%s: rifiutato"), Cosa), bOk);
+		// Il MESSAGGIO, non il bool: un rifiuto che non nomina il campo manda a cercare altrove, ed e'
+		// meta' del difetto che questa issue chiude.
+		TestTrue(FString::Printf(TEXT("%s: il motivo cita '%s' (era: '%s')"), Cosa, DeveCitare, *Error),
+			Error.Contains(DeveCitare));
+	};
+
+	// ── CONTROLLO POSITIVO, prima di tutto: senza, ogni rifiuto qui sotto sarebbe verde anche se il loader
+	//    rifiutasse QUALUNQUE intent, e il test non distinguerebbe una guardia da un muro.
+	{
+		FRTTestScenario Scenario;
+		FString Error;
+		const bool bOk = URTScenarioLoader::LoadFromString(
+			*WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","target":"B","facing":"NE"})")),
+			Scenario, Error);
+		if (TestTrue(FString::Printf(TEXT("l'intent ben formato si carica (errore: '%s')"), *Error), bOk)
+			&& TestEqual(TEXT("un turno"), Scenario.Turns.Num(), 1)
+			&& TestEqual(TEXT("un intent"), Scenario.Turns[0].Intents.Num(), 1))
+		{
+			const FRTScenarioIntent& I = Scenario.Turns[0].Intents[0];
+			TestEqual(TEXT("l'abilita' e' quella scritta"), I.Ability, FName(TEXT("Hero.Aevik.ArcPulse")));
+			TestEqual(TEXT("il bersaglio e' quello scritto"), I.Target, FString(TEXT("B")));
+			TestTrue(TEXT("la rotazione e' dichiarata"), I.bDeclaresFacing);
+		}
+	}
+
+	// ── A · i campi stringa: presente e malformato non e' assente.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":""})")),
+		TEXT("ability"), TEXT("ability stringa vuota"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":["Hero.Aevik.ArcPulse"]})")),
+		TEXT("ability"), TEXT("ability come array"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","facing":["NE"]})")),
+		TEXT("facing"), TEXT("facing come array"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","edge":42})")),
+		TEXT("edge"), TEXT("edge come numero"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","target":["B"]})")),
+		TEXT("target"), TEXT("target come array, e senza ability: il ramo che lo legge non lo vedeva"));
+
+	// ── D.2 · la sentinella che collide. Il campo caricava, `dashTo` veniva validato, e a runtime lo
+	//    scatto non avveniva: `FName("None")` E' `NAME_None`.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","dash":"None","dashTo":[1,0,0]})")),
+		TEXT("dash"), TEXT("dash uguale alla sentinella None"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"none","target":"B"})")),
+		TEXT("ability"), TEXT("ability 'none': il confronto FName e' case-insensitive"));
+
+	// ── D.1 · la lista vuota, che restava un no-op silenzioso accanto al tipo sbagliato gia' chiuso.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","move":[]})")),
+		TEXT("move"), TEXT("move lista vuota"));
+
+	// ── B · il VALORE della cella, non la sua lunghezza. `AsNumber()` rispondeva 0 per ogni non-numero,
+	//    quindi questa forma diventava la cella (0,0,0) — dove l'unita' A gia' si trova.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":["1","0","0"]})")),
+		TEXT("non e' un numero"), TEXT("targetCell con componenti stringa"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1.5,0,0]})")),
+		TEXT("non e' un intero"), TEXT("targetCell con una componente frazionaria"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","move":[[0,true,0]]})")),
+		TEXT("non e' un numero"), TEXT("move con una componente booleana"));
+
+	// ── C · la regola che era dichiarata in un commento sopra un `continue` che non controllava niente.
+	//    `(9,9,0)` dista 18 dal centro su `mapRadius: 3`.
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[9,9,0]})")),
+		TEXT("fuori dall'arena"), TEXT("targetCell fuori dall'arena"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","ability":"Hero.Aevik.ArcPulse","targetCell":[1,0,4]})")),
+		TEXT("layer"), TEXT("targetCell su un layer che l'arena piatta non ha"));
+	Rifiuta(WithIntent(TEXT(R"({"unit":"A","move":[[1,0,0],[9,9,0]]})")),
+		TEXT("move[1]"), TEXT("move fuori dall'arena: il messaggio nomina il passo"));
 
 	return true;
 }
