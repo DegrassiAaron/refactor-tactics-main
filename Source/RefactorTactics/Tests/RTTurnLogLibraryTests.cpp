@@ -115,6 +115,65 @@ bool FRTTurnLogDescribeTest::RunTest(const FString&)
 }
 
 /**
+ * **Un movimento negato dice QUALE passaggio, e non inventa una rotta quando non ce n'e' una** (`#2627`).
+ *
+ * 🔴 **`BlockedByUnit` ha DUE semantiche di `TgtCell`, ed e' la ragione per cui questo test ha due meta'.**
+ * Il diniego in pianificazione (`#79`) ci mette la destinazione **richiesta e negata**; il resolver, che
+ * blocca durante il percorso, ci mette dove l'unita' si e' fermata — e al primo passo quella cella e'
+ * `SrcCell`. Promuovere l'esito al ramo lungo senza distinguerli avrebbe prodotto `(5,0,0) -> (5,0,0)
+ * (0 celle)`: una rotta lunga zero, cioe' rumore con una freccia.
+ *
+ * ⚠️ **Si asserisce sulla riga RENDERIZZATA, non sul campo della voce.** La destinazione era gia' in
+ * `TgtCell` prima di `#2627` — il difetto non era il dato, era che `DescribeEntry` lo buttava via. Un test
+ * che leggesse `Entry.TgtCell` sarebbe stato verde anche prima, e non avrebbe misurato niente.
+ *
+ * ⛔ **L'anti-vacuita' e' la seconda meta'**, e non e' un di piu': la mutazione che rimette `BlockedByUnit`
+ * nel ramo breve fa cadere la prima meta'; quella che lo mette nel ramo lungo **senza** la condizione fa
+ * cadere la seconda. Una sola delle due lascerebbe passare una delle due regressioni.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLogBlockedDestinationTest,
+	"RefactorTactics.TurnLog.BlockedByUnitShowsRefusedDestination",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLogBlockedDestinationTest::RunTest(const FString&)
+{
+	// META' 1 — il diniego in pianificazione: `Tgt` e' la destinazione che il giocatore aveva chiesto.
+	FRTTurnLogEntry Negato;
+	Negato.Phase = ERTMatchPhase::Move;
+	Negato.Category = ERTLogCategory::Move;
+	Negato.Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit);
+	Negato.SrcCell = FRTCellId(-1, 0, 0);
+	Negato.TgtCell = FRTCellId(0, 0, 0);
+	Negato.Amount = 0;
+
+	const FString TestoNegato = URTTurnLogLibrary::DescribeEntry(Negato);
+	TestTrue(TEXT("la riga dice che la cella era occupata"), TestoNegato.Contains(TEXT("occupata")));
+	TestTrue(TEXT("compare la cella di partenza"), TestoNegato.Contains(TEXT("(q=-1,r=0,L=0)")));
+	TestTrue(TEXT("compare la DESTINAZIONE richiesta, che prima della #2627 non usciva"),
+		TestoNegato.Contains(TEXT("(q=0,r=0,L=0)")));
+	TestTrue(TEXT("le due celle sono legate da una freccia, non accostate"),
+		TestoNegato.Contains(TEXT("(q=-1,r=0,L=0) -> (q=0,r=0,L=0)")));
+
+	// META' 2 — il blocco al primo passo: `Tgt == Src`, e non esiste nessuna rotta da mostrare.
+	FRTTurnLogEntry SulPosto;
+	SulPosto.Phase = ERTMatchPhase::Move;
+	SulPosto.Category = ERTLogCategory::Move;
+	SulPosto.Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit);
+	SulPosto.SrcCell = FRTCellId(5, 0, 0);
+	SulPosto.TgtCell = FRTCellId(5, 0, 0);
+	SulPosto.Amount = 0;
+
+	const FString TestoSulPosto = URTTurnLogLibrary::DescribeEntry(SulPosto);
+	TestTrue(TEXT("la riga dice che la cella era occupata"), TestoSulPosto.Contains(TEXT("occupata")));
+	TestTrue(TEXT("compare la cella in cui l'unita' e' rimasta"), TestoSulPosto.Contains(TEXT("(q=5,r=0,L=0)")));
+	TestFalse(TEXT("nessuna freccia: non c'e' una rotta da mostrare"), TestoSulPosto.Contains(TEXT("->")));
+	TestFalse(TEXT("nessuna rotta lunga zero"), TestoSulPosto.Contains(TEXT("(0 celle)")));
+
+	// Le due meta' devono leggersi diverse: un rendering costante passerebbe meta' delle prove qui sopra.
+	TestNotEqual(TEXT("diniego e blocco sul posto non sono la stessa riga"), TestoNegato, TestoSulPosto);
+	return true;
+}
+
+/**
  * `TurnLog.InflictedDamageExcludesWhatItSays` — le esclusioni documentate di `IsDamageInflictedByActor`
  * hanno un test, invece di vivere in un commento (`#1150`).
  *

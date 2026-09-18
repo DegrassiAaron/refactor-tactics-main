@@ -829,6 +829,14 @@ bool FRTLogOmitsRememberedEnemyEndToEndTest::RunTest(const FString&)
  * (*«fermo: cella occupata (q=5,r=0,L=0)»*); l'eco antepone `%s: ` col nome dell'unita'. Una riga che porta
  * **entrambi** puo' venire solo dalla seconda porta: e' cosi' che la premessa 3 distingue i due canali senza
  * contare le righe.
+ *
+ * 🔑 **QUALE dei due rami di `BlockedByUnit` esercita, dichiarato perche' da `#2627` sono due.** Questo test
+ * costruisce il blocco **al primo passo**: `PlannedPath` entra dritto nell'ostacolo, quindi partenza e
+ * arrivo coincidono e la voce cade nel ramo **BREVE** — una cella sola, nessuna freccia. Il ramo lungo, che
+ * `#2627` ha dato al diniego in pianificazione (`TgtCell != SrcCell`), **non passa di qui**: lo copre
+ * `TurnLog.BlockedByUnitShowsRefusedDestination`. ∴ se un domani questo test iniziasse a vedere una freccia,
+ * non e' un dettaglio di formattazione — significa che il suo allestimento ha smesso di bloccare al primo
+ * passo, e la premessa 2 starebbe misurando un altro evento.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogOmitsRememberedEnemyBlockedMoveTest,
 	"RefactorTactics.UI.LogOmitsRememberedEnemyBlockedMove",
