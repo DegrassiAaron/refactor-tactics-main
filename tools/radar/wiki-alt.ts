@@ -65,6 +65,15 @@ export function rewrite(text: string, fixes: Map<string, string>): string {
   return out;
 }
 
+/** I `.md` del clone della Wiki.
+ *
+ *  ⚠️ **Non e' il `markdownFiles` di `docs-corpus.ts`, e la differenza e' nei requisiti, non nella
+ *  storia** (#1405). Questo opera sul **clone della Wiki**: salta `.git`, che li' e' dentro la radice
+ *  scandita; non filtra `archive`, che li' non esiste; e ordina il risultato **finale** invece delle entry
+ *  di ogni livello, perche' la Wiki e' piatta e l'ordine dei file e' l'unico che conta. Unificarli darebbe
+ *  al modulo condiviso tre opzioni per un solo chiamante: la copia qui e' deliberata.
+ *
+ *  ⛔ Percio' il corpus di `docs/` resta definito **una** volta sola, e questo resta fuori da quel conto. */
 function markdownFiles(root: string): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {

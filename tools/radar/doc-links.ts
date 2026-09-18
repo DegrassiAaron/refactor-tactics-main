@@ -24,26 +24,16 @@
  *
  *  La copertura si stampa **sempre**, anche in verde: un gate che non dice quanto ha guardato non e'
  *  distinguibile da uno che non guarda (#576). */
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readFileSync, existsSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { posix, join, relative, sep } from 'node:path';
 
-const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const DOCS_DIR = fileURLToPath(new URL('../../docs/', import.meta.url));
+import { REPO_ROOT, docsCorpus } from './docs-corpus.ts';
 
-/** I contratti operativi in `.claude/`: portano tabelle e link come i documenti di `docs/`, e #3166 ha
- *  misurato che **due** delle tre sintesi mai confrontate divergevano dal proprietario. Un cancello non
- *  vede una divergenza semantica — quella richiede il confronto — ma vede cio' per cui esiste: una
- *  tabella che si rompe e un percorso che non arriva.
- *
- *  ⚠️ **Entrati nel perimetro il 2026-09-18 a superficie verde**: `0` tabelle rotte, `0` link morti e `0`
- *  etichette stantie su nove documenti, misurati PRIMA di accendere il gate applicando le funzioni
- *  esportate qui sotto. Accendere un cancello quando e' gia' rosso e' il modo noto di farlo disattivare —
- *  e' la stessa ragione per cui `ROOT_DOCS` e' una lista e non un glob.
- *
- *  ⛔ Il perimetro era stato dichiarato assente **quattro volte** (#3159, #3165, #3166, #3169) sulla base
- *  di `DOCS_DIR` letto senza `main()`: `AGENTS.md` era gia' coperto da `ROOT_DOCS`, `.claude/` no. */
-const CLAUDE_DIR = fileURLToPath(new URL('../../.claude/', import.meta.url));
+/** ⚠️ **Il perimetro non si legge qui.** `REPO_ROOT`, `docs/`, `.claude/` e i tre documenti di
+ *  governance della radice sono definiti in `docs-corpus.ts`, con la ragione di ciascuno: questo file
+ *  li consuma e non li ridichiara, perche' due definizioni possono divergere senza che nessuna riga di
+ *  copertura lo dica (#1405). */
 
 
 /** Un riferimento a un file del repository, scritto come link Markdown. */
@@ -152,53 +142,15 @@ export function staleLabels(
 // Comando
 // ---------------------------------------------------------------------------------------------
 
-/** Tutti i `.md` sotto una radice, in ordine stabile. */
-function markdownFiles(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir).sort()) {
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.md')) out.push(full);
-    }
-  };
-  walk(root);
-  return out;
-}
-
 function main() {
   const argv = process.argv.slice(2);
   const check = argv.includes('--check');
   const withArchive = argv.includes('--with-archive');
 
-  // I tre documenti di governance della radice sono i piu' letti del repository: restarne fuori
-  // vorrebbe dire non vedere un percorso morto proprio dove costa di piu'.
-  //
-  // ⚠️ Elencati, non presi con un glob su `*.md`, e la ragione è cambiata il 2026-08-30.
-  //
-  // Prima: la radice conteneva anche materiale **importato** — handoff datati e
-  // `RefactorTactics_Wiki_Lore.md`, che linkava `images/…` relativo al clone della Wiki e non a qui —
-  // e un glob li avrebbe segnalati come rotti: quattro falsi positivi al primo giro, che è il modo
-  // noto di far disattivare un gate. Quei file sono stati consumati e la radice ora contiene
-  // esattamente i tre qui sotto, quindi oggi lista e glob darebbero lo stesso insieme.
-  //
-  // La lista resta perché la radice è la casella di posta dell'autore: un kit ci viene lasciato,
-  // consumato e rimosso, e nell'intervallo linka percorsi di un altro repository. Un glob renderebbe
-  // il gate rosso proprio durante quel lavoro — cioè nella condizione in cui serve di più che sia
-  // verde per il resto. 🔴 **Il punto cieco che questo si sceglie**: un Markdown nuovo lasciato in
-  // radice non lo controlla nessuno, e ci può restare settimane. È successo: **sei** documenti,
-  // entrati fra il 2026-08-08 e il 2026-08-28 e usciti tutti il 2026-08-30 — e questo gate, che esiste
-  // dal 2026-08-25, non ne avrebbe visto nessuno.
-  const ROOT_DOCS = ['AGENTS.md', 'CLAUDE.md', 'README.md'];
-  const rootDocs = ROOT_DOCS.map((e) => join(REPO_ROOT, e)).filter((p) => existsSync(p));
-
-  const files = [
-    ...rootDocs,
-    ...markdownFiles(DOCS_DIR).filter(
-      (f) => withArchive || !relative(DOCS_DIR, f).startsWith('archive'),
-    ),
-    ...(existsSync(CLAUDE_DIR) ? markdownFiles(CLAUDE_DIR) : []),
-  ];
+  // Il corpus — i tre documenti di governance della radice, `docs/` meno l'archivio e `.claude/` — sta
+  // in `docs-corpus.ts`, non qui: era copiato identico nell'altro gate, e due copie divergono in
+  // silenzio continuando a stampare la stessa riga di copertura (#1405).
+  const files = docsCorpus({ withArchive });
 
   const problems: string[] = [];
   let links = 0;
