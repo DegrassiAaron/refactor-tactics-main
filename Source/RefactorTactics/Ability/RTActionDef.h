@@ -551,7 +551,19 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 Priority = 50;
 
-	/** Portata in celle esagonali (0 = su se stessi). */
+	/** Portata in celle esagonali, e `0` significa **tre cose diverse** a seconda di chi legge.
+	 *
+	 *  1. **su se stessi** — il caso originario, per un'azione che non ha un bersaglio a distanza;
+	 *  2. **«prendi la portata dal portatore»** — `RTTurnManager_Blast.cpp`: un'istanza senza `ActionId` o
+	 *     con portata non positiva eredita `Ability->RangeCells`, cioe' l'arma di chi la usa;
+	 *  3. 🔑 **«il budget vive nel PROFILO»** — per le azioni a `ERTMovementStyle::Budget` (`Move`,
+	 *     `Sprint`, `Withdraw`), dal 2026-09-18 ([D-427]). Il loro numero non e' piccolo: **non e' qui**.
+	 *     Chi aggiunge una quarta azione a quello stile scrive `0` e dichiara il moltiplicatore in
+	 *     `URTMovementProfileLibrary`; scriverne uno qui ricostruirebbe la seconda sede che quella voce ha
+	 *     chiuso, e `RefactorTactics.Catalog.BudgetActionsDeclareNoRange` diventa rosso.
+	 *
+	 *  ⚠️ **Tre significati su un campo sono un costo dichiarato, non una svista**: separarli vorrebbe dire
+	 *  un campo nuovo e una migrazione dei lettori, che [D-427] non ha ritenuto di pagare per due azioni. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 RangeCells = 0;
 

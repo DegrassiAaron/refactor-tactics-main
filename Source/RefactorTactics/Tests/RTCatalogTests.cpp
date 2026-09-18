@@ -231,6 +231,38 @@ bool FRTCatalogEquipmentTest::RunTest(const FString&)
 }
 
 
+/**
+ * 🔑 **Il budget di movimento ha una sede sola, e questo test e' il modo in cui resta sola** ([D-427]).
+ *
+ * La regola vale per **ogni** azione a `ERTMovementStyle::Budget`, non per le tre che si chiamano cosi'
+ * oggi: pinnare `Sprint` e `Withdraw` per nome lascerebbe passare la quarta, che chi la aggiunge domani
+ * scriverebbe con un `RangeCells` per abitudine — ricostruendo la seconda sede senza che nessun test cada.
+ *
+ * ⛔ **Il gate anti-vacuita' non e' decorativo**: un catalogo che smettesse di dichiarare azioni a budget
+ * renderebbe il ciclo vero **misurando zero**, ed e' esattamente la forma con cui un gate muore. Percio' si
+ * asserisce anche che ne abbia vista almeno una.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBudgetActionsDeclareNoRangeTest,
+	"RefactorTactics.Catalog.BudgetActionsDeclareNoRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBudgetActionsDeclareNoRangeTest::RunTest(const FString&)
+{
+	int32 AzioniABudget = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		if (Def.MovementStyle != ERTMovementStyle::Budget) { continue; }
+		++AzioniABudget;
+		TestEqual(
+			*FString::Printf(
+				TEXT("%s e' a budget, quindi il suo RangeCells e' zero: il numero vive nel profilo (D-427)"),
+				*Def.ActionId.ToString()),
+			Def.RangeCells, 0);
+	}
+
+	TestTrue(TEXT("il catalogo dichiara almeno un'azione a stile Budget"), AzioniABudget > 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogCoreActionsTest,
 	"RefactorTactics.Catalog.ValidatorAcceptsCoreActions",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
