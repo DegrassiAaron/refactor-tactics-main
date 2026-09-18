@@ -7,17 +7,52 @@
 
 namespace
 {
-	/** Un sorgente di `Tests/` con il suo contenuto: il soggetto comune degli oracoli di questo file. */
-	struct FRTSorgenteDiTest
+	/**
+	 * I moduli che hanno una cartella di test, cioe' il perimetro degli oracoli di questo file.
+	 *
+	 * 🔑 **Tre dei quattro oracoli misurano proprieta' che NON dipendono dal modulo** — una guardia che deve
+	 * chiudere in fondo al file, un helper anonimo che collide sotto unity, un header che non deve dichiarare
+	 * test — e fino a #3036 le misuravano su meta' del codice: `Source/RefactorTacticsEditor/Private/Tests`
+	 * contiene dichiarazioni di Automation, e nessun oracolo guardava li'. Il modulo Editor era conforme il
+	 * giorno in cui #3036 e' stata aperta, ma quella era una fotografia — nulla impediva che domani non lo
+	 * fosse.
+	 *
+	 * ⛔ **Il quarto, `RuntimeTestsAvoidEditorOnlyApi`, resta sul solo runtime, e non e' una svista.** La
+	 * proprieta' che misura e' *«i test del RUNTIME non chiamano API che esistono solo `WITH_EDITOR`»*:
+	 * guardare la sola cartella del runtime **e' la definizione**, non il suo perimetro mancato. Estenderlo
+	 * al modulo Editor lo renderebbe falso per costruzione, perche' li' quell'API e' l'oggetto del test.
+	 */
+	struct FRTModuloDiTest
 	{
-		FString Nome;
-		FString Testo;
+		const TCHAR* Nome;
+		const TCHAR* CartellaRelativa;
 	};
 
-	FString RTCartellaDeiTest()
+	const FRTModuloDiTest RTModuliDiTest[] = {
+		{ TEXT("RefactorTactics"),       TEXT("Source/RefactorTactics/Tests") },
+		{ TEXT("RefactorTacticsEditor"), TEXT("Source/RefactorTacticsEditor/Private/Tests") },
+	};
+
+	/** Il modulo runtime, per l'unico oracolo il cui soggetto e' quel modulo invece della forma dei file. */
+	const TCHAR* const RTModuloRuntime = TEXT("RefactorTactics");
+
+	/** Un sorgente di test con il suo contenuto: il soggetto comune degli oracoli di questo file. */
+	struct FRTSorgenteDiTest
 	{
-		return FPaths::Combine(FPaths::ProjectDir(), TEXT("Source/RefactorTactics/Tests"));
-	}
+		FString Modulo;
+		FString Nome;
+		FString Testo;
+
+		/**
+		 * ⚠️ **Da #3036 il nome del file non identifica piu' il file da solo**: i moduli sono due, e nulla
+		 * vieta che lo stesso nome compaia in entrambi. Oggi nessuno lo fa —
+		 * `comm -12 <(ls Source/RefactorTactics/Tests/*.cpp | xargs -n1 basename | sort) <(ls
+		 * Source/RefactorTacticsEditor/Private/Tests/*.cpp | xargs -n1 basename | sort)` non risponde
+		 * niente — ma il giorno in cui accadesse, un rosso che nomina `Nome` manderebbe a cercare il difetto
+		 * nel file sbagliato. Ogni messaggio d'errore di questo file passa di qui invece che da `Nome`.
+		 */
+		FString Etichetta() const { return FString::Printf(TEXT("%s/%s"), *Modulo, *Nome); }
+	};
 
 	/**
 	 * Elenca e legge i sorgenti di `Tests/` che corrispondono a `Wildcard`, **una volta sola per wildcard**.
@@ -40,6 +75,10 @@ namespace
 	 *
 	 * ⚠️ **Ritorna un RIFERIMENTO**: la copia per valore duplicava l'intero corpus a ogni chiamata, cioe' tre
 	 * volte per run sui `.cpp` — proprio la lettura che questa funzione esiste per evitare.
+	 *
+	 * 🔑 **Legge TUTTI i moduli di `RTModuliDiTest`, e la selezione e' del consumatore** (#3036). Il filtro
+	 * per modulo sta in `RTSorgentiDelModulo` e lo usa il solo oracolo la cui proprieta' dipende dal modulo:
+	 * mettere il filtro qui avrebbe richiesto due funzioni, cioe' la duplicazione che #2136 aveva tolto.
 	 */
 	const TArray<FRTSorgenteDiTest>& RTLeggiSorgentiDeiTest(FAutomationTestBase& Test, const TCHAR* Wildcard)
 	{
@@ -49,23 +88,78 @@ namespace
 			return *Gia;
 		}
 
-		const FString Cartella = RTCartellaDeiTest();
-		TArray<FString> Nomi;
-		IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, Wildcard), /*Files*/ true, /*Dirs*/ false);
-
 		TArray<FRTSorgenteDiTest> Sorgenti;
-		Sorgenti.Reserve(Nomi.Num());
-		for (const FString& Nome : Nomi)
+		for (const FRTModuloDiTest& Modulo : RTModuliDiTest)
 		{
-			FString Testo;
-			if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+			const FString Cartella = FPaths::Combine(FPaths::ProjectDir(), Modulo.CartellaRelativa);
+			TArray<FString> Nomi;
+			IFileManager::Get().FindFiles(Nomi, *FPaths::Combine(Cartella, Wildcard), /*Files*/ true, /*Dirs*/ false);
+
+			Sorgenti.Reserve(Sorgenti.Num() + Nomi.Num());
+			for (const FString& Nome : Nomi)
 			{
-				Test.AddError(FString::Printf(TEXT("%s non si legge"), *Nome));
-				continue;
+				FString Testo;
+				if (!FFileHelper::LoadFileToString(Testo, *FPaths::Combine(Cartella, Nome)))
+				{
+					Test.AddError(FString::Printf(TEXT("%s/%s non si legge"), Modulo.Nome, *Nome));
+					continue;
+				}
+				Sorgenti.Add({ Modulo.Nome, Nome, MoveTemp(Testo) });
 			}
-			Sorgenti.Add({ Nome, MoveTemp(Testo) });
 		}
 		return Cache.Add(Wildcard, MoveTemp(Sorgenti));
+	}
+
+	/**
+	 * I sorgenti di **un solo** modulo, per l'oracolo la cui proprieta' e' relativa al modulo.
+	 *
+	 * ⚠️ Ritorna puntatori dentro l'array della cache, che vive per tutto il processo: la scelta e' la stessa
+	 * del riferimento restituito sopra — non duplicare il corpus — e vale finche' nessuno invalida la cache,
+	 * cosa che questo file non fa (vedi il limite dichiarato in `RTLeggiSorgentiDeiTest`).
+	 */
+	TArray<const FRTSorgenteDiTest*> RTSorgentiDelModulo(const TArray<FRTSorgenteDiTest>& Tutti, const TCHAR* Modulo)
+	{
+		TArray<const FRTSorgenteDiTest*> Filtrati;
+		for (const FRTSorgenteDiTest& Sorgente : Tutti)
+		{
+			if (Sorgente.Modulo == Modulo)
+			{
+				Filtrati.Add(&Sorgente);
+			}
+		}
+		return Filtrati;
+	}
+
+	/**
+	 * **Ogni modulo contribuisce almeno un `.cpp` al corpus.**
+	 *
+	 * ⛔ **E' l'anti-vacuita' che #3036 richiede, ed e' il difetto stesso nella forma in cui si
+	 * ripresenterebbe.** Un `Sorgenti.Num() > 0` complessivo e' verde anche quando un modulo sparisce: se
+	 * domani la cartella del modulo Editor cambiasse nome, `FindFiles` non troverebbe niente li', i tre
+	 * oracoli tornerebbero a guardare meta' del codice e **nessuno suonerebbe**. E' esattamente lo stato che
+	 * questa issue ha corretto.
+	 *
+	 * ⚠️ **Vale per i `.cpp` e non per gli header**, e la differenza e' misurata: al 2026-09-18
+	 * `ls Source/RefactorTacticsEditor/Private/Tests/*.h` non risponde niente — il modulo Editor non ha
+	 * header di test. Pretenderlo renderebbe rosso un oracolo su un corpus legittimo.
+	 */
+	bool RTOgniModuloHaSorgenti(FAutomationTestBase& Test, const TArray<FRTSorgenteDiTest>& Sorgenti)
+	{
+		bool bTutti = true;
+		for (const FRTModuloDiTest& Modulo : RTModuliDiTest)
+		{
+			const int32 Quanti = RTSorgentiDelModulo(Sorgenti, Modulo.Nome).Num();
+			if (Quanti == 0)
+			{
+				bTutti = false;
+				Test.AddError(FString::Printf(
+					TEXT("il modulo %s non ha contribuito nessun sorgente: la cartella attesa e' %s. ")
+					TEXT("Finche' resta cosi' questo oracolo guarda meta' del codice e resta verde — ")
+					TEXT("e' il difetto di #3036, non un dettaglio di enumerazione."),
+					Modulo.Nome, Modulo.CartellaRelativa));
+			}
+		}
+		return bTutti;
 	}
 }
 
@@ -132,6 +226,10 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
 	{
 		return false;
 	}
+	if (!RTOgniModuloHaSorgenti(*this, Sorgenti))
+	{
+		return false;
+	}
 
 	const FString Guardia = TEXT("#endif // WITH_DEV_AUTOMATION_TESTS");
 	int32 ConGuardia = 0;
@@ -155,7 +253,7 @@ bool FRTTestGuardClosesAtEndOfFileTest::RunTest(const FString&)
 			AddError(FString::Printf(
 				TEXT("%s: dopo l'#endif della guardia restano %d caratteri di codice. In Shipping quel codice ")
 				TEXT("resta senza gli helper che la guardia racchiude, e la build non compila. L'#endif va ")
-				TEXT("in fondo al file."), *Sorgente.Nome, Coda.Len()));
+				TEXT("in fondo al file."), *Sorgente.Etichetta(), Coda.Len()));
 		}
 	}
 
@@ -221,11 +319,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRuntimeTestsAvoidEditorOnlyApiTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRuntimeTestsAvoidEditorOnlyApiTest::RunTest(const FString&)
 {
-	const TArray<FRTSorgenteDiTest>& Sorgenti = RTLeggiSorgentiDeiTest(*this, TEXT("*.cpp"));
+	// ⛔ **Il SOLO modulo runtime, e non e' il perimetro dimenticato di #3036: e' la definizione.** Gli altri
+	// tre oracoli di questo file hanno allargato il proprio soggetto a entrambi i moduli perche' misurano la
+	// forma dei file, che non dipende dal modulo. Questo misura *«i test del RUNTIME non chiamano API che
+	// esistono solo `WITH_EDITOR`»*: nel modulo Editor quell'API e' l'oggetto del test, quindi guardarlo
+	// renderebbe l'oracolo rosso su codice corretto — falso per costruzione, cioe' spento entro un giorno.
+	const TArray<FRTSorgenteDiTest>& Tutti = RTLeggiSorgentiDeiTest(*this, TEXT("*.cpp"));
+	const TArray<const FRTSorgenteDiTest*> Sorgenti = RTSorgentiDelModulo(Tutti, RTModuloRuntime);
 
 	// ⚠️ Se non trova i sorgenti FALLISCE: un oracolo che perde il proprio soggetto e resta verde e' peggio
-	// di un oracolo assente. Stessa disciplina del test qui sopra.
-	if (!TestTrue(TEXT("i sorgenti dei test sono leggibili"), Sorgenti.Num() > 0))
+	// di un oracolo assente. Stessa disciplina del test qui sopra — e qui il filtro per modulo aggiunge un
+	// modo di perderlo che prima non esisteva, se la cartella del runtime cambiasse nome.
+	if (!TestTrue(TEXT("i sorgenti dei test del runtime sono leggibili"), Sorgenti.Num() > 0))
 	{
 		return false;
 	}
@@ -252,18 +357,18 @@ bool FRTRuntimeTestsAvoidEditorOnlyApiTest::RunTest(const FString&)
 	}
 
 	int32 Difettosi = 0;
-	for (const FRTSorgenteDiTest& Sorgente : Sorgenti)
+	for (const FRTSorgenteDiTest* Sorgente : Sorgenti)
 	{
 		for (const TCHAR* Api : SoloEditor)
 		{
 			const FString Chiamata = FString::Printf(TEXT("->%s("), Api);
-			if (Sorgente.Testo.Contains(Chiamata, ESearchCase::CaseSensitive))
+			if (Sorgente->Testo.Contains(Chiamata, ESearchCase::CaseSensitive))
 			{
 				++Difettosi;
 				AddError(FString::Printf(
 					TEXT("%s chiama %s, che esiste solo WITH_EDITOR: il target gioco non compilera' e ")
 					TEXT("nessun pacchetto sara' costruibile. Usa OnConstruction(GetTransform())."),
-					*Sorgente.Nome, Api));
+					*Sorgente->Etichetta(), Api));
 			}
 		}
 	}
@@ -655,8 +760,9 @@ namespace
  * 🔑 **Le TRE condizioni, che sono la specifica.** Una `C2084` le richiede tutte insieme, e un gate che ne
  * verificasse meno sarebbe rosso su codice giusto — cioe' spento entro un giorno:
  *
- * 1. **stesso modulo** — l'unity blob non attraversa i moduli. Qui e' garantito dal soggetto: si legge solo
- *    `Source/RefactorTactics/Tests`, che sta tutto nel modulo runtime.
+ * 1. **stesso modulo** — l'unity blob non attraversa i moduli. ⚠️ **Da #3036 NON e' piu' garantita dal
+ *    soggetto**: il corpus porta entrambi i moduli, e la condizione e' diventata un raggruppamento
+ *    esplicito nel loop. Due omonime, una per modulo, restano legali e non devono produrre un rosso.
  * 2. **stessa firma** — nome **e** tipi dei parametri. Due omonime con parametri diversi sono **overload
  *    legali**: confrontare i soli nomi darebbe **25** candidati contro **5** firme reali (misurato).
  * 3. **funzione libera** — i membri di `struct`/`class` non collidono mai fra loro.
@@ -666,11 +772,13 @@ namespace
  * ⚠️ **I SETTE LIMITI, misurati e dichiarati invece che scoperti dopo.** Questo test e' facile da leggere come
  * *«nessuna collisione di unity build»*, e non e' cio' che misura:
  *
- * 1. **Guarda `Source/RefactorTactics/Tests`, non tutto il modulo.** L'unity blob contiene **anche** `Turn/`,
- *    `Map/`, `Unit/`: un helper di test e uno di produzione con la stessa firma collidono allo stesso modo.
- *    Allargare il perimetro significa cambiare `RTLeggiSorgentiDeiTest`, che ha altri consumatori.
- * 2. **Il modulo `RefactorTacticsEditor` non e' coperto.** Non puo' collidere con questo — vedi condizione 1
- *    — ma puo' collidere con se stesso, e li' non c'e' nessun oracolo.
+ * 1. **Guarda le cartelle `Tests`, non tutto il modulo.** L'unity blob contiene **anche** `Turn/`, `Map/`,
+ *    `Unit/`: un helper di test e uno di produzione con la stessa firma collidono allo stesso modo.
+ *    Allargare il perimetro significa cambiare `RTModuliDiTest`, che ha altri consumatori.
+ * 2. ⌫ **«Il modulo `RefactorTacticsEditor` non e' coperto» era vero fino a #3036**, e quella riga stava
+ *    qui a dichiararlo: il modulo poteva collidere con se stesso e nessun oracolo guardava. Ora e' nel
+ *    corpus, raggruppato per modulo. Cio' che resta scoperto e' il punto 1 — i sorgenti **fuori** dalle
+ *    cartelle `Tests`, in entrambi i moduli.
  * 3. **Solo `*.cpp`.** ⛔ **Gli header di `Tests/` sono fuori, e sono quindici** — compreso
  *    `RTWidgetAssetTestHelpers.h`, nato con questo stesso oracolo. Una funzione **non** `inline` in un header
  *    incluso da due `.cpp` e' una ridefinizione nello stesso blob: e' la stessa `C2084` e questo test non la
@@ -753,57 +861,74 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
 	{
 		return false;
 	}
-
-	TArray<FRTAnonymousSignature> All;
-	for (const FRTSorgenteDiTest& Sorgente : Sorgenti)
+	if (!RTOgniModuloHaSorgenti(*this, Sorgenti))
 	{
-		RTExtractAnonymousSignatures(Sorgente.Nome, Sorgente.Testo, All);
+		return false;
 	}
 
-	// La stessa firma nello stesso file e' un'altra cosa (overload dichiarato e definito, o una svista che il
-	// compilatore prende da solo): qui interessa solo cio' che attraversa due unita' di traduzione.
-	TMap<FString, TArray<FRTAnonymousSignature>> ByKey;
-	for (const FRTAnonymousSignature& Signature : All)
-	{
-		ByKey.FindOrAdd(Signature.Key).Add(Signature);
-	}
-
+	// ⛔ **Il confronto e' PER MODULO, e non e' una raffinatezza (#3036).** L'unity blob non attraversa i
+	// moduli — e' la condizione 1 del docstring — quindi due omonime, una per modulo, sono legali: unirle in
+	// un corpus solo darebbe un rosso su codice corretto, cioe' il gate spento entro un giorno. Prima di
+	// #3036 il raggruppamento era implicito perche' il soggetto era un modulo solo; ora e' scritto.
 	int32 Collisions = 0;
-	for (const TPair<FString, TArray<FRTAnonymousSignature>>& Entry : ByKey)
+	int32 FirmeTotali = 0;
+	for (const FRTModuloDiTest& Modulo : RTModuliDiTest)
 	{
-		TSet<FString> DistinctFiles;
-		for (const FRTAnonymousSignature& Signature : Entry.Value)
+		TArray<FRTAnonymousSignature> DelModulo;
+		for (const FRTSorgenteDiTest* Sorgente : RTSorgentiDelModulo(Sorgenti, Modulo.Nome))
 		{
-			DistinctFiles.Add(Signature.File);
-		}
-		if (DistinctFiles.Num() < 2)
-		{
-			continue;
+			RTExtractAnonymousSignatures(Sorgente->Etichetta(), Sorgente->Testo, DelModulo);
 		}
 
-		++Collisions;
-		FString Where;
-		for (const FRTAnonymousSignature& Signature : Entry.Value)
+		// La stessa firma nello stesso file e' un'altra cosa (overload dichiarato e definito, o una svista che
+		// il compilatore prende da solo): qui interessa solo cio' che attraversa due unita' di traduzione.
+		TMap<FString, TArray<FRTAnonymousSignature>> ByKey;
+		for (const FRTAnonymousSignature& Signature : DelModulo)
 		{
-			Where += FString::Printf(TEXT("\n    %s:%d"), *Signature.File, Signature.Line);
+			ByKey.FindOrAdd(Signature.Key).Add(Signature);
 		}
-		AddError(FString::Printf(
-			TEXT("%s e' definita in namespace anonimo in %d file diversi dello stesso modulo:%s\n")
-			TEXT("  Il namespace anonimo NON protegge sotto unity build: le due definizioni finiscono nello ")
-			TEXT("stesso blob e la compilazione muore con C2084, piu' un C2264 per ogni chiamata. Rinomina ")
-			TEXT("quella del file piu' recente, oppure — se i CORPI sono identici — spostala in un header ")
-			TEXT("condiviso con namespace NOMINATO e funzioni `inline`. Se i corpi differiscono NON ")
-			TEXT("unificarle: vedi #2397."),
-			*Entry.Value[0].Readable, DistinctFiles.Num(), *Where));
+
+		for (const TPair<FString, TArray<FRTAnonymousSignature>>& Entry : ByKey)
+		{
+			TSet<FString> DistinctFiles;
+			for (const FRTAnonymousSignature& Signature : Entry.Value)
+			{
+				DistinctFiles.Add(Signature.File);
+			}
+			if (DistinctFiles.Num() < 2)
+			{
+				continue;
+			}
+
+			++Collisions;
+			FString Where;
+			for (const FRTAnonymousSignature& Signature : Entry.Value)
+			{
+				Where += FString::Printf(TEXT("\n    %s:%d"), *Signature.File, Signature.Line);
+			}
+			AddError(FString::Printf(
+				TEXT("%s e' definita in namespace anonimo in %d file diversi del modulo %s:%s\n")
+				TEXT("  Il namespace anonimo NON protegge sotto unity build: le due definizioni finiscono nello ")
+				TEXT("stesso blob e la compilazione muore con C2084, piu' un C2264 per ogni chiamata. Rinomina ")
+				TEXT("quella del file piu' recente, oppure — se i CORPI sono identici — spostala in un header ")
+				TEXT("condiviso con namespace NOMINATO e funzioni `inline`. Se i corpi differiscono NON ")
+				TEXT("unificarle: vedi #2397."),
+				*Entry.Value[0].Readable, DistinctFiles.Num(), Modulo.Nome, *Where));
+		}
+
+		AddInfo(FString::Printf(TEXT("%s: firme in namespace anonimo: %d"), Modulo.Nome, DelModulo.Num()));
+
+		// Secondo controllo positivo, e vale PER MODULO: un modulo i cui file non producono piu' nessuna
+		// firma non e' sorvegliato, e il conteggio complessivo lo nasconderebbe dietro l'altro.
+		TestTrue(FString::Printf(TEXT("il modulo %s contiene firme in namespace anonimo"), Modulo.Nome),
+			DelModulo.Num() > 0);
+		FirmeTotali += DelModulo.Num();
 	}
 
 	AddInfo(FString::Printf(TEXT("file ispezionati: %d, firme in namespace anonimo: %d"),
-		Sorgenti.Num(), All.Num()));
+		Sorgenti.Num(), FirmeTotali));
 
-	// Secondo controllo positivo: se l'estrattore smettesse di trovare firme sul corpus reale, il conteggio
-	// delle collisioni resterebbe zero senza che nulla sia stato guardato.
-	TestTrue(TEXT("il corpus contiene firme in namespace anonimo"), All.Num() > 0);
-	TestEqual(TEXT("nessuna firma anonima e' definita in due file"), Collisions, 0);
+	TestEqual(TEXT("nessuna firma anonima e' definita in due file dello stesso modulo"), Collisions, 0);
 	return true;
 }
 
@@ -848,9 +973,11 @@ bool FRTAnonymousHelpersDoNotCollideTest::RunTest(const FString&)
  *
  * 1. **Riconosce la macro SCRITTA**, non una generata da un'altra macro. Un `#define` che la avvolgesse
  *    passerebbe: espandere macro e' un preprocessore, cioe' piu' di quanto questo oracolo sia.
- * 2. **Guarda `Source/RefactorTactics/Tests`, non ricorsivo**, e non guarda `RefactorTacticsEditor`. E' lo
- *    stesso perimetro di `TestGuardClosesAtEndOfFile`, `RuntimeTestsAvoidEditorOnlyApi` e
- *    `AnonymousHelpersDoNotCollideUnderUnity`, ed e' l'altitudine dei file che si sono rotti.
+ * 2. **Guarda le cartelle `Tests` dei due moduli, non ricorsivo** (#3036). E' lo stesso perimetro di
+ *    `TestGuardClosesAtEndOfFile` e `AnonymousHelpersDoNotCollideUnderUnity`; `RuntimeTestsAvoidEditorOnlyApi`
+ *    ha il **solo** runtime, e li' e' la definizione della proprieta', non un perimetro piu' stretto.
+ *    ⚠️ Al 2026-09-18 il modulo Editor non ha header di test, quindi su questo oracolo il suo contributo e'
+ *    vuoto: e' il motivo per cui l'anti-vacuita' per modulo vale per i `.cpp` e non per gli header.
  * 3. **Non dice nulla sul CONTENUTO di un header.** Che non usi un simbolo assente in Shipping resta a
  *    giudizio — vedi il caso `RTWidgetAssetTestHelpers.h` nel docstring del gemello.
  * 4. **Eredita la cache non invalidata** di `RTLeggiSorgentiDeiTest`: in una sessione Editor lunga misura il
@@ -869,7 +996,10 @@ bool FRTTestHeadersDeclareNoAutomationTestTest::RunTest(const FString&)
 	// ⛔ Il controllo positivo viene PRIMA, e passa per lo STESSO scanner che percorrera' il corpus: se fosse
 	// cieco — o se il loop qui sotto smettesse di riportare — lo zero finale sarebbe verde e falso.
 	{
-		const FRTSorgenteDiTest Campione = { TEXT("<campione>"), FString(
+		// ⚠️ Il primo campo e' il MODULO da #3036: senza, l'inizializzazione aggregata farebbe scivolare il
+		// testo dentro `Nome` e lascerebbe `Testo` vuoto — lo scanner non troverebbe niente e il controllo
+		// positivo cadrebbe, che e' il modo giusto di fallire ma non il posto giusto dove scoprirlo.
+		const FRTSorgenteDiTest Campione = { TEXT("<modulo>"), TEXT("<campione>"), FString(
 			TEXT("#pragma once\n")
 			TEXT("// IMPLEMENT_SIMPLE_AUTOMATION_TEST in un commento di riga: non e' una dichiarazione\n")
 			TEXT("/*\n")
@@ -909,6 +1039,12 @@ bool FRTTestHeadersDeclareNoAutomationTestTest::RunTest(const FString&)
 	// ⚠️ Stessa disciplina degli altri: un oracolo che perde il proprio soggetto e resta verde e' peggio di un
 	// oracolo assente. `Tests/` contiene header per costruzione — a partire dalle fixture che i `.cpp` di
 	// questa stessa cartella includono.
+	//
+	// ⛔ **Qui NON si chiede che ogni modulo contribuisca**, a differenza dei tre oracoli sui `.cpp`: al
+	// 2026-09-18 `ls Source/RefactorTacticsEditor/Private/Tests/*.h` non risponde niente, e il modulo Editor
+	// non ha header di test. Pretenderlo sarebbe un rosso su un corpus legittimo. ∴ se un header comparisse
+	// li' domani, questo oracolo lo guarda gia' — e' il perimetro che #3036 ha allargato — ma la sua assenza
+	// non e' un difetto.
 	if (!TestTrue(TEXT("gli header dei test sono leggibili"), Header.Num() > 0))
 	{
 		return false;
@@ -928,7 +1064,7 @@ bool FRTTestHeadersDeclareNoAutomationTestTest::RunTest(const FString&)
 				TEXT("anche l'istanza in namespace anonimo: un header incluso da due `.cpp` la duplica nello ")
 				TEXT("stesso unity blob e registra lo stesso nome di test due volte. Sposta la dichiarazione ")
 				TEXT("nel `.cpp` che la usa, dentro `#if WITH_DEV_AUTOMATION_TESTS`."),
-				*Sorgente.Nome, Riga));
+				*Sorgente.Etichetta(), Riga));
 		}
 	}
 
