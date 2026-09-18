@@ -6,7 +6,7 @@
 
 **Architecture:** Due pezzi separati. Nel modulo runtime `RTHexLabelLibrary` decide *dove cade ogni carattere* — geometria pura, nessun `UWorld`, nessun Actor, tutta testabile. Nel modulo editor un `ULineBatchComponent` sull'`ARTHexMapActor` consuma quelle pose e traccia i segmenti; si ripopola quando la mappa cambia, non a ogni frame.
 
-**Tech Stack:** C++ / Unreal Engine 5.8.1 · `IMPLEMENT_SIMPLE_AUTOMATION_TEST` · `ULineBatchComponent` (`Engine/Classes/Components/LineBatchComponent.h`) · `./scripts/rt-suite.ps1` per la misura.
+**Tech Stack:** C++ / Unreal Engine 5.8.1 · `IMPLEMENT_SIMPLE_AUTOMATION_TEST` · `ULineBatchComponent` (`Engine/Classes/Components/LineBatchComponent.h`) · la suite Automation nella forma di `AGENTS.md` §Suite Unreal per la misura.
 
 **Spec:** `docs/superpowers/specs/2026-08-31-coordinate-cella-pavimento-design.md`
 
@@ -23,7 +23,7 @@
 - **Nessun asset nuovo nel gray kit**, nessun ottavo `InstancedStaticMeshComponent`, nessun interruttore.
 - **Commenti implementativi in italiano**, come il resto del repository. I nomi dei test in inglese, nel namespace `RefactorTactics.<Area>.<Nome>`.
 - **Build**: `Build.bat RefactorTacticsEditor Win64 Development -Project=<uproject> -WaitMutex -NoHotReloadFromIDE`.
-- **Misura**: la suite Automation con il filtro voluto, nella forma di `AGENTS.md` §Suite Unreal. ⚠️ Il piano fu scritto quando la si lanciava con `./scripts/rt-suite.ps1 -Filter "<filtro>" -WaitMinutes 40`, e **lo script attendeva** se il motore era occupato. Rimosso il 2026-09-08 (`D-347`): oggi non attende nessuno, quindi accertati a mano che nessun'altra sessione stia misurando — e dichiara il commit e lo stato dell'albero su cui hai raccolto l'evidenza. I comandi citati più sotto vanno letti così.
+- **Misura**: la suite Automation con il filtro voluto, nella forma di `AGENTS.md` §Suite Unreal. ⚠️ Il piano fu scritto quando la si lanciava con lo script `scripts/rt-suite.ps1` (`-Filter "<filtro>" -WaitMinutes 40`), e **lo script attendeva** se il motore era occupato. Rimosso il 2026-09-08 (`D-347`): oggi non attende nessuno, quindi accertati a mano che nessun'altra sessione stia misurando — e dichiara il commit e lo stato dell'albero su cui hai raccolto l'evidenza. I comandi qui sotto sono stati riscritti nella forma canonica il 2026-09-18 ([#2753](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2753)), con l'attesa resa esplicita.
 
 ---
 
@@ -197,7 +197,11 @@ TArray<FRTLabelStroke> URTHexLabelLibrary::GlyphStrokes(TCHAR Character)
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Build\BatchFiles\Build.bat" RefactorTacticsEditor Win64 Development `
   -Project="<repo>\RefactorTactics.uproject" -WaitMutex -NoHotReloadFromIDE
-./scripts/rt-suite.ps1 -Filter "RefactorTactics.HexLabel" -WaitMinutes 40
+# Prima: nessun'altra sessione sta misurando (AGENTS.md §11) — la CommandLine dice quale clone e quale sessione:
+#   Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, CommandLine
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+  "-ExecCmds=Automation RunTests RefactorTactics.HexLabel;Quit" `
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 
 Atteso: **2 test, 2 falliti**. `GlyphSetIsClosedAndNormalised` cade su *«'0' ha almeno un segmento»*; `EveryDigitLooksDifferent` su *«dieci cifre, dieci forme diverse»* (ne trova 1: tutte vuote).
@@ -528,7 +532,11 @@ e in `RTHexLabelLibrary.h`:
 - [ ] **Step 3: compila e osserva il rosso**
 
 ```powershell
-./scripts/rt-suite.ps1 -Filter "RefactorTactics.HexLabel" -WaitMinutes 40
+# Prima: nessun'altra sessione sta misurando (AGENTS.md §11) — la CommandLine dice quale clone e quale sessione:
+#   Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, CommandLine
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+  "-ExecCmds=Automation RunTests RefactorTactics.HexLabel;Quit" `
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 
 Atteso: i due test del Task 1 restano **verdi**, i quattro nuovi **falliscono** — su *«l'etichetta non e' vuota»*, *«tre direzioni, non una ne' sei»* (ne trova 0), *«la run a 0 gradi ha almeno tre caratteri»* e *«un segno meno per ciascuna delle tre run»*.
@@ -753,7 +761,11 @@ Trova `RebuildInstances()` in `RTHexMapActor.cpp` e aggiungi in coda al corpo:
 - [ ] **Step 4: compila e verifica che nulla sia rotto**
 
 ```powershell
-./scripts/rt-suite.ps1 -WaitMinutes 40
+# Prima: nessun'altra sessione sta misurando (AGENTS.md §11) — la CommandLine dice quale clone e quale sessione:
+#   Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, CommandLine
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+  "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
+  -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 
 Atteso: la suite intera **verde**, con i sei test di `HexLabel` dentro.
