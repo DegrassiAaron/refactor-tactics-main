@@ -195,6 +195,20 @@ che la applica.
 
 ### Perché la regola serve: il caso misurato
 
+> ⏱️ **Il caso qui sotto è SCADUTO il 2026-09-12, e la regola che illustra no.** `Action.Sprint` risolve ora
+> in `ERTResolutionPhase::NormalMovement` — canone e codice concordano
+> ([D-116](../../decisions/RT_PDR_00_Decision_Log.md),
+> [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641), **chiusa**), il test si chiama
+> `Actions.SprintIsAMoveProfileResolvedAfterBlast`, e la voce **41** di
+> [`DOC_CONFLICT_MATRIX.md`](../../DOC_CONFLICT_MATRIX.md) non registra più quella divergenza. ⛔ **Chi
+> esegue una seduta PIE oggi non deve aspettarsi uno Sprint pre-Blast**: vedrebbe il contrario di ciò che
+> questa sezione insegna, e il `grep` qui sotto non riproduce più.
+>
+> Il resoconto resta perché la **regola** che dimostra vale ancora, ed è la ragione per cui questa sezione
+> esiste: quando canone e codice divergono, chi osserva in PIE non ratifica l'osservazione. Serve un caso
+> vivo? Si prende dalla voce di `DOC_CONFLICT_MATRIX.md` che è aperta quel giorno. Nota aggiunta da
+> [#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199).
+
 `Action.Sprint`. Il canone dice che è un **profilo di `Move`** e risolve **dopo** il Blast
 ([`adr-0003`](../../decisions/adr-0003-modello-azioni-v01.md) §emendamenti, `D-015`/`D-116`); il codice
 lo risolve **prima**:

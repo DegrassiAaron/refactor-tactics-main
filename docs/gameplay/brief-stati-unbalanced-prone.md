@@ -83,12 +83,18 @@ scivolamento no»*.
 > con durata `1` nascerebbe nel Move e morirebbe nel Cleanup dello stesso turno, senza che nessuna fase
 > interposta possa leggerlo.
 >
-> Il confronto che lo dimostra è `Status.Exposed`, applicato da `Action.Sprint` con **durata 1**
-> (`RTCatalogLibrary.cpp:1067`). Sprint risolve in `ERTResolutionPhase::FastMovement`, cioè nel **Dash**, e ha
-> quindi Blast e Move davanti a sé prima del proprio Cleanup: durata `1` significa lì *«vale per il resto di
-> questo turno»*, ed è come `RTStatusTests.cpp` la pinna — *«durata esplicita: deve scadere in questo
-> Cleanup»*. La stessa durata applicata **nel Move** non ha più nessun resto di turno davanti. `2` è il numero
-> che rende vera, per uno stato che nasce nel Move, l'espressione di design «dura un round».
+> Il confronto che lo dimostra è `Status.Exposed`, applicato da `Action.Sprint`. ⏱️ *Fino al 2026-09-12 lo
+> Sprint risolveva in `ERTResolutionPhase::FastMovement`, cioè nel **Dash**, e applicava `Exposed` con
+> **durata 1**: aveva Blast e Move davanti a sé prima del proprio Cleanup, e `1` significava lì «vale per il
+> resto di questo turno» — come `RTStatusTests.cpp` la pinna, «durata esplicita: deve scadere in questo
+> Cleanup».*
+>
+> ✅ **E il caso è diventato la prova, invece che il contro-esempio.** La migrazione di
+> [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641) ha portato lo Sprint in
+> `NormalMovement`, cioè **nel Move**, e [D-116](../decisions/RT_PDR_00_Decision_Log.md) voce 4 gli ha dato
+> `Exposed` a **2 turni** *«nello stesso momento»*, con la stessa ragione che vale qui: uno stato che nasce
+> nel Move non ha più nessun resto di turno davanti. `2` è il numero che rende vera, per uno stato che nasce
+> lì, l'espressione di design «dura un round».
 
 **Effetti**
 

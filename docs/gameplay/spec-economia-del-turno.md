@@ -100,7 +100,7 @@ di quelle voci, non voci in più.
 | Voce del piano | Slot | Fase di risoluzione | Esempi |
 |---|---|---|---|
 | mobilità speciale | Movimento | **`Dash`** | `Dash`, `Charge`, `Leap`, `Reposition` ([D-191](../decisions/RT_PDR_00_Decision_Log.md)) |
-| movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Sprint` · `Withdraw` — ⚠️ `Sprint` è **ancora pre-Blast nel codice**, e D-116 lo sta riportando qui: vedi §3.1 |
+| movimento normale | Movimento | **`Move`** | profili `Sneak` · `Move` · `Sprint` · `Withdraw` — ✅ `Sprint` è **dopo il Blast anche nel codice** dal 2026-09-12, e D-116 ce lo ha riportato: vedi §3.1 |
 | azione principale | Principale | dipende dall'azione | `BasicAttack`, `Interact` (**`Blast`**) · `Guard`, `Brace`, `Overwatch`, `CreateCover` (**`Prep`**) |
 | reazione | Reazione | al trigger | `Counter`, `Intercept`, `Deflect` |
 | facing finale | — | fine `Move` | rotazione dichiarata entro il budget di pivot |
@@ -245,25 +245,35 @@ per cella.
 ⏱️ *Fino al 2026-09-13 questo paragrafo diceva: «I budget sono nel catalogo (`Move` 5 MP · `Sprint` 8 ·
 `Withdraw` 2; `Sneak` non è definito da nessuna fonte corrente e non si inventa)».*
 
-**`Sprint` sta migrando, e conviene sapere da dove a dove.** Appartiene alla famiglia `Move` — percorso a
-budget, pathfinding, slot movimento — ma **oggi nel codice risolve pre-Blast**, in
-`ERTResolutionPhase::FastMovement`.
+✅ **`Sprint` ha finito di migrare il 2026-09-12** ([#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)):
+appartiene alla famiglia `Move` — percorso a budget, pathfinding, slot movimento — e **nel codice risolve
+dopo il Blast**, in `ERTResolutionPhase::NormalMovement`.
 
-🔴 **Dal 2026-08-12 quello è un arretrato, non una decisione** ([D-116](../decisions/RT_PDR_00_Decision_Log.md),
-che **supera** [D-068](../decisions/RT_PDR_00_Decision_Log.md)): lo `Sprint` torna **dopo il Blast**. La ragione
-non era sul tavolo quando D-068 decise il contrario — restando pre-Blast, lo `Sprint` **spara da una posizione
-nuova**, cioè fa precisamente ciò che il catalogo attribuisce al `Dash`.
+🔴 **Fra il 2026-08-12 e quella data era un arretrato, non una decisione**
+([D-116](../decisions/RT_PDR_00_Decision_Log.md), che **supera**
+[D-068](../decisions/RT_PDR_00_Decision_Log.md)). La ragione non era sul tavolo quando D-068 decise il
+contrario — restando pre-Blast, lo `Sprint` **spara da una posizione nuova**, cioè fa precisamente ciò che
+il catalogo attribuisce al `Dash`.
 
-La migrazione **non si fa da sola**, ed è lavoro di E38: portare lo Sprint dopo il Blast rende
-`Status.Exposed` **inerte** (verrebbe applicato quando tutti hanno già sparato), quindi D-116 lo porta a **2
-turni** nello stesso momento e introduce la compatibilità col profilo di movimento
-([`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md)). Senza le due
-contropartite, lo `Sprint` diventerebbe un `Move` più lungo che costa solo la reazione — l'**upgrade puro**
-vietato da [D-015](../decisions/RT_PDR_00_Decision_Log.md).
+**Non si è migrata da sola**, e delle tre voci di D-116 ne sono atterrate due. Portare lo Sprint dopo il
+Blast rende `Status.Exposed` **inerte** — verrebbe applicato quando tutti hanno già sparato — quindi D-116
+lo porta a **2 turni** nello stesso momento: ✅ è il valore che `RTCatalogLibrary.cpp` dichiara. Il divieto di
+reazione ✅ regge, ma per una via nuova: uscendo da `FastMovement` lo Sprint non passava più dal punto che lo
+applicava, e [D-405](../decisions/RT_PDR_00_Decision_Log.md) lo ha spostato sul **piano validato**.
 
-⚠️ Fino alla migrazione, `Actions.SprintIsAMoveProfileResolvedPreBlast` **resta verde** e il suo commento è
-**falso**: dichiara che la fase «resta dov'è ed è una decisione». È il gate che cadrà quando la migrazione
-atterra, ed è scritto apposta per farlo.
+⛔ **La terza voce NON è atterrata**: la compatibilità col profilo di movimento
+([`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md)) è ancora *«da
+implementare in E38»*, e quella spec lo dichiara di sé — *«nessuna riga di codice la esprime oggi»*. ∴ la
+riserva di [D-015](../decisions/RT_PDR_00_Decision_Log.md) — un `Move` più lungo che costa solo la reazione —
+non è ancora del tutto scongiurata: lo Sprint paga due prezzi su tre.
+
+⏱️ *Fino al 2026-09-18 questo paragrafo diceva «oggi nel codice risolve pre-Blast» e dava la migrazione per
+futura, citando `Actions.SprintIsAMoveProfileResolvedPreBlast` come gate che sarebbe caduto. Quel test è
+stato **rinominato** in `Actions.SprintIsAMoveProfileResolvedAfterBlast` quando la migrazione è atterrata —
+un nome che dichiara il contrario di ciò che asserisce è peggio di un nome assente. Il ritardo del documento
+l'ha trovato un gate, non una persona:
+[#2578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2578) →
+[#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199).*
 
 ### 3.2 Il pivot non si paga in Movement Point
 

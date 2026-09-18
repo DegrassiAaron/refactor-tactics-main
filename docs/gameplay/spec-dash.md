@@ -43,8 +43,11 @@
 >
 > 🏃 **[D-015](../decisions/RT_PDR_00_Decision_Log.md)**: `Sprint` **non è un Dash**. Appartiene alla famiglia
 > `Move` come profilo (`Sneak · Normal · Sprint`) e non introduce una seconda semantica di fase. Questa spec
-> descrive **solo** la mobilità speciale pre-Blast. L'`Action.Sprint` a catalogo, classificato oggi come
-> azione a budget, è **debito di migrazione** dichiarato — vedi le Note del Decision Log.
+> descrive **solo** la mobilità speciale pre-Blast. ✅ **Il debito è stato pagato il 2026-09-12**: fino ad
+> allora `Action.Sprint` risolveva in `ERTResolutionPhase::FastMovement` — dentro il perimetro di questa
+> spec, e dichiarato come arretrato; oggi è `NormalMovement`
+> ([D-116](../decisions/RT_PDR_00_Decision_Log.md), [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)),
+> quindi fuori. Resta a budget, ma nella fase `Move`.
 
 ## 1. Obiettivo e valore tattico
 
@@ -162,9 +165,10 @@ playback: `Prep → Dash → Blast → Move`.
   > **esiste** ed è `LinearLeap`; il pathfinding non è più il movimento dello scatto. La riga è conservata
   > barrata perché è la sola traccia di quanto a lungo la spec si è contraddetta da sola.
 - Tuning dei valori (portata/ricarica degli scatti) da tarare in gioco.
-- **`Action.Sprint` è a budget e vive in questa spec per eredità** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)):
-  semanticamente appartiene ai profili di `Move`. Finché la migrazione non è fatta, l'ID resta dov'è —
-  ma **nessun documento deve insegnare «Sprint = Dash»**.
+- **`Action.Sprint` è a budget e viveva in questa spec per eredità** ([D-015](../decisions/RT_PDR_00_Decision_Log.md)):
+  semanticamente appartiene ai profili di `Move`, ed è là che risolve dal 2026-09-12. L'**ID** resta
+  `Action.Sprint` — la migrazione di [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)
+  ha spostato la fase, non lo Stable ID — e **nessun documento deve insegnare «Sprint = Dash»**.
 
 ## 9. Interazione con gli status (2026-08-03)
 

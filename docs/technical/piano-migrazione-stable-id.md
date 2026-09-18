@@ -35,6 +35,13 @@ ancora»*. Ecco la seconda via, misurata.
 
 **«`Sprint` = `Dash`» è falso come *stile*, vero come *fase*.**
 
+> ⏱️ **Vero il 2026-08-10, falso dal 2026-09-12.** `Action.Sprint` è ora
+> `ERTResolutionPhase::NormalMovement` ([D-116](../decisions/RT_PDR_00_Decision_Log.md),
+> [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)): come **fase** non è più un
+> `Dash`. Il resto di questa sezione è il resoconto di allora e resta com'era — questo documento è
+> `HISTORICAL` e dice come ci si è arrivati, non cosa vale oggi. Nota aggiunta da
+> [#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199).
+
 - **Come fase**: `Action.Sprint` è `ERTResolutionPhase::FastMovement`, che mappa a `ERTMatchPhase::Dash`. Sta
   lì perché è **mobilità rapida**, e la mobilità rapida precede il Blast. Questo è corretto e non va cambiato.
 - **Come stile**: `Action.Sprint` dichiara `ERTMovementStyle::Budget`, **non** un `Linear*`. Il commento

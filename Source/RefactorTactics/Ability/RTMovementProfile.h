@@ -94,7 +94,7 @@ struct FRTMovementProfile
 	 * 🔑 **Perche' un campo e non lo stile.** Il criterio era `ERTMovementStyle::Budget` e non l'`ActionId`,
 	 * scelta esplicita di [D-319] «perche' resti vero per la prossima azione a budget». Ma `Action.Move` e
 	 * `Action.Sprint` dichiarano **lo stesso** stile — entrambi `Budget`, e lo asserisce
-	 * `Actions.SprintIsAMoveProfileResolvedPreBlast` — quindi lo stile non distingue il correre dal
+	 * `Actions.SprintIsAMoveProfileResolvedAfterBlast` — quindi lo stile non distingue il correre dal
 	 * camminare: oggi discrimina solo perche' il criterio e' racchiuso nel ciclo del Dash, dove lo `Sprint`
 	 * e' l'unica mobilita' a budget che puo' stare. Con [#641] quel recinto sparisce, e il criterio portato
 	 * com'e' rifiuterebbe anche il Move normale — cioe' renderebbe `Unbalanced` un'immobilizzazione totale,
