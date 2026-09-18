@@ -55,7 +55,8 @@ test('una divergenza in un campo numerico e rossa, e il referto porta i DUE valo
   assert.equal(d.field, 'priority');
   assert.equal(d.catalog, 40);
   assert.equal(d.cpp, 55);
-  // La riga del catalogo viene col referto: senza, chi legge la cerca a mano in un documento di sei tabelle.
+  // La riga del catalogo viene col referto: senza, chi legge la cerca a mano in un documento che porta una
+  // tabella per famiglia di azioni.
   assert.equal(d.line, 3);
 });
 
