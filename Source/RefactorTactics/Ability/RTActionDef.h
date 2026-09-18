@@ -560,8 +560,11 @@ struct FRTActionDef
 	 *
 	 * 🔴 **Nessuno lo produce ancora**, ed e' una decisione: [D-190] gli assegna il ruolo che D-117 gli
 	 * destina — l'asse *«cosa fai»* dentro `max(0, MoveCost - 1 + MoveCostModifier)` — e toglie dal
-	 * validatore il ramo che lo sommava contro `MoveBudget`. I budget del movimento **non stanno qui**:
-	 * vivono in `RangeCells` con `ERTMovementStyle::Budget` (`Move` 5 · `Sprint` 8 · `Withdraw` 2).
+	 * validatore il ramo che lo sommava contro `MoveBudget`. I budget del movimento **non stanno qui** — e
+	 * dal 2026-09-18 non stanno nemmeno in `RangeCells` ([D-427]): li possiede `FRTMovementProfile`, come
+	 * moltiplicatore del budget dell'unita'. ⏱️ *Fino ad allora questa riga diceva: «vivono in `RangeCells`
+	 * con `ERTMovementStyle::Budget` (`Move` 5 · `Sprint` 8 · `Withdraw` 2)», e quei tre numeri erano una
+	 * seconda sede che [D-412] aveva gia' superato.*
 	 *
 	 * ⚠️ Questa riga diceva *«Costo in punti movimento (0 = nessun costo di movimento)»*, ed era la fonte
 	 * canonica della lettura che D-190 ha respinto. Il segno: `URTCatalogLibrary::ValidateActions` rifiuta

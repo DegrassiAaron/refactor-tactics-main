@@ -322,12 +322,13 @@ bool FRTMovementCatalogTest::RunTest(const FString&)
 		// ⚠️ **`Move` e non `Dash` dal 2026-09-12** ([D-116] voce 1, `#641`): lo Sprint e' un profilo della
 		// famiglia `Move` e risolve dopo il Blast. Lo stile era gia' `Budget` — i due terzi della
 		// migrazione che [D-068] aveva misurato come gia' avvenuti.
-		{ TEXT("Action.Sprint"),     ERTMatchPhase::Move, ERTMovementStyle::Budget,       8, 0 },
+		// ⚠️ `Range` **0** per le tre a budget: il loro numero e' del profilo ([D-427]), non dell'azione.
+		{ TEXT("Action.Sprint"),     ERTMatchPhase::Move, ERTMovementStyle::Budget,       0, 0 },
 		{ TEXT("Action.Dodge"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   3, 1 },
 		{ TEXT("Action.Charge"),     ERTMatchPhase::Dash, ERTMovementStyle::LinearCharge, 3, 2 },
 		{ TEXT("Action.Leap"),       ERTMatchPhase::Dash, ERTMovementStyle::LinearLeap,   3, 2 },
 		{ TEXT("Action.Reposition"), ERTMatchPhase::Dash, ERTMovementStyle::LinearDash,   2, 1 },
-		{ TEXT("Action.Move"),       ERTMatchPhase::Move, ERTMovementStyle::Budget,       5, 0 },
+		{ TEXT("Action.Move"),       ERTMatchPhase::Move, ERTMovementStyle::Budget,       0, 0 },
 	};
 
 	for (const FExpected& E : Expected)
