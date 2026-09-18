@@ -58,7 +58,7 @@ const CPP_SOURCE = new URL('../../' + CPP_REL, import.meta.url);
 const CPP_HEADER = new URL('../../' + HEADER_REL, import.meta.url);
 
 /** Il secondo confronto, entrato il 2026-09-18 (#2578): le **azioni**, che fino ad allora nessun gate
- *  guardava. La logica sta in `action-catalog.ts` perche' il catalogo delle azioni ha sei tabelle con
+ *  guardava. La logica sta in `action-catalog.ts` perche' il catalogo delle azioni ha piu' tabelle con
  *  intestazioni diverse, e mescolarla qui avrebbe reso illeggibili entrambe. */
 const ACTION_CATALOG_REL = 'docs/balance/RT_ActionCatalog_v0.1.md';
 const ACTION_CPP_REL = 'Source/RefactorTactics/Ability/RTCatalogLibrary.cpp';

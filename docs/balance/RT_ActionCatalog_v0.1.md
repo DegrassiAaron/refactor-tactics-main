@@ -216,10 +216,18 @@ Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
 
 | Profilo | Budget | Note |
 |---|---|---|
-| `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: la domanda è **[`AE-5`](../OPEN_DECISIONS.md)** — *«Con quali numeri esiste il profilo `Sneak`?»*, l'unico dei quattro profili senza budget |
-| `MovementMode.Move` | **5 MP** | il profilo neutro |
-| `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
-| `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `MovementMode.Sneak` | **×0,5** | Cadenza **1 passo ogni 2 tick**, **sempre silenzioso** indipendentemente dal terreno. ✅ La domanda `AE-5` — *«Con quali numeri esiste il profilo `Sneak`?»* — è **chiusa dal 2026-09-13** da [D-412](../decisions/RT_PDR_00_Decision_Log.md), che risponde a tutte e tre: da allora il profilo è anche **pianificabile** |
+| `MovementMode.Move` | **×1** | il profilo neutro |
+| `MovementMode.Sprint` | **×2** | conserva un trade-off reale, vedi sotto |
+| `MovementMode.Withdraw` | **×0,25** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
+
+> 🔄 **I quattro budget erano assoluti — `Move` 5 · `Sprint` 8 · `Withdraw` 2 — fino a
+> [D-412](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-13), che li rende MOLTIPLICATORI del budget base
+> dell'unità**, arrotondati per difetto: con un eroe da 5, `Sprint` vale 10 e `Withdraw` **1**, non 2. La
+> decisione nomina queste righe fra ciò che sostituisce, e il codice dei profili le applica già
+> (`RTMovementProfileLibrary.cpp`, `/*×2*/ 200` · `/*×0,25*/ 25` · `/*×0,5*/ 50`). ⚠️ Gli assoluti
+> sopravvivono in `Action.Sprint.RangeCells` e `Action.Withdraw.RangeCells`, che sono una **seconda sede** e
+> un debito aperto: [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198).
 
 **`Withdraw` è il ripiegamento dopo la sorveglianza**, e sta qui perché è un profilo del movimento normale —
 stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo distinguono dagli altri tre:
@@ -240,8 +248,9 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
 permette di sparare da un'altra posizione nello stesso turno, che è precisamente ciò che un `Dash` fa.
 
-> ✅ **Divergenza chiusa il 2026-09-12** — e la storia resta scritta perché è la ragione per cui questa
-> sezione ha la forma che ha. Fino ad allora il codice teneva `Action.Sprint` in
+> ✅ **Codice migrato il 2026-09-12, divergenza chiusa il 2026-09-18** — due date, e tenerle distinte è il
+> punto: fra l'una e l'altra il documento ha dichiarato il falso. La storia resta scritta perché è la ragione
+> per cui questa sezione ha la forma che ha. Fino ad allora il codice teneva `Action.Sprint` in
 > `ERTResolutionPhase::FastMovement` (fase `Dash`): divergenza misurata il **2026-08-08**, tracciata in
 > [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41. Oggi il codice dichiara
 > `ERTResolutionPhase::NormalMovement`, cioè la fase `Move` che questa sezione descrive
@@ -266,22 +275,32 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 > ⚠️ **E non si è migrata da sola.** Portare lo Sprint dopo il Blast rende `Status.Exposed` **inerte** —
 > verrebbe applicato quando tutti hanno già sparato, e scadrebbe nel Cleanup subito dopo. Per questo D-116 lo
 > porta a **`Turni 2`** nello stesso momento — ed è il valore che il codice dichiara oggi
-> (`RTCatalogLibrary.cpp`, `FRTActionEffectSpec(… TAG_Status_Exposed, /*Turni*/ 2)`) — e introduce la
-> compatibilità con il profilo di movimento
+> (`RTCatalogLibrary.cpp`, `FRTActionEffectSpec(… TAG_Status_Exposed, /*Turni*/ 2)`).
+>
+> ⛔ **La terza voce di D-116 NON è arrivata, e va detto qui invece che scoperto dopo**: la compatibilità
+> fra azioni e profilo di movimento
 > ([`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md)):
-> senza le due contropartite, lo Sprint diventerebbe **un `Move` più lungo che costa solo la reazione**.
+> è ancora **da implementare** — la sua spec lo dichiara di sé (*«nessuna riga di codice la esprime oggi»*) e
+> `RTMovementProfileLibrary.cpp:83` misura che *«nessuna azione dichiara oggi un `MinStability`»*. Senza di
+> essa lo Sprint conserva due prezzi su tre, e la riserva di D-015 — **un `Move` più lungo che costa solo la
+> reazione** — non è ancora del tutto scongiurata.
+>
+> ✅ **Il divieto di reazione invece regge, ma per una via nuova**: uscendo da `FastMovement` lo Sprint non
+> passava più dal punto che lo applicava, e [D-405](../decisions/RT_PDR_00_Decision_Log.md) lo ha spostato sul
+> **piano validato**. Senza quella voce il divieto non sarebbe arrivato tardi: non sarebbe arrivato.
 >
 > **Il trade-off dello Sprint va migrato, non perso.** Oggi paga con `Status.Exposed` e con la rinuncia alla
 > reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
 > slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
 
-I profili che il resolver costruisce come **azioni** stanno qui, con i valori che l'autorità di questo
-catalogo dichiara:
+`Action.Sprint` è l'azione che il resolver costruisce per il profilo lungo, e la sua riga sta qui — non fra
+le mobilità rapide di §2.2, dove è stata fino al 2026-09-18. ⚠️ **Non è l'unica azione di questa famiglia**:
+`Action.Move` è dichiarata fra le generiche (§1), perché ogni unità la possiede.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
-| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
-| `Action.Withdraw` | Ripiegamento | **Movimento** | **Move** | 20 | 50 | 2 MP | 0 | — | `Fallback.Stop` | sì |
+| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | 8 MP ⚠️ | 0 | 5 | `Fallback.Stop` | sì |
+| `Action.Withdraw` | Ripiegamento | **Movimento** | **Move** | 20 | 50 | 2 MP ⚠️ | 0 | — | `Fallback.Stop` | sì |
 
 > 🔄 **La riga di `Action.Sprint` stava in §2.2 fino al 2026-09-18**, dove dichiarava macro-fase `Dash` con
 > una ⚠️ che rimandava a D-116. La migrazione è stata eseguita il 2026-09-12 e la riga è tornata dove la sua
@@ -293,6 +312,20 @@ catalogo dichiara:
 > dichiarava. Il **profilo** `MovementMode.Withdraw` era già qui sopra — è l'**azione** che lo nomina a
 > mancare, cioè il modo di metterlo in un piano ([D-070](../decisions/RT_PDR_00_Decision_Log.md)). I valori
 > sono quelli che il codice usa oggi: questa riga trasferisce un'autorità, non cambia un bilanciamento.
+>
+> 🔴 **La storia della cella «Slot» di `Sprint`, che viaggia con la riga.** Fino al 2026-08-26 diceva «Movimento +
+> Principale ⚠️», contraddicendo [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato: in
+> `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
+> `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera.
+>
+> ⚠️ **La ⚠️ sulla cella «Range» dice che quel numero è vivo nel codice e morto nel modello.** `8 MP` è
+> `Action.Sprint.RangeCells`, l'assoluto che il resolver del Dash leggeva. Il budget effettivo è ora un
+> **moltiplicatore** del budget dell'unità — `Sprint` **×2** — da
+> [D-412](../decisions/RT_PDR_00_Decision_Log.md), che nomina proprio queste righe fra gli assoluti che
+> sostituisce. La cella riporta l'assoluto perché è ciò che il C++ dichiara, e il confronto catalogo↔codice
+> misura quello; togliere il numero morto è lavoro di
+> [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198). ⚠️ **Vale per entrambe le
+> righe**: `Withdraw` è **×0,25**, cioè `1` per un eroe da 5, non i `2 MP` che `RangeCells` conserva.
 
 ### 2.2 Mobilità speciali — fase **Dash**
 
@@ -322,15 +355,11 @@ non cambia *che cosa* ha speso.
 
 > 🔄 **`Action.Sprint` non è più in questa tabella, dal 2026-09-18**: risolve in macro-fase `Move` da
 > [D-116](../decisions/RT_PDR_00_Decision_Log.md)/[#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)
-> (codice, 2026-09-12) e la sua riga è in **§2.1**, con gli altri profili del movimento normale. Le
-> quattro qui sopra sono le mobilità rapide, e lo scatto lungo non è una di esse — è la distinzione che
-> §2.1 chiama strutturale.
+> (codice, 2026-09-12) e la sua riga è in **§2.1**, con gli altri profili del movimento normale. Qui restano
+> `Dodge`, `Charge`, `Leap` e `Reposition`, che sono le mobilità rapide; lo scatto lungo non è una di esse —
+> è la distinzione che §2.1 chiama strutturale.
 >
-> 🔴 **Corretta il 2026-08-26 — la cella «Slot» di `Action.Sprint` diceva «Movimento + Principale ⚠️», e
-> contraddiceva il capoverso qui sotto, [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato.** In
-> `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
-> `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera. La
-> ⚠️ che restava sulla colonna **Macro-fase** è quella che #3186 ha chiuso.
+> La storia della sua cella «Slot» si legge ora accanto alla riga, in §2.1.
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
@@ -364,7 +393,7 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 | `Action.HeavyAttack` | Attacco pesante | Blast | 40 | 80 | 35 | bersaglio | 2 | `Fallback.Cancel` | sì |
 | `Action.LineAttack` | Attacco lineare | Blast | 40 | 55 | 22 | linea | 1 | `Fallback.AttackCell` | sì |
 | `Action.CircularAoE` | Area circolare | Blast | 40 | 65 | 18 | cella, raggio 1 | 2 | `Fallback.AttackCell` | sì |
-| `Action.Mortar` | Mortaio | Blast | 40 | 65 | 12 | cella, tiro indiretto | 3 | `Fallback.AttackCell` | sì |
+| `Action.Mortar` | Mortaio | Blast | 40 | 65 | 12 | cella, raggio 1, tiro indiretto | 3 | `Fallback.AttackCell` | sì |
 | `Action.SuppressiveLine` | Linea di soppressione | **Prep** | 10/20 | 30 | 16 | linea / reazione | 2 | — | no |
 | `Action.MarkTarget` | Marchia bersaglio | Blast | 40 | 40 | 0 | bersaglio | 1 | `Fallback.Cancel` | sì |
 
@@ -374,17 +403,26 @@ all'impatto (controllo), che nel progetto resta dentro il **Blast** per priorit�
 > cooldown 2). Se un giorno il codice dimostrasse che è solo un duplicato nominale dell'Overwatch, la
 > conclusione sarebbe una **issue di refactor**, non una cancellazione durante un riordino documentale.
 
-**Mortar** — **tiro indiretto**: è l'unica azione offensiva che **non richiede linea di vista**
+**Mortar** — **tiro indiretto**: **non richiede linea di vista**
 (`ERTLineOfSightPolicy::NotRequired`, [D-380](../decisions/RT_PDR_00_Decision_Log.md)) · portata **4** dal
-centro d'area, la stessa di `CircularAoE` · conta come **aggressione dichiarata** (`INT-8`), quindi rompe
-una tregua come un attacco diretto.
+centro d'area, la stessa di `CircularAoE` · **raggio 1** come lei · conta come **aggressione dichiarata**
+(`INT-8`), quindi rompe una tregua come un attacco diretto. È l'unica **azione core** con quella politica;
+`Hero.Branth.MortarShot` la eredita, e `Hero.Muiren.MistVeil` ce l'ha per conto suo.
 
 > 🔴 **Entrata in questo catalogo il 2026-09-18** ([#3187](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3187)),
 > dove il codice la costruiva già. ⚠️ **La portata resta 4 e non è una svista**: un mortaio è un'arma di
 > distanza, e accorciarlo per punirlo contraddirebbe ciò che l'azione è — il tiro indiretto si paga con la
-> potenza (12, la più bassa delle offensive) e con l'attesa (cooldown 3, il più lungo), non con
-> l'avvicinamento. ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`,
-> `Hero.Aevik.Overload` e `Hero.Muiren.CircularTide` restano `Required`.
+> **potenza** (12: meno di ogni altra offensiva che infligge danno, `MarkTarget` a parte, che ne dichiara 0
+> perché marchia e basta) e con l'**attesa** (cooldown 3, il più lungo di §3), non con l'avvicinamento.
+> ⛔ Non rende blind fire nessun'altra azione: `CircularAoE`, `LineAttack`, `Hero.Aevik.Overload` e
+> `Hero.Muiren.CircularTide` restano `Required`.
+>
+> 🔑 **E il kit di Branth la porta a 3, non a 4 — una taratura d'eroe, con una misura dietro.** Branth
+> ingaggia a 3 (`ImpactShot`), e con un mortaio da 4 il bot smetteva di chiudere: misurato il 2026-09-10,
+> cadevano tre gate anti-stallo — `Bot.StallDefinitionsOnTheGeneratedTestArena`,
+> `Match.Autobattle.EngagesOnTheGeneratedTestArena` e `Match.Autobattle.NobodyParksOnTheAuthoredMap` — tutti
+> e tre verdi di nuovo con la portata 3. Il catalogo dice **cosa l'azione è**, il kit **come quell'eroe la
+> porta**: chi domani desse il mortaio a un eroe che ingaggia a 4 non ha bisogno di quella riduzione.
 
 **Precision Attack** — range dell'arma **+1** · ignora la copertura bassa · **utilizzabile dopo lo Sprint**.
 
@@ -417,8 +455,14 @@ appena raggiunta.
 
 ⚠️ **Non tutte le righe di questa sezione sono reazioni.** La colonna «Slot» è la distinzione che conta:
 `Counter`, `Intercept`, `Deflect`, `Anchor`, `Purge` ed `Evade` occupano lo slot **Reazione** (0-1 per turno,
-trigger valutato sullo snapshot del Blast); `Brace`, `Shield` e `Cleanse` sono azioni **Principali** che si
-dichiarano e basta, senza trigger. Stare nella stessa sezione del catalogo non le rende lo stesso tipo di cosa.
+trigger valutato su un punto di passaggio della risoluzione); `Brace`, `Shield` e `Cleanse` sono azioni
+**Principali** che si dichiarano e basta, senza trigger. Stare nella stessa sezione del catalogo non le rende
+lo stesso tipo di cosa.
+
+⚠️ **E il punto di passaggio non è lo stesso per tutte.** Cinque si valutano dentro il Blast; `Evade` no —
+il suo trigger è la cella che diventa pericolosa, e quella nasce nel **Cleanup**
+(`URTReactionLibrary::PassPointFor` → `CleanupSurfaceBirth`). La **fase dell'azione** resta `Control` come
+per le altre: è il punto di valutazione a essere diverso, e le due cose non vanno confuse.
 
 > **Precisazione 2026-08-09 — [D-047](../decisions/RT_PDR_00_Decision_Log.md)**: `Brace` resta un'azione
 > **Principale** di `Prep` con questi numeri, ma non è più «si dichiara e basta»: **arma un Reaction Profile**.
@@ -434,7 +478,7 @@ dichiarano e basta, senza trigger. Stare nella stessa sezione del catalogo non l
 | `Action.Deflect` | Deviazione | Reazione | Blast | 30 | 15 | 0 | riduzione danno 20 | 2 |
 | `Action.Anchor` | Ancoraggio | Reazione | Blast | 30 | 5 | 0 | annulla lo spostamento | 2 |
 | `Action.Purge` | Epurazione | Reazione | Blast | 30 | 5 | 0 | annulla lo stato di controllo | 2 |
-| `Action.Evade` | Elusione | Reazione | Blast | 30 | 5 | 0 | si sposta di una cella | 2 |
+| `Action.Evade` | Elusione | Reazione | Blast (valutata nel Cleanup) | 30 | 5 | 0 | si sposta di una cella | 2 |
 | `Action.Brace` | Irrigidimento | Principale | **Prep** | 10 | 30 | 0 | anti-spinta | 1 |
 | `Action.Shield` | Scudo | Principale | **Prep** | 10 | 35 | 0 | scudo temporaneo 25 | 2 |
 | `Action.Cleanse` | Purifica | Principale | Blast | 30 | 25 | 0 | rimozione stato | 2 |
@@ -479,7 +523,7 @@ Il contrattacco entra **in coda** agli attacchi del Blast: non consuma i modific
 **diventa** il bersaglio; la traiettoria deve essere compatibile · non intercetta AoE né hazard · una sola attivazione.
 
 > La traiettoria che deve essere libera è quella dall'attaccante **all'intercettore**, non alla vittima: ci si
-> mette in mezzo a un colpo, non lo si teletrasporta addosso. La priorità **10** — la più bassa fra le reazioni —
+> mette in mezzo a un colpo, non lo si teletrasporta addosso. La priorità **10** — la più bassa fra le reazioni che producono un effetto sul colpo, sotto la sola terna `Anchor`/`Purge`/`Evade` che annulla —
 > non è un dettaglio di bilanciamento: cambiando il bersaglio dei colpi, Intercept deve risolvere prima che le
 > altre reazioni valutino chi è stato colpito, altrimenti il protetto contrattaccherebbe per un colpo mai ricevuto.
 
@@ -620,15 +664,25 @@ appena entrato nella cella.
 | `Action.Heal` | Cura | Blast | 40 | 70 | 3 | cura 20 | 1 |
 | `Action.CreateWater` | Crea acqua | Blast (+Cleanup) | 40/50 | 60 | 4 | acqua raggio 1 | 2 |
 | `Action.Ignite` | Incendia | Blast (+Cleanup) | 40/50 | 60 | 4 | fuoco su cella | 2 |
-| `Action.CreateSmoke` | Crea fumo | Blast (+Cleanup) | 40/50 | 60 | 4 | fumo raggio 1 | 2 |
+| `Action.CreateSmoke` | Crea fumo | **Cleanup** | 50 | 60 | 4 | fumo raggio 1, durata 2 turni | 2 |
 | `Action.Electrify` | Elettrifica | **Cleanup** | 50 | 30 | 4 | 20 danni, propagazione elettrica 12 | 2 |
 | `Action.CreateCover` | Crea copertura | **Prep** | 10 | 75 | 3 | copertura bassa | 2 |
 | `Action.ModifyArc` | Modifica arco | Blast | 40 | 75 | 3 | modifica collegamento | 2 |
 
 > 🔴 **`Action.CreateSmoke` è entrata il 2026-09-18**
 > ([#3187](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3187)), dove il codice la
-> costruiva già: stessi numeri di `Ignite` e `CreateWater`, le altre due ambientali, e **la stessa
-> superficie** che `MistVeil` dichiara — non c'è un secondo fumo.
+> costruiva già: portata, priorità e cooldown di `Ignite` e `CreateWater`, le altre due ambientali, e **la
+> stessa superficie** che `MistVeil` dichiara — non c'è un secondo fumo. La **durata 2 turni** è quella che
+> `ARTTurnManager::ApplyDynamicSurface` applica a ogni superficie creata, la stessa di `Create Water` e
+> `Ignite`.
+>
+> ⚠️ **La sua fase dice `50` e non `40/50`, a differenza delle due sorelle, e la differenza è voluta**: il
+> C++ costruisce tutte e tre — `CreateSmoke`, `Ignite`, `CreateWater` — con `ERTResolutionPhase::Environment`
+> e nient'altro, esattamente come `Electrify`, che infatti in questa tabella dichiara `50`. Il doppio codice
+> `40/50` descritto qui sopra è un modello che il codice **non** implementa: allinearvi anche la riga nuova
+> avrebbe aggiunto una terza dichiarazione a un'intenzione che nessuno ha ancora deciso di realizzare. La
+> domanda — catalogo o codice — è in
+> [#3200](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3200).
 >
 > ⚠️ **Il fumo NON blocca la linea di vista**, e chi legge «fumo» può aspettarselo: il catalogo terreni gli
 > dà `bBlocksLineOfSight = false`, portata di targeting **2** attraverso, e `Status.Obscured` a chi entra.
