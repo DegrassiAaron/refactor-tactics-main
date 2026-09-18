@@ -33,6 +33,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -58,30 +59,24 @@ namespace
 	struct FRTScopedInertSessionState
 	{
 		FString SavedCommandLine;
-		int32 SavedMode;
-		float SavedPlanning;
-		FString SavedScenario;
+		RTTestConsoleVariable::TGuardia<int32> Mode{ *CVarRTAutobattle.AsVariable() };
+		RTTestConsoleVariable::TGuardia<float> Planning{ *CVarRTPlanningSeconds.AsVariable() };
+		RTTestConsoleVariable::TGuardia<FString> Scenario{ *CVarRTTestScenario.AsVariable() };
 
 		FRTScopedInertSessionState()
 			: SavedCommandLine(FCommandLine::Get())
-			, SavedMode(CVarRTAutobattle.GetValueOnGameThread())
-			, SavedPlanning(CVarRTPlanningSeconds.GetValueOnGameThread())
-			, SavedScenario(CVarRTTestScenario.GetValueOnGameThread())
 		{
 			// La modalita' la decide la proprieta' del GameMode in questi test: le due sorgenti «di adesso»
 			// si mettono a riposo, altrimenti una CVar lasciata accesa da un altro test deciderebbe al posto
 			// del passo di controllo — e il controllo diventerebbe la misura.
 			FCommandLine::Set(*SavedCommandLine);
-			CVarRTAutobattle->Set(-1, ECVF_SetByCode);
-			CVarRTTestScenario->Set(TEXT(""), ECVF_SetByCode);
+			Mode.Imposta(-1);
+			Scenario.Imposta(FString());
 		}
 
 		~FRTScopedInertSessionState()
 		{
 			FCommandLine::Set(*SavedCommandLine);
-			CVarRTAutobattle->Set(SavedMode, ECVF_SetByCode);
-			CVarRTPlanningSeconds->Set(SavedPlanning, ECVF_SetByCode);
-			CVarRTTestScenario->Set(*SavedScenario, ECVF_SetByCode);
 		}
 	};
 

@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
 // distribuisce. Non e' una formalita' di build — e' cio' che tiene il codice di test fuori dal gioco.
@@ -29,16 +30,15 @@ namespace
 	 *
 	 * Una console variable dura quanto il processo: lasciarla impostata scavalcherebbe la proprieta' in ogni
 	 * test successivo, e il rosso comparirebbe altrove — dove nessuno lo collega a questo file.
+	 *
+	 * ⚠️ **Il corpo sta in `RTConsoleVariableGuardForTest.h` da #2235**: la scrittura a `ECVF_SetByCode`
+	 * perdeva in silenzio contro un valore digitato in console, e queste tre guardie erano tre copie dello
+	 * stesso difetto. Qui resta il solo nome, che e' cio' che i test leggono.
 	 */
-	struct FRTMapSourceCVarGuard
+	struct FRTMapSourceCVarGuard : RTTestConsoleVariable::TGuardia<FString>
 	{
-		FString Previous;
 		explicit FRTMapSourceCVarGuard(const TCHAR* Value)
-			: Previous(CVarRTMapSource.GetValueOnGameThread())
-		{
-			CVarRTMapSource->Set(Value, ECVF_SetByCode);
-		}
-		~FRTMapSourceCVarGuard() { CVarRTMapSource->Set(*Previous, ECVF_SetByCode); }
+			: TGuardia(*CVarRTMapSource.AsVariable(), FString(Value)) {}
 	};
 
 	/**
@@ -46,31 +46,25 @@ namespace
 	 * esplicito e non un valore fisso: una console variable dura quanto il processo dell'editor, quindi
 	 * un test che la lasciasse accesa cambierebbe l'allestimento di ogni test successivo della suite.
 	 */
-	struct FRTDemoArenaRadiusCVarGuard
+	struct FRTDemoArenaRadiusCVarGuard : RTTestConsoleVariable::TGuardia<int32>
 	{
-		int32 Previous;
 		explicit FRTDemoArenaRadiusCVarGuard(int32 Value)
-			: Previous(CVarRTDemoArenaRadius.GetValueOnGameThread())
-		{
-			CVarRTDemoArenaRadius->Set(Value, ECVF_SetByCode);
-		}
-		~FRTDemoArenaRadiusCVarGuard() { CVarRTDemoArenaRadius->Set(Previous, ECVF_SetByCode); }
+			: TGuardia(*CVarRTDemoArenaRadius.AsVariable(), Value) {}
 	};
 
 	/**
 	 * `rt.Map.Fixture` VINCE su `rt.Map.Source` e sulla proprieta' (`RTMatchBootstrapper.cpp:59`), e il
 	 * registro delle PIE istruisce a impostarla a mano prima di un Play. Un test che allestisce una
 	 * partita senza azzerarla misurerebbe la fixture di chi ha usato l'editor prima, non il proprio caso.
+	 *
+	 * 🔑 **Ed e' il caso che rende #2235 concreta proprio qui**: la variabile che il registro PIE chiede di
+	 * digitare a mano e' la stessa che questa guardia deve poter azzerare. A `ECVF_SetByCode` non ci
+	 * riusciva, e il test misurava la fixture di chi aveva usato l'editor prima.
 	 */
-	struct FRTMapFixtureCVarGuard
+	struct FRTMapFixtureCVarGuard : RTTestConsoleVariable::TGuardia<FString>
 	{
-		FString Previous;
 		explicit FRTMapFixtureCVarGuard(const TCHAR* Value)
-			: Previous(CVarRTMapFixture.GetValueOnGameThread())
-		{
-			CVarRTMapFixture->Set(Value, ECVF_SetByCode);
-		}
-		~FRTMapFixtureCVarGuard() { CVarRTMapFixture->Set(*Previous, ECVF_SetByCode); }
+			: TGuardia(*CVarRTMapFixture.AsVariable(), FString(Value)) {}
 	};
 }
 

@@ -32,6 +32,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -79,23 +80,14 @@ namespace
 	/** Come sopra, per le console variable: stesso motivo, stato che sopravvive al test. */
 	struct FRTScopedAutobattleCVars
 	{
-		int32 SavedMode;
-		float SavedPlanning;
-		FString SavedScenario;
-		FRTScopedAutobattleCVars()
-			: SavedMode(CVarRTAutobattle.GetValueOnGameThread())
-			, SavedPlanning(CVarRTPlanningSeconds.GetValueOnGameThread())
-			, SavedScenario(CVarRTTestScenario.GetValueOnGameThread()) {}
-		~FRTScopedAutobattleCVars()
-		{
-			CVarRTAutobattle->Set(SavedMode, ECVF_SetByCode);
-			CVarRTPlanningSeconds->Set(SavedPlanning, ECVF_SetByCode);
-			CVarRTTestScenario->Set(*SavedScenario, ECVF_SetByCode);
-		}
-		void SetMode(int32 Value) { CVarRTAutobattle->Set(Value, ECVF_SetByCode); }
-		void SetPlanning(float Value) { CVarRTPlanningSeconds->Set(Value, ECVF_SetByCode); }
+		RTTestConsoleVariable::TGuardia<int32> Mode{ *CVarRTAutobattle.AsVariable() };
+		RTTestConsoleVariable::TGuardia<float> Planning{ *CVarRTPlanningSeconds.AsVariable() };
+		RTTestConsoleVariable::TGuardia<FString> Scenario{ *CVarRTTestScenario.AsVariable() };
+
+		void SetMode(int32 Value) { Mode.Imposta(Value); }
+		void SetPlanning(float Value) { Planning.Imposta(Value); }
 		/** Nessuno scenario in corso: la banda deve poter parlare della partita, non di una run di test. */
-		void ClearScenario() { CVarRTTestScenario->Set(TEXT(""), ECVF_SetByCode); }
+		void ClearScenario() { Scenario.Imposta(FString()); }
 	};
 
 	/** Mappa esagonale piena: abbastanza celle percorribili per le quattro posizioni di partenza. */

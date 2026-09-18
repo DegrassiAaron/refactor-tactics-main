@@ -75,6 +75,7 @@
 #include "Turn/RTTurnLogLibrary.h" // #1150: «inflitto» si chiede al predicato, non alla categoria
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -94,19 +95,14 @@ namespace RTStallMisura
 	 */
 	struct FScopedCVars
 	{
-		int32 SavedMode;
-		float SavedPlanning;
+		RTTestConsoleVariable::TGuardia<int32> Mode{ *CVarRTAutobattle.AsVariable() };
+		RTTestConsoleVariable::TGuardia<float> Planning{ *CVarRTPlanningSeconds.AsVariable() };
 		FString SavedCmdLine;
-		FScopedCVars()
-			: SavedMode(CVarRTAutobattle.GetValueOnGameThread())
-			, SavedPlanning(CVarRTPlanningSeconds.GetValueOnGameThread())
-			, SavedCmdLine(FCommandLine::Get()) {}
-		~FScopedCVars()
-		{
-			CVarRTAutobattle->Set(SavedMode, ECVF_SetByCode);
-			CVarRTPlanningSeconds->Set(SavedPlanning, ECVF_SetByCode);
-			FCommandLine::Set(*SavedCmdLine);
-		}
+		FScopedCVars() : SavedCmdLine(FCommandLine::Get()) {}
+		~FScopedCVars() { FCommandLine::Set(*SavedCmdLine); }
+
+		/** La modalita' dalla PROPRIETA' del GameMode: la CVar si mette a riposo, e si verifica che prenda. */
+		void ModalitaARiposo() { Mode.Imposta(-1); }
 	};
 
 	TArray<ARTUnit*> UnitaVive(UWorld* World)
@@ -458,7 +454,7 @@ bool FRTStallDefinitionsGeneratedArenaTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	RTStallMisura::FScopedCVars Guard;
-	CVarRTAutobattle->Set(-1, ECVF_SetByCode);
+	Guard.ModalitaARiposo();
 	// Modalita' dalla PROPRIETA' del GameMode, non da CVar o riga di comando: e' cio' che si misura.
 
 	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
