@@ -25,6 +25,29 @@
 
 ---
 
+## Aperta — una voce PIE che il proprio allestimento rende non ponibile, dalla seduta `U46` del 2026-09-17
+
+Origine: i tentativi di eseguire `PIE-VIS-SIGHTWALL` del 2026-09-16 e 2026-09-17, che hanno trovato non un
+difetto del prodotto ma un difetto della **voce**. Istruttoria completa in
+[#3171](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3171). Misurato su `origin/main` = `1ad9b173`.
+
+🔑 **Il fatto che la rende una decisione e non un lavoro**: l'unico allestimento ripetibile del caso —
+`rt.Debug.Refusal setup`, nato da [#3107](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3107)
+dopo cinque tentativi a vuoto — **stampa l'esito atteso**. La voce chiede un giudizio *non guidato*; il suo
+setup lo rende *guidato* per costruzione. Non c'è modo di soddisfarla in buona fede senza scegliere.
+
+⛔ **E la correzione ovvia è già stata scartata in loco**: far nominare il muro alla riga del giocatore è
+rifiutato dal commento di `URTHudViewModel::ComposePlayerEventText`, perché *«un giocatore non converte
+coordinate assiali guardando lo schermo»*. Il design è deliberato — la riga dice **cosa**, il segno sulla
+board dice **dove** — e cambiarlo è il `D-nnn` che [`D-340`](decisions/RT_PDR_00_Decision_Log.md) punto (5)
+prevede esplicitamente.
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `SGT-1` | **Il criterio di `PIE-VIS-SIGHTWALL` si riduce alla metà osservabile, oppure il collegamento riga↔segno si riapre come problema di design?** | Tre delle quattro sotto-domande hanno già un oracolo headless — `CombatLog.SightBlockerAppearsInTheLine`, `HUD.BlockerMarksOnlyNameableCells`, `ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — e la quarta è irriducibile **per progetto**. ⚠️ Il precedente esiste ed è [`D-402`](decisions/RT_PDR_00_Decision_Log.md), che ridusse `PIE-HEXPLAY-8` perché *«un criterio di release non chiede un'osservazione che nessuno può produrre»* — ma là mancava il **soggetto**, qui è l'**allestimento** a rispondere: vale come forma, non come identità. ⛔ La voce è **fuori** dal subset `RELEASE-V01` e non blocca `G9`, quindi la decisione non ha fretta e non ha scuse per essere dedotta |
+
+---
+
 ## Aperte — ciò che la skill bar consolidata lascia senza risposta, dallo spec panel del 2026-09-13
 
 Origine: la specifica consolidata della skill bar consegnata dall'autore il 2026-09-13, consumata dallo spec
