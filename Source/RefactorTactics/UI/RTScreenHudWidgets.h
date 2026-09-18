@@ -36,8 +36,16 @@ class UImage;
  * sempre aggiungersi una variabile propria, e la firma dichiarata qui non la vede.
  * 🔴 **La ragione che questa riserva dava e' scaduta**: diceva *«nessun gate lo impedisce, perche' i
  * `.uasset` non sono versionati in questo repository»*, e i `WBP_RT_*` di `Content/RT/UI/Match/` **sono
- * versionati** — `.gitignore:78` li re-include con `!Content/RT/UI/**/*.uasset`, e `git check-ignore` non
- * ne nomina nessuno. Lo stesso errore stava in `RTFrontendWidgets.h`, dov'e' gia' stato corretto.
+ * versionati** — `.gitignore:78` li re-include con una negazione su `Content/RT/UI` (doppio asterisco, poi
+ * l'estensione `.uasset`), e `git check-ignore` non ne nomina nessuno. Lo stesso errore stava in
+ * `RTFrontendWidgets.h`, dov'e' gia' stato corretto.
+ *
+ * ⛔ **Il glob non si scrive per esteso qui, e non e' pedanteria.** Scritto per intero contiene la
+ * sequenza di due caratteri che CHIUDE un commento a blocco, e da li' in poi il testo smette di essere un
+ * commento. Era cosi' dal 2026-09-18 (`de995ec9`): questo header non compilava appena UnrealHeaderTool lo
+ * rigenerava, e l'errore arrivava come *«Unterminated character constant»* alcune righe piu' sotto — sul
+ * primo apostrofo del testo tornato codice, che non c'entrava niente. ⚠️ Il difetto era **latente**:
+ * finche' nessuno toccava il file, UHT non lo rigenerava e la build passava.
  *
  * Le due meta' della regola D-031 hanno ciascuna il proprio gate:
  *
