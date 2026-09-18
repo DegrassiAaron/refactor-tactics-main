@@ -17,6 +17,7 @@
 #include "UI/RTPlayerEventProjector.h"   // IsAuthorized: il predicato si interroga da solo, ed e' il punto
 #include "UI/RTHUD.h"                    // ComposeAbilityLine: l'oracolo dell'uguaglianza, non una seconda riga
 #include "Misc/ScopeExit.h"              // ON_SCOPE_EXIT: il mondo si distrugge anche sui ritorni anticipati
+#include "Components/Image.h"          // il brush dello slot si legge, non si deduce (#3178)
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
@@ -314,6 +315,30 @@ namespace
 		if (const FMapProperty* AsMap = CastField<FMapProperty>(Prop))
 		{
 			return HudWidgetCarriesTexture(AsMap->KeyProp) || HudWidgetCarriesTexture(AsMap->ValueProp);
+		}
+		// 🔴 **E dentro una STRUCT, che e' il ramo che mancava** (`#3178`). Il commento qui sopra
+		// diceva *«un contenitore nasconde il tipo»* ed elencava `TArray`, `TMap`, `TSet`: una `USTRUCT`
+		// lo nasconde allo stesso modo, e senza questo ramo il gate era **cieco** proprio sulla forma che il
+		// codice usa. `URTActionSlotWidget::GetResolvedIcon` restituiva un `FRTIconResolution`, che porta una
+		// `TSoftObjectPtr<UTexture2D>`: la texture usciva dall'API del widget e nessuno la vedeva.
+		//
+		// ⚠️ **Che fosse un buco e non una deroga lo prova la data**: il test era VERDE con quella
+		// firma in `main`. Aggiungere questo ramo lo rende rosso senza toccare una riga di produzione, ed e'
+		// il gate che il DoD di `#3178` chiede.
+		if (const FStructProperty* AsStruct = CastField<FStructProperty>(Prop))
+		{
+			if (AsStruct->Struct == nullptr)
+			{
+				return false;
+			}
+			for (TFieldIterator<FProperty> It(AsStruct->Struct); It; ++It)
+			{
+				if (HudWidgetCarriesTexture(*It))
+				{
+					return true;
+				}
+			}
+			return false;
 		}
 		return false;
 	}
@@ -798,6 +823,80 @@ bool FRTActionSlotResolvesFromCatalogTest::RunTest(const FString&)
 	Slot->SetAction(Altra, /*bArmed=*/ false, Catalogo);
 	TestFalse(TEXT("un'altra azione chiede un'altra chiave, che il catalogo non ha"),
 		Slot->GetResolvedIcon().bResolved);
+
+	return true;
+}
+
+/**
+ * 🔴 **LO SLOT CARICA LA TEXTURE, INVECE DI SPERARE CHE QUALCUN ALTRO L'ABBIA CARICATA** (`#3178`).
+ *
+ * Il difetto che questo test rende falsificabile e' costato una seduta a schermo per essere visto, e
+ * nessun gate poteva vederlo: `WBP_RT_ActionSlot` componeva
+ * `SetBrushFromTexture(IconImage, ResolveSoftReference(Break(GetResolvedIcon)))`, e **`Resolve Soft
+ * Reference` non carica** — *«If the object isn't already loaded in memory this will return none»*
+ * (`K2Node_ConvertAsset.cpp`). A schermo restava un rettangolo bianco, e la diagnostica taceva perche' la
+ * **chiave** si era risolta benissimo: `ResolveIcon` non aveva niente da segnalare.
+ *
+ * ⚠️ **La premessa e' meta' del test, e senza di lei sarebbe vacuo.** Se la texture fosse gia' in
+ * memoria, anche un `Get()` la renderebbe e questo test passerebbe **sul codice difettoso**. Per questo la
+ * prima asserzione e' che l'asset NON sia caricato: e' il controllo che rende la seconda capace di
+ * fallire. Se un giorno qualcun altro caricasse quell'icona prima, la premessa cadrebbe e il test lo
+ * direbbe, invece di diventare verde in silenzio.
+ *
+ * ⛔ **Non verifica il grafo del `.uasset`**, che nessun test raggiunge: verifica che il C++ offra la via
+ * giusta. Che il Blueprint la usi lo dice
+ * `RefactorTactics.Editor.ActionSlotAppliesTheIconThroughTheCppPort`, che cammina il grafo del `.uasset`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScreenHudSlotLoadsIconTest,
+	"RefactorTactics.ScreenHud.ActionSlotLoadsTheIconItShows",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScreenHudSlotLoadsIconTest::RunTest(const FString&)
+{
+	URTActionSlotWidget* Slot = NewObject<URTActionSlotWidget>();
+	if (!TestNotNull(TEXT("slot"), Slot)) { return false; }
+
+	// Un'icona VERA del catalogo spedito: una inventata non si caricherebbe mai, e il test non
+	// distinguerebbe «non carica» da «non esiste».
+	const TCHAR* const PathIcona = TEXT("/Game/RT/UI/Icons/RT_UI_Icon_Action_Move.RT_UI_Icon_Action_Move");
+
+	FRTAbilityCooldownView Azione;
+	Azione.ActionId = TEXT("Action.Move");
+
+	URTIconCatalogData* Catalogo = NewObject<URTIconCatalogData>();
+	if (!TestNotNull(TEXT("catalogo"), Catalogo)) { return false; }
+	Catalogo->Icons.Add(FRTIconDef(URTIconLibrary::MakeIconId(Azione.ActionId), ERTIconCategory::Action,
+		TSoftObjectPtr<UTexture2D>(FSoftObjectPath(PathIcona))));
+
+	Slot->SetAction(Azione, /*bArmed=*/ false, Catalogo);
+
+	const FRTIconResolution Risolta = Slot->GetResolvedIcon();
+	if (!TestTrue(TEXT("premessa: la chiave si risolve"), Risolta.bResolved)) { return false; }
+
+	// 🔴 **LA PREMESSA CHE RENDE IL TEST NON VACUO** (vedi il docstring): con l'asset gia' in
+	// memoria, il codice difettoso passerebbe.
+	if (!TestNull(TEXT("premessa: l'icona NON e' gia' in memoria"), Risolta.Asset.Get()))
+	{
+		AddWarning(TEXT("qualcuno ha caricato questa icona prima del test: l'asserzione sotto non ")
+				   TEXT("distingue piu' LoadSynchronous da Get, e va scelta un'altra icona."));
+		return false;
+	}
+
+	UImage* Immagine = NewObject<UImage>();
+	if (!TestNotNull(TEXT("immagine"), Immagine)) { return false; }
+	TestNull(TEXT("premessa: il brush nasce senza risorsa"), Immagine->GetBrush().GetResourceObject());
+
+	Slot->ApplyResolvedIconTo(Immagine);
+
+	// Il difetto in una riga: prima di `#3178` qui c'era `nullptr`, e a schermo un rettangolo bianco.
+	TestNotNull(TEXT("dopo ApplyResolvedIconTo il brush porta una texture"),
+		Immagine->GetBrush().GetResourceObject());
+	TestEqual(TEXT("ed e' proprio l'icona che il catalogo dichiara per quella chiave"),
+		GetNameSafe(Immagine->GetBrush().GetResourceObject()),
+		FString(TEXT("RT_UI_Icon_Action_Move")));
+
+	// ⚠️ **Un `Target` nullo non deve rompere niente**: il grafo puo' chiamarla prima che l'albero
+	// sia costruito, e un crash li' sarebbe peggio del difetto che questo test chiude.
+	Slot->ApplyResolvedIconTo(nullptr);
 
 	return true;
 }

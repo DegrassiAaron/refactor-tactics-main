@@ -323,4 +323,75 @@ bool FRTActionSlotClickReachesArmingPortTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **IL GRAFO PASSA DALLA PORTA C++ PER L'ICONA, INVECE DI COMPORRE LA CATENA DA SE'** (`#3178`).
+ *
+ * Il difetto che questo test chiude e' stato trovato **a schermo**, nella seduta `U54` del 2026-09-18: gli
+ * slot mostravano il nome dell'abilita' e un **rettangolo bianco** al posto del glifo. Nessun gate poteva
+ * vederlo, e la diagnostica taceva: `ResolveIcon` logga quando una **chiave** non si risolve, e la chiave si
+ * risolveva benissimo.
+ *
+ * La catena che il grafo componeva era
+ *
+ *     SetBrushFromTexture(IconImage, ResolveSoftReference(Break(GetResolvedIcon)))
+ *
+ * e il difetto sta tutto nel nodo di mezzo: **`Resolve Soft Reference` non carica**. La doc del motore lo
+ * dichiara — *«If the object isn't already loaded in memory this will return none»*
+ * (`K2Node_ConvertAsset.cpp`). Con la texture non in memoria il brush restava quello di default.
+ *
+ * ⚠️ **Perche' il test guarda il GRAFO e non il C++.** Che la porta C++ carichi davvero lo prova
+ * `RefactorTactics.ScreenHud.ActionSlotLoadsTheIconItShows`, che chiama `ApplyResolvedIconTo` e legge il
+ * brush. Ma un C++ corretto non serve a niente se il `.uasset` continua a comporre la catena vecchia, e
+ * quel pezzo vive **solo** qui — e' la stessa asimmetria per cui esiste il test del click, poche righe
+ * sopra.
+ *
+ * ⛔ **Le tre proibizioni non sono ridondanti fra loro.** Togliere `ResolveSoftReference` lasciando
+ * `SetBrushFromTexture` significa che il grafo imposta ancora il brush per conto suo, e il giorno in cui
+ * qualcuno ci ricollega qualcosa il difetto torna senza che la prima asserzione se ne accorga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotIconThroughCppPortTest,
+	"RefactorTactics.Editor.ActionSlotAppliesTheIconThroughTheCppPort",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTActionSlotIconThroughCppPortTest::RunTest(const FString&)
+{
+	using namespace RTActionSlotClickWiring;
+
+	UBlueprint* Blueprint = Cast<UBlueprint>(
+		StaticLoadObject(UBlueprint::StaticClass(), nullptr, ActionSlotBlueprintPath));
+
+	if (!TestNotNull(TEXT("1: WBP_RT_ActionSlot si carica come Blueprint"), Blueprint))
+	{
+		return false;
+	}
+
+	const TArray<FString> Chiamate = TutteLeChiamate(Blueprint);
+	AddInfo(FString::Printf(TEXT("il grafo dello slot chiama: %s"),
+		Chiamate.Num() > 0 ? *FString::Join(Chiamate, TEXT(", ")) : TEXT("nessuna funzione")));
+
+	// Senza questa riga il test sarebbe verde su un grafo VUOTO: le tre proibizioni sotto passerebbero
+	// tutte, e la prima asserzione e' l'unica che chiede che qualcosa ci sia.
+	TestTrue(
+		TEXT("2: il grafo chiama `ApplyResolvedIconTo` — la porta C++ che risolve, CARICA e applica"),
+		Chiama(Chiamate, TEXT("ApplyResolvedIconTo")));
+
+	// 🔴 Le tre della catena vecchia, ciascuna per una ragione sua.
+	const TCHAR* const Vietate[][2] = {
+		{ TEXT("Conv_SoftObjectReferenceToObject"),
+		  TEXT("e' `Resolve Soft Reference`, che NON carica: e' la causa esatta del rettangolo bianco") },
+		{ TEXT("SetBrushFromTexture"),
+		  TEXT("il brush lo imposta `ApplyResolvedIconTo`; impostarlo anche qui rimette due autorita'") },
+		{ TEXT("GetResolvedIcon"),
+		  TEXT("non e' piu' una `UFUNCTION`: farla uscire nel grafo rimetterebbe la texture nell'API, che [D-031] vieta") },
+	};
+
+	for (const TCHAR* const (&V)[2] : Vietate)
+	{
+		TestFalse(
+			FString::Printf(TEXT("3: il grafo NON chiama `%s` — %s"), V[0], V[1]),
+			Chiama(Chiamate, V[0]));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

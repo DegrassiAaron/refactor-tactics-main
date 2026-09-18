@@ -13,6 +13,7 @@ class ARTUnit;
 class URTIconCatalogData;
 class URTReactionWindowViewModel;
 class URTFastDecisionOptionWidget;
+class UImage;
 
 /**
  * Le classi BASE dei widget dello Screen HUD (§4.1 di `progettazione-hud.md`, CP 11.7 / #613).
@@ -576,8 +577,31 @@ public:
 	 * chiamata: questa si consuma dentro `OnActionChanged` — un evento, una volta per cambio azione — non
 	 * in un property binding valutato a ogni frame.
 	 */
-	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	// ⛔ **Niente `UFUNCTION` qui, ed e' il fix di `#3178`.** Esposta al Blueprint, questa firma faceva
+	// uscire una texture dall'API del widget dentro una struct — cio' che [D-031] vieta e che il gate
+	// `WidgetApiExposesNoTexture` non vedeva, perche' il suo predicato non scendeva nelle `FStructProperty`.
+	// Resta un metodo C++ pubblico: i test la chiamano, il grafo no.
 	FRTIconResolution GetResolvedIcon() const;
+
+	/**
+	 * Applica l'icona di questa azione all'`UImage` indicata: risolve dal catalogo, **carica** e imposta il
+	 * brush. Sostituisce la catena che il grafo componeva da solo (`#3178`).
+	 *
+	 * 🔴 **Il difetto che chiude, e perche' non era visibile.** `WBP_RT_ActionSlot` faceva
+	 * `SetBrushFromTexture(IconImage, ResolveSoftReference(Break(GetResolvedIcon)))`. Ma **`Resolve Soft
+	 * Reference` non carica**: la doc del nodo dice *«If the object isn't already loaded in memory this will
+	 * return none»* (`K2Node_ConvertAsset.cpp`). Con la texture non in memoria il brush restava quello di
+	 * default — un rettangolo bianco — **senza nessun warning**, perche' la chiave si era risolta benissimo.
+	 *
+	 * ⚠️ **`LoadSynchronous` e non `Get`**, ed e' l'unica riga che conta: `Get()` e' il `Resolve Soft
+	 * Reference` del grafo e ha lo stesso difetto. Il costo sta dove il docstring di `GetResolvedIcon` lo
+	 * voleva — **una volta per cambio azione**, dentro `OnActionChanged` — non a ogni frame.
+	 *
+	 * ⚠️ **Anche il ripiego passava di qui**: `MissingIcon` e' a sua volta una `TSoftObjectPtr`,
+	 * quindi un'icona di fallback non sarebbe comparsa comunque. Il difetto non aveva un ramo sano.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void ApplyResolvedIconTo(UImage* Target);
 
 	private:
 	/** L'icona risolta UNA VOLTA, in `SetAction`. `GetResolvedIcon` la rende senza ricalcolare.
