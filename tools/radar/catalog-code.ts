@@ -40,6 +40,15 @@
  *  qualunque valore che non sia una delle sei stat base. */
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import {
+  compareActions,
+  coreCatalogBody,
+  parseActionCatalog,
+  parseActionCpp,
+  promisedCells,
+  splitKnown,
+  ACTION_FIELDS,
+} from './action-catalog.ts';
 
 const CATALOG_REL = 'docs/balance/RT_HeroCatalog_v0.1.md';
 const CPP_REL = 'Source/RefactorTactics/Ability/RTHeroCatalogLibrary.cpp';
@@ -47,6 +56,14 @@ const HEADER_REL = 'Source/RefactorTactics/Ability/RTHeroCatalogLibrary.h';
 const HERO_CATALOG = new URL('../../' + CATALOG_REL, import.meta.url);
 const CPP_SOURCE = new URL('../../' + CPP_REL, import.meta.url);
 const CPP_HEADER = new URL('../../' + HEADER_REL, import.meta.url);
+
+/** Il secondo confronto, entrato il 2026-09-18 (#2578): le **azioni**, che fino ad allora nessun gate
+ *  guardava. La logica sta in `action-catalog.ts` perche' il catalogo delle azioni ha sei tabelle con
+ *  intestazioni diverse, e mescolarla qui avrebbe reso illeggibili entrambe. */
+const ACTION_CATALOG_REL = 'docs/balance/RT_ActionCatalog_v0.1.md';
+const ACTION_CPP_REL = 'Source/RefactorTactics/Ability/RTCatalogLibrary.cpp';
+const ACTION_CATALOG = new URL('../../' + ACTION_CATALOG_REL, import.meta.url);
+const ACTION_CPP = new URL('../../' + ACTION_CPP_REL, import.meta.url);
 
 /** Le sei statistiche base di un eroe, come le dichiara una delle tre fonti. */
 export interface HeroStats {
@@ -376,6 +393,113 @@ export function compare(
 /** Il roster della v0.1. Cresce a otto con E35: e' un numero atteso, non una scoperta. */
 const EXPECT_HEROES = 4;
 
+/** Il confronto **azioni** (#2578), che stampa la propria copertura e dice se ha trovato qualcosa di nuovo.
+ *
+ *  ⚠️ Ritorna `false` invece di uscire: gli eroi e le azioni sono due misure dello stesso comando, e uscire
+ *  a meta' nasconderebbe la seconda proprio quando la prima ha gia' qualcosa da dire. */
+function checkActions(): boolean {
+  const catalogText = readFileSync(ACTION_CATALOG, 'utf8');
+  const cppText = readFileSync(ACTION_CPP, 'utf8');
+  const body = coreCatalogBody(cppText);
+
+  const rows = parseActionCatalog(catalogText);
+  const actions = parseActionCpp(body);
+  const cmp = compareActions(rows, actions, promisedCells(catalogText));
+  const known = splitKnown(cmp);
+
+  // I due conteggi STRUTTURALI, che non dipendono dal fatto che i campi si parsino: le righe di tabella
+  // del catalogo e le chiamate del C++. Sono cio' che rende visibile il falso verde — un parser che
+  // smette di leggere i campi lascia questi numeri invariati e la copertura crolla sotto di essi.
+  const rowsInDoc = (catalogText.match(/^\|\s*`Action\./gm) ?? []).length;
+  const callsInCpp = (body.match(/ShippedAction\(/g) ?? []).length;
+
+  const c = cmp.coverage;
+  console.error(
+    `azioni confrontate — catalogo ${c.catalogRows}/${rowsInDoc} righe · C++ ${c.cppActions}/${callsInCpp} ` +
+      `voci · campi sempre leggibili ${c.strictRead}/${c.strictPromised} · ` +
+      `campi letti ${c.catalogFields} su ${c.catalogPromised} promessi ` +
+      `(${c.catalogUnreadable} non confrontabili: prosa, unita' o «—») · C++ ${c.cppFields}/${c.cppActions * ACTION_FIELDS.length}`,
+  );
+
+  const blind: string[] = [];
+  if (c.catalogRows < rowsInDoc) blind.push(`righe lette ${c.catalogRows}/${rowsInDoc}`);
+  if (c.cppActions < callsInCpp) blind.push(`voci C++ ${c.cppActions}/${callsInCpp}`);
+  if (c.strictRead < c.strictPromised) {
+    blind.push(`campi sempre leggibili ${c.strictRead}/${c.strictPromised}`);
+  }
+  if (c.cppFields < c.cppActions * ACTION_FIELDS.length) {
+    blind.push(`campi C++ ${c.cppFields}/${c.cppActions * ACTION_FIELDS.length}`);
+  }
+  if (blind.length > 0) {
+    console.error(
+      `\nerrore: la copertura delle azioni e' sotto l'atteso (${blind.join(' · ')}).\n` +
+        `Non e' un falso allarme: e' il gate che si dichiara cieco. Succede se un literal diventa una\n` +
+        `costante nominata, se l'intestazione di una tabella cambia, o se due voci condividono un ID.`,
+    );
+    return false;
+  }
+
+  for (const e of known.expected) {
+    const what = e.field ? `campo \`${e.field}\`` : `presente solo nel ${e.side === 'cpp' ? 'C++' : 'catalogo'}`;
+    console.error(`  divergenza nota — ${e.actionId}, ${what}: ${e.reason}`);
+  }
+  if (cmp.retired.length > 0) {
+    console.error(`  ritirate dal catalogo, e assenti dal C++ come dev'essere: ${cmp.retired.join(' · ')}`);
+  }
+
+  let ok = true;
+  if (known.stale.length > 0) {
+    console.error(
+      `\nerrore: ${known.stale.length} divergenze dichiarate non si verificano piu'. Una volta riparate,\n` +
+        `le righe in \`KNOWN_DIVERGENCES\` vanno TOLTE: un elenco che sopravvive al proprio difetto e' il\n` +
+        `posto in cui le divergenze vanno a dormire.`,
+    );
+    for (const s of known.stale) console.error(`  stantia — ${s.actionId}${s.field ? '.' + s.field : ''}`);
+    ok = false;
+  }
+
+  if (known.unexpectedDivergences.length > 0) {
+    console.error(`\n${known.unexpectedDivergences.length} campi divergono fra catalogo azioni e C++:`);
+    for (const d of known.unexpectedDivergences) {
+      console.error(
+        `  ${d.actionId}.${d.field}: catalogo=${d.catalog} (${ACTION_CATALOG_REL}:${d.line}) · C++=${d.cpp}`,
+      );
+    }
+    ok = false;
+  }
+  // Due diagnosi DISTINTE, e non una sola su «ID che non combaciano»: un'azione che il catalogo dichiara e
+  // il codice non costruisce e' un impegno non mantenuto; una che il codice costruisce e il catalogo non
+  // dichiara e' un numero competitivo senza autorita' (D-023). Non si riparano allo stesso modo.
+  if (known.unexpectedOnlyInCatalog.length > 0) {
+    console.error(
+      `\n${known.unexpectedOnlyInCatalog.length} azioni sono nel catalogo e NON in ` +
+        `\`GetCoreActionCatalog()\`: ${known.unexpectedOnlyInCatalog.join(' · ')}`,
+    );
+    ok = false;
+  }
+  if (known.unexpectedOnlyInCpp.length > 0) {
+    console.error(
+      `\n${known.unexpectedOnlyInCpp.length} azioni sono in \`GetCoreActionCatalog()\` e NON nel ` +
+        `catalogo: ${known.unexpectedOnlyInCpp.join(' · ')}`,
+    );
+    ok = false;
+  }
+
+  if (ok) {
+    console.error(
+      `catalogo azioni e C++ concordano sui campi confrontabili delle ${c.catalogRows} righe` +
+        (known.expected.length > 0 ? `, salvo le divergenze note qui sopra` : ''),
+    );
+  } else {
+    console.error(
+      `\nFonti: ${ACTION_CATALOG_REL} · ${ACTION_CPP_REL}\n` +
+        `⚠️ Quale lato sia giusto NON lo dice questo gate, deliberatamente: il 2026-08-10 il codice aveva\n` +
+        `ragione e il catalogo era indietro (D-075). Leggi il Decision Log prima di scegliere.`,
+    );
+  }
+  return ok;
+}
+
 function main() {
   const catalog = readFileSync(HERO_CATALOG, 'utf8');
   const cppText = readFileSync(CPP_SOURCE, 'utf8');
@@ -425,11 +549,15 @@ function main() {
         `literal diventa una costante (\`= kBaseHealth\`), se un campo C++ viene rinominato, o se il\n` +
         `catalogo cambia le etichette di riga. Non e' un falso allarme, e' il gate che si dichiara cieco.`,
     );
+    checkActions();
     process.exit(1);
   }
 
   if (divergences.length === 0) {
     console.error(`le cinque fonti concordano su tutti i campi dei ${sections.size} eroi`);
+    // Le azioni sono la seconda meta' dello stesso comando (#2578): si misurano sempre, anche quando gli
+    // eroi sono verdi, e il loro esito conta quanto quello degli eroi.
+    if (!checkActions()) process.exit(1);
     return;
   }
 
@@ -445,6 +573,7 @@ function main() {
       `⚠️ Quale lato sia giusto NON lo dice questo gate, deliberatamente: il 2026-08-10 il codice aveva\n` +
       `ragione e il catalogo era indietro (D-075). Leggi il Decision Log prima di scegliere.`,
   );
+  checkActions();
   process.exit(1);
 }
 
