@@ -240,11 +240,19 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
 permette di sparare da un'altra posizione nello stesso turno, che è precisamente ciò che un `Dash` fa.
 
-> ⚠️ **Divergenza documento/codice, misurata il 2026-08-08.** Nel codice `Action.Sprint` è ancora in
-> `ERTResolutionPhase::FastMovement` (fase `Dash`) e consuma **movimento più azione principale**. La decisione
-> è presa, la migrazione no: lo Stable ID compare in **15 file** fra codice e test, e cancellarlo in una PR
-> documentale romperebbe test e replay. Tracciato in
-> [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41 → issue di refactor.
+> ✅ **Divergenza chiusa il 2026-09-12** — e la storia resta scritta perché è la ragione per cui questa
+> sezione ha la forma che ha. Fino ad allora il codice teneva `Action.Sprint` in
+> `ERTResolutionPhase::FastMovement` (fase `Dash`): divergenza misurata il **2026-08-08**, tracciata in
+> [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41. Oggi il codice dichiara
+> `ERTResolutionPhase::NormalMovement`, cioè la fase `Move` che questa sezione descrive
+> ([D-116](../decisions/RT_PDR_00_Decision_Log.md) voce 1, [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)).
+>
+> ⚠️ **Il documento è rimasto indietro sei giorni, e nessuno se n'era accorto.** §2.2 ha continuato a
+> dichiarare `Dash` fino al **2026-09-18**, quando il gate catalogo↔C++ di
+> [#2578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2578) ha confrontato i due lati per
+> la prima volta e ha trovato il ritardo ([#3186](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3186)).
+> È il difetto che quel gate esiste per vedere: una decisione eseguita nel codice e non arrivata
+> all'autorità che [D-023](../decisions/RT_PDR_00_Decision_Log.md) le assegna.
 >
 > 🔄 **Questa riga è stata vera, poi falsa, e dal 2026-08-12 è di nuovo vera.** In mezzo,
 > [D-068](../decisions/RT_PDR_00_Decision_Log.md) aveva **rovesciato** la decisione — «Sprint resta pre-Blast,
@@ -252,18 +260,32 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 > giorni il catalogo ha dichiarato una regola che il canone aveva appena abbandonato, e nessun gate poteva
 > accorgersene. [D-116](../decisions/RT_PDR_00_Decision_Log.md) ha rovesciato di nuovo, e per un motivo che
 > non era sul tavolo nel 2026-08-10: restando pre-Blast lo Sprint **spara da una posizione nuova**, cioè fa
-> ciò che questa stessa sezione attribuisce al `Dash`. La migrazione della sola `ResolutionPhase` è ora
-> lavoro di **E38**.
+> ciò che questa stessa sezione attribuisce al `Dash`. La migrazione della sola `ResolutionPhase` era lavoro
+> di **E38**, ed è stata eseguita il 2026-09-12 con #641.
 >
-> ⚠️ **E non si migra da sola.** Portare lo Sprint dopo il Blast rende `Status.Exposed` **inerte** — verrebbe
-> applicato quando tutti hanno già sparato, e scadrebbe nel Cleanup subito dopo. Per questo D-116 lo porta a
-> **`Turni 2`** nello stesso momento, e introduce la compatibilità con il profilo di movimento
+> ⚠️ **E non si è migrata da sola.** Portare lo Sprint dopo il Blast rende `Status.Exposed` **inerte** —
+> verrebbe applicato quando tutti hanno già sparato, e scadrebbe nel Cleanup subito dopo. Per questo D-116 lo
+> porta a **`Turni 2`** nello stesso momento — ed è il valore che il codice dichiara oggi
+> (`RTCatalogLibrary.cpp`, `FRTActionEffectSpec(… TAG_Status_Exposed, /*Turni*/ 2)`) — e introduce la
+> compatibilità con il profilo di movimento
 > ([`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md)):
 > senza le due contropartite, lo Sprint diventerebbe **un `Move` più lungo che costa solo la reazione**.
 >
 > **Il trade-off dello Sprint va migrato, non perso.** Oggi paga con `Status.Exposed` e con la rinuncia alla
 > reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
 > slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
+
+I profili che il resolver costruisce come **azioni** stanno qui, con i valori che l'autorità di questo
+catalogo dichiara:
+
+| ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
+|---|---|---|---|---:|---:|---|---:|---:|---|---|
+| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
+
+> 🔄 **Questa riga stava in §2.2 fino al 2026-09-18**, dove dichiarava macro-fase `Dash` con una ⚠️ che
+> rimandava a D-116. La migrazione è stata eseguita il 2026-09-12 e la riga è tornata dove la sua fase la
+> colloca: `Sprint` è un profilo del movimento normale, non una mobilità rapida
+> ([#3186](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3186)).
 
 ### 2.2 Mobilità speciali — fase **Dash**
 
@@ -286,21 +308,25 @@ non cambia *che cosa* ha speso.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Distanza | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
-| `Action.Sprint` *(vedi §2.1)* | Scatto lungo | **Movimento** | **Dash** ⚠️ | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
 | `Action.Dodge` | Scatto | **Movimento** | **Dash** | 20 | 30 | 3 celle | 1 | 6 | `Fallback.Stop` | sì |
 | `Action.Charge` | Carica | **Movimento** | **Dash** | 20/30 | 35 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Leap` | Balzo | **Movimento** | **Dash** | 20 | 25 | 3 celle | 2 | — | `Fallback.Stop` | sì |
 | `Action.Reposition` | Riposizionamento | **Movimento** | **Dash** | 20 | 40 | 2 celle | 1 | — | `Fallback.Stop` | sì |
 
+> 🔄 **`Action.Sprint` non è più in questa tabella, dal 2026-09-18**: risolve in macro-fase `Move` da
+> [D-116](../decisions/RT_PDR_00_Decision_Log.md)/[#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)
+> (codice, 2026-09-12) e la sua riga è in **§2.1**, con gli altri profili del movimento normale. Le
+> quattro qui sopra sono le mobilità rapide, e lo scatto lungo non è una di esse — è la distinzione che
+> §2.1 chiama strutturale.
+>
 > 🔴 **Corretta il 2026-08-26 — la cella «Slot» di `Action.Sprint` diceva «Movimento + Principale ⚠️», e
 > contraddiceva il capoverso qui sotto, [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato.** In
 > `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
 > `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera. La
-> ⚠️ sulla colonna **Macro-fase** invece **resta vera**: `ERTResolutionPhase::FastMovement` è l'arretrato
-> di [D-116](../decisions/RT_PDR_00_Decision_Log.md), lavoro di E38.
+> ⚠️ che restava sulla colonna **Macro-fase** è quella che #3186 ha chiuso.
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
-coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto). ⚠️ **Durata: da `1` a `2` turni** con [D-116](../decisions/RT_PDR_00_Decision_Log.md) — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco.
+coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
 
 > ⚠️ **Il prezzo dello Sprint ora regge tutto sui dati.** Finché consumava anche l'azione principale il costo
 > era strutturale; adesso è `Exposed` (+5 al primo danno diretto) più la rinuncia alla reazione, contro 3 MP

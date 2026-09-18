@@ -435,14 +435,10 @@ export interface KnownDivergence {
 }
 
 export const KNOWN_DIVERGENCES: KnownDivergence[] = [
-  {
-    actionId: 'Action.Sprint',
-    field: 'phase',
-    reason:
-      "il codice e' stato migrato a `NormalMovement` il 2026-09-12 (D-116 voce 1, #641 CHIUSA) e il " +
-      'catalogo §2.2 dichiara ancora `Dash`: il documento e\' indietro rispetto a una decisione ' +
-      'accettata — #3186 la possiede',
-  },
+  // ✅ `Action.Sprint` non e' piu' qui: la divergenza di fase e' stata chiusa il 2026-09-18 (#3186) e la
+  //    riga e' stata TOLTA nello stesso passaggio. E' il ciclo che questo elenco deve avere — una voce che
+  //    sopravvive al proprio difetto fa fallire il gate come esenzione stantia, ed e' voluto. Verificato
+  //    rimettendola: `errore: 1 divergenze dichiarate non si verificano piu' — stantia Action.Sprint.phase`.
   ...['Action.Anchor', 'Action.CreateSmoke', 'Action.Evade', 'Action.Mortar', 'Action.Purge', 'Action.Withdraw'].map(
     (actionId): KnownDivergence => ({
       actionId,
