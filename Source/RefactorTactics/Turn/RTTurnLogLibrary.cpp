@@ -545,6 +545,30 @@ FString URTTurnLogLibrary::DescribeEntry(const FRTTurnLogEntry& Entry)
 		// ⚠️ **`BlockedByTopology` resta BREVE con i suoi fratelli** benche' l'unita' abbia percorso il
 		// tronco del proprio percorso: promuoverlo e' una decisione sul vocabolario dei blocchi, non la
 		// traduzione che `#2628` chiede, e si prende dove si prendono le decisioni.
+
+		// 🔑 **`BlockedByUnit` sceglie la forma dai propri dati, e non per eccezione** (`#2627`). E' l'unico
+		// esito con DUE semantiche di `TgtCell`, misurate prima di scrivere questa riga:
+		//
+		//   * il DINIEGO in pianificazione (`#79`) mette in `TgtCell` la destinazione **richiesta e negata**.
+		//     La riga breve stampa solo `SrcCell`, cioe' dove l'unita' gia' si trova: dice che un passaggio
+		//     e' stato negato e tace su QUALE, che e' l'unica cosa che quella voce esiste per dire;
+		//   * il resolver, bloccando **durante** il percorso, mette in `TgtCell` dove l'unita' si e' fermata.
+		//     Bloccata al primo passo, `Tgt == Src` — e il ramo lungo renderebbe una rotta lunga zero,
+		//     `(5,0,0) -> (5,0,0) (0 celle)`, che non e' informazione ma rumore con una freccia.
+		//
+		// ∴ la coppia si stampa **quando esiste davvero una rotta da mostrare**. Copre il diniego, lascia
+		// invariate le voci del resolver che coincidono, e resta leggibile per un blocco a meta' percorso —
+		// `Src -> dove si e' fermata (N celle)`, la stessa lettura di `SlideBlocked`.
+		//
+		// ⛔ **Non e' un valore d'enum nuovo** e non tocca il TurnLog: `ERTMoveOutcome` e i campi della voce
+		// sono quelli di prima, cambia cosa il RENDERING ne fa. I corpus golden sono byte serializzati e
+		// `DescribeEntry` non entra nel digest.
+		if (Outcome == ERTMoveOutcome::BlockedByUnit && Entry.TgtCell != Entry.SrcCell)
+		{
+			return FString::Printf(TEXT("%s %s -> %s (%d celle)%s"),
+				Reason, *CellText(Entry.SrcCell), *CellText(Entry.TgtCell), Entry.Amount, *Cause);
+		}
+
 		switch (Outcome)
 		{
 		case ERTMoveOutcome::Moved:
