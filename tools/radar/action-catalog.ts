@@ -437,17 +437,17 @@ export interface KnownDivergence {
 }
 
 export const KNOWN_DIVERGENCES: KnownDivergence[] = [
-  // ✅ La voce di `Action.Sprint` e' uscita da qui il 2026-09-18, nello stesso passaggio che ha riparato la
-  //    divergenza (#3186). E' il ciclo che questo elenco deve avere.
-  ...['Action.Anchor', 'Action.CreateSmoke', 'Action.Evade', 'Action.Mortar', 'Action.Purge', 'Action.Withdraw'].map(
-    (actionId): KnownDivergence => ({
-      actionId,
-      side: 'cpp',
-      reason:
-        'azione core costruita da `GetCoreActionCatalog()` e non dichiarata da nessuna tabella del ' +
-        "catalogo: D-023 rende il catalogo l'autorita' dei numeri, e questi non ce li ha — #3187 le possiede",
-    }),
-  ),
+  // ✅ **Vuoto, ed e' lo stato che questo elenco deve tendere ad avere.**
+  //
+  // Le due divergenze del primo run — 2026-09-18 — sono state riparate, e ogni voce e' uscita **nello stesso
+  // passaggio che ha riparato la sua**: quella di `Action.Sprint` con #3186, le sei azioni core che nessuna
+  // tabella dichiarava con #3187. E' il ciclo che questo elenco deve avere.
+  //
+  // 🔑 Che il ciclo morda e' stato verificato, non supposto: rimettendo la voce dello Sprint a divergenza
+  // riparata, il gate esce `1` dichiarandola stantia.
+  //
+  // ⚠️ Una riga nuova qui dentro e' un debito, non una soluzione: va aggiunta solo quando la riparazione
+  // appartiene a qualcun altro, e deve nominare la issue che la possiede.
 ];
 
 /** Separa le divergenze **nuove** da quelle dichiarate, e trova le esenzioni **stantie** — quelle che non
