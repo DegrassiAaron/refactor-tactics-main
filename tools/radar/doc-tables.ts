@@ -45,26 +45,16 @@
  *  ➕ **Il separatore `|---|` invece È verificato**, al contrario di quanto dichiarava la prima stesura
  *  di questo docstring: sta nel conteggio e viene riportato. Ed è giusto che lo sia — GFM richiede che
  *  il delimitatore abbia le colonne dell'intestazione, altrimenti il blocco non rende come tabella. */
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { join, relative, sep } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import { relative, sep } from 'node:path';
 
-const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const DOCS_DIR = fileURLToPath(new URL('../../docs/', import.meta.url));
+import { REPO_ROOT, docsCorpus } from './docs-corpus.ts';
 
-/** I contratti operativi in `.claude/`: portano tabelle e link come i documenti di `docs/`, e #3166 ha
- *  misurato che **due** delle tre sintesi mai confrontate divergevano dal proprietario. Un cancello non
- *  vede una divergenza semantica — quella richiede il confronto — ma vede cio' per cui esiste: una
- *  tabella che si rompe e un percorso che non arriva.
- *
- *  ⚠️ **Entrati nel perimetro il 2026-09-18 a superficie verde**: `0` tabelle rotte, `0` link morti e `0`
- *  etichette stantie su nove documenti, misurati PRIMA di accendere il gate applicando le funzioni
- *  esportate qui sotto. Accendere un cancello quando e' gia' rosso e' il modo noto di farlo disattivare —
- *  e' la stessa ragione per cui `ROOT_DOCS` e' una lista e non un glob.
- *
- *  ⛔ Il perimetro era stato dichiarato assente **quattro volte** (#3159, #3165, #3166, #3169) sulla base
- *  di `DOCS_DIR` letto senza `main()`: `AGENTS.md` era gia' coperto da `ROOT_DOCS`, `.claude/` no. */
-const CLAUDE_DIR = fileURLToPath(new URL('../../.claude/', import.meta.url));
+/** ⚠️ **Il perimetro non si legge qui.** `REPO_ROOT`, `docs/`, `.claude/` e i tre documenti di
+ *  governance della radice sono definiti in `docs-corpus.ts`, con la ragione di ciascuno: questo file
+ *  li consuma e non li ridichiara, perche' due definizioni possono divergere senza che nessuna riga di
+ *  copertura lo dica (#1405). */
 
 
 /** Una riga di tabella che non ha lo stesso numero di celle delle sue sorelle. */
@@ -156,33 +146,15 @@ export function findBrokenRows(text: string): BrokenRow[] {
 // Comando
 // ---------------------------------------------------------------------------------------------
 
-function markdownFiles(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const entry of readdirSync(dir).sort()) {
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full);
-      else if (entry.endsWith('.md')) out.push(full);
-    }
-  };
-  walk(root);
-  return out;
-}
-
 function main() {
   const argv = process.argv.slice(2);
   const check = argv.includes('--check');
   const withArchive = argv.includes('--with-archive');
 
-  // Stessi tre documenti di governance della radice che copre `doc-links.ts`, e per la stessa ragione.
-  const ROOT_DOCS = ['AGENTS.md', 'CLAUDE.md', 'README.md'];
-  const files = [
-    ...ROOT_DOCS.map((e) => join(REPO_ROOT, e)).filter((p) => existsSync(p)),
-    ...markdownFiles(DOCS_DIR).filter(
-      (f) => withArchive || !relative(DOCS_DIR, f).startsWith('archive'),
-    ),
-    ...(existsSync(CLAUDE_DIR) ? markdownFiles(CLAUDE_DIR) : []),
-  ];
+  // Il corpus — i tre documenti di governance della radice, `docs/` meno l'archivio e `.claude/` — sta
+  // in `docs-corpus.ts`, non qui: era copiato identico nell'altro gate, e due copie divergono in
+  // silenzio continuando a stampare la stessa riga di copertura (#1405).
+  const files = docsCorpus({ withArchive });
 
   const problems: string[] = [];
   let compared = 0;
