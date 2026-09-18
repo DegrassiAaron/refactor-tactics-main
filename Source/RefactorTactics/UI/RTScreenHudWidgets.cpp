@@ -24,6 +24,7 @@
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
 #include "Kismet/GameplayStatics.h"
+#include "Components/Image.h" // ApplyResolvedIconTo imposta il brush: serve il tipo completo
 #include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
 
 // =====================================================================================================
@@ -508,6 +509,39 @@ FRTIconResolution URTActionSlotWidget::GetResolvedIcon() const
 	// ⚠️ **Rende la cache e non ricalcola**: e' sicuro chiamarla da un binding, che e' esattamente cio' che
 	// il Blueprint fa. La risoluzione — e il suo log — avvengono in `SetAction`.
 	return CachedResolvedIcon;
+}
+
+void URTActionSlotWidget::ApplyResolvedIconTo(UImage* Target)
+{
+	if (Target == nullptr)
+	{
+		// Il grafo puo' chiamarla prima che il widget sia costruito. Non e' un errore da segnalare: e'
+		// l'ordine di montaggio, e `OnActionChanged` tornera' a passare quando l'`UImage` esiste.
+		return;
+	}
+
+	// 🔴 **`LoadSynchronous` e non `Get`, ed e' TUTTO il difetto di `#3178`.** Il grafo usava
+	// `Resolve Soft Reference`, che e' `Get()`: rende `nullptr` se l'asset non e' gia' in memoria, e a
+	// schermo restava il brush di default. Nessuno caricava la texture, e nessuno se ne accorgeva perche'
+	// la CHIAVE si risolveva: `ResolveIcon` non aveva niente da logare.
+	UTexture2D* Texture = CachedResolvedIcon.Asset.LoadSynchronous();
+
+	if (Texture == nullptr)
+	{
+		// ⛔ **Questo ramo non e' il ripiego per una chiave sconosciuta** — quello lo decide `ResolveIcon`,
+		// che logga e rende `MissingIcon`. Qui siamo oltre: il catalogo ha dato un asset e l'asset non si
+		// carica. Va detto, perche' prima era silenzioso ed e' il motivo per cui `#3178` e' costata una
+		// seduta a schermo per essere vista.
+		UE_LOG(LogRT, Warning,
+			TEXT("Icona non caricabile: '%s' richiesta da 'ActionSlot' — il catalogo la dichiara ma ")
+			TEXT("l'asset non si carica. Lo slot resta senza glifo."),
+			*CachedResolvedIcon.Asset.ToString());
+		return;
+	}
+
+	// `bMatchSize = false`: la dimensione la decide il layout dello slot, non la texture. E' lo stesso
+	// argomento che il grafo passava, e cambiarlo qui farebbe saltare il dock a schermo.
+	Target->SetBrushFromTexture(Texture, /*bMatchSize=*/ false);
 }
 
 FName URTActionSlotWidget::GetIconId() const
