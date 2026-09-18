@@ -34,6 +34,27 @@
  * nello stesso repository delle regole, quindi cambiare una costante di combat o un'azione del catalogo li fa
  * divergere: la convenzione e' che si **rigenerano nello stesso commit** che cambia la regola.
  *
+ * 🔑 **E la convenzione vale anche per i campi che l'HASH NON GUARDA — questa e' l'uscita (b) di `#2714`.**
+ * Il confronto del corpus e' `HashTurnLog(A) == HashTurnLog(B)`, quindi un campo fuori da
+ * `VisitDiscriminatingFields` non produce mai una `Divergence`: `SightBlockerCell` e' rimasto stantio per un
+ * giorno intero, il 2026-09-08, con la suite verde. Le due vie erano:
+ *
+ * - **(a)** includerlo fra i discriminanti. ⛔ **Respinta, e non da qui**: la ragione e' argomentata dove il
+ *   campo vive (`ERTTurnLogFormatVersion::WithSightBlocker`) — il muro nominato e' *«una spiegazione, non un
+ *   fatto della simulazione»*, e separare due tracce per esso *«renderebbe rosso un replay corretto giocato
+ *   da una squadra con memoria diversa»*. Sarebbe un cambio di semantica del confronto per TUTTE le tracce;
+ * - **(b)** sorvegliarlo **senza** toccare quella semantica. E' la via presa: `DescribeUnhashedDrift`
+ *   confronta questi campi dentro `GoldenCorpusMatches`, nel ramo in cui l'hash ha gia' detto `Identical`.
+ *
+ * ⚠️ **La condizione che tiene in piedi (a) come respinta e' scritta e ha una scadenza**: l'esclusione regge
+ * finche' la cella e' **funzione** di `SrcCell`, `TgtCell` e `UnitId`. *«Se un giorno la cella smettesse di
+ * essere funzione di quelle chiavi — un secondo produttore, o una conoscenza che non sia quella
+ * dell'attaccante — l'eccezione decade e il campo va aggiunto.»* Chi si trova in quel caso rilegge (a), non
+ * estende (b).
+ *
+ * ⛔ **Un campo nuovo fuori dall'hash entra in `DescribeUnhashedDrift`**, o eredita esattamente la cecita'
+ * che #2714 ha tolto — e la ereditera' in silenzio, che e' la parte cara.
+ *
  * Il rilevamento c'e' ed e' buono — la diagnosi qui sotto nomina turno, fase e `ActionId`. Cio' che manca e'
  * l'**attribuzione**: un rebalance legittimo e un difetto del resolver si presentano **identici**, e a
  * distinguerli e' solo chi ha il commit in mano. Sarebbe il mestiere di `ContentManifestHash`/`RulesVersion`,
@@ -58,6 +79,51 @@ namespace
 		E.SrcCell = FRTCellId(1, 0);
 		E.TgtCell = FRTCellId(2, 0);
 		return E;
+	}
+
+	/**
+	 * I campi che il FORMATO scrive e che l'HASH non mescola, confrontati fra golden e rigenerato (`#2714`).
+	 *
+	 * 🔴 **Senza questo, una loro regressione non produce un rosso.** Il confronto del corpus e'
+	 * `HashTurnLog(A) == HashTurnLog(B)`, e `VisitDiscriminatingFields` — l'elenco che l'hash percorre — non
+	 * contiene `SightBlockerCell`. Un `.rttl` che porta una cella bloccante diversa da quella che la
+	 * simulazione produce oggi resta `Identical`, e la suite resta verde.
+	 *
+	 * ⌫ **Misurato, non temuto**: il 2026-09-08 `turn-05.rttl` di `RT_Showcase_Relay_v01` e' rimasto
+	 * divergente dall'output reale per un giorno, su 9 byte di differenza di cui 5 erano questo campo che
+	 * passava da una cella valida a `INDEX_NONE`. La suite non se n'e' accorta.
+	 *
+	 * 🔑 **Perche' QUI e non dentro l'hash** (`#2714`, uscita (b)). Includere il campo fra i discriminanti
+	 * cambierebbe cosa significa «due tracce sono uguali» per TUTTE le tracce, e la scelta di tenerlo fuori
+	 * e' argomentata dove il campo vive (`ERTTurnLogFormatVersion::WithSightBlocker`): il muro nominato e'
+	 * una spiegazione, non un fatto della simulazione, e *«separarle per hash renderebbe rosso un replay
+	 * corretto giocato da una squadra con memoria diversa»*. Questa funzione sorveglia il campo **senza**
+	 * toccare quella semantica: il corpus e' una fotografia, e una fotografia si confronta anche sui
+	 * dettagli che non cambiano l'identita' del soggetto.
+	 *
+	 * ⚠️ **L'elenco e' uno e cresce con il formato.** Un campo nuovo fuori dall'hash va aggiunto qui, o
+	 * ereditera' esattamente la cecita' che questa funzione toglie.
+	 */
+	FString DescribeUnhashedDrift(int32 TurnNumber, const TArray<FRTTurnLogEntry>& Golden,
+		const TArray<FRTTurnLogEntry>& Fresh)
+	{
+		// Le due tracce arrivano qui gia' `Identical` per l'hash, quindi hanno lo stesso numero di voci
+		// nello stesso ordine. Il `Min` e' la guardia fail-closed per il chiamante che non lo garantisse.
+		const int32 Count = FMath::Min(Golden.Num(), Fresh.Num());
+		for (int32 i = 0; i < Count; ++i)
+		{
+			if (Golden[i].SightBlockerCell != Fresh[i].SightBlockerCell)
+			{
+				return FString::Printf(
+					TEXT("turno %d, voce %d: `SightBlockerCell` atteso %s, trovato %s. ")
+					TEXT("L'hash non guarda questo campo (#2714): il corpus e' stantio, non il codice ")
+					TEXT("— rigeneralo con `rt.Test.RegenerateGolden 1` nello stesso commit che cambia la regola"),
+					TurnNumber, i,
+					*Golden[i].SightBlockerCell.ToString(),
+					*Fresh[i].SightBlockerCell.ToString());
+			}
+		}
+		return FString();
 	}
 
 	/** Traccia di riferimento: tre voci, una per fase, con azioni distinguibili. */
@@ -712,6 +778,20 @@ bool FRTGoldenCorpusMatchesTest::RunTest(const FString&)
 			const ERTTraceComparison Verdict = URTTurnLogLibrary::CompareSerializedTraces(Golden, Fresh);
 			if (Verdict == ERTTraceComparison::Identical)
 			{
+				// ⛔ `Identical` significa «stesso hash», non «stessi byte» — e i campi che l'hash non
+				// mescola restano fuori da quel verdetto (`#2714`). Si guardano qui, dove le due tracce sono
+				// gia' in mano: costa una deserializzazione, non una seconda esecuzione dello scenario.
+				TArray<FRTTurnLogEntry> GoldenEntries;
+				TArray<FRTTurnLogEntry> FreshEntries;
+				if (URTTurnLogLibrary::DeserializeTurnLog(Golden, GoldenEntries)
+					&& URTTurnLogLibrary::DeserializeTurnLog(Fresh, FreshEntries))
+				{
+					const FString Drift = DescribeUnhashedDrift(TurnNumber, GoldenEntries, FreshEntries);
+					if (!Drift.IsEmpty())
+					{
+						AddError(FString::Printf(TEXT("'%s' %s"), ScenarioId, *Drift));
+					}
+				}
 				continue;
 			}
 
@@ -1133,4 +1213,55 @@ bool FRTGoldenFormatGateCatchesStaleVersionTest::RunTest(const FString&)
 
 	return true;
 }
+/**
+ * 🔴 **L'oracolo che SA fallire** (`#2714`), e la mutazione e' eseguita qui dentro, non promessa in una PR.
+ *
+ * Il difetto che questa issue chiude e' misurato e ha una data: il 2026-09-08 un `.rttl` del corpus e'
+ * rimasto divergente dall'output reale per un giorno, su 5 byte di `SightBlockerCell`, e la suite e' rimasta
+ * verde. La convenzione — *«si rigenerano nello stesso commit che cambia la regola»* — era scritta e non
+ * aveva un oracolo che la facesse rispettare **per questo campo**.
+ *
+ * Il test ha tre meta', e servono tutte e tre:
+ *
+ * 1. **l'hash e' cieco**, e va dimostrato invece che assunto: mutato il campo, `HashTurnLog` non si muove.
+ *    E' il fatto su cui poggia l'intera issue; se un giorno smettesse di essere vero, questa meta' diventa
+ *    rossa e dice che il campo e' entrato fra i discriminanti — cioe' che qualcuno ha preso l'uscita (a);
+ * 2. **il nuovo oracolo vede** cio' che l'hash non vede;
+ * 3. ⛔ **e tace quando non c'e' niente da dire.** Senza questa terza, un oracolo che urlasse sempre
+ *    passerebbe la seconda e renderebbe rosso ogni corpus corretto: sarebbe un gate peggiore dell'assenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGoldenCorpusPinsFieldsOutsideTheHashTest,
+	"RefactorTactics.Simulation.GoldenCorpusPinsFieldsOutsideTheHash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGoldenCorpusPinsFieldsOutsideTheHashTest::RunTest(const FString&)
+{
+	const TArray<FRTTurnLogEntry> Golden = GoldenSample();
+
+	// La mutazione: una cella bloccante nominabile dove il golden non ne porta nessuna.
+	TArray<FRTTurnLogEntry> Mutata = Golden;
+	if (!TestTrue(TEXT("premessa: la voce mutata non portava gia' un muro"),
+		!Mutata[1].HasSightBlocker())) { return false; }
+	Mutata[1].SightBlockerCell = FRTCellId(3, 1, 0);
+	if (!TestTrue(TEXT("premessa: la mutazione ha prodotto un muro nominabile"),
+		Mutata[1].HasSightBlocker())) { return false; }
+
+	// --- 1. L'hash e' cieco, e lo si misura ---------------------------------------------------------------
+	TestEqual(TEXT("mutare SightBlockerCell NON muove l'hash: e' il difetto che #2714 nomina"),
+		URTTurnLogLibrary::HashTurnLog(Mutata), URTTurnLogLibrary::HashTurnLog(Golden));
+
+	// --- 2. L'oracolo vede --------------------------------------------------------------------------------
+	const FString Drift = DescribeUnhashedDrift(/*TurnNumber*/ 1, Golden, Mutata);
+	if (!TestFalse(TEXT("la sorveglianza dei campi fuori dall'hash vede la mutazione"), Drift.IsEmpty()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("e nomina il campo"), Drift.Contains(TEXT("SightBlockerCell")));
+	TestTrue(TEXT("e la voce"), Drift.Contains(TEXT("voce 1")));
+
+	// --- 3. E tace quando le due tracce coincidono --------------------------------------------------------
+	TestTrue(TEXT("anti-vacuita': su due tracce identiche non dice nulla"),
+		DescribeUnhashedDrift(/*TurnNumber*/ 1, Golden, Golden).IsEmpty());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
