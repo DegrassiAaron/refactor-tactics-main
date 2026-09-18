@@ -874,9 +874,16 @@ void ARTTurnManager::ResumeBlastResolution()
  * `LockInAndResolve` esce senza concludere quando il movimento si sospende; da li' in poi il turno esiste a
  * meta' e qualcuno deve finirlo. Quel qualcuno e' chi chiude la finestra, ed e' qui.
  *
- * ⚠️ **Puo' sospendersi di nuovo**, e non e' un caso limite: `ThreeArmedWatchersOnOneEntry` mette tre watcher
- * su un ingresso, e la seconda finestra si apre mentre si riprende dalla prima. Ogni ritorno anticipato
+ * ⚠️ **Puo' sospendersi di nuovo**, e non e' un caso limite: bastano due watcher armati sullo stesso
+ * ingresso perche' la seconda finestra si apra mentre si riprende dalla prima. Ogni ritorno anticipato
  * lascia il contesto vivo, esattamente come il primo.
+ *
+ * 🔎 **La prova che esiste, e fin dove arriva** (`#3082`). Il fatto e' esercitato da
+ * `RefactorTactics.Movement.MicroStepBudgetSurvivesSuspension` (`Tests/RTMovementResumeTests.cpp`): due
+ * watcher su un ingresso, e la seconda finestra si apre **dentro** il pump di ripresa. ⛔ Ma quel test usa
+ * la doppia sospensione come **mezzo** per misurare il budget di micro-step, non come proprio oracolo.
+ * Nessun test possiede oggi la sospensione ripetuta per suo conto — se quell'oracolo cambiasse, la
+ * copertura sparirebbe senza che nessuno se ne accorga.
  */
 void ARTTurnManager::ResumeSuspendedResolution()
 {
