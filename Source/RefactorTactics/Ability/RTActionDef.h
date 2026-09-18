@@ -551,7 +551,19 @@ struct FRTActionDef
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 Priority = 50;
 
-	/** Portata in celle esagonali (0 = su se stessi). */
+	/** Portata in celle esagonali, e `0` significa **tre cose diverse** a seconda di chi legge.
+	 *
+	 *  1. **su se stessi** — il caso originario, per un'azione che non ha un bersaglio a distanza;
+	 *  2. **«prendi la portata dal portatore»** — `RTTurnManager_Blast.cpp`: un'istanza senza `ActionId` o
+	 *     con portata non positiva eredita `Ability->RangeCells`, cioe' l'arma di chi la usa;
+	 *  3. 🔑 **«il budget vive nel PROFILO»** — per le azioni a `ERTMovementStyle::Budget` (`Move`,
+	 *     `Sprint`, `Withdraw`), dal 2026-09-18 ([D-427]). Il loro numero non e' piccolo: **non e' qui**.
+	 *     Chi aggiunge una quarta azione a quello stile scrive `0` e dichiara il moltiplicatore in
+	 *     `URTMovementProfileLibrary`; scriverne uno qui ricostruirebbe la seconda sede che quella voce ha
+	 *     chiuso, e `RefactorTactics.Catalog.BudgetActionsDeclareNoRange` diventa rosso.
+	 *
+	 *  ⚠️ **Tre significati su un campo sono un costo dichiarato, non una svista**: separarli vorrebbe dire
+	 *  un campo nuovo e una migrazione dei lettori, che [D-427] non ha ritenuto di pagare per due azioni. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
 	int32 RangeCells = 0;
 
@@ -560,8 +572,11 @@ struct FRTActionDef
 	 *
 	 * 🔴 **Nessuno lo produce ancora**, ed e' una decisione: [D-190] gli assegna il ruolo che D-117 gli
 	 * destina — l'asse *«cosa fai»* dentro `max(0, MoveCost - 1 + MoveCostModifier)` — e toglie dal
-	 * validatore il ramo che lo sommava contro `MoveBudget`. I budget del movimento **non stanno qui**:
-	 * vivono in `RangeCells` con `ERTMovementStyle::Budget` (`Move` 5 · `Sprint` 8 · `Withdraw` 2).
+	 * validatore il ramo che lo sommava contro `MoveBudget`. I budget del movimento **non stanno qui** — e
+	 * dal 2026-09-18 non stanno nemmeno in `RangeCells` ([D-427]): li possiede `FRTMovementProfile`, come
+	 * moltiplicatore del budget dell'unita'. ⏱️ *Fino ad allora questa riga diceva: «vivono in `RangeCells`
+	 * con `ERTMovementStyle::Budget` (`Move` 5 · `Sprint` 8 · `Withdraw` 2)», e quei tre numeri erano una
+	 * seconda sede che [D-412] aveva gia' superato.*
 	 *
 	 * ⚠️ Questa riga diceva *«Costo in punti movimento (0 = nessun costo di movimento)»*, ed era la fonte
 	 * canonica della lettura che D-190 ha respinto. Il segno: `URTCatalogLibrary::ValidateActions` rifiuta

@@ -603,7 +603,10 @@ bool FRTMovementProfileWithdrawIsPlannable::RunTest(const FString&)
 
 	TestEqual(TEXT("il profilo Withdraw ha un'azione che lo nomina"),
 		Withdraw.ActionId, FName(TEXT("Action.Withdraw")));
-	TestEqual(TEXT("che vale i 2 punti di D-070"), Withdraw.RangeCells, 2);
+	// ⏱️ *Asseriva «che vale i 2 punti di D-070», cioe' `RangeCells == 2`.* Dal 2026-09-18 il budget lo
+	// possiede il profilo ([D-427]): `2` era una seconda sede, e per un eroe da 5 il ×0,25 di [D-412] vale
+	// **1**. I due numeri non erano nemmeno d'accordo.
+	TestEqual(TEXT("il budget del ripiegamento non vive sull'azione: RangeCells e' zero"), Withdraw.RangeCells, 0);
 	TestEqual(TEXT("e occupa il solo slot movimento"), Withdraw.Slot, ERTActionSlot::Movement);
 
 	// ⚠️ **Fase `Move` e non `Dash`**: il ripiegamento e' un profilo della famiglia `Move` ([D-015]), non

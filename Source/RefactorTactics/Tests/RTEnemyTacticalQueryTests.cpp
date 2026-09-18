@@ -136,6 +136,17 @@ namespace
 			{ MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1) });
 	}
 
+	/** La portata dell'azione a budget di prova, dichiarata QUI e non ereditata.
+	 *
+	 *  ⏱️ *Fino al 2026-09-18 `MakeFastBudgetAction` ereditava tutto da `Action.Sprint` e cambiava **la sola
+	 *  fase**, cosi' che il budget misurato fosse quello spedito e non una copia locale.* Da [D-427] quel
+	 *  campo e' `0` — il budget e' del profilo — e l'eredita' renderebbe **vacuo** ogni confronto che usa
+	 *  questa azione: una regione a budget zero e' vuota, e due regioni vuote sono uguali.
+	 *
+	 *  🔑 **Cio' che il test misurava del catalogo non si perde**: che il campo sia `0` lo asserisce
+	 *  `RefactorTactics.Catalog.BudgetActionsDeclareNoRange`, per **ogni** azione a budget e non per una. */
+	constexpr int32 FastBudgetActionRange() { return 8; }
+
 	/**
 	 * Una mobilita' rapida **a budget**, dichiarata dal KIT e non presa dal catalogo spedito.
 	 *
@@ -149,14 +160,18 @@ namespace
 	 * `Actions.KitCanDeclareAMobilityThatCostsBothSlots` copre il ramo `MovementAndMain` che nessun dato
 	 * spedito attraversa. Un ramo che nessun test percorre e' un ramo che nessuno difende.
 	 *
-	 * ⚠️ Si parte dal `Def` del catalogo e si cambia **la sola fase**: tutto il resto — il budget compreso —
-	 * resta quello spedito, cosi' `BudgetComesFromTheCatalogNotAConstant` continua a misurare il catalogo e
-	 * non una copia locale.
+	 * ⚠️ Si parte dal `Def` del catalogo e si cambiano **fase e portata**. ⏱️ *Fino al 2026-09-18 si cambiava
+	 * la sola fase, «cosi' il budget resta quello spedito»: da [D-427] il campo e' `0`, e un'azione a budget
+	 * zero non copre niente. La portata e' ora dichiarata da `FastBudgetActionRange()`, qui sotto.*
 	 */
 	URTActionData* MakeFastBudgetAction()
 	{
 		URTActionData* A = MakeQueryAction(TEXT("Action.Sprint"));
 		A->Def.ResolutionPhase = ERTResolutionPhase::FastMovement;
+		A->Def.RangeCells = FastBudgetActionRange();
+		// Il campo specchio non lo legge `DeclaredRange` — che preferisce il `Def` quando l'`ActionId` c'e' —
+		// ma tenerlo d'accordo evita un fixture che dichiara due portate diverse per la stessa azione.
+		A->RangeCells = FastBudgetActionRange();
 		return A;
 	}
 
@@ -166,12 +181,6 @@ namespace
 		return MakeQueryHero(TEXT("Hero.QueryProbe"), MovePoints,
 			{ MakeQueryAction(TEXT("Action.BasicAttack"), ERTAbilityShape::Single, /*AttackRange*/ 1),
 			  MakeFastBudgetAction() });
-	}
-
-	/** Il budget dichiarato dal catalogo per un'azione, con la stessa precedenza di `RTTurnManager.cpp:1461`. */
-	int32 CatalogBudget(const FName& CoreActionId)
-	{
-		return URTCatalogLibrary::FindCoreAction(CoreActionId).RangeCells;
 	}
 
 	/** Celle presenti in `A` e anche in `B`. Serve a provare che due regioni sono DISGIUNTE. */
@@ -781,10 +790,13 @@ bool FRTDashRegionIsEmptyWithoutFastMovementTest::RunTest(const FString&)
  *
  * - **passo** -> `URTHeroData::MovePoints`. E' quella che il runtime usa (`ARTUnit::MoveRange = Hero->MovePoints`,
  *   `RTUnit.cpp:1600`, e `RTScenarioDraft` ne deriva `Sim.MoveBudget`), e **varia per eroe**: il catalogo
- *   dichiara `4` a Branth e `6` a Ivrin, mentre `Action.Move.RangeCells` e' `5` per tutti. Leggere l'ActionDef
- *   mostrerebbe un'anteprima FALSA per due eroi su quattro.
- * - **scatto** -> `FRTActionDef::RangeCells`, l'unica casa che esiste: nessun eroe dichiara un budget di
- *   scatto. E' la stessa precedenza che il dash usa in `RTTurnManager.cpp:1461`.
+ *   dichiara `4` a Branth e `6` a Ivrin. ⏱️ *Fino al 2026-09-18 `Action.Move.RangeCells` valeva `5` per
+ *   tutti, e leggere l'ActionDef mostrava un'anteprima FALSA per due eroi su quattro.* Da [D-427] quel campo
+ *   e' `0`: leggerlo mostrerebbe un'anteprima **vuota per tutti e quattro**, che e' un modo peggiore di
+ *   sbagliare — un'anteprima assente non si nota.
+ * - **scatto** -> il **profilo** (`FRTMovementProfile::ResolveMoveBudget`), dal 2026-09-18 ([D-427]).
+ *   ⏱️ *Fino ad allora era `FRTActionDef::RangeCells`, «l'unica casa che esiste»; [D-412] l'ha resa la
+ *   seconda, e questa voce l'ha chiusa portando quel campo a `0` per le tre azioni a stile `Budget`.*
  *
  * ⛔ Non introduce una terza casa e non sana la divergenza di #1953: la dichiara e la misura.
  */
@@ -816,8 +828,15 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 		TestTrue(TEXT("il veloce si'"), Has(RFast.ReachableCells, FRTCellId(3, 0)));
 
 		// E nessuno dei due coincide con cio' che `Action.Move.RangeCells` imporrebbe, uguale per tutti.
-		const int32 MoveDef = CatalogBudget(TEXT("Action.Move"));
-		if (!TestTrue(TEXT("il catalogo dichiara un RangeCells per Action.Move"), MoveDef > 0)) { return false; }
+		// ⏱️ *Questo numero veniva da `CatalogBudget("Action.Move")` fino al 2026-09-18.* Da [D-427] quel campo
+		// e' `0`, e pescarlo di li' renderebbe il confronto **vacuo**: una regione a budget zero e' vuota, e
+		// due regioni vuote sono uguali. Serve un terzo valore, diverso da quelli dei due eroi qui sopra.
+		//
+		// 🔑 **Il legame col campo non si perde, si sposta in un'asserzione**: senza questa riga, rimettere
+		// `Action.Move.RangeCells = 5` — la mutazione che [D-427] vieta — lascerebbe questo test verde.
+		TestEqual(TEXT("e il budget NON vive sull'azione: Action.Move.RangeCells e' zero (D-427)"),
+			URTCatalogLibrary::FindCoreAction(TEXT("Action.Move")).RangeCells, 0);
+		const int32 MoveDef = 5;
 		URTHeroData* AsActionDef = FastBudgetHero(/*MovePoints*/ MoveDef);
 		FRTEnemyTacticalRegions RDef;
 		if (!TestTrue(TEXT("il profilo a budget-da-ActionDef risponde"),
@@ -829,8 +848,12 @@ bool FRTBudgetComesFromTheCatalogNotAConstantTest::RunTest(const FString&)
 
 	// --- Lo scatto segue il `RangeCells` dichiarato dall'azione -------------------------------------------
 	{
-		const int32 SprintBudget = CatalogBudget(TEXT("Action.Sprint"));
-		if (!TestTrue(TEXT("il catalogo dichiara un budget per Action.Sprint"), SprintBudget > 0))
+		// ⏱️ *Veniva da `CatalogBudget("Action.Sprint")`, che da [D-427] vale `0`.* Il budget dello scatto
+		// e' ora del profilo, e questo blocco non misura QUEL numero: misura che la regione osservata segue
+		// il budget dell'azione a budget che l'eroe porta — `MakeFastBudgetAction()`, costruita qui sotto —
+		// quindi il valore va dichiarato dal test, non pescato dal catalogo.
+		const int32 SprintBudget = FastBudgetActionRange();
+		if (!TestTrue(TEXT("l'azione a budget di prova dichiara una portata"), SprintBudget > 0))
 		{
 			return false;
 		}

@@ -59,7 +59,9 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// l'equilibrio non corre». Con [#641] il criterio esce dal ciclo del Dash, e senza questo campo
 	// rifiuterebbe anche il Move normale — cioe' renderebbe `Unbalanced` un'immobilizzazione totale.
 	//
-	// ⏱️ *Valeva `8` assoluti fino al 2026-09-13, il numero che `Action.Sprint` porta come `RangeCells`.*
+	// ⏱️ *Valeva `8` assoluti fino al 2026-09-13, il numero che `Action.Sprint` portava allora come
+	// `RangeCells` — campo che dal 2026-09-18 e' `0`, perche' il budget vive qui e in nessun altro posto
+	// ([D-427]).*
 	// 🔴 **Il moltiplicatore non e' una riscrittura dello stesso valore**: un `8` cablato rendeva lo Sprint
 	// piu' LENTO del `Move` di un eroe che ne vale 9, ed e' precisamente l'*upgrade puro* rovesciato. Con
 	// `200` il rapporto e' garantito per ogni eroe, che e' cio' che [D-015] chiede a un profilo.
@@ -72,7 +74,8 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// `Withdraw` — **×0,25** ([D-412]), il ripiegamento che [D-070] riserva allo slot movimento di chi arma
 	// l'Overwatch.
 	//
-	// ⏱️ *Valeva `2` assoluti fino al 2026-09-13.* ⚠️ **Con un eroe da 5 il nuovo valore e' `1`, non `2`**:
+	// ⏱️ *Valeva `2` assoluti fino al 2026-09-13, su `Action.Withdraw.RangeCells`, che dal 2026-09-18 e' `0`
+	// ([D-427]).* ⚠️ **Con un eroe da 5 il nuovo valore e' `1`, non `2`**:
 	// la divisione tronca, ed e' l'*«arrotondare per difetto»* di [D-412]. La sorgente lo sapeva — «Withdraw
 	// diventava 2 solo con base almeno 8» — e non ha corretto il moltiplicatore per conservare il vecchio
 	// numero: e' il numero a seguire la regola.

@@ -1056,10 +1056,13 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 {
 	TArray<FRTActionDef> Catalog;
 
-	// `Action.Sprint` (catalogo v0.1 §2) — 8 MP, occupa il SOLO slot movimento [D-028], applica `Status.Exposed`
-	// fino al Cleanup. Per le azioni di mobilita' rapida `RangeCells` e' il BUDGET in punti movimento, non un
-	// numero di celle: su terreno difficile si arriva meno lontano (e' lo stesso budget del movimento normale,
-	// con un'altra quantita').
+	// `Action.Sprint` (catalogo v0.1 §2) — **×2** del budget dell'unita' ([D-412]), occupa il SOLO slot
+	// movimento [D-028], applica `Status.Exposed` fino al Cleanup. Il budget e' in punti movimento e non in
+	// celle: su terreno difficile si arriva meno lontano.
+	//
+	// ⏱️ *Fino al 2026-09-18 questo commento diceva «8 MP» e aggiungeva che «per le azioni di mobilita'
+	// rapida `RangeCells` e' il BUDGET». Entrambe le cose sono finite: il numero e' del profilo ([D-427]) e
+	// lo Sprint non e' una mobilita' rapida da [D-116].*
 	//
 	// Lo svantaggio dello scatto lungo e' `Exposed`, dichiarato come EFFETTO: chi corre allo scoperto incassa
 	// +5 dal primo colpo. Niente di tutto cio' e' scritto nell'orchestratore.
@@ -1069,12 +1072,19 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// questo codice contraddiceva. Supera [D-068].
 	//
 	// ⚠️ **La migrazione non si fa da sola, e le voci di D-116 non sono separabili**: la fase da sola
-	// produrrebbe l'**upgrade puro** che [D-015] vieta — 8 punti contro 5, nessun cooldown, `Exposed`
+	// produrrebbe l'**upgrade puro** che [D-015] vieta — il doppio del budget contro il budget pieno,
+	// nessun cooldown, `Exposed`
 	// inerte. Gli altri due prezzi che accompagnano questa riga sono `Exposed` a **2** turni (qui sotto) e
 	// il divieto di reazione, che da oggi si valuta **sul piano** e non piu' dentro `ResolveDash`, dove
 	// uno scatto in fase Move non passa piu' (`ARTTurnManager::ValidatePlansAtLockIn`).
 	Catalog.Add(ShippedAction(TEXT("Action.Sprint"), ERTResolutionPhase::NormalMovement, /*Priority*/ 60,
-		/*Range (MP)*/ 8, /*Cooldown*/ 0, ERTActionFallback::Stop,
+		// 🔑 **`0`, e non `8`: il budget lo possiede il PROFILO** ([D-427]). Valeva `8` per tutti fino al
+		// 2026-09-18; [D-412] lo rende un moltiplicatore del budget dell'unita' (`Sprint` ×2), che sul roster
+		// spedito da' **10 · 10 · 8 · 12** — cioe' un numero diverso per tre eroi su quattro. Tenerlo qui
+		// sarebbe una seconda sede della stessa risposta, e lo era gia': chi leggeva questa e chi leggeva il
+		// profilo ottenevano numeri diversi. ⛔ Nemmeno un valore derivato: sarebbe una terza sede, che
+		// invecchia da sola appena un eroe cambia `MovePoints`.
+		/*Range: il profilo, non qui*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop,
 		// `Exposed` **2** turni ([D-116] voce 4): con lo scatto dopo il Blast, un turno solo lo renderebbe
 		// **inerte** — verrebbe applicato quando tutti hanno gia' sparato, e scadrebbe nel Cleanup subito
 		// dopo. Due turni sono cio' che restituisce allo Sprint il prezzo che la migrazione gli toglie.
@@ -1083,18 +1093,17 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// Il profilo che lo scatto dichiara (`#653`): e' da qui che `ProfileForPlan` ricava il budget senza che
 	// nessuno debba rileggere `RangeCells`, che per il Move normale e' gia' oggi un numero morto.
 	//
-	// 🔴 **E dal 2026-09-13 i due numeri DIVERGONO, e va detto invece di lasciarlo scoprire.** [D-412] rende
-	// il budget del profilo un **moltiplicatore** (`Sprint` ×2, cioe' 10 per un eroe da 5), mentre
-	// `RangeCells` qui resta l'assoluto `8`.
+	// ✅ **La divergenza che questa nota dichiarava e' chiusa dal 2026-09-18** ([D-427],
+	// [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198)). ⏱️ *Diceva: «dal
+	// 2026-09-13 i due numeri DIVERGONO — [D-412] rende il budget del profilo un moltiplicatore (`Sprint`
+	// ×2, cioe' 10 per un eroe da 5), mentre `RangeCells` qui resta l'assoluto `8`. Va chiusa da chi porta
+	// lo Sprint fuori da `FastMovement` ([#641]/[D-116]): quella e' la migrazione che rende il numero qui
+	// morto».* L'innesco e' scattato il 2026-09-12, e il `RangeCells` di questa voce e' ora `0`: la sede
+	// vecchia non resta vuota, **non esiste**.
 	//
-	// ⛔ **E `RangeCells` NON e' letto solo da `ResolveDash`**, come una prima stesura di questa nota
-	// sosteneva: lo leggono anche `RTActionFallbackLibrary`, `RTBotPlanningLibrary`, `RTActionReadout`,
-	// `RTAbilityLab` e `RTActionQueueLibrary`. ∴ la divergenza non e' confinata al Dash — il bot e la resa
-	// dell'abilita' vedono `8` mentre il resolver del movimento vedra' il moltiplicatore.
-	//
-	// ⚠️ **Va chiusa da chi porta lo Sprint fuori da `FastMovement`** ([#641]/[D-116]): quella e' la
-	// migrazione che rende il numero qui morto, e lasciarne due vivi e' la doppia sede che [D-023] e [D-115]
-	// hanno eliminato altrove. Finche' dura, questa nota e' il posto in cui la divergenza e' dichiarata.
+	// 🔑 **Chi vuole il budget chiede al profilo**, che e' la sede unica: `ProfileForPlan(Plan)` →
+	// `FRTMovementProfile::ResolveMoveBudget(UnitMoveRange)`. Il resolver del movimento
+	// (`RTTurnManager_Movement.cpp`), il validatore del piano e la ViewModel dell'HUD gia' facevano cosi'.
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileSprint;
 
 	// ⛔ **`Action.Sneak` NON entra in questo passaggio, e la ragione e' misurata.** Una voce del catalogo
@@ -1119,7 +1128,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		/*Range*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::None, ERTActionSlot::None));
 
-	// `Action.Withdraw` — il RIPIEGAMENTO dichiarato, **2 punti** ([D-070]).
+	// `Action.Withdraw` — il RIPIEGAMENTO dichiarato ([D-070]), **×0,25** del budget dell'unita' ([D-412]:
+	// `1` per tutto il roster spedito). ⏱️ *Diceva «2 punti» fino al 2026-09-18, quando quel numero viveva su
+	// questa riga; ora e' del profilo ([D-427]).*
 	//
 	// 🔴 **Non esisteva come azione fino al 2026-09-13**, e la sua assenza non era neutra: [D-070] riserva
 	// lo slot movimento di chi arma l'`Overwatch` al solo `Withdraw`, quindi senza questa voce quella
@@ -1130,7 +1141,9 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// ([D-015]), non una mobilita' rapida. `Fallback::Stop` per la stessa ragione del `Move` — chi non
 	// riesce a ripiegare si ferma, non annulla il turno.
 	Catalog.Add(ShippedAction(TEXT("Action.Withdraw"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
-		/*Range (punti)*/ 2, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		// `0` per la stessa ragione dello `Sprint` ([D-427]): il budget e' `ProfileWithdraw` ×0,25, che per un
+		// eroe da 5 vale **1** e non i `2` che questa riga dichiarava.
+		/*Range: il profilo, non qui*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileWithdraw;
 
@@ -1138,11 +1151,16 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// l'unita' e' il resolver dei percorsi, che avanza a micro-step sullo snapshot. Un effetto "MoveTo" qui
 	// duplicherebbe quella decisione in un secondo posto.
 	Catalog.Add(ShippedAction(TEXT("Action.Move"), ERTResolutionPhase::NormalMovement, /*Priority*/ 50,
-		/*Range (MP)*/ 5, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
+		// `0` come le altre due a budget ([D-427]): il passo dell'unita' e' `GetEffectiveMoveRange()` per il
+		// profilo `Move` (×1), non questo campo. Dichiarava `5` per tutti mentre il roster vale `5 · 5 · 4 · 6`,
+		// ed era gia' non-autorevole: `RTEnemyTacticalQueryTests` esiste per pinnare che il passo segue
+		// `MovePoints` e non `Action.Move.RangeCells`.
+		/*Range: il profilo, non qui*/ 0, /*Cooldown*/ 0, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::Budget));
-	// Il profilo neutro (`#653`). ⚠️ **Eredita il budget dall'unita', quindi il `5` qui sopra resta il numero
-	// morto che era**: il movimento normale non lo ha mai letto — prende `ARTUnit::GetEffectiveMoveRange()`
-	// — e questo checkpoint non gli da' improvvisamente voce, perche' lo farebbe per tutti gli eroi insieme.
+	// Il profilo neutro (`#653`). ⚠️ **Eredita il budget dall'unita'**, che e' `ARTUnit::GetEffectiveMoveRange()`.
+	// ⏱️ *Questa riga diceva «quindi il `5` qui sopra resta il numero morto che era»: dal 2026-09-18 quel `5`
+	// non c'e' piu' — `RangeCells` e' `0` per le tre azioni a budget ([D-427]), e il numero morto e' stato
+	// tolto invece che dichiarato.*
 	Catalog.Last().MovementProfileId = URTMovementProfileLibrary::ProfileMove;
 
 	// `Action.BasicAttack` — identita', fase, priorita' e fallback stanno qui; DANNO e PORTATA no, perche'
@@ -1320,7 +1338,8 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearLeap));
 
 	// `Reposition` — due celle e nient'altro: nessuno stato, nessuna traversata. E' lo scatto "tattico" che si
-	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro 8 MP piu' Exposed).
+	// paga poco, e la differenza con `Sprint` sta tutta nei dati (2 celle in linea contro il doppio del
+	// budget piu' `Exposed`).
 	Catalog.Add(ShippedAction(TEXT("Action.Reposition"), ERTResolutionPhase::FastMovement, /*Priority*/ 40,
 		/*Range*/ 2, /*Cooldown*/ 1, ERTActionFallback::Stop, {},
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Movement, ERTMovementStyle::LinearDash));

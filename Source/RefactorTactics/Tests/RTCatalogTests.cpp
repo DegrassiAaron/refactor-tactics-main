@@ -231,6 +231,38 @@ bool FRTCatalogEquipmentTest::RunTest(const FString&)
 }
 
 
+/**
+ * 🔑 **Il budget di movimento ha una sede sola, e questo test e' il modo in cui resta sola** ([D-427]).
+ *
+ * La regola vale per **ogni** azione a `ERTMovementStyle::Budget`, non per le tre che si chiamano cosi'
+ * oggi: pinnare `Sprint` e `Withdraw` per nome lascerebbe passare la quarta, che chi la aggiunge domani
+ * scriverebbe con un `RangeCells` per abitudine — ricostruendo la seconda sede senza che nessun test cada.
+ *
+ * ⛔ **Il gate anti-vacuita' non e' decorativo**: un catalogo che smettesse di dichiarare azioni a budget
+ * renderebbe il ciclo vero **misurando zero**, ed e' esattamente la forma con cui un gate muore. Percio' si
+ * asserisce anche che ne abbia vista almeno una.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBudgetActionsDeclareNoRangeTest,
+	"RefactorTactics.Catalog.BudgetActionsDeclareNoRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBudgetActionsDeclareNoRangeTest::RunTest(const FString&)
+{
+	int32 AzioniABudget = 0;
+	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+	{
+		if (Def.MovementStyle != ERTMovementStyle::Budget) { continue; }
+		++AzioniABudget;
+		TestEqual(
+			*FString::Printf(
+				TEXT("%s e' a budget, quindi il suo RangeCells e' zero: il numero vive nel profilo (D-427)"),
+				*Def.ActionId.ToString()),
+			Def.RangeCells, 0);
+	}
+
+	TestTrue(TEXT("il catalogo dichiara almeno un'azione a stile Budget"), AzioniABudget > 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogCoreActionsTest,
 	"RefactorTactics.Catalog.ValidatorAcceptsCoreActions",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -245,13 +277,18 @@ bool FRTCatalogCoreActionsTest::RunTest(const FString&)
 	for (const FString& E : Errors) { AddError(E); }
 	TestEqual(TEXT("le azioni generiche sono valide"), Errors.Num(), 0);
 
-	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: 8 punti, slot movimento — e dal 2026-09-12
-	// PROFILO del movimento normale, non mobilita' rapida ([D-116] voce 1, `#641`).
+	// `Action.Sprint` come lo descrive il catalogo v0.1 §2: slot movimento, e dal 2026-09-12 PROFILO del
+	// movimento normale invece che mobilita' rapida ([D-116] voce 1, `#641`).
 	const FRTActionDef Sprint = URTCatalogLibrary::FindCoreAction(TEXT("Action.Sprint"));
 	TestTrue(TEXT("Action.Sprint e' nel catalogo"), Sprint.ActionId == FName(TEXT("Action.Sprint")));
 	TestTrue(TEXT("Sprint risolve nella fase Move, dopo il Blast (D-116)"),
 		URTCatalogLibrary::MapResolutionPhase(Sprint.ResolutionPhase) == ERTMatchPhase::Move);
-	TestEqual(TEXT("Sprint vale 8 punti movimento"), Sprint.RangeCells, 8);
+	// 🔑 **Il budget NON e' qui, ed e' questa asserzione a dirlo** ([D-427]). Valeva `8`; da quando il
+	// budget e' un moltiplicatore del movimento dell'unita' ([D-412], `Sprint` ×2) un assoluto sull'azione
+	// sarebbe una seconda sede — e divergeva gia': `8` contro `10 · 10 · 8 · 12` sul roster spedito.
+	// ⛔ Un test che si limitasse a non guardare il campo lascerebbe rientrare il numero senza che nessuno
+	// se ne accorga: qui si asserisce che e' **zero**, e il moltiplicatore lo pinna `RTMovementProfileTests`.
+	TestEqual(TEXT("il budget dello Sprint non vive sull'azione: RangeCells e' zero"), Sprint.RangeCells, 0);
 	// D-028: il solo slot movimento. Prima era `MovementAndMain`, e il costo dello scatto lungo era
 	// strutturale; ora il prezzo e' tutto nei dati (`Exposed` e nessuna reazione) — vedi `BAL-1`.
 	TestTrue(TEXT("Sprint consuma il solo slot movimento"), Sprint.Slot == ERTActionSlot::Movement);
