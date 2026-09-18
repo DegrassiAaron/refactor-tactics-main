@@ -35,8 +35,14 @@ class URTFastDecisionOptionWidget;
  * sempre aggiungersi una variabile propria, e la firma dichiarata qui non la vede.
  * 🔴 **La ragione che questa riserva dava e' scaduta**: diceva *«nessun gate lo impedisce, perche' i
  * `.uasset` non sono versionati in questo repository»*, e i `WBP_RT_*` di `Content/RT/UI/Match/` **sono
- * versionati** — `.gitignore:78` li re-include con `!Content/RT/UI/**/*.uasset`, e `git check-ignore` non
- * ne nomina nessuno. Lo stesso errore stava in `RTFrontendWidgets.h`, dov'e' gia' stato corretto.
+ * versionati** — `.gitignore:78` li re-include con la riga `!Content/RT/UI/**` + `/*.uasset`, e
+ * `git check-ignore` non ne nomina nessuno.
+ *
+ * ⛔ **Quel glob e' spezzato in due apposta, e non va ricomposto.** Scritto di seguito contiene la
+ * sequenza che CHIUDE questo blocco di commento: da li' in poi UHT legge il testo come codice, e il
+ * primo apostrofo che incontra diventa un character constant non terminato. Misurato il 2026-09-18:
+ * `Build.bat` falliva con *«RTScreenHudWidgets.h(39): Error: Unterminated character constant»* — una
+ * riga di prosa, indicata come errore di sintassi, tre righe piu' sotto del punto vero. Lo stesso errore stava in `RTFrontendWidgets.h`, dov'e' gia' stato corretto.
  *
  * Le due meta' della regola D-031 hanno ciascuna il proprio gate:
  *
