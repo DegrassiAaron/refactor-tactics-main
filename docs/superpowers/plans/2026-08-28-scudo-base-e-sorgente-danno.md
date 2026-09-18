@@ -20,10 +20,15 @@ valore. La ricarica è una riga in coda al `Cleanup`, dove il temporaneo scade g
 
 - UE **5.8.1**. Motore in `D:\EpicGames\UE_5.8`.
 - Build: `D:/EpicGames/UE_5.8/Engine/Build/BatchFiles/Build.bat RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" -WaitMutex`
-- Suite: da **PowerShell**, mai da Bash (MSYS traduce i path). ⚠️ Il piano fu scritto quando la si lanciava con `./scripts/rt-suite.ps1 -Filter <filtro>`; lo script è stato rimosso il 2026-09-08 (`D-347`) e la forma canonica è ora in `AGENTS.md` §Suite Unreal — il filtro è il segmento dopo `RunTests`. I comandi che questo piano cita più sotto vanno letti così.
-  Lo script dichiara `NON VALIDA` una run in cui HEAD, albero, binario o processi del motore sono cambiati.
-- ⛔ **Prima di lanciare la suite**: `Get-Process -Name UnrealEditor-Cmd` deve essere vuoto. Due run di
-  automation si uccidono a vicenda anche da checkout diversi — il mutex è globale sull'eseguibile.
+- Suite: da **PowerShell**, mai da Bash (MSYS traduce i path). La forma è quella di `AGENTS.md` §Suite Unreal — il filtro è il segmento dopo `RunTests`. ⚠️ Il piano fu scritto quando la si lanciava con lo script `scripts/rt-suite.ps1` (`-Filter <filtro>`); lo script è stato rimosso il 2026-09-08 (`D-347`) e i comandi qui sotto sono stati riscritti nella forma canonica il 2026-09-18 ([#2753](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2753)).
+  ⚠️ **La validità della misura non la dichiara più uno script**: `NON VALIDA` era il verdetto che `rt-suite.ps1` emetteva quando HEAD, albero, binario o processi del motore cambiavano durante la run. L'invariante resta e la verifica è tua (`AGENTS.md` §Suite Unreal): confronta `git rev-parse HEAD`, `git diff HEAD` e gli untracked prima e dopo.
+- ⛔ **Prima di lanciare la suite**: nessun'altra sessione deve stare misurando. Non contare i processi,
+  leggi la loro `CommandLine` — porta il `.uproject`, quindi quale clone, e l'`-abslog`, quindi quale
+  sessione (`AGENTS.md` §11):
+  ```powershell
+  Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
+  ```
+  Due run di automation si uccidono a vicenda anche da checkout diversi — il mutex è globale sull'eseguibile.
 - ⛔ Niente commit senza richiesta esplicita dell'utente (`CLAUDE.md`). I passi «Commit» di questo piano si
   eseguono **solo** se l'utente lo ha chiesto per quella sessione.
 - Leggere `git branch --show-current` **subito prima** di ogni commit: altre sessioni condividono questa
@@ -286,7 +291,9 @@ questo task non altera il comportamento.
 Run (PowerShell):
 ```
 D:/EpicGames/UE_5.8/Engine/Build/BatchFiles/Build.bat RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" -WaitMutex
-./scripts/rt-suite.ps1 -Filter RefactorTactics.Combat
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics.Combat;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 Expected: build `Succeeded`; suite `VALIDA` e verde, nuovi test inclusi.
 
@@ -449,13 +456,20 @@ In `RTTurnManager.cpp:1502`, subito **dopo** `Unit->ExpireTemporaryShield();`:
 Run:
 ```
 D:/EpicGames/UE_5.8/Engine/Build/BatchFiles/Build.bat RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" -WaitMutex
-./scripts/rt-suite.ps1 -Filter RefactorTactics.Unit
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics.Unit;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 Expected: build `Succeeded`; i tre test nuovi passano.
 
 - [ ] **Step 7: Girare la suite intera e leggere i rossi**
 
-Run: `./scripts/rt-suite.ps1`
+Run:
+```
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
+```
 Expected: **molti test rossi**, ed è previsto — lo scudo iniziale passa da 0 a 5 e ogni test che assumeva
 `Shield == 0` cambia esito. Non «aggiustare i numeri» in blocco: per ognuno decidere se il test misurava lo
 scudo (allora il numero atteso cambia) o qualcos'altro che ora è disturbato (allora il test va reso esplicito
@@ -529,7 +543,12 @@ bool FRTShieldIsCarriedOncePerTeamTest::RunTest(const FString&)
 
 - [ ] **Step 2: Verificare che fallisca**
 
-Run: `./scripts/rt-suite.ps1 -Filter RefactorTactics.Catalog.ShieldIsReachableOncePerTeam`
+Run:
+```
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics.Catalog.ShieldIsReachableOncePerTeam;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
+```
 Expected: FAIL — zero portatori per entrambe le squadre.
 
 - [ ] **Step 3: Dare l'azione ai due eroi**
@@ -578,7 +597,9 @@ e sostituirla con la nota di provenienza, nella forma già usata per `Action.Pur
 Run:
 ```
 D:/EpicGames/UE_5.8/Engine/Build/BatchFiles/Build.bat RefactorTacticsEditor Win64 Development -Project="D:\Repositories\refactor-tactict-dev\RefactorTactics.uproject" -WaitMutex
-./scripts/rt-suite.ps1 -Filter RefactorTactics.Catalog
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics.Catalog;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 Expected: `ShieldIsReachableOncePerTeam` verde e `EveryCoreActionIsReachableOrDeclared` verde **senza** la
 riga rimossa. Se quest'ultimo protesta che l'azione è dichiarata *e* raggiungibile, la rimozione dello
@@ -618,7 +639,9 @@ diventa `D-224` — ovunque, inclusi i commenti nel codice scritti nei Task 1-3.
 
 Run:
 ```
-./scripts/rt-suite.ps1 -Filter RefactorTactics.Scenario
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics.Scenario;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
 ```
 poi, per la rigenerazione vera:
 ```
@@ -646,11 +669,17 @@ owner e test. Deve contenere:
 due. Se dopo la modifica il catalogo di `balance/` diverge dal codice su un altro asse, la divergenza si
 registra in `DOC_CONFLICT_MATRIX.md` — per [D-210] il codice prevale, ma non in silenzio.
 
-- [ ] **Step 5: Suite intera, e leggere il verdetto dello script**
+- [ ] **Step 5: Suite intera, e verificare che la misura sia valida**
 
-Run: `./scripts/rt-suite.ps1`
-Expected: `VALIDA` e verde. Se lo script dichiara `NON VALIDA`, l'esito **non si registra**: si ripete a
-macchina libera. Confrontare `Test Completed` con `Found N` — un `Fail` a zero non basta.
+Run:
+```
+& "D:/EpicGames/UE_5.8/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "D:/Repositories/refactor-tactict-dev/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
+```
+Expected: verde, su una misura **valida**. La validità non la dichiara più uno script: se HEAD, albero,
+binario o stato del motore sono cambiati durante la run, l'esito **non si registra** e si ripete a
+macchina libera (`AGENTS.md` §Suite Unreal). Confrontare `Test Completed` con `Found N` — un `Fail` a zero non basta.
 
 - [ ] **Step 6: Commit** *(solo se autorizzato)*
 
