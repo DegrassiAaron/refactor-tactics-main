@@ -256,6 +256,42 @@ namespace
 			? FString::Printf(TEXT(" (%s, p%d)"), *URTTurnLogLibrary::DescribeActionIdentity(Entry), Entry.Priority)
 			: FString::Printf(TEXT(" (%s)"), *URTTurnLogLibrary::DescribeActionIdentity(Entry));
 	}
+
+	/**
+	 * **Le categorie in cui `UnitId` e' anche il SOGGETTO GRAMMATICALE della frase.**
+	 *
+	 * 🔑 **E' la regola che #1932 aveva applicato a una categoria sola, estesa dove vale** (`#1412`). Non e'
+	 * una preferenza di stile: decide se prefissare il nome dica il vero. Dove `UnitId` porta chi SUBISCE,
+	 * *«Aevik: colpisce»* sarebbe falso, e la riga mentirebbe su chi ha fatto cosa.
+	 *
+	 * | categoria | `UnitId` e' | prefisso |
+	 * |---|---|---|
+	 * | `Move` | chi si muove | ✅ da `#1932` |
+	 * | `Fallback` | l'unita' la cui azione e' stata annullata | ✅ |
+	 * | `Reaction` | **chi reagisce** — `AppendLogEntry(Entry, Unit)` lo dichiara, e nell'interposizione `SrcCell` e' la cella del PROTETTO: dedurre l'unita' dalla cella darebbe quella sbagliata ([D-063]) | ✅ |
+	 * | `Facing` | l'unita' **il cui orientamento la voce sta raccontando** — la regola e' scritta accanto a `MakeFacingEntry` e a `RearHitBypassedGuard`, dove `#1418` l'ha corretta da «attaccante» a «chi subisce» | ✅ |
+	 * | `Combat` | **ambiguo**, e per questo escluso | ⛔ |
+	 * | le altre | non deciso qui | ⛔ |
+	 *
+	 * ⛔ **`Combat` resta fuori, e la ragione non e' quella che si direbbe.** Per il danno `UnitId` porta chi
+	 * SUBISCE (`#1150`) — quindi il prefisso sarebbe falso. Ma non e' uniforme: la voce `NoLineOfSight` di
+	 * `RTTurnManager_Blast.cpp` fa `AppendLogEntry(NoLos, attaccante)`. La stessa categoria dichiara due
+	 * soggetti diversi a seconda dell'esito, e finche' e' cosi' nessun prefisso e' corretto per tutta la
+	 * categoria. ∴ chi volesse chiuderla deve prima decidere **chi** e' il soggetto di una voce `Combat`,
+	 * che e' una domanda sul vocabolario del log e non su questa funzione.
+	 *
+	 * ⚠️ **Le categorie non elencate non sono «escluse»: non sono state guardate.** `Environment`,
+	 * `Predictive`, `ReactionDecision`, `ReactionClash`, `Status`, `Objective` non avevano una riga
+	 * duplicata da togliere, quindi `#1412` non le tocca. Aggiungerne una richiede la stessa verifica fatta
+	 * qui — chi e' `UnitId` per quel produttore — non un'estensione per simmetria.
+	 */
+	bool CategoriaDichiaraIlProprioSoggetto(ERTLogCategory Categoria)
+	{
+		return Categoria == ERTLogCategory::Move
+			|| Categoria == ERTLogCategory::Fallback
+			|| Categoria == ERTLogCategory::Reaction
+			|| Categoria == ERTLogCategory::Facing;
+	}
 }
 
 TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<FRTTurnLogEntry> Entries,
@@ -282,10 +318,16 @@ TArray<FRTDescribedLine> URTTurnLogLibrary::DescribeTurnLogWithSubjects(TArray<F
 		// prefissare la' produrrebbe la stessa identita' due volte. Il soggetto entra QUI, dove nasce la riga
 		// che un giocatore legge.
 		//
-		// ⚠️ Solo `Move`: e' la categoria in cui `UnitId` e' anche il soggetto grammaticale. Per il danno
-		// porta chi SUBISCE (#1150) — *«Aevik: colpisce»* direbbe il falso — e le voci `Status` cominciano
-		// gia' con la cella.
-		if (Entry.Category == ERTLogCategory::Move && Entry.UnitId != 0)
+		// ⚠️ **Non tutte le categorie**: solo quelle in cui `UnitId` e' anche il soggetto grammaticale. La
+		// regola, con la tabella di chi entra e perche', sta su `CategoriaDichiaraIlProprioSoggetto`.
+		//
+		// ⌫ **Fino a `#1412` era il solo `Move`**, e non perche' le altre non lo meritassero: `#1932` aveva
+		// convertito quella categoria e la condizione era rimasta scritta sul caso invece che sulla regola.
+		// La conseguenza era una riga scritta a mano accanto a sei voci — *«Nome: <DescribeEntry>»* — che
+		// arrivava al giocatore INSIEME alla copia derivata, che il nome non ce l'aveva. Due righe per lo
+		// stesso evento, e quella scritta a mano usava `GetName()` (`RTUnit_0`) mentre questa usa il nome
+		// risolto (`Wraith`): non si leggevano nemmeno come la stessa unita'.
+		if (CategoriaDichiaraIlProprioSoggetto(Entry.Category) && Entry.UnitId != 0)
 		{
 			// Il nome quando il chiamante l'ha risolto, l'id stabile quando no: `u12` non e' bello ma e'
 			// verificabile, e non c'e' un terzo caso in cui la riga esca senza soggetto.

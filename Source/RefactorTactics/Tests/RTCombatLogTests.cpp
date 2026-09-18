@@ -37,6 +37,8 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTCombatLog.h" // URTCombatLogLibrary: il filtro, che non vive piu' nell'Actor
 #include "Unit/RTUnit.h"
+#include "Misc/FileHelper.h" // il cancello di UI.CombatLogHasOneProducerPerEntry legge i due sorgenti del resolver
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -338,10 +340,9 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 	// 🔴 L'invariante vero: le due superfici nominano la STESSA unita'. Si risolve l'unita' che il TurnLog
 	// accredita e si cerca IL SUO nome nella riga — non quello del difensore.
 	//
-	// Confrontare direttamente col difensore sarebbe tautologico: la riga leggibile nasce da
-	// `AddLogEvent("%s: %s", Units[i]->GetName(), ...)` dove `Units[i]` E' il difensore per costruzione del
-	// loop, quindi conterrebbe il suo nome comunque — anche col `UnitId` sbagliato. Cosi' invece il test
-	// cade appena i due tornano a divergere, ed e' la forma per cui esiste.
+	// Confrontare direttamente col difensore sarebbe tautologico: il difensore e' `Units[i]` per costruzione
+	// del loop, quindi il suo nome comparirebbe comunque — anche col `UnitId` sbagliato. Cosi' invece il
+	// test cade appena i due tornano a divergere, ed e' la forma per cui esiste.
 	const ARTUnit* Accreditata =
 		Bypassed->UnitId == Difensore->StableUnitId ? Difensore :
 		Bypassed->UnitId == Attaccante->StableUnitId ? Attaccante : nullptr;
@@ -354,27 +355,49 @@ bool FRTRearHitCreditsSameUnitTest::RunTest(const FString&)
 	// ⚠️ `RecentEvents` e' una finestra (`MaxLogLines`): con due unita' e un turno la riga ci sta, ma un
 	// giorno che questa fixture crescesse andrebbe cercata prima che venga sfrattata.
 	//
-	// 🔴 **Questo test DIPENDE da una riga che `#1412` punto 2 vuole togliere**: la riga col nome davanti
-	// nasce dall'`AddLogEvent` scritto a mano di `RTTurnManager.cpp:3996`, uno dei sette duplicati. Il
-	// giorno in cui spariscono, l'invariante «le due superfici accreditano la stessa unita'» va riformulato
-	// sulla superficie derivata — che a quel punto dovra' saper nominare l'attore, ed e' esattamente la
-	// domanda che tiene aperto quel punto. Detto qui perche' chi toglie quella riga trova questo test rosso
-	// e deve sapere che non e' una regressione.
+	// ⌫ **Riformulato da `#1412`, ed e' la riformulazione che la stesura precedente aveva prescritto.**
+	// Questo test dipendeva dall'`AddLogEvent` scritto a mano accanto alla voce — uno dei sette duplicati —
+	// e il commento che stava qui avvisava: *«il giorno in cui spariscono, l'invariante va riformulato
+	// sulla superficie derivata, che a quel punto dovra' saper nominare l'attore»*. Quel giorno e' arrivato:
+	// la superficie e' **una sola**, e nomina l'attore perche' `Facing` dichiara il proprio soggetto.
+	//
+	// 🔑 **Il nome da cercare e' quello della MAPPA, non `GetName()`**, ed e' la differenza che ha reso
+	// rosso questo test invece di lasciarlo passare per sbaglio: l'eco usava il nome dell'attore
+	// (`RTUnit_3`), la derivazione usa `SubjectNamesForLog` (`Ivrin`). Le due copie non si leggevano nemmeno
+	// come la stessa unita' — misurato in `#2054`.
 	const FString Descrizione = URTTurnLogLibrary::DescribeEntry(*Bypassed);
+	const TMap<int32, FString> Nomi = TM->SubjectNamesForLog();
+	const FString* NomeAccreditato = Nomi.Find(Accreditata->StableUnitId);
+	if (!TestNotNull(TEXT("la mappa dei soggetti conosce l'unita' accreditata"),
+		const_cast<FString*>(NomeAccreditato)))
+	{
+		RTCombatLogFixture::DestroyWorld(World);
+		return false;
+	}
+
 	const TArray<FString>& Emesse = TM->GetRecentEvents();
 	const FString* Riga = Emesse.FindByPredicate([&Descrizione](const FString& L)
 	{
-		// La riga NOMINATA, non quella derivata da `ConcludeTurn`: quella e' `DescribeEntry` e basta, e non
-		// dice chi. E' proprio la sua mancanza di nome a rendere utile il confronto qui.
+		// La riga col SOGGETTO davanti: `DescribeEntry` e basta non direbbe chi, ed e' proprio quella
+		// mancanza a rendere utile il confronto. Da `#1412` a portarlo e' la riga derivata.
 		return L.Contains(Descrizione) && L.Len() > Descrizione.Len();
 	});
-	if (!TestNotNull(TEXT("l'evento compare anche nel combat log, con un nome davanti"), Riga))
+	if (!TestNotNull(TEXT("l'evento compare nel combat log, con un soggetto davanti"), Riga))
 	{
 		RTCombatLogFixture::DestroyWorld(World);
 		return false;
 	}
 	TestTrue(*FString::Printf(TEXT("e il combat log nomina l'unita' che il TurnLog accredita: %s"), **Riga),
-		Riga->Contains(Accreditata->GetName()));
+		Riga->StartsWith(*NomeAccreditato + FString(TEXT(": ")), ESearchCase::CaseSensitive));
+
+	// ⛔ E la superficie e' UNA: la riga compare una volta sola. Senza, la riformulazione qui sopra
+	// resterebbe verde anche se l'eco tornasse — che e' il difetto che `#1412` ha appena tolto.
+	int32 Quante = 0;
+	for (const FString& L : Emesse)
+	{
+		if (L.Contains(Descrizione)) { ++Quante; }
+	}
+	TestEqual(TEXT("l'evento compare UNA volta sola"), Quante, 1);
 
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
@@ -551,11 +574,18 @@ bool FRTLogFallbackNamesTheActionTest::RunTest(const FString&)
  * stringa — due azioni annullate senza `ActionId` lo fanno — e in quel caso il combat log deve emetterla
  * due volte. Un `1` fisso fallirebbe proprio sul caso di `#1412`.
  *
- * ⚠️ Copertura di questo percorso: due unita' che non attaccano. Le sette righe doppie vivono in rami che
- * questa fixture non attraversa (fallback, reazioni, colpi senza linea di tiro), quindi il test protegge
- * dall'**ottavo** duplicato piu' che misurare i sette — che restano aperti in `#1412` e non si tolgono
- * finche' `DescribeTurnLog` non sa nominare l'attore. Esercitarli QUI renderebbe il test rosso su un
- * difetto noto e non ancora correggibile, che e' un modo per farlo ignorare.
+ * ⚠️ Copertura di questo percorso: due unita' che non attaccano. Le righe doppie vivevano in rami che
+ * questa fixture non attraversa (fallback, reazioni, colpi senza linea di tiro), quindi questo test
+ * protegge dal duplicato **successivo** piu' di quanto misurasse quelli.
+ *
+ * ⌫ **La riga qui sopra diceva «restano aperti in `#1412` e non si tolgono finche' `DescribeTurnLog` non
+ * sa nominare l'attore».** Da `#1412` lo sa: il prefisso del soggetto vale per le quattro categorie in cui
+ * `UnitId` e' anche il soggetto grammaticale, e **sei** dei sette echi scritti a mano sono stati tolti. Il
+ * settimo resta e **e' dichiarato** — `RTTurnManager_Blast.cpp`, la voce `NoLineOfSight`, che aggiunge i
+ * NOMI dei due capi e che `DescribeEntry` non sa produrre.
+ *
+ * 🔑 Che i sei non tornino non lo misura questo test, che non attraversa quei rami: lo misura
+ * `UI.CombatLogHasOneProducerPerEntry`, qui sotto, che conta i siti nel sorgente.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLogDoesNotRepeatDerivedLinesTest,
 	"RefactorTactics.UI.LogDoesNotRepeatTheDerivedLines",
@@ -1908,6 +1938,131 @@ bool FRTSightBlockerAppearsInTheLineTest::RunTest(const FString&)
 			Line.Contains(TEXT("muro in ")));
 	}
 
+	return true;
+}
+
+/**
+ * **Una voce di TurnLog ha UN produttore di riga, non due** (`#1412`).
+ *
+ * 🔴 **Il difetto che questo cancello impedisce di ricreare e' costato sei mesi di righe doppie.**
+ * `ConcludeTurn` deriva l'intero combat log dal TurnLog — *«prima le righe nascevano da 59 `AddLogEvent`
+ * sparse nella risoluzione… due produttori indipendenti coincidono per abitudine, non per costruzione»* —
+ * ma sette punti della risoluzione continuavano a scrivere a mano `AddLogEvent(... DescribeEntry(X))`
+ * subito dopo aver appeso `X`. Il giocatore riceveva lo stesso evento due volte, in due formati: quello
+ * scritto a mano col prefisso `Unit->GetName()` (`RTUnit_0`), quello derivato senza.
+ *
+ * ⚠️ **Nessun test dinamico li vedeva**, ed e' il motivo per cui questo e' STATICO: i sette rami —
+ * fallback, reazioni, bypass di facing, colpi senza linea di tiro — non sono attraversati dalle fixture
+ * del combat log, e costruirne una per ciascuno costerebbe piu' della regola che si vuole proteggere.
+ * `UI.LogDoesNotRepeatTheDerivedLines` misura l'invariante **dove passa**; questo lo misura **dove sta**.
+ *
+ * 🔑 **L'unica eccezione e' nominata, non contata.** Un numero direbbe «sette» e invecchierebbe da solo;
+ * il nome del file piu' la firma della voce dicono QUALE riga e' legittima, e perche': `NoLineOfSight`
+ * aggiunge i nomi di attaccante e bersaglio, e `DescribeEntry` non ha una mappa dei nomi. Il giorno in cui
+ * `DescribeTurnLogWithSubjects` sapra' risolvere anche il bersaglio, questa eccezione va tolta da qui.
+ *
+ * ⛔ **Non e' un gate sul preprocessore**: riconosce la forma SCRITTA. Un `#define` che avvolgesse la
+ * chiamata passerebbe — stesso limite dichiarato dagli oracoli `Meta.*`, e per la stessa ragione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCombatLogHasOneProducerPerEntryTest,
+	"RefactorTactics.UI.CombatLogHasOneProducerPerEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCombatLogHasOneProducerPerEntryTest::RunTest(const FString&)
+{
+	// I due file che risolvono il turno, cioe' quelli che appendono voci e potrebbero rieccheggiarle.
+	const TCHAR* Sorgenti[] = {
+		TEXT("Source/RefactorTactics/Turn/RTTurnManager.cpp"),
+		TEXT("Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp"),
+	};
+
+	// L'eccezione dichiarata: file + la voce che la giustifica. Nominata, non contata.
+	const FString FileConEccezione = TEXT("RTTurnManager_Blast.cpp");
+	const FString VoceDellEccezione = TEXT("DescribeEntry(NoLos)");
+
+	// ⚠️ **`*` a inizio riga NON basta a dire «commento», e il test l'ha misurato su se stesso.** La prima
+	// stesura scartava ogni riga che iniziasse con `*`, e l'unico sito vero —
+	// `*URTTurnLogLibrary::DescribeEntry(NoLos),`, dove `*` e' una DEREFERENZA — spariva: lo scanner trovava
+	// zero siti e sarebbe stato verde per cecita'. L'ha salvato l'anti-vacuita' sull'eccezione, che pretende
+	// di vederla. Un commento di blocco scrive `* ` con lo spazio; una dereferenza no.
+	auto ERigaDiCommento = [](const FString& Riga)
+	{
+		const FString T = Riga.TrimStart();
+		return T.StartsWith(TEXT("//")) || T.StartsWith(TEXT("/*")) || T.StartsWith(TEXT("*/"))
+			|| T.StartsWith(TEXT("* ")) || T.Equals(TEXT("*"));
+	};
+
+	int32 SitiTotali = 0;
+	int32 SitiLegittimi = 0;
+
+	for (const TCHAR* Relativo : Sorgenti)
+	{
+		FString Testo;
+		const FString Assoluto = FPaths::Combine(FPaths::ProjectDir(), Relativo);
+		if (!TestTrue(*FString::Printf(TEXT("il sorgente si legge: %s"), Relativo),
+			FFileHelper::LoadFileToString(Testo, *Assoluto)))
+		{
+			return false;
+		}
+
+		TArray<FString> Righe;
+		Testo.ParseIntoArrayLines(Righe, /*InCullEmpty*/ false);
+
+		// La chiamata puo' stare su piu' righe — `AddLogEvent(FString::Printf(...` apre, `DescribeEntry`
+		// arriva sotto — quindi si cerca la CHIAMATA a `DescribeEntry` e si guarda se dentro le tre righe
+		// precedenti si apre un `AddLogEvent`. Tre perche' e' la distanza massima misurata nei sette siti
+		// originali; una finestra piu' larga prenderebbe righe che non c'entrano.
+		for (int32 i = 0; i < Righe.Num(); ++i)
+		{
+			const FString& Riga = Righe[i];
+			if (ERigaDiCommento(Riga))
+			{
+				continue; // un commento che nomina la forma non e' la forma
+			}
+			if (!Riga.Contains(TEXT("DescribeEntry("), ESearchCase::CaseSensitive))
+			{
+				continue;
+			}
+
+			bool bDentroAddLogEvent = Riga.Contains(TEXT("AddLogEvent("), ESearchCase::CaseSensitive);
+			for (int32 k = 1; k <= 3 && !bDentroAddLogEvent && i - k >= 0; ++k)
+			{
+				const FString& Sopra = Righe[i - k];
+				if (ERigaDiCommento(Sopra))
+				{
+					continue;
+				}
+				bDentroAddLogEvent = Sopra.Contains(TEXT("AddLogEvent("), ESearchCase::CaseSensitive);
+			}
+			if (!bDentroAddLogEvent)
+			{
+				continue;
+			}
+
+			++SitiTotali;
+			const bool bEccezione = FString(Relativo).EndsWith(FileConEccezione)
+				&& Riga.Contains(VoceDellEccezione, ESearchCase::CaseSensitive);
+			if (bEccezione)
+			{
+				++SitiLegittimi;
+				continue;
+			}
+
+			AddError(FString::Printf(
+				TEXT("%s:%d rieccheggia a mano una voce che `ConcludeTurn` deriva gia' dal TurnLog: il ")
+				TEXT("giocatore leggerebbe lo stesso evento due volte, in due formati. Se alla riga serve ")
+				TEXT("il NOME dell'unita', non scriverlo qui: la copia derivata lo porta gia' per le ")
+				TEXT("categorie che dichiarano il proprio soggetto (vedi `CategoriaDichiaraIlProprioSoggetto`). ")
+				TEXT("Riga: %s"), Relativo, i + 1, *Riga.TrimStartAndEnd()));
+		}
+	}
+
+	// ⛔ **Anti-vacuita', e qui e' obbligatoria**: il conteggio atteso e' UNO, e un uno non distingue
+	// «resta la sola eccezione» da «lo scanner non riconosce piu' la forma». Se l'eccezione sparisse dal
+	// sorgente — tolta o riscritta — questo test diventerebbe cieco restando verde.
+	TestEqual(TEXT("l'eccezione dichiarata (NoLineOfSight) e' ancora li' e lo scanner la vede"),
+		SitiLegittimi, 1);
+	TestEqual(TEXT("nessun altro sito rieccheggia una voce derivata"), SitiTotali, SitiLegittimi);
+	AddInfo(FString::Printf(TEXT("siti trovati: %d, di cui dichiarati legittimi: %d"), SitiTotali, SitiLegittimi));
 	return true;
 }
 
