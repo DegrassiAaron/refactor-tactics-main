@@ -3691,3 +3691,25 @@ sessions:
     # dovuta ai pack e' indistinguibile da un difetto dell'HUD, e il verdetto direbbe il falso.
     verifies:
       - PIE-V01-SCREENHUD
+    notes: >-
+      ✅ **Eseguita il 2026-09-18** su `origin/main` `77bb69b2`, con l'editor ricompilato prima della
+      seduta: il binario runtime era indietro rispetto a `HEAD`, che nel frattempo aveva toccato
+      `Source/`. Partita avviata da `L_Frontend` con `-RTAutobattle=0` e giudicata a schermo da una
+      persona. ⚠️ **L'autobattle spento non e' un dettaglio di comodita'**: senza, nessuna unita'
+      viene selezionata, il dock non costruisce nessuno slot (`[MANCA] ActionSlot: 0` nel rapporto) e i
+      criteri sulle icone non sarebbero stati misurabili affatto.
+      ⛔ **Calibrazione dei pack rifatta prima di giudicare**, come questa cella prescrive: sei
+      riferimenti `/Game/FabAsset/` per ciascuno dei quattro `BP_Unit`, e nessuno mancante su disco.
+      **I due criteri che la seduta doveva rileggere si sono mossi in direzioni OPPOSTE.** Il feed (6)
+      passa da ❌ a ✅: le righe compaiono a schermo e l'ultima corrisponde a un `Colpo` del log.
+      Il dock (3) passa da ⛔ non eseguibile a ❌: gli slot mostrano il nome e un rettangolo bianco
+      al posto del glifo.
+      🔑 **E la causa del rosso NON e' la issue che questa cella nominava.** #2963 descrive chiavi
+      assenti dal catalogo; la guardia `Icona non risolta` non scatta con gli slot costruiti, il catalogo
+      porta le chiavi d'eroe nella convenzione di #3016 e le texture esistono su disco. Il residuo e' a
+      valle, dentro `WBP_RT_ActionSlot`, e ha una issue propria: #3178.
+      ⚠️ **Il criterio (7) resta `NOT RUN`, ma per una causa NUOVA**: non piu' che il feed sia
+      vuoto, bensi' che nessun KO sia capitato nella partita. E' misurabile per la prima volta, e chi lo
+      riprende deve soltanto portare un'unita' a morire.
+      ⛔ **Un limite dichiarato**: i tre stati del dock non sono stati osservati uno per uno.
+      L'esito pieno sta in `test-manuali-pie.md`, che ne resta l'unico owner (R-6).
