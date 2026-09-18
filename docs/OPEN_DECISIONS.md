@@ -25,7 +25,7 @@
 
 ---
 
-## Aperta — una voce PIE che il proprio allestimento rende non ponibile, dalla seduta `U46` del 2026-09-17
+## ✅ Chiusa il 2026-09-18 da `D-426` — una voce PIE che il proprio allestimento rendeva non ponibile, dalla seduta `U46` del 2026-09-17
 
 Origine: i tentativi di eseguire `PIE-VIS-SIGHTWALL` del 2026-09-16 e 2026-09-17, che hanno trovato non un
 difetto del prodotto ma un difetto della **voce**. Istruttoria completa in
@@ -44,7 +44,7 @@ prevede esplicitamente.
 
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
-| `SGT-1` | **Il criterio di `PIE-VIS-SIGHTWALL` si riduce alla metà osservabile, oppure il collegamento riga↔segno si riapre come problema di design?** | Tre delle quattro sotto-domande hanno già un oracolo headless — `CombatLog.SightBlockerAppearsInTheLine`, `HUD.BlockerMarksOnlyNameableCells`, `ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — e la quarta è irriducibile **per progetto**. ⚠️ Il precedente esiste ed è [`D-402`](decisions/RT_PDR_00_Decision_Log.md), che ridusse `PIE-HEXPLAY-8` perché *«un criterio di release non chiede un'osservazione che nessuno può produrre»* — ma là mancava il **soggetto**, qui è l'**allestimento** a rispondere: vale come forma, non come identità. ⛔ La voce è **fuori** dal subset `RELEASE-V01` e non blocca `G9`, quindi la decisione non ha fretta e non ha scuse per essere dedotta |
+| ~~`SGT-1`~~ | ~~Il criterio di `PIE-VIS-SIGHTWALL` si riduce alla metà osservabile, oppure il collegamento riga↔segno si riapre come problema di design?~~ | ✅ **NON SI RIDUCE: IL COLLEGAMENTO RIGA↔SEGNO TORNA UN PROBLEMA DI DESIGN APERTO** — [`D-426`](decisions/RT_PDR_00_Decision_Log.md), 2026-09-18, ed è il `D-nnn` che [`D-340`](decisions/RT_PDR_00_Decision_Log.md) punto (5) aveva previsto. 🔑 **La forma di [`D-402`](decisions/RT_PDR_00_Decision_Log.md) non si applica**, e la distinzione è la ragione della scelta: là l'osservazione era impossibile perché mancava il **soggetto**; qui il soggetto c'è, e a renderla non ponibile è l'**allestimento**. Un criterio che nessuno può produrre si riduce; uno che nessuno può **chiedere** si ripara. ⚠️ **È la via più cara delle due**, scelta sapendolo: ridurre costava una riga di registro, riaprire costa lavoro di presentazione che nessuna milestone aveva in conto. ⌫ *Istruttoria conservata* — Tre delle quattro sotto-domande hanno già un oracolo headless — `CombatLog.SightBlockerAppearsInTheLine`, `HUD.BlockerMarksOnlyNameableCells`, `ScreenHud.TheHudMountsTheFeedThatExplainsTheTurn` — e la quarta è irriducibile **per progetto**. ⚠️ Il precedente esiste ed è [`D-402`](decisions/RT_PDR_00_Decision_Log.md), che ridusse `PIE-HEXPLAY-8` perché *«un criterio di release non chiede un'osservazione che nessuno può produrre»* — ma là mancava il **soggetto**, qui è l'**allestimento** a rispondere: vale come forma, non come identità. ⛔ La voce è **fuori** dal subset `RELEASE-V01` e non blocca `G9`, quindi la decisione non ha fretta e non ha scuse per essere dedotta |
 
 ---
 
