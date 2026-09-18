@@ -15,6 +15,7 @@
 #include "Map/RTMapVisuals.h"          // le quote condivise: qui si LEGGONO, non si ricopiano
 #include "Turn/RTMatchSetupLibrary.h" // MakeTestArena: una board con piu' famiglie popolate
 #include "Terrain/RTTerrainLibrary.h" // il costo di Rough arriva dal catalogo, non da un numero scritto qui
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1537,18 +1538,17 @@ bool FRTHexMapActorRemovalSemanticsTest::RunTest(const FString&)
 	// La board dipinta per-cella sotto una semantica di indice data.
 	auto BoardConSemantica = [&](int32 Swap) -> TMap<FVector, FLinearColor>
 	{
-		// 🔴 **Si VERIFICA che la scrittura abbia preso.** `IConsoleVariable::Set` usa
-		// `ECVF_SetByCode`, e il sistema di priorità di Unreal IGNORA in silenzio una scrittura di priorità
-		// inferiore a quella con cui la variabile è già stata impostata — da console, da device profile o da
-		// `-ExecCmds`. Senza questo controllo le due metà del test costruirebbero la STESSA board e
-		// l'asserzione finale passerebbe a vuoto, dichiarando provato ciò che non ha nemmeno esercitato.
-		Force->Set(Swap);
-		if (Force->GetInt() != Swap)
+		// 🔴 **Si VERIFICA che la scrittura abbia preso.** Senza questo controllo le due metà del test
+		// costruirebbero la STESSA board e l'asserzione finale passerebbe a vuoto, dichiarando provato ciò
+		// che non ha nemmeno esercitato.
+		//
+		// ⌫ **Fino a #2235 il controllo era qui e la scrittura perdeva lo stesso**: `Force->Set(Swap)` usa
+		// `ECVF_SetByCode` per default, e una variabile già impostata da console lo rifiuta in silenzio —
+		// il test si limitava a diagnosticare la propria impotenza. `Forza` scrive a priorità CORRENTE,
+		// quindi prende, e rilegge comunque per i casi che restano (ReadOnly, valore non parsabile). Questo
+		// sito è l'unico del repository che il controllo ce l'aveva; gli altri trenta no.
+		if (!RTTestConsoleVariable::Forza(*Force, Swap))
 		{
-			AddError(FString::Printf(
-				TEXT("r.InstancedStaticMeshes.ForceRemoveAtSwap non ha accettato %d (vale %d): una priorità ")
-				TEXT("superiore la tiene, e questo test non può esercitare le due semantiche"),
-				Swap, Force->GetInt()));
 			return TMap<FVector, FLinearColor>();
 		}
 
@@ -1597,7 +1597,7 @@ bool FRTHexMapActorRemovalSemanticsTest::RunTest(const FString&)
 
 	const TMap<FVector, FLinearColor> ConRemoveAt = BoardConSemantica(0);
 	const TMap<FVector, FLinearColor> ConRemoveAtSwap = BoardConSemantica(1);
-	Force->Set(Originale);
+	RTTestConsoleVariable::Forza(*Force, Originale);
 	TestEqual(TEXT("la CVar è stata riportata al valore di partenza"), Force->GetInt(), Originale);
 
 	if (!TestTrue(TEXT("entrambe le board si sono costruite"),

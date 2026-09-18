@@ -73,10 +73,114 @@ namespace
 				TEXT("%s: la cella deve essere [q, r, layer] — attesi 3 elementi, trovati %d"), Where, Arr->Num());
 			return false;
 		}
-		Out = FRTCellId(
-			static_cast<int32>((*Arr)[0]->AsNumber()),
-			static_cast<int32>((*Arr)[1]->AsNumber()),
-			static_cast<int32>((*Arr)[2]->AsNumber()));
+		// 🔴 **L'arita' non e' il valore** (`#2698`). `AsNumber()` risponde `0` per QUALUNQUE valore che non
+		// sia un numero — `"1"`, `true`, `null`, un oggetto — e senza questo ciclo `["1","0","0"]` diventava
+		// la cella `(0,0,0)` e lo scenario caricava verde su una cella che nessuno aveva scritto. E' la
+		// stessa formula delle guardie di `#2546` un livello piu' in basso: la lunghezza giusta non rende
+		// buono il contenuto.
+		//
+		// ⚠️ **E il RANGE va con il tipo, non dopo**: `static_cast<int32>` di un `double` fuori dai limiti
+		// e' comportamento indefinito, quindi il controllo deve precedere la conversione — non e' una
+		// rifinitura del messaggio d'errore.
+		int32 Valori[3] = { 0, 0, 0 };
+		static const TCHAR* NomiComponenti[3] = { TEXT("q"), TEXT("r"), TEXT("layer") };
+		for (int32 i = 0; i < 3; ++i)
+		{
+			// 🔴 **Si guarda il TIPO JSON, non `TryGetNumber`**, e la differenza l'ha misurata il test di
+			// questa stessa issue: `FJsonValue::TryGetNumber` **converte** — risponde `true` su `"1"` e su
+			// `true`, restituendo 1. Una prima stesura di questa guardia lo usava, e `["1","0","0"]`
+			// continuava a caricare verde: il controllo c'era e non controllava.
+			if (!(*Arr)[i].IsValid() || (*Arr)[i]->Type != EJson::Number)
+			{
+				OutError = FString::Printf(
+					TEXT("%s: la componente %s (indice %d) non e' un numero"), Where, NomiComponenti[i], i);
+				return false;
+			}
+			double Numero = 0.0;
+			if (!(*Arr)[i]->TryGetNumber(Numero))
+			{
+				OutError = FString::Printf(
+					TEXT("%s: la componente %s (indice %d) non si legge come numero"), Where, NomiComponenti[i], i);
+				return false;
+			}
+			if (Numero != FMath::TruncToDouble(Numero))
+			{
+				OutError = FString::Printf(
+					TEXT("%s: la componente %s (indice %d) vale %s e non e' un intero — una cella non ha meta'"),
+					Where, NomiComponenti[i], i, *FString::SanitizeFloat(Numero));
+				return false;
+			}
+			if (Numero < static_cast<double>(MIN_int32) || Numero > static_cast<double>(MAX_int32))
+			{
+				OutError = FString::Printf(
+					TEXT("%s: la componente %s (indice %d) vale %s, fuori dall'intervallo di un int32"),
+					Where, NomiComponenti[i], i, *FString::SanitizeFloat(Numero));
+				return false;
+			}
+			Valori[i] = static_cast<int32>(Numero);
+		}
+
+		Out = FRTCellId(Valori[0], Valori[1], Valori[2]);
+		return true;
+	}
+
+	/**
+	 * Legge un campo STRINGA distinguendo **assente** da **presente e malformato** (`#2698`).
+	 *
+	 * 🔴 **`TryGetStringField` risponde `false` a entrambi**, e usarlo come guardia di presenza — cioe'
+	 * `if (TryGetStringField(...) && !Vuota)` — fa saltare l'intero blocco in silenzio. `"ability": ""` e
+	 * `"ability": ["Hero.Aevik.ArcPulse"]` caricavano verde senza abilita': l'unita' non la usava, lo
+	 * scenario riportava `PASS`, e nessuno aveva scritto un test su una partita diversa apposta.
+	 *
+	 * 🔑 **La stringa VUOTA e' un errore e non un'omissione**, verificato contro il writer invece che
+	 * deciso: `RTScenarioWriter` scrive ogni campo stringa sotto un `!IsEmpty()` / `!IsNone()`, quindi non
+	 * emette mai la forma vuota — rifiutarla non puo' rompere il round-trip. Chi non vuole un campo lo
+	 * OMETTE, ed e' cio' che il writer fa.
+	 *
+	 * ⚠️ **`bIdentificatore` rifiuta anche `"None"`**, che e' il caso D.2 della issue e non e' pedanteria:
+	 * `FName(TEXT("None"))` **e'** `NAME_None`, quindi `"dash": "None"` faceva girare il blocco, validare
+	 * `dashTo`, caricare verde — e poi `RTScenarioSession` saltava lo scatto, perche' la sua guardia
+	 * d'esecuzione e' `!Intent.Dash.IsNone()`. Una destinazione parsata e consumata da nessuno, senza che
+	 * nulla lo dicesse. ⛔ Il confronto passa da `FName` di proposito: e' case-insensitive, e `"none"` e
+	 * `"NONE"` collidono con la sentinella allo stesso modo.
+	 */
+	bool LeggiCampoStringa(const TSharedPtr<FJsonObject>& Obj, const TCHAR* Chiave, bool bIdentificatore,
+		FString& OutValore, bool& bOutPresente, FString& OutError, const TCHAR* Where)
+	{
+		bOutPresente = false;
+		if (!Obj->HasField(Chiave))
+		{
+			return true;
+		}
+		// 🔴 **Il TIPO, non `TryGetStringField`**, per la stessa ragione misurata in `ParseCell`: quella
+		// funzione **converte**, e `"edge": 42` diventava la stringa `"42"`. Il rifiuto arrivava lo stesso —
+		// dalla tabella delle direzioni, con un messaggio che parlava di un bordo sconosciuto invece che di
+		// un campo del tipo sbagliato — e per `ability` o `target`, dove non c'e' una tabella a valle, non
+		// sarebbe arrivato affatto.
+		const TSharedPtr<FJsonValue> Valore = Obj->TryGetField(Chiave);
+		if (!Valore.IsValid() || Valore->Type != EJson::String || !Valore->TryGetString(OutValore))
+		{
+			OutError = FString::Printf(
+				TEXT("%s: %s c'e' ma non e' una stringa. Un campo presente e malformato non e' un campo assente."),
+				Where, Chiave);
+			return false;
+		}
+		if (OutValore.IsEmpty())
+		{
+			OutError = FString::Printf(
+				TEXT("%s: %s e' una stringa vuota. Un campo che non serve si OMETTE — e' cio' che il writer fa."),
+				Where, Chiave);
+			return false;
+		}
+		if (bIdentificatore && FName(*OutValore).IsNone())
+		{
+			OutError = FString::Printf(
+				TEXT("%s: %s vale '%s', che e' la sentinella NAME_None: il campo caricherebbe e nessuno lo ")
+				TEXT("consumerebbe a runtime. Ometti il campo, oppure scrivi l'identificatore vero."),
+				Where, Chiave, *OutValore);
+			return false;
+		}
+		bOutPresente = true;
 		return true;
 	}
 
@@ -1162,8 +1266,28 @@ namespace
 							}
 						}
 
+						// 🔑 **`target` si controlla QUI anche se si legge piu' sotto** (`#2698`): il ramo che
+						// lo legge vive dentro `if (ability)`, quindi un `"target": ["B"]` senza abilita' non
+						// attraversava nessuna guardia. ⛔ Cio' che NON si controlla e' il CONSUMO — «un
+						// `target` senza `ability` chi lo usa?» — perche' e' esattamente la forma che il
+						// writer emette (`Intent.Target` non vuoto con `Ability` a `None`) e che il 2026-09-09
+						// ha gia' rotto il round-trip una volta.
+						FString TargetProbe;
+						bool bHaTarget = false;
+						if (!LeggiCampoStringa(IntentObj, TEXT("target"), /*bIdentificatore*/ false,
+							TargetProbe, bHaTarget, OutError, *FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId)))
+						{
+							return false;
+						}
+
 						FString AbilityText;
-						if (IntentObj->TryGetStringField(TEXT("ability"), AbilityText) && !AbilityText.IsEmpty())
+						bool bHaAbility = false;
+						if (!LeggiCampoStringa(IntentObj, TEXT("ability"), /*bIdentificatore*/ true,
+							AbilityText, bHaAbility, OutError, *FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId)))
+						{
+							return false;
+						}
+						if (bHaAbility)
 						{
 							Intent.Ability = FName(*AbilityText);
 
@@ -1235,7 +1359,13 @@ namespace
 						// costringerebbe chi scrive lo scenario a ricordare che 0 e' E, e un errore di conteggio
 						// produrrebbe un pannello sul lato sbagliato con lo scenario comunque verde.
 						FString EdgeText;
-						if (IntentObj->TryGetStringField(TEXT("edge"), EdgeText) && !EdgeText.IsEmpty())
+						bool bHaEdge = false;
+						if (!LeggiCampoStringa(IntentObj, TEXT("edge"), /*bIdentificatore*/ false,
+							EdgeText, bHaEdge, OutError, *FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId)))
+						{
+							return false;
+						}
+						if (bHaEdge)
 						{
 							static const TMap<FString, ERTHexDirection> ByName = {
 								{ TEXT("E"),  ERTHexDirection::E },
@@ -1262,7 +1392,13 @@ namespace
 						// il blocco di `edge` qui sopra si porta dietro una copia della mappa delle direzioni, e due
 						// copie divergono alla prima direzione aggiunta.
 						FString IntentFacingText;
-						if (IntentObj->TryGetStringField(TEXT("facing"), IntentFacingText) && !IntentFacingText.IsEmpty())
+						bool bHaFacing = false;
+						if (!LeggiCampoStringa(IntentObj, TEXT("facing"), /*bIdentificatore*/ false,
+							IntentFacingText, bHaFacing, OutError, *FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId)))
+						{
+							return false;
+						}
+						if (bHaFacing)
 						{
 							const FString Where = FString::Printf(
 								TEXT("intent di '%s': rotazione dichiarata"), *Intent.UnitId);
@@ -1274,7 +1410,13 @@ namespace
 						}
 
 						FString DashText;
-						if (IntentObj->TryGetStringField(TEXT("dash"), DashText) && !DashText.IsEmpty())
+						bool bHaDash = false;
+						if (!LeggiCampoStringa(IntentObj, TEXT("dash"), /*bIdentificatore*/ true,
+							DashText, bHaDash, OutError, *FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId)))
+						{
+							return false;
+						}
+						if (bHaDash)
 						{
 							Intent.Dash = FName(*DashText);
 
@@ -1313,7 +1455,13 @@ namespace
 						}
 
 						FString ReactionText;
-						if (IntentObj->TryGetStringField(TEXT("reaction"), ReactionText) && !ReactionText.IsEmpty())
+						bool bHaReaction = false;
+						if (!LeggiCampoStringa(IntentObj, TEXT("reaction"), /*bIdentificatore*/ true,
+							ReactionText, bHaReaction, OutError, *FString::Printf(TEXT("intent di '%s'"), *Intent.UnitId)))
+						{
+							return false;
+						}
+						if (bHaReaction)
 						{
 							// Nessun bersaglio da pretendere qui: una reazione non lo dichiara, lo riceve dal trigger.
 							Intent.Reaction = FName(*ReactionText);
@@ -1411,6 +1559,21 @@ namespace
 							{
 								OutError = FString::Printf(
 									TEXT("intent di '%s': move non e' una lista di celle [[q, r, layer], ...]"),
+									*Intent.UnitId);
+								return false;
+							}
+							// 🔑 **La lista VUOTA e' un refuso, e la decisione e' misurata** (`#2698`, D.1). Le due
+							// letture possibili — refuso, oppure «questo turno non mi muovo» scritto invece che
+							// omesso — sono state decise guardando i fatti invece delle intenzioni:
+							// `RTScenarioWriter` emette `move` sotto `if (Intent.Move.Num() > 0)`, quindi non
+							// produce mai `[]`, e `grep -rn '"move"\s*:\s*\[\s*\]' Scenarios/` risponde **0**
+							// sul corpus versionato. ∴ rifiutarla non rompe ne' il round-trip ne' uno scenario
+							// esistente, e chiude la porta che restava aperta accanto a quella del tipo sbagliato.
+							if (MoveArr->Num() == 0)
+							{
+								OutError = FString::Printf(
+									TEXT("intent di '%s': move e' una lista vuota. Un'unita' che non si muove OMETTE ")
+									TEXT("il campo — una lista vuota non si distingue da un percorso perso."),
 									*Intent.UnitId);
 								return false;
 							}
@@ -1996,7 +2159,7 @@ namespace
 
 
 	/** `turns`: gli intenti nominano unita' che esistono e non pilotano a mano quelle affidate al bot. */
-	bool ValidateScenarioTurns(const FRTTestScenario& Scenario,
+	bool ValidateScenarioTurns(const FRTTestScenario& Scenario, bool bUsesFixture,
 		const TSet<FString>& SeenIds, const TSet<FString>& BotIds, FString& OutError)
 	{
 		for (const FRTScenarioTurn& Turn : Scenario.Turns)
@@ -2043,6 +2206,50 @@ namespace
 				{
 					OutError = FString::Printf(TEXT("intent per un'unita' non schierata: '%s'"), *Intent.UnitId);
 					return false;
+				}
+
+				// 🔴 **Le celle dell'INTENT stanno nell'arena come ogni altra cella dello scenario** (`#2698`).
+				// La regola era gia' scritta trenta righe piu' sotto — *«fuori dall'arena e' un errore di
+				// scrittura, non un tiro che manca»* — sopra un `continue` che non controllava niente:
+				// `FlatArenaContains` era chiamata su `cells`, sulle unita' di variante e su `units`, e su
+				// nessuna cella di intent. `{"targetCell":[9,9,0]}` su `mapRadius: 3` caricava **PASS** a
+				// diciotto celle dal centro.
+				//
+				// ⚠️ **L'eccezione `bUsesFixture` non e' una cortesia**: senza di essa ogni scenario su
+				// `TestArena` diventerebbe rosso. Una fixture porta la propria mappa, con i propri layer, e
+				// l'arena piatta di `mapRadius` non la descrive — e' la stessa eccezione che `cells` e
+				// `units` applicano gia'.
+				if (!bUsesFixture)
+				{
+					auto CellaNellArena = [&](const FRTCellId& Cella, const TCHAR* Campo) -> bool
+					{
+						if (FlatArenaContains(Cella, Scenario.MapRadius))
+						{
+							return true;
+						}
+						OutError = FString::Printf(
+							TEXT("intent di '%s': %s (q=%d,r=%d,L=%d) e' fuori dall'arena — %s"),
+							*Intent.UnitId, Campo, Cella.X, Cella.Y, Cella.Layer,
+							*DescribeFlatArenaMiss(Cella, Scenario.MapRadius));
+						return false;
+					};
+
+					if (Intent.bTargetsCell && !CellaNellArena(Intent.TargetCell, TEXT("targetCell")))
+					{
+						return false;
+					}
+					if (!Intent.Dash.IsNone() && !CellaNellArena(Intent.DashCell, TEXT("dashTo")))
+					{
+						return false;
+					}
+					for (int32 Passo = 0; Passo < Intent.Move.Num(); ++Passo)
+					{
+						if (!CellaNellArena(Intent.Move[Passo],
+							*FString::Printf(TEXT("move[%d]"), Passo)))
+						{
+							return false;
+						}
+					}
 				}
 				// Un'unita' bot decide da sola: un intent scritto nel file verrebbe SOVRASCRITTO da `PlanBots`, che
 				// azzera il piano di ogni unita' che guida. Accettarlo silenziosamente darebbe uno scenario che
@@ -2167,6 +2374,10 @@ namespace
 					{
 						// Una cella bersaglio segue le stesse regole di ogni altra cella dello scenario: fuori
 						// dall'arena e' un errore di scrittura, non un tiro che manca.
+						// ⌫ **Fino a `#2698` questa era una regola dichiarata e non applicata**, e il `continue`
+						// qui sotto non controllava niente: la misura ora sta in testa al ciclo, dove vede anche
+						// `dashTo` e `move`. Questo ramo resta cio' che e' sempre stato — «non c'e' un `target`
+						// da risolvere per nome» — e il commento dice ora la regola che qualcuno applica.
 						continue;
 					}
 					// Azione che risolve su chi la usa: il bersaglio vuoto e' la forma CORRETTA, non un'omissione.
@@ -2639,7 +2850,7 @@ bool URTScenarioLoader::Validate(const FRTTestScenario& Scenario, FString& OutEr
 
 	if (!ValidateScenarioCells(Scenario, bUsesFixture, OutError)) { return false; }
 	if (!ValidateScenarioUnits(Scenario, SeenIds, BotIds, OutError)) { return false; }
-	if (!ValidateScenarioTurns(Scenario, SeenIds, BotIds, OutError)) { return false; }
+	if (!ValidateScenarioTurns(Scenario, bUsesFixture, SeenIds, BotIds, OutError)) { return false; }
 	if (!ValidateScenarioExpectations(Scenario, SeenIds, OutError)) { return false; }
 	if (!ValidateScenarioVariants(Scenario, bUsesFixture, SeenIds, OutError)) { return false; }
 	// Dopo le unita' perche' legge `BotIds`, e dopo le varianti perche' una delle sue regole le nomina.

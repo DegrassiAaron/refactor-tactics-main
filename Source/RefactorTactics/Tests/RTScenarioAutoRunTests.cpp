@@ -12,6 +12,7 @@
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -48,12 +49,10 @@ namespace
 	 * e in una unity build il successivo potrebbe essere qualsiasi cosa. Un test che rompe gli altri e' peggio
 	 * di un test assente, perche' manda a cercare il difetto nel posto sbagliato.
 	 */
-	struct FScopedScenarioCVar
+	struct FScopedScenarioCVar : RTTestConsoleVariable::TGuardia<FString>
 	{
-		FString Saved;
-		FScopedScenarioCVar() : Saved(CVarRTTestScenario.GetValueOnGameThread()) {}
-		~FScopedScenarioCVar() { CVarRTTestScenario->Set(*Saved, ECVF_SetByCode); }
-		void Set(const TCHAR* Value) { CVarRTTestScenario->Set(Value, ECVF_SetByCode); }
+		FScopedScenarioCVar() : TGuardia(*CVarRTTestScenario.AsVariable()) {}
+		void Set(const TCHAR* Value) { Imposta(Value); }
 	};
 }
 

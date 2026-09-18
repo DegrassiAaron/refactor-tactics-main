@@ -15,6 +15,7 @@
 #include "RTGameMode.h"
 #include "Misc/CommandLine.h"
 #include "HAL/IConsoleManager.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -44,12 +45,10 @@ namespace
 	};
 
 	/** Come sopra, per la console variable: stessa ragione, stato che sopravvive al test. */
-	struct FRTScopedEntryCVar
+	struct FRTScopedEntryCVar : RTTestConsoleVariable::TGuardia<FString>
 	{
-		FString Saved;
-		FRTScopedEntryCVar() : Saved(CVarRTTestScenario.GetValueOnGameThread()) {}
-		~FRTScopedEntryCVar() { CVarRTTestScenario->Set(*Saved, ECVF_SetByCode); }
-		void Set(const TCHAR* Value) { CVarRTTestScenario->Set(Value, ECVF_SetByCode); }
+		FRTScopedEntryCVar() : TGuardia(*CVarRTTestScenario.AsVariable()) {}
+		void Set(const TCHAR* Value) { Imposta(Value); }
 	};
 }
 

@@ -30,6 +30,7 @@
 #include "Unit/RTUnit.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CommandLine.h"
+#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -52,25 +53,21 @@ namespace
 	struct FRTScopedReconState
 	{
 		FString SavedCommandLine;
-		int32 SavedBotAllies;
-		int32 SavedAutobattle;
+		RTTestConsoleVariable::TGuardia<int32> BotAllies{ *CVarRTBotAllies.AsVariable() };
+		RTTestConsoleVariable::TGuardia<int32> Autobattle{ *CVarRTAutobattle.AsVariable() };
 
 		FRTScopedReconState()
 			: SavedCommandLine(FCommandLine::Get())
-			, SavedBotAllies(CVarRTBotAllies.GetValueOnGameThread())
-			, SavedAutobattle(CVarRTAutobattle.GetValueOnGameThread())
 		{
 			// La configurazione la decide la proprieta' del GameMode: le sorgenti «di adesso» a riposo,
 			// altrimenti una CVar lasciata accesa da un altro test deciderebbe al posto della misura.
-			CVarRTBotAllies->Set(-1, ECVF_SetByCode);
-			CVarRTAutobattle->Set(-1, ECVF_SetByCode);
+			BotAllies.Imposta(-1);
+			Autobattle.Imposta(-1);
 		}
 
 		~FRTScopedReconState()
 		{
 			FCommandLine::Set(*SavedCommandLine);
-			CVarRTBotAllies->Set(SavedBotAllies, ECVF_SetByCode);
-			CVarRTAutobattle->Set(SavedAutobattle, ECVF_SetByCode);
 		}
 	};
 
