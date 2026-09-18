@@ -2,8 +2,8 @@
  *
  *  `D-023` rende i cataloghi Markdown l'autorita' dei numeri competitivi, e `catalog-code.ts` verifica che
  *  quell'autorita' non diverga dal codice — ma copriva una fetta sola, gli eroi, e lo dichiarava di se'.
- *  Le **azioni** non erano coperte da niente: il catalogo porta righe `Action.*` in sei tabelle e nessun
- *  comando sapeva dire se coincidessero col codice (#2578).
+ *  Le **azioni** non erano coperte da niente: il catalogo porta righe `Action.*` in piu' tabelle — una per
+ *  famiglia — e nessun comando sapeva dire se coincidessero col codice (#2578).
  *
  *  Il precedente ha un prezzo noto: il 2026-08-10 `D-075` porto' `Bastion.PushResistance` a `0` nel codice
  *  e il catalogo continuo' a dichiarare `1` per due giorni, in cinque punti, senza che nessun gate
@@ -62,9 +62,9 @@ export const ACTION_FIELDS: (keyof ActionFacts)[] = [
   'interruptible',
 ];
 
-/** Le colonne del catalogo che portano un fatto confrontabile. Le tabelle delle sei sezioni **non hanno le
- *  stesse colonne** — §3 non ha `Slot`, §4 mette `Effetto` dove §1 ha `Interr.` — quindi l'intestazione e'
- *  l'unica cosa che dice quale cella e' quale, e l'atteso di copertura si deriva da li'. */
+/** Le colonne del catalogo che portano un fatto confrontabile. Le tabelle delle varie sezioni **non hanno
+ *  le stesse colonne** — §3 non ha `Slot`, §4 mette `Effetto` dove §1 ha `Interr.` — quindi l'intestazione
+ *  e' l'unica cosa che dice quale cella e' quale, e l'atteso di copertura si deriva da li'. */
 const COLUMNS: Record<string, keyof ActionFacts> = {
   'Cod.': 'phase',
   Prio: 'priority',
@@ -225,7 +225,9 @@ export function parseActionCatalog(text: string): CatalogRow[] {
       }
     });
 
-    // L'ID puo' portare una nota — `` `Action.Sprint` *(vedi §2.1)* `` — che non fa parte del nome.
+    // L'ID puo' portare una nota in corsivo fra parentesi, che non fa parte del nome. ⏱️ *L'occorrenza che
+    // motivo' questa riga era `` `Action.Sprint` *(vedi §2.1)* ``, tolta dal catalogo il 2026-09-18 con
+    // #3186: la regola resta perche' `plain()` la applica anche alle altre celle — `**Prep** *(arma)*`.*
     rows.push({
       actionId: plain(cells[1]!),
       line: i + 1,
@@ -435,10 +437,8 @@ export interface KnownDivergence {
 }
 
 export const KNOWN_DIVERGENCES: KnownDivergence[] = [
-  // ✅ `Action.Sprint` non e' piu' qui: la divergenza di fase e' stata chiusa il 2026-09-18 (#3186) e la
-  //    riga e' stata TOLTA nello stesso passaggio. E' il ciclo che questo elenco deve avere — una voce che
-  //    sopravvive al proprio difetto fa fallire il gate come esenzione stantia, ed e' voluto. Verificato
-  //    rimettendola: `errore: 1 divergenze dichiarate non si verificano piu' — stantia Action.Sprint.phase`.
+  // ✅ La voce di `Action.Sprint` e' uscita da qui il 2026-09-18, nello stesso passaggio che ha riparato la
+  //    divergenza (#3186). E' il ciclo che questo elenco deve avere.
   ...['Action.Anchor', 'Action.CreateSmoke', 'Action.Evade', 'Action.Mortar', 'Action.Purge', 'Action.Withdraw'].map(
     (actionId): KnownDivergence => ({
       actionId,

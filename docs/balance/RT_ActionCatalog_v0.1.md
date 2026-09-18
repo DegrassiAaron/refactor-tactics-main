@@ -216,10 +216,18 @@ Blast. Cambiano distanza, rumore ed esposizione — non l'economia del turno.
 
 | Profilo | Budget | Note |
 |---|---|---|
-| `MovementMode.Sneak` | **non specificato** | Costo, portata e rumore **non sono definiti da nessuna fonte corrente**. Non si inventano: la domanda è **[`AE-5`](../OPEN_DECISIONS.md)** — *«Con quali numeri esiste il profilo `Sneak`?»*, l'unico dei quattro profili senza budget |
-| `MovementMode.Move` | **5 MP** | il profilo neutro |
-| `MovementMode.Sprint` | **8 MP** | conserva un trade-off reale, vedi sotto |
-| `MovementMode.Withdraw` | **2 MP** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
+| `MovementMode.Sneak` | **×0,5** | Cadenza **1 passo ogni 2 tick**, **sempre silenzioso** indipendentemente dal terreno. ✅ La domanda `AE-5` — *«Con quali numeri esiste il profilo `Sneak`?»* — è **chiusa dal 2026-09-13** da [D-412](../decisions/RT_PDR_00_Decision_Log.md), che risponde a tutte e tre: da allora il profilo è anche **pianificabile** |
+| `MovementMode.Move` | **×1** | il profilo neutro |
+| `MovementMode.Sprint` | **×2** | conserva un trade-off reale, vedi sotto |
+| `MovementMode.Withdraw` | **×0,25** | **non si sceglie**: lo impone l'`Overwatch` ([D-070](../decisions/RT_PDR_00_Decision_Log.md)) |
+
+> 🔄 **I quattro budget erano assoluti — `Move` 5 · `Sprint` 8 · `Withdraw` 2 — fino a
+> [D-412](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-13), che li rende MOLTIPLICATORI del budget base
+> dell'unità**, arrotondati per difetto: con un eroe da 5, `Sprint` vale 10 e `Withdraw` **1**, non 2. La
+> decisione nomina queste righe fra ciò che sostituisce, e il codice dei profili le applica già
+> (`RTMovementProfileLibrary.cpp`, `/*×2*/ 200` · `/*×0,25*/ 25` · `/*×0,5*/ 50`). ⚠️ Gli assoluti
+> sopravvivono in `Action.Sprint.RangeCells` e `Action.Withdraw.RangeCells`, che sono una **seconda sede** e
+> un debito aperto: [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198).
 
 **`Withdraw` è il ripiegamento dopo la sorveglianza**, e sta qui perché è un profilo del movimento normale —
 stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo distinguono dagli altri tre:
@@ -240,8 +248,9 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
 **`Sprint` non è un `Dash`.** È il profilo lungo del movimento normale, quindi risolve dopo il Blast: non
 permette di sparare da un'altra posizione nello stesso turno, che è precisamente ciò che un `Dash` fa.
 
-> ✅ **Divergenza chiusa il 2026-09-12** — e la storia resta scritta perché è la ragione per cui questa
-> sezione ha la forma che ha. Fino ad allora il codice teneva `Action.Sprint` in
+> ✅ **Codice migrato il 2026-09-12, divergenza chiusa il 2026-09-18** — due date, e tenerle distinte è il
+> punto: fra l'una e l'altra il documento ha dichiarato il falso. La storia resta scritta perché è la ragione
+> per cui questa sezione ha la forma che ha. Fino ad allora il codice teneva `Action.Sprint` in
 > `ERTResolutionPhase::FastMovement` (fase `Dash`): divergenza misurata il **2026-08-08**, tracciata in
 > [`../DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md) riga 41. Oggi il codice dichiara
 > `ERTResolutionPhase::NormalMovement`, cioè la fase `Move` che questa sezione descrive
@@ -266,26 +275,49 @@ permette di sparare da un'altra posizione nello stesso turno, che è precisament
 > ⚠️ **E non si è migrata da sola.** Portare lo Sprint dopo il Blast rende `Status.Exposed` **inerte** —
 > verrebbe applicato quando tutti hanno già sparato, e scadrebbe nel Cleanup subito dopo. Per questo D-116 lo
 > porta a **`Turni 2`** nello stesso momento — ed è il valore che il codice dichiara oggi
-> (`RTCatalogLibrary.cpp`, `FRTActionEffectSpec(… TAG_Status_Exposed, /*Turni*/ 2)`) — e introduce la
-> compatibilità con il profilo di movimento
+> (`RTCatalogLibrary.cpp`, `FRTActionEffectSpec(… TAG_Status_Exposed, /*Turni*/ 2)`).
+>
+> ⛔ **La terza voce di D-116 NON è arrivata, e va detto qui invece che scoperto dopo**: la compatibilità
+> fra azioni e profilo di movimento
 > ([`../gameplay/spec-compatibilita-azioni-movimento.md`](../gameplay/spec-compatibilita-azioni-movimento.md)):
-> senza le due contropartite, lo Sprint diventerebbe **un `Move` più lungo che costa solo la reazione**.
+> è ancora **da implementare** — la sua spec lo dichiara di sé (*«nessuna riga di codice la esprime oggi»*) e
+> `RTMovementProfileLibrary.cpp:83` misura che *«nessuna azione dichiara oggi un `MinStability`»*. Senza di
+> essa lo Sprint conserva due prezzi su tre, e la riserva di D-015 — **un `Move` più lungo che costa solo la
+> reazione** — non è ancora del tutto scongiurata.
+>
+> ✅ **Il divieto di reazione invece regge, ma per una via nuova**: uscendo da `FastMovement` lo Sprint non
+> passava più dal punto che lo applicava, e [D-405](../decisions/RT_PDR_00_Decision_Log.md) lo ha spostato sul
+> **piano validato**. Senza quella voce il divieto non sarebbe arrivato tardi: non sarebbe arrivato.
 >
 > **Il trade-off dello Sprint va migrato, non perso.** Oggi paga con `Status.Exposed` e con la rinuncia alla
 > reazione. Nel modello a profili non può diventare un potenziamento gratuito del `Move`: se perde il costo di
 > slot deve conservare un costo, altrimenti nessuno sceglierebbe più `Move`.
 
-I profili che il resolver costruisce come **azioni** stanno qui, con i valori che l'autorità di questo
-catalogo dichiara:
+`Action.Sprint` è l'azione che il resolver costruisce per il profilo lungo, e la sua riga sta qui — non fra
+le mobilità rapide di §2.2, dove è stata fino al 2026-09-18. ⚠️ **Non è l'unica azione di questa famiglia**:
+`Action.Move` è dichiarata fra le generiche (§1), perché ogni unità la possiede.
 
 | ActionId | Azione | Slot | Macro-fase | Cod. | Prio | Range | CD | Rumore | Fallback | Interr. |
 |---|---|---|---|---:|---:|---|---:|---:|---|---|
-| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | 8 MP | 0 | 5 | `Fallback.Stop` | sì |
+| `Action.Sprint` | Scatto lungo | **Movimento** | **Move** | 20 | 60 | 8 MP ⚠️ | 0 | 5 | `Fallback.Stop` | sì |
 
 > 🔄 **Questa riga stava in §2.2 fino al 2026-09-18**, dove dichiarava macro-fase `Dash` con una ⚠️ che
 > rimandava a D-116. La migrazione è stata eseguita il 2026-09-12 e la riga è tornata dove la sua fase la
 > colloca: `Sprint` è un profilo del movimento normale, non una mobilità rapida
 > ([#3186](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3186)).
+>
+> 🔴 **La storia della cella «Slot», che viaggia con la riga.** Fino al 2026-08-26 diceva «Movimento +
+> Principale ⚠️», contraddicendo [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato: in
+> `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
+> `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera.
+>
+> ⚠️ **La ⚠️ sulla cella «Range» dice che quel numero è vivo nel codice e morto nel modello.** `8 MP` è
+> `Action.Sprint.RangeCells`, l'assoluto che il resolver del Dash leggeva. Il budget effettivo è ora un
+> **moltiplicatore** del budget dell'unità — `Sprint` **×2** — da
+> [D-412](../decisions/RT_PDR_00_Decision_Log.md), che nomina proprio queste righe fra gli assoluti che
+> sostituisce. La cella riporta l'assoluto perché è ciò che il C++ dichiara, e il confronto catalogo↔codice
+> misura quello; togliere il numero morto è lavoro di
+> [#3198](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3198).
 
 ### 2.2 Mobilità speciali — fase **Dash**
 
@@ -315,15 +347,11 @@ non cambia *che cosa* ha speso.
 
 > 🔄 **`Action.Sprint` non è più in questa tabella, dal 2026-09-18**: risolve in macro-fase `Move` da
 > [D-116](../decisions/RT_PDR_00_Decision_Log.md)/[#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)
-> (codice, 2026-09-12) e la sua riga è in **§2.1**, con gli altri profili del movimento normale. Le
-> quattro qui sopra sono le mobilità rapide, e lo scatto lungo non è una di esse — è la distinzione che
-> §2.1 chiama strutturale.
+> (codice, 2026-09-12) e la sua riga è in **§2.1**, con gli altri profili del movimento normale. Qui restano
+> `Dodge`, `Charge`, `Leap` e `Reposition`, che sono le mobilità rapide; lo scatto lungo non è una di esse —
+> è la distinzione che §2.1 chiama strutturale.
 >
-> 🔴 **Corretta il 2026-08-26 — la cella «Slot» di `Action.Sprint` diceva «Movimento + Principale ⚠️», e
-> contraddiceva il capoverso qui sotto, [D-028](../decisions/RT_PDR_00_Decision_Log.md) e il dato.** In
-> `URTCatalogLibrary::GetCoreActionCatalog` lo scatto lungo entra con `ERTActionSlot::Movement`, e
-> `RefactorTactics.Actions.PrecisionAttack.WeaponRangePlusOne` verifica che la principale resti libera. La
-> ⚠️ che restava sulla colonna **Macro-fase** è quella che #3186 ha chiuso.
+> La storia della sua cella «Slot» si legge ora accanto alla riga, in §2.1.
 
 **Sprint** — fornisce 8 MP · occupa il **solo slot movimento** ([D-028](../decisions/RT_PDR_00_Decision_Log.md),
 coerente con D-015) · non permette di preparare una reazione · applica `Status.Exposed` (**+5** al primo danno diretto ricevuto) per **2 turni**, come [D-116](../decisions/RT_PDR_00_Decision_Log.md) prescrive e come il codice dichiara dal 2026-09-12 — non è un ribilanciamento, è la contropartita della migrazione di fase: con lo Sprint dopo il Blast, un `Exposed` che scade nel Cleanup dello stesso turno non incontrerebbe mai un attacco. ⚠️ **E lo Sprint risolve in `Move`**: la sua riga di tabella è in §2.1, questo capoverso resta qui perché il confronto col `Dash` è ciò che lo spiega.
