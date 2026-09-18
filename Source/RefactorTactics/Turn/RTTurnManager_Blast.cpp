@@ -690,11 +690,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 					ArcRejected.SrcCell = Unit->Cell;
 					ArcRejected.TgtCell = ArcTarget->Cell;
 					ArcRejected.Amount = static_cast<int32>(ERTActionInvalidReason::OutOfRange);
+					// ⌫ **L'eco scritto a mano era «una riga identica a questa», e `#1412` l'ha tolto.** Il
+					// nome che aggiungeva sta ora nella copia derivata da `ConcludeTurn`, perche' la
+					// categoria `Fallback` dichiara il proprio soggetto.
 					AppendLogEntry(ArcRejected, Unit);
-					// Stesso soggetto della voce: `ConcludeTurn` ne deriva una riga identica a questa, e
-					// due soggetti diversi sulla stessa frase farebbero passare una copia e non l'altra.
-					AddLogEvent(FString::Printf(TEXT("%s: %s"),
-						*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(ArcRejected)), FRTLogSubject::Unit(Unit));
 
 					// L'abilita' NON si consuma: il piano e' gia' stato azzerato sopra (si spende nel turno,
 					// attivata o no), ma il cooldown paga solo cio' che ha davvero toccato la mappa.
@@ -882,11 +881,9 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 			FallbackEntry.ActionId = Instance.Def.ActionId;
 			FallbackEntry.BaseActionId = Instance.Def.BaseActionId;
 			FallbackEntry.Priority = Instance.Def.Priority;
+			// ⌫ **Eco tolto da `#1412`**, come `ArcRejected` poco sopra e per la stessa ragione: la copia
+			// derivata porta ora il nome, e le due righe erano lo stesso annullamento detto due volte.
 			AppendLogEntry(FallbackEntry, Unit);
-			// Stesso soggetto della voce: vedi `ArcRejected` poco sopra — la copia derivata da
-			// `ConcludeTurn` e questa devono passare o cadere insieme.
-			AddLogEvent(FString::Printf(TEXT("%s: %s"),
-				*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(FallbackEntry)), FRTLogSubject::Unit(Unit));
 
 			if (!Fallback.bProducesEffects)
 			{
@@ -1580,10 +1577,10 @@ void ARTTurnManager::ResolveInterceptions(FRTBlastContext& Ctx)
 
 		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
+		// ⌫ **Eco tolto da `#1412`.** Il commento che stava qui diceva che le due copie *«raccontano lo
+		// stesso evento con le stesse coordinate»*: era la descrizione esatta di un duplicato. Il nome che
+		// solo l'eco portava e' ora nella riga derivata, perche' `Reaction` dichiara il proprio soggetto.
 		AppendLogEntry(Entry, Unit);
-		// Stesso soggetto della voce: la copia che `ConcludeTurn` deriva e questa raccontano lo stesso
-		// evento con le stesse coordinate, e devono passare o cadere insieme.
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)), FRTLogSubject::Unit(Unit));
 	}
 	// APPLICA: i bersagli si riscrivono solo ora, quando ogni decisione e' stata presa sullo stesso snapshot.
 	//
@@ -1699,6 +1696,21 @@ void ARTTurnManager::LogBlockedIntents(const FRTBlastContext& Ctx)
 		// ⚠️ Il soggetto e' l'ATTACCANTE anche se la frase nomina entrambi i capi: e' quello che
 		// `AppendLogEntry` scrive nella voce, e `ConcludeTurn` ne deriva una riga gemella di questa.
 		// Scegliere il bersaglio qui farebbe filtrare le due copie con criteri diversi.
+		//
+		// 🔴 **QUESTO E' L'ULTIMO ECO RIMASTO, ed e' rimasto APPOSTA** (`#1412`). Gli altri sei erano
+		// verbatim — la copia derivata diceva la stessa cosa — e sono stati tolti dando il nome alla riga
+		// derivata. Questo no: **aggiunge i nomi dei due capi**, e `DescribeEntry` non puo' produrli. Per
+		// chiuderlo servono due cose che non appartengono a `#1412`:
+		//
+		//   1. `DescribeTurnLogWithSubjects` deve saper risolvere anche il **bersaglio**, cioe' un secondo
+		//      soggetto: oggi la mappa dei nomi serve il solo `UnitId`;
+		//   2. la voce deve **portare** l'id del bersaglio. `NoLos` oggi non lo scrive, e scriverlo tocca il
+		//      dato canonico — quindi e' una decisione su TurnLog e hash, non una riga di rendering.
+		//
+		// ⛔ **E `Combat` non puo' entrare in `CategoriaDichiaraIlProprioSoggetto` per come sta adesso**:
+		// per il danno `UnitId` porta chi SUBISCE (`#1150`), qui porta l'ATTACCANTE. La stessa categoria
+		// dichiara due soggetti diversi a seconda dell'esito, e finche' e' cosi' nessun prefisso e' giusto
+		// per tutta la categoria. Il duplicato resta, ed e' dichiarato invece che dimenticato.
 		AddLogEvent(FString::Printf(TEXT("%s (%s -> %s)"),
 			*URTTurnLogLibrary::DescribeEntry(NoLos),
 			*Units[Blocked.AttackerId]->GetName(),

@@ -509,10 +509,10 @@ bool ARTTurnManager::RefuseMainActionIfStunned(ARTUnit* Unit, const FRTActionDef
 	Rifiutata.SrcCell = Unit->Cell;
 	Rifiutata.TgtCell = TargetCell;
 	Rifiutata.Amount = static_cast<int32>(ERTActionInvalidReason::Stunned);
+	// ⌫ **Qui c'era l'eco scritto a mano, tolto da `#1412`.** `ConcludeTurn` deriva da questa voce una riga
+	// che ora porta anche il NOME — la categoria `Fallback` dichiara il proprio soggetto — quindi l'eco non
+	// aggiungeva piu' niente e il giocatore leggeva lo stesso annullamento due volte.
 	AppendLogEntry(Rifiutata, Unit);
-
-	AddLogEvent(FString::Printf(TEXT("%s: %s"),
-		*Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Rifiutata)), FRTLogSubject::Unit(Unit));
 	return true;
 }
 
@@ -5042,12 +5042,13 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 
 		// Chi REAGISCE. Nell'interposizione `SrcCell` e' la cella del protetto, non la sua: dedurre
 		// l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
+		// ⌫ **L'eco scritto a mano e' stato tolto da `#1412`.** Il commento che stava qui lo dichiarava
+		// gia' *«verbatim»* rispetto a cio' che `ConcludeTurn` deriva da questa stessa voce: erano due
+		// righe per un evento solo. Cio' che l'eco aggiungeva — il nome — ora ce l'ha la copia derivata,
+		// perche' `Reaction` dichiara il proprio soggetto. Il soggetto resta quello della voce, e la
+		// ragione per cui conta e' invariata: nell'interposizione `SrcCell` e' la cella del PROTETTO,
+		// quindi dedurre l'unita' dalla voce darebbe l'unita' sbagliata ([D-063]).
 		AppendLogEntry(Entry, Unit);
-		// Stesso soggetto della voce, e non per simmetria estetica: questa riga rieccheggia **verbatim**
-		// cio' che `ConcludeTurn` deriva dalla voce qui sopra, `DescribeEntry` comprese le coordinate.
-		// Senza soggetto la copia derivata sarebbe filtrata e questa no, e le coordinate soppresse
-		// arriverebbero comunque a schermo dalla seconda porta.
-		AddLogEvent(FString::Printf(TEXT("%s: %s"), *Unit->GetName(), *URTTurnLogLibrary::DescribeEntry(Entry)), FRTLogSubject::Unit(Unit));
 	}
 
 	// Le FUGHE raccolte sopra si applicano ora, con tutte le reazioni gia' valutate sullo snapshot congelato
@@ -5550,17 +5551,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 				// ⚠️ `UnitId` non entra nell'hash (D-063), quindi questa correzione non tocca l'identita'
 				// delle tracce archiviate: cambia chi la voce dichiara, non quale traccia e'.
 				AppendLogEntry(Bypassed, Units[i]);
-				// ⚠️ Il SOGGETTO e' lo stesso della voce qui sopra, e la regola non e' «e' l'attaccante»:
-				// e' «e' chi la voce dichiara». `ConcludeTurn` deriva da quella voce una riga identica a
-				// questa, e due soggetti diversi sulla stessa frase significherebbero che una delle due
-				// copie passa il filtro quando l'altra non passa — cioe' il leak che il filtro sopprime.
-				//
-				// 🔴 Prima del merge di `#1418` questa riga passava l'ATTACCANTE, ed era coerente **con la
-				// voce di allora**: `AppendLogEntry` riceveva l'attaccante. Corretto il dato, il soggetto lo
-				// segue — se fosse restato l'attaccante, la coerenza che il vincolo protegge sarebbe stata
-				// rotta proprio dalla correzione che la rendeva possibile.
-				AddLogEvent(FString::Printf(TEXT("%s: %s"), *Units[i]->GetName(),
-					*URTTurnLogLibrary::DescribeEntry(Bypassed)), FRTLogSubject::Unit(Units[i]));
+				// ⌫ **Qui c'era l'eco scritto a mano, e il suo commento diceva «una riga identica a
+				// questa». Era vero, ed e' il motivo per cui `#1412` l'ha tolto.** Il nome che l'eco
+				// aggiungeva ora sta nella copia derivata: `Facing` dichiara il proprio soggetto, e chi e'
+				// lo dice la riga qui sopra — non l'attaccante, ma l'unita' il cui orientamento non ha
+				// retto, come `#1418` ha stabilito correggendo il dato.
 			}
 		}
 	}
