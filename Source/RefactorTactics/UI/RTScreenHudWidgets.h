@@ -32,9 +32,29 @@ class URTFastDecisionOptionWidget;
  *     una casella da ricordare in ogni Blueprint.
  *
  * ⚠️ **Il limite di questi vincoli va detto**: valgono per la superficie C++. Un Blueprint derivato puo'
- * sempre aggiungersi una variabile `Texture2D` o un riferimento diretto a un Actor — nessun gate lo
- * impedisce, perche' i `.uasset` non sono versionati in questo repository. La guida lo scrive come regola,
- * e `RefactorTactics.ScreenHud.WidgetApiExposesNoTexture` lo pinna per la parte che il codice controlla.
+ * sempre aggiungersi una variabile propria, e la firma dichiarata qui non la vede.
+ * 🔴 **La ragione che questa riserva dava e' scaduta**: diceva *«nessun gate lo impedisce, perche' i
+ * `.uasset` non sono versionati in questo repository»*, e i `WBP_RT_*` di `Content/RT/UI/Match/` **sono
+ * versionati** — `.gitignore:78` li re-include con `!Content/RT/UI/**/*.uasset`, e `git check-ignore` non
+ * ne nomina nessuno. Lo stesso errore stava in `RTFrontendWidgets.h`, dov'e' gia' stato corretto.
+ *
+ * Le due meta' della regola D-031 hanno ciascuna il proprio gate:
+ *
+ *  - la superficie **C++** — `RefactorTactics.ScreenHud.WidgetApiExposesNoTexture`;
+ *  - le variabili dichiarate **dentro** i `.uasset` —
+ *    `RefactorTactics.ScreenHud.BlueprintPropertiesExposeNoTexture`
+ *    (`Tests/RTMatchWidgetAssetTests.cpp`), che itera per reflection le proprieta' della
+ *    `UWidgetBlueprintGeneratedClass` dei widget di Match e rifiuta ogni `UTexture2D`, anche dentro array,
+ *    set, map e `TSoftObjectPtr`.
+ *
+ * ⛔ **Cio' che resta scoperto davvero**, perche' il limite continui a essere dichiarato — ma quello vero:
+ *
+ *  1. un **riferimento diretto a un Actor** aggiunto dentro un `WBP_RT_*`: nessun test noto lo rifiuta. Il
+ *     vincolo 1 qui sopra chiude la porta nella firma C++, non nel `.uasset`;
+ *  2. una texture **dentro una struct** — `FSlateBrush::ResourceObject` e' un `UObject*`, non un
+ *     `UTexture2D*`, quindi un `Brush` impostato nel designer passa anche il gate Blueprint, che lo
+ *     dichiara nel proprio docstring;
+ *  3. che l'icona **si veda**: resta `PIE-ICON-01`, e nessun test la sostituisce.
  */
 
 /**
