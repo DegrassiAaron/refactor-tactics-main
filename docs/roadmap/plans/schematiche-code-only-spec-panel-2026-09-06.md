@@ -92,7 +92,10 @@ La forma adottata è **più forte** della proposta, e le due differenze contano:
 esattamente ciò che questo referto misura altrove: la riga `41` della matrice **esiste** ed è quella dello
 `Sprint` (`SUPERSEDED`, `D-015` → `D-068` → `D-116`), e il commento di
 `Actions.SprintIsAMoveProfileResolvedPreBlast` (`RTCoreActionTests.cpp:339`) porta testualmente la frase
-citata — *«Il verde qui sotto misura quanto il codice e' indietro, non che abbia ragione»*.
+citata — *«Il verde qui sotto misura quanto il codice e' indietro, non che abbia ragione»*. ⏱️ *Quel test si
+chiama `…ResolvedAfterBlast` dal 2026-09-12, quando la migrazione e' atterrata
+([#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)): il nome citato qui e' quello
+che aveva alla data di questo piano — nota di [#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199).*
 
 ∴ **Dei due kit non resta alcun contributo senza sede.**
 

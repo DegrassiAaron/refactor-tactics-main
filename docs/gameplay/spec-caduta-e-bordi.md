@@ -242,18 +242,30 @@ ghiaccio — *«Durata `2` e non `1`, ed è misurato»* — e il `Move` è una f
 stesura di #2430 usò `1` copiando `Action.Sprint`, e cinque test su sei la presero.
 
 🔑 **Nessuna meccanica nuova**: è la forma con cui `Action.Sprint` paga la propria corsa —
-`FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, 1)`.
+`FRTActionEffectSpec(ERTActionEffect::Status, TAG_Status_Exposed, …)`. ⚠️ **La forma, non il numero**: dal
+2026-09-12 lo Sprint dichiara `2`, e il perché è qui sotto.
 
-🔴 **La forma è la stessa, la durata no — e qui c'era scritto il contrario.** Fino al 2026-09-09 questo
-paragrafo proseguiva *«Sprint risolve nella fase `Move`, anch'essa dopo il `Blast`»*, ed è **falso**: Sprint è
-`FastMovement`, che `MapResolutionPhase` manda su **`Dash`** — *«la mobilità rapida precede il Blast»*
-(`RTCatalogLibrary.cpp:177`) — e `Actions.SprintIsAMoveProfileResolvedPreBlast` lo pinna verde. ∴ a Sprint `1`
-**basta**, perché il `Blast` dello stesso turno è la fase interposta che lo legge: lo misura end-to-end
-`Actions.Sprint.AppliesExposed`, che asserisce `FullHit + 5` e porta la controprova senza Sprint. Alla caduta
-no, perché risolve **nel** `Blast`, e dopo di lei non legge più nessuno — è tutta qui la differenza fra `1` e
-`2`. La frase tornerà vera con [D-116](../decisions/RT_PDR_00_Decision_Log.md), cioè con la migrazione di
-[#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641). Corretto da
-[#2725](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2725), che l'equivoco l'ha misurato.
+🔴 **La forma è la stessa, la durata no — e il perché è cambiato due volte in un mese.**
+
+⏱️ *Fino al 2026-09-09 questo paragrafo diceva «Sprint risolve nella fase `Move`, anch'essa dopo il `Blast`»,
+ed era **falso allora**: Sprint era `FastMovement`, che `MapResolutionPhase` manda su `Dash` — «la mobilità
+rapida precede il Blast» — e a Sprint `1` bastava, perché il `Blast` dello stesso turno era la fase interposta
+che lo leggeva. Corretto da [#2725](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2725), che
+l'equivoco l'ha misurato.*
+
+✅ **Ed è tornato vero il 2026-09-12**, come quella stessa correzione prevedeva: la migrazione di
+[#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641)
+([D-116](../decisions/RT_PDR_00_Decision_Log.md)) porta lo Sprint in `NormalMovement`, cioè **nel `Move`**.
+
+🔑 **Ma il confronto non si è rovesciato: si è invertito il segno, e la caduta resta a `1`.** Lo Sprint, non
+avendo più una fase interposta davanti, ha ricevuto `Exposed` a **2 turni** nello stesso momento — D-116 voce
+4, *«un turno solo lo renderebbe inerte»* — cioè **la stessa ragione** che qui sotto giustifica il `2` dello
+slide su ghiaccio. La caduta continua a valere `1` perché risolve **nel** `Blast` e ha il resto del turno
+davanti a sé: lo misura end-to-end `Actions.Sprint.AppliesExposed`, che asserisce `FullHit + 5`.
+
+⚠️ **Ciò che è scaduto è il paragone, non la decisione**: `D-357` non cambia, e `Action.Sprint` ha smesso di
+essere l'esempio di *«a `1` basta»* per diventare quello di *«nel Move serve `2`»*. Aggiornato da
+[#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199).
 
 ⛔ **Perché nessuna scala.** Il dislivello **non è `Layer - 1`**: `FindLandingCell` scandisce la colonna e
 tiene il massimo, perché *«la colonna può saltare dei piani»*. Una scala andrebbe definita sui **piani

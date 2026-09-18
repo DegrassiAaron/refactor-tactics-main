@@ -591,7 +591,9 @@ attribuito al profilo sbagliato, quello sarebbe rosso.
 ⚠️ **E una cosa è stata misurata invece che assunta**: `#641` ha consegnato il **solo prerequisito**.
 `Action.Sprint` resta a `FastMovement` e il test si chiama ancora
 `Actions.SprintIsAMoveProfileResolvedPreBlast`. La migrazione di fase è ancora davanti, e le righe di
-`D-412` le restano coerenti.
+`D-412` le restano coerenti. ⏱️ *Vero alla data di questo piano; la migrazione è atterrata il giorno dopo —
+2026-09-12, [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641) — e il test si chiama
+ora `Actions.SprintIsAMoveProfileResolvedAfterBlast`. Nota di [#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199).*
 
 ### ⚠️ Tre limiti dichiarati, perché un verde senza perimetro non dice niente
 

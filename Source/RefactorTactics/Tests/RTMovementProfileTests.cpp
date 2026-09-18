@@ -233,7 +233,7 @@ bool FRTMovementProfileSneakIsPlannableWithItsNumbers::RunTest(const FString&)
  * [D-319] dice «chi ha perso l'equilibrio non corre», e fino a [#641] il soggetto di quella frase e'
  * implicito: il criterio e' `ERTMovementStyle::Budget` **dentro il ciclo del Dash**, dove lo `Sprint` e'
  * l'unica mobilita' a budget che puo' stare. ⛔ Lo stile da solo **non** distingue — `Action.Move` dichiara
- * lo stesso `Budget`, e `Actions.SprintIsAMoveProfileResolvedPreBlast` lo asserisce — quindi con la
+ * lo stesso `Budget`, e `Actions.SprintIsAMoveProfileResolvedAfterBlast` lo asserisce — quindi con la
  * migrazione il recinto sparisce e il criterio portato com'e' rifiuterebbe anche il Move normale.
  *
  * ⚠️ **Questo test cade se qualcuno dichiara una seconda corsa senza deciderlo**, ed e' il punto: `Withdraw`

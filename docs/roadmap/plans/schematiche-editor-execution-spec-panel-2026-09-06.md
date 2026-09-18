@@ -145,7 +145,7 @@ fallisce anche se appare più intuitiva.»* Il canone concorda —
 | Canone `D-015` / `D-116` | profilo di **`Move`** → post-Blast |
 | `RTCatalogLibrary.cpp:1065` | `ERTResolutionPhase::FastMovement` |
 | `RTCatalogLibrary.cpp:177` | `FastMovement → ERTMatchPhase::Dash` — **pre-Blast** |
-| Test | `Actions.SprintIsAMoveProfileResolvedPreBlast` — verde |
+| Test | `Actions.SprintIsAMoveProfileResolvedPreBlast` — verde. ⏱️ *Dal 2026-09-12 si chiama `…ResolvedAfterBlast` e la riga sopra e' `NormalMovement`: [#641](https://github.com/DegrassiAaron/refactor-tactics-main/issues/641), nota di [#3199](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3199)* |
 
 Il commento del test lo dichiara: *«il verde qui sotto misura quanto il codice è indietro, non che abbia
 ragione»*. Migrazione **E38 (v0.2)**, issue `#641`.
