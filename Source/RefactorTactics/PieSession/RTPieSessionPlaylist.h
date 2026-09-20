@@ -3,7 +3,10 @@
 // Comporre la coda di una seduta da un selettore, e dichiarare cosa resta fuori (#3208).
 
 #include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "PieSession/RTPieSessionTypes.h"
+
+#include "RTPieSessionPlaylist.generated.h"
 
 /** Cosa produce un selettore: i passi, e — altrettanto importante — quello che non ci sta. */
 struct FRTPieSessionPlan
@@ -23,8 +26,11 @@ struct FRTPieSessionPlan
 	bool IsRunnable() const { return Steps.Num() > 0 && Ambiguous.Num() == 0; }
 };
 
-class REFACTORTACTICS_API URTPieSessionPlaylist
+UCLASS()
+class REFACTORTACTICS_API URTPieSessionPlaylist : public UBlueprintFunctionLibrary
 {
+	GENERATED_BODY()
+
 public:
 	/**
 	 * Compone la coda.

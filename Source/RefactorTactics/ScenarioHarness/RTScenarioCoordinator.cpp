@@ -97,7 +97,14 @@ void FRTScenarioCoordinator::Tick(float DeltaSeconds)
 
 	// Ultima cosa, e dopo il referto: chi ascolta puo' chiedere un verdetto a chi guarda, e vuole poter
 	// nominare il file che il referto ha appena scritto.
-	OnScenarioFinished.Broadcast(Result);
+	//
+	// 🔴 **Si trasmette una COPIA, e non e' prudenza generica.** `Result` e' un riferimento a un membro
+	// della sessione, e il conduttore di seduta reagisce a questo delegate chiamando `TearDown()` — che
+	// rilascia la sessione e distrugge l'oggetto da cui quel riferimento pende. Con il riferimento, il
+	// primo ascoltatore che leggesse `Result` dopo aver smontato leggerebbe memoria liberata: un difetto
+	// che non si manifesta finche' l'unico ascoltatore legge tutto prima, cioe' fino al secondo.
+	const FRTTestResult Trasmesso = Result;
+	OnScenarioFinished.Broadcast(Trasmesso);
 }
 
 void FRTScenarioCoordinator::TearDown()

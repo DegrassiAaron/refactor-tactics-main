@@ -3,7 +3,10 @@
 // Il file di seduta: cosa e' stato giudicato, su quale albero, e con quale esito (#3208).
 
 #include "CoreMinimal.h"
+#include "Kismet/BlueprintFunctionLibrary.h"
 #include "PieSession/RTPieSessionTypes.h"
+
+#include "RTPieSessionWriter.generated.h"
 
 /**
  * Scrive `Saved/RTPieSessions/<sessionId>/session.json`.
@@ -12,8 +15,11 @@
  * cosa e' successo in una apertura, e da N cartelle `RTTests/` non si ricostruisce quali run
  * appartenessero alla stessa seduta.
  */
-class REFACTORTACTICS_API URTPieSessionWriter
+UCLASS()
+class REFACTORTACTICS_API URTPieSessionWriter : public UBlueprintFunctionLibrary
 {
+	GENERATED_BODY()
+
 public:
 	/**
 	 * Il JSON della seduta.
