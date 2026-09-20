@@ -170,6 +170,12 @@ bool FRTScenarioDraftRejectsTest::RunTest(const FString&)
 	//     alla nascita renderebbe impossibile crearne uno. Ma non deve nemmeno essere salvabile.
 	Draft.NewScenario(TEXT("Nuovo.Scenario"), 3);
 	TestTrue(TEXT("uno scenario nuovo risulta aperto"), Draft.IsOpen());
+	// 🔑 **Il raggio passato qui e' una DICHIARAZIONE, anche quando coincide col default.** Il writer omette
+	// `mapRadius` quando il file non lo dichiarava e il valore e' quello di default (`#3118`): senza questo
+	// flag, uno scenario creato ad arena GENERATA — dove il campo e' portante — finirebbe su disco senza
+	// dire la propria forma. Si asserisce sul modello perche' qui il file non esiste ancora.
+	TestTrue(TEXT("il raggio passato a NewScenario risulta dichiarato"),
+		Draft.GetScenario().bHasMapRadius);
 	TestEqual(TEXT("ma non e' ancora valido"), Draft.Validate(Error), ERTScenarioAuthoringResult::Invalid);
 	TestFalse(TEXT("e l'errore nomina cosa manca"), Error.IsEmpty());
 
