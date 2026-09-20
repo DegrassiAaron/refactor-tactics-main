@@ -1623,4 +1623,215 @@ bool FRTLineAttackStopsAtFirstTargetTest::RunTest(const FString&)
 	return true;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// [D-415] punto (2) — LA MIRA SI FISSA IN PLANNING E NON INSEGUE
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * **Il bersaglio si sposta e il colpo NON lo segue: cade dove era stato puntato** ([D-415]).
+ *
+ * 🔑 **E' la meta' che la decisione esiste per ottenere.** Fino al 2026-09-20 `CollectHexAttacks` leggeva
+ * `Units[Intent.TargetId].Cell`, cioe' lo stato del **Blast** — dopo il movimento: chi sparava colpiva una
+ * posizione che al momento di decidere non esisteva. In una fase simultanea questo rende la mira
+ * indecidibile, perche' nessuno puo' pianificare contro una cella che l'avversario sceglie dopo.
+ *
+ * 🔴 **Il bersaglio si sposta nel DASH, e non e' un dettaglio della fixture: e' l'unico modo di
+ * esercitare la regola.** `ResolveCombat()` gira nella fase `Blast`, `ResolveMovement()` nella fase `Move`
+ * che viene **dopo** — *«gli attacchi usano la posizione PRIMA del movimento»*, dice `RTTurnManager.cpp`.
+ * Quindi per il movimento normale la mira non inseguiva **gia' prima** di [D-415]: a inseguire era solo chi
+ * si sposta PRIMA del Blast, cioe' il Dash (`FastMovement`), le spinte e le reazioni.
+ *
+ * ⚠️ *La prima stesura di questo test faceva spostare il bersaglio con `PlannedCell` e lo vedeva incassare
+ * lo stesso: aveva misurato l'ordine delle fasi, non la regola. Il fallimento era del test.*
+ *
+ * ⚠️ **Il controllo positivo non e' decorativo**: senza, il test resterebbe verde anche se il colpo non
+ * partisse affatto — fuori portata, linea bloccata, azione annullata. La stessa scena **senza** lo scatto
+ * deve ferire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimDoesNotFollowTest,
+	"RefactorTactics.Combat.Aim.PlannedAimDoesNotFollowTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimDoesNotFollowTest::RunTest(const FString&)
+{
+	// La stessa scena due volte: nella prima il bersaglio resta fermo, nella seconda SCATTA di una cella.
+	// L'unica variabile e' quello scatto.
+	auto DannoSubito = [this](bool bIlBersaglioSiSposta) -> int32
+	{
+		UWorld* World = MakeHexBlastWorld();
+		if (!World) { return -1; }
+		SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+		ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+		ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return -1; }
+
+		const int32 Prima = Foe->Health;
+		Shooter->PlannedAbilityIndex = 0;             // attacco base: forma `Single`
+		Shooter->PlannedAttackTarget = Foe;
+		if (bIlBersaglioSiSposta)
+		{
+			// `Action.Reposition`: uno scatto SENZA impatto ne' effetti, cosi' l'unica cosa che cambia e'
+			// dove sta il bersaglio quando il Blast risolve. Una carica porterebbe anche il proprio danno.
+			const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
+			Foe->PlannedDashAbility = Scatto;
+			Foe->PlannedDashCell = FRTCellId(3, -1);  // un passo di lato, fuori dalla cella mirata
+		}
+
+		RunBlastTurn(TM);
+
+		const int32 Danno = Prima - Foe->Health;
+		const bool bSiEMosso = (Foe->Cell != FRTCellId(3, 0));
+		DestroyHexBlastWorld(World);
+		// Se il movimento non fosse avvenuto, il caso "si sposta" misurerebbe il caso "fermo".
+		return (bIlBersaglioSiSposta && !bSiEMosso) ? -1 : Danno;
+	};
+
+	const int32 Fermo = DannoSubito(/*bIlBersaglioSiSposta=*/ false);
+	const int32 Spostato = DannoSubito(/*bIlBersaglioSiSposta=*/ true);
+
+	// CONTROLLO POSITIVO: la scena spara davvero, e il passo di lato e' davvero avvenuto (il `-1`).
+	if (!TestTrue(TEXT("controllo positivo: fermo, il bersaglio incassa"), Fermo > 0)) { return false; }
+	if (!TestTrue(TEXT("premessa: il bersaglio si e' davvero spostato"), Spostato >= 0)) { return false; }
+
+	TestEqual(TEXT("spostandosi non viene seguito: il colpo cade sulla cella mirata"), Spostato, 0);
+	return true;
+}
+
+/**
+ * **Il corollario: spostarsi NON basta a salvarsi da un'area** ([D-415]).
+ *
+ * 🔑 **Regge senza codice nuovo, ed e' la cosa da non rompere.** `CollectHexAttacks` sceglie chi colpire
+ * **geometricamente** — ogni unita' viva su una cella investita — e non dall'identita' del bersaglio
+ * dichiarato. La mira congelata decide **dove** cade l'area; chi ci finisce dentro lo decide la scena.
+ *
+ * ⚠️ Senza questo test, «la mira non insegue» si leggerebbe come «chi si muove non viene colpito», che e'
+ * falso e sarebbe una regola di gioco diversa.
+ *
+ * 🔴 **Lo spostamento e' uno SCATTO, e la prima stesura sbagliava qui.** Usava `PlannedCell`, cioe' il
+ * movimento normale, che risolve nella fase `Move` — **dopo** il Blast. Il bersaglio era quindi ancora
+ * sulla cella mirata quando l'area cadeva, e il test passava dimostrando che il centro colpisce il proprio
+ * centro: vero, vacuo, e muto sulla proprieta' in esame. Il controllo sulla cella non lo prendeva perche'
+ * guardava la posizione a FINE TURNO.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimAreaStillCatchesMoverTest,
+	"RefactorTactics.Combat.Aim.MovedTargetIsStillHitInsideTheArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimAreaStillCatchesMoverTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexBlastWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexBlastMap(World, /*Radius=*/ 6);
+
+	// ⚠️ **Aevik, e l'area viene dal suo KIT, non da `Action.CircularAoE`**: la voce di catalogo dichiara
+	// identita', fase e portata, ma **non** forma e raggio — quelli stanno sull'abilita' dell'eroe. Montare
+	// l'azione di catalogo dava una forma `Single`, e il test passava perche' il centro colpisce il proprio
+	// centro. `Hero.Aevik.Overload`: `Area`, raggio 1, portata 3.
+	ARTUnit* Shooter = SpawnHexBlastUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexBlastUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Shooter || !Foe) { DestroyHexBlastWorld(World); return false; }
+
+	const int32 Area = FindAbilityByActionId(Shooter, TEXT("Hero.Aevik.Overload"));
+	if (!TestTrue(TEXT("premessa: l'eroe porta l'area nel kit"), Area != INDEX_NONE))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	if (!TestTrue(TEXT("premessa: ed e' davvero un'AREA di raggio 1"),
+		Shooter->Abilities[Area] && Shooter->Abilities[Area]->Shape == ERTAbilityShape::Area
+		&& Shooter->Abilities[Area]->AreaRadius == 1))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	const int32 Prima = Foe->Health;
+	Shooter->PlannedAbilityIndex = Area;
+	Shooter->PlannedAttackTarget = Foe;
+
+	// Uno scatto di lato PRIMA del Blast: fuori dalla cella mirata, DENTRO il raggio 1 che le sta attorno.
+	const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Foe, TEXT("Action.Reposition"));
+	Foe->PlannedDashAbility = Scatto;
+	Foe->PlannedDashCell = FRTCellId(3, -1);
+
+	RunBlastTurn(TM);
+
+	if (!TestTrue(TEXT("premessa: il bersaglio si e' davvero spostato"), Foe->Cell == FRTCellId(3, -1)))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+	if (!TestTrue(TEXT("premessa: e la nuova cella e' adiacente a quella mirata"),
+		URTHexLibrary::HexDistance(FRTCellId(3, 0), Foe->Cell) == 1))
+	{
+		DestroyHexBlastWorld(World);
+		return false;
+	}
+
+	TestTrue(TEXT("l'area cade dove era stata puntata e lo prende lo stesso"), Prima - Foe->Health > 0);
+
+	DestroyHexBlastWorld(World);
+	return true;
+}
+
+/**
+ * **L'uscita che [D-415] nomina: chi DICHIARA di agganciare continua a seguire** — e oggi e' una sola.
+ *
+ * 🔑 **La dichiarazione e' `ERTActionFallback::AttackTarget`**, documentata nell'enum come *«Segue il
+ * bersaglio, se ancora valido»*. Prima di `D-415` era un valore **morto**: zero azioni lo usavano.
+ *
+ * ⛔ **E dichiararlo non cambia il ripiego di nessuno**, che e' la ragione per cui questa uscita e' a costo
+ * zero: il ramo `AttackTarget` di `URTActionFallbackLibrary` annulla esattamente come `Cancel` — *«qui il
+ * bersaglio NON e' valido, quindi non c'e' nessuno da seguire»* — e questo test lo **misura** invece di
+ * fidarsi del commento.
+ *
+ * ⚠️ **Il conteggio a uno e' anti-deriva**: l'aggancio e' precisamente cio' che `D-415` toglie al resto, e
+ * un secondo dichiarante va motivato accanto alla sua riga di catalogo. Se questo test diventa rosso,
+ * qualcuno l'ha aggiunto: la domanda non e' come farlo tornare verde, e' se quella riga fosse voluta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimTrackingIsDeclaredTest,
+	"RefactorTactics.Combat.Aim.OnlyDeclaredTrackersFollowTheTarget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimTrackingIsDeclaredTest::RunTest(const FString&)
+{
+	const TArray<FRTActionDef> Catalogo = URTCatalogLibrary::GetCoreActionCatalog();
+
+	TArray<FName> Agganciano;
+	for (const FRTActionDef& A : Catalogo)
+	{
+		if (A.Fallback == ERTActionFallback::AttackTarget) { Agganciano.Add(A.ActionId); }
+	}
+
+	// ⚠️ I NOMI e non il conteggio: un totale direbbe «sono due» senza dire quale sia arrivata.
+	if (!TestEqual(TEXT("una sola azione dichiara di agganciare"), Agganciano.Num(), 1))
+	{
+		for (const FName& Id : Agganciano) { AddError(FString::Printf(TEXT("dichiara aggancio: %s"), *Id.ToString())); }
+		return false;
+	}
+	TestEqual(TEXT("ed e' `Action.Interrupt`"), Agganciano[0], FName(TEXT("Action.Interrupt")));
+
+	// ⚠️ ANTI-VACUITA' del confronto sopra: se il catalogo fosse vuoto o il campo non fosse letto, il
+	// conteggio a 1 non direbbe niente. `Cancel` resta il default, e la stragrande maggioranza lo porta.
+	int32 Annullano = 0;
+	for (const FRTActionDef& A : Catalogo)
+	{
+		if (A.Fallback == ERTActionFallback::Cancel) { ++Annullano; }
+	}
+	TestTrue(TEXT("controllo positivo: `Cancel` resta il default, e il campo si legge davvero"), Annullano > 1);
+
+	// 🔴 E LA PARTE CHE RENDE L'USCITA A COSTO ZERO: come RIPIEGO, `AttackTarget` annulla come `Cancel`.
+	// Misurato, non dedotto dal commento.
+	FRTActionInstance Persa;
+	Persa.Def = URTCatalogLibrary::FindCoreAction(TEXT("Action.Interrupt"));
+	Persa.SourceUnitId = 0;
+	Persa.TargetUnitId = INDEX_NONE;   // il bersaglio non c'e' piu': e' il caso del ripiego
+	const FRTFallbackResult Esito = URTActionFallbackLibrary::ApplyFallback(
+		Persa, ERTActionInvalidReason::TargetGone);
+	TestEqual(TEXT("come ripiego, agganciare annulla esattamente come `Cancel`"),
+		Esito.Applied, ERTActionFallback::Cancel);
+	TestFalse(TEXT("e non produce effetti"), Esito.bProducesEffects);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

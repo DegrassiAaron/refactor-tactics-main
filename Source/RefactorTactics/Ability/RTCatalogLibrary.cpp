@@ -1659,8 +1659,24 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi NON dichiara `ERTInterruptPolicy::None` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
+	// 🔴 **`AttackTarget` e non `Cancel`, ed e' l'unica azione del catalogo a dichiararlo** ([D-415]).
+	//
+	// 🔑 **Il suo mestiere e' cogliere chi AGISCE, e chi agisce si e' appena mosso.** `Action.Interrupt` sta
+	// in fase `Control` con portata **1**: risolve dopo il Dash, quindi il bersaglio che vuole fermare e'
+	// tipicamente arrivato li' in questo stesso turno. Congelarle la mira al lock-in la farebbe puntare la
+	// cella di partenza e mancare per costruzione — misurato: senza questa riga
+	// `Actions.Charge.ImpactSurvivesInterrupt` diventa rosso, perche' l'interruzione non raggiunge piu' il
+	// caricatore e la vittima viene spinta.
+	//
+	// ⚠️ **La dichiarazione NON cambia il ripiego**: il ramo `AttackTarget` di `URTActionFallbackLibrary`
+	// annulla esattamente come `Cancel` — *«qui il bersaglio NON e' valido, quindi non c'e' nessuno da
+	// seguire»* — e la mappa degli esiti manda entrambi su `ERTFallbackOutcome::Cancelled`. Cio' che cambia
+	// e' solo dove si mira finche' il bersaglio **e'** valido.
+	//
+	// ⛔ **E non e' un precedente da estendere per comodita'.** `Cancel` resta il default: un'azione che
+	// aggancia va motivata come questa, perche' l'aggancio e' precisamente cio' che [D-415] toglie al resto.
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
-		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::AttackTarget, {}));
 	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// --- Azioni AMBIENTALI (catalogo §6) -----------------------------------------------------------------

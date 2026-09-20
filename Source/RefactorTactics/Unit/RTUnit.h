@@ -426,6 +426,10 @@ public:
 	 * colpito, perche' `CollectHexAttacks` sceglie chi colpire **geometricamente** — ogni unita' viva su una
 	 * cella dell'area — e non dall'identita' del bersaglio dichiarato. Non c'e' niente da aggiungere per
 	 * ottenerlo, solo da non rompere.
+	 *
+	 * ⛔ **Non vale per chi DICHIARA di agganciare** (`ERTActionFallback::AttackTarget`): quelle azioni
+	 * leggono la cella viva del bersaglio, ed e' l'uscita che `D-415` nomina. Oggi la dichiara solo
+	 * `Action.Interrupt`, e il perche' sta accanto alla sua riga di catalogo.
 	 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Plan")
 	FRTCellId PlannedAimCell;
