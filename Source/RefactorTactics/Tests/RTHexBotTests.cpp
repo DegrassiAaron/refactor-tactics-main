@@ -1293,6 +1293,61 @@ bool FRTHexBotRearBonusValueTest::RunTest(const FString&)
 }
 
 /**
+ * La stima che esce da `ScorePlan` e il termine che entra nel punteggio sono **lo stesso numero** (`#649`).
+ *
+ * 🔑 **E' la sola cosa che rende il tasso di realizzo un rapporto invece di due misure scollegate.** Il
+ * numeratore lo produce l'out-param, il denominatore lo produce il resolver nel `TurnLog`; se l'out-param
+ * potesse divergere dal termine che il bot ha davvero pesato, il rapporto descriverebbe un bot che non ha
+ * deciso niente. Qui si pinna il legame: `WDamage * stima == differenza di punteggio`, cioe' esattamente
+ * l'uguaglianza che `RearBonusMatchesBypassedReduction` misura una riga piu' su, letta dall'altro capo.
+ *
+ * ⛔ **La stima e' in PUNTI, il termine in punteggio**, e la seconda asserzione e' l'unica che lo dimostra:
+ * senza il fattore `WDamage` esplicito, un out-param che riportasse il punteggio passerebbe la prima meta'
+ * su qualunque board dove `WDamage` valesse 1.
+ *
+ * Le due meta' falsificanti — copertura che TIENE, e nessuna copertura — impediscono a un out-param
+ * scritto una volta sola e mai azzerato di passare per buono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPlannedBypassTest,
+	"RefactorTactics.HexBot.PlannedBypassIsTheSameNumberTheScoreWeighs",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBotPlannedBypassTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeBotMap(4);
+	const FRTCellId Origin(0, 0);
+	const FRTCellId Enemy(2, 0);
+	SetBotLowCover(M, Enemy, ERTHexDirection::W); // il bordo rivolto al bot
+
+	const FRTHexBotContext Covered = MakeFacingCtx(Origin, Enemy, ERTHexDirection::W); // guarda il bot: tiene
+	const FRTHexBotContext Turned = MakeFacingCtx(Origin, Enemy, ERTHexDirection::E);  // gli volta le spalle
+
+	int32 StimaScoperto = INDEX_NONE;
+	const int32 Exposed = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin), Turned, StimaScoperto);
+
+	TestEqual(TEXT("la stima porta i PUNTI di riduzione scavalcati, non il termine di punteggio"),
+		StimaScoperto, URTCombatLibrary::LowCoverDamageReduction);
+
+	// Lo stesso out-param, riusato: se la funzione accumulasse invece di azzerare, qui leggeremmo il doppio
+	// della prima chiamata sommato alla seconda — ed e' il contratto che l'header dichiara.
+	int32 StimaCoperto = StimaScoperto;
+	const int32 Facing = URTHexBotLibrary::ScorePlan(M, MakeFacingPlan(Origin), Covered, StimaCoperto);
+
+	TestEqual(TEXT("dove la copertura TIENE non c'e' niente di scavalcato, e l'out-param si azzera"),
+		StimaCoperto, 0);
+	TestEqual(TEXT("il punteggio pesa esattamente quella stima, a `WDamage` per punto"),
+		Exposed - Facing, Turned.WDamage * StimaScoperto);
+
+	// ⛔ La seconda meta' falsificante: senza nessuna copertura la stima e' zero anche a bersaglio girato.
+	// Senza questa riga passerebbe un out-param che riportasse la riduzione NOMINALE invece di quella
+	// annullata — un numero che sull'arena liscia non esiste e che qui sopra coinciderebbe.
+	URTHexMapAsset* Liscia = MakeBotMap(4);
+	int32 StimaSenzaCopertura = INDEX_NONE;
+	URTHexBotLibrary::ScorePlan(Liscia, MakeFacingPlan(Origin), Turned, StimaSenzaCopertura);
+	TestEqual(TEXT("senza copertura non c'e' niente da scavalcare"), StimaSenzaCopertura, 0);
+	return true;
+}
+
+/**
  * Senza una protezione da scavalcare, l'orientamento non muove il punteggio di un punto.
  *
  * ⚠️ **Asserisce uno ZERO che oggi e' la norma**, e per questo va letto insieme al suo motivo:
