@@ -523,15 +523,20 @@ bool FRTGuardWritesNoEmptyStageTest::RunTest(const FString&)
 	};
 
 	// Il colpo arriva gia' a zero: e' cio' che il `Deflect` produce su un colpo piu' piccolo del suo budget.
+	//
+	// ⛔ **Per VALORE, non per riferimento.** `ApplyEligibleHitDelta` restituisce un `TArray` per valore, e
+	// legare un `const FRTAttack&` a `...[0]` lascia un riferimento PENZOLANTE: il temporaneo muore a fine
+	// espressione e l'estensione di vita non si applica a un sottooggetto raggiunto via `operator[]`. La
+	// prima stesura lo faceva, e il test e' uscito `Fail` senza nemmeno un evento di errore.
 	const TArray<FRTAttack> Azzerato = { FRTAttack(1, 0, 0) };
-	const FRTAttack& Muto = URTCombatResolver::ApplyEligibleHitDelta(
+	const FRTAttack Muto = URTCombatResolver::ApplyEligibleHitDelta(
 		Azzerato, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0];
 	TestEqual(TEXT("su un colpo gia' a zero la Guardia non lascia voce"), VociGuardia(Muto), 0);
 
 	// ANTI-VACUITA': se la guardia fosse troppo larga anche il caso che MORDE resterebbe muto, e la riga
 	// sopra passerebbe per la ragione sbagliata.
 	const TArray<FRTAttack> Vero = { FRTAttack(1, 12, 0) };
-	const FRTAttack& Morso = URTCombatResolver::ApplyEligibleHitDelta(
+	const FRTAttack Morso = URTCombatResolver::ApplyEligibleHitDelta(
 		Vero, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0];
 	TestEqual(TEXT("su un colpo vero la voce c'e'"), VociGuardia(Morso), 1);
 	TestEqual(TEXT("e il colpo e' sceso a zero"), Morso.Power, 0);
