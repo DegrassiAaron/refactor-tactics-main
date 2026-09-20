@@ -1171,6 +1171,23 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
+	// 🔴 **L'attacco base PUO' sparare dove non vede** ([D-415] punto 3).
+	//
+	// 🔑 **E' la voce piu' cara delle tre, e il motivo e' che tocca un prezzo gia' pagato.** [D-380] aveva
+	// concesso il tiro indiretto a `Action.Mortar` **facendolo pagare**: 12 danni invece dei 18 del gemello
+	// `Action.CircularAoE`, ricarica 3 invece di 2. Renderlo comune a quattro attacchi base gratuiti e senza
+	// ricarica significa che quel prezzo non comprava una capacita': comprava un'**esclusiva**.
+	//
+	// ⛔ **E il mortaio NON si riprezza** ([D-418], che chiude `SKB-5`): a 18 e ricarica 2 eguaglierebbe
+	// `Action.CircularAoE` su tutti e cinque i valori **e terrebbe in piu' il tiro indiretto** — sarebbe
+	// strettamente superiore, non un pareggio. I suoi numeri restano e comprano **area, gittata e
+	// traiettoria**, non piu' il permesso di sparare al buio.
+	//
+	// ⚠️ **Cieco non significa illimitato, e non e' una formalita'**: portata, terreno, forma e fuoco amico
+	// restano tutti. `BlindFireStillObeysRange` lo pinna per il mortaio e vale identico qui — l'enum lo
+	// dichiara accanto al proprio valore.
+	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // [D-415] punto (3)
+
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
 	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non
 	// interrompibile (catalogo §1). Il valore lo dichiara il personaggio (`URTHeroData::GuardReduction`);
@@ -1431,6 +1448,11 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-380]
+	// ⏱️ **Dal 2026-09-20 questa riga non e' piu' un'esclusiva** ([D-415] punto 3): anche `Action.BasicAttack`
+	// la porta. ⛔ **I numeri del mortaio restano comunque** ([D-418]): cio' che il suo prezzo compra sono
+	// **area, gittata e traiettoria** — il gemello `Action.CircularAoE` non ha nessuna delle tre insieme — e
+	// non il permesso di sparare al buio. `MortarPaysAPriceAgainstItsLineOfSightTwin` misura quel prezzo
+	// contro il gemello e resta verde: e' una relazione fra due voci, non una costante.
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
