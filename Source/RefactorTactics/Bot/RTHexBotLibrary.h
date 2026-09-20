@@ -103,6 +103,11 @@ struct FRTHexBotContext
 	 * Un nemico che attacca il bot gli si gira contro, e il fianco che il bot aveva visto non c'e' piu'. Il
 	 * bonus sopravvive quando il bersaglio e' impegnato con qualcun ALTRO — il fuoco incrociato, non il duello.
 	 * La sovrastima che ne deriva si misura sul TurnLog (`RearHitBypassedCover`), non si stima a priori.
+	 *
+	 * ✅ **E dal 2026-09-20 la misura ha anche il suo numeratore** (`#649`): `ScorePlan` nella forma con
+	 * `OutCoverBypassedByFacing` riporta i punti che il piano si aspetta di scavalcare, il planner ne somma
+	 * quelli dei piani SCELTI in `FRTBotPlanningOutcome::PlannedCoverBypassedByFacing`, e il confronto con
+	 * le voci risolte e' un rapporto fra due numeri invece che fra un numero e una congettura.
 	 */
 	UPROPERTY() TArray<ERTHexDirection> EnemyFacings;
 
@@ -435,6 +440,35 @@ public:
 	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
+
+	/**
+	 * Lo stesso punteggio, piu' **quanti punti di riduzione questo piano si aspetta di scavalcare** grazie
+	 * alla direzione (`#649`).
+	 *
+	 * 🔑 **Esiste perche' la stima muore dentro il punteggio, e senza di lei il bonus non e' verificabile.**
+	 * Il termine direzionale non ha un peso proprio: vale `WDamage * (nominale - effettiva)`, e finisce
+	 * sommato in un `int32` insieme a danno, kill, minaccia e quota. Dall'esterno un piano che conta sei
+	 * punti di copertura scavalcata e uno che non ne conta nessuno sono lo stesso numero. E' la meta'
+	 * mancante della decisione di CP 16.2, che `EnemyFacings` (sopra, la riga *«la sovrastima si misura sul
+	 * TurnLog»*) rimanda a una misura che finora non aveva un numeratore.
+	 *
+	 * ⛔ **Riporta PUNTI, non il termine di punteggio**, e la differenza e' l'unica cosa che rende la misura
+	 * possibile: `Facing`/`RearHitBypassedCover` porta in `Amount` i punti di riduzione scavalcati
+	 * (`Turn/RTTurnLog.h`, [D-199]). Confrontare `WDamage * punti` con dei punti darebbe un tasso dieci
+	 * volte piu' grande del vero, e sarebbe plausibile.
+	 *
+	 * ⚠️ **Solo il verso OFFENSIVO.** Il simmetrico difensivo — la copertura che il bot butterebbe via
+	 * arrivando di spalle — risponde a un'altra domanda e non ha nessuna voce di TurnLog che lo realizzi:
+	 * contarlo qui mescolerebbe due grandezze in un numeratore solo.
+	 *
+	 * ⚠️ **E' una STIMA, e sbaglia per costruzione**: legge i facing d'inizio turno, mentre chi attacca
+	 * ruota verso il proprio bersaglio prima che si valuti l'arco. E' esattamente la sovrastima che il tasso
+	 * di realizzo esiste per misurare — non un difetto da correggere qui.
+	 *
+	 * La forma a tre argomenti delega a questa: una sola implementazione, quindi non possono divergere.
+	 */
+	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context,
+		int32& OutCoverBypassedByFacing);
 
 	/**
 	 * Il solo termine di categoria `Objective`, per la cella in cui il piano TERMINA (`#2269`).
