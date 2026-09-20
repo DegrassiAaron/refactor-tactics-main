@@ -17,6 +17,126 @@
 
 namespace
 {
+	using FRTNoteJsonWriter = TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>;
+
+	/**
+	 * I campi di un oggetto JSON come coppie `FString`, ORDINATI per chiave.
+	 *
+	 * ⚠️ Due ragioni, e nessuna e' di stile. La prima: `FJsonObject::Values` e' una `TMap`, e il suo ordine di
+	 * iterazione non e' quello d'inserimento — e' l'invariante 1 di `RTScenarioWriter.cpp`. La seconda: dalla
+	 * 5.8 le sue chiavi non sono `FString` ma `UE::FSharedString`, quindi `GetKeys` e `operator[]` non ne
+	 * accettano una, e la conversione va fatta in un posto solo: qui.
+	 */
+	TArray<TPair<FString, TSharedPtr<FJsonValue>>> SortedFields(const TSharedPtr<FJsonObject>& Obj)
+	{
+		TArray<TPair<FString, TSharedPtr<FJsonValue>>> Fields;
+		if (!Obj.IsValid()) { return Fields; }
+
+		Fields.Reserve(Obj->Values.Num());
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Obj->Values)
+		{
+			Fields.Emplace(Field.Key, Field.Value);
+		}
+		Fields.Sort([](const TPair<FString, TSharedPtr<FJsonValue>>& A,
+			const TPair<FString, TSharedPtr<FJsonValue>>& B) { return A.Key < B.Key; });
+		return Fields;
+	}
+
+	/**
+	 * Un valore JSON riscritto nel writer, con le chiavi degli oggetti ORDINATE.
+	 *
+	 * ⚠️ **L'ordinamento non e' estetica, e non e' nemmeno una preferenza: e' l'unico modo di renderlo
+	 * deterministico.** `FJsonObject::Values` e' una `TMap`, e l'ordine in cui la si itera non e' quello
+	 * d'inserimento — e' la stessa proprieta' che `RTScenarioWriter.cpp` dichiara in testa come ragione per
+	 * scrivere i campi uno per uno. Senza il `Sort()` qui sotto, due salvataggi dello stesso scenario
+	 * produrrebbero due testi diversi per la medesima nota annidata, e un diff di PR diventerebbe rumore.
+	 *
+	 * L'escape lo fa il writer di Unreal, non una routine scritta a mano: cosi' una nota esce dallo stesso
+	 * escaping di ogni altra stringa del file, invece che da un secondo dialetto.
+	 */
+	void WriteCanonicalJsonValue(const TSharedRef<FRTNoteJsonWriter>& W, const TSharedPtr<FJsonValue>& Value)
+	{
+		if (!Value.IsValid()) { W->WriteNull(); return; }
+
+		switch (Value->Type)
+		{
+		case EJson::String:  W->WriteValue(Value->AsString()); break;
+		case EJson::Number:  W->WriteValue(Value->AsNumber()); break;
+		case EJson::Boolean: W->WriteValue(Value->AsBool()); break;
+		case EJson::Null:    W->WriteNull(); break;
+
+		case EJson::Array:
+			W->WriteArrayStart();
+			for (const TSharedPtr<FJsonValue>& Item : Value->AsArray())
+			{
+				WriteCanonicalJsonValue(W, Item);
+			}
+			W->WriteArrayEnd();
+			break;
+
+		case EJson::Object:
+		{
+			const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+			W->WriteObjectStart();
+			if (Obj.IsValid())
+			{
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : SortedFields(Obj))
+				{
+					W->WriteIdentifierPrefix(Field.Key);
+					WriteCanonicalJsonValue(W, Field.Value);
+				}
+			}
+			W->WriteObjectEnd();
+			break;
+		}
+
+		default:
+			W->WriteNull();
+			break;
+		}
+	}
+
+	/** Il testo JSON canonico di un valore, come `FRTScenarioNote::RawJson` lo conserva. */
+	FString CanonicalNoteJson(const TSharedPtr<FJsonValue>& Value)
+	{
+		// Si scrive dentro un ARRAY e poi se ne tolgono le parentesi: un writer JSON non accetta un valore
+		// nudo alla radice, e questa e' la strada che non duplica ne' l'escaping ne' la formattazione dei
+		// numeri. Le due parentesi sono sempre esattamente un carattere ciascuna.
+		FString Scratch;
+		const TSharedRef<FRTNoteJsonWriter> W =
+			TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Scratch);
+		W->WriteArrayStart();
+		WriteCanonicalJsonValue(W, Value);
+		W->WriteArrayEnd();
+		W->Close();
+
+		return (Scratch.Len() >= 2) ? Scratch.Mid(1, Scratch.Len() - 2) : FString();
+	}
+
+	/**
+	 * Raccoglie le chiavi `_*` di un oggetto del file, in ORDINE ALFABETICO di chiave.
+	 *
+	 * 🔑 **Perche' alfabetico e non «come stavano nel file»**: `FJsonObject::Values` e' una `TMap` e l'ordine
+	 * originale non e' piu' recuperabile dopo il parsing — il file lo ha gia' perso. Fra un ordine arbitrario
+	 * per hash e uno dichiarato, l'unico che rende il salvataggio riproducibile e' il secondo.
+	 *
+	 * ⚠️ Conserva TUTTO cio' che comincia per `_`, senza sapere cosa significhi: e' precisamente la ragione
+	 * per cui il loader le salta invece di rifiutarle. Interpretarle qui le trasformerebbe in campi del
+	 * formato, cioe' in qualcosa che il gate di `version` dovrebbe ammettere.
+	 */
+	void CollectNotes(const TSharedPtr<FJsonObject>& Obj, TArray<FRTScenarioNote>& OutNotes)
+	{
+		if (!Obj.IsValid()) { return; }
+
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : SortedFields(Obj))
+		{
+			if (Field.Key.StartsWith(TEXT("_")))
+			{
+				OutNotes.Emplace(Field.Key, CanonicalNoteJson(Field.Value));
+			}
+		}
+	}
+
 	/**
 	 * Una direzione esagonale dal suo nome (`E`, `NE`, `NW`, `W`, `SW`, `SE`), maiuscole indifferenti.
 	 *
@@ -644,6 +764,7 @@ namespace
 				// `objective`: la cella contendibile (`#2269`). Prima di questa riga un obiettivo era
 				// esprimibile solo da una fixture, e l'unica che ne posi uno e' `RelayBasin`.
 				Obj->TryGetBoolField(TEXT("objective"), Cell.bIsObjective);
+				CollectNotes(Obj, Cell.Notes);
 				OutScenario.Cells.Add(Cell);
 			}
 		}
@@ -780,6 +901,7 @@ namespace
 				{
 					Entry.Door.StableId = FName(*StableText);
 				}
+				CollectNotes(Obj, Entry.Notes);
 				OutScenario.Doors.Add(Entry);
 			}
 		}
@@ -957,6 +1079,7 @@ namespace
 				}
 			}
 
+			CollectNotes(Obj, Unit.Notes);
 			OutScenario.Units.Add(Unit);
 		}
 		return true;
@@ -1195,6 +1318,7 @@ namespace
 							return false;
 						}
 
+						CollectNotes(DecisionObj, Decision.Notes);
 						Turn.Decisions.Add(Decision);
 					}
 				}
@@ -1610,9 +1734,11 @@ namespace
 						// dovuto consumare cosa, e che sull'`ability` malformata diceva «nessuna ability che lo
 						// usi» mandando l'autore a cercare un campo che ha davanti agli occhi.
 
+						CollectNotes(IntentObj, Intent.Notes);
 						Turn.Intents.Add(Intent);
 					}
 				}
+				CollectNotes(TurnObj, Turn.Notes);
 				OutScenario.Turns.Add(Turn);
 			}
 		}
@@ -1848,6 +1974,7 @@ namespace
 						OutScenario.Version);
 					return false;
 				}
+				CollectNotes(Obj, Exp.Notes);
 				OutScenario.Expect.Add(Exp);
 			}
 		}
@@ -1926,7 +2053,16 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	// Solo presentazione: quale unita' selezionare in PIE per far comparire l'anteprima. Headless non fa nulla.
 	Root->TryGetStringField(TEXT("previewUnit"), OutScenario.PreviewUnit);
 	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
+	// La PRESENZA della chiave si registra a parte dal valore: `mapRadius` e' inerte quando c'e' una fixture
+	// — la forma la decide la fixture — e senza questo booleano il writer lo scriveva comunque, materializzando
+	// in un file a fixture una chiave che quel file non aveva mai dichiarato. Vedi `bHasMapRadius`, `#3118`.
+	OutScenario.bHasMapRadius = Root->HasField(TEXT("mapRadius"));
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
+
+	// Le chiavi `_*` della RADICE: la documentazione incorporata che il file porta sullo scenario intero.
+	// Ogni controllo di «chiave sconosciuta» piu' sotto le salta gia'; qui si conservano, perche' saltarle in
+	// lettura e non conoscerle in scrittura e' cio' che le cancellava a ogni salvataggio (`#3118`).
+	CollectNotes(Root, OutScenario.Notes);
 
 	// I tag, GREZZI. La chiave `tags` era gia' nel formato ma la leggeva solo `URTScenarioIndex::ReadHeader`:
 	// il loader la ignorava, quindi il modello in memoria non la portava e un `load → save` l'avrebbe

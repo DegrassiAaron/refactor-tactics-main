@@ -1,6 +1,6 @@
 # Piani, referti e triage — come si legge questa cartella
 
-> `CURRENT` · **Ultimo aggiornamento**: 2026-08-30
+> `CURRENT` · **Ultimo aggiornamento**: 2026-09-20
 > **Cosa è**: l'indice del **criterio**, non dei contenuti. Dice come capire, aprendo un file di questa
 > cartella, se quello che afferma vale ancora.
 > **Cosa non è**: una fonte di stato. Nessun documento qui è owner di qualcosa — gli owner sono
@@ -31,19 +31,47 @@ tre, non due**: oltre a quello canonico e a quello dei piani consegnati, `projec
 apre in italiano con `⛔ STORICO`. Il conteggio lo classifica `?`, ed è il verso giusto — un oracolo che
 indovinasse i sinonimi nasconderebbe proprio la deriva che deve mostrare.
 
-<!-- RT_PIANI_BANNER:BEGIN -->
+> 📐 **Convenzione di questa pagina**: `xx` è un conteggio che **non si scrive**, perché cambia da solo
+> ([`../../../AGENTS.md`](../../../AGENTS.md) §14 — che cita *questa pagina* come caso di riferimento).
+> Accanto c'è sempre il comando che lo produce.
 
 | Banner | Significa | Quanti |
 |---|---|--:|
-| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | 55 |
-| `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | 6 |
-| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | 7 |
-| `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | 1 |
-| **totale** | | **69** |
+| `CURRENT` | Vive: quello che dice vale, salvo verifica sull'owner | `xx` |
+| `SNAPSHOT` | Fotografia di una data. **Resta qui** finche' e' l'ultima misura del suo oggetto | `xx` |
+| `(nessun banner)` | Apre senza dichiararne uno: **un fatto, non un errore di formattazione** | `xx` |
+| `PLAN` | Piano gia' **consumato**: resta per la provenienza di cio' che ha prodotto | `xx` |
+| `⛔ STORICO` | Il terzo vocabolario, in italiano: stessa cosa di `HISTORICAL` | `xx` |
 
-In [`../../archive/roadmap-plans/`](../../archive/roadmap-plans/) ce ne sono **43**: quelli che il banner dichiarava gia' storici.
+```sh
+git ls-files 'docs/roadmap/plans/*.md'   | grep -v README | wc -l   # quanti piani
+git ls-files 'docs/archive/roadmap-plans/*.md' | grep -v README | wc -l   # quanti in archivio
+head -q -n4 docs/roadmap/plans/*.md | grep -oE '`(CURRENT|SNAPSHOT|PLAN|STORICO)`' | sort | uniq -c
+```
 
-<!-- RT_PIANI_BANNER:END -->
+⚠️ **I due totali non coincidono, ed è il punto**: il primo comando conta i **file**, il terzo i banner
+**dichiarati** nelle prime quattro righe. La differenza è la riga `(nessun banner)` — che resta un fatto,
+non un errore di formattazione.
+
+> 🔴 **Il conteggio ha smesso di essere scritto — 2026-09-20.** La cella diceva `CURRENT 55 · SNAPSHOT 6 ·
+> nessun banner 7 · PLAN 1 · totale **69**`, e l'archivio **43**. Il primo comando qui sopra, eseguito
+> oggi, conta i piani a **186**: la deriva è di un ordine di grandezza, non di otto. (L'archivio a **43**
+> era invece ancora esatto — lì non si è spostato niente.)
+>
+> ⛔ **E la rimisurazione a mano non era nemmeno più la contromisura che questa pagina prescriveva.** Il
+> blocco stava fra `<!-- RT_PIANI_BANNER:BEGIN -->` e `:END`, cioè **si dichiarava generato**. Il
+> generatore è uscito dal repository con [D-181](../../decisions/RT_PDR_00_Decision_Log.md) e
+> [D-182](../../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-21, e da allora i marcatori promettevano
+> un aggiornamento che nessun comando produceva:
+>
+> ```sh
+> grep -rn 'RT_PIANI_BANNER' --include='*.ts' --include='*.py' --include='*.ps1' .   # → 0
+> ```
+>
+> I marcatori sono stati **tolti, non riparati**: un `BEGIN`/`END` che nessuno scrive è l'etichetta che
+> mente, lo stesso difetto che questa cartella censisce negli altri documenti. Le due note qui sotto —
+> 2026-08-26 e 2026-08-30 — restano come cronaca: sono la nona e la decima rimisurazione a mano, e ognuna
+> si apre dichiarando una deriva che la precedente aveva appena chiuso. È l'argomento, non l'eccezione.
 
 > 🔴 **Riletta dal disco il 2026-08-30, e la deriva era di OTTO prima che questo giro aggiungesse un file.**
 > La cella diceva `CURRENT 46 · SNAPSHOT 6 · nessun banner 6 · PLAN 1 · totale 59`; la cartella ne conteneva
