@@ -84,7 +84,17 @@ public:
 	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso morde come per `decisions`: una build a
 	// `SupportedVersion = 5` non conosce la chiave e la rifiuterebbe come sconosciuta, accusando il FILE
 	// mentre il difetto e' la build. Con la `6` il rifiuto arriva dal gate di versione e nomina la build.
-	static constexpr int32 SupportedVersion = 6;
+	// 6 → 7 con i **checkpoint** (`at`) e il selettore semantico `afterEvent` sulle assertion (`#2867`): una
+	// condizione puo' dichiarare a QUALE confine va verificata, invece che solo a fine turno.
+	//
+	// ⚠️ Stesso ragionamento delle precedenti, e qui il verso che conta morde come per `freeRun` — cioe' nel
+	// modo peggiore. Una build a `SupportedVersion = 6` non conosce `at`, e `expect` fino a `#2867` non aveva
+	// un controllo di chiave sconosciuta: la chiave verrebbe **ignorata in silenzio**, e l'assertion si
+	// valuterebbe a fine turno. Un'assertion che chiede *«dov'era al Blast»* e riceve *«dov'e' a fine
+	// turno»* non esce rossa: esce **verde misurando un'altra cosa**. Con la `7` il rifiuto arriva dal gate
+	// di versione e nomina la build. (Il controllo di chiave sconosciuta su `expect` arriva con la stessa
+	// fetta, ma non protegge le build gia' spedite: quelle hanno solo il gate.)
+	static constexpr int32 SupportedVersion = 7;
 
 	/**
 	 * Interpreta il testo JSON di uno scenario.
