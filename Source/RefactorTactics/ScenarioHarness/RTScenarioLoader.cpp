@@ -2306,6 +2306,36 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 		}
 	}
 
+	// Le voci PIE che questo allestimento permette di giudicare. Stessa forma dei tag, e per la stessa
+	// ragione si riscrive nel writer: un campo letto e non riscritto sparisce al primo `load → save`.
+	const TArray<TSharedPtr<FJsonValue>>* VerifiesJson = nullptr;
+	if (Root->TryGetArrayField(TEXT("verifies"), VerifiesJson))
+	{
+		for (const TSharedPtr<FJsonValue>& Value : *VerifiesJson)
+		{
+			// 🔴 **Il TIPO, non `TryGetString`**, per la stessa ragione misurata in `ParseCell` e nel
+			// blocco dei tag: `FJsonValueNumber::TryGetString` **converte** e risponde `true`, quindi un
+			// `42` fra le voci entrerebbe in coda come la stringa "42" — un id che nessuna riga del
+			// registro ha, scoperto solo quando il gate di catalogo diventa rosso. Misurato il 2026-09-20.
+			if (!Value.IsValid() || Value->Type != EJson::String)
+			{
+				OutError = TEXT("verifies: ogni voce deve essere una stringa");
+				return false;
+			}
+
+			FString Voce;
+			Value->TryGetString(Voce);
+			// ⛔ Una voce vuota entrerebbe in coda senza ancora: non si ritroverebbe nel registro, e il
+			// verdetto non avrebbe a cosa attaccarsi. Meglio fermarsi qui che al momento di giudicare.
+			if (Voce.IsEmpty())
+			{
+				OutError = TEXT("verifies: una voce vuota non identifica niente");
+				return false;
+			}
+			OutScenario.Verifies.Add(Voce);
+		}
+	}
+
 	// Le sezioni si leggono nell'ordine in cui il formato le dichiara, e ognuna si ferma al primo errore:
 	// uno scenario mezzo caricato sarebbe peggio di uno rifiutato, perche' girerebbe.
 	if (!ParseScenarioCells(Root, OutScenario, OutError)) { return false; }

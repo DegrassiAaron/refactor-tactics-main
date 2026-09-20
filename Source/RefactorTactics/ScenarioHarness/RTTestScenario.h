@@ -1201,6 +1201,21 @@ struct FRTTestScenario
 	TArray<FString> Tags;
 
 	/**
+	 * ID delle voci PIE che questo allestimento permette di giudicare — `PIE-V01-LOG`.
+	 *
+	 * ⛔ **Solo gli ID, mai l'esito atteso né la domanda.** E' la stessa regola che
+	 * `docs/roadmap/editor-sessions.yaml` esiste per far rispettare: l'esito atteso vive in
+	 * `docs/technical/test-manuali-pie.md`, che ne resta l'unico owner. Una domanda scritta qui sarebbe
+	 * una terza copia derivata di un testo che gia' ne ha due, e che gia' divergono.
+	 *
+	 * Lo legge il conduttore di seduta (`URTPieSessionPlaylist`) per comporre la coda: uno scenario che
+	 * ne dichiara sette si apre una volta e produce sette passi. Un ID scritto qui e assente dal registro
+	 * e' un errore, e `RefactorTactics.PieSession.CatalogDeclaresOnlyRealItems` lo rende rosso.
+	 */
+	UPROPERTY()
+	TArray<FString> Verifies;
+
+	/**
 	 * ID di scenario dell'unita' da **selezionare** quando lo scenario parte con un giocatore presente (PIE).
 	 * Vuoto = nessuna selezione, ed e' il caso normale.
 	 *

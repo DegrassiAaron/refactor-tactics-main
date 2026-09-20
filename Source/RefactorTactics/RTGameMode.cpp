@@ -18,6 +18,9 @@
 // #2723: il view model della finestra e' del client per la stessa ragione — qui resta il solo aggancio,
 // e a differenza del velo NON ha un ripiego senza proprietario.
 #include "UI/RTReactionWindowViewModel.h"
+#include "Engine/GameInstance.h"
+#include "PieSession/RTPieSessionSubsystem.h"
+#include "PieSession/RTPieVerdictOverlay.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
@@ -526,6 +529,12 @@ void ARTGameMode::BeginPlay()
 	// e la precedenza fra le tre sorgenti resta sua, accanto a quelle di `MapSource` e dell'autobattle.
 	// COME si esegue uno scenario lo sa `FRTScenarioCoordinator`: caricamento, sessione, avanzamento e
 	// referto. Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
+	// Le due porte del conduttore di seduta (`#3208`). Il conduttore decide QUALE scenario e QUANDO il
+	// prossimo; avviarlo resta di questo GameMode, e il come resta del coordinator. Installarle qui —
+	// invece di dare al conduttore un puntatore a questo Actor — e' cio' che permette ai suoi gate di
+	// girare senza un mondo e senza un Editor.
+	InstallPieSessionPorts();
+
 	switch (ScenarioCoordinator.Start(World, ResolveScenarioToRun(),
 		RTScenarioEntry::LogSourceLabel(), ScenarioTurnPauseSeconds))
 	{
@@ -955,6 +964,73 @@ void ARTGameMode::AssignUnitControlGroups()
 	}
 }
 
+void ARTGameMode::InstallPieSessionPorts()
+{
+	UGameInstance* GI = GetGameInstance();
+	URTPieSessionSubsystem* Conduttore = GI ? GI->GetSubsystem<URTPieSessionSubsystem>() : nullptr;
+	if (!Conduttore)
+	{
+		return;
+	}
+
+	// `WeakLambda`/`TWeakObjectPtr`: il subsystem sopravvive a questo Actor, e una porta che chiamasse
+	// attraverso un GameMode distrutto sarebbe il difetto che il teardown della sessione esiste per
+	// evitare, un piano piu' in su.
+	TWeakObjectPtr<ARTGameMode> Self(this);
+
+	FRTPieSessionPorts Porte;
+	Porte.Launch = [Self](const FString& ScenarioId) -> FRTPieLaunchOutcome
+	{
+		if (!Self.IsValid())
+		{
+			return FRTPieLaunchOutcome::NonCaricabile();
+		}
+
+		const ERTScenarioStart Esito = Self->ScenarioCoordinator.Start(Self->GetWorld(), ScenarioId,
+			TEXT("seduta PIE (rt.Pie.Session)"), Self->ScenarioTurnPauseSeconds);
+
+		if (Esito != ERTScenarioStart::Started)
+		{
+			return FRTPieLaunchOutcome::NonCaricabile();
+		}
+
+		// 🔴 **Il tick va acceso QUI, e non e' una ripetizione di `BeginPlay`.**
+		// `PrimaryActorTick.bStartWithTickEnabled = false`, e l'unico altro `SetActorTickEnabled(true)`
+		// sta nel ramo `Started` del `BeginPlay`. Ma una seduta si apre da console **dopo** il Play, con
+		// la partita normale gia' allestita: li' `ResolveScenarioToRun()` era vuoto, il tick e' rimasto
+		// spento, e `ARTGameMode::Tick` e' l'unico che pompa `FRTScenarioCoordinator::Tick`. Senza questa
+		// riga la sessione parte e **non avanza di un frame**: nessun verdetto viene mai chiesto.
+		// Trovato in code review il 2026-09-20; nessun gate lo copriva perche' i gate della conduzione
+		// usano porte finte, e il difetto vive nella porta vera.
+		Self->SetActorTickEnabled(true);
+
+		// Uno strumento fatto per guardare deve inquadrare cio' che allestisce, come fa il `BeginPlay`.
+		// ⛔ `OpenClaimedFirstTurn()` resta fuori di proposito: apre il campione di pacing del PRIMO
+		// turno di partita, e richiamarlo a ogni passo di una seduta falserebbe quella misura.
+		Self->RecenterCameraOnScenario();
+
+		// La sessione puo' essere nata gia' finita — `Start` risponde `Started` lo stesso. In quel caso
+		// `Tick` esce subito e nessun `OnScenarioFinished` arriva: va detto adesso, al ritorno.
+		if (!Self->ScenarioCoordinator.IsRunning())
+		{
+			return FRTPieLaunchOutcome::MortoAllaNascita(Self->ScenarioCoordinator.SessionErrorMessage());
+		}
+		return FRTPieLaunchOutcome::Avviato();
+	};
+	Porte.TearDown = [Self]()
+	{
+		if (Self.IsValid())
+		{
+			Self->ScenarioCoordinator.TearDown();
+		}
+	};
+	Conduttore->SetPorts(MoveTemp(Porte));
+
+	ScenarioCoordinator.OnScenarioFinished.AddWeakLambda(Conduttore,
+		[Conduttore](const FRTTestResult& Result, const FString& ReportDir)
+		{ Conduttore->OnScenarioFinished(Result, ReportDir); });
+}
+
 /**
  * La PRECEDENZA, dati i tre valori gia' letti: console > riga di comando > proprieta'.
  *
@@ -1021,6 +1097,30 @@ FString ARTGameMode::ReadScenarioFromCommandLine(const TCHAR* CommandLine)
 
 FString ARTGameMode::ResolveScenarioToRun() const
 {
+	// QUARTA SORGENTE, e vince su tutte: la seduta PIE in corso (`#3208`).
+	//
+	// 🔴 **La ragione e' concreta, non gerarchica**: una `rt.Test.Scenario` rimasta impostata da una prova
+	// precedente dirotterebbe **in silenzio** ogni passo della playlist, e chi guarda crederebbe di
+	// giudicare la voce che il conduttore ha appena annunciato. Una CVar dura quanto il processo
+	// dell'editor; una seduta dura meno.
+	//
+	// ⛔ **Non entra in `ChooseScenarioEntry`, e la ragione non e' pigrizia**: quella funzione decide fra
+	// tre CONFIGURAZIONI e produce l'avviso di chi scavalca chi. Una seduta non e' una configurazione che
+	// scavalca — e' uno stato attivo che comanda finche' dura, e annunciarla come un override direbbe a
+	// chi legge il log che qualcosa ha preso il posto di qualcos'altro per sbaglio.
+	//
+	// ⚠️ Il conduttore NON azzera la CVar di chi lancia: la scavalca finche' conduce e la lascia com'era
+	// dopo. Azzerarla cambierebbe lo stato di una sessione che non gli appartiene.
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		const FString DallaSeduta = URTPieSessionSubsystem::ScenarioImposedBy(
+			GI->GetSubsystem<URTPieSessionSubsystem>());
+		if (!DallaSeduta.IsEmpty())
+		{
+			return DallaSeduta;
+		}
+	}
+
 	// Questa funzione LEGGE le sorgenti; a decidere e' `ChooseScenarioEntry`, che e' pura e verificabile
 	// senza un mondo e senza toccare lo stato globale del processo (`#2182`). La regola non si e' spostata di
 	// sede: e' rimasta qui, in mezzo alle sue due sorelle — sorgente mappa e autobattle.
@@ -1211,6 +1311,51 @@ void ARTGameMode::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	ScenarioCoordinator.Tick(DeltaSeconds);
+	SyncPieVerdictOverlay();
+}
+
+void ARTGameMode::SyncPieVerdictOverlay()
+{
+	const UGameInstance* GI = GetGameInstance();
+	const URTPieSessionSubsystem* Conduttore = GI ? GI->GetSubsystem<URTPieSessionSubsystem>() : nullptr;
+	const bool bServe = Conduttore && Conduttore->State() == ERTPieSessionState::AwaitingVerdict;
+
+	if (!bServe)
+	{
+		if (PieVerdictOverlay)
+		{
+			PieVerdictOverlay->RemoveFromParent();
+			PieVerdictOverlay = nullptr;
+		}
+		return;
+	}
+
+	if (PieVerdictOverlay)
+	{
+		return;
+	}
+
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC)
+	{
+		// Senza controller non c'e' schermo: la seduta resta conducibile da `rt.Pie.Verdict`, che e' la
+		// ragione per cui il conduttore non dipende dal widget.
+		return;
+	}
+
+	PieVerdictOverlay = CreateWidget<URTPieVerdictOverlay>(PC);
+	if (!PieVerdictOverlay)
+	{
+		return;
+	}
+
+	PieVerdictOverlay->AddToViewport(/*ZOrder=*/ 1000);
+
+	// 🔴 **`bIsFocusable` e' FALSO di default su `UUserWidget`**, e senza questo `NativeOnKeyDown` non
+	// viene mai chiamato: il pannello comparirebbe e i tasti non farebbero niente — un difetto che si
+	// scopre solo a schermo, cioe' nel momento piu' caro. Trovato in code review il 2026-09-20.
+	PieVerdictOverlay->SetIsFocusable(true);
+	PieVerdictOverlay->SetUserFocus(PC);
 }
 
 void ARTGameMode::RecenterCameraOnScenario()

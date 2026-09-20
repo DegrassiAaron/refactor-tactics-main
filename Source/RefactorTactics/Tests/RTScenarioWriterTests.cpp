@@ -151,6 +151,17 @@ namespace
 		if (L.Requires != R.Requires) { return Fail(TEXT("requires")); }
 		if (L.Tags != R.Tags) { return Fail(FString::Printf(TEXT("tags: [%s] vs [%s]"), *FString::Join(L.Tags, TEXT(",")), *FString::Join(R.Tags, TEXT(",")))); }
 
+		// 🔴 **`verifies` entra qui il giorno stesso in cui nasce, e non e' zelo**: e' la QUARTA volta che
+		// questo confronto sarebbe stato cieco a un campo che il writer poteva perdere — `interiorWalls`
+		// (#2031), `statuses` (#1629), poi `doors` e `interactionBindings` (#3118) lo sono stati davvero,
+		// e ogni volta il round-trip e' rimasto verde mentre i dati sparivano. Un campo nuovo che non
+		// compare in questa funzione e' un campo che nessuno difende.
+		if (L.Verifies != R.Verifies)
+		{
+			return Fail(FString::Printf(TEXT("verifies: [%s] vs [%s]"),
+				*FString::Join(L.Verifies, TEXT(",")), *FString::Join(R.Verifies, TEXT(","))));
+		}
+
 		if (L.Cells.Num() != R.Cells.Num()) { return Fail(TEXT("numero di celle")); }
 		for (int32 I = 0; I < L.Cells.Num(); ++I)
 		{

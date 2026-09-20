@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
 
+struct FRTTestResult;
+
 class UWorld;
 class FRTScenarioSession;
 
@@ -97,6 +99,44 @@ public:
 	 * che e' la sola cosa vera prima che ci sia un verdetto.
 	 */
 	FString OutcomeString() const;
+
+	/**
+	 * Il messaggio d'errore della sessione, **vuoto** se non ce n'e' uno.
+	 *
+	 * 🔴 Serve a distinguere «sta girando» da «e' nata gia' finita», che `Start` non distingue: restituisce
+	 * `Started` in entrambi i casi, deliberatamente, perche' la partita normale non vada allestita al suo
+	 * posto. Ma una sessione nata `Finished` non arriva mai a `Tick`, quindi **nessun
+	 * `OnScenarioFinished` viene sparato** — e chi aspettasse quell'evento aspetterebbe per sempre.
+	 * Trovato in code review il 2026-09-20.
+	 */
+	FString SessionErrorMessage() const;
+
+	/**
+	 * Sparato quando la sessione finisce, subito dopo che il referto e' stato scritto.
+	 *
+	 * Esiste per il conduttore di seduta (`URTPieSessionSubsystem`, `#3208`), che a quel punto chiede il
+	 * verdetto a chi guarda e passa alla voce successiva. ⛔ Il coordinator non sa che esista una
+	 * playlist: sa solo di aver finito, e lo dice. Multicast e non dinamico per la stessa ragione per cui
+	 * questa classe non e' un `UObject`.
+	 */
+	// Due parametri: il risultato **e** la cartella del referto appena scritto. Senza la seconda, chi
+	// ascolta non puo' nominare il file che lo riguarda — e l'unico consumatore previsto, la
+	// propagazione dei verdetti al registro, esiste proprio per collegare le due cose.
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FRTOnScenarioFinished, const FRTTestResult&, const FString& /*ReportDir*/);
+	FRTOnScenarioFinished OnScenarioFinished;
+
+	/**
+	 * Smonta la sessione corrente e la rilascia, lasciando il mondo pronto per un altro scenario.
+	 *
+	 * 🔴 **La sbindatura del decisore fa parte dello smontaggio, e non e' un dettaglio.** Un `BindRaw`
+	 * lascia un puntatore GREZZO dentro un delegate posseduto dall'ATTORE, che sopravvive alla sessione:
+	 * chi eseguisse un secondo scenario troverebbe `IsBound()` vero e prenderebbe il ramo `test-override`
+	 * ignorando **in silenzio** le `decisions` del secondo. Vedi il commento in testa a
+	 * `RTScenarioSession.h`, che quel caso lo descrive per esteso.
+	 *
+	 * Senza sessione non fa nulla: chiamarla due volte e' sicuro.
+	 */
+	void TearDown();
 
 private:
 	/** La sessione in corso, o nulla. Avanza un passo per frame da `Tick`. */

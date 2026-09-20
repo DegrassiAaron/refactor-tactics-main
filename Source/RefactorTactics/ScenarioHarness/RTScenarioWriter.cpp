@@ -664,6 +664,14 @@ bool URTScenarioLoader::SaveToString(const FRTTestScenario& Scenario, FString& O
 		for (const FString& Tag : Scenario.Tags) { Writer->WriteValue(Tag); }
 		Writer->WriteArrayEnd();
 	}
+	// Le voci PIE restano nell'intestazione accanto ai tag. Si riscrivono per la ragione che i tag
+	// hanno imparato a spese loro: un campo letto e non riscritto sparisce al primo `load → save`.
+	if (Scenario.Verifies.Num() > 0)
+	{
+		Writer->WriteArrayStart(TEXT("verifies"));
+		for (const FString& Voce : Scenario.Verifies) { Writer->WriteValue(Voce); }
+		Writer->WriteArrayEnd();
+	}
 	if (Scenario.Seed != 0) { Writer->WriteValue(TEXT("seed"), Scenario.Seed); }
 	if (!Scenario.PreviewUnit.IsEmpty()) { Writer->WriteValue(TEXT("previewUnit"), Scenario.PreviewUnit); }
 	if (!Scenario.Fixture.IsEmpty()) { Writer->WriteValue(TEXT("fixture"), Scenario.Fixture); }
