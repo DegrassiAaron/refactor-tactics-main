@@ -52,8 +52,22 @@ cioè quelli che avevano già smesso di pretendere di essere veri.
 | [`plan-turnlog.md`](plan-turnlog.md) | Piano di TurnLog e reason code | `HISTORICAL` — si dichiarava già consegnato in prosa; owner [`../../technical/architecture/spec-turnlog.md`](../../technical/architecture/spec-turnlog.md) |
 | [`roadmap-reconciliation-2026-08-12.md`](roadmap-reconciliation-2026-08-12.md) · [`roadmap-reconciliation-2026-08-13.md`](roadmap-reconciliation-2026-08-13.md) | I due referti di riconciliazione **parziale** | `SNAPSHOT` — il secondo afferma che `FMT-1` è da decidere, e [`D-137`](../../decisions/RT_PDR_00_Decision_Log.md) l'ha chiusa la sera stessa |
 
-**20 documenti** in tutto: **10** `HISTORICAL` e **10** `SNAPSHOT`. Si rimisura con
-`ls docs/archive/roadmap-plans/*.md | grep -v README | wc -l`.
+La tabella qui sopra elenca i **venti** documenti del primo lotto, quello del 2026-08-14: **10**
+`HISTORICAL` e **10** `SNAPSHOT`. Quanti ce ne siano **in tutto** è un'altra grandezza, e si misura:
+
+```sh
+git ls-files 'docs/archive/roadmap-plans/*.md' | grep -v README | wc -l
+```
+
+> 🔴 **Fino al 2026-09-20 questa riga diceva «*20 documenti in tutto*» e prescriveva quel comando nella
+> stessa frase.** Ma il comando conta la **cartella**, mentre il venti contava la **tabella**: chi lo
+> avesse eseguito per verificare avrebbe letto un numero diverso e concluso che l'indice era rotto. Non lo
+> era — erano due grandezze con un nome solo. La differenza sono i documenti arrivati col lotto del
+> 2026-08-19, quello che la nota qui sopra dichiara già: `20 + 23`, e il comando torna.
+>
+> ⛔ **Il totale non viene riscritto con la misura di oggi.** Sarebbe il terzo numero destinato a
+> invecchiare in silenzio in questa pagina ([`../../../AGENTS.md`](../../../AGENTS.md) §14); resta il
+> comando, che non invecchia.
 
 > ⚠️ **Sei di questi hanno preso il banner nello stesso commit che li ha spostati** — non ne avevano
 > nessuno, e il loro stato è stato **derivato da un fatto verificabile** citato nel banner stesso: un'epic
