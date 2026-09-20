@@ -4,8 +4,13 @@
 // essere fermata localmente da un client, e la deducibilita' del ritmo ha gia' un proprietario (#759).
 //
 // ⚠️ **Quella modalita' non esiste nel codice** — `ERTMatchMode`, `bCompetitive`, `bIsPvP`: zero occorrenze,
-// coerente con l'assenza di replica di rete misurata su #1805 (`DOREPLIFETIME` -> zero). ⛔ Inventarla per
-// poterla negare sarebbe fabbricare una dipendenza.
+// coerente con l'assenza di replica di rete misurata su #1805. ⛔ Inventarla per poterla negare sarebbe
+// fabbricare una dipendenza.
+//
+// ⌫ **Questa riga citava «`DOREPLIFETIME` -> zero», e non e' piu' vero alla lettera: corretto il
+// 2026-09-20.** Le occorrenze sono **4**, tutte sotto `Tests/` e tutte introdotte da `#589` come oracolo
+// della guardia `RTServerOnlyGuard`. Cio' che resta zero — ed e' cio' che questa riga voleva dire — sono le
+// occorrenze **di produzione**: `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` → nessuna riga.
 //
 // 🔑 Il divieto si ottiene **per costruzione**: i comandi sono inerti finche' qualcuno non li abilita. Questi
 // test misurano quel default, che e' l'unica parte del criterio che oggi ha un soggetto.

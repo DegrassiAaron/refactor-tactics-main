@@ -11,9 +11,17 @@
  * LA GUARDIA STRUTTURALE DELLA PRIVACY — invariante #6, PDR-04 §9 passo 6, `#589`.
  *
  * 🔑 **Tre test, e il primo da solo non varrebbe.** Lo sweep gira oggi su una superficie di replica
- * **vuota** — misurato: zero `UPROPERTY(Replicated)` in tutto `Source/` — quindi il suo verde e'
+ * **vuota** — misurato: zero `UPROPERTY(Replicated)` **di produzione** — quindi il suo verde e'
  * indistinguibile da quello di una guardia che non guarda niente. Sono gli altri due a dare significato al
  * primo: piantano un leak vero e pretendono che venga trovato, diretto **e** annidato.
+ *
+ * ⌫ **Questa riga diceva *«in tutto `Source/`»*, e il file accanto la smentiva: corretto il 2026-09-20.**
+ * `RTServerOnlyGuardFixturesForTest.h` — incluso da questo stesso file — dichiara **due**
+ * `UPROPERTY(Replicated)` e **due** `DOREPLIFETIME`, che sono l'oracolo delle fixture. La misura era vera
+ * quando e' stata scritta e l'ha falsificata il commit successivo: chi oggi rilancia
+ * `grep -rn "DOREPLIFETIME" Source/` trova **4** occorrenze e conclude che il commento menta, invece di
+ * capire che sono le sue. La forma che regge e' *«di produzione»*, col comando che lo dimostra:
+ * `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` → nessuna riga.
  *
  * ⚠️ **Non sostituiscono i quattro test di privacy logica** (`Reactions.IntentNotVisibleToEnemy`,
  * `Facing.IntentIsTeamFiltered`, `Combat.IntentVisibleToAlliesAlwaysEnemiesOnlyIfRevealed`,

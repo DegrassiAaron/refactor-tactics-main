@@ -142,6 +142,37 @@ struct FRTPublicReplayEntry
  * [`conoscenza-parziale-visibile-spec.md`](../../../docs/technical/systems/conoscenza-parziale-visibile-spec.md)
  * §3.5 mette il **combat log** nella colonna *«alla scrittura»* da [D-223]: filtrare in lettura avrebbe
  * contraddetto una decisione gia' presa, non aggiunto un'opzione.
+ *
+ * ---
+ *
+ * 🔴 **E c'e' una TERZA domanda che nessuno dei due confini pone, misurata il 2026-09-20: *di chi e' la
+ * cella che una voce nomina?***
+ *
+ * I due confini si dividono il lavoro per **riga** e per **colonna**. `FilterEntriesForObserver` chiede
+ * *«posso vedere questo SOGGETTO?»* — e il soggetto e' **uno solo**, perche' `FRTVerdictSubjectRef` porta
+ * `StableUnitId`, `TeamId` e `Cell` di un'unita' sola. `ToPublicTrace` chiede *«questa COLONNA e'
+ * pubblica?»* — e `SrcCell`, `TgtCell` e `SightBlockerCell` lo sono. Su una voce che nomina **due** unita'
+ * le due domande divergono: la riga passa perche' il suo soggetto e' autorizzato, e porta con se' la cella
+ * di qualcun altro che non lo e'.
+ *
+ * ⚠️ **Non e' un'ipotesi.** `ERTFacingOutcome::RearHitBypassedCover` scrive `SrcCell` = cella
+ * dell'**attaccante** e passa la **vittima** come soggetto; la squadra della vittima riceve sempre il bit,
+ * perche' `ClassifyTarget` corto-circuita sugli alleati. La sonda
+ * `RefactorTactics.Replay.Privacy.PublicCellsLeakAThirdPartyPosition` lo misura su due mondi con la stessa
+ * conoscenza autorizzata e tracce pubbliche diverse, **su entrambe le uscite** — il file per osservatore e
+ * questo ponte.
+ *
+ * 🔑 **Il repository conosce gia' la classe, e la chiude per UN produttore.**
+ * `URTFacingLibrary::MakeHitCameFromSideEntry` scrive il difensore in entrambe le celle *«invece che sui
+ * rari bypass»*: l'ultima clausola e' un'eccezione accettata, non una chiusura. Il canale gemello —
+ * `FRTPlayerEvent` — l'ha invece chiusa nel verso opposto e per principio, vietando ogni cella dei
+ * soggetti.
+ *
+ * ⛔ **Non si rimedia qui senza decidere**, ed e' `REPCELL-1` in
+ * [`docs/OPEN_DECISIONS.md`](../../../docs/OPEN_DECISIONS.md), aperta da [D-371] via `#1805`. Marcare i tre
+ * campi `AuditOnly` svuoterebbe il prodotto pubblico e renderebbe rosso `PublicFieldsKeepTheirValue`;
+ * cambiare i produttori riscrive `SrcCell` su voci gia' archiviate e rigenera i golden. Chi arriva qui con
+ * una correzione in mano legga prima quella voce.
  */
 UCLASS()
 class REFACTORTACTICS_API URTReplayPrivacyLibrary : public UBlueprintFunctionLibrary

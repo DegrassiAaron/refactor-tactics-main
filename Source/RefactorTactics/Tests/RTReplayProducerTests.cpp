@@ -771,6 +771,15 @@ bool ArchivioUtilizzabile(FAutomationTestBase& Test, const TCHAR* Nome, const FR
  * produce la seconda ri-simulando e' il chiamante»*. Nessuno era quel chiamante. E il corpus golden non
  * copre questo: le sue referenze sono file `.rttl` **committati**, non archivi **prodotti da una partita**.
  *
+ * ⌫ **«Nessuno era quel chiamante» e' vero al passato e falso al presente, corretto il 2026-09-20.**
+ * `RefactorTactics.Replay.Verifier.ArchiveReplaysThroughTheResolver`
+ * (`Tests/RTSimulationDeterminismTests.cpp`, `#2196`, 2026-09-04) apre un archivio su disco, lo rigioca col
+ * resolver e confronta — il suo docstring si apre con *«L'ANELLO CHE MANCAVA»* e chiude la citazione con
+ * *«Da qui in poi qualcuno lo e'»*. 🔴 **La riga resta perche' motiva l'esistenza di QUESTO test**, che e'
+ * un'altra cosa: qui si confrontano **due partite** archiviate, li' si **ri-simula** una traccia sola.
+ * Toglierla farebbe perdere il perche'; lasciarla senza questa nota manda chi legge a riaprire lavoro
+ * finito — ed e' successo: #1805 l'ha citata alla lettera nel proprio corpo come lavoro mancante.
+ *
  * Qui l'anello si chiude: due partite allestite identiche, **entrambe registrate**, e gli archivi
  * riconfrontati **da disco** — non dagli array in memoria, che proverebbero che il `TurnManager` ha una
  * variabile.
