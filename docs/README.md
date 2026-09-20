@@ -39,7 +39,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | # | Livello | Documento | Cosa decide |
 |---|---|---|---|
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
-| 2 | **Decisioni** | [`decisions/`](decisions/) — gli ADR numerati + [Decision Log](decisions/RT_PDR_00_Decision_Log.md), e [`open/`](decisions/open/) per le istruttorie ancora aperte | Scelte architetturali e di prodotto, con motivazione |
+| 2 | **Decisioni** | [`decisions/`](decisions/) — gli ADR numerati + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Codice** | `Source/` | Cosa il gioco fa **davvero**, oggi |
 | 4 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |

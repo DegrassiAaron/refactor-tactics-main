@@ -1,14 +1,10 @@
 # `BAL-1` — `Guard` e `Brace` devono separarsi in **danno contro spinta**?
 
-> `OPEN` · **Stato**: aperta · **Owner**: `PDR-00`
+> `OPEN` · **Stato**: aperta · **Ultimo aggiornamento**: 2026-09-20 · **Owner**: `PDR-00`
 > **Corpo scorporato** da [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) il 2026-09-18 ([#1696](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1696)): la riga di tabella resta lì come **puntatore**, l'istruttoria vive qui.
-> ⛔ **Non è una decisione presa.** Quando si chiude diventa una `D-0xx` nel [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md), il puntatore in `OPEN_DECISIONS.md` resta barrato con l'esito, e **questo file passa da `OPEN` a `HISTORICAL`** col rimando alla `D-xxx`: un file che resta `OPEN` dopo la chiusura è un secondo posto dove la domanda sembra ancora aperta.
+> ⛔ **Non è una decisione presa**, ed è la cartella a dirlo: `open/` tiene ciò che aspetta ancora qualcuno. Quando si chiude, la voce diventa una `D-0xx` nel [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md) e questo file segue la regola dello scorporo — §«La soglia» di [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), che la enuncia in un posto solo.
 > ⚠️ **Il diff che l'ha spostata SPOSTA e non riassume**: l'insieme delle parole della cella di partenza si ritrova in questo file **più il puntatore che l'ha sostituita**, verificato token per token.
 > ⛔ **E il corpo è rimasto un paragrafo unico**: dargli titoli ed elenchi significa decidere dove tagliare, cioè **riscrivere** — che [#1696](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1696) vieta in modo esplicito. Il guadagno consegnato è che ora sta dove titoli ed elenchi **sono ammessi**, per chi vorrà dargliene.
-
-## La domanda
-
-`Guard` e `Brace` devono separarsi in **danno contro spinta**?
 
 ## Perché non si deduce
 
