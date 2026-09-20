@@ -405,6 +405,39 @@ Il motore è **uno solo per macchina**: due run in parallelo, o una build lancia
 > ⛔ **La `CommandLine` non è un dettaglio**: dice **quale clone** sta girando, ed è l'unica cosa che
 > distingue «una suite altrui» da «la mia». Un conteggio di processi non lo dice.
 
+⛔ **Questa misura assolve una domanda sola, e va detto quale.** Dice che una build in un clone non
+corrompe il **risultato** di una suite in un altro — `Binaries/` è per clone, l'Engine è una installed
+build. Non dice niente sui **tempi**: UBT con l'esecutore locale satura i core per un minuto e mezzo, e
+non ha un processo `UnrealEditor` — quindi una sonda che conti i motori dichiara pulita una finestra che
+non lo è.
+
+🔑 **Il criterio non è «cosa non si calpesta», è «quale domanda stai misurando».**
+
+* misuri un **esito** (questo test è verde o rosso)? Una build altrui non lo cambia.
+* misuri un **tempo** — pacing, performance, un tasso di intermittenza? Il motore libero è un
+  prerequisito, e «libero» include le build.
+* dichiari un **verde come gate**? Vale §11: mai in finestra sporca.
+* misuri l'**assenza** di un rosso? Il verso del bias è uno solo: la contesa aggiunge fallimenti, non ne
+  toglie. Zero rossi in finestra contesa è un risultato *più* forte, e si tiene dichiarando cosa era
+  misurato e cosa attestato da un'altra sessione.
+
+⚠️ **Il criterio è per domanda e non per elenco di risorse, e la ragione è misurata.** Il 2026-09-20 due
+sessioni ci sono cascate nella stessa mezz'ora, da lati opposti, e la riga che le ha tratte in inganno è
+quella qui sopra — vera, e più stretta di come si legge.
+
+* una l'ha letta come un **permesso**: aveva dichiarato che sarebbe rimasta fuori dal motore mentre
+  un'altra misurava un tasso di intermittenza, e venti minuti dopo ha lanciato `Build.bat` per raccogliere
+  errori di compilazione. Un tasso di flakiness vive nei tempi come una misura di pacing;
+* l'altra l'ha usata per decidere **cosa sorvegliare**: la sonda che marcava `FINESTRA SPORCA` guardava i
+  processi `UnrealEditor`, cioè esattamente l'insieme che il blocco qui sopra nomina. Una build non ne ha
+  uno, e la sonda ha dichiarato pulita una finestra che non lo era.
+
+🔑 Il punto cieco l'ha trovato una riga di log d'avvio — *«Build.bat is already running, waiting for
+existing script to terminate…»* — non lo strumento che esisteva per vederlo. Un elenco di risorse più
+lungo avrebbe coperto quel caso e non il prossimo: la **domanda** copre anche ciò che non è ancora
+successo. Il giro completo, coi PID e gli orari, sta in
+[#3226](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3226).
+
 Dopo una lunga attesa, ricompila prima di registrare il risultato: il DLL presente sul disco potrebbe provenire da un altro commit.
 
 Prima del merge verifica che il gate appartenga al commit che stai mergiando.
