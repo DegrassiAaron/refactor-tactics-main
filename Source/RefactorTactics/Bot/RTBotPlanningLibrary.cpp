@@ -849,7 +849,12 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		const int32 BestAbility = Plans.IsValidIndex(BestIdx) ? PlanAbility[BestIdx] : INDEX_NONE;
 		const FRTBotUnitFacts* Target = (Best.bHasAttack && EnemyUnitIndex.IsValidIndex(Best.TargetIndex))
 			? &Facts[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
-		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
+		// La stima direzionale esce insieme al totale, dalla stessa chiamata: e' il piano SCELTO, ed e'
+		// l'unico per cui la domanda «quanto si aspettava di scavalcare?» ha una risposta confrontabile con
+		// cio' che il resolver scrivera' nel TurnLog (`#649`).
+		int32 CoperturaScavalcataStimata = 0;
+		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx, CoperturaScavalcataStimata);
+		Esito.PlannedCoverBypassedByFacing += CoperturaScavalcataStimata;
 
 		// Il TERMINE d'obiettivo accanto al totale, non dentro (`#2269`).
 		//
@@ -867,6 +872,19 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		const FString ObjectiveNote = ObjectiveTerm > 0
 			? FString::Printf(TEXT(" [obiettivo +%d]"), ObjectiveTerm)
 			: FString();
+
+		// La SECONDA riga del breakdown, con la stessa disciplina della prima (`#649`).
+		//
+		// ⚠️ **Porta i PUNTI scavalcati, non il termine di punteggio**, e la scelta e' la stessa del campo
+		// d'uscita: chi legge il log accanto a una voce `RearHitBypassedCover` confronta due numeri nella
+		// stessa unita'. Il contributo al totale resta `WDamage` volte questo.
+		//
+		// ⚠️ **Si scrive solo quando pesa**, come `[obiettivo]`: su una board senza coperture di bordo —
+		// cioe' ogni arena generata — il termine vale zero e la riga di log resta identica a prima.
+		const FString ScavalcataNote = CoperturaScavalcataStimata > 0
+			? FString::Printf(TEXT(" [scavalcata %d]"), CoperturaScavalcataStimata)
+			: FString();
+		const FString Breakdown = ObjectiveNote + ScavalcataNote;
 
 		// La memoria si aggiorna UNA VOLTA per round: `PlanBotsForTest()` e `LockInAndResolve()`
 		// pianificano entrambi lo stesso round, e senza guardia il decadimento andrebbe al doppio.
@@ -896,7 +914,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// qui. Il bersaglio e' gia' filtrato dalla riga che lo riguarda.
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d%s"),
 				*Bot.DisplayName, *Target->DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
@@ -913,7 +931,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->DisplayName, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else if (Target && BestAbility != INDEX_NONE)
 		{
@@ -925,7 +943,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->DisplayName, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else if (bViaDash)
 		{
@@ -934,7 +952,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			Piano.PlannedDashCell = Best.DestCell;
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else
 		{
@@ -943,7 +961,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
 				Best.DestCell == Bot.Cell ? TEXT(" (resta)") : TEXT(""),
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 
 		// [D-313] — si chiude il record con il bersaglio SCELTO, quando c'e'.
