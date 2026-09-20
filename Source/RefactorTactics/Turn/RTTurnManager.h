@@ -903,6 +903,15 @@ public:
 	const TArray<FRTTurnLogEntry>& GetTurnLog() const { return TurnLog; }
 
 	/**
+	 * Punti di copertura che i piani scelti dall'ultima pianificazione bot si aspettano di scavalcare
+	 * grazie alla direzione (`#649`). Telemetria: nessuna regola lo legge.
+	 *
+	 * ⚠️ **Vale per l'ULTIMA pianificazione, non per la partita.** Come il `TurnLog`, che
+	 * `LockInAndResolve` azzera, va letto turno per turno: chi vuole il totale accumula nel proprio ciclo.
+	 */
+	int32 GetBotPlannedCoverBypassedByFacing() const { return BotPlannedCoverBypassedByFacing; }
+
+	/**
 	 * Registrazione del replay (`#469`). Per il replay il TurnManager **non scrive**: passa il TurnLog a
 	 * `URTReplayRecorderLibrary` e non tocca il disco.
 	 *
@@ -2453,6 +2462,26 @@ protected:
 	 * scelta, non un'istantanea — quindi il timbro sta qui.
 	 */
 	int32 BotDecisionsTurnForAudit = INDEX_NONE;
+
+	/**
+	 * Quanti punti di copertura i piani SCELTI dall'ultima pianificazione bot si aspettano di scavalcare
+	 * grazie alla direzione (`#649`). Riscritto — non accumulato — a ogni `PlanBots()`.
+	 *
+	 * 🔑 **E' il numeratore del tasso di realizzo, e l'unico posto in cui la stima sopravvive alla
+	 * decisione.** `FRTBotPlanningOutcome` la porta fino a qui e poi muore con la funzione; il denominatore
+	 * — le voci `Facing`/`RearHitBypassedCover` — nasce due fasi dopo, nel resolver. Senza questo campo i
+	 * due numeri non esistono mai nello stesso istante e il rapporto non e' calcolabile da nessuno.
+	 *
+	 * ⛔ **Telemetria inerte: nessuna regola lo legge.** Non entra nello snapshot, nel `TurnLog`, nello
+	 * `StateHash` ne' nel replay, e nessun ramo lo consulta — la stessa disciplina dei quattro record
+	 * d'audit qui sopra. Se un giorno una decisione lo leggesse, il bot starebbe decidendo sulla propria
+	 * telemetria.
+	 *
+	 * ⚠️ **Riscritto e non sommato, perche' `PlanBots` gira DUE volte sullo stesso turno** quando
+	 * `PlanBotsForTest()` precede `LockInAndResolve()`: e' la stessa ragione — e la stessa forma —
+	 * dell'assegnazione di `BotDecisionsForAudit`, che per questo non e' un `Append`.
+	 */
+	int32 BotPlannedCoverBypassedByFacing = 0;
 
 	/** TurnLog dell'ultimo turno risolto (osservabilita' autoritativa; ordinato in LockInAndResolve). */
 	TArray<FRTTurnLogEntry> TurnLog;
