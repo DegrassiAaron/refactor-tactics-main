@@ -19,6 +19,25 @@
 // lo spenga ([D-361], che lo ha appena misurato: cinque volte in una sola sessione a spiegare che i rossi
 // erano attesi).
 //
+// ⌫ **«Nessuna decisione ha ancora adottato» e' scaduto dopo cinque ore: corretto il 2026-09-20.**
+// [D-371] ha adottato quell'invariante il 2026-09-10 chiudendo `BLIND-1` con l'uscita *(c)* — «filtrata
+// ovunque, bot compreso» — e dichiarando **ritirato** il principio del docstring citato qui sopra. Datazione:
+// l'ultimo commit di questo file e' `fbc76dc5` (01:19), [D-371] e' entrata con `1b3dc92a` (06:30) dello
+// stesso giorno.
+//
+// 🔴 **La forma della sonda resta giusta, e cambia solo cosa la tiene tale.** Non e' piu' «l'invariante non
+// e' stato adottato», e' «l'invariante e' stato adottato e **non e' ancora implementato**»: `BlockedCellsFor`
+// scorre `Snapshot.Occupancy` senza filtro, e il *dove* vive il filtro e' `BLIND-2`, aperta e dipendente da
+// `OBS-1`. Un rosso qui resterebbe permanente lo stesso, per una ragione diversa — ed e' la ragione per cui
+// il verso di conversione, sotto, e' ancora quello.
+//
+// ⚠️ **E la sede del principio ritirato e' TRIPLA, non doppia.** Oltre a questo file e a
+// `HexBotPlay.HiddenEnemyFairness` (`Tests/RTHexBotIntegrationTests.cpp`, che appartiene a `#2793`), il testo
+// vive verbatim in `Scenarios/Spec/Bot/HiddenEnemyFairness.json`, chiave `_nota_occupazione` — che **non e'
+// un file inerte**: `docs/technical/architecture/capability-map.md` lo elenca fra gli scenari-gate di
+// `RT-CAP-INTENT-PRIVACY`. Nessuna DoD lo nomina. Chi riscrive il canary per `#2793` deve passare anche di
+// li', o il principio ritirato sopravvive in un artefatto di gate.
+//
 // ## 🔴 Cosa questo file asserisce, allora
 //
 // Il **comportamento corrente**, non quello desiderato. I test qui sotto sono VERDI PERCHE' IL DIFETTO C'E'.
@@ -466,8 +485,19 @@ namespace
 }
 
 /**
- * ⚠️ **VERDE PERCHE' IL CANALE C'E'**, come i due test sopra. Diventa rosso il giorno in cui `BLIND-4` viene
- * chiusa nel verso *(b)* — «la geometria mai osservata non e' pubblica» — e qualcuno lo implementa.
+ * ⚠️ **VERDE PERCHE' IL CANALE C'E'**, come i due test sopra.
+ *
+ * ⌫ **L'innesco dichiarato qui era irraggiungibile: corretto il 2026-09-20.** Questa riga diceva *«diventa
+ * rosso il giorno in cui `BLIND-4` viene chiusa nel verso (b) — "la geometria mai osservata non e'
+ * pubblica"»*. [D-373] ha chiuso `BLIND-4` nel verso **opposto** il 2026-09-10: *«la forma e' pubblica»*, e
+ * ha **scartato** esplicitamente *«la forma non e' pubblica»*. Quel rosso non puo' piu' accadere.
+ *
+ * 🔑 **L'innesco vero e' un altro, e [D-373] lo nomina**: l'implementazione della **mappa ottimistica** di
+ * [D-372], che appartiene a [#2794]. Sotto quella regola *«per una cella ignota il Planning non legge piu'
+ * `bBlocksMovement`, `TotalMoveCost()` ne' `BlocksTraversal`»* — cioe' il muro mai osservato smette di
+ * piegare il percorso, e questo test diventa rosso. 🔴 **Chi lavora #2794 lo leggera' come l'esito atteso,
+ * non come un difetto proprio** — che e' l'intero scopo di questa riga, e il motivo per cui lasciarla
+ * sbagliata era peggio che non averla.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsDarkWallBendsPathTest,
 	"RefactorTactics.BlindActions.NeverObservedWallBendsTheLitPath",
@@ -576,7 +606,24 @@ bool FRTBlindActionsDarkWallBendsPathTest::RunTest(const FString&)
 /**
  * Il canale DIRETTO: il ventaglio offre celle che il velo nasconde.
  *
- * ⚠️ **VERDE PERCHE' IL CANALE C'E'.** Se `BLIND-4` chiudesse nel verso *(b)*, questo test diventa rosso.
+ * ⚠️ **VERDE PERCHE' IL CANALE C'E'.**
+ *
+ * ⌫ **Corretto il 2026-09-20, e DUE volte: l'innesco dichiarato era irraggiungibile, e la prima
+ * riscrittura ne ha messo un altro che non scatta.**
+ *
+ * La riga diceva *«se `BLIND-4` chiudesse nel verso (b), questo test diventa rosso»*, e [D-373] l'ha chiusa
+ * nel verso *(a)* — la forma della board **e'** pubblica. Fin qui come il test precedente.
+ *
+ * 🔴 **Ma l'innesco di QUEL test non vale per questo, e scriverlo lo stesso era un errore trovato in code
+ * review.** La mappa ottimistica di [D-372] rende una cella ignota **passabile nel caso migliore**: puo'
+ * solo **allargare** il ventaglio. L'asserzione qui e' `Dark.Num() > 0` su un'arena **piatta e senza
+ * ostacoli** (`MakeFlatArena`, vedi `ArenaRadius`), dove non c'e' geometria da ottimizzare: il conteggio
+ * delle celle buie offerte non si muove di una cella, e il test resta verde.
+ *
+ * 🔑 **L'innesco vero e' `BLIND-1` uscita *(c)*, cioe' [#2793]**: diventa rosso il giorno in cui il
+ * ventaglio si filtra per conoscenza e smette di offrire cio' che il velo non disegna. E' lo stesso innesco
+ * dei due test in testa al file — questo misura il canale **diretto**, non quello indiretto della
+ * geometria, e condivide con loro la conversione nel canary A/B/C.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsFanOffersDarkCellsTest,
 	"RefactorTactics.BlindActions.ReachableFanOffersNeverObservedCells",
