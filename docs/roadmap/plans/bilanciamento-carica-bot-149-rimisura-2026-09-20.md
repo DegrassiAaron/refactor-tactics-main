@@ -1,7 +1,8 @@
 # La carica del bot, rimisurata — cosa di #149 è scaduto, cosa altri hanno chiuso, cosa resta vivo
 
 > `SNAPSHOT` · **Stato**: terza rimisura di #149 · **Data**: 2026-09-20
-> **Base di misura**: `origin/main` @ `a5b119d5`, albero pulito.
+> **Base di misura**: la ricognizione su #149 è stata fatta su `origin/main` @ `a5b119d5`; i gate di §6
+> sono girati su `a04c644e`, il commit di questa fetta, con albero pulito prima e dopo.
 > **Owner**: [#149](https://github.com/DegrassiAaron/refactor-tactics-main/issues/149) — milestone `v0.1 — Offline Vertical Slice`
 > **Cosa non è**: non decide nessun peso, non apre nessuna voce in `OPEN_DECISIONS`, non tocca
 > `CR-BALANCE`. Non sostituisce il corpo della issue: lo misura.
@@ -27,7 +28,7 @@ Il corpo della issue è già stato riallineato due volte — il 2026-08-12 per t
 |---|---|---|
 | Deciso se lo slot Principale va fatto valere in partita | ✅ **già deciso e implementato da altri** | `ARTTurnManager::ValidatePlansAtLockIn` giudica ogni piano al lock-in con `URTPlanValidationLibrary::ValidatePlan`, che legge lo `Slot` dal catalogo e produce `SlotOccupied`. **Registra e non blocca.** I bot ci passano: `Bot.LockInValidatesBotPlansToo`, `Bot.LockInStaysSilentOnALegalBotPlan` |
 | Se sì: pesi ritarati **con misura** | 🔴 **viva, e non lavorabile così** | vedi §3 |
-| La partita 2v2 si decide entro il limite di 12 turni (oggi: 10) | ⛔ **insoddisfacibile come scritta** | il «10» non è una misura ma la costante di design; il dato reale è **21**, e [`D-184`] decide di **non** ritarare su di esso e di accettare il pareggio allo scadere come esito legittimo |
+| La partita 2v2 si decide entro il limite di 12 turni (oggi: 10) | ⛔ **insoddisfacibile come scritta** | il «10» **è** una misura, ma del 2026-08-06 e ormai scaduta — veniva da `HexMatch.PlaysToCompletion`, che allestisce l'arena nel test, ed è anteriore alla correzione del deadlock di `#1088`; coincide con l'`ExpectedRounds` del formato spedito. Il dato di oggi è **21**, e [`D-184`] decide di **non** ritarare su di esso e di accettare il pareggio allo scadere come esito legittimo |
 | Deciso se `Guardian.Charge` a 20 danni ha senso accanto a una Spazzata da 30 cd 0 | ⛔ **senza soggetto** | `Guardian.*` è fuori dal gioco dal CP 6.6 e non esiste nessuna «Spazzata» con cui confrontarla |
 | Un test che dimostri il bot scegliere la carica quando è la mossa migliore — «oggi non è scrivibile onestamente» | ✅ **è scritto** | `RefactorTactics.HexBotPlay.ChargeItPlannedActuallyLands`: il bot sceglie **da solo** una `LinearCharge`, punta la cella del bersaglio, e l'impatto atterra col danno e la spinta dichiarati |
 
@@ -42,9 +43,28 @@ issue concluderebbe che la voce è aperta.
 `LinearCharge`**. Il corpo della issue scrive «cooldown 2 (non 3), slot `Main`»: il cooldown è corretto,
 lo **slot no** — [`D-191`] ha messo ogni mobilità rapida su `Movement`.
 
-E il «piano che la dominava» resta non componibile: il roster ha due sole mobilità — `Hero.Branth.Ram` e
-`Hero.Ivrin.PassingBlade` — ed entrambe portano il danno con sé. Non esiste uno scatto puro da comporre
-con l'attacco base.
+⌫ **Una prima stesura di questo paragrafo diceva che «il roster ha due sole mobilità … ed entrambe portano
+il danno con sé, non esiste uno scatto puro da comporre con l'attacco base». È falso**, e la code review
+l'ha preso. Le mobilità rapide sono **tre**, e la terza è uno scatto puro:
+
+| azione | fase | effetti | slot |
+|---|---|---|---|
+| `Hero.Branth.Ram` (da `Action.Charge`) | `FastMovement` | `Damage 20` + `Push 1` | `Movement` |
+| `Hero.Ivrin.PassingBlade` | `FastMovement` | porta danno | `Movement` |
+| **`Hero.Muiren.FluidTrail`** (da `Action.Dodge`) | `FastMovement` | **`{}` — nessuno** | `Movement` |
+
+∴ «scatto puro + attacco base» **esiste**, ed è la composizione di Muiren: `FluidTrail` sullo slot
+`Movement` più `PressureJet` sullo slot `Main`, che è esattamente il piano della famiglia 4 del planner.
+
+🔑 **Ma il Fatto 1 resta superato lo stesso, per un'altra ragione**: la carica che quel Fatto dichiarava
+«dominata» è di **Branth**, e l'unica mobilità rapida di Branth *è* la carica. Non esiste nessun eroe che
+abbia insieme una carica e uno scatto puro con cui dominarla. Muiren ha lo scatto puro e non ha nessuna
+carica da dominare.
+
+⚠️ La differenza fra le due formulazioni conta per chi rimisura: la prima chiude anche la domanda «il
+bot compone scatto puro e attacco base?», che è **aperta** e ha un soggetto — `bot-competence.yaml` dà
+`Dash` `PASS` a Muiren, e la composizione è ciò che `HexBotPlay.DashPlanIsExecutableOnCostlyTerrain`
+esercita.
 
 ## 3. Ciò che resta vivo, e perché non è «ritarare»
 
@@ -77,13 +97,41 @@ Non un peso, ma la **difesa** dei pesi che ci sono, più la pulizia dei riferime
   `WElevation`, perché un'istanza piazzata nel livello serializza i propri `UPROPERTY` nel `.umap`. Ora è a
   runtime accanto al suo gemello, e `Bot.ObjectiveWeightInvariantIsCheckedOnTheLiveInstance` verifica che
   urli quando deve e taccia quando non deve.
-- **Sei nomi d'eroe di due generazioni fa**, invisibili al ratchet per costruzione (conta il token
+- **Otto token `Phase` su sei righe**, nomi d'eroe di due generazioni fa, invisibili al ratchet per costruzione (conta il token
   **prefissato** `Hero.Phase`; queste erano la parola nuda). Cambiate una per una leggendo la frase.
 - **Due gate che il codice dichiarava sorvegliati e che non esistono** — `Bot.PlannerOutputCoversPlanFields`
   e `Bot.PlannerAppliesAttackThroughDeclare`. I nomi sono stati **tolti e non sostituiti**: mettere lì un
   gate che copre altro nasconderebbe un'assenza invece di dichiararla.
 - **Il commento della famiglia 4** misurava un roster che non esiste e rinviava a `BAL-1`, che è la domanda
   Guard-contro-Brace.
+
+### 🔴 Un reperto trovato in code review: in partita il ramo del kiting non entra mai
+
+`RTHexBotLibrary.h` dichiarava *«sul roster v0.1 l'unica kiter è Muiren (`PressureJet`, portata 5 →
+standoff 3)»*. Sono le portate **nude del catalogo**, e non sono quelle che il bot legge. Catena
+verificata:
+
+- `ARTTurnManager::PlanBots` prende `F.AttackRange = U->AttackRange`;
+- `ARTUnit::EquipLoadout` risincronizza quel campo **dopo** aver applicato la variante d'arma — il suo
+  commento lo dichiara: *«senza questa riga un'unità con la variante applicata continuerebbe a colpire
+  alla portata VECCHIA in partita»*;
+- `FRTMatchBootstrapper` chiama `EquipLoadout(DefaultLoadoutFor(HeroId))` sullo spawn di partita, **per
+  entrambe le squadre** (nessun ramo per il bot, e il commento dice perché);
+- `Weapon.Impact` porta `RangeDeltaCells = -1` ed è il default di Muiren **e** di Branth;
+  `DefaultLoadoutFor` risponde vuoto per Aevik e Ivrin, i cui gadget la v0.1 non costruisce.
+
+∴ le portate che il bot vede in partita sono **Muiren 4, Branth 2, Aevik 4, Ivrin 4**, e `KiterMinRange`
+è 5: `DeriveKiteStandoff` restituisce **0 per tutto il roster spedito**.
+
+⚠️ **E il ramo è verde nei test**, che è la ragione per cui nessuno se n'era accorto:
+`HexBotPlay.KiterFleesWhenThreatened` costruisce Muiren dal catalogo **senza** il loadout di produzione,
+quindi la vede a portata 5 e il kiting lo esercita davvero — un gate verde su una configurazione che la
+partita non produce.
+
+⛔ **Non corretto qui**: alzare `KiterMinRange`, togliere il `-1` a `Weapon.Impact` o dare uno standoff a
+portata 4 sono tre decisioni di bilanciamento diverse, e `D-102` chiede il banco prima del numero. Il
+fatto è dichiarato in `RTHexBotLibrary.h` perché chi legge «l'unica kiter è Muiren» non concluda che il
+ramo gira.
 
 ## 5. Cosa questo giro NON ha fatto, e perché
 

@@ -132,7 +132,11 @@ struct FRTBotWeights
  *
  * 🔴 **E NESSUN GATE LO IMPEDISCE, contrariamente a quanto questa riga ha dichiarato fino al 2026-09-20.**
  * Diceva *«`Bot.PlannerOutputCoversPlanFields` e' il gate che lo impedisce»*, e quel test non esiste:
- * `git grep -n "PlannerOutputCoversPlanFields" -- .` su tutto l'albero restituisce solo questo commento.
+ * nessun `IMPLEMENT_*_AUTOMATION_TEST` lo dichiara: le occorrenze sono tutte commenti e referti.
+ * ⚠️ Il comando va ristretto al CODICE — `git grep -n "PlannerOutputCoversPlanFields" -- Source/` —
+ * perche' da quando questa riga esiste il nome compare anche qui e nel referto di `#149`: un comando
+ * pubblicato che conta le proprie citazioni smette di riprodurre il proprio esito il giorno in cui
+ * viene scritto.
  * Il piu' vicino e' `Bot.PlanBotsWritesWhatTheValidatorReads`, che copre un'altra proprieta'.
  *
  * ⚠️ **Il nome NON e' stato sostituito con uno esistente**, ed e' deliberato: mettere qui un gate che
