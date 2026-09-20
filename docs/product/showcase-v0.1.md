@@ -137,10 +137,26 @@ Il denominatore è calato con lei: **quattro**, non cinque.)*
 ## 2. La mappa canonica — «Relay Basin»
 
 > ⚠️ **Layout autorato il 2026-08-08, non ereditato.** La specifica che avrebbe dovuto portare l'assegnazione
-> delle celle (`docs/src/showcase/relay-v0.1-scenario-spec.md`) **non esiste nel repository**: forma, spawn e
+> delle celle (~~`docs/src/showcase/relay-v0.1-scenario-spec.md`~~) **non esisteva nel repository**: forma, spawn e
 > obiettivo vengono dall'handoff, la **disposizione dei terreni è stata progettata qui**, su autorizzazione
 > dell'autore. Se la spec originale riemerge, questo layout va confrontato con essa — non sovrascritto in
 > silenzio. Dettaglio in [`../roadmap/plans/showcase-v01-audit.md`](../roadmap/plans/showcase-v01-audit.md) §3.1.
+>
+> 🔁 **È riemersa — misurato il 2026-09-20, e l'innesco che questa nota dichiara è scattato.** La spec
+> è in [`../research/design/showcase/relay-v0.1-scenario-spec.md`](../research/design/showcase/relay-v0.1-scenario-spec.md),
+> dove l'ha portata la fase 2 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)
+> il **2026-08-19**. ⛔ Non è mai stata cancellata: era sotto `docs/src/showcase/`, e quando quella cartella
+> si è svuotata questa riga ha continuato ad affermarne la **non esistenza** per un mese. Nessun gate poteva
+> dirlo — il percorso vive fra backtick, non in un link, ed è la classe misurata da
+> [#1232](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1232). Ora è un link, quindi il
+> prossimo spostamento diventa rosso.
+>
+> ⚠️ **E porta davvero ciò che questa nota dava per perso**: `Relay (0,0,0)`, spawn Blue `(-4,0,0)`/`(-4,1,0)`
+> e Red `(4,0,0)`/`(4,1,0)`, più terreni, quota e fumo — settanta riferimenti a coordinate in tutto.
+>
+> 🔑 **Il confronto che questa nota prescrive è quindi dovuto, e non è stato fatto qui**: *«questo layout
+> va confrontato con essa — non sovrascritto in silenzio»*. Confrontare due disposizioni di terreno è una
+> decisione di design, non una correzione di puntatori. Resta a chi possiede la showcase.
 
 **45 celle, un solo `Layer = 0`.** Forma per riga, in coordinate assiali `(q, r)`:
 

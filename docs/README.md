@@ -199,7 +199,6 @@ docs/
 ├── OPEN_DECISIONS.md            cosa aspetta una decisione umana
 ├── CHANGELOG_DOCUMENTATION.md   storia della documentazione
 ├── superclaude-cheatsheet.md    promemoria dei comandi di seduta: tooling, non regole
-│                                ⚠️ più tre binari — vedi *I tre binari* sotto l'albero
 │
 ├── product/     visione, canone, vertical slice
 ├── gameplay/    regole di gioco: turno, azioni, reazioni, percezione, ambiente
@@ -225,13 +224,14 @@ docs/
 │   └── radar/         gli SVG generati da `tools/radar/`: output, non si editano
 ├── research/    non normativo: PRD di visione, design, handoff — la ex `src/`, col nome che lo dice
 │   ├── prd/        i PRD tematici + il prompt del pivot esagonale
-│   ├── design/     icone, showcase, griglie stampabili, `systems-map/`
+│   ├── design/     icone, showcase, griglie stampabili, `systems-map/`, la cheat sheet della
+│   │               tassonomia skill (`icon/`, con la mappa dei suoi owner)
 │   ├── maps/       render di mappe come materiale di studio
 │   ├── wiki/       sorgenti wiki non pubblicati, incluso `v0.1/roster-legacy/` (#1166)
 │   └── handoff/    prompt e consegne di sessione, non ancora consumati
 ├── generated/   **output**, non ricerca: ha un generatore committato e non si edita
 │   └── icons/      rigenerate da `tools/hud-assets/` — ⚠️ produttore sì, oracolo no (#2537)
-├── superpowers/ piani e design delle sedute `superpowers`: provenienza di lavoro già svolto
+├── superpowers/ piani e design delle sedute `superpowers`: provenienza, non regole — vedi il suo README
 │   ├── plans/
 │   └── specs/
 ├── shared-mcp-kit/  il kit di installazione del ponte MCP condiviso: **strumenti**, non documentazione
@@ -241,7 +241,8 @@ docs/
     ├── roadmap-plans/               i piani il cui banner li dichiarava già storici
     ├── gameplay/ · technical/       spec superate da una decisione: griglia quadrata, bot utility
     ├── session-notes/               note di seduta
-    └── consolidazione-chat-openai/  il master del giro chat del 2026-08-09 (perimetro di #2606)
+    ├── consolidazione-chat-openai/  il master del giro chat del 2026-08-09 (perimetro di #2606)
+    └── shared-mcp-kit.zip           copia superata di `shared-mcp-kit/` — vedi *I tre binari*
 ```
 
 > ⚠️ Fino al 2026-08-18 questo albero elencava `wiki/game/`, `wiki/meccaniche/` e `wiki/fazioni/` come
@@ -268,14 +269,22 @@ docs/
 ### I tre binari, e perché contraddicono l'apertura di questa pagina
 
 Questa pagina si apre dicendo che `docs/` **è interamente in Markdown dal 2026-08-12**
-([D-009](decisions/RT_PDR_00_Decision_Log.md)). Non lo è più, e i tre file che la smentiscono non erano
-elencati da nessuna parte:
+([D-009](decisions/RT_PDR_00_Decision_Log.md)). ✅ **Dal 2026-09-20 lo è di nuovo**, e la radice porta solo i
+cinque documenti di governance più il promemoria di tooling — `git ls-files docs | awk -F/ 'NF==2'` lo
+elenca. Fino a quel giorno la smentivano tre file che non erano elencati da nessuna parte:
 
 | File | Entrato con | Cosa è |
 |---|---|---|
 | `RefactorTactics_Skill_Taxonomy_CheatSheet_LARGE_v0.1.docx` | `fe4af8bf` · 2026-08-29 | export di prosa: la classe che D-009 fa uscire |
 | `RefactorTactics_Skill_Taxonomy_CheatSheet_LARGE_v0.1.pdf` | `fe4af8bf` · 2026-08-29 | lo stesso in PDF — *reference/export/audit artifact, non owner normativo* |
 | `shared-mcp-kit.zip` | `4fdb01a0` · 2026-09-10 | una seconda copia di [`shared-mcp-kit/`](shared-mcp-kit/), **già divergente** |
+
+**Dove sono adesso, e perché in due posti diversi:**
+
+| File | Ora | Ragione |
+|---|---|---|
+| i due `Skill_Taxonomy_CheatSheet` | [`research/design/icon/`](research/design/icon/tassonomia-skill-cheatsheet.md) | è un sorgente **non consumato**: il referto che sembra il suo ne ha triagiato un altro, e quattro sue etichette non le ha adottate nessun owner. `research/` è *«input non ancora consumato»* |
+| `shared-mcp-kit.zip` | [`archive/`](archive/README.md) | è **superato**, e questa volta si deriva: sottoinsieme stretto della cartella viva, con ogni file condiviso diverso, e nessun consumatore |
 
 ⛔ **Lo zip non è un backup: è un duplicato che ha smesso di essere uguale.** Non lo cita nessuno —
 
@@ -288,9 +297,19 @@ grep -rn 'shared-mcp-kit\.zip' --include='*.md' --include='*.ps1' --include='*.j
 differiscono** per SHA-256 dal file omonimo sul disco. Nessun gate poteva dirlo:
 [`doc-links.ts`](../tools/radar/doc-links.ts) cammina sui Markdown, e un `.zip` non è un Markdown.
 
-🔑 **Qui si dichiara, non si sposta.** *Superato* è uno stato che si deriva o non si scrive: la cartella è
-più avanti dello zip, ma questo non dice se lo zip sia la consegna pubblicata o un residuo. Archiviare,
-cancellare o rigenerare è una decisione dell'autore, ed è l'unica cosa che questa sezione lascia aperta.
+🔑 **Fino al 2026-09-20 questa sezione si fermava a dichiarare**, con questa motivazione: *«superato è
+uno stato che si deriva o non si scrive: la cartella è più avanti dello zip, ma questo non dice se lo zip
+sia la consegna pubblicata o un residuo»*. ✅ **La deriva mancante è arrivata**, e sta in una riga del
+`README` del kit: non nomina lo zip. Un artefatto di consegna che la propria documentazione non cita non è
+una consegna — e sommato al sottoinsieme stretto e alle nove differenze, *superato* si deriva.
+
+⛔ **Cancellare no, e resta fuori discussione**: la regola di questa pagina è che un documento superato non
+si cancella, guadagna un banner e resta come provenienza. Uno `.zip` non può portare un banner, quindi porta
+il proprio percorso: [`archive/`](archive/README.md) è il banner.
+
+⚠️ **Rigenerarlo resta una decisione d'autore**, e nessuno l'ha presa: se il kit va distribuito come
+archivio, il posto giusto è una build, non un file versionato che invecchia in silenzio — che è esattamente
+come questo è invecchiato.
 
 ### Due deviazioni dichiarate
 
