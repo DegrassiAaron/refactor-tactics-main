@@ -43,6 +43,6 @@ public:
 	 */
 	static FString ReadHeadCommit();
 
-	/** `YYYYMMDD-hhmmss` in UTC: ordina da solo e non collide fra due sedute nello stesso minuto. */
+	/** `YYYYMMDD-hhmmss-mmm` in UTC: ordina da solo, e i millisecondi evitano che due sedute aperte nello stesso secondo si sovrascrivano. */
 	static FString MakeSessionId(const FDateTime& Now);
 };

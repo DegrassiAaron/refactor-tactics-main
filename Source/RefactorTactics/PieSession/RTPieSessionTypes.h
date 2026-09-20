@@ -42,6 +42,24 @@ enum class ERTPieVerdict : uint8
 	NotRun
 };
 
+/**
+ * Chi ha emesso il verdetto.
+ *
+ * 🔴 Senza questo campo il file non distingue un `NOT_JUDGEABLE` **scelto da una persona** da uno
+ * **deciso dal conduttore** perche' lo scenario non si allestiva — e sono due fatti opposti: il primo
+ * dice «l'ho guardato e non si puo' giudicare», il secondo «non c'era niente da guardare».
+ */
+UENUM()
+enum class ERTPieVerdictSource : uint8
+{
+	/** Nessun verdetto ancora. */
+	None,
+	/** L'ha dato chi guardava: tasto o `rt.Pie.Verdict`. */
+	Human,
+	/** L'ha scritto il conduttore: scenario non caricabile, sessione morta, seduta interrotta. */
+	Conductor
+};
+
 /** Dove si trova la seduta. Il mondo in `AwaitingVerdict` e' fermo: e' dove il coordinator lascia la scena. */
 UENUM()
 enum class ERTPieSessionState : uint8
@@ -95,12 +113,47 @@ struct FRTPieSessionStep
 	UPROPERTY()
 	ERTPieVerdict Verdict = ERTPieVerdict::Pending;
 
-	/** Obbligatorio per `Blocked`, `NotRun` e per un `NotJudgeable` deciso dal conduttore. */
+	/** Obbligatorio per i verdetti del CONDUTTORE; facoltativo per quelli di una persona. */
 	UPROPERTY()
 	FString Reason;
 
 	UPROPERTY()
+	ERTPieVerdictSource Source = ERTPieVerdictSource::None;
+
+	UPROPERTY()
 	FDateTime At;
+};
+
+/**
+ * Cosa ha prodotto un tentativo di avvio.
+ *
+ * 🔴 **`ERTScenarioStart` da solo non basta, ed e' un difetto trovato in code review.**
+ * `FRTScenarioCoordinator::Start` restituisce `Started` **anche** quando `FRTScenarioSession::Start`
+ * fallisce — deliberatamente, perche' la partita normale non vada allestita al suo posto. Ma in quel
+ * caso la sessione nasce gia' `Finished`, quindi `Tick` esce al primo controllo e **nessun
+ * `OnScenarioFinished` viene mai sparato**: un conduttore che si fidasse di `Started` resterebbe in
+ * `Playing` per sempre, e l'unica uscita sarebbe `rt.Pie.Session.Abort`.
+ *
+ * Il caso `Blocked` di §3.4 vive qui: la porta lo dice **al ritorno**, e il conduttore chiude il passo
+ * senza aspettare un evento che non arrivera'. ⛔ Non si risolve sparando il delegate dentro `Start`:
+ * sarebbe una rientranza dentro `LaunchCurrent`, che sta ancora iterando la coda.
+ */
+struct FRTPieLaunchOutcome
+{
+	ERTScenarioStart Start = ERTScenarioStart::NotLoadable;
+
+	/** Vero se la sessione e' nata gia' finita: non arrivera' nessun `OnScenarioFinished`. */
+	bool bFinishedOnArrival = false;
+
+	/** Il motivo, quando `bFinishedOnArrival`. */
+	FString Error;
+
+	static FRTPieLaunchOutcome Avviato() { return { ERTScenarioStart::Started, false, FString() }; }
+	static FRTPieLaunchOutcome NonCaricabile() { return { ERTScenarioStart::NotLoadable, false, FString() }; }
+	static FRTPieLaunchOutcome MortoAllaNascita(const FString& InError)
+	{
+		return { ERTScenarioStart::Started, true, InError };
+	}
 };
 
 /**
@@ -117,7 +170,7 @@ struct FRTPieSessionStep
 struct FRTPieSessionPorts
 {
 	/** Avvia uno scenario. In gioco inoltra a `FRTScenarioCoordinator::Start`; nei test e' una lambda. */
-	TFunction<ERTScenarioStart(const FString& ScenarioId)> Launch;
+	TFunction<FRTPieLaunchOutcome(const FString& ScenarioId)> Launch;
 
 	/** Pulisce prima del passo successivo — sbindatura del decisore inclusa, vedi `RTScenarioSession.h`. */
 	TFunction<void()> TearDown;

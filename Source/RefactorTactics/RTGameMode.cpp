@@ -20,6 +20,7 @@
 #include "UI/RTReactionWindowViewModel.h"
 #include "Engine/GameInstance.h"
 #include "PieSession/RTPieSessionSubsystem.h"
+#include "PieSession/RTPieVerdictOverlay.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
@@ -972,14 +973,43 @@ void ARTGameMode::InstallPieSessionPorts()
 	TWeakObjectPtr<ARTGameMode> Self(this);
 
 	FRTPieSessionPorts Porte;
-	Porte.Launch = [Self](const FString& ScenarioId)
+	Porte.Launch = [Self](const FString& ScenarioId) -> FRTPieLaunchOutcome
 	{
 		if (!Self.IsValid())
 		{
-			return ERTScenarioStart::NotLoadable;
+			return FRTPieLaunchOutcome::NonCaricabile();
 		}
-		return Self->ScenarioCoordinator.Start(Self->GetWorld(), ScenarioId,
+
+		const ERTScenarioStart Esito = Self->ScenarioCoordinator.Start(Self->GetWorld(), ScenarioId,
 			TEXT("seduta PIE (rt.Pie.Session)"), Self->ScenarioTurnPauseSeconds);
+
+		if (Esito != ERTScenarioStart::Started)
+		{
+			return FRTPieLaunchOutcome::NonCaricabile();
+		}
+
+		// 🔴 **Il tick va acceso QUI, e non e' una ripetizione di `BeginPlay`.**
+		// `PrimaryActorTick.bStartWithTickEnabled = false`, e l'unico altro `SetActorTickEnabled(true)`
+		// sta nel ramo `Started` del `BeginPlay`. Ma una seduta si apre da console **dopo** il Play, con
+		// la partita normale gia' allestita: li' `ResolveScenarioToRun()` era vuoto, il tick e' rimasto
+		// spento, e `ARTGameMode::Tick` e' l'unico che pompa `FRTScenarioCoordinator::Tick`. Senza questa
+		// riga la sessione parte e **non avanza di un frame**: nessun verdetto viene mai chiesto.
+		// Trovato in code review il 2026-09-20; nessun gate lo copriva perche' i gate della conduzione
+		// usano porte finte, e il difetto vive nella porta vera.
+		Self->SetActorTickEnabled(true);
+
+		// Uno strumento fatto per guardare deve inquadrare cio' che allestisce, come fa il `BeginPlay`.
+		// ⛔ `OpenClaimedFirstTurn()` resta fuori di proposito: apre il campione di pacing del PRIMO
+		// turno di partita, e richiamarlo a ogni passo di una seduta falserebbe quella misura.
+		Self->RecenterCameraOnScenario();
+
+		// La sessione puo' essere nata gia' finita — `Start` risponde `Started` lo stesso. In quel caso
+		// `Tick` esce subito e nessun `OnScenarioFinished` arriva: va detto adesso, al ritorno.
+		if (!Self->ScenarioCoordinator.IsRunning())
+		{
+			return FRTPieLaunchOutcome::MortoAllaNascita(Self->ScenarioCoordinator.SessionErrorMessage());
+		}
+		return FRTPieLaunchOutcome::Avviato();
 	};
 	Porte.TearDown = [Self]()
 	{
@@ -991,7 +1021,8 @@ void ARTGameMode::InstallPieSessionPorts()
 	Conduttore->SetPorts(MoveTemp(Porte));
 
 	ScenarioCoordinator.OnScenarioFinished.AddWeakLambda(Conduttore,
-		[Conduttore](const FRTTestResult& Result) { Conduttore->OnScenarioFinished(Result); });
+		[Conduttore](const FRTTestResult& Result, const FString& ReportDir)
+		{ Conduttore->OnScenarioFinished(Result, ReportDir); });
 }
 
 FString ARTGameMode::ResolveScenarioToRun() const
@@ -1234,6 +1265,51 @@ void ARTGameMode::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	ScenarioCoordinator.Tick(DeltaSeconds);
+	SyncPieVerdictOverlay();
+}
+
+void ARTGameMode::SyncPieVerdictOverlay()
+{
+	const UGameInstance* GI = GetGameInstance();
+	const URTPieSessionSubsystem* Conduttore = GI ? GI->GetSubsystem<URTPieSessionSubsystem>() : nullptr;
+	const bool bServe = Conduttore && Conduttore->State() == ERTPieSessionState::AwaitingVerdict;
+
+	if (!bServe)
+	{
+		if (PieVerdictOverlay)
+		{
+			PieVerdictOverlay->RemoveFromParent();
+			PieVerdictOverlay = nullptr;
+		}
+		return;
+	}
+
+	if (PieVerdictOverlay)
+	{
+		return;
+	}
+
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC)
+	{
+		// Senza controller non c'e' schermo: la seduta resta conducibile da `rt.Pie.Verdict`, che e' la
+		// ragione per cui il conduttore non dipende dal widget.
+		return;
+	}
+
+	PieVerdictOverlay = CreateWidget<URTPieVerdictOverlay>(PC);
+	if (!PieVerdictOverlay)
+	{
+		return;
+	}
+
+	PieVerdictOverlay->AddToViewport(/*ZOrder=*/ 1000);
+
+	// 🔴 **`bIsFocusable` e' FALSO di default su `UUserWidget`**, e senza questo `NativeOnKeyDown` non
+	// viene mai chiamato: il pannello comparirebbe e i tasti non farebbero niente — un difetto che si
+	// scopre solo a schermo, cioe' nel momento piu' caro. Trovato in code review il 2026-09-20.
+	PieVerdictOverlay->SetIsFocusable(true);
+	PieVerdictOverlay->SetUserFocus(PC);
 }
 
 void ARTGameMode::RecenterCameraOnScenario()

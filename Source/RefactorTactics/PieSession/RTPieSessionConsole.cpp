@@ -59,15 +59,22 @@ namespace
 			return;
 		}
 
-		if (Args.Num() == 0)
+		// ⛔ **Senza argomenti si COMPONE davvero e si stampa**, non si stampa l'uso: la spec promette un
+		// dry-run, e un messaggio d'aiuto che dice «stampo cosa comporrei» senza comporre niente era la
+		// promessa scritta due volte e mantenuta zero. Un prefisso vuoto seleziona tutto il corpus.
+		// Un secondo argomento `dry` fa lo stesso su un selettore, senza avviare.
+		const bool bSoloStampa = Args.Num() == 0
+			|| (Args.Num() > 1 && Args[1].Equals(TEXT("dry"), ESearchCase::IgnoreCase));
+		const FString Selettore = Args.Num() > 0 ? Args[0] : FString();
+
+		const FRTPieSessionPlan Plan = URTPieSessionPlaylist::Compose(Selettore);
+		RTPieStampaPiano(Plan, Ar);
+
+		if (bSoloStampa)
 		{
-			Ar.Logf(TEXT("[RT-Pie] rt.Pie.Session <prefisso scenario|id voce,id voce>"));
-			Ar.Logf(TEXT("[RT-Pie] senza argomenti stampo cosa comporrei e non avvio niente."));
+			Ar.Logf(TEXT("[RT-Pie] dry-run: non ho avviato niente. Ripeti col solo selettore per condurre."));
 			return;
 		}
-
-		const FRTPieSessionPlan Plan = URTPieSessionPlaylist::Compose(Args[0]);
-		RTPieStampaPiano(Plan, Ar);
 
 		if (!Plan.IsRunnable())
 		{
@@ -84,6 +91,15 @@ namespace
 		}
 
 		Conduttore->Begin(Plan.Steps);
+
+		// ⚠️ Le esclusioni si ripetono QUI, dopo l'avvio: stampate solo prima, scorrerebbero via nello
+		// stesso istante in cui il primo scenario parte e riempie il log.
+		if (Plan.Excluded.Num() > 0)
+		{
+			Ar.Logf(ELogVerbosity::Warning,
+				TEXT("[RT-Pie] ⚠️ questa seduta NON copre %d voci chieste — vedi le righe ESCLUSA sopra."),
+				Plan.Excluded.Num());
+		}
 		Ar.Logf(TEXT("[RT-Pie] seduta %s avviata. Verdetti: 1 si', 2 no, 3 non giudicabile "
 			"(o rt.Pie.Verdict pass|fail|na)."), *Conduttore->SessionId());
 	}
@@ -163,7 +179,7 @@ namespace
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTPieSession(
 	TEXT("rt.Pie.Session"),
-	TEXT("rt.Pie.Session [<prefisso scenario>|<id voce>,<id voce>] — senza argomenti stampa la coda e NON avvia."),
+	TEXT("rt.Pie.Session [<prefisso scenario>|<id voce>,<id voce>] [dry] — senza argomenti, o con 'dry', compone e stampa senza avviare."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTPieSessionCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTPieVerdict(

@@ -54,6 +54,13 @@ public:
 	void SetupHexMatch(ARTHexMapActor* HexMap);
 
 	/**
+	 * ⚠️ **Pubblica perche' e' la porta dei test, come `SetupHexMatch`**: il cablaggio fra conduttore e
+	 * GameMode e' esattamente la meta' che le porte finte non possono vedere, ed e' li' che viveva il
+	 * difetto del tick spento. Un metodo privato qui avrebbe lasciato quel difetto senza oracolo.
+	 */
+	void InstallPieSessionPorts();
+
+	/**
 	 * Da dove arriva l'arena su cui si gioca. E' una **scelta**, non una catena di flag: i modi di lanciare una
 	 * partita cresceranno (mappe d'autore, arene generate, in futuro scenari e tutorial) e ognuno va aggiunto
 	 * come voce qui, non come booleano a parte.
@@ -488,7 +495,21 @@ private:
 	 * della conduzione (scenario non caricabile, sessione in errore, `expect` rosse, interruzione)
 	 * tornerebbero a richiedere un mondo, uno scenario vero e un Editor per essere verificati.
 	 */
-	void InstallPieSessionPorts();
+
+	/**
+	 * Monta l'overlay del verdetto quando la seduta ne aspetta uno, e lo smonta quando non serve piu'.
+	 *
+	 * Sta nel `Tick` e non in un delegate perche' il `Tick` di questo Actor e' gia' cio' che fa avanzare
+	 * la sessione: un secondo canale per la stessa transizione sarebbe una seconda verita' sullo stato.
+	 *
+	 * ⛔ Senza `PlayerController` non monta niente e **non e' un errore**: la seduta resta conducibile da
+	 * `rt.Pie.Verdict`, ed e' la ragione per cui il conduttore non dipende dal widget.
+	 */
+	void SyncPieVerdictOverlay();
+
+	/** L'overlay in viewport, o nullo. Non e' uno stato della seduta: e' la sua finestra. */
+	UPROPERTY(Transient)
+	TObjectPtr<class URTPieVerdictOverlay> PieVerdictOverlay = nullptr;
 
 	/**
 	 * Centra la camera sulla mappa dello scenario, al tick successivo.

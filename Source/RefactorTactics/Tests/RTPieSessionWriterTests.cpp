@@ -11,6 +11,22 @@
 
 namespace
 {
+	/** Quante volte `Ago` compare in `Pagliaio`. `FString` non ha un contatore di occorrenze. */
+	int32 PieWriterOccorrenze(const FString& Pagliaio, const TCHAR* Ago)
+	{
+		int32 N = 0;
+		int32 Da = 0;
+		const int32 LenAgo = FCString::Strlen(Ago);
+		while (true)
+		{
+			const int32 Trovato = Pagliaio.Find(Ago, ESearchCase::CaseSensitive, ESearchDir::FromStart, Da);
+			if (Trovato == INDEX_NONE) { break; }
+			++N;
+			Da = Trovato + LenAgo;
+		}
+		return N;
+	}
+
 	FRTPieSessionStep PieWriterPasso(const TCHAR* Voce, ERTPieVerdict Verdict)
 	{
 		FRTPieSessionStep S;
@@ -33,8 +49,13 @@ bool FRTPieSessionVerdictIsNotDeducedTest::RunTest(const FString&)
 
 	const FString Json = URTPieSessionWriter::ToJson(TEXT("20260920-000000"), TEXT("deadbeef"), { Step });
 
-	TestTrue(TEXT("il file porta l'esito macchina"), Json.Contains(TEXT("FAIL 3/7")));
-	TestTrue(TEXT("e il verdetto umano, che e' l'opposto"), Json.Contains(TEXT("\"PASS\"")));
+	// ⛔ Il CAMPO, non il valore sciolto: `Contains("FAIL 3/7")` resterebbe verde anche se i due valori
+	// finissero l'uno nel campo dell'altro, che e' precisamente il difetto che questo gate esiste per
+	// prendere.
+	TestTrue(TEXT("l'esito macchina sta nel suo campo"),
+		Json.Contains(TEXT("\"machineOutcome\": \"FAIL 3/7\"")));
+	TestTrue(TEXT("e il verdetto umano, opposto, nel suo"),
+		Json.Contains(TEXT("\"verdict\": \"PASS\"")));
 	return true;
 }
 
@@ -73,9 +94,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionReasonRequiredTest,
 bool FRTPieSessionReasonRequiredTest::RunTest(const FString&)
 {
 	// Un `BLOCKED` senza motivo e' un buco silenzioso: chi legge il file dopo non sa se il motivo non
-	// c'era o se nessuno l'ha scritto.
-	const FString Json = URTPieSessionWriter::ToJson(TEXT("20260920-000000"), TEXT("c"),
-		{ PieWriterPasso(TEXT("PIE-A"), ERTPieVerdict::Blocked) });
+	// c'era o se nessuno l'ha scritto. ⚠️ Il discrimine e' la SORGENTE: `Blocked` lo scrive solo il
+	// conduttore, e questo passo lo dichiara — senza, il gate proverebbe il criterio vecchio.
+	FRTPieSessionStep Bloccato = PieWriterPasso(TEXT("PIE-A"), ERTPieVerdict::Blocked);
+	Bloccato.Source = ERTPieVerdictSource::Conductor;
+
+	const FString Json = URTPieSessionWriter::ToJson(TEXT("20260920-000000"), TEXT("c"), { Bloccato });
 
 	TestTrue(TEXT("un motivo mancante si dichiara tale"),
 		Json.Contains(TEXT("(motivo non registrato)")));
@@ -93,6 +117,28 @@ bool FRTPieSessionHeadCommitIsReadableTest::RunTest(const FString&)
 	const FString Commit = URTPieSessionWriter::ReadHeadCommit();
 	TestTrue(TEXT("lo SHA si legge"), Commit.Len() >= 7);
 	TestFalse(TEXT("e non e' rimasto il 'ref:'"), Commit.Contains(TEXT("ref:")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionHumanNotJudgeableIsNotADefectTest,
+	"RefactorTactics.PieSession.AHumanNotJudgeableIsNotMarkedAsMissingAReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionHumanNotJudgeableIsNotADefectTest::RunTest(const FString&)
+{
+	// 🔴 Il tasto `3` e' l'unico giudizio non binario che il design offre, e prima marchiava
+	// «(motivo non registrato)» a ogni pressione: l'unica risposta prevista produceva un difetto falso.
+	FRTPieSessionStep Umano = PieWriterPasso(TEXT("PIE-A"), ERTPieVerdict::NotJudgeable);
+	Umano.Source = ERTPieVerdictSource::Human;
+
+	FRTPieSessionStep Conduttore = PieWriterPasso(TEXT("PIE-B"), ERTPieVerdict::NotJudgeable);
+	Conduttore.Source = ERTPieVerdictSource::Conductor;
+
+	const FString Json = URTPieSessionWriter::ToJson(TEXT("s"), TEXT("c"), { Umano, Conduttore });
+
+	TestTrue(TEXT("la sorgente finisce nel file"),
+		Json.Contains(TEXT("\"verdictSource\": \"human\"")));
+	TestEqual(TEXT("il marcatore compare UNA volta sola, per il conduttore"),
+		PieWriterOccorrenze(Json, TEXT("(motivo non registrato)")), 1);
 	return true;
 }
 

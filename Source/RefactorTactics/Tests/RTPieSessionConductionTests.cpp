@@ -18,16 +18,36 @@ namespace
 	/** Le porte finte: registrano cosa e' stato chiesto, senza aprire niente. */
 	struct FPieSessionBanco
 	{
-		TArray<FString> Lanciati;
-		int32 TearDowns = 0;
-		ERTScenarioStart Esito = ERTScenarioStart::Started;
+		/** Ordine REALE degli eventi, non due contatori: `"launch:Scen.A"`, `"teardown"`. */
+		TArray<FString> Eventi;
+		FRTPieLaunchOutcome Esito = FRTPieLaunchOutcome::Avviato();
 
 		FRTPieSessionPorts Porte()
 		{
 			FRTPieSessionPorts P;
-			P.Launch = [this](const FString& Id) { Lanciati.Add(Id); return Esito; };
-			P.TearDown = [this]() { ++TearDowns; };
+			P.Launch = [this](const FString& Id)
+			{
+				Eventi.Add(FString::Printf(TEXT("launch:%s"), *Id));
+				return Esito;
+			};
+			P.TearDown = [this]() { Eventi.Add(TEXT("teardown")); };
 			return P;
+		}
+
+		TArray<FString> Lanci() const
+		{
+			TArray<FString> Fuori;
+			for (const FString& E : Eventi)
+			{
+				if (E.StartsWith(TEXT("launch:"))) { Fuori.Add(E.RightChop(7)); }
+			}
+			return Fuori;
+		}
+		int32 TearDowns() const
+		{
+			int32 N = 0;
+			for (const FString& E : Eventi) { if (E == TEXT("teardown")) { ++N; } }
+			return N;
 		}
 	};
 
@@ -86,20 +106,25 @@ bool FRTPieSessionAdvancesInOrderTest::RunTest(const FString&)
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")),
 	                    PieSessionPasso(TEXT("PIE-B"), TEXT("Scen.B")) }, Banco.Porte());
 
-	TestEqual(TEXT("parte un solo scenario"), Banco.Lanciati.Num(), 1);
-	TestEqual(TEXT("ed e' il primo"), Banco.Lanciati[0], TEXT("Scen.A"));
+	TestEqual(TEXT("parte un solo scenario"), Banco.Lanci().Num(), 1);
+	TestEqual(TEXT("ed e' il primo"), Banco.Lanci()[0], TEXT("Scen.A"));
 
-	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true));
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true), TEXT("Saved/RTTests/Finto/20260920-000000"));
 	TestTrue(TEXT("ora aspetta un verdetto"),
 		Conduttore->State() == ERTPieSessionState::AwaitingVerdict);
-	TestEqual(TEXT("e non ha lanciato nient'altro prima di averlo"), Banco.Lanciati.Num(), 1);
+	TestEqual(TEXT("e non ha lanciato nient'altro prima di averlo"), Banco.Lanci().Num(), 1);
 
 	Conduttore->SubmitVerdict(ERTPieVerdict::Pass, FString());
-	TestEqual(TEXT("il teardown precede il passo dopo"), Banco.TearDowns, 1);
-	TestEqual(TEXT("e il secondo parte"), Banco.Lanciati.Num(), 2);
-	TestEqual(TEXT("ed e' Scen.B"), Banco.Lanciati[1], TEXT("Scen.B"));
+	// ⛔ L'ORDINE, non due conteggi: `TearDowns == 1` resterebbe verde anche se il teardown avvenisse
+	// DOPO il lancio successivo, cioe' smontando la scena appena allestita.
+	const TArray<FString> Atteso = { TEXT("launch:Scen.A"), TEXT("teardown"), TEXT("launch:Scen.B") };
+	if (Banco.Eventi != Atteso)
+	{
+		AddError(FString::Printf(TEXT("sequenza attesa [%s], ottenuta [%s]"),
+			*FString::Join(Atteso, TEXT(" -> ")), *FString::Join(Banco.Eventi, TEXT(" -> "))));
+	}
 
-	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.B"), true));
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.B"), true), TEXT("Saved/RTTests/Finto/20260920-000000"));
 	Conduttore->SubmitVerdict(ERTPieVerdict::Fail, FString());
 
 	TestTrue(TEXT("coda vuota -> Done"), Conduttore->State() == ERTPieSessionState::Done);
@@ -122,7 +147,7 @@ bool FRTPieSessionRedExpectStillAsksTest::RunTest(const FString&)
 	FPieSessionBanco Banco;
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
-	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), /*bPassed=*/ false));
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), /*bPassed=*/ false), TEXT("Saved/RTTests/Finto/20260920-000000"));
 
 	TestTrue(TEXT("expect rosse non chiudono il passo da sole"),
 		Conduttore->State() == ERTPieSessionState::AwaitingVerdict);
@@ -146,7 +171,7 @@ bool FRTPieSessionNotLoadableIsNotAskedTest::RunTest(const FString&)
 
 	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	FPieSessionBanco Banco;
-	Banco.Esito = ERTScenarioStart::NotLoadable;
+	Banco.Esito = FRTPieLaunchOutcome::NonCaricabile();
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.Assente")),
 	                    PieSessionPasso(TEXT("PIE-B"), TEXT("Scen.B")) }, Banco.Porte());
@@ -154,7 +179,7 @@ bool FRTPieSessionNotLoadableIsNotAskedTest::RunTest(const FString&)
 	TestTrue(TEXT("chiuso NotJudgeable senza chiedere"),
 		Conduttore->Steps()[0].Verdict == ERTPieVerdict::NotJudgeable);
 	TestTrue(TEXT("con un motivo scritto"), !Conduttore->Steps()[0].Reason.IsEmpty());
-	TestEqual(TEXT("e si prosegue invece di fermarsi"), Banco.Lanciati.Num(), 2);
+	TestEqual(TEXT("e si prosegue invece di fermarsi"), Banco.Lanci().Num(), 2);
 	TestTrue(TEXT("la seduta arriva in fondo"), Conduttore->State() == ERTPieSessionState::Done);
 	return true;
 }
@@ -172,7 +197,7 @@ bool FRTPieSessionErroredSessionIsBlockedTest::RunTest(const FString&)
 	FPieSessionBanco Banco;
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
-	Conduttore->OnScenarioFinished(PieSessionErrore(TEXT("Scen.A"), TEXT("unita' V9 non esiste")));
+	Conduttore->OnScenarioFinished(PieSessionErrore(TEXT("Scen.A"), TEXT("unita' V9 non esiste")), TEXT("Saved/RTTests/Finto/20260920-000000"));
 
 	TestTrue(TEXT("una scena mai partita non si fa giudicare"),
 		Conduttore->Steps()[0].Verdict == ERTPieVerdict::Blocked);
@@ -191,7 +216,7 @@ bool FRTPieSessionAbortKeepsWhatWasGivenTest::RunTest(const FString&)
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")),
 	                    PieSessionPasso(TEXT("PIE-B"), TEXT("Scen.B")) }, Banco.Porte());
-	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true));
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true), TEXT("Saved/RTTests/Finto/20260920-000000"));
 	Conduttore->SubmitVerdict(ERTPieVerdict::Pass, FString());
 	Conduttore->Abort();
 
@@ -228,10 +253,123 @@ bool FRTPieSessionImposesItsScenarioTest::RunTest(const FString&)
 	TestEqual(TEXT("mentre conduce impone il passo corrente"),
 		URTPieSessionSubsystem::ScenarioImposedBy(Conduttore), FString(TEXT("Scen.DellaSeduta")));
 
-	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.DellaSeduta"), true));
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.DellaSeduta"), true), TEXT("Saved/RTTests/Finto/20260920-000000"));
 	Conduttore->SubmitVerdict(ERTPieVerdict::Pass, FString());
 	TestTrue(TEXT("a seduta finita torna a non imporre niente"),
 		URTPieSessionSubsystem::ScenarioImposedBy(Conduttore).IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionDeadOnArrivalIsBlockedTest,
+	"RefactorTactics.PieSession.ASessionDeadOnArrivalIsBlockedNotAwaited",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionDeadOnArrivalIsBlockedTest::RunTest(const FString&)
+{
+	// 🔴 **Il caso che il conduttore non vedeva, trovato in code review il 2026-09-20.**
+	// `FRTScenarioCoordinator::Start` risponde `Started` anche quando la sessione fallisce all'avvio —
+	// deliberatamente — ma quella sessione nasce `Finished`, quindi `Tick` esce subito e **nessun
+	// `OnScenarioFinished` arriva mai**. Un conduttore che aspettasse quell'evento resterebbe in
+	// `Playing` per sempre, e l'unica uscita sarebbe `rt.Pie.Session.Abort`.
+	AddExpectedError(TEXT("BLOCCATO: scenario non valido"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
+	FPieSessionBanco Banco;
+	Banco.Esito = FRTPieLaunchOutcome::MortoAllaNascita(TEXT("scenario non valido: unita' V9 assente"));
+
+	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.Morto")) }, Banco.Porte());
+
+	TestTrue(TEXT("il passo e' chiuso, non in attesa"),
+		Conduttore->Steps()[0].Verdict == ERTPieVerdict::Blocked);
+	TestTrue(TEXT("col motivo del harness"),
+		Conduttore->Steps()[0].Reason.Contains(TEXT("unita' V9 assente")));
+	TestTrue(TEXT("e la seduta non resta appesa"), Conduttore->State() == ERTPieSessionState::Done);
+	TestEqual(TEXT("la scena morta viene smontata lo stesso"), Banco.TearDowns(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionRefusesASecondSessionTest,
+	"RefactorTactics.PieSession.ASecondBeginDoesNotDiscardVerdicts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionRefusesASecondSessionTest::RunTest(const FString&)
+{
+	// Digitare `rt.Pie.Session <altro>` a meta' seduta buttava via i verdetti gia' dati senza scrivere
+	// nulla — l'esatto contrario di cio' che `Abort` promette.
+	AddExpectedError(TEXT("seduta gia' in corso"), EAutomationExpectedErrorFlags::Contains, 1);
+
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
+	FPieSessionBanco Banco;
+	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")),
+	                    PieSessionPasso(TEXT("PIE-B"), TEXT("Scen.B")) }, Banco.Porte());
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true), TEXT("Saved/RTTests/Finto/20260920-000000"));
+	Conduttore->SubmitVerdict(ERTPieVerdict::Pass, FString());
+
+	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-Z"), TEXT("Scen.Z")) });
+
+	TestEqual(TEXT("la coda e' ancora quella"), Conduttore->Steps().Num(), 2);
+	TestTrue(TEXT("e il verdetto dato non e' sparito"),
+		Conduttore->Steps()[0].Verdict == ERTPieVerdict::Pass);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionRecordsTheReportTest,
+	"RefactorTactics.PieSession.StepRecordsTheReportItCameFrom",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionRecordsTheReportTest::RunTest(const FString&)
+{
+	// `runId` e `reportDir` erano campi morti: il file li scriveva vuoti mentre la spec li mostrava
+	// pieni, e sono il ponte verso il referto della run — cioe' esattamente cio' che serve al passo
+	// successivo, la propagazione al registro.
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
+	FPieSessionBanco Banco;
+	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true),
+		TEXT("Saved/RTTests/Scen.A/20260920-101500"));
+
+	TestEqual(TEXT("la cartella del referto e' registrata"),
+		Conduttore->Steps()[0].ReportDir, TEXT("Saved/RTTests/Scen.A/20260920-101500"));
+	TestEqual(TEXT("e il runId e' il suo ultimo segmento"),
+		Conduttore->Steps()[0].RunId, TEXT("20260920-101500"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionHumanVerdictIsMarkedHumanTest,
+	"RefactorTactics.PieSession.AHumanVerdictIsMarkedAsHuman",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionHumanVerdictIsMarkedHumanTest::RunTest(const FString&)
+{
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
+	FPieSessionBanco Banco;
+	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true), FString());
+	Conduttore->SubmitVerdict(ERTPieVerdict::NotJudgeable, FString());
+
+	// Senza la sorgente, questo `NOT_JUDGEABLE` sarebbe indistinguibile da uno scritto dal conduttore
+	// perche' lo scenario non si allestiva — due fatti opposti nello stesso valore.
+	TestTrue(TEXT("il verdetto e' marcato come umano"),
+		Conduttore->Steps()[0].Source == ERTPieVerdictSource::Human);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionRejectsANonHumanVerdictTest,
+	"RefactorTactics.PieSession.RejectsAVerdictOnlyTheConductorMayWrite",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionRejectsANonHumanVerdictTest::RunTest(const FString&)
+{
+	AddExpectedError(TEXT("non e' un verdetto che possa dare una persona"),
+		EAutomationExpectedErrorFlags::Contains, 1);
+
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
+	FPieSessionBanco Banco;
+	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
+	Conduttore->OnScenarioFinished(PieSessionEsito(TEXT("Scen.A"), true), FString());
+
+	// `Pending` chiuderebbe il passo scrivendo «PENDING» nel file come se fosse un esito.
+	Conduttore->SubmitVerdict(ERTPieVerdict::Pending, FString());
+
+	TestTrue(TEXT("il passo resta in attesa"),
+		Conduttore->State() == ERTPieSessionState::AwaitingVerdict);
+	TestTrue(TEXT("e nessun verdetto e' stato scritto"),
+		Conduttore->Steps()[0].Verdict == ERTPieVerdict::Pending);
 	return true;
 }
 

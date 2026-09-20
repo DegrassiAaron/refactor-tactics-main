@@ -101,6 +101,17 @@ public:
 	FString OutcomeString() const;
 
 	/**
+	 * Il messaggio d'errore della sessione, **vuoto** se non ce n'e' uno.
+	 *
+	 * 🔴 Serve a distinguere «sta girando» da «e' nata gia' finita», che `Start` non distingue: restituisce
+	 * `Started` in entrambi i casi, deliberatamente, perche' la partita normale non vada allestita al suo
+	 * posto. Ma una sessione nata `Finished` non arriva mai a `Tick`, quindi **nessun
+	 * `OnScenarioFinished` viene sparato** — e chi aspettasse quell'evento aspetterebbe per sempre.
+	 * Trovato in code review il 2026-09-20.
+	 */
+	FString SessionErrorMessage() const;
+
+	/**
 	 * Sparato quando la sessione finisce, subito dopo che il referto e' stato scritto.
 	 *
 	 * Esiste per il conduttore di seduta (`URTPieSessionSubsystem`, `#3208`), che a quel punto chiede il
@@ -108,7 +119,10 @@ public:
 	 * playlist: sa solo di aver finito, e lo dice. Multicast e non dinamico per la stessa ragione per cui
 	 * questa classe non e' un `UObject`.
 	 */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FRTOnScenarioFinished, const FRTTestResult&);
+	// Due parametri: il risultato **e** la cartella del referto appena scritto. Senza la seconda, chi
+	// ascolta non puo' nominare il file che lo riguarda — e l'unico consumatore previsto, la
+	// propagazione dei verdetti al registro, esiste proprio per collegare le due cose.
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FRTOnScenarioFinished, const FRTTestResult&, const FString& /*ReportDir*/);
 	FRTOnScenarioFinished OnScenarioFinished;
 
 	/**

@@ -104,7 +104,12 @@ void FRTScenarioCoordinator::Tick(float DeltaSeconds)
 	// primo ascoltatore che leggesse `Result` dopo aver smontato leggerebbe memoria liberata: un difetto
 	// che non si manifesta finche' l'unico ascoltatore legge tutto prima, cioe' fino al secondo.
 	const FRTTestResult Trasmesso = Result;
-	OnScenarioFinished.Broadcast(Trasmesso);
+	OnScenarioFinished.Broadcast(Trasmesso, ReportDir);
+}
+
+FString FRTScenarioCoordinator::SessionErrorMessage() const
+{
+	return Session.IsValid() ? Session->GetResult().ErrorMessage : FString();
 }
 
 void FRTScenarioCoordinator::TearDown()

@@ -1,6 +1,7 @@
 #include "PieSession/RTPieSessionSubsystem.h"
 
 #include "PieSession/RTPieSessionWriter.h"
+#include "Misc/Paths.h"
 #include "RefactorTactics.h" // LogRT
 #include "ScenarioHarness/RTTestResult.h"
 
@@ -20,8 +21,44 @@ void URTPieSessionSubsystem::Begin(TArray<FRTPieSessionStep> InSteps, FRTPieSess
 	Begin(MoveTemp(InSteps));
 }
 
+void URTPieSessionSubsystem::Deinitialize()
+{
+	// 🔴 **Lo Stop di PIE distrugge la GameInstance, ed e' il modo piu' naturale di chiudere una seduta
+	// a meta'.** Senza questo, i verdetti gia' dati morivano con lei e nessun file veniva scritto —
+	// l'opposto di cio' che `Abort` promette. Trovato in code review il 2026-09-20.
+	//
+	// ⛔ Non si toccano le porte: il mondo se ne sta andando, e chiamare `TearDown` su un GameMode in
+	// distruzione e' esattamente il difetto che il teardown esiste per evitare.
+	if (IsConducting())
+	{
+		for (int32 I = FMath::Max(Cursor, 0); I < SessionSteps.Num(); ++I)
+		{
+			if (SessionSteps[I].Verdict == ERTPieVerdict::Pending)
+			{
+				SessionSteps[I].Verdict = ERTPieVerdict::NotRun;
+				SessionSteps[I].Reason = TEXT("PIE chiusa prima della fine della seduta");
+				SessionSteps[I].Source = ERTPieVerdictSource::Conductor;
+				SessionSteps[I].At = FDateTime::UtcNow();
+			}
+		}
+		Ports = FRTPieSessionPorts();
+		Finish();
+	}
+
+	Super::Deinitialize();
+}
+
 void URTPieSessionSubsystem::Begin(TArray<FRTPieSessionStep> InSteps)
 {
+	// ⛔ Una seconda `Begin` a seduta aperta butterebbe via i verdetti gia' dati senza scriverli.
+	if (IsConducting())
+	{
+		UE_LOG(LogRT, Error,
+			TEXT("[RT-Pie] seduta gia' in corso (%s, passo %d/%d): chiudila con rt.Pie.Session.Abort"),
+			*CurrentSessionId, Cursor + 1, SessionSteps.Num());
+		return;
+	}
+
 	if (!Ports.IsValid())
 	{
 		// Senza porte non si allestisce niente, e aprire una seduta che non puo' lanciare nulla
@@ -54,21 +91,37 @@ void URTPieSessionSubsystem::LaunchCurrent()
 		SessionState = ERTPieSessionState::Playing;
 
 		FRTPieSessionStep& Step = SessionSteps[Cursor];
-		const ERTScenarioStart Start = Ports.Launch
+		const FRTPieLaunchOutcome Esito = Ports.Launch
 			? Ports.Launch(Step.ScenarioId)
-			: ERTScenarioStart::NotLoadable;
+			: FRTPieLaunchOutcome::NonCaricabile();
 
-		if (Start == ERTScenarioStart::Started)
+		if (Esito.Start == ERTScenarioStart::Started && !Esito.bFinishedOnArrival)
 		{
 			UE_LOG(LogRT, Warning, TEXT("[RT-Pie] passo %d/%d — %s da %s"),
 				Cursor + 1, SessionSteps.Num(), *Step.PieItem, *Step.ScenarioId);
 			return;
 		}
 
+		if (Esito.bFinishedOnArrival)
+		{
+			// 🔴 La sessione e' nata gia' finita: nessun `OnScenarioFinished` arrivera' mai, e aspettarlo
+			// significherebbe restare in `Playing` per sempre. Il passo si chiude qui.
+			Step.Verdict = ERTPieVerdict::Blocked;
+			Step.Reason = Esito.Error.IsEmpty() ? TEXT("la sessione non e' mai partita") : Esito.Error;
+			Step.Source = ERTPieVerdictSource::Conductor;
+			Step.At = FDateTime::UtcNow();
+			UE_LOG(LogRT, Error, TEXT("[RT-Pie] %s -> BLOCCATO: %s"), *Step.PieItem, *Step.Reason);
+
+			if (Ports.TearDown) { Ports.TearDown(); }
+			++Cursor;
+			continue;
+		}
+
 		// ⛔ Non si chiede un giudizio su una scena che non si e' allestita, e non ci si ferma nemmeno:
 		// fermarsi qui costringerebbe a riaprire l'Editor per le voci a valle.
 		Step.Verdict = ERTPieVerdict::NotJudgeable;
 		Step.Reason = FString::Printf(TEXT("scenario non caricabile: %s"), *Step.ScenarioId);
+		Step.Source = ERTPieVerdictSource::Conductor;
 		Step.At = FDateTime::UtcNow();
 		UE_LOG(LogRT, Error, TEXT("[RT-Pie] %s -> NON GIUDICABILE: %s"), *Step.PieItem, *Step.Reason);
 		++Cursor;
@@ -77,7 +130,7 @@ void URTPieSessionSubsystem::LaunchCurrent()
 	Finish();
 }
 
-void URTPieSessionSubsystem::OnScenarioFinished(const FRTTestResult& Result)
+void URTPieSessionSubsystem::OnScenarioFinished(const FRTTestResult& Result, const FString& ReportDir)
 {
 	if (!SessionSteps.IsValidIndex(Cursor) || SessionState != ERTPieSessionState::Playing)
 	{
@@ -88,12 +141,19 @@ void URTPieSessionSubsystem::OnScenarioFinished(const FRTTestResult& Result)
 	Step.MachineOutcome = FString::Printf(TEXT("%s %d/%d"), *Result.OutcomeString(),
 		Result.PassedCount(), Result.Assertions.Num());
 
+	// `runId` e `reportDir` erano campi morti — il file li scriveva vuoti mentre la spec li mostrava
+	// pieni. Sono il ponte verso il referto della run, cioe' esattamente cio' che serve al passo
+	// successivo (la propagazione al registro). Trovato in code review il 2026-09-20.
+	Step.ReportDir = ReportDir;
+	Step.RunId = ReportDir.IsEmpty() ? FString() : FPaths::GetCleanFilename(ReportDir);
+
 	if (!Result.ErrorMessage.IsEmpty())
 	{
 		// La sessione e' esistita ma non ha mai giocato: chiedere un verdetto sarebbe chiedere di
 		// guardare una scena mai partita, e qualunque risposta sarebbe su niente.
 		Step.Verdict = ERTPieVerdict::Blocked;
 		Step.Reason = Result.ErrorMessage;
+		Step.Source = ERTPieVerdictSource::Conductor;
 		Step.At = FDateTime::UtcNow();
 		UE_LOG(LogRT, Error, TEXT("[RT-Pie] %s -> BLOCCATO: %s"), *Step.PieItem, *Step.Reason);
 
@@ -117,9 +177,20 @@ void URTPieSessionSubsystem::SubmitVerdict(ERTPieVerdict Verdict, const FString&
 		return;
 	}
 
+	// ⛔ Da fuori arrivano SOLO i tre verdetti di una persona: `Blocked` e `NotRun` li scrive il
+	// conduttore, e `Pending` chiuderebbe un passo con «PENDING» scritto nel file come se fosse un esito.
+	if (Verdict != ERTPieVerdict::Pass && Verdict != ERTPieVerdict::Fail
+		&& Verdict != ERTPieVerdict::NotJudgeable)
+	{
+		UE_LOG(LogRT, Error, TEXT("[RT-Pie] %s non e' un verdetto che possa dare una persona"),
+			LexToString(Verdict));
+		return;
+	}
+
 	FRTPieSessionStep& Step = SessionSteps[Cursor];
 	Step.Verdict = Verdict;
 	Step.Reason = Reason;
+	Step.Source = ERTPieVerdictSource::Human;
 	Step.At = FDateTime::UtcNow();
 	UE_LOG(LogRT, Warning, TEXT("[RT-Pie] %s -> %s"), *Step.PieItem, LexToString(Verdict));
 
@@ -141,6 +212,7 @@ void URTPieSessionSubsystem::Abort()
 		{
 			SessionSteps[I].Verdict = ERTPieVerdict::NotRun;
 			SessionSteps[I].Reason = TEXT("seduta interrotta");
+			SessionSteps[I].Source = ERTPieVerdictSource::Conductor;
 			SessionSteps[I].At = FDateTime::UtcNow();
 		}
 	}

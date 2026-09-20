@@ -21,6 +21,9 @@ class REFACTORTACTICS_API URTPieSessionSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
+	/** Chiude una seduta rimasta aperta quando la GameInstance muore — lo Stop di PIE, tipicamente. */
+	virtual void Deinitialize() override;
+
 	/**
 	 * Apre una seduta e avvia il primo passo che si riesce ad allestire.
 	 *
@@ -46,7 +49,7 @@ public:
 	bool HasPorts() const { return Ports.IsValid(); }
 
 	/** Lo scenario del passo corrente e' finito: da qui si chiede il verdetto, o lo si scrive da soli. */
-	void OnScenarioFinished(const FRTTestResult& Result);
+	void OnScenarioFinished(const FRTTestResult& Result, const FString& ReportDir);
 
 	/** Il verdetto di chi guarda. Chiude il passo, pulisce, e avvia il successivo. */
 	void SubmitVerdict(ERTPieVerdict Verdict, const FString& Reason);
