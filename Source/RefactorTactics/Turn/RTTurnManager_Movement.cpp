@@ -146,6 +146,19 @@ void ARTTurnManager::BeginMovementResolution()
 	// percorso accodato, cosi' gli indici restano gli stessi senza doverlo dichiarare.
 	TArray<TArray<int32>> StepDurations;
 	StepDurations.Reserve(Units.Num());
+
+	// ➕ **La CADENZA, catturata dove la banda si congela** ([D-428]).
+	//
+	// ⛔ **Il resolver non conosce i profili di movimento, e non deve conoscerli**: e' la stessa disciplina
+	// per cui `StepDurations` si calcola qui e viaggia gia' pronta. Da `Ctx.MovementProfiles` escono i due
+	// soli numeri che il calendario legge.
+	//
+	// ⚠️ **Si prendono dal record che `ProfileForPlan` ha gia' restituito**, non rileggendo il catalogo per
+	// id: `FindProfile` ricostruisce l'intero catalogo a ogni chiamata — cinque struct con i loro `FName` —
+	// e farlo una volta per unita', dopo che il record completo era gia' passato di qui, era spreco puro.
+	// Trovato in code review.
+	TArray<FRTMovementCadence> Cadences;
+	Cadences.SetNum(Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -156,8 +169,13 @@ void ARTTurnManager::BeginMovementResolution()
 		// possono divergere.
 		if (IsValid(Unit))
 		{
-			Ctx.MovementProfiles[i] = URTMovementProfileLibrary::ProfileForPlan(
-				URTPlanValidationLibrary::MakePlanFor(Unit)).Id;
+			const FRTMovementProfile Profilo = URTMovementProfileLibrary::ProfileForPlan(
+				URTPlanValidationLibrary::MakePlanFor(Unit));
+			Ctx.MovementProfiles[i] = Profilo.Id;
+			// I due numeri del calendario, dallo STESSO record da cui esce la banda: una sola derivazione,
+			// quindi non possono divergere.
+			Cadences[i].StepsPerTick = Profilo.StepsPerTick;
+			Cadences[i].TickPeriod = Profilo.TickPeriod;
 		}
 
 		// Path del turno: percorso composito (waypoint) se presente e coerente, altrimenti rotta calcolata
@@ -294,20 +312,6 @@ void ARTTurnManager::BeginMovementResolution()
 	//
 	// ⚠️ Chi non ha un profilo risolto prende la cadenza NEUTRA: un dato mancante non concede una velocita'
 	// che nessuno ha dichiarato, e `{1, 1}` e' esattamente il comportamento di prima del calendario.
-	// ⚠️ `Ctx.MovementProfiles` porta l'**Id** del profilo, non il profilo: la banda congelata e' un `FName`
-	// (`RTMovementResolutionContext.h`). Il record completo si rilegge dal catalogo, che e' la stessa sede
-	// da cui `ProfileForPlan` l'aveva derivata — non una seconda fonte.
-	TArray<FRTMovementCadence> Cadences;
-	Cadences.SetNum(Units.Num());
-	for (int32 i = 0; i < Units.Num(); ++i)
-	{
-		if (!Ctx.MovementProfiles.IsValidIndex(i) || Ctx.MovementProfiles[i].IsNone()) { continue; }
-		const FRTMovementProfile Profilo = URTMovementProfileLibrary::FindProfile(Ctx.MovementProfiles[i]);
-		if (!Profilo.IsValid()) { continue; } // profilo sconosciuto: cadenza neutra, non una inventata
-		Cadences[i].StepsPerTick = Profilo.StepsPerTick;
-		Cadences[i].TickPeriod = Profilo.TickPeriod;
-	}
-
 	Ctx.State = URTHexSimLibrary::BeginHexMovement(Ctx.Paths, TArray<int32>(),
 		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations, Teams, Cadences);
 

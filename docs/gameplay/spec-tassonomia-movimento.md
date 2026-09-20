@@ -331,7 +331,7 @@ micro-step, e la risoluzione e' quella di sempre **per costruzione**.
 | `Move` | 1 | 1 | 1 passo per tick |
 | `Withdraw` | 1 | 1 | 1 passo per tick — ⚠️ **default dichiarato**, non derivato: la sorgente non gli dà una cadenza |
 | `Sneak` | 1 | 2 | 1 passo ogni 2 tick |
-| `Still` | 0 | 1 | non avanza mai |
+| `Still` | 1 | 1 | neutra — ⚠️ la sua immobilità viene dal **non avere un percorso**, non dalla cadenza |
 
 ⛔ **`MaxGraphTransitionsPerUnitPerMicroStep = 1` non si muove.** Due passi per tick sono due
 **sotto-passi**, mai due archi in uno — ed è la lettura che la sorgente stessa autorizza quando scrive
@@ -347,7 +347,7 @@ una zona sorvegliata e chi vince una contesa di cella sono decisi dal calendario
 iniziale dipenderebbe da **quando** quell'unità entra nella risoluzione, cioè dall'ordine di iterazione — che
 è `D-293` rovesciata. La differenza non si vede nell'esito di un test a due unità; si vede a tre.
 
-#### 🔴 Il secondo sotto-passo si materializza solo se qualcuno vi è eleggibile
+#### 🔴 I sotto-passi inerti si EMETTONO, e il corpus resta fermo per un'altra ragione
 
 Il calendario ha **due** contatori, e la separazione non è un dettaglio implementativo:
 
@@ -356,12 +356,20 @@ Il calendario ha **due** contatori, e la separazione non è un dettaglio impleme
 | `FRTMovementResolutionState::CalendarIndex` | scorre **sempre**, anche sui sotto-passi vuoti, e decide l'eleggibilità |
 | `FRTMovementResolutionState::MicroStepIndex` | conta i micro-step **emessi** — ed è quello che `FRTTurnLogEntry::MicroStepIndex` porta |
 
-Senza la separazione, un `Move` di N celle passerebbe da N a 2N micro-step emessi, e **ogni voce di
-movimento del corpus golden** cambierebbe `MicroStepIndex` — cioè il digest si muoverebbe per una partita
-che non contiene nessuno `Sprint`.
+🔴 **Saltare i sotto-passi inerti renderebbe la cadenza inosservabile**, ed è ciò che la
+prima stesura faceva: uno `Sneak` **da solo** avanzerebbe a ogni micro-step emesso, esattamente come un
+`Move`, e il suo indice d'ingresso in una zona sorvegliata cambierebbe quando un'unità **estranea**
+finisce il proprio percorso. Siccome i confini di reazione e `FRTTurnLogEntry::MicroStepIndex` sono chiavati
+sui micro-step **emessi**, è liì che la cadenza deve essere visibile.
 
-✅ **Misurato, non dedotto**: `Movement.NeutralCadenceKeepsTheMicroStepSequence` confronta una risoluzione
-con cadenza neutra contro una **senza** `Cadences`, e i due conteggi devono coincidere.
+✅ **E il corpus resta fermo per costruzione, non per compensazione**: con sole cadenze neutre
+`SubStepsPerTick` vale `1`, ogni unità è eleggibile a ogni sotto-passo, e sotto-passi inerti non ne
+esistono. Lo misura `Movement.NeutralCadenceKeepsTheMicroStepSequence`, che confronta una risoluzione con
+cadenza neutra contro una **senza** `Cadences`.
+
+⚠️ **E «nessuno si è mosso» smette di significare «la risoluzione è finita»**:
+si finisce quando l'inerzia dura un giro completo di calendario, altrimenti il primo sotto-passo che uno
+`Sneak` salta troncherebbe il movimento a metà.
 
 #### Il rapporto con [`D-381`](../decisions/RT_PDR_00_Decision_Log.md), che **resta**
 

@@ -175,7 +175,16 @@ struct FRTHexReachableCell
  */
 struct FRTMovementCadence
 {
-	/** In quanti sotto-passi del tick il profilo puo' avanzare. `Sprint` **2**, `Move` **1**. */
+	/**
+	 * In quanti sotto-passi del tick il profilo puo' avanzare. `Sprint` **2**, `Move` **1**.
+	 *
+	 * ⛔ **Il minimo e' `1`, e lo `0` NON e' rappresentabile.** Era ammesso — «non avanza mai» — e produceva
+	 * un difetto: un'unita' con un percorso vero non diventava mai eleggibile, non raggiungeva mai `Done`,
+	 * e usciva col `BlockReason` di default, cioe' *«cella occupata»* per un'unita' che nessuna cella aveva
+	 * bloccato. Teneva inoltre `AnyLive` vero per sempre e impediva a chi la seguiva di fissare il proprio
+	 * motivo. L'immobilita' si esprime **non avendo un percorso**, non con una cadenza nulla.
+	 * Trovato in code review.
+	 */
 	int32 StepsPerTick = 1;
 
 	/** Ogni quanti tick e' eleggibile. `Sneak` **2** (un passo ogni due tick), gli altri **1**. */
@@ -190,6 +199,19 @@ struct FRTMovementCadence
 	 * DICHIARARE; questo vincola cosa la risoluzione ONORA. Trovato in code review.
 	 */
 	static constexpr int32 MaxStepsPerTick = 2;
+
+	/**
+	 * Il massimo `TickPeriod` che la risoluzione accetta.
+	 *
+	 * 🔴 **Serve perche' il periodo del calendario e' un minimo comune multiplo**, e senza tetto cresce col
+	 * prodotto dei periodi: quattro unita' con `3, 5, 7, 11` danno `1155`, e il ciclo che aspetta un giro
+	 * completo prima di dichiarare finita la risoluzione ne consumerebbe 2310 — oltre il budget di
+	 * micro-step del chiamante. Con periodi grandi e coprimi il prodotto **trabocca** e il periodo diventa
+	 * negativo, cioe' la risoluzione si dichiara finita al primo sotto-passo inerte e tronca ogni percorso
+	 * a meta'. Il commento che diceva *«i periodi sono pochi e piccoli»* era un'assunzione che niente
+	 * faceva rispettare. Trovato in code review.
+	 */
+	static constexpr int32 MaxTickPeriod = 4;
 };
 
 /**
@@ -418,6 +440,15 @@ struct FRTMovementResolutionState
 	int32 IdleSubSteps = 0;
 
 	/**
+	 * Il periodo del calendario, calcolato **una volta** in `BeginHexMovement`.
+	 *
+	 * ⚠️ E' interamente determinato da `Cadences` e `SubStepsPerTick`, che il ciclo non tocca. Ricalcolarlo
+	 * a ogni micro-step costava una passata su tutte le unita' con un massimo comune divisore ciascuna, per
+	 * riottenere una costante. Trovato in code review.
+	 */
+	int32 CalendarPeriodCached = 1;
+
+	/**
 	 * L'indice, dentro `Paths[i]`, della cella su cui l'ARCO in corso termina — `#3012`, [D-398].
 	 *
 	 * 🔑 **Un arco puo' coprire piu' di una cella**, ed e' cio' che rende l'attraversamento sicuro:
@@ -451,10 +482,17 @@ struct FRTMovementResolutionState
 	/**
 	 * Quanti microstep sono stati **eseguiti**. Diagnostico: nessuna regola lo legge.
 	 *
-	 * ✅ **E resta vero dopo [D-428]**, che e' metà della ragione per cui il calendario ha un contatore
-	 * PROPRIO: a decidere l'eleggibilita' e' `CalendarIndex`, non questo. Se il calendario avesse riusato
-	 * questo campo, la riga qui sopra sarebbe diventata falsa nello stesso commit — e un campo che passa da
-	 * diagnostico a normativo senza dirlo e' la classe di deriva che `#2207` ha misurato.
+	 * 🔴 **E la riga qui sopra E' GIA' FALSA, da prima di [D-428].** `RTReactionOpportunityTypes.h` lo
+	 * dichiara per esteso: *«e' oggi documentato come "diagnostico: nessuna regola lo legge". Entrando qui
+	 * smette di esserlo: diventa parte di un identificatore che finisce nell'hash»*. E
+	 * `ARTTurnManager::AdvanceMovementResolution` lo travasa in `CurrentMicroStepIndex`, che chiava ogni
+	 * confine di reazione e ogni voce di TurnLog — rinumerarlo **rompe il replay**.
+	 *
+	 * ⚠️ **La prima stesura di [D-428] ci aveva aggiunto un «✅ e resta vero», che era falso due volte**:
+	 * la riga non era vera nemmeno prima, e la decisione stessa dichiara al punto (3) che questo campo *«e'
+	 * quello che il TurnLog porta»*. Trovato in code review. Cio' che [D-428] garantisce e' un'altra cosa,
+	 * piu' stretta e utile: il calendario ha un contatore PROPRIO (`CalendarIndex`), quindi **non tocca**
+	 * la numerazione che replay e reazioni leggono.
 	 */
 	int32 MicroStepIndex = 0;
 

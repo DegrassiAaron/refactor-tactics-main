@@ -3708,8 +3708,15 @@ bool FRTCalendarTerrainStillSlowsUnderCadenceTest::RunTest(const FString&)
 
 	TestTrue(TEXT("entrambe le unita' a cadenza Move sono arrivate"),
 		Arrivo[0] != INDEX_NONE && Arrivo[1] != INDEX_NONE);
-	TestTrue(TEXT("l'arco costoso arriva DOPO quello economico, anche col tick allargato"),
-		Arrivo[1] > Arrivo[0]);
+	// 🔴 **Il NUMERO, non la disuguaglianza.** `Arrivo[1] > Arrivo[0]` e' vera **anche col difetto**:
+	// esentando la continuazione dell'arco dal calendario, quello costoso arriva comunque dopo — solo di un
+	// micro-step invece che di un tick. Misurato: con quella mutazione il test restava VERDE.
+	//
+	// ⚠️ E questa riga e' stata rimessa due volte: la prima correzione e' stata annullata dal ripristino di
+	// una mutazione, che leggeva una copia pristina piu' vecchia del sorgente. La seconda volta l'ha trovata
+	// la code review, non io.
+	TestEqual(TEXT("l'arco costoso costa esattamente un tick in piu' di quello economico"),
+		Arrivo[1] - Arrivo[0], State.SubStepsPerTick);
 	return true;
 }
 

@@ -1033,13 +1033,14 @@ namespace
 			return FRTMovementCadence(); // `{1, 1}`: il comportamento di prima di [D-428], per costruzione
 		}
 		FRTMovementCadence Cadence = State.Cadences[UnitIdx];
-		// 🔑 **Il clamp sta QUI e in nessun altro posto.** Prima viveva anche nel calcolo di
-		// `SubStepsPerTick`, e le due sedi divergevano: un profilo che dichiarasse `StepsPerTick = 5` dava
-		// `SubStepsPerTick == 2` mentre l'eleggibilita' confrontava contro `5`, cioe' un dato fuori
-		// intervallo troncato in un posto e onorato nell'altro. Trovato in code review.
-		Cadence.StepsPerTick = FMath::Clamp(Cadence.StepsPerTick, 0, FRTMovementCadence::MaxStepsPerTick);
-		// `TickPeriod <= 0` renderebbe il modulo indefinito: si riporta a `1`, che e' «ogni tick».
-		Cadence.TickPeriod = FMath::Max(1, Cadence.TickPeriod);
+		// 🔑 **Il clamp sta QUI e in nessun altro posto, e stavolta e' vero.** La stesura precedente lo
+		// dichiarava mentre ne teneva un secondo nel calcolo di `SubStepsPerTick`, per giunta con un
+		// minimo diverso — quindi le due sedi divergevano proprio sul valore che la prima ammetteva e la
+		// seconda no. Ora quel calcolo passa da questa funzione. Trovato in code review.
+		Cadence.StepsPerTick = FMath::Clamp(Cadence.StepsPerTick, 1, FRTMovementCadence::MaxStepsPerTick);
+		// ⛔ Anche `TickPeriod` ha un tetto: senza, il minimo comune multiplo dei periodi cresce col loro
+		// prodotto e trabocca. `<= 0` renderebbe inoltre il modulo indefinito.
+		Cadence.TickPeriod = FMath::Clamp(Cadence.TickPeriod, 1, FRTMovementCadence::MaxTickPeriod);
 		return Cadence;
 	}
 
@@ -1075,13 +1076,13 @@ namespace
 	 * deve fermarsi: se in un giro intero nessuno e' eleggibile, nessuno lo sara' mai piu' — o sono tutti
 	 * finiti, o restano solo profili `Still`. Senza il limite quel ciclo non terminerebbe.
 	 */
-	int32 CalendarPeriod(const FRTMovementResolutionState& State)
+	int32 ComputeCalendarPeriod(const FRTMovementResolutionState& State)
 	{
 		int32 Periodi = 1;
 		for (int32 i = 0; i < State.Num(); ++i)
 		{
-			const int32 P = CadenceOf(State, i).TickPeriod;
-			// mcm(a, b) = a * b / MCD(a, b). I periodi sono pochi e piccoli: il prodotto non trabocca.
+			const int32 P = CadenceOf(State, i).TickPeriod;   // gia' limitato da `MaxTickPeriod`
+			// mcm(a, b) = a * b / MCD(a, b). Col tetto su `TickPeriod` il prodotto resta piccolo.
 			Periodi = (Periodi / FMath::GreatestCommonDivisor(Periodi, P)) * P;
 		}
 		return Periodi * FMath::Max(1, State.SubStepsPerTick);
@@ -1435,7 +1436,7 @@ namespace
 			// ⚠️ Con sole cadenze neutre il periodo vale `1`, quindi il primo sotto-passo inerte chiude la
 			// risoluzione: identico a prima di [D-428].
 			State.IdleSubSteps = bAnyMoved ? 0 : State.IdleSubSteps + 1;
-			return bAnyMoved || (AnyLive(State) && State.IdleSubSteps < CalendarPeriod(State));
+			return bAnyMoved || (AnyLive(State) && State.IdleSubSteps < State.CalendarPeriodCached);
 		}
 	}
 
@@ -1517,15 +1518,6 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 	State.Teams = Teams;
 	State.StepDurations = StepDurations;
 	State.Cadences = Cadences;
-	// ➕ **La dimensione del tick si DERIVA dai partecipanti** ([D-428]): tanti sotto-passi quanti ne chiede
-	// il profilo piu' veloce presente, e almeno uno. Con sole cadenze neutre vale `1`, quindi ogni unita' e'
-	// eleggibile a ogni micro-step e la risoluzione e' quella di prima del calendario, per costruzione.
-	State.SubStepsPerTick = 1;
-	for (const FRTMovementCadence& Cadence : Cadences)
-	{
-		State.SubStepsPerTick = FMath::Max(State.SubStepsPerTick,
-			FMath::Clamp(Cadence.StepsPerTick, 1, FRTMovementCadence::MaxStepsPerTick));
-	}
 
 	const int32 N = Paths.Num();
 
@@ -1567,6 +1559,35 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 				TEXT("unita' %d: %d durate per %d archi"), i, StepDurations[i].Num(), Arcs);
 		}
 	}
+
+	// ➕ **La dimensione del tick si DERIVA dai partecipanti** ([D-428]): tanti sotto-passi quanti ne chiede
+	// il profilo piu' veloce presente, e almeno uno. Con sole cadenze neutre vale `1`, quindi ogni unita' e'
+	// eleggibile a ogni micro-step e la risoluzione e' quella di prima del calendario, per costruzione.
+	//
+	// 🔴 **Il ciclo e' limitato da `N`, e l'array si controlla — la stesura precedente faceva ne' l'uno ne'
+	// l'altro.** Un `Cadences` piu' lungo di `Paths` — un chiamante che lo dimensiona sul roster mentre i
+	// percorsi vengono da un sottoinsieme filtrato — allargava il tick per conto di un'unita' **che non e'
+	// nella risoluzione**: ogni `Move` presente diventava eleggibile a sotto-passi alterni, raddoppiando i
+	// propri micro-step emessi e spostando ogni `MicroStepIndex` del TurnLog. E' esattamente la deriva del
+	// digest che il punto (3) di [D-428] esiste per impedire. Trovato in code review.
+	//
+	// ⚠️ La guardia e' il gemello di quella di `StepDurations` qui sopra, e per la stessa ragione: un
+	// cablaggio disallineato va **detto**, non assorbito.
+	if (Cadences.Num() > 0)
+	{
+		ensureMsgf(Cadences.Num() == N,
+			TEXT("Cadences ha %d voci per %d unita': il cablaggio non e' allineato"),
+			Cadences.Num(), N);
+	}
+	State.SubStepsPerTick = 1;
+	for (int32 i = 0; i < FMath::Min(Cadences.Num(), N); ++i)
+	{
+		// Da `CadenceOf`, che e' l'unica sede del clamp: leggere `Cadences[i]` grezzo qui rimetterebbe la
+		// seconda sede che la code review ha trovato divergente.
+		State.SubStepsPerTick = FMath::Max(State.SubStepsPerTick, CadenceOf(State, i).StepsPerTick);
+	}
+	// E il periodo, una volta sola: dipende da `Cadences` e `SubStepsPerTick`, che il ciclo non tocca.
+	State.CalendarPeriodCached = ComputeCalendarPeriod(State);
 
 	State.StepRemaining.SetNum(N);
 	State.ArcEnd.SetNum(N);
