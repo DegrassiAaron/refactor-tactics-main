@@ -179,6 +179,23 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// bilanciamento — un eroe che si cura da solo cambia il ritmo dello scontro — non un refactoring»*,
 		// ed e' rinviata alla v0.2. Chi la prendera' trovera' qui la prova che «schermi» non equivale a
 		// «curi», e che il ramo va ripensato prima di aprirlo allo scudo.
+		//
+		// 🔑 **I due insiemi, risolti il 2026-09-20 — perche' il corpo di `#464` li descrive piu' piccoli
+		// di come sono, e chi lo legge cerca nel posto sbagliato.** Quel corpo dice *«le uniche due azioni
+		// self-target sono `Action.Guard` e `Action.Brace`»* e *«il gate richiede `Heal` **o** `Shield`»*:
+		// entrambe scadute — la seconda l'ha corretta `#2283` qui sopra, la prima non l'aveva corretta
+		// nessuno.
+		//
+		//   self-target    `Action.Guard` · `Action.Overwatch` · `Action.Brace` · `Action.Shield`, piu' i
+		//                  due che da quest'ultima DERIVANO — `Hero.Muiren.TideGuard` e
+		//                  `Hero.Ivrin.PhaseGuard`, via `MakeHeroActionFromCore`, che eredita il flag.
+		//   con `Heal`     `Action.Heal` e `Hero.Muiren.CircularTide`, con le sue due varianti
+		//                  `…Healing` (24) e `…Impact` (10). ⚠️ Sono VARIANTI di quell'azione, non azioni:
+		//                  il corpo della issue le attribuisce a due eroi diversi, e sono tutte di Muiren.
+		//
+		// L'intersezione e' VUOTA, ed e' l'unica cosa che tiene il ramo chiuso. Si rimisura cosi':
+		//   git grep -n "bSelfTarget = true" -- Source/RefactorTactics/Ability/
+		//   git grep -n "ERTActionEffect::Heal" -- Source/RefactorTactics/Ability/
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 		{
@@ -201,6 +218,31 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			{
 				Piano.PlannedAbilityIndex = A;
 				bUsedSupport = true;
+
+				// 🔴 **Il ramo lascia una traccia, e fino al 2026-09-20 non ne lasciava nessuna** (`#464`).
+				// Quando scattava, il `continue` poco sotto faceva saltare l'attacco e il turno del bot
+				// diventava indistinguibile — dal log — da un turno in cui non aveva trovato niente da fare.
+				// La domanda «il ramo e' stato attraversato?» si rispondeva leggendo il sorgente, ed e'
+				// esattamente cio' che ha permesso alla regressione di `#2283` di arrivare fino a quattro
+				// test di partita rossi a cascata invece che a una riga di log.
+				//
+				// ⚠️ **In PARTITA non viene mai emessa, e la ragione e' strutturale**: l'intersezione fra
+				// le azioni `bSelfTarget` e quelle con un effetto `Heal` e' VUOTA sul roster spedito (gli
+				// insiemi sono risolti nel commento in testa al blocco). ∴ nessun combat log di partita
+				// cambia, nessun hash cambia, nessun golden si muove.
+				//
+				// ✅ **Ma la riga non e' codice non provato, ed e' la differenza fra «inerte» e «morto»**:
+				// `HexBotPlay.UsesSupportWhenHurt` l'azione curativa se la costruisce dentro il test, quindi
+				// il ramo lo attraversa davvero. Misurato il 2026-09-20 sul log della suite: la riga compare
+				// **una volta**, `«…: si rimette in piedi con Test.SelfSupport (ferito: 20/120 HP) e salta
+				// il turno»`. Il giorno in cui una cura lanciabile su di se' entra nel catalogo, quella
+				// stessa riga comincia a comparire in partita senza che nessuno debba scriverla.
+				//
+				// Gli HP entrano nel testo perche' sono la CONDIZIONE che ha fatto scattare il ramo: senza,
+				// chi legge il log vede la scelta e non il perche'.
+				Esito.LogLines.Add(FRTBotLogLine{FString::Printf(
+					TEXT("%s: si rimette in piedi con %s (ferito: %d/%d HP) e salta il turno"),
+					*Bot.DisplayName, *Ab->Def.ActionId.ToString(), Bot.Health, Bot.MaxHealth), Bot.Index});
 				break;
 			}
 		}
