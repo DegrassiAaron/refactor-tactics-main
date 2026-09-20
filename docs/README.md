@@ -39,7 +39,7 @@ deterministico, su una griglia **esagonale multilivello**.
 | # | Livello | Documento | Cosa decide |
 |---|---|---|---|
 | 1 | **Canone** | [`product/piano-canonico-mvp.md`](product/piano-canonico-mvp.md) | Invarianti, decisioni operative, regole. **Prevale su tutto** |
-| 2 | **Decisioni** | [`decisions/`](decisions/) — 6 ADR + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
+| 2 | **Decisioni** | [`decisions/`](decisions/) — gli ADR numerati + [Decision Log](decisions/RT_PDR_00_Decision_Log.md) | Scelte architetturali e di prodotto, con motivazione |
 | 3 | **Codice** | `Source/` | Cosa il gioco fa **davvero**, oggi |
 | 4 | **Specifiche** | [`gameplay/`](gameplay/) · [`technical/`](technical/) | Dettaglio per feature |
 | 5 | **Numeri** | [`balance/`](balance/) | Valori vigenti: azioni, eroi, terreni, equipaggiamento |
@@ -205,6 +205,7 @@ docs/
 ├── roadmap/     milestone, release v0.1, DoD, requisiti di lungo periodo
 │   └── plans/   piani di esecuzione consegnati (storico)
 ├── decisions/   ADR e Decision Log
+│   └── open/    istruttorie delle voci ancora aperte di `OPEN_DECISIONS.md`
 ├── wiki/        **vuota**: le pagine di gioco vivono nel clone pubblicato (D-076). Resta un puntatore
 ├── characters/  pagine personaggio: v0.1, v0.2, candidati Paragon — **un kit per pagina**
 │   └── radar/   gli otto SVG generati da `tools/radar/`: output, non si editano
@@ -297,7 +298,7 @@ prima di leggerlo: *questa frase vale ancora?* — senza dover interpretare date
 | `DELIVERED PLAN` | Piano di esecuzione già eseguito | No |
 | `HISTORICAL` | Superato, conservato per provenienza | No |
 | `RESEARCH` | Esplorazione, non dato vigente | Non è una fonte: non risolve conflitti |
-| `OPEN` | Aspetta una decisione umana | Vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) |
+| `OPEN` | Aspetta una decisione umana | Vive in [`OPEN_DECISIONS.md`](OPEN_DECISIONS.md) come riga di tabella; se il corpo non ci sta, l'istruttoria scorpora in [`decisions/open/`](decisions/open/) e resta `OPEN` finché la voce lo è |
 
 Un documento `AS-BUILT` o `HISTORICAL` che descrive un mondo scomparso **non è un difetto da correggere**:
 riscriverlo falsificherebbe la storia. La correzione va nel documento `CURRENT` che possiede la regola; allo
