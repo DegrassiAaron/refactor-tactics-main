@@ -7,6 +7,7 @@
 // schermo.
 
 #include "Misc/AutomationTest.h"
+#include "Engine/GameInstance.h"
 #include "PieSession/RTPieSessionSubsystem.h"
 #include "ScenarioHarness/RTTestResult.h"
 
@@ -29,6 +30,22 @@ namespace
 			return P;
 		}
 	};
+
+	/**
+	 * 🔴 **L'outer dev'essere una `UGameInstance`, e non e' una formalita'.**
+	 *
+	 * `URTPieSessionSubsystem` eredita da `UGameInstanceSubsystem`, che dichiara
+	 * `ClassWithin = UGameInstance`: un `NewObject` senza outer valido scatta un ensure —
+	 * *«Object None of class RTPieSessionSubsystem with ClassWithin of GameInstance was created in
+	 * invalid Outer /Script/CoreUObject.Package»* — e l'ensure fa fallire il test che gli capita
+	 * accanto, non quello che l'ha causato. Misurato il 2026-09-20: tre test rossi su cinque, e i due
+	 * verdi lo erano solo perche' l'ensure e' one-shot per occorrenza.
+	 */
+	URTPieSessionSubsystem* PieSessionNuovoConduttore()
+	{
+		UGameInstance* GI = NewObject<UGameInstance>(GetTransientPackage());
+		return NewObject<URTPieSessionSubsystem>(GI);
+	}
 
 	FRTPieSessionStep PieSessionPasso(const TCHAR* Voce, const TCHAR* Scenario)
 	{
@@ -63,7 +80,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionAdvancesInOrderTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPieSessionAdvancesInOrderTest::RunTest(const FString&)
 {
-	URTPieSessionSubsystem* Conduttore = NewObject<URTPieSessionSubsystem>();
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	FPieSessionBanco Banco;
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")),
@@ -101,7 +118,7 @@ bool FRTPieSessionRedExpectStillAsksTest::RunTest(const FString&)
 	// La coppia che il progetto produce davvero: nella seduta U54 il feed passava a verde mentre il
 	// dock falliva. Un conduttore che chiudesse il passo da solo su `expect` rosse perderebbe meta'
 	// dell'informazione, e sarebbe la scorciatoia piu' facile da scrivere.
-	URTPieSessionSubsystem* Conduttore = NewObject<URTPieSessionSubsystem>();
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	FPieSessionBanco Banco;
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
@@ -121,7 +138,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionNotLoadableIsNotAskedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPieSessionNotLoadableIsNotAskedTest::RunTest(const FString&)
 {
-	URTPieSessionSubsystem* Conduttore = NewObject<URTPieSessionSubsystem>();
+	// Automation fa fallire un test per ogni `UE_LOG(..., Error, ...)` che compare mentre gira, e qui
+	// due ne compaiono di proposito. Dichiararli attesi NON e' un aggiramento: se il conduttore
+	// smettesse di dire perche' ha saltato un passo, questa riga diventerebbe rossa da sola.
+	AddExpectedError(TEXT("NON GIUDICABILE: scenario non caricabile"),
+		EAutomationExpectedErrorFlags::Contains, 2);
+
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	FPieSessionBanco Banco;
 	Banco.Esito = ERTScenarioStart::NotLoadable;
 
@@ -141,7 +164,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionErroredSessionIsBlockedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPieSessionErroredSessionIsBlockedTest::RunTest(const FString&)
 {
-	URTPieSessionSubsystem* Conduttore = NewObject<URTPieSessionSubsystem>();
+	// Come sopra: il motivo del blocco si scrive nel log, e che ci finisca fa parte del contratto.
+	AddExpectedError(TEXT("BLOCCATO: unita' V9 non esiste"),
+		EAutomationExpectedErrorFlags::Contains, 1);
+
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	FPieSessionBanco Banco;
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")) }, Banco.Porte());
@@ -159,7 +186,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionAbortKeepsWhatWasGivenTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPieSessionAbortKeepsWhatWasGivenTest::RunTest(const FString&)
 {
-	URTPieSessionSubsystem* Conduttore = NewObject<URTPieSessionSubsystem>();
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	FPieSessionBanco Banco;
 
 	Conduttore->Begin({ PieSessionPasso(TEXT("PIE-A"), TEXT("Scen.A")),
@@ -192,7 +219,7 @@ bool FRTPieSessionImposesItsScenarioTest::RunTest(const FString&)
 	TestTrue(TEXT("nessun conduttore non impone niente"),
 		URTPieSessionSubsystem::ScenarioImposedBy(nullptr).IsEmpty());
 
-	URTPieSessionSubsystem* Conduttore = NewObject<URTPieSessionSubsystem>();
+	URTPieSessionSubsystem* Conduttore = PieSessionNuovoConduttore();
 	TestTrue(TEXT("un conduttore fermo non impone niente"),
 		URTPieSessionSubsystem::ScenarioImposedBy(Conduttore).IsEmpty());
 

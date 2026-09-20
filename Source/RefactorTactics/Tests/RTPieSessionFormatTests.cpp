@@ -16,17 +16,21 @@ namespace
 {
 	// Nomi con prefisso proprio: la unity build condivide la translation unit.
 	//
-	// ⚠️ L'unita' c'e' perche' SERVE: `units: []` viene rifiutato con «uno scenario deve schierare
-	// almeno una unita'», misurato il 2026-09-20. Un fixture invalido faceva fallire i test per la
-	// ragione sbagliata — e il test sul campo malformato passava lo stesso, perche' `TestFalse` non
-	// guarda PERCHE' il caricamento e' fallito.
+	// ⚠️ **Unita' ED `expect` ci sono perche' SERVONO**, e ci sono volute due misure per saperlo: il
+	// loader rifiuta `units: []` con «uno scenario deve schierare almeno una unita'» e poi, superato
+	// quello, `expect: []` con «nessuna assertion dichiarata: lo scenario passerebbe sempre».
+	// Un fixture invalido faceva fallire i test per la ragione sbagliata — e il test sul campo
+	// malformato passava lo stesso, perche' `TestFalse` non guarda PERCHE' il caricamento e' fallito.
+	// E' il motivo per cui l'asserzione sul motivo stampa l'errore che ha trovato: e' stata lei a
+	// dire quale fosse il secondo controllo.
 	const TCHAR* PieSessionMinimalJson = TEXT(R"({
 		"scenarioId": "Spec.PieSession.Fixture",
 		"version": 1,
 		"mapRadius": 3,
 		"verifies": ["PIE-VIS-SIGHTWALL", "PIE-V01-LOG"],
 		"units": [{ "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] }],
-		"turns": []
+		"turns": [],
+		"expect": [{ "type": "TurnsCompleted", "value": 0 }]
 	})");
 }
 
@@ -94,7 +98,8 @@ bool FRTPieSessionVerifiesRejectsNonStringTest::RunTest(const FString&)
 		"mapRadius": 3,
 		"verifies": ["PIE-V01-LOG", 42],
 		"units": [{ "id": "F1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] }],
-		"turns": []
+		"turns": [],
+		"expect": [{ "type": "TurnsCompleted", "value": 0 }]
 	})");
 
 	FRTTestScenario Scenario;

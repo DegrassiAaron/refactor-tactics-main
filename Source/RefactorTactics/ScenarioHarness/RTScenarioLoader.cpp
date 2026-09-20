@@ -1954,12 +1954,18 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	{
 		for (const TSharedPtr<FJsonValue>& Value : *VerifiesJson)
 		{
-			FString Voce;
-			if (!Value.IsValid() || !Value->TryGetString(Voce))
+			// 🔴 **Il TIPO, non `TryGetString`**, per la stessa ragione misurata in `ParseCell` e nel
+			// blocco dei tag: `FJsonValueNumber::TryGetString` **converte** e risponde `true`, quindi un
+			// `42` fra le voci entrerebbe in coda come la stringa "42" — un id che nessuna riga del
+			// registro ha, scoperto solo quando il gate di catalogo diventa rosso. Misurato il 2026-09-20.
+			if (!Value.IsValid() || Value->Type != EJson::String)
 			{
 				OutError = TEXT("verifies: ogni voce deve essere una stringa");
 				return false;
 			}
+
+			FString Voce;
+			Value->TryGetString(Voce);
 			// ⛔ Una voce vuota entrerebbe in coda senza ancora: non si ritroverebbe nel registro, e il
 			// verdetto non avrebbe a cosa attaccarsi. Meglio fermarsi qui che al momento di giudicare.
 			if (Voce.IsEmpty())
