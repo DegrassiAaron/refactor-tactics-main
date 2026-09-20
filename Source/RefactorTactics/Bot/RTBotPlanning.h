@@ -203,4 +203,29 @@ struct FRTBotPlanningOutcome
 	 * si paga in partita.
 	 */
 	UPROPERTY() TArray<FRTAuditBotDecision> AuditDecisions;
+
+	/**
+	 * Quanti punti di riduzione i piani SCELTI di questo turno si aspettano di scavalcare grazie alla
+	 * direzione (`#649`, CP 16.2). Somma su tutti i bot che hanno deciso in questa chiamata.
+	 *
+	 * 🔑 **E' la meta' che mancava a un rapporto, e senza di lui l'altra non significa niente.** Le voci
+	 * `Facing`/`RearHitBypassedCover` dicono quanti punti sono stati scavalcati DAVVERO; questo dice
+	 * quanti il bot ne aveva contati decidendo. Il rapporto — realizzati su stimati — e' il *tasso di
+	 * realizzo*, ed e' la seconda meta', rimasta sulla carta dal 2026-08-12, della decisione che ha
+	 * introdotto il termine.
+	 *
+	 * ⛔ **Sta sull'ESITO e non su `FRTBotPlanDecision`, ed e' una separazione voluta.** Quella struct e'
+	 * *«esattamente i campi che `PlanBots` scriveva sull'`ARTUnit`»*: un campo che l'orchestratore non
+	 * applica la trasformerebbe in un misto di decisione e telemetria, e il gate che sorveglia la
+	 * copertura dei campi non saprebbe piu' quale delle due sta contando.
+	 *
+	 * ⛔ **Solo i piani scelti, mai le candidate.** `ChooseBestPlan` valuta decine di candidate per unita'
+	 * e ognuna porta la propria stima: sommarle tutte gonfierebbe il numeratore di un ordine di grandezza
+	 * e il tasso direbbe che il bot sovrastima quando invece a sovrastimare sarebbe la misura.
+	 *
+	 * ⚠️ **Zero quando nessun piano scelto attacca attraverso una copertura** — cioe' su ogni board senza
+	 * coperture di bordo, che oggi sono tutte quelle generate. Uno zero qui e' *«la condizione non si e'
+	 * presentata»*, non *«il bot non sovrastima»*: chi misura deve distinguerli o non ha misurato niente.
+	 */
+	UPROPERTY() int32 PlannedCoverBypassedByFacing = 0;
 };
