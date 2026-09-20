@@ -63,4 +63,26 @@ bool FRTPieOverlayKeysMapToVerdictsTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieOverlaySitsInTheLeftColumnTest,
+	"RefactorTactics.PieSession.OverlaySitsInTheLeftColumnAndNotOnTheRoster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieOverlaySitsInTheLeftColumnTest::RunTest(const FString&)
+{
+	// 🔴 Il difetto che questo gate esiste per impedire ha un verdetto d'autore: *«la scritta sta sotto
+	// i nomi degli eroi e non e' visualizzabile»* (#3242, prima seduta reale). La causa era il DEFAULT:
+	// nessun allineamento, quindi in alto a sinistra — sopra `URTTeamRosterWidget`, zona `TopLeft`.
+	const FRTPieOverlayPlacement Posa = URTPieVerdictOverlay::Placement();
+
+	TestTrue(TEXT("colonna sinistra"), Posa.Horizontal == HAlign_Left);
+	TestTrue(TEXT("centrato in verticale, non in cima dove sta il roster"),
+		Posa.Vertical == VAlign_Center);
+	TestTrue(TEXT("staccato dal bordo"), Posa.LeftMargin > 0.f);
+
+	// ⛔ Il tetto di larghezza non e' estetica: il centro dello schermo resta libero per contratto —
+	// la board non si copre — e un prompt senza tetto cresce con la nota dello scenario.
+	TestTrue(TEXT("la larghezza ha un tetto"), Posa.MaxWidth > 0.f);
+	TestTrue(TEXT("e il tetto lascia libero il centro"), Posa.MaxWidth <= 640.f);
+	return true;
+}
+
 #endif
