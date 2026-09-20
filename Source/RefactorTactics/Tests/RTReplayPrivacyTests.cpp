@@ -545,4 +545,199 @@ bool FRTReplayPrivacyCanonicalUnchangedTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// SONDA — le celle di un TERZO in una traccia pubblica ([D-371] / `BLIND-1`, ereditata il 2026-09-10)
+// =====================================================================================================
+
+/**
+ * ⚠️ **Quello che segue e' una SONDA, non un gate**, e la differenza governa come si legge.
+ *
+ * I test che precedono sono **gate**, e si chiamano per nome invece che contarsi — `EveryLoggedFieldIsClassified`,
+ * `PublicEntryMatchesTheClassification`, `PublicFieldsKeepTheirValue`, `SanitizeIsOrderPreservingAndPure`,
+ * `SpectatorSurfaceHandsOutPublicEntries`, `ObserverTraceOmitsUnknownEntries`,
+ * `ObserverTracesLeaveTheCanonicalOneIntact`: diventano rossi quando qualcuno rompe una proprieta' che
+ * vale. Questo invece
+ * e' **verde perche' il canale c'e'** — misura un difetto aperto, nella forma che
+ * `Tests/RTBlindActionsLeakMeasureTests.cpp` ha gia' usato per `BLIND-1` e `BLIND-4`. Il suo mestiere e'
+ * togliere la domanda dal terreno dell'opinione: quanto grande sia il divario fra il prodotto pubblico e
+ * la traccia privata si misura, non si asserisce.
+ *
+ * 🔴 **Da dove viene la domanda.** [`D-371`] ha chiuso `BLIND-1` il 2026-09-10 con l'uscita *(c)*:
+ * l'occupazione autorevole **non** e' informazione pubblica, e il filtro vale anche per il bot. La stessa
+ * voce di `docs/OPEN_DECISIONS.md` assegna per nome il residuo — *«`SrcCell`, `TgtCell` e
+ * `SightBlockerCell` sono `Public`. Se `BLIND-1` uscisse (b) o (c), quei campi continuerebbero a
+ * raccontare posizioni autorevoli in una traccia pubblica […] una domanda da porre a `#1805` e a
+ * [`D-316`]»*. E' uscita *(c)*. Questa e' la misura di quella domanda.
+ *
+ * 🔑 **I due confini di `#1805` rispondono a meta' domanda ciascuno, e la meta' che manca e' la stessa.**
+ * `FilterEntriesForObserver` chiede *«posso vedere questo SOGGETTO?»* e il verdetto e' congelato contro
+ * **uno solo** (`FRTVerdictSubjectRef`, `Turn/RTTurnLog.h`); `ToPublicTrace` chiede *«questa COLONNA e'
+ * pubblica?»* e `SrcCell` lo e' (`Replay/RTReplayPrivacyLibrary.cpp:32`). Nessuno dei due chiede *«di chi
+ * e' la cella che questa voce nomina?»*, e su ogni voce che nomina due unita' le domande divergono.
+ *
+ * ⚠️ **Il repository lo sa gia', per un produttore solo.** `URTFacingLibrary::MakeHitCameFromSideEntry`
+ * scrive il difensore in ENTRAMBE le celle, e il suo docstring dichiara perche': *«scriverci l'origine
+ * pubblicherebbe la cella esatta di un attaccante che il lettore potrebbe non percepire, su OGNI colpo
+ * risolto **invece che sui rari bypass**»* (`Turn/RTFacingLibrary.h`). L'ultima clausola e' un'eccezione
+ * accettata, non una chiusura: sui bypass il canale resta, e nessuna voce `D-` lo dichiara.
+ *
+ * ⛔ **Questa sonda non sceglie il rimedio, e non deve.** Sbiancare `SrcCell` renderebbe rosso
+ * `PublicFieldsKeepTheirValue`; marcarla `AuditOnly` svuoterebbe il prodotto pubblico; cambiare i
+ * produttori riscrive `SrcCell` su voci gia' archiviate e rigenera i golden. Sono tre costi diversi per
+ * una decisione d'autore che [D-371] ha reso necessaria e non ha preso.
+ *
+ * 🔑 **Diventa ROSSA** il giorno in cui quella decisione e' presa e implementata in un verso qualunque che
+ * chiuda il canale — non prima. Chi la trova rossa senza aver toccato la privacy delle celle ha trovato
+ * un'altra cosa, e deve leggere questo blocco prima di «aggiustarla».
+ */
+namespace
+{
+	/**
+	 * Una voce nella forma esatta di `ERTFacingOutcome::RearHitBypassedCover` come la scrive il resolver:
+	 * **`SrcCell` e' l'attaccante, il soggetto del verdetto e' la VITTIMA**
+	 * (`Turn/RTTurnManager.cpp`, il ramo `Hit.CoverBypassedByFacing > 0` che chiude con
+	 * `AppendLogEntry(BypassedCover, Victim)`).
+	 *
+	 * ⚠️ Costruita a mano e non ottenuta dal resolver, di proposito: il canale sta nella FORMA della voce —
+	 * una cella pubblica che appartiene a un'unita' diversa dal soggetto — e farla nascere da una partita
+	 * la legherebbe alla semantica di `FRTHexHit`, cioe' a `Combat/`, senza misurare niente di piu'.
+	 */
+	FRTTurnLogEntry ColpoAlleSpalle(const FRTCellId& CellaAttaccante, const FRTKnowledgeVerdict& Verdetto)
+	{
+		FRTTurnLogEntry E;
+		E.Phase = ERTMatchPhase::Blast;
+		E.Category = ERTLogCategory::Facing;
+		E.Outcome = static_cast<uint8>(ERTFacingOutcome::RearHitBypassedCover);
+		E.TurnNumber = 1;
+		// La VITTIMA: e' lei il soggetto, ed e' lei che `UnitId` nomina.
+		E.UnitId = 7;
+		E.TgtCell = FRTCellId(0, 0);
+		// L'ATTACCANTE: la cella di un'unita' che il verdetto non rappresenta.
+		E.SrcCell = CellaAttaccante;
+		E.Amount = 2;
+		E.Verdict = Verdetto;
+		return E;
+	}
+
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyThirdPartyCellTest,
+	"RefactorTactics.Replay.Privacy.PublicCellsLeakAThirdPartyPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayPrivacyThirdPartyCellTest::RunTest(const FString&)
+{
+	const FString Root = RTReplayFixtures::TransientRoot(TEXT("ThirdPartyCell"));
+	RTReplayFixtures::Pulisci(Root);
+
+	// Due mondi identici in tutto cio' che la squadra 0 e' AUTORIZZATA a sapere, e diversi solo per dove
+	// stava l'attaccante — che la squadra 0 non percepisce. E' la forma dell'invariante di `#2792`:
+	//   ObserverKnowledge(A) == ObserverKnowledge(B)  =>  vista osservabile(A) == vista osservabile(B)
+	const FRTCellId AttaccanteInA(3, 0);
+	const FRTCellId AttaccanteInB(-3, 2);
+
+	// Il verdetto e' lo STESSO nei due mondi, ed e' il punto: la vittima e' della squadra 0, quindi
+	// `ClassifyTarget` risponde `Allowed` per corto-circuito («un alleato non passa dalla conoscenza») e il
+	// bit si accende sempre. Nessuna delle due esecuzioni dice alla squadra 0 qualcosa sull'attaccante —
+	// eppure la sua cella arriva.
+	const FRTKnowledgeVerdict SoggettoVittima = SoloSquadra(0);
+
+	// ⛔ CONTROLLO POSITIVO: una voce il cui SOGGETTO e' l'attaccante. Qui il filtro per voci ha la domanda
+	// che sa rispondere, e deve togliere la riga alla squadra 0. Senza questa meta', una sonda che trovasse
+	// «la squadra 0 legge tutto» non distinguerebbe un canale aperto da un filtro rotto.
+	const FRTKnowledgeVerdict SoggettoAttaccante = SoloSquadra(1);
+
+	auto Archivia = [&](const FRTCellId& CellaAttaccante, FRTReplayManifest& OutManifest) -> bool
+	{
+		TArray<FRTTurnLogEntry> Voci;
+		Voci.Add(ColpoAlleSpalle(CellaAttaccante, SoggettoVittima));
+		Voci.Add(VoceConVerdetto(99, SoggettoAttaccante));
+		URTTurnLogLibrary::SortTurnLog(Voci);
+
+		OutManifest.MatchId = FGuid::NewGuid();
+		OutManifest.FormatId = FName(TEXT("Format.Skirmish2v2"));
+		OutManifest.bHexTopology = true;
+		OutManifest.ObserverTeamIds = { 0, 1 };
+		return URTReplayRecorderLibrary::RecordTurn(Root, OutManifest, 1, Voci);
+	};
+
+	FRTReplayManifest MondoA;
+	FRTReplayManifest MondoB;
+	if (!TestTrue(TEXT("i due mondi si registrano"), Archivia(AttaccanteInA, MondoA) && Archivia(AttaccanteInB, MondoB)))
+	{
+		return false;
+	}
+
+	auto VistaSquadra0 = [&](const FRTReplayManifest& Manifest, TArray<FRTTurnLogEntry>& Out) -> bool
+	{
+		FRTReplaySession Sessione;
+		const ERTReplayOpenResult Esito =
+			URTReplayPlayerLibrary::OpenArchive(Root, Manifest.MatchId, Sessione, /*ObserverTeamId*/ 0);
+		if (Esito != ERTReplayOpenResult::Opened || Sessione.Traces.Num() != 1)
+		{
+			return false;
+		}
+		Out = Sessione.Traces[0];
+		return true;
+	};
+
+	TArray<FRTTurnLogEntry> VisteA;
+	TArray<FRTTurnLogEntry> VisteB;
+	if (!TestTrue(TEXT("la squadra 0 apre entrambi gli archivi"),
+			VistaSquadra0(MondoA, VisteA) && VistaSquadra0(MondoB, VisteB)))
+	{
+		return false;
+	}
+
+	// --- Il filtro per VOCI funziona, e va misurato prima del resto ------------------------------------
+	// Se questa meta' cadesse, tutto il resto misurerebbe un filtro rotto invece del canale.
+	TestEqual(TEXT("la squadra 0 riceve una voce sola: quella di cui e' soggetto"), VisteA.Num(), 1);
+	TestEqual(TEXT("e lo stesso nell'altro mondo"), VisteB.Num(), 1);
+	TestFalse(TEXT("CONTROLLO POSITIVO: la voce il cui soggetto e' l'attaccante NON arriva"),
+		Importi(VisteA).Contains(99));
+
+	if (VisteA.Num() != 1 || VisteB.Num() != 1)
+	{
+		return false;
+	}
+
+	// --- E nonostante quel filtro, la cella dell'attaccante e' nella traccia della squadra 0 -----------
+	TestEqual(TEXT("MISURA: la traccia per osservatore porta la cella dell'attaccante del mondo A"),
+		VisteA[0].SrcCell, AttaccanteInA);
+	TestEqual(TEXT("e quella del mondo B"), VisteB[0].SrcCell, AttaccanteInB);
+	// ⚠️ `TestTrue` e non `TestNotEqual`, e la ragione **non** e' che manchi l'overload: `AutomationTest.h`
+	// dichiara un `TestNotEqual` templato accanto al `TestEqual` templato, e il repository lo chiama gia' su
+	// `FRTCellId` (`RTControlActionTests.cpp`). La ragione e' il MESSAGGIO: `TestEqual` passa da
+	// `ReportError`, che stampa i due valori; `TestNotEqual` fa `AddError("%s: The two values are equal.")`
+	// e basta. Qui il messaggio **e'** la misura — senza le due celle stampate la sonda direbbe che c'e' un
+	// canale senza dire quale — quindi i valori vanno scritti a mano.
+	TestTrue(*FString::Printf(
+			TEXT("🔴 IL CANALE: conoscenza autorizzata identica, traccia osservabile DIVERSA — %s contro %s"),
+			*VisteA[0].SrcCell.ToString(), *VisteB[0].SrcCell.ToString()),
+		VisteA[0].SrcCell != VisteB[0].SrcCell);
+
+	// --- La seconda uscita: la superficie spettatore, dove il confine dei CAMPI e' l'unico in servizio --
+	// ⚠️ Vanno misurate entrambe. Il file per osservatore e `ToPublicTrace` sono due prodotti distinti, e
+	// una correzione applicata a uno solo lascia l'altro aperto.
+	const TArray<FRTPublicReplayEntry> PubblicheA = URTReplayPrivacyLibrary::ToPublicTrace(VisteA);
+	const TArray<FRTPublicReplayEntry> PubblicheB = URTReplayPrivacyLibrary::ToPublicTrace(VisteB);
+	if (TestEqual(TEXT("il ponte pubblico conserva la voce"), PubblicheA.Num(), 1)
+		&& TestEqual(TEXT("in entrambi i mondi"), PubblicheB.Num(), 1))
+	{
+		TestEqual(TEXT("MISURA: e la cella dell'attaccante esce anche dal prodotto pubblico"),
+			PubblicheA[0].SrcCell, AttaccanteInA);
+		TestTrue(TEXT("🔴 IL CANALE, sulla superficie spettatore"),
+			PubblicheA[0].SrcCell != PubblicheB[0].SrcCell);
+	}
+
+	AddInfo(FString::Printf(
+		TEXT("Canale misurato: la squadra 0 riceve 1 voce su 2 (il filtro per VOCI regge), e quella voce ")
+		TEXT("porta SrcCell=(%d,%d,L%d) nel mondo A contro (%d,%d,L%d) nel mondo B — la posizione di ")
+		TEXT("un'unita' che la squadra 0 non percepisce, su entrambe le uscite del prodotto pubblico."),
+		AttaccanteInA.X, AttaccanteInA.Y, AttaccanteInA.Layer,
+		AttaccanteInB.X, AttaccanteInB.Y, AttaccanteInB.Layer));
+
+	RTReplayFixtures::Pulisci(Root);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
