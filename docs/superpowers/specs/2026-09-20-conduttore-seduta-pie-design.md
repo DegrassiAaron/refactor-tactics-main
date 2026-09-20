@@ -1,7 +1,8 @@
 # Il conduttore di seduta PIE — una apertura, N voci, un tasto per verdetto
 
-> **Statuto**: design accettato in sessione il 2026-09-20, non ancora implementato. Issue [#3208].
-> Finché non atterra, una seduta PIE resta quella descritta da `test-manuali-pie.md` e dai runbook.
+> **Statuto**: design accettato e **implementato** il 2026-09-20 sul branch
+> `issue/3208-conduttore-seduta-pie`, in attesa di merge. Issue [#3208].
+> ⚠️ Resta scoperto ciò che §4.5 dichiarava scoperto fin dall'inizio: la prima seduta reale.
 >
 > **Stato misurato**: 2026-09-20, `main` = `15c50b96`, branch `issue/3208-conduttore-seduta-pie`.
 > Ogni numero qui sotto porta il comando che lo produce; chi lo rilegge lo **ricalcola**.
@@ -123,10 +124,18 @@ Il conduttore dipende quindi da **due porte**, non dal coordinator:
 ```
 struct FRTPieSessionPorts
 {
-    TFunction<ERTScenarioStart(const FString& ScenarioId)> Launch;   // avvia uno scenario
-    TFunction<void()>                                      TearDown; // pulisce prima del prossimo
+    TFunction<FRTPieLaunchOutcome(const FString& ScenarioId)> Launch;   // avvia uno scenario
+    TFunction<void()>                                         TearDown; // pulisce prima del prossimo
 };
 ```
+
+⚠️ **`Launch` restituisce `FRTPieLaunchOutcome`, non `ERTScenarioStart`, e la differenza è un difetto
+trovato in code review.** `FRTScenarioCoordinator::Start` risponde `Started` **anche** quando la sessione
+fallisce all'avvio — deliberatamente, perché la partita normale non venga allestita al suo posto. Ma
+quella sessione nasce `Finished`: `Tick` esce al primo controllo e **nessun `OnScenarioFinished` viene
+mai sparato**. Un conduttore che si fidasse di `Started` resterebbe in `Playing` per sempre. La porta
+distingue quindi tre esiti — avviato · non caricabile · **nato morto**, col motivo — e lo dice al
+ritorno, perché sparare il delegate dentro `Start` sarebbe una rientranza dentro `LaunchCurrent`.
 
 In gioco le porte le installa `ARTGameMode` su di sé, inoltrando a `ScenarioCoordinator.Start(...)` e
 `ScenarioCoordinator.TearDown()`, e gira al subsystem il delegate `OnScenarioFinished`. Nei test le
@@ -196,8 +205,15 @@ quali voci, in che ordine, quali fuori portata e perché. Una voce che nessuno s
 compare per errore: compare fra le escluse.
 
 **Come un selettore diventa una coda.** Un prefisso seleziona **scenari**, e ogni scenario porta in coda
-*tutte* le voci del suo `verifies` — un allestimento che ne copre sette si apre una volta e produce sette
-passi, che è il guadagno principale. Un elenco di id seleziona **voci**, e il conduttore risale allo
+*tutte* le voci del suo `verifies` — un allestimento che ne copre sette produce sette passi in **una sola
+apertura dell'Editor**, che è il guadagno principale.
+
+⚠️ **Sette passi sono sette playback, ed è voluto.** L'unità di costo di una seduta è l'apertura, non la
+partita: aprire l'Editor costa minuti, rigiocare uno scenario costa secondi. Giocarlo una volta sola e
+poi fare sette domande costringerebbe chi guarda a tenere a mente sette cose da un unico passaggio —
+esattamente ciò che il registro chiama un giudizio non affidabile. Ogni passo rigioca la scena con la
+sua domanda davanti. *(Chiarito il 2026-09-20 dopo che una code review ha letto «si apre una volta» come
+«si gioca una volta»: l'ambiguità era nella frase, non nel codice.)* Un elenco di id seleziona **voci**, e il conduttore risale allo
 scenario che ciascuna dichiara: se due scenari dichiarano la stessa voce la coda si ferma prima di
 partire e chiede quale, invece di sceglierne uno in silenzio. L'ordine è quello dello scenario nel primo
 caso, quello scritto dall'utente nel secondo.
@@ -219,7 +235,7 @@ Il mondo in `AwaitingVerdict` è già fermo: è lo stato in cui il coordinator l
 | Caso | Esito del passo |
 |---|---|
 | `ERTScenarioStart::NotLoadable` | `NotJudgeable`, motivo «scenario non caricabile», si prosegue |
-| Sessione avviata ma in errore | `Blocked` col messaggio d'errore — **non si chiede** un giudizio su una scena mai partita |
+| Sessione avviata ma in errore | `Blocked` col messaggio d'errore — **non si chiede** un giudizio su una scena mai partita. ⚠️ Arriva per DUE strade: la sessione muore all'avvio (lo dice la porta al ritorno) oppure fallisce dopo (lo dice `OnScenarioFinished`); la prima non spara nessun evento, ed è quella che il primo tentativo aveva perso |
 | `expect` dello scenario fallite | si chiede il verdetto **lo stesso** |
 | `rt.Pie.Session.Abort` | i verdetti già dati si scrivono, il resto resta `NotRun` |
 
@@ -284,6 +300,11 @@ all'ingresso in `AwaitingVerdict`, mette l'input in modalità UI (il mondo è gi
 
 Nessun asset toccato, nessun binding da cablare a mano nell'Editor. Se un giorno lo si vuole bello, un
 `WBP_` che deriva da questa classe lo eredita senza toccare la logica.
+
+🔴 **`SetIsFocusable(true)` non è opzionale**: `UUserWidget` nasce non focalizzabile, quindi
+`NativeOnKeyDown` non verrebbe **mai** chiamato — il pannello comparirebbe e i tasti non farebbero
+niente. È un difetto che si manifesta solo a schermo, cioè nel momento più caro, e infatti l'ha trovato
+una code review e non un gate.
 
 ### 4.4 I tre gate, tutti rossi senza aprire l'Editor
 

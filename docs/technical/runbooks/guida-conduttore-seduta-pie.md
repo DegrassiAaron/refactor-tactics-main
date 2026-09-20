@@ -1,6 +1,8 @@
 # Condurre una seduta PIE — una apertura, N voci, un tasto per verdetto
 
-> **Statuto**: il conduttore è codice su `main` da [#3208](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3208).
+> **Statuto**: il conduttore vive sul branch `issue/3208-conduttore-seduta-pie` ([#3208](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3208)),
+> in attesa di merge. ⚠️ La sua prima seduta reale non è ancora stata condotta: leggibilità dell'overlay
+> e ergonomia dei tasti non hanno un gate headless, e restano da giudicare a schermo.
 > Copre le voci allestite da uno scenario del corpus. Le altre restano la seduta a mano di sempre, e
 > questa guida dice quali sono e perché.
 >
@@ -44,8 +46,12 @@ coperte costa la stessa apertura che il conduttore esiste per risparmiare.
 | prefisso di scenario | `Visual.Perception.*` | gli **scenari**; ogni voce del loro `verifies` diventa un passo |
 | elenco di voci | `PIE-VIS-SIGHTWALL,PIE-V01-LOG` | le **voci**; il conduttore risale allo scenario che le dichiara |
 
-Il guadagno sta nella prima forma: `Visual.Perception.Acceptance` dichiara sette voci, e si apre una volta
-sola.
+Il guadagno sta nella prima forma: `Visual.Perception.Acceptance` dichiara sette voci, e le giudichi tutte
+in **una sola apertura dell'Editor**.
+
+⚠️ Sette voci sono sette playback, ed è voluto: aprire l'Editor costa minuti, rigiocare uno scenario
+costa secondi, e guardare sette cose in un passaggio solo non è un giudizio affidabile. Ogni passo
+rigioca la scena con la sua domanda davanti.
 
 ⛔ Se una voce è dichiarata da **due** scenari, la coda non parte: il conduttore stampa `AMBIGUA` e chiede
 di nominare lo scenario. Sceglierne uno in silenzio farebbe giudicare la voce in un allestimento diverso
