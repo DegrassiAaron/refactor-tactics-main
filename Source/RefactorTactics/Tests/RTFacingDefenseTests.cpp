@@ -400,8 +400,8 @@ bool FRTCombatBackAttackIgnoresGuardTest::RunTest(const FString&)
 /**
  * [D-312] misurata sulla CATENA REALE, che e' l'unica sede in cui l'ordine dei due pool esiste.
  *
- * Perche' serve, benche' `Combat.DeflectPoolAbsorbsBeforeGuardPool` parli gia' dell'ordine: quello chiama
- * `ApplyAbsorptionPool` DIRETTAMENTE, quindi prova che i due ordini divergono ma resta verde qualunque
+ * Perche' serve, benche' `Combat.DeflectAbsorbsBeforeGuardReduces` parli gia' dell'ordine: quello chiama
+ * `ApplyAbsorptionPool` e `ApplyEligibleHitDelta` DIRETTAMENTE, quindi prova che i due ordini divergono ma resta verde qualunque
  * ordine usi `RTTurnManager`. Misurato prima di scrivere questo: invertendo le due chiamate reali,
  * 100 test su 100 restavano verdi. Il buco era esattamente qui.
  *

@@ -98,6 +98,17 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 StableUnitId = 0;
 
+	/**
+	 * Di quanto `Status.Guarded` riduce ogni colpo valido dell'arco frontale, per QUESTA unita' ([D-408]).
+	 *
+	 * ⚠️ **Copia per valore di `URTHeroData::GuardReduction`**, come ogni altro dato d'eroe che il resolver
+	 * legge: farlo risalire all'`HeroId` darebbe al combattimento una dipendenza su
+	 * `URTHeroCatalogLibrary` per un numero che l'unita' puo' portarsi. Il default vale quanto quello di
+	 * catalogo, cosi' un'unita' senza eroe si comporta come prima di [D-408].
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Unit")
+	int32 GuardReduction = 15;
+
 	/** Numero massimo di celle percorribili in un turno (distanza di Manhattan). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;

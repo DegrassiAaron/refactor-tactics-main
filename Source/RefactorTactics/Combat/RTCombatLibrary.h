@@ -160,9 +160,19 @@ public:
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
 	/**
-	 * `Action.Guard`: **POOL** di 15 danni assorbibili, che i colpi dell'arco FRONTALE consumano finche'
-	 * dura ([D-292] + [D-206]). Non protegge dagli hazard ambientali gia' presenti — quelli non passano dai
-	 * colpi diretti e arrivano con l'epic E8.
+	 * `Action.Guard`: il **DEFAULT DI CATALOGO** della riduzione per colpo ([D-408] + [D-206]). Non
+	 * protegge dagli hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con
+	 * l'epic E8.
+	 *
+	 * 🔴 **Non e' piu' un POOL, e non e' piu' il valore che il resolver legge.** [D-292] l'aveva reso un
+	 * budget di 15 danni assorbibili per il turno; [D-408] (2026-09-20) ritira il pool e riporta la Guardia
+	 * a una riduzione **per colpo**, il cui valore lo dichiara il **personaggio** —
+	 * `URTHeroData::GuardReduction`, copiato su `ARTUnit::GuardReduction`. Questa costante resta come
+	 * **default** di quel campo, cioe' il numero che vale per chi non ne dichiara uno proprio.
+	 *
+	 * ⚠️ **Il `Deflect` invece resta un pool** ([D-309], che `D-408` **non** ritira): il repository ha due
+	 * modelli difensivi, ed e' una conseguenza dichiarata — una reazione e una postura hanno ragioni
+	 * diverse per avere un tetto. Lo pinna `Combat.DeflectStaysAPool`.
 	 *
 	 * 🔴 **Questo commento diceva «riduce di 15 il PRIMO danno diretto ricevuto» fino al 2026-09-03, e
 	 * D-292 l'aveva superato il 2026-08-31.** La differenza non e' di parole: col vecchio delta la riduzione
@@ -299,6 +309,19 @@ public:
 	 */
 	static const FName GuardPoolSource;
 	static const FName ReactionReductionPoolSource;
+
+	/**
+	 * La provenienza della **riduzione per colpo** della Guardia ([D-408]).
+	 *
+	 * ⚠️ **Accanto a `GuardPoolSource` e non al suo posto, e non e' un residuo.** Dal 2026-09-20 la Guardia
+	 * non e' piu' un pool, ma le tracce gia' scritte lo sono: una voce di TurnLog con
+	 * `D-292 · Status.Guarded` resta leggibile e vera per il turno che la produsse. Cancellare la costante
+	 * renderebbe illeggibile il passato per far posto al presente.
+	 *
+	 * 🔑 **E il `Deflect` resta un pool** ([D-309], che `D-408` **non** ritira): `GuardPoolSource` conserva
+	 * un secondo lettore proprio perche' quel modello sopravvive alla Guardia.
+	 */
+	static const FName GuardPerHitSource;
 
 	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il

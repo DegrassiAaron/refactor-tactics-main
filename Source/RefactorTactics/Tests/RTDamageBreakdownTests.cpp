@@ -209,7 +209,7 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
  * `RTTurnManager`, ma li chiama DIRETTAMENTE: resta quindi verde qualunque provenienza passino le due
  * chiamate reali del manager. Non e' pigrizia — `ARTTurnManager` passa da `ResolveAttacks`, il wrapper che
  * costruisce il breakdown e lo SCARTA in un `TMap` locale, quindi dal percorso di partita non esce niente
- * da osservare. E' lo stesso limite di `Combat.DeflectPoolAbsorbsBeforeGuardPool` — ma li'
+ * da osservare. E' lo stesso limite di `Combat.DeflectAbsorbsBeforeGuardReduces` — ma li'
  * `Combat.GuardAndDeflectAbsorbInDeclaredOrder` lo chiude passando dal manager, perche' l'ordine dei pool
  * si vede negli HP. Un'ETICHETTA no: finche' nessuno legge il breakdown, il lato chiamante e' protetto da
  * una code review e non da un test. ✅ Cio' che l'uso delle costanti condivise

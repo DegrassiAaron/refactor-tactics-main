@@ -5460,8 +5460,12 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
 	// questa maschera punterebbe ai colpi sbagliati **in silenzio** — e' l'assunzione da rompere per prima
 	// se il pool assorbisse dal lato sbagliato.
-	TArray<int32> GuardPool;
-	GuardPool.Init(0, Units.Num());
+	// ⏱️ *Era un POOL fino al 2026-09-20* ([D-292]): un budget di 15 danni assorbibili per il turno, che i
+	// colpi frontali consumavano. [D-408] lo ritira e riporta la Guardia a una **riduzione per colpo**, il
+	// cui valore lo dichiara il personaggio. Il segno e' NEGATIVO perche' e' un delta, nella convenzione di
+	// `ApplyDamageDelta` — non un budget positivo come quello del `Deflect`, che resta un pool.
+	TArray<int32> GuardReductionByTarget;
+	GuardReductionByTarget.Init(0, Units.Num());
 	TArray<bool> bFrontalHit;
 	bFrontalHit.Init(false, Plan.Hits.Num());
 
@@ -5479,7 +5483,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		if (!Units[i] || !Units[i]->HasStatus(TAG_Status_Guarded)) { continue; }
-		GuardPool[i] = URTCombatLibrary::GuardFirstHitReduction;
+		// Il valore e' dell'UNITA' ([D-408]), non piu' una costante condivisa: `ARTUnit::GuardReduction` lo
+		// porta da `URTHeroData`, e il suo default e' ancora quello di catalogo.
+		// `Max(0, ...)` perche' una riduzione negativa sarebbe un bonus al danno, e nessuno l'ha dichiarata.
+		GuardReductionByTarget[i] = -FMath::Max(0, Units[i]->GuardReduction);
 
 		for (int32 h = 0; h < Plan.Hits.Num(); ++h)
 		{
@@ -5683,13 +5690,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// Le tre ragioni, per chi legge qui invece che nel registro: `Deflect` e' una REAZIONE e agisce sul colpo
 	// che l'ha innescata mentre `Guard` e' uno STATO gia' in essere; `Priority 15` contro `40` concorda; e
 	// fra i due ordini questo e' quello che concede meno protezione.
-	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
+	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyEligibleHitDelta(
 		URTCombatResolver::ApplyAbsorptionPool(
 			URTCombatResolver::ApplyDamageDelta(
 				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
 				EveryHitDelta),
 			DeflectPool, bDeflectEligible, URTCombatLibrary::ReactionReductionPoolSource),
-		GuardPool, bFrontalHit, URTCombatLibrary::GuardPoolSource);
+		GuardReductionByTarget, bFrontalHit, URTCombatLibrary::GuardPerHitSource);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	// Parallelo ad `AttackSrc`, e non ridondante con lui: la cella dice DA DOVE, non CHI — e dopo un Dash le

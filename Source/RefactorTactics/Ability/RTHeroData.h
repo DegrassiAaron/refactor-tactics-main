@@ -82,6 +82,27 @@ public:
 	int32 PushResistance = 0;
 
 	/**
+	 * **Di quanto `Status.Guarded` riduce OGNI colpo valido dell'arco frontale** ([D-408]).
+	 *
+	 * 🔴 **Il valore lo dichiara il PERSONAGGIO, ed e' la meta' di `D-408` che tocca i dati.** Fino al
+	 * 2026-09-20 era una costante condivisa — `URTCombatLibrary::GuardFirstHitReduction` — e la Guardia era
+	 * un **pool** di assorbimento ([D-292]): un budget totale per il turno, che i colpi frontali
+	 * consumavano. `D-408` ritira il pool e tiene la riduzione.
+	 *
+	 * ⚠️ **Cio' che cambia e' il TETTO, ed e' voluto**: un pool limita la mitigazione totale del turno, una
+	 * riduzione per colpo no. La sorgente §13.8 lo riconosce e lo dichiara deliberato.
+	 *
+	 * ✅ **La proprieta' che `D-292` difendeva NON si perde**: una riduzione per colpo e'
+	 * permutation-invariant **per costruzione**, perche' non c'e' un avanzo da perdere. La pinna
+	 * `Combat.GuardReductionIsPermutationInvariant`.
+	 *
+	 * ⛔ **Il numero per ciascun eroe e' TARATURA e la possiede `balance/`** ([D-282]): qui c'e' il
+	 * default di catalogo, ancora `URTCombatLibrary::GuardFirstHitReduction`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Catalog")
+	int32 GuardReduction = 15;
+
+	/**
 	 * Step di rotazione spendibili a FINE movimento a budget — la famiglia `Move` di ADR-0008 §1.
 	 *
 	 * | Personaggio | `MoveEndPivotMaxSteps` | `DashEndPivotMaxSteps` |
