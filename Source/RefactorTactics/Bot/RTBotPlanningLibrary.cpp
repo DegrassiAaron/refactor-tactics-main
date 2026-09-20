@@ -323,7 +323,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				}
 			}
 			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
-			// catalogo, cioe' dato pubblico — sapere che Phase ha portata 5 non e' sapere dov'e' Phase.
+			// catalogo, cioe' dato pubblico — sapere che Muiren ha portata 5 non e' sapere dov'e' Muiren.
 			FRTCellId KnownCell = Other.Cell;
 			int32 KnownHealth = Other.Health + Other.Shield;
 			// La CONDIZIONE segue la stessa disciplina degli HP: su un contatto incerto non si sa, e non si
@@ -726,7 +726,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				LocalCtx.bAttackFriendlyFire = ShapedAbility->Def.bFriendlyFire;
 				// Chi SPOSTA, letto dagli effetti dichiarati ([D-319], `#2253`). Dal `Def` e non da una
 				// lista di `ActionId`: cosi' vale anche per gli effetti che l'EQUIPAGGIAMENTO aggiunge —
-				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Phase
+				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Muiren E di Branth
 				// (D-089). Una lista di nomi avrebbe mancato proprio il caso piu' comune.
 				LocalCtx.bAttackDisplaces = false;
 				for (const FRTActionEffectSpec& Effect : ShapedAbility->Def.Effects)
@@ -813,10 +813,26 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// quindi pianificarli insieme e' legale, ed e' la scelta *schivo e sparo*. Il prezzo c'e' e non e' piu'
 		// implicito: chi scatta non prosegue col Move (lo applica il resolver piu' sotto), chi carica si.
 		//
-		// Resta il problema di bilanciamento che la nota segnalava, e resta misurato sugli ARCHETIPI: per il
-		// Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1 con
-		// cooldown 3. Sul roster eroi i numeri sono altri. Il meccanismo qui sopra e' corretto; a renderlo
-		// utile e' il bilanciamento — voce `BAL-1` del backlog, che parte da una misura e non da una correzione.
+		// ⌫ **Questa nota misurava su un roster che non esiste, e rinviava alla voce sbagliata.** Diceva:
+		// *«per il Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1
+		// con cooldown 3 […] voce `BAL-1` del backlog»*. Tre cose non reggono piu', verificate il 2026-09-20:
+		//
+		// · **`Guardian.*` e' fuori dal gioco** dal CP 6.6 — il roster e' `Hero.Aevik`, `Hero.Muiren`,
+		//   `Hero.Branth`, `Hero.Ivrin` (`URTHeroCatalogLibrary::GetHeroIds`) — e non esiste nessuna
+		//   `Sweep` con cui confrontare la carica;
+		// · **i numeri della carica sono altri**: `Hero.Branth.Ram` eredita `Action.Charge`, cioe' 20 danni
+		//   piu' `Push 1`, portata 3, **cooldown 2** e slot **`Movement`** (`RTCatalogLibrary.cpp`, la riga di
+		//   `ShippedAction(TEXT("Action.Charge") …)`). Non `cooldown 3`, e non lo slot principale;
+		// · **`BAL-1` e' un'altra domanda**: in `docs/OPEN_DECISIONS.md` e' *«`Guard` e `Brace` devono
+		//   separarsi in danno contro spinta?»*, riformulata da [D-408]. Non ha niente a che vedere con lo
+		//   scatto.
+		//
+		// 🔑 **Cio' che di quella nota resta vero e' il meccanismo, non l'esempio**: scatto e attacco sono
+		// slot diversi, pianificarli insieme e' legale, e quanto valga la composizione e' bilanciamento.
+		// La sede e' `#149`, col vincolo di [D-102]: un risultato bot-contro-bot non e' evidenza finche' il
+		// bot non e' certificato sulle capability che lo producono, e per lo scatto lo stato sta in
+		// `docs/roadmap/bot-competence.yaml` (`Dash`: `PASS` per Muiren e Branth, `UNTESTED` per Ivrin, non
+		// applicabile ad Aevik, che una mobilita' rapida non ce l'ha).
 		if (bDashReady)
 		{
 			for (int32 A = 0; A < Bot.NumAbilities(); ++A)

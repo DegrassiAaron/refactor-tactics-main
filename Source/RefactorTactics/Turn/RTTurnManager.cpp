@@ -891,6 +891,36 @@ void ARTTurnManager::PlanBots()
 					WElevation, MaxLayer, WElevation * MaxLayer, WApproach);
 			}
 		}
+
+		// 🔴 **LA SECONDA INVARIANTE DEI PESI, e sta FUORI dal ramo della mappa perche' non le serve.**
+		// `WObjectiveFalloff > WApproach` e' dichiarata in `RTHexBotLibrary.h` come *«l'invariante che PUO'
+		// fallire»*: sotto quella soglia il termine d'obiettivo si annulla contro l'avvicinamento, un passo
+		// che avvicina l'obiettivo e allontana il nemico vale zero, il tie-break «a parita' vince la mossa
+		// minima» fa restare, e il bot non va sull'obiettivo **proprio nel caso per cui il termine esiste**.
+		//
+		// 🔑 **Sta QUI accanto all'altra e non nel planner, ed e' una scelta di SEDE.** `PlanTurn` riceve
+		// gia' `Pesi` e potrebbe verificarla da solo — ma sarebbe una seconda sede per la stessa famiglia
+		// d'invarianti, con un secondo registro e una seconda vita: qui c'e' gia' il messaggio, e c'e' gia'
+		// `bBotWeightInvariantChecked`, che la fa gridare **una volta per partita** invece che a ogni turno.
+		//
+		// ⛔ **Il buco che chiude e' reale e misurato, non teorico.** A pinnare l'invariante era **solo**
+		// `HexBot.ObjectivePullBeatsClosingOneCell`, che legge `GetDefault<ARTTurnManager>()` — il CDO. E'
+		// esattamente il buco che `#1276` ha chiuso per `WElevation`: `ARTGameMode` riusa un
+		// `ARTTurnManager` gia' presente nel livello, e un'istanza piazzata serializza i propri `UPROPERTY`
+		// nel `.umap`. ∴ un livello con `WObjectiveFalloff <= WApproach` riapriva l'indifferenza
+		// all'obiettivo **mentre il test restava verde**, e nessuno lo sentiva.
+		//
+		// ⚠️ Diagnostica, non decisione: non cambia una sola scelta, esattamente come quella sopra.
+		if (WObjectiveFalloff <= WApproach)
+		{
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] INVARIANTE PESI BOT VIOLATA: WObjectiveFalloff(%d) <= WApproach(%d). "
+					 "Il gradiente dell'obiettivo non batte quello dell'avvicinamento: a parita' il "
+					 "tie-break fa restare fermo il bot, e l'obiettivo non viene preso proprio quando "
+					 "sarebbe raggiungibile (#2269). Controlla i pesi sull'ARTTurnManager di QUESTO "
+					 "livello: un'istanza serializzata nel .umap vince sui default C++."),
+				WObjectiveFalloff, WApproach);
+		}
 	}
 
 	EnsureMatchRoster();
