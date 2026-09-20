@@ -26,14 +26,15 @@
 > ## 📏 La soglia: quando il corpo esce dalla cella
 >
 > Una voce di questo documento è una **riga di tabella**, e per la maggior parte va bene: la mediana è
-> **607 caratteri**, misurata così — il numero si rimisura, non si cita a memoria:
+> **593 caratteri** al 2026-09-20 — cambia insieme al documento, quindi si rimisura invece di citarla a
+> memoria:
 >
 > ```bash
-> awk '/^\| /{print length($0)}' docs/OPEN_DECISIONS.md | sort -n >   | awk '{a[NR]=$1} END{print (NR%2)?a[(NR+1)/2]:int((a[NR/2]+a[NR/2+1])/2)}'
+> awk '/^\| /{print length($0)}' docs/OPEN_DECISIONS.md | sort -n | awk '{a[NR]=$1} END{print (NR%2)?a[(NR+1)/2]:int((a[NR/2]+a[NR/2+1])/2)}'
 > ```
 >
 > 🔑 **Sopra i `4000` caratteri una voce APERTA scorpora il corpo** in `decisions/open/<id>.md` e qui lascia
-> un puntatore di due frasi: la domanda, lo stato, l'innesco e il link. La soglia è ~6,6× la mediana, ed è
+> un puntatore di due frasi: la domanda, lo stato, l'innesco e il link. La soglia è ~6,7× la mediana, ed è
 > scelta dove il salto è misurabile invece che a occhio: sotto, le voci stanno in una cella che un editor
 > manda a capo; sopra, sono paragrafi unici che nessun lettore finisce — e *«un'analisi che nessuno finisce
 > di leggere ha lo stesso effetto pratico di un'analisi che non esiste»*
