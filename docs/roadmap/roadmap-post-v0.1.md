@@ -493,7 +493,7 @@ opportunity map, information value, coordinazione vera, sinergie ambientali, bel
 action scoring, reaction policy migliore, stress 4v4.
 
 ➕ **E una cosa che E26 già possiede e che quell'elenco non nomina: la DIFESA PERSONALE del bot.** La
-regola *«se ferito sotto metà HP e ha un'azione che lo rimette in piedi, la usa e salta il turno»* è
+regola *«se ferito sotto metà HP e ha un'azione che lo rimette in piedi, la usa e rinuncia ad attaccare»* è
 **implementata** in [`Bot/RTBotPlanningLibrary.cpp`](../../Source/RefactorTactics/Bot/RTBotPlanningLibrary.cpp)
 e **non la attraversa nessuno**: la condizione d'ingresso è `Health * 2 < MaxHealth`, e a scioglierla serve
 un'azione `bSelfTarget` con un effetto `Heal` — l'intersezione dei due insiemi è **vuota** sul roster

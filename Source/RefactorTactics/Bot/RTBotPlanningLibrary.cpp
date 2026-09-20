@@ -148,7 +148,13 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// che non c'e' — la prenotazione a fine iterazione scrive proprio qui dentro.
 		FRTHexSnapshot& Snapshot = *TeamSnapshotPtr;
 
-		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
+		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e rinuncia al
+		// resto della pianificazione.
+		//
+		// ⚠️ **«Salta il turno» e' cio' che questa riga diceva, ed e' impreciso**: il `continue` piu' sotto
+		// salta l'attacco e il movimento, non la REAZIONE — che il blocco `#601` arma qualche riga prima,
+		// e apposta, *«PRIMA di ogni `continue` del resto della pianificazione»*. Un bot che si cura resta
+		// armato, e chi legge «salta il turno» conclude il contrario.
 		//
 		// «Supporto» qui significa curare o schermare, non genericamente «agire su di se'»: il filtro era
 		// `bSelfTarget` e basta, e finche' nessuna azione dichiarava quel flag la differenza non si vedeva.
@@ -184,14 +190,23 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// di come sono, e chi lo legge cerca nel posto sbagliato.** Quel corpo dice *«le uniche due azioni
 		// self-target sono `Action.Guard` e `Action.Brace`»* e *«il gate richiede `Heal` **o** `Shield`»*:
 		// entrambe scadute — la seconda l'ha corretta `#2283` qui sopra, la prima non l'aveva corretta
-		// nessuno.
+		// nessuno. ➕ E una TERZA, che e' la piu' dannosa perche' manda a cercare nel file sbagliato: quel
+		// corpo colloca il ramo in *«`RTTurnManager.cpp` (~riga 150)»*, e il ramo vive QUI dal giorno in cui
+		// `#3013` ha portato la decisione del bot fuori dall'orchestratore.
 		//
 		//   self-target    `Action.Guard` · `Action.Overwatch` · `Action.Brace` · `Action.Shield`, piu' i
 		//                  due che da quest'ultima DERIVANO — `Hero.Muiren.TideGuard` e
 		//                  `Hero.Ivrin.PhaseGuard`, via `MakeHeroActionFromCore`, che eredita il flag.
-		//   con `Heal`     `Action.Heal` e `Hero.Muiren.CircularTide`, con le sue due varianti
+		//   con `Heal`     `Action.Heal` (20) e `Hero.Muiren.CircularTide` (18) con le sue due varianti
 		//                  `…Healing` (24) e `…Impact` (10). ⚠️ Sono VARIANTI di quell'azione, non azioni:
 		//                  il corpo della issue le attribuisce a due eroi diversi, e sono tutte di Muiren.
+		//                  ➕ E `Gadget.Medkit`, che CONCEDE `Action.Heal` con `Heal 18`: e' la quinta riga
+		//                  che il comando qui sotto restituisce, ed e' un'azione vera — `EquipLoadout` la
+		//                  costruisce con `MakeEquipmentAction` e la accoda ad `Abilities`, quindi accende
+		//                  `bRestores` come le altre. Non apre l'intersezione perche' `MakeEquipmentAction`
+		//                  COPIA `bSelfTarget` dal core, e `Action.Heal` non lo dichiara. ⚠️ Senza questa
+		//                  riga l'elenco diceva quattro e il comando cinque, ed e' lo stesso difetto che
+		//                  questo blocco esiste per correggere.
 		//
 		// L'intersezione e' VUOTA, ed e' l'unica cosa che tiene il ramo chiuso. Si rimisura cosi':
 		//   git grep -n "bSelfTarget = true" -- Source/RefactorTactics/Ability/
@@ -241,7 +256,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				// Gli HP entrano nel testo perche' sono la CONDIZIONE che ha fatto scattare il ramo: senza,
 				// chi legge il log vede la scelta e non il perche'.
 				Esito.LogLines.Add(FRTBotLogLine{FString::Printf(
-					TEXT("%s: si rimette in piedi con %s (ferito: %d/%d HP) e salta il turno"),
+					TEXT("%s: si rimette in piedi con %s (ferito: %d/%d HP) e rinuncia ad attaccare"),
 					*Bot.DisplayName, *Ab->Def.ActionId.ToString(), Bot.Health, Bot.MaxHealth), Bot.Index});
 				break;
 			}
