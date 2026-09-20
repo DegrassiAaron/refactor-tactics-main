@@ -1,0 +1,357 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Il gate di `docs/roadmap/bot-competence.yaml`: ogni riga risolve, o non e' evidenza.
+
+    python tools/bot-competence/check.py --check
+    python tools/bot-competence/check.py --check --yaml <percorso>
+    python tools/bot-competence/check.py --autotest     # le funzioni pure, senza leggere l'albero
+
+Perche' esiste
+--------------
+`D-102` chiede che ogni voce di competenza sia legata a **uno scenario o a un test reale, mai a un
+giudizio** — e `#543` aggiunge la condizione che rende la richiesta eseguibile: *«un validator lo
+verifica, non una review»*. Una review guarda una riga alla volta e si stanca; un token che smette di
+risolvere perche' qualcuno ha rinominato un test non lo vede nessuno, e lo schema diventa un documento
+che sembra corrente.
+
+Il precedente e' misurato e recente: `RefactorTactics.Heroes.Phase.*` e' tuttora il nome LETTERALE dei
+test di `Hero.Muiren`. Uno schema che derivasse il nome del test dall'id dell'eroe nascerebbe rosso su
+codice sano — ed e' la ragione per cui qui l'evidenza e' un token letterale e il gate lo confronta coi
+letterali veri.
+
+Cosa NON copre
+--------------
+⛔ **Non dice che i test siano VERDI.** Dice che esistono. E' la stessa distinzione che
+`tools/asset-provenance/check.ts` dichiara per se': un verde significa «registrato», mai «consentito».
+Che un token passi lo dice la suite, e la data dell'ultima run sta in `meta.suite` dello schema.
+
+⛔ **Non giudica lo STATO.** Che una riga meriti `PASS` invece di `PARTIAL` e' una valutazione umana, e
+nessun comando la puo' produrre: dipende da cosa quel test esercita davvero. Il gate verifica la FORMA
+— che uno stato diverso da `UNTESTED` porti evidenza, e che l'evidenza risolva — non il merito.
+
+⛔ **Non verifica il vocabolario contro una fonte esterna**, perche' non ne esiste una: le dieci
+capability vengono dalla provenienza dichiarata da `#543` e vivono nello schema stesso. Cio' che il gate
+impedisce e' che una riga ne inventi un'undicesima in silenzio.
+
+⛔ **Sui CONSUMATORI verifica che l'annotazione esista, non che dica il vero.** Che un documento citi
+`bot-competence.yaml` non prova che gli stati riportati accanto al numero siano quelli correnti: e' un
+controllo di presenza, e serve a impedire che l'annotazione sparisca in silenzio. Chi cambia uno stato
+rilegge i consumatori. E non riconosce una conclusione di bilanciamento NUOVA scritta altrove: nessun
+comando legge l'intenzione di una frase, e chi pubblica una metrica bot-contro-bot in un file nuovo lo
+aggiunge a `consumers` dello schema.
+
+⚠️ **Non legge la rete e non legge GitHub.** Funziona offline, come ogni radar di questo repository
+tranne `issue-refs.ts`.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import sys
+
+try:
+    import yaml
+except ImportError:  # pragma: no cover - dipendenza dichiarata nel docstring
+    print("Serve pyyaml: pip install pyyaml", file=sys.stderr)
+    raise
+
+# La console Windows di questo repository e' `cp1252` e un marcatore la fa esplodere a meta' referto —
+# cioe' proprio quando il gate ha qualcosa da dire. Si riconfigura una volta, con `errors="replace"`:
+# un carattere che non passa diventa un punto interrogativo, non una `UnicodeEncodeError`.
+for _flusso in (sys.stdout, sys.stderr):
+    try:
+        _flusso.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # pragma: no cover — flusso gia' avvolto, o non riconfigurabile
+        pass
+
+STATI = ("PASS", "PARTIAL", "FAIL", "UNTESTED")
+
+RADICE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+YAML_DEFAULT = os.path.join(RADICE, "docs", "roadmap", "bot-competence.yaml")
+
+
+class SchemaError(Exception):
+    """Una riga che non rispetta la forma. Si rifiuta col nome del difetto."""
+
+
+# ---------------------------------------------------------------------------------------------------
+# Le funzioni PURE: decidono, e non leggono il disco. `--autotest` le prova senza un albero.
+# ---------------------------------------------------------------------------------------------------
+
+def chiave(riga: dict) -> str:
+    return f"{riga.get('hero')} x {riga.get('capability')}"
+
+
+def valida_forma(schema: dict, eroi: set[str]) -> list[str]:
+    """I difetti di FORMA, uno per riga. Lista vuota = forma sana.
+
+    ⚠️ Non guarda l'albero: un token qui puo' essere ben formato e non risolvere. Le due domande sono
+    separate apposta — la forma si puo' provare senza un repository, la risoluzione no.
+    """
+    difetti: list[str] = []
+
+    vocabolario = [v.get("name") for v in schema.get("vocabulary") or []]
+    if not vocabolario:
+        difetti.append("`vocabulary` assente o vuoto: senza un vocabolario nessuna riga e' verificabile")
+    noti = set(vocabolario)
+
+    viste: set[tuple] = set()
+    for riga in schema.get("competence") or []:
+        h, c = riga.get("hero"), riga.get("capability")
+        if h not in eroi:
+            difetti.append(f"{chiave(riga)}: eroe fuori dal roster ({sorted(eroi)})")
+        if c not in noti:
+            difetti.append(f"{chiave(riga)}: capability fuori dal vocabolario dello schema")
+        if (h, c) in viste:
+            difetti.append(f"{chiave(riga)}: coppia duplicata — due righe per lo stesso fatto divergono")
+        viste.add((h, c))
+
+        stato = riga.get("state")
+        if stato not in STATI:
+            difetti.append(f"{chiave(riga)}: stato '{stato}' non e' fra {STATI}")
+
+        ev = riga.get("evidence") or []
+        if not isinstance(ev, list):
+            difetti.append(f"{chiave(riga)}: `evidence` deve essere una lista")
+            ev = []
+
+        applicabile = riga.get("applicable", True)
+        if applicabile is False:
+            # La domanda non si pone: il ROSTER non da' la cosa a questo eroe. Va motivato, o diventa
+            # il modo piu' comodo di far sparire una riga scomoda.
+            if not (riga.get("motivo") or "").strip():
+                difetti.append(f"{chiave(riga)}: `applicable: false` senza `motivo`")
+            if stato != "UNTESTED" or ev:
+                difetti.append(
+                    f"{chiave(riga)}: `applicable: false` vuole `state: UNTESTED` e `evidence` vuota — "
+                    "se c'e' evidenza, la domanda si poneva")
+        elif stato == "UNTESTED":
+            if ev:
+                difetti.append(f"{chiave(riga)}: `UNTESTED` con evidenza — allora non e' non testata")
+        elif not ev:
+            difetti.append(f"{chiave(riga)}: stato '{stato}' senza evidenza e' un giudizio, non un fatto")
+
+        for t in ev:
+            if not re.fullmatch(r"(test|scenario):\S+", str(t)):
+                difetti.append(f"{chiave(riga)}: token malformato '{t}' (atteso `test:<nome>` o `scenario:<id>`)")
+
+        if not (riga.get("why") or "").strip():
+            difetti.append(f"{chiave(riga)}: `why` vuoto — uno stato senza ragione non e' contestabile")
+
+    # La griglia deve essere PIENA: `UNTESTED` e' il default e si scrive. Una coppia assente si legge
+    # come «non si applica», che e' un'altra cosa e ha un campo suo.
+    for h in sorted(eroi):
+        for c in vocabolario:
+            if (h, c) not in viste:
+                difetti.append(f"{h} x {c}: riga ASSENTE — `UNTESTED` si scrive, non si omette")
+
+    # Una capability che non compare per nessun eroe e' una voce di vocabolario morta.
+    for c in vocabolario:
+        if not any(k[1] == c for k in viste):
+            difetti.append(f"capability '{c}': nessuna riga la usa")
+
+    return difetti
+
+
+def separa(evidenze: set[str]) -> tuple[set[str], set[str]]:
+    """I token in due insiemi per tipo. Sconosciuti gia' scartati da `valida_forma`."""
+    test = {t[len("test:"):] for t in evidenze if t.startswith("test:")}
+    scen = {t[len("scenario:"):] for t in evidenze if t.startswith("scenario:")}
+    return test, scen
+
+
+# ---------------------------------------------------------------------------------------------------
+# Le tre sorgenti, lette dall'albero
+# ---------------------------------------------------------------------------------------------------
+
+def eroi_dal_catalogo(radice: str) -> set[str]:
+    """Gli id del roster da `URTHeroCatalogLibrary::GetHeroIds`, non da un elenco riscritto qui."""
+    p = os.path.join(radice, "Source", "RefactorTactics", "Ability", "RTHeroCatalogLibrary.cpp")
+    with open(p, encoding="utf-8", errors="replace") as f:
+        testo = f.read()
+    m = re.search(r"GetHeroIds\s*\(\s*\)\s*\{(.*?)\}", testo, re.S)
+    if not m:
+        raise SchemaError(f"GetHeroIds non trovata in {p}: senza roster non si valida niente")
+    return set(re.findall(r'TEXT\("(Hero\.[A-Za-z0-9_]+)"\)', m.group(1)))
+
+
+def test_dichiarati(radice: str) -> set[str]:
+    """I nomi Automation LETTERALI, dai file di test dei due moduli."""
+    nomi: set[str] = set()
+    for sotto in (
+        os.path.join("Source", "RefactorTactics", "Tests"),
+        os.path.join("Source", "RefactorTacticsEditor", "Private", "Tests"),
+    ):
+        base = os.path.join(radice, sotto)
+        if not os.path.isdir(base):
+            continue
+        for dirpath, _dirs, files in os.walk(base):
+            for nome in files:
+                if not nome.endswith((".cpp", ".h")):
+                    continue
+                with open(os.path.join(dirpath, nome), encoding="utf-8", errors="replace") as f:
+                    nomi.update(re.findall(r'"(RefactorTactics\.[A-Za-z0-9_.]+)"', f.read()))
+    return nomi
+
+
+def scenari_dichiarati(radice: str) -> set[str]:
+    """Gli `scenarioId` del corpus. Lettura testuale: un JSON malformato non deve fermare il gate."""
+    ids: set[str] = set()
+    base = os.path.join(radice, "Scenarios")
+    if not os.path.isdir(base):
+        return ids
+    for dirpath, _dirs, files in os.walk(base):
+        for nome in files:
+            if not nome.endswith(".json"):
+                continue
+            with open(os.path.join(dirpath, nome), encoding="utf-8", errors="replace") as f:
+                ids.update(re.findall(r'"scenarioId"\s*:\s*"([^"]+)"', f.read()))
+    return ids
+
+
+# ---------------------------------------------------------------------------------------------------
+
+def esegui(percorso: str, radice: str) -> int:
+    with open(percorso, encoding="utf-8") as f:
+        schema = yaml.safe_load(f)
+
+    eroi = eroi_dal_catalogo(radice)
+    difetti = valida_forma(schema, eroi)
+
+    righe = schema.get("competence") or []
+    tutte: set[str] = set()
+    for r in righe:
+        tutte.update(str(t) for t in (r.get("evidence") or []))
+    nomi_test, ids_scenario = separa(tutte)
+
+    dichiarati = test_dichiarati(radice)
+    corpus = scenari_dichiarati(radice)
+
+    # I CONSUMATORI: chi pubblica una metrica prodotta da partite automatiche deve portarsi accanto lo
+    # stato di competenza che la determina. La lista la dichiara lo schema; qui si verifica soltanto che
+    # l'annotazione ci sia ancora — se sparisce, la conclusione torna producibile senza.
+    nome_schema = os.path.basename(percorso)
+    consumatori_rotti: list[str] = []
+    for rel in schema.get("consumers") or []:
+        assoluto = os.path.join(radice, rel)
+        if not os.path.isfile(assoluto):
+            consumatori_rotti.append(f"{rel}: dichiarato consumatore, ma il file non esiste")
+            continue
+        with open(assoluto, encoding="utf-8", errors="replace") as f:
+            if nome_schema not in f.read():
+                consumatori_rotti.append(
+                    f"{rel}: pubblica una metrica da partite automatiche e NON cita `{nome_schema}`")
+
+    rotti: list[str] = []
+    for r in righe:
+        for t in (r.get("evidence") or []):
+            t = str(t)
+            if t.startswith("test:") and t[5:] not in dichiarati:
+                rotti.append(f"{chiave(r)}: {t} non e' dichiarato da nessun IMPLEMENT_*_AUTOMATION_TEST")
+            elif t.startswith("scenario:") and t[9:] not in corpus:
+                rotti.append(f"{chiave(r)}: {t} non e' uno `scenarioId` del corpus")
+
+    # LA RIGA DI COPERTURA, stampata SEMPRE — anche quando tutto e' verde, e col comando per ricontarla.
+    # Un gate che tace quando passa non dice mai quanto ha guardato, ed e' il modo in cui uno scope che si
+    # restringe resta verde: e' il difetto che `un gate stampa i fallimenti, non lo scope` descrive.
+    conteggio = {s: sum(1 for r in righe if r.get("state") == s) for s in STATI}
+    non_applicabili = [r for r in righe if r.get("applicable") is False]
+    print(f"bot-competence: {len(righe)} righe lette da {os.path.relpath(percorso, radice)} "
+          f"({len(eroi)} eroi x {len(schema.get('vocabulary') or [])} capability)")
+    print(f"  stati: " + " · ".join(f"{s} {conteggio[s]}" for s in STATI))
+    print(f"  evidenza: {len(nomi_test)} token `test:` e {len(ids_scenario)} token `scenario:` distinti, "
+          f"confrontati con {len(dichiarati)} nomi Automation e {len(corpus)} scenari dell'albero")
+    consumatori = schema.get("consumers") or []
+    print("  consumatori sorvegliati: " + (", ".join(consumatori) if consumatori else
+          "NESSUNO — lo schema non lo legge nessun documento, che e' il difetto che `#543` chiude"))
+
+    # INFORMAZIONE, non difetto: una riga esentata dal roster e' un'attesa legittima, e va STAMPATA invece
+    # che nascosta — e' la stessa asimmetria che gli altri radar dichiarano.
+    for r in non_applicabili:
+        print(f"  ℹ️  {chiave(r)}: la domanda non si pone — {r.get('motivo', '').strip()[:120]}")
+
+    if difetti or rotti or consumatori_rotti:
+        print()
+        for d in difetti:
+            print(f"  ❌ FORMA        {d}")
+        for d in rotti:
+            print(f"  ❌ RISOLUZIONE  {d}")
+        for d in consumatori_rotti:
+            print(f"  ❌ CONSUMATORE  {d}")
+        n = len(difetti) + len(rotti) + len(consumatori_rotti)
+        print(f"\n{n} difetti. Un'annotazione che sparisce e un token che non risolve sono lo stesso "
+              "difetto: qualcosa che sembra sorvegliato e non lo e'.")
+        return 1
+
+    print("\n✅ ogni riga ha la sua forma e ogni token risolve. "
+          "⚠️ Questo NON dice che i test siano verdi: vedi `meta.suite` dello schema.")
+    return 0
+
+
+def autotest() -> int:
+    """Le funzioni pure, provate senza albero. Dimostra che il gate SA fallire (`D-188`)."""
+    eroi = {"Hero.A", "Hero.B"}
+    voc = [{"name": "Uno"}]
+
+    def schema(righe):
+        return {"vocabulary": voc, "competence": righe}
+
+    sano = [
+        {"hero": "Hero.A", "capability": "Uno", "state": "PASS",
+         "evidence": ["test:RefactorTactics.X.Y"], "why": "perche' si'"},
+        {"hero": "Hero.B", "capability": "Uno", "state": "UNTESTED", "evidence": [], "why": "nessuna misura"},
+    ]
+    casi = [
+        ("forma sana", sano, 0),
+        ("stato senza evidenza", [dict(sano[0], evidence=[]), sano[1]], 1),
+        ("UNTESTED con evidenza", [sano[0], dict(sano[1], evidence=["test:RefactorTactics.X.Y"])], 1),
+        ("token malformato", [dict(sano[0], evidence=["RefactorTactics.X.Y"]), sano[1]], 1),
+        ("stato ignoto", [dict(sano[0], state="FORSE"), sano[1]], 1),
+        ("riga assente", [sano[0]], 1),
+        # UNO e non due: la riga in piu' e' ben formata, e la griglia resta completa. Scrivere `2` qui
+        # era la mia attesa sbagliata, e l'autotest l'ha presa — che e' il suo mestiere.
+        ("coppia duplicata", sano + [dict(sano[1], hero="Hero.A", capability="Uno")], 1),
+        ("why vuoto", [dict(sano[0], why="  "), sano[1]], 1),
+        ("non applicabile senza motivo", [sano[0], dict(sano[1], applicable=False)], 1),
+        ("non applicabile con evidenza", [sano[0],
+            dict(sano[1], applicable=False, motivo="il roster non gliela da'",
+                 evidence=["test:RefactorTactics.X.Y"])], 1),
+        ("non applicabile ben formato", [sano[0],
+            dict(sano[1], applicable=False, motivo="il roster non gliela da'")], 0),
+    ]
+    rossi = 0
+    for nome, righe, attesi in casi:
+        d = valida_forma(schema(righe), eroi)
+        esito = "ok" if len(d) == attesi else f"ATTESI {attesi}, TROVATI {len(d)}"
+        if len(d) != attesi:
+            rossi += 1
+            for x in d:
+                print(f"      {x}")
+        print(f"  {'✅' if len(d) == attesi else '❌'} {nome}: {esito}")
+    print(f"\n{'✅ autotest verde' if rossi == 0 else f'❌ {rossi} casi falliti'}")
+    return 1 if rossi else 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--check", action="store_true", help="valida lo schema contro l'albero")
+    ap.add_argument("--autotest", action="store_true", help="prova le funzioni pure, senza albero")
+    ap.add_argument("--yaml", default=YAML_DEFAULT)
+    ap.add_argument("--radice", default=RADICE)
+    a = ap.parse_args()
+
+    if a.autotest:
+        return autotest()
+    if not a.check:
+        ap.print_help()
+        return 0
+    try:
+        return esegui(a.yaml, a.radice)
+    except (SchemaError, FileNotFoundError) as e:
+        print(f"❌ {e}")
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
