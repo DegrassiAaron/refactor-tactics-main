@@ -244,31 +244,51 @@ requisito** a «lo sistemeremo con la UI».
 > requisito**»*. La issue è nata il 2026-08-13 ([#759](https://github.com/DegrassiAaron/refactor-tactics-main/issues/759)).
 > L'architettura **no**, e nel frattempo è arrivato il meccanismo che questa sezione dovrà neutralizzare.
 >
-> **`ARTTurnManager::UpdateReactionSlowMotion`** (`Turn/RTTurnManager.cpp`, chiamata a ogni `Tick`) scrive:
+> Sono **due** meccanismi, e la distinzione conta perché il primo è più forte del secondo.
+>
+> **Il playback si FERMA.** Nel tick, `ARTTurnManager` esce prima ancora di applicare la velocità:
 >
 > ```cpp
-> ViewerPlaybackSpeed = bWindowOpen ? ReactionWindowPlaybackSpeed : 1.f;   // 0.35f
+> if (bPlaybackHeldByWindow) { return; }                      // ← la pausa vera
+> const float Dt = DeltaSeconds * EffectivePlaybackSpeed(ViewerPlaybackSpeed);
 > ```
 >
-> Cioè: la resolution rallenta **esattamente quando** una finestra privata è aperta, e **per esattamente il
-> tempo** che il difensore impiega a rispondere. È la definizione letterale della riga *«Presentazione
-> avversaria»* di questa tabella, letta al contrario.
+> Il flag è alzato in `FinishPlayback` dentro `if (IsResolutionSuspended())`, azzerato in `BeginPlayback`, ed
+> è tenuto **separato** da `bPlaybackPaused` di proposito — *«due pause con lo stesso flag si annullerebbero
+> a vicenda al primo `ResumePlayback`»*.
+>
+> **E accanto c'è la slow-motion**: `ARTTurnManager::UpdateReactionSlowMotion`, chiamata a ogni `Tick`,
+> allinea `ViewerPlaybackSpeed` alla presenza di una finestra — `ReactionWindowPlaybackSpeed` mentre
+> attende, `1.f` quando non attende più. ⚠️ Quel valore è una **manopola di pacing**, non una costante di
+> regola: il docstring del campo lo dichiara, e sta accanto a `PhaseBeatSeconds` e `AttackShowSeconds`.
+> Pin: `RefactorTactics.Reactions.SlowMotionRestoresOnBothExits`.
+>
+> Cioè: la resolution **si arresta** esattamente quando una finestra privata è aperta, e per esattamente il
+> tempo che il difensore impiega a rispondere. È la definizione letterale della riga *«Presentazione
+> avversaria»* di questa tabella — che parla proprio di *«pausa variabile»* — letta al contrario.
 >
 > ⛔ **Non è un difetto sfuggito: è dovuto, e da decisioni accettate.** [D-355](RT_PDR_00_Decision_Log.md)
-> stabilisce che la finestra umana si apra **durante** il playback; [#166] dichiara la slow-motion *«sola
+> stabilisce che la finestra umana si apra **durante** il playback; [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) dichiara la slow-motion *«sola
 > presentazione»*; [D-350](RT_PDR_00_Decision_Log.md) toglie al giocatore il controllo manuale della velocità
 > proprio dove una finestra può aprirsi — e la funzione lo rispetta, tornando a `1.f` invece che a una
 > preferenza. Le tre sono coerenti fra loro; con §7-bis lo sono **finché esiste un solo osservatore**.
 >
 > ✅ **Oggi non è un leak, e la misura è questa**: `ViewerPlaybackSpeed` non raggiunge nessun avversario
-> perché **niente** lo fa — `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` non restituisce righe, e le
-> sole occorrenze del repository sono l'oracolo della guardia `RTServerOnlyGuard`. Il canale è **programmato,
-> non aperto**: si aprirà con la prima superficie di rete, e chi la scriverà lo troverà già lì.
+> perché **niente** lo fa — `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` non restituisce righe. ⚠️ Il
+> comando è ancorato a `Source/` e senza conteggio di proposito: sotto `Tests/` vivono l'oracolo della guardia
+> `RTServerOnlyGuard` e le menzioni in prosa, e in `docs/` altre ancora — un totale qui sarebbe falso appena
+> qualcuno ne scrive un'altra, questa nota compresa. Ciò che non scade è lo **zero di produzione**. Il canale è
+> **programmato, non aperto**: si aprirà con la prima superficie di rete, e chi la scriverà lo troverà già lì.
 >
 > 🔑 **Conseguenza per chi sceglierà il meccanismo**: le tre alternative di questa tabella non sono più
 > equivalenti, perché una di esse deve convivere con una slow-motion che il canone **prescrive**. La scelta,
-> la tolleranza numerica che la DoD di #759 chiede, e le tre uscite con i loro costi vivono in `BEAT-1` di
-> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+> la tolleranza numerica che la DoD di #759 chiede, e le tre uscite con i loro costi vivono in `BEAT-1` —
+> puntatore in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md), istruttoria in
+> [`open/beat-1.md`](open/beat-1.md).
+>
+> ⛔ **E una delle tre uscite va letta sapendo che i meccanismi sono due**: rendere per-osservatore la sola
+> `ViewerPlaybackSpeed` **non chiude niente**, perché `bPlaybackHeldByWindow` agisce prima e ferma il
+> playback comunque.
 >
 > ⌫ **Due correzioni a questo stesso blocco, sopra.** ① Il riferimento `RTReactionOpportunityTests.cpp:159`
 > è scaduto: a quella riga c'è un altro test, e `OpportunityLeaksNoFuture` è dichiarato più sotto. Si cerca
@@ -280,10 +300,18 @@ requisito** a «lo sistemeremo con la UI».
 > `Reactions.WindowViewClosedForUnresolvedTeam`. Il livello DTO è quindi **più** solido di come questa
 > sezione lo racconta — ma citare solo il primo manda chi verifica a cercare il filtro dove non c'è.
 >
-> ⚠️ **E la riga «Autorità» è superata in metà**: *«la regola pura esiste, l'autorità di rete no»* era vero
-> fino al 2026-09-09. L'orologio della finestra esiste ora — `ARTTurnManager::TickReactionWindow`, che legge
-> tempo **non scalato** con la ragione scritta accanto — quindi *«un client lento non allunga la finestra»* è
-> già vero per costruzione **sul singolo processo**. Di M10 resta la latenza reale, non l'orologio.
+> ⚠️ **E la riga «Autorità» di questa tabella è ora vera in una metà in più di quanto fosse.** Prescrive
+> *«un client lento non allunga la finestra, e un client che non risponde ottiene `HOLD`»*: dal 2026-09-09 la
+> prima metà è **già vera per costruzione sul singolo processo**, perché l'orologio della finestra esiste —
+> `ARTTurnManager::TickReactionWindow` legge tempo **non scalato**, con la ragione scritta accanto e i siti
+> vietati nominati uno per uno. Di M10 resta la **latenza reale**, non l'orologio.
+>
+> ⌫ **Correzione del 2026-09-20 a questa stessa riga.** La sua prima stesura citava *«la regola pura esiste,
+> l'autorità di rete no»* come se fosse testo di questa tabella: non lo è mai stato —
+> `git grep "la regola pura esiste"` non lo trova nell'ADR. Quella frase sta nella colonna *Stato* della
+> tabella di [#759](https://github.com/DegrassiAaron/refactor-tactics-main/issues/759), ed è lì che andava
+> corretta. 🔑 Un ADR `CANONICAL` che si autocita una frase che non contiene è il difetto peggiore di questa
+> classe: chi verifica non la trova, e smette di fidarsi del resto della tabella.
 
 ### 8. Parametri iniziali *(risolve §8.3)*
 
