@@ -17,7 +17,8 @@ namespace
 	// fonde in una percentuale sola. `bIsRun` arriva da [D-406] e resta dov'era — i due cambiamenti sono
 	// ortogonali, e questa riga e' il punto in cui si sono incontrati.*
 	FRTMovementProfile MakeProfile(FName Id, int32 BudgetPercent, int32 Stability,
-		bool bPlannable = true, bool bIsRun = false)
+		bool bPlannable = true, bool bIsRun = false,
+		int32 StepsPerTick = 1, int32 TickPeriod = 1)
 	{
 		FRTMovementProfile Profile;
 		Profile.Id = Id;
@@ -26,6 +27,11 @@ namespace
 		Profile.Stability = Stability;
 		Profile.bPlannable = bPlannable;
 		Profile.bIsRun = bIsRun;
+		// ➕ **La cadenza, dal 2026-09-20** ([D-428]). I due default `1`/`1` sono la cadenza NEUTRA — un
+		// passo per tick — cioe' cio' che ogni profilo faceva prima che il calendario esistesse: chi non
+		// la dichiara non cambia comportamento.
+		Profile.StepsPerTick = StepsPerTick;
+		Profile.TickPeriod = TickPeriod;
 		return Profile;
 	}
 }
@@ -45,7 +51,18 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// pianificando (le celle raggiungibili) e chi valuta un'alternativa (il bot). Azzerarlo qui avrebbe
 	// reso immobili le unita' senza piano. La spec assegna a «fermo» una `Stability`, non un budget: qui
 	// non se ne inventa uno, e il `100%` dice esattamente «quello dell'unita'».
-	Catalog.Add(MakeProfile(ProfileStill, FRTMovementProfile::NeutralPercent, /*Stability*/ 3));
+	//
+	// ⚠️ **Cadenza NEUTRA `{1, 1}`, e lo zero sarebbe stato un difetto** ([D-428]). L'immobilita' di
+	// `Still` viene dal non avere un percorso, non dalla cadenza. Dargli `StepsPerTick = 0` congelava
+	// un'unita' che il percorso ce l'ha: `ProfileForPlan` ripiega su `Still` quando il piano nomina un
+	// profilo che il catalogo non contiene — ripiego che il suo stesso commento dichiara **permissivo di
+	// proposito**, *«il posto dove deve fallire e' il test del catalogo, non la partita di qualcuno»* — e
+	// quell'unita' non sarebbe mai diventata eleggibile, finendo con un reason code inventato.
+	//
+	// 🔑 E' lo stesso argomento del budget tre righe sopra: *«azzerarlo qui avrebbe reso immobili le unita'
+	// senza piano»*. La cadenza stava facendo cio' da cui il budget era stato protetto. Trovato in code review.
+	Catalog.Add(MakeProfile(ProfileStill, FRTMovementProfile::NeutralPercent, /*Stability*/ 3,
+		/*bPlannable*/ true, /*bIsRun*/ false, /*StepsPerTick*/ 1, /*TickPeriod*/ 1));
 
 	// `Move` — il profilo neutro, ×1 per definizione ([D-412]). Il budget del movimento normale e' sempre
 	// venuto da `ARTUnit::MoveRange` via `GetEffectiveMoveRange()`, che varia per eroe: il `100%` conserva
@@ -68,8 +85,12 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	//
 	// 🔑 **E i due cambiamenti non si toccano**: `bIsRun` dice *che cosa* il profilo e', la percentuale dice
 	// *quanto* concede. Il merge di [#641] e [D-412] li ha messi sulla stessa riga senza fonderli.
+	//
+	// ➕ **Cadenza `{2, 1}`** ([D-428]): due sotto-passi per tick, che e' il *«fino a 2 passi per tick»* che
+	// [D-412] dichiarava senza poterlo collocare. ⛔ **Non sono due archi in un micro-step**: restano due
+	// micro-step distinti, quindi `MaxGraphTransitionsPerUnitPerMicroStep = 1` non si muove.
 	Catalog.Add(MakeProfile(ProfileSprint, /*×2*/ 200, /*Stability*/ 0,
-		/*bPlannable*/ true, /*bIsRun*/ true));
+		/*bPlannable*/ true, /*bIsRun*/ true, /*StepsPerTick*/ 2, /*TickPeriod*/ 1));
 
 	// `Withdraw` — **×0,25** ([D-412]), il ripiegamento che [D-070] riserva allo slot movimento di chi arma
 	// l'Overwatch.
@@ -85,7 +106,12 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// Sprint `0` — e `Withdraw` **non e' fra questi**. Gli si da' il valore del profilo neutro perche' e'
 	// quello che non cambia nessun verdetto (nessuna azione dichiara oggi un `MinStability`), e la taratura
 	// e' [#606], che la spec stessa dichiara «la parte da playtestare».
-	Catalog.Add(MakeProfile(ProfileWithdraw, /*×0,25*/ 25, /*Stability*/ 1));
+	//
+	// ⚠️ **Cadenza `{1, 1}`, e il default e' DICHIARATO** ([D-428]): la sorgente non da' a `Withdraw` una
+	// cadenza. Gli si da' quella neutra perche' e' l'unica che non cambia nessun esito oggi — non perche'
+	// sia derivata da qualcosa. Stessa disciplina del `Stability 1` qui sopra.
+	Catalog.Add(MakeProfile(ProfileWithdraw, /*×0,25*/ 25, /*Stability*/ 1,
+		/*bPlannable*/ true, /*bIsRun*/ false, /*StepsPerTick*/ 1, /*TickPeriod*/ 1));
 
 	// `Sneak` — **×0,5, e PIANIFICABILE** ([D-412], che chiude `AE-5`).
 	//
@@ -93,11 +119,12 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// una lacuna: «il profilo e' previsto, il dato non c'e'».* ✅ Ora il dato c'e', e sono tre: budget ×0,5,
 	// cadenza 1 passo ogni 2 tick, **sempre silenzioso** indipendentemente dal terreno.
 	//
-	// ⛔ **La cadenza NON e' qui, e non e' una dimenticanza**: «1 passo ogni 2 tick» e' una proprieta' della
-	// risoluzione, non del budget, e il calendario dei sotto-passi che la renderebbe deterministica e'
-	// `SKB-2` in `OPEN_DECISIONS.md` — dichiarato `CRITICO` e aperto dalla sorgente stessa. Scriverla qui
-	// come un numero significherebbe inventare l'ordine che quella domanda deve ancora decidere.
-	Catalog.Add(MakeProfile(ProfileSneak, /*×0,5*/ 50, /*Stability*/ 2));
+	// ✅ **E la cadenza ORA e' qui** ([D-428], che chiude `SKB-2`). Fino al 2026-09-20 queste righe dicevano
+	// *«la cadenza NON e' qui, e non e' una dimenticanza»*, perche' «1 passo ogni 2 tick» e' una proprieta'
+	// della risoluzione e il calendario che la rende deterministica era la domanda aperta che la sorgente
+	// marcava `CRITICO`. Il calendario esiste, quindi il numero ha dove stare: `TickPeriod = 2`.
+	Catalog.Add(MakeProfile(ProfileSneak, /*×0,5*/ 50, /*Stability*/ 2,
+		/*bPlannable*/ true, /*bIsRun*/ false, /*StepsPerTick*/ 1, /*TickPeriod*/ 2));
 
 	return Catalog;
 }

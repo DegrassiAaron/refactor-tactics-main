@@ -728,4 +728,70 @@ bool FRTMovementProfileNakedCeilingIsTwiceTheBase::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Le cadenze del catalogo, una per una** ([D-428], che chiude `SKB-2`).
+ *
+ * 🔴 **Senza questo test nulla le sorvegliava, e il difetto e' misurabile.** I test del calendario in
+ * `RTHexSimTests.cpp` costruiscono le cadenze a mano — `{2,1}`, `{1,1}`, `{1,2}` — quindi duplicano il
+ * catalogo invece di leggerlo: trasporre i due `int32` di `Sneak` in `MakeProfile`, o cancellare del tutto
+ * il ciclo che traduce `Ctx.MovementProfiles` in `Cadences`, lasciava **l'intera suite verde**.
+ *
+ * ⚠️ E' la stessa classe di difetto per cui `#2940` aggiunse l'`ensureMsgf` su `StepDurations`:
+ * *«sostituire la riga che produce le durate con un array vuoto lasciava l'intera suite verde»*.
+ *
+ * ⛔ **I numeri sono il CONTRATTO di [D-412] reso eseguibile**, non taratura: `Sprint` fino a 2 passi per
+ * tick e `Sneak` 1 ogni 2 sono dichiarati dalla decisione. Chi li cambia cambia una decisione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementProfileCadenceCatalogTest,
+	"RefactorTactics.MovementProfile.CatalogDeclaresTheCadences",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementProfileCadenceCatalogTest::RunTest(const FString&)
+{
+	auto Cadenza = [this](FName Id, int32 PassiAttesi, int32 PeriodoAtteso)
+	{
+		const FRTMovementProfile P = URTMovementProfileLibrary::FindProfile(Id);
+		if (!TestTrue(FString::Printf(TEXT("%s esiste a catalogo"), *Id.ToString()), P.IsValid()))
+		{
+			return;
+		}
+		TestEqual(FString::Printf(TEXT("%s: sotto-passi per tick"), *Id.ToString()),
+			P.StepsPerTick, PassiAttesi);
+		TestEqual(FString::Printf(TEXT("%s: ogni quanti tick"), *Id.ToString()),
+			P.TickPeriod, PeriodoAtteso);
+	};
+
+	// I due numeri che [D-412] dichiara e che [D-428] colloca.
+	Cadenza(URTMovementProfileLibrary::ProfileSprint,   /*StepsPerTick*/ 2, /*TickPeriod*/ 1);
+	Cadenza(URTMovementProfileLibrary::ProfileSneak,    /*StepsPerTick*/ 1, /*TickPeriod*/ 2);
+	// I neutri. ⚠️ `Withdraw` e `Still` ce l'hanno per DICHIARAZIONE e non per derivazione: la sorgente
+	// non assegna loro una cadenza, e la neutra e' l'unica che non cambia nessun esito oggi.
+	Cadenza(URTMovementProfileLibrary::ProfileMove,     1, 1);
+	Cadenza(URTMovementProfileLibrary::ProfileWithdraw, 1, 1);
+	Cadenza(URTMovementProfileLibrary::ProfileStill,    1, 1);
+
+	// ANTI-VACUITA': i due campi devono DISTINGUERE i profili, altrimenti le cinque righe qui sopra
+	// passerebbero anche su un catalogo che assegna a tutti la stessa cadenza.
+	const FRTMovementProfile Sprint = URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileSprint);
+	const FRTMovementProfile Sneak  = URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileSneak);
+	const FRTMovementProfile Move   = URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileMove);
+	TestNotEqual(TEXT("lo Sprint si distingue dal Move nei sotto-passi"), Sprint.StepsPerTick, Move.StepsPerTick);
+	TestNotEqual(TEXT("lo Sneak si distingue dal Move nel periodo"), Sneak.TickPeriod, Move.TickPeriod);
+
+	// 🔑 **E il tetto di catalogo smette di essere morto.** `FRTMovementProfile::MaxStepsPerTick` non era
+	// letto da nessuno: un profilo poteva dichiarare `StepsPerTick = 5` senza che niente lo dicesse, e il
+	// valore veniva troncato in silenzio alla risoluzione. Qui il vincolo viene fatto rispettare dove
+	// [D-428] dichiara che viva — nel catalogo. Trovato in code review.
+	for (const FRTMovementProfile& P : URTMovementProfileLibrary::GetCoreMovementProfileCatalog())
+	{
+		TestTrue(FString::Printf(TEXT("%s: i sotto-passi stanno nel tetto di catalogo"), *P.Id.ToString()),
+			P.StepsPerTick >= 1 && P.StepsPerTick <= FRTMovementProfile::MaxStepsPerTick);
+		// ⛔ `1` e non `0`: uno `StepsPerTick` nullo congelerebbe un'unita' che ha un percorso, e
+		// l'immobilita' di `Still` viene dal non averne uno.
+		TestTrue(FString::Printf(TEXT("%s: il periodo e' dichiarato e positivo"), *P.Id.ToString()),
+			P.TickPeriod >= 1);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

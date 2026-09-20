@@ -296,6 +296,113 @@ attraversare una palude **è ancora nella palude**. Chi le troverà senza questa
 * **`MaxGraphTransitionsPerUnitPerMicroStep = 1` resta** ([D-305](../decisions/RT_PDR_00_Decision_Log.md)): un arco può durare più micro-step, un
   micro-step non porta mai due archi.
 
+### 2.0-quater Il calendario dei sotto-passi: quanti micro-step ha un tick, e chi avanza in quale
+
+> ✅ **Aggiunta il 2026-09-20 da [`D-428`](../decisions/RT_PDR_00_Decision_Log.md)**, che chiude `SKB-2` —
+> l'unico punto che la specifica consolidata della skill bar marcava `CRITICO`.
+
+§2.0 dice **quanti archi** attraversa un micro-step: uno.
+Non diceva **quali unità** avanzano in quale micro-step, e senza quella risposta
+[`D-412`](../decisions/RT_PDR_00_Decision_Log.md) restava inapplicabile: dichiarava *«`Sprint` fino a
+2 passi per tick, `Sneak` 1 ogni 2»* e non aveva dove collocare quei numeri.
+
+```text
+un tick = tanti sotto-passi quanti ne chiede il profilo piu' veloce PRESENTE
+          (FRTMovementResolutionState::SubStepsPerTick; almeno 1, al massimo
+           FRTMovementProfile::MaxStepsPerTick = 2)
+
+con k = indice di calendario,  s = k % SubStepsPerTick,  t = k / SubStepsPerTick:
+    eleggibile  ⇔  s < StepsPerTick  &&  (t % TickPeriod) == 0
+```
+
+🔴 **La dimensione del tick e' DERIVATA, non una costante — e la differenza l'ha trovata un rosso.**
+Fissarla a `2` per tutti sembrava innocuo: in una partita di soli profili neutri il secondo sotto-passo non
+si materializza, quindi il corpus non si muove. Ma bastava **un'altra unita'** a tenere vivo un sotto-passo
+dispari, e il `Move` — eleggibile solo nei pari — pagava il doppio dei micro-step per lo stesso
+percorso. `Movement.SameCostSpentArrivesTogether` e `Movement.ShorterMoveArrivesEarlier` sono diventati
+rossi e hanno imposto la derivazione.
+
+∴ con sole cadenze neutre `SubStepsPerTick` vale **1**, `s` e' sempre `0`, tutti sono eleggibili a ogni
+micro-step, e la risoluzione e' quella di sempre **per costruzione**.
+
+| Profilo | `StepsPerTick` | `TickPeriod` | Cadenza |
+|---|---:|---:|---|
+| `Sprint` | 2 | 1 | 2 passi per tick |
+| `Move` | 1 | 1 | 1 passo per tick |
+| `Withdraw` | 1 | 1 | 1 passo per tick — ⚠️ **default dichiarato**, non derivato: la sorgente non gli dà una cadenza |
+| `Sneak` | 1 | 2 | 1 passo ogni 2 tick |
+| `Still` | 1 | 1 | neutra — ⚠️ la sua immobilità viene dal **non avere un percorso**, non dalla cadenza |
+
+⛔ **`MaxGraphTransitionsPerUnitPerMicroStep = 1` non si muove.** Due passi per tick sono due
+**sotto-passi**, mai due archi in uno — ed è la lettura che la sorgente stessa autorizza quando scrive
+*«risolti separatamente»*. I test di §2.0 restano quelli, e restano verdi.
+
+🔑 **L'ordine è deterministico perché l'eleggibilità è una funzione PURA di `(cadenza, indice)`.** Niente
+stato per unità, niente contatori, nessuna iterazione di Actor o di `TMap`, nessun timing di animazione:
+[`D-293`](../decisions/RT_PDR_00_Decision_Log.md) e `CLAUDE.md` §7 restano intatte. Chi entra per primo in
+una zona sorvegliata e chi vince una contesa di cella sono decisi dal calendario, che è esattamente ciò che
+`SKB-2` chiedeva.
+
+⚠️ **Un contatore per unità sarebbe stato la risposta sbagliata**, e vale la pena dire perché: il suo stato
+iniziale dipenderebbe da **quando** quell'unità entra nella risoluzione, cioè dall'ordine di iterazione — che
+è `D-293` rovesciata. La differenza non si vede nell'esito di un test a due unità; si vede a tre.
+
+#### 🔴 I sotto-passi inerti si EMETTONO, e il corpus resta fermo per un'altra ragione
+
+Il calendario ha **due** contatori, e la separazione non è un dettaglio implementativo:
+
+| Contatore | Che cosa fa |
+|---|---|
+| `FRTMovementResolutionState::CalendarIndex` | scorre **sempre**, anche sui sotto-passi vuoti, e decide l'eleggibilità |
+| `FRTMovementResolutionState::MicroStepIndex` | conta i micro-step **emessi** — ed è quello che `FRTTurnLogEntry::MicroStepIndex` porta |
+
+🔴 **Saltare i sotto-passi inerti renderebbe la cadenza inosservabile**, ed è ciò che la
+prima stesura faceva: uno `Sneak` **da solo** avanzerebbe a ogni micro-step emesso, esattamente come un
+`Move`, e il suo indice d'ingresso in una zona sorvegliata cambierebbe quando un'unità **estranea**
+finisce il proprio percorso. Siccome i confini di reazione e `FRTTurnLogEntry::MicroStepIndex` sono chiavati
+sui micro-step **emessi**, è liì che la cadenza deve essere visibile.
+
+✅ **E il corpus resta fermo per costruzione, non per compensazione**: con sole cadenze neutre
+`SubStepsPerTick` vale `1`, ogni unità è eleggibile a ogni sotto-passo, e sotto-passi inerti non ne
+esistono. Lo misura `Movement.NeutralCadenceKeepsTheMicroStepSequence`, che confronta una risoluzione con
+cadenza neutra contro una **senza** `Cadences`.
+
+⚠️ **E «nessuno si è mosso» smette di significare «la risoluzione è finita»**:
+si finisce quando l'inerzia dura un giro completo di calendario, altrimenti il primo sotto-passo che uno
+`Sneak` salta troncherebbe il movimento a metà.
+
+#### Il rapporto con [`D-381`](../decisions/RT_PDR_00_Decision_Log.md), che **resta**
+
+La sorgente d'autore dice *«il terreno aumenta il costo in punti, non rallenta la cadenza»*. `D-381` ha
+deciso il contrario ed **è implementata** (`StepRemaining`, §2.0-ter). Non si supera per inerzia
+([`D-282`](../decisions/RT_PDR_00_Decision_Log.md)), e la sorgente non mostra di averla considerata.
+
+I due si **compongono**, e non si sovrappongono:
+
+```text
+calendario   →  SE questo profilo può tentare un passo adesso
+D-381        →  QUANTO costa il passo, una volta tentato
+```
+
+∴ il calendario è il **tetto** della cadenza; il terreno può solo abbassarla, mai alzarla. Nessuno dei due
+può rendere un'unità più veloce del proprio profilo.
+
+#### Dove vive il dato
+
+⛔ **Il resolver non conosce i profili di movimento, e non deve conoscerli** — è la stessa disciplina per cui
+`StepDurations` si calcola a monte (§2.0-ter). `ARTTurnManager::ResolveMovement` legge
+`Ctx.MovementProfiles`, ne estrae i due numeri e riempie `FRTMovementResolutionState::Cadences`.
+
+Array vuoto, più corto di `Paths`, o con valori assurdi → **cadenza neutra** `{1, 1}`, cioè il comportamento
+di prima di `D-428`, **per costruzione**.
+
+| Test | Che cosa pinna |
+|---|---|
+| `Movement.NeutralCadenceKeepsTheMicroStepSequence` | la cadenza neutra non aggiunge micro-step emessi — è il guardiano del corpus golden |
+| `Movement.SprintTakesTwoSubStepsPerTick` | a parità di percorso, lo `Sprint` arriva prima del `Move` |
+| `Movement.CellContestIsDecidedByCadenceNotIndex` | una contesa di cella ha lo stesso esito invertendo l'ordine di dichiarazione |
+| `Movement.WatchedEntryIsOrderedByCadenceNotIndex` | l'ingresso in una zona sorvegliata è ordinato dalla cadenza, e invariante all'ordine |
+
 ### 2.1 Il `Transfer` esiste già, e vive dentro il Dash
 
 `ERTMovementStyle::LinearLeap` — *«ignora unità e celle intermedie, conta solo dove si atterra»* — produce
