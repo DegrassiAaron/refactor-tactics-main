@@ -55,6 +55,89 @@ namespace
 	}
 
 	/**
+	 * Le chiavi `_*` dell'oggetto corrente: la documentazione incorporata che il file portava.
+	 *
+	 * 🔑 **Si scrivono per PRIME, e la posizione e' misurata, non scelta.** Sul corpus del 2026-09-20 la nota
+	 * apre l'oggetto in 137 turni su 155, 83 assertion su 101, 6 intent su 6, 6 unita' su 8 — scriverle in
+	 * coda avrebbe riordinato tutti quei file al primo salvataggio. ⚠️ Alla RADICE la misura dice l'opposto e
+	 * il writer la segue: la' il blocco di note sta DOPO l'intestazione (`mapRadius`/`fixture`), in 134 file
+	 * su 136, e per questo la chiamata di radice non e' qui.
+	 *
+	 * `WriteRawJSONValue` e non `WriteValue`: il valore e' gia' JSON — vedi `FRTScenarioNote::RawJson`, che
+	 * lo produce UNA volta a caricamento e in forma canonica, cosi' che due salvataggi diano lo stesso testo.
+	 */
+	void WriteNotes(const TSharedRef<FRTScenarioJsonWriter>& W, const TArray<FRTScenarioNote>& Notes)
+	{
+		for (const FRTScenarioNote& Note : Notes)
+		{
+			W->WriteRawJSONValue(Note.Key, Note.RawJson);
+		}
+	}
+
+	/**
+	 * LE PORTE, che il writer fino a qui perdeva per intero — non solo le loro note.
+	 *
+	 * ⚠️ **E' la terza occorrenza della stessa cecita', e le prime due sono scritte in questo stesso file.**
+	 * Il campo esisteva nel loader e non nel writer, e `ScenariosEquivalent` non lo guardava: uno scenario con
+	 * porte, letto e riscritto, tornava senza porte e il round-trip restava verde — com'e' successo a
+	 * `interiorWalls` (`#2031`) e agli `statuses` (`#1629`). Misurato il 2026-09-20 mentre si riparava la
+	 * perdita delle note (`#3118`): zero occorrenze di `doors` in questo file, zero di `Doors` nel confronto,
+	 * e QUATTRO scenari versionati che le dichiarano.
+	 *
+	 * 🔴 Qui la perdita non e' documentale: una porta che sparisce apre un varco che il file chiudeva.
+	 */
+	void WriteScenarioDoors(const TSharedRef<FRTScenarioJsonWriter>& W, const FRTTestScenario& Scenario)
+	{
+		if (Scenario.Doors.Num() == 0) { return; }
+
+		const UEnum* DirectionEnum = StaticEnum<ERTHexDirection>();
+		const UEnum* StateEnum = StaticEnum<ERTHexDoorState>();
+
+		W->WriteArrayStart(TEXT("doors"));
+		for (const FRTScenarioDoor& Entry : Scenario.Doors)
+		{
+			W->WriteObjectStart();
+			WriteNotes(W, Entry.Notes);
+			WriteCellArray(W, TEXT("cell"), Entry.Cell);
+			W->WriteValue(TEXT("edge"), EnumValueName(DirectionEnum, static_cast<int64>(Entry.Door.Edge)));
+			// `state` si scrive SEMPRE, anche al default: il loader lo omette volentieri, ma un file prodotto
+			// da uno strumento deve dire in che stato nasce la porta invece di farlo dedurre.
+			W->WriteValue(TEXT("state"), EnumValueName(StateEnum, static_cast<int64>(Entry.Door.State)));
+			if (Entry.Door.DoorId != 0) { W->WriteValue(TEXT("doorId"), Entry.Door.DoorId); }
+			if (!Entry.Door.StableId.IsNone())
+			{
+				W->WriteValue(TEXT("stableId"), Entry.Door.StableId.ToString());
+			}
+			W->WriteObjectEnd();
+		}
+		W->WriteArrayEnd();
+	}
+
+	/**
+	 * I BINDING D'INTERAZIONE, persi dal writer per la stessa ragione delle porte. Tre scenari li dichiarano.
+	 *
+	 * ⚠️ L'ORDINE dei bersagli e' dato e non dettaglio — `ApplyInteraction` li applica come sono scritti, e il
+	 * loader lo dichiara sul lato che legge. Qui si riscrive lo stesso ordine, senza ordinamenti di comodo.
+	 */
+	void WriteScenarioInteractionBindings(const TSharedRef<FRTScenarioJsonWriter>& W,
+		const FRTTestScenario& Scenario)
+	{
+		if (Scenario.InteractionBindings.Num() == 0) { return; }
+
+		W->WriteArrayStart(TEXT("interactionBindings"));
+		for (const FRTInteractionBinding& Binding : Scenario.InteractionBindings)
+		{
+			W->WriteObjectStart();
+			W->WriteValue(TEXT("source"), Binding.SourceId.ToString());
+			W->WriteArrayStart(TEXT("targets"));
+			for (const FName& Target : Binding.TargetIds) { W->WriteValue(Target.ToString()); }
+			W->WriteArrayEnd();
+			W->WriteObjectEnd();
+		}
+		W->WriteArrayEnd();
+	}
+
+	/**
 	 * La versione minima del formato che le chiavi effettivamente usate richiedono.
 	 *
 	 * Serve a impedire un file che il loader rifiuterebbe. Uno scenario **caricato** non puo' trovarsi in
@@ -133,6 +216,7 @@ namespace
 		for (const FRTScenarioCell& Cell : Scenario.Cells)
 		{
 			W->WriteObjectStart();
+			WriteNotes(W, Cell.Notes);
 			WriteCellArray(W, TEXT("cell"), Cell.Cell);
 			// I default non si scrivono: una cella che non modifica niente e' rumore in un diff.
 			if (Cell.bBlocksMovement) { W->WriteValue(TEXT("blocksMovement"), true); }
@@ -200,7 +284,8 @@ namespace
 		for (const FRTScenarioUnit& Unit : Scenario.Units)
 		{
 			W->WriteObjectStart();
-			// `id` per primo, e mai derivato: e' lo **Stable Unit ID** che intent, decisioni e assertion
+			WriteNotes(W, Unit.Notes);
+			// `id` prima dei campi, e mai derivato: e' lo **Stable Unit ID** che intent, decisioni e assertion
 			// nominano. Rigenerarlo al salvataggio scollegherebbe in blocco tutto cio' che lo cita.
 			W->WriteValue(TEXT("id"), Unit.Id);
 			W->WriteValue(TEXT("hero"), Unit.HeroId.ToString());
@@ -253,6 +338,7 @@ namespace
 		const UEnum* DirectionEnum = StaticEnum<ERTHexDirection>();
 
 		W->WriteObjectStart();
+		WriteNotes(W, Intent.Notes);
 		W->WriteValue(TEXT("unit"), Intent.UnitId);
 		if (!Intent.Ability.IsNone()) { W->WriteValue(TEXT("ability"), Intent.Ability.ToString()); }
 		if (!Intent.Target.IsEmpty()) { W->WriteValue(TEXT("target"), Intent.Target); }
@@ -303,6 +389,7 @@ namespace
 		for (const FRTScenarioTurn& Turn : Scenario.Turns)
 		{
 			W->WriteObjectStart();
+			WriteNotes(W, Turn.Notes);
 
 			W->WriteArrayStart(TEXT("intents"));
 			for (const FRTScenarioIntent& Intent : Turn.Intents) { WriteScenarioIntent(W, Intent); }
@@ -320,6 +407,7 @@ namespace
 				for (const FRTScenarioDecision& Decision : Turn.Decisions)
 				{
 					W->WriteObjectStart();
+					WriteNotes(W, Decision.Notes);
 					// `unit` e `on` non convivono nel file — il loader li rifiuta insieme — quindi si scrive
 					// l'una o l'altro. In memoria il reactor sta comunque in `Unit`, che e' la verita' unica:
 					// `on.reactor` la rilegge identica.
@@ -400,6 +488,7 @@ namespace
 		for (const FRTTestExpectation& Exp : Scenario.Expect)
 		{
 			W->WriteObjectStart();
+			WriteNotes(W, Exp.Notes);
 			// I nomi di `ERTAssertionKind` SONO i `type` del JSON — per questo la riflessione basta e una
 			// tabella `Kind -> stringa` sarebbe solo un secondo posto da tenere allineato.
 			W->WriteValue(TEXT("type"), EnumValueName(KindEnum, static_cast<int64>(Exp.Kind)));
@@ -536,10 +625,33 @@ bool URTScenarioLoader::SaveToString(const FRTTestScenario& Scenario, FString& O
 	if (Scenario.Seed != 0) { Writer->WriteValue(TEXT("seed"), Scenario.Seed); }
 	if (!Scenario.PreviewUnit.IsEmpty()) { Writer->WriteValue(TEXT("previewUnit"), Scenario.PreviewUnit); }
 	if (!Scenario.Fixture.IsEmpty()) { Writer->WriteValue(TEXT("fixture"), Scenario.Fixture); }
-	Writer->WriteValue(TEXT("mapRadius"), Scenario.MapRadius);
+
+	// ⛔ **`mapRadius` NON si scrive sempre, e la riga precedente lo faceva.** Il campo conta solo quando
+	// l'arena si GENERA: con una `fixture` riferita per nome la forma la decide la fixture, e il loader lo
+	// dichiara. Scriverlo comunque materializzava in un file a fixture una chiave mai dichiarata — e nel caso
+	// misurato quella chiave CONTRADDICEVA la nota che lo stesso salvataggio aveva appena cancellato
+	// (`AutoBattle/ArenaV01.json`, `#3118`).
+	//
+	// Le due condizioni sono l'una la fedelta' e l'altra la sicurezza, e servono entrambe:
+	//   · `bHasMapRadius` — il file lo dichiarava, quindi torna, anche se inerte;
+	//   · `!= DefaultMapRadius` — uno scenario COSTRUITO in memoria (un editor) non ha dichiarazione da
+	//     ereditare, e ometterlo a un valore diverso dal default lo farebbe rileggere sbagliato.
+	// Al default e non dichiarato si omette: il loader riapplica lo stesso 3, quindi non si perde niente.
+	if (Scenario.bHasMapRadius || Scenario.MapRadius != FRTTestScenario::DefaultMapRadius)
+	{
+		Writer->WriteValue(TEXT("mapRadius"), Scenario.MapRadius);
+	}
+
+	// Le note di RADICE stanno qui e non in testa all'oggetto: sul corpus del 2026-09-20 il blocco `_*` segue
+	// l'intestazione in 134 file su 136 — 100 dopo `mapRadius`, 34 dopo `fixture`. Scriverle altrove avrebbe
+	// riordinato ogni file al primo salvataggio. Nei nodi ANNIDATI la misura dice l'opposto, e `WriteNotes`
+	// e' chiamata subito dopo `WriteObjectStart()`.
+	WriteNotes(Writer, Scenario.Notes);
 
 	WriteScenarioCells(Writer, Scenario);
 	WriteScenarioInteriorWalls(Writer, Scenario);
+	WriteScenarioDoors(Writer, Scenario);
+	WriteScenarioInteractionBindings(Writer, Scenario);
 	WriteScenarioUnits(Writer, Scenario);
 	WriteScenarioTurns(Writer, Scenario);
 	WriteScenarioExpectations(Writer, Scenario);
