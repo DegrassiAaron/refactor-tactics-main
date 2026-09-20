@@ -26,8 +26,16 @@ ordine di maturità.
 | [`2026-08-31-coordinate-cella-pavimento-design.md`](specs/2026-08-31-coordinate-cella-pavimento-design.md) | [`2026-08-31-coordinate-cella-pavimento.md`](plans/2026-08-31-coordinate-cella-pavimento.md) | issue **#1920**, epic **#1861** *(Map Editor 0.1)* |
 | [`2026-09-11-hud-otto-zone-blockout-design.md`](specs/2026-09-11-hud-otto-zone-blockout-design.md) | [`2026-09-12-hud-otto-zone-blockout.md`](plans/2026-09-12-hud-otto-zone-blockout.md) | [`guida-screen-hud-umg.md`](../technical/runbooks/guida-screen-hud-umg.md) §3 — che il design dichiara **contratto corrente finché non atterra** |
 | [`2026-09-04-vita-e-status-sopra-unita-design.md`](specs/2026-09-04-vita-e-status-sopra-unita-design.md) | — *(nessuno: è un brief di brainstorming)* | le issue che il brief ha aperto, nominate al suo §3.2 |
+| [`2026-09-20-conduttore-seduta-pie-design.md`](specs/2026-09-20-conduttore-seduta-pie-design.md) | [`2026-09-20-conduttore-seduta-pie.md`](plans/2026-09-20-conduttore-seduta-pie.md) | issue **#3208**; il design dichiara scoperta la **prima seduta reale** (§4.5) |
 
-⚠️ **Il quarto non ha un piano, e non è una lacuna**: è un brief `/sc:brainstorm`, cioè il gradino *prima*
+> 🔴 **Questa tabella è invecchiata il giorno stesso in cui è stata scritta, ed è l'argomento della
+> regola in fondo.** È entrata in `main` il 2026-09-20 con quattro righe; nello stesso giorno la PR **#3219**
+> ne ha aggiunta una quinta — la coppia *conduttore di seduta PIE* — senza la riga, perché quel ramo era
+> partito **prima** che questo `README` esistesse. ⛔ Non è una svista di chi ha aperto quel ramo: è la
+> forma che un indice scritto a mano prende sempre. La riga è stata aggiunta subito dopo; la prossima
+> toccherà a chi aggiunge il file.
+
+⚠️ **Il brief del 2026-09-04 non ha un piano, e non è una lacuna**: è un brief `/sc:brainstorm`, cioè il gradino *prima*
 del design. La colonna vuota dice che quella seduta si è fermata alle scelte, non che manchi un documento.
 
 ## ⚠️ Due case per la stessa categoria, dichiarato e non risolto
