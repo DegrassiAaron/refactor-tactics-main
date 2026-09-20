@@ -52,10 +52,17 @@ TArray<FRTMovementProfile> URTMovementProfileLibrary::GetCoreMovementProfileCata
 	// reso immobili le unita' senza piano. La spec assegna a «fermo» una `Stability`, non un budget: qui
 	// non se ne inventa uno, e il `100%` dice esattamente «quello dell'unita'».
 	//
-	// ➕ **Cadenza `{0, 1}`** ([D-428]): chi non pianifica movimento non avanza in nessun sotto-passo. E' il
-	// solo profilo con `StepsPerTick = 0`, e quello zero e' una dichiarazione — non un valore mancante.
+	// ⚠️ **Cadenza NEUTRA `{1, 1}`, e lo zero sarebbe stato un difetto** ([D-428]). L'immobilita' di
+	// `Still` viene dal non avere un percorso, non dalla cadenza. Dargli `StepsPerTick = 0` congelava
+	// un'unita' che il percorso ce l'ha: `ProfileForPlan` ripiega su `Still` quando il piano nomina un
+	// profilo che il catalogo non contiene — ripiego che il suo stesso commento dichiara **permissivo di
+	// proposito**, *«il posto dove deve fallire e' il test del catalogo, non la partita di qualcuno»* — e
+	// quell'unita' non sarebbe mai diventata eleggibile, finendo con un reason code inventato.
+	//
+	// 🔑 E' lo stesso argomento del budget tre righe sopra: *«azzerarlo qui avrebbe reso immobili le unita'
+	// senza piano»*. La cadenza stava facendo cio' da cui il budget era stato protetto. Trovato in code review.
 	Catalog.Add(MakeProfile(ProfileStill, FRTMovementProfile::NeutralPercent, /*Stability*/ 3,
-		/*bPlannable*/ true, /*bIsRun*/ false, /*StepsPerTick*/ 0, /*TickPeriod*/ 1));
+		/*bPlannable*/ true, /*bIsRun*/ false, /*StepsPerTick*/ 1, /*TickPeriod*/ 1));
 
 	// `Move` — il profilo neutro, ×1 per definizione ([D-412]). Il budget del movimento normale e' sempre
 	// venuto da `ARTUnit::MoveRange` via `GetEffectiveMoveRange()`, che varia per eroe: il `100%` conserva

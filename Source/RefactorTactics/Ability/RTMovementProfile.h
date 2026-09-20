@@ -142,6 +142,12 @@ struct FRTMovementProfile
 	/**
 	 * **Il TETTO di `StepsPerTick`, non la dimensione del tick** ([D-428]).
 	 *
+	 * ⚠️ **Il gemello che il resolver usa e' `FRTMovementCadence::MaxStepsPerTick`**, e i due numeri sono
+	 * deliberatamente in due sedi: qui e' il vincolo di CATALOGO — cosa un profilo puo' dichiarare — e li'
+	 * e' il vincolo della RISOLUZIONE. Tenere solo questo obbligava `RTHexSimLibrary.cpp` a includere
+	 * l'header delle abilita', cioe' a rimettere la dipendenza che `Cadences` esiste per togliere.
+	 * Trovato in code review.
+	 *
 	 * 🔴 **La dimensione del tick NON e' una costante, e la prima stesura la faceva.** Un tick contiene
 	 * tanti sotto-passi quanti ne chiede il profilo piu' veloce **presente nella risoluzione**
 	 * (`FRTMovementResolutionState::SubStepsPerTick`). Fissarla a `2` per tutti rallentava il `Move`: poteva

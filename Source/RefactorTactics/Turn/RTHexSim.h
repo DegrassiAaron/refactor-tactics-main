@@ -148,6 +148,51 @@ struct FRTHexReachableCell
 };
 
 /**
+ * **La cadenza di un profilo nel calendario dei sotto-passi** ([D-428], che chiude `SKB-2`).
+ *
+ * Un tick contiene `FRTMovementResolutionState::SubStepsPerTick` sotto-passi — **derivati dai
+ * partecipanti**, non una costante. Con `k` l'indice di calendario,
+ * `s = k % SubStepsPerTick` e `t = k / SubStepsPerTick`, un'unita' e' eleggibile quando:
+ *
+ * ```text
+ * s = k % SubStepsPerTick,  t = k / SubStepsPerTick
+ * eleggibile  ⇔  s < StepsPerTick  &&  (t % TickPeriod) == 0
+ * ```
+ *
+ * 🔑 **E' una funzione PURA di `(cadenza, indice)`**: nessuno stato per unita', nessun contatore che
+ * dipenda da quando l'unita' entra nella risoluzione, nessuna iterazione di Actor o di `TMap`. E' cio'
+ * che rende l'ordine deterministico senza violare [D-293].
+ *
+ * ⛔ **Un record e non due array paralleli.** I due numeri descrivono UNA regola, e tenerli separati
+ * sarebbe un'occasione di scriverne uno solo — la stessa classe di difetto che `FRTCounterAttack` e
+ * `FRTDisplacementCause` esistono per togliere di mezzo.
+ *
+ * ⚠️ **`StepsPerTick = 0` significa «non avanza mai»**, ed e' rappresentabile ma **nessun profilo lo
+ * dichiara**: l'immobilita' di `MovementProfile.Still` viene dal non avere un percorso, non dalla cadenza.
+ * Darglielo congelava un'unita' che il percorso ce l'ha — `ProfileForPlan` ripiega su `Still` quando il
+ * catalogo non contiene il profilo nominato, e quel ripiego e' permissivo di proposito. Trovato in code
+ * review.
+ */
+struct FRTMovementCadence
+{
+	/** In quanti sotto-passi del tick il profilo puo' avanzare. `Sprint` **2**, `Move` **1**. */
+	int32 StepsPerTick = 1;
+
+	/** Ogni quanti tick e' eleggibile. `Sneak` **2** (un passo ogni due tick), gli altri **1**. */
+	int32 TickPeriod = 1;
+
+	/**
+	 * Il massimo `StepsPerTick` che la risoluzione accetta.
+	 *
+	 * ⛔ **Sta QUI e non sul profilo di movimento**, perche' il resolver non conosce i profili e non deve
+	 * includerne l'header: e' l'intera ragione per cui `Cadences` porta numeri invece di `FRTMovementProfile`.
+	 * Il gemello di catalogo e' `FRTMovementProfile::MaxStepsPerTick`, e vincola cosa un profilo puo'
+	 * DICHIARARE; questo vincola cosa la risoluzione ONORA. Trovato in code review.
+	 */
+	static constexpr int32 MaxStepsPerTick = 2;
+};
+
+/**
  * Cosa il GIOCATORE aveva chiesto, separato da cio' che il TERRENO ha aggiunto al percorso (`#2314`).
  *
  * 🔑 **E' la distinzione che il resolver non poteva fare.** Riceve un `Paths[i]` gia' esteso dallo
@@ -160,36 +205,6 @@ struct FRTHexReachableCell
  * dall'ordine di iterazione; un dato per-unita' nello stato non viola quel contratto, uno globale mutabile
  * si'. Misurato da `HexSim.PlannedLengthOutcomesAreOrderIndependent`.
  */
-/**
- * **La cadenza di un profilo nel calendario dei sotto-passi** ([D-428], che chiude `SKB-2`).
- *
- * Un tick contiene `FRTMovementProfile::SubStepsPerTick` sotto-passi. Con `k` l'indice di calendario,
- * `s = k % SubStepsPerTick` e `t = k / SubStepsPerTick`, un'unita' e' eleggibile quando:
- *
- * ```text
- * s < StepsPerTick   &&   (t % TickPeriod) == 0
- * ```
- *
- * 🔑 **E' una funzione PURA di `(cadenza, indice)`**: nessuno stato per unita', nessun contatore che
- * dipenda da quando l'unita' entra nella risoluzione, nessuna iterazione di Actor o di `TMap`. E' cio'
- * che rende l'ordine deterministico senza violare [D-293].
- *
- * ⛔ **Un record e non due array paralleli.** I due numeri descrivono UNA regola, e tenerli separati
- * sarebbe un'occasione di scriverne uno solo — la stessa classe di difetto che `FRTCounterAttack` e
- * `FRTDisplacementCause` esistono per togliere di mezzo.
- *
- * ⚠️ **`StepsPerTick = 0` significa «non avanza mai»**, ed e' legittimo: e' la cadenza di
- * `MovementProfile.Still`. Non e' un valore mancante — quello e' l'array vuoto, che vale `{1, 1}`.
- */
-struct FRTMovementCadence
-{
-	/** In quanti sotto-passi del tick il profilo puo' avanzare. `Sprint` **2**, `Move` **1**, `Still` **0**. */
-	int32 StepsPerTick = 1;
-
-	/** Ogni quanti tick e' eleggibile. `Sneak` **2** (un passo ogni due tick), gli altri **1**. */
-	int32 TickPeriod = 1;
-};
-
 struct FRTPlannedMovement
 {
 	/**
@@ -384,6 +399,23 @@ struct FRTMovementResolutionState
 	 * appena un'altra unita' teneva vivo un sotto-passo dispari.
 	 */
 	int32 SubStepsPerTick = 1;
+
+	/**
+	 * Sotto-passi consecutivi in cui **nessuno** ha progredito ([D-428]).
+	 *
+	 * 🔑 **Serve perche' «nessuno si e' mosso» ha smesso di significare «e' finita».** Con una cadenza non
+	 * neutra esistono sotto-passi legittimamente inerti — quello in cui uno `Sneak` salta il proprio turno —
+	 * e dichiarare finita la risoluzione al primo di essi troncherebbe il movimento a meta'.
+	 *
+	 * ⚠️ **E quei sotto-passi si EMETTONO**, non si saltano: i confini di reazione e
+	 * `FRTTurnLogEntry::MicroStepIndex` sono chiavati sui micro-step emessi, quindi saltarli renderebbe la
+	 * cadenza inosservabile — uno `Sneak` da solo avanzerebbe a ogni micro-step come un `Move`, e l'indice
+	 * d'ingresso in una zona sorvegliata cambierebbe quando un'unita' ESTRANEA finisce il proprio percorso.
+	 * `SKB-2` nominava proprio quell'esito come competitivo. Trovato in code review.
+	 *
+	 * La risoluzione finisce quando questo contatore raggiunge un giro completo di calendario.
+	 */
+	int32 IdleSubSteps = 0;
 
 	/**
 	 * L'indice, dentro `Paths[i]`, della cella su cui l'ARCO in corso termina — `#3012`, [D-398].
