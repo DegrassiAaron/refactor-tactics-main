@@ -497,6 +497,25 @@ bool FRTHexBotSupportTest::RunTest(const FString&)
 		Planned && Planned->Def.ActionId == FName(TEXT("Test.SelfSupport")));
 	TestNull(TEXT("non pianifica un attacco nello stesso turno"), Hurt->PlannedAttackTarget.Get());
 
+	// 🔴 **E il ramo LASCIA TRACCIA** (`#464`). Senza questa asserzione la riga di log non ha nessun gate:
+	// cancellarla dal planner lascia la suite verde, e il ramo torna a essere invisibile — cioe' allo
+	// stato che ha permesso alla regressione di `#2283` di arrivare a quattro test di partita rossi a
+	// cascata invece che a una riga.
+	//
+	// ⚠️ **Si filtra sull'ActionId, non sulla frase.** `Test.SelfSupport` e' l'azione che questo test
+	// costruisce, quindi l'asserzione cade se la riga sparisce o se smette di nominare l'azione scelta —
+	// che e' il suo contenuto informativo — e NON cade per una riformulazione del testo attorno. Una
+	// stringa intera copiata qui sarebbe un secondo posto in cui la frase vive.
+	int32 RigheDelRamo = 0;
+	for (const FString& Evento : TM->GetRecentEvents())
+	{
+		if (Evento.Contains(TEXT("Test.SelfSupport")) && Evento.Contains(*Hurt->GetName()))
+		{
+			++RigheDelRamo;
+		}
+	}
+	TestEqual(TEXT("il ramo difensivo scrive una riga, e una sola"), RigheDelRamo, 1);
+
 	DestroyHexBotWorld(World);
 	return true;
 }

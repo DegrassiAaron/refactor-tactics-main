@@ -256,6 +256,15 @@ Le schede esistono già come `DATA_SPEC`/`DESIGN_SPEC`: [`../characters/v0.2/`](
 | **35.4** | Wiki e cataloghi allineati | `../wiki/fazioni/` e `../balance/RT_HeroCatalog_v0.1.md` descrivono 8 eroi con i valori realmente a runtime |
 | **35.5** | Paragon naming purge | Nessuna identità Paragon sopravvive nel namespace RT-owned, e un gate contestuale — sui campi `HeroId`, `DisplayName`, namespace dell'`ActionId`, Gameplay Tag e voci di catalogo — impedisce che rientri. Path e package vendor restano leciti. Issue [#2291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2291) |
 
+> ➕ **Un contenuto di questa epic sblocca un comportamento del bot che esiste già.** Un'azione
+> **`bSelfTarget` con un effetto `Heal`** — su un eroe nuovo, o aggiunta al kit di uno esistente — rende
+> attraversabile il ramo di difesa personale di E26, oggi implementato e mai eseguito
+> ([#464](https://github.com/DegrassiAaron/refactor-tactics-main/issues/464)). ⚠️ **Lo scudo non basta**:
+> `Action.Shield` è temporaneo e non alza `Health`, quindi non scioglie la condizione d'ingresso e il ramo
+> si ripeterebbe a ogni ricarica (`#2283`). Il DoD è già disponibile —
+> `RefactorTactics.HexBotPlay.UsesSupportWhenHurt` oggi si costruisce l'azione **dentro il test**, e con
+> un'azione vera smetterebbe di doverlo fare.
+
 **Dipendenze**: E6 (roster 4) chiusa. **Rischi**: il roster raddoppia la matrice di interazioni da testare —
 il costo non è lineare.
 
@@ -482,6 +491,17 @@ Feature Registry: `RT-FEAT-UI-ICON-LANGUAGE`.
 Aggiunge (§5.2 del sorgente bot): TeamKnowledge integrato, contatti last-known e acustici, threat map,
 opportunity map, information value, coordinazione vera, sinergie ambientali, belief weights, predictive
 action scoring, reaction policy migliore, stress 4v4.
+
+➕ **E una cosa che E26 già possiede e che quell'elenco non nomina: la DIFESA PERSONALE del bot.** La
+regola *«se ferito sotto metà HP e ha un'azione che lo rimette in piedi, la usa e rinuncia ad attaccare»* è
+**implementata** in [`Bot/RTBotPlanningLibrary.cpp`](../../Source/RefactorTactics/Bot/RTBotPlanningLibrary.cpp)
+e **non la attraversa nessuno**: la condizione d'ingresso è `Health * 2 < MaxHealth`, e a scioglierla serve
+un'azione `bSelfTarget` con un effetto `Heal` — l'intersezione dei due insiemi è **vuota** sul roster
+spedito. ⚠️ **Non basta lo scudo**: `#2283` ha misurato che `Action.Shield` è temporaneo, non alza
+`Health`, e riapre il ramo a ogni ricarica finché la partita non finisce. L'azione che lo sbloccherebbe è
+contenuto di **E35** o del kit di un eroe esistente, ed è una scelta di bilanciamento: un eroe che si cura
+da solo cambia il ritmo dello scontro. Owner della domanda:
+[#464](https://github.com/DegrassiAaron/refactor-tactics-main/issues/464).
 
 **Dipendenze**: E13 (conoscenza parziale), E26 richiede il bot v0.1 della v0.1 chiuso.
 **Rischi**: la belief map è il punto in cui un bot smette di essere deterministico per distrazione — il
