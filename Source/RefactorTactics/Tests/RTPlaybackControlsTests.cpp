@@ -8,9 +8,13 @@
 // fabbricare una dipendenza.
 //
 // ⌫ **Questa riga citava «`DOREPLIFETIME` -> zero», e non e' piu' vero alla lettera: corretto il
-// 2026-09-20.** Le occorrenze sono **4**, tutte sotto `Tests/` e tutte introdotte da `#589` come oracolo
-// della guardia `RTServerOnlyGuard`. Cio' che resta zero — ed e' cio' che questa riga voleva dire — sono le
-// occorrenze **di produzione**: `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` → nessuna riga.
+// 2026-09-20.** Le occorrenze vive stanno tutte sotto `Tests/`: le due macro di
+// `RTServerOnlyGuardFixturesForTest.h` sono l'oracolo della guardia `RTServerOnlyGuard` (`#589`), e la
+// menzione qui sopra e' di `c1f4d538` (`feat(1879)`), cioe' di questo stesso file — non di `#589`.
+// ⛔ **Il conteggio non si scrive**, ed e' il caso in cui la ragione si vede a occhio: ogni nota che ne
+// parla — questa compresa — ne aggiunge una, quindi un numerale qui sarebbe falso nell'istante in cui il
+// lettore esegue il comando per verificarlo. Cio' che resta zero, ed e' cio' che questa riga voleva dire,
+// e' la **produzione**: `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` → nessuna riga.
 //
 // 🔑 Il divieto si ottiene **per costruzione**: i comandi sono inerti finche' qualcuno non li abilita. Questi
 // test misurano quel default, che e' l'unica parte del criterio che oggi ha un soggetto.

@@ -170,9 +170,11 @@ struct FRTPublicReplayEntry
  *
  * ⛔ **Non si rimedia qui senza decidere**, ed e' `REPCELL-1` in
  * [`docs/OPEN_DECISIONS.md`](../../../docs/OPEN_DECISIONS.md), aperta da [D-371] via `#1805`. Marcare i tre
- * campi `AuditOnly` svuoterebbe il prodotto pubblico e renderebbe rosso `PublicFieldsKeepTheirValue`;
- * cambiare i produttori riscrive `SrcCell` su voci gia' archiviate e rigenera i golden. Chi arriva qui con
- * una correzione in mano legga prima quella voce.
+ * campi `AuditOnly` svuoterebbe il prodotto pubblico, e cade da un gate in entrambi i modi in cui lo si
+ * puo' fare: toccando la sola tabella cade `PublicFieldsKeepTheirValue`, togliendo anche i campi dal tipo
+ * pubblico cade `PublicEntryMatchesTheClassification`. Cambiare i produttori riscrive invece `SrcCell` su
+ * voci gia' archiviate e rigenera i golden. Chi arriva qui con una correzione in mano legga prima quella
+ * voce.
  */
 UCLASS()
 class REFACTORTACTICS_API URTReplayPrivacyLibrary : public UBlueprintFunctionLibrary

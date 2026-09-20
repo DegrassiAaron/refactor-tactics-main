@@ -16,11 +16,17 @@
  * primo: piantano un leak vero e pretendono che venga trovato, diretto **e** annidato.
  *
  * ⌫ **Questa riga diceva *«in tutto `Source/`»*, e il file accanto la smentiva: corretto il 2026-09-20.**
- * `RTServerOnlyGuardFixturesForTest.h` — incluso da questo stesso file — dichiara **due**
- * `UPROPERTY(Replicated)` e **due** `DOREPLIFETIME`, che sono l'oracolo delle fixture. La misura era vera
- * quando e' stata scritta e l'ha falsificata il commit successivo: chi oggi rilancia
- * `grep -rn "DOREPLIFETIME" Source/` trova **4** occorrenze e conclude che il commento menta, invece di
- * capire che sono le sue. La forma che regge e' *«di produzione»*, col comando che lo dimostra:
+ * `RTServerOnlyGuardFixturesForTest.h` — incluso da questo stesso file — dichiara le
+ * `UPROPERTY(Replicated)` e le `DOREPLIFETIME` che sono l'**oracolo** delle fixture.
+ *
+ * 🔴 **E non e' invecchiata: e' nata gia' falsa, il che e' peggio e va detto.** Le fixture e la frase che
+ * le smentisce arrivano nello **stesso commit**, `7a046fc4` — prima di quel commit
+ * `git grep "UPROPERTY(Replicated)" 7a046fc4^ -- Source/` non trova nulla, dopo trova entrambe. Chi
+ * rilanciasse il `grep` nudo troverebbe occorrenze e concluderebbe che il commento menta, invece di
+ * capire che sono le sue.
+ *
+ * La forma che regge non porta un conteggio, perche' ogni nota che ne parla ne aggiunge uno: e' lo
+ * **zero misurato di produzione**, col comando che lo dimostra —
  * `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` → nessuna riga.
  *
  * ⚠️ **Non sostituiscono i quattro test di privacy logica** (`Reactions.IntentNotVisibleToEnemy`,

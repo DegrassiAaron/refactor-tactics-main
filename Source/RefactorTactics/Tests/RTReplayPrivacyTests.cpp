@@ -552,7 +552,11 @@ bool FRTReplayPrivacyCanonicalUnchangedTest::RunTest(const FString&)
 /**
  * ⚠️ **Quello che segue e' una SONDA, non un gate**, e la differenza governa come si legge.
  *
- * I sette test qui sopra sono gate: diventano rossi quando qualcuno rompe una proprieta' che vale. Questo
+ * I test che precedono sono **gate**, e si chiamano per nome invece che contarsi — `EveryLoggedFieldIsClassified`,
+ * `PublicEntryMatchesTheClassification`, `PublicFieldsKeepTheirValue`, `SanitizeIsOrderPreservingAndPure`,
+ * `SpectatorSurfaceHandsOutPublicEntries`, `ObserverTraceOmitsUnknownEntries`,
+ * `ObserverTracesLeaveTheCanonicalOneIntact`: diventano rossi quando qualcuno rompe una proprieta' che
+ * vale. Questo invece
  * e' **verde perche' il canale c'e'** — misura un difetto aperto, nella forma che
  * `Tests/RTBlindActionsLeakMeasureTests.cpp` ha gia' usato per `BLIND-1` e `BLIND-4`. Il suo mestiere e'
  * togliere la domanda dal terreno dell'opinione: quanto grande sia il divario fra il prodotto pubblico e
@@ -615,13 +619,6 @@ namespace
 		return E;
 	}
 
-	/** Le `SrcCell` presenti, nell'ordine. */
-	TArray<FRTCellId> CelleSorgente(const TArray<FRTTurnLogEntry>& Voci)
-	{
-		TArray<FRTCellId> Out;
-		for (const FRTTurnLogEntry& E : Voci) { Out.Add(E.SrcCell); }
-		return Out;
-	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyThirdPartyCellTest,
@@ -707,9 +704,12 @@ bool FRTReplayPrivacyThirdPartyCellTest::RunTest(const FString&)
 	TestEqual(TEXT("MISURA: la traccia per osservatore porta la cella dell'attaccante del mondo A"),
 		VisteA[0].SrcCell, AttaccanteInA);
 	TestEqual(TEXT("e quella del mondo B"), VisteB[0].SrcCell, AttaccanteInB);
-	// ⚠️ `TestTrue` e non `TestNotEqual`: l'overload generico di `TestNotEqual` non esiste in UE 5.8 —
-	// `AutomationTest.h` ne dichiara solo per stringhe, `FText` e `FName`, mentre il `TestEqual` templato
-	// c'e' (e usa `ToString()`). I valori vanno quindi nel messaggio a mano.
+	// ⚠️ `TestTrue` e non `TestNotEqual`, e la ragione **non** e' che manchi l'overload: `AutomationTest.h`
+	// dichiara un `TestNotEqual` templato accanto al `TestEqual` templato, e il repository lo chiama gia' su
+	// `FRTCellId` (`RTControlActionTests.cpp`). La ragione e' il MESSAGGIO: `TestEqual` passa da
+	// `ReportError`, che stampa i due valori; `TestNotEqual` fa `AddError("%s: The two values are equal.")`
+	// e basta. Qui il messaggio **e'** la misura — senza le due celle stampate la sonda direbbe che c'e' un
+	// canale senza dire quale — quindi i valori vanno scritti a mano.
 	TestTrue(*FString::Printf(
 			TEXT("🔴 IL CANALE: conoscenza autorizzata identica, traccia osservabile DIVERSA — %s contro %s"),
 			*VisteA[0].SrcCell.ToString(), *VisteB[0].SrcCell.ToString()),
