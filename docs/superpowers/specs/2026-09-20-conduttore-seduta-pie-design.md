@@ -111,7 +111,50 @@ sopravvive, e quelle voci potranno entrare senza rifare l'architettura.
 voce che chiede un'altra mappa è dichiarata `NotJudgeable — richiede allestimento manuale` **all'inizio
 della seduta**, non alla fine: chi apre deve sapere prima cosa la playlist non copre.
 
-### 2.2 Nessuna decisione nel widget
+### 2.2 Le due porte, e perché il conduttore non conosce il coordinator
+
+`ARTGameMode` possiede `FRTScenarioCoordinator` **per valore e privato** (`RTGameMode.h:480`). Un
+subsystem che lo chiamasse direttamente dovrebbe romperne l'incapsulamento, e soprattutto renderebbe
+impossibile il gate promesso in §4.4.1: `FRTScenarioCoordinator` è una classe concreta, e un test non
+può passarne uno finto.
+
+Il conduttore dipende quindi da **due porte**, non dal coordinator:
+
+```
+struct FRTPieSessionPorts
+{
+    TFunction<ERTScenarioStart(const FString& ScenarioId)> Launch;   // avvia uno scenario
+    TFunction<void()>                                      TearDown; // pulisce prima del prossimo
+};
+```
+
+In gioco le porte le installa `ARTGameMode` su di sé, inoltrando a `ScenarioCoordinator.Start(...)` e
+`ScenarioCoordinator.TearDown()`, e gira al subsystem il delegate `OnScenarioFinished`. Nei test le
+porte sono lambda che non aprono nulla e restituiscono l'esito che il caso vuole provare. **La
+conduzione non sa cosa ci sia dall'altra parte**, ed è ciò che la rende verificabile senza Editor.
+
+⚠️ Chi implementa non sostituisca le porte con un puntatore al GameMode «tanto è la stessa cosa»: con un
+puntatore, i quattro casi di §3.4 tornano a richiedere scenari veri, e il gate della non-deduzione (§4.4.3)
+diventa inscrivibile.
+
+### 2.3 La seduta è una quarta sorgente, e vince
+
+`ARTGameMode::ResolveScenarioToRun` (`RTGameMode.cpp:952`) sceglie oggi fra tre sorgenti, in
+quest'ordine: **console** `rt.Test.Scenario` → **riga di comando** `-dpcvars` → **property** del
+GameMode. La seduta in corso entra come quarta e **prima** di tutte:
+
+```
+seduta in corso  →  console  →  riga di comando  →  property
+```
+
+La ragione è concreta: una CVar `rt.Test.Scenario` rimasta impostata da una prova precedente dirotterebbe
+in silenzio ogni passo della playlist, e chi guarda crederebbe di giudicare la voce che il conduttore
+annuncia. Una CVar dura quanto il processo, e la seduta dura meno.
+
+⚠️ Il conduttore **non** azzera la CVar dell'utente: la scavalca finché la seduta è in corso e la lascia
+com'era dopo. Azzerarla cambierebbe lo stato di una sessione che non gli appartiene.
+
+### 2.4 Nessuna decisione nel widget
 
 Se il widget non c'è — seduta headless, o overlay non ancora scritto — il subsystem funziona lo stesso e
 i verdetti arrivano da `rt.Pie.Verdict`. Il widget è la strada comoda; la console è la strada che rende
