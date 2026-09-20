@@ -481,6 +481,51 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 		return false;
 	}
 
+	// 🔑 **LA PREMESSA CHE MANCAVA, ed e' l'unico meccanismo rimasto in piedi per `#2657`.**
+	//
+	// `ARTTurnManager::EnsureMatchRoster` costruisce il roster con `UGameplayStatics::GetAllActorsOfClass` e
+	// lo ordina con `MatchRosterLess`, che confronta **squadra, cella, e in ultimo il NOME dell'Actor**. Le
+	// quattro unita' di questa scena stanno su quattro coppie (squadra, cella) distinte — (0;0,0), (0;0,3),
+	// (1;1,0), (1;1,3) — quindi l'ordine e' deciso prima di arrivare al nome, ed e' totale: `1..4` in
+	// quest'ordine, sempre.
+	//
+	// ⚠️ **Quella premessa vale solo finche' nel mondo ci sono QUESTE unita' e nessun'altra.** Una quinta
+	// unita' — sopravvissuta a un mondo precedente, spawnata da una fixture vicina — entra nel roster
+	// (`EnsureMatchRoster` **non** filtra i vivi, e lo dichiara) e fa slittare la numerazione. E se si
+	// posasse su una cella gia' occupata della stessa squadra, a decidere resterebbe lo spareggio per nome:
+	// `GetName().Compare()` e' un confronto di STRINGHE su un suffisso numerico, quindi `RTUnit_10` precede
+	// `RTUnit_9`. L'esito dipenderebbe da quanti oggetti sono nati prima nel processo, cioe' da **quali test
+	// hanno girato prima** — che e' precisamente la forma di un rosso a intermittenza.
+	//
+	// 🔴 **Senza questa guardia lo slittamento non produce un rosso che si spiega.** I confronti sull'autore
+	// piu' sotto mettono a confronto `VoceA->UnitId` con `IdReactorA`, e **entrambi** slittano insieme:
+	// restano verdi mentre la scena non e' piu' quella descritta. Il difetto si vedrebbe solo se lo
+	// slittamento fosse asimmetrico — cioe' per caso.
+	//
+	// ⛔ Non e' un numero volatile: e' la cardinalita' di QUESTA scena, dichiarata quattro `SpawnDefUnit`
+	// piu' sopra in questa stessa funzione.
+	{
+		TArray<AActor*> UnitaNelMondo;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), UnitaNelMondo);
+		// Quattro `TestEqual` separati e non una condizione corto-circuitata: devono riportare TUTTI, perche'
+		// **quali** id sono slittati dice dove sta l'intrusa — davanti al reattore A, fra i due reattori, o
+		// fra gli attaccanti. Un solo rosso direbbe che la scena e' cambiata e non come.
+		const bool bSoloLaScena = TestEqual(
+			TEXT("premessa: nel mondo ci sono le sole unita' di questa scena"), UnitaNelMondo.Num(), 4);
+		const bool bIdA  = TestEqual(TEXT("premessa: il roster numera il reattore A"), IdReactorA, 1);
+		const bool bIdB  = TestEqual(TEXT("premessa: il roster numera il reattore B"), IdReactorB, 2);
+		const bool bIdAA = TestEqual(TEXT("premessa: il roster numera l'attaccante di A"), AttackerA->StableUnitId, 3);
+		const bool bIdAB = TestEqual(TEXT("premessa: il roster numera l'attaccante di B"), AttackerB->StableUnitId, 4);
+		if (!bSoloLaScena || !bIdA || !bIdB || !bIdAA || !bIdAB)
+		{
+			// Uscita ANTICIPATA, e per la stessa ragione delle altre due premesse: con la numerazione
+			// slittata i confronti sull'autore non misurano piu' cio' che dichiarano, e lasciarli girare
+			// aggiungerebbe rossi derivati a un rosso che ha gia' detto la propria causa.
+			DestroyDefWorld(World);
+			return false;
+		}
+	}
+
 	// PREMESSA, non conclusione: con zero contrattacchi «ogni origine e' quella giusta» e' vero e vuoto.
 	if (!TestEqual(TEXT("premessa: entrambe le reazioni si sono attivate"),
 		CountDefensiveReactionOutcome(TM, ERTReactionOutcome::Activated), 2))
@@ -496,15 +541,25 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
 	const FRTTurnLogEntry* VoceA = nullptr;
 	const FRTTurnLogEntry* VoceB = nullptr;
-	int32 VociContrattacco = 0;
+	// ⚠️ **L'ultima voce NON vince, e fino a `#2657` vinceva.** Questo ciclo assegnava `VoceA = &E` a ogni
+	// corrispondenza: con due voci `Combat` sullo stesso bersaglio — un contrattacco piu' una voce di altra
+	// famiglia che usa la convenzione INVERTITA (`Caduta`, `Hazard`, `Status.Burning` mettono in `UnitId`
+	// chi SUBISCE) — il test finiva a confrontare i satelliti della voce sbagliata, e il rosso che ne usciva
+	// nominava il CAMPO invece della collisione. Contarle per bersaglio costa una riga e cambia cio' che un
+	// rosso comunica.
+	int32 VociSuA = 0;
+	int32 VociSuB = 0;
 	for (const FRTTurnLogEntry& E : Log)
 	{
 		if (E.Category != ERTLogCategory::Combat) { continue; }
-		if (E.TgtCell == CellaAttackerA) { VoceA = &E; ++VociContrattacco; }
-		if (E.TgtCell == CellaAttackerB) { VoceB = &E; ++VociContrattacco; }
+		if (E.TgtCell == CellaAttackerA) { if (VoceA == nullptr) { VoceA = &E; } ++VociSuA; }
+		if (E.TgtCell == CellaAttackerB) { if (VoceB == nullptr) { VoceB = &E; } ++VociSuB; }
 	}
 
-	TestEqual(TEXT("due contrattacchi, due voci di danno"), VociContrattacco, 2);
+	// Una per bersaglio, che e' piu' forte di «due in tutto»: quest'ultima resterebbe vera con due voci su A
+	// e nessuna su B, cioe' proprio sulla scena che il test esiste per escludere.
+	TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito A"), VociSuA, 1);
+	TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito B"), VociSuB, 1);
 	if (!TestNotNull(TEXT("il contrattacco su chi ha colpito A ha lasciato una voce"), VoceA)
 		|| !TestNotNull(TEXT("il contrattacco su chi ha colpito B ha lasciato una voce"), VoceB))
 	{
@@ -534,6 +589,63 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	TestNotEqual(TEXT("le due priorita' sono diverse"), VoceA->Priority, VoceB->Priority);
 
 	DestroyDefWorld(World);
+	return true;
+}
+
+/**
+ * **I mondi di questa fixture sono ISOLATI fra un test e il successivo** (`#2657`).
+ *
+ * 🔑 **Perche' e' un test e non una riga di commento.** `#2657` ipotizzava che il rosso a intermittenza di
+ * `TwoCountersKeepTheirOwnOrigin` venisse da unita' sopravvissute allo smontaggio di un mondo precedente:
+ * entrerebbero in `EnsureMatchRoster` — che costruisce il roster con `GetAllActorsOfClass` e **non** filtra
+ * i vivi — e farebbero slittare gli `StableUnitId`. L'ipotesi e' plausibile a leggerla, e il modo di
+ * chiuderla e' misurarla.
+ *
+ * ⚠️ **Il punto delicato e' il GC, e per questo la prova sta qui e non in un ragionamento.**
+ * `DestroyDefWorld` chiama `UWorld::DestroyWorld`, che smonta il mondo ma **non** raccoglie subito gli
+ * Actor: fra un test e il successivo quegli oggetti sono ancora in memoria. La domanda vera non e' «sono
+ * stati distrutti» ma «il mondo NUOVO li vede», e `TActorIterator` itera i livelli del mondo che gli si
+ * passa — non la memoria.
+ *
+ * 🔴 **Il primo `TestEqual` e' un CONTROLLO POSITIVO, non decorazione.** Senza, un `0` alla fine non
+ * distinguerebbe «il mondo nuovo e' pulito» da «questa sonda non sa contare»: una `GetAllActorsOfClass`
+ * chiamata male risponde zero in entrambi i casi. Misurare che nel primo mondo se ne vedono due e' cio' che
+ * rende informativo lo zero nel secondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefFixtureIsolatesWorldsTest,
+	"RefactorTactics.Reactions.Counter.FixtureIsolatesItsWorlds",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDefFixtureIsolatesWorldsTest::RunTest(const FString&)
+{
+	UWorld* Primo = MakeDefWorld();
+	if (!TestNotNull(TEXT("primo mondo"), Primo)) { return false; }
+	SpawnDefMap(Primo);
+	ARTUnit* UnoA = SpawnDefUnit(Primo, 0, FRTCellId(0, 0));
+	ARTUnit* UnoB = SpawnDefUnit(Primo, 1, FRTCellId(1, 0));
+	if (!TestNotNull(TEXT("unita' del primo mondo"), UnoA) || !TestNotNull(TEXT("seconda unita'"), UnoB))
+	{
+		DestroyDefWorld(Primo);
+		return false;
+	}
+
+	TArray<AActor*> NelPrimo;
+	UGameplayStatics::GetAllActorsOfClass(Primo, ARTUnit::StaticClass(), NelPrimo);
+	TestEqual(TEXT("controllo positivo: nel primo mondo la sonda vede le sue due unita'"), NelPrimo.Num(), 2);
+
+	DestroyDefWorld(Primo);
+
+	// Nessun `CollectGarbage` qui, ed e' deliberato: il caso da provare e' proprio quello in cui il GC
+	// **non** e' ancora passato, che e' la condizione normale di una corsa ristretta — poche allocazioni,
+	// nessuna pressione, nessuna raccolta fra un test e l'altro.
+	UWorld* Secondo = MakeDefWorld();
+	if (!TestNotNull(TEXT("secondo mondo"), Secondo)) { return false; }
+	SpawnDefMap(Secondo);
+
+	TArray<AActor*> NelSecondo;
+	UGameplayStatics::GetAllActorsOfClass(Secondo, ARTUnit::StaticClass(), NelSecondo);
+	TestEqual(TEXT("il mondo nuovo non eredita le unita' di quello smontato"), NelSecondo.Num(), 0);
+
+	DestroyDefWorld(Secondo);
 	return true;
 }
 
