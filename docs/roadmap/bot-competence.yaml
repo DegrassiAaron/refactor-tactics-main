@@ -59,11 +59,13 @@
 #
 # ## ⚠️ Che cosa questa fotografia NON e'
 #
-# 🔴 **Nessun `PASS` qui sotto e' stato misurato eseguendo il test che lo sostiene.** Gli stati vengono da
-# lettura statica: «esiste un test che esercita questa capability con questo eroe». Che quel test sia VERDE
-# lo dice la suite, e la data dell'ultima run sta in `meta.suite`. Il validator verifica che i token
-# **risolvano**, non che passino: e' la distinzione fra «registrato» e «consentito» che
-# `tools/asset-provenance/check.ts` dichiara per se'.
+# 🔴 **Gli stati vengono da lettura statica, e i token verdi non li confermano.** Che i 42 test citati siano
+# verdi e' misurato (`meta.suite`); cio' che NON e' misurato e' il giudizio che li lega a una casella —
+# «questo test esercita QUESTA capability con QUESTO eroe». Quella e' una lettura del corpo del test, e
+# nessun comando la produce. ∴ un token verde dice «il fatto citato regge», mai «lo stato e' quello giusto».
+#
+# Il validator sta un gradino piu' in basso ancora: verifica che i token **risolvano**, non che passino —
+# la distinzione fra «registrato» e «consentito» che `tools/asset-provenance/check.ts` dichiara per se'.
 #
 # ⚠️ **Una riga si contesta cambiando l'EVIDENZA, non il giudizio.** Se pensi che una `PARTIAL` sia una
 # `PASS`, il modo di dimostrarlo e' un token nuovo che risolva; se pensi che una `PASS` sia troppo generosa,
@@ -77,9 +79,14 @@ meta:
   owner: docs/technical/runbooks/test-e-diagnosi.md#3-ter
   fotografia: 2026-09-20
   base: origin/main b1b54bb2
-  # L'ultima suite su cui i test citati sono stati visti verdi. Non e' una proprieta' dello schema: e' la
-  # data oltre la quale un `PASS` qui sotto e' una dichiarazione e non piu' una misura.
-  suite: 2026-09-20, filtro `Bot+HexBot+Match+HexMatch+Simulation+Scenario+CombatLog+Facing+Combat+UI+Cover+Resolver+TurnLog+Replay+Meta`
+  # ⚠️ Non «una suite e' passata», ma: OGNI token `test:` citato qui sotto e' stato eseguito e verde in
+  # quella run. Le due cose non coincidono — un filtro puo' non contenere una famiglia citata, ed e'
+  # precisamente l'errore che questa riga ha corretto: la prima stesura dichiarava una run che lasciava
+  # fuori `Heroes.*` e `Overwatch.*`. Si riverifica cosi':
+  #   filtro = Bot+Heroes+HexBot+HexBotPlay+Match+Overwatch+Scenario
+  #   poi si confronta l'elenco dei `Path={...}` del log coi token di questo file.
+  suite: 2026-09-20 — 435 test eseguiti, 435 `Result={Success}`; i 42 token `test:` citati qui
+         sotto compaiono tutti nel log con `Result={Success}`, nessuno non eseguito.
 
 # I documenti che pubblicano una metrica prodotta da partite AUTOMATICHE, e che percio' devono portarsi
 # accanto lo stato di competenza che la determina.
