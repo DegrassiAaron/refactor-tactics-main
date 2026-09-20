@@ -1,6 +1,6 @@
 # Systems Map — otto viste concettuali dei sistemi
 
-> `RESEARCH` · **Aggiornato**: 2026-08-19 · **Non è una fonte**: non risolve conflitti e non descrive
+> `RESEARCH` · **Aggiornato**: 2026-09-20 · **Non è una fonte**: non risolve conflitti e non descrive
 > il codice di oggi. Owner delle regole che queste tavole illustrano: [`../../../gameplay/`](../../../gameplay/)
 > e [`../../../technical/`](../../../technical/).
 
@@ -39,10 +39,10 @@ dichiarato sopra descrive quindi un albero che non esiste da allora.
 # i quattordici che de25da40 aveva cancellato, confrontati per blob con oggi
 for f in $(git show --name-status --format='' de25da40 -- docs/research/design/systems-map/ \
            | awk '$1=="D"{print $2}'); do
-  [ "$(git rev-parse de25da40^:"$f")" = "$(git rev-parse main:"$f")" ] && echo IDENTICO || echo DIVERSO
+  [ "$(git rev-parse de25da40^:"$f")" = "$(git rev-parse HEAD:"$f")" ] && echo IDENTICO || echo DIVERSO
 done | sort | uniq -c        # -> 14 IDENTICO
 
-git ls-tree -lr main docs/research/design/systems-map/ | awk '{s+=$4;n++} END{print n" file, "s" byte"}'
+git ls-tree -lr HEAD docs/research/design/systems-map/ | awk '{s+=$4;n++} END{print n" file, "s" byte"}'
 ```
 
 La previsione scritta qui il 2026-08-19 — *«rimetterli riporterebbe 13,1 MB di byte identici»* — si è
@@ -50,8 +50,9 @@ avverata **alla cifra prevista**: i quattordici pesano 13.132.692 byte, e lo sca
 sottrazione 32,8 − 19,7 è il `README.md` che `de25da40` aggiungeva nello stesso commit.
 
 🔑 **Perché è successo senza che nessuno se ne accorgesse.** Il commit che li ha riportati confrontava
-i candidati **contro i composite già presenti in `main`** e concludeva *«nuovi davvero: nessun
-omonimo»* — ed è vero sui nomi e falso sul contenuto, che è precisamente la distinzione che questo
+i candidati **contro i composite già presenti in `main`** e concludeva, per esteso, *«nuovi davvero:
+nessun omonimo in `main`, e le due varianti campione hanno blob diversi da quelli già presenti — sono i
+tagli `.uml` e `.infografic`, mentre in `main` c'erano i `.png` base»* — ed è vero sui nomi e falso sul contenuto, che è precisamente la distinzione che questo
 README esisteva per fare. Il gate che avrebbe potuto vederlo, `docs_inventory.py`, era uscito dal
 repository con **D-182** tre giorni prima: `git ls-files scripts | wc -l` → `0`.
 
@@ -59,7 +60,7 @@ repository con **D-182** tre giorni prima: `git ls-files scripts | wc -l` → `0
 contata a parte: non era fra i quattordici, e va deciso separatamente. Non è elencato nella tabella
 qui sopra.
 
-⛔ **Se ritoglierli è una decisione d'autore, non una conseguenza di questa nota.** L'identità per
+⛔ **Ritoglierli è una decisione d'autore, non una conseguenza di questa nota.** L'identità per
 blob SHA è un fatto — e una prova più forte di quella del 2026-08-19, perché la fa `git` da solo e non
 dipende da uno strumento. Ma `de25da40` era una scelta su *cosa `research/` conserva*, `a808419a` l'ha
 ribaltata, e ribaltarla di nuovo resta una scelta di contenuto: la registra #1165, non questo file.
@@ -76,7 +77,10 @@ oggi non ha più un gate che la faccia rispettare.
 Il pannello concettuale di `ability-effect-system` si apre con *«GAS gestisce l'intenzione, i costi, i
 cooldown»*, e il suo UML ha un blocco `Ability System (GAS Mirror)`. Il canone dice il contrario:
 **no GAS nella v0.1**, azioni e personaggi sono data-driven con `URTActionData` / `URTHeroData` /
-`URTEquipmentData` — vedi [`AGENTS.md`](../../../../AGENTS.md) §*Decisioni tecniche correnti*.
+`URTEquipmentData` — vedi [`AGENTS.md`](../../../../AGENTS.md) §*Progetto in 30 secondi*, che dichiara
+`GAS: fuori scope v0.1`. ⌫ *Questa riga rimandava a un § Decisioni tecniche correnti che non esiste:
+corretto il 2026-09-20. Il link al file risolveva, la sezione no — e nessun gate guarda le sezioni,
+per [D-188].*
 
 Non è un difetto da correggere: sono tavole di **visione**, e questa cartella non è normativa. È il
 motivo per cui restano in `research/` e non vengono promosse altrove — e per cui, se una di queste
