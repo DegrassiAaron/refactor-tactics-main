@@ -208,10 +208,11 @@ struct FRTBotPlanningOutcome
 	 * Quanti punti di riduzione i piani SCELTI di questo turno si aspettano di scavalcare grazie alla
 	 * direzione (`#649`, CP 16.2). Somma su tutti i bot che hanno deciso in questa chiamata.
 	 *
-	 * 🔑 **E' il numeratore di un tasso, e senza di lui il denominatore non significa niente.** Le voci
+	 * 🔑 **E' la meta' che mancava a un rapporto, e senza di lui l'altra non significa niente.** Le voci
 	 * `Facing`/`RearHitBypassedCover` dicono quanti punti sono stati scavalcati DAVVERO; questo dice
-	 * quanti il bot ne aveva contati decidendo. Il rapporto e' il *tasso di realizzo*, ed e' la seconda
-	 * meta' — rimasta sulla carta dal 2026-08-12 — della decisione che ha introdotto il termine.
+	 * quanti il bot ne aveva contati decidendo. Il rapporto — realizzati su stimati — e' il *tasso di
+	 * realizzo*, ed e' la seconda meta', rimasta sulla carta dal 2026-08-12, della decisione che ha
+	 * introdotto il termine.
 	 *
 	 * ⛔ **Sta sull'ESITO e non su `FRTBotPlanDecision`, ed e' una separazione voluta.** Quella struct e'
 	 * *«esattamente i campi che `PlanBots` scriveva sull'`ARTUnit`»*: un campo che l'orchestratore non

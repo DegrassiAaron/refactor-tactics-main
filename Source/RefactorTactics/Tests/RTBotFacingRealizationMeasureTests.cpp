@@ -40,9 +40,19 @@
 // scavalcati ([D-199]). Confrontare il termine di punteggio — `WDamage` volte tanto — darebbe un tasso dieci
 // volte piu' grande, e sarebbe plausibile.
 //
-// ⚠️ **Il realizzato conta OGNI colpo, la stima solo i piani SCELTI.** Nessun'altra sorgente di colpi esiste
-// in una partita di soli bot, ed e' cio' che la guardia sulle unita' umane asserisce; se un giorno un colpo
-// nascesse da una reazione non pianificata, il denominatore lo conterebbe e il numeratore no.
+// ⚠️ **Il realizzato conta ogni voce `RearHitBypassedCover`, la stima solo i piani SCELTI** — e in una
+// partita di soli bot le due popolazioni combaciano, per una ragione che va scritta perche' non e' ovvia.
+// I colpi che POTREBBERO perdere la copertura per direzione fuori da `Plan.Hits` sono due famiglie
+// — Overwatch in fuoco e boundary predittivo, le uniche due chiamanti di `BoundaryCoverReduction` — ed
+// entrambe si armano da `PlannedAbilityIndex`/`bAttackTargetsCell`, che un bot non valorizza: `Action.Overwatch`
+// dichiara `bSelfTarget` e i cicli di candidate saltano il self-target, e la predittiva vuole un bersaglio-CELLA
+// che solo `ARTPlayerController` dichiara. Il contrattacco e' un colpo vero e non entra in nessuno dei due lati,
+// ma non porta punti scavalcati: la copertura non gli viene applicata affatto.
+//
+// ∴ la guardia `UmaneViste == 0` non e' cerimoniale: e' la condizione che tiene in piedi questa coincidenza.
+// Il giorno in cui una di quelle due famiglie emettesse la voce, a mancare non sarebbe il numeratore — non la
+// conterebbe **nessuno dei due lati**, e il rapporto resterebbe sano descrivendo una popolazione piu' piccola
+// di quella che il nome «ogni colpo» suggerisce.
 //
 // 🔴 **E' un rapporto fra due TOTALI, non un tasso di successo per evento — e la differenza cambia cosa si
 // puo' dirne.** Il realizzato NON e' un sottoinsieme dello stimato: un colpo puo' scavalcare una copertura
@@ -79,7 +89,6 @@
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
-#include "Combat/RTCombatLibrary.h"      // LowCoverDamageReduction: la posa dichiara il valore che usa
 #include "Map/RTCellId.h"                // ERTHexDirection: i sei bordi si enumerano, non si nominano
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexCoverLibrary.h"       // AddCover: la via di PRODUZIONE, che rifiuta il bordo doppio
