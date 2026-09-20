@@ -6,8 +6,29 @@
 > Questo documento non introduce una seconda scala di release, non assegna lavoro e non è owner di nessuna
 > feature: è una **vista di navigazione** sopra owner che esistono già.
 
-**Fotografia**: 2026-09-06, misurata su `origin/main` `7c1af4c4` e su GitHub LIVE.
+**Fotografia**: 2026-09-20, misurata su `origin/main` `f7aa7b32` e su GitHub LIVE.
 **Issue indice**: vedi § *Dove vive questa vista su GitHub*.
+
+> 🔁 **Rimisurata il 2026-09-20 contro GitHub LIVE: otto ancore su settantacinque erano stantie.**
+> La fotografia precedente era del 2026-09-06, e in quattordici giorni si erano chiuse #2193, #782, #784,
+> #1496, #2578, #2629 e #2697. ✅ **Nessuna deriva nel verso opposto**: il documento non dichiarava chiusa
+> nessuna issue ancora aperta.
+>
+> **Si rifà così**, e non serve fidarsi di questa pagina:
+>
+> ```sh
+> # ogni issue citata, col suo stato vero
+> grep -oE '#[0-9]{2,4}' docs/roadmap/capability-roadmaps.md | tr -d '#' | sort -un >   | xargs -I{} gh issue view {} --json number,state,stateReason,closedAt >       --jq '[(.number|tostring), .state, (.stateReason // "-"), (.closedAt[0:10] // "-")] | @tsv'
+> ```
+>
+> 🔑 **E una chiusura `NOT_PLANNED` qui non significa «lavoro annullato».** #782 e #784 sono state
+> chiuse così il 2026-09-10 con la stessa motivazione — *«chiusa come capitolo, non come lavoro»*: un
+> **capitolo di milestone** non è un difetto che si apre e si chiude in un giro, e il suo indice è stato
+> ripiegato nell'epic che lo possiede (**#773**). Il corpo resta leggibile e linkabile.
+>
+> ⚠️ Per una vista di navigazione la distinzione è **il punto**: leggere `CLOSED` e concludere *«fatto»*
+> sbaglia in un verso, leggere `NOT_PLANNED` e concludere *«abbandonato»* sbaglia nell'altro. Il comando
+> qui sopra chiede `stateReason` per questo, e la colonna va guardata.
 
 ---
 
@@ -145,9 +166,9 @@ Planning → Ready → countdown annullabile → Commit affidabile → validazio
 
 | Anello | Owner |
 |---|---|
-| Ready / Unready / countdown / soggetto del Ready / quorum | **#2193** |
+| Ready / Unready / countdown / soggetto del Ready / quorum | **#2193** — chiusa `COMPLETED` il 2026-09-09 |
 | coordinamento del bot alleato prima del Ready | #534 (CP 26.4) — **post-v0.1** |
-| protocollo ready/commit in rete | #782 (CP 40.4) — **post-v0.1** |
+| protocollo ready/commit in rete | ~~#782~~ (`CP 40.4`) — chiusa **`NOT_PLANNED`** il 2026-09-10: capitolo **ripiegato nell'epic #773**, non lavoro annullato |
 | Result e ritorno al menu | #940 (CP 46.5) |
 | finestra di reazione e pacing | #166 · #314 · #319 |
 
@@ -175,7 +196,7 @@ I client avversari non ricevono alcun payload di pianificazione privata
 ```
 
 Nessun intento avversario in `GameState`, in `PlayerState`, su Actor `AlwaysRelevant`, né nel log pubblico
-prima del momento autorizzato. Correlate: #759 (privacy temporale) · #1805 (public vs audit) · #1466 · #1496.
+prima del momento autorizzato. Correlate: #759 (privacy temporale) · #1805 (public vs audit) · #1466 · #1496 (chiusa il 2026-09-02).
 
 ### CR-CONTENT — Character & Ability Pipeline
 
@@ -267,7 +288,7 @@ smesso di essere una lente — ed è motivo di arresto, non un numero da tarare.
 
 | Sotto-vista | Owner |
 |---|---|
-| BAL-DATA — i numeri canonici | [`../balance/`](../balance/) (`D-023`) · gate `tools/radar/catalog-code.ts` · #2578 (le azioni sono scoperte) |
+| BAL-DATA — i numeri canonici | [`../balance/`](../balance/) (`D-023`) · gate `tools/radar/catalog-code.ts` · #2578 (chiusa il 2026-09-18: le azioni sono scoperte) |
 | BAL-VARIANT — la variante sperimentale | #1950 *Skill Workbench* (`TD 0.3`) — dato consegnato · #2577 (manca l'ingresso) |
 | BAL-DIFF — il confronto fra due run | #2576 (`TD 0.4`, dichiarato dall'owner e senza issue fino a oggi) |
 | BAL-METRICS — le metriche derivate | `tools/radar/{rubric,power,precision,profile,balance}.ts` (`D-108`) · #2579 (solo per eroe) |
@@ -318,8 +339,8 @@ Le nove tappe d'esperienza e il loro owner reale — ⚠️ **lettere di questo 
 | Tappa | Outcome | Owner reale | Release |
 |---|---|---|---|
 | `A` watchable | la partita gira e si guarda | #952 (i `CP 47.x` sono chiusi) · **#2744** | v0.1 |
-| `B` readable | capisco *perché* è successo | #1937 → #1936 · #2697 · #2281 · #613 | v0.1 |
-| `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 · #2477 · #326 | v0.1 → v0.2 |
+| `B` readable | capisco *perché* è successo | #1937 → #1936 · #2697 (chiusa il 2026-09-12) · #2281 · #613 | v0.1 |
+| `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 (chiuse il 2026-09-09 e il 2026-09-18) · #2477 · #326 | v0.1 → v0.2 |
 | `D` spectator / camera | guardo da spettatore | **#1769** · #1781 (`CAM-12`) | v0.1 parziale (`D-286`) |
 | `E` match story | so chi sta vincendo, e perché | #2281 · #331 · #332 | v0.1 → v0.4 |
 | `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 | v0.1 → v1.0 |
@@ -362,7 +383,7 @@ I contratti sono il posto in cui una capability **consuma** un'altra senza riscr
 | Watch × Explainability | l'autorizzazione dell'osservatore è **un dato** (`IsUnattendedSession()`), e vale per il §4.2 come per il §4.1: due filtri divergenti sono il debito che `D-242` ha chiuso |
 | Watch × Camera | l'autobattle è un **consumer** della camera, mai una seconda camera: il Camera Director resta #1781 e non anticipa il core |
 | Watch × Replay | guardare live e ristudiare passano dallo **stesso** playback core (#1881) — nessun secondo viewer, nessun resolver dentro il viewer |
-| Watch × Online | uno spettatore locale che vede entrambe le squadre è ammesso; in rete (#773, `E40`) è un client che **possiede** quei piani — o è lato server, o non esiste (#784) |
+| Watch × Online | uno spettatore locale che vede entrambe le squadre è ammesso; in rete (#773, `E40`) è un client che **possiede** quei piani — o è lato server, o non esiste (~~#784~~ — chiusa `NOT_PLANNED` il 2026-09-10, capitolo in #773; la procedura vive in [`../technical/systems/procedura-canary-anti-leak.md`](../technical/systems/procedura-canary-anti-leak.md)) |
 
 ---
 
