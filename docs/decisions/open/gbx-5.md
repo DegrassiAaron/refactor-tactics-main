@@ -2,8 +2,9 @@
 
 > `OPEN` · **Stato**: aperta · **Owner**: `PDR-00`
 > **Corpo scorporato** da [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) il 2026-09-18 ([#1696](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1696)): la riga di tabella resta lì come **puntatore**, l'istruttoria vive qui.
-> ⛔ **Non è una decisione presa.** Quando si chiude diventa una `D-0xx` nel [Decision Log](../RT_PDR_00_Decision_Log.md), e il puntatore in `OPEN_DECISIONS.md` resta barrato con l'esito.
-> ⚠️ **Il diff che l'ha spostata SPOSTA e non riassume**: l'insieme delle parole è lo stesso della cella di partenza, verificato token per token. I paragrafi nascono dai separatori `·` già presenti, e solo dove il taglio non spezza un'enfasi.
+> ⛔ **Non è una decisione presa.** Quando si chiude diventa una `D-0xx` nel [Decision Log](../../decisions/RT_PDR_00_Decision_Log.md), il puntatore in `OPEN_DECISIONS.md` resta barrato con l'esito, e **questo file passa da `OPEN` a `HISTORICAL`** col rimando alla `D-xxx`: un file che resta `OPEN` dopo la chiusura è un secondo posto dove la domanda sembra ancora aperta.
+> ⚠️ **Il diff che l'ha spostata SPOSTA e non riassume**: l'insieme delle parole della cella di partenza si ritrova in questo file **più il puntatore che l'ha sostituita**, verificato token per token.
+> ⛔ **E il corpo è rimasto un paragrafo unico**: dargli titoli ed elenchi significa decidere dove tagliare, cioè **riscrivere** — che [#1696](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1696) vieta in modo esplicito. Il guadagno consegnato è che ora sta dove titoli ed elenchi **sono ammessi**, per chi vorrà dargliene.
 
 ## La domanda
 
