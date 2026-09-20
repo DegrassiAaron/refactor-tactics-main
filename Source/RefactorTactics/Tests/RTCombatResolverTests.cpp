@@ -325,11 +325,19 @@ bool FRTGuardReductionSkipsBehindTest::RunTest(const FString&)
  * **Un colpo solo grande quanto la riduzione o piu': i due modelli coincidono** ([D-408]).
  *
  * 🔑 **E' la ragione per cui il corpus non si accorse di [D-292]** (`#1919`), e resta vera al contrario:
- * migrando da pool a riduzione per colpo, ogni scena a colpo singolo con un colpo `>=` al valore produce
- * lo **stesso** numero. Cio' che distingue i due modelli sono i colpi PICCOLI e i colpi MULTIPLI.
+ * migrando da pool a riduzione per colpo, **qualunque** scena a colpo singolo produce lo stesso numero.
+ * Non e' una coincidenza aritmetica, e' un'identita': su un colpo solo il pool da
+ * `Power - min(Budget, Power)` e la riduzione da `max(0, Power - Budget)`, che sono **la stessa
+ * funzione**. Cio' che distingue i due modelli sono i colpi MULTIPLI, e solo quelli.
+ *
+ * ⛔ **La prima stesura tolse il caso piccolo (`10`) dicendo che li' i modelli divergono. Era FALSO**:
+ * con un colpo da 10 contro 15, il pool assorbe `min(15,10) = 10` e la riduzione fa `max(0, 10-15)` —
+ * entrambi 0. Una copertura valida cancellata con una ragione sbagliata, e proprio quella che regge
+ * l'analisi d'impatto sul corpus. Trovato da una code review; il caso e' tornato, ed e' ora il piu'
+ * importante dei tre.
  *
  * ⚠️ Serve proprio per delimitare `GuardReductionHasNoCeiling`: senza, «i due modelli divergono» si
- * leggerebbe come «divergono sempre».
+ * leggerebbe come «divergono sempre», mentre divergono **solo** su piu' colpi.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardSingleHitUnchangedTest,
 	"RefactorTactics.Combat.SingleHitAgainstGuardIsUnchanged",
@@ -339,10 +347,9 @@ bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 	const int32 Valore = URTCombatLibrary::GuardFirstHitReduction;
 	const TArray<bool> Eleggibile = { true };
 
-	// ⚠️ Due taglie, non tre: **sopra** il valore e **uguale**. Sotto i due modelli divergono — il pool
-	// lascia un avanzo, la riduzione azzera — ed e' precisamente cio' che `GuardReductionHasNoCeiling`
-	// misura. Includerlo qui renderebbe questo test rosso per la ragione giusta nel posto sbagliato.
-	for (const int32 Potenza : { 30, Valore })
+	// Tre taglie: **sopra** il valore, **uguale**, e **sotto**. La terza e' quella che conta — e' il caso
+	// in cui l'avanzo del pool esisterebbe, e su UN colpo solo non c'e' comunque niente da riportare.
+	for (const int32 Potenza : { 30, Valore, 10 })
 	{
 		TArray<int32> Budget;    Budget.Init(0, 2);     Budget[1] = Valore;
 		TArray<int32> Riduzione; Riduzione.Init(0, 2);  Riduzione[1] = -Valore;
@@ -355,6 +362,16 @@ bool FRTGuardSingleHitUnchangedTest::RunTest(const FString&)
 
 		TestEqual(*FString::Printf(TEXT("un colpo solo da %d: i due modelli coincidono"), Potenza),
 			ConPool, ConRiduzione);
+	}
+
+	// ANTI-VACUITA': se la Guardia non togliesse niente, i due modelli coinciderebbero banalmente e le
+	// tre righe sopra non direbbero nulla. 30 e' la taglia piu' grande del ciclo.
+	{
+		TArray<int32> Riduzione; Riduzione.Init(0, 2); Riduzione[1] = -Valore;
+		const TArray<FRTAttack> Grosso = { FRTAttack(1, 30, 0) };
+		TestEqual(TEXT("e la Guardia toglie davvero qualcosa: 30 - 15"),
+			URTCombatResolver::ApplyEligibleHitDelta(
+				Grosso, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0].Power, 15);
 	}
 	return true;
 }
@@ -409,17 +426,37 @@ bool FRTDeflectStaysAPoolTest::RunTest(const FString&)
  * 🔑 **L'ordine conta ancora, e va misurato invece che dedotto**: il `Deflect` consuma un budget, quindi
  * quanto ne resta dipende da quanto ha gia' morso; la Guardia toglie una quota fissa per colpo, che non
  * dipende da cosa e' venuto prima. Invertirli cambia il totale.
+ *
+ * ⛔ **Le due maschere sono ASIMMETRICHE, e non e' un dettaglio della scena: e' la premessa di [D-312].**
+ * `Guard` e' eleggibile solo sui colpi FRONTALI ([D-206]), `Deflect` su tutti — nessuna clausola d'arco —
+ * quindi le maschere si sovrappongono **parzialmente**, ed e' esattamente la condizione in cui l'ordine
+ * cambia l'esito. La scena e' quella del test che questo sostituisce: un colpo PICCOLO davanti e uno
+ * GRANDE alle spalle, che e' contro-intuitivo e voluto.
+ *
+ * ⚠️ **La prima stesura passava `{true, true}` a entrambe**, perdendo l'asimmetria: l'ordine restava
+ * distinguibile per un'altra ragione, ma la ragione DICHIARATA da `RTTurnManager.cpp` — dove il commento
+ * cita ancora le maschere parziali — non era piu' esercitata da nessuno a livello di resolver. Trovato
+ * da una code review.
+ *
+ * ⛔ **E cio' che questo test NON prova, che la prima stesura aveva anch'esso perso**: chiama le due
+ * funzioni DIRETTAMENTE, quindi resta verde qualunque ordine usi `RTTurnManager` — misurato allora,
+ * invertendo le due chiamate reali 100 test su 100 restavano verdi. A chiudere il buco e'
+ * `Combat.GuardAndDeflectAbsorbInDeclaredOrder`, che passa dal manager.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeflectBeforeGuardTest,
 	"RefactorTactics.Combat.DeflectAbsorbsBeforeGuardReduces",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDeflectBeforeGuardTest::RunTest(const FString&)
 {
-	TArray<int32> PoolDeflect;  PoolDeflect.Init(0, 2);  PoolDeflect[1] = 20;
-	TArray<int32> Riduzione;    Riduzione.Init(0, 2);    Riduzione[1] = -15;
-	const TArray<bool> Eleggibili = { true, true };
+	TArray<int32> PoolDeflect;  PoolDeflect.Init(0, 2);
+	PoolDeflect[1] = URTCombatLibrary::DeflectDamageReduction;        // 20 — budget
+	TArray<int32> Riduzione;    Riduzione.Init(0, 2);
+	Riduzione[1] = -URTCombatLibrary::GuardFirstHitReduction;         // -15 — quota per colpo
 
-	const TArray<FRTAttack> Colpi = { FRTAttack(1, 18, 0), FRTAttack(1, 18, 2) };
+	// Colpo 0: 5 danni, FRONTALE.  Colpo 1: 20 danni, DALLE SPALLE.
+	const TArray<FRTAttack> Colpi = { FRTAttack(1, 5, 0), FRTAttack(1, 20, 2) };
+	const TArray<bool> Frontali = { true, false };   // la Guardia copre solo il davanti ([D-206])
+	const TArray<bool> Diretti  = { true, true };    // il Deflect non ha clausola d'arco ([D-309])
 
 	auto Totale = [](const TArray<FRTAttack>& In)
 	{
@@ -430,25 +467,74 @@ bool FRTDeflectBeforeGuardTest::RunTest(const FString&)
 
 	// L'ordine di produzione: prima il `Deflect`, poi la Guardia.
 	const int32 DeflectPrima = Totale(URTCombatResolver::ApplyEligibleHitDelta(
-		URTCombatResolver::ApplyAbsorptionPool(Colpi, PoolDeflect, Eleggibili,
+		URTCombatResolver::ApplyAbsorptionPool(Colpi, PoolDeflect, Diretti,
 			URTCombatLibrary::ReactionReductionPoolSource),
-		Riduzione, Eleggibili, URTCombatLibrary::GuardPerHitSource));
+		Riduzione, Frontali, URTCombatLibrary::GuardPerHitSource));
 
 	// L'ordine opposto, che [D-312] scarta.
 	const int32 GuardiaPrima = Totale(URTCombatResolver::ApplyAbsorptionPool(
-		URTCombatResolver::ApplyEligibleHitDelta(Colpi, Riduzione, Eleggibili,
+		URTCombatResolver::ApplyEligibleHitDelta(Colpi, Riduzione, Frontali,
 			URTCombatLibrary::GuardPerHitSource),
-		PoolDeflect, Eleggibili, URTCombatLibrary::ReactionReductionPoolSource));
+		PoolDeflect, Diretti, URTCombatLibrary::ReactionReductionPoolSource));
 
 	// ANTI-VACUITA', ed e' il punto: se i due ordini dessero lo stesso numero, `D-312` non avrebbe un
 	// soggetto e questo test non misurerebbe niente.
 	TestNotEqual(TEXT("i due ordini danno numeri diversi: la decisione ha un soggetto"),
 		DeflectPrima, GuardiaPrima);
 
-	// 36 nominali. Deflect: 18->0 (budget 20 -> 2), 18->16. Poi Guardia -15 su ciascuno: 0 e 1. Totale 1.
-	TestEqual(TEXT("nell'ordine di [D-312] il totale e' 1"), DeflectPrima, 1);
-	// Invertito: Guardia -15 su ciascuno -> 3 e 3. Poi Deflect assorbe 6 sui 20 di budget -> 0. Totale 0.
+	// 25 nominali. Deflect (su entrambi): 5->0 col budget a 15, poi 20->5 esaurendolo. La Guardia vede
+	// solo il colpo 0, gia' a zero, e non ha niente da togliere. Totale **5**.
+	TestEqual(TEXT("nell'ordine di [D-312] il bersaglio riceve 5"), DeflectPrima, 5);
+	// Invertito: la Guardia azzera il colpo frontale da 5 e non tocca quello alle spalle; poi il Deflect
+	// assorbe i 20 di dietro col suo budget intatto. Totale **0**, cioe' PIU' protezione.
 	TestEqual(TEXT("nell'ordine opposto sarebbe 0, cioe' PIU' protezione"), GuardiaPrima, 0);
+	return true;
+}
+
+/**
+ * **Uno stadio che non ha cambiato niente NON compare nel registro** (`#1951` + [D-408]).
+ *
+ * 🔴 **Il caso e' quello di produzione, non un limite**: [D-312] fa passare il `Deflect` PRIMA della
+ * Guardia, quindi un colpo frontale che il pool della reazione ha gia' azzerato arriva alla Guardia con
+ * `Power == 0`. Senza la guardia in `ApplyEligibleHitDelta` il breakdown porterebbe una voce che dichiara
+ * una riduzione di 15 su un colpo da cui non ha tolto niente.
+ *
+ * ⚠️ **E' una regressione che la migrazione avrebbe introdotto in silenzio**: `ApplyAbsorptionPool` la
+ * regola ce l'ha (`if (Absorbed > 0)`), e la Guardia l'ha persa passando a un delta. Trovata da una code
+ * review, non da un rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGuardWritesNoEmptyStageTest,
+	"RefactorTactics.Combat.GuardWritesNoStageWhenItRemovesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGuardWritesNoEmptyStageTest::RunTest(const FString&)
+{
+	TArray<int32> Riduzione;  Riduzione.Init(0, 2);  Riduzione[1] = -15;
+	const TArray<bool> Eleggibile = { true };
+
+	auto VociGuardia = [](const FRTAttack& A)
+	{
+		int32 N = 0;
+		for (const FRTDamageStageEntry& E : A.Breakdown)
+		{
+			if (E.Stage == ERTDamageStage::EveryHitDelta
+				&& E.SourceId == URTCombatLibrary::GuardPerHitSource) { ++N; }
+		}
+		return N;
+	};
+
+	// Il colpo arriva gia' a zero: e' cio' che il `Deflect` produce su un colpo piu' piccolo del suo budget.
+	const TArray<FRTAttack> Azzerato = { FRTAttack(1, 0, 0) };
+	const FRTAttack& Muto = URTCombatResolver::ApplyEligibleHitDelta(
+		Azzerato, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0];
+	TestEqual(TEXT("su un colpo gia' a zero la Guardia non lascia voce"), VociGuardia(Muto), 0);
+
+	// ANTI-VACUITA': se la guardia fosse troppo larga anche il caso che MORDE resterebbe muto, e la riga
+	// sopra passerebbe per la ragione sbagliata.
+	const TArray<FRTAttack> Vero = { FRTAttack(1, 12, 0) };
+	const FRTAttack& Morso = URTCombatResolver::ApplyEligibleHitDelta(
+		Vero, Riduzione, Eleggibile, URTCombatLibrary::GuardPerHitSource)[0];
+	TestEqual(TEXT("su un colpo vero la voce c'e'"), VociGuardia(Morso), 1);
+	TestEqual(TEXT("e il colpo e' sceso a zero"), Morso.Power, 0);
 	return true;
 }
 

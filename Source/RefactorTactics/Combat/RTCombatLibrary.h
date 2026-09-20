@@ -178,14 +178,20 @@ public:
 	 * D-292 l'aveva superato il 2026-08-31.** La differenza non e' di parole: col vecchio delta la riduzione
 	 * che avanzava si PERDEVA, e quanta se ne perdesse dipendeva da quale colpo fosse arrivato prima — un
 	 * bersaglio colpito da 10 e da 30 incassava 30 o 25 a seconda dell'indice dell'attaccante. Il pool
-	 * consuma sempre lo stesso totale, quindi l'esito e' invariante per permutazione **per costruzione**.
+	 * consumava sempre lo stesso totale; la riduzione per colpo di [D-408] non ha un totale da spartire.
+	 * ∴ **l'invarianza per permutazione regge sotto entrambi i modelli, per ragioni opposte**, ed e' la cosa
+	 * che `D-408` prescrive di conservare (`Combat.GuardReductionIsPermutationInvariant`).
 	 *
 	 * ⚠️ **Il NOME resta `GuardFirstHitReduction`, e non e' una svista.** Rinominarlo tocca i chiamanti ed
 	 * e' un refactor, non una correzione di prosa: finche' il nome vive, questo commento e' l'unico posto
 	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
 	 *
-	 * Il valore lo consuma `URTCombatResolver::ApplyAbsorptionPool`, **non** `ApplyFirstHitDelta` — che
-	 * resta la strada di `Status.Exposed` e `Status.Marked`. ⚠️ *Questa riga diceva «`Status.Exposed` e
+	 * Il valore lo legge `URTCombatResolver::ApplyEligibleHitDelta`, **non** `ApplyAbsorptionPool` e **non**
+	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` e `Status.Marked`.
+	 * ⏱️ *Questa riga diceva `ApplyAbsorptionPool` fino al 2026-09-20, ed era la meta' di commento che
+	 * [D-408] aveva lasciato indietro correggendo l'altra: chi la seguiva per trovare il consumatore
+	 * atterrava sul percorso del `Deflect`. Trovato da una code review — ed e' precisamente la deriva che il
+	 * paragrafo qui sotto descrive.* ⚠️ *Questa riga diceva «`Status.Exposed` e
 	 * `Action.Deflect`», ed era vera quando fu scritta: [D-309] ha reso un pool anche il `Deflect` il giorno
 	 * dopo. E' il modo in cui una deriva si allarga — correggendo meta' di una regola.* Esercitato dal corpus con
 	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
@@ -341,9 +347,12 @@ public:
 	 * `Action.Deflect` (catalogo v0.1 §4): apre un POOL di 20 danni assorbibili sui colpi diretti del
 	 * boundary che ha fatto scattare la reazione.
 	 *
-	 * Passa da `ApplyAbsorptionPool` come la `Guard` ([D-309], che estende al `Deflect` la forma che
-	 * [D-292] aveva dato alla Guardia): cio' che un colpo non consuma **resta** per i successivi, quindi il
-	 * totale assorbito non dipende da quale colpo arriva per primo. ⚠️ La REAZIONE si attiva una volta sola
+	 * Passa da `ApplyAbsorptionPool`, ed e' rimasto **l'unico** a farlo ([D-309] estese al `Deflect` la
+	 * forma che [D-292] aveva dato alla Guardia; [D-408] l'ha poi tolta alla Guardia e non al `Deflect`):
+	 * cio' che un colpo non consuma **resta** per i successivi, quindi il totale assorbito non dipende da
+	 * quale colpo arriva per primo. ⏱️ *Questa riga diceva «come la `Guard`» fino al 2026-09-20, e
+	 * contraddiceva il paragrafo dieci righe piu' giu' che questa stessa voce aveva aggiornato. Trovato da
+	 * una code review.* ⚠️ La REAZIONE si attiva una volta sola
 	 * — e' quello che la distingue dalla `Guard`, che e' uno stato — ma cio' che l'attivazione produce e' un
 	 * budget per l'intero boundary, non uno sconto sul colpo innescante. ⛔ **Mai attraverso boundary diversi**:
 	 * aggregare colpi di boundary differenti distruggerebbe la simultaneita' che il resolver garantisce.

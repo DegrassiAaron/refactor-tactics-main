@@ -160,8 +160,14 @@ bool FRTBreakdownOmitsStagesThatDidNotApplyTest::RunTest(const FString&)
 /**
  * LA GUARDIA FRONTALE E QUELLA ALLE SPALLE RACCONTANO DUE STORIE PER LO STESSO DANNO NOMINALE — `#1951`.
  *
- * E' il caso che `D-292` + `D-206` decidono: solo l'arco frontale consuma il pool, e un colpo alle spalle
- * passa **intero** lasciando il budget intatto. Senza registro i due esiti si distinguono solo dagli HP.
+ * E' il caso che [D-408] + [D-206] decidono: solo l'arco frontale e' ridotto, e un colpo alle spalle passa
+ * **intero**. Senza registro i due esiti si distinguono solo dagli HP.
+ *
+ * ⏱️ **Modellava la Guardia come un POOL fino al 2026-09-20**, e restava verde perche' chiamava
+ * `ApplyAbsorptionPool` direttamente: la produzione era gia' passata a `ApplyEligibleHitDelta`, quindi la
+ * copertura frontale-vs-spalle del breakdown — la proprieta' di `#1951` per cui questo file esiste — non
+ * proteggeva piu' niente di cio' che gira davvero. Trovato da una code review, **nello stesso file** in cui
+ * il difetto gemello era gia' stato corretto un test piu' sotto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBreakdownGuardTellsTwoStoriesTest,
 	"RefactorTactics.Damage.BreakdownGuardFrontalAndBehindDiffer",
@@ -172,24 +178,33 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 
 	const TArray<FRTUnitCombatState> Units = MakeUnits();
 	const TArray<FRTAttack> Attacks = { MakeAttack(1, 12, 0) };
-	const TArray<int32> Pool = { 0, 15, 0 };
+	const TArray<int32> Riduzione = { 0, -URTCombatLibrary::GuardFirstHitReduction, 0 };
 	const TArray<bool> Frontally = { true };
 	const TArray<bool> FromBehind = { false };
 
 	TMap<int32, FRTDamageBreakdown> Frontal, Behind;
 	URTCombatResolver::ResolveAttacksWithBreakdown(
-		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, Frontally, URTCombatLibrary::GuardPoolSource), Frontal);
+		Units, URTCombatResolver::ApplyEligibleHitDelta(Attacks, Riduzione, Frontally, URTCombatLibrary::GuardPerHitSource), Frontal);
 	URTCombatResolver::ResolveAttacksWithBreakdown(
-		Units, URTCombatResolver::ApplyAbsorptionPool(Attacks, Pool, FromBehind, URTCombatLibrary::GuardPoolSource), Behind);
+		Units, URTCombatResolver::ApplyEligibleHitDelta(Attacks, Riduzione, FromBehind, URTCombatLibrary::GuardPerHitSource), Behind);
 
-	const FRTDamageStageEntry* FrontPool = Find(Frontal[1], ERTDamageStage::AbsorptionPool);
-	if (TestNotNull(TEXT("frontale: il pool ha morso"), FrontPool))
+	const FRTDamageStageEntry* FrontGuard = Find(Frontal[1], ERTDamageStage::EveryHitDelta);
+	if (TestNotNull(TEXT("frontale: la Guardia ha morso"), FrontGuard))
 	{
-		TestEqual(TEXT("e ha assorbito tutti e 12"), FrontPool->Operand, 12);
+		// ⚠️ `Operand` e' il delta DICHIARATO (15), non quanto ne e' stato applicato: il colpo valeva 12 e
+		// il clamp ha fatto il resto. Sono `Before` e `After` a dire quanto ha tolto davvero, ed e' la
+		// convenzione della famiglia dei delta — il pool invece registrava l'assorbito.
+		TestEqual(TEXT("e dichiara i 15 della regola"), FrontGuard->Operand, URTCombatLibrary::GuardFirstHitReduction);
+		TestEqual(TEXT("sul colpo da 12"), FrontGuard->Before, 12);
+		TestEqual(TEXT("che esce azzerato"), FrontGuard->After, 0);
+		TestEqual(TEXT("e nomina la propria decisione"), FrontGuard->SourceId, URTCombatLibrary::GuardPerHitSource);
 	}
 	TestEqual(TEXT("frontale: niente arriva agli HP"), Frontal[1].Stages.Last().After, 0);
 
-	TestNull(TEXT("alle spalle: il pool non compare affatto"), Find(Behind[1], ERTDamageStage::AbsorptionPool));
+	TestNull(TEXT("alle spalle: la Guardia non compare affatto"), Find(Behind[1], ERTDamageStage::EveryHitDelta));
+	// ⛔ E nemmeno come pool: dopo [D-408] uno stadio `AbsorptionPool` in questa scena vorrebbe dire che
+	// qualcuno ha rimesso la Guardia sul percorso del `Deflect`.
+	TestNull(TEXT("alle spalle: e nessun pool, che qui non c'entra"), Find(Behind[1], ERTDamageStage::AbsorptionPool));
 	TestEqual(TEXT("alle spalle: passano tutti e 12"), Behind[1].Stages.Last().After, 12);
 
 	return true;

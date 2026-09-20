@@ -148,9 +148,29 @@ TArray<FRTAttack> URTCombatResolver::ApplyEligibleHitDelta(const TArray<FRTAttac
 
 		const int32 Before = Attack.Power;
 		Attack.Power = FMath::Max(0, Attack.Power + Delta);
+
+		// 🔴 **Uno stadio che non ha cambiato niente NON compare** (`#1951`), ed e' la regola che
+		// `ApplyAbsorptionPool` applica due funzioni piu' giu' con `if (Absorbed > 0)`.
+		//
+		// ⚠️ **Il caso e' RAGGIUNGIBILE in produzione, non teorico**: [D-312] fa passare il `Deflect`
+		// PRIMA della Guardia, quindi un colpo frontale gia' azzerato dal pool della reazione arriva qui
+		// con `Power == 0` — e senza questa riga il registro porterebbe una voce che dichiara una
+		// riduzione di 15 su un colpo da cui non ha tolto niente. Un colpo puo' valere 0 anche senza
+		// `Deflect`: `Hit.Power` e' la potenza d'intento meno la copertura.
+		//
+		// ⏱️ **E' una regressione che [D-408] avrebbe introdotto in silenzio**: finche' la Guardia passava
+		// da `ApplyAbsorptionPool` la guardia c'era, e migrandola su un delta l'avrebbe persa. Trovata da
+		// una code review. ⛔ `ApplyDamageDelta` (il `Brace`) NON ha ancora questa riga: e' un difetto
+		// gemello e preesistente, nominato e non corretto qui.
+		if (Attack.Power == Before) { continue; }
+
 		// ⚠️ Lo stadio e' `EveryHitDelta` e non uno nuovo, e la provenienza la distingue il `SourceId`: e'
 		// la stessa disciplina con cui `#2213` ha separato i due pool senza coniare un secondo stadio. Un
 		// valore nuovo nell'enum toccherebbe il formato che un replay rilegge, e qui non serve.
+		//
+		// ⚠️ `Operand` e' il delta DICHIARATO, non quanto ne e' stato applicato: e' la convenzione della
+		// famiglia dei delta (`ApplyDamageDelta`, `ApplyFirstHitDelta`). Quanto abbia morso davvero lo
+		// dicono `Before` e `After`, e `SubtractClamped` dichiara che il clamp e' intervenuto.
 		Attack.Breakdown.Emplace(ERTDamageStage::EveryHitDelta, SourceId,
 			Delta >= 0 ? ERTDamageOp::Add : ERTDamageOp::SubtractClamped,
 			FMath::Abs(Delta), Before, Attack.Power);

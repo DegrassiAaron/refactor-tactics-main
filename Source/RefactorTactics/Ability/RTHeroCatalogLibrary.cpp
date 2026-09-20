@@ -228,6 +228,15 @@ TArray<FString> URTHeroCatalogLibrary::ValidateHeroes(const TArray<const URTHero
 		{
 			Errors.Add(FString::Printf(TEXT("%s: range visivo negativo (%d)"), *Where, Hero->VisionRange));
 		}
+		// ⚠️ **Un valore negativo renderebbe `Action.Guard` un no-op SILENZIOSO**, non un errore:
+		// `RTTurnManager` fa `-FMath::Max(0, GuardReduction)`, quindi il delta diventa 0 e
+		// `ApplyEligibleHitDelta` salta il colpo. Nessuna riga nel log, nessun test rosso, la guardia
+		// semplicemente non protegge. E' lo stesso motivo per cui `PushResistance` e' convalidato qui
+		// sotto. Trovato da una code review.
+		if (Hero->GuardReduction < 0)
+		{
+			Errors.Add(FString::Printf(TEXT("%s: riduzione guardia negativa (%d)"), *Where, Hero->GuardReduction));
+		}
 		if (Hero->PushResistance < 0)
 		{
 			Errors.Add(FString::Printf(TEXT("%s: resistenza push negativa (%d)"), *Where, Hero->PushResistance));
