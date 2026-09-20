@@ -155,6 +155,45 @@ enum class ERTAssertionKind : uint8
 	EffectiveTargetEquals
 };
 /**
+ * Una chiave `_*` del file: **documentazione incorporata**, che il loader non interpreta e il writer deve
+ * restituire.
+ *
+ * 🔑 **Esiste perche' il prefisso `_` e' una convenzione del CORPUS, non un'invenzione del parser.** Il
+ * loader la rispettava gia' — ogni controllo di «chiave sconosciuta» salta cio' che comincia per `_` — ma la
+ * rispettava ignorandola, e il writer non la conosceva affatto: le note entravano in lettura e non uscivano
+ * in scrittura. Un round-trip *apri -> muta -> salva* dal pannello le CANCELLAVA tutte, senza che niente lo
+ * dicesse (`#3118`). Misurato sul corpus il 2026-09-20: 136 file su 138 ne portano, per 900 valori.
+ *
+ * ⚠️ **Il valore si conserva gia' serializzato, e la ragione e' il determinismo.** Il writer dichiara in
+ * testa a `RTScenarioWriter.cpp` che i campi si scrivono in ordine ESPLICITO perche' l'ordine di iterazione
+ * di una `TMap` non e' quello d'inserimento; conservare qui un `FJsonObject` — che e' una `TMap` — avrebbe
+ * riportato dentro esattamente quel difetto per le note d'oggetto. `RawJson` e' prodotto una volta sola, a
+ * caricamento, con le chiavi degli oggetti annidati ORDINATE: due salvataggi dello stesso file danno lo
+ * stesso testo.
+ */
+USTRUCT()
+struct FRTScenarioNote
+{
+	GENERATED_BODY()
+
+	/** La chiave come il file la scrive, prefisso compreso: `_nota`, `_turno`, `_assertion`. */
+	UPROPERTY()
+	FString Key;
+
+	/** Il valore, gia' in JSON canonico: `"testo"` per le note di prosa, `{...}` per le poche annidate. */
+	UPROPERTY()
+	FString RawJson;
+
+	FRTScenarioNote() = default;
+	FRTScenarioNote(const FString& InKey, const FString& InRawJson) : Key(InKey), RawJson(InRawJson) {}
+
+	bool operator==(const FRTScenarioNote& Other) const
+	{
+		return Key == Other.Key && RawJson == Other.RawJson;
+	}
+};
+
+/**
  * Modifica di una cella dell'arena generata: ostacoli, muri, terreno costoso.
  *
  * Serve a scrivere scenari come `Movement.Blocked` senza versionare un `.umap`: l'arena resta generata da
@@ -212,6 +251,23 @@ struct FRTScenarioCell
 	UPROPERTY()
 	bool bIsObjective = false;
 
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /**
@@ -231,6 +287,23 @@ struct FRTScenarioDoor
 
 	UPROPERTY()
 	FRTHexDoor Door;
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /** Un'unita' schierata dallo scenario. */
@@ -429,6 +502,23 @@ struct FRTScenarioUnit
 	 */
 	UPROPERTY()
 	TArray<FRTScenarioStatus> Statuses;
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /**
@@ -563,6 +653,23 @@ struct FRTScenarioIntent
 
 	UPROPERTY()
 	bool bDeclaresFacing = false;
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /** Una cella riscritta da una variante: la stessa unita', altrove. */
@@ -731,6 +838,23 @@ struct FRTScenarioDecision
 	 */
 	UPROPERTY()
 	bool bHasSelector = false;
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /** Un turno dello scenario. */
@@ -762,6 +886,23 @@ struct FRTScenarioTurn
 	 */
 	UPROPERTY()
 	TArray<FRTScenarioDecision> Decisions;
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /** Una condizione da verificare a fine scenario. */
@@ -869,6 +1010,23 @@ struct FRTTestExpectation
 
 	UPROPERTY()
 	bool bHasThenPhase = false;
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };
 
 /** Scenario completo, come letto dal file. */
@@ -946,6 +1104,25 @@ struct FRTTestScenario
 	/** Raggio dell'arena esagonale generata quando `Fixture` e' vuoto. Mappa da codice: nessun `.umap`. */
 	UPROPERTY()
 	int32 MapRadius = 3;
+
+	/** Il valore che il loader applica quando il file tace. Uno solo, e nominato: lo legge anche il writer. */
+	static constexpr int32 DefaultMapRadius = 3;
+
+	/**
+	 * Il file DICHIARAVA `mapRadius`, oppure lo ha ereditato dal default?
+	 *
+	 * ⚠️ **Senza questa distinzione il writer inventava una chiave.** `mapRadius` conta solo quando l'arena si
+	 * GENERA (`RTScenarioLoader.cpp`, `Validate`): con una `fixture` riferita per nome la forma la decide la
+	 * fixture, e il campo e' inerte. Il writer lo scriveva comunque, sempre — quindi salvare uno scenario a
+	 * fixture gli faceva comparire un `"mapRadius": 3` che il file non aveva mai dichiarato, e che
+	 * CONTRADDICEVA per iscritto la nota (cancellata dallo stesso salvataggio) secondo cui l'arena doveva
+	 * essere multilivello. Misurato su `AutoBattle/ArenaV01.json`, `#3118`.
+	 *
+	 * Stessa convenzione dei gemelli del formato — `bTargetsCell`, `bHasCoverEdge`, `bDeclaresFacing`,
+	 * `bHasSelector`, `bLoadoutDeclared`: un booleano che distingue «assente» da «al valore di default».
+	 */
+	UPROPERTY()
+	bool bHasMapRadius = false;
 
 	/** Celle da modificare nell'arena generata (ostacoli, muri, terreno costoso). Vuoto = arena liscia. */
 	UPROPERTY()
@@ -1092,4 +1269,21 @@ struct FRTTestScenario
 	{
 		return Units.FindByPredicate([&InId](const FRTScenarioUnit& U) { return U.Id == InId; });
 	}
+
+	/**
+	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
+	 *
+	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
+	 * originale il parsing lo ha gia' perso: `FJsonObject::Values` e' una `TMap`. Fra un ordine per hash e
+	 * uno dichiarato, solo il secondo rende due salvataggi identici — che e' l'invariante 1 del writer. Il
+	 * costo e' che il primo salvataggio di un file riordina il suo blocco di note; non ne perde nessuna.
+	 *
+	 * Stanno sulla struct che documentano, e non in un elenco unico con un percorso (`turns[2].intents[0]`),
+	 * perche' le note devono muoversi con la cosa che descrivono: il mestiere del pannello e' aggiungere e
+	 * togliere unita' e turni, e un indice posizionale farebbe migrare la nota sull'oggetto sbagliato — un
+	 * danno peggiore di quello che questo campo ripara. Vedi `FRTScenarioNote`.
+	 */
+	UPROPERTY()
+	TArray<FRTScenarioNote> Notes;
+
 };

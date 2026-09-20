@@ -16,6 +16,9 @@
 #include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: la cartella temporanea sparisce anche se il test esce prima
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
+#include "Dom/JsonObject.h"            // il guardiano sul corpus conta le note nel TESTO, non nel modello
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -91,6 +94,38 @@ namespace
 	)JSON");
 
 	/** Confronto SEMANTICO fra due scenari: campo per campo. Riporta la prima differenza, non un booleano. */
+	/**
+	 * Le note `_*` di UN oggetto, confrontate chiave per chiave e valore per valore.
+	 *
+	 * ⚠️ **Confronta anche il VALORE, non solo la chiave.** Un writer che riscrivesse `_nota` con il testo
+	 * sbagliato — o troncato — supererebbe un confronto sulle sole chiavi, e la prosa che l'utente non puo'
+	 * riscrivere a memoria sarebbe persa lo stesso.
+	 */
+	bool NotesEquivalent(const TArray<FRTScenarioNote>& A, const TArray<FRTScenarioNote>& B,
+		const FString& Where, FString& OutDiff)
+	{
+		if (A.Num() != B.Num())
+		{
+			OutDiff = FString::Printf(TEXT("%s: %d note contro %d"), *Where, A.Num(), B.Num());
+			return false;
+		}
+		for (int32 I = 0; I < A.Num(); ++I)
+		{
+			if (A[I].Key != B[I].Key)
+			{
+				OutDiff = FString::Printf(TEXT("%s[%d]: chiave '%s' contro '%s'"),
+					*Where, I, *A[I].Key, *B[I].Key);
+				return false;
+			}
+			if (A[I].RawJson != B[I].RawJson)
+			{
+				OutDiff = FString::Printf(TEXT("%s['%s']: il valore cambia nel round-trip"), *Where, *A[I].Key);
+				return false;
+			}
+		}
+		return true;
+	}
+
 	bool ScenariosEquivalent(const FRTTestScenario& L, const FRTTestScenario& R, FString& OutDiff)
 	{
 		auto Fail = [&OutDiff](const FString& What) { OutDiff = What; return false; };
@@ -101,6 +136,14 @@ namespace
 		if (L.PreviewUnit != R.PreviewUnit) { return Fail(TEXT("previewUnit")); }
 		if (L.Fixture != R.Fixture) { return Fail(TEXT("fixture")); }
 		if (L.MapRadius != R.MapRadius) { return Fail(FString::Printf(TEXT("mapRadius: %d vs %d"), L.MapRadius, R.MapRadius)); }
+		// La PRESENZA della chiave e' dato quanto il valore: un writer che la materializzasse dove il file
+		// taceva — o che la perdesse dove il file la dichiarava — passerebbe il confronto sul solo intero.
+		if (L.bHasMapRadius != R.bHasMapRadius)
+		{
+			return Fail(FString::Printf(TEXT("mapRadius dichiarato: %s vs %s"),
+				L.bHasMapRadius ? TEXT("si'") : TEXT("no"), R.bHasMapRadius ? TEXT("si'") : TEXT("no")));
+		}
+		if (!NotesEquivalent(L.Notes, R.Notes, TEXT("note di radice"), OutDiff)) { return false; }
 		if (L.bExpectSameAcrossVariants != R.bExpectSameAcrossVariants) { return Fail(TEXT("expectSameAcrossVariants")); }
 		if (L.bFreeRun != R.bFreeRun) { return Fail(TEXT("freeRun")); }
 		if (L.MaxTurns != R.MaxTurns) { return Fail(TEXT("maxTurns")); }
@@ -118,6 +161,45 @@ namespace
 			if (A.bBlocksLineOfSight != B.bBlocksLineOfSight) { return Fail(FString::Printf(TEXT("cells[%d].blocksLineOfSight"), I)); }
 			if (A.MoveCost != B.MoveCost) { return Fail(FString::Printf(TEXT("cells[%d].moveCost"), I)); }
 			if (A.OccupancySurcharge != B.OccupancySurcharge) { return Fail(FString::Printf(TEXT("cells[%d].occupancySurcharge"), I)); }
+			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("cells[%d] note"), I), OutDiff)) { return false; }
+		}
+
+		// LE PORTE e i BINDING D'INTERAZIONE, che il confronto non guardava: e' la stessa cecita' che
+		// `interiorWalls` qui sotto documenta, e ha lasciato passare un writer che li perdeva ENTRAMBI per
+		// intero. Misurato il 2026-09-20: zero occorrenze di `doors` e `interactionBindings` nel writer,
+		// sette scenari versionati che li dichiarano, e questo test verde (`#3118`).
+		if (L.Doors.Num() != R.Doors.Num())
+		{
+			return Fail(FString::Printf(TEXT("doors: %d contro %d"), L.Doors.Num(), R.Doors.Num()));
+		}
+		for (int32 I = 0; I < L.Doors.Num(); ++I)
+		{
+			const FRTScenarioDoor& A = L.Doors[I];
+			const FRTScenarioDoor& B = R.Doors[I];
+			if (!(A.Cell == B.Cell)) { return Fail(FString::Printf(TEXT("doors[%d].cell"), I)); }
+			if (A.Door.Edge != B.Door.Edge) { return Fail(FString::Printf(TEXT("doors[%d].edge"), I)); }
+			if (A.Door.State != B.Door.State) { return Fail(FString::Printf(TEXT("doors[%d].state"), I)); }
+			if (A.Door.DoorId != B.Door.DoorId) { return Fail(FString::Printf(TEXT("doors[%d].doorId"), I)); }
+			if (A.Door.StableId != B.Door.StableId) { return Fail(FString::Printf(TEXT("doors[%d].stableId"), I)); }
+			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("doors[%d] note"), I), OutDiff)) { return false; }
+		}
+
+		if (L.InteractionBindings.Num() != R.InteractionBindings.Num())
+		{
+			return Fail(FString::Printf(TEXT("interactionBindings: %d contro %d"),
+				L.InteractionBindings.Num(), R.InteractionBindings.Num()));
+		}
+		for (int32 I = 0; I < L.InteractionBindings.Num(); ++I)
+		{
+			if (L.InteractionBindings[I].SourceId != R.InteractionBindings[I].SourceId)
+			{
+				return Fail(FString::Printf(TEXT("interactionBindings[%d].source"), I));
+			}
+			// L'ORDINE dei bersagli e' dato: `ApplyInteraction` li applica come sono scritti.
+			if (L.InteractionBindings[I].TargetIds != R.InteractionBindings[I].TargetIds)
+			{
+				return Fail(FString::Printf(TEXT("interactionBindings[%d].targets"), I));
+			}
 		}
 
 		// I MURI INTERNI, che stanno alla RADICE e non nella cella — `#1830` li porta, `#2031` li fa
@@ -178,6 +260,7 @@ namespace
 
 		if (A.bLoadoutDeclared != B.bLoadoutDeclared) { return Fail(FString::Printf(TEXT("units[%d].loadout dichiarato"), I)); }
 			if (A.Loadout != B.Loadout) { return Fail(FString::Printf(TEXT("units[%d].loadout"), I)); }
+			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("units[%d] note"), I), OutDiff)) { return false; }
 		}
 
 		if (L.Turns.Num() != R.Turns.Num()) { return Fail(TEXT("numero di turni")); }
@@ -186,6 +269,7 @@ namespace
 			const FRTScenarioTurn& A = L.Turns[T];
 			const FRTScenarioTurn& B = R.Turns[T];
 			if (A.Requires != B.Requires) { return Fail(FString::Printf(TEXT("turns[%d].requires"), T)); }
+			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("turns[%d] note"), T), OutDiff)) { return false; }
 			if (A.Decisions.Num() != B.Decisions.Num()) { return Fail(FString::Printf(TEXT("turns[%d]: numero di decisioni"), T)); }
 			for (int32 D = 0; D < A.Decisions.Num(); ++D)
 			{
@@ -199,6 +283,8 @@ namespace
 				if (A.Decisions[D].On.Reactor != B.Decisions[D].On.Reactor) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.reactor"), T, D)); }
 				if (A.Decisions[D].On.Reaction != B.Decisions[D].On.Reaction) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.reaction"), T, D)); }
 				if (A.Decisions[D].On.TriggerUnit != B.Decisions[D].On.TriggerUnit) { return Fail(FString::Printf(TEXT("turns[%d].decisions[%d].on.triggerUnit"), T, D)); }
+				if (!NotesEquivalent(A.Decisions[D].Notes, B.Decisions[D].Notes,
+					FString::Printf(TEXT("turns[%d].decisions[%d] note"), T, D), OutDiff)) { return false; }
 			}
 			if (A.Intents.Num() != B.Intents.Num()) { return Fail(FString::Printf(TEXT("turns[%d]: numero di intent"), T)); }
 			for (int32 N = 0; N < A.Intents.Num(); ++N)
@@ -221,6 +307,7 @@ namespace
 				if (X.Reaction != Y.Reaction) { return Fail(Where + TEXT(".reaction")); }
 				if (X.Condition.Id != Y.Condition.Id) { return Fail(Where + TEXT(".condition.id")); }
 				if (X.Condition.Param != Y.Condition.Param) { return Fail(Where + TEXT(".condition.param")); }
+				if (!NotesEquivalent(X.Notes, Y.Notes, Where + TEXT(" note"), OutDiff)) { return false; }
 			}
 		}
 
@@ -237,6 +324,7 @@ namespace
 			if (A.LogOutcome != B.LogOutcome) { return Fail(FString::Printf(TEXT("expect[%d].outcome"), I)); }
 			if (A.ThenCategory != B.ThenCategory) { return Fail(FString::Printf(TEXT("expect[%d].thenCategory"), I)); }
 			if (A.ThenOutcome != B.ThenOutcome) { return Fail(FString::Printf(TEXT("expect[%d].thenOutcome"), I)); }
+			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("expect[%d] note"), I), OutDiff)) { return false; }
 		}
 
 		if (L.Variants.Num() != R.Variants.Num()) { return Fail(TEXT("numero di varianti")); }
@@ -253,6 +341,92 @@ namespace
 
 		OutDiff.Reset();
 		return true;
+	}
+
+	/**
+	 * I PERCORSI di ogni chiave `_*` presenti in un testo JSON: `turns[].intents[]::_intento`.
+	 *
+	 * 🔑 **Esiste per rispondere a una domanda che il confronto sul modello non puo' fare.**
+	 * `ScenariosEquivalent` verifica che le note del modello tornino identiche dopo un round-trip, ma se un
+	 * LIVELLO del formato non fosse coperto dalla raccolta, le due parti sarebbero vuote entrambe e il
+	 * confronto direbbe verde — la stessa cecita' che ha lasciato passare `interiorWalls`, `statuses`,
+	 * `doors` e `interactionBindings`. Questo conta cio' che il FILE dichiara, e lo confronta con cio' che il
+	 * modello ha raccolto: una nota scritta a un livello nuovo rende rosso il corpus, nominando il livello.
+	 *
+	 * Le chiavi si visitano ORDINATE perche' `FJsonObject::Values` e' una `TMap`: senza, il messaggio d'errore
+	 * cambierebbe fra due esecuzioni identiche.
+	 */
+	void CollectJsonNotePaths(const TSharedPtr<FJsonValue>& Value, const FString& Path, TArray<FString>& OutPaths)
+	{
+		if (!Value.IsValid()) { return; }
+
+		if (Value->Type == EJson::Array)
+		{
+			for (const TSharedPtr<FJsonValue>& Item : Value->AsArray())
+			{
+				CollectJsonNotePaths(Item, Path + TEXT("[]"), OutPaths);
+			}
+			return;
+		}
+		if (Value->Type != EJson::Object) { return; }
+
+		const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+		if (!Obj.IsValid()) { return; }
+
+		// Ordinate, e convertite una volta sola: dalla 5.8 le chiavi di `FJsonObject::Values` non sono
+		// `FString` ma `UE::FSharedString`, e l'ordine di una `TMap` non e' quello d'inserimento.
+		TArray<TPair<FString, TSharedPtr<FJsonValue>>> Fields;
+		Fields.Reserve(Obj->Values.Num());
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Obj->Values)
+		{
+			Fields.Emplace(Field.Key, Field.Value);
+		}
+		Fields.Sort([](const TPair<FString, TSharedPtr<FJsonValue>>& A,
+			const TPair<FString, TSharedPtr<FJsonValue>>& B) { return A.Key < B.Key; });
+
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Fields)
+		{
+			const FString& Key = Field.Key;
+			if (Key.StartsWith(TEXT("_")))
+			{
+				// Non si scende DENTRO una nota: cio' che contiene e' prosa, e il writer la restituisce come
+				// valore unico. Contarne le chiavi interne farebbe divergere i due conteggi per costruzione.
+				OutPaths.Add(FString::Printf(TEXT("%s::%s"), Path.IsEmpty() ? TEXT("<radice>") : *Path, *Key));
+			}
+			else
+			{
+				CollectJsonNotePaths(Field.Value, Path.IsEmpty() ? Key : Path + TEXT(".") + Key, OutPaths);
+			}
+		}
+	}
+
+	/** Come sopra, a partire dal testo. Ritorna `false` se il testo non e' JSON. */
+	bool CollectJsonNotePathsFromText(const FString& JsonText, TArray<FString>& OutPaths)
+	{
+		TSharedPtr<FJsonObject> Root;
+		const TSharedRef<TJsonReader<TCHAR>> Reader = TJsonReaderFactory<TCHAR>::Create(JsonText);
+		if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid()) { return false; }
+
+		CollectJsonNotePaths(MakeShared<FJsonValueObject>(Root.ToSharedRef()), FString(), OutPaths);
+		OutPaths.Sort();
+		return true;
+	}
+
+	/** Quante note porta il MODELLO, sommate su tutte le sedi che `FRTTestScenario` conosce. */
+	int32 CountModelNotes(const FRTTestScenario& Scenario)
+	{
+		int32 Total = Scenario.Notes.Num();
+		for (const FRTScenarioCell& Cell : Scenario.Cells) { Total += Cell.Notes.Num(); }
+		for (const FRTScenarioDoor& Door : Scenario.Doors) { Total += Door.Notes.Num(); }
+		for (const FRTScenarioUnit& Unit : Scenario.Units) { Total += Unit.Notes.Num(); }
+		for (const FRTTestExpectation& Exp : Scenario.Expect) { Total += Exp.Notes.Num(); }
+		for (const FRTScenarioTurn& Turn : Scenario.Turns)
+		{
+			Total += Turn.Notes.Num();
+			for (const FRTScenarioIntent& Intent : Turn.Intents) { Total += Intent.Notes.Num(); }
+			for (const FRTScenarioDecision& Decision : Turn.Decisions) { Total += Decision.Notes.Num(); }
+		}
+		return Total;
 	}
 
 	/** Cartella temporanea di questo file di test. Il writer scrive su disco, quindi serve un disco. */
@@ -613,6 +787,7 @@ bool FRTScenarioWriterShippedScenariosTest::RunTest(const FString&)
 	}
 
 	int32 Checked = 0;
+	int32 NotesSeen = 0;
 	for (const FRTScenarioEntry& Entry : Entries)
 	{
 		FRTTestScenario Original;
@@ -646,6 +821,31 @@ bool FRTScenarioWriterShippedScenariosTest::RunTest(const FString&)
 			continue;
 		}
 
+		// LE NOTE `_*`, contate sul FILE e non sul modello — `#3118`.
+		//
+		// 🔑 Il confronto qui sopra verifica che le note del modello tornino identiche; non puo' accorgersi di
+		// una nota che nel modello non e' MAI entrata, perche' allora i due lati sono vuoti entrambi ed e'
+		// verde. Questo conta cio' che il file dichiara: se qualcuno scrive un `_nota` a un livello che la
+		// raccolta non copre — dentro `variants`, dentro `statuses` — il corpus diventa rosso e il messaggio
+		// nomina il percorso, invece di perdere la nota al primo salvataggio dal pannello.
+		FString FileText;
+		TArray<FString> FileNotePaths;
+		if (FFileHelper::LoadFileToString(FileText, *Entry.Path)
+			&& CollectJsonNotePathsFromText(FileText, FileNotePaths))
+		{
+			const int32 InModel = CountModelNotes(Original);
+			if (FileNotePaths.Num() != InModel)
+			{
+				AddError(FString::Printf(
+					TEXT("'%s': il file dichiara %d chiavi '_*' e il modello ne porta %d — una sede del ")
+					TEXT("formato non e' coperta dalla raccolta, e un salvataggio le cancellerebbe. ")
+					TEXT("Percorsi nel file: %s"),
+					*Entry.ScenarioId, FileNotePaths.Num(), InModel,
+					*FString::Join(FileNotePaths, TEXT(" · "))));
+			}
+			NotesSeen += InModel;
+		}
+
 		// I tag li legge l'INDICE, non il loader: e' l'unico modo di verificare che sopravvivano davvero
 		// nella forma che il filtro usa.
 		FString HeaderId;
@@ -673,7 +873,153 @@ bool FRTScenarioWriterShippedScenariosTest::RunTest(const FString&)
 		++Checked;
 	}
 
-	AddInfo(FString::Printf(TEXT("round-trip verificato su %d scenari versionati"), Checked));
+	AddInfo(FString::Printf(TEXT("round-trip verificato su %d scenari versionati, %d chiavi '_*' preservate"),
+		Checked, NotesSeen));
+
+	// ⚠️ Un corpus senza note renderebbe VACUO il controllo qui sopra: zero contro zero e' verde. La soglia e'
+	// deliberatamente bassa — non e' un conteggio da tenere aggiornato, e' la prova che il gate ha visto
+	// qualcosa. Il corpus del 2026-09-20 ne porta 900.
+	if (Checked > 0 && NotesSeen == 0)
+	{
+		AddError(TEXT("nessuna chiave '_*' vista nel corpus: il controllo sulle note e' vacuo, non verde"));
+	}
+	return true;
+}
+
+// --- la documentazione incorporata (`#3118`) --------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioWriterKeepsNotesTest,
+	"RefactorTactics.Scenario.WriterKeepsEmbeddedNotes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioWriterKeepsNotesTest::RunTest(const FString&)
+{
+	// Uno scenario che porta una nota a OGNI sede che il corpus usa, e che di proposito NON dichiara
+	// `mapRadius`: sono le due meta' di `#3118`, il campo perso e il campo inventato.
+	//
+	// ⚠️ Le chiavi `_*` sono scritte in ordine NON alfabetico apposta — `_zeta` prima di `_alfa` — perche'
+	// l'ordine che il modello restituisce e' dichiarato, non quello del file: `FJsonObject::Values` e' una
+	// `TMap` e l'ordine originale il parsing lo ha gia' perso. Un test scritto in ordine alfabetico non
+	// avrebbe potuto distinguere «ordinato» da «per caso».
+	const TCHAR* WithNotes = TEXT(R"JSON(
+	{
+	  "scenarioId": "Movement.WriterKeepsNotes",
+	  "version": 1,
+	  "tags": ["movement", "note"],
+	  "_zeta": "L'ultima in ordine alfabetico, scritta per prima nel file.",
+	  "_oggetto": { "perche": "Una nota puo' essere un OGGETTO, e sei lo sono nel corpus.",
+	                "_annidata": "E puo' contenerne un'altra." },
+	  "_alfa": "La prima in ordine alfabetico, scritta per ultima nel file.",
+	  "cells": [
+	    { "_cella": "Perche' questa cella e' chiusa.", "cell": [1, 0, 0], "blocksMovement": true }
+	  ],
+	  "doors": [
+	    { "_perche": "Aperta per costruzione.", "cell": [0, 0, 0], "edge": "E", "doorId": 1, "state": "Open" }
+	  ],
+	  "units": [
+	    { "_unita": "Chi la porta, e perche' proprio lei.", "id": "A1", "hero": "Hero.Aevik", "team": 0,
+	      "cell": [-2, 0, 0] },
+	    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
+	  ],
+	  "turns": [
+	    { "_turno": "T1 — un passo solo, e basta cosi'.",
+	      "intents": [ { "_intento": "Perche' questo passo e non un altro.", "unit": "A1",
+	                     "move": [[-1, 0, 0]] } ] }
+	  ],
+	  "expect": [
+	    { "_assertion": "Cosa prova davvero, e cosa no.", "type": "UnitAtCell", "unit": "A1",
+	      "cell": [-1, 0, 0] }
+	  ]
+	}
+	)JSON");
+
+	FRTTestScenario Original;
+	FString Error;
+	if (!TestTrue(FString::Printf(TEXT("lo scenario con le note si carica (%s)"), *Error),
+		URTScenarioLoader::LoadFromString(WithNotes, Original, Error)))
+	{
+		return false;
+	}
+
+	// --- il file -> il modello ---------------------------------------------------------------------------
+	TestEqual(TEXT("note di radice raccolte"), Original.Notes.Num(), 3);
+	if (Original.Notes.Num() == 3)
+	{
+		// ORDINE DICHIARATO: alfabetico, non quello del file — che era `_zeta`, `_oggetto`, `_alfa`.
+		TestEqual(TEXT("prima nota di radice"), Original.Notes[0].Key, TEXT("_alfa"));
+		TestEqual(TEXT("seconda nota di radice"), Original.Notes[1].Key, TEXT("_oggetto"));
+		TestEqual(TEXT("terza nota di radice"), Original.Notes[2].Key, TEXT("_zeta"));
+		// La nota d'OGGETTO si conserva in forma canonica, con le chiavi interne ordinate: `_annidata`
+		// prima di `perche`. E' cio' che rende due salvataggi identici.
+		TestEqual(TEXT("la nota d'oggetto e' canonica e ordinata"), Original.Notes[1].RawJson,
+			TEXT("{\"_annidata\":\"E puo' contenerne un'altra.\",")
+			TEXT("\"perche\":\"Una nota puo' essere un OGGETTO, e sei lo sono nel corpus.\"}"));
+	}
+
+	TestEqual(TEXT("note raccolte su ogni sede"), CountModelNotes(Original), 9);
+
+	// --- `mapRadius` non dichiarato non si materializza ---------------------------------------------------
+	TestFalse(TEXT("il file non dichiarava mapRadius"), Original.bHasMapRadius);
+	TestEqual(TEXT("e il loader gli applica il default"), Original.MapRadius,
+		FRTTestScenario::DefaultMapRadius);
+
+	FString Json;
+	if (!TestTrue(FString::Printf(TEXT("lo scenario si riscrive (%s)"), *Error),
+		URTScenarioLoader::SaveToString(Original, Json, Error)))
+	{
+		return false;
+	}
+
+	// 🔑 **La meta' che nessun confronto semantico coglie**: `mapRadius` al default rilegge uguale, quindi
+	// scriverlo o ometterlo da' lo stesso modello. La differenza sta nel FILE — una chiave comparsa dal nulla
+	// che contraddice cio' che il file dice di se' — e si asserisce sul testo.
+	TestFalse(TEXT("il salvataggio non inventa 'mapRadius'"), Json.Contains(TEXT("\"mapRadius\"")));
+
+	// --- il modello -> il file -> il modello -------------------------------------------------------------
+	FRTTestScenario Reloaded;
+	if (!TestTrue(FString::Printf(TEXT("il file riscritto si rilegge (%s)"), *Error),
+		URTScenarioLoader::LoadFromString(Json, Reloaded, Error)))
+	{
+		AddError(FString::Printf(TEXT("--- JSON ---\n%s"), *Json));
+		return false;
+	}
+
+	FString Diff;
+	if (!TestTrue(FString::Printf(TEXT("il round-trip conserva tutto (primo divergente: %s)"), *Diff),
+		ScenariosEquivalent(Original, Reloaded, Diff)))
+	{
+		AddError(FString::Printf(TEXT("--- JSON ---\n%s"), *Json));
+		return false;
+	}
+
+	TestEqual(TEXT("nessuna nota persa nel round-trip"), CountModelNotes(Reloaded), 9);
+
+	// Il testo di una nota si asserisce per intero, non per presenza della chiave: una nota troncata
+	// supererebbe un controllo che guarda solo i nomi, e la prosa e' precisamente cio' che non si riscrive.
+	if (Reloaded.Turns.Num() == 1 && Reloaded.Turns[0].Notes.Num() == 1)
+	{
+		TestEqual(TEXT("la nota del turno torna col suo testo"), Reloaded.Turns[0].Notes[0].RawJson,
+			TEXT("\"T1 — un passo solo, e basta cosi'.\""));
+	}
+	else
+	{
+		AddError(TEXT("la nota del turno non e' tornata"));
+	}
+
+	// La porta: il writer la perdeva per intero, non solo la sua nota.
+	TestEqual(TEXT("la porta sopravvive al round-trip"), Reloaded.Doors.Num(), 1);
+
+	// --- idempotenza: due salvataggi danno lo stesso testo ------------------------------------------------
+	// E' l'invariante 1 del writer applicata alle note: se l'ordine venisse da una `TMap`, questo cadrebbe.
+	FString Json2;
+	if (URTScenarioLoader::SaveToString(Reloaded, Json2, Error))
+	{
+		TestEqual(TEXT("due salvataggi producono lo stesso testo"), Json2, Json);
+	}
+	else
+	{
+		AddError(FString::Printf(TEXT("il secondo salvataggio fallisce: %s"), *Error));
+	}
+
 	return true;
 }
 
