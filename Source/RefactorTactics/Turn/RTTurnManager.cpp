@@ -1011,6 +1011,11 @@ void ARTTurnManager::PlanBots()
 		}
 	}
 
+	// La stima direzionale del turno, assegnata e non sommata: `PlanBots` gira due volte sullo stesso turno
+	// quando `PlanBotsForTest()` precede `LockInAndResolve()`, e un `+=` conterebbe la stessa decisione due
+	// volte — la stessa ragione per cui `BotDecisionsForAudit` piu' sotto e' un'assegnazione (`#649`).
+	BotPlannedCoverBypassedByFacing = Esito.PlannedCoverBypassedByFacing;
+
 	// Le righe di log: prodotte dalla decisione, emesse da qui col loro soggetto.
 	for (const FRTBotLogLine& Riga : Esito.LogLines)
 	{
