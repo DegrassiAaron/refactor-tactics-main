@@ -94,6 +94,26 @@ void FRTScenarioCoordinator::Tick(float DeltaSeconds)
 				*A.Description, *A.Expected, *A.Actual);
 		}
 	}
+
+	// Ultima cosa, e dopo il referto: chi ascolta puo' chiedere un verdetto a chi guarda, e vuole poter
+	// nominare il file che il referto ha appena scritto.
+	OnScenarioFinished.Broadcast(Result);
+}
+
+void FRTScenarioCoordinator::TearDown()
+{
+	if (!Session.IsValid())
+	{
+		return;
+	}
+
+	Session->TearDown();
+
+	// 🔴 Il `Reset` non e' ridondante: la sbindatura del decisore avviene nel DISTRUTTORE della sessione
+	// — `TearDown()` da solo non basta, e il commento in testa a `RTScenarioSession.h` dice cosa succede
+	// a chi lo dimentica: il secondo scenario trova `IsBound()` vero e le sue `decisions` vengono
+	// ignorate in silenzio.
+	Session.Reset();
 }
 
 bool FRTScenarioCoordinator::IsRunning() const

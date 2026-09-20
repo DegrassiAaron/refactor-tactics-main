@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
 
+struct FRTTestResult;
+
 class UWorld;
 class FRTScenarioSession;
 
@@ -97,6 +99,30 @@ public:
 	 * che e' la sola cosa vera prima che ci sia un verdetto.
 	 */
 	FString OutcomeString() const;
+
+	/**
+	 * Sparato quando la sessione finisce, subito dopo che il referto e' stato scritto.
+	 *
+	 * Esiste per il conduttore di seduta (`URTPieSessionSubsystem`, `#3208`), che a quel punto chiede il
+	 * verdetto a chi guarda e passa alla voce successiva. ⛔ Il coordinator non sa che esista una
+	 * playlist: sa solo di aver finito, e lo dice. Multicast e non dinamico per la stessa ragione per cui
+	 * questa classe non e' un `UObject`.
+	 */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FRTOnScenarioFinished, const FRTTestResult&);
+	FRTOnScenarioFinished OnScenarioFinished;
+
+	/**
+	 * Smonta la sessione corrente e la rilascia, lasciando il mondo pronto per un altro scenario.
+	 *
+	 * 🔴 **La sbindatura del decisore fa parte dello smontaggio, e non e' un dettaglio.** Un `BindRaw`
+	 * lascia un puntatore GREZZO dentro un delegate posseduto dall'ATTORE, che sopravvive alla sessione:
+	 * chi eseguisse un secondo scenario troverebbe `IsBound()` vero e prenderebbe il ramo `test-override`
+	 * ignorando **in silenzio** le `decisions` del secondo. Vedi il commento in testa a
+	 * `RTScenarioSession.h`, che quel caso lo descrive per esteso.
+	 *
+	 * Senza sessione non fa nulla: chiamarla due volte e' sicuro.
+	 */
+	void TearDown();
 
 private:
 	/** La sessione in corso, o nulla. Avanza un passo per frame da `Tick`. */

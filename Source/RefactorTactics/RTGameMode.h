@@ -480,6 +480,17 @@ private:
 	FRTScenarioCoordinator ScenarioCoordinator;
 
 	/**
+	 * Installa sul conduttore di seduta (`#3208`) le due porte con cui avvia e smonta uno scenario, e gli
+	 * inoltra `OnScenarioFinished`.
+	 *
+	 * ⛔ **Il conduttore non riceve un puntatore a questo Actor, e non e' pignoleria**: `ScenarioCoordinator`
+	 * e' privato e per valore, ma soprattutto e' una classe concreta — con un puntatore, i casi limite
+	 * della conduzione (scenario non caricabile, sessione in errore, `expect` rosse, interruzione)
+	 * tornerebbero a richiedere un mondo, uno scenario vero e un Editor per essere verificati.
+	 */
+	void InstallPieSessionPorts();
+
+	/**
 	 * Centra la camera sulla mappa dello scenario, al tick successivo.
 	 *
 	 * Resta qui e non nel coordinatore per una ragione di **ciclo di vita**, non di dominio: il timer si

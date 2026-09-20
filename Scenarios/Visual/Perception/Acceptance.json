@@ -1,6 +1,7 @@
 {
   "scenarioId": "Visual.Perception.Acceptance",
   "tags": ["perception", "vision", "knowledge", "veil", "acceptance", "visual", "gadget", "riktor", "wraith"],
+  "verifies": ["PIE-KNOW1", "PIE-KNOW2", "PIE-KNOW3", "PIE-KNOW4", "PIE-KNOW-POSA", "PIE-VELO-VIEWER", "PIE-ACC-PERCEPTION"],
   "version": 1,
   "seed": 0,
   "fixture": "VisionSplit",

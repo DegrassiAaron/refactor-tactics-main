@@ -18,6 +18,8 @@
 // #2723: il view model della finestra e' del client per la stessa ragione — qui resta il solo aggancio,
 // e a differenza del velo NON ha un ripiego senza proprietario.
 #include "UI/RTReactionWindowViewModel.h"
+#include "Engine/GameInstance.h"
+#include "PieSession/RTPieSessionSubsystem.h"
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "UObject/ConstructorHelpers.h" // FClassFinder: i BP_Unit_* dei quattro eroi (CP E21.1)
 #include "Misc/CommandLine.h"
@@ -520,6 +522,12 @@ void ARTGameMode::BeginPlay()
 	// e la precedenza fra le tre sorgenti resta sua, accanto a quelle di `MapSource` e dell'autobattle.
 	// COME si esegue uno scenario lo sa `FRTScenarioCoordinator`: caricamento, sessione, avanzamento e
 	// referto. Il resolver e il turn manager restano ignari dell'harness (nessun `if (IsTest)` nel gameplay).
+	// Le due porte del conduttore di seduta (`#3208`). Il conduttore decide QUALE scenario e QUANDO il
+	// prossimo; avviarlo resta di questo GameMode, e il come resta del coordinator. Installarle qui —
+	// invece di dare al conduttore un puntatore a questo Actor — e' cio' che permette ai suoi gate di
+	// girare senza un mondo e senza un Editor.
+	InstallPieSessionPorts();
+
 	switch (ScenarioCoordinator.Start(World, ResolveScenarioToRun(),
 		RTScenarioEntry::LogSourceLabel(), ScenarioTurnPauseSeconds))
 	{
@@ -949,8 +957,64 @@ void ARTGameMode::AssignUnitControlGroups()
 	}
 }
 
+void ARTGameMode::InstallPieSessionPorts()
+{
+	UGameInstance* GI = GetGameInstance();
+	URTPieSessionSubsystem* Conduttore = GI ? GI->GetSubsystem<URTPieSessionSubsystem>() : nullptr;
+	if (!Conduttore)
+	{
+		return;
+	}
+
+	// `WeakLambda`/`TWeakObjectPtr`: il subsystem sopravvive a questo Actor, e una porta che chiamasse
+	// attraverso un GameMode distrutto sarebbe il difetto che il teardown della sessione esiste per
+	// evitare, un piano piu' in su.
+	TWeakObjectPtr<ARTGameMode> Self(this);
+
+	FRTPieSessionPorts Porte;
+	Porte.Launch = [Self](const FString& ScenarioId)
+	{
+		if (!Self.IsValid())
+		{
+			return ERTScenarioStart::NotLoadable;
+		}
+		return Self->ScenarioCoordinator.Start(Self->GetWorld(), ScenarioId,
+			TEXT("seduta PIE (rt.Pie.Session)"), Self->ScenarioTurnPauseSeconds);
+	};
+	Porte.TearDown = [Self]()
+	{
+		if (Self.IsValid())
+		{
+			Self->ScenarioCoordinator.TearDown();
+		}
+	};
+	Conduttore->SetPorts(MoveTemp(Porte));
+
+	ScenarioCoordinator.OnScenarioFinished.AddWeakLambda(Conduttore,
+		[Conduttore](const FRTTestResult& Result) { Conduttore->OnScenarioFinished(Result); });
+}
+
 FString ARTGameMode::ResolveScenarioToRun() const
 {
+	// QUARTA SORGENTE, e vince su tutte: la seduta PIE in corso (`#3208`).
+	//
+	// 🔴 **La ragione e' concreta, non gerarchica**: una `rt.Test.Scenario` rimasta impostata da una prova
+	// precedente dirotterebbe **in silenzio** ogni passo della playlist, e chi guarda crederebbe di
+	// giudicare la voce che il conduttore ha appena annunciato. Una CVar dura quanto il processo
+	// dell'editor; una seduta dura meno.
+	//
+	// ⚠️ Il conduttore NON azzera la CVar di chi lancia: la scavalca finche' conduce e la lascia com'era
+	// dopo. Azzerarla cambierebbe lo stato di una sessione che non gli appartiene.
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		const FString DallaSeduta = URTPieSessionSubsystem::ScenarioImposedBy(
+			GI->GetSubsystem<URTPieSessionSubsystem>());
+		if (!DallaSeduta.IsEmpty())
+		{
+			return DallaSeduta;
+		}
+	}
+
 	// La console variable PREVALE sulla proprieta': la proprieta' e' la configurazione persistente («questo
 	// progetto, per ora, esegue questo scenario»), la console variable e' l'intento estemporaneo di chi lancia
 	// («adesso, solo per questa volta, eseguine un altro») — da riga di comando o in CI. Il piu' specifico
