@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Spec.Checkpoint.BlastComesFromTheCellBeforeTheMove",
+  "tags": ["spec", "checkpoint", "blast", "movement", "aevik", "branth"],
+  "version": 7,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "SPECIFICA ESEGUIBILE del primo checkpoint di fase (`#2867`), e il file esiste per dimostrare una cosa sola: che c'e' un difetto che il solo STATO FINALE non distingue. A1 colpisce B1 e poi si sposta, nello stesso turno. A fine turno A1 e' in (-2,0,0), e da li' non si puo' dire da dove ha colpito: il Blast usa la posizione PRIMA del movimento, ma lo stato finale quella posizione non la porta piu'.",
+
+  "_nota_il_discriminante": "Le prime due assertion chiedono la stessa cosa — dov'e' A1 — a due CONFINI diversi, e devono dare due risposte diverse: (-1,0,0) a `BlastEnded`, (-2,0,0) a fine turno. Un resolver che risolvesse il Blast DOPO il Move lascerebbe lo stato finale identico, cioe' l'unica cosa che l'harness sapeva guardare fino a `#2867`: la seconda assertion resterebbe verde e la prima diventerebbe rossa. E' la falsificabilita' che il checkpoint aggiunge, ed e' la ragione per cui l'ordine delle fasi e' una regola e non un dettaglio d'implementazione.",
+
+  "_nota_perche_non_bastava_il_TurnLog": "`LogEventOrder` sa dire che il colpo e' avvenuto prima del passo, e non e' la stessa domanda: dice cosa e' successo prima di cosa, non cosa era VERO al confine. Una voce di `Combat` non porta la cella da cui il colpo e' partito, quindi nessuna assertion sul log puo' rispondere a «dov'era chi ha colpito». La nota di `Spec/Facing/TurningPathUsesLastCompletedStep.json` dichiarava esattamente questa lacuna — «l'harness non sa asserire uno stato INTERMEDIO» — e diceva che il boundary sarebbe restato ai test unitari «finche' un consumatore reale non lo osserva». Questo file e' quel consumatore.",
+
+  "_nota_l_allestimento_non_e_inventato": "Unita', eroi e celle sono quelli di `Combat.BasicAttack`, che e' un file versionato e verde: l'unica differenza e' il `move` aggiunto all'intent. Riusare un allestimento gia' misurato invece di comporne uno nuovo tiene il discriminante su UNA variabile — se questo scenario cade, non e' perche' la scena e' sbagliata.",
+
+  "_nota_cosa_NON_prova": "Non prova `afterEvent`, che e' l'altro confine di `#2867` e vive nei test C++ (`Scenario.CheckpointEvaluatesAfterASelectedEvent`): quello serve a fatti che accadono DENTRO una fase — Overwatch, hazard, interruzioni — e un confine di fase non sa localizzarli. E non prova niente sui micro-step: la cella attraversata non e' parte esplicita di nessuna regola qui, e un checkpoint per micro-step sarebbe il golden che `#2867` esclude per nome.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-1, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [1, 0, 0] }
+  ],
+
+  "turns": [
+    { "_turno": "T1 - A1 colpisce da dov'e', poi arretra di una cella. Un turno solo: il discriminante e' fra due FASI dello stesso turno, non fra due turni.",
+      "intents": [
+        { "unit": "A1", "ability": "Hero.Aevik.ArcPulse", "target": "B1", "move": [[-2, 0, 0]] }
+      ] }
+  ],
+
+  "expect": [
+    { "_assertion": "IL PUNTO DEL FILE. A fine Blast A1 e' ancora dove ha colpito. Nessuna assertion di stato finale puo' dirlo, e nessuna assertion sul TurnLog nemmeno: la voce di Combat non porta la cella di partenza.",
+      "type": "UnitAtCell", "unit": "A1", "cell": [-1, 0, 0], "at": "BlastEnded" },
+
+    { "_assertion": "La stessa domanda a fine turno, e la risposta DEVE essere diversa: senza questa riga il file non dimostrerebbe che i due confini si distinguono, dimostrerebbe solo che uno di essi si legge.",
+      "type": "UnitAtCell", "unit": "A1", "cell": [-2, 0, 0] },
+
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}

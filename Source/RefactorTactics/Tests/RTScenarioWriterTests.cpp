@@ -151,6 +151,17 @@ namespace
 		if (L.Requires != R.Requires) { return Fail(TEXT("requires")); }
 		if (L.Tags != R.Tags) { return Fail(FString::Printf(TEXT("tags: [%s] vs [%s]"), *FString::Join(L.Tags, TEXT(",")), *FString::Join(R.Tags, TEXT(",")))); }
 
+		// 🔴 **`verifies` entra qui il giorno stesso in cui nasce, e non e' zelo**: e' la QUARTA volta che
+		// questo confronto sarebbe stato cieco a un campo che il writer poteva perdere — `interiorWalls`
+		// (#2031), `statuses` (#1629), poi `doors` e `interactionBindings` (#3118) lo sono stati davvero,
+		// e ogni volta il round-trip e' rimasto verde mentre i dati sparivano. Un campo nuovo che non
+		// compare in questa funzione e' un campo che nessuno difende.
+		if (L.Verifies != R.Verifies)
+		{
+			return Fail(FString::Printf(TEXT("verifies: [%s] vs [%s]"),
+				*FString::Join(L.Verifies, TEXT(",")), *FString::Join(R.Verifies, TEXT(","))));
+		}
+
 		if (L.Cells.Num() != R.Cells.Num()) { return Fail(TEXT("numero di celle")); }
 		for (int32 I = 0; I < L.Cells.Num(); ++I)
 		{
@@ -324,6 +335,24 @@ namespace
 			if (A.LogOutcome != B.LogOutcome) { return Fail(FString::Printf(TEXT("expect[%d].outcome"), I)); }
 			if (A.ThenCategory != B.ThenCategory) { return Fail(FString::Printf(TEXT("expect[%d].thenCategory"), I)); }
 			if (A.ThenOutcome != B.ThenOutcome) { return Fail(FString::Printf(TEXT("expect[%d].thenOutcome"), I)); }
+			// IL CONFINE (`#2867`). ⚠️ Senza queste righe il confronto sarebbe CIECO al campo, che e' la
+			// cecita' che ha lasciato passare `interiorWalls`, `statuses`, `doors` e `interactionBindings`:
+			// un writer che perdesse `at` produrrebbe assertion valutate a fine turno e il round-trip
+			// resterebbe verde — cioe' il difetto peggiore, un verde che misura un altro momento.
+			if (A.bHasCheckpoint != B.bHasCheckpoint) { return Fail(FString::Printf(TEXT("expect[%d]: 'at' dichiarato"), I)); }
+			if (A.bHasCheckpoint && A.At != B.At) { return Fail(FString::Printf(TEXT("expect[%d].at"), I)); }
+			if (A.bHasAfterEvent != B.bHasAfterEvent) { return Fail(FString::Printf(TEXT("expect[%d]: 'afterEvent' dichiarato"), I)); }
+			if (A.bHasAfterEvent)
+			{
+				const FRTScenarioEventSelector& X = A.AfterEvent;
+				const FRTScenarioEventSelector& Y = B.AfterEvent;
+				if (X.bHasCategory != Y.bHasCategory) { return Fail(FString::Printf(TEXT("expect[%d].afterEvent: category dichiarata"), I)); }
+				if (X.bHasCategory && X.Category != Y.Category) { return Fail(FString::Printf(TEXT("expect[%d].afterEvent.category"), I)); }
+				if (X.bHasOutcome != Y.bHasOutcome) { return Fail(FString::Printf(TEXT("expect[%d].afterEvent: outcome dichiarato"), I)); }
+				if (X.bHasOutcome && X.Outcome != Y.Outcome) { return Fail(FString::Printf(TEXT("expect[%d].afterEvent.outcome"), I)); }
+				if (X.ActionId != Y.ActionId) { return Fail(FString::Printf(TEXT("expect[%d].afterEvent.actionId"), I)); }
+				if (X.Unit != Y.Unit) { return Fail(FString::Printf(TEXT("expect[%d].afterEvent.unit"), I)); }
+			}
 			if (!NotesEquivalent(A.Notes, B.Notes, FString::Printf(TEXT("expect[%d] note"), I), OutDiff)) { return false; }
 		}
 

@@ -700,6 +700,24 @@ namespace
 FRTScenarioSession::~FRTScenarioSession()
 {
 	UnbindOwnDecider();
+	UnbindResolutionObservers();
+}
+
+void FRTScenarioSession::UnbindResolutionObservers()
+{
+	// ⛔ **Incondizionata, al contrario di `UnbindOwnDecider`**: quello sgancia uno slot SINGOLO che puo'
+	// appartenere a un altro, e deve chiedersi di chi e'. Questi sono multicast e ognuno scioglie solo la
+	// PROPRIA iscrizione, identificata dall'handle: sciogliere la propria non tocca nessun altro ascoltatore.
+	//
+	// 🔴 Senza, un delegate sopravvissuto alla sessione chiamerebbe su `this` distrutto — e conta davvero,
+	// perche' `SetUp` RIUSA un turn manager gia' presente invece di spawnarne sempre uno nuovo.
+	if (ARTTurnManager* TM = TurnManager.Get())
+	{
+		if (PhaseClosedHandle.IsValid()) { TM->OnPhaseClosed.Remove(PhaseClosedHandle); }
+		if (LogEntryHandle.IsValid()) { TM->OnLogEntryAppended.Remove(LogEntryHandle); }
+	}
+	PhaseClosedHandle.Reset();
+	LogEntryHandle.Reset();
 }
 
 void FRTScenarioSession::UnbindOwnDecider()
@@ -1026,6 +1044,18 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	{
 		DecisionSource = TEXT("none");
 	}
+
+	// --- i CONFINI di risoluzione (`#2867`) ---------------------------------------------------------------
+	//
+	// 🔑 **Si ascolta sempre, non solo quando lo scenario dichiara un checkpoint**, e costa quanto un
+	// delegate vuoto: legare condizionatamente avrebbe fatto dipendere il comportamento del turno da una
+	// proprieta' del FILE, e un file modificato a meta' corsa — un editor aperto sul draft — avrebbe lasciato
+	// la sessione senza l'ascolto che le serve. Il filtro sta dove va fatto, cioe' sull'assertion.
+	//
+	// ⛔ Osservazione pura: questi due handler LEGGONO il mondo e scrivono nel referto. Non toccano ne'
+	// unita', ne' piani, ne' fase — la simulazione decide, il checkpoint legge.
+	PhaseClosedHandle = TM->OnPhaseClosed.AddRaw(this, &FRTScenarioSession::OnResolutionPhaseClosed);
+	LogEntryHandle = TM->OnLogEntryAppended.AddRaw(this, &FRTScenarioSession::OnResolutionLogEntry);
 
 	// Le capability dell'INTERO scenario (free-run, CP 47.4): si valutano una volta qui, perche' un free-run
 	// non ha turni su cui appenderle. Stesse due passate e stesso ordine di `BeginTurn` — prima il refuso
@@ -1947,11 +1977,400 @@ void FRTScenarioSession::TearDown()
 		// ⚠️ `TearDown()` non e' l'unica strada, ed e' il motivo per cui esiste anche il distruttore: il
 		// percorso normale (`RunSingle` con `bTearDownAfter=false`) non passa mai di qui.
 		UnbindOwnDecider();
+		UnbindResolutionObservers();
 		TM->Destroy();
 	}
 	TurnManager.Reset();
 	PendingDecisions.Reset();
 	PendingConsumed.Reset();
+}
+
+/** Il nome del confine dichiarato, come il file lo scrive. Per i referti. */
+FString FRTScenarioSession::DescribeCheckpoint(const FRTTestExpectation& Exp)
+{
+	if (Exp.bHasAfterEvent)
+	{
+		TArray<FString> Parti;
+		// I nomi per RIFLESSIONE, come ovunque nel formato: una tabella scritta a mano qui divergerebbe
+		// dall'enum al primo valore aggiunto, e il referto nominerebbe un evento che non esiste piu'.
+		if (Exp.AfterEvent.bHasCategory)
+		{
+			if (const UEnum* CatEnum = StaticEnum<ERTLogCategory>())
+			{
+				Parti.Add(CatEnum->GetNameStringByValue(static_cast<int64>(Exp.AfterEvent.Category)));
+			}
+		}
+		if (Exp.AfterEvent.bHasOutcome)
+		{
+			// Quale enum descriva l'esito lo decide la CATEGORIA, ed e' la stessa funzione che lo legge.
+			if (const UEnum* OutEnum = URTScenarioLoader::OutcomeEnumForCategory(Exp.AfterEvent.Category))
+			{
+				Parti.Add(OutEnum->GetNameStringByValue(static_cast<int64>(Exp.AfterEvent.Outcome)));
+			}
+		}
+		if (!Exp.AfterEvent.ActionId.IsNone()) { Parti.Add(Exp.AfterEvent.ActionId.ToString()); }
+		if (!Exp.AfterEvent.Unit.IsEmpty()) { Parti.Add(Exp.AfterEvent.Unit); }
+		return FString::Printf(TEXT("afterEvent(%s)"), *FString::Join(Parti, TEXT("/")));
+	}
+
+	const UEnum* Enum = StaticEnum<ERTScenarioCheckpoint>();
+	return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Exp.At)) : TEXT("CleanupEnded");
+}
+
+/** Il tipo dell'assertion, per i referti che non passano da `EvaluateExpectation`. */
+FString FRTScenarioSession::DescribeExpectationKind(const FRTTestExpectation& Exp)
+{
+	const UEnum* Enum = StaticEnum<ERTAssertionKind>();
+	const FString Nome = Enum ? Enum->GetNameStringByValue(static_cast<int64>(Exp.Kind)) : TEXT("assertion");
+	return Exp.UnitId.IsEmpty() ? Nome : FString::Printf(TEXT("%s(%s)"), *Nome, *Exp.UnitId);
+}
+
+/**
+ * Un confine di fase e' passato: valuta le assertion che lo dichiarano (`#2867`).
+ *
+ * ⛔ **Legge e basta.** Nessuna riga qui tocca il mondo: l'osservatore raccoglie un esito e il turno prosegue
+ * senza sapere che qualcuno stava guardando. E' la risposta alla domanda «osserva o sospende?», e non e'
+ * stilistica — tutti i casi d'uso raccolti chiedono di LEGGERE uno stato a un confine, nessuno di AGIRE li'.
+ */
+void FRTScenarioSession::OnResolutionPhaseClosed(ERTMatchPhase Closed)
+{
+	// La traduzione dal vocabolario del GIOCO a quello del formato vive QUI e in nessun altro posto: il
+	// motore non conosce `ERTScenarioCheckpoint`, ed e' giusto cosi' — sarebbe una dipendenza del gioco
+	// dall'harness.
+	ERTScenarioCheckpoint Boundary;
+	switch (Closed)
+	{
+	case ERTMatchPhase::Planning: Boundary = ERTScenarioCheckpoint::PlanningLocked; break;
+	case ERTMatchPhase::Prep:     Boundary = ERTScenarioCheckpoint::PrepEnded;      break;
+	case ERTMatchPhase::Dash:     Boundary = ERTScenarioCheckpoint::DashEnded;      break;
+	case ERTMatchPhase::Blast:    Boundary = ERTScenarioCheckpoint::BlastEnded;     break;
+	case ERTMatchPhase::Move:     Boundary = ERTScenarioCheckpoint::MoveEnded;      break;
+	case ERTMatchPhase::Cleanup:  Boundary = ERTScenarioCheckpoint::CleanupEnded;   break;
+	default:
+		// `MatchEnded` non e' un confine dichiarabile: non e' una macro-fase che si chiude, e' lo stato in
+		// cui la partita resta. Un'assertion non puo' nominarlo, quindi qui non c'e' niente da valutare.
+		return;
+	}
+
+	for (int32 I = 0; I < Scenario.Expect.Num(); ++I)
+	{
+		const FRTTestExpectation& Exp = Scenario.Expect[I];
+		if (!Exp.bHasCheckpoint || Exp.At != Boundary || FiredCheckpoints.Contains(I))
+		{
+			continue;
+		}
+
+		// ⚠️ **La PRIMA volta che il confine passa, e non l'ultima.** Uno scenario a piu' turni chiude il
+		// `Blast` una volta per turno: senza `FiredCheckpoints` l'assertion si rivaluterebbe a ogni giro e
+		// il referto porterebbe l'esito dell'ULTIMO, cioe' misurerebbe un turno che nessuno ha nominato.
+		// Chi vuole il confine di un turno preciso lo dice col turno, non con l'ordine di arrivo.
+		FRTAssertionResult A = EvaluateExpectation(Exp);
+		A.Description = FString::Printf(TEXT("%s @ %s"), *A.Description, *DescribeCheckpoint(Exp));
+		Result.Assertions.Add(A);
+		FiredCheckpoints.Add(I);
+	}
+}
+
+/** La voce soddisfa il selettore? Solo per CRITERI dichiarati: quelli taciuti non vincolano. */
+bool FRTScenarioSession::EventMatchesSelector(const FRTScenarioEventSelector& Selector,
+	const FRTTurnLogEntry& Entry) const
+{
+	if (Selector.bHasCategory && Entry.Category != Selector.Category) { return false; }
+	if (Selector.bHasOutcome && Entry.Outcome != Selector.Outcome) { return false; }
+	// Confronto ESATTO sull'`FName`, mai per prefisso: `Status.Burning` e `Status.Burning.Tick` sono due
+	// eventi, e un match per prefisso li fonderebbe senza dirlo.
+	if (!Selector.ActionId.IsNone() && Entry.ActionId != Selector.ActionId) { return false; }
+
+	if (!Selector.Unit.IsEmpty())
+	{
+		// I due spazi di id: il file parla in `FString` d'authoring, la voce porta lo `StableUnitId`. Il
+		// ponte e' `UnitsById`, che e' l'unico posto in cui la corrispondenza esiste.
+		const TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Selector.Unit);
+		const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		if (!Unit || Entry.UnitId != Unit->StableUnitId) { return false; }
+	}
+	return true;
+}
+
+/**
+ * Una voce e' entrata nel TurnLog: valuta le assertion il cui `afterEvent` la seleziona (`#2867`).
+ *
+ * E' il confine che una macro-fase non sa localizzare — Overwatch, hazard, interruzioni, reazioni accadono
+ * DENTRO una fase. ⛔ Osservazione pura, come il gemello di fase.
+ */
+void FRTScenarioSession::OnResolutionLogEntry(const FRTTurnLogEntry& Entry)
+{
+	for (int32 I = 0; I < Scenario.Expect.Num(); ++I)
+	{
+		const FRTTestExpectation& Exp = Scenario.Expect[I];
+		if (!Exp.bHasAfterEvent || FiredCheckpoints.Contains(I)) { continue; }
+		if (!EventMatchesSelector(Exp.AfterEvent, Entry)) { continue; }
+
+		// Il PRIMO evento che soddisfa il selettore, e non il terzo: un indice posizionale conterebbe anche
+		// gli eventi che non interessano, e cambierebbe significato in silenzio al primo aggiunto dal
+		// resolver. Se servisse un'altra occorrenza, il criterio da stringere e' il selettore.
+		FRTAssertionResult A = EvaluateExpectation(Exp);
+		A.Description = FString::Printf(TEXT("%s @ %s"), *A.Description, *DescribeCheckpoint(Exp));
+		Result.Assertions.Add(A);
+		FiredCheckpoints.Add(I);
+	}
+}
+
+/**
+ * Valuta UNA assertion sullo stato del mondo **in questo istante**.
+ *
+ * 🔑 **Estratta da `Finish()` perche' ha smesso di avere un solo momento** (`#2867`). Finche' ogni
+ * assertion si valutava a fine turno, il ciclo poteva stare in linea; da quando una puo' dichiarare un
+ * CONFINE — fine `Blast`, dopo un evento — il punto in cui si valuta deve essere raggiungibile da piu'
+ * strade, come lo e' stato `ConcludeResolution` quando la risoluzione ha imparato a sospendersi.
+ *
+ * ⛔ **Legge, non calcola.** Ogni ramo interroga il mondo che la simulazione ha prodotto — `Unit->Cell`,
+ * il TurnLog — e non ricostruisce niente: duplicare qui il resolver per osservare un confine renderebbe
+ * l'harness piu' capace del gioco, che e' la ragione per cui
+ * `Scenarios/Spec/Facing/TurningPathUsesLastCompletedStep.json` dichiarava di non poter asserire il
+ * proprio boundary.
+ */
+FRTAssertionResult FRTScenarioSession::EvaluateExpectation(const FRTTestExpectation& Exp)
+{
+	FRTAssertionResult A;
+	A.Kind = Exp.Kind;
+	A.Turn = Result.TurnsPlayed;
+
+	switch (Exp.Kind)
+	{
+	case ERTAssertionKind::UnitAtCell:
+	{
+		A.Description = FString::Printf(TEXT("UnitAtCell(%s)"), *Exp.UnitId);
+		A.Expected = Exp.Cell.ToString();
+
+		TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+		const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		if (!Unit)
+		{
+			A.Actual = TEXT("unita' assente");
+			A.bPassed = false;
+		}
+		else
+		{
+			A.Actual = Unit->Cell.ToString();
+			A.bPassed = (Unit->Cell == Exp.Cell);
+		}
+		break;
+	}
+	case ERTAssertionKind::TurnsCompleted:
+	{
+		A.Description = TEXT("TurnsCompleted");
+		A.Expected = FString::Printf(TEXT(">= %d"), Exp.Value);
+		A.Actual = FString::FromInt(Result.TurnsPlayed);
+		A.bPassed = (Result.TurnsPlayed >= Exp.Value);
+		break;
+	}
+	case ERTAssertionKind::UnitHpEquals:
+	{
+		A.Description = FString::Printf(TEXT("UnitHpEquals(%s)"), *Exp.UnitId);
+		A.Expected = FString::FromInt(Exp.Value);
+
+		TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+		const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		if (!Unit)
+		{
+			// Un'unita' ABBATTUTA puo' essere stata distrutta: distinguerlo da «non esiste» conta, perche'
+			// sono due difetti diversi — uno di gioco, uno di scenario.
+			A.Actual = TEXT("unita' assente (abbattuta o mai creata)");
+			A.bPassed = false;
+		}
+		else
+		{
+			// Lo SCUDO si dichiara separatamente: qui si guardano gli HP, e un danno assorbito dallo scudo
+			// deve risultare come «HP invariati», non come «nessun danno».
+			A.Actual = FString::Printf(TEXT("%d (scudo %d)"), Unit->Health, Unit->Shield);
+			A.bPassed = (Unit->Health == Exp.Value);
+		}
+		break;
+	}
+	case ERTAssertionKind::UnitAlive:
+	{
+		const bool bWantAlive = (Exp.Value != 0);
+		A.Description = FString::Printf(TEXT("UnitAlive(%s)"), *Exp.UnitId);
+		A.Expected = bWantAlive ? TEXT("viva") : TEXT("abbattuta");
+
+		TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+		const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		// Un'unita' rimossa dal mondo conta come abbattuta: e' il modo in cui il gioco toglie di mezzo chi
+		// arriva a zero HP, e chiedere «e' viva?» a un puntatore nullo deve avere una risposta, non un crash.
+		const bool bIsAlive = (Unit != nullptr && Unit->IsAlive());
+		A.Actual = bIsAlive ? TEXT("viva") : TEXT("abbattuta");
+		A.bPassed = (bIsAlive == bWantAlive);
+		break;
+	}
+	case ERTAssertionKind::UnitFacing:
+	{
+		static const TCHAR* DirectionNames[6] = { TEXT("E"), TEXT("NE"), TEXT("NW"), TEXT("W"), TEXT("SW"), TEXT("SE") };
+		const int32 WantIndex = FMath::Clamp(Exp.Value, 0, 5);
+		A.Description = FString::Printf(TEXT("UnitFacing(%s)"), *Exp.UnitId);
+		A.Expected = DirectionNames[WantIndex];
+
+		TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+		const ARTUnit* Unit = Found ? Found->Get() : nullptr;
+		if (!Unit)
+		{
+			A.Actual = TEXT("unita' assente");
+			A.bPassed = false;
+		}
+		else
+		{
+			// Il facing LOGICO, non lo yaw dell'attore: e' il valore che le regole leggono, e l'unico che
+			// abbia senso confrontare quando il playback puo' essere ancora a meta' interpolazione.
+			const int32 ActualIndex = FMath::Clamp(static_cast<int32>(Unit->Facing), 0, 5);
+			A.Actual = DirectionNames[ActualIndex];
+			A.bPassed = (ActualIndex == WantIndex);
+		}
+		break;
+	}
+	// I due capi di un REDIRECT (#1060). Stessa voce, due campi: `OriginalTargetUnitId` dice da chi il colpo
+	// e' partito, `UnitId` chi l'ha incassato. Entrambi portano uno `StableUnitId`, che e' anche cio' che
+	// `ARTUnit` espone — quindi il confronto non passa da nessuna tabella di conversione.
+	case ERTAssertionKind::OriginalTargetEquals:
+	case ERTAssertionKind::EffectiveTargetEquals:
+	{
+		const bool bWantOriginal = (Exp.Kind == ERTAssertionKind::OriginalTargetEquals);
+		A.Description = FString::Printf(TEXT("%s(%s)"),
+			bWantOriginal ? TEXT("OriginalTargetEquals") : TEXT("EffectiveTargetEquals"), *Exp.UnitId);
+		A.Expected = Exp.UnitId;
+
+		TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
+		const ARTUnit* Want = Found ? Found->Get() : nullptr;
+		if (!Want)
+		{
+			// Un'unita' abbattuta puo' essere stata distrutta: e' lo stesso trattamento di `UnitHpEquals`,
+			// e serve a non far sembrare un difetto di scenario cio' che e' un esito di gioco.
+			A.Actual = TEXT("unita' attesa assente (abbattuta o mai creata)");
+			A.bPassed = false;
+			break;
+		}
+
+		// La PRIMA voce che dichiara un redirect. `OriginalTargetUnitId` valorizzato E' il marcatore: non
+		// serve filtrare per categoria, perche' nessun'altra voce lo scrive — e filtrare per
+		// `Reaction`/`Activated` legherebbe l'assertion all'unico produttore di oggi (l'interposizione),
+		// mentre la domanda che pone — «da chi a chi e' passato il colpo?» — vale per qualunque redirect
+		// che un giorno venisse aggiunto.
+		const FRTTurnLogEntry* Redirect = nullptr;
+		for (const FRTTurnLogEntry& Entry : ScenarioLog)
+		{
+			if (Entry.OriginalTargetUnitId != INDEX_NONE) { Redirect = &Entry; break; }
+		}
+		if (Redirect == nullptr)
+		{
+			// «Nessuno si e' interposto» e «si e' interposto per l'unita' sbagliata» sono due difetti
+			// diversi: confonderli renderebbe il messaggio inutile proprio quando serve. Stesso trattamento
+			// che `LogEventAmount` riserva all'evento assente.
+			A.Actual = TEXT("nessun redirect nel TurnLog");
+			A.bPassed = false;
+			break;
+		}
+
+		const int32 ActualId = bWantOriginal ? Redirect->OriginalTargetUnitId : Redirect->UnitId;
+		A.bPassed = (ActualId == Want->StableUnitId);
+
+		// Il numero da solo non dice a chi appartiene: chi legge il referto avrebbe uno `StableUnitId` e
+		// nessun modo di risalire all'unita' senza rileggere lo scenario.
+		// ⚠️ **Fuori dal ramo del fallimento, e non e' cosmesi**: `Expected` porta un id di scenario
+		// (`"V1"`), quindi lasciando il numero grezzo su `Actual` un'assertion PASSATA si leggerebbe
+		// «Expected V1 / Actual 3» — due domini diversi ai due lati dello stesso confronto. Ogni altro
+		// `Kind` tiene i due lati omogenei (cella contro cella, direzione contro direzione). Trovato da una
+		// code review, che l'ha visto sul percorso verde: quello che nessuno rilegge.
+		A.Actual = FString::FromInt(ActualId);
+		for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
+		{
+			const ARTUnit* Other = Pair.Value.Get();
+			if (Other && Other->StableUnitId == ActualId)
+			{
+				A.Actual = FString::Printf(TEXT("%s (id %d)"), *Pair.Key, ActualId);
+				break;
+			}
+		}
+		break;
+	}
+	case ERTAssertionKind::LogEventCount:
+	{
+		const FString EventName = URTScenarioLoader::DescribeLogEvent(
+			Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+		A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
+		A.Expected = FString::FromInt(Exp.Value);
+
+		int32 Found = 0;
+		for (const FRTTurnLogEntry& Entry : ScenarioLog)
+		{
+			if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId,
+				Exp.bHasLogPhase, Exp.LogPhase)) { ++Found; }
+		}
+		A.Actual = FString::FromInt(Found);
+		A.bPassed = (Found == Exp.Value);
+		break;
+	}
+	case ERTAssertionKind::LogEventAmount:
+	{
+		const FString EventName = URTScenarioLoader::DescribeLogEvent(
+			Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+		A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
+		A.Expected = FString::FromInt(Exp.Value);
+
+		// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
+		// una decisione non e' la somma dei residui.
+		const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
+			Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+		if (At == INDEX_NONE)
+		{
+			// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
+			// problema e' che l'evento non e' mai stato prodotto. Stesso trattamento di `LogEventOrder`.
+			A.Actual = FString::Printf(TEXT("%s assente"), *EventName);
+			A.bPassed = false;
+		}
+		else
+		{
+			A.Actual = FString::FromInt(ScenarioLog[At].Amount);
+			A.bPassed = (ScenarioLog[At].Amount == Exp.Value);
+		}
+		break;
+	}
+	case ERTAssertionKind::LogEventOrder:
+	{
+		const FString FirstName = URTScenarioLoader::DescribeLogEvent(
+			Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+		const FString ThenName = URTScenarioLoader::DescribeLogEvent(
+			Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
+		A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
+		A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
+
+		const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
+			Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
+		const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome,
+			Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
+
+		// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
+		// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.
+		if (FirstAt == INDEX_NONE || ThenAt == INDEX_NONE)
+		{
+			A.Actual = FString::Printf(TEXT("%s%s%s"),
+				FirstAt == INDEX_NONE ? *FString::Printf(TEXT("%s assente"), *FirstName) : TEXT(""),
+				(FirstAt == INDEX_NONE && ThenAt == INDEX_NONE) ? TEXT(", ") : TEXT(""),
+				ThenAt == INDEX_NONE ? *FString::Printf(TEXT("%s assente"), *ThenName) : TEXT(""));
+			A.bPassed = false;
+		}
+		else
+		{
+			A.Actual = FString::Printf(TEXT("posizioni %d e %d su %d voci"), FirstAt, ThenAt, ScenarioLog.Num());
+			A.bPassed = (FirstAt < ThenAt);
+		}
+		break;
+	}
+	default:
+		A.Description = TEXT("assertion non implementata");
+		A.bPassed = false;
+		break;
+	}
+
+	return A;
 }
 
 void FRTScenarioSession::Finish()
@@ -2107,245 +2526,41 @@ void FRTScenarioSession::Finish()
 			break;
 		}
 
-		FRTAssertionResult A;
-		A.Kind = Exp.Kind;
-		A.Turn = Result.TurnsPlayed;
-
-		switch (Exp.Kind)
+		// ⏭️ Le assertion con un CONFINE sono gia' state valutate quando quel confine e' passato, e il loro
+		// esito e' gia' in `Result.Assertions` — vedi `OnResolutionPhaseClosed`. Rivalutarle qui
+		// misurerebbe lo stato di FINE TURNO, cioe' esattamente cio' che il confine serviva a non guardare.
+		if (Exp.bHasCheckpoint || Exp.bHasAfterEvent)
 		{
-		case ERTAssertionKind::UnitAtCell:
-		{
-			A.Description = FString::Printf(TEXT("UnitAtCell(%s)"), *Exp.UnitId);
-			A.Expected = Exp.Cell.ToString();
-
-			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
-			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
-			if (!Unit)
-			{
-				A.Actual = TEXT("unita' assente");
-				A.bPassed = false;
-			}
-			else
-			{
-				A.Actual = Unit->Cell.ToString();
-				A.bPassed = (Unit->Cell == Exp.Cell);
-			}
-			break;
-		}
-		case ERTAssertionKind::TurnsCompleted:
-		{
-			A.Description = TEXT("TurnsCompleted");
-			A.Expected = FString::Printf(TEXT(">= %d"), Exp.Value);
-			A.Actual = FString::FromInt(Result.TurnsPlayed);
-			A.bPassed = (Result.TurnsPlayed >= Exp.Value);
-			break;
-		}
-		case ERTAssertionKind::UnitHpEquals:
-		{
-			A.Description = FString::Printf(TEXT("UnitHpEquals(%s)"), *Exp.UnitId);
-			A.Expected = FString::FromInt(Exp.Value);
-
-			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
-			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
-			if (!Unit)
-			{
-				// Un'unita' ABBATTUTA puo' essere stata distrutta: distinguerlo da «non esiste» conta, perche'
-				// sono due difetti diversi — uno di gioco, uno di scenario.
-				A.Actual = TEXT("unita' assente (abbattuta o mai creata)");
-				A.bPassed = false;
-			}
-			else
-			{
-				// Lo SCUDO si dichiara separatamente: qui si guardano gli HP, e un danno assorbito dallo scudo
-				// deve risultare come «HP invariati», non come «nessun danno».
-				A.Actual = FString::Printf(TEXT("%d (scudo %d)"), Unit->Health, Unit->Shield);
-				A.bPassed = (Unit->Health == Exp.Value);
-			}
-			break;
-		}
-		case ERTAssertionKind::UnitAlive:
-		{
-			const bool bWantAlive = (Exp.Value != 0);
-			A.Description = FString::Printf(TEXT("UnitAlive(%s)"), *Exp.UnitId);
-			A.Expected = bWantAlive ? TEXT("viva") : TEXT("abbattuta");
-
-			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
-			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
-			// Un'unita' rimossa dal mondo conta come abbattuta: e' il modo in cui il gioco toglie di mezzo chi
-			// arriva a zero HP, e chiedere «e' viva?» a un puntatore nullo deve avere una risposta, non un crash.
-			const bool bIsAlive = (Unit != nullptr && Unit->IsAlive());
-			A.Actual = bIsAlive ? TEXT("viva") : TEXT("abbattuta");
-			A.bPassed = (bIsAlive == bWantAlive);
-			break;
-		}
-		case ERTAssertionKind::UnitFacing:
-		{
-			static const TCHAR* DirectionNames[6] = { TEXT("E"), TEXT("NE"), TEXT("NW"), TEXT("W"), TEXT("SW"), TEXT("SE") };
-			const int32 WantIndex = FMath::Clamp(Exp.Value, 0, 5);
-			A.Description = FString::Printf(TEXT("UnitFacing(%s)"), *Exp.UnitId);
-			A.Expected = DirectionNames[WantIndex];
-
-			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
-			const ARTUnit* Unit = Found ? Found->Get() : nullptr;
-			if (!Unit)
-			{
-				A.Actual = TEXT("unita' assente");
-				A.bPassed = false;
-			}
-			else
-			{
-				// Il facing LOGICO, non lo yaw dell'attore: e' il valore che le regole leggono, e l'unico che
-				// abbia senso confrontare quando il playback puo' essere ancora a meta' interpolazione.
-				const int32 ActualIndex = FMath::Clamp(static_cast<int32>(Unit->Facing), 0, 5);
-				A.Actual = DirectionNames[ActualIndex];
-				A.bPassed = (ActualIndex == WantIndex);
-			}
-			break;
-		}
-		// I due capi di un REDIRECT (#1060). Stessa voce, due campi: `OriginalTargetUnitId` dice da chi il colpo
-		// e' partito, `UnitId` chi l'ha incassato. Entrambi portano uno `StableUnitId`, che e' anche cio' che
-		// `ARTUnit` espone — quindi il confronto non passa da nessuna tabella di conversione.
-		case ERTAssertionKind::OriginalTargetEquals:
-		case ERTAssertionKind::EffectiveTargetEquals:
-		{
-			const bool bWantOriginal = (Exp.Kind == ERTAssertionKind::OriginalTargetEquals);
-			A.Description = FString::Printf(TEXT("%s(%s)"),
-				bWantOriginal ? TEXT("OriginalTargetEquals") : TEXT("EffectiveTargetEquals"), *Exp.UnitId);
-			A.Expected = Exp.UnitId;
-
-			TWeakObjectPtr<ARTUnit>* Found = UnitsById.Find(Exp.UnitId);
-			const ARTUnit* Want = Found ? Found->Get() : nullptr;
-			if (!Want)
-			{
-				// Un'unita' abbattuta puo' essere stata distrutta: e' lo stesso trattamento di `UnitHpEquals`,
-				// e serve a non far sembrare un difetto di scenario cio' che e' un esito di gioco.
-				A.Actual = TEXT("unita' attesa assente (abbattuta o mai creata)");
-				A.bPassed = false;
-				break;
-			}
-
-			// La PRIMA voce che dichiara un redirect. `OriginalTargetUnitId` valorizzato E' il marcatore: non
-			// serve filtrare per categoria, perche' nessun'altra voce lo scrive — e filtrare per
-			// `Reaction`/`Activated` legherebbe l'assertion all'unico produttore di oggi (l'interposizione),
-			// mentre la domanda che pone — «da chi a chi e' passato il colpo?» — vale per qualunque redirect
-			// che un giorno venisse aggiunto.
-			const FRTTurnLogEntry* Redirect = nullptr;
-			for (const FRTTurnLogEntry& Entry : ScenarioLog)
-			{
-				if (Entry.OriginalTargetUnitId != INDEX_NONE) { Redirect = &Entry; break; }
-			}
-			if (Redirect == nullptr)
-			{
-				// «Nessuno si e' interposto» e «si e' interposto per l'unita' sbagliata» sono due difetti
-				// diversi: confonderli renderebbe il messaggio inutile proprio quando serve. Stesso trattamento
-				// che `LogEventAmount` riserva all'evento assente.
-				A.Actual = TEXT("nessun redirect nel TurnLog");
-				A.bPassed = false;
-				break;
-			}
-
-			const int32 ActualId = bWantOriginal ? Redirect->OriginalTargetUnitId : Redirect->UnitId;
-			A.bPassed = (ActualId == Want->StableUnitId);
-
-			// Il numero da solo non dice a chi appartiene: chi legge il referto avrebbe uno `StableUnitId` e
-			// nessun modo di risalire all'unita' senza rileggere lo scenario.
-			// ⚠️ **Fuori dal ramo del fallimento, e non e' cosmesi**: `Expected` porta un id di scenario
-			// (`"V1"`), quindi lasciando il numero grezzo su `Actual` un'assertion PASSATA si leggerebbe
-			// «Expected V1 / Actual 3» — due domini diversi ai due lati dello stesso confronto. Ogni altro
-			// `Kind` tiene i due lati omogenei (cella contro cella, direzione contro direzione). Trovato da una
-			// code review, che l'ha visto sul percorso verde: quello che nessuno rilegge.
-			A.Actual = FString::FromInt(ActualId);
-			for (const TPair<FString, TWeakObjectPtr<ARTUnit>>& Pair : UnitsById)
-			{
-				const ARTUnit* Other = Pair.Value.Get();
-				if (Other && Other->StableUnitId == ActualId)
-				{
-					A.Actual = FString::Printf(TEXT("%s (id %d)"), *Pair.Key, ActualId);
-					break;
-				}
-			}
-			break;
-		}
-		case ERTAssertionKind::LogEventCount:
-		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(
-				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
-			A.Description = FString::Printf(TEXT("LogEventCount(%s)"), *EventName);
-			A.Expected = FString::FromInt(Exp.Value);
-
-			int32 Found = 0;
-			for (const FRTTurnLogEntry& Entry : ScenarioLog)
-			{
-				if (MatchesScenarioLogEvent(Entry, Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId,
-					Exp.bHasLogPhase, Exp.LogPhase)) { ++Found; }
-			}
-			A.Actual = FString::FromInt(Found);
-			A.bPassed = (Found == Exp.Value);
-			break;
-		}
-		case ERTAssertionKind::LogEventAmount:
-		{
-			const FString EventName = URTScenarioLoader::DescribeLogEvent(
-				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
-			A.Description = FString::Printf(TEXT("LogEventAmount(%s)"), *EventName);
-			A.Expected = FString::FromInt(Exp.Value);
-
-			// La PRIMA occorrenza: sommarle mescolerebbe finestre diverse in un numero solo, e il residuo di
-			// una decisione non e' la somma dei residui.
-			const int32 At = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
-				Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
-			if (At == INDEX_NONE)
-			{
-				// Assente non e' «vale zero»: dirlo cosi' manderebbe a cercare un valore sbagliato dove il
-				// problema e' che l'evento non e' mai stato prodotto. Stesso trattamento di `LogEventOrder`.
-				A.Actual = FString::Printf(TEXT("%s assente"), *EventName);
-				A.bPassed = false;
-			}
-			else
-			{
-				A.Actual = FString::FromInt(ScenarioLog[At].Amount);
-				A.bPassed = (ScenarioLog[At].Amount == Exp.Value);
-			}
-			break;
-		}
-		case ERTAssertionKind::LogEventOrder:
-		{
-			const FString FirstName = URTScenarioLoader::DescribeLogEvent(
-				Exp.LogCategory, Exp.LogOutcome, Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
-			const FString ThenName = URTScenarioLoader::DescribeLogEvent(
-				Exp.ThenCategory, Exp.ThenOutcome, Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
-			A.Description = FString::Printf(TEXT("LogEventOrder(%s prima di %s)"), *FirstName, *ThenName);
-			A.Expected = FString::Printf(TEXT("%s prima di %s"), *FirstName, *ThenName);
-
-			const int32 FirstAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.LogCategory, Exp.LogOutcome,
-				Exp.LogActionId, Exp.bHasLogPhase, Exp.LogPhase);
-			const int32 ThenAt = IndexOfScenarioLogEvent(ScenarioLog, Exp.ThenCategory, Exp.ThenOutcome,
-				Exp.ThenActionId, Exp.bHasThenPhase, Exp.ThenPhase);
-
-			// Un evento ASSENTE non e' «fuori ordine»: e' un altro difetto, e dirlo cosi' evita di mandare a
-			// cercare un problema di sequenza dove il problema e' che l'evento non e' mai stato prodotto.
-			if (FirstAt == INDEX_NONE || ThenAt == INDEX_NONE)
-			{
-				A.Actual = FString::Printf(TEXT("%s%s%s"),
-					FirstAt == INDEX_NONE ? *FString::Printf(TEXT("%s assente"), *FirstName) : TEXT(""),
-					(FirstAt == INDEX_NONE && ThenAt == INDEX_NONE) ? TEXT(", ") : TEXT(""),
-					ThenAt == INDEX_NONE ? *FString::Printf(TEXT("%s assente"), *ThenName) : TEXT(""));
-				A.bPassed = false;
-			}
-			else
-			{
-				A.Actual = FString::Printf(TEXT("posizioni %d e %d su %d voci"), FirstAt, ThenAt, ScenarioLog.Num());
-				A.bPassed = (FirstAt < ThenAt);
-			}
-			break;
-		}
-		default:
-			A.Description = TEXT("assertion non implementata");
-			A.bPassed = false;
-			break;
+			continue;
 		}
 
-		Result.Assertions.Add(A);
+		Result.Assertions.Add(EvaluateExpectation(Exp));
+	}
+
+	// 🔴 **Un confine che non e' mai passato e' un FAIL, non un silenzio.** Senza queste righe un'assertion
+	// che nomina un evento mai avvenuto — o una fase che la partita non ha raggiunto — sparirebbe dal
+	// referto: zero assertion cadute, `PASS`. Un verde per assenza di misura e' il peggiore degli esiti,
+	// perche' nessuno va a guardarlo. E' la stessa ragione per cui il tetto di un free-run e' un `Fail`.
+	for (int32 I = 0; I < Scenario.Expect.Num(); ++I)
+	{
+		if (bBlocked) { break; }
+		const FRTTestExpectation& Exp = Scenario.Expect[I];
+		if ((!Exp.bHasCheckpoint && !Exp.bHasAfterEvent) || FiredCheckpoints.Contains(I))
+		{
+			continue;
+		}
+
+		FRTAssertionResult Missing;
+		Missing.Kind = Exp.Kind;
+		Missing.Turn = Result.TurnsPlayed;
+		Missing.Description = FString::Printf(TEXT("%s @ %s"),
+			*DescribeExpectationKind(Exp), *DescribeCheckpoint(Exp));
+		Missing.Expected = TEXT("il confine dichiarato viene raggiunto");
+		Missing.Actual = Exp.bHasAfterEvent
+			? TEXT("nessun evento ha soddisfatto il selettore in tutto lo scenario")
+			: TEXT("la fase dichiarata non si e' mai chiusa in tutto lo scenario");
+		Missing.bPassed = false;
+		Result.Assertions.Add(Missing);
 	}
 
 	Result.Notes = Notes;

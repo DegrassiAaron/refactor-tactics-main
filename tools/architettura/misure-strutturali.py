@@ -129,6 +129,26 @@ TURNMANAGER_FILES = [
     "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
 ]
 PATTERN_MONDO = "SpawnActor"          # un test che spawna un Actor ha bisogno di un mondo
+
+# I segni che un test gira il FLUSSO REALE del turno, e non solo lo allestisce.
+#
+# 🔑 **Esistono perche' «quota test con mondo» da sola non sa distinguere due cose opposte** (#2182). Un
+# test che spawna un `ARTTurnManager` e gli fa risolvere tre turni ha bisogno del mondo per la ragione
+# giusta: verifica il comportamento del turno, e togliergli il mondo sarebbe perdere copertura
+# d'integrazione, non debito. Un test che spawna un GameMode per leggere una precedenza ha il mondo come
+# impalcatura. Il pavimento della metrica e' quindi il primo gruppo, non zero — e senza questa riga il
+# residuo su cui si puo' davvero lavorare non e' misurabile, cioe' va ricontato a mano a ogni fetta.
+#
+# ⚠️ **L'elenco e' una EURISTICA dichiarata, non una verita'.** Sovrastima chi nomina una di queste parole
+# in un commento e sottostima chi fa girare il turno per una strada che non le usa. Cambiarlo invalida il
+# confronto con le misure precedenti: se lo fai, scrivilo nella issue insieme al numero nuovo.
+PATTERNS_FLUSSO = (
+    "RunTurn",              # il pompaggio diretto di un turno
+    "LockInAndResolve",     # la risoluzione vera, dal lock-in in giu'
+    "->Tick(",              # chi fa avanzare il turn manager a mano
+    "URTScenarioRunner::",  # chi passa dall'harness, che il flusso lo gira per intero
+    "FRTScenarioSession",   # idem, un gradino piu' in basso
+)
 PATTERN_TURNMANAGER = "ARTTurnManager"
 RE_TEST_NAME = re.compile(r'"RefactorTactics\.[A-Za-z0-9_.]+"')
 RE_METODO_TM = re.compile(r"ARTTurnManager::[A-Za-z0-9_~]+")
@@ -254,17 +274,24 @@ def misura(radice, soglia):
     nomi = set()
     con_mondo = 0
     con_tm = 0
+    allestimento = 0
     for p in test_file:
         testo = "\n".join(leggi(p))
         nomi.update(RE_TEST_NAME.findall(testo))
         if PATTERN_MONDO in testo:
             con_mondo += 1
+            # Allestimento = spawna un Actor ma NON gira il flusso del turno. E' il residuo di E50 su cui
+            # una fetta puo' lavorare senza togliere copertura d'integrazione (#2182).
+            if not any(p in testo for p in PATTERNS_FLUSSO):
+                allestimento += 1
         if PATTERN_TURNMANAGER in testo:
             con_tm += 1
     n_file = len(test_file)
     m["test_file"] = n_file
     m["test_unici"] = len(nomi)
     m["test_file_con_mondo"] = con_mondo
+    m["test_file_allestimento"] = allestimento
+    m["test_file_con_flusso"] = con_mondo - allestimento
     m["test_file_con_turnmanager"] = con_tm
     m["quota_mondo"] = round(100.0 * con_mondo / n_file, 1) if n_file else 0.0
     m["quota_turnmanager"] = round(100.0 * con_tm / n_file, 1) if n_file else 0.0
@@ -385,6 +412,8 @@ def stampa(m, base=None, markdown=False):
     riga("test unici", "test_unici")
     riga("file di test che spawnano un Actor", "test_file_con_mondo")
     riga("quota test con mondo", "quota_mondo", " %")
+    riga("  di cui girano il flusso del turno", "test_file_con_flusso")
+    riga("  di cui ALLESTISCONO soltanto", "test_file_allestimento")
     riga("file di test che dipendono dal TurnManager", "test_file_con_turnmanager")
     riga("quota test col TurnManager", "quota_turnmanager", " %")
     riga("funzioni >= %d righe" % m["soglia"], "funzioni_lunghe")

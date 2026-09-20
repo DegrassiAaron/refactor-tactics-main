@@ -155,6 +155,102 @@ enum class ERTAssertionKind : uint8
 	EffectiveTargetEquals
 };
 /**
+ * I CONFINI a cui un'assertion puo' chiedere di essere valutata (`#2867`).
+ *
+ * 🔑 **Sono confini SEMANTICI della simulazione, e l'elenco e' chiuso apposta.** Ognuno corrisponde a una
+ * macro-fase che `URTTurnRules::NextPhase` gia' attraversa e che `ARTTurnManager::RunPhaseLoop` chiude una
+ * volta per turno: non c'e' nessun confine nuovo da inventare, solo un nome per uno che esisteva.
+ *
+ * ⛔ **Niente frame, `DeltaTime`, timeline o callback di animazione, e il formato lo RIFIUTA invece di
+ * scoraggiarlo**: il nome si risolve per riflessione su questo enum, quindi `"at": "afterFrame"` non viene
+ * ignorato — esce un errore che elenca i sei confini legali. E' l'invariante 6 di `AGENTS.md` resa
+ * strutturale: non si puo' scrivere un checkpoint di presentazione nemmeno volendo.
+ *
+ * ⚠️ **`CleanupEnded` e' il default, e vale «come prima»**: un'assertion che non dichiara `at` si valuta a
+ * fine turno, che e' dove si e' sempre valutata. Aggiungere questo campo non cambia nessuno dei file gia'
+ * scritti.
+ *
+ * ---
+ *
+ * **Quando usarli, e quando no.** Sono regole d'uso, non vincoli del parser: il formato non puo' farle
+ * rispettare, e uno scenario che le ignora resta valido e diventa illeggibile.
+ *
+ * · **`CleanupEnded` per default.** Non si dichiara un confine perche' si puo': un'assertion di stato finale
+ *   e' piu' robusta, perche' non si rompe quando il resolver riordina il lavoro DENTRO il turno senza
+ *   cambiarne l'esito.
+ * · **Un confine di fase quando serve individuare DOVE cambia lo stato** — «al `Blast` era ancora li'» —
+ *   cioe' quando il difetto che si teme e' *dove*, non *se*.
+ * · **`afterEvent` per cio' che accade DENTRO una fase**: Overwatch, hazard, interruzioni, reazioni. Un
+ *   confine di fase non sa localizzarli, perche' la fase li contiene tutti.
+ * · ⛔ **Micro-step solo se la cella attraversata e' parte esplicita di una regola.** Un checkpoint per ogni
+ *   passo trasformerebbe l'harness in un osservatore piu' fine del gioco, e la sua caduta direbbe «il
+ *   percorso e' diverso» invece di «la regola e' rotta». Oggi il formato non li esprime, e questa riga dice
+ *   perche' non e' una lacuna da riempire di slancio.
+ * · ⛔ **Niente snapshot completi dopo ogni fase.** Assertion mirate: un confronto totale a ogni confine e'
+ *   un golden che nessuno rilegge, e diventa rosso a ogni ritocco di bilanciamento invece che al difetto.
+ */
+UENUM()
+enum class ERTScenarioCheckpoint : uint8
+{
+	/** Il lock-in e' avvenuto, nessuna fase ha ancora risolto: lo stato e' quello su cui il turno partira'. */
+	PlanningLocked,
+	PrepEnded,
+	DashEnded,
+	/** 🔑 Il confine piu' utile: qui le unita' sono ancora dove hanno COLPITO, prima che il Move le sposti. */
+	BlastEnded,
+	MoveEnded,
+	/** Fine turno. E' il default, ed e' dove le assertion si sono sempre valutate. */
+	CleanupEnded
+};
+
+/**
+ * Il selettore SEMANTICO di un evento del TurnLog: `afterEvent` (`#2867`).
+ *
+ * ⛔ **Non un indice posizionale, ed e' la lezione di `#2863` che non si ripete al contrario.** «Dopo il
+ * terzo evento» cambia significato ogni volta che il resolver ne aggiunge uno, e cambia in **silenzio**:
+ * l'assertion continua a passare misurando un altro momento. Qui si dichiara CHE COSA deve essere successo
+ * — categoria, esito, azione, chi ha agito — e il confine e' il **primo** evento che lo soddisfa.
+ *
+ * ⚠️ «Il primo che lo soddisfa» non e' un indice travestito: un indice conta gli eventi che non ti
+ * interessano, questo li ignora. Se ne servisse il secondo, il criterio da stringere e' il selettore.
+ *
+ * Il vocabolario e' quello che le assertion sul TurnLog gia' parlano — `category`, `outcome`, `actionId` —
+ * piu' `unit`, e nessun campo nuovo: un secondo dialetto sullo stesso dato divergerebbe dal primo.
+ */
+USTRUCT()
+struct FRTScenarioEventSelector
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	ERTLogCategory Category = ERTLogCategory::Move;
+
+	UPROPERTY()
+	bool bHasCategory = false;
+
+	/** L'esito, il cui significato dipende dalla categoria. Stessa convenzione di `FRTTurnLogEntry`. */
+	UPROPERTY()
+	uint8 Outcome = 0;
+
+	UPROPERTY()
+	bool bHasOutcome = false;
+
+	/** Filtro esatto sull'`FName`, mai per prefisso: `Status.Burning` e `Status.Burning.Tick` sono due eventi. */
+	UPROPERTY()
+	FName ActionId;
+
+	/** Chi ha agito, con lo **Stable Unit ID dello scenario** — lo stesso `id` che `units` dichiara. */
+	UPROPERTY()
+	FString Unit;
+
+	/** Almeno un criterio: un selettore vuoto corrisponderebbe al primo evento qualunque, cioe' a niente. */
+	bool IsDeclared() const
+	{
+		return bHasCategory || bHasOutcome || !ActionId.IsNone() || !Unit.IsEmpty();
+	}
+};
+
+/**
  * Una chiave `_*` del file: **documentazione incorporata**, che il loader non interpreta e il writer deve
  * restituire.
  *
@@ -1012,6 +1108,50 @@ struct FRTTestExpectation
 	bool bHasThenPhase = false;
 
 	/**
+	 * QUANDO valutare questa assertion (`#2867`). Assente = `CleanupEnded`, cioe' fine turno: il
+	 * comportamento che ogni file gia' scritto ha sempre avuto.
+	 *
+	 * 🔑 **Serve quando il difetto e' DOVE, non SE.** Un'unita' puo' finire nella cella giusta per la ragione
+	 * sbagliata — o essere giusta al `Blast` e rimessa a posto dal `Move` — e lo stato finale non distingue i
+	 * due casi. `LogEventOrder` copre l'ordine relativo di due EVENTI, che e' meno: dice cosa e' successo
+	 * prima di cosa, non cosa era vero al confine di una fase.
+	 *
+	 * ⛔ **Il checkpoint LEGGE, la simulazione decide.** Non e' una sospensione: `ARTTurnManager` notifica che
+	 * una fase si e' chiusa e non attende risposta, quindi l'harness non acquista nessuna autorita' sul
+	 * turno. La domanda «osserva o sospende?» e' stata decisa per i casi d'uso — tutti quelli elencati
+	 * chiedono di LEGGERE uno stato — e non per abitudine: una sospensione sarebbe un seam che nessuno usa.
+	 *
+	 * ⚠️ **Assertion mirate, non snapshot per fase.** Un confronto completo a ogni confine sarebbe un golden
+	 * che nessuno rilegge, e renderebbe rosso ogni ritocco di bilanciamento invece del difetto.
+	 */
+	UPROPERTY()
+	ERTScenarioCheckpoint At = ERTScenarioCheckpoint::CleanupEnded;
+
+	/**
+	 * La chiave `at` era presente nel file.
+	 *
+	 * ⚠️ Non deducibile da `At`: `CleanupEnded` e' il default *e* un confine dichiarabile. Stessa convenzione
+	 * dei gemelli del formato — `bHasLogPhase`, `bTargetsCell`, `bHasSelector`, `bHasMapRadius`.
+	 */
+	UPROPERTY()
+	bool bHasCheckpoint = false;
+
+	/**
+	 * In alternativa a `at`: valuta questa assertion subito dopo il PRIMO evento che soddisfa il selettore.
+	 *
+	 * E' il confine che serve a Overwatch, hazard, interruzioni e reazioni — fatti che accadono **dentro** una
+	 * fase, e che un confine di fase non riesce a localizzare.
+	 *
+	 * ⛔ `at` e `afterEvent` non convivono: sono due risposte alla stessa domanda, e un file che le dichiari
+	 * entrambe non dice quale intende. Il loader lo rifiuta.
+	 */
+	UPROPERTY()
+	FRTScenarioEventSelector AfterEvent;
+
+	UPROPERTY()
+	bool bHasAfterEvent = false;
+
+	/**
 	 * Le chiavi `_*` che il file dichiarava su QUESTO oggetto, in ordine ALFABETICO di chiave.
 	 *
 	 * ⚠️ **Alfabetico e non «come stavano nel file», e la differenza e' misurabile in un diff.** L'ordine
@@ -1059,6 +1199,21 @@ struct FRTTestScenario
 	 */
 	UPROPERTY()
 	TArray<FString> Tags;
+
+	/**
+	 * ID delle voci PIE che questo allestimento permette di giudicare — `PIE-V01-LOG`.
+	 *
+	 * ⛔ **Solo gli ID, mai l'esito atteso né la domanda.** E' la stessa regola che
+	 * `docs/roadmap/editor-sessions.yaml` esiste per far rispettare: l'esito atteso vive in
+	 * `docs/technical/test-manuali-pie.md`, che ne resta l'unico owner. Una domanda scritta qui sarebbe
+	 * una terza copia derivata di un testo che gia' ne ha due, e che gia' divergono.
+	 *
+	 * Lo legge il conduttore di seduta (`URTPieSessionPlaylist`) per comporre la coda: uno scenario che
+	 * ne dichiara sette si apre una volta e produce sette passi. Un ID scritto qui e assente dal registro
+	 * e' un errore, e `RefactorTactics.PieSession.CatalogDeclaresOnlyRealItems` lo rende rosso.
+	 */
+	UPROPERTY()
+	TArray<FString> Verifies;
 
 	/**
 	 * ID di scenario dell'unita' da **selezionare** quando lo scenario parte con un giocatore presente (PIE).
