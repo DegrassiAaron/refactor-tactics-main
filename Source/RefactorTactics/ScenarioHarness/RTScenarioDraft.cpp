@@ -22,6 +22,12 @@ void FRTScenarioDraft::NewScenario(const FString& ScenarioId, int32 MapRadius)
 	Scenario = FRTTestScenario();
 	Scenario.ScenarioId = ScenarioId;
 	Scenario.MapRadius = MapRadius;
+	// 🔑 **Un raggio passato per argomento E' una dichiarazione**, e senza questa riga non lo sarebbe. Il
+	// writer omette `mapRadius` quando il file non lo dichiarava e il valore coincide col default (`#3118`,
+	// per non materializzarlo nei file a `fixture` dove e' inerte): uno scenario creato qui col raggio di
+	// default finirebbe altrimenti su disco SENZA dire la propria forma, pur essendo ad arena generata —
+	// cioe' proprio dove il campo e' portante. Rileggerlo darebbe lo stesso 3, ma il file non lo direbbe piu'.
+	Scenario.bHasMapRadius = true;
 	SourcePath.Reset();
 	bOpen = true;
 	ForgetLastRun();

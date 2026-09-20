@@ -1984,4 +1984,169 @@ bool FRTScenarioCostlyCorridorTest::RunTest(const FString&)
 // `WITH_DEV_AUTOMATION_TESTS` vale 1 e nessuno se ne accorge; in **Shipping** vale 0, gli helper del
 // namespace anonimo spariscono e i test rimasti fuori non compilano. Un `Compile: PASS` su Development
 // non vede niente di tutto questo.
+// --- i CONFINI, in esecuzione (`#2867`) ------------------------------------------------------------------
+
+/**
+ * Un checkpoint di fase LEGGE uno stato che il solo stato finale non porta piu'.
+ *
+ * 🔑 **Il test e' un CONFRONTO, non un'asserzione singola**, ed e' l'unico modo di dimostrare che il
+ * checkpoint aggiunge qualcosa: la stessa domanda — dov'e' A1 — posta a due confini deve dare due risposte
+ * diverse. Se un giorno il checkpoint smettesse di leggere il confine e leggesse la fine del turno, le due
+ * risposte coinciderebbero e questo test cadrebbe; un test che guardasse solo `BlastEnded` resterebbe verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCheckpointReadsPhaseBoundaryTest,
+	"RefactorTactics.Scenario.CheckpointReadsThePhaseBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCheckpointReadsPhaseBoundaryTest::RunTest(const FString&)
+{
+	// A1 colpisce da (-1,0,0) e poi arretra a (-2,0,0). Gli attacchi usano la posizione PRIMA del movimento,
+	// quindi i due confini vedono due celle diverse. Allestimento di `Combat.BasicAttack`, che e' versionato
+	// e verde: l'unica differenza e' il `move`.
+	FRTTestScenario S;
+	S.ScenarioId = TEXT("Probe.Checkpoint.BlastThenMove");
+	S.Version = 7;
+	S.MapRadius = 4;
+	{
+		FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0;
+		A.Cell = FRTCellId(-1, 0, 0); S.Units.Add(A);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1;
+		B.Cell = FRTCellId(1, 0, 0); S.Units.Add(B);
+	}
+	{
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("A1");
+		I.Ability = TEXT("Hero.Aevik.ArcPulse");
+		I.Target = TEXT("B1");
+		I.Move.Add(FRTCellId(-2, 0, 0));
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+	}
+	{
+		// Al confine del Blast: dove ha colpito.
+		FRTTestExpectation AtBlast;
+		AtBlast.Kind = ERTAssertionKind::UnitAtCell;
+		AtBlast.UnitId = TEXT("A1");
+		AtBlast.Cell = FRTCellId(-1, 0, 0);
+		AtBlast.At = ERTScenarioCheckpoint::BlastEnded;
+		AtBlast.bHasCheckpoint = true;
+		S.Expect.Add(AtBlast);
+
+		// A fine turno: dove e' arrivata. La stessa domanda, l'altra risposta.
+		FRTTestExpectation AtEnd;
+		AtEnd.Kind = ERTAssertionKind::UnitAtCell;
+		AtEnd.UnitId = TEXT("A1");
+		AtEnd.Cell = FRTCellId(-2, 0, 0);
+		S.Expect.Add(AtEnd);
+	}
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+	const FRTTestResult Result = URTScenarioRunner::Run(World, S);
+	DestroyRunnerWorld(World);
+
+	TestEqual(TEXT("lo scenario passa"), Result.OutcomeString(), FString(TEXT("PASS")));
+	if (!TestEqual(TEXT("due assertion nel referto"), Result.Assertions.Num(), 2)) { return false; }
+
+	// Il referto NOMINA il confine: senza, due assertion identiche a due momenti diversi sarebbero
+	// indistinguibili in un log, e chi legge un rosso non saprebbe quale delle due e' caduta.
+	int32 Nominate = 0;
+	for (const FRTAssertionResult& A : Result.Assertions)
+	{
+		TestTrue(A.Description, A.bPassed);
+		if (A.Description.Contains(TEXT("BlastEnded"))) { ++Nominate; }
+	}
+	TestEqual(TEXT("una sola assertion nomina il confine"), Nominate, 1);
+
+	// 🔴 **La controprova che rende il test non vacuo**: se il checkpoint leggesse la fine del turno invece
+	// del confine, la cella sarebbe (-2,0,0) e la prima assertion cadrebbe. Lo si verifica chiedendo al
+	// confine la cella FINALE e pretendendo un FAIL — una scena in cui il verde sarebbe il difetto.
+	FRTTestScenario Confusa = S;
+	Confusa.ScenarioId = TEXT("Probe.Checkpoint.BlastThenMove.Confusa");
+	Confusa.Expect[0].Cell = FRTCellId(-2, 0, 0); // la cella di FINE turno, chiesta al confine del Blast
+
+	UWorld* World2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), World2)) { return false; }
+	const FRTTestResult Sbagliata = URTScenarioRunner::Run(World2, Confusa);
+	DestroyRunnerWorld(World2);
+
+	TestEqual(TEXT("chiedere la cella finale al confine del Blast FALLISCE"),
+		Sbagliata.OutcomeString(), FString(TEXT("FAIL")));
+
+	return true;
+}
+
+/**
+ * `afterEvent` si aggancia al PRIMO evento che soddisfa il selettore, e un confine mai raggiunto e' un FAIL.
+ *
+ * 🔴 **La seconda meta' e' la piu' importante**: senza, un'assertion che nomina un evento mai avvenuto
+ * sparirebbe dal referto — zero assertion cadute, `PASS`. Un verde per assenza di misura e' l'esito
+ * peggiore, perche' nessuno va a guardarlo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCheckpointAfterEventTest,
+	"RefactorTactics.Scenario.CheckpointEvaluatesAfterASelectedEvent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCheckpointAfterEventTest::RunTest(const FString&)
+{
+	auto MakeScenario = [](bool bReachable)
+	{
+		FRTTestScenario S;
+		S.ScenarioId = bReachable ? TEXT("Probe.AfterEvent.Reached") : TEXT("Probe.AfterEvent.Never");
+		S.Version = 7;
+		S.MapRadius = 4;
+		FRTScenarioUnit A; A.Id = TEXT("A1"); A.HeroId = TEXT("Hero.Aevik"); A.TeamId = 0;
+		A.Cell = FRTCellId(-1, 0, 0); S.Units.Add(A);
+		FRTScenarioUnit B; B.Id = TEXT("B1"); B.HeroId = TEXT("Hero.Branth"); B.TeamId = 1;
+		B.Cell = FRTCellId(1, 0, 0); S.Units.Add(B);
+
+		FRTScenarioTurn T;
+		FRTScenarioIntent I;
+		I.UnitId = TEXT("A1");
+		I.Ability = TEXT("Hero.Aevik.ArcPulse");
+		I.Target = TEXT("B1");
+		T.Intents.Add(I);
+		S.Turns.Add(T);
+
+		FRTTestExpectation E;
+		E.Kind = ERTAssertionKind::UnitAlive;
+		E.UnitId = TEXT("B1");
+		E.Value = 1;
+		E.bHasAfterEvent = true;
+		E.AfterEvent.bHasCategory = true;
+		// `Combat` avviene davvero; `Objective` in questa scena non esiste — non c'e' nessuna cella
+		// contendibile — quindi il selettore non sara' mai soddisfatto.
+		E.AfterEvent.Category = bReachable ? ERTLogCategory::Combat : ERTLogCategory::Objective;
+		S.Expect.Add(E);
+		return S;
+	};
+
+	UWorld* W1 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 1"), W1)) { return false; }
+	const FRTTestResult Raggiunto = URTScenarioRunner::Run(W1, MakeScenario(true));
+	DestroyRunnerWorld(W1);
+
+	TestEqual(TEXT("l'evento avviene e l'assertion si valuta"), Raggiunto.OutcomeString(), FString(TEXT("PASS")));
+	if (TestEqual(TEXT("una assertion"), Raggiunto.Assertions.Num(), 1))
+	{
+		TestTrue(TEXT("e il referto nomina il selettore"),
+			Raggiunto.Assertions[0].Description.Contains(TEXT("afterEvent")));
+	}
+
+	UWorld* W2 = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world 2"), W2)) { return false; }
+	const FRTTestResult MaiRaggiunto = URTScenarioRunner::Run(W2, MakeScenario(false));
+	DestroyRunnerWorld(W2);
+
+	TestEqual(TEXT("un confine mai raggiunto e' un FAIL, non un silenzio"),
+		MaiRaggiunto.OutcomeString(), FString(TEXT("FAIL")));
+	if (TestEqual(TEXT("e compare comunque nel referto"), MaiRaggiunto.Assertions.Num(), 1))
+	{
+		TestFalse(TEXT("caduta"), MaiRaggiunto.Assertions[0].bPassed);
+		TestTrue(FString::Printf(TEXT("e dice PERCHE' (era: '%s')"), *MaiRaggiunto.Assertions[0].Actual),
+			MaiRaggiunto.Assertions[0].Actual.Contains(TEXT("nessun evento")));
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

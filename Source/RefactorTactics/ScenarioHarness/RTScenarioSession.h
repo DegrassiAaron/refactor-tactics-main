@@ -218,6 +218,31 @@ private:
 	/** Azzera i piani, calcola l'hash dello stato e valuta le assertion. */
 	void Finish();
 
+	/**
+	 * Valuta UNA assertion sullo stato del mondo **in questo istante**.
+	 *
+	 * Estratta da `Finish()` quando le assertion hanno smesso di avere un solo momento (`#2867`).
+	 */
+	FRTAssertionResult EvaluateExpectation(const FRTTestExpectation& Exp);
+
+	/** Una macro-fase si e' chiusa: valuta le assertion che dichiarano quel confine. Vedi `#2867`. */
+	void OnResolutionPhaseClosed(ERTMatchPhase Closed);
+
+	/** Scioglie le PROPRIE iscrizioni ai confini. Incondizionata: ognuno scioglie solo la sua. */
+	void UnbindResolutionObservers();
+
+	/** Una voce e' entrata nel TurnLog: valuta le assertion il cui `afterEvent` la seleziona. */
+	void OnResolutionLogEntry(const FRTTurnLogEntry& Entry);
+
+	/** La voce soddisfa il selettore semantico? Confronto per CRITERI dichiarati, mai per posizione. */
+	bool EventMatchesSelector(const FRTScenarioEventSelector& Selector, const FRTTurnLogEntry& Entry) const;
+
+	/** Il confine dichiarato da un'assertion, in parole: `BlastEnded`, `afterEvent(Combat/Hit)`. */
+	static FString DescribeCheckpoint(const FRTTestExpectation& Exp);
+
+	/** Il nome del tipo di assertion, per i referti che non passano da `EvaluateExpectation`. */
+	static FString DescribeExpectationKind(const FRTTestExpectation& Exp);
+
 	EState State = EState::NotStarted;
 	FRTTestScenario Scenario;
 	FRTTestResult Result;
@@ -322,6 +347,29 @@ private:
 	 * niente delle sequenze. `LogEventOrder` deve leggere questa.
 	 */
 	TArray<FRTTurnLogEntry> ScenarioLog;
+
+	/**
+	 * Gli INDICI di `Scenario.Expect` il cui confine e' gia' passato, con l'assertion gia' valutata.
+	 *
+	 * 🔑 **Serve a distinguere «valutata e caduta» da «mai misurata»**, che sono due referti diversi e che
+	 * senza questo insieme si confonderebbero in un silenzio. A fine scenario `Finish()` scorre cio' che NON
+	 * e' qui dentro e lo dichiara `FAIL` nominando il confine mai raggiunto: un'assertion che non e' stata
+	 * misurata non e' un'assertion passata.
+	 *
+	 * ⚠️ Indici e non puntatori: `Scenario.Expect` non cambia durante una corsa, e un indice sopravvive alla
+	 * copia del referto.
+	 */
+	TSet<int32> FiredCheckpoints;
+
+	/**
+	 * Le iscrizioni ai confini di risoluzione, per poterle sciogliere.
+	 *
+	 * ⛔ **Si sciolgono in `TearDown`, sempre**: la sessione muore prima del `TurnManager`, e un delegate
+	 * ancora agganciato chiamerebbe su un oggetto distrutto — la stessa ragione per cui `UnbindOwnDecider`
+	 * esiste, e lo stesso rigore.
+	 */
+	FDelegateHandle PhaseClosedHandle;
+	FDelegateHandle LogEntryHandle;
 
 	/** Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito. */
 	int32 ResolveTicks = 0;

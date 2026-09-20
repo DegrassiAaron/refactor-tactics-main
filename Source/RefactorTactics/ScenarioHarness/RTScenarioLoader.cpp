@@ -17,6 +17,126 @@
 
 namespace
 {
+	using FRTNoteJsonWriter = TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>;
+
+	/**
+	 * I campi di un oggetto JSON come coppie `FString`, ORDINATI per chiave.
+	 *
+	 * ⚠️ Due ragioni, e nessuna e' di stile. La prima: `FJsonObject::Values` e' una `TMap`, e il suo ordine di
+	 * iterazione non e' quello d'inserimento — e' l'invariante 1 di `RTScenarioWriter.cpp`. La seconda: dalla
+	 * 5.8 le sue chiavi non sono `FString` ma `UE::FSharedString`, quindi `GetKeys` e `operator[]` non ne
+	 * accettano una, e la conversione va fatta in un posto solo: qui.
+	 */
+	TArray<TPair<FString, TSharedPtr<FJsonValue>>> SortedFields(const TSharedPtr<FJsonObject>& Obj)
+	{
+		TArray<TPair<FString, TSharedPtr<FJsonValue>>> Fields;
+		if (!Obj.IsValid()) { return Fields; }
+
+		Fields.Reserve(Obj->Values.Num());
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Obj->Values)
+		{
+			Fields.Emplace(Field.Key, Field.Value);
+		}
+		Fields.Sort([](const TPair<FString, TSharedPtr<FJsonValue>>& A,
+			const TPair<FString, TSharedPtr<FJsonValue>>& B) { return A.Key < B.Key; });
+		return Fields;
+	}
+
+	/**
+	 * Un valore JSON riscritto nel writer, con le chiavi degli oggetti ORDINATE.
+	 *
+	 * ⚠️ **L'ordinamento non e' estetica, e non e' nemmeno una preferenza: e' l'unico modo di renderlo
+	 * deterministico.** `FJsonObject::Values` e' una `TMap`, e l'ordine in cui la si itera non e' quello
+	 * d'inserimento — e' la stessa proprieta' che `RTScenarioWriter.cpp` dichiara in testa come ragione per
+	 * scrivere i campi uno per uno. Senza il `Sort()` qui sotto, due salvataggi dello stesso scenario
+	 * produrrebbero due testi diversi per la medesima nota annidata, e un diff di PR diventerebbe rumore.
+	 *
+	 * L'escape lo fa il writer di Unreal, non una routine scritta a mano: cosi' una nota esce dallo stesso
+	 * escaping di ogni altra stringa del file, invece che da un secondo dialetto.
+	 */
+	void WriteCanonicalJsonValue(const TSharedRef<FRTNoteJsonWriter>& W, const TSharedPtr<FJsonValue>& Value)
+	{
+		if (!Value.IsValid()) { W->WriteNull(); return; }
+
+		switch (Value->Type)
+		{
+		case EJson::String:  W->WriteValue(Value->AsString()); break;
+		case EJson::Number:  W->WriteValue(Value->AsNumber()); break;
+		case EJson::Boolean: W->WriteValue(Value->AsBool()); break;
+		case EJson::Null:    W->WriteNull(); break;
+
+		case EJson::Array:
+			W->WriteArrayStart();
+			for (const TSharedPtr<FJsonValue>& Item : Value->AsArray())
+			{
+				WriteCanonicalJsonValue(W, Item);
+			}
+			W->WriteArrayEnd();
+			break;
+
+		case EJson::Object:
+		{
+			const TSharedPtr<FJsonObject> Obj = Value->AsObject();
+			W->WriteObjectStart();
+			if (Obj.IsValid())
+			{
+				for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : SortedFields(Obj))
+				{
+					W->WriteIdentifierPrefix(Field.Key);
+					WriteCanonicalJsonValue(W, Field.Value);
+				}
+			}
+			W->WriteObjectEnd();
+			break;
+		}
+
+		default:
+			W->WriteNull();
+			break;
+		}
+	}
+
+	/** Il testo JSON canonico di un valore, come `FRTScenarioNote::RawJson` lo conserva. */
+	FString CanonicalNoteJson(const TSharedPtr<FJsonValue>& Value)
+	{
+		// Si scrive dentro un ARRAY e poi se ne tolgono le parentesi: un writer JSON non accetta un valore
+		// nudo alla radice, e questa e' la strada che non duplica ne' l'escaping ne' la formattazione dei
+		// numeri. Le due parentesi sono sempre esattamente un carattere ciascuna.
+		FString Scratch;
+		const TSharedRef<FRTNoteJsonWriter> W =
+			TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Scratch);
+		W->WriteArrayStart();
+		WriteCanonicalJsonValue(W, Value);
+		W->WriteArrayEnd();
+		W->Close();
+
+		return (Scratch.Len() >= 2) ? Scratch.Mid(1, Scratch.Len() - 2) : FString();
+	}
+
+	/**
+	 * Raccoglie le chiavi `_*` di un oggetto del file, in ORDINE ALFABETICO di chiave.
+	 *
+	 * 🔑 **Perche' alfabetico e non «come stavano nel file»**: `FJsonObject::Values` e' una `TMap` e l'ordine
+	 * originale non e' piu' recuperabile dopo il parsing — il file lo ha gia' perso. Fra un ordine arbitrario
+	 * per hash e uno dichiarato, l'unico che rende il salvataggio riproducibile e' il secondo.
+	 *
+	 * ⚠️ Conserva TUTTO cio' che comincia per `_`, senza sapere cosa significhi: e' precisamente la ragione
+	 * per cui il loader le salta invece di rifiutarle. Interpretarle qui le trasformerebbe in campi del
+	 * formato, cioe' in qualcosa che il gate di `version` dovrebbe ammettere.
+	 */
+	void CollectNotes(const TSharedPtr<FJsonObject>& Obj, TArray<FRTScenarioNote>& OutNotes)
+	{
+		if (!Obj.IsValid()) { return; }
+
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : SortedFields(Obj))
+		{
+			if (Field.Key.StartsWith(TEXT("_")))
+			{
+				OutNotes.Emplace(Field.Key, CanonicalNoteJson(Field.Value));
+			}
+		}
+	}
+
 	/**
 	 * Una direzione esagonale dal suo nome (`E`, `NE`, `NW`, `W`, `SW`, `SE`), maiuscole indifferenti.
 	 *
@@ -342,6 +462,175 @@ namespace
 	}
 
 	/**
+	 * `at`: il CONFINE a cui valutare l'assertion (`#2867`). Assente = `CleanupEnded`, cioe' come prima.
+	 *
+	 * ⛔ **Qui il formato RIFIUTA un ancoraggio di presentazione invece di scoraggiarlo**, ed e' la ragione
+	 * per cui il nome si risolve per riflessione su un enum chiuso: `"at": "afterFrame"` non viene ignorato,
+	 * esce un errore che elenca i sei confini legali. L'invariante 6 di `AGENTS.md` — niente `DeltaTime`,
+	 * timeline o callback di animazione nel resolver competitivo — diventa cosi' strutturale invece che
+	 * documentale: un checkpoint di frame non e' scrivibile nemmeno volendo.
+	 */
+	bool ParseScenarioCheckpoint(const TSharedPtr<FJsonObject>& Obj, ERTScenarioCheckpoint& OutAt,
+		bool& bOutHasAt, FString& OutError)
+	{
+		FString Text;
+		if (!Obj->TryGetStringField(TEXT("at"), Text))
+		{
+			bOutHasAt = false;
+			return true;
+		}
+
+		const UEnum* Enum = StaticEnum<ERTScenarioCheckpoint>();
+		const int64 Value = Enum ? Enum->GetValueByNameString(Text) : INDEX_NONE;
+		if (Value == INDEX_NONE)
+		{
+			// L'elenco si GENERA dall'enum, come per le fasi: un elenco scritto a mano invecchia e manda a
+			// concludere che il vocabolario non esista.
+			TArray<FString> Nomi;
+			if (Enum)
+			{
+				for (int32 I = 0; I < Enum->NumEnums() - 1; ++I) { Nomi.Add(Enum->GetNameStringByIndex(I)); }
+			}
+			OutError = FString::Printf(
+				TEXT("expect: checkpoint '%s' sconosciuto in 'at' (previsti: %s). Un confine di ")
+				TEXT("PRESENTAZIONE — frame, DeltaTime, timeline, callback di animazione — non e' ")
+				TEXT("dichiarabile: il resolver competitivo non ne ha (AGENTS.md, invariante 6)"),
+				*Text, *FString::Join(Nomi, TEXT(", ")));
+			return false;
+		}
+		OutAt = static_cast<ERTScenarioCheckpoint>(Value);
+		bOutHasAt = true;
+		return true;
+	}
+
+	/**
+	 * `afterEvent`: il selettore SEMANTICO dell'evento dopo il quale valutare l'assertion (`#2867`).
+	 *
+	 * Parla il vocabolario che le assertion sul TurnLog gia' usano — `category`, `outcome`, `actionId` — piu'
+	 * `unit`. ⛔ Nessun indice: «dopo il terzo evento» cambierebbe significato in silenzio ogni volta che il
+	 * resolver ne aggiunge uno.
+	 */
+	bool ParseScenarioAfterEvent(const TSharedPtr<FJsonObject>& Obj, FRTScenarioEventSelector& OutSelector,
+		bool& bOutHas, FString& OutError)
+	{
+		const TSharedPtr<FJsonObject>* EventObj = nullptr;
+		if (!Obj->HasField(TEXT("afterEvent")))
+		{
+			bOutHas = false;
+			return true;
+		}
+		// PRESENZA prima del tipo: `TryGetObjectField` su una chiave presente ma di tipo sbagliato tornerebbe
+		// `false`, e il campo verrebbe trattato come assente — silenzio su un file scritto male.
+		if (!Obj->TryGetObjectField(TEXT("afterEvent"), EventObj) || !EventObj || !EventObj->IsValid())
+		{
+			OutError = TEXT("expect: 'afterEvent' deve essere un oggetto con almeno un criterio");
+			return false;
+		}
+
+		static const TSet<FString> KnownEventKeys = {
+			TEXT("category"), TEXT("outcome"), TEXT("actionId"), TEXT("unit")
+		};
+		TArray<FString> Unknown;
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : (*EventObj)->Values)
+		{
+			if (Field.Key.StartsWith(TEXT("_"))) { continue; }
+			if (!KnownEventKeys.Contains(Field.Key)) { Unknown.Add(Field.Key); }
+		}
+		if (Unknown.Num() > 0)
+		{
+			Unknown.Sort();
+			TArray<FString> Expected = KnownEventKeys.Array();
+			Expected.Sort();
+			OutError = FString::Printf(
+				TEXT("expect: 'afterEvent' ha una chiave sconosciuta '%s' (previste: %s). ⛔ Un indice ")
+				TEXT("posizionale non e' fra queste, ed e' deliberato: cambierebbe significato in silenzio ")
+				TEXT("al primo evento aggiunto dal resolver"),
+				*Unknown[0], *FString::Join(Expected, TEXT(", ")));
+			return false;
+		}
+
+		// ⛔ **I criteri sono OPZIONALI, e per questo non si passa da `ParseScenarioLogEvent`**: quella
+		// funzione serve un'assertion che l'evento lo DESCRIVE, quindi pretende categoria ed esito entrambi.
+		// Un selettore invece li DICHIARA a scelta — «dopo il primo colpo, chiunque lo tiri» e' un criterio
+		// legittimo. Usarla qui rifiutava ogni `afterEvent` che non li portasse tutti e due, ed e' il difetto
+		// che i test di questa stessa fetta hanno trovato.
+		//
+		// ⚠️ Gli ENUM restano gli stessi, risolti per riflessione: il vocabolario e' uno solo, e una tabella
+		// locale divergerebbe al primo valore aggiunto. Cambia la obbligatorieta', non il significato.
+		FString CategoryText;
+		if ((*EventObj)->TryGetStringField(TEXT("category"), CategoryText))
+		{
+			const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
+			const int64 CategoryValue =
+				CategoryEnum ? CategoryEnum->GetValueByNameString(CategoryText) : INDEX_NONE;
+			if (CategoryValue == INDEX_NONE)
+			{
+				OutError = FString::Printf(
+					TEXT("expect: 'afterEvent' ha una categoria '%s' sconosciuta (previste: %s)"),
+					*CategoryText, *EnumNameList(CategoryEnum));
+				return false;
+			}
+			OutSelector.Category = static_cast<ERTLogCategory>(CategoryValue);
+			OutSelector.bHasCategory = true;
+		}
+
+		FString OutcomeText;
+		if ((*EventObj)->TryGetStringField(TEXT("outcome"), OutcomeText))
+		{
+			// ⚠️ **`outcome` senza `category` non significa niente**, e accettarlo darebbe un selettore che
+			// pare stretto e non lo e': l'esito e' un `uint8` il cui vocabolario lo decide la categoria.
+			// Senza categoria lo stesso numero corrisponderebbe a eventi di famiglie diverse.
+			if (!OutSelector.bHasCategory)
+			{
+				OutError = TEXT("expect: 'afterEvent' dichiara 'outcome' senza 'category' — il significato ")
+					TEXT("di un esito dipende dalla categoria, e da solo corrisponderebbe a eventi di ")
+					TEXT("famiglie diverse");
+				return false;
+			}
+
+			const UEnum* OutcomeEnum = URTScenarioLoader::OutcomeEnumForCategory(OutSelector.Category);
+			if (OutcomeEnum == nullptr)
+			{
+				// Stessa distinzione di `ParseScenarioLogEvent`: «categoria non asseribile» non e' «esito
+				// sbagliato», e manda a correggere il loader invece dello scenario.
+				OutError = FString::Printf(
+					TEXT("expect: 'afterEvent' con categoria %s non e' asseribile — non ha un enum di esiti ")
+					TEXT("in `URTScenarioLoader::OutcomeEnumForCategory`. Non e' un errore dello scenario: ")
+					TEXT("manca un caso nel loader, e va aggiunto li'."),
+					*CategoryText);
+				return false;
+			}
+
+			const int64 OutcomeValue = OutcomeEnum->GetValueByNameString(OutcomeText);
+			if (OutcomeValue == INDEX_NONE)
+			{
+				OutError = FString::Printf(
+					TEXT("expect: 'afterEvent' ha un esito '%s' sconosciuto per la categoria %s (previsti: %s)"),
+					*OutcomeText, *CategoryText, *EnumNameList(OutcomeEnum));
+				return false;
+			}
+			OutSelector.Outcome = static_cast<uint8>(OutcomeValue);
+			OutSelector.bHasOutcome = true;
+		}
+		if (!ParseScenarioLogActionId(*EventObj, TEXT("actionId"), OutSelector.ActionId, OutError))
+		{
+			return false;
+		}
+		(*EventObj)->TryGetStringField(TEXT("unit"), OutSelector.Unit);
+
+		if (!OutSelector.IsDeclared())
+		{
+			// Un selettore vuoto corrisponderebbe al primo evento qualunque, cioe' a un confine che dipende
+			// da cosa il resolver scrive per primo: precisamente l'indice posizionale, travestito.
+			OutError = TEXT("expect: 'afterEvent' senza criteri corrisponderebbe al primo evento qualunque — ")
+				TEXT("dichiara almeno 'category', 'outcome', 'actionId' o 'unit'");
+			return false;
+		}
+		bOutHas = true;
+		return true;
+	}
+
+	/**
 	 * Il core da cui un'azione d'EROE deriva, o `NAME_None` se l'id non e' di un'azione d'eroe.
 	 *
 	 * 🔑 Serve a rispondere «questa abilita' risolve su chi la usa?» per le azioni d'eroe, che nel
@@ -644,6 +933,7 @@ namespace
 				// `objective`: la cella contendibile (`#2269`). Prima di questa riga un obiettivo era
 				// esprimibile solo da una fixture, e l'unica che ne posi uno e' `RelayBasin`.
 				Obj->TryGetBoolField(TEXT("objective"), Cell.bIsObjective);
+				CollectNotes(Obj, Cell.Notes);
 				OutScenario.Cells.Add(Cell);
 			}
 		}
@@ -780,6 +1070,7 @@ namespace
 				{
 					Entry.Door.StableId = FName(*StableText);
 				}
+				CollectNotes(Obj, Entry.Notes);
 				OutScenario.Doors.Add(Entry);
 			}
 		}
@@ -957,6 +1248,7 @@ namespace
 				}
 			}
 
+			CollectNotes(Obj, Unit.Notes);
 			OutScenario.Units.Add(Unit);
 		}
 		return true;
@@ -1195,6 +1487,7 @@ namespace
 							return false;
 						}
 
+						CollectNotes(DecisionObj, Decision.Notes);
 						Turn.Decisions.Add(Decision);
 					}
 				}
@@ -1610,9 +1903,11 @@ namespace
 						// dovuto consumare cosa, e che sull'`ability` malformata diceva «nessuna ability che lo
 						// usi» mandando l'autore a cercare un campo che ha davanti agli occhi.
 
+						CollectNotes(IntentObj, Intent.Notes);
 						Turn.Intents.Add(Intent);
 					}
 				}
+				CollectNotes(TurnObj, Turn.Notes);
 				OutScenario.Turns.Add(Turn);
 			}
 		}
@@ -1848,6 +2143,61 @@ namespace
 						OutScenario.Version);
 					return false;
 				}
+
+				// --- il CONFINE a cui valutare (`#2867`) -----------------------------------------------------
+				if (!ParseScenarioCheckpoint(Obj, Exp.At, Exp.bHasCheckpoint, OutError)) { return false; }
+				if (!ParseScenarioAfterEvent(Obj, Exp.AfterEvent, Exp.bHasAfterEvent, OutError)) { return false; }
+
+				// ⛔ Sono due risposte alla STESSA domanda — «quando?» — e un file che le dichiari entrambe non
+				// dice quale intende. Rifiutare e' l'unica lettura che non ne sceglie una per l'autore.
+				if (Exp.bHasCheckpoint && Exp.bHasAfterEvent)
+				{
+					OutError = TEXT("expect: 'at' e 'afterEvent' non convivono — sono due modi di dichiarare ")
+						TEXT("QUANDO valutare l'assertion, e insieme non dicono quale si intende");
+					return false;
+				}
+				if ((Exp.bHasCheckpoint || Exp.bHasAfterEvent) && OutScenario.Version < 7)
+				{
+					OutError = FString::Printf(
+						TEXT("expect: il checkpoint ('at' / 'afterEvent') richiede \"version\": 7 ")
+						TEXT("(dichiarata: %d)"),
+						OutScenario.Version);
+					return false;
+				}
+
+				// --- chiavi ammesse in una voce di `expect` (`#2867`) ---------------------------------------
+				//
+				// 🔴 **Questo controllo non esisteva, e la sua assenza era la meta' piu' pericolosa del gate
+				// di versione.** Ogni altra sezione del formato — `turns`, `intents`, `decisions`, `on` — lo
+				// ha da tempo, e per la stessa ragione: un refuso veniva **ignorato**, non rifiutato. Su
+				// un'assertion questo significa che `"ate": "BlastEnded"` si valuterebbe a fine turno e
+				// uscirebbe VERDE misurando un altro momento — l'esito peggiore, perche' nessuno va a
+				// guardare un verde.
+				{
+					static const TSet<FString> KnownExpectKeys = {
+						TEXT("type"), TEXT("unit"), TEXT("cell"), TEXT("value"),
+						TEXT("category"), TEXT("outcome"), TEXT("actionId"), TEXT("phase"),
+						TEXT("thenCategory"), TEXT("thenOutcome"), TEXT("thenActionId"), TEXT("thenPhase"),
+						TEXT("at"), TEXT("afterEvent")
+					};
+					TArray<FString> UnknownExpectKeys;
+					for (const TPair<FString, TSharedPtr<FJsonValue>>& Field : Obj->Values)
+					{
+						if (Field.Key.StartsWith(TEXT("_"))) { continue; } // `_assertion` e simili: commenti
+						if (!KnownExpectKeys.Contains(Field.Key)) { UnknownExpectKeys.Add(Field.Key); }
+					}
+					if (UnknownExpectKeys.Num() > 0)
+					{
+						UnknownExpectKeys.Sort();
+						TArray<FString> Expected = KnownExpectKeys.Array();
+						Expected.Sort();
+						OutError = FString::Printf(TEXT("expect: chiave sconosciuta '%s' (previste: %s)"),
+							*UnknownExpectKeys[0], *FString::Join(Expected, TEXT(", ")));
+						return false;
+					}
+				}
+
+				CollectNotes(Obj, Exp.Notes);
 				OutScenario.Expect.Add(Exp);
 			}
 		}
@@ -1926,7 +2276,16 @@ bool URTScenarioLoader::LoadFromString(const FString& JsonText, FRTTestScenario&
 	// Solo presentazione: quale unita' selezionare in PIE per far comparire l'anteprima. Headless non fa nulla.
 	Root->TryGetStringField(TEXT("previewUnit"), OutScenario.PreviewUnit);
 	Root->TryGetStringField(TEXT("fixture"), OutScenario.Fixture);
+	// La PRESENZA della chiave si registra a parte dal valore: `mapRadius` e' inerte quando c'e' una fixture
+	// — la forma la decide la fixture — e senza questo booleano il writer lo scriveva comunque, materializzando
+	// in un file a fixture una chiave che quel file non aveva mai dichiarato. Vedi `bHasMapRadius`, `#3118`.
+	OutScenario.bHasMapRadius = Root->HasField(TEXT("mapRadius"));
 	Root->TryGetNumberField(TEXT("mapRadius"), OutScenario.MapRadius);
+
+	// Le chiavi `_*` della RADICE: la documentazione incorporata che il file porta sullo scenario intero.
+	// Ogni controllo di «chiave sconosciuta» piu' sotto le salta gia'; qui si conservano, perche' saltarle in
+	// lettura e non conoscerle in scrittura e' cio' che le cancellava a ogni salvataggio (`#3118`).
+	CollectNotes(Root, OutScenario.Notes);
 
 	// I tag, GREZZI. La chiave `tags` era gia' nel formato ma la leggeva solo `URTScenarioIndex::ReadHeader`:
 	// il loader la ignorava, quindi il modello in memoria non la portava e un `load → save` l'avrebbe
@@ -2443,6 +2802,30 @@ namespace
 		return true;
 	}
 
+	/**
+	 * L'assertion legge il TURNLOG accumulato invece dello stato del mondo?
+	 *
+	 * L'elenco e' quello dei `case` di `FRTScenarioSession::EvaluateExpectation` che iterano `ScenarioLog`.
+	 * ⚠️ Tenerlo allineato e' a carico di chi aggiunge un tipo: un tipo nuovo che leggesse il log senza
+	 * comparire qui tornerebbe ad accettare un confine che non puo' onorare. Il gate che se ne accorge e'
+	 * `Scenario.LoaderRejectsPresentationCheckpoints`, che li enumera uno per uno.
+	 */
+	bool ReadsTheTurnLog(ERTAssertionKind Kind)
+	{
+		return Kind == ERTAssertionKind::LogEventCount
+			|| Kind == ERTAssertionKind::LogEventAmount
+			|| Kind == ERTAssertionKind::LogEventOrder
+			|| Kind == ERTAssertionKind::OriginalTargetEquals
+			|| Kind == ERTAssertionKind::EffectiveTargetEquals;
+	}
+
+	/** Il nome del tipo di assertion, per riflessione: una tabella scritta a mano divergerebbe dall'enum. */
+	FString DescribeAssertionKind(ERTAssertionKind Kind)
+	{
+		const UEnum* Enum = StaticEnum<ERTAssertionKind>();
+		return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Kind)) : TEXT("assertion");
+	}
+
 	/** `expect`: ogni assertion punta a un'unita' schierata. */
 	bool ValidateScenarioExpectations(const FRTTestScenario& Scenario,
 		const TSet<FString>& SeenIds, FString& OutError)
@@ -2455,6 +2838,44 @@ namespace
 			if (bNeedsUnit && !SeenIds.Contains(Exp.UnitId))
 			{
 				OutError = FString::Printf(TEXT("assertion su un'unita' non schierata: '%s'"), *Exp.UnitId);
+				return false;
+			}
+			// 🔴 **Un'assertion sul TURNLOG non puo' dichiarare un confine, e il motivo e' un OROLOGIO
+			// DIVERSO** (`#2867`). Un checkpoint legge lo STATO del mondo nell'istante in cui il confine
+			// passa; queste cinque leggono invece `FRTScenarioSession::ScenarioLog`, che si riempie in
+			// `Step()` quando il turno ha finito di risolvere — cioe' DOPO ogni confine di quel turno, anche
+			// dopo `CleanupEnded`.
+			//
+			// Accettarle darebbe il difetto peggiore che questo loader conosca: l'assertion si valuterebbe su
+			// un log a cui manca il turno corrente, e uscirebbe VERDE o ROSSA misurando i turni precedenti —
+			// senza che niente lo dica. Il rifiuto arriva qui, e nomina l'alternativa che fa la stessa cosa
+			// per davvero.
+			if ((Exp.bHasCheckpoint || Exp.bHasAfterEvent) && ReadsTheTurnLog(Exp.Kind))
+			{
+				OutError = FString::Printf(
+					TEXT("assertion '%s': un'assertion sul TurnLog non puo' dichiarare 'at' o 'afterEvent'. ")
+					TEXT("Un checkpoint legge lo STATO a un confine; il log si accumula quando il turno ha ")
+					TEXT("finito di risolvere, quindi al confine mancherebbe il turno corrente e il verdetto ")
+					TEXT("riguarderebbe i turni precedenti. Per localizzare un evento nel turno usa il filtro ")
+					TEXT("'phase' su questa stessa assertion; per leggere uno stato dopo un evento usa ")
+					TEXT("'afterEvent' su un'assertion di STATO (UnitAtCell, UnitHpEquals, UnitAlive, ")
+					TEXT("UnitFacing)"),
+					*DescribeAssertionKind(Exp.Kind));
+				return false;
+			}
+
+			// 🔑 **Anche l'unita' del SELETTORE, e per una ragione che vale la pena dire** (`#2867`). Un id
+			// sbagliato in `afterEvent.unit` non produrrebbe un errore: nessuna voce lo soddisferebbe, il
+			// confine non passerebbe mai, e l'assertion uscirebbe `FAIL` con «nessun evento ha soddisfatto il
+			// selettore». Un rosso che accusa il GIOCO per un refuso nel FILE, ed e' precisamente il
+			// travestimento che ogni gate di questo loader esiste per togliere.
+			if (Exp.bHasAfterEvent && !Exp.AfterEvent.Unit.IsEmpty()
+				&& !SeenIds.Contains(Exp.AfterEvent.Unit))
+			{
+				OutError = FString::Printf(
+					TEXT("assertion con 'afterEvent': l'unita' '%s' non e' schierata. Senza questo controllo ")
+					TEXT("il selettore non verrebbe mai soddisfatto e il referto accuserebbe il gioco"),
+					*Exp.AfterEvent.Unit);
 				return false;
 			}
 			if (Exp.Kind == ERTAssertionKind::UnitHpEquals && Exp.Value < 0)

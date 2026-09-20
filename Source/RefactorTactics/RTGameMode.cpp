@@ -52,15 +52,16 @@ extern TAutoConsoleVariable<FString> CVarRTTestScenario;
  */
 namespace RTScenarioEntry
 {
-	/** Il valore di `-RTScenario=<Id>`, vuoto se il flag non c'e'. */
+	/** Il valore di `-RTScenario=<Id>` sulla riga di comando DEL PROCESSO, vuoto se il flag non c'e'. */
 	static FString FromCommandLine()
 	{
-		FString Value;
-		FParse::Value(FCommandLine::Get(), TEXT("RTScenario="), Value);
-		return Value;
+		// Il parsing vero sta in `ARTGameMode::ReadScenarioFromCommandLine`, che prende la riga come
+		// parametro: qui resta solo la lettura del globale, che e' l'unica cosa che un test non puo'
+		// sostituire senza riscrivere la riga di comando del processo (`#2182`).
+		return ARTGameMode::ReadScenarioFromCommandLine(FCommandLine::Get());
 	}
 
-	enum class EWinner : uint8 { Property, CommandLine, ConsoleVariable };
+	using EWinner = ARTGameMode::EScenarioEntrySource;
 
 	/**
 	 * Chi vince, in un posto solo.
@@ -71,9 +72,14 @@ namespace RTScenarioEntry
 	 */
 	static EWinner Winner()
 	{
-		if (!CVarRTTestScenario.GetValueOnGameThread().IsEmpty()) { return EWinner::ConsoleVariable; }
-		if (!FromCommandLine().IsEmpty())                        { return EWinner::CommandLine; }
-		return EWinner::Property;
+		// ⛔ **Non ricalcola la precedenza**, la CHIEDE: due copie della stessa regola divergono al primo
+		// cambiamento, e sarebbe la seconda sede che questo namespace esiste per evitare. Qui resta solo la
+		// lettura delle sorgenti globali — la sola cosa che una funzione pura non puo' fare (`#2182`).
+		//
+		// La proprieta' non serve a stabilire chi vince: e' l'ultimo gradino, quindi vince solo quando le
+		// altre due tacciono, e il suo valore non cambia la risposta.
+		return ARTGameMode::ChooseScenarioEntry(FString(), FromCommandLine(),
+			CVarRTTestScenario.GetValueOnGameThread()).Source;
 	}
 
 	/**
@@ -1025,6 +1031,70 @@ void ARTGameMode::InstallPieSessionPorts()
 		{ Conduttore->OnScenarioFinished(Result, ReportDir); });
 }
 
+/**
+ * La PRECEDENZA, dati i tre valori gia' letti: console > riga di comando > proprieta'.
+ *
+ * Il piu' specifico vince, che e' la regola di ogni override di configurazione del progetto. La proprieta'
+ * e' la configurazione persistente («questo progetto, per ora, esegue questo scenario»); la riga di comando
+ * e' l'intento di chi lancia adesso, ed e' l'unica sorgente che arriva anche in **Shipping**, dove
+ * `-dpcvars` e' compilato fuori; la console e' l'intento estemporaneo, da editor o da CI.
+ *
+ * ...ma NON in silenzio, e la frase esce da qui insieme alla scelta. Una console variable dura quanto il
+ * processo dell'editor: digitata una volta, resta attiva a ogni Play successivo e continua a scavalcare la
+ * tendina senza che nulla lo dica. E' successo davvero — si sceglieva uno scenario nel Details Panel e ne
+ * partiva un altro, con l'unico indizio nel comportamento a schermo. La precedenza resta giusta; ad essere
+ * sbagliato era il silenzio.
+ */
+ARTGameMode::FScenarioEntryChoice ARTGameMode::ChooseScenarioEntry(const FString& Property,
+	const FString& FromCommandLine, const FString& FromConsole)
+{
+	FScenarioEntryChoice Choice;
+
+	if (!FromConsole.IsEmpty())
+	{
+		Choice.ScenarioId = FromConsole;
+		Choice.Source = EScenarioEntrySource::ConsoleVariable;
+		if (!Property.IsEmpty() && Property != FromConsole)
+		{
+			Choice.OverrideWarning = FString::Printf(
+				TEXT("La console variable rt.Test.Scenario='%s' SCAVALCA la proprieta' ScenarioToRun='%s' ")
+				TEXT("del GameMode. Per tornare a usare la proprieta': `rt.Test.Scenario \"\"`."),
+				*FromConsole, *Property);
+		}
+		return Choice;
+	}
+
+	if (!FromCommandLine.IsEmpty())
+	{
+		Choice.ScenarioId = FromCommandLine;
+		Choice.Source = EScenarioEntrySource::CommandLine;
+		// Il messaggio nomina il FLAG e non la console, perche' e' quello che chi legge deve togliere dalla
+		// riga di comando per tornare alla proprieta'.
+		if (!Property.IsEmpty() && Property != FromCommandLine)
+		{
+			Choice.OverrideWarning = FString::Printf(
+				TEXT("La riga di comando -RTScenario='%s' SCAVALCA la proprieta' ScenarioToRun='%s' del ")
+				TEXT("GameMode. Per tornare a usare la proprieta': togli il flag."),
+				*FromCommandLine, *Property);
+		}
+		return Choice;
+	}
+
+	Choice.ScenarioId = Property;
+	Choice.Source = EScenarioEntrySource::Property;
+	return Choice;
+}
+
+FString ARTGameMode::ReadScenarioFromCommandLine(const TCHAR* CommandLine)
+{
+	FString Value;
+	if (CommandLine)
+	{
+		FParse::Value(CommandLine, TEXT("RTScenario="), Value);
+	}
+	return Value;
+}
+
 FString ARTGameMode::ResolveScenarioToRun() const
 {
 	// QUARTA SORGENTE, e vince su tutte: la seduta PIE in corso (`#3208`).
@@ -1033,6 +1103,11 @@ FString ARTGameMode::ResolveScenarioToRun() const
 	// precedente dirotterebbe **in silenzio** ogni passo della playlist, e chi guarda crederebbe di
 	// giudicare la voce che il conduttore ha appena annunciato. Una CVar dura quanto il processo
 	// dell'editor; una seduta dura meno.
+	//
+	// ⛔ **Non entra in `ChooseScenarioEntry`, e la ragione non e' pigrizia**: quella funzione decide fra
+	// tre CONFIGURAZIONI e produce l'avviso di chi scavalca chi. Una seduta non e' una configurazione che
+	// scavalca — e' uno stato attivo che comanda finche' dura, e annunciarla come un override direbbe a
+	// chi legge il log che qualcosa ha preso il posto di qualcos'altro per sbaglio.
 	//
 	// ⚠️ Il conduttore NON azzera la CVar di chi lancia: la scavalca finche' conduce e la lascia com'era
 	// dopo. Azzerarla cambierebbe lo stato di una sessione che non gli appartiene.
@@ -1046,46 +1121,17 @@ FString ARTGameMode::ResolveScenarioToRun() const
 		}
 	}
 
-	// La console variable PREVALE sulla proprieta': la proprieta' e' la configurazione persistente («questo
-	// progetto, per ora, esegue questo scenario»), la console variable e' l'intento estemporaneo di chi lancia
-	// («adesso, solo per questa volta, eseguine un altro») — da riga di comando o in CI. Il piu' specifico
-	// vince, che e' la stessa regola di ogni override di configurazione.
-	const FString FromConsole = CVarRTTestScenario.GetValueOnGameThread();
-	if (FromConsole.IsEmpty())
-	{
-		// Sorgente di mezzo: l'unica che arriva anche in Shipping, dove `-dpcvars` e' compilato fuori. Vedi il
-		// commento di `RTScenarioEntry` in testa al file per il perche' non sia un doppione della console.
-		const FString FromCmdLine = RTScenarioEntry::FromCommandLine();
-		if (FromCmdLine.IsEmpty())
-		{
-			return ScenarioToRun;
-		}
+	// Questa funzione LEGGE le sorgenti; a decidere e' `ChooseScenarioEntry`, che e' pura e verificabile
+	// senza un mondo e senza toccare lo stato globale del processo (`#2182`). La regola non si e' spostata di
+	// sede: e' rimasta qui, in mezzo alle sue due sorelle — sorgente mappa e autobattle.
+	const FScenarioEntryChoice Choice = ChooseScenarioEntry(
+		ScenarioToRun, RTScenarioEntry::FromCommandLine(), CVarRTTestScenario.GetValueOnGameThread());
 
-		// Stessa regola del caso sotto, e per la stessa ragione: una precedenza silenziosa manda a cercare il
-		// difetto nella property sbagliata. Il messaggio nomina il flag, non la console, perche' e' quello che
-		// chi legge deve togliere dalla riga di comando per tornare alla proprieta'.
-		if (!ScenarioToRun.IsEmpty() && ScenarioToRun != FromCmdLine)
-		{
-			UE_LOG(LogRT, Warning,
-				TEXT("[RT-Test] La riga di comando -RTScenario='%s' SCAVALCA la proprieta' "
-					 "ScenarioToRun='%s' del GameMode. Per tornare a usare la proprieta': togli il flag."),
-				*FromCmdLine, *ScenarioToRun);
-		}
-		return FromCmdLine;
-	}
-
-	// ...ma NON in silenzio. Una console variable dura quanto il processo dell'editor: digitata una volta,
-	// resta attiva per ogni Play successivo e continua a scavalcare la tendina senza che nulla lo dica. E'
-	// successo davvero — si sceglieva uno scenario nel Details Panel e ne partiva un altro, con l'unico
-	// indizio nel comportamento a schermo. La precedenza resta giusta; ad essere sbagliato era il silenzio.
-	if (!ScenarioToRun.IsEmpty() && ScenarioToRun != FromConsole)
+	if (!Choice.OverrideWarning.IsEmpty())
 	{
-		UE_LOG(LogRT, Warning,
-			TEXT("[RT-Test] La console variable rt.Test.Scenario='%s' SCAVALCA la proprieta' "
-				 "ScenarioToRun='%s' del GameMode. Per tornare a usare la proprieta': `rt.Test.Scenario \"\"`."),
-			*FromConsole, *ScenarioToRun);
+		UE_LOG(LogRT, Warning, TEXT("[RT-Test] %s"), *Choice.OverrideWarning);
 	}
-	return FromConsole;
+	return Choice.ScenarioId;
 }
 
 bool ARTGameMode::ResolveAutobattle() const

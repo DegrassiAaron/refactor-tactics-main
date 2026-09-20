@@ -1,4 +1,4 @@
-// LA PORTA D'INGRESSO allo scenario da riga di comando: `-RTScenario=<Id>`.
+// LA PORTA D'INGRESSO allo scenario da riga di comando: `-RTScenario=<Id>`, e il suo posto nella precedenza.
 //
 // Esiste per una ragione misurata, non per simmetria con la console: in una build **Shipping**
 // `-dpcvars=rt.Test.Scenario=...` non arriva. In `DeviceProfileManager.cpp` tutto il parsing di
@@ -6,50 +6,37 @@
 // mai impostata, il GameMode legge vuoto e allestisce la partita normale — senza un errore che lo dica,
 // perche' in Shipping anche il logging e' compilato fuori. Trovato eseguendo un pacchetto vero (`#926`).
 //
-// ⚠️ QUESTI TEST NON DUPLICANO `RTScenarioAutoRunTests.cpp`. Quel file copre la coppia
-// proprieta' vs console (`Scenario.AutoRunConsoleOverridesProperty`) e il fatto che l'override non sia
-// silenzioso; qui si copre **solo** la sorgente nuova e il suo posto nella precedenza.
+// ⚠️ QUESTI TEST NON DUPLICANO `RTScenarioAutoRunTests.cpp`. Quel file copre il CABLAGGIO — che la banda a
+// schermo attribuisca la scelta alla fonte giusta, in un mondo vero, per tutte e tre le sorgenti — mentre
+// qui si copre la REGOLA: chi vince, e come si legge il flag.
+//
+// ---
+//
+// 🔑 **Nessun mondo, e nessuno stato globale toccato** (`#2182`). Fino al 2026-09-20 questi due test
+// montavano un `UWorld`, spawnavano un `ARTGameMode` e mutavano **due** stati che sopravvivono al test — la
+// console variable `rt.Test.Scenario` e la riga di comando del processo — per porre una domanda che non ha
+// bisogno di nessuno dei tre. Servivano due guardie di ripristino, e il loro commento diceva perche': «un
+// test che rompe gli altri e' peggio di un test assente».
+//
+// La precedenza e' ora `ARTGameMode::ChooseScenarioEntry`, che prende i tre valori gia' letti, e il parsing
+// del flag e' `ARTGameMode::ReadScenarioFromCommandLine`, che prende la riga come parametro. ⛔ **La regola
+// non si e' spostata di sede**: vive ancora in `RTGameMode.cpp` accanto alle sue due sorelle — sorgente
+// mappa e autobattle — come `RTMatchBootstrapper.h` prescrive. E' cambiato solo da dove arrivano gli
+// ingressi.
+//
+// ∴ e' precisamente lo scopo che `FRTMatchBootstrapConfig` dichiara per se': «un test puo' allestire una
+// partita **senza toccare lo stato globale del processo**, che con le console variable non e' possibile».
 
 #include "Misc/AutomationTest.h"
-#include "RTWorldFixtures.h"
 #include "RTGameMode.h"
-#include "Misc/CommandLine.h"
-#include "HAL/IConsoleManager.h"
-#include "RTConsoleVariableGuardForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
-
-/** Definita in ScenarioHarness/RTTestConsole.cpp. */
-extern TAutoConsoleVariable<FString> CVarRTTestScenario;
 
 namespace
 {
 	// Nomi distinti da ogni altro file di test: la unity build condivide la translation unit.
-
-	/**
-	 * Ripristina la riga di comando qualunque cosa succeda nel test.
-	 *
-	 * `FCommandLine` e' stato globale del processo, e da quando esiste `-RTScenario=` **lo legge anche
-	 * `ResolveScenarioToRun`**: un flag lasciato sporco qui farebbe fallire i test di
-	 * `RTScenarioAutoRunTests.cpp`, che si aspettano «solo la proprieta' -> vale la proprieta'». In una unity
-	 * build il test successivo puo' essere qualsiasi cosa, e un test che rompe gli altri e' peggio di un test
-	 * assente: manda a cercare il difetto nel posto sbagliato.
-	 */
-	struct FRTScopedEntryCommandLine
-	{
-		FString Saved;
-		FRTScopedEntryCommandLine() : Saved(FCommandLine::Get()) {}
-		~FRTScopedEntryCommandLine() { FCommandLine::Set(*Saved); }
-		void SetScenario(const TCHAR* Id) { FCommandLine::Set(*(Saved + FString::Printf(TEXT(" -RTScenario=%s"), Id))); }
-		void Clear() { FCommandLine::Set(*Saved); }
-	};
-
-	/** Come sopra, per la console variable: stessa ragione, stato che sopravvive al test. */
-	struct FRTScopedEntryCVar : RTTestConsoleVariable::TGuardia<FString>
-	{
-		FRTScopedEntryCVar() : TGuardia(*CVarRTTestScenario.AsVariable()) {}
-		void Set(const TCHAR* Value) { Imposta(Value); }
-	};
+	using FRTEntryChoiceUnderTest = ARTGameMode::FScenarioEntryChoice;
+	using ERTEntrySourceUnderTest = ARTGameMode::EScenarioEntrySource;
 }
 
 /**
@@ -67,41 +54,58 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCommandLineEntryTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioCommandLineEntryTest::RunTest(const FString&)
 {
-	UWorld* World = RTWorldFixtures::MakeWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-
-	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
-	if (!TestNotNull(TEXT("game mode"), GameMode)) { RTWorldFixtures::DestroyWorld(World); return false; }
-
-	FRTScopedEntryCVar CVarGuard;
-	FRTScopedEntryCommandLine CmdGuard;
-	CVarGuard.Set(TEXT(""));
-
 	// Nessuna delle tre: partita normale. E' la controprova che rende significative le altre — senza, «vale
 	// il flag» passerebbe anche con un'implementazione che restituisce sempre qualcosa.
-	GameMode->ScenarioToRun.Reset();
-	CmdGuard.Clear();
-	TestTrue(TEXT("niente proprieta', niente flag, niente console -> partita normale"),
-		GameMode->ResolveScenarioToRun().IsEmpty());
+	{
+		const FRTEntryChoiceUnderTest Niente =
+			ARTGameMode::ChooseScenarioEntry(FString(), FString(), FString());
+		TestTrue(TEXT("niente proprieta', niente flag, niente console -> partita normale"),
+			Niente.ScenarioId.IsEmpty());
+		TestEqual(TEXT("e la fonte e' la proprieta', che e' l'ultimo gradino"),
+			Niente.Source, ERTEntrySourceUnderTest::Property);
+	}
 
 	// Solo il flag: decide lui, anche senza proprieta'. E' il caso del pacchetto, dove la proprieta' e' vuota.
-	CmdGuard.SetScenario(TEXT("Movement.Collision"));
-	TestEqual(TEXT("solo il flag -> vale il flag"),
-		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+	{
+		const FRTEntryChoiceUnderTest SoloFlag =
+			ARTGameMode::ChooseScenarioEntry(FString(), TEXT("Movement.Collision"), FString());
+		TestEqual(TEXT("solo il flag -> vale il flag"),
+			SoloFlag.ScenarioId, FString(TEXT("Movement.Collision")));
+		TestEqual(TEXT("e la fonte e' la riga di comando"),
+			SoloFlag.Source, ERTEntrySourceUnderTest::CommandLine);
+		TestTrue(TEXT("senza proprieta' non c'e' nessun conflitto da segnalare"),
+			SoloFlag.OverrideWarning.IsEmpty());
+	}
 
 	// Flag e proprieta' su scenari DIVERSI: vince il flag, e non in silenzio.
-	GameMode->ScenarioToRun = TEXT("Movement.Basic");
-	AddExpectedError(TEXT("-RTScenario=.*SCAVALCA la proprieta'"), EAutomationExpectedErrorFlags::Contains, 1);
-	TestEqual(TEXT("flag + proprieta' -> vince il flag"),
-		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+	{
+		const FRTEntryChoiceUnderTest Conflitto =
+			ARTGameMode::ChooseScenarioEntry(TEXT("Movement.Basic"), TEXT("Movement.Collision"), FString());
+		TestEqual(TEXT("flag + proprieta' -> vince il flag"),
+			Conflitto.ScenarioId, FString(TEXT("Movement.Collision")));
+
+		// 🔑 L'avviso si LEGGE invece di intercettarlo con `AddExpectedError`: prima l'unico modo di
+		// verificarlo era catturare una riga di log, cioe' misurare la presentazione di un fatto invece del
+		// fatto. Ora la frase e' un valore, e il test puo' chiedere che nomini le due cose che servono a chi
+		// legge: cosa ha vinto, e cosa togliere per tornare indietro.
+		TestFalse(TEXT("l'override non e' silenzioso"), Conflitto.OverrideWarning.IsEmpty());
+		TestTrue(TEXT("l'avviso nomina il flag, non la console"),
+			Conflitto.OverrideWarning.Contains(TEXT("-RTScenario=")));
+		TestTrue(TEXT("e nomina la proprieta' scavalcata"),
+			Conflitto.OverrideWarning.Contains(TEXT("Movement.Basic")));
+	}
 
 	// Flag e proprieta' UGUALI: niente da segnalare. Un avviso che compare sempre e' rumore, e il rumore si
 	// impara a ignorare — e' la stessa cura gia' presa per la console.
-	GameMode->ScenarioToRun = TEXT("Movement.Collision");
-	TestEqual(TEXT("flag e proprieta' uguali -> nessun conflitto da segnalare"),
-		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+	{
+		const FRTEntryChoiceUnderTest Uguali = ARTGameMode::ChooseScenarioEntry(
+			TEXT("Movement.Collision"), TEXT("Movement.Collision"), FString());
+		TestEqual(TEXT("flag e proprieta' uguali -> vale comunque il flag"),
+			Uguali.ScenarioId, FString(TEXT("Movement.Collision")));
+		TestTrue(TEXT("flag e proprieta' uguali -> nessun conflitto da segnalare"),
+			Uguali.OverrideWarning.IsEmpty());
+	}
 
-	RTWorldFixtures::DestroyWorld(World);
 	return true;
 }
 
@@ -121,34 +125,74 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioConsoleBeatsCommandLineTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioConsoleBeatsCommandLineTest::RunTest(const FString&)
 {
-	UWorld* World = RTWorldFixtures::MakeWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-
-	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
-	if (!TestNotNull(TEXT("game mode"), GameMode)) { RTWorldFixtures::DestroyWorld(World); return false; }
-
-	FRTScopedEntryCVar CVarGuard;
-	FRTScopedEntryCommandLine CmdGuard;
-
-	GameMode->ScenarioToRun.Reset();
-	CmdGuard.SetScenario(TEXT("Movement.Basic"));
-	CVarGuard.Set(TEXT("Movement.Collision"));
-
-	TestEqual(TEXT("console + flag -> vince la console"),
-		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Collision")));
+	{
+		const FRTEntryChoiceUnderTest Entrambe = ARTGameMode::ChooseScenarioEntry(
+			FString(), TEXT("Movement.Basic"), TEXT("Movement.Collision"));
+		TestEqual(TEXT("console + flag -> vince la console"),
+			Entrambe.ScenarioId, FString(TEXT("Movement.Collision")));
+		TestEqual(TEXT("e la fonte e' la console"),
+			Entrambe.Source, ERTEntrySourceUnderTest::ConsoleVariable);
+	}
 
 	// Tolta la console, il flag torna a valere: la precedenza non lo ha consumato.
-	CVarGuard.Set(TEXT(""));
-	TestEqual(TEXT("tolta la console, vale di nuovo il flag"),
-		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Basic")));
+	{
+		const FRTEntryChoiceUnderTest SenzaConsole =
+			ARTGameMode::ChooseScenarioEntry(FString(), TEXT("Movement.Basic"), FString());
+		TestEqual(TEXT("tolta la console, vale di nuovo il flag"),
+			SenzaConsole.ScenarioId, FString(TEXT("Movement.Basic")));
+		TestEqual(TEXT("e la fonte torna a essere la riga di comando"),
+			SenzaConsole.Source, ERTEntrySourceUnderTest::CommandLine);
+	}
 
-	// E la banda a schermo attribuisce la scelta alla sorgente giusta: e' l'unico punto in cui l'utente vede
-	// da dove viene lo scenario, e una banda che nomina la fonte sbagliata e' peggio di una banda assente.
-	const FString Banda = GameMode->GetScenarioBannerText();
-	TestTrue(TEXT("la banda nomina il flag"), Banda.Contains(TEXT("-RTScenario=")));
-	TestFalse(TEXT("e non attribuisce al BP_GameMode"), Banda.Contains(TEXT("BP_GameMode")));
+	// ⚠️ **La fonte e' la CONSOLE anche quando i tre valori coincidono**, e va asserito: una precedenza
+	// implementata «chi e' diverso dalla proprieta'» darebbe la stessa risposta su ogni caso qui sopra e
+	// cadrebbe solo su questo. E' la banda a schermo a leggere `Source`, quindi sbagliarlo attribuirebbe la
+	// scelta al `BP_GameMode` mentre a decidere e' stata la console.
+	{
+		const FRTEntryChoiceUnderTest Tutte = ARTGameMode::ChooseScenarioEntry(
+			TEXT("Movement.Basic"), TEXT("Movement.Basic"), TEXT("Movement.Basic"));
+		TestEqual(TEXT("tre valori uguali -> vince comunque la console"),
+			Tutte.Source, ERTEntrySourceUnderTest::ConsoleVariable);
+		TestTrue(TEXT("e non c'e' nessun conflitto da segnalare"), Tutte.OverrideWarning.IsEmpty());
+	}
 
-	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * Il FLAG si legge da una riga di comando qualunque, e solo quando c'e'.
+ *
+ * 🔑 **Prima questa domanda non era ponibile senza riscrivere la riga di comando del PROCESSO**, che dura
+ * quanto il processo e vale per ogni test successivo della unity build. Prendendola come parametro si
+ * possono provare gli ingressi che contano — assente, presente fra altri flag, riga nulla — invece del solo
+ * caso che si riusciva ad allestire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCommandLineParsingTest,
+	"RefactorTactics.Scenario.CommandLineFlagIsReadFromTheLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCommandLineParsingTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("riga vuota -> nessuno scenario"),
+		ARTGameMode::ReadScenarioFromCommandLine(TEXT("")).IsEmpty());
+	TestTrue(TEXT("riga senza il flag -> nessuno scenario"),
+		ARTGameMode::ReadScenarioFromCommandLine(TEXT("-nullrhi -unattended")).IsEmpty());
+
+	TestEqual(TEXT("il flag da solo"),
+		ARTGameMode::ReadScenarioFromCommandLine(TEXT("-RTScenario=Movement.Basic")),
+		FString(TEXT("Movement.Basic")));
+
+	// Il caso reale: il flag arriva in mezzo agli altri, non da solo.
+	TestEqual(TEXT("il flag in mezzo ad altri"),
+		ARTGameMode::ReadScenarioFromCommandLine(
+			TEXT("Progetto.uproject -nullrhi -RTScenario=Spec.Map.InteractOpensDoor -unattended")),
+		FString(TEXT("Spec.Map.InteractOpensDoor")));
+
+	// ⛔ **`nullptr` non e' una riga vuota, ed e' il caso che un test non poteva allestire finche' la riga
+	// arrivava da `FCommandLine::Get()`**: quella non e' mai nulla. Ora la funzione e' chiamabile da chiunque,
+	// e il ramo di guardia ha un testimone.
+	TestTrue(TEXT("riga nulla -> nessuno scenario, senza schiantare"),
+		ARTGameMode::ReadScenarioFromCommandLine(nullptr).IsEmpty());
+
 	return true;
 }
 

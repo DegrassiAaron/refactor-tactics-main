@@ -231,6 +231,41 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FRTOnMatchEndedSignature, const FRT
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FRTLockInCommittedSignature);
 
+/**
+ * OSSERVAZIONE di un confine di risoluzione: la macro-fase `Closed` si e' appena chiusa (`#2867`).
+ *
+ * 🔑 **Notifica, non sospensione, ed e' una decisione presa sui casi d'uso.** Tutti quelli che la chiedevano
+ * — «dov'era l'unita' a fine `Blast`, prima che il `Move` la spostasse», «quanti HP dopo la reazione» —
+ * vogliono LEGGERE uno stato a un confine. Nessuno vuole AGIRE li'. Un seam che sospendesse davvero
+ * costerebbe la macchineria di `FRTReactionDeciderSignature` — contesto vivo, ripresa, `Phase` che resta
+ * dov'era — per un consumatore che non esiste.
+ *
+ * ⛔ **`ARTTurnManager` non acquista una seconda autorita' e non ne cede.** Il delegate non ha valore di
+ * ritorno, il turno non attende nessuno, e chi ascolta non puo' cambiare l'esito: il checkpoint LEGGE, la
+ * simulazione decide. ⚠️ **E non e' `DYNAMIC` apposta**: un delegate dinamico sarebbe assegnabile da
+ * Blueprint, e un Blueprint agganciato a un confine di risoluzione e' esattamente la seconda autorita' che
+ * `CLAUDE.md` §5 vieta. Restando C++-only, l'unico modo di ascoltare e' dal codice che possiede la regola.
+ *
+ * ⚠️ **`Planning` come `Closed` significa «lock-in avvenuto, nessuna fase ha ancora risolto»** — il confine
+ * che lo Scenario Harness chiama `PlanningLocked`. Il vocabolario resta quello del GIOCO: la traduzione nei
+ * nomi del formato appartiene all'harness, e il motore non conosce `ERTScenarioCheckpoint`.
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(FRTPhaseClosedSignature, ERTMatchPhase /* Closed */);
+
+/**
+ * OSSERVAZIONE di una voce appena scritta nel TurnLog (`#2867`).
+ *
+ * Serve al confine che una macro-fase non sa localizzare: Overwatch, hazard, interruzioni e reazioni
+ * accadono DENTRO una fase, e `afterEvent` ci si aggancia con un selettore semantico.
+ *
+ * 🔑 **Un punto solo, perche' il TurnLog ne ha uno solo**: `AppendLogEntry(Entry, Subject)` e' l'unico
+ * `TurnLog.Add` del file e ogni produttore ci passa. Un broadcast per sito sarebbe stato un elenco da
+ * tenere allineato, cioe' la prossima voce dimenticata.
+ *
+ * ⛔ Stesse regole di sopra: nessun ritorno, nessuna attesa, non `DYNAMIC`. La voce arriva `const`.
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(FRTLogEntryAppendedSignature, const FRTTurnLogEntry& /* Entry */);
+
 // `FRTLogSubject` e `FRTCombatLogLine` vivono in `Turn/RTCombatLog.h` da `#1818`: chiunque volesse una
 // riga di log doveva includere QUESTO header per una struct di tre campi.
 
@@ -1091,6 +1126,17 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Match")
 	FRTOnMatchEndedSignature OnMatchEnded;
+	/**
+	 * I confini di risoluzione, per chi deve LEGGERE uno stato a fine fase (`#2867`).
+	 *
+	 * ⛔ Non `UPROPERTY`, non `BlueprintAssignable`: vedi `FRTPhaseClosedSignature`. Chi ascolta si
+	 * disiscrive da se' — `URTScenarioSession` lo fa a fine scenario.
+	 */
+	FRTPhaseClosedSignature OnPhaseClosed;
+
+	/** Ogni voce del TurnLog, appena scritta. Vedi `FRTLogEntryAppendedSignature`. */
+	FRTLogEntryAppendedSignature OnLogEntryAppended;
+
 
 	/** Il piano e' committato e la risoluzione comincia (`#2193`). Vedi `FRTLockInCommittedSignature`. */
 	UPROPERTY(BlueprintAssignable, Category = "RefactorTactics|Turn")
