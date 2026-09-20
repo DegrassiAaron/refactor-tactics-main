@@ -142,7 +142,11 @@ bool FRTBreakdownOmitsStagesThatDidNotApplyTest::RunTest(const FString&)
 
 	const FRTDamageBreakdown& B = ByTarget[1];
 	TestNull(TEXT("nessuna somma per bersaglio con un colpo solo"), Find(B, ERTDamageStage::TargetSum));
-	TestNull(TEXT("nessun pool: la Guardia non c'era"), Find(B, ERTDamageStage::AbsorptionPool));
+	TestNull(TEXT("nessun pool: il Deflect non c'era"), Find(B, ERTDamageStage::AbsorptionPool));
+	// ⏱️ **Riga aggiunta da [D-408]**: la Guardia scriveva `AbsorptionPool` e scrive ora `EveryHitDelta`,
+	// quindi senza questa la riga sopra avrebbe smesso di coprirla — e il docstring avrebbe continuato a
+	// dire *«la Guardia non c'era»* senza nessuna assertion dietro.
+	TestNull(TEXT("nessun delta per colpo: la Guardia non c'era"), Find(B, ERTDamageStage::EveryHitDelta));
 	TestNull(TEXT("nessun delta di primo colpo"), Find(B, ERTDamageStage::FirstHitDelta));
 
 	// ✅ La controprova: con DUE colpi la somma compare, quindi l'assenza sopra e' una scelta e non un buco.
@@ -192,7 +196,14 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
 }
 
 /**
- * DUE POOL, DUE PROVENIENZE — `#2213`.
+ * DUE MITIGAZIONI, DUE PROVENIENZE — `#2213`, riallineato da [D-408].
+ *
+ * 🔴 **Questo test componeva DUE POOL, e dal 2026-09-20 la produzione non lo fa piu'.** [D-408]
+ * ritira il pool della `Guard`: `RTTurnManager` compone ora `ApplyAbsorptionPool` (il `Deflect`, [D-309])
+ * e poi `ApplyEligibleHitDelta` (la Guardia). Il test restava verde — chiama le funzioni direttamente — ma
+ * la sua premessa dichiarata, *«compone i due pool come fa `RTTurnManager`»*, era diventata falsa,
+ * e con essa l'utilita' dell'intero file: un test di provenienza che rispecchia una composizione che non
+ * esiste non protegge la composizione che esiste.
  *
  * 🔴 **Il difetto che questo test e' nato per prendere**: `ApplyAbsorptionPool` scriveva l'etichetta di
  * stadio come un LETTERALE nel proprio corpo — `D-292 · Status.Guarded` — e da [D-309] i chiamanti di
@@ -205,9 +216,9 @@ bool FRTBreakdownGuardTellsTwoStoriesTest::RunTest(const FString&)
  * Il difetto era LATENTE, non invisibile: il breakdown esiste da `#1951` perche' il TurnLog dica da dove
  * viene un numero, e i suoi consumatori arrivano con `#1937`.
  *
- * ⚠️ **Cio' che questo test NON prova, ed e' dichiarato invece che taciuto.** Compone i due pool come fa
- * `RTTurnManager`, ma li chiama DIRETTAMENTE: resta quindi verde qualunque provenienza passino le due
- * chiamate reali del manager. Non e' pigrizia — `ARTTurnManager` passa da `ResolveAttacks`, il wrapper che
+ * ⚠️ **Cio' che questo test NON prova, ed e' dichiarato invece che taciuto.** Compone le due mitigazioni
+ * come fa `RTTurnManager`, ma le chiama DIRETTAMENTE: resta quindi verde qualunque provenienza passino le
+ * due chiamate reali del manager. Non e' pigrizia — `ARTTurnManager` passa da `ResolveAttacks`, il wrapper che
  * costruisce il breakdown e lo SCARTA in un `TMap` locale, quindi dal percorso di partita non esce niente
  * da osservare. E' lo stesso limite di `Combat.DeflectAbsorbsBeforeGuardReduces` — ma li'
  * `Combat.GuardAndDeflectAbsorbInDeclaredOrder` lo chiude passando dal manager, perche' l'ordine dei pool
@@ -228,25 +239,30 @@ bool FRTBreakdownPoolNamesItsOwnSourceTest::RunTest(const FString&)
 	const TArray<FRTAttack> Attacks = { MakeAttack(1, 12, 0) };
 	const TArray<bool> Eligible = { true };
 
-	// 🔑 I DUE POOL COMPOSTI, non risolti separatamente: e' la forma di `RTTurnManager.cpp` — reazione
-	// prima, `Guard` poi ([D-312]) — e produce DUE voci `AbsorptionPool` nello STESSO breakdown. Risolverli
-	// in due passate darebbe una voce per elenco, cioe' un `Find`-per-stadio non ambiguo per costruzione:
+	// 🔑 LE DUE MITIGAZIONI COMPOSTE, non risolte separatamente: e' la forma di `RTTurnManager.cpp` —
+	// `Deflect` prima, `Guard` poi ([D-312]) — e produce DUE voci nello STESSO breakdown. Risolverle in due
+	// passate darebbe una voce per elenco, cioe' un `Find`-per-stadio non ambiguo per costruzione:
 	// esattamente l'ambiguita' che in produzione non c'e'. *La prima stesura faceva cosi'; trovato da una
 	// code review.*
 	//
-	// I budget sono PICCOLI e presi dalle costanti: 5 alla reazione e il resto alla Guardia, cosi' il colpo
-	// da 12 ne consuma 5 dalla prima e 7 dalla seconda e **entrambe** mordono. Con i valori pieni la prima
-	// assorbirebbe tutto e la seconda non lascerebbe voce.
-	const TArray<int32> ReactionPool = { 0, 5, 0 };
-	const TArray<int32> GuardPool    = { 0, URTCombatLibrary::GuardFirstHitReduction, 0 };
+	// ⏱️ **Da [D-408] i due stadi sono DIVERSI**: il `Deflect` resta `AbsorptionPool`, la Guardia scrive
+	// `EveryHitDelta`. Il difetto di `#2213` — due voci con lo stesso `FName` — resta pero' possibile
+	// **dentro** ciascuno stadio, e la provenienza va asserita per questo.
+	//
+	// I valori sono PICCOLI e scelti perche' **entrambe** mordano: 5 alla reazione e 5 alla Guardia, cosi'
+	// il colpo da 12 scende a 7 e poi a 2. Coi valori pieni la prima assorbirebbe tutto e la seconda non
+	// lascerebbe voce; e con una riduzione piu' grande del residuo il clamp a zero renderebbe illeggibile
+	// quanto ne ha tolto davvero.
+	const TArray<int32> ReactionPool   = { 0, 5, 0 };
+	const TArray<int32> GuardReduction = { 0, -5, 0 };
 
 	TMap<int32, FRTDamageBreakdown> ByTarget;
 	URTCombatResolver::ResolveAttacksWithBreakdown(
 		Units,
-		URTCombatResolver::ApplyAbsorptionPool(
+		URTCombatResolver::ApplyEligibleHitDelta(
 			URTCombatResolver::ApplyAbsorptionPool(Attacks, ReactionPool, Eligible,
 				URTCombatLibrary::ReactionReductionPoolSource),
-			GuardPool, Eligible, URTCombatLibrary::GuardPoolSource),
+			GuardReduction, Eligible, URTCombatLibrary::GuardPerHitSource),
 		ByTarget);
 
 	// `Find` e non `operator[]`: una chiave assente deve far fallire QUESTO test, non abbattere la passata
@@ -254,14 +270,17 @@ bool FRTBreakdownPoolNamesItsOwnSourceTest::RunTest(const FString&)
 	const FRTDamageBreakdown* B = ByTarget.Find(1);
 	if (!TestNotNull(TEXT("il bersaglio ha un registro"), B)) { return false; }
 
-	TArray<const FRTDamageStageEntry*> Pools;
+	TArray<const FRTDamageStageEntry*> Mitigazioni;
 	for (const FRTDamageStageEntry& E : B->Stages)
 	{
-		if (E.Stage == ERTDamageStage::AbsorptionPool) { Pools.Add(&E); }
+		if (E.Stage == ERTDamageStage::AbsorptionPool || E.Stage == ERTDamageStage::EveryHitDelta)
+		{
+			Mitigazioni.Add(&E);
+		}
 	}
 
-	if (!TestEqual(TEXT("due pool hanno morso, e lasciano DUE voci nello stesso registro"),
-		Pools.Num(), 2))
+	if (!TestEqual(TEXT("due mitigazioni hanno morso, e lasciano DUE voci nello stesso registro"),
+		Mitigazioni.Num(), 2))
 	{
 		return false;
 	}
@@ -269,14 +288,23 @@ bool FRTBreakdownPoolNamesItsOwnSourceTest::RunTest(const FString&)
 	// IL DIFETTO, in due righe: prima di `#2213` queste due voci portavano lo STESSO `FName`, e la seconda
 	// era quella della Guardia — quindi l'assorbimento della reazione risultava suo.
 	TestEqual(TEXT("la prima voce e' della reazione, e nomina la SUA decisione"),
-		Pools[0]->SourceId, URTCombatLibrary::ReactionReductionPoolSource);
+		Mitigazioni[0]->SourceId, URTCombatLibrary::ReactionReductionPoolSource);
 	TestEqual(TEXT("la seconda e' della Guardia, e nomina la propria"),
-		Pools[1]->SourceId, URTCombatLibrary::GuardPoolSource);
+		Mitigazioni[1]->SourceId, URTCombatLibrary::GuardPerHitSource);
+
+	// ⚠️ **E gli STADI sono diversi da [D-408]**, che e' la meta' nuova di questa asserzione: il `Deflect`
+	// e' un pool, la Guardia no. Se un domani tornassero allo stesso stadio, il `Find`-per-stadio del resto
+	// del file tornerebbe ambiguo e questa riga lo direbbe.
+	TestEqual(TEXT("la reazione scrive lo stadio del POOL"),
+		Mitigazioni[0]->Stage, ERTDamageStage::AbsorptionPool);
+	TestEqual(TEXT("la Guardia scrive lo stadio del delta PER COLPO"),
+		Mitigazioni[1]->Stage, ERTDamageStage::EveryHitDelta);
 
 	// ⚠️ **E l'ordine e' quello di [D-312]**, leggibile qui perche' le due voci convivono: la reazione
 	// assorbe per prima. Un elenco che le contenesse invertite descriverebbe un bilanciamento diverso.
-	TestEqual(TEXT("la reazione ha assorbito il suo budget intero"), Pools[0]->Operand, 5);
-	TestEqual(TEXT("e la Guardia ha preso cio' che restava"), Pools[1]->Operand, 7);
+	TestEqual(TEXT("la reazione ha assorbito il suo budget intero"), Mitigazioni[0]->Operand, 5);
+	TestEqual(TEXT("e la Guardia ha ridotto il residuo"), Mitigazioni[1]->Operand, 5);
+	TestEqual(TEXT("il colpo da 12 esce a 2"), Mitigazioni[1]->After, 2);
 
 	return true;
 }

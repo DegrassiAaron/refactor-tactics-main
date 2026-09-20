@@ -188,8 +188,9 @@ public:
 	 * resta la strada di `Status.Exposed` e `Status.Marked`. ⚠️ *Questa riga diceva «`Status.Exposed` e
 	 * `Action.Deflect`», ed era vera quando fu scritta: [D-309] ha reso un pool anche il `Deflect` il giorno
 	 * dopo. E' il modo in cui una deriva si allarga — correggendo meta' di una regola.* Esercitato dal corpus con
-	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del pool: sopra i 15 le due
-	 * regole danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse del cambio (`#1919`).
+	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
+	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
+	 * il 2026-09-20, di [D-408].
 	 */
 	static constexpr int32 GuardFirstHitReduction = 15;
 
@@ -305,7 +306,10 @@ public:
 	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Ivrin.Deflection` un'azione che l'unita' non ha
 	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
 	 *
-	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.
+	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: la sua mitigazione e' gated su
+	 * `TAG_Status_Guarded`. ⏱️ *Da [D-408] non e' piu' un pool — la provenienza corrente e'
+	 * `GuardPerHitSource`, e `GuardPoolSource` resta perche' il `Deflect` e le tracce gia' scritte la
+	 * usano.*
 	 */
 	static const FName GuardPoolSource;
 	static const FName ReactionReductionPoolSource;
@@ -346,18 +350,27 @@ public:
 	 * Se il danno arriva a zero l'attacco resta comunque un colpo AVVENUTO (il clamp e' sul valore, non sulla
 	 * voce): conta per trigger e marchi, come dice il catalogo.
 	 *
-	 * ⚠️ Quando due pool coprono lo stesso colpo, `Deflect` assorbe PRIMA di `Guard` — [D-312], e non e' un
-	 * dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
+	 * ⚠️ Quando entrambe coprono lo stesso colpo, `Deflect` assorbe PRIMA che `Guard` riduca — [D-312], e non
+	 * e' un dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
+	 * ⏱️ *Erano «due pool» fino al 2026-09-20: [D-408] lascia il pool al solo `Deflect`. L'ORDINE non cambia
+	 * — `D-312` non e' toccata — cambia il secondo dei due meccanismi, e quindi il numero che ne esce
+	 * (`Combat.DeflectAbsorbsBeforeGuardReduces`).*
 	 */
 	static constexpr int32 DeflectDamageReduction = 20;
 
 	/**
 	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
 	 *
-	 * A differenza di `Guard`/`Deflect` NON e' un POOL: quelli hanno un budget che si esaurisce
-	 * ([D-292] e [D-309]), questo e' un delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`,
-	 * nessun gate "una volta sola". E' la differenza che rende `Brace` un'azione diversa da una guardia
-	 * piu' forte: contro molti colpi piccoli la `Brace` non finisce, un pool si'.
+	 * A differenza di `Deflect` NON e' un POOL: quello ha un budget che si esaurisce ([D-309]), questo e' un
+	 * delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`, nessun gate "una volta sola".
+	 *
+	 * 🔴 **E dal 2026-09-20 NON e' piu' una differenza rispetto alla `Guard`, che e' la cosa da sapere qui.**
+	 * Questa riga diceva *«a differenza di `Guard`/`Deflect`… contro molti colpi piccoli la `Brace` non
+	 * finisce, un pool si'»*, e con [D-292] era il mestiere del `Brace`. [D-408] ritira il pool della
+	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (15 contro 10).
+	 * ∴ sull'arco frontale la `Guard` domina, e cio' che resta a separarle e' la **direzione** — la Guardia
+	 * copre il davanti ([D-206]), il `Brace` no ha clausola d'arco. ⚠️ **E' una conseguenza di
+	 * bilanciamento, e `BAL-1` e' aperta**: `docs/decisions/open/bal-1.md` la registra.
 	 * ⚠️ *Questa riga diceva «NON passa da `ApplyFirstHitDelta`», il che implicava che `Guard` e `Deflect`
 	 * ci passassero: non e' piu' vero per nessuno dei due. L'argomento — `Brace` vale su tutti i colpi —
 	 * regge lo stesso, ma il termine di paragone e' cambiato.*

@@ -1171,9 +1171,14 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
-	// `Action.Guard` — si prepara nel Prep e vale per il turno: **pool di 15 danni assorbibili** che i colpi
-	// dell'arco frontale consumano finche' dura ([D-292] + [D-206]), resiste a una spinta di 1 cella, scade
-	// nel Cleanup. Non interrompibile (catalogo §1).
+	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
+	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non
+	// interrompibile (catalogo §1). Il valore lo dichiara il personaggio (`URTHeroData::GuardReduction`);
+	// `URTCombatLibrary::GuardFirstHitReduction` ne e' il default di catalogo.
+	//
+	// ⏱️ *E' la SECONDA riscrittura di questa riga. Diceva «pool di 15 danni assorbibili che i colpi
+	// dell'arco frontale consumano finche' dura ([D-292])» dal 2026-09-03 al 2026-09-20, quando [D-408] ha
+	// ritirato il pool per la sola `Guard`.*
 	//
 	// ⏱️ *La riga diceva «-15 al primo danno diretto» fino al 2026-09-03, cioe' la regola che D-292 ha
 	// sostituito il 2026-08-31. Il numero non cambia e il catalogo nemmeno: cambia cosa il numero E', e

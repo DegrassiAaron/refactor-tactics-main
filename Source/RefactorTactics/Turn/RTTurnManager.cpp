@@ -5435,7 +5435,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ⚠️ `Status.Guarded` NON sta piu' qui ([D-292]). Con un delta NEGATIVO piu' grande del colpo che lo
 	// riceve, la riduzione che avanza si perdeva nel clamp, e quanta se ne perdesse dipendeva da quale colpo
 	// era primo: un bersaglio in Guardia colpito da 10 e da 30 incassava 30 o 25 a seconda dell'ordine
-	// dell'array. La Guardia e' ora un POOL, piu' sotto.
+	// dell'array. La Guardia passa ora da `ApplyEligibleHitDelta`, piu' sotto ([D-408]; era un POOL fra il
+	// 2026-08-31 e il 2026-09-20).
 	TArray<int32> FirstHitDelta;
 	FirstHitDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -5445,12 +5446,19 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		{
 			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
 		}
-		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia e' un pool, costruito dopo questo ciclo.
+		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia ha una sede propria, dopo questo ciclo.
 	}
 
-	// `Status.Guarded` ([D-292]): la Guardia e' un POOL di 15 danni assorbibili, e solo i colpi dell'arco
-	// FRONTALE lo consumano — l'emisfero posteriore resta scoperto ([D-206]). Cio' che un colpo non consuma
-	// resta per i successivi, quindi il totale non dipende piu' da quale colpo arriva per primo.
+	// `Status.Guarded` ([D-408]): la Guardia riduce di una quota fissa OGNI colpo dell'arco FRONTALE —
+	// l'emisfero posteriore resta scoperto ([D-206]) — e il valore lo dichiara il personaggio
+	// (`ARTUnit::GuardReduction`, copia di `URTHeroData::GuardReduction`).
+	//
+	// ⛔ **Non e' piu' un pool, e il TETTO e' sparito: e' la decisione, non un effetto collaterale.** Fra il
+	// 2026-08-31 e il 2026-09-20 [D-292] ne faceva un budget di 15 per turno; [D-408] lo ritira. Il totale
+	// non dipende dall'ordine ne' prima ne' dopo, ma per ragioni diverse — il pool consumava sempre lo stesso
+	// totale, la riduzione per colpo non ha niente da spartire. La pinna
+	// `Combat.GuardReductionIsPermutationInvariant`; il costo — mitigazione illimitata contro sequenze di
+	// colpi piccoli — lo pinna `Combat.GuardReductionHasNoCeiling`, ed e' dichiarato voluto.
 	//
 	// La maschera e' PER-COLPO, che e' il controllo direzionale che [D-206] ha deciso e che nessuno poteva
 	// implementare prima di [D-212]: `FRTAttack` non portava l'attaccante, e «questo colpo e' frontale» non
@@ -5619,9 +5627,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// piu' CORTO varrebbe «non eleggibile» per i colpi mancanti: dimensionarla su `Plan.Hits` e' cio' che la
 	// rende inerte invece che restrittiva.
 	//
-	// Ed e' la ragione per cui l'ordine dei due pool ha dovuto essere deciso ([D-312]): `Guard` e' eleggibile
-	// SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente sovrapposte — la
-	// condizione in cui l'ordine cambia l'esito.
+	// Ed e' la ragione per cui l'ordine dei due meccanismi ha dovuto essere deciso ([D-312]): `Guard` e'
+	// eleggibile SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente
+	// sovrapposte — la condizione in cui l'ordine cambia l'esito. ⏱️ *Erano «due pool» fino a [D-408], che
+	// lascia il pool al solo `Deflect`: l'ordine resta quello, il secondo passaggio ora riduce invece di
+	// assorbire.*
 	TArray<bool> bDeflectEligible;
 	// 🔴 **L'altra lettura: la COPERTURA** (`#2341`). `EffectiveCoverReduction` guarda il facing del
 	// bersaglio quando c'e' una copertura nominale da valutare — e a differenza della Guardia questo

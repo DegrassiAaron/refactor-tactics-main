@@ -484,7 +484,9 @@ bool FRTGuardAndDeflectOrderTest::RunTest(const FString&)
 
 // ======================================================================================================
 // `D-302` punto (3): per un'AREA la direzione d'impatto e' centro d'impatto -> bersaglio, non lanciatore
-// -> bersaglio. Il pool `Guard` e' l'unico consumatore in cui la differenza si vede (`#2009`).
+// -> bersaglio. La `Guard` e' l'unica consumatrice in cui la differenza si vede (`#2009`).
+// ⏱️ *Diceva «il pool `Guard`»: [D-408] lo ha ritirato il 2026-09-20 e la Guardia e' ora una riduzione per
+// colpo. [D-302] non e' toccata, e infatti nessuna assertion di questo blocco e' cambiata.*
 // ======================================================================================================
 
 namespace
