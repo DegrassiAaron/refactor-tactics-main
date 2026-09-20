@@ -608,11 +608,22 @@ bool FRTBlindActionsDarkWallBendsPathTest::RunTest(const FString&)
  *
  * ⚠️ **VERDE PERCHE' IL CANALE C'E'.**
  *
- * ⌫ **Stessa correzione del test precedente, 2026-09-20**: questa riga diceva *«se `BLIND-4` chiudesse nel
- * verso (b), questo test diventa rosso»*, e [D-373] l'ha chiusa nel verso *(a)* — la forma della board **e'**
- * pubblica. L'innesco vero e' l'implementazione della mappa ottimistica di [D-372] in [#2794]: sotto quella
- * regola una cella ignota entra nel ventaglio per il caso migliore invece che per la geometria vera, e cio'
- * che questo test conta cambia.
+ * ⌫ **Corretto il 2026-09-20, e DUE volte: l'innesco dichiarato era irraggiungibile, e la prima
+ * riscrittura ne ha messo un altro che non scatta.**
+ *
+ * La riga diceva *«se `BLIND-4` chiudesse nel verso (b), questo test diventa rosso»*, e [D-373] l'ha chiusa
+ * nel verso *(a)* — la forma della board **e'** pubblica. Fin qui come il test precedente.
+ *
+ * 🔴 **Ma l'innesco di QUEL test non vale per questo, e scriverlo lo stesso era un errore trovato in code
+ * review.** La mappa ottimistica di [D-372] rende una cella ignota **passabile nel caso migliore**: puo'
+ * solo **allargare** il ventaglio. L'asserzione qui e' `Dark.Num() > 0` su un'arena **piatta e senza
+ * ostacoli** (`MakeFlatArena`, vedi `ArenaRadius`), dove non c'e' geometria da ottimizzare: il conteggio
+ * delle celle buie offerte non si muove di una cella, e il test resta verde.
+ *
+ * 🔑 **L'innesco vero e' `BLIND-1` uscita *(c)*, cioe' [#2793]**: diventa rosso il giorno in cui il
+ * ventaglio si filtra per conoscenza e smette di offrire cio' che il velo non disegna. E' lo stesso innesco
+ * dei due test in testa al file — questo misura il canale **diretto**, non quello indiretto della
+ * geometria, e condivide con loro la conversione nel canary A/B/C.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsFanOffersDarkCellsTest,
 	"RefactorTactics.BlindActions.ReachableFanOffersNeverObservedCells",
