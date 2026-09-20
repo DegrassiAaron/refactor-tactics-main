@@ -231,12 +231,59 @@ requisito** a «lo sistemeremo con la UI».
 > leggeva come se il lavoro fosse tracciato.
 >
 > **Cosa è già coperto**: il livello **DTO** lo è da CP 14.3 — `Overwatch.OpportunityLeaksNoFuture`
-> (`RTReactionOpportunityTests.cpp:159`) verifica l'**elenco chiuso dei campi per riflessione**, quindi chi
+> (`RTReactionOpportunityTests.cpp`, ~~`:159`~~) verifica l'**elenco chiuso dei campi per riflessione**, quindi chi
 > aggiunge un campo deve passare di lì e dichiarare perché non è informazione futura. Scoperta resta la
 > **presentazione avversaria**: nessuna pausa variabile correlata alla scelta privata. In v0.1 — offline,
 > contro bot — non c'è un avversario umano che osservi la resolution, quindi il requisito non è
 > falsificabile: è la ragione per cui #759 nasce `post-v0.1` invece di entrare in un DoD che non potrebbe
 > verificarla.
+
+> ## 🔴 L'architettura che questa sezione prescriveva di documentare, documentata il 2026-09-20
+>
+> §7-bis chiude con *«si documenta l'architettura e si apre la issue per il multiplayer: **non si degrada il
+> requisito**»*. La issue è nata il 2026-08-13 ([#759](https://github.com/DegrassiAaron/refactor-tactics-main/issues/759)).
+> L'architettura **no**, e nel frattempo è arrivato il meccanismo che questa sezione dovrà neutralizzare.
+>
+> **`ARTTurnManager::UpdateReactionSlowMotion`** (`Turn/RTTurnManager.cpp`, chiamata a ogni `Tick`) scrive:
+>
+> ```cpp
+> ViewerPlaybackSpeed = bWindowOpen ? ReactionWindowPlaybackSpeed : 1.f;   // 0.35f
+> ```
+>
+> Cioè: la resolution rallenta **esattamente quando** una finestra privata è aperta, e **per esattamente il
+> tempo** che il difensore impiega a rispondere. È la definizione letterale della riga *«Presentazione
+> avversaria»* di questa tabella, letta al contrario.
+>
+> ⛔ **Non è un difetto sfuggito: è dovuto, e da decisioni accettate.** [D-355](RT_PDR_00_Decision_Log.md)
+> stabilisce che la finestra umana si apra **durante** il playback; [#166] dichiara la slow-motion *«sola
+> presentazione»*; [D-350](RT_PDR_00_Decision_Log.md) toglie al giocatore il controllo manuale della velocità
+> proprio dove una finestra può aprirsi — e la funzione lo rispetta, tornando a `1.f` invece che a una
+> preferenza. Le tre sono coerenti fra loro; con §7-bis lo sono **finché esiste un solo osservatore**.
+>
+> ✅ **Oggi non è un leak, e la misura è questa**: `ViewerPlaybackSpeed` non raggiunge nessun avversario
+> perché **niente** lo fa — `grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/` non restituisce righe, e le
+> sole occorrenze del repository sono l'oracolo della guardia `RTServerOnlyGuard`. Il canale è **programmato,
+> non aperto**: si aprirà con la prima superficie di rete, e chi la scriverà lo troverà già lì.
+>
+> 🔑 **Conseguenza per chi sceglierà il meccanismo**: le tre alternative di questa tabella non sono più
+> equivalenti, perché una di esse deve convivere con una slow-motion che il canone **prescrive**. La scelta,
+> la tolleranza numerica che la DoD di #759 chiede, e le tre uscite con i loro costi vivono in `BEAT-1` di
+> [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
+>
+> ⌫ **Due correzioni a questo stesso blocco, sopra.** ① Il riferimento `RTReactionOpportunityTests.cpp:159`
+> è scaduto: a quella riga c'è un altro test, e `OpportunityLeaksNoFuture` è dichiarato più sotto. Si cerca
+> col nome. ② **La riga «DTO verso l'avversario» accredita la copertura al test sbagliato**, ed è quello più
+> debole dei due: `OpportunityLeaksNoFuture` protegge la **forma del tipo** — l'elenco chiuso dei campi — non
+> il **destinatario**. Il filtro per destinatario esiste, è `URTReactionWindowLibrary::FilterWindowForTeam`
+> (`Turn/RTReactionWindowView.h`), consegna all'avversario una vista **vuota** con fail-closed su
+> `INDEX_NONE` prima della regola, ed è coperto da `Reactions.WindowViewHiddenFromEnemyTeam` e
+> `Reactions.WindowViewClosedForUnresolvedTeam`. Il livello DTO è quindi **più** solido di come questa
+> sezione lo racconta — ma citare solo il primo manda chi verifica a cercare il filtro dove non c'è.
+>
+> ⚠️ **E la riga «Autorità» è superata in metà**: *«la regola pura esiste, l'autorità di rete no»* era vero
+> fino al 2026-09-09. L'orologio della finestra esiste ora — `ARTTurnManager::TickReactionWindow`, che legge
+> tempo **non scalato** con la ragione scritta accanto — quindi *«un client lento non allunga la finestra»* è
+> già vero per costruzione **sul singolo processo**. Di M10 resta la latenza reale, non l'orologio.
 
 ### 8. Parametri iniziali *(risolve §8.3)*
 
