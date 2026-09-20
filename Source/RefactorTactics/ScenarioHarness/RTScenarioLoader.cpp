@@ -549,22 +549,68 @@ namespace
 			return false;
 		}
 
-		if (!ParseScenarioLogEvent(*EventObj, TEXT("category"), TEXT("outcome"),
-			OutSelector.Category, OutSelector.Outcome, OutError))
+		// ⛔ **I criteri sono OPZIONALI, e per questo non si passa da `ParseScenarioLogEvent`**: quella
+		// funzione serve un'assertion che l'evento lo DESCRIVE, quindi pretende categoria ed esito entrambi.
+		// Un selettore invece li DICHIARA a scelta — «dopo il primo colpo, chiunque lo tiri» e' un criterio
+		// legittimo. Usarla qui rifiutava ogni `afterEvent` che non li portasse tutti e due, ed e' il difetto
+		// che i test di questa stessa fetta hanno trovato.
+		//
+		// ⚠️ Gli ENUM restano gli stessi, risolti per riflessione: il vocabolario e' uno solo, e una tabella
+		// locale divergerebbe al primo valore aggiunto. Cambia la obbligatorieta', non il significato.
+		FString CategoryText;
+		if ((*EventObj)->TryGetStringField(TEXT("category"), CategoryText))
 		{
-			return false;
+			const UEnum* CategoryEnum = StaticEnum<ERTLogCategory>();
+			const int64 CategoryValue =
+				CategoryEnum ? CategoryEnum->GetValueByNameString(CategoryText) : INDEX_NONE;
+			if (CategoryValue == INDEX_NONE)
+			{
+				OutError = FString::Printf(
+					TEXT("expect: 'afterEvent' ha una categoria '%s' sconosciuta (previste: %s)"),
+					*CategoryText, *EnumNameList(CategoryEnum));
+				return false;
+			}
+			OutSelector.Category = static_cast<ERTLogCategory>(CategoryValue);
+			OutSelector.bHasCategory = true;
 		}
-		OutSelector.bHasCategory = (*EventObj)->HasField(TEXT("category"));
-		OutSelector.bHasOutcome = (*EventObj)->HasField(TEXT("outcome"));
-		// ⚠️ **`outcome` senza `category` non significa niente**, e accettarlo darebbe un selettore che pare
-		// stretto e non lo e': l'esito e' un `uint8` il cui vocabolario lo decide la categoria — `Hit` vale
-		// `1` in `ERTCombatOutcome` e `1` e' un altro esito in `ERTMoveOutcome`. Senza categoria il numero
-		// corrisponderebbe a eventi di famiglie diverse.
-		if (OutSelector.bHasOutcome && !OutSelector.bHasCategory)
+
+		FString OutcomeText;
+		if ((*EventObj)->TryGetStringField(TEXT("outcome"), OutcomeText))
 		{
-			OutError = TEXT("expect: 'afterEvent' dichiara 'outcome' senza 'category' — il significato di un ")
-				TEXT("esito dipende dalla categoria, e da solo corrisponderebbe a eventi di famiglie diverse");
-			return false;
+			// ⚠️ **`outcome` senza `category` non significa niente**, e accettarlo darebbe un selettore che
+			// pare stretto e non lo e': l'esito e' un `uint8` il cui vocabolario lo decide la categoria.
+			// Senza categoria lo stesso numero corrisponderebbe a eventi di famiglie diverse.
+			if (!OutSelector.bHasCategory)
+			{
+				OutError = TEXT("expect: 'afterEvent' dichiara 'outcome' senza 'category' — il significato ")
+					TEXT("di un esito dipende dalla categoria, e da solo corrisponderebbe a eventi di ")
+					TEXT("famiglie diverse");
+				return false;
+			}
+
+			const UEnum* OutcomeEnum = URTScenarioLoader::OutcomeEnumForCategory(OutSelector.Category);
+			if (OutcomeEnum == nullptr)
+			{
+				// Stessa distinzione di `ParseScenarioLogEvent`: «categoria non asseribile» non e' «esito
+				// sbagliato», e manda a correggere il loader invece dello scenario.
+				OutError = FString::Printf(
+					TEXT("expect: 'afterEvent' con categoria %s non e' asseribile — non ha un enum di esiti ")
+					TEXT("in `URTScenarioLoader::OutcomeEnumForCategory`. Non e' un errore dello scenario: ")
+					TEXT("manca un caso nel loader, e va aggiunto li'."),
+					*CategoryText);
+				return false;
+			}
+
+			const int64 OutcomeValue = OutcomeEnum->GetValueByNameString(OutcomeText);
+			if (OutcomeValue == INDEX_NONE)
+			{
+				OutError = FString::Printf(
+					TEXT("expect: 'afterEvent' ha un esito '%s' sconosciuto per la categoria %s (previsti: %s)"),
+					*OutcomeText, *CategoryText, *EnumNameList(OutcomeEnum));
+				return false;
+			}
+			OutSelector.Outcome = static_cast<uint8>(OutcomeValue);
+			OutSelector.bHasOutcome = true;
 		}
 		if (!ParseScenarioLogActionId(*EventObj, TEXT("actionId"), OutSelector.ActionId, OutError))
 		{
