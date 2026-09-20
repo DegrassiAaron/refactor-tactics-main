@@ -6,7 +6,12 @@
 > **Cosa non è**: un owner. Ogni voce qui ha un owner altrove, e questo documento lo nomina invece di
 > sostituirlo. Quando questo file e la sua issue non concordano, **vince la issue**.
 >
-> 📐 **Convenzione**: i conteggi che cambiano da solo non sono scritti ([`AGENTS.md`](../../../AGENTS.md) §14).
+> 🔴 **NIENTE DI QUESTO E' SU `main` MENTRE LO LEGGI, ed e' la prima cosa da sapere.** La
+> sonda, `REPCELL-1`, `BEAT-1` e le correzioni ai tre commenti del codice vivono in **PR aperte**. Il
+> referto le descrive al presente perche' descrive **la passata**, non lo stato del ramo: chi cerca su
+> `main` cio' che questa pagina nomina non lo trova finche' quelle PR non sono mergiate.
+>
+> 📐 **Convenzione**: un conteggio che cambia da solo non si scrive ([`AGENTS.md`](../../../AGENTS.md) §14).
 > Dove un numero compare, o è l'esito del passaggio qui descritto, o è il difetto stesso — e porta il
 > comando che lo produce.
 
@@ -21,7 +26,8 @@ privacy che nessuno aveva ancora posto.
 
 ## 🔴 Il risultato che conta: #1805 ha ereditato una domanda e non lo sapeva
 
-L'ultimo commento di #1805 (2026-09-09) diceva: *«quando `BLIND-1` esce (b) o (c), questa issue eredita
+Il commento di #1805 del **2026-09-09** — l'ultimo fino a questa passata, che ne ha aggiunto uno
+proprio — diceva: *«quando `BLIND-1` esce (b) o (c), questa issue eredita
 una domanda concreta invece di scoprirla a valle»*. `BLIND-1` è uscita **(c)** il giorno dopo con
 [`D-371`](../../decisions/RT_PDR_00_Decision_Log.md), e nessuno dei due lati l'ha registrato — `D-371`
 non nomina `1805`, `D-276`, `D-316` né `replay`.
@@ -40,9 +46,16 @@ la stessa conoscenza autorizzata, su **entrambe** le uscite del prodotto pubblic
 
 Il produttore esiste in produzione — `ERTFacingOutcome::RearHitBypassedCover` scrive `SrcCell` = cella
 dell'attaccante e passa la **vittima** come soggetto. E il repository conosce già la classe: la chiude
-per **un** produttore, accettando l'eccezione *«sui rari bypass»* in un docstring, senza voce `D-`.
+per **un** produttore, accettando l'eccezione *«sui rari bypass»* senza voce `D-`.
+⚠️ *E non solo in un docstring, come questa riga diceva*: la stessa formula sta in
+[`adr-0005-orientamento.md`](../../decisions/adr-0005-orientamento.md) §4-ter, che e' `CANONICAL`.
+*Resta vero che nessuna voce* `D-` *la registra — §4-ter e' datata e attribuita a un'issue, non
+a una decisione numerata — ma la sede normativa e' piu' forte di come era descritta, e cambia il
+peso dell'analogia con* `D-371`.
 
-⚠️ **Adiacenza da tenere d'occhio**: [#649](https://github.com/DegrassiAaron/refactor-tactics-main/issues/649)
+✅ **Adiacenza gia' consumata, non da sorvegliare** — e questa riga la descriveva al futuro
+quando era gia' passato: [#649](https://github.com/DegrassiAaron/refactor-tactics-main/issues/649) era
+gia' **chiusa** e la sua PR **mergiata** pochi minuti prima che questo referto venisse scritto. Essa
 guarda la **stessa voce** dal lato opposto — lì *«la traccia non basta a verificare il danno»*, qui *«la
 traccia dice troppo sulla posizione»*. Write-set disgiunti, misurato; ma chi tocca uno dei due produttori
 tocca il terreno dell'altro.
@@ -119,9 +132,11 @@ aperte.
 ## Due punti ciechi dei gate, misurati e senza owner
 
 1. **`issue-refs.ts` non vede i percorsi spostati.** Costruisce l'insieme dei percorsi morti da
-   `git log --diff-filter=D`, che **esclude i rename**: su `docs/src/wiki/v0.1/roster-legacy/`, `-D`
-   conta `0` e `-R` conta `48`. Conseguenza misurata: #1166 cita un percorso inesistente e il gate resta
-   verde.
+   `git log --diff-filter=D`, che **esclude i rename**: su `docs/src/wiki/v0.1/roster-legacy/` il
+   filtro `D` non trova nulla, mentre `R` elenca i **24** rename. Conseguenza misurata: #1166 cita un
+   percorso inesistente e il gate resta verde. ⚠️ *Una prima stesura scriveva `48` per i
+   rename: e' il numero di **righe** che `--name-status` emette, a coppie sorgente/destinazione.
+   Attaccare i due numeri allo stesso percorso invitava un confronto che raddoppia un lato.*
 2. **Due delle tre rotte di `RTServerOnlyGuard` girano senza oracolo positivo.** `OwnMember` e
    `RpcParameter` non compaiono in nessun test; solo `ReplicatedProperty` ha il proprio leak piantato.
    È letteralmente l'argomento con cui la fixture giustifica la propria esistenza, applicato a due terzi
@@ -135,7 +150,7 @@ aperte.
 | Gate | Esito |
 |---|---|
 | Compile | **PASS** — `Build.bat RefactorTacticsEditor Win64 Development` → `Result: Succeeded`, exit 0, due volte |
-| Automation — `Replay`+`Privacy`+`TurnLog` | **PASS** — `Success=163 Fail=0` |
+| Automation — `RefactorTactics.Replay`+`RefactorTactics.Privacy`+`RefactorTactics.TurnLog` | **PASS** — `Success=163 Fail=0`, sull'albero di lavoro **con** le modifiche: la sonda non esiste sul commit nudo |
 | Automation — `BlindActions`+`Knowledge`+`Veil`+`BlindFire` | **PASS** — `Success=88 Fail=0` |
 | Gate docs | **PASS** — `doc-links.ts --check` e `doc-tables.ts --check`, exit 0 |
 | Determinism · Replay · Privacy | **N/A** sul comportamento: nessuna semantica cambia. La privacy è **misurata** e il canale resta aperto per scelta |
@@ -151,6 +166,41 @@ non più debole. Si dichiara invece di tacerlo.
 
 ⚠️ `issue-refs.ts --check` esce `1`, su #1941 e #1993 — fuori da questa serie, e il gate **esenta
 esplicitamente** #1165.
+
+---
+
+## La code review, e cosa ha trovato
+
+Le sei PR sono passate per una **review indipendente** prima del merge: un revisore per PR, nessuno dei
+quali aveva scritto il codice, piu' un verificatore che ha provato a falsificare ogni finding prima di
+riportarlo. `CLAUDE.md` §6 lo chiede — *«chi ripara non firma»* — e il risultato giustifica il costo.
+
+Ha trovato **tre affermazioni false che questa stessa passata aveva scritto**, tutte della classe che le
+PR esistono per correggere:
+
+| Dove | Cosa dicevo | Cosa e' vero |
+|---|---|---|
+| `RTReplayPrivacyTests.cpp` | *«l'overload generico di `TestNotEqual` non esiste in UE 5.8»* | **esiste**, e il repository lo chiama gia' su `FRTCellId`. La scelta di `TestTrue` resta giusta, ma per il **messaggio**: `TestNotEqual` non stampa i valori, e qui il messaggio *e'* la misura |
+| `RTServerOnlyGuardTests.cpp` | *«la falsificata il commit successivo»* | **nessun commit successivo**: la frase e le fixture che la smentiscono nascono insieme. Non e' invecchiata, e' **nata gia' falsa** |
+| `adr-0004` §7-bis | correggevo nell'ADR una frase citandola come sua | **non c'e' mai stata**: sta nella tabella di #759. Un ADR `CANONICAL` che si autocita una frase che non contiene e' il difetto peggiore di questa classe |
+
+E due difetti di merito che cambiano cosa le voci dicono:
+
+- **il canale di `BEAT-1` e' piu' forte di come l'avevo descritto.** Durante una finestra aperta il playback
+  non rallenta: **si ferma** — `bPlaybackHeldByWindow` esce dal tick *prima* di applicare la velocita'. Sono
+  due meccanismi, e una delle uscite che avevo proposto non ne chiudeva nessuno;
+- **l'innesco riscritto per una delle sonde di `BLIND-4` non poteva scattare.** Avevo sostituito un innesco
+  irraggiungibile con un altro che non scatta: su un'arena senza ostacoli la mappa ottimistica non muove il
+  conteggio. L'innesco vero e' #2793.
+
+Piu' una frase condizionale **senza apodosi** nella riga piu' portante di `systems-map/README.md`, letta
+sei volte senza vederla; `BEAT-1` nata **sopra la soglia** che `OPEN_DECISIONS.md` dichiara su se' stesso,
+e quindi scorporata; e una certificazione di allineamento **scaduta in ventidue minuti** perche' #543 si e'
+chiusa dopo che era stata scritta.
+
+🔑 **Quest'ultima e' la piu' istruttiva di tutte, e non e' un errore**: era vera quando e' stata
+scritta. E' la dimostrazione, sul caso piu' corto possibile, che una fotografia di stato **non e' un gate** —
+ventidue minuti e' meno del tempo che serve a scriverla.
 
 ---
 
