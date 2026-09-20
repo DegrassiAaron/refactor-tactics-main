@@ -1415,7 +1415,24 @@ void ARTTurnManager::RunPhaseLoop()
 {
 	do
 	{
+		// 🔑 **Il confine si annuncia QUI, e la posizione non e' arbitraria** (`#2867`). `Closed` e' la fase
+		// che sta per essere lasciata, e il mondo in questo istante e' esattamente il suo risultato: nessuna
+		// riga della fase successiva ha ancora girato. Annunciarlo DOPO il `Resolve*` sarebbe stato sbagliato
+		// nel caso che conta — quando la risoluzione si sospende su una finestra di reazione il ciclo esce
+		// lasciando `Phase` dov'era, e la fase si chiude davvero solo quando chi rientra la supera.
+		//
+		// Il primo giro ha `Closed == Planning`: il lock-in e' avvenuto e nessuna fase ha risolto.
+		//
+		// ⛔ **`Cleanup` NON si annuncia da qui**, ed e' l'unica eccezione: il suo LAVORO non sta in questo
+		// ciclo — scadenze, ambiente, conteggio dei vivi vivono in `ConcludeResolution`, che gira dopo. Un
+		// annuncio a questo punto direbbe «Cleanup chiuso» prima che il Cleanup sia cominciato.
+		const ERTMatchPhase Closed = Phase;
 		Phase = URTTurnRules::NextPhase(Phase);
+		if (Closed != ERTMatchPhase::Cleanup)
+		{
+			OnPhaseClosed.Broadcast(Closed);
+		}
+
 		if (Phase == ERTMatchPhase::Prep)
 		{
 			ResolvePrep(); // abilita' di supporto (buff su se stessi)
@@ -1901,6 +1918,12 @@ void ARTTurnManager::ConcludeResolution()
 	// da mostrare, playback spento), quindi senza questo azzeramento un round senza playback continuerebbe
 	// a riportare la compressione del round precedente (#1878).
 	PlaybackSlackScale = 1.f;
+
+	// 🔑 **`CleanupEnded`, e questo e' il solo punto in cui e' vero** (`#2867`): il lavoro del Cleanup —
+	// scadenze, ambiente, conteggio dei vivi, verdetto di fine partita — sta sopra, e sotto comincia la
+	// PRESENTAZIONE. Lo stato logico del turno e' finale adesso, e un osservatore che leggesse dopo il
+	// playback leggerebbe cio' che l'animazione ha mostrato invece di cio' che il resolver ha risolto.
+	OnPhaseClosed.Broadcast(ERTMatchPhase::Cleanup);
 
 	// Se c'e' qualcosa da mostrare (movimenti/attacchi) e il playback e' attivo, riproduci la risoluzione
 	// nel tempo; altrimenti concludi subito il turno (comportamento istantaneo: es. headless/senza eventi).
@@ -2711,6 +2734,12 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 
 	// L'UNICO `TurnLog.Add` del file: ogni altro sito passa da qui.
 	TurnLog.Add(Entry);
+
+	// 🔑 **E per la stessa ragione, l'unico punto da cui la voce si annuncia** (`#2867`). Un broadcast nei
+	// siti che producono le voci sarebbe un elenco da tenere allineato — cioe' la prossima dimenticata.
+	// ⛔ Osservazione pura: nessun ritorno, nessuna attesa, la voce parte `const`. Vedi
+	// `FRTLogEntryAppendedSignature`.
+	OnLogEntryAppended.Broadcast(Entry);
 
 	// `#2245`: lo stesso fatto, sull'altro canale. La voce e' appena stata scritta e porta gia' tutto —
 	// il tag in `ActionId`, la durata in `Amount`, la causa in `Outcome` — quindi qui non si decide nulla:

@@ -159,6 +159,14 @@ namespace
 		// risposta di profilo otterrebbe altrimenti la `3` — cioe' una versione che il loader poi rifiuta.
 		for (const FRTTestExpectation& Exp : Scenario.Expect)
 		{
+			// Il checkpoint e' il requisito piu' recente, quindi si controlla PRIMA del filtro di fase: la
+			// funzione ritorna al primo trovato, e un'assertion che usasse entrambi otterrebbe altrimenti la
+			// `6`, cioe' una versione che il loader poi rifiuta. E' la nota che apre questo ciclo.
+			if (Exp.bHasCheckpoint || Exp.bHasAfterEvent)
+			{
+				OutWhy = TEXT("il checkpoint ('at' / 'afterEvent') su un'assertion");
+				return 7;
+			}
 			if (Exp.bHasLogPhase || Exp.bHasThenPhase)
 			{
 				OutWhy = TEXT("il filtro di fase su un'assertion del TurnLog");
@@ -543,6 +551,40 @@ namespace
 			case ERTAssertionKind::EffectiveTargetEquals:
 				W->WriteValue(TEXT("unit"), Exp.UnitId);
 				break;
+			}
+
+			// Il CONFINE si scrive DOPO lo switch perche' vale per ogni tipo di assertion: `at` non e' un
+			// campo di `UnitAtCell` o di `LogEventCount`, e' la risposta alla domanda «quando?» — che ogni
+			// assertion ha. Assente = `CleanupEnded`, e non si scrive: il default rilegge identico e
+			// dichiararlo ovunque riscriverebbe ogni file del corpus (`#2867`).
+			if (Exp.bHasCheckpoint)
+			{
+				W->WriteValue(TEXT("at"),
+					EnumValueName(StaticEnum<ERTScenarioCheckpoint>(), static_cast<int64>(Exp.At)));
+			}
+			else if (Exp.bHasAfterEvent)
+			{
+				W->WriteObjectStart(TEXT("afterEvent"));
+				if (Exp.AfterEvent.bHasCategory)
+				{
+					W->WriteValue(TEXT("category"),
+						EnumValueName(StaticEnum<ERTLogCategory>(), static_cast<int64>(Exp.AfterEvent.Category)));
+				}
+				if (Exp.AfterEvent.bHasOutcome)
+				{
+					// L'esito e' un `uint8` il cui NOME dipende dalla CATEGORIA, e l'enum giusto lo sceglie la
+					// stessa funzione che lo legge — non una tabella locale, che divergerebbe. Il loader
+					// rifiuta un `outcome` senza `category`, quindi qui la categoria c'e' sempre.
+					W->WriteValue(TEXT("outcome"),
+						EnumValueName(URTScenarioLoader::OutcomeEnumForCategory(Exp.AfterEvent.Category),
+							static_cast<int64>(Exp.AfterEvent.Outcome)));
+				}
+				if (!Exp.AfterEvent.ActionId.IsNone())
+				{
+					W->WriteValue(TEXT("actionId"), Exp.AfterEvent.ActionId.ToString());
+				}
+				if (!Exp.AfterEvent.Unit.IsEmpty()) { W->WriteValue(TEXT("unit"), Exp.AfterEvent.Unit); }
+				W->WriteObjectEnd();
 			}
 			W->WriteObjectEnd();
 		}
