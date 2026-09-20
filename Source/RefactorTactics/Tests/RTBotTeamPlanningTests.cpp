@@ -330,6 +330,77 @@ bool FRTBotWeightInvariantTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * 🔴 **La SECONDA invariante dei pesi, presidiata come la prima e per lo stesso motivo** (`#149`).
+ *
+ * `RTHexBotLibrary.h` dichiara `WObjectiveFalloff > WApproach` come *«l'invariante che PUO' fallire»*: sotto
+ * quella soglia il gradiente dell'obiettivo si annulla contro quello dell'avvicinamento, un passo che
+ * avvicina l'obiettivo e allontana il nemico vale esattamente zero, il tie-break «a parita' vince la mossa
+ * minima» fa restare, e il bot non va sull'obiettivo **proprio nel caso per cui il termine esiste**.
+ *
+ * ⛔ **A pinnarla c'era SOLO `HexBot.ObjectivePullBeatsClosingOneCell`, che legge il CDO** — e il difetto e'
+ * identico a quello che `#1276` ha chiuso per `WElevation`, descritto nel test qui sopra: un'istanza di
+ * `ARTTurnManager` piazzata nel livello serializza i propri `UPROPERTY` nel `.umap` e vince sui default
+ * C++. Un livello con `WObjectiveFalloff <= WApproach` riapriva l'indifferenza all'obiettivo **mentre quel
+ * test restava verde**.
+ *
+ * ⚠️ **Nessuna mappa su piu' layer, a differenza del gemello**: questa invariante e' un rapporto fra due
+ * pesi e basta — non entra `MaxLayer`, e per questo il presidio a runtime sta FUORI dal ramo che legge la
+ * mappa. Se ci finisse dentro, un `GetHexContext` nullo la renderebbe muta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotObjectiveWeightInvariantTest,
+	"RefactorTactics.Bot.ObjectiveWeightInvariantIsCheckedOnTheLiveInstance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotObjectiveWeightInvariantTest::RunTest(const FString&)
+{
+	auto Allestisci = [this](UWorld*& OutWorld, ARTTurnManager*& OutTM)
+	{
+		OutWorld = MakeTeamPlanningWorld();
+		if (!TestNotNull(TEXT("world di prova"), OutWorld)) { return false; }
+		ARTHexMapActor* MapActor = OutWorld->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
+
+		ARTUnit* Bot = SpawnTeamPlanningUnit(OutWorld, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-2, 0, 0), true);
+		ARTUnit* Foe = SpawnTeamPlanningUnit(OutWorld, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0, 0), true);
+		OutTM = OutWorld->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		return OutTM != nullptr && Bot != nullptr && Foe != nullptr;
+	};
+
+	// --- (1) Pesi FUORI invariante: il presidio deve URLARE ----------------------------------------
+	{
+		UWorld* World = nullptr; ARTTurnManager* TM = nullptr;
+		if (!Allestisci(World, TM)) { DestroyTeamPlanningWorld(World); return false; }
+
+		// Pareggiati: e' il caso limite, e l'invariante e' STRETTA — a parita' il termine e' gia' morto.
+		TM->WObjectiveFalloff = TM->WApproach;
+		TestTrue(TEXT("premessa: i due gradienti sono davvero pari"),
+			TM->WObjectiveFalloff <= TM->WApproach);
+
+		AddExpectedError(TEXT("INVARIANTE PESI BOT VIOLATA"), EAutomationExpectedErrorFlags::Contains, 1);
+		TM->PlanBotsForTest();
+
+		DestroyTeamPlanningWorld(World);
+	}
+
+	// --- (2) Pesi DI DEFAULT: il presidio deve TACERE ----------------------------------------------
+	// ⚠️ Senza questa meta' passerebbe anche un controllo che urla sempre — e un allarme che suona a ogni
+	// partita e' un allarme che si impara a ignorare. E' la stessa seconda meta' del test gemello.
+	{
+		UWorld* World = nullptr; ARTTurnManager* TM = nullptr;
+		if (!Allestisci(World, TM)) { DestroyTeamPlanningWorld(World); return false; }
+
+		TestTrue(TEXT("premessa: i default rispettano l'invariante"),
+			TM->WObjectiveFalloff > TM->WApproach);
+
+		// Nessun `AddExpectedError`: se il presidio urlasse, l'errore non atteso farebbe cadere il test.
+		TM->PlanBotsForTest();
+
+		DestroyTeamPlanningWorld(World);
+	}
+
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLockInValidatesBotPlansTooTest,
 	"RefactorTactics.Bot.LockInValidatesBotPlansToo",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

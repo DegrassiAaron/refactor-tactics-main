@@ -128,8 +128,16 @@ struct FRTBotWeights
  * Il piano deciso per UNA unita': esattamente i campi che `PlanBots` scriveva sull'`ARTUnit`.
  *
  * ⛔ **E' l'intera uscita, e va tenuto tale.** Se il planner cominciasse a scrivere un nono campo senza
- * passare di qui, l'orchestratore non lo applicherebbe e la decisione si perderebbe **in silenzio** —
- * `Bot.PlannerOutputCoversPlanFields` e' il gate che lo impedisce.
+ * passare di qui, l'orchestratore non lo applicherebbe e la decisione si perderebbe **in silenzio**.
+ *
+ * 🔴 **E NESSUN GATE LO IMPEDISCE, contrariamente a quanto questa riga ha dichiarato fino al 2026-09-20.**
+ * Diceva *«`Bot.PlannerOutputCoversPlanFields` e' il gate che lo impedisce»*, e quel test non esiste:
+ * `git grep -n "PlannerOutputCoversPlanFields" -- .` su tutto l'albero restituisce solo questo commento.
+ * Il piu' vicino e' `Bot.PlanBotsWritesWhatTheValidatorReads`, che copre un'altra proprieta'.
+ *
+ * ⚠️ **Il nome NON e' stato sostituito con uno esistente**, ed e' deliberato: mettere qui un gate che
+ * copre altro nasconderebbe un'assenza invece di dichiararla — e chi legge smetterebbe di cercarla. La
+ * protezione oggi e' la lettura di chi tocca `PlanBots`, e questa riga dice che e' l'unica.
  */
 USTRUCT()
 struct FRTBotPlanDecision
@@ -154,8 +162,12 @@ struct FRTBotPlanDecision
 	 * e `bAttackTargetsCell` sono **mutuamente esclusivi**, e l'esclusivita' vive in tre funzioni —
 	 * `DeclareAttackOnUnit`, `DeclareAttackOnCell`, `ClearPlannedAttack` (`#2884`). L'header di `ARTUnit`
 	 * vieta di scrivere quei campi a mano, *«finche' l'esclusivita' e' stata una convenzione invece che una
-	 * funzione nessuno l'ha rispettata»*. ⛔ Chi applica questo piano **deve** passare da quelle funzioni:
-	 * `Bot.PlannerAppliesAttackThroughDeclare` e' il gate che lo tiene.
+	 * funzione nessuno l'ha rispettata»*. ⛔ Chi applica questo piano **deve** passare da quelle funzioni.
+	 *
+	 * 🔴 **E anche qui il gate dichiarato non esiste**: la riga nominava `Bot.PlannerAppliesAttackThroughDeclare`,
+	 * e `git grep` lo trova solo in questo commento. Due invarianti che il codice afferma sorvegliate e che
+	 * nessuno misura, trovate insieme dalla ricognizione di `#543`. Il nome resta tolto e non sostituito,
+	 * per la ragione scritta sopra `FRTBotPlanDecision`.
 	 */
 	UPROPERTY() int32 PlannedAttackTargetIndex = INDEX_NONE;
 };

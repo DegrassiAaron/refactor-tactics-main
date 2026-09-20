@@ -459,7 +459,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			// Sopra lo standoff nessun termine di distanza si applicava, quindi per un kiter l'elevazione
 			// diventava l'UNICO termine posizionale: restare in quota batteva scendere con qualunque
 			// `WElevation > 0`, e `WElevation * MaxLayer < WApproach` non proteggeva nulla — `WApproach`
-			// non era nemmeno in gioco. Il conto su Phase (`PressureJet` portata 5 -> standoff 3), su una
+			// non era nemmeno in gioco. Il conto su Muiren (`PressureJet` portata 5 -> standoff 3), su una
 			// mappa dove puo' salire: restare a L1 e distanza 4 valeva `+WElevation`, scendere valeva 0.
 			//
 			// ⚠️ Non toglie il kiting: allontanarsi OLTRE la distanza utile e' sempre stato inutile, e ora
@@ -472,7 +472,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			else
 			{
 				// 🔴 **La penalita' parte dallo STANDOFF, e costa al kiter due celle di gittata.** Il costo si
-				// dichiara qui perche' e' una scelta, non una svista: Phase (`PressureJet` portata 5 ->
+				// dichiara qui perche' e' una scelta, non una svista: Muiren (`PressureJet` portata 5 ->
 				// standoff 3) si avvicinera' fino a 3 invece di sparare da 5, cioe' dentro la portata 4 di
 				// Aevik e Ivrin. `DeriveKiteStandoff` dice che «chi colpisce da lontano ha qualcosa da
 				// guadagnare a restare lontano», e questo termine gliene toglie una parte.

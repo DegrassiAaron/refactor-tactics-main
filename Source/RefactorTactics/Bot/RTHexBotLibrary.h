@@ -410,13 +410,13 @@ public:
 	 * Il kiting e' un comportamento del BOT, non una caratteristica dell'eroe: un'unita' che muovi tu non lo
 	 * consulta mai — dove andare lo decidi tu. Per questo il numero non sta piu' su `ARTUnit` (dove i due
 	 * archetipi legacy lo scrivevano insieme alle statistiche) ne' su `URTHeroData`: un campo sull'eroe
-	 * direbbe «Phase tiene le distanze» anche quando Phase la guidi tu, dove non significa niente.
+	 * direbbe «Muiren tiene le distanze» anche quando Muiren la guidi tu, dove non significa niente.
 	 *
 	 * La regola riproduce i due archetipi che il comportamento lo producevano: `Ranger` aveva portata 6 e
 	 * standoff 4, `Guardian` portata 3 e standoff 0. Chi colpisce da lontano ha qualcosa da guadagnare a
 	 * restare lontano; chi colpisce da vicino no, e arretrare gli costerebbe soltanto il turno.
 	 *
-	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Aevik e Ivrin (4) e
+	 * Sul roster v0.1 l'unica kiter e' Muiren (`PressureJet`, portata 5 -> standoff 3). Aevik e Ivrin (4) e
 	 * Branth (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
 	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
 	 */
