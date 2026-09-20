@@ -192,8 +192,14 @@ regola standard del vertical slice).
 | Medio raggio | 22 | 4 |
 | Lungo raggio | 20 | 6 |
 
-**Guard** — riduce di **15** il primo danno diretto ricevuto · resiste a una spinta di 1 cella · termina nel
-Cleanup · **non** protegge dagli hazard ambientali già presenti.
+**Guard** — riduce di **15** **ogni** danno diretto ricevuto nell'arco frontale ([D-206]) · resiste a una
+spinta di 1 cella · termina nel Cleanup · **non** protegge dagli hazard ambientali già presenti.
+
+> ⏱️ **Riscritta il 2026-09-20 da [D-408]**, e la riga è stata sbagliata due volte prima: diceva «il **primo**
+> danno diretto ricevuto», che era la regola fino a [D-292] (2026-08-31) — la quale l'aveva resa un **pool** di
+> 15 danni assorbibili senza che questo catalogo se ne accorgesse. D-408 ritira il pool e riporta la Guardia a
+> una riduzione **per colpo**. ⚠️ **E il `15` qui è ora un DEFAULT di catalogo, non la regola**: il valore lo
+> dichiara il personaggio (`URTHeroData::GuardReduction`), ed è la metà della decisione che tocca `BAL-3`.
 
 > In v0.1 «una spinta di 1 cella» significa **ogni** spinta del gioco: il catalogo non ha valori maggiori di 1.
 > È il motivo per cui sulla spinta `Guard` e `Brace` non si distinguono — [D-074](../decisions/RT_PDR_00_Decision_Log.md).
@@ -574,10 +580,17 @@ movimento volontario** dell'eroe.
 > **fallisce apposta** finché la variante non viene applicata. È anche la ragione per cui la seduta `U20`
 > non riesce a distinguere le due difese — non è presentazione e non sono i numeri.
 >
-> **Ciò che distingue le due sul colpo singolo resta il danno**: `Guard` −15 sul solo primo colpo,
-> `Brace` −10 su ogni colpo — cioè *primo colpo pesante* contro *colpi ripetuti*. Sul colpo singolo senza
-> `Weapon.Impact` `Guard` domina, ed è il trade-off pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
-> `Spec.Brace.BraceWinsOnSecondHit` (12 contro 17 su due colpi).
+> 🔴 **Ciò che distingue le due NON è più la forma, da [D-408] (2026-09-20): è la DIREZIONE.** Entrambe sono
+> ora riduzioni **per colpo** — `Guard` −15, `Brace` −10 — quindi sull'arco frontale `Guard` domina sempre, su
+> un colpo come su molti. Ciò che `Brace` ha e `Guard` no è l'**omnidirezionalità**: la Guardia non copre le
+> spalle ([D-206], `Spec.Facing.BackAttackIgnoresGuard`), il `Brace` sì.
+>
+> ⏱️ *Questa riga diceva: «`Guard` −15 sul solo primo colpo, `Brace` −10 su ogni colpo — cioè primo colpo
+> pesante contro colpi ripetuti … il trade-off pinnato da `Spec.Brace.GuardAndBraceOnMixedHit` e
+> `Spec.Brace.BraceWinsOnSecondHit` (12 contro 17 su due colpi)».* ⚠️ **Quei due scenari sono ancora verdi ma
+> dicono l'opposto**: su due colpi frontali `DG` esce ora **illesa** e `DB` perde 7 — il `Brace` non vince più
+> sul secondo colpo, e il nome di quel file è diventato storico. 🔑 **È materia di `BAL-1`, che è APERTA**:
+> l'istruttoria è aggiornata in [`decisions/open/bal-1.md`](../decisions/open/bal-1.md).
 >
 > ✅ **Il confine fra le due è DECISO**: [D-121](../decisions/RT_PDR_00_Decision_Log.md) (2026-08-12) ha
 > chiuso `BAL-1` scegliendo lo **status quo** — nessuna separazione fra danno e spinta, nessuna magnitudine

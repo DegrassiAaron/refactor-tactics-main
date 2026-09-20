@@ -257,6 +257,30 @@ public:
 	static TArray<FRTAttack> ApplyDamageDelta(const TArray<FRTAttack>& Attacks, const TArray<int32>& DeltaByTarget);
 
 	/**
+	 * Come `ApplyDamageDelta`, ma il delta vale solo sui colpi che una **maschera per-colpo** dichiara
+	 * eleggibili ([D-408]).
+	 *
+	 * 🔑 **Esiste perche' la Guardia ha entrambe le proprieta' e nessuna funzione le aveva insieme**: il
+	 * delta vale su OGNI colpo — come `Action.Brace` — ma solo su quelli dell'arco FRONTALE, che e' una
+	 * condizione del colpo e non del bersaglio ([D-206]). `ApplyDamageDelta` non ha la maschera;
+	 * `ApplyAbsorptionPool` ce l'ha ma consuma un budget, e un budget e' proprio cio' che `D-408` ritira.
+	 *
+	 * ⚠️ **`bEligible` e' indicizzata come `Attacks`, non come i bersagli**, ed e' la stessa convenzione di
+	 * `ApplyAbsorptionPool`. Una maschera piu' corta dell'array vale «non eleggibile»: un dato mancante non
+	 * deve concedere una protezione che nessuno ha dichiarato.
+	 *
+	 * 🔴 **E' permutation-invariant PER COSTRUZIONE**, che e' la proprieta' per cui [D-292] aveva introdotto
+	 * il pool: senza un budget da consumare non c'e' un avanzo da perdere, quindi l'esito non dipende da
+	 * quale colpo sia arrivato prima. Cio' che cambia rispetto al pool e' il **tetto** — una riduzione per
+	 * colpo non ne ha — e [D-408] lo dichiara voluto.
+	 *
+	 * Il danno di un colpo non scende sotto 0: una riduzione puo' annullarlo, non curare.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static TArray<FRTAttack> ApplyEligibleHitDelta(const TArray<FRTAttack>& Attacks,
+		const TArray<int32>& DeltaByTarget, const TArray<bool>& bEligible, FName SourceId);
+
+	/**
 	 * Assorbimento a POOL ([D-292]): ogni bersaglio ha un budget di danno che i colpi consumano finche' dura,
 	 * e cio' che avanza NON si perde.
 	 *
@@ -264,7 +288,10 @@ public:
 	 * colpo e clampa a zero, quindi con un delta negativo piu' grande del colpo che lo riceve la riduzione che
 	 * avanza sparisce — e quanta ne sparisca dipende da QUALE colpo era primo. Misurato: un bersaglio in
 	 * Guardia colpito da 10 e da 30 incassava **30** o **25** a seconda dell'ordine dell'array
-	 * (`Combat.NegativeFirstHitDeltaIsPermutationInvariant`). Il pool consuma sempre lo stesso totale, quindi
+	 * (`Combat.GuardReductionIsPermutationInvariant`, che dal 2026-09-20 la ri-asserisce sul modello di
+	 * [D-408]). ⏱️ *Questa riga citava `Combat.NegativeFirstHitDeltaIsPermutationInvariant`, un nome che non
+	 * e' mai esistito: `Spec.Combat.GuardPoolSpansMultipleHits` lo aveva gia' dichiarato stantio e copiato
+	 * da qui.* Il pool consuma sempre lo stesso totale, quindi
 	 * la somma torna **commutativa per costruzione**: non serve nessuna regola su chi viene prima.
 	 *
 	 * `bEligible` e' PARALLELO a `Attacks` e dice quali colpi possono attingere al pool. E' il canale della

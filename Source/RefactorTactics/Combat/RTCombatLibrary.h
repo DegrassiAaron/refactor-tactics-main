@@ -160,26 +160,43 @@ public:
 	static constexpr int32 ExposedFirstHitBonus = 5;
 
 	/**
-	 * `Action.Guard`: **POOL** di 15 danni assorbibili, che i colpi dell'arco FRONTALE consumano finche'
-	 * dura ([D-292] + [D-206]). Non protegge dagli hazard ambientali gia' presenti — quelli non passano dai
-	 * colpi diretti e arrivano con l'epic E8.
+	 * `Action.Guard`: il **DEFAULT DI CATALOGO** della riduzione per colpo ([D-408] + [D-206]). Non
+	 * protegge dagli hazard ambientali gia' presenti — quelli non passano dai colpi diretti e arrivano con
+	 * l'epic E8.
+	 *
+	 * 🔴 **Non e' piu' un POOL, e non e' piu' il valore che il resolver legge.** [D-292] l'aveva reso un
+	 * budget di 15 danni assorbibili per il turno; [D-408] (2026-09-20) ritira il pool e riporta la Guardia
+	 * a una riduzione **per colpo**, il cui valore lo dichiara il **personaggio** —
+	 * `URTHeroData::GuardReduction`, copiato su `ARTUnit::GuardReduction`. Questa costante resta come
+	 * **default** di quel campo, cioe' il numero che vale per chi non ne dichiara uno proprio.
+	 *
+	 * ⚠️ **Il `Deflect` invece resta un pool** ([D-309], che `D-408` **non** ritira): il repository ha due
+	 * modelli difensivi, ed e' una conseguenza dichiarata — una reazione e una postura hanno ragioni
+	 * diverse per avere un tetto. Lo pinna `Combat.DeflectStaysAPool`.
 	 *
 	 * 🔴 **Questo commento diceva «riduce di 15 il PRIMO danno diretto ricevuto» fino al 2026-09-03, e
 	 * D-292 l'aveva superato il 2026-08-31.** La differenza non e' di parole: col vecchio delta la riduzione
 	 * che avanzava si PERDEVA, e quanta se ne perdesse dipendeva da quale colpo fosse arrivato prima — un
 	 * bersaglio colpito da 10 e da 30 incassava 30 o 25 a seconda dell'indice dell'attaccante. Il pool
-	 * consuma sempre lo stesso totale, quindi l'esito e' invariante per permutazione **per costruzione**.
+	 * consumava sempre lo stesso totale; la riduzione per colpo di [D-408] non ha un totale da spartire.
+	 * ∴ **l'invarianza per permutazione regge sotto entrambi i modelli, per ragioni opposte**, ed e' la cosa
+	 * che `D-408` prescrive di conservare (`Combat.GuardReductionIsPermutationInvariant`).
 	 *
 	 * ⚠️ **Il NOME resta `GuardFirstHitReduction`, e non e' una svista.** Rinominarlo tocca i chiamanti ed
 	 * e' un refactor, non una correzione di prosa: finche' il nome vive, questo commento e' l'unico posto
 	 * che dice cosa il valore fa davvero. Chi lo rinomina porti via anche questo paragrafo.
 	 *
-	 * Il valore lo consuma `URTCombatResolver::ApplyAbsorptionPool`, **non** `ApplyFirstHitDelta` — che
-	 * resta la strada di `Status.Exposed` e `Status.Marked`. ⚠️ *Questa riga diceva «`Status.Exposed` e
+	 * Il valore lo legge `URTCombatResolver::ApplyEligibleHitDelta`, **non** `ApplyAbsorptionPool` e **non**
+	 * `ApplyFirstHitDelta` — quest'ultima resta la strada di `Status.Exposed` e `Status.Marked`.
+	 * ⏱️ *Questa riga diceva `ApplyAbsorptionPool` fino al 2026-09-20, ed era la meta' di commento che
+	 * [D-408] aveva lasciato indietro correggendo l'altra: chi la seguiva per trovare il consumatore
+	 * atterrava sul percorso del `Deflect`. Trovato da una code review — ed e' precisamente la deriva che il
+	 * paragrafo qui sotto descrive.* ⚠️ *Questa riga diceva «`Status.Exposed` e
 	 * `Action.Deflect`», ed era vera quando fu scritta: [D-309] ha reso un pool anche il `Deflect` il giorno
 	 * dopo. E' il modo in cui una deriva si allarga — correggendo meta' di una regola.* Esercitato dal corpus con
-	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del pool: sopra i 15 le due
-	 * regole danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse del cambio (`#1919`).
+	 * `Spec.Combat.GuardPoolSpansMultipleHits`, che usa colpi PIU' PICCOLI del valore: sopra i 15 i modelli
+	 * danno lo stesso numero, ed e' la ragione per cui il corpus non si accorse ne' di [D-292] (`#1919`) ne',
+	 * il 2026-09-20, di [D-408].
 	 */
 	static constexpr int32 GuardFirstHitReduction = 15;
 
@@ -295,10 +312,26 @@ public:
 	 * Etichettarlo `Action.Deflect` attribuirebbe a `Hero.Ivrin.Deflection` un'azione che l'unita' non ha
 	 * usato: lo stesso difetto che `#2213` corregge, un livello piu' sotto. Trovato da una code review.
 	 *
-	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: il suo pool e' gated su `TAG_Status_Guarded`.
+	 * ⚠️ La Guardia invece un tag ce l'ha, ed e' esatto: la sua mitigazione e' gated su
+	 * `TAG_Status_Guarded`. ⏱️ *Da [D-408] non e' piu' un pool — la provenienza corrente e'
+	 * `GuardPerHitSource`, e `GuardPoolSource` resta perche' il `Deflect` e le tracce gia' scritte la
+	 * usano.*
 	 */
 	static const FName GuardPoolSource;
 	static const FName ReactionReductionPoolSource;
+
+	/**
+	 * La provenienza della **riduzione per colpo** della Guardia ([D-408]).
+	 *
+	 * ⚠️ **Accanto a `GuardPoolSource` e non al suo posto, e non e' un residuo.** Dal 2026-09-20 la Guardia
+	 * non e' piu' un pool, ma le tracce gia' scritte lo sono: una voce di TurnLog con
+	 * `D-292 · Status.Guarded` resta leggibile e vera per il turno che la produsse. Cancellare la costante
+	 * renderebbe illeggibile il passato per far posto al presente.
+	 *
+	 * 🔑 **E il `Deflect` resta un pool** ([D-309], che `D-408` **non** ritira): `GuardPoolSource` conserva
+	 * un secondo lettore proprio perche' quel modello sopravvive alla Guardia.
+	 */
+	static const FName GuardPerHitSource;
 
 	/**
 	 * `Status.Marked` (`Action.MarkTarget`, catalogo v0.1 §3): +6 al PROSSIMO attacco alleato contro il
@@ -314,27 +347,39 @@ public:
 	 * `Action.Deflect` (catalogo v0.1 §4): apre un POOL di 20 danni assorbibili sui colpi diretti del
 	 * boundary che ha fatto scattare la reazione.
 	 *
-	 * Passa da `ApplyAbsorptionPool` come la `Guard` ([D-309], che estende al `Deflect` la forma che
-	 * [D-292] aveva dato alla Guardia): cio' che un colpo non consuma **resta** per i successivi, quindi il
-	 * totale assorbito non dipende da quale colpo arriva per primo. ⚠️ La REAZIONE si attiva una volta sola
+	 * Passa da `ApplyAbsorptionPool`, ed e' rimasto **l'unico** a farlo ([D-309] estese al `Deflect` la
+	 * forma che [D-292] aveva dato alla Guardia; [D-408] l'ha poi tolta alla Guardia e non al `Deflect`):
+	 * cio' che un colpo non consuma **resta** per i successivi, quindi il totale assorbito non dipende da
+	 * quale colpo arriva per primo. ⏱️ *Questa riga diceva «come la `Guard`» fino al 2026-09-20, e
+	 * contraddiceva il paragrafo dieci righe piu' giu' che questa stessa voce aveva aggiornato. Trovato da
+	 * una code review.* ⚠️ La REAZIONE si attiva una volta sola
 	 * — e' quello che la distingue dalla `Guard`, che e' uno stato — ma cio' che l'attivazione produce e' un
 	 * budget per l'intero boundary, non uno sconto sul colpo innescante. ⛔ **Mai attraverso boundary diversi**:
 	 * aggregare colpi di boundary differenti distruggerebbe la simultaneita' che il resolver garantisce.
 	 * Se il danno arriva a zero l'attacco resta comunque un colpo AVVENUTO (il clamp e' sul valore, non sulla
 	 * voce): conta per trigger e marchi, come dice il catalogo.
 	 *
-	 * ⚠️ Quando due pool coprono lo stesso colpo, `Deflect` assorbe PRIMA di `Guard` — [D-312], e non e' un
-	 * dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
+	 * ⚠️ Quando entrambe coprono lo stesso colpo, `Deflect` assorbe PRIMA che `Guard` riduca — [D-312], e non
+	 * e' un dettaglio d'implementazione: su 2940 configurazioni raggiungibili 558 danno un esito diverso.
+	 * ⏱️ *Erano «due pool» fino al 2026-09-20: [D-408] lascia il pool al solo `Deflect`. L'ORDINE non cambia
+	 * — `D-312` non e' toccata — cambia il secondo dei due meccanismi, e quindi il numero che ne esce
+	 * (`Combat.DeflectAbsorbsBeforeGuardReduces`).*
 	 */
 	static constexpr int32 DeflectDamageReduction = 20;
 
 	/**
 	 * `Action.Brace` (catalogo v0.1 §4): riduce di 10 OGNI danno diretto fino al Cleanup.
 	 *
-	 * A differenza di `Guard`/`Deflect` NON e' un POOL: quelli hanno un budget che si esaurisce
-	 * ([D-292] e [D-309]), questo e' un delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`,
-	 * nessun gate "una volta sola". E' la differenza che rende `Brace` un'azione diversa da una guardia
-	 * piu' forte: contro molti colpi piccoli la `Brace` non finisce, un pool si'.
+	 * A differenza di `Deflect` NON e' un POOL: quello ha un budget che si esaurisce ([D-309]), questo e' un
+	 * delta su OGNI colpo che non si consuma mai — `ApplyDamageDelta`, nessun gate "una volta sola".
+	 *
+	 * 🔴 **E dal 2026-09-20 NON e' piu' una differenza rispetto alla `Guard`, che e' la cosa da sapere qui.**
+	 * Questa riga diceva *«a differenza di `Guard`/`Deflect`… contro molti colpi piccoli la `Brace` non
+	 * finisce, un pool si'»*, e con [D-292] era il mestiere del `Brace`. [D-408] ritira il pool della
+	 * Guardia: le due difese hanno ora la **stessa forma**, e la `Guard` toglie di piu' (15 contro 10).
+	 * ∴ sull'arco frontale la `Guard` domina, e cio' che resta a separarle e' la **direzione** — la Guardia
+	 * copre il davanti ([D-206]), il `Brace` no ha clausola d'arco. ⚠️ **E' una conseguenza di
+	 * bilanciamento, e `BAL-1` e' aperta**: `docs/decisions/open/bal-1.md` la registra.
 	 * ⚠️ *Questa riga diceva «NON passa da `ApplyFirstHitDelta`», il che implicava che `Guard` e `Deflect`
 	 * ci passassero: non e' piu' vero per nessuno dei due. L'argomento — `Brace` vale su tutti i colpi —
 	 * regge lo stesso, ma il termine di paragone e' cambiato.*

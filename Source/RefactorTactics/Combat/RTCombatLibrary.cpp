@@ -7,6 +7,7 @@
 // `ActionId` sta sulla dichiarazione, in `RTCombatLibrary.h`.
 const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
 const FName URTCombatLibrary::ReactionReductionPoolSource = FName(TEXT("D-309 · Reactions.DamageReduction"));
+const FName URTCombatLibrary::GuardPerHitSource = FName(TEXT("D-408 · Status.Guarded"));
 
 FRTDamageResult URTCombatLibrary::ApplyDamage(int32 Damage, ERTDamageSource Source, int32 Shield,
 	int32 TemporaryShield, int32 Health)

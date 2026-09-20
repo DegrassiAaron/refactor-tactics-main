@@ -108,6 +108,48 @@ bool FRTCatalogIdsUniqueTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **Una riduzione di guardia negativa e' un ERRORE di catalogo, non un numero strano** ([D-408]).
+ *
+ * 🔴 **Senza questa convalida sarebbe un no-op SILENZIOSO**: `RTTurnManager` fa
+ * `-FMath::Max(0, GuardReduction)`, quindi un valore negativo diventa delta `0`, `ApplyEligibleHitDelta`
+ * salta il colpo, e `Action.Guard` smette di proteggere quell'eroe senza una riga da nessuna parte —
+ * nessun log, nessun test rosso.
+ *
+ * 🔑 **`URTHeroData::GuardReduction` e' arrivato con [D-408] accanto a `PushResistance`**, che il
+ * validator controlla dal principio; il trattamento parallelo si era fermato prima del validator. Trovato
+ * da una code review.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogRejectsNegativeGuardTest,
+	"RefactorTactics.Catalog.RejectsNegativeGuardReduction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCatalogRejectsNegativeGuardTest::RunTest(const FString&)
+{
+	URTHeroData* Eroe = URTHeroCatalogLibrary::MakeBranth();
+	if (!TestNotNull(TEXT("l'eroe di prova esiste"), Eroe)) { return false; }
+
+	// PREMESSA: com'e' a catalogo passa. Senza, la riga sotto non distinguerebbe «il campo e' rifiutato»
+	// da «questo eroe era gia' invalido per altro».
+	TestEqual(TEXT("premessa: il roster com'e' non produce errori"),
+		URTHeroCatalogLibrary::ValidateHeroes({ Eroe }).Num(), 0);
+
+	Eroe->GuardReduction = -5;
+	const TArray<FString> Errori = URTHeroCatalogLibrary::ValidateHeroes({ Eroe });
+	TestTrue(TEXT("riduzione guardia negativa: almeno un errore"), Errori.Num() > 0);
+
+	// ⚠️ E l'errore dice QUALE campo, come fanno gli altri di questo validator: un elenco che non lo dice
+	// costringe a cercarlo, ed e' la ragione per cui `ValidateActions` nomina l'id duplicato.
+	bool bNominaLaGuardia = false;
+	for (const FString& E : Errori) { bNominaLaGuardia |= E.Contains(TEXT("guardia")); }
+	TestTrue(TEXT("l'errore dice che si tratta della guardia"), bNominaLaGuardia);
+
+	// ✅ E zero e' LECITO: un eroe che non mitiga e' una scelta di taratura, non un dato rotto.
+	Eroe->GuardReduction = 0;
+	TestEqual(TEXT("zero e' un valore legittimo, non un errore"),
+		URTHeroCatalogLibrary::ValidateHeroes({ Eroe }).Num(), 0);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogRejectsInvalidTest,
 	"RefactorTactics.Catalog.ValidatorRejectsInvalidAsset",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

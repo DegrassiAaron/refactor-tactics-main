@@ -98,6 +98,23 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 StableUnitId = 0;
 
+	/**
+	 * Di quanto `Status.Guarded` riduce ogni colpo valido dell'arco frontale, per QUESTA unita' ([D-408]).
+	 *
+	 * ⚠️ **Copia per valore di `URTHeroData::GuardReduction`**, come ogni altro dato d'eroe che il resolver
+	 * legge: farlo risalire all'`HeroId` darebbe al combattimento una dipendenza su
+	 * `URTHeroCatalogLibrary` per un numero che l'unita' puo' portarsi. Il default vale quanto quello di
+	 * catalogo, cosi' un'unita' senza eroe si comporta come prima di [D-408].
+	 */
+	// ⛔ `BlueprintReadOnly` come ogni altro dato d'unita' che il resolver legge (`MoveRange`,
+	// `VisionRange`, `PushResistance`, `StableUnitId`). La prima stesura lo aveva `BlueprintReadWrite`:
+	// sarebbe stato un canale per cui un Blueprint — anche di presentazione — muta un numero che
+	// `ARTTurnManager::ResolveCombatPasses` legge per decidere il danno. E' una seconda autorita' su una
+	// regola competitiva (`CLAUDE.md` §5 e §7), e non lascerebbe traccia nel TurnLog. Trovato da una code
+	// review.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
+	int32 GuardReduction = 15;
+
 	/** Numero massimo di celle percorribili in un turno (distanza di Manhattan). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	int32 MoveRange = 4;

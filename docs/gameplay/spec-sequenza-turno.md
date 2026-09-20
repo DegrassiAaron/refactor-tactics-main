@@ -209,7 +209,15 @@ mai costruita, e questa sezione chiedeva se costruirla o ritirarla.
 ✅ **Come si è chiuso invece.** Rendendo **commutativa la mitigazione**, non ordinando gli effetti: la Guardia
 diventa un **pool** di danni assorbibili ([D-292](../decisions/RT_PDR_00_Decision_Log.md)), e una somma che non
 perde pezzi non ha bisogno di sapere chi viene prima. Il difetto che ha portato qui è provato da
-`RefactorTactics.Combat.GuardPoolIsPermutationInvariant`.
+`RefactorTactics.Combat.GuardReductionIsPermutationInvariant`.
+
+> ⏱️ **Il meccanismo è cambiato il 2026-09-20, la chiusura no.** [D-408](../decisions/RT_PDR_00_Decision_Log.md)
+> ritira il pool per la sola `Guard` e la riporta a una **riduzione per colpo**, col valore dichiarato dal
+> personaggio. 🔑 La commutatività **regge, per una ragione diversa**: senza un budget non c'è un avanzo da
+> perdere, quindi ogni colpo eleggibile riceve la stessa quota e il totale non dipende dall'ordine. È il motivo
+> per cui la voce prescrive di **riscrivere** quel test e non di cancellarlo, e perché il nome sopra è quello
+> nuovo. ⛔ `Deflect` **resta un pool** ([D-309](../decisions/RT_PDR_00_Decision_Log.md)): la sua metà della
+> stessa proprietà sta ora in `RefactorTactics.Combat.DeflectPoolIsPermutationInvariant`.
 
 ⚠️ La domanda si riapre solo se comparisse un effetto ordine-dipendente **non riducibile a un pool** — e allora
 con una premessa che il gioco possa avere, non con l'unità attiva.
