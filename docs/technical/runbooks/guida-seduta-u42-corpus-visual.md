@@ -183,13 +183,12 @@ giudicabile, l'altra metà aspetta `StatusChanged` (§8.1 di `scenari-validazion
 
 | # | scenario | voce | ❌ falsificata se |
 |---|---|---|---|
-| 16 | `Visual.Combat.GuardReducesFirstHit` | `PIE-VIS-GUARD` | Riktor non arriva a **97**: la guardia porta 15 assorbibili, e il **primo** colpo da 22 li consuma tutti |
+| 16 | `Visual.Combat.GuardReducesFirstHit` | `PIE-VIS-GUARD` | Riktor non arriva a **112**: la guardia toglie 15 a **ciascuno** dei due colpi ⏱️ *era «non arriva a 97 … il primo colpo da 22 li consuma tutti», fino a [D-408] il 2026-09-20* |
 | 17 | `Visual.Combat.BraceReducesEveryHit` | `PIE-VIS-BRACE` | Riktor non arriva a **102**: ogni colpo perde 10 e la riduzione **non finisce mai** |
 | 18 | `Visual.Combat.AreaGuardFromImpactCenter` | `PIE-VIS-AREAGUARD` | la Guardia non regge con il lanciatore **dietro** e l'esplosione **davanti** |
-| 19 | `Visual.Combat.GuardVsBraceUnderSmallHits` | `PIE-ACC-GUARDBRACE` | i tre difensori non si distinguono: atteso **Brace illeso**, **Guard** poco colpito, **senza difesa** molto |
+| 19 | `Visual.Combat.GuardVsBraceUnderSmallHits` | `PIE-ACC-GUARDBRACE` | 🔴 **da non eseguire dopo [D-408]**: `Brace` e `Guard` chiudono ora **entrambi illesi** (120) e solo **senza difesa** si distingue (101) ⏱️ *il sintomo elencato qui — «i tre difensori non si distinguono» — è diventato l'esito VOLUTO per due dei tre; ri-puntare su un colpo alle spalle, [#3223](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3223)* |
 
-🔑 **Il confronto 16 ↔ 17 è il punto, non i due numeri presi da soli**: *una difesa si consuma, l'altra
-dura*. Se si presentano uguali, la scelta tattica che le due azioni esistono per offrire non arriva a chi
+🔑 **Il confronto 16 ↔ 17 è il punto, non i due numeri presi da soli.** ⏱️ *Fino al 2026-09-20 era «una difesa si consuma, l'altra dura», con 97 contro 102.* Da [D-408] nessuna delle due si consuma: la Guardia toglie di più (112 contro 102) e ciò che le separa è la **direzione**, che questa coppia di scene non esercita. Se si presentano uguali, la scelta tattica che le due azioni esistono per offrire non arriva a chi
 gioca — ed è una conclusione che nessun test headless può raggiungere.
 
 ## 4. Come si registra un esito

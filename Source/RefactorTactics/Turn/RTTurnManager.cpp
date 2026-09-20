@@ -891,6 +891,36 @@ void ARTTurnManager::PlanBots()
 					WElevation, MaxLayer, WElevation * MaxLayer, WApproach);
 			}
 		}
+
+		// 🔴 **LA SECONDA INVARIANTE DEI PESI, e sta FUORI dal ramo della mappa perche' non le serve.**
+		// `WObjectiveFalloff > WApproach` e' dichiarata in `RTHexBotLibrary.h` come *«l'invariante che PUO'
+		// fallire»*: sotto quella soglia il termine d'obiettivo si annulla contro l'avvicinamento, un passo
+		// che avvicina l'obiettivo e allontana il nemico vale zero, il tie-break «a parita' vince la mossa
+		// minima» fa restare, e il bot non va sull'obiettivo **proprio nel caso per cui il termine esiste**.
+		//
+		// 🔑 **Sta QUI accanto all'altra e non nel planner, ed e' una scelta di SEDE.** `PlanTurn` riceve
+		// gia' `Pesi` e potrebbe verificarla da solo — ma sarebbe una seconda sede per la stessa famiglia
+		// d'invarianti, con un secondo registro e una seconda vita: qui c'e' gia' il messaggio, e c'e' gia'
+		// `bBotWeightInvariantChecked`, che la fa gridare **una volta per partita** invece che a ogni turno.
+		//
+		// ⛔ **Il buco che chiude e' reale e misurato, non teorico.** A pinnare l'invariante era **solo**
+		// `HexBot.ObjectivePullBeatsClosingOneCell`, che legge `GetDefault<ARTTurnManager>()` — il CDO. E'
+		// esattamente il buco che `#1276` ha chiuso per `WElevation`: `ARTGameMode` riusa un
+		// `ARTTurnManager` gia' presente nel livello, e un'istanza piazzata serializza i propri `UPROPERTY`
+		// nel `.umap`. ∴ un livello con `WObjectiveFalloff <= WApproach` riapriva l'indifferenza
+		// all'obiettivo **mentre il test restava verde**, e nessuno lo sentiva.
+		//
+		// ⚠️ Diagnostica, non decisione: non cambia una sola scelta, esattamente come quella sopra.
+		if (WObjectiveFalloff <= WApproach)
+		{
+			UE_LOG(LogRT, Error,
+				TEXT("[RT] INVARIANTE PESI BOT VIOLATA: WObjectiveFalloff(%d) <= WApproach(%d). "
+					 "Il gradiente dell'obiettivo non batte quello dell'avvicinamento: a parita' il "
+					 "tie-break fa restare fermo il bot, e l'obiettivo non viene preso proprio quando "
+					 "sarebbe raggiungibile (#2269). Controlla i pesi sull'ARTTurnManager di QUESTO "
+					 "livello: un'istanza serializzata nel .umap vince sui default C++."),
+				WObjectiveFalloff, WApproach);
+		}
 	}
 
 	EnsureMatchRoster();
@@ -1010,6 +1040,11 @@ void ARTTurnManager::PlanBots()
 			Bot->ClearPlannedAttack();
 		}
 	}
+
+	// La stima direzionale del turno, assegnata e non sommata: `PlanBots` gira due volte sullo stesso turno
+	// quando `PlanBotsForTest()` precede `LockInAndResolve()`, e un `+=` conterebbe la stessa decisione due
+	// volte — la stessa ragione per cui `BotDecisionsForAudit` piu' sotto e' un'assegnazione (`#649`).
+	BotPlannedCoverBypassedByFacing = Esito.PlannedCoverBypassedByFacing;
 
 	// Le righe di log: prodotte dalla decisione, emesse da qui col loro soggetto.
 	for (const FRTBotLogLine& Riga : Esito.LogLines)
@@ -5435,7 +5470,8 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// ⚠️ `Status.Guarded` NON sta piu' qui ([D-292]). Con un delta NEGATIVO piu' grande del colpo che lo
 	// riceve, la riduzione che avanza si perdeva nel clamp, e quanta se ne perdesse dipendeva da quale colpo
 	// era primo: un bersaglio in Guardia colpito da 10 e da 30 incassava 30 o 25 a seconda dell'ordine
-	// dell'array. La Guardia e' ora un POOL, piu' sotto.
+	// dell'array. La Guardia passa ora da `ApplyEligibleHitDelta`, piu' sotto ([D-408]; era un POOL fra il
+	// 2026-08-31 e il 2026-09-20).
 	TArray<int32> FirstHitDelta;
 	FirstHitDelta.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
@@ -5445,12 +5481,19 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		{
 			FirstHitDelta[i] += URTCombatLibrary::ExposedFirstHitBonus;
 		}
-		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia e' un pool, costruito dopo questo ciclo.
+		// Il ramo `Status.Guarded` non e' piu' qui: la Guardia ha una sede propria, dopo questo ciclo.
 	}
 
-	// `Status.Guarded` ([D-292]): la Guardia e' un POOL di 15 danni assorbibili, e solo i colpi dell'arco
-	// FRONTALE lo consumano — l'emisfero posteriore resta scoperto ([D-206]). Cio' che un colpo non consuma
-	// resta per i successivi, quindi il totale non dipende piu' da quale colpo arriva per primo.
+	// `Status.Guarded` ([D-408]): la Guardia riduce di una quota fissa OGNI colpo dell'arco FRONTALE —
+	// l'emisfero posteriore resta scoperto ([D-206]) — e il valore lo dichiara il personaggio
+	// (`ARTUnit::GuardReduction`, copia di `URTHeroData::GuardReduction`).
+	//
+	// ⛔ **Non e' piu' un pool, e il TETTO e' sparito: e' la decisione, non un effetto collaterale.** Fra il
+	// 2026-08-31 e il 2026-09-20 [D-292] ne faceva un budget di 15 per turno; [D-408] lo ritira. Il totale
+	// non dipende dall'ordine ne' prima ne' dopo, ma per ragioni diverse — il pool consumava sempre lo stesso
+	// totale, la riduzione per colpo non ha niente da spartire. La pinna
+	// `Combat.GuardReductionIsPermutationInvariant`; il costo — mitigazione illimitata contro sequenze di
+	// colpi piccoli — lo pinna `Combat.GuardReductionHasNoCeiling`, ed e' dichiarato voluto.
 	//
 	// La maschera e' PER-COLPO, che e' il controllo direzionale che [D-206] ha deciso e che nessuno poteva
 	// implementare prima di [D-212]: `FRTAttack` non portava l'attaccante, e «questo colpo e' frontale» non
@@ -5460,8 +5503,12 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// solo `Power`: nessuna aggiunge, toglie o riordina. Se un giorno una di loro cambiasse la cardinalita',
 	// questa maschera punterebbe ai colpi sbagliati **in silenzio** — e' l'assunzione da rompere per prima
 	// se il pool assorbisse dal lato sbagliato.
-	TArray<int32> GuardPool;
-	GuardPool.Init(0, Units.Num());
+	// ⏱️ *Era un POOL fino al 2026-09-20* ([D-292]): un budget di 15 danni assorbibili per il turno, che i
+	// colpi frontali consumavano. [D-408] lo ritira e riporta la Guardia a una **riduzione per colpo**, il
+	// cui valore lo dichiara il personaggio. Il segno e' NEGATIVO perche' e' un delta, nella convenzione di
+	// `ApplyDamageDelta` — non un budget positivo come quello del `Deflect`, che resta un pool.
+	TArray<int32> GuardReductionByTarget;
+	GuardReductionByTarget.Init(0, Units.Num());
 	TArray<bool> bFrontalHit;
 	bFrontalHit.Init(false, Plan.Hits.Num());
 
@@ -5479,7 +5526,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		if (!Units[i] || !Units[i]->HasStatus(TAG_Status_Guarded)) { continue; }
-		GuardPool[i] = URTCombatLibrary::GuardFirstHitReduction;
+		// Il valore e' dell'UNITA' ([D-408]), non piu' una costante condivisa: `ARTUnit::GuardReduction` lo
+		// porta da `URTHeroData`, e il suo default e' ancora quello di catalogo.
+		// `Max(0, ...)` perche' una riduzione negativa sarebbe un bonus al danno, e nessuno l'ha dichiarata.
+		GuardReductionByTarget[i] = -FMath::Max(0, Units[i]->GuardReduction);
 
 		for (int32 h = 0; h < Plan.Hits.Num(); ++h)
 		{
@@ -5612,9 +5662,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// piu' CORTO varrebbe «non eleggibile» per i colpi mancanti: dimensionarla su `Plan.Hits` e' cio' che la
 	// rende inerte invece che restrittiva.
 	//
-	// Ed e' la ragione per cui l'ordine dei due pool ha dovuto essere deciso ([D-312]): `Guard` e' eleggibile
-	// SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente sovrapposte — la
-	// condizione in cui l'ordine cambia l'esito.
+	// Ed e' la ragione per cui l'ordine dei due meccanismi ha dovuto essere deciso ([D-312]): `Guard` e'
+	// eleggibile SOLO sui colpi frontali, `Deflect` su tutti, quindi le due maschere sono parzialmente
+	// sovrapposte — la condizione in cui l'ordine cambia l'esito. ⏱️ *Erano «due pool» fino a [D-408], che
+	// lascia il pool al solo `Deflect`: l'ordine resta quello, il secondo passaggio ora riduce invece di
+	// assorbire.*
 	TArray<bool> bDeflectEligible;
 	// 🔴 **L'altra lettura: la COPERTURA** (`#2341`). `EffectiveCoverReduction` guarda il facing del
 	// bersaglio quando c'e' una copertura nominale da valutare — e a differenza della Guardia questo
@@ -5683,13 +5735,13 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// Le tre ragioni, per chi legge qui invece che nel registro: `Deflect` e' una REAZIONE e agisce sul colpo
 	// che l'ha innescata mentre `Guard` e' uno STATO gia' in essere; `Priority 15` contro `40` concorda; e
 	// fra i due ordini questo e' quello che concede meno protezione.
-	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyAbsorptionPool(
+	TArray<FRTAttack> Attacks = URTCombatResolver::ApplyEligibleHitDelta(
 		URTCombatResolver::ApplyAbsorptionPool(
 			URTCombatResolver::ApplyDamageDelta(
 				URTCombatResolver::ApplyFirstHitDelta(URTHexCombatLibrary::ToAttacks(Plan), FirstHitDelta),
 				EveryHitDelta),
 			DeflectPool, bDeflectEligible, URTCombatLibrary::ReactionReductionPoolSource),
-		GuardPool, bFrontalHit, URTCombatLibrary::GuardPoolSource);
+		GuardReductionByTarget, bFrontalHit, URTCombatLibrary::GuardPerHitSource);
 
 	TArray<FRTCellId> AttackSrc;  // cella dell'attaccante per ogni FRTAttack (TurnLog)
 	// Parallelo ad `AttackSrc`, e non ridondante con lui: la cella dice DA DOVE, non CHI — e dopo un Dash le

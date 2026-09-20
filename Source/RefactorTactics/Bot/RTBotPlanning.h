@@ -128,8 +128,20 @@ struct FRTBotWeights
  * Il piano deciso per UNA unita': esattamente i campi che `PlanBots` scriveva sull'`ARTUnit`.
  *
  * ⛔ **E' l'intera uscita, e va tenuto tale.** Se il planner cominciasse a scrivere un nono campo senza
- * passare di qui, l'orchestratore non lo applicherebbe e la decisione si perderebbe **in silenzio** —
- * `Bot.PlannerOutputCoversPlanFields` e' il gate che lo impedisce.
+ * passare di qui, l'orchestratore non lo applicherebbe e la decisione si perderebbe **in silenzio**.
+ *
+ * 🔴 **E NESSUN GATE LO IMPEDISCE, contrariamente a quanto questa riga ha dichiarato fino al 2026-09-20.**
+ * Diceva *«`Bot.PlannerOutputCoversPlanFields` e' il gate che lo impedisce»*, e quel test non esiste:
+ * nessun `IMPLEMENT_*_AUTOMATION_TEST` lo dichiara: le occorrenze sono tutte commenti e referti.
+ * ⚠️ Il comando va ristretto al CODICE — `git grep -n "PlannerOutputCoversPlanFields" -- Source/` —
+ * perche' da quando questa riga esiste il nome compare anche qui e nel referto di `#149`: un comando
+ * pubblicato che conta le proprie citazioni smette di riprodurre il proprio esito il giorno in cui
+ * viene scritto.
+ * Il piu' vicino e' `Bot.PlanBotsWritesWhatTheValidatorReads`, che copre un'altra proprieta'.
+ *
+ * ⚠️ **Il nome NON e' stato sostituito con uno esistente**, ed e' deliberato: mettere qui un gate che
+ * copre altro nasconderebbe un'assenza invece di dichiararla — e chi legge smetterebbe di cercarla. La
+ * protezione oggi e' la lettura di chi tocca `PlanBots`, e questa riga dice che e' l'unica.
  */
 USTRUCT()
 struct FRTBotPlanDecision
@@ -154,8 +166,12 @@ struct FRTBotPlanDecision
 	 * e `bAttackTargetsCell` sono **mutuamente esclusivi**, e l'esclusivita' vive in tre funzioni —
 	 * `DeclareAttackOnUnit`, `DeclareAttackOnCell`, `ClearPlannedAttack` (`#2884`). L'header di `ARTUnit`
 	 * vieta di scrivere quei campi a mano, *«finche' l'esclusivita' e' stata una convenzione invece che una
-	 * funzione nessuno l'ha rispettata»*. ⛔ Chi applica questo piano **deve** passare da quelle funzioni:
-	 * `Bot.PlannerAppliesAttackThroughDeclare` e' il gate che lo tiene.
+	 * funzione nessuno l'ha rispettata»*. ⛔ Chi applica questo piano **deve** passare da quelle funzioni.
+	 *
+	 * 🔴 **E anche qui il gate dichiarato non esiste**: la riga nominava `Bot.PlannerAppliesAttackThroughDeclare`,
+	 * e `git grep` lo trova solo in questo commento. Due invarianti che il codice afferma sorvegliate e che
+	 * nessuno misura, trovate insieme dalla ricognizione di `#543`. Il nome resta tolto e non sostituito,
+	 * per la ragione scritta sopra `FRTBotPlanDecision`.
 	 */
 	UPROPERTY() int32 PlannedAttackTargetIndex = INDEX_NONE;
 };
@@ -203,4 +219,29 @@ struct FRTBotPlanningOutcome
 	 * si paga in partita.
 	 */
 	UPROPERTY() TArray<FRTAuditBotDecision> AuditDecisions;
+
+	/**
+	 * Quanti punti di riduzione i piani SCELTI di questo turno si aspettano di scavalcare grazie alla
+	 * direzione (`#649`, CP 16.2). Somma su tutti i bot che hanno deciso in questa chiamata.
+	 *
+	 * 🔑 **E' la meta' che mancava a un rapporto, e senza di lui l'altra non significa niente.** Le voci
+	 * `Facing`/`RearHitBypassedCover` dicono quanti punti sono stati scavalcati DAVVERO; questo dice
+	 * quanti il bot ne aveva contati decidendo. Il rapporto — realizzati su stimati — e' il *tasso di
+	 * realizzo*, ed e' la seconda meta', rimasta sulla carta dal 2026-08-12, della decisione che ha
+	 * introdotto il termine.
+	 *
+	 * ⛔ **Sta sull'ESITO e non su `FRTBotPlanDecision`, ed e' una separazione voluta.** Quella struct e'
+	 * *«esattamente i campi che `PlanBots` scriveva sull'`ARTUnit`»*: un campo che l'orchestratore non
+	 * applica la trasformerebbe in un misto di decisione e telemetria, e il gate che sorveglia la
+	 * copertura dei campi non saprebbe piu' quale delle due sta contando.
+	 *
+	 * ⛔ **Solo i piani scelti, mai le candidate.** `ChooseBestPlan` valuta decine di candidate per unita'
+	 * e ognuna porta la propria stima: sommarle tutte gonfierebbe il numeratore di un ordine di grandezza
+	 * e il tasso direbbe che il bot sovrastima quando invece a sovrastimare sarebbe la misura.
+	 *
+	 * ⚠️ **Zero quando nessun piano scelto attacca attraverso una copertura** — cioe' su ogni board senza
+	 * coperture di bordo, che oggi sono tutte quelle generate. Uno zero qui e' *«la condizione non si e'
+	 * presentata»*, non *«il bot non sovrastima»*: chi misura deve distinguerli o non ha misurato niente.
+	 */
+	UPROPERTY() int32 PlannedCoverBypassedByFacing = 0;
 };

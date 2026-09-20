@@ -274,7 +274,22 @@ int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTC
 
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
 {
+	// Una sola implementazione: la forma corta scarta la stima invece di ricalcolarla altrove. E' il
+	// precedente di `EffectiveCoverReduction` (`Combat/RTHexCombatLibrary.h`), che per la stessa ragione
+	// tiene la forma con out-param come unica sede del calcolo.
+	int32 Scartato = 0;
+	return ScorePlan(Map, Plan, Context, Scartato);
+}
+
+int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context,
+	int32& OutCoverBypassedByFacing)
+{
 	int32 Score = 0;
+
+	// ⚠️ **Si AZZERA, non si accumula.** Chi misura chiama questa funzione una volta per piano dentro un
+	// ciclo, e un out-param che sommasse sul valore in ingresso renderebbe il totale dipendente da come il
+	// chiamante ha inizializzato la variabile — un contratto che si scopre sbagliando.
+	OutCoverBypassedByFacing = 0;
 
 	// Dove il piano mira, e quindi come il bot sara' orientato: serve a entrambi i termini direzionali, e si
 	// calcola una volta sola perche' e' la stessa figura in campo che li produce.
@@ -359,7 +374,13 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 					CombatProbe(Plan.DestCell, ArrivalFacing),
 					CombatProbe(Context.Enemies[I], Context.EnemyFacings[I]),
 					Plan.Shape);
-				Score += Context.WDamage * FMath::Max(0, Nominal - Effective);
+
+				// I PUNTI scavalcati escono di qui, il punteggio li pesa. Sono la stessa sottrazione letta
+				// due volte e non due sottrazioni: `Bypassed` e' l'unica, e il termine la moltiplica
+				// (`#649`). Il bersaglio e' `Facing`/`RearHitBypassedCover`, il cui `Amount` porta punti.
+				const int32 Bypassed = FMath::Max(0, Nominal - Effective);
+				OutCoverBypassedByFacing += Bypassed;
+				Score += Context.WDamage * Bypassed;
 			}
 		}
 
@@ -438,7 +459,8 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			// Sopra lo standoff nessun termine di distanza si applicava, quindi per un kiter l'elevazione
 			// diventava l'UNICO termine posizionale: restare in quota batteva scendere con qualunque
 			// `WElevation > 0`, e `WElevation * MaxLayer < WApproach` non proteggeva nulla — `WApproach`
-			// non era nemmeno in gioco. Il conto su Phase (`PressureJet` portata 5 -> standoff 3), su una
+			// non era nemmeno in gioco. Il conto su Muiren a portata di CATALOGO (`PressureJet` 5 -> standoff 3
+			// — in partita `Weapon.Impact` la porta a 4 e lo standoff a 0, vedi `RTHexBotLibrary.h`), su una
 			// mappa dove puo' salire: restare a L1 e distanza 4 valeva `+WElevation`, scendere valeva 0.
 			//
 			// ⚠️ Non toglie il kiting: allontanarsi OLTRE la distanza utile e' sempre stato inutile, e ora
@@ -451,7 +473,7 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 			else
 			{
 				// 🔴 **La penalita' parte dallo STANDOFF, e costa al kiter due celle di gittata.** Il costo si
-				// dichiara qui perche' e' una scelta, non una svista: Phase (`PressureJet` portata 5 ->
+				// dichiara qui perche' e' una scelta, non una svista: Muiren a portata di catalogo (`PressureJet` 5 ->
 				// standoff 3) si avvicinera' fino a 3 invece di sparare da 5, cioe' dentro la portata 4 di
 				// Aevik e Ivrin. `DeriveKiteStandoff` dice che «chi colpisce da lontano ha qualcosa da
 				// guadagnare a restare lontano», e questo termine gliene toglie una parte.

@@ -80,6 +80,15 @@ const RESIDUI_DICHIARATI = [
       + `provenienza da registrare. L'analisi completa e la sua verifica stanno in `
       + `tools/asset-refs/check.ts.`,
   },
+  {
+    ref: '/Game/RT/UI/Match',
+    perche:
+      `NON e' un asset: e' una CARTELLA, e quindi non ha una provenienza da registrare — #3225. `
+      + `E' il metadato d'import di Interchange in coda a `
+      + `Content/RT/UI/Match/T_RT_ZoneBlockoutBorder.uasset: "contentImportPath" e' la cartella di `
+      + `DESTINAZIONE dell'import, non una dipendenza. Content/RT/UI/Match.uasset non esiste. `
+      + `L'analisi completa, con gli offset dei tre match nel package, sta in tools/asset-refs/check.ts.`,
+  },
 ];
 
 function git(...args: string[]): string[] {

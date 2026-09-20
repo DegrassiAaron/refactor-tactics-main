@@ -534,7 +534,7 @@ bool FRTFreeRunArenaV01Test::RunTest(const FString&)
  *
  * Il mandato chiede il determinismo su tre percorsi e ne dichiara due gia' coperti — lo showcase con
  * `Scenario.ShowcaseT1IsDeterministic` (dieci ripetizioni sul roster intero) e il Deflect con
- * `Combat.GuardPoolIsPermutationInvariant` ([D-309]) — lasciando lo **scenario hazard** come residuo
+ * `Combat.DeflectPoolIsPermutationInvariant` ([D-309]) — lasciando lo **scenario hazard** come residuo
  * *«da verificare»*. Misurato il 2026-09-12: `grep -rn "AutoBattle\.Hazard" Source/` rispondeva **0**, e
  * `Scenario.EveryShippedScenarioRuns` lo esegue **una volta sola** — quindi non poteva dire niente sulla
  * ripetibilita', che e' la domanda.

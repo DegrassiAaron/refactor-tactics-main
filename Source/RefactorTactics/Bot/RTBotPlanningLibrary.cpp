@@ -148,7 +148,13 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// che non c'e' — la prenotazione a fine iterazione scrive proprio qui dentro.
 		FRTHexSnapshot& Snapshot = *TeamSnapshotPtr;
 
-		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e salta il turno.
+		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e rinuncia al
+		// resto della pianificazione.
+		//
+		// ⚠️ **«Salta il turno» e' cio' che questa riga diceva, ed e' impreciso**: il `continue` piu' sotto
+		// salta l'attacco e il movimento, non la REAZIONE — che il blocco `#601` arma qualche riga prima,
+		// e apposta, *«PRIMA di ogni `continue` del resto della pianificazione»*. Un bot che si cura resta
+		// armato, e chi legge «salta il turno» conclude il contrario.
 		//
 		// «Supporto» qui significa curare o schermare, non genericamente «agire su di se'»: il filtro era
 		// `bSelfTarget` e basta, e finche' nessuna azione dichiarava quel flag la differenza non si vedeva.
@@ -179,6 +185,32 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// bilanciamento — un eroe che si cura da solo cambia il ritmo dello scontro — non un refactoring»*,
 		// ed e' rinviata alla v0.2. Chi la prendera' trovera' qui la prova che «schermi» non equivale a
 		// «curi», e che il ramo va ripensato prima di aprirlo allo scudo.
+		//
+		// 🔑 **I due insiemi, risolti il 2026-09-20 — perche' il corpo di `#464` li descrive piu' piccoli
+		// di come sono, e chi lo legge cerca nel posto sbagliato.** Quel corpo dice *«le uniche due azioni
+		// self-target sono `Action.Guard` e `Action.Brace`»* e *«il gate richiede `Heal` **o** `Shield`»*:
+		// entrambe scadute — la seconda l'ha corretta `#2283` qui sopra, la prima non l'aveva corretta
+		// nessuno. ➕ E una TERZA, che e' la piu' dannosa perche' manda a cercare nel file sbagliato: quel
+		// corpo colloca il ramo in *«`RTTurnManager.cpp` (~riga 150)»*, e il ramo vive QUI dal giorno in cui
+		// `#3013` ha portato la decisione del bot fuori dall'orchestratore.
+		//
+		//   self-target    `Action.Guard` · `Action.Overwatch` · `Action.Brace` · `Action.Shield`, piu' i
+		//                  due che da quest'ultima DERIVANO — `Hero.Muiren.TideGuard` e
+		//                  `Hero.Ivrin.PhaseGuard`, via `MakeHeroActionFromCore`, che eredita il flag.
+		//   con `Heal`     `Action.Heal` (20) e `Hero.Muiren.CircularTide` (18) con le sue due varianti
+		//                  `…Healing` (24) e `…Impact` (10). ⚠️ Sono VARIANTI di quell'azione, non azioni:
+		//                  il corpo della issue le attribuisce a due eroi diversi, e sono tutte di Muiren.
+		//                  ➕ E `Gadget.Medkit`, che CONCEDE `Action.Heal` con `Heal 18`: e' la quinta riga
+		//                  che il comando qui sotto restituisce, ed e' un'azione vera — `EquipLoadout` la
+		//                  costruisce con `MakeEquipmentAction` e la accoda ad `Abilities`, quindi accende
+		//                  `bRestores` come le altre. Non apre l'intersezione perche' `MakeEquipmentAction`
+		//                  COPIA `bSelfTarget` dal core, e `Action.Heal` non lo dichiara. ⚠️ Senza questa
+		//                  riga l'elenco diceva quattro e il comando cinque, ed e' lo stesso difetto che
+		//                  questo blocco esiste per correggere.
+		//
+		// L'intersezione e' VUOTA, ed e' l'unica cosa che tiene il ramo chiuso. Si rimisura cosi':
+		//   git grep -n "bSelfTarget = true" -- Source/RefactorTactics/Ability/
+		//   git grep -n "ERTActionEffect::Heal" -- Source/RefactorTactics/Ability/
 		bool bUsedSupport = false;
 		for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 		{
@@ -201,6 +233,31 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			{
 				Piano.PlannedAbilityIndex = A;
 				bUsedSupport = true;
+
+				// 🔴 **Il ramo lascia una traccia, e fino al 2026-09-20 non ne lasciava nessuna** (`#464`).
+				// Quando scattava, il `continue` poco sotto faceva saltare l'attacco e il turno del bot
+				// diventava indistinguibile — dal log — da un turno in cui non aveva trovato niente da fare.
+				// La domanda «il ramo e' stato attraversato?» si rispondeva leggendo il sorgente, ed e'
+				// esattamente cio' che ha permesso alla regressione di `#2283` di arrivare fino a quattro
+				// test di partita rossi a cascata invece che a una riga di log.
+				//
+				// ⚠️ **In PARTITA non viene mai emessa, e la ragione e' strutturale**: l'intersezione fra
+				// le azioni `bSelfTarget` e quelle con un effetto `Heal` e' VUOTA sul roster spedito (gli
+				// insiemi sono risolti nel commento in testa al blocco). ∴ nessun combat log di partita
+				// cambia, nessun hash cambia, nessun golden si muove.
+				//
+				// ✅ **Ma la riga non e' codice non provato, ed e' la differenza fra «inerte» e «morto»**:
+				// `HexBotPlay.UsesSupportWhenHurt` l'azione curativa se la costruisce dentro il test, quindi
+				// il ramo lo attraversa davvero. Misurato il 2026-09-20 sul log della suite: la riga compare
+				// **una volta**, `«…: si rimette in piedi con Test.SelfSupport (ferito: 20/120 HP) e salta
+				// il turno»`. Il giorno in cui una cura lanciabile su di se' entra nel catalogo, quella
+				// stessa riga comincia a comparire in partita senza che nessuno debba scriverla.
+				//
+				// Gli HP entrano nel testo perche' sono la CONDIZIONE che ha fatto scattare il ramo: senza,
+				// chi legge il log vede la scelta e non il perche'.
+				Esito.LogLines.Add(FRTBotLogLine{FString::Printf(
+					TEXT("%s: si rimette in piedi con %s (ferito: %d/%d HP) e rinuncia ad attaccare"),
+					*Bot.DisplayName, *Ab->Def.ActionId.ToString(), Bot.Health, Bot.MaxHealth), Bot.Index});
 				break;
 			}
 		}
@@ -323,7 +380,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				}
 			}
 			// Cosa la squadra sa di questo nemico. `EnemyReach` NON passa di qui: gittate e forme sono
-			// catalogo, cioe' dato pubblico — sapere che Phase ha portata 5 non e' sapere dov'e' Phase.
+			// catalogo, cioe' dato pubblico — sapere che Muiren ha portata 5 non e' sapere dov'e' Muiren.
 			FRTCellId KnownCell = Other.Cell;
 			int32 KnownHealth = Other.Health + Other.Shield;
 			// La CONDIZIONE segue la stessa disciplina degli HP: su un contatto incerto non si sa, e non si
@@ -726,7 +783,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				LocalCtx.bAttackFriendlyFire = ShapedAbility->Def.bFriendlyFire;
 				// Chi SPOSTA, letto dagli effetti dichiarati ([D-319], `#2253`). Dal `Def` e non da una
 				// lista di `ActionId`: cosi' vale anche per gli effetti che l'EQUIPAGGIAMENTO aggiunge —
-				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Phase
+				// `Weapon.Impact` accoda un `Push` all'attacco base, ed e' il loadout di default di Muiren E di Branth
 				// (D-089). Una lista di nomi avrebbe mancato proprio il caso piu' comune.
 				LocalCtx.bAttackDisplaces = false;
 				for (const FRTActionEffectSpec& Effect : ShapedAbility->Def.Effects)
@@ -813,10 +870,26 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// quindi pianificarli insieme e' legale, ed e' la scelta *schivo e sparo*. Il prezzo c'e' e non e' piu'
 		// implicito: chi scatta non prosegue col Move (lo applica il resolver piu' sotto), chi carica si.
 		//
-		// Resta il problema di bilanciamento che la nota segnalava, e resta misurato sugli ARCHETIPI: per il
-		// Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1 con
-		// cooldown 3. Sul roster eroi i numeri sono altri. Il meccanismo qui sopra e' corretto; a renderlo
-		// utile e' il bilanciamento — voce `BAL-1` del backlog, che parte da una misura e non da una correzione.
+		// ⌫ **Questa nota misurava su un roster che non esiste, e rinviava alla voce sbagliata.** Diceva:
+		// *«per il Guardian «scatto + Sweep» fa 30 danni e spinta 2 con cooldown 0, la Charge 20 e spinta 1
+		// con cooldown 3 […] voce `BAL-1` del backlog»*. Tre cose non reggono piu', verificate il 2026-09-20:
+		//
+		// · **`Guardian.*` e' fuori dal gioco** dal CP 6.6 — il roster e' `Hero.Aevik`, `Hero.Muiren`,
+		//   `Hero.Branth`, `Hero.Ivrin` (`URTHeroCatalogLibrary::GetHeroIds`) — e non esiste nessuna
+		//   `Sweep` con cui confrontare la carica;
+		// · **i numeri della carica sono altri**: `Hero.Branth.Ram` eredita `Action.Charge`, cioe' 20 danni
+		//   piu' `Push 1`, portata 3, **cooldown 2** e slot **`Movement`** (`RTCatalogLibrary.cpp`, la riga di
+		//   `ShippedAction(TEXT("Action.Charge") …)`). Non `cooldown 3`, e non lo slot principale;
+		// · **`BAL-1` e' un'altra domanda**: in `docs/OPEN_DECISIONS.md` e' *«`Guard` e `Brace` devono
+		//   separarsi in danno contro spinta?»*, riformulata da [D-408]. Non ha niente a che vedere con lo
+		//   scatto.
+		//
+		// 🔑 **Cio' che di quella nota resta vero e' il meccanismo, non l'esempio**: scatto e attacco sono
+		// slot diversi, pianificarli insieme e' legale, e quanto valga la composizione e' bilanciamento.
+		// La sede e' `#149`, col vincolo di [D-102]: un risultato bot-contro-bot non e' evidenza finche' il
+		// bot non e' certificato sulle capability che lo producono, e per lo scatto lo stato sta in
+		// `docs/roadmap/bot-competence.yaml` (`Dash`: `PASS` per Muiren e Branth, `UNTESTED` per Ivrin, non
+		// applicabile ad Aevik, che una mobilita' rapida non ce l'ha).
 		if (bDashReady)
 		{
 			for (int32 A = 0; A < Bot.NumAbilities(); ++A)
@@ -849,7 +922,12 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		const int32 BestAbility = Plans.IsValidIndex(BestIdx) ? PlanAbility[BestIdx] : INDEX_NONE;
 		const FRTBotUnitFacts* Target = (Best.bHasAttack && EnemyUnitIndex.IsValidIndex(Best.TargetIndex))
 			? &Facts[EnemyUnitIndex[Best.TargetIndex]] : nullptr;
-		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx);
+		// La stima direzionale esce insieme al totale, dalla stessa chiamata: e' il piano SCELTO, ed e'
+		// l'unico per cui la domanda «quanto si aspettava di scavalcare?» ha una risposta confrontabile con
+		// cio' che il resolver scrivera' nel TurnLog (`#649`).
+		int32 CoperturaScavalcataStimata = 0;
+		const int32 Score = URTHexBotLibrary::ScorePlan(Snapshot.Map, Best, Ctx, CoperturaScavalcataStimata);
+		Esito.PlannedCoverBypassedByFacing += CoperturaScavalcataStimata;
 
 		// Il TERMINE d'obiettivo accanto al totale, non dentro (`#2269`).
 		//
@@ -867,6 +945,19 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		const FString ObjectiveNote = ObjectiveTerm > 0
 			? FString::Printf(TEXT(" [obiettivo +%d]"), ObjectiveTerm)
 			: FString();
+
+		// La SECONDA riga del breakdown, con la stessa disciplina della prima (`#649`).
+		//
+		// ⚠️ **Porta i PUNTI scavalcati, non il termine di punteggio**, e la scelta e' la stessa del campo
+		// d'uscita: chi legge il log accanto a una voce `RearHitBypassedCover` confronta due numeri nella
+		// stessa unita'. Il contributo al totale resta `WDamage` volte questo.
+		//
+		// ⚠️ **Si scrive solo quando pesa**, come `[obiettivo]`: su una board senza coperture di bordo —
+		// cioe' ogni arena generata — il termine vale zero e la riga di log resta identica a prima.
+		const FString ScavalcataNote = CoperturaScavalcataStimata > 0
+			? FString::Printf(TEXT(" [scavalcata %d]"), CoperturaScavalcataStimata)
+			: FString();
+		const FString Breakdown = ObjectiveNote + ScavalcataNote;
 
 		// La memoria si aggiorna UNA VOLTA per round: `PlanBotsForTest()` e `LockInAndResolve()`
 		// pianificano entrambi lo stesso round, e senza guardia il decadimento andrebbe al doppio.
@@ -896,7 +987,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// qui. Il bersaglio e' gia' filtrato dalla riga che lo riguarda.
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> CARICA su %s (impatto da (q=%d,r=%d,L%d)) score=%d%s"),
 				*Bot.DisplayName, *Target->DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else if (bViaDash && Target && BestAbility != INDEX_NONE)
 		{
@@ -913,7 +1004,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> scatto (q=%d,r=%d,L%d) + attacca %s score=%d%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->DisplayName, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else if (Target && BestAbility != INDEX_NONE)
 		{
@@ -925,7 +1016,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			// Soggetto = il BOT (vedi nota sulla CARICA sopra).
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) attacca %s score=%d%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, *Target->DisplayName, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else if (bViaDash)
 		{
@@ -934,7 +1025,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			Piano.PlannedDashCell = Best.DestCell;
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: scatto -> (q=%d,r=%d,L%d) score=%d%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 		else
 		{
@@ -943,7 +1034,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			Esito.LogLines.Add(FRTBotLogLine{FString::Printf(TEXT("%s: utility -> (q=%d,r=%d,L%d) score=%d%s%s"),
 				*Bot.DisplayName, Best.DestCell.X, Best.DestCell.Y, Best.DestCell.Layer, Score,
 				Best.DestCell == Bot.Cell ? TEXT(" (resta)") : TEXT(""),
-				*ObjectiveNote), Bot.Index});
+				*Breakdown), Bot.Index});
 		}
 
 		// [D-313] — si chiude il record con il bersaglio SCELTO, quando c'e'.

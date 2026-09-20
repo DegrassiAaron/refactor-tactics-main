@@ -16,6 +16,7 @@
 
 #include "Ability/RTActionData.h"
 #include "Bot/RTBotPlanningLibrary.h"
+#include "Combat/RTCombatLibrary.h" // LowCoverDamageReduction: il canale si confronta col catalogo, non con 10
 #include "Map/RTHexMapAsset.h"
 #include "Turn/RTHexSimLibrary.h"
 
@@ -41,6 +42,26 @@ namespace RTBotPlanningTestsInternal
 			}
 		}
 		return M;
+	}
+
+	/**
+	 * Una copertura BASSA su un bordo di una cella gia' nella mappa.
+	 *
+	 * Scritta sul dato invece che via `URTHexCoverLibrary::AddCover`, perche' `MakeFlatMap` qui sopra
+	 * riempie `Cells` a mano e non ordina: la via di produzione passa da `FindCell`, che su un array non
+	 * ordinato non e' la stessa cosa. E' lo stesso idioma di `SetBotLowCover` in `RTHexBotTests.cpp`.
+	 */
+	void PosaCoperturaBassa(URTHexMapAsset* Map, const FRTCellId& Id, ERTHexDirection Edge)
+	{
+		for (FRTHexCellData& Cella : Map->Cells)
+		{
+			if (Cella.Id == Id)
+			{
+				Cella.Covers.Add(FRTHexCover(Edge, ERTHexCoverType::Low,
+					FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+				return;
+			}
+		}
 	}
 
 	/** I fatti di un'unita' senza abilita': il minimo perche' il planner la consideri. */
@@ -240,6 +261,108 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 		TestEqual(TEXT("controllo positivo: vedendolo, il bot LO dichiara bersaglio"),
 			ConVista.Decisions[0].PlannedAttackTargetIndex, 1);
 	}
+
+	return true;
+}
+
+/**
+ * Il CANALE fra la stima del bot e chi la misura: la pianificazione riporta i punti di copertura che i piani
+ * scelti si aspettano di scavalcare (`#649`).
+ *
+ * 🔴 **Esiste perche' senza di lui il cablaggio puo' staccarsi restando verde, e il referto pubblica allora
+ * una diagnosi FALSA SUL BOT.** Il misuratore
+ * (`Bot.FacingBypassRealizationOnACoveredArena`) somma questo valore e non lo asserisce mai — non puo': il
+ * suo mestiere e' produrre un numero, non difenderne uno. Se la somma di `PlanTurn` o il travaso
+ * nell'orchestratore sparissero, la suite resterebbe verde e il referto stamperebbe *«le coperture c'erano,
+ * ma nessun piano SCELTO ha mai contato un punto da scavalcare»* — cioe' attribuirebbe al bot un silenzio
+ * che e' del canale. E' un quarto zero, diverso dai tre che quel file dichiara di saper distinguere.
+ *
+ * 🔑 **Sta QUI e non nel misuratore perche' `PlanTurn` e' puro**: niente mondo, niente Actor, niente motore.
+ * Il gate che serve e' sul cablaggio, e il cablaggio si vede da qui.
+ *
+ * ⛔ **Non e' una soglia sul comportamento del bot**, che `D-102` vieta di fissare su partite bot-vs-bot: e'
+ * un'uguaglianza fra il valore riportato e la costante del catalogo di combattimento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPlanningCarriesPlannedBypassTest,
+	"RefactorTactics.Bot.PlannerCarriesThePlannedCoverBypass",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPlanningCarriesPlannedBypassTest::RunTest(const FString&)
+{
+	// L'allestimento, una volta sola: cambia il solo orientamento del bersaglio fra le due meta'.
+	auto Pianifica = [](ERTHexDirection FacingBersaglio, FRTBotPlanningOutcome& OutEsito)
+	{
+		URTHexMapAsset* M = MakeFlatMap(4);
+		// Il bordo che il colpo attraversa: il bot sta a OVEST del bersaglio, quindi entra dal suo lato W.
+		PosaCoperturaBassa(M, FRTCellId(1, 0, 0), ERTHexDirection::W);
+
+		// Budget ZERO su entrambe: fermi. La geometria del colpo — e quindi il bordo attraversato — non
+		// puo' cambiare per un movimento, che renderebbe il numero atteso una congettura.
+		TArray<FRTHexSimUnit> SimUnits;
+		SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 0));
+		SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 0));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+
+		TArray<FRTBotUnitFacts> Facts;
+		Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));
+		Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(1, 0, 0), /*bBot*/ false));
+		Facts[1].Facing = FacingBersaglio;
+
+		// Senza un'abilita' d'attacco il bot non dichiara nessun bersaglio e il test sarebbe vacuo: e' la
+		// lezione gia' pagata da `PlannerMissingKnowledgeIsNotOmniscience` qui sopra.
+		URTActionData* Colpo = NewObject<URTActionData>();
+		Colpo->RangeCells = 1;
+		Colpo->Power = 40;
+		Facts[0].Abilities.Add(Colpo);
+		Facts[0].bAbilityUsable.Add(true);
+
+		FRTBotWeights Pesi;
+		Pesi.WKill = 100;
+		Pesi.WDamage = 50;
+		Pesi.WApproach = 5;
+
+		// La squadra del bot VEDE la cella del bersaglio: senza, non lo conosce e non lo attacca.
+		FRTTeamKnowledge Vista;
+		Vista.TeamId = 1;
+		Vista.VisibleCells.Add(FRTCellId(1, 0, 0));
+		TMap<int32, FRTTeamKnowledge> Conoscenza;
+		Conoscenza.Add(1, Vista);
+
+		TMap<int32, int32> Inattivita;
+		TMap<int32, int32> UltimoRound;
+		OutEsito = URTBotPlanningLibrary::PlanTurn(
+			Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+	};
+
+	// --- IL BERSAGLIO VOLTA LE SPALLE: la copertura non lo protegge, e il piano lo conta ----------------
+	FRTBotPlanningOutcome Scoperto;
+	Pianifica(ERTHexDirection::E, Scoperto); // guarda a est, il bot e' a ovest: colpo posteriore
+
+	if (!TestEqual(TEXT("premessa: un piano per il bot"), Scoperto.Decisions.Num(), 1))
+	{
+		return false;
+	}
+	// 🔴 **La premessa che rende leggibile il numero**: se il bot non attaccasse, lo zero dell'altra meta'
+	// non direbbe niente sulla copertura.
+	TestEqual(TEXT("premessa: il bot dichiara il bersaglio"),
+		Scoperto.Decisions[0].PlannedAttackTargetIndex, 1);
+
+	TestEqual(TEXT("la pianificazione riporta i punti che il piano si aspetta di scavalcare"),
+		Scoperto.PlannedCoverBypassedByFacing, URTCombatLibrary::LowCoverDamageReduction);
+
+	// --- LA META' FALSIFICANTE: stessa scena, il bersaglio guarda il bot -------------------------------
+	//
+	// ⛔ Senza di lei passerebbe un canale che riporta la riduzione NOMINALE invece di quella ANNULLATA:
+	// sono lo stesso numero quando la direzione la scavalca, e divergono solo qui.
+	FRTBotPlanningOutcome Coperto;
+	Pianifica(ERTHexDirection::W, Coperto); // guarda il bot: colpo frontale, la copertura tiene
+
+	if (TestEqual(TEXT("controllo positivo: il bot attacca comunque"), Coperto.Decisions.Num(), 1))
+	{
+		TestEqual(TEXT("controllo positivo: e dichiara lo stesso bersaglio"),
+			Coperto.Decisions[0].PlannedAttackTargetIndex, 1);
+	}
+	TestEqual(TEXT("dove la copertura TIENE non c'e' niente di scavalcato da riportare"),
+		Coperto.PlannedCoverBypassedByFacing, 0);
 
 	return true;
 }

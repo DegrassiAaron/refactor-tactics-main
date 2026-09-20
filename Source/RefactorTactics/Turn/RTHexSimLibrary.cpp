@@ -1025,9 +1025,97 @@ namespace
 			: 1;
 	}
 
+	/** La cadenza di `UnitIdx`. Non dichiarata, o con valori assurdi -> NEUTRA (`{1, 1}`). */
+	FRTMovementCadence CadenceOf(const FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		if (!State.Cadences.IsValidIndex(UnitIdx))
+		{
+			return FRTMovementCadence(); // `{1, 1}`: il comportamento di prima di [D-428], per costruzione
+		}
+		FRTMovementCadence Cadence = State.Cadences[UnitIdx];
+		// 🔑 **Il clamp sta QUI e in nessun altro posto, e stavolta e' vero.** La stesura precedente lo
+		// dichiarava mentre ne teneva un secondo nel calcolo di `SubStepsPerTick`, per giunta con un
+		// minimo diverso — quindi le due sedi divergevano proprio sul valore che la prima ammetteva e la
+		// seconda no. Ora quel calcolo passa da questa funzione. Trovato in code review.
+		Cadence.StepsPerTick = FMath::Clamp(Cadence.StepsPerTick, 1, FRTMovementCadence::MaxStepsPerTick);
+		// ⛔ Anche `TickPeriod` ha un tetto: senza, il minimo comune multiplo dei periodi cresce col loro
+		// prodotto e trabocca. `<= 0` renderebbe inoltre il modulo indefinito.
+		Cadence.TickPeriod = FMath::Clamp(Cadence.TickPeriod, 1, FRTMovementCadence::MaxTickPeriod);
+		return Cadence;
+	}
+
+	/**
+	 * Se `UnitIdx` puo' avanzare nel sotto-passo che il calendario indica adesso ([D-428]).
+	 *
+	 * 🔑 **Funzione PURA di `(cadenza, indice)`**: non legge lo stato dell'unita', non tiene contatori, non
+	 * dipende da chi e' passato prima. E' cio' che rende l'ordine deterministico senza violare [D-293].
+	 */
+	bool EligibleNow(const FRTMovementResolutionState& State, int32 UnitIdx)
+	{
+		const FRTMovementCadence Cadence = CadenceOf(State, UnitIdx);
+		const int32 PerTick = FMath::Max(1, State.SubStepsPerTick);
+		const int32 SottoPasso = State.CalendarIndex % PerTick;
+		const int32 Tick = State.CalendarIndex / PerTick;
+		return SottoPasso < Cadence.StepsPerTick && (Tick % Cadence.TickPeriod) == 0;
+	}
+
+	/** C'e' almeno un'unita' che non ha finito il proprio percorso. */
+	bool AnyLive(const FRTMovementResolutionState& State)
+	{
+		for (int32 i = 0; i < State.Num(); ++i)
+		{
+			if (State.Done.IsValidIndex(i) && !State.Done[i]) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Quanti sotto-passi copre un giro completo del calendario: oltre questo, la sequenza si ripete.
+	 *
+	 * ⛔ **Serve come LIMITE, non come ottimizzazione.** Il ciclo che cerca il prossimo sotto-passo utile
+	 * deve fermarsi: se in un giro intero nessuno e' eleggibile, nessuno lo sara' mai piu' — o sono tutti
+	 * finiti, o restano solo profili `Still`. Senza il limite quel ciclo non terminerebbe.
+	 */
+	int32 ComputeCalendarPeriod(const FRTMovementResolutionState& State)
+	{
+		int32 Periodi = 1;
+		for (int32 i = 0; i < State.Num(); ++i)
+		{
+			const int32 P = CadenceOf(State, i).TickPeriod;   // gia' limitato da `MaxTickPeriod`
+			// mcm(a, b) = a * b / MCD(a, b). Col tetto su `TickPeriod` il prodotto resta piccolo.
+			Periodi = (Periodi / FMath::GreatestCommonDivisor(Periodi, P)) * P;
+		}
+		return Periodi * FMath::Max(1, State.SubStepsPerTick);
+	}
+
 	bool StepHexMovement(FRTMovementResolutionState& State)
 	{
 		const int32 N = State.Num();
+
+		// ⛔ **I sotto-passi inerti si EMETTONO, non si saltano** ([D-428]).
+		//
+		// 🔴 **La prima stesura li saltava, e rendeva la cadenza inosservabile.** Saltare un sotto-passo in
+		// cui nessuno e' eleggibile fa avanzare uno `Sneak` da solo a ogni micro-step emesso, esattamente
+		// come un `Move`: `TickPeriod` smette di avere effetto, e l'indice d'ingresso in una zona
+		// sorvegliata cambia quando un'unita' ESTRANEA finisce il proprio percorso e smette di tenere vivo
+		// un sotto-passo. `SKB-2` nominava quell'esito come competitivo. Trovato in code review.
+		//
+		// ✅ **E il corpus golden resta fermo lo stesso**, per una ragione diversa e piu' solida: con sole
+		// cadenze neutre `SubStepsPerTick` vale `1` e ogni unita' e' eleggibile a ogni sotto-passo, quindi
+		// non esistono sotto-passi inerti da emettere. La sequenza cambia **solo** per partite con cadenze
+		// non neutre, che oggi non esistono perche' erano proprio cio' che `SKB-2` bloccava.
+		if (!AnyLive(State))
+		{
+			// ⚠️ **Si contano comunque, e non e' un dettaglio.** Prima di [D-428] il corpo girava sempre e
+			// `MicroStepIndex` cresceva anche sul giro terminale; uscire di qui senza incrementarlo avrebbe
+			// reso il contatore piu' basso di uno nel caso «sono arrivati tutti» e invariato nel caso
+			// «qualcuno e' bloccato», cioe' un valore il cui significato dipende da COME e' finita.
+			// `ResolveNextHexMicroStep` marca `bFinished` su questo `false` e non richiama piu', quindi
+			// l'incremento avviene una volta sola. Trovato in code review.
+			++State.MicroStepIndex;
+			++State.CalendarIndex;
+			return false;
+		}
 
 		// Priorita' 0 (parita' con tutti) e non-lineare per chi non ha un valore dichiarato: con entrambi gli
 		// array vuoti l'esito e' identico alla variante senza priorita'.
@@ -1052,20 +1140,53 @@ namespace
 			// `Arriving` = completa l'arco QUI. Solo queste contendono una cella e solo queste liberano la
 			// propria: chi e' in transito occupa ancora l'origine ([D-382]).
 			TArray<bool> Arriving;    Arriving.SetNum(N);
+			// ➕ `Advancing` = **progredisce in QUESTO sotto-passo** ([D-428]).
+			//
+			// 🔴 **E' un terzo flag e non una ridefinizione di `Moving`, e la differenza e' misurata.** La
+			// prima stesura aveva reso `Moving` «ha un arco aperto»: due consumatori leggono ancora
+			// «si muovera'» — `bTransientBlock = Moving[j]`, che senza di quello latcha un blocco
+			// transitorio in `ReasonLocked`, e il ramo head-on, che senza di quello smette di emettere
+			// `BlockedByImpact`. Trovati in code review.
+			//
+			// ∴ `Moving` resta **viva**, `Advancing` decide chi avanza. La catena del ciclo e i reason code
+			// leggono la prima; il progresso legge la seconda.
+			TArray<bool> Advancing;   Advancing.SetNum(N);
 			// ➕ **L'arco si apre QUI, prima del punto fisso** (`#3012`, [D-398]). Un passaggio dedicato, su
 			// `Pos` ancora stabile: calcolarlo dentro il ciclo d'avanzamento leggerebbe posizioni aggiornate a
 			// meta' e l'esito dipenderebbe dall'ordine delle unita'.
 			for (int32 i = 0; i < N; ++i)
 			{
-				BeginArcIfNeeded(State, i, PassesThrough(i));
+				// ➕ **Il calendario decide in quali sotto-passi un'unita' PROGREDISCE** ([D-428]) — aprendo
+				// un arco nuovo o pagando la durata di uno gia' aperto.
+				//
+				// ⛔ **Anche la CONTINUAZIONE e' soggetta al calendario, e la prima stesura la esentava.**
+				// Sembrava la lettura giusta di [D-381] — «un passo iniziato arriva in fondo» — e produceva
+				// invece il suo opposto: un arco che paga su ogni sotto-passo completa un attraversamento da
+				// 2 micro-step nello stesso tick di uno da 1, cioe' il terreno smette di rallentare. Con uno
+				// `Sprint` vivo, costo 1 e costo 2 arrivavano allo STESSO micro-step. Trovato in code review.
+				//
+				// ∴ i due si compongono cosi': il calendario dice **quando** puoi spendere un sotto-passo,
+				// `D-381` **quanti** te ne costa l'arco. Il terreno puo' solo abbassare la cadenza.
+				if (EligibleNow(State, i))
+				{
+					BeginArcIfNeeded(State, i, PassesThrough(i));
+				}
 			}
 			for (int32 i = 0; i < N; ++i)
 			{
+				// `Moving` = **VIVA**: ha ancora percorso davanti, che avanzi in questo sotto-passo o no. E'
+				// il significato che la catena del ciclo, il ramo head-on e `bTransientBlock` leggono.
 				Moving[i] = !Done[i];
+				// `Advancing` = progredisce QUI: ha un arco aperto **ed e' il suo sotto-passo**.
+				Advancing[i] = Moving[i] && State.ArcEnd.IsValidIndex(i) && State.ArcEnd[i] > State.Prog[i]
+					&& EligibleNow(State, i);
 				// 🔑 Il bersaglio e' la FINE DELL'ARCO, non il passo successivo: e' l'unica cella su cui
 				// l'unita' comparira', ed e' libera per costruzione quando l'arco attraversa qualcuno.
-				Target[i] = Done[i] ? Pos[i] : Paths[i][State.ArcEnd[i]];
-				Arriving[i] = Moving[i] && RemainingForStep(State, i) <= 1;
+				//
+				// ⚠️ Chi non avanza ha per bersaglio la PROPRIA cella: non contende niente e non figura come
+				// se la stesse liberando, ma continua a occuparla — che e' cio' che un blocco deve vedere.
+				Target[i] = Advancing[i] ? Paths[i][State.ArcEnd[i]] : Pos[i];
+				Arriving[i] = Advancing[i] && RemainingForStep(State, i) <= 1;
 			}
 
 			// Punto fisso del microstep: si puo' solo passare da "in movimento" a "fermo" (monotono) -> l'esito
@@ -1256,6 +1377,8 @@ namespace
 					// Anche da `Arriving`, o una bloccata continuerebbe a contendere la cella che non prende e a
 					// figurare come se stesse liberando la propria.
 					Arriving[Idx] = false;
+					// E da `Advancing`, o il ciclo d'avanzamento le pagherebbe comunque un micro-step di arco.
+					Advancing[Idx] = false;
 					bChanged = true;
 				}
 			}
@@ -1268,7 +1391,8 @@ namespace
 			bool bAnyMoved = false;
 			for (int32 i = 0; i < N; ++i)
 			{
-				if (!Moving[i])
+				// `Advancing` e non `Moving`: chi e' viva ma fuori dal proprio sotto-passo non paga nulla.
+				if (!Advancing[i])
 				{
 					continue;
 				}
@@ -1300,7 +1424,19 @@ namespace
 				bAnyMoved = true;
 			}
 			++State.MicroStepIndex;
-			return bAnyMoved;
+			// Il calendario avanza SEMPRE, anche quando il sotto-passo non ha mosso nessuno: e' un orologio,
+			// non un contatore di eventi. `MicroStepIndex` resta cio' che conta i micro-step **emessi**.
+			++State.CalendarIndex;
+
+			// 🔑 **«Nessuno si e' mosso» non significa piu' «e' finita»** ([D-428]): con una cadenza non
+			// neutra esistono sotto-passi legittimamente inerti, e fermarsi al primo troncherebbe il
+			// movimento a meta'. Si finisce quando l'inerzia dura un GIRO COMPLETO di calendario — oltre il
+			// quale la sequenza si ripete, quindi chi non si e' mosso non si muovera' piu'.
+			//
+			// ⚠️ Con sole cadenze neutre il periodo vale `1`, quindi il primo sotto-passo inerte chiude la
+			// risoluzione: identico a prima di [D-428].
+			State.IdleSubSteps = bAnyMoved ? 0 : State.IdleSubSteps + 1;
+			return bAnyMoved || (AnyLive(State) && State.IdleSubSteps < State.CalendarPeriodCached);
 		}
 	}
 
@@ -1372,7 +1508,7 @@ namespace
 FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
 	const TArray<int32>& Priorities, const TArray<bool>& bLinearMovers, const TArray<bool>& bPassThrough,
 	const TArray<FRTPlannedMovement>& Planned, const TArray<TArray<int32>>& StepDurations,
-	const TArray<int32>& Teams)
+	const TArray<int32>& Teams, const TArray<FRTMovementCadence>& Cadences)
 {
 	FRTMovementResolutionState State;
 	State.Paths = Paths;
@@ -1381,6 +1517,7 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 	State.bPassThrough = bPassThrough;
 	State.Teams = Teams;
 	State.StepDurations = StepDurations;
+	State.Cadences = Cadences;
 
 	const int32 N = Paths.Num();
 
@@ -1422,6 +1559,35 @@ FRTMovementResolutionState URTHexSimLibrary::BeginHexMovement(const TArray<TArra
 				TEXT("unita' %d: %d durate per %d archi"), i, StepDurations[i].Num(), Arcs);
 		}
 	}
+
+	// ➕ **La dimensione del tick si DERIVA dai partecipanti** ([D-428]): tanti sotto-passi quanti ne chiede
+	// il profilo piu' veloce presente, e almeno uno. Con sole cadenze neutre vale `1`, quindi ogni unita' e'
+	// eleggibile a ogni micro-step e la risoluzione e' quella di prima del calendario, per costruzione.
+	//
+	// 🔴 **Il ciclo e' limitato da `N`, e l'array si controlla — la stesura precedente faceva ne' l'uno ne'
+	// l'altro.** Un `Cadences` piu' lungo di `Paths` — un chiamante che lo dimensiona sul roster mentre i
+	// percorsi vengono da un sottoinsieme filtrato — allargava il tick per conto di un'unita' **che non e'
+	// nella risoluzione**: ogni `Move` presente diventava eleggibile a sotto-passi alterni, raddoppiando i
+	// propri micro-step emessi e spostando ogni `MicroStepIndex` del TurnLog. E' esattamente la deriva del
+	// digest che il punto (3) di [D-428] esiste per impedire. Trovato in code review.
+	//
+	// ⚠️ La guardia e' il gemello di quella di `StepDurations` qui sopra, e per la stessa ragione: un
+	// cablaggio disallineato va **detto**, non assorbito.
+	if (Cadences.Num() > 0)
+	{
+		ensureMsgf(Cadences.Num() == N,
+			TEXT("Cadences ha %d voci per %d unita': il cablaggio non e' allineato"),
+			Cadences.Num(), N);
+	}
+	State.SubStepsPerTick = 1;
+	for (int32 i = 0; i < FMath::Min(Cadences.Num(), N); ++i)
+	{
+		// Da `CadenceOf`, che e' l'unica sede del clamp: leggere `Cadences[i]` grezzo qui rimetterebbe la
+		// seconda sede che la code review ha trovato divergente.
+		State.SubStepsPerTick = FMath::Max(State.SubStepsPerTick, CadenceOf(State, i).StepsPerTick);
+	}
+	// E il periodo, una volta sola: dipende da `Cadences` e `SubStepsPerTick`, che il ciclo non tocca.
+	State.CalendarPeriodCached = ComputeCalendarPeriod(State);
 
 	State.StepRemaining.SetNum(N);
 	State.ArcEnd.SetNum(N);
@@ -1478,6 +1644,11 @@ void URTHexSimLibrary::StopUnitInPlace(FRTMovementResolutionState& State, int32 
 	}
 
 	// `Done` e' cio' che il microstep legge (`Moving[i] = !Done[i]`): da qui in poi questa unita' non avanza.
+	// ⚠️ **E dal calendario di [D-428] `Moving` non e' piu' l'unico cancello**: `Advancing` decide chi
+	// progredisce in QUESTO sotto-passo, e un'unita' viva ma fuori dal proprio sotto-passo sta gia' fuori
+	// da `Advancing` pur restando in `Moving`. Marcare `Done` resta sufficiente a fermarla per sempre —
+	// e' il caso che questa funzione tratta — ma non e' piu' l'unico modo in cui un'unita' puo' non
+	// avanzare. Trovato in code review.
 	State.Done[UnitId] = true;
 
 	// La posizione corrente E' quella finale. `Pos` e `Results[].Final` sono gia' allineati dal microstep

@@ -103,6 +103,11 @@ struct FRTHexBotContext
 	 * Un nemico che attacca il bot gli si gira contro, e il fianco che il bot aveva visto non c'e' piu'. Il
 	 * bonus sopravvive quando il bersaglio e' impegnato con qualcun ALTRO — il fuoco incrociato, non il duello.
 	 * La sovrastima che ne deriva si misura sul TurnLog (`RearHitBypassedCover`), non si stima a priori.
+	 *
+	 * ✅ **E dal 2026-09-20 la misura ha anche il suo numeratore** (`#649`): `ScorePlan` nella forma con
+	 * `OutCoverBypassedByFacing` riporta i punti che il piano si aspetta di scavalcare, il planner ne somma
+	 * quelli dei piani SCELTI in `FRTBotPlanningOutcome::PlannedCoverBypassedByFacing`, e il confronto con
+	 * le voci risolte e' un rapporto fra due numeri invece che fra un numero e una congettura.
 	 */
 	UPROPERTY() TArray<ERTHexDirection> EnemyFacings;
 
@@ -405,15 +410,40 @@ public:
 	 * Il kiting e' un comportamento del BOT, non una caratteristica dell'eroe: un'unita' che muovi tu non lo
 	 * consulta mai — dove andare lo decidi tu. Per questo il numero non sta piu' su `ARTUnit` (dove i due
 	 * archetipi legacy lo scrivevano insieme alle statistiche) ne' su `URTHeroData`: un campo sull'eroe
-	 * direbbe «Phase tiene le distanze» anche quando Phase la guidi tu, dove non significa niente.
+	 * direbbe «Muiren tiene le distanze» anche quando Muiren la guidi tu, dove non significa niente.
 	 *
 	 * La regola riproduce i due archetipi che il comportamento lo producevano: `Ranger` aveva portata 6 e
 	 * standoff 4, `Guardian` portata 3 e standoff 0. Chi colpisce da lontano ha qualcosa da guadagnare a
 	 * restare lontano; chi colpisce da vicino no, e arretrare gli costerebbe soltanto il turno.
 	 *
-	 * Sul roster v0.1 l'unica kiter e' Phase (`PressureJet`, portata 5 -> standoff 3). Aevik e Ivrin (4) e
-	 * Branth (3) chiudono la distanza. Se la soglia va spostata, e' questa riga: il resto del bot legge
-	 * `FRTHexBotContext::KiteStandoff` e non sa da dove venga.
+	 * ⌫ **Questa riga diceva «sul roster v0.1 l'unica kiter e' Muiren (`PressureJet`, portata 5 -> standoff
+	 * 3)», e citava le portate NUDE del catalogo — che non sono quelle che il bot legge.** Misurato il
+	 * 2026-09-20 (`#149`):
+	 *
+	 * · `ARTTurnManager::PlanBots` prende `F.AttackRange = U->AttackRange`, e `ARTUnit::EquipLoadout`
+	 *   risincronizza quel campo DOPO aver applicato la variante d'arma — *«senza questa riga un'unita' con
+	 *   la variante applicata continuerebbe a colpire alla portata VECCHIA in partita»*;
+	 * · in partita l'equipaggiamento si applica davvero: `FRTMatchBootstrapper` chiama
+	 *   `EquipLoadout(DefaultLoadoutFor(HeroId))` sullo spawn, **per entrambe le squadre**;
+	 * · `Weapon.Impact` porta `RangeDeltaCells = -1` ed e' il default di Muiren **e** di Branth;
+	 *   `DefaultLoadoutFor` risponde VUOTO per Aevik e Ivrin, i cui gadget la v0.1 non costruisce.
+	 *
+	 * ∴ le portate che il bot vede in partita sono **Muiren 4, Branth 2, Aevik 4, Ivrin 4**, e
+	 * `KiterMinRange` e' 5: `DeriveKiteStandoff` restituisce **0 per tutto il roster spedito**, e il ramo
+	 * del kiting non entra in nessuna partita.
+	 *
+	 * 🔴 **Il ramo non e' morto nei test, ed e' la ragione per cui l'asimmetria e' passata inosservata**:
+	 * `HexBotPlay.KiterFleesWhenThreatened` costruisce Muiren dal catalogo **senza** il loadout di
+	 * produzione, quindi la vede a portata 5 e il kiting lo esercita davvero. Un gate verde su una
+	 * configurazione che la partita non produce.
+	 *
+	 * ⛔ **Non si corregge qui**: alzare `KiterMinRange`, togliere `-1` a `Weapon.Impact` o dare uno
+	 * standoff a portata 4 sono tre decisioni di bilanciamento diverse, e `D-102` chiede il banco di prova
+	 * prima del numero. La sede e' `#149`. Qui si dichiara il fatto, perche' chi legge «l'unica kiter e'
+	 * Muiren» concluda che il ramo gira, e non gira.
+	 *
+	 * Se la soglia va spostata, e' questa riga: il resto del bot legge `FRTHexBotContext::KiteStandoff` e
+	 * non sa da dove venga.
 	 */
 	/**
 	 * Quante celle separano lo standoff dalla portata di tiro. `DeriveKiteStandoff` lo SOTTRAE dalla portata
@@ -435,6 +465,35 @@ public:
 	 * meno la penalita' di posizionamento (kiter sotto standoff o oltre la propria portata / mischia lontana), piu' il bonus di quota.
 	 */
 	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context);
+
+	/**
+	 * Lo stesso punteggio, piu' **quanti punti di riduzione questo piano si aspetta di scavalcare** grazie
+	 * alla direzione (`#649`).
+	 *
+	 * 🔑 **Esiste perche' la stima muore dentro il punteggio, e senza di lei il bonus non e' verificabile.**
+	 * Il termine direzionale non ha un peso proprio: vale `WDamage * (nominale - effettiva)`, e finisce
+	 * sommato in un `int32` insieme a danno, kill, minaccia e quota. Dall'esterno un piano che conta sei
+	 * punti di copertura scavalcata e uno che non ne conta nessuno sono lo stesso numero. E' la meta'
+	 * mancante della decisione di CP 16.2, che `EnemyFacings` (sopra, la riga *«la sovrastima si misura sul
+	 * TurnLog»*) rimanda a una misura che finora non aveva un numeratore.
+	 *
+	 * ⛔ **Riporta PUNTI, non il termine di punteggio**, e la differenza e' l'unica cosa che rende la misura
+	 * possibile: `Facing`/`RearHitBypassedCover` porta in `Amount` i punti di riduzione scavalcati
+	 * (`Turn/RTTurnLog.h`, [D-199]). Confrontare `WDamage * punti` con dei punti darebbe un tasso dieci
+	 * volte piu' grande del vero, e sarebbe plausibile.
+	 *
+	 * ⚠️ **Solo il verso OFFENSIVO.** Il simmetrico difensivo — la copertura che il bot butterebbe via
+	 * arrivando di spalle — risponde a un'altra domanda e non ha nessuna voce di TurnLog che lo realizzi:
+	 * contarlo qui mescolerebbe due grandezze in un numeratore solo.
+	 *
+	 * ⚠️ **E' una STIMA, e sbaglia per costruzione**: legge i facing d'inizio turno, mentre chi attacca
+	 * ruota verso il proprio bersaglio prima che si valuti l'arco. E' esattamente la sovrastima che il tasso
+	 * di realizzo esiste per misurare — non un difetto da correggere qui.
+	 *
+	 * La forma a tre argomenti delega a questa: una sola implementazione, quindi non possono divergere.
+	 */
+	static int32 ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context,
+		int32& OutCoverBypassedByFacing);
 
 	/**
 	 * Il solo termine di categoria `Objective`, per la cella in cui il piano TERMINA (`#2269`).

@@ -103,7 +103,7 @@ usato per il Blast esagonale (`CollectHexAttacks` → `ResolveAttacks`), esteso 
 | **4.1** | `FRTActionInstance`, `SortActionInstances`, registry vuoto ma cablato; `ResolveCombat` continua a funzionare passando dal nuovo ordinamento | `Actions.OrderByPriority` · `Actions.PermutationInvariant` · `Actions.PhaseMappingRespectsAtlas` |
 | **4.2** | Budget **5 MP**, costi per cella (1/2/2), `Sprint` 8 MP con `Exposed`; **riparametrizzazione dei pesi del bot** | `Actions.Move.BudgetCosts` · `Actions.Sprint.AppliesExposed` · suite bot verde |
 | **4.3** | I sei fallback, applicati in un solo punto e registrati nel TurnLog | un test per fallback · `Actions.Move.PathBlocked` (nome vincolante) |
-| **4.4** | Le sei azioni fondamentali (`Wait`, `Move`, `BasicAttack`, `Guard`, `Activate`, `Interact`) come dati | `Actions.Guard.FirstHitOnly` · `Actions.Wait.AllowsFacingAndReaction` |
+| **4.4** | Le sei azioni fondamentali (`Wait`, `Move`, `BasicAttack`, `Guard`, `Activate`, `Interact`) come dati | `Actions.Guard.ReducesEveryFrontalHit` *(era `Actions.Guard.FirstHitOnly` fino al 2026-09-20: [D-408](../decisions/RT_PDR_00_Decision_Log.md) riporta la Guardia a una riduzione su **ogni** colpo frontale)* · `Actions.Wait.AllowsFacingAndReaction` |
 | **4.5** | Migrazione delle 8 azioni degli archetipi al registry, a numeri invariati | la suite esistente resta verde **senza modifiche ai test** |
 
 L'ordine 4.1 → 4.2 non è negoziabile (D7). 4.3 e 4.4 possono procedere in parallelo dopo 4.1.
