@@ -111,6 +111,49 @@ struct FRTMovementProfile
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
 	bool bIsRun = false;
 
+	/**
+	 * **In quanti sotto-passi di ogni tick questo profilo puo' avanzare** ([D-428], che chiude `SKB-2`).
+	 *
+	 * 🔑 **Il budget dice QUANTO LONTANO, la cadenza QUANTO IN FRETTA**, e [D-015] chiede a un profilo
+	 * entrambe. Fino al 2026-09-20 qui c'era solo il primo: `D-412` dichiarava *«Sprint fino a 2 passi per
+	 * tick, Sneak 1 ogni 2»* e rimandava il calendario a `SKB-2`, che la sorgente marcava `CRITICO`.
+	 *
+	 * ⛔ **Non viola `MaxGraphTransitionsPerUnitPerMicroStep = 1`**: due passi per tick sono due
+	 * **sotto-passi**, mai due archi in uno. E' la lettura che la sorgente stessa autorizza scrivendo
+	 * *«risolti separatamente»*.
+	 *
+	 * `0` = non avanza mai (`Still`). Non e' un valore mancante.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
+	int32 StepsPerTick = 1;
+
+	/**
+	 * **Ogni quanti tick il profilo e' eleggibile** ([D-428]). `Sneak` vale **2** — un passo ogni due tick,
+	 * il numero che `D-412` dichiara — e tutti gli altri **1**.
+	 *
+	 * ⚠️ **Non e' un contatore per unita', ed e' la differenza che conta**: l'eleggibilita' e'
+	 * `(t % TickPeriod) == 0` sull'indice del CALENDARIO, uguale per tutti. Un contatore per unita' avrebbe
+	 * uno stato iniziale che dipende da quando quell'unita' entra nella risoluzione — cioe' dall'ordine di
+	 * iterazione, che e' [D-293] rovesciata.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Movement")
+	int32 TickPeriod = 1;
+
+	/**
+	 * **Il TETTO di `StepsPerTick`, non la dimensione del tick** ([D-428]).
+	 *
+	 * 🔴 **La dimensione del tick NON e' una costante, e la prima stesura la faceva.** Un tick contiene
+	 * tanti sotto-passi quanti ne chiede il profilo piu' veloce **presente nella risoluzione**
+	 * (`FRTMovementResolutionState::SubStepsPerTick`). Fissarla a `2` per tutti rallentava il `Move`: poteva
+	 * aprire un arco solo nei sotto-passi pari, e appena un'altra unita' teneva vivo un sotto-passo dispari
+	 * il suo percorso costava il doppio dei micro-step. Trovato da `Movement.SameCostSpentArrivesTogether` e
+	 * `Movement.ShorterMoveArrivesEarlier`, che sono diventati rossi.
+	 *
+	 * ∴ in una partita di soli profili neutri il tick vale **un** sotto-passo e la risoluzione e' quella di
+	 * sempre, **per costruzione** e non per compensazione.
+	 */
+	static constexpr int32 MaxStepsPerTick = 2;
+
 	/** Il profilo neutro: vale quanto l'unita' dichiara. `Move` e' questo ([D-412]). */
 	static constexpr int32 NeutralPercent = 100;
 

@@ -160,6 +160,36 @@ struct FRTHexReachableCell
  * dall'ordine di iterazione; un dato per-unita' nello stato non viola quel contratto, uno globale mutabile
  * si'. Misurato da `HexSim.PlannedLengthOutcomesAreOrderIndependent`.
  */
+/**
+ * **La cadenza di un profilo nel calendario dei sotto-passi** ([D-428], che chiude `SKB-2`).
+ *
+ * Un tick contiene `FRTMovementProfile::SubStepsPerTick` sotto-passi. Con `k` l'indice di calendario,
+ * `s = k % SubStepsPerTick` e `t = k / SubStepsPerTick`, un'unita' e' eleggibile quando:
+ *
+ * ```text
+ * s < StepsPerTick   &&   (t % TickPeriod) == 0
+ * ```
+ *
+ * 🔑 **E' una funzione PURA di `(cadenza, indice)`**: nessuno stato per unita', nessun contatore che
+ * dipenda da quando l'unita' entra nella risoluzione, nessuna iterazione di Actor o di `TMap`. E' cio'
+ * che rende l'ordine deterministico senza violare [D-293].
+ *
+ * ⛔ **Un record e non due array paralleli.** I due numeri descrivono UNA regola, e tenerli separati
+ * sarebbe un'occasione di scriverne uno solo — la stessa classe di difetto che `FRTCounterAttack` e
+ * `FRTDisplacementCause` esistono per togliere di mezzo.
+ *
+ * ⚠️ **`StepsPerTick = 0` significa «non avanza mai»**, ed e' legittimo: e' la cadenza di
+ * `MovementProfile.Still`. Non e' un valore mancante — quello e' l'array vuoto, che vale `{1, 1}`.
+ */
+struct FRTMovementCadence
+{
+	/** In quanti sotto-passi del tick il profilo puo' avanzare. `Sprint` **2**, `Move` **1**, `Still` **0**. */
+	int32 StepsPerTick = 1;
+
+	/** Ogni quanti tick e' eleggibile. `Sneak` **2** (un passo ogni due tick), gli altri **1**. */
+	int32 TickPeriod = 1;
+};
+
 struct FRTPlannedMovement
 {
 	/**
@@ -316,6 +346,46 @@ struct FRTMovementResolutionState
 	TArray<int32> StepRemaining;
 
 	/**
+	 * **La cadenza di ciascuna unita' nel calendario dei sotto-passi** ([D-428], che chiude `SKB-2`).
+	 *
+	 * ⛔ **Il resolver non conosce i profili di movimento**, e questo array e' il modo di rispettarlo: la
+	 * cadenza si deriva a monte — `ARTTurnManager::ResolveMovement`, dove il profilo e' visibile — e viaggia
+	 * qui gia' tradotta in numeri. E' la stessa disciplina di `StepDurations`, e per la stessa ragione.
+	 *
+	 * Vuoto, piu' corto di `Paths`, o con valori `<= 0` -> **cadenza neutra**, cioe' `{1, 1}`: un passo per
+	 * tick, che e' il comportamento di prima di `SKB-2`. Con l'array vuoto la sequenza di micro-step emessi
+	 * e' identica **per costruzione**.
+	 */
+	TArray<FRTMovementCadence> Cadences;
+
+	/**
+	 * L'indice del **CALENDARIO**: avanza sempre, e decide chi e' eleggibile in questo sotto-passo.
+	 *
+	 * 🔴 **E' distinto da `MicroStepIndex`, e la distinzione e' l'intera ragione per cui il corpus golden
+	 * non si muove.** Il calendario scorre anche sui sotto-passi in cui nessuno puo' avanzare; quelli **non
+	 * si eseguono e non emettono** un micro-step. In una partita in cui tutti hanno cadenza neutra, il
+	 * secondo sotto-passo di ogni tick non si materializza mai, e la sequenza di `MicroStepIndex` — che e'
+	 * cio' che il TurnLog porta — resta quella di sempre.
+	 *
+	 * ⚠️ Se i due contatori tornassero a essere uno solo, ogni voce di movimento del corpus cambierebbe
+	 * `MicroStepIndex` per il solo fatto che il calendario esiste.
+	 */
+	int32 CalendarIndex = 0;
+
+	/**
+	 * **Quanti sotto-passi contiene un tick in QUESTA risoluzione** ([D-428]).
+	 *
+	 * 🔑 **E' derivato dai partecipanti, non una costante**: vale il massimo `StepsPerTick` fra le cadenze
+	 * dichiarate, e almeno `1`. Con soli profili neutri vale **1**, quindi `s` e' sempre `0`, tutti sono
+	 * eleggibili a ogni micro-step e la risoluzione e' identica a prima del calendario — per costruzione.
+	 *
+	 * ⚠️ **Una costante globale sarebbe stata sbagliata, ed e' stato misurato**: fissandolo a `2` il `Move`
+	 * poteva aprire un arco solo nei sotto-passi pari, e il suo percorso costava il doppio dei micro-step
+	 * appena un'altra unita' teneva vivo un sotto-passo dispari.
+	 */
+	int32 SubStepsPerTick = 1;
+
+	/**
 	 * L'indice, dentro `Paths[i]`, della cella su cui l'ARCO in corso termina — `#3012`, [D-398].
 	 *
 	 * 🔑 **Un arco puo' coprire piu' di una cella**, ed e' cio' che rende l'attraversamento sicuro:
@@ -346,7 +416,14 @@ struct FRTMovementResolutionState
 	/** Risultato in costruzione: `Entered` cresce a ogni microstep, `Outcome` si scrive alla fine. */
 	TArray<FRTHexMoveResult> Results;
 
-	/** Quanti microstep sono stati eseguiti. Diagnostico: nessuna regola lo legge. */
+	/**
+	 * Quanti microstep sono stati **eseguiti**. Diagnostico: nessuna regola lo legge.
+	 *
+	 * ✅ **E resta vero dopo [D-428]**, che e' metà della ragione per cui il calendario ha un contatore
+	 * PROPRIO: a decidere l'eleggibilita' e' `CalendarIndex`, non questo. Se il calendario avesse riusato
+	 * questo campo, la riga qui sopra sarebbe diventata falsa nello stesso commit — e un campo che passa da
+	 * diagnostico a normativo senza dirlo e' la classe di deriva che `#2207` ha misurato.
+	 */
 	int32 MicroStepIndex = 0;
 
 	/** Vero quando l'ultimo microstep non ha mosso nessuno: da qui in poi `Results` non cambia piu'. */

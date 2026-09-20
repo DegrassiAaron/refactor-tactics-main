@@ -285,8 +285,31 @@ void ARTTurnManager::BeginMovementResolution()
 		if (Units[i]) { Teams[i] = Units[i]->TeamId; }
 	}
 
+	// ➕ **La CADENZA di ciascuna unita', tradotta qui** ([D-428], che chiude `SKB-2`).
+	//
+	// ⛔ **Il resolver non conosce i profili di movimento, e non deve conoscerli**: e' la stessa disciplina
+	// per cui `StepDurations` si calcola qui e viaggia gia' pronta. Il profilo e' visibile solo dove la
+	// banda e' stata congelata — `Ctx.MovementProfiles`, riempito a inizio risoluzione — e da li' escono i
+	// due soli numeri che il calendario legge.
+	//
+	// ⚠️ Chi non ha un profilo risolto prende la cadenza NEUTRA: un dato mancante non concede una velocita'
+	// che nessuno ha dichiarato, e `{1, 1}` e' esattamente il comportamento di prima del calendario.
+	// ⚠️ `Ctx.MovementProfiles` porta l'**Id** del profilo, non il profilo: la banda congelata e' un `FName`
+	// (`RTMovementResolutionContext.h`). Il record completo si rilegge dal catalogo, che e' la stessa sede
+	// da cui `ProfileForPlan` l'aveva derivata — non una seconda fonte.
+	TArray<FRTMovementCadence> Cadences;
+	Cadences.SetNum(Units.Num());
+	for (int32 i = 0; i < Units.Num(); ++i)
+	{
+		if (!Ctx.MovementProfiles.IsValidIndex(i) || Ctx.MovementProfiles[i].IsNone()) { continue; }
+		const FRTMovementProfile Profilo = URTMovementProfileLibrary::FindProfile(Ctx.MovementProfiles[i]);
+		if (!Profilo.IsValid()) { continue; } // profilo sconosciuto: cadenza neutra, non una inventata
+		Cadences[i].StepsPerTick = Profilo.StepsPerTick;
+		Cadences[i].TickPeriod = Profilo.TickPeriod;
+	}
+
 	Ctx.State = URTHexSimLibrary::BeginHexMovement(Ctx.Paths, TArray<int32>(),
-		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations, Teams);
+		TArray<bool>(), TArray<bool>(), PlannedMoves, StepDurations, Teams, Cadences);
 
 	// Le unita' passano nel contesto come riferimenti DEBOLI: fra due micro-step, in prospettiva, passa una
 	// finestra di reazione. Gli indici di `Ctx.State` sono indici di QUESTO array.

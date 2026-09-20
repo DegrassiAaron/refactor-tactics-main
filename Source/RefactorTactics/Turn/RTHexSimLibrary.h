@@ -289,13 +289,19 @@ public:
 	 * terreno (`#2314`). Vuoto, piu' corto di `Paths`, o con `PlannedLength` a `0` -> «tutto pianificato,
 	 * nessuno scivolamento» per le unita' mancanti: con l'array vuoto la classificazione e' quella di sempre.
 	 * Lo compila `ARTTurnManager::ResolveMovement`, che e' il solo punto in cui i due pezzi sono distinguibili.
+	 *
+	 * `Cadences` dichiara, per unita', in quali sotto-passi del tick puo' avanzare ([D-428], che chiude
+	 * `SKB-2`). Vuoto o piu' corto di `Paths` -> **cadenza neutra** per chi manca, cioe' un passo per tick:
+	 * con l'array vuoto la sequenza di micro-step emessi e' identica a prima del calendario. Lo compila
+	 * `ARTTurnManager::ResolveMovement`, dove il profilo di movimento e' visibile e il resolver no.
 	 */
 	static FRTMovementResolutionState BeginHexMovement(const TArray<TArray<FRTCellId>>& Paths,
 		const TArray<int32>& Priorities = TArray<int32>(), const TArray<bool>& bLinearMovers = TArray<bool>(),
 		const TArray<bool>& bPassThrough = TArray<bool>(),
 		const TArray<FRTPlannedMovement>& Planned = TArray<FRTPlannedMovement>(),
 		const TArray<TArray<int32>>& StepDurations = TArray<TArray<int32>>(),
-		const TArray<int32>& Teams = TArray<int32>());
+		const TArray<int32>& Teams = TArray<int32>(),
+		const TArray<FRTMovementCadence>& Cadences = TArray<FRTMovementCadence>());
 
 	/**
 	 * Quanti microstep dura l'ingresso in `Cell` per l'unita' `UnitId` dello snapshot

@@ -3393,4 +3393,247 @@ bool FRTHexSimPathCrossesAlliesTest::RunTest(const FString&)
 	return true;
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// Il calendario dei sotto-passi ([D-428], che chiude `SKB-2`)
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+namespace
+{
+	/** Le cadenze del catalogo, senza dover costruire un `FRTMovementProfile` intero. */
+	FRTMovementCadence CadenzaSprint() { return FRTMovementCadence{ /*StepsPerTick*/ 2, /*TickPeriod*/ 1 }; }
+	FRTMovementCadence CadenzaMove()   { return FRTMovementCadence{ 1, 1 }; }
+	FRTMovementCadence CadenzaSneak()  { return FRTMovementCadence{ 1, 2 }; }
+
+	/** A quale micro-step EMESSO ciascuna unita' e' entrata per la prima volta in `Cella`. */
+	TArray<int32> IngressiIn(FRTMovementResolutionState& State, const FRTCellId& Cella, int32 MaxSteps = 64)
+	{
+		TArray<int32> Ingresso;
+		Ingresso.Init(INDEX_NONE, State.Num());
+		for (int32 Passo = 1; Passo <= MaxSteps; ++Passo)
+		{
+			if (!URTHexSimLibrary::ResolveNextHexMicroStep(State)) { break; }
+			for (int32 i = 0; i < State.Num(); ++i)
+			{
+				if (Ingresso[i] == INDEX_NONE && State.Results[i].Entered.Contains(Cella))
+				{
+					Ingresso[i] = Passo;
+				}
+			}
+		}
+		return Ingresso;
+	}
+
+	FRTMovementResolutionState IniziaConCadenze(const TArray<TArray<FRTCellId>>& Paths,
+		const TArray<FRTMovementCadence>& Cadenze)
+	{
+		return URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(), TArray<bool>(), TArray<bool>(),
+			TArray<FRTPlannedMovement>(), TArray<TArray<int32>>(), TArray<int32>(), Cadenze);
+	}
+}
+
+/**
+ * **Senza cadenze dichiarate la sequenza dei micro-step EMESSI e' identica a prima del calendario**
+ * ([D-428]).
+ *
+ * 🔴 **E' il test che protegge il corpus golden, ed e' la ragione per cui il calendario ha due contatori.**
+ * Un tick contiene due sotto-passi; se il secondo si materializzasse sempre, un `Move` di N celle passerebbe
+ * da N a 2N micro-step emessi e `FRTTurnLogEntry::MicroStepIndex` cambierebbe **su ogni voce di movimento
+ * del corpus** — cioe' il digest si muoverebbe per una partita che non contiene nessuno `Sprint`.
+ *
+ * `CalendarIndex` scorre anche sui sotto-passi vuoti; `MicroStepIndex` conta solo quelli **emessi**.
+ *
+ * ⚠️ **Anti-vacuita'**: il confronto e' contro una risoluzione senza `Cadences`, non contro un numero
+ * scritto a mano. Se il calendario emettesse un micro-step in piu' per tick, i due conteggi divergerebbero.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCalendarNeutralCadenceKeepsTheSequenceTest,
+	"RefactorTactics.Movement.NeutralCadenceKeepsTheMicroStepSequence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCalendarNeutralCadenceKeepsTheSequenceTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) });
+
+	FRTMovementResolutionState SenzaCadenze = URTHexSimLibrary::BeginHexMovement(Paths);
+	URTHexSimLibrary::FinishHexMovement(SenzaCadenze);
+
+	TArray<FRTMovementCadence> Neutre;
+	Neutre.Add(CadenzaMove());
+	FRTMovementResolutionState ConNeutra = IniziaConCadenze(Paths, Neutre);
+	URTHexSimLibrary::FinishHexMovement(ConNeutra);
+
+	// ANTI-VACUITA': tre archi devono aver richiesto dei micro-step. Con zero, il confronto sotto sarebbe
+	// «nulla contro nulla».
+	TestTrue(TEXT("il percorso ha richiesto dei micro-step"), SenzaCadenze.MicroStepIndex >= 3);
+
+	TestEqual(TEXT("la cadenza neutra non aggiunge micro-step emessi"),
+		ConNeutra.MicroStepIndex, SenzaCadenze.MicroStepIndex);
+
+	// 🔑 **E il tick vale UN sotto-passo**, perche' nessun partecipante ne chiede di piu'. E' la ragione
+	// per cui l'uguaglianza qui sopra e' vera per COSTRUZIONE e non per compensazione: con `SubStepsPerTick`
+	// a `1`, `s` e' sempre `0` e ogni unita' e' eleggibile a ogni micro-step, come prima del calendario.
+	TestEqual(TEXT("senza profili veloci il tick vale un sotto-passo"), ConNeutra.SubStepsPerTick, 1);
+
+	// ⚠️ **ANTI-VACUITA' del punto precedente**: il tick DEVE allargarsi quando qualcuno lo chiede, altrimenti
+	// `SubStepsPerTick == 1` sarebbe una costante travestita da derivazione.
+	TArray<FRTMovementCadence> ConUnoSprint;
+	ConUnoSprint.Add(CadenzaMove());
+	ConUnoSprint.Add(CadenzaSprint());
+	TArray<TArray<FRTCellId>> DuePercorsi = Paths;
+	DuePercorsi.Add({ FRTCellId(0, 9), FRTCellId(1, 9) });
+	FRTMovementResolutionState ConSprint = IniziaConCadenze(DuePercorsi, ConUnoSprint);
+	TestEqual(TEXT("con uno Sprint presente il tick vale due sotto-passi"), ConSprint.SubStepsPerTick, 2);
+	return true;
+}
+
+/**
+ * **Lo `Sprint` avanza in entrambi i sotto-passi del tick, il `Move` in uno solo** ([D-428]).
+ *
+ * ⛔ **E NON sono due archi in un micro-step**: `MaxGraphTransitionsPerUnitPerMicroStep = 1` resta intatto.
+ * Ogni sotto-passo avanza al massimo di un arco; lo `Sprint` e' semplicemente eleggibile in entrambi, ed e'
+ * la lettura che la sorgente autorizza scrivendo *«risolti separatamente»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCalendarSprintTakesTwoSubStepsTest,
+	"RefactorTactics.Movement.SprintTakesTwoSubStepsPerTick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCalendarSprintTakesTwoSubStepsTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0), FRTCellId(4, 0) });
+	Paths.Add({ FRTCellId(0, 5), FRTCellId(1, 5), FRTCellId(2, 5), FRTCellId(3, 5), FRTCellId(4, 5) });
+
+	TArray<FRTMovementCadence> Cadenze;
+	Cadenze.Add(CadenzaSprint());
+	Cadenze.Add(CadenzaMove());
+
+	FRTMovementResolutionState State = IniziaConCadenze(Paths, Cadenze);
+	const TArray<int32> Arrivo = ArrivalTicks(State);
+
+	// ANTI-VACUITA': i due percorsi sono lunghi uguale, quindi la differenza non puo' venire da li'.
+	TestEqual(TEXT("i due percorsi hanno lo stesso numero di archi"), Paths[0].Num(), Paths[1].Num());
+
+	TestTrue(TEXT("entrambe sono arrivate"), Arrivo[0] != INDEX_NONE && Arrivo[1] != INDEX_NONE);
+	TestTrue(TEXT("lo Sprint arriva PRIMA del Move, a parita' di percorso"), Arrivo[0] < Arrivo[1]);
+	return true;
+}
+
+/**
+ * **Due cadenze diverse contendono la STESSA cella, e a decidere e' il calendario — non l'indice**
+ * ([D-428]).
+ *
+ * 🔑 **E' il criterio che `SKB-2` chiedeva**: *«la scelta decide chi entra per primo in una zona sorvegliata
+ * e chi vince una contesa di cella. Sono esiti competitivi.»*
+ *
+ * La scena: `(2,0)` e' la destinazione di entrambe. Chi ha cadenza `Sprint` parte da **due** archi di
+ * distanza, chi ha cadenza `Move` da **uno**. Nel primo sotto-passo avanzano entrambe — il secondo
+ * **arriva**, il primo copre solo il primo dei suoi due archi.
+ *
+ * 🔴 **L'asserzione che conta e' quella di INVARIANZA**: invertendo l'ordine di dichiarazione l'esito e' lo
+ * stesso. Senza, il test passerebbe anche su un resolver in cui a decidere fosse l'indice — che e'
+ * precisamente [D-293] rovesciata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCalendarCellContestIsDecidedByCadenceTest,
+	"RefactorTactics.Movement.CellContestIsDecidedByCadenceNotIndex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCalendarCellContestIsDecidedByCadenceTest::RunTest(const FString&)
+{
+	const FRTCellId Conteso(2, 0);
+	const TArray<FRTCellId> DaDue = { FRTCellId(0, 0), FRTCellId(1, 0), Conteso };
+	const TArray<FRTCellId> DaUno = { FRTCellId(3, 0), Conteso };
+
+	auto Risolvi = [&](bool bDaDuePrima, int32& OutDaDue, int32& OutDaUno)
+	{
+		TArray<TArray<FRTCellId>> Paths;
+		TArray<FRTMovementCadence> Cadenze;
+		if (bDaDuePrima)
+		{
+			Paths.Add(DaDue); Cadenze.Add(CadenzaSprint());
+			Paths.Add(DaUno); Cadenze.Add(CadenzaMove());
+		}
+		else
+		{
+			Paths.Add(DaUno); Cadenze.Add(CadenzaMove());
+			Paths.Add(DaDue); Cadenze.Add(CadenzaSprint());
+		}
+		FRTMovementResolutionState State = IniziaConCadenze(Paths, Cadenze);
+		const TArray<int32> Ingresso = IngressiIn(State, Conteso);
+		OutDaDue = Ingresso[bDaDuePrima ? 0 : 1];
+		OutDaUno = Ingresso[bDaDuePrima ? 1 : 0];
+	};
+
+	int32 DaDueA = INDEX_NONE, DaUnoA = INDEX_NONE;
+	int32 DaDueB = INDEX_NONE, DaUnoB = INDEX_NONE;
+	Risolvi(/*bDaDuePrima*/ true, DaDueA, DaUnoA);
+	Risolvi(/*bDaDuePrima*/ false, DaDueB, DaUnoB);
+
+	// ANTI-VACUITA': la cella contesa dev'essere stata raggiunta da qualcuno, altrimenti «stesso esito»
+	// sarebbe vero e vuoto.
+	TestTrue(TEXT("la cella contesa e' stata raggiunta"), DaUnoA != INDEX_NONE || DaDueA != INDEX_NONE);
+
+	TestEqual(TEXT("chi era a un arco entra al primo micro-step"), DaUnoA, 1);
+
+	// 🔴 L'INVARIANZA all'ordine di dichiarazione.
+	TestEqual(TEXT("invertendo l'ordine, chi era a un arco entra allo stesso micro-step"), DaUnoB, DaUnoA);
+	TestEqual(TEXT("invertendo l'ordine, chi era a due archi ha lo stesso esito"), DaDueB, DaDueA);
+	return true;
+}
+
+/**
+ * **L'ingresso in una zona sorvegliata e' ordinato dalla cadenza, non dall'indice** ([D-428]).
+ *
+ * `SKB-2` lo chiedeva insieme alla contesa di cella: *«decide chi entra per primo in una zona
+ * sorvegliata»*. Qui la «zona» e' la cella `(2,0)`, e le due unita' ci arrivano da percorsi **disgiunti** —
+ * quindi non si contendono nulla, e a separarle resta la sola cadenza.
+ *
+ * ⚠️ **Lo `Sneak` e' la prova piu' stretta delle due**: `TickPeriod = 2` significa che salta un tick
+ * intero, quindi il suo ingresso non e' genericamente «piu' tardi», e' piu' tardi di una quantita' che il
+ * calendario determina.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCalendarWatchedEntryIsOrderedByCadenceTest,
+	"RefactorTactics.Movement.WatchedEntryIsOrderedByCadenceNotIndex",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCalendarWatchedEntryIsOrderedByCadenceTest::RunTest(const FString&)
+{
+	const FRTCellId Sorvegliata(2, 0);
+	const TArray<FRTCellId> PercorsoMove = { FRTCellId(0, 0), FRTCellId(1, 0), Sorvegliata };
+	const TArray<FRTCellId> PercorsoSneak = { FRTCellId(2, 3), FRTCellId(2, 2), FRTCellId(2, 1), Sorvegliata };
+
+	auto Ingressi = [&](bool bMovePrima, int32& OutMove, int32& OutSneak)
+	{
+		TArray<TArray<FRTCellId>> Paths;
+		TArray<FRTMovementCadence> Cadenze;
+		if (bMovePrima)
+		{
+			Paths.Add(PercorsoMove);  Cadenze.Add(CadenzaMove());
+			Paths.Add(PercorsoSneak); Cadenze.Add(CadenzaSneak());
+		}
+		else
+		{
+			Paths.Add(PercorsoSneak); Cadenze.Add(CadenzaSneak());
+			Paths.Add(PercorsoMove);  Cadenze.Add(CadenzaMove());
+		}
+		FRTMovementResolutionState State = IniziaConCadenze(Paths, Cadenze);
+		const TArray<int32> Ingresso = IngressiIn(State, Sorvegliata);
+		OutMove = Ingresso[bMovePrima ? 0 : 1];
+		OutSneak = Ingresso[bMovePrima ? 1 : 0];
+	};
+
+	int32 Move1 = INDEX_NONE, Sneak1 = INDEX_NONE;
+	int32 Move2 = INDEX_NONE, Sneak2 = INDEX_NONE;
+	Ingressi(/*bMovePrima*/ true, Move1, Sneak1);
+	Ingressi(/*bMovePrima*/ false, Move2, Sneak2);
+
+	// ANTI-VACUITA': il `Move` ci deve essere entrato davvero.
+	TestNotEqual(TEXT("il Move e' entrato nella zona sorvegliata"), Move1, static_cast<int32>(INDEX_NONE));
+
+	// La cadenza ordina: chi salta un tick su due non puo' entrare prima.
+	TestTrue(TEXT("il Move entra prima dello Sneak, o lo Sneak non entra affatto"),
+		Sneak1 == INDEX_NONE || Move1 < Sneak1);
+
+	// 🔴 L'INVARIANZA all'ordine di dichiarazione, che e' cio' che [D-293] chiede.
+	TestEqual(TEXT("invertendo l'ordine, il Move entra allo stesso micro-step"), Move2, Move1);
+	TestEqual(TEXT("invertendo l'ordine, lo Sneak ha lo stesso esito"), Sneak2, Sneak1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
