@@ -15,6 +15,7 @@
 #include "Turn/RTReactionLibrary.h"
 #include "Turn/RTReactionOpportunityTypes.h" // RequiresDecisionBoundary: la cardinalita' del profilo la decide LEI
 #include "Turn/RTTurnLog.h"
+#include "Turn/RTTurnLogLibrary.h" // IsSubjectTheSufferer: la tassonomia delle voci si CHIEDE, non si deduce
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -461,6 +462,31 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	const FRTCellId CellaAttackerA = AttackerA->Cell;
 	const FRTCellId CellaAttackerB = AttackerB->Cell;
 
+	// 🔑 **LA PREMESSA CHE IL TEST DAVA PER SCONTATA, misurata PRIMA del turno e non dopo.**
+	//
+	// `ARTTurnManager::EnsureMatchRoster` costruisce il roster con `UGameplayStatics::GetAllActorsOfClass`
+	// in testa a `LockInAndResolve` e **non filtra i vivi** (lo dichiara). Quindi il roster vede il mondo
+	// com'e' ADESSO, e un'unita' in piu' — sopravvissuta a una fixture vicina, o spawnata per sbaglio —
+	// fa slittare ogni `StableUnitId`.
+	//
+	// ⛔ **Misurarlo dopo `RunDefTurn` sarebbe cieco proprio sul caso da prendere**: `ConcludeTurn` chiama
+	// `DestroyDefeatedUnits`, che distrugge chi ha finito i punti vita. Un'intrusa presente al roster e
+	// morta nel turno avrebbe gia' spostato gli id e non comparirebbe piu' nel conteggio. Trovato in code
+	// review.
+	//
+	// ⛔ Non e' un numero volatile: e' la cardinalita' di QUESTA scena, dichiarata dai quattro
+	// `SpawnDefUnit` qui sopra, in questa stessa funzione.
+	{
+		TArray<AActor*> UnitaNelMondo;
+		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), UnitaNelMondo);
+		if (!TestEqual(TEXT("premessa: al roster il mondo contiene le sole unita' di questa scena"),
+			UnitaNelMondo.Num(), 4))
+		{
+			DestroyDefWorld(World);
+			return false;
+		}
+	}
+
 	RunDefTurn(TM);
 
 	// ⚠️ E gli ID DOPO, che e' l'opposto delle celle e non una svista (`#2612`): `StableUnitId` nasce a
@@ -469,58 +495,44 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	// Leggerli prima catturava due zeri e li confrontava con gli autori veri, `1` e `2`: il test nasceva
 	// rosso, e la simmetria con le celle qui sopra e' precisamente cio' che lo ha fatto sembrare giusto.
 	// Le celle vanno lette prima perche' il turno le CAMBIA; gli id dopo perche' il turno li CREA.
-	const int32 IdReactorA = ReactorA->StableUnitId;
-	const int32 IdReactorB = ReactorB->StableUnitId;
-
-	// GUARDIA, non decorazione: se il roster tornasse ad assegnare gli id piu' tardi, questi due sarebbero
-	// di nuovo `0` — uguali fra loro — e i confronti sull'autore piu' sotto diventerebbero «zero contro
-	// zero», cioe' verdi senza provare niente. Fallire QUI dice che e' la premessa a essere caduta.
-	if (!TestNotEqual(TEXT("premessa: il roster ha assegnato gli id"), IdReactorA, IdReactorB))
+	// ⚠️ **`IsValid` e non un accesso diretto, sui QUATTRO**: `ConcludeTurn` chiama `DestroyDefeatedUnits`,
+	// che distrugge chi ha finito i punti vita. Oggi nessuno cade — un colpo solo contro i 90 di Ivrin — ma
+	// una taratura del danno base, o un secondo attaccante nella fixture, renderebbero queste righe letture
+	// attraverso un Actor distrutto. I test vicini lo dichiarano gia' (`RTControlActionTests.cpp`, che NON
+	// rilegge lo stato dopo il turno per questa ragione). Trovato in code review.
+	if (!TestTrue(TEXT("premessa: le quattro unita' sono sopravvissute al turno"),
+		IsValid(ReactorA) && IsValid(ReactorB) && IsValid(AttackerA) && IsValid(AttackerB)))
 	{
 		DestroyDefWorld(World);
 		return false;
 	}
+	const int32 IdReactorA = ReactorA->StableUnitId;
+	const int32 IdReactorB = ReactorB->StableUnitId;
+	const int32 IdAttackerA = AttackerA->StableUnitId;
+	const int32 IdAttackerB = AttackerB->StableUnitId;
 
-	// 🔑 **LA PREMESSA CHE MANCAVA, ed e' l'unico meccanismo rimasto in piedi per `#2657`.**
+	// GUARDIA, non decorazione: se il roster tornasse ad assegnare gli id piu' tardi, questi sarebbero tutti
+	// `0` — uguali fra loro — e i confronti sull'autore piu' sotto diventerebbero «zero contro zero», cioe'
+	// verdi senza provare niente. Fallire QUI dice che e' la premessa a essere caduta.
 	//
-	// `ARTTurnManager::EnsureMatchRoster` costruisce il roster con `UGameplayStatics::GetAllActorsOfClass` e
-	// lo ordina con `MatchRosterLess`, che confronta **squadra, cella, e in ultimo il NOME dell'Actor**. Le
-	// quattro unita' di questa scena stanno su quattro coppie (squadra, cella) distinte — (0;0,0), (0;0,3),
-	// (1;1,0), (1;1,3) — quindi l'ordine e' deciso prima di arrivare al nome, ed e' totale: `1..4` in
-	// quest'ordine, sempre.
-	//
-	// ⚠️ **Quella premessa vale solo finche' nel mondo ci sono QUESTE unita' e nessun'altra.** Una quinta
-	// unita' — sopravvissuta a un mondo precedente, spawnata da una fixture vicina — entra nel roster
-	// (`EnsureMatchRoster` **non** filtra i vivi, e lo dichiara) e fa slittare la numerazione. E se si
-	// posasse su una cella gia' occupata della stessa squadra, a decidere resterebbe lo spareggio per nome:
-	// `GetName().Compare()` e' un confronto di STRINGHE su un suffisso numerico, quindi `RTUnit_10` precede
-	// `RTUnit_9`. L'esito dipenderebbe da quanti oggetti sono nati prima nel processo, cioe' da **quali test
-	// hanno girato prima** — che e' precisamente la forma di un rosso a intermittenza.
-	//
-	// 🔴 **Senza questa guardia lo slittamento non produce un rosso che si spiega.** I confronti sull'autore
-	// piu' sotto mettono a confronto `VoceA->UnitId` con `IdReactorA`, e **entrambi** slittano insieme:
-	// restano verdi mentre la scena non e' piu' quella descritta. Il difetto si vedrebbe solo se lo
-	// slittamento fosse asimmetrico — cioe' per caso.
-	//
-	// ⛔ Non e' un numero volatile: e' la cardinalita' di QUESTA scena, dichiarata quattro `SpawnDefUnit`
-	// piu' sopra in questa stessa funzione.
+	// ⛔ **Quattro id DISTINTI e non `1..4`, ed e' una scelta.** La numerazione assoluta verrebbe
+	// dall'ordine di `MatchRosterLess` — squadra, cella, nome dell'Actor — che e' un contratto di cui
+	// questo test non e' il proprietario: lo possiede gia'
+	// `Match.Autobattle.DeterminismSurvivesUnitPermutation`, il cui commento dichiara *«tolto il `Sort`,
+	// questo test diventa rosso e nessun altro se ne accorge»*. Pinnare qui `1..4` renderebbe rosso un test
+	// sull'AUTORE del contrattacco il giorno in cui qualcuno cambiasse legittimamente quell'ordine. Cio'
+	// che serve qui e' la proprieta' relativa: quattro identita' diverse, cosi' che i confronti piu' sotto
+	// distinguano davvero. Trovato in code review.
 	{
-		TArray<AActor*> UnitaNelMondo;
-		UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), UnitaNelMondo);
-		// Quattro `TestEqual` separati e non una condizione corto-circuitata: devono riportare TUTTI, perche'
-		// **quali** id sono slittati dice dove sta l'intrusa — davanti al reattore A, fra i due reattori, o
-		// fra gli attaccanti. Un solo rosso direbbe che la scena e' cambiata e non come.
-		const bool bSoloLaScena = TestEqual(
-			TEXT("premessa: nel mondo ci sono le sole unita' di questa scena"), UnitaNelMondo.Num(), 4);
-		const bool bIdA  = TestEqual(TEXT("premessa: il roster numera il reattore A"), IdReactorA, 1);
-		const bool bIdB  = TestEqual(TEXT("premessa: il roster numera il reattore B"), IdReactorB, 2);
-		const bool bIdAA = TestEqual(TEXT("premessa: il roster numera l'attaccante di A"), AttackerA->StableUnitId, 3);
-		const bool bIdAB = TestEqual(TEXT("premessa: il roster numera l'attaccante di B"), AttackerB->StableUnitId, 4);
-		if (!bSoloLaScena || !bIdA || !bIdB || !bIdAA || !bIdAB)
+		const TSet<int32> Identita = { IdReactorA, IdReactorB, IdAttackerA, IdAttackerB };
+		const bool bAssegnati = TestFalse(TEXT("premessa: il roster ha assegnato gli id"), Identita.Contains(0));
+		const bool bDistinti = TestEqual(
+			TEXT("premessa: le quattro unita' hanno quattro identita' distinte"), Identita.Num(), 4);
+		if (!bAssegnati || !bDistinti)
 		{
-			// Uscita ANTICIPATA, e per la stessa ragione delle altre due premesse: con la numerazione
-			// slittata i confronti sull'autore non misurano piu' cio' che dichiarano, e lasciarli girare
-			// aggiungerebbe rossi derivati a un rosso che ha gia' detto la propria causa.
+			// Uscita ANTICIPATA, come le altre premesse: con le identita' collassate i confronti
+			// sull'autore non misurano piu' cio' che dichiarano, e lasciarli girare aggiungerebbe rossi
+			// derivati a un rosso che ha gia' detto la propria causa.
 			DestroyDefWorld(World);
 			return false;
 		}
@@ -541,26 +553,37 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
 	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
 	const FRTTurnLogEntry* VoceA = nullptr;
 	const FRTTurnLogEntry* VoceB = nullptr;
-	// ⚠️ **L'ultima voce NON vince, e fino a `#2657` vinceva.** Questo ciclo assegnava `VoceA = &E` a ogni
-	// corrispondenza: con due voci `Combat` sullo stesso bersaglio — un contrattacco piu' una voce di altra
-	// famiglia che usa la convenzione INVERTITA (`Caduta`, `Hazard`, `Status.Burning` mettono in `UnitId`
-	// chi SUBISCE) — il test finiva a confrontare i satelliti della voce sbagliata, e il rosso che ne usciva
-	// nominava il CAMPO invece della collisione. Contarle per bersaglio costa una riga e cambia cio' che un
-	// rosso comunica.
+	// ⚠️ **NE' l'ultima NE' la prima: la selezione non e' una scommessa sull'ordine.** Questo ciclo
+	// assegnava `VoceA = &E` a ogni corrispondenza, quindi vinceva l'ULTIMA; scegliere la prima sarebbe la
+	// stessa scommessa girata. Il problema vero e' che non tutte le voci `Combat` su quella cella sono
+	// contrattacchi: `Caduta`, `Hazard` e `Status.Burning` mettono in `UnitId` **chi subisce**, e una di
+	// esse su quel bersaglio farebbe confrontare i satelliti di un record che non e' il colpo di ritorno.
+	//
+	// 🔑 **La discriminante esiste gia' in produzione e si CHIEDE**: `URTTurnLogLibrary::IsSubjectTheSufferer`
+	// porta quella tassonomia in un posto solo, ed e' scritta per evitare che un consumatore debba
+	// «ricordarsi di averla letta». Usarla qui rende la scelta deterministica invece che posizionale.
+	// Trovato in code review.
 	int32 VociSuA = 0;
 	int32 VociSuB = 0;
 	for (const FRTTurnLogEntry& E : Log)
 	{
 		if (E.Category != ERTLogCategory::Combat) { continue; }
-		if (E.TgtCell == CellaAttackerA) { if (VoceA == nullptr) { VoceA = &E; } ++VociSuA; }
-		if (E.TgtCell == CellaAttackerB) { if (VoceB == nullptr) { VoceB = &E; } ++VociSuB; }
+		if (URTTurnLogLibrary::IsSubjectTheSufferer(E)) { continue; } // non e' un colpo inferto: non e' un contrattacco
+		if (E.TgtCell == CellaAttackerA) { VoceA = &E; ++VociSuA; }
+		if (E.TgtCell == CellaAttackerB) { VoceB = &E; ++VociSuB; }
 	}
 
 	// Una per bersaglio, che e' piu' forte di «due in tutto»: quest'ultima resterebbe vera con due voci su A
 	// e nessuna su B, cioe' proprio sulla scena che il test esiste per escludere.
-	TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito A"), VociSuA, 1);
-	TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito B"), VociSuB, 1);
-	if (!TestNotNull(TEXT("il contrattacco su chi ha colpito A ha lasciato una voce"), VoceA)
+	//
+	// ⛔ **Uscita ANTICIPATA anche qui**, come per le altre premesse: con due voci sullo stesso bersaglio
+	// non si sa QUALE si stia confrontando, e lasciar girare i cinque satelliti produrrebbe cinque rossi
+	// che nominano il campo — esattamente cio' che questa guardia esiste per sostituire. Trovato in code
+	// review: la guardia c'era e l'uscita no.
+	const bool bUnaSuA = TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito A"), VociSuA, 1);
+	const bool bUnaSuB = TestEqual(TEXT("una sola voce Combat ha per bersaglio chi ha colpito B"), VociSuB, 1);
+	if (!bUnaSuA || !bUnaSuB
+		|| !TestNotNull(TEXT("il contrattacco su chi ha colpito A ha lasciato una voce"), VoceA)
 		|| !TestNotNull(TEXT("il contrattacco su chi ha colpito B ha lasciato una voce"), VoceB))
 	{
 		DestroyDefWorld(World);
@@ -607,19 +630,43 @@ bool FRTTwoCountersKeepOwnOriginTest::RunTest(const FString&)
  * stati distrutti» ma «il mondo NUOVO li vede», e `TActorIterator` itera i livelli del mondo che gli si
  * passa — non la memoria.
  *
- * 🔴 **Il primo `TestEqual` e' un CONTROLLO POSITIVO, non decorazione.** Senza, un `0` alla fine non
+ * 🔴 **Ogni zero ha accanto un CONTROLLO POSITIVO, e non e' decorazione.** Senza, uno zero non
  * distinguerebbe «il mondo nuovo e' pulito» da «questa sonda non sa contare»: una `GetAllActorsOfClass`
- * chiamata male risponde zero in entrambi i casi. Misurare che nel primo mondo se ne vedono due e' cio' che
- * rende informativo lo zero nel secondo.
+ * chiamata male risponde zero in entrambi i casi.
+ *
+ * **I casi misurati sono DUE**, e il secondo e' quello che conta:
+ *
+ * 1. smontaggio regolare — `DestroyDefWorld` e poi un mondo nuovo;
+ * 2. ⚠️ **il mondo precedente resta VIVO** mentre nasce il successivo. E' la forma che `#2657` descrive
+ *    — *«dipende da QUANDO il mondo precedente viene davvero smontato»* — e la si produce senza volerlo:
+ *    un test che fallisce una premessa ed esce **senza** chiamare `DestroyDefWorld` lascia dietro un
+ *    `UWorld` vivo e il suo `FWorldContext` registrato in `GEngine`. Questo file ha sette uscite
+ *    anticipate. Misurare il solo caso 1 avrebbe certificato quello che non era mai stato in dubbio.
+ *
+ * ⛔ **Cio' che questo test NON copre.** Certifica `MakeDefWorld`/`DestroyDefWorld`, che sono la copia
+ * LOCALE di questa fixture. La sede condivisa e' `RTWorldFixtures::MakeWorld`/`DestroyWorld`, nata per
+ * togliere di mezzo 43 copie come questa, e la sua `DestroyWorld` e' la forma **piu' forte** — smonta il
+ * mondo anche con `GEngine` nullo, *«perche' un `UWorld` orfano e' una perdita silenziosa e il contesto
+ * mancante no»*, mentre la copia qui sopra avvolge entrambe le chiamate in `if (World && GEngine)`.
+ * Migrare questo file alla fixture condivisa comprerebbe la proprieta' una volta per tutti ed e'
+ * fuori dallo scope di `#2657`: va chiesto a chi possiede quella migrazione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDefFixtureIsolatesWorldsTest,
 	"RefactorTactics.Reactions.Counter.FixtureIsolatesItsWorlds",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTDefFixtureIsolatesWorldsTest::RunTest(const FString&)
 {
+	// ── Caso 1: smontaggio REGOLARE ────────────────────────────────────────────────────────────────
 	UWorld* Primo = MakeDefWorld();
 	if (!TestNotNull(TEXT("primo mondo"), Primo)) { return false; }
-	SpawnDefMap(Primo);
+	// `TestNotNull` sulla mappa, e non e' pedanteria in QUESTO test: `SpawnDefMap` dereferenzia il
+	// risultato di `SpawnActor` senza guardia, e un mondo mal costruito e' proprio l'ingresso che questo
+	// test esiste per sondare. Altrove il rischio e' teorico; qui no. Trovato in code review.
+	if (!TestNotNull(TEXT("mappa del primo mondo"), SpawnDefMap(Primo)))
+	{
+		DestroyDefWorld(Primo);
+		return false;
+	}
 	ARTUnit* UnoA = SpawnDefUnit(Primo, 0, FRTCellId(0, 0));
 	ARTUnit* UnoB = SpawnDefUnit(Primo, 1, FRTCellId(1, 0));
 	if (!TestNotNull(TEXT("unita' del primo mondo"), UnoA) || !TestNotNull(TEXT("seconda unita'"), UnoB))
@@ -639,12 +686,57 @@ bool FRTDefFixtureIsolatesWorldsTest::RunTest(const FString&)
 	// nessuna pressione, nessuna raccolta fra un test e l'altro.
 	UWorld* Secondo = MakeDefWorld();
 	if (!TestNotNull(TEXT("secondo mondo"), Secondo)) { return false; }
-	SpawnDefMap(Secondo);
+	if (!TestNotNull(TEXT("mappa del secondo mondo"), SpawnDefMap(Secondo)))
+	{
+		DestroyDefWorld(Secondo);
+		return false;
+	}
 
 	TArray<AActor*> NelSecondo;
 	UGameplayStatics::GetAllActorsOfClass(Secondo, ARTUnit::StaticClass(), NelSecondo);
-	TestEqual(TEXT("il mondo nuovo non eredita le unita' di quello smontato"), NelSecondo.Num(), 0);
+	TestEqual(TEXT("dopo uno smontaggio regolare il mondo nuovo non eredita nulla"), NelSecondo.Num(), 0);
 
+	// ── Caso 2: il mondo precedente NON viene smontato ─────────────────────────────────────────────
+	//
+	// 🔴 **E' la forma pericolosa, ed e' quella che #2657 descrive**: *«dipende da QUANDO il mondo
+	// precedente viene davvero smontato»*. Un test che fallisce una premessa ed esce senza chiamare
+	// `DestroyDefWorld` lascia dietro un `UWorld` vivo **e** il suo `FWorldContext` registrato in
+	// `GEngine` — e questo file ha sette uscite anticipate. Misurare il solo smontaggio felice avrebbe
+	// certificato il caso che non e' mai stato in dubbio. Trovato in code review.
+	//
+	// Qui `Secondo` resta VIVO mentre nasce `Terzo`, e si smontano entrambi alla fine.
+	ARTUnit* DueA = SpawnDefUnit(Secondo, 0, FRTCellId(0, 0));
+	if (!TestNotNull(TEXT("unita' del secondo mondo"), DueA))
+	{
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+
+	UWorld* Terzo = MakeDefWorld();
+	if (!TestNotNull(TEXT("terzo mondo"), Terzo))
+	{
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+	if (!TestNotNull(TEXT("mappa del terzo mondo"), SpawnDefMap(Terzo)))
+	{
+		DestroyDefWorld(Terzo);
+		DestroyDefWorld(Secondo);
+		return false;
+	}
+
+	TArray<AActor*> NelTerzo;
+	UGameplayStatics::GetAllActorsOfClass(Terzo, ARTUnit::StaticClass(), NelTerzo);
+	TestEqual(TEXT("un mondo precedente ancora VIVO non entra nel mondo nuovo"), NelTerzo.Num(), 0);
+
+	// Controllo positivo del caso 2: il mondo lasciato in piedi vede ancora la propria unita'. Senza,
+	// lo zero qui sopra non distinguerebbe «isolati» da «l'unita' non era mai stata spawnata».
+	TArray<AActor*> AncoraNelSecondo;
+	UGameplayStatics::GetAllActorsOfClass(Secondo, ARTUnit::StaticClass(), AncoraNelSecondo);
+	TestEqual(TEXT("controllo positivo: il mondo non smontato tiene ancora la sua unita'"),
+		AncoraNelSecondo.Num(), 1);
+
+	DestroyDefWorld(Terzo);
 	DestroyDefWorld(Secondo);
 	return true;
 }
