@@ -108,6 +108,7 @@ definita in due posti, è un difetto: apri una issue invece di aggiornarne una s
 | Durata partita, round, scala mappe | [`gameplay/spec-durata-partita-e-scala-mappe.md`](gameplay/spec-durata-partita-e-scala-mappe.md) (D-010) | ✅ |
 | Pacing del turno misurato | [`gameplay/spec-pacing-turno.md`](gameplay/spec-pacing-turno.md) | ✅ |
 | Privacy dell'intento | invariante #6 + `URTIntentPrivacyLibrary` | ✅ offline |
+| **Intenti condivisi** — i requisiti del piano di squadra in rete | [`technical/systems/spec-intenti-condivisi.md`](technical/systems/spec-intenti-condivisi.md) | ⏳ **post-v0.1**: in 2v2 offline la feature non ha soggetto — `UnitsPerPlayer = 2` su `UnitsPerTeam = 2` |
 | TurnLog, reason code, serializzazione | [`technical/spec-turnlog.md`](technical/architecture/spec-turnlog.md) · [`technical/spec-turnlog-serialize.md`](technical/architecture/spec-turnlog-serialize.md) | ✅ |
 | Replay — cosa è autorevole e chi può calcolare | [`decisions/adr-0009-replay-logico-canonico.md`](decisions/adr-0009-replay-logico-canonico.md) | ⏳ **decisione presa, R1/R3 da implementare** (2026-08-10) · due prodotti: il **Player** riproduce la traccia e non calcola, il **Verifier** ri-simula e non presenta · forma dell'archivio in [D-077](decisions/RT_PDR_00_Decision_Log.md) |
 | HUD e leggibilità | [`technical/progettazione-hud.md`](technical/systems/progettazione-hud.md) · [`technical/brief-planning-visuale.md`](technical/systems/brief-planning-visuale.md) | ⏳ E11 |
