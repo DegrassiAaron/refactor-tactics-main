@@ -41,10 +41,10 @@
 
   "turns": [
     {
-      "_turno": "T1 — ACQUA + ELETTRICITA' (`PIE-VIS-COMBO`). W_ELE scatta nella spina d'acqua in fase Dash e il terreno lo bagna; la scarica lineare di G_ELE lo trova gia' bagnato e il bonus si applica. 90 - (32 - 5 di scudo base, [D-224]) = 63. Va per primo perche' la rete conduttiva dev'essere intatta.",
+      "_turno": "T1 — ACQUA + ELETTRICITA' (`PIE-VIS-COMBO`). W_ELE scatta nella spina d'acqua in fase Dash e il terreno lo bagna; la scarica lineare di G_ELE lo trova gia' bagnato e il bonus si applica. 90 - (32 - 5 di scudo base, [D-224]) = 63. Va per primo perche' la rete conduttiva dev'essere intatta. ⏱️ 🔴 **G_ELE mira alla CELLA e non all'unita', e dal 2026-09-20 e' l'unico modo di allestire questa scena** ([D-415]): la mira si fissa al lock-in e non insegue piu', quindi puntare `W_ELE` significherebbe puntare la cella da cui sta per scattare — la scarica cadrebbe li' e la combo non avverrebbe. Misurato: con il bersaglio-unita' `W_ELE` chiude a **90** invece di 63. 🔑 **Ed e' la lettura giusta della decisione, non un aggiramento**: chi non puo' inseguire PREVEDE, e dichiara la cella — il `targetCell` e' esattamente cio' che [D-415] lascia a chi vuole colpire qualcosa che si muove.",
       "intents": [
         { "unit": "W_ELE", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [0, 0, 0] },
-        { "unit": "G_ELE", "ability": "Hero.Aevik.LinearDischarge", "target": "W_ELE" }
+        { "unit": "G_ELE", "ability": "Hero.Aevik.LinearDischarge", "targetCell": [0, 0, 0] }
       ]
     },
     {
