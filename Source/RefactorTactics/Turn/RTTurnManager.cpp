@@ -1475,6 +1475,45 @@ void ARTTurnManager::LockInAndResolve()
 	// `TurnLog` ne' nello `StateHash`.
 	PlaybackKnowledgeState = TeamKnowledgeState;
 
+	// 🔴 **LA MIRA SI FISSA QUI, e da qui non insegue piu'** ([D-415]).
+	//
+	// 🔑 **Questo e' il lock-in, cioe' l'istante in cui il piano diventa immutabile**: e' l'unico punto in
+	// cui la cella di un bersaglio e' ancora quella su cui chi spara ha DECISO. Le fasi che seguono —
+	// `ResolveDash`, `ResolveMovement` — la cambiano, e fino al 2026-09-20 il Blast leggeva
+	// `PlannedAttackTarget->Cell` dopo che l'avevano cambiata: il colpo seguiva il bersaglio dove si era
+	// spostato, mirando a una posizione che al momento di decidere non esisteva.
+	//
+	// ⛔ **Non e' un'ottimizzazione della leggibilita': e' cio' che rende una fase simultanea decidibile.**
+	// Chi pianifica non puo' sapere dove l'avversario andra', ed e' giusto; ma non deve nemmeno subire che
+	// la propria mira lo segua li'.
+	//
+	// ✅ **E il bersaglio spostato PUO' comunque essere colpito**, se la sua nuova posizione ricade
+	// nell'area: `CollectHexAttacks` sceglie chi colpire geometricamente, non dall'identita' dichiarata. Il
+	// corollario di `D-415` non chiede codice, chiede di non rompere quello che c'e'.
+	//
+	// ⚠️ Vale per il bersaglio-UNITA'. Il bersaglio-cella e' gia' fisso per costruzione (`PlannedAttackCell`),
+	// e l'impatto della carica fa eccezione dichiarata: nasce **dentro** il Blast, al contatto, e la sua
+	// cella e' quella del contatto — non c'e' un «prima» da congelare.
+	//
+	// ⚠️ L'ordine di `GetAllActorsOfClass` non conta QUI e non serve ordinarlo: ogni unita' scrive solo su
+	// se stessa, leggendo un'altra unita' che questo ciclo non tocca. E' una fotografia, non una risoluzione.
+	{
+		TArray<AActor*> AimActors;
+		UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), AimActors);
+		for (AActor* Actor : AimActors)
+		{
+			ARTUnit* PlanningUnit = Cast<ARTUnit>(Actor);
+			if (!IsValid(PlanningUnit)) { continue; }
+
+			const ARTUnit* AimedAt = PlanningUnit->PlannedAttackTarget;
+			PlanningUnit->bHasPlannedAim = IsValid(AimedAt) && !PlanningUnit->bAttackTargetsCell;
+			if (PlanningUnit->bHasPlannedAim)
+			{
+				PlanningUnit->PlannedAimCell = AimedAt->Cell;
+			}
+		}
+	}
+
 	// L'identita' di partita si fissa QUI, prima che il turno produca la sua prima voce di TurnLog (#405).
 	// Questo e' il punto comune ai due percorsi: il gioco ci arriva da `StartPlanningTimer`, lo Scenario
 	// Harness chiama `LockInAndResolve` direttamente senza passare dal timer.

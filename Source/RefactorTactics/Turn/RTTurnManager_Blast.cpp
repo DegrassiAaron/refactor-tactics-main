@@ -714,6 +714,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
 		const bool bTargetsCell = Unit->bAttackTargetsCell;
 		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
+		// [D-415]: anche la mira congelata si copia QUI, per la stessa ragione delle due righe sopra —
+		// `ClearPlannedAttack()` la spegne, e chi la legge sta un centinaio di righe piu' giu'.
+		const bool bHasAim = Unit->bHasPlannedAim;
+		const FRTCellId PlannedAim = Unit->PlannedAimCell;
 		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
@@ -793,7 +797,12 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ⚠️ Le due copie vengono da CIMA AL CICLO, dove il piano e' stato consumato: leggerle qui dall'unita'
 		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+		// 🔴 **La mira e' quella CONGELATA AL LOCK-IN, non la cella corrente del bersaglio** ([D-415]).
+		// `Target->Cell` qui sarebbe la posizione POST-movimento, e usarla e' il difetto che la decisione
+		// chiude: il colpo inseguiva. Il ripiego su `Target->Cell` copre i piani scritti direttamente
+		// (harness, test) che non passano dal lock-in, e resta il comportamento di prima per loro.
+		Instance.TargetCell = bTargetsCell ? PlannedAttackCell
+			: (bHasAim ? PlannedAim : (Target ? Target->Cell : Unit->Cell));
 		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non `Intents.Num()` (#2970)
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il
