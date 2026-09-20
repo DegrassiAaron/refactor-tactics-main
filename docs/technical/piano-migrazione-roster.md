@@ -39,7 +39,7 @@ for n in Gadget Phase Riktor Wraith; do printf "%-8s %s\n" "$n" "$(grep -roF "$n
 | `Source/RefactorTactics/Tests/RTHeroWraithTests.cpp` | `RTHeroWraithTests.cpp` |
 | `Scenarios/Combat/RiktorImpactShotSlows.json` | `RiktorImpactShotSlows.json` |
 | `Scenarios/Spec/Combat/RiktorIsPushedLikeAnyone.json` | `RiktorIsPushedLikeAnyone.json` |
-| `docs/src/wiki/v0.1/roster-legacy/10_Flux_scheda_Wiki.png` … `13_Vektor_…` | 🔴 **il rename non basta**: vedi sotto |
+| `docs/research/wiki/v0.1/roster-legacy/10_Flux_scheda_Wiki.png` … `13_Vektor_…` | 🔴 **il rename non basta**: vedi sotto |
 
 ⚠️ **Le prime sei righe sono già fatte, e questa tabella non è più in grado di dirlo** *(verificato il
 2026-08-18)*. I sei file esistono su disco col nome di destinazione — `ls Source/RefactorTactics/Tests/` e
@@ -52,9 +52,36 @@ confine di parola: la tabella si è conservata **solo dove il gate non arrivava*
 non solo nel nome del file: rinominarli produrrebbe un file che si chiama col nome canonico e mostra quello
 vecchio — cioè esattamente il difetto misurato in
 [#853](https://github.com/DegrassiAaron/refactor-tactics-main/issues/853), dove l'attributo `alt` è
-corretto e l'immagine no. Vanno **rigenerati** prima, rinominati poi. Il path è cambiato il 2026-08-17: non
-sono più sotto `docs/wiki/`. Perimetro completo e le altre 26 immagini nella stessa condizione:
-[#1166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1166).
+corretto e l'immagine no. Vanno **rigenerati** prima, rinominati poi — oppure **rimossi**, e il §*Il
+precedente* qui sotto dice perché la seconda uscita non è ipotetica. Perimetro completo e le altre
+immagini nella stessa condizione: [#1166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1166).
+
+> ⚠️ **Il percorso è cambiato due volte, non una — corretto il 2026-09-20.** Questa riga diceva *«il path
+> è cambiato il 2026-08-17: non sono più sotto `docs/wiki/`»*, ed era vera per due giorni: il **2026-08-19**
+> la fase 3 di [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ha svuotato
+> `docs/src/`, e i quattro PNG sono in **`docs/research/wiki/v0.1/roster-legacy/`**. ⛔ La tabella qui sopra
+> ha continuato a prescrivere `docs/src/` per un mese, e **nessun gate poteva dirlo**: il percorso vive in
+> una cella fra backtick, non in un link, e [`doc-links.ts`](../../tools/radar/doc-links.ts) dichiara nel
+> proprio docstring di non guardare i percorsi in prosa o dentro inline code. È la stessa classe misurata da
+> [#1232](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1232).
+
+### Il precedente: su #853 l'autore ha scelto **rimuovere**, non rigenerare
+
+✅ **Le due immagini del percorso Player di [#853](https://github.com/DegrassiAaron/refactor-tactics-main/issues/853)
+non esistono più dal 2026-08-18**, commit `929b9f2` del clone Wiki — *«le due immagini col roster vecchio
+escono, e con una se ne va la nota che la difendeva»*. Il messaggio dichiara la scelta per intero:
+*«Decisione dell'autore su #853: rimuovere, non rigenerare»*. Verificato oggi: nessun file con quei nomi nel
+clone, e `grep` sui `.md` del clone non trova nessun riferimento residuo.
+
+🔑 **Ne segue una cosa per questo piano**: *«rigenerare»* non è l'unica uscita che chiude il difetto, e
+l'uscita già scelta una volta è l'altra. Una fetta che prescrive **solo** la rigenerazione descrive un
+lavoro che l'autore ha già deciso di non fare, nel caso identico.
+
+⚠️ **Ma il precedente non si estende da solo alle quattro card**, e la differenza è misurabile: le due
+immagini di #853 erano illustrazioni accanto a testo che diceva la stessa cosa, e togliendole la pagina resta
+completa. Le quattro card sono l'immagine d'apertura della scheda di un personaggio — sotto resta il radar
+generato, quindi la pagina non resta muta, ma perde il proprio ritratto. È una scelta d'autore, non una
+deduzione: `ROSTER-1` in [`../OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 
 ⚠️ Un rename di file scenario cambia anche **l'ID dello scenario** se l'harness lo deriva dal nome: da
 verificare in `RTScenarioIndex.cpp` prima della fetta 4, non dopo.
@@ -138,13 +165,39 @@ per la stessa cosa.
 | 2 *(era 4)* | **Token abilità a catalogo** → `Hero.<Nome>.<Abilità>`; scenari JSON e i 2 file scenario rinominati | no (il catalogo non è una traccia) | 1 | i 5 ID di test aggiornati **con** il registry, `feature_registry.py generate` **e** `shortlist` |
 | 3 *(era 5)* | **Documentazione viva** — 1600 occorrenze, 106 file | — | 2 | `check-docs-naming.py --check` **senza esenzioni** per i file vivi |
 | 4 *(era 6)* | **Archivio e citazioni datate** — 1128 occorrenze, 40 file; rimozione delle esenzioni «registri datati» dal gate | — | 3 | `check-docs-naming.py --check` verde con **zero** esenzioni |
-| 5 *(era 7)* | **Wiki** (repo separato): 4 PNG **rigenerati e poi** rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 2 | `deploy --wiki-root` da albero allineato — 🔴 **non copre i pixel**, vedi sotto |
+| 5 *(era 7)* | **Wiki** (repo separato): 4 PNG **rigenerati e poi** rinominati, pagine rigenerate da un checkout col registry aggiornato | — | 2 | ⛔ ~~`deploy --wiki-root`~~ **non esiste** — vedi sotto |
 
-🔴 **Il gate della fetta 5 non può chiuderla.** `deploy --wiki-root` sincronizza i blocchi
-`RT_FEATURE_STATUS` e non guardava dentro le immagini; `check-docs-naming.py` analizzava `.md`, e un PNG non è
-un `.md`. Le quattro card `images/roster/26…29_*-card-v0.1.png` del clone portano il nome legacy **come
-titolo stampato** — verificato aprendole il 2026-08-18 — quindi questa fetta si dichiara chiusa mentre il
-giocatore continua a leggere i nomi vecchi. Finché la rigenerazione non precede il rename, il verde di
+🔴 **Il gate della fetta 5 non può chiuderla, e dal 2026-08-21 non può nemmeno girare.**
+`deploy --wiki-root` sincronizzava i blocchi `RT_FEATURE_STATUS` e non guardava dentro le immagini;
+`check-docs-naming.py` analizzava `.md`, e un PNG non è un `.md`. ⛔ **Entrambi sono usciti dal repository**
+— `D-181` e `D-182` — e oggi cercarli non produce niente: l'unico `--wiki-root` rimasto è
+[`wiki-alt.ts`](../../tools/radar/wiki-alt.ts), che allinea il **testo alternativo dei radar** e nient'altro.
+∴ la colonna *Gate* di questa fetta non prescrive una verifica debole: non ne prescrive nessuna. Le quattro card `images/roster/26…29_*-card-v0.1.png` del clone portano il nome legacy **come
+titolo stampato** — quindi questa fetta si dichiara chiusa mentre il giocatore continua a leggere i nomi
+vecchi.
+
+> 🔁 **Riverificato sui pixel il 2026-09-20, aprendo tutti e quattro i file.** Invariati: le card
+> stampano `FLUX`, `RIVA`, `BASTION`, `VEKTOR` a caratteri grandi, come titolo.
+>
+> 🔴 **E una cosa che #1166 diceva al contrario va corretta qui, perché cambia l'urgenza**: quella issue
+> colloca queste quattro *«fuori dal percorso Player»*. **Non lo sono.** Sono l'immagine d'apertura delle
+> quattro schede personaggio del clone, referenziate una per pagina:
+>
+> | Pagina | Immagine | `alt` |
+> |---|---|---|
+> | `Personaggi/gadget-scheda-dati.md:12` | `26_flux-card-v0.1.png` | *«Gadget — elettro-tecnico…»* |
+> | `Personaggi/phase-scheda-dati.md:12` | `27_riva-card-v0.1.png` | *«Phase — manipolatrice dell'acqua…»* |
+> | `Personaggi/riktor-scheda-dati.md:12` | `28_bastion-card-v0.1.png` | *«Riktor — architetto tattico…»* |
+> | `Personaggi/wraith-scheda-dati.md:12` | `29_vektor-card-v0.1.png` | *«Wraith — duellante predittivo…»* |
+>
+> ∴ **è esattamente il difetto di #853, su quattro immagini invece di due**: titolo della pagina corretto,
+> `alt` corretto, pixel sbagliati — *«chi verifica il markup vede i nomi giusti, chi guarda la pagina vede
+> quelli vecchi»*. Le due di #853 sono state rimosse il 2026-08-18; queste quattro sono rimaste, e la
+> ragione per cui non sono state trattate insieme è la classificazione sbagliata, non una decisione.
+>
+> ⛔ **Questa revisione non le tocca**: il clone è un repository separato, e al momento della misura aveva
+> modifiche non committate di un'altra sessione proprio su `Personaggi/`. Si dichiara ciò che è misurato e si
+> lascia la scelta a `ROSTER-1`. Finché la rigenerazione non precede il rename, il verde di
 questo gate è un falso negativo. Tracciato in
 [#1166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1166).
 
