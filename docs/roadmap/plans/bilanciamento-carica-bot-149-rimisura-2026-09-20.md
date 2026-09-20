@@ -139,7 +139,7 @@ ramo gira.
 |---|---|
 | Ritarare un peso | `D-102` + `D-184`; il banco è `CR-BALANCE`, fuori release |
 | Chiamare `ValidateActionSlots` in partita | la proprietà è già presidiata da `ValidatePlan` al lock-in; una seconda sede sarebbe una seconda verità |
-| Scrivere i due gate mancanti | è lavoro di chi possiede `#3013`, che ha introdotto le due righe. Qui sono **dichiarati assenti**, che è lo stato leggibile |
+| Scrivere i due gate mancanti | 🔴 **la lacuna non ha un owner, e questa riga ne assegnava uno che non può riceverla.** Diceva «è lavoro di chi possiede `#3013`, che ha introdotto le due righe»: `gh issue view 3013` risponde **CLOSED** dal 2026-09-11, e una issue chiusa non la rilegge nessuno. Qui i due gate sono **dichiarati assenti** in `Bot/RTBotPlanning.h`, che è la registrazione passiva e l'unica che esista: chi riapre la questione le dia un owner vivo invece di ereditare questa riga |
 | Misurare di nuovo i 21 round | `NOT RUN` — richiede il motore per una partita `-game -RTAutobattle`, e il numero non è in discussione: `D-184` ha già deciso di non ritarare su di esso |
 | Il termine `WInRange` / `PositioningRange` del WIP `a8a42c8` | il branch non esiste più su `origin` (verificato il 2026-08-12), e il commit è raggiungibile solo dal clone locale su cui fu scritto |
 
