@@ -7,12 +7,24 @@
 > feature: è una **vista di navigazione** sopra owner che esistono già.
 
 **Fotografia**: 2026-09-20, misurata su `origin/main` `f7aa7b32` e su GitHub LIVE.
-**Issue indice**: vedi § *Dove vive questa vista su GitHub*.
+**Issue indice**: [#2325](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2325) — *[ROADMAP] Capability Roadmaps — vista longitudinale v0.1 → v1.0*. ⌫ **Fino al 2026-09-20 questa riga rimandava a una sezione che non esiste** (*«vedi § Dove vive questa vista su GitHub»*): `grep -c` la trovava una volta sola, cioè il rimando stesso, e il documento non nominava mai la propria issue indice.
 
-> 🔁 **Rimisurata il 2026-09-20 contro GitHub LIVE: otto ancore su settantacinque erano stantie.**
-> La fotografia precedente era del 2026-09-06, e in quattordici giorni si erano chiuse #2193, #782, #784,
-> #1496, #2578, #2629 e #2697. ✅ **Nessuna deriva nel verso opposto**: il documento non dichiarava chiusa
-> nessuna issue ancora aperta.
+> 🔁 **Rimisurata il 2026-09-20 contro GitHub LIVE.** Le ancore stantie erano #2193, **#2556**, #782, #784,
+> #2697, #2578 e #2629 — chiuse nei quattordici giorni dopo la fotografia del 2026-09-06 — più **#1496**,
+> che a quella fotografia era **già** stantia: è chiusa dal **2026-09-02**, quattro giorni prima.
+> ✅ **Nessuna ancora dichiarava aperto ciò che GitHub aveva chiuso, né il contrario.**
+>
+> ⌫ **Questa nota è stata corretta il 2026-09-20 in tre punti, ed è istruttiva che ne avesse bisogno.**
+> Diceva *«otto ancore su settantacinque erano stantie»* e poi ne **nominava sette**: mancava #2556, che lo
+> stesso commit annota alla propria riga. Includeva **#1496** fra le chiusure *«dei quattordici giorni»*
+> mentre il documento, poche righe più sotto, la data già al 2026-09-02 — la nota contraddiceva il corpo che
+> certificava. E portava *«su settantacinque»*, un totale che cambia da solo appena il documento cita una
+> issue in più: è successo **in questo stesso commit**, che ne aggiunge una aggiungendo il link all'issue
+> indice. 🔑 Le ancore ora si **nominano** (`AGENTS.md` §14, forma 1): otto nomi non invecchiano.
+>
+> ⚠️ E la formula giusta è *«nessuna **ancora**»*, non *«nessuna riga»*: #1754 è chiusa e compare senza
+> annotazione di stato, ma è citata in **prosa** come riferimento di codice (`RTScenarioKnowledge::OmniscientTeamId`),
+> non come ancora di una vista — non dichiara nulla sul proprio stato.
 >
 > **Si rifà così**, e non serve fidarsi di questa pagina:
 >
