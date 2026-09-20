@@ -548,8 +548,10 @@ node tools/asset-refs/check.ts
 node tools/asset-provenance/check.ts
 node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
 python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
-python tools/bot-competence/check.py --check              # solo se la PR tocca docs/roadmap/bot-competence.yaml,
-                                                          # Source/RefactorTactics/Bot/ o i nomi dei test del bot
+python tools/bot-competence/check.py --check              # lo schema, i suoi `consumers`, il roster,
+                                                          # Scenarios/, o QUALUNQUE rinomina di un nome
+                                                          # Automation citato: e' una lettura offline,
+                                                          # nel dubbio si lancia
 
 cd tools/radar
 node --test

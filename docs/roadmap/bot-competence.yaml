@@ -59,7 +59,7 @@
 #
 # ## ⚠️ Che cosa questa fotografia NON e'
 #
-# 🔴 **Gli stati vengono da lettura statica, e i token verdi non li confermano.** Che i 42 test citati siano
+# 🔴 **Gli stati vengono da lettura statica, e i token verdi non li confermano.** Che i test citati siano
 # verdi e' misurato (`meta.suite`); cio' che NON e' misurato e' il giudizio che li lega a una casella —
 # «questo test esercita QUESTA capability con QUESTO eroe». Quella e' una lettura del corpo del test, e
 # nessun comando la produce. ∴ un token verde dice «il fatto citato regge», mai «lo stato e' quello giusto».
@@ -83,9 +83,9 @@ meta:
   # quella run. Le due cose non coincidono — un filtro puo' non contenere una famiglia citata, ed e'
   # precisamente l'errore che questa riga ha corretto: la prima stesura dichiarava una run che lasciava
   # fuori `Heroes.*` e `Overwatch.*`. Si riverifica cosi':
-  #   filtro = Bot+Heroes+HexBot+HexBotPlay+Match+Overwatch+Scenario
+  #   filtro = Bot+Heroes+HexBot+HexBotPlay+Match+Overwatch+Scenario+Stress
   #   poi si confronta l'elenco dei `Path={...}` del log coi token di questo file.
-  suite: 2026-09-20 — 435 test eseguiti, 435 `Result={Success}`; i 42 token `test:` citati qui
+  suite: 2026-09-20 — 438 test eseguiti, 438 `Result={Success}`; i 43 token `test:` citati qui
          sotto compaiono tutti nel log con `Result={Success}`, nessuno non eseguito.
 
 # I documenti che pubblicano una metrica prodotta da partite AUTOMATICHE, e che percio' devono portarsi
@@ -102,6 +102,14 @@ meta:
 consumers:
   - docs/roadmap/roadmap-checkpoint.md
   - docs/roadmap/v0.1-definition-of-done.md
+
+# La prima riga dell'annotazione, cercata DENTRO ogni consumatore.
+#
+# 🔑 **Si cerca questa e non il nome del file**, perche' un documento puo' nominare `bot-competence.yaml`
+# in una nota storica a mille righe dalla metrica: il gate sarebbe verde su un consumatore che pubblica il
+# numero senza la competenza accanto. Chi cambia il testo dell'annotazione cambia anche questa riga, ed e'
+# il momento giusto per accorgersene.
+ancora: "🧭 **Competenza del bot accanto al numero**"
 
 # Le dieci capability, rese OPERATIVE: ciascuna e' una frase falsificabile, non una definizione.
 # Una frase che non si puo' mostrare falsa non puo' produrre un `FAIL`, e uno schema che non sa fallire
@@ -163,15 +171,20 @@ competence:
   # ---------------------------------------------------------------------------------------------------
   - hero: Hero.Aevik
     capability: Movement
-    state: PASS
+    state: PARTIAL
     evidence:
       - test:RefactorTactics.Bot.PlanBotsGivesTeammatesDistinctCells
-      - test:RefactorTactics.Bot.PlanBotsClearsTheReactionCondition
+      - test:RefactorTactics.Stress.NoTeamSizeAssumptionInResolver
       - test:RefactorTactics.Scenario.FreeRun.ArenaV01ReachesAWinner
       - scenario:AutoBattle.ArenaV01
     why: >-
-      E' l'unica capability con un Aevik costruito dal catalogo, messo al bot, e un'asserzione sul piano
-      prodotto: la prenotazione della rotta e' verificata sulla coppia che lo contiene.
+      ⌫ Era `PASS`, e la code review l'ha falsificata col criterio che questo file scrive di se': un `PASS`
+      vuole un token che diventi ROSSO se il bot che gioca QUESTO eroe non fa quella cosa. Nessuno lo
+      diventa. `PlanBotsGivesTeammatesDistinctCells` asserisce sulla COPPIA — celle distinte, e almeno una
+      delle due che si muove — e resta verde con Aevik immobile e la compagna che si sposta; le celle sono
+      distinte per costruzione, perche' Aevik fermo occupa ancora la propria. `NoTeamSizeAssumptionInResolver`
+      a `PerTeam = 1` mette Aevik bot contro Aevik bot e asserisce PER UNITA', ma che l'unita' compaia nel
+      TurnLog: prova che ha AGITO, non che la destinazione sia legale e prenotata.
 
   - hero: Hero.Aevik
     capability: BasicAttack

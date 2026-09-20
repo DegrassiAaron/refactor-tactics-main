@@ -91,10 +91,26 @@ def valida_forma(schema: dict, eroi: set[str]) -> list[str]:
     """
     difetti: list[str] = []
 
-    vocabolario = [v.get("name") for v in schema.get("vocabulary") or []]
-    if not vocabolario:
+    grezzo = [v.get("name") for v in schema.get("vocabulary") or []]
+    if not grezzo:
         difetti.append("`vocabulary` assente o vuoto: senza un vocabolario nessuna riga e' verificabile")
+    # ⚠️ **Le voci senza `name` escono dal vocabolario, non solo dall'insieme dei nomi noti.** Tenerle
+    # dentro faceva nascere una capability chiamata `None`, e con lei quattro difetti fantasma: due righe
+    # `Hero.X x None` «assenti» e una voce di vocabolario «che nessuna riga usa». Un difetto vero che ne
+    # genera tre falsi manda a cercare nel posto sbagliato — e l'ha trovato l'`--autotest`.
+    vocabolario = [v for v in grezzo if v]
+    if len(vocabolario) != len(grezzo):
+        difetti.append("`vocabulary` contiene una voce senza `name`: sarebbe una capability anonima")
     noti = set(vocabolario)
+
+    # 🔴 **`consumers` vuoto disarma meta' del gate, e disarmarlo dev'essere ROSSO.** La prima stesura lo
+    # trattava come informazione: svuotando il blocco, `check.py` usciva 0 stampando «consumatori
+    # sorvegliati: NESSUNO» — cioe' nominava il difetto che `#543` esiste per chiudere e lo lasciava
+    # passare. Un gate che descrive la propria disattivazione senza fallire e' peggio di un gate assente,
+    # perche' il referto continua a sembrare un verde.
+    if not (schema.get("consumers") or []):
+        difetti.append("`consumers` assente o vuoto: nessun documento e' sorvegliato, e una conclusione di "
+                       "bilanciamento torna producibile senza lo stato di competenza accanto")
 
     viste: set[tuple] = set()
     for riga in schema.get("competence") or []:
@@ -165,19 +181,66 @@ def separa(evidenze: set[str]) -> tuple[set[str], set[str]]:
 # Le tre sorgenti, lette dall'albero
 # ---------------------------------------------------------------------------------------------------
 
+def corpo_di(testo: str, firma: re.Pattern) -> str:
+    """Il corpo di una funzione C++, delimitato contando le graffe BILANCIATE.
+
+    🔴 **Non con `\\{(.*?)\\}`, ed e' il difetto che questa funzione ha avuto.** Quel regex non-greedy si
+    ferma alla PRIMA graffa chiusa: basta un inizializzatore, un lambda o un blocco annidato prima della
+    lista perche' il corpo letto sia un moncone — e la conseguenza sarebbe silenziosa, perche' un roster
+    piu' corto produce «riga ASSENTE» su eroi veri oppure, peggio, non produce niente su un eroe nuovo.
+    """
+    m = firma.search(testo)
+    if not m:
+        return ""
+    i = testo.find("{", m.end() - 1)
+    if i < 0:
+        return ""
+    livello, j = 0, i
+    while j < len(testo):
+        if testo[j] == "{":
+            livello += 1
+        elif testo[j] == "}":
+            livello -= 1
+            if livello == 0:
+                return testo[i + 1:j]
+        j += 1
+    return ""
+
+
+def senza_commenti(testo: str) -> str:
+    """Via i commenti, perche' un `TEXT("Hero.…")` citato in una nota non e' un eroe del roster."""
+    testo = re.sub(r"/\*.*?\*/", " ", testo, flags=re.S)
+    return re.sub(r"//[^\n]*", " ", testo)
+
+
 def eroi_dal_catalogo(radice: str) -> set[str]:
     """Gli id del roster da `URTHeroCatalogLibrary::GetHeroIds`, non da un elenco riscritto qui."""
     p = os.path.join(radice, "Source", "RefactorTactics", "Ability", "RTHeroCatalogLibrary.cpp")
     with open(p, encoding="utf-8", errors="replace") as f:
         testo = f.read()
-    m = re.search(r"GetHeroIds\s*\(\s*\)\s*\{(.*?)\}", testo, re.S)
-    if not m:
+    corpo = corpo_di(testo, re.compile(r"GetHeroIds\s*\(\s*\)\s*"))
+    if not corpo:
         raise SchemaError(f"GetHeroIds non trovata in {p}: senza roster non si valida niente")
-    return set(re.findall(r'TEXT\("(Hero\.[A-Za-z0-9_]+)"\)', m.group(1)))
+    eroi = set(re.findall(r'TEXT\("(Hero\.[A-Za-z0-9_]+)"\)', senza_commenti(corpo)))
+    if not eroi:
+        raise SchemaError(
+            f"GetHeroIds trovata in {p} ma non dichiara nessun `Hero.*`: un roster vuoto renderebbe la "
+            "griglia vuota, e il gate verde su zero righe")
+    return eroi
+
+
+# Il nome Automation si prende dalla MACRO che lo DICHIARA, non da una stringa qualunque fra virgolette.
+# 🔴 La prima stesura cercava `"(RefactorTactics\.[A-Za-z0-9_.]+)"` ovunque nel file, quindi un nome
+# citato in un COMMENTO risolveva come se il test esistesse — e un test rinominato, il cui nome vecchio
+# sopravvive in una nota storica, avrebbe tenuto in piedi un token morto. Misurato sull'albero: la forma
+# larga da' 2627 nomi, questa 2626, e tutti i token dello schema continuano a risolvere. La differenza e'
+# esattamente cio' che non doveva contare.
+MACRO_TEST = re.compile(
+    r'IMPLEMENT_[A-Z_]*AUTOMATION_TEST\s*\(\s*\w+\s*,\s*"(RefactorTactics\.[\w.]+)"', re.S)
 
 
 def test_dichiarati(radice: str) -> set[str]:
-    """I nomi Automation LETTERALI, dai file di test dei due moduli."""
+    """I nomi Automation DICHIARATI da un `IMPLEMENT_*_AUTOMATION_TEST`, nei due moduli."""
     nomi: set[str] = set()
     for sotto in (
         os.path.join("Source", "RefactorTactics", "Tests"),
@@ -191,7 +254,7 @@ def test_dichiarati(radice: str) -> set[str]:
                 if not nome.endswith((".cpp", ".h")):
                     continue
                 with open(os.path.join(dirpath, nome), encoding="utf-8", errors="replace") as f:
-                    nomi.update(re.findall(r'"(RefactorTactics\.[A-Za-z0-9_.]+)"', f.read()))
+                    nomi.update(MACRO_TEST.findall(f.read()))
     return nomi
 
 
@@ -231,17 +294,31 @@ def esegui(percorso: str, radice: str) -> int:
     # I CONSUMATORI: chi pubblica una metrica prodotta da partite automatiche deve portarsi accanto lo
     # stato di competenza che la determina. La lista la dichiara lo schema; qui si verifica soltanto che
     # l'annotazione ci sia ancora — se sparisce, la conclusione torna producibile senza.
+    #
+    # ⚠️ Si cerca l'ANCORA dichiarata dallo schema, non il nome del file: un documento puo' nominare
+    # `bot-competence.yaml` in una nota storica a mille righe dall'annotazione, e il gate sarebbe verde su
+    # un consumatore che la metrica la pubblica senza competenza accanto. L'ancora e' la prima riga
+    # dell'annotazione stessa, quindi trovarla significa che l'annotazione c'e'.
+    # ⛔ Resta un controllo di PRESENZA: non dice che gli stati citati siano correnti.
+    ancora = (schema.get("ancora") or "").strip()
     nome_schema = os.path.basename(percorso)
     consumatori_rotti: list[str] = []
+    if not ancora:
+        consumatori_rotti.append("`ancora` assente: senza, il controllo dei consumatori cercherebbe il solo "
+                                 "nome del file e passerebbe su una citazione qualunque")
     for rel in schema.get("consumers") or []:
         assoluto = os.path.join(radice, rel)
         if not os.path.isfile(assoluto):
             consumatori_rotti.append(f"{rel}: dichiarato consumatore, ma il file non esiste")
             continue
         with open(assoluto, encoding="utf-8", errors="replace") as f:
-            if nome_schema not in f.read():
-                consumatori_rotti.append(
-                    f"{rel}: pubblica una metrica da partite automatiche e NON cita `{nome_schema}`")
+            testo_consumatore = f.read()
+        if ancora and ancora not in testo_consumatore:
+            consumatori_rotti.append(
+                f"{rel}: pubblica una metrica da partite automatiche e non porta l'annotazione "
+                f"(ancora non trovata: «{ancora[:48]}…»)")
+        elif nome_schema not in testo_consumatore:
+            consumatori_rotti.append(f"{rel}: porta l'annotazione ma non rimanda a `{nome_schema}`")
 
     rotti: list[str] = []
     for r in righe:
@@ -257,7 +334,14 @@ def esegui(percorso: str, radice: str) -> int:
     # restringe resta verde: e' il difetto che `un gate stampa i fallimenti, non lo scope` descrive.
     conteggio = {s: sum(1 for r in righe if r.get("state") == s) for s in STATI}
     non_applicabili = [r for r in righe if r.get("applicable") is False]
-    print(f"bot-competence: {len(righe)} righe lette da {os.path.relpath(percorso, radice)} "
+    # `relpath` alza `ValueError` fra due unita' disco diverse su Windows. E' una ETICHETTA: non deve
+    # poter uccidere il gate proprio quando lo si punta a un file fuori dal repository — che e' cio' che
+    # fa chi verifica una mutazione su una copia.
+    try:
+        etichetta = os.path.relpath(percorso, radice)
+    except ValueError:
+        etichetta = percorso
+    print(f"bot-competence: {len(righe)} righe lette da {etichetta} "
           f"({len(eroi)} eroi x {len(schema.get('vocabulary') or [])} capability)")
     print(f"  stati: " + " · ".join(f"{s} {conteggio[s]}" for s in STATI))
     print(f"  evidenza: {len(nomi_test)} token `test:` e {len(ids_scenario)} token `scenario:` distinti, "
@@ -290,12 +374,20 @@ def esegui(percorso: str, radice: str) -> int:
 
 
 def autotest() -> int:
-    """Le funzioni pure, provate senza albero. Dimostra che il gate SA fallire (`D-188`)."""
+    """Le funzioni pure, provate senza albero. Dimostra che il gate SA fallire (`D-188`).
+
+    ⚠️ **Prova `valida_forma`, non il gate intero**: la risoluzione dei token e il controllo dei
+    consumatori leggono l'albero, e una prova che finge un albero proverebbe la finzione. Quelle due
+    meta' si verificano per mutazione sul repository vero, e il modo sta nel corpo della PR di `#543`.
+    """
     eroi = {"Hero.A", "Hero.B"}
     voc = [{"name": "Uno"}]
+    consumatori = ["docs/roadmap/qualcosa.md"]
 
-    def schema(righe):
-        return {"vocabulary": voc, "competence": righe}
+    def schema(righe, *, vocabolario=None, cons=None):
+        return {"vocabulary": voc if vocabolario is None else vocabolario,
+                "competence": righe,
+                "consumers": consumatori if cons is None else cons}
 
     sano = [
         {"hero": "Hero.A", "capability": "Uno", "state": "PASS",
@@ -303,33 +395,48 @@ def autotest() -> int:
         {"hero": "Hero.B", "capability": "Uno", "state": "UNTESTED", "evidence": [], "why": "nessuna misura"},
     ]
     casi = [
-        ("forma sana", sano, 0),
-        ("stato senza evidenza", [dict(sano[0], evidence=[]), sano[1]], 1),
-        ("UNTESTED con evidenza", [sano[0], dict(sano[1], evidence=["test:RefactorTactics.X.Y"])], 1),
-        ("token malformato", [dict(sano[0], evidence=["RefactorTactics.X.Y"]), sano[1]], 1),
-        ("stato ignoto", [dict(sano[0], state="FORSE"), sano[1]], 1),
-        ("riga assente", [sano[0]], 1),
+        ("forma sana", schema(sano), 0),
+        ("stato senza evidenza", schema([dict(sano[0], evidence=[]), sano[1]]), 1),
+        ("UNTESTED con evidenza", schema([sano[0], dict(sano[1], evidence=["test:RefactorTactics.X.Y"])]), 1),
+        ("token malformato", schema([dict(sano[0], evidence=["RefactorTactics.X.Y"]), sano[1]]), 1),
+        ("stato ignoto", schema([dict(sano[0], state="FORSE"), sano[1]]), 1),
+        ("riga assente", schema([sano[0]]), 1),
         # UNO e non due: la riga in piu' e' ben formata, e la griglia resta completa. Scrivere `2` qui
         # era la mia attesa sbagliata, e l'autotest l'ha presa — che e' il suo mestiere.
-        ("coppia duplicata", sano + [dict(sano[1], hero="Hero.A", capability="Uno")], 1),
-        ("why vuoto", [dict(sano[0], why="  "), sano[1]], 1),
-        ("non applicabile senza motivo", [sano[0], dict(sano[1], applicable=False)], 1),
-        ("non applicabile con evidenza", [sano[0],
+        ("coppia duplicata", schema(sano + [dict(sano[1], hero="Hero.A", capability="Uno")]), 1),
+        ("why vuoto", schema([dict(sano[0], why="  "), sano[1]]), 1),
+        ("non applicabile senza motivo", schema([sano[0], dict(sano[1], applicable=False)]), 1),
+        ("non applicabile con evidenza", schema([sano[0],
             dict(sano[1], applicable=False, motivo="il roster non gliela da'",
-                 evidence=["test:RefactorTactics.X.Y"])], 1),
-        ("non applicabile ben formato", [sano[0],
-            dict(sano[1], applicable=False, motivo="il roster non gliela da'")], 0),
+                 evidence=["test:RefactorTactics.X.Y"])]), 1),
+        ("non applicabile ben formato", schema([sano[0],
+            dict(sano[1], applicable=False, motivo="il roster non gliela da'")]), 0),
+        # I rami che la code review ha trovato scoperti. Senza questi, `--autotest` copriva nove difetti
+        # su quattordici e i due piu' pesanti — roster e vocabolario — non li provava nessuno.
+        # TRE e non uno: senza vocabolario le due righe hanno una capability che non e' fra i noti. Era
+        # un'altra mia attesa sbagliata, e l'autotest l'ha presa.
+        ("vocabolario vuoto", schema(sano, vocabolario=[]), 3),
+        ("voce di vocabolario senza name", schema(sano, vocabolario=[{"name": "Uno"}, {}]), 1),
+        ("eroe fuori dal roster",
+         schema([dict(sano[0], hero="Hero.Z"), sano[1]]), 2),  # fuori roster + `Hero.A x Uno` assente
+        ("capability ignota",
+         schema([dict(sano[0], capability="Due"), sano[1]]), 2),  # fuori vocabolario + `Hero.A x Uno` assente
+        ("evidence non e' una lista",
+         schema([dict(sano[0], evidence="test:RefactorTactics.X.Y"), sano[1]]), 2),  # tipo + stato senza evidenza
+        ("consumers vuoto", schema(sano, cons=[]), 1),
+        ("consumers assente", {"vocabulary": voc, "competence": sano}, 1),
     ]
     rossi = 0
-    for nome, righe, attesi in casi:
-        d = valida_forma(schema(righe), eroi)
+    for nome, sch, attesi in casi:
+        d = valida_forma(sch, eroi)
         esito = "ok" if len(d) == attesi else f"ATTESI {attesi}, TROVATI {len(d)}"
         if len(d) != attesi:
             rossi += 1
             for x in d:
                 print(f"      {x}")
         print(f"  {'✅' if len(d) == attesi else '❌'} {nome}: {esito}")
-    print(f"\n{'✅ autotest verde' if rossi == 0 else f'❌ {rossi} casi falliti'}")
+    print()
+    print("✅ autotest verde" if rossi == 0 else f"❌ {rossi} casi falliti")
     return 1 if rossi else 0
 
 
