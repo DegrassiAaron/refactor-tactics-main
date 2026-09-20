@@ -274,7 +274,22 @@ int32 URTHexBotLibrary::ScoreObjectiveTerm(const URTHexMapAsset* Map, const FRTC
 
 int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context)
 {
+	// Una sola implementazione: la forma corta scarta la stima invece di ricalcolarla altrove. E' il
+	// precedente di `EffectiveCoverReduction` (`Combat/RTHexCombatLibrary.h`), che per la stessa ragione
+	// tiene la forma con out-param come unica sede del calcolo.
+	int32 Scartato = 0;
+	return ScorePlan(Map, Plan, Context, Scartato);
+}
+
+int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan& Plan, const FRTHexBotContext& Context,
+	int32& OutCoverBypassedByFacing)
+{
 	int32 Score = 0;
+
+	// ⚠️ **Si AZZERA, non si accumula.** Chi misura chiama questa funzione una volta per piano dentro un
+	// ciclo, e un out-param che sommasse sul valore in ingresso renderebbe il totale dipendente da come il
+	// chiamante ha inizializzato la variabile — un contratto che si scopre sbagliando.
+	OutCoverBypassedByFacing = 0;
 
 	// Dove il piano mira, e quindi come il bot sara' orientato: serve a entrambi i termini direzionali, e si
 	// calcola una volta sola perche' e' la stessa figura in campo che li produce.
@@ -359,7 +374,13 @@ int32 URTHexBotLibrary::ScorePlan(const URTHexMapAsset* Map, const FRTHexBotPlan
 					CombatProbe(Plan.DestCell, ArrivalFacing),
 					CombatProbe(Context.Enemies[I], Context.EnemyFacings[I]),
 					Plan.Shape);
-				Score += Context.WDamage * FMath::Max(0, Nominal - Effective);
+
+				// I PUNTI scavalcati escono di qui, il punteggio li pesa. Sono la stessa sottrazione letta
+				// due volte e non due sottrazioni: `Bypassed` e' l'unica, e il termine la moltiplica
+				// (`#649`). Il bersaglio e' `Facing`/`RearHitBypassedCover`, il cui `Amount` porta punti.
+				const int32 Bypassed = FMath::Max(0, Nominal - Effective);
+				OutCoverBypassedByFacing += Bypassed;
+				Score += Context.WDamage * Bypassed;
 			}
 		}
 
