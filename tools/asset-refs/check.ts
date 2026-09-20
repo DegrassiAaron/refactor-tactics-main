@@ -50,6 +50,23 @@ const KNOWN_EXCEPTIONS = [
       + `fu duplicata, quando L_Prototype stava ancora in /Game/Maps/. Un Save non lo toglie: il `
       + `package non e' dirty, quindi Unreal non lo riscrive.`,
   },
+  {
+    asset: 'Content/RT/UI/Match/T_RT_ZoneBlockoutBorder.uasset',
+    ref: '/Game/RT/UI/Match',
+    // ⚠️ La misura si rifa' con l'estrattore di questo stesso gate: dei tre match nel file, i primi
+    //    due (offset 136 e 1512) sono il package dell'asset stesso; questo sta a 7346 su 12024.
+    why:
+      `NON e' un asset: e' una CARTELLA. \`Content/RT/UI/Match.uasset\` non esiste — \`git ls-files\` `
+      + `lo conferma — mentre \`Content/RT/UI/Match/\` e' la directory che contiene questo stesso file `
+      + `e altri undici widget. La stringa e' il metadato d'import di Interchange: nel JSON in coda al `
+      + `package, \`"contentImportPath": "/Game/RT/UI/Match"\` accanto a \`"originalPipelinePath"\`, `
+      + `cioe' la cartella di DESTINAZIONE in cui la texture fu importata. Diario dell'importatore, `
+      + `non dipendenza. #3225. `
+      + `⚠️ Destinato a ricapitare: Interchange emette \`contentImportPath\` per ogni asset che passa `
+      + `da quella pipeline, e il valore e' sempre una cartella. Misurato il 2026-09-20 su bc1a3e85: `
+      + `UN solo asset versionato su 154 lo porta, ed e' questo — il resto del contenuto e' piu' `
+      + `vecchio della pipeline. Chi trova il prossimo aggiunga la coppia invece di rifare l'indagine.`,
+  },
 ];
 
 const tracked = new Set(
