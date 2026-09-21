@@ -1774,4 +1774,66 @@ bool FRTHexMapChangeLedgerTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'AUTORAGGIO deriva il default dal tipo, e NON sovrascrive un valore d'autore (#1317, `D-430`).
+ *
+ * 🔴 **Questa via era stata scartata, e il test esiste perche' la ragione dello scarto resti verificata.**
+ * `D-186` dichiara **legittima** una copertura piu' debole del proprio catalogo — `Adaptive` nasce a `25` di
+ * proposito — e il contratto graybox scartava l'hook d'editor perche' *«rischierebbe di riscrivere un valore
+ * voluto»*. Il rischio non e' scomparso: e' stato **circoscritto**, e il secondo blocco qui sotto e' cio'
+ * che lo tiene circoscritto. Se un domani `RealignedIntegrity` diventasse «riscrivi sempre», quel blocco
+ * diventa rosso — che e' esattamente il difetto che l'obiezione temeva.
+ *
+ * ⚠️ **Si prova la REGOLA, non l'hook.** `FRTHexCover::RealignedIntegrity` e' pura e si esercita senza un
+ * editor; che `URTHexMapAsset::PostEditChangeChainProperty` la chiami sul gesto giusto lo vede solo il
+ * pannello dei dettagli, e resta fuori da qui — dichiarato invece che lasciato credere coperto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverIntegrityFollowsTypeOnAuthoringTest,
+	"RefactorTactics.HexMap.CoverIntegrityFollowsTypeOnAuthoring",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCoverIntegrityFollowsTypeOnAuthoringTest::RunTest(const FString&)
+{
+	const int32 CatalogoLow = FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low);
+	const int32 CatalogoHigh = FRTHexCover::DefaultIntegrity(ERTHexCoverType::High);
+	TestNotEqual(TEXT("i due valori di catalogo sono diversi, o il test non direbbe niente"),
+		CatalogoLow, CatalogoHigh);
+
+	// --- Cio' che l'editor produce oggi, ed e' il difetto di #1317 ---------------------------------------
+	// Una entry aggiunta dal pannello nasce `Low`/30; l'autore la porta a `High` e l'integrita' restava 30,
+	// cioe' il 60% del catalogo di quel tipo, senza che nulla l'avesse colpita.
+	TestEqual(TEXT("una High nata Low si riallinea al proprio catalogo"),
+		FRTHexCover::RealignedIntegrity(CatalogoLow, ERTHexCoverType::High), CatalogoHigh);
+
+	TestEqual(TEXT("e nell'altro verso: una Low che era High torna al catalogo della Low"),
+		FRTHexCover::RealignedIntegrity(CatalogoHigh, ERTHexCoverType::Low), CatalogoLow);
+
+	TestEqual(TEXT("cio' che e' gia' a catalogo non si tocca"),
+		FRTHexCover::RealignedIntegrity(CatalogoHigh, ERTHexCoverType::High), CatalogoHigh);
+
+	// --- 🔴 Il valore d'AUTORE sopravvive, ed e' la meta' che tiene in piedi la decisione ----------------
+	// Ogni numero che non sia il catalogo di QUALCHE tipo e' stato scelto da qualcuno: non si riscrive.
+	const int32 Scelto = 18;
+	TestFalse(TEXT("18 non e' il catalogo di nessun tipo"), FRTHexCover::IsCatalogIntegrity(Scelto));
+	TestEqual(TEXT("un'integrita' scritta a mano NON viene sovrascritta dal cambio di tipo"),
+		FRTHexCover::RealignedIntegrity(Scelto, ERTHexCoverType::High), Scelto);
+	TestEqual(TEXT("ne' nell'altro verso"),
+		FRTHexCover::RealignedIntegrity(Scelto, ERTHexCoverType::Low), Scelto);
+
+	// `25` e' il caso concreto che `D-186` protegge: l'integrita' di `Hero.Branth.KineticPanel.Adaptive`,
+	// deliberatamente sotto il catalogo. Se il riallineamento se la mangiasse, la decisione sarebbe violata
+	// da una riga di editor.
+	TestEqual(TEXT("una copertura deliberatamente debole (25) resta debole"),
+		FRTHexCover::RealignedIntegrity(25, ERTHexCoverType::High), 25);
+
+	// --- La coerenza col costruttore, che e' l'altra meta' del percorso (#1194) --------------------------
+	// Una copertura costruita in C++ passa da `DefaultIntegrity`; una autorata passa da `RealignedIntegrity`.
+	// Le due vie devono concordare, o lo stesso tipo varrebbe due numeri secondo chi lo ha creato.
+	const FRTHexCover DalCostruttore(ERTHexDirection::E, ERTHexCoverType::High);
+	TestEqual(TEXT("costruttore e autoraggio concordano sul valore di catalogo"),
+		DalCostruttore.Integrity,
+		FRTHexCover::RealignedIntegrity(CatalogoLow, ERTHexCoverType::High));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -699,6 +699,22 @@ public:
 
 	/** Invalida la cache e notifica gli osservatori: dopo un undo i dati sono cambiati sotto i piedi a tutti. */
 	virtual void PostEditUndo() override;
+
+	/**
+	 * L'AUTORAGGIO passa di qui, e prima non passava da nessuna parte (#1317, `D-430`).
+	 *
+	 * 🔴 **Il default di `Integrity` derivava dal tipo solo attraverso il costruttore C++.** Chi aggiunge una
+	 * entry `Covers` dal pannello dei dettagli non lo chiama: la struct nasce da `FRTHexCover()` — `Low`/30 —
+	 * e cambiando `Type` in `High` nulla ricalcolava, perche' questa classe non aveva un
+	 * `PostEditChangeProperty`. `ValidateMap` non lo vedeva: la sua guardia e' `Integrity <= 0`, e `30` la
+	 * passa. ∴ sotto `D-186` quella copertura si leggeva **«ridotta»** appena nata.
+	 *
+	 * ⚠️ **Si override la variante CHAIN, non `PostEditChangeProperty`**, ed e' l'unica che funziona qui:
+	 * `Covers` e' un array dentro l'array `Cells`, e la catena e' l'unica via da cui arriva **quale** entry
+	 * l'autore ha toccato. La regola vive in `FRTHexCover::RealignedIntegrity`, che e' pura e provata
+	 * headless: qui si decide solo **quando** applicarla.
+	 */
+	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 
 private:
