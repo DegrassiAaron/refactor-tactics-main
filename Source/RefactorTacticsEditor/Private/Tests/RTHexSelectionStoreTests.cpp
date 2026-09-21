@@ -14,9 +14,10 @@
 /**
  * La selezione condivisa del mode Hex Map (#1864), e il ciclo sui candidati.
  *
- * 🔴 **Perche' non e' una proprieta' del tool**: #921 ha misurato il difetto opposto — `bShowOverlay` vive
- * in due `UInteractiveToolPropertySet` distinti, quindi accenderlo in Select non lo accende in Paint e
- * cambiando strumento si perde. Uno stato che deve sopravvivere al cambio di tool non puo' stare nel tool.
+ * 🔴 **Perche' non e' una proprieta' del tool**: #921 aveva misurato il difetto opposto — `bShowOverlay`
+ * viveva in due `UInteractiveToolPropertySet` distinti, quindi accenderlo in Select non lo accendeva in
+ * Paint e cambiando strumento si perdeva. Uno stato che deve sopravvivere al cambio di tool non puo' stare
+ * nel tool. ⏱️ Chiusa: il flag e' ora `URTHexEditorModeSettings`, e lo pinna `RTHexOverlaySettingsTests.cpp`.
  *
  * ⚠️ Lo store si istanzia con `NewObject` invece di prenderlo da `GEditor`: e' un `UObject` e non usa nulla
  * dell'inizializzazione del subsystem, quindi il test non ha bisogno di un editor vivo. Se un giorno

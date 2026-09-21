@@ -66,8 +66,15 @@ Editor Mode **Hex Map** → tool **Paint** → `BrushRadius = 4` → un click su
 
 Esagono pieno di raggio 4 sul layer 0: 61 celle.
 
-**Accendi `bShowOverlay`**: sta nel pannello **del tool** (Paint o Select), sezione `Hex | Overlay` — non
-sull'actor. Con l'overlay spento vedi solo mesh grigie e non distingui nulla.
+**Accendi **Mostra overlay superfici****: sta nel pannello **del mode** (`Hex Map`), sopra i tool — non
+sull'actor e **non nel pannello di uno strumento**. Con l'overlay spento vedi solo mesh grigie e non
+distingui nulla.
+
+⏱️ **Si chiamava `bShowOverlay` e stava nel pannello del tool** (Paint o Select), sezione `Hex | Overlay`.
+[#921](https://github.com/DegrassiAaron/refactor-tactics-main/issues/921) l'ha spostato: era una proprieta'
+di due strumenti su sette, quindi cambiando tool si spegneva e in Fill, Arch, Geometry, Los e Probe non
+esisteva. Ora e' uno stato del mode, vale per **tutti** gli strumenti, e sopravvive alla chiusura
+dell'editor.
 
 Acceso, ogni cella mostra fino a tre anelli concentrici:
 
@@ -129,7 +136,9 @@ Una sola: è ciò che rende la salita una decisione invece di una scorciatoia.
 
 ## 6. Rileggi a colori
 
-`bShowOverlay` attivo, tool **Select**: ricontrolla costi e blocchi prima di committare.
+**Mostra overlay superfici** attivo (pannello del mode): ricontrolla costi e blocchi prima di committare.
+Lo strumento non conta piu' — dopo [#921](https://github.com/DegrassiAaron/refactor-tactics-main/issues/921)
+l'overlay si vede in tutti e sette.
 
 ⚠️ Diceva *«prima di salvare»*, e su `L_HexArena` non si salva (vincolo in testa). Su una mappa nuova
 il salvataggio precede il commit, e la frase torna a leggersi com'era.

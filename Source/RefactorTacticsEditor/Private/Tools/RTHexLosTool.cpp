@@ -175,6 +175,14 @@ void URTHexLosTool::Render(IToolsContextRenderAPI* RenderAPI)
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
 	if (!PDI) { return; }
 
+	// #921: PRIMA della guardia `bHasOrigin`. Los e Probe sono nati dopo che #921 fu scritta (#1755, #711) e
+	// la issue nomina cinque strumenti: la regola che dichiara — «letto da tutti i tool che disegnano» — ne
+	// vale sette, ed e' sulla forma, non sull'elenco.
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+	}
+
 	if (!bHasOrigin)
 	{
 		return;
