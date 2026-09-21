@@ -194,10 +194,14 @@ struct FRTHexCover
 	 * pannelli per bordo, non integrita'. Gli altri dieci passano `Low`, `None` o niente, per cui il catalogo
 	 * vale 30 come prima. *(Sono siti di CHIAMATA: `RTHexMapTests.cpp:427` sta in un ciclo e ne produce sei.)*
 	 *
-	 * 🔴 **Questo NON copre l'autoraggio dall'EDITOR, che e' il percorso piu' battuto** (#1317). Chi
-	 * aggiunge una entry `Covers` nel dettaglio di un `URTHexMapAsset` non passa di qui: la struct nasce da
-	 * `FRTHexCover()` — `Low`/30 — e cambiare `Type` in `High` non ricalcola niente, perche' l'asset non ha
-	 * un `PostEditChangeProperty`. `ValidateMap` non lo vede: la sua guardia e' `Integrity <= 0`.
+	 * ⏱️ **L'autoraggio dall'EDITOR e' l'altra meta' del percorso, e dal 2026-09-21 e' chiusa** (#1317,
+	 * `D-430`). Chi aggiunge una entry `Covers` nel dettaglio di un `URTHexMapAsset` non passa di qui — la
+	 * struct nasce da `FRTHexCover()`, cioe' `Low`/30 — ma cambiare `Type` in `High` ora ricalcola:
+	 * `URTHexMapAsset::PostEditChangeChainProperty` chiama `RealignedIntegrity` qui sotto.
+	 *
+	 * ⚠️ **`ValidateMap` continua a non vederlo, e non e' cambiato**: la sua guardia resta `Integrity <= 0`.
+	 * Il meccanismo nuovo e' un **default che si propaga**, non una validazione — la distinzione conta,
+	 * perche' una `High` a 30 resta un dato **legittimo** che nessuno respinge.
 	 *
 	 * ⛔ **Le coperture gia' scritte in un `.uasset` non si toccano**: sono byte su disco, e una `High`
 	 * autorata a 30 resta a 30. Sotto il vocabolario di `D-186` si legge **«ridotta»**, che e' vero — e' piu'

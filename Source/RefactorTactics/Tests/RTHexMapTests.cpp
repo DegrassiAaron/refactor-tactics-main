@@ -1819,7 +1819,7 @@ bool FRTCoverIntegrityFollowsTypeOnAuthoringTest::RunTest(const FString&)
 	TestEqual(TEXT("ne' nell'altro verso"),
 		FRTHexCover::RealignedIntegrity(Scelto, ERTHexCoverType::Low), Scelto);
 
-	// `25` e' il caso concreto che `D-186` protegge: l'integrita' di `Hero.Branth.KineticPanel.Adaptive`,
+	// `25` e' il caso concreto che `D-186` protegge: l'integrita' di `Hero.Riktor.KineticPanel.Adaptive`,
 	// deliberatamente sotto il catalogo. Se il riallineamento se la mangiasse, la decisione sarebbe violata
 	// da una riga di editor.
 	TestEqual(TEXT("una copertura deliberatamente debole (25) resta debole"),
