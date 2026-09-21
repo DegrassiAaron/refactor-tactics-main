@@ -62,8 +62,13 @@
 // 🔑 Chi implementa il filtro di conoscenza seguendo la sola riga di sopra chiuderebbe il **percorso** e
 // lascerebbe aperto il **ventaglio**: `ClassifyWaypointCell` (`:626`) e' una terza sede, anch'essa diretta.
 //
-// I tre mondi differiscono SOLO per hidden occupancy; la `FRTTeamKnowledge` dell'osservatore e' la stessa
-// oggetto, non una copia equivalente:
+// I tre mondi differiscono SOLO per hidden occupancy. ⌫ **Questa riga diceva che la `FRTTeamKnowledge`
+// dell'osservatore e' «la stessa oggetto, non una copia equivalente», ed era falso** — corretto il
+// 2026-09-21 in code review: `WorldWith` chiama `ObserverKnowledge(Map)` da capo per ogni mondo. Cio' che
+// regge la premessa non e' l'identita' dell'oggetto, e' un'**asserzione**: `ThreeWorldsAllOfferANonEmptyPlan`
+// confronta le tre conoscenze campo per campo. Senza, un mondo che ricevesse una mappa diversa — la forma
+// che la seconda meta' di questo file usa davvero, con `Walled->AddOrUpdateCell` — farebbe divergere le
+// conoscenze autorizzate, e ogni «oggi differisce» resterebbe verde per la ragione sbagliata.
 //
 //     A — cella X vuota
 //     B — un nemico che l'osservatore non conosce
@@ -212,6 +217,27 @@ namespace
 		return Out;
 	}
 
+	/**
+	 * Il ventaglio **intero**, non il solo insieme delle celle — `#2793`, rilievo di code review del
+	 * 2026-09-21.
+	 *
+	 * 🔴 **`FanCells` butta via due terzi di `FRTHexReachableCell`**, e con essi due canali. La struct porta
+	 * `Cell`, `Cost` e `FromCell` (`Turn/RTHexSim.h:118-141`): il **costo per cella** e' il numero che il
+	 * readout stampa sotto il cursore, e `FromCell` e' il predecessore da cui deriva il **facing** (CP 13.5).
+	 * Un confronto sul solo insieme di celle dichiarerebbe «ventaglio identico» mentre entrambi cambiano —
+	 * ed e' la stessa forma del difetto che la mutazione sui reason code ha misurato: il canale non si
+	 * chiude, cambia nome.
+	 */
+	TMap<FRTCellId, FRTHexReachableCell> FanByCell(const FRTHexSnapshot& Snapshot)
+	{
+		TMap<FRTCellId, FRTHexReachableCell> Out;
+		for (const FRTHexReachableCell& Cell : URTHexSimLibrary::ReachableCells(Snapshot, PlannerId))
+		{
+			Out.Add(Cell.Cell, Cell);
+		}
+		return Out;
+	}
+
 	/** Le celle che `A` offriva e questo mondo non offre piu': la forma del buco. */
 	TArray<FRTCellId> CellsLost(const TSet<FRTCellId>& Baseline, const TSet<FRTCellId>& Other)
 	{
@@ -310,6 +336,44 @@ bool FRTBlindActionsReachableFanLeaksTest::RunTest(const FString&)
 	TestTrue(TEXT("oggi il ventaglio perde ancora piu' celle con due nascosti (C perde piu' di B)"),
 		LostC.Num() > LostB.Num());
 
+	// ➕ **Il ventaglio non e' un insieme di celle: e' un insieme di `FRTHexReachableCell`** — rilievo di
+	// code review del 2026-09-21. Le celle che SOPRAVVIVONO in `B` possono comunque portare un costo e un
+	// predecessore diversi, e sono due canali che il confronto sull'insieme non vedeva:
+	//   - il **costo per cella** e' il numero che il readout mostra sotto il cursore;
+	//   - `FromCell` e' il predecessore da cui deriva il **facing** (CP 13.5).
+	// 🔑 Senza questa misura, un filtro messo nella sola sede del RISULTATO (`RTHexSimLibrary.cpp:345`)
+	// renderebbe i tre insiemi identici e il canary direbbe «canale chiuso» mentre il Dijkstra gira ancora
+	// intorno all'occupazione.
+	const TMap<FRTCellId, FRTHexReachableCell> FullA = FanByCell(WorldWith(Map, 0));
+	const TMap<FRTCellId, FRTHexReachableCell> FullB = FanByCell(WorldWith(Map, 1));
+
+	TArray<FRTCellId> CostChanged;
+	TArray<FRTCellId> PredecessorChanged;
+	for (const TPair<FRTCellId, FRTHexReachableCell>& Entry : FullA)
+	{
+		const FRTHexReachableCell* InB = FullB.Find(Entry.Key);
+		if (!InB) { continue; } // gia' contata fra le celle perse
+		if (InB->Cost != Entry.Value.Cost) { CostChanged.Add(Entry.Key); }
+		if (!(InB->FromCell == Entry.Value.FromCell)) { PredecessorChanged.Add(Entry.Key); }
+	}
+	CostChanged.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+	PredecessorChanged.Sort([](const FRTCellId& L, const FRTCellId& R) { return URTHexLibrary::StableLess(L, R); });
+
+	AddInfo(FString::Printf(TEXT("celle presenti in A e in B col COSTO cambiato:        %s"), *DescribeCells(CostChanged)));
+	AddInfo(FString::Printf(TEXT("celle presenti in A e in B col PREDECESSORE cambiato: %s"), *DescribeCells(PredecessorChanged)));
+
+	// Il controllo: senza celle in comune il confronto sopra non avrebbe popolazione.
+	if (!TestTrue(TEXT("premessa: A e B condividono delle celle — il confronto per costo ha popolazione"),
+		FullA.Num() > LostB.Num()))
+	{
+		return false;
+	}
+
+	TestTrue(TEXT("oggi anche il COSTO di celle che restano nel ventaglio cambia per un'occupazione ignota"),
+		CostChanged.Num() > 0);
+	TestTrue(TEXT("oggi cambia anche il PREDECESSORE, da cui deriva il facing: il canale non e' solo l'insieme"),
+		PredecessorChanged.Num() > 0);
+
 	return true;
 }
 
@@ -347,14 +411,13 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("mondo B — un nascosto:     %s"), *DescribePath(PathB)));
 	AddInfo(FString::Printf(TEXT("mondo C — due nascosti:    %s"), *DescribePath(PathC)));
 
-	// 🔴 **La premessa del budget, che il banco prima aveva per fortuna** (`#2793`, 2026-09-21).
-	// `FindPathForUnit` con `MoveBudget <= 0` esce a `RTHexSimLibrary.cpp:421` **senza mai guardare
-	// l'occupazione**: una regressione futura sul budget spegnerebbe questo canale mostrando un verde.
-	if (!TestTrue(TEXT("premessa: il budget di chi pianifica e' > 0, o il percorso non guarda l'occupazione"),
-		PlannerBudget > 0))
-	{
-		return false;
-	}
+	// ℹ️ **Nota, non guardia** (`#2793`, 2026-09-21). `FindPathForUnit` con `MoveBudget <= 0` esce a
+	// `RTHexSimLibrary.cpp:421` **senza mai guardare l'occupazione**. ⌫ **Una prima stesura ci metteva un
+	// `TestTrue(PlannerBudget > 0)` e lo motivava con *«una regressione sul budget spegnerebbe questo canale
+	// mostrando un verde»*: era falso, e trovato in code review.** `PlannerBudget` e' `constexpr`, quindi
+	// quell'asserzione non poteva fallire a runtime; e il verde che prometteva di prevenire non e'
+	// raggiungibile — con budget zero l'uscita anticipata restituisce `NoPath`, la premessa qui sotto cade e
+	// il test e' **rosso**. La copertura c'era gia', ed era strutturale.
 
 	// Il controllo: senza un percorso in A che passa dalla cella del nascosto, il confronto non misura nulla.
 	if (!TestTrue(TEXT("premessa: nel mondo A il percorso verso il fondo passa dalla cella del nascosto"),
@@ -743,14 +806,34 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 }
 
 // =========================================================================================================
-// IL CANARY A TRE MONDI — gli ultimi due canali della DoD di `#2793`
+// IL CANARY A TRE MONDI — il footprint dell'AoE e il reason code
 // =========================================================================================================
 //
-// I due test qui sotto completano l'elenco che la Definition of Done di `#2793` nomina: **ventaglio,
-// percorso, costo, footprint dell'AoE, reason code**. I primi tre li misurano i due test in testa al file,
-// ora estesi al terzo mondo. Questi coprono gli ultimi due, sullo **stesso banco** e con le **stesse**
-// premesse — arena piatta di raggio 4, conoscenza dell'osservatore identica nei tre mondi, nascosti
-// `Rejected` per `ClassifyTarget`.
+// La Definition of Done di `#2793` elenca i canali osservabili del Planning e **chiude l'elenco** (*«non un
+// "almeno"»*). Sono, per nome: **ventaglio · percorso · costo · footprint dell'AoE · reason code · `CanTarget`
+// e lo stato del cursore**. I primi tre li misurano i due test in testa al file, ora estesi al terzo mondo;
+// i due qui sotto coprono footprint e reason code, sullo **stesso banco** e con le **stesse** premesse —
+// arena piatta di raggio 4, conoscenza dell'osservatore identica nei tre mondi (asserita, vedi
+// `ThreeWorldsAllOfferANonEmptyPlan`), nascosti `Rejected` per `ClassifyTarget`.
+//
+// ⛔ **`CanTarget` e lo stato del cursore NON sono misurati qui, e la ragione e' strutturale — non una
+// dimenticanza** (rilievo di code review, 2026-09-21).
+//
+//   - **`CanTarget` non puo' differire, e asserirlo sarebbe una tautologia.**
+//     `URTCombatLibrary::CanTargetHexCell` (`Combat/RTCombatLibrary.h:532`) e' una riga sola —
+//     `return ClassifyHexTargeting(Map, From, To, RangeCells, Policy) == ERTHexTargetReason::Ok;`
+//     (`RTCombatLibrary.cpp:250`) — e la sua firma non porta **nessuno** snapshot, **nessuna** unita',
+//     **nessuna** occupazione. I tre mondi differiscono solo per `Snapshot.Occupancy`: un confronto a tre
+//     mondi su quella chiamata passerebbe **anche a filtro rotto**, cioe' sarebbe precisamente il difetto
+//     che questo file denuncia due volte (vedi `ReachableFanOffersNeverObservedCells`). Il punto in cui la
+//     conoscenza entra nel targeting e' `RefusalForObserver`, che e' `ERTTargetRefusal` — trattato sotto.
+//   - **Lo stato del cursore si misura nei suoi ingressi, non nella sua stringa.** Il readout compone
+//     `ClassifyProbeCell` e il costo del percorso; entrambi sono asseriti a tre mondi qui e in testa al
+//     file. La stringa in se' vive in `ARTPlayerController` e in `RefactorTacticsEditor`, fuori da un banco
+//     puro.
+//
+// ∴ dei canali che la DoD chiude in elenco, questo banco ne misura quattro e ne dichiara due — uno perche'
+// non puo' perdere, uno perche' e' gia' misurato a monte. Nessuno resta taciuto.
 //
 // ⛔ **Anche qui non si decide e non si corregge.** Vale l'avvertenza in testa al file: `BLIND-2` (*dove*
 // vive il filtro) e `OBS-1` (*di chi* e' la vista) sono aperte, e `#2793` e' ferma su quelle. Questi test
@@ -1075,14 +1158,23 @@ bool FRTBlindActionsRefusalSymbolLeaksTest::RunTest(const FString&)
 }
 
 /**
- * La premessa che la DoD di `#2793` chiede esplicitamente, e che nessuno degli altri test poteva portare da
- * solo: **nei tre mondi il piano non e' vuoto.**
+ * Le **due** premesse fondanti del banco, che nessuno degli altri test poteva portare da solo.
  *
- * 🔑 **Tre «non si puo' fare niente» sono identici, e l'uguaglianza non proverebbe nulla.** E' la lezione di
- * `HexBotPlay.HiddenEnemyFairness`, dove senza `bDidSomething` due «fermo» sarebbero passati per un canary
- * verde. Qui la premessa vale per l'intero banco — ventaglio, percorso, costo, footprint, reason code — e
- * vive in un test proprio perche' un giorno qualcuno cambiera' `ArenaRadius` o `PlannerBudget` e questo
- * diventera' rosso **prima** che gli altri diventino verdi per la ragione sbagliata.
+ * **(1) Nei tre mondi il piano non e' vuoto.** 🔑 Tre «non si puo' fare niente» sono identici, e
+ * l'uguaglianza non proverebbe nulla — la lezione di `HexBotPlay.HiddenEnemyFairness`, dove senza
+ * `bDidSomething` due «fermo» sarebbero passati per un canary verde. Vale per l'intero banco: ventaglio,
+ * percorso, costo, footprint, reason code.
+ *
+ * **(2) I tre mondi sono identici per conoscenza autorizzata.** ➕ Aggiunta il 2026-09-21 in code review:
+ * era la premessa che l'intera DoD di `#2793` presuppone — *«tre allestimenti identici per conoscenza
+ * autorizzata»* — e nessun test la asseriva, mentre il commento in testa al file dichiarava una garanzia
+ * che non esisteva. Se le tre conoscenze divergessero, ogni «oggi differisce» del banco resterebbe verde
+ * per la ragione sbagliata, e dopo la conversione all'invariante diventerebbe rosso per una causa che non
+ * e' il filtro.
+ *
+ * Vivono in un test proprio perche' un giorno qualcuno cambiera' `ArenaRadius`, `PlannerBudget` o
+ * `ObserverKnowledge`, e questo diventera' rosso **prima** che gli altri diventino verdi per la ragione
+ * sbagliata.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsPlanIsNotEmptyTest,
 	"RefactorTactics.BlindActions.ThreeWorldsAllOfferANonEmptyPlan",
@@ -1094,6 +1186,34 @@ bool FRTBlindActionsPlanIsNotEmptyTest::RunTest(const FString&)
 	{
 		return false;
 	}
+
+	// 🔴 **La premessa fondante della DoD, che nessun test asseriva** — rilievo di code review del
+	// 2026-09-21. *«Tre allestimenti IDENTICI per conoscenza autorizzata»* era **supposto**, e il commento in
+	// testa al file dichiarava una garanzia che non c'era. Qui si misura: se le tre conoscenze divergessero,
+	// ogni «oggi differisce» del banco resterebbe verde per la ragione sbagliata.
+	const FRTHexSnapshot W0 = WorldWith(Map, 0);
+	const FRTHexSnapshot W1 = WorldWith(Map, 1);
+	const FRTHexSnapshot W2 = WorldWith(Map, 2);
+	if (!TestTrue(TEXT("premessa: i tre mondi portano UNA conoscenza ciascuno, quella dell'osservatore"),
+		W0.TeamKnowledge.Num() == 1 && W1.TeamKnowledge.Num() == 1 && W2.TeamKnowledge.Num() == 1))
+	{
+		return false;
+	}
+	auto StessaConoscenza = [](const FRTTeamKnowledge& L, const FRTTeamKnowledge& R)
+	{
+		return L.TeamId == R.TeamId
+			&& L.TurnNumber == R.TurnNumber
+			&& L.Version == R.Version
+			&& L.VisibleCells == R.VisibleCells
+			&& L.ExploredCells == R.ExploredCells
+			&& L.Contacts.Num() == R.Contacts.Num();
+	};
+	AddInfo(FString::Printf(TEXT("conoscenza dell'osservatore: %d celle viste, %d esplorate, %d contatti"),
+		W0.TeamKnowledge[0].VisibleCells.Num(), W0.TeamKnowledge[0].ExploredCells.Num(),
+		W0.TeamKnowledge[0].Contacts.Num()));
+	TestTrue(TEXT("i tre mondi sono IDENTICI per conoscenza autorizzata: differiscono solo per l'occupazione nascosta"),
+		StessaConoscenza(W0.TeamKnowledge[0], W1.TeamKnowledge[0])
+			&& StessaConoscenza(W1.TeamKnowledge[0], W2.TeamKnowledge[0]));
 
 	for (int32 Hidden = 0; Hidden <= 2; ++Hidden)
 	{
