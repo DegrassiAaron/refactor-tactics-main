@@ -1,4 +1,5 @@
 #include "RTHexEditorMode.h"
+#include "RTHexEditorModeSettings.h"
 #include "RTHexEditorModeToolkit.h"
 #include "RTHexEditorModeCommands.h"
 #include "RTHexEditorClick.h"
@@ -8,6 +9,7 @@
 #include "Editor.h"
 #include "ScopedTransaction.h"
 #include "InteractiveToolManager.h"
+#include "ContextObjectStore.h"
 #include "Tools/RTHexSelectTool.h"
 #include "Tools/RTHexPaintTool.h"
 #include "Tools/RTHexArchTool.h"
@@ -36,6 +38,11 @@ URTHexEditorMode::URTHexEditorMode()
 		LOCTEXT("RTHexEditorModeName", "Hex Map"),
 		FSlateIcon(),
 		true /*bVisible*/);
+
+	// #921: le impostazioni del mode. `UEdMode::Enter` le istanzia da qui, ne fa `LoadConfig()` e le passa al
+	// toolkit, che le mostra SOPRA i tool; `UEdMode::Exit` ne fa `SaveConfig()`. E' il meccanismo canonico per
+	// «impostazione del mode», e un flag letto da sette strumenti e' esattamente quello.
+	SettingsClass = URTHexEditorModeSettings::StaticClass();
 }
 
 void URTHexEditorMode::Enter()
@@ -54,6 +61,34 @@ void URTHexEditorMode::Enter()
 	RegisterTool(Commands.ProbeTool, TEXT("RTHexProbeTool"), NewObject<URTHexProbeToolBuilder>(this));
 
 	GetToolManager()->SelectActiveToolType(EToolSide::Left, TEXT("RTHexSelectTool"));
+
+	// 🔴 **L'anello che `UEdMode` NON fornisce.** `Enter()` qui sopra ha creato `SettingsObject` e l'ha dato al
+	// toolkit, ma non l'ha registrato da nessuna parte che un tool possa interrogare: un `UInteractiveTool`
+	// vede il proprio `GetToolManager()`, non il `UEdMode` che l'ha costruito. Il canale che colma il salto e'
+	// il context store dell'ITF, ed e' questa riga — senza, i sette `Render` non avrebbero un soggetto.
+	if (SettingsObject)
+	{
+		RTHexEditor::PublishSurfaceOverlaySettings(GetToolManager()->GetContextObjectStore(), SettingsObject);
+	}
+}
+
+void URTHexEditorMode::Exit()
+{
+	// ⚠️ **Questa rimozione e' ridondante, e resta esplicita di proposito.** `UEdMode::Exit()` chiama
+	// `DestroyInteractiveToolsContexts()`, che azzera lo store del mode; e `UEdMode::Enter()` ne crea uno
+	// NUOVO. ∴ al rientro nel mode il settings vecchio non e' li' comunque, e non esiste il caso «due
+	// settings nello store, `FindContext` prende il primo».
+	//
+	// 🔑 Si toglie lo stesso perche' chi pubblica un oggetto in uno store altrui **dichiara anche quando
+	// smette**: affidarsi al fatto che l'Engine distrugga lo store e appoggiarsi a un dettaglio interno che
+	// nessun test di questo repository verifica. Va PRIMA di `UEdMode::Exit()`, che e' cio' che smonta il
+	// contesto: dopo, non ci sarebbe piu' uno store da cui rimuovere.
+	if (SettingsObject && GetToolManager())
+	{
+		RTHexEditor::WithdrawSurfaceOverlaySettings(GetToolManager()->GetContextObjectStore(), SettingsObject);
+	}
+
+	UEdMode::Exit();
 }
 
 void URTHexEditorMode::CreateToolkit()

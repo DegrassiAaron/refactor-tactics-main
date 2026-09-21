@@ -409,7 +409,22 @@ void URTHexGeometryTool::OnTerminateDragSequence()
 
 void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	if (!bDragging || RenderAPI == nullptr)
+	if (RenderAPI == nullptr)
+	{
+		return;
+	}
+
+	if (FPrimitiveDrawInterface* OverlayPDI = RenderAPI->GetPrimitiveDrawInterface())
+	{
+		// #921: PRIMA della guardia `bDragging`. Dopo, l'overlay non si vedrebbe MAI se non durante un
+		// trascinamento — cioe' resterebbe intatto proprio il caso che questa issue esiste per correggere.
+		if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+		{
+			RTHexEditor::DrawSurfaceOverlay(OverlayPDI, RTHexEditor::FindTargetMapActor(TargetWorld.Get()));
+		}
+	}
+
+	if (!bDragging)
 	{
 		return;
 	}

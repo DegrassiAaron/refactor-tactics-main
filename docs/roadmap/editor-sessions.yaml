@@ -308,8 +308,9 @@ sessions:
       4. Le tre `PIE-HEX-LAYER-*` **sullo stesso asset del punto 3**, senza rigenerare nulla: e' per
          questo che stanno qui e non in una seduta propria. In piu' serve il mode **Hex Map** attivo,
          perche' i contorni dei piani di contesto li disegnano i tool, non l'actor: con `LayerView=Focus`
-         ma senza mode attivo e senza `bShowOverlay` acceso nel pannello del tool, `Focus` e'
-         indistinguibile da `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
+         ma senza mode attivo e senza `bShowSurfaceOverlay` acceso nel pannello del **mode** (`#921`:
+         stava nel pannello del tool, e cambiando strumento si spegneva), `Focus` e' indistinguibile da
+         `ActiveOnly` — e la voce sembrerebbe fallita mentre e' solo non allestita.
 
          > ⚠️ **`PIE-HEX-LAYER-CLICK` va fatta con la camera OBLIQUA**, non dall'alto. Il difetto che
          > verifica e' che il raggio del click agganci il disco di un piano superiore e venga poi
@@ -439,7 +440,8 @@ sessions:
          aggira senza rinunciare a nulla non e' una scelta.
       5. Piattaforma di 3–4 celle sul layer 1 (`ActiveLayer=1`), collegata al layer 0 da **una sola**
          transizione, creata col tool **Arch**.
-      6. `bShowOverlay` attivo per rileggere il risultato a colori prima di salvare.
+      6. `bShowSurfaceOverlay` attivo — pannello del **mode**, non del tool (`#921`) — per rileggere il
+         risultato a colori prima di salvare.
       7. **Due rotte distinte** fra gli spawn, con trade-off diverso — una piu' corta ed esposta, una
          piu' lunga e coperta. Senza scelta di percorso il tempo di contatto e' una costante della
          mappa, non una decisione del giocatore, e `PIE-V01-MAPSCALE` (U19) non e' verificabile.

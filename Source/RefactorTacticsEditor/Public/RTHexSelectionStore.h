@@ -11,10 +11,15 @@ class URTHexMapAsset;
 /**
  * LA SELEZIONE, una sola per tutto il mode Hex Map (#1864).
  *
- * 🔴 **Nasce fuori dai `UInteractiveToolPropertySet`, ed e' il punto.** #921 ha misurato il difetto opposto:
- * `bShowOverlay` vive in due `PropertySet` distinti, ciascuno con la propria istanza creata in `Setup()`,
- * quindi accenderlo in Select non lo accende in Paint e cambiando tool l'impostazione «si perde». Uno stato
- * che deve sopravvivere al cambio di strumento non puo' stare dentro lo strumento.
+ * 🔴 **Nasce fuori dai `UInteractiveToolPropertySet`, ed e' il punto.** #921 aveva misurato il difetto
+ * opposto: `bShowOverlay` viveva in due `PropertySet` distinti, ciascuno con la propria istanza creata in
+ * `Setup()`, quindi accenderlo in Select non lo accendeva in Paint e cambiando tool l'impostazione «si
+ * perdeva». Uno stato che deve sopravvivere al cambio di strumento non puo' stare dentro lo strumento.
+ *
+ * ⏱️ **Al passato perche' #921 e' chiusa**: quel flag e' ora `URTHexEditorModeSettings::bShowSurfaceOverlay`,
+ * uno stato del mode che i sette `Render` leggono dal context store. Le due classi hanno scelto due sedi
+ * diverse per la stessa ragione — `UEditorSubsystem` qui, `UEdMode::SettingsClass` la' — e la differenza e'
+ * la persistenza: la selezione **non** va conservata fra sessioni, il flag dell'overlay si'.
  *
  * Un `UEditorSubsystem` sopravvive ai tool e al mode, non e' un Actor e non tocca l'asset: la selezione e'
  * stato d'editor puro e non va serializzata.

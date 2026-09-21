@@ -142,7 +142,8 @@ Lo stato di una seduta è **derivato**, mai dichiarato a mano: se non si ricava 
    `PIE-HEXPLAY-3`.
 5. Piattaforma di 3–4 celle sul layer 1 (`ActiveLayer=1`), collegata al layer 0 da **una sola** transizione,
    creata col tool **Arch**.
-6. `bShowOverlay` attivo per rileggere il risultato a colori prima di salvare.
+6. **Mostra overlay superfici** attivo (pannello del **mode**, non del tool — `#921`) per rileggere il
+   risultato a colori prima di salvare.
 
 **Verifichi** — costruire l'arena esercita esattamente le voci del mode rimaste aperte:
 `PIE-HEX-MODE-E`, `-F`, `-G`, `-H`, `-L`, `-N`, più `PIE-HEX-LAYER` e `PIE-HEX-TRANS`.
