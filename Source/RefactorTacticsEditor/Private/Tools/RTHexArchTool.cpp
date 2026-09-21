@@ -302,7 +302,11 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
 	{
-		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+		// ⛔ **Senza transizioni**, ed e' un vincolo di #921 e non una preferenza: questo tool le disegna gia'
+		// per conto proprio, poche righe piu' sotto e incondizionatamente (`PIE-HEX-MODE-F`, ✅). Passando
+		// `true` ogni freccia comparirebbe due volte, a quota cella e a +4 in Z.
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld),
+			/*bIncludeTransitions=*/ false);
 	}
 
 	const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);

@@ -68,26 +68,24 @@ void URTHexEditorMode::Enter()
 	// il context store dell'ITF, ed e' questa riga — senza, i sette `Render` non avrebbero un soggetto.
 	if (SettingsObject)
 	{
-		if (UContextObjectStore* Store = GetToolManager()->GetContextObjectStore())
-		{
-			Store->AddContextObject(SettingsObject);
-		}
+		RTHexEditor::PublishSurfaceOverlaySettings(GetToolManager()->GetContextObjectStore(), SettingsObject);
 	}
 }
 
 void URTHexEditorMode::Exit()
 {
-	// Si toglie PRIMA di `UEdMode::Exit()`: quello fa `SaveConfig()` e poi smonta il tools context, quindi
-	// dopo non ci sarebbe piu' uno store da cui rimuovere. Lasciarcelo dentro significherebbe che un rientro
-	// nel mode — che crea un `SettingsObject` NUOVO (`NewObject` a ogni `Enter`) — trova nello store anche
-	// quello vecchio, e `FindContext` restituisce il primo che incontra: il flag letto non sarebbe quello
-	// che il pannello mostra.
+	// ⚠️ **Questa rimozione e' ridondante, e resta esplicita di proposito.** `UEdMode::Exit()` chiama
+	// `DestroyInteractiveToolsContexts()`, che azzera lo store del mode; e `UEdMode::Enter()` ne crea uno
+	// NUOVO. ∴ al rientro nel mode il settings vecchio non e' li' comunque, e non esiste il caso «due
+	// settings nello store, `FindContext` prende il primo».
+	//
+	// 🔑 Si toglie lo stesso perche' chi pubblica un oggetto in uno store altrui **dichiara anche quando
+	// smette**: affidarsi al fatto che l'Engine distrugga lo store e appoggiarsi a un dettaglio interno che
+	// nessun test di questo repository verifica. Va PRIMA di `UEdMode::Exit()`, che e' cio' che smonta il
+	// contesto: dopo, non ci sarebbe piu' uno store da cui rimuovere.
 	if (SettingsObject && GetToolManager())
 	{
-		if (UContextObjectStore* Store = GetToolManager()->GetContextObjectStore())
-		{
-			Store->RemoveContextObject(SettingsObject);
-		}
+		RTHexEditor::WithdrawSurfaceOverlaySettings(GetToolManager()->GetContextObjectStore(), SettingsObject);
 	}
 
 	UEdMode::Exit();

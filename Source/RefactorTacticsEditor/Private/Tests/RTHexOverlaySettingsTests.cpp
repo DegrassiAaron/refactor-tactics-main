@@ -105,6 +105,64 @@ bool FRTHexOverlayReachableFromContextStoreTest::RunTest(const FString&)
 }
 
 /**
+ * Chi PUBBLICA e chi LEGGE parlano dello stesso oggetto — l'accoppiamento fra le due meta' dell'AC 1.
+ *
+ * 🔑 **Perche' questo test esiste separato dal precedente.** Quello mette il settings nello store *con le
+ * proprie mani* e verifica il lettore; questo esercita la funzione che il **mode** chiama davvero,
+ * `PublishSurfaceOverlaySettings`, e verifica che cio' che pubblica sia esattamente cio' che
+ * `ShouldShowSurfaceOverlay` ritrova. Sono sedi lontane — `Enter()` da una parte, sette `Render` dall'altra —
+ * e nulla nel compilatore obbliga il tipo pubblicato a essere quello cercato.
+ *
+ * ⛔ **Cio' che questo test NON copre, dichiarato invece che lasciato scoprire**: che
+ * `URTHexEditorMode::Enter()` *chiami* la pubblicazione. Cancellando quella riga l'overlay resterebbe spento
+ * in tutti gli strumenti e questa suite resterebbe verde. Coprirlo richiederebbe di costruire un `UEdMode`
+ * con il suo `FEditorModeTools`, che nessun test di questo modulo fa. Quel passaggio e' a carico di
+ * `PIE-HEX-MODE-Q`, ed e' il limite noto della fetta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexOverlayPublishAndReadAgreeTest,
+	"RefactorTactics.HexEditor.OverlayPublishAndReadAgree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexOverlayPublishAndReadAgreeTest::RunTest(const FString&)
+{
+	UContextObjectStore* Store = NewObject<UContextObjectStore>(GetTransientPackage());
+	if (!TestNotNull(TEXT("context store costruito"), Store))
+	{
+		return false;
+	}
+
+	// 🔴 Il tipo SBAGLIATO viene rifiutato, e non pubblicato in silenzio. `UEdMode::SettingsObject` e' un
+	// `UObject*`: se `SettingsClass` nominasse un'altra classe, senza questo rifiuto il mode pubblicherebbe
+	// «con successo» un oggetto che nessun `Render` sa leggere, e l'overlay sarebbe morto senza un sintomo.
+	// ⚠️ **Non `NewObject<UObject>`**: `UObject` e' `abstract`, e costruirlo produce un errore di costruzione
+	// invece di un oggetto estraneo. Serve una classe concreta qualunque che non sia il settings — qui lo
+	// store stesso, che e' gia' incluso e non puo' essere confuso col tipo cercato.
+	UObject* Estraneo = NewObject<UContextObjectStore>(GetTransientPackage());
+	TestFalse(TEXT("un oggetto del tipo sbagliato NON viene pubblicato"),
+		RTHexEditor::PublishSurfaceOverlaySettings(Store, Estraneo));
+	TestFalse(TEXT("e dopo quel rifiuto l'overlay resta spento"),
+		RTHexEditor::ShouldShowSurfaceOverlay(Store));
+
+	TestFalse(TEXT("store nullo: la pubblicazione fallisce invece di asserire"),
+		RTHexEditor::PublishSurfaceOverlaySettings(nullptr, Estraneo));
+
+	// La via vera: si pubblica cio' che il mode pubblica, e lo si rilegge come lo rilegge un `Render`.
+	URTHexEditorModeSettings* Settings = NewObject<URTHexEditorModeSettings>(GetTransientPackage());
+	Settings->bShowSurfaceOverlay = true;
+	TestTrue(TEXT("il settings del mode viene pubblicato"),
+		RTHexEditor::PublishSurfaceOverlaySettings(Store, Settings));
+	TestTrue(TEXT("e il lettore lo ritrova: pubblicazione e lettura concordano"),
+		RTHexEditor::ShouldShowSurfaceOverlay(Store));
+
+	// E ritirandolo l'overlay si spegne: e' cio' che `Exit()` fa, e senza il ritiro uno store riusato
+	// risponderebbe ancora acceso.
+	RTHexEditor::WithdrawSurfaceOverlaySettings(Store, Settings);
+	TestFalse(TEXT("ritirato il settings, l'overlay torna spento"),
+		RTHexEditor::ShouldShowSurfaceOverlay(Store));
+
+	return true;
+}
+
+/**
  * **AC 8** — cosa fa un tool quando il settings non c'e', dichiarato una volta invece che sette.
  *
  * ⛔ Assente significa **spento**: un overlay che comparisse da solo dove il mode non e' entrato
@@ -121,9 +179,15 @@ bool FRTHexOverlayDefaultsOffWithoutSettingsTest::RunTest(const FString&)
 	TestFalse(TEXT("tool manager nullo: spento, e nessun crash"),
 		RTHexEditor::ShouldShowSurfaceOverlay(static_cast<const UInteractiveToolManager*>(nullptr)));
 
-	// Il default del campo: un mode appena entrato non accende l'overlay da se'.
-	TestFalse(TEXT("il default del flag e' spento"),
-		GetDefault<URTHexEditorModeSettings>()->bShowSurfaceOverlay);
+	// ⛔ **Qui NON si asserisce che il CDO abbia il flag spento, e la ragione e' l'AC 2 stesso.**
+	// `bShowSurfaceOverlay` e' `UPROPERTY(config)`, e `UEdMode::Exit()` chiama `SettingsObject->SaveConfig()`
+	// coi parametri di default: `bAllowCopyToDefaultObject` vale `true`, quindi `UObject::SaveConfig` copia il
+	// valore dell'ISTANZA **dentro il CDO** e lo scrive in `EditorPerProjectUserSettings.ini`; a ogni processo
+	// successivo il CDO rilegge quell'ini alla costruzione. ∴ chi esegue `PIE-HEX-MODE-Q` — che ha come
+	// precondizione «overlay **acceso**» — lascerebbe `true` nel CDO di quel clone, e un'asserzione sul CDO
+	// diventerebbe rossa **per una preferenza utente**, indicando il codice mentre la causa e' un `.ini`.
+	// Un gate che misura la configurazione locale invece del codice e' peggio di un gate assente: manda a
+	// cercare nel posto sbagliato. Il default dichiarato in C++ resta pinnato dal compilatore.
 
 	return true;
 }

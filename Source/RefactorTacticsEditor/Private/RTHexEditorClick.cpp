@@ -192,12 +192,35 @@ bool ShouldShowSurfaceOverlay(const UContextObjectStore* Store)
 		return false;
 	}
 
-	// `FindContext` risale anche allo store padre (`ContextObjectStore.h`), quindi il settings pubblicato dal
-	// mode si trova anche da un tool il cui manager e' quello di scope piu' stretto.
+	// ⚠️ **Lo store dei tool E' quello in cui il mode pubblica, e non serve nessuna risalita.**
+	// `UEdMode::GetDefaultToolScope()` vale `EToolsContextScope::EdMode`, quindi sia `RegisterTool` sia il
+	// `GetToolManager()` del mode lavorano sul ModeToolsContext: il settings viene messo esattamente nello
+	// store che i sette `Render` interrogano. La risalita all'outer che `FindContext` fa serve al caso
+	// opposto — raggiungere un oggetto pubblicato dal ModeManager, uno scope piu' LARGO — e qui non e' in
+	// gioco. Il commento precedente diceva il contrario, e insegnava un modello sbagliato del ciclo di vita.
 	const URTHexEditorModeSettings* Settings =
 		const_cast<UContextObjectStore*>(Store)->FindContext<URTHexEditorModeSettings>();
 
 	return Settings ? Settings->bShowSurfaceOverlay : false;
+}
+
+bool PublishSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings)
+{
+	// Il `Cast` e' la meta' che conta: e' lo STESSO tipo che `ShouldShowSurfaceOverlay` cerca con
+	// `FindContext`, e scriverlo qui e' cio' che impedisce alle due sedi di divergere.
+	if (!Store || !Cast<URTHexEditorModeSettings>(Settings))
+	{
+		return false;
+	}
+	return Store->AddContextObject(Settings);
+}
+
+void WithdrawSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings)
+{
+	if (Store && Settings)
+	{
+		Store->RemoveContextObject(Settings);
+	}
 }
 
 bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager)
@@ -209,7 +232,7 @@ bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager)
 	return ShouldShowSurfaceOverlay(ToolManager->GetContextObjectStore());
 }
 
-void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
+void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor, bool bIncludeTransitions)
 {
 	if (!PDI || !Actor || !Actor->MapAsset) { return; }
 	const URTHexMapAsset* Map = Actor->MapAsset;
@@ -265,6 +288,7 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 	// irraggiungibile senza dirlo. Si disegnano sempre, non solo mentre le si crea.
 	for (const FRTHexEdge& Edge : Map->Transitions)
 	{
+		if (!bIncludeTransitions) { break; } // il tool Arch le disegna gia' da se': vedi il docstring
 		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
 		const FVector A = URTHexLibrary::AxialToWorld(Edge.From, Origin, HexSize, LayerH);
 		const FVector B = URTHexLibrary::AxialToWorld(Edge.To, Origin, HexSize, LayerH);

@@ -48,8 +48,19 @@ namespace RTHexEditor
 	/** Colore d'overlay per una superficie cella (presentazione editor). */
 	FColor SurfaceColor(ERTHexSurface Surface);
 
-	/** Overlay debug: ogni cella dell'asset come esagono colorato per superficie; le bloccate con un esagono rosso interno. */
-	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
+	/**
+	 * Overlay debug: ogni cella dell'asset come esagono colorato per superficie; le bloccate con un esagono
+	 * rosso interno. Disegna **anche** le transizioni e i cerchi delle celle irraggiungibili.
+	 *
+	 * 🔴 **`bIncludeTransitions = false` serve al solo tool Arch, e non e' un'opzione di gusto.** `URTHexArchTool`
+	 * disegna gia' le transizioni per conto proprio, e **incondizionatamente** — e' cio' che `PIE-HEX-MODE-F`
+	 * ha verificato ✅ e che #921 dichiara fuori scope. Con l'overlay acceso le stesse frecce arriverebbero da
+	 * due sorgenti: una a quota cella dal tool, una a `+4` in Z da qui, stesso colore. Si vedrebbero doppie e
+	 * sfalsate, e in `LayerView = ActiveOnly` sarebbero anche **incoerenti**, perche' l'overlay filtra per
+	 * layer attivo e il ciclo del tool no.
+	 */
+	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor,
+		bool bIncludeTransitions = true);
 
 	/**
 	 * L'overlay delle superfici e' acceso? (#921) — la domanda che ciascuno dei sette `Render` pone, e la
@@ -69,6 +80,24 @@ namespace RTHexEditor
 
 	/** Come sopra, partendo dal tool manager — la via che un `Render` ha davvero sottomano. */
 	bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager);
+
+	/**
+	 * Mette il settings del mode nello store **da cui `ShouldShowSurfaceOverlay` lo rileggera'** (#921).
+	 *
+	 * 🔑 **Esiste per tenere le due meta' nello stesso file.** La pubblicazione avviene in
+	 * `URTHexEditorMode::Enter()` e la lettura dentro sette `Render`: sono sedi lontane, e nulla nel
+	 * compilatore obbliga il tipo pubblicato a essere quello cercato. Passando di qui, l'accoppiamento e'
+	 * scritto una volta e un test lo esercita — mentre due chiamate dirette a `AddContextObject` e
+	 * `FindContext` potrebbero divergere in silenzio, e il difetto si vedrebbe solo a schermo.
+	 *
+	 * Restituisce `false` — e non pubblica nulla — se lo store manca o se l'oggetto non e' del tipo che il
+	 * lettore cerca. ⚠️ **Rifiutare invece di accettare e' deliberato**: un settings del tipo sbagliato
+	 * pubblicato «con successo» darebbe un overlay morto senza che niente lo dica.
+	 */
+	bool PublishSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings);
+
+	/** Toglie dallo store cio' che `PublishSurfaceOverlaySettings` ha messo. */
+	void WithdrawSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings);
 
 	/**
 	 * Colore di una transizione per tipo, e freccia From->To. Stanno qui e non nel tool Arch perche' ora hanno
