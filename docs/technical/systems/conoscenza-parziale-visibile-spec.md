@@ -281,7 +281,7 @@ un giocatore c'è sempre, e che qui aprirebbe il replay con una vista parziale s
 
 Una riga di log è un fatto **puntuale**: c'è un istante in cui è accaduta, e il verdetto di quell'istante la
 descrive. Una rotta no — è una **traiettoria**, e attraversa due istanti: il primo vertice è la cella di
-partenza (`RTTurnManager.cpp:5377`, letta prima di `PlaceOnCell` a `:5399`), l'ultimo è la cella d'arrivo.
+partenza — `Route.Add(Units[i]->Cell)`, letta **prima** di `ARTUnit::PlaceOnCell`, entrambe dentro `ARTTurnManager::ResolveMovement` — e l'ultimo è la cella d'arrivo. *(Citate per simbolo: il Move è uscito da `RTTurnManager.cpp` e vive in `Turn/RTTurnManager_Movement.cpp`, quindi i due numeri che stavano qui non puntavano più al Move ma a un `Plan.Hits[A]` senza rapporto con la rotta.)*
 
 Un verdetto congelato sulla partenza autorizzerebbe a disegnare l'arrivo, e riprodurrebbe **gli stessi due
 errori speculari** che §3.5 descrive per il canale derivato:
@@ -297,7 +297,8 @@ caso — *«ho visto questa parte del suo movimento»* — e l'unica che **chiud
 dichiararlo limite noto.
 
 ➕ **Non serve macchinario nuovo**: `URTPerceptionLibrary::TeamAwarenessOfCell(Map, Observers, Cell)` esiste
-e la produzione la usa già dentro il ciclo a micro-step del Move (`RTTurnManager.cpp:5115`).
+e la produzione la usa già al confine di reazione del ciclo a micro-step del Move
+(`ARTTurnManager::ResolveReactionBoundary`, in `Turn/RTTurnManager_Movement.cpp`).
 
 ⚠️ **Limite dichiarato**: il troncamento usa la visibilità **pre-Move**, l'unico campione disponibile —
 `TeamKnowledgeState` ha **due** sole assegnazioni per turno, entrambe per fase. Risponde bene quando a
@@ -324,6 +325,11 @@ L'unico sito che emette dal TurnLog (`ARTTurnManager::ConcludeTurn`, `RTTurnMana
 scrive **in un colpo solo le voci di tutte e cinque le fasi**, e in quell'istante i due ingressi di `ClassifyTarget` vengono da due momenti
 diversi:
 
+⚠️ **La tabella qui sotto descrive il mescolamento COM'ERA, non come funziona oggi**: il paragrafo
+in fondo a questa sezione registra che `ARTTurnManager::FreezeVerdictFor` ha anticipato il congelamento
+al sito che produce la voce, e i due ingressi non si incontrano più così. Le righe restano perché sono
+la misura che motiva [D-223]; i **simboli** sono quelli di oggi, le righe accanto sono corredo datato.
+
 | Ingresso | Da quando | Misura |
 |---|---|---|
 | `Knowledge` | ultimo refresh, che è quello del **Blast** — **pre-Move** | `ARTTurnManager::RefreshTeamKnowledgeForBlast`, definita in `Turn/RTTurnManager_Blast.cpp:303` alla data |
@@ -336,14 +342,17 @@ dal set stantio e si porta via l'intera narrazione del proprio turno.
 
 ⚠️ **Il refresh successivo esiste ma arriva dopo**: `StartPlanningTimer` → `PlanBots` →
 `RefreshTeamKnowledgeForPlanning` osserva le celle post-Move, ma gira **dopo** l'emissione. Non è
-disponibile a chi scrive. *(Alla data del 2026-09-21: `RTTurnManager.cpp:1095`, `:854`, `:786`. La
-distanza — «sessanta righe» nella prima stesura — non è più ricavabile da questi numeri: il Move è
-uscito dal file, e la catena attraversa tre unità di traduzione.)*
+disponibile a chi scrive. *(Alla data del 2026-09-21 le tre stanno ancora nella stessa unità di
+traduzione, `RTTurnManager.cpp`: `StartPlanningTimer` `:1095`, `PlanBots` `:854`,
+`RefreshTeamKnowledgeForPlanning` `:786`. Ma «sessanta righe», come diceva la prima stesura, non
+misura più niente — e non perché la cifra sia cambiata: l'ordine che conta è quello delle
+**chiamate**, e nessuna distanza di righe lo esprime. Si legge da `StartPlanningTimer`, non da dove
+le tre stanno scritte.)*
 
 ⚠️ **`ClassifyTarget` vuole un terzo ingresso che il TurnLog non aveva**: `TargetTeamId`. Misurato
 allora: `TeamId` compariva **0** volte in `Turn/RTTurnLog.h`.
 
-➕ **⌨ Quello zero oggi è FALSO, e ribalta la tesi del paragrafo che lo usa** *(rimisurato il 2026-09-21,
+➕ **⌫ Quello zero oggi è FALSO, e ribalta la tesi del paragrafo che lo usa** *(rimisurato il 2026-09-21,
 `#3253`)*: `Turn/RTTurnLog.h:838` porta `int32 TeamId = 0;` dentro `FRTVerdictSubjectRef`, la struct che
 il file stesso descrive come *«i tre soli ingressi che `FreezeVerdict` legge»*. Il TurnLog ha
 **esattamente** il terzo ingresso che questo paragrafo dichiara mancante. Si conta con
@@ -354,7 +363,7 @@ il file stesso descrive come *«i tre soli ingressi che `FreezeVerdict` legge»*
 iscritto il verdetto «conoscenza pre-Move + cella del fatto», anticipare il congelamento al sito che produce
 la voce, o aggiungere un terzo campione — hanno costi diversi e vanno confrontate, non scelte per inerzia.
 
-✅ **⌨ Dichiarato, e nel codice** *(2026-09-21, `#3253`)*: `ARTTurnManager::FreezeVerdictFor`
+✅ **⌫ Dichiarato, e nel codice** *(2026-09-21, `#3253`)*: `ARTTurnManager::FreezeVerdictFor`
 (`Turn/RTTurnManager.cpp:272` alla data) passa `TeamKnowledgeState` come conoscenza e
 `Subject.GetFactCell()` come cella — **non** `ARTUnit::Cell`, e il commento accanto spiega perché: dentro
 `ResolveMovement` le due non coincidono (`#2142`). La via scelta è la seconda, *anticipare il congelamento
@@ -372,7 +381,9 @@ retroattivamente su tutto il buffer di `MaxLogLines`, non solo sul turno della m
 
 🔴 **Con [D-223] quella guardia non entra più in gioco per il combat log**, e la ragione è misurata:
 `ClassifyTarget` **non guarda lo stato vitale** — `Perception/RTTeamKnowledge.cpp` ha **zero** occorrenze di
-`bAlive`/`IsAlive`, con controprova a **1** in `RTKnowledgeView.cpp`, dove la guardia vive. Un verdetto
+`bAlive`/`IsAlive`, e lo stesso `grep` su `RTKnowledgeView.cpp` — dove la guardia vive — risponde
+**diverso da zero**. *(La controprova era scritta come la cifra `1`: è un totale che cambia da solo, e
+i commenti aggiunti da `#3253` l'hanno già fatta salire. Lo zero resta perché lo zero **è** la misura.)* Un verdetto
 congelato alla scrittura non la incontra mai.
 
 ⚠️ **Due cose restano vere e vanno sapute.** La guardia continua a governare i canali che si calcolano **in
@@ -381,7 +392,7 @@ giusta quando la morte è pubblica. E il caso da verificare invece che presuppor
 qualcosa che non si è **mai** visto (AoE, danno ambientale), e quella riga deve restare nascosta — con
 [D-223] lo resta perché `ClassifyTarget` risponde `Rejected`, non perché il soggetto è sparito. La
 distinzione conta: le due cose smettono di coincidere appena si tocca una delle due cause.
-✅ **⌨ Verifica SCARICATA, e l'owner non esiste più** *(2026-09-21, `#3253`)*: **#1498** è chiusa, la
+✅ **⌫ Verifica SCARICATA, e l'owner non esiste più** *(2026-09-21, `#3253`)*: **#1498** è chiusa, la
 regola è registrata come [`D-431`](../../decisions/RT_PDR_00_Decision_Log.md), e il caso è asserito da
 `RefactorTactics.UI.UnseenDeathLeavesOnlyTheAnnouncement` — che verifica il **meccanismo**, cioè che
 `ClassifyTarget` risponda `Rejected`, e non la sola assenza della riga.
@@ -397,17 +408,21 @@ Misurato sui siti che scrivono la morte:
 | # | Riga | Sito *(funzione; la riga è corredo, datato 2026-09-21)* | Soggetto **prima di #1499** | Prima di [D-223] | Con [D-223] |
 |---|---|---|---|---|---|
 | 1 | `<nome> eliminato dalle fiamme` (danno da `Status.Burning`) | `ARTTurnManager::ConcludeResolution` · `Turn/RTTurnManager.cpp:1789` | **la vittima** | ❌ spariva, insieme al resto del suo turno | ✅ resta, **e la leggono tutte le squadre**: il sito dichiara `FRTLogSubject::World()`, come le altre quattro |
-| 2 | `<nome> eliminato dalla scarica` | `ARTTurnManager::ResolveEnvironment` · `Turn/RTTurnManager.cpp:3224` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
-| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `ARTTurnManager::ResolveCombatPasses` · `Turn/RTTurnManager.cpp:6195` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità **e la sua squadra** |
-| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `ARTTurnManager::TickPlayback` · `Turn/RTTurnManager.cpp:8023` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
-| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `ARTTurnManager::FinishPlayback` · `Turn/RTTurnManager.cpp:8174` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
+| 2 | `<nome> eliminato dalla scarica` | `ARTTurnManager::ResolveEnvironment` · `Turn/RTTurnManager.cpp:3224` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
+| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `ARTTurnManager::ResolveCombatPasses` · `Turn/RTTurnManager.cpp:6195` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` — ed è la sola che stampi anche la **squadra** |
+| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `ARTTurnManager::TickPlayback` · `Turn/RTTurnManager.cpp:8023` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
+| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `ARTTurnManager::FinishPlayback` · `Turn/RTTurnManager.cpp:8174` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
 
 ⚠️ **Questa tabella ne elencava TRE, e ne classificava male una.** *(Corretta il 2026-08-28.)* Le due righe
 `"Morte mostrata: %s"` del playback non erano mai state censite. E la riga 3 era descritta come *«una riga di
-mondo»*: **non lo è** — stampa il nome di un'unità **e** il suo `TeamId`. ⌨ **Restava** visibile solo
-perché il default di `AddLogEvent` era fail-open, cioè per il difetto che **#1499** ha chiuso.
+mondo»* nel senso del **testo**, quello che non nomina nessuno: non lo era, perché stampa il nome di
+un'unità **e** il suo `TeamId`. ⌫ **E non si legga come una contraddizione con la colonna «Con
+[D-223]»**: oggi tutte e cinque dichiarano `FRTLogSubject::World()`, che è «riga di mondo» nell'altro
+senso, quello del **soggetto di log**. I due sensi sono diversi, e sulla riga 3 rispondono opposto.
+⌫ **Restava** visibile solo perché il default di `AddLogEvent` era fail-open, cioè per il difetto che
+**#1499** ha chiuso.
 
-⌨ **Quattro righe di morte su cinque passavano per omissione, ed erano in scope per #1499.** Nessuna di
+⌫ **Quattro righe di morte su cinque passavano per omissione, ed erano in scope per #1499.** Nessuna di
 esse era «restata» per una decisione: chiudere il default senza deciderle una per una le avrebbe fatte
 sparire insieme — ed è per questo che #1499 e [D-223] sono state fatte nella stessa passata.
 

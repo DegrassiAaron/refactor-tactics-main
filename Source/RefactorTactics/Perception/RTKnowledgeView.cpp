@@ -23,7 +23,7 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		//
 		// 🔴 **E oggi questa guardia non ha nessun consumatore che la osservi — misurato, non dedotto.**
 		// L'unico chiamante di produzione e' `UvViewForObserver`, l'helper che `ARTHUD::UpdateObserverVeil`
-		// usa (`UI/RTHUD.cpp:657` alla data); e il ciclo che consuma la vista **salta gia' i caduti da se'**
+		// usa; e il ciclo che consuma la vista **salta gia' i caduti da se'**
 		// (`if (!Unit || !Unit->IsAlive()) { continue; }`). Togliere questa riga non farebbe comparire nessun
 		// morto sull'overlay: non cambierebbe **niente di osservabile**.
 		// ∴ [D-431] la tiene come **difesa in profondita'**, non perche' stia portando un carico: toglierla
@@ -31,11 +31,12 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		// ricordi di filtrare.
 		//
 		// ⌫ **E la ragione qui sopra e' piu' debole del vero: corretta con `#3253`.** Non e' il salto del
-		// ciclo a rendere questa guardia inosservabile — e' che la sede della regola *«un morto non si
-		// disegna»* e' un **terzo** posto, `ARTUnit::ShouldBeRendered` (`bAlive && bKnownToObserver`, *«la
-		// morte vince sempre sulla conoscenza»*), pinnata da
-		// `RefactorTactics.Knowledge.UnitRenderingCombinesAliveAndKnown`. Togliendo **entrambe** le guardie
-		// un cadavere resterebbe comunque invisibile.
+		// ciclo a rendere inosservabile questa guardia. Un cadavere lascia lo schermo per un atto
+		// **imperativo** — `ARTUnit::HideForDefeat()`, chiamato da `ARTTurnManager::FinishPlayback` — e fino
+		// a li' resta a schermo APPOSTA, perche' il colpo mortale sia osservabile
+		// (`RefactorTactics.Playback.DefeatAnnouncedWhileStillVisible` lo pinna). Le guardie **dichiarative**
+		// sono tre — questa, quella del ciclo, e il termine `bAlive` di `ARTUnit::ShouldBeRendered` — e
+		// **nessuna delle tre scatta alla morte**. Il conto sta in [D-431].
 		//
 		// ✅ **La duplicazione dichiarata qui era un `FOLLOW-UP CANDIDATE`, ed e' CHIUSO** (`#3253`): il
 		// docstring di `UvViewForObserver` non vieta piu' una duplicazione che il file commette comunque, e

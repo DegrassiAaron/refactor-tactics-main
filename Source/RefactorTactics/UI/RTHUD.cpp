@@ -632,23 +632,13 @@ namespace
 	 * sua guardia `if (!S.bAlive)` **precede** la biforcazione di squadra, quindi vale per entrambe.
 	 *
 	 * ⌫ **Fino al 2026-09-21 questa riga chiudeva con «togliere qui i caduti significherebbe prendere quella
-	 * decisione due volte». La lettera reggeva, il CONTO no** (`#3253`, [D-431]): la decisione e' gia' presa
-	 * due volte — dalla guardia di `ViewForTeam` e dal ciclo di `ARTHUD::UpdateObserverVeil`, che salta i
-	 * caduti da se' (`if (!Unit || !Unit->IsAlive())`) **prima** di cercare la voce. Filtrare anche qui
-	 * sarebbe la **terza** copia, non la seconda. Il motivo per non farlo resta, ed e' quello.
+	 * decisione due volte». La lettera reggeva, il CONTO no** (`#3253`): la decisione e' gia' presa due
+	 * volte, e filtrare anche qui sarebbe la **terza**. Il motivo per non farlo resta, ed e' quello.
 	 *
-	 * 🔴 **E nessuna delle due governa il caduto della PROPRIA squadra.** `UpdateObserverVeil` forza
-	 * `Entry = nullptr` su `bIsOwnTeam` e non interroga **mai** la vista per un alleato — e' quella riga, non
-	 * `ShouldDrawUnitOverlay`, a staccare la propria squadra dalla conoscenza. A tenere un cadavere fuori
-	 * dallo schermo e' `ARTUnit::ShouldBeRendered`, cioe' `bAlive && bKnownToObserver`: *«la morte vince
-	 * sempre sulla conoscenza»*, pinnata da `RefactorTactics.Knowledge.UnitRenderingCombinesAliveAndKnown`.
-	 * ∴ togliendo il salto di `UpdateObserverVeil` **non comparirebbe nessun overlay su un cadavere**, e chi
-	 * scrivesse il contrario manderebbe il prossimo a cercare un difetto che non c'e'.
-	 *
-	 * ⚠️ **Cio' che quel salto porta davvero sta sul NEMICO, non sulla propria squadra**: un `Remembered` che
-	 * cade conserva la sagoma dell'ultimo contatto accesa, perche' il ciclo lo salta e nessuno chiama
-	 * `HideContactGhost()` — sparisce con `HideForDefeat()`. Toglierlo la spegnerebbe nell'istante della
-	 * morte, che e' un cambio di **presentazione** che nessuna decisione ha preso.
+	 * 🔴 **E la sede vera non e' nessuna delle due.** Un cadavere lascia lo schermo per
+	 * `ARTUnit::HideForDefeat()`, non per una guardia di conoscenza. Le tre guardie dichiarative, cosa
+	 * governa ciascuna e cosa succede a toglierle stanno in **[D-431]**, che e' la decisione — qui non si
+	 * ripetono, o il commento tornerebbe a essere la sede che [D-431] gli ha appena tolto.
 	 */
 	FRTKnowledgeView UvViewForObserver(const ARTTurnManager* TurnManager,
 		const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
@@ -765,11 +755,9 @@ void ARTHUD::UpdateObserverVeil()
 		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
 		// decidono da `bIsOwnTeam` prima di guardare `Entry`.
 		//
-		// 🔑 **Ed e' QUESTA riga, non quelle due, a staccare la propria squadra dalla vista** (`#3253`).
-		// Con `Entry` forzata a `nullptr` la guardia `!bAlive` di `ViewForTeam` non ha nessun modo di
-		// raggiungere un alleato: l'argomento regge anche se un domani `ShouldDrawUnitOverlay` cominciasse
-		// a leggere `Entry`. Chi cerca la sede della regola «un morto non si disegna» non la trova qui ne'
-		// nella vista: e' `ARTUnit::ShouldBeRendered`.
+		// 🔑 **Ed e' QUESTA riga, non quelle due, a staccare la propria squadra dalla vista** (`#3253`):
+		// con `Entry` forzata a `nullptr` l'argomento regge anche se un domani `ShouldDrawUnitOverlay`
+		// cominciasse a leggere `Entry`. La sede della regola «un morto non si disegna» sta in [D-431].
 		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
 		const FRTKnowledgeEntry* Entry = bIsOwnTeam
 			? nullptr
