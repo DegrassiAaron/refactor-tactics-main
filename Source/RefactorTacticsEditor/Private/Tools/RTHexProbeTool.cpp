@@ -256,7 +256,16 @@ void URTHexProbeTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
 	if (!RenderAPI) { return; }
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
-	if (!PDI || !bHasStart) { return; }
+	if (!PDI) { return; }
+
+	// #921: PRIMA della guardia `bHasStart`. Il Probe interroga il movimento e non lo cambia, ma disegna —
+	// e l'overlay del mode vale per tutti gli strumenti che disegnano, non per quelli che scrivono.
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, FindTargetMapActor());
+	}
+
+	if (!bHasStart) { return; }
 
 	const ARTHexMapActor* Actor = FindTargetMapActor();
 	if (!Actor) { return; }

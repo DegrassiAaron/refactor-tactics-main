@@ -63,9 +63,6 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Hex|Selezione")
 	int32 SelectedCount = 0;
 
-	/** [Overlay] Colora le celle per superficie (debug read-only); le bloccate con esagono rosso. */
-	UPROPERTY(EditAnywhere, Category = "Hex|Overlay")
-	bool bShowOverlay = false;
 };
 
 /**

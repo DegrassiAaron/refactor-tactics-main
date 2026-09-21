@@ -1,4 +1,7 @@
 #include "RTHexEditorClick.h"
+#include "RTHexEditorModeSettings.h" // #921: il flag dell'overlay vive nel mode, non nei tool
+#include "ContextObjectStore.h"
+#include "InteractiveToolManager.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
 #include "InputState.h"            // FInputDeviceRay
 #include "Engine/World.h"
@@ -182,7 +185,54 @@ FColor SurfaceColor(ERTHexSurface Surface)
 	return URTHexLibrary::SurfaceColor(Surface);
 }
 
-void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
+bool ShouldShowSurfaceOverlay(const UContextObjectStore* Store)
+{
+	if (!Store)
+	{
+		return false;
+	}
+
+	// ⚠️ **Lo store dei tool E' quello in cui il mode pubblica, e non serve nessuna risalita.**
+	// `UEdMode::GetDefaultToolScope()` vale `EToolsContextScope::EdMode`, quindi sia `RegisterTool` sia il
+	// `GetToolManager()` del mode lavorano sul ModeToolsContext: il settings viene messo esattamente nello
+	// store che i sette `Render` interrogano. La risalita all'outer che `FindContext` fa serve al caso
+	// opposto — raggiungere un oggetto pubblicato dal ModeManager, uno scope piu' LARGO — e qui non e' in
+	// gioco. Il commento precedente diceva il contrario, e insegnava un modello sbagliato del ciclo di vita.
+	const URTHexEditorModeSettings* Settings =
+		const_cast<UContextObjectStore*>(Store)->FindContext<URTHexEditorModeSettings>();
+
+	return Settings ? Settings->bShowSurfaceOverlay : false;
+}
+
+bool PublishSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings)
+{
+	// Il `Cast` e' la meta' che conta: e' lo STESSO tipo che `ShouldShowSurfaceOverlay` cerca con
+	// `FindContext`, e scriverlo qui e' cio' che impedisce alle due sedi di divergere.
+	if (!Store || !Cast<URTHexEditorModeSettings>(Settings))
+	{
+		return false;
+	}
+	return Store->AddContextObject(Settings);
+}
+
+void WithdrawSurfaceOverlaySettings(UContextObjectStore* Store, UObject* Settings)
+{
+	if (Store && Settings)
+	{
+		Store->RemoveContextObject(Settings);
+	}
+}
+
+bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager)
+{
+	if (!ToolManager)
+	{
+		return false;
+	}
+	return ShouldShowSurfaceOverlay(ToolManager->GetContextObjectStore());
+}
+
+void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor, bool bIncludeTransitions)
 {
 	if (!PDI || !Actor || !Actor->MapAsset) { return; }
 	const URTHexMapAsset* Map = Actor->MapAsset;
@@ -238,6 +288,7 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 	// irraggiungibile senza dirlo. Si disegnano sempre, non solo mentre le si crea.
 	for (const FRTHexEdge& Edge : Map->Transitions)
 	{
+		if (!bIncludeTransitions) { break; } // il tool Arch le disegna gia' da se': vedi il docstring
 		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
 		const FVector A = URTHexLibrary::AxialToWorld(Edge.From, Origin, HexSize, LayerH);
 		const FVector B = URTHexLibrary::AxialToWorld(Edge.To, Origin, HexSize, LayerH);
