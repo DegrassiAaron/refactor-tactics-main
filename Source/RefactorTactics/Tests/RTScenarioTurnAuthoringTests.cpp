@@ -300,7 +300,7 @@ bool FRTScenarioPreviewComesFromTheRuntimeTest::RunTest(const FString&)
 		Sim.MoveBudget = (Found && *Found) ? (*Found)->MovePoints : 0;
 		SimUnits.Add(Sim);
 	}
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Map, SimUnits);
 	const TArray<FRTHexReachableCell> FromRuntime = URTHexSimLibrary::ReachableCells(Snapshot, /*UnitId=*/ 0);
 
 	if (!TestEqual(TEXT("preview e servizio runtime danno lo stesso numero di celle"),

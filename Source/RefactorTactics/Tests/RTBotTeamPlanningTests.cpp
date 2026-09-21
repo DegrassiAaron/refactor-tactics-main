@@ -46,7 +46,7 @@ bool FRTBotReserveRouteTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(1, CellA, /*budget*/ 5));
 	SimUnits.Add(FRTHexSimUnit(2, CellB, /*budget*/ 5));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena, SimUnits);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena, SimUnits);
 
 	// Una destinazione qualsiasi ma RAGGIUNGIBILE: la rotta dev'essere reale, altrimenti il test verificherebbe
 	// la prenotazione di un percorso vuoto — che è vera per costruzione e non dice niente.

@@ -36,7 +36,12 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 	{
 		if (U.bIsBotControlled && !PlanningSnapshots.Contains(U.TeamId))
 		{
-			PlanningSnapshots.Add(U.TeamId, BaseSnapshot);
+			// 🔴 **E FILTRATO PER QUELLA SQUADRA, non copiato dall'onnisciente** ([D-371] uscita *(c)*,
+			// «filtrata ovunque, **bot compreso**»). L'uscita che dava al bot la vista autorevole e al
+			// giocatore quella filtrata e' stata scartata per una ragione **pubblicata**: la pagina Wiki
+			// `avversario-bot` promette al giocatore *«il bot non vede piu' di te»*, e sotto quell'uscita
+			// diventerebbe falsa nel verso opposto.
+			PlanningSnapshots.Add(U.TeamId, URTHexSimLibrary::AsObserver(BaseSnapshot, U.TeamId));
 		}
 	}
 
@@ -147,6 +152,15 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// UN SOLO nome, e non due: un alias `const` accanto a uno scrivibile dichiarerebbe un'immutabilita'
 		// che non c'e' — la prenotazione a fine iterazione scrive proprio qui dentro.
 		FRTHexSnapshot& Snapshot = *TeamSnapshotPtr;
+
+		// La base SENZA prenotazioni, ma filtrata come lo snapshot di squadra ([D-371]).
+		//
+		// ⚠️ **Le due fotografie differiscono per le PRENOTAZIONI, non per l'osservatore.** Lo scatto e la
+		// carica risolvono nella fase Dash, dove una cella prenotata per il Move di una compagna e' ancora
+		// vuota: per questo leggono la base e non lo snapshot di squadra. 🔴 Ma leggere `BaseSnapshot`, che
+		// e' **onnisciente**, riaprirebbe da un'altra porta la fuga che questa voce chiude — il bot
+		// vedrebbe con lo scatto cio' che non vede col passo. La base giusta e' filtrata e non prenotata.
+		const FRTHexSnapshot BaseFiltrata = URTHexSimLibrary::AsObserver(BaseSnapshot, Bot.TeamId);
 
 		// Difesa: se ferito (sotto meta' HP) e ha un'abilita' che lo RIMETTE IN PIEDI, la usa e rinuncia al
 		// resto della pianificazione.
@@ -681,7 +695,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// sono ancora vuote. Copiandole qui, `ResolveLinearMove` e `IsLinearReachable` — che trattano ogni
 		// occupante non ostile come un corpo solido — scarterebbero cariche e scatti perfettamente legali,
 		// in silenzio. La prenotazione e' del Move: che sia CONSUMATA solo dal Move.
-		FRTHexSnapshot DashSnapshot = BaseSnapshot;
+		FRTHexSnapshot DashSnapshot = BaseFiltrata;
 		if (bDashReady)
 		{
 			// Le candidate nascono da `ReachableCells`, che spende PUNTI MOVIMENTO (Dijkstra sui costi). Ma la
@@ -840,8 +854,8 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				// cella prenotata per il Move di una compagna li' e' ancora vuota. Con `Snapshot.Occupancy`
 				// la traiettoria si fermerebbe su un corpo che non c'e' e la candidata sparirebbe in silenzio.
 				const FRTLinearMoveResult Linear = URTMovementActionLibrary::ResolveLinearMove(
-					BaseSnapshot.Map, Bot.Cell, Ctx.Enemies[e], DashBudget, DashStyle,
-					BaseSnapshot.Occupancy, DashHostiles);
+					BaseFiltrata.Map, Bot.Cell, Ctx.Enemies[e], DashBudget, DashStyle,
+					BaseFiltrata.Occupancy, DashHostiles);
 
 				// Vale solo se l'impatto colpisce PROPRIO quel nemico: una traiettoria che ne incontra un altro
 				// prima e' una candidata diversa, e la genera il suo giro di ciclo.

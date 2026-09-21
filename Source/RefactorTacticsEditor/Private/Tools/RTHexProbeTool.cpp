@@ -92,7 +92,7 @@ FRTHexSnapshot URTHexProbeTool::MakeProbeSnapshot(const URTHexMapAsset* Map) con
 	// ricostruire il roster a ogni chiamata, e questa funzione viene chiamata per ogni cella sorvolata.
 	const int32 Budget = Properties ? Properties->Budget : 0;
 	FRTHexSimUnit Unit(ProbeUnitId, StartCell, Budget);
-	return URTHexSimLibrary::MakeSnapshot(Map, { Unit });
+	return URTHexSimLibrary::MakeSnapshotOmniscient(Map, { Unit });
 }
 
 void URTHexProbeTool::RebuildReachableSet(const FRTHexSnapshot& Snapshot)

@@ -81,7 +81,7 @@ bool FRTPlanPreviewGhostMatchesResolverPathTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, FRTCellId(-3, 0, 0), /*MoveBudget=*/ 12));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	// Due waypoint, cosi' il percorso composito ha una DEVIAZIONE: con un waypoint solo, «stesso A*» e
 	// «stessa destinazione» sarebbero indistinguibili.
@@ -156,7 +156,7 @@ bool FRTPlanPreviewReactionIsNotAPhaseTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, FRTCellId(0, 0, 0), /*MoveBudget=*/ 6));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	FRTPlanPreviewInput Plan;
 	Plan.UnitId = 0;
@@ -227,7 +227,7 @@ bool FRTPlanPreviewPhasesChainTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 8));
 	Units.Add(FRTHexSimUnit(/*UnitId=*/ 1, Bersaglio, /*MoveBudget=*/ 0));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TArray<FRTHexCombatUnit> CombatUnits;
 	CombatUnits.Add(MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Partenza));
@@ -308,7 +308,7 @@ bool FRTPlanPreviewFacingIsDerivedTest::RunTest(const FString&)
 	// com'era» sarebbero indistinguibili.
 	U.Facing = ERTHexDirection::W;
 	Units.Add(U);
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	FRTPlanPreviewInput Plan;
 	Plan.UnitId = 0;
@@ -358,7 +358,7 @@ bool FRTPlanPreviewRefusalIsSpeakableTest::RunTest(const FString&)
 	const FRTCellId Mira(2, 0, 0);
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 4));
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TArray<FRTHexCombatUnit> CombatUnits;
 	CombatUnits.Add(MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Partenza));
@@ -432,7 +432,7 @@ bool FRTPlanPreviewNoEnemyIntentTest::RunTest(const FString&)
 	Lui.Facing = ERTHexDirection::NW;
 	Units.Add(Io);
 	Units.Add(Lui);
-	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TArray<FRTHexCombatUnit> CombatUnits;
 	CombatUnits.Add(MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, Mia));

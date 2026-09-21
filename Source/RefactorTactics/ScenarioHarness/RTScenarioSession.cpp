@@ -1405,7 +1405,7 @@ void FRTScenarioSession::ApplyScenarioIntents(ARTTurnManager& TurnManagerRef)
 		// AUTOREVOLE. Percorso non valido (budget, blocchi, occupanti) -> l'unita' resta ferma e l'assertion
 		// lo mostra: e' il comportamento del gioco, non un caso speciale del test.
 		TArray<ARTUnit*> SnapshotUnits;
-		const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits);
+		const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(SnapshotUnits, RTObserver::Omniscient);
 		const int32 UnitId = SnapshotUnits.IndexOfByKey(Unit);
 		if (UnitId == INDEX_NONE)
 		{

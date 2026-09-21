@@ -1324,7 +1324,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 
 	// Gli id dello snapshot sono gli INDICI di `Units`: 0 = chi pianifica, 1 = chi occupa.
 	const TArray<ARTUnit*> Units = { Chi, Alt };
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(MapActor->MapAsset, {
 		FRTHexSimUnit(0, Mia,  /*MoveBudget=*/ 4),
 		FRTHexSimUnit(1, Loro, /*MoveBudget=*/ 4)
 	});
@@ -1360,7 +1360,7 @@ bool FRTWaypointRejectionNamesOccupantTest::RunTest(const FString&)
 	// snapshot» da «porta un numero che per caso coincide». Con un solo valore in tutto il test, una
 	// costante cablata sarebbe indistinguibile dalla lettura giusta.
 	{
-		const FRTHexSnapshot Largo = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+		const FRTHexSnapshot Largo = URTHexSimLibrary::MakeSnapshotOmniscient(MapActor->MapAsset, {
 			FRTHexSimUnit(0, Mia,  /*MoveBudget=*/ 9),
 			FRTHexSimUnit(1, Loro, /*MoveBudget=*/ 9)
 		});
@@ -1651,6 +1651,12 @@ bool FRTDeniedMoveDeclaresTheDenialTest::RunTest(const FString&)
 	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	// ⚠️ **La conoscenza va CALCOLATA, o il pianificatore e' cieco** ([D-371]). In partita lo fa
+	// `ARTGameMode::SetupHexMatch`; un mondo di prova che spawna il `TurnManager` a mano no, e da quando
+	// l'anteprima filtra l'occupazione per osservatore un mondo senza conoscenza non vede **nessun**
+	// avversario — quindi nessun diniego, che e' proprio cio' che questo banco misura.
+	TM->RefreshTeamKnowledgeNow();
 	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Occupante)
 		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("turn manager"), TM))
 	{
@@ -1817,6 +1823,12 @@ bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
 	ARTUnit* Occupante = SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), Occupata);
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	// ⚠️ **La conoscenza va CALCOLATA, o il pianificatore e' cieco** ([D-371]). In partita lo fa
+	// `ARTGameMode::SetupHexMatch`; un mondo di prova che spawna il `TurnManager` a mano no, e da quando
+	// l'anteprima filtra l'occupazione per osservatore un mondo senza conoscenza non vede **nessun**
+	// avversario — quindi nessun diniego, che e' proprio cio' che questo banco misura.
+	TM->RefreshTeamKnowledgeNow();
 	if (!TestNotNull(TEXT("chi pianifica"), Chi) || !TestNotNull(TEXT("chi occupa"), Occupante)
 		|| !TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("turn manager"), TM))
 	{
@@ -2181,7 +2193,7 @@ bool FRTTruncateWaypointsToBudgetTest::RunTest(const FString&)
 	const FRTCellId W2(2, 0, 0);
 	const FRTCellId W3(3, 0, 0);
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(MapActor->MapAsset, {
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(MapActor->MapAsset, {
 		FRTHexSimUnit(0, Partenza, /*MoveBudget=*/ 9)
 	});
 

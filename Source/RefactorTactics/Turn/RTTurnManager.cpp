@@ -842,7 +842,7 @@ void ARTTurnManager::RefreshTeamKnowledgeNow()
 	// scarta i morti. Riusarla — invece di un secondo `GetAllActorsOfClass` qui — tiene una sola definizione
 	// di «chi partecipa»: due raccolte diverse divergerebbero al primo cambio di regola sui cadaveri.
 	TArray<ARTUnit*> Units;
-	MakeCurrentSnapshot(Units);
+	MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// ⚠️ Con `Units` vuoto questa chiamata NON e' un no-op innocuo: `RefreshTeamKnowledgeForPlanning`
 	// costruisce l'elenco delle squadre DAI vivi, quindi zero unita' -> zero squadre -> `TeamKnowledgeState`
@@ -925,11 +925,20 @@ void ARTTurnManager::PlanBots()
 
 	EnsureMatchRoster();
 
-	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot BaseSnapshot = MakeCurrentSnapshot(Units); // solo unita' vive; Units[i].UnitId == i
-
 	// CP 13.5 — la conoscenza dev'esistere PRIMA che qualcuno ci pianifichi sopra.
+	//
+	// 🔴 **E da [D-371] anche prima della FOTOGRAFIA, perche' la fotografia la porta dentro.** Fino al
+	// 2026-09-21 le due righe stavano nell'ordine opposto, e non era un difetto: lo snapshot non filtrava
+	// niente, quindi quale conoscenza portasse non cambiava un ventaglio. Ora lo filtra, e costruirlo
+	// prima del refresh darebbe ai bot la conoscenza del turno **precedente** — al primo turno, nessuna:
+	// ogni avversario ignoto, nessun corpo nell'occupazione, e i bot che pianificano attraverso i nemici
+	// per farsi negare il passo a ogni turno. Misurato: dieci rossi, fra cui «0 colpi inflitti in 12
+	// turni» e «piu' lunga sequenza ferma 10 turni».
+	TArray<ARTUnit*> Units;
+	CollectLivingUnits(Units);
 	RefreshTeamKnowledgeForPlanning(Units);
+
+	const FRTHexSnapshot BaseSnapshot = MakeCurrentSnapshot(Units, RTObserver::Omniscient); // solo unita' vive; Units[i].UnitId == i
 
 	// --- I FATTI, non gli Actor ---------------------------------------------------------------------
 	//
@@ -4207,7 +4216,7 @@ void ARTTurnManager::ResolveDash()
 	// Stesso strato puro esagonale del movimento normale (CP 6.2): lo scatto e' un movimento con un altro
 	// budget, non un secondo sistema di pathfinding. Lo snapshot congela mappa e occupazione a inizio fase.
 	TArray<ARTUnit*> Units;
-	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units);
+	FRTHexSnapshot Snapshot = MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// Se due unita' vive condividono una cella, adesso lo si SA (#1970): la costruzione dello snapshot lo
 	// registra, e qui — che e' risoluzione autoritativa, non anteprima — lo si dice.
@@ -6328,7 +6337,7 @@ bool ARTTurnManager::AdvancePlaybackKnowledge()
 	// ⚠️ **Se un giorno qualcuno la chiamasse da `Tick`**, quell'avvertenza tornerebbe a valere per intero —
 	// ed e' l'unico modo in cui questa riga puo' diventare il difetto che il docstring descrive.
 	TArray<ARTUnit*> Units;
-	MakeCurrentSnapshot(Units);
+	MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// Le squadre VIVE, ordinate: l'ordine di un `TSet` dipende dall'hash, e qui si itera.
 	TSet<int32> Teams;
@@ -6443,6 +6452,14 @@ FRTHexSimUnit ARTTurnManager::MakeSimUnit(int32 Index, const ARTUnit* Unit) cons
 		URTPlanValidationLibrary::MakePlanFor(Unit));
 
 	FRTHexSimUnit SimUnit(Index, Unit->Cell, Profile.ResolveMoveBudget(UnitMoveRange), /*bAlive=*/ true);
+
+	// L'identita' con cui la CONOSCENZA nomina questa unita', che non e' `Index` ([D-371]).
+	//
+	// 🔴 **`Index` e' la posizione in `Snapshot.Units`; `StableUnitId` e' l'unita'.** Il filtro di
+	// occupazione per osservatore interroga la conoscenza, e la conoscenza e' chiavata sul secondo: usare il
+	// primo produrrebbe un difetto **verde in ogni banco** che costruisce le unita' a mano con i due numeri
+	// coincidenti, e rotto in partita, dove non coincidono mai per caso.
+	SimUnit.StableUnitId = Unit->StableUnitId;
 	// **Passi** ([D-117] voce 1). Oggi coincide con l'asperita' sopra perche' ogni cella costa `1`; a
 	// separare i due valori sara' la funzione di costo di [#666]. Qui si separano i CAMPI, che e' il
 	// prerequisito che questo checkpoint consegna.
@@ -6514,7 +6531,7 @@ void ARTTurnManager::CollectLivingUnits(TArray<ARTUnit*>& OutUnits) const
 	URTActionQueueLibrary::SortUnitsForResolution(OutUnits);
 }
 
-FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const
+FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits, int32 ObserverTeamId) const
 {
 	FVector Origin; float HexSize; float LayerH;
 	const URTHexMapAsset* Map = GetHexContext(Origin, HexSize, LayerH);
@@ -6532,7 +6549,11 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	{
 		SimUnits.Add(MakeSimUnit(i, OutUnits[i]));
 	}
-	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits);
+	// 🔴 **L'osservatore entra QUI, e la conoscenza con lui** ([D-371]). Prima di questa voce la fotografia
+	// nasceva onnisciente e la conoscenza le veniva attaccata dopo: una fotografia a meta', in cui
+	// l'occupazione era gia' decisa senza sapere chi guardava. Ora le due cose nascono insieme, che e'
+	// l'unico modo perche' il filtro sia parte della COSTRUZIONE invece che una passata successiva.
+	FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, SimUnits, TeamKnowledgeState, ObserverTeamId);
 	// La conoscenza di squadra viaggia con la fotografia (CP 13.2), cosi' i consumatori puri — il bot di
 	// CP 13.5, la HUD — la leggono dallo snapshot invece di chiederla al TurnManager. E' una COPIA: la
 	// memoria che attraversa i turni resta una sola, e sta nel TurnManager.
@@ -6542,7 +6563,11 @@ FRTHexSnapshot ARTTurnManager::MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) c
 	// si riordinano a ogni movimento (la cella e' la prima chiave). Un consumatore che volesse risalire
 	// all'Actor deve cercare per
 	// `StableUnitId`, mai indicizzare `Snapshot.Units` con `Contacts[].StableUnitId`.
-	Snapshot.TeamKnowledge = TeamKnowledgeState;
+	//
+	// ⚠️ **Ed e' esattamente per questo che `FRTHexSimUnit::StableUnitId` esiste** ([D-371]): il filtro di
+	// occupazione deve chiedere alla conoscenza *«conosco QUESTA unita'?»*, e la conoscenza risponde solo a
+	// quel numero. `MakeSimUnit` lo copia dall'Actor; `UnitId` resta l'indice, e confonderli darebbe un
+	// filtro verde nei banchi e rotto in partita.
 	return Snapshot;
 }
 

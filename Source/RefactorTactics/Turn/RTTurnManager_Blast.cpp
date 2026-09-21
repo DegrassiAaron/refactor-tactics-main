@@ -2515,7 +2515,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 				{
 					if (BlastAliveUnits.Num() == 0)
 					{
-						MakeCurrentSnapshot(BlastAliveUnits);
+						MakeCurrentSnapshot(BlastAliveUnits, RTObserver::Omniscient);
 					}
 					BraceOpportunity.Key.OwnerId = BlastAliveUnits.IndexOfByKey(T);
 				}

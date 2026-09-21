@@ -70,7 +70,7 @@ namespace
 	TArray<FRTCellId> ReachableWithBudget(const URTHexMapAsset* Map, const TArray<FRTKnowledgeEntry>& Entries,
 		int32 SubjectId, int32 Budget)
 	{
-		const FRTHexSnapshot Derived = URTHexSimLibrary::MakeSnapshot(Map, AuthorizedUnits(Entries, SubjectId, Budget));
+		const FRTHexSnapshot Derived = URTHexSimLibrary::MakeSnapshotOmniscient(Map, AuthorizedUnits(Entries, SubjectId, Budget));
 
 		TArray<FRTCellId> Cells;
 		for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Derived, SubjectId))
