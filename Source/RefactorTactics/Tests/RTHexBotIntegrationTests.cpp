@@ -647,10 +647,20 @@ namespace
  * Vale anche come promessa pubblicata: la pagina Wiki `avversario-bot` dice al giocatore «il bot non vede
  * piu' di te». Senza questo test quella frase e' prosa.
  *
- * Il nemico nascosto e' tenuto LONTANO dal corridoio d'azione (lati opposti, distanza 6 con vista 3), e non
- * perche' sia comodo: l'OCCUPAZIONE resta legittimamente globale — `ReachableCells` e `DashHostiles`
- * modellano cio' che il resolver fara', non cio' che la squadra sa, e il giocatore umano ha lo stesso
- * vincolo. Rendere il bot piu' cieco dell'umano sarebbe sbagliato quanto renderlo onnisciente.
+ * ⌫ **Qui viveva il principio che [D-371] ha RITIRATO** (2026-09-10): *«l'OCCUPAZIONE resta legittimamente
+ * globale — `ReachableCells` e `DashHostiles` modellano cio' che il resolver fara', non cio' che la squadra
+ * sa, e il giocatore umano ha lo stesso vincolo»*. `BLIND-1` e' chiusa con l'uscita *(c)*, **filtrata
+ * OVUNQUE, bot compreso**: una divergenza dei piani per occupazione ignota non e' legittima, e' il difetto.
+ * Il perche' sta in [D-371], non qui — questo docstring ne era la sede, e smette di esserlo.
+ *
+ * ⚠️ **La premessa resta com'era — nascosto lontano dal corridoio, distanza 6 con vista 3 — ma come LIMITE
+ * DICHIARATO e non piu' come difesa.** Spostarla dentro il corridoio renderebbe questo test ROSSO oggi:
+ * il filtro che [D-371] adotta non e' ancora implementato, e dove viva e' `BLIND-2`, aperta e agganciata a
+ * `OBS-1`. ∴ la premessa si muove **con** quel filtro, non prima.
+ *
+ * 🔑 **E il caso che la premessa esclude NON e' scoperto**: lo misura la sonda
+ * `RefactorTactics.BlindActions.*` (`Tests/RTBlindActionsLeakMeasureTests.cpp`) con zero, uno e due nemici
+ * ignoti sulla stessa cella — ventaglio **61 / 60 / 59**, costo **4 / 5 / 5**.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotHiddenEnemyFairnessTest,
 	"RefactorTactics.HexBotPlay.HiddenEnemyFairness",
