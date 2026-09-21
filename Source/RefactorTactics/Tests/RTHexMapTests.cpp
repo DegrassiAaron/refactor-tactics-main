@@ -1775,7 +1775,7 @@ bool FRTHexMapChangeLedgerTest::RunTest(const FString&)
 }
 
 /**
- * L'AUTORAGGIO deriva il default dal tipo, e NON sovrascrive un valore d'autore (#1317, `D-429`).
+ * L'AUTORAGGIO deriva il default dal tipo, e NON sovrascrive un valore d'autore (#1317, `D-430`).
  *
  * 🔴 **Questa via era stata scartata, e il test esiste perche' la ragione dello scarto resti verificata.**
  * `D-186` dichiara **legittima** una copertura piu' debole del proprio catalogo — `Adaptive` nasce a `25` di
@@ -1819,7 +1819,7 @@ bool FRTCoverIntegrityFollowsTypeOnAuthoringTest::RunTest(const FString&)
 	TestEqual(TEXT("ne' nell'altro verso"),
 		FRTHexCover::RealignedIntegrity(Scelto, ERTHexCoverType::Low), Scelto);
 
-	// `25` e' il caso concreto che `D-186` protegge: l'integrita' di `Hero.Riktor.KineticPanel.Adaptive`,
+	// `25` e' il caso concreto che `D-186` protegge: l'integrita' di `Hero.Branth.KineticPanel.Adaptive`,
 	// deliberatamente sotto il catalogo. Se il riallineamento se la mangiasse, la decisione sarebbe violata
 	// da una riga di editor.
 	TestEqual(TEXT("una copertura deliberatamente debole (25) resta debole"),

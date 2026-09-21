@@ -1371,8 +1371,7 @@ void URTHexMapAsset::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 	const int32 IndiceCella = PropertyChangedEvent.GetArrayIndex(TEXT("Cells"));
 	const int32 IndiceCopertura = PropertyChangedEvent.GetArrayIndex(TEXT("Covers"));
 
-	int32 Riallineate = 0;
-	auto RiallineaCella = [&Riallineate, IndiceCopertura](FRTHexCellData& Cella)
+	auto RiallineaCella = [IndiceCopertura](FRTHexCellData& Cella)
 	{
 		for (int32 i = 0; i < Cella.Covers.Num(); ++i)
 		{
@@ -1381,12 +1380,7 @@ void URTHexMapAsset::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 				continue;
 			}
 			FRTHexCover& Cover = Cella.Covers[i];
-			const int32 Nuova = FRTHexCover::RealignedIntegrity(Cover.Integrity, Cover.Type);
-			if (Nuova != Cover.Integrity)
-			{
-				Cover.Integrity = Nuova;
-				++Riallineate;
-			}
+			Cover.Integrity = FRTHexCover::RealignedIntegrity(Cover.Integrity, Cover.Type);
 		}
 	};
 
@@ -1402,12 +1396,19 @@ void URTHexMapAsset::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 		}
 	}
 
-	if (Riallineate > 0)
-	{
-		// ⚠️ Chi mostra l'asset non fa parte di questa notifica e non saprebbe di dover ridisegnare: stessa
-		// ragione per cui `PostEditUndo` la emette.
-		OnMapChanged.Broadcast();
-	}
+	// ⚠️ Chi mostra l'asset non fa parte di questa notifica e non saprebbe di dover ridisegnare: stessa
+	// ragione per cui `PostEditUndo` la emette. `OnMapChanged` e' l'UNICO canale con cui un edit del pannello
+	// dell'asset raggiunge `ARTHexMapActor`, che vi iscrive `RebuildAllForAssetChange`.
+	//
+	// 🔴 **Si emette sul cambio di `Type`, NON sull'esito del riallineamento.** Una prima stesura la
+	// condizionava a «almeno una integrita' e' cambiata», e sbagliava soggetto: la geometria disegnata dipende
+	// **solo** dal tipo — `AddEdgePanel(..., Cover.Type == High ? RTCoverHighHeight : RTCoverLowHeight)` — e
+	// `Integrity` non entra in nessuna trasformata. Con quella guardia, portare a `High` una copertura con
+	// integrita' d'autore (`18`, che la regola lascia stare di proposito) non avrebbe ridisegnato nulla: a
+	// schermo sarebbe rimasto un muretto **basso** su un bordo che ora nega vista, passo e proiettili. Due
+	// coperture identiche per geometria si sarebbero comportate in modo diverso per via di un numero che la
+	// geometria non legge.
+	OnMapChanged.Broadcast();
 }
 
 void URTHexMapAsset::PostEditUndo()

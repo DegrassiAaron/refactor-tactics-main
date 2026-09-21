@@ -701,7 +701,7 @@ public:
 	virtual void PostEditUndo() override;
 
 	/**
-	 * L'AUTORAGGIO passa di qui, e prima non passava da nessuna parte (#1317, `D-429`).
+	 * L'AUTORAGGIO passa di qui, e prima non passava da nessuna parte (#1317, `D-430`).
 	 *
 	 * 🔴 **Il default di `Integrity` derivava dal tipo solo attraverso il costruttore C++.** Chi aggiunge una
 	 * entry `Covers` dal pannello dei dettagli non lo chiama: la struct nasce da `FRTHexCover()` — `Low`/30 —
