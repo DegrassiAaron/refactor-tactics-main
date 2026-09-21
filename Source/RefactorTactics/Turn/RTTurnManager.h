@@ -1402,7 +1402,12 @@ public:
 	 * Il TurnManager e' l'autorita' (invariante #5): il controller del giocatore chiede QUESTO snapshot per
 	 * calcolare le sue anteprime, invece di ricostruirsi uno stato parallelo che potrebbe divergere.
 	 */
-	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits) const;
+	/**
+	 * ⚠️ **`ObserverTeamId` non ha un default, ed e' la disciplina che `BLIND-2` chiede**: ogni sito nomina
+	 * la propria posizione — `RTObserver::Omniscient` per chi ha autorita', il `TeamId` per chi pianifica.
+	 * Con un default, un chiamante distratto vedrebbe l'autorevole in silenzio ([D-371]).
+	 */
+	FRTHexSnapshot MakeCurrentSnapshot(TArray<ARTUnit*>& OutUnits, int32 ObserverTeamId) const;
 
 	/**
 	 * Lo stato di simulazione di UNA unita', con tutti i campi che lo snapshot le darebbe.

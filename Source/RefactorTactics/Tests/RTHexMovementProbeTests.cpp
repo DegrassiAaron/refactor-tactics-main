@@ -54,7 +54,7 @@ bool FRTHexProbeHoverPathTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeProbeMap(3);
 	const FRTCellId Start(0, 0, 0);
 	const FRTCellId Goal(2, 0, 0);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 4) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 4) });
 
 	const TArray<FRTHexReachableCell> Set = URTHexSimLibrary::ReachableCells(Snap, 1);
 	const TArray<FRTCellId> Hover = URTHexSimLibrary::ProbePathTo(Set, Goal);
@@ -91,7 +91,7 @@ bool FRTHexProbeOutOfBudgetTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeProbeMap(4);
 	const FRTCellId Start(0, 0, 0);
 	const FRTCellId Far(4, 0, 0); // distanza 4 su celle a costo 1
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
 
 	const TArray<FRTHexReachableCell> Set = URTHexSimLibrary::ReachableCells(Snap, 1);
 	TestTrue(TEXT("la cella lontana non e' nel set"), FindInProbeSet(Set, Far) == nullptr);
@@ -120,7 +120,7 @@ bool FRTHexProbeNoRouteTest::RunTest(const FString&)
 	Map->SortCells();
 
 	const FRTCellId Start(0, 0, 0);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 99) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 99) });
 	const TArray<FRTHexReachableCell> Set = URTHexSimLibrary::ReachableCells(Snap, 1);
 
 	TestTrue(TEXT("l'isola e' nella mappa"), Map->ContainsCell(Island));
@@ -148,7 +148,7 @@ bool FRTHexProbeVocabularyTest::RunTest(const FString&)
 
 	const FRTCellId Mine(0, 0, 0);
 	const FRTCellId Other(0, 1, 0);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, {
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, {
 		FRTHexSimUnit(1, Mine,  /*MoveBudget=*/ 4),
 		FRTHexSimUnit(2, Other, /*MoveBudget=*/ 0)
 	});
@@ -178,8 +178,8 @@ bool FRTHexProbeBudgetTest::RunTest(const FString&)
 	const FRTCellId Start(0, 0, 0);
 	const FRTCellId Edge(3, 0, 0);
 
-	const FRTHexSnapshot Tight = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
-	const FRTHexSnapshot Loose = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 3) });
+	const FRTHexSnapshot Tight = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
+	const FRTHexSnapshot Loose = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 3) });
 
 	const TArray<FRTHexReachableCell> SetTight = URTHexSimLibrary::ReachableCells(Tight, 1);
 	const TArray<FRTHexReachableCell> SetLoose = URTHexSimLibrary::ReachableCells(Loose, 1);
@@ -212,7 +212,7 @@ bool FRTHexProbeSurfaceEditTest::RunTest(const FString&)
 	const FRTCellId Start(0, 0, 0);
 	const FRTCellId Beyond(2, 0, 0); // due passi a costo 1: dentro un budget di 2
 
-	const FRTHexSnapshot Before = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
+	const FRTHexSnapshot Before = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
 	const TArray<FRTHexReachableCell> SetBefore = URTHexSimLibrary::ReachableCells(Before, 1);
 	TestTrue(TEXT("prima della modifica la cella e' raggiungibile"),
 		URTHexSimLibrary::ClassifyProbeCell(Before, 1, SetBefore, Beyond) == ERTHexProbeExclusion::Reachable);
@@ -227,7 +227,7 @@ bool FRTHexProbeSurfaceEditTest::RunTest(const FString&)
 	TestTrue(TEXT("la modifica rende STANTIO lo snapshot: e' la revisione a dirlo"),
 		URTHexSimLibrary::IsSnapshotStale(Before));
 
-	const FRTHexSnapshot After = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
+	const FRTHexSnapshot After = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, Start, /*MoveBudget=*/ 2) });
 	const TArray<FRTHexReachableCell> SetAfter = URTHexSimLibrary::ReachableCells(After, 1);
 	TestTrue(TEXT("rifatto il set, la stessa cella e' fuori budget"),
 		URTHexSimLibrary::ClassifyProbeCell(After, 1, SetAfter, Beyond) == ERTHexProbeExclusion::OutOfBudget);
@@ -248,7 +248,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexProbeNoUnitTest,
 bool FRTHexProbeNoUnitTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = MakeProbeMap(2);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(1, FRTCellId(0, 0, 0), 3) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(1, FRTCellId(0, 0, 0), 3) });
 
 	// 42 non esiste nello snapshot: il set che le corrisponde e' vuoto, ed e' l'unica risposta onesta.
 	const TArray<FRTHexReachableCell> Empty = URTHexSimLibrary::ReachableCells(Snap, 42);

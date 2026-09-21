@@ -127,7 +127,7 @@ bool FRTDoorInvalidatesPathTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(DoorUnit(0, A, /*MoveBudget*/ 6));
-	const FRTHexSnapshot Fresh = URTHexSimLibrary::MakeSnapshot(Map, Units);
+	const FRTHexSnapshot Fresh = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 	TestFalse(TEXT("lo snapshot nasce valido"), URTHexSimLibrary::IsSnapshotStale(Fresh));
 
 	// Con la porta aperta il passo esiste e il percorso lo usa.
@@ -358,12 +358,12 @@ bool FRTDoorTruncatesPathTest::RunTest(const FString&)
 	const TArray<FRTCellId> Planned = { FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0), FRTCellId(3, 0) };
 
 	// Porta aperta: il percorso e' valido per intero (nessuna troncatura a vuoto).
-	const FRTHexSnapshot Open = URTHexSimLibrary::MakeSnapshot(Map, Units);
+	const FRTHexSnapshot Open = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 	TestEqual(TEXT("porta aperta: percorso intatto"),
 		URTHexSimLibrary::TruncatePathToTopology(Open, Planned).Num(), 4);
 
 	URTHexDoorLibrary::SetDoorState(Map, FRTCellId(1, 0), FRTCellId(2, 0), ERTHexDoorState::Closed);
-	const FRTHexSnapshot Shut = URTHexSimLibrary::MakeSnapshot(Map, Units);
+	const FRTHexSnapshot Shut = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 	const TArray<FRTCellId> Stopped = URTHexSimLibrary::TruncatePathToTopology(Shut, Planned);
 
 	TestEqual(TEXT("si ferma prima della porta"), Stopped.Num(), 2);

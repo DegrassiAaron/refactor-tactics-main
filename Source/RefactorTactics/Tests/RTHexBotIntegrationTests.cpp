@@ -408,7 +408,7 @@ bool FRTHexBotDashAgreesWithResolverTest::RunTest(const FString&)
 
 	// Il piano del bot deve essere ESEGUIBILE: e' la definizione operativa di "i due strati concordano".
 	TArray<ARTUnit*> Units;
-	FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units);
+	FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 	const int32 BotIdx = Units.IndexOfByKey(Bot);
 	if (!TestTrue(TEXT("il bot e' nello snapshot"), BotIdx != INDEX_NONE))
 	{

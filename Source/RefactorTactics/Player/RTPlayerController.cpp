@@ -74,8 +74,17 @@ namespace
 		{
 			return false;
 		}
+		// 🔴 **La fotografia della PIANIFICAZIONE si chiede dalla posizione di chi pianifica** ([D-371]).
+		//
+		// Fino al 2026-09-21 qui si chiedeva quella onnisciente, e l'anteprima ne ereditava l'occupazione:
+		// il ventaglio perdeva **esattamente** le celle dei nemici ignoti — 61 celle, 60 con un nascosto,
+		// 59 con due — e il costo del percorso passava da 4 a 5 deviando attorno a un corpo che il
+		// giocatore non poteva vedere. Non «un'anteprima imprecisa»: una lettura di POSIZIONE.
+		//
+		// ⚠️ **Il client continua a NON costruirsi uno stato parallelo** (invariante #5): lo snapshot resta
+		// chiesto all'autorita', che ora lo compone per l'osservatore invece di consegnarlo intero.
 		TArray<ARTUnit*> Units;
-		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units);
+		OutSnapshot = TurnManager->MakeCurrentSnapshot(Units, Unit->TeamId);
 		// L'UnitId e' l'INDICE nell'array delle unita' vive: va ricalcolato a ogni interazione, non memorizzato.
 		OutUnitId = Units.IndexOfByKey(const_cast<ARTUnit*>(Unit));
 

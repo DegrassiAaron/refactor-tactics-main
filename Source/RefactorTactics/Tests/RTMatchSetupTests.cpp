@@ -180,7 +180,7 @@ bool FRTTestArenaFeaturesTest::RunTest(const FString&)
 
 	// Il terreno costoso morde davvero: raggiungere una cella oltre la fascia costa piu' del suo numero di passi.
 	{
-		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Arena,
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Arena,
 			{ FRTHexSimUnit(0, FRTCellId(-4, 0, 0), /*MoveBudget=*/ 4) });
 		const TArray<FRTHexReachableCell> Reach = URTHexSimLibrary::ReachableCells(Snapshot, 0);
 		const FRTHexReachableCell* Beyond = Reach.FindByPredicate(

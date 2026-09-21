@@ -80,7 +80,7 @@ static void RTDebugDumpSnapshotCommand(const TArray<FString>& Args, UWorld* Worl
 	if (!TM) { return; }
 
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units);
+	const FRTHexSnapshot Snapshot = TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 	LogAll(Ar, URTDebugReportLibrary::DescribeSnapshot(Snapshot));
 }
 
@@ -190,7 +190,7 @@ static void RTDebugDrawCoverCommand(const TArray<FString>& Args, UWorld* World, 
 	ARTTurnManager* TM = Cast<ARTTurnManager>(
 		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
 	TArray<ARTUnit*> Units;
-	const FRTHexSnapshot Snapshot = TM ? TM->MakeCurrentSnapshot(Units) : FRTHexSnapshot();
+	const FRTHexSnapshot Snapshot = TM ? TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient) : FRTHexSnapshot();
 
 	int32 Shown = 0;
 	for (const FRTHexCellData& Cell : Map->Cells)
@@ -389,7 +389,7 @@ static void RTDebugRefusalCommand(const TArray<FString>& Args, UWorld* World, FO
 	if (!TM) { return; }
 
 	TArray<ARTUnit*> Units;
-	TM->MakeCurrentSnapshot(Units);
+	TM->MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// L'osservatore e' la squadra di chi gioca. ⛔ Non un argomento: un comando che accettasse un team
 	// qualunque leggerebbe la conoscenza dell'avversario, che e' il canale che [D-225] chiude.

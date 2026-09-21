@@ -941,7 +941,7 @@ bool FRTHexBotCandidateShapeTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 1));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	FRTHexBotContext Ctx = MakeAreaCtx(FRTCellId(0, 0), FRTCellId(1, 0), /*damage*/ 18);
 	Ctx.AttackRange = 3;
@@ -1055,7 +1055,7 @@ bool FRTHexBotKillingShotTest::RunTest(const FString&)
 	// Bot a (0,0) con budget 2 e gittata 2; nemico a (4,0) con 10 HP: da (2,0) e' colpibile e muore.
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), FRTCellId(4, 0), /*range*/ 1, /*hp*/ 10);
 	Ctx.AttackRange = 2;
@@ -1083,7 +1083,7 @@ bool FRTHexBotBudgetTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 1));
 	Units.Add(FRTHexSimUnit(2, FRTCellId(1, 0), /*budget*/ 0)); // alleato fermo davanti
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), FRTCellId(4, 0), /*range*/ 1, /*hp*/ 100);
 	Ctx.KiteStandoff = 0; // mischia: vuole avvicinarsi il piu' possibile
@@ -1112,7 +1112,7 @@ bool FRTHexBotSeeksCoverTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	FRTHexBotContext Ctx = MakeCtx(FRTCellId(0, 0), FRTCellId(3, -1), /*range*/ 6, /*hp*/ 100);
 	Ctx.AttackRange = 0;      // non puo' rispondere: conta solo il posizionamento
@@ -1146,7 +1146,7 @@ bool FRTHexBotKiteCellTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	const FRTCellId Threat(2, 0);
 	const FRTCellId Flee = URTHexBotLibrary::BestKiteCell(Snap, /*UnitId*/ 1, Threat);
@@ -1169,7 +1169,7 @@ bool FRTHexBotKiteCellLegalTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 3));
 	Units.Add(FRTHexSimUnit(2, FRTCellId(-1, 0), /*budget*/ 0)); // alleato fermo sulla via di fuga
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	const FRTCellId Flee = URTHexBotLibrary::BestKiteCell(Snap, /*UnitId*/ 1, FRTCellId(1, 0));
 
@@ -1179,7 +1179,7 @@ bool FRTHexBotKiteCellLegalTest::RunTest(const FString&)
 	// Unita' immobile: non c'e' fuga possibile, resta dov'e' (nessuna mossa illegale, nessun crash).
 	TArray<FRTHexSimUnit> Stuck;
 	Stuck.Add(FRTHexSimUnit(1, FRTCellId(0, 0), /*budget*/ 0));
-	const FRTHexSnapshot StuckSnap = URTHexSimLibrary::MakeSnapshot(M, Stuck);
+	const FRTHexSnapshot StuckSnap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Stuck);
 	TestTrue(TEXT("senza budget resta dov'e'"),
 		URTHexBotLibrary::BestKiteCell(StuckSnap, 1, FRTCellId(1, 0)) == FRTCellId(0, 0));
 	return true;
@@ -1413,7 +1413,7 @@ bool FRTHexBotPlaneMirrorTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Units;
 	// Budget 0: fermo. Isola il targeting dal movimento, cosi' l'unica variabile e' il piano del bersaglio.
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0, 0), /*budget*/ 0));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	auto ContaAttacchi = [](const TArray<FRTHexBotPlan>& Plans)
 	{

@@ -108,7 +108,7 @@ void ARTTurnManager::BeginMovementResolution()
 	GetHexContext(Ctx.Origin, Ctx.HexSize, Ctx.LayerHeight);
 
 	TArray<ARTUnit*> Units;
-	Ctx.Snapshot = MakeCurrentSnapshot(Units);
+	Ctx.Snapshot = MakeCurrentSnapshot(Units, RTObserver::Omniscient);
 
 	// Come nel Dash: la fase autoritativa dice cio' che lo snapshot ha registrato (#1970). Una condizione
 	// gia' segnalata in questo turno non si ripete — la deduplica sta in `ReportSnapshotOverlaps`.

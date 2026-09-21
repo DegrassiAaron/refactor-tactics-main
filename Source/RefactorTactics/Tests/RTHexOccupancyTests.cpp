@@ -475,7 +475,7 @@ bool FRTOccupancyReachableTest::RunTest(const FString&)
 
 	auto ReachesNarrow = [&](const URTHexMapAsset* Map)
 	{
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, Units);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 		for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snap, 1))
 		{
 			if (R.Cell == Narrow) { return true; }
@@ -490,7 +490,7 @@ bool FRTOccupancyReachableTest::RunTest(const FString&)
 
 	// Il gemello di controllo: la cella PRIMA resta raggiungibile, cioe' non si e' rotto il movimento in
 	// generale — si e' pagato di piu' solo dove la geometria stringe.
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 	bool bReachesMidpoint = false;
 	for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snap, 1))
 	{

@@ -2254,6 +2254,11 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		ARTUnit* Ferma = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), PartenzaFerma);
 		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		// ⚠️ **La conoscenza va CALCOLATA, o il pianificatore e' cieco** ([D-371]): senza, l'occupazione
+		// filtrata per osservatore non vede nessun avversario, e il diniego che questo banco misura non
+		// avviene. In partita lo fa `ARTGameMode::SetupHexMatch`; qui il `TurnManager` nasce a mano.
+		TM->RefreshTeamKnowledgeNow();
 		if (!TM || !PC || !Negata || !Occupante || !Ferma)
 		{
 			DestroyHexMoveWorld(World);

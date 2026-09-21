@@ -232,7 +232,7 @@ bool FRTHexPlanningPreviewPerfTest::RunTest(const FString&)
 		const double Start = FPlatformTime::Seconds();
 
 		// La catena di `RefreshPlanningPreview`, nello stesso ordine.
-		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, Units);
+		const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 		const TArray<FRTHexReachableCell> Reachable = URTHexSimLibrary::ReachableCells(Snapshot, /*UnitId=*/ 1);
 		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(
 			ERTAbilityShape::Area, FRTCellId(-5, 2), FRTCellId(5, -2), /*RangeCells=*/ 12, /*AreaRadius=*/ 2);

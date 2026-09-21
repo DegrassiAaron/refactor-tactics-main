@@ -101,7 +101,7 @@ bool FRTBotPlanningDecidesWithoutWorldTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 3));
 	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(3, 0, 0), /*budget*/ 3));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 	TArray<FRTBotUnitFacts> Facts;
 	Facts.Add(MakeFacts(0, /*Team*/ 0, FRTCellId(0, 0, 0), /*bBot*/ true));
@@ -147,7 +147,7 @@ bool FRTBotPlanningAuditIsOptInTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 3));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 	TArray<FRTBotUnitFacts> Facts;
 	Facts.Add(MakeFacts(0, /*Team*/ 0, FRTCellId(0, 0, 0), /*bBot*/ true));
@@ -196,7 +196,7 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> SimUnits;
 	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 2));
 	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 	TArray<FRTBotUnitFacts> Facts;
 	Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));   // il bot NON e' di squadra 0
@@ -300,7 +300,7 @@ bool FRTBotPlanningCarriesPlannedBypassTest::RunTest(const FString&)
 		TArray<FRTHexSimUnit> SimUnits;
 		SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 0));
 		SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 0));
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, SimUnits);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
 
 		TArray<FRTBotUnitFacts> Facts;
 		Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));

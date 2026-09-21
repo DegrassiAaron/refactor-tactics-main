@@ -189,6 +189,13 @@ namespace
 	{
 		FRTHexSimUnit U(UnitId, Cell, MoveBudget);
 		U.TeamId = TeamId;
+
+		// ⚠️ **Dichiarato, e non lasciato coincidere per caso.** In partita `UnitId` e' l'INDICE in
+		// `Snapshot.Units` e `StableUnitId` e' l'unita': `ARTTurnManager::MakeCurrentSnapshot` avverte che
+		// *«le due numerazioni sono diverse»*. Qui coincidono perche' il banco costruisce le unita' a mano,
+		// ed e' esattamente la condizione in cui un filtro che usasse il numero sbagliato resterebbe VERDE.
+		// Scriverlo tiene la premessa visibile invece che fortunata.
+		U.StableUnitId = UnitId;
 		return U;
 	}
 
@@ -200,11 +207,10 @@ namespace
 		if (HiddenCount >= 1) { Units.Add(UnitOn(HiddenIdA, HiddenCellA, /*MoveBudget*/ 0, HiddenTeam)); }
 		if (HiddenCount >= 2) { Units.Add(UnitOn(HiddenIdB, HiddenCellB, /*MoveBudget*/ 0, HiddenTeam)); }
 
-		FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, Units);
-		// La conoscenza entra nello snapshot come la mette il TurnManager in partita. `MakeSnapshot` non la
-		// costruisce: e' esattamente il punto: la porta esiste, e chi calcola il ventaglio non la apre.
-		Snapshot.TeamKnowledge.Add(ObserverKnowledge(Map));
-		return Snapshot;
+		// ⌫ **Fino al 2026-09-21 questa riga chiedeva la fotografia ONNISCIENTE e le attaccava la conoscenza
+		// dopo** — *«la porta esiste, e chi calcola il ventaglio non la apre»*. Da [D-371] la porta si apre:
+		// conoscenza e osservatore sono INGRESSI della costruzione, e l'occupazione nasce gia' filtrata.
+		return URTHexSimLibrary::MakeSnapshot(Map, Units, { ObserverKnowledge(Map) }, ObserverTeam);
 	}
 
 	TSet<FRTCellId> FanCells(const FRTHexSnapshot& Snapshot)
@@ -294,10 +300,10 @@ namespace
  * conoscenza, ed e' il segnale che l'asserzione va convertita nel canary `PlanningView(A) == PlanningView(B)`
  * invece di essere cancellata.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsReachableFanLeaksTest,
-	"RefactorTactics.BlindActions.ReachableFanLeaksHiddenOccupancy",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsReachableFanAgreesTest,
+	"RefactorTactics.BlindActions.ThreeWorldsAgreeOnTheReachableFan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBlindActionsReachableFanLeaksTest::RunTest(const FString&)
+bool FRTBlindActionsReachableFanAgreesTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
 	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
@@ -330,11 +336,13 @@ bool FRTBlindActionsReachableFanLeaksTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("mondo C — due nascosti:     %d celle, perse rispetto ad A: %s"),
 		FanC.Num(), *DescribeCells(LostC)));
 
-	// La misura, asserita come COMPORTAMENTO CORRENTE. Vedi l'avvertenza in testa al file.
-	TestTrue(TEXT("oggi il ventaglio CAMBIA per un'occupazione che l'osservatore non conosce (B != A)"),
-		LostB.Num() > 0);
-	TestTrue(TEXT("oggi il ventaglio perde ancora piu' celle con due nascosti (C perde piu' di B)"),
-		LostC.Num() > LostB.Num());
+	// ⌫ **Fino al 2026-09-21 queste due righe asserivano `LostB.Num() > 0` e `LostC.Num() > LostB.Num()`**,
+	// cioe' il difetto come comportamento corrente. [D-371] lo ha chiuso e il verso si ribalta.
+	TestEqual(TEXT("il ventaglio NON cambia per un'occupazione che l'osservatore non conosce (B == A)"),
+		LostB.Num(), 0);
+	TestEqual(TEXT("ne' con due nascosti (C == A)"), LostC.Num(), 0);
+	TestEqual(TEXT("e i tre ventagli hanno la stessa cardinalita'"), FanB.Num(), FanA.Num());
+	TestEqual(TEXT("anche il terzo"), FanC.Num(), FanA.Num());
 
 	// ➕ **Il ventaglio non e' un insieme di celle: e' un insieme di `FRTHexReachableCell`** — rilievo di
 	// code review del 2026-09-21. Le celle che SOPRAVVIVONO in `B` possono comunque portare un costo e un
@@ -362,17 +370,20 @@ bool FRTBlindActionsReachableFanLeaksTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("celle presenti in A e in B col COSTO cambiato:        %s"), *DescribeCells(CostChanged)));
 	AddInfo(FString::Printf(TEXT("celle presenti in A e in B col PREDECESSORE cambiato: %s"), *DescribeCells(PredecessorChanged)));
 
-	// Il controllo: senza celle in comune il confronto sopra non avrebbe popolazione.
-	if (!TestTrue(TEXT("premessa: A e B condividono delle celle — il confronto per costo ha popolazione"),
-		FullA.Num() > LostB.Num()))
+	// 🔴 **La premessa di NON VACUITA', e ora conta piu' di prima.** Quando le assertion dicono «non
+	// cambia», un confronto senza popolazione passerebbe da solo: `FullA` vuota darebbe zero differenze e
+	// zero celle perse, e il banco direbbe «canale chiuso» senza aver guardato niente. Si pretende quindi
+	// che il ventaglio esista **e** che contenga le celle dei nascosti — gia' asserito sopra — e che il
+	// confronto per costo abbia una popolazione dichiarata.
+	if (!TestTrue(TEXT("premessa: il confronto per costo ha popolazione"), FullA.Num() > 0))
 	{
 		return false;
 	}
 
-	TestTrue(TEXT("oggi anche il COSTO di celle che restano nel ventaglio cambia per un'occupazione ignota"),
-		CostChanged.Num() > 0);
-	TestTrue(TEXT("oggi cambia anche il PREDECESSORE, da cui deriva il facing: il canale non e' solo l'insieme"),
-		PredecessorChanged.Num() > 0);
+	TestEqual(TEXT("nessuna cella del ventaglio cambia COSTO per un'occupazione ignota"),
+		CostChanged.Num(), 0);
+	TestEqual(TEXT("ne' cambia PREDECESSORE, da cui deriva il facing: il canale e' chiuso, non solo l'insieme"),
+		PredecessorChanged.Num(), 0);
 
 	return true;
 }
@@ -388,10 +399,10 @@ bool FRTBlindActionsReachableFanLeaksTest::RunTest(const FString&)
  * intorno** a un ostacolo che il giocatore non ha nessun diritto di conoscere — che e' l'argomento con cui
  * [D-249] aveva vietato il movimento verso l'ignoto.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsPathLeaksTest,
-	"RefactorTactics.BlindActions.PlannedPathLeaksHiddenOccupancy",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsPathAgreesTest,
+	"RefactorTactics.BlindActions.ThreeWorldsAgreeOnThePlannedPath",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
+bool FRTBlindActionsPathAgreesTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
 	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
@@ -426,16 +437,22 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 		return false;
 	}
 
-	// La misura, asserita come COMPORTAMENTO CORRENTE.
-	TestTrue(TEXT("oggi il percorso EVITA una cella che l'osservatore non sa occupata"),
-		PathB.Status != ERTHexPathStatus::Success || !PathB.Path.Contains(HiddenCellA));
-	TestTrue(TEXT("oggi il tracciato mostrato al giocatore CAMBIA forma per un'occupazione ignota"),
-		PathA.Path != PathB.Path);
+	// ⌫ **Fino al 2026-09-21 queste tre righe asserivano il difetto**: che il percorso EVITASSE la cella del
+	// nascosto, che il tracciato cambiasse forma e che il costo salisse da 4 a 5. [D-371] le ribalta.
+	//
+	// 🔑 **La prima e' la piu' importante, e va letta al contrario di come sembra**: il percorso ora
+	// ATTRAVERSA la cella del nascosto. Non e' una svista — e' il punto. L'anteprima mostra il mondo che
+	// l'osservatore conosce, e in quel mondo la cella e' libera. Che il resolver poi lo fermi li' e' un
+	// esito legittimo di informazione parziale, ed e' l'esplorazione che [D-249] aveva dichiarato di perdere.
+	TestTrue(TEXT("il percorso ATTRAVERSA la cella del nascosto: l'anteprima non conosce quell'occupazione"),
+		PathB.Status == ERTHexPathStatus::Success && PathB.Path.Contains(HiddenCellA));
+	TestEqual(TEXT("il tracciato mostrato al giocatore NON cambia forma per un'occupazione ignota"),
+		PathB.Path, PathA.Path);
 
 	// 🔴 Il canale piu' stretto dei tre, e quello che la lettura del sorgente non aveva anticipato: non serve
-	// guardare il disegno, basta la cifra. Un costo che sale su una direttrice libera dichiara un'ostruzione.
-	TestTrue(TEXT("oggi anche il COSTO mostrato cambia per un'occupazione che l'osservatore non conosce"),
-		PathA.TotalCost != PathB.TotalCost);
+	// guardare il disegno, basta la cifra. Un costo che salisse su una direttrice libera dichiarerebbe
+	// un'ostruzione — ed e' precisamente cio' che ora non accade.
+	TestEqual(TEXT("e nemmeno il COSTO mostrato"), PathB.TotalCost, PathA.TotalCost);
 
 	// ➕ **Il terzo mondo, che la DoD di `#2793` chiede e questo test non aveva** (2026-09-21).
 	//
@@ -451,11 +468,11 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 	AddInfo(FString::Printf(TEXT("B e C mostrano lo stesso tracciato: %s — il secondo nascosto e' fuori direttrice"),
 		PathB.Path == PathC.Path ? TEXT("si'") : TEXT("no")));
 
-	// La misura, asserita come COMPORTAMENTO CORRENTE, sul terzo mondo.
-	TestTrue(TEXT("oggi il tracciato di C differisce da A: l'uguaglianza a tre mondi della DoD non tiene"),
-		PathA.Path != PathC.Path);
-	TestTrue(TEXT("oggi anche il COSTO di C differisce da quello di A"),
-		PathA.TotalCost != PathC.TotalCost);
+	// ⌫ Sul terzo mondo, con lo stesso ribaltamento: la DoD di `#2793` chiede `PlanningView(A) ==
+	// PlanningView(C)`, e ora tiene.
+	TestEqual(TEXT("il tracciato di C coincide con A: l'uguaglianza a tre mondi della DoD tiene"),
+		PathC.Path, PathA.Path);
+	TestEqual(TEXT("e il COSTO di C con quello di A"), PathC.TotalCost, PathA.TotalCost);
 
 	return true;
 }
@@ -607,7 +624,7 @@ namespace
 	{
 		TArray<FRTHexSimUnit> Units;
 		Units.Add(UnitOn(PlannerId, PlannerCell, PlannerBudget, ObserverTeam));
-		FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, Units);
+		FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 		Snapshot.TeamKnowledge.Add(K);
 		return Snapshot;
 	}
@@ -1076,10 +1093,10 @@ bool FRTBlindActionsAoEFootprintIsCleanTest::RunTest(const FString&)
  * `ERTHexWaypointReason` e `ERTHexProbeExclusion` si'; `ERTTargetRefusal` e `ERTMoveOutcome` no, con la
  * ragione scritta accanto a ciascuno.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsRefusalSymbolLeaksTest,
-	"RefactorTactics.BlindActions.ThreeWorldsDisagreeOnTheRefusalSymbol",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsRefusalSymbolAgreesTest,
+	"RefactorTactics.BlindActions.ThreeWorldsAgreeOnTheRefusalSymbol",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTBlindActionsRefusalSymbolLeaksTest::RunTest(const FString&)
+bool FRTBlindActionsRefusalSymbolAgreesTest::RunTest(const FString&)
 {
 	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
 	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
@@ -1133,15 +1150,18 @@ bool FRTBlindActionsRefusalSymbolLeaksTest::RunTest(const FString&)
 		return false;
 	}
 
-	// LA MISURA, asserita come COMPORTAMENTO CORRENTE, e nominata per SIMBOLO.
-	TestTrue(TEXT("oggi ERTHexWaypointReason risponde Occupied su una cella che l'osservatore non sa occupata (B)"),
-		WpB == ERTHexWaypointReason::Occupied);
-	TestTrue(TEXT("oggi ERTHexWaypointReason risponde Occupied anche nel mondo a due nascosti (C)"),
-		WpC == ERTHexWaypointReason::Occupied);
-	TestTrue(TEXT("oggi ERTHexProbeExclusion risponde Occupied dove l'osservatore non sa esserci nessuno (B)"),
-		PrB == ERTHexProbeExclusion::Occupied);
-	TestTrue(TEXT("oggi ERTHexProbeExclusion risponde Occupied anche nel mondo a due nascosti (C)"),
-		PrC == ERTHexProbeExclusion::Occupied);
+	// ⌫ **Fino al 2026-09-21 queste quattro righe asserivano `Occupied`**, cioe' il simbolo che rivelava la
+	// posizione. [D-371] le ribalta: i due enum rispondono nei tre mondi come rispondono nel mondo A.
+	//
+	// 🔑 **I due enum che entrano nel confronto restano nominati per SIMBOLO**, come la DoD chiede, e
+	// restano gli stessi due: `ERTHexWaypointReason` e `ERTHexProbeExclusion`. Cio' che cambia non e' il
+	// perimetro della misura, e' il suo esito.
+	TestEqual(TEXT("ERTHexWaypointReason risponde come in A su una cella che l'osservatore non sa occupata (B)"),
+		(int64)WpB, (int64)WpA);
+	TestEqual(TEXT("e come in A anche nel mondo a due nascosti (C)"), (int64)WpC, (int64)WpA);
+	TestEqual(TEXT("ERTHexProbeExclusion risponde come in A dove l'osservatore non sa esserci nessuno (B)"),
+		(int64)PrB, (int64)PrA);
+	TestEqual(TEXT("e come in A anche nel mondo a due nascosti (C)"), (int64)PrC, (int64)PrA);
 
 	// E il secondo nascosto porta lo stesso simbolo sulla propria cella: il canale non e' un caso isolato
 	// della prima, ed e' cio' che distingue `C` da una ripetizione di `B`.
@@ -1151,8 +1171,8 @@ bool FRTBlindActionsRefusalSymbolLeaksTest::RunTest(const FString&)
 		HiddenCellB.X, HiddenCellB.Y, HiddenCellB.Layer,
 		*Sym(WaypointEnum, (int64)WpA2), *Sym(WaypointEnum, (int64)WpC2)));
 	TestTrue(TEXT("premessa: nel mondo A anche la seconda cella e' Ok"), WpA2 == ERTHexWaypointReason::Ok);
-	TestTrue(TEXT("oggi il simbolo cambia anche sulla cella del SECONDO nascosto, solo nel mondo C"),
-		WpC2 == ERTHexWaypointReason::Occupied);
+	TestEqual(TEXT("e il simbolo NON cambia nemmeno sulla cella del SECONDO nascosto, nel mondo C"),
+		(int64)WpC2, (int64)WpA2);
 
 	return true;
 }

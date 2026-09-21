@@ -4,6 +4,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Pathfinding/RTHexPathLibrary.h"
+#include "Perception/RTTeamKnowledge.h" // ClassifyTarget: la SEDE UNICA del predicato di conoscenza ([D-223])
 #include "Terrain/RTTerrainLibrary.h"
 
 namespace
@@ -82,10 +83,33 @@ namespace
 	}
 }
 
-FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units)
+FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const TArray<FRTHexSimUnit>& Units,
+	const TArray<FRTTeamKnowledge>& TeamKnowledge, int32 ObserverTeamId)
 {
 	FRTHexSnapshot Snapshot;
 	Snapshot.Map = Map;
+	Snapshot.TeamKnowledge = TeamKnowledge;
+	Snapshot.ObserverTeamId = ObserverTeamId;
+
+	// La conoscenza con cui filtrare, cercata UNA volta prima del ciclo.
+	//
+	// ⚠️ **Un osservatore nominato che non ha una voce di conoscenza vale «non sa niente», e il verso e'
+	// scelto.** L'alternativa — nessuna voce quindi nessun filtro — sarebbe un **fail-open**: la stessa
+	// forma di difetto che `#1499` ha chiuso sul default di `AddLogEvent`, dove l'assenza di una
+	// dichiarazione lasciava passare tutto. Qui l'assenza di conoscenza significa letteralmente conoscenza
+	// vuota, che e' anche cio' che `FRTTeamKnowledge` costruita per default dice di se'.
+	const bool bOsservatoreOnnisciente = (ObserverTeamId == RTObserver::Omniscient);
+	static const FRTTeamKnowledge ConoscenzaVuota;
+	const FRTTeamKnowledge* ConoscenzaOsservatore = &ConoscenzaVuota;
+	if (!bOsservatoreOnnisciente)
+	{
+		if (const FRTTeamKnowledge* Trovata = TeamKnowledge.FindByPredicate(
+			[ObserverTeamId](const FRTTeamKnowledge& K) { return K.TeamId == ObserverTeamId; }))
+		{
+			ConoscenzaOsservatore = Trovata;
+		}
+	}
+
 	if (Map)
 	{
 		Snapshot.MapHash = Map->ComputeHash();
@@ -118,6 +142,28 @@ FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const T
 		if (!Unit.bAlive)
 		{
 			continue; // un cadavere non occupa, e non e' una sovrapposizione: `ApplyCombatState` lo dichiara
+		}
+
+		// 🔴 **IL FILTRO DI [D-371]: un corpo che l'osservatore non conosce non occupa la SUA cella.**
+		//
+		// Qui, e non dentro `BlockedCellsFor`, perche' `ARTTurnManager::ResolveMovement` chiama
+		// `FindPathForUnit` nella **Resolution**: un filtro cieco la' renderebbe cieco il resolver. La
+		// Resolution costruisce la propria fotografia con `RTObserver::Omniscient` e questo ramo non scatta.
+		//
+		// ⚠️ **E' «non costruire la vista», non «costruirla e nasconderla»** (`#1805`): la cella del
+		// nascosto non entra MAI in `Occupancy`, quindi nessuno dei tre siti che la leggono
+		// — `BlockedCellsFor`, il filtro di risultato di `ReachableCells`, `ClassifyWaypointCell` —
+		// puo' riderivarla. Filtrare a valle sarebbe l'uscita *(c)* che `BLIND-2` esclude per nome.
+		//
+		// 🔑 **Solo `Allowed` occupa, e `CellOnly` NO.** Un ricordo dice dove il nemico **era**, non dove
+		// **e'**: far occupare la sua cella attuale rivelerebbe esattamente la posizione che l'osservatore
+		// non ha. ⛔ Se la cella **ricordata** debba fare da ostacolo e' un'altra domanda, e non la decide
+		// [D-371]: e' la famiglia `BLIND-4` / `BLIND-5`, aperte.
+		if (!bOsservatoreOnnisciente && Unit.TeamId != Snapshot.ObserverTeamId
+			&& URTTeamKnowledgeLibrary::ClassifyTarget(
+				*ConoscenzaOsservatore, Unit.StableUnitId, Unit.TeamId, Unit.Cell) != ERTTargetKnowledge::Allowed)
+		{
+			continue;
 		}
 
 		if (const int32* Occupante = Snapshot.Occupancy.Find(Unit.Cell))
@@ -396,10 +442,15 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCellsAfterPlan(const FRTH
 	}
 
 	// Ricostruita con `MakeSnapshot` e non a mano: l'occupazione va ricalcolata coerentemente con la nuova
-	// posizione, ed e' lei la funzione che sa come. `TeamKnowledge` non viene ricostruita, quindi si travasa —
-	// perderla in silenzio renderebbe questa fotografia diversa dall'originale in un modo che nessuno vede.
-	FRTHexSnapshot Derived = MakeSnapshot(Snapshot.Map, Planned);
-	Derived.TeamKnowledge = Snapshot.TeamKnowledge;
+	// posizione, ed e' lei la funzione che sa come.
+	//
+	// 🔴 **E la fotografia derivata EREDITA l'osservatore, non nasce onnisciente** ([D-371]). Perderlo qui
+	// sarebbe il difetto piu' difficile da vedere di tutta questa voce: il ventaglio del primo clic
+	// risulterebbe filtrato e quello dopo un waypoint no, cioe' l'anteprima rivelerebbe la posizione
+	// nascosta **solo a chi pianifica in due tempi**. `TeamKnowledge` viaggia con lui, perche' senza non
+	// c'e' niente con cui filtrare.
+	const FRTHexSnapshot Derived = MakeSnapshot(Snapshot.Map, Planned,
+		Snapshot.TeamKnowledge, Snapshot.ObserverTeamId);
 
 	// ⚠️ `Derived` muore qui dentro, ed e' deliberato: dice che l'unita' e' su una cella dove non e' ancora
 	// arrivata. Per il fan e' l'ipotesi giusta; per chiunque altro sarebbe una bugia.

@@ -70,7 +70,7 @@ bool FRTHexSimSnapshotOccupancyTest::RunTest(const FString&)
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
 	Units.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 2, /*bAlive*/ false)); // eliminata: non occupa
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TestEqual(TEXT("hash catturato"), Snap.MapHash, M->ComputeHash());
 	TestEqual(TEXT("revisione catturata"), Snap.Revision, M->Revision);
@@ -104,8 +104,8 @@ bool FRTHexSimSnapshotOrderTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> B;
 	B.Add(A[2]); B.Add(A[0]); B.Add(A[1]); // stessa popolazione, ordine diverso
 
-	const FRTHexSnapshot SA = URTHexSimLibrary::MakeSnapshot(M, A);
-	const FRTHexSnapshot SB = URTHexSimLibrary::MakeSnapshot(M, B);
+	const FRTHexSnapshot SA = URTHexSimLibrary::MakeSnapshotOmniscient(M, A);
+	const FRTHexSnapshot SB = URTHexSimLibrary::MakeSnapshotOmniscient(M, B);
 
 	TestEqual(TEXT("stesso numero di unita'"), SA.Units.Num(), SB.Units.Num());
 	bool bSameOrder = SA.Units.Num() == SB.Units.Num();
@@ -129,7 +129,7 @@ bool FRTHexSimSnapshotStaleTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TestFalse(TEXT("snapshot fresco"), URTHexSimLibrary::IsSnapshotStale(Snap));
 
@@ -157,33 +157,33 @@ bool FRTHexSimValidateTest::RunTest(const FString&)
 		Ok.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
 		Ok.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 2));
 		TestEqual(TEXT("snapshot valido: nessun errore"),
-			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshot(M, Ok)).Num(), 0);
+			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshotOmniscient(M, Ok)).Num(), 0);
 	}
 	{
 		TArray<FRTHexSimUnit> SameCell;
 		SameCell.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
 		SameCell.Add(FRTHexSimUnit(2, FRTCellId(0, 0), 2));
 		TestTrue(TEXT("due unita' vive sulla stessa cella"),
-			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshot(M, SameCell)).Num() > 0);
+			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshotOmniscient(M, SameCell)).Num() > 0);
 	}
 	{
 		TArray<FRTHexSimUnit> OffMap;
 		OffMap.Add(FRTHexSimUnit(1, FRTCellId(9, 9), 2));
 		TestTrue(TEXT("unita' su cella assente dalla mappa"),
-			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshot(M, OffMap)).Num() > 0);
+			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshotOmniscient(M, OffMap)).Num() > 0);
 	}
 	{
 		TArray<FRTHexSimUnit> DupId;
 		DupId.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
 		DupId.Add(FRTHexSimUnit(1, FRTCellId(1, 0), 2));
 		TestTrue(TEXT("UnitId duplicato"),
-			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshot(M, DupId)).Num() > 0);
+			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshotOmniscient(M, DupId)).Num() > 0);
 	}
 	{
 		TArray<FRTHexSimUnit> NegBudget;
 		NegBudget.Add(FRTHexSimUnit(1, FRTCellId(0, 0), -1));
 		TestTrue(TEXT("budget negativo"),
-			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshot(M, NegBudget)).Num() > 0);
+			URTHexSimLibrary::ValidateSnapshot(URTHexSimLibrary::MakeSnapshotOmniscient(M, NegBudget)).Num() > 0);
 	}
 	return true;
 }
@@ -217,7 +217,7 @@ bool FRTHexSnapshotRecordsOverlapsTest::RunTest(const FString&)
 		TArray<FRTHexSimUnit> Due;
 		Due.Add(FRTHexSimUnit(1, Contesa, 2));
 		Due.Add(FRTHexSimUnit(2, Contesa, 2));
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Due);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Due);
 
 		if (!TestEqual(TEXT("una sovrapposizione registrata"), Snap.Overlaps.Num(), 1)) { return false; }
 		TestEqual(TEXT("sulla cella contesa"), Snap.Overlaps[0].Cell, Contesa);
@@ -236,7 +236,7 @@ bool FRTHexSnapshotRecordsOverlapsTest::RunTest(const FString&)
 		TArray<FRTHexSimUnit> VivaEMorta;
 		VivaEMorta.Add(FRTHexSimUnit(1, Contesa, 2));
 		VivaEMorta.Add(FRTHexSimUnit(2, Contesa, 2, /*bInAlive=*/ false));
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, VivaEMorta);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, VivaEMorta);
 
 		TestEqual(TEXT("nessun falso positivo su un'unita' morta"), Snap.Overlaps.Num(), 0);
 		TestEqual(TEXT("e la viva occupa"), Snap.Occupancy.FindRef(Contesa), 1);
@@ -248,7 +248,7 @@ bool FRTHexSnapshotRecordsOverlapsTest::RunTest(const FString&)
 		Tre.Add(FRTHexSimUnit(1, Contesa, 2));
 		Tre.Add(FRTHexSimUnit(2, Contesa, 2));
 		Tre.Add(FRTHexSimUnit(3, Contesa, 2));
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Tre);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Tre);
 
 		if (!TestEqual(TEXT("due sovrapposizioni"), Snap.Overlaps.Num(), 2)) { return false; }
 		for (const FRTHexOverlap& O : Snap.Overlaps)
@@ -262,7 +262,7 @@ bool FRTHexSnapshotRecordsOverlapsTest::RunTest(const FString&)
 		TArray<FRTHexSimUnit> Sano;
 		Sano.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
 		Sano.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 2));
-		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Sano);
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Sano);
 
 		TestEqual(TEXT("nessuna sovrapposizione su uno snapshot sano"), Snap.Overlaps.Num(), 0);
 		TestEqual(TEXT("ed entrambe occupano"), Snap.Occupancy.Num(), 2);
@@ -284,7 +284,7 @@ bool FRTHexSimReachableBudgetTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	const TArray<FRTHexReachableCell> R = URTHexSimLibrary::ReachableCells(Snap, 1);
 	TestEqual(TEXT("19 celle entro budget 2 (3*2*3+1)"), R.Num(), 19);
@@ -307,7 +307,7 @@ bool FRTHexSimReachableBudgetTest::RunTest(const FString&)
 	// Budget 0 -> solo la cella di partenza.
 	TArray<FRTHexSimUnit> Still;
 	Still.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 0));
-	const TArray<FRTHexReachableCell> R0 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Still), 1);
+	const TArray<FRTHexReachableCell> R0 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Still), 1);
 	TestEqual(TEXT("budget 0 -> solo la partenza"), R0.Num(), 1);
 	return true;
 }
@@ -330,13 +330,13 @@ bool FRTHexSimReachableCostTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const TArray<FRTHexReachableCell> R2 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Units), 1);
+	const TArray<FRTHexReachableCell> R2 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Units), 1);
 	TestFalse(TEXT("cella a costo 3 fuori dal budget 2"), HasCell(R2, FRTCellId(1, 0)));
 	TestFalse(TEXT("cella che blocca il movimento mai raggiungibile"), HasCell(R2, FRTCellId(0, 1)));
 
 	TArray<FRTHexSimUnit> Rich;
 	Rich.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 3));
-	const TArray<FRTHexReachableCell> R3 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Rich), 1);
+	const TArray<FRTHexReachableCell> R3 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Rich), 1);
 	TestTrue(TEXT("cella a costo 3 dentro il budget 3"), HasCell(R3, FRTCellId(1, 0)));
 	return true;
 }
@@ -352,14 +352,14 @@ bool FRTHexSimReachableOccupiedTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Blocked;
 	Blocked.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
 	Blocked.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 0));
-	const TArray<FRTHexReachableCell> RB = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Blocked), 1);
+	const TArray<FRTHexReachableCell> RB = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Blocked), 1);
 	TestFalse(TEXT("cella occupata non raggiungibile"), HasCell(RB, FRTCellId(1, 0)));
 	TestFalse(TEXT("cella dietro l'occupante fuori budget"), HasCell(RB, FRTCellId(2, 0)));
 
 	// Senza occupante entrambe rientrano nel budget.
 	TArray<FRTHexSimUnit> Free;
 	Free.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const TArray<FRTHexReachableCell> RF = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Free), 1);
+	const TArray<FRTHexReachableCell> RF = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Free), 1);
 	TestTrue(TEXT("senza occupante (1,0) raggiungibile"), HasCell(RF, FRTCellId(1, 0)));
 	TestTrue(TEXT("senza occupante (2,0) raggiungibile"), HasCell(RF, FRTCellId(2, 0)));
 	return true;
@@ -377,12 +377,12 @@ bool FRTHexSimReachableTransitionTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0, 0), 1));
-	const TArray<FRTHexReachableCell> R = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Units), 1);
+	const TArray<FRTHexReachableCell> R = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Units), 1);
 	TestTrue(TEXT("il layer 1 si raggiunge tramite l'arco"), HasCell(R, FRTCellId(0, 0, 1)));
 
 	TArray<FRTHexSimUnit> Still;
 	Still.Add(FRTHexSimUnit(1, FRTCellId(0, 0, 0), 0));
-	const TArray<FRTHexReachableCell> R0 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshot(M, Still), 1);
+	const TArray<FRTHexReachableCell> R0 = URTHexSimLibrary::ReachableCells(URTHexSimLibrary::MakeSnapshotOmniscient(M, Still), 1);
 	TestFalse(TEXT("senza budget l'arco non si percorre"), HasCell(R0, FRTCellId(0, 0, 1)));
 	return true;
 }
@@ -403,7 +403,7 @@ bool FRTHexSimReachableAfterPlanShrinksTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	// Nessun waypoint: identico a `ReachableCells`, e il numero e' pinnato (3n^2+3n+1 con n=2). «Identico a
 	// oggi» non falsifica nulla se «oggi» cambia; 19 si'.
@@ -449,7 +449,7 @@ bool FRTHexSimReachableAfterPlanUndoTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 3));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TArray<FRTCellId> One;
 	One.Add(FRTCellId(1, 0));
@@ -483,7 +483,7 @@ bool FRTHexSimReachableAfterPlanExhaustedTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	// Waypoint a distanza 2 con budget 2: residuo zero.
 	TArray<FRTCellId> Waypoints;
@@ -506,7 +506,7 @@ bool FRTHexSimReachableAfterPlanInvalidTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	// Waypoint a distanza 3 con budget 2: `BuildCompositeHexPath` rifiuta l'INTERO percorso. Non esiste una
 	// punta da cui ripartire, quindi il fan torna quello pieno — come il piano, che e' «resto fermo».
@@ -550,7 +550,7 @@ bool FRTHexSimReachableAfterPlanMatchesAcceptanceTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 3));
 	Units.Add(FRTHexSimUnit(2, FRTCellId(-1, 0), 0)); // un'altra unita': la sua cella non e' un waypoint valido
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TArray<FRTCellId> Waypoints;
 	Waypoints.Add(FRTCellId(1, 0));
@@ -587,7 +587,7 @@ bool FRTHexSimPathBudgetTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 2));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	const FRTHexPathResult Far = URTHexSimLibrary::FindPathForUnit(Snap, 1, FRTCellId(4, 0));
 	TestTrue(TEXT("goal oltre il budget -> nessun percorso"), Far.Status != ERTHexPathStatus::Success);
@@ -612,7 +612,7 @@ bool FRTHexSimPathAvoidTest::RunTest(const FString&)
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 6));
 	Units.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 0)); // ostacolo vivo sul percorso diretto
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	const FRTHexPathResult Around = URTHexSimLibrary::FindPathForUnit(Snap, 1, FRTCellId(2, 0));
 	TestTrue(TEXT("percorso trovato aggirando l'unita'"), Around.Status == ERTHexPathStatus::Success);
@@ -1073,7 +1073,7 @@ bool FRTHexCompositePathTest::RunTest(const FString&)
 	// Premessa del test: la scorciatoia esiste ed e' piu' corta. Se cade, il caso non discrimina piu'.
 	TestEqual(TEXT("premessa: distanza diretta 2"), URTHexLibrary::HexDistance(Start, Goal), 2);
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5) });
 	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { Via, Goal });
 
 	TestTrue(TEXT("percorso trovato"), R.Status == ERTHexPathStatus::Success);
@@ -1103,7 +1103,7 @@ bool FRTHexCompositeBudgetTest::RunTest(const FString&)
 	const FRTCellId Via(2, 0, 0);
 	const FRTCellId Goal(2, -2, 0);
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 3) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 3) });
 
 	// Premessa: ciascun tratto da solo entra in 3 (costa 2).
 	const FRTHexPathResult SingleLeg = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { Via });
@@ -1127,7 +1127,7 @@ bool FRTHexCompositeOutOfBudgetTest::RunTest(const FString&)
 	const FRTCellId Start(0, 0, 0);
 	const FRTCellId TooFar(3, 0, 0); // distanza 3, budget 2
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 2) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 2) });
 	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, { TooFar });
 
 	TestTrue(TEXT("fuori budget -> rifiutato"), R.Status != ERTHexPathStatus::Success);
@@ -1145,7 +1145,7 @@ bool FRTHexCompositeOccupiedTest::RunTest(const FString&)
 	const FRTCellId Start(0, 0, 0);
 	const FRTCellId Occupied(2, 0, 0);
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, {
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, {
 		FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5),
 		FRTHexSimUnit(8, Occupied, /*MoveBudget=*/ 0)
 	});
@@ -1154,7 +1154,7 @@ bool FRTHexCompositeOccupiedTest::RunTest(const FString&)
 	TestTrue(TEXT("cella occupata -> rifiutata"), R.Status != ERTHexPathStatus::Success);
 
 	// La stessa cella, libera, sarebbe raggiungibile: e' l'occupazione a rifiutarla, non la geometria.
-	const FRTHexSnapshot Free = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5) });
+	const FRTHexSnapshot Free = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 5) });
 	TestTrue(TEXT("controprova: libera e' raggiungibile"),
 		URTHexSimLibrary::BuildCompositeHexPath(Free, 7, { Occupied }).Status == ERTHexPathStatus::Success);
 	return true;
@@ -1169,7 +1169,7 @@ bool FRTHexCompositeEmptyTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeSimMap(2);
 	const FRTCellId Start(1, 0, 0);
 
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 4) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*MoveBudget=*/ 4) });
 	const FRTHexPathResult R = URTHexSimLibrary::BuildCompositeHexPath(Snap, 7, {});
 
 	TestTrue(TEXT("nessun waypoint -> Success"), R.Status == ERTHexPathStatus::Success);
@@ -1238,7 +1238,7 @@ bool FRTHexWaypointReasonTest::RunTest(const FString&)
 
 	const FRTCellId Mine(0, 0, 0);
 	const FRTCellId Other(2, 0, 0);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, {
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, {
 		FRTHexSimUnit(7, Mine,  /*MoveBudget=*/ 4),
 		FRTHexSimUnit(8, Other, /*MoveBudget=*/ 0)
 	});
@@ -1281,7 +1281,7 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 	Map->SortCells();
 
 	const FRTCellId Start(0, 0, 0);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 3) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 3) });
 
 	// Lo scatto ha UNA sola implementazione (issue #140): la stessa che esegue la fase Dash.
 	auto Dash = [Map](const FRTHexSnapshot& S, const FRTCellId& From, const FRTCellId& Goal, int32 MaxCells)
@@ -1330,7 +1330,7 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 
 	// 5. Cella occupata da un'altra unita': non ci si puo' fermare sopra.
 	{
-		const FRTHexSnapshot Two = URTHexSimLibrary::MakeSnapshot(Map, {
+		const FRTHexSnapshot Two = URTHexSimLibrary::MakeSnapshotOmniscient(Map, {
 			FRTHexSimUnit(7, Start, /*Budget=*/ 3),
 			FRTHexSimUnit(8, FRTCellId(0, 2, 0), /*Budget=*/ 0)
 		});
@@ -1344,7 +1344,7 @@ bool FRTHexLinearDashTest::RunTest(const FString&)
 		Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 1, 1)));
 		Map->AddTransition(FRTCellId(0, 1, 0), FRTCellId(0, 1, 1), /*Cost=*/ 1);
 		Map->SortCells();
-		const FRTHexSnapshot WithArc = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, 3) });
+		const FRTHexSnapshot WithArc = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, 3) });
 		TestTrue(TEXT("premessa: sul grafo la transizione porta al layer 1"),
 			URTHexSimLibrary::FindPathForUnit(WithArc, 7, FRTCellId(0, 1, 1)).Status == ERTHexPathStatus::Success);
 		TestTrue(TEXT("lo scatto non cambia layer"),
@@ -1376,7 +1376,7 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 	Map->SortCells();
 
 	const FRTCellId Start(0, 0, 0);
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 4) });
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 4) });
 
 	auto Reachable = [Map](const FRTHexSnapshot& S, const FRTCellId& From, const FRTCellId& Goal, int32 MaxCells)
 	{
@@ -1405,7 +1405,7 @@ bool FRTHexLinearFilterTest::RunTest(const FString&)
 	// piu' ampia, perche' il giro attorno al gruppo di ostacoli costa 5 passi mentre in linea ne basterebbero 2.
 	{
 		const FRTCellId Beyond(2, 0, 0);
-		const FRTHexSnapshot Wide = URTHexSimLibrary::MakeSnapshot(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 6) });
+		const FRTHexSnapshot Wide = URTHexSimLibrary::MakeSnapshotOmniscient(Map, { FRTHexSimUnit(7, Start, /*Budget=*/ 6) });
 		TestTrue(TEXT("premessa: (2,0) e' raggiungibile camminando (aggirando gli ostacoli)"),
 			URTHexSimLibrary::FindPathForUnit(Wide, 7, Beyond).Status == ERTHexPathStatus::Success);
 		TestFalse(TEXT("(2,0) NON e' raggiungibile scattando (ostacolo sulla linea)"),
@@ -1699,7 +1699,7 @@ bool FRTMovementBlockedPathNoRerouteTest::RunTest(const FString&)
 	// (1) In pianificazione la via diretta e' libera: A pianifica (0,0) -> (1,0) -> (2,0).
 	TArray<FRTHexSimUnit> AtPlanning;
 	AtPlanning.Add(FRTHexSimUnit(1, FRTCellId(0, 0), 6));
-	const FRTHexSnapshot Before = URTHexSimLibrary::MakeSnapshot(M, AtPlanning);
+	const FRTHexSnapshot Before = URTHexSimLibrary::MakeSnapshotOmniscient(M, AtPlanning);
 
 	const FRTHexPathResult Planned = URTHexSimLibrary::FindPathForUnit(Before, 1, FRTCellId(2, 0));
 	TestTrue(TEXT("(1) il piano esiste"), Planned.Status == ERTHexPathStatus::Success);
@@ -1709,7 +1709,7 @@ bool FRTMovementBlockedPathNoRerouteTest::RunTest(const FString&)
 	// (2) Dopo il lock, un'altra unita' occupa la cella intermedia. Il piano di A e' ora invalido a meta'.
 	TArray<FRTHexSimUnit> AtResolution = AtPlanning;
 	AtResolution.Add(FRTHexSimUnit(2, FRTCellId(1, 0), 0));
-	const FRTHexSnapshot After = URTHexSimLibrary::MakeSnapshot(M, AtResolution);
+	const FRTHexSnapshot After = URTHexSimLibrary::MakeSnapshotOmniscient(M, AtResolution);
 
 	// (3) LA VIA ATTORNO ESISTE DAVVERO, ed e' dentro il budget di A. Senza questa verifica il punto (4)
 	//     non discriminerebbe fra «non ha deviato» e «non poteva deviare».
@@ -2421,7 +2421,7 @@ bool FRTMovementTraversalDurationReadsTheEntryCostTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(0, FRTCellId(0, 0), 10));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	TestEqual(TEXT("pavimento: un microstep"),
 		URTHexSimLibrary::TraversalDurationTicks(Snap, 0, FRTCellId(0, 1)), 1);
@@ -2437,7 +2437,7 @@ bool FRTMovementTraversalDurationReadsTheEntryCostTest::RunTest(const FString&)
 	FRTHexSimUnit Unit(0, FRTCellId(0, 0), 10);
 	Unit.MoveCostModifier = 1;
 	Slowed.Add(Unit);
-	const FRTHexSnapshot SlowSnap = URTHexSimLibrary::MakeSnapshot(M, Slowed);
+	const FRTHexSnapshot SlowSnap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Slowed);
 	TestEqual(TEXT("con Slow il pavimento costa due microstep"),
 		URTHexSimLibrary::TraversalDurationTicks(SlowSnap, 0, FRTCellId(0, 1)), 2);
 
@@ -2515,11 +2515,11 @@ bool FRTMovementRangeAndSpeedAreIndependentKnobsTest::RunTest(const FString&)
 	{
 		TArray<FRTHexSimUnit> Corte;
 		Corte.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 2));   // arriva a un passo
-		const FRTHexSnapshot SnapCorte = URTHexSimLibrary::MakeSnapshot(M, Corte);
+		const FRTHexSnapshot SnapCorte = URTHexSimLibrary::MakeSnapshotOmniscient(M, Corte);
 
 		TArray<FRTHexSimUnit> Lunghe;
 		Lunghe.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 6));  // arriva a tre
-		const FRTHexSnapshot SnapLunghe = URTHexSimLibrary::MakeSnapshot(M, Lunghe);
+		const FRTHexSnapshot SnapLunghe = URTHexSimLibrary::MakeSnapshotOmniscient(M, Lunghe);
 
 		const TArray<FRTCellId> TroncoCorte =
 			URTHexSimLibrary::TruncatePathToBudget(SnapCorte, 0, Corridoio);
@@ -2569,13 +2569,13 @@ bool FRTMovementRangeAndSpeedAreIndependentKnobsTest::RunTest(const FString&)
 	{
 		TArray<FRTHexSimUnit> Normale;
 		Normale.Add(FRTHexSimUnit(0, FRTCellId(0, 0), /*MoveBudget*/ 6));
-		const FRTHexSnapshot SnapNormale = URTHexSimLibrary::MakeSnapshot(M, Normale);
+		const FRTHexSnapshot SnapNormale = URTHexSimLibrary::MakeSnapshotOmniscient(M, Normale);
 
 		FRTHexSimUnit Rallentata(0, FRTCellId(0, 0), /*MoveBudget*/ 6);
 		Rallentata.MoveCostModifier = 1;
 		TArray<FRTHexSimUnit> Lente;
 		Lente.Add(Rallentata);
-		const FRTHexSnapshot SnapLenta = URTHexSimLibrary::MakeSnapshot(M, Lente);
+		const FRTHexSnapshot SnapLenta = URTHexSimLibrary::MakeSnapshotOmniscient(M, Lente);
 
 		TestTrue(TEXT("con Slow la stessa cella dura di piu'"),
 			URTHexSimLibrary::TraversalDurationTicks(SnapLenta, 0, FRTCellId(1, 0))
@@ -2723,7 +2723,7 @@ bool FRTMovementSlideCellsDoNotPayTerrainDurationTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(0, Start, 10));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	const TArray<FRTCellId> Path = { Start, Mid, Rough };
 
@@ -2863,7 +2863,7 @@ bool FRTMovementForcedHasNoTerrainDurationTest::RunTest(const FString&)
 
 	TArray<FRTHexSimUnit> Units;
 	Units.Add(FRTHexSimUnit(0, Start, 10));
-	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshot(M, Units);
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
 
 	// Il percorso come `ResolveMovement` lo costruisce: due celle chieste dal giocatore, la terza aggiunta
 	// dal terreno. `PlannedLength` conta le CELLE, partenza inclusa.
@@ -3358,7 +3358,7 @@ bool FRTHexSimPathCrossesAlliesTest::RunTest(const FString&)
 		Other.TeamId = TeamOfOther;
 		Units.Add(Me);
 		Units.Add(Other);
-		return URTHexSimLibrary::MakeSnapshot(Map, Units);
+		return URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
 	};
 
 	// --- compagna: si attraversa -------------------------------------------------------------------
