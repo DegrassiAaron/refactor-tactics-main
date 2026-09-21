@@ -3,6 +3,8 @@
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Ability/RTMovementProfile.h"
+#include "Ability/RTMovementProfileLibrary.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -165,8 +167,44 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 	// --- Raggiungibile ------------------------------------------------------------------------------------
 	// `MovePoints` e' la BASELINE di catalogo, mai `FRTHexSimUnit::MoveBudget`: un `Action.Slow` che
 	// l'osservatore non vede non deve restringere la regione, o la regione diventerebbe la spia dello status.
+	//
+	// 🔑 **Ma il passo non e' `MovePoints`: e' il budget PIU' ALTO spendibile nella fase Move** (`#3202`).
+	// Fino al 2026-09-12 le due cose coincidevano, perche' l'unica azione che allargava la portata era
+	// `Action.Sprint` e lo Sprint risolveva in `Dash` — quindi finiva nel ramo dello scatto, qui sotto.
+	// [D-116] l'ha portata in `NormalMovement`: risolve **con** il passo, e `IsFastMovement` non la vede
+	// piu'. Senza questo massimo lo Sprint sarebbe uscito da ENTRAMBE le regioni, e chi consuma la query
+	// vedrebbe meta' della portata di chi scatta — sul lato che decide se una posizione e' sicura.
+	//
+	// ⚠️ **Il MASSIMO, non la somma**: scatto e passo occupano lo stesso slot Movimento ([D-028]), quindi
+	// l'unita' spende l'uno **oppure** l'altro. Sommarli inventerebbe una portata che il ruleset non concede.
+	//
+	// ⚠️ **La quantita' viene dal PROFILO** ([D-412]: `Sprint` ×2), che e' la sede che il resolver esegue —
+	// `ProfileForPlan` ricava il budget di li' senza rileggere `RangeCells`. L'assoluto che l'azione
+	// conserva e' la seconda sede di cui `#3198` e' proprietaria, e questa riga non la sceglie: segue quella
+	// **eseguita**.
+	int32 StepBudget = Hero->MovePoints;
+	for (const TObjectPtr<URTActionData>& Ptr : Hero->Actions)
+	{
+		const URTActionData* Action = Ptr.Get();
+		if (!Action) { continue; }
+		if (Action->Def.MovementStyle != ERTMovementStyle::Budget) { continue; }
+
+		// Il criterio simmetrico a quello dello scatto: conta la FASE in cui l'azione risolve, non il suo
+		// nome. Una mobilita' a budget che risolvesse in `Dash` e' minaccia pre-Blast e appartiene all'altra
+		// regione; una che risolve in `Move` allarga il passo, qualunque `ActionId` porti.
+		if (URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase) != ERTMatchPhase::Move)
+		{
+			continue;
+		}
+
+		// Un profilo assente vale NEUTRO (`FRTMovementProfile()` = 100%), quindi non allarga nulla: e' la
+		// lettura fail-closed, coerente con il resto della query.
+		const FRTMovementProfile Profile = URTMovementProfileLibrary::FindProfile(Action->Def.MovementProfileId);
+		StepBudget = FMath::Max(StepBudget, Profile.ResolveStepBudget(Hero->MovePoints));
+	}
+
 	TSet<FRTCellId> Reachable;
-	for (const FRTCellId& C : ReachableWithBudget(Map, Entries, SubjectStableUnitId, Hero->MovePoints))
+	for (const FRTCellId& C : ReachableWithBudget(Map, Entries, SubjectStableUnitId, StepBudget))
 	{
 		Reachable.Add(C);
 	}
@@ -209,7 +247,13 @@ bool URTEnemyTacticalQueryLibrary::RegionsFor(const URTHexMapAsset* Map, const F
 
 		if (Action->Def.MovementStyle == ERTMovementStyle::Budget)
 		{
-			// Scatto a budget (`Action.Sprint`): stesso Dijkstra del movimento, altra quantita'.
+			// Scatto a budget: stesso Dijkstra del movimento, altra quantita'.
+			//
+			// ⌫ **Nominava `Action.Sprint`, e dal 2026-09-12 non e' piu' vero** ([D-116]/[#641], misurato da
+			// `#3202`): lo Sprint risolve in `NormalMovement`, quindi `IsFastMovement` lo esclude qui sopra e
+			// il suo budget allarga il PASSO. Nessuna azione del catalogo spedito percorre oggi questo ramo —
+			// resta vivo perche' un kit puo' dichiarare uno scatto a budget, ed e' cio' che copre
+			// `Perception.BudgetComesFromTheCatalogNotAConstant` con un'azione fabbricata.
 			for (const FRTCellId& C : ReachableWithBudget(Map, Entries, SubjectStableUnitId, Declared))
 			{
 				if (C != Origin) { DashOrigins.Add(C); }
