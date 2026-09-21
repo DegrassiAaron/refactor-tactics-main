@@ -7,6 +7,8 @@
 class UWorld;
 class ARTHexMapActor;
 class FPrimitiveDrawInterface;
+class UContextObjectStore;
+class UInteractiveToolManager;
 struct FInputDeviceRay;
 enum class ERTHexSurface : uint8;
 
@@ -48,6 +50,25 @@ namespace RTHexEditor
 
 	/** Overlay debug: ogni cella dell'asset come esagono colorato per superficie; le bloccate con un esagono rosso interno. */
 	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
+
+	/**
+	 * L'overlay delle superfici e' acceso? (#921) — la domanda che ciascuno dei sette `Render` pone, e la
+	 * risposta che **nessuno di loro decide da se'**.
+	 *
+	 * 🔑 **Questa e' la sede dell'AC 8, ed e' il motivo per cui la funzione esiste invece di essere tre righe
+	 * ripetute.** Il flag e' un `URTHexEditorModeSettings` che `URTHexEditorMode::Enter` pubblica nel context
+	 * store; un tool costruito fuori dal mode — o interrogato prima che il mode sia entrato — non lo trova.
+	 * Senza una sede unica, ognuno dei sette sceglierebbe da se' cosa fare in quel caso, e la scelta si
+	 * scoprirebbe **a schermo**.
+	 *
+	 * ⛔ **Assente significa SPENTO, non acceso.** Un overlay che comparisse da solo dove il mode non c'e'
+	 * disegnerebbe sopra il lavoro di chi non l'ha chiesto; uno che resta spento si accende con un click.
+	 * L'errore reversibile e' il secondo.
+	 */
+	bool ShouldShowSurfaceOverlay(const UContextObjectStore* Store);
+
+	/** Come sopra, partendo dal tool manager — la via che un `Render` ha davvero sottomano. */
+	bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager);
 
 	/**
 	 * Colore di una transizione per tipo, e freccia From->To. Stanno qui e non nel tool Arch perche' ora hanno

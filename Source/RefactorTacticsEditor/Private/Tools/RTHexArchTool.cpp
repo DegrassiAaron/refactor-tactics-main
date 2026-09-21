@@ -300,6 +300,11 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
 	if (!PDI) { return; }
 
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+	}
+
 	const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
 
 	// Transizioni esistenti (solo se l'asset e' popolato).

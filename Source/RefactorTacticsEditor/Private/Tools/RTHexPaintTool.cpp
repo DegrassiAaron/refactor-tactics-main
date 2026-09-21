@@ -224,7 +224,7 @@ void URTHexPaintTool::Render(IToolsContextRenderAPI* RenderAPI)
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
 	if (!PDI) { return; }
 
-	if (Properties && Properties->bShowOverlay)
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
 	{
 		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 	}

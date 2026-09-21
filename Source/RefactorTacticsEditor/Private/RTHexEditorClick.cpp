@@ -1,4 +1,7 @@
 #include "RTHexEditorClick.h"
+#include "RTHexEditorModeSettings.h" // #921: il flag dell'overlay vive nel mode, non nei tool
+#include "ContextObjectStore.h"
+#include "InteractiveToolManager.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
 #include "InputState.h"            // FInputDeviceRay
 #include "Engine/World.h"
@@ -180,6 +183,30 @@ FColor SurfaceColor(ERTHexSurface Surface)
 	// Delega al runtime: una sola tavolozza per il marker dell'editor e per l'overlay in partita, altrimenti la
 	// stessa cella cambierebbe colore fra i due contesti.
 	return URTHexLibrary::SurfaceColor(Surface);
+}
+
+bool ShouldShowSurfaceOverlay(const UContextObjectStore* Store)
+{
+	if (!Store)
+	{
+		return false;
+	}
+
+	// `FindContext` risale anche allo store padre (`ContextObjectStore.h`), quindi il settings pubblicato dal
+	// mode si trova anche da un tool il cui manager e' quello di scope piu' stretto.
+	const URTHexEditorModeSettings* Settings =
+		const_cast<UContextObjectStore*>(Store)->FindContext<URTHexEditorModeSettings>();
+
+	return Settings ? Settings->bShowSurfaceOverlay : false;
+}
+
+bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager)
+{
+	if (!ToolManager)
+	{
+		return false;
+	}
+	return ShouldShowSurfaceOverlay(ToolManager->GetContextObjectStore());
 }
 
 void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
