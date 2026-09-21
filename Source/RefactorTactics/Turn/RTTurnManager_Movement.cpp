@@ -1300,6 +1300,64 @@ void ARTTurnManager::FinishMovementResolution()
 		// esiste piu'.
 		bSlidThisMove[i] = static_cast<ERTMoveOutcome>(MoveLog[i].Outcome) == ERTMoveOutcome::Slid;
 	}
+
+	// ➕ **CHI TI HA FERMATO, LO HAI TROVATO** (`#2793`, [D-371]).
+	//
+	// 🔴 **E' il fratello di [D-380]** — *«chi hai colpito, lo hai trovato»* — e nasce dalla stessa lacuna,
+	// un turno piu' in la'. Da [D-371] l'anteprima non porta piu' i corpi che l'osservatore non conosce:
+	// chi pianifica attraverso una cella che crede vuota e' una condotta LEGITTIMA di informazione parziale,
+	// e il diniego e' il suo esito corretto. Ma senza questa riga il diniego non insegna **niente**, e il
+	// turno dopo il piano e' identico: misurato sulla mappa d'autore come *«0 colpi inflitti in 12 turni»* e
+	// *«piu' lunga sequenza ferma 10 turni»*. Non e' «il bot sbaglia», e' un bot che smette di giocare.
+	//
+	// ⚠️ **Non e' una fuga: e' informazione guadagnata per INTERAZIONE.** Urtare qualcuno al buio lo rivela,
+	// esattamente come colpirlo. Cio' che entra nella memoria e' un contatto sulla cella **dove l'urto e'
+	// avvenuto** — non la posizione corrente di chiunque altro, non la mappa dei nemici.
+	//
+	// ⛔ **Qui non c'e' nessuna REGOLA**, come in `RevealHitTargetsToAttackers`: chi decide *come* un
+	// contatto entra in una memoria e' `URTTeamKnowledgeLibrary::RevealByHit`, pura e testabile. Questa
+	// traduce e basta.
+	{
+		TArray<FRTLastKnownContact> PerSquadra;
+		TArray<int32> SquadraNegata;
+		for (int32 i = 0; i < MoveLog.Num(); ++i)
+		{
+			if (!Ctx.bDeniedByOccupant.IsValidIndex(i) || !Ctx.bDeniedByOccupant[i]) { continue; }
+			if (!Units.IsValidIndex(i) || !IsValid(Units[i])) { continue; }
+
+			// Chi occupava la cella negata, letto dalla fotografia ONNISCIENTE della Resolution: e' l'unico
+			// posto in cui l'identita' del bloccante esiste, e la Resolution ha l'autorita' per leggerla.
+			const int32* IndiceBloccante = Ctx.Snapshot.Occupancy.Find(Ctx.DeniedDestination[i]);
+			if (!IndiceBloccante || !Units.IsValidIndex(*IndiceBloccante)) { continue; }
+			const ARTUnit* Bloccante = Units[*IndiceBloccante];
+			if (!IsValid(Bloccante) || Bloccante->TeamId == Units[i]->TeamId) { continue; } // un compagno non si rivela
+
+			PerSquadra.Add(FRTLastKnownContact(Bloccante->StableUnitId, Ctx.DeniedDestination[i], TurnNumber));
+			SquadraNegata.Add(Units[i]->TeamId);
+		}
+
+		// Si itera `TeamKnowledgeState`, non le rivelazioni: questa memoria entra nello snapshot, e l'ordine
+		// di scrittura dev'essere quello delle squadre (invariante #3).
+		bool bQualcosaRivelato = false;
+		for (FRTTeamKnowledge& Knowledge : TeamKnowledgeState)
+		{
+			TArray<FRTLastKnownContact> Miei;
+			for (int32 k = 0; k < PerSquadra.Num(); ++k)
+			{
+				if (SquadraNegata[k] == Knowledge.TeamId) { Miei.Add(PerSquadra[k]); }
+			}
+			if (Miei.Num() > 0)
+			{
+				Knowledge = URTTeamKnowledgeLibrary::RevealByHit(Knowledge, Miei, TurnNumber);
+				bQualcosaRivelato = true;
+			}
+		}
+		if (bQualcosaRivelato)
+		{
+			OnTeamKnowledgeRefreshed.Broadcast(TurnNumber);
+		}
+	}
+
 	// In blocco, ma una per una: `Append` bypasserebbe il contesto della v6, ed e' la seconda porta
 	// d'ingresso al TurnLog che l'helper deve presidiare quanto la prima.
 	// Una voce per unita', nell'ordine dell'input (vedi `BuildMoveLog`): l'indice E' il legame, e per questo

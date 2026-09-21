@@ -155,27 +155,49 @@ FRTHexSnapshot URTHexSimLibrary::MakeSnapshot(const URTHexMapAsset* Map, const T
 		// — `BlockedCellsFor`, il filtro di risultato di `ReachableCells`, `ClassifyWaypointCell` —
 		// puo' riderivarla. Filtrare a valle sarebbe l'uscita *(c)* che `BLIND-2` esclude per nome.
 		//
-		// 🔑 **Solo `Allowed` occupa, e `CellOnly` NO.** Un ricordo dice dove il nemico **era**, non dove
-		// **e'**: far occupare la sua cella attuale rivelerebbe esattamente la posizione che l'osservatore
-		// non ha. ⛔ Se la cella **ricordata** debba fare da ostacolo e' un'altra domanda, e non la decide
-		// [D-371]: e' la famiglia `BLIND-4` / `BLIND-5`, aperte.
-		if (!bOsservatoreOnnisciente && Unit.TeamId != Snapshot.ObserverTeamId
-			&& URTTeamKnowledgeLibrary::ClassifyTarget(
-				*ConoscenzaOsservatore, Unit.StableUnitId, Unit.TeamId, Unit.Cell) != ERTTargetKnowledge::Allowed)
+		// 🔑 **Tre risposte, non due, e la terza e' quella che rende il filtro GIOCABILE.**
+		//
+		//   `Rejected`  ignoto      -> non occupa NIENTE: e' la fuga che questa voce chiude;
+		//   `Allowed`   visto       -> occupa la propria cella, come sempre;
+		//   `CellOnly`  ricordato   -> occupa la cella **RICORDATA**, non quella attuale.
+		//
+		// 🔴 **La terza non e' un compromesso: e' la credenza VERA dell'osservatore.** Far occupare la cella
+		// attuale di un ricordo rivelerebbe esattamente la posizione che non ha; non farlo occupare niente
+		// direbbe *«dove l'ho visto un attimo fa e' libero»*, che e' falso per chi guarda. La cella ricordata
+		// e' l'unica delle tre che non mente in nessuna direzione. ⛔ E non rivela nulla: quel dato
+		// l'osservatore lo ha gia'.
+		//
+		// ⚠️ **Senza questo ramo il diniego non insegnerebbe niente**, e l'anteprima resterebbe in livelock:
+		// un urto rivela un contatto (`RevealByHit`), un contatto e' `CellOnly`, e un `CellOnly` che non
+		// occupa fa ripianificare lo stesso percorso il turno dopo. Misurato sui bot come *«0 colpi in 12
+		// turni»*. Le due meta' servono **entrambe**.
+		FRTCellId CellaOccupata = Unit.Cell;
+		if (!bOsservatoreOnnisciente && Unit.TeamId != Snapshot.ObserverTeamId)
 		{
-			continue;
+			const ERTTargetKnowledge Conoscenza = URTTeamKnowledgeLibrary::ClassifyTarget(
+				*ConoscenzaOsservatore, Unit.StableUnitId, Unit.TeamId, Unit.Cell);
+			if (Conoscenza == ERTTargetKnowledge::Rejected)
+			{
+				continue;
+			}
+			if (Conoscenza == ERTTargetKnowledge::CellOnly
+				&& !URTTeamKnowledgeLibrary::LastKnownCell(
+					*ConoscenzaOsservatore, Unit.StableUnitId, CellaOccupata))
+			{
+				continue; // un ricordo senza cella non e' un ostacolo
+			}
 		}
 
-		if (const int32* Occupante = Snapshot.Occupancy.Find(Unit.Cell))
+		if (const int32* Occupante = Snapshot.Occupancy.Find(CellaOccupata))
 		{
 			FRTHexOverlap& Overlap = Snapshot.Overlaps.AddDefaulted_GetRef();
-			Overlap.Cell = Unit.Cell;
+			Overlap.Cell = CellaOccupata;
 			Overlap.DiscardedUnitId = Unit.UnitId;
 			Overlap.KeptUnitId = *Occupante;
 			continue;
 		}
 
-		Snapshot.Occupancy.Add(Unit.Cell, Unit.UnitId);
+		Snapshot.Occupancy.Add(CellaOccupata, Unit.UnitId);
 	}
 	return Snapshot;
 }
