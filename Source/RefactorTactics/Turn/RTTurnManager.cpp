@@ -4907,7 +4907,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 	TArray<ARTUnit*> FleeUnits;
 	TArray<FRTCellId> FleeFrom;   // da CHI ci si allontana: e' anche la sorgente del facing (D-104)
 	TArray<int32> FleeDist;
-	Out.DeflectDelta.Init(0, Units.Num());
+	Out.ReactionReductionByTarget.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
 		ARTUnit* Unit = Units[i];
@@ -5032,9 +5032,10 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 					break;
 
 				case ERTActionEffect::DamageReduction:
-					// Vale sul colpo che ha innescato la reazione: si attiva una volta sola, quindi entra fra
-					// i delta del PRIMO danno diretto, come il -15 di Guard.
-					Out.DeflectDelta[Event.TargetUnitId] -= Event.Amount;
+					// Vale sul Decision Boundary che ha innescato la reazione: si attiva una volta sola, e il
+					// totale confluisce nel pool d'assorbimento che il chiamante costruisce ([D-309]), come la
+					// Guardia dopo [D-292]. ⚠️ Accumula NEGATIVO: il segno si inverte alla costruzione del pool.
+					Out.ReactionReductionByTarget[Event.TargetUnitId] -= Event.Amount;
 					break;
 
 				case ERTActionEffect::Shield:
@@ -5646,14 +5647,14 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// non dipende da quale colpo arriva per primo — il difetto che [D-292] aveva tolto alla Guardia e che
 	// `Deflect` conservava: con -20 su un colpo da 5, quindici punti di riduzione si perdevano nel clamp.
 	//
-	// Il segno si INVERTE, e non e' una rinomina: `DeflectDelta` e' una riduzione (negativa), un pool e' un
-	// budget (positivo). `Max(0, ...)` perche' un delta positivo qui non significherebbe «pool negativo» ma
+	// Il segno si INVERTE, e non e' una rinomina: `ReactionReductionByTarget` e' una riduzione (negativa),
+	// un pool e' un budget (positivo). `Max(0, ...)` perche' un delta positivo qui non significherebbe «pool negativo» ma
 	// «nessuna reazione»: e' la lettura fail-closed, coerente con il resto del combattimento.
 	TArray<int32> DeflectPool;
 	DeflectPool.Init(0, Units.Num());
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (Units[i]) { DeflectPool[i] = FMath::Max(0, -Reactions.DeflectDelta[i]); }
+		if (Units[i]) { DeflectPool[i] = FMath::Max(0, -Reactions.ReactionReductionByTarget[i]); }
 	}
 
 	// Nessun filtro direzionale, ed e' una differenza DICHIARATA rispetto alla Guardia: `Action.Deflect`

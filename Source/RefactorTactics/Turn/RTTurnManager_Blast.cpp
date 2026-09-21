@@ -2266,7 +2266,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	//
 	// Risultato in una struct PROPRIA: `Reactions` e' gia' stata consumata piu' sopra (il `Deflect` come POOL
 	// d'assorbimento — [D-309] —, i contrattacchi negli attacchi), e riusarla farebbe ripartire
-	// `DeflectDelta` da zero.
+	// `ReactionReductionByTarget` da zero.
 	// Di questo punto si consuma `CancelledDisplacements` e basta: un contrattacco dichiarato da una reazione
 	// allo spostamento arriverebbe a colpi gia' risolti, quindi il catalogo non lo prevede (`Reaction.Anchor`
 	// dichiara solo `CancelDisplacement`).
