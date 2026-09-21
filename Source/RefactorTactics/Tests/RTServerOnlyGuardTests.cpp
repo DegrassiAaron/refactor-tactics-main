@@ -4,6 +4,7 @@
 #include "Tests/RTServerOnlyGuardFixturesForTest.h"
 #include "Turn/RTIntentPrivacyLibrary.h"       // FRTPlannedIntent: il piano autorevole
 #include "Turn/RTReactionOpportunityTypes.h"   // FRTReactionOpportunity: AllowedResponses, D-021
+#include "RTGameMode.h"                        // HeroUnitClasses: le SOTTOCLASSI che la partita istanzia
 #include "Unit/RTUnit.h"                       // ARTUnit: dove il piano VIVO abita davvero — [D-429]
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -222,8 +223,18 @@ namespace
 	 * non passare inosservato perche' il totale resta positivo grazie agli altri.
 	 *
 	 * ⚠️ **L'elenco per nome da solo non basta, ed e' il motivo per cui il test fa anche una scansione.** Un
-	 * campo di pianificazione **nuovo** non comparirebbe qui, e nessuno se ne accorgerebbe. La scansione
-	 * copre per **prefisso** cio' che l'elenco copre per nome, e le due cose si sorvegliano a vicenda.
+	 * campo di pianificazione **nuovo** non comparirebbe qui, e nessuno se ne accorgerebbe.
+	 *
+	 * ⌫ **Una prima stesura diceva che la scansione «copre per prefisso cio' che l'elenco copre per nome, e
+	 * le due cose si sorvegliano a vicenda»: era FALSO** — corretto il 2026-09-21 in code review. Il filtro
+	 * cercava `Planned`/`PlanDeclared`, e `bAttackTargetsCell` — pinnato qui, e campo di piano a tutti gli
+	 * effetti — non porta ne' l'uno ne' l'altro. La scansione ne vedeva **uno di meno** dell'elenco, e il
+	 * conteggio che sembrava confermare la copertura era la misura del buco.
+	 *
+	 * 🔑 **La forma che regge**: il predicato della scansione e' *«il nome porta `Plan`, **oppure** sta in
+	 * questo elenco»*, quindi la scansione e' un **soprainsieme** dell'elenco per costruzione. Cio' che
+	 * resta scoperto e' nominabile in una riga: un campo **nuovo** che non porti `Plan` nel nome e che
+	 * nessuno aggiunga qui.
 	 */
 	const TCHAR* const PlanningFieldNames[] = {
 		TEXT("PlannedCell"),
@@ -244,15 +255,75 @@ namespace
 		TEXT("PlannedReactionCondition"),
 		TEXT("PlannedCleansePriority"),
 		TEXT("bTurnPlanDeclared"),
+		// ➕ **Aggiunti in code review il 2026-09-21**, e non erano una svista veniale: `RTUnit.h` li dichiara
+		// *«`Transient` e NON replicato: e' intento di pianificazione, e la sua destinazione racconta cosa
+		// l'unita' stava per fare. Replicarlo esporrebbe il piano a chi non lo possiede»* (`:476-477`), cioe'
+		// esattamente la regola che questo gate esiste per sorvegliare — e stavano fuori da entrambi i
+		// meccanismi.
+		TEXT("bMovePlanRejectedByOccupant"),
+		TEXT("RejectedMoveDestination"),
 	};
+
+	/**
+	 * Il predicato della scansione: **soprainsieme** dell'elenco per costruzione.
+	 *
+	 * `Plan` e non `Planned`, cosi' `bMovePlanRejectedByOccupant` e `bTurnPlanDeclared` entrano per pattern
+	 * invece che per eccezione; e l'elenco in `or`, per i due che nessun pattern cattura —
+	 * `bAttackTargetsCell` e `RejectedMoveDestination`.
+	 */
+	bool IsPlanningFieldName(const FString& Name)
+	{
+		if (Name.Contains(TEXT("Plan")))
+		{
+			return true;
+		}
+		for (const TCHAR* const Known : PlanningFieldNames)
+		{
+			if (Name == Known)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Le classi di unita' che una partita istanzia **davvero**, piu' la classe C++.
+	 *
+	 * 🔴 **Senza questa funzione il gate misurava una classe che nessuna partita spawna** — rilievo di code
+	 * review del 2026-09-21. `ARTGameMode::HeroUnitClasses` porta i quattro `BP_Unit_*`
+	 * (`RTGameMode.cpp`, `FClassFinder<ARTUnit>`), e `ARTMatchBootstrapper` istanzia **quelli**:
+	 * `ARTUnit::StaticClass()` e' solo il ripiego quando il Blueprint manca. `TFieldIterator` vede la classe
+	 * e le sue SUPERclassi, **mai** le sottoclassi, e il CDO di `ARTUnit` non e' il CDO di `BP_Unit_Branth`:
+	 * una variabile Blueprint marcata `Replicated`, o la spunta *Replicates* nei class defaults, sarebbero
+	 * passate entrambe.
+	 */
+	TArray<UClass*> UnitClassesInPlay()
+	{
+		TArray<UClass*> Out;
+		Out.Add(ARTUnit::StaticClass());
+
+		if (const ARTGameMode* Cdo = ARTGameMode::StaticClass()->GetDefaultObject<ARTGameMode>())
+		{
+			for (const TPair<FName, TSubclassOf<ARTUnit>>& Voce : Cdo->HeroUnitClasses)
+			{
+				if (UClass* Classe = Voce.Value.Get())
+				{
+					Out.AddUnique(Classe);
+				}
+			}
+		}
+		return Out;
+	}
 }
 
 /**
- * Nessun campo di pianificazione di `ARTUnit` e' raggiungibile da una via di replica — `#1805`, [D-429].
+ * Nessun campo di pianificazione di un'unita' e' raggiungibile da una via di replica — `#1805`, [D-429].
  *
  * Given lo stato di pianificazione vivo, che abita `ARTUnit` come campi di tipi ordinari
- * When si interroga la reflection su ciascuno di essi
- * Then nessuno porta `CPF_Net`, e il rilevatore lo dimostra vedendo un `Replicated` vero altrove
+ * When si interroga la reflection su ciascuno di essi, **su ogni classe che la partita istanzia**
+ * Then nessuno porta `CPF_Net`, nessuna di quelle classi replica, e il rilevatore lo dimostra vedendo un
+ *      `Replicated` vero altrove
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanningFieldsOnTheUnitAreNotReplicatedTest,
 	"RefactorTactics.Privacy.PlanningFieldsOnTheUnitAreNotReplicated",
@@ -265,7 +336,10 @@ bool FRTPlanningFieldsOnTheUnitAreNotReplicatedTest::RunTest(const FString&)
 	// una replica vera prima di credergli quando dice di non vederne.
 	const FProperty* Planted =
 		URTServerOnlyGuardLeakyCarrierForTest::StaticClass()->FindPropertyByName(TEXT("Direct"));
-	if (!TestNotNull(TEXT("il controllo positivo esiste: la fixture porta ancora la proprieta' piantata"), Planted))
+	if (!TestNotNull(
+			TEXT("il controllo positivo esiste: URTServerOnlyGuardLeakyCarrierForTest::Direct e' ancora li' "
+			     "(se e' stato rinominato, aggiorna questo test insieme a RTServerOnlyGuardFixturesForTest.h)"),
+			Planted))
 	{
 		return false;
 	}
@@ -287,7 +361,8 @@ bool FRTPlanningFieldsOnTheUnitAreNotReplicatedTest::RunTest(const FString&)
 	{
 		const FProperty* Field = Unit->FindPropertyByName(FName(Name));
 		if (!TestNotNull(*FString::Printf(
-				TEXT("il campo di pianificazione '%s' esiste ancora su ARTUnit (se e' stato rinominato, aggiorna l'elenco)"), Name),
+				TEXT("il campo di pianificazione '%s' esiste ancora su ARTUnit — se e' stato RINOMINATO, "
+				     "aggiorna questo elenco col nome nuovo (non toglierlo: toglierlo dimezza la copertura)"), Name),
 			Field))
 		{
 			continue;
@@ -296,44 +371,74 @@ bool FRTPlanningFieldsOnTheUnitAreNotReplicatedTest::RunTest(const FString&)
 			Field->HasAnyPropertyFlags(CPF_Net));
 	}
 
-	// (2) La SCANSIONE per prefisso: copre i campi di pianificazione che qualcuno aggiungera' domani e che
-	//     l'elenco sopra non conterrebbe. ⚠️ E ha il proprio controllo di non-vacuita': se la scansione non
-	//     trovasse nessun campo, girerebbe sull'insieme vuoto e sarebbe verde per costruzione.
-	int32 Scansionati = 0;
-	TArray<FString> Replicati;
-	for (TFieldIterator<FProperty> It(Unit); It; ++It)
+	// (2) La SCANSIONE, su OGNI classe che la partita istanzia — non solo su quella C++.
+	//
+	//     ⚠️ **L'anti-vacuita' si calcola, non si scrive.** Una prima stesura confrontava con
+	//     `UE_ARRAY_COUNT(PlanningFieldNames) - 2`, una costante magica che sbagliava di uno **e** puniva chi
+	//     avesse allungato l'elenco: trovato in code review. La soglia e' ora quanti nomi dell'elenco il
+	//     predicato accetta davvero — cioe' tutti, perche' il predicato include l'elenco.
+	int32 Attesi = 0;
+	for (const TCHAR* const Name : PlanningFieldNames)
 	{
-		const FString FieldName = It->GetName();
-		if (!FieldName.Contains(TEXT("Planned")) && !FieldName.Contains(TEXT("PlanDeclared")))
+		if (IsPlanningFieldName(FString(Name))) { ++Attesi; }
+	}
+
+	const TArray<UClass*> Classi = UnitClassesInPlay();
+	AddInfo(FString::Printf(TEXT("classi di unita' sotto misura: %s"),
+		*FString::JoinBy(Classi, TEXT(" "), [](const UClass* C) { return C->GetName(); })));
+
+	// 🔴 Se le sottoclassi Blueprint non si risolvessero, il lucchetto (3) girerebbe su una classe sola e il
+	// test direbbe meno di quanto dichiara. Meglio saperlo che scoprirlo dopo.
+	TestTrue(TEXT("anti-vacuita': oltre alla classe C++ si risolvono anche le sottoclassi che il GameMode spawna"),
+		Classi.Num() > 1);
+
+	int32 ScansionatiSuUnit = 0;
+	TArray<FString> Replicati;
+	for (UClass* Classe : Classi)
+	{
+		for (TFieldIterator<FProperty> It(Classe); It; ++It)
 		{
-			continue;
-		}
-		++Scansionati;
-		if (It->HasAnyPropertyFlags(CPF_Net))
-		{
-			Replicati.Add(FieldName);
+			const FString FieldName = It->GetName();
+			if (!IsPlanningFieldName(FieldName))
+			{
+				continue;
+			}
+			if (Classe == Unit) { ++ScansionatiSuUnit; }
+			if (It->HasAnyPropertyFlags(CPF_Net))
+			{
+				Replicati.AddUnique(FString::Printf(TEXT("%s::%s"), *Classe->GetName(), *FieldName));
+			}
 		}
 	}
-	AddInfo(FString::Printf(TEXT("campi di ARTUnit scanditi per prefisso di pianificazione: %d"), Scansionati));
-	if (!TestTrue(TEXT("anti-vacuita': la scansione TROVA dei campi di pianificazione, non gira a vuoto"),
-		Scansionati >= UE_ARRAY_COUNT(PlanningFieldNames) - 2))
+	AddInfo(FString::Printf(TEXT("campi di pianificazione scanditi su ARTUnit: %d (l'elenco per nome ne dichiara %d)"),
+		ScansionatiSuUnit, Attesi));
+	if (!TestTrue(TEXT("anti-vacuita': la scansione TROVA almeno i campi che l'elenco dichiara, non gira a vuoto"),
+		ScansionatiSuUnit >= Attesi))
 	{
 		return false;
 	}
 	for (const FString& Leaked : Replicati)
 	{
 		AddError(FString::Printf(
-			TEXT("leak di privacy strutturale: ARTUnit::%s e' replicato, e porta il piano del turno"), *Leaked));
+			TEXT("leak di privacy strutturale: %s e' replicato, e porta il piano del turno"), *Leaked));
 	}
-	TestEqual(TEXT("nessun campo di pianificazione di ARTUnit e' replicato"), Replicati.Num(), 0);
+	TestEqual(TEXT("nessun campo di pianificazione e' replicato, su nessuna classe di unita'"), Replicati.Num(), 0);
 
 	// (3) Il secondo lucchetto, che vale anche se un campo sfuggisse ai due sopra: l'attore **non replica**.
-	//     `AActor::bReplicates` e' la quarta rotta che `RTServerOnlyGuard` dichiara fuori copertura per
-	//     assenza di soggetto (`Core/RTServerOnlyGuard.h`). Qui il soggetto c'e', ed e' `ARTUnit`.
-	const AActor* Cdo = Unit->GetDefaultObject<AActor>();
-	if (TestNotNull(TEXT("premessa: il CDO di ARTUnit e' istanziabile"), Cdo))
+	//
+	//     ⚠️ **Cosa questo lucchetto e' e cosa NON e'.** `RTServerOnlyGuard` dichiara `AActor::bReplicates`
+	//     fuori copertura perche' *«nessuna `UCLASS` e' marcata `RTServerOnly`, quindi il controllo girerebbe
+	//     sull'insieme vuoto»* (`Core/RTServerOnlyGuard.h`). Quella lacuna **resta**: `ARTUnit` non e'
+	//     marcata, e questo test non la chiude. Qui si fa una cosa piu' stretta e piu' diretta — si guarda
+	//     `bReplicates` sulle classi di unita' **per nome**, senza passare dal marcatore.
+	for (UClass* Classe : Classi)
 	{
-		TestFalse(TEXT("ARTUnit non replica: nessun campo parte, qualunque flag porti"), Cdo->GetIsReplicated());
+		const AActor* Cdo = Classe->GetDefaultObject<AActor>();
+		if (TestNotNull(*FString::Printf(TEXT("premessa: il CDO di %s e' istanziabile"), *Classe->GetName()), Cdo))
+		{
+			TestFalse(*FString::Printf(TEXT("%s non replica: nessun campo parte, qualunque flag porti"),
+				*Classe->GetName()), Cdo->GetIsReplicated());
+		}
 	}
 
 	return true;
