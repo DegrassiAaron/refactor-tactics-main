@@ -699,6 +699,22 @@ bool FRTHexBotHiddenEnemyFairnessTest::RunTest(const FString&)
 
 	bool bLeftOk = false;
 	bool bRightOk = false;
+	// ⌫ **Provato a portare la premessa DENTRO il corridoio il 2026-09-21, e la misura lo ha bocciato.**
+	// [D-371] denuncia queste due celle — lati opposti, lontane dal corridoio d'azione — perche' *«un test
+	// che difende una posizione evitando il caso in cui quella posizione conta non e' una difesa»*. Col
+	// filtro di `#2793` in vigore il caso e' finalmente misurabile, e i due nascosti sono stati spostati a
+	// `(4,0)` e `(4,-1)`: distanza 4 contro vista 3, sulla direttrice del movimento. **VERDE — e verde anche
+	// con il filtro MUTATO a spento**, cioe' vacuo. Il motivo e' strutturale e vale la pena scriverlo:
+	//
+	// 🔴 **Cio' che e' abbastanza vicino da deviare una rotta corta e' abbastanza vicino da VEDERSI.** Il
+	// bot a `(0,0)` si ferma sul nemico visto a `(2,0)`; la sua rotta non arriva mai a distanza 4, e un
+	// nascosto piazzato dove la rotta arriva sarebbe dentro la vista. Perche' l'occupazione morda serve una
+	// rotta **piu' lunga della vista** — cioe' l'esplorazione, che questo banco esclude per premessa.
+	//
+	// ✅ **Il caso non e' scoperto: lo misura `RefactorTactics.BlindActions.*`**, dove chi pianifica ha
+	// budget per un ventaglio di raggio 4+ e i nascosti stanno **sulla direttrice diretta** — ventaglio
+	// 61/61/61 e costo 4/4/4 a filtro acceso, e tre canary rossi a filtro mutato. La premessa qui resta
+	// quella, come **limite dichiarato** che rimanda li', e non come difesa di una posizione ritirata.
 	const FRTBotPlanFingerprint Left = PlanWithHiddenAt(FRTCellId(-6, 3), bLeftOk);
 	const FRTBotPlanFingerprint Right = PlanWithHiddenAt(FRTCellId(6, -3), bRightOk);
 
