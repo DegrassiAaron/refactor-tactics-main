@@ -169,7 +169,7 @@ Resolver autorevole → TurnLog / Resolved Timeline → Playback / Inspection �
 | `RT-CAP-TERRAIN-ENV`<br>Terrain & Environmental Systems | ✅ | ✅ | 🟡 | #2276 | #2798 · #2505 · #257 · #2149 |
 | `RT-CAP-STATUS`<br>Status Framework | 🟡 | 🟡 | 🟡 | #435 | #435 · #437 · #441 · #244 · #2456 · #2378 |
 | `RT-CAP-STRUCTURES`<br>Structures, Walls, Doors & Arcs | ✅ | ✅ | 🟡 | #324 | #324 · #2828 · #2827 · #2731 · #2761 · #1850 · #1848 |
-| `RT-CAP-VERTICALITY`<br>Verticality — Ledge, Fall & Forced Movement | ✅ | ✅ | 🟡 | #2388 | #2388 · #2408 · #2407 · #2405 · #2404 |
+| `RT-CAP-VERTICALITY`<br>Verticality — Ledge, Fall & Forced Movement | ✅ | ✅ | 🟡 | #2388 | #2388 · #2408 · #2407 · #2405 |
 | `RT-CAP-OBJECTIVES-MATCHEND`<br>Objectives & Match End | ✅ | ✅ | 🟡 | #14 | #2281 · #331 · #332 · #940 |
 | `RT-CAP-MATCH-FORMAT`<br>Match Format (2v2 / 3v3 / 4v4) | ✅ | ✅ | 🟡 | #325 | #325 · #333 · #221 |
 | `RT-CAP-PERCEPTION`<br>Perception (vista, udito, propagazione) | ✅ | ✅ | 🟡 | #151 | #327 · #2795 · #824 |

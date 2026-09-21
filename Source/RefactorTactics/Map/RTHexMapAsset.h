@@ -169,9 +169,11 @@ struct FRTInteractionBinding
  * impara a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un validator che deve
  * essere leggibile da chi disegna.
  *
- * ⚠️ **Copre solo le regole di `#1832`.** Le segnalazioni piu' vecchie di `ValidateMap` — cella duplicata,
- * costo negativo, copertura a integrita' zero, transizione ridondante — restano righe testuali senza
- * codice: darglielo adesso significherebbe classificarne una ventina in una issue che non le possiede.
+ * ⚠️ **Copre le regole di `#1832` e quella di `#2404`, non tutto `ValidateMap`.** Le segnalazioni piu'
+ * vecchie — cella duplicata, costo negativo, copertura a integrita' zero, transizione ridondante — restano
+ * righe testuali senza codice: darglielo significherebbe classificarne una ventina in una issue che non le
+ * possiede. Una regola NUOVA invece nasce con il suo codice, ed e' il motivo per cui `IsolatedLanding` e'
+ * qui invece che in una stringa.
  */
 UENUM()
 enum class ERTMapValidationReason : uint8
@@ -206,7 +208,40 @@ enum class ERTMapValidationReason : uint8
 	 * `ERTGeometryViolation::DuplicateSegment` lo rifiuta **a monte**, ma una collezione ricostruita —
 	 * migrazione, merge, incolla — puo' reintrodurlo.
 	 */
-	DuplicateCoverSource
+	DuplicateCoverSource,
+
+	/**
+	 * REGOLA 6 — l'ATTERRAGGIO di un bordo aperto e' **staticamente isolato** (`#2404`, [D-332],
+	 * `spec-caduta-e-bordi.md` §7): si cade su quella cella, e da li' non e' raggiungibile nessuna
+	 * alternativa statica valida — esistente, legalmente occupabile, non `Void`, topologicamente
+	 * raggiungibile dall'atterraggio.
+	 *
+	 * 🔑 **Errore e non warning, a differenza del parapetto inerte.** Il parapetto su un bordo connesso e' un
+	 * warning perche' non cambia NESSUN esito — da li' non si cadeva comunque, la voce e' inerte — e perche'
+	 * una mappa puo' crescergli attorno restando corretta. Qui la segnalazione non e' mai vacua: dice che da
+	 * quella cella, allo stato **autorato**, non esce nessun passo, e che nessuna caduta che finisca li'
+	 * potra' mai usare l'alternativa del §4.2.
+	 *
+	 * ⚠️ **Non e' «isolamento della geometria contro isolamento di stato», e la distinzione non reggerebbe:**
+	 * porta chiusa e arco spento **contano**, perche' `spec-caduta-e-bordi.md` §2 mette la porta chiusa nella
+	 * riga *bloccante* accanto a muro e copertura alta, e CP 9.4 dichiara che un arco spento rende *«le due
+	 * celle irraggiungibili l'una dall'altra»*. Il criterio e' *cio' che la mappa autora*, che e' anche la
+	 * ragione per cui l'occupazione — autorata da nessuno — resta fuori.
+	 *
+	 * ⛔ **E misura l'adiacenza nel grafo, non una raggiungibilita' estesa**: una cella d'atterraggio con UNA
+	 * uscita che porta in una sacca chiusa intrappola come una con zero uscite, e questa regola non la vede.
+	 * E' il §4.2 del resolver visto un momento prima, non un'analisi di fuga.
+	 *
+	 * ⚠️ **Non rimuove il ripiego del §4.3, e non lo anticipa.** Muri, bordi e unita' creati IN PARTITA
+	 * possono chiudere un'area nata valida: sono due garanzie in due momenti, e questa dice soltanto che la
+	 * mappa non parte gia' chiusa. Per la stessa ragione il verdetto **non guarda l'occupazione a runtime**:
+	 * una cella libera adesso non e' una promessa, e una occupata adesso non e' un difetto d'authoring.
+	 *
+	 * ⛔ **Nessuna correzione automatica.** Il validator segnala; aprire un passaggio o mettere un parapetto
+	 * sul bordo che scarica li' e' una scelta d'autore, e sceglierla qui sarebbe la seconda autorita' che
+	 * `AGENTS.md` §3 vieta.
+	 */
+	IsolatedLanding
 };
 
 /**
