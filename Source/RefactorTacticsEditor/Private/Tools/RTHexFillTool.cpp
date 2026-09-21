@@ -90,9 +90,19 @@ void URTHexFillTool::OnClicked(const FInputDeviceRay& ClickPos)
 
 void URTHexFillTool::Render(IToolsContextRenderAPI* RenderAPI)
 {
-	if (!bHasMarker || !RenderAPI) { return; }
+	if (!RenderAPI) { return; }
 	FPrimitiveDrawInterface* PDI = RenderAPI->GetPrimitiveDrawInterface();
 	if (!PDI) { return; }
+
+	// #921: PRIMA della guardia di stato qui sotto. L'overlay e' del MODE e non di questo strumento: se lo
+	// disegnassimo dopo, le superfici non si vedrebbero finche' non si clicca almeno una volta — e il
+	// secchiello e' lo strumento che DIPINGE superfici, cioe' il caso peggiore che #921 esiste per correggere.
+	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
+	{
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+	}
+
+	if (!bHasMarker) { return; }
 	RTHexEditor::DrawHexMarker(PDI, MarkerCenter, MarkerRadius, FColor(120, 255, 120));
 }
 

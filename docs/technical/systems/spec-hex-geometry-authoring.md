@@ -739,10 +739,16 @@ e non giace su un bordo, quindi «cosa c'è sotto questo bordo» non lo raggiung
 viewport, e appartiene al tool.
 
 🔴 **La selezione vive fuori dai `UInteractiveToolPropertySet`**, ed è il punto: [#921](https://github.com/DegrassiAaron/refactor-tactics-main/issues/921)
-ha misurato il difetto opposto — `bShowOverlay` vive in due property set distinti, quindi accenderlo in
-Select non lo accende in Paint e cambiando strumento si perde. **Uno stato che deve sopravvivere al cambio di
-tool non può stare dentro il tool.** Un `UEditorSubsystem` sopravvive ai tool e al mode, non è un Actor, e
-non tocca l'asset: la selezione è stato d'editor puro e non si serializza.
+aveva misurato il difetto opposto — `bShowOverlay` **viveva** in due property set distinti, quindi
+accenderlo in Select non lo accendeva in Paint e cambiando strumento si perdeva. **Uno stato che deve
+sopravvivere al cambio di tool non può stare dentro il tool.** Un `UEditorSubsystem` sopravvive ai tool e al
+mode, non è un Actor, e non tocca l'asset: la selezione è stato d'editor puro e non si serializza.
+
+⏱️ **Al passato perché #921 è chiusa**, e le due classi hanno scelto **due sedi diverse** per la stessa
+ragione: la selezione sta in un `UEditorSubsystem`, l'overlay in `URTHexEditorModeSettings` dichiarato come
+`UEdMode::SettingsClass` e pubblicato nel context store. A separarle è la **persistenza**: una selezione non
+va conservata fra sessioni, un'impostazione di vista sì — ed è per questo che il flag dell'overlay è
+`config` e la selezione no.
 
 Verifica: `RefactorTactics.Editor.Selection.*` — il ciclo che ricomincia, il reset cliccando altrove, e
 l'aggiunta che accumula senza duplicati.
