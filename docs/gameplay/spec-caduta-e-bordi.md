@@ -340,8 +340,17 @@ cade, `FindLandingCell` dove si finisce ([#2401](https://github.com/DegrassiAaro
 più gli archi attivi uscenti. Il quarto criterio, *non `Void`*, è lo stesso che il resolver applica al §4.2.
 
 🔑 **Errore e non warning**, a differenza del parapetto su bordo connesso. Quello è un warning perché è
-**inerte** — da lì non si cadeva comunque, e nessun esito cambia. Qui l'esito cambia, e l'isolamento è della
-geometria: una mappa che nasce così non cresce fino a diventare valida.
+**inerte** — da lì non si cadeva comunque — e perché una mappa può crescergli attorno restando corretta. Qui
+la segnalazione non è mai vacua: dice che da quella cella, **allo stato autorato**, non esce nessun passo.
+
+⚠️ **Porta chiusa e arco spento contano**, e non lo decide questa regola: il §2 qui sopra mette *«muro,
+copertura alta, porta chiusa»* nella stessa riga **bloccante**, e `CP 9.4` dichiara che un arco spento rende
+le due celle *«irraggiungibili l'una dall'altra»*. Il criterio è *ciò che la mappa autora* — la stessa
+ragione per cui l'occupazione, che non autora nessuno, resta fuori.
+
+⛔ **È adiacenza nel grafo, non raggiungibilità estesa.** Un atterraggio con **una** uscita che porta in una
+sacca chiusa intrappola quanto uno con zero uscite, e questa regola non lo vede: è il §4.2 visto un momento
+prima, non un'analisi di fuga.
 
 ⛔ **Sotto non c'è niente non è questo difetto.** È il quarto caso del §4 — `FellWithoutLanding` — che una
 passerella sospesa ha per costruzione: segnalarlo qui renderebbe invalide mappe verticali legittime.

@@ -217,9 +217,20 @@ enum class ERTMapValidationReason : uint8
 	 * raggiungibile dall'atterraggio.
 	 *
 	 * 🔑 **Errore e non warning, a differenza del parapetto inerte.** Il parapetto su un bordo connesso e' un
-	 * warning perche' non cambia NESSUN esito: da li' non si cadeva comunque. Qui l'esito cambia — chi ci
-	 * atterra non ha dove andare, per tutto il resto della partita — e una mappa che nasce cosi' non cresce
-	 * fino a diventare valida: l'isolamento e' della geometria, non di uno stato.
+	 * warning perche' non cambia NESSUN esito — da li' non si cadeva comunque, la voce e' inerte — e perche'
+	 * una mappa puo' crescergli attorno restando corretta. Qui la segnalazione non e' mai vacua: dice che da
+	 * quella cella, allo stato **autorato**, non esce nessun passo, e che nessuna caduta che finisca li'
+	 * potra' mai usare l'alternativa del §4.2.
+	 *
+	 * ⚠️ **Non e' «isolamento della geometria contro isolamento di stato», e la distinzione non reggerebbe:**
+	 * porta chiusa e arco spento **contano**, perche' `spec-caduta-e-bordi.md` §2 mette la porta chiusa nella
+	 * riga *bloccante* accanto a muro e copertura alta, e CP 9.4 dichiara che un arco spento rende *«le due
+	 * celle irraggiungibili l'una dall'altra»*. Il criterio e' *cio' che la mappa autora*, che e' anche la
+	 * ragione per cui l'occupazione — autorata da nessuno — resta fuori.
+	 *
+	 * ⛔ **E misura l'adiacenza nel grafo, non una raggiungibilita' estesa**: una cella d'atterraggio con UNA
+	 * uscita che porta in una sacca chiusa intrappola come una con zero uscite, e questa regola non la vede.
+	 * E' il §4.2 del resolver visto un momento prima, non un'analisi di fuga.
 	 *
 	 * ⚠️ **Non rimuove il ripiego del §4.3, e non lo anticipa.** Muri, bordi e unita' creati IN PARTITA
 	 * possono chiudere un'area nata valida: sono due garanzie in due momenti, e questa dice soltanto che la
