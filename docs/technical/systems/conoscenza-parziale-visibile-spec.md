@@ -309,40 +309,56 @@ prosa, le riletture divergono e si riforma la terza via che la decisione vieta �
 col presente e altri col passato, che è esattamente lo stato da cui si è partiti.
 
 **Come si calcola, misurato.** `URTTeamKnowledgeLibrary::ClassifyTarget` è puro e chiede
-`(Knowledge, SubjectId, SubjectTeamId, SubjectCurrentCell)`. In `ConcludeTurn` le righe escono a
-`RTTurnManager.cpp:2383-2386` e `DestroyDefeatedUnits` gira a `:2405`: alla scrittura il soggetto **esiste
-ancora**. I **79** siti sparsi hanno l'unità in mano e costano una riga ciascuno.
+`(Knowledge, SubjectId, SubjectTeamId, SubjectCurrentCell)`. In `ARTTurnManager::ConcludeTurn` le righe
+escono da `URTTurnLogLibrary::DescribeTurnLogWithSubjects` e `DestroyDefeatedUnits` gira dopo
+(`RTTurnManager.cpp:3362` e `:3386` alla data del 2026-09-21): alla scrittura il soggetto **esiste
+ancora**. I siti sparsi hanno l'unità in mano e costano una riga ciascuno — si contano con
+`grep -rc "AddLogEvent(" Source/RefactorTactics/Turn/*.cpp`, non a memoria.
 
 #### 🔴 Il canale derivato è il caso difficile, e «alla scrittura» lì non basta
 
 *(Corretto il 2026-08-28. Questo paragrafo diceva: «il canale primario è un ciclo solo, quindi basta **una**
 mappa `id → cella` per turno». Era sbagliato due volte, e la seconda metà è il difetto vero.)*
 
-L'unico sito che emette dal TurnLog (`RTTurnManager.cpp:2383-2386`) scrive **in un colpo solo le voci di
-tutte e cinque le fasi**, e in quell'istante i due ingressi di `ClassifyTarget` vengono da due momenti
+L'unico sito che emette dal TurnLog (`ARTTurnManager::ConcludeTurn`, `RTTurnManager.cpp:3362` alla data)
+scrive **in un colpo solo le voci di tutte e cinque le fasi**, e in quell'istante i due ingressi di `ClassifyTarget` vengono da due momenti
 diversi:
 
 | Ingresso | Da quando | Misura |
 |---|---|---|
-| `Knowledge` | ultimo refresh, che è quello del **Blast** — **pre-Move** | `RefreshTeamKnowledgeForBlast` chiamata a `RTTurnManager.cpp:3785` |
-| `SubjectCurrentCell` | **post-Move** | `PlaceOnCell` a `RTTurnManager.cpp:5338` |
+| `Knowledge` | ultimo refresh, che è quello del **Blast** — **pre-Move** | `ARTTurnManager::RefreshTeamKnowledgeForBlast`, definita in `Turn/RTTurnManager_Blast.cpp:303` alla data |
+| `SubjectCurrentCell` | **post-Move** | `ARTUnit::PlaceOnCell`, chiamata in `Turn/RTTurnManager_Movement.cpp:1446` alla data |
 
 `AwarenessOfUnit` decide con `Knowledge.VisibleCells.Contains(CurrentCell)`, quindi mescolarli produce **due
 errori speculari, entrambi reali**: un **leak** — un soggetto che nel Move entra in una cella visibile
 pre-Move e che nessuno osserva più — e una **perdita** — un soggetto visibile mentre agiva, che nel Move esce
 dal set stantio e si porta via l'intera narrazione del proprio turno.
 
-⚠️ **Il refresh successivo esiste ma arriva dopo**: `StartPlanningTimer` (`:2446`) → `PlanBots` (`:1222`) →
-`RefreshTeamKnowledgeForPlanning` (`:505`) osserva le celle post-Move, ma gira **sessanta righe dopo**
-l'emissione. Non è disponibile a chi scrive.
+⚠️ **Il refresh successivo esiste ma arriva dopo**: `StartPlanningTimer` → `PlanBots` →
+`RefreshTeamKnowledgeForPlanning` osserva le celle post-Move, ma gira **dopo** l'emissione. Non è
+disponibile a chi scrive. *(Alla data del 2026-09-21: `RTTurnManager.cpp:1095`, `:854`, `:786`. La
+distanza — «sessanta righe» nella prima stesura — non è più ricavabile da questi numeri: il Move è
+uscito dal file, e la catena attraversa tre unità di traduzione.)*
 
-⚠️ **E `ClassifyTarget` vuole un terzo ingresso che il TurnLog non ha**: `TargetTeamId`. Misurato: `TeamId`
-compare **0** volte in `Turn/RTTurnLog.h`, con controprova a **29** su `UnitId` nello stesso file.
+⚠️ **`ClassifyTarget` vuole un terzo ingresso che il TurnLog non aveva**: `TargetTeamId`. Misurato
+allora: `TeamId` compariva **0** volte in `Turn/RTTurnLog.h`.
+
+➕ **⌨ Quello zero oggi è FALSO, e ribalta la tesi del paragrafo che lo usa** *(rimisurato il 2026-09-21,
+`#3253`)*: `Turn/RTTurnLog.h:838` porta `int32 TeamId = 0;` dentro `FRTVerdictSubjectRef`, la struct che
+il file stesso descrive come *«i tre soli ingressi che `FreezeVerdict` legge»*. Il TurnLog ha
+**esattamente** il terzo ingresso che questo paragrafo dichiara mancante. Si conta con
+`grep -c TeamId Source/RefactorTactics/Turn/RTTurnLog.h`.
 
 🔴 **Chi implementa deve dichiarare, per questo canale, quale conoscenza e quale cella entrano nel calcolo.**
 È la sola parte della decisione che il codice non risolve da solo, e le vie che lascia aperte — accettare per
 iscritto il verdetto «conoscenza pre-Move + cella del fatto», anticipare il congelamento al sito che produce
 la voce, o aggiungere un terzo campione — hanno costi diversi e vanno confrontate, non scelte per inerzia.
+
+✅ **⌨ Dichiarato, e nel codice** *(2026-09-21, `#3253`)*: `ARTTurnManager::FreezeVerdictFor`
+(`Turn/RTTurnManager.cpp:272` alla data) passa `TeamKnowledgeState` come conoscenza e
+`Subject.GetFactCell()` come cella — **non** `ARTUnit::Cell`, e il commento accanto spiega perché: dentro
+`ResolveMovement` le due non coincidono (`#2142`). La via scelta è la seconda, *anticipare il congelamento
+al sito che produce la voce*, e questo paragrafo resta come storia della scelta, non come lavoro aperto.
 
 ### 3.6 ✅ Il limite del morto è chiuso da [D-223], e non serve toccare `ViewForTeam`
 
@@ -364,8 +380,11 @@ lettura** — overlay, modello, sagoma — ed è lì corretta: chiedere «conosc
 giusta quando la morte è pubblica. E il caso da verificare invece che presupporre resta: si può uccidere
 qualcosa che non si è **mai** visto (AoE, danno ambientale), e quella riga deve restare nascosta — con
 [D-223] lo resta perché `ClassifyTarget` risponde `Rejected`, non perché il soggetto è sparito. La
-distinzione conta: le due cose smettono di coincidere appena si tocca una delle due cause. Owner della
-verifica: **#1498**.
+distinzione conta: le due cose smettono di coincidere appena si tocca una delle due cause.
+✅ **⌨ Verifica SCARICATA, e l'owner non esiste più** *(2026-09-21, `#3253`)*: **#1498** è chiusa, la
+regola è registrata come [`D-431`](../../decisions/RT_PDR_00_Decision_Log.md), e il caso è asserito da
+`RefactorTactics.UI.UnseenDeathLeavesOnlyTheAnnouncement` — che verifica il **meccanismo**, cioè che
+`ClassifyTarget` risponda `Rejected`, e non la sola assenza della riga.
 
 **Cos'era il difetto, e perché la tabella qui sotto va riletta due volte.** Il filtro era applicato **in
 lettura**: `ARTTurnManager::GetRecentEventsForTeam` costruiva la vista *ora* e la passava a
@@ -375,22 +394,30 @@ soggetto era lei perdeva la propria voce nella vista.
 
 Misurato sui siti che scrivono la morte:
 
-| # | Riga | Sito | Soggetto | Prima di [D-223] | Con [D-223] |
+| # | Riga | Sito *(funzione; la riga è corredo, datato 2026-09-21)* | Soggetto **prima di #1499** | Prima di [D-223] | Con [D-223] |
 |---|---|---|---|---|---|
-| 1 | `<nome> eliminato dalle fiamme` (danno da `Status.Burning`) | `RTTurnManager.cpp:1459` | **la vittima** | ❌ spariva, insieme al resto del suo turno | ✅ resta per chi vedeva la vittima quando è caduta |
-| 2 | `<nome> eliminato dalla scarica` | `RTTurnManager.cpp:2257` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
-| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `RTTurnManager.cpp:4320` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità **e la sua squadra** |
-| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `RTTurnManager.cpp:5603` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
-| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `RTTurnManager.cpp:5659` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
+| 1 | `<nome> eliminato dalle fiamme` (danno da `Status.Burning`) | `ARTTurnManager::ConcludeResolution` · `Turn/RTTurnManager.cpp:1789` | **la vittima** | ❌ spariva, insieme al resto del suo turno | ✅ resta, **e la leggono tutte le squadre**: il sito dichiara `FRTLogSubject::World()`, come le altre quattro |
+| 2 | `<nome> eliminato dalla scarica` | `ARTTurnManager::ResolveEnvironment` · `Turn/RTTurnManager.cpp:3224` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
+| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `ARTTurnManager::ResolveCombatPasses` · `Turn/RTTurnManager.cpp:6195` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità **e la sua squadra** |
+| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `ARTTurnManager::TickPlayback` · `Turn/RTTurnManager.cpp:8023` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
+| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `ARTTurnManager::FinishPlayback` · `Turn/RTTurnManager.cpp:8174` | nessuno | ✅ resta, **per omissione** | va deciso: nomina un'unità |
 
 ⚠️ **Questa tabella ne elencava TRE, e ne classificava male una.** *(Corretta il 2026-08-28.)* Le due righe
 `"Morte mostrata: %s"` del playback non erano mai state censite. E la riga 3 era descritta come *«una riga di
-mondo»*: **non lo è** — stampa il nome di un'unità **e** il suo `TeamId`. Resta visibile solo perché il
-default di `AddLogEvent` è fail-open, cioè per il difetto stesso che **#1499** chiude.
+mondo»*: **non lo è** — stampa il nome di un'unità **e** il suo `TeamId`. ⌨ **Restava** visibile solo
+perché il default di `AddLogEvent` era fail-open, cioè per il difetto che **#1499** ha chiuso.
 
-🔴 **Quattro righe di morte su cinque passano per omissione, e sono quindi in scope per #1499.** Nessuna di
-esse è «restata» per una decisione: chiudere il default senza deciderle una per una le farebbe sparire tutte
-e quattro insieme — ed è precisamente perché #1499 e [D-223] vanno fatte nella stessa passata.
+⌨ **Quattro righe di morte su cinque passavano per omissione, ed erano in scope per #1499.** Nessuna di
+esse era «restata» per una decisione: chiudere il default senza deciderle una per una le avrebbe fatte
+sparire insieme — ed è per questo che #1499 e [D-223] sono state fatte nella stessa passata.
+
+✅ **Fatto, e verificabile riga per riga** *(rimisurato il 2026-09-21, `#3253`)*. **#1499** è chiusa dal
+2026-09-03 e `AddLogEvent` **non ha più un default**: `Turn/RTTurnManager.h:2328` prende due argomenti
+obbligatori, e il docstring sopra la dichiarazione registra che fino al 2026-08-28 il parametro era un
+`int32` con default `INDEX_NONE`. 🔑 **Nessuna delle cinque righe passa più per omissione**: tutte
+dichiarano `FRTLogSubject::World()`, convertite in una passata sola (`05a39cd5`, 2026-08-28).
+⚠️ **E per questo la colonna *Soggetto* qui sopra è datata invece che corretta**: combacia alla lettera
+con lo stato **pre-#1499**, ed è la misura che motiva la decisione. Cancellarla la perderebbe.
 
 ### ✅ Deciso: la morte è pubblica
 

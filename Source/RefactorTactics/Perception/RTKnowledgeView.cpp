@@ -24,20 +24,22 @@ FRTKnowledgeView URTKnowledgeViewLibrary::ViewForTeam(const FRTTeamKnowledge& Kn
 		// 🔴 **E oggi questa guardia non ha nessun consumatore che la osservi — misurato, non dedotto.**
 		// L'unico chiamante di produzione e' `UvViewForObserver`, l'helper che `ARTHUD::UpdateObserverVeil`
 		// usa (`UI/RTHUD.cpp:657` alla data); e il ciclo che consuma la vista **salta gia' i caduti da se'**
-		// (`if (!Unit || !Unit->IsAlive()) { continue; }`, `UI/RTHUD.cpp:739`). Togliere questa riga non
-		// farebbe comparire nessun morto sull'overlay: non cambierebbe **niente di osservabile**.
+		// (`if (!Unit || !Unit->IsAlive()) { continue; }`). Togliere questa riga non farebbe comparire nessun
+		// morto sull'overlay: non cambierebbe **niente di osservabile**.
 		// ∴ [D-431] la tiene come **difesa in profondita'**, non perche' stia portando un carico: toglierla
 		// farebbe dipendere il contratto di `ViewForTeam` dal fatto che ogni consumatore **futuro** si
 		// ricordi di filtrare.
 		//
-		// ⚠️ **E la duplicazione e' dichiarata, con la precisione che merita.** ⌫ Una prima stesura diceva
-		// che *«il repository si contraddice»*: non alla lettera. `UI/RTHUD.cpp:631` e' il docstring di
-		// `UvViewForObserver` e parla della costruzione dei SOGGETTI — *«togliere QUI i caduti significherebbe
-		// prendere quella decisione due volte»* — mentre `:739` sta in `ARTHUD::UpdateObserverVeil`, che e' un
-		// altro punto. La lettera e' rispettata; cio' che non regge e' la **sostanza**, perche' l'effetto
-		// combinato e' che la decisione viene presa due volte lo stesso, che e' proprio cio' che `:631`
-		// dichiara non debba accadere. `FOLLOW-UP CANDIDATE` di [D-431]: `UI/` e' fuori dal write-set della
-		// passata che l'ha misurata.
+		// ⌫ **E la ragione qui sopra e' piu' debole del vero: corretta con `#3253`.** Non e' il salto del
+		// ciclo a rendere questa guardia inosservabile — e' che la sede della regola *«un morto non si
+		// disegna»* e' un **terzo** posto, `ARTUnit::ShouldBeRendered` (`bAlive && bKnownToObserver`, *«la
+		// morte vince sempre sulla conoscenza»*), pinnata da
+		// `RefactorTactics.Knowledge.UnitRenderingCombinesAliveAndKnown`. Togliendo **entrambe** le guardie
+		// un cadavere resterebbe comunque invisibile.
+		//
+		// ✅ **La duplicazione dichiarata qui era un `FOLLOW-UP CANDIDATE`, ed e' CHIUSO** (`#3253`): il
+		// docstring di `UvViewForObserver` non vieta piu' una duplicazione che il file commette comunque, e
+		// dice il conto giusto — filtrare nei soggetti sarebbe la **terza** copia, non la seconda.
 		if (!S.bAlive)
 		{
 			continue;
