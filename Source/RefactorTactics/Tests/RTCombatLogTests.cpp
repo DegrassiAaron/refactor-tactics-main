@@ -1210,7 +1210,7 @@ bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
 	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
 
 	// ➕ **LA MISURA che la DoD di `#1498` chiede «presa e non stimata»** — aggiunta il 2026-09-21 con
-	// [D-430]. La domanda e' *«quante righe del turno di un'unita' caduta spariscono»*: la risposta e' la
+	// [D-431]. La domanda e' *«quante righe del turno di un'unita' caduta spariscono»*: la risposta e' la
 	// differenza fra cio' che il log COMPLETO contiene e cio' che l'osservatore riceve.
 	//
 	// 🔴 **Si conta per FORMA, non per NOME, ed e' una correzione da code review.** Una prima stesura cercava
@@ -1267,7 +1267,7 @@ bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
 	}
 
 	// 🔴 **L'asserzione che rende la misura un GATE invece di un referto**: nessuna riga di danno sparisce
-	// fra il log completo e quello che la squadra riceve. E' la forma falsificabile di [D-430] — il giorno in
+	// fra il log completo e quello che la squadra riceve. E' la forma falsificabile di [D-431] — il giorno in
 	// cui il filtro tornasse in lettura, questa diventa rossa **col numero esatto** di cio' che il giocatore
 	// ha smesso di leggere, invece del solo `bColpoInflitto` che dice «manca» senza dire «quanto».
 	TestEqual(TEXT("nessuna riga di danno sparisce fra il log completo e quello della squadra del caduto"),

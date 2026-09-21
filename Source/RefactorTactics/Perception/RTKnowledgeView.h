@@ -143,7 +143,7 @@ public:
 	/**
 	 * La vista di un osservatore sui soggetti dati.
 	 *
-	 * ⚠️ **Salta i soggetti non vivi, e la regola che glielo impone e' [D-430]** (`#1498`), non il commento
+	 * ⚠️ **Salta i soggetti non vivi, e la regola che glielo impone e' [D-431]** (`#1498`), non il commento
 	 * nel corpo. La regola governa i canali calcolati **in lettura** — velo, modello, sagoma del contatto —
 	 * e **non** il combat log, che da [D-223] porta il verdetto congelato alla scrittura.
 	 *
@@ -154,7 +154,7 @@ public:
 	 *
 	 * ⚠️ **E oggi non restituirebbe nemmeno un morto sull'overlay**, perche' il ciclo che consuma la vista
 	 * salta gia' i caduti (`UI/RTHUD.cpp:739`). La guardia e' **difesa in profondita'**, non un carico
-	 * portante — e [D-430] la tiene per questo, non per un effetto che non ha.
+	 * portante — e [D-431] la tiene per questo, non per un effetto che non ha.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Knowledge")
 	static FRTKnowledgeView ViewForTeam(const FRTTeamKnowledge& Knowledge,
