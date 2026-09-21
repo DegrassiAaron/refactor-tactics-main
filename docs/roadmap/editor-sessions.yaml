@@ -537,6 +537,12 @@ sessions:
     done_when: le voci hanno esito reale nel registro
     unblocks: [U5, M6.4, M6.5]
     steps: |
+      ✅ **CHIUSA il 2026-09-21 senza aprire l'Editor — le tre voci hanno esito reale e nessuna
+      e' stata prodotta da questa seduta.** Il `done_when` chiede *«le voci hanno esito reale nel
+      registro»*, non che sia `U4` a produrlo. `PIE-HEXPLAY-6` ✅ rigiudicata il 2026-09-12 (#2697,
+      banco `Visual.Map.SightWallIsWalkable`, primo `PASS` d'autore); `-6b` e `-6c` ✅ chiuse il
+      2026-08-30, la seconda in sessione guidata. L'evidenza vive nelle tre celle del registro.
+
       Attacco attraverso una cella che blocca la vista, poi da una cella di lato; ostacolo su un
       **altro layer** (regola di elevazione). Il knockback a 6 direzioni e' l'unico punto di M6 con
       una decisione di design dietro: **guardalo**, non solo verificarlo.
@@ -2426,6 +2432,17 @@ sessions:
       utilizzabili dopo.
     unblocks: []
     notes: >-
+      ✅ **ESEGUITA il 2026-08-30, esito OK.** Verdetto d'autore nel commento del 2026-08-30 su #1755
+      (chiusa lo stesso giorno): `TestArena` dà `BLOCKED · CellBlocker` col marcatore sulla cella del
+      muro e `CLEAR` dalla stessa parte; `CoverYard` dà `EdgeBlocker` con le due celle del lato; il
+      pannello dichiara il piano del tiratore e il verdetto cambia fra terra e piattaforma. Qui c'e'
+      il puntatore, non una seconda verita'.
+
+      ⚠️ **Marcata il 2026-09-21, tre settimane dopo l'esecuzione.** `verifies` e' vuoto, quindi lo
+      stato di questa seduta non e' derivabile dal registro: e' il difetto che #2251 ha misurato —
+      *«la seduta esiste, puo' essere passata, e nessuno strumento lo vede»* — e che allora contava
+      `U33` fra le aperte, perche' il verdetto e' arrivato dopo la misura.
+
       🔴 **È il primo tool con HOVER del progetto.** I cinque esistenti sono tutti a click
       (`USingleClickTool` / `UClickDragTool`); questo aggiunge `UMouseHoverBehavior`. Il rischio che
       introduce è dichiarato dal DoD di `#1755` — ⛔ *«nessun Tick; una query LOS su hover può essere
@@ -2477,6 +2494,16 @@ sessions:
       di disegno restano attivi mentre l'anteprima è a schermo.
     unblocks: []
     notes: >-
+      ✅ **ESEGUITA il 2026-08-30, esito OK.** Verdetto d'autore nel commento del 2026-08-30 su #1753
+      (chiusa lo stesso giorno): `AutoBattle.Obstacles` mostra arena e quattro marcatori con celle e
+      orientamenti coincidenti col JSON; `Visual.Map.TwoLayersSameColumn` separa in quota due unita'
+      sulla stessa colonna. ⛔ **E i due criteri negativi sono passati**, che erano quelli che
+      contavano: `L_DevSandbox` non risulta modificata dopo aver guardato piu' scenari, e gli actor
+      dell'anteprima non compaiono nell'outliner. Qui c'e' il puntatore, non una seconda verita'.
+
+      ⚠️ **Marcata il 2026-09-21, tre settimane dopo l'esecuzione**, per la stessa ragione di `U33`:
+      `verifies` e' vuoto e lo stato non e' derivabile dal registro (#2251).
+
       🔴 **L'anteprima è transiente per una ragione che questa seduta deve verificare.** La via corta sarebbe
       assegnare l'arena dello scenario all'`ARTHexMapActor` già posato nel livello: funziona, e sporca
       `L_DevSandbox` a ogni selezione. Un designer che accettasse per distrazione la richiesta di salvataggio
