@@ -348,8 +348,22 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 
 		// Il bersaglio puo' essere un'unita' oppure una CELLA (`Fallback.AttackCell`: il bersaglio e' sparito,
 		// l'area parte comunque dove era stata puntata). Da qui in poi conta solo dove si mira.
+		//
+		// 🔴 **La mira e' SEMPRE `Intent.TargetCell`, anche con un bersaglio-unita'** ([D-415]). Fino al
+		// 2026-09-20 questa riga leggeva `Units[Intent.TargetId].Cell`, cioe' lo stato del **Blast**: il
+		// colpo inseguiva il bersaglio dove il movimento di questo stesso turno l'aveva portato.
+		//
+		// 🔑 **`TargetId` resta, e non e' un residuo**: serve alle regole di INGAGGIO — bersaglio vivo, fuoco
+		// amico — che sono domande sull'identita', non sulla geometria. Chi viene colpito lo decide l'area,
+		// piu' sotto, e lo decideva gia' prima.
+		//
+		// ⚠️ **Chi costruisce un intento con `TargetId` DEVE valorizzare `TargetCell`.** Prima era
+		// «ignorata», quindi un chiamante poteva lasciarla al default — e `(0,0,0)` e' una cella legittima,
+		// non un valore sentinella. Un intento incompleto mira ora al centro della mappa, che e' un fallimento
+		// RUMOROSO (fuori portata, nessun colpo) e non silenzioso: e' la ragione per cui non c'e' un ripiego
+		// qui dentro.
 		const bool bTargetsUnit = Units.IsValidIndex(Intent.TargetId);
-		const FRTCellId AimCell = bTargetsUnit ? Units[Intent.TargetId].Cell : Intent.TargetCell;
+		const FRTCellId AimCell = Intent.TargetCell;
 
 		if (bTargetsUnit)
 		{

@@ -714,6 +714,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// bersaglio-cella un `TargetGone`, cioe' il difetto opposto a quello che questa correzione chiude.
 		const bool bTargetsCell = Unit->bAttackTargetsCell;
 		const FRTCellId PlannedAttackCell = Unit->PlannedAttackCell;
+		// [D-415]: anche la mira congelata si copia QUI, per la stessa ragione delle due righe sopra —
+		// `ClearPlannedAttack()` la spegne, e chi la legge sta un centinaio di righe piu' giu'.
+		const bool bHasAim = Unit->bHasPlannedAim;
+		const FRTCellId PlannedAim = Unit->PlannedAimCell;
 		Unit->ClearPlannedAttack(); // consumati nel turno: ENTRAMBE le forme
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 
@@ -793,7 +797,25 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 		// ⚠️ Le due copie vengono da CIMA AL CICLO, dove il piano e' stato consumato: leggerle qui dall'unita'
 		// darebbe sempre `false` da `#2884` in poi.
 		Instance.TargetUnitId = (!bTargetsCell && Target && IndexOf.Contains(Target)) ? IndexOf[Target] : INDEX_NONE;
-		Instance.TargetCell = bTargetsCell ? PlannedAttackCell : (Target ? Target->Cell : Unit->Cell);
+		// 🔴 **La mira e' quella CONGELATA AL LOCK-IN, non la cella corrente del bersaglio** ([D-415]).
+		// `Target->Cell` qui sarebbe la posizione POST-movimento, e usarla e' il difetto che la decisione
+		// chiude: il colpo inseguiva. Il ripiego su `Target->Cell` copre i piani scritti direttamente
+		// (harness, test) che non passano dal lock-in, e resta il comportamento di prima per loro.
+		//
+		// ✅ **SALVO per chi DICHIARA di agganciare**, che e' l'uscita che [D-415] nomina per esteso:
+		// *«resta legittimo per le abilita' che dichiarano di agganciare»*. La dichiarazione e'
+		// `ERTActionFallback::AttackTarget` — *«Segue il bersaglio, se ancora valido»* — e prima di questa
+		// voce era un valore **morto** dell'enum: zero azioni lo usavano, e come fallback fa gia'
+		// esattamente cio' che fa `Cancel` (`RTActionFallbackLibrary.cpp`, ramo `AttackTarget`). Dichiararlo
+		// non cambia quindi il comportamento di ripiego di nessuno: gli da' solo la mira.
+		//
+		// ⚠️ **Non e' una scappatoia per rimettere il vecchio default**: `Cancel` resta il default del
+		// catalogo, quindi chi non dice niente NON insegue. Aggiungere `AttackTarget` a un'azione e' una
+		// scelta di catalogo, leggibile in diff, e va motivata li'.
+		const bool bAggancia = (Instance.Def.Fallback == ERTActionFallback::AttackTarget);
+		Instance.TargetCell = bTargetsCell ? PlannedAttackCell
+			: (bAggancia || !bHasAim) ? (Target ? Target->Cell : Unit->Cell)
+			: PlannedAim;
 		Instance.EventSequence = DeclarationOrder++; // ordine di dichiarazione, non `Intents.Num()` (#2970)
 
 		// Un'azione di Blast senza bersaglio non e' un'azione «che non ne ha uno» (quelle sono il movimento e il

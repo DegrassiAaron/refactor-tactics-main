@@ -1171,6 +1171,23 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		ERTInterruptPolicy::InterruptBeforeEffect, ERTActionSlot::Main));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 
+	// 🔴 **L'attacco base PUO' sparare dove non vede** ([D-415] punto 3).
+	//
+	// 🔑 **E' la voce piu' cara delle tre, e il motivo e' che tocca un prezzo gia' pagato.** [D-380] aveva
+	// concesso il tiro indiretto a `Action.Mortar` **facendolo pagare**: 12 danni invece dei 18 del gemello
+	// `Action.CircularAoE`, ricarica 3 invece di 2. Renderlo comune a quattro attacchi base gratuiti e senza
+	// ricarica significa che quel prezzo non comprava una capacita': comprava un'**esclusiva**.
+	//
+	// ⛔ **E il mortaio NON si riprezza** ([D-418], che chiude `SKB-5`): a 18 e ricarica 2 eguaglierebbe
+	// `Action.CircularAoE` su tutti e cinque i valori **e terrebbe in piu' il tiro indiretto** — sarebbe
+	// strettamente superiore, non un pareggio. I suoi numeri restano e comprano **area, gittata e
+	// traiettoria**, non piu' il permesso di sparare al buio.
+	//
+	// ⚠️ **Cieco non significa illimitato, e non e' una formalita'**: portata, terreno, forma e fuoco amico
+	// restano tutti. `BlindFireStillObeysRange` lo pinna per il mortaio e vale identico qui — l'enum lo
+	// dichiara accanto al proprio valore.
+	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // [D-415] punto (3)
+
 	// `Action.Guard` — si prepara nel Prep e vale per il turno: **riduce di una quota fissa OGNI colpo**
 	// dell'arco frontale ([D-408] + [D-206]), resiste a una spinta di 1 cella, scade nel Cleanup. Non
 	// interrompibile (catalogo §1). Il valore lo dichiara il personaggio (`URTHeroData::GuardReduction`);
@@ -1431,6 +1448,11 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 		{ FRTActionEffectSpec(ERTActionEffect::Damage, 12) }));
 	Catalog.Last().bCountsAsAttack = true; // aggressione dichiarata [`INT-8`]
 	Catalog.Last().LineOfSightPolicy = ERTLineOfSightPolicy::NotRequired; // `#2890`, [D-380]
+	// ⏱️ **Dal 2026-09-20 questa riga non e' piu' un'esclusiva** ([D-415] punto 3): anche `Action.BasicAttack`
+	// la porta. ⛔ **I numeri del mortaio restano comunque** ([D-418]): cio' che il suo prezzo compra sono
+	// **area, gittata e traiettoria** — il gemello `Action.CircularAoE` non ha nessuna delle tre insieme — e
+	// non il permesso di sparare al buio. `MortarPaysAPriceAgainstItsLineOfSightTwin` misura quel prezzo
+	// contro il gemello e resta verde: e' una relazione fra due voci, non una costante.
 
 	// `SuppressiveLine` — si PREPARA (fase 10, quindi macro-fase Prep) e si attiva su un trigger: il primo
 	// nemico che entra in una cella controllata durante il Move prende 16 danni e si ferma li'. Una sola
@@ -1659,8 +1681,24 @@ TArray<FRTActionDef> URTCatalogLibrary::GetCoreActionCatalog()
 	// `Interrupt` — nessun effetto dichiarabile: la sua conseguenza e' cancellare l'azione di un'altra unita',
 	// non modificarne le statistiche. Agisce solo su chi NON dichiara `ERTInterruptPolicy::None` — il controllo
 	// e' fatto da `ARTTurnManager::ResolveCombat`, non da un flag che questa azione porterebbe con se'.
+	// 🔴 **`AttackTarget` e non `Cancel`, ed e' l'unica azione del catalogo a dichiararlo** ([D-415]).
+	//
+	// 🔑 **Il suo mestiere e' cogliere chi AGISCE, e chi agisce si e' appena mosso.** `Action.Interrupt` sta
+	// in fase `Control` con portata **1**: risolve dopo il Dash, quindi il bersaglio che vuole fermare e'
+	// tipicamente arrivato li' in questo stesso turno. Congelarle la mira al lock-in la farebbe puntare la
+	// cella di partenza e mancare per costruzione — misurato: senza questa riga
+	// `Actions.Charge.ImpactSurvivesInterrupt` diventa rosso, perche' l'interruzione non raggiunge piu' il
+	// caricatore e la vittima viene spinta.
+	//
+	// ⚠️ **La dichiarazione NON cambia il ripiego**: il ramo `AttackTarget` di `URTActionFallbackLibrary`
+	// annulla esattamente come `Cancel` — *«qui il bersaglio NON e' valido, quindi non c'e' nessuno da
+	// seguire»* — e la mappa degli esiti manda entrambi su `ERTFallbackOutcome::Cancelled`. Cio' che cambia
+	// e' solo dove si mira finche' il bersaglio **e'** valido.
+	//
+	// ⛔ **E non e' un precedente da estendere per comodita'.** `Cancel` resta il default: un'azione che
+	// aggancia va motivata come questa, perche' l'aggancio e' precisamente cio' che [D-415] toglie al resto.
 	Catalog.Add(ShippedAction(TEXT("Action.Interrupt"), ERTResolutionPhase::Control, /*Priority*/ 20,
-		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::Cancel, {}));
+		/*Range*/ 1, /*Cooldown*/ 2, ERTActionFallback::AttackTarget, {}));
 	Catalog.Last().bCountsAsAttack = true; // controllo OSTILE: raggiunge il bersaglio come colpo, come `MarkTarget` [`INT-8`]
 
 	// --- Azioni AMBIENTALI (catalogo §6) -----------------------------------------------------------------
