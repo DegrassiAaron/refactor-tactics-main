@@ -1353,6 +1353,63 @@ TArray<FRTCellId> URTHexMapAsset::FloodRegion(const FRTCellId& Start) const
 }
 
 #if WITH_EDITOR
+void URTHexMapAsset::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeChainProperty(PropertyChangedEvent);
+
+	// Solo il cambio di TIPO di una copertura riallinea, e non un edit qualunque del pannello. Se scattasse
+	// su ogni notifica, `Integrity` diventerebbe non modificabile a mano — il sintomo opposto, e peggiore.
+	if (PropertyChangedEvent.GetPropertyName()
+		!= GET_MEMBER_NAME_CHECKED(FRTHexCover, Type))
+	{
+		return;
+	}
+
+	// Il pannello dei dettagli dice QUALE entry ha toccato. Quando lo dice si riallinea quella sola; quando
+	// non lo dice — una notifica sintetica, un ricaricamento — si passano in rassegna tutte, ed e' sicuro
+	// perche' `RealignedIntegrity` lascia stare ogni valore che non sia di catalogo.
+	const int32 IndiceCella = PropertyChangedEvent.GetArrayIndex(TEXT("Cells"));
+	const int32 IndiceCopertura = PropertyChangedEvent.GetArrayIndex(TEXT("Covers"));
+
+	int32 Riallineate = 0;
+	auto RiallineaCella = [&Riallineate, IndiceCopertura](FRTHexCellData& Cella)
+	{
+		for (int32 i = 0; i < Cella.Covers.Num(); ++i)
+		{
+			if (IndiceCopertura != INDEX_NONE && i != IndiceCopertura)
+			{
+				continue;
+			}
+			FRTHexCover& Cover = Cella.Covers[i];
+			const int32 Nuova = FRTHexCover::RealignedIntegrity(Cover.Integrity, Cover.Type);
+			if (Nuova != Cover.Integrity)
+			{
+				Cover.Integrity = Nuova;
+				++Riallineate;
+			}
+		}
+	};
+
+	if (Cells.IsValidIndex(IndiceCella))
+	{
+		RiallineaCella(Cells[IndiceCella]);
+	}
+	else
+	{
+		for (FRTHexCellData& Cella : Cells)
+		{
+			RiallineaCella(Cella);
+		}
+	}
+
+	if (Riallineate > 0)
+	{
+		// ⚠️ Chi mostra l'asset non fa parte di questa notifica e non saprebbe di dover ridisegnare: stessa
+		// ragione per cui `PostEditUndo` la emette.
+		OnMapChanged.Broadcast();
+	}
+}
+
 void URTHexMapAsset::PostEditUndo()
 {
 	Super::PostEditUndo();

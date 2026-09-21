@@ -698,14 +698,31 @@ vuoto, `DA_HexMap_Scratch_Basin` ne ha **una** su 45 — e quella viene da una f
 `DefaultIntegrity(Type)`. **Nessuno ha ancora autorato una copertura a mano in questo repository**, ed è la
 ragione per cui il difetto è sopravvissuto invisibile: il percorso che lo produce non è ancora stato battuto.
 
-∴ **il meccanismo NON si chiude, e la scelta è dichiarata invece che scoperta a valle.** Una guardia in
+~~∴ **il meccanismo NON si chiude, e la scelta è dichiarata invece che scoperta a valle.** Una guardia in
 `ValidateMap` dovrebbe essere un *warning* — `D-186` dichiara **legittima** una copertura sotto catalogo,
 `Adaptive` nasce a `25` di proposito — e un `PostEditChangeProperty` rischierebbe di riscrivere un valore
-voluto: si pagherebbero entrambi per zero casi. Al loro posto c'è un **oracolo** che li guarda:
-`RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog` ([`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexMapTests.cpp)),
-che conta le coperture dei tre asset e fallisce sulla prima che nasca sotto il proprio catalogo.
-⛔ **Rileva, non previene**: il giorno in cui un autore ne scrive una, il test lo dice — non glielo impedisce.
-Se quel giorno arriva più di una volta, la guardia torna decidibile e la sede è [#1317](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1317).
+voluto: si pagherebbero entrambi per zero casi.~~
+
+🔁 **Il meccanismo È CHIUSO dal 2026-09-21 — `D-430`, decisione d'autore.** Il paragrafo qui sopra è barrato
+perché descriveva la scelta precedente, non perché fosse sbagliato: la misura che porta — zero coperture
+sotto catalogo — resta vera, ed è ancora la ragione per cui l'oracolo esiste.
+
+**Cosa fa il meccanismo.** `URTHexMapAsset::PostEditChangeChainProperty` riallinea `Integrity` al catalogo
+quando l'autore cambia il `Type` di una copertura. 🔑 **L'obiezione — «rischierebbe di riscrivere un valore
+voluto» — non è caduta: è stata circoscritta.** Si riallinea **solo** un valore che è ancora il catalogo di
+*qualche* tipo, cioè un numero che nessuno ha scelto; `18` e il `25` di `Adaptive` non lo sono, e
+sopravvivono al cambio di tipo. La regola è `FRTHexCover::RealignedIntegrity`, pura e `constexpr`, e la pinna
+`RefactorTactics.HexMap.CoverIntegrityFollowsTypeOnAuthoring`.
+
+⚠️ **Il caso ambiguo resta, ed è dichiarato**: chi scrive `30` di proposito su una `Low` e poi la porta a
+`High` se lo vede diventare `50` — `30` è indistinguibile dal default che la struct aveva, e nessun `.uasset`
+conserva l'intento. Il verso scelto sbaglia in modo **reversibile**.
+
+**L'oracolo resta, e non è ridondante.** `RefactorTactics.HexMap.AuthoredCoversAreNotBelowCatalog`
+([`RTHexMapTests.cpp`](../../../Source/RefactorTactics/Tests/RTHexMapTests.cpp)) conta le coperture degli
+asset versionati e fallisce sulla prima che nasca sotto il proprio catalogo. ⛔ **Guarda ciò che il
+meccanismo non può vedere**: i `.uasset` già scritti, che nessuna migrazione visita, e le coperture prodotte
+da vie che non passano dal pannello dei dettagli.
 
 **L'etichetta — il vocabolario.** `Hero.Riktor.KineticPanel.Adaptive` dichiara `Integrity` **25** contro un
 catalogo `Low` di `30`, e quel numero è **voluto**: [`riktor.md`](../../characters/v0.1/riktor.md) dice che

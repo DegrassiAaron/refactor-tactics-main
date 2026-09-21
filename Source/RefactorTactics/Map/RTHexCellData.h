@@ -141,6 +141,46 @@ struct FRTHexCover
 	 */
 	static constexpr int32 UseCatalogIntegrity = -1;
 
+	/** `V` e' il valore di catalogo di QUALCHE tipo, cioe' un numero che nessuno ha scelto a mano? */
+	static constexpr bool IsCatalogIntegrity(int32 V)
+	{
+		return V == DefaultIntegrity(ERTHexCoverType::Low)
+			|| V == DefaultIntegrity(ERTHexCoverType::High);
+	}
+
+	/**
+	 * L'integrita' da scrivere quando il TIPO di una copertura cambia — o `Current` se non va toccata (#1317).
+	 *
+	 * 🔴 **La regola risponde all'obiezione che aveva fatto scartare questa via, e va letta insieme a essa.**
+	 * `D-186` dichiara **legittima** una copertura piu' debole del proprio catalogo, e la specifica del
+	 * contratto graybox scartava l'hook d'editor proprio perche' *«rischierebbe di riscrivere un valore
+	 * voluto»*. Il rischio e' reale, e qui non si corre: si riallinea **solo** un valore che e' ancora quello
+	 * di catalogo di un tipo, cioe' un numero che nessuno ha scelto. Un `18` scritto a mano non e' il catalogo
+	 * di niente, quindi sopravvive al cambio di tipo.
+	 *
+	 * Con il catalogo v0.1 — `Low` e `None` a 30, `High` a 50 — la tabella e' questa:
+	 *
+	 *     Type: Low -> High, Integrity 30   =>  50   (30 era il catalogo della Low: non l'aveva scelto nessuno)
+	 *     Type: High -> Low, Integrity 50   =>  30   (idem, nell'altro verso)
+	 *     Type: Low -> High, Integrity 18   =>  18   (valore d'autore: NON si tocca)
+	 *     Type: Low -> High, Integrity 50   =>  50   (gia' il catalogo del tipo nuovo)
+	 *
+	 * ⚠️ **Il caso ambiguo esiste ed e' dichiarato**: chi scrive `30` di proposito su una `Low` e poi la
+	 * porta a `High` se lo vede diventare `50`, perche' `30` e' indistinguibile dal default che la struct
+	 * aveva. Non e' risolvibile senza ricordare l'intento dell'autore, che nessun `.uasset` conserva — e il
+	 * verso scelto e' quello che sbaglia nel modo reversibile: riscrivere un valore che l'autore puo'
+	 * ricorreggere, invece di lasciare in silenzio una `High` al 60% del proprio catalogo.
+	 */
+	static constexpr int32 RealignedIntegrity(int32 Current, ERTHexCoverType NewType)
+	{
+		const int32 Catalogo = DefaultIntegrity(NewType);
+		if (Current == Catalogo || !IsCatalogIntegrity(Current))
+		{
+			return Current;
+		}
+		return Catalogo;
+	}
+
 	FRTHexCover() = default;
 
 	/**
