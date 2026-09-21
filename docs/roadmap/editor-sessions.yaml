@@ -1496,8 +1496,22 @@ sessions:
     verifies: [PIE-MAPED-LIGHT, PIE-MAPED-FRAME]
     issues: [623]
     done_when: le due voci hanno un esito reale e il livello illuminato e' committato
-    unblocks: [U22, U25, U26]
+    unblocks: [U22, U25, U26, U35, U39, U44]
     notes: >-
+      ✅ **CHIUSA il 2026-08-18 — le due voci hanno esito reale e il livello illuminato e'
+      committato.** `PIE-MAPED-LIGHT` e `PIE-MAPED-FRAME` sono ✅ nel registro, entrambe
+      attribuite per nome a questa seduta e a #623; il livello e' in PR #1177, che tocca
+      `L_DevSandbox.umap`. Il `done_when` e' soddisfatto in entrambe le meta', e l'evidenza
+      vive nelle celle del registro e nella PR: qui c'e' il puntatore, non una seconda verita'.
+
+      ⚠️ **Marcata il 2026-09-21 senza aprire l'Editor**, e il ritardo non e' innocuo: sei
+      sedute — `U22 U25 U26 U35 U39 U44` — hanno aspettato per cinque settimane un cancello
+      gia' verde, perche' lo stato di una seduta vive in un marcatore in prosa e questa non
+      lo aveva. E' il difetto che #2240 nomina. ➕ Nello stesso passaggio `unblocks` passa da
+      tre sedute a sei: dichiarava `[U22, U25, U26]` mentre **sei** la citano in
+      `unblocked_by`, e le tre mancanti erano proprio quelle senza allestimento condiviso.
+      ⛔ `shares_setup_with` resta a tre e non va allineato: e' un'altra relazione.
+
       Nasce dal referto `plans/map-sketch-editor-spec-panel-2026-08-12.md` (`P6`). E' una seduta e
       non una issue di codice per una ragione strutturale: `L_DevSandbox.umap` e' un `.umap`, e
       questo repository non modifica `.umap` da riga di comando.
