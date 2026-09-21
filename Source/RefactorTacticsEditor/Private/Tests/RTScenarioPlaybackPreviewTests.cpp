@@ -238,11 +238,19 @@ bool FRTScenarioPlaybackTransportTest::RunTest(const FString&)
 			break;
 		}
 		TestTrue(TEXT("e la preview resta viva"), Preview->IsShowing());
-		if (++Fasi > 64) { break; }
+		// ⌫ **Il tetto era 64 fino al 2026-09-21, e non bastava piu'.** Non e' un'attesa: e' la rete che
+		// impedisce a un difetto di far girare questo ciclo per sempre. Si e' alzato perche' [D-371] ha reso
+		// il bot cieco a cio' che non vede, quindi le due squadre si CERCANO prima di incontrarsi e la
+		// traccia si allunga. 🔑 Che l'allungamento sia sano lo dice un'altra misura, non questa:
+		// `Scenario.FreeRun.ArenaV01ReachesAWinner` pretende che la partita si decida entro 40 turni, ed e'
+		// verde. Qui il numero e' un ordine di grandezza sopra il vero, non una previsione.
+		if (++Fasi > 256) { break; }
 	}
 
 	// ⛔ ANTI-VACUITA': senza almeno un passo, ogni asserzione sopra e' vera per assenza — e sarebbe verde
 	// anche su un playback che non si muove affatto.
+	// Stampato e non asserito: e' la cifra che dice PERCHE' il tetto qui sopra e' quello che e'.
+	AddInfo(FString::Printf(TEXT("la traccia percorsa ha %d fasi"), Fasi));
 	if (!TestTrue(TEXT("la traccia ha almeno una fase da percorrere"), Fasi > 0))
 	{
 		Preview->ClearPreview();
