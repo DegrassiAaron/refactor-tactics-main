@@ -169,9 +169,11 @@ struct FRTInteractionBinding
  * impara a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un validator che deve
  * essere leggibile da chi disegna.
  *
- * ⚠️ **Copre solo le regole di `#1832`.** Le segnalazioni piu' vecchie di `ValidateMap` — cella duplicata,
- * costo negativo, copertura a integrita' zero, transizione ridondante — restano righe testuali senza
- * codice: darglielo adesso significherebbe classificarne una ventina in una issue che non le possiede.
+ * ⚠️ **Copre le regole di `#1832` e quella di `#2404`, non tutto `ValidateMap`.** Le segnalazioni piu'
+ * vecchie — cella duplicata, costo negativo, copertura a integrita' zero, transizione ridondante — restano
+ * righe testuali senza codice: darglielo significherebbe classificarne una ventina in una issue che non le
+ * possiede. Una regola NUOVA invece nasce con il suo codice, ed e' il motivo per cui `IsolatedLanding` e'
+ * qui invece che in una stringa.
  */
 UENUM()
 enum class ERTMapValidationReason : uint8
@@ -206,7 +208,29 @@ enum class ERTMapValidationReason : uint8
 	 * `ERTGeometryViolation::DuplicateSegment` lo rifiuta **a monte**, ma una collezione ricostruita —
 	 * migrazione, merge, incolla — puo' reintrodurlo.
 	 */
-	DuplicateCoverSource
+	DuplicateCoverSource,
+
+	/**
+	 * REGOLA 6 — l'ATTERRAGGIO di un bordo aperto e' **staticamente isolato** (`#2404`, [D-332],
+	 * `spec-caduta-e-bordi.md` §7): si cade su quella cella, e da li' non e' raggiungibile nessuna
+	 * alternativa statica valida — esistente, legalmente occupabile, non `Void`, topologicamente
+	 * raggiungibile dall'atterraggio.
+	 *
+	 * 🔑 **Errore e non warning, a differenza del parapetto inerte.** Il parapetto su un bordo connesso e' un
+	 * warning perche' non cambia NESSUN esito: da li' non si cadeva comunque. Qui l'esito cambia — chi ci
+	 * atterra non ha dove andare, per tutto il resto della partita — e una mappa che nasce cosi' non cresce
+	 * fino a diventare valida: l'isolamento e' della geometria, non di uno stato.
+	 *
+	 * ⚠️ **Non rimuove il ripiego del §4.3, e non lo anticipa.** Muri, bordi e unita' creati IN PARTITA
+	 * possono chiudere un'area nata valida: sono due garanzie in due momenti, e questa dice soltanto che la
+	 * mappa non parte gia' chiusa. Per la stessa ragione il verdetto **non guarda l'occupazione a runtime**:
+	 * una cella libera adesso non e' una promessa, e una occupata adesso non e' un difetto d'authoring.
+	 *
+	 * ⛔ **Nessuna correzione automatica.** Il validator segnala; aprire un passaggio o mettere un parapetto
+	 * sul bordo che scarica li' e' una scelta d'autore, e sceglierla qui sarebbe la seconda autorita' che
+	 * `AGENTS.md` §3 vieta.
+	 */
+	IsolatedLanding
 };
 
 /**

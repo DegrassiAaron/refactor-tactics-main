@@ -11,6 +11,11 @@
 // bake considera sane — cioe' due verita' sulla stessa regola.
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
+// L'atterraggio isolato (`#2404`) si misura col vocabolario del bordo di `#2401` e col grafo tattico, e
+// non con una terza lettura della mappa scritta qui: `IsEdgeOpen`/`FindLandingCell` dicono dove si cade,
+// `GraphNeighbors` dice che cosa e' raggiungibile da li'.
+#include "Map/RTHexLedgeLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -1178,6 +1183,85 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 					break; // una segnalazione per muro: chi la legge apre la cella e li vede entrambi
 				}
 			}
+		}
+	}
+
+	// ---- REGOLA 6 — l'ATTERRAGGIO STATICAMENTE ISOLATO (`#2404`, [D-332], `spec-caduta-e-bordi.md` §7).
+	//
+	// 🔑 **Tre domande gia' scritte altrove, nessuna riscritta qui.** `IsEdgeOpen` dice da dove si cade,
+	// `FindLandingCell` dice dove si finisce (#2401), `GraphNeighbors` dice che cosa e' raggiungibile da li'.
+	// Un quarto criterio scritto in questa funzione sarebbe una seconda verita' sulla stessa mappa, e
+	// andrebbe fuori sincrono alla prima regola di traversata che cambia.
+	//
+	// ⛔ **L'occupazione a runtime resta fuori, e non per pigrizia.** Un'alternativa libera adesso non e' una
+	// promessa che la partita sia tenuta a mantenere, e una occupata adesso non e' un difetto d'authoring.
+	// Il ripiego del §4.3 esiste proprio per il secondo caso, e questa regola non lo sostituisce: dice
+	// soltanto che la mappa non NASCE chiusa.
+	{
+		TSet<FRTCellId> Esaminati;
+		for (const FRTHexCellData& Cell : Cells)
+		{
+			bool bHaBordoAperto = false;
+			for (int32 EdgeIndex = 0; EdgeIndex < 6 && !bHaBordoAperto; ++EdgeIndex)
+			{
+				bHaBordoAperto = URTHexLedgeLibrary::IsEdgeOpen(
+					this, Cell.Id, static_cast<ERTHexDirection>(EdgeIndex));
+			}
+			if (!bHaBordoAperto)
+			{
+				continue; // da qui non si cade: non c'e' nessun atterraggio di cui parlare
+			}
+
+			FRTCellId Atterraggio;
+			if (!URTHexLedgeLibrary::FindLandingCell(this, Cell.Id, Atterraggio))
+			{
+				// ⚠️ **Sotto non c'e' NIENTE, e non e' questo difetto.** E' il quarto caso di `spec` §4 —
+				// `FellWithoutLanding`, chi cade resta sull'ultima cella stabile — che il runtime gestisce
+				// e che una passerella sospesa ha per costruzione. Segnalarlo qui renderebbe invalida
+				// meta' delle mappe verticali legittime.
+				continue;
+			}
+
+			// 🔑 **Una segnalazione per ATTERRAGGIO, non per bordo.** Sei bordi aperti della stessa cella
+			// portano allo stesso posto, e piu' celle possono scaricare sullo stesso atterraggio: contarlo
+			// una volta per ciglio farebbe smettere il numero di segnalazioni di dire quanti difetti ci sono.
+			// ⚠️ Il `TSet` si INTERROGA e non si itera (invariante n. 3): l'elenco finale lo ordina il `Sort`.
+			bool bGiaVisto = false;
+			Esaminati.Add(Atterraggio, &bGiaVisto);
+			if (bGiaVisto)
+			{
+				continue;
+			}
+
+			// UN'ALTERNATIVA STATICA VALIDA: esiste, e' legalmente occupabile, non e' `Void`, ed e'
+			// topologicamente raggiungibile dall'atterraggio. Le prime due e la quarta sono esattamente cio'
+			// che `GraphNeighbors` gia' filtra — cella presente, non `bBlocksMovement`, bordo attraversabile,
+			// piu' gli archi attivi uscenti; la terza e' la stessa che il resolver applica al §4.2.
+			bool bHaAlternativa = false;
+			for (const TPair<FRTCellId, int32>& Passo : URTHexPathLibrary::GraphNeighbors(this, Atterraggio))
+			{
+				const FRTHexCellData* Vicina = FindCell(Passo.Key);
+				if (Vicina != nullptr && Vicina->Surface != ERTHexSurface::Void)
+				{
+					bHaAlternativa = true;
+					break;
+				}
+			}
+			if (bHaAlternativa)
+			{
+				continue;
+			}
+
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::IsolatedLanding;
+			Issue.Cell = Atterraggio;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("%s: ci si atterra cadendo da un bordo aperto, e da questa cella non e' raggiungibile ")
+				TEXT("nessuna alternativa (esistente, praticabile, non Void): chi ci arriva non ne esce. ")
+				TEXT("Apri un passaggio, oppure metti un parapetto sul bordo che scarica qui."),
+				*Atterraggio.ToString());
+			OutIssues.Add(Issue);
 		}
 	}
 

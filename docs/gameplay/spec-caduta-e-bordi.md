@@ -329,6 +329,25 @@ raggiungibile dall'atterraggio — **senza dipendere dall'occupazione a runtime*
 ⚠️ Questa validazione **non** rimuove il fallback del §4.3: muri, bordi e unità creati in partita possono
 chiudere un'area nata valida. Sono due garanzie diverse, in due momenti diversi.
 
+### 7.1 Dove vive, dal 2026-09-21 (#2404)
+
+`URTHexMapAsset::ValidateMapDetailed`, regola 6, reason code `ERTMapValidationReason::IsolatedLanding`.
+Segnala l'**atterraggio**, non il ciglio: è sulla cella di sotto che si apre un passaggio.
+
+Le tre domande sono già scritte altrove, e la regola non ne riscrive nessuna: `IsEdgeOpen` dice da dove si
+cade, `FindLandingCell` dove si finisce ([#2401](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2401)),
+`GraphNeighbors` che cosa è raggiungibile da lì — cella presente, non `bBlocksMovement`, bordo attraversabile,
+più gli archi attivi uscenti. Il quarto criterio, *non `Void`*, è lo stesso che il resolver applica al §4.2.
+
+🔑 **Errore e non warning**, a differenza del parapetto su bordo connesso. Quello è un warning perché è
+**inerte** — da lì non si cadeva comunque, e nessun esito cambia. Qui l'esito cambia, e l'isolamento è della
+geometria: una mappa che nasce così non cresce fino a diventare valida.
+
+⛔ **Sotto non c'è niente non è questo difetto.** È il quarto caso del §4 — `FellWithoutLanding` — che una
+passerella sospesa ha per costruzione: segnalarlo qui renderebbe invalide mappe verticali legittime.
+
+Misurato da `Fall.StaticValidatorRejectsIsolatedLanding` e `Fall.StaticValidatorIgnoresRuntimeOccupancy`.
+
 ---
 
 ## 8. Fuori scope in v0.1

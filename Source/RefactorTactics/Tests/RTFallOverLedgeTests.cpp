@@ -66,7 +66,7 @@ namespace
 	 * 🔑 E' il punto: un'arena piatta non ha bordi aperti al suo interno, e la caduta vive proprio
 	 * nell'assenza di una cella. Qui l'assenza e' il dato, quindi la mappa si scrive per elenco.
 	 */
-	ARTHexMapActor* SpawnLedgeMap(UWorld* World, const TArray<FRTCellId>& Celle)
+	URTHexMapAsset* LedgeMapAsset(const TArray<FRTCellId>& Celle)
 	{
 		URTHexMapAsset* M = NewObject<URTHexMapAsset>(GetTransientPackage());
 		for (const FRTCellId& C : Celle)
@@ -74,10 +74,45 @@ namespace
 			M->AddOrUpdateCell(FRTHexCellData(C));
 		}
 		M->SortCells();
+		return M;
+	}
 
+	ARTHexMapActor* SpawnLedgeMap(UWorld* World, const TArray<FRTCellId>& Celle)
+	{
 		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
-		Actor->MapAsset = M;
+		Actor->MapAsset = LedgeMapAsset(Celle);
 		return Actor;
+	}
+
+	/** Riscrive una cella gia' presente passando dall'API di mappa: `Cells[i] = ...` non aggiorna la cache. */
+	void EditLedgeCell(URTHexMapAsset* Map, const FRTCellId& Id, TFunctionRef<void(FRTHexCellData&)> Modifica)
+	{
+		if (!Map) { return; }
+		const FRTHexCellData* Trovata = Map->FindCell(Id);
+		if (!Trovata) { return; }
+		FRTHexCellData Data = *Trovata;
+		Modifica(Data);
+		Map->AddOrUpdateCell(Data);
+	}
+
+	/**
+	 * Le celle che `ValidateMapDetailed` segnala come ATTERRAGGIO ISOLATO, e nessun'altra segnalazione.
+	 *
+	 * 🔑 **Si filtra per reason code, non per testo.** E' la disciplina che `ERTMapValidationReason`
+	 * dichiara di se stessa: un test che riconosce una regola dalla sua stringa si rompe alla prima
+	 * riformulazione, e insegna a non toccare i messaggi.
+	 */
+	TArray<FRTCellId> LedgeIsolatedLandings(const URTHexMapAsset* Map)
+	{
+		TArray<FRTCellId> Segnalate;
+		if (!Map) { return Segnalate; }
+		TArray<FRTMapValidationIssue> Issues;
+		Map->ValidateMapDetailed(Issues);
+		for (const FRTMapValidationIssue& Issue : Issues)
+		{
+			if (Issue.Reason == ERTMapValidationReason::IsolatedLanding) { Segnalate.Add(Issue.Cell); }
+		}
+		return Segnalate;
 	}
 
 	/** Aggiunge un parapetto passando dall'API di mappa: `Cells.Add` diretto non aggiorna la cache. */
@@ -1464,6 +1499,173 @@ bool FRTFallDeadUnitTakesNothingTest::RunTest(const FString&)
 
 	TestEqual(TEXT("resta a zero: nessun danno post-mortem"), Bersaglio->Health, 0);
 	TestFalse(TEXT("e nessun marchio su un cadavere"), Bersaglio->HasStatus(TAG_Status_Exposed));
+
+	DestroyLedgeWorld(World);
+	return true;
+}
+
+// =========================================================================================================
+// 13. La validazione d'AUTHORING: un atterraggio isolato e' un difetto di mappa (#2404, `spec` §7)
+// =========================================================================================================
+//
+// 🔑 **Perche' vivono qui e non in `RTHexMapValidationTests.cpp`.** Quel file misura le regole di topologia
+// di `#1832`; queste misurano la CADUTA vista dall'authoring — stessa domanda del resto del file, un momento
+// prima. E la seconda ha bisogno di unita' vere in un mondo vero per non essere vacua: gli helper stanno qui.
+//
+// ⚠️ **Sono due garanzie diverse, non due stesure della stessa.** Questa dice che la mappa non NASCE chiusa;
+// il ripiego del §4.3 — `FellToLastStable`, misurato dalla sezione 6 — dice che cosa succede quando muri,
+// bordi e unita' creati in partita la chiudono comunque. Confonderle produrrebbe o un authoring che vieta
+// mappe legittime, o un runtime che si fida di una promessa scaduta.
+
+/**
+ * L'authoring **rifiuta** un atterraggio staticamente isolato, con reason code e senza correggere niente.
+ *
+ * Le sei domande della issue in un test solo, perche' sono un'unica regola vista da sei lati — e la prima e'
+ * il **controllo**: un validator che rifiuta anche le mappe buone non segnala niente, allarma.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallStaticValidatorRejectsIsolatedLandingTest,
+	"RefactorTactics.Fall.StaticValidatorRejectsIsolatedLanding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallStaticValidatorRejectsIsolatedLandingTest::RunTest(const FString&)
+{
+	// (a) IL CONTROLLO — atterraggio con una via d'uscita: passa.
+	//
+	//     Layer 1:  (0,0) ciglio, sei bordi aperti
+	//     Layer 0:  (0,0) atterraggio   (1,0) l'alternativa
+	URTHexMapAsset* Buona = LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) });
+	TestEqual(TEXT("atterraggio con un'alternativa raggiungibile: nessuna segnalazione"),
+		LedgeIsolatedLandings(Buona).Num(), 0);
+
+	// (b) L'ATTERRAGGIO ISOLATO — sotto il ciglio c'e' una cella, e da quella cella non si va da nessuna
+	//     parte. Chi ci atterra non ne esce piu'.
+	URTHexMapAsset* Isolata = LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0) });
+	{
+		const TArray<FRTCellId> Segnalate = LedgeIsolatedLandings(Isolata);
+		if (TestEqual(TEXT("atterraggio isolato: rifiutato, una volta sola"), Segnalate.Num(), 1))
+		{
+			// La cella nominata e' l'ATTERRAGGIO e non il ciglio: e' li' che si apre un passaggio.
+			TestTrue(TEXT("e la segnalazione nomina l'atterraggio"), Segnalate[0] == FRTCellId(0, 0, 0));
+		}
+
+		TArray<FRTMapValidationIssue> Issues;
+		Isolata->ValidateMapDetailed(Issues);
+		const FRTMapValidationIssue* Nostra = Issues.FindByPredicate([](const FRTMapValidationIssue& I)
+		{
+			return I.Reason == ERTMapValidationReason::IsolatedLanding;
+		});
+		if (TestNotNull(TEXT("la segnalazione porta un reason code, non una stringa libera"), Nostra))
+		{
+			// ⚠️ ERRORE e non warning: a differenza del parapetto inerte, qui l'esito cambia davvero.
+			TestTrue(TEXT("ed e' un errore, non un warning"), Nostra->bIsError);
+		}
+	}
+
+	// (c) UN MURO che isola — la cella accanto esiste, ma e' impraticabile: non e' un'alternativa.
+	{
+		URTHexMapAsset* ColMuro = LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) });
+		EditLedgeCell(ColMuro, FRTCellId(1, 0, 0), [](FRTHexCellData& D) { D.bBlocksMovement = true; });
+		TestEqual(TEXT("vicino impraticabile: l'atterraggio resta isolato"),
+			LedgeIsolatedLandings(ColMuro).Num(), 1);
+	}
+
+	// (d) UN BORDO che isola — la cella accanto e' praticabile, ma il bordo fra le due nega il passo.
+	//     Copertura ALTA (CP 9.2): entrambe restano occupabili, semplicemente non si passa da una all'altra.
+	{
+		URTHexMapAsset* ColBordo = LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) });
+		EditLedgeCell(ColBordo, FRTCellId(0, 0, 0), [](FRTHexCellData& D)
+		{
+			D.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::High, 40));
+		});
+		TestEqual(TEXT("bordo non attraversabile: l'atterraggio resta isolato"),
+			LedgeIsolatedLandings(ColBordo).Num(), 1);
+	}
+
+	// (e) `Void` — la cella accanto esiste ed e' raggiungibile, ma non e' un posto dove stare.
+	{
+		URTHexMapAsset* ColVuoto = LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) });
+		EditLedgeCell(ColVuoto, FRTCellId(1, 0, 0), [](FRTHexCellData& D) { D.Surface = ERTHexSurface::Void; });
+		TestEqual(TEXT("unica alternativa Void: l'atterraggio resta isolato"),
+			LedgeIsolatedLandings(ColVuoto).Num(), 1);
+	}
+
+	// (f) NESSUN AUTO-FIX SILENZIOSO — il validator segnala e non tocca niente: aprire un passaggio o mettere
+	//     un parapetto e' una scelta d'autore. L'hash e' cio' che se ne accorgerebbe, non il numero di celle.
+	{
+		URTHexMapAsset* Intatta = LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0) });
+		const uint32 Prima = Intatta->ComputeHash();
+		const int32 CellePrima = Intatta->NumCells();
+		TArray<FRTMapValidationIssue> Issues;
+		Intatta->ValidateMapDetailed(Issues);
+		Intatta->ValidateMap();
+		TestEqual(TEXT("la mappa non e' stata corretta: stesso hash"), Intatta->ComputeHash(), Prima);
+		TestEqual(TEXT("e nessuna cella aggiunta"), Intatta->NumCells(), CellePrima);
+	}
+
+	return true;
+}
+
+/**
+ * Il verdetto STATICO non dipende da chi sta in piedi dove: e' una funzione dell'asset, e basta.
+ *
+ * 🔑 **E' il criterio che tiene separate le due garanzie.** Se il validator guardasse l'occupazione, l'unica
+ * alternativa di questa mappa — occupata — la farebbe dichiarare isolata, e l'authoring rifiuterebbe una
+ * mappa legittima per uno stato di mezzo secondo. Il verso opposto e' peggio: un'alternativa libera al
+ * momento del controllo diventerebbe una promessa che la partita non e' tenuta a mantenere.
+ *
+ * Il test occupa **entrambe** le celle di sotto — il primario e la sua unica alternativa — con unita' vere in
+ * un mondo vero, e confronta l'elenco delle segnalazioni prima e dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFallStaticValidatorIgnoresOccupancyTest,
+	"RefactorTactics.Fall.StaticValidatorIgnoresRuntimeOccupancy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFallStaticValidatorIgnoresOccupancyTest::RunTest(const FString&)
+{
+	// ⚠️ **La premessa non e' cerimonia.** Senza di lei questo test e' verde anche quando la regola NON
+	//    esiste — un verdetto che non segnala mai non cambia mai — e misurerebbe la propria assenza.
+	if (!TestEqual(TEXT("premessa: la regola esiste e sa segnalare un atterraggio isolato"),
+		LedgeIsolatedLandings(LedgeMapAsset({ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0) })).Num(), 1))
+	{
+		return false;
+	}
+
+	UWorld* World = MakeLedgeWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTHexMapActor* MapActor = SpawnLedgeMap(World,
+		{ FRTCellId(0, 0, 1), FRTCellId(0, 0, 0), FRTCellId(1, 0, 0) });
+	URTHexMapAsset* Map = MapActor ? MapActor->MapAsset : nullptr;
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { DestroyLedgeWorld(World); return false; }
+
+	TArray<FRTMapValidationIssue> Prima;
+	Map->ValidateMapDetailed(Prima);
+	if (!TestEqual(TEXT("premessa: a mappa sgombra l'atterraggio NON e' isolato"),
+		LedgeIsolatedLandings(Map).Num(), 0))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+
+	// Occupazione vera: sul primario e sull'UNICA alternativa. Se il verdetto la leggesse, cambierebbe qui.
+	ARTUnit* SulPrimario = SpawnLedgeUnit(World, 0, FRTCellId(0, 0, 0));
+	ARTUnit* SullAlternativa = SpawnLedgeUnit(World, 1, FRTCellId(1, 0, 0));
+	if (!SulPrimario || !SullAlternativa) { DestroyLedgeWorld(World); return false; }
+	TestTrue(TEXT("premessa: le due celle di sotto sono davvero occupate"),
+		SulPrimario->Cell == FRTCellId(0, 0, 0) && SullAlternativa->Cell == FRTCellId(1, 0, 0));
+
+	TArray<FRTMapValidationIssue> Dopo;
+	Map->ValidateMapDetailed(Dopo);
+
+	TestEqual(TEXT("nessun atterraggio isolato, con le celle occupate"),
+		LedgeIsolatedLandings(Map).Num(), 0);
+	if (TestEqual(TEXT("e l'elenco delle segnalazioni e' lo stesso di prima"), Dopo.Num(), Prima.Num()))
+	{
+		bool bIdentico = true;
+		for (int32 I = 0; I < Dopo.Num(); ++I)
+		{
+			bIdentico &= Dopo[I].Reason == Prima[I].Reason && Dopo[I].Cell == Prima[I].Cell;
+		}
+		TestTrue(TEXT("voce per voce: stesso reason code, stessa cella"), bIdentico);
+	}
 
 	DestroyLedgeWorld(World);
 	return true;
