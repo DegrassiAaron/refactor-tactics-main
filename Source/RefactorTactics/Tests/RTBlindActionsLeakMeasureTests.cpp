@@ -49,10 +49,18 @@
 //
 // ## Cosa misura, e su quale catena
 //
-// `URTHexSimLibrary::BlockedCellsFor` (`Turn/RTHexSimLibrary.cpp`) costruisce le celle impercorribili
-// scorrendo `Snapshot.Occupancy` per intero, e l'unico criterio di esclusione e' «non sono io». Nessun
-// filtro di conoscenza. Lo consumano `ReachableCells` e `FindPathForUnit`, e da li' l'anteprima arriva a
-// schermo (`RTPlayerController.cpp`, `SetPreviewReachableCells`).
+// `URTHexSimLibrary::BlockedCellsFor` (`Turn/RTHexSimLibrary.cpp:60`, namespace anonimo) costruisce le celle
+// impercorribili scorrendo `Snapshot.Occupancy` per intero (`:67`), e i soli criteri di esclusione sono «non
+// sono io» e la compagna attraversabile che non sia destinazione ([D-396]). Nessun filtro di conoscenza. Lo
+// consumano `ReachableCells` e `FindPathForUnit`, e da li' l'anteprima arriva a schermo
+// (`RTPlayerController.cpp`, `SetPreviewReachableCells`).
+//
+// ⚠️ **Le sedi che leggono l'occupazione sono DUE, non una, e questo commento ne nominava una sola**
+// (corretto il 2026-09-21, `#2793`). `ReachableCells` la legge a monte del Dijkstra via `BlockedCellsFor`
+// (`RTHexSimLibrary.cpp:219`) **e di nuovo sul RISULTATO**, direttamente, per togliere le celle occupate da
+// altri (`:345`, il filtro alleati di [D-396]) — e quel secondo ramo **non passa dall'imbuto**.
+// 🔑 Chi implementa il filtro di conoscenza seguendo la sola riga di sopra chiuderebbe il **percorso** e
+// lascerebbe aperto il **ventaglio**: `ClassifyWaypointCell` (`:626`) e' una terza sede, anch'essa diretta.
 //
 // I tre mondi differiscono SOLO per hidden occupancy; la `FRTTeamKnowledge` dell'osservatore e' la stessa
 // oggetto, non una copia equivalente:
@@ -93,6 +101,8 @@
 
 #include "Misc/AutomationTest.h"
 
+#include "Ability/RTActionData.h"          // ERTAbilityShape
+#include "Combat/RTHexCombatLibrary.h"     // HexHitCells, MakeBlastPreview — il footprint dell'AoE
 #include "Map/RTCellId.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -106,9 +116,22 @@
 
 namespace
 {
-	/** Squadra dell'osservatore che pianifica. `FRTHexSimUnit` non porta il `TeamId`: vive qui. */
+	/**
+	 * Squadra dell'osservatore che pianifica.
+	 *
+	 * ⌫ **Questa riga diceva «`FRTHexSimUnit` non porta il `TeamId`: vive qui», ed era FALSO** — corretto il
+	 * 2026-09-21 (`#2793`). Il campo esiste, `int32 TeamId = INDEX_NONE;` a `Turn/RTHexSim.h:109`; e' il
+	 * **costruttore** usato qui (`RTHexSim.h:112`) a non impostarlo.
+	 *
+	 * 🔴 **E la differenza non era cosmetica: il banco misurava per un accidente.** Lasciate a
+	 * `INDEX_NONE`, tutte le unita' rispondevano `false` a `TeamsAreAllied` (`RTHexSimLibrary.cpp:42`:
+	 * *«una squadra non dichiarata non e' alleata di nessuno, nemmeno di un'altra non dichiarata»*) — quindi
+	 * i nascosti bloccavano la rotta, ma per **assenza di dato**, non perche' avversari. Il giorno in cui
+	 * quel predicato cambiasse, la misura del percorso sarebbe morta in silenzio. Da qui in poi le squadre
+	 * si **assegnano**, e `WorldWith` lo fa.
+	 */
 	constexpr int32 ObserverTeam = 0;
-	/** Squadra dei nascosti. */
+	/** Squadra dei nascosti. Avversaria: cio' che li rende ostacoli e' dichiarato, non dedotto. */
 	constexpr int32 HiddenTeam = 1;
 
 	/** Chi pianifica. Budget largo: il banco misura la CONOSCENZA, non il budget. */
@@ -152,13 +175,25 @@ namespace
 		return K;
 	}
 
+	/** Identita' stabili dei due nascosti: nominate, perche' i reason code le confrontano per unita'. */
+	constexpr int32 HiddenIdA = 2;
+	constexpr int32 HiddenIdB = 3;
+
+	/** Un'unita' del banco con la sua squadra DICHIARATA — vedi la nota su `ObserverTeam`. */
+	FRTHexSimUnit UnitOn(int32 UnitId, const FRTCellId& Cell, int32 MoveBudget, int32 TeamId)
+	{
+		FRTHexSimUnit U(UnitId, Cell, MoveBudget);
+		U.TeamId = TeamId;
+		return U;
+	}
+
 	/** Uno dei tre mondi: chi pianifica, piu' `HiddenCount` nascosti sulle celle dichiarate sopra. */
 	FRTHexSnapshot WorldWith(const URTHexMapAsset* Map, int32 HiddenCount)
 	{
 		TArray<FRTHexSimUnit> Units;
-		Units.Add(FRTHexSimUnit(PlannerId, PlannerCell, PlannerBudget));
-		if (HiddenCount >= 1) { Units.Add(FRTHexSimUnit(2, HiddenCellA, /*MoveBudget*/ 0)); }
-		if (HiddenCount >= 2) { Units.Add(FRTHexSimUnit(3, HiddenCellB, /*MoveBudget*/ 0)); }
+		Units.Add(UnitOn(PlannerId, PlannerCell, PlannerBudget, ObserverTeam));
+		if (HiddenCount >= 1) { Units.Add(UnitOn(HiddenIdA, HiddenCellA, /*MoveBudget*/ 0, HiddenTeam)); }
+		if (HiddenCount >= 2) { Units.Add(UnitOn(HiddenIdB, HiddenCellB, /*MoveBudget*/ 0, HiddenTeam)); }
 
 		FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, Units);
 		// La conoscenza entra nello snapshot come la mette il TurnManager in partita. `MakeSnapshot` non la
@@ -214,9 +249,9 @@ namespace
 	bool ObserverIsIgnorantOfHidden(FAutomationTestBase& Test, const URTHexMapAsset* Map)
 	{
 		const FRTTeamKnowledge K = ObserverKnowledge(Map);
-		const bool bA = URTTeamKnowledgeLibrary::ClassifyTarget(K, 2, HiddenTeam, HiddenCellA)
+		const bool bA = URTTeamKnowledgeLibrary::ClassifyTarget(K, HiddenIdA, HiddenTeam, HiddenCellA)
 			== ERTTargetKnowledge::Rejected;
-		const bool bB = URTTeamKnowledgeLibrary::ClassifyTarget(K, 3, HiddenTeam, HiddenCellB)
+		const bool bB = URTTeamKnowledgeLibrary::ClassifyTarget(K, HiddenIdB, HiddenTeam, HiddenCellB)
 			== ERTTargetKnowledge::Rejected;
 		return Test.TestTrue(
 			TEXT("premessa: per ClassifyTarget entrambi i nascosti sono Rejected, cioe' ignoti alla squadra"),
@@ -306,9 +341,20 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 
 	const FRTHexPathResult PathA = URTHexSimLibrary::FindPathForUnit(WorldWith(Map, 0), PlannerId, GoalCell);
 	const FRTHexPathResult PathB = URTHexSimLibrary::FindPathForUnit(WorldWith(Map, 1), PlannerId, GoalCell);
+	const FRTHexPathResult PathC = URTHexSimLibrary::FindPathForUnit(WorldWith(Map, 2), PlannerId, GoalCell);
 
 	AddInfo(FString::Printf(TEXT("mondo A — nessun nascosto: %s"), *DescribePath(PathA)));
 	AddInfo(FString::Printf(TEXT("mondo B — un nascosto:     %s"), *DescribePath(PathB)));
+	AddInfo(FString::Printf(TEXT("mondo C — due nascosti:    %s"), *DescribePath(PathC)));
+
+	// 🔴 **La premessa del budget, che il banco prima aveva per fortuna** (`#2793`, 2026-09-21).
+	// `FindPathForUnit` con `MoveBudget <= 0` esce a `RTHexSimLibrary.cpp:421` **senza mai guardare
+	// l'occupazione**: una regressione futura sul budget spegnerebbe questo canale mostrando un verde.
+	if (!TestTrue(TEXT("premessa: il budget di chi pianifica e' > 0, o il percorso non guarda l'occupazione"),
+		PlannerBudget > 0))
+	{
+		return false;
+	}
 
 	// Il controllo: senza un percorso in A che passa dalla cella del nascosto, il confronto non misura nulla.
 	if (!TestTrue(TEXT("premessa: nel mondo A il percorso verso il fondo passa dalla cella del nascosto"),
@@ -327,6 +373,26 @@ bool FRTBlindActionsPathLeaksTest::RunTest(const FString&)
 	// guardare il disegno, basta la cifra. Un costo che sale su una direttrice libera dichiara un'ostruzione.
 	TestTrue(TEXT("oggi anche il COSTO mostrato cambia per un'occupazione che l'osservatore non conosce"),
 		PathA.TotalCost != PathB.TotalCost);
+
+	// ➕ **Il terzo mondo, che la DoD di `#2793` chiede e questo test non aveva** (2026-09-21).
+	//
+	// ⚠️ **Cosa NON si asserisce, e perche'.** `HiddenCellB` sta a `(2,-2)`, **fuori** dalla direttrice
+	// `(0,0) → (4,0)`: chiedere che il tracciato di `C` non la contenga sarebbe vero comunque, anche a
+	// filtro implementato, e sarebbe un verde per costruzione. Cio' che si misura e' l'unica cosa che la
+	// DoD chiede — `PlanningView(A) == PlanningView(C)` — e oggi e' **falsa**, per il primo nascosto.
+	if (!TestTrue(TEXT("premessa: nel mondo C un percorso ESISTE — altrimenti si misurerebbe un'assenza"),
+		PathC.Status == ERTHexPathStatus::Success))
+	{
+		return false;
+	}
+	AddInfo(FString::Printf(TEXT("B e C mostrano lo stesso tracciato: %s — il secondo nascosto e' fuori direttrice"),
+		PathB.Path == PathC.Path ? TEXT("si'") : TEXT("no")));
+
+	// La misura, asserita come COMPORTAMENTO CORRENTE, sul terzo mondo.
+	TestTrue(TEXT("oggi il tracciato di C differisce da A: l'uguaglianza a tre mondi della DoD non tiene"),
+		PathA.Path != PathC.Path);
+	TestTrue(TEXT("oggi anche il COSTO di C differisce da quello di A"),
+		PathA.TotalCost != PathC.TotalCost);
 
 	return true;
 }
@@ -477,7 +543,7 @@ namespace
 	FRTHexSnapshot LonePlannerOn(const URTHexMapAsset* Map, const FRTTeamKnowledge& K)
 	{
 		TArray<FRTHexSimUnit> Units;
-		Units.Add(FRTHexSimUnit(PlannerId, PlannerCell, PlannerBudget));
+		Units.Add(UnitOn(PlannerId, PlannerCell, PlannerBudget, ObserverTeam));
 		FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshot(Map, Units);
 		Snapshot.TeamKnowledge.Add(K);
 		return Snapshot;
@@ -672,6 +738,380 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 	// La misura, asserita come COMPORTAMENTO CORRENTE.
 	TestTrue(TEXT("oggi il ventaglio OFFRE celle che il velo non disegna: la portata conosce il buio"),
 		Dark.Num() > 0);
+
+	return true;
+}
+
+// =========================================================================================================
+// IL CANARY A TRE MONDI — gli ultimi due canali della DoD di `#2793`
+// =========================================================================================================
+//
+// I due test qui sotto completano l'elenco che la Definition of Done di `#2793` nomina: **ventaglio,
+// percorso, costo, footprint dell'AoE, reason code**. I primi tre li misurano i due test in testa al file,
+// ora estesi al terzo mondo. Questi coprono gli ultimi due, sullo **stesso banco** e con le **stesse**
+// premesse — arena piatta di raggio 4, conoscenza dell'osservatore identica nei tre mondi, nascosti
+// `Rejected` per `ClassifyTarget`.
+//
+// ⛔ **Anche qui non si decide e non si corregge.** Vale l'avvertenza in testa al file: `BLIND-2` (*dove*
+// vive il filtro) e `OBS-1` (*di chi* e' la vista) sono aperte, e `#2793` e' ferma su quelle. Questi test
+// dicono **quali canali perdono e quali no**, con l'evidenza eseguibile accanto.
+//
+// ## 🔴 Quali enum entrano nel confronto dei reason code — la riga che la DoD chiede per SIMBOLO
+//
+// La DoD di `#2793` porta: *«nominato per SIMBOLO, non per categoria […] chi implementa dichiara **quali**
+// enum entrano nel confronto»*. Questa e' la dichiarazione, e vale finche' qualcuno non la cambia qui.
+//
+//     ENTRANO
+//       ERTHexWaypointReason   (`Turn/RTHexSimLibrary.h:18`)  — Ok · NotOnMap · BlocksMovement · Occupied
+//       ERTHexProbeExclusion   (`Turn/RTHexSimLibrary.h:41`)  — Reachable · NotOnMap · BlocksMovement ·
+//                                                               Occupied · OutOfBudget · NoRoute
+//
+//     NON ENTRANO, e il motivo e' diverso per ciascuno
+//       ERTTargetRefusal       (`Combat/RTCombatLibrary.h:71`)
+//       ERTMoveOutcome         (`Turn/RTTurnLog.h:448`)
+//
+// **Perche' `ERTHexWaypointReason` e `ERTHexProbeExclusion` entrano.** Sono i due reason code che il
+// Planning **calcola sull'occupazione** e mostra a chi pianifica: il primo spiega il rifiuto di un
+// waypoint, il secondo risponde a *«perche' quella cella no»* nella sonda di movimento (#711). Entrambi
+// leggono `Snapshot.Occupancy` **direttamente** — `ClassifyWaypointCell` a `RTHexSimLibrary.cpp:626`,
+// `ClassifyProbeCell` di nuovo tramite `BlockedCellsFor` a `:692` — e nessuno dei due vede
+// `Snapshot.TeamKnowledge`. 🔑 **E' la forma piu' esplicita del leak di tutto il file**: non una cella che
+// manca da un insieme, ma un rifiuto **nominato** — il gioco risponde `Occupied` a proposito di una cella
+// di cui il giocatore non ha diritto di sapere che sia occupata.
+//
+// **Perche' `ERTTargetRefusal` NON entra, pur essendo un reason code di Planning.** E' il solo dei quattro
+// gia' progettato per la privacy: `RefusalForObserver` (`Combat/RTCombatLibrary.h:580`) prende il verdetto
+// interno **piu' il flag di conoscenza** e collassa su `Nothing`, che esiste apposta per non distinguere
+// cella vuota da cella con ignoto. ⛔ Ma la coppia `ClassifyHexTargeting` + `RefusalForObserver` non e'
+// composta da una funzione pura: la compone `ARTPlayerController` (`Player/RTPlayerController.cpp:324-328`),
+// e `MakePlanPreview` il valore lo **copia** dall'ingresso (`Turn/RTPlanPreview.cpp:151`). Un banco headless
+// potrebbe solo ricomporla qui — cioe' aprire una **seconda sede** della stessa regola, che e' il difetto
+// che `#711` e [D-242] esistono per impedire. ∴ resta fuori **per costruzione del banco**, non perche' sia
+// pulito, ed e' un `FOLLOW-UP CANDIDATE` di `#2793`: il suo canary vive dove la coppia si compone.
+//
+// **Perche' `ERTMoveOutcome` NON entra, e perche' la DoD lo nominava.** Il corpo di `#2793` lo elenca fra
+// le *«almeno tre famiglie»* di reason code. Misurato: **non e' un canale di Planning**. E' l'esito del
+// *resolver*, scritto dopo il commit del turno — `FinalizeHexMovementOutcomes`
+// (`Turn/RTHexSimLibrary.cpp:1456`) e i siti di `ARTTurnManager` — e chi pianifica non lo ha davanti.
+// Confrontarlo nel canary dell'anteprima misurerebbe un dato che il giocatore non vede. ⚠️ **Non e'
+// «pulito»**: e' un canale **post-commit**, e se qualcuno vorra' sorvegliarlo servira' un banco proprio,
+// che parte da un turno risolto e non da uno snapshot di Planning.
+//
+// ## LA MISURA — 2026-09-21, clone `refactor-tactics-dev`, base `781020a1` piu' le modifiche di questo
+// commit, motore libero, run dichiarata VALIDA (`Found 7`, `Success=7`, `Fail=0`)
+//
+//     canale                                    A (0 nascosti)   B (1)         C (2)          identico?
+//     ventaglio raggiungibile                   61 celle         60            59                 NO
+//       celle perse rispetto ad A               —                (2,0)         (2,-2) (2,0)
+//     percorso (0,0) -> (4,0)                   diretto          devia         devia              NO
+//     costo mostrato                            4                5             5                  NO
+//     footprint AoE (area r=2 su (2,0))         19 celle         19            19                SI'
+//       origine mostrata                        (0,0,L0)         (0,0,L0)      (0,0,L0)          SI'
+//       celle alleate investite                 0                0             0                 SI'
+//     ERTHexWaypointReason  su (2,0)            Ok               Occupied      Occupied           NO
+//     ERTHexProbeExclusion  su (2,0)            Reachable        Occupied      Occupied           NO
+//     ERTHexWaypointReason  su (2,-2)           Ok               —             Occupied           NO
+//
+// 🔴 **Quattro canali su cinque perdono, e il quinto e' pulito per una ragione strutturale, non per
+// fortuna.** Il footprint non si muove perche' `HexHitCells` non ha unita' nella firma — e' l'unico dei
+// cinque in cui l'occupazione non puo' entrare nemmeno volendo.
+//
+// 🔑 **E il reason code e' il canale piu' stretto di tutti, piu' del costo.** Il costo che sale di uno va
+// interpretato; `Occupied` no: e' il nome esatto di cio' che il giocatore non ha diritto di sapere, detto
+// dal gioco in una parola.
+//
+// ## LA VERIFICA DI MUTAZIONE — stessa data, una mutazione per volta, con rebuild fra l'una e l'altra
+//
+// Due mutazioni, entrambe applicate al codice di **produzione**, misurate e **ripristinate**. Servono a
+// dire che i due test nuovi non sono verdi per costruzione: `Found 7` in tutte e tre le run.
+//
+//     (1) footprint AoE — `MakeBlastPreview`, il filtro alleati `Other.TeamId != Attacker.TeamId`
+//         rovesciato in `==` (`Combat/RTHexCombatLibrary.cpp:906`)
+//         -> ROSSO, e SOLO `ThreeWorldsAgreeOnTheAoEFootprint` (`Success=6 Fail=1`)
+//         -> `AllyCells`: 0 / 1 / 2 celle nei tre mondi — la stessa firma del ventaglio, una cella per
+//            nascosto. L'asserzione caduta e' quella sulle celle alleate.
+//
+//     (2) reason code — `ClassifyWaypointCell` privata della lettura di `Snapshot.Occupancy`
+//         (`Turn/RTHexSimLibrary.cpp:626`)
+//         -> ROSSO, e SOLO `ThreeWorldsDisagreeOnTheRefusalSymbol` (`Success=6 Fail=1`)
+//
+// 🔴 **E la seconda mutazione ha misurato qualcosa che nessuno aveva chiesto, ma che chi implementa il
+// filtro deve sapere prima di cominciare.** Con `ClassifyWaypointCell` cieca all'occupazione i simboli
+// diventano:
+//
+//     cella (2,0,L0)   ERTHexWaypointReason    A=Ok         B=Ok        C=Ok          <- chiuso
+//     cella (2,0,L0)   ERTHexProbeExclusion    A=Reachable  B=NoRoute   C=NoRoute     <- APERTO
+//
+// `ERTHexProbeExclusion` **continua a distinguere i tre mondi**: ha smesso di dire `Occupied` e ha
+// cominciato a dire `NoRoute`, perche' il suo secondo ramo interroga `BlockedCellsFor` (`:692`) che
+// l'occupazione la legge ancora. ∴ **un filtro messo in una sede sola non chiude il canale: gli cambia
+// nome**, e il nome nuovo e' pure *falso* — non c'e' nessuna strada mancante, c'e' un'unita' che
+// l'osservatore non conosce. E' la stessa lezione delle due sedi di `ReachableCells` in testa a questo
+// file, misurata una seconda volta su un enum invece che su un insieme.
+
+namespace
+{
+	/**
+	 * Le stesse unita' dei tre mondi, nel tipo che il Blast usa.
+	 *
+	 * ⚠️ **Due tipi e non uno, ed e' del repository, non del banco**: il movimento gira su `FRTHexSimUnit`
+	 * (`Turn/RTHexSim.h`) e il combattimento su `FRTHexCombatUnit` (`Combat/RTHexCombatLibrary.h:20`).
+	 * `WorldWith` costruisce i primi; questo costruisce i secondi **dalle stesse celle e dalle stesse
+	 * squadre**, o i due canali misurerebbero due allestimenti diversi.
+	 */
+	TArray<FRTHexCombatUnit> CombatWorldWith(int32 HiddenCount)
+	{
+		auto Make = [](int32 UnitId, const FRTCellId& Cell, int32 TeamId)
+		{
+			FRTHexCombatUnit U;
+			U.UnitId = UnitId;
+			U.TeamId = TeamId;
+			U.Cell = Cell;
+			U.bAlive = true;
+			return U;
+		};
+
+		TArray<FRTHexCombatUnit> Units;
+		Units.Add(Make(PlannerId, PlannerCell, ObserverTeam));
+		if (HiddenCount >= 1) { Units.Add(Make(HiddenIdA, HiddenCellA, HiddenTeam)); }
+		if (HiddenCount >= 2) { Units.Add(Make(HiddenIdB, HiddenCellB, HiddenTeam)); }
+		return Units;
+	}
+
+	/**
+	 * Il piano d'attacco identico nei tre mondi: un'area di raggio 2 puntata sulla cella `HiddenCellA`.
+	 *
+	 * 🔑 **Mirare a una CELLA e non a un'unita' e' cio' che rende il caso legale**, ed e' la stessa
+	 * disciplina di `Fallback.AttackCell`: l'osservatore non conosce i nascosti, quindi non puo' sceglierli
+	 * come bersaglio — ma la cella e' `Explored`, e per [D-227] puntarla e' un'azione che il Planning gli
+	 * concede. E' esattamente il caso in cui un footprint che cambiasse direbbe *«li' c'e' qualcuno»*.
+	 *
+	 * `bFriendlyFire` acceso di proposito: accende anche il ramo `AllyCells`, che e' l'unico punto di
+	 * `MakeBlastPreview` in cui le altre unita' entrano davvero (`RTHexCombatLibrary.cpp:906`). Spento,
+	 * quel ramo non girerebbe e il canale resterebbe non misurato.
+	 */
+	constexpr int32 BlastAreaRadius = 2;
+	constexpr int32 BlastRangeCells = 4;
+
+	FRTBlastPreviewPlan BlastAtHiddenCell()
+	{
+		FRTBlastPreviewPlan Plan;
+		Plan.AttackerId = 0;              // indice in `Units`, non `UnitId`: e' chi pianifica, sempre primo
+		Plan.bHasAction = true;
+		Plan.bTargetsCell = true;
+		Plan.TargetCell = HiddenCellA;
+		Plan.Shape = ERTAbilityShape::Area;
+		Plan.RangeCells = BlastRangeCells;
+		Plan.AreaRadius = BlastAreaRadius;
+		Plan.bFriendlyFire = true;
+		return Plan;
+	}
+}
+
+/**
+ * ✅ **VERDE PERCHE' IL CANALE E' PULITO**, ed e' l'unico test del file che lo sia.
+ *
+ * Il footprint dell'AoE **non cambia** per un'occupazione che l'osservatore non conosce, e non e' un caso:
+ * `HexHitCells` (`Combat/RTHexCombatLibrary.h:585`) non ha nessuna unita' nella propria firma — e' geometria
+ * su `Shape/From/Target/RangeCells/AreaRadius` — e `MakeBlastPreview` tocca le unita' in tre punti soli:
+ * l'origine dell'attaccante, la cella del bersaglio quando `!bTargetsCell`, e `AllyCells`, che filtra sulla
+ * squadra dell'attaccante (`cpp:906`). Un nemico **avversario** e **ignoto** non entra in nessuno dei tre.
+ *
+ * 🔴 **E per questo il test ha bisogno della sua anti-vacuita', piu' degli altri.** «Identico nei tre
+ * mondi» e' vero *per costruzione*: senza la premessa che le celle dei nascosti **cadano dentro il
+ * footprint**, un delta nullo non direbbe «nessun leak», direbbe «misura fuori portata» — lo stesso errore
+ * che il test del ventaglio evita con `FanA.Contains(HiddenCellA)`.
+ *
+ * ⚠️ **Cosa NON prova.** Che il canale resti pulito: lo prova finche' `MakeBlastPreview` non impara a
+ * leggere l'occupazione. Il giorno in cui un'anteprima volesse mostrare *«qui dentro c'e' qualcuno»* questo
+ * test diventerebbe rosso, e sarebbe il posto giusto in cui accorgersene.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsAoEFootprintIsCleanTest,
+	"RefactorTactics.BlindActions.ThreeWorldsAgreeOnTheAoEFootprint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindActionsAoEFootprintIsCleanTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
+	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
+	{
+		return false;
+	}
+	if (!ObserverIsIgnorantOfHidden(*this, Map))
+	{
+		return false;
+	}
+
+	const FRTBlastPreviewPlan Plan = BlastAtHiddenCell();
+	const FRTBlastPreview PrevA = URTHexCombatLibrary::MakeBlastPreview(Plan, CombatWorldWith(0));
+	const FRTBlastPreview PrevB = URTHexCombatLibrary::MakeBlastPreview(Plan, CombatWorldWith(1));
+	const FRTBlastPreview PrevC = URTHexCombatLibrary::MakeBlastPreview(Plan, CombatWorldWith(2));
+
+	AddInfo(FString::Printf(TEXT("mondo A — nessun nascosto: origine (%d,%d,L%d), %d celle investite, %d alleate"),
+		PrevA.Origin.X, PrevA.Origin.Y, PrevA.Origin.Layer, PrevA.HitCells.Num(), PrevA.AllyCells.Num()));
+	AddInfo(FString::Printf(TEXT("mondo B — un nascosto:     origine (%d,%d,L%d), %d celle investite, %d alleate"),
+		PrevB.Origin.X, PrevB.Origin.Y, PrevB.Origin.Layer, PrevB.HitCells.Num(), PrevB.AllyCells.Num()));
+	AddInfo(FString::Printf(TEXT("mondo C — due nascosti:    origine (%d,%d,L%d), %d celle investite, %d alleate"),
+		PrevC.Origin.X, PrevC.Origin.Y, PrevC.Origin.Layer, PrevC.HitCells.Num(), PrevC.AllyCells.Num()));
+
+	// 🔴 **L'anti-vacuita', e senza questa il test non misura niente.** Il footprint deve COPRIRE le celle
+	// dei due nascosti: solo allora «identico nei tre mondi» e' una proprieta' invece di una tautologia.
+	if (!TestTrue(TEXT("premessa: il footprint di A copre ENTRAMBE le celle dei nascosti — il banco puo' vedere un delta"),
+		PrevA.HitCells.Contains(HiddenCellA) && PrevA.HitCells.Contains(HiddenCellB)))
+	{
+		AddError(FString::Printf(TEXT("footprint di A: %s"), *DescribeCells(PrevA.HitCells)));
+		return false;
+	}
+	// Seconda anti-vacuita': il ramo del fuoco amico deve essere ACCESO, o `AllyCells` sarebbe vuoto per
+	// una ragione che non c'entra con la conoscenza.
+	if (!TestTrue(TEXT("premessa: il piano dichiara fuoco amico, quindi il ramo AllyCells gira davvero"),
+		Plan.bFriendlyFire))
+	{
+		return false;
+	}
+
+	// LA MISURA: `PlanningView(A) == PlanningView(B) == PlanningView(C)` sul canale del footprint.
+	TestTrue(TEXT("il footprint dell'AoE e' IDENTICO nei tre mondi: nessuna cella investita cambia"),
+		PrevA.HitCells == PrevB.HitCells && PrevB.HitCells == PrevC.HitCells);
+	TestTrue(TEXT("l'origine mostrata e' IDENTICA nei tre mondi"),
+		PrevA.Origin == PrevB.Origin && PrevB.Origin == PrevC.Origin);
+	TestTrue(TEXT("l'elenco delle celle alleate investite e' IDENTICO nei tre mondi"),
+		PrevA.AllyCells == PrevB.AllyCells && PrevB.AllyCells == PrevC.AllyCells);
+
+	return true;
+}
+
+/**
+ * ⚠️ **VERDE PERCHE' IL DIFETTO C'E'**, come i due test in testa al file, e diventa rosso allo stesso
+ * innesco: il giorno in cui il Planning classifica per conoscenza invece che sull'occupazione autorevole.
+ *
+ * 🔴 **E' il canale piu' esplicito dei cinque.** Il ventaglio toglie una cella e il percorso gira intorno:
+ * il giocatore **deduce**. Qui il gioco **lo dice**: alla domanda «perche' non posso mettere il waypoint
+ * li'?» risponde, con un simbolo, `Occupied`. Non «fuori portata», non «non si passa»: *occupata*. Una cella
+ * che l'osservatore ha esplorato e su cui, per quanto ne sa, non c'e' nessuno.
+ *
+ * Gli enum che entrano nel confronto sono dichiarati nel blocco in testa a questa sezione. In breve:
+ * `ERTHexWaypointReason` e `ERTHexProbeExclusion` si'; `ERTTargetRefusal` e `ERTMoveOutcome` no, con la
+ * ragione scritta accanto a ciascuno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsRefusalSymbolLeaksTest,
+	"RefactorTactics.BlindActions.ThreeWorldsDisagreeOnTheRefusalSymbol",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindActionsRefusalSymbolLeaksTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
+	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
+	{
+		return false;
+	}
+	if (!ObserverIsIgnorantOfHidden(*this, Map))
+	{
+		return false;
+	}
+
+	const UEnum* WaypointEnum = StaticEnum<ERTHexWaypointReason>();
+	const UEnum* ProbeEnum    = StaticEnum<ERTHexProbeExclusion>();
+	if (!TestTrue(TEXT("premessa: i due enum del confronto sono riflessi, quindi il referto ne stampa il SIMBOLO"),
+		WaypointEnum != nullptr && ProbeEnum != nullptr))
+	{
+		return false;
+	}
+
+	const FRTHexSnapshot WorldA = WorldWith(Map, 0);
+	const FRTHexSnapshot WorldB = WorldWith(Map, 1);
+	const FRTHexSnapshot WorldC = WorldWith(Map, 2);
+
+	// `ClassifyProbeCell` vuole il set gia' calcolato: e' il criterio portante di #711 — nessuna seconda
+	// ricerca. Ogni mondo porta il proprio, come lo porterebbe la sonda in partita.
+	const TArray<FRTHexReachableCell> ReachA = URTHexSimLibrary::ReachableCells(WorldA, PlannerId);
+	const TArray<FRTHexReachableCell> ReachB = URTHexSimLibrary::ReachableCells(WorldB, PlannerId);
+	const TArray<FRTHexReachableCell> ReachC = URTHexSimLibrary::ReachableCells(WorldC, PlannerId);
+
+	const ERTHexWaypointReason WpA = URTHexSimLibrary::ClassifyWaypointCell(WorldA, PlannerId, HiddenCellA);
+	const ERTHexWaypointReason WpB = URTHexSimLibrary::ClassifyWaypointCell(WorldB, PlannerId, HiddenCellA);
+	const ERTHexWaypointReason WpC = URTHexSimLibrary::ClassifyWaypointCell(WorldC, PlannerId, HiddenCellA);
+
+	const ERTHexProbeExclusion PrA = URTHexSimLibrary::ClassifyProbeCell(WorldA, PlannerId, ReachA, HiddenCellA);
+	const ERTHexProbeExclusion PrB = URTHexSimLibrary::ClassifyProbeCell(WorldB, PlannerId, ReachB, HiddenCellA);
+	const ERTHexProbeExclusion PrC = URTHexSimLibrary::ClassifyProbeCell(WorldC, PlannerId, ReachC, HiddenCellA);
+
+	auto Sym = [](const UEnum* E, int64 V) { return E->GetNameStringByValue(V); };
+	AddInfo(FString::Printf(TEXT("cella (%d,%d,L%d) — ERTHexWaypointReason:  A=%s  B=%s  C=%s"),
+		HiddenCellA.X, HiddenCellA.Y, HiddenCellA.Layer,
+		*Sym(WaypointEnum, (int64)WpA), *Sym(WaypointEnum, (int64)WpB), *Sym(WaypointEnum, (int64)WpC)));
+	AddInfo(FString::Printf(TEXT("cella (%d,%d,L%d) — ERTHexProbeExclusion: A=%s  B=%s  C=%s"),
+		HiddenCellA.X, HiddenCellA.Y, HiddenCellA.Layer,
+		*Sym(ProbeEnum, (int64)PrA), *Sym(ProbeEnum, (int64)PrB), *Sym(ProbeEnum, (int64)PrC)));
+
+	// 🔴 **La premessa che rende leggibile il confronto**: nel mondo senza nascosti la cella non ha NIENTE
+	// che non vada. Senza, un delta potrebbe venire dalla mappa invece che dall'occupazione.
+	if (!TestTrue(TEXT("premessa: nel mondo A la cella e' Ok e raggiungibile — il rifiuto non viene dal terreno"),
+		WpA == ERTHexWaypointReason::Ok && PrA == ERTHexProbeExclusion::Reachable))
+	{
+		return false;
+	}
+
+	// LA MISURA, asserita come COMPORTAMENTO CORRENTE, e nominata per SIMBOLO.
+	TestTrue(TEXT("oggi ERTHexWaypointReason risponde Occupied su una cella che l'osservatore non sa occupata (B)"),
+		WpB == ERTHexWaypointReason::Occupied);
+	TestTrue(TEXT("oggi ERTHexWaypointReason risponde Occupied anche nel mondo a due nascosti (C)"),
+		WpC == ERTHexWaypointReason::Occupied);
+	TestTrue(TEXT("oggi ERTHexProbeExclusion risponde Occupied dove l'osservatore non sa esserci nessuno (B)"),
+		PrB == ERTHexProbeExclusion::Occupied);
+	TestTrue(TEXT("oggi ERTHexProbeExclusion risponde Occupied anche nel mondo a due nascosti (C)"),
+		PrC == ERTHexProbeExclusion::Occupied);
+
+	// E il secondo nascosto porta lo stesso simbolo sulla propria cella: il canale non e' un caso isolato
+	// della prima, ed e' cio' che distingue `C` da una ripetizione di `B`.
+	const ERTHexWaypointReason WpC2 = URTHexSimLibrary::ClassifyWaypointCell(WorldC, PlannerId, HiddenCellB);
+	const ERTHexWaypointReason WpA2 = URTHexSimLibrary::ClassifyWaypointCell(WorldA, PlannerId, HiddenCellB);
+	AddInfo(FString::Printf(TEXT("cella (%d,%d,L%d) — ERTHexWaypointReason:  A=%s  C=%s"),
+		HiddenCellB.X, HiddenCellB.Y, HiddenCellB.Layer,
+		*Sym(WaypointEnum, (int64)WpA2), *Sym(WaypointEnum, (int64)WpC2)));
+	TestTrue(TEXT("premessa: nel mondo A anche la seconda cella e' Ok"), WpA2 == ERTHexWaypointReason::Ok);
+	TestTrue(TEXT("oggi il simbolo cambia anche sulla cella del SECONDO nascosto, solo nel mondo C"),
+		WpC2 == ERTHexWaypointReason::Occupied);
+
+	return true;
+}
+
+/**
+ * La premessa che la DoD di `#2793` chiede esplicitamente, e che nessuno degli altri test poteva portare da
+ * solo: **nei tre mondi il piano non e' vuoto.**
+ *
+ * 🔑 **Tre «non si puo' fare niente» sono identici, e l'uguaglianza non proverebbe nulla.** E' la lezione di
+ * `HexBotPlay.HiddenEnemyFairness`, dove senza `bDidSomething` due «fermo» sarebbero passati per un canary
+ * verde. Qui la premessa vale per l'intero banco — ventaglio, percorso, costo, footprint, reason code — e
+ * vive in un test proprio perche' un giorno qualcuno cambiera' `ArenaRadius` o `PlannerBudget` e questo
+ * diventera' rosso **prima** che gli altri diventino verdi per la ragione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBlindActionsPlanIsNotEmptyTest,
+	"RefactorTactics.BlindActions.ThreeWorldsAllOfferANonEmptyPlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBlindActionsPlanIsNotEmptyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), ArenaRadius);
+	if (!TestNotNull(TEXT("premessa: l'arena piatta esiste"), Map))
+	{
+		return false;
+	}
+
+	for (int32 Hidden = 0; Hidden <= 2; ++Hidden)
+	{
+		const FRTHexSnapshot World = WorldWith(Map, Hidden);
+		const TArray<FRTHexReachableCell> Reach = URTHexSimLibrary::ReachableCells(World, PlannerId);
+		const FRTHexPathResult Path = URTHexSimLibrary::FindPathForUnit(World, PlannerId, GoalCell);
+		const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(BlastAtHiddenCell(), CombatWorldWith(Hidden));
+
+		AddInfo(FString::Printf(TEXT("mondo con %d nascosti: %d celle nel ventaglio, percorso %s, %d celle investite"),
+			Hidden, Reach.Num(), *DescribePath(Path), Blast.HitCells.Num()));
+
+		TestTrue(*FString::Printf(TEXT("mondo %d: il ventaglio offre almeno una destinazione"), Hidden),
+			Reach.Num() > 1);
+		TestTrue(*FString::Printf(TEXT("mondo %d: un percorso verso il fondo ESISTE"), Hidden),
+			Path.Status == ERTHexPathStatus::Success);
+		TestTrue(*FString::Printf(TEXT("mondo %d: l'area dichiarata investe almeno una cella"), Hidden),
+			Blast.HitCells.Num() > 0);
+	}
 
 	return true;
 }
