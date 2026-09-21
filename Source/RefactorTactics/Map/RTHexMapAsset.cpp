@@ -11,6 +11,11 @@
 // bake considera sane — cioe' due verita' sulla stessa regola.
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
+// L'atterraggio isolato (`#2404`) si misura col vocabolario del bordo di `#2401` e col grafo tattico, e
+// non con una terza lettura della mappa scritta qui: `IsEdgeOpen`/`FindLandingCell` dicono dove si cade,
+// `GraphNeighbors` dice che cosa e' raggiungibile da li'.
+#include "Map/RTHexLedgeLibrary.h"
+#include "Pathfinding/RTHexPathLibrary.h"
 #include "Serialization/CustomVersion.h"
 
 const FGuid FRTHexMapCustomVersion::GUID(0x7A3C1E44, 0x9B2D4F10, 0xA6E85C37, 0x1D0F62B9);
@@ -1178,6 +1183,118 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 					break; // una segnalazione per muro: chi la legge apre la cella e li vede entrambi
 				}
 			}
+		}
+	}
+
+	// ---- REGOLA 6 — l'ATTERRAGGIO STATICAMENTE ISOLATO (`#2404`, [D-332], `spec-caduta-e-bordi.md` §7).
+	//
+	// 🔑 **Tre domande gia' scritte altrove, nessuna riscritta qui.** `IsEdgeOpen` dice da dove si cade,
+	// `FindLandingCell` dice dove si finisce (#2401), `GraphNeighbors` dice che cosa e' raggiungibile da li'.
+	// Un quarto criterio scritto in questa funzione sarebbe una seconda verita' sulla stessa mappa, e
+	// andrebbe fuori sincrono alla prima regola di traversata che cambia.
+	//
+	// ⛔ **L'occupazione a runtime resta fuori, e non per pigrizia.** Un'alternativa libera adesso non e' una
+	// promessa che la partita sia tenuta a mantenere, e una occupata adesso non e' un difetto d'authoring.
+	// Il ripiego del §4.3 esiste proprio per il secondo caso, e questa regola non lo sostituisce: dice
+	// soltanto che la mappa non NASCE chiusa.
+	//
+	// ⚠️ **Porta chiusa, copertura alta e arco spento CONTANO come blocco, e la scelta non e' di questa
+	// regola.** `spec-caduta-e-bordi.md` §2 mette *«muro, copertura alta, porta chiusa»* nella stessa riga
+	// **bloccante**, e `URTHexCoverLibrary::BlocksTraversal` si dichiara *«l'UNICA funzione che vista, grafo e
+	// combat interrogano»*; per l'arco spento la sede e' `GraphNeighbors`, dove CP 9.4 scrive che *«le due
+	// celle tornano irraggiungibili l'una dall'altra»*. Ammorbidire qui il criterio — *«la porta si puo'
+	// aprire»* — creerebbe una seconda risposta alla domanda che quelle due sedi gia' possiedono, e sarebbe
+	// la mappa a finire con due verita' su che cosa e' un passaggio.
+	{
+		TSet<FRTCellId> Esaminati;
+		for (const FRTHexCellData& Cell : Cells)
+		{
+			// ⛔ **Da un ciglio su cui nessuno puo' stare non cade nessuno.** `IsEdgeOpen` guarda parapetto e
+			// presenza del vicino, e **non** la calpestabilita' della cella di partenza: un pilastro
+			// `bBlocksMovement` o una cella `Void` hanno sei bordi aperti come una passerella. Senza questa
+			// riga un pilastro di roccia sopra una stanza sigillata diventa un errore d'authoring, e la
+			// stanza non e' raggiungibile da nessuno. La coppia di criteri e' la stessa che il resolver
+			// applica a una cella d'atterraggio.
+			if (Cell.bBlocksMovement || Cell.Surface == ERTHexSurface::Void)
+			{
+				continue;
+			}
+
+			bool bHaBordoAperto = false;
+			for (int32 EdgeIndex = 0; EdgeIndex < 6 && !bHaBordoAperto; ++EdgeIndex)
+			{
+				bHaBordoAperto = URTHexLedgeLibrary::IsEdgeOpen(
+					this, Cell.Id, static_cast<ERTHexDirection>(EdgeIndex));
+			}
+			if (!bHaBordoAperto)
+			{
+				continue; // da qui non si cade: non c'e' nessun atterraggio di cui parlare
+			}
+
+			FRTCellId Atterraggio;
+			if (!URTHexLedgeLibrary::FindLandingCell(this, Cell.Id, Atterraggio))
+			{
+				// ⚠️ **Sotto non c'e' NIENTE, e non e' questo difetto.** E' il quarto caso di `spec` §4 —
+				// `FellWithoutLanding`, chi cade resta sull'ultima cella stabile — che il runtime gestisce
+				// e che una passerella sospesa ha **per costruzione**: e' la sua forma normale, non un
+				// errore, quindi qui non si segnala.
+				continue;
+			}
+
+			// 🔑 **Una segnalazione per ATTERRAGGIO, non per bordo.** I sei bordi della stessa cella portano
+			// allo stesso posto, ed e' il ciclo qui sopra a garantirlo: si esce al primo bordo aperto e
+			// l'atterraggio si calcola una volta.
+			//
+			// ⚠️ **Che cosa guarda davvero questo set**, misurato e non supposto: con `FindLandingCell`
+			// vigente due cigli DISTINTI non condividono mai un atterraggio — stessa colonna significa layer
+			// diversi e quindi massimi diversi, colonne diverse significano `(X, Y)` diversi. `bGiaVisto`
+			// diventa vero solo se `Cells` porta due righe con lo stesso `Id`, che un'altra regola gia'
+			// segnala. Resta perche' l'unicita' e' una proprieta' di `FindLandingCell`, non di questa regola,
+			// e il giorno che quella cambia il doppione non deve arrivare fino all'elenco.
+			// ⚠️ Il `TSet` si INTERROGA e non si itera (invariante n. 3): l'elenco finale lo ordina il `Sort`.
+			bool bGiaVisto = false;
+			Esaminati.Add(Atterraggio, &bGiaVisto);
+			if (bGiaVisto)
+			{
+				continue;
+			}
+
+			// UN'ALTERNATIVA STATICA VALIDA: esiste, e' legalmente occupabile, non e' `Void`, ed e'
+			// topologicamente raggiungibile dall'atterraggio. Le prime due e la quarta sono esattamente cio'
+			// che `GraphNeighbors` gia' filtra — cella presente, non `bBlocksMovement`, bordo attraversabile,
+			// piu' gli archi attivi uscenti; la terza e' la stessa che il resolver applica al §4.2.
+			bool bHaAlternativa = false;
+			for (const TPair<FRTCellId, int32>& Passo : URTHexPathLibrary::GraphNeighbors(this, Atterraggio))
+			{
+				const FRTHexCellData* Vicina = FindCell(Passo.Key);
+				if (Vicina != nullptr && Vicina->Surface != ERTHexSurface::Void)
+				{
+					bHaAlternativa = true;
+					break;
+				}
+			}
+			if (bHaAlternativa)
+			{
+				continue;
+			}
+
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::IsolatedLanding;
+			Issue.Cell = Atterraggio;
+			Issue.bIsError = true;
+			// ⚠️ **Il messaggio dice cio' che e' stato misurato, e non una riga di piu'.** Misurato e':
+			// *«nessun passo esce da questa cella»*. Con zero uscite chi ci atterra e' fermo li' per sempre;
+			// con UNA uscita che porta in una sacca chiusa lo e' altrettanto, e questa regola **non lo vede**
+			// — il criterio e' l'adiacenza nel grafo, come il §4.2 del resolver, non una raggiungibilita'
+			// estesa. Promettere un'analisi di fuga che il predicato non fa sarebbe la parte peggiore: chi
+			// legge smetterebbe di cercare le sacche.
+			Issue.Message = FString::Printf(
+				TEXT("%s: ci si atterra cadendo da un bordo aperto, e da questa cella non esce nessun passo ")
+				TEXT("verso una cella praticabile e non Void. Chi ci arriva resta fermo li', e l'alternativa ")
+				TEXT("del par. 4.2 non esiste per nessuna caduta che finisca qui. Apri un passaggio, oppure ")
+				TEXT("metti un parapetto sul bordo che scarica qui."),
+				*Atterraggio.ToString());
+			OutIssues.Add(Issue);
 		}
 	}
 
