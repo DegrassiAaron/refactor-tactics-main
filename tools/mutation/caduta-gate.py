@@ -291,6 +291,44 @@ MUTAZIONI = [
         "sostituisci": r"if (false)",
         "bersagli": ["RefactorTactics.Fall.TwoFallersSameLandingIsDeterministic"],
     },
+    {
+        # La SETTIMA, e la ragione per cui esiste sta in D010 di #2402: la verifica di mutazione e' chiesta
+        # su `OpenLedgeStartsFall` e `NeverOverlaps`. Il secondo era gia' bersaglio della 4; il PRIMO non lo
+        # era di nessuna — e il test che pinna l'affermazione centrale della issue, *«chi e' spinto oltre un
+        # bordo aperto cade»*, non aveva nessuno che ne misurasse la caduta.
+        #
+        # 🔴 **Non e' la 1 sotto un altro nome, ed e' la confusione da evitare.** La 1 sopprime la guardia dei
+        # PASSI RESIDUI e fa cadere chi non doveva: misura il CONFINE della regola. Questa sopprime il ramo
+        # intero e non fa cadere nessuno: misura che la regola ESISTA. Una suite che copre solo il confine
+        # resta verde su un ramo cancellato, purche' nessuno cada per sbaglio.
+        #
+        # ⚠️ Il pattern e' sul ramo della SPINTA (`KnockFrom`/`KOccupied`), come la 6: la trazione ha il
+        # proprio sito di chiamata, e `PullOverOpenLedgeStartsFall` deve restare VERDE. E' l'informazione
+        # utile — dice che i due siti reggono separatamente invece che per una regola sola condivisa.
+        "id": "7-ramo-spinta",
+        "titolo": "sopprimere del tutto il ramo della caduta nella SPINTA",
+        "prova": "#2402 D002 - chi e' spinto oltre un bordo aperto CADE, invece di fermarsi sul ciglio",
+        "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
+        "cerca": r"if \(Cade\(T, Dest, KnockFrom\[T\], KnockDist\[T\], /\*bAllontana=\*/ true, KOccupied, Atterraggio, Esito\)",
+        "sostituisci": r"if (false && Cade(T, Dest, KnockFrom[T], KnockDist[T], /*bAllontana=*/ true, KOccupied, Atterraggio, Esito)",
+        # 🔑 **UNO dichiarato, venti osservati, e l'asimmetria e' voluta.** La 4 ne elenca sei perche' quel
+        # gruppo e' stabile e l'elenco dice quali test sanno accorgersi della sovrapposizione. Qui i rossi
+        # sono **tutto cio' che osserva una caduta da spinta** - venti, misurati il 2026-09-21 - e un elenco
+        # cosi' cambierebbe a ogni test nuovo del gruppo `Fall` senza che il gate se ne accorga:
+        # `classifica()` chiede l'INTERSEZIONE, quindi un soprainsieme resta `CADUTA` comunque. Si dichiara
+        # percio' il solo bersaglio per cui la mutazione esiste, e la misura per esteso vive nel referto.
+        #
+        # 🔑 **Cio' che NON e' caduto e' l'informazione utile, ed e' misurato:**
+        #   * `ForcedMovement.PullOverOpenLedgeStartsFall` -> VERDE. I due siti di chiamata reggono
+        #     separatamente: se un domani la trazione smettesse di cadere per conto suo, questa mutazione
+        #     non lo nasconderebbe;
+        #   * `ForcedMovement.ExhaustedPushAtEdgeDoesNotFall` e `...GuardedLedgeDoesNotFall` -> VERDI, come
+        #     devono: sopprimere la caduta non fa cadere chi non doveva cadere comunque;
+        #   * `Fall.StaticValidator*` (#2404) -> VERDI: la validazione d'authoring non passa dal resolver.
+        "bersagli": [
+            "RefactorTactics.ForcedMovement.OpenLedgeStartsFall",
+        ],
+    },
 ]
 
 
