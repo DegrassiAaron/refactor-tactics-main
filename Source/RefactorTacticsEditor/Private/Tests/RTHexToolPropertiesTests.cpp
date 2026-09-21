@@ -128,6 +128,152 @@ bool FRTHexBrushMoveCostFollowsSurfaceTest::RunTest(const FString&)
 }
 
 /**
+ * Il pennello NON blocca il movimento quando allinea il costo — la **seconda meta'** del primo criterio di
+ * #871, che il test qui sopra non guardava.
+ *
+ * 🔴 **Non e' pignoleria, ed e' la stessa forma di difetto della issue.** `bBlocksMovement` e' cio' che
+ * rende una cella **impassabile**: se l'allineamento del costo lo accendesse per errore, il Fill scriverebbe
+ * una regione intera di celle invalicabili — e il pannello mostrerebbe un costo corretto accanto a un blocco
+ * che nessuno ha chiesto. Il criterio esiste perche' nessun terreno del catalogo v0.1 blocca il movimento
+ * normale: il costo lo esprime il numero, non il flag.
+ *
+ * ⚠️ Il valore di partenza e' forzato a `true`, cioe' SBAGLIATO: un override che non toccasse il campo
+ * passerebbe se il default fosse gia' `false`, e il test non direbbe niente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBrushSurfaceDoesNotBlockMovementTest,
+	"RefactorTactics.HexEditor.BrushSurfaceDoesNotBlockMovement",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBrushSurfaceDoesNotBlockMovementTest::RunTest(const FString&)
+{
+	int32 Esaminati = 0;
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		UClass* Class = *It;
+		if (!Class->IsChildOf(UInteractiveToolPropertySet::StaticClass())
+			|| Class->HasAnyClassFlags(CLASS_Abstract)
+			|| !Class->GetName().StartsWith(TEXT("RTHex")))
+		{
+			continue;
+		}
+
+		FProperty* SurfaceProp = nullptr;
+		FProperty* MoveCostProp = nullptr;
+		if (!IsBrushLike(Class, SurfaceProp, MoveCostProp))
+		{
+			continue;
+		}
+
+		FBoolProperty* BlocksProp = CastField<FBoolProperty>(Class->FindPropertyByName(TEXT("bBlocksMovement")));
+		if (!BlocksProp || !EditabileDavvero(BlocksProp))
+		{
+			continue; // un pennello senza quel campo non ha nulla da spegnere
+		}
+
+		++Esaminati;
+		const FString Nome = Class->GetName();
+
+		UObject* Props = NewObject<UObject>(GetTransientPackage(), Class);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: istanza creata"), *Nome), Props))
+		{
+			continue;
+		}
+
+		BlocksProp->SetPropertyValue_InContainer(Props, true); // deliberatamente sbagliato
+		SurfaceProp->ContainerPtrToValuePtr<uint8>(Props)[0] = static_cast<uint8>(ProbeSurface);
+
+		FPropertyChangedEvent Evento(SurfaceProp);
+		Props->PostEditChangeProperty(Evento);
+
+		TestFalse(*FString::Printf(
+			TEXT("%s: allineando il costo, bBlocksMovement resta spento"), *Nome),
+			BlocksProp->GetPropertyValue_InContainer(Props));
+	}
+
+	TestTrue(TEXT("almeno due pennelli esaminati"), Esaminati >= 2);
+	return true;
+}
+
+/**
+ * L'override scatta sul cambio di `Surface`, **non a ogni edit del pannello** — il terzo criterio di #871,
+ * ed e' quello che si dimentica.
+ *
+ * 🔴 **Il sintomo che questo test previene e' l'OPPOSTO di quello della issue, ed e' peggiore.** #871
+ * riportava un `MoveCost` che *non* si aggiornava; un override scritto senza la guardia sul nome della
+ * property lo riscriverebbe a **ogni** notifica del pannello dei dettagli — e allora il campo diventerebbe
+ * **non modificabile a mano**: l'autore scrive `5`, tocca qualunque altro campo, e ritrova `2`. Un pennello
+ * che rifiuta il valore d'autore e' un difetto piu' grave di uno che non lo suggerisce.
+ *
+ * 🔑 **La notifica di controllo e' su un'ALTRA property**, non su `Surface`: e' l'unico modo di distinguere
+ * «reagisce al cambio di superficie» da «reagisce a tutto». Un test che notificasse di nuovo `Surface`
+ * misurerebbe la stessa cosa del test precedente.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBrushKeepsHandWrittenMoveCostTest,
+	"RefactorTactics.HexEditor.BrushKeepsHandWrittenMoveCost",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexBrushKeepsHandWrittenMoveCostTest::RunTest(const FString&)
+{
+	constexpr int32 ScrittoAMano = 5;
+
+	int32 Esaminati = 0;
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		UClass* Class = *It;
+		if (!Class->IsChildOf(UInteractiveToolPropertySet::StaticClass())
+			|| Class->HasAnyClassFlags(CLASS_Abstract)
+			|| !Class->GetName().StartsWith(TEXT("RTHex")))
+		{
+			continue;
+		}
+
+		FProperty* SurfaceProp = nullptr;
+		FProperty* MoveCostProp = nullptr;
+		if (!IsBrushLike(Class, SurfaceProp, MoveCostProp))
+		{
+			continue;
+		}
+
+		// Serve una property DIVERSA da `Surface` su cui notificare. `bBlocksMovement` c'e' in entrambi i
+		// pennelli; se un domani non ci fosse, il pennello esce dal conteggio invece di falsare il test.
+		FProperty* AltraProp = Class->FindPropertyByName(TEXT("bBlocksMovement"));
+		if (!AltraProp || !EditabileDavvero(AltraProp))
+		{
+			continue;
+		}
+
+		++Esaminati;
+		const FString Nome = Class->GetName();
+
+		UObject* Props = NewObject<UObject>(GetTransientPackage(), Class);
+		if (!TestNotNull(*FString::Printf(TEXT("%s: istanza creata"), *Nome), Props))
+		{
+			continue;
+		}
+
+		// 1. L'autore sceglie la superficie: il costo si allinea da solo (gia' pinnato altrove, qui e' il
+		//    presupposto del passo 2 e si verifica per non costruire sul vuoto).
+		SurfaceProp->ContainerPtrToValuePtr<uint8>(Props)[0] = static_cast<uint8>(ProbeSurface);
+		FPropertyChangedEvent CambioSuperficie(SurfaceProp);
+		Props->PostEditChangeProperty(CambioSuperficie);
+
+		const FRTTerrainDef Def = URTTerrainLibrary::FindTerrainDef(ProbeSurface);
+		TestEqual(*FString::Printf(TEXT("%s: il costo si e' allineato al catalogo"), *Nome),
+			MoveCostProp->ContainerPtrToValuePtr<int32>(Props)[0], Def.MoveCost);
+
+		// 2. POI lo corregge a mano, e tocca un altro campo del pannello.
+		MoveCostProp->ContainerPtrToValuePtr<int32>(Props)[0] = ScrittoAMano;
+		FPropertyChangedEvent CambioAltro(AltraProp);
+		Props->PostEditChangeProperty(CambioAltro);
+
+		TestEqual(*FString::Printf(
+			TEXT("%s: il costo scritto a mano sopravvive a un edit di un'altra property"), *Nome),
+			MoveCostProp->ContainerPtrToValuePtr<int32>(Props)[0], ScrittoAMano);
+	}
+
+	TestTrue(TEXT("almeno due pennelli esaminati"), Esaminati >= 2);
+	return true;
+}
+
+/**
  * I readout NON si auto-aggiornano, ed e' il rovescio della stessa invariante.
  *
  * Senza questo, la correzione di #871 potrebbe essere applicata «per sicurezza» anche a

@@ -896,6 +896,44 @@ Le parole riconosciute sono `close`/`closes`/`closed`, `fix`/`fixes`/`fixed`,
 `resolve`/`resolves`/`resolved`. `fix(605)` non e' nessuna di queste: manca il `#`, e la parentesi ne fa
 uno scope.
 
+#### 🔴 **`Chiude #N` NON chiude, e questa lingua e' la nostra**
+
+Le parole qui sopra sono **inglesi e basta**. Un corpo che dice `Chiude #871.` porta un riferimento
+perfettamente leggibile per un umano e **nessuna parola chiave** per GitHub: la issue resta aperta, e il
+merge non lo segnala.
+
+⚠️ **E' la forma di casa, non un caso isolato.** Misurato il 2026-09-21 sulle **60** PR mergiate piu'
+recenti: **25** portano `Chiude #N` e nessuna parola chiave inglese.
+
+```bash
+gh pr list --state merged --limit 60 --json number,body   | python -c "import sys,json,re; d=json.load(sys.stdin); print(sum(1 for p in d if re.search(r'(?i)chiude\s*\**\s*\[?#\d+', p.get('body') or '') and not re.search(r'(?i)(clos(e|es|ed)|fix(es|ed)?|resolv(e|es|ed))\s+#\d+', p.get('body') or '')))"
+```
+
+Quelle issue **si chiudono a mano**, dall'autore, pochi secondi dopo il merge — nella `timeline` si
+riconoscono da `commit_id: null`. Finche' qualcuno lo fa, funziona; **quando salta, non se ne accorge
+nessuno**: e' esattamente cio' che e' successo a
+[#871](https://github.com/DegrassiAaron/refactor-tactics-main/issues/871), rimasta aperta **37 giorni** con
+il lavoro finito su `main`, il commit che diceva `Chiude #871.` e la PR [#930](https://github.com/DegrassiAaron/refactor-tactics-main/pull/930)
+che lo ripeteva in grassetto.
+
+∴ **si scrive la riga inglese, in aggiunta al testo italiano**, e si mette in cima:
+
+```
+Closes #871
+```
+
+⛔ **Questa riga esiste perche' la sua assenza ha prodotto una diagnosi sbagliata, non solo una issue
+aperta.** Chi ha chiuso #871 il 2026-09-21 ha attribuito il difetto alla regola qui sopra — *«il commit
+diceva `fix(editor)` invece di `fixes #871`»* — e l'ha pubblicato in un commit e in un corpo di PR prima che
+una review lo verificasse. La causa vera era un'altra, e la regola citata **non copriva questo caso**: `fix(605)`
+e' uno scope **numerico** scambiato per un riferimento *in assenza di altri riferimenti*; qui il riferimento
+c'era, ed era in italiano.
+
+➕ **Era gia' stato trovato, e mai recepito**: `docs/research/handoff/spec-panel-td-handoff-2026-08-30.md`
+lo raccomanda come `m-05` dal 2026-08-30 — *«Aggiungere a §15: il corpo della PR contiene una riga `Closes #N`
+in inglese, in aggiunta al testo italiano»*. Fra quella raccomandazione e questa riga sono passate tre
+settimane, ed e' la ragione per cui un rilievo di panel che nessuno applica vale quanto non averlo scritto.
+
 **Dove va**: nel **corpo della PR**, in cima. Non nel messaggio di commit.
 
 Il corpo della PR e' il canale che GitHub processa al merge, ed e' l'unico che un agente controlla davvero:
