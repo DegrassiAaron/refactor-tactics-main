@@ -809,6 +809,20 @@ bool FRTFallNeverOverlapsTest::RunTest(const FString&)
 	PlanLedgeShove(Attaccante, Bersaglio, /*Celle=*/ 2);
 	RunLedgeTurn(TM);
 
+	// 🔴 **ANTI-VACUITA', e non e' cautela: senza questa riga il test e' verde a caduta ASSENTE.**
+	// Misurato il 2026-09-21 dalla mutazione `7-ramo-spinta`: sopprimendo il collocamento, `Bersaglio`
+	// si ferma su `(1,0,1)` per spinta invece che per ripiego saturo, `Occupante` non si muove, e le tre
+	// celle restano distinte — l'asserzione qui sotto regge **per costruzione**. Cioe' `NeverOverlaps`,
+	// che D010 di #2402 nomina come garanzia di occupazione, era soddisfatto anche da un resolver in cui
+	// non cade nessuno. La premessa e' sull'ESITO perche' la posizione non distingue i due casi: e' la
+	// stessa ragione per cui `#2403` ha dovuto separare `FellToLastStable` da `FellWithoutLanding`.
+	if (!TestEqual(TEXT("premessa: la caduta e' avvenuta ed e' finita sul ripiego saturo"),
+		LedgeMoveOutcome(TM, Bersaglio), static_cast<uint8>(ERTMoveOutcome::FellToLastStable)))
+	{
+		DestroyLedgeWorld(World);
+		return false;
+	}
+
 	TArray<ARTUnit*> Vive = { Attaccante, Bersaglio, Occupante };
 	for (int32 a = 0; a < Vive.Num(); ++a)
 	{
