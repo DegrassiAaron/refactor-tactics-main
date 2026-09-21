@@ -1209,18 +1209,69 @@ bool FRTLogKeepsTheTurnOfTheFallenTest::RunTest(const FString&)
 	// e' gia' distrutto e la vista costruita adesso non avrebbe piu' una voce per lui.
 	const TArray<FString> Visibili = TM->GetRecentEventsForTeam(0);
 
+	// ➕ **LA MISURA che la DoD di `#1498` chiede «presa e non stimata»** — aggiunta il 2026-09-21 con
+	// [D-431]. La domanda e' *«quante righe del turno di un'unita' caduta spariscono»*: la risposta e' la
+	// differenza fra cio' che il log COMPLETO contiene e cio' che l'osservatore riceve.
+	//
+	// 🔴 **Si conta per FORMA, non per NOME, ed e' una correzione da code review.** Una prima stesura cercava
+	// `Mia->GetName()` nelle righe: **misurava la popolazione sbagliata**. Il canale derivato risolve il nome
+	// con `ARTUnit::DisplayLabel` (*«Ivrin»*), non con `GetName()` (*«RTUnit_0»*) — lo dichiara
+	// `Turn/RTTurnLogLibrary.cpp:328` — e la riga del colpo non porta nomi affatto, solo celle. Le uniche che
+	// contengono `GetName()` sono i tre annunci di morte, che portano `FRTLogSubject::World()` e quindi
+	// passano **per chiunque, in qualunque mondo**: il conteggio sarebbe stato su righe **immuni al filtro**,
+	// verde per costruzione, e sarebbe rimasto verde anche sotto la mutazione che dichiara di falsificarlo.
+	//
+	// 🔑 **`danni` e' invece la forma del racconto che il filtro puo' togliere** — la stessa disciplina con
+	// cui il test gemello di questo file riconosce il racconto per forma (`"eliminata"` piu' `"q="`) invece
+	// che per nome.
+	const TArray<FString> Complete = TM->GetRecentEvents();
+	auto ConteggioDanni = [](const TArray<FString>& Righe)
+	{
+		int32 N = 0;
+		for (const FString& L : Righe)
+		{
+			if (L.Contains(TEXT("danni"))) { ++N; }
+		}
+		return N;
+	};
+	const int32 DanniComplete = ConteggioDanni(Complete);
+	const int32 DanniVisibili = ConteggioDanni(Visibili);
+	AddInfo(FString::Printf(
+		TEXT("misura #1498: log completo %d righe (%d di danno), visibili alla squadra 0 %d righe (%d di danno), perse %d"),
+		Complete.Num(), DanniComplete, Visibili.Num(), DanniVisibili, DanniComplete - DanniVisibili));
+
 	bool bAnnuncioMorte = false, bColpoInflitto = false;
 	for (const FString& L : Visibili)
 	{
 		if (L.Contains(TEXT("Eliminata: ")) || L.Contains(TEXT("Morte mostrata"))) { bAnnuncioMorte = true; }
-		// Il racconto del colpo: la riga derivata con l'esito, dove il soggetto e' l'ATTACCANTE — cioe' la
-		// mia unita' caduta. E' precisamente la riga che il filtro in lettura faceva sparire.
+		// Il racconto del colpo: la riga derivata con l'esito. ⌫ **Una prima stesura dichiarava qui che «il
+		// soggetto e' l'ATTACCANTE»: e' un'affermazione che questo test non misura**, e il repository porta
+		// almeno un produttore di riga di danno il cui soggetto e' la **vittima**
+		// (`Turn/RTTurnManager.cpp:3221`). Cio' che il banco prova davvero e' piu' debole e sufficiente: la
+		// riga **e' soggetta al filtro**, perche' sotto la mutazione che rimette il filtro in lettura sparisce.
 		if (L.Contains(TEXT("danni"))) { bColpoInflitto = true; }
 	}
 
 	TestTrue(TEXT("l'annuncio della morte si legge"), bAnnuncioMorte);
 	TestTrue(*FString::Printf(TEXT("e si legge anche il colpo che ha messo a segno prima di cadere (%d righe)"),
 		Visibili.Num()), bColpoInflitto);
+
+	// ⛔ **L'anti-vacuita', senza la quale la riga sotto e' verde per costruzione.** Se il log completo non
+	// contenesse nessuna riga di danno, `0 == 0` passerebbe dicendo «non si perde niente» mentre non c'era
+	// niente da perdere. E' lo stesso errore che `UnseenDeathLeavesOnlyTheAnnouncement` evita col proprio
+	// controllo sul racconto.
+	if (!TestTrue(TEXT("anti-vacuita': il log completo CONTIENE righe di danno, quindi c'e' qualcosa da perdere"),
+		DanniComplete > 0))
+	{
+		RTCombatLogFixture::DestroyWorld(World); return false;
+	}
+
+	// 🔴 **L'asserzione che rende la misura un GATE invece di un referto**: nessuna riga di danno sparisce
+	// fra il log completo e quello che la squadra riceve. E' la forma falsificabile di [D-431] — il giorno in
+	// cui il filtro tornasse in lettura, questa diventa rossa **col numero esatto** di cio' che il giocatore
+	// ha smesso di leggere, invece del solo `bColpoInflitto` che dice «manca» senza dire «quanto».
+	TestEqual(TEXT("nessuna riga di danno sparisce fra il log completo e quello della squadra del caduto"),
+		DanniVisibili, DanniComplete);
 
 	RTCombatLogFixture::DestroyWorld(World);
 	return true;
