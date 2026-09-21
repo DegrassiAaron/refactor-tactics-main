@@ -628,8 +628,17 @@ namespace
 	 * risulta senza voce, quindi non `Live`, quindi spento. E' il verso giusto — in assenza di conoscenza
 	 * non si mostra un avversario — ed e' cio' che `Veil.EnemyWithoutViewIsHidden` misura.
 	 *
-	 * ⚠️ `bAlive` entra fra i soggetti e non filtra: e' `ViewForTeam` a decidere cosa farne, e togliere qui
-	 * i caduti significherebbe prendere quella decisione due volte.
+	 * ⚠️ `bAlive` entra fra i soggetti e non filtra **qui**: e' `ViewForTeam` a decidere cosa farne, e la
+	 * sua guardia `if (!S.bAlive)` **precede** la biforcazione di squadra, quindi vale per entrambe.
+	 *
+	 * ⌫ **Fino al 2026-09-21 questa riga chiudeva con «togliere qui i caduti significherebbe prendere quella
+	 * decisione due volte». La lettera reggeva, il CONTO no** (`#3253`): la decisione e' gia' presa due
+	 * volte, e filtrare anche qui sarebbe la **terza**. Il motivo per non farlo resta, ed e' quello.
+	 *
+	 * 🔴 **E la sede vera non e' nessuna delle due.** Un cadavere lascia lo schermo per
+	 * `ARTUnit::HideForDefeat()`, non per una guardia di conoscenza. Le tre guardie dichiarative, cosa
+	 * governa ciascuna e cosa succede a toglierle stanno in **[D-431]**, che e' la decisione — qui non si
+	 * ripetono, o il commento tornerebbe a essere la sede che [D-431] gli ha appena tolto.
 	 */
 	FRTKnowledgeView UvViewForObserver(const ARTTurnManager* TurnManager,
 		const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
@@ -745,6 +754,10 @@ void ARTHUD::UpdateObserverVeil()
 		// (`ShouldDrawUnitOverlay` e `ContactGhostTargetForUnit`) — non due `FindEntry` separate per la
 		// stessa domanda (review). Per la propria squadra non si cerca nemmeno: entrambe le funzioni
 		// decidono da `bIsOwnTeam` prima di guardare `Entry`.
+		//
+		// 🔑 **Ed e' QUESTA riga, non quelle due, a staccare la propria squadra dalla vista** (`#3253`):
+		// con `Entry` forzata a `nullptr` l'argomento regge anche se un domani `ShouldDrawUnitOverlay`
+		// cominciasse a leggere `Entry`. La sede della regola «un morto non si disegna» sta in [D-431].
 		const bool bIsOwnTeam = (Unit->TeamId == PlayerTeamId);
 		const FRTKnowledgeEntry* Entry = bIsOwnTeam
 			? nullptr

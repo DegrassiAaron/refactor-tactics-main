@@ -148,13 +148,14 @@ public:
 	 * e **non** il combat log, che da [D-223] porta il verdetto congelato alla scrittura.
 	 *
 	 * 🔴 **Chi tocca quella guardia cambia il VELO, non il log**: in produzione questa funzione ha **un solo**
-	 * chiamante, `UvViewForObserver` dentro `ARTHUD::UpdateObserverVeil` (`UI/RTHUD.cpp:657` alla data).
+	 * chiamante, `UvViewForObserver` dentro `ARTHUD::UpdateObserverVeil`.
 	 * Toglierla per *«far tornare le righe del turno di chi muore»* non restituisce **nessuna** riga: quel
 	 * difetto e' chiuso altrove, da [D-223].
 	 *
 	 * ⚠️ **E oggi non restituirebbe nemmeno un morto sull'overlay**, perche' il ciclo che consuma la vista
-	 * salta gia' i caduti (`UI/RTHUD.cpp:739`). La guardia e' **difesa in profondita'**, non un carico
-	 * portante — e [D-431] la tiene per questo, non per un effetto che non ha.
+	 * salta gia' i caduti (`if (!Unit || !Unit->IsAlive())`, nella stessa funzione). La guardia e'
+	 * **difesa in profondita'**, non un carico portante — e [D-431] la tiene per questo, non per un
+	 * effetto che non ha.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Knowledge")
 	static FRTKnowledgeView ViewForTeam(const FRTTeamKnowledge& Knowledge,
