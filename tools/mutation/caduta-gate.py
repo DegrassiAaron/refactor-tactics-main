@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Le cinque mutazioni della caduta devono far CADERE un test - e il gate lo dimostra.
+"""Le mutazioni della caduta devono far CADERE un test - e il gate lo dimostra.
 
     Uso:  python tools/mutation/caduta-gate.py <esiti.md> [--solo ID ...] [--taratura]
                                                [--filtro <prefisso>] [--dry-run] [--self-test]
@@ -85,8 +85,8 @@ bersaglio e' `Map.OpenEdge.GuardSuppressesOpenness`. Risponde alla domanda che p
 - **Non giudica se il test e' giusto.** Dice che un test cade, non che asserisce la regola della
   spec. Una mutazione puo' far cadere un test per un motivo diverso da quello dichiarato in
   `bersagli`, e il gate lo puo' solo segnalare (`BERSAGLI DIVERSI`), non risolvere.
-- **Non copre le mutazioni che non sono in tabella.** Cinque mutazioni sono cinque, non «il codice
-  della caduta e' coperto».
+- **Non copre le mutazioni che non sono in tabella.** Le mutazioni in tabella sono quelle in tabella,
+  non «il codice della caduta e' coperto».
 - **Il binario, alla fine, non e' quello del sorgente** finche' non lo si ricostruisce. Il ciclo
   ripristina il sorgente dopo ogni misura ma non ricompila: l'ultimo DLL prodotto e' quello MUTATO.
   Misurato il 2026-09-05 — sorgente pulito, DLL mutato di quattro minuti prima. Per questo il gate
@@ -211,7 +211,12 @@ MUTAZIONI = [
         # perche' i rossi osservati INCLUDEVANO gli attesi. Ma «cadono anche altri tre» e' informazione: se
         # domani `TwoFallersSameLandingIsDeterministic` smettesse di accorgersi della sovrapposizione,
         # nessuno se ne accorgerebbe — l'insieme resterebbe un soprainsieme dei bersagli dichiarati.
-        # Misurato il 2026-09-08: questi sei, ogni volta che la misura e' stata valida.
+        # ⚠️ **E l'elenco e' gia' andato in deriva, il che e' precisamente il punto.** Diceva *«misurato
+        # il 2026-09-08: questi sei, ogni volta che la misura e' stata valida»*, e i referti del
+        # 2026-09-09 e del 2026-09-21 ne registrano **otto**: `OccupiedLandingAppliesImpact` e
+        # `SaturatedLandingAppliesFallEffects` si sono aggiunti con #2430. La deriva che questo elenco
+        # esiste per intercettare e' avvenuta, e nessuno se n'e' accorto — `classifica()` chiede
+        # l'INTERSEZIONE, e un soprainsieme non fa rumore. I rossi osservati stanno nei referti datati.
         "bersagli": [
             "RefactorTactics.Fall.NeverOverlaps",
             "RefactorTactics.Fall.OccupiedLandingUsesAdjacentAlternative",
@@ -298,33 +303,41 @@ MUTAZIONI = [
         # bordo aperto cade»*, non aveva nessuno che ne misurasse la caduta.
         #
         # 🔴 **Non e' la 1 sotto un altro nome, ed e' la confusione da evitare.** La 1 sopprime la guardia dei
-        # PASSI RESIDUI e fa cadere chi non doveva: misura il CONFINE della regola. Questa sopprime il ramo
-        # intero e non fa cadere nessuno: misura che la regola ESISTA. Una suite che copre solo il confine
-        # resta verde su un ramo cancellato, purche' nessuno cada per sbaglio.
+        # PASSI RESIDUI e fa cadere chi non doveva: misura il CONFINE della regola. Questa sopprime il
+        # collocamento e non fa cadere nessuno: misura che la regola ESISTA. Una suite che copre solo il
+        # confine resta verde su un ramo cancellato, purche' nessuno cada per sbaglio.
         #
-        # ⚠️ Il pattern e' sul ramo della SPINTA (`KnockFrom`/`KOccupied`), come la 6: la trazione ha il
-        # proprio sito di chiamata, e `PullOverOpenLedgeStartsFall` deve restare VERDE. E' l'informazione
-        # utile — dice che i due siti reggono separatamente invece che per una regola sola condivisa.
+        # 🔴 **Si muta la CONGIUNZIONE, non la chiamata, e la differenza e' misurata.** Una prima stesura
+        # cortocircuitava `Cade(...)` con `if (false && Cade(...))`: cosi' spariva anche il suo EFFETTO
+        # COLLATERALE su `OutEsito`, e con lui la causa `StoppedByEdgeGuard` di [D-354] — due test del
+        # parapetto (`AdjacentGuardedLedgeSaysEdgeGuard`, `GuardedLedgeIsNamedInTheLog`) diventavano rossi
+        # per una regola DIVERSA da quella dichiarata in `prova`. Mutare `&& Atterraggio != T->Cell` lascia
+        # la chiamata in piedi: l'esito continua a essere calcolato, e cade solo il collocamento.
+        #
+        # ⚠️ Il pattern e' sul ramo della SPINTA (`KnockFrom`), come la 6: la trazione ha il proprio sito di
+        # chiamata e `PullOverOpenLedgeStartsFall` deve restare VERDE — e' l'informazione utile, perche' dice
+        # che i due siti reggono separatamente invece che per una regola sola condivisa.
+        #
+        # ⛔ **Che cosa questa mutazione NON puo' fare, e va detto qui.** Il suo bersaglio dichiarato non e'
+        # ESIGIBILE dal codice di uscita: `classifica()` chiede l'INTERSEZIONE fra rossi e attesi, e i rossi
+        # sono molti. Se domani `OpenLedgeStartsFall` diventasse cieco, i suoi fratelli cadrebbero lo stesso,
+        # l'esito sarebbe `CADUTA (BERSAGLI DIVERSI)` — che `e_caduta()` conta come caduta — e il gate
+        # uscirebbe 0. Questa mutazione **misura** che quel test sa diventare rosso; non lo **pinna**. Per
+        # pinnarlo servirebbe rendere bloccante `BERSAGLI DIVERSI`, o un campo `bersagli_obbligatori`: e'
+        # un cambio di semantica dello strumento, e sta nei follow-up di #2402.
+        #
+        # L'elenco dei rossi osservati e' nel referto datato, non qui: un elenco nel sorgente finge di non
+        # esserlo. Vedi `docs/roadmap/plans/2402-gate-caduta-openledge-2026-09-21.md`.
         "id": "7-ramo-spinta",
-        "titolo": "sopprimere del tutto il ramo della caduta nella SPINTA",
+        "titolo": "sopprimere il collocamento della caduta nella SPINTA",
         "prova": "#2402 D002 - chi e' spinto oltre un bordo aperto CADE, invece di fermarsi sul ciglio",
         "file": "Source/RefactorTactics/Turn/RTTurnManager_Blast.cpp",
-        "cerca": r"if \(Cade\(T, Dest, KnockFrom\[T\], KnockDist\[T\], /\*bAllontana=\*/ true, KOccupied, Atterraggio, Esito\)",
-        "sostituisci": r"if (false && Cade(T, Dest, KnockFrom[T], KnockDist[T], /*bAllontana=*/ true, KOccupied, Atterraggio, Esito)",
-        # 🔑 **UNO dichiarato, venti osservati, e l'asimmetria e' voluta.** La 4 ne elenca sei perche' quel
-        # gruppo e' stabile e l'elenco dice quali test sanno accorgersi della sovrapposizione. Qui i rossi
-        # sono **tutto cio' che osserva una caduta da spinta** - venti, misurati il 2026-09-21 - e un elenco
-        # cosi' cambierebbe a ogni test nuovo del gruppo `Fall` senza che il gate se ne accorga:
-        # `classifica()` chiede l'INTERSEZIONE, quindi un soprainsieme resta `CADUTA` comunque. Si dichiara
-        # percio' il solo bersaglio per cui la mutazione esiste, e la misura per esteso vive nel referto.
-        #
-        # 🔑 **Cio' che NON e' caduto e' l'informazione utile, ed e' misurato:**
-        #   * `ForcedMovement.PullOverOpenLedgeStartsFall` -> VERDE. I due siti di chiamata reggono
-        #     separatamente: se un domani la trazione smettesse di cadere per conto suo, questa mutazione
-        #     non lo nasconderebbe;
-        #   * `ForcedMovement.ExhaustedPushAtEdgeDoesNotFall` e `...GuardedLedgeDoesNotFall` -> VERDI, come
-        #     devono: sopprimere la caduta non fa cadere chi non doveva cadere comunque;
-        #   * `Fall.StaticValidator*` (#2404) -> VERDI: la validazione d'authoring non passa dal resolver.
+        # ⚠️ Ancorato a `KnockFrom[T]` e non all'elenco completo degli argomenti: la congiunzione
+        # `&& Atterraggio != T->Cell` esiste IDENTICA anche nel ramo della trazione, e il gruppo la distingue.
+        # Fissare gli otto argomenti renderebbe il pattern il piu' fragile della tabella senza aggiungere
+        # specificita': basta rinominare una locale o riavvolgere la chiamata e il gate esce NON APPLICABILE.
+        "cerca": r"(if \(Cade\(T, Dest, KnockFrom\[T\][^\n]*\r?\n\s*)&& Atterraggio != T->Cell\)",
+        "sostituisci": r"\1&& false)",
         "bersagli": [
             "RefactorTactics.ForcedMovement.OpenLedgeStartsFall",
         ],
@@ -699,8 +712,10 @@ if not APPLICABILI:
         f.write("| # | Mutazione | Perche' non e' applicabile |\n|---|---|---|\n")
         for m, motivo in NON_APPLICABILI:
             f.write("| %s | %s | %s |\n" % (m["id"], m["titolo"], motivo))
-        f.write("\nLe mutazioni 1-5 mutano il ramo di **#2402**. Finche' quello non e' integrato non\n"
-                "c'e' niente da mutare, e nessun test della caduta da far cadere.\n")
+        f.write("\n\u26a0 **Il ramo di #2402 E' integrato dal 2026-09-05** (PR #2500 e #2683): se NESSUN\n"
+                "pattern si trova, la causa piu' probabile non e' una feature assente ma una `cerca`\n"
+                "stantia - una locale rinominata, una chiamata riavvolta dal formatter. Si legge il\n"
+                "sorgente accanto al pattern prima di concludere che manchi qualcosa.\n")
     print("\n⛔ BLOCKED: nessuna mutazione applicabile. Esiti in " + ESITI)
     sys.exit(2)
 
