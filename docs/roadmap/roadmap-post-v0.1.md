@@ -649,7 +649,7 @@ significato**.
 >
 > | Il sorgente chiede | Cosa gira già | Cosa manca davvero |
 > |---|---|---|
-> | Cleanse per categoria | **`Action.Cleanse`**, azione principale in Blast (priorità 25, CP 5.2): rimuove **un solo** stato dalla lista che il *giocatore* dichiara in `PlannedCleansePriority`, fail-closed se non ne trova. Più `Reaction.Cleanse` a catalogo equipaggiamento | Il salto dal **tag esplicito** alla **categoria** — che è ciò che rende `Cleanse.Control` scrivibile senza elencare gli status uno per uno |
+> | Cleanse per categoria | 🔴 **Presuppone un'azione che la v0.1 non spedisce**: l'attiva è uscita il 2026-08-30 con [D-264](../decisions/RT_PDR_00_Decision_Log.md), e può tornare **solo** con un ruolo tattico distinto e un contratto esplicito di UI e di produttore — non come ripristino. Chi prende questa voce parte da lì. — **`Action.Cleanse`**, azione principale in Blast (priorità 25, CP 5.2): rimuove **un solo** stato dalla lista che il *giocatore* dichiara in `PlannedCleansePriority`, fail-closed se non ne trova. Più `Reaction.Cleanse` a catalogo equipaggiamento | Il salto dal **tag esplicito** alla **categoria** — che è ciò che rende `Cleanse.Control` scrivibile senza elencare gli status uno per uno |
 > | Resistance che degrada | **`PushResistance`** su `URTHeroData` e `GuardResistedPushDistance`: una resistenza reale, ma su **un dominio solo** e come **scalare**, non come regola di degradazione | La generalizzazione: `Root → Slow` è una *conversione*, non una sottrazione, e nessun dato oggi la sa esprimere |
 > | Immunity che nega | **Niente.** `grep -rn "Immun" Source/` è vuoto | Tutto — ed è l'unico dei tre che nasce da zero |
 >

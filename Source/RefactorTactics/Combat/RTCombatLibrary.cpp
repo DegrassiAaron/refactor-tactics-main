@@ -3,6 +3,67 @@
 #include "Map/RTHexVisionLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 
+namespace
+{
+	/**
+	 * LA TABELLA `ERTHexTargetReason` → `ERTTargetRefusal`, e **niente** velo — `#3064`.
+	 *
+	 * ⛔ **Privata al `.cpp`, e la privatezza E' il punto.** Le due porte pubbliche che ci passano portano
+	 * ciascuna la propria domanda di conoscenza: `RefusalForObserver` la pone, perche' il suo bersaglio e'
+	 * un'unita' che il velo puo' nascondere; `DescribeCellTargetRefusal` non ha nulla da porre, perche' il
+	 * suo bersaglio e' una cella. Esporre questa tabella aggiungerebbe una TERZA porta, senza domanda, e un
+	 * sito a unita' che la usasse sembrerebbe corretto pur non essendolo.
+	 */
+	ERTTargetRefusal RefusalForReason(ERTHexTargetReason Reason)
+	{
+		switch (Reason)
+		{
+		case ERTHexTargetReason::Ok:
+			return ERTTargetRefusal::None;
+
+		case ERTHexTargetReason::OutOfRange:
+			return ERTTargetRefusal::Range;
+
+		case ERTHexTargetReason::NoLineOfSight:
+			return ERTTargetRefusal::Cover;
+
+		case ERTHexTargetReason::TooClose:
+			// Il gesto e' l'OPPOSTO di `Range`, che porta scritto «avvicinati»: qui si indietreggia.
+			return ERTTargetRefusal::TooClose;
+
+		case ERTHexTargetReason::OtherLayer:
+			// Nessuno dei gesti NEL piano aiuta: ne' avvicinarsi ne' indietreggiare cambia il `Layer`, e
+			// «spostati di lato» prometterebbe una traiettoria che non e' mai stata costruita.
+			return ERTTargetRefusal::OtherLayer;
+
+		case ERTHexTargetReason::NoMap:
+			// ⚠️ Fail-closed, e per la stessa ragione di `ClassifyHexTargeting`: senza mappa autorevole la
+			// linea non e' verificabile, quindi non si afferma niente su di essa. `Nothing` qui non dice
+			// «non c'e' nessuno»: dice «non ho nulla da mostrarti», che e' l'unica cosa vera.
+			return ERTTargetRefusal::Nothing;
+		}
+
+		// ⌫ **QUI C'ERA LA PROMESSA CHE `-Wswitch` ROMPESSE LA BUILD, E QUESTO REPOSITORY L'HA MISURATA
+		// FALSA** (`#3080`, la stessa correzione e' scritta in `ARTHUD::RefusalText`). Uno `switch` senza
+		// `default:` produce un **warning** su MSVC (C4061/C4062), non un errore, e la build non lo alza:
+		// `TooClose` e `OtherLayer` sono entrati a due issue di distanza e nessuno si e' fermato.
+		//
+		// 🔴 **E da `#3064` la posta e' piu' alta, non piu' bassa**: questa tabella gira ora a OGNI click a
+		// cella — esito `Ok` compreso — e non piu' solo sul ramo di rifiuto a unita'. Un valore nuovo
+		// dell'enum arriverebbe qui nel percorso ordinario del giocatore.
+		//
+		// 🔑 **Cio' che regge davvero e' un banco**: `RefactorTactics.Combat.RefusalCoversEveryReason` legge
+		// i valori dalla **reflection** e li confronta PRIMA di chiamare, quindi un motivo scoperto lo rende
+		// rosso nominandolo invece di arrivare fin qui.
+		//
+		// ⚠️ `checkNoEntry()` resta, e resta l'ULTIMA difesa: se ci si arriva comunque, morire
+		// rumorosamente e' preferibile a collassare in silenzio su `Nothing`, che e' il valore riservato al
+		// velo — un motivo nuovo che tacesse per sbaglio sembrerebbe privacy e sarebbe un difetto.
+		checkNoEntry();
+		return ERTTargetRefusal::Nothing;
+	}
+}
+
 // Le due provenienze dei pool d'assorbimento (`#2213`). La ragione per cui la seconda non nomina un
 // `ActionId` sta sulla dichiarazione, in `RTCombatLibrary.h`.
 const FName URTCombatLibrary::GuardPoolSource = FName(TEXT("D-292 · Status.Guarded"));
@@ -192,39 +253,52 @@ ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason,
 		return ERTTargetRefusal::Nothing;
 	}
 
-	switch (Reason)
-	{
-	case ERTHexTargetReason::Ok:
-		return ERTTargetRefusal::None;
+	// ⌫ **Lo `switch` non e' piu' qui: e' `RefusalForReason`, statica privata in cima a questo file**
+	// (`#3064`). Non e' un riordino estetico — e' cio' che permette al percorso a CELLA di riusare la
+	// tabella **senza** passare da un flag di conoscenza che, non avendo un'unita' bersaglio, avrebbe
+	// dovuto inventare. Questa funzione resta l'unico posto in cui il velo entra, che e' esattamente cio'
+	// che il suo header dichiara: *«La conoscenza entra qui e da nessun'altra parte»*.
+	return RefusalForReason(Reason);
+}
 
-	case ERTHexTargetReason::OutOfRange:
-		return ERTTargetRefusal::Range;
+FRTCellTargetRefusal URTCombatLibrary::DescribeCellTargetRefusal(const URTHexMapAsset* Map,
+	const FRTCellId& From, const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy)
+{
+	FRTCellTargetRefusal Out;
 
-	case ERTHexTargetReason::NoLineOfSight:
-		return ERTTargetRefusal::Cover;
+	// ⛔ **Nessuna unita' entra da qui, e non e' disciplina: e' la firma delle tre funzioni chiamate.**
+	// `ClassifyHexTargeting` riceve due celle e una mappa e dichiara l'assenza dell'elenco delle unita' come
+	// REQUISITO accanto alla licenza di [D-378]; `EffectiveTargetingRange` scorre il catalogo dei terreni
+	// lungo `HexLine`; `DescribeLineOfSight` ha per unica sorgente `const URTHexMapAsset*`. ∴ due mondi che
+	// differiscono solo per un nemico che l'osservatore non conosce, sulla cella bersaglio, escono di qui con
+	// `Out` identico campo per campo, e nessun filtro a valle deve rimediare a niente. [D-225]
+	Out.Refusal = RefusalForReason(ClassifyHexTargeting(Map, From, To, RangeCells, Policy));
 
-	case ERTHexTargetReason::TooClose:
-		// Il gesto e' l'OPPOSTO di `Range`, che porta scritto «avvicinati»: qui si indietreggia.
-		return ERTTargetRefusal::TooClose;
+	// 🔑 **Calcolate SEMPRE, anche quando l'esito e' `None`.** `ARTHUD::RefusalText` legge il numero solo per
+	// `Range` e `ComputeRefusedShotLine` la geometria solo per `Cover`, quindi altrove sono inerti — ed e'
+	// precisamente cio' che rende sicuro calcolarle incondizionatamente invece di ricordarsi quando servono.
+	// E' la disciplina che `#2800` e `#3085` hanno gia' imposto al sito a unita'.
+	//
+	// 🔴 **La portata la si CHIEDE alla stessa funzione che il classificatore ha applicato**, non la si
+	// rideriva: riscrivere qui il cap del terreno direbbe il vero solo finche' nessuno tocca il catalogo,
+	// ed e' l'inganno che `#2766` ha tolto dal log.
+	//
+	// ⚠️ `Map` nullo non e' un caso speciale da guardare: `EffectiveTargetingRange` restituisce `RangeCells`
+	// invariato, `DescribeLineOfSight` un esito senza blocco, e `Refusal` e' gia' `Nothing` per il
+	// fail-closed del classificatore. Chi non ha una mappa non riceve affermazioni su una geometria che
+	// nessuno ha verificato.
+	Out.EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(Map, From, To, RangeCells);
 
-	case ERTHexTargetReason::OtherLayer:
-		// Nessuno dei gesti NEL piano aiuta: ne' avvicinarsi ne' indietreggiare cambia il `Layer`, e
-		// «spostati di lato» prometterebbe una traiettoria che non e' mai stata costruita.
-		return ERTTargetRefusal::OtherLayer;
+	// ⛔ **`DescribeLineOfSight` e non `AuthorizedSightLines`, ed e' una scelta [D-225].** Quella libreria
+	// filtra per conoscenza nella propria FIRMA, e il filtro e' sul BERSAGLIO: per una cella non esiste un
+	// `bKnownToObserver` onesto da passarle, e doverne **scegliere** uno sarebbe gia' il difetto — il suo
+	// `continue` fa SPARIRE la voce, quindi «linea presente» contro «linea assente» diventerebbe un
+	// rilevatore di presenze il giorno in cui quel flag smettesse di essere una costante. Qui la geometria
+	// si produce nuda; il velo che conta — quello sull'OSTACOLO — sta a valle, in
+	// `ARTHUD::ComputeRefusedShotLine`, che e' il punto in cui il segno diventa visibile.
+	Out.Sight = URTHexVisionLibrary::DescribeLineOfSight(Map, From, To);
 
-	case ERTHexTargetReason::NoMap:
-		// ⚠️ Fail-closed, e per la stessa ragione di `ClassifyHexTargeting`: senza mappa autorevole la
-		// linea non e' verificabile, quindi non si afferma niente su di essa. `Nothing` qui non dice
-		// «non c'e' nessuno»: dice «non ho nulla da mostrarti», che e' l'unica cosa vera.
-		return ERTTargetRefusal::Nothing;
-	}
-
-	// ⛔ **Nessun `default:` nello switch, ed e' una scelta.** Con un `default` un enumerato nuovo
-	// scivolerebbe in silenzio su «non dire niente», e la feature perderebbe un caso con la suite verde.
-	// Senza, `-Wswitch` lo rende un errore di compilazione qui e ora — che e' cio' che il fail-closed di
-	// questa funzione dichiara di volere.
-	checkNoEntry();
-	return ERTTargetRefusal::Nothing;
+	return Out;
 }
 
 FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 EffectiveRange)

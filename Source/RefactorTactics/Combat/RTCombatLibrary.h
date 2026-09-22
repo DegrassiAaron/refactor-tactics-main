@@ -8,6 +8,11 @@
 // il requisito e' una proprieta' dell'azione (`#2870`). La dipendenza e' la stessa che `RTHexCombatLibrary.h`
 // ha gia' su `Ability/RTActionData.h`, e non introduce cicli — `RTActionDef.h` non risale a Combat.
 #include "Ability/RTActionDef.h"
+// `FRTLineOfSightResult` entra qui perche' `FRTCellTargetRefusal` lo PORTA: il rifiuto di una cella e la
+// geometria che lo spiega nascono dallo stesso click e viaggiano insieme (`#3085`). Nessun ciclo, e per la
+// stessa ragione gia' scritta sopra per `RTActionDef.h`: `RTHexVisionLibrary.h` include soltanto
+// `CoreMinimal`, la libreria Blueprint e `Map/RTCellId.h`, e non risale a `Combat/`.
+#include "Map/RTHexVisionLibrary.h"
 #include "RTCombatLibrary.generated.h"
 
 class URTHexMapAsset;
@@ -98,6 +103,58 @@ enum class ERTTargetRefusal : uint8
 	 * ⚠️ In coda: l'indice e' il dato.
 	 */
 	OtherLayer
+};
+
+/**
+ * TUTTO cio' che si puo' dire a chi gioca della CELLA che ha appena bersagliato — `#3064`.
+ *
+ * 🔑 **Esiste per una ragione di FIRMA, non di comodita'.** Per parlare al giocatore il percorso a cella
+ * deve tradurre `ERTHexTargetReason` in `ERTTargetRefusal`, e l'unica porta che lo faceva —
+ * `RefusalForObserver` — chiede un flag di conoscenza **di un'unita' bersaglio**, che su una cella non
+ * esiste. Passarle un `true` letterale avrebbe funzionato ed era il difetto: una dichiarazione permanente,
+ * scritta in un sito di chiamata, che nessuno impone. Qui il flag non c'e' — non perche' valga `true`, ma
+ * perche' **non esiste un parametro** in cui la conoscenza di un'unita' possa entrare. [D-225]
+ *
+ * ⛔ **Porta l'esito PLAYER-FACING e non la classificazione interna, e l'omissione e' il progetto.**
+ * Restituire anche `ERTHexTargetReason` metterebbe in mano al chiamante due verita' sullo stesso click —
+ * una mostrabile e una no — e questo repository sa gia' quale delle due finisce a schermo per sbaglio. Con
+ * un esito solo, la frase e il log **non possono** divergere: e' cosi' che si chiude il difetto per cui il
+ * log del percorso a cella chiamava «bloccata» anche una cella su un altro piano, cioe' esattamente
+ * l'errore che `ERTHexTargetReason::OtherLayer` esiste per non commettere ([D-393]).
+ *
+ * ⚠️ **Nessun campo dipende da un'unita', e non e' prudenza: e' la firma di chi lo produce.**
+ * `ClassifyHexTargeting` riceve due celle e una mappa e lo dichiara come regola; `EffectiveTargetingRange`
+ * legge il catalogo dei terreni lungo `HexLine`; `DescribeLineOfSight` non ha `UWorld`. ∴ due mondi che
+ * differiscono solo per un nemico ignoto sulla cella bersaglio producono questa struttura identica campo
+ * per campo.
+ */
+USTRUCT(BlueprintType)
+struct FRTCellTargetRefusal
+{
+	GENERATED_BODY()
+
+	/** L'esito mostrabile. `None` = nessun rifiuto, il piano puo' nascere. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	ERTTargetRefusal Refusal = ERTTargetRefusal::None;
+
+	/**
+	 * La portata DAVVERO applicata dal classificatore — quella cappata dal terreno, non quella dichiarata
+	 * dall'azione (`#2766`, `#2800`). Si calcola a ogni esito e non solo su `Range`, per la stessa ragione
+	 * per cui il sito a unita' la calcola sempre: un numero aggiornato a tratti e' il numero del click
+	 * precedente, e a schermo nessuno distingue un dato vecchio da uno giusto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	int32 EffectiveRange = INDEX_NONE;
+
+	/** Dove la traiettoria si ferma (`#3085`): `BlockedAt` e' la cella in cui la linea stava entrando. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Combat")
+	FRTLineOfSightResult Sight;
+
+	/**
+	 * ⛔ **`IsRefused()` e non un confronto con `ERTHexTargetReason::Ok`**, ed e' equivalente per
+	 * costruzione: `Ok` e' l'unico motivo che la tabella manda su `None`, e nessun altro ci arriva.
+	 */
+	bool IsRefused() const { return Refusal != ERTTargetRefusal::None; }
 };
 
 /**
@@ -578,6 +635,39 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
 	static ERTTargetRefusal RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver);
+
+	/**
+	 * IL RIFIUTO DI UN BERSAGLIO A **CELLA**, per intero e senza un soggetto da velare — `#3064`.
+	 *
+	 * 🔴 **Il difetto che chiude.** Il percorso a cella (`ARTPlayerController::HandleTargetCell`) rifiutava
+	 * in `UE_LOG` e basta: a schermo non cambiava nulla, e un click che non produce niente e'
+	 * indistinguibile da un click non registrato. Il percorso a unita' aveva due canali — la frase (`#2741`)
+	 * e il tratto interrotto (`#2742`, `#3085`) — e quello a cella nessuno.
+	 *
+	 * 🔑 **Nessun `bTargetKnownToObserver`, ed e' la differenza col gemello qui sopra.** Il velo filtra la
+	 * conoscenza di un BERSAGLIO; il bersaglio qui e' una cella, che il giocatore ha appena cliccato e che
+	 * il classificatore non ha mai messo in relazione con chi ci sta sopra. Un flag in questa firma sarebbe
+	 * un valore da **inventare**, e un valore inventato e' precisamente cio' che un domani qualcuno cabla
+	 * all'occupante «solo per il log». [D-225]
+	 *
+	 * ⛔ **E non nasca una `RefusalForReason(ERTHexTargetReason)` pubblica.** Sarebbe un ingresso SENZA velo
+	 * alla stessa tabella, e un futuro sito di targeting a unita' che la afferrasse sembrerebbe corretto
+	 * senza esserlo — il «secondo contratto di conoscenza» che `RefusalForObserver` e
+	 * `ARTHUD::ComputeBlockerMarks` dichiarano entrambi di voler evitare. La tabella e' una statica privata
+	 * del `.cpp`: qui e' il compilatore a garantire cio' che una convenzione non garantirebbe.
+	 *
+	 * ⚠️ **`MinRangeCells` non e' fra i parametri, e l'omissione e' dichiarata.** Nessun sito di click lo
+	 * passa — ne' quello a unita' ne' questo — quindi `TooClose` non puo' nascere da un click, e un
+	 * parametro che nessuno passa e' un parametro che nessun test copre. Quando `#2950` arrivera' a un
+	 * ingresso del giocatore, ci arrivera' per entrambi i percorsi insieme.
+	 *
+	 * @param Map      la mappa autorevole. Senza, `Nothing`: fail-closed come `ClassifyHexTargeting`.
+	 * @param From     la cella di chi agisce; `To` la cella bersagliata
+	 * @param Policy   `FRTActionDef::LineOfSightPolicy` dell'azione armata ([D-378])
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static FRTCellTargetRefusal DescribeCellTargetRefusal(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
 	 * La coda del log diagnostico di un rifiuto per DISTANZA — `#2766`.
