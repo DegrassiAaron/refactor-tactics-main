@@ -2212,8 +2212,11 @@ risposte sono coerenti con tutto ciò che è scritto.
 ## Aperte — tassonomia icone, dall'istruttoria di [#637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/637) del 2026-09-22
 
 Il materiale di design usa **25** segmenti dentro gli `UI.Icon.<Segmento>.<Nome>`; `ERTIconCategory` ne ha
-**12**, e `URTIconLibrary::ValidateIconCatalog` **rifiuta** ogni chiave il cui segmento non sia un valore
-dell'enum. L'istruttoria completa — misura, comandi e statuto della sorgente — sta nel documento owner
+**12**. Una chiave il cui segmento non è un valore dell'enum non è indirizzabile
+— `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) itera l'enum e la scarta nel percorso
+che costruisce l'id (`:71`, `:136`) — e non sarebbe nemmeno dichiarabile: `FRTIconDef::Category` è un campo
+**tipizzato**, e `ValidateIconCatalog` pretende che il segmento dell'`IconId` **nomini** la categoria
+dichiarata. Due controlli, due punti diversi. L'istruttoria completa — misura, comandi e statuto della sorgente — sta nel documento owner
 [`technical/tooling/tassonomia-icone-manifest-runtime.md`](technical/tooling/tassonomia-icone-manifest-runtime.md)
 e **non si duplica qui**. Dei diciassette segmenti fuori dall'enum, dieci sono già risolti (sei mappano per
 definizione dell'enum, `UI.*` esce, e `Effect`/`Geometry`/`Target` sono primitive di composizione per

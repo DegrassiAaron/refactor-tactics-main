@@ -18,9 +18,17 @@ datato. Un numero senza comando non va copiato da qui: si rimisura.
 
 ## 1. Perché esiste
 
-`URTIconLibrary::ValidateIconCatalog` confronta il **segmento** dentro l'`IconId` con la `Category`
-dichiarata nella voce. Una chiave il cui segmento non è un valore di `ERTIconCategory` non è caricabile:
-non è un avviso, è un rifiuto. Il materiale di design usa segmenti che il runtime non ha, quindi una parte
+Una chiave il cui segmento non è un valore di `ERTIconCategory` non è caricabile, e i punti che la fermano
+sono **due** — confonderli fa cercare il simbolo sbagliato:
+
+| Dove | Che cosa fa |
+|---|---|
+| `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) | itera `ERTIconCategory` e confronta il **capo** del percorso semantico. È il controllo che scarta un segmento sconosciuto nel percorso che **costruisce** l'id (`:71`, `:136`) |
+| `URTIconLibrary::ValidateIconCatalog` | confronta il **segmento** dentro l'`IconId` con la `Category` **dichiarata nella voce**, e ne pretende la corrispondenza |
+
+⚠️ **Il secondo non enumera l'enum, e non ne ha bisogno**: `FRTIconDef::Category` è un campo
+**tipizzato**, quindi una categoria fuori dall'enum non è nemmeno **esprimibile** in una voce di catalogo.
+Non è un avviso, è un rifiuto — e per due ragioni indipendenti. Il materiale di design usa segmenti che il runtime non ha, quindi una parte
 del manifest **non è innestabile così com'è**.
 
 D-031 dà il criterio, e non è estetico: *il catalogo risolve ciò che il gameplay produce come chiave*. La
