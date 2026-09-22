@@ -156,7 +156,7 @@ git grep -ohE '"<Segmento>\.[A-Za-z]+"' -- Source/ ':!Source/RefactorTactics/Tes
 |---|---:|---|
 | **`Module`** | 7 | ✅ **tutti e sette**, sotto un altro nome: `Reaction.AllyIntercept`, `.Anchor`, `.Cleanse`, `.CounterShot`, `.EmergencyDash`, `.HazardEscape`, `.ReactiveShield` — gli `EquipmentId` che `URTCatalogLibrary::MakeReactionModules()` costruisce |
 | **`Gadget`** | 8 | ✅ con lo **stesso** nome: `Gadget.BreachCharge`, `.Insulator`, `.Medkit`, `.Mine`, `.PortableCover`, `.Sensor`, `.SmokeEmitter`, `.Sprinkler` |
-| **`Weapon`** | 6 | ✅ con lo **stesso** nome e in **corrispondenza esatta**: `Weapon.Environmental`, `.Impact`, `.Overcharge`, `.Precision`, `.Split`, `.Suppressive` |
+| **`Weapon`** | 6 | ✅ corrispondenza **esatta, prefisso compreso**: `Weapon.Environmental`, `.Impact`, `.Overcharge`, `.Precision`, `.Split`, `.Suppressive`. È l'unico dei sette in cui coincide anche il prefisso — `Module` coincide sui **nomi**, ma il codice li chiama `Reaction.*` |
 
 🔴 **E le due liste `Gadget` divergono, in entrambi i versi.** Il codice ha `Gadget.Mine`, che il manifest
 non nomina; il manifest ha `Gadget.Anchor`, che il codice non ha. ⚠️ **`Gadget.Anchor` è anche una trappola
@@ -176,7 +176,7 @@ seconda perché `Reaction` non è il posto. Nessuna delle due dice dove vanno.
 
 | Segmento | Chiavi | Cosa ha trovato la misura |
 |---|---:|---|
-| **`Stat`** | 11 | ❌ **zero id**. Sono **letture numeriche**: `Cooldown` e `Range` sono campi di `FRTActionDef`, `Health` e `Shield` di `ARTUnit`. ⚠️ `Vision` e `Noise` non esistono nemmeno come campo in quei due header. Un numero non ha una chiave — e D-231 colloca costo/cooldown/cariche fra i **satelliti della card** (cerchio, alto-sinistra, max 1) |
+| **`Stat`** | 11 | ❌ **zero id**. Sono **letture numeriche**: `Cooldown` e `Range` sono campi di `FRTActionDef`, `Health` e `Shield` di `ARTUnit`. Un numero non ha una chiave — e D-231 colloca costo/cooldown/cariche fra i **satelliti della card** (cerchio, alto-sinistra, max 1). 🔴 **Ma gli undici nomi non sono omogenei**: `Vision` e `Noise` **esistono** come concetti di gioco fuori da quei due header — `VisionRange`, `NoiseAtCell`, `NoiseIdentificationLevel`, `NoiseType` — quindi «non è una chiave» non equivale a «non è una cosa» |
 | **`Decision`** | 2 | ❌ `FastAction` e `FastReaction` non esistono. L'enum che porta quel nome è `ERTReactionDecisionOutcome`, e ha **sei** valori — `Chosen`, `CollapsedByCondition`, `Immediate`, `NoDecider`, `Rejected`, `Timeout`. 🔴 Mapparci sopra due chiavi **perderebbe** quattro esiti |
 | **`Timing`** | 3 | ❌ parziale: `Predictive` esiste davvero (`ERTPredictiveOutcome`, `ERTPredictiveTargeting`, `FRTPredictiveShot`); `Delayed` e `Trap` danno **zero** riscontri non-test |
 | **`Result`** | 2 | ❌ `Success`/`Failure` generici non esistono. Gli `ERT*Result` del codice sono **specifici per dominio** (`ERTNavResult::BlockedByModal`, `ERTMovementAdvanceResult::Suspended`, …): un binario sopra di loro sarebbe una terza verità sopra due già distinte |
