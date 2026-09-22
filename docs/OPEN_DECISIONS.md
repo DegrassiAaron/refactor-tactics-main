@@ -2246,15 +2246,35 @@ su una delle dodici · **(b)** entra nell'enum **in coda** · **(c)** esce dal l
 ⚠️ **`spec-icon-card-grammar.md` §1 dichiara `ERTIconCategory` e `RequiredIconIds()` fuori dal proprio
 scope**: chi cercasse lì la risposta troverebbe un non-scope, non un silenzio.
 
+🔴 **Aggiornate il 2026-09-22 dopo un'istruttoria a 34 agenti. Quattro fatti cambiano la posizione
+delle righe, e vanno letti prima della tabella.**
+
+1. **Due righe sono già ESEGUITE, e la decisione è di ratifica.** `ICON-TAX-1` (`Module` → `Reaction`) e la
+   sola `Cooldown` di `ICON-TAX-4` hanno **gli SVG tracciati** e **le chiavi nel manifest generato**
+   (`Content/Icons/manifest.json`). Non si sceglie fra tre uscite: si ratifica o si revoca, e revocare ha
+   un prezzo che nessuno ha contato.
+2. **I manifest sono TRE**, tutti tracciati, con popolazioni diverse — e il terzo è **generato** e usa solo
+   i dodici segmenti dell'enum. `Timing` ha tre righe nel MD e **zero** nel CSV: quale file sia di record
+   decide se quella riga abbia una popolazione. ⛔ **Va dichiarato prima di scrivere una voce.**
+3. **`ICON-TAX-1`, `-2` e `-3` sono lo stesso dato.** `ERTEquipmentSlot` ha tre valori, un solo costruttore,
+   e **nessuno dei tre può essere preteso dal catalogo, per costruzione**. Se ricevono uscite diverse, la
+   voce deve scrivere il discriminante misurato che li separa — e oggi è il **nome**, non la semantica.
+4. **Lo `Scope` dichiarato dal manifest non era mai stato letto**: `Result.Success`/`.Failure` e
+   `Decision.FastReaction` sono **`CORE`**, lo scope più forte. Non vincola — il manifest non è autorevole
+   — ma una voce che lo contraddice deve dire perché.
+
+📄 Le misure, coi comandi, stanno nel documento owner: §2-bis (costo reale), §2-ter (i tre manifest),
+§2-quater (le due già eseguite), §2-quinquies (lo scope), §2-sexies (il terzetto equipaggiamento).
+
 | ID | Domanda | Perché non si deduce |
 |---|---|---|
-| `ICON-TAX-1` | **`Module`** (7 chiavi) — i moduli reazione esistono tutti, sotto il nome `Reaction.*` (`MakeReactionModules()`): dove vanno le loro icone? | 🔴 **Due osservazioni vere si escludono a vicenda, e nessuna delle due dice dove vanno.** `10-catalogo-sette-categorie.md` (ricerca, **non vincolante**) assegna loro chiavi proprie in `Reaction`, perché risolverle dal `GrantedActionId` farebbe collassare `ReactiveShield` e `CounterShot` — stesso `Action.Counter`, effetti opposti. L'istruttoria di #637 obietta che `Reaction` nell'enum è il **ciclo di vita** di una reazione (*«armata, opportunità, consumata, invalidata»*), non l'oggetto |
+| `ICON-TAX-1` | 🔴 **RATIFICA, non scelta** — **`Module`** (7 chiavi): i quattro moduli del roster hanno già SVG tracciati sotto `Reaction.` e chiavi nel manifest generato. La domanda è se confermare `Reaction` o revocare. | 🔴 **Due osservazioni vere si escludono a vicenda, e nessuna delle due dice dove vanno.** `10-catalogo-sette-categorie.md` (ricerca, **non vincolante**) assegna loro chiavi proprie in `Reaction`, perché risolverle dal `GrantedActionId` farebbe collassare `ReactiveShield` e `CounterShot` — stesso `Action.Counter`, effetti opposti. L'istruttoria di #637 obietta che `Reaction` nell'enum è il **ciclo di vita** di una reazione (*«armata, opportunità, consumata, invalidata»*), non l'oggetto |
 | `ICON-TAX-2` | **`Gadget`** (8 chiavi) — esistono con lo **stesso** nome in `Source/`: propria categoria in coda, o si indirizzano dall'azione che concedono? | Il gadget **concede** un'azione che ha già la sua chiave `Action.*`, quindi una categoria propria serve solo se esiste una superficie che mostra il **pezzo** e non il suo gesto — e in v0.1 nessuna schermata di loadout esiste. Deciderlo ora significa deciderne l'esistenza |
 | `ICON-TAX-3` | **`Weapon`** (6 chiavi) — corrispondenza **esatta** fra manifest e codice (`Weapon.Environmental · Impact · Overcharge · Precision · Split · Suppressive`) | 🔴 È l'unico dei sette dove coincide l'**insieme intero dei nomi** — ⚠️ non il solo prefisso, che `Gadget` ha uguale, e `Module` coincide sui nomi ma il codice li chiama `Reaction.*` — il che rende la mappatura banale **e** la scelta (a)/(b) arbitraria: nessuna descrizione delle dodici copre «profilo d'arma», e nessuna macchina deriva oggi quelle chiavi |
 | `ICON-TAX-4` | **`Stat`** (11 chiavi) — `Charge · Cooldown · Cost · Detection · Duration · Health · Noise · Range · Resource · Shield · Vision` | Misurato: **zero id**. Sono letture **numeriche** — `Cooldown`/`Range` su `FRTActionDef`, `Health`/`Shield` su `ARTUnit`. 🔴 **E gli undici nomi non sono tutti uguali**: `Vision` e `Noise` **esistono** come concetti di gioco fuori da quei due header (`VisionRange`, `NoiseAtCell`, `NoiseIdentificationLevel`, `NoiseType`), quindi «non è una chiave» non significa «non è una cosa», e questa riga non si decide in blocco. ⚠️ Ma [D-231](decisions/RT_PDR_00_Decision_Log.md) colloca costo/cooldown/cariche fra i **satelliti della card**, e `10-catalogo-sette-categorie.md` arbitra `Cooldown` sotto **`Warning`**: tre sedi, tre collocazioni, nessuna normativa sull'enum |
 | `ICON-TAX-5` | **`Decision`** (2 chiavi: `FastAction`, `FastReaction`) | Misurato: **non esistono**. L'enum che porta quel nome è `ERTReactionDecisionOutcome` e ha **sei** valori (`Chosen`, `CollapsedByCondition`, `Immediate`, `NoDecider`, `Rejected`, `Timeout`). 🔴 Mapparci sopra due chiavi **perderebbe** quattro esiti: la domanda non è dove metterle, è se il manifest stia nominando un sistema diverso |
-| `ICON-TAX-6` | **`Timing`** (3 chiavi: `DelayedAction`, `PredictiveAction`, `Trap`) | Misurato **parziale**, ed è la ragione per cui non si decide in blocco: `Predictive` esiste davvero (`ERTPredictiveOutcome`, `ERTPredictiveTargeting`, `FRTPredictiveShot`); `Delayed` e `Trap` danno **zero** riscontri non-test. Una sola delle tre ha un referente |
-| `ICON-TAX-7` | **`Result`** (2 chiavi: `Success`, `Failure`) | Misurato: **non esistono** come esito generico. Gli `ERT*Result` del codice sono **specifici per dominio** (`ERTNavResult::BlockedByModal`, `ERTMovementAdvanceResult::Suspended`, …): un binario sopra di loro sarebbe una terza verità sopra distinzioni già prese |
+| `ICON-TAX-6` | **`Timing`** (3 chiavi: `DelayedAction`, `PredictiveAction`, `Trap`) | 🔴 **Corretto il 2026-09-22: sono zero tutte e tre.** *La stesura precedente diceva «`Predictive` esiste davvero» citando `ERTPredictiveOutcome`/`ERTPredictiveTargeting`/`FRTPredictiveShot` — sono **tipi che contengono quella parola**, non id, e il criterio chiede l'id.* ⚠️ E il segmento è **assente dal CSV**: la sua popolazione dipende da quale manifest sia di record |
+| `ICON-TAX-7` | **`Result`** (2 chiavi: `Success`, `Failure`) | 🔴 **La domanda era posta sull'asse sbagliato.** *Lo zero era stato ribaltato sul suffisso `Result`; le chiavi però dicono «Mission Success/Failure», e l'esito di partita **esiste ed è canonico sotto il nome `Outcome`**.* Restano veri: gli `ERT*Result` sono per dominio, e `UI.Icon.Objective` ha **zero** glifi nel manifest generato. ⚠️ Ed è l'unica riga marcata **`CORE`** |
 
 🔴 **E una divergenza che chi decide `ICON-TAX-2` deve chiudere nello stesso passaggio**: il manifest ha
 `Gadget.Anchor`, che il codice non ha. ⚠️ Ed è anche una **trappola di nome** — sarebbe una cosa diversa da
