@@ -7962,9 +7962,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// Era la durata target a decidere la velocita' visuale — l'invariante che `#1878` nega — su un
 		// canale che quella issue non aveva guardato.
 		//
-		// ⚠️ **Il `Blast` resta sull'`Alpha` di fase, e resta di proposito.** Li' `PhaseDuration` vale
-		// `Max(colpi, spinta)` e NON `MaxSeg / rate`: la spinta del knockback si distende sulla finestra
-		// dei colpi, ed e' documentato come deliberato in `URTPlaybackLibrary.h`. Cambiarlo e' una
+		// ⚠️ **Il `Blast` resta sull'`Alpha` di fase, e resta di proposito.** Li' la durata vale
+		// `Max(colpi, muri, spinta)` e NON `MaxSeg / rate`: la spinta del knockback si distende sulla
+		// finestra degli altri canali, ed e' documentato come deliberato in `URTPlaybackLibrary.h`.
+		// ⏱️ *Questa riga diceva «`PhaseDuration` vale `Max(colpi, spinta)`», e da `#2828` era falsa due
+		// volte: il playback non passa da `PhaseDuration` — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` —
+		// e i canali sono tre. ⚠️ Ne segue cio' che la riga non diceva: allungare la fase RALLENTA la spinta,
+		// e ora puo' allungarla un canale che con l'unita' spinta non ha rapporto.* Cambiarlo e' una
 		// decisione separata con la sua evidenza, non un effetto collaterale di questa.
 		const bool bAlphaPerPercorso = (Ph != ERTMatchPhase::Blast);
 		const float AlphaFase = (PhaseDur > 0.f) ? FMath::Clamp(PlaybackPhaseElapsed / PhaseDur, 0.f, 1.f) : 1.f;
@@ -8058,8 +8062,12 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			PlaybackFootprints.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
 
 		// I muri cadono con lo stesso scaglionamento e un contatore proprio (`#2828`). ⚠️ **Stessa
-		// funzione di ritmo, non un tempo suo**: `AttacksToShow` e' il contro-termine di `PhaseDuration`,
-		// e un ritmo diverso farebbe finire i colpi a struttura fuori dalla finestra che la fase riserva.
+		// funzione di ritmo, non un tempo suo**: `AttacksToShow` e' il contro-termine di `PhaseTime`, e un
+		// ritmo diverso farebbe finire i colpi a struttura fuori dalla finestra che la fase riserva.
+		// ⛔ **`PhaseTime` e non `PhaseDuration`**, e la distinzione conta proprio qui: il wrapper
+		// `PhaseDuration` passa `NumStructureHits = 0`, quindi per QUESTO canale non e' il contro-termine di
+		// niente. ⏱️ *La prima stesura di questa riga nominava `PhaseDuration`, ed e' stata resa falsa
+		// nello stesso lavoro che l'ha scritta.*
 		RevealPlaybackStructureHits(URTPlaybackLibrary::AttacksToShow(
 			PlaybackStructureHits.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
 
