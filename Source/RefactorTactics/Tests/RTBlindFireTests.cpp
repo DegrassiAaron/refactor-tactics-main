@@ -17,7 +17,9 @@
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
+#include "Perception/RTTeamKnowledge.h" // la premessa di scenario: l'ostacolo e' noto o no?
 #include "Player/RTPlayerController.h"
+#include "Player/RTPlayerState.h"       // la squadra da cui l'HUD deriva il filtro, letta dalla stessa porta
 #include "Tests/RTAbilityFixtures.h"
 #include "Player/RTPointerInteraction.h"
 #include "Turn/RTMatchSetupLibrary.h"
@@ -1084,9 +1086,10 @@ bool FRTCellRefusalWorldLineFollowsTheVeilTest::RunTest(const FString&)
 		FRTCellId Da;
 		FRTCellId FinoA;
 		FString Testo;
+		bool bOstacoloNoto = false;
 	};
 
-	auto Osserva = [Oltre, Fantasma](bool bConConoscenza, FTrattoNelMondo& Out) -> bool
+	auto Osserva = [Oltre, Fantasma, Muro](bool bConConoscenza, FTrattoNelMondo& Out) -> bool
 	{
 		FBlindFireBench B;
 		if (!SetUpBlindFireBench(B)) { DestroyBlindFireWorld(B.World); return false; }
@@ -1119,6 +1122,21 @@ bool FRTCellRefusalWorldLineFollowsTheVeilTest::RunTest(const FString&)
 		Out.FinoA = HexMap->GetPreviewSightBlockedAt();
 		Out.Testo = Hud->CurrentRefusalText();
 
+		// ⛔ **La premessa che rende questo test DIAGNOSTICO invece che ambiguo.** Senza, un rosso su
+		// «la linea si accende» avrebbe due cause indistinguibili: la feature rotta, oppure
+		// `RefreshTeamKnowledgeNow()` che non ha messo l'ostacolo fra le celle note — cioe' uno scenario
+		// che non esercita il ramo. Misurare la conoscenza le separa, e la separa PRIMA di leggere l'esito.
+		//
+		// 🔑 Si legge dalla stessa porta che usa l'HUD — `KnowledgeForTeamPublic` sulla squadra del
+		// controller — cosi' la premessa misura esattamente cio' che il codice sotto prova consulta, e non
+		// un canale parallelo che potrebbe divergere.
+		if (const ARTTurnManager* TM = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass())))
+		{
+			const FRTTeamKnowledge K = TM->KnowledgeForTeamPublic(ARTPlayerState::TeamIdOf(B.PC));
+			Out.bOstacoloNoto = K.VisibleCells.Contains(Muro) || K.ExploredCells.Contains(Muro);
+		}
+
 		DestroyBlindFireWorld(B.World);
 		return true;
 	};
@@ -1132,9 +1150,16 @@ bool FRTCellRefusalWorldLineFollowsTheVeilTest::RunTest(const FString&)
 		return false;
 	}
 
-	// ── MONDO A — il canale esiste e indica il muro. ⚠️ Se questa cade per la PREMESSA e non per la
-	//    feature, la causa e' che `RefreshTeamKnowledgeNow()` non ha messo `(0,0,0)` fra le celle viste:
-	//    e' il primo fatto da misurare quando il motore si libera, ed e' dichiarato invece che assunto.
+	// ⛔ **LE DUE PREMESSE SULLO SCENARIO, e vengono prima di ogni asserzione sulla feature.** Separano
+	// «la feature e' rotta» da «lo scenario non esercita il ramo»: se cadono queste, il test sta misurando
+	// il mondo sbagliato e cio' che segue non significa niente — verde o rosso che sia.
+	if (!TestTrue(TEXT("premessa: nel mondo A la squadra CONOSCE l'ostacolo"), Noto.bOstacoloNoto)
+		|| !TestFalse(TEXT("premessa: nel mondo B non lo conosce"), Velato.bOstacoloNoto))
+	{
+		return false;
+	}
+
+	// ── MONDO A — il canale esiste e indica il muro.
 	TestTrue(TEXT("la linea del mondo si accende sull'ostacolo"), Noto.bAccesa);
 	TestTrue(TEXT("e parte dal tiratore"), Noto.Da == FRTCellId(-1, 0, 0));
 	// ⛔ Si ferma sull'OSTACOLO e non sul bersaglio: disegnarla fino in fondo direbbe che la traiettoria
