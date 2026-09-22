@@ -136,19 +136,19 @@ namespace
 	{ TEXT("PlannedCell"),                Var, true,  TEXT("FRTIntentView"), Rit, TEXT("intento privato della squadra che lo dichiara; un grafo lo SCRIVE") },
 	{ TEXT("PlannedPath"),                Var, true,  TEXT("FRTIntentView"), Rit, TEXT("il percorso e' intento: `Reveal` lo espone, la porta decide a chi") },
 	{ TEXT("PlannedWaypoints"),           Var, true,  TEXT("FRTIntentView"), Rit, TEXT("copiati SOLO per un alleato, rivelato o meno (RTIntentPrivacyLibrary.cpp:70-77)") },
-	{ TEXT("PlannedMovementProfileId"),   Var, true,  TEXT("FRTIntentView"), Rit, TEXT("profilo del movimento pianificato: intento") },
+	{ TEXT("PlannedMovementProfileId"),   Var, true,  nullptr                        , Rit, TEXT("profilo del movimento pianificato: intento") },
 	{ TEXT("PlannedAbilityIndex"),        Var, true,  TEXT("FRTIntentView"), Rit, TEXT("RTMatchStateHash.h:102-104 — «l'intento di usare un'abilita' ... e' privato della squadra che lo dichiara»") },
 	{ TEXT("PlannedAttackTarget"),        Var, true,  TEXT("FRTIntentView"), Rit, TEXT("unico TObjectPtr<ARTUnit> dell'header: da un'unita' si raggiunge un'altra unita' COMPLETA senza enumerare") },
-	{ TEXT("PlannedAttackCell"),          Var, true,  TEXT("FRTIntentView"), Rit, TEXT("bersaglio dichiarato: intento") },
-	{ TEXT("bAttackTargetsCell"),         Var, true,  TEXT("FRTIntentView"), Rit, TEXT("quale delle due forme di bersaglio: intento") },
+	{ TEXT("PlannedAttackCell"),          Var, true,  nullptr                        , Rit, TEXT("bersaglio dichiarato: intento") },
+	{ TEXT("bAttackTargetsCell"),         Var, true,  nullptr                        , Rit, TEXT("quale delle due forme di bersaglio: intento") },
 	{ TEXT("PlannedDashAbility"),         Var, true,  TEXT("FRTIntentView"), Rit, TEXT("lo scatto dichiarato: intento") },
 	{ TEXT("PlannedDashCell"),            Var, true,  TEXT("FRTIntentView"), Rit, TEXT("destinazione dello scatto: intento") },
 	{ TEXT("PlannedFacing"),              Var, true,  TEXT("FRTIntentView"), Rit, TEXT("RTMatchStateHash.h:70-72 — «E' il facing REALE, non `PlannedFacing`. Quello e' un intento»") },
 	{ TEXT("bDeclaresPlannedFacing"),     Var, true,  TEXT("FRTIntentView"), Rit, TEXT("che ci sia una rotazione dichiarata e' gia' informazione di piano") },
-	{ TEXT("PlannedCoverEdge"),           Var, true,  TEXT("FRTIntentView"), Rit, TEXT("copertura scelta: intento") },
-	{ TEXT("bHasPlannedCoverEdge"),       Var, true,  TEXT("FRTIntentView"), Rit, TEXT("che una copertura sia stata scelta e' gia' informazione di piano") },
+	{ TEXT("PlannedCoverEdge"),           Var, true,  nullptr                        , Rit, TEXT("copertura scelta: intento") },
+	{ TEXT("bHasPlannedCoverEdge"),       Var, true,  nullptr                        , Rit, TEXT("che una copertura sia stata scelta e' gia' informazione di piano") },
 	{ TEXT("PlannedReactionAbility"),     Var, true,  TEXT("FRTIntentView"), Rit, TEXT("`ReactionName` si copia SOLO per un alleato") },
-	{ TEXT("PlannedCleansePriority"),     Var, true,  TEXT("FRTIntentView"), Rit, TEXT("priorita' di bonifica dichiarata: intento") },
+	{ TEXT("PlannedCleansePriority"),     Var, true,  nullptr                        , Rit, TEXT("priorita' di bonifica dichiarata: intento") },
 
 	// ─── 2. LA CELLA ───────────────────────────────────────────────────────────────────────────────────
 	// 🔑 L'UNICO dei 65 la cui risposta e' sbagliata anche per un osservatore AUTORIZZATO. Per gli altri
@@ -361,7 +361,19 @@ bool FRTUnitBlueprintSurfaceTest::RunTest(const FString&)
 	int32 Ispezionate = 0;
 	for (TFieldIterator<FProperty> It(Unita, EFieldIteratorFlags::ExcludeSuper); It; ++It)
 	{
-		if (!It->HasAnyPropertyFlags(CPF_BlueprintVisible))
+		// ⚠️ **La maschera non e' solo `CPF_BlueprintVisible`, e la differenza e' un canale intero.**
+		// UHT NON accende quel flag per `BlueprintAssignable`: una `UPROPERTY(BlueprintAssignable)` e'
+		// raggiungibile da un grafo con «Bind Event», ma con la sola maschera di visibilita' non verrebbe
+		// censita, non produrrebbe errore e non muoverebbe la pinza del conteggio — cioe' nascerebbe esposta
+		// con la suite verde, che e' esattamente cio' che questo gate esiste per impedire. E la
+		// `UDelegateFunction` di firma ha per outer il package, quindi nemmeno il ciclo sulle `UFunction`
+		// piu' sotto fa da rete.
+		//
+		// 🔑 Costo misurato oggi: **zero**. `grep -c "BlueprintAssignable" Unit/RTUnit.h` → 0, quindi
+		// `Ispezionate` resta invariata. Ma l'idioma e' vivo nel modulo — tredici righe fra
+		// `Turn/RTTurnManager.h`, `Frontend/RTFrontendNavigator.h` e `Frontend/RTFrontendGameMode.h` — e uno
+		// di quei delegate consegna gia' un `ARTUnit*` alla presentazione.
+		if (!It->HasAnyPropertyFlags(CPF_BlueprintVisible | CPF_BlueprintAssignable | CPF_BlueprintCallable))
 		{
 			continue;
 		}
