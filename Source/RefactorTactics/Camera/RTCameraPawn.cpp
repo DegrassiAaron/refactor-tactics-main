@@ -151,6 +151,16 @@ bool ARTCameraPawn::FrameOwnTeam()
 	const int32 TeamId = ARTPlayerState::TeamIdOf(Cast<APlayerController>(GetController()));
 
 	TArray<FRTCellId> Cells;
+	// ⚠️ **Quinto canale di presentazione, e [#1500] non lo nominava: il gesto qui non e'
+	// `GetAllActorsOfClass` ma `TActorIterator<ARTUnit>`.** Un confine espresso come «vietato chiamare quella
+	// funzione» nascerebbe bucato proprio qui. Questo ciclo legge `It->TeamId` e `It->Cell` (`:156-158`) di
+	// **tutte** le unita' del mondo, velate comprese, per tenere solo le proprie.
+	//
+	// ✅ **Il filtro pero' e' il TeamId dell'osservatore stesso**, quindi l'insieme che sopravvive e' fatto di
+	// unita' che il giocatore possiede: la cella di un'unita' propria non e' un fatto che il velo nasconda, e
+	// la risposta che l'Actor da' e' quella giusta. ⛔ Diventerebbe un canale il giorno in cui questa funzione
+	// inquadrasse qualcosa di NON proprio — un nemico, un obiettivo conteso, l'ultimo contatto: in quel caso
+	// il soggetto va preso da `FRTKnowledgeView`, e il debito e' gia' dichiarato in [D-143].
 	for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
 	{
 		if (It->TeamId == TeamId && It->IsAlive())
