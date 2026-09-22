@@ -952,11 +952,23 @@ struct FRTTurnLogEntry
 	 * lettura del facing nell'istante in cui la fa, subito dopo `IsInFrontalArc`. Quelle voci entrano ora
 	 * nelle tracce reali, e portano `UnitId` del difensore — l'unita' di cui raccontano l'orientamento.
 	 *
-	 * ⚠️ **Copre il ramo della GUARDIA, non ogni lettura del Blast.** Quel ciclo salta le unita' senza
-	 * `Status.Guarded`; la copertura generale legge il facing in `EffectiveCoverReduction`, che e' pura e
-	 * non ha log. ∴ **una traccia senza voci `UsedByBlast` non prova che il facing non sia stato letto** —
-	 * prova che nessun difensore era in Guardia. Chi ne deduca il contrario sbaglia, ed e' il motivo per cui
-	 * questa riga esiste.
+	 * ✅ **E dal 2026-09-05 ne ha un SECONDO: la copertura** (`#2341`). `EffectiveCoverReduction` legge il
+	 * facing su **ogni** colpo riparato, non solo su chi ha lo status, e i due siti che la chiamano
+	 * registrano la lettura: `ResolveCombatPasses` interroga `CoverReadTargetFacing` sui colpi del piano,
+	 * `ApplyReactionDecision` ha l'out-param `bOutFacingWasRead` di `BoundaryCoverReduction`. ⚠️ Il confine
+	 * non si e' mosso: la libreria non ha ricevuto un log, riporta **se** ha guardato e registra il
+	 * chiamante — decisione `(b1)` di `#2341`.
+	 *
+	 * ⚠️ **Una voce per unita', non due.** Guardia e copertura leggono lo stesso facing nello stesso
+	 * istante: i due rami alimentano un solo `TSet` e la scrittura e' una, altrimenti la traccia direbbe due
+	 * volte lo stesso fatto.
+	 *
+	 * ⚠️ **L'assenza resta CONDIZIONALE — la condizione e' solo diventata piu' stretta.** La lettura e' a
+	 * corto circuito (`Reduction > 0 && !IsInFrontalArc(...)`): senza copertura nominale da valutare il
+	 * facing non viene guardato affatto. ∴ **una traccia senza voci `UsedByBlast` non prova che il facing
+	 * non sia stato letto** — prova che nessun difensore era in Guardia **e** che nessun colpo era riparato.
+	 * Chi ne deduca il contrario sbaglia, ed e' il motivo per cui questa riga esiste.
+	 * ⏱️ *Fino a `#2341` la condizione era la sola Guardia, e questa riga lo diceva.*
 	 *
 	 * ⚠️ **Un residuo resta, e non e' lo stesso**: `UsedByOverwatch` nasce ancora da
 	 * `ReadFacingForConsumer` senza chiamanti in gioco.
