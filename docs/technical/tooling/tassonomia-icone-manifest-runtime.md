@@ -16,6 +16,26 @@ datato. Un numero senza comando non va copiato da qui: si rimisura.
 
 ---
 
+## 0. Esito — sei righe su sette chiuse il 2026-09-22
+
+✅ **Arbitrate da [D-434](../../decisions/RT_PDR_00_Decision_Log.md).** Questa pagina resta l'istruttoria: le sezioni sotto raccontano **come** ci si è
+arrivati, e vanno lette con questa tabella davanti.
+
+| | Esito | |
+|---|---|---|
+| `Module` | → **`Reaction`** | 🔑 **ratifica**: gli SVG erano già tracciati e le chiavi nel manifest generato. Prezzo pagato: il commento di `ERTIconCategory::Reaction` **allargato** alle due popolazioni |
+| `Gadget` | → **`Action`** | è ciò che il motore già calcola |
+| `Weapon` | → **`Action`** | il terzetto `ERTEquipmentSlot` riceve un esito solo |
+| `Stat` | **split** | `Cooldown` → `Warning` (ratifica); le altre dieci **escono** |
+| `Decision` | **esce** | dove confluisca `FastReaction` lo specifica CP 25.1, non questa decisione |
+| `Timing` | **esce** | zero produttori per tutte e tre |
+| 🔴 `Result` | **RESTA APERTA** | unica marcata `CORE`, e (a) → `Objective` punta a una famiglia con **zero** glifi. La condizione di riapertura è in `OPEN_DECISIONS.md` |
+
+⚠️ **`ERTIconCategory` resta a DODICI valori**: nessun valore aggiunto, nessun ramo nuovo in
+`RequiredIconIds()`, nessun gate toccato. L'unica riga di contenuto cambiata in `Source/` è un **commento**.
+
+---
+
 ## 1. Perché esiste
 
 ⚠️ **Nessun codice legge il manifest.** Misurato:
@@ -115,6 +135,135 @@ prima di poter essere dichiarate verdi.
 
 ---
 
+## 2-bis. Che cosa costa davvero un valore nuovo — e la premessa che questa pagina dava era falsa
+
+🔴 **Ritirata il 2026-09-22.** Questa pagina, `OPEN_DECISIONS.md` e il docstring di
+`RTIconCatalogData.h` dicevano tutti che *«i numeri di `ERTIconCategory` sono serializzati negli asset»*, e
+ne ricavavano che una categoria sbagliata **mente in modo permanente**. È falso su entrambi i punti.
+
+| | Misura |
+|---|---|
+| L'asset porta **nomi**, non numeri | `grep -a -oE 'ERTIconCategory[A-Za-z:]*' Content/RT/UI/DA_IconCatalog.uasset` → `::Action` `::Certainty` `::Identity` `::Phase` `::Status` — le cinque popolate, e **zero** occorrenze delle altre sette |
+| Il catalogo è un **artefatto di build** | `RTBuildIconCatalogCommandlet` fa `Catalog->Icons.Reset()` e poi **rideriva** la `Category` dalla stringa dell'`IconId` (`CategoryForIcon`). Si rigenera per intero |
+
+∴ **niente è permanente, e la classifica dei costi si capovolge.** La premessa falsa rendeva l'uscita (b)
+più cara di (a) esattamente al contrario di come la misura le ordina.
+
+⚠️ **Il costo vero c'è, ed è un SILENZIO.** `RefactorTactics.IconCatalog.V01CategoriesPopulated` elenca le
+categorie **a mano**, in due cicli: cinque popolate (`RTIconCatalogTests.cpp:136-137`) e sette vuote
+(`:146-148`), somma esatta **12**. Un tredicesimo valore non compare in nessuno dei due — il gate resta
+**verde** e smette di coprirlo, senza che nulla lo segnali. ⛔ Chi sceglie (b) aggiunge la propria riga in
+quel test **nello stesso commit**: è la condizione che rende (b) una scelta e non una perdita di copertura.
+
+La regola «solo in coda» **resta**, perché costa nulla ed è la disciplina giusta per un enum `BlueprintType`.
+Ciò che cade è la **ragione** che le veniva data, non la regola.
+
+---
+
+## 2-ter. Quale file è «il manifest» — sono TRE, e portano popolazioni diverse
+
+🔴 **Trovato il 2026-09-22, e cambia la popolazione prima del merito.** Tutti e tre sono tracciati:
+
+| File | Chiavi | Segmenti | Che cos'è |
+|---|---:|---:|---|
+| `docs/research/design/icon/CLAUDE_DESIGN_02_Icon_Manifest_v0.1.md` | 195 | 25 | il documento di **design** — la fonte che §3 misura |
+| `docs/research/design/icon/RefactorTactics_UI_Icon_Manifest_v0.1.csv` | 160 | 22 | **sottoinsieme stretto** del precedente |
+| 🔑 **`Content/Icons/manifest.json`** | **124** | **10** | **generato** da `tools/hud-assets/generate_hud_assets.py`, e i suoi dieci segmenti sono **tutti dentro l'enum** |
+
+```
+for f in docs/research/design/icon/CLAUDE_DESIGN_02_Icon_Manifest_v0.1.md \
+         docs/research/design/icon/RefactorTactics_UI_Icon_Manifest_v0.1.csv \
+         Content/Icons/manifest.json; do
+  printf '%-64s %4s %3s\n' "$f" \
+    "$(grep -ohE 'UI\.Icon\.[A-Za-z]+\.[A-Za-z0-9_.]+' $f | sort -u | wc -l)" \
+    "$(grep -ohE 'UI\.Icon\.[A-Za-z]+\.'      $f | sort -u | wc -l)"
+done
+```
+
+⚠️ **La differenza non è editoriale.** `Timing` ha **tre** righe nel MD e **zero** nel CSV: quale file sia
+di record decide se quella riga abbia una popolazione da arbitrare. E il terzo file dimostra che **la
+pipeline spedita ha già abbandonato il vocabolario esteso**: genera solo dentro i dodici valori.
+
+⛔ **Prima di scrivere una voce di registro va dichiarato quale sia il manifest di record.** Questa pagina
+misura il **MD**, che è la fonte più larga e quella su cui #637 è nata.
+
+---
+
+## 2-quater. Due righe su sette sono già eseguite, e la decisione è di ratifica
+
+🔴 **Non sono scelte aperte: sono fatti committati.** Gli SVG sono tracciati e le chiavi stanno nel
+manifest **generato**.
+
+| Riga | Che cosa è già in `main` |
+|---|---|
+| `ICON-TAX-1` — **`Module` → `Reaction`** | `RT_UI_Icon_Reaction_{AllyIntercept,HazardEscape,EmergencyDash,ReactiveShield}.svg` tracciati, e `UI.Icon.Reaction.*` presenti in `Content/Icons/manifest.json` |
+| `ICON-TAX-4` — la sola **`Cooldown` → `Warning`** | `UI.Icon.Warning.Cooldown` presente nel manifest generato, col suo glifo |
+
+```
+git ls-files 'Content/Icons/Icons/*Reaction*'
+grep -c UI.Icon.Reaction.AllyIntercept Content/Icons/manifest.json   # e le altre tre
+grep -c UI.Icon.Warning.Cooldown       Content/Icons/manifest.json
+grep -c UI.Icon.Objective              Content/Icons/manifest.json   # 0 — vedi §5
+```
+
+⚠️ **L'owner non sceglie fra tre uscite su queste due: ratifica o revoca.** E revocare ha un prezzo che
+nessuno ha contato — sono asset disegnati e committati.
+
+⚠️ **E c'è un'asimmetria che vale per tutte le righe che puntano a `Reaction`**: `MakeActionIconId`
+**non traduce** se l'id è già in una categoria dichiarata, e il suo commento nomina `Reaction.HazardEscape`
+per esempio (`RTIconLibrary.cpp:69-74`). L'esito (a) su `Reaction` **si verifica da solo** il giorno in cui
+un id di modulo raggiunge quel ramo: chi volesse (b) deve arrivarci prima.
+
+---
+
+## 2-quinquies. Lo SCOPE che il manifest dichiara, e che nessuno aveva letto
+
+`Scope` è la prima colonna del CSV, e la legenda del MD la definisce: `CORE` = *«creare per la v0.1 HUD»*;
+`CORE_IF_SHOWN` = *«creare se il widget è visibile nella build v0.1»*.
+
+| Segmento | Scope dichiarato |
+|---|---|
+| **`Result`** | 🔴 **`CORE`** — `Result.Success` e `Result.Failure`, lo scope più forte |
+| **`Decision`** | 🔴 `Decision.FastReaction` **`CORE`**; `Decision.FastAction` `CORE_IF_SHOWN` |
+| `Gadget` · `Weapon` · `Stat` · `Module` | `CORE_IF_SHOWN` |
+| **`Timing`** | ⚠️ **assente dal CSV** — esiste solo nel MD |
+
+```
+grep -nE '^[A-Z_/]+,UI\.Icon\.(Stat|Gadget|Module|Weapon|Decision|Timing|Result)\.' \
+  docs/research/design/icon/RefactorTactics_UI_Icon_Manifest_v0.1.csv | cut -d, -f1,2
+```
+
+⚠️ **Conta perché le due righe marcate `CORE` sono quelle che l'istruttoria proporrebbe di mandare fuori
+dal linguaggio.** Lo scope non vincola — il manifest non è fonte autorevole (§2) — ma una voce che lo
+contraddice deve dire perché, invece di ignorarlo.
+
+---
+
+## 2-sexies. Il terzetto dell'equipaggiamento è UN dato, non tre
+
+🔴 `ERTEquipmentSlot` ha **tre** valori — `WeaponVariant`, `Gadget`, `ReactionModule`
+(`Source/RefactorTactics/Ability/RTEquipmentData.h`) — passano tutti da **un solo** costruttore
+(`MakeEquipmentAction`, `RTCatalogLibrary.cpp:902-908`), e **nessuno dei tre può essere preteso dal
+catalogo, per costruzione**: il ramo eroi di `RequiredIconIds()` aggiunge una chiave solo quando
+`MakeActionIconFallbackId(Def).IsNone()`, e per un equipaggiamento `DerivedFromActionId` è **sempre** scritto.
+
+∴ sotto il criterio operativo di §1, `ICON-TAX-1` (`Module`), `ICON-TAX-2` (`Gadget`) e `ICON-TAX-3`
+(`Weapon`) sono **lo stesso caso**. ⛔ Se ricevono uscite diverse, la voce di registro deve scrivere il
+**discriminante misurato** che li separa — e oggi ne esiste uno solo, ed è il **nome**, non la semantica.
+
+⚠️ **E il motore converte attivamente il pezzo in gesto**: `MakeEquipmentAction` riscrive
+`Def.ActionId` con l'`EquipmentId`, e `MakeActionIconId` porta `Gadget.Sprinkler` →
+`UI.Icon.Action.Sprinkler`. Nessuna superficie mostra un pezzo **come pezzo**: in v0.1 non esiste una
+schermata di loadout, e `git grep -c "URTEquipmentData" -- Source/RefactorTactics/UI/` risponde **zero**.
+
+> 🔴 **Difetto trovato per strada, fuori dal perimetro di #637 e senza gate che lo veda.**
+> `MakeEquipmentAction` **non scrive mai** `DisplayName`, e `Heroes.EveryActionHasADisplayName` itera il
+> **catalogo eroi**, non le azioni equipaggiate. In ogni partita di default lo `Gadget.Sprinkler` di
+> `Hero.Muiren` e il `Gadget.PortableCover` / `Reaction.Cleanse` di `Hero.Branth` compaiono nel dock
+> **senza nome**: solo il tasto e la ricarica. Va tracciato a parte.
+
+---
+
 ## 3. La misura — rifatta il 2026-09-22, non copiata
 
 Sui due file del manifest insieme (`CLAUDE_DESIGN_02_Icon_Manifest_v0.1.md` e
@@ -187,7 +336,7 @@ git grep -ohE '"Reaction\.[A-Za-z]+"' -- Source/RefactorTactics/Ability/RTCatalo
 git grep -ownE 'VisionRange|NoiseAtCell|NoiseIdentificationLevel|ERTPredictiveOutcome' -- Source/ | head
 ```
 
-### Hanno un'entità reale dietro — la decisione costa, perché i numeri dell'enum sono serializzati
+### Hanno un'entità reale dietro — e la decisione costa meno di come questa pagina diceva
 
 | Segmento | Chiavi | Cosa esiste nel codice |
 |---|---:|---|
@@ -218,8 +367,8 @@ seconda perché `Reaction` non è il posto. Nessuna delle due dice dove vanno.
 |---|---:|---|
 | **`Stat`** | 11 | ❌ **zero id**. Sono **letture numeriche**: `Cooldown` e `Range` sono campi di `FRTActionDef`, `Health` e `Shield` di `ARTUnit`. Un numero non ha una chiave — e D-231 colloca costo/cooldown/cariche fra i **satelliti della card** (cerchio, alto-sinistra, max 1). 🔴 **Ma gli undici nomi non sono omogenei**: `Vision` e `Noise` **esistono** come concetti di gioco fuori da quei due header — `VisionRange`, `NoiseAtCell`, `NoiseIdentificationLevel`, `NoiseType` — quindi «non è una chiave» non equivale a «non è una cosa» |
 | **`Decision`** | 2 | ❌ `FastAction` e `FastReaction` non esistono. L'enum che porta quel nome è `ERTReactionDecisionOutcome`, e ha **sei** valori — `Chosen`, `CollapsedByCondition`, `Immediate`, `NoDecider`, `Rejected`, `Timeout`. 🔴 Mapparci sopra due chiavi **perderebbe** quattro esiti |
-| **`Timing`** | 3 | ❌ parziale: `Predictive` esiste davvero (`ERTPredictiveOutcome`, `ERTPredictiveTargeting`, `FRTPredictiveShot`); `Delayed` e `Trap` danno **zero** riscontri non-test |
-| **`Result`** | 2 | ❌ `Success`/`Failure` generici non esistono. Gli `ERT*Result` del codice sono **specifici per dominio** (`ERTNavResult::BlockedByModal`, `ERTMovementAdvanceResult::Suspended`, …): un binario sopra di loro sarebbe una terza verità sopra due già distinte |
+| **`Timing`** | 3 | ❌ **zero tutte e tre**, per il criterio che questa pagina stessa dichiara. 🔴 *La prima stesura diceva «`Predictive` esiste davvero» citando `ERTPredictiveOutcome`/`ERTPredictiveTargeting`/`FRTPredictiveShot`: sono **tipi che contengono quella parola**, non id — non esiste nessun `Predictive.*`, e il criterio di §1 chiede l'id.* ⚠️ E il segmento è **assente dal CSV** (§2-quinquies): la sua popolazione dipende da quale manifest sia di record |
+| **`Result`** | 2 | ⚠️ **La domanda era posta sull'asse sbagliato.** 🔴 *La prima stesura ribaltava lo zero sul suffisso `Result` e concludeva «non esiste». Le chiavi dicono però «Mission Success / Mission Failure», e l'esito di partita **esiste ed è canonico** — sotto il nome `Outcome`, non `Result`.* Restano veri: gli `ERT*Result` sono specifici per dominio, e `UI.Icon.Objective` ha **zero** glifi nel manifest generato. 🔴 Ed è l'unica riga marcata **`CORE`** (§2-quinquies) |
 
 ⚠️ **Zero riscontri non è di per sé una risposta**, ed è il difetto che #1403 racconta: un test che cercava
 `MakeGenericActions` nel file sbagliato leggeva lo zero come *«non è generica»*. Qui la domanda è stata
@@ -232,11 +381,15 @@ seconda perché `Reaction` non è il posto. Nessuna delle due dice dove vanno.
 
 ⛔ **Non si forza una categoria in una esistente per far passare il validator.** Il validator confronta il
 segmento con la categoria dichiarata e **non giudica se la classificazione ha senso**: una forzatura passa
-in verde e mente in modo permanente, perché i numeri dell'enum sono **serializzati negli asset**.
+in verde, e nessun gate la troverà mai. ⚠️ *Questa riga diceva «mente in modo **permanente**, perché i
+numeri dell'enum sono serializzati negli asset»: era falso su entrambi i punti — vedi §2-bis.*
 
 ⛔ **Non si aggiunge un valore all'enum se non in coda**, e non lo si aggiunge affatto senza una voce di
-Decision Log: `RTIconCatalogData.h` lo scrive — *«aggiungere valori solo IN CODA: i numeri già serializzati
-negli asset non cambiano»*.
+Decision Log. 🔴 **Ma il costo non è quello che `RTIconCatalogData.h` dichiarava** (§2-bis): è che
+`IconCatalog.V01CategoriesPopulated` elenca le categorie **a mano**, in due cicli che sommano 5 + 7 = 12
+(`RTIconCatalogTests.cpp:136-137` e `:146-148`). Un tredicesimo valore non compare in nessuno dei due: il
+gate resta **verde** e smette silenziosamente di coprirlo. Chi aggiunge un valore **aggiunge la sua riga**
+in quel test, nello stesso commit.
 
 ⛔ **Non si aggiunge oggi una chiave in una delle sette categorie che #219 prescrive vuote** — ma ⚠️ **il
 divieto morde solo dove si crede**. `V01CategoriesPopulated` costruisce il proprio insieme da
