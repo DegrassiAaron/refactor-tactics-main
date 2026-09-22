@@ -2163,4 +2163,394 @@ bool FRTHazardSufferedVsInflictedTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#2828` — il colpo alla STRUTTURA ha un istante in cui essere mostrato.
+//
+// I quattro gate end-to-end vivono QUI e non in un file loro perche' gli helper che producono un colpo a
+// copertura **giocato** — `PlanCoverAction`, `SpawnEnvUnit`, `RunEnvTurn` — stanno in un namespace anonimo
+// di questo file, e ricrearli altrove ne farebbe una seconda copia. ⚠️ Le famiglie restano quelle che la
+// issue prescrive (`Turn.`, `Playback.`, `Replay.`): il filtro di Automation guarda il nome, non il file.
+//
+// 🔴 **Tutti e quattro misurano una traccia GIOCATA, mai una voce costruita a mano.** E' la correzione
+// che `#1933` ha dovuto fare al proprio test e che `#2341` ha poi chiesto per iscritto: un evento
+// assemblato dentro il test prova che la struct esiste, non che qualcuno la produca.
+//
+// ⚠️ **Il buco che chiudono era anche nei test, non solo nel codice**: misurato prima di scriverli, un
+// solo test in tutto `Source/` asseriva `CoverDamaged` in un turno giocato
+// (`Cover.Destruction.LoggedInPlayedTurn`) e **nessuno** asseriva `CoverDestroyed` — c'e' chi abbatte un
+// muro, ma misura l'integrita' residua sulla mappa, non cio' che ne viene raccontato.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Lo scenario condiviso dei quattro gate: una copertura eretta e un colpo che l'attraversa.
+	 *
+	 * `First` erige su `Shielded` verso E (integrita' 30, dal catalogo); `Breacher`, oltre quel bordo, spara
+	 * al `Defender` che sta sulla cella riparata con `StructurePower = InStructurePower`.
+	 *
+	 * ⚠️ **Il `Defender` c'e' apposta e non e' arredamento**: e' l'unita' che un consumatore sbagliato
+	 * metterebbe in `TargetStableUnitId` al posto del bordo. Senza qualcuno su quella cella,
+	 * `StructureHitEventCarriesEdgeNotActor` sarebbe verde per assenza.
+	 *
+	 * ⚠️ Prefisso `Env`, come gli altri helper di questo file: unity build, i namespace anonimi si fondono.
+	 */
+	struct FRTEnvBreachScenario
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* MapActor = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Breacher = nullptr;
+		ARTUnit* Defender = nullptr;
+		FRTCellId Shielded{0, 0};
+		FRTCellId Attacker{1, 0};
+		bool bValid = false;
+	};
+
+	FRTEnvBreachScenario EnvMakeBreachScenario(int32 InStructurePower)
+	{
+		FRTEnvBreachScenario S;
+		S.World = MakeEnvWorld();
+		if (!S.World) { return S; }
+		S.MapActor = SpawnEnvMap(S.World);
+
+		ARTUnit* First = SpawnEnvUnit(S.World, 0, FRTCellId(0, 1));
+		S.Defender = SpawnEnvUnit(S.World, 0, S.Shielded);
+		S.Breacher = SpawnEnvUnit(S.World, 1, S.Attacker);
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.MapActor || !First || !S.Defender || !S.Breacher || !S.TM) { return S; }
+
+		// La copertura nasce e incassa nello stesso Blast: e' la forma gia' usata da
+		// `Structures.KineticPanel.DestroyedCoverLeavesNoGhost`, in questo stesso file.
+		PlanCoverAction(First, TEXT("Action.CreateCover"), S.Shielded, ERTHexDirection::E);
+		// La capacita' di sfondare si dichiara sull'istanza: e' l'idioma di tutti i test di struttura, e la
+		// ragione e' che l'archetipo di prova non ha fra le sue l'unica azione core che sfonda
+		// (`Action.HeavyAttack`, l'invariante lo pinna `Cover.Destruction.HeavyAttackDeclaresStructureDamage`).
+		S.Breacher->Abilities[0]->Def.Effects.Add(
+			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
+		S.Breacher->PlannedAbilityIndex = 0;
+		S.Breacher->PlannedAttackTarget = S.Defender;
+
+		S.bValid = true;
+		return S;
+	}
+
+	/** Gli eventi di timeline che sono colpi a struttura. */
+	TArray<FRTResolvedEvent> EnvStructureHitEvents(const ARTTurnManager* TM)
+	{
+		TArray<FRTResolvedEvent> Out;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::StructureHit) { Out.Add(Ev); }
+		}
+		return Out;
+	}
+
+	/** Cio' che una riproduzione ha mostrato, e quanto e' durata. */
+	struct FRTEnvPlaybackProbe
+	{
+		TArray<FRTPlaybackStructureHit> Mostrati; // al PICCO, non alla fine
+		int32 Tick = 0;
+		bool bAppesa = false;
+	};
+
+	/**
+	 * Risolve e riproduce, campionando i colpi a struttura **al PICCO** della rivelazione.
+	 *
+	 * 🔑 **Al picco e non alla fine**, perche' `FinishPlayback` spegne il canale: leggere dopo l'uscita dal
+	 * ciclo darebbe sempre zero, e un gate che confronta due zeri e' verde per costruzione.
+	 *
+	 * ⚠️ Il tetto di giri e' un tetto, non un'attesa: se lo si tocca la risoluzione non ha chiuso, ed e'
+	 * `bAppesa` a dirlo invece di lasciare il test verde su una riproduzione monca.
+	 */
+	FRTEnvPlaybackProbe EnvRunPlaybackProbingStructureHits(ARTTurnManager* TM, const ARTHexMapActor* MapActor)
+	{
+		FRTEnvPlaybackProbe Probe;
+		TM->LockInAndResolve();
+		if (MapActor) { Probe.Mostrati = MapActor->GetPlaybackStructureHits(); }
+		for (; Probe.Tick < 2000 && TM->IsResolving(); ++Probe.Tick)
+		{
+			TM->Tick(0.02f);
+			if (MapActor && MapActor->GetPlaybackStructureHits().Num() > Probe.Mostrati.Num())
+			{
+				Probe.Mostrati = MapActor->GetPlaybackStructureHits();
+			}
+		}
+		Probe.bAppesa = TM->IsResolving();
+		return Probe;
+	}
+}
+
+/**
+ * I due canali raccontano lo stesso fatto e non divergono — `#2828`.
+ *
+ * 🔴 **E' la proprieta' che l'emissione da `AppendLogEntry` esiste per garantire.** L'evento non nasce
+ * nel sito che danneggia la struttura, ma nell'unico punto in cui la voce di TurnLog viene scritta: il
+ * secondo canale **deriva** dal primo invece di essere una seconda fonte da tenere allineata a mano.
+ * Questo gate misura che la derivazione sia vera su una partita giocata.
+ *
+ * ⚠️ **Il predicato e' lo STESSO dai due lati, e qui e' corretto che lo sia.** L'affermazione non e'
+ * *«`IsStructureHit` classifica bene»* — e' un'altra domanda — ma *«contando le stesse voci, i due canali
+ * danno lo stesso numero e lo stesso contenuto»*. Riscrivere il predicato a mano da un lato ne farebbe una
+ * seconda copia, cioe' [D-098].
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnStructureHitEventMatchesTurnLogEntryTest,
+	"RefactorTactics.Turn.StructureHitEventMatchesTurnLogEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnStructureHitEventMatchesTurnLogEntryTest::RunTest(const FString&)
+{
+	// Integrita' 30, colpo 10 → **danneggiata**, non abbattuta: e' il ramo `CoverDamaged`, quello che un
+	// gate scritto solo sulla distruzione lascerebbe scoperto.
+	FRTEnvBreachScenario S = EnvMakeBreachScenario(/*InStructurePower=*/ 10);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	RunEnvTurn(S.TM);
+
+	TArray<FRTTurnLogEntry> Voci;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (URTTurnLogLibrary::IsStructureHit(E)) { Voci.Add(E); }
+	}
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+
+	// ⛔ ANTI-VACUITA': senza questa riga tutto il resto sarebbe vero per assenza — zero voci e zero eventi
+	// si corrispondono perfettamente, e il gate resterebbe verde su un produttore che non produce.
+	if (!TestTrue(TEXT("⛔ il turno ha prodotto almeno un colpo a struttura"), Voci.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	TestEqual(TEXT("✅ tante voci quanti eventi: nessun canale ne perde o ne inventa"),
+		Eventi.Num(), Voci.Num());
+
+	for (int32 I = 0; I < FMath::Min(Voci.Num(), Eventi.Num()); ++I)
+	{
+		TestEqual(TEXT("stessa cella"), Eventi[I].StructureCell, Voci[I].SrcCell);
+		TestEqual(TEXT("stesso verso: insieme sono il bordo"), Eventi[I].StructureToward, Voci[I].TgtCell);
+		// ⚠️ `Amount` e' l'integrita' RESIDUA in entrambi i canali. Se un giorno uno dei due passasse al
+		// danno inferto, questa riga cadrebbe — ed e' cio' che deve fare.
+		TestEqual(TEXT("stessa integrita' residua"), Eventi[I].Amount, Voci[I].Amount);
+		TestEqual(TEXT("stesso esito, senza appiattire [D-175]"),
+			static_cast<int32>(Eventi[I].EnvironmentOutcome), static_cast<int32>(Voci[I].Outcome));
+		TestEqual(TEXT("stesso attaccante"), Eventi[I].SourceStableUnitId, Voci[I].UnitId);
+	}
+
+	// ⛔ E il ramo misurato e' proprio `CoverDamaged`: se lo scenario abbattesse la copertura invece di
+	// scalfirla, il gate starebbe misurando l'altro caso senza dirlo.
+	if (Eventi.Num() > 0)
+	{
+		TestEqual(TEXT("lo scenario danneggia e non abbatte"),
+			static_cast<int32>(Eventi[0].EnvironmentOutcome),
+			static_cast<int32>(ERTEnvironmentOutcome::CoverDamaged));
+		TestEqual(TEXT("con l'integrita' che il colpo lascia"), Eventi[0].Amount, 20);
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * L'identita' del fatto resta il **BORDO**, non un'unita' — `#2828`.
+ *
+ * 🔴 **E' il gate di mutazione della issue, e senza il difensore sulla cella riparata sarebbe verde per
+ * assenza.** Il modo naturale di sbagliare questo evento e' riempire `TargetStableUnitId` con «l'unita'
+ * piu' vicina» o con chi stava dietro il muro: sembra un campo vuoto da completare, e completandolo il
+ * fatto smetterebbe di riguardare la struttura. Qui quell'unita' c'e', ha uno `StableUnitId` valido, ed e'
+ * anche il bersaglio dichiarato del colpo — cioe' la candidata piu' plausibile per quell'errore.
+ *
+ * ⛔ Una copertura non ha uno `StableUnitId`: `0` significa «nessuno» ([D-063]), mai «l'unita' zero».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnStructureHitEventCarriesEdgeNotActorTest,
+	"RefactorTactics.Turn.StructureHitEventCarriesEdgeNotActor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnStructureHitEventCarriesEdgeNotActorTest::RunTest(const FString&)
+{
+	FRTEnvBreachScenario S = EnvMakeBreachScenario(/*InStructurePower=*/ 10);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	RunEnvTurn(S.TM);
+
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+	if (!TestTrue(TEXT("⛔ il turno ha prodotto un colpo a struttura"), Eventi.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// ⛔ La premessa del gate: l'unita' che si potrebbe scrivere per sbaglio ESISTE e ha un id vero.
+	TestTrue(TEXT("premessa: sulla cella riparata c'e' un'unita' con un id valido"),
+		S.Defender && S.Defender->StableUnitId != 0);
+
+	for (const FRTResolvedEvent& Ev : Eventi)
+	{
+		TestEqual(TEXT("⛔ nessun bersaglio-unita': il soggetto e' il bordo"), Ev.TargetStableUnitId, 0);
+		TestNotEqual(TEXT("⛔ e in particolare NON e' il difensore dietro il muro"),
+			Ev.TargetStableUnitId, S.Defender->StableUnitId);
+
+		// Il bordo c'e' davvero, ed e' quello colpito.
+		TestEqual(TEXT("la cella e' quella riparata"), Ev.StructureCell, S.Shielded);
+		TestEqual(TEXT("e il verso e' quello da cui e' arrivato il colpo"), Ev.StructureToward, S.Attacker);
+
+		// 🔑 Chi ha AGITO e' l'attaccante, non chi stava dietro: il verso della riga di stato, non quello
+		// dell'hazard. Scambiarli accrediterebbe il colpo a chi lo ha subito.
+		TestEqual(TEXT("e la sorgente e' chi ha sparato"),
+			Ev.SourceStableUnitId, S.Breacher->StableUnitId);
+
+		// ⛔ `NAME_None` e' il valore dichiarato, non una dimenticanza: su un bordo colpito da piu' intenti
+		// non esiste UNA azione da nominare, e `Next Action` non deve fermarsi su un muro.
+		TestTrue(TEXT("⛔ nessuna identita' d'azione: e' un limite dichiarato"), Ev.ActionId.IsNone());
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * La presentazione **consuma** l'evento e non ricalcola il bordo — `#2828`.
+ *
+ * 🔴 **E' il divieto che la issue scrive per intero**, e la sola prova che regge e' il confronto
+ * dell'INTERO contenuto: un gate che contasse i segnali resterebbe verde su una presentazione che chiama
+ * `FirstCoveredEdge` per conto suo e per caso ne trova uno. Qui si pretende che cio' che e' arrivato al map
+ * actor sia **esattamente** cio' che l'evento portava.
+ *
+ * ⚠️ Il confronto si fa al PICCO della rivelazione: `FinishPlayback` spegne il canale, e leggere dopo la
+ * fine darebbe due zeri che si corrispondono.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackStructureHitConsumesResolvedEventTest,
+	"RefactorTactics.Playback.StructureHitConsumesResolvedEventWithoutRecomputing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackStructureHitConsumesResolvedEventTest::RunTest(const FString&)
+{
+	// Colpo 30 su integrita' 30 → **abbattuta** (`RemainingIntegrity <= 0`): cosi' il gate misura anche che
+	// `bDestroyed` attraversi il confine invece di essere dedotto a valle da un'integrita' a zero.
+	FRTEnvBreachScenario S = EnvMakeBreachScenario(/*InStructurePower=*/ 30);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	const FRTEnvPlaybackProbe Probe = EnvRunPlaybackProbingStructureHits(S.TM, S.MapActor);
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+
+	TestFalse(TEXT("la risoluzione ha chiuso: nessuna riproduzione appesa"), Probe.bAppesa);
+
+	if (!TestTrue(TEXT("⛔ la timeline porta almeno un colpo a struttura"), Eventi.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+	// ⛔ ANTI-VACUITA', ed e' la meta' che conta: se il playback non avesse MAI consumato l'evento,
+	// `Mostrati` resterebbe vuoto e ogni confronto sotto sarebbe vero per assenza. E' esattamente il difetto
+	// che il quarto termine di `BlastPhaseIsActive` esiste per impedire — un evento senza una fase in cui
+	// accadere non fallisce: sparisce.
+	if (!TestTrue(TEXT("⛔ e la presentazione lo ha CONSUMATO: il canale non e' mai rimasto vuoto"),
+		Probe.Mostrati.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	TestEqual(TEXT("✅ tanti segnali quanti eventi: nessuno perso, nessuno inventato"),
+		Probe.Mostrati.Num(), Eventi.Num());
+
+	for (int32 I = 0; I < FMath::Min(Probe.Mostrati.Num(), Eventi.Num()); ++I)
+	{
+		TestEqual(TEXT("la cella e' COPIATA dall'evento"), Probe.Mostrati[I].Cell, Eventi[I].StructureCell);
+		TestEqual(TEXT("e il verso anche: il bordo non e' stato ricalcolato"),
+			Probe.Mostrati[I].Toward, Eventi[I].StructureToward);
+		TestEqual(TEXT("e l'esito attraversa il confine invece di essere dedotto"),
+			Probe.Mostrati[I].bDestroyed,
+			Eventi[I].EnvironmentOutcome == ERTEnvironmentOutcome::CoverDestroyed);
+	}
+
+	// ⛔ E che il ramo misurato sia quello ABBATTUTO: con una copertura solo scalfita `bDestroyed` sarebbe
+	// falso ovunque, e il confronto qui sopra non distinguerebbe un canale che copia da uno che scrive `false`.
+	if (Eventi.Num() > 0)
+	{
+		TestEqual(TEXT("lo scenario ABBATTE, cosi' bDestroyed e' vero e non vacuo"),
+			static_cast<int32>(Eventi[0].EnvironmentOutcome),
+			static_cast<int32>(ERTEnvironmentOutcome::CoverDestroyed));
+		TestTrue(TEXT("e il segnale mostrato lo porta"),
+			Probe.Mostrati.Num() > 0 && Probe.Mostrati[0].bDestroyed);
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * La velocita' di riproduzione non cambia cio' che si vede — `#2828`.
+ *
+ * 🔴 **La rivelazione e' scaglionata nel tempo, quindi la velocita' e' precisamente cio' che potrebbe
+ * romperla.** `AttacksToShow` scopre i colpi uno ogni `AttackShowSeconds`; a velocita' alta la fase passa
+ * in meno tick, e cio' che non ha fatto in tempo a comparire deve comparire **nel catch-all di fine fase**
+ * invece di essere perduto. E' la riga che quel catch-all esiste per garantire.
+ *
+ * 🔑 **La leva e' `ViewerPlaybackSpeed`, non il passo del `Tick` ne' `MaxPlaybackSeconds`.** Il passo del
+ * tick e' granularita' del test, non una velocita' del gioco; e il budget non morde sul `Blast`, che ha
+ * slack **zero** per costruzione (`PhaseTime` lo dichiara e `RTPlaybackLibraryTests` lo pinna). Usare il
+ * budget qui avrebbe prodotto un gate verde che non esercita niente.
+ *
+ * ⛔ **E la manopola DEVE fare qualcosa.** Tutto il resto verifica che la velocita' NON cambi il
+ * risultato — una proprieta' che un campo mai letto soddisfa alla perfezione. E' la lezione che
+ * `Match.Autobattle.DeterminismIsIndependentOfPlayback` scrive per esteso, e la riga sui tick e' il suo
+ * equivalente qui.
+ *
+ * ⚠️ **Due mondi e non due riproduzioni dello stesso**: `FinishPlayback` ha gia' spento il canale quando
+ * la prima finisce, e rigiocare la seconda sullo stesso mondo misurerebbe un turno diverso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayStructureHitIsPlaybackSpeedInvariantTest,
+	"RefactorTactics.Replay.StructureHitIsPlaybackSpeedInvariant",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTReplayStructureHitIsPlaybackSpeedInvariantTest::RunTest(const FString&)
+{
+	FRTEnvBreachScenario Lento = EnvMakeBreachScenario(/*InStructurePower=*/ 10);
+	if (!TestTrue(TEXT("scenario a x1 costruito"), Lento.bValid))
+	{
+		DestroyEnvWorld(Lento.World);
+		return false;
+	}
+	Lento.TM->ViewerPlaybackSpeed = 1.f;
+	const FRTEnvPlaybackProbe AX1 = EnvRunPlaybackProbingStructureHits(Lento.TM, Lento.MapActor);
+	const int32 EventiX1 = EnvStructureHitEvents(Lento.TM).Num();
+	DestroyEnvWorld(Lento.World);
+
+	FRTEnvBreachScenario Veloce = EnvMakeBreachScenario(/*InStructurePower=*/ 10);
+	if (!TestTrue(TEXT("scenario a x4 costruito"), Veloce.bValid))
+	{
+		DestroyEnvWorld(Veloce.World);
+		return false;
+	}
+	Veloce.TM->ViewerPlaybackSpeed = 4.f;
+	const FRTEnvPlaybackProbe AX4 = EnvRunPlaybackProbingStructureHits(Veloce.TM, Veloce.MapActor);
+	const int32 EventiX4 = EnvStructureHitEvents(Veloce.TM).Num();
+	DestroyEnvWorld(Veloce.World);
+
+	TestFalse(TEXT("x1: nessuna riproduzione appesa"), AX1.bAppesa);
+	TestFalse(TEXT("x4: nessuna riproduzione appesa"), AX4.bAppesa);
+
+	// ⛔ ANTI-VACUITA' (1): due array vuoti sono uguali. Senza questa riga il gate passerebbe su un
+	// playback che non consuma niente a nessuna velocita'.
+	if (!TestTrue(TEXT("⛔ a x1 qualcosa e' stato mostrato"), AX1.Mostrati.Num() > 0))
+	{
+		return false;
+	}
+
+	// ⛔ ANTI-VACUITA' (2): la manopola ha davvero morso. Se `ViewerPlaybackSpeed` fosse dichiarato e non
+	// letto, le due riproduzioni durerebbero uguale e tutto il resto resterebbe verde senza provare nulla.
+	TestTrue(FString::Printf(TEXT("⛔ x4 accorcia la riproduzione rispetto a x1 (%d tick contro %d)"),
+		AX4.Tick, AX1.Tick), AX4.Tick < AX1.Tick);
+
+	TestEqual(TEXT("✅ la timeline e' la stessa: la velocita' non tocca la simulazione"), EventiX4, EventiX1);
+	TestEqual(TEXT("✅ e tanti segnali a x4 quanti a x1: nessuno perso per fretta"),
+		AX4.Mostrati.Num(), AX1.Mostrati.Num());
+
+	for (int32 I = 0; I < FMath::Min(AX1.Mostrati.Num(), AX4.Mostrati.Num()); ++I)
+	{
+		TestEqual(TEXT("stessa cella"), AX4.Mostrati[I].Cell, AX1.Mostrati[I].Cell);
+		TestEqual(TEXT("stesso verso"), AX4.Mostrati[I].Toward, AX1.Mostrati[I].Toward);
+		TestEqual(TEXT("stesso esito"), AX4.Mostrati[I].bDestroyed, AX1.Mostrati[I].bDestroyed);
+	}
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
