@@ -13,7 +13,17 @@ class UTexture2D;
  * Status e Certainty (CP 20.2), le altre sette restano vuote finche' non esiste un sistema che le consumi.
  * Una categoria senza chiavi e' legale — e' la tassonomia; una CHIAVE senza asset non lo e'.
  *
- * Aggiungere valori solo IN CODA: i numeri gia' serializzati negli asset non cambiano.
+ * Aggiungere valori solo IN CODA. ⚠️ **La ragione che questa riga dava era sbagliata** (corretta il
+ * 2026-09-22): l'asset del catalogo NON serializza i numeri. `DA_IconCatalog.uasset` porta i NOMI —
+ * `grep -a -oE 'ERTIconCategory[A-Za-z:]*'` restituisce `::Action ::Certainty ::Identity ::Phase
+ * ::Status`, cioe' le cinque popolate — e il catalogo e' un ARTEFATTO DI BUILD: `RTBuildIconCatalogCommandlet`
+ * fa `Catalog->Icons.Reset()` e rideriva la categoria dalla stringa dell'id, quindi si rigenera per intero.
+ *
+ * La coda resta la regola — costa nulla ed e' la disciplina giusta per un enum `BlueprintType`. Ma il
+ * costo vero di un valore nuovo e' un altro, ed e' un SILENZIO: `IconCatalog.V01CategoriesPopulated`
+ * elenca le categorie A MANO in due cicli che sommano 5 + 7 = 12, e un tredicesimo non compare in nessuno
+ * dei due — il gate resta VERDE e smette di coprirlo. ⛔ Chi aggiunge un valore aggiunge la sua riga
+ * la' dentro, NELLO STESSO COMMIT.
  */
 UENUM(BlueprintType)
 enum class ERTIconCategory : uint8

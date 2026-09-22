@@ -2224,10 +2224,24 @@ e **non si duplica qui**. Dei diciassette segmenti fuori dall'enum, dieci sono g
 il resto primitive. ⚠️ **`Target.Self` e `Target.Objective` non le colloca nessuno**, e il documento owner
 lo dichiara §4). Restano queste sette righe.
 
-⛔ **Non si chiudono per simmetria, e nemmeno tutte insieme**: i numeri di `ERTIconCategory` sono
-**serializzati negli asset**, e una categoria scelta per compiacere il validator è un dato che mente in modo
-permanente. Ogni riga ha tre uscite legali: **(a)** mappa su una delle dodici · **(b)** entra nell'enum **in
-coda** · **(c)** esce dal linguaggio, come `UI.*`.
+⛔ **Non si chiudono per simmetria, e nemmeno tutte insieme**: una categoria scelta per compiacere il
+validator è un dato che mente, e il validator non può rilevarlo — confronta il segmento con la categoria
+dichiarata e **non giudica se la classificazione ha senso**. Ogni riga ha tre uscite legali: **(a)** mappa
+su una delle dodici · **(b)** entra nell'enum **in coda** · **(c)** esce dal linguaggio, come `UI.*`.
+
+> 🔴 **Corretta il 2026-09-22 — questa riga diceva che i numeri dell'enum sono «serializzati negli asset»
+> e che una forzatura mente «in modo permanente». È falso, ed era la ragione scritta del ⛔.**
+>
+> - l'asset porta i **nomi**: `grep -a -oE 'ERTIconCategory[A-Za-z:]*' Content/RT/UI/DA_IconCatalog.uasset`
+>   dà `::Action ::Certainty ::Identity ::Phase ::Status`, le cinque popolate. Zero numeri;
+> - il catalogo è un **artefatto di build**: `RTBuildIconCatalogCommandlet` fa `Catalog->Icons.Reset()` e
+>   rideriva la categoria dalla **stringa** dell'id. Si rigenera per intero.
+>
+> ⚠️ **La correzione non è neutra per l'arbitrato**: la premessa falsa rendeva **(b)** più cara di **(a)**
+> esattamente al contrario di come la misura le ordina. Il costo vero di un tredicesimo valore è un
+> **silenzio**: `IconCatalog.V01CategoriesPopulated` elenca le categorie a mano in due cicli che sommano
+> 5 + 7 = 12 (`RTIconCatalogTests.cpp:136-137` e `:146-148`), e un valore nuovo non compare in nessuno dei
+> due — il gate resta **verde** e smette di coprirlo. Chi sceglie (b) aggiunge quella riga nello stesso commit.
 
 ⚠️ **`spec-icon-card-grammar.md` §1 dichiara `ERTIconCategory` e `RequiredIconIds()` fuori dal proprio
 scope**: chi cercasse lì la risposta troverebbe un non-scope, non un silenzio.

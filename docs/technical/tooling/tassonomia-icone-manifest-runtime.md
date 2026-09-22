@@ -115,6 +115,31 @@ prima di poter essere dichiarate verdi.
 
 ---
 
+## 2-bis. Che cosa costa davvero un valore nuovo — e la premessa che questa pagina dava era falsa
+
+🔴 **Ritirata il 2026-09-22.** Questa pagina, `OPEN_DECISIONS.md` e il docstring di
+`RTIconCatalogData.h` dicevano tutti che *«i numeri di `ERTIconCategory` sono serializzati negli asset»*, e
+ne ricavavano che una categoria sbagliata **mente in modo permanente**. È falso su entrambi i punti.
+
+| | Misura |
+|---|---|
+| L'asset porta **nomi**, non numeri | `grep -a -oE 'ERTIconCategory[A-Za-z:]*' Content/RT/UI/DA_IconCatalog.uasset` → `::Action` `::Certainty` `::Identity` `::Phase` `::Status` — le cinque popolate, e **zero** occorrenze delle altre sette |
+| Il catalogo è un **artefatto di build** | `RTBuildIconCatalogCommandlet` fa `Catalog->Icons.Reset()` e poi **rideriva** la `Category` dalla stringa dell'`IconId` (`CategoryForIcon`). Si rigenera per intero |
+
+∴ **niente è permanente, e la classifica dei costi si capovolge.** La premessa falsa rendeva l'uscita (b)
+più cara di (a) esattamente al contrario di come la misura le ordina.
+
+⚠️ **Il costo vero c'è, ed è un SILENZIO.** `RefactorTactics.IconCatalog.V01CategoriesPopulated` elenca le
+categorie **a mano**, in due cicli: cinque popolate (`RTIconCatalogTests.cpp:136-137`) e sette vuote
+(`:146-148`), somma esatta **12**. Un tredicesimo valore non compare in nessuno dei due — il gate resta
+**verde** e smette di coprirlo, senza che nulla lo segnali. ⛔ Chi sceglie (b) aggiunge la propria riga in
+quel test **nello stesso commit**: è la condizione che rende (b) una scelta e non una perdita di copertura.
+
+La regola «solo in coda» **resta**, perché costa nulla ed è la disciplina giusta per un enum `BlueprintType`.
+Ciò che cade è la **ragione** che le veniva data, non la regola.
+
+---
+
 ## 3. La misura — rifatta il 2026-09-22, non copiata
 
 Sui due file del manifest insieme (`CLAUDE_DESIGN_02_Icon_Manifest_v0.1.md` e
@@ -187,7 +212,7 @@ git grep -ohE '"Reaction\.[A-Za-z]+"' -- Source/RefactorTactics/Ability/RTCatalo
 git grep -ownE 'VisionRange|NoiseAtCell|NoiseIdentificationLevel|ERTPredictiveOutcome' -- Source/ | head
 ```
 
-### Hanno un'entità reale dietro — la decisione costa, perché i numeri dell'enum sono serializzati
+### Hanno un'entità reale dietro — e la decisione costa meno di come questa pagina diceva
 
 | Segmento | Chiavi | Cosa esiste nel codice |
 |---|---:|---|
@@ -232,11 +257,15 @@ seconda perché `Reaction` non è il posto. Nessuna delle due dice dove vanno.
 
 ⛔ **Non si forza una categoria in una esistente per far passare il validator.** Il validator confronta il
 segmento con la categoria dichiarata e **non giudica se la classificazione ha senso**: una forzatura passa
-in verde e mente in modo permanente, perché i numeri dell'enum sono **serializzati negli asset**.
+in verde, e nessun gate la troverà mai. ⚠️ *Questa riga diceva «mente in modo **permanente**, perché i
+numeri dell'enum sono serializzati negli asset»: era falso su entrambi i punti — vedi §2-bis.*
 
 ⛔ **Non si aggiunge un valore all'enum se non in coda**, e non lo si aggiunge affatto senza una voce di
-Decision Log: `RTIconCatalogData.h` lo scrive — *«aggiungere valori solo IN CODA: i numeri già serializzati
-negli asset non cambiano»*.
+Decision Log. 🔴 **Ma il costo non è quello che `RTIconCatalogData.h` dichiarava** (§2-bis): è che
+`IconCatalog.V01CategoriesPopulated` elenca le categorie **a mano**, in due cicli che sommano 5 + 7 = 12
+(`RTIconCatalogTests.cpp:136-137` e `:146-148`). Un tredicesimo valore non compare in nessuno dei due: il
+gate resta **verde** e smette silenziosamente di coprirlo. Chi aggiunge un valore **aggiunge la sua riga**
+in quel test, nello stesso commit.
 
 ⛔ **Non si aggiunge oggi una chiave in una delle sette categorie che #219 prescrive vuote** — ma ⚠️ **il
 divieto morde solo dove si crede**. `V01CategoriesPopulated` costruisce il proprio insieme da
