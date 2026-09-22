@@ -42,7 +42,18 @@ enum class ERTIconCategory : uint8
 	Status,
 	/** Cosa la squadra SA: visibile, sentito, ultima posizione nota, area approssimativa. */
 	Information,
-	/** Ciclo di vita di una reazione: armata, opportunita', consumata, invalidata. */
+	/** Il regime di reazione, in DUE popolazioni che questa categoria tiene insieme.
+	 *  (1) Il **ciclo di vita**: armata, opportunita', consumata, invalidata.
+	 *  (2) I **moduli** che una reazione la portano — `Reaction.HazardEscape`, `Reaction.AllyIntercept`,
+	 *      `Reaction.EmergencyDash`, `Reaction.ReactiveShield` — cioe' gli `EquipmentId` che
+	 *      `URTCatalogLibrary::MakeReactionModules()` costruisce.
+	 *
+	 *  ⚠️ **Allargata il 2026-09-22 ([D-434], `#637`): diceva il solo ciclo di vita, ed era piu'
+	 *  stretta del proprio contenuto.** I quattro moduli del roster erano gia' disegnati sotto questo
+	 *  prefisso e gia' tracciati (`git ls-files 'Content/Icons/Icons/*Reaction*'`): la descrizione
+	 *  copriva meta' di cio' che la categoria ospitava.
+	 *  ⛔ Chi mappa qui un oggetto che non e' ne' uno stato della finestra ne' un modulo allarga di
+	 *  nuovo questa riga, invece di forzarci la chiave dentro. */
 	Reaction,
 	/** Comunicazione fra alleati: ping, pronto, intento, conflitto. */
 	Coordination,

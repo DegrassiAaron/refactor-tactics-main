@@ -16,6 +16,26 @@ datato. Un numero senza comando non va copiato da qui: si rimisura.
 
 ---
 
+## 0. Esito — sei righe su sette chiuse il 2026-09-22
+
+✅ **Arbitrate da [D-434](../../decisions/RT_PDR_00_Decision_Log.md).** Questa pagina resta l'istruttoria: le sezioni sotto raccontano **come** ci si è
+arrivati, e vanno lette con questa tabella davanti.
+
+| | Esito | |
+|---|---|---|
+| `Module` | → **`Reaction`** | 🔑 **ratifica**: gli SVG erano già tracciati e le chiavi nel manifest generato. Prezzo pagato: il commento di `ERTIconCategory::Reaction` **allargato** alle due popolazioni |
+| `Gadget` | → **`Action`** | è ciò che il motore già calcola |
+| `Weapon` | → **`Action`** | il terzetto `ERTEquipmentSlot` riceve un esito solo |
+| `Stat` | **split** | `Cooldown` → `Warning` (ratifica); le altre dieci **escono** |
+| `Decision` | **esce** | dove confluisca `FastReaction` lo specifica CP 25.1, non questa decisione |
+| `Timing` | **esce** | zero produttori per tutte e tre |
+| 🔴 `Result` | **RESTA APERTA** | unica marcata `CORE`, e (a) → `Objective` punta a una famiglia con **zero** glifi. La condizione di riapertura è in `OPEN_DECISIONS.md` |
+
+⚠️ **`ERTIconCategory` resta a DODICI valori**: nessun valore aggiunto, nessun ramo nuovo in
+`RequiredIconIds()`, nessun gate toccato. L'unica riga di contenuto cambiata in `Source/` è un **commento**.
+
+---
+
 ## 1. Perché esiste
 
 ⚠️ **Nessun codice legge il manifest.** Misurato:
