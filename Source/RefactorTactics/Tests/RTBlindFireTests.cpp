@@ -22,6 +22,8 @@
 #include "Player/RTPointerInteraction.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTHUD.h"                 // il canale a schermo del rifiuto: e' cio' che `#3064` misura
+#include "Terrain/RTTerrainLibrary.h" // la portata APPLICATA, per non scrivere un numero a mano
 #include "Unit/RTUnit.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
@@ -127,6 +129,83 @@ namespace
 		B.Mine = SpawnBlindFireUnit(B.World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0, 0));
 		B.PC = B.World->SpawnActor<ARTPlayerController>();
 		return B.PC != nullptr && B.Mine != nullptr;
+	}
+
+	/**
+	 * Attacca un `ARTHUD` al controller del banco — `#3064`.
+	 *
+	 * ⛔ **Senza questo, i test di `#3064` sarebbero verdi per VACUITA', e in modo invisibile.** Il canale
+	 * del giocatore e' guardato da `if (ARTHUD* Hud = Cast<ARTHUD>(GetHUD()))`, e
+	 * `APlayerController::MyHUD` lo popolano soltanto `SpawnDefaultHUD` e `ClientSetHUD`, che in Automation
+	 * non girano: il ramo non verrebbe eseguito, i due mondi del canary produrrebbero «niente» identico, e
+	 * la mutazione che il DoD 5 chiede di uccidere resterebbe inosservabile.
+	 *
+	 * 🔑 **Si assegna `MyHUD` direttamente invece di chiamare `ClientSetHUD`.** Quella e' una RPC client, e
+	 * su un controller senza `NetConnection` il suo comportamento dipende dalla callspace: il banco
+	 * dipenderebbe da un fatto dell'engine invece che da uno del gioco.
+	 *
+	 * ⚠️ **Si assegnano ENTRAMBI i lati**: `MyHUD` e' cio' che `GetHUD()` legge, `PlayerOwner` e' come
+	 * `ARTHUD` risale al controller per la squadra (`ARTPlayerState::TeamIdOf`), che alimenta il filtro di
+	 * conoscenza del tratto rifiutato. Metterne uno solo darebbe un HUD che scrive e non filtra.
+	 *
+	 * ⚠️ **OPT-IN, e non dentro `SetUpBlindFireBench`**: `ARTHUD::Tick` chiama `UpdateObserverVeil`, che
+	 * riscriverebbe `bKnownToObserver` su ogni unita' del mondo. Questi mondi non tickano, quindi oggi e'
+	 * inerte — ma un banco condiviso che porta un HUD e' una superficie in piu' per tutta la famiglia, e i
+	 * test che non ne hanno bisogno restano com'erano.
+	 */
+	ARTHUD* AttachBlindFireHud(FBlindFireBench& B)
+	{
+		ARTHUD* Hud = B.World->SpawnActor<ARTHUD>();
+		if (!Hud) { return nullptr; }
+		Hud->PlayerOwner = B.PC;
+		B.PC->MyHUD = Hud;
+		return Hud;
+	}
+
+	/**
+	 * Semina la conoscenza canonica della squadra che sta pianificando — `#3064`.
+	 *
+	 * 🔴 **Senza, il tratto nel mondo e' spento per COSTRUZIONE e nessuna asserzione su di esso vale.**
+	 * `ARTTurnManager::KnowledgeForTeam` non calcola: scorre `TeamKnowledgeState` e, se la squadra non ha
+	 * voce, restituisce una conoscenza **vuota**. Il banco spawna un turn manager nudo e non percorre mai il
+	 * flusso di turno, quindi con l'insieme vuoto `ComputeRefusedShotLine` esce al primo cancello e
+	 * `bShow` e' `false` per qualunque ingresso: un test che confrontasse `false == false` chiamerebbe
+	 * corretto un canale che non si accende mai.
+	 *
+	 * 🔑 **`RefreshTeamKnowledgeNow()` e' PUBBLICA e gia' usata cosi'** da `RTPlayerInteractionTests.cpp` e
+	 * `RTHexMovementIntegrationTests.cpp`: non serve un hook nuovo, e non serve passare dai bot.
+	 *
+	 * ⚠️ **Va chiamata DOPO lo spawn delle unita'**: costruisce l'elenco delle squadre dai vivi, quindi zero
+	 * unita' significa zero squadre — cioe' esattamente lo stato che deve superare (`#1762`).
+	 */
+	bool SeedBlindFireKnowledge(FBlindFireBench& B)
+	{
+		ARTTurnManager* TM = Cast<ARTTurnManager>(
+			UGameplayStatics::GetActorOfClass(B.World, ARTTurnManager::StaticClass()));
+		if (!TM) { return false; }
+		TM->RefreshTeamKnowledgeNow();
+		return true;
+	}
+
+	/**
+	 * Mette del Fumo su una cella — `#3064`.
+	 *
+	 * 🔑 **Esiste perche' senza, l'asserzione sulla portata APPLICATA e' una tautologia.** `Smoke` e' l'unica
+	 * superficie del catalogo con `MaxTargetingRangeThrough > 0` (= 2) e `MakeTestArena` non ne piazza
+	 * nessuna: senza Fumo `EffectiveTargetingRange` restituisce `RangeCells` invariato, e la mutazione
+	 * «stampa la portata dichiarata» produce la stringa IDENTICA. Sarebbe la guardia che nessuna mutazione
+	 * puo' far fallire, cioe' il difetto che `#2800` ha gia' pagato.
+	 *
+	 * ⚠️ **Il Fumo non tocca la linea di tiro**: nel catalogo ha `bBlocksLineOfSight = false`, e comunque il
+	 * campo che la vista legge e' quello della CELLA, non quello del terreno. Cappa la distanza, non la
+	 * traiettoria — che e' la distinzione su cui `OutOfRangeDiagnostic` e' costruita.
+	 */
+	void SeedSmoke(URTHexMapAsset* Map, const FRTCellId& Id)
+	{
+		FRTHexCellData Fumo(Id);
+		Fumo.Surface = ERTHexSurface::Smoke;
+		Map->AddOrUpdateCell(Fumo);
+		Map->SortCells();
 	}
 }
 
@@ -771,6 +850,309 @@ bool FRTBlindFireVolumeAppearsInAGameTurnTest::RunTest(const FString&)
 		MapActor->NumSurfaceVolumeInstances(), 7);
 
 	DestroyBlindFireWorld(World);
+	return true;
+}
+
+/**
+ * Un bersaglio a CELLA rifiutato ARRIVA a chi gioca, e dice QUALE — `#3064`, DoD 1 e 2.
+ *
+ * 🔴 **E' la meta' POSITIVA del canary qui sotto, e servono tutte e due.** Un test di sola
+ * indistinguibilita' — «i due mondi producono la stessa cosa» — e' soddisfatto anche da *«nessun canale
+ * affatto»*: togliendo il rifiuto dal percorso a cella entrambi i mondi tacerebbero, e due silenzi sono
+ * uguali fra loro quanto due frasi. La mutazione del DoD 5 cade **qui**.
+ *
+ * ⛔ **Si legge `CurrentRefusalText()` e non solo `GetLastTargetRefusal()`.** Il campo direbbe che lo stato
+ * e' stato scritto; la stringa e' la STESSA sorgente che `DrawHUD` disegna, ed e' cio' che la issue chiede
+ * — «un esito dichiarato a schermo». Un accessor parallelo passerebbe anche se il disegno leggesse altro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellRefusalReachesTheScreenTest,
+	"RefactorTactics.BlindFire.CellRefusalReachesTheScreen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellRefusalReachesTheScreenTest::RunTest(const FString&)
+{
+	FBlindFireBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpBlindFireBench(B)))
+	{
+		DestroyBlindFireWorld(B.World); return false;
+	}
+
+	// ⛔ **La premessa che tiene in piedi tutto il resto.** Il canale nuovo e' guardato da
+	// `Cast<ARTHUD>(GetHUD())`, e headless `MyHUD` nasce nullo: senza queste due righe il ramo non verrebbe
+	// eseguito e ogni asserzione che segue leggerebbe «niente» chiamandolo «corretto».
+	ARTHUD* Hud = AttachBlindFireHud(B);
+	if (!TestNotNull(TEXT("premessa: il controller ha un HUD collegato"), B.PC->GetHUD()))
+	{
+		DestroyBlindFireWorld(B.World); return false;
+	}
+
+	// Il FUMO su `(-3,0,0)`: e' cio' che rende la portata applicata DIVERSA da quella dichiarata. Senza,
+	// l'asserzione sul numero sarebbe vera anche stampando `RangeCells`, cioe' inutile.
+	SeedSmoke(B.Map, FRTCellId(-3, 0, 0));
+
+	// L'azione si cerca per POLICY, non per nome: e' quella che CHIEDE la linea, cioe' il ramo del rifiuto.
+	const int32 Idx = FindAbilityWithPolicy(B.Mine, ERTLineOfSightPolicy::Required, ERTAbilityShape::Area);
+	if (!TestTrue(TEXT("premessa: il kit ha un'area che chiede la linea"), Idx != INDEX_NONE))
+	{
+		DestroyBlindFireWorld(B.World); return false;
+	}
+	const URTActionData* Ability = B.Mine->GetAbility(Idx);
+	B.PC->SelectActorForTest(B.Mine);
+	B.Mine->SelectAbility(Idx);
+
+	// ── 1. COPERTURA — `(1,0,0)` sta oltre il muro alla vista di `MakeTestArena`, e in portata.
+	TestFalse(TEXT("oltre il muro la cella e' rifiutata"), B.PC->HandleTargetCell(FRTCellId(1, 0, 0)));
+	TestEqual(TEXT("e l'esito nominato e' la copertura"),
+		Hud->GetLastTargetRefusal(), ERTTargetRefusal::Cover);
+	const FString Coperto = Hud->CurrentRefusalText();
+	TestFalse(TEXT("il rifiuto per copertura NON e' muto: il silenzio ERA il difetto di #3064"),
+		Coperto.IsEmpty());
+
+	// ── 2. DISTANZA — `(-4,0,0)` dista 3 e l'azione porta 4, quindi e' il FUMO su `(-3,0,0)` a rifiutarla.
+	const FRTCellId Lontana(-4, 0, 0);
+	const int32 Applicata = URTTerrainLibrary::EffectiveTargetingRange(
+		B.Map, B.Mine->Cell, Lontana, Ability->RangeCells);
+	// ⛔ **La premessa che rende NON tautologica l'asserzione sul numero.** Se il seeding del Fumo fallisse,
+	// applicata e dichiarata coinciderebbero e il test direbbe il vero senza misurare niente.
+	if (!TestTrue(TEXT("premessa: il Fumo ha DAVVERO abbassato la portata"),
+		Applicata < Ability->RangeCells))
+	{
+		DestroyBlindFireWorld(B.World); return false;
+	}
+
+	TestFalse(TEXT("oltre la portata applicata la cella e' rifiutata"), B.PC->HandleTargetCell(Lontana));
+	TestEqual(TEXT("e l'esito nominato e' la distanza"),
+		Hud->GetLastTargetRefusal(), ERTTargetRefusal::Range);
+	const FString Lontano = Hud->CurrentRefusalText();
+
+	// 🔑 **Il numero e' quello APPLICATO, e la coppia di asserzioni serve intera.** La prima da sola
+	// passerebbe anche stampando la dichiarata su un'arena senza Fumo; la seconda e' quella che uccide la
+	// mutazione. E' lo stesso inganno che `#2766` ha tolto dal log e che `#2800` tiene fuori dallo schermo.
+	TestTrue(TEXT("il messaggio porta la portata APPLICATA"),
+		Lontano.Contains(FString::FromInt(Applicata)));
+	TestFalse(TEXT("e NON quella dichiarata"),
+		Lontano.Contains(FString::FromInt(Ability->RangeCells)));
+
+	// ── 3. DoD 2 — le due cause si DISTINGUONO. Si asserisce il REQUISITO e non le due costanti, come fa
+	//       `Combat.RefusalDistinguishesCoverFromRange`: le frasi possono cambiare, la distinzione no.
+	TestNotEqual(TEXT("copertura e distanza non dicono la stessa cosa"), Lontano, Coperto);
+
+	// ── 4. DoD 1, LA DURATA — «vive finche' il giocatore non fa un altro click», e un click RIUSCITO e'
+	//       anch'esso un altro click. Si misura sostituendo, non aspettando: di timer non ce n'e' nessuno.
+	//       ⚠️ L'azzeramento reale vive in `OnSelect`, che headless non e' percorribile (serve
+	//       `GetHitResultUnderCursor`): cio' che si misura qui e' la meta' verificabile.
+	TestTrue(TEXT("in vista e in portata la stessa azione e' accettata"),
+		B.PC->HandleTargetCell(FRTCellId(-2, 0, 0)));
+	TestTrue(TEXT("e un click che va a segno non lascia niente a schermo"),
+		Hud->CurrentRefusalText().IsEmpty());
+
+	DestroyBlindFireWorld(B.World);
+	return true;
+}
+
+/**
+ * **IL CANARY DEL RIFIUTO A CELLA** — `#3064`, DoD 4. Cella vuota e cella con sopra un nemico ignoto devono
+ * produrre lo stesso esito, la stessa frase e la stessa geometria.
+ *
+ * 🔴 **Perche' `BlindFire.BlindFireIsNotAnEnemyDetector` non basta, e non e' un difetto suo.** Quel canary
+ * passa da `HandleTargetCell` ma con un'azione `NotRequired`, che `ClassifyHexTargeting` chiude `Ok` prima
+ * di guardare la geometria: il ramo del RIFIUTO — l'unico che da `#3064` parla al giocatore — non viene mai
+ * eseguito, e il suo elenco chiuso di osservabili non contiene alcun campo dell'HUD. Sarebbe rimasto verde
+ * qualunque cosa il canale nuovo facesse, e la DoD 4 sarebbe stata soddisfatta in modo VACUO. Resta verde,
+ * e va bene cosi': questo test e' l'altra meta', sul ramo che quello non puo' raggiungere.
+ *
+ * ⛔ **Elenco CHIUSO come il fratello, e non un «almeno».** Se `#3064` aprisse un settimo osservabile,
+ * questa struct va estesa nello stesso commit — o il confronto resta indietro in silenzio, che e' il
+ * difetto che il docstring del canary gemello dichiara di voler impedire.
+ *
+ * ⚠️ **Il TESTO e non solo l'enum.** Due esiti diversi con la stessa frase non sarebbero un canale; lo
+ * stesso esito con frasi diverse lo sarebbe. Cio' che il giocatore riceve e' la stringa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellRefusalIsNotADetectorTest,
+	"RefactorTactics.BlindFire.CellRefusalIsNotAnEnemyDetector",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellRefusalIsNotADetectorTest::RunTest(const FString&)
+{
+	const FRTCellId Aim(1, 0, 0); // oltre il muro alla vista: il ramo del RIFIUTO, non quello dell'accettazione
+
+	struct FSegnoDelRifiuto
+	{
+		bool bAccettato = true;
+		ERTTargetRefusal Refusal = ERTTargetRefusal::None;
+		FString Testo;
+		bool bLineaAccesa = false;
+		FRTCellId LineaDa;
+		FRTCellId LineaFinoA;
+	};
+
+	auto Osserva = [Aim](bool bConNemicoIgnoto, FSegnoDelRifiuto& Out) -> bool
+	{
+		FBlindFireBench B;
+		if (!SetUpBlindFireBench(B)) { DestroyBlindFireWorld(B.World); return false; }
+		ARTHUD* Hud = AttachBlindFireHud(B);
+		if (!Hud || B.PC->GetHUD() == nullptr) { DestroyBlindFireWorld(B.World); return false; }
+
+		const int32 Idx = FindAbilityWithPolicy(B.Mine, ERTLineOfSightPolicy::Required,
+			ERTAbilityShape::Area);
+		if (Idx == INDEX_NONE) { DestroyBlindFireWorld(B.World); return false; }
+
+		if (bConNemicoIgnoto)
+		{
+			// Vivo, avversario, **sulla cella mirata**, e mai osservato: e' il posto in cui l'informazione
+			// morderebbe. Un canary che tenesse il nemico lontano dal bersaglio sarebbe verde per
+			// costruzione.
+			ARTUnit* Nascosto = SpawnBlindFireUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), Aim);
+			if (!Nascosto) { DestroyBlindFireWorld(B.World); return false; }
+			Nascosto->SetKnownToObserver(false);
+			// ⚠️ La conoscenza si impone DOPO lo spawn e si verifica PRIMA del click: `bKnownToObserver`
+			// nasce `true` ed e' il velo a correggerlo nel `Tick` dell'HUD, che qui non gira.
+			if (Nascosto->IsKnownToObserver()) { DestroyBlindFireWorld(B.World); return false; }
+		}
+
+		// La conoscenza di squadra si semina in ENTRAMBI i mondi: senza, il tratto sarebbe spento per
+		// costruzione e i tre campi geometrici coinciderebbero senza sorvegliare nulla.
+		if (!SeedBlindFireKnowledge(B)) { DestroyBlindFireWorld(B.World); return false; }
+
+		B.PC->SelectActorForTest(B.Mine);
+		B.Mine->SelectAbility(Idx);
+		Out.bAccettato = B.PC->HandleTargetCell(Aim);
+		Out.Refusal = Hud->GetLastTargetRefusal();
+		Out.Testo = Hud->CurrentRefusalText();
+		if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(B.World))
+		{
+			Out.bLineaAccesa = HexMap->HasPreviewSightBlock();
+			Out.LineaDa = HexMap->GetPreviewSightFrom();
+			Out.LineaFinoA = HexMap->GetPreviewSightBlockedAt();
+		}
+
+		DestroyBlindFireWorld(B.World);
+		return true;
+	};
+
+	FSegnoDelRifiuto Vuota;
+	FSegnoDelRifiuto ConNemico;
+	if (!TestTrue(TEXT("mondo A: cella oltre il muro, vuota"), Osserva(/*bConNemicoIgnoto=*/ false, Vuota))
+		|| !TestTrue(TEXT("mondo B: stessa cella, nemico ignoto sopra"),
+			Osserva(/*bConNemicoIgnoto=*/ true, ConNemico)))
+	{
+		return false;
+	}
+
+	// ⛔ **LE DUE PREMESSE DI NON VACUITA'.** Senza, «uguale» non prova niente: se il rifiuto a cella
+	// smettesse di arrivare a schermo, due stringhe vuote sarebbero uguali quanto due frasi e questo canary
+	// resterebbe verde proprio sulla mutazione che il DoD 5 chiede di uccidere.
+	TestFalse(TEXT("premessa: nel mondo vuoto il click e' RIFIUTATO"), Vuota.bAccettato);
+	TestFalse(TEXT("premessa: e il rifiuto dice qualcosa"), Vuota.Testo.IsEmpty());
+
+	TestEqual(TEXT("stesso esito del click"), ConNemico.bAccettato, Vuota.bAccettato);
+	TestEqual(TEXT("stesso esito di rifiuto"), ConNemico.Refusal, Vuota.Refusal);
+	TestEqual(TEXT("stesso TESTO, carattere per carattere"), ConNemico.Testo, Vuota.Testo);
+	TestEqual(TEXT("stessa accensione del tratto nel mondo"), ConNemico.bLineaAccesa, Vuota.bLineaAccesa);
+	TestTrue(TEXT("stessa origine del tratto"), ConNemico.LineaDa == Vuota.LineaDa);
+	TestTrue(TEXT("stesso punto d'arresto"), ConNemico.LineaFinoA == Vuota.LineaFinoA);
+	return true;
+}
+
+/**
+ * Il tratto nel MONDO segue il click a cella, e obbedisce al velo sull'OSTACOLO — `#3064`, DoD 3.
+ *
+ * 🔑 **Due mondi che differiscono SOLO per cio' che la squadra ha osservato**, zero nemici in entrambi:
+ * stessa mappa, stessa azione, stesso click, stessa geometria. L'unica variabile e' se la conoscenza
+ * canonica sia stata rinfrescata, cioe' se la cella che BLOCCA sia nota.
+ *
+ * 🔴 **Perche' la coppia serve intera.** Il solo mondo velato («spento») sarebbe soddisfatto da un canale
+ * che non si accende MAI; il solo mondo noto («acceso») sarebbe soddisfatto da un canale senza cancello. E'
+ * la stessa forma della controprova 3 di `HUD.RefusedShotBreaksAtTheBlocker`, portata dal canale 2D — dove
+ * il cancello c'era gia' — a quello 3D, dove fino a `#3064` non c'era.
+ *
+ * ⚠️ **Il tratto FANTASMA acceso prima del click non e' scenografia**: e' la misura del difetto di durata.
+ * `SetPreviewSightBlock` aveva un solo chiamante di produzione, dentro il ramo di rifiuto a unita', quindi
+ * un click su una cella non lo raggiungeva e il segmento del click precedente restava a schermo — mentre la
+ * frase, azzerata in `OnSelect`, era gia' sparita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellRefusalWorldLineFollowsTheVeilTest,
+	"RefactorTactics.BlindFire.CellRefusalWorldLineFollowsTheVeil",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellRefusalWorldLineFollowsTheVeilTest::RunTest(const FString&)
+{
+	const FRTCellId Oltre(1, 0, 0);
+	const FRTCellId Muro(0, 0, 0);       // dove il muro alla vista di `MakeTestArena` ferma la linea
+	const FRTCellId Fantasma(3, -1, 0);  // un valore che nessun esito reale di questo click produrrebbe
+
+	struct FTrattoNelMondo
+	{
+		bool bAccesa = false;
+		FRTCellId Da;
+		FRTCellId FinoA;
+		FString Testo;
+	};
+
+	auto Osserva = [Oltre, Fantasma](bool bConConoscenza, FTrattoNelMondo& Out) -> bool
+	{
+		FBlindFireBench B;
+		if (!SetUpBlindFireBench(B)) { DestroyBlindFireWorld(B.World); return false; }
+		ARTHUD* Hud = AttachBlindFireHud(B);
+		ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(B.World);
+		if (!Hud || !HexMap || B.PC->GetHUD() == nullptr)
+		{
+			DestroyBlindFireWorld(B.World); return false;
+		}
+
+		const int32 Idx = FindAbilityWithPolicy(B.Mine, ERTLineOfSightPolicy::Required,
+			ERTAbilityShape::Area);
+		if (Idx == INDEX_NONE) { DestroyBlindFireWorld(B.World); return false; }
+
+		// L'UNICA differenza fra i due mondi.
+		if (bConConoscenza && !SeedBlindFireKnowledge(B))
+		{
+			DestroyBlindFireWorld(B.World); return false;
+		}
+
+		// Il tratto del «click precedente», acceso a mano.
+		HexMap->SetPreviewSightBlock(/*bBlocked=*/ true, Fantasma, Fantasma);
+
+		B.PC->SelectActorForTest(B.Mine);
+		B.Mine->SelectAbility(Idx);
+		if (B.PC->HandleTargetCell(Oltre)) { DestroyBlindFireWorld(B.World); return false; }
+
+		Out.bAccesa = HexMap->HasPreviewSightBlock();
+		Out.Da = HexMap->GetPreviewSightFrom();
+		Out.FinoA = HexMap->GetPreviewSightBlockedAt();
+		Out.Testo = Hud->CurrentRefusalText();
+
+		DestroyBlindFireWorld(B.World);
+		return true;
+	};
+
+	FTrattoNelMondo Noto;
+	FTrattoNelMondo Velato;
+	if (!TestTrue(TEXT("mondo A: la squadra conosce l'ostacolo"), Osserva(/*bConConoscenza=*/ true, Noto))
+		|| !TestTrue(TEXT("mondo B: la stessa geometria, mai osservata"),
+			Osserva(/*bConConoscenza=*/ false, Velato)))
+	{
+		return false;
+	}
+
+	// ── MONDO A — il canale esiste e indica il muro. ⚠️ Se questa cade per la PREMESSA e non per la
+	//    feature, la causa e' che `RefreshTeamKnowledgeNow()` non ha messo `(0,0,0)` fra le celle viste:
+	//    e' il primo fatto da misurare quando il motore si libera, ed e' dichiarato invece che assunto.
+	TestTrue(TEXT("la linea del mondo si accende sull'ostacolo"), Noto.bAccesa);
+	TestTrue(TEXT("e parte dal tiratore"), Noto.Da == FRTCellId(-1, 0, 0));
+	// ⛔ Si ferma sull'OSTACOLO e non sul bersaglio: disegnarla fino in fondo direbbe che la traiettoria
+	// arriva, che e' l'opposto dell'informazione.
+	TestTrue(TEXT("e si ferma sull'ostacolo, non sul bersaglio"), Noto.FinoA == Muro);
+
+	// ── MONDO B — [D-225] sull'OSTACOLO. Il rifiuto resta DETTO, il segno che indica una cella no.
+	TestFalse(TEXT("un ostacolo mai osservato non accende niente nel mondo"), Velato.bAccesa);
+	TestFalse(TEXT("il click a cella ha comunque riscritto il canale: il fantasma non sopravvive"),
+		Velato.bAccesa && Velato.FinoA == Fantasma);
+
+	// ⛔ **E la FRASE non cambia fra i due mondi**, che e' la scelta d'autore di questa fetta: «Coperto: la
+	// linea di tiro e' interrotta» parla del MIO tiro e non nomina una cella, mentre il tratto ne INDICA
+	// una. Tacere la frase su un muro mai esplorato riaprirebbe il silenzio di `#3064` per un sottoinsieme
+	// di celle — e un silenzio correlato a cio' che ho esplorato e' informativo per me, non su di me.
+	TestEqual(TEXT("la frase e' la stessa: il velo tocca il segno che indica, non quello che descrive"),
+		Velato.Testo, Noto.Testo);
+	TestFalse(TEXT("premessa: e in entrambi i mondi la frase c'e'"), Noto.Testo.IsEmpty());
 	return true;
 }
 

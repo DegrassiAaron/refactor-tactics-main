@@ -158,6 +158,31 @@ FString ARTHUD::CurrentRefusalText() const
 	return RefusalText(LastRefusal, LastRefusalRange);
 }
 
+FRTRefusedShotLine ARTHUD::CurrentRefusedShotLine() const
+{
+	// ⛔ **FAIL-CLOSED senza `ARTTurnManager`.** Senza di lui non esiste un insieme di celle note ma un
+	// insieme VUOTO, e con un insieme vuoto `ComputeRefusedShotLine` non disegna: e' la risposta giusta, non
+	// un caso degenere. Affermare una geometria che nessuna conoscenza sostiene sarebbe il difetto.
+	const ARTTurnManager* TurnManager =
+		Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass()));
+	if (TurnManager == nullptr)
+	{
+		return FRTRefusedShotLine();
+	}
+
+	// ⛔ **La conoscenza si legge QUI e per la PROPRIA squadra.** `KnowledgeForTeamPublic` e' un canale non
+	// filtrato — il suo commento avverte che un chiamante potrebbe leggere quella dell'avversario — quindi
+	// l'argomento viene dalla porta unica di [D-242] e non da un parametro che qualcuno, un giorno,
+	// riempirebbe con l'`1`.
+	const FRTTeamKnowledge Conoscenza =
+		TurnManager->KnowledgeForTeamPublic(ARTPlayerState::TeamIdOf(GetOwningPlayerController()));
+	TSet<FRTCellId> Conosciute;
+	Conosciute.Append(Conoscenza.VisibleCells);
+	Conosciute.Append(Conoscenza.ExploredCells); // il ricordo basta: la geometria non si muove
+
+	return ComputeRefusedShotLine(LastRefusal, LastRefusalLos, LastRefusalFrom, LastRefusalTo, Conosciute);
+}
+
 void ARTHUD::ComputeBlockerMarks(const TArray<FRTPlayerEventLineView>& Feed,
 	TSet<FRTCellId>& OutBlockerCells)
 {
@@ -1225,17 +1250,14 @@ void ARTHUD::DrawHUD()
 		// `#3085` — dove il tiro rifiutato si ferma. Il messaggio di `#2741` dice che la linea e'
 		// interrotta; questi due tratti dicono DA COSA, ed e' il residuo *(c)* che `PIE-HEXPLAY-6` isola.
 		//
-		// ⛔ **La conoscenza si legge QUI e per la PROPRIA squadra.** `KnowledgeForTeamPublic` e' un canale
-		// non filtrato — il suo commento avverte che un chiamante potrebbe leggere la conoscenza
-		// dell'avversario — quindi l'argomento e' `PlayerTeamId` e non un parametro.
+		// ⌫ **Le cinque righe che leggevano la conoscenza stavano qui, e adesso sono
+		// `CurrentRefusedShotLine()`** (`#3064`). Non e' un riordino: il percorso a CELLA deve ottenere lo
+		// STESSO tratto gia' filtrato per accenderlo anche nel mondo, e lasciare la composizione inline
+		// avrebbe voluto dire riscriverla nel controller — cioe' aprire un secondo lettore di un canale non
+		// filtrato ([D-225]). La regola resta UNA, e i due canali ne diventano due RESE invece di due
+		// decisioni che possono divergere.
 		{
-			const FRTTeamKnowledge Conoscenza = TurnManager->KnowledgeForTeamPublic(PlayerTeamId);
-			TSet<FRTCellId> Conosciute;
-			Conosciute.Append(Conoscenza.VisibleCells);
-			Conosciute.Append(Conoscenza.ExploredCells); // il ricordo basta: la geometria non si muove
-
-			const FRTRefusedShotLine Rifiutata = ComputeRefusedShotLine(
-				LastRefusal, LastRefusalLos, LastRefusalFrom, LastRefusalTo, Conosciute);
+			const FRTRefusedShotLine Rifiutata = CurrentRefusedShotLine();
 
 			if (Rifiutata.bShow)
 			{

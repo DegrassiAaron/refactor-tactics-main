@@ -390,6 +390,32 @@ public:
 	 * sul solo campo non vedrebbe.
 	 */
 	FString CurrentRefusalText() const;
+
+	/**
+	 * Il TRATTO RIFIUTATO che l'osservatore puo' vedere, composto dallo stato corrente — `#3064`.
+	 *
+	 * 🔑 **E' a `ComputeRefusedShotLine` cio' che `CurrentRefusalText()` e' a `RefusalText`**: la statica dice
+	 * la regola, questa la applica allo stato che il giocatore sta gia' guardando. Ed e' la sorgente che il
+	 * disegno usa davvero — `DrawHUD` chiama questa e non ricompone l'insieme per conto suo — perche' un
+	 * accessor parallelo passerebbe anche se il disegno leggesse altro.
+	 *
+	 * 🔴 **Nasce perche' la conoscenza abbia UN lettore, e non due.** `#3064` deve accendere la stessa linea
+	 * troncata anche nel mondo (`ARTHexMapActor::SetPreviewSightBlock`), e chi la accende e'
+	 * `ARTPlayerController`, che non legge la conoscenza di squadra da nessuna parte. Fargliela leggere per
+	 * comporre un `TSet` avrebbe aperto un secondo lettore di un canale non filtrato: il controller chiede
+	 * invece il risultato **gia' deciso**, e non maneggia conoscenza affatto.
+	 *
+	 * ⛔ **E cosi' il tratto 2D del Canvas e la linea 3D nel mondo diventano due RESE di una sola decisione.**
+	 * Fino a `#3064` filtravano per criteri diversi: `ComputeRefusedShotLine` nega la rottura su un ostacolo
+	 * che l'osservatore non ha **mai visto**, mentre il canale del mondo filtrava solo la conoscenza del
+	 * BERSAGLIO (`URTSightLineLibrary::AuthorizedSightLines`) e l'ostacolo non lo guardava. Sul percorso a
+	 * unita' la differenza si vedeva poco — `Cover` arriva solo per un bersaglio gia' noto; sul percorso a
+	 * CELLA sarebbe diventata la regola, perche' li' `Cover` e' qualunque cella dietro un muro.
+	 *
+	 * ⚠️ **Fail-closed senza `ARTTurnManager`**: la conoscenza e' sua, e la sua assenza vale «non disegnare»,
+	 * non «disegna tutto». Stessa scelta di `AuthorizedSightLines` senza mappa.
+	 */
+	FRTRefusedShotLine CurrentRefusedShotLine() const;
 	/**
 	 * Le celle da marcare nel mondo perche' hanno fermato un colpo — `#2697`.
 	 *

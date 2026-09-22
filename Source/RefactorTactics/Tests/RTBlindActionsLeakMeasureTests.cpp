@@ -882,12 +882,20 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 // **Perche' `ERTTargetRefusal` NON entra, pur essendo un reason code di Planning.** E' il solo dei quattro
 // gia' progettato per la privacy: `RefusalForObserver` (`Combat/RTCombatLibrary.h:580`) prende il verdetto
 // interno **piu' il flag di conoscenza** e collassa su `Nothing`, che esiste apposta per non distinguere
-// cella vuota da cella con ignoto. ⛔ Ma la coppia `ClassifyHexTargeting` + `RefusalForObserver` non e'
-// composta da una funzione pura: la compone `ARTPlayerController` (`Player/RTPlayerController.cpp:324-328`),
-// e `MakePlanPreview` il valore lo **copia** dall'ingresso (`Turn/RTPlanPreview.cpp:151`). Un banco headless
-// potrebbe solo ricomporla qui — cioe' aprire una **seconda sede** della stessa regola, che e' il difetto
-// che `#711` e [D-242] esistono per impedire. ∴ resta fuori **per costruzione del banco**, non perche' sia
-// pulito, ed e' un `FOLLOW-UP CANDIDATE` di `#2793`: il suo canary vive dove la coppia si compone.
+// cella vuota da cella con ignoto.
+//
+// ⌫ **Fino a `#3064` la motivazione era un'altra, ed e' scaduta.** Diceva: *«la coppia
+// `ClassifyHexTargeting` + `RefusalForObserver` non e' composta da una funzione pura: la compone
+// `ARTPlayerController` […] ∴ resta fuori per costruzione del banco»*, e lo dichiarava `FOLLOW-UP
+// CANDIDATE` di `#2793` — *«il suo canary vive dove la coppia si compone»*. Per il percorso a CELLA la
+// composizione **e' ora una funzione pura**, `URTCombatLibrary::DescribeCellTargetRefusal`, e quel canary
+// e' stato scritto: `RefactorTactics.BlindFire.CellRefusalIsNotAnEnemyDetector`, che confronta a due mondi
+// l'esito, il testo carattere per carattere e i tre campi del tratto interrotto, attraverso il controller.
+//
+// ∴ oggi `ERTTargetRefusal` resta fuori **da questo banco** perche' il banco lavora su snapshot e non su un
+// controller — non piu' perche' la regola non sia isolabile. Portarlo nel confronto a tre mondi e' diventato
+// possibile per il percorso a cella, ed e' un `FOLLOW-UP CANDIDATE` con un costo noto: chiamare
+// `DescribeCellTargetRefusal` sui tre mondi e confrontarne i campi, senza ricomporre nulla.
 //
 // **Perche' `ERTMoveOutcome` NON entra, e perche' la DoD lo nominava.** Il corpo di `#2793` lo elenca fra
 // le *«almeno tre famiglie»* di reason code. Misurato: **non e' un canale di Planning**. E' l'esito del
