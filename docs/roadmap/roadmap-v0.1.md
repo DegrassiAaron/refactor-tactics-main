@@ -134,6 +134,9 @@ Legenda: ✅ fatto e testato · 🟡 esiste ma parziale · ⏳ non esiste · ⌫
 | Catalogo azioni e data asset | `Ability/RTActionDef.h`, `RTActionData.h`, `RTCatalogLibrary.*` | ✅ E1 · `ActionId`, `Priority`, `Fallback`, `Slot`, `MovementStyle`, validator |
 | Motore azioni a priorità, fallback, collisioni | `Turn/RTActionQueue*.h`, `RTActionEffectLibrary.*`, `RTActionFallbackLibrary.*` | ✅ E4 (52 test) |
 | Reazioni difensive e Intercept | `Turn/RTReactionLibrary.{h,cpp}` | ✅ E5 (24 test) · Counter/Deflect/Brace/Shield/Cleanse/Intercept |
+
+> 🔴 **`Cleanse` in questa riga è il REATTIVO — precisato il 2026-09-22.** L'`Action.Cleanse` **attiva** (Principale, CP 5.2) è uscita dalla v0.1 il 2026-08-30 con [D-264](../decisions/RT_PDR_00_Decision_Log.md) (`#1403`). Ciò che vive in `Turn/RTReactionLibrary.*` — la sede che questa riga cita — è `Reaction.Cleanse`, modulo di default di `Hero.Branth`, e quello resta. ⚠️ [`../product/showcase-v0.1.md`](../product/showcase-v0.1.md) rimanda a questo documento per i propri conteggi: le due pagine vanno lette insieme.
+
 | Roster 4 eroi da dati | `Ability/RTHeroData.h`, `RTHeroCatalogLibrary.*` | ✅ E6 (25 test) · statistiche, kit e **tre reazioni su quattro cablate** (CP 6.7); solo `FlowReaction` resta rinviata a E14 — `InterceptShot` è uscita dall'insieme (Predictive, D-016) |
 | Budget movimento | `Turn/RTHexSimLibrary.*` | ✅ **5 MP**, costi interi (CP 4.2) |
 | Privacy degli intenti | `Turn/RTIntentPrivacyLibrary.*` | ✅ `FRTPlannedIntent → FilterForTeam → FRTIntentView` |

@@ -145,6 +145,10 @@ il numero si conta sul codice, non qui: `awk '/Dichiarate/,/};/' RTCatalogTests.
   quindi un test non può vederla;
 - **3 hanno un pezzo che le concede** e nessun eroe che lo porta — `Anchor`, `Purge`, `HeavyAttack`.
 
+> 🔴 **Corretto il 2026-09-22 — due dei tre nomi erano sbagliati, e il TOTALE no.** I `Pezzo non assegnato` di `RTCatalogTests.cpp` sono oggi `Anchor`, **`CreateSmoke`** e `HeavyAttack`:
+> `Purge` è uscita il 2026-08-27 ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e `CreateSmoke` è entrata dopo. ⚠️ **La cardinalità invariata è ciò che ha fatto sopravvivere l'errore**: chi
+> confrontava il numero col test lo trovava giusto e si fermava.
+
 ⚠️ **La prima stesura di questo blocco ne contava 24 ed elencava `Evade` fra le non consegnabili.**
 Entrambe sbagliate: `Action.Evade` è la base di `Reaction.HazardEscape`, che è il modulo di default di
 Phase, quindi è raggiungibile — dichiararla oggi farebbe scattare il **verso 2** del gate.
@@ -154,7 +158,7 @@ Le categorie invecchiano in modo diverso, ed è la ragione per cui non è un ele
 | Ragione | Quante il 2026-08-26 | Significato |
 |---|---|---|
 | `ScrittaDalMotore` | 5 — `Move` `Cleanse` `Heal` `Interrupt` `ModifyArc` | il gameplay le produce senza kit: non sono contenuto mancante |
-| `PezzoNonAssegnato` | 3 — `Anchor` `Purge` `HeavyAttack` | il pezzo che le concede esiste, e non è il default di nessun eroe |
+| `PezzoNonAssegnato` | 3 — `Anchor` `CreateSmoke` `HeavyAttack` — 🔴 *corretto il 2026-09-22: diceva `Purge`, uscita con [D-218](../decisions/RT_PDR_00_Decision_Log.md)* | il pezzo che le concede esiste, e non è il default di nessun eroe |
 | `MigrazioneE38` | 1 — `Sprint` | la forma canonica (D-015, riaffermata da D-116) non è implementata |
 | `AspettaIlSuoEroe` | 13 | contenuto che diventerà raggiungibile quando entrerà l'eroe che lo usa |
 
@@ -252,6 +256,14 @@ contengono solo `Action.Move` — restano fuori discussione per costruzione.
 ⛔ **Assegnare `Action.Cleanse` a un eroe.** È il passo successivo, ed è una scelta di bilanciamento: qui
 si costruisce lo strumento che la rende verificabile.
 
+> 🔴 **Non è più il passo successivo — [D-264](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-30.** L'`Action.Cleanse` **attiva esce dalla
+> v0.1**: non si assegna a nessun eroe, e `PlannedCleansePriority` non si implementa per tenerla in vita.
+> Resta fuori scope come questa riga già diceva, ma per una ragione diversa — non «più avanti»,
+> bensì **decisa**, e la condizione di riapertura è scritta in `D-264`.
+>
+> ⛔ **Il Cleanse reattivo non è toccato**: `Reaction.Cleanse` (base `Action.Purge`) è il modulo di
+> reazione di default di `Hero.Branth` ([D-218](../decisions/RT_PDR_00_Decision_Log.md)).
+
 ⛔ **`Action.Sprint`.** La sua forma canonica è profilo `Move`, solo slot movimento — voce **41** di
 [`DOC_CONFLICT_MATRIX`](../DOC_CONFLICT_MATRIX.md), riaperta da D-116 — e il codice la tiene in
 `FastMovement` con `MovementAndMain`. È lavoro di **E38**, e *«non si migra da sola: porta con sé `Exposed`
@@ -261,6 +273,11 @@ a 2 turni»*. Consegnarla ora significherebbe consegnare la Sprint sbagliata.
 
 ⛔ **Rendere l'equipaggiamento consegnabile** per salvare `Purge`: è la condizione di riapertura, non il
 lavoro di oggi.
+
+> 🔴 **Scaduto il 2026-08-27 — `Purge` non ha più bisogno di essere salvata.** [D-218](../decisions/RT_PDR_00_Decision_Log.md) le dà `Reaction.Cleanse` come modulo di reazione di
+> default di `Hero.Branth`, quindi la base è raggiungibile e la riga è uscita dalle esclusioni del
+> gate. ⚠️ **Dieci righe sopra, in questa stessa sezione, un'altra riga lo dice già**: erano due
+> risposte opposte sulla stessa schermata.
 
 ## 9. Definition of Done
 

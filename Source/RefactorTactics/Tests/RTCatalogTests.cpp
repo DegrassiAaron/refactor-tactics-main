@@ -552,16 +552,37 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		}
 	}
 
-	// Le eccezioni, ognuna con la sua ragione. Le categorie invecchiano in modo diverso: `Motore` cade se
-	// il gameplay smette di produrre quell'azione, `Modulo` quando l'equipaggiamento diventa consegnabile,
-	// `NonAssegnata` quando un eroe la porta.
+	// Le eccezioni, ognuna con la sua ragione. Le categorie invecchiano in modo diverso, e il prefisso della
+	// ragione dice quale sia:
+	//   `Motore:`               cade se il gameplay smette di produrre quell'azione;
+	//   `Pezzo non assegnato:`  cade quando un eroe riceve quel pezzo nel proprio loadout;
+	//   `Aspetta il suo eroe`   cade quando entra in un kit;
+	//   `Fuori dalla v0.1 ...`  NON cade da sola — la tiene una DECISIONE, e solo una decisione la toglie.
+	// ⚠️ **La quarta e' diversa in natura dalle altre tre**, e il verso 2 qui sotto lo dice nel proprio
+	// messaggio: per le prime tre la raggiungibilita' e' la buona notizia, per la quarta e' il difetto.
 	const TMap<FName, FString> Dichiarate = {
 		// Scritte dal motore: il gameplay le produce senza passare da un kit.
 		{ TEXT("Action.Move"),            TEXT("Motore: MakePlanFor la aggiunge quando l'unita' si muove") },
-		{ TEXT("Action.Cleanse"),         TEXT("Motore: il Blast la CERCA fra le abilita'; produttore assente, #1389") },
 		{ TEXT("Action.Heal"),            TEXT("Motore: RTTurnManager la scrive come voce di cura") },
 		{ TEXT("Action.Interrupt"),       TEXT("Motore: raccolta e applicata dal TurnManager") },
 		{ TEXT("Action.ModifyArc"),       TEXT("Motore: scritta dal TurnManager") },
+		// Fuori dalla v0.1 per DECISIONE, non per un portatore che manca. ⛔ Se una voce di QUESTO gruppo
+		// diventasse raggiungibile, il difetto e' la raggiungibilita': si toglie quella, non la riga.
+		//
+		// 🔴 **Migrata il 2026-09-22** ([D-264], `#1403`): la riga resta, e cambiano CATEGORIA e RAGIONE.
+		// Stava fra le «scritte dal motore» qui sopra e citava `#1389` — CHIUSA dal 2026-08-27 — mentre la
+		// decisione che governa davvero questa esclusione e' [D-264] (2026-08-30): l'`Action.Cleanse` ATTIVA
+		// esce dalla v0.1, e `PlannedCleansePriority` non si implementa per tenerla in vita.
+		// E la categoria era sbagliata al contrario: il motore non la PRODUCE — `ResolveCleanseActions` la
+		// CERCA fra le abilita' dell'unita' e nessuno gliela mette in mano. E' un consumatore senza
+		// produttore, cioe' l'opposto di `Action.Move` qui sopra.
+		// ⛔ **Il Cleanse REATTIVO non e' questa riga e non si tocca**: e' il rischio di lettura che [D-264]
+		// dichiara. `Reaction.Cleanse` (base `Action.Purge`) e' il modulo di default di `Hero.Branth`, resta in
+		// campo, ed e' pinnato da `Equipment.Cleanse.CancelsControl` — non da `Reactions.Cleanse.*`, che a
+		// dispetto del nome esercitano l'ATTIVA.
+		// Esce di qui solo alle condizioni che [D-264] nomina — ruolo tattico distinto piu' contratto esplicito
+		// di UI e di produttore — non come ripristino di cio' che e' stato tolto.
+		{ TEXT("Action.Cleanse"),         TEXT("Fuori dalla v0.1 per DECISIONE D-264: l'attiva esce, il reattivo resta") },
 		// Concesse da un pezzo che ESISTE ma che nessun eroe porta di default: il canale funziona, manca
 		// l'assegnazione. Escono da qui il giorno in cui un eroe riceve quel pezzo nel suo loadout.
 		{ TEXT("Action.Anchor"),          TEXT("Pezzo non assegnato: base di Reaction.Anchor, default di nessuno") },
@@ -635,7 +656,9 @@ bool FRTCatalogReachableOrDeclaredTest::RunTest(const FString&)
 		if (bRaggiungibile && Ragione)
 		{
 			AddError(FString::Printf(
-				TEXT("%s ORA e' raggiungibile ma e' ancora dichiarata come «%s»: togli la riga."),
+				TEXT("%s ORA e' raggiungibile ma e' ancora dichiarata come «%s»: togli la riga. ")
+				TEXT("⛔ Se quella ragione e' una DECISIONE e non un portatore che manca, e' la ")
+				TEXT("RAGGIUNGIBILITA' il difetto: si toglie quella, e la riga resta."),
 				*Def.ActionId.ToString(), **Ragione));
 		}
 	}
