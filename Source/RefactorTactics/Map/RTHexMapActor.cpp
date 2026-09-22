@@ -1080,6 +1080,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
+		|| PlaybackStructureHits.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0;
 }
@@ -1142,6 +1143,25 @@ void ARTHexMapActor::AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCell
 void ARTHexMapActor::ClearPlaybackFootprint()
 {
 	PlaybackFootprintCells.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::AddPlaybackStructureHit(const FRTCellId& Cell, const FRTCellId& Toward, bool bDestroyed)
+{
+	// Si copia e basta, come l'impronta qui sopra: i tre valori arrivano da `FRTResolvedEvent`, che li porta
+	// dal resolver. Nessun ricalcolo del bordo e nessuna interrogazione della mappa — sarebbero la seconda
+	// risposta a una domanda gia' chiusa (invariante #1), ed e' il divieto esplicito di `#2828`.
+	//
+	// ⚠️ `Emplace` e non assegnazione: `un evento -> un segnale`, e due muri colpiti nello stesso Blast
+	// sono due fatti distinti. ⛔ Nessuna deduplicazione, nemmeno sullo stesso bordo: due colpi su una
+	// stessa barriera sono due colpi, e fonderli sarebbe l'aggregazione furba che la v0.1 esclude (`#2453`).
+	PlaybackStructureHits.Emplace(Cell, Toward, bDestroyed);
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackStructureHits()
+{
+	PlaybackStructureHits.Reset();
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1505,6 +1525,50 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	for (const FRTCellId& Cell : PlaybackFootprintCells)
 	{
 		DrawMeaning(Cell, ERTOverlayMeaning::Attack);
+	}
+
+	// Colpi alle STRUTTURE gia' risolti, durante il playback (`#2828`).
+	//
+	// 🔑 **Un SEGMENTO sul bordo, non un esagono**: il soggetto e' un lato, e colorare le due facce
+	// direbbe che sono state colpite loro. E' la stessa distinzione — dove finisce il fatto, su cosa cade —
+	// che il blocco della linea di tiro qui sopra fa con segmento piu' contorno.
+	//
+	// ⛔ **Nessun `FColor` letterale e nessun ottavo `ERTOverlayMeaning`**: un colpo a un muro significa
+	// quel che significa un colpo, quindi `Attack`, come l'impronta appena sopra. Un significato nuovo per
+	// una variante di resa e' precisamente il difetto che `#1941` esiste per chiudere.
+	//
+	// ⚠️ **La distinzione caduta/danneggiata sta nello SPESSORE, ed e' graybox di proposito**: il VFX
+	// vero — detriti, crollo — e' `#1848`, v0.2. Qui serve che il CAMBIAMENTO si veda, che e' cio' che
+	// `#2453` isola come mancante nella v0.1: oggi si vede lo stato dopo, non il cambiamento.
+	if (PlaybackStructureHits.Num() > 0)
+	{
+		const FColor StructureColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
+		for (const FRTPlaybackStructureHit& Colpo : PlaybackStructureHits)
+		{
+			// ⚠️ **L'alzata e' quella della cella che PORTA la copertura, per entrambi gli estremi.**
+			// Prenderla da ciascuna delle due inclinerebbe il segno quando le celle hanno altezze diverse, e
+			// lo farebbe sprofondare del tutto sul bordo esterno dell'arena, dove `Toward` non e' nella mappa
+			// e `CellLift` risponde `0`. Il muro appartiene alla faccia che lo dichiara: e' la sua quota.
+			const float Alzata = CellLift(Colpo.Cell) + RTLiftPreview + 3.f;
+			const FVector CentroA = URTHexLibrary::AxialToWorld(Colpo.Cell, Origin, Size, LayerH)
+				+ FVector(0, 0, Alzata);
+			const FVector CentroB = URTHexLibrary::AxialToWorld(Colpo.Toward, Origin, Size, LayerH)
+				+ FVector(0, 0, Alzata);
+
+			// 🔴 **PERPENDICOLARE all'asse fra i due centri, non lungo di esso.** Il bordo condiviso e' il
+			// lato che i due esagoni hanno in comune: sta a meta' strada e giace di traverso. Un segmento
+			// tracciato SULL'asse — anche corto, anche centrato — punta da una cella verso l'altra e si legge
+			// come una traiettoria, che e' un'altra frase.
+			// ⏱️ *La prima stesura faceva esattamente quello, e il commento accanto dichiarava di evitarlo.*
+			//
+			// La mezza lunghezza e' `d / (2√3)` perche' in una griglia esagonale il lato vale `d/√3`, con `d`
+			// la distanza fra centri adiacenti: cosi' il segno copre il lato intero e non lo sborda.
+			const FVector Asse = CentroB - CentroA;
+			const FVector Meta = (CentroA + CentroB) * 0.5f;
+			const FVector MezzoLato = FVector(-Asse.Y, Asse.X, 0.f) * (0.5f / FMath::Sqrt(3.f));
+			DrawDebugLine(World, Meta - MezzoLato, Meta + MezzoLato, StructureColor, false, -1.f,
+				SDPG_Foreground, Colpo.bDestroyed ? 6.f : 3.f);
+		}
 	}
 
 	// Cella sotto il cursore: disegnata per ultima e piu' larga, cosi' resta leggibile sopra la traccia.

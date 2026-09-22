@@ -97,6 +97,23 @@ void URTTurnLogLibrary::SortTurnLog(TArray<FRTTurnLogEntry>& Entries)
 	Entries.Sort([](const FRTTurnLogEntry& A, const FRTTurnLogEntry& B) { return EntryLess(A, B); });
 }
 
+bool URTTurnLogLibrary::IsStructureHit(const FRTTurnLogEntry& Entry)
+{
+	// ⚠️ **`Environment` e non `Combat`**: un muro abbattuto e' un fatto dell'ambiente anche quando a
+	// tirare e' stata un'unita', ed e' la categoria che `ApplyEnvironmentChanges` scrive.
+	if (Entry.Category != ERTLogCategory::Environment)
+	{
+		return false;
+	}
+
+	// ⛔ **I due esiti si elencano, non si deduce un intervallo.** `ERTEnvironmentOutcome` porta anche
+	// `CoverExpired` e `CoverMoved`, che [D-175] tiene distinti da questi due apposta: un `<=` o un `>=`
+	// sull'enum legherebbe il significato all'ORDINE dei valori, e il primo che ne inserisce uno in mezzo
+	// cambierebbe questa risposta senza toccare questa riga.
+	const ERTEnvironmentOutcome Esito = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
+	return Esito == ERTEnvironmentOutcome::CoverDamaged || Esito == ERTEnvironmentOutcome::CoverDestroyed;
+}
+
 bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.Category != ERTLogCategory::Combat || Entry.UnitId == 0)

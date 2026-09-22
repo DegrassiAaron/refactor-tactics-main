@@ -150,7 +150,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// accelerare i cilindri — che e' esattamente cio' che #1878 vieta.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Move: 2 s mostrati"), FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Move: nessuno slack"), FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 	}
@@ -158,7 +158,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Prep: un beat, e non mostra nulla. E' l'unica attesa comprimibile del sistema.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Prep, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
+			ERTMatchPhase::Prep, 0, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
 		TestTrue(TEXT("Prep: non mostra nulla"), FMath::IsNearlyEqual(T.Shown, 0.0f, RTTol));
 		TestTrue(TEXT("Prep: il beat e' tutto slack"), FMath::IsNearlyEqual(T.Slack, 0.3f, RTTol));
 	}
@@ -168,7 +168,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// scala a zero, questa fase durerebbe 0,5 s e tre colpi su quattro uscirebbero nello stesso frame.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: il tempo dei colpi e' mostrato, non atteso"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Blast: nessuno slack, nemmeno l'eccedenza dei colpi sulla spinta"),
@@ -180,7 +180,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: spinta dominante -> 3 s mostrati"),
 			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
 		TestTrue(TEXT("Blast: spinta dominante -> nessuno slack"),
@@ -677,23 +677,132 @@ bool FRTPlaybackBlastPhaseOpensForFootprintOnlyTest::RunTest(const FString&)
 {
 	// Il caso nuovo, e il solo che prima falliva.
 	TestTrue(TEXT("una impronta senza colpi apre il Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1));
+		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1,
+			/*NumStructureHits=*/ 0));
 
 	// ⚠️ **La controprova, senza la quale il test sopra non prova niente**: il vuoto deve restare vuoto.
 	// Un `return true` costante passerebbe la prima asserzione e fallirebbe questa.
 	TestFalse(TEXT("niente colpi, niente spinta, niente impronte: nessun Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0));
 
 	// Le due ragioni preesistenti non sono state indebolite.
 	TestTrue(TEXT("un colpo apre il Blast, come prima"),
-		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0));
 	TestTrue(TEXT("una spinta apre il Blast, come prima"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0));
 
-	// ⛔ Nessuna soglia e nessuna somma: le tre ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
+	// ⛔ Nessuna soglia e nessuna somma: le ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
 	// "misurare quanto succede", questa riga resterebbe verde e la precedente cadrebbe — ed e' voluto.
-	TestTrue(TEXT("le tre ragioni insieme aprono il Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2));
+	// ⏱️ *Erano tre fino al 2026-09-22: `#2828` ha aggiunto i colpi a struttura.*
+	TestTrue(TEXT("le quattro ragioni insieme aprono il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` si apre anche per un solo **muro abbattuto**, senza colpi e senza impronta — `#2828`.
+ *
+ * 🔴 **E' lo stesso difetto di `#2454` un passo piu' in la', e sarebbe stato MUTO.** Un colpo che
+ * abbatte una copertura e non ferisce nessuno produce zero `Attack` e zero spinta; e se a fermare il colpo
+ * era il muro ALTO — il caso principale, perche' quel muro e' anche l'unico bersaglio possibile visto che
+ * impedisce di vedere chi sta dietro — non c'e' nemmeno un'impronta su una cella occupata. Senza il quarto
+ * termine la fase non si apriva: l'evento esisteva, entrava nella timeline, e **non aveva un istante in cui
+ * essere mostrato**. Cioe' esattamente il difetto che `#2828` esiste per chiudere, ricomparso un livello
+ * sotto quello che stava chiudendo.
+ *
+ * ⚠️ **Nessun log e nessun rosso lo avrebbero detto.** Un evento che non trova la sua fase non fallisce:
+ * sparisce. E' la stessa classe di scarto silenzioso del filtro per tipo su `CellVerdicts`, ed e' la
+ * ragione per cui questo caso si pinna invece di fidarsi della lettura del codice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest,
+	"RefactorTactics.Playback.BlastPhaseOpensForStructureHitOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest::RunTest(const FString&)
+{
+	// Il caso nuovo, e il solo che prima falliva: un muro cade e nient'altro accade.
+	TestTrue(TEXT("un colpo a struttura senza vittime ne' impronte apre il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false,
+			/*NumFootprints=*/ 0, /*NumStructureHits=*/ 1));
+
+	// ⚠️ **La controprova, senza la quale l'asserzione sopra non prova niente**: il vuoto resta vuoto.
+	// Un `return true` costante passerebbe la prima e fallirebbe questa.
+	TestFalse(TEXT("niente di niente: nessun Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0));
+
+	// ⛔ **Il termine e' INDIPENDENTE, non un rinforzo degli altri tre.** Se qualcuno lo legasse a uno di
+	// essi — "conta le strutture solo se ci sono impronte" — la prima asserzione cadrebbe e questa no.
+	TestTrue(TEXT("e non indebolisce le tre ragioni preesistenti"),
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0)
+		&& URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0)
+		&& URTPlaybackLibrary::BlastPhaseIsActive(0, false, 1, 0));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` DURA quanto i colpi a struttura, non solo quanto i colpi — `#2828`.
+ *
+ * 🔴 **Il gate che mancava, e senza il quale la correzione non era protetta da niente.** Aprire la fase e
+ * dimensionarla sono due cose: `BlastPhaseIsActive` faceva la prima, `PhaseTime` riceveva i soli attacchi.
+ * Un Blast che abbatte quattro muri senza ferire nessuno durava `Max(1, 0)` = UN intervallo, e i tre colpi
+ * rimanenti uscivano insieme dal catch-all di fine fase — nello stesso fotogramma.
+ *
+ * ⛔ **E la suite restava interamente verde**: tutti i gate esistenti passano `Strutture = 0`, e i due
+ * scenari end-to-end producono **un solo** colpo a struttura ciascuno. Con `NSH <= 1` vale
+ * `Max(1, Max(NA, NSH)) == Max(1, NA)` per ogni `NA`: le due formule coincidono numericamente, e la
+ * differenza esiste **solo** da `NSH >= 2` con `NSH > NA`. Nessuno scenario ci arrivava.
+ *
+ * ⚠️ Pura di proposito, come il cancello: la durata di una fase decide il pacing di un turno, ed e' cio'
+ * che i gate di budget sorvegliano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForStructureHitsTest,
+	"RefactorTactics.Playback.BlastPhaseLastsForStructureHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
+{
+	// Il caso che distingue la formula nuova dalla vecchia: quattro muri, nessun colpo, nessuna spinta.
+	// ⛔ Con `Max(1, NumAttacks)` questa riga darebbe 0,5 s invece di 2,0 s.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 4,
+			/*CellsPerSec*/ 2.f, /*AttackShow*/ 0.5f, /*Beat*/ 0.3f);
+		TestTrue(TEXT("✅ quattro muri durano quanto quattro colpi: 2,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+		TestTrue(TEXT("e restano tutti MOSTRATI: il tempo di lettura non e' comprimibile"),
+			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
+	}
+
+	// ⚠️ **La controprova, senza la quale l'asserzione sopra non distingue niente**: a zero strutture la
+	// formula deve dare ESATTAMENTE quel che dava prima. Se qualcuno sostituisse il `Max` con una somma,
+	// questa riga resterebbe verde e la prossima cadrebbe.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("nessun muro e nessun colpo: il pavimento di uno, come prima"),
+			FMath::IsNearlyEqual(T.Shown, 0.5f, RTTol));
+	}
+
+	// ⛔ **`Max` e non SOMMA**: i due canali si rivelano in parallelo, ciascuno col proprio contatore su
+	// `AttacksToShow`. Tre colpi e due muri durano quanto tre colpi, non quanto cinque cose.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 3, /*Strutture*/ 2, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("tre colpi e due muri: 1,5 s, non 2,5 s"),
+			FMath::IsNearlyEqual(T.Shown, 1.5f, RTTol));
+	}
+
+	// E il verso opposto: i muri non ACCORCIANO mai una fase che i colpi hanno gia' allungato.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 4, /*Strutture*/ 1, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("quattro colpi e un muro: restano 2,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+	}
 
 	return true;
 }

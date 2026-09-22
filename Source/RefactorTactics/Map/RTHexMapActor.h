@@ -108,6 +108,30 @@ enum class ERTRebuildFamily : uint8
 };
 ENUM_CLASS_FLAGS(ERTRebuildFamily);
 
+/**
+ * Un colpo a una struttura **gia' risolto**, nella forma in cui il playback lo mostra (`#2828`).
+ *
+ * ⚠️ **Non e' `FRTStructureHit` e non e' `FRTCoverDamageResult`**, benche' descriva lo stesso fatto: le
+ * due vivono nella simulazione e portano cio' che serve a DECIDERE — danno raccolto, integrita' residua,
+ * indice dell'attaccante. Questa porta cio' che serve a DISEGNARE, e nient'altro. Tenerne una terza e' piu'
+ * onesto che far entrare una struct di simulazione in un actor di presentazione.
+ */
+struct FRTPlaybackStructureHit
+{
+	/** La cella che porta la copertura. Con `Toward` identifica il bordo. */
+	FRTCellId Cell;
+
+	/** La cella oltre il bordo colpito. */
+	FRTCellId Toward;
+
+	/** Ricevuto, mai dedotto da un'integrita' a zero: [D-175] distingue la caduta dalla scadenza. */
+	bool bDestroyed = false;
+
+	FRTPlaybackStructureHit() = default;
+	FRTPlaybackStructureHit(const FRTCellId& InCell, const FRTCellId& InToward, bool bInDestroyed)
+		: Cell(InCell), Toward(InToward), bDestroyed(bInDestroyed) {}
+};
+
 UCLASS()
 class REFACTORTACTICS_API ARTHexMapActor : public AActor
 {
@@ -833,6 +857,30 @@ public:
 	/** Spegne il canale di playback. Lo chiama `FinishPlayback`: nessuna impronta sopravvive al turno. */
 	void ClearPlaybackFootprint();
 
+	/**
+	 * Un colpo a una **struttura** gia' risolto, durante il playback — `#2828`.
+	 *
+	 * 🔑 **Il soggetto e' un BORDO**, e per questo prende due celle invece di una: e' la convenzione che
+	 * il dato ha ai due capi (`FRTStructureHit` la dichiara, il TurnLog la scrive in `SrcCell`/`TgtCell`).
+	 *
+	 * ⛔ **Si copia e basta**, come l'impronta qui sopra. I valori arrivano da `FRTResolvedEvent`, che li
+	 * porta dal resolver: questo actor **non** chiama `FirstCoveredEdge`, **non** chiede alla mappa cosa ci
+	 * fosse su quel lato e **non** converte in `ERTHexDirection` con `EdgeDirection`. Ognuna delle tre
+	 * sarebbe la seconda risposta a una domanda gia' chiusa — invariante #1, e il divieto esplicito di
+	 * `#2828`.
+	 *
+	 * ⚠️ **`bDestroyed` si riceve, non si deduce da un'integrita' a zero.** [D-175] distingue la
+	 * distruzione dalla scadenza e dallo spostamento, e dedurla da un numero rifarebbe quella distinzione
+	 * qui, dove non ha un owner.
+	 *
+	 * ⚠️ **Additivo**, come l'impronta: `un evento -> un segnale`, e due muri colpiti nello stesso Blast
+	 * sono due fatti. ⛔ Nessuna deduplicazione, nemmeno sullo stesso bordo colpito due volte.
+	 */
+	void AddPlaybackStructureHit(const FRTCellId& Cell, const FRTCellId& Toward, bool bDestroyed);
+
+	/** Spegne il canale. Lo chiama `FinishPlayback`, accanto a `ClearPlaybackFootprint`. */
+	void ClearPlaybackStructureHits();
+
 	/** Conteggi dell'anteprima (diagnostica e test headless: il disegno non e' verificabile senza schermo). */
 	int32 NumPreviewHitCells() const { return PreviewHitArea.Cells.Num(); }
 	int32 NumPreviewAllyHitCells() const { return PreviewAllyHitArea.Cells.Num(); }
@@ -848,6 +896,16 @@ public:
 	bool IsPreviewReachableCell(const FRTCellId& Cell) const { return PreviewReachableArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' nell'impronta di playback corrente (test). */
 	bool IsPlaybackFootprintCell(const FRTCellId& Cell) const { return PlaybackFootprintCells.Contains(Cell); }
+
+	/**
+	 * I colpi a struttura correntemente mostrati — oracolo headless di `#2828`.
+	 *
+	 * 🔑 **Restituisce la lista e non un conteggio**, perche' la domanda che il gate deve poter fare e'
+	 * *«quello che e' arrivato qui e' ESATTAMENTE quello che l'evento portava?»*. Con un `Num()` il test
+	 * proverebbe che qualcosa e' arrivato, non **che cosa** — e un consumo che ricalcolasse il bordo
+	 * resterebbe verde.
+	 */
+	const TArray<FRTPlaybackStructureHit>& GetPlaybackStructureHits() const { return PlaybackStructureHits; }
 
 	/** Cella attualmente evidenziata e sua validita' (diagnostica e test). */
 	FRTCellId GetHoveredCell() const { return HoveredCell; }
@@ -989,6 +1047,12 @@ protected:
 	 * cambia e' chi la spegne.
 	 */
 	TArray<FRTCellId> PlaybackFootprintCells;
+
+	/**
+	 * I colpi a struttura mostrati durante il playback (`#2828`). Stesso ciclo di vita dell'impronta: nasce
+	 * col playback, muore a `FinishPlayback`.
+	 */
+	TArray<FRTPlaybackStructureHit> PlaybackStructureHits;
 
 	FRTCellId PreviewAttackOrigin;
 	/** Cella verso cui punta la mira (bersaglio dichiarato o cella mirata). */

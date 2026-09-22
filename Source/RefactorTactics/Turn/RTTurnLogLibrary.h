@@ -248,6 +248,44 @@ public:
 	static bool IsEnvironmentalDamage(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * La voce e' un **colpo a una struttura**: una copertura danneggiata o abbattuta (`#2828`).
+	 *
+	 * 🔑 **Esiste perche' la domanda abbia UN owner, e non perche' il test fosse scomodo da scrivere.**
+	 * `AppendLogEntry` la usa per emettere `ERTResolvedEventType::StructureHit`, e il gate che confronta i
+	 * due canali la usa per contare le voci dal lato del TurnLog. Riscriverla a mano da una delle due parti
+	 * ne farebbe una seconda copia, e i due canali tornerebbero a poter divergere proprio nel punto in cui
+	 * il test dichiara che non possono — e' [D-098].
+	 *
+	 * ⛔ **Due outcome e non «tutto cio' che riguarda una copertura»**, ed e' [D-175] a chiederlo:
+	 * `CoverExpired` (e' scaduto il timer) e `CoverMoved` (si e' spostata) sono altri due modi in cui una
+	 * barriera smette di essere dov'era, e **nessuno dei due e' un colpo**. Allargare questo predetto a
+	 * `Category == Environment` darebbe un istante di *impatto* a una scadenza, cioe' mostrerebbe un colpo
+	 * che nessuno ha tirato.
+	 *
+	 * ⛔ **E i PONTI restano fuori, ed e' una scelta, non una svista.** `BridgeDamaged` e
+	 * `BridgeDestroyed` hanno un produttore vivo (`ApplyEnvironmentChanges`, sezione ARCHI) e la forma
+	 * **identica** a queste due: stesso `SrcCell`/`TgtCell` per il bordo, stesso `Amount` come integrita'
+	 * residua, stessa `StructurePower` in ingresso. ⚠️ Ne segue che un ponte abbattuto da un colpo **non
+	 * ha un evento**, quindi nessuna cue e nessuna assenza dichiarabile: cioe' esattamente il difetto che
+	 * `#2828` chiude per le coperture, lasciato aperto per gli archi.
+	 *
+	 * 🔑 Non li aggiungo qui perche' la fetta non li ha misurati: un arco **non e' un bordo esagonale**, e
+	 * la sua presentazione non e' un segmento sul lato condiviso fra due celle adiacenti.
+	 * ⏱️ *Questa riga diceva «un arco attraversa due layer». Impreciso: `ERTHexTransitionKind` ammette
+	 * anche `Tunnel`, `Bridge` e `Jump` fra celle dello STESSO layer, e `AddTransition` non lo vieta. La
+	 * ragione dell'esclusione non e' la quota: e' che la geometria di un arco non e' quella di un lato.* Includerli in questo predicato darebbe loro un
+	 * evento e una cue pensata per un'altra geometria — il tipo di riuso che sembra economico e produce un
+	 * disegno sbagliato. Chi li aggiunge misuri il proprio caso e aggiorni questa riga.
+	 *
+	 * ⚠️ **Fallisce CHIUSO, all'opposto di `IsEnvironmentalDamage`**, e la differenza e' voluta. Li' una
+	 * causa nuova non elencata andava riconosciuta comunque, perche' il verso pericoloso era accreditare a
+	 * chi subisce; qui il verso pericoloso e' l'opposto — un outcome nuovo di copertura che entrasse da solo
+	 * produrrebbe un beat d'impatto per un fatto che impatto non e'. Chi aggiunge un terzo esito di *colpo*
+	 * lo aggiunga qui, e il test dei due canali glielo ricordera' restando verde solo se i conti tornano.
+	 */
+	static bool IsStructureHit(const FRTTurnLogEntry& Entry);
+
+	/**
 	 * La voce e' **danno che `UnitId` ha inflitto a qualcun altro**: la domanda di chi aggrega il danno per
 	 * unita', e la ragione per cui `#1150` esiste.
 	 *

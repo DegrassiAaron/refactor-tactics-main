@@ -56,14 +56,15 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	//   4 -> 5   2026-08-31   `AttackFootprint`   ([D-301], #1945)
 	//   5 -> 6   2026-09-04   `ReactionResolved`  (#2191)
 	//   6 -> 7   2026-09-04   `StatusChanged`     (#2245)
+	//   7 -> 8   2026-09-22   `StructureHit`      (#2828)
 	// Tre volte su tre e' fallita per prima e ha mandato a dichiarare la presentazione del valore nuovo.
 	//
 	// ⚠️ **Il messaggio elencava i valori per nome e si e' scollato dal numero**: diceva *«dichiara cinque
 	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
 	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
 	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
-	TestEqual(TEXT("ERTResolvedEventType dichiara sette valori: l'ultimo aggiunto ha una voce nella tabella?"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 7);
+	TestEqual(TEXT("ERTResolvedEventType dichiara otto valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 8);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
@@ -475,6 +476,10 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// ⌫ **Erano quattro fino al 2026-09-10.** `AttackFootprint` ha una cue (`#2454`): l'evento entra nel
 	// playback e il cancello della fase Blast conta anche le impronte. ⚠️ Se questa riga risale, qualcuno
 	// ha rimesso in attesa una voce sciolta: si cerchi chi, non si aggiorni il numero.
+	// ✅ **Invariato all'arrivo di `StructureHit` (`#2828`), ed e' un'osservazione, non un'omissione**: la
+	// voce nasce **con cue** (`AddPlaybackStructureHit`), quindi non entra fra le attese. ⚠️ Se qualcuno la
+	// declassasse a `PendingPresentation` questa riga diventerebbe rossa — che e' esattamente il servizio
+	// che il pin rende.
 	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 
@@ -496,6 +501,61 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 		OwnerDi(ERTResolvedEventType::ReactionResolved), FString(TEXT("#2454")));
 	TestEqual(TEXT("StatusChanged attende #2456"),
 		OwnerDi(ERTResolvedEventType::StatusChanged), FString(TEXT("#2456")));
+	// ✅ `StructureHit` nasce con cue, quindi NON ha un `PendingOwner`. Asserirlo vuoto e' cio' che impedisce
+	// di rimetterla in attesa in silenzio — stessa forma della riga di `AttackFootprint` qui sopra.
+	TestEqual(TEXT("StructureHit non attende nessuno: nasce con cue"),
+		OwnerDi(ERTResolvedEventType::StructureHit), FString());
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il colpo alla STRUTTURA ha la sua riga, e il censimento la vede — `#2828`.
+ *
+ * 🔴 **Prima non mancava una cue: mancava la RIGA, e con lei la possibilita' stessa di dichiarare
+ * un'assenza.** `ERTResolvedEventType` non aveva un valore per la struttura, quindi `DeclaredBindings()`
+ * non aveva una voce a cui appendere nulla, quindi `Presentation.AbsenceCensusIsPinned` — il gate che
+ * sorveglia proprio le assenze — **non aveva niente da sorvegliare**. Un muro poteva cadere e la timeline
+ * non lo sapeva, e nessun test poteva accorgersene: un'assenza che nessun censimento vede e' peggio di una
+ * dichiarata, perche' e' invisibile.
+ *
+ * ⚠️ **Questo test non chiede che esista una cue qualsiasi: chiede che sia QUELLA.** Asserire il solo
+ * `Kind == Cues` lascerebbe verde una voce che nomina un effetto mai scritto — la lista di intenzioni che
+ * `#2483` vieta. Il nome asserito qui e' una funzione che il C++ chiama davvero
+ * (`ARTHexMapActor::AddPlaybackStructureHit`, invocata da `ARTTurnManager::RevealPlaybackStructureHits`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStructureHitHasDeclaredBindingTest,
+	"RefactorTactics.Presentation.StructureHitHasDeclaredBinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationStructureHitHasDeclaredBindingTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Voce = Reale.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::StructureHit;
+	});
+
+	if (!TestNotNull(TEXT("✅ il colpo a struttura ha una riga nella tabella"), Voce))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("e la riga ha una CUE, non un'attesa"), Voce->Kind, ERTPresentationKind::Cues);
+	// ⛔ Il nome, non solo il numero: una cue inventata passerebbe un `Num() > 0` e mentirebbe al gate.
+	TestTrue(TEXT("e la cue e' AddPlaybackStructureHit, che il C++ chiama davvero"),
+		Voce->Cues.Contains(FName(TEXT("AddPlaybackStructureHit"))));
+
+	// 🔑 **La prova che il CENSIMENTO la vede**, che e' il difetto vero della issue: non basta che la voce
+	// esista, deve essere il gate a non avere piu' niente da segnalare su di lei.
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(Reale);
+	for (const FString& M : Mancanti)
+	{
+		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina StructureHit: %s"), *M),
+			M.Contains(TEXT("StructureHit")));
+	}
 
 	return true;
 }
