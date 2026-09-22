@@ -260,7 +260,10 @@ schermata di loadout, e `git grep -c "URTEquipmentData" -- Source/RefactorTactic
 > `MakeEquipmentAction` **non scrive mai** `DisplayName`, e `Heroes.EveryActionHasADisplayName` itera il
 > **catalogo eroi**, non le azioni equipaggiate. In ogni partita di default lo `Gadget.Sprinkler` di
 > `Hero.Muiren` e il `Gadget.PortableCover` / `Reaction.Cleanse` di `Hero.Branth` compaiono nel dock
-> **senza nome**: solo il tasto e la ricarica. Va tracciato a parte.
+> **senza nome**: solo il tasto e la ricarica.
+> ✅ **Tracciato da [#3275](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3275)**
+> (aperta il 2026-09-22), che porta la catena completa e la ragione per cui
+> `Heroes.EveryActionHasADisplayName` non lo vede: itera il **catalogo eroi**, non le azioni equipaggiate.
 
 ---
 
