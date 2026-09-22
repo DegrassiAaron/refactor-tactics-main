@@ -2560,6 +2560,18 @@ bool FRTPlaybackStructureHitConsumesResolvedEventTest::RunTest(const FString&)
  *
  * ⚠️ **Due mondi e non due riproduzioni dello stesso**: `FinishPlayback` ha gia' spento il canale quando
  * la prima finisce, e rigiocare la seconda sullo stesso mondo misurerebbe un turno diverso.
+ *
+ * ⛔ **CIECO a tutto cio' che muove le due run INSIEME, e va saputo prima di fidarsene.** L'invariante
+ * confronta due esecuzioni **fra loro**: un difetto che le altera entrambe nello stesso modo le lascia
+ * uguali, e questo gate verde. L'esempio non e' ipotetico — se il bordo arrivasse invertito alla
+ * presentazione (`StructureCell` e `StructureToward` scambiati al consumo), le due run sarebbero invertite
+ * tutt'e due e qui non cadrebbe niente.
+ *
+ * ∴ **e' un gate sulla VELOCITA', non sul contenuto.** Il contenuto lo presidiano
+ * `Playback.StructureHitConsumesResolvedEventWithoutRecomputing` e
+ * `Playback.StructureHitIsShownWhenNothingElseHappens`, che confrontano cio' che e' arrivato al map actor
+ * con cio' che l'evento **portava** — cioe' con una sorgente esterna alle run, che e' l'unica cosa che
+ * rende falsificabile un confronto fra pari.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayStructureHitIsPlaybackSpeedInvariantTest,
 	"RefactorTactics.Replay.StructureHitIsPlaybackSpeedInvariant",
