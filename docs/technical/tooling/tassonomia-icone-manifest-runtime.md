@@ -18,22 +18,23 @@ datato. Un numero senza comando non va copiato da qui: si rimisura.
 
 ## 1. Perché esiste
 
-Una chiave il cui segmento non è un valore di `ERTIconCategory` non è caricabile, e i punti che la fermano
-sono **due** — confonderli fa cercare il simbolo sbagliato:
+Una chiave il cui segmento non è un valore di `ERTIconCategory` non arriva nel catalogo. I punti in gioco
+sono **tre**, e **uno solo morde**:
 
 | Dove | Che cosa fa |
 |---|---|
-| `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) | itera `ERTIconCategory` e confronta il **capo** del percorso semantico. È il controllo che scarta un segmento sconosciuto nel percorso che **costruisce** l'id (`:71`, `:136`) |
-| `URTIconLibrary::ValidateIconCatalog` | confronta il **segmento** dentro l'`IconId` con la `Category` **dichiarata nella voce**, e ne pretende la corrispondenza |
+| 🔴 `CategoryForIcon()` — `Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp:36` | **È il gate che morde.** Itera `ERTIconCategory` cercando il prefisso `UI.Icon.<Nome>.`, torna `false` per un segmento sconosciuto, e il chiamante a `:255` **scarta la voce**. È questo che tiene `UI.Icon.Stat.Health` fuori dal catalogo costruito |
+| `URTIconLibrary::ValidateIconCatalog` | confronta il segmento dell'`IconId` con la `Category` **dichiarata nella voce**. ⚠️ **Sul percorso di build è vero per costruzione**: il commandlet *deduce* la categoria dall'id invece di dichiararla — *«Dedurla qui invece di dichiararla evita l'unico errore che un catalogo scritto a mano fa davvero: chiave giusta, categoria sbagliata»* — quindi il confronto non può fallire. Morde su un catalogo scritto a mano |
+| `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) | dice se un capo è una categoria dichiarata. ⛔ **Non scarta niente**: a `:71` il falso fa cadere nel ramo che **ri-qualifica** il percorso sotto `Action.` — `Gadget.Mine` diventa `UI.Icon.Action.Gadget.Mine`, chiave ben formata. Solo `:136` (`MakeActionIconFallbackId`) restituisce `NAME_None` |
 
-⚠️ **Il secondo non enumera l'enum, e non ne ha bisogno**: `FRTIconDef::Category` è un campo
-**tipizzato**, quindi una categoria fuori dall'enum non è nemmeno **esprimibile** in una voce di catalogo.
-Non è un avviso, è un rifiuto — e per due ragioni indipendenti. Il materiale di design usa segmenti che il runtime non ha, quindi una parte
+🔴 **La prima stesura di questa sezione ne elencava due, e sbagliava su entrambi**: attribuiva a
+`ValidateIconCatalog` un'enumerazione dell'enum che non fa, e a `IsDeclaredIconCategory` uno scarto che a
+`:71` non avviene. Il gate vero non era nominato affatto, e vive in un **altro modulo**
+(`RefactorTacticsEditor`): cercarlo in `RTIconLibrary.cpp` non lo trova. Il materiale di design usa segmenti che il runtime non ha, quindi una parte
 del manifest **non è innestabile così com'è**.
 
 D-031 dà il criterio, e non è estetico: *il catalogo risolve ciò che il gameplay produce come chiave*. La
-sua forma eseguibile è `URTIconLibrary::RequiredIconIds()`, che deriva le chiavi da **cinque** sorgenti di
-dati di gioco e da nessun elenco scritto a mano:
+sua forma eseguibile è `URTIconLibrary::RequiredIconIds()`, che deriva le chiavi da **cinque** famiglie:
 
 | Famiglia | Da dove il codice la deriva |
 |---|---|
@@ -42,6 +43,12 @@ dati di gioco e da nessun elenco scritto a mano:
 | `Status` | i figli registrati del tag `Status.` |
 | `Certainty` | i tre livelli di CP 11.2 |
 | `Identity` | `URTHeroCatalogLibrary::GetHeroIds()` più la relazione di squadra |
+
+⚠️ **Due delle cinque restano elenchi SCRITTI A MANO, per scelta dichiarata**: `Certainty` è un letterale
+di tre voci (`RTIconLibrary.cpp:220`) sopra cui il codice scrive *«la conclusione si ROVESCIA: l'elenco
+resta scritto a mano, per una ragione che prima non esisteva»*, e lo stesso vale per `Ally`/`Enemy` di
+`Identity` (`:253`). ⛔ **Il criterio non è dunque «esiste un'enumerazione automatica»** — letto così
+squalificherebbe `Certainty`, che la v0.1 spedisce — ma «**una macchina PRETENDE quelle chiavi**».
 
 `RefactorTactics.IconCatalog.V01CategoriesPopulated` pinna esattamente queste cinque come popolate e le
 altre come **vuote di proposito**, e il suo commento dice perché: *«una chiave che comparisse qui
@@ -54,16 +61,27 @@ deriverebbe le chiavi dai dati di gioco?** Non «il manifest la nomina».
 
 ## 2. Statuto della sorgente di design — risolto, e due premesse di #637 sono scadute
 
-🔴 **I sorgenti di design sono versionati dal 2026-08-19.** #637 è nata dichiarando che
+🔴 **I sorgenti di design sono versionati dal 2026-08-12 — e la misura di #637 è scaduta in CINQUE ORE,
+non in una settimana.** La issue è aperta alle **09:05Z**; il commit che mette quel materiale in git —
+`7dc8a25e`, *«wip(icone): metto al sicuro il consolidamento UI e Icon Visual Language»* — è delle
+**14:04Z** dello **stesso giorno**. La riga della issue era vera quando è stata scritta.
+
+~~I sorgenti di design sono versionati dal 2026-08-19.~~ #637 è nata dichiarando che
 `docs/src/design/icon/` era *untracked* e che non c'era *«una fonte stabile da riconciliare»*. Quel blocco
 non esiste più: [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165) ha spostato
 quell'area in `docs/research/design/icon/` con il commit `ce05ed76` — *«quattro aree di `docs/src` prendono
 il nome che dice cosa sono — solo move»*.
 
 ```
-git log -1 --format='%h %ad' --date=short --diff-filter=A -- docs/research/design/icon/CLAUDE_DESIGN_02_Icon_Manifest_v0.1.md
+git log --follow --format='%h %ad %s' --date=short -- docs/research/design/icon/CLAUDE_DESIGN_02_Icon_Manifest_v0.1.md | tail -1
+git ls-tree -r --name-only ce05ed76^ -- docs/src/design/icon/ | head -3   # erano gia' tracciati li'
 git ls-files docs/research/design/icon/ | wc -l
 ```
+
+⚠️ **`--follow` non è un dettaglio: è la differenza fra la data giusta e quella sbagliata.** Senza, git
+legge il rename come un'aggiunta e risponde **2026-08-19**, che è la data di `ce05ed76` — il commit che ha
+**spostato** l'area e il cui messaggio dice *«solo move»*. La prima stesura di questa sezione pubblicava
+quel comando **e** quella data, citando due righe sopra il «solo move» che la smentiva.
 
 ⚠️ **Versionati non significa vincolanti, e la differenza è la risposta alla domanda «con quale
 statuto».** `AGENTS.md` §2 elenca `docs/research/` fra ciò che **non è source of truth per default**. Quindi:
@@ -78,7 +96,8 @@ Questo è lo statuto, e non richiede una decisione nuova: lo fissa già `AGENTS.
 
 ⚠️ **Seconda premessa scaduta**: due caselle della DoD di #637 rimandano a `docs/src/README.md` per la
 regola *«un sorgente recepito non resta più qui: si sposta in `../archive/src/`»*. Quel file è stato
-rimosso da #1165 insieme all'area che lo conteneva, quindi quelle caselle **non sono eseguibili come
+cancellato da **`273c76a6`** il **2026-08-16** — tre giorni **prima** di `ce05ed76`, che quindi non può
+averlo rimosso: `git cat-file -e ce05ed76^:docs/src/README.md` risponde già *«does not exist»*. Quelle caselle **non sono eseguibili come
 scritte** — non si spuntano su un file che non esiste, e vanno riformulate sulla regola di `AGENTS.md` §2
 prima di poter essere dichiarate verdi.
 
@@ -127,11 +146,11 @@ grep -ohE 'UI\.Icon\.[A-Za-z]+\.[A-Za-z0-9_.]+' \
 | `Surface.*` | 8 | → **`Environment`** | *«superfici e terreni»* |
 | `Role.*` | 4 | → **`Identity`** | *«chi è: personaggio, **ruolo**…»* |
 | `Faction.*` | 2 | → **`Identity`** | idem — *«…**fazione**…»* |
-| `Boundary.*` | 2 | → **`Phase`** | confine di fase |
+| `Boundary.*` | 2 | → **`Phase`**, con una riserva | ⚠️ Le due chiavi sono `Boundary.Phase` e **`Boundary.Decision`**: solo la prima è un confine di fase. ⛔ Ed è la sola delle sei la cui ragione **non** è una citazione dell'enum — il commento di `ERTIconCategory::Phase` dice *«in quale fase del turno: Prep, Dash, Blast, Move»*, non parla di confini. `Boundary.Decision` tocca `ICON-TAX-5` e non si chiude qui |
 | `UI.*` | 6 | **esce dal catalogo** | è chrome, non semantica di gioco: D-031 risolve ciò che *il gameplay produce come chiave*, e un pulsante Undo non lo è |
 | `Effect.*` | 14 | **nessun valore d'enum richiesto** | [D-231](../../decisions/RT_PDR_00_Decision_Log.md): primitiva della **grammatica compositiva** |
 | `Geometry.*` | 7 | **nessun valore d'enum richiesto** | idem (`Shape`/`Geometry`) |
-| `Target.*` | 8 | **metà e metà** | `Ally`/`Enemy` → `Identity`; `Cell`/`Object`/`Direction`/`Structure` restano primitive di composizione ([D-231](../../decisions/RT_PDR_00_Decision_Log.md)) |
+| `Target.*` | 8 | **sei disposte, DUE NO** | `Ally`/`Enemy` → `Identity`; `Cell`/`Object`/`Direction`/`Structure` restano primitive di composizione ([D-231](../../decisions/RT_PDR_00_Decision_Log.md)). 🔴 **`Target.Self` e `Target.Objective` non le colloca nessuno**, e la seconda è la peggiore: `Objective` **è** un valore d'enum con un proprio segmento, quindi lo stesso concetto starebbe sotto due segmenti senza una regola che dica quale vince |
 
 Restano **sette** segmenti su cui nessuna fonte normativa si è pronunciata: `Stat` · `Gadget` · `Module` ·
 `Weapon` · `Decision` · `Timing` · `Result`.
@@ -147,7 +166,13 @@ ma **non arbitra** questi sette. Chi cercasse lì la risposta troverebbe un non-
 Per ognuno: il gameplay produce quel nome come **id**? Misurato il 2026-09-22 su `Source/`, esclusi i test.
 
 ```
-git grep -ohE '"<Segmento>\.[A-Za-z]+"' -- Source/ ':!Source/RefactorTactics/Tests/' | sort -u
+# gli alberi di test sono DUE: escluderne uno solo misura una popolazione diversa da quella dichiarata
+git grep -ohE '"<Segmento>\.[A-Za-z]+"' -- Source/ \
+  ':!Source/RefactorTactics/Tests/' ':!Source/RefactorTacticsEditor/Private/Tests/' | sort -u
+
+# 🔴 E il RIBALTAMENTO, che e' la meta' che conta: lo stesso comando col nome che il codice usa
+git grep -ohE '"Reaction\.[A-Za-z]+"' -- Source/RefactorTactics/Ability/RTCatalogLibrary.cpp | sort -u
+git grep -ownE 'VisionRange|NoiseAtCell|NoiseIdentificationLevel|ERTPredictiveOutcome' -- Source/ | head
 ```
 
 ### Hanno un'entità reale dietro — la decisione costa, perché i numeri dell'enum sono serializzati
@@ -155,11 +180,14 @@ git grep -ohE '"<Segmento>\.[A-Za-z]+"' -- Source/ ':!Source/RefactorTactics/Tes
 | Segmento | Chiavi | Cosa esiste nel codice |
 |---|---:|---|
 | **`Module`** | 7 | ✅ **tutti e sette**, sotto un altro nome: `Reaction.AllyIntercept`, `.Anchor`, `.Cleanse`, `.CounterShot`, `.EmergencyDash`, `.HazardEscape`, `.ReactiveShield` — gli `EquipmentId` che `URTCatalogLibrary::MakeReactionModules()` costruisce |
-| **`Gadget`** | 8 | ✅ con lo **stesso** nome: `Gadget.BreachCharge`, `.Insulator`, `.Medkit`, `.Mine`, `.PortableCover`, `.Sensor`, `.SmokeEmitter`, `.Sprinkler` |
-| **`Weapon`** | 6 | ✅ corrispondenza **esatta, prefisso compreso**: `Weapon.Environmental`, `.Impact`, `.Overcharge`, `.Precision`, `.Split`, `.Suppressive`. È l'unico dei sette in cui coincide anche il prefisso — `Module` coincide sui **nomi**, ma il codice li chiama `Reaction.*` |
+| **`Gadget`** | 8 | ✅ **sette su otto** con lo stesso nome: `Gadget.BreachCharge`, `.Insulator`, `.Medkit`, `.PortableCover`, `.Sensor`, `.SmokeEmitter`, `.Sprinkler`. Manca `Gadget.Anchor`, che il manifest nomina e il codice non ha |
+| **`Weapon`** | 6 | ✅ corrispondenza **esatta, prefisso compreso**: `Weapon.Environmental`, `.Impact`, `.Overcharge`, `.Precision`, `.Split`, `.Suppressive`. 🔴 **È l'unico dei sette in cui coincide l'INSIEME INTERO dei nomi**, prefisso compreso. ⚠️ Il prefisso da solo non lo distingue — anche `Gadget` ce l'ha uguale; ciò che `Weapon` ha di unico è che non avanza un nome né da una parte né dall'altra |
 
-🔴 **E le due liste `Gadget` divergono, in entrambi i versi.** Il codice ha `Gadget.Mine`, che il manifest
-non nomina; il manifest ha `Gadget.Anchor`, che il codice non ha. ⚠️ **`Gadget.Anchor` è anche una trappola
+🔴 **La divergenza `Gadget` è a UN verso solo**: il manifest ha `Gadget.Anchor`, che il codice non ha.
+⚠️ **La prima stesura ne dichiarava due**, contando anche un `Gadget.Mine` «del codice» — che vive solo in
+`Source/RefactorTacticsEditor/Private/Tests/RTLauncherScenarioBrowserTests.cpp`, cioè in una fixture.
+L'errore veniva dal comando qui sopra prima che fosse corretto: escludeva **un** albero di test su due,
+e il secondo è esattamente quello che ospita quella riga. ⚠️ **`Gadget.Anchor` è anche una trappola
 di nome**: `Reaction.Anchor` e `Gadget.Anchor` sarebbero due cose diverse con lo stesso nome, e
 `10-catalogo-sette-categorie.md` lo segnala già. Chi decide `Gadget` decide anche questo.
 
@@ -198,8 +226,12 @@ in verde e mente in modo permanente, perché i numeri dell'enum sono **serializz
 Decision Log: `RTIconCatalogData.h` lo scrive — *«aggiungere valori solo IN CODA: i numeri già serializzati
 negli asset non cambiano»*.
 
-⛔ **Non si aggiunge oggi una chiave in una delle sette categorie che #219 prescrive vuote**: fa fallire
-`RefactorTactics.IconCatalog.V01CategoriesPopulated`, che verifica **entrambe** le direzioni. È voluto.
+⛔ **Non si aggiunge oggi una chiave in una delle sette categorie che #219 prescrive vuote** — ma ⚠️ **il
+divieto morde solo dove si crede**. `V01CategoriesPopulated` costruisce il proprio insieme da
+`RequiredIconIds()`, **non** dalle voci del catalogo: una `FRTIconDef` aggiunta al data asset in una delle
+sette passa quel test, passa `ValidateIconCatalog` e passa `FindMissingRequiredIcons`. Il rosso arriva
+solo per una chiave che entra in `RequiredIconIds()`. 🔴 Scriverlo come divieto generale prometteva un
+rosso che non sarebbe arrivato — e `10-catalogo-sette-categorie.md` propone già una di quelle chiavi.
 
 ⛔ **Non si modifica `ERTIconCategory` per derivare una risposta.** Se una modifica all'enum sembra il modo
 di chiudere una riga di §5, la decisione è stata **dedotta invece che presa**.
@@ -213,6 +245,8 @@ di chiudere una riga di §5, la decisione è stata **dedotta invece che presa**.
   ([D-231](../../decisions/RT_PDR_00_Decision_Log.md)); dichiara `ERTIconCategory` fuori scope
 - `Source/RefactorTactics/UI/RTIconCatalogData.h` — l'enum e la regola di serializzazione
 - `Source/RefactorTactics/UI/RTIconLibrary.cpp` — `RequiredIconIds()` e `ValidateIconCatalog()`
+- 🔴 `Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp` — `CategoryForIcon()`:
+  **il punto che scarta davvero** una chiave col segmento fuori dall'enum. Vive in un altro modulo
 - `Source/RefactorTactics/Tests/RTIconCatalogTests.cpp` — `V01CategoriesPopulated` e gli altri gate
 - `docs/research/design/icon/` — il materiale di design: **versionato, non vincolante** (`AGENTS.md` §2)
 - [#266](https://github.com/DegrassiAaron/refactor-tactics-main/issues/266) — CP 25.1, che porta a spec la

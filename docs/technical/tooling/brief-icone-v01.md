@@ -10,18 +10,16 @@
 > | La fonte è | `URTIconLibrary::RequiredIconIds()`, che le **deriva dai dati di gioco** — catalogo azioni, tag di stato, fasi del turno, roster eroi | **questo documento**: nessun `RequiredColorTokens()` esiste in codice |
 > | Se diverge | ha ragione **il codice**: l'elenco qui è una fotografia | ha ragione **questa pagina**, ma vedi il vincolo qui sotto |
 >
-> ⚠️ **Il colore è provvisorio finché la sua sorgente non è versionata.** I token `RT_Sem_*` sono recepiti da
-> un file che non è in nessun branch, e la DoD dell'issue di riconciliazione lo dice: un sorgente non
-> versionato «non può essere citato come specifica». Questa sezione lo cita comunque — consapevolmente,
-> perché il batch della v0.1 non può aspettare — ma i valori si rileggono quando quella issue chiude.
+> ~~⚠️ **Il colore è provvisorio finché la sua sorgente non è versionata.** I token `RT_Sem_*` sono
+> recepiti da un file che non è in nessun branch, e la DoD dell'issue di riconciliazione lo dice: un
+> sorgente non versionato «non può essere citato come specifica».~~
 >
-> 🔴 **Corretto il 2026-09-22 — la premessa qui sopra è scaduta, e va letta con la data accanto.**
-> `02-color-system.md` **è versionato** dal 2026-08-19: [#1165](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1165)
-> ha spostato quell'area in [`../../research/design/icon/visual-language/02-color-system.md`](../../research/design/icon/visual-language/02-color-system.md)
-> con il commit `ce05ed76`, e [D-232](../../decisions/RT_PDR_00_Decision_Log.md) già lo cita per percorso.
-> ⚠️ **Versionato non è vincolante**: `AGENTS.md` §2 tiene `docs/research/` fuori dalle fonti autorevoli
-> per default, quindi ciò che vincola resta questa pagina, che lo **recepisce**. Ciò che cade è la ragione
-> del provvisorio — «un file che non è in nessun branch» — non la precedenza. Lo statuto sta in
+> 🔴 **Scaduta, e questa testata era l'ultimo posto a dirlo.** §Colore lo registra già — *«La clausola
+> «la sorgente non è versionata» è scaduta»* — con la sua misura: la riga qui sopra la contraddiceva
+> nello stesso riquadro. ⚠️ **E il colore resta comunque provvisorio, per un'altra ragione**:
+> [D-232](../../decisions/RT_PDR_00_Decision_Log.md) **supera** `02-color-system.md` §2 nella parte in cui
+> assegna il colore alle otto famiglie `RT_Sem_*` — cioè esattamente ciò che §Colore recepisce. Una voce
+> di Decision Log batte questa pagina; lo statuto della **sorgente** sta invece in
 > [`tassonomia-icone-manifest-runtime.md`](tassonomia-icone-manifest-runtime.md) §2.
 
 Regola di D-031: nessun widget referenzia una texture. Il gameplay produce una **chiave**, la UI la risolve nel
