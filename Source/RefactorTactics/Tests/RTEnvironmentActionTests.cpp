@@ -2235,6 +2235,70 @@ namespace
 		return S;
 	}
 
+	/**
+	 * Lo scenario del muro **ALTO**: il colpo non arriva a nessuno, e la barriera incassa lo stesso.
+	 *
+	 * 🔴 **E' il caso PRINCIPALE della issue, e quello dell'altro scenario non lo copre.**
+	 * `Action.CreateCover` erige una copertura **bassa** (integrita' 30), che non toglie la linea di tiro:
+	 * il colpo arriva al difensore, produce un `Attack`, e la fase `Blast` nascerebbe comunque. Qui il muro
+	 * e' **alto**, quindi `LineOfSightPolicy::Required` non e' soddisfatta e l'intento finisce in
+	 * `BlockedIntents`.
+	 *
+	 * 🔑 **La sequenza nel resolver e' cio' che rende il caso possibile**, ed e' misurata:
+	 * `RTHexCombatLibrary.cpp:391` raccoglie il danno alla struttura **prima** del controllo sulla linea di
+	 * tiro (`:560`), che fa `continue` **prima** dell'impronta (`:606`). ∴ la barriera incassa, e non
+	 * nascono ne' `Attack` ne' `AttackFootprint`: e' l'unica combinazione in cui la fase `Blast` dipende
+	 * davvero dal quarto termine di `BlastPhaseIsActive`.
+	 *
+	 * Muro alto (integrita' 50) sul bordo W di (1,0), attaccante in (0,0), bersaglio dietro in (2,0):
+	 * la stessa scena di `Cover.Destruction.LoggedInPlayedTurn`, che la usa per il TurnLog.
+	 */
+	FRTEnvBreachScenario EnvMakeWalledBreachScenario(int32 InStructurePower)
+	{
+		FRTEnvBreachScenario S;
+		S.World = MakeEnvWorld();
+		if (!S.World) { return S; }
+		S.MapActor = SpawnEnvMap(S.World);
+		if (!S.MapActor || !S.MapActor->MapAsset) { return S; }
+
+		S.Shielded = FRTCellId(1, 0);   // la cella che PORTA il muro
+		S.Attacker = FRTCellId(0, 0);   // oltre il bordo W
+
+		const FRTHexCellData* Esistente = S.MapActor->MapAsset->FindCell(S.Shielded);
+		if (!Esistente) { return S; }
+		// ⚠️ Si parte dalla cella ESISTENTE: costruirne una nuova con lo stesso `Id` sostituirebbe quella
+		// che l'arena ha posato, perdendone terreno e proprieta'.
+		FRTHexCellData ColMuro = *Esistente;
+		ColMuro.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+		S.MapActor->MapAsset->AddOrUpdateCell(ColMuro);
+		S.MapActor->MapAsset->SortCells();
+
+		S.Breacher = SpawnEnvUnit(S.World, 1, S.Attacker);
+		S.Defender = SpawnEnvUnit(S.World, 0, FRTCellId(2, 0));
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.Breacher || !S.Defender || !S.TM) { return S; }
+
+		S.Breacher->Abilities[0]->Def.Effects.Add(
+			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
+		S.Breacher->PlannedAbilityIndex = 0;
+		S.Breacher->PlannedAttackTarget = S.Defender;
+
+		S.bValid = true;
+		return S;
+	}
+
+	/** Quanti eventi di timeline di un dato tipo. */
+	int32 EnvCountTimelineType(const ARTTurnManager* TM, ERTResolvedEventType Type)
+	{
+		int32 N = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == Type) { ++N; }
+		}
+		return N;
+	}
+
 	/** Gli eventi di timeline che sono colpi a struttura. */
 	TArray<FRTResolvedEvent> EnvStructureHitEvents(const ARTTurnManager* TM)
 	{
@@ -2550,6 +2614,80 @@ bool FRTReplayStructureHitIsPlaybackSpeedInvariantTest::RunTest(const FString&)
 		TestEqual(TEXT("stesso esito"), AX4.Mostrati[I].bDestroyed, AX1.Mostrati[I].bDestroyed);
 	}
 
+	return true;
+}
+
+/**
+ * Il muro colpito si vede **anche quando non succede nient'altro** — `#2828`.
+ *
+ * 🔴 **E' il caso principale della issue, e nessun altro gate lo esercita.** Gli altri scenari usano una
+ * copertura **bassa**, che non toglie la linea di tiro: il colpo arriva, produce un `Attack`, e la fase
+ * `Blast` nascerebbe comunque. Qui il muro e' **alto** e ferma il colpo — che e' il caso piu' frequente,
+ * perche' quel muro e' anche l'unico bersaglio che l'attaccante puo' avere, visto che gli impedisce di
+ * vedere chiunque stia dietro.
+ *
+ * 🔑 **La sequenza che lo rende possibile e' misurata, non supposta**: `RTHexCombatLibrary.cpp:391`
+ * raccoglie il danno alla struttura **prima** del controllo sulla linea di tiro (`:560`), che fa `continue`
+ * **prima** dell'impronta (`:606`). ∴ la barriera incassa e non nasce ne' un `Attack` ne' un
+ * `AttackFootprint`.
+ *
+ * ⚠️ **Senza il quarto termine di `BlastPhaseIsActive` la fase non si aprirebbe**, e l'evento sparirebbe
+ * in silenzio: nessun log, nessun rosso. Il gate puro
+ * `Playback.BlastPhaseOpensForStructureHitOnly` prova che il predicato risponde bene; questo prova che il
+ * **cablaggio** ci arriva — ed e' la distinzione che il difetto ricorrente di questo repository
+ * («codice corretto che nessuno chiama») rende necessaria.
+ *
+ * ⛔ Le due premesse NON sono contorno: senza di esse il gate misurerebbe lo scenario sbagliato e
+ * resterebbe verde anche con il quarto termine rimosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackStructureHitIsShownWithNoVictimTest,
+	"RefactorTactics.Playback.StructureHitIsShownWhenNothingElseHappens",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackStructureHitIsShownWithNoVictimTest::RunTest(const FString&)
+{
+	// Muro alto (50), colpo 20 → residua 30: **danneggiato**, e il bersaglio dietro resta intatto.
+	FRTEnvBreachScenario S = EnvMakeWalledBreachScenario(/*InStructurePower=*/ 20);
+	if (!TestTrue(TEXT("scenario col muro alto costruito"), S.bValid))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	const FRTEnvPlaybackProbe Probe = EnvRunPlaybackProbingStructureHits(S.TM, S.MapActor);
+	TestFalse(TEXT("la risoluzione ha chiuso: nessuna riproduzione appesa"), Probe.bAppesa);
+
+	const TArray<FRTResolvedEvent> Colpi = EnvStructureHitEvents(S.TM);
+
+	// --- ⛔ LE DUE PREMESSE, senza cui il gate misura un altro scenario -----------------------------
+	//
+	// Se il muro non fermasse il colpo nascerebbe un `Attack`, e la fase `Blast` si aprirebbe per quello:
+	// il quarto termine diventerebbe irrilevante e il gate resterebbe verde anche rimuovendolo.
+	TestEqual(TEXT("⛔ premessa: il muro ha fermato il colpo, nessun Attack"),
+		EnvCountTimelineType(S.TM, ERTResolvedEventType::Attack), 0);
+	// E l'intento bloccato non lascia impronta: il `continue` della linea di tiro precede la sua emissione.
+	TestEqual(TEXT("⛔ premessa: intento bloccato, nessuna impronta"),
+		EnvCountTimelineType(S.TM, ERTResolvedEventType::AttackFootprint), 0);
+
+	// --- Il fatto ----------------------------------------------------------------------------------
+	if (!TestTrue(TEXT("la barriera ha incassato: c'e' un colpo a struttura in timeline"), Colpi.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// ✅ **L'asserzione del gate**: con zero colpi e zero impronte, la fase `Blast` esiste solo grazie al
+	// quarto termine — e se non esistesse questo evento non avrebbe un istante in cui essere mostrato.
+	TestTrue(TEXT("✅ e il playback lo ha MOSTRATO, benche' non sia successo nient'altro nel Blast"),
+		Probe.Mostrati.Num() > 0);
+
+	if (Probe.Mostrati.Num() > 0)
+	{
+		TestEqual(TEXT("sul bordo giusto"), Probe.Mostrati[0].Cell, S.Shielded);
+		TestEqual(TEXT("e verso l'attaccante"), Probe.Mostrati[0].Toward, S.Attacker);
+		TestFalse(TEXT("danneggiato, non abbattuto: 50 meno 20 regge"), Probe.Mostrati[0].bDestroyed);
+	}
+
+	DestroyEnvWorld(S.World);
 	return true;
 }
 
