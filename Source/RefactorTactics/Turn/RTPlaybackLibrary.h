@@ -220,6 +220,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
+		int32 NumStructureHits,
 		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**

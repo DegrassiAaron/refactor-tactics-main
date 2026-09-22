@@ -262,6 +262,18 @@ public:
 	 * `Category == Environment` darebbe un istante di *impatto* a una scadenza, cioe' mostrerebbe un colpo
 	 * che nessuno ha tirato.
 	 *
+	 * ⛔ **E i PONTI restano fuori, ed e' una scelta, non una svista.** `BridgeDamaged` e
+	 * `BridgeDestroyed` hanno un produttore vivo (`ApplyEnvironmentChanges`, sezione ARCHI) e la forma
+	 * **identica** a queste due: stesso `SrcCell`/`TgtCell` per il bordo, stesso `Amount` come integrita'
+	 * residua, stessa `StructurePower` in ingresso. ⚠️ Ne segue che un ponte abbattuto da un colpo **non
+	 * ha un evento**, quindi nessuna cue e nessuna assenza dichiarabile: cioe' esattamente il difetto che
+	 * `#2828` chiude per le coperture, lasciato aperto per gli archi.
+	 *
+	 * 🔑 Non li aggiungo qui perche' la fetta non li ha misurati: un arco attraversa **due layer** e la sua
+	 * presentazione non e' un segmento su un bordo esagonale. Includerli in questo predicato darebbe loro un
+	 * evento e una cue pensata per un'altra geometria — il tipo di riuso che sembra economico e produce un
+	 * disegno sbagliato. Chi li aggiunge misuri il proprio caso e aggiorni questa riga.
+	 *
 	 * ⚠️ **Fallisce CHIUSO, all'opposto di `IsEnvironmentalDamage`**, e la differenza e' voluta. Li' una
 	 * causa nuova non elencata andava riconosciuta comunque, perche' il verso pericoloso era accreditare a
 	 * chi subisce; qui il verso pericoloso e' l'opposto — un outcome nuovo di copertura che entrasse da solo

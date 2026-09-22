@@ -2388,16 +2388,32 @@ bool FRTTurnStructureHitEventMatchesTurnLogEntryTest::RunTest(const FString&)
 	TestEqual(TEXT("✅ tante voci quanti eventi: nessun canale ne perde o ne inventa"),
 		Eventi.Num(), Voci.Num());
 
-	for (int32 I = 0; I < FMath::Min(Voci.Num(), Eventi.Num()); ++I)
+	// ⛔ **Accoppiati per CONTENUTO, non per indice, e non e' pedanteria.** I due canali hanno ordini
+	// diversi per costruzione: `ConcludeTurn` passa il TurnLog da `URTTurnLogLibrary::SortTurnLog`, la cui
+	// chiave e' `(TurnNumber, Phase, Priority, Category, …)`, mentre `ResolvedTimeline` conserva l'ordine di
+	// emissione, che per le strutture e' quello di `ApplyStructureDamage`. Le due chiavi non hanno relazione.
+	//
+	// ⚠️ **Con UN solo colpo l'indice funziona e nasconde il difetto**, che e' il caso di questo scenario.
+	// Ma appena i colpi diventano due — un'area che investe due coperture, o una barriera dichiarata su
+	// entrambe le facce, che `ValidateMap` segnala come **Warning** e quindi ammette — l'accoppiamento per
+	// indice fallirebbe su codice CORRETTO, oppure passerebbe mentre i due canali divergono davvero.
+	// Entrambi i versi sono sbagliati, e il secondo e' quello che non si vede.
+	for (const FRTResolvedEvent& Ev : Eventi)
 	{
-		TestEqual(TEXT("stessa cella"), Eventi[I].StructureCell, Voci[I].SrcCell);
-		TestEqual(TEXT("stesso verso: insieme sono il bordo"), Eventi[I].StructureToward, Voci[I].TgtCell);
+		const FRTTurnLogEntry* Voce = Voci.FindByPredicate([&Ev](const FRTTurnLogEntry& V)
+		{
+			return V.SrcCell == Ev.StructureCell && V.TgtCell == Ev.StructureToward;
+		});
+		if (!TestNotNull(TEXT("ogni evento ha la sua voce, sullo stesso bordo"), Voce))
+		{
+			continue;
+		}
 		// ⚠️ `Amount` e' l'integrita' RESIDUA in entrambi i canali. Se un giorno uno dei due passasse al
 		// danno inferto, questa riga cadrebbe — ed e' cio' che deve fare.
-		TestEqual(TEXT("stessa integrita' residua"), Eventi[I].Amount, Voci[I].Amount);
+		TestEqual(TEXT("stessa integrita' residua"), Ev.Amount, Voce->Amount);
 		TestEqual(TEXT("stesso esito, senza appiattire [D-175]"),
-			static_cast<int32>(Eventi[I].EnvironmentOutcome), static_cast<int32>(Voci[I].Outcome));
-		TestEqual(TEXT("stesso attaccante"), Eventi[I].SourceStableUnitId, Voci[I].UnitId);
+			static_cast<int32>(Ev.EnvironmentOutcome), static_cast<int32>(Voce->Outcome));
+		TestEqual(TEXT("stesso attaccante"), Ev.SourceStableUnitId, Voce->UnitId);
 	}
 
 	// ⛔ E il ramo misurato e' proprio `CoverDamaged`: se lo scenario abbattesse la copertura invece di

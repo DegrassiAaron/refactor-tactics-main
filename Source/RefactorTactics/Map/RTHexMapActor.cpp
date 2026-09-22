@@ -1545,16 +1545,29 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		const FColor StructureColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
 		for (const FRTPlaybackStructureHit& Colpo : PlaybackStructureHits)
 		{
+			// ⚠️ **L'alzata e' quella della cella che PORTA la copertura, per entrambi gli estremi.**
+			// Prenderla da ciascuna delle due inclinerebbe il segno quando le celle hanno altezze diverse, e
+			// lo farebbe sprofondare del tutto sul bordo esterno dell'arena, dove `Toward` non e' nella mappa
+			// e `CellLift` risponde `0`. Il muro appartiene alla faccia che lo dichiara: e' la sua quota.
+			const float Alzata = CellLift(Colpo.Cell) + RTLiftPreview + 3.f;
 			const FVector CentroA = URTHexLibrary::AxialToWorld(Colpo.Cell, Origin, Size, LayerH)
-				+ FVector(0, 0, CellLift(Colpo.Cell) + RTLiftPreview + 3.f);
+				+ FVector(0, 0, Alzata);
 			const FVector CentroB = URTHexLibrary::AxialToWorld(Colpo.Toward, Origin, Size, LayerH)
-				+ FVector(0, 0, CellLift(Colpo.Toward) + RTLiftPreview + 3.f);
-			// Il segno sta SUL bordo, a meta' fra i due centri: una linea da centro a centro attraverserebbe
-			// due celle e somiglierebbe a una traiettoria, che e' un'altra frase.
+				+ FVector(0, 0, Alzata);
+
+			// 🔴 **PERPENDICOLARE all'asse fra i due centri, non lungo di esso.** Il bordo condiviso e' il
+			// lato che i due esagoni hanno in comune: sta a meta' strada e giace di traverso. Un segmento
+			// tracciato SULL'asse — anche corto, anche centrato — punta da una cella verso l'altra e si legge
+			// come una traiettoria, che e' un'altra frase.
+			// ⏱️ *La prima stesura faceva esattamente quello, e il commento accanto dichiarava di evitarlo.*
+			//
+			// La mezza lunghezza e' `d / (2√3)` perche' in una griglia esagonale il lato vale `d/√3`, con `d`
+			// la distanza fra centri adiacenti: cosi' il segno copre il lato intero e non lo sborda.
+			const FVector Asse = CentroB - CentroA;
 			const FVector Meta = (CentroA + CentroB) * 0.5f;
-			const FVector Mezzo = (CentroB - CentroA) * 0.25f;
-			DrawDebugLine(World, Meta - Mezzo, Meta + Mezzo, StructureColor, false, -1.f, SDPG_Foreground,
-				Colpo.bDestroyed ? 6.f : 3.f);
+			const FVector MezzoLato = FVector(-Asse.Y, Asse.X, 0.f) * (0.5f / FMath::Sqrt(3.f));
+			DrawDebugLine(World, Meta - MezzoLato, Meta + MezzoLato, StructureColor, false, -1.f,
+				SDPG_Foreground, Colpo.bDestroyed ? 6.f : 3.f);
 		}
 	}
 

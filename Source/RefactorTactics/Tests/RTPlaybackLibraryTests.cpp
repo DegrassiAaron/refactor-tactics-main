@@ -150,7 +150,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// accelerare i cilindri — che e' esattamente cio' che #1878 vieta.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Move: 2 s mostrati"), FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Move: nessuno slack"), FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 	}
@@ -158,7 +158,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Prep: un beat, e non mostra nulla. E' l'unica attesa comprimibile del sistema.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Prep, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
+			ERTMatchPhase::Prep, 0, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
 		TestTrue(TEXT("Prep: non mostra nulla"), FMath::IsNearlyEqual(T.Shown, 0.0f, RTTol));
 		TestTrue(TEXT("Prep: il beat e' tutto slack"), FMath::IsNearlyEqual(T.Slack, 0.3f, RTTol));
 	}
@@ -168,7 +168,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// scala a zero, questa fase durerebbe 0,5 s e tre colpi su quattro uscirebbero nello stesso frame.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: il tempo dei colpi e' mostrato, non atteso"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Blast: nessuno slack, nemmeno l'eccedenza dei colpi sulla spinta"),
@@ -180,7 +180,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: spinta dominante -> 3 s mostrati"),
 			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
 		TestTrue(TEXT("Blast: spinta dominante -> nessuno slack"),

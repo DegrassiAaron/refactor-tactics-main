@@ -208,7 +208,14 @@ struct FRTResolvedEvent
 	UPROPERTY()
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
-	/** Danno/scudo/durata secondo Type. */
+	/**
+	 * Danno/scudo/durata secondo `Type` — ⚠️ **tranne su `StructureHit`, dove e' l'INVERSO.**
+	 *
+	 * ⛔ Li' porta l'**integrita' RESIDUA** della barriera, non il danno inferto: e' la convenzione della
+	 * voce di TurnLog da cui il campo e' copiato. Chi somma questo campo per ottenere «quanto danno ha
+	 * fatto un'unita'» deve escludere `StructureHit`, o accredita a chi ha sparato cio' che il muro ha
+	 * RETTO. La riga sta qui e non solo sul valore d'enum perche' e' qui che la si legge.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	int32 Amount = 0;
 

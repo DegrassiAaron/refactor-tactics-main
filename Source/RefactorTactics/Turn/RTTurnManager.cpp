@@ -2959,6 +2959,23 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// un attaccante c'e': ha tirato lui. ⚠️ Ma puo' valere `0` — `AttackerId` arriva `INDEX_NONE` se il
 		// colpo non e' attribuibile, e `AppendLogEntry` scrive `0` quando l'Actor e' nullo: chi consuma lo
 		// legga come «nessuno» ([D-063]) e mai come l'unita' zero.
+		// 🔴 **REVISIONE PRIVACY, e non si chiude con `N/A`** (`CLAUDE.md` §7: ogni modifica alla event
+		// projection la richiede esplicita).
+		//
+		// Il precedente c'e' ed e' vicino: `AttackFootprint` porta gia' `SourceStableUnitId` sullo stesso
+		// canale e `BeginPlayback` non lo filtra. ⚠️ **Ma non e' lo stesso caso**, e la differenza e' questa
+		// fetta: l'impronta nasce a `RTHexCombatLibrary.cpp:606`, **dopo** il `continue` che scarta un intento
+		// senza linea di tiro; il danno alla struttura si raccoglie a `:391`, **prima**. ∴ esiste un caso che
+		// l'impronta non produce e questo evento si': **un attaccante invisibile che spara contro un muro alto
+		// e non colpisce nessuno**. Li' il suo `StableUnitId` e l'istante esatto del colpo entrano nella
+		// timeline senza che nessun verdetto li accompagni — `Entry.Verdict`, che `AppendLogEntry` congela a
+		// `:2761` proprio per dire chi puo' leggere il fatto, non viene copiato qui.
+		//
+		// ⛔ **NON lo risolvo indovinando un filtro.** La domanda vera — se il CAMBIAMENTO di una geometria
+		// pubblica sia pubblico, e se a non esserlo sia solo il suo AUTORE e il suo ISTANTE — e' una decisione
+		// di boundary, non una riga. Un filtro scritto di corsa su un canale di privacy e' peggio dell'assenza
+		// di filtro, perche' sembra una garanzia. La fetta consegna il momento; la decisione e' dichiarata
+		// nella PR come **REVISIONE RICHIESTA**, non archiviata.
 		Ev.SourceStableUnitId = Entry.UnitId;
 		// ⛔ **`TargetStableUnitId` resta `0` e non e' un buco da riempire**: il bersaglio e' un BORDO, e una
 		// copertura non ha uno `StableUnitId`. E' il punto che `Turn.StructureHitEventCarriesEdgeNotActor`
@@ -2966,6 +2983,13 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// riguardare la struttura.
 		Ev.StructureCell = Entry.SrcCell;
 		Ev.StructureToward = Entry.TgtCell;
+		// ⚠️ **Una barriera dichiarata su ENTRAMBE le facce produce DUE eventi per un colpo solo**, ed e'
+		// ereditato: `ApplyStructureDamage` chiama `DamageFace` sui due lati, e se entrambe le celle
+		// dichiarano la copertura nascono due `FRTCoverDamageResult` — quindi due voci di TurnLog, quindi due
+		// eventi, quindi due segmenti sovrapposti. ⛔ `ValidateMap` la classifica **Warning e non Error** (la
+		// faccia ridondante di [D-288] `GEO-7`), cioe' lo stato e' legale e una mappa d'autore puo' averlo.
+		// 🔴 I gate 1:1 non lo vedono, perche' i due canali raddoppiano INSIEME. Non lo dedup qui: la causa
+		// e' a monte e la presentazione non e' il posto dove riconciliare una geometria.
 		Ev.EnvironmentOutcome = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
 		Ev.Amount = Entry.Amount;
 		ResolvedTimeline.Add(Ev);
@@ -7496,6 +7520,15 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		}
 		else if (Ev.Type == ERTResolvedEventType::StructureHit)
 		{
+			// ⚠️ **NESSUN filtro su `Ev.Phase`, e oggi e' innocuo per un fatto, non per una garanzia.**
+			// L'unico produttore scrive `ERTMatchPhase::Blast` come letterale, quindi ogni evento che arriva
+			// qui e' di quella fase. ⛔ Ma questo ramo non lo VERIFICA: un secondo produttore in Cleanup — una
+			// barricata che brucia, una copertura temporanea che incassa un hazard — finirebbe comunque in
+			// `PlaybackStructureHits`, farebbe rispondere `true` a `BlastPhaseIsActive` e **inventerebbe una
+			// fase `Blast`** in un turno che non ne ha avuta una, mostrandovi dentro un fatto del Cleanup.
+			// 🔴 E' il rovescio esatto del «coperto per costruzione» che il sito di emissione rivendica:
+			// li' la copertura e' automatica, qui la CORRETTEZZA non lo e'. Chi aggiunge quel produttore
+			// aggiunga la guardia, o sposti la rivelazione fuori dal ramo `if (Ph == Blast)` di `TickPlayback`.
 			// ⛔ **Nessun filtro di conoscenza, e per la stessa ragione dell'impronta qui sopra**: il soggetto
 			// e' un BORDO, cioe' terreno, non occupazione. Un muro che cade non rivela chi ci stava dietro —
 			// e chi ci stava dietro resta coperto dal velo, che e' un canale suo.
@@ -7672,6 +7705,13 @@ void ARTTurnManager::EnterPlaybackPhase()
 	PlaybackPhaseElapsed = 0.f;
 	AttacksShown = 0;
 	FootprintsShown = 0;
+	// ⚠️ **Si azzera a ogni FASE, ma `ARTHexMapActor::PlaybackStructureHits` lo svuota solo
+	// `FinishPlayback`.** Oggi non si vede perche' `Blast` compare al massimo una volta in `PlaybackPhases`
+	// e il ramo `bPreserveClock` salta questa funzione. ⛔ Ma l'invariante non e' difeso da niente: un
+	// passo-indietro che rientrasse nel `Blast`, o un `PlaybackPhases` che lo contenesse due volte,
+	// ri-aggiungerebbe ogni colpo e disegnerebbe ogni segmento due volte. Chi introduce uno dei due
+	// svuoti anche il canale dell'actor, o leghi il contatore alla fase invece che al turno.
+	// ℹ️ Vale identico per `FootprintsShown` qui sopra, da `#2454`.
 	StructureHitsShown = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
@@ -8375,7 +8415,7 @@ FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) co
 	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi.
 	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, PlaybackAttacks.Num(),
-		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
+		PlaybackStructureHits.Num(), PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
 }
 
 float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
