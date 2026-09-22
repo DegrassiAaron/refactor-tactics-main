@@ -159,11 +159,24 @@ public:
 	 * colpi, quel turno non apriva la fase — quindi non esisteva un istante in cui disegnarla, ed e'
 	 * esattamente il caso che `D-301` esiste per far esistere.
 	 *
+	 * 🔴 **E `NumStructureHits` non e' un quarto modo di dirlo, per la stessa ragione un passo piu' in
+	 * la'** (`#2828`). Un colpo che abbatte un muro e non ferisce nessuno produce zero `Attack`, zero
+	 * spinta e — se il muro alto fermava la linea di tiro — puo' non produrre nemmeno un'impronta su una
+	 * cella occupata. Senza questo termine la fase non si apriva, quindi l'evento non aveva un istante in
+	 * cui essere mostrato: cioe' **esattamente il difetto che `#2828` esiste per chiudere**, ricomparso un
+	 * livello piu' sotto. ⚠️ E sarebbe stato muto: nessun log, nessun rosso, solo un evento che non
+	 * compare mai.
+	 *
+	 * ⛔ **Nessuna somma e nessuna soglia: le ragioni sono INDIPENDENTI**, e basta che una sia vera.
+	 * Sommarle per «misurare quanto succede» aprirebbe la fase sugli stessi casi e chiuderebbe quelli con
+	 * un solo fatto, che sono precisamente quelli per cui i termini sono stati aggiunti.
+	 *
 	 * ⚠️ Pura di proposito: la decisione si prova senza mondo, senza Actor e senza PIE. Chi la cambia
 	 * cambia la **durata** di un turno, che e' cio' che i test di pacing sorvegliano.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints);
+	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
+		int32 NumStructureHits);
 
 	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.

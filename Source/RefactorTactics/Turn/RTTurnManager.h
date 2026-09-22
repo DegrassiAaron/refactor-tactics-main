@@ -2263,6 +2263,15 @@ protected:
 	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
 	 */
 	void RevealPlaybackFootprints(int32 UpTo);
+
+	/**
+	 * Rivela i primi `UpTo` colpi a struttura del Blast corrente, senza mai tornare indietro (`#2828`).
+	 *
+	 * ⛔ **Non riordina, non aggrega e non ricalcola il bordo**: consuma `PlaybackStructureHits` nell'ordine
+	 * in cui il resolver li ha prodotti, e il bordo lo LEGGE dall'evento. Chiederlo alla mappa sarebbe la
+	 * seconda risposta a una domanda gia' risolta — ed e' il divieto che la issue scrive per intero.
+	 */
+	void RevealPlaybackStructureHits(int32 UpTo);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -3178,6 +3187,16 @@ private:
 	TArray<FRTResolvedEvent> PlaybackFootprints;
 
 	/**
+	 * I colpi alle STRUTTURE del Blast corrente, in ordine di risoluzione (`#2828`).
+	 *
+	 * 🔴 **Array proprio, per la stessa ragione di `PlaybackFootprints` e un passo piu' in la'.** Un
+	 * `Attack` ha per soggetto un'unita'; questo ha per soggetto un **bordo**, che non ha uno
+	 * `StableUnitId` da mettere in `TargetStableUnitId`. Fonderli costringerebbe chi consuma a chiedere a
+	 * ogni evento «sei un'unita' o un muro?», che e' la logica nella presentazione che [D-278] vieta.
+	 */
+	TArray<FRTResolvedEvent> PlaybackStructureHits;
+
+	/**
 	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
 	 *
 	 * 🔴 **Esiste perche' `IsHidden()` non puo' piu' fare da guardia** (#2452). Fino al 2026-09-05
@@ -3209,6 +3228,7 @@ private:
 	float PlaybackElapsedTotal = 0.f;
 	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
 	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
+	int32 StructureHitsShown = 0;           // colpi a struttura gia' rivelati nel Blast corrente (`#2828`)
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.

@@ -201,6 +201,30 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 		TEXT("a IsStatusBirth, e sappia che Status.Electrified nasce e non muore mai."),
 		TEXT("#2456")));
 
+	// StructureHit — la copertura colpita o abbattuta, `#2828`. **Con cue**, non in attesa.
+	//
+	// 🔴 **Mancava il VALORE, non solo il momento, ed e' la differenza con le tre voci qui sopra.** Quelle
+	// dichiarano un'assenza di cue; questa non poteva nemmeno essere dichiarata, perche' non c'era una riga
+	// a cui appenderla: `ERTResolvedEventType` non aveva un valore per la struttura, quindi
+	// `Presentation.AbsenceCensusIsPinned` non aveva niente da sorvegliare. Un'assenza che nessun censimento
+	// vede e' peggio di una dichiarata: e' invisibile.
+	//
+	// 🔑 **Nasce gia' sciolta perche' il caso di `AttackFootprint` si ripete identico un passo piu' in
+	// la'.** Li' mancava il momento e `#2454` lo ha costruito aggiungendo il terzo termine al cancello di
+	// fase; qui un muro abbattuto senza vittime da' zero `Attack`, zero spinta e — se il muro alto fermava
+	// la linea di tiro — puo' non dare nemmeno un'impronta: e' il quarto termine, `NumStructureHits`.
+	// Senza, l'evento esisterebbe e non avrebbe una fase in cui accadere, cioe' lo stesso difetto che
+	// `#2828` chiude, ricomparso sotto.
+	//
+	// ⛔ `AddPlaybackStructureHit` riceve il bordo COSI' COME ARRIVA — due celle e l'esito, copiati
+	// dall'evento. Nessun `FirstCoveredEdge` e nessun `EdgeDirection` nella presentazione: e' il divieto che
+	// `#2828` scrive per intero, e la forma che [D-278] impone all'intero layer.
+	//
+	// ⚠️ **Graybox, e la voce lo dice perche' nessuno la erediti come finita**: un segmento sul bordo, piu'
+	// spesso se e' caduto. Detriti e crolli sono `#1848` (E51, v0.2).
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::StructureHit,
+		{ FName(TEXT("AddPlaybackStructureHit")) }));
+
 	return Out;
 }
 

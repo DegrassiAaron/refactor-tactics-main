@@ -2911,6 +2911,65 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		Ev.Origin = Entry.SrcCell;
 		ResolvedTimeline.Add(Ev);
 	}
+
+	// `#2828`: il colpo alla STRUTTURA sull'altro canale, terza riga con la stessa forma delle due sopra.
+	// La voce e' appena stata scritta e porta gia' tutto — il bordo in `SrcCell`/`TgtCell`, l'integrita'
+	// residua in `Amount`, l'esito in `Outcome`, chi ha colpito in `UnitId` — quindi qui non si decide
+	// nulla: si COPIA.
+	//
+	// 🔴 **Il valore non esisteva, e nemmeno l'ASSENZA era censita.** Ai due capi il dato c'era da
+	// sempre — `FRTStructureHit` nel resolver, `CoverDamaged`/`CoverDestroyed` nel TurnLog — e fra i due
+	// non c'era niente: nessun `ERTResolvedEventType`, quindi nessuna riga in `DeclaredBindings()` a cui
+	// appendere una dichiarazione, quindi `Presentation.AbsenceCensusIsPinned` non aveva nulla da
+	// sorvegliare. Un muro poteva cadere e la timeline non lo sapeva.
+	//
+	// 🔑 **Perche' QUI e non in `ApplyEnvironmentChanges`, dove la voce nasce.** ⚠️ Oggi quel produttore
+	// e' UNO SOLO — misurato, non supposto: `git grep CoverDamaged\|CoverDestroyed` fuori dai test da' una
+	// sola scrittura, `RTTurnManager_Blast.cpp` — quindi le due posizioni sono equivalenti *oggi*, e non
+	// pretendo il contrario. La differenza e' domani: da qui un secondo produttore e' coperto **per
+	// costruzione**, ed e' esattamente cio' che le due righe sopra hanno gia' incassato una volta ciascuna
+	// (`ShakenOff` per lo stato, il `Status.Burning` del Cleanup per l'hazard). ⛔ E i due canali non
+	// possono divergere, perche' il secondo DERIVA dal primo invece di essere una seconda fonte da tenere
+	// allineata a mano.
+	//
+	// ⚠️ **`Amount` e' l'integrita' RESIDUA, non il danno inferto**, e su `Attack` lo stesso campo
+	// significa l'opposto. E' la convenzione della voce gemella (`RTTurnLogLibrary.cpp`, la resa testuale
+	// di `CoverDamaged` la dichiara), e cambiarla qui renderebbe i due canali non confrontabili — che e' la
+	// ragione per cui `HazardDamage` copia il danno NOMINALE invece degli HP persi.
+	//
+	// ⛔ **`Ev.ActionId` resta `NAME_None`, ed e' un LIMITE, non una scelta elegante.** L'identita'
+	// dell'azione non arriva fin qui e non per dimenticanza: `AccumulateStructureHit` **somma per bordo** i
+	// colpi di piu' intenti, quindi su un bordo colpito da due azioni non esiste *una* azione da nominare —
+	// e infatti `FRTStructureHit::AttackerId` documenta di portare «chi ha colpito per primo in ordine
+	// canonico», che e' la stessa ammissione un campo piu' in la'. ⚠️ La conseguenza va detta perche' e'
+	// silenziosa: `NextActionBoundary` guarda `ActionId` e solo quello, quindi `Next Action` **non si ferma**
+	// su un muro che cade. Portarcela significherebbe propagare l'azione lungo `FRTStructureHit` →
+	// `FRTCoverDamageResult` e decidere cosa farne quando sono due: e' lavoro suo, non di questa riga.
+	//
+	// ⚠️ Come per le due righe sopra, `ResolvedTimeline` e' playback e **non entra ne' in `StateHash` ne'
+	// nel formato di replay**: `CaptureFinalStateHash` passa da `HashMatchState(Map, UnitDigests,
+	// TeamScores)`, e la timeline non e' fra i suoi ingressi. Verificato prima di aggiungere il valore
+	// all'enum, come `#2191` prescrive.
+	if (URTTurnLogLibrary::IsStructureHit(Entry))
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = Entry.Phase;
+		Ev.Type = ERTResolvedEventType::StructureHit;
+		// 🔑 **`Source` e non `Target`, ed e' il verso della riga di STATO, non quello dell'hazard.** Qui
+		// un attaccante c'e': ha tirato lui. ⚠️ Ma puo' valere `0` — `AttackerId` arriva `INDEX_NONE` se il
+		// colpo non e' attribuibile, e `AppendLogEntry` scrive `0` quando l'Actor e' nullo: chi consuma lo
+		// legga come «nessuno» ([D-063]) e mai come l'unita' zero.
+		Ev.SourceStableUnitId = Entry.UnitId;
+		// ⛔ **`TargetStableUnitId` resta `0` e non e' un buco da riempire**: il bersaglio e' un BORDO, e una
+		// copertura non ha uno `StableUnitId`. E' il punto che `Turn.StructureHitEventCarriesEdgeNotActor`
+		// sorveglia — il giorno in cui qualcuno ci mettesse l'unita' piu' vicina, il fatto smetterebbe di
+		// riguardare la struttura.
+		Ev.StructureCell = Entry.SrcCell;
+		Ev.StructureToward = Entry.TgtCell;
+		Ev.EnvironmentOutcome = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
+		Ev.Amount = Entry.Amount;
+		ResolvedTimeline.Add(Ev);
+	}
 }
 
 void ARTTurnManager::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
@@ -7355,6 +7414,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackFootprints.Reset();
+	PlaybackStructureHits.Reset();
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	// 🔴 **La squadra di chi GUARDA, e il playback si tronca su di essa** (`#1525`, [D-223]). Stessa porta
@@ -7434,6 +7494,16 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			// diventerebbe un canale e andrebbe filtrata come il prefisso osservato del `Move` qui sopra.
 			PlaybackFootprints.Add(Ev);
 		}
+		else if (Ev.Type == ERTResolvedEventType::StructureHit)
+		{
+			// ⛔ **Nessun filtro di conoscenza, e per la stessa ragione dell'impronta qui sopra**: il soggetto
+			// e' un BORDO, cioe' terreno, non occupazione. Un muro che cade non rivela chi ci stava dietro —
+			// e chi ci stava dietro resta coperto dal velo, che e' un canale suo.
+			// ⚠️ **E nessun `Src` richiesto**, a differenza del `Move`: quel ramo pretende `Src` perche' deve
+			// muovere un cilindro, qui il fatto riguarda la mappa e resta vero anche se chi ha sparato e'
+			// morto nello stesso Blast. Pretendere l'Actor perderebbe proprio i colpi dei caduti.
+			PlaybackStructureHits.Add(Ev);
+		}
 	}
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
@@ -7451,7 +7521,8 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// vuote»: zero vittime -> zero `Attack` -> senza questo termine la fase non nasceva, e non esisteva
 	// un istante in cui disegnare (`#2454`). La decisione sta in una funzione pura perche' cambia la
 	// DURATA di un turno, ed e' cio' che i test di pacing sorvegliano.
-	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove, PlaybackFootprints.Num()))
+	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove,
+		PlaybackFootprints.Num(), PlaybackStructureHits.Num()))
 	{
 		PlaybackPhases.Add(ERTMatchPhase::Blast);
 	}
@@ -7569,11 +7640,39 @@ void ARTTurnManager::RevealPlaybackFootprints(int32 UpTo)
 	}
 }
 
+void ARTTurnManager::RevealPlaybackStructureHits(int32 UpTo)
+{
+	const int32 Target = FMath::Min(UpTo, PlaybackStructureHits.Num());
+	if (StructureHitsShown >= Target)
+	{
+		return;
+	}
+	// ⚠️ L'actor si cerca UNA volta per chiamata e non per colpo, come nella gemella `RevealPlaybackFootprints`.
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	while (StructureHitsShown < Target)
+	{
+		const FRTResolvedEvent& Colpo = PlaybackStructureHits[StructureHitsShown];
+		if (MapActor)
+		{
+			// ⛔ **Si passa cio' che l'evento PORTA, e nient'altro.** Il bordo e' gia' deciso: non si chiama
+			// `FirstCoveredEdge`, non si chiede alla mappa cosa ci fosse su quel lato, non si converte in
+			// `ERTHexDirection` con `EdgeDirection`. Ognuna delle tre sarebbe una seconda risposta a una
+			// domanda che la simulazione ha gia' chiuso, ed e' il divieto esplicito di `#2828`.
+			MapActor->AddPlaybackStructureHit(Colpo.StructureCell, Colpo.StructureToward,
+				Colpo.EnvironmentOutcome == ERTEnvironmentOutcome::CoverDestroyed);
+		}
+		// ⚠️ **Il contatore avanza anche senza `MapActor`**, come nella gemella: senza schermo il fatto e'
+		// comunque consumato, e un contatore fermo farebbe ripassare il catch-all sugli stessi colpi.
+		++StructureHitsShown;
+	}
+}
+
 void ARTTurnManager::EnterPlaybackPhase()
 {
 	PlaybackPhaseElapsed = 0.f;
 	AttacksShown = 0;
 	FootprintsShown = 0;
+	StructureHitsShown = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
 	OnPhasePlaybackStarted.Broadcast(Ph);
@@ -7913,6 +8012,12 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		RevealPlaybackFootprints(URTPlaybackLibrary::AttacksToShow(
 			PlaybackFootprints.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
 
+		// I muri cadono con lo stesso scaglionamento e un contatore proprio (`#2828`). ⚠️ **Stessa
+		// funzione di ritmo, non un tempo suo**: `AttacksToShow` e' il contro-termine di `PhaseDuration`,
+		// e un ritmo diverso farebbe finire i colpi a struttura fuori dalla finestra che la fase riserva.
+		RevealPlaybackStructureHits(URTPlaybackLibrary::AttacksToShow(
+			PlaybackStructureHits.Num(), PlaybackPhaseElapsed, AttackShowSeconds));
+
 		const int32 ShouldShow = URTPlaybackLibrary::AttacksToShow(
 			PlaybackAttacks.Num(), PlaybackPhaseElapsed, AttackShowSeconds);
 		while (AttacksShown < ShouldShow)
@@ -7990,6 +8095,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			// Chi non ha fatto in tempo a comparire compare adesso: una fase compressa dal budget non deve
 			// PERDERE un fatto, deve solo mostrarlo piu' in fretta.
 			RevealPlaybackFootprints(PlaybackFootprints.Num());
+			RevealPlaybackStructureHits(PlaybackStructureHits.Num());
 
 			while (AttacksShown < PlaybackAttacks.Num())
 			{
@@ -8214,11 +8320,17 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackDefeated.Reset();
 	PlaybackFootprints.Reset();
 	FootprintsShown = 0;
+	PlaybackStructureHits.Reset();
+	StructureHitsShown = 0;
 	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
 	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
 	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		FootprintMap->ClearPlaybackFootprint();
+		// ⛔ **Anche i muri caduti si spengono qui, e passa di qui pure `SkipPlayback`** (`#2828`): il
+		// segno e' il CAMBIAMENTO, e un cambiamento che sopravvive al turno torna a essere «lo stato dopo»
+		// — cioe' quel che si vedeva prima che questo evento esistesse.
+		FootprintMap->ClearPlaybackStructureHits();
 	}
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca

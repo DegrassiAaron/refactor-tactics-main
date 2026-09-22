@@ -84,7 +84,42 @@ enum class ERTResolvedEventType : uint8
 	 *
 	 * ⚠️ **In CODA, come `AttackFootprint` e `ReactionResolved`**, e per la stessa ragione già scritta sopra.
 	 */
-	StatusChanged
+	StatusChanged,
+
+	/**
+	 * Una **struttura** è stata colpita: danneggiata o abbattuta (`#2828`). `StructureCell`/`StructureToward`
+	 * dicono quale bordo, `EnvironmentOutcome` dice l'esito, `Amount` dice **quanta integrità le resta**.
+	 *
+	 * 🔴 **Il colpo alla struttura non aveva un istante in cui essere mostrato, e nemmeno l'assenza era
+	 * censita.** Ai due capi il dato esisteva già — `FRTStructureHit` nel resolver, `CoverDamaged`/
+	 * `CoverDestroyed` nel TurnLog — e fra i due non c'era niente: nessun valore qui, quindi nessuna riga in
+	 * `DeclaredBindings()` a cui appendere una dichiarazione d'assenza, quindi
+	 * `Presentation.AbsenceCensusIsPinned` non aveva nulla da sorvegliare. Un'assenza che nessun censimento
+	 * vede è peggio di una dichiarata: è invisibile. Senza questo valore il giocatore vedeva *lo stato dopo*
+	 * — la geometria cambiata — e mai il **cambiamento**, che è il difetto che `#2453` isola per la v0.1.
+	 *
+	 * ⚠️ **Non confondere con `FRTStructureHit`, che ha quasi lo stesso nome e non è la stessa cosa.**
+	 * Quella struct è il danno **raccolto** durante la fase, sommato per bordo e non ancora applicato
+	 * (`Amount` = danno inferto); questo evento nasce dal **risultato**, `FRTCoverDamageResult`, dopo che
+	 * `ApplyStructureDamage` ha deciso. ⛔ Chi consuma legga `Amount` come *«quanto ne resta»*, mai come
+	 * *«quanto le è stato tolto»* — è la convenzione del TurnLog, da cui questo campo è copiato, e su
+	 * `Attack` lo stesso campo significa l'opposto.
+	 *
+	 * 🔑 **Il soggetto è un BORDO, non un Actor**, e per questo `TargetStableUnitId` resta `0`: una
+	 * copertura non è un'unità e non ha uno `StableUnitId` da portare. `SourceStableUnitId` è chi ha
+	 * colpito. La coppia di celle è il bordo — la stessa convenzione che il TurnLog usa in `SrcCell`/
+	 * `TgtCell` e che `FRTStructureHit` dichiara, invece di un campo «quale lato».
+	 *
+	 * 🔑 **Emesso dall'unico punto in cui la voce di log viene scritta**, come `StatusChanged` e
+	 * `HazardDamage`: i due canali non possono divergere perché il secondo **deriva** dal primo. ⚠️ Oggi il
+	 * produttore di quelle voci è uno solo (`ApplyEnvironmentChanges`), quindi emettere lì o qui sarebbe
+	 * equivalente — *oggi*. Da `AppendLogEntry` un secondo produttore aggiunto domani è coperto **per
+	 * costruzione**, ed è la sola differenza fra le due posizioni che sopravvive al prossimo che tocca il file.
+	 *
+	 * ⚠️ **In CODA, come i tre valori sopra**, e per la stessa ragione già scritta: è un `uint8` esposto a
+	 * Blueprint, e inserirlo in mezzo rinumererebbe in silenzio ogni default già serializzato.
+	 */
+	StructureHit
 };
 
 /**
@@ -332,6 +367,46 @@ struct FRTResolvedEvent
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	TArray<FName> SourceStatusNames;
+
+	// --- Solo per `StructureHit` (`#2828`). Di default per ogni altro `Type`. ---
+
+	/**
+	 * La cella che **porta** la voce di copertura. Con `StructureToward` identifica il bordo colpito.
+	 *
+	 * ⛔ **Copiata, non ricalcolata**, ed è il divieto che la issue scrive per intero: chi consuma **non
+	 * deve** richiedere alla mappa quale bordo sia stato colpito né ripassare da `FirstCoveredEdge`. La
+	 * coppia arriva da `FRTCoverDamageResult`, che l'ha già decisa. È la stessa disciplina che `HitCells`
+	 * dichiara per l'impronta ([D-301]) e che [D-278] impone all'intero layer.
+	 *
+	 * 🔑 **Due celle e non `(cella, direzione)`**, perché è la convenzione che il dato ha già ai due capi:
+	 * `FRTStructureHit` la dichiara (*«la coppia di celle identifica il bordo senza bisogno di una
+	 * direzione»*) e il TurnLog la scrive così. Convertire qui in `ERTHexDirection` costringerebbe a
+	 * chiamare `EdgeDirection`, cioè a ricalcolare in presentazione ciò che la simulazione sapeva già.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId StructureCell;
+
+	/** La cella **oltre** il bordo colpito. Con `StructureCell` fa il bordo; copiata, come lei. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId StructureToward;
+
+	/**
+	 * PERCHÉ la struttura è cambiata, con la tassonomia che il TurnLog usa già: `CoverDamaged` o
+	 * `CoverDestroyed`.
+	 *
+	 * 🔴 **Un enum e non un `bool bDestroyed`, perché [D-175] distingue TRE cose e un bool ne appiattisce
+	 * due.** La distruzione non è la scadenza (`CoverExpired`) e non è lo spostamento (`CoverMoved`): sono
+	 * tre modi diversi in cui una copertura smette di essere dov'era, e il TurnLog li separa da prima di
+	 * questo evento. Ridurli qui a *«caduta / non caduta»* butterebbe informazione **già registrata** e
+	 * creerebbe la seconda definizione di una tassonomia che ha già un owner — lo stesso argomento con cui
+	 * `StatusOutcome` rifiuta di ridursi ad *«applicato/finito»*.
+	 *
+	 * ⚠️ **Il default è `CoverDamaged` e NON significa «danneggiata»**: significa *«nessuno l'ha
+	 * valorizzato»*, come su ogni altro `Type`. Un enum senza valore neutro non ne ha uno migliore, ed è la
+	 * stessa scomodità che `StatusOutcome` porta col suo `AppliedByAction`. Si legge solo su `StructureHit`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	ERTEnvironmentOutcome EnvironmentOutcome = ERTEnvironmentOutcome::CoverDamaged;
 
 	FRTResolvedEvent() = default;
 };

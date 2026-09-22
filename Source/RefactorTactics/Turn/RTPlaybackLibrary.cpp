@@ -44,11 +44,13 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 	return FMath::Min(NumAttacks, 1 + FMath::FloorToInt(Elapsed / AttackShowSeconds));
 }
 
-bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints)
+bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
+	int32 NumStructureHits)
 {
-	// Tre ragioni indipendenti, e la terza e' quella nuova: un'impronta senza vittime e' comunque un fatto
-	// avvenuto nel Blast. ⛔ Nessuna somma e nessuna soglia: basta che UNA sia vera.
-	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0;
+	// Quattro ragioni indipendenti, e la quarta e' quella nuova: un muro abbattuto senza vittime e senza
+	// impronta su cella occupata e' comunque un fatto avvenuto nel Blast (`#2828`). ⛔ Nessuna somma e
+	// nessuna soglia: basta che UNA sia vera.
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0;
 }
 
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,

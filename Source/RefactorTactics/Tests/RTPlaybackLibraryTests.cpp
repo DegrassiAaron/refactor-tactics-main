@@ -677,23 +677,67 @@ bool FRTPlaybackBlastPhaseOpensForFootprintOnlyTest::RunTest(const FString&)
 {
 	// Il caso nuovo, e il solo che prima falliva.
 	TestTrue(TEXT("una impronta senza colpi apre il Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1));
+		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1,
+			/*NumStructureHits=*/ 0));
 
 	// ⚠️ **La controprova, senza la quale il test sopra non prova niente**: il vuoto deve restare vuoto.
 	// Un `return true` costante passerebbe la prima asserzione e fallirebbe questa.
 	TestFalse(TEXT("niente colpi, niente spinta, niente impronte: nessun Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0));
 
 	// Le due ragioni preesistenti non sono state indebolite.
 	TestTrue(TEXT("un colpo apre il Blast, come prima"),
-		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0));
 	TestTrue(TEXT("una spinta apre il Blast, come prima"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0));
 
-	// ⛔ Nessuna soglia e nessuna somma: le tre ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
+	// ⛔ Nessuna soglia e nessuna somma: le ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
 	// "misurare quanto succede", questa riga resterebbe verde e la precedente cadrebbe — ed e' voluto.
-	TestTrue(TEXT("le tre ragioni insieme aprono il Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2));
+	// ⏱️ *Erano tre fino al 2026-09-22: `#2828` ha aggiunto i colpi a struttura.*
+	TestTrue(TEXT("le quattro ragioni insieme aprono il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4));
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` si apre anche per un solo **muro abbattuto**, senza colpi e senza impronta — `#2828`.
+ *
+ * 🔴 **E' lo stesso difetto di `#2454` un passo piu' in la', e sarebbe stato MUTO.** Un colpo che
+ * abbatte una copertura e non ferisce nessuno produce zero `Attack` e zero spinta; e se a fermare il colpo
+ * era il muro ALTO — il caso principale, perche' quel muro e' anche l'unico bersaglio possibile visto che
+ * impedisce di vedere chi sta dietro — non c'e' nemmeno un'impronta su una cella occupata. Senza il quarto
+ * termine la fase non si apriva: l'evento esisteva, entrava nella timeline, e **non aveva un istante in cui
+ * essere mostrato**. Cioe' esattamente il difetto che `#2828` esiste per chiudere, ricomparso un livello
+ * sotto quello che stava chiudendo.
+ *
+ * ⚠️ **Nessun log e nessun rosso lo avrebbero detto.** Un evento che non trova la sua fase non fallisce:
+ * sparisce. E' la stessa classe di scarto silenzioso del filtro per tipo su `CellVerdicts`, ed e' la
+ * ragione per cui questo caso si pinna invece di fidarsi della lettura del codice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest,
+	"RefactorTactics.Playback.BlastPhaseOpensForStructureHitOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest::RunTest(const FString&)
+{
+	// Il caso nuovo, e il solo che prima falliva: un muro cade e nient'altro accade.
+	TestTrue(TEXT("un colpo a struttura senza vittime ne' impronte apre il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false,
+			/*NumFootprints=*/ 0, /*NumStructureHits=*/ 1));
+
+	// ⚠️ **La controprova, senza la quale l'asserzione sopra non prova niente**: il vuoto resta vuoto.
+	// Un `return true` costante passerebbe la prima e fallirebbe questa.
+	TestFalse(TEXT("niente di niente: nessun Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0));
+
+	// ⛔ **Il termine e' INDIPENDENTE, non un rinforzo degli altri tre.** Se qualcuno lo legasse a uno di
+	// essi — "conta le strutture solo se ci sono impronte" — la prima asserzione cadrebbe e questa no.
+	TestTrue(TEXT("e non indebolisce le tre ragioni preesistenti"),
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0)
+		&& URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0)
+		&& URTPlaybackLibrary::BlastPhaseIsActive(0, false, 1, 0));
 
 	return true;
 }

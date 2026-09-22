@@ -248,6 +248,29 @@ public:
 	static bool IsEnvironmentalDamage(const FRTTurnLogEntry& Entry);
 
 	/**
+	 * La voce e' un **colpo a una struttura**: una copertura danneggiata o abbattuta (`#2828`).
+	 *
+	 * 🔑 **Esiste perche' la domanda abbia UN owner, e non perche' il test fosse scomodo da scrivere.**
+	 * `AppendLogEntry` la usa per emettere `ERTResolvedEventType::StructureHit`, e il gate che confronta i
+	 * due canali la usa per contare le voci dal lato del TurnLog. Riscriverla a mano da una delle due parti
+	 * ne farebbe una seconda copia, e i due canali tornerebbero a poter divergere proprio nel punto in cui
+	 * il test dichiara che non possono — e' [D-098].
+	 *
+	 * ⛔ **Due outcome e non «tutto cio' che riguarda una copertura»**, ed e' [D-175] a chiederlo:
+	 * `CoverExpired` (e' scaduto il timer) e `CoverMoved` (si e' spostata) sono altri due modi in cui una
+	 * barriera smette di essere dov'era, e **nessuno dei due e' un colpo**. Allargare questo predetto a
+	 * `Category == Environment` darebbe un istante di *impatto* a una scadenza, cioe' mostrerebbe un colpo
+	 * che nessuno ha tirato.
+	 *
+	 * ⚠️ **Fallisce CHIUSO, all'opposto di `IsEnvironmentalDamage`**, e la differenza e' voluta. Li' una
+	 * causa nuova non elencata andava riconosciuta comunque, perche' il verso pericoloso era accreditare a
+	 * chi subisce; qui il verso pericoloso e' l'opposto — un outcome nuovo di copertura che entrasse da solo
+	 * produrrebbe un beat d'impatto per un fatto che impatto non e'. Chi aggiunge un terzo esito di *colpo*
+	 * lo aggiunga qui, e il test dei due canali glielo ricordera' restando verde solo se i conti tornano.
+	 */
+	static bool IsStructureHit(const FRTTurnLogEntry& Entry);
+
+	/**
 	 * La voce e' **danno che `UnitId` ha inflitto a qualcun altro**: la domanda di chi aggrega il danno per
 	 * unita', e la ragione per cui `#1150` esiste.
 	 *
