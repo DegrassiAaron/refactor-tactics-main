@@ -640,7 +640,10 @@ di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nes
 >
 > ⛔ **Il Cleanse REATTIVO resta, ed è il rischio di lettura della decisione**: `Reaction.Cleanse` (base
 > `Action.Purge`) è il modulo di reazione di default di `Hero.Branth`
-> ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e annulla `Root` e `Slow` **in arrivo**. Lo pinna
+> ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e annulla **in arrivo** lo stato di controllo più grave fra quelli che sta
+> ricevendo. ⚠️ **Sono tre, non due**: `URTReactionLibrary::ControlStatusesBySeverity()` restituisce
+> `Stunned` · `Root` · `Slow`, da [D-416](../decisions/RT_PDR_00_Decision_Log.md) (2026-09-14), che ha
+> fatto cadere il vecchio pin `Reaction.ControlStatusesAreTwo`. Lo pinna
 > `RefactorTactics.Equipment.Cleanse.CancelsControl`. ⚠️ **Non** i test `RefactorTactics.Reactions.Cleanse.*`,
 > che a dispetto del nome esercitano l'**attiva** (`AddCoreAbilityInSlot(..., "Action.Cleanse")`).
 >

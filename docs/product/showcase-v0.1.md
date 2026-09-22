@@ -119,6 +119,9 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 - il **Dash lineare che termina sul ghiaccio non scivola** (lo scivolamento è nel Move normale);
 - 🔴 **`Action.Cleanse` — la Principale — non è fra ciò su cui la showcase può appoggiarsi.** La riga
   «Reazioni» qui sopra la elenca, e quella misura è del **2026-08-08**: il **2026-08-30**
+  ⚠️ **E quella riga nomina due cose diverse con una parola sola**: la sua colonna «Dove» punta a
+  `Turn/RTReactionLibrary.*`, dove vive il Cleanse **reattivo**; l'attiva si risolve altrove (`ResolveCleanseActions`,
+  `Turn/RTTurnManager_Blast.cpp`). Questo limite parla **solo** della Principale.
   [D-264](../decisions/RT_PDR_00_Decision_Log.md) l'ha tolta dalla v0.1 (`#1403`), e `PlannedCleansePriority`
   non avrà un produttore. ⛔ Resta invece il Cleanse **reattivo** — `Reaction.Cleanse`, modulo di default di
   `Hero.Branth` — che è una cosa diversa e va in campo;

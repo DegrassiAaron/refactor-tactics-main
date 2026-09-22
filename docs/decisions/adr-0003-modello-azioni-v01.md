@@ -212,7 +212,8 @@ resta generico: le manca un produttore, non una regola.
 > ⛔ **Il Cleanse reattivo non è toccato** — `Reaction.Cleanse`, base `Action.Purge` — ed è il rischio di
 > lettura che `D-264` dichiara esplicitamente.
 >
-> ⚠️ **E il tracker che questa riga nomina non è più aperto**:
+> ⚠️ **E il tracker non è più aperto — lo nomina il riquadro [D-315] qui sopra, non il
+> paragrafo superato**:
 > [#1389](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1389) è **chiusa dal 2026-08-27**.
 > Il registro della decisione è `D-264`; la parte ancora aperta è `#1403`, sull'azione irraggiungibile.
 
