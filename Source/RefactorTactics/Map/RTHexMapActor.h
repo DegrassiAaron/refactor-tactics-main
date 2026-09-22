@@ -791,6 +791,28 @@ public:
 	void SetPreviewSightBlock(bool bBlocked, const FRTCellId& From, const FRTCellId& BlockedAt);
 
 	/**
+	 * L'ORACOLO del tratto rifiutato nel mondo — `#2742`, aperto da `#3064`.
+	 *
+	 * 🔑 **Nascono perche' quel canale non aveva UNA sola asserzione automatica**:
+	 * `grep -rn "SetPreviewSightBlock" Source/RefactorTactics/Tests/` non trovava un solo file, e cio' che
+	 * nessun test legge si rompe in silenzio — che e' come il difetto di `#3064` e' arrivato fin qui. Sono i
+	 * gemelli di `NumPreviewHitCells()` e `IsPreviewHitCell()` e hanno lo stesso contratto: leggono lo stato
+	 * REALE che il disegno consuma, non un contatore parallelo che passerebbe anche sbagliando.
+	 *
+	 * ⛔ **Si interroga `HasPreviewSightBlock()`, non `GetPreviewSightBlockedAt().IsValid()`**: `(0,0,0)`
+	 * soddisfa l'invariante cubica ed e' indistinguibile da «nessun blocco». E' la stessa trappola che il
+	 * campo `bHasPreviewSightBlock` documenta per il disegno, e un test che leggesse l'id marcherebbe
+	 * l'origine dell'arena in ogni mondo in cui non c'e' alcun blocco.
+	 */
+	bool HasPreviewSightBlock() const { return bHasPreviewSightBlock; }
+
+	/** L'origine del tratto correntemente mostrato. Ha senso solo con `HasPreviewSightBlock()` vero. */
+	const FRTCellId& GetPreviewSightFrom() const { return PreviewSightFrom; }
+
+	/** Dove il tratto si ferma. Ha senso solo con `HasPreviewSightBlock()` vero. */
+	const FRTCellId& GetPreviewSightBlockedAt() const { return PreviewSightBlockedAt; }
+
+	/**
 	 * L'impronta a terra di un colpo **gia' risolto**, durante il playback — `#2454`, `D-301`.
 	 *
 	 * 🔑 **Canale distinto da quello di pianificazione, e la distinzione e' di CICLO DI VITA.**

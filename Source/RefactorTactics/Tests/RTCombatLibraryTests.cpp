@@ -647,4 +647,79 @@ bool FRTOutOfRangeDiagnosticNamesAppliedLimitTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Ogni motivo del classificatore ha una traduzione DICHIARATA — `#3064`.
+ *
+ * 🔴 **Nasce perche' la garanzia che il commento prometteva non esiste.** Lo `switch` di `RefusalForReason`
+ * non ha `default:`, e il commento diceva che `-Wswitch` avrebbe rotto la build: MSVC emette C4061/C4062,
+ * la build non li alza, e in `ARTHUD::RefusalText` due valori sono entrati a due issue di distanza fino a
+ * far ASSERIRE il gioco (`#3080`). Da `#3064` la tabella e' sul percorso ordinario di OGNI click a cella,
+ * quindi la posta e' piu' alta, non piu' bassa.
+ *
+ * ⛔ **Il confronto viene PRIMA di ogni chiamata**, come in `HUD.RefusalTextCoversEveryOutcome`: un motivo
+ * scoperto ucciderebbe il runner dentro `checkNoEntry()`, e un processo morto non riporta il proprio
+ * fallimento. Qui si fallisce prima di sparare, e il messaggio nomina il valore mancante.
+ *
+ * ⚠️ Si passa il flag di conoscenza a `true` perche' questa e' una prova sulla TABELLA: col flag a
+ * `false` ogni motivo collasserebbe su `Nothing` e il test sarebbe verde per un valore qualsiasi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRefusalCoversEveryReasonTest,
+	"RefactorTactics.Combat.RefusalCoversEveryReason",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRefusalCoversEveryReasonTest::RunTest(const FString&)
+{
+	// La tabella ATTESA, dichiarata qui e non derivata dal codice sotto prova: una tabella che si
+	// ricalcolasse dall'implementazione sarebbe verde per definizione.
+	struct FAtteso { ERTHexTargetReason Reason; ERTTargetRefusal Refusal; };
+	const TArray<FAtteso> Attesi = {
+		{ ERTHexTargetReason::Ok,            ERTTargetRefusal::None       },
+		{ ERTHexTargetReason::NoMap,         ERTTargetRefusal::Nothing    }, // fail-closed
+		{ ERTHexTargetReason::OutOfRange,    ERTTargetRefusal::Range      },
+		{ ERTHexTargetReason::NoLineOfSight, ERTTargetRefusal::Cover      },
+		{ ERTHexTargetReason::TooClose,      ERTTargetRefusal::TooClose   },
+		{ ERTHexTargetReason::OtherLayer,    ERTTargetRefusal::OtherLayer },
+	};
+
+	const UEnum* Enum = StaticEnum<ERTHexTargetReason>();
+	if (!TestNotNull(TEXT("la reflection conosce ERTHexTargetReason"), Enum)) { return false; }
+
+	// `NumEnums() - 1`: l'ultima voce e' il `_MAX` sintetico che UHT aggiunge, e non e' un motivo.
+	const int32 Valori = Enum->NumEnums() - 1;
+	if (!TestTrue(TEXT("anti-vacuita': la reflection vede almeno un valore"), Valori > 0)) { return false; }
+
+	TArray<FString> NonElencati;
+	for (int32 i = 0; i < Valori; ++i)
+	{
+		const ERTHexTargetReason R = static_cast<ERTHexTargetReason>(Enum->GetValueByIndex(i));
+		if (!Attesi.ContainsByPredicate([R](const FAtteso& A) { return A.Reason == R; }))
+		{
+			NonElencati.Add(Enum->GetNameStringByIndex(i));
+		}
+	}
+	if (!TestTrue(*FString::Printf(TEXT("ogni motivo ha una traduzione dichiarata; scoperti: [%s]"),
+		*FString::Join(NonElencati, TEXT(", "))), NonElencati.Num() == 0))
+	{
+		return false; // ⛔ non si prosegue: chiamare da qui in poi sarebbe fatale
+	}
+	TestEqual(TEXT("la tabella non porta motivi fantasma"), Attesi.Num(), Valori);
+
+	// --- E ora si chiama, con la certezza che nessun motivo sia scoperto -------------------------------
+	for (const FAtteso& A : Attesi)
+	{
+		const FString Nome = Enum->GetNameStringByValue(static_cast<int64>(A.Reason));
+		TestEqual(*FString::Printf(TEXT("%s si traduce come dichiarato"), *Nome),
+			URTCombatLibrary::RefusalForObserver(A.Reason, /*bTargetKnownToObserver=*/ true), A.Refusal);
+
+		// ⛔ **`Nothing` e' riservato al velo e al fail-closed.** Un motivo che ci finisse per sbaglio
+		// tacerebbe a schermo (`RefusalText` restituisce la stringa vuota) e sembrerebbe privacy: e' il modo
+		// piu' silenzioso in cui questa tabella puo' rompersi.
+		if (A.Reason != ERTHexTargetReason::NoMap)
+		{
+			TestTrue(*FString::Printf(TEXT("%s non collassa sul silenzio del velo"), *Nome),
+				A.Refusal != ERTTargetRefusal::Nothing);
+		}
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

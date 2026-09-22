@@ -837,9 +837,9 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 // dimenticanza** (rilievo di code review, 2026-09-21).
 //
 //   - **`CanTarget` non puo' differire, e asserirlo sarebbe una tautologia.**
-//     `URTCombatLibrary::CanTargetHexCell` (`Combat/RTCombatLibrary.h:532`) e' una riga sola —
+//     `URTCombatLibrary::CanTargetHexCell` (`Combat/RTCombatLibrary.h`) e' una riga sola —
 //     `return ClassifyHexTargeting(Map, From, To, RangeCells, Policy) == ERTHexTargetReason::Ok;`
-//     (`RTCombatLibrary.cpp:250`) — e la sua firma non porta **nessuno** snapshot, **nessuna** unita',
+//     (`Combat/RTCombatLibrary.cpp`) — e la sua firma non porta **nessuno** snapshot, **nessuna** unita',
 //     **nessuna** occupazione. I tre mondi differiscono solo per `Snapshot.Occupancy`: un confronto a tre
 //     mondi su quella chiamata passerebbe **anche a filtro rotto**, cioe' sarebbe precisamente il difetto
 //     che questo file denuncia due volte (vedi `ReachableFanOffersNeverObservedCells`). Il punto in cui la
@@ -867,7 +867,7 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 //                                                               Occupied · OutOfBudget · NoRoute
 //
 //     NON ENTRANO, e il motivo e' diverso per ciascuno
-//       ERTTargetRefusal       (`Combat/RTCombatLibrary.h:71`)
+//       ERTTargetRefusal       (`Combat/RTCombatLibrary.h`)
 //       ERTMoveOutcome         (`Turn/RTTurnLog.h:448`)
 //
 // **Perche' `ERTHexWaypointReason` e `ERTHexProbeExclusion` entrano.** Sono i due reason code che il
@@ -880,14 +880,22 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 // di cui il giocatore non ha diritto di sapere che sia occupata.
 //
 // **Perche' `ERTTargetRefusal` NON entra, pur essendo un reason code di Planning.** E' il solo dei quattro
-// gia' progettato per la privacy: `RefusalForObserver` (`Combat/RTCombatLibrary.h:580`) prende il verdetto
+// gia' progettato per la privacy: `RefusalForObserver` (`Combat/RTCombatLibrary.h`) prende il verdetto
 // interno **piu' il flag di conoscenza** e collassa su `Nothing`, che esiste apposta per non distinguere
-// cella vuota da cella con ignoto. ⛔ Ma la coppia `ClassifyHexTargeting` + `RefusalForObserver` non e'
-// composta da una funzione pura: la compone `ARTPlayerController` (`Player/RTPlayerController.cpp:324-328`),
-// e `MakePlanPreview` il valore lo **copia** dall'ingresso (`Turn/RTPlanPreview.cpp:151`). Un banco headless
-// potrebbe solo ricomporla qui — cioe' aprire una **seconda sede** della stessa regola, che e' il difetto
-// che `#711` e [D-242] esistono per impedire. ∴ resta fuori **per costruzione del banco**, non perche' sia
-// pulito, ed e' un `FOLLOW-UP CANDIDATE` di `#2793`: il suo canary vive dove la coppia si compone.
+// cella vuota da cella con ignoto.
+//
+// ⌫ **Fino a `#3064` la motivazione era un'altra, ed e' scaduta.** Diceva: *«la coppia
+// `ClassifyHexTargeting` + `RefusalForObserver` non e' composta da una funzione pura: la compone
+// `ARTPlayerController` […] ∴ resta fuori per costruzione del banco»*, e lo dichiarava `FOLLOW-UP
+// CANDIDATE` di `#2793` — *«il suo canary vive dove la coppia si compone»*. Per il percorso a CELLA la
+// composizione **e' ora una funzione pura**, `URTCombatLibrary::DescribeCellTargetRefusal`, e quel canary
+// e' stato scritto: `RefactorTactics.BlindFire.CellRefusalIsNotAnEnemyDetector`, che confronta a due mondi
+// l'esito, il testo carattere per carattere e i tre campi del tratto interrotto, attraverso il controller.
+//
+// ∴ oggi `ERTTargetRefusal` resta fuori **da questo banco** perche' il banco lavora su snapshot e non su un
+// controller — non piu' perche' la regola non sia isolabile. Portarlo nel confronto a tre mondi e' diventato
+// possibile per il percorso a cella, ed e' un `FOLLOW-UP CANDIDATE` con un costo noto: chiamare
+// `DescribeCellTargetRefusal` sui tre mondi e confrontarne i campi, senza ricomporre nulla.
 //
 // **Perche' `ERTMoveOutcome` NON entra, e perche' la DoD lo nominava.** Il corpo di `#2793` lo elenca fra
 // le *«almeno tre famiglie»* di reason code. Misurato: **non e' un canale di Planning**. E' l'esito del

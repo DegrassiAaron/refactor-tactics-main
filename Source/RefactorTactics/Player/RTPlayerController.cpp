@@ -1570,6 +1570,34 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		RefusalHud->SetTargetRefusal(ERTTargetRefusal::None, INDEX_NONE);
 	}
 
+	// ➕ **E CON LA FRASE MUORE IL SUO TRATTO, nello stesso punto e per la stessa ragione** (`#3064`).
+	//
+	// 🔴 **Il difetto che chiude, misurato per lettura**: `SetPreviewSightBlock` aveva **un solo** chiamante
+	// di produzione — il ramo di rifiuto in fondo a `HandleClickOnUnit`, dopo sei uscite anticipate — quindi
+	// un click su una cella, o un piano riuscito, non lo raggiungevano mai. Sequenza riproducibile:
+	// bersaglio coperto → tratto acceso; click altrove → «Coperto» sparisce **e il segmento resta**,
+	// indefinitamente, perche' l'actor lo riemette a ogni `Tick`. `RefreshPlanningPreview(World, nullptr)`
+	// spegne ventaglio, area, mira, rotta e timeline, ma non questo canale — e non viene chiamata a ogni
+	// click.
+	//
+	// 🔑 **`ARTHexMapActor::SetPreviewSightBlock` dichiara gia' che «lo fa ogni click che non finisce in
+	// copertura — inclusa la selezione a vuoto»: queste righe sono cio' che rende vera quella frase** invece
+	// di lasciarla una dichiarazione. Un solo punto per due canali significa **una sola durata**, che e'
+	// quanto `#3064` chiede — non due stati di presentazione che si scollano appena il giocatore cambia idea.
+	//
+	// ⚠️ **Qui e non in `RefreshPlanningPreview`**: la durata dichiarata e' *«vive finche' il giocatore non
+	// fa un altro click»*, e un altro click e' **questo punto**, non il sottoinsieme dei click che finiscono
+	// in un piano. ⚠️ Eredita anche il limite della frase: le uscite che precedono questo punto valgono per
+	// entrambi i canali, quindi con una modale aperta nessuno dei due si azzera. E' preferibile a due durate
+	// diverse, ed e' detto invece che scoperto in PIE.
+	//
+	// ⚠️ **Costa una ricerca di actor per click.** `FindInWorld` itera gli actor del mondo; una volta per
+	// click, accanto a un raycast, e' il prezzo di avere una sola durata per i due canali.
+	if (ARTHexMapActor* RefusalHexMap = ARTHexMapActor::FindInWorld(GetWorld()))
+	{
+		RefusalHexMap->SetPreviewSightBlock(/*bBlocked=*/ false, FRTCellId(), FRTCellId());
+	}
+
 	// 🔴 **Il colpo a vuoto NON esce piu' di qui** (`#3063`). Questo `return` rendeva il click su una cella
 	// MAI OSSERVATA un non-evento: nessun piano, nessun rifiuto, nessuna riga di log. Una cella mai vista non
 	// ha geometria da colpire — il velo le da' scala zero ([D-225]) — quindi il trace fallisce e la cella
@@ -3555,10 +3583,18 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 
 	// La legalita' la CHIEDE al servizio autorevole, non la calcola. Nota: si valida la CELLA, non l'unita'
 	// che ci sta sopra — un'area si centra dove si vuole, anche su un varco vuoto.
+	//
+	// ⌫ **Il valore di ritorno non si scarta piu'** (`#3064`): e' l'`ARTHexMapActor` su cui vive il tratto
+	// di tiro interrotto (`#2742`), e cercarlo una seconda volta piu' sotto sarebbe una seconda risposta
+	// alla stessa domanda. La chiamata era gia' qui; cambia solo che qualcuno la ascolta.
 	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
-	HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
 	if (!Map || !Map->ContainsCell(Cell))
 	{
+		// ⚠️ **Questo ramo resta muto a schermo, ed e' dichiarato invece che dimenticato**: `ERTTargetRefusal`
+		// non ha un valore per «fuori mappa», e inventarne uno vuol dire un `case` in `RefusalText`, una riga
+		// nella tabella di `HUD.RefusalTextCoversEveryOutcome` e una frase d'autore — cioe' un'altra issue.
+		// Dal click non e' raggiungibile: `HandleClickOnCell` risolve la cella sulla mappa prima di arrivare.
 		UE_LOG(LogRT, Log, TEXT("[RT] Bersaglio a cella fuori mappa"));
 		return false;
 	}
@@ -3569,17 +3605,105 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// invece che dato per scontato. Un'abilita' `NotRequired` puo' cosi' centrare una cella non visibile —
 	// granata, mortaio, velo — mentre ogni altra continua a essere rifiutata come prima.
 	//
-	// ⛔ **E il rifiuto NON diventa piu' informativo per questo.** Questa funzione non guarda chi sta sulla
-	// cella: valida `ContainsCell` e la geometria, e basta. Due mondi che differiscono solo per un nemico
-	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso esito e lo stesso log — che e'
-	// l'invariante di `#2791` applicata al targeting, e cio' che `BlindFireIsNotAnEnemyDetector` pinna.
-	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
+	// ⌫ **`ClassifyHexTargeting` non si chiama piu' direttamente da qui** (`#3064`). Al suo posto c'e'
+	// `DescribeCellTargetRefusal`, che lo chiama e restituisce in un colpo solo l'esito MOSTRABILE, la
+	// portata applicata e la geometria della linea. La ragione e' di firma, non di comodita': per parlare al
+	// giocatore serviva tradurre `ERTHexTargetReason` in `ERTTargetRefusal`, e l'unica porta che lo faceva —
+	// `RefusalForObserver` — chiede un flag di conoscenza **di un'unita' bersaglio**, che qui non esiste.
+	//
+	// ⛔ **E il rifiuto NON diventa piu' informativo per questo.** Questa funzione continua a non guardare
+	// chi sta sulla cella, e nemmeno il compositore lo fa: due mondi che differiscono solo per un nemico
+	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso `FRTCellTargetRefusal`, campo per campo.
+	// E' l'invariante di `#2791` applicata al targeting, e cio' che
+	// `BlindFire.CellRefusalIsNotAnEnemyDetector` pinna.
+	const FRTCellTargetRefusal Verdetto = URTCombatLibrary::DescribeCellTargetRefusal(
 		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
-	if (Reason != ERTHexTargetReason::Ok)
+
+	// ── IL CANALE DEL GIOCATORE, che su questo percorso non esisteva (`#3064`).
+	//
+	// 🔴 **Il difetto che chiude**: fino a qui una cella rifiutata produceva una riga di `UE_LOG` e **niente
+	// altro**. Chi gioca non legge l'Output Log: a schermo non cambiava nulla, e un click che non produce
+	// niente e' indistinguibile da un click non registrato. E' il verdetto d'autore che `#2741` cita —
+	// *«non si capisce perche' non parte»* — rimasto aperto per meta'.
+	//
+	// ⚠️ **Chiamata SEMPRE, anche con esito `None`**, e non solo sul ramo di rifiuto: e' cio' che cancella il
+	// messaggio del click precedente quando questo va a segno. La durata dichiarata e' *«vive finche' il
+	// giocatore non fa un altro click»*, e questo E' un altro click — la stessa disciplina dell'azzeramento
+	// in cima a `OnSelect`, di cui questa chiamata e' la meta' che parla.
+	//
+	// 🔑 **E passa `Sight`, `Unit->Cell` e `Cell`**, cioe' la forma a cinque argomenti: con quelli `ARTHUD`
+	// compone da sola il tratto 2D sul Canvas (`ComputeRefusedShotLine`, `#3085`), che porta **gia' montato**
+	// il filtro sulla cella che BLOCCA. Nessuna riga di privacy nuova da scrivere per quel canale.
+	ARTHUD* Hud = Cast<ARTHUD>(GetHUD());
+	if (Hud)
 	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Cella non bersagliabile (%s, portata %d)"),
-			Reason == ERTHexTargetReason::OutOfRange ? TEXT("fuori portata") : TEXT("bloccata"),
-			Ability->RangeCells);
+		Hud->SetTargetRefusal(Verdetto.Refusal, Verdetto.EffectiveRange, Verdetto.Sight, Unit->Cell, Cell);
+	}
+
+	// ── LA LINEA CHE NON PASSA, anche per un bersaglio a CELLA (`#2742` + `#3085`, DoD 3 di `#3064`).
+	//
+	// 🔴 **Il controller non DECIDE questo tratto, lo ricopia.** Il sito a unita' lo deriva da
+	// `AuthorizedSightLines`, che filtra su `FRTObservedTarget::bKnownToObserver` — la conoscenza del
+	// BERSAGLIO. Per una cella quel flag non ha un valore onesto, e doverne **scegliere** uno sarebbe gia' il
+	// difetto di progetto: il giorno in cui qualcuno lo derivasse dall'occupante, «linea disegnata» contro
+	// «linea assente» diventerebbe un rilevatore di presenze ([D-225]). ∴ qui quella libreria non si chiama
+	// affatto: non c'e' un flag da sbagliare.
+	//
+	// 🔑 **Si chiede invece all'HUD il tratto GIA' filtrato.** `CurrentRefusedShotLine()` applica il gate
+	// sull'OSTACOLO — una cella che blocca e che l'osservatore non ha mai visto non si disegna — con la
+	// conoscenza della PROPRIA squadra, che l'HUD possiede e il controller no.
+	//
+	// ⚠️ **Dopo `SetTargetRefusal`, e l'ordine E' il requisito**: quella scrive lo stato che questa legge.
+	// ⚠️ **Chiamata SEMPRE**, per la stessa ragione della frase: e' cio' che spegne il tratto del click
+	// precedente. Senza HUD non c'e' un osservatore a cui chiedere, e il tratto resta spento (fail-closed).
+	if (HexMap)
+	{
+		const FRTRefusedShotLine Tratto = Hud ? Hud->CurrentRefusedShotLine() : FRTRefusedShotLine();
+		HexMap->SetPreviewSightBlock(Tratto.bShow, Tratto.From, Tratto.BreakAt);
+	}
+
+	if (Verdetto.IsRefused())
+	{
+		// ── Il canale DIAGNOSTICO, il cui pubblico e' chi sviluppa — e fino a `#3064` mentiva due volte.
+		//
+		// 🔴 **(1) Il ternario binario etichettava `OtherLayer` come «bloccata»**, mandando a cercare un muro
+		// chi aveva puntato un altro PIANO: precisamente l'errore per cui [D-393] ha creato
+		// `ERTHexTargetReason::OtherLayer` come valore distinto, commesso nel posto che quell'enum doveva
+		// proteggere.
+		//
+		// 🔴 **(2) Stampava `Ability->RangeCells`, la portata DICHIARATA**, mentre il classificatore confronta
+		// con quella effettiva: con un'abilita' a portata 4 e una cella a distanza 3 col Fumo in mezzo usciva
+		// *«fuori portata, portata 4»*, e chi legge conclude che il classificatore e' rotto — `3 <= 4` — e
+		// cerca un difetto che non c'e'. E' l'inganno che `#2766` aveva gia' tolto dal sito a unita', rimasto
+		// qui perche' nessuno dei due siti sapeva dell'altro.
+		//
+		// 🔑 **Adesso non possono piu' divergere per costruzione**: l'etichetta nasce dallo stesso
+		// `Verdetto.Refusal` che alimenta la frase a schermo — non da una seconda lettura del motivo interno —
+		// e il ramo della distanza riusa `OutOfRangeDiagnostic`, cioe' la coda identica del sito a unita'.
+		FString Diagnosi;
+		switch (Verdetto.Refusal)
+		{
+		case ERTTargetRefusal::Range:
+			Diagnosi = URTCombatLibrary::OutOfRangeDiagnostic(Ability->RangeCells, Verdetto.EffectiveRange);
+			break;
+		case ERTTargetRefusal::Cover:
+			Diagnosi = TEXT("linea di tiro interrotta");
+			break;
+		case ERTTargetRefusal::OtherLayer:
+			Diagnosi = TEXT("su un altro piano: non si tira da qui");
+			break;
+		default:
+			// ⚠️ **Non si nomina una causa che questo percorso non puo' produrre.** `Nothing` e' intercettato
+			// dalla guardia di mappa qui sopra, e `TooClose` non e' producibile perche' nessun sito di click
+			// passa `MinRangeCells` (default `0`). Se un giorno arrivassero, dire MENO e' preferibile a dire
+			// il falso, e un `Warning` e' cio' che fa cercare.
+			UE_LOG(LogRT, Warning,
+				TEXT("[RT] Cella (%d,%d,L%d) non bersagliabile: motivo non atteso su questo percorso"),
+				Cell.X, Cell.Y, Cell.Layer);
+			return false;
+		}
+		UE_LOG(LogRT, Log, TEXT("[RT] Cella (%d,%d,L%d) non bersagliabile: %s"),
+			Cell.X, Cell.Y, Cell.Layer, *Diagnosi);
 		return false;
 	}
 
