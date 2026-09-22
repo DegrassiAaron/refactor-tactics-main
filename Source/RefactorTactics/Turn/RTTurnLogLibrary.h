@@ -269,8 +269,11 @@ public:
 	 * ha un evento**, quindi nessuna cue e nessuna assenza dichiarabile: cioe' esattamente il difetto che
 	 * `#2828` chiude per le coperture, lasciato aperto per gli archi.
 	 *
-	 * 🔑 Non li aggiungo qui perche' la fetta non li ha misurati: un arco attraversa **due layer** e la sua
-	 * presentazione non e' un segmento su un bordo esagonale. Includerli in questo predicato darebbe loro un
+	 * 🔑 Non li aggiungo qui perche' la fetta non li ha misurati: un arco **non e' un bordo esagonale**, e
+	 * la sua presentazione non e' un segmento sul lato condiviso fra due celle adiacenti.
+	 * ⏱️ *Questa riga diceva «un arco attraversa due layer». Impreciso: `ERTHexTransitionKind` ammette
+	 * anche `Tunnel`, `Bridge` e `Jump` fra celle dello STESSO layer, e `AddTransition` non lo vieta. La
+	 * ragione dell'esclusione non e' la quota: e' che la geometria di un arco non e' quella di un lato.* Includerli in questo predicato darebbe loro un
 	 * evento e una cue pensata per un'altra geometria — il tipo di riuso che sembra economico e produce un
 	 * disegno sbagliato. Chi li aggiunge misuri il proprio caso e aggiorni questa riga.
 	 *

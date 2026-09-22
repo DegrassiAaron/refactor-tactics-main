@@ -742,6 +742,71 @@ bool FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` DURA quanto i colpi a struttura, non solo quanto i colpi — `#2828`.
+ *
+ * 🔴 **Il gate che mancava, e senza il quale la correzione non era protetta da niente.** Aprire la fase e
+ * dimensionarla sono due cose: `BlastPhaseIsActive` faceva la prima, `PhaseTime` riceveva i soli attacchi.
+ * Un Blast che abbatte quattro muri senza ferire nessuno durava `Max(1, 0)` = UN intervallo, e i tre colpi
+ * rimanenti uscivano insieme dal catch-all di fine fase — nello stesso fotogramma.
+ *
+ * ⛔ **E la suite restava interamente verde**: tutti i gate esistenti passano `Strutture = 0`, e i due
+ * scenari end-to-end producono **un solo** colpo a struttura ciascuno. Con `NSH <= 1` vale
+ * `Max(1, Max(NA, NSH)) == Max(1, NA)` per ogni `NA`: le due formule coincidono numericamente, e la
+ * differenza esiste **solo** da `NSH >= 2` con `NSH > NA`. Nessuno scenario ci arrivava.
+ *
+ * ⚠️ Pura di proposito, come il cancello: la durata di una fase decide il pacing di un turno, ed e' cio'
+ * che i gate di budget sorvegliano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForStructureHitsTest,
+	"RefactorTactics.Playback.BlastPhaseLastsForStructureHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
+{
+	// Il caso che distingue la formula nuova dalla vecchia: quattro muri, nessun colpo, nessuna spinta.
+	// ⛔ Con `Max(1, NumAttacks)` questa riga darebbe 0,5 s invece di 2,0 s.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 4,
+			/*CellsPerSec*/ 2.f, /*AttackShow*/ 0.5f, /*Beat*/ 0.3f);
+		TestTrue(TEXT("✅ quattro muri durano quanto quattro colpi: 2,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+		TestTrue(TEXT("e restano tutti MOSTRATI: il tempo di lettura non e' comprimibile"),
+			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
+	}
+
+	// ⚠️ **La controprova, senza la quale l'asserzione sopra non distingue niente**: a zero strutture la
+	// formula deve dare ESATTAMENTE quel che dava prima. Se qualcuno sostituisse il `Max` con una somma,
+	// questa riga resterebbe verde e la prossima cadrebbe.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("nessun muro e nessun colpo: il pavimento di uno, come prima"),
+			FMath::IsNearlyEqual(T.Shown, 0.5f, RTTol));
+	}
+
+	// ⛔ **`Max` e non SOMMA**: i due canali si rivelano in parallelo, ciascuno col proprio contatore su
+	// `AttacksToShow`. Tre colpi e due muri durano quanto tre colpi, non quanto cinque cose.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 3, /*Strutture*/ 2, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("tre colpi e due muri: 1,5 s, non 2,5 s"),
+			FMath::IsNearlyEqual(T.Shown, 1.5f, RTTol));
+	}
+
+	// E il verso opposto: i muri non ACCORCIANO mai una fase che i colpi hanno gia' allungato.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 4, /*Strutture*/ 1, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("quattro colpi e un muro: restano 2,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+	}
+
+	return true;
+}
+
 // --- NextActionBoundary: il confine di AZIONE sulla timeline (`#2857`) ------------------------------
 //
 // 🔑 **Sono test PURI e senza mondo**, ed e' il criterio d'accettazione alla lettera: *«il prossimo

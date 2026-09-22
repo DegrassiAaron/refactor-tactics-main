@@ -99,9 +99,15 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 		// *«contro-termine di `PhaseDuration`»*. Lo era per i colpi e non per i muri.
 		//
 		// ⛔ **Non una somma**: i due canali scorrono insieme, non uno dopo l'altro.
-		// ⚠️ Le IMPRONTE hanno lo stesso difetto e non lo chiudo qui: `NumFootprints` non entra in questa
-		// funzione, quindi un'area su sole celle vuote con piu' impronte che colpi le scarica ancora nel
-		// catch-all. E' preesistente a `#2828` (viene da `#2454`) e va misurato con un caso suo.
+		// ⚠️ **Le IMPRONTE restano fuori da questo `Max`, e la soglia NON e' «piu' impronte che colpi».**
+		// `NumFootprints` non entra in questa funzione, ma il catch-all comincia a scaricare solo da
+		// `NumFootprints >= Max(1, Max(NumAttacks, NumStructureHits)) + 2`: sotto quella soglia la rivelazione
+		// scaglionata fa in tempo da sola. ⛔ E **un'area produce UNA impronta**, non piu' d'una —
+		// `ResolveCombatPasses` ne emette una per INTENTO — quindi servono piu' intenti aggressivi nello stesso
+		// Blast, non un'area piu' larga.
+		// ⏱️ *Questa riga diceva «un'area su sole celle vuote con piu' impronte che colpi»: sbagliata su
+		// entrambe le meta', e chi ne avesse ricavato un caso di prova avrebbe ottenuto un gate verde
+		// concludendo che il difetto non esiste.* E' preesistente a `#2828` (viene da `#2454`).
 		const float AttackTime = FMath::Max(1, FMath::Max(NumAttacks, NumStructureHits)) * AttackShowSeconds;
 		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
 		//

@@ -159,6 +159,13 @@ public:
 	 * colpi, quel turno non apriva la fase — quindi non esisteva un istante in cui disegnarla, ed e'
 	 * esattamente il caso che `D-301` esiste per far esistere.
 	 *
+	 * ⚠️ **E cambia anche la DURATA della fase, non solo la sua esistenza**: `PhaseTime` prende
+	 * `Max(colpi, muri, spinta)`. ⛔ Ne segue un effetto che va saputo: il `Blast` e' l'unica fase in cui lo
+	 * scivolamento del knockback segue l'Alpha di FASE, quindi allungarla **rallenta la spinta** — e da
+	 * `#2828` puo' allungarla un canale che con l'unita' spinta non ha rapporto, i muri abbattuti da altri.
+	 * ℹ️ Non e' nuovo: lo faceva gia' il conteggio dei colpi altrui, e `#2828` estende lo stesso
+	 * comportamento a un terzo canale invece di introdurlo.
+	 *
 	 * 🔴 **E `NumStructureHits` non e' un quarto modo di dirlo, per la stessa ragione un passo piu' in
 	 * la'** (`#2828`). Un colpo che abbatte un muro e non ferisce nessuno produce zero `Attack`, zero
 	 * spinta e — se il muro alto fermava la linea di tiro — puo' non produrre nemmeno un'impronta su una
@@ -185,15 +192,20 @@ public:
 	 * le unita' si muovono in parallelo, quindi la fase finisce quando finisce l'ultima.
 	 *
 	 *  - `Dash` / `Move`  → `MaxMoveSegments / CellsPerSecond`. Gli attacchi non entrano.
-	 *  - `Blast`          → `Max(colpi, spinta)`, **non** la somma: i colpi e lo scivolamento del knockback
-	 *                       occupano la stessa finestra. Il tempo dei colpi ha un pavimento di uno anche
-	 *                       quando non ce ne sono, perche' un Blast di sola spinta si vede e deve durare.
+	 *  - `Blast`          → `Max(colpi, muri, spinta)`, **non** la somma: i tre canali si rivelano nella
+	 *                       stessa finestra, ciascuno col proprio contatore su `AttacksToShow`. Il tempo ha
+	 *                       un pavimento di uno anche quando non c'e' nulla da scaglionare, perche' un Blast
+	 *                       di sola spinta si vede e deve durare.
+	 *                       ⏱️ *Erano due fino a `#2828`: i muri non entravano, e un Blast che ne abbatteva
+	 *                       piu' d'uno senza ferire nessuno durava UN intervallo.*
 	 *  - ogni altra fase  → un beat (`PhaseBeatSeconds`).
 	 *
 	 * `CellsPerSecond <= 0` significa movimento istantaneo, non una divisione per zero.
 	 *
-	 * 🔑 **E' l'UNICA formula di durata del playback**, e il totale del round non ne ha una propria:
-	 * `ARTTurnManager::BeginPlayback` somma questa su tutte le fasi attive (`RawTotal`).
+	 * 🔑 **La formula di durata ha un solo owner — `PhaseTime` — e il totale del round non ne ha una
+	 * propria**: `ARTTurnManager::BeginPlayback` somma le fasi attive.
+	 * ⏱️ *Questa riga diceva «e' l'UNICA formula» e rimandava a un `RawTotal` che nel codice non esiste
+	 * piu': un riferimento morto sopravvissuto a un rename. Corretto il 2026-09-22.*
 	 *
 	 * ⛔ **Non aggiungerne una aggregata.** Ne e' esistita una — `EstimatePlaybackSeconds`, rimossa il
 	 * 2026-08-31 — che sommava movimento, colpi e beat sull'intero round: dava un numero **diverso** da
@@ -201,8 +213,15 @@ public:
 	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
 	 * totale, si somma questa.
 	 *
-	 * ✅ **`PhaseTime` non e' una seconda formula**: questa e' `PhaseTime(...).Total()`, una riga sola. La
-	 * scomposizione ha un solo owner, e non esiste modo di farne divergere le due letture.
+	 * ⛔ **QUESTO WRAPPER NON CONOSCE I MURI, e da `#2828` le due letture DIVERGONO.** Delega a `PhaseTime`
+	 * passando `NumStructureHits = 0`: su un `Blast` che abbatte piu' muri di quanti colpi infligga
+	 * restituisce una durata **sottostimata**. ✅ Resta `PhaseTime(...).Total()` — la formula ha un owner solo
+	 * — ma su un ingresso FISSATO, che non e' la stessa cosa di «non esiste modo di farne divergere le due
+	 * letture», come questa riga affermava.
+	 *
+	 * 🔑 **Chi dimensiona il playback vero non passa di qui**: `ARTTurnManager::PhaseTimeForPlaybackPhase`
+	 * chiama `PhaseTime` con entrambi i conteggi. Questa forma sopravvive per i gate di pacing sulle fasi
+	 * classiche, e la riga esiste perche' chi la usi altrove sappia cosa NON sta contando.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static float PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,

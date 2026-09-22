@@ -2986,7 +2986,12 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// ⚠️ **Una barriera dichiarata su ENTRAMBE le facce produce DUE eventi per un colpo solo**, ed e'
 		// ereditato: `ApplyStructureDamage` chiama `DamageFace` sui due lati, e se entrambe le celle
 		// dichiarano la copertura nascono due `FRTCoverDamageResult` — quindi due voci di TurnLog, quindi due
-		// eventi, quindi due segmenti sovrapposti. ⛔ `ValidateMap` la classifica **Warning e non Error** (la
+		// eventi, quindi due segni sullo stesso bordo. ⚠️ **E dal 2026-09-22 non sono piu' SOVRAPPOSTI**: il
+		// disegno prende l'alzata dalla sola cella che porta la copertura, e le due voci la portano scambiata,
+		// quindi su un bordo fra celle di `Height` diversa i due segni compaiono a **quote diverse** — due
+		// barriere colpite invece di una contata due volte. Prima erano coincidenti perche' la quota era la
+		// media delle due, simmetrica allo scambio: la duplicazione c'era ed era invisibile.
+		// ⛔ `ValidateMap` la classifica **Warning e non Error** (la
 		// faccia ridondante di [D-288] `GEO-7`), cioe' lo stato e' legale e una mappa d'autore puo' averlo.
 		// 🔴 I gate 1:1 non lo vedono, perche' i due canali raddoppiano INSIEME. Non lo dedup qui: la causa
 		// e' a monte e la presentazione non e' il posto dove riconciliare una geometria.
