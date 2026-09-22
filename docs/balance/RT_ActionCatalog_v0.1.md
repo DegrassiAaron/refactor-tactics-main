@@ -468,6 +468,12 @@ trigger valutato su un punto di passaggio della risoluzione); `Brace`, `Shield` 
 **Principali** che si dichiarano e basta, senza trigger. Stare nella stessa sezione del catalogo non le rende
 lo stesso tipo di cosa.
 
+🔴 **E `Action.Cleanse` — la Principale — non spedisce in v0.1.** Decisa fuori il **2026-08-30**
+da [D-264](../decisions/RT_PDR_00_Decision_Log.md) (`#1403`). La sua riga resta in tabella perché l'azione
+**esiste** nel catalogo core e i suoi numeri restano quelli: descrivono ciò che farebbe, non una capacità
+che un giocatore della v0.1 può usare. ⛔ **`Action.Purge` e il modulo `Reaction.Cleanse` sono un'altra
+cosa e restano in campo** — l'argomento sta sotto **Cleanse**, in fondo a questa sezione, e non si duplica qui.
+
 ⚠️ **E il punto di passaggio non è lo stesso per tutte.** Cinque si valutano dentro il Blast; `Evade` no —
 il suo trigger è la cella che diventa pericolosa, e quella nasce nel **Cleanup**
 (`URTReactionLibrary::PassPointFor` → `CleanupSurfaceBirth`). La **fase dell'azione** resta `Control` come
@@ -625,6 +631,21 @@ di rimozione è scelta dal giocatore **durante il planning** (non a runtime: nes
 > paga il cooldown ([D-200](../decisions/RT_PDR_00_Decision_Log.md)) e lascia una voce `NoEffect`. L'argomento sta in
 > [D-211](../decisions/RT_PDR_00_Decision_Log.md) e nella riga **78** di [`DOC_CONFLICT_MATRIX.md`](../DOC_CONFLICT_MATRIX.md), e **non si
 > duplica qui**.
+>
+> 🔴 **E il 2026-08-30 la domanda è stata chiusa: l'attiva esce dalla v0.1**
+> ([D-264](../decisions/RT_PDR_00_Decision_Log.md), `#1403`). Il riquadro qui sopra descrive un **limite** di
+> un'azione che spedisce; `D-264` dice che quell'azione **non spedisce**, e che `PlannedCleansePriority`
+> **non si implementa** per tenerla in vita — il produttore che il riquadro dà per mancante non arriverà,
+> e la lista resta vuota **per decisione**, non in attesa di qualcuno.
+>
+> ⛔ **Il Cleanse REATTIVO resta, ed è il rischio di lettura della decisione**: `Reaction.Cleanse` (base
+> `Action.Purge`) è il modulo di reazione di default di `Hero.Branth`
+> ([D-218](../decisions/RT_PDR_00_Decision_Log.md)) e annulla `Root` e `Slow` **in arrivo**. Lo pinna
+> `RefactorTactics.Equipment.Cleanse.CancelsControl`. ⚠️ **Non** i test `RefactorTactics.Reactions.Cleanse.*`,
+> che a dispetto del nome esercitano l'**attiva** (`AddCoreAbilityInSlot(..., "Action.Cleanse")`).
+>
+> Un Cleanse attivo può tornare **solo** con un ruolo tattico distinto e un contratto esplicito di UI e di
+> produttore — non come ripristino di ciò che è stato tolto.
 
 ---
 

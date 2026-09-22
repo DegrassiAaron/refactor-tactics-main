@@ -117,6 +117,11 @@ appoggiarsi a tutto ciò che segue **senza costruire nulla**.
 **Limiti noti del canone corrente**, da non scambiare per bug:
 
 - il **Dash lineare che termina sul ghiaccio non scivola** (lo scivolamento è nel Move normale);
+- 🔴 **`Action.Cleanse` — la Principale — non è fra ciò su cui la showcase può appoggiarsi.** La riga
+  «Reazioni» qui sopra la elenca, e quella misura è del **2026-08-08**: il **2026-08-30**
+  [D-264](../decisions/RT_PDR_00_Decision_Log.md) l'ha tolta dalla v0.1 (`#1403`), e `PlannedCleansePriority`
+  non avrà un produttore. ⛔ Resta invece il Cleanse **reattivo** — `Reaction.Cleanse`, modulo di default di
+  `Hero.Branth` — che è una cosa diversa e va in campo;
 - `HighGround` esiste come dato e **nessuna regola gli dà un bonus numerico** — è voluto, non una lacuna: la quota vale per geometria ([D-024](../decisions/RT_PDR_00_Decision_Log.md));
 - le reazioni sono **pianificate e automatiche**: non chiedono una scelta live e non sospendono la simulazione
   — è il caso `AllowedResponses ≤ 1` di [ADR-0004](../decisions/adr-0004-finestre-di-reazione.md), non un

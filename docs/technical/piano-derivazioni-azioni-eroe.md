@@ -252,6 +252,14 @@ contengono solo `Action.Move` — restano fuori discussione per costruzione.
 ⛔ **Assegnare `Action.Cleanse` a un eroe.** È il passo successivo, ed è una scelta di bilanciamento: qui
 si costruisce lo strumento che la rende verificabile.
 
+> 🔴 **Non è più il passo successivo — [D-264](../decisions/RT_PDR_00_Decision_Log.md), 2026-08-30.** L'`Action.Cleanse` **attiva esce dalla
+> v0.1**: non si assegna a nessun eroe, e `PlannedCleansePriority` non si implementa per tenerla in vita.
+> Resta fuori scope come questa riga già diceva, ma per una ragione diversa — non «più avanti»,
+> bensì **decisa**, e la condizione di riapertura è scritta in `D-264`.
+>
+> ⛔ **Il Cleanse reattivo non è toccato**: `Reaction.Cleanse` (base `Action.Purge`) è il modulo di
+> reazione di default di `Hero.Branth` ([D-218](../decisions/RT_PDR_00_Decision_Log.md)).
+
 ⛔ **`Action.Sprint`.** La sua forma canonica è profilo `Move`, solo slot movimento — voce **41** di
 [`DOC_CONFLICT_MATRIX`](../DOC_CONFLICT_MATRIX.md), riaperta da D-116 — e il codice la tiene in
 `FastMovement` con `MovementAndMain`. È lavoro di **E38**, e *«non si migra da sola: porta con sé `Exposed`
