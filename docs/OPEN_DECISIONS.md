@@ -2212,11 +2212,11 @@ risposte sono coerenti con tutto ciò che è scritto.
 ## Aperte — tassonomia icone, dall'istruttoria di [#637](https://github.com/DegrassiAaron/refactor-tactics-main/issues/637) del 2026-09-22
 
 Il materiale di design usa **25** segmenti dentro gli `UI.Icon.<Segmento>.<Nome>`; `ERTIconCategory` ne ha
-**12**. A tenere fuori dal catalogo una chiave col segmento sconosciuto è **`CategoryForIcon()`**
-(`Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp:36`), che deriva la
-categoria dall'id e scarta la voce a `:255`. ⚠️ **Non `ValidateIconCatalog`**, che sul percorso di build
-è vero per costruzione, **né `IsDeclaredIconCategory`**, che a `:71` non scarta ma ri-qualifica sotto
-`Action.`. Il documento owner §1 porta i tre punti con le loro differenze. L'istruttoria completa — misura, comandi e statuto della sorgente — sta nel documento owner
+**12**. ⚠️ **E nessun codice legge il manifest** — `git grep -lni 'CLAUDE_DESIGN_02|UI_Icon_Manifest'
+`-- Source/` risponde **zero**: il catalogo si **genera** da `URTIconLibrary::RequiredIconIds()`. ∴ una
+chiave col segmento fuori dall'enum non viene *rifiutata*, **non ha una strada per arrivare**, e la domanda
+è se quel segmento debba diventare qualcosa che `RequiredIconIds()` produce. Il documento owner §1 porta i
+tre punti del codice che nominano l'enum e cosa fanno davvero. L'istruttoria completa — misura, comandi e statuto della sorgente — sta nel documento owner
 [`technical/tooling/tassonomia-icone-manifest-runtime.md`](technical/tooling/tassonomia-icone-manifest-runtime.md)
 e **non si duplica qui**. Dei diciassette segmenti fuori dall'enum, dieci sono già risolti (sei mappano per definizione dell'enum,
 `UI.*` esce, `Effect` e `Geometry` sono primitive di composizione per

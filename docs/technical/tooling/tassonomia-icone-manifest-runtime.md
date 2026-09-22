@@ -18,20 +18,32 @@ datato. Un numero senza comando non va copiato da qui: si rimisura.
 
 ## 1. Perché esiste
 
-Una chiave il cui segmento non è un valore di `ERTIconCategory` non arriva nel catalogo. I punti in gioco
-sono **tre**, e **uno solo morde**:
+⚠️ **Nessun codice legge il manifest.** Misurato:
+`git grep -lni 'CLAUDE_DESIGN_02|UI_Icon_Manifest' -- Source/` risponde **zero**. Il catalogo non si
+importa da quel file: lo **genera** `RTBuildIconCatalogCommandlet` a partire da
+`URTIconLibrary::RequiredIconIds()` (`:132`), che deriva le chiavi dai dati di gioco.
+
+∴ **una chiave del manifest col segmento fuori dall'enum non viene rifiutata: non ha una strada per
+arrivare.** La differenza non è sottile — sposta la domanda da *«come la si fa passare»* a *«quel segmento
+deve diventare qualcosa che `RequiredIconIds()` produce, oppure no»*, che è la domanda di questa pagina.
+
+I tre punti del codice che nominano l'enum, e cosa fanno **davvero**:
 
 | Dove | Che cosa fa |
 |---|---|
-| 🔴 `CategoryForIcon()` — `Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp:36` | **È il gate che morde.** Itera `ERTIconCategory` cercando il prefisso `UI.Icon.<Nome>.`, torna `false` per un segmento sconosciuto, e il chiamante a `:255` **scarta la voce**. È questo che tiene `UI.Icon.Stat.Health` fuori dal catalogo costruito |
-| `URTIconLibrary::ValidateIconCatalog` | confronta il segmento dell'`IconId` con la `Category` **dichiarata nella voce**. ⚠️ **Sul percorso di build è vero per costruzione**: il commandlet *deduce* la categoria dall'id invece di dichiararla — *«Dedurla qui invece di dichiararla evita l'unico errore che un catalogo scritto a mano fa davvero: chiave giusta, categoria sbagliata»* — quindi il confronto non può fallire. Morde su un catalogo scritto a mano |
-| `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) | dice se un capo è una categoria dichiarata. ⛔ **Non scarta niente**: a `:71` il falso fa cadere nel ramo che **ri-qualifica** il percorso sotto `Action.` — `Gadget.Mine` diventa `UI.Icon.Action.Gadget.Mine`, chiave ben formata. Solo `:136` (`MakeActionIconFallbackId`) restituisce `NAME_None` |
+| `CategoryForIcon()` — `Source/RefactorTacticsEditor/Private/Content/RTBuildIconCatalogCommandlet.cpp:36` | ⛔ **Guardia fail-closed sull'output di `RequiredIconIds()`, non un filtro sul manifest.** Scorre le chiavi **richieste** (`:252`) e, se una non cominciasse per una categoria dell'enum, il commandlet **ABORTISCE** — `return 1` a `:260`, con *«e' un errore della chiave, non dell'import»*. Non scarta una voce: ferma la build del catalogo |
+| `URTIconLibrary::ValidateIconCatalog` | confronta il segmento dell'`IconId` con la `Category` **dichiarata nella voce**. ⚠️ **Sul catalogo generato è vero per costruzione**: il commandlet *deduce* la categoria dall'id invece di dichiararla — *«Dedurla qui invece di dichiararla evita l'unico errore che un catalogo scritto a mano fa davvero: chiave giusta, categoria sbagliata»*. Morde su un catalogo scritto a mano |
+| `URTIconLibrary::IsDeclaredIconCategory` (`RTIconLibrary.cpp:29`) | dice se un capo è una categoria dichiarata. ⛔ **Non scarta niente**: a `:71` il falso fa cadere nel ramo che **ri-qualifica** il percorso sotto `Action.`. Solo `:136` (`MakeActionIconFallbackId`) restituisce `NAME_None` |
 
-🔴 **La prima stesura di questa sezione ne elencava due, e sbagliava su entrambi**: attribuiva a
-`ValidateIconCatalog` un'enumerazione dell'enum che non fa, e a `IsDeclaredIconCategory` uno scarto che a
-`:71` non avviene. Il gate vero non era nominato affatto, e vive in un **altro modulo**
-(`RefactorTacticsEditor`): cercarlo in `RTIconLibrary.cpp` non lo trova. Il materiale di design usa segmenti che il runtime non ha, quindi una parte
-del manifest **non è innestabile così com'è**.
+🔴 **Questa sezione ha sbagliato tre volte, e vale la pena scrivere come.** (1) Attribuiva a
+`ValidateIconCatalog` un'enumerazione dell'enum che non fa. (2) Correggendola, attribuiva a
+`IsDeclaredIconCategory` uno scarto che a `:71` non avviene, e non nominava il commandlet — che vive in un
+**altro modulo**, `RefactorTacticsEditor`, e cercandolo in `RTIconLibrary.cpp` non si trova. (3) Nominatolo,
+lo descriveva come *«scarta la voce»*: legge `Required`, non il manifest, e **aborta**. Ogni volta avevo
+verificato che il simbolo **esistesse**, mai che facesse ciò che scrivevo.
+
+Il materiale di design usa segmenti che il runtime non ha, quindi una parte del manifest **non è innestabile
+così com'è**.
 
 D-031 dà il criterio, e non è estetico: *il catalogo risolve ciò che il gameplay produce come chiave*. La
 sua forma eseguibile è `URTIconLibrary::RequiredIconIds()`, che deriva le chiavi da **cinque** famiglie:
