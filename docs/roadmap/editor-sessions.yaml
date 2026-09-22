@@ -2879,24 +2879,26 @@ sessions:
       🟡 **Parzialmente eseguita il 2026-09-22** su `3f0235bb`, banco a cilindri su
       `L_DevSandbox`, con tre interruzioni per cedere il motore ad altre sessioni.
       **Undici voci su ventuno hanno un esito reale nel registro**: PIE-VIS-PHASES, PIE-VIS-CHARGE,
-      PIE-VIS-ICE e PIE-VIS-COMBO fallite; PIE-VIS-ROUGH, PIE-VIS-BRACE, PIE-VIS-LEVEL,
-      PIE-VIS-DOOR, PIE-VIS-HIGHCOVER, PIE-VIS-COVER e PIE-VIS-HIGH conformi.
+      PIE-VIS-ICE, PIE-VIS-COMBO, PIE-VIS-ROUGH, PIE-VIS-BRACE, PIE-VIS-LEVEL, PIE-VIS-DOOR,
+      PIE-VIS-HIGHCOVER, PIE-VIS-COVER e PIE-VIS-HIGH. ⛔ **Quale esito abbia ciascuna non si
+      legge qui**: lo dice `test-manuali-pie.md`, che ne e' l'unico owner (R-6). La prima stesura
+      di questa nota le ripartiva in «fallite» e «conformi», ed era la stessa copia di stato che
+      una riga di questo file dichiara rimossa il 2026-09-09 per la medesima regola.
       Piu' due correzioni di cella senza verdetto: la causa dichiarata di PIE-VIS-PUSH era
       inesatta, e la precondizione di PIE-VIS-BRACE era smentita dal proprio file.
       ⛔ **Le restanti NON sono state guardate, e non per mancanza di tempo**: il loro criterio
-      chiede di vedere un effetto **nel momento in cui accade**, e gli esiti sono applicati in
-      risoluzione, che gira prima di `BeginPlayback`. Sono PIE-VIS-KO, -COORD, -FALLBACK,
-      -AREAGUARD, -GUARD, -WETFIRE, -SMOKE (meta'), PIE-ACC-ENVIRONMENT, PIE-ACC-GUARDBRACE
-      e PIE-ACC-MAP (composito).
+      chiede, per la maggior parte, di vedere un effetto **nel momento in cui accade**, e gli esiti
+      sono applicati in risoluzione, che gira prima di `BeginPlayback`. Sono PIE-VIS-KO, -COORD,
+      -FALLBACK, -AREAGUARD, -GUARD, -WETFIRE, -SMOKE (meta'), PIE-ACC-ENVIRONMENT,
+      PIE-ACC-GUARDBRACE e PIE-ACC-MAP (composito).
       🔑 **La regola che le separa**: un criterio che chiede un TOTALE regge, uno che chiede
-      un TEMPO no. Le sette conformi chiedono tutte un totale.
+      un TEMPO no, e le voci giudicate in questa seduta chiedevano tutte un totale.
       🔴 Quattro difetti aperti dalla seduta, nessuno trovato da un test: #3261 (l'animazione
       della spinta non arriva al playback), #3263 (quella dello scivolamento arriva senza
       marcatura), #3267 (i controlli per fermare la scena non si accendono in auto-run), #3271
       (il feed dichiara il totale di fase come danno del singolo colpo). Epic delle prime due e
       di PIE-VIS-COMBO: #2453. Evidenza e referti in PR #3262.
-      ⚠️ Il registro `test-manuali-pie.md` resta l'owner dei verdetti: qui ci sono solo gli ID,
-      come prescrive R-6.
+      ⚠️ L'esito pieno di ogni voce sta in `test-manuali-pie.md`, che ne resta l'unico owner.
     done_when: le ventuno voci di `verifies` hanno esito reale nel registro
     unblocks: []
     steps: |
