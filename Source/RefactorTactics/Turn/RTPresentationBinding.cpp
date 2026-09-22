@@ -128,7 +128,8 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// `Attack` e `Defeated` e nient'altro, e il cancello che apre la fase `Blast` contava i soli colpi —
 	// quindi un'area su sole celle vuote, che produce zero `Attack` e UNA impronta, non aveva nemmeno una
 	// fase in cui accadere. Ora il cancello e' `URTPlaybackLibrary::BlastPhaseIsActive`, che conta anche
-	// le impronte, ed e' pura perche' cambia la DURATA di un turno.
+	// le impronte — ⏱️ *e dal 2026-09-22 i colpi a struttura, `#2828`* — ed e' puro perche' cambia la
+	// DURATA di un turno.
 	//
 	// ⛔ `AddPlaybackFootprint` riceve `HitCells` COSI' COME ARRIVANO: nessun ricalcolo di `HexHitCells`
 	// nella presentazione, che e' cio' che [D-301] punto (1) esclude a monte.
