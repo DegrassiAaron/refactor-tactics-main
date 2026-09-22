@@ -837,9 +837,9 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 // dimenticanza** (rilievo di code review, 2026-09-21).
 //
 //   - **`CanTarget` non puo' differire, e asserirlo sarebbe una tautologia.**
-//     `URTCombatLibrary::CanTargetHexCell` (`Combat/RTCombatLibrary.h:532`) e' una riga sola —
+//     `URTCombatLibrary::CanTargetHexCell` (`Combat/RTCombatLibrary.h`) e' una riga sola —
 //     `return ClassifyHexTargeting(Map, From, To, RangeCells, Policy) == ERTHexTargetReason::Ok;`
-//     (`RTCombatLibrary.cpp:250`) — e la sua firma non porta **nessuno** snapshot, **nessuna** unita',
+//     (`Combat/RTCombatLibrary.cpp`) — e la sua firma non porta **nessuno** snapshot, **nessuna** unita',
 //     **nessuna** occupazione. I tre mondi differiscono solo per `Snapshot.Occupancy`: un confronto a tre
 //     mondi su quella chiamata passerebbe **anche a filtro rotto**, cioe' sarebbe precisamente il difetto
 //     che questo file denuncia due volte (vedi `ReachableFanOffersNeverObservedCells`). Il punto in cui la
@@ -867,7 +867,7 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 //                                                               Occupied · OutOfBudget · NoRoute
 //
 //     NON ENTRANO, e il motivo e' diverso per ciascuno
-//       ERTTargetRefusal       (`Combat/RTCombatLibrary.h:71`)
+//       ERTTargetRefusal       (`Combat/RTCombatLibrary.h`)
 //       ERTMoveOutcome         (`Turn/RTTurnLog.h:448`)
 //
 // **Perche' `ERTHexWaypointReason` e `ERTHexProbeExclusion` entrano.** Sono i due reason code che il
@@ -880,7 +880,7 @@ bool FRTBlindActionsFanOffersDarkCellsTest::RunTest(const FString&)
 // di cui il giocatore non ha diritto di sapere che sia occupata.
 //
 // **Perche' `ERTTargetRefusal` NON entra, pur essendo un reason code di Planning.** E' il solo dei quattro
-// gia' progettato per la privacy: `RefusalForObserver` (`Combat/RTCombatLibrary.h:580`) prende il verdetto
+// gia' progettato per la privacy: `RefusalForObserver` (`Combat/RTCombatLibrary.h`) prende il verdetto
 // interno **piu' il flag di conoscenza** e collassa su `Nothing`, che esiste apposta per non distinguere
 // cella vuota da cella con ignoto.
 //

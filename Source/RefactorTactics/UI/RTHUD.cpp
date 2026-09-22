@@ -1255,7 +1255,9 @@ void ARTHUD::DrawHUD()
 		// STESSO tratto gia' filtrato per accenderlo anche nel mondo, e lasciare la composizione inline
 		// avrebbe voluto dire riscriverla nel controller — cioe' aprire un secondo lettore di un canale non
 		// filtrato ([D-225]). La regola resta UNA, e i due canali ne diventano due RESE invece di due
-		// decisioni che possono divergere.
+		// decisioni che possono divergere — **sul percorso a CELLA**. ⚠️ Sul percorso a unita' restano due
+		// decisioni che possono divergere, perche' quel sito non e' stato migrato e deriva ancora la linea
+		// 3D da `AuthorizedSightLines`: residuo preesistente, fuori scope di `#3064`, issue propria.
 		{
 			const FRTRefusedShotLine Rifiutata = CurrentRefusedShotLine();
 
