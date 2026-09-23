@@ -51,17 +51,31 @@ namespace RTHexEditor
 
 	/**
 	 * Overlay debug: ogni cella dell'asset come esagono colorato per superficie; le bloccate con un esagono
-	 * rosso interno. Disegna **anche** le transizioni e i cerchi delle celle irraggiungibili.
+	 * rosso interno, piu' i cerchi delle celle irraggiungibili e le celle di partenza.
 	 *
-	 * 🔴 **`bIncludeTransitions = false` serve al solo tool Arch, e non e' un'opzione di gusto.** `URTHexArchTool`
-	 * disegna gia' le transizioni per conto proprio, e **incondizionatamente** — e' cio' che `PIE-HEX-MODE-F`
-	 * ha verificato ✅ e che #921 dichiara fuori scope. Con l'overlay acceso le stesse frecce arriverebbero da
-	 * due sorgenti: una a quota cella dal tool, una a `+4` in Z da qui, stesso colore. Si vedrebbero doppie e
-	 * sfalsate, e in `LayerView = ActiveOnly` sarebbero anche **incoerenti**, perche' l'overlay filtra per
-	 * layer attivo e il ciclo del tool no.
+	 * ⌫ **Non disegna piu' le transizioni, e il parametro `bIncludeTransitions` non esiste piu'** (#1768).
+	 * Stavano qui dal 2026-09-21 (#921), che le aveva portate fuori dal solo tool Arch — ma sotto il toggle
+	 * `bShowSurfaceOverlay`, e il tool Arch continuava a disegnarle per conto proprio **incondizionatamente**
+	 * per non vederle doppie. 🔴 **Conseguenza misurata: a overlay SPENTO le transizioni tornavano a
+	 * vedersi col solo Arch**, cioe' il difetto che #1768 esiste per chiudere sopravviveva intatto in quella
+	 * condizione. Ora hanno un canale proprio, `DrawTransitions`, che non dipende da nessun toggle.
 	 */
-	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor,
-		bool bIncludeTransitions = true);
+	void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
+
+	/**
+	 * Le TRANSIZIONI, con qualunque strumento del mode sia attivo (#1768).
+	 *
+	 * 🔑 **Sono l'unico modo in cui due layer si collegano**, e una piattaforma senza arco e'
+	 * irraggiungibile senza dirlo. Per questo non stanno sotto `bShowSurfaceOverlay`: quel toggle spegne i
+	 * marcatori di superficie, che sono una preferenza di chi dipinge; un arco assente dallo schermo e' una
+	 * mappa che mente per omissione.
+	 *
+	 * ⛔ **Due canali per il tipo e due per lo stato**, e non e' decorazione: `D-146` scrive *«l'encoding e'
+	 * ridondante: mai solo il colore»*, e le sei tinte non reggono la scala di grigi — `Tunnel` ed `Elevator`
+	 * distano `1.9` di luminanza su `255`. Quali siano i canali lo decide `RTHexTransition::Describe`, che e'
+	 * puro e provato headless; qui si disegna soltanto.
+	 */
+	void DrawTransitions(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
 
 	/**
 	 * L'overlay delle superfici e' acceso? (#921) — la domanda che ciascuno dei sette `Render` pone, e la

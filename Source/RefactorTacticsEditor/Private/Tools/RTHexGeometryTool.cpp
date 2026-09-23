@@ -427,6 +427,12 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 		// dopo, si vedrebbe solo mentre si traccia — cioe' mai, nel momento in cui serve sapere che cosa
 		// `Canc` porterebbe via. E' la stessa ragione per cui l'overlay di #921 sta qui sopra.
 		RTHexEditor::DrawSharedSelection(OverlayPDI, RTHexEditor::FindTargetMapActor(TargetWorld.Get()));
+
+		// 🔑 **Le transizioni, con QUALUNQUE strumento attivo e senza dipendere da un toggle** (#1768).
+		// Fuori dal blocco qui sopra di proposito: `bShowSurfaceOverlay` spegne i marcatori di superficie,
+		// che sono una preferenza di chi dipinge — un arco assente dallo schermo e' invece una mappa che
+		// mente per omissione, ed e' il difetto che #1768 chiude.
+		RTHexEditor::DrawTransitions(OverlayPDI, RTHexEditor::FindTargetMapActor(TargetWorld.Get()));
 	}
 
 	if (!bDragging)

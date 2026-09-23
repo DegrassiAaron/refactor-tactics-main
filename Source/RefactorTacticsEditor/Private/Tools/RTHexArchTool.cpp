@@ -357,12 +357,17 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 	if (RTHexEditor::ShouldShowSurfaceOverlay(GetToolManager()))
 	{
-		// ⛔ **Senza transizioni**, ed e' un vincolo di #921 e non una preferenza: questo tool le disegna gia'
-		// per conto proprio, poche righe piu' sotto e incondizionatamente (`PIE-HEX-MODE-F`, ✅). Passando
-		// `true` ogni freccia comparirebbe due volte, a quota cella e a +4 in Z.
-		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld),
-			/*bIncludeTransitions=*/ false);
+		// ⌫ **Il parametro `bIncludeTransitions` non esiste piu'** (#1768). Serviva a non vedere doppie le
+		// frecce, perche' questo tool le disegnava anche per conto proprio; ora le disegna **solo**
+		// `DrawTransitions`, una volta, per tutti e sette gli strumenti.
+		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 	}
+
+	// 🔑 **Le transizioni, con QUALUNQUE strumento attivo e senza dipendere da un toggle** (#1768).
+	// Fuori dal blocco qui sopra di proposito: `bShowSurfaceOverlay` spegne i marcatori di superficie,
+	// che sono una preferenza di chi dipinge — un arco assente dallo schermo e' invece una mappa che
+	// mente per omissione, ed e' il difetto che #1768 chiude.
+	RTHexEditor::DrawTransitions(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 
 	// 🔑 **La selezione condivisa si vede anche da qui** (#1864, casella 2). Senza, lo store era
 	// condiviso per COSTRUZIONE — un `UEditorSubsystem` fuori dai property set — e per NESSUN
@@ -372,19 +377,11 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 	const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
 
-	// Transizioni esistenti (solo se l'asset e' popolato).
-	if (Actor && Actor->MapAsset)
-	{
-		const FVector Origin = Actor->GetActorLocation();
-		const float HexSize = Actor->MapAsset->HexSize;
-		const float LayerH = Actor->MapAsset->LayerHeight;
-		for (const FRTHexEdge& E : Actor->MapAsset->Transitions)
-		{
-			const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
-			const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
-			RTHexEditor::DrawArrow(PDI, A, B, RTHexEditor::TransitionKindColor(E.Kind));
-		}
-	}
+	// ⌫ **Il ciclo che disegnava qui le transizioni e' stato rimosso** (#1768). Era l'ultimo residuo del
+	// difetto: le frecce di questo tool erano incondizionate, quelle dell'overlay no, e a overlay spento
+	// restava vero che *«un arco si vede solo mentre il tool Arch e' aperto»*. Ora la sede e' una sola —
+	// `DrawTransitions`, chiamata qui sopra come dagli altri sei — e porta anche i due canali per `Kind` e
+	// per `State` che questo ciclo non aveva.
 
 	// Arco pendente (indipendente dall'asset).
 	if (bHasFrom)

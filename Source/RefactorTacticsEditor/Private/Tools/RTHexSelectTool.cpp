@@ -142,6 +142,12 @@ void URTHexSelectTool::Render(IToolsContextRenderAPI* RenderAPI)
 	{
 		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 	}
+
+	// 🔑 **Le transizioni, con QUALUNQUE strumento attivo e senza dipendere da un toggle** (#1768).
+	// Fuori dal blocco qui sopra di proposito: `bShowSurfaceOverlay` spegne i marcatori di superficie,
+	// che sono una preferenza di chi dipinge — un arco assente dallo schermo e' invece una mappa che
+	// mente per omissione, ed e' il difetto che #1768 chiude.
+	RTHexEditor::DrawTransitions(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 	// La selezione si disegna DALLO STORE, cosi' cio' che si vede e cio' che il readout dichiara sono la
 	// stessa cosa. Disegnare la cella comunque — anche quando e' selezionata una copertura — mostrerebbe un
 	// bersaglio diverso da quello che `Canc` porterebbe via.
