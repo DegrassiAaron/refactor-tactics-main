@@ -76,8 +76,14 @@ FName URTHexCellVisibilityLibrary::OccupantField()
 bool URTHexCellVisibilityLibrary::SnapshotEntitles(int32 SnapshotObserverTeamId, int32 ViewObserverTeamId)
 {
 	// Nessun caso speciale per `RTObserver::Omniscient`, e l'assenza e' la regola: l'onniscienza NON e' un
-	// permesso universale, e' **una posizione fra le altre** — `RTHexSim.h` la chiama per esteso *«una
-	// posizione NOMINATA, non il filtro spento»*. Uno snapshot onnisciente compone una vista onnisciente e
-	// nient'altro.
+	// permesso universale, e' **una posizione fra le altre**. La frase per esteso sta in
+	// `ScenarioHarness/RTScenarioKnowledge.h` — *«`Omniscient` e' una posizione NOMINATA, non il filtro
+	// spento»* — ed e' quella che `Turn/RTHexSim.h` cita quando porta la costante alla portata della
+	// simulazione. Uno snapshot onnisciente compone una vista onnisciente e nient'altro.
+	//
+	// ⚠️ E `Omniscient` e' `INDEX_NONE`, **non** `0`: `RTHexSim.h` annota che la differenza e' un difetto
+	// gia' occorso, perche' `0` e' la squadra 0 e un osservatore «non specificato» che valesse `0` darebbe
+	// la vista di quella squadra a chiunque dimenticasse di dichiararsi. Il confronto secco qui sotto lo
+	// rispetta senza doverlo sapere.
 	return SnapshotObserverTeamId == ViewObserverTeamId;
 }
