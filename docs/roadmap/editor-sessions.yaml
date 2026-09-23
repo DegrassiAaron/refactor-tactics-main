@@ -686,7 +686,28 @@ sessions:
       - PIE-V01-PACKAGED
       - PIE-V01-PREPWINDOW
       - PIE-V01-SPECTATOR-ROSTER
-    issues: [959, 1088, 1069, 79, 1296, 2386, 2744]
+      # Convocata il 2026-09-23 dal censimento di #2188, con la forma gia' usata per le due sorelle
+      # qui sopra: condivide l'allestimento e non si spunta insieme alle altre. Questa e' LA partita
+      # che si guarda senza giocarla — l'unico contesto in cui «la risoluzione resta leggibile» e' una
+      # domanda vera, perche' chi guarda non sta anche decidendo. Chi registra la partita di
+      # `PIE-V01-PACKAGED` deve pero' **premere `V`** per questa, e non toccare niente per quella:
+      # due passate, un allestimento.
+      # ✅ Le due precondizioni della voce sono soddisfatte: `CP 47.2` (#955) e `CP 47.7` (#1015) sono
+      # chiuse `COMPLETED` — verificato con `gh issue view` il 2026-09-23.
+      - PIE-V01-PLAYSPEED
+      # Convocata il 2026-09-23 dal censimento di #2188, e sta qui per una ragione che nessun'altra
+      # seduta puo' offrire: chiede una build **packaged** Development, e questa e' l'unica seduta che
+      # ne apre una. ⚠️ **Non e' solo l'allestimento condiviso, e' la PRECONDIZIONE prodotta**: la voce
+      # vuole «almeno una partita gia' registrata», che e' esattamente cio' che il `done_when` qui sotto
+      # produce sul pacchetto. Chi esegue `PIE-V01-PACKAGED` e poi torna al menu ha gia' in mano
+      # l'archivio che questa voce chiede di raggiungere — in un'altra seduta andrebbe ricostruito.
+      # ⛔ **Va guardata DOPO la registrazione, mai prima**: su un archivio vuoto la lista e'
+      # legittimamente vuota e il percorso non si prova fino in fondo.
+      # 🔑 La gemella in PIE — `PIE-V01-REPLAY-VIEWER` — sta in **U57** e NON qui: questa chiede che il
+      # percorso regga *sul pacchetto*, dove le cause di rottura sono altre (asset non cucinati,
+      # percorsi locali). Una voce in due sedute e' una voce che nessuna delle due esegue.
+      - PIE-V01-FRONTEND-REPLAY
+    issues: [959, 1088, 1069, 79, 1296, 2386, 2744, 2326, 2188]
     done_when: esiste una registrazione di una partita 2v2 conclusa senza un solo input, eseguita due volte — PIE e pacchetto Development
     notes: |
       ➕ **`PIE-V01-PREPWINDOW` si aggiunge qui il 2026-09-06 (#2386) e NON chiede una seduta propria**,
@@ -1286,13 +1307,29 @@ sessions:
     artifacts: []
     unblocked_by: [U6, U1, U5, U7, U8]
     shares_setup_with: []
-    verifies: [PIE-V01-MATCHLEN, PIE-V01-READY, PIE-V01-OVERWATCH, PIE-V01-MAPSCALE]
-    issues: [84]
+    verifies:
+      - PIE-V01-MATCHLEN
+      - PIE-V01-READY
+      - PIE-V01-OVERWATCH
+      - PIE-V01-MAPSCALE
+      # Convocata il 2026-09-23 dal censimento di #2188, e non e' una voce di ritmo: e' il CONTROLLO DI
+      # VALIDITA' dei numeri che questa seduta produce. Chiede `bRecordPacing = true` sul `RT Turn
+      # Manager` — cioe' esattamente l'allestimento che i passi qui sotto prescrivono — e verifica che
+      # il controller **alimenti davvero** i contatori. Se non lo fa, il CSV di questa seduta esce con
+      # le righe e senza i gesti, e i numeri sembrano buoni.
+      # 🔴 **Va fatta PRIMA, su un turno solo e in una partita da buttare**, mai durante la partita
+      # misurata: chiede di selezionare due volte, annullare un waypoint e chiudere a mano con Spazio —
+      # gesti che falserebbero sia la durata sia il ritmo che i passi 1-3 stanno cronometrando.
+      - PIE-PACING-1
+    issues: [84, 2188]
     done_when: >-
       le TRE voci eseguibili hanno un numero registrato, anche fuori target —
       `PIE-V01-MATCHLEN`, `PIE-V01-READY`, `PIE-V01-MAPSCALE`. `PIE-V01-OVERWATCH` NON entra,
       perche' il passo 4 la rinvia a E14 che non e' fra i prerequisiti, e pretenderla renderebbe
-      questo done_when irraggiungibile (`D-187`)
+      questo done_when irraggiungibile (`D-187`).
+      ➕ **`PIE-PACING-1` NON entra nel done_when, e non e' una dimenticanza**: e' il controllo che
+      rende leggibili quei numeri, non uno di essi. Il suo esito va comunque scritto nel registro —
+      un rosso qui **invalida** le tre misure, e chi lo trova ferma la seduta invece di proseguire
     unblocks: [E12.4]
     steps: |
       **Non e' una seduta di caccia ai difetti: e' una seduta di misura.** Si gioca **una partita
@@ -1584,9 +1621,14 @@ sessions:
     unblocked_by: [U21]
     shares_setup_with: [U21, U25, U26]
     verifies: [PIE-GEO-GHOST, PIE-GEO-SNAP, PIE-GEO-UNDO, PIE-GEO-RESIDUI, PIE-GEO-ANCHOR,
-               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE]
-    issues: [712, 1895]
-    done_when: le quattro voci hanno un esito reale, e il .umap resta pulito dopo la seduta
+               PIE-GEO-INCIDENZA, PIE-GEO-CENTRO, PIE-GEO-CALPESTABILE, PIE-GEO-BORDO]
+    issues: [712, 1895, 2188]
+    done_when: >-
+      ogni voce elencata in `verifies` ha un esito reale, e il .umap resta pulito dopo la seduta.
+      ⏱️ **Diceva «le quattro voci» fino al 2026-09-23**, e ne erano gia' otto: il numerale veniva
+      dalla stesura in cui `verifies` ne portava quattro, ed e' rimasto indietro a ogni aggiunta
+      successiva senza che nessun gate lo rimisurasse. Ora la condizione punta all'elenco
+      ([`AGENTS.md`](../../AGENTS.md) §14), che non puo' scadere da solo
     unblocks: []
     notes: >-
       Nasce da #712, il gesto dell'autore. La seduta esiste perche' QUATTRO voci del suo DoD non sono
@@ -1632,6 +1674,13 @@ sessions:
       era rimasto su `SnapToGrammar` mentre il commit era passato all'aggancio-anchor, quindi su una
       coppia inesprimibile il ghost disegnava un muro che il rilascio non produceva. Ora il tool non
       chiama piu' `SnapToGrammar` in nessun punto: **zero occorrenze**, misurato.
+      ➕ **`PIE-GEO-BORDO` convocata qui il 2026-09-23 dal censimento di #2188**, e non e' una scelta
+      fra sedute possibili: la sua precondizione nel registro e' letteralmente *«come sopra»*, cioe'
+      l'allestimento della voce che la precede — `PIE-GEO-CENTRO`, gia' in questo `verifies`. La voce
+      si dichiara *«la meta' che `PIE-GEO-CENTRO` non copre»* (#1826): un muro dal centro a un **lato**
+      invece che a un altro centro. Stesso mode, stesso tool, stesso `.umap`, stesso gesto —
+      convocarla altrove avrebbe richiesto una seconda apertura per disegnare la meta' complementare
+      di un muro gia' disegnato.
 
   - id: U24
     title: I `WBP_RT_*` del frontend — banner, modale d'errore, loading e root
@@ -2080,7 +2129,15 @@ sessions:
     # assegnarle qui allungherebbe un `done_when` altrui su lavoro che non e' suo. Chi apre U28 puo'
     # proporle nello stesso pomeriggio; la regola «una voce che non sta in una seduta non viene eseguita
     # mai» resta scoperta per due voci, e vale la pena saperlo prima di chiudere E46.
-    issues: [938]
+    #
+    # 🔓 **NON sono piu' scoperte, dal 2026-09-23** (#2188), e il paragrafo qui sopra resta scritto
+    # perche' la sua ragione regge ancora: non sono entrate QUI. `-PLAY` e' andata in **U49**, che apre
+    # da `L_Frontend` e preme `PLAY` — il gesto che quella voce giudica e' gia' il suo primo passo;
+    # `-ERROR` in **U57**, che raccoglie i percorsi del frontend gia' costruito e dichiara la seconda
+    # apertura che una configurazione rotta impone. ⚠️ Questo commento era la **previsione esatta** del
+    # difetto che #2188 e' andato a misurare, scritta un mese prima e da nessuno raccolta: il modo in cui
+    # una voce resta fuori da ogni seduta non e' la dimenticanza, e' la dichiarazione che nessuno rilegge.
+    issues: [938, 2188]
     done_when: >-
       i due `.uasset` esistono sotto `/Game/RT/UI/Framework/` **con esattamente i nomi dichiarati in
       `DefaultGame.ini`**; `WBP_RT_MainMenu` eredita da `URTMainMenuWidgetBase` e legge `GetVersionLabel`
@@ -2973,7 +3030,20 @@ sessions:
       # giorno in cui qualcuno sposta il primo su un evento.
       - PIE-V01-DOCKTICK
       - PIE-V01-DOCKREBUILD
-    issues: [151, 705, 613, 2826, 2989]
+      # Le due voci OMBRELLO dei due compositi che questa seduta allestisce gia', convocate il
+      # 2026-09-23 dal censimento di #2188. Erano orfane mentre gli `steps` qui sotto le nominavano
+      # — *«le due voci ombrello restano ⏳»* — cioe' la seduta le conosceva e non le chiamava: il
+      # difetto di #2188 nella sua forma piu' netta. `PIE-ACC-PERCEPTION` e' l'ombrello di
+      # `Visual.Perception.Acceptance` e `PIE-ACC-HUD` quello di `Visual.Hud.FirstPlayable`, gli
+      # stessi due scenari che il giro qui sotto carica: costo marginale zero, nessuna apertura in piu'.
+      - PIE-ACC-PERCEPTION
+      - PIE-ACC-HUD
+      # Stessa scena delle cinque `PIE-KNOW*`: la sagoma dell'ultimo contatto e' cio' che resta quando
+      # il velo nasconde. ⚠️ Porta pero' un prerequisito che le sorelle non hanno — una **skeletal**
+      # sotto l'unita' ricordata: su un banco a cilindri non c'e' posa da giudicare e la voce non e'
+      # giudicabile in quella passata. Si dichiara `NOT RUN` con la ragione, non si forza.
+      - PIE-KNOW-POSA
+    issues: [151, 705, 613, 2826, 2989, 2188]
     done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
@@ -3027,6 +3097,14 @@ sessions:
       ⚠️ **`PIE-ICON-01`, `PIE-V01-KIT-HOTKEYS`, `PIE-V01-LOG` e `PIE-V01-FALLBACK` NON stanno qui**,
       benché `Visual.Hud.FirstPlayable` dichiari di allestirle: hanno già una seduta (U9, U18, U15, U14)
       e una voce in due sedute è una voce che nessuna delle due esegue.
+
+      🔓 **E le due voci ombrello ORA SONO CONVOCATE, dal 2026-09-23** (#2188). Il paragrafo qui sopra
+      che le nomina resta scritto perché dice ancora cosa sono e perché restano ⏳; ciò che è cambiato
+      è che erano nominate **in prosa e fuori da `verifies`** — questa seduta le conosceva e non le
+      chiamava. Sono la forma più netta del difetto che #2188 misura, trovata dentro la seduta che
+      quel difetto lo cita già due volte. Si giudicano **alla fine** di ciascuno dei due giri: sono
+      ombrello, quindi la domanda è se la scena nel suo insieme si sia letta, e quella risposta arriva
+      dopo aver guardato le voci di dettaglio, non prima.
 
   - id: U44
     title: Il playback dello scenario si legge — la risoluzione che scorre nel viewport
@@ -3091,11 +3169,15 @@ sessions:
       non contende.
 
   - id: U45
-    title: Le tre voci che il pacchetto con le animazioni ha reso eseguibili
+    # ⏱️ **Il titolo diceva «Le TRE voci…» fino al 2026-09-23**, ed e' stato generalizzato invece che
+    # ricontato entrando `PIE-V01-ARENADOOR` (#2188): un numerale in un titolo invecchia da solo e
+    # nessun gate lo rimisura (`AGENTS.md` §14). La causa di sblocco resta scritta nel `produces` e nel
+    # commento sopra `unblocked_by`, dove e' un fatto datato e non un conteggio.
+    title: Le voci della mappa d'autore che nessuna seduta eseguiva
     block: 6
     critical: false
     execution_lane: pie
-    produces: verdetto su tre voci che nessuna seduta eseguiva
+    produces: verdetto su voci che nessuna seduta eseguiva — sbloccate dal pacchetto con le animazioni
     artifacts: []
     # Il pacchetto Development e' costruibile e gira: misurato il 2026-09-03 (#1663) su `main` —
     # `BUILD SUCCESSFUL`, `Board 2v2 avviata su 64 celle con 4 eroi`, `SkipPackage` 0, `Error:` 0.
@@ -3109,9 +3191,20 @@ sessions:
     # ⚠️ Il conteggio va rifatto con ENTRAMBE le forme di `verifies`: la lista a trattini e quella inline
     # `[A, B, C]`. Contando solo la prima le orfane risultano 75 invece di 36 — meta' delle sedute usa
     # l'inline, e un parser che non la vede manda a scrivere righe che esistono gia'.
-    verifies: [PIE-V01-ARENA, PIE-OBJ-PUNTI, PIE-V01-BOARD]
-    issues: [959]
-    done_when: le tre voci hanno un esito reale nel registro, in un verso o nell'altro
+    verifies:
+      - PIE-V01-ARENA
+      - PIE-OBJ-PUNTI
+      - PIE-V01-BOARD
+      # Convocata il 2026-09-23 dal censimento di #2188, nell'**allestimento A** dei due che i passi
+      # qui sotto tengono distinti: `L_HexArena` con `DA_HexMap_Arena` e `rt.Map.Source = LevelAsset`.
+      # E' la precondizione che la voce chiede parola per parola — la porta sta **nel dato**, posata da
+      # `RTSetCellDoor`, non da un `SM_Graybox_*` messo a mano nel `.umap`, e su una fixture generata
+      # non c'e' nessuna porta d'autore da guardare.
+      # ⚠️ **Non va nel gruppo B con `PIE-V01-BOARD`**: quella chiede quattro superfici che la mappa
+      # d'autore non ha, ed e' la stessa separazione che questi passi dichiarano gia'.
+      - PIE-V01-ARENADOOR
+    issues: [959, 2188]
+    done_when: ogni voce elencata in `verifies` ha un esito reale nel registro, in un verso o nell'altro
     unblocks: []
     steps: |
       **Due allestimenti, e vanno tenuti distinti** — le prime due voci si guardano sulla mappa d'autore,
@@ -3363,9 +3456,22 @@ sessions:
     # che e' lo scivolamento vero.
     unblocked_by: [E8]
     shares_setup_with: []
-    verifies: [PIE-VIS-UNBAL, PIE-VIS-PRONE, PIE-VIS-SLIDESTATE]
-    issues: [2378, 2253]
-    done_when: le tre voci hanno esito reale nel registro
+    verifies:
+      - PIE-VIS-UNBAL
+      - PIE-VIS-PRONE
+      - PIE-VIS-SLIDESTATE
+      # Convocata il 2026-09-23 dal censimento di #2188. La catena di questa seduta e' *«ci si
+      # sbilancia, si cade, si paga per rialzarsi»*: questa e' la spinta guardata da un'altra parte —
+      # non su chi la subisce ma su chi stava **guardando**, e smette. Stesso gesto, stesso banco.
+      # 🔑 **La spinta e' il filo**: `PIE-VIS-UNBAL` chiede se si veda che e' AMPLIFICATA, questa se si
+      # veda che ha SPENTO una reazione armata. Sono due letture dello stesso contraccolpo, e il
+      # commento sopra dichiara gia' che giudicarne un anello per volta fa perdere proprio cio' che si
+      # cerca — che i momenti a schermo si somiglino troppo.
+      # ⛔ **#2367 NON la blocca**, e la voce lo scrive: la issue decide se il comportamento vada
+      # cambiato, questa riporta cosa si vede. Verificata OPEN il 2026-09-23, e resta irrilevante qui.
+      - PIE-VIS-WATCHPUSH
+    issues: [2378, 2253, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
       Tre scenari, nell'ordine in cui il gioco li produce. `Scenario Filter A = animation` nel
@@ -3453,11 +3559,32 @@ sessions:
     shares_setup_with: []
     # ⚠️ Vuoto per una ragione MISURATA, non per default: l'allestimento di questa seduta parte da
     # `L_Frontend`, e nessun'altra seduta lo condivide — le altre aprono direttamente una mappa di partita.
-    verifies: [PIE-V01-SCREENHUD]
-    issues: [613, 2764]
+    verifies:
+      - PIE-V01-SCREENHUD
+      # Convocata il 2026-09-23 dal censimento di #2188, e il gesto e' gia' quello che questa seduta
+      # prescrive: *«Si apre da `L_Frontend` e si preme `PLAY`»*. Quella riga E' il percorso che questa
+      # voce giudica — dal menu alla partita, passando dal loading e **senza** aprire un secondo
+      # percorso d'avvio. Chi esegue `PIE-V01-SCREENHUD` lo attraversa comunque: qui si chiede
+      # soltanto di GUARDARLO invece di attraversarlo per arrivare all'HUD.
+      # ⛔ **Non sta in U28** benche' sia una voce del frontend: U28 e' `execution_lane: asset` e
+      # produce il menu; questa voce chiede che il menu **porti in partita**, che e' l'unica cosa che
+      # U28 per definizione non puo' verificare — e infatti `#938`, la sua issue, e' l'aggancio.
+      - PIE-V01-FRONTEND-PLAY
+      # Stessa apertura e stesso layer §4.1: la card dell'unita' selezionata e' uno dei widget che
+      # `PIE-V01-SCREENHUD` monta, e il difetto che questa voce apre (#1896) si manifesta **alla PRIMA
+      # selezione della sessione** — cioe' in un istante che esiste una volta sola per apertura, e che
+      # chi esegue lo Screen HUD attraversa senza saperlo.
+      # 🔴 **Va guardata PRIMA di selezionare qualsiasi cosa**: l'esperimento discriminante gia' fatto
+      # dice che il warning compare alla prima selezione e tace sulle successive. Una seduta che apre
+      # l'HUD, clicca in giro e poi si ricorda di questa voce l'ha gia' persa.
+      - PIE-HUD-CARD-ZERO
+    issues: [613, 2764, 1896, 938, 2188]
     # #613 e' l'owner del layer e dichiara questa voce come proprio residuo. #2764 la nomina fra le proprie
     # verifiche: il verde headless dei suoi 69 test non dice cosa il Blueprint mostri, e questa seduta si'.
-    done_when: la voce ha esito reale nel registro
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro.
+      ⏱️ **Diceva «la voce» al singolare fino al 2026-09-23**, quando era vero: #2188 ne ha
+      convocate altre due che condividono l'apertura, e la condizione ora punta all'elenco
     unblocks: [E11.7]
     steps: |
       🔴 **Si apre da `L_Frontend` e si preme `PLAY`. Non aprendo una mappa di partita.**
@@ -3569,11 +3696,17 @@ sessions:
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
   - id: U51
-    title: Si mira dove non si vede, e si sa solo chi si è colpito
+    # ⏱️ **Il titolo diceva solo «Si mira dove non si vede, e si sa solo chi si è colpito» fino al
+    # 2026-09-23**, ed era vero finché le voci erano le due del tiro indiretto. Con `PIE-V01-SHIELD-WRAITH`
+    # (#2381) la seduta non è più *di un tema*: è **della formazione d'autore**, che è la precondizione
+    # che la rende un'apertura a sé e l'unica cosa che le sue voci condividono davvero.
+    title: La formazione d'autore — si mira dove non si vede, e l'altro portatore dello scudo
     block: 6
     critical: false
     execution_lane: pie
-    produces: il verdetto umano sul tiro indiretto — che mirare al buio non riveli nulla, e che colpire riveli solo la vittima
+    produces: >-
+      il verdetto umano sulle voci che richiedono una formazione diversa da quella spedita — il tiro
+      indiretto che non rivela, e lo scudo proattivo del portatore che a formazione di default è del bot
     artifacts: []
     # 🔑 **Questa seduta esiste perché due voci PIE sono nate senza nessuna che le convocasse.**
     # Misurato su `origin/main` il 2026-09-10, prima di questo record:
@@ -3596,8 +3729,34 @@ sessions:
     # del giocatore. Va spostato in squadra 0 (`EditAnywhere`, `BotAllyCount` a `0`) e **rimesso a posto
     # dopo**: qualunque altra seduta girata nel frattempo giudicherebbe una partita che non è quella spedita.
     # ⛔ Batchiarla con le sedute di acceptance sarebbe quindi il difetto, non l'economia.
-    verifies: [PIE-V01-BLINDFIRE, PIE-V01-MORTAR]
-    issues: [2791, 2870, 2890]
+    verifies:
+      - PIE-V01-BLINDFIRE
+      - PIE-V01-MORTAR
+      # Convocata il 2026-09-23 da #2381, ed e' la stessa eccezione che il commento qui sopra
+      # argomenta: non condivide l'allestimento, condivide **il gesto di scrivere `Team0Heroes` a
+      # mano** — e l'eroe che le serve, `Hero.Ivrin`, sta nella STESSA squadra 1 di `Hero.Branth`.
+      # Quel commento dice che batchiare questa seduta con le sedute di acceptance sarebbe il difetto;
+      # batchiare con lei una voce che chiede la medesima property e' invece l'unica economia legittima,
+      # e risparmia un secondo ciclo «sposta la formazione / gioca / rimetti a posto».
+      #
+      # 🔑 **Due modi, e chi esegue sceglie col proprio banco davanti**:
+      #   (a) `Team0Heroes = {Hero.Branth, Hero.Ivrin}` in una configurazione sola — gli slot sono due
+      #       e li riempie entrambi; l'avversaria diventa `{Hero.Aevik, Hero.Muiren}`;
+      #   (b) due configurazioni, con Stop/Start PIE fra le due. La *Regola di batching* di questo file
+      #       elenca Stop/Start fra cio' che NON impone una riapertura dell'Editor, quindi (b) resta
+      #       dentro la stessa apertura e costa solo tempo.
+      # ⛔ **(a) non e' dichiarata funzionante**, e' dichiarata possibile: nessuno l'ha provata, e la
+      # squadra avversaria cambia. Se il caso «un avversario che la squadra non conosce» ne risente,
+      # (b) vale sempre. Non si forza (a) per risparmiare un riavvio.
+      #
+      # ⚠️ **L'eroe si scrive `Hero.Ivrin`, NON «Wraith»**: `D-334` ha ritirato quell'identita' e il
+      # ratchet `RTLegacyIdentityRatchetTests.cpp` la tiene a tetto `0, 0`. La cella della voce nel
+      # registro PIE la chiama ancora «Wraith» in prosa — l'ID d'azione che porta e' invece corretto,
+      # `Hero.Ivrin.PhaseGuard` — e chi allestisse cercando quel nome non troverebbe niente.
+      # ⚠️ **Le due CVar della voce valgono come per le sorelle**: `rt.Match.BotAllies` e
+      # `rt.Match.Autobattle` non devono consegnare al bot l'eroe che si e' appena spostato.
+      - PIE-V01-SHIELD-WRAITH
+    issues: [2791, 2870, 2890, 2381]
     # ⛔ **Perché una seduta e non un automation test.** Ciò che questa seduta giudica è per metà un
     # **non-evento** e per metà un **ordine**, e nessuna delle due cose si vede da headless.
     # Il non-evento lo enuncia `PIE-V01-BLINDFIRE` e non si ricopia qui (R-6); ciò che serve sapere per
@@ -3609,10 +3768,17 @@ sessions:
     # ⚠️ Le due voci si giudicano **nella stessa apertura e in quest'ordine**: `MORTAR` fino al lock-in
     # deve essere indistinguibile da `BLINDFIRE`, e un non-evento si giudica solo avendo il caso positivo
     # accanto con cui confrontarlo.
-    done_when: entrambe le voci hanno esito reale nel registro
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro, e `Team0Heroes` e' stato rimesso
+      alla formazione spedita.
+      ⏱️ **Diceva «entrambe le voci» fino al 2026-09-23**, quando erano due: #2381 ne ha convocata una
+      terza che chiede la stessa property, e la condizione ora punta all'elenco (`AGENTS.md` §14).
+      ⚠️ **L'ordine vincolato resta quello delle due originali** — `MORTAR` dopo `BLINDFIRE`, per la
+      ragione scritta sopra: un non-evento si giudica avendo accanto il caso positivo. `SHIELD-WRAITH`
+      non ha un posto nell'ordine e puo' stare prima, in mezzo o dopo
     unblocks: []
     # ⚠️ Vuoto: nessun checkpoint dipende dal tiro indiretto. `RELEASE-V01` non lo dichiara — nessuno lo
-    # ha promesso per la v0.1 — e le due voci PIE non portano quel marcatore.
+    # ha promesso per la v0.1 — e le voci PIE di questa seduta non portano quel marcatore.
     notes: |
       Setup, nell'ordine in cui va fatto:
 
@@ -3653,9 +3819,19 @@ sessions:
     # ⚠️ Vuoto per una ragione precisa: l'allestimento chiede `rt.Map.Fixture VisionSplit` **e** un piano
     # costruito a mano con quattro fasi insieme. Nessuna altra seduta lo ha, e appoggiarsi a una partita
     # normale lascerebbe fuori proprio il caso che rende la voce giudicabile.
-    verifies: [PIE-PREVIEW-GHOST]
-    issues: [172]
-    done_when: la voce ha esito reale nel registro
+    verifies:
+      - PIE-PREVIEW-GHOST
+      # Convocata il 2026-09-23 dal censimento di #2188. L'allestimento che il commento qui sopra
+      # dichiara esclusivo — *«un piano costruito a mano con quattro fasi insieme»* — e' **parola per
+      # parola** la precondizione di questa voce nel registro (*«unita' propria con un piano su piu'
+      # fasi»*), e lo scrubbing delle fasi si guarda su quello stesso piano. Erano due voci sulla
+      # stessa timeline, una convocata e una no.
+      # 🔑 Restano DUE voci e non una fusa: `PREVIEW-GHOST` guarda i ghost **impilati** — quanti sono e
+      # come si distinguono — `V01-GHOSTS` il **movimento fra le fasi**, cioe' se scorrendole si capisca
+      # quale ghost appartenga a quale. Un verde sull'una non implica l'altra.
+      - PIE-V01-GHOSTS
+    issues: [172, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
     unblocks: []
     steps: |
       🔴 **Le CVar si danno PRIMA del Play, nella console dell'Editor.** Dentro PIE arrivano dopo che il
@@ -3714,6 +3890,20 @@ sessions:
     # una linea che ESISTE e non arriva. In una partita normale un bersaglio non visibile non si punta.
     verifies:
       - PIE-VIS-SIGHTLINE
+      # Convocata il 2026-09-23 dal censimento di #2188, ed e' la stessa domanda un canale piu' in la':
+      # `PIE-VIS-SIGHTLINE` chiede se la linea interrotta si VEDA, questa se la console sappia DIRE cosa
+      # l'ha fermata — «la cella che la ferma» del titolo, nominata invece che guardata.
+      # ⚠️ **Scenario diverso** (`Visual.Map.SightWallIsWalkable` invece di
+      # `Visual.Environment.BlindFireThroughSightWall`) e **non e' un'eccezione alla regola di batching**:
+      # quella dichiara `rt.Test.Scenario <Id>` e il cambio fixture fra le cose che NON impongono una
+      # seconda apertura. Un processo, due scenari, lo stesso muro.
+      # 🔴 **La sua precondizione nel registro ha gia' fatto fallire un tentativo** (2026-09-05): la forma
+      # `-dpcvars=rt.Test.Scenario=` non allesti' niente e la console rispose `libera` su una mappa senza
+      # muro — cioe' correttamente, alla domanda sbagliata. Chi esegue verifichi che lo scenario sia
+      # DAVVERO caricato prima di interrogare.
+      - PIE-DEBUG-LOS
+    issues: [2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
 
   - id: U54
     title: Il dock dice quale abilita', e il feed dice cosa e' successo
@@ -3780,3 +3970,367 @@ sessions:
       riprende deve soltanto portare un'unita' a morire.
       ⛔ **Un limite dichiarato**: i tre stati del dock non sono stati osservati uno per uno.
       L'esito pieno sta in `test-manuali-pie.md`, che ne resta l'unico owner (R-6).
+
+  # --- Sedute aperte dal censimento di #2188 (2026-09-23) -----------------------
+  #
+  # ⚠️ **Quattro sedute, e nessuna da una voce sola**: il rischio che #2188 nomina per primo e' che le
+  # voci orfane diventino altrettante sedute fantasma, cioe' lo stesso difetto con un altro nome.
+  # Il criterio applicato qui e' quello che la issue prescrive — *«con quali altre voci si allestisce
+  # insieme?»*, non *«dove la metto»* — e una voce che non ha risposto e' andata in `not_schedulable`
+  # con la ragione, non in una seduta propria.
+
+  - id: U55
+    title: I residui del mode Hex Map, e la versione che il salvataggio scrive
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: verdetto sui residui del mode Hex Map e sul gesto d'editor che scrive la versione di formato
+    artifacts: []
+    unblocked_by: [U1]
+    # `U1` produce `DA_HexMap_Arena` e `L_HexArena`, che sono l'oggetto su cui questi gesti si fanno.
+    # Dipendenza dura, non setup condiviso: senza quell'asset non c'e' niente da aprire.
+    shares_setup_with: []
+    verifies:
+      # I residui della famiglia `PIE-HEX-MODE-*`. Le altre sono in `U1`, che le ha gia' eseguite; queste
+      # sono nate dopo (#871, #921, #931) e non sono mai entrate in un `verifies`.
+      # ⛔ **Non sono state aggiunte a `U1`**, ed e' una scelta: quella seduta e' chiusa, il suo
+      # `done_when` nomina le voci che ha guardato, e riaprirlo per voci nate dopo riscriverebbe la
+      # condizione di una seduta conclusa — il contrario di cio' che un `done_when` serve a fare.
+      - PIE-HEX-MODE-P
+      - PIE-HEX-MODE-Q
+      - PIE-HEX-MODE-R
+      # Stessa apertura e stesso asset: e' il gesto con cui una sessione di mode Hex Map **finisce** —
+      # si salva — e la voce chiede che il salvataggio d'editor scriva la versione di formato come la
+      # scrive il codice. Metterla altrove significherebbe riaprire l'Editor sullo stesso asset per
+      # premere Ctrl+S.
+      # 🔴 **VA PER ULTIMA, e su un branch o ripristinando l'asset**: risalvando l'arena si perde il
+      # solo binario pre-meccanismo del repository, che `FMT-2` ha scelto come rivelatore. Eseguirla
+      # prima delle altre le lascerebbe su un asset gia' riscritto.
+      - PIE-FMTVER
+    issues: [871, 921, 931, 687, 2188]
+    done_when: >-
+      ogni voce elencata in `verifies` ha un esito reale nel registro, e l'arena risulta ripristinata —
+      `git status` pulito su `DA_HexMap_Arena`, oppure il branch dichiarato e non mergiato
+    unblocks: []
+
+  - id: U56
+    title: La finestra di reazione, aperta e attraversata
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su cosa si vede quando la risoluzione si ferma a chiedere, e quando riparte
+    artifacts: []
+    unblocked_by: []
+    # 🔓 **Vuoto e MISURATO, ed e' la ragione per cui questa seduta nasce adesso.** Le due voci si
+    # dichiaravano bloccate da #166 (*«nessun percorso di produzione lega `OnReactionWindowOpened`»*),
+    # e quel blocco e' caduto in due tempi: #2723 ha legato il delegate — `URTReactionWindowViewModel::Hook`
+    # fa `BindUObject` e `ARTGameMode::BeginPlay` chiama `HookReactionWindow()` — e #3084 ha MONTATO
+    # `WBP_RT_FastDecision` nel `Canvas Panel` di `WBP_RT_TacticalHUD`, che non e' la stessa cosa:
+    # prima il delegate scattava e a schermo non c'era niente a cui rispondere.
+    # ⚠️ Il registro lo scrive gia' in entrambe le celle, e nessuna seduta le ha raccolte: *«adesso il
+    # pericolo e' che qualcuno NON esegua una voce diventata eseguibile»*. E' il difetto di #2188 nella
+    # sua forma piu' cara — non una voce dimenticata, una voce sbloccata e lasciata dov'era.
+    shares_setup_with: []
+    verifies:
+      # 🔑 **Due voci, un'unica finestra, e vanno guardate nella STESSA apertura**: `RXBRACE` chiede
+      # cosa succede DENTRO la finestra — chi viene spinto sceglie, e il Blast aspetta — `RXPLAYBACK`
+      # cosa succede alla GIUNZIONE, cioe' se il playback riprenda senza salti ne' ripartenze.
+      # Separarle darebbe due verdi che non dicono se la sospensione e la ripresa siano lo stesso gesto.
+      - PIE-V01-RXBRACE
+      - PIE-V01-RXPLAYBACK
+    issues: [2692, 2679, 2723, 166, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
+    unblocks: []
+    notes: >-
+      ⚠️ **L'allestimento non e' banale e va preparato prima di aprire**: serve una partita 2v2 **live**
+      con **Phase** comandata dal giocatore — e' l'unico eroe canonico con `Profile.Sidestep`, quindi
+      l'unico che possa portare il `Brace` — e per `RXPLAYBACK` un'unita' non-bot con `Action.Overwatch`
+      come azione principale, orientata verso una rotta che qualcuno attraversa. Le precondizioni
+      complete stanno nel registro, che ne e' l'owner (R-6).
+      ⛔ **Non si deduce l'esito dai test verdi.** `Reactions.Brace.WindowSuspendsBlast` prova che la
+      finestra si apra, che la fase si fermi e che la ripresa non riapplichi la spinta; nessuno dei tre
+      guarda se a schermo la sospensione si legga come una scelta invece che come un blocco. E il gate
+      headless non puo' arrivarci nemmeno in linea di principio: `Class->Bindings` copre i property
+      binding, **non** il consumo dentro un event graph.
+
+  - id: U57
+    title: Il frontend costruito, percorso per percorso
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      verdetto sui percorsi del frontend che nessuna seduta guardava — il replay raggiunto dal menu, e
+      l'avvio che fallisce
+    artifacts: []
+    unblocked_by: [U28]
+    # `U28` produce il Main Menu e la mappa `L_Frontend`: senza, non c'e' il percorso da attraversare.
+    shares_setup_with: []
+    verifies:
+      # Convocata dal censimento di #2188. ✅ **Il suo prerequisito e' gia' soddisfatto**:
+      # `PIE-REPLAY-ARCHIVE` e' verde nel registro, e la lista ha righe vere da mostrare. Il codice c'e'
+      # da #472 e #2326, entrambe chiuse `COMPLETED` — verificato il 2026-09-23.
+      # ⛔ **Cio' che nessun test headless vede, e per cui questa voce esiste**: `AddToViewport` non
+      # mette nulla in viewport dentro una `UGameInstance` di test, quindi nessuno dei verdi dice che
+      # i widget **disegnino**, ne' che una lista con piu' di una riga si **legga**.
+      - PIE-V01-REPLAY-VIEWER
+      # 🔴 **IMPONE UNA SECONDA APERTURA, e la ragione tecnica e' dichiarata qui** come la regola di
+      # batching di questo file prescrive: la voce chiede un avvio che **fallisce** — uno dei tre esiti
+      # fatali di `ERTStartupOutcome` — e un avvio che **ripiega** su `MapSource=GeneratedTestArena`.
+      # Sono due configurazioni rotte di proposito, e nessuna delle due si produce nel processo che ha
+      # gia' avviato bene. E' il caso (2) della regola: «serve un riavvio pulito».
+      # ⚠️ **Era dichiarata scoperta in U28**, che con ragione non se la prendeva: quella seduta e'
+      # `execution_lane: asset` e il suo `done_when` riguarda i `.uasset` che produce.
+      - PIE-V01-FRONTEND-ERROR
+    issues: [472, 2326, 937, 2188]
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro, e la seconda apertura e' registrata
+      con la configurazione che l'ha imposta
+    unblocks: []
+    notes: >-
+      ⚠️ **Il criterio (c) di `PIE-V01-FRONTEND-ERROR` e' gia' rosso per una causa nota** (#937: il
+      `BACK` del modale e' disegnato e non chiama niente). Chi esegue non lo riscopre — lo **rigiudica**
+      contro lo stato di quella issue il giorno della seduta, e un rosso li' non e' una scoperta.
+      ⛔ **`PIE-V01-FRONTEND-REPLAY` NON sta qui** benche' sia lo stesso percorso: chiede una build
+      **packaged**, e l'unica seduta che ne apre una e' `U23` — che per giunta produce l'archivio che
+      quella voce richiede. Una voce in due sedute e' una voce che nessuna delle due esegue.
+
+  - id: U58
+    title: Il gesto di mira — cosa si vede quando si arma, e cosa resta a terra
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto sulle voci aperte insieme alla loro feature e mai convocate
+    artifacts: []
+    unblocked_by: []
+    # Vuoto e misurato: le feature sono in `main` (#2741, #2742, e per `AttackFootprint` la cue
+    # `AddPlaybackFootprint` e' cablata in `RTPresentationBinding.cpp`), e ciascuna voce nomina i
+    # propri test headless verdi. Cio' che manca e' un occhio.
+    shares_setup_with: [U53]
+    # `U53` guarda la stessa scena da un'altra parte — la linea che NON arriva, su uno scenario in cui
+    # il bersaglio non e' visibile. Qui il bersaglio e' **noto**. Due allestimenti vicini, un'apertura.
+    verifies:
+      # 🔑 **Una precondizione sola per tutte**, ed e' testuale nel registro: partita in PIE su
+      # `L_HexArena`, un'unita' propria selezionata con un'abilita' **armata**. Da li' si guardano tre
+      # momenti consecutivi dello stesso gesto — si mira a qualcosa che il gioco rifiuta, si mira a
+      # qualcosa che la linea non raggiunge, si colpisce e resta un'impronta.
+      # ⚠️ **Sono state aperte INSIEME ALLA FEATURE fra il 2026-09-09 e il 2026-09-10**, deliberatamente
+      # e nel verso giusto, e sono rimaste fuori da ogni seduta: la voce scritta in tempo non serve a
+      # niente se nessuno la convoca.
+      - PIE-V01-REFUSAL
+      - PIE-V01-SIGHTLINE
+      - PIE-V01-FOOTPRINT
+    issues: [2741, 2742, 2454, 2188]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
+    unblocks: []
+    notes: >-
+      ⛔ **Nessuna si deduce dai test verdi, e ciascuna lo dichiara**:
+      `Combat.RefusalHidesTheUnknownTarget` pinna l'indistinguibilita' **sul valore**,
+      `Sight.HiddenStatesProduceTheSameLines` lo stesso per le linee,
+      `Playback.BlastPhaseOpensForFootprintOnly` che la fase si apra per una sola impronta. Nessuno di
+      quei test guarda uno schermo, e per due delle voci cio' che va giudicato e' **un'assenza** — un
+      messaggio che non compare, un segmento che non c'e' — che sul valore e' un'uguaglianza e a schermo
+      e' una cosa che si nota o non si nota.
+      ⚠️ **`PIE-V01-SIGHTLINE` e `PIE-VIS-SIGHTLINE` sono due voci diverse** e stanno in due sedute
+      vicine di proposito: quella di `U53` vive su uno scenario in cui il bersaglio **non e' visibile**
+      — il caso che una partita normale non produce, perche' un bersaglio non visibile non si punta —
+      questa su un nemico **noto** dietro la barriera. Fonderle perderebbe uno dei due casi.
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# Voci aperte che NESSUNA seduta convoca, e che non e' una dimenticanza
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+#
+# Aperto il 2026-09-23 da #2188, che misura il difetto per cui esiste: una voce ⏳ fuori da ogni
+# `verifies` **non viene eseguita mai**, e chi apre questo file per decidere cosa fare non la vede.
+#
+# Le uscite legittime sono tre — seduta esistente, seduta nuova, **non schedulabile con la ragione** —
+# e tacere non e' una di esse. Questo blocco e' la terza: nomina le voci che oggi non si possono
+# guardare, e per ciascuna **l'oracolo che lo dice**, cioe' un comando o una issue il cui stato
+# risponde da solo. Non una valutazione, una misura.
+#
+# ⛔ **Non e' una seduta e non ne fa le veci.** Non ha `verifies`, non ha `done_when`, non convoca
+# nessuno. Una voce che entra qui NON e' schedulata: e' dichiarata, che e' un'altra cosa e vale meno.
+# Quando il suo oracolo cade, la voce **esce di qui ed entra in un `verifies`** — e finche' resta,
+# resta col motivo scritto.
+#
+# ⛔ **Non dichiara lo stato di una voce** (R-6): quello e' di `test-manuali-pie.md`, che ne resta
+# l'unico owner. Qui si dice perche' oggi non si puo' guardarla, mai cosa si vedrebbe.
+#
+# 🔑 **Perche' questo blocco vale la pena.** Senza, le voci qui sotto sono indistinguibili da quelle
+# dimenticate: la stessa misura le trova, con lo stesso risultato, e la prossima persona che conta le
+# orfane rifa' da capo l'indagine che questa passata ha fatto. Con, la misura diventa un **invariante**
+# che si rompe rumorosamente:
+#
+#     aperte  -  convocate da una seduta  -  dichiarate qui  =  0
+#
+# Il comando che lo verifica sta in `docs/roadmap/plans/censimento-voci-pie-orfane-2026-09-23.md` §4,
+# insieme al comando canonico con cui si contano le aperte — che NON si reinventa: sta in testa a
+# `test-manuali-pie.md` e classifica sul **PRIMO** marcatore della cella di stato.
+#
+# Campi:
+#   check         l'ID della voce PIE
+#   reason        perche' oggi non si puo' GUARDARE. Mai cosa si vedrebbe
+#   oracle        il comando o la issue il cui stato risponde. Deve essere eseguibile da chi legge
+#   revisit_when  la condizione che la rimette in gioco, scritta come evento e non come data
+
+not_schedulable:
+
+  # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
+  #
+  # Tre voci, due cause diverse, e tenerle separate conta: una aspetta un CAMPO su un evento che
+  # esiste, due aspettano una CUE su un evento che esiste. Fonderle in «manca il playback» e' la
+  # stessa approssimazione che il registro ha gia' ritirato una volta, il 2026-09-22.
+
+  - check: PIE-VIS-PUSH
+    reason: >-
+      L'evento di playback della spinta ESISTE — un `Move` di fase `Blast` emesso da
+      `ApplyForcedDisplacement` — ma nasce senza `CellVerdicts`, e senza quel campo
+      `ObservedPrefixLength` risponde `0` per costruzione e `BuildPlayback` scarta l'anim. A schermo
+      non arriva niente da giudicare. ⚠️ La cella del registro portava fino al 2026-09-22 una causa
+      diversa e inesatta (*«l'effetto non ha un evento di playback»*), ritirata lo stesso giorno:
+      chi legge la vecchia formulazione cerca un valore di enum mancante che non manca.
+    oracle: >-
+      gh issue view 3261 --json state   ·  e la misura che l'ha aperta:
+      grep -rn "\.CellVerdicts\s*=" Source/RefactorTactics --include=*.cpp --exclude-dir=Tests
+      → oggi due sole righe, Dash e Move, nessuna sulla spinta
+    revisit_when: "#3261 chiusa"
+
+  - check: PIE-VIS-DEFLECT
+    reason: >-
+      `ERTResolvedEventType::ReactionResolved` esiste ed e' emesso dove la reazione scatta (#2191,
+      presidiato per mutazione), ma **nessuna cue lo consuma**: `RTPresentationBinding.cpp` lo
+      dichiara `MakePendingPresentation` e nomina come owner #2454. La voce chiede se la parata **si
+      veda**; finche' nessuno la disegna, cio' che si vede e' solo la barra che scende poco — cioe'
+      esattamente il *«attacco debole invece di una difesa riuscita»* che la voce esiste per escludere.
+      ⛔ Non e' «non ancora eseguita»: eseguirla oggi darebbe rosso per una causa gia' nota, e il
+      verdetto non aggiungerebbe informazione.
+    oracle: >-
+      gh issue view 2454 --json state   ·  e la dichiarazione nel codice, che nomina anche le due voci:
+      grep -n "MakePendingPresentation(ERTResolvedEventType::ReactionResolved" -A4
+      Source/RefactorTactics/Turn/RTPresentationBinding.cpp
+    revisit_when: "la cue di `ReactionResolved` nasce (#2454), e il binding smette di essere `Pending`"
+
+  - check: PIE-VIS-INTERPOSE
+    reason: >-
+      Stessa causa di `PIE-VIS-DEFLECT`, e lo stesso codice le nomina entrambe. ⚠️ La sua storia e'
+      pero' diversa di un passo e vale la pena saperlo: fino al 2026-09-04 l'evento non usciva
+      affatto dal ramo dell'interposizione (`RTTurnManager_Blast.cpp`), mentre per la gemella usciva
+      gia'. Chi legge una stesura vecchia della cella trova scritto «l'evento ORA ESISTE» quando per
+      questa voce non era vero.
+    oracle: "come `PIE-VIS-DEFLECT`: gh issue view 2454 --json state"
+    revisit_when: "la cue di `ReactionResolved` nasce (#2454)"
+
+  # ── Il gate della fetta, che non si esegue a pezzi ──────────────────────────────────────────────
+
+  - check: PIE-VSLICE-01
+    reason: >-
+      E' il gate che chiede se la catena visiva della v0.1 regga **insieme**, in packaged, e il suo
+      blockquote dichiara che **non si esegue a pezzi**: meta' dei passi, girati quando meta' della
+      catena esiste, misurano cio' che e' gia' coperto altrove. Delle cinque dipendenze dichiarate
+      **tre sono cadute** — #1712, #1497 (2026-09-02) e #1535 (2026-09-10) — e ne restano due aperte.
+      ⚠️ Il blockquote del registro parla ancora di *«cinque dipendenze aperte»*: e' la formulazione
+      del 2026-08-30 e oggi e' stantia. Quel file ha un owner e la correzione spetta a lui; qui si
+      registra la misura, che vale come rimisura e non come modifica.
+    oracle: >-
+      gh issue view 613 --json state && gh issue view 220 --json state   → entrambe OPEN il 2026-09-23
+      (le altre tre: #1712 CLOSED, #1497 CLOSED, #1535 CLOSED)
+    revisit_when: "#613 e #220 chiuse — allora la voce e' schedulabile e vuole una packaged Development"
+
+  # ── Il codice sotto non esiste: E34 non e' cominciata ───────────────────────────────────────────
+  #
+  # Dieci voci, una causa sola, e la ragione e' la piu' verificabile di tutte: ogni loro precondizione
+  # nel registro nomina un `CP 34.x`, e **nessuno dei `CP 34.x` e' chiuso**. Non sono voci in ritardo:
+  # sono il ciclo docs → checkpoint → PIE tenuto chiuso in anticipo, che e' il motivo per cui esistono.
+  # ⛔ Dieci sedute da una voce ciascuna sarebbero dieci sedute fantasma — il rischio che #2188 nomina.
+  #
+  # Oracolo comune, una riga:
+  #   gh issue list --search "CP 34. in:title" --state all --json number,state
+  #   → 11 checkpoint, tutti OPEN il 2026-09-23; l'epic e' #244, OPEN
+  # ⚠️ Chi rilegge NON conti gli OPEN a memoria: la condizione che libera una voce e' la chiusura del
+  # checkpoint CHE QUELLA VOCE NOMINA, non dell'epic — e sono checkpoint diversi.
+
+  - check: PIE-STATE-01
+    reason: "precondizione `CP 34.6` (#250, rappresentazione dello stato in HUD) + catalogo icone popolato"
+    oracle: "gh issue view 250 --json state → OPEN"
+    revisit_when: "#250 chiusa"
+  - check: PIE-STATE-02
+    reason: "precondizione `CP 34.2` (#246, attivazione, commitment e revert)"
+    oracle: "gh issue view 246 --json state → OPEN"
+    revisit_when: "#246 chiusa"
+  - check: PIE-STATE-03
+    reason: "precondizione `CP 34.5` (#249, Action Ghost dello stato previsto)"
+    oracle: "gh issue view 249 --json state → OPEN"
+    revisit_when: "#249 chiusa"
+  - check: PIE-STATE-04
+    reason: "precondizione `CP 34.2` (#246)"
+    oracle: "gh issue view 246 --json state → OPEN"
+    revisit_when: "#246 chiusa"
+  - check: PIE-STATE-05
+    reason: "precondizione `CP 34.2` (#246)"
+    oracle: "gh issue view 246 --json state → OPEN"
+    revisit_when: "#246 chiusa"
+  - check: PIE-STATE-06
+    reason: "precondizione `CP 34.3` (#247, override delle abilita')"
+    oracle: "gh issue view 247 --json state → OPEN"
+    revisit_when: "#247 chiusa"
+  - check: PIE-STATE-07
+    reason: "precondizione `CP 34.4` (#248, override del movimento)"
+    oracle: "gh issue view 248 --json state → OPEN"
+    revisit_when: "#248 chiusa"
+  - check: PIE-STATE-08
+    reason: "precondizione `CP 34.7` (#251, trigger ambientali) + scenario `State.Gadget.Charged`"
+    oracle: "gh issue view 251 --json state → OPEN"
+    revisit_when: "#251 chiusa"
+  - check: PIE-STATE-09
+    reason: "precondizione `CP 34.8` (#252, integrazione con Fast Reaction) + `E14`"
+    oracle: "gh issue view 252 --json state → OPEN"
+    revisit_when: "#252 chiusa"
+  - check: PIE-STATE-10
+    reason: "precondizione `CP 34.10` (#254, logging e diagnosi)"
+    oracle: "gh issue view 254 --json state → OPEN"
+    revisit_when: "#254 chiusa"
+
+  # ── La rete non esiste in produzione ────────────────────────────────────────────────────────────
+  #
+  # Tre voci, una causa sola, e questa si misura **sul codice** invece che su una issue — il che la
+  # rende l'oracolo piu' solido dei tre tipi presenti in questo blocco.
+  # ⚠️ **Il comando conta, e la formulazione ingenua e' gia' scaduta una volta**: il registro dichiarava
+  # il 2026-09-04 *«`Source/` non contiene una sola `UPROPERTY(Replicated)`»*, e oggi un grep grezzo ne
+  # trova diverse — sono commenti, stringhe, e **una fixture di test** che dichiara davvero una
+  # proprieta' replicata perche' e' l'oracolo della guardia `RTServerOnlyGuard` (#589). Cio' che resta
+  # zero, ed e' cio' che quella frase voleva dire, e' la PRODUZIONE. Il repository lo registra gia' da
+  # se' in `RTPlaybackControlsTests.cpp`.
+
+  - check: PIE-NET-CANARY-PACKAGED
+    reason: >-
+      Chiede `M10.1` + `M10.2` e una build packaged con due squadre. Non c'e' replica in produzione,
+      quindi non c'e' un canale su cui il canary possa trovarsi o non trovarsi. ⛔ Un'esecuzione in PIE
+      varrebbe `NOT RUN` comunque, e la voce lo dichiara: server e client condividono il processo,
+      quindi il canary e' verde anche a replica rotta.
+    oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
+    revisit_when: "`M10.1` e `M10.2` atterrati, cioe' quando quel comando smette di rispondere vuoto"
+  - check: PIE-NET-NO-PAUSE
+    reason: >-
+      Chiede `M10.1` e una finestra di reazione con `AllowedResponses` >= 2 su una sola squadra.
+      Senza rete non esistono due schermi, e cio' che va giudicato e' precisamente che il secondo non
+      mostri una pausa che segua la scelta del primo.
+    oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
+    revisit_when: "`M10.1` atterrato"
+  - check: PIE-NET-LATEJOIN
+    reason: >-
+      Chiede `M10.1` e **un secondo client** che entra a pianificazione iniziata. Non esiste un
+      secondo client.
+    oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
+    revisit_when: "`M10.1` atterrato"
+
+  # ⏱️ **Qui stava `PIE-V01-SHIELD-WRAITH`, dichiarata il 2026-09-23 e rimossa lo stesso giorno.**
+  # Il suo `revisit_when` diceva *«#2381 la convoca — e allora questa riga sparisce invece di
+  # cambiare»*, ed e' quello che e' successo: la voce e' in `U51`, che possiede gia' il gesto di
+  # scrivere `Team0Heroes` a mano. La riga non lascia un segnaposto perche' una voce schedulata non
+  # ha niente da fare in un elenco di voci che non si possono guardare — la storia sta in git e nel
+  # documento del censimento.
+  # 🔴 **E portava due identita' RITIRATE**, ricopiate dalla cella del registro senza verificarle:
+  # «una formazione in cui **Wraith** sia in squadra 0, contro il default `Team0Heroes = [Gadget,
+  # Phase]`». `D-334` ha ritirato `Hero.Wraith` -> `Hero.Ivrin` e `#2491` `Hero.Gadget` ->
+  # `Hero.Aevik`, `Hero.Phase` -> `Hero.Muiren`; il default vero e'
+  # `Team0Heroes = {Hero.Aevik, Hero.Muiren}`. La sostanza reggeva — l'eroe e' ancora in squadra 1,
+  # quindi l'allestimento serve lo stesso — ma il nome da scrivere nel GameMode era sbagliato.

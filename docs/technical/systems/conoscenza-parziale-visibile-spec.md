@@ -13,6 +13,22 @@
 > Estende [`h6-4-hex-vision-spec.md`](h6-4-hex-vision-spec.md) e consuma
 > [`progettazione-hud.md`](progettazione-hud.md) §9, §25 e §26.
 
+> 🔁 **Rimisurato il 2026-09-23 — questa spec progettava cose che sono in produzione.**
+>
+> Il documento è stato scritto il 2026-08-26 e allineato a [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md)
+> mai: la **Fase A è atterrata per intero**, il trigger che §5.4 fa *«nascere»* esiste, emette e ha un
+> subscriber di produzione, e il gate dei colori che §5.5 dichiara inutile è stato **costruito**. Chi lo
+> leggeva come piano di lavoro rischiava di riscrivere codice che esiste.
+>
+> ⚠️ **Convenzione di lettura, dichiarata una volta qui.** Le voci rimisurate portano un marcatore:
+> ✅ *atterrata* — la spec la progetta, il codice ce l'ha; 🔁 *riqualificata* — l'affermazione è caduta e
+> la riga è **datata** invece che cancellata, perché la misura che motiva una scelta è ciò che la rende
+> leggibile; 📌 *ripuntata* — il **simbolo** sostituisce il numero di riga, forma di
+> [`D-431`](../../decisions/RT_PDR_00_Decision_Log.md) (1)(a), con la riga come corredo **datato**.
+>
+> ⛔ **Cosa questa passata NON ha fatto**: nessuna compilazione, nessun Editor, nessuna Automation. Dove
+> si legge *«il test esiste e asserisce X»* non si legga *«il test passa»*.
+
 > 📍 **Ogni numero e ogni assenza in questo documento è stato misurato il 2026-08-26 su `main`**, e il
 > comando è scritto accanto all'affermazione. Le misure invecchiano: prima di usarne una come premessa,
 > rieseguila.
@@ -37,13 +53,40 @@
 `git grep -c -E "Awareness|TeamKnowledge|VisibleCells|HasLineOfSight"` sui path presentazionali
 (`UI/`, `Player/`, `Unit/`, `Camera/`, `Selection/`, `Replay/`, `Map/RTHexMapActor.cpp`) → **zero ovunque**.
 
-🔴 **Ma la conclusione «la presentazione non ha il dato» è falsa.** `ARTTurnManager::MakeCurrentSnapshot` è
-dichiarata a `RTTurnManager.h:495`, sotto il `public:` aperto a riga 177, e restituisce `FRTHexSnapshot`, che
-porta `TeamKnowledge` di **entrambe** le squadre. `RTPlayerController.cpp:66` la chiama già, a ogni refresh
-dell'anteprima di pianificazione.
+> 🔁 **Rimisurato il 2026-09-23: quello zero era il difetto del 2026-08-26, e oggi il titolo di questa
+> sezione è falso.** Lo **stesso comando, sullo stesso scope**, non risponde più zero — e i riscontri non
+> sono menzioni in commento: `ARTHexMapActor::ApplyKnowledgeVeil` prende un `const FRTTeamKnowledge&` e
+> itera `Knowledge.VisibleCells`, e `ARTHUD` compone le celle conosciute dalla stessa struttura. La
+> presentazione la usa. ⚠️ **La cifra non si aggiorna**: il comando è già scritto qui sopra, e si rilancia
+> — è destinata a cambiare ancora.
+
+🔴 **Ma la conclusione «la presentazione non ha il dato» è falsa.** `ARTTurnManager::MakeCurrentSnapshot`
+è pubblica e restituisce `FRTHexSnapshot`, che porta `TeamKnowledge` di **entrambe** le squadre.
+`ARTPlayerController` la chiama già, a ogni refresh dell'anteprima di pianificazione.
+
+> 📌 **Ripuntato il 2026-09-23.** Qui c'erano tre coordinate numeriche — `RTTurnManager.h:495`, il
+> `public:` *«aperto a riga 177»*, e `RTPlayerController.cpp:66` — e **tutte e tre** erano scivolate:
+> oggi la dichiarazione è a `:1410`, la 177 è la chiusura di un commento e la 66 pure. Si cita il simbolo.
+> ⚠️ E la clausola *«sotto il `public:`»* non era verificabile come scritta: fra quel `public:` e la
+> dichiarazione l'header apre e chiude altri specificatori, quindi il contenimento andava calcolato, non
+> letto — calcolato, regge, la funzione è pubblica.
 
 **Il client ha già tutto in mano.** Non manca il dato: manca la **porta filtrata**. È la differenza fra
 «non lo so» e «lo so e faccio finta di no», e la seconda è ciò che
+
+> ✅ **La porta filtrata è stata costruita il 2026-09-21 da [`D-371`](../../decisions/RT_PDR_00_Decision_Log.md), e questa è la riga più
+> importante che la spec non sa.** `MakeCurrentSnapshot` prende un `ObserverTeamId` **senza default**, il
+> compilatore enumera i chiamanti, e l'autorità ha una posizione **nominata** invece di un ripiego:
+> `URTHexSimLibrary::MakeSnapshotOmniscient`. Il filtro vive dentro `URTHexSimLibrary::MakeSnapshot` —
+> *«un corpo che l'osservatore non conosce non occupa la SUA cella»* — ed è costruito come **«non costruire
+> la vista»**, non «costruirla e nasconderla»: la cella dell'ignoto non entra mai in `Occupancy`, quindi
+> nessuno dei suoi lettori può riderivarla.
+>
+> 🔑 **Ma è l'OCCUPAZIONE a essere filtrata, non la conoscenza, e chi riscrive questa sezione deve tenerle
+> separate**: `Snapshot.TeamKnowledge = TeamKnowledge` copia ancora l'array **intero**. Quindi la frase
+> *«porta `TeamKnowledge` di entrambe le squadre»* qui sopra **regge**, e il debito che descrive è vivo —
+> mentre *«manca la porta filtrata»* non regge più. Leggerle come una cosa sola farebbe dichiarare chiuso
+> metà di un lavoro, o aperto metà di uno fatto.
 [`progettazione-hud.md`](progettazione-hud.md) §17 vieta e che l'invariante #6 esclude per costruzione.
 
 ### 1.3 Quali canali possono stampare a schermo un fatto che la squadra non conosce
@@ -94,8 +137,17 @@ leggerlo qui.
    gira **solo all'allestimento** (`OnConstruction`, `ARTGameMode::ApplyMapSource`, harness scenari).
    `git grep -n RebuildInstances -- Source/RefactorTactics/Turn Source/RefactorTactics/Player` → nessun
    match. Non esiste mappa inversa cella→istanza: `InstanceCells` va da indice a cella.
-3. **Il trigger**: `ARTTurnManager` ha **sei** delegate, tutti di playback o fine partita, e **nessuno ha
-   subscriber**. Nessuno segnala l'inizio della pianificazione.
+3. **Il trigger**: `ARTTurnManager` ha delegate di playback e fine partita, e nessuno segnala l'inizio
+   della pianificazione.
+
+   > 🔁 **Rimisurato il 2026-09-23: tutte e tre le clausole di questa riga sono cadute.** (1) I delegate
+   > si contano con `grep -c 'UPROPERTY(BlueprintAssignable' Source/RefactorTactics/Turn/RTTurnManager.h`
+   > e non sono più sei. (2) Non sono *«tutti di playback o fine partita»*: `OnTeamKnowledgeRefreshed` è
+   > di **conoscenza**, ed è esattamente il trigger che §5.4 propone di far nascere. (3) *«Nessuno ha
+   > subscriber»* è la clausola più grave e la più facile da mancare, perché contare le **dichiarazioni**
+   > non la falsifica: si misura sulle **sottoscrizioni**,
+   > `git grep -nE 'On[A-Za-z]+\.(AddDynamic|AddUniqueDynamic|AddUObject)' -- Source/ ':!Source/RefactorTactics/Tests/'`,
+   > e risponde su `URTKnowledgeVeilPresenter::Hook`, `ARTPlayerController` e `ARTGameMode`.
 
 Per contro, il **dato** c'è ed è fresco: `RefreshTeamKnowledgeForPlanning` rinfresca **tutte** le squadre e
 vive dentro `PlanBots()`, che `StartPlanningTimer` chiama a ogni turno.
@@ -108,8 +160,12 @@ vive dentro `PlanBots()`, che `StartPlanningTimer` chiama a ogni turno.
 - Il catalogo azioni porta la colonna `Rumore` con dei `—`, e scrive che *«un `—` non è "silenzioso": è
   "non ancora deciso"»*. La domanda ha un ID: **`AE-8`**.
 - `FRTAcousticContact` → zero occorrenze.
-- Il filtro acustico d'uscita non esiste: `RTIntentPrivacyLibrary` espone il solo
-  `FilterForTeam(ObserverTeamId, Intents)`.
+- Il filtro acustico d'uscita non esiste: `URTIntentPrivacyLibrary` non ne ha nessuno.
+  > 🔁 **La conclusione regge, la prova che la sosteneva no** (rimisurato il 2026-09-23). Qui c'era
+  > *«espone il **solo** `FilterForTeam`»*: la libreria espone anche
+  > `URTIntentPrivacyLibrary::ClassifyPlan`, entrambe `BlueprintPure` e pubbliche. ⚠️ È il caso in cui
+  > **una premessa falsa regge per caso una tesi vera** — nessuna delle due è acustica, quindi il filtro
+  > acustico continua a non esistere, ma chi avesse verificato la premessa avrebbe concluso il contrario.
 
 ---
 
@@ -118,7 +174,7 @@ vive dentro `PlanBots()`, che `StartPlanningTimer` chiama a ogni turno.
 | # | Decisione | Conseguenza |
 |---|---|---|
 | **S1** | **Due fette: prima le unità, poi il terreno** | Questa spec è la prima. La fog sul terreno è §10 |
-| **S2** | **Vista e rumore nella stessa fetta** | Si tocca il TurnLog: versione di formato **11** e golden da rigenerare |
+| **S2** | **Vista e rumore nella stessa fetta** | Si tocca il TurnLog: **la prossima versione di formato libera** e golden da rigenerare. 🔁 *Qui c'era scritto `11`, e il 2026-09-23 era già **spesa e persistita nei golden**: gli enumeratori di `ERTTurnLogFormatVersion` sono andati oltre. Il numero non si aggiorna — si legge dall'ultimo enumeratore del `enum class ERTTurnLogFormatVersion` in `Turn/RTTurnLog.h` immediatamente prima del merge, come per i `D-nnn` (§7)* |
 | **S3** | **`AE-8` si chiude con una regola derivata**, non con sei numeri scelti a tavolino | §6.1. Un solo numero nuovo in tutto |
 | **S4** | **Il ricordo è una sagoma semitrasparente dell'eroe** nella cella dell'ultimo contatto | Legge tutti e tre i campi di `FRTLastKnownContact`: chi, dove, quando scade |
 | **S5** | **Velo permanente** sulle celle fuori da `VisibleCells`, ottenuto **moltiplicando l'RGB in scrittura** | Nessun `.uasset` da toccare per il velo; il gate dei colori va esteso (§8) |
@@ -312,7 +368,7 @@ col presente e altri col passato, che è esattamente lo stato da cui si è parti
 **Come si calcola, misurato.** `URTTeamKnowledgeLibrary::ClassifyTarget` è puro e chiede
 `(Knowledge, SubjectId, SubjectTeamId, SubjectCurrentCell)`. In `ARTTurnManager::ConcludeTurn` le righe
 escono da `URTTurnLogLibrary::DescribeTurnLogWithSubjects` e `DestroyDefeatedUnits` gira dopo
-(`RTTurnManager.cpp:3362` e `:3386` alla data del 2026-09-21): alla scrittura il soggetto **esiste
+(dentro `ARTTurnManager::ConcludeTurn`, dopo `DescribeTurnLogWithSubjects`): alla scrittura il soggetto **esiste
 ancora**. I siti sparsi hanno l'unità in mano e costano una riga ciascuno — si contano con
 `grep -rc "AddLogEvent(" Source/RefactorTactics/Turn/*.cpp`, non a memoria.
 
@@ -321,7 +377,7 @@ ancora**. I siti sparsi hanno l'unità in mano e costano una riga ciascuno — s
 *(Corretto il 2026-08-28. Questo paragrafo diceva: «il canale primario è un ciclo solo, quindi basta **una**
 mappa `id → cella` per turno». Era sbagliato due volte, e la seconda metà è il difetto vero.)*
 
-L'unico sito che emette dal TurnLog (`ARTTurnManager::ConcludeTurn`, `RTTurnManager.cpp:3362` alla data)
+L'unico sito che emette dal TurnLog (`ARTTurnManager::ConcludeTurn`)
 scrive **in un colpo solo le voci di tutte e cinque le fasi**, e in quell'istante i due ingressi di `ClassifyTarget` vengono da due momenti
 diversi:
 
@@ -332,8 +388,8 @@ la misura che motiva [D-223]; i **simboli** sono quelli di oggi, le righe accant
 
 | Ingresso | Da quando | Misura |
 |---|---|---|
-| `Knowledge` | ultimo refresh, che è quello del **Blast** — **pre-Move** | `ARTTurnManager::RefreshTeamKnowledgeForBlast`, definita in `Turn/RTTurnManager_Blast.cpp:303` alla data |
-| `SubjectCurrentCell` | **post-Move** | `ARTUnit::PlaceOnCell`, chiamata in `Turn/RTTurnManager_Movement.cpp:1446` alla data |
+| `Knowledge` | ultimo refresh, che è quello del **Blast** — **pre-Move** | `ARTTurnManager::RefreshTeamKnowledgeForBlast`, in `Turn/RTTurnManager_Blast.cpp` |
+| `SubjectCurrentCell` | **post-Move** | `ARTUnit::PlaceOnCell`, chiamata da `ARTTurnManager::ResolveMovement` in `Turn/RTTurnManager_Movement.cpp` |
 
 `AwarenessOfUnit` decide con `Knowledge.VisibleCells.Contains(CurrentCell)`, quindi mescolarli produce **due
 errori speculari, entrambi reali**: un **leak** — un soggetto che nel Move entra in una cella visibile
@@ -353,7 +409,7 @@ le tre stanno scritte.)*
 allora: `TeamId` compariva **0** volte in `Turn/RTTurnLog.h`.
 
 ➕ **⌫ Quello zero oggi è FALSO, e ribalta la tesi del paragrafo che lo usa** *(rimisurato il 2026-09-21,
-`#3253`)*: `Turn/RTTurnLog.h:838` porta `int32 TeamId = 0;` dentro `FRTVerdictSubjectRef`, la struct che
+`#3253`)*: `Turn/RTTurnLog.h` porta `int32 TeamId = 0;` dentro `FRTVerdictSubjectRef`, la struct che
 il file stesso descrive come *«i tre soli ingressi che `FreezeVerdict` legge»*. Il TurnLog ha
 **esattamente** il terzo ingresso che questo paragrafo dichiara mancante. Si conta con
 `grep -c TeamId Source/RefactorTactics/Turn/RTTurnLog.h`.
@@ -364,7 +420,7 @@ iscritto il verdetto «conoscenza pre-Move + cella del fatto», anticipare il co
 la voce, o aggiungere un terzo campione — hanno costi diversi e vanno confrontate, non scelte per inerzia.
 
 ✅ **⌫ Dichiarato, e nel codice** *(2026-09-21, `#3253`)*: `ARTTurnManager::FreezeVerdictFor`
-(`Turn/RTTurnManager.cpp:272` alla data) passa `TeamKnowledgeState` come conoscenza e
+(`ARTTurnManager::FreezeVerdictFor`) passa `TeamKnowledgeState` come conoscenza e
 `Subject.GetFactCell()` come cella — **non** `ARTUnit::Cell`, e il commento accanto spiega perché: dentro
 `ResolveMovement` le due non coincidono (`#2142`). La via scelta è la seconda, *anticipare il congelamento
 al sito che produce la voce*, e questo paragrafo resta come storia della scelta, non come lavoro aperto.
@@ -405,13 +461,22 @@ soggetto era lei perdeva la propria voce nella vista.
 
 Misurato sui siti che scrivono la morte:
 
-| # | Riga | Sito *(funzione; la riga è corredo, datato 2026-09-21)* | Soggetto **prima di #1499** | Prima di [D-223] | Con [D-223] |
+| # | Riga | Sito *(solo la **funzione**: vedi la nota sotto)* | Soggetto **prima di #1499** | Prima di [D-223] | Con [D-223] |
 |---|---|---|---|---|---|
-| 1 | `<nome> eliminato dalle fiamme` (danno da `Status.Burning`) | `ARTTurnManager::ConcludeResolution` · `Turn/RTTurnManager.cpp:1789` | **la vittima** | ❌ spariva, insieme al resto del suo turno | ✅ resta, **e la leggono tutte le squadre**: il sito dichiara `FRTLogSubject::World()`, come le altre quattro |
-| 2 | `<nome> eliminato dalla scarica` | `ARTTurnManager::ResolveEnvironment` · `Turn/RTTurnManager.cpp:3224` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
-| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `ARTTurnManager::ResolveCombatPasses` · `Turn/RTTurnManager.cpp:6195` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` — ed è la sola che stampi anche la **squadra** |
-| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `ARTTurnManager::TickPlayback` · `Turn/RTTurnManager.cpp:8023` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
-| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `ARTTurnManager::FinishPlayback` · `Turn/RTTurnManager.cpp:8174` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
+| 1 | `<nome> eliminato dalle fiamme` (danno da `Status.Burning`) | `ARTTurnManager::ConcludeResolution` · `Turn/RTTurnManager.cpp` | **la vittima** | ❌ spariva, insieme al resto del suo turno | ✅ resta, **e la leggono tutte le squadre**: il sito dichiara `FRTLogSubject::World()`, come le altre quattro |
+| 2 | `<nome> eliminato dalla scarica` | `ARTTurnManager::ResolveEnvironment` · `Turn/RTTurnManager.cpp` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
+| 3 | `Eliminata: <nome> (team N)` (ramo `NewlyDefeated`, Blast) | `ARTTurnManager::ResolveCombatPasses` · `Turn/RTTurnManager.cpp` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` — ed è la sola che stampi anche la **squadra** |
+| 4 | `Morte mostrata: <nome>` (playback, fase corrente) | `ARTTurnManager::TickPlayback` · `Turn/RTTurnManager.cpp` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
+| 5 | `Morte mostrata: <nome>` (playback, catch-all finale) | `ARTTurnManager::FinishPlayback` · `Turn/RTTurnManager.cpp` | nessuno | ✅ resta, **per omissione** | ✅ resta, **per decisione**: `FRTLogSubject::World()` |
+
+> 📌 **Le righe di corredo sono state tolte il 2026-09-23, e il motivo è che erano già scadute — di
+> nuovo.** [`#3253`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3253) le aveva
+> **appena** riscritte, il 2026-09-21, proprio per riparare puntatori morti; due giorni dopo tutte e
+> cinque erano scivolate, la peggiore di quasi duecento righe. ⛔ **Non è un argomento per numeri più
+> freschi: è la prova che in questo file un numero di riga nasce scaduto**, e la forma di
+> [`D-431`](../../decisions/RT_PDR_00_Decision_Log.md) (1)(a) — il simbolo, la riga solo come corredo
+> **datato** e solo dove serve davvero — non è una preferenza di stile. Le cinque funzioni restano
+> nominate qui accanto, e un `git grep -n` sul nome le trova senza passare da una coordinata.
 
 ⚠️ **Questa tabella ne elencava TRE, e ne classificava male una.** *(Corretta il 2026-08-28.)* Le due righe
 `"Morte mostrata: %s"` del playback non erano mai state censite. E la riga 3 era descritta come *«una riga di
@@ -427,7 +492,7 @@ esse era «restata» per una decisione: chiudere il default senza deciderle una 
 sparire insieme — ed è per questo che #1499 e [D-223] sono state fatte nella stessa passata.
 
 ✅ **Fatto, e verificabile riga per riga** *(rimisurato il 2026-09-21, `#3253`)*. **#1499** è chiusa dal
-2026-09-03 e `AddLogEvent` **non ha più un default**: `Turn/RTTurnManager.h:2328` prende due argomenti
+2026-09-03 e `AddLogEvent` **non ha più un default**: `ARTTurnManager::AddLogEvent` prende due argomenti
 obbligatori, e il docstring sopra la dichiarazione registra che fino al 2026-08-28 il parametro era un
 `int32` con default `INDEX_NONE`. 🔑 **Nessuna delle cinque righe passa più per omissione**: tutte
 dichiarano `FRTLogSubject::World()`, convertite in una passata sola (`05a39cd5`, 2026-08-28).
@@ -485,10 +550,24 @@ sbagliata, ma perché il costo che oggi è zero smetterebbe di esserlo.
 
 Quattro consumatori della stessa porta, in ordine di costo crescente.
 
+> ✅ **RIMISURATA IL 2026-09-23: la Fase A è ATTERRATA, e questa sezione la descrive ancora come lavoro da
+> fare.** È il difetto più costoso del documento, perché chi lo legge come piano riscrive codice che
+> esiste. Ogni voce da `A1` ad `A5` porta qui sotto la propria rimisura, col **simbolo** che lo prova.
+> ⚠️ Le voci **non** vengono riscritte: restano come progetto del 2026-08-26, perché il ragionamento che
+> le motiva è ciò che rende leggibile il codice che ne è nato.
+
 ### A1 — `TargetUnknown` diventa leggibile
 
 `URTTurnLogLibrary::DescribeInvalidReason` ha otto `case` e un `default: "non eseguibile"`;
 `ERTActionInvalidReason::TargetUnknown` **non compare** e cade nel default.
+
+> ✅ **`A1` è chiusa, e la frase qui sopra contiene DUE affermazioni cadute, non una.** (1) Il conteggio
+> dei `case` non è più otto — si rilegge con
+> `git grep -c 'case ERTActionInvalidReason' -- Source/RefactorTactics/Turn/RTTurnLogLibrary.cpp`, ed è un
+> numero destinato a crescere a ogni motivo nuovo: non va aggiornato, va letto. (2) `TargetUnknown` **ha**
+> il suo `case` — *«bersaglio ignoto alla squadra»* — col proprio oracolo,
+> `RefactorTactics.TurnLog.TargetUnknownIsDescribed`. ⚠️ Chi correggesse solo la seconda lascerebbe in
+> piedi un numero sbagliato di più del doppio.
 
 Oggi la regola più significativa della conoscenza parziale — *«per la tua squadra quel bersaglio non c'è»* —
 è **illeggibile in partita**. Un `case` mancante è tutta la distanza fra una regola che punisce e una che
@@ -520,6 +599,14 @@ dell'unità nascosta resterebbero stampati a schermo, e il log ne stamperebbe la
 > VERE** — esattamente i due campi che `FRTKnowledgeEntry` rifiuta di portare, e per i quali `E.Cell` e
 > `E.Visibility` oggi **non hanno consumatori**.
 >
+> > ✅ **Rimisurato il 2026-09-23: entrambe le metà di questo riquadro sono cadute, ed è la stessa frase a
+> > portarne due.** (1) `ARTHUD::ShouldDrawUnitOverlay` chiude su
+> > `Entry->Visibility == ERTKnowledgeVisibility::Live`, quindi un `Remembered` risponde **`false`** — il
+> > commento sopra la funzione lo dichiara: *«o si vede l'unità, o si vede il suo ricordo»*. (2) I due campi
+> > **hanno** un consumatore di produzione: `ARTHUD::ContactGhostTargetForUnit` legge `Entry->Visibility`
+> > come guardia e `Entry->Cell` come bersaglio, ed è il ponte verso la sagoma di `A4`. ⛔ Il leak non si
+> > chiude «per metà»: è chiuso.
+>
 > Non è una regressione — alla base si disegnava tutto per tutti — e **A3 e A4 sono la cura**: A3 nasconde
 > l'unità, A4 disegna il ricordo dove il ricordo dice. Ma finché non atterrano, «il leak è chiuso» è vero solo
 > per `Rejected`. ⚠️ `Knowledge.HudDrawsOnlyKnownUnits` **non esercita** il caso `Remembered`: è la copertura
@@ -535,10 +622,21 @@ macchina nuova per un problema che non c'è.
 senza un percorso di ritorno. Serve un `SetKnownToObserver(bool)` reversibile, che governi visibilità **e**
 proxy di click.
 
+> ✅ **`A3` è chiusa: `ARTUnit::SetKnownToObserver` esiste**, col nome esatto proposto qui, ha un chiamante
+> di produzione in `ARTHUD::UpdateObserverVeil`, test propri in `Tests/RTUnitVisibilityTests.cpp`, e la
+> catena fino a `ARTUnit::RefreshComponentVisibility` è documentata. ➕ La metà diagnostica di questo
+> paragrafo — *«`SpawnActor<ARTUnit>` esiste solo in `Tests/`»* — **regge tuttora**, rimisurata.
+
 ### A4 — La sagoma del ricordo
 
 Un componente proprio sull'`ARTUnit`, alla `Cell` del contatto, che sfuma alla scadenza
 (`URTTeamKnowledgeLibrary::ContactLifetimeTurns = 1` — **nessun numero nuovo**).
+
+> ✅ **`A4` è chiusa, e per intero.** Il componente c'è (`ARTUnit::ContactGhost`, spento alla
+> costruzione), il metodo pure (`ARTUnit::UpdateContactGhost`), e la sfumatura vive in una funzione
+> **separata e nominata**, `ARTUnit::GhostOpacityForContact` — distinzione che conta, perché attribuirla a
+> `UpdateContactGhost` manderebbe chi legge nel posto sbagliato. È arrivata anche un'anim instance propria,
+> `Unit/RTContactGhostAnimInstance.{h,cpp}`, che questa voce non prevedeva.
 
 **Due canali di distinzione dall'Action Ghost** (§7, decisione nuova):
 
@@ -564,6 +662,11 @@ ne prende una nuova, **dichiarata in `Map/RTMapVisuals.h`** come le altre, non r
 Un materiale nuovo, e uno soltanto: nessuno dei quattro materiali versionati è traslucido né ha un
 parametro scalare, quindi non c'è nulla da riusare.
 
+> ✅ **Il materiale che `A5` progetta di creare esiste ed è versionato**:
+> `Content/RT/Characters/Shared/Materials/M_LastContactGhost.uasset`, col parametro scalare
+> `GhostOpacity` che `ARTUnit` documenta. ⚠️ Verificato leggendo l'asset **come byte** (`git ls-files` e
+> `grep -a`), non aprendo l'Editor: questa passata non ha toccato Unreal.
+
 ⚠️ La mesh degli eroi vive in **`Content/FabAsset`, che non è versionata**. La sagoma la deriva **a runtime**
 dalla stessa mesh dell'unità, non da un asset nuovo: un asset nuovo sarebbe una copia di un binario che il
 repository non possiede.
@@ -577,6 +680,23 @@ repository non possiede.
 > nasconde**. Non è una differenza di intensità — un velo lascia leggere il contenuto della cella più
 > debolmente, la fog non lo mostra affatto. Ciò che il velo aveva imparato e che sopravvive è marcato ➕;
 > ciò che cade perché nascondere è più semplice che velare è marcato ➖.
+>
+> 🔴 **E il giorno dopo è cambiato di nuovo: [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-08-28) ha rimesso il velo,
+> a TRE stati.** È la voce che questa spec non nomina in nessun punto — `grep -c 'D-227'` su questo file
+> risponde **zero** — mentre §7 si chiude dichiarando *«tutti i riferimenti di questa spec puntano ora a
+> `D-225`»*. Quella frase è stata vera per **ventitré ore**.
+>
+> ✅ **E la forma a tre stati è quella che è atterrata**, non quella progettata qui: *osservata ora* a
+> piena luminosità, *esplorata ma non osservata* con l'RGB moltiplicato per
+> `ARTHexMapActor::RTVeilExploredFactor`, *mai vista* **non disegnata** (`D-225` sopravvive in questo
+> terzo stato). L'atto è `ARTHexMapActor::ApplyKnowledgeVeil`, che **attenua e spegne istanze già montate**
+> — non un componente di prismi separato, che è ciò che §5.3 progetta.
+>
+> ⚠️ **Perciò §5.3, §5.4 e §5.5 vanno lette come progetto del 2026-08-27, non come lavoro da fare**, e
+> ciascuna porta ora la propria rimisura. ⛔ **La `S5` di §2 — che questo riquadro dichiara superata — è
+> l'unica tesi del documento che il codice di oggi conferma alla lettera**: velo permanente ottenuto
+> moltiplicando l'RGB. Chi legge §2 e §5 in fila trova una decisione e la sua cancellazione, e non ha modo
+> di sapere che vale la prima.
 
 ### 5.1 Regola
 
@@ -589,6 +709,11 @@ rilievo del costo, volumi del blocco, pannelli di bordo.
 > struct costruita in Fase A ha `ObserverTeamId` ed `Entries`, nient'altro. Chi implementa la Fase B deve
 > **aggiungerlo** — o passare `FRTTeamKnowledge::VisibleCells` accanto alla vista — e sceglierlo è parte di
 > quel checkpoint, non un dettaglio: un campo in più sulla vista è un campo in più che attraversa la porta.
+>
+> ✅ **La struct è ancora quella — e la scelta è stata fatta, nella seconda direzione** (rimisurato il
+> 2026-09-23). Nessun `VisibleCells` è stato aggiunto alla vista: `ARTHexMapActor::ApplyKnowledgeVeil`
+> prende un `const FRTTeamKnowledge&`. ⚠️ Il checkpoint è stato **attraversato**, e questo riquadro lo pone
+> ancora come decisione da prendere.
 
 ➕ La fog è **binaria**, come lo era il velo: `ERTAwareness` ha tre livelli **sulle unità**, e una terza
 categoria per le *celle* non esiste in nessuna decisione. Inventarla qui creerebbe un vocabolario senza owner.
@@ -637,6 +762,17 @@ come per gli altri volumi.
 `ApplyFogOfWar(const FRTKnowledgeView&)` vive accanto a `RebuildInstances`, che resta l'unico **costruttore**
 della mappa:
 
+> 🔁 **Il meccanismo qui progettato non è quello atterrato, ed è il meccanismo OPPOSTO** (rimisurato il
+> 2026-09-23). `ApplyFogOfWar` **non esiste**: `git grep -n ApplyFogOfWar -- Source/` esce a mani vuote, e
+> così `Fog` dentro `RTHexMapActor`. A terra c'è `ARTHexMapActor::ApplyKnowledgeVeil`, che prende un
+> `const FRTTeamKnowledge&` — non la vista — e **moltiplica l'RGB di istanze già montate** invece di
+> istanziare prismi opachi in un componente separato. ⚠️ **Perciò i tre punti numerati qui sotto e i due
+> 🔴 residui descrivono un progetto, non il codice**: non c'è `ClearInstances`, non c'è un componente
+> `Fog`, e il materiale proprio *«che resta»* non è mai servito, perché il velo non disegna niente di nuovo.
+> 📌 Le famiglie di istanze che il velo tocca **si contano dal corpo della funzione**
+> (`git grep -c 'VeilInstances(' -- Source/RefactorTactics/Map/RTHexMapActor.cpp`), non da un elenco in
+> prosa: è la classe di numero che invecchia da sola.
+
 1. costruisce un `TSet<FRTCellId>` da `VisibleCells`;
 2. `Fog->ClearInstances()`;
 3. per ogni cella **non** osservata, una `AddInstance` col transform del prisma.
@@ -663,6 +799,20 @@ della tavolozza. La fog non scrive colori: `URTHexLibrary::SurfaceColor` resta l
 Nasce un delegate — `OnTeamKnowledgeRefreshed` — emesso dai **due** punti che già rinfrescano la conoscenza:
 `RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast`. Non si inventano momenti nuovi.
 
+> ✅ **«Nasce» è futuro per una cosa atterrata, e il «due» è scaduto in difetto** (rimisurato il
+> 2026-09-23). Il delegate esiste **col nome esatto proposto qui**, arrivato con [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md) e
+> [#1467](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1467), e ha un subscriber di
+> **produzione**: `URTKnowledgeVeilPresenter::Hook`.
+>
+> 🔑 **I due punti nominati emettono davvero — e non sono gli unici.** Le emissioni si contano per
+> **funzione contenitrice**, non per `Broadcast`, altrimenti quattro emissioni dentro due funzioni
+> lascerebbero salvo il «due»:
+> `git grep -n 'OnTeamKnowledgeRefreshed.Broadcast' -- Source/ ':!Source/RefactorTactics/Tests/'`.
+> Oltre a `RefreshTeamKnowledgeForPlanning` e `RefreshTeamKnowledgeForBlast` emettono anche
+> `ARTTurnManager::RevealHitTargetsToAttackers` e `ARTTurnManager::FinishMovementResolution` — due momenti
+> che questo paragrafo non conosce, e che cambiano la risposta alla domanda del paragrafo successivo
+> (*«la fog salta due volte per turno»*).
+
 **Durante il playback la fog segue quei due punti**, e quindi *salta* due volte per turno invece di scorrere.
 Non è un difetto da nascondere: è la granularità che il resolver ha, ed è la stessa che D4 del brief fissa
 per la visibilità (*«si ricalcola ai confini di fase, non a ogni micro-step»*). L'alternativa — spegnere la
@@ -671,8 +821,13 @@ durante il match»* è uno dei due punti che il brief §9 dichiara **obbligatori
 
 ### 5.5 ➖ Il gate sulla leggibilità non va più esteso
 
-`RefactorTactics.Hex.SurfaceColorsAreDistinguishable` (`Tests/RTHexTests.cpp:646`) confronta
+`RefactorTactics.Hex.SurfaceColorsAreDistinguishable` (in `Tests/RTHexTests.cpp`) confronta
 `URTHexLibrary::SurfaceColor(All[I])` contro `SurfaceColor(All[J])`: misura il colore **non velato**.
+
+> 📌 **Ripuntato il 2026-09-23**: qui c'era `Tests/RTHexTests.cpp:646`, scivolata di duecento righe. Il
+> puntatore non rompeva, **deviava** — atterrava dentro il commento di un altro test, su una frase che
+> sembra pertinente. Il nome Automation basta a localizzarlo, quindi la forma di
+> [`D-431`](../../decisions/RT_PDR_00_Decision_Log.md) (1)(a) qui è gratis.
 
 Contro un **velo** era un gate cieco — avrebbe continuato a dire verde mentre la mappa perdeva leggibilità,
 e la fase avrebbe dovuto portarsi dietro l'estensione alle coppie velate, perché D-146 registra che alcune si
@@ -681,6 +836,17 @@ distinguono per **luminanza**, cioè proprio per il canale che il velo tocca.
 Contro la **fog** il gate resta valido com'è: continua a misurare le celle **mostrate**, che sono le uniche
 che comunicano una superficie. Una cella nascosta non ha una lettura da preservare. **L'estensione non
 serve**, e non perché la si rinvii: perché la classe di difetto non esiste più.
+
+> 🔴 **Questo paragrafo è un residuo di ventitré ore, e il titolo della sezione con lui.** §5.5 è stata
+> scritta il **2026-08-27**; il **2026-08-28** un commit solo ha coniato [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md) *e* fatto
+> atterrare l'estensione. La premessa — *«nascondere, non velare, quindi nessuna coppia velata da
+> misurare»* — è caduta con il velo a tre stati: lo stato intermedio esiste, moltiplica l'RGB, e un gate
+> non velato lo manca **per costruzione**.
+>
+> ✅ **E l'estensione non è da fare: è fatta.** Si chiama
+> `RefactorTactics.Hex.VeiledSurfaceColorsAreDistinguishable`, sta in `Tests/RTVeilTests.cpp`, e il suo
+> docstring apre dichiarando proprio questo buco: *«resta verde mentre la leggibilità del terreno ricordato
+> cala, ed è il buco che questo test chiude»*.
 
 ### 5.6 🔴 Il rischio che nessun test misura
 
@@ -775,12 +941,27 @@ i 24 numeri non esistono mai.
 ### 6.2 Verifica di scala
 
 Soglie d'udito, misurate su **due fonti indipendenti** (`RT_HeroCatalog_v0.1.md` §5.1 e
-`RTHeroCatalogLibrary.cpp`): **Gadget 5 · Phase 3 · Riktor 3 · Wraith 5**.
+`RTHeroCatalogLibrary.cpp`): **Aevik 5 · Muiren 3 · Branth 3 · Ivrin 5**.
+
+> 🔁 **I quattro VALORI reggono, i quattro NOMI no** (rimisurato il 2026-09-23). Erano
+> *«Gadget 5 · Phase 3 · Riktor 3 · Wraith 5»*, e i quattro eroi sono stati rinominati — `Gadget`→`Aevik`
+> e `Phase`→`Muiren` con
+> [#2491](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2491), `Riktor`→`Branth` con
+> [`D-334`](../../decisions/RT_PDR_00_Decision_Log.md), `Wraith`→`Ivrin`. Nel catalogo esistono solo
+> `Hero.Aevik`, `Hero.Muiren`, `Hero.Branth`, `Hero.Ivrin`: i nomi vecchi vi sopravvivono unicamente dentro
+> i commenti che registrano il rename.
+>
+> ⚠️ **Un `sed` globale su questo file inventerebbe un campo inesistente**: più sotto, in §6.5, `Phase`
+> è il nome del **settimo campo** proposto per `FRTNoiseEvent`, non l'eroe. La ricerca che li separa è
+> `grep -noE '(Gadget|Phase|Riktor|Wraith)'` **letta riga per riga**, non applicata.
+>
+> 🔑 **E l'ancora giusta non è il nome**: un nome invecchia esattamente come un numero di riga. I valori
+> si rileggono da `ARTHeroCatalogLibrary` sul campo `HearingThreshold`, che nessun rename tocca.
 
 `Received` alla sorgente; area **stretta** con margine ≥ `TightBandMargin` (3), **larga** con margine ≥ 0,
 nessun contatto sotto:
 
-| Evento | Rumore | Ricevuto | Gadget / Wraith (5) | Phase / Riktor (3) |
+| Evento | Rumore | Ricevuto | soglia **5** *(Aevik / Ivrin)* | soglia **3** *(Muiren / Branth)* |
 |---|---:|---:|---|---|
 | `Move` su terreno neutro | 2 | 2 | — | — |
 | `Move` su **acqua bassa** (+2) | 2 | 4 | — | **larga** |
@@ -813,8 +994,8 @@ nessuno»* — va reso vero invece di essere lasciato falso.
 ### 6.4 Chi è l'ascoltatore: **il margine maggiore**
 
 [D-043](../../decisions/RT_PDR_00_Decision_Log.md) dice che la conoscenza è di **squadra**; D-113 dice che
-l'area d'incertezza è centrata sull'**ascoltatore** e larga secondo il **suo** margine. In un 2v2 con Gadget
-(soglia 5) e Phase (soglia 3), lo **stesso** rumore produce **due aree diverse**. Il DoD di #159 dice *«la
+l'area d'incertezza è centrata sull'**ascoltatore** e larga secondo il **suo** margine. In un 2v2 con Aevik
+(soglia 5) e Muiren (soglia 3), lo **stesso** rumore produce **due aree diverse**. Il DoD di #159 dice *«la
 squadra che ode ottiene **un** contatto»*, ma il test che descrive ha un ascoltatore solo: la domanda non era
 mai stata affrontata.
 
@@ -930,8 +1111,16 @@ risorsa contesa.**
    registrata il 2026-08-27.
 3. **Il giorno dopo, al merge vero**: entrambe erano state prese da `origin/main`. Terza rinumerazione, e
    quella che vale: **`D-228`** il perimetro, **`D-225`** la fog of war, `D-223` invariato. Le tesi ancora
-   da registrare partono quindi da **`D-230`** — numero che si riverifica di nuovo prima del proprio merge,
+   da registrare partono dal **primo numero libero misurato immediatamente prima del proprio merge**,
    perché è esattamente ciò che questo elenco dimostra tre volte.
+
+   > ⛔ **Qui c'era scritto `D-230`, ed è il caso in cui un numero è GARANTITO scaduto.** Era preso già
+   > allora, e scriverne uno nuovo al suo posto riprodurrebbe il difetto: questa riga è il racconto di tre
+   > rinumerazioni, e non può chiudersi con una quarta cifra ferma. Si sostituisce con la **regola**, e la
+   > regola ha ora una macchina: `node tools/radar/decision-ids.ts --check`
+   > ([`D-435`](../../decisions/RT_PDR_00_Decision_Log.md), `#3282`) rifiuta un numero rivendicato due volte — in albero, **fra ref**, e
+   > contro `origin/main`. ⚠️ Il gate dice quali numeri sono **presi**, non qual è il prossimo libero: il
+   > registro ne dichiara alcuni saltati apposta, quindi *«il prossimo»* non ha una risposta sola.
 
 🔴 **Terza collisione, trovata il 2026-08-27 — ✅ riparata il 2026-08-28, al merge.** `origin/main` ha
 assorbito un **`D-221`** proprio — *«un colpo è un concetto solo, `bCountsAsAttack`»*, che chiude `INT-8` e
@@ -951,6 +1140,13 @@ la geometria che nessuno della squadra osserva»*: **la stessa tesi**, registrat
 mentre questo branch la teneva ferma sotto un numero proprio. Una rinumerazione meccanica avrebbe messo nel
 documento canonico **due voci per una decisione sola** — difetto peggiore della collisione, perché con ID
 diversi nessun controllo di unicità lo vede. Tutti i riferimenti di questa spec puntano ora a `D-225`.
+
+> 🔴 **Questa frase è stata vera per ventitré ore, ed è la radice di metà dei difetti del documento.**
+> Il 2026-08-28 [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md) ha rimesso il velo a **tre** stati (§5), e questa spec non lo nomina
+> in nessun punto: `grep -c 'D-227'` su questo file risponde **zero**. ∴ ogni sezione allineata *«ora»* a
+> `D-225` — §5.3, §5.5, §8, §11 — è allineata a una decisione **superata il giorno dopo**. ⚠️ L'«**ora**»
+> di una frase come questa è il difetto: una dichiarazione di completezza al presente invecchia senza che
+> nessuno la rimisuri. *(Rilevato il 2026-09-23.)*
 
 ∴ **prima di rinumerare si confronta la TESI, non solo l'ID.** Due numeri diversi sulla stessa decisione
 non collidono per costruzione, e proprio per questo passano.
@@ -996,7 +1192,7 @@ per gli ID in volo. Questa misura invecchia, e una collisione di contatore è gi
 | Fase | Test |
 |---|---|
 | **A** | `Knowledge.ViewOmitsHidden` — il DTO non contiene la cella attuale di un ignoto<br>`Knowledge.ViewIsIndependentOfHiddenState` — due stati autoritativi diversi (nemico in A oppure in B) producono lo **stesso** `FRTKnowledgeView`<br>`Knowledge.LastContactCarriesIdentityNotCondition`<br>`Knowledge.HudDrawsOnlyKnownUnits`<br>`Knowledge.CombatLogOmitsUnknown`<br>`Knowledge.UnitRenderingCombinesAliveAndKnown`<br>`Knowledge.GhostFadesWithContactAge`<br>`TurnLog.TargetUnknownIsDescribed` |
-| **B** | `Veil.CoversExactlyUnobservedCells`<br>`Veil.FollowsRefreshPoints`<br>**estensione di `Hex.SurfaceColorsAreDistinguishable` ai colori velati** |
+| **B** | ✅ `Veil.CoversExactlyUnobservedCells`<br>✅ `Veil.FollowsRefreshPoints`<br>✅ `Hex.VeiledSurfaceColorsAreDistinguishable` — *l'estensione che questa riga elencava come lavoro da fare: **esiste**, e copre le due asserzioni che [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md) chiede (velate fra loro, e velata contro la stessa accesa)* |
 | **C** | I **sei** del DoD di #159: `Noise.ProducesUncertainContact` · `Noise.AttackRevealsDirection` · `Noise.ObserverViewOmitsUnheard` · `Noise.HashIsIndependentOfObserver` · `Noise.MemoryDoesNotTrackUnseenSource` · `Noise.NoHiddenIntentLeak`<br>più `Noise.SilentActionEmitsNothing` (§6.3) · `Noise.IntensityFollowsDerivedRule` (§6.1) · `Noise.TeamTakesBestInformedArea` e `Noise.AreaIsHeuristicNotGuarantee` (§6.4) |
 
 🔴 **`Knowledge.ViewIsIndependentOfHiddenState` non è un test in più: è un debito già iscritto.**
@@ -1018,26 +1214,46 @@ rigenerabile senza procedura scritta è un corpus che verrà rigenerato per far 
 
 Tutte e tre bloccanti.
 
+> 🔁 **Rimisurate il 2026-09-23: nessuna delle tre blocca più, e una non bloccava già quando è stata
+> scritta.** Le voci restano — dicono perché la fetta fu fermata — con l'esito di oggi accanto.
+>
+> ⛔ **E la (1) è la classe di affermazione che non andrebbe scritta in un documento**, non un valore da
+> aggiornare: fotografa una **working directory**, cioè uno stato locale che cambia a ogni checkout e che
+> nessun lettore può verificare dal proprio. La regola generale — *due `.uasset` non si fondono* — è la
+> parte che vale, e vive già in [`D-178`](../../decisions/RT_PDR_00_Decision_Log.md).
+
 1. 🔴 **L'albero di lavoro va liberato.** `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset` è modificato e
    `WBP_RT_TurnHeader.uasset` è untracked, sopra CP 11.7
    ([#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613), aperta). La Fase A crea un
    materiale nuovo: due `.uasset` non si fondono, e
    [D-178](../../decisions/RT_PDR_00_Decision_Log.md) dice una sessione, una working directory, un branch.
+   > ✅ **Sciolta**: entrambi i pacchetti sono **tracciati** (`git ls-files Content/RT/UI/Match/`), e la
+   > cartella è pulita. ⚠️ Una misura che si rifà a ogni checkout: vale il vincolo, non la fotografia.
 2. 🔴 **La PR [#1428](https://github.com/DegrassiAaron/refactor-tactics-main/pull/1428) tocca
    `Turn/RTTurnManager.cpp` e `.h`** — esattamente i file dell'emissione. La Fase C non parte prima che sia
    mergiata, oppure il conflitto si accetta consapevolmente.
-3. **La numerazione `D-nnn` va riverificata** prima del merge (§7): `D-221`/`D-222` erano liberi il 2026-08-27.
+   > 🔴 **Non è invecchiata: era già falsa mentre la si scriveva.** La PR è `MERGED` dal **2026-08-26**,
+   > cioè prima che questa precondizione venisse rimisurata il 2026-09-21. Un blocco dichiarato su una PR
+   > già chiusa è peggio di un blocco scaduto: nessuno lo rimuove, perché sembra recente.
+3. **La numerazione `D-nnn` va riverificata** prima del merge (§7).
+   > ✅ **La regola sopravvive, l'esempio no**: `D-221` e `D-222` sono entrambi **presi** — come §7 stessa
+   > racconta trenta righe più su, senza che il documento se ne accorgesse. Oggi la riverifica è una
+   > macchina: `node tools/radar/decision-ids.ts --check`.
 
 ### Dove atterra il lavoro
 
 | Fase | Issue |
 |---|---|
-| **A** — porta, leak, unità nascoste, sagoma, `TargetUnknown` | **da aprire**: è metà porta e metà *difetto* — i due leak di §1.3 non sono nel DoD di nessuno |
-| **B** — velo | **da aprire**: è un checkpoint mancante |
+| **A** — porta, leak, unità nascoste, sagoma, `TargetUnknown` | ✅ **atterrata** *(rimisurato il 2026-09-23: ogni voce da `A1` ad `A5` ha il suo simbolo in §4)*. La riga diceva **da aprire** |
+| **B** — velo | ✅ **atterrata** con [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md) e [#1467](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1467), in forma di **velo a tre stati** e non di prismi opachi: `ARTHexMapActor::ApplyKnowledgeVeil`, `URTKnowledgeVeilPresenter`, suite `RefactorTactics.Veil.*`. La riga diceva **da aprire** |
 | **C** — rumore | [#159](https://github.com/DegrassiAaron/refactor-tactics-main/issues/159) (CP 13.4) |
 | chiusura | la casella HUD di [#160](https://github.com/DegrassiAaron/refactor-tactics-main/issues/160) si spunta quando A, B e C sono tutte a terra |
 
 Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue proprie.
+
+> 🔁 **Le due issue proprie non servono più: il lavoro è passato da altrove.** ⚠️ E questo è il punto
+> che questa riga difendeva — è successo *in silenzio* rispetto a questo documento, che non se n'è accorto
+> per quasi un mese. La regola regge; a mancare è stato chi doveva riaprire il documento dopo il merge.
 
 ---
 
@@ -1063,10 +1279,23 @@ Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue pr
   > **solo in questo documento**, e le arene versionate stanno a `DemoArenaRadius = 4` — **61 celle** — con
   > `HexArea` a raggio 3, 4 e 5.
   >
-  > 🔴 **La differenza ribalta la conclusione, e va detta.** Su 7 351 celle il cono di Gadget (vista 7,
+  > > 🔁 **Il comando qui scritto oggi risponde diversamente, e la tesi sopravvive per un pelo**
+  > > (rimisurato il 2026-09-23): `git grep "7351"` trova un **secondo** percorso, che però è un **PDF
+  > > binario** sotto `docs/research/design/icon/` — verificato leggendone i primi byte, non dedotto
+  > > dall'estensione. ⚠️ La cura onesta è il filtro, non la cifra: `git grep -I "7351"`, che esclude i
+  > > binari e restituisce ciò che la frase intende dire.
+  >
+  > 🔴 **La differenza ribalta la conclusione, e va detta.** Su 7 351 celle il cono di Aevik (vista 7,
   > `R² + 2R` ≈ 74 celle) copre l'**1 %**, e una squadra di due sta intorno al **2 %**: disegnare il 98 %
   > spento è rumore visivo, e nascondere è la scelta giusta. Su **61** celle lo stesso cono copre **l'arena
   > intera**, non c'è niente da nascondere, e il velo basta e avanza.
+  >
+  > ✅ **La decisione di scope È STATA PRESA**, e questo riquadro la pone ancora come da prendere
+  > (rimisurato il 2026-09-23). È [`D-225`](../../decisions/RT_PDR_00_Decision_Log.md) — che §5 cita — corretta il giorno dopo da
+  > [`D-227`](../../decisions/RT_PDR_00_Decision_Log.md): non «nascondere» né «velare», ma **tre stati**, che è precisamente la risposta
+  > che scioglie il dilemma dell'arena posto qui sopra — su 61 celle il terzo stato è raro, su 7 351
+  > domina, e la stessa regola serve entrambe senza scegliere. ⛔ Testata, §5 e §10 restano **tre risposte
+  > diverse alla stessa domanda dentro lo stesso file**: la riscrittura del 2026-08-27 ne ha toccata una.
   >
   > ∴ **la decisione di scope non si può prendere finché non è chiaro su quale arena si gioca.** Questo
   > documento aveva accusato la §5.1 di aver scelto il velo su *«una premessa mai misurata»*, e le aveva
@@ -1097,7 +1326,7 @@ Le Fasi A e B **non si allargano dentro #160 in silenzio**: servono due issue pr
 
 | Rischio | P/I | Mitigazione |
 |---|---|---|
-| Il velo compra un **falso verde**: il gate misura il colore non velato | **H/H** | §5.5 — l'estensione del gate è parte della Fase B, non un seguito |
+| ~~Il velo compra un **falso verde**: il gate misura il colore non velato~~ ✅ **pagato** | ~~**H/H**~~ | `Hex.VeiledSurfaceColorsAreDistinguishable` è a terra dal 2026-08-28. ⛔ **Questa riga aveva DUE difetti, non uno**: la mitigazione era già stata consegnata, *e* il rimando era **rovesciato** — mandava a §5.5 a sostegno di «l'estensione è parte della Fase B», mentre §5.5 alla lettera nega (*«l'estensione non serve»*). Chi lo seguiva trovava un testo plausibile e concludeva il falso |
 | Si chiude la Fase A senza i due leak, e la fog resta cosmesi | M/**H** | §1.3 e A2: i leak sono **dentro** la Fase A, non una issue a valle |
 | L'emissione hardcoda le intensità perché `AE-8` non è chiusa in tempo | M/**H** | §6.1 è il **gate d'ingresso** della Fase C: la regola e la colonna vengono prima dell'emissione |
 | I golden vengono rigenerati per far passare un test | M/**H** | La procedura entra in `docs/` nello stesso commit (§8) |
@@ -1114,9 +1343,9 @@ note.
 
 | Divergenza | Misura |
 |---|---|
-| Il DoD di #159 dice *«`ERTLogCategory` ha oggi **sette** valori»* | Ne ha **dieci**: `Move · Combat · Fallback · Reaction · Environment · Facing · Predictive · ReactionDecision · ReactionClash · Status` |
-| Il DoD di #159 dice che la versione di formato *«sale da `WithPriority = 7` a **8**»* | L'ultima è `WithReactionResponse = 10`: la prossima libera è **11** |
+| Il DoD di #159 dice *«`ERTLogCategory` ha oggi **sette** valori»* | 🔁 *(rimisurato il 2026-09-23: ne aveva **dieci** quando questa riga fu scritta, e l'elenco qui accanto non porta più l'ultimo enumeratore. Non si aggiorna la cifra — si legge l'`enum class ERTLogCategory` in `Turn/RTTurnLog.h`, che è di una riga sola)* Ne ha più di sette: `Move · Combat · Fallback · Reaction · Environment · Facing · Predictive · ReactionDecision · ReactionClash · Status` |
+| Il DoD di #159 dice che la versione di formato *«sale da `WithPriority = 7` a **8**»* | 🔴 **La correzione era essa stessa già scaduta, ed è la più pericolosa del lotto in esecuzione**: diceva *«l'ultima è `WithReactionResponse = 10`, la prossima libera è **11**»*, e `11` è già **speso e persistito nei golden** — come lo sono i due dopo. ⛔ Un numero di versione non si aggiorna in prosa: si legge dall'ultimo enumeratore di `ERTTurnLogFormatVersion` in `Turn/RTTurnLog.h` immediatamente prima del merge *(rimisurato il 2026-09-23)* |
 | La prosa di D-113 dice *«margine ≤ 0 → nessun contatto»* | `IsAudible` è `ReceivedNoise > 0 && ReceivedNoise >= HearingThreshold`, e D-041 concorda col codice (§7) |
-| `docs/roadmap/v0.1-issue-plan.md` §#159 elenca **6** caselle | La issue su GitHub ne ha **9**: il file locale è stantio di tre. Autorità = GitHub |
+| `docs/roadmap/v0.1-issue-plan.md` §#159 elenca meno caselle della issue | La issue su GitHub ne ha di più: il file locale è **stantio**, e di quanto lo dice `gh issue view 159 --json body -q .body \| grep -c '^- \[ \]'` contro il paragrafo locale. **Autorità = GitHub**. 🔁 *(Qui c'erano «6» e «9» con «stantio di tre»: il secondo numero era già cresciuto al 2026-09-23, quindi anche la differenza era sbagliata. Due totali volatili e la loro sottrazione — la forma che invecchia più in fretta di tutte)* |
 | Il commento su `Action.Wait` dice che il silenzio non produce un evento udibile | Falso su superficie a delta positivo (§6.3) |
 | `progettazione-hud.md` §26 ammette che la modalità Sound mostri **categoria** e **intensità** | Entrambe vietate da D-113 e D-123. Il documento HUD è più permissivo delle decisioni |

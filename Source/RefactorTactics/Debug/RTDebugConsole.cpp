@@ -213,9 +213,12 @@ static void RTDebugDrawCoverCommand(const TArray<FString>& Args, UWorld* World, 
 	for (const FRTHexCellData& Cell : Map->Cells)
 	{
 		if (Cell.Covers.Num() == 0) { continue; }
-		const int32* Occupant = Snapshot.Occupancy.Find(Cell.Id);
+		// 🔑 Osservatore **onnisciente**, e lo snapshot sopra e' costruito per lo stesso: e' un comando di
+		// console, cioe' una superficie di audit, e chiederlo per nome e' cio' che rende la scelta leggibile.
+		// Prima di #2485 questa riga estraeva l'occupante a mano e `DescribeCell` non poteva sapere da quale
+		// snapshot venisse: passare i due insieme e' cio' che rende l'errore impossibile da esprimere.
 		Ar.Logf(TEXT("[RT]   %s"),
-			*URTDebugReportLibrary::DescribeCell(Cell, Occupant ? *Occupant : INDEX_NONE, Map->Revision));
+			*URTDebugReportLibrary::DescribeCell(RTObserver::Omniscient, Cell, Snapshot));
 		++Shown;
 	}
 	Ar.Logf(TEXT("[RT] Coperture: %d celle su %d ne dichiarano almeno una."), Shown, Map->NumCells());

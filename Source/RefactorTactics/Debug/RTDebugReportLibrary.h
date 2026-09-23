@@ -123,6 +123,23 @@ struct FRTRefusalReachability
  * **Sola lettura**: nessuna funzione qui tocca lo stato di gioco. Uno strumento di ispezione che modifica
  * cio' che ispeziona non e' uno strumento di ispezione.
  */
+/**
+ * Le due modalita' del Context Inspector (#2485, handoff §4C).
+ *
+ * ⚠️ **L'enumeratore `Technical` esiste anche in Shipping; il suo CONTENUTO no.** Togliere il valore
+ * dall'enum spezzerebbe ogni chiamante per configurazione — un difetto peggiore di quello che eviterebbe
+ * — mentre la guardia che conta e' sulle righe che compone.
+ */
+UENUM(BlueprintType)
+enum class ERTContextView : uint8
+{
+	/** Solo cio' che questo osservatore ha diritto di sapere. */
+	Player,
+
+	/** In piu': la provenienza della vista. Compilata fuori da Shipping. */
+	Technical
+};
+
 UCLASS()
 class REFACTORTACTICS_API URTDebugReportLibrary : public UBlueprintFunctionLibrary
 {
@@ -168,19 +185,55 @@ public:
 		ERTLogTopology Topology, FName FormatId);
 
 	/**
-	 * Una cella con i **sette campi** che il DoD di #80 elenca, in una riga.
+	 * Una cella con i **sette campi** che il DoD di #80 elenca, in una riga, **per un osservatore**.
 	 *
-	 * ⚠️ **`OccupantUnitId` e `Revision` arrivano da fuori, e non e' un dettaglio di comodo**: nel modello
-	 * dati l'occupante vive in `FRTHexSnapshot::Occupancy` e la revisione in `URTHexMapAsset::Revision`.
-	 * Una firma che prendesse la sola cella non potrebbe mostrarli — ed e' il motivo per cui il DoD, che
-	 * li elenca sotto «le celle mostrano», andava riconciliato prima di scrivere il codice.
+	 * 🔴 **La firma prende lo snapshot intero, e prima di #2485 prendeva `OccupantUnitId` e `Revision`
+	 * gia' estratti.** Quei due `int32` erano corretti e **senza provenienza**: questa funzione non poteva
+	 * distinguere un occupante che veniva da uno snapshot onnisciente da uno che veniva da uno snapshot di
+	 * squadra, quindi un errore del CHIAMANTE — comporre una vista giocatore da una fonte onnisciente —
+	 * era invisibile e non provabile. `DescribeIntents` non ha quel difetto perche' prende
+	 * `ObserverTeamId` e filtra dentro; questa lo aveva perche' riceveva il risultato di un filtro altrui
+	 * senza sapere quale.
 	 *
-	 * `INDEX_NONE` per `OccupantUnitId` significa **cella libera**, e si stampa come tale: `0` e' un
-	 * UnitId valido e usarlo da sentinella confonderebbe «vuota» con «ci sta l'unita' zero».
+	 * ⛔ **Rifiuta di comporre l'occupante quando `Snapshot.ObserverTeamId` non coincide con
+	 * `ObserverTeamId`**, e lo **dice** invece di ometterlo in silenzio: un campo che sparisce senza
+	 * motivo e' indistinguibile da una cella libera. La regola sta in
+	 * `URTHexCellVisibilityLibrary::SnapshotEntitles` e non e' riscritta qui.
 	 *
-	 * Pinnata da `RefactorTactics.Debug.CellReportCarriesEveryDeclaredField`.
+	 * ⚠️ I campi della cella restano tutti componibili: sono la mappa, e la mappa non e' segreta. La
+	 * classificazione, col perche', vive in `URTHexCellVisibilityLibrary::FieldVisibility()`.
+	 *
+	 * `INDEX_NONE` come occupante significa **cella libera**, e si stampa come tale: `0` e' un UnitId
+	 * valido e usarlo da sentinella confonderebbe «vuota» con «ci sta l'unita' zero».
+	 *
+	 * Pinnata da `RefactorTactics.Debug.CellReportCarriesEveryDeclaredField` e, per il canale laterale,
+	 * da `RefactorTactics.Debug.CellContextHidesEnemyPosition`.
 	 */
-	static FString DescribeCell(const FRTHexCellData& Cell, int32 OccupantUnitId, int32 Revision);
+	static FString DescribeCell(int32 ObserverTeamId, const FRTHexCellData& Cell,
+		const FRTHexSnapshot& Snapshot);
+
+	/**
+	 * Il contesto dell'esagono sotto il puntatore, per un osservatore: la cella e gli intenti visibili.
+	 *
+	 * E' il compositore che #2485 chiede nella forma gia' provata di `DescribeIntents` — funzione pura
+	 * qui, consumatore sottile sopra — e non riscrive nessuna delle due regole di visibilita': la cella
+	 * passa da `DescribeCell`, gli intenti da `DescribeIntents`, che filtra con
+	 * `URTIntentPrivacyLibrary::FilterForTeam`.
+	 *
+	 * ⛔ **`Technical` non esiste in Shipping**, e non perche' un `if` la salti: le righe non vengono
+	 * compilate. E' la stessa guardia di `URTErrorModalWidgetBase::GetDetail`, ed e' di compilazione
+	 * perche' il rischio e' dimostrato — [#2395] e' una build Shipping rotta da una guardia di runtime.
+	 * In Shipping una richiesta `Technical` restituisce la vista giocatore: il contenuto tecnico **non
+	 * c'e'**, non e' nascosto.
+	 *
+	 * ⚠️ **Non aggiunge nessuna informazione sul nemico che il gioco non dichiari gia' pubblica.** Le due
+	 * voci dell'handoff §4C — quanto lontano un nemico cammina e corre — restano **fuori**: non risulta
+	 * una decisione di repository che le renda pubbliche, e deciderlo qui sarebbe inventare una regola di
+	 * visibilita' dentro uno strumento.
+	 */
+	static TArray<FString> DescribeContext(int32 ObserverTeamId, const FRTHexCellData& Cell,
+		const FRTHexSnapshot& Snapshot, const TArray<FRTPlannedIntent>& Intents,
+		ERTContextView View);
 
 	/**
 	 * Una voce di TurnLog con gli **otto campi** che il DoD elenca per le azioni.
