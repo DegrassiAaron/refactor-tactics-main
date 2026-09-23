@@ -150,7 +150,8 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// accelerare i cilindri — che e' esattamente cio' che #1878 vieta.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 0,
+			/*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Move: 2 s mostrati"), FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Move: nessuno slack"), FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 	}
@@ -158,7 +159,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Prep: un beat, e non mostra nulla. E' l'unica attesa comprimibile del sistema.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Prep, 0, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
+			ERTMatchPhase::Prep, 0, 0, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
 		TestTrue(TEXT("Prep: non mostra nulla"), FMath::IsNearlyEqual(T.Shown, 0.0f, RTTol));
 		TestTrue(TEXT("Prep: il beat e' tutto slack"), FMath::IsNearlyEqual(T.Slack, 0.3f, RTTol));
 	}
@@ -168,7 +169,8 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// scala a zero, questa fase durerebbe 0,5 s e tre colpi su quattro uscirebbero nello stesso frame.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*Strutture*/ 0, /*Impronte*/ 0,
+			/*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: il tempo dei colpi e' mostrato, non atteso"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Blast: nessuno slack, nemmeno l'eccedenza dei colpi sulla spinta"),
@@ -180,7 +182,8 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*Strutture*/ 0, /*CellsPerSec*/ 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*Strutture*/ 0, /*Impronte*/ 0,
+			/*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: spinta dominante -> 3 s mostrati"),
 			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
 		TestTrue(TEXT("Blast: spinta dominante -> nessuno slack"),
@@ -769,7 +772,7 @@ bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 	// ⛔ Con `Max(1, NumAttacks)` questa riga darebbe 0,5 s invece di 2,0 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 4,
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 4, /*Impronte*/ 0,
 			/*CellsPerSec*/ 2.f, /*AttackShow*/ 0.5f, /*Beat*/ 0.3f);
 		TestTrue(TEXT("✅ quattro muri durano quanto quattro colpi: 2,0 s"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
@@ -782,7 +785,7 @@ bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 	// questa riga resterebbe verde e la prossima cadrebbe.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("nessun muro e nessun colpo: il pavimento di uno, come prima"),
 			FMath::IsNearlyEqual(T.Shown, 0.5f, RTTol));
 	}
@@ -791,7 +794,7 @@ bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 	// `AttacksToShow`. Tre colpi e due muri durano quanto tre colpi, non quanto cinque cose.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 3, /*Strutture*/ 2, 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 3, /*Strutture*/ 2, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("tre colpi e due muri: 1,5 s, non 2,5 s"),
 			FMath::IsNearlyEqual(T.Shown, 1.5f, RTTol));
 	}
@@ -799,9 +802,72 @@ bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 	// E il verso opposto: i muri non ACCORCIANO mai una fase che i colpi hanno gia' allungato.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 4, /*Strutture*/ 1, 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 4, /*Strutture*/ 1, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("quattro colpi e un muro: restano 2,0 s"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * La fase `Blast` DURA quanto le IMPRONTE, non solo quanto i colpi e i muri — `#3278`.
+ *
+ * 🔴 **E' lo stesso difetto di `#2828`, un canale di distanza, e preesisteva a entrambi.** `#2454` ha
+ * fatto contare le impronte a `BlastPhaseIsActive` — cioe' ha fatto loro **aprire** la fase — ma
+ * `PhaseTime` non le ha mai ricevute: la fase si apriva per un'area e durava `Max(1, 0)` = UN intervallo.
+ * Tutte le impronte tranne la prima uscivano insieme dal catch-all di fine fase.
+ *
+ * ⚠️ **La condizione non e' «piu' impronte che colpi», ed e' la riga che la dichiarazione precedente
+ * sbagliava.** `ResolveCombatPasses` emette un'impronta per **INTENTO**, non per cella: un'area larga ne
+ * produce UNA. Servono quindi piu' intenti aggressivi nello stesso Blast — per esempio tre unita' che
+ * sparano in aree disgiunte senza colpire nessuno.
+ *
+ * ⚠️ Pura di proposito, come il cancello che le conta: la durata di una fase decide il pacing di un
+ * turno, ed e' cio' che i gate di budget sorvegliano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForFootprintsTest,
+	"RefactorTactics.Playback.BlastPhaseLastsForFootprints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
+{
+	// Il caso che distingue la formula nuova dalla vecchia: quattro impronte, nessun colpo, nessun muro.
+	// ⛔ Prima di `#3278` questa riga dava 0,5 s invece di 2,0 s.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 4,
+			/*CellsPerSec*/ 2.f, /*AttackShow*/ 0.5f, /*Beat*/ 0.3f);
+		TestTrue(TEXT("✅ quattro impronte durano quanto quattro colpi: 2,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+		TestTrue(TEXT("e restano MOSTRATE: il tempo di lettura non e' comprimibile"),
+			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
+	}
+
+	// ⚠️ **La controprova**: a zero impronte la formula deve dare esattamente quel che dava prima.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("niente di niente: il pavimento di uno, come prima"),
+			FMath::IsNearlyEqual(T.Shown, 0.5f, RTTol));
+	}
+
+	// ⛔ **`Max` e non SOMMA, su TRE canali.** Due colpi, tre muri e quattro impronte durano quanto quattro
+	// cose, non quanto nove: si rivelano in parallelo, ognuno col proprio contatore su `AttacksToShow`.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 2, /*Strutture*/ 3, /*Impronte*/ 4, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("due colpi, tre muri e quattro impronte: 2,0 s, non 4,5 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+	}
+
+	// E il verso opposto: le impronte non ACCORCIANO una fase che gli altri canali hanno gia' allungato.
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 5, /*Strutture*/ 0, /*Impronte*/ 1, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("cinque colpi e una impronta: restano 2,5 s"),
+			FMath::IsNearlyEqual(T.Shown, 2.5f, RTTol));
 	}
 
 	return true;

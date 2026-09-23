@@ -160,7 +160,7 @@ public:
 	 * esattamente il caso che `D-301` esiste per far esistere.
 	 *
 	 * ⚠️ **E cambia anche la DURATA della fase, non solo la sua esistenza**: `PhaseTime` prende
-	 * `Max(colpi, muri, spinta)`. ⛔ Ne segue un effetto che va saputo: il `Blast` e' l'unica fase in cui lo
+	 * `Max(colpi, muri, impronte, spinta)`. ⛔ Ne segue un effetto che va saputo: il `Blast` e' l'unica fase in cui lo
 	 * scivolamento del knockback segue l'Alpha di FASE, quindi allungarla **rallenta la spinta** — e da
 	 * `#2828` puo' allungarla un canale che con l'unita' spinta non ha rapporto, i muri abbattuti da altri.
 	 * ℹ️ Non e' nuovo: lo faceva gia' il conteggio dei colpi altrui, e `#2828` estende lo stesso
@@ -192,12 +192,14 @@ public:
 	 * le unita' si muovono in parallelo, quindi la fase finisce quando finisce l'ultima.
 	 *
 	 *  - `Dash` / `Move`  → `MaxMoveSegments / CellsPerSecond`. Gli attacchi non entrano.
-	 *  - `Blast`          → `Max(colpi, muri, spinta)`, **non** la somma: i tre canali si rivelano nella
-	 *                       stessa finestra, ciascuno col proprio contatore su `AttacksToShow`. Il tempo ha
-	 *                       un pavimento di uno anche quando non c'e' nulla da scaglionare, perche' un Blast
-	 *                       di sola spinta si vede e deve durare.
-	 *                       ⏱️ *Erano due fino a `#2828`: i muri non entravano, e un Blast che ne abbatteva
-	 *                       piu' d'uno senza ferire nessuno durava UN intervallo.*
+	 *  - `Blast`          → `Max(colpi, muri, impronte, spinta)`, **non** la somma: i canali si rivelano
+	 *                       nella stessa finestra, ciascuno col proprio contatore su `AttacksToShow`. Il
+	 *                       tempo ha un pavimento di uno anche quando non c'e' nulla da scaglionare, perche'
+	 *                       un Blast di sola spinta si vede e deve durare.
+	 *                       ⏱️ *Erano i soli colpi fino a `#2828`, che ha aggiunto i muri; le impronte sono
+	 *                       entrate con `#3278`. Ogni volta il difetto era lo stesso: il canale apriva la
+	 *                       fase e non la dimensionava, e cio' che non faceva in tempo usciva dal catch-all
+	 *                       nello stesso fotogramma.*
 	 *  - ogni altra fase  → un beat (`PhaseBeatSeconds`).
 	 *
 	 * `CellsPerSecond <= 0` significa movimento istantaneo, non una divisione per zero.
@@ -213,9 +215,9 @@ public:
 	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
 	 * totale, si somma questa.
 	 *
-	 * ⛔ **QUESTO WRAPPER NON CONOSCE I MURI, e da `#2828` le due letture DIVERGONO.** Delega a `PhaseTime`
-	 * passando `NumStructureHits = 0`: su un `Blast` che abbatte piu' muri di quanti colpi infligga
-	 * restituisce una durata **sottostimata**. ✅ Resta `PhaseTime(...).Total()` — la formula ha un owner solo
+	 * ⛔ **QUESTO WRAPPER NON CONOSCE NE I MURI NE LE IMPRONTE, e le due letture DIVERGONO.** Delega a
+	 * `PhaseTime` passando `NumStructureHits = 0` e `NumFootprints = 0` (`#2828`, `#3278`): su un `Blast`
+	 * in cui uno dei due canali e' piu' lungo dei colpi restituisce una durata **sottostimata**. ✅ Resta `PhaseTime(...).Total()` — la formula ha un owner solo
 	 * — ma su un ingresso FISSATO, che non e' la stessa cosa di «non esiste modo di farne divergere le due
 	 * letture», come questa riga affermava.
 	 *
@@ -239,7 +241,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
-		int32 NumStructureHits,
+		int32 NumStructureHits, int32 NumFootprints,
 		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
