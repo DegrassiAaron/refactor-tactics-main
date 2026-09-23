@@ -359,6 +359,15 @@ esatta, corrisponde a [`#1206`](https://github.com/DegrassiAaron/refactor-tactic
 inventare: è da portare in `Source/`, dove le sue occorrenze sono **zero** — la premessa negativa di
 `D-155` regge ancora sul codice, ed è scaduta solo sui documenti.
 
+> 🔁 **La coda di questo paragrafo è caduta il 2026-09-02, e va segnata qui perché emette un verdetto sulla
+> validità *corrente* di `D-155`** — cioè la sola forma che una data in testa al documento non protegge.
+> `ControlledHeroes` misura tuttora **zero** in `Source/`, quindi la prima metà regge; ma *«la premessa negativa
+> di `D-155` regge ancora sul codice»* no: `ControlGroup` è in produzione da CP 19.3
+> ([#1124](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1124)), con
+> `URTCombatLibrary::ControlGroupForUnit` e il campo `ARTUnit::ControlGroup`. ∴ il subject runtime non è più
+> «da portare»: è arrivato, e a `#319` resta di farlo leggere da `ARTTurnManager::AskReactionDecision`.
+> Rimisurato il 2026-09-23 — il resto del documento resta la cronaca del 2026-08-28 su `e3911eed`.
+
 ---
 
 ## 10. 🟠 A5 — La preview non è nella DoD di #166, e §17 propone di aggiungercela
