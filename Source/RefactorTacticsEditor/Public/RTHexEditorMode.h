@@ -6,6 +6,7 @@
 #include "RTHexEditorMode.generated.h"
 
 class ARTHexWorkGridActor;
+class ARTHexMapActor;
 
 /**
  * Editor Mode dedicato alla mappa esagonale (UEdMode + Interactive Tools Framework). Non ha autorita' sui dati di
@@ -66,8 +67,23 @@ private:
 	 *
 	 * ⛔ **Nessuna regola qui**: quali coordinate marcare lo decide `RTHexWorkGrid::BuildPlan`, che e' puro
 	 * e provato headless. Questo metodo raccoglie gli ingressi, chiama, e passa il risultato al portatore.
+	 *
+	 * ⚠️ **`Map` arriva dal chiamante e non si cerca qui**: da `#1186` anche i readout della mappa
+	 * ne hanno bisogno, e `FindTargetMapActor` percorre il mondo intero a ogni chiamata.
 	 */
-	void RefreshWorkGrid();
+	void RefreshWorkGrid(ARTHexMapActor* Map);
+
+	/**
+	 * `#1186`: riscrive i readout che dicono che cosa contiene la mappa aperta.
+	 *
+	 * ⛔ **Nessuna logica di lettura qui**: la compone `URTHexMapSummaryLibrary` nel modulo runtime,
+	 * che e' dove `spec-tactical-designer.md` §3 la vuole — e dove un test puo' esercitarla senza
+	 * aprire l'Editor. Questo metodo chiama, formatta gia' fatto, e scrive.
+	 */
+	void RefreshMapReadout(ARTHexMapActor* Map);
+
+	/** Cio' da cui i readout dipendono, all'ultima scrittura: asset, revisione, celle, layer attivo. */
+	RTHexWorkGrid::FWatch MapReadoutWatch;
 
 	/**
 	 * Il portatore della griglia di lavoro, posato in `Enter()` e distrutto in `Exit()`.

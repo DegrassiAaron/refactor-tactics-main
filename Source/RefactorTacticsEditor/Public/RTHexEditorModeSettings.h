@@ -84,4 +84,34 @@ public:
 		meta = (DisplayName = "Griglia: raggio del seme", ClampMin = "0", ClampMax = "8",
 			ToolTip = "Quanto e' grande la griglia quando il layer attivo non ha ancora nessuna cella."))
 	int32 WorkGridSeedRadius = 3;
+
+	/**
+	 * CHE COSA CONTIENE la mappa aperta (#1186) — sola lettura, e si vede **senza premere nulla**.
+	 *
+	 * 🔑 **Nasce da mezza giornata persa in seduta `U21`**, dove la domanda «quanti piani ha
+	 * questa mappa?» ha prodotto in sequenza una misura headless che rispondeva a un'altra domanda, un
+	 * numero letto dal Play che descriveva un'altra mappa, una prenotazione su una necessita' inesistente e
+	 * un cambio di `MapAsset` che nessuno aveva notato. La risposta e' arrivata solo da `Frame Map`, cioe'
+	 * da un comando che si **preme**: un dato che si consulta guardando deve vedersi guardando.
+	 *
+	 * ⛔ **Nessuno di questi campi e' modificabile**, ed e' un vincolo della issue: `ActiveLayer` si
+	 * imposta gia' dai tool (#567), e un readout che scrive e' un tool. Sono `VisibleAnywhere` — la
+	 * convenzione che `URTHexGeometryToolProperties` ha stabilito.
+	 *
+	 * ⚠️ **E non sono `config`**: descrivono la mappa aperta adesso, non una preferenza. Scriverli
+	 * in `EditorPerProjectUserSettings.ini` significherebbe rileggere all'avvio la descrizione di un'altra
+	 * mappa — che e' esattamente il difetto numero 2 di `U21`.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Hex Map|Mappa aperta",
+		meta = (DisplayName = "Asset collegato"))
+	FString MappaAsset;
+
+	UPROPERTY(VisibleAnywhere, Category = "Hex Map|Mappa aperta", meta = (DisplayName = "Celle"))
+	FString MappaCelle;
+
+	UPROPERTY(VisibleAnywhere, Category = "Hex Map|Mappa aperta", meta = (DisplayName = "Layer"))
+	FString MappaLayer;
+
+	UPROPERTY(VisibleAnywhere, Category = "Hex Map|Mappa aperta", meta = (DisplayName = "Layer attivo"))
+	FString MappaLayerAttivo;
 };
