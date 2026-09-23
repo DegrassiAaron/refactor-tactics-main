@@ -7,6 +7,7 @@
 #include "Map/RTHexCellData.h"
 #include "Misc/AutomationTest.h"
 #include "Perception/RTTeamKnowledge.h"
+#include "PieSession/RTPieVerdictOverlay.h" // la posa con cui questa non deve collidere
 #include "Replay/RTReplayPrivacyLibrary.h"
 #include "Tests/RTReflectedFieldsForTest.h"
 #include "Turn/RTHexSim.h"
@@ -229,6 +230,53 @@ bool FRTContextInspectorShowsOnlyThisCellTest::RunTest(const FString&)
 		TestTrue(TEXT("l'intestazione nomina l'osservatore"),
 			Pannello->GetHeaderText().ToString().Contains(TEXT("squadra 0")));
 	}
+
+	return true;
+}
+
+/**
+ * **La posa del pannello non collide con l'overlay del verdetto** — e i due sono a schermo INSIEME,
+ * perche' e' durante una seduta PIE che questo pannello viene giudicato.
+ *
+ * 🔴 **E' il difetto di #3242, reso meccanico.** Li' l'overlay del verdetto nasceva senza allineamento
+ * esplicito, si posava in alto a sinistra — sopra i nomi degli eroi — e il verdetto d'autore alla prima
+ * seduta reale fu *«la scritta sta sotto i nomi degli eroi e non e' visualizzabile»*. Una posa dentro
+ * `RebuildWidget` non ha modo di essere rossa senza uno schermo; una posa che e' un **dato** si'.
+ *
+ * ⚠️ Questo test NON prova che il pannello si veda: prova che non sia stato messo dove qualcun altro c'e'
+ * gia'. Il resto e' giudizio umano, ed e' la seduta `U55`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorPlacementTest,
+	"RefactorTactics.Debug.ContextInspectorPlacementDoesNotCollide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorPlacementTest::RunTest(const FString&)
+{
+	URTContextInspectorWidgetBase* Pannello = NewObject<URTContextInspectorWidgetBase>();
+	if (!TestNotNull(TEXT("il pannello si costruisce"), Pannello)) { return false; }
+	const FRTContextInspectorPlacement Posa = Pannello->Placement();
+
+	// `URTPieVerdictOverlay::Placement()` e' STATICA: si legge senza costruire il widget. E leggerla e'
+	// il punto — un confronto contro due letterali scritti qui proverebbe solo che so copiare, e
+	// resterebbe verde il giorno in cui qualcuno sposta quello invece di questo.
+	const FRTPieOverlayPlacement PosaVerdetto = URTPieVerdictOverlay::Placement();
+
+	// ⛔ **Non due costanti confrontate fra loro**: si legge la posa REALE di entrambi i widget, cosi' che
+	// spostare uno dei due faccia diventare rosso questo test invece di lasciarlo verde su numeri scritti
+	// qui. Un gate che confrontasse due letterali proverebbe solo che so copiare.
+	TestFalse(
+		TEXT("il pannello e l'overlay del verdetto non occupano lo STESSO angolo"),
+		Posa.Horizontal == PosaVerdetto.Horizontal && Posa.Vertical == PosaVerdetto.Vertical);
+
+	// E la colonna sinistra resta dell'overlay del verdetto: non basta differire in verticale, perche' due
+	// pannelli nella stessa colonna si contendono comunque la larghezza.
+	TestNotEqual(TEXT("e nemmeno la stessa COLONNA"),
+		static_cast<int32>(Posa.Horizontal), static_cast<int32>(PosaVerdetto.Horizontal));
+
+	// Il centro non si copre: e' il contratto dello Screen HUD, e un pannello centrato lo violerebbe
+	// qualunque cosa dica il resto.
+	TestNotEqual(TEXT("non e' centrato in orizzontale"),
+		static_cast<int32>(Posa.Horizontal), static_cast<int32>(HAlign_Center));
+	TestTrue(TEXT("la larghezza e' limitata, cosi' la board resta libera"), Posa.MaxWidth > 0.f);
 
 	return true;
 }
