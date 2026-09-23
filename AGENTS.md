@@ -573,7 +573,8 @@ prova che sanno fallire.** Misurato: zero file di test per entrambi, e il primo 
 non copre; per confronto `tools/radar/` ha il gemello `.test.ts` su **17** sorgenti su 21.
 
 Un gate **nasce verde**: senza una mutazione che lo faccia diventare rosso, il suo verde non distingue
-«ho guardato e va bene» da «non ho guardato». Rientrano in questo elenco il giorno in cui la portano.
+«ho guardato e va bene» da «non ho guardato». Rientrano in questo elenco il giorno in cui la portano, tracciato da
+[#3288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3288).
 
 
 ⛔ `tools/mcp/check.ts` confronta l'endpoint che `.mcp.json` **dichiara** con la porta che i settings
