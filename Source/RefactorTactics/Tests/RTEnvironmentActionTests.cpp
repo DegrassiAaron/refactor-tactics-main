@@ -2878,6 +2878,14 @@ bool FRTStructuresRedundantFaceDoublesTheEventTest::RunTest(const FString&)
  * cella, quindi la differenza fra le due alzate e' calcolabile dai dati che l'evento porta — senza
  * guardare cosa viene disegnato, e senza duplicarne la formula: questo test legge `Height`, che e'
  * l'ingresso, non la ricalcola.
+ *
+ * ⛔ **E per la stessa ragione e' CIECO al disegno, il che va saputo prima di fidarsene.** Prova che gli
+ * INGRESSI della quota differiscono, non che il risultato si veda. Se qualcuno riportasse l'alzata alla
+ * MEDIA delle due celle — il comportamento precedente a `#2828`, che rendeva i due segni coincidenti —
+ * questo gate resterebbe **verde**: `Height` non cambierebbe, cambierebbe cio' che il disegno ne fa.
+ *
+ * ∴ la verifica del risultato appartiene a una voce `PIE-*`, e questo gate non la sostituisce. Cio' che
+ * copre e' il ramo a monte: che due voci esistano e portino celle diverse.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructuresRedundantFaceDrawsAtTwoHeightsTest,
 	"RefactorTactics.Structures.RedundantFaceDrawsAtTwoHeights",
