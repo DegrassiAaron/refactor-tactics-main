@@ -85,9 +85,10 @@
 
 ## Stato in numeri — 2026-09-23
 
-**249 voci**: ✅ **88 verdi** · 🟡 **28 parziali** · ❌ **8 fallite** · ⏳ **125 aperte**.
+**250 voci**: ✅ **88 verdi** · 🟡 **28 parziali** · ❌ **8 fallite** · ⏳ **126 aperte**.
 
 ➕ **Rimisurato il 2026-09-23 ([#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864), selezione di qualunque elemento): il comando canonico contava `247 · 88/28/8/123` **prima** di toccare il file e `249 · 88/28/8/125` **dopo**.** Delta **due, entrambe nuove e ⏳** — `PIE-MAPED-SEL-ARCO` e `PIE-MAPED-SEL-CONDIVISA`: nessuna voce esistente cambia stato. `senza-marcatore=0` prima e dopo, righe a **7** campi, subset `RELEASE-V01` fermo a **17**. ✅ Misurato su `main` `a85558e5e`.
+⚠️ **E il «dopo» non e' rimasto quello: assorbendo `origin/main` il conto e' salito a `250 · 88/28/8/126`.** Nel frattempo #2485 ha aggiunto `PIE-DEBUG-CONTEXT`, e il merge automatico ha unito i due lavori **senza conflitto** — lasciando per un istante la riga dei totali a `249` su un file che ne conteneva 250. 🔑 E' la ragione per cui quella riga si **rimisura sull'albero mergiato** e non si somma a mano: due passate che non si toccano nello stesso punto non producono un conflitto, producono un numero sbagliato che nessuno ha scritto.
 
 🔁 **Rimisurato il 2026-09-23 ([#1864](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1864), selezione e cancellazione): il comando canonico contava `247 · 89/27/8/123` **prima** e `247 · 88/28/8/123` **dopo**.** Delta **zero sul totale**, una sola voce cambia stato. `senza-marcatore=0`, riga a **7** campi, subset `RELEASE-V01` fermo a **17**.
 🔴 **`PIE-HEX-MODE-S` scende da ✅ a 🟡, ed e' il SECONDO verde scaduto trovato oggi con lo stesso metodo.** Verdetto alle **13:08:39** del 2026-08-31 (`0bb8162991`); alle **13:43:16** dello stesso giorno `490746018` riscrive 79 righe di `RTHexSelectionStore.cpp` dichiarando che il ciclo di Ctrl+click *«ripeteva lo stesso nulla, rendendo irraggiungibili gli altri candidati»* — cioe' il criterio **(b)** di quella voce. ⚠️ **Il verdetto e' aggregato per propria dichiarazione**, quindi un criterio caduto porta giu' l'insieme.
