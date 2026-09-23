@@ -8145,8 +8145,20 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
-			// Chi non ha fatto in tempo a comparire compare adesso: una fase compressa dal budget non deve
-			// PERDERE un fatto, deve solo mostrarlo piu' in fretta.
+			// Chi non ha fatto in tempo a comparire compare adesso: una fase non deve PERDERE un fatto, deve
+			// solo mostrarlo piu' in fretta.
+			//
+			// 🔴 **E' una RETE SENZA CASI, e lo e' diventata per effetto di due correzioni** (`#3277`).
+			// `PhaseTime` dimensiona il `Blast` su `Max(1, maxCanale) * AttackShowSeconds` — colpi da sempre,
+			// muri da `#2828`, impronte da `#3278` — quindi a fine fase `AttacksToShow` vale gia' `N` per ogni
+			// canale, e le tre righe qui sotto non recuperano nulla. ⚠️ Prima di quelle correzioni SI': un Blast
+			// di soli muri durava un intervallo, e questa era l'unica cosa che impediva di perdere i fatti
+			// successivi al primo.
+			//
+			// ⛔ **Non si toglie, e la ragione non e' la prudenza.** Il recupero e' silenzioso per costruzione:
+			// se qualcuno accorciasse la fase — un canale nuovo non aggiunto al `Max`, uno `Slack` comprimibile
+			// sul `Blast` — la rete tornerebbe necessaria e nessun rosso lo direbbe. L'invariante che la rende
+			// inutile e' pinnato da `Playback.EveryChannelIsFullyRevealedByPhaseEnd`, che cade **prima**.
 			RevealPlaybackFootprints(PlaybackFootprints.Num());
 			RevealPlaybackStructureHits(PlaybackStructureHits.Num());
 

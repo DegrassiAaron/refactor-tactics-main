@@ -873,6 +873,98 @@ bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Alla fine della fase `Blast` OGNI canale e' gia' stato rivelato per intero — `#3277`.
+ *
+ * 🔴 **E' l'invariante che rende il catch-all di fine fase una rete senza casi**, ed e' il vero oggetto
+ * di `#3277`. La issue chiedeva uno scenario con due bordi colpiti per esercitare il recupero; misurando
+ * si e' visto che quel recupero **non ha piu' niente da recuperare**, e uno scenario del genere sarebbe
+ * verde sempre — anche rimuovendo il catch-all. Cioe' un gate della famiglia che non puo' dare rosso.
+ *
+ * 🔑 **Perche' e' diventato inutile, e chi lo ha reso tale.** La durata della fase e'
+ * `Max(AttackTime, MoveTime)` con `AttackTime = Max(1, maxCanale) * AttackShowSeconds`, dove `maxCanale`
+ * conta colpi (sempre), muri (da `#2828`) e impronte (da `#3278`). ∴ `PhaseDur >= maxCanale * ASS`, e
+ * `AttacksToShow` a quel punto vale `Min(N, 1 + floor(PhaseDur / ASS)) = N` per ogni canale.
+ * ⏱️ *Prima di quelle due correzioni non valeva: un Blast di soli muri o di sole impronte durava UN
+ * intervallo, e il catch-all era l'unica cosa che impediva di perdere i fatti successivi al primo.*
+ *
+ * ⚠️ **Il catch-all resta, e questo gate e' la ragione per cui puo' restare.** E' difesa in profondita':
+ * se qualcuno accorciasse la fase — un quarto canale non aggiunto al `Max`, una compressione del tempo
+ * mostrato, un `Slack` diverso da zero sul `Blast` — la rete tornerebbe necessaria **e nessuno lo
+ * saprebbe**, perche' il recupero e' silenzioso per costruzione. Questa riga diventa rossa prima.
+ *
+ * ⚠️ Pura di proposito: l'invariante e' aritmetico e non richiede un mondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEveryChannelRevealedByPhaseEndTest,
+	"RefactorTactics.Playback.EveryChannelIsFullyRevealedByPhaseEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
+{
+	// Nome con prefisso per l'unity build, come gli altri helper di questo file.
+	struct FRTPlaybackChannelCase
+	{
+		int32 MaxSeg;
+		int32 Attacks;
+		int32 Strutture;
+		int32 Impronte;
+		const TCHAR* Nome;
+	};
+
+	const float CellsPerSec = 2.f;
+	const float ShowSeconds = 0.5f;
+	const float BeatSeconds = 0.3f;
+
+	const FRTPlaybackChannelCase Casi[] = {
+		{ 0, 4, 0, 0, TEXT("solo colpi") },
+		{ 0, 0, 4, 0, TEXT("solo muri") },
+		{ 0, 0, 0, 4, TEXT("solo impronte") },
+		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		// ⚠️ `MaxSeg` alto: la fase e' dominata dal MOVIMENTO, non dai colpi. L'invariante deve reggere
+		// anche li', perche' allungare la fase non puo' che aiutare — ma va misurato, non dedotto.
+		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
+		{ 0, 0, 0, 0, TEXT("vuota: il pavimento di uno") },
+	};
+
+	for (const FRTPlaybackChannelCase& C : Casi)
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, C.MaxSeg,
+			C.Attacks, C.Strutture, C.Impronte, CellsPerSec, ShowSeconds, BeatSeconds);
+
+		// ⛔ **Premessa dell'invariante, asserita e non assunta**: sul `Blast` lo `Slack` e' zero, quindi la
+		// durata a runtime (`Shown + Slack * PlaybackSlackScale`) non dipende dalla compressione del budget.
+		// Se un giorno il `Blast` acquisisse dello slack comprimibile, `PhaseDur` potrebbe scendere sotto
+		// `maxCanale * ASS` e tutto il resto di questo gate smetterebbe di misurare cio' che crede.
+		TestTrue(FString::Printf(TEXT("%s: il Blast non ha slack comprimibile"), C.Nome),
+			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
+
+		const float PhaseDur = T.Shown;
+
+		TestEqual(FString::Printf(TEXT("%s: i COLPI sono tutti rivelati a fine fase"), C.Nome),
+			URTPlaybackLibrary::AttacksToShow(C.Attacks, PhaseDur, ShowSeconds), C.Attacks);
+		TestEqual(FString::Printf(TEXT("%s: i MURI sono tutti rivelati a fine fase"), C.Nome),
+			URTPlaybackLibrary::AttacksToShow(C.Strutture, PhaseDur, ShowSeconds), C.Strutture);
+		TestEqual(FString::Printf(TEXT("%s: le IMPRONTE sono tutte rivelate a fine fase"), C.Nome),
+			URTPlaybackLibrary::AttacksToShow(C.Impronte, PhaseDur, ShowSeconds), C.Impronte);
+	}
+
+	// --- ⛔ ANTI-VACUITA', e qui e' tutto il gate ----------------------------------------------------
+	//
+	// `AttacksToShow` PUO' restituire meno del totale: se non potesse, le asserzioni qui sopra sarebbero
+	// vere per costruzione e questo file conterrebbe sette casi che non distinguono niente. Con una durata
+	// piu' corta di `(N-1) * ASS` il canale resta incompleto — ed e' esattamente lo stato in cui il
+	// catch-all serve.
+	TestEqual(TEXT("⛔ con una fase piu' corta il canale NON e' completo: tre su quattro"),
+		URTPlaybackLibrary::AttacksToShow(/*N*/ 4, /*PhaseElapsed*/ 1.0f, ShowSeconds), 3);
+
+	// ∴ la differenza fra i due blocchi e' **solo** la durata della fase, ed e' la durata che questo gate
+	// sorveglia. Il catch-all non e' morto: e' inutile finche' questa riga resta verde.
+
+	return true;
+}
+
 // --- NextActionBoundary: il confine di AZIONE sulla timeline (`#2857`) ------------------------------
 //
 // 🔑 **Sono test PURI e senza mondo**, ed e' il criterio d'accettazione alla lettera: *«il prossimo
