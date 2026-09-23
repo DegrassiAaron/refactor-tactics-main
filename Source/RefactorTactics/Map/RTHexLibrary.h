@@ -341,6 +341,20 @@ public:
 	static FColor SurfaceColor(ERTHexSurface Surface);
 
 	/**
+	 * La tinta dell'ANELLO DI BORDO che cinge ogni cella (#1758).
+	 *
+	 * 🔑 **Sta qui, accanto alla tavolozza delle superfici, perche' e' il decimo membro della stessa
+	 * tavolozza**: chi sceglie un colore nuovo per la board deve poter misurare la distanza anche da questo,
+	 * e prima del 2026-09-23 non poteva — il valore era un letterale dentro `RebuildInstances`, e chiunque
+	 * volesse confrontarcisi lo ricopiava. E' il difetto di #983 applicato a un colore invece che a una
+	 * misura: due copie che divergono in silenzio, e la seconda se ne accorge a schermo.
+	 *
+	 * ⚠️ E' un `FColor` **sRGB a 8 bit**: chi lo scrive in un `PerInstanceCustomData` deve passare da
+	 * `FLinearColor::FromSRGBColor`, non da una divisione per 255.
+	 */
+	static FColor CellBorderColor();
+
+	/**
 	 * Il SECONDO canale di una superficie: quanti anelli concentrici incide il suo glifo (`D-183`).
 	 *
 	 * `0` significa «nessun glifo», non «glifo vuoto»: cinque superfici su nove restano mono-canale, ed e' una

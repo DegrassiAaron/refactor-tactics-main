@@ -348,6 +348,14 @@ FVector2D URTHexLibrary::SurfaceVolumeFor(ERTHexSurface Surface)
 	return FVector2D::ZeroVector;
 }
 
+FColor URTHexLibrary::CellBorderColor()
+{
+	// Quasi-nero, non nero: il confine deve leggersi come una LINEA sopra la faccia, non come un taglio.
+	// Vive qui e non piu' dentro `RebuildInstances` perche' chi sceglie un colore nuovo per la board deve
+	// poterci misurare la distanza — vedi il docstring nell'header.
+	return FColor(25, 25, 25);
+}
+
 FColor URTHexLibrary::SurfaceColor(ERTHexSurface Surface)
 {
 	// Tinte scelte per essere distinguibili fra loro e dal rosso del blocco (test:
