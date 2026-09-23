@@ -4172,6 +4172,49 @@ sessions:
 #   oracle        il comando o la issue il cui stato risponde. Deve essere eseguibile da chi legge
 #   revisit_when  la condizione che la rimette in gioco, scritta come evento e non come data
 
+  - id: U59
+    title: Il Context Inspector si legge, o copre la board
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: il verdetto umano sulla LEGGIBILITA' del pannello di contesto — che si distingua dal fondo,
+      che le righe non si accavallino, e che non copra ciò che si sta guardando
+    artifacts: []
+    # 🔑 **Questa seduta esiste perché il contenuto è già provato e la RESA no.**
+    # Il contesto per osservatore è pinnato headless da quattro test, e tutti portano la propria prova
+    # che sanno fallire:
+    #   RefactorTactics.Debug.ContextViewCarriesNoRawTypes
+    #   RefactorTactics.Debug.ContextViewHasNoAuditOnlyField
+    #   RefactorTactics.Debug.ContextInspectorShowsOnlyThisCell
+    #   RefactorTactics.Debug.ContextInspectorPlacementDoesNotCollide
+    # ⛔ Nessuno di essi dice se il pannello si LEGGA: la Slate di `RebuildWidget` non ha modo di essere
+    # rossa senza uno schermo, ed è la ragione per cui la sola parte che può sbagliare in silenzio — la
+    # posa — è un DATO e non quattro numeri dentro il layout.
+    unblocked_by: []
+    # ⚠️ **Vuoto per una ragione misurata**, come in `U46`, `U49`, `U50` e `U51`: il codice c'è tutto ed è
+    # verde headless (#2485, PR #3298 e #3309). Quello che manca è un occhio.
+    shares_setup_with: []
+    # 🔴 **Vuoto, ma NON perché vada eseguita da sola.** La *Regola di batching* di questo file autorizza
+    # un'apertura nuova solo se cambia una precondizione, e qui non cambia: basta una partita hex avviata.
+    # ⚠️ Anzi, il contrario: ciò che si giudica è **come due pannelli convivono a schermo**, e in
+    # particolare che questo non si sovrapponga a `URTPieVerdictOverlay`, che sta a sinistra centrato
+    # (#3242). Chi la pianifica la metta **accanto a una seduta di verdetto**, non isolata — vederla da
+    # sola proverebbe meno di ciò che serve.
+    verifies: [PIE-DEBUG-CONTEXT]
+    issues: [2485]
+    # ⛔ **Perché una seduta e non un automation test.** Ciò che si giudica è la leggibilità: contrasto,
+    # accavallamento, ingombro. Sono giudizi che un test può solo fingere di dare — `CLAUDE.md` §5, *MCP
+    # esegue, la persona giudica*.
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, quello che ospita il bridge e il `Content` completo.
+    # Misurato il 2026-09-23: `du -sh Content` risponde **59 GB** là e **7,5 MB** nel clone designer, dove
+    # una partita hex non ha gli asset per essere avviata.
+    #
+    # 🔑 **La resa è Slate in C++ e non un `.uasset`**, come `URTPieVerdictOverlay`: non c'è un widget da
+    # aprire nell'Editor — si avvia la partita, si passa il puntatore su una cella e si lancia
+    # `rt.Debug.ContextInspector 0`. Un `WBP_` curato resta possibile, la classe base è fatta per essere
+    # derivata, e apparterrebbe al clone principale.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

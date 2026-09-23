@@ -6,6 +6,13 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTTurnLog.h"
 
+#include "Styling/CoreStyle.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/SOverlay.h"
+#include "Widgets/Text/STextBlock.h"
+
 FString URTContextInspectorLibrary::DescribePublicEvent(const FRTPublicReplayEntry& Entry)
 {
 	// Colonne, non prosa: vedi l'header per la ragione. Tutte e sole quelle che
@@ -121,4 +128,69 @@ FText URTContextInspectorWidgetBase::GetHeaderText() const
 		? FString(TEXT("onnisciente"))
 		: FString::Printf(TEXT("squadra %d"), View.ObserverTeamId);
 	return FText::FromString(FString::Printf(TEXT("%s — %s"), *View.Cell.ToString(), *Chi));
+}
+
+FRTContextInspectorPlacement URTContextInspectorWidgetBase::Placement() const
+{
+	return FRTContextInspectorPlacement();
+}
+
+TSharedRef<SWidget> URTContextInspectorWidgetBase::RebuildWidget()
+{
+	const FRTContextInspectorPlacement Posa = Placement();
+
+	TSharedRef<SVerticalBox> Righe = SNew(SVerticalBox);
+
+	// 🔑 L'intestazione per PRIMA e sempre: dice QUALE cella e PER CHI. Un pannello che non lo dicesse
+	// si leggerebbe come «la verita'», mentre e' una verita' parziale per costruzione.
+	Righe->AddSlot()
+		.AutoHeight()
+		.Padding(0.f, 0.f, 0.f, 6.f)
+		[
+			SNew(STextBlock)
+				.Text_Lambda([this]() { return GetHeaderText(); })
+				// Il COLORE si dichiara, non si eredita: senza, il testo prende quello di default dello stile
+				// e puo' risultare illeggibile sul proprio fondo (#3242, secondo difetto).
+				.ColorAndOpacity(FSlateColor(FLinearColor(0.85f, 0.92f, 1.f)))
+		];
+
+	// ⚠️ Un numero FISSO di slot, riempiti da lambda. Slate si costruisce una volta e il contenuto cambia
+	// a ogni frame: aggiungere uno slot per riga qui dentro congelerebbe il pannello alla PRIMA vista
+	// mostrata, e le viste successive avrebbero piu' righe di quante ce ne sono.
+	for (int32 i = 0; i < MaxRighe; ++i)
+	{
+		Righe->AddSlot()
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+					.Text_Lambda([this, i]()
+					{
+						const TArray<FText> Linee = GetLines();
+						return Linee.IsValidIndex(i) ? Linee[i] : FText::GetEmpty();
+					})
+					.ColorAndOpacity(FSlateColor(FLinearColor::White))
+					.AutoWrapText(true)
+			];
+	}
+
+	return SNew(SOverlay)
+		+ SOverlay::Slot()
+			.HAlign(Posa.Horizontal)
+			.VAlign(Posa.Vertical)
+			.Padding(FMargin(0.f, 0.f, Posa.Margin, Posa.Margin))
+			[
+				SNew(SBox)
+					.MaxDesiredWidth(Posa.MaxWidth)
+					[
+						SNew(SBorder)
+							.Padding(FMargin(12.f, 9.f))
+							.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+							// Opaco all'85%, come l'overlay del verdetto: sotto ci puo' essere la board, e un
+							// fondo troppo trasparente renderebbe illeggibili entrambi.
+							.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.85f))
+							[
+								Righe
+							]
+					]
+			];
 }
