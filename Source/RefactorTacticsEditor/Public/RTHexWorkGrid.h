@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Map/RTMapVisuals.h"
+#include "UObject/ObjectKey.h"   // FObjectKey: identita' di un UObject che non ricicla
 
 /**
  * LA GRIGLIA DI LAVORO — il piano di lavoro **dove le celle non esistono ancora** (#622).
@@ -132,6 +133,12 @@ namespace RTHexWorkGrid
 		/** Raggio del seme quando il layer attivo e' vuoto. Distinto da `Margin`: significa un'altra cosa. */
 		int32 SeedRadius = 3;
 
+		/**
+		 * Il centro del seme. Lo calcola `AnchorFor` dalle celle dell'asset — vedi il suo docstring
+		 * per il difetto che chiude. Lasciato al default, il seme nasce sull'origine.
+		 */
+		FRTCellId SeedAnchor;
+
 		/** Tetto sul numero di esagoni. Passato come PARAMETRO perche' un test possa stringerlo. */
 		int32 MaxCells = 4096;
 	};
@@ -153,6 +160,18 @@ namespace RTHexWorkGrid
 
 		/** Il tetto ha morso: la griglia e' piu' piccola di quanto chiesto, e chi guarda deve saperlo. */
 		bool bClamped = false;
+
+		/**
+		 * Nemmeno il PRIMO anello entrava nel tetto, e se n'e' preso un pezzo.
+		 *
+		 * 🔴 **E' la sola eccezione al troncamento per anelli interi, e vale la pena dire perche'.**
+		 * Su un layer con molte migliaia di celle di bordo — una board enorme, o un piano frammentato
+		 * in centinaia di isole — gia' il primo anello supera il tetto. Con la sola regola degli anelli
+		 * interi la griglia **spariva del tutto**: cioe' proprio dove vedere il bordo serve di piu', il
+		 * primo criterio del DoD non era soddisfatto. Un pezzo di anello, preso in ordine stabile e
+		 * **dichiarato**, e' una vista che manca a meta'; nessun fantasma era una vista che manca e basta.
+		 */
+		bool bPartialRing = false;
 	};
 
 	/**
@@ -164,6 +183,16 @@ namespace RTHexWorkGrid
 	 * un test puo' distinguere «troncato per anelli» da «troncato a caso».
 	 */
 	FPlan BuildPlan(const FInput& In);
+
+	/**
+	 * ⚠️ **`Margin` e `SeedRadius` vengono ristretti DENTRO `BuildPlan`, e non ci si fida del
+	 * chiamante.** I `ClampMin`/`ClampMax` dichiarati sul settings del mode sono un vincolo del **widget**
+	 * del pannello: `LoadConfig()` non li applica, quindi un `EditorPerProjectUserSettings.ini` scritto a
+	 * mano — o corrotto — puo' consegnare qui un raggio arbitrario. A `3·R·(R+1)+1` con
+	 * `R` grande l'`int32` va in overflow, il `Reserve` di `HexArea` diventa un numero qualunque e
+	 * l'editor si pianta su un ciclo che non finisce.
+	 */
+	constexpr int32 MaxReach = 64;
 
 	/** Il nome del ramo, per il log. Non localizzato: e' diagnostica, non interfaccia. */
 	const TCHAR* SourceName(ESource Source);
@@ -203,8 +232,27 @@ namespace RTHexWorkGrid
 	 */
 	struct FWatch
 	{
-		/** `GetUniqueID` dell'actor mappa bersaglio, `0` se non ce n'e' uno. Copre anche il cambio di selezione. */
-		uint32 MapActorId = 0;
+		/**
+		 * L'actor mappa bersaglio. Copre anche il cambio di **selezione**, perche' `FindTargetMapActor`
+		 * preferisce l'`ARTHexMapActor` selezionato nel Level Editor.
+		 *
+		 * 🔴 **`FObjectKey` e non `GetUniqueID()`.** Quello restituisce l'`InternalIndex` di `GUObjectArray`,
+		 * che torna alla free list quando l'oggetto viene raccolto e viene **riassegnato** al successivo:
+		 * cancellare l'actor, lasciar girare il GC e ripiazzarne uno sullo stesso asset produrrebbe la stessa
+		 * chiave, e la griglia non si rifarebbe mai per il nuovo. `FObjectKey` porta il numero di serie
+		 * accanto all'indice, ed e' la forma che non collide.
+		 */
+		FObjectKey MapActor;
+
+		/**
+		 * L'asset mappa.
+		 *
+		 * ⚠️ **Non basta `Revision`**, e il caso si produce con due clic: duplicare un `URTHexMapAsset` e
+		 * scambiarlo dal pannello Details. La copia nasce con la **stessa** `Revision` e le **stesse**
+		 * celle, quindi ogni altro campo di questa chiave resterebbe uguale e i fantasmi del vecchio asset
+		 * resterebbero a schermo.
+		 */
+		FObjectKey MapAsset;
 
 		/** `URTHexMapAsset::Revision`, che si muove a ogni modifica strutturale (otto siti in `RTHexMapAsset.cpp`). */
 		int32 Revision = -1;
@@ -213,15 +261,54 @@ namespace RTHexWorkGrid
 		int32 NumCells = -1;
 
 		int32 ActiveLayer = 0;
-		FVector Origin = FVector::ZeroVector;
-		float HexSize = 0.f;
-		float LayerHeight = 0.f;
 
 		bool bShow = false;
 		int32 Margin = -1;
 		int32 SeedRadius = -1;
 
-		bool operator==(const FWatch& Other) const;
-		bool operator!=(const FWatch& Other) const { return !(*this == Other); }
+		/**
+		 * 🔑 **`= default`, e non un confronto scritto a mano.** Un `operator==` di dieci campi e' una lista
+		 * che invecchia in silenzio: chi aggiunge un campo undicesimo e si dimentica di aggiungerlo anche
+		 * qui apre un buco d'invalidazione che **nessun test vede**, perche' i test esercitano `BuildPlan`
+		 * e non la chiave. Col default ogni campo partecipa per costruzione, e il dimenticarsene non e'
+		 * piu' un'opzione. Presidiato comunque da
+		 * `RefactorTactics.HexEditor.WorkGridWatchNoticesEveryFieldItCarries`.
+		 */
+		bool operator==(const FWatch& Other) const = default;
 	};
+
+	/**
+	 * DOVE la griglia si posa, tenuto separato da COSA la compone.
+	 *
+	 * 🔑 **La separazione esiste per una ragione misurabile.** Trascinare l'actor mappa col gizmo cambia
+	 * `Origin` a ogni fotogramma, ma **non cambia l'insieme di celle**: tenerli in un'unica chiave faceva
+	 * rifare la dilatazione, la `TSet`, l'ordinamento e la ricostruzione di migliaia di istanze sessanta
+	 * volte al secondo, per un risultato identico traslato. Ora un cambio di sola posa **ri-posa** e basta.
+	 */
+	struct FPlacement
+	{
+		FVector Origin = FVector::ZeroVector;
+		float HexSize = 0.f;
+		float LayerHeight = 0.f;
+
+		// ⚠️ Confronto ESATTO, e va bene: questi non sono il risultato di un calcolo ma copie di
+		// `GetHexContext` e della trasformata dell'actor. Una tolleranza nasconderebbe uno spostamento
+		// minuscolo — che a schermo si vede, perche' la griglia resterebbe dov'era.
+		bool operator==(const FPlacement& Other) const = default;
+	};
+
+	/**
+	 * Il centro attorno a cui seminare quando il layer di lavoro e' vuoto: la media assiale delle celle che
+	 * l'asset ha **su qualunque piano**, riportata sul layer chiesto.
+	 *
+	 * 🔴 **Il difetto che chiude.** Seminare sempre su `(0,0)` e' corretto solo per una mappa autorata
+	 * all'origine. Su una mappa disegnata lontano — la precondizione che `PIE-MAPED-FRAME` richiede gia' a
+	 * questo progetto — passare a un layer vuoto disegnava la griglia a migliaia di unita' di distanza dalle
+	 * celle sottostanti, e **nessun fantasma** sopra di esse: cioe' l'esatto contrario di *«vedere dove
+	 * cadra' la prossima cella»*.
+	 *
+	 * ⚠️ E' la media delle **coordinate assiali**, non il centroide mondo: serve un punto da cui cominciare,
+	 * non un baricentro. Insieme vuoto ⇒ `(0,0,Layer)`, che a quel punto e' l'unica risposta onesta.
+	 */
+	FRTCellId AnchorFor(const TArray<FRTCellId>& Cells, int32 Layer);
 }

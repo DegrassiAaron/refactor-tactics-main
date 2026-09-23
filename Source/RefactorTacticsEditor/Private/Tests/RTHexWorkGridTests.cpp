@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "UObject/UObjectHash.h"
+#include "Templates/Function.h"   // TFunctionRef, per il ciclo sui campi della chiave
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Map/RTHexCellData.h"        // ERTHexSurface
@@ -359,10 +360,16 @@ bool FRTWorkGridColourIsNotASurfaceColourTest::RunTest(const FString&)
 	TestEqual(TEXT("nessuna superficie e' confondibile con la griglia di lavoro"), TroppoVicine, 0);
 	TestEqual(TEXT("e nemmeno in scala di grigi"), TroppoSimiliInGrigio, 0);
 
-	// L'anello di bordo delle celle vere (`RTHexMapActor.cpp:1941-1947`) e' l'altro vicino da cui stare
-	// lontani: e' il segno che la griglia di lavoro rischia di imitare.
+	// L'anello di bordo delle celle vere e' l'altro vicino da cui stare lontani: e' il segno che la griglia
+	// di lavoro rischia di imitare.
+	//
+	// ⚠️ **Letto da `URTHexLibrary::CellBorderColor()`, non ricopiato.** Fino al 2026-09-23 questa
+	// riga portava un `FColor(25, 25, 25)` scritto a mano, cioe' esattamente il difetto di #983 che AC-6
+	// dichiara di evitare: schiarendo il bordo della board per leggibilita', il fantasma sarebbe diventato
+	// confondibile col segno da cui esiste per distinguersi, e questo test sarebbe restato verde contro un
+	// letterale stantio.
 	TestTrue(TEXT("e neppure con l'anello di bordo delle celle vere"),
-		WorkGridManhattan(Fantasma, FColor(25, 25, 25)) >= 60);
+		WorkGridManhattan(Fantasma, URTHexLibrary::CellBorderColor()) >= 60);
 
 	return true;
 }
@@ -480,4 +487,184 @@ bool FRTWorkGridSettingsAreModeStateTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **AC 10** — 🔴 **la chiave d'invalidazione si accorge di OGNI campo che porta.**
+ *
+ * `FWatch` e' l'intero meccanismo per cui la griglia si rifa': se un campo smettesse di partecipare al
+ * confronto, la vista resterebbe ferma su un dato che e' cambiato — la **vista che mente** di #622 — e
+ * **nessuno degli altri test se ne accorgerebbe**, perche' esercitano `BuildPlan` e non la chiave.
+ *
+ * ⚠️ Con `operator==` dichiarato `= default` il rischio e' chiuso per costruzione. Questo test esiste
+ * perche' il `= default` possa essere tolto solo di proposito: chi lo sostituisse con un confronto scritto
+ * a mano, dimenticando un campo, lo troverebbe rosso qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkGridWatchNoticesEveryFieldTest,
+	"RefactorTactics.HexEditor.WorkGridWatchNoticesEveryFieldItCarries",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWorkGridWatchNoticesEveryFieldTest::RunTest(const FString&)
+{
+	// Due `UObject` distinti e sicuramente vivi, per le due chiavi d'oggetto.
+	UObject* Primo = GetTransientPackage();
+	UObject* Secondo = URTHexEditorModeSettings::StaticClass()->GetDefaultObject();
+	if (!TestNotNull(TEXT("primo oggetto"), Primo) || !TestNotNull(TEXT("secondo oggetto"), Secondo))
+	{
+		return false;
+	}
+
+	{
+		const RTHexWorkGrid::FWatch A;
+		const RTHexWorkGrid::FWatch B;
+		TestTrue(TEXT("due chiavi appena costruite sono uguali, o il resto non significa niente"), A == B);
+	}
+
+	int32 Campi = 0;
+	auto Discrimina = [this, &Campi](const TCHAR* Nome, TFunctionRef<void(RTHexWorkGrid::FWatch&)> Muta)
+	{
+		const RTHexWorkGrid::FWatch Base;
+		RTHexWorkGrid::FWatch Mutata;
+		Muta(Mutata);
+		++Campi;
+		TestFalse(*FString::Printf(TEXT("cambiare %s deve rompere l'uguaglianza"), Nome), Base == Mutata);
+	};
+
+	Discrimina(TEXT("MapActor"), [Primo](RTHexWorkGrid::FWatch& W) { W.MapActor = FObjectKey(Primo); });
+	Discrimina(TEXT("MapAsset"), [Secondo](RTHexWorkGrid::FWatch& W) { W.MapAsset = FObjectKey(Secondo); });
+	Discrimina(TEXT("Revision"), [](RTHexWorkGrid::FWatch& W) { W.Revision += 1; });
+	Discrimina(TEXT("NumCells"), [](RTHexWorkGrid::FWatch& W) { W.NumCells += 1; });
+	Discrimina(TEXT("ActiveLayer"), [](RTHexWorkGrid::FWatch& W) { W.ActiveLayer += 1; });
+	Discrimina(TEXT("bShow"), [](RTHexWorkGrid::FWatch& W) { W.bShow = !W.bShow; });
+	Discrimina(TEXT("Margin"), [](RTHexWorkGrid::FWatch& W) { W.Margin += 1; });
+	Discrimina(TEXT("SeedRadius"), [](RTHexWorkGrid::FWatch& W) { W.SeedRadius += 1; });
+
+	// Guardia anti-vacuita' e, insieme, la rete sul campo AGGIUNTO: la chiave ha otto campi, e chi ne
+	// aggiunge un nono trova questo numero fermo e deve decidere che farne.
+	TestEqual(TEXT("tutti e otto i campi della chiave sono stati esercitati"), Campi, 8);
+
+	// 🔑 La posa e' una chiave a parte, e discrimina anch'essa: trascinare l'actor non cambia l'insieme,
+	// ma deve far ri-posare.
+	int32 CampiPosa = 0;
+	auto DiscriminaPosa = [this, &CampiPosa](const TCHAR* Nome, TFunctionRef<void(RTHexWorkGrid::FPlacement&)> Muta)
+	{
+		const RTHexWorkGrid::FPlacement Base;
+		RTHexWorkGrid::FPlacement Mutata;
+		Muta(Mutata);
+		++CampiPosa;
+		TestFalse(*FString::Printf(TEXT("cambiare %s deve rompere l'uguaglianza della posa"), Nome), Base == Mutata);
+	};
+	DiscriminaPosa(TEXT("Origin"), [](RTHexWorkGrid::FPlacement& P) { P.Origin.X += 1.0; });
+	DiscriminaPosa(TEXT("HexSize"), [](RTHexWorkGrid::FPlacement& P) { P.HexSize += 1.f; });
+	DiscriminaPosa(TEXT("LayerHeight"), [](RTHexWorkGrid::FPlacement& P) { P.LayerHeight += 1.f; });
+	TestEqual(TEXT("tutti e tre i campi della posa sono stati esercitati"), CampiPosa, 3);
+
+	return true;
+}
+
+/**
+ * **AC 11** — 🔴 **il seme nasce dove si sta lavorando, non sull'origine.**
+ *
+ * Su una mappa autorata lontano dall'origine — la precondizione che `PIE-MAPED-FRAME` richiede gia' a
+ * questo progetto — passare a un layer vuoto seminava la griglia a migliaia di unita' dalle celle, e
+ * lasciava senza fantasmi proprio le coordinate sopra di esse. Cioe' l'opposto di *«vedere dove cadra' la
+ * prossima cella»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkGridSeedFollowsTheMapTest,
+	"RefactorTactics.HexEditor.WorkGridSeedFollowsTheMapInsteadOfTheOrigin",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWorkGridSeedFollowsTheMapTest::RunTest(const FString&)
+{
+	// L'ancora, da sola: media assiale, riportata sul layer chiesto.
+	const TArray<FRTCellId> Lontane = {
+		FRTCellId(30, 30, 0), FRTCellId(32, 30, 0), FRTCellId(30, 32, 0), FRTCellId(32, 32, 0)
+	};
+	const FRTCellId Ancora = RTHexWorkGrid::AnchorFor(Lontane, 1);
+	TestEqual(TEXT("l'ancora e' la media assiale, X"), Ancora.X, 31);
+	TestEqual(TEXT("l'ancora e' la media assiale, Y"), Ancora.Y, 31);
+	TestEqual(TEXT("e vive sul layer chiesto"), Ancora.Layer, 1);
+
+	// Insieme vuoto: l'origine e' l'unica risposta onesta, e va detta.
+	const FRTCellId Vuota = RTHexWorkGrid::AnchorFor(TArray<FRTCellId>(), 5);
+	TestEqual(TEXT("senza celle l'ancora e' l'origine, X"), Vuota.X, 0);
+	TestEqual(TEXT("senza celle l'ancora e' l'origine, Y"), Vuota.Y, 0);
+	TestEqual(TEXT("sul layer chiesto"), Vuota.Layer, 5);
+
+	// Il seme la usa davvero: nessuna cella sul layer di lavoro, ancora lontana dall'origine.
+	RTHexWorkGrid::FInput In = WorkGridInputAround(TArray<FRTCellId>(), /*Margin=*/ 0, 4096);
+	In.SeedRadius = 1;
+	In.SeedAnchor = FRTCellId(31, 31, WorkGridTestLayer);
+
+	const RTHexWorkGrid::FPlan Plan = RTHexWorkGrid::BuildPlan(In);
+	TestEqual(TEXT("il ramo e' il seme"),
+		static_cast<int32>(Plan.Source), static_cast<int32>(RTHexWorkGrid::ESource::Seeded));
+	TestEqual(TEXT("un esagono di raggio uno attorno all'ancora"), Plan.Cells.Num(), 7);
+
+	int32 VicineAllAncora = 0;
+	int32 SullOrigine = 0;
+	for (const FRTCellId& Cella : Plan.Cells)
+	{
+		if (URTHexLibrary::HexDistance(Cella, FRTCellId(31, 31, WorkGridTestLayer)) <= 1) { ++VicineAllAncora; }
+		if (URTHexLibrary::HexDistance(Cella, FRTCellId(0, 0, WorkGridTestLayer)) <= 1) { ++SullOrigine; }
+	}
+	TestEqual(TEXT("tutti e sette gli esagoni stanno attorno all'ancora"), VicineAllAncora, 7);
+	// Controllo NEGATIVO: e nessuno sull'origine, che e' dove finivano prima.
+	TestEqual(TEXT("nessuno e' rimasto sull'origine"), SullOrigine, 0);
+
+	return true;
+}
+
+/**
+ * **AC 12** — 🔴 **quando nemmeno il primo anello entra nel tetto, la griglia si riduce invece di sparire.**
+ *
+ * La regola degli anelli interi, applicata alla lettera, azzerava la griglia su una mappa enorme o
+ * frammentata: cioe' proprio dove vedere il bordo serve di piu', il primo criterio del DoD non era
+ * soddisfatto. Un pezzo di anello dichiarato e' una vista che manca a meta'; nessun fantasma era una vista
+ * che manca e basta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWorkGridDegradesInsteadOfVanishingTest,
+	"RefactorTactics.HexEditor.WorkGridDegradesInsteadOfVanishingUnderTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWorkGridDegradesInsteadOfVanishingTest::RunTest(const FString&)
+{
+	// Un esagono pieno di raggio 3: il suo primo anello di dilatazione ha 24 celle.
+	const TArray<FRTCellId> Existing = URTHexLibrary::HexArea(FRTCellId(0, 0, WorkGridTestLayer), 3);
+
+	// Controllo POSITIVO: con un tetto che lo contiene, l'anello esce INTERO e non e' parziale.
+	const RTHexWorkGrid::FPlan Intero = RTHexWorkGrid::BuildPlan(WorkGridInputAround(Existing, 1, 24));
+	TestEqual(TEXT("il primo anello di un esagono di raggio tre ha ventiquattro celle"), Intero.Cells.Num(), 24);
+	TestFalse(TEXT("e non e' parziale"), Intero.bPartialRing);
+	TestFalse(TEXT("ne' ridotto"), Intero.bClamped);
+	TestEqual(TEXT("il raggio applicato e' uno"), Intero.AppliedReach, 1);
+
+	// Il caso che morde: il tetto sta SOTTO il primo anello.
+	const RTHexWorkGrid::FPlan Ridotta = RTHexWorkGrid::BuildPlan(WorkGridInputAround(Existing, 1, 10));
+	TestEqual(TEXT("si posa esattamente quanto il tetto concede, non zero"), Ridotta.Cells.Num(), 10);
+	TestTrue(TEXT("e il pezzo di anello e' DICHIARATO"), Ridotta.bPartialRing);
+	TestTrue(TEXT("come lo e' la riduzione"), Ridotta.bClamped);
+
+	// Il pezzo e' preso in ordine stabile, quindi due esecuzioni danno lo stesso pezzo.
+	const RTHexWorkGrid::FPlan Ancora = RTHexWorkGrid::BuildPlan(WorkGridInputAround(Existing, 1, 10));
+	bool bIdentiche = Ancora.Cells.Num() == Ridotta.Cells.Num();
+	for (int32 I = 0; bIdentiche && I < Ridotta.Cells.Num(); ++I)
+	{
+		bIdentiche = Ancora.Cells[I] == Ridotta.Cells[I];
+	}
+	TestTrue(TEXT("il pezzo e' deterministico: due esecuzioni danno lo stesso elenco"), bIdentiche);
+
+	// ⛔ E il pezzo resta fuori dalle celle vere: una riduzione non e' una licenza a sovrapporsi.
+	const TSet<FRTCellId> Esistenti(Existing);
+	int32 Sovrapposte = 0;
+	for (const FRTCellId& Cella : Ridotta.Cells)
+	{
+		if (Esistenti.Contains(Cella)) { ++Sovrapposte; }
+	}
+	TestEqual(TEXT("nemmeno ridotta la griglia cade su una cella vera"), Sovrapposte, 0);
+
+	// Dal SECONDO anello in poi la regola resta intera: un tetto fra i due anelli non produce un pezzo.
+	const RTHexWorkGrid::FPlan DueAnelli = RTHexWorkGrid::BuildPlan(WorkGridInputAround(Existing, 2, 40));
+	TestEqual(TEXT("il secondo anello non entra, e non se ne prende un pezzo"), DueAnelli.Cells.Num(), 24);
+	TestFalse(TEXT("nessun anello parziale oltre il primo"), DueAnelli.bPartialRing);
+	TestTrue(TEXT("ma la riduzione e' dichiarata"), DueAnelli.bClamped);
+	TestEqual(TEXT("e il raggio applicato si ferma a uno"), DueAnelli.AppliedReach, 1);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

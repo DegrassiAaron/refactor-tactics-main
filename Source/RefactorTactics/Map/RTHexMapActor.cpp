@@ -1940,7 +1940,7 @@ void ARTHexMapActor::RebuildInstances(ERTRebuildFamily Families)
 			// La stessa costante scura del glifo ([D-183]): il bordo appartiene al registro «segno inciso»,
 			// non alla tavolozza delle superfici. Tingerlo col colore del terreno raddoppierebbe il canale
 			// che esiste gia' invece di aggiungerne uno — ed e' esattamente il difetto che #1758 chiude.
-			const FLinearColor BorderColor = FLinearColor::FromSRGBColor(FColor(25, 25, 25));
+			const FLinearColor BorderColor = FLinearColor::FromSRGBColor(URTHexLibrary::CellBorderColor());
 			CellBorders->SetCustomDataValue(BorderIndex, 0, BorderColor.R);
 			CellBorders->SetCustomDataValue(BorderIndex, 1, BorderColor.G);
 			CellBorders->SetCustomDataValue(BorderIndex, 2, BorderColor.B,

@@ -22,9 +22,16 @@ namespace
 	 *
 	 * ⚠️ **Il valore e' `"Default"` e deve combaciare col `PolygonGroupMaterialSlotName`** (#1665):
 	 * `BuildFromMeshDescriptions` accoppia sezione e slot PER NOME, e se non combaciano la sezione esce con
-	 * `MaterialIndex = -1` — geometria completa, nessun materiale, **niente a schermo**. Misurato nel
-	 * pacchetto il 2026-08-30. Qui le due estremita' del legame distano sei righe, che e' la sola difesa
-	 * possibile finche' la costante resta privata di quel `.cpp`.
+	 * `MaterialIndex = -1` — geometria completa, nessun materiale, **niente a schermo**.
+	 *
+	 * 🔑 **Perche' questa copia e' al riparo, e non e' la ragione che verrebbe da dare.** Non e' che
+	 * le due estremita' distino poche righe: e' che quel difetto **si manifesta solo nel cotto**.
+	 * `RTHexMapMeshBoundsTests.cpp:20-27` lo ha misurato per mutazione — rinominato un solo lato del
+	 * legame, in `EditorContext` il test resta **verde** con `MaterialIndex = 0`, perche' l'Editor ha un
+	 * fallback che risolve l'indice; nel pacchetto no, e li' esce `-1`. Questa mesh vive in un modulo
+	 * **editor-only** e in un pacchetto non entra mai, quindi il modo in cui il legame puo' rompersi non la
+	 * raggiunge. ⛔ Se un giorno una mesh procedurale del modulo editor dovesse finire in un binario
+	 * cotto, questa costante torna a essere un rischio e va unificata con quella del runtime.
 	 */
 	const FName RTWorkGridMeshSlotName(TEXT("Default"));
 }
@@ -138,6 +145,11 @@ void ARTHexWorkGridActor::ClearCells()
 	}
 }
 
+void ARTHexWorkGridActor::MoveTo(const FVector& Origin)
+{
+	SetActorLocation(Origin);
+}
+
 int32 ARTHexWorkGridActor::NumGhosts() const
 {
 	return Ghosts ? Ghosts->GetInstanceCount() : 0;
@@ -177,6 +189,12 @@ void ARTHexWorkGridActor::ShowCells(const TArray<FRTCellId>& Cells, const FVecto
 		Ghosts->SetMaterial(0, Tinta);
 	}
 
+	// 🔑 **Il portatore si mette SULL'origine della mappa e le istanze si posano in spazio LOCALE.**
+	// Cosi' seguire una mappa spostata e' una traslazione dell'actor (`MoveTo`) invece di una ricostruzione
+	// del buffer di istanze. Il costo e' una riga; il risparmio e' l'intero buffer, a ogni fotogramma di
+	// trascinamento.
+	SetActorLocation(Origin);
+
 	// La scala porta la mesh — circumraggio `RTCellPrismRadius` — alle misure della cella. Il fattore di
 	// forma (`OuterScaleInHexSize`, `Thickness`) e' gia' dentro la mesh: qui resta solo `HexSize`.
 	const float PlanarScale = HexSize / RTCellPrismRadius;
@@ -186,22 +204,32 @@ void ARTHexWorkGridActor::ShowCells(const TArray<FRTCellId>& Cells, const FVecto
 	// dividere per 255 darebbe una tinta slavata.
 	const FLinearColor Ghost = FLinearColor::FromSRGBColor(RTHexWorkGrid::GhostColour());
 
+	// 🔑 **Una `AddInstances` sola invece di N `AddInstance`.** Ogni chiamata singola invalida i bounds,
+	// fa crescere `PerInstanceSMData` e `PerInstanceSMCustomData` senza riserva, rivaluta
+	// `IsNavigationRelevant()` e fa un broadcast di `OnInstanceIndexUpdated`. Con un tetto di 4096 fantasmi
+	// e una ricostruzione a ogni pennellata, e' quel costo moltiplicato per quattromila. La versione a lotto
+	// riserva una volta, alloca i custom data una volta e fa un broadcast solo.
+	TArray<FTransform> Pose;
+	Pose.Reserve(Cells.Num());
 	for (const FRTCellId& Cell : Cells)
 	{
-		FVector World = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerHeight);
-		World.Z += RTHexWorkGrid::LiftZ;
+		// ⚠️ Origine ZERO e non `Origin`: la posizione della mappa la porta la trasformata
+		// dell'actor, non ogni singola istanza. E' cio' che rende `MoveTo` sufficiente.
+		FVector Locale = URTHexLibrary::AxialToWorld(Cell, FVector::ZeroVector, HexSize, LayerHeight);
+		Locale.Z += RTHexWorkGrid::LiftZ;
+		Pose.Emplace(FRotator::ZeroRotator, Locale, FVector(PlanarScale, PlanarScale, 1.f));
+	}
 
-		const int32 Index = Ghosts->AddInstance(
-			FTransform(FRotator::ZeroRotator, World, FVector(PlanarScale, PlanarScale, 1.f)),
-			/*bWorldSpace=*/ true);
+	const TArray<int32> Indici = Ghosts->AddInstances(Pose, /*bShouldReturnIndices=*/ true, /*bWorldSpace=*/ false);
 
-		// ⚠️ **Dopo `AddInstance`, che restituisce l'indice**: `NumCustomDataFloats` alloca i float alla
+	for (int32 I = 0; I < Indici.Num(); ++I)
+	{
+		// ⚠️ **Dopo `AddInstances`, che restituisce gli indici**: `NumCustomDataFloats` alloca i float alla
 		// creazione dell'istanza, e scritto prima `SetCustomDataValue` uscirebbe senza dire niente.
-		Ghosts->SetCustomDataValue(Index, 0, Ghost.R);
-		Ghosts->SetCustomDataValue(Index, 1, Ghost.G);
+		Ghosts->SetCustomDataValue(Indici[I], 0, Ghost.R);
+		Ghosts->SetCustomDataValue(Indici[I], 1, Ghost.G);
 		// `bMarkRenderStateDirty` una volta sola, sull'ultima istanza: farlo a ogni canale ricostruirebbe
 		// il buffer 3N volte (`RTHexMapActor.cpp:1914-1915`).
-		Ghosts->SetCustomDataValue(Index, 2, Ghost.B,
-			/*bMarkRenderStateDirty=*/ Index == Cells.Num() - 1);
+		Ghosts->SetCustomDataValue(Indici[I], 2, Ghost.B, /*bMarkRenderStateDirty=*/ I == Indici.Num() - 1);
 	}
 }

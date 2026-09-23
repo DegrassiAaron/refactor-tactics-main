@@ -79,8 +79,20 @@ private:
 	 */
 	TWeakObjectPtr<ARTHexWorkGridActor> WorkGrid;
 
-	/** Lo stato da cui la griglia dipende, all'ultima ricostruzione. Vedi `RTHexWorkGrid::FWatch`. */
+	/** Lo stato che DEFINISCE l'insieme, all'ultima ricostruzione. Vedi `RTHexWorkGrid::FWatch`. */
 	RTHexWorkGrid::FWatch WorkGridWatch;
+
+	/**
+	 * DOVE l'insieme era posato, all'ultima posa.
+	 *
+	 * 🔑 **Separato dalla chiave perche' trascinare l'actor non cambia le celle.** Con un'unica chiave, un
+	 * gizmo trascinato per tre secondi rifaceva sessanta volte al secondo la dilatazione, la `TSet` e la
+	 * ricostruzione di migliaia di istanze, per un insieme identico traslato.
+	 */
+	RTHexWorkGrid::FPlacement WorkGridPlacement;
+
+	/** L'ultimo piano calcolato, per poterlo **ri-posare** senza ricalcolarlo. */
+	RTHexWorkGrid::FPlan WorkGridPlan;
 
 	/**
 	 * Quanti esagoni ha posato l'ultima ricostruzione.

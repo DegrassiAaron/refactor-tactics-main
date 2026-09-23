@@ -67,6 +67,19 @@ public:
 	void ClearCells();
 
 	/**
+	 * Sposta la griglia gia' posata, senza toccarne le istanze.
+	 *
+	 * 🔑 **Esiste perche' trascinare l'actor mappa non cambia QUALI celle sono vuote.** Le istanze
+	 * sono posate in spazio **locale** al portatore, quindi seguire la mappa e' una traslazione dell'actor
+	 * e non una ricostruzione del buffer: senza questo, un gizmo trascinato per tre secondi svuotava e
+	 * riempiva migliaia di istanze sessanta volte al secondo per un risultato identico, spostato.
+	 *
+	 * ⚠️ Vale per la sola ORIGINE. Se cambiano `HexSize` o `LayerHeight` le distanze fra i
+	 * fantasmi cambiano davvero, e li' serve una posa nuova.
+	 */
+	void MoveTo(const FVector& Origin);
+
+	/**
 	 * Quanti anelli sono posati.
 	 *
 	 * ⚠️ Si legge dallo **stato reale delle istanze** e non da un contatore a parte: un contatore

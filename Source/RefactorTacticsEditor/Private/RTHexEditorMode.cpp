@@ -9,6 +9,7 @@
 #include "Engine/World.h"         // SpawnActor
 #include "Map/RTMapEditLibrary.h"
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexCellData.h"   // FRTHexCellData::Id, per l'ancora del seme
 #include "Editor.h"
 #include "ScopedTransaction.h"
 #include "InteractiveToolManager.h"
@@ -120,6 +121,9 @@ void URTHexEditorMode::Exit()
 	}
 	WorkGrid.Reset();
 	WorkGridWatch = RTHexWorkGrid::FWatch();
+	WorkGridPlacement = RTHexWorkGrid::FPlacement();
+	WorkGridPlan = RTHexWorkGrid::FPlan();
+	WorkGridDrawn = 0;
 
 	UEdMode::Exit();
 }
@@ -142,85 +146,144 @@ namespace
 
 void URTHexEditorMode::RefreshWorkGrid()
 {
-	UWorld* World = GetWorld();
 	const URTHexEditorModeSettings* Settings = Cast<URTHexEditorModeSettings>(SettingsObject);
+
+	// ⚠️ **Lo spegnimento si decide PRIMA di cercare l'actor.** `FindTargetMapActor` percorre gli actor del
+	// mondo a ogni chiamata: farlo anche a griglia spenta sarebbe un costo per fotogramma per una feature
+	// che chi lavora ha chiesto di non vedere.
+	if (Settings == nullptr || !Settings->bShowWorkGrid)
+	{
+		// Si DISTRUGGE e non si svuota: un portatore vuoto lasciato nel mondo farebbe rientrare questo ramo
+		// a ogni fotogramma, e non c'e' niente da conservare.
+		if (ARTHexWorkGridActor* Carrier = WorkGrid.Get())
+		{
+			Carrier->Destroy();
+		}
+		WorkGrid.Reset();
+		WorkGridDrawn = 0;
+		WorkGridWatch = RTHexWorkGrid::FWatch();
+		WorkGridPlacement = RTHexWorkGrid::FPlacement();
+		WorkGridPlan = RTHexWorkGrid::FPlan();
+		return;
+	}
+
+	UWorld* World = GetWorld();
 	ARTHexMapActor* Map = RTHexEditor::FindTargetMapActor(World);
 
 	RTHexWorkGrid::FWatch Now;
-	Now.bShow = Settings != nullptr && Settings->bShowWorkGrid;
-	Now.Margin = Settings ? Settings->WorkGridMargin : 0;
-	Now.SeedRadius = Settings ? Settings->WorkGridSeedRadius : 0;
+	RTHexWorkGrid::FPlacement Place;
+	Now.bShow = true;
+	Now.Margin = Settings->WorkGridMargin;
+	Now.SeedRadius = Settings->WorkGridSeedRadius;
 
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 0.f;
-	float LayerHeight = 0.f;
 	const URTHexMapAsset* Asset = nullptr;
-
 	if (Map)
 	{
-		Now.MapActorId = Map->GetUniqueID();
+		Now.MapActor = FObjectKey(Map);
 		Now.ActiveLayer = Map->ActiveLayer;
 
 		// ⚠️ **Da `GetHexContext` e non dai campi dell'actor**: e' l'unico punto da cui passano le
-		// conversioni cella↔mondo, e sa gia' che la scala viene dall'asset quando c'e' (`RTHexMapActor.h:726-732`).
-		Asset = Map->GetHexContext(Origin, HexSize, LayerHeight);
-		Now.Origin = Origin;
-		Now.HexSize = HexSize;
-		Now.LayerHeight = LayerHeight;
+		// conversioni cella↔mondo, e sa gia' che la scala viene dall'asset quando c'e'.
+		Asset = Map->GetHexContext(Place.Origin, Place.HexSize, Place.LayerHeight);
 
 		if (Asset)
 		{
+			Now.MapAsset = FObjectKey(Asset);
 			Now.Revision = Asset->Revision;
 			Now.NumCells = Asset->NumCells();
 		}
 	}
 
+	const bool bCarrierOk = WorkGrid.IsValid() && WorkGrid->GetWorld() == World;
+	const bool bSetChanged = !(Now == WorkGridWatch);
+	const bool bPlaceChanged = !(Place == WorkGridPlacement);
+
 	// ⚠️ **`WorkGridDrawn` e non `bShow` nella guardia.** Un portatore assente e' lo stato normale finche'
 	// non c'e' niente da mostrare — senza asset, o con il layer saturo. Leggerlo come «portatore perduto»
 	// farebbe rifare il piano a ogni fotogramma, e scrivere una riga di log per ciascuno.
-	const bool bCarrierOk = WorkGrid.IsValid() && WorkGrid->GetWorld() == World;
-	if (Now == WorkGridWatch && (bCarrierOk || WorkGridDrawn == 0))
+	if (!bSetChanged && !bPlaceChanged && (bCarrierOk || WorkGridDrawn == 0))
 	{
 		return;
 	}
-	WorkGridWatch = Now;
 
-	if (!Now.bShow)
+	// 🔑 **Sola traslazione: si MUOVE il portatore invece di ricostruire le istanze.** Arrivati qui con
+	// l'insieme invariato, cio' che e' cambiato e' solo dove sta la mappa — le celle vuote sono le stesse e
+	// le distanze fra loro pure. Le istanze vivono in spazio locale al portatore, quindi basta spostarlo.
+	//
+	// ⚠️ `HexSize` o `LayerHeight` diversi NON passano di qui: li' le distanze fra i fantasmi cambiano
+	// davvero, e serve una posa nuova.
+	const bool bScaleChanged = Place.HexSize != WorkGridPlacement.HexSize
+		|| Place.LayerHeight != WorkGridPlacement.LayerHeight;
+	if (!bSetChanged && !bScaleChanged && bCarrierOk && WorkGridDrawn > 0)
 	{
-		if (ARTHexWorkGridActor* Carrier = WorkGrid.Get())
+		WorkGrid->MoveTo(Place.Origin);
+		WorkGridPlacement = Place;
+		return;
+	}
+
+	if (bSetChanged)
+	{
+		WorkGridWatch = Now;
+
+		RTHexWorkGrid::FInput In;
+		In.bHasAsset = Asset != nullptr;
+		In.Layer = Now.ActiveLayer;
+		In.Margin = Now.Margin;
+		In.SeedRadius = Now.SeedRadius;
+		In.MaxCells = RTWorkGridMaxGhosts;
+
+		if (Asset)
 		{
-			Carrier->ClearCells();
+			In.ExistingOnLayer = Asset->CellsInLayer(Now.ActiveLayer);
+
+			// 🔑 **L'ancora del seme viene da TUTTE le celle dell'asset**, e si calcola solo quando serve:
+			// e' il caso in cui il layer di lavoro e' vuoto e sono i piani accanto a dire dove si sta
+			// lavorando. Su una mappa autorata lontano dall'origine, seminare su `(0,0)` metterebbe la
+			// griglia a migliaia di unita' dalle celle e lascerebbe senza fantasmi proprio le coordinate
+			// sopra di esse — cioe' l'opposto di «vedere dove cadra' la prossima cella».
+			if (In.ExistingOnLayer.Num() == 0)
+			{
+				TArray<FRTCellId> Tutte;
+				Tutte.Reserve(Asset->Cells.Num());
+				for (const FRTHexCellData& Cella : Asset->Cells)
+				{
+					Tutte.Add(Cella.Id);
+				}
+				In.SeedAnchor = RTHexWorkGrid::AnchorFor(Tutte, Now.ActiveLayer);
+			}
 		}
-		WorkGridDrawn = 0;
-		return;
+
+		WorkGridPlan = RTHexWorkGrid::BuildPlan(In);
+
+		// 🔑 **Una riga oggettiva prima della domanda percettiva.** La seduta `PIE-MAPED-GRID` giudica come
+		// la griglia si *legge*; questo log dice se e' stata *posata*, e quante. E' la stessa forma con cui
+		// `PIE-MAPED-FRAME` si e' chiusa su `LogRTHexEditorMode: Frame Map: 64 celle su 2 layer.`
+		//
+		// ⚠️ Sta DENTRO questo ramo: un trascinamento dell'actor ri-posa senza ricalcolare, e non deve
+		// scrivere sessanta righe al secondo.
+		UE_LOG(LogRTHexEditorMode, Log,
+			TEXT("Griglia di lavoro: %d esagoni (%s), layer %d, anelli %d/%d%s%s."),
+			WorkGridPlan.Cells.Num(), RTHexWorkGrid::SourceName(WorkGridPlan.Source), Now.ActiveLayer,
+			WorkGridPlan.AppliedReach, WorkGridPlan.RequestedReach,
+			WorkGridPlan.bClamped ? TEXT(" — RIDOTTA dal tetto") : TEXT(""),
+			WorkGridPlan.bPartialRing ? TEXT(" (primo anello PARZIALE)") : TEXT(""));
 	}
 
-	RTHexWorkGrid::FInput In;
-	In.bHasAsset = Asset != nullptr;
-	In.Layer = Now.ActiveLayer;
-	In.Margin = Now.Margin;
-	In.SeedRadius = Now.SeedRadius;
-	In.MaxCells = RTWorkGridMaxGhosts;
-	if (Asset)
-	{
-		In.ExistingOnLayer = Asset->CellsInLayer(Now.ActiveLayer);
-	}
-
-	const RTHexWorkGrid::FPlan Plan = RTHexWorkGrid::BuildPlan(In);
+	WorkGridPlacement = Place;
 
 	if (!bCarrierOk)
 	{
-		// Un portatore rimasto in un mondo che non e' piu' quello su cui si lavora va tolto, non riusato:
-		// il riferimento e' debole, quindi se quel mondo e' gia' sparito qui non c'e' niente da distruggere.
+		// Un portatore rimasto in un mondo che non e' piu' quello su cui si lavora va tolto, non riusato: il
+		// riferimento e' debole, quindi se quel mondo e' gia' sparito qui non c'e' niente da distruggere.
 		if (ARTHexWorkGridActor* Stale = WorkGrid.Get())
 		{
 			Stale->Destroy();
 		}
 		WorkGrid.Reset();
 
-		if (World && Plan.Cells.Num() > 0)
+		if (World && WorkGridPlan.Cells.Num() > 0)
 		{
-			// Spawn transiente e fuori dall'outliner, con i parametri di `RTScenarioPreviewSubsystem.cpp:57-61`:
+			// Spawn transiente e fuori dall'outliner, coi parametri di `RTScenarioPreviewSubsystem.cpp:57-61`:
 			// il portatore non deve poter finire nel livello salvato.
 			FActorSpawnParameters Params;
 			Params.ObjectFlags = RF_Transient;
@@ -231,20 +294,19 @@ void URTHexEditorMode::RefreshWorkGrid()
 		}
 	}
 
+	// 🔴 **Si registra cio' che e' stato POSATO, non cio' che era stato pianificato.** Se lo spawn fallisce
+	// — mondo in smontaggio, cambio di livello in corso — un contatore che tiene il numero *pianificato* fa
+	// fallire la guardia qui sopra a ogni fotogramma: piano rifatto, spawn ritentato e una riga di log, per
+	// sempre. E' esattamente cio' che quel contatore esiste per impedire.
 	if (ARTHexWorkGridActor* Carrier = WorkGrid.Get())
 	{
-		Carrier->ShowCells(Plan.Cells, Origin, HexSize, LayerHeight);
+		Carrier->ShowCells(WorkGridPlan.Cells, Place.Origin, Place.HexSize, Place.LayerHeight);
+		WorkGridDrawn = Carrier->NumGhosts();
 	}
-	WorkGridDrawn = Plan.Cells.Num();
-
-	// 🔑 **Una riga oggettiva prima della domanda percettiva.** La seduta `PIE-MAPED-GRID` giudica come la
-	// griglia si *legge*; questo log dice se e' stata *posata*, e quante. E' la stessa forma con cui
-	// `PIE-MAPED-FRAME` si e' chiusa su `LogRTHexEditorMode: Frame Map: 64 celle su 2 layer.`
-	UE_LOG(LogRTHexEditorMode, Log,
-		TEXT("Griglia di lavoro: %d esagoni (%s), layer %d, anelli %d/%d%s."),
-		Plan.Cells.Num(), RTHexWorkGrid::SourceName(Plan.Source), Now.ActiveLayer,
-		Plan.AppliedReach, Plan.RequestedReach,
-		Plan.bClamped ? TEXT(" — RIDOTTA dal tetto") : TEXT(""));
+	else
+	{
+		WorkGridDrawn = 0;
+	}
 }
 
 void URTHexEditorMode::CreateToolkit()

@@ -6,30 +6,19 @@ namespace RTHexWorkGrid
 {
 namespace
 {
-	/** Quante celle ha un esagono pieno di raggio `R`. La stessa formula che `URTHexLibrary::HexArea` realizza. */
-	int32 WorkGridAreaSize(int32 Radius)
+	/**
+	 * Quante celle ha un esagono pieno di raggio `R`, in `int64`.
+	 *
+	 * ⚠️ **`int64` e non `int32`, e non e' pignoleria.** `3·R·(R+1)+1` supera l'`int32` gia' a `R ≈ 26 000`,
+	 * e il raggio arriva qui da una `UPROPERTY(config)` che `LoadConfig()` legge da un `.ini` **senza**
+	 * applicare il `ClampMax` del pannello. In overflow il risultato puo' uscire piccolo o negativo, il
+	 * confronto col tetto passa, e `HexArea` parte su un ciclo che non finisce.
+	 */
+	int64 WorkGridAreaSize(int32 Radius)
 	{
-		const int32 R = FMath::Max(0, Radius);
+		const int64 R = FMath::Max(0, Radius);
 		return 3 * R * (R + 1) + 1;
 	}
-}
-
-bool FWatch::operator==(const FWatch& Other) const
-{
-	// ⚠️ **Le grandezze float si confrontano esattamente, e va bene cosi'.** `HexSize`, `LayerHeight` e
-	// `Origin` non sono il risultato di un calcolo: sono copiate da `GetHexContext` e dalla trasformata
-	// dell'actor. Una tolleranza qui nasconderebbe uno spostamento minuscolo — che a schermo si vede,
-	// perche' la griglia resterebbe dov'era.
-	return MapActorId == Other.MapActorId
-		&& Revision == Other.Revision
-		&& NumCells == Other.NumCells
-		&& ActiveLayer == Other.ActiveLayer
-		&& Origin.Equals(Other.Origin, 0.f)
-		&& HexSize == Other.HexSize
-		&& LayerHeight == Other.LayerHeight
-		&& bShow == Other.bShow
-		&& Margin == Other.Margin
-		&& SeedRadius == Other.SeedRadius;
 }
 
 FColor GhostColour()
@@ -48,6 +37,30 @@ const TCHAR* SourceName(ESource Source)
 	return TEXT("?");
 }
 
+FRTCellId AnchorFor(const TArray<FRTCellId>& Cells, int32 Layer)
+{
+	if (Cells.Num() == 0)
+	{
+		return FRTCellId(0, 0, Layer);
+	}
+
+	// ⚠️ Somma in `int64`: una mappa autorata lontano puo' avere coordinate grandi, e la somma su molte
+	// celle e' il posto in cui un `int32` si rompe per primo.
+	int64 SumX = 0;
+	int64 SumY = 0;
+	for (const FRTCellId& Cell : Cells)
+	{
+		SumX += Cell.X;
+		SumY += Cell.Y;
+	}
+
+	// `RoundToInt` sulla divisione e non troncamento: con coordinate negative il troncamento sposta
+	// l'ancora verso lo zero, cioe' proprio verso l'origine da cui questa funzione esiste per staccarsi.
+	const int32 MeanX = FMath::RoundToInt(static_cast<double>(SumX) / Cells.Num());
+	const int32 MeanY = FMath::RoundToInt(static_cast<double>(SumY) / Cells.Num());
+	return FRTCellId(MeanX, MeanY, Layer);
+}
+
 FPlan BuildPlan(const FInput& In)
 {
 	FPlan Out;
@@ -63,11 +76,15 @@ FPlan BuildPlan(const FInput& In)
 		return Out;
 	}
 
+	// I due raggi si restringono QUI: il `ClampMax` del pannello non sopravvive a `LoadConfig()`.
+	const int32 Margin = FMath::Clamp(In.Margin, 0, MaxReach);
+	const int32 SeedRadius = FMath::Clamp(In.SeedRadius, 0, MaxReach);
+
 	if (In.MaxCells <= 0)
 	{
 		// Un tetto a zero e' una richiesta legittima («non mostrarmela») e va distinta da «non c'e' dato».
 		Out.Source = In.ExistingOnLayer.Num() > 0 ? ESource::Dilated : ESource::Seeded;
-		Out.RequestedReach = FMath::Max(0, Out.Source == ESource::Seeded ? In.SeedRadius : In.Margin);
+		Out.RequestedReach = Out.Source == ESource::Seeded ? SeedRadius : Margin;
 		Out.bClamped = Out.RequestedReach > 0;
 		return Out;
 	}
@@ -84,9 +101,9 @@ FPlan BuildPlan(const FInput& In)
 	if (In.ExistingOnLayer.Num() == 0)
 	{
 		Out.Source = ESource::Seeded;
-		Out.RequestedReach = FMath::Max(0, In.SeedRadius);
+		Out.RequestedReach = SeedRadius;
 
-		int32 Reach = Out.RequestedReach;
+		int32 Reach = SeedRadius;
 		while (Reach > 0 && WorkGridAreaSize(Reach) > In.MaxCells)
 		{
 			--Reach;
@@ -101,14 +118,17 @@ FPlan BuildPlan(const FInput& In)
 			return Out;
 		}
 
-		Out.Cells = URTHexLibrary::HexArea(FRTCellId(0, 0, In.Layer), Reach);
+		// 🔑 **Attorno a `SeedAnchor`, non all'origine.** Il perche' sta nel docstring di `AnchorFor`: su
+		// una mappa autorata lontano, seminare su `(0,0)` disegna la griglia dove non c'e' nulla e lascia
+		// senza fantasmi proprio le coordinate sopra le celle esistenti.
+		Out.Cells = URTHexLibrary::HexArea(FRTCellId(In.SeedAnchor.X, In.SeedAnchor.Y, In.Layer), Reach);
 		Out.Cells.Sort(URTHexLibrary::StableLess);
 		return Out;
 	}
 
 	// ── Ramo DILATATO: attorno a cio' che esiste gia' ─────────────────────────────────────────────────
 	Out.Source = ESource::Dilated;
-	Out.RequestedReach = FMath::Max(0, In.Margin);
+	Out.RequestedReach = Margin;
 
 	TSet<FRTCellId> Existing;
 	Existing.Reserve(In.ExistingOnLayer.Num());
@@ -144,21 +164,35 @@ FPlan BuildPlan(const FInput& In)
 			}
 		}
 
-		if (Next.Num() == 0)
-		{
-			// Il layer e' saturo in quella direzione: non c'e' altro da marcare, e non e' un troncamento.
-			Out.AppliedReach = Ring;
-			continue;
-		}
-
 		if (Ghosts.Num() + Next.Num() > In.MaxCells)
 		{
 			Out.bClamped = true;
+
+			// 🔴 **L'unica eccezione al troncamento per anelli interi, e solo dove l'alternativa e' il
+			// nulla.** Se anche il PRIMO anello sfonda il tetto, fermarsi qui lascerebbe la griglia vuota
+			// su una mappa enorme o frammentata — cioe' proprio dove vedere il bordo serve di piu', e il
+			// primo criterio del DoD non sarebbe soddisfatto. Si prende un pezzo di anello in ordine
+			// stabile e lo si **dichiara** con `bPartialRing`. Dal secondo anello in poi la regola resta
+			// intera: li' un pezzo non aggiungerebbe una vista, la renderebbe irregolare.
+			if (Ring == 1 && Ghosts.Num() == 0)
+			{
+				TArray<FRTCellId> Parziale = Next.Array();
+				Parziale.Sort(URTHexLibrary::StableLess);
+				Parziale.SetNum(FMath::Min(Parziale.Num(), In.MaxCells));
+				Out.Cells = MoveTemp(Parziale);
+				Out.bPartialRing = true;
+				return Out;
+			}
 			break;
 		}
 
 		Ghosts.Append(Next);
 		Out.AppliedReach = Ring;
+
+		// ⚠️ Nessun caso speciale per `Next` vuoto: una frontiera vuota fa girare a vuoto i giri rimanenti
+		// senza costo, e `AppliedReach` arriva onestamente a quello chiesto. La stesura precedente aveva un
+		// ramo apposito che rimetteva la STESSA frontiera in gioco a ogni anello e dichiarava applicato un
+		// anello che non aveva posato niente — il log diceva `anelli 6/6` per una griglia ferma al primo.
 		Frontier = Next.Array();
 	}
 
