@@ -1,4 +1,5 @@
 #include "RTHexEditorClick.h"
+#include "RTHexTransitionGlyph.h"
 #include "RTHexEditorModeSettings.h" // #921: il flag dell'overlay vive nel mode, non nei tool
 #include "ContextObjectStore.h"
 #include "InteractiveToolManager.h"
@@ -236,7 +237,7 @@ bool ShouldShowSurfaceOverlay(const UInteractiveToolManager* ToolManager)
 	return ShouldShowSurfaceOverlay(ToolManager->GetContextObjectStore());
 }
 
-void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor, bool bIncludeTransitions)
+void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
 {
 	if (!PDI || !Actor || !Actor->MapAsset) { return; }
 	const URTHexMapAsset* Map = Actor->MapAsset;
@@ -287,19 +288,6 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 	//
 	// Anello ESTERNO (1.0), piu' largo del contorno di superficie: non compete con i marcatori di regola, che
 	// stanno tutti dentro.
-	// Transizioni: l'UNICO modo in cui i layer si collegano. Fuori dal tool Arch non si vedevano, quindi chi
-	// dipingeva con Paint o Fill non sapeva se una zona fosse collegata — e una piattaforma senza arco e'
-	// irraggiungibile senza dirlo. Si disegnano sempre, non solo mentre le si crea.
-	for (const FRTHexEdge& Edge : Map->Transitions)
-	{
-		if (!bIncludeTransitions) { break; } // il tool Arch le disegna gia' da se': vedi il docstring
-		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
-		const FVector A = URTHexLibrary::AxialToWorld(Edge.From, Origin, HexSize, LayerH);
-		const FVector B = URTHexLibrary::AxialToWorld(Edge.To, Origin, HexSize, LayerH);
-		// Alzate sopra il disco della cella, o la linea sparirebbe dentro la mesh.
-		DrawArrow(PDI, A + FVector(0, 0, 4.0), B + FVector(0, 0, 4.0), TransitionKindColor(Edge.Kind));
-	}
-
 	// Celle che NESSUNO raggiunge: calcolate dall'actor a ogni ricostruzione, non qui — una visita del grafo a
 	// ogni frame sarebbe lavoro ripetuto per un dato che cambia solo quando la mappa cambia.
 	for (const FRTCellId& Cell : Actor->GetUnreachableCells())
@@ -463,6 +451,104 @@ void DrawSelectedElement(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Act
 
 	default:
 		break;
+	}
+}
+
+/**
+ * Un arco, coi suoi due canali per lato. Statica: la scelta dei canali e' di `RTHexTransition::Describe`,
+ * qui c'e' solo il modo di metterla sullo schermo.
+ */
+static void DrawTransitionGlyph(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B,
+	const RTHexTransition::FGlyph& G)
+{
+	const FVector Delta = B - A;
+	const FVector Dir = Delta.GetSafeNormal();
+	if (Dir.IsNearlyZero()) { return; }
+
+	// ⚠️ **Un arco puo' essere VERTICALE, ed e' il caso normale dell'ascensore**: stessa cella, due layer,
+	// quindi `Dir` coincide con `UpVector` e il prodotto vettoriale degenera a zero. Senza questo salto le
+	// tacche e la barra — cioe' i due canali che questa issue aggiunge — sparirebbero proprio sul tipo che
+	// piu' spesso sale dritto.
+	FVector Side = FVector::CrossProduct(Dir, FVector::UpVector).GetSafeNormal();
+	if (Side.IsNearlyZero())
+	{
+		Side = FVector::CrossProduct(Dir, FVector::ForwardVector).GetSafeNormal();
+	}
+
+	const FColor Tint = G.Tint;
+
+	// IL CORPO. Continuo o tratteggiato: primo canale dello stato.
+	if (G.Stroke == RTHexTransition::EStroke::Solid)
+	{
+		PDI->DrawLine(A, B, Tint, SDPG_Foreground, 2.f);
+	}
+	else
+	{
+		// Undici tratti, sei disegnati: abbastanza fitto da leggersi come «linea», abbastanza rado da non
+		// confondersi con una continua.
+		constexpr int32 Segmenti = 11;
+		for (int32 K = 0; K < Segmenti; K += 2)
+		{
+			const FVector P0 = A + Delta * (static_cast<float>(K) / Segmenti);
+			const FVector P1 = A + Delta * (static_cast<float>(K + 1) / Segmenti);
+			PDI->DrawLine(P0, P1, Tint, SDPG_Foreground, 2.f);
+		}
+	}
+
+	// LA PUNTA: il verso e' un dato, e `From`/`To` non sono intercambiabili.
+	const float H = 18.f;
+	PDI->DrawLine(B, B - Dir * H + Side * (H * 0.5f), Tint, SDPG_Foreground, 2.f);
+	PDI->DrawLine(B, B - Dir * H - Side * (H * 0.5f), Tint, SDPG_Foreground, 2.f);
+
+	// LE TACCHE: secondo canale del tipo, e l'unico che sopravvive alla scala di grigi. Stanno sulla prima
+	// meta' dell'arco, lontano dalla punta, perche' la' non competono con nient'altro.
+	const float Tacca = FMath::Max(6.f, static_cast<float>(Delta.Size()) * 0.05f);
+	for (int32 T = 0; T < G.Ticks; ++T)
+	{
+		const float U = 0.16f + 0.05f * T;
+		const FVector C = A + Delta * U;
+		PDI->DrawLine(C - Side * Tacca, C + Side * Tacca, Tint, SDPG_Foreground, 2.f);
+	}
+
+	// LA BARRA: secondo canale dello stato, e SOLO per `Destroyed`. E' cio' che lo separa da `Inactive`,
+	// che il tratteggio accomuna — entrambi dicono «non si passa», ma uno si riaccende e l'altro no.
+	if (G.bCrossed)
+	{
+		const FVector M = A + Delta * 0.5f;
+		const float R = FMath::Max(10.f, static_cast<float>(Delta.Size()) * 0.07f);
+		const FVector D1 = (Dir + Side).GetSafeNormal() * R;
+		const FVector D2 = (Dir - Side).GetSafeNormal() * R;
+		PDI->DrawLine(M - D1, M + D1, Tint, SDPG_Foreground, 3.f);
+		PDI->DrawLine(M - D2, M + D2, Tint, SDPG_Foreground, 3.f);
+	}
+}
+
+void DrawTransitions(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
+{
+	if (!PDI || !Actor || !Actor->MapAsset) { return; }
+
+	const URTHexMapAsset* Map = Actor->MapAsset;
+	const FVector Origin = Actor->GetActorLocation();
+	const float HexSize = Map->HexSize;
+	const float LayerH = Map->LayerHeight;
+
+	// Coerente con l'overlay e con `RebuildInstances`: in `ActiveOnly` si mostra solo cio' che tocca il
+	// layer attivo. Un arco lo tocca se **uno dei due** estremi ci sta — e' il piano da cui si parte o
+	// quello a cui si arriva, e in entrambi i casi chi lavora deve saperlo.
+	const bool bActiveOnly = (Actor->LayerView == ERTLayerViewMode::ActiveOnly);
+	const int32 ActiveLayer = Actor->ActiveLayer;
+
+	for (const FRTHexEdge& Edge : Map->Transitions)
+	{
+		if (bActiveOnly && Edge.From.Layer != ActiveLayer && Edge.To.Layer != ActiveLayer) { continue; }
+
+		// ⛔ Nessuna scelta di resa qui dentro: quali canali, con quali valori, lo dice la funzione pura.
+		const RTHexTransition::FGlyph G = RTHexTransition::Describe(Edge);
+
+		// Alzate sopra il disco della cella, o la linea sparirebbe dentro la mesh.
+		const FVector A = URTHexLibrary::AxialToWorld(G.From, Origin, HexSize, LayerH) + FVector(0, 0, 4.0);
+		const FVector B = URTHexLibrary::AxialToWorld(G.To, Origin, HexSize, LayerH) + FVector(0, 0, 4.0);
+		DrawTransitionGlyph(PDI, A, B, G);
 	}
 }
 

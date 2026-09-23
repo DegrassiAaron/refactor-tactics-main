@@ -183,6 +183,12 @@ void URTHexLosTool::Render(IToolsContextRenderAPI* RenderAPI)
 		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 	}
 
+	// 🔑 **Le transizioni, con QUALUNQUE strumento attivo e senza dipendere da un toggle** (#1768).
+	// Fuori dal blocco qui sopra di proposito: `bShowSurfaceOverlay` spegne i marcatori di superficie,
+	// che sono una preferenza di chi dipinge — un arco assente dallo schermo e' invece una mappa che
+	// mente per omissione, ed e' il difetto che #1768 chiude.
+	RTHexEditor::DrawTransitions(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
+
 	if (!bHasOrigin)
 	{
 		return;
