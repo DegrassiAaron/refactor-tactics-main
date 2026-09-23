@@ -126,6 +126,23 @@ TArray<ARTUnit*> URTScreenHudWidgetBase::GatherUnitsInWorld() const
 	}
 
 	TArray<AActor*> Found;
+	// ⛔ **Non puo' passare dal confine di [#1500], e la ragione e' scritta nella porta stessa**:
+	// `FRTKnowledgeView` **rifiuta la condizione per decisione** — «Non porta la CONDIZIONE (HP, scudo). La
+	// squadra conosce l'identita', non lo stato» (`Perception/RTKnowledgeView.h:53-55`) — e i due consumatori
+	// di questo roster hanno bisogno esattamente di HP e scudo: `BuildTeamRoster` (`UI/RTHudViewModel.cpp:465`)
+	// chiama `BuildUnitCard`, che legge `Health`, `MaxHealth` e `Shield` (`:123-125`). La porta non e'
+	// incompleta per distrazione: quel dato lo rifiuta.
+	//
+	// 🔑 **Seconda ragione, indipendente**: `ResolveObserverTeamIds` SCOPRE l'insieme degli osservatori dai
+	// `TeamId` in campo (`UI/RTHudViewModel.cpp:752-760`), deliberatamente, per non fissare un letterale `2` e
+	// rompersi al primo 3v3. Ricavarlo da una vista costruita PER osservatore sarebbe circolare.
+	//
+	// ✅ **E questa funzione e' gia' meta' del confine**, non un difetto da riparare: e' `protected`, non e' una
+	// `UFUNCTION`, e il docstring lo dichiara come regola (`RTScreenHudWidgets.h:176-177`) — «restituisce
+	// `ARTUnit*`, cioe' esattamente la porta da cui un widget potrebbe ricalcolare. La superficie pubblica resta
+	// fatta di VISTE». ⚠️ Il debito che [#1500] nomina e non chiude e' l'altra meta': una porta del roster che
+	// consegni la condizione gia' filtrata, cosi' che `BuildUnitCard` smetta di prendere `const ARTUnit*` in
+	// firma. Finche' non esiste, il filtro vive nel CHIAMANTE e non nella porta.
 	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(World), ARTUnit::StaticClass(), Found);
 
 	Units.Reserve(Found.Num());

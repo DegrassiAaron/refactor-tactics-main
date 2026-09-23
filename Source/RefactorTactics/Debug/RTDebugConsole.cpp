@@ -149,6 +149,23 @@ static void RTDebugDrawIntentCommand(const TArray<FString>& Args, UWorld* World,
 		return;
 	}
 	TArray<AActor*> Actors;
+	// ✅ **Passa dal confine della RACCOLTA di [#1500]: e' la stessa identica sequenza di `ARTHUD::DrawHUD`**
+	// (`UI/RTHUD.cpp:853-854`, `:952`) — `TArray<AActor*>`, nessuna conversione, nessun campo letto, unico
+	// consumatore `BuildAuthoritativeIntents` — e un solo gesto sostitutivo coprirebbe entrambi. Il filtro c'e'
+	// e sta a valle, dentro `URTDebugReportLibrary::DescribeIntents`, che compone da `FilterForTeam`
+	// (`Debug/RTDebugReportLibrary.cpp:38`), la riga che il commento a `:33-35` chiama «il checkpoint intero».
+	//
+	// ⛔ **Non passa invece dal confine dell'OSSERVATORE, e la differenza e' dichiarata, non subita**: qui
+	// l'osservatore e' un ARGOMENTO di console, non `ARTPlayerState::TeamIdOf`. `ObserverTeamFromArgs` fa un
+	// `Atoi` con default `0`, cosi' `rt.Debug.DrawIntent 1` mostra i piani del team 1 **come farebbe il team
+	// 1** — la help string lo dice per esteso (`:457-462`) e classifica il comando come strumento di sviluppo
+	// locale, dove chi lo esegue possiede gia' tutto lo stato.
+	//
+	// ⚠️ **E il comando non e' dietro nessuna guardia di configurazione**: `grep -n "#if\|#endif" su questo file
+	// non risponde nulla, e la registrazione e' una `static FAutoConsoleCommandWithWorldArgsAndOutputDevice` a
+	// scope di file (`:456-463`), quindi entra in ogni configurazione in cui il modulo compila. Non e' scope di
+	// [#1500] chiuderlo — la help string rimanda gia' a M10, dove dovra' essere lato server o non esistere — ma
+	// va detto qui, o un censimento che lo elenca lascia credere che sia gia' delimitato.
 	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
 
 	// 🔴 La stessa costruzione che usa la HUD, e poi lo stesso filtro. Un comando che leggesse i piani

@@ -132,7 +132,10 @@ struct FRTKnowledgeView
  *
  * Pura e headless: nessun Actor, nessun `UWorld`, nessuno snapshot. E' anche la ragione per cui NON prende
  * `FRTHexSnapshot`: `MakeCurrentSnapshot` fa `GetAllActorsOfClass` e due `Sort`, e il disegno gira a ogni
- * frame; inoltre `FRTHexSimUnit` non porta `TeamId`, quindi non basterebbe.
+ * frame. ⌫ **La seconda ragione che questa riga portava e' SCADUTA**: diceva *«inoltre `FRTHexSimUnit`
+ * non porta `TeamId`, quindi non basterebbe»*, e quel campo esiste — `Turn/RTHexSim.h`, `int32 TeamId`,
+ * dal 2026-09-11 con `#2793`. La prima ragione regge da sola ed e' quella vera; la seconda, lasciata li',
+ * avrebbe insegnato al prossimo autore un fatto falso sulla struct che avrebbe dovuto usare (`#1500`).
  */
 UCLASS()
 class REFACTORTACTICS_API URTKnowledgeViewLibrary : public UBlueprintFunctionLibrary

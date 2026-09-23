@@ -730,6 +730,22 @@ void ARTHUD::UpdateObserverVeil()
 	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
 	TArray<AActor*> Actors;
+	// ⛔ **Non passa dal confine di [#1500], e non e' un'eccezione tollerata: e' il PRODUTTORE della porta.**
+	// Le unita' grezze servono qui per costruire i `FRTKnowledgeSubject` (`:682-686`) che `ViewForTeam`
+	// (`:691-692`) trasforma nella vista da cui tutto il resto della presentazione legge. Farla passare da
+	// `FRTKnowledgeView` sarebbe circolare: la vista non esiste finche' questa funzione non la fabbrica.
+	//
+	// 🔑 E c'e' una seconda ragione, indipendente e non aggirabile da nessun DTO: questo lettore **SCRIVE**
+	// sugli Actor — `SetKnownToObserver` (`:794`), `UpdateContactGhost` (`:805`), `HideContactGhost` (`:811`),
+	// `GetOverlayWidgetObject` (`:824`). `FRTKnowledgeEntry` porta `StableUnitId`, `TeamId`, `Visibility`,
+	// `Cell`, `HeroId`, `HeroDisplayName` e `ContactTurn` (`Perception/RTKnowledgeView.h:57-104`), e nessun
+	// puntatore ad Actor: anche volendo girare la vista, servirebbe comunque una mappa
+	// `StableUnitId -> ARTUnit*`, cioe' di nuovo questo roster.
+	//
+	// ⚠️ **Il vincolo che resta**: da qui in giu' si lavora sulla VISTA, mai sui campi dell'unita'. Cio' che
+	// questa funzione ha diritto di leggere dagli Actor sono i cinque campi di identita' e la cella che
+	// alimentano il soggetto — non il piano, non la condizione. Un campo in piu' letto qui e' un campo in piu'
+	// che nessun osservatore ha autorizzato.
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	TArray<ARTUnit*> Units;
@@ -851,6 +867,20 @@ void ARTHUD::DrawHUD()
 	const int32 PlayerTeamId = ARTPlayerState::TeamIdOf(GetOwningPlayerController());
 
 	TArray<AActor*> Actors;
+	// ✅ **Passa gia' dal confine di [#1500], ed e' il caso piu' pulito dei quattro.** Questo array non e' un
+	// roster: e' tubatura. `Actors` compare in tutto `DrawHUD` (`:835`-`:1350`) in tre sole righe — la
+	// dichiarazione (`:853`), questa raccolta, e l'unico consumatore a `:952`, `BuildAuthoritativeIntents`. Da
+	// li' in giu' si lavora su `FRTPlannedIntent` e poi su `FRTIntentView`, dopo `FilterForTeam`. Nessun campo
+	// di `ARTUnit` viene letto da questo array: l'unico che la funzione legge e' `Selezionata->Cell` (`:1033`),
+	// e viene da `PC->GetSelectedUnit()` (`:1031`), cioe' da un'altra porta.
+	//
+	// ⚠️ **Se un giorno si vorra' sostituire questa raccolta con un gesto unico** — un
+	// `GatherAuthoritativeIntents(World)` che faccia il giro al posto di qui e di `rt.Debug.DrawIntent`, che e'
+	// la stessa sequenza — deve restituire `FRTPlannedIntent` e **non** `FRTIntentView` gia' filtrata. Il ramo
+	// autobattle (`:993-1000`) chiama `FilterForTeam(Intent.TeamId, { Intent })` una volta per UNITA', e ha
+	// bisogno del `TeamId` autorevole di ciascun intento; il commento a `:989-992` spiega perche' due chiamate
+	// sull'insieme intero produrrebbero doppioni. Un confine che consegnasse solo viste gia' filtrate
+	// toglierebbe l'ingresso a quel ramo.
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	// ⚠️ **`ComputePlannedHitMarks` non si chiama piu' QUI** (`#2288`): il suo unico consumatore era il nome
