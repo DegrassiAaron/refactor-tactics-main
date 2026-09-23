@@ -19,6 +19,7 @@
 #include "Pathfinding/RTHexPathLibrary.h"
 #include "Terrain/RTTerrainLibrary.h"
 #include "Turn/RTActionFallbackLibrary.h"
+#include "Turn/RTPlaybackLibrary.h" // #3281: il confine d'atto, misurato sull'aggregato
 #include "Turn/RTTurnLogLibrary.h" // #1150: i predicati che dichiarano chi ha inflitto e chi ha subito
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnManager.h"
@@ -66,14 +67,21 @@ namespace
 		return Actor;
 	}
 
-	ARTUnit* SpawnEnvUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
+	/**
+	 * L'unita' di prova. `Hero` nullo significa **Ivrin**, che e' l'eroe di default di questo file.
+	 *
+	 * ⚠️ Il parametro esiste dal `#3281`, che ha bisogno di due unita' con azioni base DIVERSE. Sta qui
+	 * invece che in un secondo helper perche' la sequenza di spawn e' UNA: duplicarla vorrebbe dire due
+	 * copie che divergono alla prima riga aggiunta a una sola delle due.
+	 */
+	ARTUnit* SpawnEnvUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, URTHeroData* Hero = nullptr)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		U->ConfigureFromHeroData(Hero ? Hero : URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -2937,6 +2945,183 @@ bool FRTStructuresRedundantFaceDrawsAtTwoHeightsTest::RunTest(const FString&)
 	}
 	DestroyEnvWorld(Piatto.World);
 
+	return true;
+}
+
+// =====================================================================================================
+// `#3281` — l'AGGREGATO per bordo, misurato.
+//
+// ⛔ Questo blocco NON decide che cosa `Next Action` debba fare su un fatto che aggrega piu' azioni: una
+// delle tre strade della issue cambierebbe una regola di gioco. Porta il fatto che rende le tre opzioni
+// confrontabili invece che elencate.
+// =====================================================================================================
+
+namespace
+{
+	struct FRTEnvAggregateScenario
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* MapActor = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Ivrin = nullptr;    // (0,0), squadra 1
+		ARTUnit* Branth = nullptr;   // (2,0), squadra 0
+		bool bValid = false;
+	};
+
+	/**
+	 * Due unita' ai lati OPPOSTI dello stesso muro, ciascuna con la PROPRIA azione base.
+	 *
+	 * 🔑 **E' il caso su cui la issue poggia, e finora era una lettura del codice.**
+	 * `AccumulateStructureHit` normalizza la coppia di celle e somma per bordo — la sua stessa prosa dichiara
+	 * il motivo: *«due attaccanti ai lati opposti colpiscono la stessa barriera»*. Questo scenario e'
+	 * esattamente quella frase, giocata.
+	 *
+	 * Muro **alto** sul bordo W di (1,0). `HexLine((0,0) → (2,0))` attraversa quel lato in avanti,
+	 * `HexLine((2,0) → (0,0))` lo attraversa all'indietro: due bordi che la normalizzazione rende uno.
+	 *
+	 * ⚠️ **Le due azioni sono diverse perche' gli EROI sono diversi**, non perche' un `FName` sia stato
+	 * riscritto a mano: `Hero.Ivrin.PulseShot` e `Hero.Branth.ImpactShot` sono due voci di catalogo, e un id
+	 * inventato rischierebbe di misurare come si comporta il resolver davanti a un'azione che non esiste.
+	 * Entrambe portata >= 2, entrambe in fase `Attack`: lo stesso `Blast`, che e' la premessa della issue.
+	 *
+	 * ⚠️ La capacita' di sfondare si dichiara sull'istanza, come in tutti gli scenari di struttura di
+	 * questo file: nessuno dei due attacchi base dichiara `DamageStructure` a catalogo.
+	 */
+	FRTEnvAggregateScenario EnvMakeAggregateScenario()
+	{
+		FRTEnvAggregateScenario S;
+		S.World = MakeEnvWorld();
+		if (!S.World) { return S; }
+		S.MapActor = SpawnEnvMap(S.World);
+		if (!S.MapActor || !S.MapActor->MapAsset) { return S; }
+
+		// ⚠️ Si parte dalla cella ESISTENTE, come in `EnvMakeWalledBreachScenario`: costruirne una nuova
+		// con lo stesso `Id` sostituirebbe quella che l'arena ha posato, perdendone terreno e proprieta'.
+		const FRTCellId Muraglia(1, 0);
+		const FRTHexCellData* Esistente = S.MapActor->MapAsset->FindCell(Muraglia);
+		if (!Esistente) { return S; }
+		FRTHexCellData ColMuro = *Esistente;
+		ColMuro.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::High,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::High)));
+		S.MapActor->MapAsset->AddOrUpdateCell(ColMuro);
+		S.MapActor->MapAsset->SortCells();
+
+		S.Ivrin = SpawnEnvUnit(S.World, 1, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeIvrin());
+		S.Branth = SpawnEnvUnit(S.World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeBranth());
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.Ivrin || !S.Branth || !S.TM) { return S; }
+		if (!S.Ivrin->Abilities.IsValidIndex(0) || !S.Branth->Abilities.IsValidIndex(0)) { return S; }
+		if (!S.Ivrin->Abilities[0] || !S.Branth->Abilities[0]) { return S; }
+
+		// Dieci a testa, e il numero conta: e' cio' che rende distinguibile «si sono sommati» da «ha sparato
+		// uno solo» quando si legge l'integrita' residua.
+		S.Ivrin->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
+		S.Ivrin->PlannedAbilityIndex = 0;
+		S.Ivrin->PlannedAttackTarget = S.Branth;
+
+		S.Branth->Abilities[0]->Def.Effects.Add(FRTActionEffectSpec(ERTActionEffect::DamageStructure, 10));
+		S.Branth->PlannedAbilityIndex = 0;
+		S.Branth->PlannedAttackTarget = S.Ivrin;
+
+		S.bValid = true;
+		return S;
+	}
+}
+
+/**
+ * Due AZIONI diverse sullo stesso bordo producono UN fatto solo, che non ne nomina nessuna — `#3281`.
+ *
+ * 🔴 **E' la premessa su cui poggia tutta la issue, e finora era una lettura del codice.**
+ * `AccumulateStructureHit` somma per bordo: se il caso dell'aggregato **non fosse raggiungibile** — se due
+ * azioni diverse non potessero mai colpire lo stesso lato nello stesso `Blast` — allora «quale azione
+ * nominare» avrebbe sempre una risposta, e la strada corretta sarebbe semplicemente propagare l'identita'
+ * dell'azione invece di decidere che cosa significhi l'identita' di un aggregato.
+ *
+ * ⛔ **Cio' che questo gate NON fa e' scegliere fra le tre strade della issue**: una di esse — non
+ * aggregare piu' i colpi di azioni diverse — cambierebbe l'ESITO e non la presentazione, ed e' per questo
+ * che l'integrita' residua e' asserita qui e non lasciata implicita: e' il valore che quella strada
+ * cambierebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest,
+	"RefactorTactics.Playback.AggregatedStructureHitDoesNotNameOneAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FString&)
+{
+	FRTEnvAggregateScenario S = EnvMakeAggregateScenario();
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	const FName AzioneIvrin = S.Ivrin->Abilities[0]->Def.ActionId;
+	const FName AzioneBranth = S.Branth->Abilities[0]->Def.ActionId;
+
+	// ⛔ PREMESSA, e va LETTA dal catalogo invece che assunta: senza due identita' d'azione diverse il caso
+	// non e' quello dell'aggregato, e il gate misurerebbe due colpi della STESSA azione — dove nominarla
+	// sarebbe banale e la issue non esisterebbe.
+	TestFalse(TEXT("⛔ premessa: la prima azione ha un'identita'"), AzioneIvrin.IsNone());
+	TestFalse(TEXT("⛔ premessa: anche la seconda"), AzioneBranth.IsNone());
+	TestNotEqual(TEXT("⛔ premessa: e sono DIVERSE"), AzioneIvrin, AzioneBranth);
+
+	RunEnvTurn(S.TM);
+
+	TArray<FRTTurnLogEntry> Voci;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (URTTurnLogLibrary::IsStructureHit(E)) { Voci.Add(E); }
+	}
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+
+	if (!TestEqual(TEXT("🔴 due azioni diverse sullo stesso bordo: UNA voce sola"), Voci.Num(), 1))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+	TestEqual(TEXT("🔴 e UN evento solo"), Eventi.Num(), 1);
+
+	// ⚠️ **Ed e' l'integrita' residua a dire che i due colpi si sono SOMMATI**, non il conteggio delle
+	// voci: una voce sola la darebbe anche uno scenario in cui ha sparato un attaccante solo. Il muro alto
+	// nasce a 50 e ciascuno dichiara 10 → 30. Se i due non si sommassero, la voce direbbe 40, e sarebbe
+	// l'opzione (b) della issue — quella che cambia l'esito.
+	TestEqual(TEXT("⚠️ i due colpi si sono SOMMATI: 50 - 10 - 10 = 30"), Voci[0].Amount, 30);
+
+	// --- ∴ «QUALE AZIONE» NON HA UNA RISPOSTA -------------------------------------------------------
+	if (Eventi.Num() == 1)
+	{
+		TestTrue(TEXT("∴ il fatto aggregato non nomina nessuna azione: NAME_None"),
+			Eventi[0].ActionId.IsNone());
+		// ⛔ E non e' che ne abbia scelta una: NESSUNA delle due compare. Asserirlo e' cio' che distingue
+		// «non c'e' una risposta» da «la risposta e' arbitraria ma esiste».
+		TestNotEqual(TEXT("⛔ non e' la prima"), Eventi[0].ActionId, AzioneIvrin);
+		TestNotEqual(TEXT("⛔ e non e' la seconda"), Eventi[0].ActionId, AzioneBranth);
+	}
+
+	// ⚠️ **L'ATTACCANTE invece una risposta ce l'ha, ed e' un RAPPRESENTANTE.** `FRTStructureHit`
+	// dichiara di portare «chi ha colpito per primo in ordine canonico», e misurarlo qui mostra che il campo
+	// gemello ha gia' fatto, per l'unita', la scelta che `ActionId` non ha fatto per l'azione: uno dei due, non
+	// l'insieme. E' l'asimmetria che la decisione della issue deve sciogliere.
+	TestTrue(TEXT("⚠️ l'attaccante e' UNO dei due, scelto in ordine canonico"),
+		Voci[0].UnitId == S.Ivrin->StableUnitId || Voci[0].UnitId == S.Branth->StableUnitId);
+
+	// --- ∴ LA CONSEGUENZA, MISURATA ------------------------------------------------------------------
+	//
+	// 🔴 **`Next Action` non si ferma sul muro che cade**, ed e' il fatto da cui la issue parte. Qui e'
+	// misurato e non dedotto: l'evento aggregato non e' un confine d'atto.
+	//
+	// ⛔ **Il gate non dice che sia giusto ne' che sia sbagliato.** `RTPlaybackLibrary.h` dichiara oggi che
+	// «gli eventi senza azione non sono confini», nominando fra essi il danno ambientale: la conseguenza e'
+	// coerente con il contratto scritto, ed e' la decisione della issue a stabilire se quel contratto debba
+	// cambiare.
+	const TArray<FRTResolvedEvent>& Timeline = S.TM->ResolvedTimelineForTest();
+	int32 IndiceColpo = INDEX_NONE;
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		if (Timeline[i].Type == ERTResolvedEventType::StructureHit) { IndiceColpo = i; break; }
+	}
+	if (TestTrue(TEXT("il colpo sta nella timeline"), IndiceColpo != INDEX_NONE))
+	{
+		TestNotEqual(TEXT("∴ e non e' un confine d'atto: `Next Action` non ci si ferma"),
+			URTPlaybackLibrary::NextActionBoundary(Timeline, IndiceColpo - 1), IndiceColpo);
+	}
+
+	DestroyEnvWorld(S.World);
 	return true;
 }
 
