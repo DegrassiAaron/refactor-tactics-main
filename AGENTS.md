@@ -544,6 +544,10 @@ node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
+node tools/radar/decision-ids.ts --check                  # un numero D- rivendicato due volte,
+                                                          # in albero E fra ref. Legge la rete
+                                                          # (`ls-remote`) per scartare i rami
+                                                          # gia' cancellati; senza, lo dichiara
 node tools/asset-refs/check.ts
 node tools/asset-provenance/check.ts
 node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
