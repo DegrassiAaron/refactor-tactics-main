@@ -3078,8 +3078,18 @@ bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FS
 
 	// ⚠️ **Ed e' l'integrita' residua a dire che i due colpi si sono SOMMATI**, non il conteggio delle
 	// voci: una voce sola la darebbe anche uno scenario in cui ha sparato un attaccante solo. Il muro alto
-	// nasce a 50 e ciascuno dichiara 10 → 30. Se i due non si sommassero, la voce direbbe 40, e sarebbe
-	// l'opzione (b) della issue — quella che cambia l'esito.
+	// nasce a 50 e ciascuno dichiara 10 → 30.
+	//
+	// ⌨ **Questa riga diceva che 40 sarebbe "l'opzione (b) della issue, quella che cambia l'esito". Falso,
+	// e misurato.** Disattivando l'aggregazione — che E' la (b) — escono DUE voci con `Amount` 40 e 30, e
+	// l'integrita' finale del muro resta **30**: `DamageFace` sottrae e satura, quindi due colpi da 10
+	// lasciano cio' che lascia un colpo da 20. Il 40 di questa riga veniva da un'altra mutazione — *«fonde
+	// ma non somma»* — che non e' la (b) e quella si' cambia l'esito.
+	//
+	// 🔑 **Cosa asserisce davvero questa riga, allora**: che i due intenti hanno colpito lo STESSO bordo e
+	// che il danno di entrambi e' arrivato. E' la premessa dell'aggregato, non il suo costo competitivo:
+	// la (b) cambia il REGISTRO della traccia — due voci, due `Amount`, due azioni nominate — non lo stato
+	// del gioco, ed e' su `#3281` che la decisione e la ragione vera per scartarla sono registrate.
 	TestEqual(TEXT("⚠️ i due colpi si sono SOMMATI: 50 - 10 - 10 = 30"), Voci[0].Amount, 30);
 
 	// --- ∴ «QUALE AZIONE» NON HA UNA RISPOSTA -------------------------------------------------------
