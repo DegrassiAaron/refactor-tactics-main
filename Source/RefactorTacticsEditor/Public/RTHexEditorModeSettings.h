@@ -39,4 +39,49 @@ public:
 		meta = (DisplayName = "Mostra overlay superfici",
 			ToolTip = "Colora ogni cella secondo la propria superficie. Vale per tutti gli strumenti del mode."))
 	bool bShowSurfaceOverlay = false;
+
+	/**
+	 * La griglia di lavoro: dove le celle NON esistono ancora (#622).
+	 *
+	 * 🔑 **Default `true`, ed e' un criterio del DoD**: *«entrando in Hex Map mode la griglia di lavoro e'
+	 * visibile senza accendere nulla»*. E' l'opposto di `bShowSurfaceOverlay`, che nasce spento perche'
+	 * ridipinge celle che si vedono gia'.
+	 *
+	 * ⚠️ **Dal primo `Exit()` vince la scelta di chi lavora, non questo default.** `UEdMode::Exit` fa
+	 * `SaveConfig()` in `EditorPerProjectUserSettings.ini`: il criterio del DoD parla di chi entra la prima
+	 * volta, e chi la spegne la ritrova spenta — che e' il comportamento giusto per un'impostazione.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Hex Map",
+		meta = (DisplayName = "Mostra griglia di lavoro",
+			ToolTip = "Marca le coordinate vuote attorno alla mappa, per vedere dove cadra' la prossima cella."))
+	bool bShowWorkGrid = true;
+
+	/**
+	 * Di quanti anelli la griglia di lavoro deborda oltre le celle che esistono gia'.
+	 *
+	 * ⚠️ **Il tetto del clamp e' il quarto criterio del DoD** (*«l'estensione non cresce senza limite»*), e
+	 * non e' l'unica difesa: `RTHexWorkGrid::BuildPlan` porta anche un tetto sul NUMERO di esagoni, perche'
+	 * su una mappa sparsa un margine piccolo puo' comunque dilatare moltissimo. Il clamp difende dal gesto,
+	 * il tetto dal dato.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Hex Map",
+		meta = (DisplayName = "Griglia: margine (anelli)", ClampMin = "0", ClampMax = "6",
+			ToolTip = "Quanti anelli di celle vuote mostrare attorno alla mappa esistente."))
+	int32 WorkGridMargin = 2;
+
+	/**
+	 * Raggio del seme quando il layer attivo e' **vuoto**.
+	 *
+	 * 🔑 **Separato da `WorkGridMargin` perche' significa un'altra cosa**: un margine dice «quanto oltre il
+	 * gia' disegnato», un seme «da dove si comincia quando non c'e' niente». Con un parametro solo, chi lo
+	 * alza per vedere piu' bordo si ritroverebbe un seme enorme su una mappa vuota.
+	 *
+	 * ⛔ **Non e' `DemoRadius`**, ed e' la differenza che la issue chiede: quello e' un campo dell'actor che
+	 * fa disegnare alla board celle che il dato non contiene. Questo e' un'impostazione dello strumento,
+	 * disegna solo fantasmi, e non entra mai nell'asset.
+	 */
+	UPROPERTY(config, EditAnywhere, Category = "Hex Map",
+		meta = (DisplayName = "Griglia: raggio del seme", ClampMin = "0", ClampMax = "8",
+			ToolTip = "Quanto e' grande la griglia quando il layer attivo non ha ancora nessuna cella."))
+	int32 WorkGridSeedRadius = 3;
 };
