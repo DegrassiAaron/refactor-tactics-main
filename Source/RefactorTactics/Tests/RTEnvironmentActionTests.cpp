@@ -2719,4 +2719,225 @@ bool FRTPlaybackStructureHitIsShownWithNoVictimTest::RunTest(const FString&)
 	return true;
 }
 
+// =====================================================================================================
+// `#3279` — la barriera contata DUE volte, misurata.
+//
+// ⛔ **Questo blocco NON decide cosa mostrare.** Porta il fatto che la decisione richiede, ed e' scritto
+// come CARATTERIZZAZIONE dichiarata: pinna il comportamento attuale, non un contratto. Se la decisione
+// sara' deduplicare, questi gate cambiano con essa — ed e' il loro scopo, rendere concreta una scelta che
+// altrimenti resta descritta.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Scenario della faccia RIDONDANTE: la stessa barriera dichiarata su entrambi i lati di un bordo, fra
+	 * celle di `Height` diversa.
+	 *
+	 * ⚠️ **Si scrive direttamente su `Covers`, e non con `AddCover`, perche' `AddCover` la RIFIUTA** —
+	 * *«lo stesso bordo, dalla faccia del VICINO: rifiutata»*. Lo stato resta pero' **legale**:
+	 * `URTHexMapAsset::ValidateMap` lo classifica **Warning e non Error** (`GEO-7` di [D-288], `#1893`), con
+	 * la ragione scritta che *«correggerlo da soli sarebbe l'auto-fix silenzioso che il Decision Record
+	 * vieta»*. ∴ una mappa d'autore puo' averlo, ed e' il caso che questo scenario riproduce.
+	 *
+	 * 🔑 **`Height` diversa non e' un dettaglio**: il segno di playback prende l'alzata dalla sola cella
+	 * che PORTA la copertura (`CellLift(Colpo.Cell)`, che restituisce `Cell.Height`), e le due voci la
+	 * portano scambiata. E' l'unica variabile da cui dipende la differenza di quota.
+	 */
+	FRTEnvBreachScenario EnvMakeRedundantFaceScenario(int32 InStructurePower, int32 InHeightDelta)
+	{
+		FRTEnvBreachScenario S;
+		S.World = MakeEnvWorld();
+		if (!S.World) { return S; }
+		S.MapActor = SpawnEnvMap(S.World);
+		if (!S.MapActor || !S.MapActor->MapAsset) { return S; }
+
+		S.Shielded = FRTCellId(1, 0);   // porta la faccia W
+		S.Attacker = FRTCellId(0, 0);   // porta la faccia E: la stessa barriera, dall'altro lato
+
+		URTHexMapAsset* Asset = S.MapActor->MapAsset;
+		const FRTHexCellData* A = Asset->FindCell(S.Shielded);
+		const FRTHexCellData* B = Asset->FindCell(S.Attacker);
+		if (!A || !B) { return S; }
+
+		// La faccia W di (1,0), su una cella rialzata di `InHeightDelta`.
+		FRTHexCellData ConFaccia = *A;
+		ConFaccia.Height = InHeightDelta;
+		ConFaccia.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		Asset->AddOrUpdateCell(ConFaccia);
+
+		// ⛔ E la faccia E di (0,0): la SECONDA dichiarazione della stessa barriera, a quota zero.
+		FRTHexCellData ConSpecchio = *B;
+		ConSpecchio.Height = 0;
+		ConSpecchio.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low,
+			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		Asset->AddOrUpdateCell(ConSpecchio);
+		Asset->SortCells();
+
+		S.Breacher = SpawnEnvUnit(S.World, 1, S.Attacker);
+		S.Defender = SpawnEnvUnit(S.World, 0, S.Shielded);
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.Breacher || !S.Defender || !S.TM) { return S; }
+
+		S.Breacher->Abilities[0]->Def.Effects.Add(
+			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
+		S.Breacher->PlannedAbilityIndex = 0;
+		S.Breacher->PlannedAttackTarget = S.Defender;
+
+		S.bValid = true;
+		return S;
+	}
+
+	/** L'alzata che il disegno userebbe per un segno: e' `Cell.Height`, e nient'altro. */
+	int32 EnvQuotaDelSegno(const URTHexMapAsset* Map, const FRTCellId& Cell)
+	{
+		const FRTHexCellData* Data = Map ? Map->FindCell(Cell) : nullptr;
+		return Data ? Data->Height : 0;
+	}
+}
+
+/**
+ * Una barriera dichiarata su ENTRAMBE le facce produce DUE eventi per UN colpo — `#3279`.
+ *
+ * 🔴 **E' la misura che la decisione richiede, non la decisione.** Le due voci sono corrette rispetto al
+ * modello: `ApplyStructureDamage` chiama `DamageFace` sui due lati perche' *«le due facce sono la STESSA
+ * barriera vista dai due lati»*, e se entrambe le celle la dichiarano ne escono due risultati. Cio' che e'
+ * ambiguo e' la LETTURA — e decidere cosa mostrare e' una scelta di boundary che questa fetta non prende.
+ *
+ * ⛔ **I gate uno-a-uno non lo vedono, ed e' il punto.** TurnLog e timeline raddoppiano **insieme**, quindi
+ * il rapporto 1:1 e' rispettato e ogni confronto fra i due canali resta verde. Serve contare, non
+ * confrontare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructuresRedundantFaceDoublesTheEventTest,
+	"RefactorTactics.Structures.RedundantFaceDoublesTheEvent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructuresRedundantFaceDoublesTheEventTest::RunTest(const FString&)
+{
+	// Integrita' 30 per faccia, colpo 10: entrambe restano in piedi, cosi' la misura riguarda il
+	// RADDOPPIO e non la distruzione.
+	FRTEnvBreachScenario S = EnvMakeRedundantFaceScenario(/*InStructurePower=*/ 10, /*InHeightDelta=*/ 300);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	// ⛔ PREMESSA: la mappa dichiara davvero la barriera su entrambe le facce. Senza, il test misura una
+	// barriera normale e il raddoppio non ha modo di manifestarsi.
+	TestEqual(TEXT("⛔ premessa: la faccia W di (1,0) e' dichiarata"),
+		CoverIntegrityOn(S.MapActor->MapAsset, S.Shielded, ERTHexDirection::W), 30);
+	TestEqual(TEXT("⛔ premessa: e ANCHE la faccia E di (0,0), che e' lo stesso bordo"),
+		CoverIntegrityOn(S.MapActor->MapAsset, S.Attacker, ERTHexDirection::E), 30);
+
+	RunEnvTurn(S.TM);
+
+	TArray<FRTTurnLogEntry> Voci;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (URTTurnLogLibrary::IsStructureHit(E)) { Voci.Add(E); }
+	}
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	if (!TestTrue(TEXT("⛔ il colpo ha raggiunto la barriera"), Voci.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	TestEqual(TEXT("🔴 UN colpo produce DUE voci di TurnLog: una per faccia"), Voci.Num(), 2);
+	TestEqual(TEXT("🔴 e DUE eventi di playback, non uno"), Eventi.Num(), 2);
+
+	// ⛔ **La ragione per cui i gate 1:1 restano verdi**: i due canali raddoppiano insieme, quindi il loro
+	// rapporto e' rispettato. Asserirlo qui e' cio' che rende leggibile perche' nessun confronto lo prenda.
+	TestEqual(TEXT("⛔ i due canali raddoppiano INSIEME: nessun confronto 1:1 puo' accorgersene"),
+		Eventi.Num(), Voci.Num());
+
+	// --- LE DUE VOCI SONO LA STESSA BARRIERA, VISTA DAI DUE LATI --------------------------------------
+	if (Eventi.Num() == 2)
+	{
+		TestEqual(TEXT("la cella del primo e' il verso del secondo"),
+			Eventi[0].StructureCell, Eventi[1].StructureToward);
+		TestEqual(TEXT("e viceversa: e' un bordo solo, letto nei due sensi"),
+			Eventi[1].StructureCell, Eventi[0].StructureToward);
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * E dal 2026-09-22 i due segni non sono piu' SOVRAPPOSTI: compaiono a quote diverse — `#3279`.
+ *
+ * 🔴 **La duplicazione c'era gia' ed era invisibile.** Il disegno prendeva la quota come MEDIA delle due
+ * celle — simmetrica allo scambio — quindi i due segni coincidevano esattamente. La correzione
+ * dell'alzata in `#2828` li ha separati: ora prendono `CellLift(Colpo.Cell)`, cioe' `Cell.Height`, e le
+ * due voci portano `Cell` scambiata.
+ *
+ * ∴ su un bordo fra celle di `Height` diversa compaiono due segni a quote diverse, che si leggono come
+ * **due barriere colpite** invece di una contata due volte.
+ *
+ * ⚠️ **Il disegno non e' osservabile headless, la quota si'.** `CellLift` e' una funzione pura della
+ * cella, quindi la differenza fra le due alzate e' calcolabile dai dati che l'evento porta — senza
+ * guardare cosa viene disegnato, e senza duplicarne la formula: questo test legge `Height`, che e'
+ * l'ingresso, non la ricalcola.
+ *
+ * ⛔ **E per la stessa ragione e' CIECO al disegno, il che va saputo prima di fidarsene.** Prova che gli
+ * INGRESSI della quota differiscono, non che il risultato si veda. Se qualcuno riportasse l'alzata alla
+ * MEDIA delle due celle — il comportamento precedente a `#2828`, che rendeva i due segni coincidenti —
+ * questo gate resterebbe **verde**: `Height` non cambierebbe, cambierebbe cio' che il disegno ne fa.
+ *
+ * ∴ la verifica del risultato appartiene a una voce `PIE-*`, e questo gate non la sostituisce. Cio' che
+ * copre e' il ramo a monte: che due voci esistano e portino celle diverse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructuresRedundantFaceDrawsAtTwoHeightsTest,
+	"RefactorTactics.Structures.RedundantFaceDrawsAtTwoHeights",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructuresRedundantFaceDrawsAtTwoHeightsTest::RunTest(const FString&)
+{
+	const int32 Dislivello = 300;
+	FRTEnvBreachScenario S = EnvMakeRedundantFaceScenario(/*InStructurePower=*/ 10, Dislivello);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	// ⛔ PREMESSA: le due celle hanno davvero quote diverse. Con `Height` uguale i due segni tornerebbero
+	// sovrapposti e questo test misurerebbe l'assenza di un difetto che c'e'.
+	const int32 QuotaA = EnvQuotaDelSegno(S.MapActor->MapAsset, S.Shielded);
+	const int32 QuotaB = EnvQuotaDelSegno(S.MapActor->MapAsset, S.Attacker);
+	TestEqual(TEXT("⛔ premessa: le due celle del bordo hanno quote diverse"), QuotaA - QuotaB, Dislivello);
+
+	const FRTEnvPlaybackProbe Probe = EnvRunPlaybackProbingStructureHits(S.TM, S.MapActor);
+	TestFalse(TEXT("la risoluzione ha chiuso"), Probe.bAppesa);
+
+	if (!TestEqual(TEXT("⛔ due segni mostrati, uno per faccia"), Probe.Mostrati.Num(), 2))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// 🔴 **La misura che la decisione richiede.** L'alzata di ciascun segno e' `Height` della cella che
+	// porta la copertura; le due voci la portano scambiata, quindi le quote differiscono del dislivello.
+	const int32 Quota0 = EnvQuotaDelSegno(S.MapActor->MapAsset, Probe.Mostrati[0].Cell);
+	const int32 Quota1 = EnvQuotaDelSegno(S.MapActor->MapAsset, Probe.Mostrati[1].Cell);
+	TestEqual(TEXT("🔴 i due segni stanno a quote diverse, separate dal dislivello"),
+		FMath::Abs(Quota0 - Quota1), Dislivello);
+
+	// ⚠️ E la controprova che rende la riga sopra una misura e non una tautologia: a dislivello ZERO i due
+	// segni tornerebbero sovrapposti, cioe' allo stato in cui la duplicazione era invisibile.
+	DestroyEnvWorld(S.World);
+
+	FRTEnvBreachScenario Piatto = EnvMakeRedundantFaceScenario(/*InStructurePower=*/ 10, /*Dislivello=*/ 0);
+	if (!TestTrue(TEXT("scenario piatto costruito"), Piatto.bValid))
+	{
+		DestroyEnvWorld(Piatto.World);
+		return false;
+	}
+	const FRTEnvPlaybackProbe PiattoProbe = EnvRunPlaybackProbingStructureHits(Piatto.TM, Piatto.MapActor);
+	if (PiattoProbe.Mostrati.Num() == 2)
+	{
+		const int32 P0 = EnvQuotaDelSegno(Piatto.MapActor->MapAsset, PiattoProbe.Mostrati[0].Cell);
+		const int32 P1 = EnvQuotaDelSegno(Piatto.MapActor->MapAsset, PiattoProbe.Mostrati[1].Cell);
+		TestEqual(TEXT("⏱️ a dislivello zero i due segni si sovrappongono: com'era prima di #2828"), P0, P1);
+	}
+	DestroyEnvWorld(Piatto.World);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
