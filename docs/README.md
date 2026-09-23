@@ -517,4 +517,13 @@ mantenerli superava quello di non averli. Il punto da riaprire è **D-182**.
 > [`technical/test-manuali-pie.md`](technical/test-manuali-pie.md) registra per i glob degli ID — *una
 > nota che nomina l'insieme con la sua forma lo allarga*. Qui l'esempio si cita a parole, non si ricopia.
 
-Restano **cinque** controlli, e nessuno è Python: `node tools/radar/generate.ts --check` (gli SVG contro i cataloghi), `node tools/radar/wiki-alt.ts --wiki-root <clone> --check` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `node tools/radar/doc-links.ts --check` (i percorsi citati dai documenti), `node tools/radar/doc-tables.ts --check` (le righe di tabella che non hanno la larghezza delle sorelle) e `node tools/radar/catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — senza `--check`, non scrive mai), piu' la suite `node --test` di `tools/radar/` — **82 test**, e si lancia **da dentro la cartella**. L'elenco che comanda è quello di [`AGENTS.md`](../AGENTS.md): questa riga ne era rimasta indietro di tre controlli fino al 2026-08-26.
+I controlli di `tools/radar/` si chiamano per **nome**, non per numero: `generate.ts` (gli SVG contro i cataloghi), `wiki-alt.ts` (gli alt sulla Wiki, che il primo **non** copre — lo dichiara il suo stesso docstring), `doc-links.ts` (i percorsi citati dai documenti), `doc-tables.ts` (le righe di tabella che non hanno la larghezza delle sorelle), `issue-refs.ts`, `scenario-notes.ts`, `decision-ids.ts` (un numero `D-` rivendicato due volte) e `catalog-code.ts` (le stat base degli eroi fra catalogo e C++ — senza `--check`, non scrive mai). Piu' la suite `node --test`, che si lancia **da dentro la cartella**.
+
+🔴 **Questa riga portava due totali volatili, ed erano scaduti entrambi**: diceva «cinque controlli» quando [`AGENTS.md`](../AGENTS.md) ne elencava dodici, e «82 test» quando erano 145. Ammetteva già da sé di essere «rimasta indietro di tre controlli»: un conteggio in prosa invecchia in silenzio e chi legge lo tratta come corrente. Si misurano, non si copiano:
+
+```
+grep -cE '^(node|python) tools/' AGENTS.md          # i controlli che l'elenco canonico dichiara
+cd tools/radar && node --test 2>&1 | grep '^# tests'  # i test, alla data in cui lo lanci
+```
+
+L'elenco che comanda è quello di [`AGENTS.md`](../AGENTS.md).
