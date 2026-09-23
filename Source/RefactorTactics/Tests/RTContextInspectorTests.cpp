@@ -281,4 +281,63 @@ bool FRTContextInspectorPlacementTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * **`0` e' la squadra 0, non l'interruttore** — e nessun argomento valido spegne per sbaglio.
+ *
+ * 🔴 **Il difetto era reale ed e' arrivato fino a una seduta.** La prima stesura del comando trattava
+ * `0` come lo spegnimento, mentre in ogni altro `rt.Debug.*` il primo argomento e' il **TeamId**:
+ * `rt.Debug.DrawIntent 1` mostra i piani del team 1. La precondizione che avevo scritto nella voce
+ * `PIE-DEBUG-CONTEXT` diceva *«console `rt.Debug.ContextInspector 0` per la squadra 0»*, cioe' il comando
+ * che SPEGNE: chi avesse eseguito la seduta alla lettera avrebbe registrato un ❌ su un pannello che
+ * funziona, e avrebbe cercato il difetto nella resa.
+ *
+ * ⚠️ **Il parsing e' una funzione PURA proprio per questo.** Dentro il comando era un `if` fra un mondo,
+ * un widget e un viewport: niente di tutto cio' e' costruibile headless, quindi l'unico modo di
+ * accorgersene era guardare uno schermo. Qui si prova senza nulla di tutto quello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorArgsTest,
+	"RefactorTactics.Debug.ContextInspectorArgsDoNotCollide",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorArgsTest::RunTest(const FString&)
+{
+	// `TArray<FString>` si costruisce gia' da una initializer list: nessuna impalcatura per leggere
+	// quattro casi, e una dipendenza in meno da `<initializer_list>`.
+	auto Leggi = [](const TArray<FString>& Args)
+	{
+		return URTContextInspectorLibrary::ParseCommandArgs(Args);
+	};
+
+	// Nessun argomento: mostra, squadra 0. E il default non e' lo spegnimento.
+	const FRTContextInspectorRequest Vuoto = Leggi({});
+	TestFalse(TEXT("senza argomenti NON spegne"), Vuoto.bOff);
+	TestEqual(TEXT("senza argomenti e' la squadra 0"), Vuoto.ObserverTeamId, 0);
+
+	// 🔑 Il cuore del test: `0` e' una SQUADRA.
+	const FRTContextInspectorRequest Zero = Leggi({ TEXT("0") });
+	TestFalse(TEXT("`0` NON spegne: e' la squadra 0"), Zero.bOff);
+	TestEqual(TEXT("e vale proprio 0"), Zero.ObserverTeamId, 0);
+
+	const FRTContextInspectorRequest Uno = Leggi({ TEXT("1") });
+	TestFalse(TEXT("`1` non spegne"), Uno.bOff);
+	TestEqual(TEXT("`1` e' la squadra 1"), Uno.ObserverTeamId, 1);
+
+	// `-1` e' l'onnisciente, ed e' una posizione nominata: non un valore speciale inventato qui.
+	const FRTContextInspectorRequest Onni = Leggi({ TEXT("-1") });
+	TestFalse(TEXT("`-1` non spegne"), Onni.bOff);
+	TestEqual(TEXT("`-1` e' l'osservatore onnisciente"), Onni.ObserverTeamId,
+		static_cast<int32>(RTObserver::Omniscient));
+
+	// L'interruttore e' una PAROLA, che nessun TeamId puo' essere. Cassa indifferente: chi digita in
+	// console non ha motivo di ricordarsela.
+	TestTrue(TEXT("`off` spegne"), Leggi({ TEXT("off") }).bOff);
+	TestTrue(TEXT("`OFF` spegne lo stesso"), Leggi({ TEXT("OFF") }).bOff);
+
+	// ⛔ Anti-vacuita': se `bOff` fosse sempre falso i controlli qui sopra sarebbero verdi per meta',
+	// e il comando non avrebbe modo di spegnersi. Almeno un argomento DEVE spegnere.
+	TestNotEqual(TEXT("lo spegnimento esiste e si distingue dalla squadra 0"),
+		Leggi({ TEXT("off") }).bOff, Zero.bOff);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

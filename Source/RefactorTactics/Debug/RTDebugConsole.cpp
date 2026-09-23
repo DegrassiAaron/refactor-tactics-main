@@ -224,9 +224,14 @@ static void RTDebugContextInspectorCommand(const TArray<FString>& Args, UWorld* 
 {
 	if (!World) { Ar.Log(TEXT("[RT] Nessun mondo attivo.")); return; }
 
-	// `0` spegne. Si controlla PRIMA di cercare la mappa: spegnere deve funzionare anche in un livello
-	// dove il pannello non potrebbe nascere.
-	if (Args.Num() > 0 && Args[0] == TEXT("0"))
+	// 🔴 Gli argomenti si leggono da una funzione PURA, e non con un `if` qui: la prima stesura
+	// trattava `0` come l'interruttore, mentre in ogni altro `rt.Debug.*` il primo argomento e' il TeamId.
+	// Chi scriveva `rt.Debug.ContextInspector 0` intendendo la squadra 0 spegneva il pannello.
+	const FRTContextInspectorRequest Richiesta = URTContextInspectorLibrary::ParseCommandArgs(Args);
+
+	// Si controlla PRIMA di cercare la mappa: spegnere deve funzionare anche in un livello dove il
+	// pannello non potrebbe nascere.
+	if (Richiesta.bOff)
 	{
 		if (URTContextInspectorWidgetBase* Vecchio = GPannelloContesto.Get())
 		{
@@ -261,7 +266,7 @@ static void RTDebugContextInspectorCommand(const TArray<FString>& Args, UWorld* 
 	// L'osservatore e' un ARGOMENTO, come in `rt.Debug.DrawIntent`, e per la stessa ragione dichiarata:
 	// e' uno strumento di sviluppo locale, dove chi lo esegue possiede gia' tutto lo stato. Lo snapshot
 	// nasce PER quell'osservatore, altrimenti `DescribeCell` rifiuterebbe di comporre l'occupante.
-	const int32 ObserverTeamId = ObserverTeamFromArgs(Args);
+	const int32 ObserverTeamId = Richiesta.ObserverTeamId;
 
 	ARTTurnManager* TM = Cast<ARTTurnManager>(
 		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
@@ -589,7 +594,9 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawIntent(
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugContextInspector(
 	TEXT("rt.Debug.ContextInspector"),
 	TEXT("Mostra a schermo il contesto dell'esagono sotto il puntatore, per un osservatore.\n"
-		"  rt.Debug.ContextInspector [team]  team predefinito 0; `0` come unico argomento SPEGNE il pannello.\n"
+		"  rt.Debug.ContextInspector         la squadra 0, cioe' il default.\n"
+		"  rt.Debug.ContextInspector 1       la squadra 1; -1 per l'osservatore onnisciente.\n"
+		"  rt.Debug.ContextInspector off     spegne. NON `0`: quello e' la squadra 0.\n"
 		"  Aggiorna a comando e non a ogni movimento del puntatore: il contratto dell'hover e' di #1614.\n"
 		"  Le stesse righe finiscono anche qui in console, cosi' una run headless lascia un referto."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugContextInspectorCommand));
