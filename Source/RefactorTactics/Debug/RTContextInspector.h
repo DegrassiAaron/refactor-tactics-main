@@ -115,6 +115,33 @@ public:
 };
 
 /**
+ * DOVE si posa il pannello.
+ *
+ * 🔴 **E' un dato e non quattro numeri sparsi nel layout**, per la stessa ragione misurata di
+ * `FRTPieOverlayPlacement`: un posizionamento che vive dentro `RebuildWidget` non ha modo di essere
+ * verificato senza uno schermo; questo si'.
+ *
+ * ⛔ **BASSO A DESTRA, e la scelta e' vincolata da tre misure, non dal gusto.**
+ * 1. Il **centro non si copre**: e' il contratto dello Screen HUD (`progettazione-hud.md` §3.1), e la
+ *    board e' cio' che si sta guardando.
+ * 2. Ogni zona di §6 ha gia' un proprietario dichiarato — alto sinistra il **team roster**, alto destra
+ *    l'**obiettivo**, basso sinistra l'**unita' selezionata**, lato destro il **team intent**, basso
+ *    centro **ghost timeline** e **action dock**. `§6` non assegna il basso destra.
+ * 3. 🔑 E questo pannello viene giudicato **durante una seduta PIE**, quando `URTPieVerdictOverlay`
+ *    occupa la colonna **sinistra, centrata in verticale** (#3242). Posarlo li' significherebbe ripetere
+ *    esattamente il difetto che quella issue ha chiuso, un anno di lezioni dopo.
+ */
+struct FRTContextInspectorPlacement
+{
+	EHorizontalAlignment Horizontal = HAlign_Right;
+	EVerticalAlignment Vertical = VAlign_Bottom;
+	/** Distanza dai bordi destro e inferiore, in pixel di Slate. */
+	float Margin = 24.f;
+	/** ⛔ Il tetto esiste perche' il CENTRO resta libero: la board non si copre, per contratto. */
+	float MaxWidth = 460.f;
+};
+
+/**
  * IL PANNELLO. Un consumatore **sottile**: riceve una vista gia' composta e la espone al layout.
  *
  * 🔑 **In C++ e senza `.uasset`, deliberatamente** — la stessa scelta di `URTPieVerdictOverlay`,
@@ -148,7 +175,38 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Debug")
 	FText GetHeaderText() const;
 
+	/**
+	 * Il posizionamento che `RebuildWidget` applica — la sola parte del layout che e' un dato.
+	 *
+	 * ⚠️ `virtual`: un `WBP_` derivato puo' spostarlo senza riscrivere la Slate, che e' il motivo per cui
+	 * la classe base esiste.
+	 */
+	virtual FRTContextInspectorPlacement Placement() const;
+
 	/** La vista corrente. Sola lettura dal layout. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Debug")
 	FRTContextInspectorView View;
+
+protected:
+	/**
+	 * Quante righe la Slate costruisce, una volta sola.
+	 *
+	 * 🔴 **Slate si costruisce UNA volta e il contenuto cambia a ogni frame.** Aggiungere uno slot per
+	 * riga dentro `RebuildWidget` congelerebbe il pannello alla PRIMA vista mostrata: una cella con piu'
+	 * eventi della prima perderebbe le righe in eccesso, in silenzio. Gli slot sono fissi e le righe le
+	 * riempiono per lambda; quelle che avanzano restano vuote.
+	 *
+	 * ⚠️ **Dodici e' un tetto di RESA, non un limite del contenuto**: `AllLines` restituisce tutto, e il
+	 * troncamento e' qui — dove si vede — invece che nel compositore, dove sarebbe invisibile ai test.
+	 */
+	static constexpr int32 MaxRighe = 12;
+
+	/**
+	 * La resa, in C++ e senza `.uasset`: lo stesso `RebuildWidget` di `URTPieVerdictOverlay`.
+	 *
+	 * ⚠️ Cio' che sta qui dentro **non e' verificabile senza uno schermo**, ed e' la ragione per cui la
+	 * sola parte che si puo' sbagliare in silenzio — la posa — e' un dato (`Placement`) invece di quattro
+	 * numeri scritti qui.
+	 */
+	virtual TSharedRef<SWidget> RebuildWidget() override;
 };
