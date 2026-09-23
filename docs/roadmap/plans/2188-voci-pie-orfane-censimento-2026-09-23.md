@@ -105,7 +105,7 @@ Le tre uscite sono quelle che la issue dichiara legittime: **seduta esistente**,
 | `PIE-V01-REPLAY-VIEWER` | Contenuto della v0.1 | **U57** · seduta nuova |
 | `PIE-V01-RXBRACE` | Durata, ritmo e scala | **U56** · seduta nuova |
 | `PIE-V01-RXPLAYBACK` | Durata, ritmo e scala | **U56** · seduta nuova |
-| `PIE-V01-SHIELD-WRAITH` | Contenuto della v0.1 | ⛔ `not_schedulable` |
+| `PIE-V01-SHIELD-WRAITH` | Contenuto della v0.1 | `U51` · seduta esistente — ⌫ *era `not_schedulable`, convocata lo stesso giorno da #2381* |
 | `PIE-V01-SIGHTLINE` | Durata, ritmo e scala | **U58** · seduta nuova |
 | `PIE-VIS-DEFLECT` | Corpus `Visual.*` | ⛔ `not_schedulable` |
 | `PIE-VIS-INTERPOSE` | Corpus `Visual.*` | ⛔ `not_schedulable` |
@@ -113,8 +113,15 @@ Le tre uscite sono quelle che la issue dichiara legittime: **seduta esistente**,
 | `PIE-VIS-WATCHPUSH` | Corpus `Visual.*` | `U47` · seduta esistente |
 | `PIE-VSLICE-01` | Gate visivo end-to-end della slice | ⛔ `not_schedulable` |
 
-**seduta esistente `13` · seduta nuova `11` · non schedulabile `18` · somma `42`** — e la somma va scritta,
+**seduta esistente `14` · seduta nuova `11` · non schedulabile `17` · somma `42`** — e la somma va scritta,
 perché è l'unico modo di accorgersi che una voce è caduta fra due colonne.
+
+⌫ **Era `13 / 11 / 18` quando questo documento è nato**, poche ore prima: `PIE-V01-SHIELD-WRAITH` era
+dichiarata non schedulabile con `revisit_when: «#2381 la convoca»`, e **#2381 l'ha convocata lo stesso
+giorno** in `U51` — la seduta che possiede già il gesto di scrivere `Team0Heroes` a mano. La riga è uscita
+dal blocco invece di cambiare, come il suo `revisit_when` prescriveva. È il ciclo che quel blocco esiste
+per rendere possibile, girato una volta: **una voce dichiarata non è parcheggiata, è in attesa di un
+fatto**.
 
 ### Il criterio: «con quali altre voci si allestisce insieme?»
 
@@ -156,10 +163,21 @@ Stanno nel blocco `not_schedulable:` di [`editor-sessions.yaml`](../editor-sessi
 | `E34` non è cominciata | le dieci `PIE-STATE-*` | gli undici `CP 34.x` e l'epic #244, tutti `OPEN` |
 | La rete non esiste in produzione | le tre `PIE-NET-*` | `grep -rn "DOREPLIFETIME" Source/ \| grep -v /Tests/` → nessuna riga |
 
-Più una che non è bloccata ma **è di qualcun altro**: `PIE-V01-SHIELD-WRAITH` è la terza casella dello
-scope di [#2381](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2381), che la convocherà
-insieme all'allestimento che le serve — una formazione con Wraith in squadra 0, che nessuna seduta
-esistente ha. #2188 scheda le orfane, non espropria gli owner.
+Più una che non era bloccata ma **era di qualcun altro**: `PIE-V01-SHIELD-WRAITH`, terza casella dello
+scope di [#2381](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2381). ✅ **Convocata in
+`U51` lo stesso giorno**, ed è uscita da questo blocco.
+
+🔴 **E la sua `reason` portava due identità ritirate**, ricopiate dalla cella del registro senza
+verificarle: diceva *«una formazione con **Wraith** in squadra 0, contro il default `Team0Heroes =
+[Gadget, Phase]`»*, e nessuno dei tre nomi esiste più — `D-334` ha ritirato `Hero.Wraith` → `Hero.Ivrin`,
+`#2491` `Hero.Gadget` → `Hero.Aevik` e `Hero.Phase` → `Hero.Muiren`. Il default vero è
+`Team0Heroes = {Hero.Aevik, Hero.Muiren}` (`RTGameMode.h:93`). ⚠️ **La sostanza reggeva** — l'eroe è
+ancora in squadra 1, quindi l'allestimento serve lo stesso — ma il nome da scrivere nel GameMode era
+sbagliato, ed è l'unica parte che chi esegue avrebbe usato. Oracolo:
+`RTLegacyIdentityRatchetTests.cpp`, che tiene `Hero.Wraith` a tetto `0, 0`.
+
+Anche questa era una frase **plausibile** copiata da una fonte autorevole senza girare l'oracolo che il
+repository ha già scritto apposta.
 
 ⚠️ **Una voce dichiarata NON è schedulata**, e la differenza è il punto: è dichiarata, che vale meno.
 Quando il suo oracolo cade, la voce **esce da quel blocco ed entra in un `verifies`**.
