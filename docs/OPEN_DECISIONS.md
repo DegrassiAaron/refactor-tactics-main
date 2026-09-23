@@ -314,6 +314,35 @@ Misurato su `origin/main` `c3151afd`. Issue correlate: #952 · #2744 · #1769 ·
 dichiara `OBS-1` come *out of scope*. Questa voce serve a impedire che un `ObserverMode` entri di
 straforo dentro un lavoro di HUD.
 
+### ➕ `SHOW-1` e `SHOW-2` — la forma in cui uno showcase si dichiara, dalla discovery #2745 del 2026-09-23
+
+Esito di [#2745](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2745), issue di **discovery**.
+Spec: [`technical/tooling/spec-manifesto-showcase.md`](technical/tooling/spec-manifesto-showcase.md).
+Misurato su `origin/main` `8846a865`.
+
+🔑 **La domanda centrale di #2745 — *scenario esteso, `UDataAsset`, file di config o composizione?* — NON
+entra qui, perché non era aperta**: è una **composizione**, e lo è per conseguenza di tre decisioni già
+prese (`RT-CAP-AUTOBATTLE` vieta un secondo Scenario Harness; [`D-242`](decisions/RT_PDR_00_Decision_Log.md)
+fa dell'autorizzazione non presidiata un **dato**; `FRTMatchBootstrapConfig` dichiara per contratto di non
+leggere console né riga di comando). ✅ E il precedente esiste già, costruito senza che nessuno lo chiamasse
+manifesto: `Scenarios/RT_Showcase_Relay_v01.json`, che riferisce la geometria **per nome** invece di
+copiarla, e dichiara in `requires` la capability che ogni turno non ancora giocabile richiede — così il
+runner risponde `BLOCKED` col nome invece di `FAIL`.
+
+⛔ **Resta aperto solo ciò che il codice non decide.** Sono scelte d'autore con conseguenze su ciò che si
+spedisce, e la discovery non le chiude:
+
+| ID | Domanda | Perché non si deduce |
+|---|---|---|
+| `SHOW-1` | **Un allestimento si nomina con lo `scenarioId` dello scenario che lo impone, oppure serve un identificatore proprio?** | Lo scenario porta mappa, unità, turni e seed; **non** porta gli ingressi che vivono nel GameMode — `bAutobattle`, `BotAllyCount`, `MatchPlanningSeconds`. Due allestimenti che differiscono solo per quelli avrebbero **lo stesso nome**, e un handoff che li citasse sarebbe ambiguo. ⚠️ L'alternativa non è gratis: un identificatore proprio è un **quarto contenitore**, e la spec argomenta contro |
+| `SHOW-2` | **Serve un conduttore fuori dall'Editor, o il packaged si accontenta della riga di comando?** | `rt.Pie.Session` è per costruzione una **seduta PIE** e la sua priorità sullo scenario vale lì; i token `-RT…` valgono ovunque ma non compongono una **coda**. ∴ oggi «stesso setup in PIE, Standalone e packaged» regge per il singolo match e **non** per la playlist, ed è una differenza che nessun gate dichiara |
+
+⚠️ **Non bloccano la v0.1.** #2745 è `post-v0.1` e `P3`. Queste voci servono a impedire che un manifesto
+entri di straforo dentro un lavoro di tooling, che è lo stesso rischio che `OBS-1` presidia per l'HUD.
+
+⛔ **E dichiarano il proprio limite**: la discovery ha letto i seam nel sorgente, **senza compilare, senza
+aprire l'Editor e senza eseguire Automation**. Nessuna riga qui è un `PASS` di gate.
+
 ---
 
 ## Il contratto di wave RT3 e il ruolo di ingresso, dal 2026-09-05 — `GOV-5` ✅ chiusa, `GOV-6` ✅ chiusa
