@@ -429,12 +429,51 @@ public:
 	 *   (`Reaction.CounterShot` fa 14 dove `Action.Counter` ne fa 16). Con `GrantedEffects` vuoto gli effetti
 	 *   del core restano intatti, ed e' il caso di `Gadget.Sprinkler`, il cui esito e' una superficie.
 	 *
+	 * E **scrive il nome visibile**, che non e' una sostituzione perche' l'azione core non ne ha uno: prima di
+	 * `#3275` il campo restava costruito per default, cioe' vuoto, e il dock mostrava `"6. "`. Il nome e' quello
+	 * del PEZZO — vedi `EquipmentActionDisplayName` per la misura che esclude le altre due uscite.
+	 *
 	 * ⚠️ **Non e' fail-closed come `MakeHeroReactionFromCoreAction`**, che rifiuta un core non-reazione perche'
 	 * costruirci sopra darebbe un'abilita' che il pass delle reazioni non guarda mai. Qui la stessa disciplina
 	 * e' affidata al chiamante — `MakeReactionModules` sceglie apposta core gia' reazione — e verificata da
 	 * `Equipment.ReactionModule.SingleActivation`, che asserisce slot e trigger sull'azione prodotta.
 	 */
 	static URTActionData* MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer);
+	/**
+	 * Il nome che il giocatore legge per un'azione concessa da un pezzo di equipaggiamento (`#3275`).
+	 *
+	 * 🔑 **E' il nome del pezzo, e la scelta e' una misura, non una preferenza.** La DoD di `#3275`
+	 * offriva tre uscite — nome del pezzo, nome dell'azione core, composizione — ma i dodici pezzi che
+	 * concedono nominano **dieci** azioni core distinte (`Anchor`, `Counter`, `CreateCover`, `CreateSmoke`,
+	 * `CreateWater`, `Evade`, `Heal`, `HeavyAttack`, `Intercept`, `Purge`) e **nessuna delle dieci ha un
+	 * nome leggibile**: l'unica mappa chiavata su `Action.*` e' `GenericActionDisplayName`, che ne copre
+	 * cinque — `Wait`, `Guard`, `Brace`, `Overwatch`, `Interact`.
+	 *
+	 * ⚠️ `HeroActionDisplayName` **non e' un secondo posto dove cercare**: e' chiavata su
+	 * `Hero.<eroe>.<azione>`, quindi per costruzione non contiene `Action.*`. Uno zero preso li' misura il
+	 * vocabolario, non i fatti.
+	 *
+	 * Le altre due uscite non sono piu' povere: sono **vuote**. Renderle possibili vuol dire prima
+	 * **scrivere** quei dieci nomi — lavoro di contenuto, non di correzione.
+	 *
+	 * Coincide con la scelta gia' presa da `MakeEquipmentAction`, che riscrive `ActionId` col pezzo, e da
+	 * `MakeActionIconId`, che porta `Gadget.Sprinkler` → `UI.Icon.Action.Sprinkler`: id, icona e nome
+	 * seguono il pezzo. Il gesto resta leggibile in `DerivedFromActionId`, che non viene toccato.
+	 *
+	 * Tre casi, e nessuno produce una stringa vuota quando un id c'e' — stessa cascata di
+	 * `ARTUnit::DisplayLabel`, e per la stessa ragione:
+	 *   1. `InDisplayName` dichiarato        -> quello;
+	 *   2. vuoto o soli spazi, con un id     -> l'ultimo segmento (`Gadget.Sprinkler` -> `Sprinkler`);
+	 *   3. vuoto e senza id                  -> vuoto, perche' non c'e' niente da cui ricavare un nome.
+	 *
+	 * ⛔ **Il caso 2 non e' la correzione, e' il ripiego**: il catalogo spedito dichiara il nome per tutti i
+	 * pezzi, e a pinnarlo e' `RefactorTactics.Catalog.EveryEquipmentActionHasADisplayName`. Senza quel gate
+	 * questa cascata **nasconderebbe** un pezzo senza nome invece di farlo vedere.
+	 *
+	 * Pura e testabile senza costruire oggetti: `RefactorTactics.Catalog.EquipmentActionDisplayName`.
+	 */
+	static FText EquipmentActionDisplayName(const FText& InDisplayName, FName InEquipmentId);
+
 
 	/**
 	 * Il pezzo di equipaggiamento con questo `EquipmentId`, cercato nei **tre** cataloghi — varianti d'arma

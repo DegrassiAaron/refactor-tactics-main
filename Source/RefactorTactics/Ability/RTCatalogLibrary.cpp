@@ -885,6 +885,35 @@ FRTActionDef URTCatalogLibrary::ApplyWeaponVariant(const FRTActionDef& BasicAtta
 	return Modified;
 }
 
+FText URTCatalogLibrary::EquipmentActionDisplayName(const FText& InDisplayName, FName InEquipmentId)
+{
+	// `IsEmptyOrWhitespace` e non `IsEmpty`, per la stessa ragione di `ARTUnit::DisplayLabel`: un nome fatto
+	// di soli spazi a schermo e' indistinguibile da un'etichetta assente, quindi vale come non dichiarato.
+	if (!InDisplayName.IsEmptyOrWhitespace())
+	{
+		return InDisplayName;
+	}
+
+	// ⚠️ Il ripiego NON e' la correzione: e' cio' che si vede se un pezzo nuovo arriva senza nome. Il catalogo
+	// spedito ce l'ha per tutti, e lo pinna `Catalog.EveryEquipmentActionHasADisplayName` — senza quel gate
+	// questa cascata renderebbe il difetto invisibile invece di ripararlo, mostrando `Sprinkler` al posto di
+	// nulla e lasciando che nessuno se ne accorga. Con il gate, mostrare l'ultimo segmento e' la forma meno
+	// peggiore: il giocatore legge una parola invece di un buco, e il rosso lo legge chi scrive il catalogo.
+	if (InEquipmentId.IsNone())
+	{
+		return FText::GetEmpty();
+	}
+	const FString Full = InEquipmentId.ToString();
+	// Gli `EquipmentId` sono namespaced (`Gadget.Sprinkler`): a schermo serve l'ultimo segmento. Se un giorno
+	// un id smettesse di avere il punto, questa resta corretta invece di produrre una stringa vuota.
+	int32 Dot = INDEX_NONE;
+	if (Full.FindLastChar(TEXT('.'), Dot) && Dot >= 0 && Dot + 1 < Full.Len())
+	{
+		return FText::FromString(Full.RightChop(Dot + 1));
+	}
+	return FText::FromString(Full);
+}
+
 URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* Item, UObject* Outer)
 {
 	if (Item == nullptr || Item->GrantedActionId.IsNone())
@@ -907,6 +936,33 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	// che e' esattamente il difetto che il campo esiste per chiudere.
 	Action->Def.DerivedFromActionId = Item->GrantedActionId;
 	Action->Def.CooldownTurns = Item->CooldownTurns;
+
+	// 🔴 **Il nome visibile, che questa funzione non scriveva mai** (`#3275`). L'azione arrivava nel dock
+	// con `DisplayName` vuoto e `ARTHUD::ComposeAbilityLine` componeva **`"6. "`**: il giocatore vedeva il
+	// tasto, il punto e la ricarica, e nient'altro. Accadeva in ogni partita di default su meta' roster —
+	// Muiren e Branth ricevono il proprio loadout — e fra le voci mute c'era `Reaction.Cleanse`, che
+	// [D-218] mette li' apposta come unica risposta allo `Status.Slow` dell'attacco base di Branth.
+	//
+	// 🔑 **E' il nome del PEZZO, e non e' una preferenza: e' l'unico che esiste.** Misurato il 2026-09-23:
+	// i dodici pezzi che concedono un'azione nominano **dieci** azioni core distinte (`Anchor`, `Counter`,
+	// `CreateCover`, `CreateSmoke`, `CreateWater`, `Evade`, `Heal`, `HeavyAttack`, `Intercept`, `Purge`) e
+	// **nessuna delle dieci ha un nome leggibile**. L'unica mappa chiavata su `Action.*` e'
+	// `GenericActionDisplayName`, che ne copre cinque: `Wait`, `Guard`, `Brace`, `Overwatch`, `Interact`.
+	//
+	// ⚠️ **E l'altra mappa non e' un secondo posto dove ho guardato**: `HeroActionDisplayName` e' chiavata su
+	// `Hero.<eroe>.<azione>` (`Hero.Aevik.ArcPulse`, ...), quindi **per costruzione** non puo' contenere un
+	// `Action.*` — cercarvi `Action.Purge` da' zero per il vocabolario, non per i fatti. Dirlo cosi' evita
+	// di far passare una ricerca a vuoto per una copertura.
+	//
+	// Quindi il nome dell'azione core non e' un'alternativa piu' povera: **non c'e'**, e una composizione
+	// «pezzo — core» avrebbe la seconda meta' vuota. Renderla possibile vuol dire prima SCRIVERE dieci nomi.
+	//
+	// ⚠️ E coincide con la scelta gia' fatta due righe sopra: `ActionId` diventa quello del pezzo perche' nel
+	// TurnLog si legge il gadget, e `MakeActionIconId` porta `Gadget.Sprinkler` → `UI.Icon.Action.Sprinkler`.
+	// Id, icona e nome seguono tutti e tre il pezzo: farne divergere uno solo sarebbe la scelta da motivare.
+	// ⛔ Il gesto NON e' perduto: `DerivedFromActionId` lo conserva, ed e' la fonte per chi un giorno volesse
+	// mostrarlo — ma mostrarlo richiede prima di **scrivere** quei dieci nomi, che oggi non esistono.
+	Action->DisplayName = EquipmentActionDisplayName(Item->DisplayName, Item->EquipmentId);
 
 	// Gli effetti PROPRI sostituiscono quelli del core (CP 7.3): un modulo di reazione eredita dal core cio'
 	// che lo rende una reazione — fase, priorita', `ReactionTrigger` — ma i numeri sono suoi. `Slot` e
