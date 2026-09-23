@@ -3,6 +3,7 @@
 #include "Core/RTEnumName.h"
 
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCellVisibility.h"
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -127,16 +128,44 @@ FRTDebugReplayVerdict URTDebugReportLibrary::VerifyReplay(const TArray<uint8>& G
 	return Verdict;
 }
 
-FString URTDebugReportLibrary::DescribeCell(const FRTHexCellData& Cell, int32 OccupantUnitId, int32 Revision)
+namespace
 {
+	/** L'osservatore, per una riga di diagnostica: `Omniscient` e' una posizione nominata, non un numero. */
+	FString ObserverLabel(int32 TeamId)
+	{
+		return TeamId == RTObserver::Omniscient ? FString(TEXT("onnisciente")) : FString::FromInt(TeamId);
+	}
+}
+
+FString URTDebugReportLibrary::DescribeCell(int32 ObserverTeamId, const FRTHexCellData& Cell,
+	const FRTHexSnapshot& Snapshot)
+{
+	// 🔴 La domanda si pone PRIMA di leggere l'occupancy, e non dopo averla letta: leggere e poi
+	// scartare e' la forma che #1805 chiama per nome — *«la privacy non e' non disegnare, e' non
+	// costruire la vista»*. Qui la fonte non autorizzata non viene proprio interrogata.
+	const bool bEntitled =
+		URTHexCellVisibilityLibrary::SnapshotEntitles(Snapshot.ObserverTeamId, ObserverTeamId);
+
 	FString Line = FString::Printf(TEXT("%s %s cost=%d"),
 		*Cell.Id.ToString(), *RTReflection::EnumName(Cell.Surface), Cell.TotalMoveCost());
 
-	// `INDEX_NONE` = libera. Si OMETTE il campo invece di stamparne uno vuoto: una riga che dice
-	// `occupante=` invita a chiedersi di chi sia quella stringa vuota.
-	if (OccupantUnitId != INDEX_NONE)
+	if (!bEntitled)
 	{
-		Line += FString::Printf(TEXT(" occupante=%d"), OccupantUnitId);
+		// ⛔ Si DICE, non si omette. Un occupante che sparisce in silenzio e' indistinguibile da una cella
+		// libera, e chi legge il dump concluderebbe il falso invece di accorgersi che la fonte e' sbagliata.
+		Line += FString::Printf(
+			TEXT(" occupante=NON-COMPOSTO(snapshot per %s, vista per %s)"),
+			*ObserverLabel(Snapshot.ObserverTeamId), *ObserverLabel(ObserverTeamId));
+	}
+	else
+	{
+		const int32* Found = Snapshot.Occupancy.Find(Cell.Id);
+		// `INDEX_NONE` = libera. Si OMETTE il campo invece di stamparne uno vuoto: una riga che dice
+		// `occupante=` invita a chiedersi di chi sia quella stringa vuota.
+		if (Found != nullptr && *Found != INDEX_NONE)
+		{
+			Line += FString::Printf(TEXT(" occupante=%d"), *Found);
+		}
 	}
 	if (Cell.bBlocksMovement)     { Line += TEXT(" blocca-passo"); }
 	if (Cell.bBlocksLineOfSight)  { Line += TEXT(" blocca-vista"); }
@@ -173,8 +202,42 @@ FString URTDebugReportLibrary::DescribeCell(const FRTHexCellData& Cell, int32 Oc
 		Line += FString::Printf(TEXT(" stati=[%s]"), *FString::Join(Tags, TEXT(",")));
 	}
 
-	Line += FString::Printf(TEXT(" rev=%d"), Revision);
+	// Dallo snapshot e non da un parametro: e' lo stesso valore — `MakeSnapshot` fa
+	// `Snapshot.Revision = Map->Revision` — e prenderlo da qui toglie al chiamante un secondo campo da
+	// tenere allineato a mano con la fonte da cui viene tutto il resto.
+	Line += FString::Printf(TEXT(" rev=%d"), Snapshot.Revision);
 	return Line;
+}
+
+TArray<FString> URTDebugReportLibrary::DescribeContext(int32 ObserverTeamId, const FRTHexCellData& Cell,
+	const FRTHexSnapshot& Snapshot, const TArray<FRTPlannedIntent>& Intents, ERTContextView View)
+{
+	// Nessuna delle due regole di visibilita' viene riscritta qui: la cella passa da `DescribeCell`, che
+	// chiede a `SnapshotEntitles`; gli intenti da `DescribeIntents`, che filtra con `FilterForTeam`. Questo
+	// compositore e' una GIUSTAPPOSIZIONE, ed e' tutto cio' che deve essere.
+	TArray<FString> Lines;
+	Lines.Add(DescribeCell(ObserverTeamId, Cell, Snapshot));
+	Lines.Append(DescribeIntents(ObserverTeamId, Intents));
+
+#if !UE_BUILD_SHIPPING
+	if (View == ERTContextView::Technical)
+	{
+		// ⛔ **Solo PROVENIENZA, zero contenuto.** Non il numero di celle occupate, che sarebbe un canale
+		// laterale nella forma esatta che l'AC di #2485 chiede di escludere: due scene identiche per
+		// l'osservatore darebbero conteggi diversi. Qui si dice da dove viene la vista, non cosa c'e' dentro.
+		Lines.Add(FString::Printf(
+			TEXT("[tecnico] vista per %s · snapshot costruito per %s · autorizza=%s · rev=%d"),
+			*ObserverLabel(ObserverTeamId), *ObserverLabel(Snapshot.ObserverTeamId),
+			URTHexCellVisibilityLibrary::SnapshotEntitles(Snapshot.ObserverTeamId, ObserverTeamId)
+				? TEXT("si") : TEXT("no"),
+			Snapshot.Revision));
+	}
+#else
+	// In Shipping il ramo tecnico non esiste: `View` resta inutilizzato e la vista e' quella del giocatore.
+	(void)View;
+#endif
+
+	return Lines;
 }
 
 FString URTDebugReportLibrary::DescribeLogEntry(const FRTTurnLogEntry& Entry, int32 SequenceIndex)

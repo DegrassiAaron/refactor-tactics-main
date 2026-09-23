@@ -3,6 +3,7 @@
 #include "Replay/RTReplayPlayerLibrary.h"
 #include "Replay/RTReplayRecorderLibrary.h"
 #include "Replay/RTReplayViewerSubsystem.h"
+#include "Tests/RTReflectedFieldsForTest.h"
 #include "Tests/RTReplayTestFixtures.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
@@ -21,25 +22,6 @@
  */
 namespace
 {
-	/** I nomi delle `UPROPERTY` di una struct riflessa. */
-	TSet<FName> ReflectedNames(const UStruct* Type)
-	{
-		TSet<FName> Out;
-		for (TFieldIterator<FProperty> It(Type); It; ++It)
-		{
-			Out.Add(It->GetFName());
-		}
-		return Out;
-	}
-
-	FString Listed(const TSet<FName>& Names)
-	{
-		TArray<FString> As;
-		for (const FName& N : Names) { As.Add(N.ToString()); }
-		As.Sort();
-		return FString::Join(As, TEXT(", "));
-	}
-
 	/**
 	 * Una voce con un valore DIVERSO da quello di default in **ogni** campo, audit compresi.
 	 *
@@ -96,7 +78,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyClassificationTest,
 bool FRTReplayPrivacyClassificationTest::RunTest(const FString&)
 {
 	const TMap<FName, ERTReplayFieldVisibility>& Table = URTReplayPrivacyLibrary::FieldVisibility();
-	const TSet<FName> Reflected = ReflectedNames(FRTTurnLogEntry::StaticStruct());
+	const TSet<FName> Reflected = RTTestReflection::ReflectedNames(FRTTurnLogEntry::StaticStruct());
 
 	// Anti-vacuita': una tabella vuota renderebbe verdi i due controlli sotto per assenza di soggetto.
 	TestTrue(TEXT("la tabella classifica almeno un campo"), Table.Num() > 0);
@@ -109,7 +91,7 @@ bool FRTReplayPrivacyClassificationTest::RunTest(const FString&)
 	}
 	TestTrue(
 		FString::Printf(TEXT("ogni campo di FRTTurnLogEntry e' classificato; non classificati: [%s]"),
-			*Listed(Unclassified)),
+			*RTTestReflection::Listed(Unclassified)),
 		Unclassified.Num() == 0);
 
 	// Il difetto simmetrico: un campo rinominato lascerebbe nella tabella un nome che non esiste piu', e la
@@ -122,7 +104,7 @@ bool FRTReplayPrivacyClassificationTest::RunTest(const FString&)
 		if (!Reflected.Contains(Row.Key)) { Ghosts.Add(Row.Key); }
 	}
 	TestTrue(
-		FString::Printf(TEXT("la tabella non classifica campi inesistenti; fantasmi: [%s]"), *Listed(Ghosts)),
+		FString::Printf(TEXT("la tabella non classifica campi inesistenti; fantasmi: [%s]"), *RTTestReflection::Listed(Ghosts)),
 		Ghosts.Num() == 0);
 
 	// Una chiave duplicata verrebbe ingoiata dalla `TMap` con l'ultima riga vincente: il conteggio la vede.
@@ -147,7 +129,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplayPrivacyPublicTypeTest,
 bool FRTReplayPrivacyPublicTypeTest::RunTest(const FString&)
 {
 	const TMap<FName, ERTReplayFieldVisibility>& Table = URTReplayPrivacyLibrary::FieldVisibility();
-	const TSet<FName> InPublicType = ReflectedNames(FRTPublicReplayEntry::StaticStruct());
+	const TSet<FName> InPublicType = RTTestReflection::ReflectedNames(FRTPublicReplayEntry::StaticStruct());
 
 	TSet<FName> ClassifiedPublic;
 	TSet<FName> ClassifiedAudit;
@@ -162,19 +144,19 @@ bool FRTReplayPrivacyPublicTypeTest::RunTest(const FString&)
 	const TSet<FName> AuditInsidePublic = InPublicType.Intersect(ClassifiedAudit);
 	TestTrue(
 		FString::Printf(TEXT("nessun campo audit-only vive dentro FRTPublicReplayEntry; trovati: [%s]"),
-			*Listed(AuditInsidePublic)),
+			*RTTestReflection::Listed(AuditInsidePublic)),
 		AuditInsidePublic.Num() == 0);
 
 	const TSet<FName> MissingFromPublic = ClassifiedPublic.Difference(InPublicType);
 	TestTrue(
 		FString::Printf(TEXT("ogni campo classificato pubblico esiste nel tipo pubblico; mancanti: [%s]"),
-			*Listed(MissingFromPublic)),
+			*RTTestReflection::Listed(MissingFromPublic)),
 		MissingFromPublic.Num() == 0);
 
 	const TSet<FName> UnclassifiedInPublic = InPublicType.Difference(ClassifiedPublic);
 	TestTrue(
 		FString::Printf(TEXT("il tipo pubblico non porta campi fuori dalla classificazione; di troppo: [%s]"),
-			*Listed(UnclassifiedInPublic)),
+			*RTTestReflection::Listed(UnclassifiedInPublic)),
 		UnclassifiedInPublic.Num() == 0);
 
 	TSet<FName> TypeMismatch;
@@ -186,7 +168,7 @@ bool FRTReplayPrivacyPublicTypeTest::RunTest(const FString&)
 	}
 	TestTrue(
 		FString::Printf(TEXT("un campo pubblico ha lo stesso TIPO nei due prodotti; divergenti: [%s]"),
-			*Listed(TypeMismatch)),
+			*RTTestReflection::Listed(TypeMismatch)),
 		TypeMismatch.Num() == 0);
 
 	return true;
@@ -247,11 +229,11 @@ bool FRTReplayPrivacyCopyTest::RunTest(const FString&)
 
 	TestTrue(
 		FString::Printf(TEXT("ogni campo del tipo pubblico porta il valore della voce di audit; divergenti: [%s]"),
-			*Listed(NotCopied)),
+			*RTTestReflection::Listed(NotCopied)),
 		NotCopied.Num() == 0);
 	TestTrue(
 		FString::Printf(TEXT("la voce satura non lascia nessun campo pubblico al proprio default; fermi: [%s]"),
-			*Listed(LeftAtDefault)),
+			*RTTestReflection::Listed(LeftAtDefault)),
 		LeftAtDefault.Num() == 0);
 
 	return true;

@@ -12,10 +12,13 @@
 #include "HAL/IConsoleManager.h"
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexCellData.h"
+#include "Map/RTHexCellVisibility.h"
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTHexOccupancyLibrary.h"
 #include "Misc/AutomationTest.h"
 #include "Replay/RTBoundaryChecksum.h"
+#include "Tests/RTReflectedFieldsForTest.h"
+#include "Turn/RTHexSim.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
@@ -353,7 +356,14 @@ bool FRTDebugCellReportCarriesEveryFieldTest::RunTest(const FString&)
 	Cover.Integrity = 20;
 	Cell.Covers.Add(Cover);
 
-	const FString Line = URTDebugReportLibrary::DescribeCell(Cell, /*OccupantUnitId*/ 7, /*Revision*/ 42);
+	// Lo snapshot e' ora la fonte sia dell'occupante sia della revisione, e porta l'osservatore per cui e'
+	// stato costruito (#2485). Qui onnisciente, come il comando di console che questo test copre.
+	FRTHexSnapshot Snapshot;
+	Snapshot.ObserverTeamId = RTObserver::Omniscient;
+	Snapshot.Revision = 42;
+	Snapshot.Occupancy.Add(Cell.Id, 7);
+
+	const FString Line = URTDebugReportLibrary::DescribeCell(RTObserver::Omniscient, Cell, Snapshot);
 
 	TestTrue(TEXT("CellId — le coordinate assiali, con il layer"), Line.Contains(TEXT("(q=4,r=-2,L=1)")));
 	TestTrue(TEXT("TerrainId — la superficie, che nel modello si chiama Surface"),
@@ -368,8 +378,142 @@ bool FRTDebugCellReportCarriesEveryFieldTest::RunTest(const FString&)
 
 	// Una cella libera non deve stampare un occupante finto: `0` e' un UnitId valido, e usarlo come
 	// sentinella confonderebbe «cella vuota» con «ci sta l'unita' 0».
-	const FString Empty = URTDebugReportLibrary::DescribeCell(Cell, /*OccupantUnitId*/ INDEX_NONE, 42);
+	FRTHexSnapshot Libera;
+	Libera.ObserverTeamId = RTObserver::Omniscient;
+	Libera.Revision = 42;
+	const FString Empty = URTDebugReportLibrary::DescribeCell(RTObserver::Omniscient, Cell, Libera);
 	TestFalse(TEXT("una cella libera non dichiara un occupante"), Empty.Contains(TEXT("occupante=")));
+	return true;
+}
+
+/**
+ * **Ogni campo di `FRTHexCellData` e' classificato, e la classificazione non nomina campi che non
+ * esistono** (#2485).
+ *
+ * 🔴 **A che serve, visto che oggi sono tutti `Public`.** Non a filtrare: a **obbligare a
+ * classificare**. Chi aggiunge una `UPROPERTY` alla cella e non dice se sia pubblica trova questo rosso, e
+ * la visibilita' diventa una decisione presa invece di un default subito. E' lo stesso gate che #1805
+ * chiede per nome su `FRTTurnLogEntry`, sul modello della mappa invece che su quello della traccia.
+ *
+ * ⚠️ **Legge per reflection e non un elenco scritto qui.** Un secondo elenco sarebbe una seconda
+ * classificazione, cioe' esattamente il difetto: l'AC chiede che la classificazione stia in **un solo
+ * posto** e che il test la legga da li'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellFieldClassificationTest,
+	"RefactorTactics.Debug.EveryCellFieldIsClassified",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellFieldClassificationTest::RunTest(const FString&)
+{
+	const TMap<FName, ERTCellFieldVisibility>& Table = URTHexCellVisibilityLibrary::FieldVisibility();
+	const TSet<FName> Reflected =
+		RTTestReflection::ReflectedNames(FRTHexCellData::StaticStruct());
+
+	// Anti-vacuita': con una tabella vuota, o con una reflection che non vedesse niente, i tre controlli
+	// sotto sarebbero verdi per assenza di soggetto.
+	TestTrue(TEXT("la tabella classifica almeno un campo"), Table.Num() > 0);
+	TestTrue(TEXT("la reflection vede almeno un campo di FRTHexCellData"), Reflected.Num() > 0);
+
+	TSet<FName> Unclassified;
+	for (const FName& Name : Reflected)
+	{
+		if (!Table.Contains(Name)) { Unclassified.Add(Name); }
+	}
+	TestTrue(
+		*FString::Printf(TEXT("ogni campo di FRTHexCellData e' classificato; non classificati: [%s]"),
+			*RTTestReflection::Listed(Unclassified)),
+		Unclassified.Num() == 0);
+
+	// Il difetto simmetrico: un campo rinominato lascerebbe in tabella un nome che non esiste piu'.
+	// `GET_MEMBER_NAME_CHECKED` lo previene in compilazione; qui si misura comunque, perche' un gate che
+	// dipende da una macro usata correttamente a mano non e' un gate.
+	TSet<FName> Ghosts;
+	for (const TPair<FName, ERTCellFieldVisibility>& Row : Table)
+	{
+		if (!Reflected.Contains(Row.Key)) { Ghosts.Add(Row.Key); }
+	}
+	TestTrue(
+		*FString::Printf(TEXT("la tabella non classifica campi inesistenti; fantasmi: [%s]"), *RTTestReflection::Listed(Ghosts)),
+		Ghosts.Num() == 0);
+
+	// Una chiave duplicata verrebbe ingoiata dalla `TMap`, con l'ultima riga vincente: il conteggio la vede.
+	TestEqual(TEXT("una riga per campo, nessuna classificata due volte"), Table.Num(), Reflected.Num());
+
+	// ⛔ L'occupante NON e' un campo della cella, ed e' il reperto di #2485: il solo dato
+	// `ObserverDependent` del contesto-cella viveva fuori dalla struct, quindi nessun gate sui campi
+	// poteva vederlo. Si asserisce che resti fuori, non dentro.
+	TestFalse(TEXT("l'occupante non e' un campo di FRTHexCellData"),
+		Reflected.Contains(URTHexCellVisibilityLibrary::OccupantField()));
+
+	return true;
+}
+
+/**
+ * **Il canale laterale: due scene che differiscono SOLO per cio' che l'osservatore non ha diritto di
+ * sapere danno lo stesso output** (#2485, sul modello di `DrawIntentHidesEnemyIntent`).
+ *
+ * 🔑 **Non basta che l'occupante non compaia: le due righe devono essere IDENTICHE.** Un output che
+ * differisse per una sola lettera — una spaziatura, un conteggio, un ordine — direbbe a chi guarda che
+ * qualcosa c'e', ed e' la definizione di canale laterale. `TestEqual` sull'intera riga, non `Contains`.
+ *
+ * ⚠️ **Il controllo positivo non e' decorativo.** Senza di esso il test sarebbe verde anche se
+ * `DescribeCell` non mostrasse MAI nessun occupante — la forma di falso verde piu' facile da ottenere
+ * riparando «troppo».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCellContextHidesEnemyPositionTest,
+	"RefactorTactics.Debug.CellContextHidesEnemyPosition",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCellContextHidesEnemyPositionTest::RunTest(const FString&)
+{
+	FRTHexCellData Cell;
+	Cell.Id = FRTCellId(1, 1, 0);
+	Cell.Surface = ERTHexSurface::Floor;
+
+	auto Scena = [&Cell](int32 SnapshotObserver, int32 OccupantUnitId)
+	{
+		FRTHexSnapshot S;
+		S.ObserverTeamId = SnapshotObserver;
+		S.Revision = 7;
+		if (OccupantUnitId != INDEX_NONE) { S.Occupancy.Add(Cell.Id, OccupantUnitId); }
+		return S;
+	};
+
+	constexpr int32 Squadra0 = 0;
+	constexpr int32 UnitaNemica = 9;
+
+	// Le due scene differiscono SOLO per il nemico sulla cella, e la fonte e' onnisciente: comporre una
+	// vista per la squadra 0 da li' e' precisamente cio' che non deve poter accadere.
+	const FString ConNemico =
+		URTDebugReportLibrary::DescribeCell(Squadra0, Cell, Scena(RTObserver::Omniscient, UnitaNemica));
+	const FString SenzaNemico =
+		URTDebugReportLibrary::DescribeCell(Squadra0, Cell, Scena(RTObserver::Omniscient, INDEX_NONE));
+
+	TestEqual(TEXT("due scene indistinguibili per l'osservatore danno la STESSA riga"),
+		ConNemico, SenzaNemico);
+	TestFalse(TEXT("e la riga non nomina l'unita' nemica"),
+		ConNemico.Contains(TEXT("occupante=9")));
+
+	// Controllo positivo: da una fonte costruita PER la squadra 0, l'occupante si vede. Senza questo, un
+	// `DescribeCell` che non mostrasse mai nessuno passerebbe i due controlli qui sopra.
+	const FString Autorizzato =
+		URTDebugReportLibrary::DescribeCell(Squadra0, Cell, Scena(Squadra0, UnitaNemica));
+	TestTrue(TEXT("da una fonte autorizzata l'occupante si vede"),
+		Autorizzato.Contains(TEXT("occupante=9")));
+
+	// E il rifiuto si DICE: una riga che tacesse sarebbe indistinguibile da una cella libera, e chi legge
+	// il dump concluderebbe il falso invece di accorgersi che la fonte era sbagliata.
+	TestTrue(TEXT("il rifiuto e' dichiarato, non silenzioso"),
+		ConNemico.Contains(TEXT("NON-COMPOSTO")));
+
+	// ⛔ Lo stesso vale per la vista TECNICA, che e' il posto dove un conteggio di comodo entrerebbe piu'
+	// facilmente: anche li' le due scene devono essere indistinguibili.
+	const TArray<FRTPlannedIntent> NessunIntento;
+	const TArray<FString> TecnicaCon = URTDebugReportLibrary::DescribeContext(
+		Squadra0, Cell, Scena(RTObserver::Omniscient, UnitaNemica), NessunIntento, ERTContextView::Technical);
+	const TArray<FString> TecnicaSenza = URTDebugReportLibrary::DescribeContext(
+		Squadra0, Cell, Scena(RTObserver::Omniscient, INDEX_NONE), NessunIntento, ERTContextView::Technical);
+	TestEqual(TEXT("anche la vista tecnica non distingue le due scene"),
+		FString::Join(TecnicaCon, TEXT("|")), FString::Join(TecnicaSenza, TEXT("|")));
+
 	return true;
 }
 
