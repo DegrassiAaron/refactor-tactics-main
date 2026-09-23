@@ -8428,7 +8428,8 @@ FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) co
 	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi.
 	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, PlaybackAttacks.Num(),
-		PlaybackStructureHits.Num(), PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
+		PlaybackStructureHits.Num(), PlaybackFootprints.Num(),
+		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
 }
 
 float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const

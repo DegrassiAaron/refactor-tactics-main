@@ -58,17 +58,18 @@ float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegmen
 {
 	// Una riga: la formula sta in `PhaseTime`, e il totale e' la somma dei suoi due termini. Non c'e' un
 	// secondo calcolo da tenere allineato.
-	// ⚠️ **`NumStructureHits = 0`, e non e' una dimenticanza**: questo wrapper non conosce i colpi a
-	// struttura (`#2828`), quindi su un `Blast` che ne contiene piu' dei colpi restituisce una durata
-	// SOTTOSTIMATA. ⛔ Chi dimensiona il playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama
-	// `PhaseTime` con entrambi i conteggi. Questa forma sopravvive per i gate di pacing sulle fasi classiche,
-	// e la riga esiste perche' il prossimo che la usi altrove sappia cosa NON sta contando.
-	return PhaseTime(Phase, MaxMoveSegments, NumAttacks, /*NumStructureHits=*/ 0, CellsPerSecond,
-		AttackShowSeconds, PhaseBeatSeconds).Total();
+	// ⚠️ **DUE zeri, e nessuno dei due e' una dimenticanza**: questo wrapper non conosce ne i colpi a
+	// struttura (`#2828`) ne le impronte (`#3278`), quindi su un `Blast` in cui uno dei due canali e' piu'
+	// lungo dei colpi restituisce una durata SOTTOSTIMATA. ⛔ Chi dimensiona il playback vero non passa di
+	// qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` con tutti i conteggi. Questa forma sopravvive per
+	// i gate di pacing sulle fasi classiche, e la riga esiste perche' il prossimo che la usi altrove sappia
+	// cosa NON sta contando.
+	return PhaseTime(Phase, MaxMoveSegments, NumAttacks, /*NumStructureHits=*/ 0, /*NumFootprints=*/ 0,
+		CellsPerSecond, AttackShowSeconds, PhaseBeatSeconds).Total();
 }
 
 FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
-	int32 NumStructureHits,
+	int32 NumStructureHits, int32 NumFootprints,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {
 	// Il tempo di movimento e' lo stesso calcolo per tutte le fasi che muovono, Blast compreso: si scrive
@@ -90,25 +91,25 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 	case ERTMatchPhase::Blast:
 	{
 		// `Max(1, ...)`: un Blast di sola spinta non ha colpi, e una fase che si vede non puo' durare zero.
-		// 🔴 **`Max` fra colpi e muri, e non i soli colpi** (`#2828`). I due canali si rivelano in
-		// PARALLELO, ognuno col proprio contatore e con la stessa `AttacksToShow`: la fase deve durare quanto
-		// il piu' lungo dei due, non quanto quello che c'era prima. ⚠️ Senza questo termine un Blast di soli
-		// muri durava UN intervallo — `Max(1, 0)` — e tutti i colpi a struttura tranne il primo uscivano
-		// insieme dal catch-all di fine fase, cioe' nello stesso fotogramma: esattamente il difetto che
-		// `AttacksToShow` esiste per non produrre, e che il suo commento dichiara di evitare chiamandosi
-		// *«contro-termine di `PhaseDuration`»*. Lo era per i colpi e non per i muri.
+		// 🔴 **`Max` fra TUTTI i canali scaglionati, non i soli colpi** (`#2828` i muri, `#3278` le
+		// impronte). I tre si rivelano in PARALLELO, ognuno col proprio contatore e con la stessa
+		// `AttacksToShow`: la fase deve durare quanto il piu' lungo, non quanto quello che c'era prima.
 		//
-		// ⛔ **Non una somma**: i due canali scorrono insieme, non uno dopo l'altro.
-		// ⚠️ **Le IMPRONTE restano fuori da questo `Max`, e la soglia NON e' «piu' impronte che colpi».**
-		// `NumFootprints` non entra in questa funzione, ma il catch-all comincia a scaricare solo da
-		// `NumFootprints >= Max(1, Max(NumAttacks, NumStructureHits)) + 2`: sotto quella soglia la rivelazione
-		// scaglionata fa in tempo da sola. ⛔ E **un'area produce UNA impronta**, non piu' d'una —
-		// `ResolveCombatPasses` ne emette una per INTENTO — quindi servono piu' intenti aggressivi nello stesso
-		// Blast, non un'area piu' larga.
-		// ⏱️ *Questa riga diceva «un'area su sole celle vuote con piu' impronte che colpi»: sbagliata su
-		// entrambe le meta', e chi ne avesse ricavato un caso di prova avrebbe ottenuto un gate verde
-		// concludendo che il difetto non esiste.* E' preesistente a `#2828` (viene da `#2454`).
-		const float AttackTime = FMath::Max(1, FMath::Max(NumAttacks, NumStructureHits)) * AttackShowSeconds;
+		// ⚠️ **Lo stesso difetto e' comparso due volte, a un canale di distanza.** Senza il termine dei muri
+		// un Blast che ne abbatteva piu' d'uno durava `Max(1, 0)` = UN intervallo; senza quello delle impronte
+		// lo stesso accadeva a un'area con piu' intenti che vittime. In entrambi i casi il canale **apriva** la
+		// fase — `BlastPhaseIsActive` li conta tutti — e non la **dimensionava**, e cio' che non faceva in
+		// tempo usciva dal catch-all nello stesso fotogramma.
+		//
+		// ⛔ **Non una somma**: i canali scorrono insieme, non uno dopo l'altro.
+		// ⏱️ *Le IMPRONTE sono entrate qui con `#3278`. Fino ad allora questa riga le dichiarava fuori, e la
+		// soglia che scriveva era sbagliata su entrambe le meta': diceva «un'area su sole celle vuote con piu'
+		// impronte che colpi», mentre **un'area produce UNA impronta** — `ResolveCombatPasses` ne emette una
+		// per INTENTO — e il catch-all cominciava a scaricare solo da `NumFootprints >= Max(1, …) + 2`. Chi ne
+		// avesse ricavato un caso di prova avrebbe ottenuto un gate verde concludendo che il difetto non
+		// esiste.*
+		const float AttackTime =
+			FMath::Max(1, FMath::Max(NumAttacks, FMath::Max(NumStructureHits, NumFootprints))) * AttackShowSeconds;
 		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
 		//
 		// 🔴 **Tutto `Shown`, zero `Slack`, e la prima stesura sbagliava qui.** Metteva in `Slack`
