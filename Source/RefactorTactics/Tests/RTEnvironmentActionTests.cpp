@@ -67,14 +67,21 @@ namespace
 		return Actor;
 	}
 
-	ARTUnit* SpawnEnvUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell)
+	/**
+	 * L'unita' di prova. `Hero` nullo significa **Ivrin**, che e' l'eroe di default di questo file.
+	 *
+	 * ⚠️ Il parametro esiste dal `#3281`, che ha bisogno di due unita' con azioni base DIVERSE. Sta qui
+	 * invece che in un secondo helper perche' la sequenza di spawn e' UNA: duplicarla vorrebbe dire due
+	 * copie che divergono alla prima riga aggiunta a una sola delle due.
+	 */
+	ARTUnit* SpawnEnvUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, URTHeroData* Hero = nullptr)
 	{
 		if (!World) { return nullptr; }
 		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
 		if (!U) { return nullptr; }
 		U->TeamId = TeamId;
 		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(URTHeroCatalogLibrary::MakeIvrin());
+		U->ConfigureFromHeroData(Hero ? Hero : URTHeroCatalogLibrary::MakeIvrin());
 		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
 		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 		U->PlannedCell = Cell;
@@ -2951,21 +2958,6 @@ bool FRTStructuresRedundantFaceDrawsAtTwoHeightsTest::RunTest(const FString&)
 
 namespace
 {
-	/** Come `SpawnEnvUnit`, ma con l'EROE scelto: serve per avere due azioni base davvero diverse. */
-	ARTUnit* EnvSpawnHeroUnit(UWorld* World, int32 TeamId, const FRTCellId& Cell, URTHeroData* Hero)
-	{
-		if (!World || !Hero) { return nullptr; }
-		ARTUnit* U = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
-		if (!U) { return nullptr; }
-		U->TeamId = TeamId;
-		U->bIsBotControlled = false;
-		U->ConfigureFromHeroData(Hero);
-		UGameplayStatics::FinishSpawningActor(U, FTransform::Identity);
-		U->PlaceOnCell(Cell, FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
-		U->PlannedCell = Cell;
-		return U;
-	}
-
 	struct FRTEnvAggregateScenario
 	{
 		UWorld* World = nullptr;
@@ -3014,8 +3006,8 @@ namespace
 		S.MapActor->MapAsset->AddOrUpdateCell(ColMuro);
 		S.MapActor->MapAsset->SortCells();
 
-		S.Ivrin = EnvSpawnHeroUnit(S.World, 1, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeIvrin());
-		S.Branth = EnvSpawnHeroUnit(S.World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeBranth());
+		S.Ivrin = SpawnEnvUnit(S.World, 1, FRTCellId(0, 0), URTHeroCatalogLibrary::MakeIvrin());
+		S.Branth = SpawnEnvUnit(S.World, 0, FRTCellId(2, 0), URTHeroCatalogLibrary::MakeBranth());
 		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 		if (!S.Ivrin || !S.Branth || !S.TM) { return S; }
 		if (!S.Ivrin->Abilities.IsValidIndex(0) || !S.Branth->Abilities.IsValidIndex(0)) { return S; }
