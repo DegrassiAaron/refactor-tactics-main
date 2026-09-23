@@ -146,7 +146,8 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	return ERTMapEditOutcome::Applied;
 }
 
-ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle)
+ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle,
+	bool bDryRun)
 {
 	if (Map == nullptr)
 	{
@@ -161,7 +162,10 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		{
 			return ERTMapEditOutcome::RefusedUnresolved;
 		}
-		Map->InteriorWalls.RemoveAt(Index);
+		if (!bDryRun)
+		{
+			Map->InteriorWalls.RemoveAt(Index);
+		}
 		return ERTMapEditOutcome::Applied;
 	}
 
@@ -203,6 +207,13 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 			return ERTMapEditOutcome::RefusedUnresolved;
 		}
 
+		if (bDryRun)
+		{
+			// ⚠️ Si esce PRIMA di scrivere la cella: da qui in giu' c'e' solo mutazione, e la
+			// risposta — `Applied` — e' gia' decisa dal `Removed` letto qui sopra.
+			return ERTMapEditOutcome::Applied;
+		}
+
 		Map->AddOrUpdateCell(Data);
 
 		// 🔴 Lo stesso `C2` della cascata della cella: un binding che nomina una struttura sparita diventa
@@ -225,10 +236,39 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		return ERTMapEditOutcome::Applied;
 	}
 
+	// --- Arco di transizione: chiave naturale `(From, To)`, letta NON ORDINATA ---------------------
+	//
+	// 🔴 **Fino al 2026-09-23 questo ramo era un rifiuto**, con la ragione scritta: *«`Transition`
+	// non ha ancora un gesto che la selezioni»*. Il gesto ora c'e' — `URTHexArchTool` possiede da
+	// sempre il hit-test di viewport che la spec §13.3 gli assegna — e quel rifiuto era l'unica cosa
+	// che mancava perche' l'arco fosse un elemento autorato come gli altri.
+	//
+	// ⚠️ **Si tolgono ENTRAMBE le direzioni.** L'asset tiene andata e ritorno come due `FRTHexEdge`
+	// distinti; per chi guarda sono un arco solo, e lasciarne una meta' produrrebbe un passaggio a senso
+	// unico che nessuno ha chiesto. E' la stessa scelta che `RemoveTransitionData(..., bBothDirections)`
+	// fa da sempre dal lato dell'actor.
+	if (Handle.Kind == ERTMapElementKind::Transition)
+	{
+		const auto Corrisponde = [&Handle](const FRTHexEdge& E)
+		{
+			return (E.From == Handle.Cell && E.To == Handle.To)
+				|| (E.From == Handle.To && E.To == Handle.Cell);
+		};
+
+		if (!Map->Transitions.ContainsByPredicate(Corrisponde))
+		{
+			return ERTMapEditOutcome::RefusedUnresolved;
+		}
+
+		if (!bDryRun)
+		{
+			Map->RemoveTransition(Handle.Cell, Handle.To, /*bBothDirections=*/ true);
+		}
+		return ERTMapEditOutcome::Applied;
+	}
+
 	if (Handle.Kind != ERTMapElementKind::Cell)
 	{
-		// `Transition` non ha ancora un gesto che la selezioni. Un `Applied` a vuoto sarebbe peggio di un
-		// rifiuto: chi chiama crederebbe di aver cancellato qualcosa.
 		return ERTMapEditOutcome::RefusedUnresolved;
 	}
 
@@ -250,6 +290,13 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 	Walls.Sort(Descending);
 	Edges.Sort(Descending);
 	Bindings.Sort(Descending);
+
+	if (bDryRun)
+	{
+		// La cella esiste (verificato sopra) e la cascata e' gia' stata raccolta: l'esito e' deciso, e
+		// tutto cio' che segue e' scrittura.
+		return ERTMapEditOutcome::Applied;
+	}
 
 	for (const int32 Index : Walls)
 	{

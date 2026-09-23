@@ -422,6 +422,11 @@ void URTHexGeometryTool::Render(IToolsContextRenderAPI* RenderAPI)
 		{
 			RTHexEditor::DrawSurfaceOverlay(OverlayPDI, RTHexEditor::FindTargetMapActor(TargetWorld.Get()));
 		}
+
+		// 🔑 **Anche la selezione condivisa, e PRIMA della guardia `bDragging`** (#1864, casella 2):
+		// dopo, si vedrebbe solo mentre si traccia — cioe' mai, nel momento in cui serve sapere che cosa
+		// `Canc` porterebbe via. E' la stessa ragione per cui l'overlay di #921 sta qui sopra.
+		RTHexEditor::DrawSharedSelection(OverlayPDI, RTHexEditor::FindTargetMapActor(TargetWorld.Get()));
 	}
 
 	if (!bDragging)
