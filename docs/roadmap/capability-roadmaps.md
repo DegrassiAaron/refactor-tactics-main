@@ -6,8 +6,29 @@
 > Questo documento non introduce una seconda scala di release, non assegna lavoro e non è owner di nessuna
 > feature: è una **vista di navigazione** sopra owner che esistono già.
 
-**Fotografia**: 2026-09-20, misurata su `origin/main` `f7aa7b32` e su GitHub LIVE.
+**Fotografia**: 2026-09-23, misurata su `origin/main` `3cda8ef5` e su GitHub LIVE (la precedente era il
+2026-09-20 su `f7aa7b32`).
 **Issue indice**: [#2325](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2325) — *[ROADMAP] Capability Roadmaps — vista longitudinale v0.1 → v1.0*. ⌫ **Fino al 2026-09-20 questa riga rimandava a una sezione che non esiste** (*«vedi § Dove vive questa vista su GitHub»*): `grep -c` la trovava una volta sola, cioè il rimando stesso, e il documento non nominava mai la propria issue indice.
+
+> 🔁 **Rimisurata il 2026-09-23 contro GitHub LIVE, con lo stesso comando qui sotto.** Una sola ancora
+> stantia: **#1805**, chiusa `COMPLETED` il **2026-09-21** — cioè **il giorno dopo** la rimisura che questa
+> pagina certificava. Compariva in **tre** punti (la tabella di `CR-REPLAY`, i correlati di `CR-NET`, la
+> riga `F` di §4), tutti e tre senza annotazione, e in una convenzione dove **le chiuse si annotano e le
+> aperte no** un'ancora muta si legge come aperta. Annotati tutti e tre.
+>
+> 🔑 **È la SECONDA volta in tre giorni che questa certificazione scade, ed è la tesi che il documento già
+> enuncia — ora con due misure invece di una.** Il 2026-09-20 durò ventidue minuti (#543); questa è durata
+> tre giorni. ⛔ Non è un errore di chi ha misurato: una fotografia di stato **non è un gate**, e l'unico
+> rimedio durevole resta il comando qui sotto, che va **eseguito**.
+>
+> ✅ **E la convenzione regge, il che è il risultato che vale la pena avere.** Verificate tutte le
+> **76** issue citate: **49** aperte e **27** chiuse; delle citazioni che portano una parola di stato
+> accanto, **zero** divergono da GitHub. Le uniche chiuse senza annotazione erano le tre di #1805 — più
+> i casi in **prosa** che la nota qui sotto dichiara già legittimi (#1754, #472 come riferimento, le note
+> di rimisura che parlano *delle* chiusure). ⚠️ Il metodo conta: la parola di stato si cerca **dopo** la
+> citazione e fino alla successiva, perché un `(chiuse)` a fine elenco copre tutti i numeri che lo
+> precedono — `#1626 · #1627 · #1629 · #1630 (chiuse)` è una riga corretta, e un controllo ingenuo ne
+> segnalerebbe tre su quattro.
 
 > 🔁 **Rimisurata il 2026-09-20 contro GitHub LIVE.** Le ancore stantie erano #2193, **#2556**, #782, #784,
 > #2697, #2578 e #2629 — chiuse nei quattordici giorni dopo la fotografia del 2026-09-06 — più **#1496**,
@@ -118,7 +139,7 @@ né TurnLog.
 | indice delle partite | #416 (chiusa) |
 | consumer autobattle | #952 |
 | consumer Tactical Designer | #1625 |
-| confine public/sanitized vs private audit | #1805 |
+| confine public/sanitized vs private audit | #1805 (chiusa il 2026-09-21) |
 | seek per turno e fase | #415 (chiusa) |
 | Player che non ricalcola | #470 (chiusa) |
 | ponte Blueprint | #999 (chiusa) |
@@ -215,7 +236,7 @@ I client avversari non ricevono alcun payload di pianificazione privata
 ```
 
 Nessun intento avversario in `GameState`, in `PlayerState`, su Actor `AlwaysRelevant`, né nel log pubblico
-prima del momento autorizzato. Correlate: #759 (privacy temporale) · #1805 (public vs audit) · #1466 · #1496 (chiusa il 2026-09-02).
+prima del momento autorizzato. Correlate: #759 (privacy temporale) · #1805 (public vs audit, chiusa il 2026-09-21) · #1466 · #1496 (chiusa il 2026-09-02).
 
 ### CR-CONTENT — Character & Ability Pipeline
 
@@ -362,7 +383,7 @@ Le nove tappe d'esperienza e il loro owner reale — ⚠️ **lettere di questo 
 | `C` useful playtest | ci si può giudicare il gameplay | #2556 · #2629 (chiuse il 2026-09-09 e il 2026-09-18) · #2477 · #326 | v0.1 → v0.2 |
 | `D` spectator / camera | guardo da spettatore | **#1769** · #1781 (`CAM-12`) | v0.1 parziale (`D-286`) |
 | `E` match story | so chi sta vincendo, e perché | #2281 · #331 · #332 | v0.1 → v0.4 |
-| `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 | v0.1 → v1.0 |
+| `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 (chiusa) | v0.1 → v1.0 |
 | `G` presentation | comincia a sembrare un gioco | #286 · #217 · #2453 | v0.1 → v0.2 |
 | `H` showcase / video | configuro una demo e la ripeto | **#2745** (discovery) | post-v0.1 |
 | `I` representative match | mostra il gioco futuro, non l'arena | #325 · #221 · #333 · #331 · #332 | post-v0.1 |
