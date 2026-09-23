@@ -10,6 +10,7 @@
 #include "Map/RTMapEditLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"   // FRTHexCellData::Id, per l'ancora del seme
+#include "Map/RTHexMapSummary.h" // #1186: che cosa contiene la mappa, composto nel runtime
 #include "Editor.h"
 #include "ScopedTransaction.h"
 #include "InteractiveToolManager.h"
@@ -85,14 +86,77 @@ void URTHexEditorMode::Enter()
 	// cancellandola la suite resterebbe verde e la griglia non comparirebbe mai. E' la stessa lacuna che
 	// `RTHexOverlaySettingsTests.cpp:116-121` dichiara per la pubblicazione del settings, e come quella e'
 	// a carico di una voce PIE — qui `PIE-MAPED-GRID`.
-	RefreshWorkGrid();
+	//
+	// ⚠️ **Una sola ricerca per entrambi, e non e' un dettaglio di stile.** `FindTargetMapActor`
+	// percorre la selezione **e** tutti gli actor del mondo: chiamarla due volte di seguito la paga due
+	// volte, e — peggio — lascia aperta la possibilita' che le due risposte differiscano, cioe' che griglia
+	// e readout descrivano mappe diverse nello stesso istante.
+	ARTHexMapActor* Target = RTHexEditor::FindTargetMapActor(GetWorld());
+	RefreshWorkGrid(Target);
+
+	// 🔑 **#1186, primo criterio del DoD**: «entrando nel mode il pannello mostra asset, celle,
+	// layer e layer attivo **senza premere nulla**». Sta qui per la stessa ragione della griglia:
+	// entrare nel mode e' l'unico momento in cui «entrare» significa qualcosa.
+	RefreshMapReadout(Target);
 }
 
 void URTHexEditorMode::ModeTick(float /*DeltaTime*/)
 {
 	// Un confronto per fotogramma; il lavoro vero solo quando la chiave cambia. Il perche' del polling al
 	// posto degli hook sta nel docstring di `RTHexWorkGrid::FWatch`.
-	RefreshWorkGrid();
+	//
+	// 🔑 **#1186 riusa lo stesso giro invece di aprirne un secondo.** I readout della mappa
+	// dipendono dagli stessi segnali della griglia — quale actor, quale asset, quale revisione, quale
+	// layer attivo — e un secondo meccanismo di aggiornamento sarebbe una seconda risposta alla stessa
+	// domanda: esattamente il difetto che quella issue esiste per chiudere.
+	//
+	// ⚠️ L'actor si cerca **una volta sola** e si passa a entrambi: vedi `Enter()`.
+	ARTHexMapActor* Target = RTHexEditor::FindTargetMapActor(GetWorld());
+	RefreshMapReadout(Target);
+	RefreshWorkGrid(Target);
+}
+
+void URTHexEditorMode::RefreshMapReadout(ARTHexMapActor* Map)
+{
+	URTHexEditorModeSettings* Settings = Cast<URTHexEditorModeSettings>(SettingsObject);
+	if (Settings == nullptr)
+	{
+		return;
+	}
+
+	const URTHexMapAsset* Asset = Map ? Map->MapAsset : nullptr;
+
+	// ⚠️ Si riusa `FWatch` per i soli campi che descrivono la MAPPA: `bShow`, `Margin` e `SeedRadius`
+	// restano ai default e non partecipano, perche' un readout che si riscrivesse cambiando il margine
+	// della griglia direbbe di dipenderne — e non e' vero.
+	RTHexWorkGrid::FWatch Ora;
+	if (Map)
+	{
+		Ora.MapActor = FObjectKey(Map);
+		Ora.ActiveLayer = Map->ActiveLayer;
+	}
+	if (Asset)
+	{
+		Ora.MapAsset = FObjectKey(Asset);
+		Ora.Revision = Asset->Revision;
+		Ora.NumCells = Asset->NumCells();
+	}
+
+	if (Ora == MapReadoutWatch)
+	{
+		return;
+	}
+	MapReadoutWatch = Ora;
+
+	// ⛔ La lettura e la messa in parole stanno nel RUNTIME (`spec-tactical-designer.md` §3), e qui si
+	// scrive soltanto. Il conteggio dei layer viene da `GetLayers()`: il divieto di ricontarli e' della
+	// issue, e `PanelAndLibraryCannotDiverge` lo presidia.
+	const FRTHexMapSummary S = URTHexMapSummaryLibrary::Summarise(Asset, Map ? Map->ActiveLayer : 0);
+
+	Settings->MappaAsset = URTHexMapSummaryLibrary::DescriviAsset(S);
+	Settings->MappaCelle = URTHexMapSummaryLibrary::DescriviCelle(S);
+	Settings->MappaLayer = URTHexMapSummaryLibrary::DescriviLayer(S);
+	Settings->MappaLayerAttivo = URTHexMapSummaryLibrary::DescriviLayerAttivo(S);
 }
 
 void URTHexEditorMode::Exit()
@@ -121,6 +185,7 @@ void URTHexEditorMode::Exit()
 	}
 	WorkGrid.Reset();
 	WorkGridWatch = RTHexWorkGrid::FWatch();
+	MapReadoutWatch = RTHexWorkGrid::FWatch();
 	WorkGridPlacement = RTHexWorkGrid::FPlacement();
 	WorkGridPlan = RTHexWorkGrid::FPlan();
 	WorkGridDrawn = 0;
@@ -144,13 +209,15 @@ namespace
 	constexpr int32 RTWorkGridMaxGhosts = 4096;
 }
 
-void URTHexEditorMode::RefreshWorkGrid()
+void URTHexEditorMode::RefreshWorkGrid(ARTHexMapActor* Map)
 {
 	const URTHexEditorModeSettings* Settings = Cast<URTHexEditorModeSettings>(SettingsObject);
 
-	// ⚠️ **Lo spegnimento si decide PRIMA di cercare l'actor.** `FindTargetMapActor` percorre gli actor del
-	// mondo a ogni chiamata: farlo anche a griglia spenta sarebbe un costo per fotogramma per una feature
-	// che chi lavora ha chiesto di non vedere.
+	// ⚠️ **Lo spegnimento si decide per primo, e resta il ramo piu' corto.** La ricerca dell'actor era
+	// qui dentro proprio per non pagarla a griglia spenta; da `#1186` la paga comunque il readout della
+	// mappa, che deve aggiornarsi anche quando la griglia non si vede. Quindi il chiamante cerca **una
+	// volta** e passa il risultato a entrambi: una ricerca per fotogramma invece di due, e nessun rischio
+	// che i due consumatori vedano mappe diverse.
 	if (Settings == nullptr || !Settings->bShowWorkGrid)
 	{
 		// Si DISTRUGGE e non si svuota: un portatore vuoto lasciato nel mondo farebbe rientrare questo ramo
@@ -168,7 +235,6 @@ void URTHexEditorMode::RefreshWorkGrid()
 	}
 
 	UWorld* World = GetWorld();
-	ARTHexMapActor* Map = RTHexEditor::FindTargetMapActor(World);
 
 	RTHexWorkGrid::FWatch Now;
 	RTHexWorkGrid::FPlacement Place;
