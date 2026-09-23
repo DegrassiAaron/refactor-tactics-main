@@ -942,10 +942,23 @@ oggi promette file che non ci sono. Registrato in §8.
 > misurato, quindi si leggeva come misurato anch'esso. Contarli richiederebbe decidere caso per caso se un
 > nome descrive un sistema assente, e quella classificazione non è stata fatta. Trovato in code review.
 >
+> ✅ **La classificazione ORA È FATTA — §11.3, dal 2026-09-23 (`#1809`).** Le tre colonne sono
+> `scrivibile ora 6 · bloccato da <issue> 24 · scartato con ragione 4`, somma **34**. 🔑 **E «la maggior
+> parte» era giusta in sostanza e sbagliata in ampiezza**: i nomi che verificano un sistema assente sono
+> **24**, non trenta — quattro degli altri non sono bloccati ma **non sono scenari affatto** (un'opzione
+> di accessibilità, una misura di tempo, un gate packaged, un canary che ha già un owner), e sei hanno il
+> soggetto **vivo e coperto da test**. Il numerale resta fuori da questa riga: sta in §11.3 con la tabella
+> che lo produce.
+>
 > Quello che oggi **è** verificabile senza inventare sistemi sono `FocusOn` e `FrameOwnTeam`, e non serve
 > uno scenario: sono automation test puri, aperti come
 > [#865](https://github.com/DegrassiAaron/refactor-tactics-main/issues/865). La camera entra in questo
 > documento quando avrà qualcosa che un occhio deve guardare — non prima. Registrato in §9.
+>
+> ➕ **E da quando avrà quel qualcosa, il nome si forma con §11**, che `#1809` ha scritto per questo:
+> prefisso `Visual.Camera.*`, tre segmenti, e un criterio a due comandi per dire se il soggetto esiste.
+> ⛔ **§11 non aggiunge nessun nome qui**: la riga qui sopra — *«non prima»* — resta in vigore parola per
+> parola, e i sei nomi `scrivibile ora` sono nomi **coniabili**, non scenari.
 
 ---
 
@@ -977,11 +990,19 @@ PIE** — stessa proprietà, popolazione diversa: *dichiarate, non eseguibili*.
 
 Nessun numero di questo documento va aggiornato a memoria. Tutti si ricalcolano:
 
+> 🔴 **I tre numeri del primo blocco erano STANTII, corretti il 2026-09-23 da `#1809` rieseguendo i loro
+> stessi comandi.** Dicevano `54 · 21 · 19`, misurati il **2026-08-19** (`3ab24161`) e mai più toccati
+> mentre il corpus cresceva sotto di loro: oggi `138 · 38 · 76`. ⚠️ **Erano tre e non due**: `#1809`
+> ne dichiarava due, perché il 2026-08-30 `Scenarios/Visual` dava ancora `21` ed era l'unico giusto —
+> nel frattempo è passato a `38`. È il difetto nella sezione che esiste per prevenirlo, e la correzione
+> da sola non basta: **ogni comando porta ora la data della propria misura**, così il prossimo che scade
+> si distingue da quello che regge. Un numero senza data non si può rimisurare, si può solo credere.
+
 ```bash
 # Classe A + B + D-scritti — il corpus versionato
-find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 54
-find Scenarios/Visual -name '*.json' | wc -l                              # 21  (B)
-find Scenarios/Spec   -name '*.json' | wc -l                              # 19  (12 in D + 7 accesi in A)
+find Scenarios -name '*.json' ! -name '_*' | wc -l                        # 138  (2026-09-23)
+find Scenarios/Visual -name '*.json' | wc -l                              #  38  (2026-09-23)  (B)
+find Scenarios/Spec   -name '*.json' | wc -l                              #  76  (2026-09-23)
 
 # Registro PIE — i totali della tabella §2 e della §5
 # ⚠️ Aggiunti il 2026-08-13: la §2 diceva 117 e la §5 diceva 95 perche' NESSUN comando qui sotto
@@ -1195,7 +1216,253 @@ e stanno qui perché «tutte le feature della v0.1» non diventi un traguardo ch
 |---|---|
 | [`test-manuali-pie.md`](../test-manuali-pie.md) | **Owner** delle voci: stato ed esito atteso si scrivono lì. Qui se ne classifica l'esecutore e se ne dichiara il subset di release |
 | [`scenari-validazione-visiva.md`](../runbooks/scenari-validazione-visiva.md) | **Owner** della classe B: cosa si guarda, con quale fixture e quali numeri |
-| [`scenario-index-e-tag.md`](scenario-index-e-tag.md) | **Owner** dell'identità: `ScenarioId`, tag, redirect, indice |
+| [`scenario-index-e-tag.md`](scenario-index-e-tag.md) | **Owner** dell'identità come **meccanismo**: che un `ScenarioId` sia stabile, dichiarato dal file e univoco; i tag; i redirect; l'indice. ⚠️ **Non la regola di formazione dei nomi**, che è §11 di questo file: là si risponde *«come funziona un ID»*, qui *«quale ID è lecito scrivere, e quando»* |
 | [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) | **Consumer**: G9 punta al subset di §8 |
 | `../../roadmap/feature-registry.yaml` | **Consumer e sorgente**: il gate `scenario` di una feature è `done` solo se uno scenario la **dimostra**; gli `planned` di §6.2 vengono da lì |
 | [`test-e-diagnosi.md`](../runbooks/test-e-diagnosi.md) | Come si scrive ed esegue uno scenario, e come si legge un report fallito |
+
+---
+
+## 11. La convenzione di `ScenarioId` — quando un nome è scrivibile
+
+> Scritta il **2026-09-23** da [`#1809`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1809)
+> (`CAM-11a`), misurata su `origin/main` `d1df1cc8`.
+>
+> **Cosa possiede questa sezione**: la regola di **formazione** dei nomi — quale prefisso, quale
+> granularità, e soprattutto **quando un nome è scrivibile e quando è ancora una promessa**.
+>
+> ⛔ **Non possiede il modello di identità**, che è di
+> [`scenario-index-e-tag.md`](scenario-index-e-tag.md): che un `ScenarioId` sia stabile, dichiarato dal
+> file e univoco; che i tag siano un asse separato; che il percorso sia storage senza promesse. Il confine
+> è netto e vale la pena scriverlo, perché i due si somigliano: **quello possiede il meccanismo — questa
+> il vocabolario**. La regola qui sotto sta in questo documento e non là perché la domanda che decide un
+> nome — *esiste qualcosa da verificare, e chi lo verifica?* — è la sola domanda di cui questo file è
+> owner.
+>
+> 🔵 **Nasce per la camera e non è una regola della camera.** `#1809` la chiede perché 34 `ScenarioId`
+> camera sono fermi dal 2026-08-14 senza un vocabolario in cui esprimerli, ma ciò che segue vale per ogni
+> dominio che entri nel corpus.
+
+### 11.1 Le cinque domande, e le loro risposte
+
+#### (1) Il prefisso è `Camera.*`, oppure la camera vive dentro `Visual.*`?
+
+**`Visual.Camera.*`.** Nessun sesto prefisso.
+
+La ragione non è di gusto, ed è **misurata**: l'harness degli scenari conosce **dieci** tipi di
+assertion — `TurnsCompleted`, `UnitAlive`, `UnitAtCell`, `UnitFacing`, `UnitHpEquals`, `LogEventCount`,
+`LogEventAmount`, `LogEventOrder`, `EffectiveTargetEquals`, `OriginalTargetEquals` — e **tutte e dieci
+parlano dello stato di simulazione**. Nessuna parla della vista.
+
+∴ uno scenario camera **non può essere di classe A**: non esiste un modo di asserire dove sia la camera.
+Può solo allestire una scena e far guardare una persona, che è esattamente la definizione di **classe B**,
+cioè di `Visual.*`. Rispondere `Camera.*` aprirebbe un prefisso per una classe che ne ha già uno.
+
+⚠️ **L'obiezione che questa risposta deve reggere** — sollevata da `#1809` — è che `Visual.*` ha già un
+owner, [`scenari-validazione-visiva.md`](../runbooks/scenari-validazione-visiva.md), e una semantica di
+fixture. Regge: la camera **è** validazione visiva, e finirci sotto è corretto, non un effetto collaterale.
+Ciò che ne consegue va dichiarato e non scoperto dopo: chi scrive il primo `Visual.Camera.*` aggiunge un
+caso a quel runbook, e `scenari-validazione-visiva.md` ne diventa l'owner come per ogni altro `Visual.*`.
+
+#### (2) Qual è la granularità?
+
+**Tre segmenti: `Visual.Camera.<Caso>`.** Il terzo segmento nomina il caso in CamelCase, come fa il corpus.
+
+Misurato sul corpus, interrogando il campo `scenarioId` e non i nomi delle cartelle:
+
+| Prefisso | 1 seg. | 2 seg. | 3 seg. | 4 seg. |
+|---|--:|--:|--:|--:|
+| `Spec.*` | | | 73 | 3 |
+| `Visual.*` | | | **38** | |
+| `Combat.*` | | 10 | | |
+| `Movement.*` | | 8 | | |
+| `AutoBattle.*` | | 5 | | |
+| `RT_Showcase_Relay_v01` | 1 | | | |
+
+🔑 **Per `Visual.*` non è una scelta: è l'unanimità.** Tutti e 38 gli scenari `Visual.*` hanno tre
+segmenti, senza una sola eccezione. I prefissi a due segmenti — `Combat`, `Movement`, `AutoBattle` — sono
+i più vecchi e non portano un dominio; i tre `Spec.*` a quattro sono un sotto-raggruppamento
+(`Spec.Map.Interaction.*`). Una convenzione camera a due o a quattro segmenti sarebbe l'unica anomalia
+dentro il prefisso che la ospita.
+
+∴ `Visual.Camera.CutawayRoofFades`, **non** `Visual.Camera.Cutaway` né
+`Visual.Camera.Cutaway.RoofFadesWhenUnitEnters`.
+
+#### (3) Che cosa qualifica un soggetto come **esistente**?
+
+Due comandi, e nessun giudizio. Un nome è **scrivibile ora** se chi lo scrive può rispondere a entrambi
+nominando qualcosa:
+
+```bash
+# (1) il simbolo-testimone risolve in produzione
+grep -rl "<Simbolo>" Source/ --include=*.h --include=*.cpp | grep -v '/Tests/'
+
+# (2) un automation test NOMINA il soggetto — per la camera:
+grep -oE '"RefactorTactics\.Camera\.[A-Za-z0-9.]+"' \
+     Source/RefactorTactics/Tests/RTCameraPawnTests.cpp | sort -u
+```
+
+⚠️ **La gamba (2) si misura sul NOME del test, non sul simbolo dentro il file di test**, e la differenza
+non è teorica: `UpdateStrategicState` non compare in nessun file di `Tests/` — il test che lo copre lo
+esercita da fuori, con `AddZoom` e `IsStrategicView` — e un criterio scritto come *«il simbolo compare in
+un test»* avrebbe dichiarato assente un soggetto che ha **due** test verdi. È lo stesso difetto che §7 di
+questo documento registra due volte: misurare il **formato** invece del **fatto**.
+
+⛔ **E il testimone dev'essere la RESA, non il dato che la alimenta.** `CAMERA-LAST-KNOWN-MARKER` trova
+`LastKnown` in `TeamKnowledge` con quattordici file e otto test: è il **dato** della posizione ricordata,
+non il marker che la disegna. Uno `ScenarioId` `Visual.Camera.*` che citasse quel testimone misurerebbe un
+omonimo a monte e passerebbe il criterio a vuoto — che è precisamente ciò che il triage aveva già trovato
+sui `feature_id`, *«nomi plausibili di feature che non ci sono»*, due dei quali con un omonimo semantico.
+
+#### (4) Che ne è di `RT_Showcase_Relay_v01`?
+
+**Grandfathered, con la ragione scritta, e la deroga ha un confine.**
+
+Non è uno scenario-verifica: è un **deliverable di prodotto**. La sua spec è
+`docs/product/showcase-v0.1.md`, la sua geometria è protetta da `ShowcaseRelay.BasinLayoutMatchesSpec`, e
+il suo nome vive **fuori dal corpus** — negli handoff del 2026-08-07 e 2026-08-08 e nella spec di
+prodotto. Rinominarlo romperebbe il legame con il nome che il prodotto usa per chiamarlo, e guadagnerebbe
+soltanto una riga di tabella più ordinata.
+
+⛔ **Il confine della deroga**: vale per uno scenario che **è** un deliverable nominato altrove, non per
+uno che verifica una regola. Una seconda showcase seguirebbe questa stessa deroga; un secondo
+scenario-verifica no. Senza questa riga l'eccezione diventerebbe il precedente della seconda, che è il
+rischio che `#1809` nomina.
+
+#### (5) Un nome che non si può ancora scrivere — dove vive?
+
+**Da nessuna parte nel corpus.** Vive nella issue che lo sbloccherà, e in nessun altro posto.
+
+La ragione è misurata, e non è la prudenza: **il corpus non ha modo di esprimere quell'attesa.** Un
+turno dichiara ciò che gli manca con `requires: <Capability>`, e il vocabolario è chiuso — **15**
+capability disponibili (`FixtureReference`, `Reaction`, `Environment`, `Cover`, `Structures`,
+`CreateCover`, `EnvironmentalActionOwner`, `PredictiveAction`, `BotPlanning`, `ReactionPlanning`,
+`DeclaredRotation`, `DecisionBoundary`, `InterceptRevalidation`, `ReactionProfile`, `Objective`) e **7**
+note-ma-indisponibili (`ReactionClash`, `Perception`, `SpatialTrigger`, `SemanticTrigger`, `Teleport`,
+`ArcModification`, `NeverAvailable`). **Nessuna delle ventidue riguarda la camera**, nemmeno fra le
+indisponibili.
+
+∴ uno `ScenarioId` camera scritto in anticipo non può nemmeno **dichiararsi bloccato**: un nome fuori
+vocabolario vale `Error`, non `Blocked`.
+
+🔴 **E il modo in cui fallisce è peggio dell'errore, perché è già successo.**
+`Spec.Map.BridgeBreaksThePath` non aveva un nome per ciò che gli mancava e ha **ripiegato** su
+`EnvironmentalActionOwner`, che era disponibile: è uscito `PASS 2/2` con `intents: []`
+([`#2549`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2549)). Un verde a vuoto, in un
+gate che conta i verdi. È esattamente *«resta a sembrare copertura»*, misurato su uno scenario vero.
+
+⚠️ **La conseguenza operativa, per chi apre una `CAM-*`**: il nome si conia **nella PR che porta il
+soggetto**, insieme al file. Non prima, e non in un elenco di nomi previsti.
+
+### 11.2 La regola provata all'indietro sul corpus
+
+Una convenzione che bocciasse metà del corpus che descrive sarebbe una convenzione sbagliata, non un
+corpus sbagliato — e questo si scopre solo provandola al contrario. Misurato il 2026-09-23:
+
+```bash
+find Scenarios -name '*.json' ! -name '_*' | wc -l    # 138 file
+```
+
+| La regola dice | Conformi | Note |
+|---|--:|---|
+| prefisso fra i cinque in uso | **137** | l'unico fuori è `RT_Showcase_Relay_v01`, derogato in (4) |
+| tre segmenti, dentro `Visual.*` | **38 su 38** | nessuna eccezione |
+| tre segmenti, dentro `Spec.*` | **73 su 76** | i 3 a quattro sono `Spec.Map.Interaction.*`, un sotto-raggruppamento |
+
+⚠️ **La regola NON boccia i prefissi a due segmenti** (`Combat.*`, `Movement.*`, `AutoBattle.*`, 23 file):
+sono anteriori al dominio e restano validi. Prescrivere tre segmenti *a loro* rinominerebbe 23 file per
+un guadagno estetico — e `scenario-index-e-tag.md` dichiara che un `ScenarioId` è **stabile**. La regola
+vincola **i nomi nuovi**, non riscrive quelli vecchi.
+
+### 11.3 I 34 nomi del triage camera, classificati
+
+Il [triage del 2026-08-14](../../roadmap/plans/camera-roadmap-v1-triage-2026-08-14.md) ricevette 34
+`ScenarioId` camera e ne recepì zero. La §6.3 di questo documento dichiarava che *«la maggior parte»*
+verifica sistemi che non esistono, con la nota che **«la maggior parte» non è un numero** e che la
+classificazione caso per caso non era stata fatta. È questa.
+
+⚠️ **I nomi sono 34 e un `grep` ne trova 35**: `CAMERA-DIRECTOR` compare nell'handoff come nome di
+**capability** (*«una nuova Feature tipo `STRATEGIC-CAMERA` / `CAMERA-DIRECTOR`»*), non come `ScenarioId`.
+È lo stesso difetto dei tronconi che `test-manuali-pie.md` registra per i propri glob: la fonte
+autoritativa è il blocco `text` del §7 dell'handoff, non il `grep`.
+
+#### `scrivibile ora` — **6**
+
+Il soggetto risolve in `Source/` **e** un test `RefactorTactics.Camera.*` lo nomina.
+
+| Nome del triage | Nome nella convenzione | Test che lo coprono |
+|---|---|---|
+| `CAMERA-BASIC-PAN-ZOOM-ROTATE` | `Visual.Camera.PanZoomRotate` | `PanIsRelativeToTheView` · `YawTurnsInStepsAndStaysNormalized` · `PitchIsAdjustableAndClampedInCode` · `RotatingDoesNotResetZoom` |
+| `CAMERA-CURSOR-ZOOM-ANCHOR` | `Visual.Camera.ZoomAnchorsToTheCursor` | `ZoomTowardsKeepsTheAnchorWithinHalfACell` · `ZoomAlphaSpansTheRealLimitsAndIsMonotonic` |
+| `CAMERA-SOFT-BOUNDS` | `Visual.Camera.SoftBounds` | `PanStopsThreeCellsPastTheMapEdge` · `EffectivePivotBoundsShrinkWithZoomPitchAndAspect` |
+| `CAMERA-FOCUS-PRESERVES-ORIENTATION` | `Visual.Camera.FocusPreservesOrientation` | `FocusMovesToTargetAndKeepsZoom` · `FocusIsClampedLikeEveryOtherPivotWrite` · `FocusOnUnitFramesTheCellPlaneNotTheModel` |
+| `CAMERA-STRATEGIC-ENTER-EXIT-HYSTERESIS` | `Visual.Camera.StrategicHysteresis` | `StrategicViewHasHysteresisAndDoesNotOscillate` · `StrategicThresholdsAreOrderedInCodeNotOnlyInDocs` |
+| `CAMERA-STRATEGIC-OVERVIEW-RETURN` | `Visual.Camera.OverviewReturn` | `RecenterAlsoResetsRotation` · `RecenterRestoresTheDefaultPitch` · `RecenterKeepsArmWithinZoomLimits` · `FrameOwnTeamFramesTheControllersTeam` |
+
+🔴 **Uno dei sei contraddice la prosa della issue che lo possiede, e il criterio è servito a questo.**
+[`#1774`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1774) (`CAM-05`) dichiara *«La
+Strategic View non esiste. Zero codice»*: era vero quando fu scritta, e oggi `UpdateStrategicState` è in
+`RTCameraPawn.cpp`, le soglie hanno un ordine verificato e **due** test la coprono. La issue è
+parzialmente atterrata e la sua riga non è stata aggiornata. ⛔ **Non è corretta qui** — la chiusura
+spetta al suo owner — ma il nome è scrivibile, e a dirlo è un comando invece di una lettura.
+
+#### `bloccato da <issue>` — **24**
+
+| Nome del triage | Bloccato da | Perché |
+|---|---|---|
+| `CAMERA-ABILITY-LINE-FRAMING` | #1769 | nessun `CAM-*` possiede l'inquadratura per abilità: zero simboli di framing |
+| `CAMERA-ABILITY-AOE-FRAMING` | #1769 | idem |
+| `CAMERA-ABILITY-DASH-FRAMING` | #1769 | idem |
+| `CAMERA-LAYER-ACTIVE-SELECTION` | #1775 | `CAM-06`: `ActiveLayer` esiste **solo per l'authoring**; in partita non c'è un piano attivo |
+| `CAMERA-LAYER-MARKER-ABOVE-BELOW` | #1835 | `CAM-14`: il piano attivo non si vede |
+| `CAMERA-LAYER-MARKER-STACK` | #1835 | idem |
+| `CAMERA-LAST-KNOWN-MARKER` | #1769 | il **dato** c'è (`TeamKnowledge`), il marker che lo disegna no — l'omonimo a monte di (3) |
+| `CAMERA-ACOUSTIC-AREA-MARKER` | #151 | la capability `Perception` copre l'udito ed è **nota e indisponibile** |
+| `CAMERA-HIDDEN-ENEMY-NO-ORACLE` | #1836 | `CAM-15`: il pan non passa dalla conoscenza di squadra — è questa domanda, e ha già un owner |
+| `CAMERA-CUTAWAY-ROOF` | #1779 | `CAM-10`: *«zero cutaway, zero fade»* |
+| `CAMERA-OCCLUSION-WALL` | #1779 | idem |
+| `CAMERA-OCCLUSION-BRIDGE` | #1779 | idem |
+| `CAMERA-TUNNEL-CUTAWAY` | #1779 | idem |
+| `CAMERA-SAFETY-COLLISION` | #1779 | `CAM-10`: la collisione SpringArm *«resta spenta apposta»* — il simbolo risolve, il sistema è spento |
+| `CAMERA-STRATEGIC-MULTILAYER-LOD` | #1775 | `CAM-05` possiede la **transizione**, il **contenuto** della vista Strategic è `CAM-06` |
+| `CAMERA-STRATEGIC-ACTIVE-LAYER-SWITCH` | #1775 | idem |
+| `CAMERA-CROSS-LAYER-TARGETING-KNOWLEDGE-SAFE` | #1777 | `CAM-08`: la mappa ha quattro domini spaziali e il repository ne conosce uno |
+| `CAMERA-REACTION-FOCUS` | #1781 | `CAM-12`, Camera Director — e la issue si dichiara **backlog** |
+| `CAMERA-DIRECTOR-GROUPED-EVENTS` | #1781 | idem |
+| `CAMERA-DIRECTOR-MANUAL-OVERRIDE` | #1781 | idem |
+| `CAMERA-DIRECTOR-SIMULTANEOUS-DISTANT-EVENTS` | #1781 | idem |
+| `CAMERA-REPLAY-MANUAL` | #1781 | il replay c'è (#472 chiusa), la **camera del replay** no |
+| `CAMERA-REPLAY-AUTO` | #1781 | idem |
+| `CAMERA-SPECTATOR-INFORMATION-POLICY` | #1781 | la camera dello spettatore non esiste; la policy di informazione ha già un owner in `CR-NET` |
+
+#### `scartato con ragione` — **4**
+
+Non sono `ScenarioId`: sono altre forme di evidenza, e il nome lo dichiara.
+
+| Nome del triage | Perché non entra |
+|---|---|
+| `CAMERA-REDUCE-MOTION` | è un'**opzione di accessibilità**. Si verifica che un'impostazione cambi la resa, e un'impostazione si guarda a schermo con una voce PIE — non c'è uno stato di simulazione da asserire, e non esiste né l'impostazione né chi la possieda |
+| `CAMERA-STRESS-MULTILAYER` | è una **misura di tempo**, e nessuna delle dieci assertion esprime una soglia temporale. Le misure di performance hanno già una sede: `U16` in `editor-sessions.yaml`, e la tabella KPI di `v0.1-definition-of-done.md` §4 |
+| `CAMERA-PACKAGED-SMOKE` | è un **gate packaged**, e il corpus gira headless o in PIE. `AGENTS.md` tiene le tre evidenze separate — *«Packaged verifica ciò che viene realmente distribuito»* — e questa ha già il suo posto in `PIE-V01-PACKAGED` (`U23`) |
+| `CAMERA-NETWORK-PRIVACY-CANARY` | il canary anti-leak **ha già un owner e una voce**: `PIE-NET-CANARY-PACKAGED`, checkpoint `M10.3`, [`#589`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/589), con la procedura in [`../systems/procedura-canary-anti-leak.md`](../systems/procedura-canary-anti-leak.md). Un `ScenarioId` gemello sarebbe un secondo owner della stessa verifica |
+
+#### La somma
+
+```
+scrivibile ora        6
+bloccato da <issue>  24
+scartato con ragione  4
+                     --
+                     34
+```
+
+⚠️ **La somma va scritta e non dedotta.** §7 di questo documento registra un caso in cui una somma che
+sembrava tornare nasconde addendi sbagliati; qui le tre colonne si contano dalle tabelle qui sopra.
+
+### 11.4 Cosa questa sezione NON autorizza
+
+- ⛔ **Non aggiunge un solo file sotto `Scenarios/`**, e i sei nomi `scrivibile ora` **non sono scenari**:
+  sono nomi che oggi si potrebbero coniare. Scriverli qui come elenco di ID previsti riprodurrebbe
+  esattamente il difetto del triage.
+- ⛔ **Non decide quali scenari camera si scriveranno**: decide come si chiameranno quando esisteranno.
+- ⛔ **Non tocca le voci `PIE-CAM-*`**, che non sono `ScenarioId` e hanno un altro owner.
