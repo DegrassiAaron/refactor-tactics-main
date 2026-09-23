@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { REPO_ROOT } from './docs-corpus.ts';
+import { git, isShallow } from './git.ts';
 import {
   REGISTRO,
   prese,
@@ -13,12 +13,11 @@ import {
   collisioniFraRef,
 } from './decision-ids.ts';
 
-function mostra(sha: string): string {
-  return execFileSync('git', ['show', `${sha}:${REGISTRO}`], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
+const VUOTO: ReadonlySet<string> = new Set();
+
+/** Un diff finto con le sole teste che il gate legge. */
+function diff(...righe: string[]): string {
+  return ['--- a/' + REGISTRO, '+++ b/' + REGISTRO, ...righe].join('\n');
 }
 
 test('riconosce tutte e quattro le decorazioni con cui il registro scrive un numero', () => {
@@ -46,21 +45,29 @@ test('un numero CITATO nel corpo di una voce non e\' una presa', () => {
 });
 
 test('due righe con lo stesso numero sono una collisione, due diverse no', () => {
-  const sano = '| **D-100** | a |\n| **D-101** | b |';
+  const sano = prese('| **D-100** | a |\n| **D-101** | b |');
   assert.deepEqual(collisioniInAlbero(sano), []);
 
-  const rotto = '| **D-100** | a |\n| **D-101** | b |\n| **D-100** | ancora, altrove |';
+  const rotto = prese('| **D-100** | a |\n| **D-101** | b |\n| **D-100** | ancora, altrove |');
   assert.deepEqual(collisioniInAlbero(rotto), [{ id: 'D-100', righe: [1, 3] }]);
 });
 
-test('PROVA CHE SA FALLIRE — le tre collisioni storiche sono viste, e i loro genitori no', () => {
+test('PROVA CHE SA FALLIRE — le tre collisioni storiche sono viste, e i loro genitori no', (t) => {
+  // 🔴 Su un clone shallow gli oggetti vecchi non ci sono e `git show` fallisce con un messaggio che
+  // non nomina ne' la causa ne' il rimedio. Si dichiara, invece di fallire in modo opaco.
+  if (isShallow()) {
+    t.skip('clone shallow: le fixture storiche non sono raggiungibili. Rimedio: git fetch --unshallow');
+    return;
+  }
+
   // La fixture e' gratis perche' e' in git. Tre forme diverse dello stesso difetto, tutte reali:
   //  · `a5041c57` — merge fra DUE RAMI SANI: ciascuno ha una riga `D-039`, il merge ne produce due.
   //    Git le fonde senza conflitto perche' atterrano in punti diversi della tabella;
   //  · `f1b2038c` — lo stesso merge ne crea TRE in un colpo (`D-041` `D-042` `D-043`), e NON `D-040`:
   //    quella riga era identica sui due lati, quindi git l'ha fusa in una sola;
   //  · `c4d5e6e8` — un commit NON-merge da una riga sola, che riusa un `D-091` gia' presente.
-  const visti = (sha: string) => collisioniInAlbero(mostra(sha)).map((c) => c.id);
+  const visti = (sha: string) =>
+    collisioniInAlbero(prese(git(['show', `${sha}:${REGISTRO}`]))).map((c) => c.id);
 
   assert.deepEqual(visti('a5041c57'), ['D-039']);
   assert.deepEqual(visti('f1b2038c'), ['D-039', 'D-041', 'D-042', 'D-043']);
@@ -74,62 +81,99 @@ test('PROVA CHE SA FALLIRE — le tre collisioni storiche sono viste, e i loro g
 });
 
 test('il registro di oggi e\' pulito, e la regex vede davvero qualcosa', () => {
-  const testo = readFileSync(join(REPO_ROOT, REGISTRO), 'utf8');
+  const presi = prese(readFileSync(join(REPO_ROOT, REGISTRO), 'utf8'));
 
   // Anti-vacuita': una regex rotta darebbe zero prese e zero collisioni, cioe' un verde identico a
   // quello vero. Senza questa riga il test sopravvive a una regex che non matcha piu' niente.
-  assert.ok(prese(testo).length > 400, 'la regex non trova piu\' le prese: verde per costruzione');
-  assert.deepEqual(collisioniInAlbero(testo), []);
+  assert.ok(presi.length > 400, 'la regex non trova piu\' le prese: verde per costruzione');
+  assert.deepEqual(collisioniInAlbero(presi), []);
 });
 
 test('una riga MODIFICATA non e\' una presa: `+` e `-` sullo stesso numero si annullano', () => {
   // E' il falso positivo gia' vivo nel repository: un ramo che riformula una voce esistente produce
   // `+D-309` e `-D-309`. Contare le sole righe `+` lo riporterebbe come rivendicazione.
-  const diff = [
-    '--- a/docs/decisions/RT_PDR_00_Decision_Log.md',
-    '+++ b/docs/decisions/RT_PDR_00_Decision_Log.md',
+  const d = diff(
     '-| **D-309** | il testo vecchio |',
     '+| **D-309** | il testo riscritto |',
     '+| **D-433** | una presa vera |',
-  ].join('\n');
+  );
+  assert.deepEqual([...numeriAggiunti(d)], [['D-433', 1]]);
+});
 
-  assert.deepEqual(numeriAggiunti(diff), ['D-433']);
+test('il conteggio e\' NETTO, non un insieme: riscrivere una riga e aggiungerne una seconda e\' una presa', () => {
+  // Con due insiemi `+`/`−` questo caso si annullerebbe e il ramo non rivendicherebbe nulla: un falso
+  // negativo che nasconde proprio una doppia riga in arrivo.
+  const d = diff(
+    '-| **D-420** | vecchio |',
+    '+| **D-420** | riscritto |',
+    '+| **D-420** | e una SECONDA riga con lo stesso numero |',
+  );
+  assert.deepEqual([...numeriAggiunti(d)], [['D-420', 1]]);
 });
 
 test('le intestazioni del diff non sono prese, e un diff vuoto non aggiunge niente', () => {
-  assert.deepEqual(numeriAggiunti(''), []);
-  assert.deepEqual(
-    numeriAggiunti('--- a/f\n+++ b/f\n@@ -1 +1 @@\n contesto invariato'),
-    [],
-  );
+  assert.equal(numeriAggiunti('').size, 0);
+  assert.equal(numeriAggiunti(diff('@@ -1 +1 @@', ' contesto invariato')).size, 0);
 });
 
 test('lo stesso numero su due ref e\' una collisione; numeri diversi no', () => {
   const collide = new Map([
-    ['origin/issue/100-a', ['D-433']],
-    ['origin/issue/200-b', ['D-433', 'D-434']],
+    ['origin/issue/100-a', new Map([['D-433', 1]])],
+    ['origin/issue/200-b', new Map([['D-433', 1], ['D-434', 1]])],
   ]);
-  const esito = collisioniFraRef(collide);
-  assert.deepEqual([...esito.keys()], ['D-433']);
-  assert.deepEqual(esito.get('D-433'), ['origin/issue/100-a', 'origin/issue/200-b']);
+  assert.deepEqual(collisioniFraRef(collide, VUOTO), [
+    'D-433: rivendicato da 2 ref — origin/issue/100-a, origin/issue/200-b',
+  ]);
 
   const sano = new Map([
-    ['origin/issue/100-a', ['D-433']],
-    ['origin/issue/200-b', ['D-434']],
+    ['origin/issue/100-a', new Map([['D-433', 1]])],
+    ['origin/issue/200-b', new Map([['D-434', 1]])],
   ]);
-  assert.equal(collisioniFraRef(sano).size, 0);
+  assert.deepEqual(collisioniFraRef(sano, VUOTO), []);
 });
 
-test('PROVA CHE SA FALLIRE — il caso che oggi nessun albero contiene: due rami, lo stesso numero', () => {
+test('PROVA CHE SA FALLIRE — il caso che ha motivato il gate: un numero GIA\' preso in main', () => {
+  // 🔴 E' il caso `D-433`: prenotato, rilasciato, preso da un altro ramo e mergiato, mentre il primo
+  // ramo continuava a portarlo. A rivendicarlo resta UN ref solo, e in albero compare UNA volta sola:
+  // un gate che pretendesse due ref, o che guardasse solo l'albero, sarebbe verde.
+  const unRefSolo = new Map([['origin/issue/1500-confine', new Map([['D-433', 1]])]]);
+
+  assert.deepEqual(collisioniFraRef(unRefSolo, VUOTO), [], 'senza main non c\'e\' nulla da vedere');
+  assert.deepEqual(collisioniFraRef(unRefSolo, new Set(['D-433'])), [
+    "D-433: gia' preso in origin/main, e origin/issue/1500-confine lo rivendica di nuovo",
+  ]);
+});
+
+test('PROVA CHE SA FALLIRE — due rami sani, ciascuno verde da solo', () => {
   // Il difetto che accade davvero non lascia traccia in nessun albero: su ciascun ramo il file e'
-  // internamente sano. E' la ragione per cui il controllo 1 da solo sarebbe vero ma scaduto, e questo
-  // test e' l'unico posto dove quel caso si puo' esercitare senza inventare due rami veri.
-  const dueRamiSani = '| **D-430** | la voce del primo ramo |';
-  assert.deepEqual(collisioniInAlbero(dueRamiSani), [], 'ogni ramo e\' sano da solo');
+  // internamente sano. E' la ragione per cui il controllo in albero da solo sarebbe vero ma scaduto.
+  const unRamo = prese('| **D-430** | la voce del primo ramo |');
+  assert.deepEqual(collisioniInAlbero(unRamo), [], 'ogni ramo e\' sano da solo');
 
   const perRef = new Map([
-    ['origin/issue/1317-integrity', numeriAggiunti('+| **D-430** | la voce del primo ramo |')],
-    ['origin/issue/1498-il-morto', numeriAggiunti('+| **D-430** | la voce del secondo ramo |')],
+    ['origin/issue/1317-integrity', numeriAggiunti(diff('+| **D-430** | la voce del primo ramo |'))],
+    ['origin/issue/1498-il-morto', numeriAggiunti(diff('+| **D-430** | la voce del secondo ramo |'))],
   ]);
-  assert.deepEqual([...collisioniFraRef(perRef).keys()], ['D-430']);
+  assert.deepEqual(collisioniFraRef(perRef, VUOTO), [
+    'D-430: rivendicato da 2 ref — origin/issue/1317-integrity, origin/issue/1498-il-morto',
+  ]);
+});
+
+test('un ramo che aggiunge lo stesso numero due volte e\' segnalato da solo', () => {
+  const perRef = new Map([['origin/issue/900-doppia', new Map([['D-500', 2]])]]);
+  assert.deepEqual(collisioniFraRef(perRef, VUOTO), [
+    'D-500: origin/issue/900-doppia lo aggiunge 2 volte nello stesso ramo',
+  ]);
+});
+
+test('l\'ordine del referto non dipende dal locale della macchina', () => {
+  // `localeCompare` darebbe un ordine diverso a seconda dell'ICU installato, e due referti dello
+  // stesso stato smetterebbero di essere confrontabili fra sessioni.
+  const perRef = new Map([
+    ['origin/b', new Map([['D-300', 1], ['D-100', 1]])],
+    ['origin/a', new Map([['D-300', 1], ['D-100', 1]])],
+  ]);
+  const out = collisioniFraRef(perRef, VUOTO);
+  assert.deepEqual(out, [...out].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
+  assert.ok(out[0].startsWith('D-100'));
 });

@@ -39,9 +39,10 @@
  *  La copertura si stampa **sempre**, anche in verde: un gate che non dice quanto ha guardato non e'
  *  distinguibile da uno che non guarda (#576). */
 import { execFileSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
-const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
+import { git } from './git.ts';
+
 
 /** Il repository GitHub da interrogare, quando non arriva da `--repo`. */
 const DEFAULT_REPO = 'DegrassiAaron/refactor-tactics-main';
@@ -185,9 +186,8 @@ export function withParents(paths: Iterable<string>): Set<string> {
   return s;
 }
 
-function git(args: string[]): string {
-  return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-}
+// `git` vive in `./git.ts`: era identico a quello di `decision-ids.ts`, e due copie dello stesso
+// helper divergono in silenzio appena una delle due viene indurita (#1405, stessa forma).
 
 /** Le issue aperte, o `null` se GitHub non e' raggiungibile: il chiamante deve dichiarare NOT RUN. */
 function fetchIssues(repo: string): { number: number; title: string; body: string }[] | null {

@@ -522,7 +522,8 @@ I controlli di `tools/radar/` si chiamano per **nome**, non per numero: `generat
 🔴 **Questa riga portava due totali volatili, ed erano scaduti entrambi**: diceva «cinque controlli» quando [`AGENTS.md`](../AGENTS.md) ne elencava dodici, e «82 test» quando erano 145. Ammetteva già da sé di essere «rimasta indietro di tre controlli»: un conteggio in prosa invecchia in silenzio e chi legge lo tratta come corrente. Si misurano, non si copiano:
 
 ```
-grep -cE '^(node|python) tools/' AGENTS.md          # i controlli che l'elenco canonico dichiara
+grep -cE '^node tools/radar/' AGENTS.md              # i controlli di radar, che sono quelli elencati qui
+grep -cE '^(node|python) tools/' AGENTS.md          # TUTTI i controlli, radar compreso: un numero piu' grande
 cd tools/radar && node --test 2>&1 | grep '^# tests'  # i test, alla data in cui lo lanci
 ```
 
