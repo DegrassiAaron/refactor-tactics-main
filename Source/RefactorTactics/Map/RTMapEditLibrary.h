@@ -107,9 +107,21 @@ public:
 	 *
 	 * ⛔ Non apre transazioni. Chi la chiama da un tool la avvolge nel proprio `FScopedTransaction`, cosi'
 	 * l'intera cascata resta **un solo** Undo.
+	 *
+	 * 🔑 **`bDryRun` risponde senza toccare la mappa, e non e' una seconda implementazione**: e'
+	 * questa stessa funzione con le mutazioni saltate, cosi' «che cosa risponderebbe» e «che cosa fa» non
+	 * possono divergere. Serve a chi cancella **piu' elementi insieme**: senza una passata a vuoto prima,
+	 * un rifiuto a meta' lascia applicati i precedenti.
+	 *
+	 * ⛔ **E la via per annullare a meta' NON esiste**: `FScopedTransaction::Cancel()` sembra fare al
+	 * caso, e non lo fa — `UTransBuffer::Cancel` toglie la transazione dal buffer di undo e **non
+	 * ripristina lo stato** (letto in `EditorTransaction.cpp:1411-1462`; l'header dichiara solo *«Cancels
+	 * the transaction. Reentrant.»*, mai *«reverts»*). Usarla lascerebbe le cancellazioni parziali
+	 * applicate **e** toglierebbe il Ctrl+Z che le avrebbe disfatte: peggio di non fare niente.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
-	static ERTMapEditOutcome DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle);
+	static ERTMapEditOutcome DeleteElement(URTHexMapAsset* Map, const FRTMapElementHandle& Handle,
+		bool bDryRun = false);
 
 	/**
 	 * Gli elementi autorati che vivono sotto un punto, **dal piu' specifico al piu' generale**.

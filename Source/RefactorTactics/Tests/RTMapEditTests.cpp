@@ -1145,4 +1145,116 @@ bool FRTMapEditAddDoorBothSidesTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **L'arco di transizione è un elemento autorato come gli altri** (#1864).
+ *
+ * 🔴 Fino al 2026-09-23 `ERTMapElementKind::Transition` era un valore che **nasceva morto**: dichiarato,
+ * senza un costruttore che lo producesse, e con `DeleteElement` che lo rifiutava per una ragione scritta —
+ * *«`Transition` non ha ancora un gesto che la selezioni»*. Il gesto c'era già: `URTHexArchTool` possiede
+ * da sempre il hit-test di viewport che la spec §13.3 gli assegna. Mancava solo il collegamento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDeleteTransitionTest,
+	"RefactorTactics.Map.Edit.DeleteTransitionRemovesBothDirections",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDeleteTransitionTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	if (!TestNotNull(TEXT("la mappa di prova esiste"), Map))
+	{
+		return false;
+	}
+
+	const FRTCellId Basso(0, 0, 0);
+	const FRTCellId Alto(0, 0, 1);
+
+	// Andata e ritorno come due `FRTHexEdge` distinti: è così che l'asset li tiene.
+	Map->Transitions.Add(FRTHexEdge(Basso, Alto, /*Cost*/ 1));
+	Map->Transitions.Add(FRTHexEdge(Alto, Basso, /*Cost*/ 1));
+	const int32 Prima = Map->Transitions.Num();
+	if (!TestEqual(TEXT("due direzioni in partenza"), Prima, 2))
+	{
+		return false;
+	}
+
+	// ⚠️ Si cancella nominando la coppia AL CONTRARIO di come la prima è stata inserita: per chi seleziona,
+	// andata e ritorno sono lo stesso arco, e l'handle non deve sapere quale delle due è stata cliccata.
+	const ERTMapEditOutcome Esito =
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForTransition(Alto, Basso));
+
+	TestEqual(TEXT("l'arco si cancella"), static_cast<int32>(Esito), static_cast<int32>(ERTMapEditOutcome::Applied));
+	TestEqual(TEXT("e se ne vanno ENTRAMBE le direzioni, non una"), Map->Transitions.Num(), 0);
+
+	// Controllo NEGATIVO: sulla mappa ormai senza archi, la stessa chiamata si rifiuta invece di rispondere
+	// `Applied` a vuoto. Senza questo, un `DeleteElement` che non trova niente e dice «fatto» passerebbe.
+	const ERTMapEditOutcome Vuoto =
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForTransition(Alto, Basso));
+	TestEqual(TEXT("un arco che non c'e' si RIFIUTA, non si dichiara cancellato"),
+		static_cast<int32>(Vuoto), static_cast<int32>(ERTMapEditOutcome::RefusedUnresolved));
+
+	return true;
+}
+
+/**
+ * **La passata a vuoto risponde come quella vera, e non tocca la mappa** (#1864).
+ *
+ * 🔑 Serve alla cancellazione multipla, che deve essere tutto-o-niente: senza una prova preventiva, un
+ * rifiuto a metà lascia applicati i precedenti. ⛔ E la via che sembrerebbe ovvia non funziona —
+ * `FScopedTransaction::Cancel()` **non ripristina** (`UTransBuffer::Cancel`, `EditorTransaction.cpp`): toglie
+ * la transazione dal buffer di undo e lascia lo stato com'è.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDryRunTest,
+	"RefactorTactics.Map.Edit.DryRunAnswersTheSameAndChangesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDryRunTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	if (!TestNotNull(TEXT("la mappa di prova esiste"), Map))
+	{
+		return false;
+	}
+
+	const FRTCellId Basso(0, 0, 0);
+	const FRTCellId Alto(0, 0, 1);
+	Map->Transitions.Add(FRTHexEdge(Basso, Alto, /*Cost*/ 1));
+
+	const int32 CelleP = Map->Cells.Num();
+	const int32 ArchiP = Map->Transitions.Num();
+	const int32 MuriP = Map->InteriorWalls.Num();
+
+	int32 Esaminati = 0;
+
+	// Ogni Kind che può entrare in selezione, provato a vuoto: la risposta deve essere quella vera, e la
+	// mappa deve restare identica.
+	const TArray<FRTMapElementHandle> Prove = {
+		FRTMapElementHandle::ForTransition(Basso, Alto),
+		FRTMapElementHandle::ForCell(Basso),
+	};
+
+	for (const FRTMapElementHandle& Handle : Prove)
+	{
+		const ERTMapEditOutcome Prova = URTMapEditLibrary::DeleteElement(Map, Handle, /*bDryRun=*/ true);
+		++Esaminati;
+		TestEqual(TEXT("la prova a vuoto risponde Applied su un elemento che esiste"),
+			static_cast<int32>(Prova), static_cast<int32>(ERTMapEditOutcome::Applied));
+	}
+
+	// Guardia anti-vacuità: se l'elenco smettesse di enumerare, il ciclo girerebbe a vuoto e il test
+	// passerebbe senza aver provato niente.
+	TestTrue(TEXT("almeno due Kind esaminati a vuoto"), Esaminati >= 2);
+
+	TestEqual(TEXT("la prova a vuoto non toglie celle"), Map->Cells.Num(), CelleP);
+	TestEqual(TEXT("ne' archi"), Map->Transitions.Num(), ArchiP);
+	TestEqual(TEXT("ne' muri interni"), Map->InteriorWalls.Num(), MuriP);
+
+	// Controllo POSITIVO: la stessa chiamata SENZA `bDryRun` cambia davvero la mappa. Senza questo, una
+	// `DeleteElement` che non facesse mai niente passerebbe entrambe le asserzioni qui sopra.
+	const ERTMapEditOutcome Vera =
+		URTMapEditLibrary::DeleteElement(Map, FRTMapElementHandle::ForTransition(Basso, Alto));
+	TestEqual(TEXT("senza bDryRun l'esito e' lo stesso"),
+		static_cast<int32>(Vera), static_cast<int32>(ERTMapEditOutcome::Applied));
+	TestEqual(TEXT("ma ORA l'arco e' sparito davvero"), Map->Transitions.Num(), ArchiP - 1);
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

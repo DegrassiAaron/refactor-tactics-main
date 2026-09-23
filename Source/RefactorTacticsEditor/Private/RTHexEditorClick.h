@@ -10,6 +10,7 @@ class FPrimitiveDrawInterface;
 class UContextObjectStore;
 class UInteractiveToolManager;
 struct FInputDeviceRay;
+struct FRTMapElementHandle;
 enum class ERTHexSurface : uint8;
 
 /** Helper condivisi tra i tool click dell'Editor Mode hex (SelectTool, PaintTool, ...). */
@@ -107,4 +108,40 @@ namespace RTHexEditor
 	 */
 	FColor TransitionKindColor(ERTHexTransitionKind Kind);
 	void DrawArrow(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B, const FColor& Color);
+
+	/**
+	 * L'arco di transizione piu' vicino al raggio del click, come **handle** (#1864).
+	 *
+	 * 🔑 **Il hit-test di un arco e' di VIEWPORT, e la spec §13.3 lo assegna al tool**: un arco
+	 * collega celle su layer diversi e non giace su un bordo, quindi `URTMapEditLibrary::ElementsAt` —
+	 * che risponde a «che cosa c'e' sotto questo bordo» — non lo raggiunge e non deve fingere di
+	 * farlo. Questa funzione e' quel test, estratto da `URTHexArchTool::RemoveNearestArch` dove viveva
+	 * privato, perche' ora serve anche a **selezionare** e non solo a cancellare.
+	 *
+	 * ⚠️ La soglia e' `HexSize * 0.6`, la stessa che il tool Arch usa da sempre: non e' un numero
+	 * nuovo, e' quello di prima messo dove lo possono leggere in due.
+	 *
+	 * `false` se non c'e' nessun arco entro la soglia. `OutDistance` e' facoltativo e serve al log.
+	 */
+	bool NearestTransition(const ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos,
+		FRTMapElementHandle& OutHandle, float* OutDistance = nullptr);
+
+	/**
+	 * Disegna UN elemento selezionato.
+	 *
+	 * 🔑 **Viveva privato in `URTHexSelectTool` fino al 2026-09-23**, ed e' salito qui perche' il
+	 * criterio di #1864 chiede che la selezione sia condivisa *fra* Select, Geometry e Arch: una selezione
+	 * che solo lo strumento che l'ha fatta sa disegnare non e' condivisa, e' passata di mano.
+	 */
+	void DrawSelectedElement(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor,
+		const FRTMapElementHandle& Handle, const FVector& Origin, float HexSize, float LayerHeight);
+
+	/**
+	 * Disegna l'INTERA selezione condivisa, leggendola dal suo store.
+	 *
+	 * ⚠️ Chiamarla dal `Render` di un tool e' cio' che rende la selezione visibile cambiando
+	 * strumento — che e' il punto per cui lo store vive fuori dai `UInteractiveToolPropertySet`
+	 * (§13.3, e il difetto che #921 aveva misurato).
+	 */
+	void DrawSharedSelection(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor);
 }

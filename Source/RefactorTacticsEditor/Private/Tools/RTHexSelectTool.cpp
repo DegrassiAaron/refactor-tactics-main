@@ -150,15 +150,10 @@ void URTHexSelectTool::Render(IToolsContextRenderAPI* RenderAPI)
 
 	if (Store && Actor && Store->GetSelection().Num() > 0)
 	{
-		FVector Origin = FVector::ZeroVector;
-		float HexSize = 0.f;
-		float LayerH = 0.f;
-		Actor->GetHexContext(Origin, HexSize, LayerH);
-
-		for (const FRTMapElementHandle& Handle : Store->GetSelection())
-		{
-			DrawSelectedElement(PDI, Actor, Handle, Origin, HexSize, LayerH);
-		}
+		// 🔑 **Il disegno e' salito nel namespace condiviso** (#1864): una selezione che solo lo
+		// strumento che l'ha fatta sa disegnare non e' condivisa, e' passata di mano. Ora Geometry e Arch
+		// chiamano la stessa funzione, e cambiando strumento la selezione resta visibile.
+		RTHexEditor::DrawSharedSelection(PDI, Actor);
 		return;
 	}
 
@@ -168,75 +163,5 @@ void URTHexSelectTool::Render(IToolsContextRenderAPI* RenderAPI)
 	}
 }
 
-void URTHexSelectTool::DrawSelectedElement(FPrimitiveDrawInterface* PDI, ARTHexMapActor* Actor,
-	const FRTMapElementHandle& Handle, const FVector& Origin, float HexSize, float LayerHeight) const
-{
-	// Alzato da terra quanto il marker della cella: sotto la superficie non si vedrebbe.
-	const FVector Lift(0.0, 0.0, 3.0);
-	constexpr float Thick = 4.0f;
-
-	switch (Handle.Kind)
-	{
-	case ERTMapElementKind::Cell:
-	{
-		const FVector Centre = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
-		RTHexEditor::DrawHexMarker(PDI, Centre, HexSize * 0.9f, FColor::Yellow);
-		break;
-	}
-
-	case ERTMapElementKind::Cover:
-	case ERTMapElementKind::Door:
-	{
-		// Il LATO, non la cella: si disegna fra i due vertici piu' vicini al centro del bordo.
-		//
-		// ⚠️ Trovati per distanza invece che per indice: la corrispondenza «bordo N ↔ vertici N e N+1» e' una
-		// convenzione che vive dentro `HexCorners`, e riscriverla qui sarebbe la seconda copia che prima o
-		// poi diverge. Per distanza il risultato e' corretto per costruzione.
-		const FVector Mid = URTHexLibrary::EdgeMidpointWorld(Handle.Cell, Handle.Edge, Origin, HexSize, LayerHeight);
-		const FVector Centre = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
-
-		TArray<FVector> Corners = URTHexLibrary::HexCorners(Centre, HexSize);
-		Corners.Sort([&Mid](const FVector& A, const FVector& B)
-		{
-			return FVector::DistSquaredXY(A, Mid) < FVector::DistSquaredXY(B, Mid);
-		});
-
-		if (Corners.Num() >= 2)
-		{
-			const FColor Colour = (Handle.Kind == ERTMapElementKind::Door) ? FColor::Cyan : FColor::Orange;
-			PDI->DrawLine(Corners[0] + Lift, Corners[1] + Lift, Colour, SDPG_Foreground, Thick);
-		}
-		break;
-	}
-
-	case ERTMapElementKind::InteriorWall:
-	{
-		// La GIACITURA vera del muro, non un simbolo al centro della cella: e' l'unico modo per distinguere
-		// due muri interni sulla stessa cella, che e' precisamente il caso che il ciclo deve saper scorrere.
-		const URTHexMapAsset* Map = Actor->MapAsset;
-		const int32 Index = URTMapEditLibrary::ResolveInteriorWall(Map, Handle);
-		if (Index == INDEX_NONE)
-		{
-			break;
-		}
-
-		const FRTHexInteriorWall& Wall = Map->InteriorWalls[Index];
-		const FVector Centre = URTHexLibrary::AxialToWorld(Wall.Cell, Origin, HexSize, LayerHeight);
-
-		// `ToPolyline` e' il derivato di calcolo del segmento: il float nasce qui, a valle dell'authority.
-		const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize);
-		for (int32 I = 0; I + 1 < Line.Points.Num(); ++I)
-		{
-			const FVector A(Centre.X + Line.Points[I].X, Centre.Y + Line.Points[I].Y, Centre.Z);
-			const FVector B(Centre.X + Line.Points[I + 1].X, Centre.Y + Line.Points[I + 1].Y, Centre.Z);
-			PDI->DrawLine(A + Lift, B + Lift, FColor::Green, SDPG_Foreground, Thick);
-		}
-		break;
-	}
-
-	default:
-		break;
-	}
-}
 
 #undef LOCTEXT_NAMESPACE

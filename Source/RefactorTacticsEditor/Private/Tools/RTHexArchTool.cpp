@@ -11,6 +11,12 @@
 #include "BaseGizmos/CombinedTransformGizmo.h"
 #include "InteractiveGizmo.h" // ETransformGizmoSubElements
 #include "Map/RTHexCellData.h" // ERTHexTransitionKind
+#include "Map/RTMapEditLibrary.h"        // DeleteElement: la REGOLA della cancellazione, una sola (#1864)
+#include "Map/RTMapDependencyLibrary.h"  // FRTMapElementHandle
+#include "RTHexSelectionStore.h"         // la selezione condivisa
+#include "Editor.h"                      // GEditor
+#include "ScopedTransaction.h"           // una gesture = un Undo
+#include "Framework/Application/SlateApplication.h" // Ctrl accumula, come in Select
 
 #define LOCTEXT_NAMESPACE "URTHexArchTool"
 
@@ -58,6 +64,37 @@ void URTHexArchTool::OnClicked(const FInputDeviceRay& ClickPos)
 	}
 	if (Properties && Properties->Operation == ERTHexArchOp::Remove)
 	{
+		// 🔑 **Ctrl SELEZIONA l'arco invece di cancellarlo** (#1864, casella 1: «un click seleziona
+		// ... una transizione»). E' lo stesso idioma di `URTHexSelectTool` — Ctrl accumula — e non
+		// tocca il gesto esistente: senza Ctrl, Remove cancella come ha sempre fatto.
+		//
+		// ⚠️ Il hit-test e' quello che questo tool possiede da sempre, ora in
+		// `RTHexEditor::NearestTransition`: la spec §13.3 assegna al tool il test di viewport degli archi,
+		// perche' `ElementsAt` risponde a «che cosa c'e' sotto questo bordo» e un arco non sta su un bordo.
+		const bool bAdditive = FSlateApplication::IsInitialized()
+			&& FSlateApplication::Get().GetModifierKeys().IsControlDown();
+
+		if (bAdditive)
+		{
+			FRTMapElementHandle Handle;
+			float Distanza = 0.f;
+			if (!RTHexEditor::NearestTransition(Actor, ClickPos, Handle, &Distanza))
+			{
+				UE_LOG(LogTemp, Log, TEXT("[HexMode] Nessun arco entro la soglia: niente da selezionare."));
+				return;
+			}
+
+			if (URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr)
+			{
+				const bool bNuovo = Store->AddHandle(Handle);
+				UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco %s (dist %.1f): %s. Selezione: %s."),
+					*Handle.Cell.ToString(), Distanza,
+					bNuovo ? TEXT("selezionato") : TEXT("gia' in selezione"),
+					*URTHexSelectionStore::Describe(Store->GetSelection()));
+			}
+			return;
+		}
+
 		RemoveNearestArch(Actor, ClickPos);
 		return;
 	}
@@ -282,11 +319,29 @@ void URTHexArchTool::RemoveNearestArch(ARTHexMapActor* Actor, const FInputDevice
 
 	if (BestIdx != INDEX_NONE && BestDist <= HexSize * 0.6f)
 	{
-		// Copia From/To PRIMA di rimuovere (RemoveTransitionData muta l'array Transitions).
+		// Copia From/To PRIMA di rimuovere (la rimozione muta l'array `Transitions`).
 		const FRTCellId F = Map->Transitions[BestIdx].From;
 		const FRTCellId T = Map->Transitions[BestIdx].To;
-		Actor->RemoveTransitionData(F, T, /*bBothDirections=*/true);
-		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco rimosso %s -> %s (dist %.1f)."), *F.ToString(), *T.ToString(), BestDist);
+
+		// 🔑 **Si passa da `DeleteElement`, non da `RemoveTransitionData`** (#1864). Il gesto per chi
+		// guarda e' identico — un click in Remove toglie l'arco — ma la REGOLA di che cosa muore
+		// cancellando un elemento autorato ora vive in **un posto solo**, per ogni tipo. Due
+		// implementazioni della stessa regola sono il modo in cui la regola diverge, ed e' il vincolo che
+		// il corpo di #712 dichiarava gia' per il validator e la cottura.
+		//
+		// ⚠️ E la transazione la apre **questo** chiamante: `URTMapEditLibrary` dichiara di non
+		// aprirne (`RTMapEditLibrary.h`), cosi' la cascata resta un solo Ctrl+Z.
+		URTHexMapAsset* Scrivibile = Actor->MapAsset;
+		const FScopedTransaction Transaction(
+			NSLOCTEXT("RTHexArchTool", "RemoveArch", "Cancella un arco di transizione"));
+		Scrivibile->Modify();
+
+		const ERTMapEditOutcome Esito =
+			URTMapEditLibrary::DeleteElement(Scrivibile, FRTMapElementHandle::ForTransition(F, T));
+
+		Actor->RebuildInstances();
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco %s -> %s (dist %.1f): esito %d."),
+			*F.ToString(), *T.ToString(), BestDist, static_cast<int32>(Esito));
 	}
 	else
 	{
@@ -308,6 +363,12 @@ void URTHexArchTool::Render(IToolsContextRenderAPI* RenderAPI)
 		RTHexEditor::DrawSurfaceOverlay(PDI, RTHexEditor::FindTargetMapActor(TargetWorld),
 			/*bIncludeTransitions=*/ false);
 	}
+
+	// 🔑 **La selezione condivisa si vede anche da qui** (#1864, casella 2). Senza, lo store era
+	// condiviso per COSTRUZIONE — un `UEditorSubsystem` fuori dai property set — e per NESSUN
+	// consumatore: solo Select lo leggeva e lo disegnava. Un elemento selezionato che sparisce cambiando
+	// strumento e' il difetto di #921 nella sua forma di selezione.
+	RTHexEditor::DrawSharedSelection(PDI, RTHexEditor::FindTargetMapActor(TargetWorld));
 
 	const ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld);
 

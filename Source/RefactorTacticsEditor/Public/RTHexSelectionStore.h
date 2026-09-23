@@ -62,6 +62,29 @@ public:
 	const TArray<FRTMapElementHandle>& GetSelection() const { return Selection; }
 
 	/** Svuota la selezione e azzera il ciclo. */
+	/**
+	 * Sostituisce la selezione con UN handle **gia' risolto da chi possiede il hit-test**.
+	 *
+	 * 🔑 **Esiste perche' non tutto passa da `ElementsAt`.** Quella funzione risponde alla domanda
+	 * «che cosa c'e' sotto questo bordo», e un arco di transizione non ci sta: collega due celle su
+	 * layer diversi e non giace su un bordo. La spec §13.3 assegna quel hit-test al **tool**, e
+	 * `URTHexArchTool` lo possiede da sempre — qui entra il suo risultato.
+	 *
+	 * ⚠️ **Azzera il ciclo**, e deve: il ciclo e' legato a un PUNTO e ai suoi candidati, mentre
+	 * questo handle non viene da un punto. Tenerlo in piedi farebbe continuare, al click successivo su una
+	 * cella, un ciclo che appartiene a un'altra domanda.
+	 */
+	void SelectHandle(const FRTMapElementHandle& Handle);
+
+	/**
+	 * Aggiunge un handle gia' risolto senza duplicare. `false` se era gia' in selezione.
+	 *
+	 * ⚠️ La deduplica passa da `SameElement`, che per le transizioni legge la coppia **non
+	 * ordinata**: andata e ritorno sono lo stesso arco, e senza quella regola lo stesso arco entrerebbe due
+	 * volte e la cancellazione proverebbe a toglierlo due volte.
+	 */
+	bool AddHandle(const FRTMapElementHandle& Handle);
+
 	void Clear();
 
 	/**

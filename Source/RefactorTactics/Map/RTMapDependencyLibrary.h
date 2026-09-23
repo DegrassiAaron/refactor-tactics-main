@@ -52,6 +52,17 @@ struct FRTMapElementHandle
 	 * che `ValidateMap` gia' applica — un bordo porta al massimo una copertura — ed e' la ragione per cui
 	 * `FRTHexCover` non ha preso un campo nome quando il muro interno l'ha preso.
 	 */
+	/**
+	 * La SECONDA cella, significativa per la sola `Transition` (#1864).
+	 *
+	 * ⚠️ Un arco collega due celle su layer diversi: e' l'unico elemento autorato la cui identita'
+	 * non sta in una cella sola, ed e' anche la ragione per cui `URTMapEditLibrary::ElementsAt` non lo
+	 * emette — la domanda «che cosa c'e' sotto questo bordo» non lo raggiunge. Il suo hit-test e' di
+	 * viewport e appartiene al tool, che lo possiede gia' (`URTHexArchTool`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	FRTCellId To;
+
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	ERTHexDirection Edge = ERTHexDirection::E;
 
@@ -146,6 +157,29 @@ struct FRTMapElementHandle
 		Handle.Cell = InCell;
 		Handle.Edge = InEdge;
 		Handle.StableId = InStableId;
+		return Handle;
+	}
+
+	/**
+	 * Un arco di transizione, per chiave naturale `(From, To)`.
+	 *
+	 * 🔴 **Fino al 2026-09-23 `ERTMapElementKind::Transition` era un valore che nasceva morto**: il
+	 * `Kind` era dichiarato, ma non esisteva nessun costruttore che lo producesse — misurato, una sola
+	 * occorrenza in tutto `Source/`, il ramo `case` di una `Describe`. E il tipo era morto anche a valle:
+	 * `SameElement` non aveva il caso e cadeva su `default: return false`, quindi due handle **identici**
+	 * sarebbero risultati diversi e la deduplica su cui poggia la cancellazione multipla sarebbe saltata.
+	 *
+	 * ⚠️ **La coppia si legge NON ORDINATA.** L'asset tiene le due direzioni come due `FRTHexEdge`
+	 * distinti e `ARTHexMapActor::RemoveTransitionData` le toglie insieme: per chi seleziona, l'andata e il
+	 * ritorno sono **lo stesso arco**. Chi confronta due handle di transizione lo deve sapere — vedi
+	 * `SameElement` in `RTHexSelectionStore.cpp`, che e' il posto in cui questa regola vive.
+	 */
+	static FRTMapElementHandle ForTransition(const FRTCellId& InFrom, const FRTCellId& InTo)
+	{
+		FRTMapElementHandle Handle;
+		Handle.Kind = ERTMapElementKind::Transition;
+		Handle.Cell = InFrom;
+		Handle.To = InTo;
 		return Handle;
 	}
 };

@@ -353,6 +353,33 @@ void URTHexEditorMode::EraseSelection()
 		return;
 	}
 
+	// 🔴 **Passata a VUOTO prima di toccare qualunque cosa: l'operazione e' tutto-o-niente.**
+	//
+	// Fino al 2026-09-23 il ciclo applicava handle per handle dentro una transazione che si chiudeva
+	// comunque: se il terzo di cinque veniva rifiutato, i primi due restavano cancellati e l'unica traccia
+	// era un `UE_LOG(Warning)`. Una selezione multipla e' **un** gesto dell'autore, e mezzo gesto applicato
+	// e' uno stato che nessuno ha chiesto.
+	//
+	// ⛔ **E la via che sembrerebbe ovvia non funziona**: `FScopedTransaction::Cancel()` **non
+	// ripristina** — `UTransBuffer::Cancel` (`EditorTransaction.cpp:1411-1462`) toglie la transazione
+	// dal buffer di undo e non tocca lo stato degli oggetti. Annullare a meta' con quella avrebbe lasciato
+	// le cancellazioni gia' fatte **e** portato via il Ctrl+Z che le avrebbe disfatte.
+	//
+	// ⚠️ La selezione NON si svuota su un rifiuto: chi guarda deve poter vedere che cosa non e'
+	// stato cancellato, e riprovare senza rifare la selezione da capo.
+	for (const FRTMapElementHandle& Handle : Store->GetSelection())
+	{
+		const ERTMapEditOutcome Prova = URTMapEditLibrary::DeleteElement(Map, Handle, /*bDryRun=*/ true);
+		if (Prova != ERTMapEditOutcome::Applied)
+		{
+			UE_LOG(LogRTHexEditorMode, Warning,
+				TEXT("Erase: nulla cancellato — '%s' non si risolve (esito %d), e l'operazione e' "
+					"tutto-o-niente. La selezione resta com'era."),
+				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Prova));
+			return;
+		}
+	}
+
 	// UNA sola transazione per l'intera operazione, cascata compresa: e' il criterio di #1864 — «una
 	// operazione composta e' un solo Undo». Aprirne una per elemento farebbe premere Ctrl+Z tante volte
 	// quanti erano gli elementi, e l'autore non sa quanti ne ha portati via la cascata.
@@ -370,11 +397,12 @@ void URTHexEditorMode::EraseSelection()
 		}
 		else
 		{
-			// ⚠️ Il rifiuto si LOGGA con la sua ragione, non si ingoia: e' la disciplina di
-			// `ERTHexArchPendingCloseReason` (#996). Un elemento che sparisce dalla selezione senza essere
-			// stato cancellato, e senza che nessuno lo dica, e' il difetto silenzioso peggiore.
-			UE_LOG(LogRTHexEditorMode, Warning,
-				TEXT("Erase: rifiutato '%s' (esito %d)."),
+			// ⚠️ Arrivare qui significa che la passata a vuoto e quella vera non concordano, cioe'
+			// che `bDryRun` ha smesso di essere la stessa funzione senza mutazioni. Si logga come difetto,
+			// non come esito: e' un'invariante rotta, non un rifiuto.
+			UE_LOG(LogRTHexEditorMode, Error,
+				TEXT("Erase: '%s' rifiutato (esito %d) DOPO essere passato a vuoto: la prova e "
+					"l'applicazione divergono."),
 				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Outcome));
 		}
 	}

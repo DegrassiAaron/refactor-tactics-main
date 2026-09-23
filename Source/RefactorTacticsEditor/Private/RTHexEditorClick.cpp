@@ -13,6 +13,10 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
+#include "Map/RTMapDependencyLibrary.h" // FRTMapElementHandle (#1864)
+#include "Map/RTMapEditLibrary.h"       // ResolveInteriorWall, per disegnare il muro selezionato
+#include "Map/RTGeometryGrammar.h"      // ToPolyline: la giacitura del muro, derivata dall'authority
+#include "RTHexSelectionStore.h"        // la selezione condivisa che i tool disegnano
 #include "Turn/RTMatchSetupLibrary.h"
 #include "RTScenarioPreviewActor.h"  // ARTScenarioPreviewActor::PreviewTag: gli actor d'anteprima non sono "la mappa"
 
@@ -317,6 +321,168 @@ void DrawSurfaceOverlay(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Acto
 			? URTHexLibrary::SpawnTeam0Color()
 			: URTHexLibrary::SpawnTeam1Color();
 		DrawHexMarker(PDI, Center, HexSize * 1.0f, Color);
+	}
+}
+
+bool NearestTransition(const ARTHexMapActor* Actor, const FInputDeviceRay& ClickPos,
+	FRTMapElementHandle& OutHandle, float* OutDistance)
+{
+	const URTHexMapAsset* Map = Actor ? Actor->MapAsset : nullptr;
+	if (!Map || Map->Transitions.Num() == 0)
+	{
+		return false;
+	}
+
+	const FVector Origin = Actor->GetActorLocation();
+	const float HexSize = Map->HexSize;
+	const float LayerH = Map->LayerHeight;
+	const FVector RayO = ClickPos.WorldRay.Origin;
+	const FVector RayD = ClickPos.WorldRay.Direction;
+
+	int32 BestIdx = INDEX_NONE;
+	float BestDist = TNumericLimits<float>::Max();
+	for (int32 I = 0; I < Map->Transitions.Num(); ++I)
+	{
+		const FRTHexEdge& E = Map->Transitions[I];
+		const FVector A = URTHexLibrary::AxialToWorld(E.From, Origin, HexSize, LayerH);
+		const FVector B = URTHexLibrary::AxialToWorld(E.To, Origin, HexSize, LayerH);
+		const float Dist = URTHexLibrary::DistanceRayToSegment(RayO, RayD, A, B);
+		if (Dist < BestDist)
+		{
+			BestDist = Dist;
+			BestIdx = I;
+		}
+	}
+
+	// ⚠️ La soglia e' quella che `URTHexArchTool::RemoveNearestArch` usava da sempre: non un numero nuovo,
+	// lo stesso numero in un posto dove lo possono leggere in due.
+	if (BestIdx == INDEX_NONE || BestDist > HexSize * 0.6f)
+	{
+		return false;
+	}
+
+	OutHandle = FRTMapElementHandle::ForTransition(Map->Transitions[BestIdx].From, Map->Transitions[BestIdx].To);
+	if (OutDistance)
+	{
+		*OutDistance = BestDist;
+	}
+	return true;
+}
+
+void DrawSelectedElement(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor,
+	const FRTMapElementHandle& Handle, const FVector& Origin, float HexSize, float LayerHeight)
+{
+	if (!PDI || !Actor)
+	{
+		return;
+	}
+
+	// Le stesse due costanti che il disegno aveva quando viveva dentro `URTHexSelectTool`: sollevare il
+	// tratto lo tiene sopra la faccia del prisma, e lo spessore lo distingue dal contorno di una cella.
+	const FVector Lift(0.f, 0.f, 4.f);
+	constexpr float Thick = 4.0f;
+
+	switch (Handle.Kind)
+	{
+	case ERTMapElementKind::Cell:
+	{
+		const FVector Centre = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
+		DrawHexMarker(PDI, Centre, HexSize * 0.9f, FColor::Yellow);
+		break;
+	}
+
+	case ERTMapElementKind::Cover:
+	case ERTMapElementKind::Door:
+	{
+		// Il LATO, non la cella: si disegna fra i due vertici piu' vicini al centro del bordo.
+		//
+		// ⚠️ Trovati per distanza invece che per indice: la corrispondenza «bordo N ↔ vertici N e N+1» e' una
+		// convenzione che vive dentro `HexCorners`, e riscriverla qui sarebbe la seconda copia che prima o
+		// poi diverge. Per distanza il risultato e' corretto per costruzione.
+		const FVector Mid = URTHexLibrary::EdgeMidpointWorld(Handle.Cell, Handle.Edge, Origin, HexSize, LayerHeight);
+		const FVector Centre = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
+
+		TArray<FVector> Corners = URTHexLibrary::HexCorners(Centre, HexSize);
+		Corners.Sort([&Mid](const FVector& A, const FVector& B)
+		{
+			return FVector::DistSquaredXY(A, Mid) < FVector::DistSquaredXY(B, Mid);
+		});
+
+		if (Corners.Num() >= 2)
+		{
+			const FColor Colour = (Handle.Kind == ERTMapElementKind::Door) ? FColor::Cyan : FColor::Orange;
+			PDI->DrawLine(Corners[0] + Lift, Corners[1] + Lift, Colour, SDPG_Foreground, Thick);
+		}
+		break;
+	}
+
+	case ERTMapElementKind::InteriorWall:
+	{
+		// La GIACITURA vera del muro, non un simbolo al centro della cella: e' l'unico modo per distinguere
+		// due muri interni sulla stessa cella, che e' precisamente il caso che il ciclo deve saper scorrere.
+		const URTHexMapAsset* Map = Actor->MapAsset;
+		const int32 Index = URTMapEditLibrary::ResolveInteriorWall(Map, Handle);
+		if (Index == INDEX_NONE)
+		{
+			break;
+		}
+
+		const FRTHexInteriorWall& Wall = Map->InteriorWalls[Index];
+		const FVector Centre = URTHexLibrary::AxialToWorld(Wall.Cell, Origin, HexSize, LayerHeight);
+
+		// `ToPolyline` e' il derivato di calcolo del segmento: il float nasce qui, a valle dell'authority.
+		const FRTOccupancyPolyline Line = URTGeometryGrammarLibrary::ToPolyline(Wall.Segment, HexSize);
+		for (int32 I = 0; I + 1 < Line.Points.Num(); ++I)
+		{
+			const FVector A(Centre.X + Line.Points[I].X, Centre.Y + Line.Points[I].Y, Centre.Z);
+			const FVector B(Centre.X + Line.Points[I + 1].X, Centre.Y + Line.Points[I + 1].Y, Centre.Z);
+			PDI->DrawLine(A + Lift, B + Lift, FColor::Green, SDPG_Foreground, Thick);
+		}
+		break;
+	}
+
+	case ERTMapElementKind::Transition:
+	{
+		// 🔑 **L'arco intero, da centro a centro.** E' l'unica forma che lo dice: un arco non sta su un
+		// bordo e non sta dentro una cella — collega due celle su LAYER diversi, e disegnarne un simbolo
+		// su una delle due nasconderebbe proprio la cosa che lo distingue da tutto il resto.
+		//
+		// ⚠️ Prima del 2026-09-23 questo ramo non c'era e si cadeva su `default: break`: una transizione
+		// selezionata non si sarebbe vista. Il `Kind` era dichiarato, nessuno lo produceva, e il buco
+		// sarebbe uscito al primo produttore.
+		const FVector A = URTHexLibrary::AxialToWorld(Handle.Cell, Origin, HexSize, LayerHeight);
+		const FVector B = URTHexLibrary::AxialToWorld(Handle.To, Origin, HexSize, LayerHeight);
+		PDI->DrawLine(A + Lift, B + Lift, FColor::Magenta, SDPG_Foreground, Thick);
+
+		// I due estremi marcati: senza, a picco l'arco si legge come un segmento qualunque fra due punti,
+		// e non si vede QUALI celle collega.
+		DrawHexMarker(PDI, A, HexSize * 0.35f, FColor::Magenta);
+		DrawHexMarker(PDI, B, HexSize * 0.35f, FColor::Magenta);
+		break;
+	}
+
+	default:
+		break;
+	}
+}
+
+void DrawSharedSelection(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Actor)
+{
+	const URTHexSelectionStore* Store =
+		GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr;
+	if (!PDI || !Actor || !Store || Store->GetSelection().Num() == 0)
+	{
+		return;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+
+	for (const FRTMapElementHandle& Handle : Store->GetSelection())
+	{
+		DrawSelectedElement(PDI, Actor, Handle, Origin, HexSize, LayerH);
 	}
 }
 } // namespace RTHexEditor

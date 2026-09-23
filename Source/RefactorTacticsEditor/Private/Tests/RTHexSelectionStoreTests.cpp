@@ -478,4 +478,54 @@ bool FRTSelectionStoreCycleMovesTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * **Andata e ritorno sono LO STESSO arco** (#1864).
+ *
+ * 🔴 Il difetto che questo test chiude era doppio e invisibile. `ERTMapElementKind::Transition` era
+ * dichiarato ma nessuno lo produceva, quindi `SameElement` non aveva il suo caso e cadeva su
+ * `default: return false`: due handle **identici** risultavano diversi. Al primo produttore — cioè al
+ * primo gesto che selezionasse un arco — lo stesso arco sarebbe entrato due volte in selezione, e la
+ * cancellazione avrebbe provato a toglierlo due volte, la seconda su una mappa da cui era già sparito.
+ *
+ * ⚠️ È esattamente la forma del difetto che `490746018` aveva corretto per il ciclo di Ctrl+click, qui
+ * nella sua forma di **identità** invece che di ciclo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSelStoreTransitionIsOneArcTest,
+	"RefactorTactics.Editor.Selection.ATransitionIsOneArcInEitherDirection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSelStoreTransitionIsOneArcTest::RunTest(const FString&)
+{
+	URTHexSelectionStore* Store = NewObject<URTHexSelectionStore>();
+	if (!TestNotNull(TEXT("lo store esiste"), Store))
+	{
+		return false;
+	}
+
+	const FRTCellId Basso(0, 0, 0);
+	const FRTCellId Alto(0, 0, 1);
+
+	TestTrue(TEXT("il primo arco entra"), Store->AddHandle(FRTMapElementHandle::ForTransition(Basso, Alto)));
+	TestEqual(TEXT("e la selezione ne ha uno"), Store->GetSelection().Num(), 1);
+
+	// 🔑 La coppia ROVESCIATA: per chi seleziona è lo stesso arco, e non deve entrare due volte.
+	TestFalse(TEXT("la coppia rovesciata NON entra: e' lo stesso arco"),
+		Store->AddHandle(FRTMapElementHandle::ForTransition(Alto, Basso)));
+	TestEqual(TEXT("la selezione resta di uno"), Store->GetSelection().Num(), 1);
+
+	// Controllo POSITIVO: un arco DIVERSO entra eccome. Senza, un `AddHandle` che rifiutasse sempre
+	// passerebbe le due asserzioni qui sopra.
+	const FRTCellId Altrove(1, 0, 1);
+	TestTrue(TEXT("un arco diverso entra"), Store->AddHandle(FRTMapElementHandle::ForTransition(Basso, Altrove)));
+	TestEqual(TEXT("e ora sono due"), Store->GetSelection().Num(), 2);
+
+	// `SelectHandle` sostituisce invece di accumulare.
+	Store->SelectHandle(FRTMapElementHandle::ForTransition(Basso, Alto));
+	TestEqual(TEXT("SelectHandle sostituisce la selezione"), Store->GetSelection().Num(), 1);
+	TestEqual(TEXT("e cio' che resta e' l'arco chiesto"),
+		static_cast<int32>(Store->GetSelection()[0].Kind),
+		static_cast<int32>(ERTMapElementKind::Transition));
+
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS
