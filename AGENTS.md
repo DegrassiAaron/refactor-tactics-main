@@ -551,6 +551,11 @@ node tools/radar/decision-ids.ts --check                  # un numero D- rivendi
 node tools/asset-refs/check.ts
 node tools/asset-provenance/check.ts
 node tools/mcp/check.ts --check                          # solo dove il ponte MCP e' acceso
+python tools/architettura/misure-strutturali.py --check   # solo se la PR tocca Turn/RTTurnManager.*
+python tools/bot-competence/check.py --check              # lo schema, i suoi `consumers`, il roster,
+                                                          # Scenarios/, o QUALUNQUE rinomina di un nome
+                                                          # Automation citato: e' una lettura offline,
+                                                          # nel dubbio si lancia
 
 cd tools/radar
 node --test
@@ -564,17 +569,18 @@ node --test
 
 Ogni tool dichiara nel docstring **cosa non copre**.
 
-⛔ **Due gate sono USCITI da questo elenco il 2026-09-23 ([D-436](docs/decisions/RT_PDR_00_Decision_Log.md)),
-e non sono stati cancellati**: `python tools/architettura/misure-strutturali.py --check` e
-`python tools/bot-competence/check.py --check`. Si possono ancora lanciare a mano, e restano utili.
+✅ **Le prove che questi gate sanno fallire** — obbligatorie da [D-188](docs/decisions/RT_PDR_00_Decision_Log.md),
+perche' un gate **nasce verde** e senza una mutazione il suo verde non distingue «ho guardato» da
+«non ho guardato»:
 
-🔴 **Non ci sono perche' sono in Python** — quella clausola e' ritirata — **ma perche' non hanno una
-prova che sanno fallire.** Misurato: zero file di test per entrambi, e il primo non dichiara nemmeno cosa
-non copre; per confronto `tools/radar/` ha il gemello `.test.ts` su **17** sorgenti su 21.
+```powershell
+python tools/architettura/misure-strutturali.py --autotest   # 7 casi, coi numeri veri dell'audit di agosto
+python tools/bot-competence/check.py --autotest              # 19 casi sulle funzioni pure
+```
 
-Un gate **nasce verde**: senza una mutazione che lo faccia diventare rosso, il suo verde non distingue
-«ho guardato e va bene» da «non ho guardato». Rientrano in questo elenco il giorno in cui la portano, tracciato da
-[#3288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3288).
+⚠️ Si lanciano quando si **tocca il gate**, non a ogni PR: provano la decisione del gate, non l'albero.
+Gli altri controlli di `tools/radar/` hanno la stessa prova nel gemello `.test.ts`, che gira con
+`node --test` qui sotto.com/DegrassiAaron/refactor-tactics-main/issues/3288).
 
 
 ⛔ `tools/mcp/check.ts` confronta l'endpoint che `.mcp.json` **dichiara** con la porta che i settings

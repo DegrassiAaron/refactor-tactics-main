@@ -24,6 +24,25 @@ piu' pulito dei due, perche' un metodo nuovo e' una decisione, non un dettaglio 
 
 Guarda il solo `ARTTurnManager`, che e' l'oggetto di #1818. Non dice nulla del resto del modulo.
 
+## Cosa NON copre
+
+⛔ **Non e' un veto, e il suo 1 non e' un fallimento**: e' «dichiaralo nella PR». Una crescita
+motivata va bene; una silenziosa e' cio' che E50 non puo' vedere.
+
+⛔ **Guarda il solo `ARTTurnManager`** — i tre file di #1818 — e **non dice nulla del resto del
+modulo**. Una responsabilita' spostata dal TurnManager a una classe nuova risulta qui come una
+**discesa**, ed e' esattamente cio' che #1818 chiede: il gate misura dove il grasso si accumula, non
+dove e' andato.
+
+⛔ **Sorveglia due grandezze, non la qualita'.** Metodi e righe di codice: un metodo lungo e contorto
+conta uno come un metodo breve, e una riga di commento non conta affatto — vedi piu' sotto, un gate
+che sale quando qualcuno scrive la ragione di una regola insegna a non scriverla.
+
+⛔ **Non confronta alberi disomogenei senza dirlo**: se il base non ha gli stessi tre file, il delta
+include un file comparso, e il gate lo stampa prima dei numeri.
+
+⛔ **Non dice se i test siano verdi.** Non li esegue.
+
 ## Perche' esiste
 
 L'audit del 2026-08-30 (`docs/roadmap/plans/architecture-hardening-spec-panel-2026-08-30.md`) chiude
@@ -528,6 +547,61 @@ def esegui_check(m, base):
     return 1
 
 
+def autotest():
+    """`esegui_check` provata senza albero: dimostra che il gate SA fallire (`D-188`).
+
+    ⚠️ **Prova la DECISIONE, non la misura.** Che `misura()` conti i metodi giusti lo dicono i suoi
+    numeri su un albero vero; qui si prova che, dati due conteggi, il gate risponde come deve. Sono due
+    difetti diversi e nessuno dei due copre l'altro.
+
+    🔑 **Un gate nasce verde**, e questo nasceva verde da sempre: senza una mutazione che lo faccia
+    diventare rosso, il suo 0 non distingue «ho guardato e non e' cresciuto» da «non ho guardato».
+    """
+    def m(metodi, righe, file=("h", "cpp", "blast")):
+        return {"turnmanager_metodi": metodi,
+                "turnmanager_righe_codice": righe,
+                "turnmanager_file": list(file),
+                "ref": "finto"}
+
+    casi = [
+        # (nome, dopo, prima, uscita attesa)
+        ("nessuna crescita", m(120, 5000), m(120, 5000), 0),
+        # 🔑 Il difetto STORICO, coi numeri che l'audit del 2026-08-30 ha misurato davvero: +395
+        # righe di codice e +10 metodi in quattro giorni, non per colpa delle fette di #1818 ma per i
+        # 53 commit di gameplay ordinario atterrati sulla stessa classe. E' il caso per cui questo
+        # gate esiste, ed e' la ragione per cui questa prova non e' inventata.
+        ("la crescita di agosto: +10 metodi, +395 righe", m(130, 5395), m(120, 5000), 1),
+        ("cresce solo il conteggio dei metodi", m(121, 5000), m(120, 5000), 1),
+        ("cresce solo il conteggio delle righe", m(120, 5001), m(120, 5000), 1),
+        # Una discesa NON e' una crescita: #1818 chiede di spostare responsabilita' FUORI dal
+        # TurnManager, e un gate che si lamentasse anche del miglioramento verrebbe spento.
+        ("una responsabilita' spostata fuori", m(110, 4500), m(120, 5000), 0),
+        ("una sale e l'altra scende", m(121, 4500), m(120, 5000), 1),
+        # Il base che non ha gli stessi file: il delta include un file comparso. Il gate lo dichiara,
+        # e la crescita resta da dichiarare — non si annulla.
+        ("il base non ha gli stessi file", m(130, 5395), m(120, 5000, ("h", "cpp")), 1),
+    ]
+
+    falliti = []
+    for nome, dopo, prima, atteso in casi:
+        avuto = esegui_check(dopo, prima)
+        print("  %s %s: atteso %d, avuto %d"
+              % ("✅" if avuto == atteso else "❌", nome, atteso, avuto))
+        if avuto != atteso:
+            falliti.append(nome)
+
+    print()
+    # Anti-vacuita': con `SORVEGLIATE` vuota ogni caso tornerebbe 0, e questa prova resterebbe verde
+    # raccontando che va tutto bene. E' il verde per costruzione che la prova esiste per escludere.
+    if not SORVEGLIATE:
+        print("❌ `SORVEGLIATE` e' vuota: ogni caso tornerebbe 0 e questa prova sarebbe verde a vuoto.")
+        return 1
+    if falliti:
+        print("❌ autotest rosso: %s" % ", ".join(falliti))
+        return 1
+    print("✅ autotest verde — %d casi, e il gate sa tornare 1." % len(casi))
+    return 0
+
 def main():
     ap = argparse.ArgumentParser(description="Misure strutturali di E50 - #1816, #1818")
     ap.add_argument("--ref", help="misura questo commit invece dell'albero di lavoro")
@@ -541,7 +615,14 @@ def main():
     ap.add_argument("--check", action="store_true",
                     help="gate di non-regressione: confronta le grandezze sorvegliate col merge-base "
                          "(o con --base) ed esce 1 se sono cresciute. Non e' un veto: e' «dichiaralo»")
+    ap.add_argument("--autotest", action="store_true",
+                    help="prova `esegui_check` senza leggere l'albero: e' la prova che il gate sa fallire")
     a = ap.parse_args()
+
+    # Prima di qualunque lettura dell'albero: l'autotest non ne ha bisogno, e pretenderlo lo renderebbe
+    # ineseguibile proprio dove serve — su un clone senza `origin/main`.
+    if a.autotest:
+        return autotest()
 
     # La console di Windows e' cp1252: senza questo, un `—` in una tabella `--markdown` non stampa
     # male, fa uscire lo strumento con un UnicodeEncodeError a meta' output. Misurato, non dedotto.
