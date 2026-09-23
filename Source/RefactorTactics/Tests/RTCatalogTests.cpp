@@ -715,6 +715,139 @@ bool FRTGenericActionDisplayNameTest::RunTest(const FString&)
 }
 
 /**
+ * **La cascata del nome di un'azione equipaggiata, provata senza costruire oggetti** (`#3275`).
+ *
+ * 🔑 **E' la meta' che sa fallire in silenzio.** Il gemello qui sotto guarda il catalogo spedito, dove
+ * il nome c'e' per tutti: se la cascata ricadesse SEMPRE sul ripiego, quel gemello resterebbe verde lo
+ * stesso, perche' anche il ripiego produce una stringa non vuota. Qui si prova QUALE ramo risponde.
+ *
+ * ⚠️ Il caso «soli spazi» non e' teorico: una `FText` costruita da `"   "` non e' `IsEmpty()`, e senza
+ * `IsEmptyOrWhitespace` il dock comporrebbe `"6.    "` — a schermo indistinguibile dal difetto originale.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEquipmentActionDisplayNameTest,
+	"RefactorTactics.Catalog.EquipmentActionDisplayName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEquipmentActionDisplayNameTest::RunTest(const FString&)
+{
+	// 1. Il nome dichiarato vince, ed e' il caso di ogni pezzo che il catalogo spedisce.
+	TestEqual(TEXT("il nome dichiarato passa intatto"),
+		URTCatalogLibrary::EquipmentActionDisplayName(
+			FText::FromString(TEXT("Sprinkler")), TEXT("Gadget.Sprinkler")).ToString(),
+		FString(TEXT("Sprinkler")));
+
+	// 2. Vuoto, con un id: l'ultimo segmento. Una parola invece di un buco.
+	TestEqual(TEXT("vuoto ricade sull'ultimo segmento dell'id"),
+		URTCatalogLibrary::EquipmentActionDisplayName(
+			FText::GetEmpty(), TEXT("Gadget.Sprinkler")).ToString(),
+		FString(TEXT("Sprinkler")));
+
+	// 3. Soli spazi: vale come non dichiarato. `IsEmpty()` direbbe di no, e il dock mostrerebbe spazi.
+	TestEqual(TEXT("soli spazi valgono come non dichiarato"),
+		URTCatalogLibrary::EquipmentActionDisplayName(
+			FText::FromString(TEXT("   ")), TEXT("Reaction.Cleanse")).ToString(),
+		FString(TEXT("Cleanse")));
+
+	// 4. Un id senza punto resta intero: la cascata non produce vuoto per una convenzione cambiata.
+	TestEqual(TEXT("un id senza punto resta intero"),
+		URTCatalogLibrary::EquipmentActionDisplayName(
+			FText::GetEmpty(), TEXT("Sprinkler")).ToString(),
+		FString(TEXT("Sprinkler")));
+
+	// 5. Niente nome e niente id: vuoto, perche' non c'e' niente da cui ricavare una parola. E' l'unico
+	// caso in cui questa funzione torna vuoto, ed e' irraggiungibile dal catalogo: `MakeEquipmentAction`
+	// non costruisce nulla per un pezzo senza `GrantedActionId`, e un pezzo senza `EquipmentId` non esiste.
+	TestTrue(TEXT("senza nome e senza id resta vuoto"),
+		URTCatalogLibrary::EquipmentActionDisplayName(FText::GetEmpty(), NAME_None).IsEmpty());
+
+	return true;
+}
+
+/**
+ * **Ogni azione concessa da un pezzo arriva nel kit col nome del PEZZO** (`#3275`). Il terzo della
+ * famiglia, dopo `RefactorTactics.Heroes.EveryActionHasADisplayName` e
+ * `RefactorTactics.Actions.EveryGenericHasADisplayName`.
+ *
+ * 🔴 **Il difetto che copre era reale, e in ogni partita di default.** `MakeEquipmentAction` non
+ * scriveva mai `DisplayName`: l'azione entrava in `Abilities` con una `FText` costruita per default, e
+ * `ARTHUD::ComposeAbilityLine` componeva **`"6. "`** — tasto, punto, ricarica, e nient'altro. Lo vedeva
+ * meta' roster, perche' `DefaultLoadoutFor` da' il loadout a Muiren e Branth; e fra le voci mute c'era
+ * `Reaction.Cleanse`, che [D-218] mette li' come unica risposta allo `Status.Slow` dell'attacco di Branth.
+ *
+ * ⛔ **I due gate esistenti non potevano vederlo, per costruzione.** `Heroes.EveryActionHasADisplayName`
+ * itera `GetHeroRoster()` → `Hero->Actions`; le azioni equipaggiate non stanno in quell'insieme — entrano
+ * in `Abilities` a runtime, con `EquipLoadout`. L'asserzione era vera e non copriva il caso: la forma di
+ * falso verde in cui il gate guarda una popolazione diversa da quella del difetto.
+ *
+ * 🔑 **Si asserisce l'UGUAGLIANZA col nome del pezzo, non che il nome sia non-vuoto.** Un `TestFalse`
+ * su `IsEmpty()` resterebbe verde anche se `Item->DisplayName` smettesse di essere letto: il ripiego
+ * della cascata ricava `Sprinkler` da `Gadget.Sprinkler` e passerebbe. L'uguaglianza distingue «legge il
+ * catalogo» da «ricava dall'id», che e' esattamente la differenza da pinnare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEveryEquipmentActionHasADisplayNameTest,
+	"RefactorTactics.Catalog.EveryEquipmentActionHasADisplayName",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEveryEquipmentActionHasADisplayNameTest::RunTest(const FString&)
+{
+	TArray<URTEquipmentData*> Pezzi;
+	Pezzi.Append(URTCatalogLibrary::MakeWeaponVariants());
+	Pezzi.Append(URTCatalogLibrary::MakeGadgets());
+	Pezzi.Append(URTCatalogLibrary::MakeReactionModules());
+
+	// Anti-vacuita' primaria: coi tre cataloghi vuoti nessun ciclo qui sotto asserirebbe niente, e il test
+	// resterebbe verde raccontando che ogni nome c'e'. E' la forma contro cui i due gemelli si difendono.
+	if (!TestTrue(TEXT("i tre cataloghi dichiarano dei pezzi"), Pezzi.Num() > 0))
+	{
+		return false;
+	}
+
+	int32 Dichiaranti = 0;
+	int32 Prodotte = 0;
+	for (const URTEquipmentData* Pezzo : Pezzi)
+	{
+		if (!TestNotNull(TEXT("il pezzo esiste"), Pezzo)) { continue; }
+
+		// ⚠️ Le varianti d'arma non concedono un'azione: MODIFICANO l'attacco base, via `ApplyWeaponVariant`.
+		// Non e' un caso saltato in silenzio — in fondo si asserisce QUANTE sono, perche' se un giorno una
+		// variante cominciasse a concedere, questo `continue` la escluderebbe dal gate senza dirlo.
+		if (Pezzo->GrantedActionId.IsNone())
+		{
+			continue;
+		}
+		++Dichiaranti;
+
+		const URTActionData* Azione =
+			URTCatalogLibrary::MakeEquipmentAction(Pezzo, GetTransientPackage());
+		if (!TestNotNull(
+			*FString::Printf(TEXT("`%s` produce un'azione"), *Pezzo->EquipmentId.ToString()), Azione))
+		{
+			continue;
+		}
+		++Prodotte;
+
+		TestEqual(
+			*FString::Printf(TEXT("`%s` arriva nel kit col nome del pezzo"), *Pezzo->EquipmentId.ToString()),
+			Azione->DisplayName.ToString(), Pezzo->DisplayName.ToString());
+
+		// E quel nome e' davvero leggibile: senza questo, un catalogo che dichiarasse `""` per tutti
+		// renderebbe l'uguaglianza qui sopra vera e vuota.
+		TestFalse(
+			*FString::Printf(TEXT("`%s` non arriva muto"), *Pezzo->EquipmentId.ToString()),
+			Azione->DisplayName.IsEmptyOrWhitespace());
+	}
+
+	// Anti-vacuita' secondaria: il ciclo ha esaminato dei soggetti, e ogni pezzo che dichiara un'azione ne
+	// ha prodotta una — un core mancante la farebbe sparire dal gate invece che farlo fallire.
+	TestTrue(TEXT("almeno un pezzo concede un'azione"), Dichiaranti > 0);
+	TestEqual(TEXT("ogni pezzo che dichiara un'azione la produce"), Prodotte, Dichiaranti);
+
+	// E i saltati sono ESATTAMENTE le varianti d'arma, non un insieme che cresce in silenzio.
+	TestEqual(TEXT("i pezzi che non concedono sono le varianti d'arma"),
+		Pezzi.Num() - Dichiaranti, URTCatalogLibrary::MakeWeaponVariants().Num());
+
+	return true;
+}
+
+/**
  * L'insieme ESATTO delle azioni core che si dichiarano aggressione ([`INT-8`], [D-221]).
  *
  * 🔴 **Si pinna l'INSIEME e non il conteggio**, e la differenza e' il difetto che questo test nasce per
