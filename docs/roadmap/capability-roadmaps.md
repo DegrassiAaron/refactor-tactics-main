@@ -10,6 +10,31 @@
 2026-09-20 su `f7aa7b32`).
 **Issue indice**: [#2325](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2325) — *[ROADMAP] Capability Roadmaps — vista longitudinale v0.1 → v1.0*. ⌫ **Fino al 2026-09-20 questa riga rimandava a una sezione che non esiste** (*«vedi § Dove vive questa vista su GitHub»*): `grep -c` la trovava una volta sola, cioè il rimando stesso, e il documento non nominava mai la propria issue indice.
 
+> 🔴 **RIMISURATA UNA SECONDA VOLTA lo stesso 2026-09-23, e la certificazione di poche ore prima era
+> gia' scaduta.** Due ancore chiuse nel frattempo e **mute**: **#2579** (`09:11Z`, riga `BAL-METRICS`) e
+> **#2745** (`09:05Z`, riga `H` di §4). La prima l'ha chiusa **la sessione stessa** che aveva appena
+> certificato questo file.
+>
+> ⚠️ **E il controllo di quella certificazione non le avrebbe viste.** Confrontava le citazioni che
+> *portano* una parola di stato con GitHub e trovava zero divergenze — correttamente: il buco non e'
+> nelle annotazioni **sbagliate**, e' in quelle **assenti**. Una convenzione che dice *«le chiuse si
+> annotano, le aperte no»* si rompe dal lato del silenzio, ed e' il lato che nessuno guardava.
+>
+> ⌫ **`#2579` portava anche una descrizione falsa**, e nessun comando puo' accorgersene: diceva
+> *«solo per eroe»*, ed e' chiusa **proprio perche' non lo e' piu'**.
+>
+> ✅ **Da questa passata il controllo e' un GATE, non una fotografia** — `#2325`:
+>
+> ```sh
+> node tools/radar/anchor-state.ts --check     # esce 1 se un'ancora chiusa e' muta
+> ```
+>
+> 🔑 **Falsificato prima di essere creduto**: girato sul documento com'era **prima** di questa passata
+> esce `1` e nomina quelle due righe e **nessun'altra**; sul documento corretto esce `0`. Senza rete
+> stampa `NOT RUN` ed esce `0` — mai un verde offline.
+> ⛔ **Non sostituisce il comando qui sotto**: quello trova le annotazioni *sbagliate*, il gate quelle
+> *assenti*. Sono due difetti, e si trovano in due modi.
+
 > 🔁 **Rimisurata il 2026-09-23 contro GitHub LIVE, con lo stesso comando qui sotto.** Una sola ancora
 > stantia: **#1805**, chiusa `COMPLETED` il **2026-09-21** — cioè **il giorno dopo** la rimisura che questa
 > pagina certificava. Compariva in **tre** punti (la tabella di `CR-REPLAY`, i correlati di `CR-NET`, la
@@ -331,7 +356,7 @@ smesso di essere una lente — ed è motivo di arresto, non un numero da tarare.
 | BAL-DATA — i numeri canonici | [`../balance/`](../balance/) (`D-023`) · gate `tools/radar/catalog-code.ts` · #2578 (chiusa il 2026-09-18: le azioni sono scoperte) |
 | BAL-VARIANT — la variante sperimentale | #1950 *Skill Workbench* (`TD 0.3`) — dato consegnato · #2577 (manca l'ingresso) |
 | BAL-DIFF — il confronto fra due run | #2576 (`TD 0.4`, dichiarato dall'owner e senza issue fino a oggi) |
-| BAL-METRICS — le metriche derivate | `tools/radar/{rubric,power,precision,profile,balance}.ts` (`D-108`) · #2579 (solo per eroe) |
+| BAL-METRICS — le metriche derivate | `tools/radar/{rubric,power,precision,profile,balance}.ts` (`D-108`) · #2579 (chiusa il 2026-09-23) — ⌫ *diceva «solo per eroe», ed è chiusa proprio perché non lo è più: `abilityContributions` espone il contributo **per abilità** e `powerRaw` somma quello. La riga descriveva il difetto che la issue è andata a togliere* |
 | BAL-BATCH — la misura a lotti | **#776** (`E43`) — 🔴 dopo il competence gate `D-102` (~~#543~~, chiusa `COMPLETED` il 2026-09-20) |
 | BAL-RUNTIME — il runtime d'abilità | consuma **CR-CONTENT** · #774 (`E41`) |
 | BAL-GATE — il gate umano | #403 (`BAL-1`, `U20/PIE-BAL1`) |
@@ -385,7 +410,7 @@ Le nove tappe d'esperienza e il loro owner reale — ⚠️ **lettere di questo 
 | `E` match story | so chi sta vincendo, e perché | #2281 · #331 · #332 | v0.1 → v0.4 |
 | `F` replay / inspection | studio la partita | **#1881** · #472 (chiusa) · #2411 · #1805 (chiusa) | v0.1 → v1.0 |
 | `G` presentation | comincia a sembrare un gioco | #286 · #217 · #2453 | v0.1 → v0.2 |
-| `H` showcase / video | configuro una demo e la ripeto | **#2745** (discovery) | post-v0.1 |
+| `H` showcase / video | configuro una demo e la ripeto | **#2745** (discovery, chiusa il 2026-09-23) | post-v0.1 |
 | `I` representative match | mostra il gioco futuro, non l'arena | #325 · #221 · #333 · #331 · #332 | post-v0.1 |
 
 ⚠️ **`F` non è a valle delle altre**: cammina in parallelo dalla v0.1 ed è la tappa più avanzata di tutte.
