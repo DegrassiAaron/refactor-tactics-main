@@ -3696,11 +3696,17 @@ sessions:
 
       L'esito si scrive in `test-manuali-pie.md`, che ne resta l'unico owner — **qui non si copia** (R-6).
   - id: U51
-    title: Si mira dove non si vede, e si sa solo chi si è colpito
+    # ⏱️ **Il titolo diceva solo «Si mira dove non si vede, e si sa solo chi si è colpito» fino al
+    # 2026-09-23**, ed era vero finché le voci erano le due del tiro indiretto. Con `PIE-V01-SHIELD-WRAITH`
+    # (#2381) la seduta non è più *di un tema*: è **della formazione d'autore**, che è la precondizione
+    # che la rende un'apertura a sé e l'unica cosa che le sue voci condividono davvero.
+    title: La formazione d'autore — si mira dove non si vede, e l'altro portatore dello scudo
     block: 6
     critical: false
     execution_lane: pie
-    produces: il verdetto umano sul tiro indiretto — che mirare al buio non riveli nulla, e che colpire riveli solo la vittima
+    produces: >-
+      il verdetto umano sulle voci che richiedono una formazione diversa da quella spedita — il tiro
+      indiretto che non rivela, e lo scudo proattivo del portatore che a formazione di default è del bot
     artifacts: []
     # 🔑 **Questa seduta esiste perché due voci PIE sono nate senza nessuna che le convocasse.**
     # Misurato su `origin/main` il 2026-09-10, prima di questo record:
@@ -3723,8 +3729,34 @@ sessions:
     # del giocatore. Va spostato in squadra 0 (`EditAnywhere`, `BotAllyCount` a `0`) e **rimesso a posto
     # dopo**: qualunque altra seduta girata nel frattempo giudicherebbe una partita che non è quella spedita.
     # ⛔ Batchiarla con le sedute di acceptance sarebbe quindi il difetto, non l'economia.
-    verifies: [PIE-V01-BLINDFIRE, PIE-V01-MORTAR]
-    issues: [2791, 2870, 2890]
+    verifies:
+      - PIE-V01-BLINDFIRE
+      - PIE-V01-MORTAR
+      # Convocata il 2026-09-23 da #2381, ed e' la stessa eccezione che il commento qui sopra
+      # argomenta: non condivide l'allestimento, condivide **il gesto di scrivere `Team0Heroes` a
+      # mano** — e l'eroe che le serve, `Hero.Ivrin`, sta nella STESSA squadra 1 di `Hero.Branth`.
+      # Quel commento dice che batchiare questa seduta con le sedute di acceptance sarebbe il difetto;
+      # batchiare con lei una voce che chiede la medesima property e' invece l'unica economia legittima,
+      # e risparmia un secondo ciclo «sposta la formazione / gioca / rimetti a posto».
+      #
+      # 🔑 **Due modi, e chi esegue sceglie col proprio banco davanti**:
+      #   (a) `Team0Heroes = {Hero.Branth, Hero.Ivrin}` in una configurazione sola — gli slot sono due
+      #       e li riempie entrambi; l'avversaria diventa `{Hero.Aevik, Hero.Muiren}`;
+      #   (b) due configurazioni, con Stop/Start PIE fra le due. La *Regola di batching* di questo file
+      #       elenca Stop/Start fra cio' che NON impone una riapertura dell'Editor, quindi (b) resta
+      #       dentro la stessa apertura e costa solo tempo.
+      # ⛔ **(a) non e' dichiarata funzionante**, e' dichiarata possibile: nessuno l'ha provata, e la
+      # squadra avversaria cambia. Se il caso «un avversario che la squadra non conosce» ne risente,
+      # (b) vale sempre. Non si forza (a) per risparmiare un riavvio.
+      #
+      # ⚠️ **L'eroe si scrive `Hero.Ivrin`, NON «Wraith»**: `D-334` ha ritirato quell'identita' e il
+      # ratchet `RTLegacyIdentityRatchetTests.cpp` la tiene a tetto `0, 0`. La cella della voce nel
+      # registro PIE la chiama ancora «Wraith» in prosa — l'ID d'azione che porta e' invece corretto,
+      # `Hero.Ivrin.PhaseGuard` — e chi allestisse cercando quel nome non troverebbe niente.
+      # ⚠️ **Le due CVar della voce valgono come per le sorelle**: `rt.Match.BotAllies` e
+      # `rt.Match.Autobattle` non devono consegnare al bot l'eroe che si e' appena spostato.
+      - PIE-V01-SHIELD-WRAITH
+    issues: [2791, 2870, 2890, 2381]
     # ⛔ **Perché una seduta e non un automation test.** Ciò che questa seduta giudica è per metà un
     # **non-evento** e per metà un **ordine**, e nessuna delle due cose si vede da headless.
     # Il non-evento lo enuncia `PIE-V01-BLINDFIRE` e non si ricopia qui (R-6); ciò che serve sapere per
@@ -3736,10 +3768,17 @@ sessions:
     # ⚠️ Le due voci si giudicano **nella stessa apertura e in quest'ordine**: `MORTAR` fino al lock-in
     # deve essere indistinguibile da `BLINDFIRE`, e un non-evento si giudica solo avendo il caso positivo
     # accanto con cui confrontarlo.
-    done_when: entrambe le voci hanno esito reale nel registro
+    done_when: >-
+      ogni voce elencata in `verifies` ha esito reale nel registro, e `Team0Heroes` e' stato rimesso
+      alla formazione spedita.
+      ⏱️ **Diceva «entrambe le voci» fino al 2026-09-23**, quando erano due: #2381 ne ha convocata una
+      terza che chiede la stessa property, e la condizione ora punta all'elenco (`AGENTS.md` §14).
+      ⚠️ **L'ordine vincolato resta quello delle due originali** — `MORTAR` dopo `BLINDFIRE`, per la
+      ragione scritta sopra: un non-evento si giudica avendo accanto il caso positivo. `SHIELD-WRAITH`
+      non ha un posto nell'ordine e puo' stare prima, in mezzo o dopo
     unblocks: []
     # ⚠️ Vuoto: nessun checkpoint dipende dal tiro indiretto. `RELEASE-V01` non lo dichiara — nessuno lo
-    # ha promesso per la v0.1 — e le due voci PIE non portano quel marcatore.
+    # ha promesso per la v0.1 — e le voci PIE di questa seduta non portano quel marcatore.
     notes: |
       Setup, nell'ordine in cui va fatto:
 
@@ -4283,16 +4322,15 @@ not_schedulable:
     oracle: 'grep -rn "DOREPLIFETIME" Source/ | grep -v /Tests/ → nessuna riga (2026-09-23)'
     revisit_when: "`M10.1` atterrato"
 
-  # ── Ha gia' un owner che le sta dando una seduta ────────────────────────────────────────────────
-
-  - check: PIE-V01-SHIELD-WRAITH
-    reason: >-
-      ⛔ **Non e' bloccata: e' di qualcun altro.** #2381 la possiede e porta la convocazione in una
-      seduta come **terza** casella del proprio scope, dopo lo scenario headless e la voce PIE — le
-      prime due gia' spuntate. Assegnarla qui gliela toglierebbe di mano lasciando quella casella
-      senza lavoro da fare, e #2188 scheda le orfane, non espropria gli owner.
-      ⚠️ La voce chiede inoltre un allestimento che nessuna seduta esistente ha — una formazione in cui
-      Wraith sia in squadra 0, contro il default `Team0Heroes = [Gadget, Phase]` — quindi la seduta va
-      **costruita**, e chi la costruisce e' chi possiede la precondizione.
-    oracle: "gh issue view 2381 --json state → OPEN"
-    revisit_when: "#2381 la convoca — e allora questa riga sparisce invece di cambiare"
+  # ⏱️ **Qui stava `PIE-V01-SHIELD-WRAITH`, dichiarata il 2026-09-23 e rimossa lo stesso giorno.**
+  # Il suo `revisit_when` diceva *«#2381 la convoca — e allora questa riga sparisce invece di
+  # cambiare»*, ed e' quello che e' successo: la voce e' in `U51`, che possiede gia' il gesto di
+  # scrivere `Team0Heroes` a mano. La riga non lascia un segnaposto perche' una voce schedulata non
+  # ha niente da fare in un elenco di voci che non si possono guardare — la storia sta in git e nel
+  # documento del censimento.
+  # 🔴 **E portava due identita' RITIRATE**, ricopiate dalla cella del registro senza verificarle:
+  # «una formazione in cui **Wraith** sia in squadra 0, contro il default `Team0Heroes = [Gadget,
+  # Phase]`». `D-334` ha ritirato `Hero.Wraith` -> `Hero.Ivrin` e `#2491` `Hero.Gadget` ->
+  # `Hero.Aevik`, `Hero.Phase` -> `Hero.Muiren`; il default vero e'
+  # `Team0Heroes = {Hero.Aevik, Hero.Muiren}`. La sostanza reggeva — l'eroe e' ancora in squadra 1,
+  # quindi l'allestimento serve lo stesso — ma il nome da scrivere nel GameMode era sbagliato.
