@@ -944,11 +944,18 @@ URTActionData* URTCatalogLibrary::MakeEquipmentAction(const URTEquipmentData* It
 	// [D-218] mette li' apposta come unica risposta allo `Status.Slow` dell'attacco base di Branth.
 	//
 	// 🔑 **E' il nome del PEZZO, e non e' una preferenza: e' l'unico che esiste.** Misurato il 2026-09-23:
-	// `GenericActionDisplayName` mappa cinque id — `Wait`, `Guard`, `Brace`, `Overwatch`, `Interact` — e
-	// **nessuna** delle azioni concesse dall'equipaggiamento (`CreateWater`, `CreateCover`, `CreateSmoke`,
-	// `Evade`, `Purge`, `Heal`, `Counter`, `Intercept`, `Anchor`, `HeavyAttack`) e' in quella mappa ne' in
-	// quella degli eroi. Il nome dell'azione core non e' un'alternativa piu' povera: **non c'e'**, e una
-	// composizione «pezzo — core» avrebbe la seconda meta' vuota.
+	// i dodici pezzi che concedono un'azione nominano **dieci** azioni core distinte (`Anchor`, `Counter`,
+	// `CreateCover`, `CreateSmoke`, `CreateWater`, `Evade`, `Heal`, `HeavyAttack`, `Intercept`, `Purge`) e
+	// **nessuna delle dieci ha un nome leggibile**. L'unica mappa chiavata su `Action.*` e'
+	// `GenericActionDisplayName`, che ne copre cinque: `Wait`, `Guard`, `Brace`, `Overwatch`, `Interact`.
+	//
+	// ⚠️ **E l'altra mappa non e' un secondo posto dove ho guardato**: `HeroActionDisplayName` e' chiavata su
+	// `Hero.<eroe>.<azione>` (`Hero.Aevik.ArcPulse`, ...), quindi **per costruzione** non puo' contenere un
+	// `Action.*` — cercarvi `Action.Purge` da' zero per il vocabolario, non per i fatti. Dirlo cosi' evita
+	// di far passare una ricerca a vuoto per una copertura.
+	//
+	// Quindi il nome dell'azione core non e' un'alternativa piu' povera: **non c'e'**, e una composizione
+	// «pezzo — core» avrebbe la seconda meta' vuota. Renderla possibile vuol dire prima SCRIVERE dieci nomi.
 	//
 	// ⚠️ E coincide con la scelta gia' fatta due righe sopra: `ActionId` diventa quello del pezzo perche' nel
 	// TurnLog si legge il gadget, e `MakeActionIconId` porta `Gadget.Sprinkler` → `UI.Icon.Action.Sprinkler`.

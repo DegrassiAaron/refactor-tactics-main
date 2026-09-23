@@ -442,12 +442,19 @@ public:
 	/**
 	 * Il nome che il giocatore legge per un'azione concessa da un pezzo di equipaggiamento (`#3275`).
 	 *
-	 * 🔑 **E' il nome del pezzo, e la scelta e' una misura, non una preferenza.** La DoD di `#3275` offriva
-	 * tre uscite — nome del pezzo, nome dell'azione core, composizione — ma le azioni concesse
-	 * (`CreateWater`, `CreateCover`, `CreateSmoke`, `Evade`, `Purge`, `Heal`, `Counter`, `Intercept`,
-	 * `Anchor`, `HeavyAttack`) **non hanno un nome** ne' in `GenericActionDisplayName`, che ne mappa cinque
-	 * (`Wait`, `Guard`, `Brace`, `Overwatch`, `Interact`), ne' in quella degli eroi. Le altre due uscite non
-	 * sono piu' povere: sono vuote. Renderle possibili vuol dire prima **scrivere** quei dieci nomi.
+	 * 🔑 **E' il nome del pezzo, e la scelta e' una misura, non una preferenza.** La DoD di `#3275`
+	 * offriva tre uscite — nome del pezzo, nome dell'azione core, composizione — ma i dodici pezzi che
+	 * concedono nominano **dieci** azioni core distinte (`Anchor`, `Counter`, `CreateCover`, `CreateSmoke`,
+	 * `CreateWater`, `Evade`, `Heal`, `HeavyAttack`, `Intercept`, `Purge`) e **nessuna delle dieci ha un
+	 * nome leggibile**: l'unica mappa chiavata su `Action.*` e' `GenericActionDisplayName`, che ne copre
+	 * cinque — `Wait`, `Guard`, `Brace`, `Overwatch`, `Interact`.
+	 *
+	 * ⚠️ `HeroActionDisplayName` **non e' un secondo posto dove cercare**: e' chiavata su
+	 * `Hero.<eroe>.<azione>`, quindi per costruzione non contiene `Action.*`. Uno zero preso li' misura il
+	 * vocabolario, non i fatti.
+	 *
+	 * Le altre due uscite non sono piu' povere: sono **vuote**. Renderle possibili vuol dire prima
+	 * **scrivere** quei dieci nomi — lavoro di contenuto, non di correzione.
 	 *
 	 * Coincide con la scelta gia' presa da `MakeEquipmentAction`, che riscrive `ActionId` col pezzo, e da
 	 * `MakeActionIconId`, che porta `Gadget.Sprinkler` → `UI.Icon.Action.Sprinkler`: id, icona e nome
