@@ -436,7 +436,11 @@ def autotest() -> int:
                 print(f"      {x}")
         print(f"  {'✅' if len(d) == attesi else '❌'} {nome}: {esito}")
     print()
-    print("✅ autotest verde" if rossi == 0 else f"❌ {rossi} casi falliti")
+    # 🔴 Il conteggio lo stampa il COMANDO, e non si scrive a mano da nessuna parte: fino al
+    # 2026-09-23 questa riga diceva solo "verde", e il numero dei casi e' stato scritto a mano in
+    # quattro sedi — `AGENTS.md`, il Decision Log, un corpo di PR e un commento — sbagliato in
+    # tutte e quattro (19 contro 18). Un numero che nessun comando emette invecchia in silenzio.
+    print(f"✅ autotest verde — {len(casi)} casi" if rossi == 0 else f"❌ {rossi} casi falliti su {len(casi)}")
     return 1 if rossi else 0
 
 

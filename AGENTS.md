@@ -574,13 +574,14 @@ perche' un gate **nasce verde** e senza una mutazione il suo verde non distingue
 «non ho guardato»:
 
 ```powershell
-python tools/architettura/misure-strutturali.py --autotest   # 7 casi, coi numeri veri dell'audit di agosto
-python tools/bot-competence/check.py --autotest              # 19 casi sulle funzioni pure
+python tools/architettura/misure-strutturali.py --autotest   # coi numeri veri dell'audit di agosto;
+                                                             # quanti casi lo dice il comando
+python tools/bot-competence/check.py --autotest              # le funzioni pure. Quanti casi lo dice lui
 ```
 
 ⚠️ Si lanciano quando si **tocca il gate**, non a ogni PR: provano la decisione del gate, non l'albero.
 Gli altri controlli di `tools/radar/` hanno la stessa prova nel gemello `.test.ts`, che gira con
-`node --test` qui sotto.com/DegrassiAaron/refactor-tactics-main/issues/3288).
+`node --test`, che sta qui sopra.
 
 
 ⛔ `tools/mcp/check.ts` confronta l'endpoint che `.mcp.json` **dichiara** con la porta che i settings

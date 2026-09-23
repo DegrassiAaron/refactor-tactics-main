@@ -523,7 +523,9 @@ I controlli di `tools/radar/` si chiamano per **nome**, non per numero: `generat
 
 ```
 grep -cE '^node tools/radar/' AGENTS.md              # i controlli di radar, che sono quelli elencati qui
-grep -cE '^(node|python) tools/' AGENTS.md          # TUTTI i controlli, radar compreso: un numero piu' grande
+grep -cE '^(node|python) tools/' AGENTS.md          # controlli E prove insieme: un numero piu' grande,
+                                                    # perche' include i due `--autotest`, che AGENTS.md
+                                                    # tiene separati (si lanciano toccando il gate)
 cd tools/radar && node --test 2>&1 | grep '^# tests'  # i test, alla data in cui lo lanci
 ```
 
