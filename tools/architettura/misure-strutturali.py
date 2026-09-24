@@ -126,6 +126,17 @@ turno.
   ⚠️ `rami` NON e' stato cambiato: baseline gia' dichiarate in #1818, #1816 e nei referti datati
   continuano a valere. Chi apre una fetta di presentazione guardi `scelte`; chi confronta con una
   baseline vecchia guardi `rami`;
+- **il flusso raggiunto attraverso una FIXTURE**, e anche qui la correzione e' additiva.
+  🔴 `PATTERNS_FLUSSO` cerca cinque stringhe nel testo del `.cpp`. Ma `RTWorldFixtures::PlayOneTurn`
+  — `PlanBotsForTest()` + `LockInAndResolve()` + un ciclo `Tick(0.05f)` — vive in un **header**:
+  chi la chiama non contiene nessun marcatore e risulta **allestimento** pur girando la risoluzione
+  vera. Misurato il 2026-09-24: **quattro** file su 37 (`RTAutobattleInputInertTests`,
+  `RTHexOccupancyTests`, `RTReplayRecordingIntegrationTests`, `RTUnitIdentityTests`), e il piu'
+  pesante gioca una partita fino a `MatchEnded` verificando il manifest col checksum.
+  Accanto a `di cui ALLESTISCONO soltanto` c'e' ora **`— e al NETTO delle fixture`**, che risolve
+  le fixture di header. ⚠️ Il primo numero NON e' cambiato, per la stessa ragione di `rami`:
+  #2182 e i suoi referti lo portano scritto. Chi cerca un bersaglio per una fetta guardi il
+  **netto**; chi confronta col delta di una fetta precedente guardi il primo;
 - **se una fetta e' una buona idea**: dice dov'e' il peso, non cosa farne.
 """
 
@@ -168,6 +179,27 @@ PATTERNS_FLUSSO = (
     "URTScenarioRunner::",  # chi passa dall'harness, che il flusso lo gira per intero
     "FRTScenarioSession",   # idem, un gradino piu' in basso
 )
+
+# 🔴 **L'euristica qui sopra SOTTOSTIMA il flusso, e di quanto si misura** (#2182, 2026-09-24).
+#
+# Cerca le cinque stringhe nel testo del `.cpp`. Ma `RTWorldFixtures::PlayOneTurn` — che e'
+# `PlanBotsForTest()` + `LockInAndResolve()` + un ciclo `Tick(0.05f)`, cioe' il flusso reale — vive in un
+# **header**, quindi chi la chiama non contiene nessuno dei marcatori e viene contato come allestimento.
+#
+# Il comando che trova i file classificati male:
+#
+#     for f in Source/RefactorTactics/Tests/*.cpp; do
+#       grep -q "SpawnActor" "$f" \
+#         && ! grep -qE "RunTurn|LockInAndResolve|->Tick\(|URTScenarioRunner::|FRTScenarioSession" "$f" \
+#         && grep -qE "RunScenarioIsolated|PlayOneTurn" "$f" && basename "$f"; done
+#
+# ⛔ **La correzione e' ADDITIVA, ed e' deliberato**: `test_file_allestimento` resta calcolato come
+# sempre, perche' #2182, #1818 e ogni referto datato portano baseline scritte con quel numero — e un
+# numero che cambia sotto i piedi rende incomparabili i delta gia' pubblicati. E' la stessa scelta che
+# `#2349` ha fatto per i ternari: e' nata la colonna `scelte` e `rami` e' rimasto intatto.
+#
+# Nasce quindi `test_file_allestimento_netto`, che toglie chi gira il flusso **attraverso una fixture**.
+RE_FIXTURE_INLINE = re.compile(r"^\s*inline\s+[\w:<>,\s\*&]*?\b(\w+)\s*\(")
 PATTERN_TURNMANAGER = "ARTTurnManager"
 RE_TEST_NAME = re.compile(r'"RefactorTactics\.[A-Za-z0-9_.]+"')
 RE_METODO_TM = re.compile(r"ARTTurnManager::[A-Za-z0-9_~]+")
@@ -201,6 +233,54 @@ def spoglia(riga):
     riga = re.sub(r'"[^"]*"', "", riga)
     riga = re.sub(r"'[^']*'", "", riga)
     return re.sub(r"//.*$", "", riga)
+
+
+def fixture_di_flusso(testo):
+    """PURA. I nomi delle funzioni `inline` di un header il cui CORPO gira il flusso del turno (#2182).
+
+    Serve a chiudere il punto cieco di `PATTERNS_FLUSSO`: quelle cinque stringhe si cercano nel `.cpp`,
+    ma una fixture come `RTWorldFixtures::PlayOneTurn` le contiene nell'**header**, e chi la chiama
+    risulta allestimento pur girando la risoluzione vera.
+
+    ⚠️ **Anche questa e' un'euristica**, e i suoi limiti sono due:
+
+    * riconosce solo le funzioni che cominciano con `inline` a inizio riga — la forma che `Tests/*.h`
+      usa, non l'unica possibile;
+    * non segue le chiamate a catena: una fixture che ne chiami un'altra senza nominare un marcatore
+      non viene riconosciuta.
+
+    ⛔ **Le righe di commento non contano.** Un marcatore *citato* in una nota — e in questo repository
+    le note citano spesso il codice che spiegano — non e' una chiamata, ed e' lo stesso falso positivo
+    che `PATTERNS_FLUSSO` ha gia' sul lato `.cpp`.
+    """
+    nomi = set()
+    corrente = None
+    profondita = 0
+    aperta = False
+    for riga in testo.split("\n"):
+        if corrente is None:
+            trovata = RE_FIXTURE_INLINE.match(riga)
+            if not trovata:
+                continue
+            corrente, profondita, aperta = trovata.group(1), 0, False
+        # ⛔ Due forme di commento, e servono entrambe: `RE_COMMENTO` toglie le righe che sono commento
+        # per intero (`* …` dentro un blocco `/** */`), `spoglia` toglie quello IN LINEA dopo il codice.
+        # La prima stesura usava solo la prima, e l'autotest l'ha bocciata su `X.Num(); // niente RunTurn`.
+        if not RE_COMMENTO.match(riga) and any(p in spoglia(riga) for p in PATTERNS_FLUSSO):
+            nomi.add(corrente)
+        profondita += riga.count("{") - riga.count("}")
+        if "{" in riga:
+            aperta = True
+        if aperta and profondita <= 0:
+            corrente = None
+    return nomi
+
+
+def gira_il_flusso(testo, fixture):
+    """PURA. Il file gira il flusso del turno — direttamente, o attraverso una fixture di header?"""
+    if any(p in testo for p in PATTERNS_FLUSSO):
+        return True
+    return any((f + "(") in testo for f in fixture)
 
 
 def funzioni_di(path):
@@ -289,11 +369,17 @@ def misura(radice, soglia):
         metodi.update(RE_METODO_TM.findall("\n".join(leggi(p))))
     m["turnmanager_metodi"] = len(metodi)
 
+    # Le fixture di header che girano il flusso: si scoprono una volta e valgono per tutti i file.
+    fixture = set()
+    for p in sorted((radice / "Source/RefactorTactics/Tests").glob("*.h")):
+        fixture |= fixture_di_flusso("\n".join(leggi(p)))
+
     test_file = sorted((radice / "Source/RefactorTactics/Tests").glob("*.cpp"))
     nomi = set()
     con_mondo = 0
     con_tm = 0
     allestimento = 0
+    allestimento_netto = 0
     for p in test_file:
         testo = "\n".join(leggi(p))
         nomi.update(RE_TEST_NAME.findall(testo))
@@ -301,8 +387,16 @@ def misura(radice, soglia):
             con_mondo += 1
             # Allestimento = spawna un Actor ma NON gira il flusso del turno. E' il residuo di E50 su cui
             # una fetta puo' lavorare senza togliere copertura d'integrazione (#2182).
+            #
+            # ⛔ **Questa riga NON cambia**, e il numero che produce nemmeno: le baseline di #2182, #1818 e
+            # dei referti datati sono scritte con lui. Il conteggio corretto vive accanto, non al suo posto.
             if not any(p in testo for p in PATTERNS_FLUSSO):
                 allestimento += 1
+                # Il conteggio NETTO toglie chi gira il flusso attraverso una fixture di header: sono
+                # test d'integrazione etichettati male, e puntarli sarebbe togliere copertura credendo
+                # di togliere debito.
+                if not gira_il_flusso(testo, fixture):
+                    allestimento_netto += 1
         if PATTERN_TURNMANAGER in testo:
             con_tm += 1
     n_file = len(test_file)
@@ -310,7 +404,9 @@ def misura(radice, soglia):
     m["test_unici"] = len(nomi)
     m["test_file_con_mondo"] = con_mondo
     m["test_file_allestimento"] = allestimento
+    m["test_file_allestimento_netto"] = allestimento_netto
     m["test_file_con_flusso"] = con_mondo - allestimento
+    m["fixture_di_flusso"] = sorted(fixture)
     m["test_file_con_turnmanager"] = con_tm
     m["quota_mondo"] = round(100.0 * con_mondo / n_file, 1) if n_file else 0.0
     m["quota_turnmanager"] = round(100.0 * con_tm / n_file, 1) if n_file else 0.0
@@ -433,6 +529,7 @@ def stampa(m, base=None, markdown=False):
     riga("quota test con mondo", "quota_mondo", " %")
     riga("  di cui girano il flusso del turno", "test_file_con_flusso")
     riga("  di cui ALLESTISCONO soltanto", "test_file_allestimento")
+    riga("  — e al NETTO delle fixture", "test_file_allestimento_netto")
     riga("file di test che dipendono dal TurnManager", "test_file_con_turnmanager")
     riga("quota test col TurnManager", "quota_turnmanager", " %")
     riga("funzioni >= %d righe" % m["soglia"], "funzioni_lunghe")
@@ -589,6 +686,59 @@ def autotest():
               % ("✅" if avuto == atteso else "❌", nome, atteso, avuto))
         if avuto != atteso:
             falliti.append(nome)
+
+    # ── `fixture_di_flusso` e `gira_il_flusso`, provate sulle stringhe (#2182) ────────────────────────
+    #
+    # ⚠️ **Sono prove della funzione PURA, non della misura sull'albero.** Che i quattro file classificati
+    # male siano davvero quattro lo dice il comando nel commento di `PATTERNS_FLUSSO`; qui si prova che,
+    # dato un header, la funzione ne estragga i nomi giusti — e che sappia NON estrarli.
+    print()
+    HEADER_VERO = '''
+    inline void PlayOneTurn(ARTTurnManager* TM)
+    {
+        TM->PlanBotsForTest();
+        TM->LockInAndResolve();
+        for (int32 I = 0; I < 400 && TM->IsResolving(); ++I)
+        {
+            TM->Tick(0.05f);
+        }
+    }
+
+    inline ARTUnit* FirstUnitOfTeam(UWorld* World, int32 TeamId)
+    {
+        return nullptr;
+    }
+    '''
+    HEADER_SOLO_COMMENTO = '''
+    // Questa nota cita `LockInAndResolve` per spiegare cosa NON fa.
+    inline int32 ContaSoltanto(const TArray<int32>& X)
+    {
+        return X.Num(); // niente `RunTurn` qui
+    }
+    '''
+    casi_fixture = [
+        ("la fixture che gira il turno e' riconosciuta", fixture_di_flusso(HEADER_VERO), {"PlayOneTurn"}),
+        ("e quella accanto, che non lo gira, NON lo e'",
+         fixture_di_flusso(HEADER_VERO) & {"FirstUnitOfTeam"}, set()),
+        # ⛔ Anti-vacuita': un marcatore in un COMMENTO non e' una chiamata. Senza questo caso la
+        # funzione potrebbe promuovere ogni fixture il cui docstring nomina il flusso — e in questo
+        # repository i docstring lo nominano spesso.
+        ("un marcatore citato in un commento non conta", fixture_di_flusso(HEADER_SOLO_COMMENTO), set()),
+        ("un .cpp che chiama la fixture gira il flusso",
+         gira_il_flusso("RTWorldFixtures::PlayOneTurn(TM);", {"PlayOneTurn"}), True),
+        ("un .cpp che non la chiama, no",
+         gira_il_flusso("World->SpawnActor<ARTUnit>();", {"PlayOneTurn"}), False),
+        # 🔑 Il caso che dimostra che il NETTO non e' l'ALLESTIMENTO: senza fixture note, un file che
+        # chiama `PlayOneTurn` resta classificato come allestimento. E' il difetto storico, riprodotto.
+        ("senza fixture note, lo stesso .cpp risulta allestimento",
+         gira_il_flusso("RTWorldFixtures::PlayOneTurn(TM);", set()), False),
+    ]
+    for nome, avuto, atteso in casi_fixture:
+        ok = avuto == atteso
+        print("  %s %s: atteso %s, avuto %s" % ("✅" if ok else "❌", nome, atteso, avuto))
+        if not ok:
+            falliti.append(nome)
+    casi = casi + casi_fixture
 
     print()
     # Anti-vacuita': con `SORVEGLIATE` vuota ogni caso tornerebbe 0, e questa prova resterebbe verde
