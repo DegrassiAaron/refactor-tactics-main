@@ -414,4 +414,36 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static int32 NextActionBoundary(const TArray<FRTResolvedEvent>& Timeline, int32 FromIndex);
+
+	/**
+	 * QUESTO evento apre un atto nuovo rispetto a `CurrentAction`? — `#3292`.
+	 *
+	 * 🔴 **E' la regola del confine d'atto, e da qui in poi esiste in UN SOLO posto.** Prima viveva due
+	 * volte: qui dentro `NextActionBoundary`, che nessuno chiamava in produzione, e **riscritta inline**
+	 * nel ciclo dei colpi di `ARTTurnManager::TickPlayback`, che era l'unico sito a valutarla davvero. Il
+	 * commento accanto a quella copia dichiarava *«la regola e' quella di `NextActionBoundary`, non una
+	 * seconda»*: diceva il vero sull'intenzione e il falso sul codice. Due copie divergono alla prima
+	 * modifica di una sola — e qui una delle due non era nemmeno eseguita.
+	 *
+	 * ∴ ora `NextActionBoundary` **chiama questa**, e i tre canali del `Blast` pure. Una modifica alla
+	 * regola si scrive una volta.
+	 *
+	 * 🔑 **Il criterio resta quello di `#2855`: l'`ActionId` da solo.** Un evento e' un confine quando porta
+	 * un'azione **diversa** da quella in corso. Piu' eventi con lo stesso `ActionId` sono **un** atto, e
+	 * questo e' cio' che risolve il caso dell'impronta: un'impronta e i colpi che la seguono nascono dallo
+	 * stesso intento, quindi portano lo stesso `ActionId` e **non** fanno fermare due volte.
+	 *
+	 * ⚠️ **L'eccezione di `StructureHit`, decisa da `#3281`** ([D-437]): li' `NAME_None` non significa
+	 * *«nessuna azione dietro»* ma *«piu' di uno l'ha fatto»* — il produttore nomina l'azione quando
+	 * l'autore e' uno e tace **solo** sull'aggregato. ∴ un vuoto su quel tipo **e'** un confine.
+	 *
+	 * ⛔ **Altrove un `NAME_None` non e' mai un confine**: `Defeated`, `HazardDamage`, `StatusChanged` e
+	 * `ArcHit` lo portano perche' nessuno li ha *fatti* — o, per l'arco, perche' la sua identita' non e'
+	 * ancora stata decisa (`#3280` la lascia fuori dallo scope).
+	 *
+	 * ⚠️ **Non dice se l'atto in corso vada AGGIORNATO**: e' una domanda di chi chiama. `NextActionBoundary`
+	 * la risolve scandendo all'indietro; il playback tenendo l'ultima azione mostrata.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static bool IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction);
 };

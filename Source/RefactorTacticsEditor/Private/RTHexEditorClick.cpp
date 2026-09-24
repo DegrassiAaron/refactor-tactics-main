@@ -18,6 +18,7 @@
 #include "Map/RTMapEditLibrary.h"       // ResolveInteriorWall, per disegnare il muro selezionato
 #include "Map/RTGeometryGrammar.h"      // ToPolyline: la giacitura del muro, derivata dall'authority
 #include "RTHexSelectionStore.h"        // la selezione condivisa che i tool disegnano
+#include "Framework/Application/SlateApplication.h" // IsControlDown: il modificatore del gesto additivo
 #include "Turn/RTMatchSetupLibrary.h"
 #include "RTScenarioPreviewActor.h"  // ARTScenarioPreviewActor::PreviewTag: gli actor d'anteprima non sono "la mappa"
 
@@ -617,4 +618,72 @@ bool RTHexEditor::ShouldRevalidate(int32 CurrentRevision, int32& InOutLastSeen, 
 	}
 
 	return false;
+}
+
+bool RTHexEditor::GestureIsASelection(ERTAnchorPairRefusal Refusal, const FVector2D& LocalStart,
+	const FVector2D& LocalEnd, float HexSize)
+{
+	// 🔴 **Il gesto non deve essersi MOSSO, e `SameAnchor` da solo non lo garantisce.**
+	// `NearestAnchor` non ha limite di distanza: un trascinamento lungo che resta dalla parte dello stesso
+	// anchor — premi verso il punto medio del lato `E`, tira oltre il bordo — aggancia entrambi gli
+	// estremi a quel punto medio, e `ExplainPair` risponde `SameAnchor` su un gesto che era un disegno.
+	//
+	// ⚠️ La soglia e' in frazione di `HexSize`, cioe' una misura del MONDO: invariante allo zoom, al
+	// contrario dei pixel di schermo di `USingleClickOrDragInputBehavior`. E' la convenzione che questo
+	// modulo usa gia' — `NearestTransition` con `HexSize * 0.6`.
+	const float Soglia = HexSize * 0.05f;
+	if (FVector2D::DistSquared(LocalStart, LocalEnd) > Soglia * Soglia)
+	{
+		return false;
+	}
+
+	// ⛔ **Solo `SameAnchor`, e l'elenco degli esclusi e' il punto.** Gli altri rifiuti dicono che il
+	// gesto ERA un disegno e non e' riuscito — due celle, due layer, una coppia che nessun asse porta —
+	// e in tutti quei casi il ghost aveva gia' detto che il muro non si puo' fare. Cambiare la selezione
+	// al rilascio, li', sarebbe rubare il gesto a chi stava disegnando.
+	//
+	// 🔑 `SameAnchor` e' l'unico che significa «non c'e' lunghezza», cioe' un CLICK — e la doc dell'enum
+	// lo dice con le stesse parole: *«un gesto senza lunghezza non e' un muro»*.
+	return Refusal == ERTAnchorPairRefusal::SameAnchor;
+}
+
+bool RTHexEditor::ApplyClickToSelection(const ARTHexMapActor* Actor, const FRTCellId& Cell,
+	const FVector& ClickedPoint)
+{
+	if (Actor == nullptr)
+	{
+		return false;
+	}
+
+	URTHexMapAsset* Map = Actor->MapAsset;
+	URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr;
+	if (Map == nullptr || Store == nullptr)
+	{
+		return false;
+	}
+
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 0.f;
+	float LayerH = 0.f;
+	Actor->GetHexContext(Origin, HexSize, LayerH);
+
+	// ⚠️ Il BORDO mirato, non il centro della cella: e' cio' che permette al ciclo di selezione di
+	// raggiungere una porta o una copertura invece della sola superficie (#1864).
+	const ERTHexDirection Edge =
+		URTHexLibrary::NearestEdgeDirection(Cell, ClickedPoint, Origin, HexSize, LayerH);
+
+	// Ctrl aggiunge invece di sostituire: e' la multi-selezione condivisa che #1864 chiede. Si legge QUI
+	// e non nei tool, cosi' i due non possono avere due convenzioni.
+	const bool bAdditive = FSlateApplication::IsInitialized()
+		&& FSlateApplication::Get().GetModifierKeys().IsControlDown();
+
+	if (bAdditive)
+	{
+		Store->AddAt(Map, Cell, Edge);
+	}
+	else
+	{
+		Store->SelectAt(Map, Cell, Edge);
+	}
+	return true;
 }

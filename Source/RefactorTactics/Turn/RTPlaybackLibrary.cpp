@@ -258,34 +258,10 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 
 	for (int32 i = FMath::Max(0, FromIndex + 1); i < Fine; ++i)
 	{
-		const FName Azione = Timeline[i].ActionId;
-
-		// 🔴 **`StructureHit` senza azione E' un confine, e su nessun altro tipo lo e'** — `#3281`,
-		// [D-437]. Su questo tipo `NAME_None` non significa *«nessuna azione dietro»*: significa **«piu'
-		// di uno l'ha fatto»**. Il produttore nomina l'azione quando l'autore e' uno e tace solo
-		// sull'aggregato, quindi un vuoto qui e' un fatto con piu' autori — non un fatto senza autore.
-		// ⛔ Fermarsi ci sta: un muro che cade qualcuno l'ha fatto cadere, e l'evento porta chi
-		// (`SourceStableUnitId`).
-		//
-		// ⚠️ **E NON interrompe l'atto in corso**, perche' il ciclo all'indietro qui sopra continua a
-		// saltare i `None`: dopo essersi fermati sull'aggregato, un colpo successivo della stessa azione
-		// resta lo stesso atto. Il muro e' una sosta, non un taglio.
-		//
-		// ⛔ **`ArcHit` resta fuori, deliberatamente.** Porta `NAME_None` sempre (`#3280`), quindi qui
-		// diventerebbe un confine a ogni arco colpito — e se sia giusto e' una decisione che questa issue
-		// non ha preso. Chi la prende aggiunga il tipo qui, con la sua ragione.
-		if (Azione.IsNone() && Timeline[i].Type == ERTResolvedEventType::StructureHit)
-		{
-			return i;
-		}
-
-		// ⛔ **Altrove `None` non e' mai un confine.** E' un valore legittimo che dice «nessuna azione
-		// dietro»: fermarcisi sarebbe fermarsi su un fatto che nessuno ha compiuto.
-		if (Azione.IsNone())
-		{
-			continue;
-		}
-		if (Azione != Corrente)
+		// 🔑 **La regola NON si riscrive qui**: e' `IsActBoundary`, e da `#3292` ha un solo posto. Questa
+		// funzione e' la sua vista su una timeline — decide COSA sia l'atto in corso (la scansione
+		// all'indietro qui sopra) e delega il resto.
+		if (IsActBoundary(Timeline[i], Corrente))
 		{
 			return i;
 		}
@@ -294,4 +270,25 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	// Nessun altro atto: la fine della timeline. E' la stessa scelta di `NextMicroStepBoundary`, che oltre
 	// l'ultimo segmento porta a fine fase e non oltre.
 	return Fine;
+}
+
+bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction)
+{
+	// 🔴 **`StructureHit` senza azione E' un confine, e su nessun altro tipo lo e'** — `#3281`, [D-437].
+	// Su questo tipo `NAME_None` non significa *«nessuna azione dietro»*: significa **«piu' di uno l'ha
+	// fatto»**, perche' il produttore nomina l'azione quando l'autore e' uno e tace solo sull'aggregato.
+	// ⛔ Fermarsi ci sta: un muro che cade qualcuno l'ha fatto cadere, e l'evento porta chi.
+	//
+	// ⛔ **`ArcHit` resta fuori, deliberatamente**: porta `NAME_None` sempre (`#3280`), quindi qui
+	// diventerebbe un confine a ogni arco colpito — e se sia giusto e' una decisione che nessuna issue ha
+	// preso. Chi la prende aggiunga il tipo qui, con la sua ragione.
+	if (Event.ActionId.IsNone())
+	{
+		return Event.Type == ERTResolvedEventType::StructureHit;
+	}
+
+	// ⚠️ **Piu' eventi con lo stesso `ActionId` sono UN atto**, ed e' la riga che risolve il caso
+	// dell'impronta: impronta e colpi nascono dallo stesso intento, quindi portano la stessa azione e non
+	// fanno fermare due volte. Stessa ragione per cui un'area su tre bersagli e' un atto solo.
+	return Event.ActionId != CurrentAction;
 }

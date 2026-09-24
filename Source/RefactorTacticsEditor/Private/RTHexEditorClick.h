@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Map/RTCellId.h"
 #include "Map/RTHexCellData.h" // ERTHexSurface, ERTHexTransitionKind
+#include "Map/RTGeometryGrammar.h" // ERTAnchorPairRefusal: la domanda «e' un click?» la risponde la grammatica
 
 class UWorld;
 class ARTHexMapActor;
@@ -144,6 +145,83 @@ namespace RTHexEditor
 	 * Pura, con lo stato passato per riferimento: si prova headless senza aprire un `UEdMode`.
 	 */
 	bool ShouldRevalidate(int32 CurrentRevision, int32& InOutLastSeen, bool& InOutPending);
+
+	/**
+	 * QUESTO GESTO E' UNA SELEZIONE, o un disegno che non e' riuscito? (#1864, casella 2)
+	 *
+	 * 🔑 **Il tool Geometry disegnava e basta: vedeva la selezione condivisa e non poteva scriverla.**
+	 * La casella 2 chiede che sia condivisa *fra* Select, Geometry e Arch, e Geometry era un consumatore —
+	 * chiamava `DrawSharedSelection` e nient'altro. Questa funzione e' la regola che gli manca.
+	 *
+	 * ⛔ **Il gesto che oggi non produce NULLA e' quello libero, ed e' l'unico che si puo' prendere.**
+	 * `OnClickRelease` esce senza toccare la mappa quando lo snap non ha prodotto un segmento; fra i modi
+	 * in cui puo' non produrlo, uno solo significa *«non stavo disegnando»*:
+	 *
+	 * ```text
+	 * SameAnchor        i due estremi cadono sullo STESSO anchor    -> puo' essere un click
+	 * NoTacticalAxis    le ventiquattro coppie inesprimibili        -> stava disegnando
+	 * None              la coppia si esprime: il muro si fa         -> non arriva qui
+	 * ```
+	 *
+	 * ⚠️ **Sono TRE e non cinque, da questo chiamante.** `DifferentCell` e `DifferentLayer` confrontano
+	 * la cella dei due anchor (`ExplainPair`), e `SnapGestureToAnchors` passa `ActiveCell` a **entrambe** le
+	 * `NearestAnchor`: da qui non possono uscire. Un trascinamento che *visivamente* attraversa due celle
+	 * arriva percio' travestito da `NoTacticalAxis` — oppure, se l'estremo lontano resta nel bacino dello
+	 * stesso anchor di bordo, proprio da `SameAnchor`, ed e' la ragione per cui la distanza va misurata
+	 * comunque. La funzione li tratta lo stesso perche' e' pura e non sa chi la chiama, ma chi legge questa
+	 * tabella non deve credere di avere una discriminazione a cinque vie che il gesto non produce.
+	 *
+	 * ⚠️ **Prendere anche gli altri sarebbe rubare il gesto al disegno**: chi trascina fra due anchor che
+	 * nessun asse congiunge sta disegnando, e vedersi cambiare la selezione al rilascio e' peggio che non
+	 * vedere niente — perche' il ghost gli aveva gia' detto che il muro non si puo' fare.
+	 *
+	 * 🔴 **E `SameAnchor` DA SOLO non basta, contrariamente a quanto la prima stesura dichiarava.**
+	 * `URTGeometryGrammarLibrary::NearestAnchor` non ha **nessun limite di distanza**: prende il piu' vicino
+	 * fra i tredici anchor della cella, a qualunque distanza si trovi il punto. Ne segue che un gesto
+	 * **lungo** puo' agganciare entrambi gli estremi allo stesso anchor — premere verso il punto medio del
+	 * lato `E` e trascinare oltre il bordo, dentro la cella vicina, resta piu' vicino a *quel* punto medio
+	 * per entrambi gli estremi. Il gesto era un trascinamento, `ExplainPair` dice `SameAnchor`, e la prima
+	 * stesura avrebbe **cancellato la selezione multipla** di chi stava disegnando un muro.
+	 *
+	 * ∴ serve anche che il gesto non si sia **mosso**, e la soglia e' in frazione di `HexSize` — cioe' una
+	 * misura del MONDO. ⚠️ Non e' una ricaduta nella soglia che il paragrafo qui sotto critica: quella e'
+	 * in **pixel di schermo** e dipende dalla camera; una frazione di `HexSize` e' invariante allo zoom, ed
+	 * e' la convenzione che questo modulo usa gia' (`NearestTransition` con `HexSize * 0.6`).
+	 *
+	 * 🔴 **E la misura e' quella della GRAMMATICA, non dei pixel.** L'engine offre
+	 * `USingleClickOrDragInputBehavior`, che distingue click e trascinamento con
+	 * `ClickDistanceThreshold = 5.0` **in pixel di schermo**: i pixel dipendono dalla camera, gli anchor
+	 * no. Allo zoom sbagliato il muro piu' corto esprimibile smetterebbe di essere disegnabile, e lo stesso
+	 * gesto sulla stessa mappa cambierebbe esito a seconda di dove sta l'occhio. Qui la domanda
+	 * *«i due estremi sono lo stesso punto della grammatica?»* la risponde gia' il runtime
+	 * (`URTGeometryGrammarLibrary::ExplainPair`), ed e' invariante allo zoom.
+	 *
+	 * Pura: si prova headless senza aprire un `UEdMode`.
+	 */
+	bool GestureIsASelection(ERTAnchorPairRefusal Refusal, const FVector2D& LocalStart,
+		const FVector2D& LocalEnd, float HexSize);
+
+	/**
+	 * Applica alla selezione condivisa il click su una cella — la META' che Select e Geometry hanno in
+	 * comune (#1864, casella 2).
+	 *
+	 * 🔑 **Estratta invece che copiata.** Il gesto e' lo stesso in entrambi i tool — risolvere il bordo
+	 * mirato, leggere `Ctrl`, aggiungere o sostituire, e aggiornare il readout — e due stesure della stessa
+	 * regola divergono: e' la ragione per cui `DrawSelectedElement` era gia' salita qui da
+	 * `URTHexSelectTool`, e vale identica per la scrittura.
+	 *
+	 * ⚠️ **`Ctrl` si legge QUI**, cosi' i due tool non possono avere due convenzioni: con il modificatore
+	 * si accumula, senza si sostituisce. E' la stessa lettura che Select faceva da solo.
+	 *
+	 * ⛔ Non e' provabile headless — passa da `GEditor->GetEditorSubsystem` — ed e' dichiarato: cio' che
+	 * si poteva rendere puro e' `GestureIsASelection`, che decide *se* arrivare qui. Che i due tool ci
+	 * arrivino davvero lo dice una seduta, ed e' `PIE-MAPED-SEL-CONDIVISA`.
+	 *
+	 * `false` se manca lo store o la mappa: per un chiamante e' un esito normale, non un errore.
+	 */
+	bool ApplyClickToSelection(const ARTHexMapActor* Actor, const FRTCellId& Cell,
+		const FVector& ClickedPoint);
+
 	void DrawArrow(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B, const FColor& Color);
 
 	/**
