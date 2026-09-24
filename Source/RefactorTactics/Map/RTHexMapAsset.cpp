@@ -633,6 +633,22 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		// ridondante tra celle gia' adiacenti»*: lo stato e' legale e risolto, ed e' ridondante, non illegale.
 		// Correggerlo da soli sarebbe l'auto-fix silenzioso che il Decision Record vieta.
 		//
+		// 🔴 **Il messaggio dichiara la CONSEGUENZA A RUNTIME, e non lo faceva** — [D-437], `#3279`. Diceva
+		// soltanto *«ridondante»*, che chi disegna legge come *«innocuo, un doppione»* — ed e' la lettura
+		// che la decisione smentisce: le due facce hanno integrita' PROPRIA e sono lette da due regole
+		// diverse (`CoverBetween` tiene la piu' alta; `HexCoverDamageReduction` legge quella della propria
+		// cella), quindi **una puo' cadere mentre l'altra regge** e il colpo produce due eventi, due voci di
+		// TurnLog e due segni — a quote diverse se le celle hanno `Height` diversa.
+		//
+		// ⚠️ **Questo e' il posto dove la legge chi disegna**, e va detto quanto vale: `ValidateMap()` ha un
+		// solo chiamante non di test — `ARTHexMapActor::ValidateAsset`, un bottone manuale — e **nessun hook
+		// di validazione al salvataggio esiste**. ∴ la dichiarazione arriva a chi preme il bottone, non a
+		// chi salva e basta. Il limite resta, ed e' dichiarato invece che taciuto.
+		//
+		// ⛔ **E non diventa un `Error`**: e' il non-goal di `#1893`, e alzarne la severita' non toglierebbe
+		// il caso dal runtime — toglierebbe solo la sua segnalazione dalla vista, perche' il gate sulle mappe
+		// versionate passa da `ValidateMapDetailed`, che questa regola non la porta.
+		//
 		// La segnalazione esce UNA volta per coppia: la produce solo il lato che `StableLess` mette per
 		// primo — lo stesso ordinamento con cui `SortCells` e `ComputeHash` rendono deterministico il resto.
 		for (const FRTHexCover& Cover : C.Covers)
@@ -650,7 +666,11 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 			if (Opposite->CoverOn(URTHexLibrary::OppositeDirection(Cover.Edge)) != ERTHexCoverType::None)
 			{
 				Errors.Add(FString::Printf(
-					TEXT("Warning: copertura ridondante sulla faccia opposta del bordo condiviso %s / %s"),
+					TEXT("Warning: copertura ridondante sulla faccia opposta del bordo condiviso %s / %s. ")
+					TEXT("Le due facce hanno integrita' propria e proteggono un lato ciascuna: un colpo le ")
+					TEXT("scala entrambe, produce DUE eventi e DUE segni sul bordo (a quote diverse se le ")
+					TEXT("celle hanno Height diversa), e una puo' cadere mentre l'altra regge. Se e' voluto, ")
+					TEXT("lascialo; se volevi una barriera sola, dichiarala da un lato solo. [D-437]"),
 					*C.Id.ToString(), *Far.ToString()));
 			}
 		}

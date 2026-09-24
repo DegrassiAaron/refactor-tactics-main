@@ -6,6 +6,7 @@
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
 #include "Combat/RTCombatLibrary.h" // BurningCleanupDamage: il test somma ingresso + bruciatura (#570)
+#include "Combat/RTHexCombatLibrary.h" // #3279: la riduzione legge la faccia della PROPRIA cella
 #include "Core/RTGameplayTags.h"
 #include "Engine/Engine.h"
 #include "Kismet/GameplayStatics.h"
@@ -2751,8 +2752,17 @@ namespace
 	 * 🔑 **`Height` diversa non e' un dettaglio**: il segno di playback prende l'alzata dalla sola cella
 	 * che PORTA la copertura (`CellLift(Colpo.Cell)`, che restituisce `Cell.Height`), e le due voci la
 	 * portano scambiata. E' l'unica variabile da cui dipende la differenza di quota.
+	 *
+	 * ⛔ **Le due integrita' sono PARAMETRI, e non lo erano.** Fino a [D-437] questa fixture costruiva sempre
+	 * due facce identiche al valore di catalogo, ed era invocata sempre con una potenza che non ne abbatte
+	 * nessuna: ∴ misurava **il caso simmetrico e non distruttivo**, l'unico in cui le due voci *sembrano* un
+	 * duplicato. Il caso che discrimina — due facce che cadono separatamente — non era rappresentabile, e la
+	 * decisione stava per essere presa sul caso che non risponde alla domanda. I due default tengono
+	 * invariati i chiamanti che misurano il raddoppio; chi misura l'ASIMMETRIA li passa.
 	 */
-	FRTEnvBreachScenario EnvMakeRedundantFaceScenario(int32 InStructurePower, int32 InHeightDelta)
+	FRTEnvBreachScenario EnvMakeRedundantFaceScenario(int32 InStructurePower, int32 InHeightDelta,
+		int32 InShieldedIntegrity = FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low),
+		int32 InAttackerIntegrity = FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low))
 	{
 		FRTEnvBreachScenario S;
 		S.World = MakeEnvWorld();
@@ -2768,18 +2778,19 @@ namespace
 		const FRTHexCellData* B = Asset->FindCell(S.Attacker);
 		if (!A || !B) { return S; }
 
-		// La faccia W di (1,0), su una cella rialzata di `InHeightDelta`.
+		// La faccia W di (1,0), su una cella rialzata di `InHeightDelta`. 🔑 **E' la faccia del DIFENSORE**:
+		// `HexCoverDamageReduction` legge `FindCell(Target)->CoverOn(verso l'attaccante)`, cioe' la faccia
+		// dichiarata sulla PROPRIA cella — quindi e' questa, e non l'altra, a proteggere chi sta qui.
 		FRTHexCellData ConFaccia = *A;
 		ConFaccia.Height = InHeightDelta;
-		ConFaccia.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low,
-			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		ConFaccia.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low, InShieldedIntegrity));
 		Asset->AddOrUpdateCell(ConFaccia);
 
-		// ⛔ E la faccia E di (0,0): la SECONDA dichiarazione della stessa barriera, a quota zero.
+		// ⛔ E la faccia E di (0,0): la SECONDA dichiarazione della stessa barriera, a quota zero. Protegge
+		// chi sta DI LA', e la sua integrita' e' indipendente da quella di sopra.
 		FRTHexCellData ConSpecchio = *B;
 		ConSpecchio.Height = 0;
-		ConSpecchio.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low,
-			FRTHexCover::DefaultIntegrity(ERTHexCoverType::Low)));
+		ConSpecchio.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low, InAttackerIntegrity));
 		Asset->AddOrUpdateCell(ConSpecchio);
 		Asset->SortCells();
 
@@ -2944,6 +2955,263 @@ bool FRTStructuresRedundantFaceDrawsAtTwoHeightsTest::RunTest(const FString&)
 		TestEqual(TEXT("⏱️ a dislivello zero i due segni si sovrappongono: com'era prima di #2828"), P0, P1);
 	}
 	DestroyEnvWorld(Piatto.World);
+
+	return true;
+}
+
+/**
+ * Le due facce di un bordo condiviso CADONO SEPARATAMENTE, e per questo non sono un duplicato — [D-437],
+ * `#3279`.
+ *
+ * 🔴 **E' la condizione obbligatoria della decisione, e senza di essa la decisione e' reversibile per
+ * sbaglio.** Chi rilegge il caso simmetrico vede due voci identiche, le scambia per un duplicato e le
+ * collassa: e' cio' che stava per succedere quando la sola fixture esistente costruiva due facce uguali che
+ * non cadevano mai. Questo gate esercita il caso che discrimina, e cade se qualcuno le riduce a una.
+ *
+ * 🔑 **Il fatto che rovescia la premessa «una barriera contata due volte»**: le due facce sono lette da due
+ * regole DIVERSE.
+ *
+ *   - traversata, vista, linea di tiro → `URTHexCoverLibrary::CoverBetween` tiene la **piu' alta** delle due;
+ *   - 🔴 riduzione di danno di chi sta dietro → `URTHexCombatLibrary::HexCoverDamageReduction` legge
+ *     `FindCell(Target)->CoverOn(...)`, cioe' la faccia dichiarata sulla **propria** cella.
+ *
+ * ∴ chi sta di qua e' protetto dalla faccia di qua, chi sta di la' da quella di la'. `Type` e `Integrity`
+ * sono indipendenti per faccia — stato legale, `ValidateMap` lo classifica Warning (`GEO-7` di [D-288]) —
+ * quindi **una puo' cadere mentre l'altra regge**, e la protezione di UN SOLO lato sparisce.
+ *
+ * ⛔ **Cosa perderebbe una voce sola, detto per esteso.** La faccia del difensore cade; la voce collassata
+ * direbbe *«ha retto, ne restano 25»*. La barriera nel complesso esiste ancora — `CoverBetween` risolve
+ * sull'altra faccia — quindi nessun indizio a schermo smentirebbe la lettura, e dal turno dopo il difensore
+ * incassa `LowCoverDamageReduction` in piu' a colpo senza avere da cosa accorgersene. E' il difetto che
+ * `StructureHit` esiste per chiudere — *«il giocatore vedeva lo stato dopo e mai il cambiamento»* —
+ * riaperto sul lato che conta.
+ *
+ * ⚠️ **Le due asserzioni finali sono il cuore, e non sono ridondanti fra loro**: una misura che la
+ * protezione del difensore e' sparita, l'altra che la barriera c'e' ancora. Sono vere INSIEME, ed e'
+ * esattamente questa coppia che una voce sola non sa raccontare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructuresRedundantFacesFallIndependentlyTest,
+	"RefactorTactics.Structures.RedundantFacesFallIndependently",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructuresRedundantFacesFallIndependentlyTest::RunTest(const FString&)
+{
+	// Faccia del DIFENSORE fragile (10), faccia dell'ATTACCANTE robusta (40), colpo 15: ne cade UNA sola.
+	// ⚠️ I tre numeri sono scelti per essere l'uno la ragione dell'altro — 10 < 15 <= 40 — e cambiarne uno
+	// solo riporta il test al caso simmetrico che non discrimina.
+	const int32 FragileDelDifensore = 10;
+	const int32 RobustaDellAttaccante = 40;
+	const int32 Colpo = 15;
+	FRTEnvBreachScenario S = EnvMakeRedundantFaceScenario(Colpo, /*InHeightDelta=*/ 300,
+		FragileDelDifensore, RobustaDellAttaccante);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	URTHexMapAsset* Mappa = S.MapActor->MapAsset;
+
+	// --- ⛔ PREMESSE, prima di misurare: senza, le asserzioni sotto non significherebbero niente ---------
+	TestEqual(TEXT("⛔ premessa: la faccia del difensore e' quella FRAGILE"),
+		CoverIntegrityOn(Mappa, S.Shielded, ERTHexDirection::W), FragileDelDifensore);
+	TestEqual(TEXT("⛔ premessa: e quella dell'attaccante, lo stesso bordo, e' piu' ROBUSTA"),
+		CoverIntegrityOn(Mappa, S.Attacker, ERTHexDirection::E), RobustaDellAttaccante);
+	TestTrue(TEXT("⛔ premessa: il colpo abbatte la prima e non la seconda"),
+		Colpo >= FragileDelDifensore && Colpo < RobustaDellAttaccante);
+
+	// 🔑 **La protezione che il difensore ha PRIMA**, ed e' quella che sta per sparire: viene dalla faccia
+	// della sua cella, non dal bordo nel complesso.
+	const int32 RiduzionePrima = URTHexCombatLibrary::HexCoverDamageReduction(Mappa, S.Attacker, S.Shielded,
+		ERTAbilityShape::Single);
+	if (!TestEqual(TEXT("⛔ premessa: prima del colpo il difensore E' riparato"),
+		RiduzionePrima, URTCombatLibrary::LowCoverDamageReduction))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	RunEnvTurn(S.TM);
+
+	// --- IL FATTO: due voci, e portano esiti DIVERSI --------------------------------------------------
+	TArray<FRTTurnLogEntry> Voci;
+	for (const FRTTurnLogEntry& E : S.TM->GetTurnLog())
+	{
+		if (URTTurnLogLibrary::IsStructureHit(E)) { Voci.Add(E); }
+	}
+	if (!TestEqual(TEXT("🔴 un colpo, DUE voci: una per faccia"), Voci.Num(), 2))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// ⚠️ Si cercano per CELLA e non per indice: l'ordine di `ApplyStructureDamage` e' canonico (`StableLess`)
+	// e dipenderci renderebbe il gate fragile a un riordino che non riguarda questa proprieta'.
+	const FRTTurnLogEntry* VoceDifensore = Voci.FindByPredicate(
+		[&S](const FRTTurnLogEntry& E) { return E.SrcCell == S.Shielded; });
+	const FRTTurnLogEntry* VoceAttaccante = Voci.FindByPredicate(
+		[&S](const FRTTurnLogEntry& E) { return E.SrcCell == S.Attacker; });
+	if (!TestTrue(TEXT("le due voci sono le due facce, non due volte la stessa"),
+		VoceDifensore != nullptr && VoceAttaccante != nullptr))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// 🔴 **L'asserzione che distingue «una barriera contata due volte» da «due fatti»**: i due esiti sono
+	// diversi. Un duplicato non puo' esserlo.
+	TestEqual(TEXT("🔴 la faccia del difensore e' ABBATTUTA"),
+		static_cast<int32>(VoceDifensore->Outcome),
+		static_cast<int32>(ERTEnvironmentOutcome::CoverDestroyed));
+	TestEqual(TEXT("🔴 quella dell'attaccante, sullo STESSO bordo, e' solo danneggiata"),
+		static_cast<int32>(VoceAttaccante->Outcome),
+		static_cast<int32>(ERTEnvironmentOutcome::CoverDamaged));
+	TestNotEqual(TEXT("🔴 ∴ le due voci NON sono intercambiabili: hanno esiti diversi"),
+		static_cast<int32>(VoceDifensore->Outcome), static_cast<int32>(VoceAttaccante->Outcome));
+	TestEqual(TEXT("e l'integrita' residua dichiarata e' quella della faccia superstite"),
+		VoceAttaccante->Amount, RobustaDellAttaccante - Colpo);
+
+	// --- ⛔ COSA SI PERDEREBBE COLLASSANDOLE: le due proprieta' che valgono INSIEME -------------------
+	const int32 RiduzioneDopo = URTHexCombatLibrary::HexCoverDamageReduction(Mappa, S.Attacker, S.Shielded,
+		ERTAbilityShape::Single);
+	TestEqual(TEXT("🔴 il difensore ha PERSO il riparo: la faccia della sua cella non c'e' piu'"),
+		RiduzioneDopo, 0);
+	TestEqual(TEXT("🔴 ma la barriera sul bordo ESISTE ancora: `CoverBetween` risolve sull'altra faccia"),
+		static_cast<int32>(URTHexCoverLibrary::CoverBetween(Mappa, S.Attacker, S.Shielded)),
+		static_cast<int32>(ERTHexCoverType::Low));
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * E i due segni mostrati portano esiti diversi: non sono lo stesso segno disegnato due volte — `#3279`.
+ *
+ * 🔑 **Il gate gemello sull'altro canale.** `RedundantFacesFallIndependently` misura il TurnLog; qui si
+ * misura cio' che il playback consegna al disegno, che e' l'altro dei due canali che raddoppiano insieme.
+ * La proprieta' e' la stessa e la conclusione pure: due elementi con `bDestroyed` diverso non possono essere
+ * una voce duplicata.
+ *
+ * ⚠️ **Cieco al disegno, come il suo vicino di quota, e per la stessa ragione**: misura cio' che il map
+ * actor RICEVE, non cio' che compare a schermo. Che un segno di copertura abbattuta si distingua a occhio da
+ * uno di copertura danneggiata appartiene a una voce `PIE-*`, e questo gate non la sostituisce.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRedundantFaceShowsTwoDifferentOutcomesTest,
+	"RefactorTactics.Playback.RedundantFaceShowsTwoDifferentOutcomes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackRedundantFaceShowsTwoDifferentOutcomesTest::RunTest(const FString&)
+{
+	FRTEnvBreachScenario S = EnvMakeRedundantFaceScenario(/*InStructurePower=*/ 15, /*InHeightDelta=*/ 300,
+		/*InShieldedIntegrity=*/ 10, /*InAttackerIntegrity=*/ 40);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	const FRTEnvPlaybackProbe Probe = EnvRunPlaybackProbingStructureHits(S.TM, S.MapActor);
+	TestFalse(TEXT("la risoluzione ha chiuso"), Probe.bAppesa);
+
+	if (!TestEqual(TEXT("⛔ due segni mostrati, uno per faccia"), Probe.Mostrati.Num(), 2))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	const FRTPlaybackStructureHit* SegnoDifensore = Probe.Mostrati.FindByPredicate(
+		[&S](const FRTPlaybackStructureHit& H) { return H.Cell == S.Shielded; });
+	const FRTPlaybackStructureHit* SegnoAttaccante = Probe.Mostrati.FindByPredicate(
+		[&S](const FRTPlaybackStructureHit& H) { return H.Cell == S.Attacker; });
+	if (!TestTrue(TEXT("i due segni sono le due facce"),
+		SegnoDifensore != nullptr && SegnoAttaccante != nullptr))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	TestTrue(TEXT("🔴 il segno sulla faccia del difensore dice ABBATTUTA"), SegnoDifensore->bDestroyed);
+	TestFalse(TEXT("🔴 e quello sull'altra faccia dello stesso bordo dice danneggiata"),
+		SegnoAttaccante->bDestroyed);
+
+	// ⚠️ E il bordo e' UNO: le due celle sono l'una il verso dell'altra. Senza questa riga i due segni
+	// potrebbero essere due barriere davvero diverse, e il gate misurerebbe un'ovvieta'.
+	TestEqual(TEXT("⛔ premessa: e' un bordo solo, letto nei due sensi"),
+		SegnoDifensore->Toward, SegnoAttaccante->Cell);
+	TestEqual(TEXT("⛔ premessa: e viceversa"), SegnoAttaccante->Toward, SegnoDifensore->Cell);
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * E il limite e' DICHIARATO dove lo legge chi disegna una mappa, non solo dove lo legge chi legge il
+ * codice — [D-437], `#3279`.
+ *
+ * 🔑 **La decisione e' «lasciarlo com'e'», e una scelta del genere ha un prezzo: va dichiarata.** Il
+ * Warning di `GEO-7` esisteva gia' (`#1893`), ma diceva soltanto *«ridondante»* — che chi disegna legge
+ * come *«un doppione innocuo»*, cioe' la lettura che [D-437] smentisce. Ora il messaggio porta la
+ * conseguenza a runtime: due eventi, due segni, e una faccia che puo' cadere mentre l'altra regge.
+ *
+ * ⚠️ **Perche' l'ancora e' `D-437` e non una frase del messaggio.** `ERTMapValidationReason` dichiara la
+ * ragione per cui un test non deve riconoscere una regola dal suo TESTO: *«si rompe alla prima
+ * riformulazione, e allora chi riformula impara a non toccare i messaggi»*. Qui pero' l'oggetto del gate
+ * **e'** cio' che il messaggio dichiara, quindi qualcosa va guardato: si guarda il riferimento alla
+ * decisione, che resta valido a qualunque riformulazione e che chi riscrive senza leggerla toglierebbe.
+ *
+ * ⛔ **E il controllo NEGATIVO sta accanto a quello positivo**, perche' un gate che puo' solo essere verde
+ * non e' un gate: una mappa con UNA faccia sola non deve produrre quella riga.
+ *
+ * ⚠️ Limite dichiarato: `ValidateMap()` ha un solo chiamante non di test — `ARTHexMapActor::ValidateAsset`,
+ * un bottone manuale — e nessun hook di validazione al salvataggio esiste
+ * (`grep -rn "EditorValidator\|IsDataValid\|DataValidation" --include=*.cpp --include=*.h Source/` → 0).
+ * ∴ questo gate pinna che la dichiarazione ci sia, non che qualcuno la esegua.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructuresRedundantFaceWarningDeclaresConsequenceTest,
+	"RefactorTactics.Structures.RedundantFaceWarningDeclaresTheConsequence",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStructuresRedundantFaceWarningDeclaresConsequenceTest::RunTest(const FString&)
+{
+	const FRTCellId Origine(0, 0, 0);
+	const ERTHexDirection Verso = ERTHexDirection::E;
+	const FRTCellId Oltre = URTHexLibrary::Neighbor(Origine, Verso);
+	const ERTHexDirection Contro = URTHexLibrary::OppositeDirection(Verso);
+
+	auto Costruisci = [&Origine, &Oltre](bool bEntrambeLeFacce)
+	{
+		URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+		FRTHexCellData A; A.Id = Origine;
+		A.Covers.Add(FRTHexCover(ERTHexDirection::E, ERTHexCoverType::Low, 30));
+		Map->AddOrUpdateCell(A);
+		FRTHexCellData B; B.Id = Oltre;
+		if (bEntrambeLeFacce)
+		{
+			B.Covers.Add(FRTHexCover(ERTHexDirection::W, ERTHexCoverType::Low, 30));
+		}
+		Map->AddOrUpdateCell(B);
+		return Map;
+	};
+
+	auto RigaRidondante = [](const URTHexMapAsset* Map)
+	{
+		FString Trovata;
+		for (const FString& Riga : Map->ValidateMap())
+		{
+			if (Riga.Contains(TEXT("ridondante")) && Riga.Contains(TEXT("condiviso")))
+			{
+				Trovata = Riga;
+			}
+		}
+		return Trovata;
+	};
+
+	// ⛔ PREMESSA: la direzione opposta e' davvero quella che chiude il bordo. Senza, il caso "due facce"
+	// costruirebbe due coperture su bordi diversi e il gate misurerebbe un'altra cosa.
+	TestEqual(TEXT("⛔ premessa: E e W sono lo stesso bordo visto dalle due celle"),
+		static_cast<int32>(Contro), static_cast<int32>(ERTHexDirection::W));
+
+	// --- CONTROLLO NEGATIVO: una faccia sola non e' ridondante ---------------------------------------
+	TestTrue(TEXT("⛔ una faccia sola NON produce la segnalazione: il gate puo' essere rosso"),
+		RigaRidondante(Costruisci(/*bEntrambeLeFacce=*/ false)).IsEmpty());
+
+	// --- CONTROLLO POSITIVO: le due facce la producono, e dichiara la conseguenza --------------------
+	const FString Riga = RigaRidondante(Costruisci(/*bEntrambeLeFacce=*/ true));
+	if (!TestFalse(TEXT("le due facce dello stesso bordo sono segnalate"), Riga.IsEmpty()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("🔴 e la segnalazione rimanda alla decisione che spiega PERCHE' resta com'e'"),
+		Riga.Contains(TEXT("D-437")));
 
 	return true;
 }

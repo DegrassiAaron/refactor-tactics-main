@@ -6,55 +6,49 @@
 // divergere dall'esito (invariante #1: la presentazione non decide, riceve).
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTHexMapActor.h"
-#include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Ability/RTActionData.h"
-#include "Kismet/GameplayStatics.h"
-#include "Engine/Engine.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace
 {
 	// Nomi distinti da ogni altro file di test: nella unity build condividono la translation unit.
-	UWorld* MakePreviewWorld()
-	{
-		UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-		if (World && GEngine)
-		{
-			FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
-			Ctx.SetCurrentWorld(World);
-		}
-		return World;
-	}
 
-	void DestroyPreviewWorld(UWorld* World)
+	/**
+	 * L'attore mappa SENZA un mondo: qui e' lo specchio dell'anteprima, non il disegnatore (#2182).
+	 *
+	 * 🔑 **Non e' un'equivalenza, ed e' il punto.** Costruire l'attore nel mondo fa anche
+	 * `RegisterAllComponents()` sui suoi ISM e `OnConstruction()` -> `RebuildInstances()`; `NewObject`
+	 * no. Quella meta' qui non serve a nessun test di questo file: `SetPreviewHitCells` e
+	 * `SetPreviewReachableCells` (`Map/RTHexMapActor.cpp:1088-1104`) copiano tre `TArray<FRTCellId>` in
+	 * altrettanti `FRTOverlayArea`, che e' una USTRUCT nuda, e i lettori interrogati — `NumPreview*`,
+	 * `IsPreview*` — fanno `Num()` e `Contains()` su quegli array. Nessuna asserzione di questo file
+	 * osserva un'istanza disegnata, un componente registrato o il tick.
+	 *
+	 * ⛔ Il comando che lo verifica non si scrive qui: cercherebbe nomi che questa nota contiene, e
+	 * risponderebbe di se' invece che dei test. Si esegue sui soli corpi dei `RunTest`.
+	 *
+	 * ⚠️ **Se un test futuro di questo file volesse le istanze o il tick, il mondo va rimesso** — e a quel
+	 * punto il file tornera' giustamente nel conteggio di #2182. La copertura di cio' che la costruzione
+	 * nel mondo aggiunge e' tenuta altrove: `RTHexMapActorTests` e `RTHexMapTests` la misurano apposta.
+	 *
+	 * ⛔ `SetActorTickEnabled` resta chiamato dai due setter e qui e' inerte, non rotto: senza
+	 * registrazione la tick function prende il ramo che scrive il solo `TickState`
+	 * (`TickTaskManager.cpp`), e `AActor::SetActorTickEnabled` (`Actor.cpp:1756`) e' gia' guardato da
+	 * `bCanEverTick && !IsTemplate()`.
+	 *
+	 * ⌫ **E l'attore non porta piu' un `MapAsset`.** Ne portava uno — una `MakeFlatArena` di raggio 3 —
+	 * ma il suo unico lettore su questo percorso era `OnConstruction()` -> `RebuildInstances()`
+	 * (`Map/RTHexMapActor.cpp:921-933`), che senza la costruzione nel mondo non viene chiamato. Lasciarlo
+	 * avrebbe fatto credere che l'anteprima validi le celle contro la mappa: non lo fa, i setter copiano
+	 * e basta. Che fosse morto e' misurato, non dedotto — toglierlo lascia i test verdi.
+	 */
+	ARTHexMapActor* MakePreviewMapActor()
 	{
-		if (World && GEngine)
-		{
-			GEngine->DestroyWorldContext(World);
-			World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
-		}
-	}
-
-	/** Mappa piatta di raggio 3 sul layer 0: basta a contenere ogni forma provata qui. */
-	URTHexMapAsset* MakePreviewMap(UObject* Outer)
-	{
-		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(Outer, 3);
-		return Map;
-	}
-
-	ARTHexMapActor* SpawnPreviewMapActor(UWorld* World)
-	{
-		ARTHexMapActor* Actor = World->SpawnActor<ARTHexMapActor>();
-		if (Actor)
-		{
-			Actor->MapAsset = MakePreviewMap(Actor);
-		}
-		return Actor;
+		return NewObject<ARTHexMapActor>();
 	}
 }
 
@@ -67,10 +61,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPreviewHitCellsMatchCombatTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPreviewHitCellsMatchCombatTest::RunTest(const FString&)
 {
-	UWorld* World = MakePreviewWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-	ARTHexMapActor* HexMap = SpawnPreviewMapActor(World);
-	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { DestroyPreviewWorld(World); return false; }
+	ARTHexMapActor* HexMap = MakePreviewMapActor();
+	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { return false; }
 
 	const FRTCellId From(0, 0, 0);
 	const FRTCellId Target(2, 0, 0);
@@ -92,7 +84,6 @@ bool FRTPreviewHitCellsMatchCombatTest::RunTest(const FString&)
 	// Una cella fuori dall'area non deve comparire: l'anteprima non deve allargare la minaccia.
 	TestFalse(TEXT("una cella lontana NON e' nell'anteprima"), HexMap->IsPreviewHitCell(FRTCellId(-3, 0, 0)));
 
-	DestroyPreviewWorld(World);
 	return true;
 }
 
@@ -106,10 +97,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPreviewAllyInAreaIsFlaggedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPreviewAllyInAreaIsFlaggedTest::RunTest(const FString&)
 {
-	UWorld* World = MakePreviewWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-	ARTHexMapActor* HexMap = SpawnPreviewMapActor(World);
-	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { DestroyPreviewWorld(World); return false; }
+	ARTHexMapActor* HexMap = MakePreviewMapActor();
+	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { return false; }
 
 	const FRTCellId Target(2, 0, 0);
 	const FRTCellId AllyCell(2, -1, 0); // vicina al bersaglio: dentro l'area di raggio 1
@@ -127,7 +116,6 @@ bool FRTPreviewAllyInAreaIsFlaggedTest::RunTest(const FString&)
 	TestTrue(TEXT("resta comunque fra le celle colpite"), HexMap->IsPreviewHitCell(AllyCell));
 	TestFalse(TEXT("la cella del bersaglio NON e' fuoco amico"), HexMap->IsPreviewAllyHitCell(Target));
 
-	DestroyPreviewWorld(World);
 	return true;
 }
 
@@ -140,10 +128,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPreviewClearedWhenPlanIsCancelledTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPreviewClearedWhenPlanIsCancelledTest::RunTest(const FString&)
 {
-	UWorld* World = MakePreviewWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-	ARTHexMapActor* HexMap = SpawnPreviewMapActor(World);
-	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { DestroyPreviewWorld(World); return false; }
+	ARTHexMapActor* HexMap = MakePreviewMapActor();
+	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { return false; }
 
 	const TArray<FRTCellId> Hit =
 		URTHexCombatLibrary::HexHitCells(ERTAbilityShape::Area, FRTCellId(0, 0, 0), FRTCellId(2, 0, 0), 4, 1);
@@ -160,7 +146,6 @@ bool FRTPreviewClearedWhenPlanIsCancelledTest::RunTest(const FString&)
 	TestEqual(TEXT("nessun fuoco amico residuo"), HexMap->NumPreviewAllyHitCells(), 0);
 	TestEqual(TEXT("nessuna cella raggiungibile residua"), HexMap->NumPreviewReachableCells(), 0);
 
-	DestroyPreviewWorld(World);
 	return true;
 }
 
@@ -174,10 +159,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPreviewReachableCellsArePassedThroughTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPreviewReachableCellsArePassedThroughTest::RunTest(const FString&)
 {
-	UWorld* World = MakePreviewWorld();
-	if (!TestNotNull(TEXT("world"), World)) { return false; }
-	ARTHexMapActor* HexMap = SpawnPreviewMapActor(World);
-	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { DestroyPreviewWorld(World); return false; }
+	ARTHexMapActor* HexMap = MakePreviewMapActor();
+	if (!TestNotNull(TEXT("actor mappa"), HexMap)) { return false; }
 
 	TArray<FRTCellId> Reachable;
 	Reachable.Add(FRTCellId(1, 0, 0));
@@ -193,7 +176,6 @@ bool FRTPreviewReachableCellsArePassedThroughTest::RunTest(const FString&)
 	}
 	TestFalse(TEXT("una cella non passata NON compare"), HexMap->IsPreviewReachableCell(FRTCellId(3, 0, 0)));
 
-	DestroyPreviewWorld(World);
 	return true;
 }
 
