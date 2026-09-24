@@ -57,14 +57,17 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	//   5 -> 6   2026-09-04   `ReactionResolved`  (#2191)
 	//   6 -> 7   2026-09-04   `StatusChanged`     (#2245)
 	//   7 -> 8   2026-09-22   `StructureHit`      (#2828)
-	// Tre volte su tre e' fallita per prima e ha mandato a dichiarare la presentazione del valore nuovo.
+	//   8 -> 9   2026-09-24   `ArcHit`            (#3280, [D-437])
+	// Quattro volte su quattro e' fallita per prima e ha mandato a dichiarare la presentazione del valore
+	// nuovo — l'ultima compresa: `ArcHit` e' entrato in `DeclaredBindings()` come voce IN ATTESA con owner
+	// `#3293` perche' questa riga ha chiesto conto del nono valore.
 	//
 	// ⚠️ **Il messaggio elencava i valori per nome e si e' scollato dal numero**: diceva *«dichiara cinque
 	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
 	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
 	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
-	TestEqual(TEXT("ERTResolvedEventType dichiara otto valori: l'ultimo aggiunto ha una voce nella tabella?"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 8);
+	TestEqual(TEXT("ERTResolvedEventType dichiara nove valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 9);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
@@ -480,7 +483,13 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// voce nasce **con cue** (`AddPlaybackStructureHit`), quindi non entra fra le attese. ⚠️ Se qualcuno la
 	// declassasse a `PendingPresentation` questa riga diventerebbe rossa — che e' esattamente il servizio
 	// che il pin rende.
-	TestEqual(TEXT("tre assenze sono IN ATTESA"), InAttesa, 3);
+	// 🔴 **Rimisurato il 2026-09-24: da tre a QUATTRO, e il motivo e' dichiarato invece che aggiornato
+	// d'ufficio.** `ArcHit` (`#3280`, [D-437]) nasce **in attesa**, all'opposto di `StructureHit`: li' il
+	// segno si posa su un lato fra due esagoni che esistono a schermo, qui a runtime **nessuno disegna gli
+	// archi** — lo misura `#1768`, e inventare una cue su una geometria assente e' cio' che `#2483` vieta.
+	// ⚠️ La riga risale, e questa volta e' corretto: cio' che il pin vieta e' rimettere in attesa una voce
+	// gia' **sciolta**, non dichiarare in attesa una voce che nasce senza cue.
+	TestEqual(TEXT("quattro assenze sono IN ATTESA"), InAttesa, 4);
 	TestEqual(TEXT("nessuna voce in attesa e' senza owner"), InAttesaSenzaOwner, 0);
 
 	// Gli owner per nome: senza questa riga il conteggio starebbe in piedi anche con owner scambiati fra
@@ -505,6 +514,12 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// di rimetterla in attesa in silenzio — stessa forma della riga di `AttackFootprint` qui sopra.
 	TestEqual(TEXT("StructureHit non attende nessuno: nasce con cue"),
 		OwnerDi(ERTResolvedEventType::StructureHit), FString());
+	// ⚠️ **L'owner e' una issue che ESISTE e ha una dipendenza dichiarata**: `#3293` possiede la cue
+	// dell'arco ed e' bloccata da `#1768`, che possiede *«un arco si vede in PIE»*. Un owner inventato
+	// sarebbe una promessa che nessuno puo' riscuotere, cioe' il difetto che `PendingOwner` esiste per
+	// impedire.
+	TestEqual(TEXT("ArcHit attende #3293"),
+		OwnerDi(ERTResolvedEventType::ArcHit), FString(TEXT("#3293")));
 
 	return true;
 }
@@ -555,6 +570,71 @@ bool FRTPresentationStructureHitHasDeclaredBindingTest::RunTest(const FString&)
 	{
 		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina StructureHit: %s"), *M),
 			M.Contains(TEXT("StructureHit")));
+	}
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+
+/**
+ * Il colpo all'ARCO ha la sua riga, e il censimento la vede — `#3280`, [D-437].
+ *
+ * 🔴 **Gemello del gate sopra, e l'asimmetria fra i due e' il punto.** `StructureHit` nasce **con cue**
+ * perche' un bordo di copertura e' un lato fra due esagoni che esistono a schermo; `ArcHit` nasce **in
+ * attesa** perche' a runtime **nessuno disegna gli archi** — lo possiede e lo misura `#1768`. ⛔ Una cue
+ * inventata su una geometria che non c'e' e' precisamente cio' che `#2483` vieta, e un test che si
+ * accontentasse di `Kind == Cues` la incoraggerebbe.
+ *
+ * ⚠️ **Quindi qui si asserisce il contrario del gemello: che la cue NON ci sia, e che l'attesa sia
+ * dichiarata bene.** Un'attesa senza owner e senza motivo e' una promessa che nessuno puo' riscuotere, ed e'
+ * lo stato da cui questa issue e' nata: prima di `ArcHit` non c'era nemmeno una riga a cui appendere
+ * un'assenza, quindi `AbsenceCensusIsPinned` non aveva niente da sorvegliare.
+ *
+ * ⚠️ **Il giorno in cui `#3293` scrivera' la cue, questo gate diventera' rosso.** E' voluto: chi scioglie
+ * l'attesa deve passare di qui, aggiornare questa riga e quella del censimento — non scoprire mesi dopo che
+ * l'evento era rimasto in attesa di se stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationArcHitHasDeclaredBindingTest,
+	"RefactorTactics.Presentation.ArcHitHasDeclaredBinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationArcHitHasDeclaredBindingTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Reale = URTPresentationBindingLibrary::DeclaredBindings();
+
+	const FRTPresentationBinding* Voce = Reale.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::ArcHit;
+	});
+
+	if (!TestNotNull(TEXT("✅ il colpo all'arco ha una riga nella tabella"), Voce))
+	{
+		return false;
+	}
+
+	// ⛔ **In ATTESA e non con cue**, all'opposto del gemello: a runtime nessuno disegna gli archi.
+	TestEqual(TEXT("la riga dichiara un'attesa, non una cue"), Voce->Kind,
+		ERTPresentationKind::PendingPresentation);
+	TestTrue(TEXT("⛔ e non nomina nessuna cue: non ce n'e' una da nominare"), Voce->Cues.Num() == 0);
+
+	// 🔑 **L'attesa e' riscuotibile**: ha un owner reale e un motivo. Senza questi due, «in attesa» e' solo
+	// un modo educato di dire «invisibile».
+	TestEqual(TEXT("l'owner e' #3293, che possiede la cue dell'arco"), Voce->PendingOwner,
+		FString(TEXT("#3293")));
+	TestTrue(TEXT("e il motivo e' scritto, non vuoto"),
+		!Voce->Rationale.TrimStartAndEnd().IsEmpty());
+	// ⚠️ **Il motivo nomina il prerequisito**, che e' l'informazione senza la quale `#3293` ripartirebbe da
+	// zero: la cue non si puo' scrivere finche' un arco non si vede.
+	TestTrue(TEXT("e nomina #1768, il prerequisito che blocca la cue"),
+		Voce->Rationale.Contains(TEXT("#1768")));
+
+	// 🔑 **La prova che il CENSIMENTO la vede**, che e' il difetto vero della issue: non basta che la voce
+	// esista, deve essere il gate a non avere piu' niente da segnalare su di lei.
+	const TArray<FString> Mancanti = URTPresentationBindingLibrary::FindMissingBindings(Reale);
+	for (const FString& M : Mancanti)
+	{
+		TestFalse(FString::Printf(TEXT("nessuna mancanza residua nomina ArcHit: %s"), *M),
+			M.Contains(TEXT("ArcHit")));
 	}
 
 	return true;

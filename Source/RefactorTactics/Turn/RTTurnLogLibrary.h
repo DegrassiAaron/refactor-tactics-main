@@ -262,20 +262,24 @@ public:
 	 * `Category == Environment` darebbe un istante di *impatto* a una scadenza, cioe' mostrerebbe un colpo
 	 * che nessuno ha tirato.
 	 *
-	 * ⛔ **E i PONTI restano fuori, ed e' una scelta, non una svista.** `BridgeDamaged` e
-	 * `BridgeDestroyed` hanno un produttore vivo (`ApplyEnvironmentChanges`, sezione ARCHI) e la forma
-	 * **identica** a queste due: stesso `SrcCell`/`TgtCell` per il bordo, stesso `Amount` come integrita'
-	 * residua, stessa `StructurePower` in ingresso. ⚠️ Ne segue che un ponte abbattuto da un colpo **non
-	 * ha un evento**, quindi nessuna cue e nessuna assenza dichiarabile: cioe' esattamente il difetto che
-	 * `#2828` chiude per le coperture, lasciato aperto per gli archi.
+	 * ⛔ **E i PONTI restano fuori, ed e' una scelta.** `BridgeDamaged` e `BridgeDestroyed` hanno un
+	 * produttore vivo (`ApplyEnvironmentChanges`, sezione ARCHI) e una forma che si somiglia: stesso
+	 * `SrcCell`/`TgtCell` per i due capi, stesso `Amount` come integrita' residua, stessa `StructurePower`
+	 * in ingresso.
 	 *
-	 * 🔑 Non li aggiungo qui perche' la fetta non li ha misurati: un arco **non e' un bordo esagonale**, e
-	 * la sua presentazione non e' un segmento sul lato condiviso fra due celle adiacenti.
-	 * ⏱️ *Questa riga diceva «un arco attraversa due layer». Impreciso: `ERTHexTransitionKind` ammette
-	 * anche `Tunnel`, `Bridge` e `Jump` fra celle dello STESSO layer, e `AddTransition` non lo vieta. La
-	 * ragione dell'esclusione non e' la quota: e' che la geometria di un arco non e' quella di un lato.* Includerli in questo predicato darebbe loro un
-	 * evento e una cue pensata per un'altra geometria — il tipo di riuso che sembra economico e produce un
-	 * disegno sbagliato. Chi li aggiunge misuri il proprio caso e aggiorni questa riga.
+	 * ✅ **Ma un evento adesso ce l'hanno, e non e' questo**: [D-437] ha deciso che l'arco prende un valore
+	 * d'evento **proprio** (`ERTResolvedEventType::ArcHit`) con il suo predicato, `IsArcHit` qui sotto
+	 * (`#3280`). ⏱️ *Questa riga diceva che un ponte abbattuto «non ha un evento»: era vero, e non lo e'
+	 * piu'.*
+	 *
+	 * 🔑 **Perche' restano DUE predicati invece di uno allargato.** Un arco **non e' un bordo esagonale**:
+	 * la cue delle coperture e' un segmento sul lato condiviso fra due celle adiacenti, e su un arco a
+	 * colonna quel segmento ha lunghezza zero. Allargare questo predicato avrebbe dato ai ponti un evento e
+	 * una cue pensate per un'altra geometria — e, peggio, il consumatore del tratto confronta
+	 * `CoverDestroyed`: un ponte crollato sarebbe stato disegnato col tratto del graffio.
+	 * ⏱️ *Una stesura precedente diceva «un arco attraversa due layer». Impreciso: `ERTHexTransitionKind`
+	 * ammette `Tunnel`, `Bridge` e `Jump` fra celle dello STESSO layer, e `AddTransition` non lo vieta. La
+	 * ragione della separazione non e' la quota: e' che la geometria di un arco non e' quella di un lato.*
 	 *
 	 * ⚠️ **Fallisce CHIUSO, all'opposto di `IsEnvironmentalDamage`**, e la differenza e' voluta. Li' una
 	 * causa nuova non elencata andava riconosciuta comunque, perche' il verso pericoloso era accreditare a
@@ -284,6 +288,31 @@ public:
 	 * lo aggiunga qui, e il test dei due canali glielo ricordera' restando verde solo se i conti tornano.
 	 */
 	static bool IsStructureHit(const FRTTurnLogEntry& Entry);
+
+	/**
+	 * La voce e' un **colpo a un ARCO**: un ponte, un tunnel, una scala o un salto danneggiato o abbattuto
+	 * (`#3280`, [D-437]).
+	 *
+	 * 🔑 **Gemello di `IsStructureHit`, e separato da lui per decisione.** `AppendLogEntry` lo usa per
+	 * emettere `ERTResolvedEventType::ArcHit`, e i gate che confrontano i due canali lo usano per contare le
+	 * voci dal lato del TurnLog. Riscriverlo a mano da una delle due parti ne farebbe una seconda copia — e'
+	 * [D-098], la stessa ragione per cui il predicato delle coperture esiste.
+	 *
+	 * ⛔ **Il nome dice ARCO e non PONTE, mentre gli esiti dicono `Bridge`.** `URTHexArcLibrary::DamageArc`
+	 * non filtra per `ERTHexTransitionKind`: una scala che incassa scrive `BridgeDamaged` gia' oggi. Il
+	 * disallineamento e' nella tassonomia del TurnLog e **precede** questo predicato; qui si sceglie il nome
+	 * vero invece di propagarlo.
+	 *
+	 * ⚠️ **Una voce per ARCO DIRETTO, quindi due per un ponte bidirezionale colpito.** Non e' un raddoppio da
+	 * riconciliare: `State` e `Integrity` sono per verso e `IsArcTraversable` e' direzionale, quindi i due
+	 * possono avere esiti diversi. Chi contasse *«un evento per ponte»* dovrebbe scegliere in silenzio quale
+	 * verso lo racconta.
+	 *
+	 * ⚠️ **Fallisce CHIUSO come il suo gemello**: i due esiti si elencano. Un terzo esito di *colpo* a un
+	 * arco va aggiunto qui esplicitamente; `BridgeRemoved` — se e quando esistera' — non e' un colpo, allo
+	 * stesso titolo per cui `CoverExpired` non lo e' ([D-175]).
+	 */
+	static bool IsArcHit(const FRTTurnLogEntry& Entry);
 
 	/**
 	 * La voce e' **danno che `UnitId` ha inflitto a qualcun altro**: la domanda di chi aggrega il danno per

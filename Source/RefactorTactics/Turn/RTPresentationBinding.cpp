@@ -226,6 +226,35 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::StructureHit,
 		{ FName(TEXT("AddPlaybackStructureHit")) }));
 
+	// ArcHit — l'arco colpito o abbattuto, `#3280`. **In attesa**, e nasce cosi' per una ragione
+	// misurata: a runtime **nessuno disegna gli archi**.
+	//
+	// 🔴 **La differenza con `StructureHit`, che nasceva sciolta, e' che li' c'era su cosa posare il
+	// segno.** Un bordo di copertura e' un lato fra due esagoni che esistono a schermo; un arco non ha
+	// nessuna rappresentazione a runtime — e' `#1768` a misurarlo e a possedere *«un arco si vede in PIE»*.
+	// ⛔ Inventare qui una cue significherebbe disegnare un segno su una geometria che non c'e', che e'
+	// precisamente cio' che `#2483` vieta.
+	//
+	// ⚠️ **E il termine nel cancello di fase si sposta CON la cue, non prima.** Un arco abbattuto senza
+	// vittime da' zero `Attack` e puo' non dare impronta: servira' un quinto termine a
+	// `BlastPhaseIsActive`, come `AttackFootprint` ne prese uno con `#2454` e `StructureHit` con `#2828`.
+	// ⛔ Va aggiunto quando la cue esiste — un beat che non mostra niente e' mezzo secondo di silenzio
+	// inspiegato, cioe' peggio dell'assenza.
+	//
+	// ⚠️ **Chi scrivera' la cue deve sapere due cose che il tipo dell'evento non dice da solo**:
+	//  - l'evento e' per arco **DIRETTO**: un ponte bidirezionale ne produce due, con la coppia scambiata e
+	//    con esiti che possono differire. ⛔ Non e' un duplicato da collassare ([D-437]);
+	//  - la geometria non e' quella delle coperture: la cue di `#2828` e' un segmento sul lato condiviso fra
+	//    due esagoni adiacenti, e su un arco a colonna quel segmento ha lunghezza **zero**.
+	Out.Add(FRTPresentationBinding::MakePendingPresentation(ERTResolvedEventType::ArcHit,
+		TEXT("Gli archi colpiti arrivano al playback perche' la cue POSSA essere costruita: #3280 li emette ")
+		TEXT("dove la voce di TurnLog viene scritta, e a runtime nessuno disegna gli archi — #1768 lo misura ")
+		TEXT("e possiede 'un arco si vede in PIE'. Inventare un segno su una geometria che non c'e' e' cio' ")
+		TEXT("che #2483 vieta. Con la cue va anche il termine nel cancello di fase, come per AttackFootprint. ")
+		TEXT("Chi la scrive sappia che l'evento e' per arco DIRETTO: un ponte bidirezionale ne da' due, con ")
+		TEXT("esiti che possono differire, e non sono un duplicato (D-437)."),
+		TEXT("#3293")));
+
 	return Out;
 }
 
