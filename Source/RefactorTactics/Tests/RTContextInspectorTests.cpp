@@ -288,6 +288,15 @@ bool FRTContextInspectorPlacementTest::RunTest(const FString&)
 		static_cast<int32>(Posa.Horizontal), static_cast<int32>(HAlign_Center));
 	TestTrue(TEXT("la larghezza e' limitata, cosi' la board resta libera"), Posa.MaxWidth > 0.f);
 
+	// ⛔ **E il tetto ha un limite SUPERIORE**, che fino al 2026-09-24 non era pinnato da niente: `460`
+	// viveva come solo default di struct, e `> 0.f` lascia passare qualunque allargamento. Il widget
+	// gemello lo asserisce da sempre — `RTPieSessionOverlayTests.cpp`, `Posa.MaxWidth <= 640.f`, col
+	// messaggio *«e il tetto lascia libero il centro»* — quindi non e' un meccanismo da inventare.
+	// 🔑 Il numero e' il valore corrente, non una soglia di design: serve a rendere ROSSO un
+	// allargamento, che e' la direzione in cui il pannello invaderebbe il centro. La condivisione della
+	// fascia bassa con `§6.7`/`§6.8` e' invece stata giudicata accettabile a schermo (#3319).
+	TestTrue(TEXT("e il tetto non cresce senza che qualcuno lo decida"), Posa.MaxWidth <= 460.f);
+
 	return true;
 }
 
@@ -346,6 +355,129 @@ bool FRTContextInspectorArgsTest::RunTest(const FString&)
 	// e il comando non avrebbe modo di spegnersi. Almeno un argomento DEVE spegnere.
 	TestNotEqual(TEXT("lo spegnimento esiste e si distingue dalla squadra 0"),
 		Leggi({ TEXT("off") }).bOff, Zero.bOff);
+
+	return true;
+}
+
+namespace
+{
+	/** Una vista che ECCEDE il tetto: una cella, `Eventi` eventi, una riga tecnica. */
+	FRTContextInspectorView VistaConEventi(int32 Eventi)
+	{
+		FRTContextInspectorView V;
+		V.CellLine = TEXT("(q=0,r=0,L=0) Floor cost=1 occupante=1 rev=1");
+		for (int32 i = 0; i < Eventi; ++i)
+		{
+			V.EventLines.Add(FString::Printf(TEXT("T1 Blast/Combat evento-%d"), i));
+		}
+		V.TechnicalLines.Add(TEXT("[tecnico] vista per onnisciente · autorizza=si · rev=1"));
+		return V;
+	}
+
+	/** La riga della provenienza, cercata per il suo marcatore e non per il testo intero. */
+	bool PortaLaProvenienza(const TArray<FString>& Righe)
+	{
+		return Righe.ContainsByPredicate(
+			[](const FString& R) { return R.StartsWith(TEXT("[tecnico]")); });
+	}
+}
+
+/**
+ * **A pannello PIENO la provenienza resta, e il taglio si dichiara** — #3320.
+ *
+ * 🔴 **Il difetto che questo test rende rosso, misurato nella seduta `U59` del 2026-09-24.**
+ * `[tecnico]` e' l'ULTIMA riga di `AllLines`, quindi la prima a cadere sotto il tetto: sulla cella
+ * `(q=0,r=0,L=0)` del banco `Visual.Combat.GuardVsBraceUnderSmallHits` la vista componeva **17** righe
+ * contro un tetto di 12, e a schermo la riga che dice *per chi* la vista e' composta non c'era.
+ *
+ * ⚠️ **E il taglio era MUTO**, che e' la meta' piu' grave: chi guarda un pannello pieno conclude che su
+ * quella cella non sia successo altro. E' lo stesso ragionamento che `RTDebugConsole.cpp` rifiuta di
+ * permettere due funzioni piu' in la', dove preferisce **dire** che non c'e' una cella valida invece di
+ * mostrare un pannello vuoto — *«una cella non valida e un contesto vuoto si vedono uguali»*.
+ *
+ * 🔑 **Il tetto si legge, non si riscrive**: `MaxRighe` e' pubblica apposta. Un `12` letterale qui
+ * sarebbe il numero che invecchia da solo, verde il giorno in cui qualcuno cambia il tetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorKeepsProvenanceWhenFullTest,
+	"RefactorTactics.Debug.ContextInspectorKeepsProvenanceWhenFull",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorKeepsProvenanceWhenFullTest::RunTest(const FString&)
+{
+	constexpr int32 Tetto = URTContextInspectorWidgetBase::MaxRighe;
+
+	// —— Anti-vacuita' PRIMA del caso pieno: sotto il tetto non si taglia e non si dichiara niente.
+	// Senza questo, un `VisibleLines` che tagliasse SEMPRE passerebbe la meta' interessante del test.
+	const FRTContextInspectorView Corta = VistaConEventi(2);
+	const TArray<FString> RigheCorte = URTContextInspectorLibrary::VisibleLines(Corta, Tetto);
+	TestEqual(TEXT("sotto il tetto entrano tutte"),
+		RigheCorte.Num(), URTContextInspectorLibrary::AllLines(Corta).Num());
+	TestTrue(TEXT("e la provenienza c'e'"), PortaLaProvenienza(RigheCorte));
+	const FString CorteUnite = FString::Join(RigheCorte, TEXT("|"));
+	TestFalse(TEXT("nessun marcatore quando non si taglia"),
+		CorteUnite.Contains(URTContextInspectorLibrary::TruncationMarkerPrefix()));
+
+	// —— Il caso che il difetto produceva: piu' righe del tetto.
+	const FRTContextInspectorView Piena = VistaConEventi(Tetto * 2);
+	const TArray<FString> Tutte = URTContextInspectorLibrary::AllLines(Piena);
+	// Anti-vacuita': se la vista non eccedesse, ogni controllo qui sotto sarebbe verde per assenza di
+	// soggetto — la forma di falso verde che questo file combatte in ogni altro test.
+	if (!TestTrue(TEXT("la vista ECCEDE davvero il tetto"), Tutte.Num() > Tetto))
+	{
+		return false;
+	}
+
+	const TArray<FString> Viste = URTContextInspectorLibrary::VisibleLines(Piena, Tetto);
+	TestEqual(TEXT("si rende esattamente il tetto"), Viste.Num(), Tetto);
+
+	// ⛔ Il difetto vero: la provenienza cade per ULTIMA in `AllLines`, quindi per prima sotto il taglio.
+	TestTrue(TEXT("la provenienza sopravvive al pannello pieno"), PortaLaProvenienza(Viste));
+
+	// E la cella resta in testa: senza, non si sa di quale esagono il pannello stia parlando.
+	TestTrue(TEXT("la riga della cella resta per prima"),
+		Viste.Num() > 0 && Viste[0] == Piena.CellLine);
+
+	return true;
+}
+
+/**
+ * **Il taglio dice QUANTE righe ha tolto** — #3320, seconda meta'.
+ *
+ * ⚠️ Che la provenienza sopravviva non basta: se le righe di mezzo sparissero in silenzio, chi guarda
+ * concluderebbe che su quella cella non sia successo altro. Il numero e' la differenza fra un pannello
+ * che tace e uno che dichiara il proprio limite.
+ *
+ * 🔑 **Il conteggio si DERIVA, non si scrive**: e' `AllLines` meno cio' che entra, e cosi' resta vero se
+ * qualcuno cambia il tetto o l'ordine delle righe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorDeclaresTheTruncationTest,
+	"RefactorTactics.Debug.ContextInspectorDeclaresTheTruncation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorDeclaresTheTruncationTest::RunTest(const FString&)
+{
+	constexpr int32 Tetto = URTContextInspectorWidgetBase::MaxRighe;
+
+	const FRTContextInspectorView Piena = VistaConEventi(Tetto * 2);
+	const TArray<FString> Tutte = URTContextInspectorLibrary::AllLines(Piena);
+	const TArray<FString> Viste = URTContextInspectorLibrary::VisibleLines(Piena, Tetto);
+
+	const FString* Marcatore = Viste.FindByPredicate([](const FString& R)
+	{
+		return R.StartsWith(URTContextInspectorLibrary::TruncationMarkerPrefix());
+	});
+	if (!TestNotNull(TEXT("il pannello pieno dichiara di aver tagliato"), Marcatore))
+	{
+		return false;
+	}
+
+	// Quante righe di MEZZO non sono entrate: il totale meno quelle rese, meno il marcatore stesso che
+	// occupa uno slot. Derivato, cosi' non invecchia con il tetto.
+	const int32 Attese = Tutte.Num() - (Viste.Num() - 1);
+	TestTrue(TEXT("il marcatore porta il numero delle righe tolte"),
+		Marcatore->Contains(FString::Printf(TEXT("%d"), Attese)));
+
+	// ⛔ Anti-vacuita': con zero righe tolte il controllo sopra sarebbe verde su un marcatore che dice
+	// «0», cioe' un pannello che dichiara un taglio che non c'e' stato.
+	TestTrue(TEXT("e le righe tolte sono almeno una"), Attese > 0);
 
 	return true;
 }

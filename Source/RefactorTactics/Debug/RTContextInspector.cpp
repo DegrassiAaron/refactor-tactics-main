@@ -122,6 +122,49 @@ TArray<FString> URTContextInspectorLibrary::AllLines(const FRTContextInspectorVi
 	return Out;
 }
 
+const TCHAR* URTContextInspectorLibrary::TruncationMarkerPrefix()
+{
+	return TEXT("… e altre ");
+}
+
+TArray<FString> URTContextInspectorLibrary::VisibleLines(
+	const FRTContextInspectorView& View, int32 MaxLines)
+{
+	TArray<FString> Tutte = AllLines(View);
+	if (MaxLines <= 0) { return TArray<FString>(); }
+	if (Tutte.Num() <= MaxLines) { return Tutte; }
+
+	// Le riservate: la cella dice DI CHE COSA si parla, la tecnica PER CHI, e uno slot va al marcatore
+	// perche' il taglio si dichiari. Tutto il resto e' corpo, ed e' il corpo che eccede.
+	const int32 Cella = View.CellLine.IsEmpty() ? 0 : 1;
+	const int32 Tecniche = View.TechnicalLines.Num();
+	const int32 Riservate = Cella + Tecniche + 1;
+
+	// ⛔ Se nemmeno le riservate entrano, non c'e' spazio per dichiarare niente: si degrada al taglio
+	// secco. Un pannello che usasse i suoi ultimi slot per parlare del proprio troncamento direbbe
+	// meno di uno che mostra le prime righe e basta.
+	if (Riservate >= MaxLines)
+	{
+		Tutte.SetNum(MaxLines);
+		return Tutte;
+	}
+
+	TArray<FString> Corpo;
+	Corpo.Append(View.IntentLines);
+	Corpo.Append(View.EventLines);
+
+	const int32 Entrano = MaxLines - Riservate;
+	const int32 Tolte = Corpo.Num() - Entrano;
+
+	TArray<FString> Out;
+	Out.Reserve(MaxLines);
+	if (Cella > 0) { Out.Add(View.CellLine); }
+	for (int32 i = 0; i < Entrano; ++i) { Out.Add(Corpo[i]); }
+	Out.Add(FString::Printf(TEXT("%s%d righe"), TruncationMarkerPrefix(), Tolte));
+	Out.Append(View.TechnicalLines);
+	return Out;
+}
+
 void URTContextInspectorWidgetBase::ShowFor(const FRTContextInspectorView& InView)
 {
 	View = InView;
@@ -136,6 +179,16 @@ TArray<FText> URTContextInspectorWidgetBase::GetLines() const
 {
 	TArray<FText> Out;
 	for (const FString& Line : URTContextInspectorLibrary::AllLines(View))
+	{
+		Out.Add(FText::FromString(Line));
+	}
+	return Out;
+}
+
+TArray<FText> URTContextInspectorWidgetBase::GetVisibleLines() const
+{
+	TArray<FText> Out;
+	for (const FString& Line : URTContextInspectorLibrary::VisibleLines(View, MaxRighe))
 	{
 		Out.Add(FText::FromString(Line));
 	}
@@ -185,9 +238,12 @@ TSharedRef<SWidget> URTContextInspectorWidgetBase::RebuildWidget()
 			.AutoHeight()
 			[
 				SNew(STextBlock)
+					// ⛔ `GetVisibleLines`, non `GetLines`: e' la riga che porta il fix di #3320 a schermo.
+					// Con `GetLines` il taglio tornerebbe a essere l'`IsValidIndex` qui sotto — muto, e con
+					// `[tecnico]` che cade per prima perche' e' l'ultima di `AllLines`.
 					.Text_Lambda([this, i]()
 					{
-						const TArray<FText> Linee = GetLines();
+						const TArray<FText> Linee = GetVisibleLines();
 						return Linee.IsValidIndex(i) ? Linee[i] : FText::GetEmpty();
 					})
 					.ColorAndOpacity(FSlateColor(FLinearColor::White))
