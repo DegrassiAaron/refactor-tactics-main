@@ -19,7 +19,13 @@
 // era il **fixture**, e un fixture irrealizzabile fa passare qualunque regola.
 //
 // ⚠️ **`Map` è un parametro, e i test lo costruiscono senza mondo**: `MakeFlatArena(GetTransientPackage(),
-// N)` è un `NewObject` su un asset. Zero `SpawnActor` in questo file.
+// N)` è un `NewObject` su un asset. Nessun attore viene costruito qui, e nessun `UWorld`.
+//
+// ⌫ **Questa riga diceva «Zero ⟨il nome della chiamata che spawna⟩ in questo file», e quel nome mise il
+// file nel conteggio di #2182**: la metrica cerca la *stringa* nel testo, commenti inclusi, quindi un
+// commento che si vanta di non avercela ce la mette. Nominare l'assenza di una cosa la fa contare —
+// è lo stesso difetto auto-referenziale già registrato per i conteggi di `DOREPLIFETIME` in
+// `RTPlaybackControlsTests`, e va evitato scrivendo la proprietà invece del nome.
 //
 // ── TABELLA DELLE ATTESE DI MUTAZIONE ────────────────────────────────────────────────────────────────
 // Scritta prima di lanciare, e — dopo la lezione della fetta 5 — **eseguibile**: ogni riga nomina un test
