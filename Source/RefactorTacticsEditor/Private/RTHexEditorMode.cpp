@@ -438,10 +438,14 @@ void URTHexEditorMode::EraseSelection()
 		const ERTMapEditOutcome Prova = URTMapEditLibrary::DeleteElement(Map, Handle, /*bDryRun=*/ true);
 		if (Prova != ERTMapEditOutcome::Applied)
 		{
+			// ⚠️ **La RAGIONE, non il numero.** Questa riga stampava `static_cast<int32>(Prova)`, e un log
+			// che dice «esito 4» obbliga chi legge ad aprire l'enum e contare i valori — il contrario di
+			// nominare la regola che ha fermato il gesto, che e' cio' che `ERTMapEditOutcome` promette.
 			UE_LOG(LogRTHexEditorMode, Warning,
-				TEXT("Erase: nulla cancellato — '%s' non si risolve (esito %d), e l'operazione e' "
-					"tutto-o-niente. La selezione resta com'era."),
-				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Prova));
+				TEXT("Erase: nulla cancellato — '%s': %s. L'operazione e' tutto-o-niente, quindi la "
+					"selezione resta com'era."),
+				*URTHexSelectionStore::Describe({ Handle }),
+				*URTMapEditLibrary::DescribeOutcome(Prova));
 			return;
 		}
 	}
@@ -467,9 +471,10 @@ void URTHexEditorMode::EraseSelection()
 			// che `bDryRun` ha smesso di essere la stessa funzione senza mutazioni. Si logga come difetto,
 			// non come esito: e' un'invariante rotta, non un rifiuto.
 			UE_LOG(LogRTHexEditorMode, Error,
-				TEXT("Erase: '%s' rifiutato (esito %d) DOPO essere passato a vuoto: la prova e "
+				TEXT("Erase: '%s' rifiutato DOPO essere passato a vuoto (%s): la prova e "
 					"l'applicazione divergono."),
-				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Outcome));
+				*URTHexSelectionStore::Describe({ Handle }),
+				*URTMapEditLibrary::DescribeOutcome(Outcome));
 		}
 	}
 

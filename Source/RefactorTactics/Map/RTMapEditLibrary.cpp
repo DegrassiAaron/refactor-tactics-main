@@ -463,3 +463,43 @@ ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellI
 
 	return ERTMapEditOutcome::Applied;
 }
+
+FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
+{
+	// ⛔ **Nessun `default`, ed e' deliberato.** Un ramo generico e' precisamente il difetto che questa
+	// funzione esiste per togliere: fa sembrare coperto un valore che non lo e', e il compilatore tace.
+	// Senza, un valore nuovo dell'enum accende un warning invece di collassare su «rifiutata».
+	//
+	// 🔑 **E la protezione e' piu' forte di quanto sembri, misurato**: aggiungere un `default` qui fa
+	// diventare IRRAGGIUNGIBILE il `return` in coda, e la build cade con `C4702 codice non eseguibile`.
+	// Le due meta' si tengono a vicenda — il `return` finale rende il `default` un errore di compilazione,
+	// e l'assenza di `default` rende un valore scoperto un warning.
+	switch (Outcome)
+	{
+	case ERTMapEditOutcome::Applied:
+		return TEXT("applicata");
+
+	case ERTMapEditOutcome::RefusedUnresolved:
+		return TEXT("l'handle non nomina nessun elemento esistente");
+
+	case ERTMapEditOutcome::RefusedNoSuchCell:
+		return TEXT("la cella di destinazione non esiste: ci finirebbe un orfano");
+
+	case ERTMapEditOutcome::RefusedOutOfGrammar:
+		return TEXT("il segmento non sta nella grammatica a 30 gradi");
+
+	case ERTMapEditOutcome::RefusedWouldCloseEdge:
+		return TEXT("il segmento chiuderebbe almeno un bordo: allora e' una copertura, non un muro interno");
+
+	case ERTMapEditOutcome::RefusedDuplicate:
+		return TEXT("ne esiste gia' uno identico nella destinazione");
+
+	case ERTMapEditOutcome::RefusedNoNeighbour:
+		return TEXT("oltre quel bordo non c'e' nessuna cella: l'elemento non negherebbe nessuna adiacenza");
+	}
+
+	// Irraggiungibile finche' lo `switch` copre l'enum: sta qui perche' la funzione deve compilare, non
+	// perche' descriva un caso. Un valore che ci arrivasse sarebbe un errore di programmazione, e il testo
+	// lo dice invece di fingere una ragione.
+	return TEXT("esito non nominato: e' un valore di ERTMapEditOutcome che DescribeOutcome non copre");
+}

@@ -1830,4 +1830,85 @@ bool FRTMapEditMoveWithinTheSameCellRebakesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * OGNI RIFIUTO SI NOMINA, e nessuno cade in un «rifiutata» generico (#1864, casella 8).
+ *
+ * 🔴 **Il difetto, misurato il 2026-09-24.** La disciplina di `ERTMapEditOutcome` e' dichiarata
+ * nell'header: *«un rifiuto e' un valore di ritorno, non un'eccezione ne' un silenzio … o si rifiuta il
+ * gesto **dicendo quale regola l'ha fermato**»*. Ma l'unico posto che traduceva quei valori in parole era
+ * un `DescribeOutcome` privato, nel namespace anonimo di un **commandlet**
+ * (`RTSetCellDoorCommandlet.cpp`), e copriva **4 valori su 7**: gli altri tre cadevano su
+ * `default: return TEXT("rifiutata")`, cioe' proprio il silenzio che la regola vieta.
+ *
+ * ⚠️ E il consumatore piu' importante non lo usava affatto: `URTHexEditorMode::EraseSelection` stampava
+ * `static_cast<int32>(Outcome)` — **un numero**. Chi legge il log deve aprire l'enum e contare.
+ *
+ * 🔑 **Il test non elenca le sette stringhe**, che sarebbe riscrivere la funzione nell'asserzione. Verifica
+ * due proprieta' che un `default` generico non puo' soddisfare:
+ *
+ * ```text
+ * 1. ogni valore ha un testo NON VUOTO
+ * 2. i testi sono tutti DIVERSI fra loro
+ * ```
+ *
+ * La (2) e' quella che morde: aggiungere un valore all'enum senza il suo `case` lo fa collassare sul
+ * testo del `default`, che un altro valore gia' usa — e il test cade. E' la stessa guardia che
+ * `RTStartupReportTests` applica a `URTStartupReportLibrary::DescribeOutcome`.
+ *
+ * ⚠️ **Il conteggio dei valori e' scritto qui e va aggiornato a mano**, ed e' deliberato: `ERTMapEditOutcome`
+ * non ha un `Count` sentinella, e dedurlo da un cast farebbe passare in silenzio proprio il caso che questo
+ * test esiste per fermare — un valore nuovo senza la sua parola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDescribeOutcomeNamesEveryValueTest,
+	"RefactorTactics.Map.Edit.DescribeOutcomeNamesEveryRefusal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDescribeOutcomeNamesEveryValueTest::RunTest(const FString&)
+{
+	const TArray<ERTMapEditOutcome> Tutti = {
+		ERTMapEditOutcome::Applied,
+		ERTMapEditOutcome::RefusedUnresolved,
+		ERTMapEditOutcome::RefusedNoSuchCell,
+		ERTMapEditOutcome::RefusedOutOfGrammar,
+		ERTMapEditOutcome::RefusedWouldCloseEdge,
+		ERTMapEditOutcome::RefusedDuplicate,
+		ERTMapEditOutcome::RefusedNoNeighbour,
+	};
+
+	// GUARDIA ANTI-VACUITA': se l'enum cresce e questo elenco no, il test girerebbe sui soli valori vecchi
+	// e non vedrebbe mai il valore nuovo senza parola — cioe' passerebbe proprio quando dovrebbe cadere.
+	if (!TestEqual(TEXT("l'elenco copre tutti i valori dichiarati di ERTMapEditOutcome"),
+		Tutti.Num(), 7))
+	{
+		return false;
+	}
+
+	TSet<FString> Visti;
+	for (const ERTMapEditOutcome Outcome : Tutti)
+	{
+		const FString Testo = URTMapEditLibrary::DescribeOutcome(Outcome);
+
+		if (!TestFalse(FString::Printf(TEXT("il valore %d ha un testo non vuoto"),
+			static_cast<int32>(Outcome)), Testo.IsEmpty()))
+		{
+			continue;
+		}
+
+		// Il cuore: due valori che condividono il testo significano che almeno uno e' caduto in un ramo
+		// generico, ed e' il silenzio che la disciplina dell'enum vieta.
+		TestFalse(FString::Printf(TEXT("il testo del valore %d non e' gia' di un altro valore ('%s')"),
+			static_cast<int32>(Outcome), *Testo), Visti.Contains(Testo));
+		Visti.Add(Testo);
+	}
+
+	TestEqual(TEXT("e sono tutti distinti"), Visti.Num(), Tutti.Num());
+
+	// CONTROPROVA che il testo sia davvero una RAGIONE e non il nome del simbolo: `Applied` e i rifiuti
+	// devono distinguersi, altrimenti un log direbbe «RefusedDuplicate» e chi legge e' tornato all'enum.
+	TestFalse(TEXT("il testo non e' il nome del simbolo"),
+		URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome::RefusedDuplicate)
+			.Contains(TEXT("RefusedDuplicate")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -185,4 +185,29 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HexMap")
 	static ERTMapEditOutcome AddDoor(URTHexMapAsset* Map, const FRTCellId& Cell, ERTHexDirection Edge,
 		ERTHexDoorState State, int32 DoorId = -1, FName StableId = NAME_None);
+
+	/**
+	 * L'esito, in parole — **quale regola ha fermato il gesto** (#1864, casella 8).
+	 *
+	 * 🔴 **Esiste perche' la disciplina dichiarata in cima a questo file non era applicata da nessuno.**
+	 * `ERTMapEditOutcome` promette *«o si rifiuta il gesto dicendo quale regola l'ha fermato»*, ma
+	 * misurato il 2026-09-24 l'unica traduzione in parole viveva **privata** nel namespace anonimo di un
+	 * commandlet (`RTSetCellDoorCommandlet.cpp`) e copriva **quattro valori su sette**: gli altri tre
+	 * cadevano su `default: return TEXT("rifiutata")`, cioe' il silenzio che la regola vieta.
+	 *
+	 * ⚠️ E il consumatore che conta non la usava affatto: `URTHexEditorMode::EraseSelection` stampava
+	 * `static_cast<int32>(Outcome)`, **un numero**. Un log che dice «esito 4» obbliga chi legge ad aprire
+	 * l'enum e contare i valori — ed e' il contrario di nominare la ragione.
+	 *
+	 * 🔑 **Vive accanto all'enum, e non in chi lo consuma**, con la stessa disciplina di
+	 * `URTTurnRules::DescribeOutcome` e `URTStartupReportLibrary::DescribeOutcome`: due stesure dello
+	 * stesso vocabolario divergono, e la prima era gia' divergente per meta' dei suoi casi.
+	 *
+	 * ⛔ **Non e' presentazione, ed e' il motivo per cui torna `FString` e non `FText`**: la frase e'
+	 * rivolta a chi autora e finisce in un log d'editor, non nella UI di gioco. Il giorno in cui servisse
+	 * localizzata, il tipo cambia qui e i chiamanti seguono — che e' esattamente il vantaggio di avere
+	 * **una** sede.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap")
+	static FString DescribeOutcome(ERTMapEditOutcome Outcome);
 };

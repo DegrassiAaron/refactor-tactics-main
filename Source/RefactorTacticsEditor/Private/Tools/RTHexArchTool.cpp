@@ -340,8 +340,9 @@ void URTHexArchTool::RemoveNearestArch(ARTHexMapActor* Actor, const FInputDevice
 			URTMapEditLibrary::DeleteElement(Scrivibile, FRTMapElementHandle::ForTransition(F, T));
 
 		Actor->RebuildInstances();
-		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco %s -> %s (dist %.1f): esito %d."),
-			*F.ToString(), *T.ToString(), BestDist, static_cast<int32>(Esito));
+		// ⚠️ La RAGIONE, non il numero: `esito 4` obbliga chi legge ad aprire l'enum e contare (#1864).
+		UE_LOG(LogTemp, Log, TEXT("[HexMode] Arco %s -> %s (dist %.1f): %s."),
+			*F.ToString(), *T.ToString(), BestDist, *URTMapEditLibrary::DescribeOutcome(Esito));
 	}
 	else
 	{
