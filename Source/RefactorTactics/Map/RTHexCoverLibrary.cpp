@@ -220,9 +220,13 @@ TArray<FRTCoverDamageResult> URTHexCoverLibrary::ApplyStructureDamage(URTHexMapA
 		DamageFace(Map, Hit.To, Backward, Hit.From, Hit.Amount, Changes);
 		// L'attaccante viaggia con l'esito (#405). Marcato QUI e non dentro `DamageFace`, che non ha bisogno
 		// di conoscerlo: il danno lo calcola l'integrita', non chi l'ha inflitto.
+		// ⚠️ **E con lui gli INTENTI** (`#3281`): stessa ragione e stesso posto. ⛔ Le due facce di un bordo
+		// ridondante ricevono gli stessi indici, ed e' corretto — sono lo stesso colpo letto dai due lati
+		// (`#3279`), non due colpi, quindi porteranno la stessa azione e saranno **un** atto.
 		for (int32 c = FirstFromThisHit; c < Changes.Num(); ++c)
 		{
 			Changes[c].AttackerId = Hit.AttackerId;
+			Changes[c].IntentIndices = Hit.IntentIndices;
 		}
 	}
 

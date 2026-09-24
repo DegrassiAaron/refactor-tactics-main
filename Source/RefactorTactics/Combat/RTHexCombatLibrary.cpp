@@ -177,7 +177,7 @@ namespace
 	 * risulterebbe colpito due volte a meta' della forza.
 	 */
 	void AccumulateStructureHit(TArray<FRTStructureHit>& Hits, const FRTCellId& A, const FRTCellId& B,
-		int32 Amount, int32 AttackerId)
+		int32 Amount, int32 AttackerId, int32 IntentIndex)
 	{
 		const bool bForward = URTHexLibrary::StableLess(A, B);
 		const FRTCellId& Low = bForward ? A : B;
@@ -189,10 +189,23 @@ namespace
 			{
 				Existing.Amount += Amount;
 				Existing.AttackerId = FMath::Min(Existing.AttackerId, AttackerId); // deterministico, per il log
+				// ⚠️ **Si RACCOGLIE, non si sceglie** (`#3281`, [D-437]). `AttackerId` qui sopra tiene un
+				// rappresentante perche' al TurnLog basta un nome; l'identita' dell'AZIONE no — nominarne
+				// una su un bordo colpito da due sarebbe un confine d'atto che racconta meta' della causa.
+				// Chi decide se la risposta esiste e' `ApplyEnvironmentChanges`, dove `IntentDefs` e' gia'
+				// l'unica fonte dell'identita'.
+				// ⛔ `AddUnique` e non `Add`: lo stesso intento non deve comparire due volte, o due colpi
+				// della stessa azione sullo stesso bordo sembrerebbero due azioni.
+				Existing.IntentIndices.AddUnique(IntentIndex);
+				// Ordine canonico: da qui esce una voce di TurnLog, e l'`ActionId` che ne deriva non deve
+				// dipendere dall'ordine in cui gli intenti sono arrivati.
+				Existing.IntentIndices.Sort();
 				return;
 			}
 		}
-		Hits.Add(FRTStructureHit(Low, High, Amount, AttackerId));
+		FRTStructureHit Nuovo(Low, High, Amount, AttackerId);
+		Nuovo.IntentIndices.Add(IntentIndex);
+		Hits.Add(Nuovo);
 	}
 }
 
@@ -394,7 +407,7 @@ FRTHexBlastPlan URTHexCombatLibrary::CollectHexAttacks(const TArray<FRTHexCombat
 			if (FirstCoveredEdge(Map, Attacker.Cell, AimCell, EdgeFrom, EdgeTo))
 			{
 				AccumulateStructureHit(Plan.StructureHits, EdgeFrom, EdgeTo, Intent.StructurePower,
-					Intent.AttackerId);
+					Intent.AttackerId, IntentIdx);
 			}
 		}
 
