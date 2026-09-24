@@ -92,4 +92,34 @@ public:
 	/** Il layer attivo, e se esiste fra quelli della mappa. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap")
 	static FString DescriviLayerAttivo(const FRTHexMapSummary& S);
+
+	/**
+	 * CHE COSA DICE IL VALIDATORE sulla mappa aperta — il canale della casella 8 di `#1864`.
+	 *
+	 * 🔴 **Esiste perche' nel modulo Editor `ValidateMap` non la chiamava nessuno.** Misurato il
+	 * 2026-09-24: un test e cinque commenti, **zero** chiamate di produzione. La issue chiede *«si rifiuta
+	 * il gesto **o si segnala**»*; il rifiuto tipizzato c'era — `ERTMapEditOutcome` — e il segnalare non
+	 * aveva una sede.
+	 *
+	 * ⛔ **Un `UE_LOG(Warning)` non e' quella sede**: l'Output Log e' un pannello che chi disegna deve
+	 * avere aperto e scorrere, ed e' il difetto che `RTMapTemplateValidationHookTests` documenta — regole
+	 * scritte, testate e verdi che non eseguiva nessuno. Il readout del mode invece si **vede guardando**,
+	 * che e' il criterio con cui `#1186` ha deciso questo pannello.
+	 *
+	 * 🔑 **Prende il `Map` e non un `FRTHexMapSummary`, a differenza delle quattro qui sopra.** Quelle
+	 * mettono in parole un riassunto gia' calcolato; questa deve interrogare il validatore, che e' un
+	 * lavoro di natura diversa e di costo diverso. Infilarlo dentro `Summarise` avrebbe cambiato la
+	 * semantica di una funzione che dichiara di *«leggere l'asset»*, e reso costoso ogni suo chiamante.
+	 *
+	 * ⚠️ **Chiama `ValidateMap()`, non `ValidateMapDetailed()`, e la differenza e' un fattore sei.**
+	 * `ValidateMap` porta ventitre `Error:` e tre `Warning:` propri **e in coda chiama l'altra**,
+	 * formattandone le voci: e' il superset. Un readout costruito su `ValidateMapDetailed` direbbe
+	 * «nessuna segnalazione» su una mappa che `ValidateMap` dichiara in errore.
+	 *
+	 * ⛔ **`Map` nullo NON risponde «zero segnalazioni»**: uno zero si legge come «va tutto bene», ed e'
+	 * la stessa bugia che `#1186` ha tolto agli altri readout dopo che la sandbox si era trovata con una
+	 * mappa staccata senza che nessuno se ne accorgesse.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexMap")
+	static FString DescriviValidazione(const URTHexMapAsset* Map);
 };

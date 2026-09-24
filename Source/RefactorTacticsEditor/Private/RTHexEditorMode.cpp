@@ -157,6 +157,17 @@ void URTHexEditorMode::RefreshMapReadout(ARTHexMapActor* Map)
 	Settings->MappaCelle = URTHexMapSummaryLibrary::DescriviCelle(S);
 	Settings->MappaLayer = URTHexMapSummaryLibrary::DescriviLayer(S);
 	Settings->MappaLayerAttivo = URTHexMapSummaryLibrary::DescriviLayerAttivo(S);
+
+	// 🔑 **Il canale della casella 8 di `#1864`, e sta QUI per il trigger.** Prima di questa riga nel modulo
+	// Editor `ValidateMap` non era chiamata da nessuna riga di produzione: il rifiuto di un gesto si
+	// nominava, ma uno stato invalido gia' nell'asset non lo segnalava niente.
+	//
+	// ⚠️ **La guardia su `Revision` qui sopra e' cio' che lo rende sostenibile**: si rivalida quando la
+	// mappa cambia, non a ogni fotogramma. Senza, sarebbe una `ValidateMap()` per tick.
+	//
+	// ⛔ **Non prende `S`**, a differenza delle quattro righe qui sopra: interrogare il validatore e'
+	// un'altra domanda, e infilarla dentro `Summarise` avrebbe reso costoso ogni suo chiamante.
+	Settings->MappaValidazione = URTHexMapSummaryLibrary::DescriviValidazione(Asset);
 }
 
 void URTHexEditorMode::Exit()

@@ -182,4 +182,112 @@ bool FRTMapSummaryActiveLayerTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * CHE COSA DICE IL VALIDATORE, e lo dice a chi sta autorando (#1864, casella 8).
+ *
+ * 🔴 **Il difetto: nel modulo Editor `ValidateMap` non era chiamata da nessuno.** Misurato il 2026-09-24 —
+ * `grep -rn "ValidateMap" Source/RefactorTacticsEditor/` dava un test e cinque commenti, zero chiamate di
+ * produzione. La casella 8 chiede *«si rifiuta il gesto **o si segnala**»*: il rifiuto tipizzato esiste
+ * (`ERTMapEditOutcome`), il segnalare non aveva un canale.
+ *
+ * ⛔ **E un `UE_LOG(Warning)` non e' quel canale.** L'Output Log e' un pannello che chi disegna deve avere
+ * aperto e scorrere; e' la lezione che il repo ha gia' pagato con `RTMapTemplateValidationHookTests`, dove
+ * regole *scritte, testate e verdi* non le eseguiva nessuno. La sede giusta e' il readout del mode, che
+ * `#1186` ha stabilito per la stessa ragione: *«un dato che si consulta guardando deve vedersi guardando»*.
+ *
+ * 🔑 **`ValidateMap()` e NON `ValidateMapDetailed()`, e la differenza e' un fattore sei.** Misurato:
+ * `ValidateMap` porta ventitre `Error:` e tre `Warning:` propri **e in coda chiama `ValidateMapDetailed`**,
+ * formattandone le voci con lo stesso schema — quindi e' il **superset**. `ValidateMapDetailed` da sola
+ * porta cinque regole: un readout costruito su quella direbbe «nessuna segnalazione» su una mappa che
+ * `ValidateMap` dichiara in errore per una delle altre.
+ *
+ * ⚠️ **Il conteggio per PREFISSO non e' un'euristica**: ogni riga che `ValidateMap` produce comincia per
+ * `Error: ` o `Warning: `, comprese quelle che arrivano da `ValidateMapDetailed` — che vengono formattate
+ * proprio cosi' (`Issue.bIsError ? TEXT("Error") : TEXT("Warning")`). E' la convenzione del validatore, non
+ * una lettura di questo file, e `ConteggiCorrispondonoAValidateMap` la pinna.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapSummaryValidationCountsTest,
+	"RefactorTactics.Map.Summary.ValidationCountsMatchValidateMap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapSummaryValidationCountsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = SummaryMakeMap(2);
+	if (!TestNotNull(TEXT("la mappa di prova esiste"), Map)) { return false; }
+
+	// L'allestimento nasce VALIDO: senza questa premessa il test non distinguerebbe «non segnala niente»
+	// da «segnala sempre».
+	if (!TestEqual(TEXT("l'arena di prova nasce senza segnalazioni"), Map->ValidateMap().Num(), 0))
+	{
+		return false;
+	}
+	TestTrue(TEXT("e il readout lo dice a parole, non con uno zero"),
+		URTHexMapSummaryLibrary::DescriviValidazione(Map).Contains(TEXT("nessuna")));
+
+	// Un ERRORE: costo negativo su una cella — una delle regole che vivono in `ValidateMap` e che
+	// `ValidateMapDetailed` NON porta. E' deliberato: e' il caso che distingue le due funzioni.
+	{
+		FRTHexCellData Rotta = *Map->FindCell(FRTCellId(0, 0, 0));
+		Rotta.MoveCost = -1;
+		Map->AddOrUpdateCell(Rotta);
+	}
+
+	const TArray<FString> Righe = Map->ValidateMap();
+	if (!TestTrue(TEXT("la mappa ora ha almeno una segnalazione"), Righe.Num() > 0))
+	{
+		return false;
+	}
+
+	// 🔑 IL CUORE: i conteggi del readout sono QUELLI di `ValidateMap`, contati sulla sua uscita e non
+	// ricavati da una seconda passata sulle regole. Un secondo conteggio e' una seconda risposta alla
+	// stessa domanda, ed e' il difetto che `PanelAndLibraryCannotDiverge` gia' presidia per le celle.
+	int32 Errori = 0;
+	int32 Avvisi = 0;
+	for (const FString& R : Righe)
+	{
+		if (R.StartsWith(TEXT("Error:"))) { ++Errori; }
+		else if (R.StartsWith(TEXT("Warning:"))) { ++Avvisi; }
+	}
+
+	// CONTROPROVA sulla convenzione: ogni riga ha uno dei due prefissi. Se un giorno una regola ne
+	// scrivesse una senza, il conteggio del readout mentirebbe per difetto — e questo test lo dice QUI.
+	TestEqual(TEXT("ogni riga di ValidateMap porta il suo prefisso"), Errori + Avvisi, Righe.Num());
+	TestTrue(TEXT("e almeno un errore c'e', o il confronto non verifica niente"), Errori > 0);
+
+	const FString Readout = URTHexMapSummaryLibrary::DescriviValidazione(Map);
+	TestTrue(TEXT("il readout nomina il numero di errori"),
+		Readout.Contains(FString::Printf(TEXT("%d"), Errori)));
+	TestFalse(TEXT("e non dice piu' che va tutto bene"), Readout.Contains(TEXT("nessuna")));
+
+	return true;
+}
+
+/**
+ * SENZA UN ASSET la validazione non risponde «zero»: dice che la domanda non si pone.
+ *
+ * ⛔ E' il criterio che `#1186` ha reso esplicito per tutti i readout di questo pannello — *«la sandbox si
+ * e' trovata con una mappa staccata senza che nessuno se ne accorgesse, e uno zero sembrava una mappa
+ * vuota»*. Uno «0 segnalazioni» su una mappa che non c'e' e' la stessa bugia: si legge come «tutto a posto».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapSummaryValidationWithoutAssetTest,
+	"RefactorTactics.Map.Summary.ValidationWithoutAnAssetSaysSoInsteadOfZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapSummaryValidationWithoutAssetTest::RunTest(const FString&)
+{
+	const FString Senza = URTHexMapSummaryLibrary::DescriviValidazione(nullptr);
+
+	TestFalse(TEXT("non e' vuoto"), Senza.IsEmpty());
+	TestFalse(TEXT("e non dice «nessuna segnalazione», che si leggerebbe come «va tutto bene»"),
+		Senza.Contains(TEXT("nessuna segnalazione")));
+
+	// CONTROPROVA: su una mappa vera e valida la frase e' DIVERSA. Senza questa, un `DescriviValidazione`
+	// che restituisse sempre la stessa stringa supererebbe entrambe le asserzioni qui sopra.
+	URTHexMapAsset* Map = SummaryMakeMap(1);
+	if (!TestNotNull(TEXT("la mappa di prova esiste"), Map)) { return false; }
+	TestNotEqual(TEXT("una mappa valida si legge in modo diverso da una mappa assente"),
+		URTHexMapSummaryLibrary::DescriviValidazione(Map), Senza);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
