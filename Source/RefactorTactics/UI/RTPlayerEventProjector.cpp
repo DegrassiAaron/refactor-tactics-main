@@ -285,9 +285,20 @@ TArray<FRTPlayerEvent> URTPlayerEventProjector::Project(const TArray<FRTTurnLogE
 		Candidate.Importance = Importance;
 		Candidate.PrimaryUnitId = UnitId;
 		// ⛔ `SecondaryUnitId` resta `INDEX_NONE` per le voci di combattimento, e non e' una scorciatoia: il
-		// TurnLog ha **un solo** `UnitId` per voce e lo assegna a chi SUBISCE (`#1150`, `#1430`), quindi
-		// l'attaccante non e' recuperabile da qui. Inventarlo dalla `SrcCell` sarebbe dedurre un'unita' da
-		// una cella, che [D-063] vieta.
+		// TurnLog ha **un solo** `UnitId` per voce, quindi la seconda unita' non e' recuperabile da qui.
+		// Inventarla dalla `SrcCell` sarebbe dedurre un'unita' da una cella, che [D-063] vieta.
+		//
+		// ⏱️ **Questa riga diceva che l'unico `UnitId` e' «chi SUBISCE» (`#1150`, `#1430`). E' falso per le
+		// voci di combattimento, ed e' stato misurato** (`#3271`): il produttore scrive
+		// `AttackActors.Add(Attacker)` (`RTTurnManager.cpp`), e la tassonomia che dovrebbe codificarlo —
+		// `URTTurnLogLibrary::IsSubjectTheSufferer` — per un `Combat`/`Hit` semplice risponde **`false`**.
+		// ∴ su queste voci il soggetto e' chi **colpisce**.
+		//
+		// 🔑 **La conseguenza che il difetto rende visibile**: la riga del feed e' agganciata a chi ha
+		// colpito, mentre il testo composto (*«Colpita — …»*) e' al femminile di chi subisce. Due
+		// attaccanti diversi danno due chiavi diverse, quindi la dominanza non fonde le righe e ne
+		// sopravvivono due. La lettura si chiude con la decisione che `#3271` chiede; ⛔ cio' che non deve
+		// restare e' un commento che afferma il contrario del codice accanto.
 		Candidate.ActionId = Entry.ActionId;
 		Candidate.Amount = Entry.Amount;
 
