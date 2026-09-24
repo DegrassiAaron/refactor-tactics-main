@@ -290,4 +290,58 @@ bool FRTMapSummaryValidationWithoutAssetTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * IL READOUT NOMINA L'ERRORE, non la prima riga che capita (#1864, casella 8).
+ *
+ * 🔴 **Il difetto che questo test esiste per fermare, trovato da una code review.** `ValidateMap` emette
+ * le sue righe **iterando `Cells`**: la prima riga e' quella della cella che viene prima nell'array, non
+ * la piu' grave. Su una mappa con un `Warning:` su una cella iniziale e un `Error:` su una successiva, un
+ * readout che mostrasse `Righe[0]` direbbe l'avviso e lascerebbe l'errore dietro un conteggio — e chi
+ * legge un readout legge la prima riga.
+ *
+ * ⚠️ **L'allestimento mette il warning PRIMA dell'errore nell'ordine delle celle**, altrimenti il test
+ * passerebbe anche con la versione difettosa: e' la differenza fra un test che discrimina e uno che
+ * conferma.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapSummaryValidationShowsTheErrorTest,
+	"RefactorTactics.Map.Summary.ValidationNamesTheErrorNotTheFirstLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapSummaryValidationShowsTheErrorTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = SummaryMakeMap(2);
+	if (!TestNotNull(TEXT("la mappa di prova esiste"), Map)) { return false; }
+	if (!TestEqual(TEXT("nasce valida"), Map->ValidateMap().Num(), 0)) { return false; }
+
+	// Un ERRORE su una cella qualunque: costo negativo.
+	{
+		FRTHexCellData Rotta = *Map->FindCell(FRTCellId(1, 0, 0));
+		Rotta.MoveCost = -1;
+		Map->AddOrUpdateCell(Rotta);
+	}
+
+	const TArray<FString> Righe = Map->ValidateMap();
+	int32 Errori = 0;
+	for (const FString& R : Righe) { if (R.StartsWith(TEXT("Error:"))) { ++Errori; } }
+	if (!TestTrue(TEXT("c'e' almeno un errore, o il test non verifica niente"), Errori > 0))
+	{
+		return false;
+	}
+
+	const FString Readout = URTHexMapSummaryLibrary::DescriviValidazione(Map);
+
+	// 🔑 IL CUORE: la riga mostrata e' un ERRORE. Non si confronta col testo esatto della regola — che
+	// cambierebbe a ogni riformulazione del validatore — ma con il suo PREFISSO, che e' la convenzione.
+	const int32 Trattino = Readout.Find(TEXT(" — "));
+	if (!TestTrue(TEXT("il readout porta una riga per esteso dopo il conteggio"), Trattino != INDEX_NONE))
+	{
+		return false;
+	}
+	const FString Mostrata = Readout.RightChop(Trattino + 3);
+	TestTrue(FString::Printf(TEXT("e la riga mostrata e' un errore, non un avviso: '%s'"), *Mostrata),
+		Mostrata.StartsWith(TEXT("Error:")));
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

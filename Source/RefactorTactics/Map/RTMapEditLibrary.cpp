@@ -467,13 +467,18 @@ ERTMapEditOutcome URTMapEditLibrary::AddDoor(URTHexMapAsset* Map, const FRTCellI
 FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
 {
 	// ⛔ **Nessun `default`, ed e' deliberato.** Un ramo generico e' precisamente il difetto che questa
-	// funzione esiste per togliere: fa sembrare coperto un valore che non lo e', e il compilatore tace.
-	// Senza, un valore nuovo dell'enum accende un warning invece di collassare su «rifiutata».
+	// funzione esiste per togliere: fa sembrare coperto un valore che non lo e', e nessuno se ne accorge.
 	//
-	// 🔑 **E la protezione e' piu' forte di quanto sembri, misurato**: aggiungere un `default` qui fa
-	// diventare IRRAGGIUNGIBILE il `return` in coda, e la build cade con `C4702 codice non eseguibile`.
-	// Le due meta' si tengono a vicenda — il `return` finale rende il `default` un errore di compilazione,
-	// e l'assenza di `default` rende un valore scoperto un warning.
+	// 🔑 **Misurato, perche' la prima stesura di questo commento diceva il falso.** Sosteneva che un
+	// valore scoperto «accende un warning»: i warning promossi a errore in questa build sono
+	// `4456 4458 4459 4668 4702` — letti nei `.rsp` di `Intermediate/Build` — e `C4061`/`C4062`, che sono
+	// quelli dello `switch` che non copre un enum, **non ci sono**. ∴ il compilatore NON protegge questo
+	// lato, e l'unica protezione e' `DescribeOutcomeNamesEveryRefusal`, che itera l'enum per RIFLESSIONE
+	// proprio per accorgersi di un valore che nessuno ha tradotto.
+	//
+	// ⚠️ Cio' che il compilatore copre davvero e' l'altra meta', e anche quella e' misurata: aggiungere
+	// un `default` rende IRRAGGIUNGIBILE il `return` in coda, e la build cade con `C4702`, che e' fra i
+	// cinque promossi.
 	switch (Outcome)
 	{
 	case ERTMapEditOutcome::Applied:
@@ -492,7 +497,12 @@ FString URTMapEditLibrary::DescribeOutcome(ERTMapEditOutcome Outcome)
 		return TEXT("il segmento chiuderebbe almeno un bordo: allora e' una copertura, non un muro interno");
 
 	case ERTMapEditOutcome::RefusedDuplicate:
-		return TEXT("ne esiste gia' uno identico nella destinazione");
+		// ⚠️ **Non «identico», e la differenza e' misurata.** I due produttori confrontano cose diverse:
+		// `MoveInteriorWall` chiede `Cell` **e** `Segment` uguali, cioe' davvero lo stesso muro; `AddDoor`
+		// chiede il solo `Esistente.Edge == Edge`, quindi rifiuta anche una porta di STATO diverso su un
+		// bordo gia' occupato. Un testo che dicesse «identico» manderebbe chi legge a cercare una porta
+		// uguale che non c'e'.
+		return TEXT("quel posto e' gia' occupato da un elemento dello stesso tipo");
 
 	case ERTMapEditOutcome::RefusedNoNeighbour:
 		return TEXT("oltre quel bordo non c'e' nessuna cella: l'elemento non negherebbe nessuna adiacenza");

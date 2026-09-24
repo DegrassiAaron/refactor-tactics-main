@@ -135,7 +135,15 @@ FString URTHexMapSummaryLibrary::DescriviValidazione(const URTHexMapAsset* Map)
 		Out += FString::Printf(TEXT("%d senza prefisso"), SenzaPrefisso);
 	}
 
-	// La PRIMA riga per esteso: un conteggio dice quanto, non che cosa, e chi disegna deve sapere da dove
+	// Una riga per esteso: un conteggio dice quanto, non che cosa, e chi disegna deve sapere da dove
 	// cominciare senza aprire un altro pannello.
-	return FString::Printf(TEXT("%s — %s"), *Out, *Righe[0]);
+	//
+	// 🔴 **Si mostra il primo ERRORE, non la prima riga qualunque.** `ValidateMap` emette iterando
+	// `Cells`, quindi `Righe[0]` e' la segnalazione della cella che viene prima nell'array — e su una mappa
+	// con un avviso su una cella iniziale e un errore su una successiva avrebbe mostrato l'AVVISO,
+	// lasciando l'errore nascosto dietro un conteggio. Chi legge un readout legge la prima riga.
+	const FString* DaMostrare = Righe.FindByPredicate(
+		[](const FString& R) { return R.StartsWith(TEXT("Error:")); });
+
+	return FString::Printf(TEXT("%s — %s"), *Out, DaMostrare ? **DaMostrare : *Righe[0]);
 }
