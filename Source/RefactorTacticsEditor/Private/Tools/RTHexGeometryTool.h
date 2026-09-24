@@ -165,6 +165,16 @@ private:
 	ERTGeometryViolation IncidentViolation = ERTGeometryViolation::None;
 	int32 IncidentWallIndex = INDEX_NONE;
 
+	/**
+	 * PERCHE' l'ultimo gesto non ha prodotto un segmento (#1864, casella 2).
+	 *
+	 * 🔑 **Serve a distinguere un CLICK da un disegno fallito**, che e' la differenza fra selezionare e
+	 * non fare niente. `UpdatePreview` lo calcola gia' — e' l'uscita di `ExplainPair` — ma lo consumava e
+	 * lo buttava; `OnClickRelease` ne ha bisogno un fotogramma dopo, quando decide se il gesto era una
+	 * selezione. La regola che lo legge e' `RTHexEditor::GestureIsASelection`, che e' pura.
+	 */
+	ERTAnchorPairRefusal LastRefusal = ERTAnchorPairRefusal::None;
+
 	/** Il segmento che lo snap ha prodotto, e se ne ha prodotto uno. */
 	FRTGeometrySegment Preview;
 	bool bPreviewValid = false;

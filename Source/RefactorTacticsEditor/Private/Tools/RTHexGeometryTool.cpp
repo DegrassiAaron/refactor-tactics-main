@@ -236,6 +236,10 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	IncidentViolation = ERTGeometryViolation::None;
 	IncidentWallIndex = INDEX_NONE;
 
+	// ⚠️ Si registra il PERCHE', non solo il fallimento: `OnClickRelease` deve distinguere un click da
+	// un disegno che non e' riuscito, e la differenza sta tutta in questo valore (#1864).
+	LastRefusal = Snap.Refusal;
+
 	// Il gesto appena premuto non e' un rifiuto: e' l'assenza della domanda, e ha una frase sua.
 	const RTHexAnchor::FReadout Readout = Snap.From == Snap.To
 		? RTHexAnchor::DescribePending(Snap.From)
@@ -337,6 +341,35 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	UpdatePreview(ReleasePos);
 	if (!bPreviewValid)
 	{
+		// 🔑 **QUI Geometry partecipa alla selezione (#1864, casella 2).** Fino a questa riga il tool
+		// DISEGNAVA la selezione condivisa — `Render` chiama `DrawSharedSelection` — e non poteva
+		// scriverla: era un consumatore, non un partecipante, e il criterio chiede che sia condivisa
+		// *fra* Select, Geometry e Arch.
+		//
+		// ⛔ **Si prende solo il gesto che gia' non produceva nulla**, e non uno nuovo: fra i modi in cui
+		// lo snap puo' fallire, uno solo significa «non stavo disegnando» — i due estremi sullo stesso
+		// anchor. Gli altri rifiuti dicono che il gesto ERA un disegno e non e' riuscito, e li' il ghost
+		// aveva gia' avvisato: cambiare la selezione al rilascio sarebbe rubare il gesto a chi disegna.
+		// La regola sta in `GestureIsASelection`, che e' pura e provata headless.
+		//
+		// ⚠️ **La misura e' quella della GRAMMATICA, non dei pixel**: `USingleClickOrDragInputBehavior`
+		// dell'engine distingue click e trascinamento con una soglia in pixel di schermo, che dipende
+		// dalla camera — allo zoom sbagliato il muro piu' corto esprimibile smetterebbe di essere
+		// disegnabile. Gli anchor no.
+		if (RTHexEditor::GestureIsASelection(LastRefusal))
+		{
+			ARTHexMapActor* Bersaglio = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
+			FRTCellId Cella;
+			FVector Centro;
+			FVector Cliccato;
+			if (Bersaglio != nullptr
+				&& RTHexEditor::ResolveClickedCell(TargetWorld.Get(), Bersaglio, ReleasePos, Cella,
+					Centro, &Cliccato))
+			{
+				RTHexEditor::ApplyClickToSelection(Bersaglio, Cella, Cliccato);
+			}
+		}
+
 		return; // il ghost era invalido: non si committa un segmento fuori grammatica
 	}
 

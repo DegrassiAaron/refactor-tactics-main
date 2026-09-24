@@ -103,26 +103,11 @@ void URTHexSelectTool::OnClicked(const FInputDeviceRay& ClickPos)
 	// si ricava nessun angolo.
 	if (URTHexSelectionStore* Store = GEditor ? GEditor->GetEditorSubsystem<URTHexSelectionStore>() : nullptr)
 	{
-		FVector Origin = FVector::ZeroVector;
-		float HexSize = 0.f;
-		float LayerH = 0.f;
-		Actor->GetHexContext(Origin, HexSize, LayerH);
-
-		const ERTHexDirection Edge =
-			URTHexLibrary::NearestEdgeDirection(Cell, ClickedPoint, Origin, HexSize, LayerH);
-
-		// Ctrl aggiunge invece di sostituire: e' la multi-selezione condivisa che #1864 chiede.
-		const bool bAdditive = FSlateApplication::IsInitialized()
-			&& FSlateApplication::Get().GetModifierKeys().IsControlDown();
-
-		if (bAdditive)
-		{
-			Store->AddAt(Map, Cell, Edge);
-		}
-		else
-		{
-			Store->SelectAt(Map, Cell, Edge);
-		}
+		// ⏱️ **Queste venti righe vivevano QUI**, ed erano il gesto di selezione per intero: bordo
+		// mirato, `Ctrl`, aggiungi-o-sostituisci. Sono salite in `RTHexEditor::ApplyClickToSelection`
+		// perche' da `#1864` **anche Geometry** deve poter selezionare, e due stesure dello stesso gesto
+		// divergono — e' la ragione per cui `DrawSelectedElement` era gia' salita di li'.
+		RTHexEditor::ApplyClickToSelection(Actor, Cell, ClickedPoint);
 
 		Properties->SelectedCount = Store->GetSelection().Num();
 		Properties->SelectedElement = URTHexSelectionStore::Describe(Store->GetSelection());
