@@ -115,13 +115,18 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	// muro. Si rifiuta il gesto: correggerlo in silenzio, o scriverlo e lasciar protestare il validator,
 	// sono i due modi che i Non-goal vietano.
 	//
-	// 🔴 **La domanda si fa a `IsInteriorSegment`, e prima si faceva alla sola `EdgesTouchedBy`.** Quella
-	// risponde a *«si passa da questo lato?»*, che per un diametro `lato -> lato` vale «no» su due bordi —
-	// e quel segmento finiva qui rifiutato come copertura mentre la cottura lo scriveva in `InteriorWalls`.
-	// ⚠️ Il rifiuto era per giunta una diagnosi FALSA: `RefusedWouldCloseEdge` significa «e' una
-	// copertura», e mandava a correggere la cosa sbagliata. `#2085` aveva gia' stabilito la regola giusta,
-	// ma l'aveva applicata al solo `Bake`.
-	if (!URTGeometryBakeLibrary::IsInteriorSegment(NewSegment, Map->HexSize))
+	// ⚠️ **La domanda si fa a `EdgesTouchedBy`, e NON alla guardia `Offset == 0` che `Bake` applica.**
+	// Le due divergono su un diametro `lato -> lato`, e il 2026-09-24 questo rifiuto era stato allineato a
+	// `Bake` — sbagliando autorita': `URTHexMapAsset::ValidateMap` chiede anch'essa a `EdgesTouchedBy`,
+	// senza guardia, e dichiara quel muro *«chiude 2 bordi: e' una copertura, non un muro interno»*. Un move
+	// allineato al bake avrebbe scritto un asset che il validatore segnala come **errore** — cioe' proprio
+	// *«scriverlo e lasciar protestare il validator»*, che le tre righe qui sopra vietano.
+	//
+	// ⛔ La divergenza e' REALE e ha TRE sedi (bake, validatore, ghost del tool): e' registrata in
+	// `#3326` e va chiusa da una decisione, non scegliendo di nascosto una delle due semantiche.
+	TArray<ERTHexDirection> TouchedEdges;
+	URTGeometryBakeLibrary::EdgesTouchedBy(NewSegment, Map->HexSize, TouchedEdges);
+	if (TouchedEdges.Num() > 0)
 	{
 		return ERTMapEditOutcome::RefusedWouldCloseEdge;
 	}

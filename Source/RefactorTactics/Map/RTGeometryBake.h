@@ -112,30 +112,6 @@ public:
 	static int32 CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId);
 
 	/**
-	 * Questo segmento e' un MURO INTERNO — cioe' nessuna copertura di bordo puo' rappresentarlo?
-	 *
-	 * 🔴 **Esiste perche' la regola era scritta in DUE posti e i due divergevano** (misurato il 2026-09-24).
-	 * `#2085` ha stabilito che `Offset == 0` — «il segmento passa per il centro» — e' una proprieta' della
-	 * GIACITURA e non l'esito di una domanda sui bordi, e ha corretto la cottura; ma la correzione si e'
-	 * fermata al suo primo chiamante, e `URTMapEditLibrary::MoveInteriorWall` ha continuato a definire
-	 * «interno» per negazione, chiedendolo alla sola `EdgesTouchedBy`:
-	 *
-	 * ```text
-	 * diametro Deg0 (lato -> lato)   la cottura lo scrive in InteriorWalls
-	 *                                il move lo rifiuta RefusedWouldCloseEdge
-	 * ```
-	 *
-	 * ⚠️ **Il danno non era un rifiuto in piu', era un rifiuto con una diagnosi FALSA**: quel valore
-	 * significa *«e' una copertura, non un muro interno»*, e manda a correggere la cosa sbagliata — il
-	 * difetto per cui `RefusedNoNeighbour` era gia' stato separato da `RefusedNoSuchCell`.
-	 *
-	 * ⛔ **`EdgesTouchedBy` non cambia, ed e' deliberato**: risponde correttamente alla propria domanda —
-	 * *«si passa da questo lato?»* — e ha altri chiamanti di produzione a cui questa distinzione non
-	 * appartiene. Cio' che cambia e' che «e' interno» ha ora UNA sede invece di due stesure.
-	 */
-	static bool IsInteriorSegment(const FRTGeometrySegment& Segment, float HexSize);
-
-	/**
 	 * Rideriva la CALPESTABILITA' di una cella dai muri interni che porta adesso, e basta.
 	 *
 	 * 🔑 **E' la coda di `BakeCell` senza il suo corpo, e la distinzione e' tutto il punto.** Dopo un move o
@@ -150,8 +126,15 @@ public:
 	 * segmenti che chiudono bordi e che in `InteriorWalls` per invariante non ci sono.
 	 *
 	 * ⚠️ **L'autore vince, e questa funzione non lo contraddice**: un `bBlocksMovement` dipinto a mano
-	 * (`bMovementBlockGenerated == false`) resta dov'e'. E' la regola che `DeriveStandability` applica gia'
-	 * e che `ValidateMap` REGOLA 4 rispetta non segnalandola — qui si eredita, non si riscrive.
+	 * (`bMovementBlockGenerated == false`) resta suo — anche quando la geometria chiude la cella. E' la
+	 * regola che `DeriveStandability` applica, e che `ValidateMap` REGOLA 4 rispetta non segnalandola.
+	 *
+	 * ⏱️ **La regola c'era e il ramo che BLOCCA la violava**, scrivendo `bMovementBlockGenerated = true`
+	 * senza guardare il valore precedente: la marcatura d'autore veniva etichettata come derivata, e il
+	 * gesto successivo — tolta la geometria — la spegneva. Invisibile finche' la cottura la chiamava il
+	 * solo disegno; raggiungibile in due mosse da quando la chiamano anche il move e la cancellazione.
+	 * Corretto insieme a questa funzione, e pinnato da
+	 * `RefactorTactics.Map.Edit.AnAuthoredBlockSurvivesEvenWhenGeometryClosesTheCell`.
 	 *
 	 * `false` se la mappa o la cella non esistono: una cella cancellata non ha piu' niente da ricuocere, e
 	 * per un chiamante e' un esito normale, non un errore.

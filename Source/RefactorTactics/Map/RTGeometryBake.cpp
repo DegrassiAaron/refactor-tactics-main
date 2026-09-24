@@ -64,10 +64,23 @@ namespace RTGeometryBakeInternal
 
 		if (!bStandable)
 		{
-			// Nessuna posa legale: il blocco e' DERIVATO, e si marca come tale perche' il prossimo rebake
-			// possa toglierlo se la geometria cambia.
+			// 🔴 **La provenienza d'autore NON si sovrascrive, e questa riga lo faceva.** Il ramo qui sotto
+			// dichiara *«l'autore vince»*, e questo lo contraddiceva a due gesti di distanza: una cella
+			// marcata impraticabile A MANO (`bMovementBlockGenerated == false`) su cui si disegna geometria
+			// bloccante diventava «derivata», e il rebake successivo — tolta la geometria — la **spegneva**.
+			// La decisione di design spariva senza errore e senza segnalazione, perche' REGOLA 4 non ha
+			// nulla da dire su un blocco che nel frattempo e' diventato legittimo.
+			//
+			// ⚠️ **Il difetto era invisibile finche' la cottura la chiamava solo il DISEGNO**: bisognava
+			// disegnare e poi cancellare geometria sulla stessa cella. Da `#1864` la chiamano anche il move
+			// e la cancellazione di un muro, che sono gesti che l'autore si aspetta reversibili — ed e' li'
+			// che la perdita diventa raggiungibile in due mosse.
+			//
+			// L'effetto osservabile non cambia: la cella resta impraticabile. Cambia **di chi e'** il blocco,
+			// e quindi chi ha l'autorita' di toglierlo.
+			const bool bAlreadyAuthored = Cell.bBlocksMovement && !Cell.bMovementBlockGenerated;
 			Cell.bBlocksMovement = true;
-			Cell.bMovementBlockGenerated = true;
+			Cell.bMovementBlockGenerated = !bAlreadyAuthored;
 			return;
 		}
 
@@ -336,12 +349,10 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		// CELLE. Un raggio dal centro a un lato non lo blocca — dal vicino si entra ancora, da entrambi i
 		// lati del raggio — e cio' che divide e' l'INTERNO. Classificarlo come copertura inventava un
 		// blocco inesistente e perdeva la divisione reale.
-		//
-		// ⏱️ **La condizione viveva QUI, scritta a mano, ed e' salita in `IsInteriorSegment`** perche' il
-		// move la applicava in modo diverso e i due divergevano su un diametro lato-lato. La regola non
-		// cambia: cambia che ha una sede sola. Vedi l'header di quella funzione.
+		const bool bThroughCentre = (Segment.Offset == 0);
+
 		TArray<ERTHexDirection> Edges;
-		if (!URTGeometryBakeLibrary::IsInteriorSegment(Segment, HexSize))
+		if (!bThroughCentre)
 		{
 			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
 		}
@@ -456,24 +467,6 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 
 	Map->AddOrUpdateCell(Updated);
 	return Generated;
-}
-
-bool URTGeometryBakeLibrary::IsInteriorSegment(const FRTGeometrySegment& Segment, float HexSize)
-{
-	// `Offset == 0` significa, per definizione della grammatica, «il segmento passa per il centro della
-	// cella»: e' una proprieta' della GIACITURA, e non va dedotta dai bordi (#2085). Un raggio dal centro a
-	// un lato non blocca il passaggio FRA DUE CELLE — dal vicino si entra ancora, da entrambi i lati del
-	// raggio — e cio' che divide e' l'INTERNO.
-	if (Segment.Offset == 0)
-	{
-		return true;
-	}
-
-	// Altrimenti la domanda e' quella dei bordi, e la risposta e' di `EdgesTouchedBy`: un segmento che non
-	// ne chiude nessuno e' interno perche' nessuna copertura potrebbe rappresentarlo.
-	TArray<ERTHexDirection> Edges;
-	EdgesTouchedBy(Segment, HexSize, Edges);
-	return Edges.Num() == 0;
 }
 
 bool URTGeometryBakeLibrary::RederiveStandability(URTHexMapAsset* Map, const FRTCellId& CellId, float HexSize)

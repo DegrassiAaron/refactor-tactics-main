@@ -715,21 +715,35 @@ RefusedWouldCloseEdge  chiuderebbe un bordo: allora e' una COPERTURA
 RefusedDuplicate       muro identico gia' presente
 ```
 
-⛔ **«Chiuderebbe un bordo» si chiede a `URTGeometryBakeLibrary::IsInteriorSegment`, non a
-`EdgesTouchedBy`**, e la distinzione è costata un difetto. `EdgesTouchedBy` risponde a *«si passa da questo
-lato?»*, ed è corretta per la propria domanda; ma un diametro `Offset == 0` che va **da lato a lato** ne
-attraversa due, e `#2085` aveva già stabilito che passare per il centro è una proprietà della **giacitura**,
-non l'esito di una domanda sui bordi. La correzione di `#2085` si era fermata al primo chiamante — il bake —
-e il move aveva continuato a definire «interno» per negazione:
+🔴 **`RefusedWouldCloseEdge` si chiede a `EdgesTouchedBy`, e su un diametro `lato → lato` questo NON
+concorda con la cottura** ([#3326](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3326),
+aperta il 2026-09-24). `#2085` ha stabilito che `Offset == 0` — «passa per il centro» — è una proprietà della
+**giacitura** e non l'esito di una domanda sui bordi, ma ha applicato la regola a **una** delle sue tre sedi:
 
-```text
-diametro lato -> lato    la cottura lo scrive in InteriorWalls
-                         il move lo rifiutava RefusedWouldCloseEdge
-```
+| sede | come decide | diametro `lato → lato` |
+|---|---|---|
+| `Bake` | `Offset == 0`, poi `EdgesTouchedBy` | **muro interno**, lo scrive in `InteriorWalls` |
+| `ValidateMap` regola 4 | solo `EdgesTouchedBy` | **`Error:` «chiude 2 bordi: è una copertura»** |
+| ghost del tool Geometry | solo `EdgesTouchedBy` | **argento** (= copertura) |
 
-⚠️ Il danno non era un rifiuto in più: era un rifiuto con una **diagnosi falsa**, che manda a correggere la
-cosa sbagliata — lo stesso motivo per cui `RefusedNoNeighbour` è separato da `RefusedNoSuchCell`. Ora la
-regola ha una sede sola e due chiamanti.
+⛔ **Il move resta allineato a `ValidateMap`, e non al bake.** Allinearlo alla cottura è stato tentato e
+**ritirato**: avrebbe fatto passare un segmento che il validatore dichiara *errore*, cioè *«scriverlo e
+lasciar protestare il validator»*, che è precisamente il modo vietato dalle tre righe qui sopra. Fra due
+autorità che divergono, un gesto d'authoring sceglie quella che decide se l'asset è valido — e la divergenza
+si chiude con una decisione, non scegliendone una di nascosto.
+
+⚠️ **Gli assi DISPARI non lo mostrano**: `Deg30`, `Deg90`, `Deg150` puntano ai **vertici**, che `MSE-4`
+esclude, quindi lì le tre sedi concordano. È la ragione per cui il difetto è sopravvissuto — i test di
+cottura e di move usano prevalentemente diametri vertice-vertice.
+
+Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
+quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
+
+⚠️ **Un muro senza nome resta identificabile**, e non è un ripensamento su v12: `StableId` nasce `NAME_None`,
+quindi ogni muro disegnato prima di v12 è anonimo. L'handle porta allora la chiave `(Cell, Segment)` — unica
+per una regola che `ValidateMap` già applica. Il nome, quando c'è, **vince**: è l'unico che sopravvive al
+move. ⛔ Un nome che non risolve **non** ricade sulla chiave: chi ha chiesto quella struttura vuole quella, e
+restituirne un'altra perché sta nello stesso posto sarebbe un errore silenzioso.
 
 #### 13.2.1 La cottura segue l'operazione, e si ferma alle celle che ha toccato
 
@@ -761,16 +775,9 @@ viene toccato: è la regola che `DeriveStandability` già applica e che REGOLA 4
 Una ricottura agganciata al gesto che la contraddicesse cancellerebbe una scelta di design mentre l'autore ne
 sposta un'altra.
 
-Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, i
-quattro rifiuti ciascuno con la controprova che la mappa resta valida, e le due metà della ricottura:
-`MoveRebakesOnlyTheCellsItTouched` (con un testimone stantio su una cella non toccata, che deve
-**sopravvivere**) e `TheRebakeAfterAMoveLeavesAnAuthoredBlockAlone`.
-
-⚠️ **Un muro senza nome resta identificabile**, e non è un ripensamento su v12: `StableId` nasce `NAME_None`,
-quindi ogni muro disegnato prima di v12 è anonimo. L'handle porta allora la chiave `(Cell, Segment)` — unica
-per una regola che `ValidateMap` già applica. Il nome, quando c'è, **vince**: è l'unico che sopravvive al
-move. ⛔ Un nome che non risolve **non** ricade sulla chiave: chi ha chiesto quella struttura vuole quella, e
-restituirne un'altra perché sta nello stesso posto sarebbe un errore silenzioso.
+Verifica: `RefactorTactics.Map.Edit.*` — le due metà della ricottura:
+`MoveRebakesOnlyTheCellsItTouched`, con un **testimone** stantio su una cella che il move non tocca e che
+deve **sopravvivere**, e `TheRebakeAfterAMoveLeavesAnAuthoredBlockAlone`, che è il confine.
 
 ### 13.3 Che cosa c'è sotto un punto, e il ciclo di selezione
 
