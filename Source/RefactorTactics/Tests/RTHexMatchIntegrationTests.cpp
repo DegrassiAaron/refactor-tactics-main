@@ -19,6 +19,7 @@
 // `#2193` estensione: la regola di autorizzazione ha UN owner, e i test del Ready per partecipante la
 // interrogano invece di riscriverla — stesso precedente di `IsIntentVisibleTo` (`#507`).
 #include "Combat/RTCombatLibrary.h"
+#include "Tests/RTAbilityFixtures.h" // `#3261`: AddCoreAbilityInSlot, per `Action.Push` fuori dal kit dell'eroe
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Tests/RTWorldFixtures.h"
@@ -1814,6 +1815,308 @@ bool FRTReadinessDoesNotSurviveIntoTheNextPlanningTest::RunTest(const FString&)
 	TestFalse(TEXT("e nessun countdown si e' riarmato da solo"), M.TM->IsReadyCountdownActive());
 
 	DestroyHexMatchWorld(M.World);
+	return true;
+}
+
+// =========================================================================================================
+// `#3261` — LA SPINTA NON PASSAVA DAL PLAYBACK.
+//
+// 🔴 Trovata in seduta PIE guardando lo schermo, non leggendo il codice: *«il cilindro viene spinto, ma chi
+// lo spinge non arriva vicino, prima vedo muoversi quello spinto e poi chi spinge»*. Il bersaglio era gia'
+// sulla cella d'arrivo nel primo fotogramma della riproduzione.
+//
+// 🔑 **La catena**: l'evento di `ApplyForcedDisplacement` nasceva senza `CellVerdicts`;
+// `ObservedPrefixLength` e' fail-closed sul disallineamento e rispondeva `0` per **qualunque** squadra; il
+// `Visible < 2` di `BuildPlayback` scartava l'anim — mentre il passo 7 aveva gia' chiamato
+// `SetVisualLocation`, durante la risoluzione, che gira tutta prima di `BeginPlayback`.
+//
+// ⚠️ **I test esistenti pinnano lo STATO FINALE e restavano verdi**: `HexMatch.ChargeStopsOnEnemyAndHits`
+// asserisce che il bersaglio finisca una cella piu' in la', e resta vero con la spinta invisibile. Quello
+// che segue pinna la **sequenza**.
+// =========================================================================================================
+
+namespace
+{
+	/** La scena della carica: Branth carica Ivrin, la colpisce e la spinge. E' quella della seduta PIE. */
+	struct FRTPushScene
+	{
+		UWorld* World = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Charger = nullptr;
+		ARTUnit* Target = nullptr;
+		bool bValid = false;
+	};
+
+	FRTPushScene MakePushScene()
+	{
+		FRTPushScene S;
+		S.World = MakeHexMatchWorld();
+		if (!S.World) { return S; }
+		SpawnHexMatchMap(S.World, /*Radius=*/ 5);
+
+		S.Charger = SpawnHexMatchUnit(S.World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+		S.Target  = SpawnHexMatchUnit(S.World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(3, 0));
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.TM || !S.Charger || !S.Target) { return S; }
+		S.Charger->bIsBotControlled = false;
+		S.Target->bIsBotControlled = false;
+
+		// La carica si cerca per `ActionId` e non per indice, come nel test gemello: l'indice e' una
+		// convenzione del kit e cambierebbe in silenzio il soggetto della prova.
+		int32 ChargeIdx = INDEX_NONE;
+		for (int32 i = 0; i < S.Charger->NumAbilities(); ++i)
+		{
+			const URTActionData* A = S.Charger->GetAbility(i);
+			if (A && A->Def.ActionId == FName(TEXT("Hero.Branth.Ram"))) { ChargeIdx = i; break; }
+		}
+		if (ChargeIdx == INDEX_NONE) { return S; }
+
+		S.Charger->PlannedDashAbility = ChargeIdx;
+		S.Charger->PlannedDashCell = S.Target->Cell;
+		S.bValid = true;
+		return S;
+	}
+
+	/** L'evento di playback dello spostamento di `StableUnitId`, se c'e'. */
+	const FRTResolvedEvent* PushEventFor(const ARTTurnManager* TM, int32 StableUnitId)
+	{
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::Move && Ev.SourceStableUnitId == StableUnitId
+				&& Ev.Phase == ERTMatchPhase::Blast)
+			{
+				return &Ev;
+			}
+		}
+		return nullptr;
+	}
+}
+
+/**
+ * L'evento della spinta porta i propri **verdetti**, uno per cella — `#3261`.
+ *
+ * 🔴 **E' la causa, e non nasceva da una svista.** Fino al 2026-08-30 non c'era nessun filtro davanti a
+ * questo evento (`#541`, 2026-08-11); il filtro entra con `#1525`, applicato a **ogni** evento `Move`, e il
+ * knockback era l'unico `Move` che non popolava `CellVerdicts`. E' caduto fuori senza che nulla lo dicesse.
+ *
+ * ⚠️ **Si chiede al BERSAGLIO, non al caricante**, ed e' la differenza fra un gate e un verde che non dice
+ * nulla: sul caricante i verdetti c'erano gia' (li scrive `ResolveDash`), quindi chiederli a lui sarebbe
+ * stato verde anche prima della correzione.
+ *
+ * 🔑 **E il numero deve COMBACIARE con le celle del percorso**, non essere «maggiore di zero»:
+ * `ObservedPrefixLength` e' fail-closed proprio sul **disallineamento** — `CellVerdicts.Num() !=
+ * Cells.Num()` risponde `0` — quindi un array di verdetti piu' corto del `Path` lascerebbe il difetto in
+ * piedi e questo gate verde.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushCarriesItsVerdictsTest,
+	"RefactorTactics.HexMatch.ForcedDisplacementCarriesItsVerdicts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushCarriesItsVerdictsTest::RunTest(const FString&)
+{
+	FRTPushScene S = MakePushScene();
+	if (!TestTrue(TEXT("scena costruita"), S.bValid)) { DestroyHexMatchWorld(S.World); return false; }
+
+	RTWorldFixtures::PlayOneTurn(S.TM);
+
+	// ⛔ PREMESSA: la spinta e' davvero avvenuta. Senza, il gate misurerebbe l'assenza di un evento invece
+	// del suo contenuto.
+	const FRTResolvedEvent* Spinta = PushEventFor(S.TM, S.Target->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: il bersaglio ha un evento di spostamento nel Blast"), Spinta))
+	{
+		DestroyHexMatchWorld(S.World);
+		return false;
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il percorso ha almeno due celle"), Spinta->Path.Num() >= 2))
+	{
+		DestroyHexMatchWorld(S.World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	const int32 Verdetti = S.TM->ResolvedMoveVerdictCountForTest(S.Target->StableUnitId);
+	TestEqual(TEXT("🔴 un verdetto per cella: tanti quante le celle del percorso"),
+		Verdetti, Spinta->Path.Num());
+
+	// ⛔ **E la regola di `#1525` si conserva**: il filtro non e' stato allentato, all'evento e' stato dato
+	// il dato che il filtro chiede. Una squadra che non e' fra gli osservatori non vede nulla — qui una
+	// squadra che nella partita non esiste, che e' il caso deterministico.
+	const int32 PrefissoIgnoto = URTTeamKnowledgeLibrary::ObservedPrefixLength(
+		Spinta->Path, Spinta->CellVerdicts, /*TeamId=*/ 7);
+	TestEqual(TEXT("⛔ una squadra che non osserva non vede il percorso: il filtro resta chiuso"),
+		PrefissoIgnoto, 0);
+
+	// ✅ Mentre la squadra del soggetto la propria traccia la vede sempre ([D-223]).
+	const int32 PrefissoProprio = URTTeamKnowledgeLibrary::ObservedPrefixLength(
+		Spinta->Path, Spinta->CellVerdicts, S.Target->TeamId);
+	TestEqual(TEXT("✅ e la squadra di chi e' stato spinto lo vede per intero"),
+		PrefissoProprio, Spinta->Path.Num());
+
+	DestroyHexMatchWorld(S.World);
+	return true;
+}
+
+/**
+ * E a schermo la spinta **accade**, invece di essere gia' accaduta — `#3261`.
+ *
+ * 🔴 **E' la SEQUENZA, che nessun test pinnava.** I gate esistenti su carica e knockback asseriscono celle
+ * e HP — lo stato **dopo** — e restavano verdi con il bersaglio gia' arrivato nel primo fotogramma. Questo
+ * misura che la posizione visiva dell'unita' spinta **cambi durante la riproduzione**, che e' ciò che la
+ * seduta PIE ha visto mancare.
+ *
+ * 🔑 **La sonda non ha bisogno di coordinate assolute.** Senza la correzione l'anim non nasce, quindi
+ * nessuno riporta il cilindro sulla cella di partenza e la posizione all'inizio del playback e' **gia**'
+ * quella finale: `Iniziale == Finale`. Con la correzione l'anim nasce, `BuildPlayback` lo riposiziona sullo
+ * start, e le due posizioni differiscono.
+ *
+ * ⚠️ **Il passo 7 (`SetVisualLocation`) non e' stato toccato, ed e' corretto cosi'.** Il riposizionamento
+ * di `BuildPlayback` lo annulla quando l'anim nasce; quando non nasce — un osservatore che non ha diritto
+ * di vedere quel percorso — il cilindro deve restare dov'e' arrivato, e quel `SetVisualLocation` e'
+ * l'unica cosa che ce lo porta.
+ *
+ * ⛔ **Cio' che questo gate NON misura**: che la finestra della fase sia dimensionata bene. Aprire una fase
+ * e dimensionarla sono due cose distinte; la seconda si giudica a occhio, ed e' di una voce `PIE-*`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushIsAnimatedNotAlreadyDoneTest,
+	"RefactorTactics.HexMatch.ForcedDisplacementIsAnimatedNotAlreadyDone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushIsAnimatedNotAlreadyDoneTest::RunTest(const FString&)
+{
+	FRTPushScene S = MakePushScene();
+	if (!TestTrue(TEXT("scena costruita"), S.bValid)) { DestroyHexMatchWorld(S.World); return false; }
+
+	const FRTCellId CellaIniziale = S.Target->Cell;
+
+	// ⚠️ `LockInAndResolve` e non `PlayOneTurn`: serve il playback **a meta'**, non il suo esito.
+	S.TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ premessa: il turno sta riproducendo"), S.TM->IsResolving()))
+	{
+		DestroyHexMatchWorld(S.World);
+		return false;
+	}
+
+	// ⛔ PREMESSA: la spinta c'e' ed e' nel Blast. Senza, tutto il resto confronterebbe due posizioni
+	// uguali per una ragione che non c'entra.
+	const FRTResolvedEvent* Spinta = PushEventFor(S.TM, S.Target->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: il bersaglio ha un evento di spostamento nel Blast"), Spinta))
+	{
+		DestroyHexMatchWorld(S.World);
+		return false;
+	}
+	if (!TestTrue(TEXT("⛔ premessa: e la sua cella logica e' cambiata"), S.Target->Cell != CellaIniziale))
+	{
+		DestroyHexMatchWorld(S.World);
+		return false;
+	}
+
+	// --- LA SEQUENZA ---------------------------------------------------------------------------------
+	const FVector Iniziale = S.Target->GetActorLocation();
+
+	FVector Precedente = Iniziale;
+	int32 Cambiamenti = 0;
+	for (int32 I = 0; I < 600 && S.TM->IsResolving(); ++I)
+	{
+		S.TM->Tick(0.05f);
+		const FVector Ora = S.Target->GetActorLocation();
+		if (!Ora.Equals(Precedente, 1.f)) { ++Cambiamenti; }
+		Precedente = Ora;
+	}
+	const FVector Finale = S.Target->GetActorLocation();
+
+	// 🔴 All'inizio della riproduzione il cilindro NON e' ancora arrivato.
+	TestFalse(TEXT("🔴 la spinta non e' gia' avvenuta quando il playback comincia"),
+		Iniziale.Equals(Finale, 1.f));
+	// 🔴 E ci arriva muovendosi: almeno un istante in cui la posizione cambia.
+	TestTrue(TEXT("🔴 e il cilindro si muove durante la riproduzione, invece di apparire"),
+		Cambiamenti > 0);
+
+	DestroyHexMatchWorld(S.World);
+	return true;
+}
+
+/**
+ * Una spinta **senza danno** si vede lo stesso — e il caso «spinta SOLA nel Blast» oggi non esiste — `#3261`.
+ *
+ * 🔑 **L'istruttoria della issue chiedeva di confermare che la fase si apra con la sola
+ * `bHasBlastMove`.** `BlastPhaseIsActive` ha quattro ragioni indipendenti, e nello scenario della carica la
+ * fase si apre perche' c'e' il colpo: li' la spinta ci viaggia dentro *per caso, non per diritto*.
+ *
+ * ⛔ **Misurato scrivendo questo gate: quel caso non e' raggiungibile con il catalogo attuale.**
+ * `Action.Push` e' l'unica azione che spinge **senza fare danno**, e dichiara `bCountsAsAttack = true` —
+ * *«controllo OSTILE: raggiunge il bersaglio come colpo»*. ∴ produce comunque un `Attack` (a danno zero) e
+ * un'impronta, e la fase si apre per la **prima** ragione prima ancora che serva la quarta.
+ *
+ * ⚠️ **Il gate pinna quel fatto invece di assumerlo**, ed e' cio' che lo rende utile: il giorno in cui
+ * nascera' una spinta che non conta come attacco — una reazione che sposta e basta — queste righe
+ * diventeranno rosse, e chi le legge sapra' che il cancello di fase va riverificato. Finche' restano verdi,
+ * l'argomento dell'istruttoria non ha un caso da difendere.
+ *
+ * ✅ E cio' che il gate misura davvero resta: una spinta **a danno zero** arriva a schermo come
+ * movimento, invece di essere gia' avvenuta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPushWithoutDamageIsAnimatedTest,
+	"RefactorTactics.HexMatch.PushWithoutDamageIsStillAnimated",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPushWithoutDamageIsAnimatedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	ARTUnit* Spingitore = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Spinto     = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Spingitore || !Spinto) { DestroyHexMatchWorld(World); return false; }
+	Spingitore->bIsBotControlled = false;
+	Spinto->bIsBotControlled = false;
+
+	// `Action.Push` si aggiunge all'istanza, come in tutti gli scenari che usano un'azione fuori dal kit
+	// dell'eroe. ⚠️ Lo slot 3, per non sovrascrivere l'attacco base — che non dev'essere pianificato.
+	RTAbilityFixtures::AddCoreAbilityInSlot(Spingitore, TEXT("Action.Push"), 3);
+	Spingitore->PlannedAbilityIndex = 3;
+	Spingitore->DeclareAttackOnUnit(Spinto);
+
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("⛔ premessa: il turno sta riproducendo"), TM->IsResolving()))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// --- ⛔ LE PREMESSE ----------------------------------------------------------------------------
+	const FRTResolvedEvent* Spinta = PushEventFor(TM, Spinto->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: la spinta ha prodotto un evento nel Blast"), Spinta))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// 🔴 **IL FATTO PINNATO, e non e' una premessa qualunque**: `Action.Push` non fa danno eppure
+	// produce un `Attack`, perche' dichiara `bCountsAsAttack`. ∴ la fase si apre per la PRIMA ragione del
+	// cancello, e il caso «spinta sola nel Blast» che l'istruttoria temeva non e' raggiungibile oggi.
+	// ⚠️ Se una di queste due righe diventasse rossa, quel caso esisterebbe: il cancello di fase va
+	// riverificato, ed e' il servizio che queste righe rendono.
+	TestEqual(TEXT("🔴 `Action.Push` conta come attacco: un `Attack` c'e', a danno zero"),
+		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Attack), 1);
+	TestEqual(TEXT("🔴 e con esso l'impronta del suo intento"),
+		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::AttackFootprint), 1);
+	// ✅ E il danno e' davvero zero: senza questa riga il test starebbe misurando un colpo normale.
+	TestEqual(TEXT("✅ e il bersaglio non perde vita: e' controllo, non danno"),
+		Spinto->Health, Spinto->MaxHealth);
+
+	// --- IL FATTO: la fase si apre, e la spinta ci si vede dentro ------------------------------------
+	bool bBlastVisto = false;
+	const FVector Iniziale = Spinto->GetActorLocation();
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		if (TM->GetPlaybackPhaseName() == TEXT("Blast")) { bBlastVisto = true; }
+		TM->Tick(0.05f);
+	}
+
+	TestTrue(TEXT("✅ la fase Blast si apre e la spinta ci sta dentro"), bBlastVisto);
+	TestFalse(TEXT("🔴 e la spinta non era gia' avvenuta quando il playback e' cominciato"),
+		Iniziale.Equals(Spinto->GetActorLocation(), 1.f));
+
+	DestroyHexMatchWorld(World);
 	return true;
 }
 

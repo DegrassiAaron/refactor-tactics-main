@@ -1984,7 +1984,9 @@ void ARTTurnManager::ConcludeResolution()
 
 void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell,
 	const FRTCellId& FacingSource, const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget,
-	const TCHAR* LogVerb, const URTHexMapAsset* Map, ERTMatchPhase InPhase, ERTMoveOutcome Outcome)
+	const TCHAR* LogVerb, const URTHexMapAsset* Map,
+	const TArray<RTTurnManagerInternal::FRTRouteObserverTeam>& ObserverTeams,
+	ERTMatchPhase InPhase, ERTMoveOutcome Outcome)
 {
 	if (!IsValid(Unit))
 	{
@@ -2024,6 +2026,29 @@ void ARTTurnManager::ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& New
 		}
 		// `#3117`: gli stati di chi SUBISCE lo spostamento, al momento in cui lo subisce.
 		Ev.SourceStatusNames = Unit->GetActiveStatusNames();
+		// 🔴 **I VERDETTI DEL PERCORSO, e senza di essi l'evento non arrivava a schermo** (`#3261`).
+		//
+		// `URTTeamKnowledgeLibrary::ObservedPrefixLength` e' **fail-closed sul disallineamento**
+		// (`if (CellVerdicts.Num() != Cells.Num()) return 0;`): con i verdetti vuoti e un `Path` di due
+		// celle rispondeva `0` per **qualunque** squadra, e il `Visible < 2` di `BuildPlayback` scartava
+		// l'anim. A schermo il bersaglio era gia' sulla cella d'arrivo nel primo fotogramma, mentre chi lo
+		// aveva spinto cominciava solo allora a muoversi — di 0,694 s, l'intera fase Dash.
+		//
+		// ⏱️ **Era una regressione con una data.** L'evento esiste dal 2026-08-11 (`#541`) e allora non
+		// c'era nessun filtro davanti; il filtro entra il 2026-08-30 con `#1525`, applicato a **ogni**
+		// evento `Move`. Il knockback era l'unico `Move` che non popolava i verdetti, ed e' caduto fuori
+		// senza che nulla lo dicesse.
+		//
+		// 🔑 **La regola di `#1525` si conserva, non si aggira.** Non si e' allentato il filtro: si e' dato
+		// all'evento il dato che il filtro chiede. Un percorso che l'osservatore non ha diritto di vedere
+		// resta troncato — e se la spinta e' l'unica cosa del Blast, per lui la fase **non si apre**, che e'
+		// corretto: una fase che si aprisse comunque annuncerebbe *«qualcosa e' successo la' dietro»*, meta'
+		// del leak che [D-223] esiste per chiudere.
+		//
+		// ⚠️ **Lo STESSO `FreezeRouteVerdicts` di Dash e Move**, non un secondo calcolo: e' il modello che
+		// [D-313] ha gia' accettato per il TurnLog — *il dato viaggia con il proprio verdetto congelato* —
+		// e che mancava su questo canale.
+		FreezeRouteVerdicts(Map, ObserverTeams, Unit->TeamId, Path, Ev.CellVerdicts);
 		ResolvedTimeline.Add(Ev);
 	}
 
@@ -3451,6 +3476,11 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 		TArray<FRTCellId> Occupied;
 		for (ARTUnit* U : Units) { if (IsValid(U) && U->IsAlive()) { Occupied.Add(U->Cell); } }
 
+		// `#3261`: chi ha il diritto di vedere queste fughe disegnate. Costruiti **una volta per passata** e
+		// non per unita' — `BuildRouteObserverTeams` itera tutte le unita' — e **prima** di muovere
+		// chiunque, come per Dash e Move: le celle da cui si guarda sono quelle di inizio fase ([D-223]).
+		const TArray<FRTRouteObserverTeam> FugaObserverTeams = BuildRouteObserverTeams(Units);
+
 		TArray<FRTCellId> Dest;
 		Dest.Reserve(HazardReactions.HazardFlees.Num());
 		for (const int32 FleeingId : HazardReactions.HazardFlees)
@@ -3483,7 +3513,7 @@ void ARTTurnManager::ResolveEnvironment(URTHexMapAsset* Map)
 			// `Facing.EnvironmentalDisplacementKeepsFacing` (scivolare sul ghiaccio non ruota). [D-104] vale
 			// per la fuga da un ATTACCANTE, che ha una minaccia da tenere davanti.
 			ApplyForcedDisplacement(Fleeing, Dest[f], Dest[f], FleeCause, TEXT("Fuga"), Map,
-				ERTMatchPhase::Cleanup);
+				FugaObserverTeams, ERTMatchPhase::Cleanup);
 		}
 	}
 
@@ -5309,6 +5339,9 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 				: FRTCellId());
 		}
 
+		// `#3261`: come nella fuga da hazard — una volta per passata, e prima di muovere chiunque.
+		const TArray<FRTRouteObserverTeam> FugaObserverTeams = BuildRouteObserverTeams(Units);
+
 		for (int32 f = 0; f < FleeUnits.Num(); ++f)
 		{
 			ARTUnit* Fleeing = FleeUnits[f];
@@ -5325,7 +5358,7 @@ void ARTTurnManager::RunReactionPass(ERTReactionPassPoint Point,
 			TMap<ARTUnit*, FRTDisplacementCause> FleeCause;
 			FleeCause.Add(Fleeing, FRTDisplacementCause{ FName(TEXT("Reaction.EmergencyDash")), NAME_None, 0 });
 			ApplyForcedDisplacement(Fleeing, FleeDest[f], FleeFrom[f], FleeCause, TEXT("Fuga"), Map,
-				ERTMatchPhase::Dash);
+				FugaObserverTeams, ERTMatchPhase::Dash);
 		}
 	}
 }

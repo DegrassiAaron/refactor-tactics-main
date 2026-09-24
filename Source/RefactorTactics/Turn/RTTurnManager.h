@@ -55,6 +55,18 @@ enum class ERTMovementAdvanceResult : uint8
 
 class ARTUnit;
 class URTHexMapAsset;
+/**
+ * Gli osservatori di una squadra al momento in cui una rotta viene percorsa — `RTTurnManagerInternal.h`.
+ *
+ * ⚠️ **Dichiarato e non incluso, ed e' deliberato**: quell'header si chiama `Internal` e lo e'. Serve qui
+ * perche' `ApplyForcedDisplacement` deve congelare i verdetti del percorso (`#3261`), e un
+ * `const TArray<T>&` in una dichiarazione non richiede il tipo completo.
+ *
+ * ⛔ **Dentro il suo namespace, non accanto.** La prima stesura lo dichiarava globale: compilava, e
+ * creava un **secondo tipo** con lo stesso nome — i `.cpp` che fanno `using namespace` vedevano quello
+ * interno e la firma chiedeva l'altro. Un errore di conversione fra due tipi che si chiamano uguale.
+ */
+namespace RTTurnManagerInternal { struct FRTRouteObserverTeam; }
 
 /**
  * Un colpo PREDITTIVO armato in Prep e in attesa del boundary del Move (E18 CP 18.2).
@@ -2115,10 +2127,23 @@ protected:
 	 * `Outcome` esiste per la CADUTA (#2402) e ha il default storico: chi cade percorre gli stessi dieci
 	 * passi — traccia, playback, cella, facing, hazard — ma la sua voce non puo' dire `Displaced`.
 	 */
+	/**
+	 * ⚠️ **`ObserverTeams` non e' opzionale, e il default che manca e' la correzione** (`#3261`).
+	 *
+	 * 🔴 L'evento di playback della spinta nasceva **senza `CellVerdicts`**, e `ObservedPrefixLength` e'
+	 * fail-closed sul disallineamento (`CellVerdicts.Num() != Cells.Num()` -> `0`): ∴ `BuildPlayback` lo
+	 * scartava per **qualunque** squadra, e a schermo il bersaglio era gia' arrivato quando chi lo spingeva
+	 * cominciava a muoversi. Un parametro con un default vuoto avrebbe riportato quel difetto in silenzio
+	 * sul primo sito che se lo dimenticasse: qui la firma non lascia dimenticarlo.
+	 *
+	 * 🔑 **Catturati PRIMA del placement**, come per Dash e Move: le celle da cui si guarda sono quelle di
+	 * inizio fase ([D-223]).
+	 */
 	void ApplyForcedDisplacement(ARTUnit* Unit, const FRTCellId& NewCell, const FRTCellId& FacingSource,
 		const TMap<ARTUnit*, FRTDisplacementCause>& CauseByTarget, const TCHAR* LogVerb,
-		const URTHexMapAsset* Map, ERTMatchPhase InPhase,
-		ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
+		const URTHexMapAsset* Map,
+		const TArray<RTTurnManagerInternal::FRTRouteObserverTeam>& ObserverTeams,
+		ERTMatchPhase InPhase, ERTMoveOutcome Outcome = ERTMoveOutcome::Displaced);
 
 	/**
 	 * Voce di TurnLog per uno spostamento forzato ANNULLATO (#420): la spinta e' stata registrata, risolta, e
