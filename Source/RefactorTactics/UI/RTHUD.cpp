@@ -987,11 +987,15 @@ void ARTHUD::DrawHUD()
 		// squadre sono bot: chi guarda non gioca in nessuna delle due, e con l'osservatore di sempre vedrebbe
 		// i piani di una squadra sola — meta' della partita che e' venuto a guardare.
 		//
-		// 🔑 **`FilterForTeam` non si tocca, e viene chiamata DUE VOLTE.** La regola resta quella di sempre —
-		// intenti alleati sempre, avversari solo se `bRevealed` — e ciascuna delle due chiamate e' legittima
-		// presa da sola. Lo spettatore vede tutto perche' ha fatto due domande a cui il filtro risponde di
-		// si', non perche' una guardia si sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un
-		// DATO, e il dato e' `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
+		// 🔑 **`FilterForTeam` non si tocca.** La regola resta quella di sempre — intenti alleati sempre,
+		// avversari solo se `bRevealed` — e ogni chiamata e' legittima presa da sola. Lo spettatore vede
+		// tutto perche' si fanno piu' domande a cui il filtro risponde di si', non perche' una guardia si
+		// sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un DATO, e il dato e'
+		// `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
+		//
+		// ⌫ **Questa riga diceva «chiamata DUE VOLTE», e si contraddiceva venti righe sotto** con «una
+		// domanda per UNITA', non due per squadra». Descriveva una stesura precedente: oggi nel ramo non
+		// presidiato le chiamate sono **una per intento**. Corretto il 2026-09-24 insieme all'estrazione.
 		//
 		// ⛔ **E `ARTPlayerState::TeamIdOf` resta l'UNICA porta** per la domanda «di chi e' la vista?». Un
 		// `bIsSpectator` che `FilterForTeam` onorasse avrebbe aggiunto una seconda risposta a quella domanda,
@@ -1001,30 +1005,12 @@ void ARTHUD::DrawHUD()
 		// ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di
 		// entrambe le squadre e' un client che li POSSIEDE, ed e' la stessa avvertenza gia' scritta per
 		// `rt.Debug.DrawIntent`: la' dovra' essere lato server, o non esistere.
-		TArray<FRTIntentView> Views;
-		if (TurnManager->IsUnattendedSession())
-		{
-			// ⚠️ **Una domanda per UNITA', non due per squadra**, e la differenza non e' stilistica: due
-			// `FilterForTeam` sull'insieme intero produrrebbero DOPPIONI. Il filtro concede all'osservatore
-			// gli alleati *e* gli avversari `bRevealed` — lo dice il suo test
-			// `IntentViewSkipsDeadAndKeepsOrder`, dove l'osservatore `0` riceve **tre** viste su due alleate
-			// e un nemico rivelato — quindi un'unita' rivelata comparirebbe in entrambe le risposte e
-			// verrebbe disegnata due volte.
-			//
-			// 🔑 Chiedendo la vista dalla prospettiva della squadra CHE POSSIEDE l'unita', ogni unita'
-			// compare **una volta sola** e nella sua forma piena: e' la vista alleata, quella che porta anche
-			// la reazione e i waypoint, cioe' cio' che uno spettatore autorizzato deve vedere. L'ordine
-			// d'ingresso si conserva, che e' la proprieta' che quel test protegge.
-			Views.Reserve(Authoritative.Num());
-			for (const FRTPlannedIntent& Intent : Authoritative)
-			{
-				Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
-			}
-		}
-		else
-		{
-			Views = URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
-		}
+		//
+		// 🔑 **La prospettiva da cui si chiede e' una decisione, e ora vive dove un test la raggiunge**
+		// (#2184): `ComposeVisibleIntentViews` e' pura, e i suoi due rami — con la reticenza dei doppioni —
+		// sono pinnati da `RefactorTactics.HUD.VisibleIntentViews*`. Qui resta il solo consumo.
+		const TArray<FRTIntentView> Views = ComposeVisibleIntentViews(
+			Authoritative, PlayerTeamId, TurnManager->IsUnattendedSession());
 
 		// Disegna cio' che `ComposeDashSegments` ha gia' deciso. Qui non resta nessuna scelta: il conteggio
 		// dei tratti, il rapporto acceso/spento e il tetto vivono nella statica, dove un test li raggiunge.
@@ -1634,6 +1620,34 @@ FRTIntentPresentation ARTHUD::ComposeIntentPresentation(const FRTIntentView& Vie
 		: FLinearColor(1.f, 0.9f, 0.2f, 1.f);  // giallo: nemico rivelato
 
 	return Out;
+}
+
+TArray<FRTIntentView> ARTHUD::ComposeVisibleIntentViews(const TArray<FRTPlannedIntent>& Authoritative,
+	int32 PlayerTeamId, bool bUnattendedSession)
+{
+	if (!bUnattendedSession)
+	{
+		// Una sola domanda, quella di chi gioca. `FilterForTeam` decide cosa ha diritto di sapere, e un
+		// piano avversario non rivelato non torna indietro affatto: e' la differenza fra non ricevere un
+		// dato e riceverlo per poi non disegnarlo, cioe' fra privacy e occultamento grafico.
+		return URTIntentPrivacyLibrary::FilterForTeam(PlayerTeamId, Authoritative);
+	}
+
+	// ⛔ **Una domanda per UNITA', non due per squadra**, e la differenza si misura in doppioni.
+	// `FilterForTeam` concede gli alleati *e* gli avversari `bRevealed`, quindi due domande di squadra
+	// sull'insieme intero farebbero tornare **due volte** ogni unita' rivelata — una come alleata della
+	// propria squadra, una come nemica rivelata dell'altra.
+	//
+	// 🔑 Chiedendo dalla prospettiva di chi possiede l'unita', ogni unita' compare una volta sola e nella
+	// sua forma piena: la vista alleata, che porta anche reazione e waypoint. L'ordine d'ingresso si
+	// conserva perche' si accoda nell'ordine di `Authoritative`.
+	TArray<FRTIntentView> Views;
+	Views.Reserve(Authoritative.Num());
+	for (const FRTPlannedIntent& Intent : Authoritative)
+	{
+		Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
+	}
+	return Views;
 }
 
 FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)

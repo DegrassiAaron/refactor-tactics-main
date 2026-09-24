@@ -723,6 +723,40 @@ public:
 	static FRTIntentPresentation ComposeIntentPresentation(const struct FRTIntentView& View,
 		const FRTIntentCertaintyStyle& Style, bool bIsSelected = false);
 
+	/**
+	 * 🔑 **Da quale prospettiva si chiedono le viste d'intento** — la decisione che decide *quali* piani
+	 * compaiono a schermo (#2184).
+	 *
+	 * Sessione **presidiata** → una sola domanda, quella dell'osservatore che gioca: `FilterForTeam` sceglie
+	 * cosa ha diritto di sapere, e un piano avversario non rivelato **non compare fra le viste**. Non e' un
+	 * occultamento grafico: il dato non arriva proprio (invariante #6).
+	 *
+	 * Sessione **non presidiata** → una domanda **per unita'**, dalla prospettiva della squadra che la
+	 * possiede. Entrambe le squadre sono bot e nessuno gioca, quindi chi guarda e' autorizzato a vedere
+	 * tutto (`#2386`); ma l'autorizzazione non ammorbidisce il filtro — si fanno piu' domande a cui il
+	 * filtro risponde di si'.
+	 *
+	 * ⛔ **La domanda per unita' non e' una domanda per squadra, e la differenza e' una reticenza che si
+	 * misura.** `FilterForTeam` concede all'osservatore gli alleati **e** gli avversari `bRevealed`: due
+	 * domande di squadra su tutto l'insieme farebbero comparire **due volte** ogni unita' rivelata. Chiedendo
+	 * dalla prospettiva del proprietario, ogni unita' compare una volta sola e nella sua forma piena — quella
+	 * alleata, che porta anche reazione e waypoint.
+	 *
+	 * ⚠️ **`FilterForTeam` non si tocca.** Questa funzione decide *chi chiede*, non *cosa l'osservatore ha
+	 * diritto di sapere*: quella risposta resta in `URTIntentPrivacyLibrary`, e `ARTPlayerState::TeamIdOf`
+	 * resta l'unica porta per «di chi e' la vista» ([`D-242`] punto 5).
+	 *
+	 * ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di entrambe
+	 * le squadre e' un client che li POSSIEDE: la' questa raccolta dovra' essere lato server, o non esistere.
+	 *
+	 * @param Authoritative       i piani autorevoli, nell'ordine in cui il modello li costruisce
+	 * @param PlayerTeamId        la squadra dell'osservatore che gioca; ignorata se `bUnattendedSession`
+	 * @param bUnattendedSession  il dato della sessione, che `RTMatchBootstrapper` scrive da `bAutobattle`
+	 * @return le viste da disegnare, **nell'ordine d'ingresso**
+	 */
+	static TArray<struct FRTIntentView> ComposeVisibleIntentViews(
+		const TArray<struct FRTPlannedIntent>& Authoritative, int32 PlayerTeamId, bool bUnattendedSession);
+
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
 	// il colore in questa HUD e' **gia'** l'identita' di squadra (ciano contro giallo), quindi la certezza
