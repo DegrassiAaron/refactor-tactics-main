@@ -3152,10 +3152,16 @@ bool FRTPlaybackRedundantFaceShowsTwoDifferentOutcomesTest::RunTest(const FStrin
  * ⛔ **E il controllo NEGATIVO sta accanto a quello positivo**, perche' un gate che puo' solo essere verde
  * non e' un gate: una mappa con UNA faccia sola non deve produrre quella riga.
  *
- * ⚠️ Limite dichiarato: `ValidateMap()` ha un solo chiamante non di test — `ARTHexMapActor::ValidateAsset`,
- * un bottone manuale — e nessun hook di validazione al salvataggio esiste
+ * ⚠️ Limite dichiarato: nessun hook di validazione al salvataggio esiste
  * (`grep -rn "EditorValidator\|IsDataValid\|DataValidation" --include=*.cpp --include=*.h Source/` → 0).
  * ∴ questo gate pinna che la dichiarazione ci sia, non che qualcuno la esegua.
+ *
+ * ⏱️ **Questa riga diceva anche «`ValidateMap()` ha un solo chiamante non di test —
+ * `ARTHexMapActor::ValidateAsset`, un bottone manuale», e dal 2026-09-24 e' falso**: `#1864` ne ha
+ * aggiunto un secondo, `URTHexMapSummaryLibrary::DescriviValidazione`, che NON e' un bottone — alimenta
+ * il readout del mode Hex Map e si rifa' da solo quando la mappa smette di cambiare. La conclusione qui
+ * sotto non cambia: quel readout descrive la mappa **aperta nell'editor**, quindi continua a non essere
+ * un hook di salvataggio, e questo gate continua a pinnare la dichiarazione e non la sua esecuzione.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStructuresRedundantFaceWarningDeclaresConsequenceTest,
 	"RefactorTactics.Structures.RedundantFaceWarningDeclaresTheConsequence",

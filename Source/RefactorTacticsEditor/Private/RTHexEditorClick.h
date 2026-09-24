@@ -121,6 +121,29 @@ namespace RTHexEditor
 	 * delle superfici e' una sola.
 	 */
 	FColor TransitionKindColor(ERTHexTransitionKind Kind);
+
+	/**
+	 * E' il momento di rifare la VALIDAZIONE della mappa? (#1864, casella 8)
+	 *
+	 * 🔴 **Esiste perche' validare a ogni cambiamento sarebbe validare a ogni fotogramma.**
+	 * `URTHexMapAsset::ValidateMap()` chiama in coda `ValidateMapDetailed`, che per OGNI cella esegue
+	 * `ComputeMask`, `HasLegalPlacement` ed `EnumerateCoverOptions` — il lavoro geometrico della
+	 * cottura dell'intera mappa. E `URTHexEditorMode::ModeTick` gira una volta per fotogramma.
+	 *
+	 * ⚠️ La guardia su `Revision` che il readout usa da `#1186` **non basta per questo**: durante un
+	 * trascinamento del pennello la mappa cambia a ogni fotogramma, quindi quella guardia lascia passare
+	 * tutto. Un readout che rallenta il gesto che descrive e' peggio di nessun readout.
+	 *
+	 * 🔑 **La regola e' «un tick di quiete»**: finche' la revisione si muove si aspetta; il primo
+	 * fotogramma in cui non si e' mossa, e c'e' lavoro in attesa, si valida **una volta sola**. Durante
+	 * una pennellata le validazioni sono zero, e al rilascio una.
+	 *
+	 * ⛔ **Non usa il tempo**: un debounce a millisecondi renderebbe il numero di validazioni dipendente
+	 * dal frame rate, cioe' dalla macchina.
+	 *
+	 * Pura, con lo stato passato per riferimento: si prova headless senza aprire un `UEdMode`.
+	 */
+	bool ShouldRevalidate(int32 CurrentRevision, int32& InOutLastSeen, bool& InOutPending);
 	void DrawArrow(FPrimitiveDrawInterface* PDI, const FVector& A, const FVector& B, const FColor& Color);
 
 	/**

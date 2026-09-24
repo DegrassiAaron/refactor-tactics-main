@@ -86,6 +86,21 @@ private:
 	RTHexWorkGrid::FWatch MapReadoutWatch;
 
 	/**
+	 * Lo stato della guardia di VALIDAZIONE, separato da `MapReadoutWatch` (#1864, casella 8).
+	 *
+	 * 🔑 **Due guardie e non una, perche' le due domande hanno costi diversi di tre ordini di
+	 * grandezza.** Il readout della mappa legge `Cells.Num()` e `GetLayers()`: si puo' rifare a ogni
+	 * cambiamento. La validazione chiama `ValidateMap()`, che per ogni cella esegue `ComputeMask`,
+	 * `HasLegalPlacement` ed `EnumerateCoverOptions` — il lavoro della cottura dell'intera mappa.
+	 *
+	 * ⚠️ Durante un trascinamento del pennello la chiave di `MapReadoutWatch` cambia a **ogni**
+	 * fotogramma, quindi riusarla per la validazione la farebbe girare sessanta volte al secondo. La regola
+	 * qui e' «un tick di quiete», e vive in `RTHexEditor::ShouldRevalidate`, che e' pura e provata headless.
+	 */
+	int32 ValidationLastRevision = INDEX_NONE;
+	bool bValidationPending = false;
+
+	/**
 	 * Il portatore della griglia di lavoro, posato in `Enter()` e distrutto in `Exit()`.
 	 *
 	 * 🔴 **Debole e non `UPROPERTY`, e non e' un dettaglio.** Un riferimento forte a un actor transiente

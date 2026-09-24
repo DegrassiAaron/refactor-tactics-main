@@ -142,6 +142,25 @@ void URTHexEditorMode::RefreshMapReadout(ARTHexMapActor* Map)
 		Ora.NumCells = Asset->NumCells();
 	}
 
+	// 🔑 **IL CANALE della casella 8 di `#1864`, e sta PRIMA del return per una ragione precisa.**
+	// Nel modulo Editor `ValidateMap` non era chiamata da nessuna riga di produzione: il rifiuto di un
+	// gesto si nominava, ma uno stato invalido gia' nell'asset non lo segnalava niente.
+	//
+	// ⚠️ **La guardia del readout qui sotto non basta per la validazione, e da sola sarebbe un
+	// difetto.** `ValidateMap()` chiama in coda `ValidateMapDetailed`, che per OGNI cella esegue
+	// `ComputeMask`, `HasLegalPlacement` ed `EnumerateCoverOptions` — il lavoro geometrico della cottura
+	// dell'intera mappa. Questa funzione gira da `ModeTick`, cioe' una volta per fotogramma, e durante un
+	// trascinamento del pennello la chiave cambia a *ogni* fotogramma: la guardia lascerebbe passare tutto
+	// e la validazione girerebbe sessanta volte al secondo. Un readout che rallenta il gesto che deve
+	// descrivere e' peggio di nessun readout.
+	//
+	// ⛔ **E non puo' stare DOPO il `return`**: il momento giusto per validare e' proprio il tick in cui
+	// la chiave **non** cambia piu', cioe' quello in cui il `return` scatterebbe.
+	if (RTHexEditor::ShouldRevalidate(Ora.Revision, ValidationLastRevision, bValidationPending))
+	{
+		Settings->MappaValidazione = URTHexMapSummaryLibrary::DescriviValidazione(Asset);
+	}
+
 	if (Ora == MapReadoutWatch)
 	{
 		return;
@@ -157,6 +176,7 @@ void URTHexEditorMode::RefreshMapReadout(ARTHexMapActor* Map)
 	Settings->MappaCelle = URTHexMapSummaryLibrary::DescriviCelle(S);
 	Settings->MappaLayer = URTHexMapSummaryLibrary::DescriviLayer(S);
 	Settings->MappaLayerAttivo = URTHexMapSummaryLibrary::DescriviLayerAttivo(S);
+
 }
 
 void URTHexEditorMode::Exit()
@@ -438,10 +458,14 @@ void URTHexEditorMode::EraseSelection()
 		const ERTMapEditOutcome Prova = URTMapEditLibrary::DeleteElement(Map, Handle, /*bDryRun=*/ true);
 		if (Prova != ERTMapEditOutcome::Applied)
 		{
+			// ⚠️ **La RAGIONE, non il numero.** Questa riga stampava `static_cast<int32>(Prova)`, e un log
+			// che dice «esito 4» obbliga chi legge ad aprire l'enum e contare i valori — il contrario di
+			// nominare la regola che ha fermato il gesto, che e' cio' che `ERTMapEditOutcome` promette.
 			UE_LOG(LogRTHexEditorMode, Warning,
-				TEXT("Erase: nulla cancellato — '%s' non si risolve (esito %d), e l'operazione e' "
-					"tutto-o-niente. La selezione resta com'era."),
-				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Prova));
+				TEXT("Erase: nulla cancellato — '%s': %s. L'operazione e' tutto-o-niente, quindi la "
+					"selezione resta com'era."),
+				*URTHexSelectionStore::Describe({ Handle }),
+				*URTMapEditLibrary::DescribeOutcome(Prova));
 			return;
 		}
 	}
@@ -467,9 +491,10 @@ void URTHexEditorMode::EraseSelection()
 			// che `bDryRun` ha smesso di essere la stessa funzione senza mutazioni. Si logga come difetto,
 			// non come esito: e' un'invariante rotta, non un rifiuto.
 			UE_LOG(LogRTHexEditorMode, Error,
-				TEXT("Erase: '%s' rifiutato (esito %d) DOPO essere passato a vuoto: la prova e "
+				TEXT("Erase: '%s' rifiutato DOPO essere passato a vuoto (%s): la prova e "
 					"l'applicazione divergono."),
-				*URTHexSelectionStore::Describe({ Handle }), static_cast<int32>(Outcome));
+				*URTHexSelectionStore::Describe({ Handle }),
+				*URTMapEditLibrary::DescribeOutcome(Outcome));
 		}
 	}
 

@@ -79,3 +79,71 @@ FString URTHexMapSummaryLibrary::DescriviLayerAttivo(const FRTHexMapSummary& S)
 		? FString::FromInt(S.ActiveLayer)
 		: FString::Printf(TEXT("%d (nessuna cella su questo piano)"), S.ActiveLayer);
 }
+
+FString URTHexMapSummaryLibrary::DescriviValidazione(const URTHexMapAsset* Map)
+{
+	if (Map == nullptr)
+	{
+		// ⛔ Non «0 segnalazioni»: senza mappa la domanda non si pone, e uno zero si leggerebbe come
+		// «va tutto bene» — la bugia che `#1186` ha tolto agli altri readout di questo pannello.
+		return TEXT("nessuna mappa collegata: non c'e' niente da validare");
+	}
+
+	// ⚠️ `ValidateMap()` e non `ValidateMapDetailed()`: la prima porta le proprie regole **e** in coda
+	// quelle della seconda, quindi e' il superset. Vedi l'header.
+	const TArray<FString> Righe = Map->ValidateMap();
+
+	int32 Errori = 0;
+	int32 Avvisi = 0;
+	for (const FString& Riga : Righe)
+	{
+		// Il prefisso e' la convenzione del validatore, non una lettura di questo file: ogni riga che
+		// `ValidateMap` produce comincia per l'uno o per l'altro, comprese quelle che arrivano da
+		// `ValidateMapDetailed` e che vengono formattate proprio cosi'.
+		if (Riga.StartsWith(TEXT("Error:")))
+		{
+			++Errori;
+		}
+		else if (Riga.StartsWith(TEXT("Warning:")))
+		{
+			++Avvisi;
+		}
+	}
+
+	// 🔑 Una riga senza prefisso non si perde in silenzio: sarebbe una regola nuova scritta fuori dalla
+	// convenzione, e chi legge il pannello vedrebbe meno di cio' che il validatore dice.
+	const int32 SenzaPrefisso = Righe.Num() - Errori - Avvisi;
+
+	if (Righe.Num() == 0)
+	{
+		return TEXT("nessuna segnalazione");
+	}
+
+	FString Out;
+	if (Errori > 0)
+	{
+		Out = FString::Printf(TEXT("%d error%s"), Errori, Errori == 1 ? TEXT("e") : TEXT("i"));
+	}
+	if (Avvisi > 0)
+	{
+		if (!Out.IsEmpty()) { Out += TEXT(", "); }
+		Out += FString::Printf(TEXT("%d avvis%s"), Avvisi, Avvisi == 1 ? TEXT("o") : TEXT("i"));
+	}
+	if (SenzaPrefisso > 0)
+	{
+		if (!Out.IsEmpty()) { Out += TEXT(", "); }
+		Out += FString::Printf(TEXT("%d senza prefisso"), SenzaPrefisso);
+	}
+
+	// Una riga per esteso: un conteggio dice quanto, non che cosa, e chi disegna deve sapere da dove
+	// cominciare senza aprire un altro pannello.
+	//
+	// 🔴 **Si mostra il primo ERRORE, non la prima riga qualunque.** `ValidateMap` emette iterando
+	// `Cells`, quindi `Righe[0]` e' la segnalazione della cella che viene prima nell'array — e su una mappa
+	// con un avviso su una cella iniziale e un errore su una successiva avrebbe mostrato l'AVVISO,
+	// lasciando l'errore nascosto dietro un conteggio. Chi legge un readout legge la prima riga.
+	const FString* DaMostrare = Righe.FindByPredicate(
+		[](const FString& R) { return R.StartsWith(TEXT("Error:")); });
+
+	return FString::Printf(TEXT("%s — %s"), *Out, DaMostrare ? **DaMostrare : *Righe[0]);
+}

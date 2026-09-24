@@ -1830,4 +1830,105 @@ bool FRTMapEditMoveWithinTheSameCellRebakesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * OGNI RIFIUTO SI NOMINA, e nessuno cade in un testo generico (#1864, casella 8).
+ *
+ * 🔴 **Il difetto, misurato il 2026-09-24.** La disciplina di `ERTMapEditOutcome` e' dichiarata
+ * nell'header: *«un rifiuto e' un valore di ritorno, non un'eccezione ne' un silenzio … o si rifiuta il
+ * gesto **dicendo quale regola l'ha fermato**»*. Ma l'unico posto che traduceva quei valori in parole era
+ * un `DescribeOutcome` privato, nel namespace anonimo di un **commandlet**
+ * (`RTSetCellDoorCommandlet.cpp`), e copriva **4 valori su 7**: gli altri tre cadevano su
+ * `default: return TEXT("rifiutata")`, cioe' proprio il silenzio che la regola vieta.
+ *
+ * ⚠️ E il consumatore piu' importante non lo usava affatto: `URTHexEditorMode::EraseSelection` stampava
+ * `static_cast<int32>(Outcome)` — **un numero**. Chi legge il log deve aprire l'enum e contare.
+ *
+ * 🔑 **L'enum si ITERA per RIFLESSIONE, e non si trascrive.** La prima stesura di questo test elencava i
+ * sette valori a mano e poi asseriva `Tutti.Num() == 7` come «guardia anti-vacuita'» — ma
+ * `Tutti.Num()` **e' sette per costruzione**, quindi quel confronto era fra due letterali e non
+ * verificava niente: un ottavo valore aggiunto all'enum non sarebbe mai entrato nell'elenco, e il test
+ * avrebbe continuato a passare ignorandolo. Trovato da una code review, non da un rosso.
+ *
+ * ⛔ **E il compilatore NON copre quel caso**, contrariamente a quanto la prima stesura dichiarava:
+ * i warning promossi a errore in questa build sono `4456 4458 4459 4668 4702` — misurato sui `.rsp` —
+ * e `C4061`/`C4062`, che sono quelli dello `switch` che non copre un enum, **non ci sono**. Questo test
+ * e' quindi l'unica protezione reale, ed e' la ragione per cui deve iterare cio' che l'enum DICHIARA.
+ *
+ * ⚠️ Cio' che il compilatore copre davvero e' l'altra meta', ed e' misurata: aggiungere un `default`
+ * rende irraggiungibile il `return` in coda e la build cade con `C4702`, che e' fra i cinque promossi.
+ *
+ * Il test non elenca le stringhe attese, che sarebbe riscrivere la funzione nell'asserzione: verifica due
+ * proprieta' che un ramo generico non puo' soddisfare — ogni valore ha un testo **non vuoto**, e i testi
+ * sono tutti **diversi** fra loro.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDescribeOutcomeNamesEveryValueTest,
+	"RefactorTactics.Map.Edit.DescribeOutcomeNamesEveryRefusal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDescribeOutcomeNamesEveryValueTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTMapEditOutcome>();
+	if (!TestNotNull(TEXT("l'enum ha la riflessione (e' UENUM)"), Enum))
+	{
+		return false;
+	}
+
+	// `NumEnums() - 1`: l'ultimo e' il `_MAX` sintetico che UHT aggiunge, e non e' un valore scrivibile.
+	// E' la stessa lettura che `RTScenarioLoader.cpp` fa sugli enum degli scenari.
+	const int32 Valori = Enum->NumEnums() - 1;
+	if (!TestTrue(TEXT("l'enum dichiara dei valori"), Valori > 0))
+	{
+		return false;
+	}
+
+	TMap<FString, FString> TestoPerValore; // testo -> nome del PRIMO valore che l'ha usato
+	int32 Esaminati = 0;
+
+	for (int32 Index = 0; Index < Valori; ++Index)
+	{
+		const FString Nome = Enum->GetNameStringByIndex(Index);
+		const ERTMapEditOutcome Outcome = static_cast<ERTMapEditOutcome>(Enum->GetValueByIndex(Index));
+		const FString Testo = URTMapEditLibrary::DescribeOutcome(Outcome);
+		++Esaminati;
+
+		if (!TestFalse(FString::Printf(TEXT("%s ha un testo non vuoto"), *Nome), Testo.IsEmpty()))
+		{
+			continue;
+		}
+
+		// 🔑 IL CUORE: due valori che condividono il testo significano che almeno uno e' caduto in un
+		// ramo generico, ed e' il silenzio che la disciplina dell'enum vieta. Il messaggio nomina
+		// ENTRAMBI i valori, cosi' chi legge il rosso sa quale `case` manca.
+		if (const FString* Primo = TestoPerValore.Find(Testo))
+		{
+			AddError(FString::Printf(
+				TEXT("%s e %s condividono lo stesso testo ('%s'): uno dei due non ha il proprio case in ")
+				TEXT("DescribeOutcome, e il suo rifiuto non dice quale regola l'ha fermato."),
+				**Primo, *Nome, *Testo));
+		}
+		else
+		{
+			TestoPerValore.Add(Testo, Nome);
+		}
+
+		// ⚠️ Il testo non deve essere il NOME del simbolo: un log che dicesse «RefusedDuplicate» avrebbe
+		// riportato chi legge all'enum, che e' il difetto da cui questa funzione nasce.
+		TestFalse(FString::Printf(TEXT("%s non si descrive col proprio nome"), *Nome),
+			Testo.Contains(Nome));
+
+		// 🔴 **E NON deve essere il fallback, che e' il buco che le altre due asserzioni lasciano
+		// aperto.** Un valore senza il proprio `case` cade sul `return` in coda a `DescribeOutcome`: quel
+		// testo e' **non vuoto** e — finche' il valore scoperto e' uno solo — anche **unico**, quindi
+		// supererebbe entrambe. Il fallback si auto-dichiara proprio per questo, e qui lo si cerca.
+		TestFalse(FString::Printf(TEXT("%s ha un case suo, e non cade nel fallback"), *Nome),
+			Testo.Contains(TEXT("non nominato")));
+	}
+
+	// GUARDIA ANTI-VACUITA', e questa volta non e' fra due letterali: `Esaminati` viene dal ciclo,
+	// `Valori` dalla riflessione dell'enum. Se un giorno il ciclo smettesse di girare, cadrebbe qui.
+	TestEqual(TEXT("sono stati esaminati tutti i valori che l'enum dichiara"), Esaminati, Valori);
+	TestEqual(TEXT("e ciascuno ha un testo suo"), TestoPerValore.Num(), Valori);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -114,4 +114,37 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category = "Hex Map|Mappa aperta", meta = (DisplayName = "Layer attivo"))
 	FString MappaLayerAttivo;
+
+	/**
+	 * CHE COSA DICE IL VALIDATORE, senza premere niente (#1864, casella 8).
+	 *
+	 * 🔴 **E' il canale che mancava.** La issue chiede *«si rifiuta il gesto **o si segnala**»*: il rifiuto
+	 * tipizzato esisteva (`ERTMapEditOutcome`), il segnalare no — nel modulo Editor `ValidateMap` non era
+	 * chiamata da nessuna riga di produzione.
+	 *
+	 * ⛔ **Non un `UE_LOG`, e non un bottone.** L'Output Log e' un pannello che si deve avere aperto, ed e'
+	 * il difetto che `RTMapTemplateValidationHookTests` documenta: regole scritte, testate e verdi che non
+	 * eseguiva nessuno. Un bottone e' il difetto di `U21`, che questo pannello esiste per chiudere — *«un
+	 * dato che si consulta guardando deve vedersi guardando»*.
+	 *
+	 * 🔑 **Si aggiorna sullo STESSO trigger degli altri readout**, cioe' quando `Revision` cambia e non a
+	 * ogni fotogramma: e' la guardia che `#1186` ha gia' costruito, e senza di essa una `ValidateMap()` per
+	 * tick sarebbe un costo che nessuno ha chiesto.
+	 *
+	 * ⚠️ **Non e' `config`**, come gli altri quattro: descrive la mappa aperta adesso, non una preferenza.
+	 *
+	 * ⛔ **IL LIMITE, e va letto insieme alla promessa qui sopra.** Questo readout si aggiorna sulla
+	 * `Revision` dell'asset, e **il Property Editor non la muove**:
+	 * `URTHexMapAsset::PostEditChangeChainProperty` esce senza incrementarla per ogni property che non sia
+	 * `FRTHexCover::Type`. ∴ chi rompe la mappa scrivendo **dal pannello Details** — un `MoveCost`
+	 * negativo, una copertura a integrita' zero, una transizione verso il nulla — continua a leggere qui
+	 * l'ultima risposta valida.
+	 *
+	 * ⚠️ **Non e' un difetto che questa fetta introduce**: e' il trigger di `#1186`, che i suoi altri
+	 * quattro readout condividono e che nessuno di essi aggiorna in quel percorso. Ma su un campo che dice
+	 * *«nessuna segnalazione»* pesa piu' che sugli altri, perche' quella frase si legge come «va tutto
+	 * bene» — ed e' la ragione per cui sta scritto qui invece che scoperto da chi ci si fida.
+	 */
+	UPROPERTY(VisibleAnywhere, Category = "Hex Map|Mappa aperta", meta = (DisplayName = "Validazione"))
+	FString MappaValidazione;
 };

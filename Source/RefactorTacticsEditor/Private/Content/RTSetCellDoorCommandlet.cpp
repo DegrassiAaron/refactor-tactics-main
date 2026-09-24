@@ -84,19 +84,11 @@ namespace
 		return FString::Printf(TEXT("(q=%d,r=%d,L=%d)"), Id.X, Id.Y, Id.Layer);
 	}
 
-	/** Il rifiuto si NOMINA, con la ragione: e' la disciplina di `ERTMapEditOutcome`. */
-	FString DescribeOutcome(ERTMapEditOutcome Outcome)
-	{
-		switch (Outcome)
-		{
-		case ERTMapEditOutcome::Applied:              return TEXT("applicata");
-		case ERTMapEditOutcome::RefusedNoSuchCell:    return TEXT("la cella non esiste in questa mappa");
-		case ERTMapEditOutcome::RefusedNoNeighbour:   return TEXT("oltre quel bordo non c'e' nessuna cella: "
-			"una porta e' SOTTRATTIVA, e li' non negherebbe nessuna adiacenza");
-		case ERTMapEditOutcome::RefusedDuplicate:     return TEXT("quel bordo ha gia' una porta");
-		default:                                      return TEXT("rifiutata");
-		}
-	}
+	// ⏱️ **`DescribeOutcome` viveva QUI, privata, e copriva quattro valori su sette**: gli altri tre
+	// cadevano su `default: return TEXT("rifiutata")`, cioe' il silenzio che il commento qui sopra
+	// dichiarava di impedire. E' salita in `URTMapEditLibrary`, accanto all'enum che traduce, con la
+	// disciplina di `URTTurnRules::DescribeOutcome`: due stesure dello stesso vocabolario divergono, e
+	// questa era gia' divergente per meta' dei suoi casi. `#1864`, casella 8.
 
 	bool SaveDoorMapPackage(UObject* Asset)
 	{
@@ -196,7 +188,7 @@ int32 URTSetCellDoorCommandlet::Main(const FString& Params)
 	if (Esito != ERTMapEditOutcome::Applied)
 	{
 		UE_LOG(LogRTCellDoor, Error, TEXT("posa RIFIUTATA su %s bordo %s: %s"),
-			*DescribeDoorCell(Target), *EdgeText, *DescribeOutcome(Esito));
+			*DescribeDoorCell(Target), *EdgeText, *URTMapEditLibrary::DescribeOutcome(Esito));
 		return 1;
 	}
 

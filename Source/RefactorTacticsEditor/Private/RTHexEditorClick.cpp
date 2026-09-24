@@ -572,3 +572,49 @@ void DrawSharedSelection(FPrimitiveDrawInterface* PDI, const ARTHexMapActor* Act
 	}
 }
 } // namespace RTHexEditor
+
+/**
+ * LA VALIDAZIONE SI RIFA' QUANDO LA MAPPA HA SMESSO DI CAMBIARE, non mentre cambia (#1864, casella 8).
+ *
+ * 🔴 **Il difetto che questa guardia esiste per non introdurre, misurato leggendo il costo.**
+ * `URTHexMapAsset::ValidateMap()` chiama in coda `ValidateMapDetailed`, che **per ogni cella** esegue
+ * `URTHexOccupancyLibrary::ComputeMask`, `HasLegalPlacement` e `EnumerateCoverOptions` — cioe' il lavoro
+ * geometrico della cottura di tutta la mappa. E `RefreshMapReadout` gira da `ModeTick`, **una volta per
+ * fotogramma**.
+ *
+ * ⚠️ La guardia che c'era gia' confronta `Revision`, e basta a chi legge un conteggio: durante un
+ * trascinamento del **pennello** pero' la mappa cambia a *ogni* fotogramma, quindi quella guardia lascia
+ * passare tutto e la validazione girerebbe sessanta volte al secondo su una mappa intera. Un readout che
+ * rallenta il gesto che deve descrivere e' peggio di nessun readout.
+ *
+ * 🔑 **La regola e' «un tick di quiete»**: finche' la revisione si muove non si valida; il primo
+ * fotogramma in cui NON si e' mossa, e c'e' del lavoro in attesa, si valida una volta sola. Durante una
+ * pennellata continua le validazioni sono **zero**, e al rilascio **una**.
+ *
+ * ⛔ **Non e' un timer**, e non usa il tempo: un debounce a millisecondi renderebbe il numero di
+ * validazioni dipendente dal frame rate — cioe' dalla macchina — e questo e' un modulo d'editor dove il
+ * determinismo del comportamento vale piu' della reattivita' di un fotogramma.
+ *
+ * Pura e con lo stato passato per riferimento, cosi' si prova headless senza aprire un `UEdMode`: e' la
+ * stessa scelta con cui `RTHexWorkGrid::BuildPlan` e' verificabile senza un viewport.
+ */
+bool RTHexEditor::ShouldRevalidate(int32 CurrentRevision, int32& InOutLastSeen, bool& InOutPending)
+{
+	if (CurrentRevision != InOutLastSeen)
+	{
+		// La mappa si e' mossa: si registra e si ASPETTA. Validare adesso significherebbe validare a
+		// ogni fotogramma di un trascinamento.
+		InOutLastSeen = CurrentRevision;
+		InOutPending = true;
+		return false;
+	}
+
+	if (InOutPending)
+	{
+		// Un tick di quiete dopo l'ultimo cambiamento: ora si valida, e una volta sola.
+		InOutPending = false;
+		return true;
+	}
+
+	return false;
+}

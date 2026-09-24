@@ -640,10 +640,19 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		// cella), quindi **una puo' cadere mentre l'altra regge** e il colpo produce due eventi, due voci di
 		// TurnLog e due segni — a quote diverse se le celle hanno `Height` diversa.
 		//
-		// ⚠️ **Questo e' il posto dove la legge chi disegna**, e va detto quanto vale: `ValidateMap()` ha un
-		// solo chiamante non di test — `ARTHexMapActor::ValidateAsset`, un bottone manuale — e **nessun hook
-		// di validazione al salvataggio esiste**. ∴ la dichiarazione arriva a chi preme il bottone, non a
-		// chi salva e basta. Il limite resta, ed e' dichiarato invece che taciuto.
+		// ⚠️ **Questo e' il posto dove la legge chi disegna**, e va detto quanto vale. ⏱️ Questa riga diceva
+		// che `ValidateMap()` ha *«un solo chiamante non di test — `ARTHexMapActor::ValidateAsset`, un bottone
+		// manuale»*, e dal 2026-09-24 e' **falso**: `#1864` ne ha aggiunto un secondo,
+		// `URTHexMapSummaryLibrary::DescriviValidazione`, che alimenta il readout del mode Hex Map e si rifa'
+		// da solo quando la mappa smette di cambiare — quindi questa segnalazione raggiunge chi disegna
+		// **senza premere niente**, purche' il mode sia aperto.
+		//
+		// ⛔ **Ma il limite non e' sparito, si e' spostato**: quel readout si aggiorna sulla `Revision`
+		// dell'asset, e il Property Editor **non la muove** — `PostEditChangeChainProperty` esce senza
+		// incrementarla per ogni property che non sia `FRTHexCover::Type`. ∴ chi modifica l'asset dal
+		// pannello Details non vede aggiornarsi ne' questo readout ne' gli altri quattro di `#1186`. E
+		// **nessun hook di validazione al salvataggio esiste** (`grep -rn "EditorValidator\|IsDataValid\|
+		// DataValidation" Source/` → 0). Il limite resta, ed e' dichiarato invece che taciuto.
 		//
 		// ⛔ **E non diventa un `Error`**: e' il non-goal di `#1893`, e alzarne la severita' non toglierebbe
 		// il caso dal runtime — toglierebbe solo la sua segnalazione dalla vista, perche' il gate sulle mappe
