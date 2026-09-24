@@ -6,9 +6,7 @@
 // divergere dall'esito (invariante #1: la presentazione non decide, riceve).
 
 #include "Misc/AutomationTest.h"
-#include "Turn/RTMatchSetupLibrary.h"
 #include "Map/RTHexMapActor.h"
-#include "Map/RTHexMapAsset.h"
 #include "Map/RTHexCellData.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Ability/RTActionData.h"
@@ -18,13 +16,6 @@
 namespace
 {
 	// Nomi distinti da ogni altro file di test: nella unity build condividono la translation unit.
-
-	/** Mappa piatta di raggio 3 sul layer 0: basta a contenere ogni forma provata qui. */
-	URTHexMapAsset* MakePreviewMap(UObject* Outer)
-	{
-		URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(Outer, 3);
-		return Map;
-	}
 
 	/**
 	 * L'attore mappa SENZA un mondo: qui e' lo specchio dell'anteprima, non il disegnatore (#2182).
@@ -48,15 +39,16 @@ namespace
 	 * registrazione la tick function prende il ramo che scrive il solo `TickState`
 	 * (`TickTaskManager.cpp`), e `AActor::SetActorTickEnabled` (`Actor.cpp:1756`) e' gia' guardato da
 	 * `bCanEverTick && !IsTemplate()`.
+	 *
+	 * ⌫ **E l'attore non porta piu' un `MapAsset`.** Ne portava uno — una `MakeFlatArena` di raggio 3 —
+	 * ma il suo unico lettore su questo percorso era `OnConstruction()` -> `RebuildInstances()`
+	 * (`Map/RTHexMapActor.cpp:921-933`), che senza la costruzione nel mondo non viene chiamato. Lasciarlo
+	 * avrebbe fatto credere che l'anteprima validi le celle contro la mappa: non lo fa, i setter copiano
+	 * e basta. Che fosse morto e' misurato, non dedotto — toglierlo lascia i test verdi.
 	 */
 	ARTHexMapActor* MakePreviewMapActor()
 	{
-		ARTHexMapActor* Actor = NewObject<ARTHexMapActor>();
-		if (Actor)
-		{
-			Actor->MapAsset = MakePreviewMap(Actor);
-		}
-		return Actor;
+		return NewObject<ARTHexMapActor>();
 	}
 }
 
