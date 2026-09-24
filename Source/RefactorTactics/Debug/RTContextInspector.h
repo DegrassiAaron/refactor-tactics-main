@@ -61,6 +61,32 @@ struct FRTContextInspectorView
 };
 
 /**
+ * Cosa ha chiesto chi ha digitato `rt.Debug.ContextInspector`.
+ *
+ * 🔴 **Esiste perche' `0` significava DUE cose, e una era spegnere.** La prima stesura trattava `0`
+ * come l'interruttore, mentre in ogni altro `rt.Debug.*` di questo file il primo argomento e' il
+ * **TeamId** — `rt.Debug.DrawIntent 1` mostra i piani del team 1. Chi scriveva `rt.Debug.ContextInspector
+ * 0` intendendo *«la squadra 0»* spegneva il pannello, e non c'era modo di accorgersene se non a schermo.
+ * ⚠️ La precondizione della voce `PIE-DEBUG-CONTEXT` diceva proprio quello: la seduta sarebbe fallita su
+ * un pannello che funziona.
+ *
+ * Ora l'interruttore e' la **parola** `off`, che nessun `TeamId` puo' essere.
+ */
+USTRUCT()
+struct FRTContextInspectorRequest
+{
+	GENERATED_BODY()
+
+	/** `true` se il pannello va tolto dal viewport. */
+	UPROPERTY()
+	bool bOff = false;
+
+	/** Per chi comporre, quando non si spegne. `0` e' la squadra 0, non un valore speciale. */
+	UPROPERTY()
+	int32 ObserverTeamId = 0;
+};
+
+/**
  * IL COMPOSITORE, nella forma gia' provata di `DescribeIntents`: prende il grezzo e passa dagli OWNER dei
  * due confini, invece di ricevere un risultato filtrato da qualcun altro senza sapere quale.
  *
@@ -92,6 +118,21 @@ public:
 	static FRTContextInspectorView Compose(int32 ObserverTeamId, const FRTHexCellData& Cell,
 		const FRTHexSnapshot& Snapshot, const TArray<FRTPlannedIntent>& Intents,
 		const TArray<FRTTurnLogEntry>& AuditTrace, ERTContextView Mode);
+
+	/**
+	 * Gli argomenti di console, letti. **Pura**: nessun mondo, nessun widget — percio' provabile.
+	 *
+	 * | argomenti | esito |
+	 * |---|---|
+	 * | *nessuno* | mostra, squadra `0` |
+	 * | `0`, `1`, … | mostra, per quella squadra |
+	 * | `-1` | mostra, osservatore **onnisciente** (`RTObserver::Omniscient`) |
+	 * | `off` | spegne (maiuscole indifferenti) |
+	 *
+	 * ⛔ **`0` NON spegne**, ed e' il difetto che questa funzione esiste per rendere impossibile: pinnato
+	 * da `RefactorTactics.Debug.ContextInspectorArgsDoNotCollide`.
+	 */
+	static FRTContextInspectorRequest ParseCommandArgs(const TArray<FString>& Args);
 
 	/** Le righe della vista in ordine di lettura: cella, intenti, eventi, tecnica. */
 	static TArray<FString> AllLines(const FRTContextInspectorView& View);

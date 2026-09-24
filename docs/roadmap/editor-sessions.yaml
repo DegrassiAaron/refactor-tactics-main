@@ -4240,10 +4240,12 @@ sessions:
     # comportamento previsto, non un difetto da registrare.
     notes: >-
       ✅ **Eseguita fra il 2026-09-23 e il 2026-09-24** su `main` `9938da57b`, nel clone principale, con
-      l'editor ricompilato prima della seduta e i **quattro** `RefactorTactics.Debug.Context*` più
-      `RefactorTactics.Debug.CellContextHidesEnemyPosition` — cinque in tutto, `Found 5 automation
-      tests` — rilanciati **sul binario appena costruito**: il verde che questo blocco dichiarava era
-      stato misurato su una DLL rilinkata dopo, e non valeva per la resa che si stava per guardare.
+      l'editor ricompilato prima della seduta e i `RefactorTactics.Debug.Context*` più
+      `RefactorTactics.Debug.CellContextHidesEnemyPosition` rilanciati **sul binario appena
+      costruito**: il verde che questo blocco dichiarava era stato misurato su una DLL rilinkata dopo,
+      e non valeva per la resa che si stava per guardare. Erano 5/5 al momento del giudizio e sono
+      6/6 dopo il merge di #3318, che aggiunge `ContextInspectorArgsDoNotCollide` — ⚠️ il numero si
+      rimisura lanciando la suite, non si cita da qui.
       ⛔ **L'esito, il glifo della voce e la discrepanza col criterio NON si leggono qui**: sono
       derivati, e R-6 li assegna a `docs/technical/test-manuali-pie.md`, che ne è l'unico owner. Questa
       nota registra solo la CONDUZIONE. ⚠️ La prima stesura li aveva scritti qui — glifo, criterio
@@ -4251,11 +4253,19 @@ sessions:
       stato che questo file ha già ritrattato due volte.
       ⛔ **La precondizione della voce era eseguibile alla rovescia, e l'ho scoperto preparando la
       seduta, non conducendola.** Registro e note di questa seduta prescrivevano entrambi
-      `rt.Debug.ContextInspector 0`, che è il ramo di SPEGNIMENTO: chi avesse condotto come scritto
-      avrebbe letto «Context Inspector spento» e registrato un rosso su un pannello sano. Corretto qui e
-      nel registro, più due difetti distinti trovati risalendo la stessa riga: il commento di
-      `RTContextInspectorTests.cpp` che rimandava alla seduta `U55` invece che a questa, e la help del
-      comando, che diceva «`0` come **unico** argomento» mentre la guardia legge solo il primo.
+      `rt.Debug.ContextInspector 0`, che era il ramo di SPEGNIMENTO: chi avesse condotto come scritto
+      avrebbe letto «Context Inspector spento» e registrato un rosso su un pannello sano.
+      🔴 **E la chiusura giusta non è la mia.** Mentre la seduta era in corso, #3318 ha riparato il
+      difetto nel **codice**: l'interruttore è ora la parola `off`, `0` è la squadra 0 come in ogni
+      altro `rt.Debug.*`, e il parsing è una funzione pura provata per mutazione — il difetto è
+      diventato rosso senza schermo, che è la ragione per cui era arrivato fin lì. Io avevo corretto la
+      sola prosa, cioè il sintomo. Di quella passata restano due difetti distinti, trovati risalendo la
+      stessa riga: il commento di `RTContextInspectorTests.cpp` che rimandava alla seduta `U55` invece
+      che a questa, e la help del comando — quest'ultima poi riscritta da #3318.
+      ⚠️ **Il giudizio qui registrato è stato dato PRIMA di quel fix**, col comando nudo, che resta
+      valido perché la squadra 0 è il default in entrambe le semantiche. E la resa non è stata toccata:
+      il commit di #3318 è additivo su `RTContextInspector.cpp/.h` e non tocca `RebuildWidget`,
+      `Placement` né `MaxRighe`.
       🔑 **`shares_setup_with` resta vuoto e la prescrizione di accompagnarla è stata rispettata
       diversamente**: l'overlay del verdetto è stato portato a schermo come IMPALCATURA, con
       `rt.Pie.Session PIE-ACC-PERCEPTION` seguito da `rt.Pie.Session.Abort`, che chiude il passo

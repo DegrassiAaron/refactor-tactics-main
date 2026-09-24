@@ -90,6 +90,28 @@ FRTContextInspectorView URTContextInspectorLibrary::Compose(int32 ObserverTeamId
 	return View;
 }
 
+FRTContextInspectorRequest URTContextInspectorLibrary::ParseCommandArgs(const TArray<FString>& Args)
+{
+	FRTContextInspectorRequest Richiesta;
+	if (Args.Num() == 0)
+	{
+		return Richiesta; // mostra, squadra 0
+	}
+
+	// ⚠️ `Equals` con `IgnoreCase` e non un confronto secco: chi digita in console non ha motivo di
+	// ricordarsi la cassa, e un `OFF` che non spegnesse sarebbe la stessa sorpresa da cui veniamo.
+	if (Args[0].Equals(TEXT("off"), ESearchCase::IgnoreCase))
+	{
+		Richiesta.bOff = true;
+		return Richiesta;
+	}
+
+	// Tutto il resto e' un TeamId, come in ogni altro `rt.Debug.*`: `Atoi` su cio' che non e' un numero
+	// da `0`, che e' la squadra 0 — il default, non un caso speciale.
+	Richiesta.ObserverTeamId = FCString::Atoi(*Args[0]);
+	return Richiesta;
+}
+
 TArray<FString> URTContextInspectorLibrary::AllLines(const FRTContextInspectorView& View)
 {
 	TArray<FString> Out;
