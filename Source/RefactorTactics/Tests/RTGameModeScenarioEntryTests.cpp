@@ -29,6 +29,12 @@
 
 #include "Misc/AutomationTest.h"
 #include "RTGameMode.h"
+#include "Misc/ScopeExit.h"          // `#3267`: la CVar si ripristina, sempre
+#include "Misc/FileHelper.h"         // `#3267`: il gate sul RAMO legge il sorgente
+#include "Misc/Paths.h"
+#include "HAL/IConsoleManager.h"
+#include "Turn/RTTurnManager.h"      // `#3267`: ArePlaybackControlsEnabled
+#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -192,6 +198,133 @@ bool FRTScenarioCommandLineParsingTest::RunTest(const FString&)
 	// e il ramo di guardia ha un testimone.
 	TestTrue(TEXT("riga nulla -> nessuno scenario, senza schiantare"),
 		ARTGameMode::ReadScenarioFromCommandLine(nullptr).IsEmpty());
+
+	return true;
+}
+
+// =========================================================================================================
+// `#3267` — L'ACCENSIONE DEI CONTROLLI NEL RAMO DELLO SCENARIO.
+//
+// 🔴 Trovata in seduta PIE provando a usare `K` per fermare una scena del corpus, e non ottenendo nulla.
+// `rt.Debug.PlaybackControls 1` non aveva **alcun effetto** in auto-run: `BeginPlay` legge le due CVar
+// dopo `SetupHexMatch`, e il ramo `ERTScenarioStart::Started` esce con un `return` cinquanta righe piu' su.
+//
+// ⚠️ **I test esistenti erano verdi e non potevano vederlo**:
+// `Playback.ControlsAreReachableFromTheController` e le sue sorelle provano che i comandi facciano il loro
+// lavoro **una volta accesi**. Nessuno provava che l'accensione avvenisse in quel ramo — e non e' una
+// svista dei test, e' che quel ramo non li chiamava.
+// =========================================================================================================
+
+/**
+ * La funzione estratta accende davvero, secondo la CVar — `#3267`.
+ *
+ * ⚠️ **Non e' il gate del ramo**: e' la meta' che rende il gemello leggibile. Senza, un `ramo che chiama una
+ * funzione vuota` passerebbe il controllo statico e non accenderebbe niente.
+ *
+ * 🔑 **La CVar si ripristina**, ed e' la regola che l'intestazione di questo file dichiara: *«un test che
+ * rompe gli altri e' peggio di un test assente»*. `rt.Debug.PlaybackControls` sopravvive al test, e
+ * lasciarla accesa cambierebbe il comportamento di ogni playback misurato dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackControlCVarsTurnOnTheControlsTest,
+	"RefactorTactics.Playback.ControlCVarsTurnOnTheControls",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackControlCVarsTurnOnTheControlsTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ World->DestroyWorld(/*bInformEngineOfWorld=*/ false); };
+
+	IConsoleVariable* Controlli = IConsoleManager::Get().FindConsoleVariable(TEXT("rt.Debug.PlaybackControls"));
+	if (!TestNotNull(TEXT("⛔ premessa: la CVar esiste"), Controlli)) { return false; }
+
+	const int32 Prima = Controlli->GetInt();
+	ON_SCOPE_EXIT{ Controlli->Set(Prima, ECVF_SetByCode); };
+
+	ARTGameMode* GM = World->SpawnActor<ARTGameMode>();
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	if (!TestNotNull(TEXT("GameMode"), GM) || !TestNotNull(TEXT("TurnManager"), TM)) { return false; }
+
+	// ⛔ PREMESSA: si parte da spenti. Senza, un `true` finale non direbbe che l'accensione e' avvenuta.
+	if (!TestFalse(TEXT("⛔ premessa: i controlli partono SPENTI"), TM->ArePlaybackControlsEnabled()))
+	{
+		return false;
+	}
+
+	Controlli->Set(1, ECVF_SetByCode);
+	GM->ApplyPlaybackControlCVars(TM);
+	TestTrue(TEXT("🔴 con la CVar a 1 i controlli sono ACCESI"), TM->ArePlaybackControlsEnabled());
+
+	// ⛔ E il verso opposto: a zero non si accende nulla. Un'accensione incondizionata passerebbe la riga
+	// sopra e sarebbe il difetto opposto — comandi vivi in una sessione che non li ha chiesti.
+	ARTTurnManager* Secondo = World->SpawnActor<ARTTurnManager>();
+	if (TestNotNull(TEXT("secondo TurnManager"), Secondo))
+	{
+		Controlli->Set(0, ECVF_SetByCode);
+		GM->ApplyPlaybackControlCVars(Secondo);
+		TestFalse(TEXT("⛔ con la CVar a 0 restano spenti"), Secondo->ArePlaybackControlsEnabled());
+	}
+
+	// ⚠️ Un `TurnManager` nullo non e' un errore: non c'e' nessuno da accendere.
+	GM->ApplyPlaybackControlCVars(nullptr);
+
+	return true;
+}
+
+/**
+ * E il ramo dell'auto-run la CHIAMA, prima di aprire il primo turno — `#3267`.
+ *
+ * 🔴 **E' il gate che la issue chiede: pinna il RAMO, non il comportamento dei comandi.** Il difetto non
+ * era che i comandi non funzionassero — funzionavano — ma che quel percorso non li accendesse mai.
+ *
+ * ⚠️ **E' un controllo sul SORGENTE, e va saputo prima di fidarsene.** Far correre `BeginPlay` headless
+ * richiederebbe una mappa caricata, uno scenario reale e il coordinatore: la via che
+ * [[build-e-test-unreal]] misura come non percorribile (`-RTScenario` apre il livello di bootstrap e resta
+ * li'). Cio' che si puo' verificare senza l'Editor e' che la chiamata **esista nel ramo**, e dove.
+ *
+ * 🔑 **L'ordine e' parte dell'asserzione, non un di piu'**: l'accensione deve precedere
+ * `OpenClaimedFirstTurn`, o il primo playback — proprio quello che chi lancia con `PlaybackStartPaused`
+ * vuole guardare fermo — scorrerebbe con i comandi ancora spenti. E' la stessa ragione che il percorso
+ * normale dichiara per se'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioBranchAppliesPlaybackControlsTest,
+	"RefactorTactics.Playback.ScenarioBranchAppliesPlaybackControlCVars",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioBranchAppliesPlaybackControlsTest::RunTest(const FString&)
+{
+	const FString Percorso = FPaths::Combine(FPaths::ProjectDir(),
+		TEXT("Source/RefactorTactics/RTGameMode.cpp"));
+	FString Testo;
+	if (!TestTrue(TEXT("⛔ premessa: il sorgente del GameMode si legge"),
+		FFileHelper::LoadFileToString(Testo, *Percorso)))
+	{
+		return false;
+	}
+
+	// Il ramo dell'auto-run: dal `case` fino al primo `return`, che e' la sua uscita.
+	const int32 Inizio = Testo.Find(TEXT("case ERTScenarioStart::Started:"));
+	if (!TestTrue(TEXT("⛔ premessa: il ramo `Started` esiste"), Inizio != INDEX_NONE)) { return false; }
+	const int32 Fine = Testo.Find(TEXT("return;"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Inizio);
+	if (!TestTrue(TEXT("⛔ premessa: il ramo esce con un `return`"), Fine != INDEX_NONE)) { return false; }
+
+	const FString Ramo = Testo.Mid(Inizio, Fine - Inizio);
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	//
+	// ⛔ **Si cercano le CHIAMATE, con la parentesi, non i nomi.** La prima stesura cercava i soli
+	// identificatori e misurava il **commento**: la riga che spiega *«prima di `OpenClaimedFirstTurn`»*
+	// precede la chiamata, quindi l'ordine risultava invertito e il gate era rosso su codice corretto. Un
+	// controllo sul sorgente che non distingue il codice dalla prosa misura la prosa.
+	const int32 Accensione = Ramo.Find(TEXT("ApplyPlaybackControlCVars("));
+	TestTrue(TEXT("🔴 il ramo dell'auto-run accende i controlli di playback"), Accensione != INDEX_NONE);
+
+	// 🔑 E PRIMA di aprire il primo turno.
+	const int32 Apertura = Ramo.Find(TEXT("OpenClaimedFirstTurn();"));
+	if (TestTrue(TEXT("⛔ premessa: il ramo apre il primo turno"), Apertura != INDEX_NONE)
+		&& Accensione != INDEX_NONE)
+	{
+		TestTrue(TEXT("🔴 e lo fa PRIMA di aprire il turno 1: dopo, il primo playback scorrerebbe spento"),
+			Accensione < Apertura);
+	}
 
 	return true;
 }

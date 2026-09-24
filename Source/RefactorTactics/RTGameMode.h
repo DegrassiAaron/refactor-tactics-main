@@ -21,6 +21,7 @@
 
 class ARTUnit;
 class ARTHexMapActor;
+class ARTTurnManager; // `#3267`: `ApplyPlaybackControlCVars` lo prende, e l'header non lo includeva
 class URTFrontendNavigator;
 class URTKnowledgeVeilPresenter;
 class URTMatchFormatData;
@@ -503,6 +504,29 @@ public:
 	 * `SetupHexMatch` direttamente, senza far correre `BeginPlay`, e devono poter osservare l'apertura.
 	 */
 	void OpenClaimedFirstTurn();
+
+	/**
+	 * Accende i controlli di playback secondo le CVar, per QUALUNQUE percorso di avvio — `#3267`.
+	 *
+	 * 🔴 **Esiste perche' `BeginPlay` ha piu' uscite, esattamente come `OpenClaimedFirstTurn`.** Fino a
+	 * `#3267` la lettura delle due CVar viveva **inline** dopo `SetupHexMatch`: il ramo
+	 * `ERTScenarioStart::Started` esce con un `return` cinquanta righe piu' su, quindi
+	 * `rt.Debug.PlaybackControls 1` non aveva alcun effetto in auto-run di scenario — e l'auto-run e'
+	 * precisamente il modo in cui si conducono le sedute di giudizio percettivo.
+	 *
+	 * ⚠️ **Estratta invece che ripetuta.** Lo scope della issue ammetteva tre forme — spostarla prima dello
+	 * `switch`, ripeterla nel ramo, o estrarla: ripeterla avrebbe messo la stessa regola in due posti, e
+	 * uno dei due sarebbe divergito. E' lo stesso argomento con cui `OpenClaimedFirstTurn` tiene la propria
+	 * guardia in un posto solo.
+	 *
+	 * ⛔ **Il ramo `NotLoadable` NON la chiama, ed e' deliberato**: li' non parte nessuna partita e non c'e'
+	 * niente da riprodurre, quindi accendere i comandi annuncerebbe una sessione che non esiste.
+	 *
+	 * Un `TurnManager` nullo non e' un errore: non c'e' nessuno da accendere, e la funzione non fa nulla.
+	 * Pubblica per la stessa ragione della gemella qui sopra — i test allestiscono senza far correre
+	 * `BeginPlay`.
+	 */
+	void ApplyPlaybackControlCVars(ARTTurnManager* TurnManager);
 
 	/**
 	 * Il presenter del velo di questa sessione: quello del `ARTPlayerController` se un client c'e', altrimenti
