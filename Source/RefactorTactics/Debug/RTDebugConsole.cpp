@@ -299,7 +299,14 @@ static void RTDebugContextInspectorCommand(const TArray<FString>& Args, UWorld* 
 
 	// E le stesse righe anche in console: la seduta si giudica a schermo, ma un referto headless deve
 	// poter dire cosa il pannello AVREBBE mostrato senza che qualcuno lo guardi.
-	for (const FString& Riga : URTContextInspectorLibrary::AllLines(Vista))
+	//
+	// ⛔ `VisibleLines` e non `AllLines`, ed e' il fix di #3320 applicato anche qui. Con `AllLines` il
+	// referto stampava cio' che era stato COMPOSTO — 17 righe sul caso misurato in `U59` — mentre lo
+	// schermo ne mostrava 12 col marcatore di taglio: il commento qui sopra sarebbe diventato falso
+	// proprio nel caso che #3320 ha creato. ⚠️ E cosi' il marcatore e' osservabile **senza uno
+	// schermo**, che e' l'unico canale con cui il difetto era stato misurato in prima battuta.
+	for (const FString& Riga : URTContextInspectorLibrary::VisibleLines(
+		Vista, URTContextInspectorWidgetBase::MaxRighe))
 	{
 		Ar.Logf(TEXT("[RT]   %s"), *Riga);
 	}

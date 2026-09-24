@@ -138,6 +138,47 @@ public:
 	static TArray<FString> AllLines(const FRTContextInspectorView& View);
 
 	/**
+	 * Le righe che ENTRANO in `MaxLines`, col taglio **dichiarato**. **Pura**: nessun widget, nessun
+	 * mondo — percio' provabile, che e' l'intero punto di #3320.
+	 *
+	 * 🔴 **Esiste perche' il troncamento era muto e invisibile ai test.** `RebuildWidget` tagliava con
+	 * un `IsValidIndex` dentro la Slate: `[tecnico]` e' l'ULTIMA riga di `AllLines`, quindi la prima a
+	 * cadere. Misurato nella seduta `U59` del 2026-09-24: sulla cella `(q=0,r=0,L=0)` del banco
+	 * `Visual.Combat.GuardVsBraceUnderSmallHits` la vista componeva **17** righe contro un tetto di 12.
+	 *
+	 * ⛔ **Cosa si perdeva davvero, perche' la prima stesura di questo commento lo diceva sbagliato.**
+	 * NON l'osservatore: quello vive nell'intestazione (`GetHeaderText`), che ha uno slot proprio
+	 * aggiunto PRIMA del ciclo e non e' soggetta al tetto — col pannello pieno si leggeva gia'
+	 * `(q=0,r=0,L=0) — onnisciente`. A cadere era il resto della riga tecnica:
+	 * `snapshot costruito per … · autorizza=… · rev=…`.
+	 *
+	 * ⚠️ **E quelli non sono un doppione dell'intestazione.** `vista per X` contro `snapshot costruito
+	 * per Y` possono DIVERGERE, ed e' esattamente la divergenza per cui `DescribeCell` rifiuta di
+	 * comporre l'occupante e stampa `NON-COMPOSTO(snapshot per X, vista per Y)`; `autorizza` dice se
+	 * l'osservatore ne aveva diritto, e `rev` quale stato si sta guardando. Un pannello pieno che li
+	 * perde non dice piu' **su quale stato** e **con quale titolo** e' composto.
+	 *
+	 * 🔑 E la meta' piu' grave era il taglio MUTO: chi guarda un pannello pieno conclude che su quella
+	 * cella non sia successo altro.
+	 *
+	 * Cosa sopravvive al taglio, e perche':
+	 *
+	 * | riga | sorte | ragione |
+	 * |---|---|---|
+	 * | cella | **tenuta**, per prima | senza, non si sa di quale esagono si parla |
+	 * | intenti + eventi | tagliate dal fondo | sono il corpo, ed e' quello che eccede |
+	 * | marcatore | **inserito** | `AGENTS.md`: un'azione che non avviene deve dirlo |
+	 * | tecnica | **tenuta**, per ultima | la provenienza, che era quella che cadeva |
+	 *
+	 * ⛔ Se nemmeno le riservate entrano in `MaxLines`, degrada al taglio secco: non c'e' spazio per
+	 * dichiarare niente, e inventarlo produrrebbe un pannello che parla solo del proprio troncamento.
+	 */
+	static TArray<FString> VisibleLines(const FRTContextInspectorView& View, int32 MaxLines);
+
+	/** Il prefisso del marcatore di taglio. Un DATO, cosi' che il test non lo riscriva a mano. */
+	static const TCHAR* TruncationMarkerPrefix();
+
+	/**
 	 * Una voce **pubblica** in una riga.
 	 *
 	 * ⛔ **NON passa da `URTTurnLogLibrary::DescribeEntry`, e la ragione e' misurata.** Quel traduttore
@@ -167,7 +208,15 @@ public:
  *    board e' cio' che si sta guardando.
  * 2. Ogni zona di §6 ha gia' un proprietario dichiarato — alto sinistra il **team roster**, alto destra
  *    l'**obiettivo**, basso sinistra l'**unita' selezionata**, lato destro il **team intent**, basso
- *    centro **ghost timeline** e **action dock**. `§6` non assegna il basso destra.
+ *    centro **ghost timeline** e **action dock** (§6.6, §6.7).
+ *    ⌫ **Questa riga diceva «`§6` non assegna il basso destra», ed era falso**: `progettazione-hud.md`
+ *    ha una **§6.8 «Bottom right»** e la assegna a `CONFIRM PLAN`, `UNDO`, stato piano, warning count e
+ *    invalid state. L'enumerazione qui sopra saltava §6.1 e §6.8 e concludeva che l'angolo fosse libero:
+ *    la posa e' stata scelta su una premessa che il documento citato smentisce. Corretta il 2026-09-24,
+ *    trovata dalla seduta `U59` e dalla verifica di #3319.
+ *    🔑 **La convivenza e' quindi DICHIARATA, non assente**, ed e' stata giudicata accettabile a schermo
+ *    il 2026-09-24: il pannello condivide la fascia bassa con `§6.7` e `§6.8`. Cio' che resta vietato e'
+ *    il **centro**, punto 1, dove si gioca.
  * 3. 🔑 E questo pannello viene giudicato **durante una seduta PIE**, quando `URTPieVerdictOverlay`
  *    occupa la colonna **sinistra, centrata in verticale** (#3242). Posarlo li' significherebbe ripetere
  *    esattamente il difetto che quella issue ha chiuso, un anno di lezioni dopo.
@@ -208,9 +257,22 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Debug")
 	bool HasContent() const;
 
-	/** Tutte le righe, in ordine di lettura, per un layout che non voglia quattro liste. */
+	/**
+	 * Tutte le righe, in ordine di lettura, per un layout che non voglia quattro liste.
+	 *
+	 * ⚠️ **Non tronca**, ed e' deliberato: chi vuole cio' che ENTRA a schermo chiede
+	 * `GetVisibleLines()`. Tenerle separate e' cio' che rende il taglio una domanda con una risposta,
+	 * invece di un effetto della Slate.
+	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Debug")
 	TArray<FText> GetLines() const;
+
+	/**
+	 * Le righe che ENTRANO nel tetto di resa, col taglio dichiarato — cio' che il pannello mostra
+	 * davvero. E' `URTContextInspectorLibrary::VisibleLines` applicata a `MaxRighe` (#3320).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Debug")
+	TArray<FText> GetVisibleLines() const;
 
 	/** L'intestazione: quale cella, e per chi. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Debug")
@@ -228,7 +290,6 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Debug")
 	FRTContextInspectorView View;
 
-protected:
 	/**
 	 * Quante righe la Slate costruisce, una volta sola.
 	 *
@@ -237,10 +298,19 @@ protected:
 	 * eventi della prima perderebbe le righe in eccesso, in silenzio. Gli slot sono fissi e le righe le
 	 * riempiono per lambda; quelle che avanzano restano vuote.
 	 *
-	 * ⚠️ **Dodici e' un tetto di RESA, non un limite del contenuto**: `AllLines` restituisce tutto, e il
-	 * troncamento e' qui — dove si vede — invece che nel compositore, dove sarebbe invisibile ai test.
+	 * ⚠️ **Dodici e' un tetto di RESA, non un limite del contenuto**: `AllLines` restituisce tutto, e
+	 * `VisibleLines` decide che cosa entra.
+	 *
+	 * ⌫ **Era `protected`, e questo commento diceva che il troncamento stava «dove si vede — invece che
+	 * nel compositore, dove sarebbe invisibile ai test».** Il contrario: dentro `RebuildWidget` — Slate,
+	 * `protected` — non era osservabile da NESSUN test, perche' `GetLines()` non tronca e a
+	 * `2c9b7ea75^` l'header non dichiarava nessuna eccezione d'accesso per i test. Un test avrebbe
+	 * dovuto riscrivere `12` a mano, cioe' il numero che invecchia da solo. Reso pubblico e spostato in
+	 * `VisibleLines` con #3320.
 	 */
 	static constexpr int32 MaxRighe = 12;
+
+protected:
 
 	/**
 	 * La resa, in C++ e senza `.uasset`: lo stesso `RebuildWidget` di `URTPieVerdictOverlay`.
