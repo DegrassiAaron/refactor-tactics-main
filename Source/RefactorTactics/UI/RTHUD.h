@@ -105,14 +105,20 @@ struct FRTContactGhostTarget
  *   ────────────────────  ───────────────────────  ─────────────────────────────
  *   etichetta             `bHasPlan`               Confirmed · Predicted · Uncertain
  *   linea al bersaglio    `if (bHasTarget)`        Predicted · Uncertain
- *   rotta                 `if (bMoving)`           solo Uncertain
- *   destinazione          `if (bMoving)`           solo Uncertain
+ *   rotta                 `Rotta.bShow`            solo Uncertain
+ *   destinazione          `Rotta.bShow`            solo Uncertain
  *   waypoint              movimento                solo Uncertain
  *   preview scatto        `if (bDashing)`          solo Uncertain
  *
  * 🔴 **`Confirmed` non disegna NESSUNA linea**: e' fermo, senza bersaglio e senza scatto, quindi non entra in
  * nessuno dei tre `if`. Gli resta l'etichetta. Ogni stile di linea assegnato a quel livello e' inosservabile —
  * e per due riscritture di questa struct e' rimasto scritto lo stesso, perche' la matrice non c'era.
+ *
+ * ⌫ **La colonna «condizione» diceva `if (bMoving)` per rotta e destinazione**, ed e' rimasta indietro
+ * quando `#2184` ha portato quella decisione in `ComposePlannedRoute`. La condizione **non e' cambiata** —
+ * `Rotta.bShow` **e'** `View.bMoving` — ma il nome del sito si': una matrice normativa che punta a un `if`
+ * che non esiste piu' insegna a cercarlo dove non c'e'. La stessa riga vive in
+ * `docs/technical/systems/progettazione-hud.md` §16, aggiornata insieme a questa.
  *
  * ─── Cosa ne segue, e perche' questa struct e' piu' piccola di quella che sostituisce ───
  *
@@ -155,14 +161,17 @@ struct FRTIntentPresentation
 };
 
 /**
- * Se la rotta pianificata si disegna, e da dove arrivano le sue celle (#2184).
+ * La rotta pianificata da disegnare: se mostrarla, e quali celle la compongono (#2184).
  *
- * 🔴 **`bShow` NON e' un predicato di presenza del dato, ed e' la ragione per cui questa struct esiste.**
- * `PlannedCell` e `PlannedPath` sono copiati **incondizionatamente** — dal modello
- * (`RTHudViewModel.cpp:532` e `:537`) e dal filtro (`RTIntentPrivacyLibrary.cpp:56` e `:60`) — quindi
- * restano valorizzati anche su un'unita' che non si muove: un piano di scatto, un piano sostituito da un
- * attacco, il residuo del turno prima. Senza questa decisione si disegnerebbe una rotta verso una
- * destinazione che l'unita' non percorrera'.
+ * 🔴 **`bShow` non e' «esiste una destinazione», ed e' la ragione per cui la decisione esiste.**
+ * Il modello deriva `bMoving` da `ARTUnit::HasPlannedNormalMove()`, cioe'
+ * `PlannedCell != Cell || PlannedPath.Num() > 1`. Quindi `bMoving` falso **implica** destinazione uguale
+ * alla cella e nessuna rotta: senza la decisione, il rettangolo di destinazione verrebbe disegnato
+ * **sulla cella dell'unita' stessa**, cioe' un marcatore di arrivo su ogni unita' ferma in campo.
+ *
+ * ⚠️ La rotta, invece, non si vedrebbe comunque: un percorso da una cella a se stessa e' lungo una cella
+ * e non produce nessun segmento. E' il rettangolo che la decisione protegge, non la linea — misurato
+ * leggendo i due rami, non dedotto dalla forma del codice.
  */
 struct FRTPlannedRoutePresentation
 {
@@ -170,17 +179,14 @@ struct FRTPlannedRoutePresentation
 	bool bShow = false;
 
 	/**
-	 * Vero se la vista porta una rotta con almeno un SEGMENTO, cioe' due celle.
+	 * Le celle da unire, gia' scelte: la rotta composita se la vista ne porta una con almeno un
+	 * **segmento**, altrimenti quella ricalcolata. **Vuoto quando `bShow` e' falso.**
 	 *
-	 * ⚠️ **La soglia e' due, non uno, e non e' arbitraria**: chi disegna parte da `i = 1` e unisce le celle
-	 * a coppie, quindi una rotta di una cella sola — la sola origine — non produce nessun segmento e
-	 * lascerebbe l'unita' senza rotta visibile. Sotto la soglia si ricade sull'A' dell'autorita', che e'
-	 * la stessa risposta che il movimento eseguira'.
-	 *
-	 * ⛔ Il **fallback** non e' qui: ricalcolarlo vuole `Map`, e una decisione che legge la mappa non e'
-	 * una pura funzione della vista. Qui esce la *scelta*, non il calcolo.
+	 * ⚠️ **La soglia e' due celle, non una**: chi disegna unisce le celle a coppie partendo da `i = 1`,
+	 * quindi una rotta di una cella sola — la sola origine — non produce nessun segmento, e senza il
+	 * ricalcolo l'unita' resterebbe senza rotta visibile.
 	 */
-	bool bRouteComesFromTheView = false;
+	TArray<FRTCellId> PathCells;
 };
 
 struct FRTIntentCertaintyStyle
@@ -789,15 +795,24 @@ public:
 		const TArray<struct FRTPlannedIntent>& Authoritative, int32 PlayerTeamId, bool bUnattendedSession);
 
 	/**
-	 * La rotta pianificata: se disegnarla, e se le celle arrivano dalla vista o vanno ricalcolate (#2184).
+	 * La rotta pianificata: se disegnarla, e con quali celle (#2184).
 	 *
 	 * 🔑 **Le due decisioni stanno insieme perche' la seconda ha senso solo dentro la prima**: non si
 	 * sceglie la sorgente di una rotta che non si disegna.
 	 *
-	 * ⚠️ Il **ricalcolo** resta fuori: `URTHexPathLibrary::FindPath` vuole `Map`, e una funzione che legge
-	 * la mappa non e' pura. Qui esce la scelta; il calcolo resta dove ha i suoi ingressi.
+	 * ⚠️ **`Map` e' un parametro, e questo NON toglie purezza.** `URTHexPathLibrary::FindPath` e' a sua
+	 * volta una statica che prende la mappa come argomento: passarla qui tiene la funzione interrogabile
+	 * senza montare un HUD — un `URTHexMapAsset` si costruisce con
+	 * `URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), N)`, che non vuole nessun mondo.
+	 *
+	 * ⌫ Una prima stesura lasciava il ricalcolo fuori, sostenendo che «una funzione che legge la mappa non
+	 * e' pura», e restituiva due booleani. Era falso — e costava un ternario che restava in `DrawHUD`.
+	 * Corretto in code review.
+	 *
+	 * @param Map  puo' essere nullo: `FindPath` lo gestisce, e il risultato e' una rotta vuota.
 	 */
-	static FRTPlannedRoutePresentation ComposePlannedRoutePresentation(const struct FRTIntentView& View);
+	static FRTPlannedRoutePresentation ComposePlannedRoute(const struct FRTIntentView& View,
+		const class URTHexMapAsset* Map);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:

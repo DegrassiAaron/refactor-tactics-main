@@ -1,149 +1,184 @@
-// La rotta pianificata: se si disegna, e da dove arrivano le sue celle.
+// La rotta pianificata: se si disegna, e con quali celle.
 //
 // Perché esiste (#2184): le due decisioni vivevano dentro `ARTHUD::DrawHUD`, che il motore chiama ogni
-// fotogramma e che **non ha copertura headless**. Sono pure funzioni della sola `FRTIntentView` — nessuna
-// tocca `Project()`, `Canvas`, `Map` o una coordinata.
+// fotogramma e che **non ha copertura headless**.
 //
-// 🔴 **`bShow` non è un predicato di presenza, ed è tutto il punto.** La lettura ingenua — «c'è una
-// destinazione, quindi disegnala» — è sbagliata, e il codice lo dimostra in due punti: `PlannedCell` e
-// `PlannedPath` sono copiati **incondizionatamente** dal modello (`RTHudViewModel.cpp:532` e `:537`) e dal
-// filtro di privacy (`RTIntentPrivacyLibrary.cpp:56` e `:60`). Restano quindi valorizzati su un'unità che
-// non si muove: un piano di scatto, un piano sostituito da un attacco, il residuo del turno prima.
-// Senza la decisione si disegnerebbe una rotta verso una destinazione che l'unità non percorrerà.
+// 🔴 **Ciò che la decisione protegge è il RETTANGOLO, non la linea — e la prima stesura di questo file
+// diceva il contrario.** Il modello deriva `bMoving` da `ARTUnit::HasPlannedNormalMove()`, cioè
+// `PlannedCell != Cell || PlannedPath.Num() > 1`. Quindi `bMoving` falso **implica** destinazione uguale
+// alla cella e rotta più corta di due celle: non esiste lo stato «unità ferma con una rotta lunga», e un
+// test che lo costruisce pinna una regola su un input che il modello non può produrre.
 //
-// ⛔ **E la soglia della rotta è DUE celle, non una.** Chi disegna unisce le celle a coppie partendo da
-// `i = 1`: una rotta di una cella sola — la sola origine — non produce nessun segmento, e l'unità
-// resterebbe senza rotta visibile invece di ricadere sull'A* dell'autorità. È una reticenza: il caso non
-// si vede mai a schermo, perché il sintomo è l'assenza di un disegno.
+// Senza la decisione, allora, la linea non comparirebbe comunque — un percorso da una cella a se stessa è
+// lungo una cella e non produce segmenti — ma il `DrawRect` della destinazione finirebbe **sulla cella
+// dell'unità stessa**: un marcatore di arrivo sopra ogni unità ferma in campo.
 //
-// ⚠️ **Il ricalcolo NON è sotto test qui**, e non è una dimenticanza: `URTHexPathLibrary::FindPath` vuole
-// `Map`, quindi vive dove ha i suoi ingressi. Qui si verifica la **scelta**, che è l'altra metà.
+// ⌫ La prima stesura costruiva `bMoving = false` con tre celle di rotta e motivava la decisione con «una
+// rotta verso una destinazione che l'unità non percorrerà». Entrambe le cose erano sbagliate, e le ha
+// trovate la code review leggendo `HasPlannedNormalMove()`. Il difetto non era il codice di produzione:
+// era il **fixture**, e un fixture irrealizzabile fa passare qualunque regola.
+//
+// ⚠️ **`Map` è un parametro, e i test lo costruiscono senza mondo**: `MakeFlatArena(GetTransientPackage(),
+// N)` è un `NewObject` su un asset. Zero `SpawnActor` in questo file.
 //
 // ── TABELLA DELLE ATTESE DI MUTAZIONE ────────────────────────────────────────────────────────────────
-// Scritta prima di lanciare — e, dopo la lezione della fetta 5, **eseguibile**: ogni riga nomina un test
-// che esiste, parte dal codice spedito, e descrive una mutazione che compila. Una tabella che non si può
-// rieseguire non è evidenza, è una promessa.
+// Scritta prima di lanciare, e — dopo la lezione della fetta 5 — **eseguibile**: ogni riga nomina un test
+// che esiste, parte dal codice spedito, e descrive una mutazione che compila.
 //
-//   # | mutazione su `ARTHUD::ComposePlannedRoutePresentation`   | rosso atteso
-//  ---|----------------------------------------------------------|----------------------------------------
-//   1 | `Out.bShow = View.bMoving;` → `= true;`                   | RouteIsHiddenForAStandingUnit
-//   2 | `Out.bShow = View.bMoving;` → `= !View.bMoving;`          | RouteIsHiddenForAStandingUnit
-//     |                                                          |  + RouteIsShownForAMovingUnit
-//   3 | `View.PlannedPath.Num() >= 2` → `>= 1`                    | OneCellIsNotARouteAndFallsBack
-//   4 | `View.PlannedPath.Num() >= 2` → `>= 3`                    | TwoCellsAreEnoughToBeARoute
+//   # | mutazione su `ARTHUD::ComposePlannedRoute`                | rosso atteso
+//  ---|-----------------------------------------------------------|---------------------------------------
+//   1 | `Out.bShow = View.bMoving;` → `= true;`                    | RouteIsHiddenForAStandingUnit
+//   2 | `Out.bShow = View.bMoving;` → `= !View.bMoving;`           | RouteIsHiddenForAStandingUnit
+//     |                                                           |  + RouteUsesTheViewRouteWhenItHasASegment
+//   3 | `View.PlannedPath.Num() >= 2` → `>= 1`                     | OneCellIsNotARouteAndIsRecomputed
+//   4 | `View.PlannedPath.Num() >= 2` → `>= 3`                     | RouteUsesTheViewRouteWhenItHasASegment
 //
-// Le quattro colpiscono una reticenza o un confine, cioè le due categorie che le fette precedenti di
-// questa issue hanno mostrato essere le più fragili. Nessuna è un conteggio: sono tutte proprietà.
+// Le quattro colpiscono una reticenza o un confine. Nessuna è un conteggio: sono tutte proprietà.
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
 #include "Turn/RTIntentPrivacyLibrary.h"
+#include "Turn/RTMatchSetupLibrary.h"
+#include "Map/RTHexMapAsset.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
+namespace
+{
+	/** Arena piatta di raggio 3, costruita senza mondo: serve solo al ricalcolo. */
+	URTHexMapAsset* MakeRouteTestMap()
+	{
+		return URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 3);
+	}
+}
+
 /**
- * 🔴 **Un'unità ferma non mostra la rotta, benché la porti.**
+ * 🔴 **Un'unità ferma non mostra la rotta — e lo stato è quello che il modello produce davvero.**
  *
- * È il caso che nessun test teneva fermo, ed è quello che un'implementazione ingenua sbaglia: la vista di
- * un'unità che non si muove ha comunque `PlannedCell` e `PlannedPath` valorizzati.
+ * `bMoving` falso implica `PlannedCell == Cell`: è esattamente la condizione in cui il rettangolo di
+ * destinazione finirebbe sotto l'unità.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteHiddenWhenStandingTest,
 	"RefactorTactics.HUD.RouteIsHiddenForAStandingUnit",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHudRouteHiddenWhenStandingTest::RunTest(const FString&)
 {
+	// Lo stato di un'unità ferma, come `HasPlannedNormalMove()` lo consente: destinazione = cella, e
+	// nessuna rotta composita. Costruirlo altrimenti sarebbe inventare un input.
 	FRTIntentView Ferma;
 	Ferma.bMoving = false;
+	Ferma.OwnerCell = FRTCellId(1, 0, 0);
+	Ferma.PlannedCell = FRTCellId(1, 0, 0);
 
-	// ⛔ I dati della rotta CI SONO: è esattamente la condizione in cui la lettura ingenua sbaglia.
-	Ferma.PlannedCell = FRTCellId(5, 0, 0);
-	Ferma.PlannedPath.Add(FRTCellId(0, 0, 0));
-	Ferma.PlannedPath.Add(FRTCellId(3, 0, 0));
-	Ferma.PlannedPath.Add(FRTCellId(5, 0, 0));
+	const FRTPlannedRoutePresentation Rotta = ARTHUD::ComposePlannedRoute(Ferma, MakeRouteTestMap());
 
-	const FRTPlannedRoutePresentation Rotta = ARTHUD::ComposePlannedRoutePresentation(Ferma);
+	TestFalse(TEXT("⛔ nessuna rotta, e nessun rettangolo, per un'unita' ferma"), Rotta.bShow);
 
-	TestFalse(TEXT("⛔ nessuna rotta per un'unita' che non si muove, anche se la porta"), Rotta.bShow);
-
-	// ⚠️ L'altra metà resta calcolata comunque, ed è corretto: `bRouteComesFromTheView` descrive la vista,
-	// non autorizza il disegno. Chi consuma legge `bShow` per primo — è la stessa forma di
-	// `FRTIntentPresentation`, dove «`bShow` falso significa nessuna riga, e i campi accanto non vanno letti».
-	TestTrue(TEXT("e la descrizione della rotta resta coerente col dato"), Rotta.bRouteComesFromTheView);
+	// ⛔ **Il contratto della struct**: `bShow` falso significa che i campi accanto non vanno letti, ed è
+	// la stessa forma di `FRTIntentPresentation`. Qui si verifica che sia vero, non che sia dichiarato:
+	// senza, una stesura potrebbe riempire `PathCells` e lasciare a chi disegna il compito di ignorarle.
+	TestEqual(TEXT("e le celle restano vuote, non «da ignorare»"), Rotta.PathCells.Num(), 0);
 
 	return true;
 }
 
 /**
- * Un'unità che si muove mostra la rotta. È la metà ovvia, e serve come controllo:
- * senza, una regola che risponde sempre «no» passerebbe il test di sopra.
- */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteShownWhenMovingTest,
-	"RefactorTactics.HUD.RouteIsShownForAMovingUnit",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHudRouteShownWhenMovingTest::RunTest(const FString&)
-{
-	FRTIntentView InMovimento;
-	InMovimento.bMoving = true;
-	InMovimento.PlannedCell = FRTCellId(2, 0, 0);
-
-	TestTrue(TEXT("l'unita' che si muove mostra la rotta"),
-		ARTHUD::ComposePlannedRoutePresentation(InMovimento).bShow);
-
-	return true;
-}
-
-/**
- * 🔴 **Una cella sola non è una rotta: si ricade sul ricalcolo.**
+ * La rotta della vista si usa quando ha almeno un segmento. È il confine SOPRA della soglia, e insieme
+ * al test successivo la fissa da entrambi i lati.
  *
- * Il confine sotto: con una cella chi disegna non produce nessun segmento, quindi usare la rotta della
- * vista lascerebbe l'unità **senza** rotta visibile. Il sintomo di questo difetto è un'assenza, e le
- * assenze non si notano guardando lo schermo.
+ * ⚠️ Le celle si confrontano una per una, non solo di numero: un'implementazione che ricalcolasse
+ * comunque produrrebbe un percorso della stessa lunghezza fra le stesse due estremità, e un test che
+ * contasse soltanto passerebbe.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteOneCellFallsBackTest,
-	"RefactorTactics.HUD.OneCellIsNotARouteAndFallsBack",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteUsesViewRouteTest,
+	"RefactorTactics.HUD.RouteUsesTheViewRouteWhenItHasASegment",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHudRouteOneCellFallsBackTest::RunTest(const FString&)
+bool FRTHudRouteUsesViewRouteTest::RunTest(const FString&)
 {
-	FRTIntentView Vuota;
-	Vuota.bMoving = true;
-	TestFalse(TEXT("nessuna cella: si ricalcola"),
-		ARTHUD::ComposePlannedRoutePresentation(Vuota).bRouteComesFromTheView);
+	// Una rotta COMPOSITA: passa da (0,1,0), che l'A* non sceglierebbe per andare da (0,0,0) a (2,0,0).
+	// È il caso dei waypoint, cioè la ragione per cui la vista porta una rotta propria.
+	FRTIntentView Composita;
+	Composita.bMoving = true;
+	Composita.OwnerCell = FRTCellId(0, 0, 0);
+	Composita.PlannedCell = FRTCellId(2, 0, 0);
+	Composita.PlannedPath.Add(FRTCellId(0, 0, 0));
+	Composita.PlannedPath.Add(FRTCellId(0, 1, 0));
+	Composita.PlannedPath.Add(FRTCellId(2, 0, 0));
+
+	const FRTPlannedRoutePresentation Rotta = ARTHUD::ComposePlannedRoute(Composita, MakeRouteTestMap());
+
+	TestTrue(TEXT("l'unita' che si muove mostra la rotta"), Rotta.bShow);
+	if (!TestEqual(TEXT("e sono le tre celle della vista, non un ricalcolo"), Rotta.PathCells.Num(), 3))
+	{
+		return false;
+	}
+	TestTrue(TEXT("⛔ compreso il waypoint che l'A* non avrebbe scelto"),
+		Rotta.PathCells.Contains(FRTCellId(0, 1, 0)));
+
+	return true;
+}
+
+/**
+ * 🔴 **Una cella sola non è una rotta: si ricalcola.**
+ *
+ * Il confine SOTTO. Con una cella chi disegna non produce nessun segmento, quindi usarla lascerebbe
+ * l'unità **senza** rotta visibile — e il sintomo di quel difetto è un'assenza, che non si nota
+ * guardando lo schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteOneCellIsRecomputedTest,
+	"RefactorTactics.HUD.OneCellIsNotARouteAndIsRecomputed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudRouteOneCellIsRecomputedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Mappa = MakeRouteTestMap();
 
 	FRTIntentView UnaSola;
 	UnaSola.bMoving = true;
-	UnaSola.PlannedPath.Add(FRTCellId(0, 0, 0));
-	TestFalse(TEXT("⛔ una cella sola e' la sola origine, non una rotta: si ricalcola"),
-		ARTHUD::ComposePlannedRoutePresentation(UnaSola).bRouteComesFromTheView);
+	UnaSola.OwnerCell = FRTCellId(0, 0, 0);
+	UnaSola.PlannedCell = FRTCellId(2, 0, 0);
+	UnaSola.PlannedPath.Add(FRTCellId(0, 0, 0)); // solo l'origine
 
-	// ⛔ Asserzione di controllo: la decisione non dipende da `bShow`, altrimenti questo test misurerebbe
-	// la regola sbagliata. Un'unità ferma con una sola cella dà la stessa risposta.
-	FRTIntentView FermaUnaSola;
-	FermaUnaSola.bMoving = false;
-	FermaUnaSola.PlannedPath.Add(FRTCellId(0, 0, 0));
-	TestFalse(TEXT("e la risposta non cambia se l'unita' e' ferma"),
-		ARTHUD::ComposePlannedRoutePresentation(FermaUnaSola).bRouteComesFromTheView);
+	const FRTPlannedRoutePresentation Rotta = ARTHUD::ComposePlannedRoute(UnaSola, Mappa);
+
+	TestTrue(TEXT("si mostra: l'unita' si muove"), Rotta.bShow);
+
+	// ⛔ Il ricalcolo ha prodotto un percorso VERO, non la singola cella che la vista portava.
+	TestTrue(TEXT("⛔ una cella sola non basta: si ricalcola, e il percorso ha piu' di una cella"),
+		Rotta.PathCells.Num() > 1);
+	TestTrue(TEXT("e arriva alla destinazione pianificata"),
+		Rotta.PathCells.Contains(FRTCellId(2, 0, 0)));
+
+	// Nessuna rotta affatto: stesso ramo, stessa risposta.
+	FRTIntentView Vuota;
+	Vuota.bMoving = true;
+	Vuota.OwnerCell = FRTCellId(0, 0, 0);
+	Vuota.PlannedCell = FRTCellId(2, 0, 0);
+	TestTrue(TEXT("e con nessuna cella si ricalcola ugualmente"),
+		ARTHUD::ComposePlannedRoute(Vuota, Mappa).PathCells.Num() > 1);
 
 	return true;
 }
 
 /**
- * Due celle bastano: è il confine sopra, e insieme al precedente fissa la soglia da entrambi i lati.
+ * Una mappa nulla non fa cadere niente: il ricalcolo torna a mani vuote, e chi disegna non disegna.
  *
- * ⚠️ Due test separati e non uno: una soglia misurata da un lato solo passa anche se è spostata di uno
- * nella direzione non provata.
+ * ⚠️ È il caso che `DrawHUD` può davvero incontrare — `Map` arriva da `ARTHexMapActor::FindInWorld`, che
+ * può non trovare nulla — e una funzione pura deve rispondere invece di presupporre.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteTwoCellsAreEnoughTest,
-	"RefactorTactics.HUD.TwoCellsAreEnoughToBeARoute",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudRouteNullMapTest,
+	"RefactorTactics.HUD.RouteWithoutAMapIsEmptyNotACrash",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHudRouteTwoCellsAreEnoughTest::RunTest(const FString&)
+bool FRTHudRouteNullMapTest::RunTest(const FString&)
 {
-	FRTIntentView Due;
-	Due.bMoving = true;
-	Due.PlannedPath.Add(FRTCellId(0, 0, 0));
-	Due.PlannedPath.Add(FRTCellId(1, 0, 0));
+	FRTIntentView V;
+	V.bMoving = true;
+	V.OwnerCell = FRTCellId(0, 0, 0);
+	V.PlannedCell = FRTCellId(2, 0, 0);
 
-	TestTrue(TEXT("due celle sono un segmento, cioe' una rotta disegnabile"),
-		ARTHUD::ComposePlannedRoutePresentation(Due).bRouteComesFromTheView);
+	const FRTPlannedRoutePresentation Rotta = ARTHUD::ComposePlannedRoute(V, nullptr);
+
+	TestTrue(TEXT("la decisione di mostrare non dipende dalla mappa"), Rotta.bShow);
+	TestEqual(TEXT("ma senza mappa non c'e' percorso da disegnare"), Rotta.PathCells.Num(), 0);
 
 	return true;
 }

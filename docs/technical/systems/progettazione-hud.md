@@ -888,8 +888,8 @@ misurasse. Questa tabella è parte della grammatica quanto le liste: chi impleme
 |---|---|---|
 | **etichetta** | c'è un piano | **Confirmed · Predicted · Uncertain** |
 | **linea al bersaglio** | `if (View.bHasTarget)` | **Predicted · Uncertain** |
-| rotta | `if (View.bMoving)` | solo Uncertain |
-| destinazione | `if (View.bMoving)` | solo Uncertain |
+| rotta | `Rotta.bShow` *(c)* | solo Uncertain |
+| destinazione | `Rotta.bShow` *(c)* | solo Uncertain |
 | waypoint | vedi nota *(b)* | quasi sempre Uncertain |
 | preview scatto | `if (View.bDashing)` | solo Uncertain |
 
@@ -910,8 +910,13 @@ Da cui tre conseguenze operative:
   imposta `PlannedAttackCell` e lascia `PlannedAttackTarget` nullo, mentre `ARTHUD` calcola `bHasTarget`
   solo dal target-unità: quel piano è classificato `Confirmed` pur avendo un bersaglio. Oggi si rende come
   un `Guard`, e il DTO non porta la cella bersagliata.
-- *(b)* **I waypoint stanno fuori da `if (bMoving)`**, e il piano può conservarli con la destinazione
-  riportata sulla cella di partenza: possono quindi comparire su un intento *non* incerto.
+- *(b)* **I waypoint stanno fuori dalla condizione della rotta**, e il piano può conservarli con la
+  destinazione riportata sulla cella di partenza: possono quindi comparire su un intento *non* incerto.
+- *(c)* ⌫ **La condizione si chiamava `if (View.bMoving)` e ora è `Rotta.bShow`**, dove `Rotta` viene da
+  `ARTHUD::ComposePlannedRoute` ([#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184)).
+  La regola **non è cambiata** — `bShow` *è* `View.bMoving` — ma la decisione vive ora in una funzione pura
+  con i suoi test (`RefactorTactics.HUD.Route*`), invece che dentro `DrawHUD`, che non ha copertura
+  headless. Una matrice normativa che punta a un `if` scomparso insegna a cercarlo dove non c'è.
 
 Nessuno dei due è chiuso: sono dichiarati qui perché la prossima resa li incontri prima di scrivere, invece
 di scoprirli in review.
