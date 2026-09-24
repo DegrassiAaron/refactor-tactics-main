@@ -7593,6 +7593,10 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 			Anim.Unit = Src;
 			Anim.Phase = Ev.Phase; // Dash o Move
 			Anim.SourceStatusNames = Ev.SourceStatusNames; // `#3117`: copiati, non riletti dall'unita'
+			// `#3263`: il confine fra i passi VOLUTI e quelli che il terreno ha imposto, troncato al
+			// prefisso osservato come `World` e `Cells`. ⛔ Copiarlo intero direbbe a chi disegna che il
+			// piano arrivava oltre cio' che si vede — il tratto che [D-223] nasconde.
+			Anim.PlannedLength = FMath::Clamp(Ev.PlannedLength, 0, Visible);
 			Anim.World.Reserve(Visible);
 			Anim.Cells.Reserve(Visible);
 			for (int32 i = 0; i < Visible; ++i)
