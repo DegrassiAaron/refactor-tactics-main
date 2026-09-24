@@ -1,5 +1,6 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTPacingLibrary.h"
+#include "Turn/RTTurnManagerInternal.h" // `#3261`: BuildRouteObserverTeams, gli stessi osservatori di Dash e Move
 #include "Turn/RTPlaybackLibrary.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Map/RTHexVisionLibrary.h" // DescribeLineOfSight: la RAGIONE del blocco, non una seconda LOS (#2534)
@@ -2162,6 +2163,12 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 	TMap<ARTUnit*, FRTDisplacementCause>& PushCause = Ctx.PushCause;
 	TMap<ARTUnit*, FRTDisplacementCause>& PullCause = Ctx.PullCause;
 
+	// `#3261`: chi ha il diritto di vedere queste spinte disegnate. Costruiti **una volta per passata** e
+	// **prima** di muovere chiunque, come per Dash e Move: le celle da cui si guarda sono quelle di inizio
+	// fase ([D-223]). ⛔ Rifarlo per unita' renderebbe quadratico un blocco che gira a ogni Blast.
+	const TArray<RTTurnManagerInternal::FRTRouteObserverTeam> PushObserverTeams =
+		RTTurnManagerInternal::BuildRouteObserverTeams(Units);
+
 	// LA CADUTA ([D-319], `#2253`): chi subisce uno spostamento forzato mentre e' `Unbalanced` finisce
 	// `Prone`, e `Unbalanced` si consuma.
 	//
@@ -2820,7 +2827,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					if (Ciglio != nullptr && *Ciglio != Conteso->Cell && !CellaOccupata(*Ciglio))
 					{
 						ApplyForcedDisplacement(Conteso, *Ciglio, KnockFrom[Conteso], PushCause, TEXT("Caduta"),
-							Map, ERTMatchPhase::Blast, *EsitoConteso);
+							Map, PushObserverTeams, ERTMatchPhase::Blast, *EsitoConteso);
 					}
 					ApplyFallEffects(Conteso, /*bMarchia=*/ true, ERTMatchPhase::Blast);
 					if (Ciglio != nullptr) { ImpattoSuPrimario(Conteso, *EsitoConteso, *Ciglio); }
@@ -2835,7 +2842,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, KFinal[a], KnockFrom[T], PushCause,
 				bCaduto ? TEXT("Caduta") : (bScartato ? TEXT("Scarto") : TEXT("Spinta")),
-				Map, ERTMatchPhase::Blast, Esito);
+				Map, PushObserverTeams, ERTMatchPhase::Blast, Esito);
 
 			// #2430: gli effetti DOPO lo spostamento, cosi' la voce nomina la cella dove l'unita' e' finita
 			// e non quella da cui e' partita.
@@ -2958,7 +2965,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 					if (CiglioC != nullptr && *CiglioC != ContesoP->Cell && !CellaOccupata(*CiglioC))
 					{
 						ApplyForcedDisplacement(ContesoP, *CiglioC, PullToward[ContesoP], PullCause,
-							TEXT("Caduta"), Map, ERTMatchPhase::Blast, *EsitoP);
+							TEXT("Caduta"), Map, PushObserverTeams, ERTMatchPhase::Blast, *EsitoP);
 					}
 					ApplyFallEffects(ContesoP, /*bMarchia=*/ true, ERTMatchPhase::Blast);
 					if (CiglioC != nullptr) { ImpattoSuPrimario(ContesoP, *EsitoP, *CiglioC); }
@@ -2971,7 +2978,7 @@ void ARTTurnManager::ApplyDisplacements(FRTBlastContext& Ctx)
 			const ERTMoveOutcome Esito = Trovato != nullptr ? *Trovato : ERTMoveOutcome::Displaced;
 			const bool bCaduto = EsitoEUnaCaduta(Esito);
 			ApplyForcedDisplacement(T, PFinal[a], PullToward[T], PullCause,
-				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, ERTMatchPhase::Blast, Esito);
+				bCaduto ? TEXT("Caduta") : TEXT("Trazione"), Map, PushObserverTeams, ERTMatchPhase::Blast, Esito);
 
 			// #2430: `spec` §3 dice **spostamento forzato**, non «spinta» — una caduta da trazione applica
 			// gli stessi effetti. E' la stessa ragione per cui `PullOverOpenLedgeStartsFall` esiste.
