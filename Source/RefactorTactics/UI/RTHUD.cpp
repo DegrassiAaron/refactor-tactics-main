@@ -877,10 +877,14 @@ void ARTHUD::DrawHUD()
 	// ⚠️ **Se un giorno si vorra' sostituire questa raccolta con un gesto unico** — un
 	// `GatherAuthoritativeIntents(World)` che faccia il giro al posto di qui e di `rt.Debug.DrawIntent`, che e'
 	// la stessa sequenza — deve restituire `FRTPlannedIntent` e **non** `FRTIntentView` gia' filtrata. Il ramo
-	// autobattle (`:993-1000`) chiama `FilterForTeam(Intent.TeamId, { Intent })` una volta per UNITA', e ha
-	// bisogno del `TeamId` autorevole di ciascun intento; il commento a `:989-992` spiega perche' due chiamate
-	// sull'insieme intero produrrebbero doppioni. Un confine che consegnasse solo viste gia' filtrate
-	// toglierebbe l'ingresso a quel ramo.
+	// non presidiato di `ComposeVisibleIntentViews` chiama `FilterForTeam(Intent.TeamId, { Intent })` una
+	// volta per UNITA', e ha bisogno del `TeamId` autorevole di ciascun intento; la stessa funzione spiega
+	// perche' due chiamate sull'insieme intero produrrebbero doppioni. Un confine che consegnasse solo viste
+	// gia' filtrate toglierebbe l'ingresso a quel ramo.
+	//
+	// ⌫ **I numeri di riga che questa nota portava sono stati tolti, non aggiornati.** Indicavano il ramo
+	// dentro `DrawHUD`, e `#2184` lo ha spostato in una funzione: un puntatore a riga invecchia a ogni
+	// modifica del file sopra di se', mentre un nome regge finche' la funzione esiste.
 	UGameplayStatics::GetAllActorsOfClass(this, ARTUnit::StaticClass(), Actors);
 
 	// ⚠️ **`ComputePlannedHitMarks` non si chiama piu' QUI** (`#2288`): il suo unico consumatore era il nome

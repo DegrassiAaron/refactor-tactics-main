@@ -23,18 +23,39 @@
 // (`AutomationTest.cpp:2163`) ed è case-insensitive — dieci asserzioni della fetta 1 di #2184 non
 // fissavano le maiuscole, e l'ha trovato la code review, non la suite.
 //
-// ── TABELLA DELLE ATTESE DI MUTAZIONE ────────────────────────────────────────────────────────────────
+// ── TABELLA DELLE ATTESE DI MUTAZIONE, E CIÒ CHE HANNO DAVVERO PRODOTTO ──────────────────────────────
 // Scritta **prima** di lanciare, come le fette 2 e 3 di #2184 hanno stabilito: mutare la regola più ovvia
 // misura la regola più ovvia, e nella fetta 1 quattro reticenze sopravvissero perché ne fu mutata una sola.
 //
-//   # | mutazione su `ARTHUD::ComposeVisibleIntentViews`          | test atteso ROSSO
-//  ---|-----------------------------------------------------------|------------------------------------
-//   1 | invertire il ramo: `if (bUnattendedSession)` → `if (!…)`   | PresidiataNascondeIlNemicoNonRivelato
-//     |                                                           | + NonPresidiataMostraEntrambeLeSquadre
-//   2 | ramo non presidiato: `FilterForTeam(Intent.TeamId, …)`     | NonPresidiataNonDuplicaIlRivelato
-//     | → due domande di squadra sull'insieme intero               |
-//   3 | ramo presidiato: `PlayerTeamId` → `Intent.TeamId`          | PresidiataNascondeIlNemicoNonRivelato
-//   4 | accodare in ordine inverso (`Insert(…, 0)`)                | NonPresidiataConservaLOrdineDIngresso
+// ⌫ **La prima stesura di questa tabella era imprecisa in tre punti, e la code review li ha misurati.**
+// Nominava test che non esistono (etichette descrittive invece dei nomi registrati), descriveva la
+// mutazione 1 a partire da uno stato che non è quello spedito, e la 3 come `PlayerTeamId → Intent.TeamId`,
+// che **non compila**: nel ramo presidiato `Intent` non è dichiarato. Una tabella che non si può rieseguire
+// non è evidenza — è una promessa. Qui sotto c'è ciò che è stato eseguito davvero.
+//
+//   # | mutazione su `ARTHUD::ComposeVisibleIntentViews`            | rosso atteso              | esito
+//  ---|-------------------------------------------------------------|---------------------------|------
+//   1 | togliere il `!` da `if (!bUnattendedSession)`                | HideUnrevealedEnemy…      | 4/4 ⚠️
+//     |   → i due rami si scambiano                                  |  + ShowBothTeams…         |
+//   2 | sostituire il ciclo per unità con due domande di squadra     | ShowBothTeams…            | 3 rossi
+//     |   `FilterForTeam(0, Authoritative)` + `FilterForTeam(1, …)`  |  (incluso l'atteso)       |
+//   3 | ramo presidiato: `PlayerTeamId` → letterale `1`              | HideUnrevealedEnemy…      | 1, esatto
+//   4 | `Views.Insert(…, 0)` invece di `Views.Append(…)`             | KeepInputOrder            | 1, esatto
+//   5 | ramo presidiato: `PlayerTeamId` → letterale `0`              | FollowTheObserverTeamNot… | 1, esatto
+//
+// 🔑 **La 5 è quella che la code review ha reso necessaria, e misura il buco che aveva trovato**: prima
+// del test `FollowTheObserverTeamNotZero`, cablare `0` al posto del parametro non faceva cadere NIENTE —
+// tutti i test passavano `PlayerTeamId = 0`. Una mutazione che sopravvive è una regola che nessuno tiene.
+//
+// I nomi per esteso sono `RefactorTactics.HUD.VisibleIntentViews…` — quelli passati a
+// `IMPLEMENT_SIMPLE_AUTOMATION_TEST` qui sotto, non parafrasi.
+//
+// ⚠️ La mutazione 1 ha prodotto **più** rossi dell'atteso (tutti e quattro): l'attesa era un minimo, non
+// un'uguaglianza, e scambiare i due rami rompe ogni proprietà del file. Registrato perché una sorpresa in
+// eccesso va scritta quanto una in difetto.
+//
+// ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run. Senza quel controllo la suite
+// girerebbe sul binario precedente e il rosso — o il verde — direbbe il falso.
 //
 // Le quattro sono reticenze o precedenze, cioè la categoria che entrambe le fette precedenti hanno
 // mostrato essere la più fragile. Nessuna è un conteggio: sono tutte proprietà.
@@ -143,6 +164,40 @@ bool FRTHudVisibleIntentsUnattendedTest::RunTest(const FString&)
 	int32 Occorrenze3 = 0;
 	for (const int32 X : Id) { if (X == 3) { ++Occorrenze3; } }
 	TestEqual(TEXT("⛔ l'unita' RIVELATA compare una volta sola, non due"), Occorrenze3, 1);
+
+	return true;
+}
+
+/**
+ * 🔴 **La prospettiva è il PARAMETRO, non il letterale `0`.**
+ *
+ * ⌫ Aggiunto dopo la code review, che ha misurato il buco: i primi test passavano tutti
+ * `PlayerTeamId = 0`, e nel ramo non presidiato il parametro è ignorato per costruzione. Un'implementazione
+ * che avesse scritto `FilterForTeam(0, Authoritative)` — ignorando l'argomento — li avrebbe passati tutti.
+ * La mutazione che sostituiva `PlayerTeamId` con `1` cadeva, quindi il parametro era usato; ma la **suite**
+ * non lo diceva, e una regola che regge solo sotto mutazione non è pinnata.
+ *
+ * Qui l'osservatore è la squadra `1`: la simmetria si rovescia, e ciò che prima era nascosto è visibile.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVisibleIntentsOtherTeamTest,
+	"RefactorTactics.HUD.VisibleIntentViewsFollowTheObserverTeamNotZero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVisibleIntentsOtherTeamTest::RunTest(const FString&)
+{
+	TArray<FRTPlannedIntent> Autorevoli;
+	Autorevoli.Add(PianoDi(/*CellaX=*/ 1, /*TeamId=*/ 0, /*bRevealed=*/ false, TEXT("Avanza")));
+	Autorevoli.Add(PianoDi(/*CellaX=*/ 2, /*TeamId=*/ 1, /*bRevealed=*/ false, TEXT("Attacca")));
+
+	// Osservatore = squadra 1. L'unità 2 è la SUA, l'unità 1 è il nemico non rivelato.
+	const TArray<int32> Id = IdDi(
+		ARTHUD::ComposeVisibleIntentViews(Autorevoli, /*PlayerTeamId=*/ 1, /*bUnattendedSession=*/ false));
+
+	TestTrue(TEXT("la squadra 1 vede la PROPRIA unita'"), Id.Contains(2));
+	TestFalse(TEXT("⛔ e NON vede il nemico non rivelato della squadra 0"), Id.Contains(1));
+
+	// ⛔ È l'asserzione che distingue il parametro dal letterale: con `FilterForTeam(0, …)` cablato,
+	// l'esito sarebbe esattamente rovesciato.
+	TestEqual(TEXT("una sola vista concessa"), Id.Num(), 1);
 
 	return true;
 }
