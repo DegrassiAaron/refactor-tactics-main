@@ -1,10 +1,16 @@
-// Le ultime due decisioni di presentazione dentro `ARTHUD::DrawHUD`: il colore della terna degli slot e
-// la headline di fine partita.
+// Due decisioni di presentazione uscite da `ARTHUD::DrawHUD`: il colore della terna degli slot e la
+// headline di fine partita.
 //
 // Perché esistono (#2184): entrambe vivevano nel metodo che il motore chiama ogni fotogramma e che **non
-// ha copertura headless**. Sono l'ultimo residuo estraibile — la verifica di chiusura del 2026-09-05 ha
-// classificato i 29 condizionali rimasti e queste due sono le sole decisioni che siano pure funzioni del
-// modello; il resto sono guardie di camera, null, CVar, o scelte che leggono `Map`.
+// ha copertura headless**. La verifica di chiusura del **2026-09-05** classificava i 29 condizionali *di
+// allora* e dava queste due per le sole decisioni pure rimaste; il resto erano guardie di camera, null,
+// CVar, o scelte che leggono `Map`.
+//
+// ⌫ **Questa riga diceva «sono l'ultimo residuo estraibile», e non lo erano.** Lo stesso giorno `#2386`
+// ha aggiunto a `DrawHUD` la scelta della prospettiva da cui chiedere le viste d'intento, che è anch'essa
+// una pura funzione del modello ed è uscita il 2026-09-24 in `ComposeVisibleIntentViews`. Il difetto non
+// era la classificazione: era il tempo verbale. 🔑 **Una verifica di chiusura misura uno stato che altre
+// issue muovono**, quindi si data e si rifà — non si scrive al presente come se fosse una proprietà.
 //
 // 🔴 **La terna è lo stesso schema della barra abilità.** `ComposeSlotLines` produce già
 // `FRTSlotLine{Text, bOccupied}` ed è testata, ma il **colore derivato da `bOccupied`** era rimasto nel

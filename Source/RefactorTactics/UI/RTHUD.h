@@ -744,7 +744,9 @@ public:
 	 *
 	 * ⚠️ **`FilterForTeam` non si tocca.** Questa funzione decide *chi chiede*, non *cosa l'osservatore ha
 	 * diritto di sapere*: quella risposta resta in `URTIntentPrivacyLibrary`, e `ARTPlayerState::TeamIdOf`
-	 * resta l'unica porta per «di chi e' la vista» ([`D-242`] punto 5).
+	 * resta l'unica porta per «di chi e' la vista» ([`D-285`], che le da' quel nome assorbendo
+	 * `ARTHUD::ViewerTeamIdOf`; il debito che ha chiuso — il letterale `PlayerTeamId = 0` che alimentava
+	 * quattro filtri di privacy — e' [`D-242`] punto 5).
 	 *
 	 * ⚠️ **Vale finche' il client e' locale.** In rete (`M10`) uno spettatore che riceve i piani di entrambe
 	 * le squadre e' un client che li POSSIEDE: la' questa raccolta dovra' essere lato server, o non esistere.

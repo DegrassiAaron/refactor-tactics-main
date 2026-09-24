@@ -122,8 +122,13 @@ bool FRTHudVisibleIntentsAttendedTest::RunTest(const FString&)
 	TestTrue(TEXT("il nemico RIVELATO c'e'"), Id.Contains(3));
 	TestFalse(TEXT("⛔ il nemico NON rivelato non compare fra le viste"), Id.Contains(2));
 
-	// ⛔ **Asserzione di controllo**: se la funzione tornasse sempre vuoto, le tre righe sopra passerebbero
-	// per due terzi e il test direbbe che la privacy funziona su una lista che non esiste.
+	// ⛔ **Asserzione di controllo, e misura gli ECCESSI**: le tre righe sopra vedono le assenze, non le
+	// presenze di troppo — un doppione di `1` o di `3`, o una quarta voce comparsa dal nulla, le
+	// passerebbe tutte e tre. È il conteggio che le chiude.
+	//
+	// ⌫ La prima stesura diceva «un ritorno sempre vuoto passerebbe per due terzi»: è aritmeticamente
+	// falso — con `Viste` vuoto le due `TestTrue` cadono e passa solo la `TestFalse`, cioè una su tre, e il
+	// test è già rosso senza questa riga. Il caso da cui difende è l'opposto.
 	TestEqual(TEXT("e le viste concesse sono esattamente due"), Viste.Num(), 2);
 
 	return true;

@@ -997,9 +997,11 @@ void ARTHUD::DrawHUD()
 		// sia ammorbidita: `AGENTS.md` §4 vuole che l'autorizzazione sia un DATO, e il dato e'
 		// `IsUnattendedSession()`, che il `RTMatchBootstrapper` scrive da `bAutobattle`.
 		//
-		// ⌫ **Questa riga diceva «chiamata DUE VOLTE», e si contraddiceva venti righe sotto** con «una
-		// domanda per UNITA', non due per squadra». Descriveva una stesura precedente: oggi nel ramo non
-		// presidiato le chiamate sono **una per intento**. Corretto il 2026-09-24 insieme all'estrazione.
+		// ⌫ **Questa riga diceva «chiamata DUE VOLTE», e non e' mai stata vera.** Non descriveva una stesura
+		// precedente, come la prima correzione aveva supposto: `git show b9f53bc1` — `feat(2386)`, che ha
+		// introdotto il ramo non presidiato — aggiunge nello STESSO diff sia quel commento sia il ciclo per
+		// unita', sostituendo un'unica `FilterForTeam(PlayerTeamId, Authoritative)`. Due chiamate non ci sono
+		// mai state, e il commento si contraddiceva col suo stesso ramo. Corretto il 2026-09-24.
 		//
 		// ⛔ **E `ARTPlayerState::TeamIdOf` resta l'UNICA porta** per la domanda «di chi e' la vista?». Un
 		// `bIsSpectator` che `FilterForTeam` onorasse avrebbe aggiunto una seconda risposta a quella domanda,
