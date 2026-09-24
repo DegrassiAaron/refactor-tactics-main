@@ -1101,17 +1101,14 @@ void ARTHUD::DrawHUD()
 				DrawText(Label, Color, LabelAnchor.X - LabelW * 0.5f, LabelAnchor.Y - 36.f, nullptr, 0.85f);
 			}
 
-			// Percorso pianificato: la rotta composita se la vista la porta, altrimenti lo stesso A* dell'autorita'.
-			if (View.bMoving)
+			// Percorso pianificato: se mostrarlo e con quali celle lo decide `ComposePlannedRoute` (#2184),
+			// che i suoi test interrogano senza montare un HUD. Qui resta il solo tracciamento.
+			if (const FRTPlannedRoutePresentation Rotta = ComposePlannedRoute(View, Map); Rotta.bShow)
 			{
-				const TArray<FRTCellId> PathCells = (View.PlannedPath.Num() >= 2)
-					? View.PlannedPath
-					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
-
-				for (int32 i = 1; i < PathCells.Num(); ++i)
+				for (int32 i = 1; i < Rotta.PathCells.Num(); ++i)
 				{
-					const FVector A = Project(HexCellWorld(PathCells[i - 1], Origin, HexSize, LayerH));
-					const FVector B = Project(HexCellWorld(PathCells[i], Origin, HexSize, LayerH));
+					const FVector A = Project(HexCellWorld(Rotta.PathCells[i - 1], Origin, HexSize, LayerH));
+					const FVector B = Project(HexCellWorld(Rotta.PathCells[i], Origin, HexSize, LayerH));
 					if (A.Z > 0.f && B.Z > 0.f)
 					{
 						DrawIntentLine(FVector2D(A.X, A.Y), FVector2D(B.X, B.Y), Color, Style);
@@ -1122,7 +1119,8 @@ void ARTHUD::DrawHUD()
 				if (DestScreen.Z > 0.f)
 				{
 					// 🔴 **La destinazione NON e' graduata, e la prima stesura la graduava — sbagliando due
-					// volte.** Questo blocco vive dentro `if (View.bMoving)`, e `ClassifyPlan` restituisce
+					// volte.** Questo blocco vive dentro `Rotta.bShow`, che e' `View.bMoving` deciso da
+					// `ComposePlannedRoutePresentation`, e `ClassifyPlan` restituisce
 					// `Uncertain` ogni volta che `bMoving`: il livello qui e' **sempre** lo stesso, quindi
 					// attenuare non distingue niente e toglie soltanto leggibilita' — il rettangolo passava da
 					// alpha `0.35` a `0.105`, in permanenza, per ogni unita' in movimento. E' lo stesso
@@ -1654,6 +1652,29 @@ TArray<FRTIntentView> ARTHUD::ComposeVisibleIntentViews(const TArray<FRTPlannedI
 		Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
 	}
 	return Views;
+}
+
+FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoute(const FRTIntentView& View, const URTHexMapAsset* Map)
+{
+	FRTPlannedRoutePresentation Out;
+
+	// ⛔ **Non `PlannedCell.IsValid()`**: la domanda e' «questo intento e' un movimento normale?», e la
+	// risposta la da' `bMoving`, che il modello deriva da `HasPlannedNormalMove()` — la regola intera.
+	// Letta come presenza del dato, la destinazione coinciderebbe con la cella e il rettangolo finirebbe
+	// sotto l'unita' ferma.
+	Out.bShow = View.bMoving;
+	if (!Out.bShow)
+	{
+		return Out;
+	}
+
+	// Due celle: una rotta di una sola cella e' la sola origine, e chi disegna — che unisce le celle a
+	// coppie partendo da `i = 1` — non ne ricaverebbe nessun segmento. Sotto la soglia si ricalcola.
+	Out.PathCells = (View.PlannedPath.Num() >= 2)
+		? View.PlannedPath
+		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
+
+	return Out;
 }
 
 FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)
