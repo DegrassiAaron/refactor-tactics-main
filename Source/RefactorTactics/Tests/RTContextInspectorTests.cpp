@@ -10,6 +10,9 @@
 #include "PieSession/RTPieVerdictOverlay.h" // la posa con cui questa non deve collidere
 #include "Replay/RTReplayPrivacyLibrary.h"
 #include "Tests/RTReflectedFieldsForTest.h"
+#include "Tests/RTHudGeometryForTest.h" // il keep-out centrale, e l'intersezione di due rettangoli
+#include "Styling/CoreStyle.h"             // lo stile da cui l'altezza di riga e' derivata
+#include "Styling/SlateTypes.h"            // FTextBlockStyle
 #include "Turn/RTHexSim.h"
 #include "Turn/RTIntentPrivacyLibrary.h" // FRTPlannedIntent completo: il test ne costruisce un array vuoto
 #include "Turn/RTTurnLog.h"
@@ -615,6 +618,142 @@ bool FRTContextInspectorTruncationGuardsTest::RunTest(const FString&)
 	TestEqual(TEXT("senza riga di cella si rende comunque il tetto"),
 		RSenza.Num(), static_cast<int32>(URTContextInspectorWidgetBase::MaxRighe));
 	TestFalse(TEXT("e la prima riga non e' vuota"), RSenza[0].IsEmpty());
+
+	return true;
+}
+
+namespace
+{
+	/**
+	 * L'altezza di una riga di testo alla risoluzione di riferimento, in pixel.
+	 *
+	 * ⚠️ **E' una DERIVAZIONE dichiarata, non una misura su una resa**, e il test qui sotto la difende
+	 * invece di fidarsene: lo stile `NormalText` porta Roboto Regular a **10 pt**
+	 * (`FStarshipCoreStyle`, che e' cio' che `FCoreStyle::Get()` restituisce davvero — `Get()` inoltra a
+	 * `FAppStyle::Get()`). Da li': `10 pt` a 96 DPI → `((10*64)*96+36)/72 = 853` in 26.6 → **13 px** di
+	 * ppem; Roboto ha `unitsPerEm 2048` e `hhea` ascender 1900 / descender -500 → `height = 2400`;
+	 * `FT_MulFix(2400, 13*64*65536/2048) = 975` → `(975+32)>>6` = **15 px**.
+	 *
+	 * 🔑 L'anello fragile e' il **punto di partenza**, non l'aritmetica: se qualcuno cambia lo stile, i
+	 * 15 px non valgono piu'. Per questo il test asserisce la dimensione del font **letta a runtime**,
+	 * cosi' un cambio di stile diventa rosso qui invece che a schermo.
+	 */
+	constexpr float AltezzaRigaPx = 15.f;
+
+	/** I punti da cui `AltezzaRigaPx` e' derivata. Se cambiano, la derivazione va rifatta. */
+	constexpr float PuntiFontAttesi = 10.f;
+
+	/** L'altezza del pannello, calcolata dai DATI della posa — non da una resa. */
+	float AltezzaPannello(const FRTContextInspectorPlacement& Posa, int32 Righe, int32 CapoRiga)
+	{
+		const float Bordo = Posa.BorderPaddingY * 2.f;
+		const float Intestazione = AltezzaRigaPx + Posa.HeaderSpacing;
+		return Bordo + Intestazione + AltezzaRigaPx * static_cast<float>(Righe + CapoRiga);
+	}
+}
+
+/**
+ * **Il pannello resta sotto il keep-out centrale** — il ⛔ che `PIE-DEBUG-CONTEXT` dichiara dal
+ * 2026-09-24, reso misurabile invece che alluso.
+ *
+ * 🔴 **Il criterio precedente era inosservabile, e questo rischiava di esserlo uguale.** *«Non deve
+ * coprire la board»* e' stato ritirato perche' non rispettabile senza cambiare la posa (#3319); il suo
+ * sostituto — *«non deve invadere il centro»* — sarebbe stato la stessa cosa finche' «il centro» non
+ * aveva un referente e l'altezza non era un dato. Ora il referente e' `RTCenterFree::CenterKeepOut()` e
+ * l'altezza si calcola da `FRTContextInspectorPlacement`.
+ *
+ * ⛔ **E il pannello NON ci stava.** Con `MaxRighe = 12` l'altezza era `219 px` contro un budget di
+ * `192`: dentro il keep-out **sempre**, perche' i dodici slot esistono anche a pannello quasi vuoto.
+ * Il tetto e' sceso a **9**, e questo test e' la ragione per cui non puo' risalire in silenzio.
+ *
+ * 🔑 **Un capo-riga di tolleranza, e non e' teorico**: con l'osservatore onnisciente la riga
+ * `[tecnico]` supera la larghezza utile e va a capo. Dieci righe sarebbero entrate senza margine e
+ * sarebbero uscite al primo `rt.Debug.ContextInspector -1` — cioe' proprio l'argomento con cui la
+ * seduta `U59` ha riempito il pannello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorFitsUnderTheKeepOutTest,
+	"RefactorTactics.Debug.ContextInspectorFitsUnderTheKeepOut",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorFitsUnderTheKeepOutTest::RunTest(const FString&)
+{
+	URTContextInspectorWidgetBase* Pannello = NewObject<URTContextInspectorWidgetBase>();
+	if (!TestNotNull(TEXT("il pannello si costruisce"), Pannello)) { return false; }
+	const FRTContextInspectorPlacement Posa = Pannello->Placement();
+
+	// —— L'assunzione su cui poggia tutta l'aritmetica, letta a runtime invece che creduta.
+	const FTextBlockStyle& Stile = FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>(TEXT("NormalText"));
+	TestEqual(TEXT("il font e' quello su cui l'altezza di riga e' stata derivata"),
+		Stile.Font.Size, PuntiFontAttesi);
+
+	// —— Il budget: dal bordo inferiore del keep-out al fondo del pannello.
+	const RTCenterFree::FRect KeepOut = RTCenterFree::CenterKeepOut();
+	const float Budget = (RTCenterFree::RefHeight - KeepOut.Bottom) - Posa.Margin;
+	// Anti-vacuita': con un budget nullo o negativo ogni `<=` qui sotto sarebbe una domanda diversa.
+	if (!TestTrue(TEXT("il keep-out lascia una fascia bassa"), Budget > 0.f)) { return false; }
+
+	const float Altezza = AltezzaPannello(Posa, URTContextInspectorWidgetBase::MaxRighe, 0);
+	TestTrue(*FString::Printf(TEXT("il pannello (%.0f px) sta nella fascia sotto il keep-out (%.0f px)"),
+		Altezza, Budget), Altezza <= Budget);
+
+	// ⛔ E con UN capo-riga: e' la tolleranza che ha deciso 9 invece di 10, e senza questo asserto
+	// qualcuno potrebbe risalire a 10 restando verde.
+	const float ConCapoRiga = AltezzaPannello(Posa, URTContextInspectorWidgetBase::MaxRighe, 1);
+	TestTrue(*FString::Printf(TEXT("e ci sta anche con un capo-riga (%.0f px)"), ConCapoRiga),
+		ConCapoRiga <= Budget);
+
+	// —— Il RETTANGOLO, che e' cio' che #3319 chiedeva: non un enum di allineamento.
+	const RTCenterFree::FRect Rett{
+		RTCenterFree::RefWidth - Posa.Margin - Posa.MaxWidth,
+		RTCenterFree::RefHeight - Posa.Margin - Altezza,
+		RTCenterFree::RefWidth - Posa.Margin,
+		RTCenterFree::RefHeight - Posa.Margin };
+
+	TestFalse(*FString::Printf(TEXT("il pannello %s non tocca il keep-out %s"),
+		*RTCenterFree::Descrivi(Rett), *RTCenterFree::Descrivi(KeepOut)),
+		RTCenterFree::SiToccano(Rett, KeepOut));
+
+	// ⚠️ **Limite dichiarato, e va letto insieme al verde qui sopra**: `MaxWidth` e `MaxDesiredWidth`
+	// sono tetti sulla dimensione DESIDERATA, e nessuno ritaglia. Questo rettangolo e' quindi il caso
+	// peggiore che i dati consentono, non la resa. Un contenuto che eccedesse i tetti uscirebbe dal
+	// bordo senza che questo test lo veda: quella meta' resta di PIE.
+
+	return true;
+}
+
+/**
+ * **Il pannello e l'overlay del verdetto non si toccano, misurato sulle COLONNE** — non su un enum.
+ *
+ * 🔑 **Perche' le colonne e non i rettangoli interi.** Nessuno dei due widget dichiara un'altezza
+ * fissa: quella del Context Inspector si calcola dal tetto di righe, quella di `URTPieVerdictOverlay`
+ * dipende dal testo del prompt e non e' un dato. Due rettangoli non si toccano se sono separati su
+ * **anche un solo** asse, e qui l'asse separato e' X — quindi la non-collisione si prova per intero
+ * senza inventare l'altezza che manca. ⌫ La prima stesura del gate confrontava
+ * `Posa.Horizontal != PosaVerdetto.Horizontal`: vero anche per un pannello largo 2000 px.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorColumnsDoNotOverlapTest,
+	"RefactorTactics.Debug.ContextInspectorColumnsDoNotOverlap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTContextInspectorColumnsDoNotOverlapTest::RunTest(const FString&)
+{
+	URTContextInspectorWidgetBase* Pannello = NewObject<URTContextInspectorWidgetBase>();
+	if (!TestNotNull(TEXT("il pannello si costruisce"), Pannello)) { return false; }
+	const FRTContextInspectorPlacement Posa = Pannello->Placement();
+	const FRTPieOverlayPlacement PosaVerdetto = URTPieVerdictOverlay::Placement();
+
+	// Il pannello e' ancorato a destra; l'overlay a sinistra. Le due colonne, in pixel di riferimento.
+	const float PannelloSinistra = RTCenterFree::RefWidth - Posa.Margin - Posa.MaxWidth;
+	const float PannelloDestra = RTCenterFree::RefWidth - Posa.Margin;
+	const float VerdettoSinistra = PosaVerdetto.LeftMargin;
+	const float VerdettoDestra = PosaVerdetto.LeftMargin + PosaVerdetto.MaxWidth;
+
+	// Anti-vacuita': due colonne di larghezza nulla non si toccherebbero per costruzione.
+	TestTrue(TEXT("entrambe le colonne hanno larghezza"),
+		PannelloDestra > PannelloSinistra && VerdettoDestra > VerdettoSinistra);
+
+	TestTrue(*FString::Printf(
+		TEXT("la colonna del pannello (%.0f..%.0f) sta a destra di quella del verdetto (%.0f..%.0f)"),
+		PannelloSinistra, PannelloDestra, VerdettoSinistra, VerdettoDestra),
+		PannelloSinistra >= VerdettoDestra);
 
 	return true;
 }

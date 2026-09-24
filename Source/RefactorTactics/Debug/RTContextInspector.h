@@ -227,6 +227,18 @@ struct FRTContextInspectorPlacement
 	EVerticalAlignment Vertical = VAlign_Bottom;
 	/** Distanza dai bordi destro e inferiore, in pixel di Slate. */
 	float Margin = 24.f;
+
+	/**
+	 * Il padding del bordo e lo stacco sotto l'intestazione — **dati**, non letterali dentro la Slate.
+	 *
+	 * 🔑 **Promossi a dato il 2026-09-24 (#3319), e non e' cosmesi**: senza di loro l'altezza del
+	 * pannello non e' calcolabile da questa struct, e senza l'altezza il rettangolo del pannello ha tre
+	 * lati su quattro — cioe' nessun gate puo' dire se il pannello invada il keep-out centrale. La
+	 * larghezza era gia' un dato; l'altezza non lo era, ed e' l'asse su cui il pannello si muove.
+	 */
+	float BorderPaddingX = 12.f;
+	float BorderPaddingY = 9.f;
+	float HeaderSpacing = 6.f;
 	/** ⛔ Il tetto esiste perche' il CENTRO resta libero: la board non si copre, per contratto. */
 	float MaxWidth = 460.f;
 };
@@ -307,8 +319,20 @@ public:
 	 * `2c9b7ea75^` l'header non dichiarava nessuna eccezione d'accesso per i test. Un test avrebbe
 	 * dovuto riscrivere `12` a mano, cioe' il numero che invecchia da solo. Reso pubblico e spostato in
 	 * `VisibleLines` con #3320.
+	 *
+	 * 🔴 **Era DODICI fino al 2026-09-24, e dodici non ci stavano (#3319).** Il pannello e'
+	 * `VAlign_Bottom`: la sua altezza decide se entra nel keep-out centrale, e dodici righe lo portavano
+	 * a `18 + 21 + 12x15 = 219 px` contro un budget di `192` — dentro il riquadro che nessuno puo'
+	 * toccare, **sempre**, perche' i dodici slot esistono anche quando il pannello mostra due righe.
+	 * ⚠️ E NON si e' risolto con un `MaxDesiredHeight`: quello limita la dimensione *desiderata* e non
+	 * ritaglia, quindi il fondo nero si sarebbe rimpicciolito lasciando il testo disegnato fuori — un
+	 * gate rettangolare verde mentre lo schermo peggiora.
+	 * 🔑 **Nove e non dieci**, ed e' la tolleranza a un capo-riga: `RTContextInspectorFitsUnderTheKeepOut`
+	 * lo pinna. Con l'osservatore onnisciente la riga `[tecnico]` supera la larghezza utile e va a capo,
+	 * e dieci righe non lascerebbero spazio per quella. Il prezzo e' dichiarato: il marcatore
+	 * `… e altre N righe` mostra un `N` piu' grande.
 	 */
-	static constexpr int32 MaxRighe = 12;
+	static constexpr int32 MaxRighe = 9;
 
 protected:
 

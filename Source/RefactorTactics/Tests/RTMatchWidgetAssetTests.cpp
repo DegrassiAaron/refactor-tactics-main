@@ -16,6 +16,7 @@
 // geometria, come fa il gemello.
 
 #include "Misc/AutomationTest.h"
+#include "Tests/RTHudGeometryForTest.h"
 #include "Blueprint/UserWidget.h"
 #include "Blueprint/WidgetBlueprintGeneratedClass.h"
 #include "Blueprint/WidgetTree.h"
@@ -581,47 +582,13 @@ bool FRTFastDecisionBindingsWiredTest::RunTest(const FString&)
  */
 namespace RTCenterFree
 {
-	/** La risoluzione a cui il DoD di `#613` chiede coerenza. Cambiarla cambia il significato del gate. */
-	constexpr float RefWidth = 1920.f;
-	constexpr float RefHeight = 1080.f;
+	// ⌫ **La meta' PURA di questo namespace e' uscita di qui il 2026-09-24** — costanti, `FRect`,
+	// `CenterKeepOut`, `Intersezione`, `SiToccano`, `Descrivi` — e vive in
+	// `Tests/RTHudGeometryForTest.h`. La ragione e' #3319: il Context Inspector ha bisogno dello stesso
+	// keep-out e non e' una zona dell'HUD, e due copie dello stesso numero divergono in silenzio.
+	// 🔑 Cio' che RESTA qui dipende da UMG — `RettangoloDellaZona` legge un `FAnchorData` — e un header
+	// di `Tests/` e' compilato in ogni target: chi vuole un rettangolo non deve pagare UMG per averlo.
 
-	/** Il lato del riquadro centrale che nessuna zona puo' toccare, in frazione dello schermo. */
-	constexpr float CenterFraction = 0.6f;
-
-	struct FRect
-	{
-		float Left = 0.f;
-		float Top = 0.f;
-		float Right = 0.f;
-		float Bottom = 0.f;
-
-		float Width() const { return Right - Left; }
-		float Height() const { return Bottom - Top; }
-	};
-
-	/** Il riquadro che deve restare sgombro, in pixel di riferimento. */
-	FRect CenterKeepOut()
-	{
-		const float MargineX = RefWidth * (1.f - CenterFraction) * 0.5f;
-		const float MargineY = RefHeight * (1.f - CenterFraction) * 0.5f;
-		return FRect{ MargineX, MargineY, RefWidth - MargineX, RefHeight - MargineY };
-	}
-
-	/** Intersezione: larghezza o altezza <= 0 significa che i due riquadri non si toccano. */
-	FRect Intersezione(const FRect& A, const FRect& B)
-	{
-		return FRect{
-			FMath::Max(A.Left, B.Left),
-			FMath::Max(A.Top, B.Top),
-			FMath::Min(A.Right, B.Right),
-			FMath::Min(A.Bottom, B.Bottom) };
-	}
-
-	bool SiToccano(const FRect& A, const FRect& B)
-	{
-		const FRect I = Intersezione(A, B);
-		return I.Width() > 0.f && I.Height() > 0.f;
-	}
 
 	/**
 	 * Il rettangolo che il Canvas assegnera' alla zona a `RefWidth x RefHeight`.
@@ -672,11 +639,6 @@ namespace RTCenterFree
 		return R;
 	}
 
-	FString Descrivi(const FRect& R)
-	{
-		return FString::Printf(TEXT("X %.0f..%.0f  Y %.0f..%.0f  (%.0fx%.0f)"),
-			R.Left, R.Right, R.Top, R.Bottom, R.Width(), R.Height());
-	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPanelsLeaveTheCenterFreeTest,
