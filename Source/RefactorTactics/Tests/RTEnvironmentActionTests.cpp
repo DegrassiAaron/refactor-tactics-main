@@ -3217,6 +3217,352 @@ bool FRTStructuresRedundantFaceWarningDeclaresConsequenceTest::RunTest(const FSt
 }
 
 // =====================================================================================================
+// `#3280` — il colpo all'ARCO ha un evento di playback, e ne ha UNO PER VOCE.
+//
+// 🔑 Quattro gate, e tre di essi esistono perche' [D-437] li ha chiesti per nome. Il quarto — l'arco
+// SPENTO — nasce da una clausola della stessa decisione: *«l'evento porti lo STATO, non un booleano
+// dedotto, o erediteta' la bugia il giorno in cui qualcuno chiamera' `SetArcState(Inactive)`»*.
+// =====================================================================================================
+
+namespace
+{
+	/** Un ponte fra due piani, e chi lo sfonda sparando a chi ci sta sopra. */
+	struct FRTEnvArcScenario
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* MapActor = nullptr;
+		ARTTurnManager* TM = nullptr;
+		ARTUnit* Breacher = nullptr;
+		ARTUnit* Foe = nullptr;
+		FRTCellId Ground{0, 0, 0};
+		FRTCellId Upper{1, 0, 1};
+		bool bValid = false;
+	};
+
+	/**
+	 * Lo scenario condiviso dei gate d'arco: la stessa scena di `Structures.Bridge.DamagedInPlayedTurn`,
+	 * con il verso reso PARAMETRO.
+	 *
+	 * ⛔ **`bBidirectional` non e' una comodita': e' il caso che nessuna fixture rappresentava.** Le due
+	 * fixture di ponte esistenti costruiscono entrambe l'arco bidirezionale, quindi un gate che contasse
+	 * «due eventi» sarebbe indistinguibile da uno che conta «un evento per ponte» — e [D-437] chiede
+	 * esattamente quella distinzione.
+	 */
+	FRTEnvArcScenario EnvMakeArcScenario(bool bBidirectional, int32 InStructurePower)
+	{
+		FRTEnvArcScenario S;
+		S.World = MakeEnvWorld();
+		if (!S.World) { return S; }
+		S.MapActor = SpawnEnvMap(S.World);
+		if (!S.MapActor || !S.MapActor->MapAsset) { return S; }
+
+		S.MapActor->MapAsset->AddOrUpdateCell(FRTHexCellData(S.Upper));
+		S.MapActor->MapAsset->SortCells();
+		S.MapActor->MapAsset->AddTransition(S.Ground, S.Upper, /*Cost*/ 1,
+			ERTHexTransitionKind::Bridge, bBidirectional);
+
+		S.Breacher = SpawnEnvUnit(S.World, 0, S.Ground);
+		S.Foe = SpawnEnvUnit(S.World, 1, S.Upper);
+		S.TM = S.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!S.Breacher || !S.Foe || !S.TM) { return S; }
+
+		S.Breacher->Abilities[0]->Def.Effects.Add(
+			FRTActionEffectSpec(ERTActionEffect::DamageStructure, InStructurePower));
+		S.Breacher->PlannedAbilityIndex = 0;
+		S.Breacher->PlannedAttackTarget = S.Foe;
+
+		S.bValid = true;
+		return S;
+	}
+
+	/** Gli eventi di timeline che sono colpi a un arco. */
+	TArray<FRTResolvedEvent> EnvArcHitEvents(const ARTTurnManager* TM)
+	{
+		TArray<FRTResolvedEvent> Out;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::ArcHit) { Out.Add(Ev); }
+		}
+		return Out;
+	}
+
+	/** Le voci di TurnLog che `IsArcHit` riconosce. Si CHIEDE al predicato, non si riscrive. */
+	TArray<FRTTurnLogEntry> EnvArcHitEntries(const ARTTurnManager* TM)
+	{
+		TArray<FRTTurnLogEntry> Out;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (URTTurnLogLibrary::IsArcHit(E)) { Out.Add(E); }
+		}
+		return Out;
+	}
+}
+
+/**
+ * Un evento per VOCE di TurnLog, quindi DUE per un ponte bidirezionale — `#3280`, [D-437].
+ *
+ * 🔴 **Il difetto che chiude: un ponte poteva crollare e la timeline non lo sapeva.** `IsStructureHit`
+ * copriva `CoverDamaged`/`CoverDestroyed` e non `BridgeDamaged`/`BridgeDestroyed`, quindi un arco abbattuto
+ * non aveva ne' evento, ne' cue, ne' un'assenza dichiarabile — cioe' nemmeno qualcosa che
+ * `Presentation.AbsenceCensusIsPinned` potesse sorvegliare.
+ *
+ * 🔑 **I due eventi sono PINNATI, non subiti.** `DamageArc` scala l'integrita' da entrambi i capi perche' un
+ * ponte colpito una volta non regga il doppio da una parte, e [D-437] ha deciso che i due restino: `State` e
+ * `Integrity` sono `UPROPERTY` per arco **diretto** e `IsArcTraversable` e' **direzionale**, quindi due versi
+ * con integrita' diversa danno esiti diversi — una passerella crollata in salita e intatta in discesa. Un
+ * evento per arco dovrebbe scegliere in silenzio quale verso racconta il ponte.
+ *
+ * ⚠️ **Il rapporto 1:1 e' asserito contro il predicato, non contro un numero scritto a mano**: e' la stessa
+ * disciplina di `Turn.StructureHitEventMatchesTurnLogEntry` — riscrivere il criterio da un lato ne farebbe
+ * una seconda copia, e i due canali tornerebbero a poter divergere ([D-098]).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnArcHitEmitsOneEventPerLoggedEntryTest,
+	"RefactorTactics.Turn.ArcHitEmitsOneEventPerLoggedEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnArcHitEmitsOneEventPerLoggedEntryTest::RunTest(const FString&)
+{
+	// Integrita' di catalogo, colpo 20: il ponte incassa e **regge**, cosi' la misura riguarda il rapporto
+	// fra i canali e non la distruzione.
+	FRTEnvArcScenario S = EnvMakeArcScenario(/*bBidirectional=*/ true, /*InStructurePower=*/ 20);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	RunEnvTurn(S.TM);
+
+	const TArray<FRTTurnLogEntry> Voci = EnvArcHitEntries(S.TM);
+	const TArray<FRTResolvedEvent> Eventi = EnvArcHitEvents(S.TM);
+
+	// ⛔ PREMESSA: il colpo ha davvero raggiunto l'arco. Senza, tutto il resto confronterebbe due zeri —
+	// che e' il gate verde per costruzione che [[oracolo]] chiama «cieco alla differenza».
+	if (!TestEqual(TEXT("⛔ premessa: due voci di TurnLog, una per verso"), Voci.Num(), 2))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// --- IL FATTO -------------------------------------------------------------------------------------
+	TestEqual(TEXT("🔴 e DUE eventi di playback: uno per voce"), Eventi.Num(), 2);
+	TestEqual(TEXT("🔴 il rapporto e' 1:1 contro il predicato, non contro un numero scritto a mano"),
+		Eventi.Num(), Voci.Num());
+
+	// I due eventi sono lo stesso arco letto nei due versi: la coppia dell'uno e' quella dell'altro,
+	// scambiata. Senza questa riga «due eventi» starebbe in piedi anche con due archi diversi.
+	if (Eventi.Num() == 2)
+	{
+		TestEqual(TEXT("il capo del primo e' la meta del secondo"), Eventi[0].ArcFrom, Eventi[1].ArcTo);
+		TestEqual(TEXT("e viceversa: e' un arco solo, percorso nei due sensi"),
+			Eventi[1].ArcFrom, Eventi[0].ArcTo);
+		TestEqual(TEXT("l'esito e' quello della voce: danneggiato, non abbattuto"),
+			static_cast<int32>(Eventi[0].EnvironmentOutcome),
+			static_cast<int32>(ERTEnvironmentOutcome::BridgeDamaged));
+		TestEqual(TEXT("e `Amount` e' l'integrita' RESIDUA, come per la copertura"),
+			Eventi[0].Amount, Voci[0].Amount);
+	}
+
+	// ⛔ **E NON e' un `StructureHit`**: il valore e' proprio, ed e' la decisione. Se qualcuno allargasse
+	// `IsStructureHit` agli archi, un ponte crollato verrebbe disegnato col tratto del graffio — il
+	// consumatore confronta `CoverDestroyed`.
+	TestEqual(TEXT("⛔ e nessun colpo a struttura: un arco non e' un bordo esagonale"),
+		EnvCountTimelineType(S.TM, ERTResolvedEventType::StructureHit), 0);
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * E un arco a SENSO UNICO ne produce **uno solo** — `#3280`, [D-437].
+ *
+ * ⛔ **Obbligatorio, ed e' il caso che nessuna fixture rappresentava**: le due fixture di ponte esistenti
+ * costruiscono entrambe l'arco bidirezionale. Senza questo gate, *«un evento per voce»* e *«due eventi per
+ * ponte»* sarebbero indistinguibili — e il prossimo che legge il caso bidirezionale scambierebbe le due
+ * voci per un raddoppio da collassare.
+ *
+ * 🔑 **Il numero non e' «due per ponte»: e' uno per arco diretto ancora in piedi.** Un arco a senso unico ne
+ * da' uno; un ponte con un verso gia' caduto pure, perche' `DamageArc` salta i `Destroyed`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnArcHitIsEmittedForAOneWayArcTest,
+	"RefactorTactics.Turn.ArcHitIsEmittedForAOneWayArc",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnArcHitIsEmittedForAOneWayArcTest::RunTest(const FString&)
+{
+	FRTEnvArcScenario S = EnvMakeArcScenario(/*bBidirectional=*/ false, /*InStructurePower=*/ 20);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	// ⛔ PREMESSA: l'arco e' davvero a senso unico. Con `AddTransition` bidirezionale questo test
+	// misurerebbe lo stesso caso di quello sopra, e il suo «uno» sarebbe falso.
+	TestNotNull(TEXT("⛔ premessa: l'andata esiste"),
+		URTHexArcLibrary::FindArc(S.MapActor->MapAsset, S.Ground, S.Upper));
+	TestNull(TEXT("⛔ premessa: e il ritorno NO"),
+		URTHexArcLibrary::FindArc(S.MapActor->MapAsset, S.Upper, S.Ground));
+
+	RunEnvTurn(S.TM);
+
+	const TArray<FRTTurnLogEntry> Voci = EnvArcHitEntries(S.TM);
+	const TArray<FRTResolvedEvent> Eventi = EnvArcHitEvents(S.TM);
+
+	TestEqual(TEXT("🔴 una voce sola: c'e' un arco diretto solo"), Voci.Num(), 1);
+	TestEqual(TEXT("🔴 e UN evento, non due: il conteggio segue le voci, non i ponti"), Eventi.Num(), 1);
+
+	if (Eventi.Num() == 1)
+	{
+		TestEqual(TEXT("e porta il verso che esiste"), Eventi[0].ArcFrom, S.Ground);
+		TestEqual(TEXT("verso l'altro capo"), Eventi[0].ArcTo, S.Upper);
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * L'evento porta l'ARCO, non un'unita' — `#3280`.
+ *
+ * 🔑 **Gemello di `Turn.StructureHitEventCarriesEdgeNotActor`, e sorveglia lo stesso scivolamento**: il
+ * giorno in cui qualcuno mettesse in `TargetStableUnitId` l'unita' piu' vicina, il fatto smetterebbe di
+ * riguardare l'arco e comincerebbe a riguardare una persona.
+ *
+ * ⚠️ **Il `Foe` sul ponte c'e' apposta e non e' arredamento**: e' l'unita' che un consumatore sbagliato
+ * ci metterebbe. Senza qualcuno la' sopra, questo gate sarebbe verde per assenza.
+ *
+ * ⛔ **E i due capi sono COPIATI, non ricalcolati**: chi consuma non deve chiedere alla mappa quale arco
+ * sia stato colpito — e' il divieto che [D-278] impone all'intero layer.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnArcHitCarriesTheArcNotAnActorTest,
+	"RefactorTactics.Turn.ArcHitCarriesTheArcNotAnActor",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnArcHitCarriesTheArcNotAnActorTest::RunTest(const FString&)
+{
+	FRTEnvArcScenario S = EnvMakeArcScenario(/*bBidirectional=*/ true, /*InStructurePower=*/ 20);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	RunEnvTurn(S.TM);
+
+	const TArray<FRTResolvedEvent> Eventi = EnvArcHitEvents(S.TM);
+	if (!TestTrue(TEXT("⛔ premessa: almeno un colpo all'arco e' stato emesso"), Eventi.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// ⛔ PREMESSA, e si legge DOPO il turno perche' e' li' che l'identita' nasce: gli `StableUnitId` li
+	// assegna la risoluzione, non lo spawn. ⚠️ Letta prima, questa riga valeva `0` — e allora
+	// `TargetStableUnitId == 0` non avrebbe distinto *«nessuno»* da *«il Foe»*, cioe' il gate sarebbe stato
+	// verde **per la ragione sbagliata**. E' lo stesso ordine del gemello `StructureHitEventCarriesEdgeNotActor`.
+	const int32 IdDelFoe = S.Foe->StableUnitId;
+	if (!TestTrue(TEXT("⛔ premessa: il Foe ha un'identita' stabile non nulla"), IdDelFoe != 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Voci = EnvArcHitEntries(S.TM);
+	for (int32 I = 0; I < Eventi.Num(); ++I)
+	{
+		// 🔴 Il bersaglio e' un ARCO: non ha uno `StableUnitId`, e il campo resta zero.
+		TestEqual(TEXT("🔴 `TargetStableUnitId` resta 0: il bersaglio e' un arco"),
+			Eventi[I].TargetStableUnitId, 0);
+		TestNotEqual(TEXT("⛔ e in particolare NON e' l'unita' sull'altro capo"),
+			Eventi[I].TargetStableUnitId, IdDelFoe);
+		// L'attaccante invece c'e': ha tirato lui.
+		TestTrue(TEXT("e `SourceStableUnitId` porta chi ha colpito"), Eventi[I].SourceStableUnitId != 0);
+		// I due capi arrivano COPIATI dalla voce, non ricalcolati.
+		if (Voci.IsValidIndex(I))
+		{
+			TestEqual(TEXT("il capo `From` e' quello della voce"), Eventi[I].ArcFrom, Voci[I].SrcCell);
+			TestEqual(TEXT("e il capo `To` pure"), Eventi[I].ArcTo, Voci[I].TgtCell);
+		}
+		// ⛔ E i campi della COPERTURA restano al loro default: un arco non e' un bordo, e scriverli
+		// entrambi renderebbe ambigua la geometria per chi consuma.
+		TestEqual(TEXT("⛔ `StructureCell` resta al default: non e' un bordo esagonale"),
+			Eventi[I].StructureCell, FRTCellId());
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * Un arco SPENTO che incassa senza cadere non e' «abbattuto» — `#3280`, [D-437].
+ *
+ * 🔴 **La bugia era gia' nel TurnLog, e questa fetta l'avrebbe portata a schermo.** `MakeChange` pone
+ * `bBroken = Edge.State != ERTHexArcState::Active`, e `DamageArc` salta **solo** i `Destroyed`: ∴ un arco
+ * `Inactive` che incassa senza cadere arrivava con `bBroken == true`, e il produttore scriveva
+ * `BridgeDestroyed` per un ponte ancora in piedi.
+ *
+ * 🔑 **Finche' nessuno leggeva quella voce, il difetto stava fermo. Da `#3280` ne deriva un EVENTO**, cioe'
+ * un segno a schermo: [D-437] lo dice per intero — *«l'evento porti lo STATO, non un booleano dedotto, o
+ * erediterete la bugia il giorno in cui qualcuno chiamera' `SetArcState(Inactive)`»*. La correzione e' alla
+ * **fonte**: l'esito lo decide `Change.State`, e l'evento lo copia.
+ *
+ * ⚠️ **Oggi il caso e' irraggiungibile in partita** — nessun chiamante di produzione di `SetArcState` — e
+ * questo test lo raggiunge chiamandola direttamente. ⛔ Non e' un trucco: e' l'unico modo di esercitare un
+ * ramo che esiste, e' legale, ed e' editabile da chi autora una mappa.
+ *
+ * ⛔ **Cosa questo test NON dice**: che lo stato `Inactive` arrivi al playback. Non arriva —
+ * `ERTEnvironmentOutcome` non ha un valore per «spento», e il TurnLog che lo trasporta e' serializzato con
+ * un `FormatId`. Cio' che e' garantito e' che l'esito non MENTA, non che sia completo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBridgeInactiveArcDamagedIsNotDestroyedTest,
+	"RefactorTactics.Structures.Bridge.InactiveArcDamagedIsNotDestroyed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBridgeInactiveArcDamagedIsNotDestroyedTest::RunTest(const FString&)
+{
+	// Colpo 20 su integrita' di catalogo: l'arco incassa e **regge**. Se cadesse, `BridgeDestroyed` sarebbe
+	// la risposta giusta e il test misurerebbe l'assenza di un difetto che c'e'.
+	FRTEnvArcScenario S = EnvMakeArcScenario(/*bBidirectional=*/ true, /*InStructurePower=*/ 20);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	// L'arco si SPEGNE prima del turno: e' lo stato che `MakeChange` confondeva con «rotto».
+	URTHexArcLibrary::SetArcState(S.MapActor->MapAsset, S.Ground, S.Upper, ERTHexArcState::Inactive);
+
+	const FRTHexEdge* Prima = URTHexArcLibrary::FindArc(S.MapActor->MapAsset, S.Ground, S.Upper);
+	if (!TestTrue(TEXT("⛔ premessa: l'arco e' SPENTO, non abbattuto"),
+		Prima != nullptr && Prima->State == ERTHexArcState::Inactive))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+	const int32 IntegritaPrima = Prima->Integrity;
+
+	RunEnvTurn(S.TM);
+
+	const FRTHexEdge* Dopo = URTHexArcLibrary::FindArc(S.MapActor->MapAsset, S.Ground, S.Upper);
+	if (!TestTrue(TEXT("⛔ premessa: l'arco ha incassato ed e' ancora in piedi"),
+		Dopo != nullptr && Dopo->Integrity < IntegritaPrima && Dopo->State != ERTHexArcState::Destroyed))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	const TArray<FRTTurnLogEntry> Voci = EnvArcHitEntries(S.TM);
+	const TArray<FRTResolvedEvent> Eventi = EnvArcHitEvents(S.TM);
+	if (!TestTrue(TEXT("⛔ premessa: il colpo ha prodotto voce ed evento"),
+		Voci.Num() > 0 && Eventi.Num() > 0))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	for (const FRTTurnLogEntry& V : Voci)
+	{
+		TestEqual(TEXT("🔴 la voce dice DANNEGGIATO: lo stato decide, non `bBroken`"),
+			static_cast<int32>(V.Outcome), static_cast<int32>(ERTEnvironmentOutcome::BridgeDamaged));
+	}
+	for (const FRTResolvedEvent& E : Eventi)
+	{
+		TestEqual(TEXT("🔴 e l'evento non eredita la bugia"),
+			static_cast<int32>(E.EnvironmentOutcome),
+			static_cast<int32>(ERTEnvironmentOutcome::BridgeDamaged));
+	}
+	// ⚠️ E lo spegnimento e' RIMASTO: la correzione riguarda la resa dell'esito, non la regola del danno —
+	// che resta il non-goal dichiarato di `#3280`.
+	TestTrue(TEXT("⚠️ l'arco e' ancora spento: nessuna regola di danno e' cambiata"),
+		Dopo->State == ERTHexArcState::Inactive);
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+// =====================================================================================================
 // `#3281` — l'AGGREGATO per bordo, misurato.
 //
 // ⛔ Questo blocco NON decide che cosa `Next Action` debba fare su un fatto che aggrega piu' azioni: una

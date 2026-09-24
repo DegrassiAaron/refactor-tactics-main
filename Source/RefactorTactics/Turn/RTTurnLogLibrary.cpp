@@ -114,6 +114,22 @@ bool URTTurnLogLibrary::IsStructureHit(const FRTTurnLogEntry& Entry)
 	return Esito == ERTEnvironmentOutcome::CoverDamaged || Esito == ERTEnvironmentOutcome::CoverDestroyed;
 }
 
+bool URTTurnLogLibrary::IsArcHit(const FRTTurnLogEntry& Entry)
+{
+	// ⚠️ **`Environment` come il gemello**: un ponte che crolla e' un fatto dell'ambiente anche quando a
+	// tirare e' stata un'unita', ed e' la categoria che la sezione ARCHI di `ApplyEnvironmentChanges` scrive.
+	if (Entry.Category != ERTLogCategory::Environment)
+	{
+		return false;
+	}
+
+	// ⛔ **I due esiti si elencano, per la stessa ragione del gemello**: un `<=` sull'enum legherebbe il
+	// significato all'ORDINE dei valori, e il primo che ne inserisce uno in mezzo cambierebbe questa
+	// risposta senza toccare questa riga.
+	const ERTEnvironmentOutcome Esito = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
+	return Esito == ERTEnvironmentOutcome::BridgeDamaged || Esito == ERTEnvironmentOutcome::BridgeDestroyed;
+}
+
 bool URTTurnLogLibrary::IsEnvironmentalDamage(const FRTTurnLogEntry& Entry)
 {
 	if (Entry.Category != ERTLogCategory::Combat || Entry.UnitId == 0)
