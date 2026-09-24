@@ -25,13 +25,26 @@
 // Scritta prima di lanciare, e — dopo la lezione della fetta 5 — **eseguibile**: ogni riga nomina un test
 // che esiste, parte dal codice spedito, e descrive una mutazione che compila.
 //
-//   # | mutazione su `ARTHUD::ComposePlannedRoute`                | rosso atteso
-//  ---|-----------------------------------------------------------|---------------------------------------
-//   1 | `Out.bShow = View.bMoving;` → `= true;`                    | RouteIsHiddenForAStandingUnit
-//   2 | `Out.bShow = View.bMoving;` → `= !View.bMoving;`           | RouteIsHiddenForAStandingUnit
-//     |                                                           |  + RouteUsesTheViewRouteWhenItHasASegment
-//   3 | `View.PlannedPath.Num() >= 2` → `>= 1`                     | OneCellIsNotARouteAndIsRecomputed
-//   4 | `View.PlannedPath.Num() >= 2` → `>= 3`                     | RouteUsesTheViewRouteWhenItHasASegment
+//   # | mutazione su `ARTHUD::ComposePlannedRoute`                | rosso atteso              | esito
+//  ---|-----------------------------------------------------------|---------------------------|---------
+//   1 | `Out.bShow = View.bMoving;` → `= true;`                    | RouteIsHidden…            | 1, esatto
+//   2 | `Out.bShow = View.bMoving;` → `= !View.bMoving;`           | RouteIsHidden… + Uses…    | 4 rossi
+//   3 | `View.PlannedPath.Num() >= 2` → `>= 1`                     | OneCellIsNot…             | 1, esatto
+//   4 | `View.PlannedPath.Num() >= 2` → `>= 3`                     | RouteUsesTheViewRoute…    | 1, esatto †
+//
+// 🔴 **† La 4 è SOPRAVVISSUTA alla prima esecuzione, ed è il difetto che questa tabella serve a trovare.**
+// Il caso della rotta composita ha **tre** celle, quindi `3 >= 3` restava vero e il test verde: il confine
+// a **due** celle non era coperto da nessuna asserzione. È lo stesso difetto che la fetta 1 di questa issue
+// aveva già pagato — una soglia misurata da un lato solo passa anche quando è spostata di uno. Il caso
+// `DueEsatte` è stato aggiunto **dopo** averlo visto sopravvivere, e con quello la 4 cade.
+//
+// ⚠️ La 2 produce quattro rossi invece dei due attesi: scambiare i rami rompe ogni proprietà del file.
+// L'attesa era un minimo, e una sorpresa in eccesso si registra quanto una in difetto.
+//
+// ⛔ Ogni build di mutazione ha dato `Result: Succeeded` prima della run, e ogni run ha usato il filtro
+// `RefactorTactics.HUD` **intero**: `RefactorTactics.HUD.Route` ne cattura solo due su cinque — due test
+// non cominciano per `Route` — e un filtro che non copre tutti i test darebbe un verde che non significa
+// niente.
 //
 // Le quattro colpiscono una reticenza o un confine. Nessuna è un conteggio: sono tutte proprietà.
 
@@ -114,6 +127,27 @@ bool FRTHudRouteUsesViewRouteTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("⛔ compreso il waypoint che l'A* non avrebbe scelto"),
 		Rotta.PathCells.Contains(FRTCellId(0, 1, 0)));
+
+	// 🔴 **DUE celle esatte: il confine, e la prima stesura non lo copriva.**
+	//
+	// ⌫ Il caso qui sopra ne ha tre, quindi la mutazione «soglia `>= 3`» **sopravviveva**: `3 >= 3` è vero
+	// e il test restava verde. È il difetto che la fetta 1 di questa issue aveva già pagato — una soglia
+	// misurata da un lato solo passa anche quando è spostata di uno.
+	//
+	// Le due celle sono NON adiacenti, ed è ciò che rende l'asserzione capace di distinguere: il ricalcolo
+	// fra le stesse estremità darebbe tre celle, quindi il conteggio separa «rotta della vista» da
+	// «ricalcolo» invece di essere soddisfatto da entrambi.
+	FRTIntentView DueEsatte;
+	DueEsatte.bMoving = true;
+	DueEsatte.OwnerCell = FRTCellId(0, 0, 0);
+	DueEsatte.PlannedCell = FRTCellId(2, 0, 0);
+	DueEsatte.PlannedPath.Add(FRTCellId(0, 0, 0));
+	DueEsatte.PlannedPath.Add(FRTCellId(2, 0, 0)); // salta (1,0,0): il ricalcolo non lo farebbe
+
+	const FRTPlannedRoutePresentation Confine = ARTHUD::ComposePlannedRoute(DueEsatte, MakeRouteTestMap());
+
+	TestEqual(TEXT("⛔ due celle bastano: restano DUE, non diventano il percorso ricalcolato"),
+		Confine.PathCells.Num(), 2);
 
 	return true;
 }
