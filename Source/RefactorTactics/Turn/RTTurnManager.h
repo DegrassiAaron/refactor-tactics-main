@@ -2261,8 +2261,12 @@ protected:
 	 *
 	 * ⛔ **Non riordina e non aggrega.** Consuma `PlaybackFootprints` nell'ordine in cui il resolver le ha
 	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
+	 *
+	 * @return `true` se l'ultima impronta mostrata apre un ATTO NUOVO e il playback deve fermarsi li'
+	 *         (`#3292`). ⚠️ Si ferma **dopo** averla mostrata, come `#2855` prescrive: quelle che il tick
+	 *         avrebbe ancora rivelato restano per la ripresa.
 	 */
-	void RevealPlaybackFootprints(int32 UpTo);
+	bool RevealPlaybackFootprints(int32 UpTo);
 
 	/**
 	 * Rivela i primi `UpTo` colpi a struttura del Blast corrente, senza mai tornare indietro (`#2828`).
@@ -2270,8 +2274,19 @@ protected:
 	 * ⛔ **Non riordina, non aggrega e non ricalcola il bordo**: consuma `PlaybackStructureHits` nell'ordine
 	 * in cui il resolver li ha prodotti, e il bordo lo LEGGE dall'evento. Chiederlo alla mappa sarebbe la
 	 * seconda risposta a una domanda gia' risolta — ed e' il divieto che la issue scrive per intero.
+	 *
+	 * @return `true` se l'ultimo colpo mostrato apre un atto nuovo, come la gemella qui sopra (`#3292`).
 	 */
-	void RevealPlaybackStructureHits(int32 UpTo);
+	bool RevealPlaybackStructureHits(int32 UpTo);
+
+	/**
+	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
+	 *
+	 * 🔑 **Esiste perche' i siti che la chiamano sono TRE**, uno per canale del `Blast`, e quattro righe
+	 * ripetute tre volte sono tre occasioni di dimenticarne una. ⚠️ `PlaybackStepTargetElapsed = -1` e'
+	 * quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
+	 */
+	void PausePlaybackAtActBoundary();
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -3252,6 +3267,25 @@ private:
 	 * che `URTPlaybackLibrary::NextActionBoundary` da' a un indice negativo.
 	 */
 	FName PlaybackStopFromAction;
+
+	/**
+	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque canale del `Blast` — `#3292`.
+	 *
+	 * 🔴 **Esiste perche' l'atto in corso si leggeva da un canale solo, ed era la terza faccia dello stesso
+	 * difetto.** `RequestPlaybackStopAt` congelava `PlaybackAttacks[AttacksShown - 1]`: ∴ dopo essersi
+	 * fermati su un'IMPRONTA, il paragone tornava all'ultimo colpo — un'azione **precedente** — e il colpo
+	 * dello stesso intento che seguiva sembrava aprire un atto nuovo. Due fermate dentro un intento solo,
+	 * che e' precisamente cio' che `#3292` esclude.
+	 *
+	 * ⚠️ **Lo aggiornano i tre canali quando mostrano un fatto con un'azione**, e **solo** allora: un
+	 * `NAME_None` non cambia l'atto in corso. E' la stessa scelta della scansione all'indietro di
+	 * `NextActionBoundary`, che salta i vuoti invece di lasciarsene azzerare.
+	 *
+	 * ⛔ **Non e' `PlaybackStopFromAction`**, benche' si somiglino: quella e' congelata all'armamento e non
+	 * si muove piu'; questa segue la riproduzione. Fonderle riporterebbe il paragone a inseguire il proprio
+	 * bersaglio, che e' il difetto che il congelamento esiste per evitare.
+	 */
+	FName PlaybackLastShownAction;
 
 	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.
 	FVector PBOrigin = FVector::ZeroVector;
