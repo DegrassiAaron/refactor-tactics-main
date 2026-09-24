@@ -161,7 +161,7 @@ namespace RTHexEditor
 	 * SameAnchor        i due estremi sono lo STESSO anchor -> non c'e' lunghezza: e' un CLICK
 	 * DifferentCell     il trascinamento ha attraversato due celle  -> stava disegnando, e ha sbagliato
 	 * DifferentLayer    idem, su due piani                          -> stava disegnando
-	 * NoAxis            le ventiquattro coppie inesprimibili        -> stava disegnando
+	 * NoTacticalAxis    le ventiquattro coppie inesprimibili        -> stava disegnando
 	 * ```
 	 *
 	 * ⚠️ **Prendere anche gli altri sarebbe rubare il gesto al disegno**: chi trascina fra due anchor che
