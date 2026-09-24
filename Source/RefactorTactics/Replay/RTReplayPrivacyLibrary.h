@@ -188,6 +188,42 @@ public:
 	 * E' la **sola** sorgente di verita': `ToPublicTrace` copia leggendo di qui, e
 	 * `RefactorTactics.Replay.Privacy.EveryLoggedFieldIsClassified` rende rosso chi aggiunge un campo senza
 	 * classificarlo.
+	 *
+	 * ## Che cosa vincola `AuditOnly`: l'export, o anche le superfici vive? — `#3308`
+	 *
+	 * 🔑 **Entrambi, e il criterio e' il DESTINATARIO, non la superficie.** [D-276] lo scrive al punto (2):
+	 * i campi audit-only non devono finire *«nella **replica live al nemico**, nell'**export pubblico** o
+	 * nella **riproduzione spettatore**»* — e la prima delle tre e' viva. ∴ il vincolo non si ferma al
+	 * prodotto d'archivio, e chi legge il nome di questa tabella come *«riguarda solo l'export»* legge meno
+	 * di quanto la decisione dica.
+	 *
+	 * ⚠️ **Ma nessuna delle tre e' il combat log del giocatore**, ed e' la ragione per cui quel canale puo'
+	 * stampare `ReactionResponse` — classificato `AuditOnly` — senza violare niente: il suo destinatario
+	 * non e' il nemico, non e' il pubblico e non e' uno spettatore. E' il giocatore stesso, che vede **solo
+	 * le voci** che il confine per-voce di [D-316] gli concede.
+	 *
+	 * 🔴 **I due confini sono domande diverse e non si sostituiscono**: *«questa riga la posso vedere?»*
+	 * (per voce, `FilterEntriesForObserver` / `FRTLogSubject::Frozen`) e *«di questa riga quali colonne?»*
+	 * (per campo, questa tabella). Una superficie viva verso un destinatario **autorizzato** e' governata
+	 * dal primo; una verso un destinatario **non autorizzato** — nemico, pubblico, spettatore — deve
+	 * passare anche dal secondo.
+	 *
+	 * ⛔ **Non e' una regola nuova**: e' la lettura di [D-276] e [D-316] messe accanto. `#3308` chiedeva
+	 * quale delle due governasse una superficie viva, e la risposta e' che dipende da chi guarda.
+	 *
+	 * ⚠️ **L'AC di `#2485` e' piu' STRETTA di questo confine, ed e' locale a quel pannello.** *«Nessun
+	 * campo `AuditOnly` in `PLAYER VIEW`»* vale per il pannello di ispezione: li' la restrizione e'
+	 * **scelta**, non derivata.
+	 *
+	 * 🔑 **E quel pannello li applica ENTRAMBI, il che e' la conferma migliore del criterio.**
+	 * `RTContextInspector.cpp` chiama `FilterEntriesForObserver` — il confine per voce — *e* obbedisce alla
+	 * propria AC sui campi. Due confini sulla stessa superficie, perche' il suo destinatario e' un
+	 * osservatore **arbitrario** scelto da chi ispeziona: non il giocatore che quelle voci le ha vissute.
+	 *
+	 * ⏱️ *`#3308` misurava che `FilterEntriesForObserver` avesse un solo chiamante non di test,
+	 * `RTReplayRecorderLibrary`. Era vero su `940728be` e non lo e' piu': i chiamanti sono due, e il
+	 * secondo e' quel pannello. Rimisurarlo:*
+	 * `grep -rn 'FilterEntriesForObserver' --include=*.cpp Source/RefactorTactics | grep -v /Tests/`
 	 */
 	static const TMap<FName, ERTReplayFieldVisibility>& FieldVisibility();
 
