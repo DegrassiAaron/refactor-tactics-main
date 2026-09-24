@@ -2120,4 +2120,87 @@ bool FRTPushWithoutDamageIsAnimatedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * DUE attaccanti sullo stesso bersaglio: ogni voce di `Combat` dichiara il totale di FASE — `#3271`.
+ *
+ * 🔴 **E' una CARATTERIZZAZIONE, non un contratto.** Pinna il comportamento ATTUALE, che e' il difetto
+ * osservato in seduta PIE: chi guardava ha riferito *«vedo due colpi da 37»* mentre i colpi valgono 21
+ * ciascuno. Quando la decisione sara' presa, questo test cambiera' con essa — ed e' il suo scopo: rendere
+ * concreta una scelta che altrimenti resta descritta.
+ *
+ * 🔑 **Il caso a DUE attaccanti e' quello che ha protetto il difetto finora**: con uno solo,
+ * `BeforeHP - AfterHP` e' davvero il netto di quel colpo e le due formule coincidono. Nessun test del
+ * repository costruiva la scena a due.
+ *
+ * ⚠️ **E il netto PER COLPO non esiste**, che e' il fatto che questa misura porta alla issue:
+ * `URTCombatResolver::ApplyHits` somma i colpi per bersaglio (`DamageByTarget += Attack.Power`) e applica
+ * lo scudo **una volta sola** sul totale — e' l'invariante #3, che lo stadio `TargetSum` del breakdown
+ * nomina. ⛔ Quindi *«il netto per-colpo e' ricavabile dove il danno viene applicato»*, come lo scope della
+ * issue afferma, e' **falso**: non c'e' un valore da leggere, ci sarebbe una regola da inventare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoAttackersOnePhaseAmountTest,
+	"RefactorTactics.HexMatch.TwoAttackersReportThePhaseTotal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTwoAttackersOnePhaseAmountTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	// Due attaccanti di squadra 0 ai lati del bersaglio, entrambi adiacenti: due colpi nella stessa fase.
+	ARTUnit* PrimoA   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* SecondoA = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, 0));
+	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !PrimoA || !SecondoA || !Bersaglio) { DestroyHexMatchWorld(World); return false; }
+	PrimoA->bIsBotControlled = false;
+	SecondoA->bIsBotControlled = false;
+	Bersaglio->bIsBotControlled = false;
+
+	PrimoA->PlannedAbilityIndex = 0;
+	PrimoA->DeclareAttackOnUnit(Bersaglio);
+	SecondoA->PlannedAbilityIndex = 0;
+	SecondoA->DeclareAttackOnUnit(Bersaglio);
+	Bersaglio->ClearPlannedAttack();
+
+	const int32 VitaPrima = Bersaglio->Health;
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	// --- ⛔ LE PREMESSE: due voci di Combat sullo stesso bersaglio ------------------------------------
+	TArray<FRTTurnLogEntry> Colpi;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Combat && E.TgtCell == FRTCellId(1, 0)) { Colpi.Add(E); }
+	}
+	if (!TestEqual(TEXT("⛔ premessa: DUE colpi sullo stesso bersaglio nella stessa fase"), Colpi.Num(), 2))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	const int32 PersiDavvero = VitaPrima - Bersaglio->Health;
+	if (!TestTrue(TEXT("⛔ premessa: il bersaglio ha perso vita"), PersiDavvero > 0))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO, oggi ------------------------------------------------------------------------------
+	//
+	// 🔴 Ogni voce dichiara il **totale di fase**, non il danno del proprio colpo: le due righe sono
+	// identiche e valgono quanto l'intera fase. E' cio' che il feed stampa due volte.
+	TestEqual(TEXT("🔴 la prima voce riporta il TOTALE di fase, non il suo colpo"),
+		Colpi[0].Amount, PersiDavvero);
+	TestEqual(TEXT("🔴 e la seconda riporta lo STESSO totale"), Colpi[1].Amount, PersiDavvero);
+
+	// ⚠️ **E la somma delle due voci vale il DOPPIO di quanto il bersaglio ha perso.** E' la forma piu'
+	// netta del difetto: chi somma il feed per ricostruire il danno subito ottiene un numero che non e'
+	// mai esistito.
+	TestEqual(TEXT("⚠️ la somma delle voci e' il doppio del danno reale"),
+		Colpi[0].Amount + Colpi[1].Amount, PersiDavvero * 2);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
