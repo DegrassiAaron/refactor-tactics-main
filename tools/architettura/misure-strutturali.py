@@ -271,6 +271,14 @@ def fixture_di_flusso(testo):
         profondita += riga.count("{") - riga.count("}")
         if "{" in riga:
             aperta = True
+        # ⛔ **Una DICHIARAZIONE non apre nessun corpo, e va chiusa qui.** `inline void Helper(int32);`
+        # non contiene mai `{`: senza questa riga `corrente` resterebbe agganciata a lei per sempre, la
+        # fixture successiva verrebbe saltata — il blocco d'ingresso vuole `corrente is None` — e ogni
+        # marcatore del resto del file finirebbe attribuito al nome sbagliato. Trovato in code review
+        # riproducendolo, e ora c'e' un caso che lo tiene fermo.
+        elif not aperta and ";" in spoglia(riga):
+            corrente = None
+            continue
         if aperta and profondita <= 0:
             corrente = None
     return nomi
@@ -709,25 +717,60 @@ def autotest():
         return nullptr;
     }
     '''
+    # ⚠️ Il commento IN LINEA e quello a riga intera provano rami diversi (`spoglia` contro
+    # `RE_COMMENTO`), e servono tutti e due: una prima stesura di questi casi metteva la nota **sopra**
+    # l'`inline`, dove viene scartata prima ancora di arrivare a `RE_COMMENTO`, e quel caso non provava
+    # cio' che dichiarava.
     HEADER_SOLO_COMMENTO = '''
-    // Questa nota cita `LockInAndResolve` per spiegare cosa NON fa.
     inline int32 ContaSoltanto(const TArray<int32>& X)
     {
-        return X.Num(); // niente `RunTurn` qui
+        // Questa nota a riga intera cita `LockInAndResolve` per spiegare cosa NON fa.
+        return X.Num(); // e questa lo cita in linea, con `RunTurn` accanto
+    }
+    '''
+    # 🔴 Una DICHIARAZIONE prima della definizione vera: senza il ramo che la chiude, `corrente` resta
+    # agganciata a `Dichiarata` e `PlayOneTurn` non viene mai vista.
+    HEADER_CON_DICHIARAZIONE = '''
+    inline void Dichiarata(int32 X);
+
+    inline void PlayOneTurn(ARTTurnManager* TM)
+    {
+        TM->LockInAndResolve();
+    }
+    '''
+    # 🔴 Due fixture in fila, di cui solo la SECONDA gira il flusso: se `corrente` non si riazzera alla
+    # chiusura della prima, il marcatore della seconda le viene attribuito e il nome esce sbagliato.
+    HEADER_DUE_IN_FILA = '''
+    inline int32 Prima(int32 X)
+    {
+        return X;
+    }
+
+    inline void Seconda(ARTTurnManager* TM)
+    {
+        TM->LockInAndResolve();
     }
     '''
     casi_fixture = [
         ("la fixture che gira il turno e' riconosciuta", fixture_di_flusso(HEADER_VERO), {"PlayOneTurn"}),
-        ("e quella accanto, che non lo gira, NON lo e'",
-         fixture_di_flusso(HEADER_VERO) & {"FirstUnitOfTeam"}, set()),
-        # ⛔ Anti-vacuita': un marcatore in un COMMENTO non e' una chiamata. Senza questo caso la
-        # funzione potrebbe promuovere ogni fixture il cui docstring nomina il flusso — e in questo
-        # repository i docstring lo nominano spesso.
+        # ⛔ Anti-vacuita': un marcatore in un COMMENTO non e' una chiamata — ne' a riga intera ne' in
+        # linea. Senza, la funzione promuoverebbe ogni fixture il cui docstring nomina il flusso, e in
+        # questo repository i docstring lo nominano spesso.
         ("un marcatore citato in un commento non conta", fixture_di_flusso(HEADER_SOLO_COMMENTO), set()),
+        # 🔑 Il riazzeramento di `corrente`: senza, il nome che esce e' `Prima`, non `Seconda`.
+        ("chiusa una fixture, la successiva riparte col proprio nome",
+         fixture_di_flusso(HEADER_DUE_IN_FILA), {"Seconda"}),
+        # 🔑 La dichiarazione senza corpo non deve dirottare il nome.
+        ("una dichiarazione senza corpo non mangia la fixture che segue",
+         fixture_di_flusso(HEADER_CON_DICHIARAZIONE), {"PlayOneTurn"}),
         ("un .cpp che chiama la fixture gira il flusso",
          gira_il_flusso("RTWorldFixtures::PlayOneTurn(TM);", {"PlayOneTurn"}), True),
         ("un .cpp che non la chiama, no",
          gira_il_flusso("World->SpawnActor<ARTUnit>();", {"PlayOneTurn"}), False),
+        # ⛔ Il `(` del confronto non e' decorativo: senza, il solo NOME nominato in un commento o in un
+        # `#include` basterebbe a promuovere il file. Questo caso lo tiene fermo.
+        ("il nome senza parentesi NON basta: serve una chiamata",
+         gira_il_flusso("// vedi PlayOneTurn per il flusso completo", {"PlayOneTurn"}), False),
         # 🔑 Il caso che dimostra che il NETTO non e' l'ALLESTIMENTO: senza fixture note, un file che
         # chiama `PlayOneTurn` resta classificato come allestimento. E' il difetto storico, riprodotto.
         ("senza fixture note, lo stesso .cpp risulta allestimento",
@@ -769,16 +812,25 @@ def main():
                     help="prova `esegui_check` senza leggere l'albero: e' la prova che il gate sa fallire")
     a = ap.parse_args()
 
+    # La console di Windows e' cp1252: senza questo, un `—` in una tabella `--markdown` non stampa
+    # male, fa uscire lo strumento con un UnicodeEncodeError a meta' output. Misurato, non dedotto.
+    #
+    # ⌫ **Stava DOPO il ramo `--autotest`, e quel ramo stampa `✅`/`❌`**: su una console cp1252
+    # `--autotest` moriva con `UnicodeEncodeError` prima del primo caso, cioe' il gate che dimostra che
+    # il gate sa fallire non era eseguibile dove il progetto gira. Difetto preesistente, trovato in code
+    # review il 2026-09-24 mentre se ne aggiungevano i casi, e riprodotto forzando `encoding='cp1252'`
+    # su un sottoprocesso senza `PYTHONIOENCODING`.
+    #
+    # 🔴 **Ed e' un difetto che si nasconde da solo**: chi esporta `PYTHONIOENCODING=utf-8` per leggere
+    # l'output non lo vede mai — ed e' esattamente come mi era sfuggito.
+    for flusso in (sys.stdout, sys.stderr):
+        if hasattr(flusso, "reconfigure"):
+            flusso.reconfigure(errors="replace")
+
     # Prima di qualunque lettura dell'albero: l'autotest non ne ha bisogno, e pretenderlo lo renderebbe
     # ineseguibile proprio dove serve — su un clone senza `origin/main`.
     if a.autotest:
         return autotest()
-
-    # La console di Windows e' cp1252: senza questo, un `—` in una tabella `--markdown` non stampa
-    # male, fa uscire lo strumento con un UnicodeEncodeError a meta' output. Misurato, non dedotto.
-    for flusso in (sys.stdout, sys.stderr):
-        if hasattr(flusso, "reconfigure"):
-            flusso.reconfigure(errors="replace")
 
     repo = Path(__file__).resolve().parents[2]
     temporanee = []
