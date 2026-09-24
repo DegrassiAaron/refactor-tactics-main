@@ -142,6 +142,25 @@ void URTHexEditorMode::RefreshMapReadout(ARTHexMapActor* Map)
 		Ora.NumCells = Asset->NumCells();
 	}
 
+	// 🔑 **IL CANALE della casella 8 di `#1864`, e sta PRIMA del return per una ragione precisa.**
+	// Nel modulo Editor `ValidateMap` non era chiamata da nessuna riga di produzione: il rifiuto di un
+	// gesto si nominava, ma uno stato invalido gia' nell'asset non lo segnalava niente.
+	//
+	// ⚠️ **La guardia del readout qui sotto non basta per la validazione, e da sola sarebbe un
+	// difetto.** `ValidateMap()` chiama in coda `ValidateMapDetailed`, che per OGNI cella esegue
+	// `ComputeMask`, `HasLegalPlacement` ed `EnumerateCoverOptions` — il lavoro geometrico della cottura
+	// dell'intera mappa. Questa funzione gira da `ModeTick`, cioe' una volta per fotogramma, e durante un
+	// trascinamento del pennello la chiave cambia a *ogni* fotogramma: la guardia lascerebbe passare tutto
+	// e la validazione girerebbe sessanta volte al secondo. Un readout che rallenta il gesto che deve
+	// descrivere e' peggio di nessun readout.
+	//
+	// ⛔ **E non puo' stare DOPO il `return`**: il momento giusto per validare e' proprio il tick in cui
+	// la chiave **non** cambia piu', cioe' quello in cui il `return` scatterebbe.
+	if (RTHexEditor::ShouldRevalidate(Ora.Revision, ValidationLastRevision, bValidationPending))
+	{
+		Settings->MappaValidazione = URTHexMapSummaryLibrary::DescriviValidazione(Asset);
+	}
+
 	if (Ora == MapReadoutWatch)
 	{
 		return;
@@ -158,16 +177,6 @@ void URTHexEditorMode::RefreshMapReadout(ARTHexMapActor* Map)
 	Settings->MappaLayer = URTHexMapSummaryLibrary::DescriviLayer(S);
 	Settings->MappaLayerAttivo = URTHexMapSummaryLibrary::DescriviLayerAttivo(S);
 
-	// 🔑 **Il canale della casella 8 di `#1864`, e sta QUI per il trigger.** Prima di questa riga nel modulo
-	// Editor `ValidateMap` non era chiamata da nessuna riga di produzione: il rifiuto di un gesto si
-	// nominava, ma uno stato invalido gia' nell'asset non lo segnalava niente.
-	//
-	// ⚠️ **La guardia su `Revision` qui sopra e' cio' che lo rende sostenibile**: si rivalida quando la
-	// mappa cambia, non a ogni fotogramma. Senza, sarebbe una `ValidateMap()` per tick.
-	//
-	// ⛔ **Non prende `S`**, a differenza delle quattro righe qui sopra: interrogare il validatore e'
-	// un'altra domanda, e infilarla dentro `Summarise` avrebbe reso costoso ogni suo chiamante.
-	Settings->MappaValidazione = URTHexMapSummaryLibrary::DescriviValidazione(Asset);
 }
 
 void URTHexEditorMode::Exit()
