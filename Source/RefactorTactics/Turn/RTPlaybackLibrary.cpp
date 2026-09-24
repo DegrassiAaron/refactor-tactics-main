@@ -260,8 +260,27 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	{
 		const FName Azione = Timeline[i].ActionId;
 
-		// ⛔ **`None` non e' mai un confine.** E' un valore legittimo che dice «nessuna azione dietro»:
-		// fermarcisi sarebbe fermarsi su un fatto che nessuno ha compiuto.
+		// 🔴 **`StructureHit` senza azione E' un confine, e su nessun altro tipo lo e'** — `#3281`,
+		// [D-437]. Su questo tipo `NAME_None` non significa *«nessuna azione dietro»*: significa **«piu'
+		// di uno l'ha fatto»**. Il produttore nomina l'azione quando l'autore e' uno e tace solo
+		// sull'aggregato, quindi un vuoto qui e' un fatto con piu' autori — non un fatto senza autore.
+		// ⛔ Fermarsi ci sta: un muro che cade qualcuno l'ha fatto cadere, e l'evento porta chi
+		// (`SourceStableUnitId`).
+		//
+		// ⚠️ **E NON interrompe l'atto in corso**, perche' il ciclo all'indietro qui sopra continua a
+		// saltare i `None`: dopo essersi fermati sull'aggregato, un colpo successivo della stessa azione
+		// resta lo stesso atto. Il muro e' una sosta, non un taglio.
+		//
+		// ⛔ **`ArcHit` resta fuori, deliberatamente.** Porta `NAME_None` sempre (`#3280`), quindi qui
+		// diventerebbe un confine a ogni arco colpito — e se sia giusto e' una decisione che questa issue
+		// non ha preso. Chi la prende aggiunga il tipo qui, con la sua ragione.
+		if (Azione.IsNone() && Timeline[i].Type == ERTResolvedEventType::StructureHit)
+		{
+			return i;
+		}
+
+		// ⛔ **Altrove `None` non e' mai un confine.** E' un valore legittimo che dice «nessuna azione
+		// dietro»: fermarcisi sarebbe fermarsi su un fatto che nessuno ha compiuto.
 		if (Azione.IsNone())
 		{
 			continue;

@@ -382,6 +382,25 @@ public:
 	 * «nessuna azione dietro» — danno ambientale, `Defeated`, cambiamenti di stato — e fermarsi li'
 	 * significherebbe fermarsi su qualcosa che nessuno ha *fatto*.
 	 *
+	 * 🔴 **UN'ECCEZIONE, e non e' un caso speciale: e' un significato diverso dello stesso valore.** Su
+	 * `ERTResolvedEventType::StructureHit` un `NAME_None` **e'** un confine (`#3281`, [D-437]). Li' il
+	 * produttore nomina l'azione quando l'autore e' **uno** e tace **solo** sull'aggregato — un bordo
+	 * colpito da due azioni diverse nello stesso Blast — quindi il vuoto significa *«piu' di uno l'ha
+	 * fatto»*, non *«nessuno»*. ⚠️ La riga qui sopra era **falsa per questo tipo** da quando `StructureHit`
+	 * esiste: un muro che cade qualcuno l'ha fatto cadere, e l'evento porta chi.
+	 *
+	 * ⚠️ **La sosta non interrompe l'atto**: la scansione all'indietro continua a saltare i `None`, quindi
+	 * dopo il muro un colpo della stessa azione resta lo stesso atto.
+	 *
+	 * ⛔ **`ArcHit` non e' compreso**, benche' porti `NAME_None` sempre: la sua identita' non e' stata
+	 * decisa (`#3280` la lascia fuori dallo scope), e trattarlo come confine qui sarebbe prendere quella
+	 * decisione di straforo.
+	 *
+	 * 🔴 **Il difetto che l'eccezione accetta, dichiarato.** Da ora, su `StructureHit`, un produttore che
+	 * **dimentica** di popolare l'identita' non perde un confine: ne **inventa** uno. Un `Next Action` che
+	 * si ferma su un atto che non esiste e' meno leggibile di uno che ne salta uno — ed e' il motivo per cui
+	 * il caso a una azione sola ha un gate suo (`Playback.SingleActionStructureHitNamesItsAction`).
+	 *
 	 * ⚠️ **Piu' eventi con lo stesso `ActionId` sono UN atto**, ed e' voluto: un'area che colpisce tre
 	 * bersagli emette tre `Attack` per un solo intento, e fermarsi tre volte sarebbe il difetto che
 	 * `AttackFootprint` documenta gia' («una voce per INTENTO, non per vittima»).

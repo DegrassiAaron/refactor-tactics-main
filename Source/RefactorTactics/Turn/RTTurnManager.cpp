@@ -2937,14 +2937,21 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 	// di `CoverDamaged` la dichiara), e cambiarla qui renderebbe i due canali non confrontabili — che e' la
 	// ragione per cui `HazardDamage` copia il danno NOMINALE invece degli HP persi.
 	//
-	// ⛔ **`Ev.ActionId` resta `NAME_None`, ed e' un LIMITE, non una scelta elegante.** L'identita'
-	// dell'azione non arriva fin qui e non per dimenticanza: `AccumulateStructureHit` **somma per bordo** i
-	// colpi di piu' intenti, quindi su un bordo colpito da due azioni non esiste *una* azione da nominare —
-	// e infatti `FRTStructureHit::AttackerId` documenta di portare «chi ha colpito per primo in ordine
-	// canonico», che e' la stessa ammissione un campo piu' in la'. ⚠️ La conseguenza va detta perche' e'
-	// silenziosa: `NextActionBoundary` guarda `ActionId` e solo quello, quindi `Next Action` **non si ferma**
-	// su un muro che cade. Portarcela significherebbe propagare l'azione lungo `FRTStructureHit` →
-	// `FRTCoverDamageResult` e decidere cosa farne quando sono due: e' lavoro suo, non di questa riga.
+	// ✅ **`Ev.ActionId` arriva fin qui quando la risposta esiste** — `#3281`, [D-437]. ⏱️ *Questa riga
+	// dichiarava il limite opposto: «resta `NAME_None`, ed e' un LIMITE».* L'identita' viaggia ora lungo
+	// `FRTStructureHit::IntentIndices` → `FRTCoverDamageResult` → `Entry.ActionId`, e la regola e' quella
+	// della spinta: **si nomina quando l'autore e' uno, si tace quando sono due.**
+	//
+	// 🔑 **`NAME_None` su QUESTO tipo ha cambiato significato, ed e' il perno della decisione.** Non vuol
+	// piu' dire *«nessuna azione dietro»* — un muro che cade qualcuno l'ha fatto cadere, e l'evento porta
+	// chi — ma *«piu' di uno l'ha fatto»*. ∴ `NextActionBoundary` lo tratta come **confine**, e la sua
+	// intestazione lo dichiara per esteso.
+	//
+	// ⛔ **Si COPIA `Entry.ActionId`, e non e' la copia cieca che `#2857` vieta.** Quel divieto riguarda il
+	// leggere `FRTTurnLogEntry::ActionId` senza sapere che il campo e' **polimorfo** — su una voce
+	// `Environment` puo' portare una *causa* (`Terrain.Fire`, `Status.Burning`) invece di un'azione. Qui il
+	// ramo e' `IsStructureHit`, cioe' un insieme in cui il produttore ha scritto un'azione o niente: e' un
+	// ramo a se', e sa cosa sta leggendo.
 	//
 	// ⚠️ Come per le due righe sopra, `ResolvedTimeline` e' playback e **non entra ne' in `StateHash` ne'
 	// nel formato di replay**: `CaptureFinalStateHash` passa da `HashMatchState(Map, UnitDigests,
@@ -3006,6 +3013,9 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// apparterrebbe alla fonte.
 		Ev.EnvironmentOutcome = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
 		Ev.Amount = Entry.Amount;
+		// L'identita' dell'azione, quando la risposta esiste (`#3281`). Vuota = «piu' di uno l'ha fatto».
+		Ev.ActionId = Entry.ActionId;
+		Ev.BaseActionId = Entry.BaseActionId;
 		ResolvedTimeline.Add(Ev);
 	}
 
