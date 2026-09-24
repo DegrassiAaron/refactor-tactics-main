@@ -189,6 +189,39 @@ struct FRTPlannedRoutePresentation
 	TArray<FRTCellId> PathCells;
 };
 
+/**
+ * L'anteprima dello SCATTO: se mostrarla, e con quale traiettoria (#2184).
+ *
+ * 🔴 **`bShow` non e' un flag di presenza, e il campo del modello mente sul punto.**
+ * `ARTUnit::PlannedDashCell` si dichiara «valida solo se `PlannedDashAbility` e' impostata», ma nessuno
+ * la azzera: `ARTTurnManager` consuma l'**abilita'** a fine turno (`PlannedDashAbility = INDEX_NONE`) e
+ * lascia la cella dov'e', e il modello la copia **incondizionatamente**. Con `bDashing` falso il payload
+ * resta quindi valorizzato — alla destinazione dello scatto appena eseguito, o a `(0,0,0)` — e senza la
+ * decisione si disegnerebbe un rettangolo verde su quella cella, piu' la linea che ci porta.
+ *
+ * ⌫ La verifica di chiusura del 2026-09-24 aveva classificato `bDashing` **guardia**, sulla fede del
+ * commento del campo. E' la stessa forma di `bMoving`, gia' giudicata decisione: un payload opzionale non
+ * e' leggibile a flag spento, questo lo e' ed e' attivamente sbagliato.
+ */
+struct FRTDashPreview
+{
+	/** Vero se l'unita' ha uno scatto pianificato ADESSO — non «se la cella di scatto e' valorizzata». */
+	bool bShow = false;
+
+	/**
+	 * La traiettoria come la fase Dash la ESEGUIRA' (#142). **Vuota quando `bShow` e' falso.**
+	 *
+	 * 🔑 Una mobilita' **lineare** va dritta e non gira gli angoli; una a budget segue il grafo.
+	 * Disegnare l'A* per uno scatto lineare mostrerebbe un percorso curvo attorno a un ostacolo che in
+	 * realta' lo ferma — e la leggibilita' tattica e' un pilastro, non un dettaglio estetico.
+	 *
+	 * ⚠️ E' l'unico sito di `URTMovementActionLibrary::IsLinear` che decide un **disegno**: gli altri
+	 * stanno nel controller, nei bot e nella query tattica, cioe' dal lato che la regola la esegue. Se le
+	 * due letture divergessero, l'anteprima prometterebbe una traiettoria che la risoluzione non fa.
+	 */
+	TArray<FRTCellId> PathCells;
+};
+
 struct FRTIntentCertaintyStyle
 {
 	/**
@@ -712,6 +745,21 @@ public:
 	 *                  E' cio' che separa **trattini** (periodo lungo) da **punti** (periodo corto), i due
 	 *                  stili che `progettazione-hud.md` §16 assegna a `Predicted` e `Uncertain`.
 	 */
+	/**
+	 * ⛔ **`DutyCycle` arriva INTATTO da `ComposeIntentCertaintyStyle`, e chi chiama non lo riscrive.**
+	 *
+	 * Fino al 2026-09-24 `DrawHUD` passava `S.bDashedLine ? S.DashDutyCycle : 1.f`: era la **terza** copia
+	 * della regola «linea non tratteggiata ⇒ ciclo pieno», e l'unica delle tre senza test, perche'
+	 * `DrawHUD` non ha copertura headless. Le altre due sono qui — `DutyCycle >= 1.f` rende il segmento
+	 * unico — e nel composer, che nel ramo `Confirmed` scrive `bDashedLine = false` **insieme a**
+	 * `DashDutyCycle = 1.f`.
+	 *
+	 * Verificato sui tre rami del composer e sui default della struct: non esiste uno stato in cui
+	 * `bDashedLine` sia falso e il ciclo valga altro che `1.f`, quindi quel ternario rendeva **sempre**
+	 * `S.DashDutyCycle`. Era inerte, non innocuo: al primo livello con `bDashedLine = false` e ciclo
+	 * minore di uno — cio' che il `default:` del composer e' scritto per accogliere — avrebbe
+	 * sovrascritto in silenzio la statica testata, e nessun test sarebbe caduto (#2184).
+	 */
 	static TArray<TPair<FVector2D, FVector2D>> ComposeDashSegments(const FVector2D& A, const FVector2D& B,
 		float DutyCycle, float PeriodPx);
 
@@ -812,6 +860,20 @@ public:
 	 * @param Map  puo' essere nullo: `FindPath` lo gestisce, e il risultato e' una rotta vuota.
 	 */
 	static FRTPlannedRoutePresentation ComposePlannedRoute(const struct FRTIntentView& View,
+		const class URTHexMapAsset* Map);
+
+	/**
+	 * L'anteprima dello scatto: se mostrarla, e con quali celle (#2184).
+	 *
+	 * 🔑 **Stessa forma di `ComposePlannedRoute`, e non e' un caso**: `Map` e' un parametro, e
+	 * `URTHexPathLibrary::FindPath` lo prende a sua volta. La verifica di chiusura aveva escluso questo
+	 * ternario come «scelta geometrica non estraibile» — ma la mossa era gia' stata fatta cinquanta righe
+	 * sopra, e l'esclusione non reggeva.
+	 *
+	 * @param Map  puo' essere nullo: il ramo a budget rende una traiettoria vuota, quello lineare no —
+	 *             `HexLine` non consulta la mappa. Chi disegna tiene comunque la propria guardia.
+	 */
+	static FRTDashPreview ComposeDashPreview(const struct FRTIntentView& View,
 		const class URTHexMapAsset* Map);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**

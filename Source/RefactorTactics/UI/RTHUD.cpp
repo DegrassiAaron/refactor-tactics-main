@@ -1028,8 +1028,9 @@ void ARTHUD::DrawHUD()
 			// togliendo croma a ogni unita' in movimento per un confronto che su quell'elemento non esiste.
 			// Due semantiche sullo stesso canale, e la seconda pagata dalla prima. Qui la certezza parla col
 			// tratteggio, che e' libero.
-			const float Duty = S.bDashedLine ? S.DashDutyCycle : 1.f;
-			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, Duty, S.DashPeriodPx))
+			// ⌫ Il ciclo arriva INTATTO dallo stile: il ternario che lo riscriveva era la terza copia di
+			// una regola gia' scritta in `ComposeIntentCertaintyStyle` e in `ComposeDashSegments` (#2184).
+			for (const TPair<FVector2D, FVector2D>& Seg : ComposeDashSegments(A, B, S.DashDutyCycle, S.DashPeriodPx))
 			{
 				DrawLine(Seg.Key.X, Seg.Key.Y, Seg.Value.X, Seg.Value.Y, C, S.LineThickness);
 			}
@@ -1155,11 +1156,9 @@ void ARTHUD::DrawHUD()
 			// applicarle lo stile la lascerebbe *sempre* allo stesso livello: un simbolo che non varia non
 			// informa, ed e' il difetto esatto per cui `ReactionCertainty` e' uscito dal DTO. Il colore
 			// di FASE distingue gia' lo scatto dal movimento normale, che e' l'informazione che serve qui.
-			if (View.bDashing && Map)
+			// 🔑 Cosa mostrare lo decide `ComposeDashPreview` (#2184); `&& Map` resta, ed e' guardia.
+			if (const FRTDashPreview Scatto = ComposeDashPreview(View, Map); Scatto.bShow && Map)
 			{
-				const TArray<FRTCellId> DPath = URTMovementActionLibrary::IsLinear(View.DashStyle)
-					? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
-					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
 				// **D-234**: la fase `Dash` prende in PRESTITO `#009E73` da D-233. L'overlay tiene un
 				// vocabolario proprio — il colore ci dice l'IDENTITA' di squadra — ma questa riga era gia'
 				// un'eccezione: `DashColor` e' costruito FUORI da ogni ramo su `bOwn`, quindi la linea di
@@ -1174,10 +1173,10 @@ void ARTHUD::DrawHUD()
 				// `0/158/115` diviso 255 darebbe una tinta slavata — lo stesso errore documentato in
 				// `Map/RTHexMapActor.cpp:909`, che e' anche il precedente della forma usata qui.
 				const FLinearColor DashColor = FLinearColor::FromSRGBColor(FColor(0, 158, 115));
-				for (int32 i = 1; i < DPath.Num(); ++i)
+				for (int32 i = 1; i < Scatto.PathCells.Num(); ++i)
 				{
-					const FVector DA = Project(HexCellWorld(DPath[i - 1], Origin, HexSize, LayerH));
-					const FVector DB = Project(HexCellWorld(DPath[i], Origin, HexSize, LayerH));
+					const FVector DA = Project(HexCellWorld(Scatto.PathCells[i - 1], Origin, HexSize, LayerH));
+					const FVector DB = Project(HexCellWorld(Scatto.PathCells[i], Origin, HexSize, LayerH));
 					if (DA.Z > 0.f && DB.Z > 0.f) { DrawLine(DA.X, DA.Y, DB.X, DB.Y, DashColor, 2.5f); }
 				}
 				const FVector DDest = Project(HexCellWorld(View.DashCell, Origin, HexSize, LayerH));
@@ -1673,6 +1672,27 @@ FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoute(const FRTIntentView& Vie
 	Out.PathCells = (View.PlannedPath.Num() >= 2)
 		? View.PlannedPath
 		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
+
+	return Out;
+}
+
+FRTDashPreview ARTHUD::ComposeDashPreview(const FRTIntentView& View, const URTHexMapAsset* Map)
+{
+	FRTDashPreview Out;
+
+	// ⛔ **Non `DashCell.IsValid()`**: quella cella resta valorizzata dopo uno scatto eseguito, perche'
+	// il turn manager consuma l'ABILITA' e non la destinazione. Leggerla come presenza disegnerebbe un
+	// rettangolo verde sulla meta dello scatto precedente.
+	Out.bShow = View.bDashing;
+	if (!Out.bShow)
+	{
+		return Out;
+	}
+
+	// La traiettoria come la fase Dash la eseguira' (#142): lineare va dritta, a budget segue il grafo.
+	Out.PathCells = URTMovementActionLibrary::IsLinear(View.DashStyle)
+		? URTHexLibrary::HexLine(View.OwnerCell, View.DashCell)
+		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.DashCell).Path;
 
 	return Out;
 }
