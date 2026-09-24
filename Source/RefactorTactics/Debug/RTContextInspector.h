@@ -143,14 +143,23 @@ public:
 	 *
 	 * 🔴 **Esiste perche' il troncamento era muto e invisibile ai test.** `RebuildWidget` tagliava con
 	 * un `IsValidIndex` dentro la Slate: `[tecnico]` e' l'ULTIMA riga di `AllLines`, quindi la prima a
-	 * cadere, e un pannello pieno smetteva di dire **da dove viene la vista** senza che niente lo
-	 * segnalasse. Misurato nella seduta `U59` del 2026-09-24: sulla cella `(q=0,r=0,L=0)` del banco
-	 * `Visual.Combat.GuardVsBraceUnderSmallHits` la vista componeva **17** righe contro un tetto di 12,
-	 * e a schermo la provenienza non c'era.
+	 * cadere. Misurato nella seduta `U59` del 2026-09-24: sulla cella `(q=0,r=0,L=0)` del banco
+	 * `Visual.Combat.GuardVsBraceUnderSmallHits` la vista componeva **17** righe contro un tetto di 12.
 	 *
-	 * ⚠️ `vista per onnisciente` contro `vista per 0` e' la differenza fra *«questo e' tutto cio' che e'
-	 * successo»* e *«questo e' cio' che quella squadra puo' sapere»*. Un pannello pieno che tace sulla
-	 * provenienza si legge come onnisciente, qualunque osservatore l'abbia composto.
+	 * ⛔ **Cosa si perdeva davvero, perche' la prima stesura di questo commento lo diceva sbagliato.**
+	 * NON l'osservatore: quello vive nell'intestazione (`GetHeaderText`), che ha uno slot proprio
+	 * aggiunto PRIMA del ciclo e non e' soggetta al tetto — col pannello pieno si leggeva gia'
+	 * `(q=0,r=0,L=0) — onnisciente`. A cadere era il resto della riga tecnica:
+	 * `snapshot costruito per … · autorizza=… · rev=…`.
+	 *
+	 * ⚠️ **E quelli non sono un doppione dell'intestazione.** `vista per X` contro `snapshot costruito
+	 * per Y` possono DIVERGERE, ed e' esattamente la divergenza per cui `DescribeCell` rifiuta di
+	 * comporre l'occupante e stampa `NON-COMPOSTO(snapshot per X, vista per Y)`; `autorizza` dice se
+	 * l'osservatore ne aveva diritto, e `rev` quale stato si sta guardando. Un pannello pieno che li
+	 * perde non dice piu' **su quale stato** e **con quale titolo** e' composto.
+	 *
+	 * 🔑 E la meta' piu' grave era il taglio MUTO: chi guarda un pannello pieno conclude che su quella
+	 * cella non sia successo altro.
 	 *
 	 * Cosa sopravvive al taglio, e perche':
 	 *
@@ -294,9 +303,10 @@ public:
 	 *
 	 * ⌫ **Era `protected`, e questo commento diceva che il troncamento stava «dove si vede — invece che
 	 * nel compositore, dove sarebbe invisibile ai test».** Il contrario: dentro `RebuildWidget` — Slate,
-	 * `protected` — non era osservabile da NESSUN test, perche' `GetLines()` non tronca e l'header non
-	 * dichiara nessun `friend`. Un test avrebbe dovuto riscrivere `12` a mano, cioe' il numero che
-	 * invecchia da solo. Reso pubblico e spostato in `VisibleLines` con #3320.
+	 * `protected` — non era osservabile da NESSUN test, perche' `GetLines()` non tronca e a
+	 * `2c9b7ea75^` l'header non dichiarava nessuna eccezione d'accesso per i test. Un test avrebbe
+	 * dovuto riscrivere `12` a mano, cioe' il numero che invecchia da solo. Reso pubblico e spostato in
+	 * `VisibleLines` con #3320.
 	 */
 	static constexpr int32 MaxRighe = 12;
 
