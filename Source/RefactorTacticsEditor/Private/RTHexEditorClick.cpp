@@ -620,8 +620,23 @@ bool RTHexEditor::ShouldRevalidate(int32 CurrentRevision, int32& InOutLastSeen, 
 	return false;
 }
 
-bool RTHexEditor::GestureIsASelection(ERTAnchorPairRefusal Refusal)
+bool RTHexEditor::GestureIsASelection(ERTAnchorPairRefusal Refusal, const FVector2D& LocalStart,
+	const FVector2D& LocalEnd, float HexSize)
 {
+	// 🔴 **Il gesto non deve essersi MOSSO, e `SameAnchor` da solo non lo garantisce.**
+	// `NearestAnchor` non ha limite di distanza: un trascinamento lungo che resta dalla parte dello stesso
+	// anchor — premi verso il punto medio del lato `E`, tira oltre il bordo — aggancia entrambi gli
+	// estremi a quel punto medio, e `ExplainPair` risponde `SameAnchor` su un gesto che era un disegno.
+	//
+	// ⚠️ La soglia e' in frazione di `HexSize`, cioe' una misura del MONDO: invariante allo zoom, al
+	// contrario dei pixel di schermo di `USingleClickOrDragInputBehavior`. E' la convenzione che questo
+	// modulo usa gia' — `NearestTransition` con `HexSize * 0.6`.
+	const float Soglia = HexSize * 0.05f;
+	if (FVector2D::DistSquared(LocalStart, LocalEnd) > Soglia * Soglia)
+	{
+		return false;
+	}
+
 	// ⛔ **Solo `SameAnchor`, e l'elenco degli esclusi e' il punto.** Gli altri rifiuti dicono che il
 	// gesto ERA un disegno e non e' riuscito — due celle, due layer, una coppia che nessun asse porta —
 	// e in tutti quei casi il ghost aveva gia' detto che il muro non si puo' fare. Cambiare la selezione

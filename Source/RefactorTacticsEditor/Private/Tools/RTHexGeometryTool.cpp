@@ -360,7 +360,13 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 		// dell'engine distingue click e trascinamento con una soglia in pixel di schermo, che dipende
 		// dalla camera — allo zoom sbagliato il muro piu' corto esprimibile smetterebbe di essere
 		// disegnabile. Gli anchor no.
-		if (RTHexEditor::GestureIsASelection(Refusal))
+		float HexSizeGesto = 0.f;
+		{
+			ARTHexMapActor* PerScala = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
+			FVector O; float LH = 0.f;
+			if (PerScala) { PerScala->GetHexContext(O, HexSizeGesto, LH); }
+		}
+		if (RTHexEditor::GestureIsASelection(Refusal, LocalStart, LocalEnd, HexSizeGesto))
 		{
 			ARTHexMapActor* Bersaglio = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
 			FRTCellId Cella;
