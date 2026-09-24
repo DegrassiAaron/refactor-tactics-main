@@ -30,12 +30,15 @@ namespace
 	 * L'attore mappa SENZA un mondo: qui e' lo specchio dell'anteprima, non il disegnatore (#2182).
 	 *
 	 * 🔑 **Non e' un'equivalenza, ed e' il punto.** Costruire l'attore nel mondo fa anche
-	 * `RegisterAllComponents()` sui sette ISM e `OnConstruction()` -> `RebuildInstances()`; `NewObject`
-	 * no. Quella meta' qui non serve a nessuno dei quattro test: `SetPreviewHitCells` e
-	 * `SetPreviewReachableCells` (`Map/RTHexMapActor.cpp:1088-1104`) copiano due `TArray<FRTCellId>` in
-	 * `FRTOverlayArea`, che e' una USTRUCT nuda, e i lettori interrogati — `NumPreview*`, `IsPreview*` —
-	 * fanno `Num()` e `Contains()` su quegli array. Nessuna asserzione di questo file osserva un'istanza
-	 * disegnata, un componente registrato o il tick.
+	 * `RegisterAllComponents()` sui suoi ISM e `OnConstruction()` -> `RebuildInstances()`; `NewObject`
+	 * no. Quella meta' qui non serve a nessun test di questo file: `SetPreviewHitCells` e
+	 * `SetPreviewReachableCells` (`Map/RTHexMapActor.cpp:1088-1104`) copiano tre `TArray<FRTCellId>` in
+	 * altrettanti `FRTOverlayArea`, che e' una USTRUCT nuda, e i lettori interrogati — `NumPreview*`,
+	 * `IsPreview*` — fanno `Num()` e `Contains()` su quegli array. Nessuna asserzione di questo file
+	 * osserva un'istanza disegnata, un componente registrato o il tick.
+	 *
+	 * ⛔ Il comando che lo verifica non si scrive qui: cercherebbe nomi che questa nota contiene, e
+	 * risponderebbe di se' invece che dei test. Si esegue sui soli corpi dei `RunTest`.
 	 *
 	 * ⚠️ **Se un test futuro di questo file volesse le istanze o il tick, il mondo va rimesso** — e a quel
 	 * punto il file tornera' giustamente nel conteggio di #2182. La copertura di cio' che la costruzione
