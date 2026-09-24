@@ -1177,6 +1177,19 @@ void ARTTurnManager::EmitMoveEvents(const TArray<ARTUnit*>& Units,
 		// e' vero, e non si rilegge al playback — dove l'unita' e' ancora raggiungibile e direbbe un'altra
 		// cosa. E' la stessa disciplina con cui `CellVerdicts` e' congelato due righe sopra.
 		Ev.SourceStatusNames = Units[i]->GetActiveStatusNames();
+		// `#3263`: quante celle di `Route` il giocatore ha davvero chiesto. Oltre c'e' l'estensione che il
+		// terreno ha imposto — lo scivolamento su ghiaccio — e senza questo numero i due tratti arrivano
+		// alla presentazione indistinguibili.
+		//
+		// ⚠️ **Si CLAMPA su `Route`, non si copia**: `PlannedLength` misura il percorso **pianificato**,
+		// mentre `Route` e' cio' che l'unita' ha davvero attraversato. Un'unita' fermata a meta' ha un
+		// piano piu' lungo della propria rotta, e un prefisso oltre la fine dell'array sarebbe un indice
+		// fuori dai limiti per chi lo consuma.
+		//
+		// ⚠️ `0` resta «tutto pianificato», la convenzione di `StepDurationsForPath`.
+		Ev.PlannedLength = Ctx->State.Planned.IsValidIndex(i)
+			? FMath::Clamp(Ctx->State.Planned[i].PlannedLength, 0, Route.Num())
+			: 0;
 		ResolvedTimeline.Add(Ev);
 	}
 }

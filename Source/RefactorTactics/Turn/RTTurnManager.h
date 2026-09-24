@@ -3108,6 +3108,19 @@ private:
 		// ⛔ **Non si rilegge `Unit` per averli**, benche' sia proprio li' sopra: darebbe lo stato al
 		// momento del playback, e la posa smetterebbe di essere una funzione del solo tempo normalizzato.
 		TArray<FName> SourceStatusNames;
+
+		/**
+		 * Quante celle di `Cells` appartengono al PIANO di chi si muove — `#3263`. Oltre c'e' l'estensione
+		 * che il terreno ha imposto: uno scivolamento su ghiaccio.
+		 *
+		 * 🔴 **Troncato come `World` e `Cells`, e per la stessa ragione.** Se il prefisso osservato taglia
+		 * la rotta, il numero di celle pianificate **visibili** puo' essere minore di quello reale: un
+		 * valore non troncato direbbe a chi disegna che l'unita' aveva pianificato oltre cio' che si vede
+		 * — che e' esattamente il tratto che [D-223] nasconde.
+		 *
+		 * ⚠️ `0` significa «tutto pianificato», la stessa convenzione dell'evento da cui viene.
+		 */
+		int32 PlannedLength = 0;
 	};
 
 	/** Eventi risolti nel turno corrente (movimenti, attacchi) da riprodurre. */

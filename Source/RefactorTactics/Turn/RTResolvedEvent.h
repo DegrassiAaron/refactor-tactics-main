@@ -245,6 +245,30 @@ struct FRTResolvedEvent
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
 	/**
+	 * Quante celle iniziali di `Path` appartengono al PIANO di chi si muove — `#3263`.
+	 *
+	 * 🔴 **Tutto cio' che sta oltre e' estensione AMBIENTALE**: uno scivolamento su ghiaccio, cioe' un
+	 * tratto che il terreno ha imposto e che il giocatore non ha chiesto. La simulazione lo sa da sempre —
+	 * `FRTPlannedMovement::PlannedLength` lo dichiara con queste parole — e le **durate per arco** lo
+	 * rispettano gia' ([D-384]: *«oltre il prefisso pianificato ogni arco vale un microstep»*). Il playback
+	 * no: il dato moriva nel resolver, e i tre archi si animavano identici.
+	 *
+	 * ⚠️ **`0` significa «tutto pianificato»**, non «niente»: e' la stessa convenzione di
+	 * `URTHexSimLibrary::StepDurationsForPath`, che la usa per ogni chiamante che non tocca i terreni.
+	 * Scegliere qui un default diverso avrebbe creato due letture dello stesso numero.
+	 *
+	 * ⚠️ **E' CLAMPATO a `Path.Num()`**: il piano puo' essere piu' lungo di cio' che l'unita' ha davvero
+	 * attraversato — si e' fermata prima, l'ha bloccata qualcuno — e un prefisso piu' lungo dell'array
+	 * sarebbe un indice fuori dai limiti per chiunque lo consumi.
+	 *
+	 * ⛔ **Questo campo e' il CANALE, non il segno.** Che cosa la presentazione debba FARE della
+	 * distinzione — velocita', posa, un marcatore a terra — e' una decisione di grammatica visiva che
+	 * `#3263` dichiara di non prendere, e che questo campo rende prendibile invece che teorica.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	int32 PlannedLength = 0;
+
+	/**
 	 * Danno/scudo/durata secondo `Type` — ⚠️ **tranne su `StructureHit`, dove e' l'INVERSO.**
 	 *
 	 * ⛔ Li' porta l'**integrita' RESIDUA** della barriera, non il danno inferto: e' la convenzione della

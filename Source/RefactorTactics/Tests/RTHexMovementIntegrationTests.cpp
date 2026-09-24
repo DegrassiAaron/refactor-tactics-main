@@ -2427,6 +2427,255 @@ bool FRTDeclaredDestinationDeniedByOccupantTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// `#3263` — IL CONFINE FRA I PASSI VOLUTI E QUELLI IMPOSTI, fino alla presentazione.
+//
+// 🔴 Trovata in seduta PIE guardando lo schermo: lo scivolamento si anima **identico** ai passi voluti —
+// stessa velocita', stessa posa, nessuno stacco. *«Sembra che comincino a scivolare dalla posizione di
+// partenza»*: i tre archi sono indistinguibili, quindi il movimento si legge come uno solo.
+//
+// 🔑 **Il dato esisteva e moriva nel resolver.** `FRTPlannedMovement::PlannedLength` dichiara *«quante celle
+// INIZIALI appartengono al piano del giocatore»*, e le **durate per arco** lo rispettano gia' ([D-384]). Il
+// playback no: nessuna struct di evento lo portava.
+//
+// ⛔ **Questi gate misurano il CANALE, non il segno.** Che cosa la presentazione debba fare della
+// distinzione e' una decisione di grammatica visiva che `#3263` dichiara di non prendere.
+// =========================================================================================================
+
+namespace
+{
+	/** L'evento di playback del movimento di `StableUnitId` nella fase `Move`, se c'e'. */
+	const FRTResolvedEvent* MoveEventFor(const ARTTurnManager* TM, int32 StableUnitId)
+	{
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::Move && Ev.SourceStableUnitId == StableUnitId
+				&& Ev.Phase == ERTMatchPhase::Move)
+			{
+				return &Ev;
+			}
+		}
+		return nullptr;
+	}
+}
+
+/**
+ * L'evento di movimento porta il **prefisso pianificato**, e sul ghiaccio e' piu' corto della rotta —
+ * `#3263`.
+ *
+ * 🔴 **E' il canale che mancava.** `grep -rl PlannedLength Source/` rispondeva con sette file e **nessuno
+ * era di presentazione**: la distinzione fra *«l'ho chiesto io»* e *«l'ha deciso il terreno»* moriva nel
+ * resolver, e i due tratti arrivavano a schermo indistinguibili.
+ *
+ * ⚠️ **Il gate asserisce la DISUGUAGLIANZA, non un numero solo**: `PlannedLength < Path.Num()` e' cio' che
+ * rende il confine osservabile. Un `PlannedLength` uguale alla rotta direbbe *«tutto pianificato»* — vero
+ * per ogni movimento normale, e falso proprio qui.
+ *
+ * 🔑 **La scena e' quella di `Terrain.Ice.SlidesInMatch`**, che gia' pinna l'esito `Slid`: due celle volute
+ * verso `(2,0)` e una terza imposta dal ghiaccio. Riusare la stessa geometria e' cio' che lega questo gate
+ * a un comportamento gia' misurato, invece di costruirne uno per l'occasione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIceSlidePlannedPrefixTest,
+	"RefactorTactics.Playback.IceSlideEventCarriesThePlannedPrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIceSlidePlannedPrefixTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		FRTHexCellData Data(Id);
+		if (Id == FRTCellId(2, 0)) { Data.Surface = ERTHexSurface::Ice; }
+		Map->AddOrUpdateCell(Data);
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	// Un avversario fermo e lontano: senza, la squadra 1 e' gia' eliminata e il turno non risolve.
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	if (!TestTrue(TEXT("⛔ premessa: il budget permette la scivolata (residuo >= 2)"),
+		Mover->GetEffectiveMoveRange() >= 4))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	// ⛔ PREMESSA: l'unita' e' davvero scivolata. Senza, il gate misurerebbe un movimento normale, dove
+	// `PlannedLength` vale l'intera rotta ed e' corretto che sia cosi'.
+	if (!TestTrue(TEXT("⛔ premessa: e' finita UNA cella oltre la destinazione chiesta"),
+		Mover->Cell == FRTCellId(3, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTResolvedEvent* Ev = MoveEventFor(TM, Mover->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: il movimento ha un evento di playback"), Ev))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	//
+	// La rotta e' `(0,0) (1,0) (2,0) (3,0)` — quattro celle, tre archi — e il piano ne copre tre: la
+	// partenza e le due volute. L'ultimo arco e' il ghiaccio.
+	TestEqual(TEXT("⛔ premessa: la rotta ha quattro celle"), Ev->Path.Num(), 4);
+	TestEqual(TEXT("🔴 il prefisso pianificato ne copre TRE: partenza inclusa, scivolata esclusa"),
+		Ev->PlannedLength, 3);
+	TestTrue(TEXT("🔴 ∴ il confine e' osservabile: il piano finisce prima della rotta"),
+		Ev->PlannedLength < Ev->Path.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * E su un movimento **senza** imposizioni il prefisso copre tutta la rotta — `#3263`.
+ *
+ * 🔴 **E' il controllo che impedisce al gate gemello di essere verde per una ragione qualunque.** Un
+ * `PlannedLength` scritto male — sempre `0`, sempre `Path.Num() - 1`, o un indice invece di un conteggio —
+ * renderebbe il confine «osservabile» su **ogni** movimento, e la distinzione non distinguerebbe piu'
+ * niente.
+ *
+ * ⚠️ **`0` significherebbe «tutto pianificato» per convenzione, ma qui si pretende il numero pieno**:
+ * `FinalizeHexMovementOutcomes` completa il campo con la lunghezza reale, e asserire lo zero accetterebbe
+ * anche un produttore che non lo scrive affatto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlainMovePlannedPrefixTest,
+	"RefactorTactics.Playback.PlainMoveHasNoImposedTail",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlainMovePlannedPrefixTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	// La stessa geometria del gemello, **senza ghiaccio**: e' l'unica differenza fra i due scenari, ed e'
+	// cio' che rende il confronto una misura invece di due prove scollegate.
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 6))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
+	ARTUnit* Foe = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-5, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Foe) { DestroyHexMoveWorld(World); return false; }
+
+	Mover->PlannedCell = FRTCellId(2, 0);
+	Foe->PlannedCell = Foe->Cell;
+	RunTurn(TM);
+
+	// ⛔ PREMESSA: e' arrivata ESATTAMENTE dove aveva chiesto — nessuna scivolata.
+	if (!TestTrue(TEXT("⛔ premessa: nessuna imposizione, e' ferma dove voleva"),
+		Mover->Cell == FRTCellId(2, 0)))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTResolvedEvent* Ev = MoveEventFor(TM, Mover->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: il movimento ha un evento di playback"), Ev))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestEqual(TEXT("🔴 senza imposizioni il piano copre TUTTA la rotta"),
+		Ev->PlannedLength, Ev->Path.Num());
+	TestFalse(TEXT("⛔ ∴ nessun confine da mostrare: il playback non ha niente da distinguere"),
+		Ev->PlannedLength < Ev->Path.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
+/**
+ * E il prefisso non supera mai la rotta, nemmeno quando l'unita' si ferma prima — `#3263`.
+ *
+ * 🔴 **Questo gate e' nato da una mutazione che NON produceva rossi.** Progettando la verifica avevo
+ * previsto che *«popolare `PlannedLength` senza clamp sulla rotta»* non sarebbe stato colto da nessun test,
+ * e la misura l'ha confermato: gli altri due scenari arrivano sempre a destinazione, quindi piano e rotta
+ * coincidono e il clamp non viene mai esercitato.
+ *
+ * 🔑 **Il caso che lo esercita e' un movimento INTERROTTO.** `PlannedLength` misura il percorso
+ * *pianificato*; `Ev.Path` e' cio' che l'unita' ha davvero attraversato. Un'unita' fermata a meta' ha un
+ * piano piu' lungo della propria rotta, e senza clamp l'evento porterebbe un prefisso **oltre la fine
+ * dell'array** — un indice fuori dai limiti per chiunque lo consumi per distinguere i due tratti.
+ *
+ * ⚠️ **Una CONTESA, non un ostacolo fermo**, e la differenza e' misurata: l'A* **aggira** un'unita'
+ * immobile, quindi il piano resterebbe lungo quanto la rotta e il clamp non sarebbe esercitato — provato,
+ * e il gate cadeva sulla propria premessa. Due mobilita' verso la **stessa** cella si risolvono invece a
+ * meta' strada, e chi perde si ferma prima della propria destinazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTInterruptedMovePlannedPrefixTest,
+	"RefactorTactics.Playback.PlannedPrefixNeverExceedsTheRoute",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTInterruptedMovePlannedPrefixTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMoveWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Map = NewObject<URTHexMapAsset>();
+	for (const FRTCellId& Id : URTHexLibrary::HexArea(FRTCellId(0, 0, 0), 8))
+	{
+		Map->AddOrUpdateCell(FRTHexCellData(Id));
+	}
+	Map->SortCells();
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Map;
+
+	ARTUnit* Mover  = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+	ARTUnit* Rivale = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(6, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Mover || !Rivale) { DestroyHexMoveWorld(World); return false; }
+
+	const FRTCellId Contesa(3, 0);
+	Mover->PlannedCell = Contesa;
+	Rivale->PlannedCell = Contesa; // la stessa cella: una delle due si fermera' prima
+	RunTurn(TM);
+
+	// ⛔ PREMESSA: **una** delle due si e' fermata prima della cella contesa. Senza, piano e rotta
+	// coinciderebbero e il clamp non sarebbe esercitato — lo stato in cui la mutazione non dava rossi.
+	ARTUnit* const Perdente = (Mover->Cell != Contesa) ? Mover : Rivale;
+	if (!TestTrue(TEXT("⛔ premessa: una delle due non e' arrivata sulla cella contesa"),
+		Perdente->Cell != Contesa))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	const FRTResolvedEvent* Ev = MoveEventFor(TM, Perdente->StableUnitId);
+	if (!TestNotNull(TEXT("⛔ premessa: chi ha perso la contesa ha un evento di playback"), Ev))
+	{
+		DestroyHexMoveWorld(World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestTrue(TEXT("🔴 il prefisso pianificato non supera MAI le celle della rotta"),
+		Ev->PlannedLength <= Ev->Path.Num());
+
+	DestroyHexMoveWorld(World);
+	return true;
+}
+
 // Chi aggiunge un test in fondo a questo file lo aggiunge PRIMA di questa riga: e' il difetto di #923,
 // invisibile in Editor dove la guardia vale 1. Il controllo che lo dimostra e'
 // `Build.bat RefactorTactics Win64 Shipping`, non la suite.
