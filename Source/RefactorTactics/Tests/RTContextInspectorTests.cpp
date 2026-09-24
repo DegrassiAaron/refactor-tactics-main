@@ -244,7 +244,12 @@ bool FRTContextInspectorShowsOnlyThisCellTest::RunTest(const FString&)
  * `RebuildWidget` non ha modo di essere rossa senza uno schermo; una posa che e' un **dato** si'.
  *
  * ⚠️ Questo test NON prova che il pannello si veda: prova che non sia stato messo dove qualcun altro c'e'
- * gia'. Il resto e' giudizio umano, ed e' la seduta `U55`.
+ * gia'. Il resto e' giudizio umano, ed e' la seduta `U59`.
+ *
+ * ⛔ Questa riga diceva `U55`, corretta il 2026-09-23. `U55` e' «I residui dell'authoring hex», una seduta
+ * di tutt'altro: chi leggeva il test dal codice convocava una seduta di authoring asset. La seduta che
+ * convoca `PIE-DEBUG-CONTEXT` e' `U59` — `editor-sessions.yaml`, `verifies: [PIE-DEBUG-CONTEXT]`, e la
+ * cella di stato del registro lo ripete.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorPlacementTest,
 	"RefactorTactics.Debug.ContextInspectorPlacementDoesNotCollide",

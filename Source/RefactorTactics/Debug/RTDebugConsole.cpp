@@ -589,7 +589,8 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugDrawIntent(
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugContextInspector(
 	TEXT("rt.Debug.ContextInspector"),
 	TEXT("Mostra a schermo il contesto dell'esagono sotto il puntatore, per un osservatore.\n"
-		"  rt.Debug.ContextInspector [team]  team predefinito 0; `0` come unico argomento SPEGNE il pannello.\n"
+		"  rt.Debug.ContextInspector [team]  team predefinito 0; `0` come PRIMO argomento SPEGNE il pannello.\n"
+		"  ⛔ Per la squadra 0 si lancia NUDO: `0` esplicito spegne, non accende.\n"
 		"  Aggiorna a comando e non a ogni movimento del puntatore: il contratto dell'hover e' di #1614.\n"
 		"  Le stesse righe finiscono anche qui in console, cosi' una run headless lascia un referto."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugContextInspectorCommand));

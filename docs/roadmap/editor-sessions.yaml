@@ -4212,8 +4212,56 @@ sessions:
     #
     # 🔑 **La resa è Slate in C++ e non un `.uasset`**, come `URTPieVerdictOverlay`: non c'è un widget da
     # aprire nell'Editor — si avvia la partita, si passa il puntatore su una cella e si lancia
-    # `rt.Debug.ContextInspector 0`. Un `WBP_` curato resta possibile, la classe base è fatta per essere
-    # derivata, e apparterrebbe al clone principale.
+    # `rt.Debug.ContextInspector` **senza argomenti**. Un `WBP_` curato resta possibile, la classe base è
+    # fatta per essere derivata, e apparterrebbe al clone principale.
+    #
+    # ⛔ **Questa riga diceva `rt.Debug.ContextInspector 0`, ed è eseguibile alla rovescia.** Corretta il
+    # 2026-09-23, insieme al suo gemello in `docs/technical/test-manuali-pie.md`. `0` come primo argomento
+    # è il ramo di SPEGNIMENTO — `RTDebugConsole.cpp`, guardia `Args[0] == TEXT("0")`, che ritorna prima
+    # ancora di cercare la mappa. Chi conduceva come scritto leggeva «[RT] Context Inspector spento.» e
+    # concludeva ❌ *«il pannello non compare»*: un rosso falso su un pannello sano. La squadra 0 è il
+    # default di `ObserverTeamFromArgs` quando non c'è nessun argomento, e **non esiste una grafia
+    # leggibile che accenda su 0 passandolo** — `Atoi` dà 0 per qualunque stringa non numerica, quindi
+    # l'insieme che funziona è arbitrario e nessuno si legge come «squadra 0». Il comando resta nudo.
+    # Il giro si chiude con: grep -rn "ContextInspector 0" docs/ Source/ → deve restare solo ciò che
+    # parla di SPEGNERE.
+    #
+    # ⚠️ **E il pannello aggiorna A COMANDO, non a ogni movimento del puntatore** (help del comando, e
+    # `ShowFor` è chiamata solo dall'handler). Chi conduce deve rilanciare il comando dopo **ogni**
+    # spostamento del mouse: un pannello che resta fermo mentre il puntatore si sposta è il
+    # comportamento previsto, non un difetto da registrare.
+    notes: >-
+      ✅ **Eseguita il 2026-09-24** su `main` `9938da57b`, nel clone principale, con l'editor
+      ricompilato prima della seduta e i cinque `RefactorTactics.Debug.Context*` più
+      `CellContextHidesEnemyPosition` rilanciati **sul binario appena costruito**: il verde che questo
+      blocco dichiarava era stato misurato su una DLL rilinkata dopo, e non valeva per la resa che si
+      stava per guardare. L'esito pieno sta in `docs/technical/test-manuali-pie.md`, che ne resta
+      l'unico owner (R-6). Qui solo ciò che riguarda la CONDUZIONE.
+      ⛔ **La precondizione della voce era eseguibile alla rovescia, e l'ho scoperto preparando la
+      seduta, non conducendola.** Registro e note di questa seduta prescrivevano entrambi
+      `rt.Debug.ContextInspector 0`, che è il ramo di SPEGNIMENTO: chi avesse condotto come scritto
+      avrebbe letto «Context Inspector spento» e registrato un ❌ su un pannello sano. Corretti i due
+      gemelli, più il commento di `RTContextInspectorTests.cpp` che rimandava alla seduta `U55` invece
+      che a questa, più la help del comando che diceva «`0` come **unico** argomento» mentre la guardia
+      legge solo il primo.
+      🔑 **`shares_setup_with` resta vuoto e la prescrizione di accompagnarla è stata rispettata
+      diversamente**: l'overlay del verdetto è stato portato a schermo come IMPALCATURA, con
+      `rt.Pie.Session PIE-ACC-PERCEPTION` seguito da `rt.Pie.Session.Abort`. `Abort` marca i passi
+      pendenti `NotRun` con motivo «seduta interrotta», quindi `PIE-ACC-PERCEPTION` non ha ricevuto
+      nessun verdetto e resta da giudicare. È la via che soddisfa «non isolata» senza trascinare in
+      questa apertura il giudizio di un'altra voce.
+      ⚠️ **Due Play in una apertura, e il secondo è servito**: `L_HexArena` con
+      `rt.Match.Autobattle 0` per contrasto, accavallamento e convivenza; poi
+      `L_DevSandbox` con `rt.Test.Scenario Visual.Combat.GuardVsBraceUnderSmallHits` e osservatore
+      onnisciente per il tetto delle righe. Con la squadra 0 quel tetto non si raggiunge in nessuna
+      cella del banco — lo scenario si auto-risolve e azzera i piani — e la prima passata si era
+      fermata a cinque righe credendo di aver misurato dodici.
+      ⛔ **Due limiti dichiarati.** Nessun artefatto: `HighResShot` non ha prodotto file e
+      `artifacts: []` resta vuoto, quindi il verdetto non è riesaminabile senza rifare la seduta. E il
+      ⛔ del criterio — *«non deve coprire la board»* — è stato osservato VIOLATO e accettato da chi
+      guardava: la voce è ✅ per giudizio dell'osservatore, non per criterio rispettato, e la
+      discrepanza appartiene a #3319. Il troncamento che fa cadere la riga `[tecnico]` a pannello
+      pieno è #3320.
 
 not_schedulable:
 
