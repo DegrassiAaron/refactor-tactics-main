@@ -912,14 +912,12 @@ void ARTHUD::DrawHUD()
 	// della cella, altezza del layer), quindi ogni conversione cella -> schermo di questa HUD nasce da qui.
 	// Unificare i due meccanismi non e' compito di questa riga — ma nominarli entrambi si', perche' chi
 	// cercasse «dove si prende la mappa» seguendo la vecchia frase ne troverebbe uno solo.
-	FVector Origin = FVector::ZeroVector;
-	float HexSize = 150.f;
-	float LayerH = 250.f;
-	const URTHexMapAsset* Map = nullptr;
-	if (const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(GetWorld()))
-	{
-		Map = HexMap->GetHexContext(Origin, HexSize, LayerH);
-	}
+	// I tre ripieghi vivono in `ComposeHexGeometry` (#2184); le locali restano per i venti siti sotto.
+	const FRTHudHexGeometry Geo = ComposeHexGeometry(ARTHexMapActor::FindInWorld(GetWorld()));
+	const FVector Origin = Geo.Origin;
+	const float HexSize = Geo.HexSize;
+	const float LayerH = Geo.LayerH;
+	const URTHexMapAsset* Map = Geo.Map;
 
 	// 🔴 **Il ciclo che disegnava la sovrapposizione dell'unita' e' stato RIMOSSO** (`#2288`, `D-320`):
 	// nome, barra HP, scudo e il marker di stato ora vivono in un `UWidgetComponent` per unita'
@@ -934,7 +932,8 @@ void ARTHUD::DrawHUD()
 	// pannello degli intenti piu' sotto, quindi la funzione e i suoi test **non** vanno via con questo blocco.
 
 	// Traccia post-lock: il percorso realmente eseguito nell'ultima risoluzione (grigio, sotto le preview).
-	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
+	// ⛔ `Geo.bFromWorld` e' una CORREZIONE, e non puo' essere `if (Map)`: vedi `FRTHudHexGeometry`.
+	if (Geo.bFromWorld && TurnManager && TurnManager->GetPhase() == ERTMatchPhase::Planning)
 	{
 		// Il filtro di conoscenza di [D-223], e **non si decide qui**: la rotta porta gia' un verdetto per
 		// cella, congelato quando e' stata percorsa. Questo ciclo consuma e non costruisce nulla — niente
@@ -1673,6 +1672,23 @@ FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoute(const FRTIntentView& Vie
 		? View.PlannedPath
 		: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
 
+	return Out;
+}
+
+FRTHudHexGeometry ARTHUD::ComposeHexGeometry(const ARTHexMapActor* HexMap)
+{
+	// I ripieghi sono i default della struct: senza attore si torna li' senza scriverli.
+	FRTHudHexGeometry Out;
+	if (!HexMap)
+	{
+		return Out;
+	}
+
+	// ⚠️ `GetHexContext` rende l'asset ma scrive i tre valori **comunque**, prendendoli dall'attore
+	// quando l'asset manca. `bFromWorld` registra che la geometria e' quella del mondo — cosa che
+	// `Map != nullptr` NON dice, perche' in graybox l'asset e' nullo e la geometria e' buona.
+	Out.bFromWorld = true;
+	Out.Map = HexMap->GetHexContext(Out.Origin, Out.HexSize, Out.LayerH);
 	return Out;
 }
 

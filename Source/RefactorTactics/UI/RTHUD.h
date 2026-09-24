@@ -203,6 +203,35 @@ struct FRTPlannedRoutePresentation
  * commento del campo. E' la stessa forma di `bMoving`, gia' giudicata decisione: un payload opzionale non
  * e' leggibile a flag spento, questo lo e' ed e' attivamente sbagliato.
  */
+/**
+ * La geometria da cui nasce ogni conversione cella → schermo di questa HUD (#2184).
+ *
+ * 🔴 **`Map == nullptr` significa DUE cose, e confonderle e' un difetto muto.**
+ * `ARTHexMapActor::GetHexContext` rende l'asset, ma scrive i tre valori **anche** quando l'asset manca:
+ * li prende dall'attore, che in graybox e' la fonte giusta. Gli stati sono quindi **tre**, non due:
+ *
+ *     nessun attore        -> ripieghi `(0, 150, 250)`: geometria INVENTATA
+ *     attore senza asset   -> geometria VERA, dai campi dell'attore (graybox)
+ *     attore con asset     -> geometria VERA, dall'asset autorevole
+ *
+ * `bFromWorld` separa il primo dagli altri due. Chi volesse turare il buco con un `if (Map)` spegnerebbe
+ * anche il graybox, dove la geometria e' valida — ed e' la ragione per cui questo flag esiste separato.
+ */
+struct FRTHudHexGeometry
+{
+	/** L'attore mappa esiste: i tre valori vengono dal mondo, non dai ripieghi. */
+	bool bFromWorld = false;
+
+	// ⚠️ I default SONO i ripieghi: senza attore la struct nasce gia' nello stato giusto, e nessun
+	// chiamante deve ricordarsene.
+	FVector Origin = FVector::ZeroVector;
+	float HexSize = 150.f;
+	float LayerH = 250.f;
+
+	/** L'asset autorevole. ⚠️ Puo' essere nullo **anche** con `bFromWorld` vero: e' il caso graybox. */
+	const class URTHexMapAsset* Map = nullptr;
+};
+
 struct FRTDashPreview
 {
 	/** Vero se l'unita' ha uno scatto pianificato ADESSO — non «se la cella di scatto e' valorizzata». */
@@ -875,6 +904,26 @@ public:
 	 */
 	static FRTDashPreview ComposeDashPreview(const struct FRTIntentView& View,
 		const class URTHexMapAsset* Map);
+
+	/**
+	 * La geometria della mappa, coi suoi ripieghi e con lo stato che li distingue (#2184).
+	 *
+	 * ⚠️ **I tre ripieghi erano tre letterali dentro `DrawHUD`** — `ZeroVector`, `150.f`, `250.f` — e
+	 * nessuno li misurava, perche' non erano protetti da nessun condizionale e ogni verifica di chiusura
+	 * aveva guardato i **rami**. Sono ora i default della struct, e un test li interroga.
+	 *
+	 * 🔴 **`bFromWorld` ha permesso di chiudere un difetto MUTO, e chi legge il diff deve saperlo: in un
+	 * caso cambia cio' che si vede.** La traccia post-lock leggeva i tre valori **senza controllare
+	 * niente**: senza attore mappa non spariva, si disegnava ai ripieghi — scala inventata, attorno
+	 * all'origine del mondo. Nessun test poteva vederlo, perche' `DrawHUD` non ha copertura headless.
+	 *
+	 * ⛔ **E la guardia non poteva essere `if (Map)`**: in graybox l'asset e' nullo ma la geometria e'
+	 * quella vera dell'attore, e spegnere li' avrebbe tolto la traccia dove funziona. Gli stati sono
+	 * tre; questo flag separa il solo caso rotto.
+	 *
+	 * @param HexMap  puo' essere nullo: la geometria torna ai ripieghi e `bFromWorld` resta falso.
+	 */
+	static FRTHudHexGeometry ComposeHexGeometry(const class ARTHexMapActor* HexMap);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
