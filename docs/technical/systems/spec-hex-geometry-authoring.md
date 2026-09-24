@@ -666,6 +666,14 @@ fuori dalla cella cancellata.
 
 ⚠️ Gli indici restituiti valgono finché l'asset non cambia, e si consumano **dal più alto al più basso**.
 
+🔴 **La regola esiste, ed è applicata da UNA sola delle due vie che cancellano una cella**
+([#3322](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3322), aperta il 2026-09-24).
+`URTMapEditLibrary::DeleteElement` chiede la cascata prima di rimuovere; `URTHexMapAsset::RemoveCell` no —
+toglie la cella e basta — e ci arriva `EraseCellInStroke`, cioè il **pennello in `Erase`**, che per giunta
+cancella in *area*. Finché quella issue è aperta, questa sezione descrive la regola **e** il gesto che non la
+chiama: dichiararlo qui è ciò che impedisce di leggere la tabella qui sopra come una garanzia dell'asset,
+quando è una garanzia di una funzione.
+
 Verifica: `RefactorTactics.Map.Dependency.*` — un test per array, uno per il gruppo che sopravvive, e uno
 che applica la cascata e chiede a `ValidateMap` se è rimasto qualcosa.
 
@@ -707,8 +715,56 @@ RefusedWouldCloseEdge  chiuderebbe un bordo: allora e' una COPERTURA
 RefusedDuplicate       muro identico gia' presente
 ```
 
-Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, e i
-quattro rifiuti, ciascuno con la controprova che la mappa resta valida.
+⛔ **«Chiuderebbe un bordo» si chiede a `URTGeometryBakeLibrary::IsInteriorSegment`, non a
+`EdgesTouchedBy`**, e la distinzione è costata un difetto. `EdgesTouchedBy` risponde a *«si passa da questo
+lato?»*, ed è corretta per la propria domanda; ma un diametro `Offset == 0` che va **da lato a lato** ne
+attraversa due, e `#2085` aveva già stabilito che passare per il centro è una proprietà della **giacitura**,
+non l'esito di una domanda sui bordi. La correzione di `#2085` si era fermata al primo chiamante — il bake —
+e il move aveva continuato a definire «interno» per negazione:
+
+```text
+diametro lato -> lato    la cottura lo scrive in InteriorWalls
+                         il move lo rifiutava RefusedWouldCloseEdge
+```
+
+⚠️ Il danno non era un rifiuto in più: era un rifiuto con una **diagnosi falsa**, che manda a correggere la
+cosa sbagliata — lo stesso motivo per cui `RefusedNoNeighbour` è separato da `RefusedNoSuchCell`. Ora la
+regola ha una sede sola e due chiamanti.
+
+#### 13.2.1 La cottura segue l'operazione, e si ferma alle celle che ha toccato
+
+🔑 **Un'operazione che cambia l'insieme dei muri interni di una cella deve riderivarne la
+calpestabilità**, perché `bBlocksMovement` generato è funzione di quei muri (`DeriveStandability`). Senza,
+un gesto solo lascia due stati che `ValidateMap` segnala, e uno è un **errore**:
+
+| dove | cosa resta | regola |
+|---|---|---|
+| cella d'**origine** | perde un muro, ma `bMovementBlockGenerated` resta acceso | REGOLA 4 `StaleGeneratedBlock` (warning) |
+| cella d'**arrivo** | guadagna un muro, ma `bBlocksMovement` resta spento | REGOLA 1 `NoLegalPlacement` (**errore**) |
+
+⛔ **`BakeCell` non è lo strumento, e usarla sarebbe distruttivo.** Il suo contratto è di *rebake* — «questi
+segmenti sono lo stato generato completo della cella» — e per onorarlo comincia buttando via **tutte** le
+coperture generate e **tutti** i muri interni della cella. Chi le passasse i soli `InteriorWalls`, gli unici
+che un'operazione di authoring ha sottomano, le farebbe cancellare le coperture cotte dal disegno, che
+derivano da segmenti che chiudono bordi e che in `InteriorWalls` per invariante non ci sono.
+
+`URTGeometryBakeLibrary::RederiveStandability` è quindi la **coda** di `BakeCell` senza il suo corpo: rifà il
+volume di una cella e non tocca né coperture né muri. La chiamano `MoveInteriorWall` — su **due** celle
+quando il muro cambia cella, perché *«la sola cella interessata»* esclude una passata sull'intera mappa, non
+la cella che il muro lascia — e il ramo `InteriorWall` di `DeleteElement`, dove il difetto era simmetrico.
+
+⚠️ **Il ramo `Cell` non ricuoce, e non è una dimenticanza**: la cascata gli porta via i muri *di quella
+cella*, che sparisce con essi. Non c'è un bersaglio da riderivare.
+
+🔑 **L'autore vince anche qui.** Un `bBlocksMovement` dipinto a mano (`bMovementBlockGenerated == false`) non
+viene toccato: è la regola che `DeriveStandability` già applica e che REGOLA 4 rispetta non segnalandola.
+Una ricottura agganciata al gesto che la contraddicesse cancellerebbe una scelta di design mentre l'autore ne
+sposta un'altra.
+
+Verifica: `RefactorTactics.Map.Edit.*` — l'handle sopravvive al move, il round-trip di serializzazione, i
+quattro rifiuti ciascuno con la controprova che la mappa resta valida, e le due metà della ricottura:
+`MoveRebakesOnlyTheCellsItTouched` (con un testimone stantio su una cella non toccata, che deve
+**sopravvivere**) e `TheRebakeAfterAMoveLeavesAnAuthoredBlockAlone`.
 
 ⚠️ **Un muro senza nome resta identificabile**, e non è un ripensamento su v12: `StableId` nasce `NAME_None`,
 quindi ogni muro disegnato prima di v12 è anonimo. L'handle porta allora la chiave `(Cell, Segment)` — unica
