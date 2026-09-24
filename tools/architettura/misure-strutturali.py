@@ -130,9 +130,13 @@ turno.
   🔴 `PATTERNS_FLUSSO` cerca cinque stringhe nel testo del `.cpp`. Ma `RTWorldFixtures::PlayOneTurn`
   — `PlanBotsForTest()` + `LockInAndResolve()` + un ciclo `Tick(0.05f)` — vive in un **header**:
   chi la chiama non contiene nessun marcatore e risulta **allestimento** pur girando la risoluzione
-  vera. Misurato il 2026-09-24: **quattro** file su 37 (`RTAutobattleInputInertTests`,
-  `RTHexOccupancyTests`, `RTReplayRecordingIntegrationTests`, `RTUnitIdentityTests`), e il piu'
-  pesante gioca una partita fino a `MatchEnded` verificando il manifest col checksum.
+  vera. I file classificati male il 2026-09-24 — `RTAutobattleInputInertTests`,
+  `RTHexOccupancyTests`, `RTReplayRecordingIntegrationTests`, `RTUnitIdentityTests` — si rielencano
+  col comando scritto accanto a `PATTERNS_FLUSSO`, e il piu' pesante gioca una partita fino a
+  `MatchEnded` verificando il manifest col checksum.
+  ⌫ **Qui c'era «quattro file su 37», e il 37 era un totale che cambia da solo**: lo ricalcola questo
+  stesso strumento a ogni esecuzione, e fra la fetta di #3218 e oggi e' gia' stato 36. I nomi seguono
+  nella stessa frase, quindi il conteggio non aggiungeva niente che non invecchiasse.
   Accanto a `di cui ALLESTISCONO soltanto` c'e' ora **`— e al NETTO delle fixture`**, che risolve
   le fixture di header. ⚠️ Il primo numero NON e' cambiato, per la stessa ragione di `rami`:
   #2182 e i suoi referti lo portano scritto. Chi cerca un bersaglio per una fetta guardi il
@@ -257,26 +261,55 @@ def fixture_di_flusso(testo):
     corrente = None
     profondita = 0
     aperta = False
-    for riga in testo.split("\n"):
+    in_commento = False
+    for grezza in testo.split("\n"):
+        # ⛔ **I blocchi `/* … */` si tolgono PRIMA di tutto, con la stessa macchina a stati che
+        # `funzioni_di` ha quaranta righe piu' sotto.** La prima stesura usava il solo `RE_COMMENTO`, che
+        # aggancia `^\s*(//|/\*|\*)`: la riga di CONTINUAZIONE di un blocco a piu' righe — quella che non
+        # comincia per `*` — le sfuggiva, e un `LockInAndResolve()` citato li' dentro promuoveva la
+        # fixture sbagliata. Riprodotto in code review; la forma `/*bInformEngineOfWorld=*/` esiste gia'
+        # dentro un corpo di `RTWorldFixtures.h`, cioe' nell'header stesso da cui la misura dipende.
+        riga = grezza
+        if in_commento:
+            if "*/" in riga:
+                riga = riga.split("*/", 1)[1]
+                in_commento = False
+            else:
+                continue
+        while "/*" in riga:
+            prima, resto = riga.split("/*", 1)
+            if "*/" in resto:
+                riga = prima + resto.split("*/", 1)[1]
+            else:
+                riga = prima
+                in_commento = True
+                break
+
+        # 🔴 **Le graffe si contano sulla riga PULITA, non su quella grezza**, ed e' la stessa scelta di
+        # `funzioni_di`. Un `return TEXT("{");` dentro un corpo desincronizzava il tracker: la fixture
+        # restava «aperta» per sempre e il marcatore della funzione SUCCESSIVA le veniva attribuito —
+        # un colpo, due errori. Oggi nessun header di `Tests/` lo innesca, ma le graffe dentro letterali
+        # esistono gia' nei `.cpp` del modulo: e' latenza, non immunita'.
+        pulita = spoglia(riga)
+
         if corrente is None:
             trovata = RE_FIXTURE_INLINE.match(riga)
             if not trovata:
                 continue
             corrente, profondita, aperta = trovata.group(1), 0, False
-        # ⛔ Due forme di commento, e servono entrambe: `RE_COMMENTO` toglie le righe che sono commento
-        # per intero (`* …` dentro un blocco `/** */`), `spoglia` toglie quello IN LINEA dopo il codice.
-        # La prima stesura usava solo la prima, e l'autotest l'ha bocciata su `X.Num(); // niente RunTurn`.
-        if not RE_COMMENTO.match(riga) and any(p in spoglia(riga) for p in PATTERNS_FLUSSO):
+        # ⛔ Il commento a riga intera resta da togliere anche dopo `spoglia`, che non conosce il `*` di
+        # continuazione dei blocchi gia' chiusi da `RE_COMMENTO`.
+        if not RE_COMMENTO.match(riga) and any(p in pulita for p in PATTERNS_FLUSSO):
             nomi.add(corrente)
-        profondita += riga.count("{") - riga.count("}")
-        if "{" in riga:
+        profondita += pulita.count("{") - pulita.count("}")
+        if "{" in pulita:
             aperta = True
         # ⛔ **Una DICHIARAZIONE non apre nessun corpo, e va chiusa qui.** `inline void Helper(int32);`
         # non contiene mai `{`: senza questa riga `corrente` resterebbe agganciata a lei per sempre, la
         # fixture successiva verrebbe saltata — il blocco d'ingresso vuole `corrente is None` — e ogni
         # marcatore del resto del file finirebbe attribuito al nome sbagliato. Trovato in code review
         # riproducendolo, e ora c'e' un caso che lo tiene fermo.
-        elif not aperta and ";" in spoglia(riga):
+        elif not aperta and ";" in pulita:
             corrente = None
             continue
         if aperta and profondita <= 0:
@@ -285,10 +318,48 @@ def fixture_di_flusso(testo):
 
 
 def gira_il_flusso(testo, fixture):
-    """PURA. Il file gira il flusso del turno — direttamente, o attraverso una fixture di header?"""
+    """PURA. Il file gira il flusso del turno — direttamente, o attraverso una fixture di header?
+
+    ⚠️ **Il primo ramo cerca sul testo GREZZO, di proposito**: e' l'euristica storica di
+    `test_file_allestimento`, e restringerla muoverebbe un numero che le baseline gia' portano scritto.
+    Il secondo ramo — quello nuovo — e' invece stretto, perche' nessuna baseline lo vincola.
+    """
     if any(p in testo for p in PATTERNS_FLUSSO):
         return True
-    return any((f + "(") in testo for f in fixture)
+    if not fixture:
+        return False
+
+    # ⛔ **Confine di parola, non sottostringa.** `(f + "(") in testo` rispondeva `True` su
+    # `MyPlayOneTurn(TM);`, cioe' su un identificatore DIVERSO che finisce col nome cercato. Sui due
+    # nomi di oggi non morde — misurato: zero occorrenze precedute da un carattere di identificatore —
+    # ma la regola era fragile **rispetto ai nomi**, non rispetto al codice: fra i nomi che
+    # `RE_FIXTURE_INLINE` estrae oggi ce ne sono di corti come `Path`, che nel corpus collide a centinaia.
+    #
+    # ⛔ **E una citazione in un commento non e' una chiamata**, che e' lo stesso principio gia' applicato
+    # dentro `fixture_di_flusso`. Senza, bastava un `// vedi PlayOneTurn(...)` a promuovere il file.
+    chiamata = re.compile(r"\b(?:%s)\s*\(" % "|".join(re.escape(f) for f in sorted(fixture)))
+    in_commento = False
+    for grezza in testo.split("\n"):
+        riga = grezza
+        if in_commento:
+            if "*/" in riga:
+                riga = riga.split("*/", 1)[1]
+                in_commento = False
+            else:
+                continue
+        while "/*" in riga:
+            prima, resto = riga.split("/*", 1)
+            if "*/" in resto:
+                riga = prima + resto.split("*/", 1)[1]
+            else:
+                riga = prima
+                in_commento = True
+                break
+        if RE_COMMENTO.match(riga):
+            continue
+        if chiamata.search(spoglia(riga)):
+            return True
+    return False
 
 
 def funzioni_di(path):
@@ -396,8 +467,10 @@ def misura(radice, soglia):
             # Allestimento = spawna un Actor ma NON gira il flusso del turno. E' il residuo di E50 su cui
             # una fetta puo' lavorare senza togliere copertura d'integrazione (#2182).
             #
-            # ⛔ **Questa riga NON cambia**, e il numero che produce nemmeno: le baseline di #2182, #1818 e
-            # dei referti datati sono scritte con lui. Il conteggio corretto vive accanto, non al suo posto.
+            # ⛔ **Questa riga NON cambia**, ed e' la FORMULA a restare ferma — non il numero, che si
+            # muove a ogni fetta e a ogni test nuovo. Le baseline di #2182, #1818 e dei referti datati
+            # sono confrontabili solo se il criterio resta questo. Il conteggio corretto vive accanto,
+            # non al suo posto.
             if not any(p in testo for p in PATTERNS_FLUSSO):
                 allestimento += 1
                 # Il conteggio NETTO toglie chi gira il flusso attraverso una fixture di header: sono
@@ -697,8 +770,8 @@ def autotest():
 
     # ── `fixture_di_flusso` e `gira_il_flusso`, provate sulle stringhe (#2182) ────────────────────────
     #
-    # ⚠️ **Sono prove della funzione PURA, non della misura sull'albero.** Che i quattro file classificati
-    # male siano davvero quattro lo dice il comando nel commento di `PATTERNS_FLUSSO`; qui si prova che,
+    # ⚠️ **Sono prove della funzione PURA, non della misura sull'albero.** Quali file siano classificati
+    # male lo dice il comando nel commento di `PATTERNS_FLUSSO`, eseguito quando serve; qui si prova che,
     # dato un header, la funzione ne estragga i nomi giusti — e che sappia NON estrarli.
     print()
     HEADER_VERO = '''
@@ -771,6 +844,55 @@ def autotest():
         # `#include` basterebbe a promuovere il file. Questo caso lo tiene fermo.
         ("il nome senza parentesi NON basta: serve una chiamata",
          gira_il_flusso("// vedi PlayOneTurn per il flusso completo", {"PlayOneTurn"}), False),
+        # 🔴 Confine di PAROLA: un identificatore diverso che finisce col nome cercato non e' una
+        # chiamata alla fixture. Senza `\b` questo risponderebbe True.
+        ("un identificatore piu' lungo non e' la fixture",
+         gira_il_flusso("MyPlayOneTurn(TM);", {"PlayOneTurn"}), False),
+        # 🔴 Una CITAZIONE in un commento non e' una chiamata, ne' a riga intera ne' a blocco.
+        ("la chiamata citata in un commento non conta",
+         gira_il_flusso("// TODO: chiamare PlayOneTurn(TM) un giorno", {"PlayOneTurn"}), False),
+        ("nemmeno dentro un blocco /* */",
+         gira_il_flusso("/* qui NON si chiama\n   PlayOneTurn(TM) */", {"PlayOneTurn"}), False),
+        # 🔑 E il caso POSITIVO resta, altrimenti le quattro righe sopra sarebbero soddisfatte da una
+        # funzione che risponde sempre False.
+        ("ma la chiamata vera, sì", gira_il_flusso("\tRTWorldFixtures::PlayOneTurn(TM);", {"PlayOneTurn"}), True),
+        # 🔴 **Un ritorno diverso da `void`**, e senza questo caso meta' di `RE_FIXTURE_INLINE` non era
+        # mai esercitata nella direzione «accetta»: mutandola in `inline\s+void\s+(\w+)\s*\(` l'autotest
+        # restava VERDE e la misura perdeva `RunScenarioIsolated`, che e' una delle due fixture reali.
+        ("una fixture che non torna void e' riconosciuta lo stesso",
+         fixture_di_flusso('''
+    inline FRTTestResult RunScenarioIsolated(const FRTTestScenario& S)
+    {
+        return URTScenarioRunner::Run(World, S);
+    }
+    '''), {"RunScenarioIsolated"}),
+        # 🔴 Una graffa dentro un LETTERALE non deve desincronizzare il tracker: se lo fa, la fixture
+        # successiva non viene mai vista e il suo marcatore finisce attribuito a questa.
+        ("una graffa in un letterale non sposta il conteggio",
+         fixture_di_flusso('''
+    inline FString Etichetta()
+    {
+        return TEXT("{");
+    }
+
+    inline void GiraDavvero(ARTTurnManager* TM)
+    {
+        TM->LockInAndResolve();
+    }
+    '''), {"GiraDavvero"}),
+        # 🔴 Un blocco `/* … */` a piu' righe: la CONTINUAZIONE non comincia per `*`, quindi
+        # `RE_COMMENTO` non la aggancia e senza la macchina a stati il marcatore citato li' dentro
+        # promuoveva la fixture. E' la forma di `/*bInformEngineOfWorld=*/`, che esiste gia' in
+        # `RTWorldFixtures.h`.
+        ("un marcatore dentro un blocco /* */ a piu' righe non conta",
+         fixture_di_flusso('''
+    inline void Allestisci(UWorld* World)
+    {
+        /* nota: qui NON si chiama
+           TM->LockInAndResolve(), di proposito */
+        World->SpawnActor<ARTUnit>();
+    }
+    '''), set()),
         # 🔑 Il caso che dimostra che il NETTO non e' l'ALLESTIMENTO: senza fixture note, un file che
         # chiama `PlayOneTurn` resta classificato come allestimento. E' il difetto storico, riprodotto.
         ("senza fixture note, lo stesso .cpp risulta allestimento",
