@@ -336,10 +336,12 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 		// CELLE. Un raggio dal centro a un lato non lo blocca — dal vicino si entra ancora, da entrambi i
 		// lati del raggio — e cio' che divide e' l'INTERNO. Classificarlo come copertura inventava un
 		// blocco inesistente e perdeva la divisione reale.
-		const bool bThroughCentre = (Segment.Offset == 0);
-
+		//
+		// ⏱️ **La condizione viveva QUI, scritta a mano, ed e' salita in `IsInteriorSegment`** perche' il
+		// move la applicava in modo diverso e i due divergevano su un diametro lato-lato. La regola non
+		// cambia: cambia che ha una sede sola. Vedi l'header di quella funzione.
 		TArray<ERTHexDirection> Edges;
-		if (!bThroughCentre)
+		if (!URTGeometryBakeLibrary::IsInteriorSegment(Segment, HexSize))
 		{
 			URTGeometryBakeLibrary::EdgesTouchedBy(Segment, HexSize, Edges);
 		}
@@ -454,6 +456,48 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 
 	Map->AddOrUpdateCell(Updated);
 	return Generated;
+}
+
+bool URTGeometryBakeLibrary::IsInteriorSegment(const FRTGeometrySegment& Segment, float HexSize)
+{
+	// `Offset == 0` significa, per definizione della grammatica, «il segmento passa per il centro della
+	// cella»: e' una proprieta' della GIACITURA, e non va dedotta dai bordi (#2085). Un raggio dal centro a
+	// un lato non blocca il passaggio FRA DUE CELLE — dal vicino si entra ancora, da entrambi i lati del
+	// raggio — e cio' che divide e' l'INTERNO.
+	if (Segment.Offset == 0)
+	{
+		return true;
+	}
+
+	// Altrimenti la domanda e' quella dei bordi, e la risposta e' di `EdgesTouchedBy`: un segmento che non
+	// ne chiude nessuno e' interno perche' nessuna copertura potrebbe rappresentarlo.
+	TArray<ERTHexDirection> Edges;
+	EdgesTouchedBy(Segment, HexSize, Edges);
+	return Edges.Num() == 0;
+}
+
+bool URTGeometryBakeLibrary::RederiveStandability(URTHexMapAsset* Map, const FRTCellId& CellId, float HexSize)
+{
+	if (Map == nullptr)
+	{
+		return false;
+	}
+
+	const FRTHexCellData* Existing = Map->FindCell(CellId);
+	if (Existing == nullptr)
+	{
+		// Una cella che non esiste piu' non ha niente da ricuocere. E' l'esito normale per chi cancella una
+		// cella intera: la cascata le porta via i muri, e questa funzione non ha un bersaglio.
+		return false;
+	}
+
+	// ⚠️ Si passa da una COPIA e da `AddOrUpdateCell`, come fa la coda di `Bake`: `FindCell` restituisce un
+	// puntatore dentro l'array delle celle, e scriverci sopra salterebbe la sede che l'asset usa per
+	// registrare la modifica.
+	FRTHexCellData Updated = *Existing;
+	RTGeometryBakeInternal::DeriveStandability(Updated, Map, CellId, HexSize, FRTFootprintProfile());
+	Map->AddOrUpdateCell(Updated);
+	return true;
 }
 
 int32 URTGeometryBakeLibrary::CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId)

@@ -110,4 +110,51 @@ public:
 
 	/** Quante coperture generate porta una cella. Serve ai test e al conteggio della regione investita. */
 	static int32 CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId);
+
+	/**
+	 * Questo segmento e' un MURO INTERNO — cioe' nessuna copertura di bordo puo' rappresentarlo?
+	 *
+	 * 🔴 **Esiste perche' la regola era scritta in DUE posti e i due divergevano** (misurato il 2026-09-24).
+	 * `#2085` ha stabilito che `Offset == 0` — «il segmento passa per il centro» — e' una proprieta' della
+	 * GIACITURA e non l'esito di una domanda sui bordi, e ha corretto la cottura; ma la correzione si e'
+	 * fermata al suo primo chiamante, e `URTMapEditLibrary::MoveInteriorWall` ha continuato a definire
+	 * «interno» per negazione, chiedendolo alla sola `EdgesTouchedBy`:
+	 *
+	 * ```text
+	 * diametro Deg0 (lato -> lato)   la cottura lo scrive in InteriorWalls
+	 *                                il move lo rifiuta RefusedWouldCloseEdge
+	 * ```
+	 *
+	 * ⚠️ **Il danno non era un rifiuto in piu', era un rifiuto con una diagnosi FALSA**: quel valore
+	 * significa *«e' una copertura, non un muro interno»*, e manda a correggere la cosa sbagliata — il
+	 * difetto per cui `RefusedNoNeighbour` era gia' stato separato da `RefusedNoSuchCell`.
+	 *
+	 * ⛔ **`EdgesTouchedBy` non cambia, ed e' deliberato**: risponde correttamente alla propria domanda —
+	 * *«si passa da questo lato?»* — e ha altri chiamanti di produzione a cui questa distinzione non
+	 * appartiene. Cio' che cambia e' che «e' interno» ha ora UNA sede invece di due stesure.
+	 */
+	static bool IsInteriorSegment(const FRTGeometrySegment& Segment, float HexSize);
+
+	/**
+	 * Rideriva la CALPESTABILITA' di una cella dai muri interni che porta adesso, e basta.
+	 *
+	 * 🔑 **E' la coda di `BakeCell` senza il suo corpo, e la distinzione e' tutto il punto.** Dopo un move o
+	 * una cancellazione l'insieme dei muri interni di una cella e' cambiato, quindi `bBlocksMovement`
+	 * derivato va rifatto — ma coperture e muri sono gia' quelli giusti, e non vanno toccati.
+	 *
+	 * ⛔ **`BakeCell` NON e' lo strumento per questo, e usarla sarebbe distruttivo.** Il suo contratto e' di
+	 * *rebake*: «questi segmenti sono lo stato generato completo della cella», e per onorarlo comincia
+	 * buttando via **tutte le coperture generate e tutti i muri interni** della cella per riscriverli dai
+	 * segmenti ricevuti. Chi la chiamasse passandole i soli `InteriorWalls` — gli unici che un'operazione di
+	 * authoring ha sottomano — le farebbe cancellare le coperture cotte dal disegno, che derivano da
+	 * segmenti che chiudono bordi e che in `InteriorWalls` per invariante non ci sono.
+	 *
+	 * ⚠️ **L'autore vince, e questa funzione non lo contraddice**: un `bBlocksMovement` dipinto a mano
+	 * (`bMovementBlockGenerated == false`) resta dov'e'. E' la regola che `DeriveStandability` applica gia'
+	 * e che `ValidateMap` REGOLA 4 rispetta non segnalandola — qui si eredita, non si riscrive.
+	 *
+	 * `false` se la mappa o la cella non esistono: una cella cancellata non ha piu' niente da ricuocere, e
+	 * per un chiamante e' un esito normale, non un errore.
+	 */
+	static bool RederiveStandability(URTHexMapAsset* Map, const FRTCellId& CellId, float HexSize);
 };

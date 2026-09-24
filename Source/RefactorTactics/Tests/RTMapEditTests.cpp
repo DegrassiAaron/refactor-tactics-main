@@ -1257,4 +1257,362 @@ bool FRTMapEditDryRunTest::RunTest(const FString&)
 
 	return true;
 }
+
+namespace
+{
+	/**
+	 * Un diametro per il CENTRO lungo l'asse dato. `Offset == 0` significa, per definizione della
+	 * grammatica, «passa per il centro della cella» — la forma che `#2085` ha stabilito essere un MURO
+	 * INTERNO e non una copertura.
+	 *
+	 * ⚠️ Gli assi DISPARI (`Deg30`, `Deg90`, `Deg150`) puntano ai VERTICI, e tre di essi occupano tutti e
+	 * dodici i settori: e' l'aritmetica gia' misurata da `RefactorTactics.Standability.*`, riusata qui
+	 * perche' e' l'unico modo noto di rendere una cella non calpestabile con la sola geometria.
+	 */
+	FRTGeometrySegment MapEditDiameter(ERTTacticalAxis Axis)
+	{
+		FRTGeometrySegment S;
+		S.Axis = Axis;
+		S.Offset = 0;
+		S.AlongStart = -RT_GeometryQuanta;
+		S.AlongEnd = RT_GeometryQuanta;
+		S.Layer = 0;
+		S.WallType = ERTHexCoverType::High;
+		return S;
+	}
+
+	/** Da' un nome al muro interno che vive su `(Cell, Segment)`, perche' l'handle del move e' un NOME. */
+	bool MapEditNameWall(URTHexMapAsset* Map, const FRTCellId& Cell, const FRTGeometrySegment& Segment,
+		FName StableId)
+	{
+		const int32 Index = Map->InteriorWalls.IndexOfByPredicate(
+			[&Cell, &Segment](const FRTHexInteriorWall& Wall)
+			{
+				return Wall.Cell == Cell && Wall.Segment == Segment;
+			});
+		if (Index == INDEX_NONE)
+		{
+			return false;
+		}
+		Map->InteriorWalls[Index].StableId = StableId;
+		return true;
+	}
+
+	/** Quante segnalazioni di validazione riguardano questa cella. */
+	int32 MapEditIssuesOn(const URTHexMapAsset* Map, const FRTCellId& Cell)
+	{
+		TArray<FRTMapValidationIssue> Issues;
+		Map->ValidateMapDetailed(Issues);
+
+		int32 Count = 0;
+		for (const FRTMapValidationIssue& Issue : Issues)
+		{
+			if (Issue.Cell == Cell)
+			{
+				++Count;
+			}
+		}
+		return Count;
+	}
+}
+
+/**
+ * LA COTTURA SEGUE IL MOVE, e segue le SOLE celle che il move ha toccato (#1864, casella 4).
+ *
+ * 🔴 **Il difetto che questo test esiste per fermare**: `MoveInteriorWall` scriveva `Cell` e `Segment` e
+ * non ricuoceva niente — dentro `RTMapEditLibrary.cpp` l'unica cosa che veniva chiamata della cottura era
+ * `EdgesTouchedBy`, che e' una domanda sui bordi e non deriva nulla. Ne seguivano DUE segnalazioni da un
+ * gesto solo, e una era un **errore**:
+ *
+ * ```text
+ * cella d'ORIGINE   il muro se n'e' andato, ma bMovementBlockGenerated resta acceso
+ *                   -> REGOLA 4  StaleGeneratedBlock  (warning)
+ * cella d'ARRIVO    il muro chiude l'ultima posa, ma bBlocksMovement resta spento
+ *                   -> REGOLA 1  NoLegalPlacement     (ERRORE)
+ * ```
+ *
+ * ⚠️ **«La sola cella» e' meta' del criterio, ed e' la meta' che un test ingenuo non misura.** Il
+ * testimone `Lontana` porta un blocco stantio DELIBERATO su una cella che il move non tocca: se la
+ * correzione ricuocesse l'intera mappa quel blocco sparirebbe, nessuna asserzione sulle due celle mosse lo
+ * vedrebbe, e la mappa risulterebbe perfino «piu' valida». E' il controllo che distingue una ricottura
+ * mirata da una passata globale, e senza di esso il criterio sarebbe verificato a meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditMoveRebakesTouchedCellsTest,
+	"RefactorTactics.Map.Edit.MoveRebakesOnlyTheCellsItTouched",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditMoveRebakesTouchedCellsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+
+	const FRTCellId Origine(0, 0, 0);
+	const FRTCellId Arrivo(1, 0, 0);
+	const FRTCellId Lontana(-2, 0, 0);
+
+	const FRTGeometrySegment D30 = MapEditDiameter(ERTTacticalAxis::Deg30);
+	const FRTGeometrySegment D90 = MapEditDiameter(ERTTacticalAxis::Deg90);
+	const FRTGeometrySegment D150 = MapEditDiameter(ERTTacticalAxis::Deg150);
+
+	// L'origine: tre diametri, quindi dodici settori occupati e nessuna posa legale.
+	URTGeometryBakeLibrary::BakeCell(Map, Origine, { D30, D90, D150 }, MapEditHexSize);
+	// L'arrivo: due soli, quindi ancora calpestabile — il terzo la chiudera'.
+	URTGeometryBakeLibrary::BakeCell(Map, Arrivo, { D30, D90 }, MapEditHexSize);
+
+	const FRTHexCellData* Prima = Map->FindCell(Origine);
+	if (!TestNotNull(TEXT("l'origine esiste"), Prima)) { return false; }
+	if (!TestTrue(TEXT("l'allestimento chiude l'origine, e per geometria"),
+		Prima->bBlocksMovement && Prima->bMovementBlockGenerated))
+	{
+		return false; // senza questo l'intero test non discriminerebbe: non ci sarebbe niente da ricuocere
+	}
+	const FRTHexCellData* ArrivoPrima = Map->FindCell(Arrivo);
+	if (!TestNotNull(TEXT("l'arrivo esiste"), ArrivoPrima)) { return false; }
+	if (!TestFalse(TEXT("e l'arrivo e' ancora calpestabile"), ArrivoPrima->bBlocksMovement))
+	{
+		return false;
+	}
+
+	// IL TESTIMONE: un blocco derivato stantio su una cella che il move non tocca. Sopravvivere e' il suo
+	// mestiere — se sparisce, la cottura ha camminato su tutta la mappa.
+	FRTHexCellData Testimone = *Map->FindCell(Lontana);
+	Testimone.bBlocksMovement = true;
+	Testimone.bMovementBlockGenerated = true;
+	Map->AddOrUpdateCell(Testimone);
+	if (!TestEqual(TEXT("il testimone nasce con la sua segnalazione"),
+		MapEditIssuesOn(Map, Lontana), 1))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("il muro da spostare prende un nome"),
+		MapEditNameWall(Map, Origine, D150, TEXT("W150"))))
+	{
+		return false;
+	}
+
+	const ERTMapEditOutcome Outcome = URTMapEditLibrary::MoveInteriorWall(
+		Map, FRTMapElementHandle::ForInteriorWall(TEXT("W150")), Arrivo, D150);
+	if (!TestEqual(TEXT("il move si applica"),
+		static_cast<int32>(Outcome), static_cast<int32>(ERTMapEditOutcome::Applied)))
+	{
+		return false;
+	}
+
+	// --- l'ORIGINE ha perso un muro: la posa torna possibile, e il blocco DERIVATO se ne va con essa ---
+	const FRTHexCellData* Dopo = Map->FindCell(Origine);
+	if (!TestNotNull(TEXT("l'origine esiste ancora"), Dopo)) { return false; }
+	TestFalse(TEXT("l'origine torna calpestabile"), Dopo->bBlocksMovement);
+	TestFalse(TEXT("e non resta la provenienza accesa"), Dopo->bMovementBlockGenerated);
+	TestEqual(TEXT("l'origine non produce segnalazioni"), MapEditIssuesOn(Map, Origine), 0);
+
+	// --- l'ARRIVO ha guadagnato il terzo: si chiude, e si dichiara chiusa -----------------------------
+	const FRTHexCellData* ArrivoDopo = Map->FindCell(Arrivo);
+	if (!TestNotNull(TEXT("l'arrivo esiste ancora"), ArrivoDopo)) { return false; }
+	TestTrue(TEXT("l'arrivo si chiude"), ArrivoDopo->bBlocksMovement);
+	TestTrue(TEXT("e il blocco e' DERIVATO, non d'autore"), ArrivoDopo->bMovementBlockGenerated);
+	TestEqual(TEXT("l'arrivo non produce segnalazioni"), MapEditIssuesOn(Map, Arrivo), 0);
+
+	// --- e la mappa NON e' stata ricotta tutta: il testimone e' intatto -------------------------------
+	const FRTHexCellData* TestimoneDopo = Map->FindCell(Lontana);
+	if (!TestNotNull(TEXT("il testimone esiste"), TestimoneDopo)) { return false; }
+	TestTrue(TEXT("il testimone conserva il suo blocco: la cottura non ha camminato su tutta la mappa"),
+		TestimoneDopo->bBlocksMovement && TestimoneDopo->bMovementBlockGenerated);
+	TestEqual(TEXT("e la sua segnalazione e' ancora li'"), MapEditIssuesOn(Map, Lontana), 1);
+
+	return true;
+}
+
+/**
+ * LA COTTURA SEGUE ANCHE LA CANCELLAZIONE (#1864, casella 7).
+ *
+ * 🔑 **Il difetto e' SIMMETRICO a quello del move, e la issue non lo nominava.** Il corpo di #1864
+ * dichiarava la cottura mancante come un problema del solo `MoveInteriorWall`; misurando si e' visto che
+ * `DeleteElement` ha la stessa lacuna e produce lo stesso `StaleGeneratedBlock`. Cancellare l'ultimo muro
+ * che chiudeva una cella la lasciava chiusa per una geometria che non c'era piu'.
+ *
+ * E' la casella 7 alla lettera — *«nessuna operazione lascia un elemento orfano che `ValidateMap`
+ * segnalerebbe»*: un `bBlocksMovement` derivato senza la sua geometria e' esattamente quell'orfano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditDeleteRebakesItsCellTest,
+	"RefactorTactics.Map.Edit.DeletingAnInteriorWallRebakesItsCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditDeleteRebakesItsCellTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+	const FRTCellId Home(0, 0, 0);
+
+	const FRTGeometrySegment D30 = MapEditDiameter(ERTTacticalAxis::Deg30);
+	const FRTGeometrySegment D90 = MapEditDiameter(ERTTacticalAxis::Deg90);
+	const FRTGeometrySegment D150 = MapEditDiameter(ERTTacticalAxis::Deg150);
+
+	URTGeometryBakeLibrary::BakeCell(Map, Home, { D30, D90, D150 }, MapEditHexSize);
+
+	const FRTHexCellData* Prima = Map->FindCell(Home);
+	if (!TestNotNull(TEXT("la cella esiste"), Prima)) { return false; }
+	if (!TestTrue(TEXT("l'allestimento la chiude per geometria"),
+		Prima->bBlocksMovement && Prima->bMovementBlockGenerated))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("il muro da cancellare prende un nome"),
+		MapEditNameWall(Map, Home, D150, TEXT("W150"))))
+	{
+		return false;
+	}
+
+	const ERTMapEditOutcome Outcome = URTMapEditLibrary::DeleteElement(
+		Map, FRTMapElementHandle::ForInteriorWall(TEXT("W150")));
+	if (!TestEqual(TEXT("la cancellazione si applica"),
+		static_cast<int32>(Outcome), static_cast<int32>(ERTMapEditOutcome::Applied)))
+	{
+		return false;
+	}
+
+	// CONTROPROVA: il muro se n'e' andato davvero. Senza, una `DeleteElement` che non facesse niente
+	// lascerebbe la cella coerente con se' stessa e le asserzioni qui sotto non proverebbero nulla.
+	TestEqual(TEXT("il muro e' sparito"), Map->InteriorWalls.Num(), 2);
+
+	const FRTHexCellData* Dopo = Map->FindCell(Home);
+	if (!TestNotNull(TEXT("la cella esiste ancora"), Dopo)) { return false; }
+	TestFalse(TEXT("la cella torna calpestabile"), Dopo->bBlocksMovement);
+	TestFalse(TEXT("e la provenienza non resta accesa"), Dopo->bMovementBlockGenerated);
+	TestEqual(TEXT("e non resta nessuna segnalazione"), MapEditIssuesOn(Map, Home), 0);
+
+	return true;
+}
+
+/**
+ * LA COTTURA NON CONTRADDICE L'AUTORE, nemmeno quando il gesto la invita a farlo (#1864).
+ *
+ * ⛔ **E' il confine della correzione, e va misurato insieme a essa.** `DeriveStandability` dichiara
+ * *«l'autore vince»* — un `bBlocksMovement` dipinto a mano (`bMovementBlockGenerated == false`) non si
+ * tocca — e `ValidateMap` REGOLA 4 dichiara la stessa cosa non segnalandolo. Una ricottura agganciata al
+ * move che spegnesse quel blocco sarebbe uno strumento che cancella una scelta di design mentre l'autore
+ * ne sposta un'altra: il Non-goal *«nessuna rimozione automatica di un elemento la cui dipendenza e'
+ * ambigua»*, applicato al volume.
+ *
+ * ⚠️ Senza questo test la correzione passerebbe comunque i due qui sopra, perche' li' il blocco e' sempre
+ * derivato. E' il caso che distingue «ricuoci» da «ricuoci cio' che e' tuo».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditRebakeLeavesTheAuthorAloneTest,
+	"RefactorTactics.Map.Edit.TheRebakeAfterAMoveLeavesAnAuthoredBlockAlone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditRebakeLeavesTheAuthorAloneTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+
+	const FRTCellId Origine(0, 0, 0);
+	const FRTCellId Arrivo(1, 0, 0);
+
+	const FRTGeometrySegment D30 = MapEditDiameter(ERTTacticalAxis::Deg30);
+
+	URTGeometryBakeLibrary::BakeCell(Map, Origine, { D30 }, MapEditHexSize);
+
+	// Il blocco d'AUTORE sull'origine: un diametro solo non la chiuderebbe, quindi il `true` qui sotto puo'
+	// venire solo dalla mano di chi ha disegnato la mappa.
+	FRTHexCellData Autorata = *Map->FindCell(Origine);
+	if (!TestFalse(TEXT("la geometria da sola non chiuderebbe l'origine"), Autorata.bBlocksMovement))
+	{
+		return false;
+	}
+	Autorata.bBlocksMovement = true;
+	Autorata.bMovementBlockGenerated = false; // d'autore, ed e' il default
+	Map->AddOrUpdateCell(Autorata);
+
+	if (!TestTrue(TEXT("il muro prende un nome"), MapEditNameWall(Map, Origine, D30, TEXT("W30"))))
+	{
+		return false;
+	}
+
+	const ERTMapEditOutcome Outcome = URTMapEditLibrary::MoveInteriorWall(
+		Map, FRTMapElementHandle::ForInteriorWall(TEXT("W30")), Arrivo, D30);
+	if (!TestEqual(TEXT("il move si applica"),
+		static_cast<int32>(Outcome), static_cast<int32>(ERTMapEditOutcome::Applied)))
+	{
+		return false;
+	}
+
+	const FRTHexCellData* Dopo = Map->FindCell(Origine);
+	if (!TestNotNull(TEXT("l'origine esiste"), Dopo)) { return false; }
+	TestTrue(TEXT("il blocco d'autore sopravvive alla ricottura"), Dopo->bBlocksMovement);
+	TestFalse(TEXT("e resta d'autore"), Dopo->bMovementBlockGenerated);
+	TestEqual(TEXT("e non produce segnalazioni: REGOLA 4 non tocca la mano dell'autore"),
+		MapEditIssuesOn(Map, Origine), 0);
+
+	return true;
+}
+
+/**
+ * UN MURO CHE PASSA PER IL CENTRO SI PUO' SPOSTARE — la sonda su una divergenza fra due funzioni.
+ *
+ * 🔴 **`Bake` e `MoveInteriorWall` rispondono in modo diverso sullo STESSO segmento.** `#2085` ha stabilito
+ * che `Offset == 0` — «il segmento passa per il centro» — e' una proprieta' della GIACITURA e non l'esito
+ * di una domanda sui bordi, e ha corretto la cottura di conseguenza:
+ *
+ * ```text
+ * RTGeometryBake.cpp    const bool bThroughCentre = (Segment.Offset == 0);
+ *                       if (!bThroughCentre) { EdgesTouchedBy(...); }   -> muro INTERNO
+ * RTMapEditLibrary.cpp  EdgesTouchedBy(NewSegment, ...);                -> nessuna guardia
+ *                       if (TouchedEdges.Num() > 0) RefusedWouldCloseEdge;
+ * ```
+ *
+ * Il commento di `EdgesTouchedBy` dichiara che quella funzione *«non si tocca»* perche' ha altri chiamanti
+ * — ed e' giusto: risponde correttamente alla propria domanda. Ma la CORREZIONE si e' fermata al suo primo
+ * chiamante, e il secondo ha continuato a definire «interno» per negazione.
+ *
+ * ⚠️ **La conseguenza non e' un rifiuto in piu': e' un rifiuto con una diagnosi FALSA.** Il gesto torna
+ * `RefusedWouldCloseEdge`, cioe' *«e' una copertura, non un muro interno»*, su un segmento che la cottura
+ * ha appena scritto in `InteriorWalls` — e chi legge quel codice va a correggere la cosa sbagliata, che e'
+ * precisamente il difetto per cui `RefusedNoNeighbour` era stato separato da `RefusedNoSuchCell`.
+ *
+ * Gli assi PARI puntano ai punti medi dei lati: un diametro `Deg0` va da lato a lato, e per
+ * `EdgesTouchedBy` ne attraversa due. Gli assi dispari puntano ai vertici, che `MSE-4` esclude — ed e' la
+ * ragione per cui i test di move gia' esistenti, tutti su corde vertice-vertice, non lo vedevano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMapEditMoveAcceptsACentralDiameterTest,
+	"RefactorTactics.Map.Edit.MoveAcceptsAWallThatRunsThroughTheCentre",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMapEditMoveAcceptsACentralDiameterTest::RunTest(const FString&)
+{
+	URTHexMapAsset* Map = MapEditMakeMap(2);
+
+	const FRTCellId Origine(0, 0, 0);
+	const FRTCellId Arrivo(1, 0, 0);
+
+	// `Deg0` punta al punto medio del lato `E`: il diametro va da lato a lato.
+	const FRTGeometrySegment Diametro = MapEditDiameter(ERTTacticalAxis::Deg0);
+
+	URTGeometryBakeLibrary::BakeCell(Map, Origine, { Diametro }, MapEditHexSize);
+
+	// LA PREMESSA, e senza di essa la sonda non misurerebbe niente: la cottura lo considera un muro
+	// interno. Se un giorno smettesse di farlo, questo test deve cadere QUI e non piu' in basso.
+	if (!TestEqual(TEXT("la cottura scrive un muro INTERNO, non una copertura"),
+		Map->InteriorWalls.Num(), 1))
+	{
+		return false;
+	}
+
+	if (!TestTrue(TEXT("il muro prende un nome"), MapEditNameWall(Map, Origine, Diametro, TEXT("WC"))))
+	{
+		return false;
+	}
+
+	const ERTMapEditOutcome Outcome = URTMapEditLibrary::MoveInteriorWall(
+		Map, FRTMapElementHandle::ForInteriorWall(TEXT("WC")), Arrivo, Diametro);
+
+	if (!TestEqual(TEXT("cio' che la cottura ha scritto come muro interno, il move lo sa spostare"),
+		static_cast<int32>(Outcome), static_cast<int32>(ERTMapEditOutcome::Applied)))
+	{
+		return false;
+	}
+
+	if (!TestEqual(TEXT("il muro e' ancora uno solo"), Map->InteriorWalls.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("ed e' davvero sull'arrivo"), Map->InteriorWalls[0].Cell, Arrivo);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
