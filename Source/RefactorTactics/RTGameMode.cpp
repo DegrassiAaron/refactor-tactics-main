@@ -558,6 +558,25 @@ void ARTGameMode::BeginPlay()
 		// avanzare, e una partita normale non lo paga.
 		SetActorTickEnabled(true);
 		RecenterCameraOnScenario();
+		// 🔴 **I controlli di playback si accendono ANCHE QUI** — `#3267`. Fino a questa riga
+		// `rt.Debug.PlaybackControls 1` non aveva alcun effetto in auto-run di scenario: la lettura della
+		// CVar vive dopo `SetupHexMatch`, e questo ramo esce con il `return` qui sotto senza mai
+		// raggiungerla. ∴ `K` e `L` restavano inerti **proprio dove servono** — l'auto-run e' il modo in cui
+		// si conducono le sedute di giudizio percettivo sul corpus `Visual.*`, e una scena dura pochi
+		// secondi — mentre funzionavano in partita normale, dove il giocatore puo' gia' fermarsi da se'.
+		//
+		// ⚠️ **Prima di `OpenClaimedFirstTurn`, e l'ordine e' quello che il percorso normale dichiara**:
+		// quella riga apre il turno 1, e un'accensione successiva lascerebbe scorrere con i comandi spenti
+		// proprio il playback che chi lancia con `PlaybackStartPaused` vuole guardare fermo.
+		//
+		// ⚠️ **`PlaybackStartPaused` viaggia con loro, ed e' una scelta misurata** (punto 3 dello scope di
+		// `#3267`). Il banco NON scade: in stato `Resolving` `FRTScenarioSession::Step` aspetta
+		// `!TM->IsResolving()` senza timeout, quindi un playback fermo lo fa **attendere**, non fallire —
+		// che e' esattamente cio' che una seduta vuole. ⛔ Il prezzo, dichiarato: in una run **non
+		// presidiata** quella CVar appenderebbe lo scenario finche' nessuno preme `K`. Non e' accesa per
+		// default e vive fuori da Shipping, ma chi la accende in automazione deve saperlo.
+		ApplyPlaybackControlCVars(
+			Cast<ARTTurnManager>(UGameplayStatics::GetActorOfClass(this, ARTTurnManager::StaticClass())));
 		// Lo scenario allestisce da se' e pilota il TurnManager, ma il campione di pacing del primo turno
 		// lo apre `StartPlanningTimer`: senza questa riga, l'harness auto-run perderebbe cio' che aveva.
 		OpenClaimedFirstTurn();
@@ -602,21 +621,10 @@ void ARTGameMode::BeginPlay()
 		//
 		// ⛔ Fuori da una build Shipping non esiste nemmeno la lettura: senza queste righe il manager resta
 		// al proprio default fail-closed, che e' il comportamento spedito.
-#if !UE_BUILD_SHIPPING
-		if (CVarRTPlaybackControls.GetValueOnGameThread() > 0)
-		{
-			TurnManager->SetPlaybackControlsEnabled(true);
-			UE_LOG(LogTemp, Display,
-				TEXT("[RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step)."));
-
-			if (CVarRTPlaybackStartPaused.GetValueOnGameThread() > 0)
-			{
-				TurnManager->SetStartPlaybackPaused(true);
-				UE_LOG(LogTemp, Display,
-					TEXT("[RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo."));
-			}
-		}
-#endif // !UE_BUILD_SHIPPING
+		// ⏱️ *Queste righe stavano QUI, inline, fino a `#3267`*: cio' le rendeva irraggiungibili in
+		// auto-run di scenario, perche' quel ramo esce con un `return` cinquanta righe piu' su. Ora sono in
+		// `ApplyPlaybackControlCVars`, che entrambi i percorsi chiamano.
+		ApplyPlaybackControlCVars(TurnManager);
 
 		// 🔴 **La conoscenza va ricalcolata QUI, e non e' una precauzione** ([#1762]).
 		//
@@ -725,6 +733,30 @@ void ARTGameMode::HookReactionWindow()
 	{
 		ViewModel->Hook(TurnManager);
 	}
+}
+
+void ARTGameMode::ApplyPlaybackControlCVars(ARTTurnManager* TurnManager)
+{
+	if (!TurnManager)
+	{
+		return;
+	}
+
+#if !UE_BUILD_SHIPPING
+	if (CVarRTPlaybackControls.GetValueOnGameThread() > 0)
+	{
+		TurnManager->SetPlaybackControlsEnabled(true);
+		UE_LOG(LogTemp, Display,
+			TEXT("[RT] rt.Debug.PlaybackControls: comandi di playback ACCESI (Pause/Resume/Step)."));
+
+		if (CVarRTPlaybackStartPaused.GetValueOnGameThread() > 0)
+		{
+			TurnManager->SetStartPlaybackPaused(true);
+			UE_LOG(LogTemp, Display,
+				TEXT("[RT] rt.Debug.PlaybackStartPaused: ogni playback comincia fermo."));
+		}
+	}
+#endif // !UE_BUILD_SHIPPING
 }
 
 void ARTGameMode::OpenClaimedFirstTurn()
