@@ -3008,6 +3008,62 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		Ev.Amount = Entry.Amount;
 		ResolvedTimeline.Add(Ev);
 	}
+
+	// `#3280` — il colpo all'ARCO, quarta riga con la stessa forma delle tre sopra. La voce e' appena stata
+	// scritta e porta gia' tutto — i due capi in `SrcCell`/`TgtCell`, l'integrita' residua in `Amount`,
+	// l'esito in `Outcome`, chi ha colpito in `UnitId` — quindi qui non si decide nulla: si COPIA.
+	//
+	// 🔴 **Un ponte poteva crollare e la timeline non lo sapeva**, ed era il difetto che `#2828` aveva
+	// chiuso per le coperture e lasciato aperto per gli archi: nessun `ERTResolvedEventType`, quindi nessuna
+	// riga in `DeclaredBindings()` a cui appendere una dichiarazione, quindi `AbsenceCensusIsPinned` non
+	// aveva niente da sorvegliare. Un'assenza che nessun censimento vede e' peggio di una dichiarata.
+	//
+	// 🔑 **Perche' QUI e non in `ApplyEnvironmentChanges`, dove la voce nasce** — [D-437], che ha esaminato
+	// l'alternativa per nome e l'ha scartata. Emettere dal produttore costringerebbe a rispondere a una
+	// domanda che nessuno ha posto: `State` e `Integrity` sono `UPROPERTY` per arco **diretto** e
+	// `IsArcTraversable` e' direzionale, ma `BothWays` esiste perche' *«un ponte percorribile in un senso
+	// solo per errore»* non nasca — e `DamageArc` non li riallinea. ∴ un evento per ARCO dovrebbe scegliere
+	// in silenzio quale dei due versi racconta il ponte; un evento per VOCE non sceglie.
+	// ⛔ E il difetto che l'emissione dai siti paga e' gia' accaduto in questo file: `ReactionResolved` e'
+	// emesso dai siti, e il secondo sito fu dimenticato — con il gate di [D-278] **verde**, perche'
+	// verifica che il tipo sia *dichiarato*, non *emesso*.
+	//
+	// ⚠️ **Piu' eventi per lo stesso arco nello stesso Blast sono la lettura GIUSTA, non un difetto.** Il
+	// ciclo del danno agli archi e' per INTENTO e non accumula per bordo come fanno le coperture: due
+	// attaccanti sullo stesso ponte danno due chiamate a `DamageArc`, quindi due colpi distinti da mostrare.
+	// E' la forma di [D-301] — una voce per intento — e l'ordine e' canonico perche' `Ctx.Intents` si
+	// costruisce iterando `Ctx.Units` **dopo** `URTActionQueueLibrary::SortUnitsForResolution` (misurato
+	// prima di scrivere questa riga, non assunto).
+	//
+	// ⚠️ Come per le tre righe sopra, `ResolvedTimeline` e' playback e **non entra ne' in `StateHash` ne'
+	// nel formato di replay**: `CaptureFinalStateHash` passa da `HashMatchState(Map, UnitDigests,
+	// TeamScores)`, e la timeline non e' fra i suoi ingressi.
+	if (URTTurnLogLibrary::IsArcHit(Entry))
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = Entry.Phase;
+		Ev.Type = ERTResolvedEventType::ArcHit;
+		// 🔑 **`Source` e non `Target`**: ha tirato lui. ⚠️ Puo' valere `0` — `AppendLogEntry` lo scrive
+		// quando l'Actor e' nullo: chi consuma lo legga come «nessuno» ([D-063]) e mai come l'unita' zero.
+		// 🔴 **REVISIONE PRIVACY, dichiarata e non chiusa con `N/A`** (`CLAUDE.md` §7). Il caso e' lo
+		// **stesso** di `StructureHit`, non uno nuovo: il danno alla struttura si raccoglie prima del
+		// controllo sulla linea di tiro, quindi un attaccante invisibile che abbatte un ponte senza colpire
+		// nessuno mette il proprio `StableUnitId` e l'istante del colpo in timeline senza che
+		// `Entry.Verdict` li accompagni. ⛔ Non lo risolvo indovinando un filtro: se il CAMBIAMENTO di una
+		// geometria pubblica sia pubblico, e se a non esserlo siano solo il suo AUTORE e il suo ISTANTE, e'
+		// la stessa decisione di boundary che `#2828` ha gia' lasciato aperta — e due canali non si chiudono
+		// con mezza riga scritta di corsa.
+		Ev.SourceStableUnitId = Entry.UnitId;
+		// ⛔ **`TargetStableUnitId` resta `0` e non e' un buco**: il bersaglio e' un ARCO, e un arco non ha
+		// uno `StableUnitId`. Lo sorveglia `Turn.ArcHitCarriesTheArcNotAnActor`.
+		Ev.ArcFrom = Entry.SrcCell;
+		Ev.ArcTo = Entry.TgtCell;
+		Ev.EnvironmentOutcome = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
+		// ⚠️ **`Amount` e' l'integrita' RESIDUA, non il danno inferto**, come per `StructureHit`: e' la
+		// convenzione della voce gemella, e cambiarla qui renderebbe i due canali non confrontabili.
+		Ev.Amount = Entry.Amount;
+		ResolvedTimeline.Add(Ev);
+	}
 }
 
 void ARTTurnManager::RecordFacingChange(FRTHexSimUnit& Unit, ERTHexDirection NewFacing, ERTFacingOutcome Reason,
