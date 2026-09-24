@@ -2983,18 +2983,27 @@ void ARTTurnManager::AppendLogEntry(FRTTurnLogEntry& Entry, const FRTLogSubject&
 		// riguardare la struttura.
 		Ev.StructureCell = Entry.SrcCell;
 		Ev.StructureToward = Entry.TgtCell;
-		// ⚠️ **Una barriera dichiarata su ENTRAMBE le facce produce DUE eventi per un colpo solo**, ed e'
-		// ereditato: `ApplyStructureDamage` chiama `DamageFace` sui due lati, e se entrambe le celle
-		// dichiarano la copertura nascono due `FRTCoverDamageResult` — quindi due voci di TurnLog, quindi due
-		// eventi, quindi due segni sullo stesso bordo. ⚠️ **E dal 2026-09-22 non sono piu' SOVRAPPOSTI**: il
-		// disegno prende l'alzata dalla sola cella che porta la copertura, e le due voci la portano scambiata,
-		// quindi su un bordo fra celle di `Height` diversa i due segni compaiono a **quote diverse** — due
-		// barriere colpite invece di una contata due volte. Prima erano coincidenti perche' la quota era la
-		// media delle due, simmetrica allo scambio: la duplicazione c'era ed era invisibile.
+		// ⚠️ **Una barriera dichiarata su ENTRAMBE le facce produce DUE eventi per un colpo solo**:
+		// `ApplyStructureDamage` chiama `DamageFace` sui due lati, e se entrambe le celle dichiarano la
+		// copertura nascono due `FRTCoverDamageResult` — quindi due voci di TurnLog, quindi due eventi,
+		// quindi due segni sullo stesso bordo, a **quote diverse** se le celle hanno `Height` diversa (il
+		// disegno prende l'alzata dalla sola cella che porta la copertura, e le due voci la portano
+		// scambiata; prima di `#2828` la quota era la media, simmetrica allo scambio, e la duplicazione
+		// c'era ed era invisibile).
+		//
+		// 🔑 **E i due eventi RESTANO, perche' sono due fatti — [D-437], `#3279`.** Non e' una barriera
+		// contata due volte: e' **una** barriera per la traversata e **due** per la protezione. Le due facce
+		// sono lette da due regole diverse — `CoverBetween` tiene la piu' alta, mentre
+		// `URTHexCombatLibrary::HexCoverDamageReduction` legge la faccia dichiarata sulla **propria** cella —
+		// quindi una puo' cadere mentre l'altra regge, e la protezione di un solo lato sparisce. Una voce
+		// sola direbbe *«ha retto»* mentre il difensore ha appena perso il riparo, e nessun indizio a
+		// schermo la smentirebbe. Lo pinna `Structures.RedundantFacesFallIndependently`.
 		// ⛔ `ValidateMap` la classifica **Warning e non Error** (la
-		// faccia ridondante di [D-288] `GEO-7`), cioe' lo stato e' legale e una mappa d'autore puo' averlo.
-		// 🔴 I gate 1:1 non lo vedono, perche' i due canali raddoppiano INSIEME. Non lo dedup qui: la causa
-		// e' a monte e la presentazione non e' il posto dove riconciliare una geometria.
+		// faccia ridondante di [D-288] `GEO-7`), cioe' lo stato e' legale e una mappa d'autore puo' averlo —
+		// e il suo messaggio ne dichiara ora la conseguenza a chi disegna.
+		// 🔴 I gate 1:1 non lo vedono, perche' i due canali raddoppiano INSIEME. Non si dedup qui: il punto
+		// di derivazione porta cio' che il TurnLog tiene e non riconcilia; una riduzione, se mai servisse,
+		// apparterrebbe alla fonte.
 		Ev.EnvironmentOutcome = static_cast<ERTEnvironmentOutcome>(Entry.Outcome);
 		Ev.Amount = Entry.Amount;
 		ResolvedTimeline.Add(Ev);
