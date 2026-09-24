@@ -246,10 +246,15 @@ bool FRTContextInspectorShowsOnlyThisCellTest::RunTest(const FString&)
  * ⚠️ Questo test NON prova che il pannello si veda: prova che non sia stato messo dove qualcun altro c'e'
  * gia'. Il resto e' giudizio umano, ed e' la seduta `U59`.
  *
- * ⛔ Questa riga diceva `U55`, corretta il 2026-09-23. `U55` e' «I residui dell'authoring hex», una seduta
- * di tutt'altro: chi leggeva il test dal codice convocava una seduta di authoring asset. La seduta che
- * convoca `PIE-DEBUG-CONTEXT` e' `U59` — `editor-sessions.yaml`, `verifies: [PIE-DEBUG-CONTEXT]`, e la
- * cella di stato del registro lo ripete.
+ * ⛔ Questa riga diceva `U55`, corretta il 2026-09-23. `U55` e' «I residui del mode Hex Map, e la versione
+ * che il salvataggio scrive» — corsia `asset`, e il suo `verifies` porta `PIE-HEX-MODE-P/Q/R` e
+ * `PIE-FMTVER`, non questa voce. Chi leggeva il test dal codice convocava una seduta di authoring asset.
+ * La seduta che convoca `PIE-DEBUG-CONTEXT` e' `U59` — `editor-sessions.yaml`, `verifies:
+ * [PIE-DEBUG-CONTEXT]`, e la cella di stato del registro lo ripete.
+ * ⚠️ Il titolo va citato com'e' scritto: la prima stesura di questa correzione diceva «I residui
+ * dell'authoring hex», una parafrasi che nel registro non esiste — `grep` non la trova, quindi chi
+ * cercava quella seduta per nome non la trovava. Un puntatore che non risolve e' il difetto che questa
+ * riga stessa doveva riparare.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTContextInspectorPlacementTest,
 	"RefactorTactics.Debug.ContextInspectorPlacementDoesNotCollide",
