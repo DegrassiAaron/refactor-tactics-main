@@ -132,8 +132,22 @@ public:
 	TObjectPtr<URTHexGeometryToolProperties> Properties = nullptr;
 
 private:
-	/** Aggiorna lo snap dal punto corrente del drag. Non commette nulla: e' solo il ghost. */
-	void UpdatePreview(const FInputDeviceRay& Ray);
+	/**
+	 * Aggiorna lo snap dal punto corrente del drag. Non commette nulla: e' solo il ghost.
+	 *
+	 * 🔑 **Restituisce PERCHE' il gesto non ha prodotto un segmento**, e non lo tiene in un membro.
+	 * `OnClickRelease` ne ha bisogno per distinguere un click da un disegno fallito (#1864), e la prima
+	 * stesura lo conservava in `LastRefusal` — ma questa funzione ha **tre `return` anticipati** prima di
+	 * arrivare alla grammatica, quindi un gesto che non risolve actor, contesto o piano avrebbe lasciato
+	 * acceso il valore del gesto PRECEDENTE: un click secco lascia `SameAnchor`, e il gesto dopo lo
+	 * troverebbe li'. Restituirlo rende quello stato stantio **impossibile** invece che da ricordarsi di
+	 * azzerare in tre punti.
+	 *
+	 * ⚠️ I return anticipati rendono `None`, che significa «la coppia si esprime» e quindi **non**
+	 * vale come selezione: con `bPreviewValid` a `false` il gesto non fa niente, che e' l'esito giusto per
+	 * un gesto che non ha nemmeno trovato la mappa.
+	 */
+	ERTAnchorPairRefusal UpdatePreview(const FInputDeviceRay& Ray);
 
 	/** Il piano del layer attivo, in world: dove il raggio del mouse atterra. */
 	bool ProjectToCellPlane(const FInputDeviceRay& Ray, FVector& OutWorld) const;
@@ -164,16 +178,6 @@ private:
 	 */
 	ERTGeometryViolation IncidentViolation = ERTGeometryViolation::None;
 	int32 IncidentWallIndex = INDEX_NONE;
-
-	/**
-	 * PERCHE' l'ultimo gesto non ha prodotto un segmento (#1864, casella 2).
-	 *
-	 * 🔑 **Serve a distinguere un CLICK da un disegno fallito**, che e' la differenza fra selezionare e
-	 * non fare niente. `UpdatePreview` lo calcola gia' — e' l'uscita di `ExplainPair` — ma lo consumava e
-	 * lo buttava; `OnClickRelease` ne ha bisogno un fotogramma dopo, quando decide se il gesto era una
-	 * selezione. La regola che lo legge e' `RTHexEditor::GestureIsASelection`, che e' pura.
-	 */
-	ERTAnchorPairRefusal LastRefusal = ERTAnchorPairRefusal::None;
 
 	/** Il segmento che lo snap ha prodotto, e se ne ha prodotto uno. */
 	FRTGeometrySegment Preview;

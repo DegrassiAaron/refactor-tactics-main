@@ -200,26 +200,28 @@ namespace
 	}
 }
 
-void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
+ERTAnchorPairRefusal URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 {
 	bPreviewValid = false;
 
+	// ⚠️ I tre rifiuti qui sotto rendono `None`, che **non** vale come selezione: un gesto che non ha
+	// trovato la mappa non e' un click, e' un gesto senza contesto (#1864).
 	ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
 	if (Actor == nullptr)
 	{
-		return;
+		return ERTAnchorPairRefusal::None;
 	}
 
 	FVector Origin; float HexSize = 0.f; float LayerHeight = 0.f;
 	if (Actor->GetHexContext(Origin, HexSize, LayerHeight) == nullptr)
 	{
-		return;
+		return ERTAnchorPairRefusal::None;
 	}
 
 	FVector World;
 	if (!ProjectToCellPlane(Ray, World))
 	{
-		return;
+		return ERTAnchorPairRefusal::None;
 	}
 
 	// Coordinate LOCALI della cella attiva: e' il sistema in cui la grammatica e' definita.
@@ -236,9 +238,6 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	IncidentViolation = ERTGeometryViolation::None;
 	IncidentWallIndex = INDEX_NONE;
 
-	// ⚠️ Si registra il PERCHE', non solo il fallimento: `OnClickRelease` deve distinguere un click da
-	// un disegno che non e' riuscito, e la differenza sta tutta in questo valore (#1864).
-	LastRefusal = Snap.Refusal;
 
 	// Il gesto appena premuto non e' un rifiuto: e' l'assenza della domanda, e ha una frase sua.
 	const RTHexAnchor::FReadout Readout = Snap.From == Snap.To
@@ -270,6 +269,11 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	Properties->Refusal = Readout.Reason;
 	Properties->Incidence = RTHexAnchor::DescribeIncidence(IncidentViolation, IncidentWallIndex);
 	Properties->Cell = ActiveCell;
+
+	// Il PERCHE' del gesto torna al chiamante invece di restare in un membro: `OnClickRelease` lo usa per
+	// distinguere un click da un disegno fallito, e un membro sarebbe stato stantio sui tre `return`
+	// anticipati qui sopra (#1864). Vedi l'header.
+	return Snap.Refusal;
 }
 
 FInputRayHit URTHexGeometryTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
@@ -338,7 +342,7 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	}
 	bDragging = false;
 
-	UpdatePreview(ReleasePos);
+	const ERTAnchorPairRefusal Refusal = UpdatePreview(ReleasePos);
 	if (!bPreviewValid)
 	{
 		// 🔑 **QUI Geometry partecipa alla selezione (#1864, casella 2).** Fino a questa riga il tool
@@ -356,7 +360,7 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 		// dell'engine distingue click e trascinamento con una soglia in pixel di schermo, che dipende
 		// dalla camera — allo zoom sbagliato il muro piu' corto esprimibile smetterebbe di essere
 		// disegnabile. Gli anchor no.
-		if (RTHexEditor::GestureIsASelection(LastRefusal))
+		if (RTHexEditor::GestureIsASelection(Refusal))
 		{
 			ARTHexMapActor* Bersaglio = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
 			FRTCellId Cella;
