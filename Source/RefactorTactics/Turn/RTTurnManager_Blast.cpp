@@ -1829,6 +1829,9 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 	TArray<FRTHexAttackIntent>& Intents = Ctx.Intents;
 	TArray<FRTPendingArcOp>& PendingArcOps = Ctx.PendingArcOps;
 	FRTHexBlastPlan& Plan = Ctx.Plan;
+	// `#3281`: l'identita' dell'azione di un colpo a struttura si risolve da qui, ed e' l'UNICA fonte —
+	// la stessa che il rifiuto di posa e l'impronta usano gia'.
+	const TArray<FRTActionDef>& IntentDefs = Ctx.IntentDefs;
 
 	// STRUTTURE (CP 9.2): il danno raccolto contro le barriere si applica ORA, a colpi risolti — non durante
 	// la raccolta. Chi ha sparato in questo Blast non guadagna la linea perche' il muro e' caduto: la vista e
@@ -1851,6 +1854,52 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 		Entry.SrcCell = Change.Cell;
 		Entry.TgtCell = Change.Toward;
 		Entry.Amount = Change.RemainingIntegrity;
+
+		// L'IDENTITA' DELL'AZIONE — `#3281`, [D-437]: **si nomina quando l'autore e' uno, si tace quando
+		// sono due.**
+		//
+		// 🔑 **Non e' una regola inventata qui: e' la trascrizione del precedente della SPINTA.** Con un
+		// autore la voce scrive `Cause->ActionId`; con due, `AppendDisplacementResistedEntry(...,
+		// OpposingForces, nullptr)` e' l'unico dei suoi siti che passa `nullptr` invece della mappa delle
+		// cause — *«quando le cause sono due la voce non ne nomina nessuna»*.
+		//
+		// 🔴 **E chiude un'asimmetria**: ogni ALTRO esito della copertura nomina gia' l'azione —
+		// `CoverRejected`, `CoverCreated`, `CoverMoved`, e perfino `CoverExpired`, che scrive
+		// `Action.CreateCover` pur non avendo un autore. Solo il percorso di **successo** era anonimo. E'
+		// la stessa asimmetria che [D-197] ha dichiarato difetto e chiuso sull'arco.
+		//
+		// ⚠️ **`NAME_None` acquista un significato**, e va saputo da chi legge: non piu' *«nessuno l'ha
+		// fatto»* ma *«piu' di uno l'ha fatto»*. ∴ su `StructureHit` **e'** un confine d'atto, e
+		// `URTPlaybackLibrary::NextActionBoundary` lo dichiara.
+		//
+		// ⛔ **Il difetto che questa regola accetta, dichiarato**: da qui in poi un produttore che
+		// dimentica di popolare l'identita' non perde un confine — ne **inventa** uno. Un `Next Action` che
+		// si ferma su un atto inesistente e' meno leggibile di uno che ne salta uno: e' il prezzo di mettere
+		// il significato nel dato, ed e' il motivo per cui
+		// `Playback.SingleActionStructureHitNamesItsAction` non e' un gate opzionale.
+		//
+		// ⚠️ **Gli indici sono TUTTI quelli che hanno contribuito, e la stessa azione da due intenti resta
+		// UNA risposta**: due unita' che usano entrambe `Action.BasicAttack` sullo stesso bordo la nominano.
+		// ⛔ Non e' un rappresentante scelto: e' l'unanimita', e quando manca si tace.
+		//
+		// 🔑 Stessa forma del rifiuto di posa qualche riga piu' su (`Refusal.IntentIndex` ->
+		// `IntentDefs[...]`): `IntentDefs` e' l'unica fonte dell'identita', qui come li'.
+		{
+			const TArray<int32>& Autori = Change.IntentIndices;
+			bool bUnanime = Autori.Num() > 0 && IntentDefs.IsValidIndex(Autori[0]);
+			for (int32 k = 1; bUnanime && k < Autori.Num(); ++k)
+			{
+				// ⛔ Un indice che non risolve non e' una risposta: si tace, non si indovina.
+				bUnanime = IntentDefs.IsValidIndex(Autori[k])
+					&& IntentDefs[Autori[k]].ActionId == IntentDefs[Autori[0]].ActionId;
+			}
+			if (bUnanime)
+			{
+				Entry.ActionId = IntentDefs[Autori[0]].ActionId;
+				Entry.BaseActionId = IntentDefs[Autori[0]].BaseActionId;
+				Entry.Priority = IntentDefs[Autori[0]].Priority;
+			}
+		}
 		// L'attaccante arriva col risultato: `FRTStructureHit` lo dichiarava gia' — «serve al TurnLog, non al
 		// calcolo» — e ora `FRTCoverDamageResult` lo propaga. Resta un indice fino a qui, quindi lo strato di
 		// mappa non ha mai visto un Actor.

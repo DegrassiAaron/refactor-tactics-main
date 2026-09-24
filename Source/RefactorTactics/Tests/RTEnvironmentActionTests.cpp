@@ -2486,9 +2486,17 @@ bool FRTTurnStructureHitEventCarriesEdgeNotActorTest::RunTest(const FString&)
 		TestEqual(TEXT("e la sorgente e' chi ha sparato"),
 			Ev.SourceStableUnitId, S.Breacher->StableUnitId);
 
-		// ⛔ `NAME_None` e' il valore dichiarato, non una dimenticanza: su un bordo colpito da piu' intenti
-		// non esiste UNA azione da nominare, e `Next Action` non deve fermarsi su un muro.
-		TestTrue(TEXT("⛔ nessuna identita' d'azione: e' un limite dichiarato"), Ev.ActionId.IsNone());
+		// ✅ **L'identita' dell'azione C'E', e qui e' un cambiamento di contratto, non un test aggiornato
+		// d'ufficio** — `#3281`, [D-437]. ⏱️ *Questa riga asseriva `Ev.ActionId.IsNone()` come «limite
+		// dichiarato»: era la misura del difetto, ed era corretta finche' l'identita' non arrivava fin qui.*
+		//
+		// 🔑 **Qui l'attaccante e' UNO**, e la regola decisa e' *«si nomina quando l'autore e' uno, si tace
+		// quando sono due»*: ∴ su questo scenario il silenzio sarebbe ora il difetto, non il contratto. Il
+		// caso in cui `NAME_None` resta — e diventa un confine d'atto — e' l'aggregato, e ha il suo gate
+		// (`Playback.AggregatedStructureHitDoesNotNameOneAction`).
+		TestFalse(TEXT("✅ l'identita' d'azione c'e': l'autore e' uno solo"), Ev.ActionId.IsNone());
+		TestEqual(TEXT("✅ ed e' l'azione di chi ha sparato"),
+			Ev.ActionId, S.Breacher->Abilities[0]->Def.ActionId);
 	}
 
 	DestroyEnvWorld(S.World);
@@ -3726,13 +3734,14 @@ bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FS
 
 	// --- ∴ LA CONSEGUENZA, MISURATA ------------------------------------------------------------------
 	//
-	// 🔴 **`Next Action` non si ferma sul muro che cade**, ed e' il fatto da cui la issue parte. Qui e'
-	// misurato e non dedotto: l'evento aggregato non e' un confine d'atto.
+	// ✅ **`Next Action` SI FERMA sul muro che cade** — `#3281`, [D-437]. ⏱️ *Questa riga asseriva il
+	// contrario, ed era la misura del difetto da cui la issue parte: allora `NAME_None` significava
+	// «nessuna azione dietro» per ogni tipo, e l'evento non era un confine.*
 	//
-	// ⛔ **Il gate non dice che sia giusto ne' che sia sbagliato.** `RTPlaybackLibrary.h` dichiara oggi che
-	// «gli eventi senza azione non sono confini», nominando fra essi il danno ambientale: la conseguenza e'
-	// coerente con il contratto scritto, ed e' la decisione della issue a stabilire se quel contratto debba
-	// cambiare.
+	// 🔑 **Il valore non e' cambiato, e' cambiato il suo SIGNIFICATO su questo tipo.** Il produttore nomina
+	// l'azione quando l'autore e' uno e tace **solo** sull'aggregato: ∴ un vuoto qui dice *«piu' di uno
+	// l'ha fatto»*, che e' un fatto con autori — non un fatto senza autore. E' la stessa `NAME_None` di
+	// prima, letta da un contratto diverso.
 	const TArray<FRTResolvedEvent>& Timeline = S.TM->ResolvedTimelineForTest();
 	int32 IndiceColpo = INDEX_NONE;
 	for (int32 i = 0; i < Timeline.Num(); ++i)
@@ -3741,8 +3750,146 @@ bool FRTPlaybackAggregatedStructureHitDoesNotNameOneActionTest::RunTest(const FS
 	}
 	if (TestTrue(TEXT("il colpo sta nella timeline"), IndiceColpo != INDEX_NONE))
 	{
-		TestNotEqual(TEXT("∴ e non e' un confine d'atto: `Next Action` non ci si ferma"),
+		TestEqual(TEXT("✅ ∴ l'aggregato E' un confine d'atto: `Next Action` ci si ferma"),
 			URTPlaybackLibrary::NextActionBoundary(Timeline, IndiceColpo - 1), IndiceColpo);
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * Con UNA azione sola il colpo la NOMINA — `#3281`, [D-437].
+ *
+ * 🔴 **E' il gate che mancava del tutto, e non e' un contorno: e' cio' che rende il silenzio una SCELTA.**
+ * Dopo questa decisione `NAME_None` su `StructureHit` significa *«piu' di uno l'ha fatto»* ed e' un confine
+ * d'atto. ∴ un produttore che **dimenticasse** di popolare l'identita' non perderebbe piu' un confine: ne
+ * **inventerebbe** uno — e un `Next Action` che si ferma su un atto che non esiste e' meno leggibile di uno
+ * che ne salta uno.
+ *
+ * ⛔ Senza questo gate, il caso comune — un attaccante, un muro — sarebbe indistinguibile dall'aggregato, e
+ * la decisione si reggerebbe su un solo verso.
+ *
+ * ⚠️ **E l'azione si legge dal CATALOGO, non da un `FName` scritto a mano**: si asserisce che l'evento porti
+ * *quella* identita', non «una qualsiasi non vuota».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackSingleActionStructureHitNamesItsActionTest,
+	"RefactorTactics.Playback.SingleActionStructureHitNamesItsAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackSingleActionStructureHitNamesItsActionTest::RunTest(const FString&)
+{
+	// Il muro ALTO, e un attaccante solo: `EnvMakeWalledBreachScenario` e' esattamente questa scena, ed e'
+	// gia' la fixture dei gate di `#2828`.
+	FRTEnvBreachScenario S = EnvMakeWalledBreachScenario(/*InStructurePower=*/ 10);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	const FName Azione = S.Breacher->Abilities[0]->Def.ActionId;
+	if (!TestFalse(TEXT("⛔ premessa: l'azione dell'unico attaccante ha un'identita'"), Azione.IsNone()))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	RunEnvTurn(S.TM);
+
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+	if (!TestEqual(TEXT("⛔ premessa: un attaccante, un colpo alla struttura"), Eventi.Num(), 1))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestEqual(TEXT("✅ il colpo NOMINA l'azione che l'ha prodotto"), Eventi[0].ActionId, Azione);
+	TestFalse(TEXT("⛔ e non tace: il silenzio e' riservato all'aggregato"), Eventi[0].ActionId.IsNone());
+
+	// La voce di TurnLog la porta pure, ed e' da li' che l'evento la copia: se divergessero, uno dei due
+	// canali starebbe raccontando un'altra partita.
+	const FRTTurnLogEntry* Voce = S.TM->GetTurnLog().FindByPredicate(
+		[](const FRTTurnLogEntry& E) { return URTTurnLogLibrary::IsStructureHit(E); });
+	if (TestNotNull(TEXT("la voce di TurnLog c'e'"), Voce))
+	{
+		TestEqual(TEXT("e i due canali portano la stessa azione"), Voce->ActionId, Azione);
+	}
+
+	// --- ∴ ED E' UN CONFINE D'ATTO, ma per la ragione ORDINARIA ---------------------------------------
+	//
+	// ⚠️ **Non per l'eccezione**: qui l'azione c'e', quindi il colpo e' un confine come lo sarebbe
+	// qualunque evento che apre un atto nuovo. L'eccezione riguarda il vuoto, e qui non c'e' vuoto.
+	const TArray<FRTResolvedEvent>& Timeline = S.TM->ResolvedTimelineForTest();
+	int32 IndiceColpo = INDEX_NONE;
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		if (Timeline[i].Type == ERTResolvedEventType::StructureHit) { IndiceColpo = i; break; }
+	}
+	if (TestTrue(TEXT("il colpo sta nella timeline"), IndiceColpo != INDEX_NONE))
+	{
+		TestEqual(TEXT("✅ `Next Action` si ferma sul muro"),
+			URTPlaybackLibrary::NextActionBoundary(Timeline, IndiceColpo - 1), IndiceColpo);
+	}
+
+	DestroyEnvWorld(S.World);
+	return true;
+}
+
+/**
+ * Un autore, DUE eventi, la stessa azione: **un** atto — `#3281` e `#3279`, [D-437].
+ *
+ * 🔑 **E' il gate che lega le due decisioni, e senza di esso una delle due sarebbe falsa.** Su una barriera
+ * dichiarata sulle **due facce** un colpo solo produce due `StructureHit` (`#3279`, dove i due eventi
+ * restano perche' sono due fatti). Se quei due portassero `NAME_None`, dopo `#3281` diventerebbero **due**
+ * confini d'atto — e `Next Action` si fermerebbe due volte per un colpo solo di un attaccante solo.
+ *
+ * ✅ Non succede, e la ragione sta nel dato: le due facce ricevono gli **stessi** `IntentIndices` — sono lo
+ * stesso colpo letto dai due lati — quindi portano la stessa azione, e `NextActionBoundary` legge *«piu'
+ * eventi con lo stesso `ActionId` sono UN atto»*.
+ *
+ * ⚠️ **E' anche il caso che ha ucciso l'opzione (a)**: mostra che il rapporto evento↔azione non e'
+ * funzionale in nessuno dei due versi — un fatto puo' avere piu' autori (`#3281`) e un autore puo' produrre
+ * piu' fatti (`#3279`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRedundantFaceStructureHitsAreOneActTest,
+	"RefactorTactics.Playback.RedundantFaceStructureHitsAreOneAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackRedundantFaceStructureHitsAreOneActTest::RunTest(const FString&)
+{
+	FRTEnvBreachScenario S = EnvMakeRedundantFaceScenario(/*InStructurePower=*/ 10, /*InHeightDelta=*/ 300);
+	if (!TestTrue(TEXT("scenario costruito"), S.bValid)) { DestroyEnvWorld(S.World); return false; }
+
+	const FName Azione = S.Breacher->Abilities[0]->Def.ActionId;
+	TestFalse(TEXT("⛔ premessa: l'unico attaccante ha un'azione con identita'"), Azione.IsNone());
+
+	RunEnvTurn(S.TM);
+
+	const TArray<FRTResolvedEvent> Eventi = EnvStructureHitEvents(S.TM);
+	// ⛔ PREMESSA: la faccia ridondante produce davvero DUE eventi. Con uno solo questo gate misurerebbe
+	// un'ovvieta' — un evento solo e' sempre un atto solo.
+	if (!TestEqual(TEXT("⛔ premessa: un colpo, due eventi (la faccia ridondante di #3279)"),
+		Eventi.Num(), 2))
+	{
+		DestroyEnvWorld(S.World);
+		return false;
+	}
+
+	// --- IL FATTO ------------------------------------------------------------------------------------
+	TestEqual(TEXT("✅ il primo nomina l'azione"), Eventi[0].ActionId, Azione);
+	TestEqual(TEXT("✅ e il secondo la STESSA: sono lo stesso colpo letto dai due lati"),
+		Eventi[1].ActionId, Azione);
+
+	// --- ∴ UN ATTO SOLO, e si misura con due chiamate consecutive ------------------------------------
+	const TArray<FRTResolvedEvent>& Timeline = S.TM->ResolvedTimelineForTest();
+	int32 Primo = INDEX_NONE;
+	int32 Secondo = INDEX_NONE;
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		if (Timeline[i].Type != ERTResolvedEventType::StructureHit) { continue; }
+		if (Primo == INDEX_NONE) { Primo = i; } else if (Secondo == INDEX_NONE) { Secondo = i; }
+	}
+	if (TestTrue(TEXT("i due colpi stanno nella timeline"), Primo != INDEX_NONE && Secondo != INDEX_NONE))
+	{
+		// 🔴 Partendo DAL primo colpo, il confine successivo non e' il secondo: sono lo stesso atto.
+		TestNotEqual(TEXT("🔴 `Next Action` NON si ferma una seconda volta sullo stesso colpo"),
+			URTPlaybackLibrary::NextActionBoundary(Timeline, Primo), Secondo);
 	}
 
 	DestroyEnvWorld(S.World);
