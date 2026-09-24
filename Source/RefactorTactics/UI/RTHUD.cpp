@@ -1102,9 +1102,14 @@ void ARTHUD::DrawHUD()
 			}
 
 			// Percorso pianificato: la rotta composita se la vista la porta, altrimenti lo stesso A* dell'autorita'.
-			if (View.bMoving)
+			//
+			// 🔑 **Le due scelte sono uscite** (#2184) e qui resta il consumo: `ComposePlannedRoutePresentation`
+			// decide se disegnare e da dove prendere le celle, e i suoi test la interrogano senza montare un
+			// HUD. Il ricalcolo resta qui perche' vuole `Map`, che una funzione pura non ha.
+			const FRTPlannedRoutePresentation Rotta = ComposePlannedRoutePresentation(View);
+			if (Rotta.bShow)
 			{
-				const TArray<FRTCellId> PathCells = (View.PlannedPath.Num() >= 2)
+				const TArray<FRTCellId> PathCells = Rotta.bRouteComesFromTheView
 					? View.PlannedPath
 					: URTHexPathLibrary::FindPath(Map, View.OwnerCell, View.PlannedCell).Path;
 
@@ -1654,6 +1659,23 @@ TArray<FRTIntentView> ARTHUD::ComposeVisibleIntentViews(const TArray<FRTPlannedI
 		Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
 	}
 	return Views;
+}
+
+FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoutePresentation(const FRTIntentView& View)
+{
+	FRTPlannedRoutePresentation Out;
+
+	// ⛔ **Non `PlannedCell.IsValid()` ne' `PlannedPath.Num() > 0`**: quei due dati ci sono comunque, e
+	// leggerli come presenza disegnerebbe una rotta su ogni unita' che ne conserva una dal turno prima o
+	// che ha pianificato uno scatto. La domanda e' «questo intento e' un movimento normale?», e la risposta
+	// la da' `bMoving`, che il modello deriva da `HasPlannedNormalMove()` — cioe' dalla regola intera.
+	Out.bShow = View.bMoving;
+
+	// Due celle: una rotta di una sola cella e' la sola origine, e chi disegna — che unisce le celle a
+	// coppie partendo da `i = 1` — non ne ricaverebbe nessun segmento.
+	Out.bRouteComesFromTheView = (View.PlannedPath.Num() >= 2);
+
+	return Out;
 }
 
 FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)

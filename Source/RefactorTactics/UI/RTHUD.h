@@ -154,6 +154,35 @@ struct FRTIntentPresentation
 	FLinearColor Color = FLinearColor::White;
 };
 
+/**
+ * Se la rotta pianificata si disegna, e da dove arrivano le sue celle (#2184).
+ *
+ * 🔴 **`bShow` NON e' un predicato di presenza del dato, ed e' la ragione per cui questa struct esiste.**
+ * `PlannedCell` e `PlannedPath` sono copiati **incondizionatamente** — dal modello
+ * (`RTHudViewModel.cpp:532` e `:537`) e dal filtro (`RTIntentPrivacyLibrary.cpp:56` e `:60`) — quindi
+ * restano valorizzati anche su un'unita' che non si muove: un piano di scatto, un piano sostituito da un
+ * attacco, il residuo del turno prima. Senza questa decisione si disegnerebbe una rotta verso una
+ * destinazione che l'unita' non percorrera'.
+ */
+struct FRTPlannedRoutePresentation
+{
+	/** Vero se l'intento e' un movimento normale. ⚠️ Non «se esiste una destinazione»: vedi sopra. */
+	bool bShow = false;
+
+	/**
+	 * Vero se la vista porta una rotta con almeno un SEGMENTO, cioe' due celle.
+	 *
+	 * ⚠️ **La soglia e' due, non uno, e non e' arbitraria**: chi disegna parte da `i = 1` e unisce le celle
+	 * a coppie, quindi una rotta di una cella sola — la sola origine — non produce nessun segmento e
+	 * lascerebbe l'unita' senza rotta visibile. Sotto la soglia si ricade sull'A' dell'autorita', che e'
+	 * la stessa risposta che il movimento eseguira'.
+	 *
+	 * ⛔ Il **fallback** non e' qui: ricalcolarlo vuole `Map`, e una decisione che legge la mappa non e'
+	 * una pura funzione della vista. Qui esce la *scelta*, non il calcolo.
+	 */
+	bool bRouteComesFromTheView = false;
+};
+
 struct FRTIntentCertaintyStyle
 {
 	/**
@@ -758,6 +787,17 @@ public:
 	 */
 	static TArray<struct FRTIntentView> ComposeVisibleIntentViews(
 		const TArray<struct FRTPlannedIntent>& Authoritative, int32 PlayerTeamId, bool bUnattendedSession);
+
+	/**
+	 * La rotta pianificata: se disegnarla, e se le celle arrivano dalla vista o vanno ricalcolate (#2184).
+	 *
+	 * 🔑 **Le due decisioni stanno insieme perche' la seconda ha senso solo dentro la prima**: non si
+	 * sceglie la sorgente di una rotta che non si disegna.
+	 *
+	 * ⚠️ Il **ricalcolo** resta fuori: `URTHexPathLibrary::FindPath` vuole `Map`, e una funzione che legge
+	 * la mappa non e' pura. Qui esce la scelta; il calcolo resta dove ha i suoi ingressi.
+	 */
+	static FRTPlannedRoutePresentation ComposePlannedRoutePresentation(const struct FRTIntentView& View);
 
 	// 🔴 **Qui c'era `ApplyCertaintyTint`, RIMOSSA il 2026-08-19 con la funzione che la chiamava.**
 	// Sbiadiva il colore di squadra secondo la certezza, e la code review ha mostrato tre cose insieme:
