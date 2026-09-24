@@ -200,26 +200,28 @@ namespace
 	}
 }
 
-void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
+ERTAnchorPairRefusal URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 {
 	bPreviewValid = false;
 
+	// ⚠️ I tre rifiuti qui sotto rendono `None`, che **non** vale come selezione: un gesto che non ha
+	// trovato la mappa non e' un click, e' un gesto senza contesto (#1864).
 	ARTHexMapActor* Actor = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
 	if (Actor == nullptr)
 	{
-		return;
+		return ERTAnchorPairRefusal::None;
 	}
 
 	FVector Origin; float HexSize = 0.f; float LayerHeight = 0.f;
 	if (Actor->GetHexContext(Origin, HexSize, LayerHeight) == nullptr)
 	{
-		return;
+		return ERTAnchorPairRefusal::None;
 	}
 
 	FVector World;
 	if (!ProjectToCellPlane(Ray, World))
 	{
-		return;
+		return ERTAnchorPairRefusal::None;
 	}
 
 	// Coordinate LOCALI della cella attiva: e' il sistema in cui la grammatica e' definita.
@@ -235,6 +237,7 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	bPreviewValid = false;
 	IncidentViolation = ERTGeometryViolation::None;
 	IncidentWallIndex = INDEX_NONE;
+
 
 	// Il gesto appena premuto non e' un rifiuto: e' l'assenza della domanda, e ha una frase sua.
 	const RTHexAnchor::FReadout Readout = Snap.From == Snap.To
@@ -266,6 +269,11 @@ void URTHexGeometryTool::UpdatePreview(const FInputDeviceRay& Ray)
 	Properties->Refusal = Readout.Reason;
 	Properties->Incidence = RTHexAnchor::DescribeIncidence(IncidentViolation, IncidentWallIndex);
 	Properties->Cell = ActiveCell;
+
+	// Il PERCHE' del gesto torna al chiamante invece di restare in un membro: `OnClickRelease` lo usa per
+	// distinguere un click da un disegno fallito, e un membro sarebbe stato stantio sui tre `return`
+	// anticipati qui sopra (#1864). Vedi l'header.
+	return Snap.Refusal;
 }
 
 FInputRayHit URTHexGeometryTool::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
@@ -334,9 +342,44 @@ void URTHexGeometryTool::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	}
 	bDragging = false;
 
-	UpdatePreview(ReleasePos);
+	const ERTAnchorPairRefusal Refusal = UpdatePreview(ReleasePos);
 	if (!bPreviewValid)
 	{
+		// 🔑 **QUI Geometry partecipa alla selezione (#1864, casella 2).** Fino a questa riga il tool
+		// DISEGNAVA la selezione condivisa — `Render` chiama `DrawSharedSelection` — e non poteva
+		// scriverla: era un consumatore, non un partecipante, e il criterio chiede che sia condivisa
+		// *fra* Select, Geometry e Arch.
+		//
+		// ⛔ **Si prende solo il gesto che gia' non produceva nulla**, e non uno nuovo: fra i modi in cui
+		// lo snap puo' fallire, uno solo significa «non stavo disegnando» — i due estremi sullo stesso
+		// anchor. Gli altri rifiuti dicono che il gesto ERA un disegno e non e' riuscito, e li' il ghost
+		// aveva gia' avvisato: cambiare la selezione al rilascio sarebbe rubare il gesto a chi disegna.
+		// La regola sta in `GestureIsASelection`, che e' pura e provata headless.
+		//
+		// ⚠️ **La misura e' quella della GRAMMATICA, non dei pixel**: `USingleClickOrDragInputBehavior`
+		// dell'engine distingue click e trascinamento con una soglia in pixel di schermo, che dipende
+		// dalla camera — allo zoom sbagliato il muro piu' corto esprimibile smetterebbe di essere
+		// disegnabile. Gli anchor no.
+		float HexSizeGesto = 0.f;
+		{
+			ARTHexMapActor* PerScala = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
+			FVector O; float LH = 0.f;
+			if (PerScala) { PerScala->GetHexContext(O, HexSizeGesto, LH); }
+		}
+		if (RTHexEditor::GestureIsASelection(Refusal, LocalStart, LocalEnd, HexSizeGesto))
+		{
+			ARTHexMapActor* Bersaglio = RTHexEditor::FindTargetMapActor(TargetWorld.Get());
+			FRTCellId Cella;
+			FVector Centro;
+			FVector Cliccato;
+			if (Bersaglio != nullptr
+				&& RTHexEditor::ResolveClickedCell(TargetWorld.Get(), Bersaglio, ReleasePos, Cella,
+					Centro, &Cliccato))
+			{
+				RTHexEditor::ApplyClickToSelection(Bersaglio, Cella, Cliccato);
+			}
+		}
+
 		return; // il ghost era invalido: non si committa un segmento fuori grammatica
 	}
 
