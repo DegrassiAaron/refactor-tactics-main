@@ -220,7 +220,7 @@ TSharedRef<SWidget> URTContextInspectorWidgetBase::RebuildWidget()
 	// si leggerebbe come «la verita'», mentre e' una verita' parziale per costruzione.
 	Righe->AddSlot()
 		.AutoHeight()
-		.Padding(0.f, 0.f, 0.f, 6.f)
+		.Padding(0.f, 0.f, 0.f, Posa.HeaderSpacing)
 		[
 			SNew(STextBlock)
 				.Text_Lambda([this]() { return GetHeaderText(); })
@@ -261,7 +261,7 @@ TSharedRef<SWidget> URTContextInspectorWidgetBase::RebuildWidget()
 					.MaxDesiredWidth(Posa.MaxWidth)
 					[
 						SNew(SBorder)
-							.Padding(FMargin(12.f, 9.f))
+							.Padding(FMargin(Posa.BorderPaddingX, Posa.BorderPaddingY))
 							.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 							// Opaco all'85%, come l'overlay del verdetto: sotto ci puo' essere la board, e un
 							// fondo troppo trasparente renderebbe illeggibili entrambi.
