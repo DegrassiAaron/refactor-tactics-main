@@ -110,4 +110,34 @@ public:
 
 	/** Quante coperture generate porta una cella. Serve ai test e al conteggio della regione investita. */
 	static int32 CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId);
+
+	/**
+	 * Rideriva la CALPESTABILITA' di una cella dai muri interni che porta adesso, e basta.
+	 *
+	 * 🔑 **E' la coda di `BakeCell` senza il suo corpo, e la distinzione e' tutto il punto.** Dopo un move o
+	 * una cancellazione l'insieme dei muri interni di una cella e' cambiato, quindi `bBlocksMovement`
+	 * derivato va rifatto — ma coperture e muri sono gia' quelli giusti, e non vanno toccati.
+	 *
+	 * ⛔ **`BakeCell` NON e' lo strumento per questo, e usarla sarebbe distruttivo.** Il suo contratto e' di
+	 * *rebake*: «questi segmenti sono lo stato generato completo della cella», e per onorarlo comincia
+	 * buttando via **tutte le coperture generate e tutti i muri interni** della cella per riscriverli dai
+	 * segmenti ricevuti. Chi la chiamasse passandole i soli `InteriorWalls` — gli unici che un'operazione di
+	 * authoring ha sottomano — le farebbe cancellare le coperture cotte dal disegno, che derivano da
+	 * segmenti che chiudono bordi e che in `InteriorWalls` per invariante non ci sono.
+	 *
+	 * ⚠️ **L'autore vince, e questa funzione non lo contraddice**: un `bBlocksMovement` dipinto a mano
+	 * (`bMovementBlockGenerated == false`) resta suo — anche quando la geometria chiude la cella. E' la
+	 * regola che `DeriveStandability` applica, e che `ValidateMap` REGOLA 4 rispetta non segnalandola.
+	 *
+	 * ⏱️ **La regola c'era e il ramo che BLOCCA la violava**, scrivendo `bMovementBlockGenerated = true`
+	 * senza guardare il valore precedente: la marcatura d'autore veniva etichettata come derivata, e il
+	 * gesto successivo — tolta la geometria — la spegneva. Invisibile finche' la cottura la chiamava il
+	 * solo disegno; raggiungibile in due mosse da quando la chiamano anche il move e la cancellazione.
+	 * Corretto insieme a questa funzione, e pinnato da
+	 * `RefactorTactics.Map.Edit.AnAuthoredBlockSurvivesEvenWhenGeometryClosesTheCell`.
+	 *
+	 * `false` se la mappa o la cella non esistono: una cella cancellata non ha piu' niente da ricuocere, e
+	 * per un chiamante e' un esito normale, non un errore.
+	 */
+	static bool RederiveStandability(URTHexMapAsset* Map, const FRTCellId& CellId, float HexSize);
 };

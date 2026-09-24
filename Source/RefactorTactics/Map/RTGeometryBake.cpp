@@ -64,10 +64,23 @@ namespace RTGeometryBakeInternal
 
 		if (!bStandable)
 		{
-			// Nessuna posa legale: il blocco e' DERIVATO, e si marca come tale perche' il prossimo rebake
-			// possa toglierlo se la geometria cambia.
+			// 🔴 **La provenienza d'autore NON si sovrascrive, e questa riga lo faceva.** Il ramo qui sotto
+			// dichiara *«l'autore vince»*, e questo lo contraddiceva a due gesti di distanza: una cella
+			// marcata impraticabile A MANO (`bMovementBlockGenerated == false`) su cui si disegna geometria
+			// bloccante diventava «derivata», e il rebake successivo — tolta la geometria — la **spegneva**.
+			// La decisione di design spariva senza errore e senza segnalazione, perche' REGOLA 4 non ha
+			// nulla da dire su un blocco che nel frattempo e' diventato legittimo.
+			//
+			// ⚠️ **Il difetto era invisibile finche' la cottura la chiamava solo il DISEGNO**: bisognava
+			// disegnare e poi cancellare geometria sulla stessa cella. Da `#1864` la chiamano anche il move
+			// e la cancellazione di un muro, che sono gesti che l'autore si aspetta reversibili — ed e' li'
+			// che la perdita diventa raggiungibile in due mosse.
+			//
+			// L'effetto osservabile non cambia: la cella resta impraticabile. Cambia **di chi e'** il blocco,
+			// e quindi chi ha l'autorita' di toglierlo.
+			const bool bAlreadyAuthored = Cell.bBlocksMovement && !Cell.bMovementBlockGenerated;
 			Cell.bBlocksMovement = true;
-			Cell.bMovementBlockGenerated = true;
+			Cell.bMovementBlockGenerated = !bAlreadyAuthored;
 			return;
 		}
 
@@ -454,6 +467,30 @@ int32 RTGeometryBakeInternal::Bake(URTHexMapAsset* Map, const FRTCellId& CellId,
 
 	Map->AddOrUpdateCell(Updated);
 	return Generated;
+}
+
+bool URTGeometryBakeLibrary::RederiveStandability(URTHexMapAsset* Map, const FRTCellId& CellId, float HexSize)
+{
+	if (Map == nullptr)
+	{
+		return false;
+	}
+
+	const FRTHexCellData* Existing = Map->FindCell(CellId);
+	if (Existing == nullptr)
+	{
+		// Una cella che non esiste piu' non ha niente da ricuocere. E' l'esito normale per chi cancella una
+		// cella intera: la cascata le porta via i muri, e questa funzione non ha un bersaglio.
+		return false;
+	}
+
+	// ⚠️ Si passa da una COPIA e da `AddOrUpdateCell`, come fa la coda di `Bake`: `FindCell` restituisce un
+	// puntatore dentro l'array delle celle, e scriverci sopra salterebbe la sede che l'asset usa per
+	// registrare la modifica.
+	FRTHexCellData Updated = *Existing;
+	RTGeometryBakeInternal::DeriveStandability(Updated, Map, CellId, HexSize, FRTFootprintProfile());
+	Map->AddOrUpdateCell(Updated);
+	return true;
 }
 
 int32 URTGeometryBakeLibrary::CountGeneratedCovers(const URTHexMapAsset* Map, const FRTCellId& CellId)

@@ -114,6 +114,16 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	// segmento che chiude un bordo E' una copertura, e scriverlo qui creerebbe due verita' sullo stesso
 	// muro. Si rifiuta il gesto: correggerlo in silenzio, o scriverlo e lasciar protestare il validator,
 	// sono i due modi che i Non-goal vietano.
+	//
+	// ⚠️ **La domanda si fa a `EdgesTouchedBy`, e NON alla guardia `Offset == 0` che `Bake` applica.**
+	// Le due divergono su un diametro `lato -> lato`, e il 2026-09-24 questo rifiuto era stato allineato a
+	// `Bake` — sbagliando autorita': `URTHexMapAsset::ValidateMap` chiede anch'essa a `EdgesTouchedBy`,
+	// senza guardia, e dichiara quel muro *«chiude 2 bordi: e' una copertura, non un muro interno»*. Un move
+	// allineato al bake avrebbe scritto un asset che il validatore segnala come **errore** — cioe' proprio
+	// *«scriverlo e lasciar protestare il validator»*, che le tre righe qui sopra vietano.
+	//
+	// ⛔ La divergenza e' REALE e ha TRE sedi (bake, validatore, ghost del tool): e' registrata in
+	// `#3326` e va chiusa da una decisione, non scegliendo di nascosto una delle due semantiche.
 	TArray<ERTHexDirection> TouchedEdges;
 	URTGeometryBakeLibrary::EdgesTouchedBy(NewSegment, Map->HexSize, TouchedEdges);
 	if (TouchedEdges.Num() > 0)
@@ -140,8 +150,28 @@ ERTMapEditOutcome URTMapEditLibrary::MoveInteriorWall(URTHexMapAsset* Map,
 	}
 
 	// Si scrive solo dopo aver deciso: un'operazione o si applica intera o non lascia traccia.
+	const FRTCellId OldCell = Map->InteriorWalls[Index].Cell;
 	Map->InteriorWalls[Index].Cell = NewCell;
 	Map->InteriorWalls[Index].Segment = NewSegment;
+
+	// 🔑 **La cottura segue il move, ed e' la casella 4 di #1864.** Fino a qui il move scriveva `Cell` e
+	// `Segment` e non ricuoceva niente: la calpestabilita' derivata restava quella di prima, e un gesto solo
+	// produceva DUE segnalazioni di `ValidateMap`, una delle quali un errore —
+	//
+	// ```text
+	// cella d'ORIGINE   perde un muro, ma bMovementBlockGenerated resta acceso  -> REGOLA 4 (warning)
+	// cella d'ARRIVO    guadagna un muro, ma bBlocksMovement resta spento       -> REGOLA 1 (ERRORE)
+	// ```
+	//
+	// ⚠️ **Due celle, non una**, quando il muro cambia cella: il criterio dice *«la sola cella
+	// interessata»* per escludere una passata sull'intera mappa, non per dimenticare quella che il muro
+	// lascia. ⛔ E si ricuoce **solo** questo: coperture e muri sono gia' quelli giusti — `BakeCell` li
+	// butterebbe via per riscriverli, che e' il motivo per cui `RederiveStandability` esiste separata.
+	URTGeometryBakeLibrary::RederiveStandability(Map, NewCell, Map->HexSize);
+	if (!(OldCell == NewCell))
+	{
+		URTGeometryBakeLibrary::RederiveStandability(Map, OldCell, Map->HexSize);
+	}
 
 	return ERTMapEditOutcome::Applied;
 }
@@ -164,7 +194,15 @@ ERTMapEditOutcome URTMapEditLibrary::DeleteElement(URTHexMapAsset* Map, const FR
 		}
 		if (!bDryRun)
 		{
+			// 🔑 **Il difetto era SIMMETRICO a quello del move, e il corpo di #1864 non lo nominava**:
+			// dichiarava la cottura mancante come un problema del solo `MoveInteriorWall`. Togliere
+			// l'ultimo muro che chiudeva una cella la lasciava chiusa per una geometria che non c'era
+			// piu' — lo `StaleGeneratedBlock` della REGOLA 4, cioe' l'orfano che la casella 7 vieta.
+			//
+			// ⚠️ La cella si legge PRIMA della rimozione: dopo, l'indice non nomina piu' quel muro.
+			const FRTCellId Host = Map->InteriorWalls[Index].Cell;
 			Map->InteriorWalls.RemoveAt(Index);
+			URTGeometryBakeLibrary::RederiveStandability(Map, Host, Map->HexSize);
 		}
 		return ERTMapEditOutcome::Applied;
 	}
