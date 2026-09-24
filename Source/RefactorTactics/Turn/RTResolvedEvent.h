@@ -119,7 +119,43 @@ enum class ERTResolvedEventType : uint8
 	 * ⚠️ **In CODA, come i tre valori sopra**, e per la stessa ragione già scritta: è un `uint8` esposto a
 	 * Blueprint, e inserirlo in mezzo rinumererebbe in silenzio ogni default già serializzato.
 	 */
-	StructureHit
+	StructureHit,
+
+	/**
+	 * Un ARCO ha incassato un colpo: danneggiato o abbattuto (`#3280`, [D-437]).
+	 *
+	 * 🔴 **Un valore PROPRIO e non `StructureHit` condiviso, per tre ragioni indipendenti.**
+	 *
+	 * 1. **Il consumatore cabla `CoverDestroyed`.** Chi decide il tratto del disegno confronta
+	 *    `EnvironmentOutcome == ERTEnvironmentOutcome::CoverDestroyed`: un `BridgeDestroyed` darebbe
+	 *    `false`, e **un ponte crollato verrebbe disegnato col tratto sottile del graffio** — il fatto piu'
+	 *    grave reso come il piu' lieve, senza che nessun gate diventi rosso.
+	 * 2. **La geometria degenera.** La cue di `#2828` e' un segmento sul lato condiviso fra due esagoni
+	 *    adiacenti, ruotando di 90 gradi l'asse fra i centri. Su un arco a colonna — stessi `X,Y`, layer
+	 *    diversi — quel vettore collassa e il segmento ha lunghezza **zero**; su un arco lungo diventa una
+	 *    barra a meta' strada che non e' il lato di niente. ⚠️ E il solo caso in cui la cue sarebbe corretta
+	 *    — arco fra celle gia' adiacenti dello stesso layer — e' proprio quello che `ValidateMap` segnala
+	 *    come ridondante.
+	 * 3. **Il censimento.** Un valore proprio fa acquistare a `DeclaredBindings()` una riga dichiarata in
+	 *    attesa, con il suo `PendingOwner`. Condividere la nasconderebbe.
+	 *
+	 * 🔑 **`ArcHit` e non `BridgeHit`, ed e' deliberato.** `URTHexArcLibrary::DamageArc` non filtra per
+	 * `ERTHexTransitionKind`: gia' oggi il TurnLog scrive `BridgeDamaged` per una scala che incassa. Il
+	 * disallineamento e' preesistente — ⛔ ma il valore nuovo non deve ereditarlo.
+	 *
+	 * ⚠️ **UN evento per VOCE di TurnLog, e non uno per arco.** Un ponte bidirezionale ne produce due,
+	 * perche' `State` e `Integrity` sono per arco **diretto** e `IsArcTraversable` e' direzionale: due versi
+	 * con integrita' diversa — legale, editabile, mai normalizzata — danno esiti **diversi**, cioe' una
+	 * passerella crollata in salita e intatta in discesa. Un evento per arco dovrebbe **scegliere in
+	 * silenzio quale dei due versi racconta il ponte**; un evento per voce non sceglie, porta cio' che il
+	 * TurnLog tiene. ⛔ E non e' «due per ponte»: e' **uno per arco diretto ancora in piedi** — un arco a
+	 * senso unico ne da' uno, e un ponte con un verso gia' caduto pure, perche' `DamageArc` salta i
+	 * `Destroyed`.
+	 *
+	 * ⚠️ **In CODA, come i tre valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint, e
+	 * inserirlo in mezzo rinumererebbe i successivi cambiando in silenzio ogni default gia' serializzato.
+	 */
+	ArcHit
 };
 
 /**
@@ -410,10 +446,47 @@ struct FRTResolvedEvent
 	 *
 	 * ⚠️ **Il default è `CoverDamaged` e NON significa «danneggiata»**: significa *«nessuno l'ha
 	 * valorizzato»*, come su ogni altro `Type`. Un enum senza valore neutro non ne ha uno migliore, ed è la
-	 * stessa scomodità che `StatusOutcome` porta col suo `AppliedByAction`. Si legge solo su `StructureHit`.
+	 * stessa scomodità che `StatusOutcome` porta col suo `AppliedByAction`.
+	 *
+	 * ⚠️ **Si legge su `StructureHit` e su `ArcHit`, e i valori non si sovrappongono**: le coperture portano
+	 * `CoverDamaged`/`CoverDestroyed`, gli archi `BridgeDamaged`/`BridgeDestroyed` (`#3280`). ⛔ **Il `Type`
+	 * resta l'unica discriminante**: chi consuma legga quello e non indovini la geometria dall'esito — è
+	 * precisamente la confusione che il valore d'evento proprio esiste per rendere impossibile.
+	 *
+	 * ⚠️ **Su `ArcHit` `BridgeDestroyed` significa `ERTHexArcState::Destroyed` e nient'altro.** Il produttore
+	 * lo decide dallo **stato** dell'arco, non da un booleano dedotto (`#3280`): un arco spento che incassa
+	 * senza cadere resta `BridgeDamaged`. ⛔ Lo stato `Inactive` non è rappresentato — `ERTEnvironmentOutcome`
+	 * non ha un valore per «spento», e il TurnLog che lo trasporta è serializzato con un `FormatId`: portarlo
+	 * fin qui è un cambio di formato, non una riga.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	ERTEnvironmentOutcome EnvironmentOutcome = ERTEnvironmentOutcome::CoverDamaged;
+
+	// --- Solo per `ArcHit` (`#3280`, [D-437]). Di default per ogni altro `Type`. ---
+
+	/**
+	 * Il capo **da cui** l'arco parte. Con `ArcTo` identifica l'arco DIRETTO che ha incassato.
+	 *
+	 * 🔑 **Campi propri e non `StructureCell`/`StructureToward`, ed e' la stessa ragione per cui l'evento e'
+	 * proprio.** Quei due dichiarano *«il bordo colpito»*: un lato condiviso fra due esagoni adiacenti, su
+	 * cui la cue di `#2828` e' definita. Un arco non e' un lato — unisce celle che possono non essere
+	 * adiacenti e stare su piani diversi — e un consumatore che leggesse un solo campo non saprebbe piu'
+	 * quale delle due geometrie ha in mano. Condividerli riporterebbe dalla finestra il riuso che [D-437]
+	 * ha buttato dalla porta.
+	 *
+	 * ⛔ **Copiato, non ricalcolato**: la coppia arriva da `FRTArcChange`, che l'ha gia' decisa, e passa dal
+	 * TurnLog senza essere reinterpretata. Chi consuma **non deve** richiedere alla mappa quale arco sia
+	 * stato colpito — e' il divieto che [D-278] impone all'intero layer.
+	 *
+	 * ⚠️ **E' l'arco DIRETTO, non il ponte**: su un ponte bidirezionale i due eventi portano la coppia
+	 * scambiata, e sono due fatti con esiti che possono differire.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId ArcFrom;
+
+	/** Il capo **verso cui** l'arco va. Con `ArcFrom` fa l'arco diretto; copiato, come lui. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId ArcTo;
 
 	FRTResolvedEvent() = default;
 };

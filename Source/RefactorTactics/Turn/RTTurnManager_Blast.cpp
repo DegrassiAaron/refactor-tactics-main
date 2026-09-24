@@ -1902,7 +1902,16 @@ void ARTTurnManager::ApplyEnvironmentChanges(FRTBlastContext& Ctx)
 			FRTTurnLogEntry Entry;
 			Entry.Phase = ERTMatchPhase::Blast;
 			Entry.Category = ERTLogCategory::Environment;
-			Entry.Outcome = static_cast<uint8>(Change.bBroken
+			// 🔴 **Lo STATO decide l'esito, non `bBroken`** (`#3280`, [D-437]). `MakeChange` pone
+			// `bBroken = Edge.State != Active` e `DamageArc` salta solo i `Destroyed`: ∴ un arco **spento**
+			// che incassa senza cadere ha `bBroken == true`, e questa riga scriveva `BridgeDestroyed` per un
+			// ponte ancora in piedi. ⚠️ Oggi il caso e' irraggiungibile in partita — nessun chiamante di
+			// produzione di `SetArcState` — ma da qui deriva ora un evento di playback, e la bugia sarebbe
+			// arrivata a schermo il giorno in cui qualcuno chiama `SetArcState(Inactive)`.
+			// ⛔ Non e' la regola di raccolta del danno, che resta il non-goal di `#3280`: e' la
+			// classificazione dell'esito, e cambia **solo** il caso che prima mentiva
+			// (`Structures.Bridge.InactiveArcDamagedIsNotDestroyed`).
+			Entry.Outcome = static_cast<uint8>(Change.State == ERTHexArcState::Destroyed
 				? ERTEnvironmentOutcome::BridgeDestroyed : ERTEnvironmentOutcome::BridgeDamaged);
 			Entry.SrcCell = Change.From;
 			Entry.TgtCell = Change.To;
