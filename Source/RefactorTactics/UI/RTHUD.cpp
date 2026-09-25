@@ -1135,7 +1135,8 @@ void ARTHUD::DrawHUD()
 
 			// Percorso pianificato: se mostrarlo e con quali celle lo decide `ComposePlannedRoute` (#2184),
 			// che i suoi test interrogano senza montare un HUD. Qui resta il solo tracciamento.
-			if (const FRTPlannedRoutePresentation Rotta = ComposePlannedRoute(View, Map); Rotta.bShow)
+			const FRTPlannedRoutePresentation Rotta = ComposePlannedRoute(View, Map);
+			if (Rotta.bShow)
 			{
 				for (int32 i = 1; i < Rotta.PathCells.Num(); ++i)
 				{
@@ -1146,32 +1147,16 @@ void ARTHUD::DrawHUD()
 						DrawIntentLine(FVector2D(A.X, A.Y), FVector2D(B.X, B.Y), Color, Style);
 					}
 				}
-
-				const FVector DestScreen = Project(HexCellWorld(View.PlannedCell, Origin, HexSize, LayerH));
-				if (DestScreen.Z > 0.f)
-				{
-					// 🔴 **La destinazione NON e' graduata, e la prima stesura la graduava — sbagliando due
-					// volte.** Questo blocco vive dentro `Rotta.bShow`, che e' `View.bMoving` deciso da
-					// `ComposePlannedRoutePresentation`, e `ClassifyPlan` restituisce
-					// `Uncertain` ogni volta che `bMoving`: il livello qui e' **sempre** lo stesso, quindi
-					// attenuare non distingue niente e toglie soltanto leggibilita' — il rettangolo passava da
-					// alpha `0.35` a `0.105`, in permanenza, per ogni unita' in movimento. E' lo stesso
-					// argomento con cui la preview dello scatto e' esentata poche righe piu' sotto, che non era
-					// stato applicato qui. Trovato dalla code review.
-					DrawRect(FLinearColor(Color.R, Color.G, Color.B, 0.35f),
-						DestScreen.X - 12.f, DestScreen.Y - 12.f, 24.f, 24.f);
-				}
 			}
 
-			// Marker sui waypoint cliccati: la vista li porta solo per le unita' proprie.
-			// ⚠️ Non graduati, per la stessa ragione della destinazione: i waypoint appartengono a un piano di
-			// movimento, e un piano di movimento e' `Uncertain` per costruzione.
-			for (const FRTCellId& WP : View.PlannedWaypoints)
+			// QUALI celle prendono un rettangolo, con che mezza-dimensione e con che tinta lo decide
+			// `ComposeIntentMarkers` (#2184) — destinazione prima, waypoint dopo. Qui resta il tracciamento.
+			for (const FRTIntentMarker& M : ComposeIntentMarkers(View, Rotta.bShow, Color))
 			{
-				const FVector WPScreen = Project(HexCellWorld(WP, Origin, HexSize, LayerH));
-				if (WPScreen.Z > 0.f)
+				const FVector S = Project(HexCellWorld(M.Cell, Origin, HexSize, LayerH));
+				if (S.Z > 0.f)
 				{
-					DrawRect(Color, WPScreen.X - 5.f, WPScreen.Y - 5.f, 10.f, 10.f);
+					DrawRect(M.Color, S.X - M.HalfSize, S.Y - M.HalfSize, M.HalfSize * 2.f, M.HalfSize * 2.f);
 				}
 			}
 
@@ -1678,6 +1663,31 @@ TArray<FRTIntentView> ARTHUD::ComposeVisibleIntentViews(const TArray<FRTPlannedI
 		Views.Append(URTIntentPrivacyLibrary::FilterForTeam(Intent.TeamId, { Intent }));
 	}
 	return Views;
+}
+
+TArray<FRTIntentMarker> ARTHUD::ComposeIntentMarkers(const FRTIntentView& View,
+	bool bRouteShown, const FLinearColor& IntentColor)
+{
+	TArray<FRTIntentMarker> Marcatori;
+
+	// ⚠️ La destinazione dipende dal VERDETTO della rotta, non dalla cella: `PlannedCell` resta
+	// valorizzata anche a piano concluso, e letta come presenza disegnerebbe un rettangolo sotto
+	// un'unita' ferma — lo stesso errore che `ComposePlannedRoute` documenta per se'.
+	if (bRouteShown)
+	{
+		// ⛔ Attenuato, ma NON per certezza: qui il livello e' `Uncertain` per costruzione, quindi
+		// graduare non distinguerebbe niente e toglierebbe soltanto leggibilita'.
+		Marcatori.Add({ View.PlannedCell, DestinationMarkerHalfPx,
+			FLinearColor(IntentColor.R, IntentColor.G, IntentColor.B, DestinationMarkerAlpha) });
+	}
+
+	// I waypoint ci sono sempre: la vista li porta solo per le unita' proprie, e a tinta piena.
+	for (const FRTCellId& WP : View.PlannedWaypoints)
+	{
+		Marcatori.Add({ WP, WaypointMarkerHalfPx, IntentColor });
+	}
+
+	return Marcatori;
 }
 
 FRTPlannedRoutePresentation ARTHUD::ComposePlannedRoute(const FRTIntentView& View, const URTHexMapAsset* Map)
