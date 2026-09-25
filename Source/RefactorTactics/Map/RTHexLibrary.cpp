@@ -921,7 +921,11 @@ FRTCellId URTHexLibrary::RotateOffsetAroundOrigin(const FRTCellId& Offset, int32
 		// `(q, r) -> (q + r, -q)`: e' l'unica delle due rotazioni cubiche di 60 gradi che porta
 		// `AxialDirection(E) = (+1, 0)` su `AxialDirection(NE) = (+1, -1)`, cioe' che segue l'ordine
 		// dell'enum. L'altra andrebbe verso `SE`.
-		const int32 NuovoQ = Q + R;
+		// ⚠️ La somma in `int64`: `Q + R` in `int32` trabocca — UB — quando i due hanno lo stesso segno e
+		// la somma esce dal tipo, e questa e' una `BlueprintPure` senza dominio dichiarato. Nessun ingombro
+		// di asset ci arriva (#1871 parla di offset di poche celle), ma il costo di non scoprirlo e' zero.
+		const int64 Somma = static_cast<int64>(Q) + static_cast<int64>(R);
+		const int32 NuovoQ = static_cast<int32>(FMath::Clamp<int64>(Somma, MIN_int32, MAX_int32));
 		const int32 NuovoR = -Q;
 		Q = NuovoQ;
 		R = NuovoR;
