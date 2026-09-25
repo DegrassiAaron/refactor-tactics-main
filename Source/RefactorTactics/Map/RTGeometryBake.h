@@ -158,7 +158,13 @@ public:
 	 * celle sul layer 1 che stanno sopra celle del layer 0.
 	 *
 	 * ⚠️ **Sotto i tre vertici risponde `false`**: un poligono di due vertici non ha un «dentro», e
-	 * interrogare `PointInPolygon` su una degenerazione darebbe una risposta arbitraria invece di nessuna.
+	 * interrogare l'appartenenza su una degenerazione darebbe una risposta arbitraria invece di nessuna.
+	 *
+	 * 🔴 **Decide sul RETICOLO INTERO** (`URTGeometryGrammarLibrary::RingContainsPoint`), e non in
+	 * `FVector2D`: fino al 2026-09-25 passava da `PointInPolygon`, il cui confronto sul bordo non e'
+	 * simmetrico — e **invertire il verso dell'anello cambiava quali celle la regione chiude**. I centri di
+	 * cella stanno sul bordo per costruzione, quindi non era un caso limite; e `bBlocksMovement` entra in
+	 * `ComputeHash`, quindi il difetto arrivava fino al digest.
 	 *
 	 * La regola di appartenenza e' il **centro** della cella dentro il poligono — la stessa che
 	 * `URTHexOccupancyLibrary::ComputeMask` usa per `bCoreBlocked`, e non una seconda.

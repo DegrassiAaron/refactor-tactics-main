@@ -278,6 +278,43 @@ struct REFACTORTACTICS_API FRTAnchorRef
 	FString ToString() const;
 };
 
+/**
+ * UN PUNTO DEL RETICOLO DEGLI ANCHOR, IN COORDINATE INTERE ED ESATTE — `#1868`.
+ *
+ * 🔑 **I tredici anchor di ogni cella cadono su un reticolo intero, e questo e' il fatto che rende
+ * decidibili le validazioni geometriche senza nessuna tolleranza.** In pointy-top le due basi non si
+ * mescolano — la `X` porta sempre il `sqrt(3)`, la `Y` non lo porta mai — quindi ogni anchor sta in
+ * `(M * HexSize * sqrt(3) / 4, N * HexSize / 4)` con `M` e `N` interi. Misurato il 2026-09-25 sui
+ * tredici offset: il residuo dall'intero non supera `8,9e-16`, e la formula del centro di cella
+ * (`4q + 2r`, `6r`) e' esatta anche a `(50000, -30000)`.
+ *
+ * ⛔ **Non e' serializzato, non entra in `ComputeHash` e non e' una `USTRUCT`**: e' un derivato di calcolo
+ * come `FRTOccupancyPolyline`, e l'autorita' resta il `FRTAnchorRef` discreto ([D-127]).
+ *
+ * ⚠️ **`int64` e non `int32`, e la ragione e' aritmetica**: `M` e `N` stanno comodamente in `int32`, ma il
+ * prodotto vettoriale di due differenze no — su una mappa larga due coordinate da `2^18` danno un `cross`
+ * da `2^36`. E' lo stesso motivo per cui `URTHexArcLibrary::TransitionLayerSpan` conta in `int64`: il
+ * verdetto si inverte ai limiti, in silenzio.
+ *
+ * 🔑 **La parita' di `M + N` e' invariante e vale zero**: i punti stanno su un sotto-reticolo, e due anchor
+ * distinti distano almeno un passo pieno. Ne discende il minimo `|cross|` non nullo, che vale **2** — cioe'
+ * un'area reale di `HexSize^2 * sqrt(3) / 16`. **Non c'e' nessuna zona grigia da tarare.**
+ */
+struct FRTAnchorLattice
+{
+	/** Multipli di `HexSize * sqrt(3) / 4` lungo `X`. */
+	int64 M = 0;
+
+	/** Multipli di `HexSize / 4` lungo `Y`. */
+	int64 N = 0;
+
+	FRTAnchorLattice() = default;
+	FRTAnchorLattice(int64 InM, int64 InN) : M(InM), N(InN) {}
+
+	bool operator==(const FRTAnchorLattice& O) const { return M == O.M && N == O.N; }
+	bool operator!=(const FRTAnchorLattice& O) const { return !(*this == O); }
+};
+
 /** Quanti anchor espone una cella: uno al centro, sei vertici, sei punti medi. */
 static constexpr int32 RT_AnchorsPerCell = 13;
 
@@ -441,6 +478,72 @@ public:
 	 * persistenza (`GEO-5`, `D-288`).
 	 */
 	static FRTAnchorRef CanonicalAnchor(const FRTAnchorRef& Ref);
+
+	/**
+	 * L'ANCHOR COME PUNTO INTERO ESATTO del reticolo — `#1868`.
+	 *
+	 * 🔑 **E' la macchina su cui poggiano tutte le validazioni geometriche di una regione**, e la ragione per
+	 * cui non hanno un epsilon. `AnchorLocal` risponde alla stessa domanda in `FVector2D`, ed e' giusto per
+	 * DISEGNARE; questa risponde per DECIDERE, che e' la divisione della sezione 11 della spec
+	 * d'authoring — *«la decisione tattica serializzata non dipende dall'arrotondamento di coordinate
+	 * float»*.
+	 *
+	 * ⚠️ **Totale**: un indice fuori da `0..5` si avvolge come in `AnchorLocal`, e un `Center` con indice
+	 * sporco cade sul centro. Due `FRTAnchorRef` che `operator==` dichiara diversi possono quindi dare lo
+	 * stesso punto — ed e' precisamente cio' che serve sapere ([D-288], `GEO-5`).
+	 */
+	static FRTAnchorLattice AnchorPoint(const FRTAnchorRef& Ref);
+
+	/** Il CENTRO di una cella sullo stesso reticolo: `(4q + 2r, 6r)`. Esatto, senza `sqrt(3)`. */
+	static FRTAnchorLattice CellCentrePoint(const FRTCellId& Cell);
+
+	/**
+	 * IL DOPPIO DELL'AREA CON SEGNO di un anello di anchor, in unita' di reticolo — la formula di Gauss in
+	 * aritmetica intera.
+	 *
+	 * Il segno dichiara il VERSO (positivo antiorario), e `0` significa **area nulla**: vertici allineati,
+	 * o ripetuti, o meno di tre punti distinti. E' esatto: nessun confronto con una soglia.
+	 */
+	static int64 RingAreaTwice(const TArray<FRTAnchorRef>& Ring);
+
+	/**
+	 * DUE VERTICI DELL'ANELLO SONO LO STESSO PUNTO.
+	 *
+	 * ⚠️ **Non e' `operator==` sui `FRTAnchorRef`, ed e' il punto dell'intera regola**: un vertice ha fino a
+	 * **tre** nomi e un punto medio **due** ([D-288]), quindi un anello i cui riferimenti sono tutti distinti
+	 * puo' avere due vertici sovrapposti. Misurato in un intorno `3x3`: **117** riferimenti per **77** punti.
+	 *
+	 * `OutFirst` e `OutSecond` ricevono gli indici della prima coppia trovata, in ordine di anello.
+	 */
+	static bool RingHasCoincidentVertices(const TArray<FRTAnchorRef>& Ring, int32& OutFirst,
+		int32& OutSecond);
+
+	/**
+	 * DUE LATI NON ADIACENTI DELL'ANELLO SI INTERSECANO.
+	 *
+	 * Il test e' quello degli orientamenti, in interi: quattro prodotti vettoriali e il caso collineare
+	 * trattato per proiezione. **Nessuna tolleranza**, quindi nessun caso limite che dipenda dalla scala.
+	 *
+	 * ⚠️ **I lati ADIACENTI si toccano per definizione** — condividono un vertice — e non sono
+	 * un'intersezione: escluderli e' la regola, non un'indulgenza. Un anello che ripassa su sé stesso lo
+	 * dichiara invece `RingHasCoincidentVertices`, ed e' la ragione per cui le due regole sono **due** e non
+	 * una sola.
+	 */
+	static bool RingSelfIntersects(const TArray<FRTAnchorRef>& Ring, int32& OutFirst, int32& OutSecond);
+
+	/**
+	 * IL PUNTO STA DENTRO L'ANELLO — in interi, e con la convenzione del bordo **dichiarata**.
+	 *
+	 * 🔴 **La convenzione esiste perche' la sua assenza era un difetto misurabile.** `PointInPolygon` in
+	 * `FVector2D` non ha una regola per un punto esattamente sul bordo, e il suo confronto non e' simmetrico
+	 * nello scambio dei due estremi del lato: **invertire il verso dell'anello cambiava la risposta**. Non
+	 * era un caso di laboratorio — l'idioma No-Walk mette i vertici sui **centri** delle celle, e i centri
+	 * di cella cadono sul bordo per costruzione.
+	 *
+	 * ⇒ **il bordo APPARTIENE alla regione**, e la scelta e' quella che rende la regola utile: un autore che
+	 * traccia il confine lungo una fila di celle intende includerle. La risposta non dipende piu' dal verso.
+	 */
+	static bool RingContainsPoint(const TArray<FRTAnchorRef>& Ring, const FRTAnchorLattice& Point);
 
 	/**
 	 * IL SEGMENTO FRA DUE ANCHOR della stessa cella, quando la grammatica lo esprime.

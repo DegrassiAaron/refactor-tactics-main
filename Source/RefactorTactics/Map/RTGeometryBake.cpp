@@ -530,32 +530,33 @@ bool URTGeometryBakeLibrary::AreaCoversCell(const FRTNoWalkArea& Area, const FRT
 	{
 		return false;
 	}
-	// ⚠️ **Sotto i tre vertici non c'e' un «dentro», e questa guardia NON cambia nessun esito.** Misurato
-	// con una mutazione: togliendola non cade nessun test, perche' `PointInPolygon` risponde gia' `false`
-	// su meno di tre punti — con zero vertici il ciclo non gira, con uno o due gli attraversamenti si
-	// annullano a coppie. Resta come **dichiarazione di intento**, per non dipendere da una proprieta'
-	// incidentale del ray casting che nessuno ha scritto di voler garantire; e resta dichiarato che non e'
-	// coperta da un test che possa cadere, invece di lasciarla sembrare una rete.
+	// ⚠️ **Sotto i tre vertici non c'e' un «dentro».** La guardia sta anche in `RingContainsPoint`, che e'
+	// la sede della regola; qui resta perche' questa funzione ha gia' risposto `false` al layer sbagliato
+	// una riga sopra, e leggerla senza il caso degenere accanto suggerirebbe che i due siano diversi.
 	if (Area.Vertices.Num() < 3)
 	{
 		return false;
 	}
 
-	// I vertici nel MONDO. `AnchorLocal` e' locale alla cella che nomina l'anchor, quindi si somma
-	// l'origine di quella cella — ed e' qui che i float entrano: nel derivato, come `D-127` prescrive.
-	TArray<FVector2D> Poligono;
-	Poligono.Reserve(Area.Vertices.Num());
-	for (const FRTAnchorRef& Ref : Area.Vertices)
-	{
-		const FVector Origine = URTHexLibrary::AxialToWorld(Ref.Cell, FVector::ZeroVector, HexSize,
-			/*LayerHeight*/ 0.f);
-		const FVector2D Locale = URTGeometryGrammarLibrary::AnchorLocal(Ref, HexSize);
-		Poligono.Add(FVector2D(Origine.X, Origine.Y) + Locale);
-	}
-
-	const FVector Centro = URTHexLibrary::AxialToWorld(CellId, FVector::ZeroVector, HexSize,
-		/*LayerHeight*/ 0.f);
-	return URTHexOccupancyLibrary::PointInPolygon(FVector2D(Centro.X, Centro.Y), Poligono);
+	// 🔴 **IN INTERI, e non e' un'ottimizzazione: e' la correzione di un difetto misurato** (`#1868`).
+	// Fino al 2026-09-25 questa funzione costruiva il poligono in `FVector2D` e chiamava
+	// `URTHexOccupancyLibrary::PointInPolygon`. Quel ray casting **non ha una regola per il bordo**, e il
+	// suo confronto non e' simmetrico nello scambio dei due estremi del lato: **invertire il verso
+	// dell'anello cambiava quali celle la regione chiude.**
+	//
+	// ⛔ Non era un caso di laboratorio. L'idioma No-Walk mette i vertici sui **centri** delle celle, e i
+	// centri di cella cadono sul bordo per costruzione — sul triangolo di prova di questo repository sei
+	// centri ci stanno esattamente sopra, e tre cambiano verdetto invertendo la lista. Da li' il difetto
+	// arrivava fino in fondo: `bBlocksMovement` entra in `ComputeHash`, quindi due mappe identiche
+	// disegnate in versi opposti avevano hash diversi.
+	//
+	// `RingContainsPoint` decide sul reticolo intero, dove il bordo e' un caso **esatto** con una
+	// convenzione dichiarata — il bordo appartiene alla regione — e il verso non conta piu'.
+	//
+	// ⚠️ `HexSize` non serve piu' e resta nella firma: e' l'unita' del reticolo, si semplifica, e toglierlo
+	// cambierebbe i chiamanti per un guadagno che non c'e'.
+	return URTGeometryGrammarLibrary::RingContainsPoint(Area.Vertices,
+		URTGeometryGrammarLibrary::CellCentrePoint(CellId));
 }
 
 ERTStandabilityBlock URTGeometryBakeLibrary::WhyNotStandable(const URTHexMapAsset* Map,

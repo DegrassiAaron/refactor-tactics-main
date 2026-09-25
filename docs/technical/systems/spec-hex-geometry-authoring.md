@@ -230,6 +230,73 @@ primo carico semantico: chi lo legge come decorativo troverà un valore che rifi
 
 ---
 
+#### 3.3.2 Le regioni No-Walk si validano in **aritmetica intera esatta** — `#1868`
+
+Una regione `FRTNoWalkArea` è un anello di `FRTAnchorRef`. Le sue due regole geometriche —
+**degenere** e **auto-intersecante** — non hanno tolleranza, e la ragione è un fatto misurato del
+reticolo, non una scelta di stile.
+
+🔑 **I tredici anchor di ogni cella cadono su punti interi.** In pointy-top le due basi non si mescolano
+— la `X` porta sempre il `√3`, la `Y` non lo porta mai — quindi ogni anchor sta in
+
+```
+( M · HexSize·√3/4 ,  N · HexSize/4 )      con M, N interi
+M = 4q + 2r + dm     N = 6r + dn
+```
+
+e i tredici offset `(dm, dn)` sono `C:(0,0)` · `V₀…V₅: (+2,−2) (+2,+2) (0,+4) (−2,+2) (−2,−2) (0,−4)` ·
+`E₀…E₅: (+2,0) (+1,+3) (−1,+3) (−2,0) (−1,−3) (+1,−3)`.
+
+⇒ area, orientamento e intersezione sono **prodotti di interi**. Misurato il 2026-09-25: il residuo
+dall'intero non supera `8,9·10⁻¹⁶`, la formula del centro è esatta anche a `(50000, −30000)`, la parità
+di `M + N` è invariante, e il minimo `|cross|` non nullo vale esattamente **2** — cioè un'area reale di
+`HexSize²·√3/16`. **Non c'è nessuna zona grigia da tarare.**
+
+⚠️ **Il conto è in `int64`**: `M` e `N` stanno in `int32`, il loro prodotto vettoriale no.
+
+##### «Vertici coincidenti» non è `operator==`
+
+🔴 Un vertice ha fino a **tre** nomi e un punto medio **due** ([`D-288`](../../decisions/RT_PDR_00_Decision_Log.md),
+`GEO-5`): la coincidenza fra anchor è una **relazione**, non un campo. Un anello i cui `FRTAnchorRef` sono
+tutti distinti può quindi avere due vertici nello stesso punto — e la regione che ne nasce non chiude
+nulla, in silenzio. La regola la decide `URTGeometryGrammarLibrary::AnchorPoint`.
+
+➕ La stessa domanda ha già una risposta **combinatoria**, `CanonicalAnchor`
+([`#1893`](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1893)). Le due non sono
+unificate — servono a cose diverse: quella dà un rappresentante, questa dà le coordinate — ma il loro
+accordo è **asserito**, non sperato: `RefactorTactics.Anchor.LatticeAndCanonicalAgreeOnSamePoint` le
+confronta su ogni coppia di un intorno.
+
+##### Il bordo appartiene alla regione, ed è una convenzione **dichiarata**
+
+🔴 **La sua assenza era un difetto misurabile, non un dettaglio.** Il ray casting in `FVector2D` non ha una
+regola per un punto esattamente sul bordo, e il suo confronto non è simmetrico nello scambio dei due
+estremi del lato: **invertire il verso dell'anello cambiava quali celle la regione chiude**. E i punti sul
+bordo sono l'idioma normale — un autore traccia il confine lungo una fila di celle, e i centri di cella ci
+finiscono sopra per costruzione.
+
+⛔ Il difetto non si fermava all'editor: `AreaCoversCell` → `WhyNotStandable` → `DeriveStandability` scrive
+`bBlocksMovement`, che entra in `ComputeHash`. **Due mappe identiche disegnate in versi opposti avevano
+hash diversi** — l'invariante di determinismo, rotta da un arrotondamento.
+
+⇒ il bordo **appartiene** alla regione, e la scelta è quella che rende la regola utile: chi traccia il
+confine lungo una fila di celle intende includerle.
+
+##### Le sei validazioni della issue sono **due**, e le altre quattro hanno un perché
+
+| regola | esito | perché |
+|---|---|---|
+| auto-intersecante | ✅ `NoWalkAreaSelfIntersecting` | cambia quali celle la regione chiude: in un anello a otto il lobo interno **si cancella** |
+| degenere | ✅ `NoWalkAreaDegenerate` | area nulla o due vertici coincidenti: non chiude nulla |
+| poligono non chiuso | ❌ non rappresentabile | `FRTNoWalkArea` è un anello a **chiusura implicita**: non esiste uno stato «non chiuso» da rifiutare, e renderlo esprimibile chiederebbe un campo nuovo e un altro bump di formato |
+| sovrapposizione illegale | ❌ fuori da `v0.1` | [`D-439`](../../decisions/RT_PDR_00_Decision_Log.md): le sovrapposizioni **sono legali** |
+| traversata contraddittoria | ❌ senza stato proprio | `URTHexPathLibrary::GraphNeighbors` rifiuta già l'arco la cui destinazione è `bBlocksMovement`: il grafo ha risolto a favore della regione, e il dato è inerte |
+| layer non valido | ⚠️ ambigua | `Layer < 0` è già `ERTGeometryViolation::InvalidLayer`, mentre «layer inesistente» litiga con la griglia di lavoro di [#622](https://github.com/DegrassiAaron/refactor-tactics-main/issues/622), che permette di disegnare dove le celle non ci sono ancora |
+
+⚠️ **Il `Layer` dei vertici non è consultato**: la copertura confronta `FRTNoWalkArea::Layer` con quello
+della cella, e i vertici portano un `FRTCellId` il cui `Layer` nessuno legge. È una terza lettura di
+«layer non valido» che nessuna delle due definizioni sopra copre, e resta aperta.
+
 ### 3.4 Le regole che riguardano **due** segmenti — `D-288`
 
 Le regole di §3.3 guardano un segmento **preso da solo**: asse, lunghezza, layer, bordi editabili. Sono
