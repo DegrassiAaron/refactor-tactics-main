@@ -34,7 +34,6 @@
 #include "Misc/Paths.h"
 #include "HAL/IConsoleManager.h"
 #include "Turn/RTTurnManager.h"      // `#3267`: ArePlaybackControlsEnabled
-#include "Engine/World.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -230,18 +229,41 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackControlCVarsTurnOnTheControlsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackControlCVarsTurnOnTheControlsTest::RunTest(const FString&)
 {
-	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
-	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
-	ON_SCOPE_EXIT{ World->DestroyWorld(/*bInformEngineOfWorld=*/ false); };
-
 	IConsoleVariable* Controlli = IConsoleManager::Get().FindConsoleVariable(TEXT("rt.Debug.PlaybackControls"));
 	if (!TestNotNull(TEXT("⛔ premessa: la CVar esiste"), Controlli)) { return false; }
 
 	const int32 Prima = Controlli->GetInt();
 	ON_SCOPE_EXIT{ Controlli->Set(Prima, ECVF_SetByCode); };
 
-	ARTGameMode* GM = World->SpawnActor<ARTGameMode>();
-	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>();
+	// ⚠️ **`NewObject`, non uno spawn, e non e' una scorciatoia** (#2182). Ne' `ApplyPlaybackControlCVars`
+	// ne' i due setter che chiama toccano il mondo: leggono due CVar e scrivono campi membro. Cio' che
+	// serve a questa domanda e' un'ISTANZA, non una partita — ed e' la stessa forma che la fetta 2 ha
+	// adottato per l'anteprima di pianificazione e la fetta 8 per la geometria della HUD.
+	//
+	// 🔑 **E non si perde `BeginPlay`, perche' non c'era.** I mondi di prova nati da `UWorld::CreateWorld`
+	// non lo fanno partire — e' la stessa constatazione che `RTUnit.h:818` e `RTUnit.cpp:33` hanno gia'
+	// pagato — quindi anche la versione con `SpawnActor` interrogava un attore il cui `BeginPlay` non era
+	// mai girato. Qui non sparisce una fase: sparisce un mondo che non ne eseguiva nessuna.
+	//
+	// ⛔ **Che il test conservi i denti e' stato MISURATO, non dedotto.** Un'istanza non registrata
+	// potrebbe ignorare gli effetti, e allora questo test passerebbe a vuoto. Due mutazioni su
+	// `ARTGameMode::ApplyPlaybackControlCVars`, entrambe uccise:
+	//
+	//   togliere `SetPlaybackControlsEnabled(true)`          → cade «con la CVar a 1 ... ACCESI»
+	//   rendere l'accensione incondizionata (`if (true)`)    → cade «con la CVar a 0 restano spenti»
+	//
+	// 🔑 Servono **entrambe**, e la ragione riguarda la FUNZIONE, non lo stato di nascita dell'oggetto:
+	// la prima prova che l'effetto arriva, la seconda che non arriva **sempre**. Una funzione che
+	// accendesse incondizionatamente passerebbe la prima.
+	//
+	// ⌫ **Qui c'era una frase sbagliata, e la correzione dice qualcosa.** Diceva che senza la seconda
+	// «un `NewObject` che nascesse con i controlli gia' accesi sarebbe indistinguibile». Non e' vero:
+	// quel caso lo intercetta la PREMESSA qui sotto, che asserisce «partono SPENTI» **prima** di
+	// chiamare la funzione e esce con `return false`. Attribuire a un'asserzione la protezione che
+	// appartiene a un'altra e' il modo in cui una giustificazione sembra solida e non lo e'.
+	// Trovato dalla revisione della PR #3350.
+	ARTGameMode* GM = NewObject<ARTGameMode>();
+	ARTTurnManager* TM = NewObject<ARTTurnManager>();
 	if (!TestNotNull(TEXT("GameMode"), GM) || !TestNotNull(TEXT("TurnManager"), TM)) { return false; }
 
 	// ⛔ PREMESSA: si parte da spenti. Senza, un `true` finale non direbbe che l'accensione e' avvenuta.
@@ -256,7 +278,7 @@ bool FRTPlaybackControlCVarsTurnOnTheControlsTest::RunTest(const FString&)
 
 	// ⛔ E il verso opposto: a zero non si accende nulla. Un'accensione incondizionata passerebbe la riga
 	// sopra e sarebbe il difetto opposto — comandi vivi in una sessione che non li ha chiesti.
-	ARTTurnManager* Secondo = World->SpawnActor<ARTTurnManager>();
+	ARTTurnManager* Secondo = NewObject<ARTTurnManager>();
 	if (TestNotNull(TEXT("secondo TurnManager"), Secondo))
 	{
 		Controlli->Set(0, ECVF_SetByCode);
