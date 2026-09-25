@@ -833,6 +833,34 @@ public:
 	 * minore di uno — cio' che il `default:` del composer e' scritto per accogliere — avrebbe
 	 * sovrascritto in silenzio la statica testata, e nessun test sarebbe caduto (#2184).
 	 */
+	/**
+	 * Il tratteggio a CONTEGGIO FISSO: divide il segmento in `Spans` parti uguali e accende le pari.
+	 *
+	 * ⛔ **Non e' `ComposeDashSegments` con altri argomenti, e l'aritmetica lo dimostra.** Quella divide
+	 * per un periodo in PIXEL, questa per un numero di parti. Chiedendole lo stesso disegno —
+	 * `ComposeDashSegments(A, B, 0.5f, Len * 2.f / 7.f)` — si ottiene `Steps = RoundToInt(3.5) = 4`, e
+	 * con `T1 = (s + 0.5) / 4` l'ultimo tratto finisce a **0,875** invece che sul punto d'arrivo. Sono
+	 * due disegni diversi: unificarle sposterebbe i pixel, che lo Scope di #2184 vieta.
+	 *
+	 * 🔑 **`Spans` dispari fa iniziare E finire acceso**, perche' si accendono gli indici pari e l'ultimo
+	 * indice pari e' `Spans - 1`, che arriva a `Spans / Spans = 1`. Con un conteggio pari il tratteggio
+	 * finirebbe spento, e la linea sembrerebbe interrompersi prima del bersaglio.
+	 *
+	 * @param A      punto di partenza in pixel.
+	 * @param B      punto d'arrivo in pixel.
+	 * @param Spans  in quante parti dividere; `<= 0` rende un elenco vuoto.
+	 */
+	static TArray<TPair<FVector2D, FVector2D>> ComposeCountedDashSegments(const FVector2D& A,
+		const FVector2D& B, int32 Spans);
+
+	/**
+	 * 🔑 **Quanti tratti ha il tiro rifiutato, e perche' e' DISPARI.**
+	 *
+	 * Era un `constexpr` dentro `DrawHUD` (#2184): una politica di disegno che nessun test raggiungeva,
+	 * perche' non sta in un ramo e le enumerazioni di questa issue contano i rami.
+	 */
+	static constexpr int32 BlockedShotDashSpans = 7;
+
 	static TArray<TPair<FVector2D, FVector2D>> ComposeDashSegments(const FVector2D& A, const FVector2D& B,
 		float DutyCycle, float PeriodPx);
 
