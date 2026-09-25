@@ -376,7 +376,7 @@ bool FRTHexMapFormatMigrationTest::RunTest(const FString&)
 	// «nessun parapetto» e' cio' che ogni mappa scritta prima gia' era. La ricarica non lo deduce — un bordo
 	// sul vuoto e uno protetto sono identici nel dato di cella, e dedurre trasformerebbe ogni terrazza in
 	// una gabbia.
-	TestEqual(TEXT("la versione corrente e' la 16"), URTHexMapAsset::CurrentFormatVersion, 16);
+	TestEqual(TEXT("la versione corrente e' la 17"), URTHexMapAsset::CurrentFormatVersion, 17);
 	TestEqual(TEXT("nessuna cella persa"), Legacy->NumCells(), 3);
 	TestEqual(TEXT("nessuna transizione persa"), Legacy->Transitions.Num(), 2); // bidirezionale
 	// v11: una mappa vecchia non guadagna OBIETTIVI ricaricandosi. E' la promessa del passo dichiarativo, e

@@ -60,7 +60,12 @@ namespace RTGeometryBakeInternal
 		}
 
 		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
-		const bool bStandable = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+
+		// 🔑 **La sede unica**: qui e nel validator si chiede alla stessa funzione invece di ricalcolare due
+		// volte la stessa regola. Il perche' — e il difetto silenzioso che evita — stanno accanto a
+		// `WhyNotStandable`.
+		const bool bStandable = URTGeometryBakeLibrary::WhyNotStandable(Map, CellId, Mask, Footprint,
+			HexSize) == ERTStandabilityBlock::None;
 
 		if (!bStandable)
 		{
@@ -515,4 +520,56 @@ int32 URTGeometryBakeLibrary::CountGeneratedCovers(const URTHexMapAsset* Map, co
 		}
 	}
 	return Count;
+}
+
+bool URTGeometryBakeLibrary::AreaCoversCell(const FRTNoWalkArea& Area, const FRTCellId& CellId,
+	float HexSize)
+{
+	// Il piano PRIMA della geometria: senza, una regione al piano terra chiuderebbe cio' che le sta sopra.
+	if (Area.Layer != CellId.Layer)
+	{
+		return false;
+	}
+	// Sotto i tre vertici non c'e' un «dentro» da interrogare.
+	if (Area.Vertices.Num() < 3)
+	{
+		return false;
+	}
+
+	// I vertici nel MONDO. `AnchorLocal` e' locale alla cella che nomina l'anchor, quindi si somma
+	// l'origine di quella cella — ed e' qui che i float entrano: nel derivato, come `D-127` prescrive.
+	TArray<FVector2D> Poligono;
+	Poligono.Reserve(Area.Vertices.Num());
+	for (const FRTAnchorRef& Ref : Area.Vertices)
+	{
+		const FVector Origine = URTHexLibrary::AxialToWorld(Ref.Cell, FVector::ZeroVector, HexSize,
+			/*LayerHeight*/ 0.f);
+		const FVector2D Locale = URTGeometryGrammarLibrary::AnchorLocal(Ref, HexSize);
+		Poligono.Add(FVector2D(Origine.X, Origine.Y) + Locale);
+	}
+
+	const FVector Centro = URTHexLibrary::AxialToWorld(CellId, FVector::ZeroVector, HexSize,
+		/*LayerHeight*/ 0.f);
+	return URTHexOccupancyLibrary::PointInPolygon(FVector2D(Centro.X, Centro.Y), Poligono);
+}
+
+ERTStandabilityBlock URTGeometryBakeLibrary::WhyNotStandable(const URTHexMapAsset* Map,
+	const FRTCellId& CellId, const FRTOccupancyMask& Mask, const FRTFootprintProfile& Footprint,
+	float HexSize)
+{
+	// La regione e' un VETO D'AUTORE sopra il calcolo della posa, quindi si guarda per prima: chiude anche
+	// dove la geometria lascerebbe passare.
+	if (Map != nullptr)
+	{
+		for (const FRTNoWalkArea& Area : Map->NoWalkAreas)
+		{
+			if (AreaCoversCell(Area, CellId, HexSize))
+			{
+				return ERTStandabilityBlock::NoWalkArea;
+			}
+		}
+	}
+	return URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint)
+		? ERTStandabilityBlock::None
+		: ERTStandabilityBlock::Geometry;
 }
