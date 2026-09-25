@@ -552,4 +552,93 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static bool DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge);
 
+	/**
+	 * RUOTA UN OFFSET RELATIVO attorno all'origine, di `Steps` passi di `ERTHexDirection` (#1871 §3).
+	 *
+	 * Un passo e' **60 gradi**, cioe' il passo con cui avanza `ERTHexDirection`: `E -> NE -> NW -> W ->
+	 * SW -> SE`. `Steps` puo' essere negativo o maggiore di sei; il conto e' modulare, quindi `6` e' un
+	 * giro completo e l'identita'.
+	 *
+	 * 🔑 **L'offset e' RELATIVO all'origine dell'oggetto, e il `Layer` non ruota.** Ruotare un ingombro
+	 * multi-cella attorno al proprio piede e' una trasformazione sola — e' la ragione per cui #1871 chiede
+	 * coordinate relative invece di una tabella per orientamento: una tabella avrebbe sei righe da tenere
+	 * d'accordo, e questa e' una riga di aritmetica.
+	 *
+	 * ⚠️ **Il verso NON e' una convenzione nuova: e' quello di `AxialDirection`**, e la formula
+	 * `(q, r) -> (q + r, -q)` e' esattamente cio' che porta `AxialDirection(E)` su `AxialDirection(NE)`.
+	 * `RefactorTactics.Hex.RotationFollowsTheDirectionOrder` lo ancora alla funzione invece che a una
+	 * tabella di letterali, cosi' il giorno in cui `AxialDirection` cambiasse cadrebbe li' invece di
+	 * lasciare due convenzioni che si somigliano.
+	 *
+	 * 🔑 **Il conto e' INTERAMENTE INTERO, ed e' cio' che rende vera l'AC «stessa origine, stesso angolo,
+	 * stessa maschera, sempre».** Nessun seno, nessun coseno, nessun arrotondamento: e' l'invariante di
+	 * determinismo n. 4 che `RTCellId.h` dichiara — *«Interi: nessun float nelle coordinate/hash»* — e
+	 * significa che la stessa rotazione da' lo stesso risultato su macchine e build diverse, non soltanto
+	 * due volte di seguito nello stesso processo. ⚠️ I float compaiono **solo nell'oracolo del test**
+	 * (`AxialToWorld`, `PointingSectorAt`), che e' il posto dove servono e l'unico dove non contano.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FRTCellId RotateOffsetAroundOrigin(const FRTCellId& Offset, int32 Steps);
+
+	/**
+	 * RUOTA UNA MASCHERA A DODICI SETTORI degli **stessi** `Steps` di `RotateOffsetAroundOrigin` (#1871 §3).
+	 *
+	 * 🔑 **Un passo di direzione vale DUE settori, e non e' un numero scelto**: `SectorBoundaryPoints` mette
+	 * `P[k]` a `-30 + 30k` gradi, quindi ogni settore e' **30 gradi** e i sei passi di `ERTHexDirection` ne
+	 * misurano **60**. Il fattore due e' l'unica cosa che lega le due rotazioni, ed e' scritto una volta.
+	 *
+	 * ⚠️ **Il verso e' NEGATIVO rispetto all'indice di settore**, e va detto perche' sorprende: la direzione
+	 * `j` punta a **`-60j` gradi**, quindi avanzare nell'ordine dell'enum **abbassa** l'angolo e con esso
+	 * l'indice di settore.
+	 *
+	 * 🔑 **Quel fatto non si ricava qui: e' gia' scritto in `DirectionForEdgeIndex`**, in questo stesso file
+	 * — *«il bordo geometrico `k` ha il punto medio a `60k` gradi, mentre `AxialDirection(j)` punta a
+	 * `-60j`»*. Ricavarlo una seconda volta e' come ricopiare una formula, ed e' il modo in cui la prima
+	 * stesura di questo commento ha prodotto una premessa falsa invece di cercare quella vera.
+	 *
+	 * ⌫ **Questa spiegazione diceva «il settore `0` e' centrato su `E`», ed era FALSA in entrambe le meta'.**
+	 * Trovata in code review, riderivata: il settore `k` e' il triangolo `(centro, P[k], P[k+1])`, quindi il
+	 * settore `0` copre `[-30, 0)` e ha bisettrice `-15`; l'angolo `0` e' il suo confine **superiore**, che
+	 * `RTHexOccupancyLibrary.h` chiama esso stesso *«il punto medio del lato E»*. E `PointingSectorAt(0)`
+	 * risponde **`1`**, non `0` — `floor((0 + 30 + 360) / 30) % 12 = 1`.
+	 *
+	 * 🔑 **E il fatto vero e' piu' utile di quello che avevo scritto**: le sei direzioni puntano ai settori
+	 * `(1 - 2j) mod 12`, cioe' `E=1 · NE=11 · NW=9 · W=7 · SW=5 · SE=3` — sempre **dispari**, e il settore
+	 * `0` non e' il settore di nessuna direzione. Una direzione punta a un **confine** fra due settori, non
+	 * al centro di uno: e' la ragione per cui il test dell'accordo campiona anche offset che stanno
+	 * nell'**interno** di un settore, e non solo i vicini.
+	 *
+	 * ⚠️ **La conclusione — due settori per passo, verso negativo — non cambia**: non dipendeva da dove
+	 * stia il settore `0`, ma solo dal fatto che un passo e' `-60` gradi e un settore ne e' `30`.
+	 *
+	 * 🔴 **Che le due rotazioni siano la STESSA rotazione non e' evidente e non e' assunto**:
+	 * `RefactorTactics.Hex.SectorRotationAgreesWithOffsetRotation` prende un offset, lo ruota, e verifica
+	 * che il settore che lo punta — misurato con `PointingSectorAt` sulla geometria vera, non con una
+	 * formula gemella — sia quello che questa funzione predice. E' il test che rende utile la coppia:
+	 * due rotazioni che non concordano ruoterebbero la mesh e l'ingombro in due versi diversi, ed e'
+	 * esattamente il difetto che #1871 §3 esiste per impedire.
+	 *
+	 * La maschera e' il bitmask a dodici bit gia' in uso — `FRTOccupancyMask::Sectors` e
+	 * `FRTPlacementRegion::WedgeMask`, che sono i due membri reali che ne portano uno; i bit fuori dai
+	 * dodici vengono **scartati**, non conservati: una maschera non e' un numero, e portarsi dietro bit che
+	 * nessun settore rappresenta significherebbe farli riapparire dopo sei passi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static int32 RotateSectorMask(int32 SectorMask, int32 Steps);
+
+	/**
+	 * Ruota UN indice di settore, con la stessa convenzione di `RotateSectorMask`. `INDEX_NONE` resta tale —
+	 * e' cio' che `PointingSectorAt` risponde nella dead-zone centrale, e ruotarlo darebbe un settore
+	 * plausibile da un'assenza. `RefactorTactics.Hex.RotatingNoSectorGivesNoSector` lo pinna.
+	 *
+	 * ⚖️ **La sede e' discutibile e lo si dichiara**: `RT_OccupancySectorCount` e la partizione che lo
+	 * produce (`SectorBoundaryPoints`) vivono in `RTHexOccupancyLibrary`, non qui, e i due membri che
+	 * portano una maschera pure. Queste due funzioni stanno con `PointingSectorAt` — che e' nella stessa
+	 * classe e **restituisce** un indice di settore — invece che col tipo che ruotano. Il giorno in cui il
+	 * concetto «dodici settori» venisse consolidato in una sede sola, queste si spostano con lui.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static int32 RotateSector(int32 Sector, int32 Steps);
+
 };
+

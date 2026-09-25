@@ -897,3 +897,69 @@ ERTHexDirection URTHexLibrary::NearestEdgeDirection(const FRTCellId& Cell, const
 
 	return Best;
 }
+
+namespace
+{
+	/** `Steps` portato in `[0, 6)`. `%` in C++ conserva il segno del dividendo, e un passo negativo e' legittimo. */
+	int32 RTNormalizeDirectionSteps(int32 Steps)
+	{
+		const int32 Resto = Steps % 6;
+		return Resto < 0 ? Resto + 6 : Resto;
+	}
+}
+
+FRTCellId URTHexLibrary::RotateOffsetAroundOrigin(const FRTCellId& Offset, int32 Steps)
+{
+	int32 Q = Offset.X;
+	int32 R = Offset.Y;
+
+	// Un passo per volta, invece della forma chiusa: sei iterazioni al massimo, e la formula resta LEGGIBILE
+	// accanto alla sua giustificazione. La forma chiusa in coordinate cubiche direbbe la stessa cosa in un
+	// modo che nessuno rilegge.
+	for (int32 Passo = RTNormalizeDirectionSteps(Steps); Passo > 0; --Passo)
+	{
+		// `(q, r) -> (q + r, -q)`: e' l'unica delle due rotazioni cubiche di 60 gradi che porta
+		// `AxialDirection(E) = (+1, 0)` su `AxialDirection(NE) = (+1, -1)`, cioe' che segue l'ordine
+		// dell'enum. L'altra andrebbe verso `SE`.
+		// ⚠️ La somma in `int64`: `Q + R` in `int32` trabocca — UB — quando i due hanno lo stesso segno e
+		// la somma esce dal tipo, e questa e' una `BlueprintPure` senza dominio dichiarato. Nessun ingombro
+		// di asset ci arriva (#1871 parla di offset di poche celle), ma il costo di non scoprirlo e' zero.
+		const int64 Somma = static_cast<int64>(Q) + static_cast<int64>(R);
+		const int32 NuovoQ = static_cast<int32>(FMath::Clamp<int64>(Somma, MIN_int32, MAX_int32));
+		const int32 NuovoR = -Q;
+		Q = NuovoQ;
+		R = NuovoR;
+	}
+
+	// ⚠️ Il `Layer` NON ruota: una rotazione attorno all'asse verticale lascia il piano dov'e'.
+	return FRTCellId(Q, R, Offset.Layer);
+}
+
+int32 URTHexLibrary::RotateSector(int32 Sector, int32 Steps)
+{
+	// `INDEX_NONE` significa «nessun settore» — la dead-zone di `PointingSectorAt`. Ruotarlo darebbe un
+	// settore plausibile da un'assenza, che e' il difetto che quella funzione evita restituendolo.
+	if (Sector < 0 || Sector >= RT_OccupancySectorCount)
+	{
+		return INDEX_NONE;
+	}
+	// Due settori per passo (30 gradi ciascuno contro 60), e NEGATIVI: avanzare nell'ordine dell'enum
+	// abbassa l'angolo. Il perche' sta nell'header.
+	const int32 Giu = 2 * RTNormalizeDirectionSteps(Steps);
+	return ((Sector - Giu) % RT_OccupancySectorCount + RT_OccupancySectorCount) % RT_OccupancySectorCount;
+}
+
+int32 URTHexLibrary::RotateSectorMask(int32 SectorMask, int32 Steps)
+{
+	int32 Ruotata = 0;
+	for (int32 Settore = 0; Settore < RT_OccupancySectorCount; ++Settore)
+	{
+		if (((SectorMask >> Settore) & 1) != 0)
+		{
+			Ruotata |= 1 << RotateSector(Settore, Steps);
+		}
+	}
+	// I bit oltre il dodicesimo non entrano nel ciclo, quindi sono gia' scartati: e' deliberato, e detto
+	// nell'header. Una maschera non e' un numero.
+	return Ruotata;
+}
