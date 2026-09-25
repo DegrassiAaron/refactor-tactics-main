@@ -56,6 +56,16 @@ FVector2D ARTHUD::ClampOverlayAnchor(const FVector2D& Anchor, float HalfWidth,
 	return FVector2D(X, Y);
 }
 
+FVector2D ARTHUD::ComposeIntentLabelPlacement(const FVector2D& HeadScreen, float LabelWidth,
+	float BarWidth, const FVector2D& Viewport)
+{
+	// `IntentLabelAbove` compare due volte in QUESTE tre righe, ed e' la ragione per cui la funzione
+	// esiste: chiedere una banda e risalire di uno scarto diverso e' il difetto di #729 riaperto.
+	const FVector2D Anchor = ClampOverlayAnchor(HeadScreen, FMath::Max(BarWidth, LabelWidth) * 0.5f,
+		/*AboveAnchor=*/ IntentLabelAbove, /*BelowAnchor=*/ 0.f, Viewport, /*Margin=*/ 4.f);
+	return FVector2D(Anchor.X - LabelWidth * 0.5f, Anchor.Y - IntentLabelAbove);
+}
+
 void ARTHUD::SetTargetRefusal(ERTTargetRefusal Refusal, int32 EffectiveRange,
 	const FRTLineOfSightResult& Los, const FRTCellId& From, const FRTCellId& To)
 {
@@ -1084,21 +1094,15 @@ void ARTHUD::DrawHUD()
 			{
 				const FString Label = Intento.Label;
 
-				// Stesso vincolo della sovrapposizione dell'unita' (#729): l'ancora nasce dallo stesso offset
-				// world space, quindi soffriva dello stesso difetto — l'intento di un'unita' vicina alla
-				// camera finiva sopra il bordo. Qui il blocco e' una riga sola.
-				float LabelW = 0.f;
-				float LabelH = 0.f;
-				GetTextSize(Label, LabelW, LabelH, nullptr, 0.85f);
-				const FVector2D LabelAnchor = ClampOverlayAnchor(
-					FVector2D(HeadScreen.X, HeadScreen.Y),
-					FMath::Max(BarWidth, LabelW) * 0.5f,
-					/*AboveAnchor=*/ 36.f,
-					/*BelowAnchor=*/ 0.f,
-					FVector2D(Canvas->SizeX, Canvas->SizeY),
-					/*Margin=*/ 4.f);
-
-				DrawText(Label, Color, LabelAnchor.X - LabelW * 0.5f, LabelAnchor.Y - 36.f, nullptr, 0.85f);
+				// Stesso vincolo della sovrapposizione dell'unita' (#729), e per la stessa ragione: l'ancora
+				// nasce dallo stesso offset world space. Dove finisce il testo lo decide adesso
+				// `ComposeIntentLabelPlacement`, che i suoi test interrogano senza montare un HUD.
+				float LabelW = 0.f, LabelH = 0.f;
+				GetTextSize(Label, LabelW, LabelH, nullptr, IntentLabelScale);
+				const FVector2D Dove = ComposeIntentLabelPlacement(
+					FVector2D(HeadScreen.X, HeadScreen.Y), LabelW, BarWidth,
+					FVector2D(Canvas->SizeX, Canvas->SizeY));
+				DrawText(Label, Color, Dove.X, Dove.Y, nullptr, IntentLabelScale);
 			}
 
 			// Percorso pianificato: se mostrarlo e con quali celle lo decide `ComposePlannedRoute` (#2184),
