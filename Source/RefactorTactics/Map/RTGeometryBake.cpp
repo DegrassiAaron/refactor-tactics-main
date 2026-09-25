@@ -530,7 +530,12 @@ bool URTGeometryBakeLibrary::AreaCoversCell(const FRTNoWalkArea& Area, const FRT
 	{
 		return false;
 	}
-	// Sotto i tre vertici non c'e' un «dentro» da interrogare.
+	// ⚠️ **Sotto i tre vertici non c'e' un «dentro», e questa guardia NON cambia nessun esito.** Misurato
+	// con una mutazione: togliendola non cade nessun test, perche' `PointInPolygon` risponde gia' `false`
+	// su meno di tre punti — con zero vertici il ciclo non gira, con uno o due gli attraversamenti si
+	// annullano a coppie. Resta come **dichiarazione di intento**, per non dipendere da una proprieta'
+	// incidentale del ray casting che nessuno ha scritto di voler garantire; e resta dichiarato che non e'
+	// coperta da un test che possa cadere, invece di lasciarla sembrare una rete.
 	if (Area.Vertices.Num() < 3)
 	{
 		return false;

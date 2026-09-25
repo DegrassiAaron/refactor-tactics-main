@@ -1103,8 +1103,11 @@ bool FRTNoWalkRespectsLayerTest::RunTest(const FString&)
 	TestFalse(TEXT("una cella lontana non e' coperta"),
 		URTGeometryBakeLibrary::AreaCoversCell(Area, FRTCellId(-2, -2, 0), NoWalkHexSize));
 
-	// ⚠️ Sotto i tre vertici non c'e' un «dentro»: si risponde `false` invece di interrogare una
-	// degenerazione, che darebbe una risposta arbitraria.
+	// ⚠️ **Sotto i tre vertici la risposta e' `false`, e questa asserzione pinna la PROPRIETA', non la
+	// guardia.** Misurato con una mutazione: togliendo il controllo esplicito questa riga resta verde,
+	// perche' `PointInPolygon` risponde gia' `false` su meno di tre punti. Vale la pena asserirla lo
+	// stesso — e' il comportamento su cui la copertura fa affidamento — ma non si spacci per la prova di
+	// una guardia che non e' osservabile.
 	FRTNoWalkArea Degenere = Area;
 	Degenere.Vertices.SetNum(2);
 	TestFalse(TEXT("due vertici non sono un poligono"),
