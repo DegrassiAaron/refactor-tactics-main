@@ -6410,7 +6410,95 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		ResolvedTimeline.Add(Ev);
 	}
 
-	// TurnLog: esito di ogni attacco applicato (classificato da stato pre/post).
+	// Quote per colpo: il netto di FASE ripartito fra i colpi che lo hanno prodotto ([D-438]).
+	//
+	// 🔑 **Il netto per-colpo non esiste a monte, e non e' un'omissione.** `URTCombatResolver::ApplyHits`
+	// somma i colpi PER BERSAGLIO (`DamageByTarget += Attack.Power`) e applica lo scudo **una volta sola**
+	// sul totale — invariante #3, che lo stadio `ERTDamageStage::TargetSum` del breakdown nomina. Non c'e'
+	// un valore da leggere: c'e' una regola da dichiarare, ed e' questa.
+	//
+	// **Proporzionale a `Power`, troncata, col resto ai colpi di indice minore.** Due proprieta' la
+	// scelgono. La **somma delle quote e' il netto**: chi somma il feed ottiene cio' che gli HP hanno
+	// davvero perso, che e' l'invariante che il difetto di `#3271` rompeva — due righe da `37` per `37` di
+	// danno. E con UN solo attaccante la quota e' il netto intero, quindi **nessuna voce gia' scritta
+	// cambia**: il corpus golden non si muove, e non per argomento — `Combat.CounterStrikesBack`,
+	// `Visual.Combat.FallbackTargetMoved` e `RT_Showcase_Relay_v01` hanno un attaccante per bersaglio.
+	//
+	// ⚠️ **Resta un'attribuzione, non una misura**: lo scudo e' del BERSAGLIO in quella fase, e dargli una
+	// quota per colpo e' la stessa inferenza che il commento di `Defeated` qui sopra rifiuta per
+	// l'eliminazione. La differenza e' che qui la regola e' **dichiarata e deterministica** invece che
+	// implicita, e che senza di essa ogni riga porta una grandezza di un altro tipo.
+	TArray<int32> HitShare;     // quota di netto attribuita a ogni colpo, parallelo ad `Attacks`
+	TArray<int32> HitHpBefore;  // HP del bersaglio PRIMA di questo colpo, lungo la progressione delle quote
+	{
+		HitShare.SetNumZeroed(Attacks.Num());
+		HitHpBefore.SetNumZeroed(Attacks.Num());
+
+		// Le mappe servono al LOOKUP, mai all'iterazione: l'ordine che conta e' quello di `Attacks`, che e'
+		// l'ordine deterministico in cui i colpi sono stati pianificati. Iterare una `TMap` qui romperebbe
+		// il determinismo del TurnLog senza che nessun test locale se ne accorga.
+		TMap<int32, int32> PowerByTarget;
+		for (const FRTAttack& Att : Attacks)
+		{
+			PowerByTarget.FindOrAdd(Att.TargetIndex) += FMath::Max(0, Att.Power);
+		}
+
+		TMap<int32, int32> AssignedByTarget;
+		TSet<int32> TargetSeen;
+		for (int32 a = 0; a < Attacks.Num(); ++a)
+		{
+			const int32 Idx = Attacks[a].TargetIndex;
+			if (!BeforeHP.IsValidIndex(Idx) || !AfterHP.IsValidIndex(Idx)) { continue; }
+			const int32 Netto = BeforeHP[Idx] - AfterHP[Idx];
+			bool bGiaVisto = false;
+			TargetSeen.Add(Idx, &bGiaVisto);
+			// Netto nullo — scudo che assorbe tutto — lascia OGNI quota a zero, ed e' cio' che il
+			// classificatore legge come `ShieldAbsorbed`: identico a oggi, dove le due fotografie coincidono.
+			if (Netto <= 0) { continue; }
+			const int32 TotPower = PowerByTarget.FindRef(Idx);
+			if (TotPower > 0)
+			{
+				HitShare[a] = (Netto * FMath::Max(0, Attacks[a].Power)) / TotPower;
+			}
+			else if (!bGiaVisto)
+			{
+				// ⛔ Potenza totale nulla con netto positivo: la proporzione NON e' definita, e inventarne una
+				// media sarebbe peggio. Il netto va per intero al primo colpo, perche' la proprieta' che questa
+				// regola deve conservare — la somma — vale anche qui.
+				HitShare[a] = Netto;
+			}
+			AssignedByTarget.FindOrAdd(Idx) += HitShare[a];
+		}
+
+		// Il resto della divisione troncata, un punto per colpo in ordine di indice. E' al massimo un punto
+		// per colpo meno uno, quindi un solo giro lo esaurisce: la somma delle quote torna esatta.
+		for (int32 a = 0; a < Attacks.Num(); ++a)
+		{
+			const int32 Idx = Attacks[a].TargetIndex;
+			if (!BeforeHP.IsValidIndex(Idx) || !AfterHP.IsValidIndex(Idx)) { continue; }
+			const int32 Netto = BeforeHP[Idx] - AfterHP[Idx];
+			if (Netto <= 0) { continue; }
+			int32& Assegnato = AssignedByTarget.FindOrAdd(Idx);
+			if (Assegnato < Netto) { ++HitShare[a]; ++Assegnato; }
+		}
+
+		// Progressione: ogni colpo parte da dove l'ha lasciato il precedente sullo stesso bersaglio. E' la
+		// STESSA ripartizione letta un'altra volta, non una seconda regola — ed e' cio' che fa cadere
+		// `Lethal` sul colpo che azzera gli HP invece che su tutti quelli della fase.
+		TMap<int32, int32> RemainingHp;
+		for (int32 a = 0; a < Attacks.Num(); ++a)
+		{
+			const int32 Idx = Attacks[a].TargetIndex;
+			if (!BeforeHP.IsValidIndex(Idx)) { continue; }
+			int32& Hp = RemainingHp.FindOrAdd(Idx, BeforeHP[Idx]);
+			HitHpBefore[a] = Hp;
+			Hp -= HitShare[a];
+		}
+	}
+
+	// TurnLog: esito di ogni attacco applicato, classificato sul pre/post DEL COLPO — non su quello di
+	// fase. ⌫ Questa riga diceva solo *«da stato pre/post»* e descriveva le fotografie dell'intero Blast
+	// senza accorgersene: e' il commento che ha lasciato passare `#3271` per il tempo in cui e' vissuto.
 	// Il bonus di elevazione e' 0 finche' l'ambiente esagonale non lo reintroduce (epic E8/E9): senza dato
 	// reale, dichiararlo 0 e' preferibile a leggerlo da un terreno quadrato che non e' piu' nella partita.
 	for (int32 a = 0; a < Attacks.Num(); ++a)
@@ -6419,10 +6507,14 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		FRTTurnLogEntry E;
 		E.Phase = ERTMatchPhase::Blast;
 		E.Category = ERTLogCategory::Combat;
-		E.Outcome = static_cast<uint8>(URTCombatLibrary::ClassifyCombatOutcome(BeforeHP[Idx], AfterHP[Idx], /*AttackerDmgBonus=*/ 0));
+		// Classificato sulla progressione delle quote, non sulle fotografie di FASE ([D-438]): con due
+		// attaccanti le due letture divergono, e quella di fase marcava `Lethal` OGNI colpo della fase.
+		const int32 HpPrima = HitHpBefore.IsValidIndex(a) ? HitHpBefore[a] : BeforeHP[Idx];
+		const int32 Quota   = HitShare.IsValidIndex(a) ? HitShare[a] : (BeforeHP[Idx] - AfterHP[Idx]);
+		E.Outcome = static_cast<uint8>(URTCombatLibrary::ClassifyCombatOutcome(HpPrima, HpPrima - Quota, /*AttackerDmgBonus=*/ 0));
 		E.SrcCell = AttackSrc[a];
 		E.TgtCell = Units[Idx]->Cell;
-		E.Amount = BeforeHP[Idx] - AfterHP[Idx];
+		E.Amount = Quota;
 		// CHI ha colpito, e di quale azione generica e' un profilo (CP 11.3 · D-033). Gli array sono paralleli
 		// ad `Attacks` per costruzione: `AttackSrc` lo era gia', questi due sono stati riempiti e accodati
 		// negli stessi due punti. `IsValidIndex` non e' difesa contro un bug ipotetico — e' che `Attacks`
