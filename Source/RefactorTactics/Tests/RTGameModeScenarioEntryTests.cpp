@@ -242,8 +242,13 @@ bool FRTPlaybackControlCVarsTurnOnTheControlsTest::RunTest(const FString&)
 	//
 	// 🔑 **E non si perde `BeginPlay`, perche' non c'era.** I mondi di prova nati da `UWorld::CreateWorld`
 	// non lo fanno partire — e' la stessa constatazione che `RTUnit.h:818` e `RTUnit.cpp:33` hanno gia'
-	// pagato — quindi anche la versione con `SpawnActor` interrogava un attore il cui `BeginPlay` non era
-	// mai girato. Qui non sparisce una fase: sparisce un mondo che non ne eseguiva nessuna.
+	// pagato — quindi anche la versione precedente interrogava un attore il cui `BeginPlay` non era mai
+	// girato. Qui non sparisce una fase: sparisce un mondo che non ne eseguiva nessuna.
+	//
+	// ⌫ **E questa riga NOMINAVA la chiamata che il file non fa piu'.** La metrica di #2182 cerca quel
+	// nome nel testo, non nel codice: scriverlo in un commento ha rimesso il file nel conteggio e ha
+	// annullato la fetta, in silenzio. La regola e' **scrivere la proprieta', non il nome** — «la versione
+	// precedente», non il nome della chiamata assente.
 	//
 	// ⛔ **Che il test conservi i denti e' stato MISURATO, non dedotto.** Un'istanza non registrata
 	// potrebbe ignorare gli effetti, e allora questo test passerebbe a vuoto. Due mutazioni su
