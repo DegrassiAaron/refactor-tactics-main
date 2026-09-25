@@ -83,6 +83,10 @@
 > 📘 **Per la seduta `U42` esiste una guida**: [`runbooks/guida-seduta-u42-corpus-visual.md`](runbooks/guida-seduta-u42-corpus-visual.md) — **ventuno** voci con, per ciascuna, **ciò che la falsifica**, più la procedura `Run → osserva → R` che senza il riavvio in mezzo rende non confrontabili gli scenari successivi. ⏱️ *Erano diciannove quando la guida è nata: entrano `PIE-ACC-ENVIRONMENT` e `PIE-ACC-MAP`, e con loro la seduta scende da diciannove Play a **undici** — tre compositi ne coprono nove. La sezione §3 della guida dice quali voci si giudicano dentro quale Play.*
 > ⚠️ La guida dice **come** osservare; gli **esiti** restano qui, che ne è l'owner.
 
+> 📘 **Per i RIGIUDIZI esiste una guida**: [`runbooks/guida-seduta-rigiudizi-blocchi-caduti.md`](runbooks/guida-seduta-rigiudizi-blocchi-caduti.md) — le voci già giudicate, o dichiarate ineseguibili, il cui impedimento è stato rimosso e che nessuno ha ripreso: `PIE-VIS-CHARGE`, `PIE-VIS-PHASES`, `PIE-VIS-PUSH`, `PIE-V01-SCREENHUD` criterio (3), `PIE-V01-REACTCOND`.
+> 🔑 **La ragione per cui vale la pena aprirla è un comando che a `U42` non era stato usato**: `rt.Debug.PlaybackControls 1` più `rt.Debug.PlaybackStartPaused 1` fanno partire il playback **fermo**, e poi `K` mette in pausa e `L` avanza di un passo. Le tre voci `PIE-VIS-*` erano state giudicate inseguendo finestre da ~0,69 s — la cella di `PIE-VIS-CHARGE` registra **dieci corse** per un verdetto solo. ⛔ E il tasto `V` **non** rallenta: cicla `x1→x2→x4` e non scende sotto `x1`.
+> ⚠️ Un ❌ che descrive un difetto già corretto è peggio di un ⏳: chi legge conclude che il gioco sia rotto dove non lo è, e chi lavora nell'area lo prende come vincolo.
+
 ## Stato in numeri — 2026-09-24
 
 **252 voci**: ✅ **89 verdi** · 🟡 **28 parziali** · ❌ **8 fallite** · ⏳ **127 aperte**.
