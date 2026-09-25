@@ -24,35 +24,52 @@
 //
 // ── TABELLA DELLE ATTESE DI MUTAZIONE ────────────────────────────────────────────────────────────────
 // Scritta prima di lanciare ed eseguibile: ogni riga nomina un test che esiste e una mutazione che
-// compila, a partire dal codice spedito.
+// compila, a partire dal codice spedito. ⚠️ **Gli esiti sono rimisurati sull'insieme di test FINALE** —
+// vedi la nota in fondo alla tabella, che è il difetto di metodo più utile di questa fetta.
 //
 //   # | mutazione                                                     | rosso atteso              | esito
 //  ---|----------------------------------------------------------------|---------------------------|-------
-//   1 | `Anchor.Y - IntentLabelAbove` → `Anchor.Y - 40.f` (DIVERGENZA)  | …AtTheTopEdge…            | 2 rossi
-//   2 | `IntentLabelAbove = 36.f` → `= 37.f` (cambio CONCORDE)          | …CentresOnTheLabel… solo  | 1, esatto
+//   1 | `Anchor.Y - IntentLabelAbove` → `Anchor.Y - 40.f` (DIVERGENZA)  | …AtTheTopEdge…            | 3 rossi
+//   2 | `IntentLabelAbove = 36.f` → `= 37.f` (cambio CONCORDE)          | …AtTheTopEdge… VERDE      | 2 rossi
 //   3 | `FMath::Max(BarWidth, LabelWidth)` → `LabelWidth`               | …ReservesTheWiderBlock…   | 1, esatto
 //   4 | `Anchor.X - LabelWidth * 0.5f` → `Anchor.X`                     | …CentresOnTheLabel…       | 2 rossi
 //   5 | `/*BelowAnchor=*/ 0.f` → `36.f`                                 | …ReservesNothingBelow… SOLO | 1, esatto
 //
-// 🔑 **La 1 e la 2 sono la coppia che dà senso al file, e l'esito è quello previsto.** La 1 rompe la
-// coincidenza e uccide il caso al bordo — dove il valore non conta — oltre al caso centrale. La 2 cambia
-// il valore restando concorde e uccide **soltanto** il centro: il bordo resta **verde**, il che dimostra
-// che quel test misura l'invariante e non il numero. Se la 2 avesse fatto cadere anche il bordo, quel
-// test non sarebbe servito a niente.
+// 🔑 **La 1 e la 2 sono la coppia che dà senso al file, e l'attesa della 2 va letta su UN test, non sul
+// totale.** La 1 rompe la coincidenza fra banda e scarto; la 2 cambia il valore lasciandole concordi.
+// Ciò che le distingue è `…AtTheTopEdge…`, dove l'ancora viene spinta a `Margin + Above` e il testo
+// risale di `Above`: resta `Margin` **qualunque sia** `Above`.
+//
+//     mutazione 1 (divergenza)   →  …AtTheTopEdge…  ROSSO   (0 invece di 4)
+//     mutazione 2 (concorde)     →  …AtTheTopEdge…  VERDE
+//
+// ⛔ È l'unica riga di questa tabella che prova qualcosa sull'**invariante** invece che su un numero. Gli
+// altri test cadono sotto entrambe, ed è corretto che sia così: pinnano i pixel, che lo Scope della fetta
+// vieta di spostare.
 //
 // 🔴 **La 5 c'è perché la prima stesura della tabella NON la conteneva, e il buco era reale.** I quattro
 // letterali del reperto erano `36.f` e `0.85f`; il **quinto** — `BelowAnchor = 0.f` — è dello stesso tipo
 // e non lo avevo catalogato. Con i primi tre test, mutarlo in `36.f` lasciava **tre verdi**: le loro teste
 // stanno a `Y ∈ {400, 10}` su un viewport alto 800, e il limite inferiore non entra in gioco finché
-// `BelowAnchor` non supera ≈396. Un letterale che nessuna asserzione raggiunge è un letterale che può
-// cambiare in silenzio — esattamente il difetto che questa fetta esiste per chiudere.
+// `BelowAnchor` non supera 396 — a 396 esatti `Clamp(400, 40, 400)` rende ancora 400, quindi la soglia è
+// «strettamente maggiore». Un letterale che nessuna asserzione raggiunge è un letterale che può cambiare
+// in silenzio: esattamente il difetto che questa fetta esiste per chiudere.
+//
+// ⌫ **E gli esiti delle righe 1-4 erano SBAGLIATI, per una ragione che vale più della correzione.**
+// Erano stati misurati davvero — non inventati — ma su un insieme di test a cui il quarto è stato
+// aggiunto DOPO. La 1 diceva «2 rossi» e ne fa 3; la 2 diceva «1, esatto» e ne fa 2, perché
+// `…ReservesNothingBelow…` dipende da `IntentLabelAbove` in entrambe le sue asserzioni.
+//
+// 🔑 Una tabella di mutazioni è una misura sull'insieme dei test, non su una mutazione: **cambia da sola
+// quando cambia l'insieme**, come un totale in prosa. Si rimisura per ultima, dopo l'ultimo test, o non
+// vale. Trovato dalla revisione della PR #3349, non da chi ha scritto la tabella.
 //
 // ⛔ **`IntentLabelScale` NON compare nella tabella, e va detto invece di lasciarlo dedurre.** Le sue due
 // occorrenze sono `GetTextSize` e `DrawText`, entrambe membri di `AHUD` che vogliono un font e un canvas:
 // non esiste, in questo file, una domanda headless che le interroghi. Quella coppia è protetta dal
-// **nome**, non da un test — ed è esattamente l'argomento della fetta: un nome solo rende la divergenza
-// impossibile, mentre un test la cercherebbe soltanto. Scriverne una riga di tabella non eseguibile
-// sarebbe la promessa vuota della fetta 5.
+// **nome**, non da un test — ed è esattamente l'argomento della fetta: un nome solo toglie il modo in cui
+// la divergenza succede, mentre un test la cercherebbe soltanto. Scriverne una riga di tabella non
+// eseguibile sarebbe la promessa vuota della fetta 5.
 
 #include "Misc/AutomationTest.h"
 #include "UI/RTHUD.h"
@@ -158,9 +175,18 @@ bool FRTHudIntentLabelWiderBlockTest::RunTest(const FString&)
  * smette di stare sopra la testa che identifica.
  *
  * ⚠️ **È un letterale che i primi tre test non raggiungevano.** Le loro teste stanno lontane dal bordo
- * inferiore, e `BelowAnchor` non cambia niente finché non supera ≈396 su un viewport alto 800. Qui le due
+ * inferiore, e `BelowAnchor` non cambia niente finché non supera 396 su un viewport alto 800. Qui le due
  * asserzioni lo interrogano dai due lati del limite: sopra, dove l'etichetta deve **seguire** l'unità;
  * sotto, dove deve fermarsi **al margine** e non prima.
+ *
+ * ⛔ **Le due asserzioni NON hanno la stessa forza, e va saputo.** `Fermata` sta sempre nel ramo vincolato
+ * (`Dove.Y = Viewport.Y - Margin - BelowAnchor - Above`), quindi **qualunque** `BelowAnchor` diverso da
+ * zero la fa cadere — è lei a chiudere il buco. `Segue` sta nel ramo libero e ha una zona morta fino a
+ * `BelowAnchor ≈ 6`, perché `790` esce dall'intervallo solo quando il limite scende sotto di lui.
+ *
+ * 🔑 Resta perché copre una classe di difetto che `Fermata` non vede: un'implementazione che sottraesse
+ * `BelowAnchor` **anche dove non c'è vincolo**. Senza quel caso sarebbe ridondante, e andrebbe tolta
+ * invece che tenuta per simmetria.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudIntentLabelBottomEdgeTest,
 	"RefactorTactics.HUD.IntentLabelReservesNothingBelowAtTheBottomEdge",
