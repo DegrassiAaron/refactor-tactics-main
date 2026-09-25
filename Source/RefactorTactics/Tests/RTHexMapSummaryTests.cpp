@@ -196,10 +196,10 @@ bool FRTMapSummaryActiveLayerTest::RunTest(const FString&)
  * regole *scritte, testate e verdi* non le eseguiva nessuno. La sede giusta e' il readout del mode, che
  * `#1186` ha stabilito per la stessa ragione: *«un dato che si consulta guardando deve vedersi guardando»*.
  *
- * 🔑 **`ValidateMap()` e NON `ValidateMapDetailed()`, e la differenza e' un fattore sei.** Misurato:
+ * 🔑 **`ValidateMap()` e NON `ValidateMapDetailed()`, e la seconda e' un SOTTOINSIEME della prima.** Misurato:
  * `ValidateMap` porta ventitre `Error:` e tre `Warning:` propri **e in coda chiama `ValidateMapDetailed`**,
  * formattandone le voci con lo stesso schema — quindi e' il **superset**. `ValidateMapDetailed` da sola
- * porta cinque regole: un readout costruito su quella direbbe «nessuna segnalazione» su una mappa che
+ * porta le sole regole tipizzate: un readout costruito su quella direbbe «nessuna segnalazione» su una mappa che
  * `ValidateMap` dichiara in errore per una delle altre.
  *
  * ⚠️ **Il conteggio per PREFISSO non e' un'euristica**: ogni riga che `ValidateMap` produce comincia per

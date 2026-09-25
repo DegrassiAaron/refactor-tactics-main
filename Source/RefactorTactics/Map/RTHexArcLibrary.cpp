@@ -143,7 +143,8 @@ int32 URTHexArcLibrary::TransitionLayerSpan(const FRTCellId& From, const FRTCell
 bool URTHexArcLibrary::IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,
 	ERTHexTransitionKind Kind)
 {
-	// v0.1: solo la scala e' vincolata. L'innesco per rivedere questa riga sta nell'header.
+	// v0.1: solo la scala e' vincolata. La domanda aperta e' `MAP-5`, e l'innesco che la fa riaprire e'
+	// il test che pinna la grammatica dell'enum — non questo commento. Il perche' sta nell'header.
 	if (Kind != ERTHexTransitionKind::Stair)
 	{
 		return true;

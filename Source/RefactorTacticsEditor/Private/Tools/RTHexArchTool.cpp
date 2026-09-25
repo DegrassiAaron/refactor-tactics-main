@@ -282,8 +282,8 @@ void URTHexArchTool::CommitArch()
 
 	// ⛔ RIFIUTO AL GESTO (#1869): in v0.1 una scala collega solo layer adiacenti.
 	//
-	// 🔑 E' lo STESSO predicato che `ValidateMap` applica alla collezione, chiamato qui perche' i due strati
-	// sono due momenti: qui si impedisce di scriverla, la' si segnala quella che c'e' gia' — dentro un asset
+	// 🔑 E' lo STESSO predicato che `ValidateMapDetailed` applica alla collezione, chiamato qui perche' i due
+	// strati sono due momenti: qui si impedisce di scriverla, la' si segnala quella che c'e' gia' — dentro un asset
 	// di versione precedente, o ricostruito. Uno non sostituisce l'altro.
 	//
 	// ⚠️ Si esce SENZA distruggere il gizmo pendente, come fa il rifiuto qui sopra: il gesto resta aperto e

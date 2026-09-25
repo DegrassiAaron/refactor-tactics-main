@@ -777,22 +777,6 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 				E.Integrity, *E.From.ToString(), *E.To.ToString()));
 		}
 
-		// Adiacenza di layer (#1869): in v0.1 una SCALA collega solo piani adiacenti, e il salto e' un
-		// percorso che il grafo offrirebbe mentre il vocabolario della v0.1 non sa esprimerlo. Sta fra gli
-		// `Error:` e non fra i `Warning:` per la ragione che separa i due gruppi qui sopra: la Warning
-		// dell'arco ridondante dice «superfluo ma innocuo», i cinque Error dicono «questa transizione non
-		// e' un oggetto legale». Un salto e' il secondo.
-		//
-		// ⚠️ La soglia e' `>= 2`, non `!= 1`, e la regola vive in `URTHexArcLibrary` perche' la chiama
-		// anche `URTHexArchTool` prima di committare: due strati, un solo predicato. Il perche' della
-		// soglia — e l'innesco per rivederla — stanno accanto alla funzione.
-		if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(E.From, E.To, E.Kind))
-		{
-			Errors.Add(FString::Printf(
-				TEXT("Error: scala che salta %d layer %s -> %s: in v0.1 una scala collega solo layer adiacenti"),
-				URTHexArcLibrary::TransitionLayerSpan(E.From, E.To), *E.From.ToString(), *E.To.ToString()));
-		}
-
 		// Ridondante: stesso layer e celle gia' adiacenti orizzontalmente -> l'arco esplicito e' superfluo.
 		if (E.From != E.To && E.From.Layer == E.To.Layer && URTHexLibrary::HexDistance(E.From, E.To) == 1)
 		{
@@ -1045,10 +1029,12 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		}
 	}
 
-	// LE REGOLE DI TOPOLOGIA DI `#1832`, formattate in coda. Vivono in `ValidateMapDetailed` perche' i test
-	// devono poterle distinguere per **reason code** invece che per il testo del messaggio: un test che
-	// riconosce una regola dalla sua stringa si rompe alla prima riformulazione, e insegna a non toccare i
-	// messaggi — che e' il verso sbagliato in cui far pendere un validator che chi disegna deve leggere.
+	// LE REGOLE TIPIZZATE, formattate in coda. Nate con la topologia per-cella di `#1832`, e da `#1869` non
+	// piu' solo per-cella: `StairSkipsLayer` nasce dal ciclo sulle transizioni. Vivono in
+	// `ValidateMapDetailed` perche' i test devono poterle distinguere per **reason code** invece che per il
+	// testo del messaggio: un test che riconosce una regola dalla sua stringa si rompe alla prima
+	// riformulazione, e insegna a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un
+	// validator che chi disegna deve leggere.
 	{
 		TArray<FRTMapValidationIssue> Topology;
 		ValidateMapDetailed(Topology);
@@ -1342,6 +1328,30 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 				*Atterraggio.ToString());
 			OutIssues.Add(Issue);
 		}
+	}
+
+
+	// REGOLA 7 — una SCALA che salta un piano (`#1869`).
+	//
+	// ⚠️ **E' la prima regola di questa funzione che non e' per-cella**: le sei precedenti nascono dal ciclo
+	// sulle celle, questa dal ciclo sulle transizioni. Sta qui e non fra le righe testuali di `ValidateMap`
+	// per la ragione dichiarata sull'enum: *«una regola NUOVA nasce con il suo codice»* — un test che la
+	// riconoscesse dalla stringa si romperebbe alla prima riformulazione del messaggio. Ed e' anche cio' che
+	// la porta sotto il gate di non-regressione delle mappe versionate, che legge da qui.
+	for (const FRTHexEdge& Arc : Transitions)
+	{
+		if (URTHexArcLibrary::IsTransitionLayerSpanLegal(Arc.From, Arc.To, Arc.Kind))
+		{
+			continue;
+		}
+		FRTMapValidationIssue Issue;
+		Issue.Reason = ERTMapValidationReason::StairSkipsLayer;
+		Issue.Cell = Arc.From; // l'estremo BASSO: la cella da cui si prende la scala
+		Issue.bIsError = true;
+		Issue.Message = FString::Printf(
+			TEXT("scala che salta %d layer %s -> %s: in v0.1 una scala collega solo layer adiacenti (MAP-5)"),
+			URTHexArcLibrary::TransitionLayerSpan(Arc.From, Arc.To), *Arc.From.ToString(), *Arc.To.ToString());
+		OutIssues.Add(Issue);
 	}
 
 	// ORDINE CANONICO. Non si eredita da `Cells`, il cui ordine lo decide chi edita l'asset: due asset che

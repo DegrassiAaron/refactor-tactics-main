@@ -432,6 +432,24 @@ bool FRTStairLayerAdjacencyTest::RunTest(const FString&)
 	TestEqual(FString::Printf(
 		TEXT("in v0.1 UN tipo solo vieta il salto di un piano (sono: %s)"), *Quali), Vincolati, 1);
 	TestEqual(TEXT("ed e' Stair"), Quali, FString(TEXT("Stair")));
+
+	// 🔴 **L'INNESCO MECCANICO, ed e' il pezzo che un commento non puo' portare.** L'uscita anticipata
+	// `Kind != Stair -> true` ASSORBE IN SILENZIO ogni tipo futuro: un `Escalator` aggiunto domani
+	// passerebbe a qualunque span senza una riga di codice ne' una segnalazione — e la guardia qui sopra,
+	// che conta i tipi VINCOLATI, resterebbe verde, perche' un tipo in piu' NON vincolato non la muove.
+	//
+	// ⚠️ Questa asserzione pinna la grammatica **per nome**: il giorno in cui compare un settimo valore
+	// cade, e chiede di decidere `MAP-5` — *«una rampa o un ascensore possono saltare un piano, e la scala
+	// no?»* — invece di estendere per abitudine. E' scritta per diventare rossa, come
+	// `Equipment.SplitHasNoConsumerYet`: una scadenza che nessun gate rilegge non e' una scadenza.
+	FString Grammatica;
+	for (int32 Index = 0; Index < Valori; ++Index)
+	{
+		Grammatica += (Grammatica.IsEmpty() ? TEXT("") : TEXT(","));
+		Grammatica += Enum->GetNameStringByIndex(Index);
+	}
+	TestEqual(TEXT("la grammatica governata da MAP-5: un tipo nuovo cade qui e chiede una decisione"),
+		Grammatica, FString(TEXT("Stair,Ramp,Bridge,Tunnel,Elevator,Jump")));
 	return true;
 }
 
@@ -464,25 +482,36 @@ bool FRTStairLayerSkipValidationTest::RunTest(const FString&)
 		return M;
 	};
 
-	// Le voci che parlano del SALTO, isolate dal resto della validazione.
-	auto VociSulSalto = [](const URTHexMapAsset* M) -> TArray<FString>
+	// 🔑 **Si filtra per REASON CODE, non per il testo del messaggio.** E' la disciplina dichiarata
+	// sull'enum: *«un test che riconosce una regola dalla sua stringa si rompe alla prima riformulazione, e
+	// insegna a non toccare i messaggi»*. Questo test sopravvive a una riscrittura del messaggio.
+	auto SegnalazioniDelSalto = [](const URTHexMapAsset* M) -> TArray<FRTMapValidationIssue>
 	{
-		TArray<FString> Trovate;
+		TArray<FRTMapValidationIssue> Tutte;
+		M->ValidateMapDetailed(Tutte);
+		return Tutte.FilterByPredicate([](const FRTMapValidationIssue& I)
+		{
+			return I.Reason == ERTMapValidationReason::StairSkipsLayer;
+		});
+	};
+
+	// Quante righe `Error:` produce `ValidateMap` in tutto: serve per il DELTA, piu' sotto.
+	auto RigheDiErrore = [](const URTHexMapAsset* M) -> int32
+	{
+		int32 N = 0;
 		for (const FString& Riga : M->ValidateMap())
 		{
-			if (Riga.Contains(TEXT("salta")))
-			{
-				Trovate.Add(Riga);
-			}
+			if (Riga.StartsWith(TEXT("Error:"))) { ++N; }
 		}
-		return Trovate;
+		return N;
 	};
 
 	// ── CONTROPROVA 1: la scala legale non fa rumore ──────────────────────────────────────────────────
+	// ⚠️ E' la meta' che discrimina: senza, una regola che segnalasse OGNI transizione passerebbe.
 	URTHexMapAsset* Legale = ColonnaATrePiani();
 	Legale->Transitions.Add(FRTHexEdge(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost*/ 2,
 		ERTHexTransitionKind::Stair));
-	TestEqual(TEXT("una scala fra piani adiacenti non e' segnalata"), VociSulSalto(Legale).Num(), 0);
+	TestEqual(TEXT("una scala fra piani adiacenti non e' segnalata"), SegnalazioniDelSalto(Legale).Num(), 0);
 
 	// ── CONTROPROVA 2: il salto di un tipo che la v0.1 NON vincola non e' segnalato ───────────────────
 	// Senza questa, una regola che ignorasse il `Kind` passerebbe il test.
@@ -490,33 +519,40 @@ bool FRTStairLayerSkipValidationTest::RunTest(const FString&)
 	Ponte->Transitions.Add(FRTHexEdge(FRTCellId(0, 0, 0), FRTCellId(0, 0, 2), /*Cost*/ 2,
 		ERTHexTransitionKind::Bridge));
 	TestEqual(TEXT("un PONTE fra piani non adiacenti non e' segnalato in v0.1"),
-		VociSulSalto(Ponte).Num(), 0);
+		SegnalazioniDelSalto(Ponte).Num(), 0);
 
 	// ── IL DIFETTO: la scala che salta un piano ───────────────────────────────────────────────────────
 	URTHexMapAsset* Salto = ColonnaATrePiani();
 	Salto->Transitions.Add(FRTHexEdge(FRTCellId(0, 0, 0), FRTCellId(0, 0, 2), /*Cost*/ 2,
 		ERTHexTransitionKind::Stair));
-	const TArray<FString> Segnalate = VociSulSalto(Salto);
+	const TArray<FRTMapValidationIssue> Segnalate = SegnalazioniDelSalto(Salto);
 	if (!TestEqual(TEXT("una scala L0 -> L2 e' segnalata, una volta sola"), Segnalate.Num(), 1))
 	{
 		return false;
 	}
 
-	// La voce sta fra gli `Error:`, come le altre cinque che dicono «questa transizione non e' un oggetto
-	// legale» — la sola `Warning:` delle transizioni significa «superfluo ma innocuo», e un salto non lo e'.
-	TestTrue(FString::Printf(TEXT("ed e' un Error, non un Warning: %s"), *Segnalate[0]),
-		Segnalate[0].StartsWith(TEXT("Error:")));
+	// `Error` e non `Warning`: le due sole Warning di questo validator dicono «inerte, non cambia nessun
+	// esito», e una scala percorsa non e' inerte — il grafo la offre.
+	TestTrue(TEXT("e' un Error, non un Warning"), Segnalate[0].bIsError);
 
-	// La diagnosi nomina DI QUANTO salta e fra quali celle: «non valido» non basta a correggerlo.
-	TestTrue(FString::Printf(TEXT("la voce dice di quanti layer salta: %s"), *Segnalate[0]),
-		Segnalate[0].Contains(TEXT("salta 2 layer")));
-	TestTrue(FString::Printf(TEXT("e nomina i due estremi: %s"), *Segnalate[0]),
-		Segnalate[0].Contains(FRTCellId(0, 0, 0).ToString())
-			&& Segnalate[0].Contains(FRTCellId(0, 0, 2).ToString()));
+	// La cella colpevole e' l'estremo BASSO: chi interroga per cella trova la scala sul suo piede.
+	TestTrue(TEXT("la segnalazione e' ancorata all'estremo basso"),
+		Segnalate[0].Cell == FRTCellId(0, 0, 0));
+
+	// La diagnosi nomina DI QUANTO salta: «non valido» non basta a correggerlo (#1869, Debug/Logging).
+	TestTrue(FString::Printf(TEXT("il messaggio dice di quanti layer salta: %s"), *Segnalate[0].Message),
+		Segnalate[0].Message.Contains(TEXT("2 layer")));
+
+	// ── E `ValidateMap` la porta in superficie, misurato come DELTA ───────────────────────────────────
+	// 🔑 Il delta invece del valore assoluto: le due mappe differiscono per il solo estremo alto della
+	// transizione, quindi qualunque altra segnalazione dell'allestimento si cancella fra i due termini —
+	// e l'asserzione non dipende dalla formulazione del mio messaggio.
+	TestEqual(TEXT("ValidateMap guadagna UNA riga Error: rispetto alla stessa mappa con la scala legale"),
+		RigheDiErrore(Salto) - RigheDiErrore(Legale), 1);
 
 	// ⚠️ E il caricamento NON e' bloccato: `ValidateMap` e' un referto, e i suoi due consumatori non-test
-	// (`ARTHexMapActor::ValidateAsset` e `URTHexMapSummaryLibrary`) lo stampano e lo contano. La mappa resta
-	// leggibile — la cella su L2 c'e' ancora, e la transizione pure.
+	// (`ARTHexMapActor::ValidateAsset` e `URTHexMapSummaryLibrary::DescriviValidazione`) lo stampano e lo
+	// contano. La mappa resta leggibile — la cella su L2 c'e' ancora, e la transizione pure.
 	TestNotNull(TEXT("la mappa segnalata si legge comunque"), Salto->FindCell(FRTCellId(0, 0, 2)));
 	TestEqual(TEXT("e la transizione difettosa non e' stata rimossa dalla validazione"),
 		Salto->Transitions.Num(), 1);
