@@ -301,15 +301,42 @@ Non introdurre CI, package manager o nuovi build step senza una decisione esplic
 
 ### Suite Unreal
 
-Con Unreal Editor chiuso, da PowerShell:
+Con Unreal Editor chiuso:
+
+```bash
+python tools/suite/esegui.py RefactorTactics            # tutta
+python tools/suite/esegui.py RefactorTactics.HexSim     # un gruppo
+```
+
+🔑 **Si usa lo strumento e non l'invocazione a mano, e la ragione è nel suo stesso docstring**: `esegui.py`
+*«attende sul LOG, non sull'uscita del processo»*, perché la fine di una suite si legge dai conteggi e un
+processo appeso non esce mai ([#3048](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3048),
+[#3049](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3049)). Termina l'albero quando il log
+dichiara finito e il processo resta vivo, e lo **dichiara nel referto** invece di nasconderlo.
+
+⚠️ **Un conteggio letto da un log ancora in scrittura non è una misura, ed è il difetto che lo strumento
+toglie.** `grep -c 'Test Completed'` risponde `0` tanto su una run morta quanto su una che sta caricando i
+moduli: le due cose si distinguono **solo** dalla riga di uscita (`**** TEST COMPLETE`), e chi legge lo zero
+prima di quella riga conclude il falso. Chi invoca a mano deve fare da sé questo controllo.
+
+Se devi invocare a mano lo stesso — un filtro che lo strumento non prevede, una diagnosi:
 
 ```powershell
 & "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
     "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
-    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-log=suite.log"
+    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-abslog=<scratchpad della sessione>/<nome-parlante>.log"
 ```
 
-Il filtro è il segmento dopo `RunTests`: `RefactorTactics` esegue tutto, `RefactorTactics.Scenario` solo quel gruppo.
+⛔ **`-abslog` e non `-log`, e non è una preferenza di percorso.** §11 punto 3 dichiara che è *«l'unica
+dichiarazione di possesso che sopravvive senza script: il processo stesso … se il processo non c'è, la
+dichiarazione non c'è»*. Un `-log=suite.log` relativo produce un processo **non attribuibile**: chi guarda
+le `CommandLine` per decidere se aspettare non sa di chi sia, e il protocollo che ha sostituito il lease
+smette di funzionare per tutti. ⌫ **Questo blocco insegnava `-log=suite.log` fino al 2026-09-25**, cioè
+contraddiceva §11 nella riga che si copia-incolla — e ci sono cascate almeno due sessioni.
+
+🔑 **Il `;` separa i comandi, il `+` separa i filtri** dentro `RunTests`: `RunTests A+B` ne trova due. Un
+`+Quit` renderebbe `Quit` un terzo filtro che non corrisponde a niente, il comando non verrebbe **mai**
+eseguito, e il processo non uscirebbe — mentre i test girano lo stesso, quindi nulla lo segnala.
 
 #### Quali famiglie girare quando tocchi il **resolver del movimento**
 
