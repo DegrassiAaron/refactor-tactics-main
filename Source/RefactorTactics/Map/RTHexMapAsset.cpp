@@ -1132,6 +1132,11 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 					TEXT("%s: una regione No-Walk copre la cella, ma la cella non e' marcata ")
 					TEXT("bBlocksMovement. Ricuoci la mappa, oppure sposta la regione."),
 					*Cell.Id.ToString())
+				: Blocco == ERTStandabilityBlock::BoxVolume
+				? FString::Printf(
+					TEXT("%s: un volume a scatola occupa la cella, ma la cella non e' marcata ")
+					TEXT("bBlocksMovement. Ricuoci la mappa, oppure sposta il volume."),
+					*Cell.Id.ToString())
 				: FString::Printf(
 					TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
 					TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),

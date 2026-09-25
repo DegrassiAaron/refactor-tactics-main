@@ -160,7 +160,7 @@ bool FRTEdgeGuardFormatVersionTest::RunTest(const FString&)
 	TestEqual(TEXT("custom version e format version coincidono"),
 		static_cast<int32>(FRTHexMapCustomVersion::LatestVersion),
 		URTHexMapAsset::CurrentFormatVersion);
-	TestEqual(TEXT("la versione corrente e' 17"), URTHexMapAsset::CurrentFormatVersion, 17);
+	TestEqual(TEXT("la versione corrente e' 18"), URTHexMapAsset::CurrentFormatVersion, 18);
 
 	URTHexMapAsset* Vecchia = LoneGuardCell();
 	TestEqual(TEXT("una mappa senza parapetti nasce con l'array vuoto"),

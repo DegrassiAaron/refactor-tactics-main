@@ -1237,4 +1237,110 @@ bool FRTNoWalkOneSeatTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UN VOLUME OCCUPA LA CELLA IN CUI STA, ED E' CONSULTATO COME LA REGIONE (#1866, [D-440]).
+ *
+ * 🔑 **Stessa giuntura, terza ragione.** Il volume entra in `WhyNotStandable` accanto alla geometria e alla
+ * regione No-Walk, invece di scrivere `bBlocksMovement`: sarebbe stato un **terzo** produttore su un bit di
+ * provenienza che ne regge uno, e il primo ribake estraneo della cella ne avrebbe cancellato l'effetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoxVolumeOccupiesTest,
+	"RefactorTactics.GeometryBake.BoxVolumeOccupiesItsCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoxVolumeOccupiesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+	const FRTCellId Occupata(0, 0, 0);
+	const FRTCellId Libera(1, 0, 0);
+
+	FRTBoxVolume Volume;
+	Volume.Cell = Occupata;
+	Volume.CoverLevel = ERTHexCoverType::High;
+	Volume.StableId = TEXT("Pilastro");
+	M->BoxVolumes.Add(Volume);
+
+	TestTrue(TEXT("la cottura gira"), URTGeometryBakeLibrary::RederiveStandability(M, Occupata, NoWalkHexSize));
+	TestTrue(TEXT("il volume chiude la cella in cui sta"), M->FindCell(Occupata)->bBlocksMovement);
+	TestTrue(TEXT("come blocco derivato"), M->FindCell(Occupata)->bMovementBlockGenerated);
+
+	// ⛔ CONTROPROVA: la cella accanto non e' toccata. Senza, «chiude tutto» passerebbe.
+	URTGeometryBakeLibrary::RederiveStandability(M, Libera, NoWalkHexSize);
+	TestFalse(TEXT("e non tocca la cella accanto"), M->FindCell(Libera)->bBlocksMovement);
+
+	// ⚠️ **Il volume sta su UNA cella, e il layer fa parte dell'identita' della cella**: la stessa `q,r` su
+	// un altro piano e' un'altra cella, e non e' occupata.
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(0, 0, 1), NoWalkHexSize);
+	TestFalse(TEXT("ne' la cella impilata sopra"), M->FindCell(FRTCellId(0, 0, 1))->bBlocksMovement);
+
+	// Un ribake estraneo RICHIUDE, e cancellare il volume libera da se': e' la proprieta' per cui la
+	// consultazione e' stata scelta al posto della scrittura.
+	TestTrue(TEXT("un ribake estraneo gira"),
+		URTGeometryBakeLibrary::RederiveStandability(M, Occupata, NoWalkHexSize));
+	TestTrue(TEXT("e il volume tiene la cella chiusa"), M->FindCell(Occupata)->bBlocksMovement);
+
+	M->BoxVolumes.Reset();
+	URTGeometryBakeLibrary::RederiveStandability(M, Occupata, NoWalkHexSize);
+	TestFalse(TEXT("tolto il volume, la cella torna calpestabile"), M->FindCell(Occupata)->bBlocksMovement);
+	return true;
+}
+
+/**
+ * LE CINQUE PROPRIETA' SONO DICHIARATE, NON DEDOTTE (#1866) — e tre sono quelle che entrano in `v0.1`.
+ *
+ * 🔑 **`CoverLevel` fuori da `None`/`Low`/`High` non e' rappresentabile, e lo garantisce il TIPO.** E' un'AC
+ * di #1866 soddisfatta riusando `ERTHexCoverType` (`D-271`) invece di dichiarare un enum proprio: un enum
+ * nuovo sarebbe stata una seconda autorita' sul vocabolario della copertura.
+ *
+ * ⚠️ **E la prova che occupazione e copertura sono INDIPENDENTI**: un volume che occupa senza riparare, e
+ * uno che dichiara copertura alta. La issue lo chiede come AC, ed e' una proprieta' del dato, non del
+ * comportamento — ma e' proprio per questo che va asserita: nulla nel codice la impone.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBoxVolumePropertiesAreIndependentTest,
+	"RefactorTactics.GeometryBake.BoxVolumePropertiesAreDeclaredNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBoxVolumePropertiesAreIndependentTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+
+	// Occupa e NON ripara: il caso che la issue nomina per primo.
+	FRTBoxVolume Nudo;
+	Nudo.Cell = FRTCellId(0, 0, 0);
+	Nudo.CoverLevel = ERTHexCoverType::None;
+	M->BoxVolumes.Add(Nudo);
+
+	// Ripara e dichiara di fermare la vista: le due restano campi distinti.
+	FRTBoxVolume Pieno;
+	Pieno.Cell = FRTCellId(1, 0, 0);
+	Pieno.CoverLevel = ERTHexCoverType::High;
+	Pieno.bBlocksLineOfSight = true;
+	M->BoxVolumes.Add(Pieno);
+
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(0, 0, 0), NoWalkHexSize);
+	URTGeometryBakeLibrary::RederiveStandability(M, FRTCellId(1, 0, 0), NoWalkHexSize);
+
+	// 🔑 ENTRAMBI occupano: l'occupazione non dipende dalla copertura.
+	TestTrue(TEXT("il volume senza copertura occupa comunque"),
+		M->FindCell(FRTCellId(0, 0, 0))->bBlocksMovement);
+	TestTrue(TEXT("e quello con copertura alta pure"),
+		M->FindCell(FRTCellId(1, 0, 0))->bBlocksMovement);
+
+	// E i due campi dichiarati restano quelli, attraverso il dato.
+	TestEqual(TEXT("la copertura dichiarata è None dove è stata scritta None"),
+		M->BoxVolumes[0].CoverLevel, ERTHexCoverType::None);
+	TestEqual(TEXT("ed è High dove è stata scritta High"),
+		M->BoxVolumes[1].CoverLevel, ERTHexCoverType::High);
+	TestFalse(TEXT("la LOS non si deduce dalla copertura"), M->BoxVolumes[0].bBlocksLineOfSight);
+	TestTrue(TEXT("e resta quella dichiarata"), M->BoxVolumes[1].bBlocksLineOfSight);
+
+	// ⛔ **DICHIARATO**: `CoverLevel` e `bBlocksLineOfSight` sono dati d'authoring che NESSUNO consuma
+	// ancora. Le loro giunture hanno un nome — la cottura delle coperture per il primo, i molti lettori di
+	// `FRTHexCellData::bBlocksLineOfSight` per il secondo — e questa asserzione pinna il limite invece di
+	// lasciar credere che il volume ripari gia'.
+	const FRTHexCellData* Cella = M->FindCell(FRTCellId(1, 0, 0));
+	TestEqual(TEXT("il volume NON genera ancora una copertura sulla cella"), Cella->Covers.Num(), 0);
+	TestFalse(TEXT("ne' scrive bBlocksLineOfSight: la giuntura non c'e' ancora"),
+		Cella->bBlocksLineOfSight);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

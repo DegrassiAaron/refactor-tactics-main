@@ -703,7 +703,7 @@ bool FRTCoverPlacementTraversableHashTest::RunTest(const FString&)
 		Map->InteriorWalls[0].bTraversable);
 
 	// E il formato dichiara la versione che porta il campo.
-	TestEqual(TEXT("il formato è v17"), URTHexMapAsset::CurrentFormatVersion, 17);
+	TestEqual(TEXT("il formato è v18"), URTHexMapAsset::CurrentFormatVersion, 18);
 	return true;
 }
 #endif // WITH_DEV_AUTOMATION_TESTS
