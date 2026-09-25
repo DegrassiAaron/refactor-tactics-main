@@ -159,6 +159,16 @@ struct FRTHexMapCustomVersion
 		 */
 		NoWalkAreas = 17,
 
+		/**
+		 * I volumi a scatola (`URTHexMapAsset::BoxVolumes`), `#1866`/[D-440].
+		 *
+		 * Dichiarativo: l'array nasce vuoto. ⛔ **La ricarica non lo deduce**, ed e' il non-goal centrale
+		 * della issue: che una cella sia impraticabile non dice se lo e' per un pilastro, per la geometria
+		 * o per una scelta d'autore — dedurre un volume da un blocco sarebbe inventare la forma che la
+		 * issue esiste per far **dichiarare**.
+		 */
+		BoxVolumes = 18,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -117,7 +117,17 @@ enum class ERTStandabilityBlock : uint8
 	 * Una regione No-Walk dichiara la cella non calpestabile ([D-439]). E' un **veto d'autore** sopra il
 	 * calcolo della posa, non un suo esito: vince anche dove la geometria lascerebbe passare.
 	 */
-	NoWalkArea
+	NoWalkArea,
+
+	/**
+	 * Un volume a scatola occupa la cella ([D-440], `#1866`). In `v0.1` il volume occupa la cella INTERA,
+	 * quindi non lascia nessuna posa: l'ingombro parziale e' la domanda che quella decisione lascia aperta.
+	 *
+	 * 🔑 **Consultato e non cotto, per la stessa ragione della regione**: se il volume scrivesse
+	 * `bBlocksMovement` diventerebbe un terzo produttore su un bit di provenienza che ne regge uno, e il
+	 * primo ribake estraneo della cella ne cancellerebbe l'effetto in silenzio.
+	 */
+	BoxVolume
 };
 
 /**
@@ -163,6 +173,68 @@ struct FRTNoWalkArea
 	 * Nome PUBBLICO della regione. ⚠️ **Obbligatorio, a differenza del muro interno**: l'handle di un muro
 	 * regge sul suo `FRTGeometrySegment` quando lo `StableId` manca, mentre la lista di vertici di una
 	 * regione **cambia col vertex-edit**, che e' precisamente l'operazione a cui un handle deve sopravvivere.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FName StableId;
+};
+
+/**
+ * UNA SCATOLA GRIGIA: pilastri, casse, blocchi, massa architettonica (`#1866`, [D-440]).
+ *
+ * 🔑 **Le proprieta' tattiche sono DICHIARATE, non dedotte dalla forma.** E' il non-goal centrale della
+ * issue e il divieto di `D-271` per la copertura: che un volume sia alto non dice se ripara, che sia largo
+ * non dice se occupa. Cinque campi, cinque domande — e qui ce ne sono **tre**, per la ragione scritta sotto.
+ *
+ * ⚠️ **Occupa la cella INTERA, in `v0.1`** ([D-440]). L'ingombro parziale non e' esprimibile senza toccare
+ * il corto circuito del centro in `ComputeMask` — che e' deliberato (`bCoreBlocked`) e ha sette consumatori
+ * — quindi la v0.1 lo lascia fuori con l'innesco nominato nella decisione.
+ *
+ * ⛔ **Fuori da `ComputeHash` e da `RTMatchStateHash`** ([D-440]): un dato di **authoring** che cuoce dentro
+ * campi runtime ne resta fuori, perche' il suo effetto viaggia attraverso `bBlocksMovement` e
+ * `bBlocksLineOfSight`, che sono gia' in entrambi i digest. E' lo stesso criterio di `FRTNoWalkArea`.
+ */
+USTRUCT(BlueprintType)
+struct FRTBoxVolume
+{
+	GENERATED_BODY()
+
+	/** La cella occupata. In `v0.1` il volume sta in una cella sola: `D-440`. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FRTCellId Cell;
+
+	/**
+	 * Il livello di copertura DICHIARATO. `D-271` congela il vocabolario a tre valori, quindi un livello
+	 * fuori da `None`/`Low`/`High` **non e' rappresentabile** — che e' un'AC di `#1866` soddisfatta dal
+	 * tipo, non da una validazione.
+	 *
+	 * ⚠️ **Dichiarato e non ancora cotto**: il volume non genera `FRTHexCover` in questa fetta. La giuntura
+	 * ha un nome — la cottura che oggi scrive le coperture con `bGenerated = true` in `RTGeometryBake.cpp`
+	 * — e un volume che vi entrasse sarebbe un **secondo generatore** accanto alla geometria, che e' la
+	 * forma di difetto che `D-439` ha appena evitato per la calpestabilita'.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	ERTHexCoverType CoverLevel = ERTHexCoverType::None;
+
+	/**
+	 * Il volume interrompe la linea di vista e di tiro.
+	 *
+	 * 🔴 **Dichiarato e non ancora cotto, e la ragione e' misurata**: `FRTHexCellData::bBlocksLineOfSight`
+	 * ha **molti** lettori di produzione — il tiro, la vista, i criteri d'arena, l'overlay, i due digest —
+	 * e due di essi vivono in file che questa serie non possiede. ∴ la via della **consultazione**, che per
+	 * la calpestabilita' funziona perche' `WhyNotStandable` e' una sede sola, qui non scala.
+	 *
+	 * ⛔ **E la via della cottura chiede un campo che non esiste**: `bBlocksLineOfSight` **non ha un bit di
+	 * provenienza**, a differenza di `bBlocksMovement` che ha `bMovementBlockGenerated` (`D-131`). Senza,
+	 * un volume che lo scrivesse sarebbe indistinguibile da una scelta d'autore, e cancellarlo non potrebbe
+	 * restituire niente — proprio il difetto che la provenienza esiste per impedire.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	bool bBlocksLineOfSight = false;
+
+	/**
+	 * Nome PUBBLICO del volume, con la disciplina di `FRTHexDoor::StableId` (`E23.3`). `NAME_None` e'
+	 * l'anonimo, ed e' legittimo: a differenza della regione No-Walk, un volume ha una **chiave naturale**
+	 * di riserva — la cella in cui sta — quindi l'handle regge anche senza nome.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	FName StableId;
@@ -429,7 +501,7 @@ public:
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 17;
+	static constexpr int32 CurrentFormatVersion = 18;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -514,6 +586,15 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTNoWalkArea> NoWalkAreas;
+
+	/**
+	 * I VOLUMI A SCATOLA (`#1866`, [D-440]): pilastri, casse, blocchi.
+	 *
+	 * 🔑 **Consultati, non cotti**, come le regioni No-Walk e per la stessa ragione: un terzo produttore di
+	 * `bBlocksMovement` dovrebbe condividere un bit di provenienza che ne regge uno solo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FRTBoxVolume> BoxVolumes;
 
 	/** Transizioni esplicite (archi verticali/speciali): scale, rampe, ponti, tunnel, ascensori. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")

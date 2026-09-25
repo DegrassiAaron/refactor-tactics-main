@@ -573,6 +573,14 @@ ERTStandabilityBlock URTGeometryBakeLibrary::WhyNotStandable(const URTHexMapAsse
 				return ERTStandabilityBlock::NoWalkArea;
 			}
 		}
+		// Il volume occupa la cella INTERA in v0.1 ([D-440]): sta nella cella, quindi non lascia posa.
+		for (const FRTBoxVolume& Volume : Map->BoxVolumes)
+		{
+			if (Volume.Cell == CellId)
+			{
+				return ERTStandabilityBlock::BoxVolume;
+			}
+		}
 	}
 	return URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint)
 		? ERTStandabilityBlock::None
