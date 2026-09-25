@@ -32,12 +32,20 @@
 //   2 | `IntentLabelAbove = 36.f` → `= 37.f` (cambio CONCORDE)          | …CentresOnTheLabel… solo  | 1, esatto
 //   3 | `FMath::Max(BarWidth, LabelWidth)` → `LabelWidth`               | …ReservesTheWiderBlock…   | 1, esatto
 //   4 | `Anchor.X - LabelWidth * 0.5f` → `Anchor.X`                     | …CentresOnTheLabel…       | 2 rossi
+//   5 | `/*BelowAnchor=*/ 0.f` → `36.f`                                 | …ReservesNothingBelow… SOLO | 1, esatto
 //
 // 🔑 **La 1 e la 2 sono la coppia che dà senso al file, e l'esito è quello previsto.** La 1 rompe la
 // coincidenza e uccide il caso al bordo — dove il valore non conta — oltre al caso centrale. La 2 cambia
 // il valore restando concorde e uccide **soltanto** il centro: il bordo resta **verde**, il che dimostra
 // che quel test misura l'invariante e non il numero. Se la 2 avesse fatto cadere anche il bordo, quel
 // test non sarebbe servito a niente.
+//
+// 🔴 **La 5 c'è perché la prima stesura della tabella NON la conteneva, e il buco era reale.** I quattro
+// letterali del reperto erano `36.f` e `0.85f`; il **quinto** — `BelowAnchor = 0.f` — è dello stesso tipo
+// e non lo avevo catalogato. Con i primi tre test, mutarlo in `36.f` lasciava **tre verdi**: le loro teste
+// stanno a `Y ∈ {400, 10}` su un viewport alto 800, e il limite inferiore non entra in gioco finché
+// `BelowAnchor` non supera ≈396. Un letterale che nessuna asserzione raggiunge è un letterale che può
+// cambiare in silenzio — esattamente il difetto che questa fetta esiste per chiudere.
 //
 // ⛔ **`IntentLabelScale` NON compare nella tabella, e va detto invece di lasciarlo dedurre.** Le sue due
 // occorrenze sono `GetTextSize` e `DrawText`, entrambe membri di `AHUD` che vogliono un font e un canvas:
@@ -136,6 +144,44 @@ bool FRTHudIntentLabelWiderBlockTest::RunTest(const FString&)
 	// `MargineAtteso` esatto, che e' il valore qui sotto **meno 95**.
 	TestEqual(TEXT("⛔ e' la BARRA a decidere quanto l'ancora si scosta dal bordo"),
 		Dove.X, MargineAtteso + BarWidth * 0.5 - LabelWidth * 0.5);
+
+	return true;
+}
+
+/**
+ * 🔴 **Sotto l'ancora l'etichetta non riserva NIENTE, e si vede solo al bordo inferiore.**
+ *
+ * `ComposeIntentLabelPlacement` passa `BelowAnchor = 0.f` perché sotto l'etichetta non disegna nulla —
+ * a differenza della sovrapposizione dell'unità (#729), dove la barra HP pende sotto l'ancora e quello
+ * spazio va riservato. Riservarlo anche qui non farebbe uscire niente dallo schermo: farebbe **staccare
+ * l'etichetta dall'unità prima del necessario**, ed è un difetto opposto a quello di #729 — l'etichetta
+ * smette di stare sopra la testa che identifica.
+ *
+ * ⚠️ **È un letterale che i primi tre test non raggiungevano.** Le loro teste stanno lontane dal bordo
+ * inferiore, e `BelowAnchor` non cambia niente finché non supera ≈396 su un viewport alto 800. Qui le due
+ * asserzioni lo interrogano dai due lati del limite: sopra, dove l'etichetta deve **seguire** l'unità;
+ * sotto, dove deve fermarsi **al margine** e non prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudIntentLabelBottomEdgeTest,
+	"RefactorTactics.HUD.IntentLabelReservesNothingBelowAtTheBottomEdge",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudIntentLabelBottomEdgeTest::RunTest(const FString&)
+{
+	// ⛔ Testa in basso ma ANCORA dentro il limite: l'ancora non viene toccata, e l'etichetta segue.
+	// Se qualcosa fosse riservato sotto, il limite salirebbe e questa verrebbe tirata su.
+	const FVector2D Segue = ARTHUD::ComposeIntentLabelPlacement(
+		FVector2D(500.f, 790.f), /*LabelWidth=*/ 80.f, /*BarWidth=*/ 60.f, ViewportDiProva);
+
+	TestEqual(TEXT("⛔ l'etichetta SEGUE l'unita' fin quasi al bordo, non si stacca prima"),
+		Segue.Y, 790.0 - 36.0);
+
+	// E oltre il limite: l'ancora si ferma a `Viewport.Y - Margin`, perche' sotto non c'e' niente da
+	// tenere dentro. Il testo nasce di `IntentLabelAbove` piu' in alto.
+	const FVector2D Fermata = ARTHUD::ComposeIntentLabelPlacement(
+		FVector2D(500.f, 900.f), /*LabelWidth=*/ 80.f, /*BarWidth=*/ 60.f, ViewportDiProva);
+
+	TestEqual(TEXT("🔑 e si ferma AL margine inferiore, non prima"),
+		Fermata.Y, 800.0 - MargineAtteso - 36.0);
 
 	return true;
 }
