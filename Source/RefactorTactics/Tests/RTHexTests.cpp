@@ -1385,4 +1385,195 @@ bool FRTHexCompassAnchorTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * IL VERSO DELLA ROTAZIONE E' QUELLO DI `AxialDirection`, e non una seconda convenzione (#1871 §3).
+ *
+ * 🔑 **Ancorato alla funzione, non a una tabella di letterali.** Sei coppie scritte a mano direbbero la
+ * stessa cosa oggi e continuerebbero a dirla il giorno in cui `AxialDirection` cambiasse — che e'
+ * precisamente il difetto che `#1430`/`D-199` esiste per togliere. Qui l'atteso lo produce la funzione
+ * stessa, quindi il test non puo' sopravvivere a una divergenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexRotationOrderTest,
+	"RefactorTactics.Hex.RotationFollowsTheDirectionOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexRotationOrderTest::RunTest(const FString&)
+{
+	const UEnum* Enum = StaticEnum<ERTHexDirection>();
+	if (!TestNotNull(TEXT("l'enum delle direzioni ha la riflessione"), Enum))
+	{
+		return false;
+	}
+	const int32 Direzioni = Enum->NumEnums() - 1; // l'ultimo e' il `_MAX` sintetico
+
+	// ⚠️ La grammatica e' di SEI direzioni, e la rotazione lo assume: se ne comparisse una settima il
+	// fattore «due settori per passo» smetterebbe di valere, perche' `12 / 6` e' cio' che lo produce.
+	if (!TestEqual(TEXT("le direzioni sono sei, che e' cio' che rende un passo uguale a due settori"),
+		Direzioni, 6))
+	{
+		return false;
+	}
+
+	for (int32 Indice = 0; Indice < Direzioni; ++Indice)
+	{
+		const ERTHexDirection Questa = static_cast<ERTHexDirection>(Indice);
+		const ERTHexDirection Prossima = static_cast<ERTHexDirection>((Indice + 1) % Direzioni);
+
+		const FIntPoint D = URTHexLibrary::AxialDirection(Questa);
+		const FIntPoint Attesa = URTHexLibrary::AxialDirection(Prossima);
+		const FRTCellId Ruotato = URTHexLibrary::RotateOffsetAroundOrigin(FRTCellId(D.X, D.Y, 0), 1);
+
+		TestEqual(FString::Printf(TEXT("un passo porta %s su %s"),
+			*Enum->GetNameStringByIndex(Indice),
+			*Enum->GetNameStringByIndex((Indice + 1) % Direzioni)),
+			Ruotato, FRTCellId(Attesa.X, Attesa.Y, 0));
+	}
+
+	// ── Involutivita' e periodo, che sono due asserzioni diverse ──────────────────────────────────────
+	const FRTCellId Lontano(3, -2, 4);
+	TestEqual(TEXT("sei passi sono un giro: l'identita'"),
+		URTHexLibrary::RotateOffsetAroundOrigin(Lontano, 6), Lontano);
+	TestEqual(TEXT("e 180 gradi due volte tornano esattamente all'inizio"),
+		URTHexLibrary::RotateOffsetAroundOrigin(
+			URTHexLibrary::RotateOffsetAroundOrigin(Lontano, 3), 3), Lontano);
+
+	// Un passo negativo e' l'inverso di uno positivo, non un errore.
+	TestEqual(TEXT("un passo indietro annulla un passo avanti"),
+		URTHexLibrary::RotateOffsetAroundOrigin(
+			URTHexLibrary::RotateOffsetAroundOrigin(Lontano, 1), -1), Lontano);
+
+	// ⚠️ Il layer non ruota: una rotazione attorno all'asse verticale lascia il piano dov'e'.
+	TestEqual(TEXT("il layer non ruota"),
+		URTHexLibrary::RotateOffsetAroundOrigin(Lontano, 2).Layer, 4);
+
+	// ⛔ CONTROPROVA: la rotazione non e' l'identita'. Senza, una funzione che restituisce l'argomento
+	// passerebbe l'involutivita', il periodo e il layer — cioe' quasi tutto il test.
+	TestNotEqual(TEXT("un passo solo MUOVE davvero"),
+		URTHexLibrary::RotateOffsetAroundOrigin(Lontano, 1), Lontano);
+	return true;
+}
+
+/**
+ * LE DUE ROTAZIONI SONO LA STESSA ROTAZIONE (#1871 §3) — il test che rende utile la coppia.
+ *
+ * 🔴 **Che la maschera e l'offset ruotino nello stesso verso non e' evidente, e non e' assunto.** Sono due
+ * funzioni diverse su due rappresentazioni diverse: una muove coordinate assiali, l'altra fa scorrere dei
+ * bit. Se concordassero solo per costruzione, ruotare un asset girerebbe la mesh in un verso e il suo
+ * ingombro tattico nell'altro — il difetto preciso che #1871 §3 esiste per impedire, e che nessun'altra
+ * asserzione di questo file vedrebbe.
+ *
+ * 🔑 **L'oracolo e' la GEOMETRIA, non una formula gemella**: il settore atteso lo misura
+ * `PointingSectorAt` sul punto reale prodotto da `AxialToWorld`. Riscrivere qui il conto degli angoli
+ * darebbe un test che conferma se' stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexRotationAgreementTest,
+	"RefactorTactics.Hex.SectorRotationAgreesWithOffsetRotation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexRotationAgreementTest::RunTest(const FString&)
+{
+	constexpr float HexSize = 100.f;
+	const FVector Origine = FVector::ZeroVector;
+
+	// Il settore che punta verso un offset, misurato sulla geometria vera.
+	auto SettoreVerso = [&](const FRTCellId& Offset) -> int32
+	{
+		const FVector W = URTHexLibrary::AxialToWorld(Offset, Origine, HexSize, /*LayerHeight*/ 0.f);
+		return URTHexLibrary::PointingSectorAt(FVector2D(W.X, W.Y), HexSize);
+	};
+
+	// Gli offset di prova: i sei vicini piu' due anelli oltre, cosi' la prova non vive sul solo anello 1.
+	TArray<FRTCellId> Prove;
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const FIntPoint Delta = URTHexLibrary::AxialDirection(static_cast<ERTHexDirection>(D));
+		Prove.Add(FRTCellId(Delta.X, Delta.Y, 0));
+		Prove.Add(FRTCellId(Delta.X * 2, Delta.Y * 2, 0));
+	}
+	Prove.Add(FRTCellId(2, -1, 0));  // fuori dagli assi: un offset che non e' multiplo di una direzione
+	Prove.Add(FRTCellId(3, 1, 0));
+	Prove.Add(FRTCellId(-2, 3, 0));
+
+	int32 Confrontate = 0;
+	for (const FRTCellId& Offset : Prove)
+	{
+		const int32 SettorePrima = SettoreVerso(Offset);
+		if (SettorePrima == INDEX_NONE)
+		{
+			continue; // dead-zone: non c'e' un settore da confrontare
+		}
+		for (int32 Passi = 0; Passi < 6; ++Passi)
+		{
+			const FRTCellId Ruotato = URTHexLibrary::RotateOffsetAroundOrigin(Offset, Passi);
+			const int32 Misurato = SettoreVerso(Ruotato);
+			const int32 Predetto = URTHexLibrary::RotateSector(SettorePrima, Passi);
+			TestEqual(FString::Printf(
+				TEXT("offset %s ruotato di %d passi: il settore misurato e quello predetto coincidono"),
+				*Offset.ToString(), Passi), Misurato, Predetto);
+			++Confrontate;
+		}
+	}
+
+	// ⚠️ Anti-vacuita': se ogni offset finisse in dead-zone il ciclo non asserirebbe niente e il test
+	// sarebbe verde per assenza. Il conteggio lo dichiara.
+	TestTrue(FString::Printf(TEXT("il confronto e' avvenuto davvero (%d coppie)"), Confrontate),
+		Confrontate >= 6 * 6);
+	return true;
+}
+
+/**
+ * LA MASCHERA RUOTA COME I SUOI SETTORI, e non perde bit per strada (#1871 §3).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSectorMaskRotationTest,
+	"RefactorTactics.Hex.SectorMaskRotatesAsAWhole",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSectorMaskRotationTest::RunTest(const FString&)
+{
+	auto Bit = [](int32 M)
+	{
+		int32 N = 0;
+		for (int32 I = 0; I < RT_OccupancySectorCount; ++I) { N += (M >> I) & 1; }
+		return N;
+	};
+
+	// Una maschera irregolare: tre settori NON contigui, cosi' una rotazione sbagliata non si nasconde
+	// dietro la simmetria di una fascia continua.
+	const int32 Irregolare = (1 << 0) | (1 << 1) | (1 << 7);
+
+	for (int32 Passi = 0; Passi < 6; ++Passi)
+	{
+		const int32 Ruotata = URTHexLibrary::RotateSectorMask(Irregolare, Passi);
+		TestEqual(FString::Printf(TEXT("ruotando di %d passi la maschera conserva i suoi settori"), Passi),
+			Bit(Ruotata), Bit(Irregolare));
+
+		// Ogni bit acceso e' quello che `RotateSector` predice: la maschera non e' una seconda regola.
+		for (int32 S = 0; S < RT_OccupancySectorCount; ++S)
+		{
+			if (((Irregolare >> S) & 1) != 0)
+			{
+				TestTrue(FString::Printf(TEXT("il settore %d finisce dove RotateSector dice (%d passi)"),
+					S, Passi), ((Ruotata >> URTHexLibrary::RotateSector(S, Passi)) & 1) != 0);
+			}
+		}
+	}
+
+	TestEqual(TEXT("sei passi riportano la maschera identica"),
+		URTHexLibrary::RotateSectorMask(Irregolare, 6), Irregolare);
+	TestEqual(TEXT("e 180 gradi due volte anche"),
+		URTHexLibrary::RotateSectorMask(URTHexLibrary::RotateSectorMask(Irregolare, 3), 3), Irregolare);
+
+	// ⛔ I bit oltre il dodicesimo sono SCARTATI, non conservati: se sopravvivessero riapparirebbero dopo
+	// sei passi, e una maschera tornerebbe diversa da com'era senza che nessuna asserzione lo vedesse.
+	const int32 ConSporcizia = Irregolare | (1 << 20);
+	TestEqual(TEXT("un bit fuori dai dodici settori non sopravvive alla rotazione"),
+		URTHexLibrary::RotateSectorMask(ConSporcizia, 0), Irregolare);
+
+	// ⛔ CONTROPROVA: una maschera piena e' invariante per rotazione — quindi da sola non prova niente, ed
+	// e' la ragione per cui la prova vera usa quella irregolare qui sopra.
+	const int32 Piena = (1 << RT_OccupancySectorCount) - 1;
+	TestEqual(TEXT("la maschera piena resta piena, e per questo non discrimina"),
+		URTHexLibrary::RotateSectorMask(Piena, 1), Piena);
+	TestNotEqual(TEXT("mentre quella irregolare si MUOVE davvero"),
+		URTHexLibrary::RotateSectorMask(Irregolare, 1), Irregolare);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

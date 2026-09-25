@@ -552,4 +552,56 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static bool DirectionWedgeTowards(const FRTCellId& Center, const FRTCellId& Cell, int32& OutWedge);
 
+	/**
+	 * RUOTA UN OFFSET RELATIVO attorno all'origine, di `Steps` passi di `ERTHexDirection` (#1871 §3).
+	 *
+	 * Un passo e' **60 gradi**, cioe' il passo con cui avanza `ERTHexDirection`: `E -> NE -> NW -> W ->
+	 * SW -> SE`. `Steps` puo' essere negativo o maggiore di sei; il conto e' modulare, quindi `6` e' un
+	 * giro completo e l'identita'.
+	 *
+	 * 🔑 **L'offset e' RELATIVO all'origine dell'oggetto, e il `Layer` non ruota.** Ruotare un ingombro
+	 * multi-cella attorno al proprio piede e' una trasformazione sola — e' la ragione per cui #1871 chiede
+	 * coordinate relative invece di una tabella per orientamento: una tabella avrebbe sei righe da tenere
+	 * d'accordo, e questa e' una riga di aritmetica.
+	 *
+	 * ⚠️ **Il verso NON e' una convenzione nuova: e' quello di `AxialDirection`**, e la formula
+	 * `(q, r) -> (q + r, -q)` e' esattamente cio' che porta `AxialDirection(E)` su `AxialDirection(NE)`.
+	 * `RefactorTactics.Hex.RotationFollowsTheDirectionOrder` lo ancora alla funzione invece che a una
+	 * tabella di letterali, cosi' il giorno in cui `AxialDirection` cambiasse cadrebbe li' invece di
+	 * lasciare due convenzioni che si somigliano.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static FRTCellId RotateOffsetAroundOrigin(const FRTCellId& Offset, int32 Steps);
+
+	/**
+	 * RUOTA UNA MASCHERA A DODICI SETTORI degli **stessi** `Steps` di `RotateOffsetAroundOrigin` (#1871 §3).
+	 *
+	 * 🔑 **Un passo di direzione vale DUE settori, e non e' un numero scelto**: `SectorBoundaryPoints` mette
+	 * `P[k]` a `-30 + 30k` gradi, quindi ogni settore e' **30 gradi** e i sei passi di `ERTHexDirection` ne
+	 * misurano **60**. Il fattore due e' l'unica cosa che lega le due rotazioni, ed e' scritto una volta.
+	 *
+	 * ⚠️ **Il verso e' NEGATIVO rispetto all'indice di settore**, e va detto perche' sorprende: il settore
+	 * `0` e' centrato su `E` (l'angolo `0`, cioe' `+X`), e `NE` sta a `-60` gradi — `AxialToWorld` da'
+	 * `Wy = 1.5 * r * Size` con `NE = (+1, -1)`, quindi `Y` negativa. Avanzare di un passo nell'ordine
+	 * dell'enum **abbassa** l'angolo, dunque abbassa l'indice di settore.
+	 *
+	 * 🔴 **Che le due rotazioni siano la STESSA rotazione non e' evidente e non e' assunto**:
+	 * `RefactorTactics.Hex.SectorRotationAgreesWithOffsetRotation` prende un offset, lo ruota, e verifica
+	 * che il settore che lo punta — misurato con `PointingSectorAt` sulla geometria vera, non con una
+	 * formula gemella — sia quello che questa funzione predice. E' il test che rende utile la coppia:
+	 * due rotazioni che non concordano ruoterebbero la mesh e l'ingombro in due versi diversi, ed e'
+	 * esattamente il difetto che #1871 §3 esiste per impedire.
+	 *
+	 * La maschera e' il bitmask a dodici bit gia' in uso (`FRTCoverRegion::WedgeMask`); i bit fuori dai
+	 * dodici vengono **scartati**, non conservati: una maschera non e' un numero, e portarsi dietro bit che
+	 * nessun settore rappresenta significherebbe farli riapparire dopo sei passi.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static int32 RotateSectorMask(int32 SectorMask, int32 Steps);
+
+	/** Ruota UN indice di settore, con la stessa convenzione di `RotateSectorMask`. `INDEX_NONE` resta tale. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static int32 RotateSector(int32 Sector, int32 Steps);
+
 };
+
