@@ -534,6 +534,34 @@ FRTIntentCertaintyStyle ARTHUD::ComposeIntentCertaintyStyle(const FRTIntentView&
 	return Style;
 }
 
+TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeCountedDashSegments(const FVector2D& A,
+	const FVector2D& B, int32 Spans)
+{
+	TArray<TPair<FVector2D, FVector2D>> Segmenti;
+
+	// ⛔ Nessun tetto come in `ComposeDashSegments`: li' il conteggio nasce da una lunghezza proiettata e
+	// puo' esplodere, qui lo sceglie il chiamante con una costante.
+	//
+	// ⚠️ **La guardia protegge `Reserve`, NON il ciclo** — e la distinzione e' stata verificata, non
+	// supposta: con `Spans == 0` il ciclo non parte comunque (`0 < 0` e' falso), e lo stesso con un
+	// valore negativo. Cio' che romperebbe e' `Reserve((Spans + 1) / 2)`, che con `Spans = -3` chiede
+	// **-1**. Scritta come «altrimenti il ciclo non terminerebbe» sarebbe una giustificazione falsa per
+	// una riga giusta, ed e' il modo in cui una guardia sopravvive a una revisione senza meritarlo.
+	if (Spans <= 0)
+	{
+		return Segmenti;
+	}
+
+	Segmenti.Reserve((Spans + 1) / 2);
+	for (int32 I = 0; I < Spans; I += 2)
+	{
+		Segmenti.Emplace(FMath::Lerp(A, B, static_cast<float>(I) / Spans),
+			FMath::Lerp(A, B, static_cast<float>(I + 1) / Spans));
+	}
+
+	return Segmenti;
+}
+
 TArray<TPair<FVector2D, FVector2D>> ARTHUD::ComposeDashSegments(const FVector2D& A, const FVector2D& B,
 	float DutyCycle, float PeriodPx)
 {
@@ -1300,14 +1328,12 @@ void ARTHUD::DrawHUD()
 					// contorno: i due segni parlano dello stesso ostacolo e non devono sembrare due cose.
 					DrawLine(A.X, A.Y, B.X, B.Y, BlockerColor, 2.5f);
 
-					constexpr int32 Tratti = 7; // dispari: il tratteggio inizia e finisce ACCESO
-					const FVector2D Inizio(B.X, B.Y);
-					const FVector2D Fine(C.X, C.Y);
-					for (int32 I = 0; I < Tratti; I += 2)
+					// Quanti tratti e dove cadono lo decide `ComposeCountedDashSegments` (#2184); qui resta
+					// il solo tracciamento, come per il tratteggio a passo di pixel venti righe piu' su.
+					for (const TPair<FVector2D, FVector2D>& T : ComposeCountedDashSegments(
+							FVector2D(B.X, B.Y), FVector2D(C.X, C.Y), BlockedShotDashSpans))
 					{
-						const FVector2D P0 = FMath::Lerp(Inizio, Fine, static_cast<float>(I) / Tratti);
-						const FVector2D P1 = FMath::Lerp(Inizio, Fine, static_cast<float>(I + 1) / Tratti);
-						DrawLine(P0.X, P0.Y, P1.X, P1.Y, BlockerColor, 1.5f);
+						DrawLine(T.Key.X, T.Key.Y, T.Value.X, T.Value.Y, BlockerColor, 1.5f);
 					}
 				}
 			}
