@@ -605,6 +605,50 @@ public:
 		float AboveAnchor, float BelowAnchor, const FVector2D& Viewport, float Margin);
 
 	/**
+	 * 🔑 **Le due metriche dell'etichetta d'intento, e il motivo per cui hanno un NOME.**
+	 *
+	 * Erano quattro letterali dentro `DrawHUD`, a coppie che **dovevano coincidere per costruzione** e
+	 * che nulla legava (#2184):
+	 *
+	 *     36.f    la banda riservata sopra l'ancora  E  lo scarto con cui il testo viene scritto
+	 *     0.85f   la scala con cui il testo e' MISURATO  E  quella con cui e' DISEGNATO
+	 *
+	 * ⛔ **Se una coppia divergesse il difetto sarebbe muto, e gia' pagato**: con una banda diversa dallo
+	 * scarto l'etichetta esce dal viewport — cioe' torna il difetto di `#729`, che `ClampOverlayAnchor`
+	 * e' stato scritto per chiudere; con due scale diverse `LabelW` misura un testo e ne viene disegnato
+	 * un altro, e il centraggio sbaglia di quanto le due differiscono.
+	 *
+	 * 🔑 **Un nome solo per ogni coppia toglie il modo in cui la divergenza succede davvero**, cioe' per
+	 * distrazione: non c'e' piu' un secondo numero da ricordarsi di aggiornare. ⛔ Non la rende
+	 * *impossibile* — riscrivere un letterale dove c'e' un nome compila ancora, ed e' la mutazione 1 di
+	 * `RTHudIntentLabelPlacementTests.cpp`, che infatti cade. Le due difese sono diverse e servono
+	 * entrambe: il nome copre la svista, il test al bordo copre il gesto deliberato.
+	 */
+	static constexpr float IntentLabelAbove = 36.f;
+	static constexpr float IntentLabelScale = 0.85f;
+
+	/**
+	 * Dove va scritta l'etichetta d'intento: angolo alto-sinistro del testo, gia' vincolato al viewport.
+	 *
+	 * 🔑 **Esiste perche' `IntentLabelAbove` sia nominato UNA volta sola.** Le due occorrenze — la banda
+	 * riservata che si chiede a `ClampOverlayAnchor` e lo scarto con cui il testo risale dall'ancora —
+	 * devono coincidere per costruzione, e finche' stavano in due punti di `DrawHUD` nulla lo imponeva.
+	 * Qui sono tre righe adiacenti che leggono lo stesso nome: la divergenza smette di essere qualcosa
+	 * che si fa per distrazione e diventa qualcosa che si deve scrivere apposta.
+	 *
+	 * ⚠️ **Centra sulla larghezza del TESTO, ma riserva quella del blocco piu' largo.** Sono due mezze
+	 * larghezze diverse e non e' una svista: il vincolo al bordo deve tenere dentro anche la barra
+	 * (`BarWidth`), mentre il centraggio riguarda solo la stringa che si disegna.
+	 *
+	 * @param HeadScreen  proiezione della testa dell'unita', in pixel.
+	 * @param LabelWidth  larghezza del testo, misurata a `IntentLabelScale`.
+	 * @param BarWidth    larghezza della barra sotto l'etichetta: entra solo nel vincolo al bordo.
+	 * @param Viewport    dimensioni del canvas.
+	 */
+	static FVector2D ComposeIntentLabelPlacement(const FVector2D& HeadScreen, float LabelWidth,
+		float BarWidth, const FVector2D& Viewport);
+
+	/**
 	 * Le tre righe della terna movimento / principale / reazione, nell'ordine in cui vanno disegnate.
 	 *
 	 * ⚠️ **Restituisce sempre tre righe, anche quando il piano e' vuoto**, ed e' il punto: la riga d'intento
