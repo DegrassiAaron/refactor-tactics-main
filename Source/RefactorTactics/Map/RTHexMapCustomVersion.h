@@ -148,6 +148,17 @@ struct FRTHexMapCustomVersion
 		 */
 		EdgeGuards = 16,
 
+		/**
+		 * Le regioni No-Walk (`URTHexMapAsset::NoWalkAreas`), `#1868`/[D-439].
+		 *
+		 * Dichiarativo: l'array nasce vuoto, e «nessuna regione» e' cio' che ogni mappa scritta prima gia'
+		 * era. ⛔ **La ricarica non lo deduce**, e non potrebbe: una cella chiusa a mano, una chiusa dalla
+		 * geometria e una chiusa da una regione sono identiche nel dato di cella — e' precisamente il
+		 * motivo per cui la regione esiste, cioe' **conservare l'intento** che la pittura cella-per-cella
+		 * perde. Dedurla vorrebbe dire inventare un autore.
+		 */
+		NoWalkAreas = 17,
+
 		// -----<le versioni nuove si aggiungono SOPRA questa riga>------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -1108,8 +1108,14 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 		// La stessa catena della cottura — `ToPolyline` -> `ComputeMask` — e non una seconda: se questa
 		// misurasse diversamente da `DeriveStandability`, il validator segnalerebbe celle che il bake
 		// considera sane, o tacerebbe su quelle che marca.
+		//
+		// ⌫ **Fino al 2026-09-25 quella promessa la teneva solo questo commento**, e il predicato aveva due
+		// stesure: nessun test le confrontava. Ora la sede e' UNA — `WhyNotStandable` — e la divergenza
+		// non e' piu' possibile per dimenticanza. Il perche' sta accanto a quella funzione.
 		const FRTOccupancyMask Mask = URTHexOccupancyLibrary::ComputeMask(Geometry, HexSize);
-		const bool bHasPlacement = URTHexCoverPlacementLibrary::HasLegalPlacement(Mask, Footprint);
+		const ERTStandabilityBlock Blocco = URTGeometryBakeLibrary::WhyNotStandable(this, Cell.Id, Mask,
+			Footprint, HexSize);
+		const bool bHasPlacement = Blocco == ERTStandabilityBlock::None;
 
 		// ---- REGOLA 1 — posa impossibile su una cella che non si dichiara impraticabile.
 		if (!bHasPlacement && !Cell.bBlocksMovement)
@@ -1118,10 +1124,18 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 			Issue.Reason = ERTMapValidationReason::NoLegalPlacement;
 			Issue.Cell = Cell.Id;
 			Issue.bIsError = true;
-			Issue.Message = FString::Printf(
-				TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
-				TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),
-				*Cell.Id.ToString());
+			// 🔑 **Il messaggio nomina la CAUSA, e per questo il predicato torna una ragione e non un
+			// `bool`.** Finche' l'unica causa era la geometria, «la geometria non lascia posa» era vera per
+			// costruzione; con le regioni No-Walk manderebbe chi legge a cercare un muro che non c'e'.
+			Issue.Message = Blocco == ERTStandabilityBlock::NoWalkArea
+				? FString::Printf(
+					TEXT("%s: una regione No-Walk copre la cella, ma la cella non e' marcata ")
+					TEXT("bBlocksMovement. Ricuoci la mappa, oppure sposta la regione."),
+					*Cell.Id.ToString())
+				: FString::Printf(
+					TEXT("%s: la geometria non lascia alcuna posa legale, ma la cella non e' marcata ")
+					TEXT("bBlocksMovement. Marcala impraticabile, oppure libera un settore."),
+					*Cell.Id.ToString());
 			OutIssues.Add(Issue);
 		}
 

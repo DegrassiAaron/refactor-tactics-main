@@ -222,4 +222,15 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static int32 Surcharge(ERTCellOccupancy Occupancy, const FRTOccupancyThresholds& Thresholds);
+
+	/**
+	 * IL PUNTO E' DENTRO IL POLIGONO? Ray casting classico; `Polygon` e' implicitamente chiuso.
+	 *
+	 * 🔑 **Esposta, non riscritta** (`#1868`): era file-local, e la copertura di una regione No-Walk chiede
+	 * la stessa domanda. Due ray casting divergerebbero sul **confine**, che e' l'unico posto dove un test
+	 * di appartenenza puo' dare due risposte — e un poligono agganciato al reticolo ha i vertici
+	 * **esattamente** sui punti notevoli della cella, quindi il confine e' il caso normale, non il raro.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool PointInPolygon(const FVector2D& P, const TArray<FVector2D>& Polygon);
 };

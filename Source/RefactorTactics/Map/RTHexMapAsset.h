@@ -96,6 +96,78 @@ struct FRTHexInteriorWall
 		: Cell(InCell), Segment(InSegment) {}
 };
 
+/**
+ * PERCHE' UNA CELLA NON E' CALPESTABILE — la ragione, non solo il verdetto (`#1868`, [D-439]).
+ *
+ * 🔑 **Esiste perche' il messaggio di REGOLA 1 nomina una causa.** Finche' la sola causa era la geometria,
+ * un `bool` bastava e la frase *«la geometria non lascia alcuna posa legale»* era vera per costruzione. Con
+ * le regioni No-Walk quella frase diventa **falsa per meta' dei casi**, e un validator che dice la causa
+ * sbagliata manda chi legge a cercare un muro che non c'e'.
+ */
+UENUM()
+enum class ERTStandabilityBlock : uint8
+{
+	/** Nessun ostacolo: la cella e' calpestabile. */
+	None,
+
+	/** I muri interni non lasciano nessuna regione di posa legale per il footprint. */
+	Geometry,
+
+	/**
+	 * Una regione No-Walk dichiara la cella non calpestabile ([D-439]). E' un **veto d'autore** sopra il
+	 * calcolo della posa, non un suo esito: vince anche dove la geometria lascerebbe passare.
+	 */
+	NoWalkArea
+};
+
+/**
+ * UNA REGIONE CHE DICHIARA «qui non si sta» (`#1868`).
+ *
+ * 🔑 **I vertici sono ANCHOR, non punti.** E' `D-127` applicato a un poligono: l'autorita' serializzata e'
+ * discreta — una cella, un tipo di anchor, un indice — e i `FVector2D` compaiono solo nel **derivato**, cioe'
+ * quando si chiede quali celle copre. Una lista di `FVector2D` sull'asset sarebbe l'errore di categoria che
+ * quella decisione ha votato via, e la stessa che rende `FRTOccupancyPolyline` inadatta a questo ruolo.
+ *
+ * ⚠️ **Il poligono e' un ANELLO a chiusura implicita**: l'ultimo vertice si congiunge al primo, e non
+ * esiste uno stato «non chiuso». ∴ la validazione *«poligono non chiuso»* che `#1868` elenca **non e'
+ * rappresentabile in questo dato** e non e' provabile headless: vive nel gesto, e ci restera' finche' il
+ * tool non esiste. E' dichiarato qui invece di essere promesso altrove.
+ *
+ * ⛔ **Fuori da `ComputeHash` e da `RTMatchStateHash`, per il criterio che quei due digest applicano a se
+ * stessi** — *ci entra cio' che puo' cambiare un esito*. Nessun consumatore runtime legge la regione: il
+ * suo effetto viaggia attraverso `FRTHexCellData::bBlocksMovement`, che e' gia' in entrambi.
+ */
+USTRUCT(BlueprintType)
+struct FRTNoWalkArea
+{
+	GENERATED_BODY()
+
+	/**
+	 * I vertici, in ordine. ⚠️ **Sotto i tre non e' un poligono**, e `CoversCell` risponde `false` invece di
+	 * interrogare `PointInPolygon` su una degenerazione — un poligono di due vertici non ha un «dentro».
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	TArray<FRTAnchorRef> Vertices;
+
+	/**
+	 * Il piano su cui la regione vive. 🔴 **Non e' ridondante con le celle dei vertici, ed e' la correzione
+	 * di un difetto trovato in code review prima di scrivere il codice**: `AxialToWorld` mette il layer
+	 * interamente nella `Z` — `Wx` e `Wy` dipendono solo da `q` e `r` — quindi un test di appartenenza 2D
+	 * **non distingue i piani**, e una regione al piano terra chiuderebbe le celle impilate sopra. Sull'arena
+	 * committata e' raggiungibile: tre celle del layer 1 stanno sopra celle del layer 0.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	int32 Layer = 0;
+
+	/**
+	 * Nome PUBBLICO della regione. ⚠️ **Obbligatorio, a differenza del muro interno**: l'handle di un muro
+	 * regge sul suo `FRTGeometrySegment` quando lo `StableId` manca, mentre la lista di vertici di una
+	 * regione **cambia col vertex-edit**, che e' precisamente l'operazione a cui un handle deve sopravvivere.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
+	FName StableId;
+};
+
 #if WITH_EDITOR
 /** L'asset e' cambiato per una via che i chiamanti non controllano (undo/redo, editing dal suo editor). */
 DECLARE_MULTICAST_DELEGATE(FRTHexMapAssetChanged);
@@ -357,7 +429,7 @@ public:
 	 * migrazione non partiva — ma resta il punto piu' delicato del formato: si scrive un
 	 * `if (FormatVersion < N)` per volta, in ordine, e lo si prova su un asset serializzato.
 	 */
-	static constexpr int32 CurrentFormatVersion = 16;
+	static constexpr int32 CurrentFormatVersion = 17;
 
 	/**
 	 * Versione del formato con cui l'asset e' stato scritto; `MigrateToCurrentFormat` la porta avanti.
@@ -424,6 +496,24 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
 	TArray<FRTHexInteriorWall> InteriorWalls;
+
+	/**
+	 * LE REGIONI NO-WALK (`#1868`, [D-439]): «qui non si sta e non si passa», dichiarato come **regione** e
+	 * non ridipinto cella per cella.
+	 *
+	 * 🔑 **Nessuno le cuoce dentro le celle: `DeriveStandability` le CONSULTA**, ed e' il punto della
+	 * decisione. Un secondo produttore di `bBlocksMovement` avrebbe dovuto condividere
+	 * `bMovementBlockGenerated` — che e' **un bit** — col produttore geometrico, e il ramo che libera la
+	 * cella avrebbe cancellato il veto di una regione al primo ribake estraneo, in silenzio. Consultando,
+	 * un ribake **richiude** invece di perdere, e cancellare la regione libera le celle da se' senza
+	 * nessun codice di ripristino.
+	 *
+	 * ⚠️ **Le sovrapposizioni sono LEGALI** ([D-439]): due regioni possono coprire la stessa cella, e
+	 * l'unica AC di `#1868` che parlasse di sovrapposizioni illegali contraddiceva quella che parla di
+	 * celle *«che non hanno altri motivi per essere chiuse»*.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
+	TArray<FRTNoWalkArea> NoWalkAreas;
 
 	/** Transizioni esplicite (archi verticali/speciali): scale, rampe, ponti, tunnel, ascensori. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HexMap")
