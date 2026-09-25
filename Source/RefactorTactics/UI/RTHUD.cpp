@@ -1380,20 +1380,18 @@ void ARTHUD::DrawHUD()
 
 	// Esito, VIA che l'ha determinato e istruzione di riavvio a partita conclusa (CP 10.3). "Vince il team 0"
 	// da solo non distingue un'eliminazione da un punto di vantaggio allo scadere dei round.
+	// 🔑 DOVE cadono le due righe lo decide `ComposeMatchEndPanelPlacement` (#2184), interrogabile senza un HUD.
 	if (TurnManager && TurnManager->GetPhase() == ERTMatchPhase::MatchEnded)
 	{
-		const FRTMatchResult Result = TurnManager->GetMatchResult();
-		const FString Headline = ComposeMatchEndHeadline(Result);
-
-		float TW = 0.f, TH = 0.f;
-		GetTextSize(Headline, TW, TH, nullptr, 2.f);
-		DrawText(Headline, FLinearColor::White, (Canvas->SizeX - TW) * 0.5f, Canvas->SizeY * 0.4f, nullptr, 2.f);
-
-		const FString Restart = TEXT("premi R per rigiocare");
-		float RW = 0.f, RH = 0.f;
-		GetTextSize(Restart, RW, RH, nullptr, 1.2f);
-		DrawText(Restart, FLinearColor(0.85f, 0.85f, 0.85f, 1.f),
-			(Canvas->SizeX - RW) * 0.5f, Canvas->SizeY * 0.4f + TH + 8.f, nullptr, 1.2f);
+		const FString Headline = ComposeMatchEndHeadline(TurnManager->GetMatchResult());
+		const FString Restart = MatchEndRestartPrompt;
+		float TW = 0.f, TH = 0.f, RW = 0.f, RH = 0.f; // `RH` lo impone la firma: si impila su `TH`
+		GetTextSize(Headline, TW, TH, nullptr, MatchEndHeadlineScale);
+		GetTextSize(Restart, RW, RH, nullptr, MatchEndRestartScale);
+		const FRTMatchEndPanelPlacement Posa = ComposeMatchEndPanelPlacement(
+			FVector2f(Canvas->SizeX, Canvas->SizeY), FVector2f(TW, TH), RW);
+		DrawText(Headline, FLinearColor::White, Posa.Headline.X, Posa.Headline.Y, nullptr, MatchEndHeadlineScale);
+		DrawText(Restart, MatchEndRestartInk, Posa.Restart.X, Posa.Restart.Y, nullptr, MatchEndRestartScale);
 	}
 }
 
@@ -1765,6 +1763,24 @@ FRTHudTextLine ARTHUD::ComposeSlotLineStyle(const FRTSlotLine& SlotLine)
 		: FLinearColor(0.55f, 0.55f, 0.55f, 1.f);
 
 	return Riga;
+}
+
+const FLinearColor ARTHUD::MatchEndRestartInk(0.85f, 0.85f, 0.85f, 1.f);
+
+ARTHUD::FRTMatchEndPanelPlacement ARTHUD::ComposeMatchEndPanelPlacement(const FVector2f& Viewport,
+	const FVector2f& HeadlineSize, float RestartWidth)
+{
+	// 🔑 L'ancora si legge UNA volta: l'istruzione sta sotto l'intestazione per costruzione, non perche'
+	// due `0.4f` scritti in due righe diverse continuino a coincidere.
+	const float AncoraY = Viewport.Y * MatchEndAnchorY;
+
+	// ⚠️ L'associativita' e' quella di prima — `((ancora + altezza) + scarto)` — perche' in `float`
+	// l'ordine degli arrotondamenti si vede, e «stessa formula» non basta: deve essere la stessa catena.
+	FRTMatchEndPanelPlacement Posa;
+	Posa.Headline = FVector2f((Viewport.X - HeadlineSize.X) * MatchEndCentre, AncoraY);
+	Posa.Restart = FVector2f((Viewport.X - RestartWidth) * MatchEndCentre,
+		AncoraY + HeadlineSize.Y + MatchEndLineGapPx);
+	return Posa;
 }
 
 FString ARTHUD::ComposeMatchEndHeadline(const FRTMatchResult& Result)

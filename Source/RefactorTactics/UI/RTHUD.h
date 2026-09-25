@@ -747,6 +747,75 @@ public:
 	static FString ComposeMatchEndHeadline(const struct FRTMatchResult& Result);
 
 	/**
+	 * 🔑 **Le metriche del pannello di fine partita, e le TRE coppie che dovevano coincidere.**
+	 *
+	 * Erano letterali dentro `DrawHUD` (#2184), e tre di loro comparivano due volte ciascuna:
+	 *
+	 *     0.4f    l'ancora verticale dell'intestazione  E  quella da cui l'istruzione scende
+	 *     0.5f    la mezzeria su cui si centra l'intestazione  E  quella dell'istruzione
+	 *     2.f     la scala con cui l'intestazione e' MISURATA  E  quella con cui e' DISEGNATA
+	 *     1.2f    lo stesso, per l'istruzione
+	 *
+	 * ⛔ **Una divergenza sarebbe muta e visibile solo a partita finita**: con due ancore diverse le due
+	 * righe si separano di mezzo schermo, con due mezzerie diverse smettono di condividere l'asse e il
+	 * pannello si legge storto. Nessun test le raggiungeva — `RTHudEndAndSlotTests` copre la funzione
+	 * pura che compone il TESTO, mai la posa.
+	 *
+	 * ⚠️ **`MatchEndAnchorY` e `MatchEndCentre` sono protette anche da `ComposeMatchEndPanelPlacement`**,
+	 * che le legge una volta sola; le due scale no — le loro occorrenze sono `GetTextSize` e `DrawText`,
+	 * membri di `AHUD` che vogliono canvas e font, e nessuna domanda headless le interroga. Quelle sono
+	 * protette dal **nome**, non da un test, ed e' lo stesso argomento gia' scritto per `IntentLabelScale`.
+	 */
+	static constexpr float MatchEndAnchorY = 0.4f;
+	static constexpr float MatchEndCentre = 0.5f;
+	static constexpr float MatchEndLineGapPx = 8.f;
+	static constexpr float MatchEndHeadlineScale = 2.f;
+	static constexpr float MatchEndRestartScale = 1.2f;
+
+	/**
+	 * ⚠️ **L'istruzione nomina un tasto che vive altrove.** `ARTPlayerController` lega il riavvio a `R`
+	 * (`MapKey(RestartAction, EKeys::R)`): se quella legatura cambia, questo testo mente e niente lo
+	 * segnala. Il nome non chiude l'accoppiamento — lo rende **visibile**, che e' il massimo ottenibile
+	 * finche' le due sedi restano due.
+	 */
+	static constexpr const TCHAR* MatchEndRestartPrompt = TEXT("premi R per rigiocare");
+
+	/** Il grigio dell'istruzione di riavvio: piu' spenta dell'esito, che e' bianco pieno. */
+	static const FLinearColor MatchEndRestartInk;
+
+	/** Dove cadono le due righe del pannello di fine partita, in pixel di schermo. */
+	struct FRTMatchEndPanelPlacement
+	{
+		/** Angolo alto-sinistro dell'intestazione. */
+		FVector2f Headline = FVector2f::ZeroVector;
+
+		/** Angolo alto-sinistro dell'istruzione di riavvio. */
+		FVector2f Restart = FVector2f::ZeroVector;
+	};
+
+	/**
+	 * Dove vanno le due righe del pannello di fine partita.
+	 *
+	 * 🔑 **L'ancora verticale compare UNA volta**, e l'istruzione sta sotto l'intestazione per
+	 * costruzione — non perche' due letterali scritti in due righe diverse continuino a coincidere.
+	 *
+	 * ⚠️ **In `float`, non in `FVector2D`, e non e' un dettaglio.** `FVector2D` e' a doppia precisione;
+	 * la catena di oggi passa da `Canvas->SizeX` (`int32`), da `GetTextSize` (`float&`) e finisce in
+	 * `DrawText` (`float`), arrotondando a ogni passo. Calcolare in `double` e riconsegnare potrebbe
+	 * differire di un ULP: sarebbe invarianza sperata invece che dimostrata.
+	 *
+	 * ⛔ **Non vincola al viewport, e NON va aggiunto qui.** Con un'intestazione piu' larga del canvas la
+	 * X diventa negativa e il testo esce dal bordo — come oggi. Aggiungere `ClampOverlayAnchor` mentre si
+	 * estrae sarebbe cambiare cio' che si vede, che lo Scope di #2184 vieta. Il caso e' pinnato com'e'.
+	 *
+	 * @param Viewport      dimensioni del canvas, in pixel.
+	 * @param HeadlineSize  larghezza E altezza dell'intestazione, misurate a `MatchEndHeadlineScale`.
+	 * @param RestartWidth  larghezza dell'istruzione, misurata a `MatchEndRestartScale`.
+	 */
+	static FRTMatchEndPanelPlacement ComposeMatchEndPanelPlacement(const FVector2f& Viewport,
+		const FVector2f& HeadlineSize, float RestartWidth);
+
+	/**
 	 * La riga di un'abilita' nella barra: numero, nome, il motivo per cui non si puo' usare, il colore.
 	 *
 	 * Statica e PURA sul modello di `ComposeSlotLines`: `DrawHUD` non ha copertura headless e non l'avra',
