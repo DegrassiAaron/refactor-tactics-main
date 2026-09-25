@@ -153,8 +153,13 @@ struct FRTNoWalkArea
 	GENERATED_BODY()
 
 	/**
-	 * I vertici, in ordine. ⚠️ **Sotto i tre non e' un poligono**, e `CoversCell` risponde `false` invece di
-	 * interrogare `PointInPolygon` su una degenerazione — un poligono di due vertici non ha un «dentro».
+	 * I vertici, in ordine. ⚠️ **Sotto i tre non e' un poligono**, e la copertura risponde `false` invece di
+	 * interrogare l'appartenenza su una degenerazione — un poligono di due vertici non ha un «dentro».
+	 *
+	 * 🔑 **Due vertici possono essere lo STESSO PUNTO pur essendo `FRTAnchorRef` diversi** ([D-288],
+	 * `GEO-5`): un vertice ha fino a tre nomi, un punto medio due. La regione che ne nasce non chiude nulla,
+	 * ed e' la regola `ERTMapValidationReason::NoWalkAreaDegenerate` — che percio' NON puo' essere scritta
+	 * con `operator==`, ma con `URTGeometryGrammarLibrary::AnchorPoint` sul reticolo intero.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Hex")
 	TArray<FRTAnchorRef> Vertices;
@@ -420,7 +425,34 @@ enum class ERTMapValidationReason : uint8
 	 * innesco la prima issue che autora un `Ramp` o un `Elevator` su piu' di un piano. Il predicato e
 	 * l'innesco meccanico che lo pinna stanno in `URTHexArcLibrary::IsTransitionLayerSpanLegal`.
 	 */
-	StairSkipsLayer
+	StairSkipsLayer,
+
+	/**
+	 * REGOLA 8 — una regione No-Walk **degenere**: due vertici nello stesso punto, oppure area nulla
+	 * (`#1868`).
+	 *
+	 * 🔑 **«Stesso punto» non e' `FRTAnchorRef::operator==`, ed e' tutta la regola.** Un vertice ha fino a
+	 * **tre** nomi e un punto medio **due** ([D-288], `GEO-5`), quindi un anello i cui riferimenti sono
+	 * tutti distinti puo' avere due vertici sovrapposti. La domanda la decide
+	 * `URTGeometryGrammarLibrary::AnchorPoint` sul reticolo intero: esatta, e senza la soglia che un
+	 * confronto fra `FVector2D` avrebbe richiesto.
+	 *
+	 * ⚠️ **Errore e non avviso.** Una regione degenere non chiude nessuna cella — l'area e' nulla — quindi
+	 * l'autore ha disegnato qualcosa che non fa niente, e crederlo fatto e' peggio che vederselo rifiutare.
+	 */
+	NoWalkAreaDegenerate,
+
+	/**
+	 * REGOLA 9 — una regione No-Walk i cui lati **si attraversano** (`#1868`).
+	 *
+	 * ⚠️ **Non e' un rifiuto estetico: cambia quali celle la regione chiude, in silenzio.** Il ray casting
+	 * conta gli attraversamenti, quindi in un anello a otto il lobo interno si **cancella** — l'autore vede
+	 * due lobi e ne ottiene uno solo, senza nessun segnale.
+	 *
+	 * ⛔ **I lati ADIACENTI non contano**: condividono un vertice per costruzione. Un anello che ripassa su
+	 * se' stesso e' `NoWalkAreaDegenerate`, ed e' la ragione per cui le due regole sono due.
+	 */
+	NoWalkAreaSelfIntersecting
 };
 
 /**

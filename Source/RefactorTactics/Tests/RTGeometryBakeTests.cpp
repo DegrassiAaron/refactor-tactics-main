@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Algo/Reverse.h"
 #include "Map/RTGeometryBake.h"
 #include "Map/RTHexCoverPlacementLibrary.h"
 #include "Map/RTGeometryGrammar.h"
@@ -1340,6 +1341,158 @@ bool FRTBoxVolumePropertiesAreIndependentTest::RunTest(const FString&)
 	TestEqual(TEXT("il volume NON genera ancora una copertura sulla cella"), Cella->Covers.Num(), 0);
 	TestFalse(TEXT("ne' scrive bBlocksLineOfSight: la giuntura non c'e' ancora"),
 		Cella->bBlocksLineOfSight);
+	return true;
+}
+
+
+/**
+ * 🔴 **LA COPERTURA DI UNA REGIONE NON DIPENDE DAL VERSO IN CUI E' STATA DISEGNATA** (#1868).
+ *
+ * ## Il difetto che questo test ha chiuso, e perche' era invisibile
+ *
+ * Fino al 2026-09-25 `AreaCoversCell` costruiva il poligono in `FVector2D` e chiedeva a
+ * `URTHexOccupancyLibrary::PointInPolygon`. Quel ray casting **non ha una regola per il bordo**, e il suo
+ * confronto — `P.X < (Pj.X - Pi.X) * (P.Y - Pi.Y) / (Pj.Y - Pi.Y) + Pi.X` — non e' simmetrico nello
+ * scambio di `Pi` e `Pj`: **invertire il verso dell'anello cambiava la risposta sui punti del bordo.**
+ *
+ * ⛔ **E i punti sul bordo sono l'idioma No-Walk, non un caso limite**: `NoWalkTriangolo` mette i vertici
+ * sui CENTRI delle celle, quindi altri centri di cella ci finiscono sopra per costruzione.
+ *
+ * 🔑 **Da li' il difetto arrivava fino al digest**: `AreaCoversCell` → `WhyNotStandable` →
+ * `DeriveStandability` scrive `bBlocksMovement` → `ComputeHash` lo mescola. Due mappe identiche disegnate
+ * in versi opposti avevano hash diversi — l'invariante di determinismo, rotta da un dettaglio di
+ * arrotondamento.
+ *
+ * ⚠️ **Il test confronta l'INSIEME delle celle coperte, non un singolo esito**: su un singolo punto il
+ * difetto poteva non manifestarsi, ed e' il motivo per cui era sopravvissuto ai tre test No-Walk gia'
+ * verdi.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkWindingTest,
+	"RefactorTactics.GeometryBake.NoWalkCoverageDoesNotDependOnWinding",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkWindingTest::RunTest(const FString&)
+{
+	const FRTNoWalkArea Diritto = NoWalkTriangolo(/*Layer*/ 0);
+	FRTNoWalkArea Rovescio = Diritto;
+	Algo::Reverse(Rovescio.Vertices);
+
+	auto Coperte = [](const FRTNoWalkArea& Area)
+	{
+		TArray<FString> Fuori;
+		for (int32 Q = -2; Q <= 2; ++Q)
+		{
+			for (int32 R = -2; R <= 2; ++R)
+			{
+				const FRTCellId C(Q, R, 0);
+				if (URTGeometryBakeLibrary::AreaCoversCell(Area, C, NoWalkHexSize))
+				{
+					Fuori.Add(C.ToString());
+				}
+			}
+		}
+		Fuori.Sort();
+		return Fuori;
+	};
+
+	const TArray<FString> A = Coperte(Diritto);
+	const TArray<FString> B = Coperte(Rovescio);
+	AddInfo(FString::Printf(TEXT("diritto: %d celle — %s"), A.Num(), *FString::Join(A, TEXT(" "))));
+	AddInfo(FString::Printf(TEXT("rovescio: %d celle — %s"), B.Num(), *FString::Join(B, TEXT(" "))));
+
+	// ⛔ **ANTI-VACUITA', e qui serve davvero**: due liste VUOTE sarebbero uguali, e il test passerebbe con
+	// una `AreaCoversCell` che non copre mai niente.
+	TestTrue(FString::Printf(TEXT("la regione copre delle celle (%d)"), A.Num()), A.Num() >= 3);
+	TestEqual(TEXT("e il verso dell'anello non cambia QUANTE celle chiude"), B.Num(), A.Num());
+	TestTrue(TEXT("ne' QUALI: gli insiemi coincidono"), A == B);
+
+	// 🔑 **Il bordo appartiene alla regione, e la convenzione e' asserita invece che sottintesa.** Un
+	// vertice del triangolo e' un centro di cella: quella cella e' coperta, da entrambi i versi.
+	const FRTCellId Vertice(2, 0, 0);
+	TestTrue(TEXT("una cella il cui centro E' un vertice e' coperta"),
+		URTGeometryBakeLibrary::AreaCoversCell(Diritto, Vertice, NoWalkHexSize));
+	TestTrue(TEXT("e lo resta a verso invertito"),
+		URTGeometryBakeLibrary::AreaCoversCell(Rovescio, Vertice, NoWalkHexSize));
+	return true;
+}
+
+/**
+ * LE DUE REGOLE GEOMETRICHE ARRIVANO A `ValidateMap` CON IL PROPRIO REASON CODE (#1868).
+ *
+ * 🔑 **Si distinguono per CODICE e non per testo del messaggio**, che e' la dottrina dichiarata in
+ * `RTHexMapAsset.h`: allentare una delle due regole deve far cadere esattamente il suo test.
+ *
+ * ⚠️ **La mappa di prova ha una regione SANA accanto a quelle rotte**, e non e' decorazione: senza, una
+ * regola che segnalasse OGNI regione passerebbe entrambe le meta'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNoWalkValidationTest,
+	"RefactorTactics.HexMapValidation.NoWalkGeometryRulesCarryTheirOwnCode",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTNoWalkValidationTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NoWalkMap();
+
+	// (1) SANA — il controllo negativo.
+	M->NoWalkAreas.Add(NoWalkTriangolo(/*Layer*/ 0, TEXT("Sana")));
+
+	// (2) DEGENERE per area nulla: tre centri allineati.
+	{
+		FRTNoWalkArea Piatta;
+		Piatta.Layer = 0;
+		Piatta.StableId = TEXT("Piatta");
+		for (const FRTCellId& C : { FRTCellId(-2, 0, 0), FRTCellId(0, 0, 0), FRTCellId(2, 0, 0) })
+		{
+			Piatta.Vertices.Add(FRTAnchorRef(C, ERTAnchorKind::Center));
+		}
+		M->NoWalkAreas.Add(Piatta);
+	}
+
+	// (3) AUTO-INTERSECANTE: un quadrilatero con due vertici scambiati.
+	{
+		FRTNoWalkArea Otto;
+		Otto.Layer = 0;
+		Otto.StableId = TEXT("Otto");
+		for (const FRTCellId& C : { FRTCellId(-2, 0, 0), FRTCellId(2, -2, 0), FRTCellId(0, -2, 0),
+			FRTCellId(0, 2, 0) })
+		{
+			Otto.Vertices.Add(FRTAnchorRef(C, ERTAnchorKind::Center));
+		}
+		M->NoWalkAreas.Add(Otto);
+	}
+
+	TArray<FRTMapValidationIssue> Issues;
+	M->ValidateMapDetailed(Issues);
+
+	auto Conta = [&Issues](ERTMapValidationReason R)
+	{
+		return Issues.FilterByPredicate([R](const FRTMapValidationIssue& I) { return I.Reason == R; }).Num();
+	};
+
+	const int32 Degeneri = Conta(ERTMapValidationReason::NoWalkAreaDegenerate);
+	const int32 Incroci = Conta(ERTMapValidationReason::NoWalkAreaSelfIntersecting);
+	for (const FRTMapValidationIssue& I : Issues)
+	{
+		if (I.Reason == ERTMapValidationReason::NoWalkAreaDegenerate
+			|| I.Reason == ERTMapValidationReason::NoWalkAreaSelfIntersecting)
+		{
+			AddInfo(I.Message);
+		}
+	}
+
+	TestEqual(TEXT("una sola regione e' degenere"), Degeneri, 1);
+	TestEqual(TEXT("e una sola si auto-interseca"), Incroci, 1);
+	// ⛔ La regione SANA non produce nessuna delle due: senza questa riga una regola che segnala sempre
+	// passerebbe le due asserzioni sopra.
+	TestEqual(TEXT("e le due segnalazioni sono in tutto due, non una per regione"), Degeneri + Incroci, 2);
+
+	// Entrambe sono ERRORI: una regione che non chiude nulla non e' «legale ma inerte».
+	for (const FRTMapValidationIssue& I : Issues)
+	{
+		if (I.Reason == ERTMapValidationReason::NoWalkAreaDegenerate
+			|| I.Reason == ERTMapValidationReason::NoWalkAreaSelfIntersecting)
+		{
+			TestTrue(TEXT("e sono errori, non avvisi"), I.bIsError);
+		}
+	}
 	return true;
 }
 

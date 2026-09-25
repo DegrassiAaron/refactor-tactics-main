@@ -7,6 +7,7 @@
 #include "Map/RTStructureIdentityLibrary.h"
 // I muri interni si validano con le stesse funzioni che li producono: grammatica e cottura (#712, v10).
 #include "Map/RTGeometryBake.h"
+#include "Map/RTGeometryGrammar.h"  // le validazioni geometriche delle regioni No-Walk (#1868)
 // Le regole di topologia di `#1832` chiamano le stesse funzioni della cottura invece di rifarle: se questa
 // misurasse la calpestabilita' diversamente da `DeriveStandability`, il validator segnalerebbe celle che il
 // bake considera sane — cioe' due verita' sulla stessa regola.
@@ -1375,6 +1376,70 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 
 	// ORDINE CANONICO. Non si eredita da `Cells`, il cui ordine lo decide chi edita l'asset: due asset che
 	// descrivono la stessa mappa con le celle scritte in ordine diverso devono produrre lo stesso elenco.
+	// ---- REGOLE 8 e 9 — le regioni No-Walk degeneri e auto-intersecanti (`#1868`).
+	//
+	// 🔑 **Le due domande sono aritmetica ESATTA su un reticolo intero**, non geometria in virgola mobile:
+	// `URTGeometryGrammarLibrary` le decide senza nessuna tolleranza, perche' i tredici anchor di ogni cella
+	// cadono su punti interi. Qui resta solo la segnalazione.
+	//
+	// ⚠️ **La cella della segnalazione e' quella del PRIMO VERTICE, e non e' la cella «colpevole»**: una
+	// regione non vive in una cella sola. E' un'ancora, scelta perche' `FRTMapValidationIssue` indicizza per
+	// cella e l'ordinamento canonico ne ha bisogno; il nome della regione sta nel messaggio, che e' l'unico
+	// posto in cui oggi possa stare. ⛔ Con due regioni difettose che partono dalla stessa cella, a
+	// distinguerle resta il testo — l'ultimo criterio dell'ordinamento qui sotto.
+	for (const FRTNoWalkArea& Area : NoWalkAreas)
+	{
+		const FRTCellId Ancora = Area.Vertices.Num() > 0 ? Area.Vertices[0].Cell : FRTCellId();
+		const FString Nome = Area.StableId.IsNone()
+			? FString(TEXT("senza nome")) : Area.StableId.ToString();
+
+		int32 PrimoV = INDEX_NONE;
+		int32 SecondoV = INDEX_NONE;
+		if (URTGeometryGrammarLibrary::RingHasCoincidentVertices(Area.Vertices, PrimoV, SecondoV))
+		{
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoWalkAreaDegenerate;
+			Issue.Cell = Ancora;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("Error: la regione No-Walk '%s' ha i vertici %d e %d nello STESSO punto, ")
+				TEXT("anche se i due riferimenti sono diversi: non chiude nulla."),
+				*Nome, PrimoV, SecondoV);
+			OutIssues.Add(Issue);
+		}
+		else if (URTGeometryGrammarLibrary::RingAreaTwice(Area.Vertices) == 0)
+		{
+			// `else if`: due vertici coincidenti ANNULLANO gia' l'area in molti casi, e segnalare due volte
+			// lo stesso disegno farebbe cercare due difetti dove ce n'e' uno. La causa piu' specifica vince.
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoWalkAreaDegenerate;
+			Issue.Cell = Ancora;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("Error: la regione No-Walk '%s' ha area NULLA — %d vertici allineati o troppo pochi: ")
+				TEXT("non chiude nessuna cella."),
+				*Nome, Area.Vertices.Num());
+			OutIssues.Add(Issue);
+		}
+
+		int32 PrimoL = INDEX_NONE;
+		int32 SecondoL = INDEX_NONE;
+		if (URTGeometryGrammarLibrary::RingSelfIntersects(Area.Vertices, PrimoL, SecondoL))
+		{
+			// ⚠️ **NON in `else`**: un anello puo' essere insieme auto-intersecante e ad area nulla, e sono
+			// due difetti da correggere separatamente. Qui l'una non implica l'altra.
+			FRTMapValidationIssue Issue;
+			Issue.Reason = ERTMapValidationReason::NoWalkAreaSelfIntersecting;
+			Issue.Cell = Ancora;
+			Issue.bIsError = true;
+			Issue.Message = FString::Printf(
+				TEXT("Error: la regione No-Walk '%s' si attraversa fra il lato %d e il lato %d: ")
+				TEXT("il lobo interno si cancella e la regione chiude meno celle di quante ne mostri."),
+				*Nome, PrimoL, SecondoL);
+			OutIssues.Add(Issue);
+		}
+	}
+
 	OutIssues.Sort([](const FRTMapValidationIssue& A, const FRTMapValidationIssue& B)
 	{
 		if (!(A.Cell == B.Cell))
