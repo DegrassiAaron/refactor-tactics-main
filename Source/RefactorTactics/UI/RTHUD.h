@@ -217,6 +217,26 @@ struct FRTPlannedRoutePresentation
  * `bFromWorld` separa il primo dagli altri due. Chi volesse turare il buco con un `if (Map)` spegnerebbe
  * anche il graybox, dove la geometria e' valida — ed e' la ragione per cui questo flag esiste separato.
  */
+/**
+ * Un rettangolo di marcatore su una cella d'intento: dove, quanto grande, di che colore.
+ *
+ * 🔑 **`HalfSize` e non `Size`, perche' e' la mezza-dimensione a essere usata DUE volte** — una per
+ * l'angolo alto-sinistro e una per il lato — e il rettangolo e' centrato solo finche' le due coincidono.
+ * Erano quattro letterali per marcatore (`12`, `12`, `24`, `24`) e ora sono un numero solo: il lato si
+ * ricava, non si riscrive.
+ */
+struct FRTIntentMarker
+{
+	/** La cella su cui cade il marcatore. */
+	FRTCellId Cell;
+
+	/** Meta' lato, in pixel di schermo. Il lato e' il doppio, per costruzione. */
+	float HalfSize = 0.f;
+
+	/** Tinta gia' risolta, opacita' compresa. */
+	FLinearColor Color = FLinearColor::White;
+};
+
 struct FRTHudHexGeometry
 {
 	/** L'attore mappa esiste: i tre valori vengono dal mondo, non dai ripieghi. */
@@ -1029,6 +1049,40 @@ public:
 	 *
 	 * @param Map  puo' essere nullo: `FindPath` lo gestisce, e il risultato e' una rotta vuota.
 	 */
+	/**
+	 * 🔑 **Quali celle di un intento prendono un rettangolo, e con quale forma.**
+	 *
+	 * Tre regole che stavano dentro `DrawHUD` in mezzo al tracciamento (#2184):
+	 *
+	 *   - la **destinazione** ha un rettangolo solo se la rotta si mostra — non perche' esista una cella,
+	 *     che e' l'errore documentato da `ComposePlannedRoute`: `PlannedCell` resta valorizzata anche a
+	 *     piano concluso;
+	 *   - i **waypoint** ce l'hanno sempre, perche' la vista li porta solo per le unita' proprie;
+	 *   - ⛔ **nessuno dei due e' graduato dalla certezza**, e la prima stesura graduava la destinazione
+	 *     sbagliando due volte: quel blocco vive dentro `bMoving`, e `ClassifyPlan` rende `Uncertain`
+	 *     ogni volta che `bMoving` — il livello sarebbe **sempre** lo stesso, quindi attenuare non
+	 *     distingue niente e toglie leggibilita'. Il rettangolo passava da alpha `0.35` a `0.105`, in
+	 *     permanenza, per ogni unita' in movimento.
+	 *
+	 * ⚠️ **L'ORDINE dell'elenco e' parte del contratto**: destinazione prima, waypoint dopo, perche' e'
+	 * l'ordine in cui venivano disegnati e un rettangolo che passa sopra un altro si vede.
+	 *
+	 * @param View          l'intento da cui leggere destinazione e waypoint.
+	 * @param bRouteShown   il verdetto di `ComposePlannedRoute`: senza, la destinazione non compare.
+	 * @param IntentColor   la tinta dell'intento, gia' risolta da `ComposeIntentPresentation`.
+	 */
+	static TArray<FRTIntentMarker> ComposeIntentMarkers(const struct FRTIntentView& View,
+		bool bRouteShown, const FLinearColor& IntentColor);
+
+	/** Meta' lato del rettangolo di destinazione, in pixel. Il lato e' il doppio. */
+	static constexpr float DestinationMarkerHalfPx = 12.f;
+
+	/** Opacita' del rettangolo di destinazione: attenuato rispetto alla linea, ma NON per certezza. */
+	static constexpr float DestinationMarkerAlpha = 0.35f;
+
+	/** Meta' lato del marcatore di waypoint: piu' piccolo della destinazione, e a tinta piena. */
+	static constexpr float WaypointMarkerHalfPx = 5.f;
+
 	static FRTPlannedRoutePresentation ComposePlannedRoute(const struct FRTIntentView& View,
 		const class URTHexMapAsset* Map);
 
