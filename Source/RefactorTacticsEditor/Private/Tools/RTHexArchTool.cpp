@@ -3,6 +3,7 @@
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
@@ -278,6 +279,27 @@ void URTHexArchTool::CommitArch()
 		return;
 	}
 	const ERTHexTransitionKind Kind = Properties ? Properties->Kind : ERTHexTransitionKind::Stair;
+
+	// ⛔ RIFIUTO AL GESTO (#1869): in v0.1 una scala collega solo layer adiacenti.
+	//
+	// 🔑 E' lo STESSO predicato che `ValidateMap` applica alla collezione, chiamato qui perche' i due strati
+	// sono due momenti: qui si impedisce di scriverla, la' si segnala quella che c'e' gia' — dentro un asset
+	// di versione precedente, o ricostruito. Uno non sostituisce l'altro.
+	//
+	// ⚠️ Si esce SENZA distruggere il gizmo pendente, come fa il rifiuto qui sopra: il gesto resta aperto e
+	// chi ha mirato il piano sbagliato trascina sul giusto, invece di ricominciare.
+	if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind))
+	{
+		// La diagnosi porta i DUE layer e il salto, non «non valido» (#1869, Debug/Logging): chi ha
+		// sbagliato deve leggere fra quali piani, e di quanto.
+		UE_LOG(LogTemp, Warning,
+			TEXT("[HexMode] Arco RIFIUTATO: scala da %s (layer %d) a %s (layer %d) salta %d layer. ")
+			TEXT("In v0.1 una scala collega solo layer adiacenti."),
+			*From.ToString(), From.Layer, *To.ToString(), To.Layer,
+			URTHexArcLibrary::TransitionLayerSpan(From, To));
+		return;
+	}
+
 	const int32 Cost = Properties ? Properties->Cost : 2;
 	const bool bBidir = Properties ? Properties->bBidirectional : true;
 	TargetActor->AddTransitionData(From, To, Cost, Kind, bBidir);

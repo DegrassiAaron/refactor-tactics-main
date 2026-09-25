@@ -355,4 +355,172 @@ bool FRTArcMigrationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UNA SCALA COLLEGA SOLO LAYER ADIACENTI: il predicato, che e' il PRIMO dei due strati di #1869.
+ *
+ * 🔑 **La regola e' `v0.1` e lo dice**: l'innesco per rivederla — una rampa o un ascensore che vogliono
+ * saltare un piano — sta accanto alla funzione, non nella memoria di chi l'ha scritta.
+ *
+ * ⚠️ **La meta' che discrimina e' quella che AMMETTE.** Un test che asserisse solo *«il salto e' rifiutato»*
+ * passerebbe con una funzione che risponde sempre `false`, cioe' con una regola che vieta ogni transizione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStairLayerAdjacencyTest,
+	"RefactorTactics.HexMap.StairLayerAdjacencyRule",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStairLayerAdjacencyTest::RunTest(const FString&)
+{
+	const FRTCellId L0(0, 0, 0);
+	const FRTCellId L1(0, 0, 1);
+	const FRTCellId L2(0, 0, 2);
+	const FRTCellId L0Altrove(1, 0, 0);
+
+	// Lo span e' un valore assoluto: non dipende da quale estremo si nomina per primo.
+	TestEqual(TEXT("stesso piano: span zero"), URTHexArcLibrary::TransitionLayerSpan(L0, L0Altrove), 0);
+	TestEqual(TEXT("piani adiacenti: span uno"), URTHexArcLibrary::TransitionLayerSpan(L0, L1), 1);
+	TestEqual(TEXT("e in discesa lo span non cambia"), URTHexArcLibrary::TransitionLayerSpan(L2, L0), 2);
+
+	// ── Cio' che la regola AMMETTE ────────────────────────────────────────────────────────────────────
+	TestTrue(TEXT("una scala fra piani adiacenti e' legale"),
+		URTHexArcLibrary::IsTransitionLayerSpanLegal(L0, L1, ERTHexTransitionKind::Stair));
+	TestTrue(TEXT("e in discesa anche"),
+		URTHexArcLibrary::IsTransitionLayerSpanLegal(L1, L0, ERTHexTransitionKind::Stair));
+
+	// 🔴 **Lo span ZERO e' legale, e non e' una dimenticanza.** La issue scrive la regola `== 1`, che
+	// vieterebbe anche questo caso: ma `FRTHexEdge::Kind` vale `Stair` per DEFAULT, quindi ogni transizione
+	// scritta senza scegliere un tipo e' una scala — comprese quelle sullo stesso piano. Con `== 1` il test
+	// `RefactorTactics.Map.Dependency.CellTakesTransitionsCitingIt` diventerebbe rosso: tre transizioni
+	// tutte a layer 0, e l'asserzione che l'allestimento non produca errori. Il difetto e' il SALTO.
+	TestTrue(TEXT("una transizione sullo stesso piano non e' un salto"),
+		URTHexArcLibrary::IsTransitionLayerSpanLegal(L0, L0Altrove, ERTHexTransitionKind::Stair));
+
+	// ── Cio' che la regola RIFIUTA ────────────────────────────────────────────────────────────────────
+	TestFalse(TEXT("una scala che salta un piano NON e' legale"),
+		URTHexArcLibrary::IsTransitionLayerSpanLegal(L0, L2, ERTHexTransitionKind::Stair));
+	TestFalse(TEXT("e in discesa nemmeno"),
+		URTHexArcLibrary::IsTransitionLayerSpanLegal(L2, L0, ERTHexTransitionKind::Stair));
+	TestFalse(TEXT("ne' un salto piu' lungo"),
+		URTHexArcLibrary::IsTransitionLayerSpanLegal(L0, FRTCellId(0, 0, 5), ERTHexTransitionKind::Stair));
+
+	// 🔑 **LA GUARDIA, e non e' fra due letterali**: si enumera `ERTHexTransitionKind` per RIFLESSIONE e si
+	// asserisce che i tipi vincolati dalla v0.1 siano **esattamente uno**. Coglie i due modi opposti di
+	// sbagliare — nessuno vincolato, cioe' la regola non morde; tutti vincolati, cioe' morde cinque tipi
+	// che nessuna issue ha nominato — e un `Kind` nuovo aggiunto alla grammatica entra qui da solo.
+	const UEnum* Enum = StaticEnum<ERTHexTransitionKind>();
+	if (!TestNotNull(TEXT("l'enum dei tipi di transizione ha la riflessione"), Enum))
+	{
+		return false;
+	}
+	// `NumEnums() - 1`: l'ultimo e' il `_MAX` sintetico che UHT aggiunge.
+	const int32 Valori = Enum->NumEnums() - 1;
+	if (!TestTrue(TEXT("l'enum dichiara piu' di un tipo"), Valori > 1))
+	{
+		return false;
+	}
+
+	int32 Vincolati = 0;
+	FString Quali;
+	for (int32 Index = 0; Index < Valori; ++Index)
+	{
+		const ERTHexTransitionKind K = static_cast<ERTHexTransitionKind>(Enum->GetValueByIndex(Index));
+		if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(L0, L2, K))
+		{
+			++Vincolati;
+			Quali += (Quali.IsEmpty() ? TEXT("") : TEXT(", "));
+			Quali += Enum->GetNameStringByIndex(Index);
+		}
+	}
+	TestEqual(FString::Printf(
+		TEXT("in v0.1 UN tipo solo vieta il salto di un piano (sono: %s)"), *Quali), Vincolati, 1);
+	TestEqual(TEXT("ed e' Stair"), Quali, FString(TEXT("Stair")));
+	return true;
+}
+
+/**
+ * IL SECONDO STRATO: una `L0 <-> L2` che sta GIA' nell'asset e' SEGNALATA da `ValidateMap` (#1869).
+ *
+ * 🔑 **Sono due asserzioni distinte perche' sono due strati, e uno non copre l'altro**: il rifiuto al gesto
+ * impedisce di scriverla d'ora in poi, questo dichiara quella che c'e' — in un asset di versione precedente
+ * o in un dato ricostruito, che si carica comunque.
+ *
+ * ⚠️ **L'asserzione e' sul CONTENUTO della voce, non sul conteggio.** Un `Num() > 0` passerebbe per
+ * qualunque altra regola che scattasse sull'allestimento, e misurerebbe un errore diverso da quello in
+ * esame; e la controprova — la scala legale, e il salto di un `Kind` che la v0.1 non vincola — e' cio' che
+ * distingue questa regola da una che segnala tutto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStairLayerSkipValidationTest,
+	"RefactorTactics.HexMap.StairLayerSkipIsSignalled",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStairLayerSkipValidationTest::RunTest(const FString&)
+{
+	// Tre piani ESISTENTI: senza la cella di mezzo scatterebbe «transizione verso cella inesistente», e
+	// l'asserzione misurerebbe quell'errore invece del salto.
+	auto ColonnaATrePiani = []() -> URTHexMapAsset*
+	{
+		URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+		M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+		M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 1)));
+		M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 2)));
+		M->SortCells();
+		return M;
+	};
+
+	// Le voci che parlano del SALTO, isolate dal resto della validazione.
+	auto VociSulSalto = [](const URTHexMapAsset* M) -> TArray<FString>
+	{
+		TArray<FString> Trovate;
+		for (const FString& Riga : M->ValidateMap())
+		{
+			if (Riga.Contains(TEXT("salta")))
+			{
+				Trovate.Add(Riga);
+			}
+		}
+		return Trovate;
+	};
+
+	// ── CONTROPROVA 1: la scala legale non fa rumore ──────────────────────────────────────────────────
+	URTHexMapAsset* Legale = ColonnaATrePiani();
+	Legale->Transitions.Add(FRTHexEdge(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost*/ 2,
+		ERTHexTransitionKind::Stair));
+	TestEqual(TEXT("una scala fra piani adiacenti non e' segnalata"), VociSulSalto(Legale).Num(), 0);
+
+	// ── CONTROPROVA 2: il salto di un tipo che la v0.1 NON vincola non e' segnalato ───────────────────
+	// Senza questa, una regola che ignorasse il `Kind` passerebbe il test.
+	URTHexMapAsset* Ponte = ColonnaATrePiani();
+	Ponte->Transitions.Add(FRTHexEdge(FRTCellId(0, 0, 0), FRTCellId(0, 0, 2), /*Cost*/ 2,
+		ERTHexTransitionKind::Bridge));
+	TestEqual(TEXT("un PONTE fra piani non adiacenti non e' segnalato in v0.1"),
+		VociSulSalto(Ponte).Num(), 0);
+
+	// ── IL DIFETTO: la scala che salta un piano ───────────────────────────────────────────────────────
+	URTHexMapAsset* Salto = ColonnaATrePiani();
+	Salto->Transitions.Add(FRTHexEdge(FRTCellId(0, 0, 0), FRTCellId(0, 0, 2), /*Cost*/ 2,
+		ERTHexTransitionKind::Stair));
+	const TArray<FString> Segnalate = VociSulSalto(Salto);
+	if (!TestEqual(TEXT("una scala L0 -> L2 e' segnalata, una volta sola"), Segnalate.Num(), 1))
+	{
+		return false;
+	}
+
+	// La voce sta fra gli `Error:`, come le altre cinque che dicono «questa transizione non e' un oggetto
+	// legale» — la sola `Warning:` delle transizioni significa «superfluo ma innocuo», e un salto non lo e'.
+	TestTrue(FString::Printf(TEXT("ed e' un Error, non un Warning: %s"), *Segnalate[0]),
+		Segnalate[0].StartsWith(TEXT("Error:")));
+
+	// La diagnosi nomina DI QUANTO salta e fra quali celle: «non valido» non basta a correggerlo.
+	TestTrue(FString::Printf(TEXT("la voce dice di quanti layer salta: %s"), *Segnalate[0]),
+		Segnalate[0].Contains(TEXT("salta 2 layer")));
+	TestTrue(FString::Printf(TEXT("e nomina i due estremi: %s"), *Segnalate[0]),
+		Segnalate[0].Contains(FRTCellId(0, 0, 0).ToString())
+			&& Segnalate[0].Contains(FRTCellId(0, 0, 2).ToString()));
+
+	// ⚠️ E il caricamento NON e' bloccato: `ValidateMap` e' un referto, e i suoi due consumatori non-test
+	// (`ARTHexMapActor::ValidateAsset` e `URTHexMapSummaryLibrary`) lo stampano e lo contano. La mappa resta
+	// leggibile — la cella su L2 c'e' ancora, e la transizione pure.
+	TestNotNull(TEXT("la mappa segnalata si legge comunque"), Salto->FindCell(FRTCellId(0, 0, 2)));
+	TestEqual(TEXT("e la transizione difettosa non e' stata rimossa dalla validazione"),
+		Salto->Transitions.Num(), 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -1,4 +1,5 @@
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapCustomVersion.h"
 // `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
@@ -774,6 +775,22 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		{
 			Errors.Add(FString::Printf(TEXT("Error: arco con integrita' %d ancora attivo %s -> %s"),
 				E.Integrity, *E.From.ToString(), *E.To.ToString()));
+		}
+
+		// Adiacenza di layer (#1869): in v0.1 una SCALA collega solo piani adiacenti, e il salto e' un
+		// percorso che il grafo offrirebbe mentre il vocabolario della v0.1 non sa esprimerlo. Sta fra gli
+		// `Error:` e non fra i `Warning:` per la ragione che separa i due gruppi qui sopra: la Warning
+		// dell'arco ridondante dice «superfluo ma innocuo», i cinque Error dicono «questa transizione non
+		// e' un oggetto legale». Un salto e' il secondo.
+		//
+		// ⚠️ La soglia e' `>= 2`, non `!= 1`, e la regola vive in `URTHexArcLibrary` perche' la chiama
+		// anche `URTHexArchTool` prima di committare: due strati, un solo predicato. Il perche' della
+		// soglia — e l'innesco per rivederla — stanno accanto alla funzione.
+		if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(E.From, E.To, E.Kind))
+		{
+			Errors.Add(FString::Printf(
+				TEXT("Error: scala che salta %d layer %s -> %s: in v0.1 una scala collega solo layer adiacenti"),
+				URTHexArcLibrary::TransitionLayerSpan(E.From, E.To), *E.From.ToString(), *E.To.ToString()));
 		}
 
 		// Ridondante: stesso layer e celle gia' adiacenti orizzontalmente -> l'arco esplicito e' superfluo.

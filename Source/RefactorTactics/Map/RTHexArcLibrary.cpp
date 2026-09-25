@@ -134,3 +134,21 @@ TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTC
 	Map->UpdateTransitions(Updated);
 	return Changes;
 }
+
+int32 URTHexArcLibrary::TransitionLayerSpan(const FRTCellId& From, const FRTCellId& To)
+{
+	return FMath::Abs(To.Layer - From.Layer);
+}
+
+bool URTHexArcLibrary::IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,
+	ERTHexTransitionKind Kind)
+{
+	// v0.1: solo la scala e' vincolata. L'innesco per rivedere questa riga sta nell'header.
+	if (Kind != ERTHexTransitionKind::Stair)
+	{
+		return true;
+	}
+	// `<= 1` e non `== 1`: lo span zero e' legale perche' `Stair` e' il `Kind` di DEFAULT — vietarlo
+	// renderebbe illegale ogni transizione scritta senza scegliere un tipo. Il difetto e' il salto.
+	return TransitionLayerSpan(From, To) <= 1;
+}

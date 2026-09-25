@@ -84,4 +84,35 @@ public:
 	 */
 	static TArray<FRTArcChange> DamageArc(URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 		int32 Amount);
+
+	/** Quanti layer separano i due estremi: `0` sullo stesso piano, `1` fra piani adiacenti. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static int32 TransitionLayerSpan(const FRTCellId& From, const FRTCellId& To);
+
+	/**
+	 * Una SCALA collega solo layer ADIACENTI (#1869). In **v0.1** la regola riguarda `Stair` e nessun altro
+	 * `Kind`: gli altri cinque passano senza vincolo.
+	 *
+	 * ⚠️ **La regola e' `v0.1`, non permanente, e l'innesco della revisione e' NOMINATO** invece di essere
+	 * lasciato al ricordo: **il giorno in cui una rampa o un ascensore vogliono saltare un piano**, questa
+	 * funzione smette di poter dare una risposta sola e diventa una per `Kind` — un ascensore che serve il
+	 * piano terra e il terzo e' esattamente il caso che la v0.1 non sa esprimere, e non e' un caso strano.
+	 * Non vincolare adesso gli altri cinque e' deliberato: sarebbe inventare cinque regole che nessuna issue
+	 * ha chiesto. E' la stessa forma del limite dichiarato in `DamageArc` qui sopra.
+	 *
+	 * 🔴 **E' illegale il SALTO, non la coincidenza — e la differenza e' misurata, non stilistica.** La #1869
+	 * scrive la regola come `|Layer(To) - Layer(From)| == 1`, che vieterebbe anche lo span **zero**. Ma
+	 * `FRTHexEdge::Kind` vale `Stair` per **default** (`RTHexCellData.h`), quindi ogni transizione scritta
+	 * senza scegliere un tipo *e'* una scala, comprese quelle sullo stesso piano: con `== 1` il test
+	 * `RefactorTactics.Map.Dependency.CellTakesTransitionsCitingIt` diventerebbe rosso — costruisce tre transizioni
+	 * tutte a layer `0` e asserisce `ValidateMap().Num() == 0`. Il difetto che la issue descrive e' un altro,
+	 * e lo dice lei stessa: *«nessuna regola vieta `L0 <-> L2`»*, *«scala che salta un layer»*. ∴ `>= 2`.
+	 *
+	 * Pura e senza mappa — le due celle portano il proprio layer. La chiamano **due** strati:
+	 * `URTHexMapAsset::ValidateMap` sulla collezione e `URTHexArchTool` prima di committare. E' una funzione
+	 * sola perche' due stesure della stessa soglia divergono, e divergerebbero in silenzio.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
+	static bool IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,
+		ERTHexTransitionKind Kind);
 };
