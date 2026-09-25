@@ -2121,27 +2121,27 @@ bool FRTPushWithoutDamageIsAnimatedTest::RunTest(const FString&)
 }
 
 /**
- * DUE attaccanti sullo stesso bersaglio: ogni voce di `Combat` dichiara il totale di FASE — `#3271`.
+ * DUE attaccanti sullo stesso bersaglio: ogni voce porta la PROPRIA quota, e la somma e' il netto —
+ * `#3271`, regola [D-438].
  *
- * 🔴 **E' una CARATTERIZZAZIONE, non un contratto.** Pinna il comportamento ATTUALE, che e' il difetto
- * osservato in seduta PIE: chi guardava ha riferito *«vedo due colpi da 37»* mentre i colpi valgono 21
- * ciascuno. Quando la decisione sara' presa, questo test cambiera' con essa — ed e' il suo scopo: rendere
- * concreta una scelta che altrimenti resta descritta.
+ * 🔑 **E' il contratto, e prima era la caratterizzazione del difetto opposto.** Fino a [D-438] ogni voce
+ * dichiarava il totale di FASE: chi guardava la seduta PIE ha riferito *«vedo due colpi da 37»* mentre i
+ * colpi valgono 21 ciascuno, e sommare il feed dava il DOPPIO del danno reale. Questo test e' cambiato
+ * con la decisione, che era il suo scopo dichiarato.
  *
- * 🔑 **Il caso a DUE attaccanti e' quello che ha protetto il difetto finora**: con uno solo,
- * `BeforeHP - AfterHP` e' davvero il netto di quel colpo e le due formule coincidono. Nessun test del
- * repository costruiva la scena a due.
+ * 🔑 **Il caso a DUE attaccanti e' quello che ha protetto il difetto**: con uno solo il netto di fase
+ * coincide con quello del colpo, le due formule non si distinguono, e nessun test del repository
+ * costruiva la scena a due. E' anche la ragione per cui il corpus golden non si muove.
  *
- * ⚠️ **E il netto PER COLPO non esiste**, che e' il fatto che questa misura porta alla issue:
- * `URTCombatResolver::ApplyHits` somma i colpi per bersaglio (`DamageByTarget += Attack.Power`) e applica
- * lo scudo **una volta sola** sul totale — e' l'invariante #3, che lo stadio `TargetSum` del breakdown
- * nomina. ⛔ Quindi *«il netto per-colpo e' ricavabile dove il danno viene applicato»*, come lo scope della
- * issue afferma, e' **falso**: non c'e' un valore da leggere, ci sarebbe una regola da inventare.
+ * ⚠️ **Il netto per-colpo non esiste a monte**: `URTCombatResolver::ApplyHits` somma i colpi per
+ * bersaglio (`DamageByTarget += Attack.Power`) e applica lo scudo **una volta sola** sul totale
+ * (invariante #3, stadio `ERTDamageStage::TargetSum`). ∴ la quota e' un'ATTRIBUZIONE dichiarata, non una
+ * misura ritrovata — ed e' [D-438] a dichiararla.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoAttackersOnePhaseAmountTest,
-	"RefactorTactics.HexMatch.TwoAttackersReportThePhaseTotal",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoAttackersNetShareTest,
+	"RefactorTactics.HexMatch.TwoAttackersSplitTheNetDamage",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTTwoAttackersOnePhaseAmountTest::RunTest(const FString&)
+bool FRTTwoAttackersNetShareTest::RunTest(const FString&)
 {
 	UWorld* World = MakeHexMatchWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -2185,19 +2185,109 @@ bool FRTTwoAttackersOnePhaseAmountTest::RunTest(const FString&)
 		return false;
 	}
 
-	// --- IL FATTO, oggi ------------------------------------------------------------------------------
+	// --- IL CONTRATTO ---------------------------------------------------------------------------------
 	//
-	// 🔴 Ogni voce dichiara il **totale di fase**, non il danno del proprio colpo: le due righe sono
-	// identiche e valgono quanto l'intera fase. E' cio' che il feed stampa due volte.
-	TestEqual(TEXT("🔴 la prima voce riporta il TOTALE di fase, non il suo colpo"),
-		Colpi[0].Amount, PersiDavvero);
-	TestEqual(TEXT("🔴 e la seconda riporta lo STESSO totale"), Colpi[1].Amount, PersiDavvero);
+	// 🔑 **La proprieta' che [D-438] promette: la somma delle voci e' il danno reale.** E' quella che il
+	// giocatore usa senza saperlo — legge due righe e le somma — e quella che il difetto rompeva: prima
+	// dava il DOPPIO.
+	TestEqual(TEXT("🔑 la somma delle due voci e' cio' che gli HP hanno perso"),
+		Colpi[0].Amount + Colpi[1].Amount, PersiDavvero);
 
-	// ⚠️ **E la somma delle due voci vale il DOPPIO di quanto il bersaglio ha perso.** E' la forma piu'
-	// netta del difetto: chi somma il feed per ricostruire il danno subito ottiene un numero che non e'
-	// mai esistito.
-	TestEqual(TEXT("⚠️ la somma delle voci e' il doppio del danno reale"),
-		Colpi[0].Amount + Colpi[1].Amount, PersiDavvero * 2);
+	// ⛔ E nessuna delle due dichiara il totale: e' l'asserzione che distingue la ripartizione dal
+	// comportamento precedente, dove entrambe lo dichiaravano.
+	TestTrue(TEXT("⛔ la prima voce NON vale l'intera fase"), Colpi[0].Amount < PersiDavvero);
+	TestTrue(TEXT("⛔ e nemmeno la seconda"), Colpi[1].Amount < PersiDavvero);
+	TestTrue(TEXT("⛔ entrambe portano un danno proprio, non zero"),
+		Colpi[0].Amount > 0 && Colpi[1].Amount > 0);
+
+	// ⚠️ `Outcome` segue la STESSA ripartizione, letta come progressione: il bersaglio sopravvive, quindi
+	// nessuna delle due voci e' `Lethal`. Il caso in cui muore lo misura
+	// `HexMatch.TwoAttackersMarkOneLethalEntry`, che e' dove la lettura di fase sbagliava piu' forte.
+	TestTrue(TEXT("⚠️ il bersaglio e' vivo: nessuna voce e' Lethal"),
+		Colpi[0].Outcome != static_cast<uint8>(ERTCombatOutcome::Lethal)
+		&& Colpi[1].Outcome != static_cast<uint8>(ERTCombatOutcome::Lethal));
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * DUE attaccanti che UCCIDONO: una sola voce e' `Lethal` — `#3271`, regola [D-438].
+ *
+ * 🔑 **E' il caso in cui la lettura di FASE sbagliava piu' forte.** `ClassifyCombatOutcome(BeforeHP,
+ * AfterHP)` sulle fotografie dell'intero Blast rispondeva `Lethal` per OGNI colpo della fase: il feed
+ * dichiarava due uccisioni dove ce n'e' una, e il secondo attaccante si vedeva attribuire un colpo
+ * mortale che non ha inferto.
+ *
+ * ⚠️ **La progressione non e' una seconda regola**: e' la ripartizione di [D-438] letta un'altra volta,
+ * colpo dopo colpo. ∴ `Lethal` cade dove la quota cumulativa azzera gli HP — l'ultimo colpo sul
+ * bersaglio — che e' anche la sola attribuzione che il codice puo' fare senza inventare: il commento di
+ * `Defeated` rifiuta esplicitamente di nominare «chi ha inferto il colpo finale» per l'EVENTO di
+ * eliminazione, e questo non lo contraddice, perche' qui la progressione e' dichiarata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTwoAttackersLethalEntryTest,
+	"RefactorTactics.HexMatch.TwoAttackersMarkOneLethalEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTwoAttackersLethalEntryTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnHexMatchMap(World, /*Radius=*/ 5);
+
+	ARTUnit* PrimoA   = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* SecondoA = SpawnHexMatchUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(2, 0));
+	ARTUnit* Bersaglio = SpawnHexMatchUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !PrimoA || !SecondoA || !Bersaglio) { DestroyHexMatchWorld(World); return false; }
+	PrimoA->bIsBotControlled = false;
+	SecondoA->bIsBotControlled = false;
+	Bersaglio->bIsBotControlled = false;
+
+	// Vita bassa quanto basta perche' i due colpi insieme la esauriscano: e' la scena che discrimina.
+	Bersaglio->Health = 20;
+
+	PrimoA->PlannedAbilityIndex = 0;
+	PrimoA->DeclareAttackOnUnit(Bersaglio);
+	SecondoA->PlannedAbilityIndex = 0;
+	SecondoA->DeclareAttackOnUnit(Bersaglio);
+	Bersaglio->ClearPlannedAttack();
+
+	const int32 VitaPrima = Bersaglio->Health;
+	RTWorldFixtures::PlayOneTurn(TM);
+
+	TArray<FRTTurnLogEntry> Colpi;
+	for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+	{
+		if (E.Category == ERTLogCategory::Combat && E.TgtCell == FRTCellId(1, 0)) { Colpi.Add(E); }
+	}
+	if (!TestEqual(TEXT("⛔ premessa: DUE colpi sullo stesso bersaglio"), Colpi.Num(), 2))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+	const int32 VitaDopo = IsValid(Bersaglio) ? Bersaglio->Health : 0;
+	if (!TestTrue(TEXT("⛔ premessa: il bersaglio e' caduto"), VitaDopo <= 0))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	// --- IL CONTRATTO ---------------------------------------------------------------------------------
+	int32 Letali = 0;
+	for (const FRTTurnLogEntry& E : Colpi)
+	{
+		if (E.Outcome == static_cast<uint8>(ERTCombatOutcome::Lethal)) { ++Letali; }
+	}
+	TestEqual(TEXT("🔑 UNA sola voce e' Lethal, non entrambe"), Letali, 1);
+
+	// ⚠️ Ed e' la SECONDA: la prima quota non basta ad azzerare, la seconda si'. Asserirlo tiene la
+	// progressione, che e' cio' che distingue questa lettura da quella di fase.
+	TestEqual(TEXT("⚠️ la voce letale e' l'ultimo colpo sul bersaglio"),
+		Colpi[1].Outcome, static_cast<uint8>(ERTCombatOutcome::Lethal));
+
+	// La somma resta il danno reale anche quando il bersaglio cade — la proprieta' non ha eccezioni.
+	TestEqual(TEXT("🔑 la somma delle quote e' cio' che gli HP hanno perso"),
+		Colpi[0].Amount + Colpi[1].Amount, VitaPrima - VitaDopo);
 
 	DestroyHexMatchWorld(World);
 	return true;
