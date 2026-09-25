@@ -1,4 +1,5 @@
 #include "Map/RTHexMapAsset.h"
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapCustomVersion.h"
 // `ValidateMap` chiama le regole del grafo di interazione invece di riscriverle: `URTStructureIdentityLibrary`
@@ -1028,10 +1029,12 @@ TArray<FString> URTHexMapAsset::ValidateMap() const
 		}
 	}
 
-	// LE REGOLE DI TOPOLOGIA DI `#1832`, formattate in coda. Vivono in `ValidateMapDetailed` perche' i test
-	// devono poterle distinguere per **reason code** invece che per il testo del messaggio: un test che
-	// riconosce una regola dalla sua stringa si rompe alla prima riformulazione, e insegna a non toccare i
-	// messaggi — che e' il verso sbagliato in cui far pendere un validator che chi disegna deve leggere.
+	// LE REGOLE TIPIZZATE, formattate in coda. Nate con la topologia per-cella di `#1832`, e da `#1869` non
+	// piu' solo per-cella: `StairSkipsLayer` nasce dal ciclo sulle transizioni. Vivono in
+	// `ValidateMapDetailed` perche' i test devono poterle distinguere per **reason code** invece che per il
+	// testo del messaggio: un test che riconosce una regola dalla sua stringa si rompe alla prima
+	// riformulazione, e insegna a non toccare i messaggi — che e' il verso sbagliato in cui far pendere un
+	// validator che chi disegna deve leggere.
 	{
 		TArray<FRTMapValidationIssue> Topology;
 		ValidateMapDetailed(Topology);
@@ -1325,6 +1328,30 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 				*Atterraggio.ToString());
 			OutIssues.Add(Issue);
 		}
+	}
+
+
+	// REGOLA 7 — una SCALA che salta un piano (`#1869`).
+	//
+	// ⚠️ **E' la prima regola di questa funzione che non e' per-cella**: le precedenti nascono tutte dal
+	// ciclo sulle celle, questa dal ciclo sulle transizioni. Sta qui e non fra le righe testuali di `ValidateMap`
+	// per la ragione dichiarata sull'enum: *«una regola NUOVA nasce con il suo codice»* — un test che la
+	// riconoscesse dalla stringa si romperebbe alla prima riformulazione del messaggio. Ed e' anche cio' che
+	// la porta sotto il gate di non-regressione delle mappe versionate, che legge da qui.
+	for (const FRTHexEdge& Arc : Transitions)
+	{
+		if (URTHexArcLibrary::IsTransitionLayerSpanLegal(Arc.From, Arc.To, Arc.Kind))
+		{
+			continue;
+		}
+		FRTMapValidationIssue Issue;
+		Issue.Reason = ERTMapValidationReason::StairSkipsLayer;
+		Issue.Cell = Arc.From; // l'ORIGINE dell'arco, non l'estremo basso: vedi il reason code
+		Issue.bIsError = true;
+		Issue.Message = FString::Printf(
+			TEXT("scala che salta %d layer %s -> %s: in v0.1 una scala collega solo layer adiacenti (MAP-5)"),
+			URTHexArcLibrary::TransitionLayerSpan(Arc.From, Arc.To), *Arc.From.ToString(), *Arc.To.ToString());
+		OutIssues.Add(Issue);
 	}
 
 	// ORDINE CANONICO. Non si eredita da `Cells`, il cui ordine lo decide chi edita l'asset: due asset che

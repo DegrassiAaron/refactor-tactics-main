@@ -190,6 +190,44 @@ I simboli: `FRTGeometrySegment` (l'authority), `ERTTacticalAxis`, `ERTGeometryVi
 `URTGeometryGrammarLibrary` in `Source/RefactorTactics/Map/RTGeometryGrammar.h`. Lo stato di avanzamento
 vive nel `feature-registry.yaml` e nelle issue, non qui — §1.
 
+#### 3.3.1 I due strati, applicati: una scala collega solo layer adiacenti — `#1869`, `MAP-5`
+
+La regola di verticalità della `v0.1` è la prima istanza completa dei due strati fuori dalla grammatica dei
+segmenti, e si legge come esempio di come si scrive una regola **destinata a cambiare**.
+
+| Strato | Dove | Cosa fa |
+|---|---|---|
+| **Rifiuta** | `URTHexArchTool::CommitArch` | il gesto non scrive l'arco, e il log nomina i **due layer** e il salto — non *«non valido»* |
+| **Segnala** | `URTHexMapAsset::ValidateMapDetailed`, reason code `ERTMapValidationReason::StairSkipsLayer` | una `L0 ↔ L2` già presente — asset di versione precedente, o dato ricostruito — è dichiarata e **non blocca il caricamento** |
+
+Il predicato è **uno solo**, `URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind)`: puro, senza
+mappa, chiamato da entrambi. Due stesure della stessa soglia divergerebbero, e divergerebbero in silenzio.
+
+> 🔴 **È illegale il *salto*, non la coincidenza.** La issue scrive la regola come `|ΔLayer| == 1`, che
+> vieterebbe anche lo span **zero**. Ma `FRTHexEdge::Kind` vale `Stair` per **default**: ogni transizione
+> scritta senza scegliere un tipo *è* una scala, comprese quelle sullo stesso piano. Misurato —
+> `RefactorTactics.Map.Dependency.CellTakesTransitionsCitingIt` costruisce tre archi tutti su `L0` e
+> asserisce zero segnalazioni. ∴ la soglia implementata è `>= 2`, che è ciò che ogni frase in prosa della
+> issue descrive (*«nessuna regola vieta `L0 ↔ L2`»*, *«scala che salta un layer»*).
+
+⚠️ **La regola vincola `Stair` e nessun altro `Kind`**: `Ramp`, `Bridge`, `Tunnel`, `Elevator` e `Jump`
+attraversano qualunque numero di piani. È lo scope della `v0.1`, dichiarato e non dimenticato — ma l'uscita
+anticipata li assorbe in **silenzio**, ed è il motivo per cui la scadenza non è un commento.
+
+> 🔑 **Come si scrive la scadenza di una regola, in questo repository.** Un commento che nomina un evento
+> futuro è *«un `if` senza data»* con più parole: nessun gate lo rilegge, e nessuno lo trova il giorno in cui
+> serve. La forma che regge ha **due** pezzi:
+>
+> 1. la **domanda aperta** nel registro — `MAP-5` in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md), con
+>    innesco *«la prima issue che autora un `Ramp` o un `Elevator` su più di un piano»*;
+> 2. un **innesco meccanico** che non può invecchiare in silenzio — `RefactorTactics.HexMap.StairLayerAdjacencyRule`
+>    pinna la grammatica di `ERTHexTransitionKind` **per nome** e diventa rosso al settimo valore, mandando a
+>    decidere `MAP-5` invece di lasciar estendere per abitudine. È la forma di `Equipment.SplitHasNoConsumerYet`.
+
+⚠️ **E questa è la prima regola che appoggia una validazione su `ERTHexTransitionKind`**, che `RTHexCellData.h`
+documenta come *«informativo: non altera il pathfinding, che usa solo `Cost`»*. Quel campo acquista qui il suo
+primo carico semantico: chi lo legge come decorativo troverà un valore che rifiuta gesti.
+
 ---
 
 ### 3.4 Le regole che riguardano **due** segmenti — `D-288`

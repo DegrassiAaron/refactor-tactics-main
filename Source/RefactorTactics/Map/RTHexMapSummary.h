@@ -111,7 +111,7 @@ public:
 	 * lavoro di natura diversa e di costo diverso. Infilarlo dentro `Summarise` avrebbe cambiato la
 	 * semantica di una funzione che dichiara di *«leggere l'asset»*, e reso costoso ogni suo chiamante.
 	 *
-	 * ⚠️ **Chiama `ValidateMap()`, non `ValidateMapDetailed()`, e la differenza e' un fattore sei.**
+	 * ⚠️ **Chiama `ValidateMap()`, non `ValidateMapDetailed()`, e la seconda e' un SOTTOINSIEME della prima.**
 	 * `ValidateMap` porta ventitre `Error:` e tre `Warning:` propri **e in coda chiama l'altra**,
 	 * formattandone le voci: e' il superset. Un readout costruito su `ValidateMapDetailed` direbbe
 	 * «nessuna segnalazione» su una mappa che `ValidateMap` dichiara in errore.

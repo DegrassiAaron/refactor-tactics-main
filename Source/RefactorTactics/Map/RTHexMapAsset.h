@@ -241,7 +241,42 @@ enum class ERTMapValidationReason : uint8
 	 * sul bordo che scarica li' e' una scelta d'autore, e sceglierla qui sarebbe la seconda autorita' che
 	 * `AGENTS.md` §3 vieta.
 	 */
-	IsolatedLanding
+	IsolatedLanding,
+
+	/**
+	 * REGOLA 7 — una transizione di `Kind == Stair` i cui estremi distano **due o piu' layer** (`#1869`).
+	 * In `v0.1` una scala collega solo piani adiacenti: una `L0 <-> L2` e' un passaggio che il grafo offre e
+	 * che il vocabolario della v0.1 non sa esprimere.
+	 *
+	 * 🔑 **Errore e non warning, e il precedente che lo detta e' il fratello nello stesso ciclo** — `arco con
+	 * integrita' ancora attivo`, il cui commento dice *«il grafo lo offrirebbe»*. E' identica: il grafo offre
+	 * cio' che il contenuto nega. Le due sole `Warning` di `ValidateMap` poggiano entrambe su *«inerte, non
+	 * cambia nessun esito»* — la copertura ridondante e il parapetto su un bordo connesso — e una scala
+	 * percorsa non e' inerte: `URTHexArcLibrary::IsArcTraversable` la offre, il pathfinding la cammina, e
+	 * `bConductsElectricity` le fa risalire l'elettricita'.
+	 *
+	 * ⚠️ **`Cell` porta l'ORIGINE dell'arco** (`From`), che non e' la stessa cosa dell'estremo basso: un
+	 * arco e' direzionale, e in discesa `From` e' la cima. Non c'e' una cella colpevole sola.
+	 *
+	 * 🔴 **Una scala bidirezionale si segnala DUE volte, una per verso, e va saputo prima di interrogare
+	 * per cella.** `AddTransition` scrive i due archi reciproci quando `bBidirectional` — che e' il default
+	 * di entrambe le superfici di authoring — quindi una `L0 <-> L2` autorata normalmente produce due voci,
+	 * ancorate ai due estremi. **Non e' un difetto ed e' deliberato**: ogni arco e' percorribile per conto
+	 * suo, e le altre regole delle transizioni si comportano identicamente (solo la `duplicata` emette una
+	 * volta sola, e ha un commento che lo dichiara perche' e' l'eccezione).
+	 * `RefactorTactics.HexMap.StairSkipIsSignalledOnBothVerses` lo pinna, cosi' chi un giorno volesse una
+	 * voce sola sappia che ne sta togliendo una invece di scoprirlo da un conteggio.
+	 *
+	 * 🔴 **E' la PRIMA regola che appoggia una validazione su `ERTHexTransitionKind`**, che `RTHexCellData.h`
+	 * documenta come *«informativo: non altera il pathfinding, che usa solo Cost»*. Quel campo acquista qui
+	 * il suo primo carico semantico: chi lo legge come decorativo trovera' un valore che rifiuta gesti.
+	 *
+	 * ⛔ **La soglia e' `v0.1` e la sua revisione e' una domanda aperta, non un ricordo**: `MAP-5` in
+	 * `docs/OPEN_DECISIONS.md` — *«una rampa o un ascensore possono saltare un piano, e la scala no?»* — con
+	 * innesco la prima issue che autora un `Ramp` o un `Elevator` su piu' di un piano. Il predicato e
+	 * l'innesco meccanico che lo pinna stanno in `URTHexArcLibrary::IsTransitionLayerSpanLegal`.
+	 */
+	StairSkipsLayer
 };
 
 /**

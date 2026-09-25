@@ -134,3 +134,28 @@ TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTC
 	Map->UpdateTransitions(Updated);
 	return Changes;
 }
+
+int32 URTHexArcLibrary::TransitionLayerSpan(const FRTCellId& From, const FRTCellId& To)
+{
+	// ⚠️ **Il conto si fa in `int64`, e non e' pedanteria: in `int32` il verdetto si INVERTE ai limiti.**
+	// `FRTCellId::Layer` e' `int32` e `FMath::Abs` e' `(A < 0) ? -A : A`, ma l'opposto di `MIN_int32` non e'
+	// rappresentabile — quindi `Abs` di quel valore resta **negativo**, e il `<= 1` che decide la legalita'
+	// dichiarerebbe **legale** il salto piu' grande possibile, con entrambi gli strati zitti. Nessun piano
+	// reale ci arriva; cio' che conta e' che il predicato non risponda il CONTRARIO dove smette di contare.
+	const int64 Span = FMath::Abs(static_cast<int64>(To.Layer) - static_cast<int64>(From.Layer));
+	return static_cast<int32>(FMath::Min<int64>(Span, MAX_int32));
+}
+
+bool URTHexArcLibrary::IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,
+	ERTHexTransitionKind Kind)
+{
+	// v0.1: solo la scala e' vincolata. La domanda aperta e' `MAP-5`, e l'innesco che la fa riaprire e'
+	// il test che pinna la grammatica dell'enum — non questo commento. Il perche' sta nell'header.
+	if (Kind != ERTHexTransitionKind::Stair)
+	{
+		return true;
+	}
+	// `<= 1` e non `== 1`: lo span zero e' legale perche' `Stair` e' il `Kind` di DEFAULT — vietarlo
+	// renderebbe illegale ogni transizione scritta senza scegliere un tipo. Il difetto e' il salto.
+	return TransitionLayerSpan(From, To) <= 1;
+}

@@ -3,6 +3,7 @@
 #include "InteractiveToolManager.h"
 #include "ToolContextInterfaces.h"
 #include "PrimitiveDrawingUtils.h" // FPrimitiveDrawInterface / SDPG_*
+#include "Map/RTHexArcLibrary.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTHexLibrary.h"
@@ -240,8 +241,22 @@ void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransfo
 	const FVector W = InTransform.GetLocation();
 	const FRTCellId Cell = URTHexLibrary::WorldToCellId(W, Origin, HexSize, LayerH);
 	To = Cell;
-	// Valido solo se distinto da From e se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto).
-	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);
+	// Valido se distinto da From, se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto) e
+	// se la transizione e' LEGALE — l'adiacenza di layer di #1869.
+	//
+	// 🔴 **La legalita' entra QUI perche' senza di essa questo readout mentiva.** `bToValid` e' l'unico
+	// segnale che dice «Commit scrivera'»: e' `VisibleAnywhere` nel pannello, e `Render` ci appende il
+	// marker blu di destinazione e la freccia bianca. Con il solo rifiuto dentro `CommitArch`, chi
+	// trascinava su un piano non adiacente vedeva freccia e marker — cioe' *«si fa»* — e poi premeva
+	// Commit senza che accadesse niente, tranne una riga nell'Output Log che nessuno guarda.
+	//
+	// ⚠️ **E il rifiuto in `CommitArch` NON diventa per questo ridondante**: questo flag si calcola quando
+	// il gizmo si muove, e il `Kind` lo si cambia nel pannello **senza muoverlo**. Trascinare su `L2` con
+	// `Bridge` (legale, freccia accesa) e poi scegliere `Stair` lascia `bToValid` vero e stantio: il gate
+	// al momento della scrittura e' l'unico che vede il `Kind` finale. Sono due momenti, non due copie.
+	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From)
+		&& URTHexArcLibrary::IsTransitionLayerSpanLegal(From, Cell,
+			Properties ? Properties->Kind : ERTHexTransitionKind::Stair);
 	ToWorld = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
 
 	// Ri-snap al centro della cella. Si scrive sul GIZMO, non sul proxy, e non e' una preferenza:
@@ -278,6 +293,27 @@ void URTHexArchTool::CommitArch()
 		return;
 	}
 	const ERTHexTransitionKind Kind = Properties ? Properties->Kind : ERTHexTransitionKind::Stair;
+
+	// ⛔ RIFIUTO AL GESTO (#1869): in v0.1 una scala collega solo layer adiacenti.
+	//
+	// 🔑 E' lo STESSO predicato che `ValidateMapDetailed` applica alla collezione, chiamato qui perche' i due
+	// strati sono due momenti: qui si impedisce di scriverla, la' si segnala quella che c'e' gia' — dentro un asset
+	// di versione precedente, o ricostruito. Uno non sostituisce l'altro.
+	//
+	// ⚠️ Si esce SENZA distruggere il gizmo pendente, come fa il rifiuto qui sopra: il gesto resta aperto e
+	// chi ha mirato il piano sbagliato trascina sul giusto, invece di ricominciare.
+	if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind))
+	{
+		// La diagnosi porta i DUE layer e il salto, non «non valido» (#1869, Debug/Logging). I layer
+		// viaggiano dentro `FRTCellId::ToString`, che stampa gia' `L=%d`: ripeterli sarebbe rumore.
+		UE_LOG(LogTemp, Warning,
+			TEXT("[HexMode] Arco RIFIUTATO: scala da %s a %s: salta %d layer. ")
+			TEXT("In v0.1 una scala collega solo layer adiacenti."),
+			*From.ToString(), *To.ToString(),
+			URTHexArcLibrary::TransitionLayerSpan(From, To));
+		return;
+	}
+
 	const int32 Cost = Properties ? Properties->Cost : 2;
 	const bool bBidir = Properties ? Properties->bBidirectional : true;
 	TargetActor->AddTransitionData(From, To, Cost, Kind, bBidir);
