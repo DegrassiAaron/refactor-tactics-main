@@ -255,9 +255,17 @@ enum class ERTMapValidationReason : uint8
 	 * percorsa non e' inerte: `URTHexArcLibrary::IsArcTraversable` la offre, il pathfinding la cammina, e
 	 * `bConductsElectricity` le fa risalire l'elettricita'.
 	 *
-	 * ⚠️ **`Cell` porta l'estremo BASSO** (`From`), che e' la cella su cui si sta per prendere la scala. Non
-	 * e' l'unica scelta possibile — un arco non ha una cella colpevole sola — ed e' dichiarata qui perche'
-	 * chi interroga le segnalazioni per cella trova la scala sul suo piede, non sulla sua cima.
+	 * ⚠️ **`Cell` porta l'ORIGINE dell'arco** (`From`), che non e' la stessa cosa dell'estremo basso: un
+	 * arco e' direzionale, e in discesa `From` e' la cima. Non c'e' una cella colpevole sola.
+	 *
+	 * 🔴 **Una scala bidirezionale si segnala DUE volte, una per verso, e va saputo prima di interrogare
+	 * per cella.** `AddTransition` scrive i due archi reciproci quando `bBidirectional` — che e' il default
+	 * di entrambe le superfici di authoring — quindi una `L0 <-> L2` autorata normalmente produce due voci,
+	 * ancorate ai due estremi. **Non e' un difetto ed e' deliberato**: ogni arco e' percorribile per conto
+	 * suo, e le altre regole delle transizioni si comportano identicamente (solo la `duplicata` emette una
+	 * volta sola, e ha un commento che lo dichiara perche' e' l'eccezione).
+	 * `RefactorTactics.HexMap.StairSkipIsSignalledOnBothVerses` lo pinna, cosi' chi un giorno volesse una
+	 * voce sola sappia che ne sta togliendo una invece di scoprirlo da un conteggio.
 	 *
 	 * 🔴 **E' la PRIMA regola che appoggia una validazione su `ERTHexTransitionKind`**, che `RTHexCellData.h`
 	 * documenta come *«informativo: non altera il pathfinding, che usa solo Cost»*. Quel campo acquista qui

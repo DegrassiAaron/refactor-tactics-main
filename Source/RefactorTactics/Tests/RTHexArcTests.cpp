@@ -559,4 +559,83 @@ bool FRTStairLayerSkipValidationTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * UNA SCALA AUTORATA NORMALMENTE E' BIDIREZIONALE, e si segnala DUE volte — una per verso (#1869).
+ *
+ * 🔴 **Il difetto che questo test chiude e' nel mio stesso lavoro, trovato in code review.** Il primo test
+ * della regola costruiva l'arco con `Transitions.Add`, cioe' UN verso solo, e asseriva «una voce sola». Ma
+ * `bBidirectional` vale `true` per default in entrambe le superfici di authoring, e `AddTransition` scrive
+ * i due archi reciproci: il percorso che una persona percorre davvero non era coperto, e il commento del
+ * reason code dichiarava che `Cell` portasse «l'estremo basso» — falso per il secondo arco, dove `From` e'
+ * la cima.
+ *
+ * ⚠️ **Due voci non sono un difetto, ed e' la ragione per cui questo test le PINNA invece di toglierle**:
+ * ogni arco e' percorribile per conto suo, e tutte le altre regole delle transizioni si comportano
+ * identicamente — la sola `duplicata` emette una volta per coppia, e ha un commento che lo dichiara perche'
+ * e' l'eccezione. Chi un giorno volesse una voce sola vedra' cadere questo, e sapra' che sta togliendo
+ * un'informazione invece di scoprirlo da un conteggio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStairSkipBothVersesTest,
+	"RefactorTactics.HexMap.StairSkipIsSignalledOnBothVerses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStairSkipBothVersesTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = NewObject<URTHexMapAsset>();
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 1)));
+	M->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 2)));
+	M->SortCells();
+
+	// 🔑 `AddTransition` e non `Transitions.Add`: e' cio' che chiama il tool, col suo default.
+	M->AddTransition(FRTCellId(0, 0, 0), FRTCellId(0, 0, 2), /*Cost*/ 2,
+		ERTHexTransitionKind::Stair, /*bBidirectional*/ true);
+	if (!TestEqual(TEXT("una scala bidirezionale sono DUE archi"), M->Transitions.Num(), 2))
+	{
+		return false;
+	}
+
+	TArray<FRTMapValidationIssue> Tutte;
+	M->ValidateMapDetailed(Tutte);
+	const TArray<FRTMapValidationIssue> Salti = Tutte.FilterByPredicate([](const FRTMapValidationIssue& I)
+	{
+		return I.Reason == ERTMapValidationReason::StairSkipsLayer;
+	});
+
+	if (!TestEqual(TEXT("e producono DUE segnalazioni, una per verso"), Salti.Num(), 2))
+	{
+		return false;
+	}
+
+	// ⚠️ Le due voci sono ancorate ai due estremi, NON entrambe al piede: e' il punto che il commento del
+	// reason code sbagliava. Si asserisce l'INSIEME delle celle, non l'ordine — quello lo decide
+	// l'ordinamento canonico, ed e' gia' pinnato altrove.
+	const bool bHaIlBasso = Salti.ContainsByPredicate([](const FRTMapValidationIssue& I)
+	{
+		return I.Cell == FRTCellId(0, 0, 0);
+	});
+	const bool bHaLaCima = Salti.ContainsByPredicate([](const FRTMapValidationIssue& I)
+	{
+		return I.Cell == FRTCellId(0, 0, 2);
+	});
+	TestTrue(TEXT("una voce e' ancorata all'estremo basso"), bHaIlBasso);
+	TestTrue(TEXT("e l'altra alla cima: `Cell` e' l'ORIGINE dell'arco, non il piede della scala"), bHaLaCima);
+
+	// ⛔ CONTROPROVA: una scala bidirezionale fra piani ADIACENTI non produce niente, in nessuno dei due
+	// versi. Senza questa, una regola che segnalasse ogni coppia bidirezionale passerebbe il test.
+	URTHexMapAsset* Legale = NewObject<URTHexMapAsset>();
+	Legale->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 0)));
+	Legale->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 0, 1)));
+	Legale->SortCells();
+	Legale->AddTransition(FRTCellId(0, 0, 0), FRTCellId(0, 0, 1), /*Cost*/ 2,
+		ERTHexTransitionKind::Stair, /*bBidirectional*/ true);
+	TArray<FRTMapValidationIssue> Pulite;
+	Legale->ValidateMapDetailed(Pulite);
+	TestEqual(TEXT("due archi legali non producono nessuna segnalazione del salto"),
+		Pulite.FilterByPredicate([](const FRTMapValidationIssue& I)
+		{
+			return I.Reason == ERTMapValidationReason::StairSkipsLayer;
+		}).Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

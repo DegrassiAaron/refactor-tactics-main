@@ -241,8 +241,22 @@ void URTHexArchTool::OnGizmoMoved(UTransformProxy* InProxy, FTransform InTransfo
 	const FVector W = InTransform.GetLocation();
 	const FRTCellId Cell = URTHexLibrary::WorldToCellId(W, Origin, HexSize, LayerH);
 	To = Cell;
-	// Valido solo se distinto da From e se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto).
-	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From);
+	// Valido se distinto da From, se ENTRAMBE le celle esistono (Commit scriverebbe altrimenti a vuoto) e
+	// se la transizione e' LEGALE — l'adiacenza di layer di #1869.
+	//
+	// 🔴 **La legalita' entra QUI perche' senza di essa questo readout mentiva.** `bToValid` e' l'unico
+	// segnale che dice «Commit scrivera'»: e' `VisibleAnywhere` nel pannello, e `Render` ci appende il
+	// marker blu di destinazione e la freccia bianca. Con il solo rifiuto dentro `CommitArch`, chi
+	// trascinava su un piano non adiacente vedeva freccia e marker — cioe' *«si fa»* — e poi premeva
+	// Commit senza che accadesse niente, tranne una riga nell'Output Log che nessuno guarda.
+	//
+	// ⚠️ **E il rifiuto in `CommitArch` NON diventa per questo ridondante**: questo flag si calcola quando
+	// il gizmo si muove, e il `Kind` lo si cambia nel pannello **senza muoverlo**. Trascinare su `L2` con
+	// `Bridge` (legale, freccia accesa) e poi scegliere `Stair` lascia `bToValid` vero e stantio: il gate
+	// al momento della scrittura e' l'unico che vede il `Kind` finale. Sono due momenti, non due copie.
+	bToValid = (Cell != From) && Map && Map->ContainsCell(Cell) && Map->ContainsCell(From)
+		&& URTHexArcLibrary::IsTransitionLayerSpanLegal(From, Cell,
+			Properties ? Properties->Kind : ERTHexTransitionKind::Stair);
 	ToWorld = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
 
 	// Ri-snap al centro della cella. Si scrive sul GIZMO, non sul proxy, e non e' una preferenza:

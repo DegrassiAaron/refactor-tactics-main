@@ -137,7 +137,13 @@ TArray<FRTArcChange> URTHexArcLibrary::DamageArc(URTHexMapAsset* Map, const FRTC
 
 int32 URTHexArcLibrary::TransitionLayerSpan(const FRTCellId& From, const FRTCellId& To)
 {
-	return FMath::Abs(To.Layer - From.Layer);
+	// ⚠️ **Il conto si fa in `int64`, e non e' pedanteria: in `int32` il verdetto si INVERTE ai limiti.**
+	// `FRTCellId::Layer` e' `int32` e `FMath::Abs` e' `(A < 0) ? -A : A`, ma l'opposto di `MIN_int32` non e'
+	// rappresentabile — quindi `Abs` di quel valore resta **negativo**, e il `<= 1` che decide la legalita'
+	// dichiarerebbe **legale** il salto piu' grande possibile, con entrambi gli strati zitti. Nessun piano
+	// reale ci arriva; cio' che conta e' che il predicato non risponda il CONTRARIO dove smette di contare.
+	const int64 Span = FMath::Abs(static_cast<int64>(To.Layer) - static_cast<int64>(From.Layer));
+	return static_cast<int32>(FMath::Min<int64>(Span, MAX_int32));
 }
 
 bool URTHexArcLibrary::IsTransitionLayerSpanLegal(const FRTCellId& From, const FRTCellId& To,

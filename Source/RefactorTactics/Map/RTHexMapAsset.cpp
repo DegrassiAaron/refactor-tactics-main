@@ -1333,8 +1333,8 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 
 	// REGOLA 7 — una SCALA che salta un piano (`#1869`).
 	//
-	// ⚠️ **E' la prima regola di questa funzione che non e' per-cella**: le sei precedenti nascono dal ciclo
-	// sulle celle, questa dal ciclo sulle transizioni. Sta qui e non fra le righe testuali di `ValidateMap`
+	// ⚠️ **E' la prima regola di questa funzione che non e' per-cella**: le precedenti nascono tutte dal
+	// ciclo sulle celle, questa dal ciclo sulle transizioni. Sta qui e non fra le righe testuali di `ValidateMap`
 	// per la ragione dichiarata sull'enum: *«una regola NUOVA nasce con il suo codice»* — un test che la
 	// riconoscesse dalla stringa si romperebbe alla prima riformulazione del messaggio. Ed e' anche cio' che
 	// la porta sotto il gate di non-regressione delle mappe versionate, che legge da qui.
@@ -1346,7 +1346,7 @@ void URTHexMapAsset::ValidateMapDetailed(TArray<FRTMapValidationIssue>& OutIssue
 		}
 		FRTMapValidationIssue Issue;
 		Issue.Reason = ERTMapValidationReason::StairSkipsLayer;
-		Issue.Cell = Arc.From; // l'estremo BASSO: la cella da cui si prende la scala
+		Issue.Cell = Arc.From; // l'ORIGINE dell'arco, non l'estremo basso: vedi il reason code
 		Issue.bIsError = true;
 		Issue.Message = FString::Printf(
 			TEXT("scala che salta %d layer %s -> %s: in v0.1 una scala collega solo layer adiacenti (MAP-5)"),
