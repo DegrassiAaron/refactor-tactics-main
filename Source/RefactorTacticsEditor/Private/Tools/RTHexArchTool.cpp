@@ -290,12 +290,12 @@ void URTHexArchTool::CommitArch()
 	// chi ha mirato il piano sbagliato trascina sul giusto, invece di ricominciare.
 	if (!URTHexArcLibrary::IsTransitionLayerSpanLegal(From, To, Kind))
 	{
-		// La diagnosi porta i DUE layer e il salto, non «non valido» (#1869, Debug/Logging): chi ha
-		// sbagliato deve leggere fra quali piani, e di quanto.
+		// La diagnosi porta i DUE layer e il salto, non «non valido» (#1869, Debug/Logging). I layer
+		// viaggiano dentro `FRTCellId::ToString`, che stampa gia' `L=%d`: ripeterli sarebbe rumore.
 		UE_LOG(LogTemp, Warning,
-			TEXT("[HexMode] Arco RIFIUTATO: scala da %s (layer %d) a %s (layer %d) salta %d layer. ")
+			TEXT("[HexMode] Arco RIFIUTATO: scala da %s a %s: salta %d layer. ")
 			TEXT("In v0.1 una scala collega solo layer adiacenti."),
-			*From.ToString(), From.Layer, *To.ToString(), To.Layer,
+			*From.ToString(), *To.ToString(),
 			URTHexArcLibrary::TransitionLayerSpan(From, To));
 		return;
 	}
