@@ -569,6 +569,13 @@ public:
 	 * `RefactorTactics.Hex.RotationFollowsTheDirectionOrder` lo ancora alla funzione invece che a una
 	 * tabella di letterali, cosi' il giorno in cui `AxialDirection` cambiasse cadrebbe li' invece di
 	 * lasciare due convenzioni che si somigliano.
+	 *
+	 * 🔑 **Il conto e' INTERAMENTE INTERO, ed e' cio' che rende vera l'AC «stessa origine, stesso angolo,
+	 * stessa maschera, sempre».** Nessun seno, nessun coseno, nessun arrotondamento: e' l'invariante di
+	 * determinismo n. 4 che `RTCellId.h` dichiara — *«Interi: nessun float nelle coordinate/hash»* — e
+	 * significa che la stessa rotazione da' lo stesso risultato su macchine e build diverse, non soltanto
+	 * due volte di seguito nello stesso processo. ⚠️ I float compaiono **solo nell'oracolo del test**
+	 * (`AxialToWorld`, `PointingSectorAt`), che e' il posto dove servono e l'unico dove non contano.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Hex")
 	static FRTCellId RotateOffsetAroundOrigin(const FRTCellId& Offset, int32 Steps);

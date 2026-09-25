@@ -1512,10 +1512,14 @@ bool FRTHexRotationAgreementTest::RunTest(const FString&)
 		}
 	}
 
-	// ⚠️ Anti-vacuita': se ogni offset finisse in dead-zone il ciclo non asserirebbe niente e il test
-	// sarebbe verde per assenza. Il conteggio lo dichiara.
-	TestTrue(FString::Printf(TEXT("il confronto e' avvenuto davvero (%d coppie)"), Confrontate),
-		Confrontate >= 6 * 6);
+	// ⚠️ **Anti-vacuita', e la soglia e' un'UGUAGLIANZA e non un minimo.** Se un offset finisse in
+	// dead-zone il `continue` lo salterebbe in silenzio e il test resterebbe verde su meno prove di quante
+	// ne dichiara. Una soglia larga — `>= 36`, com'era nella prima stesura — avrebbe lasciato passare nove
+	// offset saltati su quindici: abbastanza da nascondere un intero anello di prova. L'atteso si calcola
+	// dai dati invece di essere scritto, cosi' aggiungere un offset alla lista non richiede di ricordarsi
+	// di aggiornare un numero.
+	TestEqual(TEXT("ogni offset di prova e' stato confrontato su tutti e sei i passi"),
+		Confrontate, Prove.Num() * 6);
 	return true;
 }
 
