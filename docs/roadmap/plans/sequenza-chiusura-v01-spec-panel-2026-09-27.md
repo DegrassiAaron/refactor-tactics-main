@@ -57,9 +57,9 @@ ne sono accorto.
 
 | Gate | Stato | Esecutore | Residuo reale |
 |---|---|---|---|
-| `G1` build dei tre target | 🔴 **ROSSA** | — (nuova issue, §6.3) | **4 `C4996`** in `RTMatchWidgetAssetTests.cpp`, su Editor **e** Game Development. Misurata oggi, §2.1 |
+| `G1` build dei tre target | 🔴 **ROSSA** | [#3369](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3369) | **4 `C4996`** in `RTMatchWidgetAssetTests.cpp`, su Editor **e** Game Development. Misurata oggi, §2.1 |
 | `G2` suite automation | 🟡 | nessuno dichiarato | le due metà non sono mai state misurate **sullo stesso candidate** |
-| `G7` niente float in costi | 🟡 | ⛔ **nessuno** | la *revisione dei data asset* non è mai stata fatta |
+| `G7` niente float in costi | 🟡 | [#3370](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3370) — aperta oggi; prima non ne aveva | la *revisione dei data asset* non è mai stata fatta |
 | `G10` esito terminale dichiarato | ⏳ | [#38](https://github.com/DegrassiAaron/refactor-tactics-main/issues/38) · riporto di `PIA-4` [#2619](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2619) | una partita 2v2 **non degenere** |
 | `G11` KPI registrati | ⏳ | [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) | vedi §2.3: **non** è tutto in coda alle sedute |
 | `G13` giocabile senza editor | 🟡 | [#2620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2620) (`PIA-5`) | `input funzionante` e `UI leggibile`: **percettivi**, nessun log li dà |
@@ -150,8 +150,8 @@ U2 → U3 → U4 → U5 ─────────→ U6 ─┘                
 #166 (CP 14.6) ──→ reazioni in partita ──→ #38 (G10) ────────────────┤
 #288 + #79/#1936 ────────────────────────→ #2601 (G16) ──────────────┤
 #2620 (PIA-5) ───────────────────────────→ G13 ──────────────────────┤
-nuova issue C4996 ───────────────────────→ G1 ───────────────────────┤
-nuova issue G7 · #2617 (PIA-2) → G14 ────────────────────────────────┘
+#3369 (C4996) ───────────────────────→ G1 ───────────────────────┤
+#3370 (G7) · #3371+#2617 → G14          ────────────────────────────────┘
 ```
 
 `U6` è il **collo di bottiglia strutturale**: sblocca sia `U16` sia `U19`. Il collo di bottiglia di
@@ -184,11 +184,11 @@ tre misure che `G11` consuma. È ⏳.
 
 | # | Lavoro | Perché adesso |
 |---|---|---|
-| 1A | **nuova issue `C4996`** (§6.3) | `G1` è rossa. Quattro letture in un file di test: correzione meccanica, e finché non atterra ogni build della release porta warning nuovi |
+| 1A | [#3369](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3369) — le quattro `C4996` | `G1` è rossa. Quattro letture in un file di test: correzione meccanica, e finché non atterra ogni build della release porta warning nuovi |
 | 1B | [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) CP 14.6 `P0` | l'unico `P0` vivo di `E14`. Sblocca la clausola di non-degenerazione di `G10`. I tre blocchi del suo vecchio riquadro sono caduti |
 | 1C | [#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79) + [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) | insieme sono **una** delle cinque capability di `G16` — «Turn Log proiettato al giocatore» — e sono l'unico residuo di `#2601` oltre a Presentation |
 | 1D | le **quattro caselle redazionali** di [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) (§2.3) | non dipendono da nessuna seduta né dal candidate. Toglierle dalla coda accorcia `G11` |
-| 1E | **nuova issue `G7`** (§6.1) e **criterio di `G14`** (§6.2) | indipendenti da tutto il resto |
+| 1E | [#3370](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3370) (`G7`) e [#3371](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3371) (criterio di `G14`) | indipendenti da tutto il resto |
 
 `1A` va per prima fra queste: tocca lo stesso `Source/` che tutte le build successive misurano.
 
@@ -296,7 +296,7 @@ un controllo positivo; un criterio scritto vuole di essere eseguito **come scrit
 
 ## 6. Le issue da aprire
 
-### 6.1 `G7` — l'unico gate davvero senza esecutore
+### 6.1 `G7` — l'unico gate davvero senza esecutore → [#3370](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3370)
 
 ⚠️ **La misura che lo dimostra non è la full-text search** (§5.7). È la lettura delle due fonti che
 *possiedono* il legame gate→esecutore: il preambolo della tabella §3 del DoD e
@@ -329,7 +329,7 @@ controllo positivo sul metodo — `grep -ac` sul binario dà `RTHexMapAsset` →
 `RefactorTactics` → 2 (il metodo discrimina), `ZZNonEsiste` → 0. ∴ nessun asset versionato porta
 `RoundLimit`.
 
-### 6.2 `G14` — il criterio, non la revisione
+### 6.2 `G14` — il criterio, non la revisione → [#3371](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3371)
 
 L'issue non è «rileggere la documentazione»: è dare a `G14` asserzioni **falsificabili**, ciascuna col
 proprio comando e col proprio controllo positivo.
@@ -345,14 +345,14 @@ proprio comando e col proprio controllo positivo.
   che è un ritiro dichiarato. Un criterio che produce un falso positivo strutturale al primo giro è
   quello che viene disattivato al secondo: la riga barrata va esclusa esplicitamente.
 
-### 6.3 `C4996` — il rosso di `G1`
+### 6.3 `C4996` — il rosso di `G1` → [#3369](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3369)
 
 Correzione: `Slot->HorizontalAlignment` → `Slot->GetHorizontalAlignment()` (idem verticale), quattro
 occorrenze, tutte letture. ⚠️ Per la regola di indipendenza della misura, **correzione e verdetto sono
 due momenti**: si corregge, si dichiara il commit, si rimisurano i tre target su quello — e la
 rimisurazione dell'Editor **non deve essere incrementale** (§2.1).
 
-### 6.4 Forma delle tre issue
+### 6.4 Forma delle tre issue — come sono state aperte
 
 Milestone `v0.1 — Offline Vertical Slice`; etichette `v0.1` + `P0` (`G1`, `G7`) e `v0.1` + `P1` (`G14`).
 ⚠️ Senza milestone ed etichette non compaiono nelle query che i loro consumatori usano.
