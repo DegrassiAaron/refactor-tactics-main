@@ -7,8 +7,11 @@
 #include "Unit/RTUnit.h"
 #include "Turn/RTTurnRules.h"
 #include "UObject/UnrealType.h"
+#include "UObject/UObjectIterator.h"
+#include "Engine/DataAsset.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Perception/RTVeilTransition.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -449,29 +452,398 @@ bool FRTCatalogMatchesAbilitiesTest::RunTest(const FString&)
 	return true;
 }
 
+// ---------------------------------------------------------------------------------------------------------
+// G7 — IL PERIMETRO DEI DATI DI GAMEPLAY, ENUMERATO INVECE CHE IMPLICITO (#3370)
+//
+// Fino a `#3370` l'invariante #4 era verificato su UNA struct, `FRTActionDef`, e ogni altra classe di dati
+// era fuori senza che nessuno l'avesse deciso. Questo blocco ribalta l'onere: il perimetro si SCOPRE per
+// reflection, ogni float che ci cade dentro va DICHIARATO, e una radice nuova non entra in silenzio.
+//
+// 🔑 **La domanda e' sulla FORMA del dato, non sul valore**, e la ragione e' in `#3370`: una `UPROPERTY
+// int32` non puo' ospitare `1.5` — l'editor tronca — quindi cercare valori frazionari in un campo intero e'
+// una ricerca che non si distingue da una che non guarda. La domanda ponibile e' *«esiste un campo in
+// virgola mobile, raggiungibile da un asset versionato, che alimenti un costo, una priorita', un danno o una
+// soglia?»*, e a quella risponde la reflection.
+//
+// ⛔ **Una macchina non sa dire se un float «alimenta un costo».** Percio' la regola implementata e' la sua
+// forma conservativa — *nessun float, in nessun punto del perimetro* — e ogni eccezione porta la ragione per
+// cui quel float NON e' un costo. Il giudizio umano sta scritto una volta, in `EccezioniVirgolaMobile`,
+// invece di essere rifatto a ogni lettura.
+// ---------------------------------------------------------------------------------------------------------
+namespace RTG7Perimetro
+{
+	/** Un campo trovato, con il tipo che lo dichiara. I nomi sono quelli della reflection, senza prefisso C++. */
+	struct FCampo
+	{
+		FString Tipo;
+		FString Campo;
+	};
+
+	/**
+	 * Un tipo appartiene al progetto? La scoperta guarda QUI e non nell'Engine, e non e' pigrizia:
+	 * `FLinearColor` ha quattro float e `FVector` tre, e nessuno dei due e' un posto dove un autore scrive
+	 * un costo. Scendervi produrrebbe un elenco di eccezioni lungo quanto l'Engine e vuoto di significato.
+	 */
+	static bool AppartieneAlProgetto(const UStruct* Tipo)
+	{
+		return Tipo != nullptr && Tipo->GetPathName().StartsWith(TEXT("/Script/RefactorTactics"));
+	}
+
+	/**
+	 * LE RADICI ATTESE: ogni `UDataAsset` dichiarato dai moduli del progetto, cioe' ogni classe che un
+	 * `.uasset` versionato puo' istanziare.
+	 *
+	 * ⛔ **Non e' una lista da consultare: e' una lista da CONFRONTARE.** Le radici si scoprono per
+	 * reflection e `GameplayDataPerimeterIsDeclared` pretende che i due insiemi coincidano — una classe di
+	 * dati nuova FA FALLIRE il test finche' qualcuno non la dichiara qui, che e' il criterio di `#3370`
+	 * *«una classe nuova che non vi compare fa fallire il test invece di essere saltata in silenzio»*.
+	 */
+	static const TCHAR* const RadiciAttese[] = {
+		TEXT("RTActionData"),
+		TEXT("RTEquipmentData"),
+		TEXT("RTHeroData"),
+		TEXT("RTHexMapAsset"),
+		TEXT("RTIconCatalogData"),
+		TEXT("RTMatchFormatData"),
+	};
+
+	/**
+	 * I FLOAT AMMESSI, uno per riga, con la ragione per cui non sono un costo.
+	 *
+	 * ⚠️ Una riga che non trova piu' il suo campo e' un ERRORE, non un'innocuita': un'eccezione stantia e'
+	 * un permesso che sopravvive al proprio soggetto, e il giorno in cui un campo omonimo ricomparisse
+	 * sarebbe gia' autorizzato.
+	 */
+	struct FEccezione
+	{
+		const TCHAR* Tipo;
+		const TCHAR* Campo;
+		const TCHAR* Ragione;
+	};
+	static const FEccezione EccezioniVirgolaMobile[] = {
+		{ TEXT("RTHexMapAsset"), TEXT("HexSize"),
+			TEXT("geometria: lato dell'esagono in unita' di mondo, alimenta la conversione cella->posizione") },
+		{ TEXT("RTHexMapAsset"), TEXT("LayerHeight"),
+			TEXT("geometria: altezza del piano in unita' di mondo, non entra in nessuna regola") },
+	};
+
+	/**
+	 * COPERTURA MINIMA: i tipi che la visita DEVE raggiungere.
+	 *
+	 * 🔴 Senza questo elenco il verde sarebbe ambiguo: una visita che si rompesse — un `TArray` rimosso, un
+	 * contenitore nuovo che lo srotolatore non conosce — ispezionerebbe meno e resterebbe verde lo stesso.
+	 * Qui il restringimento del perimetro diventa un fallimento con un nome.
+	 */
+	static const TCHAR* const DeveRaggiungere[] = {
+		TEXT("RTActionDef"),        // costi, priorita', range, cooldown
+		TEXT("RTAbilityVariant"),   // varianti di workbench
+		TEXT("RTActionEffectSpec"), // danni, cure, scudi, durate
+		TEXT("RTHexCellData"),      // MoveCost, OccupancySurcharge
+		TEXT("RTHexCover"),         // integrita' della copertura
+		TEXT("RTHexDoor"),
+		TEXT("RTHexEdge"),          // costo di transizione, integrita'
+		TEXT("RTCellId"),
+		TEXT("RTHexInteriorWall"),
+		TEXT("RTGeometrySegment"),
+		TEXT("RTAnchorRef"),
+		TEXT("RTNoWalkArea"),
+		TEXT("RTBoxVolume"),
+		TEXT("RTInteractionBinding"),
+		TEXT("RTIconDef"),
+	};
+
+	/** Srotola i contenitori fino alle proprieta' foglia: un `TArray<float>` nasconde un float, e va visto. */
+	static void Foglie(FProperty* Prop, TArray<FProperty*>& Out)
+	{
+		if (Prop == nullptr) { return; }
+		if (FArrayProperty* Arr = CastField<FArrayProperty>(Prop)) { Foglie(Arr->Inner, Out); return; }
+		if (FSetProperty* Set = CastField<FSetProperty>(Prop)) { Foglie(Set->ElementProp, Out); return; }
+		if (FMapProperty* Map = CastField<FMapProperty>(Prop))
+		{
+			Foglie(Map->KeyProp, Out);
+			Foglie(Map->ValueProp, Out);
+			return;
+		}
+		Out.Add(Prop);
+	}
+
+	/**
+	 * Visita transitiva del grafo delle `UPROPERTY` a partire da un tipo, raccogliendo i campi in virgola
+	 * mobile e i riferimenti a classe.
+	 *
+	 * ⚠️ **`ExcludeSuper` piu' risalita esplicita**, e non e' un dettaglio: iterando con `IncludeSuper` la
+	 * visita di un `UDataAsset` vedrebbe anche le proprieta' dell'Engine — fra cui `UDataAsset::NativeClass`,
+	 * che e' un riferimento a classe — e le attribuirebbe alla nostra radice. Qui si risale solo finche' il
+	 * padre appartiene al progetto.
+	 */
+	static void Attraversa(UStruct* Tipo, TArray<UStruct*>& Visitati, TArray<FCampo>& Virgola,
+		TArray<FCampo>& RiferimentiAClasse)
+	{
+		if (Tipo == nullptr || Visitati.Contains(Tipo)) { return; }
+		Visitati.Add(Tipo);
+
+		for (TFieldIterator<FProperty> It(Tipo, EFieldIteratorFlags::ExcludeSuper); It; ++It)
+		{
+			TArray<FProperty*> Leaves;
+			Foglie(*It, Leaves);
+			for (FProperty* Leaf : Leaves)
+			{
+				if (Leaf->IsA<FFloatProperty>() || Leaf->IsA<FDoubleProperty>())
+				{
+					Virgola.Add(FCampo{ Tipo->GetName(), It->GetName() });
+					continue;
+				}
+				if (CastField<FClassProperty>(Leaf) != nullptr || CastField<FSoftClassProperty>(Leaf) != nullptr)
+				{
+					RiferimentiAClasse.Add(FCampo{ Tipo->GetName(), It->GetName() });
+					continue;
+				}
+				if (FStructProperty* AsStruct = CastField<FStructProperty>(Leaf))
+				{
+					UScriptStruct* Inner = AsStruct->Struct;
+					if (AppartieneAlProgetto(Inner)) { Attraversa(Inner, Visitati, Virgola, RiferimentiAClasse); }
+					continue;
+				}
+				if (FObjectPropertyBase* AsObject = CastField<FObjectPropertyBase>(Leaf))
+				{
+					UClass* Target = AsObject->PropertyClass;
+					if (AppartieneAlProgetto(Target)) { Attraversa(Target, Visitati, Virgola, RiferimentiAClasse); }
+				}
+			}
+		}
+
+		if (UStruct* Padre = Tipo->GetSuperStruct())
+		{
+			if (AppartieneAlProgetto(Padre)) { Attraversa(Padre, Visitati, Virgola, RiferimentiAClasse); }
+		}
+	}
+
+	/** Le radici REALI, scoperte per reflection: ogni `UDataAsset` concreto dichiarato dai moduli. */
+	static void ScopriRadici(TArray<UClass*>& Out)
+	{
+		for (TObjectIterator<UClass> It; It; ++It)
+		{
+			UClass* Candidata = *It;
+			if (!AppartieneAlProgetto(Candidata)) { continue; }
+			if (!Candidata->IsChildOf(UDataAsset::StaticClass())) { continue; }
+			if (Candidata->HasAnyClassFlags(CLASS_Abstract)) { continue; }
+			Out.Add(Candidata);
+		}
+		Out.Sort([](const UClass& A, const UClass& B) { return A.GetName().Compare(B.GetName()) < 0; });
+	}
+
+	/** Il tipo e' stato raggiunto dalla visita? */
+	static bool Raggiunto(const TArray<UStruct*>& Visitati, const TCHAR* Nome)
+	{
+		return Visitati.ContainsByPredicate([Nome](const UStruct* T) { return T != nullptr && T->GetName() == Nome; });
+	}
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCatalogNoFloatTest,
 	"RefactorTactics.Catalog.NoFloatInIntegerFields",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTCatalogNoFloatTest::RunTest(const FString&)
 {
-	// Invariante #4 verificato per REFLECTION, non a occhio: se qualcuno aggiungesse un float a
-	// FRTActionDef (un moltiplicatore di danno, un costo frazionario) il test lo scopre subito.
-	const UScriptStruct* Struct = FRTActionDef::StaticStruct();
-	if (!TestNotNull(TEXT("FRTActionDef e' una USTRUCT riflessa"), Struct)) { return false; }
+	using namespace RTG7Perimetro;
 
-	int32 FloatFields = 0;
-	int32 Inspected = 0;
-	for (TFieldIterator<FProperty> It(Struct); It; ++It)
+	// CONTROLLO POSITIVO DEL RILEVATORE — `#3370`: un verde deve poter essere rosso.
+	// `FRTVeilTransitionParams` porta tre float di TEMPO (apertura, chiusura, epsilon di arrivo): sta fuori
+	// dal perimetro per costruzione — nessun asset versionato lo istanzia e nessuna regola lo legge — ed e'
+	// per questo che serve qui. Se questa riga cadesse, la visita non vede piu' i float e ogni verde sotto
+	// sarebbe vacuo.
 	{
-		++Inspected;
-		if (It->IsA<FFloatProperty>() || It->IsA<FDoubleProperty>())
+		TArray<UStruct*> Prova;
+		TArray<FCampo> ProvaVirgola;
+		TArray<FCampo> ProvaClassi;
+		Attraversa(FRTVeilTransitionParams::StaticStruct(), Prova, ProvaVirgola, ProvaClassi);
+		TestTrue(TEXT("controllo positivo: il rilevatore vede i float dove ci sono (FRTVeilTransitionParams)"),
+			ProvaVirgola.Num() > 0);
+	}
+
+	TArray<UClass*> Radici;
+	ScopriRadici(Radici);
+	if (!TestTrue(TEXT("la reflection trova almeno una classe di dati del progetto"), Radici.Num() > 0))
+	{
+		return false;
+	}
+
+	// Si visitano le radici SCOPERTE, non quelle dichiarate: una classe nuova viene ispezionata gia' al
+	// primo giro, e la sua mancata dichiarazione la segnala l'altro test invece di farla saltare.
+	TArray<UStruct*> Visitati;
+	TArray<FCampo> Virgola;
+	TArray<FCampo> Classi;
+	for (UClass* Radice : Radici)
+	{
+		Attraversa(Radice, Visitati, Virgola, Classi);
+	}
+
+	for (const TCHAR* Atteso : DeveRaggiungere)
+	{
+		if (!Raggiunto(Visitati, Atteso))
 		{
-			++FloatFields;
-			AddError(FString::Printf(TEXT("campo in virgola mobile in FRTActionDef: %s"), *It->GetName()));
+			AddError(FString::Printf(
+				TEXT("il perimetro si e' RISTRETTO: %s non e' piu' raggiungibile da nessuna classe di dati. ")
+				TEXT("O il campo che lo portava e' stato rimosso, o la visita non sa piu' srotolare il suo ")
+				TEXT("contenitore — in entrambi i casi il verde di questo test coprirebbe meno di prima."),
+				Atteso));
 		}
 	}
-	TestTrue(TEXT("la struct ha campi riflessi da ispezionare"), Inspected > 0);
-	TestEqual(TEXT("nessun float/double fra costo, priorita', range, cooldown"), FloatFields, 0);
+
+	const int32 NumEccezioni = UE_ARRAY_COUNT(EccezioniVirgolaMobile);
+	TArray<bool> EccezioneUsata;
+	EccezioneUsata.Init(false, NumEccezioni);
+
+	for (const FCampo& Trovato : Virgola)
+	{
+		int32 Indice = INDEX_NONE;
+		for (int32 i = 0; i < NumEccezioni; ++i)
+		{
+			if (Trovato.Tipo == EccezioniVirgolaMobile[i].Tipo && Trovato.Campo == EccezioniVirgolaMobile[i].Campo)
+			{
+				Indice = i;
+				break;
+			}
+		}
+		if (Indice == INDEX_NONE)
+		{
+			AddError(FString::Printf(
+				TEXT("campo in virgola mobile NON dichiarato dentro il perimetro dei dati di gameplay: %s::%s. ")
+				TEXT("Se alimenta un costo, una priorita', un danno o una soglia e' una violazione dell'invariante ")
+				TEXT("#4 e va tolto; se e' presentazione, geometria o tempo va dichiarato in ")
+				TEXT("RTG7Perimetro::EccezioniVirgolaMobile con la sua ragione."),
+				*Trovato.Tipo, *Trovato.Campo));
+		}
+		else
+		{
+			EccezioneUsata[Indice] = true;
+		}
+	}
+
+	for (int32 i = 0; i < NumEccezioni; ++i)
+	{
+		if (!EccezioneUsata[i])
+		{
+			AddError(FString::Printf(
+				TEXT("eccezione stantia: %s::%s e' dichiarato ammesso ma non esiste piu' nel perimetro. ")
+				TEXT("Una riga che sopravvive al proprio campo e' un permesso gia' concesso a un omonimo futuro."),
+				EccezioniVirgolaMobile[i].Tipo, EccezioniVirgolaMobile[i].Campo));
+		}
+	}
+
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTGameplayDataPerimeterDeclaredTest,
+	"RefactorTactics.Catalog.GameplayDataPerimeterIsDeclared",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTGameplayDataPerimeterDeclaredTest::RunTest(const FString&)
+{
+	using namespace RTG7Perimetro;
+
+	TArray<UClass*> Radici;
+	ScopriRadici(Radici);
+	if (!TestTrue(TEXT("la reflection trova almeno una classe di dati del progetto"), Radici.Num() > 0))
+	{
+		return false;
+	}
+
+	// Scoperte ma non dichiarate: e' il caso che `#3370` chiede di far FALLIRE.
+	for (const UClass* Trovata : Radici)
+	{
+		bool bDichiarata = false;
+		for (const TCHAR* Attesa : RadiciAttese)
+		{
+			if (Trovata->GetName() == Attesa) { bDichiarata = true; break; }
+		}
+		if (!bDichiarata)
+		{
+			AddError(FString::Printf(
+				TEXT("classe di dati NON dichiarata nel perimetro: %s. Dichiararla in ")
+				TEXT("RTG7Perimetro::RadiciAttese, oppure — se i suoi numeri non sono di gameplay — dichiararlo ")
+				TEXT("per iscritto accanto alla riga."),
+				*Trovata->GetName()));
+		}
+	}
+
+	// Dichiarate ma non piu' esistenti: la lista non puo' invecchiare in silenzio.
+	for (const TCHAR* Attesa : RadiciAttese)
+	{
+		const bool bEsiste = Radici.ContainsByPredicate(
+			[Attesa](const UClass* C) { return C != nullptr && C->GetName() == Attesa; });
+		if (!bEsiste)
+		{
+			AddError(FString::Printf(
+				TEXT("radice dichiarata ma assente dalla reflection: %s. O e' stata rinominata o rimossa, e ")
+				TEXT("in entrambi i casi il perimetro copre meno di quanto dichiara."),
+				Attesa));
+		}
+	}
+
+	// IL BUCO CHE RESTEREBBE MUTO: un riferimento a classe dentro un dato versionato.
+	// La visita non segue `TSubclassOf`/soft class perche' puntano a un Blueprint, i cui default sono
+	// authoring che la reflection sul nativo non vede. Oggi nessun tipo del perimetro ne dichiara uno; il
+	// giorno in cui ne comparisse uno, questo errore obbliga a decidere invece di lasciare un ramo cieco.
+	TArray<UStruct*> Visitati;
+	TArray<FCampo> Virgola;
+	TArray<FCampo> Classi;
+	for (UClass* Radice : Radici)
+	{
+		Attraversa(Radice, Visitati, Virgola, Classi);
+	}
+	for (const FCampo& Riferimento : Classi)
+	{
+		AddError(FString::Printf(
+			TEXT("riferimento a classe dentro il perimetro: %s::%s. Punta a un Blueprint, i cui default ")
+			TEXT("sono dati authorati che questa visita NON vede: va deciso se seguirlo o escluderlo per iscritto."),
+			*Riferimento.Tipo, *Riferimento.Campo));
+	}
+
+	TestTrue(TEXT("la visita ha ispezionato piu' tipi delle sole radici"), Visitati.Num() > Radici.Num());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGameplayNumbersAreIntegersTest,
+	"RefactorTactics.Catalog.PlacedUnitGameplayNumbersAreIntegers",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGameplayNumbersAreIntegersTest::RunTest(const FString&)
+{
+	// ⛔ `ARTUnit` NON entra nel perimetro per intero, ed e' una scelta dichiarata: e' un Actor che tiene
+	// insieme stato canonico e presentazione, e i suoi float — `VisualZOffset`, `VisualRunSpeed`,
+	// `MeshYawOffset` — sono esattamente l'audit di presentazione che `#3370` mette fuori scope. Ispezionarlo
+	// tutto produrrebbe un elenco di eccezioni di presentazione, cioe' rumore.
+	//
+	// ✅ Ma i numeri competitivi di un'unita' PIAZZATA in una `.umap` versionata vivono qui, quindi la
+	// domanda si pone per NOME invece che per forma: questi campi devono essere interi.
+	static const TCHAR* const CampiCompetitivi[] = {
+		TEXT("MaxHealth"), TEXT("Health"), TEXT("Shield"), TEXT("TemporaryShield"),
+		TEXT("AttackRange"), TEXT("AttackPower"), TEXT("MoveRange"), TEXT("GuardReduction"),
+		TEXT("PushResistance"), TEXT("VisionRange"), TEXT("HearingThreshold"),
+		TEXT("UltimateMultiplier"), TEXT("UltimateRadius"),
+	};
+
+	UClass* Unita = ARTUnit::StaticClass();
+	if (!TestNotNull(TEXT("ARTUnit e' una UCLASS riflessa"), Unita)) { return false; }
+
+	for (const TCHAR* Nome : CampiCompetitivi)
+	{
+		FProperty* Campo = Unita->FindPropertyByName(FName(Nome));
+		if (Campo == nullptr)
+		{
+			// Un campo sparito NON e' un pass: sarebbe un asserto che non guarda piu' niente.
+			AddError(FString::Printf(
+				TEXT("ARTUnit::%s non esiste piu': l'asserto su di esso sarebbe vacuo. Rinominato? ")
+				TEXT("Aggiornare l'elenco, non rimuovere la riga."),
+				Nome));
+			continue;
+		}
+		if (!Campo->IsA<FIntProperty>())
+		{
+			AddError(FString::Printf(
+				TEXT("ARTUnit::%s non e' un intero (%s): un numero competitivo in virgola mobile viola ")
+				TEXT("l'invariante #4."),
+				Nome, *Campo->GetCPPType()));
+		}
+	}
 	return true;
 }
 
