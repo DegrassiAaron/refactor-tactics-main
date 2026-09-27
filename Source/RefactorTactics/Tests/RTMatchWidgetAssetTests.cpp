@@ -1472,10 +1472,10 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 
 		AddInfo(FString::Printf(TEXT("  %-12s HAlign=%d VAlign=%d"),
 			*Widget->GetName(),
-			static_cast<int32>(Slot->HorizontalAlignment),
-			static_cast<int32>(Slot->VerticalAlignment)));
+			static_cast<int32>(Slot->GetHorizontalAlignment()),
+			static_cast<int32>(Slot->GetVerticalAlignment())));
 
-		if (Slot->HorizontalAlignment != HAlign_Fill)
+		if (Slot->GetHorizontalAlignment() != HAlign_Fill)
 		{
 			AddError(FString::Printf(
 				TEXT("`%s` non ha `HAlign_Fill` nel suo `UOverlaySlot`: prende la propria larghezza ")
@@ -1485,7 +1485,7 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 				*Widget->GetName()));
 		}
 
-		if (Slot->VerticalAlignment != VAlign_Fill)
+		if (Slot->GetVerticalAlignment() != VAlign_Fill)
 		{
 			AddError(FString::Printf(
 				TEXT("`%s` non ha `VAlign_Fill` nel suo `UOverlaySlot`: stesso difetto dell'asse ")
