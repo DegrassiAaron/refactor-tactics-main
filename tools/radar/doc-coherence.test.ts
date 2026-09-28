@@ -159,6 +159,30 @@ test('A4 — una causa ancora aperta, una voce verde e una senza issue non si se
   assert.deepEqual(daRigiudicare(registroPie(md), STATO), []);
 });
 
+/** La stessa riga, con il marcatore che dichiara la voce gia' istruita. */
+const MODE_H_DICHIARATA = MODE_H.replace(
+  '❌ **2026-08-15**',
+  '❌ ⛔ **DICHIARATA NON RIGIUDICABILE il 2026-09-28**: il bloccante non e caduto, e stato instradato. **2026-08-15**',
+);
+
+test('A4 — una voce DICHIARATA non rigiudicabile esce, e la sua gemella non dichiarata resta', () => {
+  // Le due righe differiscono per il solo marcatore: e la mutazione che prova che a farle uscire e
+  // quello, non un'altra differenza del testo.
+  assert.deepEqual(daRigiudicare(registroPie(MODE_H), STATO).map((d) => d.voce), ['PIE-HEX-MODE-H']);
+  assert.deepEqual(daRigiudicare(registroPie(MODE_H_DICHIARATA), STATO), []);
+});
+
+test('A4 — il marcatore non copre una voce la cui causa e ancora APERTA: non e un interruttore', () => {
+  // Senza questo, «dichiarata» diventerebbe un modo per far tacere il gate su qualunque voce. Qui la
+  // causa e aperta, quindi la voce non era segnalata nemmeno prima: il marcatore non cambia nulla, ed e
+  // esattamente cio' che deve fare.
+  const aperta =
+    '| **PIE-Z** | x | y | z | ❌ ⛔ **DICHIARATA NON RIGIUDICABILE** — aperta come [#5](https://github.com/o/r/issues/5) |';
+  assert.deepEqual(daRigiudicare(registroPie(aperta), STATO), []);
+  const senza = aperta.replace('⛔ **DICHIARATA NON RIGIUDICABILE** — ', '');
+  assert.deepEqual(daRigiudicare(registroPie(senza), STATO), []);
+});
+
 // ---------------------------------------------------------------------------------------------
 // A2 — una seduta critica che nessuno convoca e che nessuno ha eseguito
 // ---------------------------------------------------------------------------------------------
