@@ -1043,7 +1043,20 @@ sessions:
     # `COMPLETED` con sei caselle di DoD vuote — fra cui i sei giudizi umani — perche' lo scope si era
     # ristretto ai riferimenti duri e nessuno possedeva piu' il giudizio a schermo.
     issues: [288, 2444, 2448, 2450, 2452, 2521]
-    done_when: PIE-AS4b e PIE-AS4c hanno esito reale sui quattro eroi
+    done_when: >-
+      ✅ **ESEGUITA il 2026-09-28** (`main = f3e6100e5`). Le **due** voci hanno esito reale e sono
+      entrambe ✅ — `PIE-AS4b` (nel Blast: attaccante `Cast`, bersaglio `Hit`, morte `Death`) e
+      `PIE-AS4c`, che conferma `DefeatBeatSeconds = 0,80 s` con una morte vera sotto gli occhi invece
+      del valore scelto al buio da `#2452`.
+      🔑 **E la clausola «sui quattro eroi» e' stata CHIESTA, non assunta**: il log non poteva
+      risponderne — le righe di utility mostrano solo le unita' pianificate dal bot (`Ivrin`,
+      `Branth`), mentre `Aevik` e `Muiren` erano dell'autore e non vi compaiono. La copertura sui
+      quattro e' un verdetto d'autore esplicito, dato dopo la domanda.
+      ⛔ Su una partita 2v2 **normale**: l'harness spawna `ARTUnit::StaticClass()`, cilindri senza
+      Skeletal Mesh, quindi nessuna animazione nemmeno in PIE. Allestimento verificato dal log —
+      `AUTO-RUN` assente, `Board 2v2 esagonale avviata su 331 celle con 4 eroi`, cinque fasi Blast.
+      ➡️ Con questo `U8` **esce dai prerequisiti aperti di `U19`**, dopo `U7` lo stesso giorno:
+      restano `U1`, `U5`, `U6`.
     unblocks: [U9, U19]
     steps: |
       🔴 **Questa seduta non produce piu' NIENTE: giudica.** Dal 2026-09-05 (#2450) i tre ruoli
