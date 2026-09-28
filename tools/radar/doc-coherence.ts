@@ -273,7 +273,21 @@ export interface DaRigiudicare {
  *
  *  ⚠️ **Una voce che non cita nessuna issue non e' un errore.** Sono 19 su 36 alla misura del
  *  2026-09-27: pretendere la citazione farebbe uscire meta' della popolazione al primo giro, che e' il
- *  modo noto di far disattivare un gate. */
+ *  modo noto di far disattivare un gate.
+ *
+ *  ⛔ **E una voce puo' essere gia' stata istruita: quella si DICHIARA, non si rigiudica.** Il predicato
+ *  guarda la prima issue citata, e quella puo' essere chiusa perche' il lavoro e' stato **instradato**
+ *  altrove invece che fatto — `PIE-VIS-SIGHTWALL` e' passata a una decisione di design (`D-426`),
+ *  `PIE-SCEN-PLAYBACK` aspetta che l'anteprima smetta di disegnare cilindri. Mandare a rigiudicarle
+ *  produce lo stesso rosso di prima.
+ *
+ *  🔑 **Il marcatore e' un contratto, non una parola magica**: chi dichiara una voce non
+ *  rigiudicabile deve scrivere nella cella **perche'**, ed e' quella prosa il prodotto — il marcatore
+ *  serve solo a renderla leggibile a questo gate. Senza di esso l'unico modo di far tacere `A4` era
+ *  riordinare le issue citate nella prosa, cioe' cambiare il verdetto scrivendo del testo: misurato il
+ *  2026-09-28, e rimosso qui. */
+export const MARCATORE_NON_RIGIUDICABILE = 'DICHIARATA NON RIGIUDICABILE';
+
 export function daRigiudicare(
   voci: VocePie[],
   stato: (issue: number) => 'OPEN' | 'CLOSED' | undefined,
@@ -281,6 +295,8 @@ export function daRigiudicare(
   const out: DaRigiudicare[] = [];
   for (const v of voci) {
     if (v.glifo !== '❌' && v.glifo !== '🟡') continue;
+    // Gia' istruita: la cella dichiara perche' non si rigiudica, e quella prosa e' il prodotto.
+    if (v.stato.includes(MARCATORE_NON_RIGIUDICABILE)) continue;
     const causa = v.issues[0];
     if (causa === undefined) continue;
     if (stato(causa) !== 'CLOSED') continue;
