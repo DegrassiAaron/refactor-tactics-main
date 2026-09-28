@@ -17,6 +17,9 @@
 > esecutore automatico ([`D-182`](../../decisions/RT_PDR_00_Decision_Log.md)) un gate non è verde, è verde
 > *a una data*.
 >
+> ♻️ **Rimisurato il 2026-09-28 su `d6e924e92`: leggi prima la §0.** Le sezioni da §1 in giù portano la
+> data del 27 e non sono state riscritte.
+>
 > 🔴 **Questa è la seconda stesura, e la prima aveva difetti che una review avversariale ha trovato.**
 > Quattro sono correzioni di merito, non di forma, e sono dichiarate in §5.7 invece di sparire nella
 > revisione — fra esse **un comando pubblicato il cui output non riproduceva** e **un'affermazione
@@ -31,6 +34,124 @@
 [3. Il grafo](#3-il-grafo-delle-dipendenze) · [4. La sequenza](#4-la-sequenza) ·
 [5. Rilievi](#5-rilievi-del-panel) · [6. Le issue da aprire](#6-le-issue-da-aprire) ·
 [7. Fuori sequenza](#7-cosa-non-è-in-sequenza) · [8. Limiti dichiarati](#8-limiti-dichiarati)
+
+---
+
+## 0. Riletto il 2026-09-28 su `d6e924e92`
+
+> ⚠️ **Questo documento nasce su `988c6bc6` e le sezioni da §1 in giù portano quella data.** Qui c'è il
+> delta; dove diverge da esse vale questa sezione, e lo dice riga per riga. **Le celle del DoD restano
+> l'owner**: lo stato di un gate si legge lì.
+>
+> 🔴 **Questa è la seconda stesura anche di §0**: la prima datava al 28-09 movimenti del 27, contava
+> cinque mosse del registro dove ne erano sei, e proponeva per `G7` una scorciatoia che non esiste.
+> Corretto in §0.4, non cancellato.
+
+### 0.1 Il delta, ancorato ai commit e non alle date
+
+⚠️ **Due fusi in gioco**: `gh` risponde in `Z`, `git log %ad` in locale (`+02:00`). Gli orari qui sono
+locali.
+
+| Gate | prima della tornata (`988c6bc6`) | dopo la tornata (`a1ac779da`, **2026-09-27** 19:50) | oggi (`d6e924e92`, 28-09) |
+|---|---|---|---|
+| `G1` | 🔴 rossa | ✅ ([#3369](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3369)) | = invariato |
+| `G7` | 🟡 senza esecutore | 🟡 con esecutore ([#3370](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3370)) | = invariato |
+| `G14` | ⏳ senza criterio | 🟡 con criterio, `A5` FAIL ([#3371](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3371)) | 🟡 **`A5` PASS** (`ca2493aa6`) |
+
+⛔ **Il 2026-09-28 non ha mosso `G1` né `G7`.** Le loro celle portano il timbro del **27-09** su
+`a1ac779da`, e `git log a1ac779da..HEAD -- Source/` risponde **0**. Il delta del 28 è tre cose sole:
+`A5` di `G14`, i verdetti della seduta [#3378](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3378), e il marcatore di `U7`.
+
+⚠️ **`G1` è verde su `a1ac779da`, che non è un candidate dichiarato**: il verde non si eredita.
+
+### 0.2 Il registro PIE — sei mosse, ed è il conto che fa tornare i totali
+
+Da `89/28/8/129` a **`92/27/7/128`** (seduta [#3378](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3378)):
+
+| Voce | Mossa |
+|---|---|
+| `PIE-TD-PRESENT` | 🟡 → ✅ |
+| `PIE-VIS-PHASES` | ❌ → ✅ |
+| `PIE-AS2` | 🟡 → ✅ |
+| `PIE-VIS-CHARGE` | ❌ → 🟡 (`eaf3e4b51`) |
+| `PIE-V01-SHIELD` | 🟡 → ❌, con causa attribuibile |
+| `PIE-HEX-MODE-R` | ⏳ → 🟡 (prima esecuzione) |
+
+🔑 **Sono sei, e la sesta non è un dettaglio**: con le sole altre cinque i totali darebbero
+`92/26/8/128`, non `92/27/7/128`. `PIE-VIS-CHARGE` è il ⟨🟡 +1, ❌ −1⟩ mancante.
+
+➕ **`U7` ha preso il marcatore** ([PR #3382](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3382)). Restano aperti **`U1`, `U5`, `U6`, `U8`**.
+
+### 0.3 Cosa manca a ciascun gate, oggi
+
+⚠️ **Un solo gate ha un percorso che il 27-09 non aveva** — `G14`. Gli altri hanno gli stessi esecutori
+che §2 già assegnava: quel che è cambiato è che ora si sa **cosa** manca a `G14`, non chi.
+
+| Gate | Cosa manca | Chi |
+|---|---|---|
+| `G14` | le **tre asserzioni rosse** del suo criterio — `A2`, `A3`, `A4` | vedi §0.3.1: **non tutte hanno un chi** |
+| `G16` | Presentation e Turn Log proiettato | [#288](https://github.com/DegrassiAaron/refactor-tactics-main/issues/288) · [#79](https://github.com/DegrassiAaron/refactor-tactics-main/issues/79) · [#1936](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1936) → [#2601](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2601) |
+| `G10` | partita 2v2 **non degenere** | [#38](https://github.com/DegrassiAaron/refactor-tactics-main/issues/38) per il playtest · [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166) per la reaction — §0.3.2 |
+| `G11` | le quattro voci di performance **rimisurate sul candidate** (`U16`), le righe di ritmo (`U19`), e le **quattro caselle redazionali** di #84 | [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) |
+| `G13` | `input funzionante` e `UI leggibile`, percettivi | [#2620](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2620) |
+| `G2` | le due metà **sullo stesso candidate** | nessuno dichiarato |
+
+⚠️ **Il criterio di `G14` ha SEI asserzioni, non cinque**: `A1`–`A5` col primo comando
+(`doc-coherence.ts --check`) e **`A6`** col secondo (`doc-links.ts --check`, già esistente).
+
+⚠️ **Le quattro voci di performance ESISTONO già.** La §4 del DoD le porta tutte e quattro ✅ con numero,
+data e metodo (fra il 2026-08-11 e il 2026-09-04). `U16.done_when` — *«i quattro KPI hanno un valore
+misurato, anche fuori target»* — è **già soddisfatto**. Ciò che manca è la clausola di `#84`, *«sulla
+build della v0.1»*: la **rimisura sul candidate**, non la prima misura.
+
+#### 0.3.1 `A2` e metà di `A4` non hanno un esecutore, **per costruzione**
+
+`A2` fallisce su `U10` e `U14` — *«nessuna issue le nomina»*. ⛔ Quindi **nessuna issue esistente può
+chiuderla**: è la definizione stessa dell'asserzione. Serve aprire i convocatori, o dichiarare quelle due
+sedute fuori perimetro.
+
+`A4` è in parte di [#3378](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3378), ma non del tutto: `PIE-VIS-SIGHTWALL` ne è **esclusa** e
+appartiene a [#3176](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3176) (`D-426`), e `PIE-HEX-MODE-H` aspetta [#996](https://github.com/DegrassiAaron/refactor-tactics-main/issues/996).
+
+➡️ **Chi legge la riga `G14` come piano di lavoro e chiude le issue elencate trova il gate ancora rosso.**
+
+#### 0.3.2 ⛔ Chiudere `#38` **non** chiude `G10`
+
+La clausola che `G10` pretende — *«un pareggio chiude il gate solo se la partita non è degenere: almeno un
+danno inflitto, almeno una reaction risolta, progresso obiettivo mosso»* — vive nella **cella `G10` del
+DoD**, non nel corpo di `#38`. Misurato: `gh issue view 38 --json body` → `grep -ci degener` = **0**,
+`grep -ci "reaction risolta"` = **0**, con controllo positivo `grep -ci RoundLimit` = **3** (la pipeline il
+corpo lo vede).
+
+∴ `#38` porta il **playtest**; la clausola chiede che in quel playtest **una reaction si risolva**, e la
+reaction interattiva è `E14` → [#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166). Il documento lo diceva in §4 e §0 l'aveva perso.
+
+### 0.4 ⏻ Tre errori della prima stesura di §0, dichiarati
+
+Trovati da una review avversariale prima della pubblicazione. Sono di metodo, quindi restano scritti.
+
+| Errore | Come è stato trovato |
+|---|---|
+| 🔴 **Datare al 28-09 movimenti del 27.** Le tre PR sono `MERGED 2026-09-27`; le celle del DoD portano `2026-09-27 su a1ac779da` | confrontando il documento con l'owner che esso stesso dichiara |
+| 🔴 **Cinque mosse dove ne erano sei**, e i totali pubblicati nella stessa frase non si ricostruivano | rifacendo l'**aritmetica** invece di rileggere l'elenco |
+| 🔴 **Proporre `G7` → ✅ citando la Chiusura di `#84`.** Quella clausola dice *«Merge quando…»* — è il criterio di merge **di quel checkpoint** — e si autolimita: *«questo checkpoint non ha l'autorità per deciderlo su epic altrui»*. Non promuove nessun glifo | leggendo la clausola **per intero** invece dei due frammenti che servivano |
+
+⚠️ **E su `G7` la cella dichiara DUE ragioni per il 🟡, non una.** La prima è la non-domanda (i campi
+sono `int32`); la seconda è una **superficie scoperta**: un default aggiunto da una sottoclasse
+**Blueprint** resterebbe invisibile alla reflection sul tipo nativo. ∴ la premessa *«entrambi sono
+fatti»* era falsa: la metà *«revisione dei data asset»* resta non presidiata, e `G7` è 🟡 per un motivo
+tecnico, non per una formalità da sbloccare con una decisione.
+
+### 0.5 Cosa resta NON misurato
+
+`G2`, `G3`, `G4`, **`G5`**, `G6`, `G8`, `G12` non sono stati rieseguiti: portano il timbro del 2026-08-29
+o del 2026-09-12. L'onda di congelamento di §4 vale immutata.
+
+⚠️ **La cella `G14` del DoD è essa stessa stantia**: enumera `A5` fra le rosse, e `A5` è PASS dal
+`ca2493aa6`. Corretta nella stessa PR di questa rilettura.
+
+⚠️ **A monte di `U5` il residuo bloccante è `U3`**, non `U4`: `U4` porta il marcatore, `U2` ha il
+`done_when` soddisfatto, e `U3` ha `PIE-PREVIEW-PERSIST` ⏳.
 
 ---
 
