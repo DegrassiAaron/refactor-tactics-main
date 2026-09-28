@@ -183,6 +183,25 @@ test('A4 — il marcatore non copre una voce la cui causa e ancora APERTA: non e
   assert.deepEqual(daRigiudicare(registroPie(senza), STATO), []);
 });
 
+test('A4 — una voce DIFFERITA oltre la release esce, e la sua gemella non differita resta', () => {
+  const differita = MODE_H.replace(
+    '❌ **2026-08-15**',
+    '❌ ⛔ **DIFFERITA OLTRE LA v0.1**: la meta residua non e nel subset di release. **2026-08-15**',
+  );
+  assert.deepEqual(daRigiudicare(registroPie(MODE_H), STATO).map((d) => d.voce), ['PIE-HEX-MODE-H']);
+  assert.deepEqual(daRigiudicare(registroPie(differita), STATO), []);
+});
+
+test('A4 — una voce del subset RELEASE-V01 non puo dichiararsi differita', () => {
+  // La guardia che impedisce al marcatore di diventare un interruttore sul perimetro di consegna: se
+  // una voce blocca `G9`, differirla e' una decisione di scope e non una nota in una cella.
+  const nelSubset =
+    // ⚠️ Il tag sta nella STESSA cella del nome: e' la forma che il comando canonico di `G9` conta.
+    '| **PIE-X** `RELEASE-V01` | y | z | ❌ ⛔ **DIFFERITA OLTRE LA v0.1** — aperta come [#931](https://github.com/o/r/issues/931) |';
+  const trovati = daRigiudicare(registroPie(nelSubset), STATO);
+  assert.deepEqual(trovati.map((d) => d.voce), ['PIE-X']);
+});
+
 // ---------------------------------------------------------------------------------------------
 // A2 — una seduta critica che nessuno convoca e che nessuno ha eseguito
 // ---------------------------------------------------------------------------------------------
