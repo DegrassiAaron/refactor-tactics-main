@@ -1,8 +1,8 @@
+#include "Turn/RTPacingConsole.h"
 #include "CoreMinimal.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Turn/RTPacingLibrary.h"
-#include "Turn/RTPacingConsole.h"
 #include "Turn/RTTurnManager.h"
 #include "Misc/Paths.h"
 
