@@ -202,6 +202,28 @@ test('A4 — una voce del subset RELEASE-V01 non puo dichiararsi differita', () 
   assert.deepEqual(trovati.map((d) => d.voce), ['PIE-X']);
 });
 
+test('A4 — una seduta che ha EMESSO il verdetto non e la causa del difetto', () => {
+  // Il caso reale del 2026-09-28: chiudendo #3378 tre voci appena giudicate sono rientrate in A4,
+  // perche' il loro verdetto la citava per prima. La seduta non e' un bloccante caduto.
+  const conSeduta =
+    '| **PIE-Y** | x | y | z | ❌ **RIGIUDICATA il 2026-09-28** (seduta [#3378](https://github.com/o/r/issues/3378)): il residuo e altro |';
+  const chiusa = (n: number) => (n === 3378 || n === 931 ? ('CLOSED' as const) : ('OPEN' as const));
+  assert.deepEqual(daRigiudicare(registroPie(conSeduta), chiusa), []);
+
+  // ⛔ E la MUTAZIONE che lo giustifica: la stessa riga senza la parola «seduta» torna a essere
+  //    segnalata. E' quella parola a fare la differenza, non un'altra proprieta' del testo.
+  const senzaParola = conSeduta.replace('(seduta [#3378]', '([#3378]');
+  assert.deepEqual(daRigiudicare(registroPie(senzaParola), chiusa).map((d) => d.voce), ['PIE-Y']);
+});
+
+test('A4 — una seduta citata in un esito SUPERATO non mette a tacere il verdetto corrente', () => {
+  // Il limite dichiarato: si guarda solo cio' che sta prima del primo marcatore di cronaca.
+  const cronaca =
+    '| **PIE-W** | x | y | z | ❌ aperta come [#931](https://github.com/o/r/issues/931) ⏻ *Esito precedente:* giudicata in (seduta [#3378](https://github.com/o/r/issues/3378)) |';
+  const chiusa = (n: number) => (n === 3378 || n === 931 ? ('CLOSED' as const) : ('OPEN' as const));
+  assert.deepEqual(daRigiudicare(registroPie(cronaca), chiusa).map((d) => d.voce), ['PIE-W']);
+});
+
 // ---------------------------------------------------------------------------------------------
 // A2 — una seduta critica che nessuno convoca e che nessuno ha eseguito
 // ---------------------------------------------------------------------------------------------
