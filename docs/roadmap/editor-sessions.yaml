@@ -869,8 +869,21 @@ sessions:
     unblocked_by: []
     shares_setup_with: [U8, U9]
     verifies: [PIE-AS2, PIE-FACING, PIE-AS4a]
-    issues: [1719]
-    done_when: i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e le voci hanno esito reale su tutti e quattro gli eroi
+    issues: [1719, 3378]
+    done_when: >-
+      ✅ **CHIUSA il 2026-09-28** (seduta `#3378`, `main = c04f666f0`). Il `done_when` chiedeva due
+      cose e sono soddisfatte entrambe, misurate e non dedotte.
+      (1) I quattro Blueprint sono **tracciati da git**: `git ls-files --error-unmatch` risponde per
+      `BP_Unit_Aevik`, `BP_Unit_Muiren`, `BP_Unit_Branth`, `BP_Unit_Ivrin`; la Skeletal agganciata e'
+      `#1719`, chiusa.
+      (2) Le **tre** voci che questa seduta verifica hanno esito reale e sono tutte ✅ — `PIE-AS2`
+      (chiusa proprio in `#3378`: la seconda meta', «a terra senza fluttuamento», era dichiarata non
+      giudicabile finche' le mesh stavano in posa di riferimento), `PIE-FACING` e `PIE-AS4a`.
+      ⛔ **Il marcatore e' stato scritto solo dopo aver contato le voci**: `verifies` ne elenca **tre**,
+      e chiudere su `PIE-AS2` soltanto avrebbe timbrato una seduta con due criteri non guardati.
+      ➡️ Con questo `U7` **esce dai cinque prerequisiti aperti di `U19`**.
+      ⌫ *Testo originale:* i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e
+      le voci hanno esito reale su tutti e quattro gli eroi
     unblocks: [U8, U19]
     steps: |
       **Un Blueprint per eroe, intitolato all'EROE.** La base visuale la fissa **D-037** (tabella
