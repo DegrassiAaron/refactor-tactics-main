@@ -114,6 +114,15 @@ export interface VocePie {
   issues: number[];
   /** La voce appartiene al subset `RELEASE-V01`, cioe' e' contata da `G9`. */
   release: boolean;
+  /** Le issue citate **come causa del verdetto**: `issues` meno quelle introdotte da «seduta».
+   *
+   *  ⛔ **Una seduta non e' la causa di un difetto: e' cio' che ha emesso il verdetto.** Le due cose
+   *  hanno esiti opposti su `A4` — la chiusura di una seduta non significa che il difetto sia caduto — e
+   *  l'ordine delle citazioni non basta a distinguerle. Misurato il 2026-09-28: chiudendo la seduta
+   *  `#3378`, tre voci appena giudicate sono rientrate in `A4` come «da rigiudicare», perche' il loro
+   *  verdetto la citava per prima. Un gate il cui esito cambia in base a **quale link scrivi per primo**
+   *  non e' un gate. */
+  cause: number[];
 }
 
 /** Le voci del registro PIE.
@@ -138,10 +147,22 @@ export function registroPie(text: string): VocePie[] {
       const n = Number(m[1]);
       if (!issues.includes(n)) issues.push(n);
     }
+    // Le citazioni introdotte da «seduta»/«sedute» non sono la causa del verdetto: lo hanno emesso.
+    // Si legge sul LINK, non sull'URL: l'etichetta `[#N]` porta il numero e ha la parola accanto.
+    //
+    // ⛔ E si guarda solo il verdetto CORRENTE, cioe' cio' che sta prima del primo `⏻`: una cella
+    //    tiene la propria cronaca, e una seduta citata in un esito superato non dice niente su oggi.
+    const corrente = stato.split('⏻')[0] ?? stato;
+    const dalleSedute = new Set<number>();
+    for (const m of corrente.matchAll(/sedut[ae]\s*\[#(\d+)\]/gi)) dalleSedute.add(Number(m[1]));
+    // 🔑 Un verdetto emesso in una seduta DICHIARATA non e' un rosso di cui nessuno si e' accorto,
+    //    ed e' esattamente la popolazione che `A4` esiste per trovare. Quindi la voce esce del tutto:
+    //    qualcuno l'ha guardata, e cio' che resta e' il residuo del criterio, non un difetto caduto.
+    const cause = dalleSedute.size > 0 ? [] : issues.filter((n) => !dalleSedute.has(n));
     // Il tag del subset sta subito dopo il nome, nella stessa cella: e' la forma che il comando
     // canonico di `G9` conta, e non va cercato nella cella di stato.
     const release = /^\| \*\*PIE-[^*]+\*\* `RELEASE-V01`/.test(l);
-    out.push({ id: nome[1]!.trim(), glifo: g ? g[0] : null, stato, riga: i + 1, issues, release });
+    out.push({ id: nome[1]!.trim(), glifo: g ? g[0] : null, stato, riga: i + 1, issues, release, cause });
   }
   return out;
 }
@@ -321,7 +342,7 @@ export function daRigiudicare(
     // ⛔ Non vale su una voce del subset `RELEASE-V01`: li' differire e' una decisione di scope,
     //    non una nota in una cella, e il marcatore diventerebbe un interruttore su `G9`.
     if (!v.release && v.stato.includes(MARCATORE_DIFFERITA)) continue;
-    const causa = v.issues[0];
+    const causa = v.cause[0];
     if (causa === undefined) continue;
     if (stato(causa) !== 'CLOSED') continue;
     out.push({ voce: v.id, glifo: v.glifo, riga: v.riga, causa });
