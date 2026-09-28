@@ -608,7 +608,14 @@ resta visibile invece di sparire.
 > | `AutoBattle.Hazard` | Una superficie pericolosa modifica l'esito in modo deterministico |
 > | `AutoBattle.Objective` | La partita può finire per obiettivo, non solo per eliminazione |
 >
-> **Restano `planned` per l'oracolo, non per il tempo**, come i sei di CP 11.8: il formato di scenario
+> ⏻ **SUPERATO il 2026-09-28: i quattro esistono, versionati.** `git ls-files 'Scenarios/AutoBattle/*.json'`
+> elenca `ArenaV01`, `Hazard`, `Objective`, `Obstacles`, `OpenField` — e `Objective.json` porta turni veri,
+> non uno stub. Li ha sbloccati **`E47.4`**, chiusa il 2026-08-21, esattamente come la riga qui sotto
+> prevedeva. ⚠️ Il capoverso resta leggibile perche' la ragione che descriveva era **reale finche' lo e'
+> stata**, e perche' [#2477](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2477) lo citava
+> come stantio: chi arriva da quella issue deve trovare qui la correzione, non il silenzio.
+>
+> ~~**Restano `planned` per l'oracolo, non per il tempo**~~, come i sei di CP 11.8: il formato di scenario
 > enumera i turni uno per uno (`FRTScenarioTurn`) e una partita autobattle **non sa in anticipo quanti
 > turni durerà**. Scriverli oggi produrrebbe un `ERROR` — difetto del test — non un `BLOCKED`, che è la
 > forma legittima di una specifica anticipata. Li sblocca **E47.4**
