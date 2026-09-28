@@ -1108,6 +1108,15 @@ public:
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
 	const TArray<FRTPacingSample>& GetPacingSamples() const { return Pacing.GetSamples(); }
 
+	/**
+	 * Il CSV di pacing di questa sessione, o una stringa vuota se non e' ancora nato — #3398.
+	 *
+	 * ⚠️ **Vuoto NON significa «non sto registrando»**: il file lo crea la prima riga appesa, quindi
+	 * resta vuoto anche con `bRecordPacing` attivo finche' nessun turno si e' chiuso. Chi lo legge per
+	 * dedurre lo stato del flag leggerebbe la cosa sbagliata; lo stato e' `bRecordPacing`.
+	 */
+	const FString& GetPacingCsvPath() const { return Pacing.GetFilePath(); }
+
 	/** Se vero, ogni turno appende una riga in Saved/RT/pacing_<sessione>.csv. L'accumulo in memoria e' sempre attivo. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Pacing")
 	bool bRecordPacing = false;
