@@ -597,7 +597,13 @@ sessions:
     verifies: [PIE-HEXPLAY-8, PIE-HEXPLAY-10, PIE-HEXPLAY-4b, PIE-FACING-1]
     issues: []
     done_when: >-
-      le **13** voci del perimetro E2 sono verdi, rilette tutte insieme.
+      ✅ **ESEGUITA il 2026-09-28** (`main = d8f254069`): le **13** voci del perimetro E2 sono verdi,
+      rilette **tutte insieme in una passata sola** col metodo canonico — dal fondo della riga al primo
+      campo che porta un'icona, e di quel campo la prima: nessuna diversa da ✅. Le tredici sono
+      `-1 -2 -3 -3b -4 -4b -5 -6 -6b -6c -8 -9 -10`.
+      🔑 Che una rilettura **misurata** valga come «rilette tutte insieme» e' decisione d'autore,
+      presa dopo che la domanda e' stata posta esplicitamente invece di essere assunta.
+      ➡️ Con questo `U6` sblocca **`U16`** e **`U19`**, i due produttori di `G11`.
       ⏻ **Erano 14 fino al 2026-09-28**: `PIE-HEXPLAY-7` è uscita perché giudica la **qualità del
       bot** — preferisce il riparo, il kiter tiene la distanza, la mischia chiude — ed è stata
       differita a `E26` (v0.2) per decisione d'autore.
@@ -1349,7 +1355,15 @@ sessions:
     execution_lane: pie
     produces: numeri di playtest — non difetti
     artifacts: []
-    unblocked_by: [U6, U1, U5, U7, U8]
+    # ⏻ **`U5` RIMOSSA il 2026-09-28, per decisione d'autore.** `D-187` la elencava fra i prerequisiti
+    # con la ragione *«il bot gioca bene abbastanza — i pesi utility ritarati»*, cioe' esattamente la
+    # QUALITA' del bot, uscita dalla v0.1 verso `E26` (v0.2) lo stesso giorno. Tenerla avrebbe fatto
+    # aspettare una misura di ritmo dietro una seduta di un'altra release.
+    # ⚠️ **Supera una parte di `D-187` e va registrato nel Decision Log.** Qui non si rivendica un
+    #    numero `D-nnn`: quei numeri sono una risorsa contesa e valgono al merge, non alla misura.
+    # ⛔ Cio' che NON cambia: `U19` misura ritmo e durata su una partita giocata dal bot, quindi il bot
+    #    deve **giocare**. Cio' che non serve piu' e' che giochi **bene**.
+    unblocked_by: [U6, U1, U7, U8]
     shares_setup_with: []
     verifies:
       - PIE-V01-MATCHLEN
