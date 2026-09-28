@@ -569,6 +569,8 @@ node tools/radar/wiki-alt.ts --wiki-root <clone> --check
 node tools/radar/doc-links.ts --check
 node tools/radar/catalog-code.ts
 node tools/radar/doc-tables.ts --check
+node tools/radar/doc-coherence.ts --check                 # le asserzioni A1-A5 del gate di release G14.
+                                                          # G14 si esegue con DUE comandi: questo e doc-links.ts
 node tools/radar/issue-refs.ts --check
 node tools/radar/scenario-notes.ts --check
 node tools/radar/decision-ids.ts --check                  # un numero D- rivendicato due volte,
