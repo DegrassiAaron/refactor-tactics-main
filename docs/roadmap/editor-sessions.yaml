@@ -401,7 +401,23 @@ sessions:
     issues: [449, 450, 451]
     done_when: >-
       i due asset sono tracciati da `git ls-files`, le sette voci hanno un esito reale, e l'arena
-      soddisfa i tre criteri dei passi 3, 4 e 7
+      soddisfa i tre criteri dei passi 3, 4 e 7.
+      ✅ **ESEGUITA il 2026-09-28** (`main = eb60575e8`). Tutte e tre le parti verificate, una per una:
+      **(1)** i due asset sono tracciati — `git ls-files --error-unmatch` risponde per
+      `L_HexArena.umap` e `DA_HexMap_Arena.uasset`;
+      **(2)** le **sette** voci hanno un **esito reale** — sei ✅ e `PIE-HEX-MODE-H` ❌.
+      🔑 **Il `done_when` chiede «un esito reale», non «verdi», e un ❌ lo e'**: quella voce e'
+      dichiarata non rigiudicabile e aspetta `#996`, che e' strumentazione del Map Editor — escluso
+      dal perimetro di release nel DoD, e la voce non e' nel subset `RELEASE-V01`;
+      **(3)** l'arena soddisfa i tre criteri, misurati sull'**asset autorale** e non sulla fixture:
+      `rt.Arena.Check` su `L_HexArena` (64 celle, spawn `(-4,0,0)` e `(4,0,0)`) da' **quattro `[ok]`**
+      — copertura (3 celle che bloccano la vista, ne servono 2), costo (percorso ottimale 12 su
+      budget 5), rotte (disgiunte 12 e 13, rapporto 1.08 sotto 1.50, esposizione 70% contro 10%) e
+      raggiungibilita' — e chiude con *«I tre criteri sono soddisfatti»*.
+      ⚠️ **La distinzione fixture/asset non e' pedanteria**: `RefactorTactics.Arena.ArenaV01MeetsAll
+      ThreeCriteria` e' verde ma gira sulla **fixture generata**, e un asset editato a mano dopo la
+      generazione divergerebbe senza che nessun test se ne accorga. Qui e' stato misurato l'asset.
+      ➡️ Con questo `U19` **non ha piu' prerequisiti aperti**.
     unblocks: [U13, U19]
     steps: |
       **Costruire una mappa e' il modo di esercitare gli strumenti**: le sette voci qui sopra verificano
