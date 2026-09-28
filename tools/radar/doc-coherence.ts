@@ -112,6 +112,8 @@ export interface VocePie {
   riga: number;
   /** Le issue citate nella cella di stato, **nell'ordine in cui compaiono**, senza duplicati. */
   issues: number[];
+  /** La voce appartiene al subset `RELEASE-V01`, cioe' e' contata da `G9`. */
+  release: boolean;
 }
 
 /** Le voci del registro PIE.
@@ -136,7 +138,10 @@ export function registroPie(text: string): VocePie[] {
       const n = Number(m[1]);
       if (!issues.includes(n)) issues.push(n);
     }
-    out.push({ id: nome[1]!.trim(), glifo: g ? g[0] : null, stato, riga: i + 1, issues });
+    // Il tag del subset sta subito dopo il nome, nella stessa cella: e' la forma che il comando
+    // canonico di `G9` conta, e non va cercato nella cella di stato.
+    const release = /^\| \*\*PIE-[^*]+\*\* `RELEASE-V01`/.test(l);
+    out.push({ id: nome[1]!.trim(), glifo: g ? g[0] : null, stato, riga: i + 1, issues, release });
   }
   return out;
 }
@@ -288,6 +293,20 @@ export interface DaRigiudicare {
  *  2026-09-28, e rimosso qui. */
 export const MARCATORE_NON_RIGIUDICABILE = 'DICHIARATA NON RIGIUDICABILE';
 
+/** Una voce che si puo' rigiudicare, ma **non adesso**: il lavoro esiste e non appartiene a questa
+ *  release.
+ *
+ *  ⛔ **Serve perche' `A4` vive dentro `G14`, che e' un gate di RELEASE.** Senza questo marcatore
+ *  l'asserzione tiene rosso un gate di consegna per lavoro che il DoD non chiede, e chi la esegue
+ *  finisce a spendere una seduta — e a toccare asset — per una voce fuori perimetro. Misurato il
+ *  2026-09-28 su `PIE-V01-DASHINK`, la cui meta' residua e' l'accessibilita' daltonica: **non e' nel
+ *  subset `RELEASE-V01`**, `grep -c` risponde `0` (controllo positivo: `PIE-HEXPLAY-8` risponde `1`).
+ *
+ *  🔑 **Non e' un modo per far tacere il gate**: chi lo scrive deve motivare nella cella *perche'*
+ *  la voce non appartiene alla release, ed e' quella prosa il prodotto. Una voce del subset
+ *  `RELEASE-V01` non puo' portarlo — lo verifica un test. */
+export const MARCATORE_DIFFERITA = 'DIFFERITA OLTRE LA v0.1';
+
 export function daRigiudicare(
   voci: VocePie[],
   stato: (issue: number) => 'OPEN' | 'CLOSED' | undefined,
@@ -297,6 +316,11 @@ export function daRigiudicare(
     if (v.glifo !== '❌' && v.glifo !== '🟡') continue;
     // Gia' istruita: la cella dichiara perche' non si rigiudica, e quella prosa e' il prodotto.
     if (v.stato.includes(MARCATORE_NON_RIGIUDICABILE)) continue;
+    // Rigiudicabile, ma fuori dal perimetro di questa release: `A4` non tiene rosso un gate di
+    // consegna per lavoro che il DoD non chiede.
+    // ⛔ Non vale su una voce del subset `RELEASE-V01`: li' differire e' una decisione di scope,
+    //    non una nota in una cella, e il marcatore diventerebbe un interruttore su `G9`.
+    if (!v.release && v.stato.includes(MARCATORE_DIFFERITA)) continue;
     const causa = v.issues[0];
     if (causa === undefined) continue;
     if (stato(causa) !== 'CLOSED') continue;
