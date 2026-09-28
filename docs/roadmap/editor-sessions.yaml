@@ -566,7 +566,7 @@ sessions:
     unblocked_by: [M6.6, M6.7]
     shares_setup_with: [U2, U3, U4, U6, U37]
     verifies: [PIE-HEXPLAY-7, PIE-HEXPLAY-9, PIE-AI-01, PIE-AI-02, PIE-AI-03, PIE-AI-04, PIE-AI-05]
-    issues: []
+    issues: [2477]
     done_when: le voci hanno esito reale e i pesi eventualmente modificati sono committati
     unblocks: [U6, U19, M6.6, M6.7]
     steps: |
