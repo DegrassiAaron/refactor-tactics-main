@@ -2389,6 +2389,21 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 	// successivo avrebbe rifiutato.
 	RefreshPlanningPreview(GetWorld(), SelectedUnit);
 	PreviewPlannedFacing(SelectedUnit); // la mesh segue il piano invece di restare girata come prima
+
+	// ⚠️ **Il pacing sta QUI e non in cima alla funzione**, e la posizione è il contenuto della regola:
+	// un waypoint **rifiutato** non è un ordine impartito, è un tentativo respinto, e i suoi sei rami di
+	// uscita passano sopra questa riga. `ERTPlanningInput::Order` è documentato come «abilità **o
+	// destinazione**» (`Turn/RTPacing.h:21`) e fino a `#3400` la metà «destinazione» non era cablata:
+	// `OrderCount` restava 0 su un turno in cui il giocatore aveva dato una destinazione, e nessun test
+	// lo vedeva perché i contatori erano esercitati chiamando `RecordPlanningInput` a mano.
+	//
+	// ⛔ **Non serve un `Click` sul ramo di rifiuto**: `OnSelect` ne registra già uno per OGNI clic prima
+	// di arrivare qui (`:1556`), quindi i tempi sono aggiornati e aggiungerne un altro li raddoppierebbe.
+	if (ARTTurnManager* TM = PacingTurnManager(this))
+	{
+		TM->RecordPlanningInput(ERTPlanningInput::Order);
+	}
+
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
 		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
 		SelectedUnit->GetEffectiveMoveRange());

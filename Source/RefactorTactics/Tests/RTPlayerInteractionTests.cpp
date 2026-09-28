@@ -9,6 +9,7 @@
 #include "Turn/RTTurnLog.h"
 #include "Turn/RTTurnLogLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Tests/RTWorldFixtures.h" // #3400: PlayOneTurn, per leggere il campione a turno chiuso
 #include "Unit/RTUnit.h"
 #include "Ability/RTActionData.h"
 #include "Turn/RTMovementActionLibrary.h"
@@ -2587,6 +2588,89 @@ bool FRTSneakRedrawsReachablePreviewTest::RunTest(const FString&)
 		MapActor->NumPreviewReachableCells(), Prima);
 
 	DestroyInteractionWorld(World);
+	return true;
+}
+
+/**
+ * UNA DESTINAZIONE DI MOVIMENTO E' UN ORDINE; UN WAYPOINT RIFIUTATO NO — `#3400`.
+ *
+ * 🔑 **Trovato eseguendo `PIE-PACING-1` in seduta**, non da una rilettura: un turno col solo waypoint
+ * dava `OrderCount` **0** mentre `UndoCount` saliva a 1. Il contratto di `Turn/RTPacing.h:21` dichiara
+ * `Order` come «abilita' **o destinazione**», e la meta' «destinazione» non era cablata.
+ *
+ * ⚠️ **Il secondo caso e' la meta' che conta.** Con la sola asserzione sull'accettato, un `Order`
+ * registrato in cima a `HandleClickOnCell` passerebbe — e conterebbe come ordine ogni clic su una cella
+ * bloccata o fuori budget, gonfiando la metrica che `#971` usa per distinguere «sto pensando» da «sto
+ * litigando con l'interfaccia». Le due asserzioni insieme fissano la POSIZIONE della chiamata, non la
+ * sua presenza.
+ *
+ * ⚠️ **Non e' il contatore che si prova qui**: quello e' gia' coperto da
+ * `RefactorTactics.Pacing.RecordsDecisionComposition`, che chiama `RecordPlanningInput` a mano. Si prova
+ * la **catena** dal gesto al campione, che e' il punto dove il difetto viveva.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTMovementDestinationIsAnOrderTest,
+	"RefactorTactics.PlayerInput.MovementDestinationCountsAsAnOrder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTMovementDestinationIsAnOrderTest::RunTest(const FString&)
+{
+	// Il campione si legge solo a turno chiuso, quindi ogni caso vuole il proprio mondo.
+	auto OrdiniDopoUnClick = [this](const FRTCellId& Bersaglio, int32& OutOrdini, int32& OutWaypoint) -> bool
+	{
+		UWorld* World = MakeInteractionWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = Arena;
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		// ⚠️ **Senza questo il campione non si apre mai**, e i contatori finiscono in un `FRTPacingSample`
+		// che nessuno chiude: stesso motivo per cui `SpawnHexPacingTurnManager` lo fa in
+		// `RTPacingIntegrationTests`. Il primo giro di questo test e' caduto proprio qui, con `OrderCount`
+		// a 0 su un waypoint accettato — cioe' con l'aspetto del difetto che stava verificando.
+		if (TM) { TM->DispatchBeginPlay(); }
+
+		// Ivrin: 5 punti movimento, stessa posizione del test dei waypoint qui sopra.
+		ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
+		// Un avversario: senza, la fine della partita potrebbe chiudere il turno per eliminazione.
+		SpawnInteractionUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(-2, 2, 0));
+		ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+		if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit) || !TM)
+		{
+			DestroyInteractionWorld(World); return false;
+		}
+
+		PC->SelectActorForTest(Unit);
+		PC->HandleClickOnCell(Bersaglio);
+		OutWaypoint = Unit->PlannedWaypoints.Num();
+
+		RTWorldFixtures::PlayOneTurn(TM);
+		if (!TestTrue(TEXT("un campione chiuso"), TM->GetPacingSamples().Num() >= 1))
+		{
+			DestroyInteractionWorld(World); return false;
+		}
+		OutOrdini = TM->GetPacingSamples()[0].OrderCount;
+		DestroyInteractionWorld(World);
+		return true;
+	};
+
+	// (1) Destinazione ACCETTATA -> un ordine.
+	{
+		int32 Ordini = -1, Waypoint = -1;
+		if (!OrdiniDopoUnClick(FRTCellId(3, -2, 0), Ordini, Waypoint)) { return false; }
+		// Controllo positivo dell'allestimento: se il click non avesse prodotto un waypoint, uno zero
+		// sugli ordini direbbe «il fix non c'e'» quando invece il bersaglio era irraggiungibile.
+		TestEqual(TEXT("il click e' stato ACCETTATO (allestimento valido)"), Waypoint, 1);
+		TestEqual(TEXT("una destinazione accettata vale UN ordine"), Ordini, 1);
+	}
+
+	// (2) Destinazione RIFIUTATA -> nessun ordine. Cella bloccata della mappa di prova.
+	{
+		int32 Ordini = -1, Waypoint = -1;
+		if (!OrdiniDopoUnClick(FRTCellId(2, 1, 0), Ordini, Waypoint)) { return false; }
+		TestEqual(TEXT("il click e' stato RIFIUTATO (allestimento valido)"), Waypoint, 0);
+		TestEqual(TEXT("un tentativo respinto NON e' un ordine"), Ordini, 0);
+	}
+
 	return true;
 }
 
