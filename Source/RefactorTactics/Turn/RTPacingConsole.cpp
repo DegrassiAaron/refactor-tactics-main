@@ -2,7 +2,9 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Turn/RTPacingLibrary.h"
+#include "Turn/RTPacingConsole.h"
 #include "Turn/RTTurnManager.h"
+#include "Misc/Paths.h"
 
 /**
  * `rt.Debug.Pacing` — sommario della sessione corrente. Sola lettura: non tocca lo stato di gioco.
@@ -77,3 +79,143 @@ static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugPacing(
 	TEXT("rt.Debug.Pacing"),
 	TEXT("Sommario del pacing della sessione corrente (telemetria: nessun effetto sul gioco)."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugPacingCommand));
+
+// ---------------------------------------------------------------------------------------------------
+// `rt.Debug.RecordPacing` — armare il CSV senza piazzare il TurnManager (#3398).
+//
+// 🔑 **Esiste perche' la via alternativa invaliderebbe la misura che serve.** `bRecordPacing` e'
+// `EditAnywhere`, quindi la spunta vive solo su un'istanza selezionabile; ma il TurnManager lo spawna
+// `ARTGameMode` (`RTGameMode.cpp:509`) da una classe cablata, e piazzarlo nel livello per far comparire
+// la spunta fa aprire il turno 1 **prima** dell'allestimento — il difetto che `#2102`/`D-314` hanno
+// chiuso, dichiarato dal warning in `RTTurnManager.cpp:97`. Quel turno 1 e' il primo campione di
+// `MsToLockIn`, cioe' proprio cio' che `U19` va a misurare.
+// ---------------------------------------------------------------------------------------------------
+
+ERTRecordPacingRequest URTPacingConsoleLibrary::ParseArgs(const TArray<FString>& Args)
+{
+	if (Args.Num() == 0)
+	{
+		return ERTRecordPacingRequest::Query;
+	}
+	if (Args.Num() > 1)
+	{
+		// Due argomenti non hanno una lettura ovvia, e sceglierne una sarebbe indovinare.
+		return ERTRecordPacingRequest::Invalid;
+	}
+
+	const FString A = Args[0].TrimStartAndEnd().ToLower();
+	if (A == TEXT("1") || A == TEXT("true") || A == TEXT("on") || A == TEXT("si"))
+	{
+		return ERTRecordPacingRequest::Enable;
+	}
+	if (A == TEXT("0") || A == TEXT("false") || A == TEXT("off") || A == TEXT("no"))
+	{
+		return ERTRecordPacingRequest::Disable;
+	}
+	return ERTRecordPacingRequest::Invalid;
+}
+
+TArray<FString> URTPacingConsoleLibrary::Describe(ERTRecordPacingRequest Request, bool bWasEnabled,
+	const FString& CsvDir, const FString& ExistingCsvPath)
+{
+	TArray<FString> Out;
+
+	if (Request == ERTRecordPacingRequest::Invalid)
+	{
+		Out.Add(TEXT("[RT] Argomento non interpretabile: nulla e' stato cambiato."));
+		Out.Add(TEXT("[RT]   uso: rt.Debug.RecordPacing [1|0]  (senza argomenti: dichiara lo stato)"));
+		return Out;
+	}
+
+	const bool bNowEnabled =
+		Request == ERTRecordPacingRequest::Enable ? true :
+		Request == ERTRecordPacingRequest::Disable ? false : bWasEnabled;
+
+	if (Request == ERTRecordPacingRequest::Query)
+	{
+		Out.Add(FString::Printf(TEXT("[RT] Registrazione CSV del pacing: %s."),
+			bWasEnabled ? TEXT("ATTIVA") : TEXT("SPENTA")));
+	}
+	else if (bNowEnabled == bWasEnabled)
+	{
+		Out.Add(FString::Printf(TEXT("[RT] Registrazione CSV del pacing: gia' %s, niente da cambiare."),
+			bWasEnabled ? TEXT("ATTIVA") : TEXT("SPENTA")));
+	}
+	else
+	{
+		Out.Add(FString::Printf(TEXT("[RT] Registrazione CSV del pacing: %s -> %s."),
+			bWasEnabled ? TEXT("ATTIVA") : TEXT("SPENTA"),
+			bNowEnabled ? TEXT("ATTIVA") : TEXT("SPENTA")));
+	}
+
+	if (bNowEnabled)
+	{
+		Out.Add(ExistingCsvPath.IsEmpty()
+			? FString::Printf(TEXT("[RT]   il file nascera' in %s come pacing_<data>.csv"), *CsvDir)
+			: FString::Printf(TEXT("[RT]   file: %s"), *ExistingCsvPath));
+		// ⚠️ Il flag e' letto da `FRTPacingRecorder::Close`, quindi arma il PRIMO turno che si chiude da
+		// adesso. Chi arma a partita iniziata ottiene un CSV piu' corto della partita, e senza questa
+		// riga non avrebbe modo di accorgersene prima di cercare le righe mancanti.
+		Out.Add(TEXT("[RT]   vale dal primo turno che si chiude da adesso: i turni gia' conclusi restano ")
+			TEXT("solo in memoria (rt.Debug.Pacing)."));
+	}
+	else
+	{
+		Out.Add(TEXT("[RT]   i campioni si accumulano comunque in memoria: rt.Debug.Pacing li legge."));
+	}
+
+	return Out;
+}
+
+static void RTDebugRecordPacingCommand(const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+{
+	const ERTRecordPacingRequest Request = URTPacingConsoleLibrary::ParseArgs(Args);
+
+	// Un argomento illeggibile si rifiuta PRIMA di cercare il mondo: «non ho capito» e «non c'e' partita»
+	// sono due diagnosi diverse, e la seconda nasconderebbe la prima.
+	if (Request == ERTRecordPacingRequest::Invalid)
+	{
+		for (const FString& Line : URTPacingConsoleLibrary::Describe(Request, false, FString(), FString()))
+		{
+			Ar.Log(*Line);
+		}
+		return;
+	}
+
+	if (!World)
+	{
+		Ar.Log(TEXT("[RT] Nessun mondo attivo."));
+		return;
+	}
+	ARTTurnManager* TM = Cast<ARTTurnManager>(
+		UGameplayStatics::GetActorOfClass(World, ARTTurnManager::StaticClass()));
+	if (!TM)
+	{
+		Ar.Log(TEXT("[RT] Nessun TurnManager nel livello."));
+		return;
+	}
+
+	const bool bWasEnabled = TM->bRecordPacing;
+	if (Request == ERTRecordPacingRequest::Enable)
+	{
+		TM->bRecordPacing = true;
+	}
+	else if (Request == ERTRecordPacingRequest::Disable)
+	{
+		TM->bRecordPacing = false;
+	}
+
+	const FString CsvDir = FPaths::ConvertRelativePathToFull(
+		FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RT")));
+	for (const FString& Line :
+		URTPacingConsoleLibrary::Describe(Request, bWasEnabled, CsvDir, TM->GetPacingCsvPath()))
+	{
+		Ar.Log(*Line);
+	}
+}
+
+static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTDebugRecordPacing(
+	TEXT("rt.Debug.RecordPacing"),
+	TEXT("Arma o disarma il CSV di pacing sul TurnManager vivo (telemetria: nessun effetto sul gioco). ")
+	TEXT("Senza argomenti dichiara lo stato."),
+	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTDebugRecordPacingCommand));
