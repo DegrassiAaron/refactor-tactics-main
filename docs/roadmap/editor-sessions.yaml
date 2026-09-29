@@ -1424,8 +1424,13 @@ sessions:
       durata **3,2 min**, primo contatto al **round 4**, 17 attacchi `Blast` e 6 avanzamenti d'obiettivo.
       Le **tre** voci hanno il loro numero: `PIE-V01-MATCHLEN` (12 round, 3,2 min),
       `PIE-V01-READY` (mediana lock-in **11,1 s** su 12 turni), `PIE-V01-MAPSCALE` (**~3 Move** per
-      attraversare, due rotte 12 e 13 con esposizione 70% e 10%). Tutte e tre restano 🟡, e il
-      `done_when` non chiede il verde: chiede **un numero registrato, anche fuori target**.
+      attraversare, due rotte 12 e 13 con esposizione 70% e 10%). Il `done_when` non chiede il verde:
+      chiede **un numero registrato, anche fuori target**, e i tre numeri ci sono.
+      ♻️ **Aggiornato in giornata**: `PIE-V01-READY` e' passata a ✅ poco dopo, quando la meta' che le
+      mancava — l'**Unready** durante il countdown — e' stata esercitata a schermo in un turno solo
+      ([#3405](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3405), `main` = `cee1c3ed7`): quattro cicli Ready→Unready, il piano mai
+      ricostruito, e il tempo residuo in calo a ogni giro. `PIE-V01-MATCHLEN` e `PIE-V01-MAPSCALE`
+      restano 🟡 per i motivi scritti nelle loro celle.
       ✅ **`PIE-PACING-1` non e' rossa**, quindi non invalida le tre misure: e' 🟡 col cablaggio provato.
       ⚠️ **Tre cose vanno lette ACCANTO ai numeri, non taciute:**
       (1) 🔴 **La banda non e' stata misurata liberamente**: `RoundLimit 12` e la partita e' finita allo
