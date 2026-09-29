@@ -916,12 +916,33 @@ sessions:
       (1) I quattro Blueprint sono **tracciati da git**: `git ls-files --error-unmatch` risponde per
       `BP_Unit_Aevik`, `BP_Unit_Muiren`, `BP_Unit_Branth`, `BP_Unit_Ivrin`; la Skeletal agganciata e'
       `#1719`, chiusa.
-      (2) Le **tre** voci che questa seduta verifica hanno esito reale e sono tutte ✅ — `PIE-AS2`
-      (chiusa proprio in `#3378`: la seconda meta', «a terra senza fluttuamento», era dichiarata non
-      giudicabile finche' le mesh stavano in posa di riferimento), `PIE-FACING` e `PIE-AS4a`.
+      (2) ⛔ **NON soddisfatta, e la chiusura del 2026-09-28 era sbagliata su una delle tre voci.**
+      Corretto il 2026-09-29. `verifies` elenca `PIE-AS2`, `PIE-FACING`, `PIE-AS4a`; le prime due
+      dichiaravano ✅ e la terza pure, ma **`PIE-FACING` si ritrattava nel proprio testo** — *«la
+      precondizione di questa voce non e' mai stata vera»*, *«va rieseguita»* dopo `#1793` e `#2167`.
+      Il suo ✅ era il glifo del 2026-08-25, giudicato su un'altra base (la posa **all'arrivo**), e il
+      criterio chiede la rotazione **durante** la corsa.
+      🔴 **L'errore e' di metodo e resta scritto**: ho letto il **glifo** invece della **prosa** della
+      cella, e ho scritto «esito reale» su una voce che il proprio testo rimandava. La lettura canonica
+      del glifo e' corretta e non e' il problema: il problema e' che il glifo non porta la
+      ritrattazione, quindi non basta da solo per dire «esito reale».
+      ✅ **Le altre due reggono e non sono rimesse in discussione**: `PIE-AS2` (chiusa in `#3378`, la
+      seconda meta' «a terra senza fluttuamento») e `PIE-AS4a` (verificata a schermo dall'autore sui
+      quattro eroi il 2026-09-03).
+      ➡️ Questa seduta si chiude quando `PIE-FACING` ha un esito, cioe' dopo
+      [#1793](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1793) e
+      [#2167](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2167).
       ⛔ **Il marcatore e' stato scritto solo dopo aver contato le voci**: `verifies` ne elenca **tre**,
       e chiudere su `PIE-AS2` soltanto avrebbe timbrato una seduta con due criteri non guardati.
-      ➡️ Con questo `U7` **esce dai cinque prerequisiti aperti di `U19`**.
+      ⏻ **La riga che diceva «con questo `U7` esce dai cinque prerequisiti aperti di `U19`» e' stata
+      ritirata il 2026-09-29**: non ne esce, perche' il suo `done_when` non e' soddisfatto.
+      ⚠️ **Ma la SOSTANZA della condizione di `U19` regge**, e va distinta dal marcatore: `U19` chiede
+      *«in campo ci sono personaggi, non cilindri»*, e i personaggi ci sono — la partita del 2026-09-28
+      su `L_HexArena` porta `BP_Unit_Aevik`, `Branth`, `Ivrin`, `Muiren` in campo. Cio' che manca e' la
+      **leggibilita' del facing durante il movimento**, che e' un difetto noto e posseduto
+      ([#2167](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2167)), non l'assenza dei
+      modelli. ∴ `U19` resta eseguibile, e il difetto va dichiarato accanto ai suoi numeri come
+      `D-441` ha fatto per il bot non tarato — non taciuto, e non usato per bloccarla.
       ⌫ *Testo originale:* i quattro Blueprint sono tracciati da git con la Skeletal Mesh agganciata, e
       le voci hanno esito reale su tutti e quattro gli eroi
     unblocks: [U8, U19]
