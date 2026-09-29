@@ -1418,7 +1418,28 @@ sessions:
       - PIE-PACING-1
     issues: [84, 2188]
     done_when: >-
-      le TRE voci eseguibili hanno un numero registrato, anche fuori target —
+      ✅ **CHIUSA il 2026-09-29** (`main` = `13b376e90`, `L_HexArena`, arena d'autore da **64 celle**,
+      quattro `BP_Unit_*`, `Format.Skirmish2v2`, timer di pianificazione al default). **Partita intera
+      giocata fino alla fine**: 12 round, `Pareggio - allo scadere dei round (12/12, obiettivo 3-3)`,
+      durata **3,2 min**, primo contatto al **round 4**, 17 attacchi `Blast` e 6 avanzamenti d'obiettivo.
+      Le **tre** voci hanno il loro numero: `PIE-V01-MATCHLEN` (12 round, 3,2 min),
+      `PIE-V01-READY` (mediana lock-in **11,1 s** su 12 turni), `PIE-V01-MAPSCALE` (**~3 Move** per
+      attraversare, due rotte 12 e 13 con esposizione 70% e 10%). Tutte e tre restano 🟡, e il
+      `done_when` non chiede il verde: chiede **un numero registrato, anche fuori target**.
+      ✅ **`PIE-PACING-1` non e' rossa**, quindi non invalida le tre misure: e' 🟡 col cablaggio provato.
+      ⚠️ **Tre cose vanno lette ACCANTO ai numeri, non taciute:**
+      (1) 🔴 **La banda non e' stata misurata liberamente**: `RoundLimit 12` e la partita e' finita allo
+      scadere, quindi **13 e 14 erano irraggiungibili per costruzione**. Che la partita chiuda in 10–14
+      e' vero, ma questa corsa non dice se il gioco ci arriverebbe da solo.
+      (2) **Il bot non e' ritarato sulla scala esagonale** (`D-441`): il ritmo misurato e' quello del
+      gioco che si spedisce, non quello di un avversario competente.
+      (3) **Due difetti noti erano in campo**: il facing che non segue il percorso
+      ([#2167](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2167)) e un blocco fra compagne al round 3 (`MOV-12`, risolto ripianificando).
+      Nessuno dei due e' entrato nel giudizio sul ritmo.
+      ✅ **Il giudizio d'autore sulle due domande percettive**: *«il ritmo annoia?»* → **no**; sulle due
+      rotte → *«va bene cosi', e' una mappa di test»* — che e' una qualificazione di scope, riportata
+      come tale e non come un si'.
+      ⏻ *Testo originale:* le TRE voci eseguibili hanno un numero registrato, anche fuori target —
       `PIE-V01-MATCHLEN`, `PIE-V01-READY`, `PIE-V01-MAPSCALE`. `PIE-V01-OVERWATCH` NON entra,
       perche' il passo 4 la rinvia a E14 che non e' fra i prerequisiti, e pretenderla renderebbe
       questo done_when irraggiungibile (`D-187`).
