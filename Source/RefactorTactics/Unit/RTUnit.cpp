@@ -1145,6 +1145,60 @@ void ARTUnit::NoteMovePlanRejection(const FRTHexSnapshot& Snapshot, int32 UnitId
 	RejectedMoveDestination = bByOccupant ? RequestedCell : FRTCellId();
 }
 
+void ARTUnit::RicordaTroncamentoDelTetto(const FName& TettoId, const TArray<FRTCellId>& Prima)
+{
+	// ⛔ Niente scartato, niente da ricordare. Il confronto e' sui NUMERI e non su `Prima != PlannedWaypoints`:
+	// il troncamento taglia dalla coda, quindi un piano intatto ha la stessa lunghezza ed e' lo stesso piano.
+	if (Prima.Num() <= PlannedWaypoints.Num())
+	{
+		return;
+	}
+	WaypointsPrimaDelTetto = Prima;
+	WaypointsTenutiDalTetto = PlannedWaypoints.Num();
+	TettoCheHaTroncato = TettoId;
+}
+
+bool ARTUnit::RipristinaWaypointsDelTetto(const FName& TettoId)
+{
+	if (WaypointsTenutiDalTetto == INDEX_NONE || TettoCheHaTroncato != TettoId)
+	{
+		// ⚠️ **La memoria di un ALTRO tetto non si consuma qui.** Disarmare l'`Overwatch` non deve scordare
+		// cio' che lo `Sneak` aveva tolto: quel ripristino spetta a chi annulla lo `Sneak`.
+		return false;
+	}
+
+	// Il piano e' ancora quello che il troncamento ha lasciato? Lunghezza **e** contenuto: la lunghezza da
+	// sola passerebbe su un piano riscritto di pari misura, che e' un piano diverso.
+	bool bIntatto = PlannedWaypoints.Num() == WaypointsTenutiDalTetto;
+	for (int32 i = 0; bIntatto && i < WaypointsTenutiDalTetto; ++i)
+	{
+		// Entrambi gli indici sono guardati SUL POSTO, e non e' ridondanza: la sicurezza di
+		// `PlannedWaypoints[i]` veniva dal solo confronto di lunghezza qui sopra, cioe' da un invariante
+		// NON LOCALE. Un gate di mutazione che tolse quel confronto fece crashare la suite con
+		// `Array index out of bounds: 0 into an array of size 0` invece di renderla rossa: il difetto era
+		// nella guardia, non nella mutazione.
+		bIntatto = WaypointsPrimaDelTetto.IsValidIndex(i) && PlannedWaypoints.IsValidIndex(i)
+			&& WaypointsPrimaDelTetto[i] == PlannedWaypoints[i];
+	}
+
+	const bool bRipristinato = bIntatto;
+	if (bRipristinato)
+	{
+		PlannedWaypoints = WaypointsPrimaDelTetto;
+	}
+	// In ogni caso la memoria si consuma: se il piano e' cambiato non potra' mai tornare valida, e tenerla
+	// darebbe un ripristino a sorpresa al gesto dopo.
+	ScordaTroncamentoDelTetto();
+	return bRipristinato;
+}
+
+void ARTUnit::ScordaTroncamentoDelTetto()
+{
+	WaypointsPrimaDelTetto.Reset();
+	WaypointsTenutiDalTetto = INDEX_NONE;
+	TettoCheHaTroncato = NAME_None;
+}
+
 void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float HexSize, float LayerHeight)
 {
 	Cell = InCell;        // posizione AUTOREVOLE (invariante #2: il FVector sotto e' solo rendering)
@@ -1155,6 +1209,9 @@ void ARTUnit::PlaceOnCell(const FRTCellId& InCell, const FVector& Origin, float 
 	// successivo la destinazione che gli era stata negata in QUESTO. Vale per ogni scrittore di `Cell`, non
 	// solo per la fase Move — spinte e teletrasporti passano di qui e azzerano gia' gli altri campi del piano.
 	ClearMovePlanRejection();
+	// Stessa ragione della riga sopra, e [D-444] lo dice: la memoria del troncamento e' memoria di EDITING
+	// di questo piano. Chi e' stato spostato non porta al turno dopo un percorso da restituire.
+	ScordaTroncamentoDelTetto();
 	SetActorLocation(WorldForCell(InCell, Origin, HexSize, LayerHeight));
 }
 

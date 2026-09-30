@@ -454,6 +454,66 @@ public:
 	FName PlannedMovementProfileId;
 
 	/**
+	 * I waypoint com'erano **prima** che un tetto li troncasse, e quanti il troncamento ne ha lasciati
+	 * (`#3417`, [D-444]).
+	 *
+	 * 🔑 **Esistono perche' un tetto che si ALZA non restituisce cio' che aveva tolto.** I due inneschi di
+	 * [D-401] troncano il piano al budget nuovo — lo `Sneak` dichiarato e la riserva che l'`Overwatch`
+	 * impone — e fin qui e' giusto. Ma toglierlo e' reversibile e il troncamento no: chi armava, ci
+	 * ripensava e disarmava restava col percorso corto, senza che niente glielo dicesse.
+	 *
+	 * ⚠️ **La memoria e' di UN livello, non una pila, e il limite e' dichiarato.** Sneak dichiarato poi
+	 * `Overwatch` armato producono due troncamenti: il secondo ricorda il piano **gia' sgusciato**, quindi
+	 * disarmare l'`Overwatch` restituisce un percorso che sta nel tetto dello `Sneak` — corretto — ma
+	 * annullare poi lo `Sneak` non restituisce piu' la coda originale. Una pila la restituirebbe; non la si
+	 * costruisce finche' nessuno la chiede, e un ripristino **mai illegale** e' cio' che serve.
+	 *
+	 * 🔴 **`TettoCheHaTroncato` non e' un'etichetta di comodo**: e' cio' che impedisce a un innesco di
+	 * restituire il piano tolto dall'ALTRO. Senza, disarmare l'`Overwatch` rimetterebbe i waypoint che lo
+	 * `Sneak` aveva tolto, mentre lo `Sneak` e' ancora dichiarato — un piano oltre il tetto vigente.
+	 *
+	 * ⛔ **Non sono replicati, come `PlannedWaypoints` e `PlannedMovementProfileId` qui sopra, e non sono
+	 * determinanti**: il resolver non li legge, e non entrano ne' nello snapshot ne' nel TurnLog. Sono
+	 * memoria di editing, e si consumano col piano (`PlaceOnCell`).
+	 */
+	TArray<FRTCellId> WaypointsPrimaDelTetto;
+
+	/** Quanti waypoint il troncamento ha LASCIATO. `INDEX_NONE` = nessuna memoria. */
+	int32 WaypointsTenutiDalTetto = INDEX_NONE;
+
+	/** Quale tetto ha troncato: `MovementProfile.Sneak` o `MovementProfile.Withdraw`. */
+	FName TettoCheHaTroncato;
+
+	/**
+	 * Ricorda che `TettoId` ha troncato il piano, dato com'era **prima**.
+	 *
+	 * ⚠️ **Si chiama DOPO il troncamento**, perche' registra anche quanti waypoint sono rimasti: e' il
+	 * numero che `RipristinaWaypointsDelTetto` confronta per sapere se il giocatore ha toccato il piano nel
+	 * frattempo. Chiamandola prima, quel confronto sarebbe sempre falso.
+	 *
+	 * ⛔ Non fa niente se non e' stato scartato nulla: senza uno scarto non c'e' niente da restituire, e una
+	 * memoria vuota renderebbe il ripristino un no-op indistinguibile da un ripristino avvenuto.
+	 */
+	void RicordaTroncamentoDelTetto(const FName& TettoId, const TArray<FRTCellId>& Prima);
+
+	/**
+	 * Rimette i waypoint che `TettoId` aveva tolto. Risponde **se** li ha rimessi.
+	 *
+	 * 🔑 **Ripristina solo se il piano e' ANCORA esattamente quello che il troncamento ha lasciato.** Se
+	 * dopo il troncamento il giocatore ha annullato un waypoint a mano, restituire il percorso intero
+	 * annullerebbe il suo annullamento; se ne ha aggiunto uno, lo cancellerebbe. Il confronto e'
+	 * sull'uguaglianza esatta e non su <<e' un prefisso>>, che accetterebbe entrambi i casi.
+	 *
+	 * ⚠️ **La memoria si consuma in ogni caso**, anche quando il confronto fallisce: a quel punto e' stantia
+	 * e non potra' mai tornare valida — il piano si e' mosso oltre. Tenerla darebbe un ripristino a sorpresa
+	 * al gesto dopo.
+	 */
+	bool RipristinaWaypointsDelTetto(const FName& TettoId);
+
+	/** Scorda il troncamento senza ripristinare: il piano di cui faceva parte non esiste piu'. */
+	void ScordaTroncamentoDelTetto();
+
+	/**
 	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
 	 * OCCUPATA da un'altra unita' (#79).
 	 *

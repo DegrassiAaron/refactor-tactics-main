@@ -2774,4 +2774,368 @@ bool FRTArmingAReserveRedrawsAtOnceTest::RunTest(const FString&)
 	DestroyInteractionWorld(World);
 	return true;
 }
+
+// ===================================================================================================
+// #3417 / [D-444] - un tetto che si ALZA restituisce cio' che aveva tolto
+// ===================================================================================================
+
+namespace
+{
+	/** L'allestimento comune dei test di [D-444]: mondo, arena, mappa, turn manager, unita', controller. */
+	struct FRTBancoTetto
+	{
+		UWorld* World = nullptr;
+		ARTHexMapActor* MapActor = nullptr;
+		ARTUnit* Unit = nullptr;
+		ARTPlayerController* PC = nullptr;
+		int32 IdxOverwatch = INDEX_NONE;
+
+		bool Valido() const { return World && MapActor && Unit && PC && IdxOverwatch != INDEX_NONE; }
+	};
+
+	FRTBancoTetto AllestisciBancoTetto(const FRTCellId& Partenza)
+	{
+		FRTBancoTetto B;
+		B.World = MakeInteractionWorld();
+		if (!B.World) { return B; }
+
+		URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(B.World);
+		B.MapActor = B.World->SpawnActor<ARTHexMapActor>();
+		if (B.MapActor) { B.MapActor->MapAsset = Arena; }
+		B.World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+		B.Unit = SpawnInteractionUnit(B.World, 0, URTHeroCatalogLibrary::MakeIvrin(), Partenza);
+		B.PC = B.World->SpawnActor<ARTPlayerController>();
+		if (!B.Unit) { return B; }
+
+		// L'indice si CERCA: le generiche sono accodate al kit, quindi la posizione dipende dall'eroe.
+		for (int32 i = 0; i < B.Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = B.Unit->GetAbility(i);
+			if (A && A->Def.ActionId == TEXT("Action.Overwatch")) { B.IdxOverwatch = i; break; }
+		}
+		return B;
+	}
+}
+
+/**
+ * IL DISARMO RILASCIA LO SLOT MOVIMENTO - `#3417`.
+ *
+ * 🔑 **E' il cuore del difetto, e sta in una riga che non c'era.** `SelectAbility(INDEX_NONE)` scrive
+ * `SelectedAbilityIndex` e **nient'altro**: `PlannedAbilityIndex` restava, `MakePlanFor` continuava ad
+ * aggiungere l'azione al piano, e `ReservedProfileForPlan` a rispondere `Withdraw`. Lo slot si spegneva a
+ * schermo e il tetto restava per tutto il turno.
+ *
+ * ⚠️ **Le due asserzioni non sono ridondanti.** Azzerare `PlannedAbilityIndex` e' il meccanismo; il
+ * tetto rilasciato e' la **conseguenza** che il giocatore sente. Un'implementazione che azzerasse il campo
+ * senza che la catena del tetto lo leggesse passerebbe la prima e cadrebbe sulla seconda.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDisarmReleasesReservedSlotTest,
+	"RefactorTactics.PlayerInput.DisarmingReleasesTheReservedSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDisarmReleasesReservedSlotTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	if (!TestEqual(TEXT("premessa: armare riserva lo slot al Withdraw"),
+			URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(B.Unit)),
+			URTMovementProfileLibrary::ProfileWithdraw))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	// 🔴 Il meccanismo.
+	TestEqual(TEXT("il disarmo azzera l'azione PIANIFICATA, non solo quella selezionata"),
+		B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	// 🔴 E la conseguenza che il giocatore sente.
+	TestTrue(TEXT("e lo slot movimento torna libero: nessun tetto imposto dal piano"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(
+			URTPlanValidationLibrary::MakePlanFor(B.Unit)).IsNone());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * DISARMARE RESTITUISCE I WAYPOINT CHE LA RISERVA AVEVA TOLTO - `#3417`, [D-444].
+ *
+ * 🔑 **Togliere un tetto e' reversibile, troncare no.** [D-401] ha scelto il troncamento
+ * sull'azzeramento - *<<si tiene cio' che il profilo nuovo consente>>* - e [D-444] chiude il verso
+ * opposto, che quella decisione non copriva.
+ *
+ * ⚠️ **Si asserisce anche `PlannedPath`, non solo i waypoint.** Il percorso e' DERIVATO: rimettere i
+ * waypoint senza ricalcolarlo lascerebbe due verita' sullo stesso piano, ed e' il difetto che l'anteprima
+ * mostrerebbe per prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDisarmGivesBackWaypointsTest,
+	"RefactorTactics.PlayerInput.DisarmingGivesBackTheTruncatedWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDisarmGivesBackWaypointsTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));
+	const TArray<FRTCellId> Dichiarati = B.Unit->PlannedWaypoints;
+	if (!TestEqual(TEXT("premessa: due waypoint posati"), Dichiarati.Num(), 2))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	if (!TestTrue(*FString::Printf(TEXT("premessa: la riserva ha troncato (%d -> %d)"),
+			Dichiarati.Num(), B.Unit->PlannedWaypoints.Num()),
+			B.Unit->PlannedWaypoints.Num() < Dichiarati.Num()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	TestEqual(TEXT("i waypoint tornano tutti"), B.Unit->PlannedWaypoints.Num(), Dichiarati.Num());
+	bool bStessi = B.Unit->PlannedWaypoints.Num() == Dichiarati.Num();
+	for (int32 i = 0; bStessi && i < Dichiarati.Num(); ++i)
+	{
+		bStessi = B.Unit->PlannedWaypoints[i] == Dichiarati[i];
+	}
+	TestTrue(TEXT("e sono gli STESSI, nello stesso ordine"), bStessi);
+	// ⚠️ Il derivato: senza `RebuildPlannedPath` questa riga cade mentre quelle sopra passano.
+	TestTrue(TEXT("e il percorso derivato e' stato ricalcolato: arriva all'ultimo waypoint"),
+		B.Unit->PlannedPath.Num() > 0 && B.Unit->PlannedPath.Last() == Dichiarati.Last());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * ANNULLARE LO SNEAK RESTITUISCE I SUOI - `#3417`, [D-444], e la simmetria che [D-401] pretende.
+ *
+ * 🔴 **Questo test esiste per una ragione di coerenza, non per un difetto osservato a parte.** [D-401]
+ * dice che il troncamento rende i due inneschi *<<una sola regola>>*: un ripristino sul solo innesco
+ * imposto ricreerebbe l'asimmetria che quella decisione ha rimosso - disarmando l'`Overwatch` il percorso
+ * torna, annullando lo `Sneak` no.
+ *
+ * ⚠️ **Il ripristino sta PRIMA della lambda che rivalida**, e questo test lo coprirebbe anche se il
+ * piano fosse stato troncato a zero: il primo ramo di quella lambda esce sui waypoint vuoti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUndeclareSneakGivesBackWaypointsTest,
+	"RefactorTactics.PlayerInput.UndeclaringSneakGivesBackTheTruncatedWaypoints",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUndeclareSneakGivesBackWaypointsTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(-4, 0, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+
+	// ⚠️ **La lunghezza del piano si RICAVA dal movimento base, non si cabla.** Il tetto dello `Sneak`
+	// e' `Base/2`, quindi su un eroe da 6 un piano di tre passi ci **sta** e non viene troncato: la prima
+	// stesura di questi due test e' fallita esattamente cosi' (`3 passi/3`, premessa non soddisfatta).
+	// E' la stessa trappola che il commento di `DeclaringSneakTruncatesToHalf` dichiara, con lo stesso
+	// rimedio: la riga retta lunga `Base`.
+	const int32 Base = B.Unit->GetEffectiveMoveRange();
+	for (int32 Passo = 1; Passo <= Base; ++Passo)
+	{
+		B.PC->HandleClickOnCell(FRTCellId(-4 + Passo, 0, 0));
+	}
+	const TArray<FRTCellId> Dichiarati = B.Unit->PlannedWaypoints;
+	const FRTMovementProfile Sneak =
+		URTMovementProfileLibrary::FindProfile(URTMovementProfileLibrary::ProfileSneak);
+	const int32 PassiSneak = Sneak.ResolveStepBudget(Base);
+	if (!TestTrue(*FString::Printf(
+			TEXT("premessa: il piano (%d waypoint) eccede il tetto dello Sneak (%d passi)"),
+			Dichiarati.Num(), PassiSneak), Dichiarati.Num() > PassiSneak))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->ToggleSneakForTest();
+	if (!TestTrue(*FString::Printf(TEXT("premessa: lo Sneak ha troncato (%d -> %d)"),
+			Dichiarati.Num(), B.Unit->PlannedWaypoints.Num()),
+			B.Unit->PlannedWaypoints.Num() < Dichiarati.Num()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->ToggleSneakForTest();
+
+	TestTrue(TEXT("annullando lo Sneak la dichiarazione si spegne"),
+		B.Unit->PlannedMovementProfileId.IsNone());
+	TestEqual(TEXT("e i waypoint che aveva tolto tornano"),
+		B.Unit->PlannedWaypoints.Num(), Dichiarati.Num());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * UN PIANO MODIFICATO A MANO NON VIENE RESUSCITATO - `#3417`, [D-444], guardia.
+ *
+ * 🔴 **E' la guardia che rende il ripristino accettabile.** Se dopo il troncamento il giocatore annulla
+ * un waypoint da se', restituirgli il percorso INTERO annullerebbe il suo annullamento - cioe' il
+ * ripristino diventerebbe un modo di perdere lavoro invece di recuperarlo.
+ *
+ * ⚠️ **Il confronto e' sull'uguaglianza esatta e non su <<e' un prefisso>>**: un prefisso accetterebbe
+ * sia il waypoint annullato sia uno aggiunto, cioe' proprio i due casi da escludere.
+ *
+ * ⚠️ **Il waypoint si toglie con `Pop()` e non col gesto `Back`**, di proposito: `ResolveBack` risolve
+ * la sua cascata sul contesto del puntatore, e con un'azione armata potrebbe restituire `Declaration`
+ * invece di `Waypoint`. Cio' che va misurato qui e' la guardia, non quale passo la cascata scelga.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTEditedPlanIsNotResurrectedTest,
+	"RefactorTactics.PlayerInput.AnEditedPlanIsNotResurrected",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTEditedPlanIsNotResurrectedTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));
+	if (!TestEqual(TEXT("premessa: due waypoint posati"), B.Unit->PlannedWaypoints.Num(), 2))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	const int32 DopoIlTaglio = B.Unit->PlannedWaypoints.Num();
+	if (!TestTrue(TEXT("premessa: la riserva ha troncato e qualcosa e' rimasto"),
+			DopoIlTaglio > 0 && DopoIlTaglio < 2))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	// Il giocatore tocca il piano dopo il troncamento.
+	B.Unit->PlannedWaypoints.Pop();
+	const int32 Modificato = B.Unit->PlannedWaypoints.Num();
+
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	TestEqual(TEXT("il piano modificato a mano resta come il giocatore l'ha lasciato"),
+		B.Unit->PlannedWaypoints.Num(), Modificato);
+	// ⚠️ E il tetto si rilascia comunque: la guardia vale sul RIPRISTINO, non sul disarmo.
+	TestTrue(TEXT("ma lo slot movimento si libera comunque"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(
+			URTPlanValidationLibrary::MakePlanFor(B.Unit)).IsNone());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * UN INNESCO NON RESTITUISCE CIO' CHE L'ALTRO AVEVA TOLTO - `#3417`, [D-444], guardia.
+ *
+ * 🔴 **Senza la chiave del tetto questo scenario produce un piano ILLEGALE.** `Sneak` dichiarato
+ * (x0,5) e `Overwatch` armato (x0,25) sono due troncamenti. Se il disarmo dell'`Overwatch` restituisse la
+ * memoria dell'ALTRO, il piano tornerebbe alla lunghezza pre-`Sneak` **mentre lo `Sneak` e' ancora
+ * dichiarato** - oltre il tetto vigente. La chiave e' cio' che lo impedisce.
+ *
+ * ⚠️ **Si misura la MEMORIA su `ARTUnit`, non i due gesti sul controller, e la ragione e' misurata.**
+ * Nell'arena di prova la catena retta non e' percorribile oltre il primo passo: lo `Sneak` cade nel ramo
+ * duro di `TruncateWaypointsToBudget` e tronca **a un waypoint** qualunque sia la lunghezza di partenza -
+ * *<<3 waypoint scartati (percorso non piu' percorribile: 0 passi/3), ne restano 1>>*. A quel punto il
+ * `Withdraw`, che ha lo stesso budget di un passo, riporta *<<0 waypoint scartati>>*: il **secondo**
+ * taglio non avviene, la seconda memoria non nasce, e un test passato da la' sarebbe verde per assenza
+ * dello scenario invece che per la chiave.
+ *
+ * 🔑 **Le due guardie che la chiave deve dare sono asserite separatamente.** Non restituire col tetto
+ * sbagliato e **non consumare** quella memoria sono cose diverse: un'implementazione che rispondesse
+ * `false` e poi scordasse passerebbe la prima e perderebbe il ripristino legittimo del gesto dopo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOneCeilingDoesNotGiveBackTheOthersTest,
+	"RefactorTactics.PlayerInput.OneCeilingDoesNotGiveBackWhatTheOtherTook",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOneCeilingDoesNotGiveBackTheOthersTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(-4, 0, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	const TArray<FRTCellId> PrimaDelloSneak = {
+		FRTCellId(-3, 0, 0), FRTCellId(-2, 0, 0), FRTCellId(-1, 0, 0), FRTCellId(0, 0, 0) };
+	const TArray<FRTCellId> DopoLoSneak = { FRTCellId(-3, 0, 0), FRTCellId(-2, 0, 0) };
+
+	// Lo `Sneak` tronca: il piano passa da quattro waypoint a due, e la memoria porta i quattro.
+	B.Unit->PlannedWaypoints = DopoLoSneak;
+	B.Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelloSneak);
+
+	// Poi la riserva tronca ancora: da due a uno, e la memoria porta i DUE - cioe' il piano gia' sgusciato.
+	const TArray<FRTCellId> DopoLaRiserva = { FRTCellId(-3, 0, 0) };
+	B.Unit->PlannedWaypoints = DopoLaRiserva;
+	B.Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileWithdraw, DopoLoSneak);
+
+	// 🔴 Disarmare restituisce il piano dello `Sneak`, non quello di partenza.
+	TestTrue(TEXT("disarmando la riserva il ripristino avviene"),
+		B.Unit->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileWithdraw));
+	TestEqual(TEXT("e torna il piano che lo Sneak aveva lasciato, non quello di partenza"),
+		B.Unit->PlannedWaypoints.Num(), DopoLoSneak.Num());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * LA MEMORIA DI UN TETTO NON SI CONSUMA CHIEDENDONE UN ALTRO - `#3417`, [D-444], guardia.
+ *
+ * 🔴 **E' la meta' che un `return false` da solo non copre.** Se `RipristinaWaypointsDelTetto` scordasse
+ * la memoria anche quando la chiave non corrisponde, disarmare l'`Overwatch` cancellerebbe il ripristino
+ * che spetta a chi annulla lo `Sneak`: il primo gesto non restituirebbe niente - corretto - e il secondo
+ * nemmeno, che non lo e'.
+ *
+ * ⚠️ **L'ordine e' quello che fa danno**: si chiede col tetto SBAGLIATO per primo, e solo dopo con
+ * quello giusto. Chiedendo prima col giusto il test passerebbe anche sull'implementazione difettosa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWrongCeilingDoesNotEatTheMemoryTest,
+	"RefactorTactics.PlayerInput.AskingWithTheWrongCeilingDoesNotEatTheMemory",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTWrongCeilingDoesNotEatTheMemoryTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(-4, 0, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	const TArray<FRTCellId> Intero = {
+		FRTCellId(-3, 0, 0), FRTCellId(-2, 0, 0), FRTCellId(-1, 0, 0) };
+	B.Unit->PlannedWaypoints = { FRTCellId(-3, 0, 0) };
+	B.Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, Intero);
+
+	// Il tetto SBAGLIATO per primo: non restituisce...
+	TestFalse(TEXT("il tetto sbagliato non restituisce niente"),
+		B.Unit->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileWithdraw));
+	TestEqual(TEXT("e non tocca il piano"), B.Unit->PlannedWaypoints.Num(), 1);
+
+	// 🔴 ...e non ha nemmeno consumato la memoria: quello giusto funziona ancora.
+	TestTrue(TEXT("il tetto giusto, chiesto DOPO, restituisce ancora"),
+		B.Unit->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileSneak));
+	TestEqual(TEXT("e il piano torna intero"), B.Unit->PlannedWaypoints.Num(), Intero.Num());
+
+	// ⚠️ La memoria si consuma su un ripristino avvenuto: una seconda richiesta non deve ridarla.
+	TestFalse(TEXT("e la memoria si e' consumata: la seconda richiesta non restituisce"),
+		B.Unit->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileSneak));
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
