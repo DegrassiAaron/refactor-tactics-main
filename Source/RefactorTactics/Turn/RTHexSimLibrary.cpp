@@ -1122,6 +1122,51 @@ namespace
 		State.StepRemaining[UnitIdx] = FMath::Max(1, Durata);
 	}
 
+	/**
+	 * A quale indice l'arco di `UnitIdx` potrebbe ESTENDERSI oltre il proprio terminus, o `INDEX_NONE`
+	 * se non puo' — [D-443], atto (B).
+	 *
+	 * [chiave] **Non modifica niente: risponde.** Il sollievo della contesa deve sapere CHI puo' cedere
+	 * la cella prima di decidere chi la tiene, e deciderlo mutando gli archi uno alla volta renderebbe
+	 * l'esito dipendente dall'ordine delle unita'.
+	 *
+	 * [STOP] **Usa gli stessi due lettori di `BeginArcIfNeeded`, e nello stesso modo**: `AnyOccupantAt`
+	 * per il salto, `StationaryOccupantAt` per il terminus. Divergere qui vorrebbe dire che un arco
+	 * esteso dal sollievo potrebbe finire dove uno esteso normalmente non finirebbe.
+	 */
+	int32 ExtendedArcEnd(const FRTMovementResolutionState& State, int32 UnitIdx, bool bMayCross)
+	{
+		if (!State.ArcEnd.IsValidIndex(UnitIdx) || !State.Paths.IsValidIndex(UnitIdx))
+		{
+			return INDEX_NONE;
+		}
+		const TArray<FRTCellId>& Path = State.Paths[UnitIdx];
+		int32 End = State.ArcEnd[UnitIdx] + 1;
+		while (Path.IsValidIndex(End))
+		{
+			const int32 Occupante = AnyOccupantAt(State, UnitIdx, Path[End]);
+			if (Occupante == INDEX_NONE)
+			{
+				break;
+			}
+			const bool bAttraversabile = AreAllies(State, UnitIdx, Occupante)
+				|| (bMayCross && State.Done.IsValidIndex(Occupante) && State.Done[Occupante]);
+			if (!bAttraversabile)
+			{
+				return INDEX_NONE; // sbatte su chi non puo' attraversare: non c'e' uscita a valle
+			}
+			++End;
+		}
+		// [STOP] **Il fallimento NON ripiega**, ed e' la condizione 1 dell'atto (B): un ripiego a `Next`
+		// riporterebbe il bersaglio su una cella occupata e produrrebbe un blocco permanente. Chi non puo'
+		// allungare diventa il KEEPER, e la sua risposta e' `INDEX_NONE`.
+		if (!Path.IsValidIndex(End) || StationaryOccupantAt(State, UnitIdx, Path[End]) != INDEX_NONE)
+		{
+			return INDEX_NONE;
+		}
+		return End;
+	}
+
 	/** Microstep ancora da pagare per l'arco in corso di `UnitIdx`. Non inizializzato -> `1`. */
 	int32 RemainingForStep(const FRTMovementResolutionState& State, int32 UnitIdx)
 	{
@@ -1275,6 +1320,158 @@ namespace
 				if (EligibleNow(State, i))
 				{
 					BeginArcIfNeeded(State, i, PassesThrough(i));
+				}
+			}
+
+			// [D-443] atto (B) — IL SOLLIEVO DELLA CONTESA FRA ALLEATI.
+			//
+			// [chiave] **Qui e non altrove, e la collocazione E' una delle tre condizioni.** Gli archi sono
+			// appena stati aperti e `Pos`/`ArcEnd` sono stabili; `Target` e `Arriving` si calcolano subito
+			// sotto, quindi la catena del ciclo vedra' gli archi DEFINITIVI. Applicarlo dentro il punto fisso
+			// lo renderebbe dipendente dall'ordine; applicarlo dopo farebbe vedere alla catena archi stantii,
+			// e una rotazione in corridoio diventerebbe uno scambio.
+			//
+			// [!]. **`Arriving` non si puo' usare: nasce sotto.** La popolazione si deriva da
+			// `RemainingForStep`, che e' l'espressione da cui `Arriving` stesso viene calcolato.
+			//
+			// [STOP] **Termina, e la ragione e' strutturale**: ogni sollievo INCREMENTA un `ArcEnd`, che e'
+			// limitato dalla lunghezza del percorso. Nessun arco si accorcia e nessuno si abbandona, quindi
+			// non esiste lo stato da cui ricalcolare lo stesso arco all'infinito.
+			{
+				auto ArrivaOra = [&State, &Done](int32 u)
+				{
+					return !Done[u] && State.ArcEnd.IsValidIndex(u) && State.Prog.IsValidIndex(u)
+						&& State.ArcEnd[u] > State.Prog[u] && State.Paths.IsValidIndex(u)
+						&& State.Paths[u].IsValidIndex(State.ArcEnd[u])
+						&& EligibleNow(State, u) && RemainingForStep(State, u) <= 1;
+				};
+				auto TerminusDi = [&State](int32 u) { return State.Paths[u][State.ArcEnd[u]]; };
+				
+				bool bCambiato = true;
+				while (bCambiato)
+				{
+					bCambiato = false;
+					// [!]. **Una tornata scandisce TUTTE le celle e poi applica**, invece di ricominciare a ogni
+					// estensione. La prima stesura rilanciava la scansione a ogni cambio e costava 3,5x sulla suite
+					// intera (590 s contro 170 s, misurato) — e il budget del resolver e' un gate.
+					TArray<int32> DaEstendere;
+					TArray<int32> EndNuovo;
+					TSet<int32> Deciso;
+					for (int32 i = 0; i < N; ++i)
+					{
+						if (!ArrivaOra(i) || Deciso.Contains(i))
+						{
+							continue;
+						}
+						const FRTCellId Contesa = TerminusDi(i);
+						
+						TArray<int32> Contendenti;
+						for (int32 j = 0; j < N; ++j)
+						{
+							if (ArrivaOra(j) && TerminusDi(j) == Contesa)
+							{
+								Contendenti.Add(j);
+							}
+						}
+						for (int32 u : Contendenti)
+						{
+							Deciso.Add(u);
+						}
+						if (Contendenti.Num() < 2)
+						{
+							continue;
+						}
+						
+						// [STOP] **Il gate sull'alleanza, e vale a COPPIE.** Se una sola coppia non e' alleata, la
+						// contesa resta quella di oggi: `D-443` concede agli alleati, non allenta la contesa.
+						bool bTutteAlleate = true;
+						for (int32 a = 0; a < Contendenti.Num() && bTutteAlleate; ++a)
+						{
+							for (int32 b = a + 1; b < Contendenti.Num() && bTutteAlleate; ++b)
+							{
+								bTutteAlleate = AreAllies(State, Contendenti[a], Contendenti[b]);
+							}
+						}
+						if (!bTutteAlleate)
+						{
+							continue;
+						}
+						
+						TArray<int32> NuoviEnd;
+						NuoviEnd.Reserve(Contendenti.Num());
+						int32 SenzaUscita = 0;
+						for (int32 u : Contendenti)
+						{
+							const int32 Esteso = ExtendedArcEnd(State, u, PassesThrough(u));
+							NuoviEnd.Add(Esteso);
+							if (Esteso == INDEX_NONE)
+							{
+								++SenzaUscita;
+							}
+						}
+						
+						// [chiave] **Tre casi disgiunti, sul NUMERO di contendenti senza uscita a valle.**
+						// >= 2: nessun sollievo. E' la regola che esiste gia' — due contendenti per una cella libera
+						//       danno `BlockedContested`, ed e' l'esito atteso dichiarato di `PIE-HEXPLAY-5` e [D-289].
+						//       Il sollievo apre una via dove ce n'e' una; dove non ce n'e', non inventa un vincitore.
+						// == 1: quella tiene la cella, le altre allungano.
+						// == 0: tiene la minima per `StableLess`, che e' l'unico spareggio deterministico disponibile.
+						if (SenzaUscita >= 2)
+						{
+							continue;
+						}
+						
+						int32 Keeper = INDEX_NONE;
+						if (SenzaUscita == 1)
+						{
+							for (int32 k = 0; k < Contendenti.Num(); ++k)
+							{
+								if (NuoviEnd[k] == INDEX_NONE)
+								{
+									Keeper = Contendenti[k];
+								}
+							}
+						}
+						else
+						{
+							for (int32 u : Contendenti)
+							{
+								if (Keeper == INDEX_NONE || URTHexLibrary::StableLess(Pos[u], Pos[Keeper]))
+								{
+									Keeper = u;
+								}
+							}
+						}
+						
+						for (int32 k = 0; k < Contendenti.Num(); ++k)
+						{
+							const int32 u = Contendenti[k];
+							if (u == Keeper || NuoviEnd[k] == INDEX_NONE)
+							{
+								continue;
+							}
+							// [STOP] **Si ACCODA, non si muta.** Mutare `ArcEnd` dentro la scansione farebbe leggere alle
+							// celle successive archi aggiornati a meta', e l'esito dipenderebbe dall'ordine delle unita'.
+							DaEstendere.Add(u);
+							EndNuovo.Add(NuoviEnd[k]);
+						}
+					}
+
+					// ---- L'applicazione, su decisioni prese tutte su stato stabile. ----
+					for (int32 k = 0; k < DaEstendere.Num(); ++k)
+					{
+						const int32 u = DaEstendere[k];
+						State.ArcEnd[u] = EndNuovo[k];
+						// [!]. **`StepRemaining` e' la SOMMA delle durate coperte** ([D-398] S7a): l'allungamento non
+						// regala velocita', e chi cede arriva quando sarebbe arrivato in due archi.
+						int32 Durata = 0;
+						for (int32 s = State.Prog[u] + 1; s <= EndNuovo[k]; ++s)
+						{
+							Durata += DurationOfStep(State, u, s - 1);
+						}
+						State.StepRemaining[u] = FMath::Max(1, Durata);
+						bCambiato = true;
+					}
 				}
 			}
 			for (int32 i = 0; i < N; ++i)
