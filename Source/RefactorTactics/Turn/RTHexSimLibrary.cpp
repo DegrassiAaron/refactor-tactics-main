@@ -1004,6 +1004,31 @@ namespace
 	}
 
 	/**
+	 * CHI c'e' su `Cell`, fermo o in movimento -- [D-443], `#3408`.
+	 *
+	 * [chiave] **Esiste ACCANTO a `StationaryOccupantAt` e non al suo posto, ed e' l'intera sicurezza
+	 * dell'atto.** Le due domande hanno due usi distinti dentro `BeginArcIfNeeded`:
+	 *   - questa alimenta il **ciclo di salto**: quali celle l'arco puo' SCAVALCARE;
+	 *   - `StationaryOccupantAt` alimenta la **guardia terminale**: dove l'arco puo' FINIRE.
+	 *
+	 * [STOP] **Usare questa anche nella guardia riaprirebbe [D-399] S2.** La garanzia che quella voce ha
+	 * misurato e' che il terminus di un arco sia una cella che *nessuno lascera' mai*: `Done` e' quella
+	 * garanzia, e `Pos` no. L'arco e' irrevocabile, quindi il terminus deve reggere per tutta la sua
+	 * durata e non solo all'apertura.
+	 */
+	int32 AnyOccupantAt(const FRTMovementResolutionState& State, int32 UnitIdx, const FRTCellId& Cell)
+	{
+		for (int32 j = 0; j < State.Pos.Num(); ++j)
+		{
+			if (j != UnitIdx && State.Pos[j] == Cell)
+			{
+				return j;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/**
 	 * Due unita' del resolver sono COMPAGNE? — `#2984`. Il predicato e' `TeamsAreAllied`; qui si
 	 * aggiunge solo la lettura dell'array.
 	 *
@@ -1065,14 +1090,21 @@ namespace
 		int32 End = Next;
 		while (Path.IsValidIndex(End))
 		{
-			const int32 Occupante = StationaryOccupantAt(State, UnitIdx, Path[End]);
+			// [D-443] il ciclo di salto legge CHI C'E'; la guardia qui sotto legge chi non se ne andra' mai.
+			const int32 Occupante = AnyOccupantAt(State, UnitIdx, Path[End]);
 			if (Occupante == INDEX_NONE)
 			{
 				break; // libera: e' qui che l'arco termina
 			}
-			if (!bMayCross && !AreAllies(State, UnitIdx, Occupante))
+			// [chiave] **Due domande distinte, e appiattirle e' la mutazione che [D-399] S2 ha misurato**:
+			// la **squadra** attraversa una compagna qualunque, ferma o in movimento; lo **stile** attraversa
+			// chi e' FERMO. Estendere `bMayCross` a chi si muove fa cadere
+			// `ResolveSwapBlockedEvenWhenPassingThrough`, che non passa `Teams` e dipende interamente da `Done`.
+			const bool bAttraversabile = AreAllies(State, UnitIdx, Occupante)
+				|| (bMayCross && State.Done.IsValidIndex(Occupante) && State.Done[Occupante]);
+			if (!bAttraversabile)
 			{
-				break; // un'estranea, e nessuno stile che la attraversi: l'arco non la supera
+				break; // un'estranea, o chi si muove senza il permesso di squadra: l'arco non la supera
 			}
 			++End;
 		}
@@ -1359,9 +1391,18 @@ namespace
 					// `bPassThrough` non entra: governa il ramo dell'unita' FERMA qui sotto, e un'unita' che sta solo
 					// transitando chiude comunque il ciclo — non si passa attraverso qualcuno che nello stesso
 					// istante sta venendo verso di noi.
+					// [D-443] **DUE FASI, e separarle e' il contenuto dell'atto.** La passeggiata raccoglie gli anelli
+					// e non emette verdetti; il verdetto si legge dopo, sulla catena CHIUSA.
+					//
+					// [STOP] **Un'uscita anticipata su un anello alleato PERDEREBBE I NEMICI**, e il commento qui sopra
+					// lo vieta per nome: *<<si segue la CATENA, non si confrontano le coppie>>*. Chi parte da un nemico
+					// due salti prima tornerebbe `Moved`, e il convoy morirebbe con lui.
 					if (!bBlocked)
 					{
+						// ---- FASE 1: si cammina, e si accumula. Nessun verdetto qui. ----
 						int32 Cursor = i;
+						bool bCatenaChiusa = false;
+						bool bTuttiAlleati = true;
 						for (int32 Hops = 0; Hops < N; ++Hops)
 						{
 							int32 Occupant = INDEX_NONE;
@@ -1379,13 +1420,42 @@ namespace
 							{
 								break;
 							}
+							// L'anello e' la coppia `Cursor -> Occupant`: e' li' che due corpi si toccano. Il salto che
+							// chiude ha `Occupant == i`, quindi accumulare qui copre TUTTI i membri del ciclo.
+							bTuttiAlleati = bTuttiAlleati && AreAllies(State, Cursor, Occupant);
 							if (Occupant == i)
 							{
-								bBlocked = true;
-								Reason = ERTMoveOutcome::BlockedByCycle;
+								bCatenaChiusa = true;
 								break;
 							}
 							Cursor = Occupant;
+						}
+
+						// ---- FASE 2: il verdetto, e solo sulla catena chiusa. ----
+						if (bCatenaChiusa)
+						{
+							if (!bTuttiAlleati)
+							{
+								// [chiave] **<<ESISTE un anello non alleato>>, non <<tutti non alleati>>.** Con due squadre un
+								// ciclo di lunghezza DISPARI non ammette 2-colorazione propria, quindi ne contiene sempre uno
+								// monocromatico: la seconda formulazione lascerebbe passare un ciclo fra nemici. E un anello
+								// alleato non compra un'esenzione a chi gli sta dietro: in una catena chiusa, se un membro non
+								// entra non entra nessuno.
+								bBlocked = true;
+								Reason = ERTMoveOutcome::BlockedByCycle;
+							}
+							// Altrimenti: rotazione fra soli alleati. [D-443] la concede.
+							//
+							// ⏻ **Qui c'era un TERZO stato, e l'ho rimosso perche' nessun comportamento lo distingueva.**
+							// Bloccava, trasitoriamente, una rotazione alleata i cui membri non arrivassero tutti nello
+							// stesso micro-step, per timore di co-occupazione. Misurato: la mutazione che lo elimina lascia
+							// verdi tutti e 2803 i test, e il banco costruito apposta
+							// (`AlliedRotationNeedsSynchronousArrival`) non la distingue.
+							//
+							// [chiave] **La ragione e' dimostrabile, non empirica**: in una catena `Target[i] == Pos[i+1]`
+							// per costruzione, quindi se `i+1` non arriva il ramo del terminus qui sotto blocca `i`
+							// (`!Arriving[j] && Pos[j] == Target[i]`), e il punto fisso propaga all'indietro. Il caso e'
+							// coperto **per totalita'**, e [D-289] resta salvo da quel ramo, non da una guardia in piu'.
 						}
 					}
 
