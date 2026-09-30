@@ -2854,6 +2854,42 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔑 **L'anteprima si ricalcola DOPO che il piano e' cambiato, non prima** (`#3418`).
+	//
+	// ⏱️ *Fino al 2026-09-30 le due chiamate stavano dentro il ramo della riserva, dodici righe SOPRA la
+	// scrittura del piano.* `RefreshPlanningPreview` disegna il ventaglio verde col tetto che
+	// `PlanningSnapshotFor` legge da `ReservedProfileForPlan(MakePlanFor(Unit))`, e `MakePlanFor` legge
+	// `PlannedAbilityIndex`: a quel punto l'azione appena armata non era ancora nel piano, quindi nessun
+	// tetto entrava nel calcolo e il verde restava quello del budget pieno. Il percorso ciano invece era
+	// **gia' troncato** — le due meta' della stessa anteprima dicevano cose diverse nello stesso fotogramma,
+	// ed e' la divergenza che `#877` aveva chiuso da un altro cammino.
+	//
+	// ⚠️ **Il ritardo valeva un fattore 8 nel caso peggiore**: `Sprint` e' `200` e `Withdraw` `25`
+	// ([D-412], `RTMovementProfileLibrary.cpp:92` e `:113`).
+	//
+	// 🔑 **Perche' una lambda e non una riga in coda alla funzione**: il ramo `bSelfTarget` esce con
+	// `return`, ed e' precisamente il cammino che conta — `Action.Overwatch` e' **l'unica** azione che
+	// riserva lo slot (`RTCatalogLibrary.cpp:1341`, una sola scrittura in produzione) e porta
+	// `bSelfTarget = true`. Un refresh messo solo alla fine salterebbe esattamente il caso per cui questa
+	// correzione esiste.
+	//
+	// ⛔ E **non** si aggiorna quando la riserva non c'e': armare un'azione qualunque non cambia il piano di
+	// movimento, e chiamare il refresh comunque allargherebbe il comportamento oltre il difetto.
+	bool bAnteprimaDaAggiornare = false;
+	const auto AggiornaAnteprima = [this, Unit, &bAnteprimaDaAggiornare]()
+	{
+		if (!bAnteprimaDaAggiornare)
+		{
+			return;
+		}
+		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
+		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
+		{
+			HM->SetPreviewPath(Unit->PlannedPath);
+		}
+		RefreshPlanningPreview(GetWorld(), Unit);
+	};
+
 	// 🔴 **Un'azione che RISERVA lo slot movimento TRONCA il piano gia' dichiarato al budget del profilo
 	// riservato** ([D-401], innesco «imposto»; `AC-5` nei due ordini).
 	//
@@ -2915,12 +2951,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 			Unit->ClearMovePlanRejection();
 		}
 
-		FVector O; float HS; float LH; const URTHexMapAsset* M = nullptr;
-		if (ARTHexMapActor* HM = HexMapWithContext(GetWorld(), O, HS, LH, M))
-		{
-			HM->SetPreviewPath(Unit->PlannedPath);
-		}
-		RefreshPlanningPreview(GetWorld(), Unit);
+		// L'anteprima NON si ridisegna qui: il piano cambia piu' sotto, e il tetto si legge da quello.
+		bAnteprimaDaAggiornare = true;
 		UE_LOG(LogRT, Display,
 			TEXT("[RT] %s: slot movimento riservato a %s — %d waypoint scartati, ne restano %d (passi %d, asperita' %d)"),
 			*Unit->GetName(), *Ability->Def.ReservesMovementProfileId.ToString(),
@@ -2935,10 +2967,22 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		Unit->PlannedAbilityIndex = Index;
 		// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
 		Unit->ClearPlannedAttack();
+		// 🔴 **Qui, e non dodici righe sopra**: il piano ora contiene l'azione, quindi il tetto che
+		// `ReservedProfileForPlan` impone entra nel ventaglio verde (`#3418`).
+		AggiornaAnteprima();
 		UE_LOG(LogRT, Display, TEXT("[RT] %s pianifica %s (supporto)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
 	}
 
+	// Il piano non cambia su questo cammino — il bersaglio si clicca dopo, e `HandleTargetCell` aggiorna
+	// l'anteprima **dopo** la propria scrittura (`:3725` poi `:3730`). Qui serve solo perche' il
+	// troncamento della riserva ha gia' riscritto `PlannedPath`.
+	//
+	// ⚠️ **Oggi questo caso e' vuoto e lo si dichiara invece di ometterlo**: l'unica azione che riserva lo
+	// slot e' `Action.Overwatch`, che e' `bSelfTarget` e quindi esce sopra. La chiamata sta qui perche' una
+	// seconda azione che riservasse lo slot senza essere self-target troverebbe il ventaglio giusto senza
+	// che nessuno debba ricordarsene.
+	AggiornaAnteprima();
 	UE_LOG(LogRT, Display, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
 }
 
