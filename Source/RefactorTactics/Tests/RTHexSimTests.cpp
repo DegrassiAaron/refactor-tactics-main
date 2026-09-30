@@ -3147,6 +3147,26 @@ bool FRTHexSimAlliesDoNotStackTest::RunTest(const FString&)
  * celle che copre, e quelle celle non compaiono in `Target` — scavalcare chi si MUOVE perderebbe la
  * catena `target -> occupante` su cui [D-394] chiude `MOV-7`. L'arco copre percio' i soli occupanti FERMI.
  *
+ * ♻️ **RIBALTATO il 2026-09-30 da [D-443] (`#3408`), e cio' che diceva resta sotto perche' la sua
+ * disciplina vale ancora.** Questo banco asseriva che una compagna in TRANSITO si aspetta, alla pari di un
+ * `LinearPass`. La decisione d'autore dice il contrario — *<<un'unita' alleata puo' passare sopra durante
+ * il movimento>>* — e con essa cade la **parita'** di [D-396] §3: il predicato di squadra e' da oggi
+ * strettamente piu' largo di quello di stile.
+ *
+ * 🔑 **L'ORACOLO NON CAMBIA, ed e' il motivo per cui questo banco sopravvive all'inversione**: resta il
+ * NUMERO DI MICRO-STEP. `Final` non servirebbe — il blocco da unita' in transito e' transitorio, la cella
+ * si libera e tutti arrivano comunque — e nemmeno `Pos` dopo un passo, perche' sotto [D-382] chi
+ * attraversa resta sulla propria origine per l'INTERA durata dell'arco. Il tempo d'arrivo invece separa i
+ * due mondi: **due** micro-step se si attraversa, quanto la cella impiega a liberarsi se si aspetta.
+ * ⚠️ Misurato, non dedotto: e' la stessa ragione per cui due stesure precedenti di questo banco avevano
+ * sbagliato, e il commento di allora lo dichiarava.
+ *
+ * ⛔ **La meta' falsificante e' cambiata di verso, non e' sparita.** Prima era *<<con l'occupante FERMO il
+ * permesso e' vivo>>*; ora sono le due righe che misurano **avversaria** e **`LinearPass`**: se cadessero,
+ * il permesso avrebbe smesso di essere per SQUADRA e sarebbe un allentamento generale del blocco.
+ *
+ * ⏻ *Testo precedente, conservato:*
+ *
  * ∴ « le stesse condizioni » e' un RIFERIMENTO, non un valore fissato: seguirlo al suo nuovo
  * valore **applica** [D-396], non la cambia. E il banco lo misura invece di dedurlo — nello stesso
  * allestimento un `LinearPass` aspetta esattamente come una compagna.
@@ -3160,10 +3180,10 @@ bool FRTHexSimAlliesDoNotStackTest::RunTest(const FString&)
  * movimento lasciava quella stesura **verde**. Il tempo d'arrivo invece separa i due mondi — due
  * micro-step se si attraversa, quanto la cella impiega a liberarsi se si aspetta.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitWaitsTest,
-	"RefactorTactics.HexSim.AllyInTransitWaitsLikeEveryoneElse",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAllyInTransitIsCrossedTest,
+	"RefactorTactics.HexSim.AllyInTransitIsCrossedUnlikeAStranger",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
+bool FRTHexSimAllyInTransitIsCrossedTest::RunTest(const FString&)
 {
 	TArray<TArray<FRTCellId>> Paths;
 	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) }); // vorrebbe passare da (1,0)
@@ -3197,17 +3217,23 @@ bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
 	const int32 Compagne = PassiPerArrivare({ 0, 0 }, /*bLinearPass*/ false);
 	if (!TestTrue(TEXT("premessa: prima o poi si arriva comunque"), Compagne > 0)) { return false; }
 
-	// 🔑 **La riga che porta il peso.** Due micro-step e' cio' che costa l'arco che scavalca ([D-398]
-	// §7a): arrivare piu' tardi significa aver ASPETTATO che la cella si liberasse.
-	TestTrue(TEXT("ma non attraversando: si aspetta che la cella si liberi"), Compagne > 2);
+	// ♻️ **RIBALTATA da [D-443] (`#3408`), e la riga di prima resta scritta sotto.** Fino al
+	// 2026-09-30 questo banco asseriva `Compagne > 2` -- cioe' che una compagna in transito si
+	// ASPETTA. La decisione d'autore dice il contrario: *<<un'unita' alleata puo' passare sopra
+	// durante il movimento>>*. Due micro-step e' cio' che costa l'arco che scavalca ([D-398] §7a).
+	TestEqual(TEXT("una compagna in transito si ATTRAVERSA, e l'arco costa i suoi due passi"),
+		Compagne, 2);
 
-	TestEqual(TEXT("fra avversarie, identico"),
-		PassiPerArrivare({ 0, 1 }, /*bLinearPass*/ false), Compagne);
-
-	// ⚠️ **La parita' si MISURA.** [D-396] concede alle compagne le stesse condizioni del
-	// `LinearPass`: qui si legge quali sono oggi, invece di assumerle da un commento.
-	TestEqual(TEXT("e un LinearPass aspetta esattamente come loro"),
-		PassiPerArrivare(TArray<int32>(), /*bLinearPass*/ true), Compagne);
+	// ⛔ **LA PARITA' CON LO STILE E' CADUTA, e questo banco e' dove si vede.** [D-396] §3 la
+	// dichiarava (*<<le stesse condizioni del `LinearPass`>>*) e [D-443] la supera: da oggi il
+	// predicato di squadra e' STRETTAMENTE piu' largo di quello di stile. Le due righe qui sotto sono
+	// la meta' falsificante dell'atto: se cadessero, il permesso avrebbe smesso di essere per SQUADRA
+	// e sarebbe diventato un allentamento generale del blocco.
+	const int32 Avversarie = PassiPerArrivare({ 0, 1 }, /*bLinearPass*/ false);
+	const int32 Stile = PassiPerArrivare(TArray<int32>(), /*bLinearPass*/ true);
+	TestTrue(TEXT("un'avversaria in transito si ASPETTA ancora"), Avversarie > Compagne);
+	TestTrue(TEXT("e un LinearPass pure: lo stile non attraversa chi si muove"), Stile > Compagne);
+	TestEqual(TEXT("avversaria e LinearPass restano identici fra loro"), Stile, Avversarie);
 
 	// ⛔ **La meta' falsificante: con l'occupante FERMO il permesso e' vivo**, e si vede dal tempo. Senza
 	// di essa tutto quanto sopra resterebbe vero anche se l'attraversamento fra compagne non funzionasse.
@@ -3225,30 +3251,176 @@ bool FRTHexSimAllyInTransitWaitsTest::RunTest(const FString&)
 			PassiFerma = Passo;
 		}
 	}
-	TestEqual(TEXT("una compagna FERMA invece si attraversa, e l'arco costa i suoi due passi"), PassiFerma, 2);
-	TestTrue(TEXT("cioe' si arriva prima che aspettando"), PassiFerma < Compagne);
+	// La compagna FERMA si attraversava gia' prima di [D-443], e continua: e' [D-396] §3 per la meta'
+	// che non cade. Il numero deve coincidere con quello della compagna in TRANSITO, perche' da oggi
+	// il permesso non distingue piu' i due casi.
+	TestEqual(TEXT("una compagna FERMA si attraversa, e l'arco costa i suoi due passi"), PassiFerma, 2);
+	TestEqual(TEXT("ferma o in transito, per una compagna e' lo stesso"), PassiFerma, Compagne);
 	return true;
 }
 
 /**
- * ⛔ Lo SCAMBIO fra compagne resta un ciclo: [D-396] non lo concede.
+ * IL CORRIDOIO TESTA A TESTA FRA ALLEATI SI SBLOCCA — [D-443], `#3408`.
  *
- * 🔑 E la ragione e' scritta nella decisione: [D-394] chiude `MOV-7` poggiando sulla **totalita'**
- * della catena `Target -> occupante`, e uno scambio permesso e' esattamente un ciclo che si vorrebbe far
- * passare. Chi lo aprira' riapre quell'argomento con la propria esibizione, non per estensione di questa.
+ * 🔑 **E' il caso che restava fermo PER SEMPRE**: il permesso copriva solo un'occupante che avesse
+ * finito tutto il percorso, quindi due alleati che si venivano incontro puntavano ciascuno la `Pos`
+ * dell'altro, la catena si chiudeva, e la configurazione si ricreava identica al micro-step dopo.
+ *
+ * ⚠️ **Il confronto con gli AVVERSARI e' la meta' falsificante**: senza, il verde potrebbe venire da un
+ * allentamento generale del blocco invece che dalla squadra. Cambia **solo** l'array `Teams`.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedSwapIsStillACycleTest,
-	"RefactorTactics.HexSim.AlliedSwapIsStillACycle",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliesInMotionCrossTest,
+	"RefactorTactics.HexSim.AlliesInMotionCrossEachOther",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTHexSimAlliedSwapIsStillACycleTest::RunTest(const FString&)
+bool FRTHexSimAlliesInMotionCrossTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });   // ->
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0), FRTCellId(-1, 0) });  // <-
+
+	{
+		const TArray<FRTHexMoveResult> C = RTResolveWithTeams(Paths, { 0, 0 });
+		TestEqual(TEXT("l'alleato che va a destra arriva"), C[0].Final, FRTCellId(2, 0));
+		TestEqual(TEXT("e quello che va a sinistra pure"), C[1].Final, FRTCellId(-1, 0));
+		TestEqual(TEXT("nessuno dei due e' un ciclo"), C[0].Outcome, ERTMoveOutcome::Moved);
+	}
+	{
+		const TArray<FRTHexMoveResult> A = RTResolveWithTeams(Paths, { 0, 1 });
+		TestEqual(TEXT("fra avversari il corridoio resta chiuso"), A[0].Final, FRTCellId(0, 0));
+		TestEqual(TEXT("e il motivo resta il ciclo"), A[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	}
+	return true;
+}
+
+/**
+ * 🔴 UNA ROTAZIONE FRA ALLEATI RICHIEDE CHE ARRIVINO TUTTI NELLO STESSO MICRO-STEP — [D-443].
+ *
+ * ⛔ **Senza questa condizione due unita' finirebbero sulla STESSA cella**, che [D-289] rende
+ * irrappresentabile: chi arriva entra nella cella di chi non e' ancora uscito. Lo scambio e' concesso,
+ * la co-occupazione no — e l'autore l'ha confermato nella stessa frase che concede lo scambio:
+ * *<<non puo' fermarsi su una cella gia' occupata>>*.
+ *
+ * ⛔ **E il LIMITE misurato: con le durate sfasate lo scambio non si compie affatto.** Il blocco e'
+ * marcato transitorio — il motivo non si latcha — ma la risoluzione si chiude come inerte prima che le
+ * cadenze si allineino. ➕ Il controllo positivo e' `AlliedSwapPassesAndHostileDoesNot`: con le durate
+ * PARI lo scambio passa. ∴ il limite vive nelle cadenze e non nel permesso, ed e' scritto qui invece
+ * di essere scoperto in partita.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedRotationNeedsSyncTest,
+	"RefactorTactics.HexSim.AlliedRotationNeedsSynchronousArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliedRotationNeedsSyncTest::RunTest(const FString&)
+{
+	// Scambio fra alleati con le durate SFASATE: A arriva al primo micro-step, B al terzo.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) });
+	TArray<TArray<int32>> Durate;
+	Durate.Add({ 1 });
+	Durate.Add({ 3 });
+
+	FRTMovementResolutionState Stato = URTHexSimLibrary::BeginHexMovement(Paths, TArray<int32>(),
+		TArray<bool>(), TArray<bool>(), TArray<FRTPlannedMovement>(), Durate, { 0, 0 });
+
+	// ⛔ **L'asserzione che porta il peso: in NESSUN micro-step le due stanno sulla stessa cella.**
+	for (int32 Passo = 1; Passo <= 20; ++Passo)
+	{
+		URTHexSimLibrary::ResolveNextHexMicroStep(Stato);
+		if (!TestTrue(FString::Printf(TEXT("passo %d: nessuna co-occupazione"), Passo),
+			!(Stato.Pos.IsValidIndex(0) && Stato.Pos.IsValidIndex(1) && Stato.Pos[0] == Stato.Pos[1])))
+		{
+			return false;
+		}
+	}
+
+	// ⛔ **IL LIMITE, misurato e dichiarato: con le durate SFASATE lo scambio non si compie.** La
+	// risoluzione si chiude come inerte prima che le cadenze si allineino, quindi le due restano dove
+	// sono. Non e' uno stato illecito — le asserzioni qui sopra lo provano — ma non e' la rotazione.
+	// ➕ Il controllo positivo sta in `AlliedSwapPassesAndHostileDoesNot`: con le durate PARI lo
+	// scambio passa. ∴ il limite e' nelle cadenze, non nel permesso.
+	const TArray<FRTHexMoveResult>& R = Stato.Results;
+	if (!TestEqual(TEXT("due risultati"), R.Num(), 2)) { return false; }
+	TestEqual(TEXT("A resta dov'era"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e B pure"), R[1].Final, FRTCellId(1, 0));
+	return true;
+}
+/**
+ * 🔴 IL CICLO MISTO BLOCCA TUTTI E TRE, E UN ANELLO ALLEATO NON COMPRA UN'ESENZIONE — [D-443].
+ *
+ * ⛔ **E' il banco che prende la forma INGENUA dell'atto.** Chi implementasse il permesso come un'uscita
+ * anticipata sull'anello alleato — un `break` dentro la passeggiata — farebbe tornare `Moved` chi parte
+ * da un nemico: partendo da C la catena farebbe `C->A` (avversario), poi `A->B` (alleato, esce), e C si
+ * muoverebbe. Il verdetto si emette invece **dopo**, sulla catena chiusa, e blocca se **esiste** un
+ * anello non alleato.
+ *
+ * 🔑 **La ragione di gioco e' piu' semplice del meccanismo**: in una catena chiusa, se un membro non
+ * puo' entrare non puo' entrare nessuno dietro di lui. Il blocco e' proprieta' del CICLO, non dell'anello.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimMixedCycleBlocksTest,
+	"RefactorTactics.HexSim.MixedCycleStillBlocksEveryone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimMixedCycleBlocksTest::RunTest(const FString&)
+{
+	// Rotazione chiusa di tre: ognuno punta la cella del successivo.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
+	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 1) });
+	Paths.Add({ FRTCellId(0, 1), FRTCellId(0, 0) });
+
+	{
+		// Due alleati (0 e 1) e un avversario (2): l'anello ostile blocca il ciclo intero.
+		const TArray<FRTHexMoveResult> M = RTResolveWithTeams(Paths, { 0, 0, 1 });
+		TestEqual(TEXT("il primo alleato non si muove"), M[0].Final, FRTCellId(0, 0));
+		TestEqual(TEXT("nemmeno il secondo"), M[1].Final, FRTCellId(1, 0));
+		TestEqual(TEXT("ne' l'avversario"), M[2].Final, FRTCellId(0, 1));
+		TestEqual(TEXT("e il motivo e' il ciclo"), M[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	}
+	{
+		// ⛔ La meta' falsificante: gli stessi percorsi fra soli alleati ruotano.
+		const TArray<FRTHexMoveResult> C = RTResolveWithTeams(Paths, { 0, 0, 0 });
+		TestEqual(TEXT("fra soli alleati la rotazione passa"), C[0].Final, FRTCellId(1, 0));
+		TestEqual(TEXT("per tutti e tre"), C[2].Final, FRTCellId(0, 0));
+	}
+	return true;
+}
+/**
+ * ♻️ LO SCAMBIO FRA DUE ALLEATI PASSA; FRA AVVERSARI NO — [D-443], `#3408`.
+ *
+ * ⏻ **Questo banco asseriva l'opposto fino al 2026-09-30**, e la sua ragione era buona: [D-394]
+ * chiudeva `MOV-7` poggiando sulla **totalita'** della catena `Target -> occupante`, e uno scambio
+ * permesso e' esattamente un ciclo che si vorrebbe far passare. ⚠️ **Non e' stato cancellato ma invertito**, perche' la decisione d'autore ha risposto proprio a quell'argomento: *<<solo gli avversari
+ * che si incrociano bloccano il movimento>>*.
+ *
+ * 🔑 **La totalita' della catena e' CONSERVATA, e qui si vede come**: il verdetto non si emette piu'
+ * dentro la passeggiata ma dopo, sulla catena chiusa, e blocca se **esiste** un anello non alleato. Un
+ * ciclo misto — due alleati e un nemico — resta quindi bloccato per tutti e tre, ed e'
+ * `MixedCycleStillBlocksEveryone` a pinnarlo.
+ *
+ * ⛔ **La meta' falsificante e' la seconda**: senza il caso avversario, questo banco resterebbe verde
+ * anche se il permesso fosse diventato un allentamento generale del ciclo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimAlliedSwapPassesTest,
+	"RefactorTactics.HexSim.AlliedSwapPassesAndHostileDoesNot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimAlliedSwapPassesTest::RunTest(const FString&)
 {
 	TArray<TArray<FRTCellId>> Paths;
 	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });
 	Paths.Add({ FRTCellId(1, 0), FRTCellId(0, 0) }); // testa a testa
 
-	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
-	TestEqual(TEXT("nemmeno fra compagne lo scambio passa"), R[0].Final, FRTCellId(0, 0));
-	TestEqual(TEXT("e il motivo e' il ciclo, non l'unita'"), R[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	{
+		const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
+		TestEqual(TEXT("fra alleati lo scambio passa, e le posizioni si invertono"),
+			R[0].Final, FRTCellId(1, 0));
+		TestEqual(TEXT("per entrambe"), R[1].Final, FRTCellId(0, 0));
+		TestEqual(TEXT("e l'esito e' un movimento, non un blocco"), R[0].Outcome, ERTMoveOutcome::Moved);
+	}
+	{
+		// ⛔ La meta' falsificante: le stesse celle, squadre diverse.
+		const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 1 });
+		TestEqual(TEXT("fra avversari lo scambio resta bloccato"), R[0].Final, FRTCellId(0, 0));
+		TestEqual(TEXT("e il motivo resta il ciclo"), R[0].Outcome, ERTMoveOutcome::BlockedByCycle);
+	}
 	return true;
 }
 
