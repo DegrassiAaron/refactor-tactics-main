@@ -2793,8 +2793,46 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// -1» e l'uscita vera era muta.
 	if (Index == INDEX_NONE)
 	{
+		// 🔴 **Il disarmo tocca il PIANO, non solo la selezione** (`#3417`, [D-444]).
+		//
+		// ⏱️ *Fino al 2026-09-30 questo ramo chiamava il solo `SelectAbility(INDEX_NONE)`*, che scrive
+		// `SelectedAbilityIndex` e nient'altro. `PlannedAbilityIndex` restava, quindi `MakePlanFor` continuava
+		// ad aggiungere l'azione al piano e `ReservedProfileForPlan` a rispondere `Withdraw`: chi armava
+		// l'`Overwatch` e ci ripensava camminava a un quarto del raggio per tutto il turno, con lo slot spento.
+		//
+		// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
+		// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
+		const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
+			URTPlanValidationLibrary::MakePlanFor(Unit));
 		Unit->SelectAbility(INDEX_NONE);
-		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata"), *Richiesta, *Unit->GetName());
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->ClearPlannedAttack();
+
+		const bool bRestituiti = !TettoDaRilasciare.IsNone()
+			&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
+		if (bRestituiti)
+		{
+			// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
+			// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
+			RebuildPlannedPath();
+		}
+		// ⚠️ Le due chiamate in chiaro e non la lambda `AggiornaAnteprima` di `#3418`: quella e' dichiarata
+		// piu' sotto, dopo l'uscita delle reazioni, e questo ramo esce prima di arrivarci.
+		FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
+		if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
+		{
+			HMD->SetPreviewPath(Unit->PlannedPath);
+		}
+		RefreshPlanningPreview(GetWorld(), Unit);
+		// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG`: un
+		// `*FString::Printf(...)` in quella posizione e' corretto per vita del temporaneo ma si legge male,
+		// e questa riga la leggera' chi cerca perche' il suo percorso e' tornato.
+		const FString Coda = bRestituiti
+			? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
+				Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
+			: FString();
+		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata%s"),
+			*Richiesta, *Unit->GetName(), *Coda);
 		return;
 	}
 
@@ -2919,6 +2957,9 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		const int32 Cost = Reserved.ResolveMoveBudget(UnitRange);
 
 		int32 Dropped = 0;
+		// I waypoint com'erano PRIMA del taglio: [D-444] li restituisce al disarmo, e il troncamento li
+		// consuma in posto (`TruncateWaypointsToBudget` prende l'array per riferimento non costante).
+		const TArray<FRTCellId> PrimaDelTaglio = Unit->PlannedWaypoints;
 		if (Unit->PlannedWaypoints.Num() > 0)
 		{
 			FRTHexSnapshot Snapshot;
@@ -2949,6 +2990,9 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		if (Dropped > 0)
 		{
 			Unit->ClearMovePlanRejection();
+			// 🔑 La memoria si chiave sul profilo RISERVATO, non sull'azione: al disarmo si legge la stessa
+			// cosa dal piano, e un innesco non puo' restituire cio' che l'altro aveva tolto ([D-444]).
+			Unit->RicordaTroncamentoDelTetto(Ability->Def.ReservesMovementProfileId, PrimaDelTaglio);
 		}
 
 		// L'anteprima NON si ridisegna qui: il piano cambia piu' sotto, e il tetto si legge da quello.
@@ -3187,6 +3231,21 @@ void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 		? NAME_None
 		: URTMovementProfileLibrary::ProfileSneak;
 
+	// 🔴 **Annullare lo `Sneak` restituisce i waypoint che aveva tolto** (`#3417`, [D-444]), e vale per
+	// questo innesco quanto per la riserva: [D-401] ha reso i due inneschi **una sola regola**, e un
+	// ripristino su uno solo ricreerebbe l'asimmetria che quella decisione ha rimosso.
+	//
+	// ⚠️ **Prima della lambda, non dentro**: il suo primo ramo esce quando `PlannedWaypoints` e' vuoto, che
+	// e' precisamente il caso di un piano troncato **a zero** — quello che ha piu' bisogno di essere
+	// restituito. Restituendo qui, la lambda rivalida il percorso contro il tetto nuovo con le proprie
+	// righe, e non serve una seconda validazione che potrebbe divergere.
+	if (bWasSneaking && Unit->RipristinaWaypointsDelTetto(URTMovementProfileLibrary::ProfileSneak))
+	{
+		RebuildPlannedPath();
+		UE_LOG(LogRT, Log, TEXT("[RT] Sneak annullato: restituiti %d waypoint che il tetto aveva tolto."),
+			Unit->PlannedWaypoints.Num());
+	}
+
 	// 🔴 **Da qui in giu' il tetto E' GIA' CAMBIATO, quindi l'anteprima va ridisegnata COMUNQUE.** Il corpo
 	// sta in una lambda e il ridisegno dopo, invece che in fondo a ciascun ramo: cosi' non e' una riga da
 	// ricordarsi, e un ramo nuovo non puo' dimenticarla.
@@ -3260,8 +3319,13 @@ void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
 	// arrivare invece che da capo. Il perche' del taglio per waypoint interi sta su
 	// `TruncateWaypointsToBudget`.
 	FRTHexPathResult Kept;
+	// Come nel ramo della riserva: il troncamento consuma l'array in posto, quindi la copia va presa prima.
+	const TArray<FRTCellId> PrimaDelTaglio = Unit->PlannedWaypoints;
 	const int32 Dropped =
 		TruncateWaypointsToBudget(Snapshot, UnitId, Unit->PlannedWaypoints, NewSteps, NewCost, Kept);
+	// 🔑 Chiavata su `ProfileSneak` e non su `Ceiling.Id`: cio' che e' reversibile e' il GESTO del
+	// giocatore, e `CeilingProfile` puo' rispondere un altro profilo quando l'unita' e' `Unbalanced`.
+	Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelTaglio);
 	Unit->PlannedPath = Kept.Path;
 	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
 
