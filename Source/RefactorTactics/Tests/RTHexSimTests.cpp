@@ -3260,6 +3260,112 @@ bool FRTHexSimAllyInTransitIsCrossedTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 L'EPISODIO DEL PLAYTEST: DUE ALLEATI CON DESTINAZIONI DIVERSE SI CONTENDONO UNA CELLA IN ROTTA,
+ * E PROSEGUONO ENTRAMBI — [D-443] atto (B), `#3408`.
+ *
+ * 🔑 **E' il caso che l'autore ha VISTO in partita**, e si distingue dallo scambio e dalla
+ * destinazione comune: nessuno dei due sta sulla cella contesa, e le loro destinazioni finali sono due
+ * celle terze. Il log mostrava `fermo: cella contesa` per entrambi, ripetuto identico al turno dopo.
+ *
+ * Il sollievo: chi puo' allungare cede, e uno tiene. Qui possono entrambi, quindi il keeper e' la minima
+ * per `StableLess` — `(0,0)` contro `(1,-1)`, X decide.
+ *
+ * ⛔ **La meta' falsificante e' il caso avversario**, e senza di essa questo banco resterebbe verde
+ * anche se il sollievo avesse allentato la contesa per tutti.
+ */
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimContestedRouteReliefTest,
+	"RefactorTactics.HexSim.AlliesContestingARouteCellBothProceed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimContestedRouteReliefTest::RunTest(const FString&)
+{
+	// Entrambi passano per (1,0) — libera — e vanno altrove.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0), FRTCellId(2, 0) });
+	Paths.Add({ FRTCellId(1, -1), FRTCellId(1, 0), FRTCellId(1, 1) });
+
+	{
+		const TArray<FRTHexMoveResult> C = RTResolveWithTeams(Paths, { 0, 0 });
+		TestEqual(TEXT("il primo alleato arriva a destinazione"), C[0].Final, FRTCellId(2, 0));
+		TestEqual(TEXT("e il secondo pure"), C[1].Final, FRTCellId(1, 1));
+		TestTrue(TEXT("nessuno dei due e' fermo per cella contesa"),
+			C[0].Outcome != ERTMoveOutcome::BlockedContested
+			&& C[1].Outcome != ERTMoveOutcome::BlockedContested);
+	}
+	{
+		// ⛔ Le stesse celle fra avversari: la contesa resta quella di sempre.
+		const TArray<FRTHexMoveResult> A = RTResolveWithTeams(Paths, { 0, 1 });
+		TestEqual(TEXT("fra avversari il primo resta"), A[0].Final, FRTCellId(0, 0));
+		TestEqual(TEXT("e il secondo pure"), A[1].Final, FRTCellId(1, -1));
+		TestEqual(TEXT("col motivo di sempre"), A[0].Outcome, ERTMoveOutcome::BlockedContested);
+	}
+	return true;
+}
+
+/**
+ * 🔴 CON TRE CONTENDENTI E DUE SENZA USCITA, IL SOLLIEVO NON SI APPLICA — [D-443] atto (B).
+ *
+ * 🔑 **E' il banco che pinna la soglia, e serve TRE unita'.** Con due contendenti la guardia
+ * `SenzaUscita >= 2` e' ridondante: se nessuna delle due puo' allungare non c'e' niente da allungare, e
+ * il ciclo d'applicazione le salta comunque. ⚠️ **Misurato**: la mutazione che rimuove la guardia lascia
+ * verde il banco a due contendenti. Da tre in su la differenza esiste — una puo' cedere, due no — e la
+ * regola dice che nessuno entra.
+ *
+ * ⛔ **La ragione di gioco**: cedere la cella serve a chi la vuole. Se restano due pretendenti senza
+ * uscita, il sacrificio della terza non scioglie niente e la contesa resta quella dichiarata da
+ * `PIE-HEXPLAY-5` e [D-289]. Il sollievo apre una via dove ce n'e' una per tutti tranne uno.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimNoReliefWithTwoStuckTest,
+	"RefactorTactics.HexSim.NoReliefWhenTwoContendersAreStuck",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimNoReliefWithTwoStuckTest::RunTest(const FString&)
+{
+	// Tre alleati contendono (1,0). Le prime due ci FINISCONO (nessuna uscita a valle); la terza
+	// potrebbe proseguire su (1,1) e quindi cedere.
+	//
+	// [chiave] **La geometria e' scelta perche' chi PUO' cedere non sia il minimo per `StableLess`**
+	// (Layer, poi X, poi Y): i `Pos` sono (0,0), (0,1), (2,-1), e il minimo e' (0,0) — una delle due
+	// bloccate. Senza questa cura la mutazione non si distingue: il keeper sarebbe proprio la terza,
+	// che verrebbe saltata dall'applicazione, e l'esito coinciderebbe. Misurato, non dedotto.
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });                    // bloccata, e minima
+	Paths.Add({ FRTCellId(0, 1), FRTCellId(1, 0) });                    // bloccata
+	Paths.Add({ FRTCellId(2, -1), FRTCellId(1, 0), FRTCellId(1, 1) });  // potrebbe cedere
+
+	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0, 0 });
+	TestEqual(TEXT("la prima bloccata resta dov'era"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e la seconda pure"), R[1].Final, FRTCellId(0, 1));
+	TestEqual(TEXT("e chi poteva cedere non cede: non scioglierebbe niente"), R[2].Final, FRTCellId(2, -1));
+	return true;
+}
+/**
+ * ⛔ SE NESSUNO DEI DUE PUO' CEDERE, IL SOLLIEVO NON INVENTA UN VINCITORE — [D-443] atto (B).
+ *
+ * Entrambi i percorsi FINISCONO sulla cella contesa: nessuno ha una cella libera a valle su cui
+ * allungare l'arco. ∴ due contendenti senza uscita, e la regola e' quella che esisteva gia':
+ * `BlockedContested` per tutti, che e' l'esito atteso dichiarato di `PIE-HEXPLAY-5` e [D-289].
+ *
+ * 🔑 **E' il banco che prende la mutazione piu' tentante**: scegliere un keeper comunque. Lo farebbe
+ * entrare su una cella che l'altro non ha ceduto, e la contesa si trasformerebbe in una precedenza che
+ * nessuno ha deciso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexSimNoReliefWithoutExitTest,
+	"RefactorTactics.HexSim.NoReliefWhenNobodyCanYield",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexSimNoReliefWithoutExitTest::RunTest(const FString&)
+{
+	TArray<TArray<FRTCellId>> Paths;
+	Paths.Add({ FRTCellId(0, 0), FRTCellId(1, 0) });   // (1,0) e' la DESTINAZIONE, non un passaggio
+	Paths.Add({ FRTCellId(1, -1), FRTCellId(1, 0) });  // idem
+
+	const TArray<FRTHexMoveResult> R = RTResolveWithTeams(Paths, { 0, 0 });
+	TestEqual(TEXT("il primo resta dov'era"), R[0].Final, FRTCellId(0, 0));
+	TestEqual(TEXT("e il secondo pure"), R[1].Final, FRTCellId(1, -1));
+	TestEqual(TEXT("col motivo della contesa"), R[0].Outcome, ERTMoveOutcome::BlockedContested);
+	TestEqual(TEXT("per entrambi"), R[1].Outcome, ERTMoveOutcome::BlockedContested);
+	return true;
+}
+/**
  * IL CORRIDOIO TESTA A TESTA FRA ALLEATI SI SBLOCCA — [D-443], `#3408`.
  *
  * 🔑 **E' il caso che restava fermo PER SEMPRE**: il permesso copriva solo un'occupante che avesse
