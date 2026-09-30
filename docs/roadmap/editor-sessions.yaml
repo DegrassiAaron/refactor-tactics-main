@@ -1524,6 +1524,20 @@ sessions:
     done_when: i quattro KPI hanno un valore misurato, anche fuori target
     unblocks: [E3.3, M7.3, E12.4]
     steps: |
+      ✅ **ESEGUITA il 2026-09-30 sul candidate `6b50eb49f`** (albero
+      `ccc352da981c961c354bb3be5884d9c7de62e906`). `done_when` soddisfatto: i quattro KPI hanno un
+      valore misurato, e tutti e quattro sono **dentro il target** — `Client FPS` 6,312 ms p99
+      (158,4 fps) · `Path` 0,072 ms · `Preview` 0,091 ms · `Resolver` 9,059 ms/turno. I numeri, il
+      metodo e le riserve stanno nelle righe della §4 del DoD, che ne e' l'owner; `G11` e' passata a
+      ✅ nella stessa tornata.
+      ⚠️ **Il `Resolver` e' circa il doppio della banda precedente `3,8–4,5`**, dentro il target. Il
+      delta non e' stato indagato per decisione dell'autore: quella classe di misura non e' oggetto di
+      lavoro fino alla v1.0, e la domanda appartiene a
+      [#3413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3413).
+      ⛔ **Nessuno dei quattro passi ha richiesto l'Editor**, contro cio' che `execution_lane: pie`
+      dichiara: tre sono test Automation e il quarto e' una cattura sul pacchetto. La corsia resta
+      scritta com'era perche' cambiarla e' una decisione sul registro, non un esito di questa seduta.
+
       Nessuna guida copre questa procedura, quindi i passi stanno qui.
 
       🔑 **Il `done_when` di questa seduta e' GIA' soddisfatto, e non e' un errore di lettura.** La
@@ -1535,7 +1549,17 @@ sessions:
       andranno rifatti**: il verde che ne uscirebbe risponderebbe a un'altra domanda. Questa seduta
       viene DOPO il candidate, non prima.
 
-      1. Partita in PIE sull'arena, `stat unit` e `stat game` dalla console → FPS client (target 60).
+      1. `Client FPS`: **p99 del frame time dal CSV profiler su pacchetto Development**, partita
+         autobattle su `L_HexArena`, `-csvCaptureFrames=4000`, primi 300 frame esclusi perche' sono il
+         caricamento (target 60 fps, cioe' 16,67 ms).
+         🔴 **Questo passo diceva *«partita in PIE, `stat unit` e `stat game` dalla console»*, e il
+         DoD di [#84](https://github.com/DegrassiAaron/refactor-tactics-main/issues/84) lo rifiuta**:
+         *«Il numero e' un percentile del frame time — p99 — e non la media mobile di `stat fps`: un
+         `60` medio con p99 a 22 ms passa il gate e fallisce col giocatore»*. La colonna *Metodo di
+         misura* della §4 del DoD prescriveva gia' il CSV; qui era rimasta la forma vecchia.
+         ⚠️ **Conseguenza operativa: questo passo NON richiede l'Editor.** La misura si prende dal
+         pacchetto, headless, e va presa sul pacchetto **ricostruito dal candidate** — non su uno
+         trovato su disco, che sarebbe di un altro commit.
       2. Unreal Insights per path, preview e resolver (target: path mediana < 2 ms, preview < 50 ms,
          resolver < 100 ms/turno).
       3. `rt.Debug.DumpTurnLog` + `rt.Debug.VerifyReplay` per replay divergence = 0.
