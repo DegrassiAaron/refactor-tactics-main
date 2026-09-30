@@ -2674,4 +2674,104 @@ bool FRTMovementDestinationIsAnOrderTest::RunTest(const FString&)
 	return true;
 }
 
+
+/**
+ * ARMARE UN'AZIONE CHE RISERVA LO SLOT RESTRINGE IL VENTAGLIO **SUBITO** — `#3418`.
+ *
+ * 🔑 **Il difetto era di ORDINE, non di calcolo.** `ArmKitAbility` chiamava `RefreshPlanningPreview`
+ * dodici righe **sopra** `Unit->PlannedAbilityIndex = Index`, e il ventaglio verde si ricava dal tetto che
+ * `PlanningSnapshotFor` legge da `ReservedProfileForPlan(MakePlanFor(Unit))` — cioe' **dal piano**. Disegnato
+ * prima della scrittura, il piano non conteneva ancora l'azione: nessun tetto, verde intero. Col percorso
+ * ciano gia' troncato dalla riga sopra, le due meta' della stessa anteprima dicevano cose diverse nello
+ * stesso fotogramma.
+ *
+ * ⚠️ **La terza asserzione e' quella che nomina il difetto, e le prime due da sole non bastano.** Il
+ * difetto si **autocorregge** al gesto successivo, quindi un test che guardasse solo <<il verde si e'
+ * ristretto>> potrebbe passare su un'implementazione che lo restringe un attimo tardi. Qui si torna
+ * sull'unita' passando da un'altra e si pretende che il conteggio **non cambi**: se il primo disegno era
+ * quello giusto, il secondo non ha niente da correggere.
+ *
+ * 🔑 **L'occupazione e' costante fra le tre letture**: la seconda unita' viene generata **prima** della
+ * misura di partenza, cosi' il cambio di selezione non sposta nulla di cio' che si conta. Senza questa
+ * accortezza il terzo confronto misurerebbe anche un'occupazione diversa.
+ *
+ * ⛔ **Non si asserisce il DISARMO qui**: `ArmKitAbility(INDEX_NONE)` non azzera `PlannedAbilityIndex`, e
+ * il tetto resterebbe. E' un difetto diverso e ha la sua issue (`#3417`); metterlo qui darebbe un rosso che
+ * non parla di questa correzione.
+ *
+ * Gemello di `SneakRedrawsTheReachablePreview`, che prova la stessa proprieta' per il tetto **dichiarato**
+ * dal giocatore, e vicino di `ReservingAProfileTruncatesThePlan`, che prova il troncamento del percorso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmingAReserveRedrawsAtOnceTest,
+	"RefactorTactics.PlayerInput.ArmingAReserveShrinksThePreviewAtOnce",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmingAReserveRedrawsAtOnceTest::RunTest(const FString&)
+{
+	UWorld* World = MakeInteractionWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+
+	// Le DUE unita' si generano subito: la seconda serve solo a poter cambiare selezione e tornare, e
+	// generarla dopo la misura di partenza ne cambierebbe l'occupazione.
+	ARTUnit* Unit = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTUnit* Altra = SpawnInteractionUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!TestNotNull(TEXT("controller"), PC) || !TestNotNull(TEXT("unita'"), Unit)
+		|| !TestNotNull(TEXT("seconda unita'"), Altra) || !TestNotNull(TEXT("actor mappa"), MapActor))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// L'indice si CERCA: le generiche sono accodate al kit, quindi la posizione dipende dall'eroe.
+	int32 IdxOverwatch = INDEX_NONE;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Unit->GetAbility(i);
+		if (A && A->Def.ActionId == TEXT("Action.Overwatch")) { IdxOverwatch = i; break; }
+	}
+	if (!TestTrue(TEXT("premessa: l'eroe ha Action.Overwatch nel kit"), IdxOverwatch != INDEX_NONE))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// ⚠️ `SelectUnit` e non `SelectActorForTest`: il primo e' il punto in cui la selezione DISEGNA. Con
+	// `SelectActorForTest` l'anteprima resterebbe vuota e i tre confronti sarebbero zero contro zero.
+	PC->SelectUnit(Unit);
+	const int32 Prima = MapActor->NumPreviewReachableCells();
+	if (!TestTrue(*FString::Printf(
+			TEXT("premessa: selezionare disegna un'anteprima non vuota (%d celle)"), Prima), Prima > 0))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	// --- armare l'Overwatch impone il tetto `Withdraw` (×0,25): il ventaglio deve calare SUBITO ---------
+	PC->SelectAbilityForCurrentForTest(IdxOverwatch);
+	if (!TestEqual(TEXT("premessa: il piano riserva davvero lo slot al Withdraw"),
+			URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(Unit)),
+			URTMovementProfileLibrary::ProfileWithdraw))
+	{
+		DestroyInteractionWorld(World); return false;
+	}
+
+	const int32 Dopo = MapActor->NumPreviewReachableCells();
+	// 🔴 Col refresh chiamato prima della scrittura del piano, qui `Dopo` era uguale a `Prima`.
+	TestTrue(*FString::Printf(TEXT("il ventaglio si restringe col tetto imposto (%d -> %d)"), Prima, Dopo),
+		Dopo < Prima);
+	// ⛔ E non si svuota: il `Withdraw` e' un ripiegamento corto, non un'immobilizzazione. Senza questa
+	// riga un ridisegno che azzerasse l'anteprima passerebbe il confronto qui sopra.
+	TestTrue(TEXT("ma non si svuota: il ripiegamento riduce la distanza, non la annulla"), Dopo > 0);
+
+	// --- e il gesto successivo NON ha niente da correggere --------------------------------------------
+	PC->SelectUnit(Altra);
+	PC->SelectUnit(Unit);
+	const int32 Terzo = MapActor->NumPreviewReachableCells();
+	TestEqual(TEXT("il primo disegno era gia' quello giusto: il gesto dopo non lo cambia"), Terzo, Dopo);
+
+	DestroyInteractionWorld(World);
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS
