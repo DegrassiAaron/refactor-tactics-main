@@ -48,7 +48,7 @@ Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sop
 `AUTHOR-MOVE-001` ([D-295](../decisions/RT_PDR_00_Decision_Log.md)) decide che lo **scambio diretto e i cicli
 chiusi bloccano** nel Move *«salvo permesso esplicito»*. Quel permesso è **questa riga**: lo scambio lecito è
 un `Transfer`, `v0.2`/`E39`, e un Transfer non percorre celle intermedie — non passa dalle regole di
-traversal. ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
+traversal. ♻️ **Non e' piu' vero dal 2026-09-30, e per decisione d'autore**: [D-443](../decisions/RT_PDR_00_Decision_Log.md) concede lo scambio **fra unita' della stessa squadra**, nelle parole dell'autore *«solo gli avversari che si incrociano bloccano il movimento»*. ⚠️ **Il vincolo di questa riga resta invece intatto**: non si **finisce** il turno su una cella occupata ([D-289](../decisions/RT_PDR_00_Decision_Log.md)), e l'autore l'ha confermato nella stessa frase — *«non puo' fermarsi su una cella gia' occupata»*. ⛔ **E la preoccupazione di questa riga era fondata**: *«un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner»*. Da oggi i due owner esistono davvero — il `Transfer` della v0.2 per lo scambio **fra avversari**, e il Move per quello fra alleati — e la sede del secondo e' in istruttoria. Chi la chiude dica se `Transfer` resti l'owner unico o se il perimetro si divida. ⏻ *Testo precedente:* ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
 **incondizionata**: un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che
 ne ha già uno. L'implementazione della regola è
 [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922).
