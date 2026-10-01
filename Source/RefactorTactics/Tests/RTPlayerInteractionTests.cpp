@@ -1671,13 +1671,24 @@ bool FRTDeniedMoveDeclaresTheDenialTest::RunTest(const FString&)
 
 	PC->HandleClickOnCell(Occupata);
 
-	// 🔑 LA PREMESSA CHE DEFINISCE IL CASO. Senza, questo test potrebbe passare dalla strada di
-	// `Actions.Move.PathBlocked` — percorso accettato e poi troncato dal resolver — che e' un ALTRO
-	// meccanismo, gia' funzionante, e che lascerebbe il difetto della #79 non misurato.
-	if (!TestEqual(TEXT("premessa: il waypoint e' stato RIFIUTATO in pianificazione"),
-			Chi->PlannedWaypoints.Num(), 0)
-		|| !TestEqual(TEXT("premessa: e nessun percorso e' sopravvissuto al rifiuto"),
-			Chi->PlannedPath.Num(), 0))
+	// 🔴 **IL DINIEGO SI E' SPOSTATO DALLA PIANIFICAZIONE ALLA RISOLUZIONE** ([D-446]), e questa
+	// premessa e' dove si vede. Diceva *«il waypoint e' stato RIFIUTATO in pianificazione»* e misurava
+	// `PlannedWaypoints.Num() == 0`: oggi il clic si accetta, perche' rifiutarlo avrebbe richiesto di
+	// sapere se l'occupante se ne andra' — cioe' di leggere il suo piano.
+	//
+	// 🔑 **Tutte le asserzioni a valle sono rimaste identiche, ed e' il punto.** Il diniego continua a
+	// esistere, a nominare la destinazione richiesta e a sostituire `Stayed`: cambia **quando** si produce,
+	// non **se**. La distinzione che `#79` esiste per tenere — *«ho provato e me l'hanno negato»* contro
+	// *«non ho provato»* — e' esattamente quella che il banco continua a misurare.
+	//
+	// ⚠️ **E il ramo che la produce ora era gia' scritto, per il bot.** `RTTurnManager_Movement.cpp`
+	// teneva due vie asimmetriche — giocatore e harness portavano uno stato dal momento del rifiuto, il bot
+	// non aveva un rifiuto e la sua destinazione si leggeva da `PlannedCell`. Da oggi i tre produttori
+	// passano tutti dalla seconda.
+	if (!TestEqual(TEXT("premessa: il waypoint e' stato ACCETTATO in pianificazione"),
+			Chi->PlannedWaypoints.Num(), 1)
+		|| !TestEqual(TEXT("premessa: e la destinazione dichiarata e' proprio quella occupata"),
+			Chi->PlannedCell, Occupata))
 	{
 		DestroyInteractionWorld(World);
 		return false;
@@ -1804,10 +1815,10 @@ bool FRTUndeclaredMoveDoesNotDeclareADenialTest::RunTest(const FString&)
  * `WORK-ORDER.md` § *Falsi punti di partenza* punto 4, e § *EXPECTED BEHAVIOR* riga `Timing boundary`:
  * lo stato di rifiuto nasce in `Planning` e **muore quando un piano valido lo sostituisce**.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReplanAfterADenialWinsTest,
-	"RefactorTactics.PlayerInteraction.ReplanAfterADenialWins",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTWaypointOnAnOccupantDoesNotDenyTest,
+	"RefactorTactics.PlayerInteraction.AWaypointOnAnOccupantDoesNotDenyTheFinalPlan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
+bool FRTWaypointOnAnOccupantDoesNotDenyTest::RunTest(const FString&)
 {
 	UWorld* World = MakeInteractionWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -1841,15 +1852,23 @@ bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
 	Chi->SelectAbility(INDEX_NONE);
 	Occupante->PlannedCell = Occupante->Cell;
 
-	// La sequenza reale del giocatore: prova il varco occupato, se lo vede negare, e ripiega.
+	// 🔴 **LA SEQUENZA REALE DEL GIOCATORE E' CAMBIATA** ([D-446]). Era: *prova il varco occupato, se
+	// lo vede negare, e ripiega* — due clic di cui il primo veniva **scartato**, e il banco misurava che il
+	// rifiuto non lasciasse residui. Oggi il primo clic si accetta, quindi i due si **sommano**: un waypoint
+	// sopra l'occupante, e la destinazione finale sul ripiego.
+	//
+	// 🔑 **Cio' che il banco misura resta lo stesso fatto**: dichiarare qualcosa sopra un'unita' non
+	// nega il piano. Prima perche' il rifiuto non sopravviveva al piano che lo sostituiva; ora perche' il
+	// rifiuto non c'e' — e l'asserzione che lo dice, `ContaEsitoMove(BlockedByUnit) == 0`, non e' stata
+	// toccata. ⚠️ Il nome e' cambiato con la cosa misurata: non c'e' piu' un *replan*.
 	PC->HandleClickOnCell(Occupata);
-	if (!TestEqual(TEXT("premessa: il primo tentativo E' stato negato"), Chi->PlannedWaypoints.Num(), 0))
+	if (!TestEqual(TEXT("premessa: il primo clic E' stato accettato"), Chi->PlannedWaypoints.Num(), 1))
 	{
 		DestroyInteractionWorld(World);
 		return false;
 	}
 	PC->HandleClickOnCell(Ripiego);
-	if (!TestEqual(TEXT("premessa: la correzione E' stata accettata"), Chi->PlannedWaypoints.Num(), 1)
+	if (!TestEqual(TEXT("premessa: i due clic si sommano in un piano di due tappe"), Chi->PlannedWaypoints.Num(), 2)
 		|| !TestEqual(TEXT("premessa: e il piano finale punta al ripiego"), Chi->PlannedCell, Ripiego))
 	{
 		DestroyInteractionWorld(World);
@@ -1858,10 +1877,10 @@ bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
 
 	RisolviIlTurno(TM);
 
-	// 🔴 Nessun rejection stale: lo stato del tentativo negato non deve sopravvivere al piano che lo
-	// sostituisce. Su TUTTO il log, non solo sulla voce dell'unita': un evento scritto al momento del
-	// click starebbe nel log anche se la voce finale fosse corretta.
-	TestEqual(TEXT("il tentativo negato non lascia traccia: ha vinto il piano finale"),
+	// 🔴 Nessun diniego: la cella dell'occupante si **attraversa** ([D-445]) e il piano arriva dove
+	// puntava. Su TUTTO il log, non solo sulla voce dell'unita': un evento scritto al momento del click
+	// starebbe nel log anche se la voce finale fosse corretta.
+	TestEqual(TEXT("nessun diniego nel log: il piano e' arrivato"),
 		ContaEsitoMove(TM, ERTMoveOutcome::BlockedByUnit), 0);
 
 	const TArray<FRTTurnLogEntry> Voci = VociMoveDi(TM, Chi);
@@ -1872,10 +1891,12 @@ bool FRTReplanAfterADenialWinsTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("e l'esito e' il movimento eseguito"),
 		Voci[0].Outcome, static_cast<uint8>(ERTMoveOutcome::Moved));
-	TestEqual(TEXT("con la destinazione del piano CORRETTO, non di quello negato"),
+	TestEqual(TEXT("con la destinazione finale, non col waypoint intermedio"),
 		Voci[0].TgtCell, Ripiego);
 
 	TestEqual(TEXT("l'unita' e' davvero sul ripiego"), Chi->Cell, Ripiego);
+	// ➕ **E l'occupante e' ancora dov'era**: ci si e' passati sopra, non lo si e' spostato ([D-289]).
+	TestEqual(TEXT("e l'occupante non si e' mosso"), Occupante->Cell, Occupata);
 
 	DestroyInteractionWorld(World);
 	return true;

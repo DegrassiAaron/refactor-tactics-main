@@ -889,10 +889,18 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	// Misurato su `main` prima di toccare una riga: la nemica finiva in `(3,0,L0)`, cioe' la sua
 	// destinazione, con `Outcome` di movimento riuscito.
 	//
-	// ➕ La squadra **2** soddisfa entrambi i vincoli per costruzione: non e' alleata della nemica,
-	// quindi blocca; e non e' la squadra che guarda, quindi non le porta vista. ⛔ E non e' una scelta
-	// arbitraria fra le due: e' l'unica che non dipende da quale regola di attraversamento sia in vigore,
-	// che e' precisamente cio' che ha rotto questo banco una volta.
+	// ➕ La squadra **2** soddisfa entrambi i vincoli per costruzione: non e' alleata della nemica, e non
+	// e' la squadra che guarda, quindi non le porta vista.
+	//
+	// 🔴 **E lo stesso banco si e' rotto una SECONDA volta, il 2026-10-01, per la stessa famiglia di
+	// causa.** La riga qui sopra diceva che la squadra 2 *«e' l'unica che non dipende da quale regola di
+	// attraversamento sia in vigore»*, e si e' rivelata ottimista: rispondeva a **chi** blocca, mentre
+	// [D-445] ha cambiato **se** qualcuno blocca. Nessuna squadra ferma piu' un transito, la terza compresa.
+	//
+	// 🔑 **L'invariante che sopravvive a entrambe le rotture e' un'altra, ed e' [D-289]: il TERMINUS.**
+	// Due unita' non finiscono il turno sulla stessa cella, e questo non e' cambiato ne' con `#2984` ne' con
+	// [D-445]. L'ostacolo resta dov'e'; e' la **destinazione** della nemica ad arretrare su di lui, cosi' il
+	// blocco si produce dove la regola vive invece che dove capitava di trovarla.
 	ARTUnit* Muro = RTCombatLogFixture::SpawnUnit(World, /*TeamId=*/ 2, FRTCellId(4, 0, 0));
 	if (!TestNotNull(TEXT("turn manager"), TM) || !TestNotNull(TEXT("mappa"), Map)
 		|| !TestNotNull(TEXT("unita' mia"), Mia) || !TestNotNull(TEXT("unita' nemica"), Nemica)
@@ -910,12 +918,18 @@ bool FRTLogOmitsRememberedEnemyBlockedMoveTest::RunTest(const FString&)
 	Nemica->PlaceOnCell(FRTCellId(5, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
 	Mia->VisionRange = 0;
 
-	// Turno 2 — la nemica prova a muoversi e trova la cella occupata. Il percorso si scrive a mano dritto
-	// dentro l'ostacolo: passando per `PlannedCell` l'A* lo aggirerebbe e non ci sarebbe mossa bloccata.
-	// Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
-	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno.
-	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0), FRTCellId(3, 0, 0) };
-	Nemica->PlannedCell = FRTCellId(3, 0, 0);
+	// Turno 2 — la nemica prova a muoversi e trova la DESTINAZIONE occupata. Il percorso si scrive a mano
+	// dritto su di essa: passando per `PlannedCell` l'A* sceglierebbe un'altra meta e non ci sarebbe mossa
+	// bloccata. Bloccata al PRIMO passo, quindi partenza e arrivo coincidono: la cella che la riga stampa
+	// (`SrcCell`, `Paths[i][0]`) e' anche quella in cui la nemica si trova a fine turno — ed e' la ragione
+	// per cui `CellaAttuale` qui sotto resta `(q=5,r=0,L=0)`.
+	//
+	// 🔴 **Il percorso si e' ACCORCIATO di una cella** ([D-445]): era
+	// `{(5,0), (4,0), (3,0)}` con meta `(3,0)`, e la nemica attraversava l'ostacolo su `(4,0)` per arrivare
+	// dove voleva. Misurato prima di toccare una riga: finiva in `(3,0,L0)` con esito di movimento riuscito,
+	// e la premessa 2 cadeva — la stessa diagnosi, parola per parola, che `#2984` aveva prodotto qui.
+	Nemica->PlannedPath = { FRTCellId(5, 0, 0), FRTCellId(4, 0, 0) };
+	Nemica->PlannedCell = FRTCellId(4, 0, 0);
 	Muro->PlannedCell = Muro->Cell; // fermo: e' l'ostacolo
 	RTCombatLogFixture::RunTurn(TM);
 

@@ -48,7 +48,7 @@ Reaction     NON è una famiglia: è una causa, e usa la policy di una delle sop
 `AUTHOR-MOVE-001` ([D-295](../decisions/RT_PDR_00_Decision_Log.md)) decide che lo **scambio diretto e i cicli
 chiusi bloccano** nel Move *«salvo permesso esplicito»*. Quel permesso è **questa riga**: lo scambio lecito è
 un `Transfer`, `v0.2`/`E39`, e un Transfer non percorre celle intermedie — non passa dalle regole di
-traversal. ♻️ **Non e' piu' vero dal 2026-09-30, e per decisione d'autore**: [D-443](../decisions/RT_PDR_00_Decision_Log.md) concede lo scambio **fra unita' della stessa squadra**, nelle parole dell'autore *«solo gli avversari che si incrociano bloccano il movimento»*. ⚠️ **Il vincolo di questa riga resta invece intatto**: non si **finisce** il turno su una cella occupata ([D-289](../decisions/RT_PDR_00_Decision_Log.md)), e l'autore l'ha confermato nella stessa frase — *«non puo' fermarsi su una cella gia' occupata»*. ⛔ **E la preoccupazione di questa riga era fondata**: *«un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner»*. Da oggi i due owner esistono davvero — il `Transfer` della v0.2 per lo scambio **fra avversari**, e il Move per quello fra alleati — e la sede del secondo e' in istruttoria. Chi la chiude dica se `Transfer` resti l'owner unico o se il perimetro si divida. ⏻ *Testo precedente:* ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
+traversal. ♻️ **Non e' piu' vero, e in due passaggi.** Il 2026-09-30 [D-443](../decisions/RT_PDR_00_Decision_Log.md) ha concesso lo scambio **fra unita' della stessa squadra** — *«solo gli avversari che si incrociano bloccano il movimento»* — e il **2026-10-01** [D-445](../decisions/RT_PDR_00_Decision_Log.md) ha tolto anche quello: **nessuna unita' blocca il transito di nessun'altra**, scatti compresi. L'arco scavalca chiunque e si ferma alla prima cella libera. ⚠️ **Il vincolo di questa riga resta invece intatto**: non si **finisce** il turno su una cella occupata ([D-289](../decisions/RT_PDR_00_Decision_Log.md)), e l'autore l'ha confermato nella stessa frase — *«non puo' fermarsi su una cella gia' occupata»*. ✅ **E la preoccupazione di questa riga si e' sciolta invece di avverarsi.** Diceva: *«un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner»*. [D-443] aveva creato davvero i due owner — il `Transfer` della v0.2 per lo scambio fra avversari, il Move per quello fra alleati — e [D-445] li ha richiusi in uno: **non c'e' nessun flag di permesso**, perche' non c'e' piu' un permesso da dare. Il Move attraversa e basta; `Transfer` resta l'owner dello scambio **atomico**, che e' un'altra cosa — non percorre celle intermedie. ⏻ *Testo precedente:* ⛔ Ne segue che in **v0.1 non esiste alcuno scambio lecito** e la regola del Move è
 **incondizionata**: un flag di permesso dentro `StepHexMovement` sarebbe un secondo owner per una famiglia che
 ne ha già uno. L'implementazione della regola è
 [#1922](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1922).
@@ -74,7 +74,7 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | occupa lo slot movimento | sì | **sì** ([D-028](../decisions/RT_PDR_00_Decision_Log.md)) | sì per `Leap`, che è nella fase Dash | no |
 | micro-step | sì | **policy** | **no** | sì |
 | **durata del passo** (§2.0-ter) | **costo d'ingresso** ([D-381](../decisions/RT_PDR_00_Decision_Log.md)) | **policy** | n/a | **un micro-step per cella** ([D-384](../decisions/RT_PDR_00_Decision_Log.md)) |
-| attraversa le celle intermedie | sì | policy | **no** | sì |
+| attraversa le celle intermedie | sì | **sì** ([D-445](../decisions/RT_PDR_00_Decision_Log.md)) | **no** | sì |
 | usa `MoveBudget` | sì | no | no | **no** |
 | paga il costo del terreno | sì | no | no | **no** (ma vedi §3) |
 | collisioni | sì | policy | solo all'arrivo | sì |
@@ -443,22 +443,41 @@ significa aggiungere un valore lì, non un `if` nel resolver. *(Il conteggio è 
 questa pagina diceva già «sei valori», questo paragrafo ne elencava cinque, e da D-118 in poi la differenza
 smette di essere un dettaglio.)*
 
-> 🔴 **`LinearPass` attraversa CHI E' FERMO, e da [D-398] non piu' chiunque — 2026-09-11.** È un
-> cambiamento di comportamento di un'abilità **spedita**, non una precisazione, e sta qui perché questa
-> pagina è owner di *«cosa comporta»* un tipo di movimento.
+> 🔴 **`LinearPass` non concede più niente, e il 2026-10-01 è rimasto senza consumatore** ([D-445](../decisions/RT_PDR_00_Decision_Log.md)).
+> Lo stile attraversava chi è fermo; da [D-445](../decisions/RT_PDR_00_Decision_Log.md) attraversano **tutti**, quindi `LinearPass` e
+> `Linear` producono lo stesso movimento. ⚠️ **Il valore non è stato ritirato**: l'autore ha scelto
+> esplicitamente la portata *«tutti i movimenti, scatti compresi»* **senza** autorizzare il ritiro dello
+> stile, e la domanda è aperta come `MOV-14` in [`OPEN_DECISIONS.md`](../OPEN_DECISIONS.md).
 >
-> Il permesso precedente saltava il controllo di occupancy per l'intero passo, quindi un `LinearPass`
-> attraversava **chiunque** stesse sulla cella — fermo o in movimento. L'attraversamento è ora un **arco
-> solo**, che copre le celle occupate consecutive più la **prima libera**: se quella cella libera non
-> esiste nel percorso, non si attraversa affatto.
+> ⏻ *Testo precedente, conservato perché la sua catena di ragionamento è stata smontata e vale saperlo:*
 >
-> ∴ **ciò che cambia in partita**: un `LinearPass` che prima passava attraverso un'unità **in movimento**
-> ora si ferma davanti — a meno che quella non liberi la cella da sé, nel qual caso passa comunque.
-> L'attraversamento di chi è **fermo** non cambia, ed è il caso d'uso per cui lo stile esiste.
+> > 🔴 **`LinearPass` attraversa CHI E' FERMO, e da [D-398] non piu' chiunque — 2026-09-11.** È un
+> > cambiamento di comportamento di un'abilità **spedita**, non una precisazione, e sta qui perché questa
+> > pagina è owner di *«cosa comporta»* un tipo di movimento.
+> >
+> > Il permesso precedente saltava il controllo di occupancy per l'intero passo, quindi un `LinearPass`
+> > attraversava **chiunque** stesse sulla cella — fermo o in movimento. L'attraversamento è ora un **arco
+> > solo**, che copre le celle occupate consecutive più la **prima libera**: se quella cella libera non
+> > esiste nel percorso, non si attraversa affatto.
+> >
+> > ∴ **ciò che cambia in partita**: un `LinearPass` che prima passava attraverso un'unità **in movimento**
+> > ora si ferma davanti — a meno che quella non liberi la cella da sé, nel qual caso passa comunque.
+> >
+> > 🔑 **La restrizione non è un effetto collaterale: è ciò che tiene in piedi la catena del ciclo.**
+> > Concedere l'attraversamento anche di chi si muove riapre lo scambio di posizione fra due unità che si
+> > attraversano a vicenda — è il caso che `ResolveSwapBlockedEvenWhenPassingThrough` presidia.
 >
-> 🔑 **La restrizione non è un effetto collaterale: è ciò che tiene in piedi la catena del ciclo.**
-> Concedere l'attraversamento anche di chi si muove riapre lo scambio di posizione fra due unità che si
-> attraversano a vicenda — è il caso che `ResolveSwapBlockedEvenWhenPassingThrough` presidia.
+> 🔴 **E quella catena è esattamente ciò che [D-445] ha reciso, in tutti e tre gli anelli.** L'arco a una
+> cella libera **resta** — è [D-398] §7c e non è stato toccato: senza una cella libera a valle non si
+> attraversa affatto. Cade invece il resto: chi si muove si attraversa come chi è fermo; lo scambio di
+> posizione è **concesso** e non più un difetto da presidiare; e `ResolveSwapBlockedEvenWhenPassingThrough`
+> non esiste più con quel nome — è `HexSim.ResolveCrossWhilePassingThrough`, e asserisce l'opposto.
+>
+> 🔑 **La riga che reggeva tutto diceva *«riapre lo scambio»* come se fosse una conseguenza indesiderata.**
+> Era una lettura corretta della regola di allora, e vale la pena rileggerla oggi: lo scambio è diventato
+> il comportamento voluto, quindi ciò che era un argomento **contro** l'attraversamento largo è oggi una
+> descrizione di ciò che si è scelto. Non si cancella: una preoccupazione che si rivela essere la feature
+> è il genere di cosa che chi riapre la decisione deve poter vedere.
 >
 > ⚠️ **Chi lo porta nel roster v0.1 è `Hero.Ivrin.PassingBlade`**, ed è l'unica azione spedita che dichiari
 > `LinearPass` (`git grep -n "ERTMovementStyle::LinearPass" -- Source/` per riverificarlo). Il difetto che
@@ -720,3 +739,41 @@ perché il documento sembra più recente.
 | [`spec-economia-del-turno.md`](spec-economia-del-turno.md) | come il budget di movimento convive con gli **altri tre** limiti del turno. Quale slot occupa ciascuna famiglia resta la **§2** di questa pagina |
 | [`spec-compatibilita-azioni-movimento.md`](spec-compatibilita-azioni-movimento.md) | che il profilo scelto cambi **legalità ed efficacia** delle azioni: `AE-2`, chiusa da [D-116](../decisions/RT_PDR_00_Decision_Log.md) il 2026-08-12 col modello a **soglia** (`MinStability` contro `Stability`) |
 | *questa pagina* | il confronto **fra le famiglie** di movimento |
+
+### Rinomine del 2026-10-01 — [D-445](../decisions/RT_PDR_00_Decision_Log.md) / [D-446](../decisions/RT_PDR_00_Decision_Log.md)
+
+🔴 **I banchi qui sotto hanno cambiato nome perché il loro nome asseriva la regola ritirata**, e le righe
+che li citano non si riscrivono: una riga di Decision Log registra ciò che una decisione disse *allora*,
+e correggerne i nomi la farebbe mentire su se stessa. Questa tabella è il posto dove un puntatore
+storico si risolve.
+
+⛔ **Non è un elenco di test riscritti, è un elenco di NOMI cambiati.** Molti altri banchi sono stati
+ribaltati tenendo il proprio nome — quelli non compaiono qui, e si trovano da `git log` di questa
+tornata. Chi cerca *«dov'è finito il test che diceva X»* parte da qui; chi cerca *«cosa è cambiato»*
+parte dalle due decisioni.
+
+⚠️ **Il nome C++ della classe segue quello registrato solo dove l'ho spostato di proposito.** Un
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST` porta due identificatori, e il filtro della suite usa il secondo:
+cercare per classe può non trovare nulla anche quando il test esiste.
+
+| Si chiamava | Si chiama |
+|---|---|
+| `HexSim.ResolveSwapBlocked` | `HexSim.ResolveNonLinearSwapHappens` |
+| `HexSim.ResolveClosedCycleBlocked` | `HexSim.ResolveClosedCycleRotates` |
+| `HexSim.ResolveSwapBlockedEvenWhenPassingThrough` | `HexSim.ResolveCrossWhilePassingThrough` |
+| `HexSim.ResolveBlockedByStationary` | `HexSim.ResolveCrossesStationaryButNotOntoIt` |
+| `HexSim.AlliesCrossEachOther` | `HexSim.CrossingIsBlindToTeam` |
+| `HexSim.AlliesInMotionCrossEachOther` | `HexSim.MovingUnitsCrossRegardlessOfTeam` |
+| `HexSim.MixedCycleStillBlocksEveryone` | `HexSim.MixedCycleRotatesLikeAnAlliedOne` |
+| `HexSim.AlliedSwapPassesAndHostileDoesNot` | `HexSim.SwapPassesRegardlessOfTeam` |
+| `HexSim.AllyInTransitIsCrossedUnlikeAStranger` | `HexSim.AnyoneInTransitIsCrossed` |
+| `HexSim.PathAvoidsOccupiedCell` | `HexSim.PathCrossesOccupiedCell` |
+| `HexSim.PathCrossesAlliesButNotOntoThem` | `HexSim.PathCrossesAnyoneAndMayLandOnThem` |
+| `HexSim.ReachableExcludesOccupied` | `HexSim.ReachableIncludesOccupied` |
+| `HexSim.CompositePathRejectsOccupiedCell` | `HexSim.CompositePathAcceptsOccupiedCell` |
+| `Movement.HeadOnStaggeredBlocksAsCycle` | `Movement.HeadOnStaggeredSwapsAnyway` |
+| `HexMove.StalePlanSwapBlocks` | `HexMove.StalePlanSwapHappens` |
+| `PlayerInteraction.ReplanAfterADenialWins` | `PlayerInteraction.AWaypointOnAnOccupantDoesNotDenyTheFinalPlan` |
+| `Scenario.ReachabilityPreviewCarriesTheTeam` | `Scenario.ReachabilityPreviewIsBlindToTheTeam` |
+| `Bot.ReservedRouteBlocksTeammatesOnly` | `Bot.ReservedDestinationBlocksTeammatesOnly` |
+

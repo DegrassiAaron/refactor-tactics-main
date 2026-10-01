@@ -498,20 +498,25 @@ bool FRTScenarioCellOverridesApplyTest::RunTest(const FString&)
 }
 
 /**
- * `Movement.SwapRejectedByPlanning`: due unita' adiacenti NON si scambiano di posto.
+ * `Movement.SwapRejectedByPlanning`: due unita' adiacenti SI SCAMBIANO di posto.
  *
- * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. La
- * pianificazione rifiuta un percorso verso una cella occupata (`FindPathForUnit`: goal occupato -> NoPath),
- * quindi lo scambio non arriva mai al resolver.
+ * E' un test di CARATTERIZZAZIONE: fissa il comportamento attuale, non una regola desiderata. Oggi la
+ * pianificazione accetta una destinazione occupata ([D-446]) e il resolver esegue lo scambio ([D-445]).
  *
- * 🔄 **Aggiornato il 2026-08-31 (#1922).** Fino ad allora il resolver lo CONSENTIVA, e le due regole
- * insieme rendevano lo scambio **irraggiungibile dal gioco**: era il tipo di difetto che solo un test
- * d'integrazione puo' mostrare, perche' entrambe le regole guardate da sole erano verdi e sensate. Ora il
- * resolver blocca anche lui (`HexSim.ResolveSwapBlocked`, `BlockedByCycle`), quindi le due regole
- * **concordano** e questo test non fissa piu' uno scarto fra loro.
+ * 🔴 **Aggiornato il 2026-10-01, e la riga che lo prescriveva era scritta QUI.** Diceva: *«se un
+ * giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera' rosso:
+ * e' il segnale che si vuole, non un fastidio da mettere a tacere»*. E' successo, nel modo esatto in cui
+ * era previsto — il planner e' cambiato — e il rosso e' stato letto come segnale.
  *
- * Se un giorno lo scambio dovra' essere possibile, sara' il planner a cambiare e questo test diventera'
- * rosso: e' il segnale che si vuole, non un fastidio da mettere a tacere.
+ * 🔑 **Il test aveva attraversato DUE inversioni, e la prima e' la ragione per cui vale la pena
+ * tenerlo.** Il 2026-08-31 (`#1922`) il resolver consentiva lo scambio e il planner no: le due regole
+ * insieme rendevano lo scambio **irraggiungibile dal gioco**, ed era il tipo di difetto che solo un test
+ * d'integrazione puo' mostrare, perche' entrambe guardate da sole erano verdi e sensate. La risposta di
+ * allora fu far bloccare anche il resolver; [D-445]/[D-446] hanno scelto l'altra, e le due regole
+ * concordano di nuovo — dalla parte opposta.
+ *
+ * ⚠️ **E lo stesso impegno vale ancora, col segno girato**: se un giorno lo scambio dovesse tornare
+ * impossibile, questo test diventera' rosso, e sara' di nuovo il segnale e non il fastidio.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioSwapRejectedTest,
 	"RefactorTactics.Scenario.RunnerSwapRejectedByPlanning",
@@ -531,7 +536,7 @@ bool FRTScenarioSwapRejectedTest::RunTest(const FString&)
 		AddError(FString::Printf(TEXT("ERROR invece di PASS: %s"), *Result.ErrorMessage));
 		return false;
 	}
-	TestEqual(TEXT("esito PASS: entrambe restano ferme (comportamento attuale)"),
+	TestEqual(TEXT("esito PASS: le due si scambiano di posto (comportamento attuale)"),
 		Result.OutcomeString(), FString(TEXT("PASS")));
 	return true;
 }

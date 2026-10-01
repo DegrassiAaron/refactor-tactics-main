@@ -1011,7 +1011,7 @@ che nessuno dei test esistenti poteva mostrare. Vale come esempio di quando conv
 | Livello | Regola | Test | Esito |
 |---|---|---|---|
 | Resolver | lo scambio **blocca** — come ciclo, `BlockedByCycle` | `HexSim.ResolveSwapBlocked` | ✅ verde |
-| Planner | goal occupato → **`NoPath`** | `HexSim.PathAvoidsOccupiedCell` | ✅ verde |
+| Planner | goal occupato → **`NoPath`** | `HexSim.PathCrossesOccupiedCell` | ✅ verde |
 
 Entrambe corrette, entrambe verdi, **ognuna guardata da sola**. Insieme rendono la regola del resolver
 **irraggiungibile**: nessun giocatore può pianificare uno scambio, perché cliccare sulla cella di un nemico

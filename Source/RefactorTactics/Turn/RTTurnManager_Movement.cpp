@@ -200,6 +200,37 @@ void ARTTurnManager::BeginMovementResolution()
 		// rispettava lo snapshot fresco, quindi qui e' un no-op per costruzione.
 		Path = URTHexSimLibrary::TruncatePathToBudget(Ctx.Snapshot, /*UnitId=*/ i, Path);
 
+		// 🔴 **LA RILEVAZIONE DEL DINIEGO STA FUORI DAL RAMO «NESSUN PERCORSO»** ([D-446], 2026-10-01).
+		// Ci stava dentro, e per cinque settimane e' stato corretto: una destinazione occupata faceva fallire
+		// `FindPathForUnit`, quindi «dichiarata e negata» coincideva con «nessun percorso».
+		//
+		// ⚠️ **[D-446] ha separato le due cose, e lasciandola dentro il difetto di `#79` sarebbe tornato
+		// in forma nuova.** Oggi il percorso verso una cella occupata **esiste** — e' una scommessa — quindi
+		// `Path.Num() >= 2`, il ramo non si apre, `bDeniedByOccupant` resta falso, e la voce finisce con
+		// `TgtCell == SrcCell`: una rotta lunga zero al posto di quella negata. **Misurato**, non previsto:
+		// `HexMove.DeclaredDestinationDeniedByOccupantDeclaresIt` e' andato rosso con *«TgtCell e' la
+		// destinazione richiesta e negata: the two values are not equal»*.
+		//
+		// 🔑 **La domanda non e' cambiata — «aveva dichiarato una destinazione occupata?» — ed e' sempre
+		// stata indipendente dall'esito del pathfinding.** Stava li' dentro per un'implicazione che reggeva,
+		// non per una ragione. Fuori, risponde con lo stesso vocabolario (`ClassifyWaypointCell`) e vale per
+		// tutti e tre i produttori — player, harness e bot — che da [D-446] arrivano qui nello stesso stato.
+		//
+		// Chi decide se la voce PARLA resta il guardiano in coda a `FinalizeHexMovementOutcomes`: qui si
+		// registra un fatto della pianificazione, non un verdetto.
+		if (Unit->bMovePlanRejectedByOccupant)
+		{
+			Ctx.bDeniedByOccupant[i] = true;
+			Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
+		}
+		else if (Unit->HasPlannedNormalMove()
+			&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
+				== ERTHexWaypointReason::Occupied)
+		{
+			Ctx.bDeniedByOccupant[i] = true;
+			Ctx.DeniedDestination[i] = Unit->PlannedCell;
+		}
+
 		if (Path.Num() < 2)
 		{
 			// 🔑 **Il punto UNICO in cui i tre produttori collassano, ed e' per questo che la domanda di #79
@@ -219,19 +250,6 @@ void ARTTurnManager::BeginMovementResolution()
 			// «Aveva dichiarato?» ha gia' una sede unica — `HasPlannedNormalMove()` — e non se ne scrive una
 			// seconda. Il motivo lo classifica `ClassifyWaypointCell`: nessun secondo vocabolario, e budget,
 			// cella bloccata e fuori mappa restano `Stayed` per scope dichiarato della #79.
-			if (Unit->bMovePlanRejectedByOccupant)
-			{
-				Ctx.bDeniedByOccupant[i] = true;
-				Ctx.DeniedDestination[i] = Unit->RejectedMoveDestination;
-			}
-			else if (Unit->HasPlannedNormalMove()
-				&& URTHexSimLibrary::ClassifyWaypointCell(Ctx.Snapshot, /*UnitId=*/ i, Unit->PlannedCell)
-					== ERTHexWaypointReason::Occupied)
-			{
-				Ctx.bDeniedByOccupant[i] = true;
-				Ctx.DeniedDestination[i] = Unit->PlannedCell;
-			}
-
 			Path = { Unit->Cell }; // fermo
 		}
 		// Ghiaccio: chi finisce il Move su Ice con budget residuo scivola di una cella oltre. La cella extra
@@ -1292,8 +1310,16 @@ void ARTTurnManager::FinishMovementResolution()
 		// pianificazione parla solo quando il turno non ha nient'altro da dire.
 		// Ramo indipendente e non un `else`: la guardia `Stayed` lo rende gia' disgiunto da quello della
 		// topologia, che chiede `Moved`, e i due si leggono uno per volta invece che come una catena.
-		if (Ctx.bDeniedByOccupant.IsValidIndex(i) && Ctx.bDeniedByOccupant[i]
-			&& Resolved[i].Outcome == ERTMoveOutcome::Stayed)
+		// 🔴 **E oggi l'esito del diniego non e' piu' solo `Stayed`** ([D-446]). Il resolver percorre
+		// il piano, trova l'occupante **sulla destinazione** e scrive `BlockedByUnit` da se': la voce ha gia'
+		// l'esito giusto e le manca la **destinazione**, che `BuildMoveLog` ha riempito con la cella finale.
+		// Si accoglie quel caso, e solo quando non e' stata percorsa nessuna cella — `Amount > 0` vuol dire
+		// che l'unita' si e' mossa davvero, e li' `TgtCell == Final` descrive dove e' arrivata, che e' cio'
+		// che il giocatore ha visto.
+		const bool bEsitoDaDiniego =
+			Resolved[i].Outcome == ERTMoveOutcome::Stayed
+			|| (Resolved[i].Outcome == ERTMoveOutcome::BlockedByUnit && MoveLog[i].Amount == 0);
+		if (Ctx.bDeniedByOccupant.IsValidIndex(i) && Ctx.bDeniedByOccupant[i] && bEsitoDaDiniego)
 		{
 			MoveLog[i].Outcome = static_cast<uint8>(ERTMoveOutcome::BlockedByUnit);
 			// La destinazione RICHIESTA, non `Results[i].Final`: quella e' la cella di partenza, e con essa
