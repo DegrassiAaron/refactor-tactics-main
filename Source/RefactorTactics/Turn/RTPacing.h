@@ -183,6 +183,23 @@ struct FRTPacingSample
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 ReactionOpportunities = 0;
+
+	/**
+	 * Quanti candidati ha prodotto OGNI raccolta di questo turno, uno per evento (`#2516`).
+	 *
+	 * 🔑 **E' un CONTEGGIO, non un cronometro, e la distinzione e' la ragione per cui questo campo
+	 * arriva per primo**: e' deterministico, non tocca l'orologio, e non dipende dalla decisione sul
+	 * cronometrare nel percorso autoritativo. La issue lo dichiara *<<indipendente dalle altre due>>*.
+	 *
+	 * 🔑 **Un EVENTO e' una chiamata a `BuildOverwatchTriggers`, cioe' un micro-step**, e lo si dice
+	 * invece di lasciarlo implicito: e' la stessa granularita' che la DoD impone al cronometro
+	 * (*<<un timer per micro-step, non per candidato>>*). Un turno senza movimento resta a zero eventi,
+	 * che e' diverso da un evento con zero candidati — e il sommario li distingue.
+	 *
+	 * ⛔ **Non entra nell'hash del TurnLog** per costruzione, come ogni campo di `FRTPacingSample`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	TArray<int32> CandidatesPerEvent;
 };
 
 /** Sommario di una sessione di campioni. Prodotto da URTPacingLibrary::SummarizeSamples. */
@@ -248,4 +265,22 @@ struct FRTPacingSummary
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 TotalReactionOpportunities = 0;
+
+	/** Quanti eventi di raccolta candidati ha visto la sessione: il CAMPIONE dei due percentili sotto. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 CandidateEvents = 0;
+
+	/**
+	 * Mediana e p90 dei candidati per evento (`#2516`), con `PercentileNearestRank` — la stessa
+	 * funzione dei percentili del lock-in, non una seconda implementazione.
+	 *
+	 * ⚠️ **Valgono zero quando `CandidateEvents` e' zero**, e i due casi NON si distinguono dal solo
+	 * valore: una sessione senza raccolte e una in cui ogni raccolta ha prodotto zero candidati danno
+	 * entrambe `0`. Chi legge guarda prima il campione, ed e' il motivo per cui e' pubblicato accanto.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 MedianCandidatesPerEvent = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 P90CandidatesPerEvent = 0;
 };

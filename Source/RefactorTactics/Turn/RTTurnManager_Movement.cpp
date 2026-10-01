@@ -596,6 +596,18 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 	const TArray<FRTOverwatchTrigger> Triggers = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
 		Map, TurnNumber, Watchers, Movers, Vitals, MicroStepIndex);
 
+	// 🔑 **Il conteggio sta al CALL SITE, e `BuildOverwatchTriggers` resta PURA** (`#2516`): e' lo
+	// stesso vincolo che la DoD impone al cronometro, e vale a maggior ragione per un contatore — qui
+	// basta il valore di ritorno, quindi non c'e' nessuna ragione di entrare nella funzione.
+	//
+	// ⚠️ **Un evento e' questa chiamata, cioe' un micro-step.** Zero eventi e un evento con zero
+	// candidati sono due cose diverse, e il sommario le distingue pubblicando il campione accanto ai
+	// percentili.
+	if (Pacing.IsOpen())
+	{
+		Pacing.Current().CandidatesPerEvent.Add(Triggers.Num());
+	}
+
 	// --- 3. Per ogni opportunity: finestra, decisione, commit ----------------------------------------------
 	// 🔑 **Appaiare prima, consumare poi** (`#2679` fetta 2). Il ciclo qui sotto non risolve piu' nulla:
 	// costruisce le coppie `(opportunity, armamento)` e le deposita nel contesto. A risolverle e'

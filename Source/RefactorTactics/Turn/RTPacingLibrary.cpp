@@ -23,6 +23,7 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 
 	TArray<int32> LockIn;
 	TArray<int32> Playback;
+	TArray<int32> Candidati;
 	LockIn.Reserve(Samples.Num());
 	Playback.Reserve(Samples.Num());
 
@@ -44,6 +45,10 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 		// misurati — ogni run headless — ha comunque aperto le finestre che ha aperto.
 		Out.TotalReactionWindows += S.ReactionWindowsOpened;
 		Out.TotalReactionOpportunities += S.ReactionOpportunities;
+
+		// Stessa ragione, e stesso posto PRIMA di ogni esclusione: i candidati raccolti sono un fatto
+		// osservato del turno e non dipendono dal cronometro della pianificazione (`#2516`).
+		Candidati.Append(S.CandidatesPerEvent);
 
 		// ⚠️ Un campione NON MISURATO non e' un lock-in rapido: e' l'assenza di una misura, e va tolto da
 		// ogni statistica che risponde «quanto tempo». La sentinella e' negativa apposta, ma escluderla non
@@ -81,6 +86,14 @@ FRTPacingSummary URTPacingLibrary::SummarizeSamples(const TArray<FRTPacingSample
 	Out.P90MsToLockIn = LockIn.Num() > 0
 		? PercentileNearestRank(LockIn, 90) : FRTPacingSample::Unmeasured;
 	Out.MedianMsPlayback = PercentileNearestRank(Playback, 50);
+
+	// 🔑 **I candidati usano la STESSA funzione dei percentili del lock-in**, non una seconda:
+	// `PercentileNearestRank` e' pubblica e documentata, e due implementazioni divergerebbero al primo
+	// caso limite (`#2516`).
+	Candidati.Sort();
+	Out.CandidateEvents = Candidati.Num();
+	Out.MedianCandidatesPerEvent = PercentileNearestRank(Candidati, 50);
+	Out.P90CandidatesPerEvent = PercentileNearestRank(Candidati, 90);
 	return Out;
 }
 
@@ -241,13 +254,21 @@ FString URTPacingLibrary::CsvHeader()
 	// scritti, e inserirla prima sposterebbe ogni colonna a valle senza che nessun errore lo dica.
 	return TEXT("Turn,AliveT0,AliveT1,ActionsAvailable,MsToFirstInput,SelectionCount,OrderCount,")
 		   TEXT("UndoCount,MsToLockIn,MsSinceLastInput,LockInSource,MsPlayback,PlaybackSkipped,")
-		   TEXT("ReactionWindows,ReactionOpportunities");
+		   TEXT("ReactionWindows,ReactionOpportunities,CandidateEvents,CandidatesTotal");
 }
 
 FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 {
 	// Tutti %d: nessun float, quindi nessuna virgola decimale da locale che spezzi le colonne.
-	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
+	// Le due colonne di `#2516` sono in CODA, per la ragione scritta in `CsvHeader`.
+	// 🔑 **Si pubblica il campione E il totale, non la media**: con il solo totale una sessione di un
+	// evento da 10 candidati e una di dieci eventi da 1 sarebbero indistinguibili, e sono due cose diverse.
+	int32 CandidatiTotali = 0;
+	for (int32 N : Sample.CandidatesPerEvent)
+	{
+		CandidatiTotali += N;
+	}
+	return FString::Printf(TEXT("%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d"),
 		Sample.TurnNumber,
 		Sample.UnitsAliveTeam0,
 		Sample.UnitsAliveTeam1,
@@ -262,5 +283,7 @@ FString URTPacingLibrary::CsvRow(const FRTPacingSample& Sample)
 		Sample.MsPlayback,
 		Sample.bPlaybackSkipped ? 1 : 0,
 		Sample.ReactionWindowsOpened,
-		Sample.ReactionOpportunities);
+		Sample.ReactionOpportunities,
+		Sample.CandidatesPerEvent.Num(),
+		CandidatiTotali);
 }
