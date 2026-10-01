@@ -217,16 +217,17 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	URTPacingLibrary::CsvHeader().ParseIntoArray(HeaderCols, TEXT(","), /*InCullEmpty=*/ false);
 	URTPacingLibrary::CsvRow(S).ParseIntoArray(RowCols, TEXT(","), /*InCullEmpty=*/ false);
 
-	// ⚠️ **Quindici dal 2026-09-06**, con `ReactionOpportunities` aggiunta in CODA (`#2459`); erano
-	// quattordici dal 2026-08-28, quando `ReactionWindows` era entrata allo stesso modo. Il numero
+	// ⚠️ **Diciassette dal 2026-10-01**, con `CandidateEvents` e `CandidatesTotal` aggiunte in CODA
+	// (`#2516`); erano quindici dal 2026-09-06 con `ReactionOpportunities`, e quattordici dal 2026-08-28
+	// con `ReactionWindows`. Il numero
 	// e' pinnato apposta: le colonne di questo CSV si leggono per POSIZIONE da fogli e script gia' scritti, e
 	// una colonna inserita in mezzo sposterebbe ogni colonna a valle senza che nessun errore lo dica. Questo
 	// test e' l'unico posto in cui quel movimento diventa visibile — ed e' cosi' che ha preso l'aggiunta.
-	TestEqual(TEXT("quindici colonne nell'intestazione"), HeaderCols.Num(), 15);
+	TestEqual(TEXT("diciassette colonne nell'intestazione"), HeaderCols.Num(), 17);
 	TestEqual(TEXT("la riga ha le stesse colonne dell'intestazione"), RowCols.Num(), HeaderCols.Num());
 
 	// Ogni colonna e' un intero: se un float si intrufolasse, con locale italiano stamperebbe una virgola
-	// e spezzerebbe la riga in **sedici** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// e spezzerebbe la riga in **diciotto** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
 	// ⚠️ Il numero in questa frase segue il conteggio delle colonne: diceva «14» quando l'intestazione ne
 	// aveva 13, ed e' rimasto indietro all'aggiunta della quattordicesima — cioe' spiegava il caso ROTTO
 	// nominando quello sano. Se aggiungi una colonna, questa riga si aggiorna con l'assert sopra.
@@ -520,6 +521,71 @@ bool FRTPacingPerTurnUnmeasuredTest::RunTest(const FString&)
 	// con la stessa sentinella invece di propagare un rapporto inventato.
 	TestEqual(TEXT("totale negativo: NON MISURATO"),
 		URTPacingLibrary::PerTurnRate(-1, 3), URTPacingLibrary::UnmeasuredRate);
+
+	return true;
+}
+
+
+/**
+ * I CANDIDATI PER EVENTO SI RIASSUMONO IN p50/p90, COL CAMPIONE ACCANTO - `#2516`.
+ *
+ 🔑 **Il campione si pubblica insieme ai percentili, e non e' pedanteria.** Una sessione senza raccolte e
+ * una in cui ogni raccolta ha prodotto zero candidati danno **entrambe** `0` su mediana e p90: dal solo
+ * valore non si distinguono. `CandidateEvents` e' cio' che le separa, ed e' il motivo per cui la DoD
+ * chiede *<<p50/p90 e campione dichiarato>>* e non solo i due numeri.
+ *
+ ⚠️ **I percentili passano da `PercentileNearestRank`, la stessa funzione del lock-in.** Questo test
+ * asserisce i VALORI attesi e non che le due chiamate coincidano: una seconda implementazione passerebbe
+ * un confronto fra se stessa e se stessa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingCandidatesSummaryTest,
+	"RefactorTactics.Pacing.CandidatesPerEventSummarizeWithTheirSample",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingCandidatesSummaryTest::RunTest(const FString&)
+{
+	// Due turni, cinque eventi in tutto: 1 2 3 4 10. Ordinati, nearest-rank su N=5 da'
+	// p50 -> rango ceil(0,50*5)=3 -> 3 ; p90 -> rango ceil(0,90*5)=5 -> 10.
+	TArray<FRTPacingSample> Campioni;
+	{
+		FRTPacingSample S;
+		S.TurnNumber = 1;
+		S.CandidatesPerEvent = { 3, 1, 10 };
+		Campioni.Add(S);
+	}
+	{
+		FRTPacingSample S;
+		S.TurnNumber = 2;
+		S.CandidatesPerEvent = { 4, 2 };
+		Campioni.Add(S);
+	}
+
+	const FRTPacingSummary Sommario = URTPacingLibrary::SummarizeSamples(Campioni, /*CutoffWindowMs=*/ 3000);
+
+	TestEqual(TEXT("il campione e' il numero di EVENTI, non di turni"), Sommario.CandidateEvents, 5);
+	TestEqual(TEXT("mediana dei candidati per evento"), Sommario.MedianCandidatesPerEvent, 3);
+	TestEqual(TEXT("p90 dei candidati per evento"), Sommario.P90CandidatesPerEvent, 10);
+
+	// 🔴 **Zero eventi NON e' <<eventi da zero candidati>>, e il campione e' l'unico a dirlo.**
+	{
+		TArray<FRTPacingSample> SenzaRaccolte;
+		FRTPacingSample S;
+		S.TurnNumber = 1;
+		SenzaRaccolte.Add(S);
+		const FRTPacingSummary Vuoto = URTPacingLibrary::SummarizeSamples(SenzaRaccolte, /*CutoffWindowMs=*/ 3000);
+		TestEqual(TEXT("nessuna raccolta: campione zero"), Vuoto.CandidateEvents, 0);
+		TestEqual(TEXT("e i percentili valgono zero"), Vuoto.MedianCandidatesPerEvent, 0);
+	}
+	{
+		TArray<FRTPacingSample> RaccolteVuote;
+		FRTPacingSample S;
+		S.TurnNumber = 1;
+		S.CandidatesPerEvent = { 0, 0, 0 };
+		RaccolteVuote.Add(S);
+		const FRTPacingSummary Zeri = URTPacingLibrary::SummarizeSamples(RaccolteVuote, /*CutoffWindowMs=*/ 3000);
+		TestEqual(TEXT("tre raccolte a vuoto: campione TRE"), Zeri.CandidateEvents, 3);
+		TestEqual(TEXT("e i percentili valgono zero, come nel caso sopra"),
+			Zeri.MedianCandidatesPerEvent, 0);
+	}
 
 	return true;
 }
