@@ -32,7 +32,7 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotReserveRouteTest,
-	"RefactorTactics.Bot.ReservedRouteBlocksTeammatesOnly",
+	"RefactorTactics.Bot.ReservedDestinationBlocksTeammatesOnly",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 bool FRTBotReserveRouteTest::RunTest(const FString&)
@@ -61,25 +61,39 @@ bool FRTBotReserveRouteTest::RunTest(const FString&)
 	FRTHexSnapshot Reserved = Snapshot;
 	URTHexBotLibrary::ReservePlannedRoute(Reserved, /*UnitId=*/ 1, Dest);
 
-	// --- 1. Ogni cella della rotta risulta occupata, e dall'unità che l'ha prenotata.
-	int32 Missing = 0;
-	int32 WrongOwner = 0;
-	for (const FRTCellId& Cell : Route)
-	{
-		const int32* Owner = Reserved.Occupancy.Find(Cell);
-		if (!Owner) { ++Missing; }
-		else if (*Owner != 1) { ++WrongOwner; }
-	}
-	TestEqual(TEXT("nessuna cella della rotta è rimasta libera"), Missing, 0);
-	TestEqual(TEXT("e nessuna risulta di un'altra unità"), WrongOwner, 0);
-
-	// --- 2. Per la COMPAGNA quelle celle sono occupate: è il punto della prenotazione.
+	// --- 1. La DESTINAZIONE risulta occupata, e dall'unità che l'ha prenotata.
 	//
-	// Si misura sulle celle raggiungibili, che è la funzione da cui il bot genera le candidate: se una cella
-	// prenotata comparisse ancora fra le raggiungibili di `u2`, `BuildCandidates` potrebbe riproporla e la
-	// prenotazione non servirebbe a niente.
-	const TArray<FRTHexReachableCell> ReachableBefore = URTHexSimLibrary::ReachableCells(Snapshot, /*UnitId=*/ 2);
-	const TArray<FRTHexReachableCell> ReachableAfter = URTHexSimLibrary::ReachableCells(Reserved, /*UnitId=*/ 2);
+	// 🔴 **Si prenota la sola destinazione, non piu' la rotta** ([D-445]). La prenotazione del transito
+	// poggiava su un invariante che diceva *«la rotta viene da `FindPathForUnit`, che le celle altrui le
+	// evita»*: [D-445] l'ha ritirato, le rotte si incrociano per progetto, e il guardiano che segnalava la
+	// sovrapposizione ha iniziato a scattare sul caso **normale**.
+	//
+	// 🔑 **La proprieta' che `#1088` chiedeva — due compagne non scelgono la stessa cella — vive dove la
+	// contesa e' rimasta esclusiva: il terminus ([D-289]).** Prenotare il transito non aggiungeva niente a
+	// quella proprieta' nemmeno prima.
+	const int32* Owner = Reserved.Occupancy.Find(Dest);
+	if (!TestNotNull(TEXT("la destinazione risulta occupata"), Owner)) { return false; }
+	TestEqual(TEXT("e dall'unità che l'ha prenotata"), *Owner, 1);
+
+	// ⚠️ **E le celle di TRANSITO restano libere**, che e' la meta' falsificante di questo punto: senza,
+	// «la destinazione e' prenotata» sarebbe vero anche di una prenotazione che prende tutto.
+	int32 TransitoPrenotato = 0;
+	for (int32 I = 1; I < Route.Num() - 1; ++I)
+	{
+		if (Reserved.Occupancy.Find(Route[I])) { ++TransitoPrenotato; }
+	}
+	TestTrue(TEXT("premessa: la rotta ha almeno una cella di transito"), Route.Num() >= 3);
+	TestEqual(TEXT("nessuna cella di TRANSITO è stata prenotata"), TransitoPrenotato, 0);
+
+	// --- 2. Per la COMPAGNA quella cella non è piu' candidata: è il punto della prenotazione.
+	//
+	// 🔴 **Si misura su `CandidateCells`, non piu' su `ReachableCells`** ([D-446]). Il ventaglio include
+	// oggi le celle occupate — la destinazione occupata e' una scommessa dichiarabile — quindi misurare li'
+	// direbbe sempre *«raggiungibile»* e il banco sarebbe verde per cecita'. `CandidateCells` e' il
+	// ventaglio **meno le celle altrui**, ed e' la funzione da cui il bot genera davvero le candidate: se una
+	// cella prenotata comparisse li', `BuildCandidates` potrebbe riproporla e la prenotazione non servirebbe.
+	const TArray<FRTHexReachableCell> ReachableBefore = URTHexBotLibrary::CandidateCells(Snapshot, /*UnitId=*/ 2);
+	const TArray<FRTHexReachableCell> ReachableAfter = URTHexBotLibrary::CandidateCells(Reserved, /*UnitId=*/ 2);
 
 	auto Contains = [](const TArray<FRTHexReachableCell>& Cells, const FRTCellId& Target)
 	{
@@ -87,26 +101,29 @@ bool FRTBotReserveRouteTest::RunTest(const FString&)
 		return false;
 	};
 
-	// ⚠️ Il controllo di non-vacuità: se `u2` non potesse già raggiungere nessuna cella della rotta, «dopo non
-	// le raggiunge» sarebbe vero senza che la prenotazione abbia fatto niente.
-	int32 ReachableOnRouteBefore = 0;
-	int32 ReachableOnRouteAfter = 0;
-	for (int32 I = 1; I < Route.Num(); ++I)     // dalla 1: la cella di partenza di u1 era già occupata
+	// ⚠️ Il controllo di non-vacuità: se `u2` non avesse già la destinazione fra le candidate, «dopo non
+	// ce l'ha» sarebbe vero senza che la prenotazione abbia fatto niente.
+	TestTrue(TEXT("premessa: prima della prenotazione la destinazione era candidata per u2"),
+		Contains(ReachableBefore, Dest));
+	TestFalse(TEXT("dopo la prenotazione non lo è piu'"), Contains(ReachableAfter, Dest));
+
+	// 🔑 **E il TRANSITO resta candidato**, che e' la differenza fra questa decisione e quella di prima:
+	// due compagne possono attraversare le stesse celle, non possono finirvi. Senza questa riga il banco non
+	// distinguerebbe «si prenota la destinazione» da «si prenota tutto».
+	int32 TransitoCandidatoDopo = 0;
+	for (int32 I = 1; I < Route.Num() - 1; ++I)
 	{
-		if (Contains(ReachableBefore, Route[I])) { ++ReachableOnRouteBefore; }
-		if (Contains(ReachableAfter, Route[I])) { ++ReachableOnRouteAfter; }
+		if (Contains(ReachableAfter, Route[I])) { ++TransitoCandidatoDopo; }
 	}
-	AddInfo(FString::Printf(TEXT("celle della rotta raggiungibili da u2: prima %d, dopo %d"),
-		ReachableOnRouteBefore, ReachableOnRouteAfter));
+	AddInfo(FString::Printf(TEXT("celle di transito ancora candidate per u2 dopo la prenotazione: %d su %d"),
+		TransitoCandidatoDopo, Route.Num() - 2));
+	TestEqual(TEXT("le celle di TRANSITO restano candidate per u2"),
+		TransitoCandidatoDopo, Route.Num() - 2);
 
-	TestTrue(TEXT("premessa: prima della prenotazione u2 poteva entrare nella rotta di u1"),
-		ReachableOnRouteBefore > 0);
-	TestEqual(TEXT("dopo la prenotazione, nessuna cella della rotta è raggiungibile da u2"),
-		ReachableOnRouteAfter, 0);
-
-	// --- 3. Ma u1 la sua rotta la percorre ancora: `ReachableCells` non blocca un'unità con se stessa
-	// (`*Occupant != UnitId`), ed è la ragione per cui si prenota con l'id del prenotante e non con un
-	// marcatore generico. Con un id qualsiasi, l'unità si sbarrerebbe la strada da sola.
+	// --- 3. Ma u1 la sua rotta la percorre ancora: `CandidateCells` non blocca un'unità con se stessa
+	// (`*Occupante == UnitId`), ed è la ragione per cui si prenota con l'id del prenotante e non con un
+	// marcatore generico. Con un id qualsiasi, l'unità si sbarrerebbe la strada da sola — e con [D-446] si
+	// sbarrerebbe la **destinazione**, cioè proprio il piano che aveva appena scelto.
 	const TArray<FRTCellId> RouteAfter = URTHexSimLibrary::FindPathForUnit(Reserved, /*UnitId=*/ 1, Dest).Path;
 	TestEqual(TEXT("u1 percorre ancora la propria rotta, invariata"), RouteAfter.Num(), Route.Num());
 

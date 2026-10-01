@@ -554,7 +554,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		bool bQualcunoDaIngaggiare = false;
 		if (Ctx.Enemies.Num() > 0 && Snapshot.Map)
 		{
-			for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, Bot.Index))
+			for (const FRTHexReachableCell& R : URTHexBotLibrary::CandidateCells(Snapshot, Bot.Index))
 			{
 				for (const FRTCellId& KnownEnemy : Ctx.Enemies)
 				{
@@ -646,14 +646,32 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 				const TArray<FRTCellId> Passi = URTHexSimLibrary::TruncatePathToBudget(Snapshot, Bot.Index, Rotta.Path);
 				if (Passi.Num() > 1)
 				{
-					Best = Passi.Last();
+					// 🔴 **Si torna indietro fino all'ultimo passo LIBERO** ([D-446]). Prima della scommessa questo
+					// ramo non poteva finire su una cella presa: `FindPathForUnit` rispondeva `NoPath` quando la meta
+					// era occupata, e la seconda compagna cadeva nel ripiego qui sotto. Ora il percorso RIESCE, e due
+					// compagne che seguono lo stesso cammino troncano alla stessa cella — misurato: entrambe su
+					// `(q=0,r=0,L=0)`, il centro, che e' il difetto di `#1088` alla lettera.
+					//
+					// ⚠️ **Il giocatore puo' scommettere, il bot no**, ed e' la stessa asimmetria di `CandidateCells`:
+					// dichiarare una cella occupata e' una scelta legittima per chi accetta il rischio, non per chi
+					// pianifica quattro unita' che poi si bloccano a vicenda.
+					for (int32 k = Passi.Num() - 1; k >= 1; --k)
+					{
+						const int32* Occupante = Snapshot.Occupancy.Find(Passi[k]);
+						if (Occupante == nullptr || *Occupante == Bot.Index)
+						{
+							Best = Passi[k];
+							break;
+						}
+					}
+					// Nessun passo libero: `Best` resta `Bot.Cell`, cioe' fermo. Restare e' sempre legale.
 				}
 				else
 				{
 					// Nessun cammino: ci si AVVICINA, che e' la condotta di CP 13.5 e non richiede che la meta sia
 					// raggiungibile. Restare vince a parita', quindi un bot gia' al punto migliore non oscilla.
 					int32 BestDistance = URTHexLibrary::HexDistance(Bot.Cell, SeekCell);
-					for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, Bot.Index))
+					for (const FRTHexReachableCell& R : URTHexBotLibrary::CandidateCells(Snapshot, Bot.Index))
 					{
 						const int32 D = URTHexLibrary::HexDistance(R.Cell, SeekCell);
 						if (D < BestDistance || (D == BestDistance && URTHexLibrary::StableLess(R.Cell, Best)))

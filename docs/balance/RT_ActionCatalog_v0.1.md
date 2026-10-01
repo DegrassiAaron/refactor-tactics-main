@@ -179,7 +179,7 @@ Toglierla dalle fondamentali avrebbe lasciato tre regole appese a un'azione non 
 reazione · mantenere una stance già attiva · contestare un obiettivo.
 
 **Move** — percorso di celle adiacenti. Budget **×1**, cioè quello dell'unità ([D-427](../decisions/RT_PDR_00_Decision_Log.md); il roster spedito dichiara `5 · 5 · 4 · 6`); cella normale 1 MP, terreno difficile 2 MP, salita via
-rampa 2 MP. Una cella occupata da un'unità solida non è attraversabile. Il percorso **non** viene ricalcolato
+rampa 2 MP. 🔴 **Nessuna unità blocca il transito, e la destinazione occupata si può dichiarare** ([D-445](../decisions/RT_PDR_00_Decision_Log.md), [D-446](../decisions/RT_PDR_00_Decision_Log.md)). *Fino al 2026-10-01 questa riga diceva «una cella occupata da un'unità solida non è attraversabile»*: l'arco scavalca chiunque trovi per strada e si ferma alla prima cella libera, e un piano può nominare una cella occupata — a risoluzione o chi la tiene se n'è andato, o si resta fuori. ⛔ **Ciò che non è cambiato è il terminus**: due unità non finiscono il turno sulla stessa cella ([D-289](../decisions/RT_PDR_00_Decision_Log.md)). Il percorso **non** viene ricalcolato
 globalmente durante la risoluzione: se si blocca, l'unità si ferma nell'ultima cella valida (`Fallback.Stop`, la
 regola standard del vertical slice).
 
@@ -242,8 +242,8 @@ stesso slot, stessa macro-fase — non una mobilità rapida. Tre cose lo disting
   in Planning insieme a settore e facing. È anche la ragione per cui armare l'Overwatch **esclude il `Dash`**:
   lo slot è già impegnato, non serve una regola apposta;
 - **risolve nello Stage B della `Move`**, cioè **dopo** che tutti gli altri si sono mossi. La priorità spaziale
-  tardiva è parte del prezzo: una cella occupata nel frattempo **non** si libera, il percorso **non** si
-  ricalcola, e il ripiegamento si ferma all'ultima cella valida;
+  tardiva è parte del prezzo: una cella **lasciata occupata** nel frattempo resta tale, il percorso **non** si
+  ricalcola, e il ripiegamento si ferma all'ultima cella valida. ⚠️ **Il prezzo è più piccolo da [D-445](../decisions/RT_PDR_00_Decision_Log.md)**: ciò che resta occupato blocca solo come **destinazione**, non più come passaggio, quindi arrivare tardi costa un arrivo mancato e non una rotta chiusa;
 - **×0,25** nasce ancorato ad `Action.Reposition` (2 celle, §2.2) — l'unica altra mobilità breve del catalogo — come assoluto `2 MP`, e [D-412](../decisions/RT_PDR_00_Decision_Log.md) lo ha reso una frazione del movimento dell'unità: **1** per tutto il roster spedito. ⚠️ **Sotto un budget di 4 il quarto è ZERO**, cioè un ripiegamento che non ripiega: il caso è pinnato in `RTMovementProfileTests` e se debba avere un minimo di `1` è una domanda di bilanciamento aperta ([D-427](../decisions/RT_PDR_00_Decision_Log.md) punto 4). Il riferimento originario resta
   invece di essere scelto a intuito. Resta da playtest come ogni valore di questa tabella.
 

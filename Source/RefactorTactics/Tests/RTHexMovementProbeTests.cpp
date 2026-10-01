@@ -158,8 +158,15 @@ bool FRTHexProbeVocabularyTest::RunTest(const FString&)
 		URTHexSimLibrary::ClassifyProbeCell(Snap, 1, Set, FRTCellId(9, 9, 0)) == ERTHexProbeExclusion::NotOnMap);
 	TestTrue(TEXT("ostacolo -> BlocksMovement"),
 		URTHexSimLibrary::ClassifyProbeCell(Snap, 1, Set, FRTCellId(1, 0, 0)) == ERTHexProbeExclusion::BlocksMovement);
-	TestTrue(TEXT("occupata da un'altra unita' -> Occupied"),
-		URTHexSimLibrary::ClassifyProbeCell(Snap, 1, Set, Other) == ERTHexProbeExclusion::Occupied);
+	// 🔴 **L'occupazione non e' piu' un motivo di esclusione** ([D-446]): la cella e' NEL ventaglio, e
+	// chi e' nel ventaglio non ha niente da spiegare. Era `Occupied`.
+	//
+	// ⚠️ **Il vocabolario non si e' ristretto, ha perso un produttore**: `ERTHexProbeExclusion::Occupied`
+	// resta dichiarato e nessuno lo emette piu'. `ClassifyWaypointCell` continua invece a rispondere
+	// `Occupied`, perche' li' e' il **diniego** di `#79` e non l'esclusione dal ventaglio — due domande che
+	// questo file tiene distinte dalla sua intestazione.
+	TestTrue(TEXT("occupata da un'altra unita' -> Reachable: si puo' dichiarare"),
+		URTHexSimLibrary::ClassifyProbeCell(Snap, 1, Set, Other) == ERTHexProbeExclusion::Reachable);
 	TestTrue(TEXT("una cella DEL set non ha niente da spiegare"),
 		URTHexSimLibrary::ClassifyProbeCell(Snap, 1, Set, Mine) == ERTHexProbeExclusion::Reachable);
 	return true;

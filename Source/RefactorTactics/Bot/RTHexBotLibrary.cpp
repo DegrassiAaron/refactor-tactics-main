@@ -648,7 +648,7 @@ TArray<FRTHexBotPlan> URTHexBotLibrary::BuildCandidates(const FRTHexSnapshot& Sn
 
 	// Le celle raggiungibili hanno gia' rispettato budget, blocchi, occupanti e archi verticali: il bot non
 	// rifa' pathfinding e non puo' proporre una mossa illegale.
-	const TArray<FRTHexReachableCell> Reachable = URTHexSimLibrary::ReachableCells(Snapshot, UnitId);
+	const TArray<FRTHexReachableCell> Reachable = URTHexBotLibrary::CandidateCells(Snapshot, UnitId);
 	const int32 NumEnemies = FMath::Min3(Context.Enemies.Num(), Context.EnemyRanges.Num(), Context.EnemyHealth.Num());
 
 	for (const FRTHexReachableCell& Cell : Reachable)
@@ -737,57 +737,80 @@ FRTHexBotPlan URTHexBotLibrary::PlanUnit(const FRTHexSnapshot& Snapshot, int32 U
 	return ChooseBestPlan(Snapshot.Map, BuildCandidates(Snapshot, UnitId, Context), Context);
 }
 
+TArray<FRTHexReachableCell> URTHexBotLibrary::CandidateCells(const FRTHexSnapshot& Snapshot, int32 UnitId)
+{
+	TArray<FRTHexReachableCell> Out;
+	for (const FRTHexReachableCell& R : URTHexSimLibrary::ReachableCells(Snapshot, UnitId))
+	{
+		// Una cella occupata resta RAGGIUNGIBILE — [D-445] — ma non e' una destinazione che il bot sceglie.
+		//
+		// 🔴 **Da SE' STESSO, pero', non ci si scarta**, ed e' l'errore che la prima stesura ha fatto:
+		// `ReachableCells` include la cella di partenza perche' **restare fermi e' una candidata legittima**, e
+		// quella cella sta in `Occupancy`. Filtrandola, il bot perdeva l'opzione di non muoversi — e la misura
+		// e' stata inequivoca: da 37 a 51 rossi, coi test di DETERMINISMO fra i nuovi
+		// (`DeterminismSurvivesUnitPermutation`, `SameSeedGivesSameResult`), perche' un bot che non puo' stare
+		// fermo oscilla. E' la stessa esclusione che `BlockedCellsFor` faceva con `Entry.Value == ForUnitId`.
+		const int32* Occupante = Snapshot.Occupancy.Find(R.Cell);
+		if (Occupante == nullptr || *Occupante == UnitId)
+		{
+			Out.Add(R);
+		}
+	}
+	return Out;
+}
+
 TArray<FRTCellId> URTHexBotLibrary::ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId,
 	const FRTCellId& DestCell)
 {
-	const FRTHexPathResult Found = URTHexSimLibrary::FindPathForUnit(Snapshot, UnitId, DestCell);
+	// 🔴 **Si prenota la sola DESTINAZIONE, e non piu' la rotta** ([D-445]).
+	//
+	// ⏱️ *Fino al 2026-10-01 questa funzione prenotava ogni cella del percorso*, e poggiava su un
+	// invariante che diceva: *«la rotta viene da `FindPathForUnit`, che le celle altrui le evita»*. [D-445]
+	// ha ritirato quell'invariante — nessuna unita' blocca il transito, quindi **le rotte si incrociano per
+	// progetto**. Il guardiano che notificava la sovrapposizione ha iniziato a scattare sul caso NORMALE:
+	// *«Prenotazione rotta u1: la cella (q=-1,r=0,L=0) risulta gia' di u0 — invariante rotta a monte»*, ed
+	// e' cosi' che il difetto si e' misurato.
+	//
+	// 🔑 **La contesa vive dove e' rimasta esclusiva: il terminus** ([D-289]). Due compagne possono
+	// attraversare la stessa cella e non possono finirvi, quindi prenotare la destinazione e' sufficiente a
+	// tenere la proprieta' che `#1088` chiedeva — due compagne non scelgono la stessa cella — e prenotare
+	// il transito non aggiungeva nulla a quella proprieta' nemmeno prima.
+	//
+	// ⚠️ **Il NOME e' ora piu' largo del comportamento**, e non lo si cambia qui: `ReservePlannedRoute`
+	// e' nominata in una riga del Decision Log, che e' l'owner di record, e rinominarla di passaggio
+	// vorrebbe dire riscrivere una decisione per una questione di etichetta. Chi fara' quel giro lo faccia
+	// per intero — tre siti nell'header, due nei test, quattro nei documenti.
+	//
+	// ⛔ **Non si chiama piu' `FindPathForUnit`**: serviva solo a conoscere la rotta da prenotare, e una
+	// chiamata il cui risultato nessuno usa e' lavoro per niente — qui, dentro la pianificazione del bot,
+	// e' un A* per unita' per turno.
 
-	// 🔴 **Una rotta che non esiste NON e' una prenotazione riuscita, e tacerlo riporta il difetto.** Se il
-	// pathfinding fallisce — `NoPath`, `GoalInvalid`, `StartInvalid`, tetto di nodi — il ciclo qui sotto non
-	// gira, la funzione non prenota nulla, e la compagna successiva trova la stessa destinazione libera: la
-	// contesa di #1088, stavolta senza traccia. Si prenota allora almeno la DESTINAZIONE, che e' l'unica
-	// cella su cui la contesa e' certa, e si dice che e' successo.
-	if (Found.Path.Num() < 2)
+	// Restare fermi e' il caso NORMALE, non un fallimento: la cella dell'unita' e' gia' in `Occupancy` e
+	// non c'e' niente da prenotare. Si distingue confrontando la destinazione con la posizione.
+	const FRTHexSimUnit* Self = Snapshot.Units.FindByPredicate(
+		[UnitId](const FRTHexSimUnit& U) { return U.UnitId == UnitId; });
+	if (Self && Self->Cell == DestCell)
 	{
-		// Restare fermi e' il caso NORMALE, non un fallimento: la cella dell'unita' e' gia' in `Occupancy` e
-		// non c'e' nessuna rotta da prenotare. Si distingue confrontando la destinazione con la posizione.
-		const FRTHexSimUnit* Self = Snapshot.Units.FindByPredicate(
-			[UnitId](const FRTHexSimUnit& U) { return U.UnitId == UnitId; });
-		const bool bStayingPut = Self && Self->Cell == DestCell;
+		return TArray<FRTCellId>();
+	}
 
-		if (!bStayingPut)
+	// ⚠️ **Non si sovrascrive una prenotazione altrui**, e qui il guardiano resta utile: due compagne
+	// che scegliessero la stessa destinazione sono il difetto di `#1088`, non una conseguenza di [D-445].
+	// Chi arriva secondo NON prenota, e il suo piano resta quello che il suo scorer ha scelto — la
+	// `CandidateCells` della compagna successiva vedra' comunque la cella come presa.
+	if (const int32* Occupante = Snapshot.Occupancy.Find(DestCell))
+	{
+		if (*Occupante != UnitId)
 		{
 			UE_LOG(LogRT, Warning,
-				TEXT("[RT] Prenotazione rotta u%d -> %s: nessun percorso (stato %d). Prenotata la sola destinazione."),
-				UnitId, *DestCell.ToString(), static_cast<int32>(Found.Status));
-			if (!Snapshot.Occupancy.Contains(DestCell))
-			{
-				Snapshot.Occupancy.Add(DestCell, UnitId);
-			}
+				TEXT("[RT] Prenotazione u%d -> %s: destinazione gia' di u%d — contesa fra compagne (#1088)."),
+				UnitId, *DestCell.ToString(), *Occupante);
 		}
 		return TArray<FRTCellId>();
 	}
 
-	for (const FRTCellId& Cell : Found.Path)
-	{
-		// `Add` sovrascriverebbe l'occupante di una cella gia' presa. Non deve mai succedere — la rotta viene
-		// da `FindPathForUnit`, che le celle altrui le evita — ma la sovrascrittura sarebbe silenziosa e
-		// cancellerebbe una prenotazione precedente, cioe' il difetto che questa funzione esiste per chiudere.
-		// Quindi si NOTIFICA invece di ingoiare: se questa riga compare, l'invariante e' rotta a monte.
-		if (const int32* Occupant = Snapshot.Occupancy.Find(Cell))
-		{
-			if (*Occupant != UnitId)
-			{
-				UE_LOG(LogRT, Warning,
-					TEXT("[RT] Prenotazione rotta u%d: la cella %s risulta gia' di u%d — invariante rotta a monte."),
-					UnitId, *Cell.ToString(), *Occupant);
-			}
-			continue;
-		}
-		Snapshot.Occupancy.Add(Cell, UnitId);
-	}
-
-	return Found.Path;
+	Snapshot.Occupancy.Add(DestCell, UnitId);
+	return TArray<FRTCellId>({ DestCell });
 }
 
 
@@ -795,7 +818,7 @@ FRTCellId URTHexBotLibrary::BestKiteCell(const FRTHexSnapshot& Snapshot, int32 U
 {
 	// Le candidate arrivano da ReachableCells: budget, celle bloccate, occupanti e archi sono gia' applicati,
 	// quindi la fuga non puo' proporre una mossa illegale (stessa disciplina di BuildCandidates).
-	const TArray<FRTHexReachableCell> Reachable = URTHexSimLibrary::ReachableCells(Snapshot, UnitId);
+	const TArray<FRTHexReachableCell> Reachable = URTHexBotLibrary::CandidateCells(Snapshot, UnitId);
 
 	FRTCellId Best;
 	int32 BestDistance = -1;

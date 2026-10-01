@@ -1143,7 +1143,7 @@ bool FRTBotDecidesWithoutFutureKnowledgeTest::RunTest(const FString&)
  * Si misura su piu' turni e su ENTRAMBE le squadre, perche' i rami del pianificatore si scelgono a seconda
  * della distanza dal nemico: un turno solo esercita il ramo d'apertura e nient'altro.
  *
- * \u26a0\ufe0f Il fallimento e' DIAGNOSTICO, non solo rosso: dice turno, unita', motivo e azione colpevole. Se un
+ * ⚠️ Il fallimento e' DIAGNOSTICO, non solo rosso: dice turno, unita', motivo e azione colpevole. Se un
  * giorno cade, quello che serve sapere e' quale combinazione il bot ha composto — non che «il bot sbaglia».
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexBotPlansAreLegalTest,

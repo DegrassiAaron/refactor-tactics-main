@@ -362,20 +362,30 @@ bool FRTHexMoveContestedCellTest::RunTest(const FString&)
 }
 
 /**
- * T5 di #1922 — la sola via per cui lo scambio e' raggiungibile IN PARTITA: la staleness del piano.
+ * T5 di #1922 — la staleness del piano, che era **la sola** via per cui lo scambio fosse raggiungibile in
+ * partita, e oggi e' una via fra tante.
  *
- * 🔑 **Perche' serve un test d'integrazione e non basta il resolver.** `HexSim.ResolveSwapBlocked` prova la
- * regola passando percorsi costruiti a mano; questo prova che la regola si INNESCA nel gioco. Il §3 della
- * issue misura che nessuna via ordinaria puo' produrre uno scambio — il click esclude le celle occupate
- * (`FindPathAvoiding`), il bot pianifica destinazioni e non waypoint, l'harness valida sullo snapshot — e
- * ne resta **una sola**: un `PlannedPath` scritto quando la cella era libera e risolto quando non lo e' piu'.
+ * 🔴 **Il §3 della issue non regge piu', e il banco misura l'esito opposto** ([D-445], [D-446]).
+ * Quel paragrafo concludeva che nessuna via ordinaria potesse produrre uno scambio — *il click esclude le
+ * celle occupate (`FindPathAvoiding`), il bot pianifica destinazioni e non waypoint, l'harness valida sullo
+ * snapshot* — e che ne restasse **una sola**: un `PlannedPath` scritto quando la cella era libera. La
+ * prima delle tre e' caduta: il click **accetta** una cella occupata, perche' rifiutarla voleva dire sapere
+ * se l'occupante se ne andra'.
+ *
+ * 🔑 **Il banco resta, e misura che la via stantia non sia diventata un caso speciale.** Un piano
+ * scritto prima e risolto dopo deve dare lo stesso esito di uno scritto adesso: se divergessero, la
+ * staleness tornerebbe a essere una via **a parte**, che e' esattamente la condizione che #1922 trattava
+ * come un difetto.
+ *
+ * ⚠️ L'id del test non cambia (`StalePlanSwapBlocks`) ma il nome registrato si': i riferimenti a #1922
+ * puntano al numero della issue, non alla stringa.
  *
  * `RTTurnManager` lo prende **verbatim**, e il commento del file lo dichiara: *«ResolveMovement accetta un
  * PlannedPath gia' pronto SENZA riapplicare l'occupazione fresca»*. Scrivere qui i due percorsi non e' un
  * trucco del test: e' la riproduzione fedele di quella via.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMoveStalePlanSwapTest,
-	"RefactorTactics.HexMove.StalePlanSwapBlocks",
+	"RefactorTactics.HexMove.StalePlanSwapHappens",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
 {
@@ -401,22 +411,25 @@ bool FRTHexMoveStalePlanSwapTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("A non entra nella cella di B"), A->Cell == CellA);
-	TestTrue(TEXT("B non entra nella cella di A"), B->Cell == CellB);
+	// 🔴 **Lo scambio avviene** ([D-445]): erano due `non entra`, e misuravano il blocco.
+	TestTrue(TEXT("A entra nella cella di B"), A->Cell == CellB);
+	TestTrue(TEXT("e B in quella di A"), B->Cell == CellA);
 
-	// L'esito deve essere SPIEGATO, non solo subito: un arresto senza causa nel replay e' il difetto che la
-	// disciplina di `ERTMoveOutcome` esiste per evitare.
+	// L'esito deve essere SPIEGATO, non solo subito: un movimento senza causa nel replay e' il difetto che
+	// la disciplina di `ERTMoveOutcome` esiste per evitare.
 	const TArray<FRTTurnLogEntry>& Log = TM->GetTurnLog();
-	int32 Cycles = 0;
+	int32 Mossi = 0;
+	int32 Bloccati = 0;
 	for (const FRTTurnLogEntry& E : Log)
 	{
-		if (E.Category == ERTLogCategory::Move
-			&& E.Outcome == static_cast<uint8>(ERTMoveOutcome::BlockedByCycle))
-		{
-			++Cycles;
-		}
+		if (E.Category != ERTLogCategory::Move) { continue; }
+		if (E.Outcome == static_cast<uint8>(ERTMoveOutcome::Moved)) { ++Mossi; }
+		else { ++Bloccati; }
 	}
-	TestEqual(TEXT("il TurnLog spiega entrambi gli arresti col reason del ciclo"), Cycles, 2);
+	TestEqual(TEXT("il TurnLog registra due movimenti"), Mossi, 2);
+	// 🔑 **E nessun arresto**, che e' la meta' che non si deduce dalla prima: due voci `Moved` sarebbero
+	// compatibili con un log che ne porta anche una bloccata per una terza unita' che qui non esiste.
+	TestEqual(TEXT("e nessun arresto"), Bloccati, 0);
 
 	DestroyHexMoveWorld(World);
 	return true;
@@ -1151,8 +1164,17 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
 	SpawnHexMap(World, /*Radius=*/ 6);
 
+	// 🔴 **L'ostacolo sta sulla DESTINAZIONE, non a meta' strada** ([D-445], 2026-10-01). Era su `(2,0)`,
+	// in mezzo al percorso, e fermava: oggi una unita' in transito la si attraversa, e il mover arriverebbe
+	// a `(3,0)` come se niente fosse.
+	//
+	// 🔑 **`Fallback.Stop` non e' stata ritirata: e' stato ritirato uno dei modi di innescarla.** La
+	// regola — *il percorso si chiude e l'unita' si ferma nell'ultima cella valida, senza annullare, senza
+	// aggirare, senza teletrasportare* — vale identica; cio' che la chiude e' il **terminus**, dove [D-289]
+	// ha lasciato la contesa. Questo e' uno dei dieci test vincolanti del catalogo v0.1 §15, e il nome
+	// `Actions.Move.PathBlocked` resta suo.
 	ARTUnit* Mover = SpawnHexUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
-	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTUnit* Blocker = SpawnHexUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
 	if (!TM || !Mover || !Blocker) { DestroyHexMoveWorld(World); return false; }
 
@@ -1166,9 +1188,12 @@ bool FRTMovePathBlockedTest::RunTest(const FString&)
 
 	RunTurn(TM);
 
-	TestTrue(TEXT("si ferma prima dell'ostacolo, all'ultima cella valida"), Mover->Cell == FRTCellId(1, 0));
+	TestTrue(TEXT("si ferma prima dell'ostacolo, all'ultima cella valida"), Mover->Cell == FRTCellId(2, 0));
 	TestTrue(TEXT("il movimento non viene annullato: qualche cella la percorre"), !(Mover->Cell == FRTCellId(0, 0)));
 	TestTrue(TEXT("e non arriva a destinazione aggirando"), !(Mover->Cell == FRTCellId(3, 0)));
+	// ⚠️ **E ha percorso DUE celle, non una**: senza questa riga «si ferma a `(2,0)`» sarebbe vero anche
+	// di un'unita' che non ha mai attraversato `(1,0)` — e l'attraversamento e' il fatto nuovo.
+	TestTrue(TEXT("e ha attraversato la cella intermedia"), Mover->Cell != FRTCellId(1, 0));
 
 	// L'esito e' registrato col suo motivo: e' la forma che `Fallback.Stop` prende nel TurnLog del movimento.
 	int32 Stopped = 0;
@@ -2271,9 +2296,23 @@ bool FRTDenialAndStillnessAreDistinguishableTest::RunTest(const FString&)
 		// Il diniego si produce dal controller, che e' il sito reale della pianificazione.
 		PC->SelectActorForTest(Negata);
 		Negata->SelectAbility(INDEX_NONE);
+		// 🔴 **IL DINIEGO SI E' SPOSTATO DALLA PIANIFICAZIONE ALLA RISOLUZIONE** ([D-446]), e questa
+		// premessa e' dove si vede. Diceva *«il waypoint e' stato RIFIUTATO in pianificazione»* e misurava
+		// `PlannedWaypoints.Num() == 0`: oggi il clic si accetta, perche' rifiutarlo avrebbe richiesto di
+		// sapere se l'occupante se ne andra' — cioe' di leggere il suo piano.
+		//
+		// 🔑 **Tutte le asserzioni a valle sono rimaste identiche, ed e' il punto.** Il diniego continua a
+		// esistere, a nominare la destinazione richiesta e a sostituire `Stayed`: cambia **quando** si produce,
+		// non **se**. La distinzione che `#79` esiste per tenere — *«ho provato e me l'hanno negato»* contro
+		// *«non ho provato»* — e' esattamente quella che il banco continua a misurare.
+		//
+		// ⚠️ **E il ramo che la produce ora era gia' scritto, per il bot.** `RTTurnManager_Movement.cpp`
+		// teneva due vie asimmetriche — giocatore e harness portavano uno stato dal momento del rifiuto, il bot
+		// non aveva un rifiuto e la sua destinazione si leggeva da `PlannedCell`. Da oggi i tre produttori
+		// passano tutti dalla seconda.
 		PC->HandleClickOnCell(Occupata);
-		if (!TestEqual(TEXT("premessa: il waypoint e' stato rifiutato in pianificazione"),
-				Negata->PlannedWaypoints.Num(), 0))
+		if (!TestEqual(TEXT("premessa: il waypoint e' stato accettato in pianificazione"),
+				Negata->PlannedWaypoints.Num(), 1))
 		{
 			DestroyHexMoveWorld(World);
 			return false;

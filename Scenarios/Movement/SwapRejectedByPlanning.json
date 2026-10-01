@@ -5,9 +5,11 @@
   "seed": 0,
   "mapRadius": 3,
 
-  "_nota": "CARATTERIZZAZIONE, non una regola desiderata. Due unita' adiacenti puntano ognuna alla cella dell'altra: lo scambio NON avviene, perche' la PIANIFICAZIONE lo rifiuta prima che il resolver possa vederlo (FindPathForUnit: goal occupato -> NoPath). Entrambe restano ferme.",
+  "_nota": "LO SCAMBIO AVVIENE. Due unita' adiacenti puntano ognuna alla cella dell'altra, e si scambiano di posto. Fino al 2026-10-01 non avveniva: la PIANIFICAZIONE lo rifiutava prima che il resolver potesse vederlo (FindPathForUnit: goal occupato -> NoPath), ed entrambe restavano ferme. D-446 ha reso la destinazione occupata una scommessa dichiarabile, e D-445 ha tolto il blocco in transito: il planner produce il percorso, il resolver lo risolve, e la regola che il resolver aveva da sempre e' diventata raggiungibile dal gioco.",
 
-  "_conflitto": "Il RESOLVER invece lo consente: HexSim.ResolveSwapAllowed lo verifica passando percorsi costruiti a mano, quindi bypassando il planner. Le due regole non si contraddicono in astratto - una vale in pianificazione, l'altra in risoluzione - ma insieme rendono la regola del resolver IRRAGGIUNGIBILE dal gioco: nessun giocatore puo' pianificare uno scambio, perche' cliccare sulla cella di un nemico adiacente non produce un percorso. Questo scenario esiste per fissare il comportamento attuale e per non farlo cambiare per sbaglio; se un giorno lo scambio dovra' essere possibile, sara' il planner a dover cambiare, e questo file diventera' rosso - che e' esattamente cio' che deve succedere.",
+  "_conflitto": "RISOLTO, ed e' stato PREVISTO QUI. Questo campo diceva: il resolver consente lo scambio (HexSim.ResolveSwapAllowed lo verifica passando percorsi costruiti a mano, quindi bypassando il planner), le due regole non si contraddicono in astratto - una vale in pianificazione, l'altra in risoluzione - ma insieme rendono la regola del resolver IRRAGGIUNGIBILE dal gioco. E chiudeva cosi': 'se un giorno lo scambio dovra' essere possibile, sara' il planner a dover cambiare, e questo file diventera' rosso - che e' esattamente cio' che deve succedere'. E' successo il 2026-10-01: il file e' diventato rosso con 'UnitAtCell(A1) - atteso (q=0,r=0,L=0), ottenuto (q=1,r=0,L=0)', e il rosso e' stato letto come la previsione diceva invece che come una regressione. La caratterizzazione resta, col segno invertito: oggi fissa che lo scambio AVVIENE, e lo stesso file tornera' rosso se smettesse.",
+
+  "_nome": "Il nome del file e dello scenarioId dice 'RejectedByPlanning', che non e' piu' vero. Non si rinomina qui: lo scenarioId e' citato da editor-sessions.yaml, capability-map.yaml, scenario-map.md, test-manuali-pie.md e da RTScenarioRunnerTests, e un rename di passaggio ne lascerebbe indietro uno. Chi fara' quel giro lo faccia per intero.",
 
   "units": [
     { "id": "A1", "hero": "Hero.Aevik",    "team": 0, "cell": [0, 0, 0] },
@@ -24,8 +26,8 @@
   ],
 
   "expect": [
-    { "type": "UnitAtCell", "unit": "A1", "cell": [0, 0, 0] },
-    { "type": "UnitAtCell", "unit": "B1", "cell": [1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [1, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, 0, 0] },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }

@@ -612,6 +612,31 @@ public:
 	 * Restituisce la rotta prenotata. Vuota = l'unita' resta dov'e', oppure il pathfinding ha fallito — e in
 	 * quel caso e' loggato e la sola destinazione viene prenotata comunque.
 	 */
+	/**
+	 * Le celle che il BOT considera come destinazione: raggiungibili **e libere** — [D-446].
+	 *
+	 * 🔑 **Esiste perche' il giocatore e il bot non vogliono la stessa cosa dallo stesso ventaglio.**
+	 * [D-446] concede al giocatore di dichiarare una cella occupata come SCOMMESSA: se chi la tiene se ne
+	 * va ci arriva, se resta viene bloccato in risoluzione. Un bot che scommettesse alla cieca invece
+	 * sprecherebbe turni, e il difetto e' misurato — `#1088`, dodici turni di compagne che si bloccavano
+	 * a vicenda.
+	 *
+	 * ⏱️ *Fino al 2026-10-01 la proprieta' arrivava GRATIS*, dal filtro di `BlockedCellsFor` dentro
+	 * `ReachableCells`. [D-445] e [D-446] lo hanno svuotato: le prenotazioni di `ReservePlannedRoute` si
+	 * scrivevano ancora e non le leggeva piu' nessuno, e `BotTeamPlanning.PlanBotsGivesTeammatesDistinctCells`
+	 * e' diventato rosso — due compagne sulla stessa cella.
+	 *
+	 * ⛔ **La preferenza sta QUI e non nel pathfinder**, ed e' la ragione per cui non si e' rimesso il
+	 * filtro a monte: il `C++` definisce cio' che e' **permesso**, il punteggio sceglie fra le cose
+	 * permesse. Un divieto nel pathfinder sarebbe una seconda autorita' sulla stessa regola, e il
+	 * giocatore perderebbe la scommessa che [D-446] gli concede.
+	 *
+	 * ⚠️ **Legge `Snapshot.Occupancy`, che per il bot contiene anche le PRENOTAZIONI** delle compagne
+	 * gia' pianificate in questo turno (`ReservePlannedRoute`). E' cio' che rende la proprieta' delle celle
+	 * distinte una conseguenza e non una coincidenza.
+	 */
+	static TArray<FRTHexReachableCell> CandidateCells(const FRTHexSnapshot& Snapshot, int32 UnitId);
+
 	static TArray<FRTCellId> ReservePlannedRoute(FRTHexSnapshot& Snapshot, int32 UnitId,
 		const FRTCellId& DestCell);
 

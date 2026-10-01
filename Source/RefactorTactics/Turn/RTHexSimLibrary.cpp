@@ -46,12 +46,24 @@ namespace
 	/**
 	 * Celle occupate da unita' vive DIVERSE da ForUnitId: ostacoli dinamici (non appartengono all'asset mappa).
 	 *
-	 * ➕ **Una COMPAGNA non e' un ostacolo per la ROTTA, ma lo resta come DESTINAZIONE** — `#2984`,
-	 * [D-396]. E' lo specchio, nel pathfinder, del permesso che `StepHexMovement` concede: se il
-	 * resolver lascia passare e il pathfinder no, il bot continua a evitare rotte che il gioco permette.
+	 * 🔴 **NESSUNA unita' e' un ostacolo per la ROTTA; chiunque lo resta come DESTINAZIONE** —
+	 * [D-445]. E' lo specchio, nel pathfinder, di cio' che il resolver fa: *se il resolver lascia passare
+	 * e il pathfinder no, il bot continua a evitare rotte che il gioco permette* — e quella frase, scritta
+	 * qui per le compagne, descriveva alla lettera lo stato in cui questa funzione si e' trovata per
+	 * mezz'ora il 2026-10-01: il resolver era gia' passato a [D-445] e questa no.
 	 *
-	 * ⛔ **`Goal` esiste per la meta' che non va persa.** Togliendo le compagne dagli ostacoli senza
-	 * proteggere la destinazione, l'A* sceglierebbe la cella di una compagna come arrivo — e il resolver
+	 * ⏱️ *Fino al 2026-10-01 l'esenzione era delle sole COMPAGNE* (`#2984`, [D-396]), specchio del
+	 * permesso di squadra che `StepHexMovement` concedeva allora. [D-445] ha tolto il blocco a tutti, e
+	 * l'esenzione si e' allargata con esso: non e' un rilassamento del pathfinder, e' la stessa regola.
+	 *
+	 * 🔑 **E il difetto che questa simmetria previene si misura, non si argomenta**:
+	 * `Scenario.RunnerSwapRejectedByPlanning` restava **VERDE** col solo resolver cambiato — *«entrambe
+	 * restano ferme»* — perche' il planner rifiutava il percorso prima che il resolver lo vedesse. La
+	 * regola c'era nel codice autoritativo e **non si sentiva in partita**.
+	 *
+	 * ⛔ **`Goal` esiste per la meta' che non va persa, e oggi vale per TUTTI.** Togliendo le unita'
+	 * dagli ostacoli senza
+	 * proteggere la destinazione, l'A* sceglierebbe la cella di un'altra unita' come arrivo — e il resolver
 	 * la rifiuterebbe, perche' l'arco termina su una cella **libera** ([D-398]): il bot proporrebbe una
 	 * mossa illegale. Chi non ha una destinazione — `ReachableCells` — passa `nullptr` e filtra il
 	 * RISULTATO, che e' la stessa regola detta dall'altro lato.
@@ -61,9 +73,6 @@ namespace
 	TSet<FRTCellId> BlockedCellsFor(const FRTHexSnapshot& Snapshot, int32 ForUnitId,
 		const FRTCellId* Goal = nullptr)
 	{
-		const FRTHexSimUnit* Self = FindUnit(Snapshot, ForUnitId);
-		const int32 MyTeam = Self ? Self->TeamId : INDEX_NONE;
-
 		TSet<FRTCellId> Out;
 		for (const TPair<FRTCellId, int32>& Entry : Snapshot.Occupancy)
 		{
@@ -71,13 +80,15 @@ namespace
 			{
 				continue;
 			}
-			const FRTHexSimUnit* Other = FindUnit(Snapshot, Entry.Value);
-			const bool bAlly = Other && TeamsAreAllied(MyTeam, Other->TeamId);
-			if (bAlly && !(Goal && *Goal == Entry.Key))
-			{
-				continue; // si attraversa, ma non e' questa la destinazione
-			}
-			Out.Add(Entry.Key);
+			// 🔴 [D-446]: **nemmeno la destinazione e' un ostacolo.** Dichiarare una cella occupata e' una
+			// SCOMMESSA: se chi la tiene se ne va, ci si arriva; se resta, in risoluzione si e' bloccati. Il
+			// planner non deve sapere quale dei due, ed e' il punto — saperlo significherebbe leggere il piano
+			// avversario, che e' esattamente cio' che la simultaneita' esiste per nascondere.
+			//
+			// ⚠️ **Quindi nessuna cella occupata da un'unita' e' piu' un ostacolo dinamico**, e questa funzione
+			// restituisce sempre l'insieme vuoto. Non viene rimossa qui: la firma e' consumata da quattro siti e
+			// il suo ritiro va fatto in una passata che li tocchi tutti, con la sua misura.
+			continue;
 		}
 		return Out;
 	}
@@ -403,19 +414,21 @@ TArray<FRTHexReachableCell> URTHexSimLibrary::ReachableCells(const FRTHexSnapsho
 	{
 		Out.Add(FRTHexReachableCell(Entry.Key, Entry.Value.Key, Entry.Value.Value));
 	}
-	// ➕ **Una compagna si attraversa, ma non ci si ferma sopra** (`#2984`, [D-396]). Le sue celle sono
-	// entrate nel Dijkstra come passaggio — e' cio' che le rende raggiungibili le celle OLTRE — ma non
-	// sono destinazioni: restare sarebbe la co-occupazione che [D-289] vieta, e l'overlay illuminerebbe
-	// una cella su cui il resolver non lascia fermare. ⚠️ E' l'altra meta' di `Goal` in `BlockedCellsFor`:
-	// la stessa regola detta dal lato del risultato, perche' qui una destinazione sola non esiste.
-	for (int32 i = Out.Num() - 1; i >= 0; --i)
-	{
-		const int32* Occupant = Snapshot.Occupancy.Find(Out[i].Cell);
-		if (Occupant && *Occupant != UnitId)
-		{
-			Out.RemoveAt(i);
-		}
-	}
+	// 🔴 **Il ventaglio include le celle occupate, e qui non si filtra niente** ([D-446]).
+	//
+	// ⏱️ *Fino al 2026-10-01 un ciclo toglieva da `Out` ogni cella di un'altra unita'*, e il suo
+	// commento diceva di se stesso cio' che serve per capirlo: *«e' l'altra meta' di `Goal` in
+	// `BlockedCellsFor`»*. [D-446] ha ritirato quel `Goal` — la destinazione occupata e' una scommessa, non
+	// un rifiuto — e una meta' ritirata lascia viva la gemella, che continua a dire la regola morta da un
+	// altro lato. **E' cosi' che si misura**: non rileggendo il codice, ma guardando il banco che pinna
+	// l'accordo fra i due lati, `ReachableAfterPlanMatchesWaypointAcceptance`, che e' andato rosso con
+	// *«(-1,0,L0): nel fan=no, accettata=si»*.
+	//
+	// 🔑 **Fan e accettazione DEVONO coincidere**, ed e' l'unica ragione per cui questo punto e'
+	// delicato: l'overlay illumina cio' che il clic accetta. Divergere in un verso illumina celle su cui
+	// non si puo' andare; divergere nell'altro — quello che il filtro produceva — nasconde celle su cui
+	// si puo'. [D-289] resta intatto: vieta la co-occupazione a RISOLUZIONE, e non ha mai detto che una
+	// cella occupata non si possa dichiarare.
 	Out.Sort([](const FRTHexReachableCell& A, const FRTHexReachableCell& B)
 	{
 		return URTHexLibrary::StableLess(A.Cell, B.Cell);
@@ -744,12 +757,25 @@ ERTHexProbeExclusion URTHexSimLibrary::ClassifyProbeCell(const FRTHexSnapshot& S
 		return ERTHexProbeExclusion::Reachable;
 	}
 
-	// I tre motivi che riguardano la CELLA sono gia' di qualcun altro.
+	// I motivi che riguardano la CELLA sono gia' di qualcun altro.
+	//
+	// 🔴 **`Occupied` non e' piu' un'esclusione, e non si gira piu'** ([D-446]). Una cella occupata si
+	// puo' dichiarare, quindi non e' un motivo per cui una cella sta FUORI dal ventaglio — che e' l'unica
+	// domanda a cui questa funzione risponde.
+	//
+	// ⚠️ **E lasciarla avrebbe prodotto una risposta SBAGLIATA, non solo inerte.** Una cella occupata
+	// e **fuori budget** non entra nel ventaglio per il budget; con la vecchia riga avrebbe risposto
+	// *occupata*, mandando chi legge a cercare la causa in un posto dove non c'e'. Senza la riga la domanda
+	// cade dove e' sempre stata giusta: il ramo budget/strada qui sotto.
+	//
+	// ⛔ `ClassifyWaypointCell` continua a rispondere `Occupied`, e non e' un'incoerenza: li' e' il
+	// **vocabolario del diniego**, che il TurnManager legge a risoluzione per dire *«ho provato e me
+	// l'hanno negato»* (`#79`). Il diniego e' vivo; l'esclusione dal ventaglio no.
 	switch (ClassifyWaypointCell(Snapshot, UnitId, Cell))
 	{
 	case ERTHexWaypointReason::NotOnMap:       return ERTHexProbeExclusion::NotOnMap;
 	case ERTHexWaypointReason::BlocksMovement: return ERTHexProbeExclusion::BlocksMovement;
-	case ERTHexWaypointReason::Occupied:       return ERTHexProbeExclusion::Occupied;
+	case ERTHexWaypointReason::Occupied:       break;
 	case ERTHexWaypointReason::Ok:             break;
 	}
 
@@ -985,7 +1011,7 @@ namespace
 	 * celle che copre, e quelle celle non compaiono in `Target`: la catena `target -> occupante` non le vede
 	 * ([D-398] §9b, il rischio che quella voce si era dichiarata). Scavalcando un'unita' che si MUOVE si
 	 * perderebbe lo scambio che quella catena esiste per prendere — misurato:
-	 * `HexSim.ResolveSwapBlockedEvenWhenPassingThrough` cade, e i due si incrociano invece di bloccarsi.
+	 * `HexSim.ResolveCrossWhilePassingThrough` cade, e i due si incrociano invece di bloccarsi.
 	 *
 	 * 🔑 **E la restrizione non costa niente al difetto che [D-398] chiude**: quel difetto e' fermarsi
 	 * addosso a chi non se ne andra' mai, cioe' precisamente a un'unita' ferma. Chi si muove libera la cella
@@ -1059,7 +1085,7 @@ namespace
 	 * ⚠️ **La durata e' la SOMMA** di quelle dei passi coperti ([D-398] §7a): pagarne una sola
 	 * renderebbe l'attraversamento un modo di muoversi piu' in fretta, che nessuno ha deciso.
 	 */
-	void BeginArcIfNeeded(FRTMovementResolutionState& State, int32 UnitIdx, bool bMayCross)
+	void BeginArcIfNeeded(FRTMovementResolutionState& State, int32 UnitIdx)
 	{
 		if (!State.ArcEnd.IsValidIndex(UnitIdx) || !State.Prog.IsValidIndex(UnitIdx)
 			|| !State.Paths.IsValidIndex(UnitIdx) || State.Done[UnitIdx])
@@ -1078,10 +1104,19 @@ namespace
 			return;
 		}
 
-		// ➕ **I DUE permessi alimentano lo STESSO arco** (`#2984`, [D-396] su [D-398]): lo **stile**
-		// (`LinearPass`) attraversa chiunque sia fermo, la **squadra** attraversa una compagna ferma. Restano
-		// due domande distinte — una sul mover, una sull'occupante — e appiattirle in un flag solo
-		// renderebbe un `LinearPass` capace di attraversare un'avversaria perche' una compagna sta altrove.
+		// 🔴 **NESSUNA UNITA' BLOCCA IL TRANSITO DI UN'ALTRA** ([D-445]): l'arco scavalca chiunque
+		// trovi per strada — compagna o avversaria, ferma o in movimento — e si ferma alla prima cella
+		// libera. Il corpo non ha piu' bisogno di sapere di chi sia l'occupante, e infatti non lo chiede.
+		//
+		// ⏱️ *Fino al 2026-10-01 qui vivevano DUE permessi*: lo **stile** (`LinearPass`) attraversava chi
+		// era fermo, la **squadra** attraversava una compagna qualunque ([D-396] su [D-398], [D-443]). Erano
+		// tenuti distinti di proposito — appiattirli avrebbe reso un `LinearPass` capace di attraversare
+		// un'avversaria perche' una compagna stava altrove — e la distinzione e' caduta con la regola, non
+		// con un refactor: se nessuno blocca, non c'e' piu' niente da distinguere.
+		//
+		// ⛔ **Cio' che NON e' caduto e' la guardia del TERMINUS**, qui sotto: si attraversa chiunque, non
+		// ci si **ferma** su una cella che qualcuno non lascera'. E' [D-289] — uno slot di occupazione
+		// autorevole per `FRTCellId` — e questa regola non la tocca.
 		//
 		// ⛔ La prima stesura di `#2984` metteva il permesso delle compagne come un `continue` DENTRO il
 		// ciclo di blocco, quando l'attraversamento era ancora un'eccezione al bersaglio. Con [D-398] non lo
@@ -1090,21 +1125,10 @@ namespace
 		int32 End = Next;
 		while (Path.IsValidIndex(End))
 		{
-			// [D-443] il ciclo di salto legge CHI C'E'; la guardia qui sotto legge chi non se ne andra' mai.
-			const int32 Occupante = AnyOccupantAt(State, UnitIdx, Path[End]);
-			if (Occupante == INDEX_NONE)
+			// Il ciclo di salto legge soltanto SE la cella e' occupata: da chi, non importa piu' ([D-445]).
+			if (AnyOccupantAt(State, UnitIdx, Path[End]) == INDEX_NONE)
 			{
 				break; // libera: e' qui che l'arco termina
-			}
-			// [chiave] **Due domande distinte, e appiattirle e' la mutazione che [D-399] S2 ha misurato**:
-			// la **squadra** attraversa una compagna qualunque, ferma o in movimento; lo **stile** attraversa
-			// chi e' FERMO. Estendere `bMayCross` a chi si muove fa cadere
-			// `ResolveSwapBlockedEvenWhenPassingThrough`, che non passa `Teams` e dipende interamente da `Done`.
-			const bool bAttraversabile = AreAllies(State, UnitIdx, Occupante)
-				|| (bMayCross && State.Done.IsValidIndex(Occupante) && State.Done[Occupante]);
-			if (!bAttraversabile)
-			{
-				break; // un'estranea, o chi si muove senza il permesso di squadra: l'arco non la supera
 			}
 			++End;
 		}
@@ -1134,7 +1158,7 @@ namespace
 	 * per il salto, `StationaryOccupantAt` per il terminus. Divergere qui vorrebbe dire che un arco
 	 * esteso dal sollievo potrebbe finire dove uno esteso normalmente non finirebbe.
 	 */
-	int32 ExtendedArcEnd(const FRTMovementResolutionState& State, int32 UnitIdx, bool bMayCross)
+	int32 ExtendedArcEnd(const FRTMovementResolutionState& State, int32 UnitIdx)
 	{
 		if (!State.ArcEnd.IsValidIndex(UnitIdx) || !State.Paths.IsValidIndex(UnitIdx))
 		{
@@ -1149,12 +1173,8 @@ namespace
 			{
 				break;
 			}
-			const bool bAttraversabile = AreAllies(State, UnitIdx, Occupante)
-				|| (bMayCross && State.Done.IsValidIndex(Occupante) && State.Done[Occupante]);
-			if (!bAttraversabile)
-			{
-				return INDEX_NONE; // sbatte su chi non puo' attraversare: non c'e' uscita a valle
-			}
+			// [D-445]: nessuno blocca il transito, quindi non c'e' piu' un caso in cui si <<sbatte>> a valle.
+			// L'uscita per `INDEX_NONE` resta sopra, dove il percorso finisce senza una cella libera.
 			++End;
 		}
 		// [STOP] **Il fallimento NON ripiega**, ed e' la condizione 1 dell'atto (B): un ripiego a `Next`
@@ -1271,7 +1291,14 @@ namespace
 		// array vuoti l'esito e' identico alla variante senza priorita'.
 		auto PriorityOf = [&State](int32 i) { return State.Priorities.IsValidIndex(i) ? State.Priorities[i] : 0; };
 		auto IsLinearMover = [&State](int32 i) { return State.bLinearMovers.IsValidIndex(i) && State.bLinearMovers[i]; };
-		auto PassesThrough = [&State](int32 i) { return State.bPassThrough.IsValidIndex(i) && State.bPassThrough[i]; };
+		// ⛔ **`bPassThrough` non ha piu' un consumatore in questo resolver** ([D-445]): alimentava i due
+		// archi, e il transito ora e' libero per tutti. Il campo resta nello stato e nella firma pubblica di
+		// `ResolveHexPaths` perche' il suo produttore e' `ERTMovementStyle::LinearPass`, il cui ritiro e' una
+		// decisione di **catalogo** aperta come `MOV-14` in `docs/OPEN_DECISIONS.md` — non una conseguenza
+		// automatica di questa.
+		//
+		// ⚠️ **La lambda che lo leggeva e' uscita con i suoi chiamanti**: tenerla avrebbe lasciato un
+		// lettore senza lettura, che e' la forma peggiore — sembra che qualcuno la consulti.
 
 		const TArray<TArray<FRTCellId>>& Paths = State.Paths;
 		TArray<FRTCellId>& Pos = State.Pos;
@@ -1301,6 +1328,18 @@ namespace
 			// ∴ `Moving` resta **viva**, `Advancing` decide chi avanza. La catena del ciclo e i reason code
 			// leggono la prima; il progresso legge la seconda.
 			TArray<bool> Advancing;   Advancing.SetNum(N);
+
+			// ⏱️ *Qui viveva `RiprenderaDopo`, una bandiera «riprendera' in un micro-step
+			// successivo», aggiunta il 2026-10-01 come **prima** correzione dello scambio con durate
+			// sfasate* ([D-446]). Serviva a non far fissare il motivo a chi era bloccato da una partner
+			// appena congelata.
+			//
+			// 🔴 **E' stata MISURATA MORTA appena la seconda correzione e' arrivata.** L'esenzione
+			// della coppia reciproca — piu' in basso, nel test del blocco — impedisce che la partner si
+			// congeli, quindi non esiste piu' nessuno che legga un congelato e ne fissi il motivo.
+			// Mutazione: tolto il `|| RiprenderaDopo[j]` dal calcolo di `bTransientBlock`, la suite
+			// intera resta **verde** (2817 trovati, 2817 completati, nessun rosso). Una bandiera che
+			// nessuna misura difende e' dato senza consumatore, e si toglie.
 			// ➕ **L'arco si apre QUI, prima del punto fisso** (`#3012`, [D-398]). Un passaggio dedicato, su
 			// `Pos` ancora stabile: calcolarlo dentro il ciclo d'avanzamento leggerebbe posizioni aggiornate a
 			// meta' e l'esito dipenderebbe dall'ordine delle unita'.
@@ -1319,7 +1358,7 @@ namespace
 				// `D-381` **quanti** te ne costa l'arco. Il terreno puo' solo abbassare la cadenza.
 				if (EligibleNow(State, i))
 				{
-					BeginArcIfNeeded(State, i, PassesThrough(i));
+					BeginArcIfNeeded(State, i);
 				}
 			}
 
@@ -1389,6 +1428,11 @@ namespace
 						{
 							for (int32 b = a + 1; b < Contendenti.Num() && bTutteAlleate; ++b)
 							{
+								// 🔑 **QUESTO `AreAllies` sopravvive a [D-445], e la ragione va detta**: quella
+								// decisione ha tolto il blocco dal **transito**, e dichiara intatta la guardia del
+								// **terminus**. Il sollievo della contesa e' terminus, non transito: non e' <<non ti
+								// blocco>>, e' <<ti cedo la cella>>, cioe' cooperazione. Si cede il passo a una
+								// compagna; a un'avversaria no, e nessuna decisione ha detto il contrario.
 								bTutteAlleate = AreAllies(State, Contendenti[a], Contendenti[b]);
 							}
 						}
@@ -1402,7 +1446,7 @@ namespace
 						int32 SenzaUscita = 0;
 						for (int32 u : Contendenti)
 						{
-							const int32 Esteso = ExtendedArcEnd(State, u, PassesThrough(u));
+							const int32 Esteso = ExtendedArcEnd(State, u);
 							NuoviEnd.Add(Esteso);
 							if (Esteso == INDEX_NONE)
 							{
@@ -1594,67 +1638,30 @@ namespace
 					// [STOP] **Un'uscita anticipata su un anello alleato PERDEREBBE I NEMICI**, e il commento qui sopra
 					// lo vieta per nome: *<<si segue la CATENA, non si confrontano le coppie>>*. Chi parte da un nemico
 					// due salti prima tornerebbe `Moved`, e il convoy morirebbe con lui.
-					if (!bBlocked)
-					{
-						// ---- FASE 1: si cammina, e si accumula. Nessun verdetto qui. ----
-						int32 Cursor = i;
-						bool bCatenaChiusa = false;
-						bool bTuttiAlleati = true;
-						for (int32 Hops = 0; Hops < N; ++Hops)
-						{
-							int32 Occupant = INDEX_NONE;
-							for (int32 j = 0; j < N; ++j)
-							{
-								if (j != Cursor && Pos[j] == Target[Cursor])
-								{
-									Occupant = j;
-									break;
-								}
-							}
-							// Cella libera, o occupata da chi non si muove: la catena e' APERTA. Il primo caso e' il
-							// convoy, il secondo lo gestisce il blocco da unita' ferma qui sotto, col suo reason.
-							if (Occupant == INDEX_NONE || !Moving[Occupant])
-							{
-								break;
-							}
-							// L'anello e' la coppia `Cursor -> Occupant`: e' li' che due corpi si toccano. Il salto che
-							// chiude ha `Occupant == i`, quindi accumulare qui copre TUTTI i membri del ciclo.
-							bTuttiAlleati = bTuttiAlleati && AreAllies(State, Cursor, Occupant);
-							if (Occupant == i)
-							{
-								bCatenaChiusa = true;
-								break;
-							}
-							Cursor = Occupant;
-						}
-
-						// ---- FASE 2: il verdetto, e solo sulla catena chiusa. ----
-						if (bCatenaChiusa)
-						{
-							if (!bTuttiAlleati)
-							{
-								// [chiave] **<<ESISTE un anello non alleato>>, non <<tutti non alleati>>.** Con due squadre un
-								// ciclo di lunghezza DISPARI non ammette 2-colorazione propria, quindi ne contiene sempre uno
-								// monocromatico: la seconda formulazione lascerebbe passare un ciclo fra nemici. E un anello
-								// alleato non compra un'esenzione a chi gli sta dietro: in una catena chiusa, se un membro non
-								// entra non entra nessuno.
-								bBlocked = true;
-								Reason = ERTMoveOutcome::BlockedByCycle;
-							}
-							// Altrimenti: rotazione fra soli alleati. [D-443] la concede.
-							//
-							// ⏻ **Qui c'era un TERZO stato, e l'ho rimosso perche' nessun comportamento lo distingueva.**
-							// Bloccava, trasitoriamente, una rotazione alleata i cui membri non arrivassero tutti nello
-							// stesso micro-step, per timore di co-occupazione. Misurato: la mutazione che lo elimina lascia
-							// verdi tutti e 2803 i test, e il banco costruito apposta
-							// (`AlliedRotationNeedsSynchronousArrival`) non la distingue.
-							//
-							// [chiave] **La ragione e' dimostrabile, non empirica**: in una catena `Target[i] == Pos[i+1]`
-							// per costruzione, quindi se `i+1` non arriva il ramo del terminus qui sotto blocca `i`
-							// (`!Arriving[j] && Pos[j] == Target[i]`), e il punto fisso propaga all'indietro. Il caso e'
-							// coperto **per totalita'**, e [D-289] resta salvo da quel ramo, non da una guardia in piu'.
-						}
-					}
+					// 🔴 **IL CICLO NON BLOCCA PIU' NESSUNO, E IL SUO VERDETTO E' USCITO DI QUI** ([D-445]).
+					//
+					// ⏱️ *Fino al 2026-10-01 qui c'erano DUE FASI* ([D-443]): si camminava la catena accumulando se
+					// tutti gli anelli fossero alleati, e sulla catena CHIUSA si emetteva `BlockedByCycle` quando ne
+					// esisteva uno non alleato. La formulazione era *<<ESISTE un anello non alleato>>* e non *<<tutti
+					// non alleati>>*, perche' un ciclo di lunghezza dispari fra due squadre ne contiene sempre uno
+					// monocromatico.
+					//
+					// 🔑 **Con [D-445] quella domanda non distingue piu' niente**: nessuna unita' blocca il transito di
+					// nessun'altra, quindi l'appartenenza di squadra degli anelli non cambia nessun esito. Il ciclo
+					//
+					// ⚠️ **Cio' che NON segue e' che una catena chiusa ruoti sempre**, e la prima stesura di [D-445] lo
+					// dichiarava per errore. Misurato: ruota col solo arrivo SINCRONO — con durate sfalsate chi arriva
+					// presto trova l'altra ancora a meta' arco, la guardia del terminus scatta (`!Arriving[j]`) e
+					// l'esito e' `BlockedByUnit`. Il transito e' libero; la simultaneita' d'arrivo resta la condizione.
+					// esce invece di restare: un calcolo il cui esito non puo' cambiare e' codice morto, e nel
+					// resolver autoritativo e' peggio che altrove — chi legge lo scambia per una regola viva.
+					//
+					// ⛔ **Conseguenza da decidere altrove, non qui**: `ERTMoveOutcome::BlockedByCycle` non ha piu' un
+					// produttore. Non viene rimosso in questa passata — e' un valore di enum che vive nel TurnLog e
+					// nei formati persistiti, e ritirarlo e' una decisione sul formato, non una conseguenza di questa.
+					//
+					// ⚠️ **Cio' che continua a bloccare e' il TERMINUS**, nel ramo qui sotto: chi punta alla cella di
+					// un'unita' che RESTA non ci arriva. E' [D-289], e questa regola non lo tocca.
 
 					// Bloccata da un'unita' che RESTA (esaurita o congelata) sulla cella di destinazione.
 					//
@@ -1680,7 +1687,31 @@ namespace
 					{
 						for (int32 j = 0; j < N; ++j)
 						{
-							if (j != i && !Arriving[j] && Pos[j] == Target[i])
+							// 🔴 **LA COPPIA RECIPROCA NON SI BLOCCA A VICENDA MENTRE UNA DELLE DUE E' A META'
+							// ARCO** ([D-446], 2026-10-01). `j` punta alla MIA cella e io alla sua: `j` non la sta
+							// occupando per restarci, la sta occupando **aspettando me**.
+							//
+							// 🔑 **Senza, lo scambio con durate sfalsate si chiudeva in un CASCADE, non in un
+							// blocco.** Durate 4 e 1: al primo micro-step la veloce arriva, trova la lenta ancora sulla
+							// propria origine e si congela — corretto. Ma congelarsi le toglie `Arriving`, e al giro
+							// successivo del punto fisso la **lenta** vedeva `!Arriving[veloce]` sulla propria
+							// destinazione e si congelava a sua volta, pur avendo tre tick d'arco davanti. Nessuno dei
+							// due avanzava, `bAnyMoved` restava falso, e `ResolveNextHexMicroStep` dichiarava la
+							// risoluzione **finita** al primo micro-step, con due `BlockedByUnit`.
+							//
+							// ⚠️ **La condizione e' DOPPIA, e la prima stesura ne aveva messa una sola.** Avevo
+							// scritto `Arriving[i]` da solo — *chi non e' arrivato non contende* — ed e' una frase
+							// vera che produce un difetto: esenta anche chi segue qualcuno in un **convoglio**, che
+							// allora paga i tick del proprio arco mentre aspetta e parte in anticipo. Misurato:
+							// `ConvoyOnCostlyTerrainSerializes` e' andato rosso con *«B arriva al 3» to be 3, but it
+							// was 2*, cioe' la serializzazione che [D-382] impone era sparita. Serve ANCHE che `j`
+							// voglia la mia cella: in un convoglio non la vuole, vuole quella davanti.
+							//
+							// ⛔ **Non allenta [D-289].** Quando anche io divento `Arriving`, `j` lo e' pure — il
+							// suo arco e' fermo da prima — e lo scambio passa dal ramo che gia' esisteva per le durate
+							// simmetriche. Due unita' sulla stessa cella restano irrappresentabili.
+							const bool bAttesaReciproca = !Arriving[i] && Target.IsValidIndex(j) && Target[j] == Pos[i];
+							if (j != i && !Arriving[j] && !bAttesaReciproca && Pos[j] == Target[i])
 							{
 								// ⌫ **E QUI NON C'E' NEMMENO IL PERMESSO DELLE COMPAGNE** (`#2984`, [D-396]). La sua
 								// prima stesura lo metteva proprio in questo punto, come un `continue` per occupante,

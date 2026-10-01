@@ -1272,11 +1272,19 @@ bool FRTEnemyQueryCrossesSubjectAlliesTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	// ⌫ **AC-1 era scritto « le due regioni coincidono », ed è insoddisfacibile.** Misurato: **8 contro
-	// 9**, e la differenza è una cella sola — quella della compagna. Non vedendola, nulla la occupa e la
-	// regione la offre come destinazione; vedendola, [D-289] la esclude. È il sovra-riporto che la issue
-	// dichiara **non riparabile**: toglierla anche quando non si vede renderebbe il buco una deduzione sulla
-	// sua posizione.
+	// 🔴 **AC-1 è tornato soddisfacibile il 2026-10-01, e non perché qualcuno l'abbia riparato**
+	// ([D-446]). Diceva: *« le due regioni coincidono » era insoddisfacibile, misurato **8 contro 9**, e la
+	// differenza era la cella della compagna — non vedendola nulla la occupa e la regione la offre, vedendola
+	// [D-289] la escludeva. Era dichiarato un sovra-riporto **non riparabile**: toglierla anche quando non si
+	// vede avrebbe reso il buco una deduzione sulla sua posizione.
+	//
+	// 🔑 **La destinazione occupata non si esclude più affatto, quindi la differenza è ZERO e il canale
+	// si chiude da sé.** È un effetto collaterale di una decisione presa per il gameplay, non una
+	// riparazione: vale la pena scriverlo perché una perdita dichiarata irriducibile che si chiude per conto
+	// suo è esattamente la cosa che nessuno va a rimisurare.
+	//
+	// ⚠️ E [D-289] non è stato indebolito: continua a vietare la co-occupazione a **risoluzione**, dove
+	// nessun osservatore legge.
 	//
 	// 🔑 La proprietà vera — e quella che il difetto violava — è che la differenza si ferma **a quella
 	// cella**: ciò che sta OLTRE non può dipendere da quanto l'osservatore vede. Prima valeva 5 contro 9.
@@ -1291,23 +1299,31 @@ bool FRTEnemyQueryCrossesSubjectAlliesTest::RunTest(const FString&)
 		TestTrue(*FString::Printf(TEXT("AC-1: vedere non AGGIUNGE celle — (%d,%d)"), C.X, C.Y),
 			Has(NonVista.ReachableCells, C));
 	}
-	TestEqual(TEXT("AC-1: e la differenza è esattamente una cella, la sua"),
-		NonVista.ReachableCells.Num() - Vista.ReachableCells.Num(), 1);
+	TestEqual(TEXT("AC-1: e la differenza è ZERO: le due regioni coincidono"),
+		NonVista.ReachableCells.Num() - Vista.ReachableCells.Num(), 0);
 
-	// --- AC-2: si attraversa, non ci si ferma sopra --------------------------------------------------
+	// --- AC-2: si attraversa, e ci si può anche fermare sopra ---------------------------------------
 	TestTrue(TEXT("AC-2: la cella OLTRE la compagna è raggiungibile"),
 		Has(Vista.ReachableCells, FRTCellId(2, 0)));
-	TestFalse(TEXT("AC-2: quella della compagna no ([D-289])"),
+	// 🔴 [D-446]: era `TestFalse`, ed è la riga che produceva la differenza di AC-1.
+	TestTrue(TEXT("AC-2: e anche quella della compagna"),
 		Has(Vista.ReachableCells, CellaCompagna));
 
-	// --- AC-3: la metà falsificante ------------------------------------------------------------------
-	// ⛔ Stessa geometria, stessa visibilità, unità in mezzo di squadra DIVERSA dal soggetto: deve fermarlo.
-	// Senza, AC-1 e AC-2 passerebbero anche se gli ostacoli fossero spariti del tutto.
+	// --- AC-3: la metà che un tempo falsificava, e oggi conferma -------------------------------------
+	// 🔴 **Diceva *«unità in mezzo di squadra DIVERSA: deve fermarlo»*, e misurava che la squadra
+	// cambiasse l'esito** — [D-445] ha tolto la distinzione, e la stessa coppia di righe misura ora che non
+	// lo cambia. La forma a due configurazioni non si butta: è ciò che permette di dire che `TeamId` è
+	// **letto e ignorato**, e una configurazione sola non lo direbbe.
+	//
+	// 🔑 **Ciò che tiene il banco non vacuo non era questa metà, ed è rimasto**: la mappa è piena di
+	// bloccanti di terreno (`PutBlocker` qui sopra), e `premessa: la regione non è vuota` più il confronto
+	// con la portata dicono che la regione è limitata. Se gli ostacoli sparissero, la regione crescerebbe
+	// e questo banco se ne accorgerebbe dal **numero**, non dal segno.
 	const FRTEnemyTacticalRegions Avversaria = RegioneVedendo({ CellaSoggetto, CellaCompagna }, /*Squadra*/ 0);
-	TestFalse(TEXT("AC-3: con un'estranea in mezzo la cella oltre NON si offre"),
+	TestTrue(TEXT("AC-3: con un'estranea in mezzo la cella oltre si offre lo stesso"),
 		Has(Avversaria.ReachableCells, FRTCellId(2, 0)));
-	TestTrue(TEXT("AC-3: e la regione è più piccola di quella con la compagna"),
-		Avversaria.ReachableCells.Num() < Vista.ReachableCells.Num());
+	TestEqual(TEXT("AC-3: e la regione è esattamente quella con la compagna"),
+		Avversaria.ReachableCells.Num(), Vista.ReachableCells.Num());
 	return true;
 }
 

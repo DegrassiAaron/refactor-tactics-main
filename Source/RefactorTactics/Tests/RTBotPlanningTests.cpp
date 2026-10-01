@@ -133,6 +133,85 @@ bool FRTBotPlanningDecidesWithoutWorldTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 DUE COMPAGNE NON SCELGONO LA STESSA CELLA — `#1088`, e da [D-446] va DIFESO invece che
+ * ereditato.
+ *
+ * 🔑 **La proprieta' arrivava gratis da un rifiuto che non c'e' piu'.** Prima della scommessa,
+ * `FindPathForUnit` rispondeva `NoPath` su una meta occupata, quindi alla seconda compagna quella cella
+ * non si offriva. [D-446] fa riuscire quel percorso, e due bot che seguono lo stesso cammino troncano
+ * alla **stessa** cella.
+ *
+ * 🔴 **E il pezzo che la difende NON e' quello che credevo, l'ha detto la mutazione.** Avevo scritto
+ * qui che a tenerla fosse `CandidateCells` — il ventaglio meno le celle altrui — e rimettendo
+ * `ReachableCells` nei suoi due siti del planner la suite **intera** restava verde, questo banco compreso.
+ * Il pezzo che porta il peso e' il **ritorno all'ultimo passo LIBERO** nel ramo di ricerca: disabilitato
+ * quello, le due scelgono entrambe `(q=0,r=0,L=0)` e il banco va rosso. Le due misure insieme dicono che
+ * `CandidateCells` qui e' ridondante rispetto al ritorno — resta perche' restringe prima, e perche' e'
+ * difeso per conto proprio da `Bot.ReservedDestinationBlocksTeammatesOnly`.
+ *
+ * ⚠️ **Senza questo banco la proprieta' era indifesa, ed e' cosi' che si e' scoperto**: una
+ * mutazione che non uccide nessuno non dice *«il codice e' ridondante»*, dice *«nessuno sta guardando»*.
+ *
+ * ⛔ **Non asserisce QUALE cella scelgano**, come il banco qui sopra: asserisce che siano **due**.
+ * Il contenuto della decisione appartiene allo scorer e ai banchi col mondo; cio' che si pinna qui e' che
+ * la seconda compagna veda la prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotPlanningTeammatesPickDistinctCellsTest,
+	"RefactorTactics.Bot.TeammatesDoNotPickTheSameCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotPlanningTeammatesPickDistinctCellsTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakeFlatMap(5);
+
+	// Due bot affiancati e NESSUN avversario: e' il ramo di RICERCA, dove entrambe seguono lo stesso
+	// cammino verso il centro e troncano sulla stessa cella. E' il caso misurato in
+	// `RTBotPlanningLibrary.cpp` — *«entrambe su (q=0,r=0,L=0), il centro»*.
+	TArray<FRTHexSimUnit> SimUnits;
+	SimUnits.Add(FRTHexSimUnit(0, FRTCellId(-3, 0, 0), /*budget*/ 3));
+	SimUnits.Add(FRTHexSimUnit(1, FRTCellId(-4, 1, 0), /*budget*/ 4));
+	const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
+
+	TArray<FRTBotUnitFacts> Facts;
+	Facts.Add(MakeFacts(0, /*Team*/ 0, FRTCellId(-3, 0, 0), /*bBot*/ true));
+	Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(-4, 1, 0), /*bBot*/ true));
+
+	FRTBotWeights Pesi;
+	Pesi.WKill = 100;
+	Pesi.WDamage = 10;
+	Pesi.WApproach = 5;
+
+	TMap<int32, FRTTeamKnowledge> Conoscenza;
+	TMap<int32, int32> Inattivita;
+	TMap<int32, int32> UltimoRound;
+
+	const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
+		Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+
+	if (!TestEqual(TEXT("due piani: uno per bot"), Esito.Decisions.Num(), 2)) { return false; }
+	// ➕ **Le due destinazioni finiscono nel referto anche quando il banco e' verde.** Se un giorno
+	// cade, cio' che serve sapere e' **su quale cella** sono finite insieme: un rosso che dice solo
+	// «non sono distinte» manda a rileggere lo scorer, e il colpevole e' quasi sempre il troncamento.
+	for (const FRTBotPlanDecision& D : Esito.Decisions)
+	{
+		AddInfo(FString::Printf(TEXT("u%d sceglie %s"), D.UnitIndex, *D.PlannedCell.ToString()));
+	}
+
+	// 🔑 **La premessa che rende il banco non vacuo: si muovono entrambe.** Due unita' ferme hanno
+	// destinazioni distinte per costruzione, e l'asserzione sotto passerebbe senza misurare niente.
+	const FRTCellId PartenzaA(-3, 0, 0);
+	const FRTCellId PartenzaB(-4, 1, 0);
+	if (!TestTrue(TEXT("premessa: la prima si muove"), Esito.Decisions[0].PlannedCell != PartenzaA)
+		|| !TestTrue(TEXT("premessa: e anche la seconda"), Esito.Decisions[1].PlannedCell != PartenzaB))
+	{
+		return false;
+	}
+
+	TestNotEqual(TEXT("e le due destinazioni sono DISTINTE"),
+		Esito.Decisions[0].PlannedCell, Esito.Decisions[1].PlannedCell);
+	return true;
+}
+
+/**
  * L'audit costa, e si paga solo quando lo si chiede.
  *
  * ⚠️ Era `bRecordReplay` letto dall'orchestratore; ora e' un parametro, e questo test e' l'unico posto in
