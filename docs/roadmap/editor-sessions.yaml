@@ -4451,6 +4451,66 @@ sessions:
       contro le zone basse dell'HUD, #3320 per il troncamento che fa cadere la riga `[tecnico]` a
       pannello pieno.
 
+  - id: U60
+    title: Vertical Slice Labs & Playback, smoke integrato
+    block: 6
+    critical: true
+    execution_lane: pie
+    produces: il verdetto di `G16` — le cinque capability usate NELLO STESSO giro, sulla stessa build
+      candidata, con ogni passo a esito reale
+    artifacts: []
+    verifies: []
+    issues: [2601]
+    done_when: ogni passo dello smoke flow ha un esito reale, e i passi non eseguiti dichiarano il motivo
+    # 🔴 **Questo record nasce VUOTO e prima dell esecuzione, ed e deliberato.** Lo scrive la meta
+    # headless di `G16`: il criterio del gate chiede che il giro sia *registrato come seduta*, e senza
+    # un contenitore chi conduce dovrebbe prima riderivare i passi dal corpo di #2601.
+    #
+    # 🔑 **`issues: [2601]` NON e una formalita: senza, questa riga rende rosso `G14`.** L asserzione
+    # `A2` di `doc-coherence.ts` fallisce su una seduta `critical: true` che sia INSIEME priva di
+    # `issues:`, non nominata da nessuna issue aperta, e non ancora eseguita (`seduteOrfane`). Le vie
+    # d uscita sono quattro e questa e la piu economica, perche sta nello stesso file.
+    #
+    # ⛔ **Nessun passo e dichiarato verde in anticipo**, ed e la DoD di #2601 a vietarlo: *ogni passo
+    # ha un esito reale*. Finche il giro non e stato fatto, qui non c e nessun verdetto.
+    #
+    # ⚠️ **Sulla stessa build Development candidata di `G9`, `G10`, `G11` e `G13`** — non su una build
+    # propria. Unreal e uno per macchina, e un giro misurato su un binario diverso non attesta la
+    # stessa release candidate (#2601, sezione *Packaged*).
+    steps: |
+      Lo smoke flow e quello di #2601, trascritto qui perche chi conduce non debba riaprirla. Le
+      cinque capability vanno usate NELLO STESSO giro: verdi ciascuna nel proprio checkpoint non
+      soddisfano questo gate.
+
+      1. **Ability Lab** — seleziono una ability reale del catalogo, `Run`, e leggo outcome + TurnLog.
+      2. **Hero Lab** — scelgo un hero reale (`Hero.Aevik` · `Hero.Muiren` · `Hero.Branth` ·
+         `Hero.Ivrin`), scelgo una ability del suo kit, `Run`.
+         ⚠️ I nomi sono quelli di oggi: #2601 scrive ancora `Hero.Gadget`, `Hero.Phase` e
+         `Hero.Wraith`, ritirati da `D-334` e `#2491`.
+         🔑 **Stesso runner di Ability Lab**: due percorsi d esecuzione distinti sono un difetto di
+         questo gate, non una variante accettabile.
+      3. **Presentation** — il risultato del resolver e visibile e leggibile a schermo.
+      4. **Turn Log** — l outcome e spiegabile con dati canonici e reason code strutturati.
+      5. **Replay Viewer** — apro un replay dalla lista, `Play`/`Pause`, `Previous`/`Next Phase`,
+         `Previous`/`Next Turn`, turno e fase correnti visibili, `End`/`Back` funzionante.
+         ⚠️ I controlli di fase enumerano le **cinque fasi osservabili** — `Prep · Dash · Blast ·
+         Move · Cleanup` — non `ERTMatchPhase`: `Planning` e `MatchEnded` non sono mai emesse dal
+         resolver.
+
+      Due error case che #472 gia supporta, e che #2601 lascia aperti:
+      - **archivio parziale**: si apre e si guarda fino a dove arriva, dichiarando che finisce li;
+      - **replay mancante o corrotto**: ognuno dei quattro esiti di `ERTReplayOpenResult` —
+        `Opened`, `ManifestUnreadable`, `TopologyMismatch`, `TraceUnreadable` — produce un messaggio
+        distinto, e una riga il cui archivio e assente lo dice RESTANDO nella lista.
+
+      ⛔ Ogni difetto trovato si apre **sull owner**, mai dentro il gate: Ability Lab #2599, Hero Lab
+      #2600, Presentation `E21` #286 → #288, Turn Log #79 / #1936, Replay Viewer #472.
+      ⚠️ Due owner su cinque hanno la capability ancora *da consegnare* al 2026-09-06 (#2599, #2600):
+      se all esecuzione non ci sono, il passo si dichiara non eseguito col motivo — non si omette.
+    notes: >-
+      Creata il 2026-10-02 come contenitore, senza esecuzione. Il verdetto di `G16` vive nella sua
+      riga di `v0.1-definition-of-done.md` §3; questa seduta e il luogo in cui il giro si registra.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
