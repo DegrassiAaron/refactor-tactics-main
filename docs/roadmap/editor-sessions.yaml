@@ -4507,6 +4507,63 @@ sessions:
       #2600, Presentation `E21` #286 → #288, Turn Log #79 / #1936, Replay Viewer #472.
       ⚠️ Due owner su cinque hanno la capability ancora *da consegnare* al 2026-09-06 (#2599, #2600):
       se all esecuzione non ci sono, il passo si dichiara non eseguito col motivo — non si omette.
+      ⌫ **Quella riga e superata, misurato il 2026-10-02**: #2599 e #2600 sono CLOSED/COMPLETED dal
+      2026-09-10, come #288 (Presentation) e #472 (Replay Viewer). Resta scoperta la sola quarta
+      capability, Turn Log proiettato al giocatore: #1936 e OPEN e i suoi tre bloccanti dichiarati
+      — #2964, #3073, #2764 — sono OPEN tutti e tre. ∴ il passo 4 andra ROSSO, ed e una decisione
+      d autore del 2026-10-02 eseguire lo stesso: nessuno ha mai misurato se le altre quattro
+      superfici reggano INSIEME, ed e l unica cosa che questo gate esiste per dire.
+
+      --- COME SI LANCIA, E COME SI TESTIMONIA IL GIRO ---------------------------------------
+
+      Motore libero prima di cominciare:
+        Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'"   # nessuna riga
+
+      Lancio, da clone principale, con l Editor compilato DAL CANDIDATE:
+        & "<engine>\Engine\Binaries\Win64\UnrealEditor.exe" "<repo>\RefactorTactics.uproject" `
+            -NoLiveCoding -abslog=<repo>\Saved\Logs\g16-u60.log
+
+      🔑 **L `-abslog` NON e per te: e il testimone che il giro e stato UNO.** Il criterio chiede
+      "una sola apertura", e una dichiarazione non lo prova — un log solo si. Va citato in
+      `artifacts:` a seduta finita. ⚠️ Virgolettato se il percorso ha spazi: senza, si perde in
+      silenzio e resti senza log.
+      🔑 **`-NoLiveCoding` e cortesia verso chi compila**: un Editor interattivo senza quel flag
+      blocca `Build.bat` su TUTTI i cloni, non solo sul proprio (AGENTS.md §9).
+
+      --- DOVE SI APRONO LE CINQUE SUPERFICI ---------------------------------------------------
+
+      1-2. **Ability Lab e Hero Lab sono UN SOLO pannello**, non due: tab `Ability / Hero Lab`
+           (`RTLab`), registrato come Nomad tab e raggiungibile da **Window > Tools**, oppure dal
+           launcher workspace, che lo dichiara disponibile.
+           ✅ **E questo e gia meta del requisito di #2601**: "Ability Lab e Hero Lab condividono un
+           solo runner, due percorsi d esecuzione distinti sono un difetto di questo gate". Un solo
+           pannello non puo averne due.
+           ⛔ Il tab NON si apre da solo ed e deliberato: `RegisterNomadTabSpawner` e non
+           un estensione di layout, per non mettersi addosso a chi ha aperto l Editor per altro.
+
+      3-4. **Presentation e Turn Log si guardano IN PARTITA**, non in un pannello: sono il risultato
+           del resolver a schermo e la sua spiegabilita. Si osservano durante il PIE del passo 5.
+
+      5.   **Replay Viewer e una schermata del FRONTEND**, non una finestra d Editor: l id e
+           `ReplayViewer`, accanto a `MatchHistory` (`Frontend/RTFrontendScreenIds.cpp`). Il flusso
+           che il sorgente documenta e: Match History -> si SELEZIONA una partita
+           (`URTReplayViewerSubsystem::SelectMatch`) -> si spinge la schermata del viewer.
+           ⚠️ **Quale pulsante, su quale widget, non l ho verificato**: il legame e UMG, non C++.
+           Si vede a schermo — e se non si trova, QUELLA e un osservazione da registrare, non un
+           ostacolo da aggirare.
+
+      🔴 **L archivio che apri al passo 5 deve essere quello prodotto dalla partita dei passi 3-4**,
+      identificato per `MatchId`. Non e una formalita: ci sono gia centinaia di cartelle sotto
+      `Saved/Replays/` e il viewer le elenca tutte, quindi il passo 5 passerebbe su una qualunque e
+      il gate misurerebbe cinque cose scollegate invece che insieme. Se la partita non ne chiude uno
+      riapribile, il passo 5 e ❌ — non ✅ su un archivio preesistente.
+
+      --- IL VERDETTO -------------------------------------------------------------------------
+
+      Il verdetto di `G16` vive nella colonna 4 della sua riga in `v0.1-definition-of-done.md` §3.
+      ✅ solo se tutti e cinque i passi sono ✅; **un passo ❌ rende `G16` 🔴**, con la issue dell
+      owner linkata — mai ⏳. ⏳ significa "giro non eseguito", e non copre "eseguito male".
+      Qui dentro si registra l esito passo per passo, e `artifacts:` prende il log.
     notes: >-
       Creata il 2026-10-02 come contenitore, senza esecuzione. Il verdetto di `G16` vive nella sua
       riga di `v0.1-definition-of-done.md` §3; questa seduta e il luogo in cui il giro si registra.
