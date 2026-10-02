@@ -217,17 +217,23 @@ bool FRTPacingCsvTest::RunTest(const FString&)
 	URTPacingLibrary::CsvHeader().ParseIntoArray(HeaderCols, TEXT(","), /*InCullEmpty=*/ false);
 	URTPacingLibrary::CsvRow(S).ParseIntoArray(RowCols, TEXT(","), /*InCullEmpty=*/ false);
 
-	// ⚠️ **Diciassette dal 2026-10-01**, con `CandidateEvents` e `CandidatesTotal` aggiunte in CODA
-	// (`#2516`); erano quindici dal 2026-09-06 con `ReactionOpportunities`, e quattordici dal 2026-08-28
-	// con `ReactionWindows`. Il numero
+	// ⚠️ **Venti dal 2026-10-02**, con `CollectionCpuUsTotal`, `BoundaryEvents` e `BoundaryCpuUsTotal`
+	// aggiunte in CODA (`#2516`); erano diciassette dal 2026-10-01 con `CandidateEvents` e
+	// `CandidatesTotal`, quindici dal 2026-09-06 con `ReactionOpportunities`, e quattordici dal
+	// 2026-08-28 con `ReactionWindows`. Il numero
 	// e' pinnato apposta: le colonne di questo CSV si leggono per POSIZIONE da fogli e script gia' scritti, e
 	// una colonna inserita in mezzo sposterebbe ogni colonna a valle senza che nessun errore lo dica. Questo
 	// test e' l'unico posto in cui quel movimento diventa visibile — ed e' cosi' che ha preso l'aggiunta.
-	TestEqual(TEXT("diciassette colonne nell'intestazione"), HeaderCols.Num(), 17);
+	TestEqual(TEXT("venti colonne nell'intestazione"), HeaderCols.Num(), 20);
 	TestEqual(TEXT("la riga ha le stesse colonne dell'intestazione"), RowCols.Num(), HeaderCols.Num());
 
 	// Ogni colonna e' un intero: se un float si intrufolasse, con locale italiano stamperebbe una virgola
-	// e spezzerebbe la riga in **diciotto** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	// e spezzerebbe la riga in **ventuno** colonne. Il controllo qui sopra lo prende; questo dice PERCHE'.
+	//
+	// 🔴 **Non e' piu' solo una rete: dal 2026-10-02 e' il vincolo che ha DECISO un'unita'.** I due
+	// cronometri di `#2516` sono `double` millisecondi nel campione, perche' sub-millisecondo; qui escono
+	// in microsecondi INTERI, e la ragione e' esattamente questa asserzione. Chi volesse pubblicarli in
+	// millisecondi decimali deve prima cambiare questa riga, e cambiarla e' la discussione.
 	// ⚠️ Il numero in questa frase segue il conteggio delle colonne: diceva «14» quando l'intestazione ne
 	// aveva 13, ed e' rimasto indietro all'aggiunta della quattordicesima — cioe' spiegava il caso ROTTO
 	// nominando quello sano. Se aggiungi una colonna, questa riga si aggiorna con l'assert sopra.
@@ -585,6 +591,82 @@ bool FRTPacingCandidatesSummaryTest::RunTest(const FString&)
 		TestEqual(TEXT("tre raccolte a vuoto: campione TRE"), Zeri.CandidateEvents, 3);
 		TestEqual(TEXT("e i percentili valgono zero, come nel caso sopra"),
 			Zeri.MedianCandidatesPerEvent, 0);
+	}
+
+	return true;
+}
+
+/**
+ * I TRE BUDGET NON SI SOMMANO MAI — `#2516`.
+ *
+ * 🔴 **Era l'unica casella della DoD che restava una promessa scritta in prosa**, e una promessa
+ * non e' un oracolo: *«i tre budget restano separati e non si sommano mai»* vive nei commenti di
+ * `FRTPacingSummary` e di `CsvRow`, cioe' nei posti che un refactor legge per ultimi. Questo test la
+ * rende misurabile.
+ *
+ * 🔑 **I tre numeri sono scelti perche' ogni somma plausibile dia un risultato DIVERSO.** Non e'
+ * una precauzione generica: con valori simili, sommare la raccolta dentro il boundary darebbe un
+ * numero ancora plausibile e il test resterebbe verde. Qui il boundary vale un ordine di grandezza
+ * piu' dei due tempi di raccolta messi insieme, quindi qualunque mescolanza si vede.
+ *
+ * ⚠️ **E i due CAMPIONI divergono**, che e' l'altra meta' della stessa affermazione: due raccolte,
+ * un boundary. Chi leggesse `CandidateEvents` come base dei percentili del boundary userebbe la base
+ * sbagliata, e il rapporto fra i due e' proprio il numero di raccolte che non hanno aperto nulla.
+ *
+ * Given un campione con tre serie di lunghezze e grandezze diverse
+ * When lo si riassume
+ * Then ogni percentile vale esattamente cio' che la SUA serie da', e i due campioni restano distinti
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPacingThreeBudgetsStaySeparateTest,
+	"RefactorTactics.Pacing.ThreeBudgetsAreNeverSummed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPacingThreeBudgetsStaySeparateTest::RunTest(const FString&)
+{
+	TArray<FRTPacingSample> Campioni;
+	{
+		FRTPacingSample S;
+		S.TurnNumber = 1;
+		S.CandidatesPerEvent = { 2, 4 };          // conteggio
+		S.CandidateCollectionCpuMs = { 0.5, 1.5 }; // tempo della raccolta: due eventi
+		S.BoundaryCpuMs = { 10.0 };                // tempo del boundary: UNO solo
+		Campioni.Add(S);
+	}
+
+	const FRTPacingSummary Sommario = URTPacingLibrary::SummarizeSamples(Campioni, /*CutoffWindowMs=*/ 3000);
+
+	// I due campioni sono diversi, e il sommario li pubblica entrambi.
+	TestEqual(TEXT("due raccolte"), Sommario.CandidateEvents, 2);
+	TestEqual(TEXT("ma un solo boundary: i campioni divergono per costruzione"),
+		Sommario.BoundaryEvents, 1);
+
+	// Il conteggio resta un conteggio: nessun tempo vi entra.
+	TestEqual(TEXT("mediana dei candidati: dalla SUA serie"), Sommario.MedianCandidatesPerEvent, 2);
+	TestEqual(TEXT("p90 dei candidati: dalla SUA serie"), Sommario.P90CandidatesPerEvent, 4);
+
+	// La raccolta resta la raccolta. Nearest-rank su {0.5, 1.5}: p50 -> rango 1 -> 0,5 ; p90 -> rango 2 -> 1,5.
+	TestEqual(TEXT("mediana della raccolta: dalla SUA serie"),
+		Sommario.MedianCandidateCollectionCpuMs, 0.5, /*Tolerance=*/ 1e-9);
+	TestEqual(TEXT("p90 della raccolta: dalla SUA serie"),
+		Sommario.P90CandidateCollectionCpuMs, 1.5, /*Tolerance=*/ 1e-9);
+
+	// ⛔ E il boundary resta il boundary: 10,0 e non 12,0. Sommare la raccolta dentro di esso e' la
+	// mescolanza che la DoD vieta, ed e' esattamente questa riga a renderla rossa.
+	TestEqual(TEXT("mediana del boundary: dalla SUA serie, senza la raccolta dentro"),
+		Sommario.MedianBoundaryCpuMs, 10.0, /*Tolerance=*/ 1e-9);
+	TestEqual(TEXT("p90 del boundary: con un solo campione coincide con la mediana"),
+		Sommario.P90BoundaryCpuMs, 10.0, /*Tolerance=*/ 1e-9);
+
+	// ⚠️ **Il percentile reale e quello intero sono la STESSA regola di rango**, e si verifica
+	// sul valore atteso invece che confrontando le due funzioni fra loro: un confronto fra una
+	// implementazione e la sua copia passerebbe anche se la regola fosse sbagliata in entrambe.
+	{
+		const TArray<double> Serie = { 1.0, 2.0, 3.0, 4.0, 10.0 };
+		TestEqual(TEXT("p50 reale su cinque valori: rango 3"),
+			URTPacingLibrary::PercentileNearestRankReal(Serie, 50), 3.0, /*Tolerance=*/ 1e-9);
+		TestEqual(TEXT("p90 reale su cinque valori: rango 5"),
+			URTPacingLibrary::PercentileNearestRankReal(Serie, 90), 10.0, /*Tolerance=*/ 1e-9);
+		TestEqual(TEXT("serie vuota: zero, come il gemello intero"),
+			URTPacingLibrary::PercentileNearestRankReal({}, 50), 0.0, /*Tolerance=*/ 1e-9);
 	}
 
 	return true;
