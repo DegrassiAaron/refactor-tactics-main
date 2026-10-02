@@ -54,6 +54,7 @@
 #include "Core/RTTypes.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ScopeExit.h" // ON_SCOPE_EXIT: il cronometro del boundary chiude su ENTRAMBE le uscite (#2516)
 #include "TimerManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -611,8 +612,13 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		Vitals.Add(TargetIdx, FRTTargetVitals(Units[TargetIdx]->Health, Units[TargetIdx]->MaxHealth));
 	}
 
+	// 🔑 **Il cronometro sta STRETTO attorno alla chiamata, e non comprende la costruzione di `Movers`**
+	// (`#2516`). La domanda della DoD e' quanto costa la candidate collection, non quanto costa il
+	// micro-step: allargare le parentesi darebbe un numero piu' grande e di un'altra grandezza.
+	const double InizioRaccolta = FPlatformTime::Seconds();
 	const TArray<FRTOverwatchTrigger> Triggers = URTReactionOpportunityLibrary::BuildOverwatchTriggers(
 		Map, TurnNumber, Watchers, Movers, Vitals, MicroStepIndex);
+	const double RaccoltaMs = (FPlatformTime::Seconds() - InizioRaccolta) * 1000.0;
 
 	// 🔑 **Il conteggio sta al CALL SITE, e `BuildOverwatchTriggers` resta PURA** (`#2516`): e' lo
 	// stesso vincolo che la DoD impone al cronometro, e vale a maggior ragione per un contatore — qui
@@ -621,9 +627,14 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 	// ⚠️ **Un evento e' questa chiamata, cioe' un micro-step.** Zero eventi e un evento con zero
 	// candidati sono due cose diverse, e il sommario le distingue pubblicando il campione accanto ai
 	// percentili.
+	// ⚠️ **Le due registrazioni stanno nella STESSA guardia, e non e' una comodita'.** E' cio' che
+	// rende `CandidatesPerEvent.Num() == CandidateCollectionCpuMs.Num()` un'invariante per costruzione
+	// invece di una coincidenza: due `if (Pacing.IsOpen())` separati potrebbero divergere se qualcuno ne
+	// spostasse uno, e il campione dei percentili sarebbe sbagliato senza che niente lo dica.
 	if (Pacing.IsOpen())
 	{
 		Pacing.Current().CandidatesPerEvent.Add(Triggers.Num());
+		Pacing.Current().CandidateCollectionCpuMs.Add(RaccoltaMs);
 	}
 
 	// --- 3. Per ogni opportunity: finestra, decisione, commit ----------------------------------------------
@@ -674,6 +685,19 @@ ERTMovementAdvanceResult ARTTurnManager::ResolveReactionBoundary(const URTHexMap
 		Pending.Opportunity = Opportunity;
 		Pending.ArmedIndex = ArmedIndex;
 		Ctx->PendingTriggers.Add(MoveTemp(Pending));
+	}
+
+	// 🔴 **Il boundary si apre QUI, e solo se ha qualcosa da consumare** (`#2516`). La voce nasce a
+	// zero e cresce a ogni giro del pump: e' la forma che `BoundaryCpuMs` richiede per essere una
+	// **durata** attraverso le sospensioni invece del costo della sola apertura.
+	//
+	// ⛔ **`PendingTriggers.Num() > 0` non e' un'ottimizzazione.** Senza, ogni micro-step senza trigger
+	// — la grande maggioranza — aggiungerebbe una voce da ~0, e il `p50` del boundary misurerebbe
+	// soprattutto quanto costa NON avere un boundary. Il conto delle raccolte resta comunque pubblicato:
+	// `CandidateEvents` le conta tutte, e la differenza con `BoundaryEvents` E' il numero di quelle vuote.
+	if (Pacing.IsOpen() && Ctx->PendingTriggers.Num() > 0)
+	{
+		Pacing.Current().BoundaryCpuMs.Add(0.0);
 	}
 
 	return PumpReactionTriggers(Map, Units, State);
@@ -1003,6 +1027,32 @@ ERTMovementAdvanceResult ARTTurnManager::PumpReactionTriggers(const URTHexMapAss
 	{
 		return ERTMovementAdvanceResult::Advanced;
 	}
+
+	// --- IL CRONOMETRO DEL BOUNDARY (`#2516`) --------------------------------------------------------
+	//
+	// 🔴 **Misura la DURATA del boundary, non il costo della sua apertura** — e lo fa accumulando
+	// **CPU**, giro per giro, saltando le sospensioni. Questa funzione puo' uscire con `Suspended` e
+	// rientrare piu' tardi da `ResumeSuspendedResolution`: fra i due momenti c'e' una **persona**, e un
+	// cronometro da apertura a chiusura la misurerebbe. Il Decision Time umano e' playtest per decisione
+	// della issue, e questo campo non deve diventare un suo surrogato silenzioso.
+	//
+	// 🔑 **`ON_SCOPE_EXIT` e non due righe sulle due uscite**: le uscite oggi sono due, ma la terza
+	// che qualcuno aggiungera' salterebbe un accumulo scritto a mano, e il campione si accorcerebbe
+	// senza che niente diventi rosso. Il guard copre anche le uscite che non esistono ancora.
+	//
+	// ⚠️ **Il predicato si cattura all'INGRESSO.** In coda `PendingTriggers.Reset()` lo azzera, quindi
+	// leggerlo all'uscita direbbe sempre zero. Ed e' lo **stesso** predicato con cui l'appaiamento ha
+	// aperto la voce: accumulare sotto una condizione diversa da quella che apre significa, prima o poi,
+	// sommare in coda alla voce di un boundary PRECEDENTE.
+	const bool bMisuraBoundary = Ctx->PendingTriggers.Num() > 0;
+	const double InizioGiro = FPlatformTime::Seconds();
+	ON_SCOPE_EXIT
+	{
+		if (bMisuraBoundary && Pacing.IsOpen() && Pacing.Current().BoundaryCpuMs.Num() > 0)
+		{
+			Pacing.Current().BoundaryCpuMs.Last() += (FPlatformTime::Seconds() - InizioGiro) * 1000.0;
+		}
+	};
 
 	while (Ctx->PendingTriggers.IsValidIndex(Ctx->NextTrigger))
 	{

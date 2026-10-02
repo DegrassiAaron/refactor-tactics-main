@@ -356,10 +356,32 @@ bool FRTPacingCandidateEventsAreWiredTest::RunTest(const FString&)
 
 	int32 EventiTotali = 0;
 	int32 TurniConEventi = 0;
+	int32 BoundaryTotali = 0;
+	int32 DisallineamentiRaccolta = 0;
+	double RaccoltaMassimaMs = 0.0;
+	double RaccoltaTotaleMs = 0.0;
+	double BoundaryMassimoMs = 0.0;
 	for (const FRTPacingSample& S : TM->GetPacingSamples())
 	{
 		EventiTotali += S.CandidatesPerEvent.Num();
 		if (S.CandidatesPerEvent.Num() > 0) { ++TurniConEventi; }
+
+		// 🔑 **L'invariante del cronometro della raccolta e' di LUNGHEZZA, non di valore** (`#2516`).
+		// Le due registrazioni stanno nella stessa guardia al call site, quindi gli array crescono
+		// insieme: verificarlo qui e' cio' che rende quella forma un'invariante invece di una
+		// coincidenza, e un domani in cui qualcuno sposta una delle due `Add` diventa rosso.
+		if (S.CandidateCollectionCpuMs.Num() != S.CandidatesPerEvent.Num()) { ++DisallineamentiRaccolta; }
+
+		BoundaryTotali += S.BoundaryCpuMs.Num();
+		for (double Ms : S.CandidateCollectionCpuMs)
+		{
+			RaccoltaTotaleMs += Ms;
+			RaccoltaMassimaMs = FMath::Max(RaccoltaMassimaMs, Ms);
+		}
+		for (double Ms : S.BoundaryCpuMs)
+		{
+			BoundaryMassimoMs = FMath::Max(BoundaryMassimoMs, Ms);
+		}
 	}
 
 	// 🔴 Con la registrazione tolta dal call site, questa riga cade e le altre no.
@@ -368,6 +390,28 @@ bool FRTPacingCandidateEventsAreWiredTest::RunTest(const FString&)
 		EventiTotali, TM->GetPacingSamples().Num()), EventiTotali > 0);
 	TestTrue(TEXT("e non in un turno solo: con un guardiano armato la raccolta si ripete"),
 		TurniConEventi > 1);
+
+	// 🔴 Con uno dei due cronometri tolto dal call site, questa riga cade. E' il gemello della
+	// riga sopra per `#2516`, e verifica la LUNGHEZZA perche' e' cio' che la forma garantisce: una
+	// durata e' un numero che dipende dalla macchina, e asserirla renderebbe il gate un misuratore
+	// di CPU invece che di cablaggio.
+	TestEqual(TEXT("ogni raccolta e' cronometrata: i due array crescono insieme"),
+		DisallineamentiRaccolta, 0);
+
+	// 🔴 **E almeno un boundary si APRE davvero**, altrimenti `BoundaryCpuMs` resterebbe un array
+	// vuoto e i suoi percentili sarebbero zero su una sessione intera, verdi e privi di senso. Il
+	// confronto e' `> 0` e non un numero: quante volte un boundary si apra dipende dallo scenario, e
+	// pinnarlo qui legherebbe il cablaggio a una fixture invece che al meccanismo.
+	TestTrue(*FString::Printf(TEXT("almeno un boundary e' stato cronometrato (ne ho visti %d)"),
+		BoundaryTotali), BoundaryTotali > 0);
+
+	// ⚠️ **Le grandezze si STAMPANO, non si asseriscono.** Servivano a decidere l'unita' dei due
+	// campi — `double` millisecondi invece di `int32` — e la decisione poggia su questi numeri invece
+	// che su una stima. Restano visibili a ogni esecuzione: il giorno in cui la raccolta diventasse
+	// cara, il numero e' gia' nel log e nessuno deve andarlo a cercare.
+	AddInfo(FString::Printf(
+		TEXT("[#2516] raccolte %d (totale %.4f ms, max %.4f ms) | boundary %d (max %.4f ms)"),
+		EventiTotali, RaccoltaTotaleMs, RaccoltaMassimaMs, BoundaryTotali, BoundaryMassimoMs));
 
 	DestroyHexPacingWorld(World);
 	return true;

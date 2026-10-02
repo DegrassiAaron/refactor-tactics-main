@@ -200,6 +200,46 @@ struct FRTPacingSample
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	TArray<int32> CandidatesPerEvent;
+
+	/**
+	 * Quanto e' costata OGNI raccolta di candidati, in millisecondi di CPU, uno per evento (`#2516`).
+	 *
+	 * 🔑 **E' un `double` e non un `int32`, e la ragione e' una misura.** Gli altri quattro tempi di
+	 * questa struct (`MsToFirstInput`, `MsToLockIn`, `MsSinceLastInput`, `MsPlayback`) sono `int32`
+	 * perche' misurano tempi **umani**, dove il millisecondo e' la cifra meno significativa. Qui
+	 * l'operazione e' sub-millisecondo: un `int32` di millisecondi pubblicherebbe `0` per ogni evento,
+	 * cioe' una metrica che non misura. ⛔ Il nome resta `...CpuMs` perche' e' quello che la DoD di
+	 * `#2516` usa, e cambiarlo avrebbe scollegato il campo dalla casella che lo chiede.
+	 *
+	 * ⚠️ **CPU, non tempo trascorso.** Si cronometra la sola chiamata a `BuildOverwatchTriggers`,
+	 * che e' sincrona e non sospende: qui le due cose coincidono. Nel boundary **non** coincidono, ed e'
+	 * il motivo per cui il campo accanto si accumula invece di misurarsi in un colpo.
+	 *
+	 * ⛔ **Non entra nell'hash del TurnLog** per costruzione, come ogni campo di `FRTPacingSample`:
+	 * non c'e' un'esclusione da scrivere e quindi nessuna da dimenticare.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	TArray<double> CandidateCollectionCpuMs;
+
+	/**
+	 * Quanto e' costato OGNI decision boundary, in millisecondi di CPU, uno per boundary (`#2516`).
+	 *
+	 * 🔴 **E' la DURATA del boundary e non della sua apertura** — decisione d'autore, 2026-10-02,
+	 * su una domanda che la DoD non conteneva. Il boundary non si consuma in un colpo: `PumpReactionTriggers`
+	 * puo' **sospendersi** su una finestra interattiva e riprendere piu' tardi da `NextTrigger`, e fra i due
+	 * momenti passa un frame o una persona.
+	 *
+	 * 🔑 **Si ACCUMULA attraverso le sospensioni, e questo e' cio' che tiene onesto il `Cpu` del nome.**
+	 * Un cronometro da apertura a chiusura misurerebbe **l'attesa umana**, che questa issue dichiara
+	 * esplicitamente fuori portata: *«la durata della Resolution dipende dal tempo reale e da decisori
+	 * veri»*, e il `p50`/`p90` di `spec-decision-time-bank.md` resta playtest. Qui si somma il tempo
+	 * **dentro** il pump, giro per giro: la durata del boundary meno il tempo in cui nessuno lavorava.
+	 *
+	 * ⚠️ **Un boundary per micro-step**, che e' la granularita' che la DoD impone (*«un timer per
+	 * micro-step, non per candidato»*). La voce nasce quando il boundary si apre e cresce a ogni ripresa.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	TArray<double> BoundaryCpuMs;
 };
 
 /** Sommario di una sessione di campioni. Prodotto da URTPacingLibrary::SummarizeSamples. */
@@ -283,4 +323,32 @@ struct FRTPacingSummary
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
 	int32 P90CandidatesPerEvent = 0;
+
+	/**
+	 * ⛔ **I TRE BUDGET RESTANO SEPARATI E NON SI SOMMANO MAI** (`#2516`), e il sommario e' il posto
+	 * dove la tentazione nasce: un "costo totale del boundary" sarebbe un numero comodo e falso.
+	 * `CandidatesPerEvent` conta, `CandidateCollectionCpuMs` cronometra la raccolta,
+	 * `BoundaryCpuMs` cronometra il boundary — e la raccolta **non** e' dentro il boundary: avviene
+	 * prima, al call site, e produce cio' che il boundary poi consuma. Sommarli conterebbe due fasi
+	 * diverse come se fossero annidate.
+	 *
+	 * ⚠️ **I campioni sono DUE e non uno.** Ogni raccolta e' un evento; non ogni raccolta apre un
+	 * boundary — una raccolta che produce zero candidati non ne apre nessuno. `CandidateEvents` e
+	 * `BoundaryEvents` divergono per costruzione, e leggerne uno per l'altro falserebbe la base dei
+	 * percentili.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	int32 BoundaryEvents = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	double MedianCandidateCollectionCpuMs = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	double P90CandidateCollectionCpuMs = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	double MedianBoundaryCpuMs = 0.0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Pacing")
+	double P90BoundaryCpuMs = 0.0;
 };
