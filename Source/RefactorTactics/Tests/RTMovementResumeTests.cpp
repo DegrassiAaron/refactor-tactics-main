@@ -258,15 +258,22 @@ bool FRTMovementResolutionGuardsTest::RunTest(const FString&)
  * `Suspended` invece di risolvere il micro-step successivo. E' la sospensione globale di ADR-0004 §5, che
  * la fetta 1 aveva gratis dalla chiamata sincrona e che qui e' conservata di proposito.
  *
- * ⚠️ **L'`ensure` atteso E' la prova, non un difetto.** Il test guida il turno per la via **sincrona**
- * (`LockInAndResolve` → `ResolveMovement`), che per costruzione non sa attendere: incontrando una finestra
- * dichiara forte di non poterla onorare. Dichiararlo atteso con `AddExpectedError` e' il modo di
- * verificare che quella strada sia stata **davvero** imboccata — senza, il test passerebbe anche se la
- * sospensione non fosse mai avvenuta.
+ * ⌫ **Qui c'erano DUE affermazioni, ed erano false entrambe: tolte il 2026-10-03.**
  *
- * ⛔ **Il ciclo completo — attesa, risposta, ripresa — non e' verificabile qui**, e non si finge: richiede
- * un orchestratore che guidi i tre momenti dopo il preambolo di `LockInAndResolve`, ed e' la **fetta 3**.
- * Cio' che questa fetta consegna e' il meccanismo; chi lo guida arriva dopo.
+ * La prima diceva che l'`ensure` atteso e' dichiarato con `AddExpectedError`, *«il modo di verificare
+ * che quella strada sia stata davvero imboccata»*. Misurato: `grep -c AddExpectedError` su questo file
+ * risponde **1**, ed e' il commento stesso. Il corpo non lo chiama. 🔑 La forma giusta la usano
+ * quattro file accanto, e in NEGATIVO — *«Nessun `AddExpectedError`: …»* — che e' la grafia
+ * verificabile: dice cio' che non c'e', e un grep la conferma.
+ *
+ * La seconda diceva che il ciclo completo — attesa, risposta, ripresa — *«non e' verificabile qui»*
+ * e apparteneva alla fetta 3. 🔴 **Il corpo lo esercita gia'**: `IsResolutionSuspended` per l'attesa,
+ * `SubmitReactionResponse` con una finestra stale per la risposta che NON chiude,
+ * `ExpireReactionWindow` per la scadenza, e il `TurnLog` non vuoto per la ripresa. La fetta 3 e'
+ * arrivata e questo docstring non se n'era accorto.
+ *
+ * ⚠️ **Un commento che promette una copertura futura invecchia in silenzio**: nessuno rilegge una
+ * promessa, e intanto chi cerca dove il ciclo sia provato passa oltre proprio il test che lo prova.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTReactionWindowSuspendsTest,
 	"RefactorTactics.Reactions.WindowSuspendsResolution",

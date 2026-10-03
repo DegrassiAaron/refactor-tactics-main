@@ -49,7 +49,18 @@
  *
  * ⚠️ Le due estremita' del legame stanno **200 righe lontane** l'una dall'altra in tre coppie diverse, ed e'
  * il motivo per cui il disallineamento e' sopravvissuto: qui c'e' una costante, cosi' cambiarne una senza
- * l'altra non e' piu' possibile. Presidiato da `RefactorTactics.HexMapActor.ProceduralMeshSectionsHaveAMaterialSlot`.
+ * l'altra non e' piu' possibile — ed e' l'unica difesa che il legame ha.
+ *
+ * ⌫ **Qui si leggeva *«Presidiato da
+ * `RefactorTactics.HexMapActor.ProceduralMeshSectionsHaveAMaterialSlot`»*, e quel test non esiste:
+ * tolto il 2026-10-03.** `git grep -c <nome> -- Source/` rispondeva **1**, il commento stesso.
+ * 🔴 **E non c'e' un sostituto da citare al suo posto**, misurato: nessun test nomina
+ * `RTProceduralMeshSlotName`, che in produzione compare in **otto** punti di questo file.
+ * `HexMapActor.ProceduralMeshesAreRenderable` verifica una cosa VICINA e non questa — asserisce
+ * *«ha render data con vertici»* — e ripuntare la riga la' avrebbe rimesso un presidio falso
+ * con un nome che esiste, che e' peggio di uno con un nome che non esiste.
+ * ⚠️ Il legame resta difeso dalla sola **costante condivisa** qui sotto: chi la tocca rompe
+ * entrambe le estremita' insieme, ed e' per questo che esiste. Un gate automatico non c'e'.
  */
 static const FName RTProceduralMeshSlotName(TEXT("Default"));
 
