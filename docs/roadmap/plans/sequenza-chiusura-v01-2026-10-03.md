@@ -54,15 +54,26 @@ Candidate congelato: **`95eddfd37`** (2026-10-02 20:23 locali). I commit entrati
 `docs/`:
 
 ```sh
-git rev-parse HEAD:Source   # d6a1c4419d29f68f6ac79b8ca8f38c686efdc728
-git rev-parse 95eddfd37:Source   # d6a1c4419d29f68f6ac79b8ca8f38c686efdc728
-git rev-parse HEAD:Content  # 75f060efe82e756d60350a965aaedfb02a511f5e
-git rev-parse 95eddfd37:Content  # 75f060efe82e756d60350a965aaedfb02a511f5e
-git diff --name-only 95eddfd37..HEAD -- Source/ Content/   # 0 file
+# ancorato a 768c65f4d, non a HEAD: il confronto che segue vale su QUESTO albero
+git rev-parse 768c65f4d:Source    # d6a1c4419d29f68f6ac79b8ca8f38c686efdc728
+git rev-parse 95eddfd37:Source    # d6a1c4419d29f68f6ac79b8ca8f38c686efdc728
+git rev-parse 768c65f4d:Content   # 75f060efe82e756d60350a965aaedfb02a511f5e
+git rev-parse 95eddfd37:Content   # 75f060efe82e756d60350a965aaedfb02a511f5e
+git diff --name-only 95eddfd37..768c65f4d -- Source/ Content/   # 0 file
 ```
 
-🔑 **Compilare da `HEAD` è compilare il candidate**, per contenuto e non per fiducia. Chi conduce
-una seduta non deve fare checkout del candidate per non perdere i documenti.
+🔑 **Il 2026-10-03 compilare da `main` era compilare il candidate**, per contenuto e non per fiducia:
+chi conduce una seduta non deve fare checkout del candidate per non perdere i documenti.
+
+⛔ **E questa uguaglianza va RIMISURATA all'atto d'uso, non ereditata da questa riga.** Vale finché
+nessun commit toccherà `Source/` o `Content/`; il primo che lo fa la rompe in silenzio, e un `git
+rev-parse` di due righe la riverifica:
+
+```sh
+test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 95eddfd37:Source)" \
+  && test "$(git rev-parse HEAD:Content)" = "$(git rev-parse 95eddfd37:Content)" \
+  && echo "compilare da HEAD = compilare il candidate" || echo "DIVERSI: fai checkout di 95eddfd37"
+```
 
 ### 2.2 `G14` — rimisurato oggi, verde
 
@@ -210,7 +221,7 @@ della cartella (`MatchId.ToString(EGuidFormats::Digits)`) o sul campo `"MatchId"
 | A1 | merge [#3443](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3443) | Chiude [#3362](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3362). Due file sotto `tools/editor-sessions/`, nessuna sovrapposizione con le altre PR aperte, DoD verificabile **senza** Unreal. Baseline riconfermata: `python -m pytest -q` in quella cartella → `82 passed, 2 subtests passed` |
 | A2 | merge [#3442](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3442) | Rende verde `doc-tables`, e la riga che oggi lo tiene rosso è nel **runbook di `G13`** (§2.2) |
 | A3 | merge [#3444](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3444) | **Dopo** `A2`: il suo stesso corpo dichiara che `doc-tables` resta rosso sul suo branch per quella riga. Apre `MOV-15` come domanda, quindi porta una decisione da firmare |
-| A4 | chiudere [#2554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2554) | **È già mergiata** e il suo unico commento dice il contrario (*«NON compilato, commit di salvataggio»*): `git merge-base --is-ancestor f29dd3749 origin/main` → vero |
+| A4 | chiudere [#2554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2554) | **È già mergiata** e il suo unico commento dice il contrario (*«NON compilato, commit di salvataggio»*): `git merge-base --is-ancestor f29dd3749 768c65f4d` → vero |
 | A5 | milestone di [#2477](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2477) | `U5` è **differita a `E26`** dal 2026-09-28 e [`D-441`](../../decisions/RT_PDR_00_Decision_Log.md) la registra; la issue è ancora `v0.1` · `P1` |
 | A6 | candidate in [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85) | Il suo passo 1 è *«congelare il candidate SHA e dichiararlo»*. Il body dice ancora *«da congelare»*, e lo stato non vive in un commento: `gh issue view 85 --comments` ne restituisce **uno**, del 2026-09-12 su `G12` |
 | A7 | la direzione di [#3438](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3438) | Il residuo di `G7` ha quattro direzioni possibili e nessuna scelta: va aperta come riga in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) perché un `D-nnn` la possa chiudere. ⛔ Lo slot `GATE-1` è chiuso e il numero non si riusa |
