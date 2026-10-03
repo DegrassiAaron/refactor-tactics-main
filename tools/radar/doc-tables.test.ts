@@ -104,15 +104,56 @@ test('LIMITE DICHIARATO: una riga indentata spezza il blocco e zittisce la tabel
   assert.equal(tableBlocks(md.split('\n')).filter(isComparable).length, 0);
 });
 
-test('FALSO POSITIVO NOTO: la pipe finale che GFM rende facoltativa', () => {
-  // `| q | r | s` rende tre celle, il contatore ne vede due. Oggi non capita nel corpus, e il giorno in
-  // cui capitera' questo test dice che e' il gate a sbagliare, non il documento.
+test('la pipe finale facoltativa non e piu un falso positivo', () => {
+  // `| q | r | s` rende tre celle, e ora il contatore ne vede tre. Questo test asseriva l'opposto —
+  // che la riga venisse segnalata — e pinnava quindi il falso positivo come comportamento atteso.
   const md = ['| ID | A | B |', '|---|---|---|', '| x | y | z |', '| q | r | s'].join('\n');
+
+  assert.deepEqual(findBrokenRows(md), []);
+});
+
+test('MUTAZIONE: una cella in ECCESSO senza pipe finale viene VISTA', () => {
+  // E' la classe per cui questa correzione esiste, e la cecita' era ARITMETICA: contando sempre
+  // `- 2`, la sottostima di 1 su una riga senza pipe finale cancellava esattamente il +1 della cella
+  // in eccesso. La riga contava 3 come le sorelle e il gate passava verde — mentre GFM SCARTA la
+  // quarta cella, rendendo invisibile il testo che vi finisce.
+  const md = ['| ID | A | B |', '|---|---|---|', '| x | y | z |', '| q | r | s | invisibile'].join('\n');
 
   const broken = findBrokenRows(md);
 
   assert.deepEqual(broken.map((b) => b.line), [4]);
-  assert.equal(broken[0]!.cells, 2);
+  assert.equal(broken[0]!.cells, 4);
+  assert.equal(broken[0]!.expected, 3);
+});
+
+test('una cella in eccesso che e SOLO un commento HTML non viene segnalata', () => {
+  // Un commento non si rende in nessun caso: scartarlo non nasconde niente, ed e' la forma che il
+  // corpus usa per annotare una riga senza allargare la tabella.
+  const md = [
+    '| ID | A | B |',
+    '|---|---|---|',
+    '| x | y | z |',
+    '| q | r | s | <!-- nota: non allarga la tabella -->',
+  ].join('\n');
+
+  assert.deepEqual(findBrokenRows(md), []);
+});
+
+test('MUTAZIONE: il commento si esclude anche dalla MAGGIORANZA, non solo dal confronto', () => {
+  // La prima stesura della correzione escludeva il commento solo a valle: in una tabella dove le
+  // righe annotate sono la MAGGIORANZA, la larghezza attesa diventava quella *col* commento, e il
+  // gate finiva per segnalare l'intestazione, il separatore e le righe sane. Misurato su
+  // `docs/roadmap/roadmap-v0.1.md:803-811`, dove accadeva esattamente.
+  const md = [
+    '| ID | A | B |',
+    '|---|---|---|',
+    '| a | b | c | <!-- 1 -->',
+    '| d | e | f | <!-- 2 -->',
+    '| g | h | i | <!-- 3 -->',
+    '| j | k | l |',
+  ].join('\n');
+
+  assert.deepEqual(findBrokenRows(md), []);
 });
 
 test('un corpus CRLF da lo stesso esito di uno LF', () => {

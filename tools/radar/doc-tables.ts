@@ -38,9 +38,22 @@
  *    per mutazione, non dedotto**: tolta una cella a una riga di una tabella in blockquote di
  *    `test-manuali-pie.md`, `--check` è rimasto **verde** e il totale confrontato non si è mosso.
  *
- *  ⚠️ **Falso positivo noto**: la pipe finale, che GFM rende **facoltativa**. `| q | r | s` conta due
- *  celle invece di tre. Oggi non capita nel corpus — le righe che cominciano con `|` senza finirci
- *  chiudono tutte con un commento HTML dopo l'ultima pipe — ma la prima scritta senza nasce rossa.
+ *  ⛔ **La pipe finale facoltativa NON è più un falso positivo, ed è stata la cecità peggiore di
+ *  questo controllo.** La prima stesura contava `parts.length - 2` sempre, cioè assumeva entrambe le
+ *  pipe. Su una riga senza quella finale la sottostima di `1` **cancellava esattamente** il `+1` di
+ *  una cella in eccesso: una riga a **5** celle senza pipe finale contava `4` come le sorelle, la
+ *  maggioranza restava `4`, e il gate passava verde. Il docstring prevedeva l'opposto — *«la prima
+ *  scritta senza nasce rossa»* — e dichiarava che nel corpus non capitava perché quelle righe
+ *  *«chiudono tutte con un commento HTML»*: **misurato il 2026-10-03, era falso**, e le tre righe
+ *  che lo smentivano erano nella §4 di `v0.1-definition-of-done.md`, dove tenevano invisibili i
+ *  numeri del candidate. Ora `countCells` conta la pipe finale **solo se c'è**.
+ *
+ *  ➕ **E resta un solo falso positivo, che è escluso invece che dichiarato**: una cella in eccesso
+ *  che sia **soltanto** un commento HTML. GFM la scarta, ma un commento non si rende in nessun caso,
+ *  quindi non c'è testo che sparisca: `widthForCompare` non la conta, e lo fa **anche** nel calcolo
+ *  della maggioranza. Era la
+ *  forma che il corpus usa per annotare una riga senza allargare la tabella, e romperla avrebbe reso
+ *  rosse decine di righe sane.
  *
  *  ➕ **Il separatore `|---|` invece È verificato**, al contrario di quanto dichiarava la prima stesura
  *  di questo docstring: sta nel conteggio e viene riportato. Ed è giusto che lo sia — GFM richiede che
@@ -70,11 +83,48 @@ export interface BrokenRow {
 /** Separatore di cella: una pipe **non** preceduta da backslash. */
 const CELL = /(?<!\\)\|/;
 
-/** Le celle VERE: `split` produce anche i due frammenti vuoti ai bordi (`| a | b |` -> `['', a, b, '']`),
- *  e riportarli come celle darebbe a chi legge un numero che non corrisponde a cio' che vede. */
+/** La riga chiude con una pipe **non escapata**. `… \|` finisce con una pipe *di contenuto*, non con
+ *  quella che chiude la cella, e contarla come chiusura sposterebbe il conteggio di uno. */
+const CLOSES = /(?<!\\)\|$/;
+
+/** La pipe iniziale apre sempre una cella; quella finale chiude **solo se c'è**.
+ *
+ *  ⛔ Contare `- 2` in ogni caso è ciò che rendeva questo gate cieco: su una riga senza pipe finale la
+ *  sottostima di `1` cancellava il `+1` di una cella in eccesso. Il docstring in testa porta la misura. */
 function countCells(line: string): number {
-  const parts = line.split(CELL);
-  return Math.max(0, parts.length - 2);
+  const s = line.replace(/\s+$/, '');
+  const parts = s.split(CELL);
+  return Math.max(0, parts.length - (CLOSES.test(s) ? 2 : 1));
+}
+
+/** Le celle di una riga, senza la pipe che apre e senza quella che chiude se c'è. */
+function cellsOf(line: string): string[] {
+  const s = line.replace(/\s+$/, '');
+  const parts = s.split(CELL).slice(1);
+  return CLOSES.test(s) ? parts.slice(0, -1) : parts;
+}
+
+/** La larghezza di una riga **ai fini del confronto**: le celle finali che sono soltanto un commento
+ *  HTML non contano, perché non allargano la tabella in nessun senso utile.
+ *
+ *  GFM scarta le celle in eccesso rispetto all'intestazione, quindi il testo che vi finisce diventa
+ *  invisibile — ed è il difetto che questo controllo esiste per prendere. Ma un commento HTML non si
+ *  rende in **nessun** caso: scartarlo non nasconde niente, e il corpus usa quella forma per annotare
+ *  una riga senza allargare la tabella.
+ *
+ *  ⛔ **Va applicata anche al conteggio della MAGGIORANZA, non solo al confronto**, ed è l'errore che
+ *  la prima stesura di questa correzione ha fatto: escludendo il commento solo a valle, una tabella in
+ *  cui le righe annotate sono la maggioranza eleggeva come larghezza attesa quella *col* commento, e
+ *  finiva per segnalare l'intestazione, il separatore e le righe sane. Misurato su
+ *  `docs/roadmap/roadmap-v0.1.md:803-811`, dove accadeva esattamente. */
+function widthForCompare(line: string): number {
+  const cells = cellsOf(line);
+  while (cells.length > 0) {
+    const last = cells[cells.length - 1]!.trim();
+    if (last.startsWith('<!--') && last.endsWith('-->')) cells.pop();
+    else break;
+  }
+  return cells.length;
 }
 
 /** Una tabella è un blocco di righe consecutive che cominciano con `|`, estremi **inclusi**.
@@ -116,7 +166,7 @@ function brokenInLines(lines: string[]): BrokenRow[] {
     // il caso opposto — un difetto maggioritario fa segnalare le righe sane — e sta nel docstring.
     const tally = new Map<number, number>();
     for (let j = start; j <= end; j++) {
-      const n = countCells(lines[j]!);
+      const n = widthForCompare(lines[j]!);
       tally.set(n, (tally.get(n) ?? 0) + 1);
     }
     let expected = 0;
@@ -129,10 +179,9 @@ function brokenInLines(lines: string[]): BrokenRow[] {
     }
 
     for (let j = start; j <= end; j++) {
-      const n = countCells(lines[j]!);
-      if (n !== expected) {
-        out.push({ line: j + 1, cells: n, expected, text: lines[j]!.slice(0, 160) });
-      }
+      const n = widthForCompare(lines[j]!);
+      if (n === expected) continue;
+      out.push({ line: j + 1, cells: n, expected, text: lines[j]!.slice(0, 160) });
     }
   }
   return out;
