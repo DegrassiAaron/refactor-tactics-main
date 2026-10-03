@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600&family=Azeret+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  body { margin:0; background:#080B10; }
+  a { color:#35E0C4; text-decoration:none; }
+  a:hover { color:#7CF0DE; }
+  @keyframes flow { to { stroke-dashoffset:-20; } }
+  @keyframes breathe { 0%,100% { opacity:.42; } 50% { opacity:.62; } }
+</style>
+</helmet>
+<div style="width:1440px;margin:0 auto;background:#0A0E14;color:#E6EDF4;font-family:'Azeret Mono',monospace;padding:0 0 96px">
+
+  <div style="padding:56px 56px 40px;border-bottom:1px solid #232C38">
+    <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.24em;color:#FF8A2B;margin-bottom:18px">CRITICAL AUDIT · VISUAL GRAMMAR v0.1 → v0.2</div>
+    <h1 style="margin:0;font:400 60px/.98 Oswald,sans-serif;letter-spacing:.01em;text-transform:uppercase">Dove il sistema si rompe<br /><span style="color:#56626F">in 30 secondi di planning</span></h1>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:40px;margin-top:26px">
+      <p style="margin:0;font:400 13.5px/1.75 'Azeret Mono',monospace;color:#8D9BAB;text-wrap:pretty">Audit della v0.1 contro i vincoli A–S. Il verdetto sintetico: la <span style="color:#E6EDF4">tassonomia</span> tiene, la <span style="color:#E6EDF4">allocazione dei canali</span> no. Il problema non è che manchino segnali: è che quattro assi semantici indipendenti condividono lo stesso canale percettivo (opacità), sette pattern di tratteggio occupano uno spazio che ne distingue tre, e la stessa forma ha significati diversi su HUD e world overlay. Sotto pressione temporale questo non produce errori di lettura occasionali: produce errori sistematici, sempre negli stessi punti.</p>
+      <div style="display:grid;gap:1px;background:#232C38;border:1px solid #232C38">
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:500 12px 'Azeret Mono',monospace"><span style="color:#FF4D6D">Rotture strutturali</span><span style="color:#FF4D6D">5</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:500 12px 'Azeret Mono',monospace"><span style="color:#FF8A2B">Coppie confondibili</span><span style="color:#FF8A2B">9</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:500 12px 'Azeret Mono',monospace"><span style="color:#FFC24A">Ridondanze da eliminare</span><span style="color:#FFC24A">6</span></div>
+        <div style="background:#121822;padding:12px 16px;display:flex;justify-content:space-between;font:500 12px 'Azeret Mono',monospace"><span style="color:#8D9BAB">Vincoli non coperti</span><span style="color:#8D9BAB">7</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 01 CHANNEL OVERLOAD -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#FF4D6D">R1</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Sovraccarico dei canali</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Un canale percettivo può portare un solo asse semantico. Nella v0.1 tre canali su cinque ne portano da tre a quattro.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr 80px;background:#0A0E14;border-bottom:1px solid #232C38;font:500 10.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em">
+        <div style="padding:12px 18px">CANALE</div><div style="padding:12px 18px">ASSI CHE LO USANO OGGI</div><div style="padding:12px 18px">CONSEGUENZA IN PLANNING</div><div style="padding:12px 18px;text-align:right">CARICO</div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr 80px;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;color:#E6EDF4">OPACITÀ</div>
+        <div style="padding:16px 18px">certezza (100/78/42%) · focus vs de-emphasis (100/80/55/22%) · disabled/cooldown · livello di priorità P0–P2</div>
+        <div style="padding:16px 18px;color:#FF4D6D">Un path alleato non selezionato al 55% è indistinguibile da un path alleato previsto-incerto in focus. Il giocatore non sa se sta guardando informazione debole o informazione deprioritizzata.</div>
+        <div style="padding:16px 18px;text-align:right;color:#FF4D6D;font-weight:500">4 assi</div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr 80px;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;color:#E6EDF4">DASH PATTERN</div>
+        <div style="padding:16px 18px">certezza (9-6 / 2-9) · proprietario (6-5 ally) · tipo di movimento (16-5 dash) · invalido (4-4) · asse di tiro (8-5) · badge (3-3, 2-4)</div>
+        <div style="padding:16px 18px;color:#FF4D6D">Sette pattern in uno spazio che a 1080p sopra un mondo in movimento ne risolve tre. 9-6 / 8-5 / 6-5 sono lo stesso segnale.</div>
+        <div style="padding:16px 18px;text-align:right;color:#FF4D6D;font-weight:500">6 assi</div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr 80px;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;color:#E6EDF4">FILL PIENO</div>
+        <div style="padding:16px 18px">confermato · attivo · selezionato (§04 li dichiara tutti e tre)</div>
+        <div style="padding:16px 18px;color:#FF8A2B">Nel dock un'icona piena può significare "abilità selezionata" o "azione già bloccata". Viola direttamente il vincolo G.</div>
+        <div style="padding:16px 18px;text-align:right;color:#FF8A2B;font-weight:500">3 assi</div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr 80px;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;color:#E6EDF4">HUE</div>
+        <div style="padding:16px 18px">relazione (self/ally/enemy) · stato di certezza (le icone di legenda sono teal/viola/grigio) · elemento ambientale · livello di feedback</div>
+        <div style="padding:16px 18px;color:#FF4D6D">Contraddizione interna: §06 dichiara che la certezza non cambia hue, ma disegna le tre icone di certezza in tre hue diversi — e il viola "predicted" è lo stesso viola di "ally".</div>
+        <div style="padding:16px 18px;text-align:right;color:#FF4D6D;font-weight:500">4 assi</div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 1fr 1fr 80px;background:#121822;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;color:#E6EDF4">MOTO</div>
+        <div style="padding:16px 18px">certezza (flow / breathe) · direzione di propagazione (lo stesso flow su un contorno chiuso)</div>
+        <div style="padding:16px 18px;color:#FF8A2B">Su un'ellisse AoE il flow gira intorno al bordo e legge come rotazione o espansione, non come "previsto". Vedi scenario C.</div>
+        <div style="padding:16px 18px;text-align:right;color:#FF8A2B;font-weight:500">2 assi</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 SHAPE COLLISION -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#FF4D6D">R2</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Collisione fra le due grammatiche di forma</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:560px">Il vincolo C e la v0.1 usano <span style="color:#8D9BAB">le stesse cinque forme</span> per cose diverse. Nessuna delle due è sbagliata; conviverne senza regola è fatale.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr 1.3fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 10.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em">
+        <div style="padding:12px 18px">FORMA</div><div style="padding:12px 18px">V0.1 · WORLD OVERLAY</div><div style="padding:12px 18px">VINCOLO C · ICON COMPOSITION</div><div style="padding:12px 18px">CASO REALE DI CONFLITTO</div>
+      </div>
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr 1.3fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 30 30"><circle cx="15" cy="15" r="11" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:16px 18px">Area, AoE, posizione di unità, ancora di origine</div>
+        <div style="padding:16px 18px">Risorsa: costo, cooldown, charges</div>
+        <div style="padding:16px 18px;color:#FF4D6D">Quattro significati simultanei sullo schermo: AoE a terra, anello di unità, ring di cooldown nel dock, ring acustico (vincolo L). Il cerchio è la forma più sovraccarica del sistema.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr 1.3fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 30 30"><path d="M15 4 L25 10 V20 L15 26 L5 20 V10 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:16px 18px">Dispositivo interattivo: porta, ascensore, ponte, tunnel</div>
+        <div style="padding:16px 18px">Proprietà intrinseca della skill (max 3)</div>
+        <div style="padding:16px 18px;color:#FF8A2B">Un'icona di abilità con 2 esagoni di proprietà accanto a un esagono-ascensore nel mondo: stessa forma, un caso è "puoi agire", l'altro "questa skill è così".</div>
+      </div>
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr 1.3fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 30 30"><path d="M15 4 L26 15 L15 26 L4 15 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:16px 18px">Obiettivo, valore di punteggio (+ marker porta)</div>
+        <div style="padding:16px 18px">Modificatore attivo della skill (max 1)</div>
+        <div style="padding:16px 18px;color:#FF8A2B">La v0.1 usa già il rombo per due cose sue (obiettivo e porta): tre significati in tutto.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr 1.3fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 30 30"><path d="M15 5 L26 24 H4 Z" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:16px 18px">Pericolo e warning, dichiarato esclusivo</div>
+        <div style="padding:16px 18px">Condizione, trigger, requisito <span style="color:#FF8A2B">e</span> warning</div>
+        <div style="padding:16px 18px;color:#FF4D6D">Il caso peggiore del sistema: il trigger di un'Overwatch e un friendly fire certo sono lo stesso glifo. "Questa skill ha una condizione" e "stai per uccidere un alleato" non possono condividere una forma.</div>
+      </div>
+      <div style="display:grid;grid-template-columns:110px 1fr 1fr 1.3fr;background:#121822;font:400 12px/1.6 'Azeret Mono',monospace;color:#8D9BAB">
+        <div style="padding:16px 18px;display:flex;align-items:center;justify-content:center"><svg width="30" height="30" viewBox="0 0 30 30"><rect x="6" y="6" width="18" height="18" fill="none" stroke="#E6EDF4" stroke-width="2.4" /></svg></div>
+        <div style="padding:16px 18px">Cella di griglia, destinazione di path</div>
+        <div style="padding:16px 18px">Modificatore contestuale esterno (max 2)</div>
+        <div style="padding:16px 18px;color:#FFC24A">Conflitto più tollerabile: la cella vive solo in proiezione prospettica, il modificatore solo in screen-space ortogonale. Da formalizzare, non da risolvere.</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Contraddizione nel vincolo C stesso.</span> I limiti dichiarati (1 circle + 3 hex + 2 square + 1 diamond + 1 triangle) ammettono 8 marker su una singola skill, cioè esattamente il "Christmas tree UI" che lo stesso vincolo vieta, e il doppio del budget "3–4 fatti visuali". Il tetto va posto sul totale, non per forma: <span style="color:#E6EDF4">1 core + max 3 satelliti</span>, qualunque forma abbiano.</div>
+      <div style="background:#121822;padding:18px 22px;font:400 12px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Incoerenza interna v0.1.</span> §03 dichiara l'esagono come forma unica dei dispositivi interattivi, ma §05 disegna porta, ponte e tunnel come rettangoli e archi. La regola non è mai stata applicata al proprio catalogo: sintomo del fatto che 40 icone sono state disegnate prima di validare 6.</div>
+    </div>
+  </div>
+
+  <!-- 03 CONFUSION PAIRS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#FF8A2B">R3</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Coppie confondibili</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:600px">Ogni riquadro mostra due segnali della v0.1 alla scala reale del mondo. Guardali per un secondo, non per dieci: è il tempo che il giocatore ha davvero.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">ALLY vs PREDICTED</div><div style="font:400 10px 'Azeret Mono',monospace;color:#FF4D6D">CRITICO</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 340 84" style="width:100%;height:auto;display:block">
+            <rect width="340" height="84" fill="#131C24" />
+            <path d="M14 26 H150" stroke="#05080C" stroke-width="8" /><path d="M14 26 H150" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="6 5" />
+            <text x="14" y="16" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">path ALLEATO</text>
+            <path d="M190 26 H326" stroke="#05080C" stroke-width="8" /><path d="M190 26 H326" stroke="#A97BFF" stroke-width="2.5" stroke-dasharray="9 6" />
+            <text x="176" y="16" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">stato PREVISTO (legenda)</text>
+            <circle cx="60" cy="62" r="11" fill="none" stroke="#A97BFF" stroke-width="2.2" stroke-dasharray="4 3" />
+            <text x="82" y="66" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">= alleato? previsto?</text>
+            <circle cx="236" cy="62" r="11" fill="none" stroke="#A97BFF" stroke-width="2.2" stroke-dasharray="4 3" />
+            <text x="258" y="66" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">identico</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Il viola è sia relazione sia stato. Un marker viola tratteggiato non ha lettura univoca: <span style="color:#E6EDF4">lo stato di certezza deve perdere il proprio hue</span> e restare in bianco neutro nelle legende e nei badge.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">UNCERTAIN vs INVALID</div><div style="font:400 10px 'Azeret Mono',monospace;color:#FF4D6D">CRITICO</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 340 84" style="width:100%;height:auto;display:block">
+            <rect width="340" height="84" fill="#131C24" />
+            <path d="M14 30 H150" stroke="#05080C" stroke-width="8" /><path d="M14 30 H150" stroke="#8AA2AA" stroke-width="3" stroke-dasharray="2 9" style="animation:breathe 2s ease-in-out infinite" />
+            <text x="14" y="18" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">INCERTO (teal desaturato)</text>
+            <path d="M190 30 H326" stroke="#05080C" stroke-width="8" /><path d="M190 30 H320" stroke="#6E7A88" stroke-width="3" stroke-dasharray="4 4" />
+            <text x="190" y="18" fill="#56626F" font-size="10" font-family="Azeret Mono, monospace">NON VALIDO (grigio)</text>
+            <text x="14" y="62" fill="#8D9BAB" font-size="10" font-family="Azeret Mono, monospace">"forse succede"</text>
+            <text x="190" y="62" fill="#8D9BAB" font-size="10" font-family="Azeret Mono, monospace">"non può succedere"</text>
+            <text x="14" y="78" fill="#FF4D6D" font-size="10" font-family="Azeret Mono, monospace">entrambi: grigio + linea rotta</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">"Incerto" desatura verso neutral e "invalido" È neutral: due significati opposti convergono sullo stesso pixel. L'invalido deve abbandonare il tratteggio e vivere su <span style="color:#E6EDF4">hatch + croce</span>; l'incerto deve conservare l'hue della relazione.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">CENSIMENTO TRATTEGGI</div><div style="font:400 10px 'Azeret Mono',monospace;color:#FF4D6D">CRITICO</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 340 84" style="width:100%;height:auto;display:block">
+            <rect width="340" height="84" fill="#131C24" />
+            <g stroke="#E6EDF4" stroke-width="3" fill="none">
+              <path d="M96 12 H326" stroke-dasharray="9 6" />
+              <path d="M96 26 H326" stroke-dasharray="8 5" />
+              <path d="M96 40 H326" stroke-dasharray="6 5" />
+              <path d="M96 54 H326" stroke-dasharray="16 5" />
+              <path d="M96 68 H326" stroke-dasharray="4 4" />
+            </g>
+            <g fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">
+              <text x="8" y="15">9-6 previsto</text><text x="8" y="29">8-5 asse tiro</text><text x="8" y="43">6-5 alleato</text><text x="8" y="57">16-5 dash</text><text x="8" y="71">4-4 invalido</text>
+            </g>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Le prime tre righe sono lo stesso segnale a occhio nudo, in movimento e sopra texture. Il tratteggio risolve <span style="color:#E6EDF4">tre valori</span>, non sette: assegnarlo interamente alla certezza (pieno / 9-6 / 2-9) e spostare tipo di movimento e proprietario su spessore e nodo.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">ENEMY vs FRIENDLY FIRE</div><div style="font:400 10px 'Azeret Mono',monospace;color:#FF4D6D">CRITICO</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 340 84" style="width:100%;height:auto;display:block">
+            <rect width="340" height="84" fill="#131C24" />
+            <g><path d="M46 42V32h10M96 32h10v10M106 62v10h-10M56 72h-10v-10" fill="none" stroke="#FF4D6D" stroke-width="2.5" /><circle cx="76" cy="52" r="3" fill="#FF4D6D" /></g>
+            <text x="34" y="22" fill="#FF4D6D" font-size="10" font-family="Azeret Mono, monospace">NEMICO bersagliato</text>
+            <rect x="196" y="30" width="52" height="44" fill="#FF4D6D" opacity=".22" /><rect x="196" y="30" width="52" height="44" fill="none" stroke="#FF4D6D" stroke-width="2.5" />
+            <circle cx="222" cy="52" r="9" fill="#0A0E14" stroke="#A97BFF" stroke-width="2.5" /><text x="218" y="56" fill="#A97BFF" font-size="10" font-family="Azeret Mono, monospace">C</text>
+            <text x="178" y="22" fill="#FF4D6D" font-size="10" font-family="Azeret Mono, monospace">ALLEATO in friendly fire</text>
+            <text x="256" y="56" fill="#FF8A2B" font-size="10" font-family="Azeret Mono, monospace">→ legge</text><text x="256" y="70" fill="#FF8A2B" font-size="10" font-family="Azeret Mono, monospace">"nemico qui"</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Nello scenario B della v0.1 l'alleato a rischio è cinto di cremisi, cioè del colore che significa "nemico". Nel primo colpo d'occhio la cella legge come minaccia ostile, non come errore proprio. Il friendly fire deve restare <span style="color:#E6EDF4">viola con contenitore critico</span>, non diventare rosso.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">HEX RIUSATI</div><div style="font:400 10px 'Azeret Mono',monospace;color:#FF8A2B">ALTO</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 340 84" style="width:100%;height:auto;display:block">
+            <rect width="340" height="84" fill="#131C24" />
+            <path d="M30 20 L44 34 L30 48 L16 34 Z" fill="#FFC24A" opacity=".2" /><path d="M30 20 L44 34 L30 48 L16 34 Z" fill="none" stroke="#FFC24A" stroke-width="2.4" />
+            <text x="56" y="30" fill="#FFC24A" font-size="10" font-family="Azeret Mono, monospace">#FFC24A obiettivo</text>
+            <text x="56" y="44" fill="#FFC24A" font-size="10" font-family="Azeret Mono, monospace">#FFC24A caution</text>
+            <circle cx="30" cy="68" r="9" fill="none" stroke="#FFC24A" stroke-width="2.2" stroke-dasharray="2 4" />
+            <path d="M212 24 L228 52 H196 Z" fill="none" stroke="#FF8A2B" stroke-width="2.4" />
+            <text x="240" y="34" fill="#FF8A2B" font-size="10" font-family="Azeret Mono, monospace">#FF8A2B warning</text>
+            <text x="240" y="48" fill="#FF8A2B" font-size="10" font-family="Azeret Mono, monospace">#FF8A2B fuoco</text>
+            <text x="240" y="62" fill="#FF8A2B" font-size="10" font-family="Azeret Mono, monospace">#FF8A2B hazard</text>
+            <rect x="192" y="58" width="36" height="16" fill="none" stroke="#FF8A2B" stroke-width="1.5" style="background:transparent" />
+            <path d="M192 74 L208 58 M208 74 L224 58" stroke="#FF8A2B" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">Due hex portano tre significati ciascuno. La regola "l'ambiente è solo fill di terreno" cade nello scenario C, dove un triangolo di warning arancio sta sopra un fill di fuoco arancio. Serve <span style="color:#E6EDF4">separare l'arancio del feedback dall'arancio del fuoco</span> di almeno 25° di hue, o togliere l'arancio all'ambiente.</div>
+      </div>
+
+      <div style="background:#121822;padding:22px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4">PATTERN IN PROSPETTIVA</div><div style="font:400 10px 'Azeret Mono',monospace;color:#FF8A2B">ALTO</div></div>
+        <div style="background:#0A0E14;border:1px solid #232C38;padding:14px">
+          <svg viewBox="0 0 340 84" style="width:100%;height:auto;display:block">
+            <defs>
+              <pattern id="auW" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 .5H8" stroke="#2F6FA8" stroke-width="1.4" /></pattern>
+              <pattern id="auW2" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(38)"><path d="M0 .5H8" stroke="#2F6FA8" stroke-width="1.4" /></pattern>
+              <pattern id="auH" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 .5H10" stroke="#FF8A2B" stroke-width="1.6" /></pattern>
+            </defs>
+            <rect width="340" height="84" fill="#131C24" />
+            <rect x="14" y="16" width="86" height="54" fill="url(#auW)" stroke="#2F6FA8" stroke-width="1.5" />
+            <text x="14" y="80" fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">acqua · piano frontale</text>
+            <path d="M126 22 L206 16 L214 70 L120 62 Z" fill="url(#auW2)" stroke="#2F6FA8" stroke-width="1.5" />
+            <text x="122" y="80" fill="#FF8A2B" font-size="9.5" font-family="Azeret Mono, monospace">acqua · piano inclinato</text>
+            <rect x="240" y="16" width="86" height="54" fill="url(#auH)" stroke="#FF8A2B" stroke-width="1.5" />
+            <text x="240" y="80" fill="#56626F" font-size="9.5" font-family="Azeret Mono, monospace">hazard 45°</text>
+          </svg>
+        </div>
+        <div style="font:400 11px/1.6 'Azeret Mono',monospace;color:#8D9BAB;margin-top:12px">L'angolo del pattern non è stabile rispetto alla camera: su una superficie inclinata o ruotata l'acqua a 0° diventa diagonale e collide con hazard/fuoco. In UE5 i pattern d'ambiente vanno proiettati in <span style="color:#E6EDF4">screen-space</span>, oppure la codifica deve passare da angolo a <span style="color:#E6EDF4">densità e forma del punto</span>.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 SECONDARY -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#FFC24A">R4</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Ridondanze e ambiguità minori</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:10px">Nodi-lettera alleati</div>A/B/C in world-space a 9–10 px violano il minimo di leggibilità dichiarato dalla stessa v0.1, dipendono dal testo (localizzazione, screen reader, tutorial) e non scalano a 3v3, dove servono sei identificatori. Sostituire con <span style="color:#E6EDF4">un contatore di tacche sul nodo</span> (1, 2, 3 segmenti): forma, non alfabeto.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:10px">Dash come pattern</div>Il "dash" (16-5) è un tipo di movimento codificato sul canale della certezza. Un dash previsto e un dash incerto non hanno rappresentazione possibile. Il tipo di movimento va su <span style="color:#E6EDF4">spessore + terminale</span> (move 3 px, sprint 3 px doppio chevron, dash 5 px cuneo, sneak 2 px, forced 3 px con nodi esterni, blink senza tracciato: due sole ancore).</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:10px">Token di stato tipizzati male</div><span style="color:#56626F">color.state.confirmed = alfa 1.00</span> è un token di colore che contiene un'opacità: in Figma non è un color style e in UMG non è una linear color. Rinominare in <span style="color:#E6EDF4">opacity.state.*</span> e <span style="color:#E6EDF4">stroke.state.*</span>, lasciando color.* ai soli hue.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:10px">Il moto come canale primario</div>Flow e breathe portano la certezza, ma il moto va perso in uno screenshot, nelle repliche, nei tutorial e con reduce-motion attivo — e in resolution la telecamera si muove. Il moto deve restare <span style="color:#E6EDF4">solo rinforzo</span>: la certezza deve essere leggibile su un fermo immagine, come già garantisce il duty cycle.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:10px">Incerto a 16–24 px</div>Un duty cycle del 18% su un anello da 20 px produce 3–4 punti: a quella scala non legge come "incerto" ma come icona rotta o artefatto di rendering. Sotto 24 px la certezza deve passare a un <span style="color:#E6EDF4">container di stato</span> (cornice segmentata attorno all'icona), non al tratto del glifo.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 12px 'Azeret Mono',monospace;color:#E6EDF4;margin-bottom:10px">Halo unico su ogni superficie</div>L'halo #05080C 85% garantisce contrasto su pavimenti chiari e sull'acqua, ma su una zona di fuoco (fill arancio 24%) un contorno quasi nero legge come ombra dell'ambiente, non come path. Serve un halo <span style="color:#E6EDF4">a contrasto adattivo</span> (nero su chiaro, bianco 60% su scuro saturo), regola implementabile come singolo parametro di materiale.</div>
+    </div>
+  </div>
+
+  <!-- 05 GAPS -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#8D9BAB">R5</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Vincoli non coperti dalla v0.1</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:560px">Non sono dettagli mancanti: sono assi che il sistema attuale non può esprimere senza una modifica strutturale.</div>
+    </div>
+    <div style="border:1px solid #232C38">
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#0A0E14;border-bottom:1px solid #232C38;font:500 10.5px 'Azeret Mono',monospace;color:#56626F;letter-spacing:.14em"><div style="padding:12px 18px">VINCOLO</div><div style="padding:12px 18px">PERCHÉ LA V0.1 NON BASTA</div><div style="padding:12px 18px">DIREZIONE PROPOSTA</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">L · conoscenza acustica<br /><span style="color:#56626F;font-size:10.5px">5 livelli di precisione</span></div><div style="padding:15px 18px">La certezza è a tre valori e satura subito: livelli 1–5 finirebbero tutti in "incerto". Inoltre confonde due assi diversi: <span style="color:#E6EDF4">quanto è preciso ciò che so</span> e <span style="color:#E6EDF4">quanto è probabile ciò che accadrà</span>.</div><div style="padding:15px 18px">Separare <span style="color:#E6EDF4">PRECISIONE</span> (area dell'incertezza: settore → area larga → area stretta → cella → cella + categoria) da <span style="color:#E6EDF4">CERTEZZA</span> (tratto). La precisione è geometria e dimensione, non tratteggio.</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">N · onestà dei telegraph</div><div style="padding:15px 18px">La v0.1 disegna badge WET e reticoli sui nemici senza distinguere fra osservato e dedotto: mostra più di quanto il giocatore sa.</div><div style="padding:15px 18px">Aggiungere l'asse <span style="color:#E6EDF4">PROVENIENZA</span> (visto / dedotto / ignoto) come contorno del marker nemico, indipendente dalla certezza dell'esito.</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">M · Fast Reaction 3 s</div><div style="padding:15px 18px">Nessun canale è riservato all'urgenza: cremisi, arancio e ambra sono già occupati dalla scala di warning, che è una scala di <span style="color:#E6EDF4">gravità</span>, non di <span style="color:#E6EDF4">tempo</span>.</div><div style="padding:15px 18px">Riservare alla Fast Reaction l'unico canale ancora libero: <span style="color:#E6EDF4">il bianco pieno + un timer geometrico</span> che consuma perimetro. Due opzioni, mai un menu.</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">P · facing</div><div style="padding:15px 18px">Assente. Il chevron è già impegnato dal movimento, quindi non può indicare l'orientamento senza ambiguità.</div><div style="padding:15px 18px">Facing come <span style="color:#E6EDF4">settore sull'anello dell'unità</span>: corrente pieno, previsto vuoto, legali come tacche, illegali assenti. Una sola grammatica, zero icone nuove.</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">A · sistema compositivo</div><div style="padding:15px 18px">La v0.1 consegna 40 icone finite, non primitive. Nessuna delle 40 è decomponibile in core + geometry + modifier, e il set non contiene Guard, Overwatch, Sneak, Blink, Forced Movement.</div><div style="padding:15px 18px">Riscrivere il catalogo come <span style="color:#E6EDF4">~14 core glyph + ~20 geometrie + ~12 modificatori + 6 condizioni + 8 stati</span> ≈ 60 primitive, e validare prima le sei di H.</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;border-bottom:1px solid #232C38;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">J · due superfici</div><div style="padding:15px 18px">La v0.1 mescola i due mondi: gli stessi token di tratto valgono per icone da 24 px e telegraph da 300 px, e per questo il tratteggio funziona in uno e sparisce nell'altro.</div><div style="padding:15px 18px">Due scale di token con lo stesso DNA: <span style="color:#E6EDF4">hud.*</span> (px fissi, screen-space) e <span style="color:#E6EDF4">world.*</span> (spessore compensato in distanza, sempre screen-space per il pattern).</div></div>
+      <div style="display:grid;grid-template-columns:170px 1fr 1fr;background:#121822;font:400 12px/1.65 'Azeret Mono',monospace;color:#8D9BAB"><div style="padding:15px 18px;color:#E6EDF4">R · naming legacy</div><div style="padding:15px 18px">I 54 token non hanno mappatura verso RT_UI_*, quindi la documentazione esistente e la board divergono al primo handoff. Mancano inoltre i token di cost, cooldown, charges, phase.</div><div style="padding:15px 18px">Tabella di mappatura obbligatoria in v0.2: RT_UI_Cyan → color.relation.self, RT_UI_Violet → color.relation.ally, RT_UI_Amber → color.relation.objective, RT_UI_Red → color.feedback.critical, RT_UI_White → color.env.interactable.</div></div>
+    </div>
+  </div>
+
+  <!-- 06 FIX -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">FIX</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Allocazione dei canali · un asse per canale</h2>
+      <div style="font:400 12px/1.6 'Azeret Mono',monospace;color:#56626F;max-width:520px">La correzione minima che risolve R1, R3 e metà di R5 senza toccare la tassonomia.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#232C38;border:1px solid #232C38">
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">FORMA → CATEGORIA</div>Con una regola di namespace: in world-space le forme sono spaziali (cerchio = area, quadrato = cella, rombo = obiettivo), in screen-space sono slot compositivi (cerchio = risorsa, esagono = proprietà). <span style="color:#E6EDF4">Il triangolo è l'unica forma condivisa</span> e resta riservato al pericolo; le condizioni passano a un glifo a gradino.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">TRATTO → CERTEZZA</div>Tre soli valori: pieno, 9-6, 2-9. Nient'altro usa il tratteggio: né il proprietario, né il tipo di movimento, né l'asse di tiro, né l'invalido. Sotto 24 px la certezza si sposta sul container.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">HUE → RELAZIONE</div>Solo relazione ed elemento. Gli stati di certezza perdono l'hue proprio; il feedback si separa dall'ambiente di almeno 25°; il friendly fire resta viola dentro un contenitore critico.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">OPACITÀ → FOCUS</div>Un solo asse: rilevanza attenzionale (in focus / normale / de-emphasized). La certezza la lascia libera, disabled e cooldown passano a hatch e a riempimento del ring.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#232C38;border:1px solid #232C38;border-top:0">
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">SPESSORE + NODO → PROPRIETARIO E TIPO</div>Spessore = tipo di movimento (sneak 2 / move 3 / dash 5). Nodo = proprietario (tacche 1-2-3) e ruolo dell'evento (svolta, quota, transizione).</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">GEOMETRIA DELL'AREA → PRECISIONE</div>L'ampiezza della zona incerta È l'informazione acustica: settore, area larga, area stretta, cella, cella marcata. Cinque livelli senza cinque colori.</div>
+      <div style="background:#121822;padding:22px;font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB"><div style="font:500 11px 'Azeret Mono',monospace;color:#35E0C4;letter-spacing:.14em;margin-bottom:10px">BIANCO PIENO → URGENZA</div>Riservato alla Fast Reaction e all'interattivo: le due cose che chiedono un'azione immediata al giocatore. Non usarlo mai come colore decorativo di contorno.</div>
+    </div>
+  </div>
+
+  <!-- 07 ORDER -->
+  <div style="padding:52px 56px 0">
+    <div style="display:flex;align-items:baseline;gap:20px;margin-bottom:24px">
+      <div style="font:500 12px/1 'Azeret Mono',monospace;letter-spacing:.2em;color:#35E0C4">NEXT</div>
+      <h2 style="margin:0;font:400 32px/1 Oswald,sans-serif;text-transform:uppercase;letter-spacing:.02em">Ordine dei lavori</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#232C38;border:1px solid #232C38;margin-bottom:24px">
+      <div style="background:#121822;padding:20px"><div style="font:500 22px/1 Oswald,sans-serif;color:#35E0C4;margin-bottom:10px">01</div><div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Chiudere l'allocazione dei canali e la regola di namespace delle forme. Nessun'altra icona prima di questo.</div></div>
+      <div style="background:#121822;padding:20px"><div style="font:500 22px/1 Oswald,sans-serif;color:#35E0C4;margin-bottom:10px">02</div><div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Costruire le primitive (core / geometry / modifier / condition / state) e le sei icone di H: Move, Attack, Dash, Guard, AoE, Overwatch.</div></div>
+      <div style="background:#121822;padding:20px"><div style="font:500 22px/1 Oswald,sans-serif;color:#35E0C4;margin-bottom:10px">03</div><div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Test a 16/20/24/32/48 px, in monocromia, su fondo chiaro e scuro, con i cinque stati applicati dal container.</div></div>
+      <div style="background:#121822;padding:20px"><div style="font:500 22px/1 Oswald,sans-serif;color:#35E0C4;margin-bottom:10px">04</div><div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Un world overlay, una Fast Reaction (incluso il caso FIRE A / FIRE B / HOLD) e un marker acustico a cinque precisioni.</div></div>
+      <div style="background:#121822;padding:20px"><div style="font:500 22px/1 Oswald,sans-serif;color:#35E0C4;margin-bottom:10px">05</div><div style="font:400 11.5px/1.7 'Azeret Mono',monospace;color:#8D9BAB">Solo dopo: mappatura RT_UI_* → token, e allora l'espansione del catalogo.</div></div>
+    </div>
+    <div style="border:1px solid #232C38;background:#121822;padding:22px;font:400 12.5px/1.8 'Azeret Mono',monospace;color:#8D9BAB"><span style="color:#E6EDF4">Una sola frase di sintesi.</span> La v0.1 ha costruito un vocabolario ricco su un'infrastruttura percettiva povera: cinque canali chiamati a portare quindici assi. Prima di aggiungere una sola icona va deciso chi possiede cosa — perché in 30 secondi il giocatore non decodifica combinazioni, riconosce differenze, e una differenza esiste solo se un canale la porta da sola.</div>
+  </div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>
