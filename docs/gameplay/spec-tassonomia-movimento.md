@@ -472,7 +472,25 @@ significa aggiungere un valore lì, non un `if` nel resolver. *(Il conteggio è 
 questa pagina diceva già «sei valori», questo paragrafo ne elencava cinque, e da D-118 in poi la differenza
 smette di essere un dettaglio.)*
 
-> 🔴 **`LinearPass` non concede più niente, e il 2026-10-01 è rimasto senza consumatore** ([D-445](../decisions/RT_PDR_00_Decision_Log.md)).
+> ⌫ **CORRETTO il 2026-10-04 — questa riga era FALSA, e la misura la smentisce**
+> ([`D-452`](../decisions/RT_PDR_00_Decision_Log.md)). Diceva *«`LinearPass` non concede più niente, e
+> il 2026-10-01 è rimasto senza consumatore»*. Misurato: ha **sette** usi in codice — non commenti —
+> fra cui l'assegnazione a un'abilità di Ivrin (`RTHeroCatalogLibrary.cpp:977`), ed è il **solo** stile
+> che attraversa l'occupante sulle celle intermedie: `RTMovementActionLibrary.cpp:147-153` popola
+> `PassedThroughUnitIds`, che `RTTurnManager.cpp:4665` consuma. Gli altri stili cadono nel ramo sotto
+> e fanno `break`.
+>
+> 🔑 **L'errore veniva dal confondere le DUE FAMIGLIE**, ed è lo stesso che ha prodotto `MOV-15`:
+> [`D-445`](../decisions/RT_PDR_00_Decision_Log.md) tocca il movimento a **budget**, che passa dai
+> micro-step (`RTHexSimLibrary.h:276`, `RTTurnManager_Movement.cpp:259`), mentre la mobilità lineare
+> passa da `ResolveLinearMove` — dove la distinzione è viva. La sua formulazione *«scatti compresi»* si
+> legge come `Sprint`, che è a budget, non come `Dash`. La §2.0-zero di questa pagina scrive la
+> distinzione, e questa riga ne è il controesempio storico.
+>
+> ⛔ **Il valore non si ritira**: ritirarlo cambierebbe il gioco — l'abilità di Ivrin smetterebbe di
+> attraversare — e non sarebbe una pulizia. *Testo smentito, conservato:*
+>
+> > 🔴 ~~`LinearPass` non concede più niente, e il 2026-10-01 è rimasto senza consumatore~~ ([D-445](../decisions/RT_PDR_00_Decision_Log.md)).
 > Lo stile attraversava chi è fermo; da [D-445](../decisions/RT_PDR_00_Decision_Log.md) attraversano **tutti**, quindi `LinearPass` e
 > `Linear` producono lo stesso movimento. ⚠️ **Il valore non è stato ritirato**: l'autore ha scelto
 > esplicitamente la portata *«tutti i movimenti, scatti compresi»* **senza** autorizzare il ritiro dello
