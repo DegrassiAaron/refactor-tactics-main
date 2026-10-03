@@ -1515,7 +1515,13 @@ sessions:
     block: 6
     critical: true
     execution_lane: pie
-    produces: numeri reali nella tabella KPI
+    produces: >-
+      i quattro KPI del perimetro 🎯 della §4 con numero, data e metodo — e NON ogni riga
+      della §4, che chiede uno stato motivato e non un numero
+      ([`D-448`](../decisions/RT_PDR_00_Decision_Log.md), che chiude `GATE-2`).
+      ⚠️ Questo campo e il `done_when` qui sotto erano le DUE frasi che `GATE-2` metteva a
+      confronto come se fossero due fonti: sono due campi dello stesso record, e la
+      contraddizione nasceva qui.
     artifacts: []
     unblocked_by: [U6]
     shares_setup_with: []
