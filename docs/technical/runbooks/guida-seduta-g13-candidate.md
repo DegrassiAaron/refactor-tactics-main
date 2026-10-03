@@ -132,6 +132,48 @@ disco**. Copiala in `docs/technical/evidence/g13/` insieme al log.
 
 ## 5. I sei esiti meccanici
 
+> 🔑 **Non serve greppare a mano: c'è uno script, e dichiara quale rete ha colpito.**
+>
+> ```bash
+> python tools/seduta/esiti.py Saved/Logs/g13-seduta.log \
+>   --csv "Saved/StagedBuilds/Windows/RefactorTactics/Saved/RT/pacing_<timestamp>.csv" \
+>   --crashes "Saved/StagedBuilds/Windows/RefactorTactics/Saved/Crashes"
+> ```
+>
+> Fa tre cose che i comandi qui sotto, usati a mano, non fanno: tiene **tre** reti sui crash e dice
+> **quale** ha colpito; valida ogni ricerca negativa con un **controllo positivo** sullo stesso file,
+> così che uno zero non si confonda con un pattern rotto; e **rifiuta di emettere verdetti** se il
+> cancello della §5-bis è chiuso. `NOT RUN` resta distinto da `PASS`.
+> I comandi che seguono restano la forma leggibile dello stesso controllo, e servono quando vuoi
+> guardare una riga invece di un verdetto.
+
+---
+
+## 5-bis. ⛔ Il cancello: leggilo PRIMA dei sei
+
+I sei esiti attendono tutti **zero**. Una seduta che non parte, o che muore al frontend, li soddisfa
+**tutti e sei** — e un gate di soli zeri non distingue *«pulito»* da *«mai avvenuto»*.
+
+Il criterio di `G13` chiede anche *«risoluzione completa»* e *«risultato raggiungibile»*, che sono
+**positivi**; la misura del 2026-09-13 li ha letti come `Travel Failure: 0`, che è un negativo e non
+li prova. I testimoni che li provano esistono:
+
+| # | esito | comando | atteso |
+|---|---|---|---|
+| 0a | ⬆️ **la partita è stata allestita** | `grep -ac "Board 2v2 esagonale avviata" "$LOG"` | **≥ 1** |
+| 0b | ⬆️ **la partita è FINITA** | `grep -ac "Fine partita al round" "$LOG"` | **≥ 1** — `Frontend/RTFrontendNavigator.cpp:373` |
+| 0c | ⬆️ **l'esito è stato deciso** | `grep -ac "Partita finita:" "$LOG"` | **≥ 1** — `Turn/RTTurnManager.cpp:3596` |
+| 0d | la schermata di Result si è aperta | `grep -ac "Partita finita senza frontend" "$LOG"` | `0` — `Frontend/RTMatchFrontendBridge.cpp:64` |
+
+⬆️ significa **atteso diverso da zero**. `0b` e `0c` sono testimoni **distinti** e non si sostituiscono:
+il primo è del navigatore e dice che il *frontend* ha chiuso la partita, il secondo è del TurnManager e
+dice che la *simulazione* ha deciso un esito. Se compare solo `0c`, la risoluzione è arrivata e la
+schermata no — ed è esattamente ciò che `0d` nomina.
+
+⛔ **Se `0a` risponde `0`, i sei esiti sotto NON si leggono**: la seduta è `NOT RUN`, non verde.
+
+---
+
 Sostituisci `$LOG` con `D:/Repositories/refactor-tactics-main/Saved/Logs/g13-seduta.log`.
 
 | # | esito | comando | atteso |
