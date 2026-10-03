@@ -37,7 +37,7 @@
  * ⚠️ La seconda e' peggio di quanto sembri: l'arancione del fuoco amico ha una voce PIE **verde firmata**
  * (`PIE-PREVIEW-AREA`, 2026-08-09, *«si capisce»*) — ma quella verifica non puo' essere passata su una cella
  * di fuoco, perche' li' i due arancioni distano `30`. Le due coppie sono **pinnate** da
- * `RefactorTactics.AreaOverlay.PaletteRatchet`, che le conosce e vieta che se ne aggiungano altre.
+ * `RefactorTactics.AreaOverlay.PaletteIsDistinguishable`, che le conosce e vieta che se ne aggiungano altre. ⌫ **Questa riga diceva `…PaletteRatchet`, e quel test non esiste piu': corretta il 2026-10-03.** `git grep -c PaletteRatchet -- Source/` rispondeva **1**, ed era il commento stesso — cioe' un presidio citato che nessuno poteva eseguire. 🔑 Il test nuovo porta dentro di se' la storia del rename, *«perche' un ratchet era, e perche' non lo e' piu'»*, e pinna le stesse due coppie: verificato leggendolo, non dedotto dal nome.
  */
 UCLASS()
 class REFACTORTACTICS_API URTOverlayPalette : public UBlueprintFunctionLibrary
