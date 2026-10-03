@@ -141,7 +141,7 @@ Sostituisci `$LOG` con `D:/Repositories/refactor-tactics-main/Saved/Logs/g13-sed
 | 6a-ter | **ortogonale al log** | nessuna cartella nuova sotto `...\RefactorTactics\Saved\Crashes\` rispetto al conteggio del passo 0 | nessuna |
 | 6b | nessun asset editor-only | `grep -ac "Failed to find object" "$LOG"` e `grep -ac "SkipPackage" "$LOG"` | `0` e `0` |
 | 6c | nessun `Travel Failure` | `grep -ac "Travel Failure" "$LOG"` | `0` |
-| 6d | il CSV ha il turno buono | vedi sotto |
+| 6d | il CSV ha il turno buono | vedi il blocco **6d** qui sotto | almeno un turno con tutte e tre |
 
 🔴 **Perché 6a ha tre righe e non una.** Il pattern storico è **cieco a una classe di crash già vista su
 questo pacchetto**: sul log della run che è morta di GPU crash il 2026-10-02,

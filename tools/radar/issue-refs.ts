@@ -97,9 +97,20 @@ const STORICA = [
   /\bD-(178|18[12])\b/,
   /\b(26f6955a|d671df47)\b/, // i due commit di rimozione, citati per esteso dalle note
   /non vive (piu|più)/i,
-  /non esiste (piu|più)?/i,
+  // ⚠️ `\b` e non ` (piu|più)?`: lo spazio era OBBLIGATORIO prima del gruppo opzionale, quindi il
+  // predicato colpiva solo quando la frase CONTINUAVA. `non esiste.` — la grafia piu' naturale, col
+  // punto subito dopo — non lo attivava, e due issue aperte sono finite nel referto per questo.
+  /non esiste\b/i,
   /\b(uscit|ritirat|eliminat|rimoss)\w*/i,
   /non (e|è) citabile/i,
+  // Il CONTROFATTUALE: una riga al condizionale passato descrive un percorso che non si e' preso,
+  // e non chiede a nessuno di crearlo. Senza questa riga il referto affermava il falso su di essa
+  // — dice «ogni riga qui sopra PRESCRIVE un percorso cancellato», e una non lo faceva.
+  //
+  // ⚠️ Raggio misurato PRIMA di allargare, su 34.872 righe di corpi di issue aperte: 42 righe
+  // contengono `avrebbe`, di cui 2 citano anche un percorso, e ZERO sono caselle di DoD. \b
+  // davanti e dietro, perche' `avrebbero` e `avrebbe` sono la stessa forma e `savrebbe` non esiste.
+  /\bavrebbe\b/i,
   /Rimisurato il \d{4}-\d{2}-\d{2}/i,
 ];
 
