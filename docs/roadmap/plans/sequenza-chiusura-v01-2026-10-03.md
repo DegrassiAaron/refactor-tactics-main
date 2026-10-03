@@ -46,7 +46,8 @@
 [3. Le tre code](#3-le-tre-code) · [4. La sequenza](#4-la-sequenza) · [5. Rilievi](#5-rilievi) ·
 [6. Le mie ipotesi cadute](#6-tre-mie-ipotesi-cadute-dichiarate) · [7. Limiti](#7-limiti-dichiarati) ·
 [8. Consuntivo dell'Onda A](#8-consuntivo-dellonda-a--eseguita-il-2026-10-03) ·
-[9. Consuntivo dell'Onda B](#9-consuntivo-dellonda-b--parziale-il-2026-10-03)
+[9. Consuntivo dell'Onda B](#9-consuntivo-dellonda-b--parziale-il-2026-10-03) ·
+[10. Il supporto alla chiusura](#10-il-supporto-alla-chiusura-2026-10-03)
 
 ---
 
@@ -494,11 +495,11 @@ il cui `Source` è `d6a1c4419d29` — **identico** a `95eddfd37:Source`.
 
 | | Esito | Nota |
 |---|---|---|
-| `B1` · `G13` | ⏳ **non eseguibile da qui** | §9.1 |
-| `B2` · `G11` | 🟡 **tre KPI su quattro** | il quarto chiede una cattura sul pacchetto |
+| `B1` · `G13` | ⏳ **non eseguibile da qui** | §9.1 · il foglio è pronto e ha un **cancello** (§10.2) |
+| `B2` · `G11` | ✅ **VERDE — i quattro KPI** | §10.1: il quarto non richiedeva una persona |
 | `B3` · `G3` `G4` `G6` `G8` | ✅ **ridatati** | una sola passata, nomi verificati sul `Path` |
 | `B3` · `G5` | ✅ **ridatato** | `git grep`, con controllo positivo del metodo |
-| `B4` · `G16` | ⏳ **non eseguibile da qui** | §9.1 |
+| `B4` · `G16` | ⏳ **non eseguibile da qui** | §9.1 · il foglio di conduzione ora **esiste** (§10.3) |
 
 La passata: `python tools/suite/esegui.py RefactorTactics` → **2822 trovati, 2822 avviati, 2822
 completati, nessun rosso**, 250 s. Letta con i **due** metodi che concordano — l'oracolo dei conteggi
