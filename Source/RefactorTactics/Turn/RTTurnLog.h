@@ -576,6 +576,21 @@ enum class ERTMoveOutcome : uint8
 	 * (`RTHexSimLibrary.cpp`, filtro `!Moving[j]`); ciclo e scambio vivono fra unita' in MOVIMENTO. I due
 	 * rami sono disgiunti, e un'unita' che sta solo TRANSITANDO per la cella dell'altra chiude comunque il
 	 * ciclo: non si passa attraverso qualcuno che nello stesso istante sta venendo verso di noi.
+	 *
+	 * ⛔ **NESSUNO EMETTE PIU' QUESTO VALORE, ED E' DELIBERATO** — [`D-453`], che chiude `MOV-13`.
+	 * Il produttore non e' stato dimenticato: [`D-445`] lo ha **spento**, perche' *«nessuna unita' blocca
+	 * il transito di nessun'altra, quindi l'appartenenza di squadra degli anelli non cambia nessun esito»*
+	 * — la misura sta in `RTHexSimLibrary.cpp`, nel commento che segue il ciclo. Oggi i soli usi in codice
+	 * sono questa dichiarazione e il ramo che ne compone la stringa (`RTTurnLogLibrary.cpp`).
+	 *
+	 * 🔴 **Non riaccenderlo per far tornare i conti.** Produrlo significherebbe reintrodurre un blocco
+	 * che `D-445` ha abolito, cioe' cambiare una regola **competitiva**: passa per un `D-nnn` che lo
+	 * autorizzi, non per una pulizia. La decisione d'autore del 2026-10-04 e' che *«`D-445` e' corretto»*.
+	 *
+	 * ♻️ **Resta qui, e non si ritira oggi**, perche' l'esito viaggia come `uint8` nel formato
+	 * serializzato: togliere un valore e' un cambiamento di **formato** col suo versioning, e non si paga
+	 * per un valore che non fa danno. ⚠️ Ma e' un **candidato alla rimozione** il giorno in cui quel
+	 * versioning si tocchi per un'altra ragione: pagare quel costo due volte sarebbe lo spreco.
 	 */
 	BlockedByCycle,
 	/**
