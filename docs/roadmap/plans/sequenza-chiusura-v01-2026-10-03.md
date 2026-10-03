@@ -46,7 +46,8 @@
 [3. Le tre code](#3-le-tre-code) · [4. La sequenza](#4-la-sequenza) · [5. Rilievi](#5-rilievi) ·
 [6. Le mie ipotesi cadute](#6-tre-mie-ipotesi-cadute-dichiarate) · [7. Limiti](#7-limiti-dichiarati) ·
 [8. Consuntivo dell'Onda A](#8-consuntivo-dellonda-a--eseguita-il-2026-10-03) ·
-[9. Consuntivo dell'Onda B](#9-consuntivo-dellonda-b--parziale-il-2026-10-03)
+[9. Consuntivo dell'Onda B](#9-consuntivo-dellonda-b--parziale-il-2026-10-03) ·
+[10. Il supporto alla chiusura](#10-il-supporto-alla-chiusura-2026-10-03)
 
 ---
 
@@ -494,11 +495,11 @@ il cui `Source` è `d6a1c4419d29` — **identico** a `95eddfd37:Source`.
 
 | | Esito | Nota |
 |---|---|---|
-| `B1` · `G13` | ⏳ **non eseguibile da qui** | §9.1 |
-| `B2` · `G11` | 🟡 **tre KPI su quattro** | il quarto chiede una cattura sul pacchetto |
+| `B1` · `G13` | ⏳ **non eseguibile da qui** | §9.1 · il foglio è pronto e ha un **cancello** (§10.2) |
+| `B2` · `G11` | ✅ **VERDE — i quattro KPI** | §10.1: il quarto non richiedeva una persona |
 | `B3` · `G3` `G4` `G6` `G8` | ✅ **ridatati** | una sola passata, nomi verificati sul `Path` |
 | `B3` · `G5` | ✅ **ridatato** | `git grep`, con controllo positivo del metodo |
-| `B4` · `G16` | ⏳ **non eseguibile da qui** | §9.1 |
+| `B4` · `G16` | ⏳ **non eseguibile da qui** | §9.1 · il foglio di conduzione ora **esiste** (§10.3) |
 
 La passata: `python tools/suite/esegui.py RefactorTactics` → **2822 trovati, 2822 avviati, 2822
 completati, nessun rosso**, 250 s. Letta con i **due** metodi che concordano — l'oracolo dei conteggi
@@ -563,3 +564,85 @@ dal 2026-08-14, e **nessuna** misura successiva ci somiglia.
 🎯 **La rimisura è servita a escludere un danno, che è un esito e non un buco nell'acqua.** `691bd63b7`
 tocca `ResolveReactionBoundary` e `PumpReactionTriggers`, cioè il percorso che `Perf.*` misura: senza
 misurare, il sospetto sarebbe rimasto scritto in §3.2 come una riserva aperta.
+
+---
+
+## 10. Il supporto alla chiusura (2026-10-03)
+
+Ciò che resta — `G13` e `G16` — ha **oracoli percettivi** nel criterio e non si chiude senza una
+persona (§9.1). Questa sezione registra ciò che è stato preparato perché quella seduta sia *guardare
+e premere*, e ciò che è stato **misurato** invece di lasciato a lei.
+
+### 10.1 `G11` è chiuso, e il quarto KPI non richiedeva una persona
+
+Il criterio della §4 **prescrive** l'autobattle per questo KPI, e il divieto di `-RTAutobattle`
+appartiene a `G13` — che misura se l'**input umano arriva** — non a un KPI che misura un **tempo di
+frame**. Le due sedute chiedono il contrario l'una dell'altra, ed è corretto così.
+
+Il pacchetto è stato **ricostruito** dal candidate, quindi la clausola del passo 1 di `U16` è
+soddisfatta alla lettera. `SkipPackage` risponde `0` e quello zero **vale**, perché la domanda è stata
+posta prima: `find Content/FabAsset -name '*.uasset' \| wc -l` → **37482**.
+
+⚠️ **Il numero del pacchetto ricostruito non concorda con quello di un'ora prima**, e la §4 lo scrive
+invece di scegliere: **9,326–9,683 ms** p99 su tre catture, contro **7,463–7,547** sul pacchetto
+trovato su disco. Le tre nuove sono stabili **fra loro** — la terza non scende, quindi non è cache
+fredda. ⛔ La differenza **non è attribuita e non è più indagabile**: il cook ha ripulito
+`Saved/Profiling/CSV/` e il pacchetto su cui valeva l'altro numero non esiste più.
+✅ Entrambe le letture stanno **dentro il target**: `9,683 ms` sono **103 fps**, il target è `60`.
+
+🔑 **E `FrameTime` non si legge per posizione.** Nelle cinque catture di oggi è stata la colonna
+**175**, **177**, **173**, **146** e **175**, su 325/321/324/323/325 colonne — cinque posizioni sullo
+stesso binario in un'ora. Chi la leggesse per indice misurerebbe cinque serie diverse.
+
+### 10.2 `G13` ha un cancello, e il criterio aveva un difetto di **misura**
+
+Il criterio chiede *«risoluzione completa»* e *«risultato raggiungibile»*, che sono **positivi**; la
+misura del 2026-09-13 li ha letti come `Travel Failure: 0`, che è un negativo e non li prova. Con sei
+esiti su sei che attendono zero, una seduta che non parte li soddisfa **tutti**.
+
+La §5-bis del [runbook](../../technical/runbooks/guida-seduta-g13-candidate.md) aggiunge i testimoni
+che li provano, con il loro falsificatore: `Board 2v2 esagonale avviata`, `Fine partita al round`
+(`Frontend/RTFrontendNavigator.cpp:373`), `Partita finita:` (`Turn/RTTurnManager.cpp:3596`), e
+`Partita finita senza frontend` (`Frontend/RTMatchFrontendBridge.cpp:64`).
+
+✅ **E il cook ha reso più semplice il passo 0**: `Saved/` del pacchetto è stata **ripulita**, quindi le
+tre cartelle di crash del 2026-10-02 non ci sono più e qualunque cartella sotto `Saved/Crashes/` dopo
+la seduta è **tua**.
+
+### 10.3 `G16` ha un foglio di conduzione, che non esisteva
+
+[`guida-seduta-g16-u60.md`](../../technical/runbooks/guida-seduta-g16-u60.md): preflight, il lancio con
+`-abslog` virgolettato, i cinque passi con cosa osservare, e dove va il verdetto.
+
+⛔ **Dichiara tre cose che da fuori l'Editor non si sono potute verificare**, invece di riempirle a
+intuizione. La principale: i **nomi delle zone** della Screen HUD. L'HUD è a otto zone dal 2026-09-12
+(`7d1145cd7`), ma quel commit tocca **un solo file e binario** — `WBP_RT_TacticalHUD.uasset` — quindi i
+nomi vivono dentro l'asset e `grep -rhoE "Zone_[A-Za-z]+" Source/` risponde col solo `Zone_C`. Una
+stesura precedente nominava due zone: rimosse, perché un nome sbagliato in un foglio operativo costa la
+seduta a chi lo segue.
+
+### 10.4 Gli esiti si **derivano** dal log, non si greppano
+
+[`tools/seduta/esiti.py`](../../../tools/seduta/esiti.py). Tiene **tre** reti sui crash e dichiara
+**quale** ha colpito — la rete storica è cieca ai GPU crash, e lo misura la cella `G2` — valida ogni
+ricerca negativa con un **controllo positivo** sullo stesso file, cerca le colonne del CSV **per nome**,
+e **rifiuta di emettere verdetti** se il cancello della §10.2 è chiuso.
+
+Collaudato in **due** direzioni su log reali: sul log pulito di una cattura dà zero `FAIL` con i
+`NOT RUN` dichiarati; sul log di una suite crashata dà cancello `FAIL` (`allestimento=0`),
+`Assertion failed=2, Critical error=1`, `Error:=35`, e si ferma. I suoi test includono **quattro
+mutazioni**, fra cui il caso in cui tutti gli zeri sono perfetti ma niente è mai avvenuto.
+
+### 10.5 ⌫ Due falsi allarmi miei su `G9`, e il fatto utile che ci stava dietro
+
+`#3442` aveva toccato il registro PIE, quindi `G9` andava ricontato. Il conteggio dà **17 voci, 17
+verdi** — la cella diceva il vero — ma ci sono volute **tre** letture per arrivarci, e le prime due
+erano sbagliate in direzioni opposte:
+
+| lettura | esito | perché sbaglia |
+|---|---|---|
+| primo glifo della **riga** | `16 · 1 ❌` | `PIE-HEXPLAY-6` porta un `❌` nella **prosa storica** della quarta cella (*«Corretto il 2026-09-10»*), mentre il suo stato è `✅` |
+| primo glifo dell'**ultima** cella | `16 · 1 senza glifo` | `PIE-PREVIEW-AREA` ha **sei** celle: la sesta è un commento HTML, e lo stato sta nella **quinta** |
+| primo glifo della **quinta** cella | **`17 · 0`** | ✅ |
+
+∴ delle diciassette voci, **due** rompono una delle due letture ingenue, e la cella `G9` ora le nomina.
