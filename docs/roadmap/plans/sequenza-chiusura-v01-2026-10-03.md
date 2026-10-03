@@ -6,6 +6,12 @@
 > `git status --porcelain` → **0** righe. Stato delle issue e delle PR letto lato server con `gh`
 > il **2026-10-03**.
 >
+> ♻️ **Due basi, e le sezioni dicono quale usano.** §1–§7 stanno su `768c65f4d`. L'**§8** — il
+> consuntivo dell'Onda A, eseguita lo stesso giorno — sta su `a89b1f3f9`
+> (albero `1cfc8085bd68267509882dfaaeeb923f3d2e1e1c`), e la nota di §2.2 che registra la caduta di
+> `doc-tables` pure. Nessuna cella di §2.3 è stata ridatata in quell'occasione: l'Onda A non toccava
+> `Source/`.
+>
 > **Cosa è**: l'ordine in cui il lavoro residuo della v0.1 può essere affrontato **sul candidate
 > congelato `95eddfd37`**, derivato dai gate e non dall'elenco delle issue aperte. Aggiorna
 > [`sequenza-chiusura-v01-spec-panel-2026-09-27.md`](sequenza-chiusura-v01-spec-panel-2026-09-27.md),
@@ -31,7 +37,8 @@
 
 **Indice** · [1. Il perimetro](#1-il-perimetro-e-invariato) · [2. Stato dei gate](#2-stato-dei-gate-sul-candidate) ·
 [3. Le tre code](#3-le-tre-code) · [4. La sequenza](#4-la-sequenza) · [5. Rilievi](#5-rilievi) ·
-[6. Le mie ipotesi cadute](#6-tre-mie-ipotesi-cadute-dichiarate) · [7. Limiti](#7-limiti-dichiarati)
+[6. Le mie ipotesi cadute](#6-tre-mie-ipotesi-cadute-dichiarate) · [7. Limiti](#7-limiti-dichiarati) ·
+[8. Consuntivo dell'Onda A](#8-consuntivo-dellonda-a--eseguita-il-2026-10-03)
 
 ---
 
@@ -89,6 +96,11 @@ pulito:
 riga sola — `docs/technical/runbooks/guida-seduta-g13-candidate.md:144`, *«3 celle invece di 4»*.
 `doc-tables` non appartiene al criterio di `G14`, ma quella riga vive nel **runbook di `G13`**, cioè
 nel foglio che la prossima seduta esegue. La corregge [#3442](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3442).
+
+> ✅ **Caduto il 2026-10-03, dopo il merge di `#3442`** (§8). Rimisurato su `a89b1f3f9`:
+> `node tools/radar/doc-tables.ts --check` → exit **0**, e le righe *«celle invece di»* sono **0**.
+> I due comandi di `G14` restano exit **0** sullo stesso albero. ∴ il runbook di `G13` è valido, e
+> la seduta `B1` non inciampa nella riga 144.
 
 ### 2.3 Dove stanno i gate, e su quale albero
 
@@ -221,7 +233,7 @@ della cartella (`MatchId.ToString(EGuidFormats::Digits)`) o sul campo `"MatchId"
 | A1 | merge [#3443](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3443) | Chiude [#3362](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3362). Due file sotto `tools/editor-sessions/`, nessuna sovrapposizione con le altre PR aperte, DoD verificabile **senza** Unreal. Baseline riconfermata: `python -m pytest -q` in quella cartella → `82 passed, 2 subtests passed` |
 | A2 | merge [#3442](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3442) | Rende verde `doc-tables`, e la riga che oggi lo tiene rosso è nel **runbook di `G13`** (§2.2) |
 | A3 | merge [#3444](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3444) | **Dopo** `A2`: il suo stesso corpo dichiara che `doc-tables` resta rosso sul suo branch per quella riga. Apre `MOV-15` come domanda, quindi porta una decisione da firmare |
-| A4 | chiudere [#2554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2554) | **È già mergiata** e il suo unico commento dice il contrario (*«NON compilato, commit di salvataggio»*): `git merge-base --is-ancestor f29dd3749 768c65f4d` → vero |
+| A4 | ~~chiudere~~ **aggiornare** [#2554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2554) | Il codice **è** su `main` dal 2026-09-06 e il suo unico commento dice il contrario (*«NON compilato, commit di salvataggio»*): `git merge-base --is-ancestor f29dd3749 768c65f4d` → vero. ⛔ **Ma non si chiude** — §8.2: il suo DoD ha sei caselle e cinque chiedono l'occhio in Editor |
 | A5 | milestone di [#2477](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2477) | `U5` è **differita a `E26`** dal 2026-09-28 e [`D-441`](../../decisions/RT_PDR_00_Decision_Log.md) la registra; la issue è ancora `v0.1` · `P1` |
 | A6 | candidate in [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85) | Il suo passo 1 è *«congelare il candidate SHA e dichiararlo»*. Il body dice ancora *«da congelare»*, e lo stato non vive in un commento: `gh issue view 85 --comments` ne restituisce **uno**, del 2026-09-12 su `G12` |
 | A7 | la direzione di [#3438](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3438) | Il residuo di `G7` ha quattro direzioni possibili e nessuna scelta: va aperta come riga in [`OPEN_DECISIONS.md`](../../OPEN_DECISIONS.md) perché un `D-nnn` la possa chiudere. ⛔ Lo slot `GATE-1` è chiuso e il numero non si riusa |
@@ -402,3 +414,65 @@ registrata il 2026-09-28. È il commento a essere stantio, non la decisione a ma
    il bot possa fermare il giocatore, è la finestra»*. Se fosse più grande, l'Onda B si allunga.
 6. **Le PR del gruppo vecchio non sono state ricompilate.** Il giudizio su `#3203`, `#3205`, `#3206`
    e `#3230` viene dal diff e dal grafo dei commit, non da una build.
+
+---
+
+## 8. Consuntivo dell'Onda A — eseguita il 2026-10-03
+
+Misure su `main` = `a89b1f3f9`, albero `1cfc8085bd68267509882dfaaeeb923f3d2e1e1c`,
+`git status --porcelain` → 0 righe.
+
+| | Esito | Evidenza |
+|---|---|---|
+| A1 · [#3443](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3443) | ✅ `MERGED` | merge commit `9bdb1b1a3` |
+| A2 · [#3442](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3442) | ✅ `MERGED` | merge commit `3fa814a4b` |
+| A3 · [#3444](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3444) | ✅ `MERGED` | merge commit `a89b1f3f9` — dopo `A2`, come prescritto |
+| A4 · [#2554](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2554) | ⚠️ **aggiornata, NON chiusa** | §8.2 |
+| A5 · [#2477](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2477) | ✅ milestone → `v0.2 · Struttura e finestre` | `gh issue view 2477` lo conferma |
+| A6 · [#85](https://github.com/DegrassiAaron/refactor-tactics-main/issues/85) | ✅ candidate dichiarato | passo 1 della sua DoD, e **solo** quello |
+| A7 · [#3438](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3438) | ⏳ **non eseguita** | la riga di decisione in `OPEN_DECISIONS.md` resta da aprire |
+
+Effetto laterale misurato: **`doc-tables` è passato a verde** (§2.2), quindi il runbook di `G13` non
+ha più la riga rotta che la seduta `B1` avrebbe incontrato.
+
+E una chiusura che non era in tabella: **[#3362](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3362) è
+chiusa**. `#3443` la dichiara chiusa nel corpo, ma scrive *«Chiude #3362»* — e GitHub riconosce come
+keyword solo le forme inglesi, quindi `closingIssuesReferences` era **vuoto** e la issue non si
+sarebbe chiusa da sé. I tre congiunti del suo DoD sono stati misurati prima di chiuderla.
+
+### 8.1 ⚠️ Un test di `#3443` dipende dalla working directory
+
+Trovato eseguendo `A1`, e non invalida il merge:
+
+```sh
+python -m pytest -q tools/editor-sessions   # dalla radice: 85 passed
+cd tools/editor-sessions && python -m pytest -q   # 1 failed, 84 passed
+# FileNotFoundError: 'docs\technical\test-manuali-pie.md'
+```
+
+`pie_status.load()` risolve `REGISTRO` come percorso **relativo alla cwd**, mentre il test nuovo
+calcola la radice per conto proprio per costruire l'atteso: le due metà dello stesso test usano due
+convenzioni, e una sola è indipendente da dove lo lanci.
+
+🔑 **Gli 85 sono 82 + 3**, cioè la baseline che la PR dichiarava più i suoi test nuovi: il conto torna,
+e il rosso è di percorso, non di contenuto. ⛔ Ma chi lancerà la suite da dentro quella cartella
+leggerà una regressione che non c'è. Il rimedio è una riga — far derivare `REGISTRO` da `__file__`,
+come già fa il test — e sta registrato nel commento di chiusura di `#3362`.
+
+### 8.2 ⌫ `A4` era sbagliata: da «mergiata» non segue «chiudibile»
+
+La riga `A4` diceva *«chiudere #2554»*, e la premessa era giusta: il lavoro è su `main` dal
+2026-09-06 con [#2591](https://github.com/DegrassiAaron/refactor-tactics-main/pull/2591), un file solo
+(`SRTAnimPreviewViewport.cpp`), e il branch remoto non esiste più
+(`git ls-remote --heads origin | grep -c 2554` → **0**).
+
+⛔ **Ma la conclusione no.** Il DoD di `#2554` ha sei caselle, **nessuna spuntata**, e cinque non sono
+soddisfabili da un merge: i quattro controlli di `Play`, la velocità a `0,1x`, l'inquadratura, i
+quattro pack, e *«build pulita e suite verde ricompilando»*. L'unica caduta è la sesta — le tre voci
+di giudizio, date in [#2521](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2521),
+`CLOSED` dal 2026-09-28.
+
+∴ chiuderla avrebbe registrato come fatto ciò che nessuno ha guardato, ed è la forma che
+[`CLAUDE.md`](../../../CLAUDE.md) §14 vieta: `PR MERGED` non è `DONE`. La issue è stata **aggiornata**
+— perché il suo unico commento diceva il contrario del vero — e resta aperta per una seduta Editor
+sul clone principale, dato che il modulo è `RefactorTacticsEditor`.
