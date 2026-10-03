@@ -489,38 +489,53 @@ RT-CAP-INTENT-PRIVACY
 └─ Packaged: G8
 ```
 
-### Stato reale dei gate di release
+### I gate di release, e dove vive il loro stato
 
-⚠️ Questi non sono stati rimisurati qui: sono **trascritti** da
-[`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) §3, con la data che
-quella tabella dichiara. Un gate senza esecutore automatico **non è verde: è verde a una data**.
+🔴 **Qui c'era una tabella che TRASCRIVEVA lo stato di ogni gate, e il 2026-10-03 nove righe su
+quindici erano sbagliate.** Diceva `G12` — 🔴 **STANTIO**, `G10` — ⏳ *mai registrata*,
+`G14` — ⏳, `G7` — 🟡. Oggi sono tutti e quattro ✅. Si dichiarava da se' una
+*«trascrizione datata»*, e la dichiarazione non l'ha salvata: nessuno la aggiorna quando il
+gate si muove, perche' chi misura un gate scrive **nella sua cella**.
 
-| Gate | Oggetto | Stato dichiarato | Data della misura |
-|---|---|---|---|
-| `G1` | Build Editor + Development + Shipping | ✅ | 2026-09-09 |
-| `G2` | Suite automation completa | 🟡 Editor verde · packaged parziale | 2026-08-29 |
-| `G3` | I dieci test nominati dal catalogo | ✅ | 2026-08-29 |
-| `G4` | Determinismo, checksum identico | ✅ | 2026-08-29 |
-| `G5` | Nessun gameplay quadrato residuo | ✅ **rimisurato in questa passata** | 2026-09-10 |
-| `G6` | ID stabili e unici | ✅ | 2026-08-29 |
-| `G7` | Nessun float in costi/priorità/danni | 🟡 validator sì, revisione `.uasset` no | 2026-08-29 |
-| `G8` | Nessun intento avversario replicato | ✅ ma **offline**: misura il DTO, non il filo | 2026-09-04 |
-| `G9` | Subset `RELEASE-V01` delle verifiche manuali | 🟡 **una voce FALLITA** (`PIE-HEXPLAY-6`) | 2026-09-09 |
-| `G10` | Partita completa 2v2 con esito terminale | ⏳ mai registrata | — |
-| `G11` | KPI misurati e registrati | ⏳ | — |
-| `G12` | Packaging Development + Shipping | 🔴 **STANTIO** — timbro del 2026-08-16 | 2026-08-16 |
-| `G13` | Partita giocabile dalla build packaged | 🟡 | 2026-09-03 |
-| `G14` | Documentazione allineata | ⏳ | — |
-| `G16` | Vertical Slice Labs & Playback — smoke integrato | ⏳ aperto | 2026-09-10 |
+🔑 **La correzione non e' rinfrescare i glifi: e' togliere la duplicazione.** E' la stessa
+disciplina che l'asserzione `A3` di `doc-coherence` impone ai corpi delle issue, e che la cella di
+`G14` registra come il modo in cui quel gate e' tornato verde — *«togliendo la duplicazione
+dello stato da cinque corpi di issue invece di rinfrescarne i glifi»*. Una copia che non porta
+stato non puo' divergere.
+
+⛔ **Lo stato dei gate vive in UN posto**: [`../../roadmap/v0.1-definition-of-done.md`](../../roadmap/v0.1-definition-of-done.md) §3, colonna 4. Questa pagina
+tiene solo **che cosa ciascun gate guarda**, che e' l'unica cosa che non invecchia.
+
+| Gate | Oggetto |
+|---|---|
+| `G1` | Build Editor + Development + Shipping |
+| `G2` | Suite automation completa |
+| `G3` | I dieci test nominati dal catalogo |
+| `G4` | Determinismo, checksum identico |
+| `G5` | Nessun gameplay quadrato residuo |
+| `G6` | ID stabili e unici |
+| `G7` | Nessun float in costi/priorità/danni |
+| `G8` | Nessun intento avversario replicato |
+| `G9` | Subset `RELEASE-V01` delle verifiche manuali |
+| `G10` | Partita completa 2v2 con esito terminale |
+| `G11` | KPI misurati e registrati |
+| `G12` | Packaging Development + Shipping |
+| `G13` | Partita giocabile dalla build packaged |
+| `G14` | Documentazione allineata |
+| `G16` | Vertical Slice Labs & Playback — smoke integrato |
+
+⚠️ **E il principio che la vecchia tabella portava resta vero, quindi resta scritto**: un gate senza
+esecutore automatico **non e' verde, e' verde a una data**. La data si legge nella cella, insieme al
+commit su cui la misura e' stata presa — ed e' il motivo per cui un verde **non si eredita** quando
+il candidate si sposta.
 
 🔴 **Il perimetro non è un intervallo, e leggerlo come tale è il modo in cui si perde un gate.**
 `G15` **è ritirato** — tolto il 2026-08-21 da `D-181` insieme al Feature Registry che ne era l'unico
 meccanismo — e il numero **non si riusa**: la riga resta barrata perché un gate che sparisce senza traccia
 si riscrive uguale sei mesi dopo. `G16` è il gate **successivo**, non il quindicesimo.
 
-⚠️ **`G16` non è su `origin/main` `18065c28`**, cioè fuori dalla fotografia dichiarata in testa a questo
-documento: entra con `1cdd0d03` (`D-377`), il commit **gemello di questo file nella stessa PR**. Al merge
-il perimetro diventa `G1`…`G14` più `G16`. La riga è qui perché la prima stesura scriveva *«`G1`…`G14`»*
+⏮️ **Questa riga era una PREVISIONE, e il suo innesco è scattato il 2026-09-10: riscritta al passato il 2026-10-03.** Diceva che `G16` non era ancora su `origin/main` `18065c28`, cioè fuori dalla fotografia dichiarata in testa a questo
+documento: entra con `1cdd0d03` (`D-377`), il commit **gemello di questo file nella stessa PR**. Quel merge è avvenuto, e il perimetro È `G1`…`G14` più `G16`. La riga è qui perché la prima stesura scriveva *«`G1`…`G14`»*
 come se fosse tutto, e sarebbe atterrata contraddicendo il commit accanto al proprio.
 
 🔑 **`G16` è il gate che questa mappa avrebbe voluto avere.** Chiede che **Ability Lab**, **Hero Lab**,
