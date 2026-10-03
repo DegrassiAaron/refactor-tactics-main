@@ -145,20 +145,35 @@ Informazioni per **azione**: `ActionId` · `SourceUnitId` · `Phase` · `Priorit
 
 Sono gli stessi divieti degli invarianti #1/#3/#4/#6 del canone, visti dal lato del contenuto.
 
-## 7. Definition of Done del catalogo (dal PDF §18)
+## 7. Definition of Done del catalogo — **indice**, non stato (dal PDF §18)
 
-- [x] Ogni azione possiede un ID stabile
-- [x] Ogni azione dichiara fase, priorità e fallback
-- [x] Ogni terreno dichiara costo e interazioni
-- [x] Ogni variante presenta almeno uno svantaggio
-- [x] Le quattro identità degli eroi sono leggibili
-- [ ] La combo acqua/elettricità è deterministica *(E8)*
-- [x] Le collisioni simultanee hanno una regola *(scritta qui; la precedenza di `Charge` arriva con E4)*
-- [x] Esiste un TurnLog verificabile *(hash + serializzazione versionata con checksum)*
-- [ ] I test passano in Editor **e** packaged build *(CP 12.3/12.5)*
-- [x] Nessun intento avversario viene replicato *(oggi banale: offline; canary in M10)*
+> ⛔ **Questa sezione NON possiede lo stato**, per [`D-449`](../decisions/RT_PDR_00_Decision_Log.md),
+> che chiude [`GATE-3`](../OPEN_DECISIONS.md). Lo possiede la **§5** di
+> [`v0.1-definition-of-done.md`](../roadmap/v0.1-definition-of-done.md), e qui le caselle sono state
+> **togliate** perché erano una copia che aveva preso vita: otto risultavano spuntate mentre le
+> dodici dell'owner erano a zero.
+>
+> 🔑 **Non è una perdita, ed è la ragione per cui la §5 ha vinto**: questo documento dichiarava
+> già di sé, in testa, di non possedere lo stato. Le otto spuntature contraddicevano il documento
+> che le ospitava.
+>
+> ✅ **Le annotazioni per-voce restano**, e restano qui: sono **provenienza** — quale epic o
+> checkpoint risponde a quella voce — non uno stato, e cancellarle avrebbe perso l'unico posto in
+> cui erano scritte.
 
-Le voci non spuntate non sono debito di questo checkpoint: sono il lavoro delle epic che questo catalogo abilita.
+
+- Ogni azione possiede un ID stabile
+- Ogni azione dichiara fase, priorità e fallback
+- Ogni terreno dichiara costo e interazioni
+- Ogni variante presenta almeno uno svantaggio
+- Le quattro identità degli eroi sono leggibili
+- La combo acqua/elettricità è deterministica *(E8)*
+- Le collisioni simultanee hanno una regola *(scritta qui; la precedenza di `Charge` arriva con E4)*
+- Esiste un TurnLog verificabile *(hash + serializzazione versionata con checksum)*
+- I test passano in Editor **e** packaged build *(CP 12.3/12.5)*
+- Nessun intento avversario viene replicato *(oggi banale: offline; canary in M10)*
+
+⚠️ **Quali di queste voci siano chiuse si legge nella §5 dell'owner**, non qui: questo elenco dice *di che cosa* la v0.1 risponde e *chi* la abilita. Le voci che l'owner tiene aperte sono il lavoro delle epic che questo catalogo abilita.
 
 ---
 

@@ -86,6 +86,35 @@ cosa vorremmo: una matrice che descrive un sistema immaginario è peggio di ness
 | consuma l'azione della vittima | n/a | n/a | n/a | **mai** |
 | **stato nel codice** | implementato | implementato | **`LinearLeap`**, dentro il Dash · irraggiungibile dal roster ([#645](https://github.com/DegrassiAaron/refactor-tactics-main/issues/645)) | implementato |
 
+### 2.0-zero La destinazione occupata si dichiara nel movimento a budget, e si rifiuta nella mobilità lineare — [`D-451`](../decisions/RT_PDR_00_Decision_Log.md)
+
+Le due famiglie trattano la **cella d'arrivo occupata** in modo opposto, e prima di `D-451` la
+differenza esisteva solo nel codice. `MOV-15` fu aperta chiedendo se `D-446` coprisse *«anche la
+destinazione dello Sprint»*: la domanda presupponeva che `Action.Sprint` passasse per una funzione
+diversa, e **non è così** — `D-446` lo copre già. Ciò che mancava era questa riga.
+
+| famiglia | azioni | la cella d'arrivo occupata |
+|---|---|---|
+| **movimento a budget** | `Move` · `Sprint` · `Withdraw` | si **dichiara** e si pianifica: è una **scommessa** ([`D-445`](../decisions/RT_PDR_00_Decision_Log.md)). Tutte e tre passano per `URTHexSimLibrary::BuildCompositeHexPath` |
+| **mobilità lineare** | `Dodge` · `Charge` · `Leap` · `Reposition` · `PassingBlade` | si **rifiuta in pianificazione**: il piano non nasce |
+
+🔑 **Il rifiuto è una regola, non un'omissione**, ed è scritto nel codice che lo applica —
+`Source/RefactorTactics/Player/RTPlayerController.cpp:2291-2292`, che cita `CP 4.5` e il test
+`HexSim.DashIsLinear`: *«o si arriva sulla cella **richiesta**, o lo scatto non si pianifica. Niente
+scatto a metà verso una cella che il giocatore non ha scelto»*.
+
+⛔ **Per questo `D-446` non è stata estesa alla mobilità lineare.** Uniformare le due famiglie sarebbe
+costato `CP 4.5` come regola di pianificazione, che è **codice vivo** e non una preferenza: uno scatto
+che si pianifica verso una cella occupata arriverebbe *a metà*, cioè dove il giocatore non ha chiesto.
+
+⚠️ **Il prezzo di questa decisione è l'uniformità, e si paga qui**: due famiglie di movimento con due
+regole di dichiarazione sono una cosa in più da ricordare. È esattamente la ragione per cui la
+distinzione è **scritta** invece di restare nel codice — chi legge la matrice della §2 trova le due
+regole accanto, e non ne deduce una dall'altra.
+
+---
+
+
 ### 2.0 Un micro-step, un arco — la regola che il codice applica e che nessun documento diceva
 
 > ✅ **Aggiunta il 2026-08-31 da [`D-305`](../decisions/RT_PDR_00_Decision_Log.md).** Non cambia niente:
