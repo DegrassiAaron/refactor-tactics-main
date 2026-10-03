@@ -6,11 +6,18 @@
 > `git status --porcelain` → **0** righe. Stato delle issue e delle PR letto lato server con `gh`
 > il **2026-10-03**.
 >
-> ♻️ **Due basi, e le sezioni dicono quale usano.** §1–§7 stanno su `768c65f4d`. L'**§8** — il
+> ♻️ **Tre basi, e le sezioni dicono quale usano.** §1–§7 stanno su `768c65f4d`. L'**§8** — il
 > consuntivo dell'Onda A, eseguita lo stesso giorno — sta su `a89b1f3f9`
 > (albero `1cfc8085bd68267509882dfaaeeb923f3d2e1e1c`), e la nota di §2.2 che registra la caduta di
-> `doc-tables` pure. Nessuna cella di §2.3 è stata ridatata in quell'occasione: l'Onda A non toccava
-> `Source/`.
+> `doc-tables` pure. L'**§9** — l'Onda B, parziale — sta su `9faced8e7`
+> (albero `19c96b7155138f6eb17d522e2f15119b2d3d0b27`).
+>
+> 🔑 **E le tre basi sono lo stesso codice**, che è ciò che rende confrontabili le misure: tutte
+> hanno `Source` e `Content` identici a `95eddfd37`, e ogni commit di mezzo è sotto `docs/`. La
+> catena si riverifica con due `git rev-parse` — il blocco in §2.1.
+>
+> ⚠️ **§2.3 è stata ridatata dall'§9 su `G3` `G4` `G5` `G6` `G8` e `G11`**, e le righe lo dicono.
+> L'Onda A invece non toccava `Source/`, quindi non ridatò nulla.
 >
 > **Cosa è**: l'ordine in cui il lavoro residuo della v0.1 può essere affrontato **sul candidate
 > congelato `95eddfd37`**, derivato dai gate e non dall'elenco delle issue aperte. Aggiorna
@@ -38,7 +45,8 @@
 **Indice** · [1. Il perimetro](#1-il-perimetro-e-invariato) · [2. Stato dei gate](#2-stato-dei-gate-sul-candidate) ·
 [3. Le tre code](#3-le-tre-code) · [4. La sequenza](#4-la-sequenza) · [5. Rilievi](#5-rilievi) ·
 [6. Le mie ipotesi cadute](#6-tre-mie-ipotesi-cadute-dichiarate) · [7. Limiti](#7-limiti-dichiarati) ·
-[8. Consuntivo dell'Onda A](#8-consuntivo-dellonda-a--eseguita-il-2026-10-03)
+[8. Consuntivo dell'Onda A](#8-consuntivo-dellonda-a--eseguita-il-2026-10-03) ·
+[9. Consuntivo dell'Onda B](#9-consuntivo-dellonda-b--parziale-il-2026-10-03)
 
 ---
 
@@ -111,9 +119,9 @@ Dalle celle del DoD §3, con la loro data:
 | `G1` `G2` `G10` `G12` | ✅ | candidate **`95eddfd37`** |
 | `G7` | ✅ | `3f693c088` (`D-447`), residuo aperto in [#3438](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3438) |
 | `G9` | ✅ | `17fbc400`, 2026-09-12 |
-| `G11` | ✅ | **`2f765c08f`** — non il candidate (§3.2) |
+| `G11` | 🟡 | **tre KPI su quattro** sul candidate, 2026-10-03 (§9) — era ✅ su `2f765c08f` |
 | `G14` | ✅ | rimisurato oggi, §2.2 |
-| `G3` `G4` `G5` `G6` `G8` | ✅ | **`bbf0d780`**, 2026-08-29 (§3.3) |
+| `G3` `G4` `G5` `G6` `G8` | ✅ | **candidate `95eddfd37`**, ridatati il 2026-10-03 (§9) — erano su `bbf0d780` |
 | `G13` | 🟡 | `17fbc400` / `33634aee` — non il candidate |
 | `G16` | ⏳ | giro non eseguito |
 
@@ -476,3 +484,82 @@ di giudizio, date in [#2521](https://github.com/DegrassiAaron/refactor-tactics-m
 [`CLAUDE.md`](../../../CLAUDE.md) §14 vieta: `PR MERGED` non è `DONE`. La issue è stata **aggiornata**
 — perché il suo unico commento diceva il contrario del vero — e resta aperta per una seduta Editor
 sul clone principale, dato che il modulo è `RefactorTacticsEditor`.
+
+---
+
+## 9. Consuntivo dell'Onda B — parziale, il 2026-10-03
+
+Misure su `main` = `9faced8e7` durante la run, albero `19c96b7155138f6eb17d522e2f15119b2d3d0b27`,
+il cui `Source` è `d6a1c4419d29` — **identico** a `95eddfd37:Source`.
+
+| | Esito | Nota |
+|---|---|---|
+| `B1` · `G13` | ⏳ **non eseguibile da qui** | §9.1 |
+| `B2` · `G11` | 🟡 **tre KPI su quattro** | il quarto chiede una cattura sul pacchetto |
+| `B3` · `G3` `G4` `G6` `G8` | ✅ **ridatati** | una sola passata, nomi verificati sul `Path` |
+| `B3` · `G5` | ✅ **ridatato** | `git grep`, con controllo positivo del metodo |
+| `B4` · `G16` | ⏳ **non eseguibile da qui** | §9.1 |
+
+La passata: `python tools/suite/esegui.py RefactorTactics` → **2822 trovati, 2822 avviati, 2822
+completati, nessun rosso**, 250 s. Letta con i **due** metodi che concordano — l'oracolo dei conteggi
+di [#3048](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3048) e il conteggio
+indipendente dei `Result={...}`: **2822** `Success`, **0** `Fail`.
+
+🔑 **La validità è stata costruita, non assunta**: modulo ricompilato prima della run
+(`Result: Succeeded`, **0** warning), `Source/` intatto nella finestra
+(`find Source/ -newermt '2026-10-03 12:55'` → **0**), e l'unico file toccato durante la run —
+`docs/OPEN_DECISIONS.md` alle 12:58 — **non è letto da nessun test**: i soli `.md` che un test
+Automation apre sono `roadmap-pia.md`, `v0.1-definition-of-done.md` e `test-manuali-pie.md`, tutti
+con mtime anteriore a 12:55:04.
+
+### 9.1 ⛔ `G13` e `G16` non si chiudono senza una persona, e non è una questione di permessi
+
+Entrambi hanno **oracoli percettivi** nel criterio, e nessun log li può dare:
+
+- `G13` chiede che l'interfaccia sia **leggibile** e che il giocatore **trovi** l'affordance — più una
+  sequenza da *digitare* in una finestra di gioco: selezionare un'unità, posare un waypoint, premere
+  l'**RMB**. Il CSV prova che l'input è arrivato, non che fosse ovvio darlo;
+- `G16` chiede che cinque superfici siano **usabili nello stesso giro**, e i suoi passi 3–5 sono
+  osservazioni: *«il risultato del resolver è visibile e leggibile a schermo»*, *«turno e fase
+  correnti visibili»*, `Play`/`Pause`.
+
+∴ il resto dell'Onda B è pronto **per** quella persona: il pacchetto Development è staged e
+appartiene al candidate per contenuto, il runbook di `G13` è valido (`doc-tables` exit **0**), e
+l'Editor compilato da `main` è bit-per-bit il candidate su `Source/` e `Content/`.
+
+### 9.2 🔴 La cella `G4` nominava un test che non esiste
+
+Trovato ridatando, e non si sarebbe visto altrimenti. Il criterio cita
+`Combat.GuardPoolIsPermutationInvariant`; nel codice e nel log c'è **solo**
+`Combat.DeflectPoolIsPermutationInvariant`, che è `Result={Success}`:
+
+```sh
+grep -rhoE '"RefactorTactics\.Combat\.(Guard|Deflect)PoolIsPermutationInvariant"' Source/
+# "RefactorTactics.Combat.DeflectPoolIsPermutationInvariant"   <- solo questa
+```
+
+Il rename è il soggetto di [#3203](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3203),
+ancora **aperta**: la cella descriveva un futuro come se fosse presente. ⛔ Un criterio che nomina un
+test assente **non può fallire per la ragione giusta** — quando #3203 atterra, quella riga torna vera
+da sola, e fino ad allora dice il nome sbagliato.
+
+### 9.3 ✅ Il delta del resolver non è una regressione di `691bd63b7` — l'ipotesi è stata esclusa
+
+Era la ragione per cui §3.2 chiedeva la rimisura. Misurato su **tre** ripetizioni, stesso binario,
+motore verificato libero prima di ciascuna: **14,631** · **12,772** · **13,915** ms su 10 turni.
+
+Una mediana su dieci turni non è un punto, e con una ripetizione sola avrei pubblicato `14,631` come
+se lo fosse.
+
+⛔ **Ma non viene da quel commit**: [#3413](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3413),
+aperta il **2026-09-30** su `57b43b589` — prima del candidate e prima di `691bd63b7` — misurava già
+**13,209 ms**, dentro la banda di oggi.
+
+⚠️ **L'anomalia è il numero della seduta `U16`**, registrato lo **stesso** 30 settembre: **9,059 ms**
+su `6b50eb49f`. Due misure dello stesso giorno a **1,46×** di distanza, e quella bassa è finita nella
+§4 come se fosse la banda. Il difetto che `#3413` possiede resta intero: la §4 porta `3,8–4,5 ms/turno`
+dal 2026-08-14, e **nessuna** misura successiva ci somiglia.
+
+🎯 **La rimisura è servita a escludere un danno, che è un esito e non un buco nell'acqua.** `691bd63b7`
+tocca `ResolveReactionBoundary` e `PumpReactionTriggers`, cioè il percorso che `Perf.*` misura: senza
+misurare, il sospetto sarebbe rimasto scritto in §3.2 come una riserva aperta.
