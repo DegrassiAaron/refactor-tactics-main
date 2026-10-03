@@ -91,6 +91,48 @@ test "$(git rev-parse HEAD:Source)" = "$(git rev-parse 95eddfd37:Source)" \
   && echo "compilare da HEAD = compilare il candidate" || echo "DIVERSI: fai checkout di 95eddfd37"
 ```
 
+> ♻️ **Dal 2026-10-03 quel comando risponde `DIVERSI`, e un checkout NON serve.** Il merge di
+> [#3445](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3445) e
+> [#3206](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3206) ha toccato `Source/`, ma
+> **il runtime è identico al candidate** — misurato file per file, righe **non-commento**:
+>
+> | file | righe non-commento vs candidate |
+> |---|---|
+> | `Map/RTHexMapActor.cpp` | **0** |
+> | `Map/RTOverlayPalette.h` | **0** |
+> | `Tests/RTMovementResumeTests.cpp` | **0** |
+> | `Tests/RTGoldenCorpusTests.cpp` | **53** — ed è un file di **test** |
+>
+> ✅ **Una partita non esegue i test**, quindi il binario di gioco si comporta come il candidate e le
+> sedute `G13`/`G16` **non** sono invalidate. ⛔ Fare checkout di `95eddfd37` per scrupolo costerebbe i
+> documenti di oggi senza cambiare un frame.
+>
+> 🔑 **Il controllo che risponde alla domanda giusta** — *«il runtime è quello del candidate?»* — guarda
+> fuori da `Tests/` e conta le righe che non sono commento:
+>
+> ```sh
+> git diff --name-only 95eddfd37..HEAD -- Source/ Content/ | grep -v '/Tests/'
+> git diff 95eddfd37..HEAD -- Source/ Content/ ':!*/Tests/*' | grep -E '^[+-]' \
+>   | grep -vE '^[+-]{3}' | grep -vcE '^[+-][[:space:]]*(//|\*|/\*|$)'
+> ```
+>
+> ⛔ **È il SECONDO a dare il verdetto, e il primo non è vuoto nemmeno oggi.** Eseguiti il 2026-10-03:
+> il comando 1 elenca **due** file — `RTHexMapActor.cpp` e `RTOverlayPalette.h` — perché `#3445` li ha
+> toccati, e il comando 2 risponde **`0`**, perché li ha toccati **solo nei commenti**. Chi si fermasse
+> al primo concluderebbe che il runtime è cambiato, e sbaglierebbe.
+>
+> 🔑 **Il comando 2 ha un controllo positivo, e serve**: uno zero non distingue *«non c'è differenza»* da
+> *«il mio filtro non sa contare»*. Togliendo l'esclusione di `Tests/` lo stesso comando risponde **53**
+> — le righe del test nuovo — quindi sa contare, e lo zero di sopra è evidenza:
+>
+> ```sh
+> git diff 95eddfd37..HEAD -- Source/ | grep -E '^[+-]' | grep -vE '^[+-]{3}' \
+>   | grep -vcE '^[+-][[:space:]]*(//|\*|/\*|$)'                                 # 53, non 0
+> ```
+>
+> ⚠️ **Questa riga invecchierà a sua volta**: vale finché il comando 2 risponde `0`. Il primo commit che
+> cambia una riga di runtime la rompe, e allora il checkout serve davvero.
+
 ### 2.2 `G14` — rimisurato oggi, verde
 
 I **due** comandi che la cella del DoD assegna a questo gate, lanciati su `768c65f4d` con albero
