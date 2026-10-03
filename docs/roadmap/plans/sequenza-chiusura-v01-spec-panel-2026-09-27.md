@@ -1,6 +1,14 @@
 # Sequenza di chiusura della v0.1 — referto spec panel
 
-> **Stato**: `CURRENT` · **Creato**: 2026-09-27 · **Tipo**: **vista di esecuzione**, non owner.
+> **Stato**: `SUPERATO NELLO STATO` · **Creato**: 2026-09-27 · **Tipo**: **vista di esecuzione**, non owner.
+>
+> ♻️ **Lo stato di questo referto è fermo al 2026-09-28 su `d6e924e92`, e il candidate è stato congelato
+> dopo.** La rilettura sul candidate `95eddfd37` è in
+> [`sequenza-chiusura-v01-2026-10-03.md`](sequenza-chiusura-v01-2026-10-03.md), che **conserva il grafo
+> delle dipendenze di §3** e sostituisce §0, §2 e §4. Fra i movimenti che questo referto non vede:
+> `G1`, `G7` e `G14` sono verdi, `#3369`/`#3370`/`#3371` sono chiuse, `#288` è chiusa, e `U5` è
+> differita a `E26` ([`D-441`](../../decisions/RT_PDR_00_Decision_Log.md)).
+> ⛔ **Le celle del DoD restano l'owner** in entrambi i documenti: lo stato di un gate si legge lì.
 >
 > **Base di misura**: `origin/main` = `988c6bc689bc2a8deb3461a56a945331aa0f1675` dopo `git fetch --prune`,
 > albero pulito. Stato delle issue letto lato server con `gh` il **2026-09-27**.
