@@ -68,16 +68,36 @@ namespace
 	 * mortaio cambiasse identita' o un'altra azione ereditasse la licenza, questi test seguono il dato.
 	 * E' la stessa disciplina di `FindAbilityWithPolicy` nella suite di `#2870`.
 	 */
-	int32 FindOffensiveBlindFire(const ARTUnit* U)
+	/**
+	 * L'indice del MORTAIO nel kit, per `ActionId`.
+	 *
+	 * 🔴 **Cercava «la prima offensiva che non chiede la linea», e dal 2026-09-20 quella e' l'ATTACCO BASE**
+	 * ([D-415] punto 3, che rende comune il tiro indiretto). La scansione avrebbe restituito l'indice 0, e i
+	 * test che la usano avrebbero continuato a passare **misurando l'azione sbagliata** — verdi, col nome
+	 * del mortaio nel titolo e l'attacco base sotto le mani.
+	 *
+	 * 🔑 **Identificare per proprieta' e' lecito finche' la proprieta' e' propria.** Qui non lo e' piu': il
+	 * nome e' l'unica cosa che distingue le due azioni, e per questo il nome e' cio' che si cerca.
+	 * ⚠️ `MortarPaysAPriceAgainstItsLineOfSightTwin` e `MortarStillObeysRange` cercavano gia' per
+	 * `FindCoreAction(TEXT("Action.Mortar"))`: erano salvi, ed e' la stessa disciplina.
+	 *
+	 * ⚠️ **Si guarda `DerivedFromActionId` e non l'id dell'abilita' d'eroe.** Nel kit il mortaio si chiama
+	 * `Hero.Branth.MortarShot`: cablare quel nome legherebbe il test a UN eroe, e il giorno in cui un
+	 * secondo ne ricevesse uno il test continuerebbe a misurare solo Branth. La derivazione da
+	 * `Action.Mortar` e' cio' che le due forme hanno in comune, ed e' registrata da
+	 * `MakeHeroActionFromCore`. L'`ActionId` resta nel confronto per l'azione di catalogo montata diretta.
+	 */
+	bool IsMortar(const URTActionData* A)
+	{
+		static const FName Core(TEXT("Action.Mortar"));
+		return A && (A->Def.DerivedFromActionId == Core || A->Def.ActionId == Core);
+	}
+
+	int32 FindMortar(const ARTUnit* U)
 	{
 		for (int32 i = 0; i < U->NumAbilities(); ++i)
 		{
-			const URTActionData* A = U->GetAbility(i);
-			if (A && !A->bSelfTarget && A->Def.bCountsAsAttack
-				&& A->Def.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired)
-			{
-				return i;
-			}
+			if (IsMortar(U->GetAbility(i))) { return i; }
 		}
 		return INDEX_NONE;
 	}
@@ -177,7 +197,7 @@ bool FRTMortarReachableFromPlayerInputTest::RunTest(const FString&)
 	FMortarBench B;
 	if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return false; }
 
-	const int32 Idx = FindOffensiveBlindFire(B.Mine);
+	const int32 Idx = FindMortar(B.Mine);
 	if (!TestTrue(TEXT("il kit contiene un'offensiva a tiro indiretto"), Idx != INDEX_NONE))
 	{
 		DestroyMortarWorld(B.World); return false;
@@ -261,12 +281,21 @@ bool FRTMortarDoesNotOutrangeItsCarrierTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("premessa: ha un attacco base"), Branth->Actions.Num() > 0)) { return false; }
 
 	const URTActionData* Base = Branth->Actions[0];
+
+	// 🔴 **Per `ActionId`, non per «la prima che non chiede la linea»** ([D-415] punto 3). Quella scansione
+	// c'era fino al 2026-09-20 e da allora avrebbe trovato l'**attacco base** — che ora porta anche lui il
+	// tiro indiretto — cioe' `Actions[0]`, lo stesso oggetto di `Base`. Il confronto sotto sarebbe diventato
+	// `Base->RangeCells <= Base->RangeCells`: vero sempre, e muto.
 	const URTActionData* Mortar = nullptr;
 	for (const URTActionData* A : Branth->Actions)
 	{
-		if (A && A->Def.LineOfSightPolicy == ERTLineOfSightPolicy::NotRequired) { Mortar = A; break; }
+		if (IsMortar(A)) { Mortar = A; break; }
 	}
-	if (!TestNotNull(TEXT("il kit porta il tiro indiretto"), Mortar)) { return false; }
+	if (!TestNotNull(TEXT("il kit porta il mortaio"), Mortar)) { return false; }
+
+	// ⚠️ ANTI-VACUITA': se `Mortar` e `Base` fossero lo stesso oggetto, l'asserzione sotto sarebbe una
+	// tautologia. E' precisamente il modo in cui questo test sarebbe morto in silenzio.
+	if (!TestTrue(TEXT("e non e' l'attacco base"), Mortar != Base)) { return false; }
 	if (!TestNotNull(TEXT("e l'attacco base"), Base)) { return false; }
 
 	TestTrue(TEXT("il mortaio non ingaggia piu' lontano dell'attacco base"),
@@ -643,7 +672,7 @@ bool FRTCellClickReachesTargetingTest::RunTest(const FString&)
 	FMortarBench B;
 	if (!TestTrue(TEXT("banco di prova"), SetUpMortarBench(B))) { DestroyMortarWorld(B.World); return false; }
 
-	const int32 Idx = FindOffensiveBlindFire(B.Mine);
+	const int32 Idx = FindMortar(B.Mine);
 	if (!TestTrue(TEXT("il kit contiene un'offensiva a tiro indiretto"), Idx != INDEX_NONE))
 	{
 		DestroyMortarWorld(B.World); return false;

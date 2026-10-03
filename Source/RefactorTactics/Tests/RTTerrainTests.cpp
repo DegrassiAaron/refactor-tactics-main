@@ -509,6 +509,8 @@ bool FRTTerrainSmokeLimitsTargetingTest::RunTest(const FString&)
 	FRTHexAttackIntent Intent;
 	Intent.AttackerId = 0;
 	Intent.TargetId = 1;
+	// [D-415]: la mira sta nell'intento, e va dichiarata anche con un bersaglio-unita'.
+	Intent.TargetCell = Target.Cell;
 	Intent.RangeCells = 6; // la portata dichiarata basterebbe, ma la linea attraversa il Fumo a q=2
 	Intent.Power = 10;
 	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
@@ -563,6 +565,8 @@ bool FRTTerrainSmokeCapAgreesAcrossGatesTest::RunTest(const FString&)
 	FRTHexAttackIntent Intent;
 	Intent.AttackerId = 0;
 	Intent.TargetId = 1;
+	// [D-415]: la mira sta nell'intento, e va dichiarata anche con un bersaglio-unita'.
+	Intent.TargetCell = Target.Cell;
 	Intent.RangeCells = DeclaredRange;
 	Intent.Power = 10;
 	Intent.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato

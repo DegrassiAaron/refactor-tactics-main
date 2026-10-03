@@ -67,17 +67,44 @@ namespace
 		return U;
 	}
 
-	FRTHexAttackIntent CoverIntent(int32 AttackerId, int32 TargetId, ERTAbilityShape Shape,
+	FRTHexAttackIntent CoverIntent(const TArray<FRTHexCombatUnit>& Units,
+		int32 AttackerId, int32 TargetId, ERTAbilityShape Shape,
 		int32 RangeCells, int32 Power, int32 AreaRadius = 0)
 	{
 		FRTHexAttackIntent I;
 		I.AttackerId = AttackerId;
 		I.TargetId = TargetId;
+		// 🔑 **LA MIRA VA NELL'INTENTO** ([D-415]). Da qui l'helper fa per i test cio' che
+		// `ARTTurnManager::LockInAndResolve` fa in partita: congela la cella su cui si mira. Prima
+		// `TargetCell` era «ignorata» con un bersaglio-unita' e il resolver leggeva la cella corrente —
+		// cioe' inseguiva.
+		//
+		// ⚠️ **Passa le UNITA' e non la cella**, cosi' l'indice del bersaglio non e' scritto due volte: un
+		// intento che mira a `Units[2]` e dichiara `TargetId = 1` sarebbe una fixture che mente, e nessun
+		// gate la prenderebbe.
+		if (Units.IsValidIndex(TargetId)) { I.TargetCell = Units[TargetId].Cell; }
+
 		I.Shape = Shape;
 		I.RangeCells = RangeCells;
 		I.AreaRadius = AreaRadius;
 		I.Power = Power;
 		I.bCountsAsAttack = true; // intento d'attacco, e da [`INT-8`] va dichiarato
+		return I;
+	}
+
+	/**
+	 * Come sopra, ma la mira si dichiara come CELLA ([D-415]).
+	 *
+	 * 🔑 **Serve dove l'intento nasce PRIMA delle unita'**: i test che confrontano due orientamenti
+	 * costruiscono l'intento una volta e le unita' una volta per passata, dentro un lambda. Li' non c'e' un
+	 * array da cui congelare, e la cella e' comunque un dato del test — la stessa che l'unita' ricevera'.
+	 */
+	FRTHexAttackIntent CoverIntent(const FRTCellId& AimCell, int32 AttackerId, int32 TargetId,
+		ERTAbilityShape Shape, int32 RangeCells, int32 Power, int32 AreaRadius = 0)
+	{
+		FRTHexAttackIntent I = CoverIntent(TArray<FRTHexCombatUnit>{}, AttackerId, TargetId, Shape,
+			RangeCells, Power, AreaRadius);
+		I.TargetCell = AimCell;
 		return I;
 	}
 
@@ -115,7 +142,7 @@ bool FRTCoverDirectionalDamageReductionTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	URTHexMapAsset* Bare = MakeCoverMap(3);
 	const FRTHexBlastPlan Uncovered = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Bare);
@@ -152,7 +179,7 @@ bool FRTCoverLowCoverWrongSideTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	// Il colpo entra da W: ogni altro bordo non e' sulla traiettoria.
 	const ERTHexDirection WrongSides[] = { ERTHexDirection::E, ERTHexDirection::NW, ERTHexDirection::SW };
@@ -208,7 +235,7 @@ bool FRTCoverLowCoverAoESameSideTest::RunTest(const FString&)
 	Units.Add(CoverUnit(2, 1, FRTCellId(2, 0), ERTHexDirection::W));  // riparato sul bordo W, preso dal raggio
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Area, 5, 30, /*AreaRadius*/ 1));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Area, 5, 30, /*AreaRadius*/ 1));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 
@@ -235,7 +262,7 @@ bool FRTCoverLowCoverClampTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W)); // guarda l'attaccante: il riparo vale (CP 16.2)
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 4)); // 4 - 10 sarebbe negativo
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 4)); // 4 - 10 sarebbe negativo
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 	TestEqual(TEXT("il colpo resta nel piano"), Plan.Hits.Num(), 1);
@@ -277,7 +304,7 @@ bool FRTCoverHighCoverBlocksAllTest::RunTest(const FString&)
 	Units.Add(CoverUnit(0, 0, Behind));
 	Units.Add(CoverUnit(1, 1, Walled));
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 	TestEqual(TEXT("nessun colpo attraversa il muro"), Plan.Hits.Num(), 0);
 	TestEqual(TEXT("registrato come linea di tiro bloccata"), Plan.BlockedIntents.Num(), 1);
@@ -318,18 +345,22 @@ bool FRTCoverLowCoverStillPassableTest::RunTest(const FString&)
 namespace
 {
 	/** Intento che porta anche danno a STRUTTURA (l'azione dichiara `DamageStructure`). */
-	FRTHexAttackIntent CoverBreachIntent(int32 AttackerId, int32 TargetId, int32 Power, int32 StructurePower)
+	FRTHexAttackIntent CoverBreachIntent(const TArray<FRTHexCombatUnit>& Units,
+		int32 AttackerId, int32 TargetId, int32 Power, int32 StructurePower)
 	{
-		FRTHexAttackIntent I = CoverIntent(AttackerId, TargetId, ERTAbilityShape::Single, 5, Power);
+		FRTHexAttackIntent I = CoverIntent(Units, AttackerId, TargetId, ERTAbilityShape::Single, 5, Power);
 		I.StructurePower = StructurePower;
 		return I;
 	}
 
 	/** Come sopra, ma mirando una CELLA (`Fallback.AttackCell`): e' cosi' che si punta una struttura. */
-	FRTHexAttackIntent CoverBreachCellIntent(int32 AttackerId, const FRTCellId& Cell, int32 Power,
+	FRTHexAttackIntent CoverBreachCellIntent(const TArray<FRTHexCombatUnit>& Units,
+		int32 AttackerId, const FRTCellId& Cell, int32 Power,
 		int32 StructurePower)
 	{
-		FRTHexAttackIntent I = CoverIntent(AttackerId, INDEX_NONE, ERTAbilityShape::Single, 5, Power);
+		// ⚠️ `INDEX_NONE` come bersaglio: l'helper non trova niente da congelare, e la cella la dichiara il
+		// chiamante qui sotto. E' il caso `Fallback.AttackCell`, dove la mira era gia' fissa per costruzione.
+		FRTHexAttackIntent I = CoverIntent(Units, AttackerId, INDEX_NONE, ERTAbilityShape::Single, 5, Power);
 		I.TargetCell = Cell;
 		I.StructurePower = StructurePower;
 		return I;
@@ -369,7 +400,7 @@ bool FRTCoverDestructionReopensLOSTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeWalledMap();
 	const TArray<FRTHexCombatUnit> Units = WalledUnits();
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverBreachIntent(0, 1, /*Power*/ 35, /*StructurePower*/ 20));
+	Intents.Add(CoverBreachIntent(Units, 0, 1, /*Power*/ 35, /*StructurePower*/ 20));
 
 	// Due colpi da 20 su integrita' 50: il muro regge.
 	for (int32 Shot = 0; Shot < 2; ++Shot)
@@ -471,8 +502,8 @@ bool FRTCoverDestructionOrderIndependentTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0)));
 
 	TArray<FRTHexAttackIntent> Forward;
-	Forward.Add(CoverBreachCellIntent(0, FRTCellId(2, 0), 10, 30));
-	Forward.Add(CoverBreachCellIntent(1, FRTCellId(0, 0), 10, 25));
+	Forward.Add(CoverBreachCellIntent(Units, 0, FRTCellId(2, 0), 10, 30));
+	Forward.Add(CoverBreachCellIntent(Units, 1, FRTCellId(0, 0), 10, 25));
 	TArray<FRTHexAttackIntent> Reversed;
 	Reversed.Add(Forward[1]);
 	Reversed.Add(Forward[0]);
@@ -643,7 +674,7 @@ bool FRTCoverAddThenRemoveTest::RunTest(const FString&)
 	Units.Add(CoverUnit(1, 1, FRTCellId(2, 0), ERTHexDirection::W));
 
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	Intents.Add(CoverIntent(Units, 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	URTHexMapAsset* Map = MakeCoverMap(3);
 	TestEqual(TEXT("prima: danno pieno"),
@@ -690,7 +721,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCoverRuntimeCoverRearHitTest,
 bool FRTCoverRuntimeCoverRearHitTest::RunTest(const FString&)
 {
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverIntent(0, 1, ERTAbilityShape::Single, 5, 30));
+	// Il difensore sta in (2,0) in entrambe le passate del lambda: cambia solo dove GUARDA.
+	Intents.Add(CoverIntent(FRTCellId(2, 0), 0, 1, ERTAbilityShape::Single, 5, 30));
 
 	// Stessa copertura, eretta a runtime sul bordo attraversato dal colpo: cambia SOLO dove guarda il difensore.
 	auto DamageWithFacing = [&Intents](ERTHexDirection Facing)
@@ -733,7 +765,7 @@ bool FRTCoverDamageCarriesAttackerTest::RunTest(const FString&)
 	URTHexMapAsset* Map = MakeWalledMap();
 	const TArray<FRTHexCombatUnit> Units = WalledUnits();
 	TArray<FRTHexAttackIntent> Intents;
-	Intents.Add(CoverBreachIntent(/*AttackerId*/ 0, /*TargetId*/ 1, /*Power*/ 35, /*StructurePower*/ 20));
+	Intents.Add(CoverBreachIntent(Units, /*AttackerId*/ 0, /*TargetId*/ 1, /*Power*/ 35, /*StructurePower*/ 20));
 
 	const FRTHexBlastPlan Plan = URTHexCombatLibrary::CollectHexAttacks(Units, Intents, Map);
 	if (!TestEqual(TEXT("un bordo colpito"), Plan.StructureHits.Num(), 1)) { return false; }
