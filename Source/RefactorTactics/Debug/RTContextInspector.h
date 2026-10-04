@@ -206,16 +206,20 @@ public:
  * ⛔ **BASSO A DESTRA, e la scelta e' vincolata da tre misure, non dal gusto.**
  * 1. Il **centro non si copre**: e' il contratto dello Screen HUD (`progettazione-hud.md` §3.1), e la
  *    board e' cio' che si sta guardando.
- * 2. Ogni zona di §6 ha gia' un proprietario dichiarato — alto sinistra il **team roster**, alto destra
- *    l'**obiettivo**, basso sinistra l'**unita' selezionata**, lato destro il **team intent**, basso
- *    centro **ghost timeline** e **action dock** (§6.6, §6.7).
+ * 2. Ogni zona di §6 ha gia' un proprietario dichiarato — alto sinistra il **team roster**, alto centro
+ *    turno, fase e **ghost timeline** (§6.6), alto destra **`CONFIRM PLAN` · `UNDO`** (§6.8), mezzo sinistra
+ *    l'**unita' selezionata**, lato destro il feed, e **tutta la fascia bassa** la barra dei comandi (§6.7).
+ *    ⌫ *Fino al 2026-10-04 questa riga diceva «alto destra l'obiettivo, basso sinistra l'unita' selezionata,
+ *    basso centro ghost timeline e action dock»: e' [D-456] a cambiare le assegnazioni, e la convivenza
+ *    dichiarata qui sotto resta valida — ora il pannello copre l'estremita' destra della barra.*
  *    ⌫ **Questa riga diceva «`§6` non assegna il basso destra», ed era falso**: `progettazione-hud.md`
  *    ha una **§6.8 «Bottom right»** e la assegna a `CONFIRM PLAN`, `UNDO`, stato piano, warning count e
  *    invalid state. L'enumerazione qui sopra saltava §6.1 e §6.8 e concludeva che l'angolo fosse libero:
  *    la posa e' stata scelta su una premessa che il documento citato smentisce. Corretta il 2026-09-24,
  *    trovata dalla seduta `U59` e dalla verifica di #3319.
  *    🔑 **La convivenza e' quindi DICHIARATA, non assente**, ed e' stata giudicata accettabile a schermo
- *    il 2026-09-24: il pannello condivide la fascia bassa con `§6.7` e `§6.8`. Cio' che resta vietato e'
+ *    il 2026-09-24: il pannello condivide la fascia bassa con `§6.7` e `§6.8` — dal 2026-10-04 con la sola
+ *    `§6.7`, che la occupa tutta ([D-456]). Cio' che resta vietato e'
  *    il **centro**, punto 1, dove si gioca.
  * 3. 🔑 E questo pannello viene giudicato **durante una seduta PIE**, quando `URTPieVerdictOverlay`
  *    occupa la colonna **sinistra, centrata in verticale** (#3242). Posarlo li' significherebbe ripetere

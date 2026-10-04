@@ -2272,4 +2272,310 @@ bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#3468` — OGNI VOCE DELLA DOCK DICE A QUALE GRUPPO DI LETTURA APPARTIENE: Comuni · Base · Kit ([D-455]).
+ *
+ * 🔑 **L'oracolo NON e' `GroupFor`**: la tabella del blocco A e' scritta a mano sul kit reale di Aevik, come in
+ * `ActionSlotCarriesItsPhase`. Chiedere a `GroupFor` che cosa aspettarsi da `GroupFor` sarebbe verde per
+ * costruzione.
+ *
+ * ⚠️ **Il blocco C guarda il roster INTERO, letto dal catalogo**, e non un elenco di eroi scritto qui: la
+ * regola della Base regge solo se ogni eroe scrive `BaseActionId` sul proprio attacco base. Oggi lo fanno
+ * tutti passando da `MakeHeroBasicAttack`, e un eroe nuovo che costruisse l'attacco a mano finirebbe con zero
+ * Base — il difetto che una lista fissa non vedrebbe.
+ *
+ * 🔑 **Il blocco D guarda il kit DI PARTITA**, cioe' col loadout di default che `ARTMatchBootstrapper`
+ * equipaggia: l'equipaggiamento e' Kit, e la sequenza dei gruppi per eroe va nel log come misura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionSlotGroupTest,
+	"RefactorTactics.HudViewModel.ActionSlotCarriesItsGroup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+	// --- A. il gruppo, caso per caso, sul kit di Aevik ------------------------------------------------------
+	struct FCaso { const TCHAR* ActionId; ERTActionGroup Gruppo; };
+	const FCaso Casi[] = {
+		{ TEXT("Action.Guard"),                 ERTActionGroup::Common },
+		{ TEXT("Action.Brace"),                 ERTActionGroup::Common },
+		{ TEXT("Action.Overwatch"),             ERTActionGroup::Common },
+		{ TEXT("Action.Interact"),              ERTActionGroup::Common },
+		{ TEXT("Action.Wait"),                  ERTActionGroup::Common },
+		{ TEXT("Hero.Aevik.ArcPulse"),          ERTActionGroup::Base },
+		{ TEXT("Hero.Aevik.LinearDischarge"),   ERTActionGroup::Kit },
+		{ TEXT("Hero.Aevik.ConductiveNode"),    ERTActionGroup::Kit },
+		{ TEXT("Hero.Aevik.Overload"),          ERTActionGroup::Kit },
+		// 🔑 una reazione resta nel Kit: il gruppo e' una corsia di lettura, non lo slot che consuma.
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"), ERTActionGroup::Kit },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const int32 Idx = HudVmKitIndexOf(Unit, Caso.ActionId);
+		if (!TestTrue(*FString::Printf(TEXT("A: premessa — %s e' nel kit di Aevik"), Caso.ActionId),
+				Cds.IsValidIndex(Idx)))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("A: %s porta il gruppo atteso"), Caso.ActionId), Cds[Idx].Group, Caso.Gruppo);
+	}
+
+	// ⚠️ La tabella deve coprire il kit INTERO: una voce che ne restasse fuori non avrebbe un oracolo, e il blocco
+	// A sarebbe verde su di lei qualunque cosa la vista dicesse.
+	TestEqual(TEXT("A: premessa — la tabella ha una riga per ogni posizione del kit di Aevik"),
+		static_cast<int32>(UE_ARRAY_COUNT(Casi)), Unit->NumAbilities());
+
+	// --- B. una posizione VUOTA non ha gruppo -----------------------------------------------------------------
+	if (TestTrue(TEXT("B: premessa — il kit ha almeno due posizioni"), Unit->NumAbilities() >= 2))
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[1];
+		Unit->Abilities[1] = nullptr;
+		const TArray<FRTAbilityCooldownView> ConBuco = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("B: premessa — la riga del buco esiste"), ConBuco.IsValidIndex(1)))
+		{
+			TestEqual(TEXT("B: la posizione vuota non porta un gruppo"), ConBuco[1].Group, ERTActionGroup::None);
+		}
+		Unit->Abilities[1] = Originale;
+	}
+
+	DestroyHudVmWorld(World);
+
+	// --- C. ogni eroe del roster ha ESATTAMENTE una voce Base ---------------------------------------------------
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("C: premessa — il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!TestNotNull(TEXT("C: premessa — eroe del roster"), Hero)) { continue; }
+
+		UWorld* MondoEroe = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("C: world di prova"), MondoEroe)) { continue; }
+
+		const ARTUnit* EroeUnit = SpawnHudVmUnit(MondoEroe, Hero->HeroId, 0);
+		if (TestNotNull(*FString::Printf(TEXT("C: unita' di %s"), *Hero->HeroId.ToString()), EroeUnit))
+		{
+			int32 Basi = 0;
+			int32 Comuni = 0;
+			for (const FRTAbilityCooldownView& V : URTHudViewModel::BuildAbilityCooldowns(EroeUnit))
+			{
+				Basi += (V.Group == ERTActionGroup::Base) ? 1 : 0;
+				Comuni += (V.Group == ERTActionGroup::Common) ? 1 : 0;
+			}
+			TestEqual(*FString::Printf(TEXT("C: %s ha esattamente una voce Base"), *Hero->HeroId.ToString()), Basi, 1);
+			// Le Comuni sono le generiche che il kit accoda a ogni eroe: il conteggio si legge dal catalogo, non
+			// si scrive qui.
+			TestEqual(*FString::Printf(TEXT("C: %s ha tutte le generiche nelle Comuni"), *Hero->HeroId.ToString()),
+				Comuni, URTCatalogLibrary::GetGenericActionIds().Num());
+		}
+
+		DestroyHudVmWorld(MondoEroe);
+	}
+
+	// --- D. il kit DI PARTITA: con il loadout, l'equipaggiamento e' Kit e i gruppi non sono contigui ---------
+	// 🔴 **Trovato dalla revisione di #3468**: `SpawnHudVmUnit` non equipaggia, mentre `ARTMatchBootstrapper`
+	// chiama `EquipLoadout(DefaultLoadoutFor(...))`, che accoda le azioni dei pezzi DOPO le generiche. Senza
+	// questo blocco il test guardava un kit che in partita non esiste, e la regola «separatore dove il gruppo
+	// cambia» — scritta nella prima stesura del commento di `ERTActionGroup` — sarebbe sembrata giusta.
+	int32 ConcesseInTutto = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+
+		UWorld* MondoEroe = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("D: world di prova"), MondoEroe)) { continue; }
+
+		ARTUnit* EroeUnit = SpawnHudVmUnit(MondoEroe, Hero->HeroId, 0);
+		if (TestNotNull(*FString::Printf(TEXT("D: unita' di %s"), *Hero->HeroId.ToString()), EroeUnit))
+		{
+			const int32 PrimaDelLoadout = EroeUnit->NumAbilities();
+			EroeUnit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+
+			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(EroeUnit);
+			int32 Basi = 0;
+			FString Sequenza;
+			for (int32 i = 0; i < Vista.Num(); ++i)
+			{
+				const ERTActionGroup G = Vista[i].Group;
+				Basi += (G == ERTActionGroup::Base) ? 1 : 0;
+				Sequenza += (G == ERTActionGroup::Common) ? TEXT("C")
+					: (G == ERTActionGroup::Base) ? TEXT("B")
+					: (G == ERTActionGroup::Kit) ? TEXT("K") : TEXT("-");
+
+				// Le voci accodate dal loadout sono equipaggiamento: per la regola di D-455 sono Kit.
+				if (i >= PrimaDelLoadout)
+				{
+					++ConcesseInTutto;
+					TestEqual(*FString::Printf(TEXT("D: %s, la voce di equipaggiamento %s e' Kit"),
+							*Hero->HeroId.ToString(), *Vista[i].ActionId.ToString()),
+						G, ERTActionGroup::Kit);
+				}
+			}
+
+			// La variante d'arma SOSTITUISCE l'indice 0 con una copia: la Base deve sopravviverle.
+			TestEqual(*FString::Printf(TEXT("D: %s ha ancora esattamente una Base col loadout"),
+				*Hero->HeroId.ToString()), Basi, 1);
+
+			// Non e' un asserto: e' la misura che D-456 cita per la larghezza della barra, scritta nel log
+			// perche' chi la rilegge non debba ricostruirla dal catalogo.
+			AddInfo(FString::Printf(TEXT("D: %s, kit di partita %d voci: %s"),
+				*Hero->HeroId.ToString(), Vista.Num(), *Sequenza));
+		}
+
+		DestroyHudVmWorld(MondoEroe);
+	}
+
+	// Anti-vacuita': se nessun eroe ricevesse un'azione dal loadout, il blocco D non proverebbe nulla
+	// sull'equipaggiamento — e sarebbe verde lo stesso.
+	TestTrue(TEXT("D: premessa — almeno un loadout di default concede un'azione"), ConcesseInTutto > 0);
+
+	return true;
+}
+
+/**
+ * `#3468` — IL GRUPPO SI LEGGE DAL DATO, NON DALLA POSIZIONE ([D-397] punto 2, [D-455]).
+ *
+ * 🔴 **Il kit di Aevik da solo non distingue le due ipotesi**: l'attacco base sta sempre all'indice 0 e le
+ * generiche sempre in coda, quindi una vista che deducesse il gruppo dalla posizione — «0 = Base, ultime
+ * cinque = Comuni», che era la proposta del pacchetto del mockup — sarebbe verde su `ActionSlotCarriesItsGroup`.
+ * Qui il dato si MUOVE:
+ *
+ *  - **A** scambia l'attacco base con la Guardia: i gruppi seguono le azioni, gli indici restano;
+ *  - **B** toglie `BaseActionId` a una copia dell'attacco base: alla stessa posizione, diventa Kit;
+ *  - **C** lo scrive su una copia di una skill: diventa Base, lontano dall'indice 0;
+ *  - **D** il caso d'identita' della regola: un'azione che E' `Action.BasicAttack`, col `BaseActionId` vuoto
+ *    che [D-033] le da', resta Base. Senza il secondo congiunto di `GroupFor` cadrebbe nel Kit;
+ *  - **E** la precedenza: un'azione generica che fosse anche un profilo dell'attacco base resta Comune. Senza
+ *    questo blocco, scambiare i due `if` di `GroupFor` lasciava verde tutta la suite (revisione di #3468).
+ *
+ * ⛔ **Si cambia una COPIA**, mai l'oggetto: `ConfigureFromHeroData` copia l'array, non le azioni, quindi
+ * l'oggetto appartiene all'`URTHeroData` da cui l'unita' e' stata configurata. ⚠️ Oggi `GetHeroRoster()`
+ * ricostruisce il roster a ogni chiamata, e la copia e' **difensiva**: protegge dal giorno in cui il roster
+ * diventasse una cache condivisa fra unita' e test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmGroupReadNotDeducedTest,
+	"RefactorTactics.HudViewModel.ActionSlotGroupIsReadNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmGroupReadNotDeducedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const int32 ArcIdx    = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ArcPulse"));
+	const int32 LinearIdx = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.LinearDischarge"));
+	const int32 GuardIdx  = HudVmKitIndexOf(Unit, TEXT("Action.Guard"));
+	if (!TestTrue(TEXT("premessa: attacco base, Linear Discharge e Guardia sono nel kit"),
+			ArcIdx != INDEX_NONE && LinearIdx != INDEX_NONE && GuardIdx != INDEX_NONE))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// La base dei confronti: i tre gruppi devono essere DIVERSI, o gli spostamenti non proverebbero nulla.
+	{
+		const TArray<FRTAbilityCooldownView> Base = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		const bool bDistinti = Base[ArcIdx].Group != Base[LinearIdx].Group
+			&& Base[ArcIdx].Group != Base[GuardIdx].Group
+			&& Base[LinearIdx].Group != Base[GuardIdx].Group;
+		if (!TestTrue(TEXT("premessa: attacco base, skill e Guardia stanno in tre gruppi diversi"), bDistinti))
+		{
+			DestroyHudVmWorld(World);
+			return false;
+		}
+	}
+
+	// --- A. le azioni si scambiano, i gruppi le seguono, gli indici restano ---------------------------------
+	{
+		const TArray<FRTAbilityCooldownView> Prima = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		Unit->Abilities.Swap(ArcIdx, GuardIdx);
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+		TestEqual(TEXT("A: nella posizione dell'attacco base ora c'e' la Guardia"),
+			Dopo[ArcIdx].ActionId, Prima[GuardIdx].ActionId);
+		TestEqual(TEXT("A: e porta il gruppo della Guardia, non quello della posizione"),
+			Dopo[ArcIdx].Group, ERTActionGroup::Common);
+		TestEqual(TEXT("A: e l'attacco base, spostato in coda, resta Base"),
+			Dopo[GuardIdx].Group, ERTActionGroup::Base);
+		TestEqual(TEXT("A: l'indice resta quello della posizione"), Dopo[ArcIdx].AbilityIndex, ArcIdx);
+
+		Unit->Abilities.Swap(ArcIdx, GuardIdx);
+	}
+
+	// --- B. il dato cambia alla STESSA posizione: senza BaseActionId l'attacco base diventa Kit -------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		const FName BaseOriginale = Originale->Def.BaseActionId;
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.BaseActionId = NAME_None;
+		Unit->Abilities[ArcIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("B: senza BaseActionId, alla stessa posizione, la voce e' Kit"),
+			Dopo[ArcIdx].Group, ERTActionGroup::Kit);
+
+		Unit->Abilities[ArcIdx] = Originale;
+		TestEqual(TEXT("B: l'oggetto del roster non e' stato toccato"), Originale->Def.BaseActionId, BaseOriginale);
+	}
+
+	// --- C. il dato cambia nell'altra direzione: una skill col BaseActionId dell'attacco base e' Base -------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.BaseActionId = TEXT("Action.BasicAttack");
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("C: con BaseActionId = Action.BasicAttack nel dato, la skill e' Base"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Base);
+		TestNotEqual(TEXT("C: premessa — la skill NON sta all'indice dell'attacco base"), LinearIdx, ArcIdx);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	// --- D. il caso d'identita': un'azione che E' Action.BasicAttack, col BaseActionId vuoto, e' Base --------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ActionId = TEXT("Action.BasicAttack");
+		Copia->Def.BaseActionId = NAME_None;
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("D: l'attacco base nudo, senza BaseActionId, e' Base"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Base);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	// --- E. la precedenza: Comuni PRIMA di Base ----------------------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ActionId = TEXT("Action.Guard");
+		Copia->Def.BaseActionId = TEXT("Action.BasicAttack");
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("E: una generica che e' anche profilo dell'attacco base resta Comune"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Common);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
