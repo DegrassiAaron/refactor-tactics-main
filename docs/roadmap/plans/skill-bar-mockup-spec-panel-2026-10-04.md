@@ -232,6 +232,13 @@ degli untracked e hash della DLL identici a inizio e fine.
 
 ## 9. Seguiti
 
+> ⏱️ **Ripresi lo stesso pomeriggio** in [`skill-bar-fascia-bassa-spec-panel-2026-10-04.md`](skill-bar-fascia-bassa-spec-panel-2026-10-04.md):
+> - D-454 e D-455 registrate, e D-455 precisata;
+> - il campo `Group` consegnato in [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468);
+> - §6.7 riscritta contro D-425.
+>
+> L'elenco qui sotto resta com'era al momento della stesura.
+
 - **Il campo `Group`** di D-455, quando la voce sarà registrata, e con lui i separatori di gruppo in Editor.
 - **Il produttore di Invalid/Warning sullo slot**, e la riconciliazione fra `progettazione-hud.md` §7 e
   il commento di `ERTActionSlotState` (§5.4).

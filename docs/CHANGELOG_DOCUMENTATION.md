@@ -2,6 +2,24 @@
 
 ---
 
+## 2026-10-04 (pomeriggio) — La barra dei comandi prende la fascia bassa, e il registro riceve D-454, D-455 e D-456
+
+**Origine**: una decisione d'autore sulla **posa** della barra — *«sostituisce le zone in basso a sinistra, al
+centro e a destra»* — passata da uno spec panel e misurata su `origin/main` = `06b76a716`. Referto:
+[`roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`](roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md).
+
+| Dove | Che cosa |
+|---|---|
+| [`decisions/RT_PDR_00_Decision_Log.md`](decisions/RT_PDR_00_Decision_Log.md) | **D-454** (`Brace` è il dodicesimo comando), **D-455** (il gruppo si deriva, precisato alla registrazione), **D-456** (la fascia bassa è una zona sola, della barra). D-407 annotata, non riscritta |
+| [`gameplay/spec-barra-comandi.md`](gameplay/spec-barra-comandi.md) | dodici comandi; la riga di `Brace` in §1 e §3 |
+| [`technical/systems/progettazione-hud.md`](technical/systems/progettazione-hud.md) | §6.3, §6.4, §6.6, §6.7 e §6.8 allineate a D-456: timeline in `TopCenter`, Confirm · Undo in `TopRight`, la lettura del movimento all'estremità destra della barra |
+| `Source/RefactorTactics/UI/RTHudViewModel.*` | `ERTActionGroup` e `FRTAbilityCooldownView::Group` — [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468) |
+
+⛔ **`guida-screen-hud-umg.md` §3 NON cambia qui**: descrive l'albero che il `.uasset` contiene, e l'albero
+cambia con [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469), nello stesso commit dell'asset.
+
+---
+
 ## 2026-10-04 — Il mockup della skill bar entra come sorgente di design, e la dock impara a dire la fase
 
 **Origine**: un pacchetto di design consegnato dall'autore insieme a un work order, passato da uno spec

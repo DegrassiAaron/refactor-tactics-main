@@ -1,8 +1,9 @@
-# Spec — La barra dei comandi: undici voci, e che cosa ciascuna lascia fare al movimento
+# Spec — La barra dei comandi: dodici voci, e che cosa ciascuna lascia fare al movimento
 
 > `CURRENT` · **Owner** della composizione della barra e della compatibilità azione↔movimento **come
 > assegnazione**. **Data**: 2026-09-13.
 > **Decisioni**: [`D-407`](../decisions/RT_PDR_00_Decision_Log.md) (composizione e slot) ·
+> [`D-454`](../decisions/RT_PDR_00_Decision_Log.md) (`Brace` resta un comando: dodici, non undici) ·
 > [`D-409`](../decisions/RT_PDR_00_Decision_Log.md) (`Evasion`) ·
 > [`D-410`](../decisions/RT_PDR_00_Decision_Log.md) (`Reflect`) ·
 > [`D-070`](../decisions/RT_PDR_00_Decision_Log.md) (Overwatch → `Withdraw`).
@@ -18,12 +19,13 @@
 > ⚠️ **Nessuna riga di codice esprime oggi la soglia**: `FRTMovementProfile::Stability` esiste
 > (`#653`), `FRTActionDef::MinStability` **no**, e il confronto è [#606](https://github.com/DegrassiAaron/refactor-tactics-main/issues/606).
 
-## 1. Gli undici comandi
+## 1. I dodici comandi
 
 | Comando | Slot | Regola |
 |---|---|---|
 | **Attacco base** | principale | Uno specifico del personaggio — vedi [`spec-attacco-base-per-eroe.md`](spec-attacco-base-per-eroe.md) |
 | **Guardia** | principale | Difesa comune a tutti, settore di 120° orientabile |
+| **Irrigidimento** (`Action.Brace`) | principale | Difesa comune a tutti: `Braced` −10 da **ogni** lato, più `Root` |
 | **Difesa caratteristica** | `SignatureDefense` | L'abilità difensiva **del personaggio**: `Evasion`, `Reflect` o altra |
 | **Overwatch** | principale | Sorveglianza che usa l'attacco base |
 | **Move** | movimento | Selezione della modalità e del percorso |
@@ -31,7 +33,7 @@
 | **Wait** | — | Nessuna azione principale e nessuno spostamento volontario |
 | **Quattro skill** | principale *(in generale)* | Kit prestabilito del personaggio nel prototipo |
 
-Sono **undici elementi logici**. ⛔ **Non è un layout**: questa pagina non prescrive la disposizione grafica
+Sono **dodici elementi logici** — ⌫ *erano undici fino al 2026-10-04: [`D-407`](../decisions/RT_PDR_00_Decision_Log.md) ometteva `Brace`, e [`D-454`](../decisions/RT_PDR_00_Decision_Log.md) lo rimette fra i comandi*. ⛔ **Non è un layout**: questa pagina non prescrive la disposizione grafica
 della HUD, e chi la legge come specifica di UI la legge male.
 
 ### 1.1 🔴 Lo slot si chiama `SignatureDefense`, non `Brace`
@@ -39,7 +41,7 @@ della HUD, e chi la legge come specifica di UI la legge male.
 La sorgente d'autore chiama `Brace` lo slot della difesa caratteristica, e dichiara che *«non è una
 riduzione di danno universale»*. **Nel repository `Action.Brace` è esattamente quello**: una delle sette
 generiche di [`D-025`](../decisions/RT_PDR_00_Decision_Log.md), che applica `Braced` (−10 a ogni colpo, da
-**ogni** lato) e `Root` (`Source/RefactorTactics/Ability/RTCatalogLibrary.cpp:1523`).
+**ogni** lato) e `Root` (`URTCatalogLibrary`, la voce `Action.Brace` del catalogo core).
 
 Due entità con lo stesso nome, di cui una è il contrario dell'altra, si pagano a ogni lettura del TurnLog.
 Stesso criterio di [`D-082`](../decisions/RT_PDR_00_Decision_Log.md) e
@@ -59,7 +61,7 @@ derivano da `Action.Shield` (principale, Prep); `Hero.Ivrin.Deflection` e `Hero.
 
 ## 2. L'azione principale
 
-`Attacco base`, `Guardia`, l'abilità della difesa caratteristica, `Overwatch` e `Interact` occupano l'azione
+`Attacco base`, `Guardia`, `Irrigidimento`, l'abilità della difesa caratteristica, `Overwatch` e `Interact` occupano l'azione
 principale. Le quattro skill del kit **in generale** la occupano; un'eccezione si dichiara **nella singola
 skill**, mai nella regola generale — è il pattern di
 [`D-014`](../decisions/RT_PDR_00_Decision_Log.md)/[`D-028`](../decisions/RT_PDR_00_Decision_Log.md).
@@ -72,6 +74,7 @@ skill**, mai nella regola generale — è il pattern di
 |---|---|---|
 | Attacco base | `Move` oppure `Sneak` | `MinStability` **1** |
 | Guardia | `Move` oppure `Sneak` | `MinStability` **1** |
+| Irrigidimento (`Brace`) | **nessuno**, `Withdraw` compreso | né soglia né riserva: lo **stato** `Root` che l'azione applica ([`D-454`](../decisions/RT_PDR_00_Decision_Log.md)) |
 | Difesa caratteristica (`Evasion`) | spostamento in **Dash**, poi eventuale `Withdraw` in Move | **riserva** lo slot a `Withdraw` |
 | Difesa caratteristica (`Reflect`) | `Withdraw` | **riserva** lo slot a `Withdraw` |
 | Overwatch | `Withdraw` | **riserva** lo slot a `Withdraw` ([`D-070`](../decisions/RT_PDR_00_Decision_Log.md)) |
