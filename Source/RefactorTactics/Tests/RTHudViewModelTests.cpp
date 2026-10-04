@@ -20,6 +20,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
 #include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
+#include "UI/RTScreenHudWidgets.h"     // URTActionDockWidget: l'ordine di lettura si prova sul metodo che il Blueprint chiama (#3478)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -2575,6 +2576,159 @@ bool FRTHudVmGroupReadNotDeducedTest::RunTest(const FString&)
 	}
 
 	DestroyHudVmWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** La sequenza dei gruppi di una lista, una lettera per voce: C, B, K, e `-` per una posizione vuota. */
+	FString HudVmGroupSequence(const TArray<FRTAbilityCooldownView>& Voci)
+	{
+		FString Out;
+		for (const FRTAbilityCooldownView& V : Voci)
+		{
+			Out += (V.Group == ERTActionGroup::Common) ? TEXT("C")
+				: (V.Group == ERTActionGroup::Base) ? TEXT("B")
+				: (V.Group == ERTActionGroup::Kit) ? TEXT("K") : TEXT("-");
+		}
+		return Out;
+	}
+
+	/**
+	 * L'ordine di lettura atteso, calcolato con un ALGORITMO DIVERSO da `OrderForReading`: tre passate filtrate
+	 * sulla lista nell'ordine di kit. Se la funzione di produzione usasse un ordinamento non stabile, o
+	 * sbagliasse il rango di un gruppo, le due risposte divergerebbero.
+	 */
+	TArray<int32> HudVmExpectedReadingIndices(const TArray<FRTAbilityCooldownView>& Voci)
+	{
+		TArray<int32> Out;
+		for (const FRTAbilityCooldownView& V : Voci) { if (V.Group == ERTActionGroup::Common) { Out.Add(V.AbilityIndex); } }
+		for (const FRTAbilityCooldownView& V : Voci) { if (V.Group == ERTActionGroup::Base) { Out.Add(V.AbilityIndex); } }
+		for (const FRTAbilityCooldownView& V : Voci)
+		{
+			if (V.Group == ERTActionGroup::Kit || V.Group == ERTActionGroup::None) { Out.Add(V.AbilityIndex); }
+		}
+		return Out;
+	}
+
+	TArray<int32> HudVmIndices(const TArray<FRTAbilityCooldownView>& Voci)
+	{
+		TArray<int32> Out;
+		for (const FRTAbilityCooldownView& V : Voci) { Out.Add(V.AbilityIndex); }
+		return Out;
+	}
+}
+
+/**
+ * `#3478` — LA BARRA SI LEGGE COMUNI, BASE, KIT, E NESSUNA VOCE PERDE LA PROPRIA IDENTITA' ([D-455] punto 2).
+ *
+ * 🔑 **Due oracoli, e nessuno dei due e' `OrderForReading`**:
+ *  - **A** la sequenza dei gruppi del kit di partita di Branth, scritta a mano — e' quella che la DoD nomina;
+ *  - **B** per OGNI eroe del roster col loadout, l'ordine atteso calcolato con tre passate filtrate invece che
+ *    con un ordinamento: prende una partizione non stabile, che A da solo non vedrebbe.
+ *
+ * ⚠️ **Si prova il METODO della dock, non solo la funzione pura**: `GetActionsInReadingOrder()` e' cio' che il
+ * Blueprint chiama, e una funzione pura verde con un chiamante che legge da un'altra sorgente sarebbe un verde
+ * che non arriva a schermo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmReadingOrderTest,
+	"RefactorTactics.HudViewModel.ReadingOrderKeepsKitOrderWithinEachGroup",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmReadingOrderTest::RunTest(const FString&)
+{
+	const TArray<URTHeroData*> Roster = URTHeroCatalogLibrary::GetHeroRoster();
+	if (!TestTrue(TEXT("premessa — il roster non e' vuoto"), Roster.Num() > 0)) { return false; }
+
+	bool bVistoBranth = false;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+
+		UWorld* World = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("world di prova"), World)) { continue; }
+
+		ARTUnit* Unit = SpawnHudVmUnit(World, Hero->HeroId, 0);
+		URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+		if (!TestNotNull(*FString::Printf(TEXT("unita' di %s"), *Hero->HeroId.ToString()), Unit)
+			|| !TestNotNull(TEXT("dock"), Dock))
+		{
+			DestroyHudVmWorld(World);
+			continue;
+		}
+
+		// Il kit DI PARTITA: col loadout che `ARTMatchBootstrapper` equipaggia.
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		Dock->SetSelectedUnitForTest(Unit);
+
+		const TArray<FRTAbilityCooldownView> Lista = Dock->GetActions();
+		const TArray<FRTAbilityCooldownView> Lettura = Dock->GetActionsInReadingOrder();
+		const FString Nome = Hero->HeroId.ToString();
+
+		// --- A. Branth, a mano ----------------------------------------------------------------------------------
+		if (Hero->HeroId == FName(TEXT("Hero.Branth")))
+		{
+			bVistoBranth = true;
+			TestEqual(TEXT("A: la lista di Branth e' quella misurata, coi gruppi NON contigui"),
+				HudVmGroupSequence(Lista), FString(TEXT("BKKKKKCCCCCKK")));
+			TestEqual(TEXT("A: e l'ordine di lettura e' Comuni, Base, Kit"),
+				HudVmGroupSequence(Lettura), FString(TEXT("CCCCCBKKKKKKK")));
+		}
+
+		// --- B. l'ordine atteso con un altro algoritmo ---------------------------------------------------------
+		TestEqual(*FString::Printf(TEXT("B: %s, l'ordine di lettura coincide con le tre passate filtrate"), *Nome),
+			HudVmIndices(Lettura), HudVmExpectedReadingIndices(Lista));
+
+		// --- C. identita': stesse voci, nessuna persa o doppia, nessun campo toccato -----------------------------
+		if (TestEqual(*FString::Printf(TEXT("C: %s, stesse voci in numero"), *Nome), Lettura.Num(), Lista.Num()))
+		{
+			TArray<int32> Ordinati = HudVmIndices(Lettura);
+			Ordinati.Sort();
+			TestEqual(*FString::Printf(TEXT("C: %s, gli indici sono esattamente quelli della lista"), *Nome),
+				Ordinati, HudVmIndices(Lista));
+
+			for (const FRTAbilityCooldownView& V : Lettura)
+			{
+				if (!Lista.IsValidIndex(V.AbilityIndex)) { continue; }
+				const FRTAbilityCooldownView& Originale = Lista[V.AbilityIndex];
+				TestEqual(*FString::Printf(TEXT("C: %s, la voce %d porta la propria azione"), *Nome, V.AbilityIndex),
+					V.ActionId, Originale.ActionId);
+				TestEqual(*FString::Printf(TEXT("C: %s, la voce %d porta il proprio tasto"), *Nome, V.AbilityIndex),
+					V.HotkeyLabel.ToString(), Originale.HotkeyLabel.ToString());
+			}
+		}
+
+		// --- E. il metodo della dock e' la funzione pura sulla stessa sorgente -----------------------------------
+		TestEqual(*FString::Printf(TEXT("E: %s, la dock applica OrderForReading a GetActions()"), *Nome),
+			HudVmIndices(Lettura), HudVmIndices(URTHudViewModel::OrderForReading(Lista)));
+
+		DestroyHudVmWorld(World);
+	}
+	TestTrue(TEXT("A: premessa — Branth e' nel roster"), bVistoBranth);
+
+	// --- D. una posizione VUOTA resta nel Kit, al suo posto relativo ----------------------------------------------
+	{
+		UWorld* World = MakeHudVmWorld();
+		ARTUnit* Unit = World ? SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0) : nullptr;
+		if (TestNotNull(TEXT("D: unita' di Aevik"), Unit)
+			&& TestTrue(TEXT("D: premessa — almeno tre posizioni"), Unit->NumAbilities() >= 3))
+		{
+			Unit->Abilities[2] = nullptr;
+			const TArray<FRTAbilityCooldownView> Lettura =
+				URTHudViewModel::OrderForReading(URTHudViewModel::BuildAbilityCooldowns(Unit));
+			const TArray<int32> Indici = HudVmIndices(Lettura);
+			const int32 Pos1 = Indici.Find(1);
+			const int32 Pos2 = Indici.Find(2);
+			const int32 Pos3 = Indici.Find(3);
+			TestTrue(TEXT("D: il buco (indice 2) sta fra l'indice 1 e il 3, dentro il Kit"),
+				Pos1 != INDEX_NONE && Pos2 == Pos1 + 1 && Pos3 == Pos2 + 1);
+			if (Lettura.IsValidIndex(Pos2))
+			{
+				TestTrue(TEXT("D: ed e' davvero il buco"), Lettura[Pos2].ActionId.IsNone());
+			}
+		}
+		if (World) { DestroyHudVmWorld(World); }
+	}
+
 	return true;
 }
 

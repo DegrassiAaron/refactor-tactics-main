@@ -445,6 +445,13 @@ TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 	return URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
 }
 
+TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() const
+{
+	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente, che e' la stessa di
+	// `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	return URTHudViewModel::OrderForReading(GetActions());
+}
+
 int32 URTActionDockWidget::GetArmedActionIndex() const
 {
 	const ARTUnit* Unit = GetSelectedUnit();

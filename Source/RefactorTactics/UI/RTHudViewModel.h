@@ -1153,6 +1153,23 @@ public:
 	static ERTActionGroup GroupFor(const FRTActionDef& Def);
 
 	/**
+	 * Le stesse voci in ORDINE DI LETTURA della barra (`#3478`, [D-455] punto 2): Comuni, poi Base, poi Kit.
+	 *
+	 * 🔑 **Partizione STABILE**: dentro ogni gruppo resta l'ordine di kit. E **ogni voce resta intatta** —
+	 * `AbilityIndex`, `HotkeyLabel`, tutto — perche' la posizione a schermo non e' mai un indice ([D-397]
+	 * punti 2 e 4): chi arma legge l'indice dallo slot, non dalla sua posizione nella barra.
+	 *
+	 * ⛔ **Non riordina `GetActions()`**, che resta identita': restituisce una COPIA ordinata. Esiste perche'
+	 * i gruppi non sono contigui nella lista — l'equipaggiamento e' accodato dopo le generiche, e in partita
+	 * Branth e Muiren leggono `B KKKKK CCCCC KK` — e un Blueprint che li riordinasse da se' ricomporrebbe una
+	 * regola, cio' che `PhaseMark` (#3465) e' nato per evitare.
+	 *
+	 * ⚠️ **Una posizione vuota (`Group == None`) si legge come Kit**, al suo posto relativo: e' una posizione
+	 * del kit dell'eroe senza azione, e il buco resta visibile dove il tasto lo preme (#2987).
+	 */
+	static TArray<FRTAbilityCooldownView> OrderForReading(const TArray<FRTAbilityCooldownView>& Actions);
+
+	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).
 	 *
 	 * 🔑 **La precedenza vive qui e in nessun altro posto.** Senza questa funzione ogni `WBP_` che voglia
