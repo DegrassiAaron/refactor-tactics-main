@@ -127,6 +127,11 @@ public:
 	 * Non riassume e non sceglie: il designer vede **entrambe** le case di ogni numero — cio' che il
 	 * catalogo dichiara e cio' che il consumatore legge — perche' uno strumento che ne scegliesse una
 	 * mostrerebbe un valore che il gioco puo' non usare.
+	 *
+	 * Il «letto» di una generica e' quello dell'istanza che ogni unita' riceve (`MakeGenericActions`).
+	 * Una core che nessuna unita' porta col suo id rende `CatalogOnly` — `#3473`: esiste solo la casa del
+	 * catalogo, e in `OutParameters` vanno letti i soli `DeclaredValue`. ⚠️ La funzione e' `BlueprintCallable`:
+	 * chi la chiama legge l'esito prima dei campi, come fa `SRTLabPanel::TestoParametri`.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|AbilityLab")
 	static ERTActionReadoutResult DescribeAbility(const FName& AbilityId,
@@ -138,6 +143,10 @@ public:
 	 * **Fail closed**: se `AbilityId` non e' canonica, ritorna `false`, scrive `OutError` e lascia
 	 * `OutScenario` intatto. Non produce una fixture parziale — una fixture a meta' verrebbe eseguita, e
 	 * il suo esito sarebbe indistinguibile da quello di un'ability che semplicemente non fa nulla.
+	 *
+	 * Stesso rifiuto, e stessa forma, per una core che **nessuna unita' impugna** — `#3472`: un'unita' porta il
+	 * proprio kit e le generiche, quindi una core fuori da quell'insieme finirebbe rifiutata dall'harness in
+	 * ERROR. Un'azione che si applica a chi la usa (`bSelfTarget`) si dichiara senza bersaglio.
 	 *
 	 * Lo scenario porta sempre almeno una `Expect`: l'harness **rifiuta** uno scenario senza assertion,
 	 * perche' passerebbe sempre. L'assertion di default e' `TurnsCompleted == 1` — dice che il turno e'

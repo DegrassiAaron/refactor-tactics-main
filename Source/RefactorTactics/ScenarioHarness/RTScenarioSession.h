@@ -18,7 +18,12 @@ namespace RTScenarioStateDiff
 	REFACTORTACTICS_API TArray<FRTUnitStateDigest> Snapshot(
 		const TMap<FString, TWeakObjectPtr<ARTUnit>>& UnitsById);
 
-	/** Il diff fra due elenchi: campi cambiati, comparse e sparizioni, in ordine di `UnitId`. */
+	/**
+	 * Il diff fra due elenchi: campi cambiati, comparse e sparizioni, in ordine di `UnitId`.
+	 *
+	 * ⚠️ **Vuoto** se in uno dei due elenchi un `UnitId` e' 0 (non assegnato) o ripetuto — `#3474`: si
+	 * accoppia per id, e un id che non identifica nessuno attribuirebbe a un'unita' i campi di un'altra.
+	 */
 	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
 		const TArray<FRTUnitStateDigest>& After);
 }
@@ -253,12 +258,17 @@ private:
 	TMap<FString, TWeakObjectPtr<ARTUnit>> UnitsById;
 
 	/**
-	 * Lo stato delle unita' COME ERANO all'avvio, per il diff di `#1630`.
+	 * Lo stato delle unita' COME ERANO prima del primo turno, per il diff di `#1630`.
 	 *
-	 * ⚠️ Si cattura alla fine di `Start()`, quando l'allestimento e' finito e nessun turno e' ancora
-	 * girato: un istante prima le unita' non esistono, uno dopo il primo turno le ha gia' toccate.
+	 * ⚠️ **Si cattura al primo `PlanningLocked`, non in `Start()`** — `#3474`. Il diff accoppia per
+	 * `StableUnitId`, che l'harness assegna solo al lock-in (`EnsureMatchRoster`): fotografato in `Start()`, il
+	 * «prima» portava `0` per tutti e nessuna unita' si accoppiava. Al primo `PlanningLocked` le identita' ci
+	 * sono e nessuna fase ha ancora risolto — il turn manager annuncia quel confine prima di qualunque `Resolve*`.
 	 */
 	TArray<FRTUnitStateDigest> InitialUnitStates;
+
+	/** Se `InitialUnitStates` e' stato catturato. Senza, il diff resta vuoto: non c'e' un «prima» da confrontare. */
+	bool bInitialUnitStatesCaptured = false;
 
 	int32 TurnIndex = 0;
 	float PauseElapsed = 0.f;
