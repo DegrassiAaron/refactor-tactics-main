@@ -79,6 +79,32 @@ public:
 	/** L'identita' dell'eroe filtrato. `false` senza filtro: non c'e' un eroe da descrivere. */
 	bool GetHeroReadout(FRTHeroLabEntry& OutHero) const;
 
+	/**
+	 * Perche' l'elenco visibile e' come e' -- e in particolare perche' e' **vuoto** (`#3461`).
+	 *
+	 * 🔑 **Esiste perche' `GetHeroReadout` risponde `false` a DUE domande diverse**: «nessun filtro» e
+	 * «un filtro che non matcha nessun eroe». Il pannello le rendeva con la stessa frase, e nel secondo
+	 * caso quella frase -- *«catalogo canonico intero»* -- era il **contrario** di cio' che accadeva:
+	 * `VisibleAbilities()` ha preso il ramo filtrato e ha reso un elenco vuoto.
+	 *
+	 * ⛔ **Sta qui e non nel widget** per la ragione in testa a questo file: Slate non lo misura nessuno.
+	 * La decisione e' del modello, la frase e' del pannello.
+	 */
+	enum class EFilterState : uint8
+	{
+		/** Nessun filtro: l'elenco e' il catalogo canonico intero. */
+		NoFilter,
+		/** Un filtro c'e', ma nessun eroe canonico ha quell'id. L'elenco e' vuoto PER QUESTO. */
+		UnknownHeroId,
+		/** L'eroe esiste e dichiara zero voci di kit proprie: l'elenco e' vuoto, e non e' un difetto. */
+		HeroWithEmptyKit,
+		/** L'eroe esiste e ha un kit: l'elenco lo mostra. */
+		HeroWithKit,
+	};
+
+	/** Lo stato del filtro. `OutHero` e' valorizzato solo negli ultimi due casi. */
+	EFilterState DescribeFilterState(FRTHeroLabEntry& OutHero) const;
+
 	// ── Selezione ───────────────────────────────────────────────────────────────────────────────────
 
 	/**

@@ -40,6 +40,24 @@ bool FRTLabViewModel::GetHeroReadout(FRTHeroLabEntry& OutHero) const
 	return URTHeroLabLibrary::FindHero(HeroFilter, OutHero);
 }
 
+FRTLabViewModel::EFilterState FRTLabViewModel::DescribeFilterState(FRTHeroLabEntry& OutHero) const
+{
+	if (!HasHeroFilter())
+	{
+		return EFilterState::NoFilter;
+	}
+	if (!URTHeroLabLibrary::FindHero(HeroFilter, OutHero))
+	{
+		return EFilterState::UnknownHeroId;
+	}
+	// ⚠️ Il conteggio si chiede a `VisibleAbilities()`, che e' cio' che il selettore mostra davvero --
+	// non a `OutHero.DeclaredAbilityCount`, che e' un campo del catalogo. I due possono divergere, e la
+	// domanda di questa funzione e' **perche' la lista e' vuota**, non quante voci il catalogo dichiari.
+	return VisibleAbilities().Num() == 0
+		? EFilterState::HeroWithEmptyKit
+		: EFilterState::HeroWithKit;
+}
+
 bool FRTLabViewModel::IsVisible(const FName& AbilityId) const
 {
 	if (AbilityId.IsNone())
