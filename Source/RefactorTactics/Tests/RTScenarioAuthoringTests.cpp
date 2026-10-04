@@ -631,6 +631,14 @@ bool FRTScenarioStateDiffRefusesAmbiguousIdentitiesTest::RunTest(const FString&)
 	TestEqual(TEXT("prima {0, 0}, dopo {1, 2}: nessun diff"),
 		RTScenarioStateDiff::Build({ Make(0, 90), Make(0, 90) }, { Make(1, 90), Make(2, 71) }).Num(), 0);
 
+	// Lo zero DA SOLO, senza ripetizioni: e' la clausola che il caso sopra non fissa, perche' `{0, 0}` cade
+	// gia' sul ramo dei duplicati. Senza questi due, togliere `UnitId <= 0` lascerebbe il test verde e il diff
+	// tornerebbe a dire «sparita» e «comparsa» di un'unita' che non si e' mossa (dalla revisione di #3476).
+	TestEqual(TEXT("prima {0}, dopo {1}: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(0, 90) }, { Make(1, 90) }).Num(), 0);
+	TestEqual(TEXT("prima {1}, dopo {0}: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(1, 90) }, { Make(0, 90) }).Num(), 0);
+
 	// Lo stesso difetto senza lo zero: un id ripetuto non identifica nessuno.
 	TestEqual(TEXT("id duplicato nel «prima»: nessun diff"),
 		RTScenarioStateDiff::Build({ Make(3, 90), Make(3, 80) }, { Make(3, 90) }).Num(), 0);

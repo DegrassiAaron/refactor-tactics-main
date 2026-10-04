@@ -90,7 +90,6 @@ namespace RTScenarioStateDiff
 		}
 	}
 
-	/** Il diff fra due elenchi gia' ordinati: campi cambiati, comparse e sparizioni. */
 	/** Ogni `UnitId` e' assegnato (> 0, [D-063]) e compare una volta sola. */
 	static bool HasDistinctAssignedIds(const TArray<FRTUnitStateDigest>& Digests)
 	{
@@ -104,6 +103,11 @@ namespace RTScenarioStateDiff
 		return true;
 	}
 
+	/**
+	 * Il diff fra due elenchi gia' ordinati: campi cambiati, comparse e sparizioni.
+	 *
+	 * Vuoto se in uno dei due elenchi un `UnitId` e' 0 o ripetuto — `#3474`, la ragione e' qui sotto.
+	 */
 	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
 		const TArray<FRTUnitStateDigest>& After)
 	{
@@ -806,6 +810,12 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	Result.ScenarioId = Scenario.ScenarioId;
 	Result.Seed = Scenario.Seed;
 
+	// Il «prima» del diff si azzera QUI, prima di ogni uscita anticipata — `#3474`. Le righe sotto chiamano
+	// `Finish()` in tre punti, e una sessione riusata leggerebbe altrimenti il «prima» della run precedente.
+	// La cattura vera avviene al primo `PlanningLocked` (`OnResolutionPhaseClosed`).
+	InitialUnitStates.Reset();
+	bInitialUnitStatesCaptured = false;
+
 	auto Fail = [this](const FString& Reason) -> bool
 	{
 		// Tutto cio' che va storto qui e' ERROR, non FAIL: non si e' potuto eseguire, quindi il difetto e' nel
@@ -1123,10 +1133,7 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 
 	// LO STATO D'INGRESSO NON si cattura qui — `#3474`. L'allestimento e' finito, ma le unita' non hanno ancora
 	// un'identita': `StableUnitId` vale 0 finche' il lock-in non chiama `EnsureMatchRoster`, e il diff accoppia
-	// per quell'id. Si cattura al primo `PlanningLocked` (`OnResolutionPhaseClosed`); qui si azzera soltanto,
-	// perche' una sessione che riparte non erediti il «prima» della run precedente.
-	InitialUnitStates.Reset();
-	bInitialUnitStatesCaptured = false;
+	// per quell'id. Si cattura al primo `PlanningLocked` (`OnResolutionPhaseClosed`).
 
 	ApplyPreviewSelection();
 	return true;

@@ -458,7 +458,8 @@ bool FRTAbilityLabCoreReadoutMatchesTheUnitsInstanceTest::RunTest(const FString&
 		{
 			const FString Voce = FString::Printf(TEXT("%s · %s"), *Id, *DallIstanza[i].ParameterKey.ToString());
 			TestEqual(Voce + TEXT(": stessa chiave"), DalLab[i].ParameterKey, DallIstanza[i].ParameterKey);
-			TestEqual(Voce + TEXT(": stesso valore di catalogo"), DalLab[i].DeclaredValue, DallIstanza[i].DeclaredValue);
+			TestEqual(Voce + TEXT(": stesso valore di catalogo"),
+				DalLab[i].DeclaredValue, DallIstanza[i].DeclaredValue);
 			TestEqual(Voce + TEXT(": stesso valore letto"), DalLab[i].ConsumedValue, DallIstanza[i].ConsumedValue);
 		}
 	}
@@ -553,6 +554,69 @@ bool FRTAbilityLabStateDiffPairsTheUnitsOfTheRunTest::RunTest(const FString&)
 		}
 	}
 	TestTrue(TEXT("la Health del bersaglio scende nel diff, come il TurnLog dichiara"), bBersaglioColpito);
+
+	return true;
+}
+
+/**
+ * Lo `StateDiff` copre l'INTERA run, non l'ultimo turno — `#3474`, dalla revisione di #3476.
+ *
+ * Il «prima» si cattura al primo `PlanningLocked`, e UNA volta sola. Senza quella guardia ogni lock-in lo
+ * ricatturerebbe, e uno scenario a piu' turni misurerebbe solo l'ultimo: il test sopra, a un turno solo, non
+ * se ne accorgerebbe. Qui il colpo arriva al turno 1 e il turno 2 e' vuoto — ogni unita' ferma, come il
+ * corpus gia' scrive (`"intents": []`) — quindi un diff senza la `Health` del bersaglio ha dimenticato il turno 1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStateDiffSpansTheWholeRunTest,
+	"RefactorTactics.AbilityLab.StateDiffSpansTheWholeRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStateDiffSpansTheWholeRunTest::RunTest(const FString&)
+{
+	FRTAbilityLabEntry Entry;
+	if (!TestTrue(TEXT("il roster offre un'ability lineare"),
+		RTAbilityLabTestsInternal::FindHeroAbilityWithShape(ERTAbilityShape::Line, Entry)))
+	{
+		return false;
+	}
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("BuildFixture riesce"),
+		URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+			RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error)))
+	{
+		return false;
+	}
+
+	// Il turno 2, vuoto. L'assertion della fixture conta i turni, quindi segue.
+	Scenario.Turns.Add(FRTScenarioTurn());
+	for (FRTTestExpectation& Attesa : Scenario.Expect)
+	{
+		if (Attesa.Kind == ERTAssertionKind::TurnsCompleted) { Attesa.Value = Scenario.Turns.Num(); }
+	}
+
+	const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR su %s: %s"), *Entry.AbilityId.ToString(), *Result.ErrorMessage));
+		return false;
+	}
+	if (!TestEqual(TEXT("due turni giocati"), Result.TurnsPlayed, 2)) { return false; }
+
+	bool bBersaglioColpito = false;
+	for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+	{
+		const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+		if (!Authoring || *Authoring != TEXT("TARGET")) { continue; }
+
+		for (const FRTUnitFieldChange& Cambio : Diff.Changes)
+		{
+			if (Cambio.Field == FName(TEXT("Health")) && FCString::Atoi(*Cambio.After) < FCString::Atoi(*Cambio.Before))
+			{
+				bBersaglioColpito = true;
+			}
+		}
+	}
+	TestTrue(TEXT("il diff porta il colpo del turno 1, non solo il turno 2"), bBersaglioColpito);
 
 	return true;
 }
