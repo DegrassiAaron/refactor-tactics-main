@@ -4673,7 +4673,7 @@ sessions:
     # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga #3465, con l'Editor
     # **ricompilato** da quel commit prima di aprire la seduta — una DLL di prima non ha i tre campi, e i
     # pin del Blueprint non comparirebbero.
-    shares_setup_with: []
+    shares_setup_with: [U63]
     verifies: []
     # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
     # sta nell'editor PRIMA del Play — la prova in scala di grigi sulla cattura degli stati — quindi il
@@ -4730,6 +4730,65 @@ sessions:
     notes: >-
       Scritta il 2026-10-04 dal triage del mockup della skill bar
       (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`). Non ancora eseguita.
+
+  - id: U63
+    title: La barra dei comandi occupa la fascia bassa e legge i propri gruppi
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_ActionDock` disposta su tutta `Zone_Bottom` (D-456): le voci partizionate per `Action.Group` —
+      Comuni · Base · Kit, con i separatori fra i gruppi — e lo spazio all'estremita' destra riservato alla
+      lettura del movimento di #3470; la cattura a 1920×1080 committata
+    artifacts:
+      - docs/technical/evidence/hud/u63-barra-fascia-bassa.png
+    # 🔑 **Una cattura sola, col kit PIU' LUNGO del roster**: Branth o Muiren col loadout di default, tredici
+    # voci (`HudViewModel.ActionSlotCarriesItsGroup`, blocco D, le scrive nel log). E' il caso che ha
+    # motivato la fascia intera; un kit da dieci voci entrerebbe anche nella cella vecchia e non proverebbe
+    # niente. `WBP_RT_ActionDock.uasset` non e' elencato: e' gia' tracciato, quindi `git ls-files` direbbe
+    # «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**, non perche' manchi una dipendenza:
+    # il campo `Group` e' #3468 (PR #3475) e la zona unica e' #3469 (PR #3477), dove questa voce nasce.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga ENTRAMBE, con l'Editor
+    # ricompilato da quel commit — una DLL di prima non ha `Action.Group`, e l'albero di prima ha ancora le
+    # tre celle basse.
+    shares_setup_with: [U61]
+    # Stessa apertura di U61: stessi due Blueprint (`WBP_RT_ActionDock`, `WBP_RT_ActionSlot`), stesso clone.
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
+    # dopo questa seduta il criterio (1) di `PIE-V01-SCREENHUD` — l'ingombro delle zone — va RIGIUDICATO a
+    # schermo, perche' il suo ultimo verde e' sull'albero a otto zone (#3469).
+    issues: [3468, 3469, 613]
+    done_when: >-
+      la dock in `Zone_Bottom` mostra le voci raggruppate leggendo `Action.Group` — mai dedotto dalla
+      posizione: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori fra i gruppi e
+      l'estremita' destra riservata; la cattura col kit da tredici voci e' committata in `artifacts` e la
+      barra resta dentro la fascia, senza scendere nel centro
+    # **Riferimenti**: `docs/research/design/hud/skill-bar-2026-10/` (`PROPOSTA`) per misure e resa —
+    # `SPECIFICA-VISIVA.md` §4 (composizione), `dati/tokens.json` (slot 78, gap 8, separatore 22, padding
+    # 24) — e D-455/D-456 per le regole.
+    #
+    # 🔴 **Cosa si cabla, e da dove legge**:
+    #   1. **Partizione stabile per `Group`**: le voci di `GetActions()` si dispongono Comuni, poi Base, poi
+    #      Kit, conservando l'ordine di kit dentro ogni gruppo. ⛔ L'ordine della LISTA non cambia: e' identita'
+    #      ([D-397] punto 2). E i gruppi NON sono contigui nella lista — in partita l'equipaggiamento e'
+    #      accodato dopo le generiche (`B KKKKK CCCCC KK`) — quindi «separatore dove il gruppo cambia» lungo la
+    #      lista e' sbagliato.
+    #   2. **Separatori** fra i gruppi, e l'intestazione testuale di gruppo (`COMUNI`, `BASE`, `KIT`) come
+    #      testo statico del Blueprint.
+    #   3. **Estremita' destra**: uno spazio riservato all'indicatore di #3470, vuoto finche' quello non arriva.
+    #
+    # ⛔ **Cosa NON si fa in questa seduta**: l'indicatore del movimento (#3470); Confirm · Undo in
+    # `TopRight` (#3471); la Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
+    # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    notes: >-
+      Scritta il 2026-10-04 dalla PR di #3469 (referto
+      `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
+      sessione che registra U62 (PR #3466): chi mergia secondo rinumera. Non ancora eseguita.
 
 not_schedulable:
 
