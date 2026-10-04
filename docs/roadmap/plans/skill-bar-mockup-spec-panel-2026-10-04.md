@@ -116,8 +116,9 @@ resta lo stesso: tutta la suite.
 ⚠️ **MINOR** — il prompt prescriveva *«sessione singola, niente worktree»* ([D-178](../../decisions/RT_PDR_00_Decision_Log.md)).
 Il clone principale però era occupato da un'altra sessione. Vale [`AGENTS.md`](../../../AGENTS.md) §11:
 *una sessione, un clone*. Il lavoro è passato al clone `refactor-tactics-dev`, fermo dal 2026-09-25 e
-pulito. `editor-sessions.yaml` era in modifica anche nell'altra sessione: `U61` è accodata in fondo, e il
-`U<n>` va rimisurato prima del merge.
+pulito. `editor-sessions.yaml` era in modifica anche nell'altra sessione: `U61` è accodata in coda a
+`sessions`, prima di `not_schedulable` — ⚠️ non in fondo al file, dove la prima stesura l'aveva messa e dove
+`yaml.safe_load` la leggeva come una voce di `not_schedulable`. Il `U<n>` va rimisurato prima del merge.
 
 ## 5. Le decisioni
 
@@ -198,7 +199,33 @@ funzione: `ShortcutComesFromTheBindingTableNotTheIndex` e `KitHoleDoesNotRenumbe
 
 ## 8. Verifica
 
-<!-- VERIFICA -->
+Misurato nel clone `refactor-tactics-dev` con `tools/suite/esegui.py` (`-abslog` nello scratchpad di
+sessione). L'invariante di `AGENTS.md` §9 è stato verificato a ogni misura: `HEAD`, `git diff HEAD`, hash
+degli untracked e hash della DLL identici a inizio e fine.
+
+| Gate | Esito | Su che cosa |
+|---|---|---|
+| Compile, Editor Development | `PASS` | base `77d253f70`: `Result: Succeeded`. Con #3465: `Result: Succeeded`, **0 warning**, e i due file toccati compilati come unità propria — quindi un warning si sarebbe visto |
+| Suite completa, prima | `PASS` — 2823 trovati, 2823 `Success`, 0 `Fail` | `77d253f70` |
+| Suite completa, dopo | `PASS` — 2825 trovati, 2825 `Success`, 0 `Fail` | `daebc3194`. La differenza fra i due insiemi di nomi è **esattamente** i due test nuovi |
+| Test nuovi | `PASS` | `HudViewModel.ActionSlotCarriesItsPhase` · `HudViewModel.ActionSlotPhaseIsReadNotDeduced` |
+| Test della dock (F10) | `PASS` | dentro la suite: `ScreenHud.ActionDockShowsTheNeutralState`, `DockArmsOnlyTheSelectedAction`, `DockSurvivesAHoleInTheKit`, `SlotsAreReadNotDeduced`, i nove `ActionSlot*` (`CarriesAnIconKey`, `ForwardsItsOwnIndex`, `HasIconSurface`, `IsNotTransparentToThePointer`, `LineCarriesKeyArmedAndReason`, `LineIsTheSameComposerAsTheHud`, `LoadsTheIconItShows`, `ResolvesFromCatalog`, `ResolvesOncePerActionChange`), `MovementSlotSaysNothingWhenUnauthorized`, `InspectedEnemyNeverCarriesItsPlannedSlots`; più `Editor.ActionSlot*`, `Editor.DockArmedStateReadsTheAbilityIndexNotTheLoopPosition`, `PlayerInput.DockClickAndHotkeyReachTheSameAbility`, `PlayerInput.TheDockPortArmsAndDisarms` |
+| Corpus golden | `PASS`, nessun bump | `Simulation.GoldenCorpusMatches` verde nella suite dopo: il digest del TurnLog non si è mosso |
+| Mutazioni | **i test sanno fallire** | **M1**, senza il ramo `Slot == Reaction`: rossi entrambi — la reazione diceva `BLAST`, la Guardia resa reazione `PREP`. **M2**, segno memorizzato per indice: rosso `ActionSlotPhaseIsReadNotDeduced` su A, B e C, verde `ActionSlotCarriesItsPhase`. ⚠️ È il caso che il docstring del secondo test dichiara: sul solo kit di Aevik letto e dedotto non si distinguono. Sorgente ripristinato, binario ricostruito, `HudViewModel.*` di nuovo tutti verdi |
+| Radar | `PASS` | `doc-links.ts`, `doc-coherence.ts` (insieme sono `G14`), `doc-tables.ts`, `decision-ids.ts`, `generate.ts` |
+| Determinism · Replay | `N/A` | sola vista: nessuno stato canonico, nessun campo serializzato |
+| Privacy | `N/A` | la dock legge il kit dell'unità comandata, e la fase è un dato del catalogo: nessun dato del piano altrui entra nella vista |
+| PIE · Packaged | `NOT RUN` | la resa è `U61` |
+
+⚠️ **Due fatti di contesto, dichiarati invece che taciuti.**
+
+- **Una build del clone principale**, di un'altra sessione, è partita alle 14:23:39, durante la suite
+  prima (14:21–14:26). Stava in un altro clone e la suite misurava un esito, non un tempo: per
+  `AGENTS.md` §9 non lo cambia, perché `Binaries/` è per clone e l'Engine è una installed build.
+- **`main` si è mosso durante il lavoro**, a `ef1aa1895`, con un solo commit di documenti
+  (`editor-sessions.yaml`, corpo di `U60`). Dopo il merge l'albero `Source/` del branch è **identico** a
+  quello misurato (`git rev-parse HEAD:Source` → `1362216d`). Anche l'albero `Source/` di `main` è
+  identico a quello della base misurata (`bcacb0f0`).
 
 ## 9. Seguiti
 
