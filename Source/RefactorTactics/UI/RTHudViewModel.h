@@ -455,8 +455,15 @@ enum class ERTActionPhaseMark : uint8
  * la definizione di gioco, ed e' la scelta che D-455 scarta.
  *
  * ⛔ **Il raggruppamento LEGGE questo campo e non riordina la lista**: l'ordine di `GetActions()` resta
- * identita' ([D-397] punto 2). Chi disegna i separatori li mette dove il gruppo cambia, non dove una
- * posizione di kit dice che dovrebbe cambiare.
+ * identita' ([D-397] punto 2).
+ *
+ * 🔴 **E i gruppi NON sono contigui nella lista**, quindi chi disegna non puo' mettere un separatore «dove il
+ * gruppo cambia». L'attacco base sta all'indice 0, le generiche sono accodate al kit (`ConfigureFromHeroData`),
+ * e in partita `EquipLoadout` accoda DOPO di loro le azioni dell'equipaggiamento — che sono Kit. L'ordine di
+ * kit e' quindi Base · Kit · Comuni · Kit, mentre la barra legge Comuni · Base · Kit. Chi disegna dispone le
+ * voci con una **partizione stabile per `Group`**, che conserva l'ordine di kit dentro ogni gruppo, e ogni
+ * slot porta il proprio `AbilityIndex` e `HotkeyLabel`: la posizione a schermo non e' mai un indice
+ * ([D-397] punti 2 e 4, [D-455] punto 2). Misurato da `HudViewModel.ActionSlotCarriesItsGroup`, blocco D.
  *
  * ⚠️ **Non e' una seconda economia d'azione** (`progettazione-hud.md` §6.7): sono corsie di lettura. Lo slot
  * del turno che una voce consuma lo dice `Slot`, e i due campi rispondono a domande diverse.
@@ -468,9 +475,14 @@ enum class ERTActionGroup : uint8
 	None,
 	/** Le generiche di D-025 che entrano nel kit, con il loro tasto a lettera. */
 	Common,
-	/** L'attacco base dell'eroe — e, quando esistera', la difesa caratteristica (#3130). */
+	/**
+	 * L'attacco base dell'eroe: `Action.BasicAttack` o un suo profilo.
+	 *
+	 * ⚠️ **La difesa caratteristica del mockup NON ci entra oggi**: `ERTActionSlot::SignatureDefense` non
+	 * esiste (#3130), e quando esistera' la regola di [D-455] andra' estesa, non si estendera' da sola.
+	 */
 	Base,
-	/** Le abilita' del kit dell'eroe. */
+	/** Tutto il resto: le abilita' del kit dell'eroe, reazioni comprese, e le azioni dell'equipaggiamento. */
 	Kit
 };
 

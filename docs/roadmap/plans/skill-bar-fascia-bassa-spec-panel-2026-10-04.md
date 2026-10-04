@@ -31,18 +31,28 @@ dall'indice di `ERTHudZone` con `MakeFromHSV8` (tinta su 0–255, quindi `× 360
 ### 2.1 WIEGERS — il requisito diceva *dove*, non *perché*
 
 ❌ **CRITICAL.** Misurato sui token del mockup (`dati/tokens.json`, px di design a 1920×1080: slot 78, gap 8,
-separatore 22, padding orizzontale 24 + 24, profilo 80):
+separatore 22, padding orizzontale 24 + 24). Una barra di *n* voci in tre gruppi misura `86·n + 68` px.
+`BottomCenter` ne ha 1152 − 8 = **1144** utili, cioè al più dodici voci; la fascia intera 1920 − 8 = **1912**.
 
-| Contenuto | Larghezza | Contro |
-|---|---|---|
-| Mockup intero | 1380 px (≈1440 sul render) | `BottomCenter` utile: 1152 − 8 = **1144 px** ❌ |
-| Senza il selettore di profilo | **1014 px** | `BottomCenter` ✅ |
-| Fascia intera | — | 1920 − 8 = **1912 px** |
+| Contenuto | Voci | Larghezza | In `BottomCenter`? |
+|---|---|---|---|
+| Kit di partita di Aevik | 10 | 928 px | ✅ |
+| Kit di partita di Ivrin | 11 | 1014 px | ✅ |
+| Kit di partita di **Branth** e **Muiren** | **13** | **1186 px** | ❌ |
+| Mockup intero, con il selettore di profilo | — | 1380 px (≈1440 sul render) | ❌ |
 
-La parte che non entra nella cella centrale è **il selettore di profilo**, cioè proprio quella che
-[D-425](../../decisions/RT_PDR_00_Decision_Log.md) esclude. ∴ con il contenuto costruibile oggi la dock entra
-in `BottomCenter`, e prendere la fascia è una decisione su ciò che sta alle **estremità**. Domanda posta
-all'autore, §3.
+I kit **di partita** sono quelli col loadout di default che `ARTMatchBootstrapper` equipaggia. Le voci sono
+misurate da `HudViewModel.ActionSlotCarriesItsGroup`, blocco D, che le scrive nel log.
+
+∴ La cella centrale non contiene già oggi la barra di metà del roster, e l'estremità destra deve ospitare
+ciò che l'autore decide (§3). Domanda posta all'autore, §3.
+
+🔁 **La prima stesura di questo paragrafo era sbagliata, e la correzione viene da una seconda fonte.** Diceva
+*«i soli comandi misurano 1014 px ed entrano in `BottomCenter`: la fascia serve alle estremità, non al
+contenuto di oggi»*. Ma 1014 px è il layout del **mockup**, a undici voci e **senza loadout**. La revisione
+indipendente della PR di #3468 ha notato che `SpawnHudVmUnit` non equipaggia, mentre la partita sì; il blocco
+D del test ha poi misurato i kit reali. La decisione regge, e a maggior ragione: è la sua motivazione a
+essere cambiata.
 
 ### 2.2 FOWLER — la griglia è un contratto nel codice
 

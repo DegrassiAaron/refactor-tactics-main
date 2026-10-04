@@ -293,7 +293,7 @@ Il roster non deve trasformarsi in tre enormi character card.
 > ⛔ **In sessione presidiata non cambia nulla**: la seconda lista è vuota per costruzione, non per una
 > guardia scritta a parte.
 
-## 6.3 Top right — Objective
+## 6.3 Objective — senza una cella propria
 
 > ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md): `TopRight` ospita `CONFIRM PLAN` ·
 > `UNDO`** (§6.8), che lasciano la fascia bassa alla barra dei comandi. L'Objective perde la cella che questa
@@ -482,13 +482,18 @@ Le **sette** generiche di D-025, leggibili in quattro corsie:
 
 Le corsie sono un aiuto alla lettura, non quattro economie d'azione.
 
+> ⏱️ **2026-10-04 — la barra legge per GRUPPO, non per corsia.** I gruppi Comuni · Base · Kit di
+> [D-455](../../decisions/RT_PDR_00_Decision_Log.md) arrivano con un campo, `FRTAbilityCooldownView::Group`.
+> Le quattro corsie di questa tabella restano una classificazione delle sole generiche, e nessun campo le porta.
+
 Due avvertenze che il layout non deve tradire:
 
 - **`Sprint` non è «Move più veloce».** Consuma **entrambi** gli slot e **nega la reazione** per il turno
   (`Action.Sprint`, catalogo v0.1 §2). Se sta accanto a `Move` e `Dash` senza distinzione, il giocatore lo
   sceglie credendo di spendere solo il movimento.
-- **`Overwatch` non è ancora nel catalogo generico**: arriva con **E14**. Lo slot va previsto, ma finché
-  l'azione non atterra non deve risultare pianificabile.
+- ~~**`Overwatch` non è ancora nel catalogo generico**: arriva con **E14**. Lo slot va previsto, ma finché
+  l'azione non atterra non deve risultare pianificabile.~~ ⏱️ *Rimisurato il 2026-10-04: è atterrata.*
+  `URTCatalogLibrary::GetGenericActionIds()` la contiene, col tasto `C` di `GenericHotkeys()`.
 
 ### Hero Kit
 
@@ -510,8 +515,8 @@ famiglia di pulsanti di §6.8 insieme a `CONFIRM PLAN`.
 
 > ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 4: questa famiglia sale in `TopRight`.**
 > ⌫ *Fino a quel giorno la sezione si intitolava «Bottom right».* La cella in basso a destra è parte della fascia
-> della barra dei comandi (§6.7). Il widget non esiste ancora: il commit del piano è solo il tasto `Spazio`
-> (`LockIn`). Owner: [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471).
+> della barra dei comandi (§6.7). Il widget non esiste ancora. Chiudere il turno è il tasto `Spazio` (`LockIn`),
+> mentre `Invio` dichiara il piano della singola unità (`ToggleTurnPlanDeclared`, #3145): sono due gesti diversi. Owner: [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471).
 
 Azioni principali:
 

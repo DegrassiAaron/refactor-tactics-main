@@ -2283,6 +2283,9 @@ bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
  * regola della Base regge solo se ogni eroe scrive `BaseActionId` sul proprio attacco base. Oggi lo fanno
  * tutti passando da `MakeHeroBasicAttack`, e un eroe nuovo che costruisse l'attacco a mano finirebbe con zero
  * Base — il difetto che una lista fissa non vedrebbe.
+ *
+ * 🔑 **Il blocco D guarda il kit DI PARTITA**, cioe' col loadout di default che `ARTMatchBootstrapper`
+ * equipaggia: l'equipaggiamento e' Kit, e la sequenza dei gruppi per eroe va nel log come misura.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionSlotGroupTest,
 	"RefactorTactics.HudViewModel.ActionSlotCarriesItsGroup",
@@ -2374,6 +2377,63 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
 		DestroyHudVmWorld(MondoEroe);
 	}
 
+	// --- D. il kit DI PARTITA: con il loadout, l'equipaggiamento e' Kit e i gruppi non sono contigui ---------
+	// 🔴 **Trovato dalla revisione di #3468**: `SpawnHudVmUnit` non equipaggia, mentre `ARTMatchBootstrapper`
+	// chiama `EquipLoadout(DefaultLoadoutFor(...))`, che accoda le azioni dei pezzi DOPO le generiche. Senza
+	// questo blocco il test guardava un kit che in partita non esiste, e la regola «separatore dove il gruppo
+	// cambia» — scritta nella prima stesura del commento di `ERTActionGroup` — sarebbe sembrata giusta.
+	int32 ConcesseInTutto = 0;
+	for (const URTHeroData* Hero : Roster)
+	{
+		if (!Hero) { continue; }
+
+		UWorld* MondoEroe = MakeHudVmWorld();
+		if (!TestNotNull(TEXT("D: world di prova"), MondoEroe)) { continue; }
+
+		ARTUnit* EroeUnit = SpawnHudVmUnit(MondoEroe, Hero->HeroId, 0);
+		if (TestNotNull(*FString::Printf(TEXT("D: unita' di %s"), *Hero->HeroId.ToString()), EroeUnit))
+		{
+			const int32 PrimaDelLoadout = EroeUnit->NumAbilities();
+			EroeUnit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+
+			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(EroeUnit);
+			int32 Basi = 0;
+			FString Sequenza;
+			for (int32 i = 0; i < Vista.Num(); ++i)
+			{
+				const ERTActionGroup G = Vista[i].Group;
+				Basi += (G == ERTActionGroup::Base) ? 1 : 0;
+				Sequenza += (G == ERTActionGroup::Common) ? TEXT("C")
+					: (G == ERTActionGroup::Base) ? TEXT("B")
+					: (G == ERTActionGroup::Kit) ? TEXT("K") : TEXT("-");
+
+				// Le voci accodate dal loadout sono equipaggiamento: per la regola di D-455 sono Kit.
+				if (i >= PrimaDelLoadout)
+				{
+					++ConcesseInTutto;
+					TestEqual(*FString::Printf(TEXT("D: %s, la voce di equipaggiamento %s e' Kit"),
+							*Hero->HeroId.ToString(), *Vista[i].ActionId.ToString()),
+						G, ERTActionGroup::Kit);
+				}
+			}
+
+			// La variante d'arma SOSTITUISCE l'indice 0 con una copia: la Base deve sopravviverle.
+			TestEqual(*FString::Printf(TEXT("D: %s ha ancora esattamente una Base col loadout"),
+				*Hero->HeroId.ToString()), Basi, 1);
+
+			// Non e' un asserto: e' la misura che D-456 cita per la larghezza della barra, scritta nel log
+			// perche' chi la rilegge non debba ricostruirla dal catalogo.
+			AddInfo(FString::Printf(TEXT("D: %s, kit di partita %d voci: %s"),
+				*Hero->HeroId.ToString(), Vista.Num(), *Sequenza));
+		}
+
+		DestroyHudVmWorld(MondoEroe);
+	}
+
+	// Anti-vacuita': se nessun eroe ricevesse un'azione dal loadout, il blocco D non proverebbe nulla
+	// sull'equipaggiamento — e sarebbe verde lo stesso.
+	TestTrue(TEXT("D: premessa — almeno un loadout di default concede un'azione"), ConcesseInTutto > 0);
+
 	return true;
 }
 
@@ -2389,10 +2449,14 @@ bool FRTHudVmActionSlotGroupTest::RunTest(const FString&)
  *  - **B** toglie `BaseActionId` a una copia dell'attacco base: alla stessa posizione, diventa Kit;
  *  - **C** lo scrive su una copia di una skill: diventa Base, lontano dall'indice 0;
  *  - **D** il caso d'identita' della regola: un'azione che E' `Action.BasicAttack`, col `BaseActionId` vuoto
- *    che [D-033] le da', resta Base. Senza il secondo congiunto di `GroupFor` cadrebbe nel Kit.
+ *    che [D-033] le da', resta Base. Senza il secondo congiunto di `GroupFor` cadrebbe nel Kit;
+ *  - **E** la precedenza: un'azione generica che fosse anche un profilo dell'attacco base resta Comune. Senza
+ *    questo blocco, scambiare i due `if` di `GroupFor` lasciava verde tutta la suite (revisione di #3468).
  *
- * ⛔ **Si cambia una COPIA**, mai l'oggetto del roster: `ConfigureFromHeroData` assegna `Abilities =
- * Hero->Actions`, quindi l'azione e' condivisa con ogni altra unita' e ogni altro test del processo.
+ * ⛔ **Si cambia una COPIA**, mai l'oggetto: `ConfigureFromHeroData` copia l'array, non le azioni, quindi
+ * l'oggetto appartiene all'`URTHeroData` da cui l'unita' e' stata configurata. ⚠️ Oggi `GetHeroRoster()`
+ * ricostruisce il roster a ogni chiamata, e la copia e' **difensiva**: protegge dal giorno in cui il roster
+ * diventasse una cache condivisa fra unita' e test.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmGroupReadNotDeducedTest,
 	"RefactorTactics.HudViewModel.ActionSlotGroupIsReadNotDeduced",
@@ -2490,6 +2554,22 @@ bool FRTHudVmGroupReadNotDeducedTest::RunTest(const FString&)
 		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
 		TestEqual(TEXT("D: l'attacco base nudo, senza BaseActionId, e' Base"),
 			Dopo[LinearIdx].Group, ERTActionGroup::Base);
+
+		Unit->Abilities[LinearIdx] = Originale;
+	}
+
+	// --- E. la precedenza: Comuni PRIMA di Base ----------------------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[LinearIdx];
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ActionId = TEXT("Action.Guard");
+		Copia->Def.BaseActionId = TEXT("Action.BasicAttack");
+		Unit->Abilities[LinearIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("E: una generica che e' anche profilo dell'attacco base resta Comune"),
+			Dopo[LinearIdx].Group, ERTActionGroup::Common);
 
 		Unit->Abilities[LinearIdx] = Originale;
 	}
