@@ -167,3 +167,37 @@ altro clone, quindi per `AGENTS.md` §9 non c'è conflitto.
 - **#3470**, **#3471**, **#172**: ciascuna col proprio scope.
 - **Il resto dell'Objective (§6.3)**: senza sede, seguito di #613.
 - Ereditati dal mattino e ancora aperti: il produttore di Invalid/Warning sullo slot, e il piano UI-0 che dichiara gli slot occupati come *«unica voce scoperta»*.
+
+## 7. Stato al mattino del 2026-10-05
+
+⏱️ *Scritto alla fine della notte di lavoro autonomo chiesta dall'autore, su `main` = `46f08f754`.* I fatti
+qui sotto invecchiano: lo stato vivo delle issue è su GitHub.
+
+### Mergiato
+
+| PR | Che cosa |
+|---|---|
+| [#3475](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3475) | D-454, D-455, D-456; il campo `Group` (#3468) |
+| [#3477](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3477) | `Zone_Bottom`, la fascia unica: enum, gate e asset (#3469); la voce `U63` |
+| [#3479](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3479) | `GetActionsInReadingOrder()` (#3478); e A4 riparato su `main`: la nota di #3469 su `PIE-V01-SCREENHUD` stava in testa alla cella |
+| [#3482](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3482) | `GetMovementReadout()` e `SneakHotkey()` (#3470, che resta aperta), con revisione indipendente del confine di privacy |
+| [#3481](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3481) | `decision-ids.ts` conta una volta la presa condivisa da branch impilati (#3480) |
+| [#3484](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3484) | il piano UI-0 annotato |
+| [#3485](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3485) | [il foglio di conduzione di `U61` e `U63`](../../technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md) |
+
+Ogni PR di codice è stata misurata con la suite completa sull'albero del commit, con le mutazioni e col corpus
+golden. L'albero di `main` dopo ciascun merge coincideva con quello misurato.
+
+### 🔴 Aspetta una decisione d'autore
+
+- [#3470](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3470): il badge `M` della lettura del movimento è anche **cliccabile**?
+- [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471): `Conferma` è `Spazio` (turno), `Invio` (unità) o due pulsanti? E `Annulla` è il Back intero o solo l'ultimo waypoint? La misura di che cosa fa oggi «Annulla» è nel thread.
+- [#3483](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3483): Invalid e Warning dello slot — lettura A (bersaglio armato), B (validità del piano, §22) o C (non sono stati dello slot).
+- L'Objective di §6.3 senza cella: thread di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
+
+### ⏭️ Pronto per l'Editor
+
+- **`U61` + `U63`**, una sola apertura: tutto il C++ che leggono è su `main`, e il foglio di conduzione è collegato da entrambe le voci (`runbook:`).
+- **Dopo `U63`**: rigiudicare a schermo il criterio (1) di `PIE-V01-SCREENHUD`.
+- ⚠️ **`U63` contro `U62`**: il numero `U62` lo registra un'altra sessione con la PR #3466. Chi mergia secondo rinumera.
+
