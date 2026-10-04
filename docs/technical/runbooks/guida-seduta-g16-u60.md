@@ -108,6 +108,9 @@ il suo ultimo commento elenca — [#2964](https://github.com/DegrassiAaron/refac
 [#2764](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2764) — sono aperti tutti e tre.
 ⚠️ Quelle **non** stanno nel corpo della issue: `gh issue view 1936 --json body` non le nomina.
 
+**Dove guardare**: la zona `Zone_MiddleRight` — la fascia centrale del bordo destro — e il nodo
+`WBP_RT_EventLogRight`, confermati dalla seduta del 2026-10-04 (§6).
+
 **Come registrare il rosso senza interrompere il giro.** Con una partita in corso, in console:
 
 ```
@@ -172,19 +175,31 @@ preesistente.
 
 Dichiarato invece di riempito a intuizione — chi conduce lo completi dall'Editor.
 
-**I nomi delle zone della Screen HUD e del nodo del feed.** L'HUD è stata rimontata a **otto** zone il
-2026-09-12 con `7d1145cd7` (*«le otto zone della griglia, e i cinque inquilini dentro»*), ma quel commit
-tocca **un solo file e binario** — `Content/RT/UI/Match/WBP_RT_TacticalHUD.uasset` — quindi i nomi
-vivono **dentro l'asset**, non in `Source/`:
+✅ **I nomi delle zone: CONFERMATI dalla seduta del 2026-10-04, e rimessi.**
 
-```bash
-grep -rhoE "Zone_[A-Za-z]+" Source/ --include=*.cpp --include=*.h | sort -u   # solo Zone_C
-```
+Questa sezione li dichiarava non verificabili, e la cautela era giusta nel metodo — da fuori l'Editor
+`grep -rhoE "Zone_[A-Za-z]+" Source/` risponde col solo `Zone_C`, perché i nomi vivono **dentro**
+`WBP_RT_TacticalHUD.uasset`, che `7d1145cd7` ha toccato come file binario. Ma il rapporto di
+`rt.Debug.ScreenHud` li porta, e ora sono misurati:
 
-∴ in questo foglio il passo 4 dice *«il bordo destro»* e non un nome di zona. Il nome esatto si legge
-nell'albero del widget in Editor, e **vale quello**. Una versione precedente di questa riga nominava
-`Zone_MiddleRight` e `WBP_RT_EventLogRight`: non sono stati confermati da qui e sono stati rimossi,
-perché un nome sbagliato in un foglio operativo costa la seduta a chi lo segue.
+| zona | inquilino |
+|---|---|
+| `Zone_TopLeft` | `WBP_RT_TeamRosterLeft` (+ due `WBP_RT_UnitCard_C`) |
+| `Zone_TopCenter` | `WBP_RT_TurnHeader` |
+| `Zone_TopRight` | — |
+| `Zone_MiddleLeft` | `WBP_RT_SelectedUnitPanelLeft` (+ `WBP_RT_UnitCard`) |
+| **`Zone_MiddleRight`** | **`WBP_RT_EventLogRight`** (`WBP_RT_EventLog_C`) — **è il feed del passo 4** |
+| `Zone_BottomLeft` | — |
+| `Zone_BottomCenter` | `WBP_RT_ActionDockBottom`, `WBP_RT_FastDecisionCenter` |
+| `Zone_BottomRight` | — |
+
+Albero a **17** widget innestati sotto `WBP_RT_TacticalHUD_C_0`.
+
+⛔ **E `[MANCA] ActionSlot: 0` non è un difetto**, benché il rapporto lo scriva fra i cinque `[ok]`. Il
+comando lo documenta da sé: fotografa l'albero nell'istante in cui la radice si costruisce, e gli
+`WBP_RT_ActionSlot` li crea il dock *«quando arrivano le azioni»*. Il testimone che li prenderebbe sono
+i warning `Icona non risolta` firmati `'ActionSlot'` — se rispondono `0`, nessuna azione è arrivata al
+dock, e il censimento dice il vero per quel momento.
 
 ---
 
