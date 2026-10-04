@@ -2732,4 +2732,138 @@ bool FRTHudVmReadingOrderTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#3470` — LA BARRA LEGGE IL PROFILO CHE IL PIANO SPENDE, E NON DICE NIENTE DI UN'UNITA' CHE NON SI COMANDA.
+ *
+ * 🔑 **Oracoli che non sono la funzione di produzione**:
+ *  - **A** le etichette di OGNI profilo del catalogo, scritte a mano — e la tabella copre il catalogo intero,
+ *    verificato invece che presunto, come il blocco D di `ActionSlotPhaseIsReadNotDeduced`;
+ *  - **B, C** il profilo della lettura confrontato con `BuildUnitSlots`, che e' l'autorita' gia' provata da
+ *    `SlotsCarryTheMovementProfile`: due strade verso la stessa risposta sarebbero il difetto, una sola no.
+ *
+ * ⚠️ **Si prova il METODO della dock**, `GetMovementReadout()`, cioe' cio' che il Blueprint legera'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmMovementReadoutTest,
+	"RefactorTactics.HudViewModel.MovementReadoutReadsTheProfileOfThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	// --- A. le etichette, a mano, su tutto il catalogo -----------------------------------------------------
+	struct FRiga { FName Profilo; const TCHAR* Etichetta; };
+	const FRiga Righe[] = {
+		{ Lib::ProfileStill,    TEXT("Still") },
+		{ Lib::ProfileMove,     TEXT("Move ×1") },
+		{ Lib::ProfileSprint,   TEXT("Sprint ×2") },
+		{ Lib::ProfileSneak,    TEXT("Sneak ×0,5") },
+		{ Lib::ProfileWithdraw, TEXT("Withdraw ×0,25") },
+	};
+	for (const FRiga& Riga : Righe)
+	{
+		TestEqual(*FString::Printf(TEXT("A: %s porta l'etichetta attesa"), *Riga.Profilo.ToString()),
+			URTHudViewModel::MovementReadoutLabel(Riga.Profilo).ToString(), FString(Riga.Etichetta));
+	}
+	const TArray<FRTMovementProfile> Catalogo = Lib::GetCoreMovementProfileCatalog();
+	TestEqual(TEXT("A: premessa — la tabella ha una riga per ogni profilo del catalogo"),
+		static_cast<int32>(UE_ARRAY_COUNT(Righe)), Catalogo.Num());
+	for (const FRTMovementProfile& P : Catalogo)
+	{
+		bool bNellaTabella = false;
+		for (const FRiga& Riga : Righe) { bNellaTabella |= (Riga.Profilo == P.Id); }
+		TestTrue(*FString::Printf(TEXT("A: %s del catalogo ha una riga nella tabella"), *P.Id.ToString()),
+			bNellaTabella);
+	}
+	TestTrue(TEXT("A: un id vuoto non ha etichetta"), URTHudViewModel::MovementReadoutLabel(NAME_None).IsEmpty());
+	TestTrue(TEXT("A: un id che il catalogo non conosce non ha etichetta"),
+		URTHudViewModel::MovementReadoutLabel(TEXT("MovementProfile.Inesistente")).IsEmpty());
+
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+	if (!TestNotNull(TEXT("unita'"), Unit) || !TestNotNull(TEXT("dock"), Dock))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+	Dock->SetSelectedUnitForTest(Unit);
+
+	// La lettura deve dire lo STESSO profilo della vista degli slot, e l'etichetta di quel profilo.
+	auto Verifica = [this, Dock, Unit](const TCHAR* Caso, FName Atteso)
+	{
+		const FRTMovementReadoutView L = Dock->GetMovementReadout();
+		TestTrue(*FString::Printf(TEXT("%s: l'unita' comandata e' autorizzata"), Caso), L.bAuthorized);
+		TestEqual(*FString::Printf(TEXT("%s: il profilo e' quello atteso"), Caso), L.ProfileId, Atteso);
+		TestEqual(*FString::Printf(TEXT("%s: ed e' quello degli slot"), Caso),
+			L.ProfileId, URTHudViewModel::BuildUnitSlots(Unit).MovementProfileId);
+		TestEqual(*FString::Printf(TEXT("%s: l'etichetta e' quella del profilo"), Caso),
+			L.Label.ToString(), URTHudViewModel::MovementReadoutLabel(Atteso).ToString());
+		return L;
+	};
+
+	// --- B. la banda derivata e la dichiarazione ---------------------------------------------------------------
+	Verifica(TEXT("B: senza piano"), Lib::ProfileStill);
+
+	Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+	Unit->PlannedCell = FRTCellId(1, 0, 0);
+	Verifica(TEXT("B: un passo"), Lib::ProfileMove);
+	Unit->PlannedWaypoints.Reset();
+
+	const int32 Oltre = Unit->GetEffectiveMoveRange() + 1;
+	Unit->PlannedWaypoints.Add(FRTCellId(Oltre, 0, 0));
+	Unit->PlannedCell = FRTCellId(Oltre, 0, 0);
+	const FRTMovementReadoutView Corsa = Verifica(TEXT("B: oltre 1x"), Lib::ProfileSprint);
+	TestFalse(TEXT("B: la corsa non e' dichiarata"), Corsa.bSneakDeclared);
+
+	Unit->PlannedMovementProfileId = Lib::ProfileSneak;
+	const FRTMovementReadoutView Furtiva = Verifica(TEXT("B: Sneak dichiarato"), Lib::ProfileSneak);
+	TestTrue(TEXT("B: e il badge dice che e' dichiarato"), Furtiva.bSneakDeclared);
+	TestEqual(TEXT("B: il badge porta il tasto di SneakHotkey"),
+		Furtiva.SneakKeyLabel.ToString(), FString(TEXT("M")));
+
+	Unit->PlannedMovementProfileId = NAME_None;
+	Unit->PlannedWaypoints.Reset();
+	Unit->PlannedCell = Unit->Cell;
+
+	// --- C. la riserva: Overwatch impone Withdraw ([D-070]) ------------------------------------------------------
+	const int32 OverwatchIdx = HudVmKitIndexOf(Unit, TEXT("Action.Overwatch"));
+	if (TestTrue(TEXT("C: premessa — Overwatch e' nel kit"), OverwatchIdx != INDEX_NONE))
+	{
+		Unit->PlannedAbilityIndex = OverwatchIdx;
+		Unit->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+		Unit->PlannedCell = FRTCellId(1, 0, 0);
+		Verifica(TEXT("C: Overwatch armata"), Lib::ProfileWithdraw);
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+		Unit->PlannedWaypoints.Reset();
+		Unit->PlannedCell = Unit->Cell;
+	}
+
+	// --- D. privacy: un soggetto ISPEZIONATO non da' nessuna lettura ---------------------------------------------
+	{
+		ARTUnit* Nemico = SpawnHudVmUnit(World, TEXT("Hero.Muiren"), 1);
+		URTActionDockWidget* Spia = NewObject<URTActionDockWidget>(World);
+		if (TestNotNull(TEXT("D: nemico"), Nemico) && TestNotNull(TEXT("D: dock"), Spia))
+		{
+			// Il nemico ha un piano che si leggerebbe: Sneak dichiarato e un percorso DICHIARATO — waypoint e
+			// cella, come in `SlotsCarryTheMovementProfile`, cosi' una regressione leggerebbe `Sneak` e non
+			// `Still` (osservazione della revisione di #3470).
+			Nemico->PlannedMovementProfileId = Lib::ProfileSneak;
+			Nemico->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+			Nemico->PlannedCell = FRTCellId(1, 0, 0);
+			Spia->SetInspectedUnitForTest(Nemico);
+
+			const FRTMovementReadoutView L = Spia->GetMovementReadout();
+			TestFalse(TEXT("D: il soggetto ispezionato non autorizza la lettura"), L.bAuthorized);
+			TestTrue(TEXT("D: nessun profilo"), L.ProfileId.IsNone());
+			TestTrue(TEXT("D: nessuna etichetta"), L.Label.IsEmpty());
+			TestFalse(TEXT("D: e la dichiarazione del nemico non trapela"), L.bSneakDeclared);
+		}
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

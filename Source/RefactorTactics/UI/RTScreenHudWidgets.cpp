@@ -452,6 +452,13 @@ TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() c
 	return URTHudViewModel::OrderForReading(GetActions());
 }
 
+FRTMovementReadoutView URTActionDockWidget::GetMovementReadout() const
+{
+	// `GetSelectedUnit()` e NON `GetSubject()`: la barra comanda, non ispeziona. E' la stessa sorgente di
+	// `GetActions()`, quindi azioni e movimento parlano sempre della stessa unita'.
+	return URTHudViewModel::BuildMovementReadout(GetSelectedUnit());
+}
+
 int32 URTActionDockWidget::GetArmedActionIndex() const
 {
 	const ARTUnit* Unit = GetSelectedUnit();

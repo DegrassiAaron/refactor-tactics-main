@@ -487,6 +487,14 @@ public:
 	TArray<FRTAbilityCooldownView> GetActionsInReadingOrder() const;
 
 	/**
+	 * La lettura del movimento per l'estremita' destra della barra (`#3470`, [D-456] punto 3).
+	 * ⛔ **Dall'unita' comandata soltanto**, come le azioni: un soggetto ispezionato da' il default non
+	 * autorizzato, e chi disegna nasconde l'indicatore.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTMovementReadoutView GetMovementReadout() const;
+
+	/**
 	 * L'indice dell'azione ARMATA, o `INDEX_NONE`.
 	 *
 	 * `INDEX_NONE` non e' un caso limite: e' lo stato NEUTRO di [D-128], quello in cui il giocatore non ha
