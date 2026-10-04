@@ -4738,8 +4738,8 @@ sessions:
     execution_lane: asset
     produces: >-
       `WBP_RT_ActionDock` disposta su tutta `Zone_Bottom` (D-456): le voci partizionate per `Action.Group` —
-      Comuni · Base · Kit, con i separatori fra i gruppi — e lo spazio all'estremita' destra riservato alla
-      lettura del movimento di #3470; la cattura a 1920×1080 committata
+      Comuni · Base · Kit, con i separatori fra i gruppi — e all'estremita' destra la lettura del movimento
+      di #3470, in sola lettura; la cattura a 1920×1080 committata
     artifacts:
       - docs/technical/evidence/hud/u63-barra-fascia-bassa.png
     # 🔑 **Una cattura sola, col kit PIU' LUNGO del roster**: Branth o Muiren col loadout di default, tredici
@@ -4749,8 +4749,9 @@ sessions:
     # «esiste» prima ancora di cominciare.
     unblocked_by: []
     # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**, non perche' manchi una dipendenza:
-    # il campo `Group` e' #3468 (PR #3475), la zona unica #3469 (PR #3477), l'ordine di lettura #3478.
-    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga TUTTE E TRE, con l'Editor
+    # il campo `Group` e' #3468 (PR #3475), la zona unica #3469 (PR #3477), l'ordine di lettura #3478, la
+    # lettura del movimento #3470.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che le contenga TUTTE, con l'Editor
     # ricompilato da quel commit — una DLL di prima non ha `GetActionsInReadingOrder`, e l'albero di prima
     # ha ancora le tre celle basse.
     shares_setup_with: [U61]
@@ -4759,11 +4760,11 @@ sessions:
     # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
     # dopo questa seduta il criterio (1) di `PIE-V01-SCREENHUD` — l'ingombro delle zone — va RIGIUDICATO a
     # schermo, perche' il suo ultimo verde e' sull'albero a otto zone (#3469).
-    issues: [3468, 3469, 3478, 613]
+    issues: [3468, 3469, 3478, 3470, 613]
     done_when: >-
       la dock in `Zone_Bottom` costruisce gli slot da `GetActionsInReadingOrder()` — Comuni, Base, Kit,
       mai riordinati nel grafo: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori
-      dove `Group` cambia in quella lista e
+      dove `Group` cambia in quella lista; all'estremita' destra la lettura di `GetMovementReadout()`; e
       l'estremita' destra riservata; la cattura col kit da tredici voci e' committata in `artifacts` e la
       barra resta dentro la fascia, senza scendere nel centro
     # **Riferimenti**: `docs/research/design/hud/skill-bar-2026-10/` (`PROPOSTA`) per misure e resa —
@@ -4779,9 +4780,14 @@ sessions:
     #      dove `Group` cambia fra due voci consecutive.
     #   2. **Separatori** fra i gruppi, e l'intestazione testuale di gruppo (`COMUNI`, `BASE`, `KIT`) come
     #      testo statico del Blueprint.
-    #   3. **Estremita' destra**: uno spazio riservato all'indicatore di #3470, vuoto finche' quello non arriva.
+    #   3. **Estremita' destra: la lettura del movimento** (#3470), da `GetMovementReadout()` della dock:
+    #      `Label` (`Move ×1`, `Sprint ×2`, `Withdraw ×0,25`…) e il badge `SneakKeyLabel`, acceso quando
+    #      `bSneakDeclared`. ⛔ **Nascosta quando `bAuthorized` e' falso**, mai spenta: uno spento direbbe
+    #      «fermo» di un'unita' di cui non si sa niente. ⛔ **Il badge NON e' cliccabile** in questa seduta: se
+    #      debba esserlo e' la domanda aperta di #3470, e un secondo canale verso la stessa dichiarazione va
+    #      deciso prima di essere cablato.
     #
-    # ⛔ **Cosa NON si fa in questa seduta**: l'indicatore del movimento (#3470); Confirm · Undo in
+    # ⛔ **Cosa NON si fa in questa seduta**: il badge `M` cliccabile (#3470, da decidere); Confirm · Undo in
     # `TopRight` (#3471); la Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
     # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
     #
