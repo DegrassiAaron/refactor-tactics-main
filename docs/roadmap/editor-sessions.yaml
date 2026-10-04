@@ -4464,7 +4464,8 @@ sessions:
     execution_lane: pie
     produces: il verdetto di `G16` — le cinque capability usate NELLO STESSO giro, sulla stessa build
       candidata, con ogni passo a esito reale
-    artifacts: []
+    artifacts:
+      - docs/technical/evidence/g16/u60-giro-parziale-2026-10-04.log
     verifies: []
     issues: [2601]
     done_when: ogni passo dello smoke flow ha un esito reale, e i passi non eseguiti dichiarano il motivo
@@ -4484,6 +4485,42 @@ sessions:
     # propria. Unreal e uno per macchina, e un giro misurato su un binario diverso non attesta la
     # stessa release candidate (#2601, sezione *Packaged*).
     steps: |
+      🟡 **Parzialmente eseguita il 2026-10-04** — Editor compilato da `ac2568992`, il cui runtime e'
+      identico al candidate `95eddfd37` (0 righe non-commento fuori da `Tests/`). Una sola apertura, con
+      `-abslog`; estratto in `artifacts:`. Motore verificato libero prima del lancio, nessun modale
+      ZenServer, zero `Fatal error` / `Assertion failed` / GPU crash.
+
+      ⛔ **Il giro NON e' completo, e il verdetto di `G16` resta ⏳**: nessun passo e' FALLITO, e tre
+      non sono stati osservati per una precondizione mancante che vale per tutti e tre — **nessun turno
+      risolto**.
+
+      | passo | esito | motivo |
+      |---|---|---|
+      | 1-2 · Ability / Hero Lab | 🟡 **parziale** | il pannello si apre e il catalogo e' letto; **nessuna ability eseguita** nella fixture, che e' la meta' che il `done_when` chiede |
+      | 3 · Presentation | ⏳ `NOT RUN` | l'esito del resolver non esiste finche' non si risolve un turno |
+      | 4 · Turn Log | ⏳ `NOT RUN` | `rt.Debug.ScreenHud` invocato due volte: albero a **17** widget, cinque inquilini `[ok]`, e `Feed: TurnLog=0 voci, righe dopo filtro=0`. Il comando stesso dichiara che *«non e' un difetto finche' una risoluzione non e' avvenuta»* |
+      | 5 · Replay Viewer | ⏳ `NOT RUN` | nessun archivio da riaprire: l'archivio deve essere quello della partita dei passi 3-4 |
+
+      🔑 **Cosa la seduta HA prodotto**, ed e' il suo guadagno: **due difetti** osservati
+      dall'autore e aperti sull'owner, come il gate prescrive —
+      [#3458](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3458) (i nemici che entrano in
+      vista durante il movimento appaiono tutti alla fine) e
+      [#3459](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3459) (l'area colpibile di una
+      skill non si vede, con le due letture da discriminare).
+
+      ✅ **E una conferma che vale per il foglio di conduzione**: le **otto** zone della Screen HUD e il
+      nodo del feed hanno i nomi che il foglio aveva dichiarato NON verificabili da fuori l'Editor —
+      `Zone_MiddleRight` e `WBP_RT_EventLogRight` esistono, e il log li porta.
+
+      ⛔ **`[MANCA] ActionSlot: 0` NON e' un difetto**, e il comando lo documenta da se': fotografa
+      l'albero nell'istante in cui la radice si costruisce, e gli `WBP_RT_ActionSlot` li crea il dock
+      *«quando arrivano le azioni»*. Il testimone che li prenderebbe — i warning `Icona non risolta`
+      firmati `'ActionSlot'` — risponde **0** su questo log, coerente con una seduta in cui nessuna azione
+      e' arrivata al dock.
+
+      ⚠️ **Il giro va RIFATTO per intero, non continuato**: *«nello stesso giro»* ha come testimone una
+      sola apertura con un solo `-abslog`, e due log non lo reggono. La precondizione da portare alla
+      prossima apertura e' una partita con **almeno un turno risolto**.
       Lo smoke flow e quello di #2601, trascritto qui perche chi conduce non debba riaprirla. Le
       cinque capability vanno usate NELLO STESSO giro: verdi ciascuna nel proprio checkpoint non
       soddisfano questo gate.
