@@ -49,6 +49,11 @@ PASS, FAIL, NOTRUN, ROTTO = "PASS", "FAIL", "NOT RUN", "PATTERN ROTTO"
 # zero non significano niente.
 CONTROLLO_LOG = "LogInit"
 
+# Su un log di EDITOR la rete larga `Error:` parte da 2 anche a run pulita: l'Engine esercita il
+# proprio sistema di errori all'inizializzazione. Misurato il 2026-10-04 su due log indipendenti
+# (2 e 2); sui log di pacchetto il conteggio e' 0, quindi nessuno sconto si applica la'.
+PAVIMENTO_EDITOR = 2
+
 # Il cancello: la partita e' davvero avvenuta? Il primo e' quello che il log di una partita 2v2
 # emette all'allestimento; gli altri due dicono che la partita e' ARRIVATA A UN ESITO.
 CANCELLO = [
@@ -62,7 +67,11 @@ NEGATIVI = [
     ("nessun crash", ["Fatal error", "Assertion failed", "Critical error"],
      "rete storica: CIECA ai GPU crash, vedi 'rete larga'"),
     ("nessun crash (rete larga)", ["Error:"],
-     "prende la classe che la rete storica non vede"),
+     "prende la classe che la rete storica non vede. ATTENZIONE AL PAVIMENTO: su un log di EDITOR "
+     "vale 2 anche a run pulita, ed e' l'Engine che esercita il proprio sistema di errori "
+     "all'inizializzazione (`UE::UnifiedErrorTest`, poi due `LogAutomationTest: Error: Condition "
+     "failed`). Misurato il 2026-10-04 su due log di Editor indipendenti: 2 e 2; sui log di "
+     "PACCHETTO: 0. Quindi su un log di Editor i primi due non sono tuoi"),
     ("nessun GPU crash", ["TerminateOnGPUCrash", "DXGI_ERROR_DEVICE_REMOVED"],
      "terza rete, ortogonale alle due sopra"),
     ("nessun asset mancante", ["Failed to find object"],
@@ -110,10 +119,21 @@ def esiti_log(path):
                   "almeno uno > 0" if aperto else
                   "nessun testimone: gli esiti negativi sotto sarebbero un'ASSENZA, non una misura"))
 
+    # Il log e' di un EDITOR o di un pacchetto? Lo dice un token dell'Engine che il pacchetto non ha.
+    e_editor = conta(testo, 'UnifiedErrorTest') > 0
+    if e_editor:
+        righe.append(("tipo di log", PASS, "EDITOR (`UnifiedErrorTest` presente)",
+                      "la rete larga `Error:` ha qui un pavimento di 2 dall'Engine, e viene scontato"))
+
     # --- gli esiti negativi ---
     for etichetta, pattern, nota in NEGATIVI:
         per_pattern = [(p, conta(testo, p)) for p in pattern]
         tot = sum(n for _, n in per_pattern)
+        if e_editor and pattern == ["Error:"]:
+            # Si scontano i due dell'Engine, e si DICHIARA di averlo fatto: scontare in silenzio
+            # sarebbe la cecita' che questo script esiste per non avere.
+            tot = max(0, tot - PAVIMENTO_EDITOR)
+            per_pattern = [("Error:", tot)] if tot else []
         quali = ", ".join("%s=%d" % (p, n) for p, n in per_pattern if n)
         righe.append((etichetta,
                       PASS if tot == 0 else FAIL,

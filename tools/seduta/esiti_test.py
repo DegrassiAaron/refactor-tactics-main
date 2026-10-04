@@ -20,6 +20,9 @@ import esiti  # noqa: E402
 
 PASS, FAIL, NOTRUN, ROTTO = esiti.PASS, esiti.FAIL, esiti.NOTRUN, esiti.ROTTO
 
+# Il separatore di riga come costante: una sequenza di escape in un heredoc si perde.
+NL = chr(10)
+
 LOG_PULITO = "\n".join([
     "[2026.10.03-12.00.00:000][  0]LogInit: Display: Engine is initialized.",
     "[2026.10.03-12.00.01:000][  1]LogRT: [RT] Board 2v2 esagonale avviata su 64 celle con 4 eroi",
@@ -102,6 +105,47 @@ class TestRetiSuiCrash(unittest.TestCase):
 
 def righe_di(testo, tmp):
     return esiti.esiti_log(scrivi(tmp, "g.log", testo))[0]
+
+
+class TestPavimentoEditor(unittest.TestCase):
+    """Su un log di Editor la rete larga parte da 2: l'Engine esercita il proprio sistema di errori."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+
+    def test_due_Error_su_un_log_di_EDITOR_non_sono_un_FAIL(self):
+        # Misurato il 2026-10-04 su due log di Editor indipendenti: 2 e 2, a run pulita.
+        testo = LOG_PULITO + NL.join([
+            "",
+            "LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [Error with int -7]",
+            "LogAutomationTest: Error: Condition failed",
+            "LogAutomationTest: Error: Condition failed",
+        ])
+        d = {r[0]: (r[1], r[2]) for r in righe_di(testo, self.tmp)}
+        self.assertEqual(d["tipo di log"][0], PASS)
+        self.assertIn("EDITOR", d["tipo di log"][1])
+        self.assertEqual(d["nessun crash (rete larga)"][0], PASS)
+
+    def test_MUTAZIONE_il_TERZO_Error_su_un_log_di_Editor_FA_FAIL(self):
+        """Lo sconto e' di DUE: il terzo e' tuo, e il gate deve vederlo."""
+        testo = LOG_PULITO + NL.join([
+            "",
+            "LogTemp: UE::UnifiedErrorTest::Empty",
+            "LogAutomationTest: Error: Condition failed",
+            "LogAutomationTest: Error: Condition failed",
+            "LogRT: Error: questo e' mio e deve essere visto",
+        ])
+        d = {r[0]: (r[1], r[2]) for r in righe_di(testo, self.tmp)}
+        self.assertEqual(d["nessun crash (rete larga)"][0], FAIL)
+
+    def test_MUTAZIONE_su_un_log_di_PACCHETTO_non_si_sconta_niente(self):
+        """Senza `UnifiedErrorTest` il log non e' di un Editor: un solo Error: e' un FAIL."""
+        testo = LOG_PULITO + NL + "LogRT: Error: uno solo, e sul pacchetto vale" + NL
+        righe = righe_di(testo, self.tmp)
+        d = {r[0]: (r[1], r[2]) for r in righe}
+        self.assertNotIn("tipo di log", d)
+        self.assertEqual(d["nessun crash (rete larga)"][0], FAIL)
 
 
 class TestCsv(unittest.TestCase):
