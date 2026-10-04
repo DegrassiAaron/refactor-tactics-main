@@ -1,0 +1,27 @@
+{
+  "_statuto": "Fatti misurati su HEAD il 2026-10-03, da RIMISURARE (vedi PROMPT §1). Gruppo = PROPOSTA.",
+  "eroe_esempio": "Hero.Aevik",
+  "comandi": [
+    { "gruppo": "Comuni", "actionId": "Action.Guard",     "nome": "Guardia",          "tasto": "G", "fase": "Prep",   "slot": "Main", "movimento": "MinStability 1 (Sprint escluso)" },
+    { "gruppo": "Comuni", "actionId": "Action.Brace",     "nome": "Irrigidimento",    "tasto": "B", "fase": "Prep",   "slot": "Main", "movimento": "Root: nessuno spostamento volontario", "conflitto": "DEC-SB-1: assente dagli 11 di D-407" },
+    { "gruppo": "Comuni", "actionId": "Action.Overwatch", "nome": "Guardia reattiva", "tasto": "C", "fase": "Prep",   "slot": "Main", "movimento": "Riserva lo slot a Withdraw (D-070)" },
+    { "gruppo": "Comuni", "actionId": "Action.Interact",  "nome": "Interagisci",      "tasto": "X", "fase": "Blast",  "slot": "Main", "movimento": "MinStability 0 (tutti, Sprint compreso)" },
+    { "gruppo": "Comuni", "actionId": "Action.Wait",      "nome": "Attesa",           "tasto": "Z", "fase": "— (codice: NormalMovement)", "slot": "None", "movimento": "Nessuno; orientamento finale consentito" },
+    { "gruppo": "Base",   "actionId": "Hero.Aevik.ArcPulse",        "nome": "Arc Pulse",        "tasto": "1", "fase": "Blast",   "slot": "Main", "movimento": "MinStability 1 (Sprint escluso)", "nota": "attacco base, indice kit 0" },
+    { "gruppo": "Base",   "actionId": null,                          "nome": "Difesa caratteristica", "tasto": null, "fase": null, "slot": "SignatureDefense (NON nel codice)", "movimento": "Evasion/Reflect: riserva Withdraw", "nota": "vuoto per Aevik: ReactiveCapacitor è una reazione" },
+    { "gruppo": "Kit",    "actionId": "Hero.Aevik.LinearDischarge",  "nome": "Linear Discharge", "tasto": "2", "fase": "Blast",   "slot": "Main", "movimento": "DA DICHIARARE nella skill" },
+    { "gruppo": "Kit",    "actionId": "Hero.Aevik.ConductiveNode",   "nome": "Conductive Node",  "tasto": "3", "fase": "Cleanup (Environment)", "slot": "Main", "movimento": "DA DICHIARARE nella skill" },
+    { "gruppo": "Kit",    "actionId": "Hero.Aevik.Overload",         "nome": "Overload",         "tasto": "4", "fase": "Blast",   "slot": "Main", "movimento": "DA DICHIARARE nella skill", "nota": "nel mockup in cooldown 2 solo come stato dimostrativo" },
+    { "gruppo": "Kit",    "actionId": "Hero.Aevik.ReactiveCapacitor","nome": "Reactive Capacitor","tasto": "5", "fase": "Reazione", "slot": "Reaction", "movimento": "non occupa la principale" }
+  ],
+  "profili_movimento": {
+    "_statuto": "FUTURE — bloccato da #1410/#653 (D-397). Solo riferimento.",
+    "voci": [
+      { "nome": "Withdraw", "moltiplicatore": 0.25, "stability": "1 (segnaposto, #606)", "offerto": "solo se riservato" },
+      { "nome": "Sneak",    "moltiplicatore": 0.5,  "stability": 2 },
+      { "nome": "Move",     "moltiplicatore": 1,    "stability": 1 },
+      { "nome": "Sprint",   "moltiplicatore": 2,    "stability": 0 }
+    ],
+    "regola": "legale ⇔ Profilo.Stability >= Azione.MinStability; la riserva vince sulla soglia"
+  }
+}
