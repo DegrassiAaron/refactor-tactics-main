@@ -446,6 +446,34 @@ enum class ERTActionPhaseMark : uint8
 	Reaction
 };
 
+/**
+ * Il GRUPPO di lettura a cui una voce della dock appartiene (`#3468`, [D-455]): Comuni · Base · Kit.
+ *
+ * 🔑 **Si DERIVA da dati che esistono, non si dichiara.** La regola sta in `URTHudViewModel::GroupFor` e
+ * legge il `Def`: le generiche di `URTCatalogLibrary::GetGenericActionIds()`, e l'attacco base come dato
+ * (`BaseActionId`, [D-033]). Un campo di gruppo su `FRTActionDef` metterebbe un dato di presentazione dentro
+ * la definizione di gioco, ed e' la scelta che D-455 scarta.
+ *
+ * ⛔ **Il raggruppamento LEGGE questo campo e non riordina la lista**: l'ordine di `GetActions()` resta
+ * identita' ([D-397] punto 2). Chi disegna i separatori li mette dove il gruppo cambia, non dove una
+ * posizione di kit dice che dovrebbe cambiare.
+ *
+ * ⚠️ **Non e' una seconda economia d'azione** (`progettazione-hud.md` §6.7): sono corsie di lettura. Lo slot
+ * del turno che una voce consuma lo dice `Slot`, e i due campi rispondono a domande diverse.
+ */
+UENUM(BlueprintType)
+enum class ERTActionGroup : uint8
+{
+	/** Posizione di kit vuota: non c'e' un'azione da raggruppare. */
+	None,
+	/** Le generiche di D-025 che entrano nel kit, con il loro tasto a lettera. */
+	Common,
+	/** L'attacco base dell'eroe — e, quando esistera', la difesa caratteristica (#3130). */
+	Base,
+	/** Le abilita' del kit dell'eroe. */
+	Kit
+};
+
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
 USTRUCT(BlueprintType)
 struct FRTAbilityCooldownView
@@ -577,6 +605,14 @@ struct FRTAbilityCooldownView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FText PhaseLabel;
+
+	/**
+	 * Il gruppo di lettura della voce (`#3468`): la regola sta su `ERTActionGroup` e in `GroupFor`.
+	 *
+	 * ⚠️ `None` per una posizione di kit vuota, come `PhaseMark`: chi riconosce il vuoto guarda `ActionId`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionGroup Group = ERTActionGroup::None;
 
 	/** Turni interi che mancano. `0` = ricarica finita. **Mai negativo.** */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
@@ -1084,6 +1120,25 @@ public:
 	 * etichettare: quella riga la lascia vuota `BuildAbilityCooldowns`, che e' l'unico a saperlo.
 	 */
 	static FText PhaseMarkLabel(ERTActionPhaseMark Mark);
+
+	/**
+	 * Il gruppo di lettura di un'azione (`#3468`, [D-455]). La precedenza vive qui e in nessun altro posto:
+	 *
+	 * 1. `Common` se l'`ActionId` e' fra `URTCatalogLibrary::GetGenericActionIds()`;
+	 * 2. `Base` se l'azione E' l'attacco base o ne e' un profilo — `ActionId` o `BaseActionId` uguale a
+	 *    `Action.BasicAttack`. ⚠️ Servono entrambi: per [D-033] la generica stessa porta `BaseActionId`
+	 *    vuoto, e con il solo profilo un attacco base nudo cadrebbe nel Kit;
+	 * 3. altrimenti `Kit`.
+	 *
+	 * 🔑 **Legge il `Def`, mai una posizione** ([D-397] punto 2), come `PhaseMarkFor`: lo stesso `ActionId`
+	 * porta lo stesso gruppo in qualunque posizione di kit stia. ⛔ In particolare **non** `AbilityIndex == 0`
+	 * per la Base, che era la proposta del pacchetto del mockup: e' la deduzione dalla posizione che D-455
+	 * scarta. `HudViewModel.ActionSlotGroupIsReadNotDeduced` lo prova spostando le azioni e cambiando il dato.
+	 *
+	 * ⚠️ **Non conosce la posizione vuota**, che non ha un `Def`: quella riga resta `None` in
+	 * `BuildAbilityCooldowns`, che e' l'unico a saperlo.
+	 */
+	static ERTActionGroup GroupFor(const FRTActionDef& Def);
 
 	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).

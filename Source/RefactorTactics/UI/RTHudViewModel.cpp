@@ -441,6 +441,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		View.PhaseMark = PhaseMarkFor(Action->Def);
 		View.PhaseLabel = PhaseMarkLabel(View.PhaseMark);
 
+		// Il gruppo di lettura si deriva dallo stesso `Def` (`#3468`, D-455), e per la stessa ragione: lo slot
+		// non vede ne' le generiche del catalogo ne' `BaseActionId`.
+		View.Group = GroupFor(Action->Def);
+
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista
 		// dichiara «mai negativo» nel proprio contratto, e un contratto che dipende dal fatto che nessuno
 		// scriva mai un valore negativo altrove non e' un contratto.
@@ -517,6 +521,25 @@ FText URTHudViewModel::PhaseMarkLabel(ERTActionPhaseMark Mark)
 	case ERTActionPhaseMark::None:     return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
 	}
 	return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
+}
+
+ERTActionGroup URTHudViewModel::GroupFor(const FRTActionDef& Def)
+{
+	// 🔑 **Le generiche PRIMA dell'attacco base**: nessuna delle due condizioni oggi ruba un'azione all'altra
+	// — `Action.BasicAttack` non e' fra le generiche che entrano nel kit — ma l'ordine e' quello della regola di
+	// D-455, e scriverlo uguale evita che una lettura del codice ne deduca un'altra.
+	if (URTCatalogLibrary::GetGenericActionIds().Contains(Def.ActionId))
+	{
+		return ERTActionGroup::Common;
+	}
+
+	static const FName BasicAttackId(TEXT("Action.BasicAttack"));
+	if (Def.ActionId == BasicAttackId || Def.BaseActionId == BasicAttackId)
+	{
+		return ERTActionGroup::Base;
+	}
+
+	return ERTActionGroup::Kit;
 }
 
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
