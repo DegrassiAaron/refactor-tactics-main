@@ -4749,20 +4749,21 @@ sessions:
     # «esiste» prima ancora di cominciare.
     unblocked_by: []
     # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**, non perche' manchi una dipendenza:
-    # il campo `Group` e' #3468 (PR #3475) e la zona unica e' #3469 (PR #3477), dove questa voce nasce.
-    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga ENTRAMBE, con l'Editor
-    # ricompilato da quel commit — una DLL di prima non ha `Action.Group`, e l'albero di prima ha ancora le
-    # tre celle basse.
+    # il campo `Group` e' #3468 (PR #3475), la zona unica #3469 (PR #3477), l'ordine di lettura #3478.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga TUTTE E TRE, con l'Editor
+    # ricompilato da quel commit — una DLL di prima non ha `GetActionsInReadingOrder`, e l'albero di prima
+    # ha ancora le tre celle basse.
     shares_setup_with: [U61]
     # Stessa apertura di U61: stessi due Blueprint (`WBP_RT_ActionDock`, `WBP_RT_ActionSlot`), stesso clone.
     verifies: []
     # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
     # dopo questa seduta il criterio (1) di `PIE-V01-SCREENHUD` — l'ingombro delle zone — va RIGIUDICATO a
     # schermo, perche' il suo ultimo verde e' sull'albero a otto zone (#3469).
-    issues: [3468, 3469, 613]
+    issues: [3468, 3469, 3478, 613]
     done_when: >-
-      la dock in `Zone_Bottom` mostra le voci raggruppate leggendo `Action.Group` — mai dedotto dalla
-      posizione: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori fra i gruppi e
+      la dock in `Zone_Bottom` costruisce gli slot da `GetActionsInReadingOrder()` — Comuni, Base, Kit,
+      mai riordinati nel grafo: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori
+      dove `Group` cambia in quella lista e
       l'estremita' destra riservata; la cattura col kit da tredici voci e' committata in `artifacts` e la
       barra resta dentro la fascia, senza scendere nel centro
     # **Riferimenti**: `docs/research/design/hud/skill-bar-2026-10/` (`PROPOSTA`) per misure e resa —
@@ -4770,11 +4771,12 @@ sessions:
     # 24) — e D-455/D-456 per le regole.
     #
     # 🔴 **Cosa si cabla, e da dove legge**:
-    #   1. **Partizione stabile per `Group`**: le voci di `GetActions()` si dispongono Comuni, poi Base, poi
-    #      Kit, conservando l'ordine di kit dentro ogni gruppo. ⛔ L'ordine della LISTA non cambia: e' identita'
-    #      ([D-397] punto 2). E i gruppi NON sono contigui nella lista — in partita l'equipaggiamento e'
-    #      accodato dopo le generiche (`B KKKKK CCCCC KK`) — quindi «separatore dove il gruppo cambia» lungo la
-    #      lista e' sbagliato.
+    #   1. **Gli slot si costruiscono da `GetActionsInReadingOrder()`** (#3478), non da `GetActions()`: la
+    #      partizione stabile Comuni → Base → Kit la fa il C++ (`URTHudViewModel::OrderForReading`), e il grafo
+    #      NON la ricompone. ⛔ L'ordine di `GetActions()` resta identita' ([D-397] punto 2), e i suoi gruppi non
+    #      sono contigui — in partita `B KKKKK CCCCC KK` — quindi un separatore messo lungo QUELLA lista sarebbe
+    #      sbagliato. Lungo la lista di lettura invece il gruppo e' contiguo per costruzione: il separatore va
+    #      dove `Group` cambia fra due voci consecutive.
     #   2. **Separatori** fra i gruppi, e l'intestazione testuale di gruppo (`COMUNI`, `BASE`, `KIT`) come
     #      testo statico del Blueprint.
     #   3. **Estremita' destra**: uno spazio riservato all'indicatore di #3470, vuoto finche' quello non arriva.
