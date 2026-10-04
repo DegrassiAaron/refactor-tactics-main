@@ -2,6 +2,15 @@
 
 ---
 
+## 2026-10-05 — Il foglio di conduzione delle sedute U61 e U63, la barra dei comandi
+
+| Dove | Che cosa |
+|---|---|
+| [`technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md`](technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md) | **creato** — una sola apertura per le due sedute: lo slot (fase, stati, scala di grigi) e la dock (ordine di lettura, separatori come padding, lettura del movimento). Nomi di widget e funzioni letti dal codice e dalla tabella dei nomi dei `.uasset`; ciò che solo l'Editor può dire è dichiarato in §6 |
+| [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `runbook:` su `U61` e `U63` |
+
+---
+
 ## 2026-10-04 (pomeriggio) — La barra dei comandi prende la fascia bassa, e il registro riceve D-454, D-455 e D-456
 
 **Origine**: una decisione d'autore sulla **posa** della barra — *«sostituisce le zone in basso a sinistra, al

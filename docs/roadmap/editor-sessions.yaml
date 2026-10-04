@@ -4657,6 +4657,7 @@ sessions:
     block: 6
     critical: false
     execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
     produces: >-
       `WBP_RT_ActionSlot` con striscia ed etichetta di fase e con le ricette degli stati di
       `progettazione-hud.md` §7, ciascuna col proprio secondo canale; la prova in scala di grigi committata
@@ -4736,6 +4737,7 @@ sessions:
     block: 6
     critical: false
     execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
     produces: >-
       `WBP_RT_ActionDock` disposta su tutta `Zone_Bottom` (D-456): le voci partizionate per `Action.Group` —
       Comuni · Base · Kit, con i separatori fra i gruppi — e all'estremita' destra la lettura del movimento
