@@ -4639,6 +4639,83 @@ sessions:
       Creata il 2026-10-02 come contenitore, senza esecuzione. Il verdetto di `G16` vive nella sua
       riga di `v0.1-definition-of-done.md` §3; questa seduta e il luogo in cui il giro si registra.
 
+  - id: U61
+    title: Lo slot della dock dice la fase, e i suoi stati reggono la scala di grigi
+    block: 6
+    critical: false
+    execution_lane: asset
+    produces: >-
+      `WBP_RT_ActionSlot` con striscia ed etichetta di fase e con le ricette degli stati di
+      `progettazione-hud.md` §7, ciascuna col proprio secondo canale; la prova in scala di grigi committata
+    artifacts:
+      - docs/technical/evidence/hud/u61-stati-slot-scala-di-grigi.png
+    # 🔑 **Una sola prova, ed e' quella che §47-bis.1 chiede**: una cattura degli stati dello slot portata
+    # in scala di grigi, in cui nessuno stato si confonde con un altro. Il riferimento da imitare e' la
+    # riga inferiore di `docs/research/design/hud/skill-bar-2026-10/immagini/08-stati-slot.png`. I due
+    # `.uasset` non sono elencati: sono gia' tracciati, quindi `git ls-files` direbbe «esiste» prima ancora
+    # di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nello STESSO merge**, non perche' manchi una dipendenza: la vista
+    # porta `Phase`, `PhaseMark` e `PhaseLabel` da #3465, e questa voce nasce nella sua stessa PR.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga #3465, con l'Editor
+    # **ricompilato** da quel commit prima di aprire la seduta — una DLL di prima non ha i tre campi, e i
+    # pin del Blueprint non comparirebbero.
+    shares_setup_with: []
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
+    # sta nell'editor PRIMA del Play — la prova in scala di grigi sulla cattura degli stati — quindi il
+    # verdetto va nella issue owner (#3465 per la fase, #2826 per gli stati) e nell'artefatto qui sopra.
+    issues: [3465, 2826]
+    done_when: >-
+      ogni slot della dock porta striscia ed etichetta di fase lette da `Action.PhaseMark` e
+      `Action.PhaseLabel`, gli stati prodotti da `ResolveSlotState` hanno ciascuno il secondo canale della
+      ricetta, e la cattura in scala di grigi e' committata in `artifacts` con nessuno stato confuso
+    # **Riferimenti, tutti in `docs/research/design/hud/skill-bar-2026-10/`** (`PROPOSTA`, non canone):
+    # `SPECIFICA-VISIVA.md` §2 (anatomia, dall'alto al basso dello z-order), §3 (ricette) e §4
+    # (composizione); `dati/tokens.json` per colori e misure; `immagini/01..08.png` come resa attesa.
+    # ⚠️ Le misure di `tokens.json` sono px di design a 1920×1080: in UMG valgono come riferimento, con la
+    # DPI scale del progetto applicata.
+    #
+    # 🔴 **Cosa si cabla, e da dove legge**:
+    #   1. **Striscia di fase** (4 px in alto) ed **etichetta di fase** (in alto a destra), legate a
+    #      `Action.PhaseMark` e `Action.PhaseLabel`. ⛔ L'etichetta **non si omette mai**: e' il canale
+    #      che non dipende dal colore (D-232 punto 3). ⛔ E il Blueprint **non ricompone la regola**: niente
+    #      `Slot == Reaction` nel grafo, il segno arriva gia' deciso.
+    #   2. **Colore della striscia** da `PhaseMark`, con un `Select` sull'enum:
+    #      `Prep #56B4E9 · Dash #009E73 · Blast #D55E00 · Move #0072B2` ([D-233]),
+    #      `Reaction` = `RT_UI_Violet #7C5CFF` (§32: *reaction, special state*), `None` = nessuna striscia.
+    #      ⚠️ **`Cleanup` resta SENZA colore** ([D-232] §1, [D-233], confermato dall'autore il
+    #      2026-10-04): tratteggio neutro piu' l'etichetta. Il mockup usa `#A9B4C2`, che in §32 non esiste:
+    #      se ne serve uno, il candidato gia' in palette e' `RT_UI_Frame_Mid #4A5568`.
+    #   3. **Stati di §7** dalla ricetta di `SPECIFICA-VISIVA.md` §3, con lo stato preso da
+    #      `URTHudViewModel::ResolveSlotState(Action, bArmed)` — mai ricomposto da `bPlanned`,
+    #      `TurnsRemaining` e `bUsableNow` nel grafo (#2988). Il secondo canale e' obbligatorio:
+    #      Selected = barra 40×4 sotto lo slot · Planned = angolo pieno 18 px · Cooldown = numero di turni ·
+    #      Unavailable = tratteggio diagonale 135°. Hover e' del widget, non del modello.
+    #      ⚠️ **Selected e Warning condividono l'ambra** (§32 la assegna a entrambi): li separa la forma,
+    #      bordo continuo + barra contro bordo tratteggiato + triangolo.
+    #   4. **Invalid e Warning: ricetta SI', produttore NO** (decisione d'autore del 2026-10-04). Il ✕ e il
+    #      bordo tratteggiato col triangolo si costruiscono, ma restano spenti: `ERTActionSlotState` non li
+    #      produce, e il suo commento dichiara che riguardano il **bersaglio** (`ERTTargetRefusal`), mentre
+    #      §7 li elenca fra gli stati dello slot. Il conflitto e il produttore sono un seguito, nel referto.
+    #
+    # ⛔ **Cosa NON si fa in questa seduta**, ciascuna col motivo:
+    #   - i **separatori di gruppo** Comuni · Base · Kit: la regola e' decisa (DEC-SB-2 nel referto), ma il
+    #     campo `Group` non esiste ancora, e un Blueprint che deducesse il gruppo dalla posizione violerebbe
+    #     [D-397] punto 2. Arrivano con la issue che porta il campo;
+    #   - i **chip** PRINCIPALE · MOVIMENTO · REAZIONE: il dato esiste gia' (`URTSelectedUnitPanelWidget::GetSlots()`)
+    #     e `WBP_RT_SelectedUnitPanel` li mostra. Spostarli sopra la dock e' layout di #613;
+    #   - il **selettore di profilo** a quattro pulsanti: contraddice [D-425], perche' il profilo si deriva
+    #     dalla distanza;
+    #   - lo slot **Difesa caratteristica**: `ERTActionSlot::SignatureDefense` non esiste (#3130);
+    #   - le **icone** del mockup: sono segnaposto, e le vere vengono da `DA_IconCatalog` via `IconId`.
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`, perche' non blocchi le build degli altri cloni.
+    notes: >-
+      Scritta il 2026-10-04 dal triage del mockup della skill bar
+      (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`). Non ancora eseguita.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
