@@ -542,6 +542,33 @@ ERTActionGroup URTHudViewModel::GroupFor(const FRTActionDef& Def)
 	return ERTActionGroup::Kit;
 }
 
+TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRTAbilityCooldownView>& Actions)
+{
+	// Il rango di lettura di un gruppo. Funzione TOTALE sull'enum, senza `default`: un gruppo aggiunto senza
+	// rango diventa un avviso di compilazione invece di una voce che finisce in coda per caso.
+	auto Rango = [](ERTActionGroup Group) -> int32
+	{
+		switch (Group)
+		{
+		case ERTActionGroup::Common: return 0;
+		case ERTActionGroup::Base:   return 1;
+		case ERTActionGroup::Kit:    return 2;
+		case ERTActionGroup::None:   return 2; // posizione vuota del kit: si legge col Kit, al suo posto
+		}
+		return 2;
+	};
+
+	// ⚠️ **`StableSort` e non `Sort`**: dentro un gruppo tutte le voci hanno lo stesso rango, e senza
+	// stabilita' l'ordine di kit — cioe' quello in cui il giocatore impara i tasti — dipenderebbe
+	// dall'algoritmo. `HudViewModel.ReadingOrderKeepsKitOrderWithinEachGroup` lo pinna.
+	TArray<FRTAbilityCooldownView> Ordinate = Actions;
+	Ordinate.StableSort([&Rango](const FRTAbilityCooldownView& A, const FRTAbilityCooldownView& B)
+	{
+		return Rango(A.Group) < Rango(B.Group);
+	});
+	return Ordinate;
+}
+
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
 {
 	TArray<FRTUnitCardView> Roster;

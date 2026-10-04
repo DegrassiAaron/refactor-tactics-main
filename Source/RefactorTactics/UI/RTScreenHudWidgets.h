@@ -479,6 +479,14 @@ public:
 	TArray<FRTAbilityCooldownView> GetActions() const;
 
 	/**
+	 * Le stesse azioni in ORDINE DI LETTURA — Comuni, Base, Kit — per disporre la barra (`#3478`, [D-455]).
+	 * ⛔ **E' l'ordine a schermo, non l'identita'**: ogni voce porta il proprio `AbilityIndex`, ed e' quello
+	 * che si arma. Il separatore va dove `Group` cambia IN QUESTA lista, che per costruzione e' contigua.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	TArray<FRTAbilityCooldownView> GetActionsInReadingOrder() const;
+
+	/**
 	 * L'indice dell'azione ARMATA, o `INDEX_NONE`.
 	 *
 	 * `INDEX_NONE` non e' un caso limite: e' lo stato NEUTRO di [D-128], quello in cui il giocatore non ha
