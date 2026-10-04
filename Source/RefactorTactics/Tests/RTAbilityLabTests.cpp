@@ -13,6 +13,9 @@
 
 #include "Misc/AutomationTest.h"
 #include "Ability/RTAbilityLab.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTActionReadout.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
@@ -415,6 +418,67 @@ bool FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest::RunTest(const FString&)
 
 	// Senza questo controllo il test sarebbe verde su un roster senza kit.
 	TestTrue(TEXT("il roster offre voci di kit da eseguire"), Eseguite > 0);
+	return true;
+}
+
+/**
+ * Il readout di un'azione core descrive l'istanza che l'unita' RICEVE, o dichiara che non ce n'e' una — `#3473`.
+ *
+ * Il valore «letto» e' per contratto cio' che il consumatore reale legge. Per una generica il consumatore e'
+ * l'istanza di `MakeGenericActions`, che propaga dal `Def` portata, ricarica e potenza; il Lab ne costruiva
+ * un'altra copiando il solo `Def`, e mostrava i default legacy (portata 5) come se fossero letti. Per una core
+ * che nessuna unita' porta, un valore letto non esiste affatto: va detto, non inventato.
+ *
+ * 🔑 **Il confronto e' contro l'istanza, non contro il catalogo.** «Letto == catalogo» sarebbe verde anche su
+ * un Lab che riallineasse da se' i campi specchio, cioe' su una terza copia che nessuna unita' usa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabCoreReadoutMatchesTheUnitsInstanceTest,
+	"RefactorTactics.AbilityLab.CoreReadoutMatchesTheUnitsInstance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabCoreReadoutMatchesTheUnitsInstanceTest::RunTest(const FString&)
+{
+	const TArray<URTActionData*> Generiche = URTCatalogLibrary::MakeGenericActions(GetTransientPackage());
+	if (!TestTrue(TEXT("il catalogo dichiara delle azioni generiche"), Generiche.Num() > 0)) { return false; }
+
+	for (const URTActionData* Istanza : Generiche)
+	{
+		const FString Id = Istanza->Def.ActionId.ToString();
+
+		TArray<FRTActionParameterView> DalLab;
+		TArray<FRTActionParameterView> DallIstanza;
+		const ERTActionReadoutResult Esito = URTAbilityLabLibrary::DescribeAbility(Istanza->Def.ActionId, DalLab);
+		URTActionReadoutLibrary::DescribeActionParameters(Istanza, DallIstanza);
+
+		TestTrue(FString::Printf(TEXT("%s: il Lab la legge"), *Id), Esito == ERTActionReadoutResult::Ok);
+		if (!TestEqual(FString::Printf(TEXT("%s: stesse voci"), *Id), DalLab.Num(), DallIstanza.Num()))
+		{
+			continue;
+		}
+		for (int32 i = 0; i < DalLab.Num(); ++i)
+		{
+			const FString Voce = FString::Printf(TEXT("%s · %s"), *Id, *DallIstanza[i].ParameterKey.ToString());
+			TestEqual(Voce + TEXT(": stessa chiave"), DalLab[i].ParameterKey, DallIstanza[i].ParameterKey);
+			TestEqual(Voce + TEXT(": stesso valore di catalogo"), DalLab[i].DeclaredValue, DallIstanza[i].DeclaredValue);
+			TestEqual(Voce + TEXT(": stesso valore letto"), DalLab[i].ConsumedValue, DallIstanza[i].ConsumedValue);
+		}
+	}
+
+	// La meta' che nessuna unita' porta. Si cerca, non si nomina: vedi la testa di questo file.
+	const TArray<FName> IdGeneriche = URTCatalogLibrary::GetGenericActionIds();
+	const TArray<FRTAbilityLabEntry> Catalogo = URTAbilityLabLibrary::ListCanonicalAbilities();
+	const FRTAbilityLabEntry* NonImpugnata = Catalogo.FindByPredicate([&IdGeneriche](const FRTAbilityLabEntry& E)
+	{
+		return E.bIsCoreAction && !IdGeneriche.Contains(E.AbilityId);
+	});
+	if (!TestNotNull(TEXT("il catalogo ha una core che nessuna unita' impugna"), NonImpugnata)) { return false; }
+
+	TArray<FRTActionParameterView> SoloCatalogo;
+	TestTrue(FString::Printf(TEXT("%s: il readout dichiara che esiste solo la casa del catalogo"),
+			*NonImpugnata->AbilityId.ToString()),
+		URTAbilityLabLibrary::DescribeAbility(NonImpugnata->AbilityId, SoloCatalogo)
+			== ERTActionReadoutResult::CatalogOnly);
+	TestTrue(TEXT("e il catalogo resta leggibile"), SoloCatalogo.Num() > 0);
+
 	return true;
 }
 

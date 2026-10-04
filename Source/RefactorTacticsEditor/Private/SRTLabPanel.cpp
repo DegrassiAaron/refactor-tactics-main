@@ -239,7 +239,23 @@ FText SRTLabPanel::TestoParametri() const
 	}
 
 	TArray<FRTActionParameterView> Parametri;
-	if (Modello.DescribeSelection(Parametri) != ERTActionReadoutResult::Ok)
+	const ERTActionReadoutResult Esito = Modello.DescribeSelection(Parametri);
+
+	// `#3473`: nessuna unita' porta quest'azione col suo id, quindi un valore «letto» non esiste. Si mostra la
+	// sola casa del catalogo e si dice perche' — il «letto» di un oggetto costruito dal Lab sarebbe inventato,
+	// e il suo ⚠ un falso allarme.
+	if (Esito == ERTActionReadoutResult::CatalogOnly)
+	{
+		FString SoloCatalogo = FString::Printf(
+			TEXT("%s — solo catalogo: nessuna unita' la impugna, quindi non c'e' un valore letto"),
+			*Selezionata.ToString());
+		for (const FRTActionParameterView& P : Parametri)
+		{
+			SoloCatalogo += FString::Printf(TEXT("\n  %s: catalogo %d"), *P.ParameterKey.ToString(), P.DeclaredValue);
+		}
+		return FText::FromString(SoloCatalogo);
+	}
+	if (Esito != ERTActionReadoutResult::Ok)
 	{
 		return FText::FromString(FString::Printf(
 			TEXT("%s — il catalogo non la conosce."), *Selezionata.ToString()));
