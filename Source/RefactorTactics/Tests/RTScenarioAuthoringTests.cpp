@@ -603,6 +603,52 @@ bool FRTScenarioStateDiffIsOrderedTest::RunTest(const FString&)
 }
 
 /**
+ * Un diff fra identita' NON ASSEGNATE o DUPLICATE e' vuoto, non sbagliato — `#3474`.
+ *
+ * `Build` accoppia per `UnitId`, che e' `StableUnitId`: vale `0` finche' `EnsureMatchRoster` non lo assegna, e
+ * le identita' assegnate partono da 1 ([D-063]). Con due `0` nel «prima» una mappa per id terrebbe una sola
+ * delle due unita', e il diff attribuirebbe a una i campi dell'altra: e' peggio di nessun diff, perche' si
+ * legge come una misura. E' successo davvero — l'harness fotografava il «prima» prima del lock-in, e il Lab
+ * taceva su un colpo da 19.
+ *
+ * Il controllo positivo in fondo e' la ragione per cui questo test non e' verde su un `Build` che rende
+ * sempre vuoto: con identita' buone il diff c'e', e porta il campo cambiato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStateDiffRefusesAmbiguousIdentitiesTest,
+	"RefactorTactics.Scenario.StateDiffRefusesAmbiguousIdentities",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStateDiffRefusesAmbiguousIdentitiesTest::RunTest(const FString&)
+{
+	auto Make = [](int32 Id, int32 Hp)
+	{
+		FRTUnitStateDigest D;
+		D.UnitId = Id;
+		D.Health = Hp;
+		return D;
+	};
+
+	// Il caso della seduta: il «prima» senza identita', il «dopo» con quelle del lock-in.
+	TestEqual(TEXT("prima {0, 0}, dopo {1, 2}: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(0, 90), Make(0, 90) }, { Make(1, 90), Make(2, 71) }).Num(), 0);
+
+	// Lo stesso difetto senza lo zero: un id ripetuto non identifica nessuno.
+	TestEqual(TEXT("id duplicato nel «prima»: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(3, 90), Make(3, 80) }, { Make(3, 90) }).Num(), 0);
+	TestEqual(TEXT("id duplicato nel «dopo»: nessun diff"),
+		RTScenarioStateDiff::Build({ Make(3, 90) }, { Make(3, 90), Make(3, 71) }).Num(), 0);
+
+	// Controllo positivo: identita' buone, e il colpo si vede.
+	const TArray<FRTUnitStateDiff> Buono = RTScenarioStateDiff::Build(
+		{ Make(1, 90), Make(2, 90) }, { Make(1, 90), Make(2, 71) });
+	if (TestEqual(TEXT("identita' buone: una voce per unita'"), Buono.Num(), 2))
+	{
+		TestEqual(TEXT("la 2 porta il campo cambiato"), Buono[1].Changes.Num(), 1);
+	}
+
+	return true;
+}
+
+/**
  * FILTRARE IL LOG NON CAMBIA IL DATO — `#1630`.
  *
  * 🔑 **La firma lo garantisce prima del test**: la funzione è pura e prende la sorgente per const-ref.

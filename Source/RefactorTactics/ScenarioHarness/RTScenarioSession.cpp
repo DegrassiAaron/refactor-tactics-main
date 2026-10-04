@@ -91,9 +91,32 @@ namespace RTScenarioStateDiff
 	}
 
 	/** Il diff fra due elenchi gia' ordinati: campi cambiati, comparse e sparizioni. */
+	/** Ogni `UnitId` e' assegnato (> 0, [D-063]) e compare una volta sola. */
+	static bool HasDistinctAssignedIds(const TArray<FRTUnitStateDigest>& Digests)
+	{
+		TSet<int32> Visti;
+		for (const FRTUnitStateDigest& D : Digests)
+		{
+			bool bGiaVisto = false;
+			Visti.Add(D.UnitId, &bGiaVisto);
+			if (D.UnitId <= 0 || bGiaVisto) { return false; }
+		}
+		return true;
+	}
+
 	REFACTORTACTICS_API TArray<FRTUnitStateDiff> Build(const TArray<FRTUnitStateDigest>& Before,
 		const TArray<FRTUnitStateDigest>& After)
 	{
+		// UN DIFF SENZA IDENTITA' E' VUOTO, NON SBAGLIATO — `#3474`. Si accoppia per `UnitId`, cioe' per
+		// `StableUnitId`: vale 0 finche' `EnsureMatchRoster` non lo assegna, e le identita' assegnate partono da
+		// 1 ([D-063]). Un id 0 o ripetuto non identifica nessuno, e la mappa qui sotto terrebbe una sola delle
+		// unita' che lo condividono: il diff attribuirebbe a una i campi dell'altra, e si leggerebbe come una
+		// misura. Nessun diff e' meglio: chi lo legge vede un'assenza, non un falso.
+		if (!HasDistinctAssignedIds(Before) || !HasDistinctAssignedIds(After))
+		{
+			return {};
+		}
+
 		TMap<int32, const FRTUnitStateDigest*> AfterById;
 		for (const FRTUnitStateDigest& D : After) { AfterById.Add(D.UnitId, &D); }
 
@@ -1098,9 +1121,12 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 	PauseElapsed = 0.f;
 	TurnIndex = 0;
 
-	// LO STATO D'INGRESSO, catturato qui perche' qui l'allestimento e' finito e nessun turno e' girato —
-	// `#1630`. Un istante prima le unita' non esistono; uno dopo il primo turno le ha gia' toccate.
-	InitialUnitStates = RTScenarioStateDiff::Snapshot(UnitsById);
+	// LO STATO D'INGRESSO NON si cattura qui — `#3474`. L'allestimento e' finito, ma le unita' non hanno ancora
+	// un'identita': `StableUnitId` vale 0 finche' il lock-in non chiama `EnsureMatchRoster`, e il diff accoppia
+	// per quell'id. Si cattura al primo `PlanningLocked` (`OnResolutionPhaseClosed`); qui si azzera soltanto,
+	// perche' una sessione che riparte non erediti il «prima» della run precedente.
+	InitialUnitStates.Reset();
+	bInitialUnitStatesCaptured = false;
 
 	ApplyPreviewSelection();
 	return true;
@@ -2034,6 +2060,18 @@ FString FRTScenarioSession::DescribeExpectationKind(const FRTTestExpectation& Ex
  */
 void FRTScenarioSession::OnResolutionPhaseClosed(ERTMatchPhase Closed)
 {
+	// LO STATO D'INGRESSO del diff di `#1630`, catturato al PRIMO `PlanningLocked` — `#3474`. E' l'istante in
+	// cui le identita' esistono (il lock-in ha appena chiamato `EnsureMatchRoster`) e nessuna fase ha risolto:
+	// `RunPhaseLoop` annuncia questo confine prima di qualunque `Resolve*`. Prima stava in `Start()`, con
+	// `StableUnitId == 0` per tutti, e `Build` non accoppiava nessuna unita'.
+	//
+	// ⛔ Resta osservazione pura, come il resto di questo handler: legge le unita', non le tocca.
+	if (Closed == ERTMatchPhase::Planning && !bInitialUnitStatesCaptured)
+	{
+		InitialUnitStates = RTScenarioStateDiff::Snapshot(UnitsById);
+		bInitialUnitStatesCaptured = true;
+	}
+
 	// La traduzione dal vocabolario del GIOCO a quello del formato vive QUI e in nessun altro posto: il
 	// motore non conosce `ERTScenarioCheckpoint`, ed e' giusto cosi' — sarebbe una dipendenza del gioco
 	// dall'harness.
@@ -2419,9 +2457,13 @@ void FRTScenarioSession::Finish()
 			URTMatchStateHashLibrary::BuildUnitDigests(UnitsForDigest);
 
 		// IL DIFF — `#1630`. Legge i due stati, non li calcola: quello finale e' lo stesso che alimenta il
-		// checksum due righe piu' sotto, quello iniziale e' stato catturato in `Start()`.
-		Result.StateDiff = RTScenarioStateDiff::Build(InitialUnitStates,
-			RTScenarioStateDiff::Snapshot(UnitsById));
+		// checksum due righe piu' sotto, quello iniziale e' stato catturato al primo `PlanningLocked` (`#3474`).
+		// Uno scenario che non e' mai arrivato a un lock-in non ha un «prima» con identita': il diff resta vuoto.
+		if (bInitialUnitStatesCaptured)
+		{
+			Result.StateDiff = RTScenarioStateDiff::Build(InitialUnitStates,
+				RTScenarioStateDiff::Snapshot(UnitsById));
+		}
 
 		// IL PONTE FRA I DUE SPAZI DI ID — `#1625`.
 		//

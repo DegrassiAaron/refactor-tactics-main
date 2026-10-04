@@ -317,4 +317,85 @@ bool FRTAbilityLabAreaOfEffectTest::RunTest(const FString&)
 	return true;
 }
 
+// --- I tre difetti trovati in seduta il 2026-10-04 (`#3472`, `#3473`, `#3474`) -----------------------------
+//
+// Tutti e tre erano verdi qui sopra per la stessa ragione: i test del Lab scelgono la loro ability fra le voci
+// di KIT (`!bIsCoreAction`) e verificano che il turno si giochi, non che cosa produca. In Editor la lista
+// offre anche le azioni core, e il pannello mostra il diff di stato: le due cose che nessun test guardava.
+
+/**
+ * Lo `StateDiff` della run accoppia le unita' di prima con quelle di dopo — `#3474`.
+ *
+ * Il diff si costruisce per `StableUnitId`, e lo stato «prima» si fotografava in `Start()`, quando l'harness
+ * non ha ancora assegnato le identita' (lo fa al lock-in). Prima `{0, 0}`, dopo due id veri: quattro voci,
+ * due «sparite» e due «comparse», nessuna con un campo cambiato — e il pannello, che stampa i campi cambiati,
+ * taceva su un colpo che il TurnLog dichiarava.
+ *
+ * ⚠️ Il controllo sulla `Health` e' il verso che conta: un diff con due voci presenti e nessun campo sarebbe
+ * il sintomo di una cattura spostata DOPO il turno, e questo test deve prendere anche quella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStateDiffPairsTheUnitsOfTheRunTest,
+	"RefactorTactics.AbilityLab.StateDiffPairsTheUnitsOfTheRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStateDiffPairsTheUnitsOfTheRunTest::RunTest(const FString&)
+{
+	FRTAbilityLabEntry Entry;
+	if (!TestTrue(TEXT("il roster offre un'ability lineare"),
+		RTAbilityLabTestsInternal::FindHeroAbilityWithShape(ERTAbilityShape::Line, Entry)))
+	{
+		return false;
+	}
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("BuildFixture riesce"),
+		URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+			RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error)))
+	{
+		return false;
+	}
+
+	const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR su %s: %s"), *Entry.AbilityId.ToString(), *Result.ErrorMessage));
+		return false;
+	}
+
+	if (!TestEqual(TEXT("una voce di diff per ogni unita' della posa"), Result.StateDiff.Num(), Scenario.Units.Num()))
+	{
+		for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+		{
+			AddInfo(FString::Printf(TEXT("voce: unita' %d, presenza %d, campi cambiati %d"),
+				Diff.UnitId, static_cast<int32>(Diff.Presence), Diff.Changes.Num()));
+		}
+		return false;
+	}
+
+	bool bBersaglioColpito = false;
+	for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+	{
+		TestTrue(FString::Printf(TEXT("unita' %d presente prima e dopo"), Diff.UnitId),
+			Diff.Presence == ERTUnitDiffPresence::Present);
+
+		const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+		if (!TestNotNull(FString::Printf(TEXT("unita' %d ha un'identita' d'authoring"), Diff.UnitId), Authoring))
+		{
+			continue;
+		}
+		if (*Authoring != TEXT("TARGET")) { continue; }
+
+		for (const FRTUnitFieldChange& Cambio : Diff.Changes)
+		{
+			if (Cambio.Field == FName(TEXT("Health")) && FCString::Atoi(*Cambio.After) < FCString::Atoi(*Cambio.Before))
+			{
+				bBersaglioColpito = true;
+			}
+		}
+	}
+	TestTrue(TEXT("la Health del bersaglio scende nel diff, come il TurnLog dichiara"), bBersaglioColpito);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
