@@ -4485,6 +4485,34 @@ sessions:
     # propria. Unreal e uno per macchina, e un giro misurato su un binario diverso non attesta la
     # stessa release candidate (#2601, sezione *Packaged*).
     steps: |
+      🟡 **GIRO 2, 2026-10-04: i passi 1-2 sono ✅; i tre restanti ancora NOT RUN.**
+      Seconda apertura, log proprio. Dodici turni pianificati e **una partita FINITA** (*<<Pareggio,
+      allo scadere dei round 12/12>>*), due archivi replay di cui uno terminale
+      (`52C6FF9740710C9BAB4DBC843EAF75DD`, `TurnCount 12`, `Outcome 3` = `Draw`) e uno abbandonato
+      (`6CCBC713...`, `Outcome 0` = `InProgress`) — i due illustrano la differenza che il criterio del
+      passo 5 avverte.
+
+      ✅ **Passi 1-2 CHIUSI**: la ability gira (*<<PASS - 1 turno>>*) e il filtro per eroe mostra il
+      kit. ⚠️ Ma con un difetto d'affordance aperto come
+      [#3461](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3461): il campo `Eroe:` ha
+      confronto **esatto**, quindi `Ivrin` svuota la lista in silenzio e serve `Hero.Ivrin`.
+
+      ⛔ **I passi 3-4-5 restano NOT RUN**: `rt.Debug.ScreenHud` non e' stato eseguito — le occorrenze
+      nel log sono la fotografia automatica al montaggio — e il Replay Viewer non e' stato aperto.
+
+      🔑 **E il giro meccanico e' stato AUTOMATIZZATO**, per decisione d'autore (*<<cose cosi le
+      puoi automatizzare>>*): `tools/seduta/giro-meccanico.ps1` esegue in autobattle sul pacchetto la
+      meta' non percettiva e raccoglie l'evidenza. Prima esecuzione valida: **undici esiti su undici
+      PASS**, e soprattutto il feed **si popola** — `Feed: TurnLog=22 voci, osservatori={0, 1}, righe
+      dopo filtro=5` — che e' la precondizione del passo 4 che due sedute a mano non avevano ottenuto.
+      ⛔ Lo script NON chiude `G16`: i Lab sono Editor-only e i giudizi percettivi restano, e lo
+      dichiara in testa.
+
+      ⚠️ **UN'ANOMALIA DA GUARDARE, non chiusa**: l'archivio della run troncata porta `TurnCount 5`
+      mentre il suo log conta **dodici** turni, e la run completa non ha prodotto archivio affatto
+      (`grep -aic 'replay|rtaudit|MatchId'` sul suo log → **0**). Se il replay registrasse meno turni di
+      quelli giocati, il passo 5 riaprirebbe una partita **parziale** credendola intera.
+
       🟡 **Parzialmente eseguita il 2026-10-04** — Editor compilato da `ac2568992`, il cui runtime e'
       identico al candidate `95eddfd37` (0 righe non-commento fuori da `Tests/`). Una sola apertura, con
       `-abslog`; estratto in `artifacts:`. Motore verificato libero prima del lancio, nessun modale
