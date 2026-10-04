@@ -237,6 +237,10 @@ degli untracked e hash della DLL identici a inizio e fine.
 > - il campo `Group` consegnato in [#3468](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3468);
 > - §6.7 riscritta contro D-425.
 >
+> ⏱️ **E nella notte fra il 4 e il 5 ottobre**:
+> - il conflitto Invalid/Warning ha una issue che chiede la decisione, [#3483](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3483);
+> - il piano UI-0 è annotato.
+>
 > L'elenco qui sotto resta com'era al momento della stesura.
 
 - **Il campo `Group`** di D-455, quando la voce sarà registrata, e con lui i separatori di gruppo in Editor.
