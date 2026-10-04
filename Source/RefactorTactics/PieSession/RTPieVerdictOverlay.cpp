@@ -62,8 +62,8 @@ TSharedRef<SWidget> URTPieVerdictOverlay::RebuildWidget()
 	//
 	// 🔴 **L'allineamento e' esplicito perche' il default lo posava sui NOMI DEGLI EROI.**
 	// `AddToViewport` lascia il widget riempire il viewport, e un `SBorder` senza slot si posa in alto a
-	// sinistra — dove sta `URTTeamRosterWidget`, la zona `TopLeft` delle otto
-	// (`RTMatchWidgetAssetTests.cpp:991`). Verdetto d'autore alla prima seduta reale: *«la scritta sta
+	// sinistra — dove sta `URTTeamRosterWidget`, la zona `TopLeft` dello Screen HUD
+	// (`ScreenHud.EveryZoneOwnerIsMountedByClass`). Verdetto d'autore alla prima seduta reale: *«la scritta sta
 	// sotto i nomi degli eroi e non e' visualizzabile»*. Colonna sinistra, centrato in verticale (#3242).
 	const FRTPieOverlayPlacement Posa = Placement();
 
