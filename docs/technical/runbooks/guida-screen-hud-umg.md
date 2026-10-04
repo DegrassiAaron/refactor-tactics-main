@@ -95,8 +95,15 @@ Crea ogni widget con **Widget Blueprint → scegli la classe padre**, non con il
 
 ## 3. Il layout di `WBP_RT_TacticalHUD`
 
-Otto zone — la griglia 3×3 **meno il centro**, a fasce 20% / 60% / 20% su entrambi gli assi. Le otto celle
-sono zone; la nona, quella di mezzo, è definita da ciò che **non** contiene.
+Le zone stanno sulla griglia 3×3 **meno il centro**, a fasce 20% / 60% / 20% su entrambi gli assi: le tre
+celle alte, le due di mezzo e **la fascia bassa intera**. La cella di mezzo è definita da ciò che **non**
+contiene.
+
+⌫ *Dal 2026-09-12 al 2026-10-04 le zone erano **otto**: anche la fascia bassa aveva tre celle, `BottomLeft`,
+`BottomCenter` e `BottomRight`. [D-456](../../decisions/RT_PDR_00_Decision_Log.md) le ha unite in
+`Zone_Bottom`, della barra dei comandi
+([#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469)): sui kit di partita la barra
+non entrava nella cella centrale.*
 
 ⌫ *Fino al 2026-09-12 questa sezione descriveva cinque zone — `TOP`, `LEFT`, `RIGHT`, `BOTTOM`, `CENTER` —
 ancorate ai bordi. Non è una rinomina: `MiddleLeft` e `BottomLeft` sono due celle distinte dove prima c'era
@@ -109,10 +116,10 @@ un solo `BOTTOM`, e **Selected Unit cambia fascia**.*
    0.2  ├──────────┼──────────────────────┼──────────┤
         │ Middle   │      ⛔ CENTRO        │  Middle  │
         │ Left     │      keep-out        │  Right   │   60%   216 .. 864 px
-   0.8  ├──────────┼──────────────────────┼──────────┤
-        │ Bottom   │    BottomCenter      │  Bottom  │
-        │ Left     │                      │  Right   │   20%   864 .. 1080 px
-   1.0  └──────────┴──────────────────────┴──────────┘
+   0.8  ├──────────┴──────────────────────┴──────────┤
+        │                 Bottom                     │
+        │      (la barra dei comandi, D-456)         │   20%   864 .. 1080 px
+   1.0  └────────────────────────────────────────────┘
              20%            60%               20%
 ```
 
@@ -127,12 +134,10 @@ su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inq
 |---|---|---|---|
 | `Zone_TopLeft` | (0.0, 0.0) → (0.2, 0.2) | `WBP_RT_TeamRosterLeft` | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2744](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2744) |
 | `Zone_TopCenter` | (0.2, 0.0) → (0.8, 0.2) | `WBP_RT_TurnHeader` — round su `RoundLimit`, fase, timer, objective | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#77](https://github.com/DegrassiAaron/refactor-tactics-main/issues/77) |
-| `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | *vuota* — Objective, da progettare | `progettazione-hud.md` §6 |
+| `Zone_TopRight` | (0.8, 0.0) → (1.0, 0.2) | *vuota* — `CONFIRM PLAN` · `UNDO` ([D-456](../../decisions/RT_PDR_00_Decision_Log.md), [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471)) | `progettazione-hud.md` §6.8 |
 | `Zone_MiddleLeft` | (0.0, 0.2) → (0.2, 0.8) | `WBP_RT_SelectedUnitPanelLeft` (+ `WBP_RT_UnitCard`) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
 | `Zone_MiddleRight` | (0.8, 0.2) → (1.0, 0.8) | `WBP_RT_EventLogRight` — istanza di `WBP_RT_EventLog_C`, dal 2026-09-10 ([#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697)) | [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613) · [#1896](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1896) |
-| `Zone_BottomLeft` | (0.0, 0.8) → (0.2, 1.0) | *vuota* — dichiarata senza inquilino, ed è il posto che si guarda per decidere cosa ci va | — |
-| `Zone_BottomCenter` | (0.2, 0.8) → (0.8, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) |
-| `Zone_BottomRight` | (0.8, 0.8) → (1.0, 1.0) | *vuota* — Confirm · Undo, da progettare | `progettazione-hud.md` §6 |
+| `Zone_Bottom` | (0.0, 0.8) → (1.0, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
 ✅ **`WBP_RT_FastDecision` è montato dal 2026-09-12**, nel `Canvas Panel` **radice** — non in una zona,
@@ -164,12 +169,12 @@ non come «animazione periferica».
 apre è una prova di partita, non d'albero — [#3047](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3047).
 
 ✅ **Due gate nuovi guardano questa griglia dal 2026-09-12**, e chiedono cose diverse:
-`RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce` — c'è una zona per ogni valore di
+`RefactorTactics.ScreenHud.TheZonesAreDeclaredExactlyOnce` (⌫ *`TheEightZones…` fino al 2026-10-04*) — c'è una zona per ogni valore di
 `ERTHudZone`, nessuna mancante e nessuna doppia — e
 `RefactorTactics.ScreenHud.ZoneRectanglesMatchTheThreeByThreeGrid`, che ricalcola il rettangolo di ogni
 zona con la formula di `SConstraintCanvas::OnArrangeChildren` e lo confronta con la sua cella. Il secondo
 esiste perché `PanelsLeaveTheCenterFree` è un gate **negativo**: dice che nessuna zona invade il centro, e
-passerebbe con tutte e otto schiacciate in un angolo.
+passerebbe con tutte le zone schiacciate in un angolo.
 
 > 🔴 **Per un giorno il diagramma e la colonna «contiene oggi» hanno descritto un albero che il `.uasset`
 > non conteneva, e la ragione va ricordata perché è ripetibile.** `cc5ca967` — il commit che dichiarava
@@ -192,9 +197,9 @@ passerebbe con tutte e otto schiacciate in un angolo.
 🔑 **Il centro è una zona a contratto negativo**, e per questo non ha un `WBP_RT_CenterPanel`: si definisce
 per ciò che non deve contenere. Il criterio è misurabile — *la Screen HUD non occupa permanentemente il
 centro e non oscura le celle necessarie alla decisione* — e chi lo violasse lo farebbe allargando una delle
-altre otto, non aggiungendo la nona.
+altre zone, non aggiungendone una.
 
-🔑 **Per la stessa ragione il centro NON è un valore di `ERTHudZone`.** L'enum ha otto zone più la
+🔑 **Per la stessa ragione il centro NON è un valore di `ERTHudZone`.** L'enum ha le sue zone più la
 sentinella `Count`; un `ERTHudZone::Center` sarebbe un invito a riempirlo, cioè esattamente il difetto che
 `progettazione-hud.md` §3.1 vieta.
 
