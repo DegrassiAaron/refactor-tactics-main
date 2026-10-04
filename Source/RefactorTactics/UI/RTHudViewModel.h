@@ -329,7 +329,13 @@ struct FRTMovementReadoutView
 {
 	GENERATED_BODY()
 
-	/** Falso per chi non comanda il soggetto, o senza soggetto: tutto il resto e' allora vuoto. */
+	/**
+	 * Falso senza soggetto: tutto il resto e' allora vuoto.
+	 * ⚠️ **Non garantisce da solo la privacy**: `BuildMovementReadout` autorizza qualunque unita' non nulla,
+	 * come `BuildUnitSlots`. A decidere e' il CHIAMANTE, e la dock passa soltanto l'unita' comandata
+	 * (`GetSelectedUnit()`, mai `GetInspectedUnit()`): e' li' che `MovementReadoutReadsTheProfileOfThePlan`,
+	 * blocco D, pinna il confine (revisione di #3470).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bAuthorized = false;
 

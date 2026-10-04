@@ -2846,9 +2846,12 @@ bool FRTHudVmMovementReadoutTest::RunTest(const FString&)
 		URTActionDockWidget* Spia = NewObject<URTActionDockWidget>(World);
 		if (TestNotNull(TEXT("D: nemico"), Nemico) && TestNotNull(TEXT("D: dock"), Spia))
 		{
-			// Il nemico ha un piano che si leggerebbe: Sneak dichiarato e un percorso.
+			// Il nemico ha un piano che si leggerebbe: Sneak dichiarato e un percorso DICHIARATO — waypoint e
+			// cella, come in `SlotsCarryTheMovementProfile`, cosi' una regressione leggerebbe `Sneak` e non
+			// `Still` (osservazione della revisione di #3470).
 			Nemico->PlannedMovementProfileId = Lib::ProfileSneak;
 			Nemico->PlannedWaypoints.Add(FRTCellId(1, 0, 0));
+			Nemico->PlannedCell = FRTCellId(1, 0, 0);
 			Spia->SetInspectedUnitForTest(Nemico);
 
 			const FRTMovementReadoutView L = Spia->GetMovementReadout();

@@ -4786,6 +4786,11 @@ sessions:
     #      «fermo» di un'unita' di cui non si sa niente. ⛔ **Il badge NON e' cliccabile** in questa seduta: se
     #      debba esserlo e' la domanda aperta di #3470, e un secondo canale verso la stessa dichiarazione va
     #      deciso prima di essere cablato.
+    #      ⚠️ **Dichiarato contro effettivo, da decidere a schermo**: con `Sneak` dichiarato e poi
+    #      l'`Overwatch` armata, il badge resta acceso (`bSneakDeclared`) mentre l'etichetta dice
+    #      `Withdraw ×0,25`, perche' la riserva vince sul tetto ([D-425]). E' coerente — il badge dice cio' che
+    #      si e' premuto, l'etichetta cio' che si spendera' — ma se a schermo si legge come una contraddizione,
+    #      la resa del badge si decide qui (revisione di #3470).
     #
     # ⛔ **Cosa NON si fa in questa seduta**: il badge `M` cliccabile (#3470, da decidere); Confirm · Undo in
     # `TopRight` (#3471); la Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
