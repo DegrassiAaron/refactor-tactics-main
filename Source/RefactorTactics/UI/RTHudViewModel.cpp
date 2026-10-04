@@ -406,6 +406,9 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
 			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
 			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
+			//
+			// Stessa ragione per la fase (`#3465`): `PhaseMark` resta `None` e `PhaseLabel` resta VUOTA, non
+			// `—`. Il trattino dice «c'e' un'azione e non si gioca in nessuna fase», che di un vuoto e' falso.
 			Cooldowns.Add(Empty);
 			continue;
 		}
@@ -429,6 +432,14 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			|| (Unit->PlannedReactionAbility == Index)
 			|| (Unit->PlannedDashAbility == Index);
 		View.Slot = Action->Def.Slot;
+
+		// La fase si LEGGE dal catalogo (`#3465`), per la stessa ragione del tasto e delle chiavi icona: il
+		// `Def` completo esiste qui, e lo slot non lo vedra' mai. `Phase` e' la risposta onesta, `PhaseMark`
+		// cio' che lo slot mostra — divergono su reazione e `Wait`, e la regola sta in `PhaseMarkFor`, non
+		// ripetuta qui.
+		View.Phase = URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase);
+		View.PhaseMark = PhaseMarkFor(Action->Def);
+		View.PhaseLabel = PhaseMarkLabel(View.PhaseMark);
 
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista
 		// dichiara «mai negativo» nel proprio contratto, e un contratto che dipende dal fatto che nessuno
@@ -460,6 +471,52 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	}
 
 	return Cooldowns;
+}
+
+ERTActionPhaseMark URTHudViewModel::PhaseMarkFor(const FRTActionDef& Def)
+{
+	// 🔑 **Lo slot PRIMA della fase**, ed e' l'ordine che i due casi decisi il 2026-10-04 richiedono: una
+	// reazione ha una `ResolutionPhase` — quella della sua core — e leggerla per prima direbbe `BLAST` di
+	// qualcosa che non si gioca nel Blast. Lo stesso vale per `Wait`, che risolve in `NormalMovement`.
+	if (Def.Slot == ERTActionSlot::Reaction)
+	{
+		return ERTActionPhaseMark::Reaction;
+	}
+	if (Def.Slot == ERTActionSlot::None)
+	{
+		return ERTActionPhaseMark::None;
+	}
+
+	// Funzione TOTALE sulla macro-fase, come `MapResolutionPhase`: nessun `default`, cosi' una fase aggiunta a
+	// `ERTMatchPhase` senza un segno diventa un avviso di compilazione invece di uno slot muto.
+	switch (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase))
+	{
+	case ERTMatchPhase::Prep:       return ERTActionPhaseMark::Prep;
+	case ERTMatchPhase::Dash:       return ERTActionPhaseMark::Dash;
+	case ERTMatchPhase::Blast:      return ERTActionPhaseMark::Blast;
+	case ERTMatchPhase::Move:       return ERTActionPhaseMark::Move;
+	case ERTMatchPhase::Cleanup:    return ERTActionPhaseMark::Cleanup;
+	case ERTMatchPhase::Planning:   return ERTActionPhaseMark::None; // nessuna azione risolve nel Planning
+	case ERTMatchPhase::MatchEnded: return ERTActionPhaseMark::None;
+	}
+	return ERTActionPhaseMark::None;
+}
+
+FText URTHudViewModel::PhaseMarkLabel(ERTActionPhaseMark Mark)
+{
+	// Le etichette del mockup della skill bar (`docs/research/design/hud/skill-bar-2026-10/`), in maiuscolo
+	// come le stampa la striscia. `REAZ.` e' abbreviata perche' lo slot e' largo un'icona.
+	switch (Mark)
+	{
+	case ERTActionPhaseMark::Prep:     return NSLOCTEXT("RTHud", "PhaseMarkPrep", "PREP");
+	case ERTActionPhaseMark::Dash:     return NSLOCTEXT("RTHud", "PhaseMarkDash", "DASH");
+	case ERTActionPhaseMark::Blast:    return NSLOCTEXT("RTHud", "PhaseMarkBlast", "BLAST");
+	case ERTActionPhaseMark::Move:     return NSLOCTEXT("RTHud", "PhaseMarkMove", "MOVE");
+	case ERTActionPhaseMark::Cleanup:  return NSLOCTEXT("RTHud", "PhaseMarkCleanup", "CLEANUP");
+	case ERTActionPhaseMark::Reaction: return NSLOCTEXT("RTHud", "PhaseMarkReaction", "REAZ.");
+	case ERTActionPhaseMark::None:     return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
+	}
+	return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
 }
 
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)
