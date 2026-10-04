@@ -171,8 +171,30 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		return false;
 	}
 
-	// Un'azione core non appartiene a nessuno: la impugna il primo eroe del roster. E' una scelta di POSA,
-	// non di bilanciamento.
+	// Un'azione core si esegue solo se un'unita' la IMPUGNA — `#3472`. Un'unita' porta il proprio kit piu'
+	// le generiche che `MakeGenericActions` le accoda, e `FindCanonicalDef` cerca prima nei kit: se siamo nel
+	// ramo core, nessun kit porta questo id, quindi l'unica via e' che sia una generica. Le altre core vivono
+	// nel catalogo come sorgente da cui i kit derivano le proprie azioni `Hero.*`.
+	//
+	// ⛔ Prima la si costruiva lo stesso, e l'harness la rifiutava in ERROR con «'CASTER' non possiede
+	// l'abilita'»: vero, ma detto da chi esegue invece che da chi offre, e dopo aver posato una fixture che non
+	// poteva girare. Il rifiuto sta qui, fail closed come per un id sconosciuto, e dice quali core girano.
+	if (bIsCore && !URTCatalogLibrary::GetGenericActionIds().Contains(AbilityId))
+	{
+		TArray<FString> Generiche;
+		for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+		{
+			Generiche.Add(Id.ToString());
+		}
+		OutError = FString::Printf(
+			TEXT("'%s' e' un'azione core che nessuna unita' impugna: un'unita' porta il proprio kit e le azioni "
+				 "generiche (%s). Il Lab ne legge i parametri, ma non la puo' eseguire."),
+			*AbilityId.ToString(), *FString::Join(Generiche, TEXT(" · ")));
+		return false;
+	}
+
+	// Una generica non appartiene a un eroe in particolare, perche' la portano tutti: la impugna il primo del
+	// roster. E' una scelta di POSA, non di bilanciamento.
 	const FName CasterHeroId = bIsCore
 		? RTAbilityLabInternal::FirstHeroOtherThan(NAME_None)
 		: OwnerHeroId;
@@ -221,9 +243,13 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Intent.UnitId = TEXT("CASTER");
 	Intent.Ability = AbilityId;
 
+	// Un'abilita' che si applica a chi la usa (`bSelfTarget`) resta SENZA bersaglio: e' cosi' che il formato
+	// la esprime (`AbilityResolvesOnSelf`, `#2283`, che legge lo stesso flag), e un intent che nomina come
+	// bersaglio la propria unita' e' rifiutato di proposito — *«l'unita' bersaglia se stessa»*. Scriverci
+	// `CASTER` mandava in ERROR ogni azione `bSelfTarget` offerta dal Lab, generiche e di kit (`#3472`).
 	if (Def.bSelfTarget)
 	{
-		Intent.Target = TEXT("CASTER");
+		// nessun bersaglio
 	}
 	else if (Def.bCreatesSurface || Def.StructureOp != ERTStructureOp::None)
 	{

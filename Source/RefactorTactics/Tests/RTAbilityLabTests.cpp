@@ -324,6 +324,101 @@ bool FRTAbilityLabAreaOfEffectTest::RunTest(const FString&)
 // offre anche le azioni core, e il pannello mostra il diff di stato: le due cose che nessun test guardava.
 
 /**
+ * Un'azione core si ESEGUE solo se un'unita' la impugna davvero — `#3472`.
+ *
+ * Il caster di una core e' il primo eroe del roster, e un'unita' possiede il proprio kit piu' le generiche che
+ * `MakeGenericActions` le accoda. Una core fuori da quell'insieme, costruita lo stesso, arriva all'harness che
+ * la rifiuta in ERROR con *«'CASTER' non possiede l'abilita'»* — ed e' quello che la seduta ha visto su
+ * `Action.Withdraw`. Il contratto qui: ogni core o si esegue senza ERROR, o e' rifiutata da `BuildFixture`
+ * con un errore che la nomina e senza lasciare una fixture a meta'.
+ *
+ * ⚠️ **I due controlli positivi non sono decorazione.** Senza «almeno un rifiuto» il test sarebbe verde su un
+ * Lab che le costruisce tutte e su un catalogo dove ogni core e' generica; senza «almeno una run» sarebbe
+ * verde su un Lab che le rifiuta tutte, cioe' su un Lab che ha smesso di eseguire le generiche.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabCoreActionRunsOnlyIfAUnitWieldsItTest,
+	"RefactorTactics.AbilityLab.CoreActionRunsOnlyIfAUnitWieldsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabCoreActionRunsOnlyIfAUnitWieldsItTest::RunTest(const FString&)
+{
+	int32 Rifiutate = 0;
+	int32 Eseguite = 0;
+
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		if (!Entry.bIsCoreAction) { continue; }
+		const FString Id = Entry.AbilityId.ToString();
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+			RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error))
+		{
+			++Rifiutate;
+			TestTrue(FString::Printf(TEXT("%s: il rifiuto la nomina"), *Id), Error.Contains(Id));
+			TestEqual(FString::Printf(TEXT("%s: fail closed, nessuna unita' posata"), *Id), Scenario.Units.Num(), 0);
+			continue;
+		}
+
+		++Eseguite;
+		const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: BuildFixture l'ha costruita, ma la run va in ERROR: %s"),
+				*Id, *Result.ErrorMessage));
+		}
+	}
+
+	TestTrue(TEXT("almeno una core e' rifiutata"), Rifiutate > 0);
+	TestTrue(TEXT("almeno una core si esegue"), Eseguite > 0);
+	return true;
+}
+
+/**
+ * Ogni voce di KIT che il Lab offre si esegue senza ERROR — `#3472`, la stessa classe di difetto dal lato kit.
+ *
+ * Una voce di kit la impugna sempre il suo eroe, quindi qui non c'e' rifiuto legittimo: se la run va in ERROR
+ * e' la fixture a essere sbagliata. Il caso che l'ha imposto: un'azione che si applica a chi la usa
+ * (`bSelfTarget`) veniva scritta con il CASTER come bersaglio, e il formato lo rifiuta — *«l'unita' bersaglia
+ * se stessa»* — perche' un'abilita' su di se' si dichiara SENZA bersaglio (`AbilityResolvesOnSelf`, `#2283`).
+ * I test sopra non lo vedevano: scelgono la prima voce di una forma, mai una che si applica a se'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest,
+	"RefactorTactics.AbilityLab.EveryKitAbilityRunsWithoutError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest::RunTest(const FString&)
+{
+	int32 Eseguite = 0;
+
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		if (Entry.bIsCoreAction) { continue; }
+		const FString Id = Entry.AbilityId.ToString();
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("%s: BuildFixture la costruisce"), *Id),
+			URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+				RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error)))
+		{
+			AddInfo(FString::Printf(TEXT("%s: %s"), *Id, *Error));
+			continue;
+		}
+
+		++Eseguite;
+		const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: la run va in ERROR: %s"), *Id, *Result.ErrorMessage));
+		}
+	}
+
+	// Senza questo controllo il test sarebbe verde su un roster senza kit.
+	TestTrue(TEXT("il roster offre voci di kit da eseguire"), Eseguite > 0);
+	return true;
+}
+
+/**
  * Lo `StateDiff` della run accoppia le unita' di prima con quelle di dopo — `#3474`.
  *
  * Il diff si costruisce per `StableUnitId`, e lo stato «prima» si fotografava in `Start()`, quando l'harness

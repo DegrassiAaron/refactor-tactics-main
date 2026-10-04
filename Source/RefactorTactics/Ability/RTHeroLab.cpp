@@ -73,8 +73,8 @@ bool URTHeroLabLibrary::BuildHeroFixture(const FName& HeroId, const FName& Abili
 		return false;
 	}
 
-	// L'unica domanda che l'Ability Lab non puo' porre. Per #2599 ogni ability canonica e' eseguibile; qui
-	// conta anche DI CHI e'. Senza questo controllo Hero Lab farebbe lanciare a Aevik un'abilita' di Ivrin
+	// L'unica domanda che l'Ability Lab non puo' porre. Per #2599 conta che un'unita' la impugni — una voce di
+	// kit o una generica (`#3472`); qui conta anche DI CHI e'. Senza questo controllo Hero Lab farebbe lanciare a Aevik un'abilita' di Ivrin
 	// e la fixture funzionerebbe — mostrando come «kit dell'eroe» qualcosa che non lo e'.
 	bool bOwnsIt = false;
 	for (const FRTAbilityLabEntry& Owned : ListHeroKit(HeroId))
