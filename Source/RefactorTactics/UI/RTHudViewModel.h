@@ -409,6 +409,43 @@ struct FRTUnitOverlayView
 };
 
 
+/**
+ * Il SEGNO di fase che uno slot della dock porta (`#3465`): la chiave a cui il Blueprint lega striscia e colore.
+ *
+ * 🔑 **Non e' `ERTMatchPhase`, e la differenza sono due casi decisi in sessione dall'autore il 2026-10-04.**
+ * La macro-fase onesta la porta gia' `FRTAbilityCooldownView::Phase`; questo enum risponde a un'altra domanda —
+ * *che cosa lo slot dice al giocatore* — e su due voci le risposte divergono:
+ *
+ *  - una **reazione** eredita la fase della propria core, ma non si gioca in una fase: si arma, e scatta quando
+ *    il suo trigger lo chiede. `URTIconLibrary::RequiredIconIds` lo dichiara gia' — *«Reaction non e' una
+ *    fase»* — e lo slot dice `REAZ.`;
+ *  - un'azione che **non occupa slot** (`Action.Wait`) risolve in `NormalMovement`, ma non si gioca in nessuna
+ *    fase: lo slot dice `—`.
+ *
+ * ⛔ **Il colore non vive qui.** La palette e' di [D-233] e di `progettazione-hud.md` §32, e la mappa
+ * segno -> tinta la tiene il Blueprint: in C++ sarebbe una seconda copia degli HEX che nessun gate rilegge —
+ * `tools/hud-assets/color_metrics.py` misura quelli del generatore, non questi. Cio' che il C++ garantisce e'
+ * che chi disegna non debba RICOMPORRE la regola: un `Select` su questo enum non e' una deduzione.
+ *
+ * ⚠️ **`Cleanup` ha un valore e NON ha un colore**: [D-232] §1 e [D-233] lo lasciano senza tinta finche' una
+ * reazione non avra' una card, e l'autore lo ha confermato il 2026-10-04. Il segno esiste perche' l'etichetta
+ * `CLEANUP` deve comparire comunque — e' il canale che non dipende dal colore.
+ */
+UENUM(BlueprintType)
+enum class ERTActionPhaseMark : uint8
+{
+	/** Nessun segno: posizione di kit vuota, azione che non occupa slot, o macro-fase in cui non si agisce. */
+	None,
+	Prep,
+	Dash,
+	Blast,
+	Move,
+	/** Ha un'etichetta e non un colore ([D-232], [D-233]). */
+	Cleanup,
+	/** Non e' una fase: l'azione dichiara `Slot == Reaction`. */
+	Reaction
+};
+
 /** La ricarica residua di una singola azione del kit, in TURNI INTERI. */
 USTRUCT(BlueprintType)
 struct FRTAbilityCooldownView
@@ -466,9 +503,11 @@ struct FRTAbilityCooldownView
 	 * numerico preme — il caso che `GenericHotkeys()` dichiara, *«un eroe con sei azioni porta il kit a
 	 * undici voci contro i dieci tasti numerici»*. Chi disegna mostra il tasto **solo** se c'e'.
 	 *
-	 * ⛔ **Non porta il tasto GENERICO** (`G` `B` `C` `X` `Z`): quale dei due binding mostrare per
-	 * un'universale e' una decisione aperta (`#2990`), e un campo che la anticipasse la deciderebbe di
-	 * fatto.
+	 * ✅ **Porta il tasto GENERICO** (`G` `B` `C` `X` `Z`) per le generiche: [D-397] punto 4 ha deciso che
+	 * un'universale mostra la propria lettera, e `ARTPlayerController::HotkeyLabelFor` risolve
+	 * `GenericHotkeys()` per `ActionId` prima della fila dei numeri.
+	 * ⌫ *Fino al 2026-10-04 questo commento diceva il contrario — «non porta il tasto generico, decisione
+	 * aperta in `#2990`» — dopo che `#2990` era stata chiusa e il codice aveva gia' cambiato risposta.*
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FText HotkeyLabel;
@@ -500,11 +539,44 @@ struct FRTAbilityCooldownView
 	 * raggruppamento di una palette. Le due frasi si contraddicevano dentro lo stesso modulo.
 	 *
 	 * 🔑 **Il campo resta, ed e' il ponte fra la palette e l'economia**: `1..N` sono le voci, `3` sono gli
-	 * slot, e questo dice quale voce ne consuma quale. ⛔ **Se la barra debba mostrarlo e' `#2990`**: e'
-	 * layout, e deciderlo qui lo deciderebbe di fatto.
+	 * slot, e questo dice quale voce ne consuma quale. ⛔ **Se la barra debba mostrarlo e' layout**, e il
+	 * layout e' di `#613` ([D-397], che ha chiuso `#2990`, al punto 2): deciderlo qui lo deciderebbe di fatto.
+	 * E' anche la fonte del caso reazione di `PhaseMark` (`#3465`): nessun flag la duplica.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTActionSlot Slot = ERTActionSlot::None;
+
+	/**
+	 * In quale MACRO-FASE del round questa azione risolve (`#3465`): `URTCatalogLibrary::MapResolutionPhase`
+	 * applicata alla `ResolutionPhase` che il catalogo dichiara.
+	 *
+	 * 🔑 **E' il valore onesto, anche quando lo slot dice altro.** Per una reazione e' la fase della sua core,
+	 * per `Action.Wait` e' `Move`: cio' che lo slot MOSTRA lo dice `PhaseMark`. I due campi restano separati
+	 * perche' rispondono a due domande — *quando risolve* e *che cosa si vede* — e fonderli farebbe mentire
+	 * uno dei due.
+	 *
+	 * ⚠️ `Planning` per una posizione di kit vuota: e' il default dell'enum e la macro-fase in cui nessuna
+	 * azione risolve. Chi riconosce il vuoto guarda `ActionId`, non questo.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTMatchPhase Phase = ERTMatchPhase::Planning;
+
+	/** Il segno di fase che lo slot porta, ed e' la chiave del colore: la regola sta su `ERTActionPhaseMark`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionPhaseMark PhaseMark = ERTActionPhaseMark::None;
+
+	/**
+	 * L'etichetta di `PhaseMark` — `PREP`, `BLAST`, `CLEANUP`, `REAZ.`, `—` — composta in C++ (`#3465`).
+	 *
+	 * 🔴 **E' il canale che `progettazione-hud.md` §47-bis.1 rende obbligatorio**: il colore della striscia lo
+	 * RINFORZA e non lo sostituisce ([D-232] punto 3). Uno slot che mostrasse la sola tinta perderebbe la fase
+	 * in scala di grigi — e per `Cleanup` non ci sarebbe nemmeno una tinta da perdere.
+	 *
+	 * ⚠️ **Vuota per una posizione di kit vuota, `—` per un'azione senza slot.** Non sono lo stesso caso: la
+	 * prima non ha un'azione, la seconda ne ha una che non si gioca in nessuna fase.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText PhaseLabel;
 
 	/** Turni interi che mancano. `0` = ricarica finita. **Mai negativo.** */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
@@ -990,6 +1062,28 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static TArray<FRTAbilityCooldownView> BuildAbilityCooldowns(const ARTUnit* Unit);
+
+	/**
+	 * Il segno di fase di un'azione (`#3465`). La precedenza vive qui e in nessun altro posto:
+	 *
+	 * 1. `Slot == Reaction` -> `Reaction`: una reazione non e' una fase;
+	 * 2. `Slot == None` -> `None`: un'azione che non occupa slot non si gioca in nessuna fase;
+	 * 3. altrimenti la macro-fase di `URTCatalogLibrary::MapResolutionPhase`, con `Planning` e `MatchEnded`
+	 *    -> `None`, perche' nessuna delle due ospita un'azione del giocatore.
+	 *
+	 * 🔑 **Legge il `Def`, mai una posizione** ([D-397] punto 2): lo stesso `ActionId` porta lo stesso segno in
+	 * qualunque posizione di kit stia. `HudViewModel.ActionSlotPhaseIsReadNotDeduced` lo prova spostando le
+	 * azioni e cambiando il dato.
+	 */
+	static ERTActionPhaseMark PhaseMarkFor(const FRTActionDef& Def);
+
+	/**
+	 * L'etichetta di un segno: `PREP` … `CLEANUP`, `REAZ.`, e `—` per `None`.
+	 *
+	 * ⚠️ **Non conosce la posizione di kit vuota**, che non ha un'azione e quindi non ha un segno da
+	 * etichettare: quella riga la lascia vuota `BuildAbilityCooldowns`, che e' l'unico a saperlo.
+	 */
+	static FText PhaseMarkLabel(ERTActionPhaseMark Mark);
 
 	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).

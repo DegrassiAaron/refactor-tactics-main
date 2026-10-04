@@ -18,6 +18,8 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Turn/RTTurnManager.h"
+#include "Ability/RTActionData.h"    // URTActionData::Def: la fase si cambia NEL DATO, su una copia (#3465)
+#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: il contratto di `Phase` e' la sua risposta (#3465)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1997,6 +1999,273 @@ bool FRTHudVmMovementProfileTest::RunTest(const FString&)
 		const FRTUnitSlotsView Vuota;
 		TestFalse(TEXT("il default non e' autorizzato"), Vuota.bAuthorized);
 		TestTrue(TEXT("e non porta nessun profilo"), Vuota.MovementProfileId.IsNone());
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** La posizione di kit che porta `ActionId`, o `INDEX_NONE`. Letta dal KIT, non dalla vista che si misura. */
+	int32 HudVmKitIndexOf(const ARTUnit* Unit, FName ActionId)
+	{
+		for (int32 i = 0; Unit && i < Unit->NumAbilities(); ++i)
+		{
+			const URTActionData* A = Unit->GetAbility(i);
+			if (A && A->Def.ActionId == ActionId) { return i; }
+		}
+		return INDEX_NONE;
+	}
+}
+
+/**
+ * `#3465` — OGNI SLOT DICE IN CHE FASE SI GIOCA, E I DUE CASI CHE LA MACRO-FASE NON RISOLVE HANNO UN SEGNO PROPRIO.
+ *
+ * 🔑 **L'oracolo del segno NON e' `PhaseMarkFor`**: e' una tabella di casi nominati, scritta qui a mano sul kit
+ * reale di Aevik. Chiedere a `PhaseMarkFor` che cosa aspettarsi da `PhaseMarkFor` sarebbe verde per
+ * costruzione. L'unico campo confrontato con una funzione di produzione e' `Phase`, ed e' voluto: il contratto
+ * di quel campo E' «cio' che `MapResolutionPhase` risponde», e il difetto che prende e' una seconda mappa
+ * scritta nella vista.
+ *
+ * ⚠️ **I casi sono quelli che la DoD di #3465 nomina**: Prep (`Action.Guard`), Blast (l'attacco base),
+ * Cleanup (`Hero.Aevik.ConductiveNode`, che eredita `Environment` da `Action.Electrify`) e la reazione — piu'
+ * `Action.Wait`, l'unico che non occupa uno slot, e la posizione vuota, che non ha nemmeno un'azione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmActionSlotPhaseTest,
+	"RefactorTactics.HudViewModel.ActionSlotCarriesItsPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmActionSlotPhaseTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const TArray<FRTAbilityCooldownView> Cds = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+	// --- A. `Phase` e' la macro-fase che il catalogo dichiara, su OGNI posizione popolata ------------------
+	int32 Popolate = 0;
+	for (int32 i = 0; i < Cds.Num(); ++i)
+	{
+		const URTActionData* Action = Unit->GetAbility(i);
+		if (!Action) { continue; }
+		++Popolate;
+		TestEqual(*FString::Printf(TEXT("A: la posizione %d (%s) porta la macro-fase del proprio Def"),
+				i, *Cds[i].ActionId.ToString()),
+			Cds[i].Phase, URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase));
+	}
+	// Anti-vacuita': senza posizioni popolate il ciclo non asserisce niente ed e' verde lo stesso.
+	if (!TestTrue(TEXT("A: premessa — il kit ha posizioni popolate"), Popolate > 0))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// --- B. il SEGNO e l'etichetta, caso per caso ------------------------------------------------------------
+	struct FCaso { const TCHAR* ActionId; ERTActionPhaseMark Segno; const TCHAR* Etichetta; };
+	const FCaso Casi[] = {
+		{ TEXT("Action.Guard"),                  ERTActionPhaseMark::Prep,     TEXT("PREP") },
+		{ TEXT("Hero.Aevik.ArcPulse"),           ERTActionPhaseMark::Blast,    TEXT("BLAST") },
+		{ TEXT("Hero.Aevik.ConductiveNode"),     ERTActionPhaseMark::Cleanup,  TEXT("CLEANUP") },
+		// 🔑 la reazione: il suo `Phase` resta quello della core (A lo ha gia' pinnato), il segno no.
+		{ TEXT("Hero.Aevik.ReactiveCapacitor"),  ERTActionPhaseMark::Reaction, TEXT("REAZ.") },
+		// 🔑 `Wait` non occupa slot: risolve in `NormalMovement`, ma lo slot non dice `MOVE`.
+		{ TEXT("Action.Wait"),                   ERTActionPhaseMark::None,     TEXT("—") },
+	};
+	for (const FCaso& Caso : Casi)
+	{
+		const int32 Idx = HudVmKitIndexOf(Unit, Caso.ActionId);
+		if (!TestTrue(*FString::Printf(TEXT("B: premessa — %s e' nel kit di Aevik"), Caso.ActionId),
+				Cds.IsValidIndex(Idx)))
+		{
+			continue;
+		}
+		TestEqual(*FString::Printf(TEXT("B: %s porta il segno atteso"), Caso.ActionId),
+			Cds[Idx].PhaseMark, Caso.Segno);
+		TestEqual(*FString::Printf(TEXT("B: %s porta l'etichetta attesa"), Caso.ActionId),
+			Cds[Idx].PhaseLabel.ToString(), FString(Caso.Etichetta));
+	}
+
+	// ⚠️ Il caso `Wait` prova qualcosa solo se segno e fase DIVERGONO: e' cio' che rende `Phase` il valore
+	// onesto e `PhaseMark` cio' che si vede. Se la vista copiasse il segno nella fase — o viceversa — B
+	// resterebbe verde sul segno, e questa riga no.
+	{
+		const int32 Idx = HudVmKitIndexOf(Unit, TEXT("Action.Wait"));
+		if (Cds.IsValidIndex(Idx))
+		{
+			TestEqual(TEXT("B: il Phase di Wait resta quello onesto, Move"), Cds[Idx].Phase, ERTMatchPhase::Move);
+		}
+	}
+
+	// --- C. una posizione VUOTA non ha segno ne' etichetta — nemmeno il trattino -------------------------------
+	// Il trattino dice «c'e' un'azione e non si gioca in nessuna fase»: di un vuoto sarebbe falso.
+	if (TestTrue(TEXT("C: premessa — il kit ha almeno due posizioni"), Unit->NumAbilities() >= 2))
+	{
+		Unit->Abilities[1] = nullptr;
+		const TArray<FRTAbilityCooldownView> ConBuco = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (TestTrue(TEXT("C: premessa — la riga del buco esiste"), ConBuco.IsValidIndex(1)))
+		{
+			TestEqual(TEXT("C: la posizione vuota non porta un segno"), ConBuco[1].PhaseMark, ERTActionPhaseMark::None);
+			TestTrue(TEXT("C: e la sua etichetta e' vuota, non `—`"), ConBuco[1].PhaseLabel.IsEmpty());
+		}
+	}
+
+	DestroyHudVmWorld(World);
+	return true;
+}
+
+/**
+ * `#3465` — LA FASE SI LEGGE DAL CATALOGO, NON DALLA POSIZIONE ([D-397] punto 2).
+ *
+ * 🔴 **Il kit di Aevik da solo non distingue le due ipotesi**: ogni azione sta sempre nella stessa posizione,
+ * quindi una vista che deducesse la fase dall'indice — una tabella «posizione 2 = Cleanup» — sarebbe verde
+ * su `ActionSlotCarriesItsPhase`. Qui il dato si MUOVE, in tre modi che una deduzione non segue:
+ *
+ *  - **A** cambia la `ResolutionPhase` nel dato, alla stessa posizione: il campo deve seguire;
+ *  - **B** scambia due azioni di fase diversa: le fasi devono scambiarsi CON loro, e gli indici restare;
+ *  - **C** cambia lo `Slot` nel dato: il caso reazione e il caso «nessuno slot» si leggono da li', e non
+ *    dall'`ActionId` di `Wait` o di una reazione nota;
+ *  - **D** percorre ogni `ERTResolutionPhase` sulla stessa copia: i rami che il kit reale non raggiunge —
+ *    `Dash`, `Move`, `Snapshot` — hanno un oracolo anche loro.
+ *
+ * ⛔ **Si cambia una COPIA**, mai l'oggetto del roster: `ConfigureFromHeroData` assegna `Abilities =
+ * Hero->Actions`, quindi l'azione e' condivisa con ogni altra unita' e ogni altro test del processo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmPhaseReadNotDeducedTest,
+	"RefactorTactics.HudViewModel.ActionSlotPhaseIsReadNotDeduced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHudVmWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnHudVmUnit(World, TEXT("Hero.Aevik"), 0);
+	if (!TestNotNull(TEXT("unita'"), Unit)) { DestroyHudVmWorld(World); return false; }
+
+	const int32 ArcIdx   = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ArcPulse"));
+	const int32 NodeIdx  = HudVmKitIndexOf(Unit, TEXT("Hero.Aevik.ConductiveNode"));
+	const int32 GuardIdx = HudVmKitIndexOf(Unit, TEXT("Action.Guard"));
+	if (!TestTrue(TEXT("premessa: attacco base, Conductive Node e Guardia sono nel kit"),
+			ArcIdx != INDEX_NONE && NodeIdx != INDEX_NONE && GuardIdx != INDEX_NONE))
+	{
+		DestroyHudVmWorld(World);
+		return false;
+	}
+
+	// La base: le due azioni da scambiare devono avere segni DIVERSI, o lo scambio non proverebbe nulla.
+	{
+		const TArray<FRTAbilityCooldownView> Base = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		if (!TestNotEqual(TEXT("premessa: attacco base e Conductive Node hanno segni diversi"),
+				Base[ArcIdx].PhaseMark, Base[NodeIdx].PhaseMark))
+		{
+			DestroyHudVmWorld(World);
+			return false;
+		}
+	}
+
+	// --- A. il dato cambia, il campo segue ----------------------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		const ERTResolutionPhase FaseOriginale = Originale->Def.ResolutionPhase;
+
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.ResolutionPhase = ERTResolutionPhase::Preparation;
+		Unit->Abilities[ArcIdx] = Copia;
+
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("A: con la fase cambiata nel dato, Phase la segue"), Dopo[ArcIdx].Phase, ERTMatchPhase::Prep);
+		TestEqual(TEXT("A: e anche il segno"), Dopo[ArcIdx].PhaseMark, ERTActionPhaseMark::Prep);
+		TestEqual(TEXT("A: e l'etichetta"), Dopo[ArcIdx].PhaseLabel.ToString(), FString(TEXT("PREP")));
+
+		Unit->Abilities[ArcIdx] = Originale;
+		TestEqual(TEXT("A: l'oggetto del roster non e' stato toccato"),
+			Originale->Def.ResolutionPhase, FaseOriginale);
+	}
+
+	// --- B. le azioni si scambiano, le fasi le seguono, gli indici restano ---------------------------------
+	{
+		const TArray<FRTAbilityCooldownView> Prima = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		Unit->Abilities.Swap(ArcIdx, NodeIdx);
+		const TArray<FRTAbilityCooldownView> Dopo = URTHudViewModel::BuildAbilityCooldowns(Unit);
+
+		TestEqual(TEXT("B: nella posizione dell'attacco base ora c'e' Conductive Node"),
+			Dopo[ArcIdx].ActionId, Prima[NodeIdx].ActionId);
+		TestEqual(TEXT("B: e porta il segno di Conductive Node, non quello della posizione"),
+			Dopo[ArcIdx].PhaseMark, Prima[NodeIdx].PhaseMark);
+		TestEqual(TEXT("B: e viceversa"), Dopo[NodeIdx].PhaseMark, Prima[ArcIdx].PhaseMark);
+		TestEqual(TEXT("B: l'indice resta quello della posizione"), Dopo[ArcIdx].AbilityIndex, ArcIdx);
+
+		Unit->Abilities.Swap(ArcIdx, NodeIdx);
+	}
+
+	// --- C. lo SLOT nel dato decide reazione e «nessuno slot» ------------------------------------------------
+	{
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[GuardIdx];
+
+		URTActionData* ComeReazione = DuplicateObject<URTActionData>(Originale, Unit);
+		ComeReazione->Def.Slot = ERTActionSlot::Reaction;
+		Unit->Abilities[GuardIdx] = ComeReazione;
+		const TArray<FRTAbilityCooldownView> Reazione = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("C: con Slot = Reaction nel dato, il segno e' Reaction"),
+			Reazione[GuardIdx].PhaseMark, ERTActionPhaseMark::Reaction);
+		TestEqual(TEXT("C: e l'etichetta e' REAZ."), Reazione[GuardIdx].PhaseLabel.ToString(), FString(TEXT("REAZ.")));
+		TestEqual(TEXT("C: mentre Phase resta quello onesto della Guardia"),
+			Reazione[GuardIdx].Phase, ERTMatchPhase::Prep);
+
+		URTActionData* SenzaSlot = DuplicateObject<URTActionData>(Originale, Unit);
+		SenzaSlot->Def.Slot = ERTActionSlot::None;
+		Unit->Abilities[GuardIdx] = SenzaSlot;
+		const TArray<FRTAbilityCooldownView> Nessuno = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("C: con Slot = None nel dato, nessun segno"),
+			Nessuno[GuardIdx].PhaseMark, ERTActionPhaseMark::None);
+		TestEqual(TEXT("C: e l'etichetta e' il trattino"), Nessuno[GuardIdx].PhaseLabel.ToString(), FString(TEXT("—")));
+
+		Unit->Abilities[GuardIdx] = Originale;
+	}
+
+	// --- D. OGNI fase di risoluzione ha il proprio segno, anche quelle che il kit di Aevik non porta ----------
+	// 🔴 **Il kit reale non raggiunge tre rami**: nessuna sua azione e' `FastMovement`, `Action.Move` non c'e',
+	// e `Wait` esce prima dello `switch` per `Slot == None`. Senza questo blocco `Dash -> Move`, o un refuso in
+	// `DASH`/`MOVE`, sarebbero sopravvissuti a tutta la suite — lo ha trovato la revisione di #3467.
+	// La tabella e' scritta a mano, come in `ActionSlotCarriesItsPhase`: chiederla a `PhaseMarkFor` sarebbe
+	// verde per costruzione.
+	{
+		struct FRiga { ERTResolutionPhase Fase; ERTActionPhaseMark Segno; const TCHAR* Etichetta; };
+		const FRiga Righe[] = {
+			{ ERTResolutionPhase::Snapshot,       ERTActionPhaseMark::None,    TEXT("—") },
+			{ ERTResolutionPhase::Preparation,    ERTActionPhaseMark::Prep,    TEXT("PREP") },
+			{ ERTResolutionPhase::FastMovement,   ERTActionPhaseMark::Dash,    TEXT("DASH") },
+			{ ERTResolutionPhase::NormalMovement, ERTActionPhaseMark::Move,    TEXT("MOVE") },
+			{ ERTResolutionPhase::Control,        ERTActionPhaseMark::Blast,   TEXT("BLAST") },
+			{ ERTResolutionPhase::Attack,         ERTActionPhaseMark::Blast,   TEXT("BLAST") },
+			{ ERTResolutionPhase::Environment,    ERTActionPhaseMark::Cleanup, TEXT("CLEANUP") },
+			{ ERTResolutionPhase::Cleanup,        ERTActionPhaseMark::Cleanup, TEXT("CLEANUP") },
+		};
+
+		// ⚠️ La tabella copre l'enum INTERO, e lo verifica invece di presumerlo: una fase aggiunta a
+		// `ERTResolutionPhase` senza una riga qui diventa rossa, non un ramo muto. `NumEnums()` conta anche il
+		// `_MAX` che UHT genera, da cui il `- 1`.
+		TestEqual(TEXT("D: premessa — la tabella ha una riga per ogni ERTResolutionPhase"),
+			static_cast<int32>(UE_ARRAY_COUNT(Righe)), StaticEnum<ERTResolutionPhase>()->NumEnums() - 1);
+
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.Slot = ERTActionSlot::Main; // il ramo dello switch: ne' reazione ne' «nessuno slot»
+		Unit->Abilities[ArcIdx] = Copia;
+
+		for (const FRiga& Riga : Righe)
+		{
+			Copia->Def.ResolutionPhase = Riga.Fase;
+			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(Unit);
+			const FString Nome = StaticEnum<ERTResolutionPhase>()->GetNameStringByValue(static_cast<int64>(Riga.Fase));
+			TestEqual(*FString::Printf(TEXT("D: %s porta il segno atteso"), *Nome), Vista[ArcIdx].PhaseMark, Riga.Segno);
+			TestEqual(*FString::Printf(TEXT("D: %s porta l'etichetta attesa"), *Nome),
+				Vista[ArcIdx].PhaseLabel.ToString(), FString(Riga.Etichetta));
+		}
+
+		Unit->Abilities[ArcIdx] = Originale;
 	}
 
 	DestroyHudVmWorld(World);
