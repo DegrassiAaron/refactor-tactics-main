@@ -124,11 +124,41 @@ registrata guarda `ActionId` **o** `BaseActionId`.
 | `spec-barra-comandi.md` | dodici comandi, la riga di `Brace` in §1 e §3; un puntatore `file:riga` scaduto sostituito col simbolo |
 | `progettazione-hud.md` | §6.3, §6.4, §6.6, §6.7 e §6.8 allineate a D-456; la nota di §6.7 su #1410/#653 rimisurata contro D-425 |
 | C++ (#3468) | `ERTActionGroup`, `FRTAbilityCooldownView::Group`, `URTHudViewModel::GroupFor`; test `HudViewModel.ActionSlotCarriesItsGroup` e `HudViewModel.ActionSlotGroupIsReadNotDeduced` |
+| Revisione indipendente | due difetti importanti e quattro minori, tutti verificati e chiusi — §5 |
 | `RTContextInspector.h` | il commento che elenca i proprietari delle zone di §6 segue D-456 |
 
 ## 5. Verifica
 
-Vedi la PR di #3468 per gli esiti: build, test nuovi, mutazione, suite prima e dopo.
+Misurata nel clone `refactor-tactics-dev`, con `tools/suite/esegui.py` e `-abslog` nello scratchpad di sessione.
+Per ogni suite completa l'invariante di `AGENTS.md` §9 — `HEAD`, working tree, hash della DLL — è identico a
+inizio e fine.
+
+| Gate | Esito | Su che cosa |
+|---|---|---|
+| Compile, Editor Development | `PASS` — `Result: Succeeded`, **0 warning** | a ogni build; i file toccati compilati come unità proprie |
+| Test nuovi | `PASS` | `HudViewModel.ActionSlotCarriesItsGroup` (blocchi A–D) · `HudViewModel.ActionSlotGroupIsReadNotDeduced` (blocchi A–E) |
+| M1 — gruppo dedotto dalla posizione | **rosso** `ActionSlotGroupIsReadNotDeduced` su A, B, C, D | `ActionSlotCarriesItsGroup` verde, come il suo docstring dichiara: sul kit di Aevik le due ipotesi coincidono |
+| M2 — senza il caso d'identità di D-455 | **rosso solo D** | — |
+| M3 — `if` di `GroupFor` scambiati | **rosso solo E** | il blocco nato dalla revisione |
+| Suite completa, prima | `PASS` — 2825/2825, misurata **dalla sessione del mattino** | `4d18c5268`, con alberi `Source`, `Content` e `Config` identici a `main` = `06b76a716` |
+| Suite completa, dopo | `PASS` — **2827/2827**, 0 `Fail` | `fd76a3be9`, poi di nuovo su `69a4f0c61` dopo le correzioni della revisione |
+| Corpus golden | `PASS`, nessun bump | `Simulation.GoldenCorpusMatches` verde in entrambe le suite |
+| Radar | `PASS` sul diff | due rossi preesistenti e fuori dal diff: `pie-verdict-age` (`RTContextInspector.cpp`, non toccato) e `wiki-alt` (clone della wiki) |
+| Determinism · Replay · Privacy | `N/A` | sola vista: nessuno stato canonico, nessun dato del piano altrui |
+| PIE · Packaged | `NOT RUN` | la resa è una seduta Editor, dopo #3469 |
+
+**Revisione indipendente** (agente in sola lettura sul diff): nessun difetto nel codice né nei test. Ha trovato
+due difetti importanti e quattro minori, **verificati prima di correggerli**:
+- l'equipaggiamento accodato dopo le generiche, che rende i gruppi non contigui (§2.1, D-455 punto 2);
+- la motivazione di D-456 scritta su un kit senza loadout;
+- la precedenza Comuni → Base senza oracolo;
+- tre frasi stantie in `progettazione-hud.md`, una promessa sulla difesa caratteristica e un puntatore `file:riga` scaduto.
+
+Tutti chiusi in `69a4f0c61`.
+
+⚠️ **Contesto**: durante la prima suite un Editor era aperto nel clone principale da un'altra sessione. Era
+inattivo e si è chiuso 37 s dopo l'avvio, a detta di quella sessione. Le misure sono di esito e girano in un
+altro clone, quindi per `AGENTS.md` §9 non c'è conflitto.
 
 ## 6. Seguiti
 
