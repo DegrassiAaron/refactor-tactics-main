@@ -11,6 +11,7 @@ import {
   collisioniInAlbero,
   numeriAggiunti,
   collisioniFraRef,
+  stessaPresaInGit,
 } from './decision-ids.ts';
 
 const VUOTO: ReadonlySet<string> = new Set();
@@ -176,4 +177,85 @@ test('l\'ordine del referto non dipende dal locale della macchina', () => {
   const out = collisioniFraRef(perRef, VUOTO);
   assert.deepEqual(out, [...out].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0)));
   assert.ok(out[0].startsWith('D-100'));
+});
+
+// ---------------------------------------------------------------------------------------------
+// #3480 — una presa CONDIVISA da branch impilati non e' due prese
+// ---------------------------------------------------------------------------------------------
+
+/** Un predicato finto: condividono la presa solo le coppie elencate, in qualunque ordine. */
+function condivise(...coppie: [string, string][]): (id: string, a: string, b: string) => boolean {
+  return (_id, a, b) => coppie.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+}
+
+test('PROVA CHE SA FALLIRE — due ref IMPILATI che condividono la presa non collidono, e la presa e\' riportata', () => {
+  // E' il caso misurato il 2026-10-04: `issue/3469` creato sopra `issue/3468`, entrambi con D-454.
+  const perRef = new Map([
+    ['origin/issue/3468', new Map([['D-454', 1]])],
+    ['origin/issue/3469', new Map([['D-454', 1]])],
+  ]);
+  const riportate: string[] = [];
+  assert.deepEqual(
+    collisioniFraRef(perRef, VUOTO, condivise(['origin/issue/3468', 'origin/issue/3469']), riportate),
+    [],
+  );
+  assert.deepEqual(riportate, ['D-454: presa condivisa da origin/issue/3468, origin/issue/3469']);
+
+  // Controllo positivo: senza il predicato e' la collisione di prima. Il caso sopra e' verde perche'
+  // il predicato dice «condivisa», non perche' la funzione abbia smesso di contare.
+  assert.deepEqual(collisioniFraRef(perRef, VUOTO), [
+    'D-454: rivendicato da 2 ref — origin/issue/3468, origin/issue/3469',
+  ]);
+});
+
+test('tre ref, due condividono e uno no: e\' una collisione, e il referto li nomina tutti', () => {
+  const perRef = new Map([
+    ['origin/a', new Map([['D-500', 1]])],
+    ['origin/b', new Map([['D-500', 1]])],
+    ['origin/c', new Map([['D-500', 1]])],
+  ]);
+  assert.deepEqual(collisioniFraRef(perRef, VUOTO, condivise(['origin/a', 'origin/b'])), [
+    'D-500: rivendicato da 3 ref — origin/a, origin/b, origin/c',
+  ]);
+});
+
+test('la condivisione si chiude per transitivita\': a~b e b~c sono UNA presa', () => {
+  const perRef = new Map([
+    ['origin/a', new Map([['D-501', 1]])],
+    ['origin/b', new Map([['D-501', 1]])],
+    ['origin/c', new Map([['D-501', 1]])],
+  ]);
+  assert.deepEqual(
+    collisioniFraRef(perRef, VUOTO, condivise(['origin/a', 'origin/b'], ['origin/b', 'origin/c'])),
+    [],
+  );
+});
+
+test('una presa condivisa di un numero GIA\' preso in main resta una collisione', () => {
+  const perRef = new Map([
+    ['origin/a', new Map([['D-433', 1]])],
+    ['origin/b', new Map([['D-433', 1]])],
+  ]);
+  assert.deepEqual(collisioniFraRef(perRef, new Set(['D-433']), condivise(['origin/a', 'origin/b'])), [
+    "D-433: gia' preso in origin/main, e origin/a, origin/b lo rivendicano di nuovo",
+  ]);
+});
+
+test('il predicato REALE, su commit veri: #3469 sopra #3468 condivide D-454, la base no', (t) => {
+  // ⚠️ Commit della storia di `main` dal 2026-10-04: `06b76a716` e' il main di allora, `abe656ed7` la testa
+  // di #3468 (che aggiunge D-454..456), `01f5e5dc6` la testa di #3469, costruita sopra. Permanenti, perche'
+  // mergiati; su un clone shallow non ci sono, e il test lo dichiara invece di passare.
+  if (isShallow()) {
+    t.skip('clone shallow: la storia che il test legge non c\'e\'');
+    return;
+  }
+  const base = '06b76a716';
+  assert.equal(stessaPresaInGit(base, 'D-454', 'abe656ed7', '01f5e5dc6'), true,
+    'branch impilati: il merge-base e\' #3468, che aggiunge D-454');
+  assert.equal(stessaPresaInGit(base, 'D-454', '06b76a716', 'abe656ed7'), false,
+    'controllo negativo: il merge-base e\' la base, che D-454 non ce l\'ha');
+  assert.equal(stessaPresaInGit(base, 'D-999', 'abe656ed7', '01f5e5dc6'), false,
+    'un numero che il merge-base non aggiunge non e\' condiviso');
+  assert.equal(stessaPresaInGit(base, 'D-454', 'abe656ed7', 'non-un-ref-vero'), false,
+    'se git non risponde il predicato dice FALSO: il dubbio non diventa un verde');
 });
