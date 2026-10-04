@@ -4664,9 +4664,9 @@ sessions:
       - docs/technical/evidence/hud/u61-stati-slot-scala-di-grigi.png
     # 🔑 **Una sola prova, ed e' quella che §47-bis.1 chiede**: una cattura degli stati dello slot portata
     # in scala di grigi, in cui nessuno stato si confonde con un altro. Il riferimento da imitare e' la
-    # riga inferiore di `docs/research/design/hud/skill-bar-2026-10/immagini/08-stati-slot.png`. I due
-    # `.uasset` non sono elencati: sono gia' tracciati, quindi `git ls-files` direbbe «esiste» prima ancora
-    # di cominciare.
+    # riga inferiore di `docs/research/design/hud/skill-bar-2026-10/immagini/08-stati-slot.png`.
+    # `WBP_RT_ActionSlot.uasset` e `WBP_RT_ActionDock.uasset` non sono elencati: sono gia' tracciati, quindi
+    # `git ls-files` direbbe «esiste» prima ancora di cominciare.
     unblocked_by: []
     # ⚠️ **Vuoto perche' il codice entra nello STESSO merge**, non perche' manchi una dipendenza: la vista
     # porta `Phase`, `PhaseMark` e `PhaseLabel` da #3465, e questa voce nasce nella sua stessa PR.
@@ -4677,7 +4677,9 @@ sessions:
     verifies: []
     # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
     # sta nell'editor PRIMA del Play — la prova in scala di grigi sulla cattura degli stati — quindi il
-    # verdetto va nella issue owner (#3465 per la fase, #2826 per gli stati) e nell'artefatto qui sopra.
+    # verdetto va nella issue owner e nell'artefatto qui sopra. ⚠️ La issue e' #2826, che possiede la
+    # leggibilita' dello slot e resta aperta: #3465 consegna il DATO e si chiude col proprio merge, quindi un
+    # verdetto scritto li' finirebbe in una issue chiusa.
     issues: [3465, 2826]
     done_when: >-
       ogni slot della dock porta striscia ed etichetta di fase lette da `Action.PhaseMark` e

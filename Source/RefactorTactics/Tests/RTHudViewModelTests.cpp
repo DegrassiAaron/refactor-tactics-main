@@ -2126,7 +2126,9 @@ bool FRTHudVmActionSlotPhaseTest::RunTest(const FString&)
  *  - **A** cambia la `ResolutionPhase` nel dato, alla stessa posizione: il campo deve seguire;
  *  - **B** scambia due azioni di fase diversa: le fasi devono scambiarsi CON loro, e gli indici restare;
  *  - **C** cambia lo `Slot` nel dato: il caso reazione e il caso «nessuno slot» si leggono da li', e non
- *    dall'`ActionId` di `Wait` o di una reazione nota.
+ *    dall'`ActionId` di `Wait` o di una reazione nota;
+ *  - **D** percorre ogni `ERTResolutionPhase` sulla stessa copia: i rami che il kit reale non raggiunge —
+ *    `Dash`, `Move`, `Snapshot` — hanno un oracolo anche loro.
  *
  * ⛔ **Si cambia una COPIA**, mai l'oggetto del roster: `ConfigureFromHeroData` assegna `Abilities =
  * Hero->Actions`, quindi l'azione e' condivisa con ogni altra unita' e ogni altro test del processo.
@@ -2221,6 +2223,49 @@ bool FRTHudVmPhaseReadNotDeducedTest::RunTest(const FString&)
 		TestEqual(TEXT("C: e l'etichetta e' il trattino"), Nessuno[GuardIdx].PhaseLabel.ToString(), FString(TEXT("—")));
 
 		Unit->Abilities[GuardIdx] = Originale;
+	}
+
+	// --- D. OGNI fase di risoluzione ha il proprio segno, anche quelle che il kit di Aevik non porta ----------
+	// 🔴 **Il kit reale non raggiunge tre rami**: nessuna sua azione e' `FastMovement`, `Action.Move` non c'e',
+	// e `Wait` esce prima dello `switch` per `Slot == None`. Senza questo blocco `Dash -> Move`, o un refuso in
+	// `DASH`/`MOVE`, sarebbero sopravvissuti a tutta la suite — lo ha trovato la revisione di #3467.
+	// La tabella e' scritta a mano, come in `ActionSlotCarriesItsPhase`: chiederla a `PhaseMarkFor` sarebbe
+	// verde per costruzione.
+	{
+		struct FRiga { ERTResolutionPhase Fase; ERTActionPhaseMark Segno; const TCHAR* Etichetta; };
+		const FRiga Righe[] = {
+			{ ERTResolutionPhase::Snapshot,       ERTActionPhaseMark::None,    TEXT("—") },
+			{ ERTResolutionPhase::Preparation,    ERTActionPhaseMark::Prep,    TEXT("PREP") },
+			{ ERTResolutionPhase::FastMovement,   ERTActionPhaseMark::Dash,    TEXT("DASH") },
+			{ ERTResolutionPhase::NormalMovement, ERTActionPhaseMark::Move,    TEXT("MOVE") },
+			{ ERTResolutionPhase::Control,        ERTActionPhaseMark::Blast,   TEXT("BLAST") },
+			{ ERTResolutionPhase::Attack,         ERTActionPhaseMark::Blast,   TEXT("BLAST") },
+			{ ERTResolutionPhase::Environment,    ERTActionPhaseMark::Cleanup, TEXT("CLEANUP") },
+			{ ERTResolutionPhase::Cleanup,        ERTActionPhaseMark::Cleanup, TEXT("CLEANUP") },
+		};
+
+		// ⚠️ La tabella copre l'enum INTERO, e lo verifica invece di presumerlo: una fase aggiunta a
+		// `ERTResolutionPhase` senza una riga qui diventa rossa, non un ramo muto. `NumEnums()` conta anche il
+		// `_MAX` che UHT genera, da cui il `- 1`.
+		TestEqual(TEXT("D: premessa — la tabella ha una riga per ogni ERTResolutionPhase"),
+			static_cast<int32>(UE_ARRAY_COUNT(Righe)), StaticEnum<ERTResolutionPhase>()->NumEnums() - 1);
+
+		const TObjectPtr<URTActionData> Originale = Unit->Abilities[ArcIdx];
+		URTActionData* Copia = DuplicateObject<URTActionData>(Originale, Unit);
+		Copia->Def.Slot = ERTActionSlot::Main; // il ramo dello switch: ne' reazione ne' «nessuno slot»
+		Unit->Abilities[ArcIdx] = Copia;
+
+		for (const FRiga& Riga : Righe)
+		{
+			Copia->Def.ResolutionPhase = Riga.Fase;
+			const TArray<FRTAbilityCooldownView> Vista = URTHudViewModel::BuildAbilityCooldowns(Unit);
+			const FString Nome = StaticEnum<ERTResolutionPhase>()->GetNameStringByValue(static_cast<int64>(Riga.Fase));
+			TestEqual(*FString::Printf(TEXT("D: %s porta il segno atteso"), *Nome), Vista[ArcIdx].PhaseMark, Riga.Segno);
+			TestEqual(*FString::Printf(TEXT("D: %s porta l'etichetta attesa"), *Nome),
+				Vista[ArcIdx].PhaseLabel.ToString(), FString(Riga.Etichetta));
+		}
+
+		Unit->Abilities[ArcIdx] = Originale;
 	}
 
 	DestroyHudVmWorld(World);

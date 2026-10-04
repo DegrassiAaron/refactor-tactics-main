@@ -1,7 +1,7 @@
 # Il mockup della skill bar (2026-10-04) — spec panel sul pacchetto, e che cosa ne è entrato
 
 > `CURRENT` · **Stato**: triage chiuso, lavoro eseguibile consegnato in [#3465](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3465).
-> Restano **due voci di Decision Log proposte e non committate** (§5) e una seduta Editor (`U61`).
+> Restano le voci di Decision Log **D-454 e D-455, proposte e non committate** (§5), e la seduta Editor `U61`.
 > **Data**: 2026-10-04 · **Misurato su** `origin/main` = `77d253f70`, nel clone `refactor-tactics-dev`:
 > il clone principale era occupato da un'altra sessione, che alle 13:44 aveva cambiato branch e stava
 > modificando `editor-sessions.yaml`.
@@ -49,7 +49,8 @@ adattato con le sue risposte, non in silenzio.
 - il commento su `FRTAbilityCooldownView::HotkeyLabel` diceva *«non porta il tasto generico, decisione
   aperta in #2990»*, ma `HotkeyLabelFor` restituisce le lettere da [D-397](../../decisions/RT_PDR_00_Decision_Log.md)
   punto 4. Corretto in #3465;
-- `ERTActionSlotState` produce già sei stati via `URTHudViewModel::ResolveSlotState` (#2988), e il suo
+- `ERTActionSlotState` produce già `Empty` · `Selected` · `Planned` · `Cooldown` · `Unavailable` · `Available`
+  via `URTHudViewModel::ResolveSlotState` (#2988), e il suo
   commento dichiara che **Invalid e Warning riguardano il bersaglio** (`ERTTargetRefusal`), non l'azione.
 
 ## 3. La classificazione del §2 del prompt, corretta
@@ -59,7 +60,7 @@ adattato con le sue risposte, non in silenzio.
 | Gruppi Comuni · Base · Kit | `PROPOSTA` | `PROPOSTA` → **decisa** (§5.2) | La regola è decisa; il campo non esiste ancora. ⚠️ D-397 punto 2 aveva **differito il raggruppamento per scope**: la decisione lo riapre |
 | Tasto su ogni slot | `CURRENT` | `CURRENT` | `HotkeyLabel`, lettere comprese (D-397 punto 4) |
 | Striscia ed etichetta di fase | `DESIGNED` | `CURRENT` nella vista con #3465; resa in `U61` | §4.2 |
-| Stati Available … Warning | `PARTIAL` | sei stati `CURRENT` nel C++; Hover è del widget; **Invalid/Warning in `CONTRACT CONFLICT`** fra `progettazione-hud.md` §7 e il commento di `ERTActionSlotState` | §5.4 |
+| Stati Available … Warning | `PARTIAL` | gli stati di `ERTActionSlotState` sono `CURRENT` nel C++; Hover è del widget; **Invalid/Warning in `CONTRACT CONFLICT`** fra `progettazione-hud.md` §7 e il commento di `ERTActionSlotState` | §5.4 |
 | Slot occupati | `DESIGNED`, *«unica voce scoperta del piano UI-0»* | **`CURRENT`** — `FRTUnitSlotsView`, `URTSelectedUnitPanelWidget::GetSlots()`, coperti da `ScreenHud.SlotsAreReadNotDeduced`, `ScreenHud.MovementSlotSaysNothingWhenUnauthorized` e `ScreenHud.InspectedEnemyNeverCarriesItsPlannedSlots` | `STALE ROADMAP`: la frase è del piano UI-0 del 2026-08-12, scritta prima che la vista esistesse |
 | Selettore di profilo `Withdraw · Sneak · Move · Sprint` | `FUTURE`, bloccato da #1410 e #653 | **`CONTRACT CONFLICT` con [D-425](../../decisions/RT_PDR_00_Decision_Log.md)** | Il profilo non si sceglie fra quattro etichette: `Withdraw` lo impone la riserva, `Sneak` si dichiara col tasto `M`, `Move` e `Sprint` sono la banda derivata dalla distanza. Resta `FUTURE` solo il blocco per `Stability` (#606) |
 | Slot Difesa caratteristica | `FUTURE` | `FUTURE` | #3130 |

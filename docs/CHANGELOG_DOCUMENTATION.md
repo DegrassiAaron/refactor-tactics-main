@@ -12,7 +12,7 @@ panel e misurato su `origin/main` = `77d253f70`. Referto:
 
 | Dove | Che cosa |
 |---|---|
-| [`research/design/hud/skill-bar-2026-10/`](research/design/hud/skill-bar-2026-10/) | La sorgente di design, `PROPOSTA`: specifica visiva, token, comandi di Aevik, otto tavole e sorgente del canvas. Il work order resta fuori ([`AGENTS.md`](../AGENTS.md) §8) |
+| [`research/design/hud/skill-bar-2026-10/`](research/design/hud/skill-bar-2026-10/) | La sorgente di design, `PROPOSTA`: specifica visiva, token, comandi di Aevik, le tavole `immagini/01..08` e sorgente del canvas. Il work order resta fuori ([`AGENTS.md`](../AGENTS.md) §8) |
 | [`roadmap/editor-sessions.yaml`](roadmap/editor-sessions.yaml) | `U61`: lo slot dice la fase, e i suoi stati reggono la scala di grigi |
 | `Source/RefactorTactics/UI/RTHudViewModel.*` | `Phase`, `PhaseMark` e `PhaseLabel` nella vista della dock — [#3465](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3465) |
 
@@ -25,7 +25,7 @@ panel e misurato su `origin/main` = `77d253f70`. Referto:
   #653, che sono invece chiuse. E contraddice `D-425`: il profilo si deriva dalla distanza, non si
   sceglie fra quattro etichette.
 
-### Due voci di registro proposte, e non committate
+### `D-454` e `D-455`: proposte, e non committate
 
 `D-454` (`Brace` è il dodicesimo comando della barra) e `D-455` (il gruppo di una voce della dock si
 deriva da dati che esistono). Il testo pronto sta nel referto §5. Il numero va rimisurato prima del merge

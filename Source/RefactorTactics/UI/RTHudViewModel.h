@@ -540,7 +540,7 @@ struct FRTAbilityCooldownView
 	 *
 	 * 🔑 **Il campo resta, ed e' il ponte fra la palette e l'economia**: `1..N` sono le voci, `3` sono gli
 	 * slot, e questo dice quale voce ne consuma quale. ⛔ **Se la barra debba mostrarlo e' layout**, e il
-	 * layout e' di `#613` ([D-397] punto 2, che ha chiuso `#2990`): deciderlo qui lo deciderebbe di fatto.
+	 * layout e' di `#613` ([D-397], che ha chiuso `#2990`, al punto 2): deciderlo qui lo deciderebbe di fatto.
 	 * E' anche la fonte del caso reazione di `PhaseMark` (`#3465`): nessun flag la duplica.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
