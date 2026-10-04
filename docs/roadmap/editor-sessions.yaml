@@ -4508,10 +4508,23 @@ sessions:
       ⛔ Lo script NON chiude `G16`: i Lab sono Editor-only e i giudizi percettivi restano, e lo
       dichiara in testa.
 
-      ⚠️ **UN'ANOMALIA DA GUARDARE, non chiusa**: l'archivio della run troncata porta `TurnCount 5`
-      mentre il suo log conta **dodici** turni, e la run completa non ha prodotto archivio affatto
-      (`grep -aic 'replay|rtaudit|MatchId'` sul suo log → **0**). Se il replay registrasse meno turni di
-      quelli giocati, il passo 5 riaprirebbe una partita **parziale** credendola intera.
+      ✅ **L'ANOMALIA E' STATA MISURATA, e la mia prima ipotesi era SBAGLIATA.** Avevo sospettato che il
+      replay registrasse meno turni di quelli giocati, perche' un archivio portava `TurnCount 5` mentre
+      il log contava dodici turni. ⛔ Falso: gli mtime dei suoi file (13:04-13:06) **precedono** le run
+      del pacchetto, e `Board 2v2` compare **3** volte nel log di questa seduta — quell'archivio e' la
+      TERZA partita del giro 2 in Editor, abbandonata al turno 5 alla chiusura. Il suo `TurnCount` dice
+      il vero.
+
+      🔴 **Il difetto vero e' un altro, ed e' piu' grave**:
+      [#3463](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3463). Sul **pacchetto** una
+      partita completa — dodici turni, `Partita finita` — non produce **nessun** archivio, e
+      `BeginReplayRecording` esce **in silenzio** su `!bRecordReplay || MatchRules.FormatId.IsNone()`:
+      nessun log, nessun avviso. Il testimone del fallimento per-turno risponde `0`, quindi la
+      registrazione non e' mai partita. In Editor funziona — tre archivi corretti lo stesso giorno — e
+      la differenza fra i due contesti E' il difetto.
+
+      ⚠️ **Conseguenza sul passo 5**: non e' automatizzabile dal pacchetto finche' #3463 e' aperta, e
+      `giro-meccanico.ps1` dichiara `[FAIL]` su quel passo per questa ragione e non per il Viewer.
 
       🟡 **Parzialmente eseguita il 2026-10-04** — Editor compilato da `ac2568992`, il cui runtime e'
       identico al candidate `95eddfd37` (0 righe non-commento fuori da `Tests/`). Una sola apertura, con
