@@ -1,4 +1,4 @@
-// Le otto zone dello Screen HUD, provate come CLASSE e non come albero.
+// Le zone dello Screen HUD, provate come CLASSE e non come albero.
 //
 // 🔑 **La divisione con `RTMatchWidgetAssetTests.cpp` e' deliberata**: questi test girano senza caricare
 // nessun asset e sono verdi appena il Task 1 compila. I due gate sull'albero vivono nell'altro file e
