@@ -314,6 +314,43 @@ struct FRTUnitSlotsView
 };
 
 /**
+ * La LETTURA del movimento all'estremita' destra della barra dei comandi (`#3470`, [D-456] punto 3).
+ *
+ * 🔑 **E' una lettura, non un selettore**: il profilo si deriva dalla distanza e dalla riserva, e si dichiara
+ * soltanto `Sneak` col suo tasto ([D-425]). Il selettore a quattro pulsanti del mockup del 2026-10-04
+ * contraddirebbe quella decisione.
+ *
+ * ⛔ **Privacy**: si costruisce solo per l'unita' COMANDATA. Il default — `bAuthorized == false`, tutto vuoto —
+ * e' la sola risposta che non racconta niente del piano di un'unita' che non si comanda, e chi disegna
+ * nasconde l'indicatore invece di mostrarne uno spento che dica «fermo».
+ */
+USTRUCT(BlueprintType)
+struct FRTMovementReadoutView
+{
+	GENERATED_BODY()
+
+	/** Falso per chi non comanda il soggetto, o senza soggetto: tutto il resto e' allora vuoto. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bAuthorized = false;
+
+	/** Il profilo che il piano spende: la stessa autorita' di `FRTUnitSlotsView::MovementProfileId`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FName ProfileId;
+
+	/** Nome e moltiplicatore, pronti da legare — `Move ×1`, `Sprint ×2`, `Withdraw ×0,25`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Label;
+
+	/** Il giocatore ha DICHIARATO `Sneak`: il badge del tasto si mostra acceso. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bSneakDeclared = false;
+
+	/** Il tasto che dichiara `Sneak`, da `ARTPlayerController::SneakHotkey()`: mai scritto nel grafo. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText SneakKeyLabel;
+};
+
+/**
  * Uno stato temporaneo da mostrare sopra un'unita': quale, con che icona, per quanto ancora (`#2274`).
  *
  * 🔑 **Porta l'`IconId` e non lascia che sia chi disegna a comporlo.** La chiave si deriva dal tag con
@@ -1100,6 +1137,25 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static FRTUnitSlotsView BuildUnitSlots(const ARTUnit* Unit);
+
+	/**
+	 * La lettura del movimento dell'unita' COMANDATA (`#3470`). Il profilo viene da `BuildUnitSlots`, cioe' da
+	 * `URTMovementProfileLibrary::ProfileForPlan`: nessuna seconda strada verso la stessa risposta.
+	 *
+	 * ⛔ **Il chiamante passa solo l'unita' comandata** — la dock passa `GetSelectedUnit()`, mai il soggetto
+	 * ispezionato — e con `nullptr` torna il default non autorizzato.
+	 */
+	static FRTMovementReadoutView BuildMovementReadout(const ARTUnit* Unit);
+
+	/**
+	 * Nome e moltiplicatore di un profilo: `Move ×1`, `Sprint ×2`, `Sneak ×0,5`, `Withdraw ×0,25`, e `Still`
+	 * senza moltiplicatore. Vuoto per un id che il catalogo non conosce.
+	 *
+	 * 🔑 **Il moltiplicatore si LEGGE dal catalogo** (`MoveBudgetPercent`, [D-412]) e non si scrive qui: un
+	 * profilo ritarato cambia l'etichetta da se'. ⚠️ **I nomi sono quelli canonici di [D-425]**, come nel
+	 * mockup della barra: e' una scelta di presentazione, e questa e' la sua sede unica.
+	 */
+	static FText MovementReadoutLabel(FName ProfileId);
 
 	/**
 	 * La ricarica di **ogni** azione del kit, nell'ordine del kit (CP 11.1). Unita' nulla da' un elenco vuoto.

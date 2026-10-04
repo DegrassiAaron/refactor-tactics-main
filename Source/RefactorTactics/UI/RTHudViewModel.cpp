@@ -542,6 +542,62 @@ ERTActionGroup URTHudViewModel::GroupFor(const FRTActionDef& Def)
 	return ERTActionGroup::Kit;
 }
 
+FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit)
+{
+	FRTMovementReadoutView View;
+	if (!Unit)
+	{
+		return View;
+	}
+
+	const FRTUnitSlotsView Slots = BuildUnitSlots(Unit);
+	View.bAuthorized = Slots.bAuthorized;
+	View.ProfileId = Slots.MovementProfileId;
+	View.Label = MovementReadoutLabel(View.ProfileId);
+	// `PlannedMovementProfileId` porta SOLO la dichiarazione del giocatore (oggi `Sneak`, o vuoto): [D-425].
+	View.bSneakDeclared = Unit->PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
+	View.SneakKeyLabel = ARTPlayerController::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	return View;
+}
+
+FText URTHudViewModel::MovementReadoutLabel(FName ProfileId)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	const FRTMovementProfile Profile = Lib::FindProfile(ProfileId);
+	if (ProfileId.IsNone() || Profile.Id != ProfileId)
+	{
+		return FText::GetEmpty(); // un id che il catalogo non conosce non ha un'etichetta da inventare
+	}
+
+	// Il nome canonico e' l'ultimo segmento dell'id — `MovementProfile.Sprint` -> `Sprint` — cosi' un profilo
+	// nuovo ha gia' un nome invece di un'etichetta vuota.
+	FString Nome = ProfileId.ToString();
+	int32 Punto = INDEX_NONE;
+	if (Nome.FindLastChar(TEXT('.'), Punto))
+	{
+		Nome = Nome.RightChop(Punto + 1);
+	}
+
+	// Chi sta fermo non ha un passo da moltiplicare: il numero mentirebbe su un budget che non si spende.
+	if (ProfileId == Lib::ProfileStill)
+	{
+		return FText::FromString(Nome);
+	}
+
+	// Il moltiplicatore in centesimi, scritto all'italiana: `25` -> `0,25`, `50` -> `0,5`, `200` -> `2`.
+	const int32 Percento = FMath::Max(0, Profile.MoveBudgetPercent);
+	FString Moltiplicatore = FString::FromInt(Percento / 100);
+	const int32 Resto = Percento % 100;
+	if (Resto != 0)
+	{
+		FString Decimali = FString::Printf(TEXT("%02d"), Resto);
+		Decimali.RemoveFromEnd(TEXT("0"));
+		Moltiplicatore += TEXT(",") + Decimali;
+	}
+	return FText::FromString(FString::Printf(TEXT("%s \u00D7%s"), *Nome, *Moltiplicatore));
+}
+
 TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRTAbilityCooldownView>& Actions)
 {
 	// Il rango di lettura di un gruppo. Funzione TOTALE sull'enum, senza `default`: un gruppo aggiunto senza

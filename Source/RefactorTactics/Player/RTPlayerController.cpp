@@ -375,6 +375,14 @@ const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
 	return Hotkeys;
 }
 
+const FKey& ARTPlayerController::SneakHotkey()
+{
+	// `M` per «muoversi piano»: non collide con nessun altro `MapKey` di `BuildInputMappings`, e il controllo
+	// che lo prova e' `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero e non questa riga.
+	static const FKey Tasto = EKeys::M;
+	return Tasto;
+}
+
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
 {
 	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
@@ -659,7 +667,7 @@ void ARTPlayerController::BuildInputMappings()
 	// sinistra perche' si premono mentre quella mano guida la camera; questo gesto si usa **mentre si
 	// disegna il percorso col mouse**, cioe' con la sinistra ferma. `M` e' libero, e
 	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista.
-	MappingContext->MapKey(SneakAction, EKeys::M);
+	MappingContext->MapKey(SneakAction, SneakHotkey());
 
 	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
 	//

@@ -666,6 +666,16 @@ public:
 	 */
 	static const TArray<TPair<FName, FKey>>& GenericHotkeys();
 
+	/**
+	 * Il tasto che DICHIARA `Sneak` ([D-425]): l'unico profilo di movimento che si dichiara invece di derivarsi.
+	 *
+	 * 🔑 **Una sede sola, letta da due parti** (`#3470`): `BuildInputMappings` ci lega `IA_DeclareSneak`, e la
+	 * lettura del movimento nella barra lo mostra come badge. Scritto due volte, il giorno in cui qualcuno
+	 * rimappa il gesto la barra continuerebbe a dire `M` per un tasto che non fa piu' niente.
+	 * `PlayerInput.SneakIsMappedOnTheKeyTheBarShows` lo pinna sul contesto di input reale.
+	 */
+	static const FKey& SneakHotkey();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);

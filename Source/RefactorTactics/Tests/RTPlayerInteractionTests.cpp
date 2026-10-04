@@ -3159,4 +3159,56 @@ bool FRTWrongCeilingDoesNotEatTheMemoryTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * `#3470` — IL TASTO CHE LA BARRA MOSTRA PER `Sneak` E' QUELLO CHE IL CONTESTO DI INPUT LEGA DAVVERO.
+ *
+ * 🔑 **Interroga il `UInputMappingContext` reale**, come `HotkeysDoNotCollide`: la barra legge
+ * `ARTPlayerController::SneakHotkey()`, e questo test prova che la stessa sede alimenta `IA_DeclareSneak`. Se
+ * qualcuno rimappasse il gesto scrivendo un tasto a mano in `BuildInputMappings`, la barra direbbe `M` per un
+ * tasto morto — e questo diventerebbe rosso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputSneakKeyTest,
+	"RefactorTactics.PlayerInput.SneakIsMappedOnTheKeyTheBarShows",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputSneakKeyTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	bool bOk = TestNotNull(TEXT("controller"), PC);
+	if (bOk)
+	{
+		const UInputMappingContext* Imc = PC->BuildAndGetMappingContextForTest();
+		bOk = TestNotNull(TEXT("mapping context costruito"), Imc);
+		if (bOk)
+		{
+			TArray<FKey> TastiDiSneak;
+			for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+			{
+				if (M.Action && M.Action->GetName() == TEXT("IA_DeclareSneak"))
+				{
+					TastiDiSneak.Add(M.Key);
+				}
+			}
+
+			TestEqual(TEXT("IA_DeclareSneak ha esattamente un tasto"), TastiDiSneak.Num(), 1);
+			if (TastiDiSneak.Num() == 1)
+			{
+				TestEqual(TEXT("ed e' SneakHotkey(), cioe' quello che la barra mostra"),
+					TastiDiSneak[0], ARTPlayerController::SneakHotkey());
+			}
+			// L'etichetta che la barra stampa, scritta a mano: il controllo positivo dell'uguaglianza sopra.
+			TestEqual(TEXT("l'etichetta del tasto e' M"),
+				ARTPlayerController::SneakHotkey().GetDisplayName(false).ToString(), FString(TEXT("M")));
+		}
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
