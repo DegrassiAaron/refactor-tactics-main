@@ -175,7 +175,13 @@ enum class ERTPointerBackStep : uint8
 	/** Uscita da `Pathing` senza waypoint: torna a `Planning`. */
 	Pathing,
 	/** `PhaseFocus` torna ad `Auto`. */
-	PhaseFocus
+	PhaseFocus,
+	/**
+	 * Il verso DICHIARATO si cancella e il movimento si riapre ([D-367], [D-462], `#291`). Viene dopo un selettore
+	 * aperto e PRIMA di un targeting: il verso chiude il movimento, e D-367 lo toglie prima dei waypoint.
+	 * In coda all'enum per non spostare i valori degli altri passi.
+	 */
+	DeclaredFacing
 };
 
 UCLASS()
@@ -230,7 +236,19 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	static ERTPointerBackStep ResolveBack(ERTPointerContext Context, bool bInspectorPinned, int32 WaypointCount,
-		bool bPhaseFocusPinned);
+		bool bPhaseFocusPinned, bool bHasDeclaredFacing = false);
+
+	/**
+	 * Il SETTORE dell'esagono puntato dal cursore ([D-367], `#291`): la direzione la cui retta centro→vicino forma
+	 * l'angolo minore con `Offset`, cioe' il cursore meno il centro. `false` nella dead-zone centrale, dove un click
+	 * non sceglie niente.
+	 *
+	 * 🔑 **Deterministica, con la regola sui confini dichiarata**: vince il prodotto scalare maggiore; a pari merito
+	 * vince la direzione di valore minore nell'enum. `DirectionVectors[i]` e' il vettore centro→vicino della
+	 * direzione `i`, preso dalla geometria della mappa e non da una tabella di angoli.
+	 */
+	static bool FacingSectorFromOffset(const FVector2D& Offset, const TArray<FVector2D>& DirectionVectors,
+		float DeadZoneRadius, ERTHexDirection& OutSector);
 
 	/**
 	 * §5 — **Che cosa significa un `LMB` su un'unita', dato il contesto**: la riga di matrice, non l'effetto.
