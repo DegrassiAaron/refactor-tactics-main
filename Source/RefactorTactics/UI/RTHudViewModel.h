@@ -453,7 +453,7 @@ struct FRTUnitOverlayView
 
 
 /**
- * Il SEGNO di fase che uno slot della dock porta (`#3465`): la chiave a cui il Blueprint lega striscia e colore.
+ * Il SEGNO di fase che uno slot della dock porta (`#3465`): la chiave a cui lo slot lega striscia e colore.
  *
  * 🔑 **Non e' `ERTMatchPhase`, e la differenza sono due casi decisi in sessione dall'autore il 2026-10-04.**
  * La macro-fase onesta la porta gia' `FRTAbilityCooldownView::Phase`; questo enum risponde a un'altra domanda —
@@ -465,10 +465,12 @@ struct FRTUnitOverlayView
  *  - un'azione che **non occupa slot** (`Action.Wait`) risolve in `NormalMovement`, ma non si gioca in nessuna
  *    fase: lo slot dice `—`.
  *
- * ⛔ **Il colore non vive qui.** La palette e' di [D-233] e di `progettazione-hud.md` §32, e la mappa
- * segno -> tinta la tiene il Blueprint: in C++ sarebbe una seconda copia degli HEX che nessun gate rilegge —
- * `tools/hud-assets/color_metrics.py` misura quelli del generatore, non questi. Cio' che il C++ garantisce e'
- * che chi disegna non debba RICOMPORRE la regola: un `Select` su questo enum non e' una deduzione.
+ * ⛔ **Il colore non vive in questo enum.** La palette e' di [D-233] e di `progettazione-hud.md` §32. La mappa
+ * segno -> tinta e' `URTActionSlotWidget::PhaseColors`, `EditDefaultsOnly`, coi valori di [D-233] come default
+ * (`#3489`). ⌫ *Qui stava «la tiene il Blueprint: in C++ sarebbe una seconda copia degli HEX che nessun gate
+ * rilegge».* La copia c'e', e il gate c'e' anche: `ScreenHud.SlotPhaseStripReadsThePhaseMark` confronta i
+ * default con gli HEX letterali della decisione. Cio' che il C++ garantisce resta lo stesso: chi disegna non
+ * RICOMPONE la regola.
  *
  * ⚠️ **`Cleanup` ha un valore e NON ha un colore**: [D-232] §1 e [D-233] lo lasciano senza tinta finche' una
  * reazione non avra' una card, e l'autore lo ha confermato il 2026-10-04. Il segno esiste perche' l'etichetta
@@ -668,6 +670,16 @@ struct FRTAbilityCooldownView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTActionGroup Group = ERTActionGroup::None;
+
+	/**
+	 * Questa voce APRE un gruppo di lettura diverso da quello della voce prima (`#3489`, [D-455] punto 2).
+	 *
+	 * ⚠️ **Lo scrive solo `OrderForReading`**, ed e' vero solo in quella lista: lungo `GetActions()` i gruppi
+	 * non sono contigui, e un separatore «dove `Group` cambia» ne metterebbe dove non c'e' un confine. Fuori
+	 * dalla lista di lettura resta `false`. Lo slot lo traduce nel proprio padding (`GroupGap`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bGroupBreakBefore = false;
 
 	/**
 	 * Il piano e' ILLEGALE e quest'azione ne e' la colpevole (`ValidatePlan`, `OffendingActionId`): lettura B
@@ -1260,7 +1272,8 @@ public:
 	 *
 	 * 🔑 **Partizione STABILE**: dentro ogni gruppo resta l'ordine di kit. E **ogni voce resta intatta** —
 	 * `AbilityIndex`, `HotkeyLabel`, tutto — perche' la posizione a schermo non e' mai un indice ([D-397]
-	 * punti 2 e 4): chi arma legge l'indice dallo slot, non dalla sua posizione nella barra.
+	 * punti 2 e 4): chi arma legge l'indice dallo slot, non dalla sua posizione nella barra. L'unico campo
+	 * che scrive e' `bGroupBreakBefore` (`#3489`), che ha senso solo in questa lista.
 	 *
 	 * ⛔ **Non riordina `GetActions()`**, che resta identita': restituisce una COPIA ordinata. Esiste perche'
 	 * i gruppi non sono contigui nella lista — l'equipaggiamento e' accodato dopo le generiche, e in partita

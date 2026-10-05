@@ -526,6 +526,44 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	int32 GetArmedActionIndex() const;
+
+	// ------------------------------------------------------------------------------------------------
+	// La lettura del movimento, collegata PER NOME (`#3489`): lo stesso disegno di `RTHeroProfileWidget`.
+	//
+	// 🔑 Un binding authorato nel `.uasset` non si diffa e non si testa, e il bridge MCP non sa scriverlo.
+	// Il Designer dichiara i widget con questi nomi; il C++ li riempie. Tutti OPZIONALI: un WBP che non ne
+	// dichiara uno resta valido.
+	// ------------------------------------------------------------------------------------------------
+
+	/** Il contenitore della lettura: `Collapsed` quando la vista non e' autorizzata, mai spento a meta'. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UWidget> MovementReadout;
+
+	/** `Move ×1`, `Sprint ×2`, `Withdraw ×0,25`… da `GetMovementReadout().Label`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UTextBlock> MovementReadoutText;
+
+	/** Il badge `M`, cliccabile ([D-457]): il click chiama `ToggleSneak()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UButton> SneakBadge;
+
+	/** Il tasto del badge, da `GetMovementReadout().SneakKeyLabel`: mai scritto nel Designer. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Dock")
+	TObjectPtr<class UTextBlock> SneakBadgeText;
+
+	/** L'opacita' del badge quando `Sneak` NON e' dichiarato: acceso = 1, spento = questo. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Dock")
+	float SneakBadgeIdleOpacity = 0.45f;
+
+	/** Riempie i widget della lettura dalla vista. La chiama `NativeTick`; i test la chiamano a mano. */
+	void RefreshMovementReadout();
+
+	/** Collega il click del badge a `ToggleSneak()`. Idempotente; la chiama `NativeConstruct`. */
+	void BindNamedButtons();
+
+protected:
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 };
 
 /**
@@ -567,6 +605,42 @@ public:
 	/** Il tasto da tastiera di `Annulla`, da `ARTPlayerController::UndoKeyboardHotkey()`. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FText GetUndoKeyLabel() const;
+
+	// ------------------------------------------------------------------------------------------------
+	// I pulsanti, collegati PER NOME (`#3489`). Il Designer li dichiara; il C++ ne collega il click alle porte
+	// e ne scrive il testo. Opzionali.
+	// ------------------------------------------------------------------------------------------------
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UButton> ConfirmButton;
+
+	/** «Conferma» o «Ritira», col tasto di `GetConfirmKeyLabel()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> ConfirmText;
+
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UButton> UndoButton;
+
+	/** «Annulla», col tasto di `GetUndoKeyLabel()`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|PlanCommit")
+	TObjectPtr<class UTextBlock> UndoText;
+
+	/**
+	 * Testi e abilitazione. La chiama `NativeTick`; i test la chiamano a mano.
+	 *
+	 * ⚠️ **Si spegne `Conferma` senza un'unita' comandata, NON `Annulla`.** Il Back non chiede un'unita': il
+	 * suo primo ramo ritira il Ready durante il countdown, e gli altri smontano ispettore e focus di fase. Un
+	 * `Annulla` spento senza selezione toglierebbe al giocatore il ritiro del Ready proprio quando ha
+	 * deselezionato per guardare la mappa.
+	 */
+	void RefreshButtons();
+
+	/** Collega i click a `Confirm()` e `Undo()`. Idempotente; la chiama `NativeConstruct`. */
+	void BindNamedButtons();
+
+protected:
+	virtual void NativeConstruct() override;
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 };
 
 /**
@@ -710,6 +784,84 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
 	void ApplyResolvedIconTo(UImage* Target);
+
+	// ------------------------------------------------------------------------------------------------
+	// L'aspetto dello slot, collegato PER NOME (`#3489`): lo stesso disegno di `RTHeroProfileWidget`.
+	//
+	// 🔑 **Il C++ sceglie QUALE widget accendere; forma, texture e posizione restano del Designer.** Lo stato
+	// e' di `URTHudViewModel::ResolveSlotState` e il segno di fase di `PhaseMarkFor`: qui non nasce nessuna
+	// regola, si traduce un valore in visibilita' e colore. E' cio' che un grafo Blueprint ricomporrebbe a
+	// mano — ed e' cio' che il bridge MCP non sa legare come property binding.
+	//
+	// ⚠️ Tutti OPZIONALI: un WBP che non dichiara uno di questi nomi resta valido e compila.
+	// ------------------------------------------------------------------------------------------------
+
+	/** La striscia di fase in cima allo slot. Colore da `PhaseColors[PhaseMark]`; `Collapsed` senza voce. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UBorder> PhaseStrip;
+
+	/** L'etichetta di fase — il canale che non dipende dal colore ([D-232] punto 3). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> PhaseLabelText;
+
+	/** Il bordo dello slot. Colore da `FrameColors[stato]`. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UBorder> StateFrame;
+
+	/** Secondo canale di `Selected`: la barra sotto lo slot. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> SelectedBar;
+
+	/** Secondo canale di `Planned`: l'angolo pieno in alto a destra. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> PlannedCorner;
+
+	/** Secondo canale di `Unavailable`: il tratteggio diagonale. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> UnavailableHatch;
+
+	/** Secondo canale di `Invalid`: la ✕ ([D-459]). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> InvalidMark;
+
+	/** Secondo canale di `Warning`: il triangolo ([D-459]). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> WarningMark;
+
+	/**
+	 * Il colore della striscia per segno di fase. Default: [D-233] e §32, pinnati da
+	 * `ScreenHud.SlotPhaseStripReadsThePhaseMark`. Un segno SENZA voce chiude la striscia: e' il caso di
+	 * `None`, e di `Cleanup`, che ha un'etichetta e non un colore ([D-232] §1, [D-233]) — la fase la dice
+	 * `PhaseLabelText`.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionPhaseMark, FLinearColor> PhaseColors;
+
+	/** Il colore del bordo per stato. Default: i token di §32 e la ricetta di `SPECIFICA-VISIVA.md` §3. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> FrameColors;
+
+	/** Lo spazio a sinistra di uno slot dentro un gruppo (`dati/tokens.json`: `gap`). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	float ItemGap = 8.f;
+
+	/** Lo spazio a sinistra di uno slot che apre un gruppo (`dati/tokens.json`: `separatore_gruppi`). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	float GroupGap = 22.f;
+
+	/**
+	 * Il nome del widget che porta il secondo canale di uno stato, o `NAME_None` per gli stati che non ne
+	 * hanno uno (`Empty`, `Available`). `Cooldown` lo ha gia': e' `CooldownText`, il numero di turni.
+	 *
+	 * 🔑 E' la tabella che `RefreshLook` applica e che il gate sull'asset legge: un nome qui e un widget nel
+	 * Designer sono lo stesso fatto.
+	 */
+	static FName IndicatorNameFor(ERTActionSlotState State);
+
+	/** Applica stato, fase e padding ai widget collegati. La chiama `SetAction`, prima di `OnActionChanged`. */
+	void RefreshLook();
+
+	explicit URTActionSlotWidget(const FObjectInitializer& ObjectInitializer);
 
 	private:
 	/** L'icona risolta UNA VOLTA, in `SetAction`. `GetResolvedIcon` la rende senza ricalcolare.

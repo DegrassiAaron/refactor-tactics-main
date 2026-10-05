@@ -4674,6 +4674,8 @@ sessions:
     # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga #3465, con l'Editor
     # **ricompilato** da quel commit prima di aprire la seduta — una DLL di prima non ha i tre campi, e i
     # pin del Blueprint non comparirebbero.
+    # ⛔ E un commit di `main` che contenga #3489, le porte per nome: senza, i widget si dichiarano e
+    # nessuno li accende.
     shares_setup_with: [U63, U64]
     verifies: []
     # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
@@ -4681,7 +4683,7 @@ sessions:
     # verdetto va nella issue owner e nell'artefatto qui sopra. ⚠️ La issue e' #2826, che possiede la
     # leggibilita' dello slot e resta aperta: #3465 consegna il DATO e si chiude col proprio merge, quindi un
     # verdetto scritto li' finirebbe in una issue chiusa.
-    issues: [3465, 2826]
+    issues: [3465, 2826, 3489]
     done_when: >-
       ogni slot della dock porta striscia ed etichetta di fase lette da `Action.PhaseMark` e
       `Action.PhaseLabel`, gli stati prodotti da `ResolveSlotState` hanno ciascuno il secondo canale della
@@ -4692,35 +4694,47 @@ sessions:
     # ⚠️ Le misure di `tokens.json` sono px di design a 1920×1080: in UMG valgono come riferimento, con la
     # DPI scale del progetto applicata.
     #
+    # 🔑 **Si cabla PER NOME, non a grafo** (#3489, il disegno di `RTHeroProfileWidget`). Lo slot dichiara
+    # nel Designer i widget coi nomi qui sotto, e il C++ (`URTActionSlotWidget::RefreshLook`, chiamata da
+    # `SetAction`) li accende: visibilita', colore della striscia e del bordo, padding. Il bridge MCP non
+    # scrive il property binding, e un grafo per evento costruito nodo per nodo non si diffa e non si testa.
+    # ⛔ **Nessun grafo nuovo**: forma, texture e posizione sono del Designer, la scelta di quale widget
+    # accendere e' del C++. I nomi, e lo stato che li accende, sono la tabella
+    # `URTActionSlotWidget::IndicatorNameFor`, pinnata da `ScreenHud.EverySlotStateHasItsOwnSecondChannel`.
+    #
     # 🔴 **Cosa si cabla, e da dove legge**:
-    #   1. **Striscia di fase** (4 px in alto) ed **etichetta di fase** (in alto a destra), legate a
+    #   1. **Striscia di fase** (4 px in alto) — un `Border` chiamato **`PhaseStrip`** — ed **etichetta di
+    #      fase** (in alto a destra) — un `TextBlock` chiamato **`PhaseLabelText`**. Li riempie il C++ da
     #      `Action.PhaseMark` e `Action.PhaseLabel`. ⛔ L'etichetta **non si omette mai**: e' il canale
-    #      che non dipende dal colore (D-232 punto 3). ⛔ E il Blueprint **non ricompone la regola**: niente
-    #      `Slot == Reaction` nel grafo, il segno arriva gia' deciso.
-    #   2. **Colore della striscia** da `PhaseMark`, con un `Select` sull'enum:
+    #      che non dipende dal colore (D-232 punto 3).
+    #   2. **Colore della striscia** da `PhaseMark`, scritto dal C++ con la tabella `PhaseColors` dello slot
+    #      (`EditDefaultsOnly`, default qui sotto):
     #      `Prep #56B4E9 · Dash #009E73 · Blast #D55E00 · Move #0072B2` ([D-233]),
     #      `Reaction` = `RT_UI_Violet #7C5CFF` (§32: *reaction, special state*), `None` = nessuna striscia.
     #      ⚠️ **`Cleanup` resta SENZA colore** ([D-232] §1, [D-233], confermato dall'autore il
-    #      2026-10-04): tratteggio neutro piu' l'etichetta. Il mockup usa `#A9B4C2`, che in §32 non esiste:
-    #      se ne serve uno, il candidato gia' in palette e' `RT_UI_Frame_Mid #4A5568`.
+    #      2026-10-04): non ha una voce in `PhaseColors`, quindi la striscia si chiude e la fase la dice
+    #      l'etichetta `CLEANUP`. Il mockup usa `#A9B4C2`, che in §32 non esiste. I default sono pinnati
+    #      contro gli HEX della decisione da `ScreenHud.SlotPhaseStripReadsThePhaseMark`.
     #   3. **Stati di §7** dalla ricetta di `SPECIFICA-VISIVA.md` §3, con lo stato preso da
-    #      `URTHudViewModel::ResolveSlotState(Action, bArmed)` — mai ricomposto da `bPlanned`,
-    #      `TurnsRemaining` e `bUsableNow` nel grafo (#2988). Il secondo canale e' obbligatorio:
-    #      Selected = barra 40×4 sotto lo slot · Planned = angolo pieno 18 px · Cooldown = numero di turni ·
-    #      Unavailable = tratteggio diagonale 135°. Hover e' del widget, non del modello.
+    #      `URTHudViewModel::ResolveSlotState(Action, bArmed)` dentro `RefreshLook` — mai ricomposto nel
+    #      grafo (#2988). Il bordo e' un `Border` chiamato **`StateFrame`** (colore da `FrameColors`). Il
+    #      secondo canale e' obbligatorio, e ciascuno e' un widget col suo nome:
+    #      Selected = **`SelectedBar`**, barra 40×4 sotto lo slot · Planned = **`PlannedCorner`**, angolo
+    #      pieno 18 px · Cooldown = `CooldownText`, il numero di turni che c'e' gia' · Unavailable =
+    #      **`UnavailableHatch`**, tratteggio diagonale 135°. Hover e' del widget, non del modello.
     #      ⚠️ **Selected e Warning condividono l'ambra** (§32 la assegna a entrambi): li separa la forma,
     #      bordo continuo + barra contro bordo tratteggiato + triangolo.
     #   4. **Invalid e Warning: ricetta SI', produttore SI'** ([D-459], #3483). `ResolveSlotState` li
     #      restituisce: `Invalid` quando il gesto sarebbe rifiutato (azione armata col bersaglio puntato
     #      rifiutato, o colpevole di un piano illegale), `Warning` quando il piano e' accettato ma degradato.
-    #      ⛔ Come per gli altri stati, il grafo legge lo stato e non ricompone i flag. ⌫ *Qui stava
+    #      I widget sono **`InvalidMark`** (la ✕) e **`WarningMark`** (il triangolo). ⌫ *Qui stava
     #      «produttore NO» (decisione d'autore del 2026-10-04): valeva finche' [D-459] non ha sciolto il
     #      conflitto fra §7 e il commento di `ERTActionSlotState`.*
     #
     # ⛔ **Cosa NON si fa in questa seduta**, ciascuna col motivo:
-    #   - i **separatori di gruppo** Comuni · Base · Kit: la regola e' decisa (DEC-SB-2 nel referto), ma il
-    #     campo `Group` non esiste ancora, e un Blueprint che deducesse il gruppo dalla posizione violerebbe
-    #     [D-397] punto 2. Arrivano con la issue che porta il campo;
+    #   - i **separatori di gruppo** Comuni · Base · Kit: sono di `U63`, e non sono widget — il padding lo
+    #     scrive lo slot da `bGroupBreakBefore` (#3489). ⌫ *Qui stava «il campo `Group` non esiste ancora»:
+    #     esiste da #3475.*
     #   - i **chip** PRINCIPALE · MOVIMENTO · REAZIONE: il dato esiste gia' (`URTSelectedUnitPanelWidget::GetSlots()`)
     #     e `WBP_RT_SelectedUnitPanel` li mostra. Spostarli sopra la dock e' layout di #613;
     #   - il **selettore di profilo** a quattro pulsanti: contraddice [D-425], perche' il profilo si deriva
@@ -4764,7 +4778,7 @@ sessions:
     # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
     # dopo questa seduta il criterio (1) di `PIE-V01-SCREENHUD` — l'ingombro delle zone — va RIGIUDICATO a
     # schermo, perche' il suo ultimo verde e' sull'albero a otto zone (#3469).
-    issues: [3468, 3469, 3478, 3470, 613]
+    issues: [3468, 3469, 3478, 3470, 613, 3489]
     done_when: >-
       la dock in `Zone_Bottom` costruisce gli slot da `GetActionsInReadingOrder()` — Comuni, Base, Kit,
       mai riordinati nel grafo: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori
@@ -4782,14 +4796,19 @@ sessions:
     #      sono contigui — in partita `B KKKKK CCCCC KK` — quindi un separatore messo lungo QUELLA lista sarebbe
     #      sbagliato. Lungo la lista di lettura invece il gruppo e' contiguo per costruzione: il separatore va
     #      dove `Group` cambia fra due voci consecutive.
-    #   2. **Separatori** fra i gruppi, e l'intestazione testuale di gruppo (`COMUNI`, `BASE`, `KIT`) come
-    #      testo statico del Blueprint.
-    #   3. **Estremita' destra: la lettura del movimento** (#3470), da `GetMovementReadout()` della dock:
-    #      `Label` (`Move ×1`, `Sprint ×2`, `Withdraw ×0,25`…) e il badge `SneakKeyLabel`, acceso quando
-    #      `bSneakDeclared`. ⛔ **Nascosta quando `bAuthorized` e' falso**, mai spenta: uno spento direbbe
-    #      «fermo» di un'unita' di cui non si sa niente. ✅ **Il badge E' cliccabile** ([D-457]): il suo
-    #      `OnClicked` chiama `ToggleSneak()` della dock, che inoltra al corpo del tasto `M`. ⛔ Nessuna regola
-    #      nel grafo: riserva dello slot e tetto li decide `ToggleSneakDeclaration`.
+    #   2. **Separatori** fra i gruppi: **padding, non widget** (#3489). Lo slot legge `bGroupBreakBefore` —
+    #      vero solo nella lista di lettura, dove il gruppo cambia — e scrive sul proprio `HorizontalBoxSlot`
+    #      `GroupGap` (22) o `ItemGap` (8). ⛔ Un widget separatore in `SlotBox` sposterebbe ogni
+    #      `GetChildAt(i)` sulla voce sbagliata. L'intestazione testuale (`COMUNI`, `BASE`, `KIT`) resta
+    #      facoltativa, come testo statico del Blueprint.
+    #   3. **Estremita' destra: la lettura del movimento** (#3470), **per nome** (#3489): un contenitore
+    #      **`MovementReadout`**, un `TextBlock` **`MovementReadoutText`** (`Move ×1`, `Sprint ×2`,
+    #      `Withdraw ×0,25`…), un `Button` **`SneakBadge`** con dentro il `TextBlock` **`SneakBadgeText`**.
+    #      Li riempie `URTActionDockWidget::RefreshMovementReadout` da `GetMovementReadout()`: il badge e'
+    #      acceso (opacita' 1) quando `bSneakDeclared`. ⛔ **Chiusa quando `bAuthorized` e' falso**, mai
+    #      spenta: uno spento direbbe «fermo» di un'unita' di cui non si sa niente. ✅ **Il badge E'
+    #      cliccabile** ([D-457]): il C++ collega il suo `OnClicked` a `ToggleSneak()`, che inoltra al corpo
+    #      del tasto `M`. ⛔ Nessun grafo: riserva dello slot e tetto li decide `ToggleSneakDeclaration`.
     #      ⚠️ **Dichiarato contro effettivo, da decidere a schermo**: con `Sneak` dichiarato e poi
     #      l'`Overwatch` armata, il badge resta acceso (`bSneakDeclared`) mentre l'etichetta dice
     #      `Withdraw ×0,25`, perche' la riserva vince sul tetto ([D-425]). E' coerente — il badge dice cio' che
@@ -4824,18 +4843,21 @@ sessions:
     # ([D-403]): un commit di `main` che li contenga, con l'Editor ricompilato da quel commit.
     shares_setup_with: [U61, U63]
     verifies: []
-    issues: [3471, 613]
+    issues: [3471, 613, 3489]
     done_when: >-
       `Zone_TopRight` ospita un `WBP_RT_PlanCommit`; il click su `Conferma` dichiara o ritratta il piano
       dell'unita' come `Invio`, quello su `Annulla` smonta il Back come il tasto destro e ritira il Ready
       durante il countdown; `ScreenHud.EveryZoneOwnerIsMountedByClass` lo trova per classe in un processo fresco
     # 🔴 **Cosa si cabla** ([D-458]):
     #   1. `WBP_RT_PlanCommit`, parent `URTPlanCommitWidget`, in `/Game/RT/UI/Match/`.
-    #   2. Due `Button`: `Conferma` -> `OnClicked` chiama `Confirm()`; `Annulla` -> `OnClicked` chiama `Undo()`.
-    #      ⛔ Nessuna regola nel grafo: i pulsanti INOLTRANO alle porte dei tasti.
-    #   3. Il testo di `Conferma` dice «Conferma» o «Ritira» secondo `IsPlanDeclared()`, col tasto da
-    #      `GetConfirmKeyLabel()`; quello di `Annulla` col tasto da `GetUndoKeyLabel()`. Mai scritti a mano.
-    #   4. Entrambi spenti (`IsEnabled` falso) quando `HasCommandedUnit()` e' falso.
+    #   2. Due `Button` **per nome** (#3489): **`ConfirmButton`** con dentro il `TextBlock` **`ConfirmText`**, e
+    #      **`UndoButton`** con dentro **`UndoText`**. Il C++ collega i click a `Confirm()` e `Undo()`
+    #      (`BindNamedButtons`, idempotente). ⛔ Nessun grafo: i pulsanti INOLTRANO alle porte dei tasti.
+    #   3. I testi li scrive `RefreshButtons`: «Conferma» o «Ritira» secondo `IsPlanDeclared()`, col tasto di
+    #      `GetConfirmKeyLabel()`; «Annulla» col tasto di `GetUndoKeyLabel()`. Mai scritti a mano.
+    #   4. **Si spegne solo `Conferma`** quando `HasCommandedUnit()` e' falso. ⌫ *Qui stava «entrambi
+    #      spenti»: era sbagliato. `UndoStep` ritira il Ready senza chiedere un'unita', e un `Annulla` spento
+    #      lo renderebbe irraggiungibile dal pulsante (#3489, `ScreenHud.PlanCommitButtonsFollowThePorts` D).*
     #   5. Montaggio nel `NamedSlot Content` di `Zone_TopRight` con `SetNamedSlotContent`.
     #   6. 🔴 **Nello STESSO commit dell'asset**: `EveryZoneOwnerIsMountedByClass` riceve la riga
     #      `{ URTPlanCommitWidget::StaticClass(), TEXT("TopRight"), TEXT("#3471") }`, e

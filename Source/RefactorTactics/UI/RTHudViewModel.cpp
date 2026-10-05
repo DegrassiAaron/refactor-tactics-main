@@ -691,6 +691,13 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRT
 	{
 		return Rango(A.Group) < Rango(B.Group);
 	});
+
+	// Il confine si misura sul RANGO, non su `Group`: una posizione vuota (`None`) si legge col Kit, e fra le
+	// due non c'e' un separatore (#3489).
+	for (int32 i = 0; i < Ordinate.Num(); ++i)
+	{
+		Ordinate[i].bGroupBreakBefore = i > 0 && Rango(Ordinate[i].Group) != Rango(Ordinate[i - 1].Group);
+	}
 	return Ordinate;
 }
 
