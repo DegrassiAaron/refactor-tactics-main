@@ -676,6 +676,19 @@ public:
 	 */
 	static const FKey& SneakHotkey();
 
+	/**
+	 * Il tasto che DICHIARA il piano dell'unita' selezionata (`Invio`, #3145) — lo stesso gesto che il pulsante
+	 * `Conferma` della HUD inoltra ([D-458]). Una sede sola, letta dalla mappatura e dall'etichetta del pulsante.
+	 */
+	static const FKey& DeclarePlanHotkey();
+
+	/**
+	 * Il tasto da tastiera del Back (`BackSpace`), gemello del tasto destro — lo stesso gesto che il pulsante
+	 * `Annulla` della HUD inoltra ([D-458]). ⚠️ Il destro resta mappato a parte: e' anche il dolly della camera
+	 * con `Alt`, e un pulsante non ha un modificatore da tenere.
+	 */
+	static const FKey& UndoKeyboardHotkey();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
@@ -1087,6 +1100,34 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
 	void ArmKitAbility(int32 KitIndex);
+
+	/**
+	 * 🔴 **La porta del badge `M` della barra: dichiara o ritira `Sneak`** ([D-457], #3470).
+	 *
+	 * ⛔ **E' il corpo del tasto, non una copia**: `OnToggleSneak` chiama questa, quindi riserva dello slot,
+	 * tetto e waypoint ripristinati restano decisi in un posto solo. Il click e il tasto sono due canali verso
+	 * la STESSA dichiarazione, come slot e tasti numerici per le azioni ([D-397] punto 4).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void ToggleSneakDeclaration();
+
+	/**
+	 * 🔴 **La porta del pulsante `Conferma`: dichiara o ritratta il piano dell'unita' selezionata** ([D-458]).
+	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione.
+	 * ⛔ Non e' il `LockIn` di `Spazio`, che chiude il turno per tutti.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	bool TogglePlanDeclaration();
+
+	/**
+	 * 🔴 **La porta del pulsante `Annulla`: l'INTERO Back del tasto destro** ([D-458]).
+	 *
+	 * Durante il countdown del Ready **ritira il Ready** (#2193), altrimenti smonta **un** livello con
+	 * `ApplyBack()` (§5.5). ⛔ E' il corpo di `OnUndoWaypoint` meno il dolly della camera, che appartiene al
+	 * tasto destro tenuto con `Alt` e non a un pulsante: le due strade non possono divergere sul gioco.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void UndoStep();
 
 	/**
 	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).

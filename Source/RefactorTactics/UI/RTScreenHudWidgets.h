@@ -143,6 +143,15 @@ public:
 	 */
 	void SetReactionWindowForTest(URTReactionWindowViewModel* InViewModel);
 
+	/**
+	 * Inietta il controller a cui le porte in USCITA di un widget inoltrano — il badge di Sneak della dock, i
+	 * pulsanti di `URTPlanCommitWidget` ([D-457], [D-458]) — senza passare da un `ULocalPlayer`.
+	 * E' la stessa forma di `URTActionSlotWidget::SetArmingControllerForTest`, e per la stessa ragione: in
+	 * headless `GetOwningPlayer()` e' nullo, e un test senza questa porta misurerebbe il ramo «nessun
+	 * proprietario» credendo di misurare il click. **Nullo in gioco.**
+	 */
+	void SetCommandControllerForTest(ARTPlayerController* InController);
+
 protected:
 	virtual void NativeConstruct() override;
 
@@ -191,6 +200,9 @@ protected:
 
 	/** L'unita' selezionata dal giocatore, o `nullptr`. Protetta: i Blueprint vedono solo le VISTE. */
 	const ARTUnit* GetSelectedUnit() const;
+
+	/** Il controller a cui le porte in uscita inoltrano: quello iniettato dai test, altrimenti il proprietario. */
+	ARTPlayerController* ResolveCommandController() const;
 
 	/**
 	 * L'unita' che si sta **guardando**, che puo' non essere quella che si comanda (`#705`).
@@ -260,6 +272,9 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<ARTUnit> SelectedUnitForTest;
+
+	/** Vedi `SetCommandControllerForTest`. Nullo in gioco: il proprietario vero resta `GetOwningPlayer()`. */
+	TWeakObjectPtr<ARTPlayerController> CommandControllerForTest;
 
 	/**
 	 * Gemella della precedente per il soggetto **ispezionato** (`#705`), e per la stessa ragione: senza un
@@ -495,6 +510,14 @@ public:
 	FRTMovementReadoutView GetMovementReadout() const;
 
 	/**
+	 * 🔴 **Il click sul badge `M`: dichiara o ritira `Sneak`** ([D-457], #3470). Inoltra a
+	 * `ARTPlayerController::ToggleSneakDeclaration`, che e' il corpo del tasto: nessuna regola qui, e il grafo
+	 * non compone la chiamata da se'. Senza controller non fa nulla.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void ToggleSneak();
+
+	/**
 	 * L'indice dell'azione ARMATA, o `INDEX_NONE`.
 	 *
 	 * `INDEX_NONE` non e' un caso limite: e' lo stato NEUTRO di [D-128], quello in cui il giocatore non ha
@@ -503,6 +526,47 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	int32 GetArmedActionIndex() const;
+};
+
+/**
+ * `WBP_RT_PlanCommit` — **Conferma** e **Annulla** in `TopRight` ([D-456] punto 4, [D-458], #3471).
+ *
+ * 🔑 **Due pulsanti, due porte che esistono gia'**: `Conferma` e' `Invio` — dichiara o ritratta il piano
+ * dell'unita' selezionata, e non risolve niente — e `Annulla` e' l'**intero** Back del tasto destro, che durante
+ * il countdown ritira il Ready. Il widget **inoltra**, non decide: nessuna guardia, nessun controllo di stato
+ * qui dentro, esattamente come lo slot con `ArmKitAbility`.
+ *
+ * ⛔ **Non e' il `LockIn` di `Spazio`**, che chiude il turno per tutti: [D-458] lo ha escluso dal pulsante.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTPlanCommitWidget : public URTScreenHudWidgetBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Il click su `Conferma`: inoltra a `ARTPlayerController::TogglePlanDeclaration`. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void Confirm();
+
+	/** Il click su `Annulla`: inoltra a `ARTPlayerController::UndoStep`. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void Undo();
+
+	/** C'e' un'unita' COMANDATA a cui i pulsanti parlano: senza, chi disegna li spegne. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	bool HasCommandedUnit() const;
+
+	/** Il piano dell'unita' selezionata e' dichiarato: `Conferma` diventa «ritratta». Falso senza unita'. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	bool IsPlanDeclared() const;
+
+	/** Il tasto di `Conferma`, da `ARTPlayerController::DeclarePlanHotkey()`: mai scritto nel grafo. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetConfirmKeyLabel() const;
+
+	/** Il tasto da tastiera di `Annulla`, da `ARTPlayerController::UndoKeyboardHotkey()`. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetUndoKeyLabel() const;
 };
 
 /**

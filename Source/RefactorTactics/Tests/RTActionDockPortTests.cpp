@@ -12,6 +12,8 @@
 #include "Ability/RTHeroData.h"
 #include "Map/RTCellId.h"
 #include "UI/RTScreenHudWidgets.h" // URTActionSlotWidget: la meta' del tratto che vive nel widget
+#include "Ability/RTMovementProfileLibrary.h" // ProfileSneak: il badge della barra dichiara lo stesso profilo del tasto (#3470)
+#include "Ability/RTActionData.h"              // URTActionData::Def: trovare Overwatch nel kit, per la riserva
 #include "UI/RTHudViewModel.h"     // FRTAbilityCooldownView: le viste vengono dal dock, non da qui
 #include "RTWorldFixtures.h"
 #include "Kismet/GameplayStatics.h"
@@ -345,6 +347,133 @@ bool FRTActionSlotForwardsItsOwnIndexTest::RunTest(const FString&)
 			TEXT("confronterebbe due percorsi entrambi inerti"),
 			Armate, Azioni.Num()),
 		Armate > 0);
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `#3470` — IL BADGE `M` DELLA BARRA E IL TASTO `M` RAGGIUNGONO LA STESSA DICHIARAZIONE ([D-457]).
+ *
+ * 🔑 **L'oracolo e' la simmetria con il tasto, non un valore scritto qui**: il click dichiara, il tasto ritira,
+ * e la riserva di `Overwatch` rifiuta entrambi. Se il badge avesse una regola propria, almeno uno dei tre
+ * passaggi divergerebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSneakBadgeParityTest,
+	"RefactorTactics.PlayerInput.SneakBadgeAndKeyReachTheSameDeclaration",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSneakBadgeParityTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	URTActionDockWidget* Dock = NewObject<URTActionDockWidget>(World);
+	if (!Unit || !PC || !Dock)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("unita', controller e dock esistono"), false);
+	}
+	PC->SelectActorForTest(Unit);
+	Dock->SetCommandControllerForTest(PC);
+	const FName Sneak = URTMovementProfileLibrary::ProfileSneak;
+
+	// A. il click dichiara
+	Dock->ToggleSneak();
+	TestEqual(TEXT("A: il click sul badge dichiara Sneak"), Unit->PlannedMovementProfileId, Sneak);
+
+	// B. il tasto ritira la STESSA dichiarazione: le due strade sono un interruttore solo
+	PC->ToggleSneakForTest();
+	TestTrue(TEXT("B: il tasto M ritira cio' che il click ha dichiarato"), Unit->PlannedMovementProfileId.IsNone());
+
+	// C. la riserva di Overwatch rifiuta il click come rifiuta il tasto
+	int32 OverwatchIdx = INDEX_NONE;
+	for (int32 i = 0; i < Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = Unit->GetAbility(i);
+		if (A && A->Def.ActionId == FName(TEXT("Action.Overwatch"))) { OverwatchIdx = i; break; }
+	}
+	if (TestTrue(TEXT("C: premessa — Overwatch e' nel kit"), OverwatchIdx != INDEX_NONE))
+	{
+		Unit->PlannedAbilityIndex = OverwatchIdx;
+		Dock->ToggleSneak();
+		TestTrue(TEXT("C: con lo slot riservato il click non dichiara"), Unit->PlannedMovementProfileId.IsNone());
+		PC->ToggleSneakForTest();
+		TestTrue(TEXT("C: ed e' lo stesso rifiuto del tasto"), Unit->PlannedMovementProfileId.IsNone());
+		Unit->PlannedAbilityIndex = INDEX_NONE;
+	}
+
+	// D. senza controller il badge non fa nulla e non crolla
+	URTActionDockWidget* Orfano = NewObject<URTActionDockWidget>(World);
+	Orfano->ToggleSneak();
+	TestTrue(TEXT("D: senza controller nessuna dichiarazione"), Unit->PlannedMovementProfileId.IsNone());
+
+	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * `#3471` — `CONFERMA` E' `INVIO`, `ANNULLA` E' IL BACK DEL TASTO DESTRO ([D-458]).
+ *
+ * 🔑 **Oracolo di PARITA'**: lo stesso stato portato due volte allo stesso punto, una volta col pulsante e una
+ * col tasto, deve dare lo stesso risultato. Non si asserisce QUALE livello del Back si smonti — lo decide
+ * `ResolveBack`, coi suoi test — ma che pulsante e tasto ne smontino lo stesso.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanCommitParityTest,
+	"RefactorTactics.PlayerInput.PlanCommitButtonsReachTheSamePortsAsTheKeys",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanCommitParityTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("il mondo di prova esiste"), World)) { return false; }
+
+	ARTUnit* Unit = SpawnUnitConKit(World, /*TeamId*/ 0);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	URTPlanCommitWidget* W = NewObject<URTPlanCommitWidget>(World);
+	if (!Unit || !PC || !W)
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return TestTrue(TEXT("unita', controller e widget esistono"), false);
+	}
+
+	// E. prima di tutto, senza unita' i pulsanti non hanno a chi parlare
+	W->SetCommandControllerForTest(PC);
+	TestFalse(TEXT("E: senza selezione non c'e' un'unita' comandata"), W->HasCommandedUnit());
+	TestFalse(TEXT("E: e nessun piano dichiarato"), W->IsPlanDeclared());
+	W->Confirm();
+	TestFalse(TEXT("E: Conferma senza unita' non dichiara niente"), Unit->bTurnPlanDeclared);
+
+	PC->SelectActorForTest(Unit);
+	W->SetSelectedUnitForTest(Unit);
+	TestTrue(TEXT("A: con la selezione c'e' un'unita' comandata"), W->HasCommandedUnit());
+
+	// B. Conferma dichiara, e il tasto Invio ritratta la STESSA dichiarazione
+	W->Confirm();
+	TestTrue(TEXT("B: Conferma dichiara il piano dell'unita'"), Unit->bTurnPlanDeclared);
+	TestTrue(TEXT("B: e il widget lo legge"), W->IsPlanDeclared());
+	PC->ToggleTurnPlanDeclaredForTest();
+	TestFalse(TEXT("B: Invio ritratta cio' che Conferma ha dichiarato"), Unit->bTurnPlanDeclared);
+	TestFalse(TEXT("B: e il widget lo legge"), W->IsPlanDeclared());
+
+	// C. Annulla e il tasto smontano lo stesso livello del Back, dallo stesso stato
+	const TArray<FRTCellId> Piano = { FRTCellId(1, 0, 0), FRTCellId(2, 0, 0) };
+	Unit->PlannedWaypoints = Piano;
+	W->Undo();
+	const TArray<FRTCellId> DopoIlPulsante = Unit->PlannedWaypoints;
+	Unit->PlannedWaypoints = Piano;
+	PC->OnUndoWaypointForTest();
+	const TArray<FRTCellId> DopoIlTasto = Unit->PlannedWaypoints;
+	TestTrue(TEXT("C: premessa — il Back ha smontato qualcosa"), DopoIlPulsante.Num() < Piano.Num());
+	TestTrue(TEXT("C: pulsante e tasto lasciano lo stesso piano"), DopoIlPulsante == DopoIlTasto);
+
+	// D. le etichette vengono dalle sedi dei tasti, e quelle sedi sono i tasti di D-458
+	TestEqual(TEXT("D: il tasto di Conferma e' Invio"), ARTPlayerController::DeclarePlanHotkey(), EKeys::Enter);
+	TestEqual(TEXT("D: il tasto di Annulla e' BackSpace"), ARTPlayerController::UndoKeyboardHotkey(), EKeys::BackSpace);
+	TestEqual(TEXT("D: l'etichetta di Conferma e' quella del suo tasto"), W->GetConfirmKeyLabel().ToString(),
+		EKeys::Enter.GetDisplayName(false).ToString());
+	TestEqual(TEXT("D: l'etichetta di Annulla e' quella del suo tasto"), W->GetUndoKeyLabel().ToString(),
+		EKeys::BackSpace.GetDisplayName(false).ToString());
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

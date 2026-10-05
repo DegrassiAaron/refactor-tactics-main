@@ -3211,4 +3211,54 @@ bool FRTPlayerInputSneakKeyTest::RunTest(const FString&)
 	return bOk;
 }
 
+/**
+ * `#3471` — I PULSANTI `CONFERMA` E `ANNULLA` MOSTRANO I TASTI CHE IL CONTESTO DI INPUT LEGA DAVVERO ([D-458]).
+ *
+ * Stessa forma di `SneakIsMappedOnTheKeyTheBarShows`, sul contesto reale: le etichette dei pulsanti leggono
+ * `DeclarePlanHotkey()` e `UndoKeyboardHotkey()`, e qui si prova che le stesse sedi alimentano la mappatura.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlayerInputCommitKeysTest,
+	"RefactorTactics.PlayerInput.CommitButtonsShowTheKeysTheContextMaps",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlayerInputCommitKeysTest::RunTest(const FString&)
+{
+	UWorld* World = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	FWorldContext& Ctx = GEngine->CreateNewWorldContext(EWorldType::Game);
+	Ctx.SetCurrentWorld(World);
+
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	bool bOk = TestNotNull(TEXT("controller"), PC);
+	if (bOk)
+	{
+		const UInputMappingContext* Imc = PC->BuildAndGetMappingContextForTest();
+		bOk = TestNotNull(TEXT("mapping context costruito"), Imc);
+		if (bOk)
+		{
+			TArray<FKey> Dichiara;
+			TArray<FKey> Indietro;
+			for (const FEnhancedActionKeyMapping& M : Imc->GetMappings())
+			{
+				if (!M.Action) { continue; }
+				if (M.Action->GetName() == TEXT("IA_DeclarePlan")) { Dichiara.Add(M.Key); }
+				if (M.Action->GetName() == TEXT("IA_UndoWaypoint")) { Indietro.Add(M.Key); }
+			}
+			TestEqual(TEXT("IA_DeclarePlan ha esattamente un tasto"), Dichiara.Num(), 1);
+			if (Dichiara.Num() == 1)
+			{
+				TestEqual(TEXT("ed e' DeclarePlanHotkey(), cioe' quello che Conferma mostra"),
+					Dichiara[0], ARTPlayerController::DeclarePlanHotkey());
+			}
+			TestTrue(TEXT("IA_UndoWaypoint e' legata a UndoKeyboardHotkey(), cioe' quello che Annulla mostra"),
+				Indietro.Contains(ARTPlayerController::UndoKeyboardHotkey()));
+			TestTrue(TEXT("e resta legata anche al tasto destro: il pulsante non toglie il gesto"),
+				Indietro.Contains(EKeys::RightMouseButton));
+		}
+	}
+
+	GEngine->DestroyWorldContext(World);
+	World->DestroyWorld(/*bInformEngineOfWorld=*/ false);
+	return bOk;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
