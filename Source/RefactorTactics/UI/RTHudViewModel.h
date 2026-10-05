@@ -670,6 +670,16 @@ struct FRTAbilityCooldownView
 	ERTActionGroup Group = ERTActionGroup::None;
 
 	/**
+	 * Questa voce APRE un gruppo di lettura diverso da quello della voce prima (`#3489`, [D-455] punto 2).
+	 *
+	 * ⚠️ **Lo scrive solo `OrderForReading`**, ed e' vero solo in quella lista: lungo `GetActions()` i gruppi
+	 * non sono contigui, e un separatore «dove `Group` cambia» ne metterebbe dove non c'e' un confine. Fuori
+	 * dalla lista di lettura resta `false`. Lo slot lo traduce nel proprio padding (`GroupGap`).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bGroupBreakBefore = false;
+
+	/**
 	 * Il piano e' ILLEGALE e quest'azione ne e' la colpevole (`ValidatePlan`, `OffendingActionId`): lettura B
 	 * di [D-459], stato `Invalid`. Il motivo — `SlotOccupied`, `OnCooldown` — resta del validatore.
 	 */
@@ -1260,7 +1270,8 @@ public:
 	 *
 	 * 🔑 **Partizione STABILE**: dentro ogni gruppo resta l'ordine di kit. E **ogni voce resta intatta** —
 	 * `AbilityIndex`, `HotkeyLabel`, tutto — perche' la posizione a schermo non e' mai un indice ([D-397]
-	 * punti 2 e 4): chi arma legge l'indice dallo slot, non dalla sua posizione nella barra.
+	 * punti 2 e 4): chi arma legge l'indice dallo slot, non dalla sua posizione nella barra. L'unico campo
+	 * che scrive e' `bGroupBreakBefore` (`#3489`), che ha senso solo in questa lista.
 	 *
 	 * ⛔ **Non riordina `GetActions()`**, che resta identita': restituisce una COPIA ordinata. Esiste perche'
 	 * i gruppi non sono contigui nella lista — l'equipaggiamento e' accodato dopo le generiche, e in partita
