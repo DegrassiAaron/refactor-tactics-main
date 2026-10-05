@@ -550,6 +550,12 @@ Ogni action slot deve poter rappresentare:
 - Invalid;
 - Warning.
 
+> ✅ **2026-10-05 — [D-459](../../decisions/RT_PDR_00_Decision_Log.md): `Invalid` e `Warning` sono stati dello
+> slot.** `Invalid` = il gesto sarebbe **rifiutato** (l'azione armata col bersaglio puntato rifiutato, o la
+> colpevole di un piano illegale); `Warning` = il piano è **accettato ma degradato** (il bersaglio, allo stato
+> noto, prenderebbe il ripiego dall'origine del Blast). Il rifiuto resta di `ERTTargetRefusal`, e un bersaglio
+> ignoto non accende nessuno dei due. Li restituisce `URTHudViewModel::ResolveSlotState`. Owner: [#3483](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3483).
+
 Dalla style guide:
 
 - gli **Universal Action Slot** usano una famiglia più neutra;

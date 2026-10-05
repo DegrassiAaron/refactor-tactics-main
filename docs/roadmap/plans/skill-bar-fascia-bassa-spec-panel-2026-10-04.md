@@ -195,6 +195,14 @@ golden. L'albero di `main` dopo ciascun merge coincideva con quello misurato.
 - [#3483](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3483): Invalid e Warning dello slot — lettura A (bersaglio armato), B (validità del piano, §22) o C (non sono stati dello slot).
 - L'Objective di §6.3 senza cella: thread di [#613](https://github.com/DegrassiAaron/refactor-tactics-main/issues/613).
 
+> ✅ **Decise più tardi lo stesso giorno, dall'autore** — l'elenco qui sopra è la fotografia del mattino:
+>
+> - #3470 → [D-457](../../decisions/RT_PDR_00_Decision_Log.md): il badge è cliccabile;
+> - #3471 → [D-458](../../decisions/RT_PDR_00_Decision_Log.md): `Conferma` è `Invio`, `Annulla` è l'intero Back.
+>   Codice in [#3487](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3487); l'asset è la seduta `U64`;
+> - #3483 → [D-459](../../decisions/RT_PDR_00_Decision_Log.md): `Invalid` = rifiutato, `Warning` = degradato,
+>   con entrambe le letture. Il Warning misura dall'origine del Blast, quindi lo accende uno scatto pianificato.
+
 ### ⏭️ Pronto per l'Editor
 
 - **`U61` + `U63`**, una sola apertura: tutto il C++ che leggono è su `main`, e il foglio di conduzione è collegato da entrambe le voci (`runbook:`).

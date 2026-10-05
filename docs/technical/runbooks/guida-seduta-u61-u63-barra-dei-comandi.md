@@ -82,8 +82,8 @@ ricomposto nel grafo da `bPlanned`, `TurnsRemaining` e `bUsableNow` (#2988). Le 
 | Planned | bordo **2 px** `Amber` | **angolo pieno 18 px** in alto a destra |
 | Cooldown | `BG_Panel #151A23`, striscia al 30% | **numero di turni**, 26 px, sopra l'icona (`CooldownText` c'è già) |
 | Unavailable | — | **tratteggio diagonale 135°** |
-| Invalid | bordo 2 px `Red #FF4D4D` | **✕** in alto a destra — ⚠️ **ricetta sì, produttore no**: vedi #3483 |
-| Warning | bordo **2 px tratteggiato** `Amber` | **triangolo !** in alto a destra — come Invalid |
+| Invalid | bordo 2 px `Red #FF4D4D` | **✕** in alto a destra — il gesto sarebbe **rifiutato** ([D-459]) |
+| Warning | bordo **2 px tratteggiato** `Amber` | **triangolo !** in alto a destra — il piano è accettato ma **degradato** ([D-459]) |
 
 ⚠️ **Selected e Warning condividono l'ambra**: li separa la forma, cioè bordo continuo più barra contro bordo
 tratteggiato più triangolo.
@@ -99,7 +99,13 @@ si coniano come token nuovi senza conferma.
    - **Planned**: pianificala;
    - **Cooldown**: il turno dopo una skill con ricarica.
 
-   Invalid e Warning **non** hanno produttore (§1.2): la loro ricetta si verifica nel Designer.
+   - **Invalid**: arma l'attacco base e porta il puntatore su un nemico **noto** fuori portata o dietro
+     copertura — lo slot armato diventa rosso prima del click;
+   - **Warning**: pianifica l'attacco su un nemico in vista, poi pianifica uno **scatto** verso una cella da
+     cui quel nemico non è più colpibile. Il click aveva accettato; il Blast partirà dalla cella dello scatto.
+
+   ⛔ **Il controllo di privacy si guarda a occhio**: un nemico **ignoto** sotto il puntatore non accende
+   niente — lo slot resta `Selected`, come su una cella vuota ([D-225]).
 2. Cattura e converti:
 
    ```bash
