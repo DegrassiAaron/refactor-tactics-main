@@ -1,7 +1,10 @@
 // Comporre la coda: cosa entra, cosa resta fuori, e cosa ferma tutto.
 
 #include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "PieSession/RTPieSessionPlaylist.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -46,7 +49,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPiePlaylistPrefixTakesEveryItemTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPiePlaylistPrefixTakesEveryItemTest::RunTest(const FString&)
 {
-	// Il guadagno principale in una riga: un allestimento che copre sette voci si apre UNA volta.
+	// Il guadagno principale in una riga: un allestimento che copre piu' voci si apre UNA volta.
 	const FRTPieSessionPlan Plan = URTPieSessionPlaylist::Compose(TEXT("Visual.Perception.*"));
 
 	TestTrue(TEXT("la coda si puo' eseguire"), Plan.IsRunnable());
@@ -72,11 +75,28 @@ bool FRTPiePlaylistPrefixTakesEveryItemTest::RunTest(const FString&)
 			DaAcceptance.Add(S.PieItem);
 		}
 	}
-	TestEqual(TEXT("sette passi da un solo allestimento"), DaAcceptance.Num(), 7);
 	TestEqual(TEXT("contigui: l'allestimento si apre UNA volta"), Ultimo - Primo + 1, DaAcceptance.Num());
-	if (DaAcceptance.Num() > 0)
+
+	// La lista attesa si LEGGE dal file, non si scrive qui: un «sette» e un «PIE-KNOW1» a mano tornerebbero a
+	// fotografare il file del giorno, e un'ottava voce in `Acceptance.json` li romperebbe di nuovo — mentre una
+	// permutazione dal secondo elemento in poi passerebbe (dalla revisione di #3493).
+	FString Testo;
+	const FString Percorso =
+		FPaths::Combine(URTScenarioLoader::ScenariosRoot(), TEXT("Visual/Perception/Acceptance.json"));
+	if (!TestTrue(TEXT("Acceptance.json si legge"), FFileHelper::LoadFileToString(Testo, *Percorso))) { return false; }
+	TArray<FString> Dichiarate;
+	if (!TestTrue(TEXT("e dichiara le proprie voci"), URTPieSessionPlaylist::ReadVerifies(Testo, Dichiarate)))
 	{
-		TestEqual(TEXT("nell'ordine in cui il file le dichiara"), DaAcceptance[0], TEXT("PIE-KNOW1"));
+		return false;
+	}
+	TestTrue(TEXT("il file dichiara piu' di una voce: e' il caso che il prefisso deve tenere insieme"),
+		Dichiarate.Num() > 1);
+	if (TestEqual(TEXT("entrano TUTTE le voci che il file dichiara"), DaAcceptance.Num(), Dichiarate.Num()))
+	{
+		for (int32 I = 0; I < Dichiarate.Num(); ++I)
+		{
+			TestEqual(FString::Printf(TEXT("voce %d nell'ordine del file"), I), DaAcceptance[I], Dichiarate[I]);
+		}
 	}
 	return true;
 }
