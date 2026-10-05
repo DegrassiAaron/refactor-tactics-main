@@ -24,6 +24,9 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/OverlaySlot.h" // e' lo SLOT a decidere se la zona riempie la cella, non il widget
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
+#include "Components/Button.h"
+#include "Components/Border.h"
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
@@ -43,6 +46,8 @@ namespace
 	const TCHAR* const ActionDockPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionDock.WBP_RT_ActionDock_C");
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
+	// Conferma e Annulla in `TopRight` ([D-458], #3471): entra con l'asset, dalla seduta `U64`.
+	const TCHAR* const PlanCommitPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanCommit.WBP_RT_PlanCommit_C");
 	// UNA zona: il contenitore che porta `ZoneId`, il bordo da cantiere e il `NamedSlot Content`.
 	const TCHAR* const HudZonePath = TEXT("/Game/RT/UI/Match/WBP_RT_HudZone.WBP_RT_HudZone_C");
 	// CP 14.6 (`#166`): la finestra di reazione. Il path entra QUI e non prima — questo file carica per
@@ -223,12 +228,12 @@ bool FRTMatchWidgetsLoadTest::RunTest(const FString&)
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
 		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath,
-		EventLogPath, EventLinePath
+		EventLogPath, EventLinePath, PlanCommitPath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
 		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
-		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine")
+		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine"), TEXT("PlanCommit")
 	};
 	static_assert(UE_ARRAY_COUNT(Paths) == UE_ARRAY_COUNT(Labels),
 		"path ed etichette vanno a coppie: un'etichetta in meno sposta i nomi di tutti i successivi");
@@ -360,6 +365,7 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		{ FastDecisionOptionPath, TEXT("FastDecisionOption"),
 		                                               URTFastDecisionOptionWidget::StaticClass() },
 		{ EventLogPath,     TEXT("EventLog"),          URTPlayerEventLogWidget::StaticClass() },
+		{ PlanCommitPath,   TEXT("PlanCommit"),        URTPlanCommitWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -418,12 +424,12 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
 		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath,
-		EventLogPath, EventLinePath
+		EventLogPath, EventLinePath, PlanCommitPath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
 		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
-		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine")
+		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine"), TEXT("PlanCommit")
 	};
 	static_assert(UE_ARRAY_COUNT(Paths) == UE_ARRAY_COUNT(Labels),
 		"path ed etichette vanno a coppie: un'etichetta in meno sposta i nomi di tutti i successivi");
@@ -956,6 +962,8 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 		// ⚠️ MiddleLeft e non BottomLeft: Selected Unit cambia fascia col rimontaggio delle otto zone.
 		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("MiddleLeft"),   TEXT("#613, #2760") },
 		{ URTActionDockWidget::StaticClass(),        TEXT("Bottom"),       TEXT("#220, #2760, #3469") },
+		// Conferma e Annulla ([D-458]): l'asset e la riga entrano nello stesso commit, dalla seduta `U64`.
+		{ URTPlanCommitWidget::StaticClass(),        TEXT("TopRight"),     TEXT("#3471") },
 	};
 
 	for (const FInquilino& Atteso : Attesi)
@@ -1511,6 +1519,95 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 		*FString::Printf(TEXT("la zona contiene degli `UOverlaySlot` da misurare (ne ha %d)"), Esaminati),
 		Esaminati > 0);
 
+	return true;
+}
+
+/**
+ * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489).
+ *
+ * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
+ * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non
+ * direbbe mai «rifiutato», e nessun altro test lo vedrebbe, perche' i test headless iniettano i widget a mano.
+ *
+ * 🔑 **I nomi dello slot vengono dalla tabella che `RefreshLook` applica** — `IndicatorNameFor`, uno per stato —
+ * e non da un elenco scritto qui: il gate e il codice leggono lo stesso fatto. Gli altri sono i membri
+ * `BindWidgetOptional` dichiarati in `RTScreenHudWidgets.h`.
+ *
+ * ⚠️ **La classe e' parte del contratto**: un `PhaseStrip` che fosse un `Image` invece di un `Border` porta il
+ * nome giusto e il binding lo scarta in silenzio, perche' il tipo del membro non combacia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionBarDeclaresNamedPortsTest,
+	"RefactorTactics.ScreenHud.ActionBarDeclaresTheNamedPorts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
+{
+	struct FPorta
+	{
+		FName Nome;
+		UClass* Classe;
+	};
+
+	// Lo slot: gli indicatori dalla tabella di `RefreshLook`, piu' striscia, etichetta e bordo.
+	TArray<FPorta> Slot = {
+		{ TEXT("PhaseStrip"), UBorder::StaticClass() },
+		{ TEXT("PhaseLabelText"), UTextBlock::StaticClass() },
+		{ TEXT("StateFrame"), UBorder::StaticClass() },
+	};
+	const UEnum* Stati = StaticEnum<ERTActionSlotState>();
+	for (int32 i = 0; i < Stati->NumEnums() - 1; ++i)
+	{
+		const FName Nome = URTActionSlotWidget::IndicatorNameFor(
+			static_cast<ERTActionSlotState>(Stati->GetValueByIndex(i)));
+		if (!Nome.IsNone())
+		{
+			Slot.Add({ Nome, UWidget::StaticClass() });
+		}
+	}
+
+	const TArray<FPorta> Dock = {
+		{ TEXT("MovementReadout"), UWidget::StaticClass() },
+		{ TEXT("MovementReadoutText"), UTextBlock::StaticClass() },
+		{ TEXT("SneakBadge"), UButton::StaticClass() },
+		{ TEXT("SneakBadgeText"), UTextBlock::StaticClass() },
+	};
+	const TArray<FPorta> Commit = {
+		{ TEXT("ConfirmButton"), UButton::StaticClass() },
+		{ TEXT("ConfirmText"), UTextBlock::StaticClass() },
+		{ TEXT("UndoButton"), UButton::StaticClass() },
+		{ TEXT("UndoText"), UTextBlock::StaticClass() },
+	};
+
+	struct FAsset
+	{
+		const TCHAR* Path;
+		const TCHAR* Label;
+		const TArray<FPorta>* Porte;
+	};
+	const FAsset Asset[] = {
+		{ ActionSlotPath, TEXT("WBP_RT_ActionSlot"), &Slot },
+		{ ActionDockPath, TEXT("WBP_RT_ActionDock"), &Dock },
+		{ PlanCommitPath, TEXT("WBP_RT_PlanCommit"), &Commit },
+	};
+
+	for (const FAsset& A : Asset)
+	{
+		const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, A.Path, A.Label);
+		if (Tree == nullptr)
+		{
+			continue;
+		}
+		for (const FPorta& P : *A.Porte)
+		{
+			const UWidget* W = Tree->FindWidget(P.Nome);
+			if (!TestNotNull(*FString::Printf(TEXT("%s dichiara '%s'"), A.Label, *P.Nome.ToString()), W))
+			{
+				continue;
+			}
+			TestTrue(*FString::Printf(TEXT("%s: '%s' e' un %s (e' un %s)"), A.Label, *P.Nome.ToString(),
+				*P.Classe->GetName(), *W->GetClass()->GetName()), W->IsA(P.Classe));
+		}
+	}
 	return true;
 }
 

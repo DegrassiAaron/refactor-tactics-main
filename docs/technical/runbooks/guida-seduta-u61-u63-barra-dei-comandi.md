@@ -4,9 +4,9 @@
 > criterio**: le voci `U61` e `U63` di [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml). Questo
 > foglio **non** ridefinisce i criteri: dove divergono, vale la voce.
 >
-> ⚠️ **Mai eseguito.** È scritto **prima** della seduta. Ogni nome di widget e di funzione qui sotto è
-> stato letto dal codice o dalla tabella dei nomi dei `.uasset` (`tools/uasset/names.py`), non dall'Editor.
-> La §6 dichiara ciò che da fuori l'Editor non si poteva verificare.
+> ✅ **Eseguito il 2026-10-05** per `U61`, `U63` e `U64`, su `main` = `2b9b15d4c`. Lo stato e gli scarti
+> stanno nelle `notes` delle tre voci di `editor-sessions.yaml`; la §7 qui sotto dice che cosa la seduta ha
+> trovato e che il foglio non sapeva. La §6 resta: e' cio' che da fuori l'Editor non si poteva verificare.
 >
 > 🔑 **Una sola apertura per entrambe**: le due voci si dichiarano `shares_setup_with` a vicenda, e toccano
 > gli stessi due Blueprint, `WBP_RT_ActionSlot` (U61) e `WBP_RT_ActionDock` (U63). Prima lo slot, poi la dock.
@@ -34,7 +34,7 @@ l'Editor **ricompilato** da quel commit. Una DLL di prima non avrebbe i pin.
 | `GetActionsInReadingOrder()` | #3478 | #3479 |
 | `GetMovementReadout()` | #3470 | #3482 |
 | `Invalid` e `Warning` con i produttori | #3483 | #3490 |
-| le porte per nome di slot, dock e `URTPlanCommitWidget` | #3489 | — |
+| le porte per nome di slot, dock e `URTPlanCommitWidget` | #3489 | #3491 |
 
 🔑 **Si cabla per nome, non a grafo** (#3489). Ogni widget qui sotto scritto in **grassetto e `codice`** si
 dichiara nel Designer con **quel nome esatto**, e il C++ lo accende. Il bridge MCP non scrive il property
@@ -43,7 +43,7 @@ binding, e un grafo costruito nodo per nodo non si diffa e non si testa: è la s
 resta fermo: lo dice solo la rilettura del §3.
 
 ```bash
-git fetch origin && git merge-base --is-ancestor aa85b271c origin/main && echo "main contiene tutto"
+git fetch origin && git merge-base --is-ancestor 2b9b15d4c origin/main && echo "main contiene tutto"
 ```
 
 Apertura dal **clone principale**, con `-NoLiveCoding` perché non blocchi le build degli altri cloni.
@@ -267,6 +267,24 @@ Un rosso qui è un difetto del cablaggio, non un test da aggiornare.
 - Committa asset ed evidenze insieme, e marca le due voci come eseguite.
 - **Rigiudica a schermo il criterio (1) di `PIE-V01-SCREENHUD`**: l'ingombro delle zone. Il suo ultimo
   verde è sull'albero a otto zone, e la cella lo dichiara in coda.
+
+## 7. Che cosa ha trovato la seduta del 2026-10-05
+
+- **Lo slot non aveva misure**: la radice e' un `Button`, e senza un `SizeBox` la dimensione la decideva il
+  nome. Ora `SlotSize` lo fissa a 78×96 (`tokens.json`).
+- 🔴 **Il `Button` di default ha 12 px di padding per lato** (`WidgetStyle.NormalPadding`): moltiplicava il gap
+  fra gli slot. Azzerato su `ClickSurface`, insieme al `PressedPadding`.
+- **Il grafo della dock era come la §6 lo deduceva**: `GetChildAt(i)` + `SetAction`, e il confronto dell'armato
+  su `AbilityIndex`. La sostituzione della sorgente e' un nodo solo, con i suoi quattro consumatori.
+- **Due test leggevano la posizione nella fila come un indice di kit** (`DockArmsOnlyTheSelectedAction`,
+  `DockSurvivesAHoleInTheKit`): con la lista di lettura diventano rossi senza che il prodotto sbagli. Ora
+  cercano lo slot per `Action.AbilityIndex`.
+- **Catturare a 1920×1080** su un monitor 1920×1080: finestra PIE flottante di quella misura con la barra del
+  titolo sul monitor superiore, letta con `PrintWindow(PW_CLIENTONLY | PW_RENDERFULLCONTENT)` — la taskbar
+  coprirebbe una cattura dallo schermo.
+- **Gli stati dal vivo**: `Invalid` si produce armando un'azione ad area e puntando una cella oltre la portata,
+  con la camera allontanata (rotella in su). `Warning` chiede un nemico noto, che in `L_DevSandbox` non era
+  in vista.
 
 ## 6. ⛔ Cosa questo foglio NON ha potuto verificare
 
