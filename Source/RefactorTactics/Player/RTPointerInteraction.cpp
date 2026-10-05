@@ -177,7 +177,8 @@ ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, boo
 	}
 	// 🔑 **Il verso dichiarato prima di un targeting e dei waypoint** ([D-367], [D-462]): chiude il movimento, e
 	// il Back lo toglie per primo, riaprendolo.
-	if (bHasDeclaredFacing)
+	// ⛔ Non durante il playback (§5.3): un piano consegnato non si tocca, anche se il verso e' ancora scritto.
+	if (bHasDeclaredFacing && Context != ERTPointerContext::ResolutionPlayback)
 	{
 		return ERTPointerBackStep::DeclaredFacing;
 	}

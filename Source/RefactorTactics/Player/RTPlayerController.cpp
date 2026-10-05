@@ -1656,9 +1656,23 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 	// 🔑 **Il secondo click sull'esagono finale sceglie il verso** ([D-367], [D-462], `#291`), e precede la matrice
 	// delle unita': sopra quell'esagono il pavimento vince sulla mesh, altrimenti un personaggio fermo — o uno che
 	// arriva su una cella occupata — non potrebbe scegliersi il verso.
-	if (SelectedUnit && TryHandleFacingClickUnderCursor(SelectedUnit))
+	//
+	// ⚠️ **Tranne il secondo click di un doppio click sull'unita' gia' selezionata** (`#1773`, dalla revisione): il
+	// primo click ha aperto il selettore, e questo — sulla stessa unita', entro l'intervallo — e' l'inquadratura, non
+	// una scelta di verso. Si chiude il selettore e si lascia proseguire fino al ramo del doppio click.
 	{
-		return;
+		const double Adesso = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		const bool bDoppioSullaSelezionata = ClickedUnit && ClickedUnit == SelectedUnit
+			&& LastSelectActor == ClickedUnit && LastSelectTime >= 0.0
+			&& (Adesso - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
+		if (bDoppioSullaSelezionata && bDeclaringFacing && !SelectedUnit->bDeclaresPlannedFacing)
+		{
+			EndFacingDeclaration();
+		}
+		else if (SelectedUnit && TryHandleFacingClickUnderCursor(SelectedUnit))
+		{
+			return;
+		}
 	}
 
 	// §5 — la riga di matrice decide, e la decisione e' ESTRAIBILE dal raycast: vedi `DispatchUnitClick`.
@@ -1787,6 +1801,9 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	{
 		return;
 	}
+	// `#291`, dalla revisione: il selettore del verso e' dell'unita' che lo ha aperto. Lasciato acceso, la nuova
+	// unita' saltava il primo click.
+	EndFacingDeclaration();
 	IRTSelectable* Selectable = Cast<IRTSelectable>(Actor);
 	if (!Selectable)
 	{
@@ -2558,6 +2575,8 @@ void ARTPlayerController::HandleLockInCommitted()
 	// falso**: `ARTHUD` disegna quella scia su un canale diverso e IN AGGIUNTA, non al posto. La rotta la
 	// spegne il ramo `!Unit` di `RefreshPlanningPreview`, che fino al 2026-09-06 non lo faceva.
 	RefreshPlanningPreview(GetWorld(), nullptr);
+	// Il selettore del verso non sopravvive al commit (`#291`): il turno dopo si apre da capo.
+	EndFacingDeclaration();
 }
 
 void ARTPlayerController::HandlePlaybackFinished()
@@ -2895,6 +2914,11 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: nessuna unita' selezionata"), *Richiesta);
 		return;
 	}
+
+	// 🔴 `#291`, dalla revisione: armare (o disarmare) chiude il selettore del verso. `Facing` precede `Targeting` in
+	// `GetPointerContext`, quindi un selettore rimasto aperto mascherava il bersaglio: il click di mira diventava un
+	// waypoint, e un click su un nemico un'ispezione.
+	EndFacingDeclaration();
 
 	// ⚠️ **Il pacing resta QUI**, e la posizione e' una scelta di insieme e non un residuo del riordino:
 	// registra le pressioni che hanno superato le tre guardie e raggiunto un'unita' — le stesse di prima.
@@ -3437,12 +3461,13 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// 🔑 Chiavata su `ProfileSneak` e non su `Ceiling.Id`: cio' che e' reversibile e' il GESTO del
 	// giocatore, e `CeilingProfile` puo' rispondere un altro profilo quando l'unita' e' `Unbalanced`.
 	Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelTaglio);
+	Unit->PlannedPath = Kept.Path;
+	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
+	// Dopo l'assegnazione: l'anteprima della mesh si ricalcola sul percorso gia' troncato (`#291`).
 	if (Dropped > 0)
 	{
 		CancelDeclaredFacing(Unit, TEXT("lo Sneak ha troncato il percorso"));
 	}
-	Unit->PlannedPath = Kept.Path;
-	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
 
 	UE_LOG(LogRT, Log,
 		TEXT("[RT] Sneak %s — tetto %s: %d waypoint scartati (%s: %d passi/%d, costo %d/%d), ne restano %d."),
@@ -4287,8 +4312,9 @@ FRTCellId ARTPlayerController::FacingCellFor(const ARTUnit* Unit) const
 	{
 		return FRTCellId();
 	}
-	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'.
-	if (Unit->PlannedDashAbility != INDEX_NONE)
+	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashApplies`, il
+	// predicato che usa il resolver, e non il solo indice: uno scatto sulla propria cella non e' uno scatto.
+	if (Unit->PlannedDashApplies())
 	{
 		return Unit->PlannedDashCell;
 	}
@@ -4309,7 +4335,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 		return;
 	}
 
-	if (Unit->PlannedDashAbility != INDEX_NONE)
+	if (Unit->PlannedDashApplies())
 	{
 		const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility);
 		if (Scatto)

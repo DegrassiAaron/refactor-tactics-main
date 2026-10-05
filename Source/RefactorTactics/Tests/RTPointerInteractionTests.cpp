@@ -216,9 +216,19 @@ bool FRTPointerBackOrderTest::RunTest(const FString&)
 		URTPointerLibrary::ResolveBack(ERTPointerContext::Targeting, false, 3, true),
 		ERTPointerBackStep::Declaration);
 
-	TestEqual(TEXT("Facing e' allo stesso livello del Targeting"),
-		URTPointerLibrary::ResolveBack(ERTPointerContext::Facing, false, 0, true),
+	// `#291`: il selettore aperto si chiude per primo, poi il verso dichiarato, poi il targeting e i waypoint.
+	TestEqual(TEXT("un selettore del verso aperto si chiude per primo"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Facing, false, 0, true, /*bHasDeclaredFacing=*/ true),
 		ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("il verso dichiarato batte il targeting"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Targeting, false, 3, true, /*bHasDeclaredFacing=*/ true),
+		ERTPointerBackStep::DeclaredFacing);
+	TestEqual(TEXT("e batte i waypoint"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::Pathing, false, 2, true, /*bHasDeclaredFacing=*/ true),
+		ERTPointerBackStep::DeclaredFacing);
+	TestEqual(TEXT("ma durante il playback il Back non tocca il piano"),
+		URTPointerLibrary::ResolveBack(ERTPointerContext::ResolutionPlayback, false, 0, false, /*bHasDeclaredFacing=*/ true),
+		ERTPointerBackStep::None);
 
 	// In Pathing i waypoint vengono prima dell'uscita dal contesto.
 	TestEqual(TEXT("con waypoint, ne rimuove uno"),
@@ -604,6 +614,54 @@ bool FRTFacingSectorFromOffsetTest::RunTest(const FString&)
 	// La dead-zone: un click al centro non sceglie niente.
 	TestFalse(TEXT("nella dead-zone non si sceglie"),
 		URTPointerLibrary::FacingSectorFromOffset(Verso(45.0, 20.0), Direzioni, 30.f, Settore));
+	return true;
+}
+
+/**
+ * ARMARE UN'AZIONE CHIUDE IL SELETTORE DEL VERSO - `#291`, dalla revisione (M1).
+ *
+ * 🔴 `Facing` precede `Targeting` in `GetPointerContext`: un selettore rimasto aperto mascherava il bersaglio, e il
+ * click di mira diventava un waypoint.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmingClosesFacingSelectorTest,
+	"RefactorTactics.PlayerInput.ArmingAnActionClosesTheFacingSelector",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmingClosesFacingSelectorTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	PC->HandleClickOnCell(Unit->Cell);
+	if (!TestEqual(TEXT("premessa: il selettore e' aperto"), PC->GetPointerContext(), ERTPointerContext::Facing))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	int32 ConBersaglio = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities() && ConBersaglio == INDEX_NONE; ++I)
+	{
+		const URTActionData* A = Unit->GetAbility(I);
+		if (A && !A->bSelfTarget && A->Def.Slot == ERTActionSlot::Main && A->Def.ReservesMovementProfileId.IsNone())
+		{
+			ConBersaglio = I;
+		}
+	}
+	if (!TestNotEqual(TEXT("premessa: un'azione con bersaglio"), ConBersaglio, (int32)INDEX_NONE))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->SelectAbilityForCurrentForTest(ConBersaglio);
+	TestEqual(TEXT("armata l'azione, il contesto e' il bersaglio, non il verso"),
+		PC->GetPointerContext(), ERTPointerContext::Targeting);
+
+	DestroyPointerWorld(World);
 	return true;
 }
 
