@@ -426,6 +426,9 @@ Due regole che l'ordine da solo non dice:
   aggiunge waypoint, e la voce 5 lo toglie per prima. Un click sulla destinazione senza un lato (al centro) non
   sceglie niente e non duplica il waypoint. Qualunque modifica al percorso — waypoint tolto o restituito,
   troncamento di una riserva o dello `Sneak` — cancella il verso. ⌫ *Il tasto `T` e il ciclo sono usciti dal gioco.*
+  ⚠️ **L'ordine e' statico, e lo si dichiara**: il verso si toglie prima di un'azione armata anche quando l'azione e'
+  stata armata dopo. Il Back che «disfa l'ultimo gesto» chiederebbe una pila di gesti, che non esiste; e armare chiude
+  il selettore, quindi i due gesti non si sovrappongono.
 - **«Annulla la dichiarazione» vuol dire anche il piano, se la dichiarazione l'ha già scritto**
   ([D-461](../../decisions/RT_PDR_00_Decision_Log.md), [#3501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3501)).
   Quando l'azione armata è **la stessa** già nel piano, la voce 6 la disarma: la toglie dalla selezione e dal
@@ -441,7 +444,7 @@ pure, con la sola eccezione della `ReactionWindow`: lì non chiude, perché non 
 
 ### 5.6 `PhaseFocus` non è un contesto
 
-La voce 7 dell'elenco nomina uno stato che **non** appartiene a §4, e la distinzione conta:
+La voce 9 dell'elenco nomina uno stato che **non** appartiene a §4, e la distinzione conta:
 
 `PhaseFocus ∈ {Auto, Prep, Dash, Blast, Move}` è l'asse dello **scrubbing** — quale fase del proprio piano si
 sta guardando. È ortogonale al contesto del puntatore: si può ispezionare la fase `Blast` mentre si posano
