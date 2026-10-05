@@ -845,7 +845,8 @@ public:
 	 * Il colore del bordo per stato. Default: la ricetta del mockup (`sorgente-mockup/Main.dc.html`, #3498).
 	 *
 	 * 🔑 **Su un `StateFrame` disegnato come `RoundedBox` e' il colore del CONTORNO**, e il fondo viene da
-	 * `FillColors`; su un `Border` a texture e' il colore dell'intero bordo, come prima di #3498.
+	 * `FillColors`; su un `Border` a texture e' il colore dell'intero bordo. ⚠️ I valori di #3498 valgono anche
+	 * li': ricarica e indisponibile hanno il contorno `#2E3746`, e una reazione armata e' viola.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionSlotState, FLinearColor> FrameColors;
@@ -861,6 +862,32 @@ public:
 	/** Il colore dell'icona per stato (#3498): ambra se armata, spenta in ricarica, bianca altrove. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionSlotState, FLinearColor> IconTints;
+
+	/** Il colore del nome per stato (#3498): spento in ricarica e indisponibile, grigio sullo slot vuoto. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> NameTints;
+
+	/** La striscia di uno slot indisponibile: grigia, al posto del colore della fase (`Stati.dc.html`). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor UnavailableStripColor;
+
+	/** L'opacita' della striscia in ricarica: il colore della fase resta, attenuato (`Stati.dc.html`). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	float CooldownStripOpacity = 0.3f;
+
+	/** Il colore dell'etichetta di fase. Su uno slot di reazione e' `ReactionLabelColor`, il viola chiaro di `REAZ.`. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor PhaseLabelColor;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionLabelColor;
+
+	/**
+	 * Il colore di `SelectedBar`: ambra; su una reazione armata prende `ReactionArmedFrame`. Lo scrive il C++ se
+	 * la barra e' un `Border` (fondo) o un'`Image` (tinta). Il tratteggio della barra della reazione resta escluso.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor SelectedBarColor;
 
 	/**
 	 * 🔑 **Una REAZIONE armata non e' l'ambra di un'azione principale**: il mockup la dice viola — fondo `#221E3A`,
@@ -903,6 +930,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
 	TObjectPtr<class UWidget> SelectedGlow;
 
+	/**
+	 * Il divisore che apre un gruppo (#3498): nel mockup una riga di 1 px `#203542` fra due gruppi, a 22 px da
+	 * ciascuno. Acceso solo dove `bGroupBreakBefore`; il Designer lo disegna FUORI dallo slot, a sinistra, dentro
+	 * il `GroupGap`. ⛔ Non e' un widget in `SlotBox`: sposterebbe ogni `GetChildAt(i)` (#3489).
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> GroupDivider;
+
 	/** Il testo dell'intestazione di un gruppo. `None` — una posizione vuota — si legge col Kit. */
 	static FText GroupHeaderFor(ERTActionGroup Group);
 
@@ -910,9 +945,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	float ItemGap = 8.f;
 
-	/** Lo spazio a sinistra di uno slot che apre un gruppo (`dati/tokens.json`: `separatore_gruppi`). */
+	/**
+	 * Lo spazio a sinistra di uno slot che apre un gruppo: `separatore_gruppi` (22, `dati/tokens.json`) su ENTRAMBI
+	 * i lati del divisore da 1 px, come nel mockup — 22 + 1 + 22 (#3498). ⌫ *Era 22 fino a #3498: il divisore non
+	 * c'era, e lo spazio di un lato solo bastava.*
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
-	float GroupGap = 22.f;
+	float GroupGap = 45.f;
 
 	/**
 	 * Il nome del widget che porta il secondo canale di uno stato, o `NAME_None` per gli stati che non ne
