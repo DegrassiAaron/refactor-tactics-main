@@ -81,6 +81,11 @@ public:
 	 *
 	 * ⛔ **La suite non avrebbe visto il difetto**: gira dal percorso a passo fisso, che aveva 20 s di
 	 * budget e ne usava 3. Il tetto e' stato ricalcolato sul consumatore stretto, non su quello comodo.
+	 *
+	 * ⚠️ **I passi a playback FERMO non lo consumano** (`#3488`): con `rt.Debug.PlaybackStartPaused` o `K` un
+	 * turno guardato passo per passo durava, contro questo tetto, circa nove secondi di tempo reale. In
+	 * `RunSingle` una sessione ferma che nessuno riprende la chiude il tetto ESTERNO (`MaxSteps`), e il
+	 * referto lo dice.
 	 */
 	static constexpr int32 MaxResolveTicks = 900;
 

@@ -490,6 +490,18 @@ FRTTestResult URTScenarioRunner::RunSingle(UWorld* World, const FRTTestScenario&
 	}
 
 	FRTTestResult Result = Session.GetResult();
+	// Una sessione NON finita al tetto esterno si dichiara — `#3488`. Il tetto del turno non conta i passi a
+	// playback fermo, quindi un playback fermo che nessuno riprende — la console `rt.Test.Run` gira nel mondo
+	// PIE, col turn manager del GameMode e le sue CVar — arriva fin qui. L'esito era gia' `Error` per default,
+	// ma muto: un ERROR senza motivo non dice dove guardare.
+	if (!Session.IsFinished())
+	{
+		Result.Outcome = ERTTestOutcome::Error;
+		Result.ErrorMessage = FString::Printf(
+			TEXT("la sessione non e' finita entro %d passi del runner: un playback fermo non consuma il tetto del ")
+			TEXT("turno (#3488), quindi se nessuno lo riprende si ferma qui"),
+			MaxSteps);
+	}
 	// Le due durate si riempiono QUI e non dentro la sessione: la sessione avanza un passo per volta e non sa
 	// quanti gliene chiederanno: e' il runner a possedere il ciclo, quindi e' il runner a poterlo contare.
 	Result.SimulationSeconds = StepsTaken * StepSeconds;

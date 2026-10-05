@@ -2264,4 +2264,110 @@ bool FRTScenarioStuckResolutionStillHitsTheCapTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Esente e' lo STATO di pausa, non la POLITICA — `#3488`, dalla revisione di #3493.
+ *
+ * Il fix esenta i passi in cui il playback e' fermo ORA (`IsPlaybackPaused`). Un fix che esentasse invece
+ * ogni sessione in cui i playback partono fermi (`DoesPlaybackStartPaused`) passerebbe entrambi i test
+ * sopra, e toglierebbe il tetto proprio alle sedute: ripreso il playback, una risoluzione che si inceppa
+ * aspetterebbe per sempre. Qui il playback parte fermo, si riprende, e poi nessuno fa avanzare il turn
+ * manager — non e' in pausa, e' bloccato: il tetto deve tornare a contare e chiudere in ERROR.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioResumedStuckPlaybackStillHitsTheCapTest,
+	"RefactorTactics.Scenario.ResumedStuckPlaybackStillHitsTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioResumedStuckPlaybackStillHitsTheCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	// Fermo, oltre il tetto: aspetta.
+	bool bVistoFermo = false;
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		bVistoFermo |= TM->IsPlaybackPaused();
+	}
+	if (!TestTrue(TEXT("il playback e' stato davvero fermo"), bVistoFermo)
+		|| !TestFalse(TEXT("fermo, la sessione aspetta"), Session.IsFinished()))
+	{
+		Session.TearDown();
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	// Ripreso, ma nessuno fa avanzare il turn manager: non e' in pausa, e' bloccato.
+	TM->ResumePlayback();
+	TestFalse(TEXT("ripreso, il playback non e' piu' in pausa"), TM->IsPlaybackPaused());
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("il tetto torna a contare e chiude la sessione"), Session.IsFinished());
+	TestTrue(FString::Printf(TEXT("in ERROR per il tetto (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Error
+			&& Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il runner sincrono dice PERCHE' una sessione non finita si e' fermata — `#3488`, dalla revisione di #3493.
+ *
+ * Prima del fix una sessione ferma la chiudeva il tetto del TURNO, con un messaggio. Ora un playback fermo
+ * non lo consuma, e in una run sincrona — la console `rt.Test.Run`, che gira nel mondo PIE con il turn
+ * manager del GameMode e quindi con le CVar del playback — la ferma solo il tetto esterno del runner. L'esito
+ * restava `Error` per default, ma con `ErrorMessage` vuoto: un ERROR muto, che non dice dove guardare.
+ *
+ * Qui il mondo ha gia' un turn manager col playback fermo, e la sessione lo riusa: nessuno lo riprende.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioRunnerSaysWhyAnUnfinishedSessionStoppedTest,
+	"RefactorTactics.Scenario.RunnerSaysWhyAnUnfinishedSessionStopped",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioRunnerSaysWhyAnUnfinishedSessionStoppedTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	// Il turn manager c'e' gia', e la sessione lo riusa invece di crearne un altro.
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyRunnerWorld(World); return false; }
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	const FRTTestResult Result = URTScenarioRunner::Run(World, Scenario);
+
+	TestTrue(TEXT("in ERROR"), Result.Outcome == ERTTestOutcome::Error);
+	TestFalse(TEXT("e il motivo non e' vuoto"), Result.ErrorMessage.IsEmpty());
+	TestTrue(FString::Printf(TEXT("e dice che la sessione non e' finita (era: '%s')"), *Result.ErrorMessage),
+		Result.ErrorMessage.Contains(TEXT("non e' finita")));
+
+	DestroyRunnerWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
