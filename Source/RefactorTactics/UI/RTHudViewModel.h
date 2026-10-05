@@ -1286,6 +1286,31 @@ public:
 	static TArray<FRTAbilityCooldownView> OrderForReading(const TArray<FRTAbilityCooldownView>& Actions);
 
 	/**
+	 * L'indice che porta uno slot della STRUTTURA della barra ([D-460], #3494): non e' una posizione di kit.
+	 *
+	 * ⚠️ **Non e' `INDEX_NONE`, e di proposito**: il grafo della dock accende lo slot il cui `AbilityIndex` e'
+	 * uguale a `GetArmedActionIndex()`, che senza un'unita' vale proprio `INDEX_NONE`. Con quel valore la
+	 * struttura risulterebbe tutta armata. Uno slot con un indice negativo non arma niente
+	 * (`URTActionSlotWidget::Activate`).
+	 */
+	static constexpr int32 IdleSlotIndex = -2;
+
+	/**
+	 * La barra SENZA un'unita' comandata ([D-460], #3494): la propria struttura invece del vuoto.
+	 *
+	 *  - le **Comuni** come azioni vere ma spente (`bUsableNow` falso -> `Unavailable`): sono le stesse per
+	 *    ogni eroe, quindi mostrarle non dice niente di un'unita' in particolare;
+	 *  - la **Base** come uno slot vuoto;
+	 *  - il **Kit** come slot vuoti, tanti quanti il kit piu' lungo fra `OwnUnits`.
+	 *
+	 * ⛔ **`OwnUnits` sono le unita' della PROPRIA squadra**, e solo quelle: il filtro lo fa il chiamante, e
+	 * un'unita' avversaria nell'elenco renderebbe il numero dei vuoti un'informazione sul suo kit.
+	 * 🔑 **Ogni campo che dipende da un piano resta al default**: delle Comuni si copiano solo identita' e
+	 * presentazione, e nessuno slot porta un indice di kit. Senza unita' nella squadra, la barra resta vuota.
+	 */
+	static TArray<FRTAbilityCooldownView> BuildIdleBar(const TArray<const ARTUnit*>& OwnUnits);
+
+	/**
 	 * Lo STATO di uno slot, in un valore solo (`#2988`).
 	 *
 	 * 🔑 **La precedenza vive qui e in nessun altro posto.** Senza questa funzione ogni `WBP_` che voglia
