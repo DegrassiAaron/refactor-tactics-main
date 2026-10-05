@@ -4888,8 +4888,9 @@ sessions:
     #   2. **Separatori** fra i gruppi: **padding, non widget** (#3489). Lo slot legge `bGroupBreakBefore` —
     #      vero solo nella lista di lettura, dove il gruppo cambia — e scrive sul proprio `HorizontalBoxSlot`
     #      `GroupGap` (22) o `ItemGap` (8). ⛔ Un widget separatore in `SlotBox` sposterebbe ogni
-    #      `GetChildAt(i)` sulla voce sbagliata. L'intestazione testuale (`COMUNI`, `BASE`, `KIT`) resta
-    #      facoltativa, come testo statico del Blueprint.
+    #      `GetChildAt(i)` sulla voce sbagliata. ⌫ *L'intestazione testuale (`COMUNI`, `BASE`, `KIT`) era
+    #      «facoltativa, come testo statico del Blueprint»: da #3498 la porta lo slot (`GroupHeaderText`,
+    #      `bFirstOfGroup`), e si cabla in `U65`.*
     #   3. **Estremita' destra: la lettura del movimento** (#3470), **per nome** (#3489): un contenitore
     #      **`MovementReadout`**, un `TextBlock` **`MovementReadoutText`** (`Move ×1`, `Sprint ×2`,
     #      `Withdraw ×0,25`…), un `Button` **`SneakBadge`** con dentro il `TextBlock` **`SneakBadgeText`**.
@@ -5005,8 +5006,9 @@ sessions:
     issues: [3498, 3499]
     done_when: >-
       i cinque Font Face e i due Font compositi esistono in `/Game/RT/UI/Fonts/`, coi file degli autori
-      verificati per sha256 e la riga di `Content/RT/UI/Fonts/` nel registro; `WBP_RT_ActionSlot` dichiara
-      `HotkeyBadge`, `HotkeyText`, `ActionNameText`, `GroupHeaderText` e `SelectedGlow`, e
+      verificati per sha256 e la riga di `Content/RT/UI/Fonts/` nel registro; i due testi OFL versionati,
+      con la negazione in `.gitignore` che li riammette; `WBP_RT_ActionSlot` dichiara `HotkeyBadge`,
+      `HotkeyText`, `ActionNameText`, `GroupHeaderText`, `SelectedGlow` e `GroupDivider`, e
       `ScreenHud.ActionBarDeclaresTheNamedPorts` li legge da un processo fresco; `StateFrame` e' un
       `RoundedBox`; la dock ha il pannello; la cattura a 1920×1080 e' committata accanto al mockup
     # ⛔ **Cosa NON si fa**: il tooltip, che e' #3499 e chiede una vista C++ che non esiste ancora; il

@@ -72,6 +72,14 @@ cioè **`SemiBold`**.
 
 - Versiona i due testi della licenza accanto ai font: `Content/RT/UI/Fonts/OFL-Orbitron.txt`, da
   `Open Font License.markdown` di Orbitron, e `Content/RT/UI/Fonts/OFL-Exo2.txt`, da `OFL.txt` di Exo 2.
+- 🔴 **`.gitignore` li ignora**: la regola `Content/**/*.txt` li esclude, e `git add -A` li salterebbe senza
+  errore mentre i `.uasset` dei font entrano. Nello stesso commit aggiungi la negazione accanto alle altre di
+  `Content/`, e controlla:
+
+  ```bash
+  # in .gitignore:  !Content/RT/UI/Fonts/OFL-*.txt
+  git check-ignore -v Content/RT/UI/Fonts/OFL-Orbitron.txt   # deve NON stampare niente
+  ```
 - Aggiungi in [`asset-licenze.md`](../asset-licenze.md) la riga di `Content/RT/UI/Fonts/`: SIL Open Font
   License 1.1, le due fonti con i commit, l'attribuzione *«il testo OFL accompagna il font»*.
 
@@ -89,27 +97,30 @@ questa seduta.
 
 ## 2. Lo slot — `WBP_RT_ActionSlot`
 
-L'albero d'arrivo. In **grassetto** i nomi che il C++ legge ([#3489], [#3498]): vanno dichiarati con **quel
-nome esatto**.
+L'albero d'arrivo. I nomi segnati con **◆** li legge qualcuno: il C++ come porta ([#3489], [#3498]), un gate
+(`ArmedBorder`, `CooldownText`) o il grafo (`IconImage`). Vanno dichiarati con **quel nome esatto**, perché un nome
+sbagliato non dà errore e lascia la porta spenta. Gli altri sono liberi.
 
 ```text
-SlotColumn            VerticalBox — nuova radice, SelfHitTestInvisible
-├─ GroupHeaderText    Orbitron Medium 10, Letter Spacing 160, #A9B4C2; padding sotto 10
-├─ SlotSize           SizeBox 78×96
-│  └─ ClickSurface    Button — padding 0, brush trasparenti (§7 della guida U61)
-│     └─ ArmedBorder  Overlay
-│        ├─ SelectedGlow     Border RoundedBox, raggio 9, contorno 3 px #FFD456 α 0.16, fondo α 0; slot −3
-│        ├─ StateFrame       Border RoundedBox, raggio 6, contorno 1 px
-│        ├─ PhaseStrip       4 px in alto, raggi 6 6 0 0
-│        ├─ HotkeyBadge      Border RoundedBox, raggio 3, min 18×18, fondo #080F14, contorno 1 px #4A5568
-│        │  └─ HotkeyText    Orbitron Medium 10, #E6EBF2, centrato
-│        ├─ PhaseLabelText   Orbitron Medium 8, Letter Spacing 80, #A9B4C2
-│        ├─ VerticalBox      in basso, padding sotto 9
-│        │  ├─ IconImage     28×28
-│        │  └─ ActionNameText  Exo 2 SemiBold 11, centrato; padding sopra 6
-│        └─ CooldownText · PlannedCorner · UnavailableHatch · InvalidMark · WarningMark   come oggi
-└─ SelectedBarRow     SizeBox, altezza 9
-   └─ SelectedBar     40×4, raggio 2, #FFD456; padding sopra 5, centrata
+SlotRoot                 Overlay — nuova radice, SelfHitTestInvisible
+├─ SlotColumn            VerticalBox
+│  ├─ ◆ GroupHeaderText  Orbitron Medium 10, Letter Spacing 160; padding sotto 10
+│  ├─ SlotSize           SizeBox 78×96
+│  │  └─ ClickSurface    Button — padding 0, brush senza disegno (vedi sotto)
+│  │     └─ ◆ ArmedBorder  Overlay
+│  │        ├─ ◆ SelectedGlow    Border RoundedBox, raggio 9, contorno 3 px #FFD456 α 0.16, fondo α 0; slot −3
+│  │        ├─ ◆ StateFrame      Border RoundedBox, raggio 6
+│  │        ├─ ◆ PhaseStrip      Border, 4 px in alto, raggi 6 6 0 0
+│  │        ├─ ◆ HotkeyBadge     Border RoundedBox, raggio 3, min 18×18, fondo #080F14, contorno 1 px #4A5568
+│  │        │  └─ ◆ HotkeyText   Orbitron Medium 10, #E6EBF2, centrato
+│  │        ├─ ◆ PhaseLabelText  Orbitron Medium 8, Letter Spacing 80
+│  │        ├─ VerticalBox       in basso, padding sotto 9
+│  │        │  ├─ ◆ IconImage    28×28
+│  │        │  └─ ◆ ActionNameText  Exo 2 SemiBold 11, centrato, Auto Wrap a 70, padding sopra 6
+│  │        └─ ◆ CooldownText · ◆ PlannedCorner · ◆ UnavailableHatch · ◆ InvalidMark · ◆ WarningMark   come oggi
+│  └─ SelectedBarRow     SizeBox, altezza 9
+│     └─ ◆ SelectedBar   Border RoundedBox 40×4, raggio 2; padding sopra 5, centrata
+└─ ◆ GroupDivider        Border 1 px, #203542; sinistra · riempi, Render Translation X −23
 ```
 
 Le posizioni assolute del mockup, tradotte in padding dello slot dell'`Overlay`:
@@ -121,22 +132,37 @@ Le posizioni assolute del mockup, tradotte in padding dello slot dell'`Overlay`:
 | `PhaseStrip` | alto · riempi | — |
 | `SelectedGlow` | riempi · riempi | −3 su ogni lato |
 
-🔑 **Che cosa scrive il C++, e che cosa il Designer.** `RefreshLook` scrive, per stato, il **fondo**
-(`FillColors`, sul `BrushColor`), il **contorno** (`FrameColors`) e lo **spessore** (`FrameWidths`) di
-`StateFrame`, ma solo se il suo brush è un `RoundedBox`. Scrive anche la tinta dell'icona (`IconTints`), il viola
-di una reazione armata, la visibilità di `SelectedGlow`, `HotkeyBadge` e `GroupHeaderText`, e i tre testi. Al
-Designer restano raggio, forma e misure.
+🔑 **Che cosa scrive il C++, e che cosa il Designer.** `RefreshLook` scrive i **colori**, il Designer **forma e
+misure**. Per stato il C++ scrive:
 
-- **`StateFrame`**: *Tint* del brush bianco, *Use Brush Transparency* spento. Il contorno di un `RoundedBox`
-  non si moltiplica per il `BrushColor`: lo shader lo prende come colore secondario dal brush
+- di `StateFrame`, se il brush è un `RoundedBox`: il fondo (`FillColors`, sul `BrushColor`), il contorno
+  (`FrameColors`) e lo spessore (`FrameWidths`);
+- la tinta dell'icona (`IconTints`) e del nome (`NameTints`);
+- la striscia: il colore della fase, al 30% in ricarica, grigia se indisponibile;
+- il colore dell'etichetta di fase: viola chiaro su una reazione;
+- il colore di `SelectedBar`: ambra, o viola su una reazione armata;
+- la visibilità di `SelectedGlow`, `HotkeyBadge`, `GroupHeaderText` e `GroupDivider`, e i tre testi.
+
+Un colore messo nel Designer su questi widget viene **sovrascritto**: lascia bianco il *Tint* dei loro brush.
+
+- **`StateFrame`**: *Use Brush Transparency* spento. Il contorno di un `RoundedBox` non si moltiplica per il
+  `BrushColor`: lo shader lo prende come colore secondario dal brush
   (`SlateCore/Private/Rendering/DrawElementTypes.cpp`, `SetOutline`). Fondo e contorno stanno quindi su un
   widget solo.
+- **`ClickSurface`**: gli stili `Normal`, `Hovered` e `Pressed` col brush su *Draw As* `NoDrawType`. Il fondo lo dà
+  `StateFrame`, e un brush del pulsante lo coprirebbe. Il padding a 0 è quello della §7 della guida U61.
 - **`SelectedGlow`** sta **prima** di `StateFrame` nell'`Overlay`, cioè dietro. Il padding −3 lo fa uscire di
   3 px dallo slot: è l'alone `0 0 0 3px` del mockup. Il C++ lo accende solo su un'azione armata che non è
   una reazione.
 - **`GroupHeaderText`** fa parte dello slot, non della dock. Il C++ lo rende `Hidden` sulle voci che non aprono
   un gruppo, **non** `Collapsed`: tutti gli slot della fila restano alla stessa altezza.
 - **`SelectedBarRow`** tiene i 9 px anche quando `SelectedBar` è `Collapsed`, per la stessa ragione.
+- **`ActionNameText`**: al massimo due righe, come «Guardia reattiva» nel mockup. 70 px è la larghezza dello slot
+  meno il padding di 4 per lato.
+- **`GroupDivider`** sta **fuori** dallo slot, nel `GroupGap` di 45 px che il C++ scrive sul padding sinistro:
+  22 px, il divisore, altri 22. La traslazione −23 lo mette a 22 px dallo slot che apre il gruppo. Il C++ lo
+  accende solo dove un gruppo ne segue un altro. ⛔ Non va in `SlotBox` della dock: sposterebbe ogni
+  `GetChildAt(i)`.
 
 ⛔ **`ArmedBorder` non si rinomina**: lo esige `ScreenHud.ActionSlotHasIconSurface`.
 
@@ -146,21 +172,25 @@ ora lo dicono forma e bordo (`SelectedBar`, `SelectedGlow`, `StateFrame`); la ri
 il motivo testuale passa al tooltip di [#3499]. ⚠️ La cella `PIE-V01-SCREENHUD` registra la riga di
 `GetActionLine` come il rimedio al suo ➖ sugli stati: dopo questa seduta quel ➖ va **rigiudicato** a schermo.
 
-⛔ **Restano esclusi**: il bordo tratteggiato della reazione armata e di Warning, che un `RoundedBox` non
-disegna; il selettore di profilo ([D-425]); la riga «PIANIFICAZIONE» e i chip ([D-456] punto 6).
+⛔ **Restano esclusi**:
+- i tratteggi: il contorno della reazione armata, di Warning e dello slot vuoto, e la barra della reazione. Un
+  `RoundedBox` non li disegna;
+- il nome dell'eroe nell'intestazione della Base: il mockup scrive «AEVIK · BASE», ma la vista non porta l'eroe;
+- il selettore di profilo ([D-425]);
+- la riga «PIANIFICAZIONE» e i chip ([D-456] punto 6).
 
 ## 3. Il pannello — `WBP_RT_ActionDock`
 
-Un `Border` **`BarPanel`** attorno a `BarRow`: `RoundedBox` con raggio 10, fondo `#151A23`, contorno 1 px
-`#203542`, padding sopra 20, ai lati 24, sotto 22. I gap fra gruppi (22) e fra slot (8) restano quelli di
-`GroupGap` e `ItemGap`, che il C++ scrive sul padding sinistro di ogni slot.
+Un `Border` `BarPanel` attorno a `BarRow`: `RoundedBox` con raggio 10, fondo `#151A23`, contorno 1 px
+`#203542`, padding sopra 20, ai lati 24, sotto 22. Gli spazi fra gruppi (45, col divisore) e fra slot (8) li
+scrive il C++ sul padding sinistro di ogni slot (`GroupGap`, `ItemGap`): nel Designer non si toccano.
 
 Il pannello non ha una porta: il C++ non lo legge.
 
 ## 4. Il gate, nello stesso commit dell'asset
 
-`ScreenHud.ActionBarDeclaresTheNamedPorts` riceve i cinque nomi nuovi dello slot: `HotkeyBadge` e
-`SelectedGlow` (`UWidget`), `HotkeyText`, `ActionNameText` e `GroupHeaderText` (`UTextBlock`). Prima
+`ScreenHud.ActionBarDeclaresTheNamedPorts` riceve i sei nomi nuovi dello slot: `HotkeyBadge`, `SelectedGlow` e
+`GroupDivider` (`UWidget`), `HotkeyText`, `ActionNameText` e `GroupHeaderText` (`UTextBlock`). Prima
 dell'asset sarebbe rosso, quindi entra nella stessa PR. Va provato nei due versi, col blob di `main` e col
 nuovo.
 
@@ -170,7 +200,7 @@ Chiudi l'Editor, poi, **in un processo fresco**:
 
 ```bash
 python tools/uasset/names.py Content/RT/UI/Match/WBP_RT_ActionSlot.uasset --unici
-# atteso, fra gli altri: HotkeyBadge, HotkeyText, ActionNameText, GroupHeaderText, SelectedGlow, ArmedBorder
+# atteso, fra gli altri: HotkeyBadge, HotkeyText, ActionNameText, GroupHeaderText, SelectedGlow, GroupDivider, ArmedBorder
 python tools/suite/esegui.py RefactorTactics.ScreenHud
 python tools/suite/esegui.py RefactorTactics.Editor
 ```

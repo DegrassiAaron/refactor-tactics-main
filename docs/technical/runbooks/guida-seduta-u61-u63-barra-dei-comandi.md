@@ -97,9 +97,9 @@ Le ricette vengono da
 | Invalid | bordo 2 px `Red #FF4D4D` | **`InvalidMark`**: **✕** in alto a destra — il gesto sarebbe **rifiutato** ([D-459]) |
 | Warning | bordo **2 px tratteggiato** `Amber` | **`WarningMark`**: **triangolo !** in alto a destra — il piano è accettato ma **degradato** ([D-459]) |
 
-⚠️ Il bordo di `StateFrame` ha uno spessore solo **finché è una texture**: la differenza fra 1 e 2 px della
-ricetta la rende il `RoundedBox` di `U65`, che legge `FrameWidths`. Il tratteggio di Warning lo porta
-`WarningMark`, insieme al triangolo.
+⚠️ Su un bordo a **texture** lo spessore è uno solo, e la differenza fra 1 e 2 px della ricetta si rende col
+colore. Dalla seduta `U65` `StateFrame` è un `RoundedBox`, e lo spessore lo scrive il C++ da `FrameWidths`. Il
+tratteggio di Warning lo porta `WarningMark`, insieme al triangolo.
 
 ⚠️ **Selected e Warning condividono l'ambra**: li separa la forma, cioè bordo continuo più barra contro bordo
 tratteggiato più triangolo.
@@ -170,7 +170,11 @@ che aprono un gruppo, e lo slot, dentro `SetAction`, scrive sul proprio `Horizon
 sinistro di **22 px** (`GroupGap`) o **8 px** (`ItemGap`) — `dati/tokens.json`: `separatore_gruppi` 22,
 `gap` 8. Basta che la sorgente sia quella del §2.1.
 
-Facoltativo: l'intestazione `COMUNI` · `BASE` · `KIT` come testo statico. Nessun campo C++ la porta.
+⌫ *Qui stava «Facoltativo: l'intestazione `COMUNI` · `BASE` · `KIT` come testo statico. Nessun campo C++ la
+porta». Da #3498 la porta il C++: lo slot ha `GroupHeaderText`, acceso sulla prima voce di ogni gruppo
+(`bFirstOfGroup`), e il divisore `GroupDivider`. Si cablano nella seduta
+[`U65`](guida-seduta-u65-barra-fedele-al-mockup.md), non come testo statico nella dock: sarebbe un secondo
+titolo.*
 
 Lungo la lista di lettura i gruppi sono **contigui per costruzione**, quindi «dove `Group` cambia» è
 esattamente fra due gruppi. Lungo `GetActions()` non lo sarebbero: in partita Branth e Muiren leggono
