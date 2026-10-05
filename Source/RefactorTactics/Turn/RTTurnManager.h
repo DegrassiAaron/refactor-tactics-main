@@ -1239,6 +1239,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float PlaybackCellsPerSecond = 1.44f;
 
+	/**
+	 * La frazione di un passo in cui la mesh si gira verso il passo nuovo ([D-462] punto 2, `#2167`). A ogni confine
+	 * di cella la mesh guarda l'ultimo passo compiuto, come la regola; questa e' la svolta, che e' presentazione.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float StepTurnFraction = 0.35f;
+
+	/**
+	 * La durata del pivot finale, in secondi ([D-462] punto 3, `#2167`): arrivata, l'unita' si gira SUL POSTO verso
+	 * il verso finale invece di scattarci. `0` = scatto. Il salto del playback scatta sempre.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback", meta = (ClampMin = "0.0"))
+	float FinalPivotSeconds = 0.25f;
+
+	/** Vero mentre un pivot finale di presentazione sta girando (`#2167`). */
+	bool IsPresentationPivotRunning() const { return PivotAnims.Num() > 0; }
+
 	/** Pausa tra una fase e la successiva (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float PhaseBeatSeconds = 0.30f;
@@ -2339,6 +2356,13 @@ protected:
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
+
+	/** Avvia, o riavvia dallo yaw attuale, il pivot finale di `Unit` verso `ToYaw` (`#2167`). */
+	void StartPresentationPivot(ARTUnit* Unit, float ToYaw);
+	/** Fa girare i pivot in corso. Gira a ogni tick, anche a playback finito: il pivot dura oltre la fase. */
+	void TickPresentationPivots(float DeltaSeconds);
+	/** Lo yaw del facing LOGICO dell'unita' sulla sua cella: dove la mesh deve finire. */
+	float FinalFacingYaw(const ARTUnit* Unit) const;
 	/**
 	 * I due termini della fase — movimento e attesa — prima che il budget tocchi il secondo.
 	 * Raccoglie gli ingressi che solo il TurnManager possiede e delega la formula a
@@ -2726,6 +2750,25 @@ protected:
 	 * e «l'unita' e' appena entrata in una cella nuova» sarebbero lo stesso frame.
 	 */
 	TArray<int32> PlaybackAnimCellIndex;
+
+	/** Lo yaw con cui ogni anim entra in scena, preso al suo PRIMO tick (`#2167`); `TNumericLimits<float>::Max()` = non ancora. */
+	TArray<float> PlaybackAnimEntryYaw;
+
+	/** Vero quando l'anim e' arrivata e ha passato la posa al pivot finale (`#2167`). */
+	TArray<bool> PlaybackAnimArrived;
+
+	/** Un pivot finale di presentazione: l'unita' gira sul posto da `From` a `To` (`#2167`). */
+	struct FRTPivotAnim
+	{
+		TWeakObjectPtr<ARTUnit> Unit;
+		float From = 0.f;
+		float To = 0.f;
+		float Elapsed = 0.f;
+	};
+	TArray<FRTPivotAnim> PivotAnims;
+
+	/** Vero mentre `FinishPlayback` arriva da `SkipPlayback`: saltare scatta, non anima. */
+	bool bFinishingBySkip = false;
 
 	/**
 	 * Ricalcola `PlaybackKnowledgeState` dalle pose animate correnti e risponde **se qualcosa e' cambiato**.

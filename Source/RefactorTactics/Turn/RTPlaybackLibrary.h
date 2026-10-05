@@ -373,6 +373,23 @@ public:
 	static int32 MicroStepAtAlpha(float Alpha, int32 StepCount);
 
 	/**
+	 * Lo yaw della mesh lungo il percorso disegnato, a un `Alpha` ([D-462] punto 2, `#2167`).
+	 *
+	 * 🔑 **A ogni confine di cella e' la direzione dell'ULTIMO passo compiuto**, cioe' cio' che dice
+	 * `URTFacingLibrary::FacingAtMicroStep` e che leggono il cono dell'Overwatch e i boundary di reazione: la mesh non
+	 * mostra un verso diverso da quello con cui le regole giudicano. Dentro un segmento la mesh si gira verso il passo
+	 * nuovo nella prima frazione `TurnFraction`, poi lo segue.
+	 *
+	 * `EntryYaw` e' lo yaw con cui la mesh entra nell'animazione, e vale sul primo segmento finche' un passo non esiste.
+	 * ⚠️ Un segmento degenere — due punti coincidenti — non ha direzione: vale come il passo che lo precede.
+	 */
+	static float StepYawAtAlpha(const TArray<FVector>& World, float Alpha, float EntryYaw, float TurnFraction);
+
+	/** Lo yaw fra `FromYaw` e `ToYaw` all'avanzamento `Progress` (0..1), lungo l'arco piu' corto (`#2167`). */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static float PivotYaw(float FromYaw, float ToYaw, float Progress);
+
+	/**
 	 * L'`Alpha` del **prossimo** confine di micro-step dopo `Alpha`, cioe' dove si ferma uno `Step` (`#1879`).
 	 *
 	 * 🔴 **Strettamente maggiore, e qui sta la regola**: da un `Alpha` che e' gia' esattamente su un confine
