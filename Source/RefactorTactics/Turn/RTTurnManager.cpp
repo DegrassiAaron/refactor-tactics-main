@@ -8275,21 +8275,20 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// ⚠️ `A.Cells` e non la rotta reale: e' gia' troncato al prefisso osservabile, e leggerlo
 				// qui tiene il velo dalla parte giusta del confine di privacy — come `A.World` sopra.
 				//
-				// 🔴 **`UE_KINDA_SMALL_NUMBER` si SOMMA, come in `NextMicroStepBoundary`, e mancava** (`#3458`).
-				// `Step` ferma l'orologio sul confine, dove `Alpha * Segmenti` dovrebbe valere un intero esatto;
-				// in virgola mobile puo' valerne uno appena SOTTO, e il floor assegnava la cella PRECEDENTE.
-				// L'unita' era disegnata al posto giusto — `InterpolateAlongPath` e' continua, e a un confine
-				// `k - ε` e `k` danno lo stesso punto — mentre velo e rivelazione delle unita' leggevano la
-				// cella di un passo indietro. Misurato da `Veil.RevealsAtTheMicroStepAtAnyPlaybackRate`: su 5
-				// segmenti cadevano 1.15, 1.95, 2.30 e 2.95 celle/s, e al primo passo B1 non compariva.
-				// ⚠️ Il default `1.44` su 5 segmenti non ci cade, e la seduta `U62` l'ha visto proprio li':
-				// questa riga non la spiega. Simulato in `float32` e non misurato in gioco: al default ci cadono
-				// i percorsi da 8 a 11 segmenti, al passo 7.
+				// 🔴 **Si chiede a `MicroStepAtAlpha`, e fino a `#3458` era un floor nudo.** `Step` ferma
+				// l'orologio sul confine, dove `Alpha * Segmenti` dovrebbe valere un intero esatto; in virgola
+				// mobile puo' valerne uno appena SOTTO, e il floor assegnava la cella PRECEDENTE. L'unita' era
+				// disegnata al posto giusto — `InterpolateAlongPath` e' continua, e a un confine `k - ε` e `k`
+				// danno lo stesso punto — mentre velo e rivelazione delle unita' leggevano la cella di un passo
+				// indietro. Misurato da `Veil.RevealsAtTheMicroStepAtAnyPlaybackRate`: su 5 segmenti cadevano
+				// 1.15, 1.95, 2.30 e 2.95 celle/s, e al primo passo B1 non compariva.
+				// ⚠️ Il default `1.44` su 5 segmenti non ci cade, e la seduta `U62` ha visto il ritardo proprio
+				// li': questa riga non lo spiega.
 				if (A.Cells.Num() > 0)
 				{
 					const int32 Segmenti = FMath::Max(A.Cells.Num() - 1, 1);
 					const int32 Idx = FMath::Clamp(
-						FMath::FloorToInt((Alpha + UE_KINDA_SMALL_NUMBER) * Segmenti), 0, A.Cells.Num() - 1);
+						URTPlaybackLibrary::MicroStepAtAlpha(Alpha, Segmenti), 0, A.Cells.Num() - 1);
 					if (PlaybackAnimCellIndex.IsValidIndex(AnimIdx) && PlaybackAnimCellIndex[AnimIdx] != Idx)
 					{
 						PlaybackAnimCellIndex[AnimIdx] = Idx;

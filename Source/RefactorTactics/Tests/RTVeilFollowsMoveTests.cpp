@@ -13,6 +13,7 @@
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Turn/RTTurnManager.h"
+#include "UI/RTHUD.h"
 #include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -258,37 +259,53 @@ namespace
 		return -1;
 	}
 
-	/** Un passo: cio' che il playback ha mostrato, e cio' che il file dice che avrebbe dovuto mostrare. */
+	/** Un'osservazione: cio' che il playback ha mostrato, e cio' che il file dice che avrebbe dovuto mostrare. */
 	struct FRTPassoOsservato
 	{
-		int32 Tick = 0;
+		int32 Passo = 0;
+		/** Vero sul confine raggiunto con `Step`; falso a 0.9 del segmento, raggiunto con un tick solo. */
+		bool bAlConfine = true;
 		bool bAnimata = false;
 		FRTCellId Animata;
 		FRTCellId Dichiarata;
+		/** La cella di B1 e' fra le visibili della squadra di A1, nella conoscenza di playback. */
 		bool bVisibile = false;
+		/** E l'HUD lo mostra davvero: `IsKnownToObserver()` dopo `UpdateObserverVeil()`. */
+		bool bMostrato = false;
 		bool bAtteso = false;
 
-		bool IsGiusto() const { return bAnimata && Animata == Dichiarata && bVisibile == bAtteso; }
-
-		FString Descrivi(int32 Passo) const
+		bool IsGiusto() const
 		{
-			return FString::Printf(TEXT("passo %d (%d tick): A1 animata %s, dichiarata %s — B1 visibile %s, atteso %s"),
-				Passo, Tick, bAnimata ? *Animata.ToString() : TEXT("-"), *Dichiarata.ToString(),
-				bVisibile ? TEXT("si'") : TEXT("no"), bAtteso ? TEXT("si'") : TEXT("no"));
+			return bAnimata && Animata == Dichiarata && bVisibile == bAtteso && bMostrato == bAtteso;
+		}
+
+		FString Descrivi() const
+		{
+			return FString::Printf(
+				TEXT("passo %d %s: A1 animata %s, dichiarata %s — B1 visibile %s, mostrato %s, atteso %s"),
+				Passo, bAlConfine ? TEXT("al confine") : TEXT("a 0.9 del segmento"),
+				bAnimata ? *Animata.ToString() : TEXT("-"), *Dichiarata.ToString(),
+				bVisibile ? TEXT("si'") : TEXT("no"), bMostrato ? TEXT("si'") : TEXT("no"),
+				bAtteso ? TEXT("si'") : TEXT("no"));
 		}
 	};
 
 	/**
-	 * `Visual.Perception.RevealDuringMove` a passo singolo — `#3458`. Il playback parte fermo e avanza con
-	 * `StepMicroStep` un passo alla volta, come premendo `L`; dopo ogni passo si registrano la cella animata di
-	 * A1 e se la cella di B1 e' fra le visibili della squadra di A1 nella conoscenza di playback.
+	 * `Visual.Perception.RevealDuringMove` a passo singolo — `#3458`. Il playback parte fermo; per ogni cella
+	 * lo si riprende per UN tick lungo 0.9 del segmento, lo si ferma, e poi `StepMicroStep` lo porta al
+	 * confine, come premendo `L`. A ogni fermata si registrano la cella animata di A1, la conoscenza di
+	 * playback della sua squadra, e se l'HUD mostra B1.
 	 *
-	 * ⚠️ **L'oracolo sta nel FILE, non nel TurnManager**: la posa di ogni passo e' quella che il file dichiara,
-	 * e chi la vede lo dice la stessa funzione pura del gioco chiesta su quella posa. Leggere l'atteso da
-	 * `AnimatedCellFor` renderebbe il test d'accordo con qualunque cella il playback creda di avere.
+	 * ⚠️ **L'oracolo sta nel FILE, non nel TurnManager**: la posa di ogni fermata e' quella che il file
+	 * dichiara, e chi la vede lo dice la stessa funzione pura del gioco chiesta su quella posa. Leggere
+	 * l'atteso da `AnimatedCellFor` renderebbe il test d'accordo con qualunque cella il playback creda di avere.
 	 *
-	 * L'ultimo passo non si registra: porta la fase alla fine, il playback si chiude e la conoscenza torna quella
-	 * canonica — un'altra domanda, che `Veil.PlaybackNeverShowsMoreThanTheTeamKnows` sorveglia gia'.
+	 * 🔑 **Il campione a 0.9 e' la meta' che il confine non vede**: li' l'unita' e' ancora sulla cella di
+	 * prima, e una tolleranza troppo grande nel calcolo della cella — mezza cella, un arrotondamento al piu'
+	 * vicino — mostrerebbe B1 prima che A1 arrivi dove lo vede. Al confine si vede solo il verso dell'errore.
+	 *
+	 * L'ultimo confine non si registra: porta la fase alla fine, il playback si chiude, e da li' vale la
+	 * conoscenza canonica — un'altra domanda, che questo banco non pone.
 	 *
 	 * @param CelleAlSecondo velocita' di locomozione del playback; non positiva = il default del TurnManager.
 	 * @return `false` con un motivo se il banco non si allestisce: un banco che non parte non e' un passo
@@ -345,10 +362,18 @@ namespace
 			ARTTurnManager* TM = nullptr;
 			for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
 			const ARTUnit* A1 = RTWorldFixtures::FirstUnitOfTeam(World, DichA1->TeamId);
+			const ARTUnit* B1 = RTWorldFixtures::FirstUnitOfTeam(World, DichB1->TeamId);
 			const ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
-			if (!(TM && A1 && Mappa && Mappa->MapAsset))
+			// L'HUD vero: e' lui a decidere se B1 si vede, e senza giocatore guarda dalla squadra 0 (`TeamIdOf`).
+			ARTHUD* Hud = World->SpawnActor<ARTHUD>();
+			if (!(TM && A1 && B1 && Mappa && Mappa->MapAsset && Hud))
 			{
-				Motivo = TEXT("turn manager, A1 o mappa mancano");
+				Motivo = TEXT("turn manager, A1, B1, mappa o HUD mancano");
+				return false;
+			}
+			if (DichA1->TeamId != 0)
+			{
+				Motivo = TEXT("A1 deve stare nella squadra 0: e' da li' che l'HUD guarda senza un giocatore");
 				return false;
 			}
 
@@ -356,6 +381,8 @@ namespace
 			{
 				TM->PlaybackCellsPerSecond = CelleAlSecondo;
 			}
+			const float Velocita = TM->PlaybackCellsPerSecond;
+
 			// L'ordine non e' libero: `StartPaused` vale solo con i controlli abilitati.
 			TM->SetPlaybackControlsEnabled(true);
 			TM->SetStartPlaybackPaused(true);
@@ -388,21 +415,45 @@ namespace
 				return false;
 			}
 
-			for (int32 K = 1; K < Pose.Num() - 1; ++K)
+			const auto Osserva = [&](int32 Passo, bool bAlConfine, const FRTCellId& Dichiarata)
 			{
-				TM->StepMicroStep();
 				FRTPassoOsservato O;
-				O.Tick = AvanzaFinoAlConfine(Session, TM);
-				if (O.Tick < 0 || !TM->IsResolving())
+				O.Passo = Passo;
+				O.bAlConfine = bAlConfine;
+				O.bAnimata = TM->AnimatedCellFor(A1, O.Animata);
+				O.Dichiarata = Dichiarata;
+				O.bVisibile = TM->PlaybackKnowledgeForTeam(DichA1->TeamId).VisibleCells.Contains(DichB1->Cell);
+				Hud->UpdateObserverVeil();
+				O.bMostrato = B1->IsKnownToObserver();
+				O.bAtteso = VedeB1Da(Dichiarata);
+				Out.Add(O);
+			};
+
+			Osserva(0, /*bAlConfine=*/ true, Pose[0]);
+			for (int32 K = 1; K < Pose.Num(); ++K)
+			{
+				// 0.9 del segmento con UN tick, non con `Step`: e' tempo che scorre, come in partita.
+				TM->ResumePlayback();
+				Session.Step(0.9f / Velocita, /*bPumpTurnManager=*/ true);
+				TM->PausePlayback();
+				if (!TM->IsResolving())
+				{
+					Motivo = FString::Printf(TEXT("passo %d: il playback si e' chiuso prima del confine"), K);
+					return false;
+				}
+				Osserva(K, /*bAlConfine=*/ false, Pose[K - 1]);
+
+				if (K == Pose.Num() - 1)
+				{
+					break; // l'ultimo confine chiude la fase: vedi il commento della funzione
+				}
+				TM->StepMicroStep();
+				if (AvanzaFinoAlConfine(Session, TM) < 0 || !TM->IsResolving())
 				{
 					Motivo = FString::Printf(TEXT("passo %d: il playback non si ferma al confine"), K);
 					return false;
 				}
-				O.bAnimata = TM->AnimatedCellFor(A1, O.Animata);
-				O.Dichiarata = Pose[K];
-				O.bVisibile = TM->PlaybackKnowledgeForTeam(DichA1->TeamId).VisibleCells.Contains(DichB1->Cell);
-				O.bAtteso = VedeB1Da(Pose[K]);
-				Out.Add(O);
+				Osserva(K, /*bAlConfine=*/ true, Pose[K]);
 			}
 			return true;
 		}();
@@ -421,7 +472,10 @@ namespace
  * i due vale 3 · 2 · 2 · 2 · 3 · 4 lungo il percorso. Premendo `L`, A1 avanzava di una cella al primo passo
  * ma B1 compariva solo al SECONDO.
  *
- * Questo e' il caso della seduta, alla velocita' di default: lo stesso scenario, senza Editor.
+ * ⚠️ **E' la scena della seduta alla velocita' di default, e va letta per cio' che e': verde PRIMA e dopo
+ * la correzione di `#3458`.** Qui TurnManager e HUD danno la cella e la comparsa giuste a ogni fermata, quindi
+ * il ritardo visto in `U62` non nasce da cio' che questo banco osserva. Il difetto che la correzione chiude
+ * sta ad altre velocita': vedi il test qui sotto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilRevealsAtTheMicroStepThatSeesItTest,
 	"RefactorTactics.Veil.RevealsAtTheMicroStepThatSeesIt",
@@ -435,16 +489,17 @@ bool FRTVeilRevealsAtTheMicroStepThatSeesItTest::RunTest(const FString&)
 	{
 		return false;
 	}
-	TestTrue(TEXT("almeno un passo osservato"), Passi.Num() > 0);
+	TestTrue(TEXT("almeno una fermata osservata"), Passi.Num() > 0);
 
-	for (int32 I = 0; I < Passi.Num(); ++I)
+	for (const FRTPassoOsservato& O : Passi)
 	{
-		const FRTPassoOsservato& O = Passi[I];
-		AddInfo(O.Descrivi(I + 1));
-		TestTrue(FString::Printf(TEXT("passo %d: A1 e' sulla cella che il file dichiara"), I + 1),
+		AddInfo(O.Descrivi());
+		TestTrue(FString::Printf(TEXT("%s — A1 e' sulla cella che il file dichiara"), *O.Descrivi()),
 			O.bAnimata && O.Animata == O.Dichiarata);
-		TestEqual(FString::Printf(TEXT("passo %d: B1 e' visibile ADESSO se e solo se A1 lo vede da qui"), I + 1),
+		TestEqual(FString::Printf(TEXT("%s — B1 e' nella conoscenza se e solo se A1 lo vede da qui"), *O.Descrivi()),
 			O.bVisibile, O.bAtteso);
+		TestEqual(FString::Printf(TEXT("%s — e l'HUD lo mostra se e solo se A1 lo vede da qui"), *O.Descrivi()),
+			O.bMostrato, O.bAtteso);
 	}
 	return true;
 }
@@ -454,10 +509,12 @@ bool FRTVeilRevealsAtTheMicroStepThatSeesItTest::RunTest(const FString&)
  *
  * Il test qui sopra fissa il caso della seduta. Questo chiede la regola: `Step` si ferma al confine di un
  * micro-step, e un micro-step e' una cella. La velocita' non c'entra, quindi non deve poter cambiare la cella
- * su cui ci si ferma — ne' la conoscenza che il velo e la rivelazione delle unita' ne ricavano.
+ * su cui ci si ferma — ne' la conoscenza e la comparsa che velo e HUD ne ricavano.
  *
  * ⚠️ **Una griglia, non un valore scelto**: una velocita' presa perche' qualcuno ha visto che falliva sarebbe un
- * test di quel numero. La griglia copre il default (`1.44`) e un intorno largo, a passi di `0.05`.
+ * test di quel numero. La griglia va da `0.50` a `3.00` a passi di `0.05` e passa ACCANTO al default —
+ * `1.40` e `1.45` — senza toccarlo: il default lo fissa il test qui sopra, e la regola pura la percorre
+ * `Playback.MicroStepAtAlphaLandsOnTheBoundaryAStepStopsAt`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilRevealsAtTheMicroStepAtAnyRateTest,
 	"RefactorTactics.Veil.RevealsAtTheMicroStepAtAnyPlaybackRate",
@@ -477,11 +534,11 @@ bool FRTVeilRevealsAtTheMicroStepAtAnyRateTest::RunTest(const FString&)
 		}
 		++Percorse;
 
-		const int32 Sbagliato = Passi.IndexOfByPredicate([](const FRTPassoOsservato& O) { return !O.IsGiusto(); });
-		TestTrue(Sbagliato == INDEX_NONE
-				? FString::Printf(TEXT("a %.2f celle/s ogni passo arriva sulla cella dichiarata"), CelleAlSecondo)
-				: FString::Printf(TEXT("a %.2f celle/s — %s"), CelleAlSecondo, *Passi[Sbagliato].Descrivi(Sbagliato + 1)),
-			Sbagliato == INDEX_NONE);
+		const FRTPassoOsservato* Sbagliato = Passi.FindByPredicate([](const FRTPassoOsservato& O) { return !O.IsGiusto(); });
+		TestTrue(Sbagliato
+				? FString::Printf(TEXT("a %.2f celle/s — %s"), CelleAlSecondo, *Sbagliato->Descrivi())
+				: FString::Printf(TEXT("a %.2f celle/s ogni fermata e' sulla cella dichiarata"), CelleAlSecondo),
+			Sbagliato == nullptr);
 	}
 	TestTrue(TEXT("almeno una velocita' percorsa"), Percorse > 0);
 	return true;

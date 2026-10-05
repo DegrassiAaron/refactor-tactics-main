@@ -347,6 +347,32 @@ public:
 	static float AlphaAtMicroStep(int32 StepIndex, int32 StepCount);
 
 	/**
+	 * Su quale micro-step si trova `Alpha`, su un percorso che ne ha `StepCount`: l'inversa di
+	 * `AlphaAtMicroStep`, letta come intero (`#3458`).
+	 *
+	 * 🔴 **`UE_KINDA_SMALL_NUMBER` si SOMMA prima del floor, ed e' la regola.** Un confine calcolato in
+	 * virgola mobile puo' cadere appena SOTTO l'intero che rappresenta — al confine di uno `Step`,
+	 * `Alpha * StepCount` puo' valere `0.99999994` — e un floor nudo lo assegna al micro-step PRECEDENTE.
+	 * Sottrarla fa lo stesso difetto su ogni confine esatto.
+	 *
+	 * ⚠️ **E la tolleranza e' minuscola di proposito**: `1e-4` di `Alpha`, cioe' `1e-4 * StepCount` di
+	 * micro-step, sotto il millisecondo alla velocita' di default. Un arrotondamento al piu' vicino farebbe
+	 * scattare il confine a META' segmento, e chi legge la cella — il velo, la rivelazione delle unita' —
+	 * mostrerebbe un nemico mezza cella prima che l'unita' arrivi dove lo vede.
+	 *
+	 * 🔑 **Due lettori, ed esiste perche' la regola ne abbia uno solo**: `NextMicroStepBoundary` (da dove
+	 * parte uno `Step`) e l'indice di cella delle anim in `ARTTurnManager::TickPlayback` (su quale cella e'
+	 * l'unita'). Scritta in linea in entrambi, aveva gia' divergito: la seconda copia non aveva la
+	 * tolleranza, e `Step` fermava le unita' sul confine giusto mentre velo e rivelazione leggevano la cella
+	 * di un passo indietro.
+	 *
+	 * `Alpha` negativo vale `0`, e `StepCount <= 0` restituisce `0`. ⚠️ Il risultato NON e' limitato a
+	 * `StepCount`: con `Alpha = 1` vale `StepCount`, e chi indicizza un array lo limita da se'.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
+	static int32 MicroStepAtAlpha(float Alpha, int32 StepCount);
+
+	/**
 	 * L'`Alpha` del **prossimo** confine di micro-step dopo `Alpha`, cioe' dove si ferma uno `Step` (`#1879`).
 	 *
 	 * 🔴 **Strettamente maggiore, e qui sta la regola**: da un `Alpha` che e' gia' esattamente su un confine
