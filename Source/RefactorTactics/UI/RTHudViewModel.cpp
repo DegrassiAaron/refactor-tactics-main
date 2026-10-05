@@ -699,6 +699,7 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRT
 	for (int32 i = 0; i < Ordinate.Num(); ++i)
 	{
 		Ordinate[i].bGroupBreakBefore = i > 0 && Rango(Ordinate[i].Group) != Rango(Ordinate[i - 1].Group);
+		Ordinate[i].bFirstOfGroup = i == 0 || Ordinate[i].bGroupBreakBefore;
 	}
 	return Ordinate;
 }

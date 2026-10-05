@@ -841,9 +841,70 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionPhaseMark, FLinearColor> PhaseColors;
 
-	/** Il colore del bordo per stato. Default: i token di §32 e la ricetta di `SPECIFICA-VISIVA.md` §3. */
+	/**
+	 * Il colore del bordo per stato. Default: la ricetta del mockup (`sorgente-mockup/Main.dc.html`, #3498).
+	 *
+	 * 🔑 **Su un `StateFrame` disegnato come `RoundedBox` e' il colore del CONTORNO**, e il fondo viene da
+	 * `FillColors`; su un `Border` a texture e' il colore dell'intero bordo, come prima di #3498.
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionSlotState, FLinearColor> FrameColors;
+
+	/** Il fondo dello slot per stato, su un `StateFrame` `RoundedBox` (#3498). Available `#212733`, Selected `#2B2918`… */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> FillColors;
+
+	/** Lo spessore del contorno per stato, in px: 2 dove il mockup marca lo stato col bordo, 1 altrove (#3498). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, float> FrameWidths;
+
+	/** Il colore dell'icona per stato (#3498): ambra se armata, spenta in ricarica, bianca altrove. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> IconTints;
+
+	/**
+	 * 🔑 **Una REAZIONE armata non e' l'ambra di un'azione principale**: il mockup la dice viola — fondo `#221E3A`,
+	 * contorno `#7C5CFF`, icona `#B9A8FF`. Lo stato resta `Selected`; cambia la resa, perche' lo slot e'
+	 * `Reaction` (`Action.Slot`). Il tratteggio del contorno, che `RoundedBox` non sa fare, resta escluso.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionArmedFill;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionArmedFrame;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionArmedIcon;
+
+	/** Il riquadro del tasto in alto a sinistra (#3498): `Collapsed` quando lo slot non ha un tasto. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> HotkeyBadge;
+
+	/** Il tasto, da `Action.HotkeyLabel` — separato dal nome, come nel mockup (#3498). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> HotkeyText;
+
+	/** Il nome dell'azione, da `Action.DisplayName`, senza il tasto (#3498). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> ActionNameText;
+
+	/**
+	 * L'intestazione del gruppo sopra lo slot — `COMUNI` · `BASE` · `KIT` (#3498). Visibile solo sulla prima voce
+	 * di ogni gruppo (`bFirstOfGroup`); sulle altre e' `Hidden`, NON `Collapsed`, perche' tutti gli slot della
+	 * fila devono restare alla stessa altezza.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> GroupHeaderText;
+
+	/**
+	 * L'alone di `Selected` (#3498): nel mockup 3 px d'ambra al 16% attorno allo slot, che un `RoundedBox` non
+	 * disegna. Acceso solo su un'azione armata che NON e' una reazione: la reazione armata e' viola, senza alone.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> SelectedGlow;
+
+	/** Il testo dell'intestazione di un gruppo. `None` — una posizione vuota — si legge col Kit. */
+	static FText GroupHeaderFor(ERTActionGroup Group);
 
 	/** Lo spazio a sinistra di uno slot dentro un gruppo (`dati/tokens.json`: `gap`). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
