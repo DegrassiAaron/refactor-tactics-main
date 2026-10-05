@@ -469,15 +469,16 @@ namespace
 /**
  * `#3458` — **il nemico compare nel micro-step in cui l'unita' lo vede, non in un altro.**
  *
- * La seduta `U62` (2026-10-05) l'ha guardato a passo singolo su `Visual.Perception.RevealDuringMove`: A1
- * cammina da (-3,0) a (2,0) con la sola consapevolezza ravvicinata, B1 sta fermo a (0,-2), e la distanza fra
- * i due vale 3 · 2 · 2 · 2 · 3 · 4 lungo il percorso. Premendo `L`, A1 avanzava di una cella al primo passo
- * ma B1 compariva solo al SECONDO.
+ * La scena della seduta `U62` (2026-10-05), alla velocita' di default: `Visual.Perception.RevealDuringMove`,
+ * dove A1 cammina da (-3,0) a (2,0) con la sola consapevolezza ravvicinata, B1 sta fermo a (0,-2), e la
+ * distanza fra i due vale 3 · 2 · 2 · 2 · 3 · 4 lungo il percorso. B1 deve comparire al primo `L` e sparire
+ * al quarto.
  *
- * ⚠️ **E' la scena della seduta alla velocita' di default, e va letta per cio' che e': verde PRIMA e dopo
- * la correzione di `#3458`.** Qui TurnManager e HUD danno la cella e la comparsa giuste a ogni fermata, quindi
- * il ritardo visto in `U62` non nasce da cio' che questo banco osserva. Il difetto che la correzione chiude
- * sta ad altre velocita': vedi il test qui sotto.
+ * ⚠️ **Verde PRIMA e dopo la correzione di `#3458`, e la seduta non aveva visto un ritardo.** Un referto
+ * dell'apertura 7 era stato letto come «B1 compare un passo dopo», e questo banco nasceva per inseguirlo; la
+ * domanda era ambigua — «al primo passo di A1» — e l'autore aveva contato come primo passo la posa di
+ * PARTENZA (confermato il 2026-10-05). Il difetto che la correzione chiude sta ad altre velocita': vedi il
+ * test qui sotto.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTVeilRevealsAtTheMicroStepThatSeesItTest,
 	"RefactorTactics.Veil.RevealsAtTheMicroStepThatSeesIt",

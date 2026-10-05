@@ -8281,9 +8281,9 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// disegnata al posto giusto — `InterpolateAlongPath` e' continua, e a un confine `k - ε` e `k`
 				// danno lo stesso punto — mentre velo e rivelazione delle unita' leggevano la cella di un passo
 				// indietro. Misurato da `Veil.RevealsAtTheMicroStepAtAnyPlaybackRate`: su 5 segmenti cadevano
-				// 1.15, 1.95, 2.30 e 2.95 celle/s, e al primo passo B1 non compariva.
-				// ⚠️ Il default `1.44` su 5 segmenti non ci cade, e la seduta `U62` ha visto il ritardo proprio
-				// li': questa riga non lo spiega.
+				// 1.15, 1.95, 2.30 e 2.95 celle/s, e al primo passo B1 non compariva. Al default `1.44` ci cade
+				// il confine 7 dei percorsi da 7 a 11 segmenti (`Playback.MicroStepAtAlphaLandsOnTheBoundary…`
+				// li stampa); su 5 segmenti no.
 				if (A.Cells.Num() > 0)
 				{
 					const int32 Segmenti = FMath::Max(A.Cells.Num() - 1, 1);
