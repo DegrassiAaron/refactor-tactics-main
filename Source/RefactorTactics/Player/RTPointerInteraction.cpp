@@ -152,7 +152,7 @@ FRTPointerTarget URTPointerLibrary::ResolveTarget(ERTPointerContext Context, ERT
 }
 
 ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, bool bInspectorPinned,
-	int32 WaypointCount, bool bPhaseFocusPinned)
+	int32 WaypointCount, bool bPhaseFocusPinned, bool bHasDeclaredFacing)
 {
 	// L'ordine e' TOTALE, e l'elenco e' quello di §5.5. Scritto come cascata di `return` e non come `switch`
 	// sul contesto perche' la priorita' attraversa i contesti: un inspector pinnato si chiude prima di uscire
@@ -170,7 +170,18 @@ ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, boo
 	{
 		return ERTPointerBackStep::Inspector;
 	}
-	if (Context == ERTPointerContext::Targeting || Context == ERTPointerContext::Facing)
+	// Un selettore di facing APERTO si chiude per primo: non ha ancora scritto niente.
+	if (Context == ERTPointerContext::Facing)
+	{
+		return ERTPointerBackStep::Declaration;
+	}
+	// 🔑 **Il verso dichiarato prima di un targeting e dei waypoint** ([D-367], [D-462]): chiude il movimento, e
+	// il Back lo toglie per primo, riaprendolo.
+	if (bHasDeclaredFacing)
+	{
+		return ERTPointerBackStep::DeclaredFacing;
+	}
+	if (Context == ERTPointerContext::Targeting)
 	{
 		return ERTPointerBackStep::Declaration;
 	}
@@ -186,6 +197,38 @@ ERTPointerBackStep URTPointerLibrary::ResolveBack(ERTPointerContext Context, boo
 	// ⚠️ Durante `ResolutionPlayback` si arriva qui, ed e' giusto: §5.3 dice `NoOp`. Nessun input cambia un
 	// piano gia' consegnato.
 	return ERTPointerBackStep::None;
+}
+
+bool URTPointerLibrary::FacingSectorFromOffset(const FVector2D& Offset, const TArray<FVector2D>& DirectionVectors,
+	float DeadZoneRadius, ERTHexDirection& OutSector)
+{
+	// Il centro non sceglie: senza la dead-zone un click sulla figura sceglierebbe un lato a caso, deciso da
+	// pochi pixel di differenza.
+	if (Offset.Size() < DeadZoneRadius || Offset.IsNearlyZero())
+	{
+		return false;
+	}
+
+	const FVector2D Verso = Offset.GetSafeNormal();
+	int32 Migliore = INDEX_NONE;
+	double MiglioreDot = -2.0;
+	for (int32 I = 0; I < DirectionVectors.Num() && I < 6; ++I)
+	{
+		const double Dot = FVector2D::DotProduct(Verso, DirectionVectors[I].GetSafeNormal());
+		// ⚠️ Strettamente maggiore, con tolleranza: a pari merito resta la direzione gia' scelta, cioe' quella
+		// di valore minore. E' la regola sui confini, scritta qui e non lasciata all'arrotondamento.
+		if (Dot > MiglioreDot + UE_KINDA_SMALL_NUMBER)
+		{
+			MiglioreDot = Dot;
+			Migliore = I;
+		}
+	}
+	if (Migliore == INDEX_NONE)
+	{
+		return false;
+	}
+	OutSector = static_cast<ERTHexDirection>(Migliore);
+	return true;
 }
 
 ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,

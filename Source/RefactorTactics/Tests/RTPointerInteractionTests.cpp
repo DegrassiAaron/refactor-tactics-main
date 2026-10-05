@@ -22,6 +22,7 @@
 #include "Map/RTHexLibrary.h"
 #include "RTWorldFixtures.h" // il mondo di prova: stessa porta che usano gli altri test d'integrazione
 #include "Turn/RTPlaybackLibrary.h"
+#include "Turn/RTMovementActionLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTCellId.h"
 #include "Kismet/GameplayStatics.h"
@@ -559,61 +560,301 @@ bool FRTPointerIllegalFacingRejectedTest::RunTest(const FString&)
 }
 
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCycleDeclaredFacingTest,
-	"RefactorTactics.Pointer.CycleDeclaredFacingStaysWithinTheLegalSet",
+/**
+ * IL SETTORE DEL CURSORE E' IL LATO PIU' VICINO, CON UNA DEAD-ZONE E UNA REGOLA SUI CONFINI - `#291`, [D-367].
+ *
+ * 🔑 La funzione pura che il secondo click usa: se sbaglia, il giocatore clicca verso un lato e ne ottiene un
+ * altro, e nessun test d'integrazione headless lo vedrebbe, perche' senza viewport non c'e' un cursore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingSectorFromOffsetTest,
+	"RefactorTactics.Pointer.FacingSectorFromOffsetPicksTheNearestSide",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTCycleDeclaredFacingTest::RunTest(const FString&)
+bool FRTFacingSectorFromOffsetTest::RunTest(const FString&)
+{
+	// Sei lati a 60° l'uno dall'altro, ruotati di un angolo qualunque: la funzione non deve dipendere
+	// dall'orientamento della griglia.
+	const double Rotazione = 17.0;
+	TArray<FVector2D> Direzioni;
+	for (int32 I = 0; I < 6; ++I)
+	{
+		const double A = FMath::DegreesToRadians(Rotazione + 60.0 * I);
+		Direzioni.Add(FVector2D(FMath::Cos(A), FMath::Sin(A)) * 150.0);
+	}
+	auto Verso = [&](double Gradi, double Raggio)
+	{
+		const double A = FMath::DegreesToRadians(Rotazione + Gradi);
+		return FVector2D(FMath::Cos(A), FMath::Sin(A)) * Raggio;
+	};
+
+	ERTHexDirection Settore = ERTHexDirection::E;
+	for (int32 I = 0; I < 6; ++I)
+	{
+		// 25° oltre il lato I: piu' vicino a I che a I+1 (che sta a 35°).
+		TestTrue(*FString::Printf(TEXT("lato %d: il cursore sceglie"), I),
+			URTPointerLibrary::FacingSectorFromOffset(Verso(60.0 * I + 25.0, 100.0), Direzioni, 30.f, Settore));
+		TestEqual(*FString::Printf(TEXT("lato %d: e' il lato piu' vicino"), I), Settore, static_cast<ERTHexDirection>(I));
+	}
+
+	// Il confine esatto fra il lato 0 e il lato 1: vince il valore minore dell'enum, dichiarato e non lasciato
+	// all'arrotondamento.
+	TestTrue(TEXT("sul confine il cursore sceglie"),
+		URTPointerLibrary::FacingSectorFromOffset(Verso(30.0, 100.0), Direzioni, 30.f, Settore));
+	TestEqual(TEXT("e sceglie il lato di valore minore"), Settore, static_cast<ERTHexDirection>(0));
+
+	// La dead-zone: un click al centro non sceglie niente.
+	TestFalse(TEXT("nella dead-zone non si sceglie"),
+		URTPointerLibrary::FacingSectorFromOffset(Verso(45.0, 20.0), Direzioni, 30.f, Settore));
+	return true;
+}
+
+/**
+ * IL SECONDO CLICK SULLA DESTINAZIONE SCEGLIE IL VERSO E CHIUDE IL MOVIMENTO - `#291`, [D-367], [D-462].
+ *
+ * ⚠️ Quattro fatti in fila, perche' sono una sola esperienza: il click ripetuto non duplica il waypoint, il lato
+ * dichiara, un'altra cella non estende il movimento chiuso, e il Back lo riapre togliendo il verso per primo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSecondClickClosesTheMoveTest,
+	"RefactorTactics.PlayerInput.SecondClickOnTheDestinationDeclaresFacingAndClosesTheMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSecondClickClosesTheMoveTest::RunTest(const FString&)
 {
 	UWorld* World = MakePointerWorld();
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
-
 	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
 	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-
 	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
 	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
 	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
-
 	PC->SelectActorForTest(Unit);
 
-	// 🔴 **Il difetto che questo test esiste per fermare non era un bug: era un'ASSENZA.** Le regole della
-	// rotazione dichiarata erano complete e testate dal 2026-08-09, e `BeginFacingDeclaration` /
-	// `HandleFacingSector` avevano come unici chiamanti dei test: dal gioco non ci arrivava nessuno.
-
-	// Da ferma le direzioni legali sono SEI: il ciclo deve poterle raggiungere tutte e tornare al punto di
-	// partenza. Un'implementazione che dichiarasse sempre la stessa direzione passerebbe un controllo
-	// scritto solo su «dopo la pressione c'e' una dichiarazione».
-	const TArray<ERTHexDirection> Legali =
-		URTFacingLibrary::LegalFacings(ERTMovementStyle::None, Unit->PlannedPath, Unit->Facing,
-			Unit->PivotBudget());
-	TestEqual(TEXT("da ferma le legali sono sei"), Legali.Num(), 6);
-
-	TSet<ERTHexDirection> Viste;
-	for (int32 I = 0; I < Legali.Num(); ++I)
+	const FRTCellId Meta(1, 0, 0);
+	PC->HandleClickOnCell(Meta);
+	if (!TestEqual(TEXT("premessa: un waypoint, e la destinazione e' quella"), Unit->PlannedWaypoints.Num(), 1)
+		|| !TestEqual(TEXT("premessa: la cella del verso e' la destinazione"), PC->FacingCellFor(Unit), Meta))
 	{
-		PC->CycleDeclaredFacing();
-		if (!TestTrue(*FString::Printf(TEXT("pressione %d: qualcosa e' stato dichiarato"), I + 1),
-			Unit->bDeclaresPlannedFacing))
-		{
-			break;
-		}
-
-		// Ogni direzione che il ciclo produce e' NELL'INSIEME LEGALE. E' la garanzia che sostituisce
-		// l'indicatore a schermo (`#613`): una direzione illegale non e' raggiungibile.
-		TestTrue(*FString::Printf(TEXT("pressione %d: %d e' legale"), I + 1, (int32)Unit->PlannedFacing),
-			Legali.Contains(Unit->PlannedFacing));
-		Viste.Add(Unit->PlannedFacing);
+		DestroyPointerWorld(World); return false;
 	}
 
-	// E le raggiunge TUTTE: se il ciclo si fermasse su due direzioni alternate, i controlli sopra
-	// resterebbero verdi mentre meta' delle rotazioni sarebbe irraggiungibile.
-	TestEqual(TEXT("sei pressioni raggiungono tutte e sei le direzioni"), Viste.Num(), Legali.Num());
+	// Il secondo click senza un lato (il centro, o un chiamante senza cursore): non sceglie e NON duplica.
+	PC->HandleClickOnCell(Meta);
+	TestEqual(TEXT("il click ripetuto non duplica il waypoint"), Unit->PlannedWaypoints.Num(), 1);
+	TestFalse(TEXT("e non dichiara niente"), Unit->bDeclaresPlannedFacing);
 
-	// Il contesto non resta aperto: `HandleFacingSector` lo chiude, e un contesto appeso mangerebbe il
-	// click successivo.
-	TestEqual(TEXT("il contesto e' tornato al neutro"), PC->GetPointerContext(), ERTPointerContext::Planning);
+	TestTrue(TEXT("il secondo click verso W dichiara il verso"), PC->HandleFacingClick(Meta, ERTHexDirection::W));
+	TestTrue(TEXT("il verso e' dichiarato"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' W"), Unit->PlannedFacing, ERTHexDirection::W);
+
+	PC->HandleClickOnCell(FRTCellId(2, 0, 0));
+	TestEqual(TEXT("a movimento chiuso un'altra cella non aggiunge waypoint"), Unit->PlannedWaypoints.Num(), 1);
+	TestTrue(TEXT("e il verso resta"), Unit->bDeclaresPlannedFacing);
+
+	TestEqual(TEXT("il primo Back toglie il verso"), PC->ApplyBack(), ERTPointerBackStep::DeclaredFacing);
+	TestFalse(TEXT("il verso non c'e' piu'"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("e il waypoint resta"), Unit->PlannedWaypoints.Num(), 1);
+
+	PC->HandleClickOnCell(FRTCellId(2, 0, 0));
+	TestEqual(TEXT("riaperto: un'altra cella aggiunge il waypoint"), Unit->PlannedWaypoints.Num(), 2);
+	TestEqual(TEXT("e il Back dopo toglie un waypoint"), PC->ApplyBack(), ERTPointerBackStep::Waypoint);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * UN LATO ILLEGALE NON DICHIARA E NON CHIUDE IL MOVIMENTO - `#291`, [D-367].
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIllegalFacingClickTest,
+	"RefactorTactics.PlayerInput.IllegalFacingClickLeavesTheMoveOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIllegalFacingClickTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	// Branth: budget Move 1, quindi esistono lati illegali.
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	const FRTCellId Meta(3, -2, 0);
+	PC->HandleClickOnCell(Meta);
+	const TArray<ERTHexDirection> Legali = URTFacingLibrary::LegalFacings(
+		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
+	ERTHexDirection Illegale = ERTHexDirection::E;
+	bool bTrovata = false;
+	for (uint8 D = 0; D < 6 && !bTrovata; ++D)
+	{
+		if (!Legali.Contains(static_cast<ERTHexDirection>(D))) { Illegale = static_cast<ERTHexDirection>(D); bTrovata = true; }
+	}
+	if (!TestTrue(TEXT("premessa: c'e' un percorso e un lato illegale"), Unit->PlannedPath.Num() > 1 && bTrovata))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	TestFalse(TEXT("il lato illegale e' rifiutato"), PC->HandleFacingClick(Meta, Illegale));
+	TestFalse(TEXT("nessun verso dichiarato"), Unit->bDeclaresPlannedFacing);
+	TestNotEqual(TEXT("e nessun selettore resta aperto a mangiare il click dopo"),
+		PC->GetPointerContext(), ERTPointerContext::Facing);
+	PC->HandleClickOnCell(FRTCellId(4, -2, 0));
+	TestEqual(TEXT("il movimento resta aperto: il waypoint si aggiunge"), Unit->PlannedWaypoints.Num(), 2);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * DA FERMO, LA PROPRIA CELLA APRE I SEI TRIANGOLI E OGNI LATO E' RAGGIUNGIBILE - `#291`, [D-462] punto 4.
+ *
+ * ⌫ *Sostituisce `Pointer.CycleDeclaredFacingStaysWithinTheLegalSet`*: il tasto `T` e il ciclo sono usciti dal
+ * gioco con [D-367]. La garanzia resta la stessa — da fermo le sei direzioni sono tutte raggiungibili — e la porta
+ * e' quella nuova.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTStationaryFacingSelectorTest,
+	"RefactorTactics.PlayerInput.StationaryOwnCellOpensTheFacingSelector",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTStationaryFacingSelectorTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+	const FRTCellId Qui = Unit->Cell;
+
+	TestFalse(TEXT("senza il primo click la propria cella non sceglie un verso"),
+		PC->HandleFacingClick(Qui, ERTHexDirection::W));
+
+	for (uint8 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Lato = static_cast<ERTHexDirection>(D);
+		if (D > 0)
+		{
+			TestEqual(*FString::Printf(TEXT("lato %d: il Back toglie il verso di prima"), D),
+				PC->ApplyBack(), ERTPointerBackStep::DeclaredFacing);
+		}
+		PC->HandleClickOnCell(Qui);
+		TestEqual(*FString::Printf(TEXT("lato %d: il click sulla propria cella apre il selettore"), D),
+			PC->GetPointerContext(), ERTPointerContext::Facing);
+		TestTrue(*FString::Printf(TEXT("lato %d: e il secondo click lo sceglie"), D), PC->HandleFacingClick(Qui, Lato));
+		TestEqual(*FString::Printf(TEXT("lato %d: dichiarato"), D), Unit->PlannedFacing, Lato);
+	}
+	TestEqual(TEXT("il selettore si e' chiuso"), PC->GetPointerContext(), ERTPointerContext::Planning);
+
+	PC->HandleClickOnCell(FRTCellId(1, 0, 0));
+	TestEqual(TEXT("da fermo il verso chiude il movimento: nessun waypoint"), Unit->PlannedWaypoints.Num(), 0);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * UNO SCATTO PIANIFICATO SI GIUDICA SUL BUDGET DASH, NON SUL MOVE - `#291`, il difetto misurato da [D-367].
+ *
+ * 🔴 **Il difetto**: il controller stimava lo stile come `PlannedPath.Num() > 1 ? Budget : None`, quindi uno scatto
+ * finiva giudicato sul budget Move. Branth ha Move 1 e Dash 0: col vecchio codice NE dopo uno scatto verso E era
+ * legale, e il resolver poi lo rifiutava.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDashFacingBudgetTest,
+	"RefactorTactics.PlayerInput.PlannedDashJudgesFacingOnTheDashBudget",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDashFacingBudgetTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	int32 Scatto = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities() && Scatto == INDEX_NONE; ++I)
+	{
+		const URTActionData* A = Unit->GetAbility(I);
+		if (A && URTMovementActionLibrary::IsLinear(A->Def.MovementStyle)) { Scatto = I; }
+	}
+	if (!TestNotEqual(TEXT("premessa: Branth ha uno scatto lineare"), Scatto, (int32)INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: budget Dash 0 e Move almeno 1"),
+			Unit->DashEndPivotMaxSteps == 0 && Unit->MoveEndPivotMaxSteps >= 1))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	// Lo scatto si scrive sul piano direttamente: il soggetto e' il giudizio del verso, non la pianificazione dello
+	// scatto, che ha i suoi test.
+	const FRTCellId Arrivo = URTHexLibrary::Neighbor(URTHexLibrary::Neighbor(Unit->Cell, ERTHexDirection::E), ERTHexDirection::E);
+	Unit->PlannedDashAbility = Scatto;
+	Unit->PlannedDashCell = Arrivo;
+	TestEqual(TEXT("la cella del verso e' l'arrivo dello scatto"), PC->FacingCellFor(Unit), Arrivo);
+
+	const ERTHexDirection Accanto = static_cast<ERTHexDirection>((static_cast<uint8>(ERTHexDirection::E) + 1) % 6);
+	TestFalse(TEXT("un lato accanto alla direzione dello scatto e' oltre il budget Dash 0"),
+		PC->HandleFacingClick(Arrivo, Accanto));
+	TestTrue(TEXT("la direzione dello scatto resta legale"), PC->HandleFacingClick(Arrivo, ERTHexDirection::E));
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * UN PERCORSO TRONCATO CANCELLA IL VERSO E RIAPRE IL MOVIMENTO - `#291`, [D-367].
+ *
+ * 🔑 La destinazione cambia, quindi il verso scelto su quella vecchia non vale piu'. Il troncamento della riserva
+ * scrive il percorso direttamente, senza passare dalla ricostruzione: e' il caso che un'implementazione col solo
+ * `RebuildPlannedPath` lascerebbe scoperto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTruncationCancelsFacingTest,
+	"RefactorTactics.PlayerInput.TruncatingTheMoveCancelsTheDeclaredFacing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTruncationCancelsFacingTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	int32 Overwatch = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities() && Overwatch == INDEX_NONE; ++I)
+	{
+		const URTActionData* A = Unit->GetAbility(I);
+		if (A && A->Def.ActionId == TEXT("Action.Overwatch")) { Overwatch = I; }
+	}
+	PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	PC->HandleClickOnCell(FRTCellId(3, -1, 0));
+	const bool bDichiarato = PC->HandleFacingClick(FRTCellId(3, -1, 0), ERTHexDirection::W);
+	if (!TestNotEqual(TEXT("premessa: Overwatch nel kit"), Overwatch, (int32)INDEX_NONE)
+		|| !TestEqual(TEXT("premessa: due waypoint"), Unit->PlannedWaypoints.Num(), 2)
+		|| !TestTrue(TEXT("premessa: verso dichiarato"), bDichiarato))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	PC->SelectAbilityForCurrentForTest(Overwatch);
+	if (!TestTrue(TEXT("premessa: la riserva ha troncato"), Unit->PlannedWaypoints.Num() < 2))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	TestFalse(TEXT("il verso scelto sulla destinazione vecchia e' cancellato"), Unit->bDeclaresPlannedFacing);
 
 	DestroyPointerWorld(World);
 	return true;
