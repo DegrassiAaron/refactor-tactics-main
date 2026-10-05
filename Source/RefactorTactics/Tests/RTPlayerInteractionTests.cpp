@@ -3238,7 +3238,10 @@ bool FRTBackAfterADeclaredTargetDisarmsTest::RunTest(const FString&)
 	for (int32 i = 0; Nemico && i < B.Unit->NumAbilities() && Armata == INDEX_NONE; ++i)
 	{
 		const URTActionData* A = B.Unit->GetAbility(i);
-		if (!A || A->bSelfTarget || !A->Def.ReservesMovementProfileId.IsNone()) { continue; }
+		if (!A || A->bSelfTarget || !A->Def.ReservesMovementProfileId.IsNone() || A->Def.Slot != ERTActionSlot::Main)
+		{
+			continue;
+		}
 		B.PC->SelectAbilityForCurrentForTest(i);
 		if (B.PC->GetPointerTargetKind() != ERTPointerTargetKind::Unit) { continue; }
 		B.PC->HandleClickOnUnitForTest(Nemico);
@@ -3251,11 +3254,56 @@ bool FRTBackAfterADeclaredTargetDisarmsTest::RunTest(const FString&)
 		DestroyInteractionWorld(B.World); return false;
 	}
 
+	// Un lato dichiarato, come lo lascerebbe un'azione su bordo: il disarmo deve spegnere anche quello.
+	B.Unit->bHasPlannedCoverEdge = true;
+
 	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
 
 	TestEqual(TEXT("l'attacco esce dal piano"), B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestFalse(TEXT("e il lato dichiarato e' spento"), B.Unit->bHasPlannedCoverEdge);
 	TestEqual(TEXT("e dalla selezione"), B.Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
 	TestTrue(TEXT("e il bersaglio dichiarato e' spento"), B.Unit->PlannedAttackTarget == nullptr);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * UN WAYPOINT POSATO DOPO L'AZIONE SI TOGLIE PRIMA DI DISARMARLA - `#3501`, [D-461] punto 3.
+ *
+ * 🔑 **Il Back disfa l'ultimo gesto.** Un supporto su se stessi resta armato dopo essere entrato nel piano, quindi
+ * il giocatore puo' posare waypoint DOPO. Con l'ordine del Back (`Declaration` prima di `Waypoint`) il primo Back
+ * avrebbe tolto l'`Overwatch` invece del waypoint appena posato: trovato in revisione, deciso dall'autore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackRemovesTheLaterWaypointFirstTest,
+	"RefactorTactics.PlayerInput.BackRemovesAWaypointPlacedAfterTheActionFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackRemovesTheLaterWaypointFirstTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	if (!TestEqual(TEXT("premessa: l'Overwatch e' nel piano"), B.Unit->PlannedAbilityIndex, B.IdxOverwatch)
+		|| !TestEqual(TEXT("premessa: un waypoint posato DOPO, dentro il tetto Withdraw"), B.Unit->PlannedWaypoints.Num(), 1))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il primo Back toglie il waypoint"), B.PC->ApplyBack(), ERTPointerBackStep::Waypoint);
+	TestEqual(TEXT("e il waypoint non c'e' piu'"), B.Unit->PlannedWaypoints.Num(), 0);
+	TestEqual(TEXT("ma l'Overwatch resta nel piano"), B.Unit->PlannedAbilityIndex, B.IdxOverwatch);
+	TestEqual(TEXT("e resta armato"), B.Unit->SelectedAbilityIndex, B.IdxOverwatch);
+
+	TestEqual(TEXT("il secondo Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("e disarma l'Overwatch"), B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestTrue(TEXT("e il tetto cade"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(
+			URTPlanValidationLibrary::MakePlanFor(B.Unit)).IsNone());
 
 	DestroyInteractionWorld(B.World);
 	return true;
@@ -3283,7 +3331,10 @@ bool FRTBackOnATargetingKeepsThePlanTest::RunTest(const FString&)
 	for (int32 i = 0; i < B.Unit->NumAbilities(); ++i)
 	{
 		const URTActionData* A = B.Unit->GetAbility(i);
-		if (A && !A->bSelfTarget && A->Def.ReservesMovementProfileId.IsNone()) { IdxBersaglio = i; break; }
+		if (A && !A->bSelfTarget && A->Def.ReservesMovementProfileId.IsNone() && A->Def.Slot == ERTActionSlot::Main)
+		{
+			IdxBersaglio = i; break;
+		}
 	}
 	if (!TestNotEqual(TEXT("premessa: il kit ha un'azione a bersaglio"), IdxBersaglio, (int32)INDEX_NONE))
 	{
