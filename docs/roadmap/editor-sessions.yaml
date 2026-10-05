@@ -4744,9 +4744,28 @@ sessions:
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
     # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`, perche' non blocchi le build degli altri cloni.
-    notes: >-
+    notes: |
       Scritta il 2026-10-04 dal triage del mockup della skill bar
-      (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`). Non ancora eseguita.
+      (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`).
+      🟡 **Eseguita il 2026-10-05, verdetto percettivo all'autore**, su `main` = `2b9b15d4c`, con l'Editor del
+      clone principale ricompilato da quel commit. L'authoring e' fatto: `WBP_RT_ActionSlot` dichiara i widget
+      per nome (#3489), avvolti in un `SizeBox` 78×96 (`SlotSize`), con l'icona a 28 px, il nome a 11 px su
+      due righe e il numero di ricarica a 26 px; le quattro texture `T_RT_Slot*` (tratteggio, angolo, ✕,
+      triangolo) sono nuove. ⚠️ **Lo stile del `ClickSurface` aveva un padding di 12 px per lato**, il
+      default di `UButton`: azzerato, altrimenti il gap fra gli slot era il triplo di `tokens.json`.
+      La cattura in scala di grigi e' in `artifacts`, ed e' **dal vivo** (PIE su `L_DevSandbox`, Muiren):
+      `Available`, `Selected`, `Planned` e `Invalid` — quest'ultimo con «Marea circolare» armata e il
+      puntatore su una cella oltre la portata. ⛔ **`Cooldown`, `Unavailable` e `Warning` dal vivo:
+      `NOT RUN`**: il Warning chiede un bersaglio nemico noto e uno scatto pianificato, e nella partita i
+      nemici erano velati; la ricarica non e' comparsa dopo il turno, e la ragione e' una questione di
+      gioco fuori da questa seduta. Il presidio strutturale c'e' — `ScreenHud.SlotLightsOnlyTheIndicatorOfItsState`
+      accende un indicatore per stato sul widget — ma la scala di grigi di quei tre non e' stata guardata.
+      ⛔ **Il criterio e' percettivo** («nessuno stato si confonde»): chi ha cablato non lo firma. La lettura
+      di chi ha eseguito e' che i quattro catturati si distinguano — bordo e angolo, bordo e barra, bordo
+      spento, ✕ — ma il verdetto resta all'autore, sull'immagine committata.
+      ⚠️ **Scostamenti dalla ricetta, dichiarati**: la `SelectedBar` sta DENTRO lo slot, al fondo, e non 9 px
+      sotto; il bordo di `Warning` non e' tratteggiato (lo dice il triangolo); l'etichetta di fase sta in alto
+      a destra con 20 px di margine, per lasciare l'angolo ai segni di stato.
 
   - id: U63
     title: La barra dei comandi occupa la fascia bassa e legge i propri gruppi
@@ -4821,10 +4840,21 @@ sessions:
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
     # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
-    notes: >-
+    notes: |
       Scritta il 2026-10-04 dalla PR di #3469 (referto
       `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
-      sessione che registra U62 (PR #3466): chi mergia secondo rinumera. Non ancora eseguita.
+      sessione che registra U62 (PR #3466): chi mergia secondo rinumera.
+      ✅ **Eseguita il 2026-10-05** su `main` = `2b9b15d4c`, Editor ricompilato da quel commit. Il nodo
+      `GetActions` del tick e' sostituito da `GetActionsInReadingOrder` con gli stessi quattro consumatori
+      (riletto col DSL); l'albero ha una riga `BarRow` = `SlotBox` + `Spacer` (Fill) + `MovementReadout`.
+      La cattura e' a **1920×1080** (finestra PIE flottante, letta con `PrintWindow`, non dallo schermo):
+      Muiren, tredici voci, la barra dentro la fascia — il suo bordo alto sta a y ≈ 868 ≥ 864 — e i due
+      confini di gruppo visibili come gap piu' largo. ⚠️ **Due test hanno dovuto cambiare, e non per il
+      cablaggio**: `ScreenHud.DockArmsOnlyTheSelectedAction` e `DockSurvivesAHoleInTheKit` confrontavano la
+      POSIZIONE di uno slot nella fila con l'indice di kit, cioe' cio' che [D-397] vieta; con la lista di
+      lettura le due cose divergono. Ora cercano lo slot per `Action.AbilityIndex`.
+      ⛔ **Il rigiudizio del criterio (1) di `PIE-V01-SCREENHUD` resta da fare**: e' percettivo, e la cella
+      stessa registra che chi cabla non lo firma. La cattura e' pronta in `artifacts`.
 
   - id: U64
     title: Conferma e Annulla del piano in alto a destra
@@ -4865,8 +4895,16 @@ sessions:
     #
     # ⛔ **Cosa NON si fa**: il `LockIn` di `Spazio` come pulsante — [D-458] lo esclude; lo stato del piano,
     # il conteggio dei warning e lo stato invalido di §6.8, che restano senza un produttore in questa vista.
-    notes: >-
-      Scritta il 2026-10-05 dalla PR di #3471 (decisione d'autore D-458). Non ancora eseguita.
+    notes: |
+      Scritta il 2026-10-05 dalla PR di #3471 (decisione d'autore D-458).
+      ✅ **Eseguita il 2026-10-05** su `main` = `2b9b15d4c`: `WBP_RT_PlanCommit` (parent
+      `URTPlanCommitWidget`) con `ConfirmButton`/`ConfirmText` e `UndoButton`/`UndoText`, montato come
+      `WBP_RT_PlanCommitTopRight` nel `Content` di `Zone_TopRight`. `EveryZoneOwnerIsMountedByClass` lo trova
+      per classe in un processo fresco, e `ScreenHud.ActionBarDeclaresTheNamedPorts` ne legge i nomi.
+      In PIE: senza unita' selezionata `Conferma Enter` e' spenta e `Annulla Backspace` accesa; con Muiren
+      selezionata si accende anche `Conferma`. ⛔ **Il click dal vivo sui due pulsanti e' `NOT RUN`**: il
+      collegamento e' del C++ (`BindNamedButtons`) ed e' misurato da
+      `ScreenHud.PlanCommitButtonsFollowThePorts`, non a schermo.
 
 not_schedulable:
 
