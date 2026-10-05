@@ -140,6 +140,13 @@ su entrambi gli assi, offset `L4 T4 R4 B4` e `Size To Content` **spento**. L'inq
 | `Zone_Bottom` | (0.0, 0.8) → (1.0, 1.0) | `WBP_RT_ActionDockBottom` (+ `WBP_RT_ActionSlot`) — tutta la fascia, [D-456](../../decisions/RT_PDR_00_Decision_Log.md) | [#220](https://github.com/DegrassiAaron/refactor-tactics-main/issues/220) · [#2760](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2760) · [#3469](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3469) |
 | *cella centrale* | (0.2, 0.2) → (0.8, 0.8) | ⛔ **NESSUN PANNELLO SCREEN-HUD PERMANENTE** — battlefield e Tactical World Overlay §4.2. ✅ **Una sola esenzione: `WBP_RT_FastDecision`**, `Collapsed` tranne mentre la finestra è aperta ([#166](https://github.com/DegrassiAaron/refactor-tactics-main/issues/166)) | [#2184](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2184) · `progettazione-hud.md` §3.1 |
 
+🎨 **Il bordo da cantiere si spegne quando il contenuto arriva**, ed è il contratto di `bBlockoutVisible`
+(`RTHudZoneWidget.h`): ogni istanza di `WBP_RT_HudZone` nasce col bordo colorato, e lo si spegne **sull'istanza**
+nel `WBP_RT_TacticalHUD`, non nella classe. Oggi è spento su `Zone_Bottom` e `Zone_TopRight`
+([#3494](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3494)); le altre zone hanno ancora un
+contenuto graybox e lo tengono. Lo legge `ScreenHud.ZonesWithTheirContentHideTheBlockout`: la prossima zona che
+lo spegne si aggiunge lì, nella stessa PR dell'asset.
+
 ✅ **`WBP_RT_FastDecision` è montato dal 2026-09-12**, nel `Canvas Panel` **radice** — non in una zona,
 e non a runtime. Fino a quel giorno non era montato da nessuna parte, e fino allo stesso giorno questa
 tabella diceva che il `BOTTOM` lo conteneva *«a runtime»*: era falso in entrambe le direzioni. Resta
