@@ -3680,6 +3680,10 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 		}
 		// Solo le unita' NOTE: un'ombra sulla cella non accende niente (vedi il docstring). E' la stessa
 		// guardia del click, che su un bersaglio ignoto esce senza dire niente.
+		//
+		// ⚠️ **Il flag si passa VERO anche dopo la guardia, e non `true`**: e' cio' che fa il sito del click,
+		// e per la stessa ragione — `RefusalForKnownTarget` collassa da se' un ignoto su `Nothing`, quindi la
+		// privacy non dipende dalla sola condizione del ciclo (revisione indipendente di #3483).
 		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
 		{
 			const ARTUnit* Bersaglio = *It;
@@ -3689,7 +3693,7 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 				continue;
 			}
 			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->Cell, Bersaglio->Cell,
-				Ability->RangeCells, Ability->Def.LineOfSightPolicy, /*bTargetKnownToObserver*/ true);
+				Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
 		}
 		return ERTTargetRefusal::None;
 	}
