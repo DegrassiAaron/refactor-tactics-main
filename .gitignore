@@ -78,6 +78,9 @@ Content/**/*.txt
 !Content/RT/UI/**/*.uasset
 !Content/RT/Maps/**/*.umap
 !Content/RT/Maps/**/*.uasset
+# I testi della licenza OFL dei font (#3498, seduta U65): l'OFL vuole che accompagnino il font, e
+# `Content/**/*.txt` qui sopra li escluderebbe senza un segnale — `git add -A` li salta.
+!Content/RT/UI/Fonts/OFL-*.txt
 
 # ⛔ ...ma NON gli scratch d'editor. La negazione qui sopra e' generica, e il suo rovescio non era stato
 # considerato: rendeva committabile ogni artefatto usa-e-getta salvato sotto `Maps/` durante una seduta PIE.
