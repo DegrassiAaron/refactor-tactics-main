@@ -381,6 +381,11 @@ private:
 	FDelegateHandle PhaseClosedHandle;
 	FDelegateHandle LogEntryHandle;
 
-	/** Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito. */
+	/**
+	 * Tetto di sicurezza sulla risoluzione di UN turno: fallire e' meglio che girare all'infinito.
+	 *
+	 * ⚠️ Non conta i passi in cui il playback e' FERMO per chi guarda (`IsPlaybackPaused`) — `#3488`: un
+	 * turno guardato passo per passo non e' un turno appeso.
+	 */
 	int32 ResolveTicks = 0;
 };
