@@ -163,7 +163,8 @@ esattamente fra due gruppi. Lungo `GetActions()` non lo sarebbero: in partita Br
    e un badge `TextBlock` legato a `.SneakKeyLabel` (`M`), acceso quando `.bSneakDeclared`.
 3. **Visibilità**: `Collapsed` quando `.bAuthorized` è falso. ⛔ Mai spento: uno spento direbbe «fermo» di
    un'unità di cui non si sa niente.
-4. ⛔ **Il badge NON è cliccabile**: è la domanda aperta di #3470.
+4. ✅ **Il badge è cliccabile** ([D-457]): mettilo dentro un `Button` e lega `OnClicked` a **`ToggleSneak()`**
+   della dock. Inoltra al corpo del tasto `M`; nessuna regola nel grafo.
 5. ⚠️ **Da giudicare a schermo**: con `Sneak` dichiarato e poi `Overwatch` armata, il badge resta acceso
    mentre l'etichetta dice `Withdraw ×0,25`. È coerente — dichiarato contro effettivo — ma se si legge come
    contraddizione, la resa si decide qui.
@@ -177,13 +178,35 @@ motivato la fascia intera ([D-456] punto 2).
 
 ### 2.5 ⛔ Cosa NON si fa
 
-- Confirm · Undo in `TopRight`: #3471, con due decisioni aperte.
+- Confirm · Undo in `TopRight`: è `U64`, nella stessa apertura — §2.6.
 - La Ghost Timeline: #172.
 - La riga d'intestazione del mockup: D-456 punto 6.
 - Il selettore di profilo: contraddice D-425.
 - La difesa caratteristica: #3130.
 
 ---
+
+### 2.6 `U64` — Conferma e Annulla in `TopRight` ([D-458], #3471)
+
+1. Crea `/Game/RT/UI/Match/WBP_RT_PlanCommit` con parent **`URTPlanCommitWidget`**.
+2. Due `Button`:
+   - `Conferma` → `OnClicked` chiama **`Confirm()`**: dichiara o ritratta il piano dell'unità, come `Invio`;
+   - `Annulla` → `OnClicked` chiama **`Undo()`**: l'intero Back del tasto destro, che durante il countdown
+     ritira il Ready.
+
+   ⛔ Nessuna regola nel grafo: i pulsanti **inoltrano** alle porte dei tasti.
+3. Il testo di `Conferma` è «Conferma» o «Ritira» secondo `IsPlanDeclared()`, col tasto da
+   `GetConfirmKeyLabel()`. Quello di `Annulla` porta il tasto da `GetUndoKeyLabel()`.
+4. Entrambi spenti quando `HasCommandedUnit()` è falso.
+5. Montalo nel `NamedSlot Content` di `Zone_TopRight` (`SetNamedSlotContent`).
+6. 🔴 **Nello stesso commit dell'asset**:
+   - `ScreenHud.EveryZoneOwnerIsMountedByClass` riceve la riga
+     `{ URTPlanCommitWidget::StaticClass(), TEXT("TopRight"), TEXT("#3471") }`;
+   - la tabella di `guida-screen-hud-umg.md` §3 aggiorna `Zone_TopRight`.
+
+   Prima dell'asset il gate sarebbe rosso.
+
+⛔ **Non è il `LockIn` di `Spazio`**: [D-458] lo esclude dal pulsante.
 
 ## 3. Dopo il salvataggio: rileggere dal disco
 

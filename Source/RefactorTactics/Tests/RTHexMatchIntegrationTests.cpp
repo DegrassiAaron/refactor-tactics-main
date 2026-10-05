@@ -25,6 +25,7 @@
 #include "Tests/RTWorldFixtures.h"
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
+#include "UI/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
 #include "Tests/RTLockInCommittedProbeForTest.h"
 
 // La guardia: senza, i test di questo file finiscono compilati DENTRO il binario Shipping che si
@@ -2288,6 +2289,67 @@ bool FRTTwoAttackersLethalEntryTest::RunTest(const FString&)
 	// La somma resta il danno reale anche quando il bersaglio cade — la proprieta' non ha eccezioni.
 	TestEqual(TEXT("🔑 la somma delle quote e' cio' che gli HP hanno perso"),
 		Colpi[0].Amount + Colpi[1].Amount, VitaPrima - VitaDopo);
+
+	DestroyHexMatchWorld(World);
+	return true;
+}
+
+/**
+ * `#3471` — IL PULSANTE `ANNULLA` DURANTE IL COUNTDOWN RITIRA IL READY, E IL PIANO RESTA ([D-458], `#2193`).
+ *
+ * 🔑 **Passa dal CONTROLLER, ed e' il pezzo che mancava**: `UnreadyReturnsToPlanningWithThePlanIntact` chiama
+ * `TM->CancelLockIn()` direttamente, quindi il ramo del Back che ritira il Ready non aveva un test che lo
+ * attraversasse dalla porta. Qui ci arriva dal pulsante della HUD.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUndoButtonWithdrawsReadyTest,
+	"RefactorTactics.HexMatch.UndoButtonWithdrawsTheReadyAndKeepsThePlan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUndoButtonWithdrawsReadyTest::RunTest(const FString&)
+{
+	UWorld* World = MakeHexMatchWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+
+	ARTTurnManager* TM = MakeCountdownMatch(World);
+	if (!TestNotNull(TEXT("turn manager"), TM)) { DestroyHexMatchWorld(World); return false; }
+
+	TArray<AActor*> Actors;
+	UGameplayStatics::GetAllActorsOfClass(World, ARTUnit::StaticClass(), Actors);
+	ARTUnit* Umana = nullptr;
+	for (AActor* Actor : Actors)
+	{
+		ARTUnit* U = Cast<ARTUnit>(Actor);
+		if (U && !U->bIsBotControlled) { Umana = U; break; }
+	}
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	URTPlanCommitWidget* W = NewObject<URTPlanCommitWidget>(World);
+	if (!TestNotNull(TEXT("l'unita' umana"), Umana) || !TestNotNull(TEXT("controller"), PC)
+		|| !TestNotNull(TEXT("widget"), W))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+	PC->SelectActorForTest(Umana);
+	W->SetCommandControllerForTest(PC);
+
+	Umana->PlannedWaypoints.Add(FRTCellId(-2, 1));
+	const TArray<FRTCellId> PianoPrima = Umana->PlannedWaypoints;
+
+	// ⚠️ **Il Ready col GESTO del giocatore, non con `TM->RequestLockIn()`.** `Spazio` dichiara il Ready DEL
+	// PARTECIPANTE (`DeclareParticipantReady`), ed e' quello che il Back ritira con `WithdrawParticipantReady`:
+	// `RequestLockIn` arma il countdown per un'altra strada, che nessun partecipante possiede. La prima stesura
+	// lo usava, ed era rossa per la premessa sbagliata, non per il prodotto.
+	PC->OnLockInForTest();
+	if (!TestTrue(TEXT("premessa: il countdown e' armato"), TM->IsReadyCountdownActive()))
+	{
+		DestroyHexMatchWorld(World);
+		return false;
+	}
+
+	W->Undo();
+	TestFalse(TEXT("Annulla ritira il Ready: il countdown e' annullato"), TM->IsReadyCountdownActive());
+	TestTrue(TEXT("si e' in pianificazione"), TM->GetPhase() == ERTMatchPhase::Planning);
+	TestTrue(TEXT("e il piano e' identico: il Back non ha smontato un waypoint"),
+		Umana->PlannedWaypoints == PianoPrima);
 
 	DestroyHexMatchWorld(World);
 	return true;

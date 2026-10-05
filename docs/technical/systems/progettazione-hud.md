@@ -515,8 +515,13 @@ famiglia di pulsanti di §6.8 insieme a `CONFIRM PLAN`.
 
 > ⚠️ **2026-10-04 — [D-456](../../decisions/RT_PDR_00_Decision_Log.md) punto 4: questa famiglia sale in `TopRight`.**
 > ⌫ *Fino a quel giorno la sezione si intitolava «Bottom right».* La cella in basso a destra è parte della fascia
-> della barra dei comandi (§6.7). Il widget non esiste ancora. Chiudere il turno è il tasto `Spazio` (`LockIn`),
-> mentre `Invio` dichiara il piano della singola unità (`ToggleTurnPlanDeclared`, #3145): sono due gesti diversi. Owner: [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471).
+> della barra dei comandi (§6.7). Chiudere il turno è il tasto `Spazio` (`LockIn`), mentre `Invio` dichiara il
+> piano della singola unità (`ToggleTurnPlanDeclared`, #3145): sono due gesti diversi. Owner: [#3471](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3471).
+>
+> ✅ **2026-10-05 — [D-458](../../decisions/RT_PDR_00_Decision_Log.md): `CONFIRM PLAN` è `Invio`, `UNDO` è
+> l'intero Back del tasto destro**, che durante il countdown ritira il Ready. Il widget è
+> `URTPlanCommitWidget`, che inoltra alle porte dei tasti (`TogglePlanDeclaration`, `UndoStep`); l'asset e il
+> montaggio sono della seduta `U64`. ⛔ Il `LockIn` di `Spazio` non diventa un pulsante.
 
 Azioni principali:
 

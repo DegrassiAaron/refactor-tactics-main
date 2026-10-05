@@ -383,6 +383,18 @@ const FKey& ARTPlayerController::SneakHotkey()
 	return Tasto;
 }
 
+const FKey& ARTPlayerController::DeclarePlanHotkey()
+{
+	static const FKey Tasto = EKeys::Enter;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::UndoKeyboardHotkey()
+{
+	static const FKey Tasto = EKeys::BackSpace;
+	return Tasto;
+}
+
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
 {
 	// 🔑 **Le GENERICHE per prime, e per NOME** ([D-397] §4). Entrambi i tasti armano — `OnAbility6` passa da
@@ -616,7 +628,7 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
-	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
+	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	// `TAB` — il ciclo di selezione (`#3145`). Nessun altro `MapKey` lo rivendica, e a verificarlo non e'
@@ -627,7 +639,7 @@ void ARTPlayerController::BuildInputMappings()
 	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
 	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
 	// fanno cose diverse vanno su tasti che non si sfiorano.
-	MappingContext->MapKey(DeclarePlanAction, EKeys::Enter);
+	MappingContext->MapKey(DeclarePlanAction, DeclarePlanHotkey());
 
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
@@ -1206,6 +1218,12 @@ void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
 void ARTPlayerController::OnDeclarePlan(const FInputActionValue& Value)
 {
 	ToggleTurnPlanDeclared();
+}
+
+bool ARTPlayerController::TogglePlanDeclaration()
+{
+	// La porta del pulsante `Conferma` ([D-458]): nessuna regola qui, e' quella di `Invio`.
+	return ToggleTurnPlanDeclared();
 }
 
 bool ARTPlayerController::ToggleTurnPlanDeclared()
@@ -3133,6 +3151,19 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		return;
 	}
 
+	// Il resto e' il gioco, e sta in `UndoStep`: la stessa porta del pulsante `Annulla` della HUD ([D-458]).
+	UndoStep();
+}
+
+void ARTPlayerController::UndoStep()
+{
+	// Ripetuta perche' questa e' anche una porta: un pulsante cliccato sotto una schermata bloccante non deve
+	// smontare niente, esattamente come il tasto.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// #971 — sessione non presidiata: non c'e' un piano umano da disfare, e `UndoCount` non deve crescere.
 	if (IsPlanningInputInert())
 	{
@@ -3150,8 +3181,9 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	// ⛔ **E non e' un toggle su Spazio**: chi preme due volte per abitudine annullerebbe senza volerlo, cioe'
 	// l'opposto esatto del difetto che il countdown esiste per prevenire.
 	//
-	// ⚠️ Sta DOPO le tre guardie qui sopra, e ognuna serve: una schermata bloccante copre la partita,
-	// `Alt`+destro e' un dolly, e in una sessione non presidiata non c'e' un umano che possa disdire.
+	// ⚠️ Sta DOPO le guardie, e ognuna serve: una schermata bloccante copre la partita, e in una sessione
+	// non presidiata non c'e' un umano che possa disdire. La terza — `Alt`+destro e' un dolly — vive in
+	// `OnUndoWaypoint`, PRIMA di arrivare qui: appartiene al tasto tenuto, e un pulsante non ce l'ha ([D-458]).
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
 		if (TM->IsReadyCountdownActive())
@@ -3201,6 +3233,12 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 }
 
 void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
+{
+	// Il gesto. La regola sta in `ToggleSneakDeclaration`, che e' anche la porta del badge della barra ([D-457]).
+	ToggleSneakDeclaration();
+}
+
+void ARTPlayerController::ToggleSneakDeclaration()
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva.
 	if (IsGameplayInputBlocked())

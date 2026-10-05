@@ -209,6 +209,20 @@ bool URTScreenHudWidgetBase::HasMatchContext() const
 	return TurnManager.IsValid();
 }
 
+void URTScreenHudWidgetBase::SetCommandControllerForTest(ARTPlayerController* InController)
+{
+	CommandControllerForTest = InController;
+}
+
+ARTPlayerController* URTScreenHudWidgetBase::ResolveCommandController() const
+{
+	if (ARTPlayerController* Iniettato = CommandControllerForTest.Get())
+	{
+		return Iniettato;
+	}
+	return Cast<ARTPlayerController>(GetOwningPlayer());
+}
+
 const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
 {
 	// L'iniezione dei test viene PRIMA, e solo perche' in gioco e' sempre nulla: senza un `ULocalPlayer`
@@ -457,6 +471,56 @@ FRTMovementReadoutView URTActionDockWidget::GetMovementReadout() const
 	// `GetSelectedUnit()` e NON `GetSubject()`: la barra comanda, non ispeziona. E' la stessa sorgente di
 	// `GetActions()`, quindi azioni e movimento parlano sempre della stessa unita'.
 	return URTHudViewModel::BuildMovementReadout(GetSelectedUnit());
+}
+
+void URTActionDockWidget::ToggleSneak()
+{
+	// Nessuna regola qui ([D-457]): riserva dello slot, tetto e waypoint li decide il corpo del tasto `M`.
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->ToggleSneakDeclaration();
+	}
+}
+
+// =====================================================================================================
+// Conferma e Annulla
+// =====================================================================================================
+
+void URTPlanCommitWidget::Confirm()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->TogglePlanDeclaration();
+	}
+}
+
+void URTPlanCommitWidget::Undo()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->UndoStep();
+	}
+}
+
+bool URTPlanCommitWidget::HasCommandedUnit() const
+{
+	return GetSelectedUnit() != nullptr;
+}
+
+bool URTPlanCommitWidget::IsPlanDeclared() const
+{
+	const ARTUnit* Unit = GetSelectedUnit();
+	return Unit && Unit->bTurnPlanDeclared;
+}
+
+FText URTPlanCommitWidget::GetConfirmKeyLabel() const
+{
+	return ARTPlayerController::DeclarePlanHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+}
+
+FText URTPlanCommitWidget::GetUndoKeyLabel() const
+{
+	return ARTPlayerController::UndoKeyboardHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const
