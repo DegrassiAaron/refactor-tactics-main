@@ -1750,7 +1750,18 @@ void FRTScenarioSession::Step(float DeltaSeconds, bool bPumpTurnManager)
 
 		// Tetto di sicurezza: una risoluzione che non finisce deve FALLIRE, non girare all'infinito. Senza,
 		// un test appeso somiglierebbe a un test lento, e la differenza si scoprirebbe solo aspettando.
-		if (++ResolveTicks > URTScenarioRunner::MaxResolveTicks)
+		//
+		// ⚠️ **Un playback fermo da chi guarda non consuma il tetto** — `#3488`. Fermo per
+		// `rt.Debug.PlaybackStartPaused` o per `K`, il turno non finisce perche' qualcuno lo sta GUARDANDO, non
+		// perche' sia appeso: contarlo chiudeva in ERROR una seduta PIE circa nove secondi dopo l'inizio del
+		// playback, contro cio' che `RTGameMode.cpp` promette. Si esenta solo la pausa voluta
+		// (`IsPlaybackPaused`), non il playback trattenuto da una finestra di reazione
+		// (`bPlaybackHeldByWindow`, separato apposta): una finestra senza risposta in una run non presidiata deve
+		// ancora arrivare al tetto. ⛔ Il prezzo e' quello gia' dichiarato: una run non presidiata col playback
+		// fermo aspetta, e nel runner sincrono la ferma il tetto esterno (`MaxSteps`), con l'esito di default
+		// `Error`.
+		const bool bFermoDaChiGuarda = TM->IsPlaybackPaused();
+		if (!bFermoDaChiGuarda && ++ResolveTicks > URTScenarioRunner::MaxResolveTicks)
 		{
 			Result.Outcome = ERTTestOutcome::Error;
 			Result.ErrorMessage = FString::Printf(

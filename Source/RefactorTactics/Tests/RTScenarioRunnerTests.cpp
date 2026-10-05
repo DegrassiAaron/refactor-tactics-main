@@ -11,6 +11,7 @@
 #include "ScenarioHarness/RTScenarioSession.h"
 #include "Player/RTPlayerController.h"
 #include "Map/RTHexMapActor.h"
+#include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 #include "EngineUtils.h" // TActorIterator: il conteggio di `#2223`
 #include "ScenarioHarness/RTTestReportWriter.h"
@@ -2151,6 +2152,115 @@ bool FRTScenarioCheckpointAfterEventTest::RunTest(const FString&)
 			MaiRaggiunto.Assertions[0].Actual.Contains(TEXT("nessun evento")));
 	}
 
+	return true;
+}
+
+/**
+ * Un playback FERMO non consuma il tetto di `MaxResolveTicks` — `#3488`.
+ *
+ * `RTGameMode.cpp` promette che il banco non scade: in `Resolving` la sessione aspetta `!IsResolving()`, e un
+ * playback fermo da chi guarda la fa ASPETTARE. Il tetto contava invece ogni passo, anche a playback fermo,
+ * e in PIE uno scenario con `rt.Debug.PlaybackStartPaused` finiva in ERROR dopo circa nove secondi — due
+ * volte nella seduta del 2026-10-04, su `Visual.Perception.RevealDuringMove`.
+ *
+ * Qui il playback parte fermo e ci resta oltre il tetto: la sessione deve aspettare, non chiudersi. Poi lo si
+ * riprende, e lo scenario deve finire come senza pausa. ⚠️ Il controllo che il playback sia stato DAVVERO
+ * fermo e' cio' che rende il test non vacuo: senza, sarebbe verde anche su un mondo in cui `StartPaused` non
+ * attecchisce e la sessione finisce prima del tetto per conto suo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioPausedPlaybackDoesNotSpendTheResolveCapTest,
+	"RefactorTactics.Scenario.PausedPlaybackDoesNotSpendTheResolveCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioPausedPlaybackDoesNotSpendTheResolveCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	ARTTurnManager* TM = nullptr;
+	for (TActorIterator<ARTTurnManager> It(World); It; ++It) { TM = *It; break; }
+	if (!TestNotNull(TEXT("turn manager"), TM)) { Session.TearDown(); DestroyRunnerWorld(World); return false; }
+
+	// L'ordine non e' libero: `StartPaused` vale solo con i controlli abilitati.
+	TM->SetPlaybackControlsEnabled(true);
+	TM->SetStartPlaybackPaused(true);
+
+	bool bVistoFermo = false;
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+		bVistoFermo |= TM->IsPlaybackPaused();
+	}
+	TestTrue(TEXT("il playback e' stato davvero fermo"), bVistoFermo);
+	TestFalse(TEXT("a playback fermo, oltre il tetto, la sessione aspetta invece di chiudersi in ERROR"),
+		Session.IsFinished());
+
+	// Ripreso — a ogni turno, perche' `StartPaused` fa partire fermo OGNI playback — lo scenario si chiude.
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks * 4 && !Session.IsFinished(); ++I)
+	{
+		if (TM->IsPlaybackPaused()) { TM->ResumePlayback(); }
+		Session.Step(0.05f, /*bPumpTurnManager=*/ true);
+	}
+	TestTrue(TEXT("ripreso il playback, lo scenario finisce"), Session.IsFinished());
+	TestTrue(FString::Printf(TEXT("e finisce in PASS (era: %s, '%s')"),
+			*Session.GetResult().OutcomeString(), *Session.GetResult().ErrorMessage),
+		Session.GetResult().Outcome == ERTTestOutcome::Pass);
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
+	return true;
+}
+
+/**
+ * Il tetto RESTA per una risoluzione che non avanza senza che nessuno l'abbia fermata — `#3488`, controllo.
+ *
+ * E' la meta' che il fix non deve togliere: una run non presidiata che si blocca deve ancora FALLIRE, non
+ * girare all'infinito. Qui nessuno fa avanzare il turn manager (`bPumpTurnManager` falso, in un mondo che non
+ * ticca), quindi la risoluzione resta aperta, e il playback NON e' in pausa. Senza questo test, un fix che
+ * togliesse il tetto del tutto sarebbe verde sul test sopra.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioStuckResolutionStillHitsTheCapTest,
+	"RefactorTactics.Scenario.StuckResolutionStillHitsTheCap",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioStuckResolutionStillHitsTheCapTest::RunTest(const FString&)
+{
+	FRTTestScenario Scenario;
+	if (!LoadShippedScenario(*this, TEXT("Combat.FriendlyFire"), Scenario)) { return false; }
+
+	UWorld* World = MakeRunnerWorld();
+	if (!TestNotNull(TEXT("world"), World)) { return false; }
+
+	FRTScenarioSession Session;
+	Session.TurnPauseSeconds = 0.f;
+	if (!TestTrue(TEXT("la sessione parte"), Session.Start(World, Scenario)))
+	{
+		AddError(Session.GetResult().ErrorMessage);
+		DestroyRunnerWorld(World);
+		return false;
+	}
+
+	for (int32 I = 0; I < URTScenarioRunner::MaxResolveTicks + 100 && !Session.IsFinished(); ++I)
+	{
+		Session.Step(0.05f, /*bPumpTurnManager=*/ false);
+	}
+	TestTrue(TEXT("la risoluzione bloccata chiude la sessione"), Session.IsFinished());
+	TestTrue(TEXT("in ERROR"), Session.GetResult().Outcome == ERTTestOutcome::Error);
+	TestTrue(FString::Printf(TEXT("per il tetto (era: '%s')"), *Session.GetResult().ErrorMessage),
+		Session.GetResult().ErrorMessage.Contains(TEXT("non ha finito di risolvere")));
+
+	Session.TearDown();
+	DestroyRunnerWorld(World);
 	return true;
 }
 

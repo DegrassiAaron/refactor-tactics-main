@@ -570,9 +570,12 @@ void ARTGameMode::BeginPlay()
 		// proprio il playback che chi lancia con `PlaybackStartPaused` vuole guardare fermo.
 		//
 		// ⚠️ **`PlaybackStartPaused` viaggia con loro, ed e' una scelta misurata** (punto 3 dello scope di
-		// `#3267`). Il banco NON scade: in stato `Resolving` `FRTScenarioSession::Step` aspetta
-		// `!TM->IsResolving()` senza timeout, quindi un playback fermo lo fa **attendere**, non fallire —
-		// che e' esattamente cio' che una seduta vuole. ⛔ Il prezzo, dichiarato: in una run **non
+		// `#3267`). Il banco NON scade a playback fermo: in stato `Resolving` `FRTScenarioSession::Step`
+		// aspetta `!TM->IsResolving()`, e il suo tetto (`MaxResolveTicks`) non conta i passi in cui il
+		// playback e' fermo, quindi un playback fermo lo fa **attendere**, non fallire — che e' esattamente cio'
+		// che una seduta vuole. ⚠️ Fino a `#3488` questa riga diceva «senza timeout» ed era falsa: il tetto
+		// contava anche la pausa, e una seduta PIE moriva in ERROR circa nove secondi dopo l'inizio del
+		// playback. ⛔ Il prezzo, dichiarato: in una run **non
 		// presidiata** quella CVar appenderebbe lo scenario finche' nessuno preme `K`. Non e' accesa per
 		// default e vive fuori da Shipping, ma chi la accende in automazione deve saperlo.
 		ApplyPlaybackControlCVars(
