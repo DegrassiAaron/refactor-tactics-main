@@ -555,6 +555,10 @@ Ogni action slot deve poter rappresentare:
 > colpevole di un piano illegale); `Warning` = il piano è **accettato ma degradato** (il bersaglio, allo stato
 > noto, prenderebbe il ripiego dall'origine del Blast). Il rifiuto resta di `ERTTargetRefusal`, e un bersaglio
 > ignoto non accende nessuno dei due. Li restituisce `URTHudViewModel::ResolveSlotState`. Owner: [#3483](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3483).
+>
+> ✅ **2026-10-05 — [D-460](../../decisions/RT_PDR_00_Decision_Log.md): senza un'unità comandata la barra mostra la propria
+> struttura** — le Comuni spente (`Unavailable`), la Base e il Kit come slot vuoti, tanti quanti il kit più lungo della
+> propria squadra. Nessuno slot della struttura arma niente. Owner: [#3494](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3494).
 
 Dalla style guide:
 
