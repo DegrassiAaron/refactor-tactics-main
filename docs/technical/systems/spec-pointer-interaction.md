@@ -423,7 +423,10 @@ Due regole che l'ordine da solo non dice:
   Quando l'azione armata è **la stessa** già nel piano, la voce 4 la disarma: la toglie dalla selezione e dal
   piano, rilascia il tetto di movimento che imponeva, e restituisce i waypoint troncati ([D-444](../../decisions/RT_PDR_00_Decision_Log.md)). Succede a
   un supporto su se stessi, che entra nel piano all'armamento, e a un attacco col bersaglio già dichiarato.
-  ⛔ Un targeting **senza** bersaglio esce e basta: un'altra azione già pianificata resta.
+  Se dopo l'azione sono stati posati waypoint, il Back toglie **prima quelli**, uno per volta: disfa l'ultimo
+  gesto, e l'azione si disarma al Back in cui non ne restano.
+  ⛔ Un targeting **senza** bersaglio esce e basta: un'altra azione già pianificata resta. E un Back che chiude un
+  `Facing` non tocca il piano.
 
 `BackSpace` segue lo stesso elenco (è già legato a `UndoAction`, `RTPlayerController.cpp:246-247`). `Esc`
 pure, con la sola eccezione della `ReactionWindow`: lì non chiude, perché non scegliere è già `HOLD`.
