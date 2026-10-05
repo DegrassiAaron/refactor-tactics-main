@@ -222,6 +222,11 @@ struct FRTTestResult
 	 *
 	 * ⛔ Non entra in `StateHash` ne' nel TurnLog: e' una lettura, e una lettura che cambiasse un esito
 	 * sarebbe un secondo calcolo.
+	 *
+	 * ⚠️ **L'«ingresso» e' lo stato al primo `PlanningLocked`**, non quello di `Start()` — `#3474`: e' il
+	 * primo istante in cui le unita' hanno un `StableUnitId`, e nessuna fase ha ancora risolto. Ne segue che
+	 * il diff e' **vuoto** per uno scenario che non arriva a un lock-in (zero turni, un rifiuto in apertura) e
+	 * per uno in cui le identita' non sono assegnate: vuoto vuol dire «non misurato», non «niente e' cambiato».
 	 */
 	TArray<FRTUnitStateDiff> StateDiff;
 

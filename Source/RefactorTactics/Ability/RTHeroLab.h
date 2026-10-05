@@ -7,7 +7,8 @@
 // mantenere con la disciplina — e' una proprieta' del codice, perche' qui non esiste un percorso alternativo.
 //
 // Cio' che Hero Lab aggiunge e' l'unica domanda che #2599 non puo' porre: *«questa ability e' DI questo
-// eroe?»*. Per l'Ability Lab ogni ability canonica e' eseguibile; per l'Hero Lab conta anche di chi sia.
+// eroe?»*. Per l'Ability Lab conta che un'unita' la possa impugnare — una voce di kit, o una generica che ogni
+// unita' porta (`#3472`: le altre core sono catalogo, e il Lab le rifiuta); per l'Hero Lab conta anche di chi sia.
 //
 // ## Cosa NON e'
 //

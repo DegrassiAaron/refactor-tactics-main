@@ -701,9 +701,13 @@ bool GiocaEArchivia(FAutomationTestBase& Test, const TCHAR* Nome, const FRTCellI
 	TM->BeginReplayRecording();
 	Out.MatchId = TM->GetReplayMatchId();
 
-	// 🔴 `BeginReplayRecording` esce in silenzio senza formato o a registrazione spenta. Senza questa riga
+	// 🔴 `BeginReplayRecording` **si rifiuta** senza formato o a registrazione spenta. Senza questa riga
 	// il difetto arriverebbe travestito da «l'archivio non si legge», che manda chi legge dalla parte
 	// sbagliata: il difetto sarebbe che la registrazione non e' mai partita.
+	//
+	// ⌛ Diceva «esce in silenzio» fino al 2026-10-04: dal `#3463` il rifiuto **logga** quale delle due
+	// guardie ha chiuso. ⚠️ Il che non rende questo asserto superfluo -- un `Display` nel log non e' un
+	// esito di test, e questa riga resta l'unica che fa **fallire** l'helper invece di lasciarlo proseguire.
 	if (!Test.TestTrue(*FString::Printf(TEXT("%s: la registrazione e' partita"), Nome), Out.MatchId.IsValid()))
 	{
 		DestroyReplayProducerWorld(World);

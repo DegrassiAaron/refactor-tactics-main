@@ -58,6 +58,23 @@ namespace RTAbilityLabInternal
 		}
 		return NAME_None;
 	}
+
+	/**
+	 * L'istanza GENERICA che ogni unita' riceve per `AbilityId`, o `nullptr` se l'azione non e' una generica.
+	 *
+	 * 🔑 **Si chiede alla stessa funzione che la da' all'unita'** — `MakeGenericActions`, che `ARTUnit` accoda
+	 * al kit — invece di ricostruirla qui. Una copia costruita dal Lab divergerebbe dall'originale nei campi
+	 * specchio, ed e' esattamente la divergenza di `#3473`: il readout mostrava come «letta» una portata 5 che
+	 * nessuna unita' ha mai portato.
+	 */
+	static const URTActionData* FindGenericInstance(const FName& AbilityId)
+	{
+		for (const URTActionData* Action : URTCatalogLibrary::MakeGenericActions(GetTransientPackage()))
+		{
+			if (Action && Action->Def.ActionId == AbilityId) { return Action; }
+		}
+		return nullptr;
+	}
 }
 
 TArray<FRTAbilityLabEntry> URTAbilityLabLibrary::ListCanonicalAbilities()
@@ -140,15 +157,26 @@ ERTActionReadoutResult URTAbilityLabLibrary::DescribeAbility(const FName& Abilit
 
 	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
 	{
-		if (Def.ActionId == AbilityId)
+		if (Def.ActionId != AbilityId) { continue; }
+
+		// Una GENERICA ha un consumatore reale: l'istanza che ogni unita' riceve. Il valore «letto» e' il suo,
+		// e si legge da lei (`#3473`).
+		if (const URTActionData* Generica = RTAbilityLabInternal::FindGenericInstance(AbilityId))
 		{
-			// Il readout vuole un `URTActionData`, e un'azione core vive come `FRTActionDef` nuda. Questo
-			// oggetto e' transitorio e non entra da nessuna parte: porta il `Def` del catalogo e nient'altro,
-			// quindi non e' una seconda definizione dell'azione.
-			URTActionData* Materialized = NewObject<URTActionData>(GetTransientPackage());
-			Materialized->Def = Def;
-			return URTActionReadoutLibrary::DescribeActionParameters(Materialized, OutParameters);
+			return URTActionReadoutLibrary::DescribeActionParameters(Generica, OutParameters);
 		}
+
+		// Ogni altra core NON la porta nessuna unita' col suo id: vive nel catalogo come sorgente da cui i kit
+		// derivano le proprie (`Hero.*`). Un valore «letto» non esiste, e lo si dice con l'esito invece di
+		// mostrare quello di un oggetto costruito qui — che sarebbe il default legacy dello specchio, cioe' un
+		// numero inventato (portata 5 su un'azione che ne dichiara 0).
+		//
+		// ⚠️ L'oggetto serve solo a leggere il `Def` con la stessa funzione degli altri rami: i suoi campi
+		// specchio non si mostrano, e `CatalogOnly` e' cio' che lo dice al chiamante.
+		URTActionData* SoloCatalogo = NewObject<URTActionData>(GetTransientPackage());
+		SoloCatalogo->Def = Def;
+		URTActionReadoutLibrary::DescribeActionParameters(SoloCatalogo, OutParameters);
+		return ERTActionReadoutResult::CatalogOnly;
 	}
 
 	return ERTActionReadoutResult::UnknownAction;
@@ -171,8 +199,30 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 		return false;
 	}
 
-	// Un'azione core non appartiene a nessuno: la impugna il primo eroe del roster. E' una scelta di POSA,
-	// non di bilanciamento.
+	// Un'azione core si esegue solo se un'unita' la IMPUGNA — `#3472`. Un'unita' porta il proprio kit piu'
+	// le generiche che `MakeGenericActions` le accoda, e `FindCanonicalDef` cerca prima nei kit: se siamo nel
+	// ramo core, nessun kit porta questo id, quindi l'unica via e' che sia una generica. Le altre core vivono
+	// nel catalogo come sorgente da cui i kit derivano le proprie azioni `Hero.*`.
+	//
+	// ⛔ Prima la si costruiva lo stesso, e l'harness la rifiutava in ERROR con «'CASTER' non possiede
+	// l'abilita'»: vero, ma detto da chi esegue invece che da chi offre, e dopo aver posato una fixture che non
+	// poteva girare. Il rifiuto sta qui, fail closed come per un id sconosciuto, e dice quali core girano.
+	if (bIsCore && !URTCatalogLibrary::GetGenericActionIds().Contains(AbilityId))
+	{
+		TArray<FString> Generiche;
+		for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+		{
+			Generiche.Add(Id.ToString());
+		}
+		OutError = FString::Printf(
+			TEXT("'%s' e' un'azione core che nessuna unita' impugna: un'unita' porta il proprio kit e le azioni "
+				 "generiche (%s). Il Lab ne legge i parametri, ma non la puo' eseguire."),
+			*AbilityId.ToString(), *FString::Join(Generiche, TEXT(" · ")));
+		return false;
+	}
+
+	// Una generica non appartiene a un eroe in particolare, perche' la portano tutti: la impugna il primo del
+	// roster. E' una scelta di POSA, non di bilanciamento.
 	const FName CasterHeroId = bIsCore
 		? RTAbilityLabInternal::FirstHeroOtherThan(NAME_None)
 		: OwnerHeroId;
@@ -221,9 +271,13 @@ bool URTAbilityLabLibrary::BuildFixture(const FName& AbilityId, const FRTAbility
 	Intent.UnitId = TEXT("CASTER");
 	Intent.Ability = AbilityId;
 
+	// Un'abilita' che si applica a chi la usa (`bSelfTarget`) resta SENZA bersaglio: e' cosi' che il formato
+	// la esprime (`AbilityResolvesOnSelf`, `#2283`, che legge lo stesso flag), e un intent che nomina come
+	// bersaglio la propria unita' e' rifiutato di proposito — *«l'unita' bersaglia se stessa»*. Scriverci
+	// `CASTER` mandava in ERROR ogni azione `bSelfTarget` offerta dal Lab, generiche e di kit (`#3472`).
 	if (Def.bSelfTarget)
 	{
-		Intent.Target = TEXT("CASTER");
+		// nessun bersaglio
 	}
 	else if (Def.bCreatesSurface || Def.StructureOp != ERTStructureOp::None)
 	{

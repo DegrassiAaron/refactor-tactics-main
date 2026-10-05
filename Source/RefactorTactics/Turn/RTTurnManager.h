@@ -1105,6 +1105,21 @@ public:
 	 */
 	FRTTeamKnowledge PlaybackKnowledgeForTeam(int32 TeamId) const;
 
+	/**
+	 * La cella su cui l'anim di `Unit` si trova ORA, se sta animando nella fase corrente.
+	 *
+	 * 🔑 **Pubblica, e la gemella sopra dice perche'** (`#3458`): `PlaybackKnowledgeForTeam` risponde
+	 * *cosa* la squadra sa durante il playback, questa risponde *dove* sono le unita' mentre lo sa. Chi
+	 * disegna le UNITA' ha bisogno di entrambe -- il velo delle celle no, e per questo fino al 2026-10-04
+	 * questa stava `protected` con un solo lettore interno (`AdvancePlaybackKnowledge`).
+	 *
+	 * ⚠️ **Risponde `false` fuori dal playback**, e il chiamante ripiega su `Unit->Cell`: non e' un caso
+	 * d'errore, e' la condizione normale per nove decimi del tempo di gioco.
+	 *
+	 * ⛔ **Non e' una `UFUNCTION`**, per la stessa ragione della gemella: da Blueprint sarebbe un canale
+	 * verso la posizione animata di una squadra qualunque, cioe' verso il transito avversario in corso.
+	 */
+	bool AnimatedCellFor(const ARTUnit* Unit, FRTCellId& OutCell) const;
 	/** Campioni di pacing della sessione corrente (sola lettura; telemetria, non stato di gioco). */
 	const TArray<FRTPacingSample>& GetPacingSamples() const { return Pacing.GetSamples(); }
 
@@ -2720,8 +2735,6 @@ protected:
 	 */
 	bool AdvancePlaybackKnowledge();
 
-	/** La cella su cui l'anim di `Unit` si trova ORA, se sta animando nella fase corrente. */
-	bool AnimatedCellFor(const ARTUnit* Unit, FRTCellId& OutCell) const;
 
 	/** La conoscenza della squadra, o una vuota e di versione corrente se la squadra non ne ha ancora. */
 	FRTTeamKnowledge KnowledgeForTeam(int32 TeamId) const;

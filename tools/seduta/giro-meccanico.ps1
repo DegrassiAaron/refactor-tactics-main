@@ -44,9 +44,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$Exe  = Join-Path $Repo 'Saved\StagedBuilds\Windows\RefactorTactics\Binaries\Win64\RefactorTactics.exe'
-$Log  = Join-Path $Scratch ('giro-meccanico-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
-$Repl = Join-Path $Repo 'Saved\Replays'
+# ⛔ **`ProjectSavedDir()` di un PACCHETTO non e' il `Saved/` del repository**: e' quello dentro lo
+# staged. Queste due righe erano scritte indipendentemente -- l'exe sotto `StagedBuilds`, gli archivi sotto
+# `$Repo\Saved\Replays` -- e per questo il passo 5 dichiarava `[FAIL]` su partite che avevano registrato
+# correttamente (`#3463`, dove l'ipotesi «il pacchetto non registra» e' caduta sulla misura). Ora derivano
+# da UNA radice: non possono piu' divergere.
+$Staged = Join-Path $Repo 'Saved\StagedBuilds\Windows\RefactorTactics'
+$Exe    = Join-Path $Staged 'Binaries\Win64\RefactorTactics.exe'
+$Log    = Join-Path $Scratch ('giro-meccanico-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+$Repl   = Join-Path $Staged 'Saved\Replays'
 
 function Riga($t) { Write-Host $t }
 
@@ -67,7 +73,7 @@ if (-not (Test-Path $Exe)) {
 
 # Fotografia di cio' che c'era PRIMA: senza, un archivio preesistente si legge come proprio.
 $prima = @(Get-ChildItem $Repl -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
-Riga ("archivi replay prima della run: " + $prima.Count)
+Riga ("archivi replay prima della run: " + $prima.Count + "  in " + $Repl)
 
 # --- 1. la run ---------------------------------------------------------------------------------
 # -ExecCmds gira DOPO l'allestimento, ed e' esattamente cio' che serve: il comando deve trovare un

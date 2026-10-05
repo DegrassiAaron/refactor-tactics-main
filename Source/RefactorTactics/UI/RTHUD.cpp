@@ -719,15 +719,37 @@ namespace
 			FRTKnowledgeSubject S;
 			S.StableUnitId = U->StableUnitId;
 			S.TeamId = U->TeamId;
-			S.Cell = U->Cell;
+			// 🔑 **La cella ANIMATA quando ce n'e' una** (`#3458`): durante il playback `U->Cell` e' gia'
+			// la destinazione -- la simulazione ha risolto -- quindi giudicare la visibilita' su quella
+			// risponde alla domanda di fine turno mentre a schermo l'unita' e' ancora a meta' strada.
+			// `AnimatedCellFor` risponde `false` fuori dal playback, e allora vale `U->Cell`.
+			if (!TurnManager->AnimatedCellFor(U, S.Cell))
+			{
+				S.Cell = U->Cell;
+			}
 			S.HeroId = U->HeroId;
 			S.HeroDisplayName = U->HeroDisplayName;
 			S.bAlive = U->IsAlive();
 			Subjects.Add(S);
 		}
 
+		// 🔑 **`PlaybackKnowledgeForTeam` e non `KnowledgeForTeamPublic`** (`#3458`), ed e' lo stesso
+		// cambio che `#2876` aveva fatto per il velo delle CELLE senza estenderlo alle UNITA'. La canonica
+		// non avanza col micro-step: `RefreshTeamKnowledgeForPlanning` ricalcola una LOS fresca dalle
+		// posizioni correnti (`RTTurnManager.cpp:786`) e gira da `PlanBots()`, cioe' alla pianificazione
+		// SUCCESSIVA. ∴ un nemico entrato in vista a meta' percorso diventava `Live` solo al rinfresco, e
+		// tutti insieme comparivano a fine movimento -- che e' il difetto osservato nella seduta `U60`.
+		//
+		// ⚠️ **Nessun ramo `if (sta in playback)`**: `PlaybackKnowledgeForTeam` ripiega **da se'** sulla
+		// canonica fuori dal playback (`RTTurnManager.cpp:6608`). Un ramo qui sarebbe una seconda copia di
+		// quella decisione, e le due divergerebbero.
+		//
+		// ⛔ **E non e' un leak**: la conoscenza chiesta e' quella di `PlayerTeamId` -- la stessa porta per
+		// squadra che il velo usa dal `#2876` -- e il transito avversario e' troncato a monte da [D-223].
+		// Cio' che si mostra resta cio' che la squadra osservatrice sa in quell'istante, che e' piu' stretto
+		// di cio' che mostrava prima, non piu' largo.
 		return URTKnowledgeViewLibrary::ViewForTeam(
-			TurnManager->KnowledgeForTeamPublic(PlayerTeamId), Subjects, PlayerTeamId);
+			TurnManager->PlaybackKnowledgeForTeam(PlayerTeamId), Subjects, PlayerTeamId);
 	}
 }
 

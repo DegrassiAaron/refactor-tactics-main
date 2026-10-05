@@ -383,4 +383,77 @@ bool FRTLabLastRunExposesTurnLogLinesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Una lista vuota DICE PERCHE', e i due modi di essere vuota non si leggono uguali (`#3461`).
+ *
+ * 🔑 **Il caso osservato in seduta, pinnato**: scrivendo `Ivrin` invece di `Hero.Ivrin` la lista si
+ * svuotava in silenzio, e la lettura naturale e' stata *«non le filtra»*. Non era il filtro: era il
+ * formato, e il pannello rendeva quel caso con la frase riservata a «nessun filtro» -- cioe' dicendo
+ * «catalogo canonico intero» proprio mentre mostrava zero voci.
+ *
+ * ⚠️ **L'id si DERIVA dal catalogo, e il nome nudo si ricava togliendo il prefisso.** Scrivere
+ * `Hero.Ivrin` a mano legherebbe il test a un roster che puo' cambiare, e un roster rinominato lo
+ * lascerebbe verde sulla domanda sbagliata.
+ *
+ * ⛔ **La mutazione che questo test uccide**: far rispondere `DescribeFilterState` con `NoFilter`
+ * ogni volta che `FindHero` fallisce -- che e' esattamente il comportamento di prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabEmptyListSaysWhyTest,
+	"RefactorTactics.Lab.EmptyListSaysWhy",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabEmptyListSaysWhyTest::RunTest(const FString&)
+{
+	FRTHeroLabEntry Atteso;
+	FRTAbilityLabEntry Ability;
+	if (!TestTrue(TEXT("premessa: il catalogo dichiara almeno un eroe con kit"),
+			RTLabViewModelTestsInternal::PrimoEroeConKit(Atteso, Ability)))
+	{
+		return false;
+	}
+
+	FRTLabViewModel Modello;
+	FRTHeroLabEntry Eroe;
+
+	// --- stato 1: nessun filtro ---
+	TestTrue(TEXT("senza filtro: NoFilter"),
+		Modello.DescribeFilterState(Eroe) == FRTLabViewModel::EFilterState::NoFilter);
+
+	// --- stato 4: l'id COMPLETO trova l'eroe e il suo kit ---
+	Modello.SetHeroFilter(Atteso.HeroId);
+	TestTrue(TEXT("con l'id completo: HeroWithKit"),
+		Modello.DescribeFilterState(Eroe) == FRTLabViewModel::EFilterState::HeroWithKit);
+	TestEqual(TEXT("e l'eroe valorizzato e' quello chiesto"), Eroe.HeroId, Atteso.HeroId);
+
+	// --- stato 2: il NOME NUDO, cioe' il caso della seduta ---
+	// Il prefisso si toglie invece di scriverlo: `Hero.Ivrin` -> `Ivrin`, qualunque sia il roster.
+	FString Nudo = Atteso.HeroId.ToString();
+	int32 Punto = INDEX_NONE;
+	if (Nudo.FindLastChar(TEXT('.'), Punto) && Punto + 1 < Nudo.Len())
+	{
+		Nudo = Nudo.RightChop(Punto + 1);
+	}
+	if (!TestNotEqual(TEXT("premessa: il nome nudo e' DIVERSO dall'id -- senza prefisso non c'e' caso"),
+			Nudo, Atteso.HeroId.ToString()))
+	{
+		return false;
+	}
+
+	Modello.SetHeroFilter(FName(*Nudo));
+	TestTrue(TEXT("col nome nudo: UnknownHeroId, NON NoFilter"),
+		Modello.DescribeFilterState(Eroe) == FRTLabViewModel::EFilterState::UnknownHeroId);
+
+	// ⛔ E la premessa che rende il difetto quello che era: il filtro E' attivo, quindi l'elenco e' vuoto
+	// per il ramo filtrato -- non perche' il modello sia tornato al catalogo intero.
+	TestTrue(TEXT("il filtro e' attivo"), Modello.HasHeroFilter());
+	TestEqual(TEXT("e l'elenco e' VUOTO"), Modello.VisibleAbilities().Num(), 0);
+
+	// ⚠️ Controllo positivo sullo stesso oggetto: tornando all'id completo l'elenco si ripopola. Senza,
+	// l'asserto sopra sarebbe verde anche su un modello che rende sempre un elenco vuoto.
+	Modello.SetHeroFilter(Atteso.HeroId);
+	TestTrue(TEXT("controllo positivo: con l'id completo l'elenco non e' vuoto"),
+		Modello.VisibleAbilities().Num() > 0);
+
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
