@@ -4711,9 +4711,10 @@ sessions:
     #      (`EditDefaultsOnly`, default qui sotto):
     #      `Prep #56B4E9 · Dash #009E73 · Blast #D55E00 · Move #0072B2` ([D-233]),
     #      `Reaction` = `RT_UI_Violet #7C5CFF` (§32: *reaction, special state*), `None` = nessuna striscia.
-    #      ⚠️ **`Cleanup` resta SENZA tinta di fase** ([D-232] §1, [D-233], confermato dall'autore il
-    #      2026-10-04): il suo default e' il neutro `RT_UI_Frame_Mid #4A5568`, e la fase la dice l'etichetta.
-    #      Il mockup usa `#A9B4C2`, che in §32 non esiste.
+    #      ⚠️ **`Cleanup` resta SENZA colore** ([D-232] §1, [D-233], confermato dall'autore il
+    #      2026-10-04): non ha una voce in `PhaseColors`, quindi la striscia si chiude e la fase la dice
+    #      l'etichetta `CLEANUP`. Il mockup usa `#A9B4C2`, che in §32 non esiste. I default sono pinnati
+    #      contro gli HEX della decisione da `ScreenHud.SlotPhaseStripReadsThePhaseMark`.
     #   3. **Stati di §7** dalla ricetta di `SPECIFICA-VISIVA.md` §3, con lo stato preso da
     #      `URTHudViewModel::ResolveSlotState(Action, bArmed)` dentro `RefreshLook` — mai ricomposto nel
     #      grafo (#2988). Il bordo e' un `Border` chiamato **`StateFrame`** (colore da `FrameColors`). Il

@@ -686,13 +686,13 @@ namespace
 URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// [D-233] per le macro-fasi, §32 per la reazione. `Cleanup` resta senza tinta di fase: il neutro.
+	// [D-233] per le macro-fasi, §32 per la reazione. ⛔ `Cleanup` NON ha una voce: ha un'etichetta e non un
+	// colore ([D-232] §1), quindi la striscia si chiude e la fase la dice `PhaseLabelText`.
 	PhaseColors.Add(ERTActionPhaseMark::Prep, RTSlotHex(TEXT("56B4E9")));
 	PhaseColors.Add(ERTActionPhaseMark::Dash, RTSlotHex(TEXT("009E73")));
 	PhaseColors.Add(ERTActionPhaseMark::Blast, RTSlotHex(TEXT("D55E00")));
 	PhaseColors.Add(ERTActionPhaseMark::Move, RTSlotHex(TEXT("0072B2")));
 	PhaseColors.Add(ERTActionPhaseMark::Reaction, RTSlotHex(TEXT("7C5CFF")));
-	PhaseColors.Add(ERTActionPhaseMark::Cleanup, RTSlotHex(TEXT("4A5568")));
 
 	// `SPECIFICA-VISIVA.md` §3. Selected e Warning condividono l'ambra: li separa il secondo canale.
 	const FLinearColor Neutro = RTSlotHex(TEXT("4A5568"));
@@ -769,9 +769,12 @@ void URTActionSlotWidget::RefreshLook()
 	}
 
 	// Il separatore dei gruppi e' PADDING: un widget in piu' in `SlotBox` sposterebbe ogni `GetChildAt(i)`.
+	// ⚠️ Si scrive SOLO il lato sinistro: gli altri tre restano quelli del Designer.
 	if (UHorizontalBoxSlot* Posto = Cast<UHorizontalBoxSlot>(Slot))
 	{
-		Posto->SetPadding(FMargin(Action.bGroupBreakBefore ? GroupGap : ItemGap, 0.f, 0.f, 0.f));
+		FMargin Margine = Posto->GetPadding();
+		Margine.Left = Action.bGroupBreakBefore ? GroupGap : ItemGap;
+		Posto->SetPadding(Margine);
 	}
 }
 

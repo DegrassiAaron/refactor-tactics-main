@@ -74,7 +74,7 @@ L'evento `OnActionChanged` chiama `ApplyResolvedIconTo`. **Nessuno** dei campi d
 | `Blast` | `#D55E00` | [D-233] |
 | `Move` | `#0072B2` | [D-233] |
 | `Reaction` | `#7C5CFF` (`RT_UI_Violet`) | `progettazione-hud.md` §32 |
-| `Cleanup` | **nessuna tinta di fase**: il neutro `RT_UI_Frame_Mid #4A5568`, e la fase la dice l'etichetta | [D-232] §1, [D-233] |
+| `Cleanup` | **nessuna striscia**: ha un'etichetta e non un colore, e la fase la dice `CLEANUP` | [D-232] §1, [D-233] |
 | `None` | **nessuna striscia** | — |
 
 ### 1.2 Gli stati, ciascuno col proprio secondo canale

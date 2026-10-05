@@ -104,6 +104,20 @@ bool FRTNamedPortsSlotIndicatorTest::RunTest(const FString&)
 		{ TEXT("WarningMark"), S->WarningMark },
 	};
 
+	// I default del bordo contro i token di §32, LETTERALI: leggere la tabella che il codice applica sarebbe
+	// confrontare il codice con se stesso.
+	const TPair<ERTActionSlotState, const TCHAR*> Token[] = {
+		{ ERTActionSlotState::Available, TEXT("4A5568") }, { ERTActionSlotState::Selected, TEXT("FFD456") },
+		{ ERTActionSlotState::Planned, TEXT("FFD456") }, { ERTActionSlotState::Invalid, TEXT("FF4D4D") },
+		{ ERTActionSlotState::Warning, TEXT("FFD456") } };
+	for (const TPair<ERTActionSlotState, const TCHAR*>& T : Token)
+	{
+		const FLinearColor* Colore = S->FrameColors.Find(T.Key);
+		TestTrue(*FString::Printf(TEXT("il bordo di %s e' #%s"),
+			*StaticEnum<ERTActionSlotState>()->GetNameStringByValue((int64)T.Key), T.Value),
+			Colore && Colore->Equals(FLinearColor::FromSRGBColor(FColor::FromHex(T.Value))));
+	}
+
 	const UEnum* Enum = StaticEnum<ERTActionSlotState>();
 	for (int32 i = 0; i < Enum->NumEnums() - 1; ++i) // l'ultimo e' `_MAX`
 	{
@@ -174,18 +188,26 @@ bool FRTNamedPortsEveryStateHasAChannelTest::RunTest(const FString&)
 		if (Indicatore != FName(TEXT("CooldownText")))
 		{
 			const FProperty* Membro = URTActionSlotWidget::StaticClass()->FindPropertyByName(Indicatore);
-			TestTrue(*FString::Printf(TEXT("%s: '%s' e' un membro BindWidgetOptional dello slot"), *Nome,
-				*Indicatore.ToString()), Membro && Membro->HasMetaData(TEXT("BindWidgetOptional")));
+			TestNotNull(*FString::Printf(TEXT("%s: '%s' e' un membro dello slot"), *Nome,
+				*Indicatore.ToString()), Membro);
+			// ⚠️ `HasMetaData` esiste solo con i metadati: in Game Development i test sono accesi e i metadati
+			// no, e senza questa guardia `main` non compila in quella configurazione (`RTScenarioAuthoringTests`).
+#if WITH_METADATA
+			TestTrue(*FString::Printf(TEXT("%s: '%s' e' BindWidgetOptional"), *Nome, *Indicatore.ToString()),
+				Membro && Membro->HasMetaData(TEXT("BindWidgetOptional")));
+#endif
 		}
 	}
 	return true;
 }
 
 /**
- * 🔴 **LA STRISCIA DI FASE LEGGE `PhaseMark`, E L'ETICHETTA C'E' SEMPRE CHE CI SIA UNA FASE** ([D-232], [D-233]).
+ * 🔴 **LA STRISCIA DI FASE LEGGE `PhaseMark`, CON I COLORI DI [D-233]; L'ETICHETTA C'E' SEMPRE** ([D-232]).
  *
- * 🔑 `Cleanup` e' il caso che rende il test non ovvio: ha un'etichetta e un neutro, non una tinta di fase.
- * `None` non ha voce, e la striscia si chiude.
+ * 🔑 **Gli HEX sono LETTERALI, e vengono dalla decisione, non dalla tabella che il codice applica**: e' il gate
+ * che rende la palette in C++ una copia controllata. `Cleanup` e `None` sono i casi che rendono il test non
+ * ovvio: nessuna striscia, ma un'etichetta — `CLEANUP` e `—` — come la scrive `PhaseMarkLabel`. Solo una
+ * posizione di kit vuota non ha etichetta.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNamedPortsPhaseStripTest,
 	"RefactorTactics.ScreenHud.SlotPhaseStripReadsThePhaseMark",
@@ -193,46 +215,52 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTNamedPortsPhaseStripTest,
 bool FRTNamedPortsPhaseStripTest::RunTest(const FString&)
 {
 	URTActionSlotWidget* S = MakeNamedPortsSlot();
-	const UEnum* Enum = StaticEnum<ERTActionPhaseMark>();
-	for (int32 i = 0; i < Enum->NumEnums() - 1; ++i)
-	{
-		const ERTActionPhaseMark Segno = static_cast<ERTActionPhaseMark>(Enum->GetValueByIndex(i));
-		const FString Nome = Enum->GetNameStringByIndex(i);
 
+	// [D-233] per le macro-fasi, §32 (`RT_UI_Violet`) per la reazione. `nullptr` = nessuna striscia.
+	const TPair<ERTActionPhaseMark, const TCHAR*> Palette[] = {
+		{ ERTActionPhaseMark::None, nullptr }, { ERTActionPhaseMark::Prep, TEXT("56B4E9") },
+		{ ERTActionPhaseMark::Dash, TEXT("009E73") }, { ERTActionPhaseMark::Blast, TEXT("D55E00") },
+		{ ERTActionPhaseMark::Move, TEXT("0072B2") }, { ERTActionPhaseMark::Cleanup, nullptr },
+		{ ERTActionPhaseMark::Reaction, TEXT("7C5CFF") } };
+	const UEnum* Enum = StaticEnum<ERTActionPhaseMark>();
+	TestEqual(TEXT("premessa: la palette del test copre ogni segno"),
+		(int32)UE_ARRAY_COUNT(Palette), Enum->NumEnums() - 1);
+
+	for (const TPair<ERTActionPhaseMark, const TCHAR*>& Voce : Palette)
+	{
+		const FString Nome = Enum->GetNameStringByValue((int64)Voce.Key);
 		FRTAbilityCooldownView V;
 		V.ActionId = TEXT("Action.Guard");
 		V.bUsableNow = true;
-		V.PhaseMark = Segno;
-		V.PhaseLabel = Segno == ERTActionPhaseMark::None ? FText::GetEmpty() : FText::FromString(Nome.ToUpper());
+		V.PhaseMark = Voce.Key;
+		V.PhaseLabel = URTHudViewModel::PhaseMarkLabel(Voce.Key); // l'etichetta che il gioco scrive
 		S->SetAction(V, /*bInArmed=*/ false);
 
-		const FLinearColor* Colore = S->PhaseColors.Find(Segno);
-		if (Segno == ERTActionPhaseMark::None)
-		{
-			TestNull(TEXT("None: nessun colore di fase"), Colore);
-			TestFalse(TEXT("None: la striscia si chiude"), NamedPortsIsShown(S->PhaseStrip));
-			TestFalse(TEXT("None: e l'etichetta vuota pure"), NamedPortsIsShown(S->PhaseLabelText));
-			continue;
-		}
-		if (!TestNotNull(*FString::Printf(TEXT("%s ha un colore"), *Nome), Colore))
+		if (!TestFalse(*FString::Printf(TEXT("premessa: %s ha un'etichetta"), *Nome), V.PhaseLabel.IsEmpty()))
 		{
 			continue;
 		}
-		TestTrue(*FString::Printf(TEXT("%s: la striscia e' accesa"), *Nome), NamedPortsIsShown(S->PhaseStrip));
-		TestTrue(*FString::Printf(TEXT("%s: col colore della propria fase"), *Nome),
-			S->PhaseStrip->GetBrushColor().Equals(*Colore));
 		TestTrue(*FString::Printf(TEXT("%s: l'etichetta e' accesa"), *Nome), NamedPortsIsShown(S->PhaseLabelText));
 		TestEqual(*FString::Printf(TEXT("%s: e dice la fase"), *Nome),
 			S->PhaseLabelText->GetText().ToString(), V.PhaseLabel.ToString());
+
+		if (Voce.Value == nullptr)
+		{
+			TestNull(*FString::Printf(TEXT("%s: nessun colore di fase"), *Nome), S->PhaseColors.Find(Voce.Key));
+			TestFalse(*FString::Printf(TEXT("%s: la striscia si chiude"), *Nome), NamedPortsIsShown(S->PhaseStrip));
+			continue;
+		}
+		const FLinearColor Atteso = FLinearColor::FromSRGBColor(FColor::FromHex(Voce.Value));
+		TestTrue(*FString::Printf(TEXT("%s: la striscia e' accesa"), *Nome), NamedPortsIsShown(S->PhaseStrip));
+		TestTrue(*FString::Printf(TEXT("%s: col colore #%s"), *Nome, Voce.Value),
+			S->PhaseStrip->GetBrushColor().Equals(Atteso));
 	}
 
-	// ⚠️ `Cleanup` porta il neutro, non una tinta che lo confonda con una fase.
-	const FLinearColor* Pulizia = S->PhaseColors.Find(ERTActionPhaseMark::Cleanup);
-	const FLinearColor* Prep = S->PhaseColors.Find(ERTActionPhaseMark::Prep);
-	if (Pulizia && Prep)
-	{
-		TestFalse(TEXT("Cleanup non ha la tinta di Prep"), Pulizia->Equals(*Prep));
-	}
+	// Una posizione di kit vuota non ha etichetta, e lo slot non ne mostra una.
+	FRTAbilityCooldownView Vuota;
+	S->SetAction(Vuota, false);
+	TestFalse(TEXT("posizione vuota: nessuna etichetta"), NamedPortsIsShown(S->PhaseLabelText));
+	TestFalse(TEXT("posizione vuota: nessuna striscia"), NamedPortsIsShown(S->PhaseStrip));
 	return true;
 }
 
@@ -270,21 +298,37 @@ bool FRTNamedPortsGroupBreakTest::RunTest(const FString&)
 				Lettura[i].bGroupBreakBefore, Atteso[i]);
 		}
 	}
-	for (const FRTAbilityCooldownView& V : Voci)
+	// Lungo l'ordine di kit VERO — quello che `BuildAbilityCooldowns` consegna — nessuna voce porta il confine.
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (TestNotNull(TEXT("il mondo di prova esiste"), World))
 	{
-		TestFalse(TEXT("lungo l'ordine di kit nessuna voce porta il confine"), V.bGroupBreakBefore);
+		if (ARTUnit* Unit = SpawnNamedPortsUnit(World))
+		{
+			const TArray<FRTAbilityCooldownView> OrdineDiKit = URTHudViewModel::BuildAbilityCooldowns(Unit);
+			TestTrue(TEXT("premessa: il kit ha voci"), OrdineDiKit.Num() > 1);
+			for (const FRTAbilityCooldownView& V : OrdineDiKit)
+			{
+				TestFalse(*FString::Printf(TEXT("ordine di kit, voce %d: nessun confine"), V.AbilityIndex),
+					V.bGroupBreakBefore);
+			}
+		}
+		RTWorldFixtures::DestroyWorld(World);
 	}
 
-	// Lo slot lo traduce nel padding del proprio posto nella fila.
+	// Lo slot lo traduce nel padding del proprio posto nella fila — solo il lato sinistro.
 	UHorizontalBox* Fila = NewObject<UHorizontalBox>();
 	URTActionSlotWidget* S = MakeNamedPortsSlot();
 	UHorizontalBoxSlot* Posto = Fila->AddChildToHorizontalBox(S);
-	if (TestNotNull(TEXT("premessa: lo slot ha un posto nella fila"), Posto))
+	if (TestNotNull(TEXT("premessa: lo slot ha un posto nella fila"), Posto)
+		&& TestTrue(TEXT("premessa: la lettura ha la voce che apre la Base"), Lettura.IsValidIndex(2)))
 	{
+		Posto->SetPadding(FMargin(0.f, 3.f, 5.f, 7.f)); // gli altri tre lati sono del Designer
 		FRTAbilityCooldownView V = Lettura[2];
 		V.ActionId = TEXT("Action.Guard");
 		S->SetAction(V, false);
 		TestEqual(TEXT("un confine apre col separatore"), Posto->GetPadding().Left, S->GroupGap);
+		TestTrue(TEXT("e gli altri lati restano del Designer"),
+			Posto->GetPadding().Top == 3.f && Posto->GetPadding().Right == 5.f && Posto->GetPadding().Bottom == 7.f);
 		V.bGroupBreakBefore = false;
 		S->SetAction(V, false);
 		TestEqual(TEXT("dentro un gruppo resta il gap"), Posto->GetPadding().Left, S->ItemGap);
@@ -327,6 +371,12 @@ bool FRTNamedPortsMovementReadoutTest::RunTest(const FString&)
 	Dock->RefreshMovementReadout();
 	const FRTMovementReadoutView Vista = Dock->GetMovementReadout();
 	if (!TestTrue(TEXT("premessa: la vista dell'unita' comandata e' autorizzata"), Vista.bAuthorized))
+	{
+		RTWorldFixtures::DestroyWorld(World);
+		return false;
+	}
+	if (!TestFalse(TEXT("premessa: la vista ha un'etichetta"), Vista.Label.IsEmpty())
+		|| !TestFalse(TEXT("premessa: e un tasto per il badge"), Vista.SneakKeyLabel.IsEmpty()))
 	{
 		RTWorldFixtures::DestroyWorld(World);
 		return false;
@@ -402,8 +452,9 @@ bool FRTNamedPortsPlanCommitTest::RunTest(const FString&)
 	TestTrue(TEXT("A: Conferma e' accesa"), W->ConfirmButton->GetIsEnabled());
 	TestTrue(TEXT("A: il testo dice Conferma"), W->ConfirmText->GetText().ToString().Contains(TEXT("Conferma")));
 	TestTrue(TEXT("A: e porta il tasto"), !Tasto.IsEmpty() && W->ConfirmText->GetText().ToString().Contains(Tasto));
+	const FString TastoAnnulla = W->GetUndoKeyLabel().ToString();
 	TestTrue(TEXT("A: Annulla porta il proprio tasto"),
-		W->UndoText->GetText().ToString().Contains(W->GetUndoKeyLabel().ToString()));
+		!TastoAnnulla.IsEmpty() && W->UndoText->GetText().ToString().Contains(TastoAnnulla));
 
 	// --- B. il click di Conferma dichiara, e il testo diventa Ritira -------------------------------------
 	W->ConfirmButton->OnClicked.Broadcast();

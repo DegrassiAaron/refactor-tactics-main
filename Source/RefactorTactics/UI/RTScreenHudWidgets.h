@@ -829,9 +829,10 @@ public:
 	TObjectPtr<class UWidget> WarningMark;
 
 	/**
-	 * Il colore della striscia per segno di fase. Default: [D-233] e §32. ⚠️ `Cleanup` ha il neutro
-	 * `RT_UI_Frame_Mid`, non una tinta di fase ([D-232] §1): la fase la dice l'etichetta. `None` non ha voce,
-	 * e la striscia si chiude.
+	 * Il colore della striscia per segno di fase. Default: [D-233] e §32, pinnati da
+	 * `ScreenHud.SlotPhaseStripReadsThePhaseMark`. Un segno SENZA voce chiude la striscia: e' il caso di
+	 * `None`, e di `Cleanup`, che ha un'etichetta e non un colore ([D-232] §1, [D-233]) — la fase la dice
+	 * `PhaseLabelText`.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionPhaseMark, FLinearColor> PhaseColors;
