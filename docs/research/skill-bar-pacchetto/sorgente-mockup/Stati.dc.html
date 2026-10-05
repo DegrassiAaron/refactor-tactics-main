@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Stati dello slot</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#00E0FF}a:hover{color:#7FEFFF}
+</style>
+</helmet>
+<div style="width: 1040px; height: 460px; box-sizing: border-box; padding: 40px; background: #080F14; font-family: 'Exo 2', 'Segoe UI', sans-serif; color: #E6EBF2; display: flex; flex-direction: column; gap: 28px">
+  <span style="font-family: Orbitron, 'Exo 2', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; color: #00E0FF">STATI DELLO SLOT</span>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: #A9B4C2">COLORE</span>
+    <div style="display: flex; gap: 24px">
+      <sc-for list="{{states}}" as="s" hint-placeholder-count="8">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 14px">
+          <div style="{{s.box}}">
+            <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; {{s.strip}}"></span>
+            <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">1</span>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{s.ic}}" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg>
+            <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center; {{s.nameStyle}}">Arc Pulse</span>
+            <sc-if value="{{s.showCd}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; top: 30px; left: 0; right: 0; text-align: center; font-family: Orbitron, sans-serif; font-size: 26px; font-weight: 700; color: #FFFFFF">2</span></sc-if>
+            <sc-if value="{{s.showPlanned}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; top: -1px; right: -1px; width: 0; height: 0; border-top: 18px solid #FFD456; border-left: 18px solid transparent; border-top-right-radius: 6px"></span></sc-if>
+            <sc-if value="{{s.showInvalid}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF4D4D" stroke-width="3" stroke-linecap="round" style="position: absolute; top: 9px; right: 6px" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"></path></svg></sc-if>
+            <sc-if value="{{s.showWarn}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFD456" stroke="#080F14" stroke-width="1.5" style="position: absolute; top: 8px; right: 5px" aria-hidden="true"><path d="M12 2L23 21H1z"></path><path d="M12 9v5M12 17v.5" stroke-width="2.4" stroke-linecap="round"></path></svg></sc-if>
+            <sc-if value="{{s.showSelBar}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+          </div>
+          <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.08em; color: #A9B4C2">{{s.label}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px">
+    <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: #A9B4C2">SCALA DI GRIGI</span>
+    <div style="display: flex; gap: 24px; filter: grayscale(1)">
+      <sc-for list="{{states}}" as="s" hint-placeholder-count="8">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 14px">
+          <div style="{{s.box}}">
+            <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; {{s.strip}}"></span>
+            <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">1</span>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{s.ic}}" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg>
+            <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center; {{s.nameStyle}}">Arc Pulse</span>
+            <sc-if value="{{s.showCd}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; top: 30px; left: 0; right: 0; text-align: center; font-family: Orbitron, sans-serif; font-size: 26px; font-weight: 700; color: #FFFFFF">2</span></sc-if>
+            <sc-if value="{{s.showPlanned}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; top: -1px; right: -1px; width: 0; height: 0; border-top: 18px solid #FFD456; border-left: 18px solid transparent; border-top-right-radius: 6px"></span></sc-if>
+            <sc-if value="{{s.showInvalid}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF4D4D" stroke-width="3" stroke-linecap="round" style="position: absolute; top: 9px; right: 6px" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"></path></svg></sc-if>
+            <sc-if value="{{s.showWarn}}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="#FFD456" stroke="#080F14" stroke-width="1.5" style="position: absolute; top: 8px; right: 5px" aria-hidden="true"><path d="M12 2L23 21H1z"></path><path d="M12 9v5M12 17v.5" stroke-width="2.4" stroke-linecap="round"></path></svg></sc-if>
+            <sc-if value="{{s.showSelBar}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+          </div>
+          <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.08em; color: #A9B4C2">{{s.label}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1040,"height":460}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const base = 'position: relative; width: 78px; height: 96px; box-sizing: border-box; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 4px 9px; color: #E6EBF2; ';
+    const blast = 'background: #D55E00;';
+    const mk = (label, box, opts) => Object.assign({
+      label: label, box: base + box, strip: blast, ic: 'color: #E6EBF2', nameStyle: 'color: #E6EBF2',
+      showCd: false, showPlanned: false, showInvalid: false, showWarn: false, showSelBar: false
+    }, opts || {});
+    const states = [
+      mk('AVAILABLE', 'background: #212733; border: 1px solid #4A5568;'),
+      mk('HOVER', 'background: #2A3242; border: 1px solid #00E0FF;'),
+      mk('SELECTED', 'background: #2B2918; border: 2px solid #FFD456; box-shadow: 0 0 0 3px rgba(255,212,86,0.16);', { ic: 'color: #FFD456', showSelBar: true }),
+      mk('PLANNED', 'background: #212733; border: 2px solid #FFD456;', { showPlanned: true }),
+      mk('COOLDOWN', 'background: #151A23; border: 1px solid #2E3746;', { strip: blast + ' opacity: 0.3;', ic: 'color: #3A4454', nameStyle: 'color: #6B7684', showCd: true }),
+      mk('UNAVAILABLE', 'background: repeating-linear-gradient(135deg, #151A23 0 6px, #1C222D 6px 12px); border: 1px solid #2E3746;', { strip: 'background: #4A5568;', ic: 'color: #4A5568', nameStyle: 'color: #6B7684' }),
+      mk('INVALID', 'background: #2A1719; border: 2px solid #FF4D4D;', { showInvalid: true }),
+      mk('WARNING', 'background: #212733; border: 2px dashed #FFD456;', { showWarn: true })
+    ];
+    return { states: states };
+  }
+}
+</script>
+</body>
+</html>
