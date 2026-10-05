@@ -874,6 +874,21 @@ private:
 	 */
 	void SelectAbilityForCurrent(int32 Index, ERTAbilityRequestSource Source);
 
+	/**
+	 * Il DISARMO dell'azione dell'unita' SELEZIONATA: la toglie dalla selezione **e dal piano**, rilascia il tetto di
+	 * movimento che il piano
+	 * imponeva e restituisce i waypoint che quel tetto aveva troncato ([D-444]). Restituisce la coda del messaggio
+	 * di log: vuota, o la frase dei waypoint restituiti.
+	 *
+	 * ⚠️ **Nessun parametro, di proposito**: `RebuildPlannedPath` lavora sull'unita' selezionata, e un'unita' passata
+	 * per argomento potrebbe essere un'altra — rilascerebbe il tetto di una e ricostruirebbe il percorso dell'altra.
+	 *
+	 * 🔑 **Una funzione sola per le due porte che disarmano**: il secondo click sullo slot (`#3417`) e il Back
+	 * su un'azione gia' nel piano (`#3501`). Fino a `#3501` il Back chiamava il solo `SelectAbility(INDEX_NONE)`,
+	 * cioe' la riga che [D-444] nomina come difetto, e il tetto `Withdraw` restava dopo «Annulla».
+	 */
+	FString DisarmPlannedAction();
+
 	/** Come si nomina l'origine nella traccia. Frase gia' preposizionata: «dal tasto», «dallo slot del dock». */
 	static const TCHAR* DescribeAbilityRequestSource(ERTAbilityRequestSource Source);
 

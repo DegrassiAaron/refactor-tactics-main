@@ -164,7 +164,11 @@ enum class ERTPointerBackStep : uint8
 	Modal,
 	/** Chiusura di un inspector pinnato. */
 	Inspector,
-	/** Uscita da `Targeting` o `Facing`: torna a `Planning`. */
+	/**
+	 * Uscita da `Targeting` o `Facing`: torna a `Planning`. ⚠️ Se l'azione armata e' la stessa gia' nel piano, la
+	 * DISARMA — la toglie dal piano e rilascia il tetto di movimento ([D-461], `#3501`) — dopo aver tolto i waypoint
+	 * posati dopo di lei (`ARTPlayerController::ApplyBack`).
+	 */
 	Declaration,
 	/** Rimozione dell'ultimo waypoint. */
 	Waypoint,

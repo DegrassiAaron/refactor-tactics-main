@@ -1984,6 +1984,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
+			SelectedUnit->WaypointsAllaDichiarazione = SelectedUnit->PlannedWaypoints.Num(); // `#3501`
 			// ⛔ **Ritira la dichiarazione OPPOSTA**, e senza questa riga il piano andava altrove (`#2884`):
 			// `bAttackTargetsCell` non lo azzerava nessuno, e il Blast lo legge PRIMA del bersaglio-unita'.
 			// Misurato: chi puntava una cella e poi cambiava idea su un nemico gli faceva `0` danni.
@@ -2430,9 +2431,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
 	}
 
+	// 🔑 **Il denominatore e' il budget dello SNAPSHOT**, come nel rifiuto di `DescribeWaypointRejection`: e' quello
+	// che il profilo dichiarato o riservato ha gia' applicato. ⏱️ *Fino a `#3501` era `GetEffectiveMoveRange()`, la
+	// portata nuda*, e sotto `Withdraw` la stessa unita' risultava «di 1» nel rifiuto e «1/5» qui.
+	const int32 BudgetDelPiano = Snapshot.Units.IsValidIndex(UnitId) ? Snapshot.Units[UnitId].MoveBudget : 0;
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
-		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
-		SelectedUnit->GetEffectiveMoveRange());
+		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost, BudgetDelPiano);
 }
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
@@ -2737,6 +2741,49 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 	return Cast<ARTUnit>(SelectedActor);
 }
 
+FString ARTPlayerController::DisarmPlannedAction()
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return FString();
+	}
+
+	// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
+	// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
+	const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
+	Unit->SelectAbility(INDEX_NONE);
+	Unit->PlannedAbilityIndex = INDEX_NONE;
+	Unit->ClearPlannedAttack();
+	// Anche il LATO dichiarato (`#3501`, dalla revisione): `ClearPlannedAttack` non lo tocca, e il resolver e
+	// l'harness lo spengono insieme a `PlannedAbilityIndex`. Senza, dopo un'azione su bordo disarmata il lato
+	// resterebbe scritto nel piano.
+	Unit->bHasPlannedCoverEdge = false;
+	Unit->WaypointsAllaDichiarazione = INDEX_NONE;
+
+	const bool bRestituiti = !TettoDaRilasciare.IsNone()
+		&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
+	if (bRestituiti)
+	{
+		// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
+		// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
+		RebuildPlannedPath();
+	}
+	FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
+	if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
+	{
+		HMD->SetPreviewPath(Unit->PlannedPath);
+	}
+	RefreshPlanningPreview(GetWorld(), Unit);
+	// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG` del chiamante: la
+	// leggera' chi cerca perche' il suo percorso e' tornato.
+	return bRestituiti
+		? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
+			Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
+		: FString();
+}
+
 void ARTPlayerController::ArmKitAbility(int32 KitIndex)
 {
 	// 🔑 **Il TOGGLE e' tutto cio' che questa porta aggiunge**, e va deciso QUI e non dentro
@@ -2826,37 +2873,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// ad aggiungere l'azione al piano e `ReservedProfileForPlan` a rispondere `Withdraw`: chi armava
 		// l'`Overwatch` e ci ripensava camminava a un quarto del raggio per tutto il turno, con lo slot spento.
 		//
-		// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
-		// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
-		const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
-			URTPlanValidationLibrary::MakePlanFor(Unit));
-		Unit->SelectAbility(INDEX_NONE);
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->ClearPlannedAttack();
-
-		const bool bRestituiti = !TettoDaRilasciare.IsNone()
-			&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
-		if (bRestituiti)
-		{
-			// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
-			// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
-			RebuildPlannedPath();
-		}
-		// ⚠️ Le due chiamate in chiaro e non la lambda `AggiornaAnteprima` di `#3418`: quella e' dichiarata
-		// piu' sotto, dopo l'uscita delle reazioni, e questo ramo esce prima di arrivarci.
-		FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
-		if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
-		{
-			HMD->SetPreviewPath(Unit->PlannedPath);
-		}
-		RefreshPlanningPreview(GetWorld(), Unit);
-		// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG`: un
-		// `*FString::Printf(...)` in quella posizione e' corretto per vita del temporaneo ma si legge male,
-		// e questa riga la leggera' chi cerca perche' il suo percorso e' tornato.
-		const FString Coda = bRestituiti
-			? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
-				Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
-			: FString();
+		// ⏱️ *Il corpo stava qui fino a `#3501`*: ora e' `DisarmPlannedAction`, perche' anche il Back disarma.
+		const FString Coda = DisarmPlannedAction();
 		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata%s"),
 			*Richiesta, *Unit->GetName(), *Coda);
 		return;
@@ -3035,6 +3053,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// l'ha gia' verificata la guardia comune qui sopra, ed e' il punto: prima il controllo stava qui, e
 		// il suo ramo negativo usciva lasciando l'azione selezionata sul modello.
 		Unit->PlannedAbilityIndex = Index;
+		Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`: dopo il troncamento della riserva
 		// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
 		Unit->ClearPlannedAttack();
 		// 🔴 **Qui, e non dodici righe sopra**: il piano ora contiene l'azione, quindi il tetto che
@@ -3715,8 +3734,10 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	ARTUnit* Unit = GetSelectedUnit();
 	const int32 Waypoints = Unit ? Unit->PlannedWaypoints.Num() : 0;
 
-	const ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
+	// Non `const`: un Back su un'azione nel piano con waypoint posati DOPO diventa un `Waypoint` (`#3501`).
+	ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
 		GetPointerContext(), bInspectorPinned, Waypoints, bPhaseFocusPinned);
+	bool bDisarmato = false;
 
 	switch (Step)
 	{
@@ -3725,15 +3746,51 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		break;
 
 	case ERTPointerBackStep::Declaration:
+	{
 		// Esce da `Targeting` o da `Facing` e torna al neutro. **Non deseleziona**: uscire da un targeting
 		// non deve costare la selezione, che e' l'errore che costringe a ricliccare la propria unita' dopo
 		// ogni ripensamento.
+		//
+		// ⚠️ Il Facing si legge PRIMA di spegnerlo (`#3501`, dalla revisione): un Back che chiude una rotazione non
+		// tocca il piano, anche se l'azione armata ci sta dentro.
+		const bool bEraFacing = bDeclaringFacing;
 		bDeclaringFacing = false;
 		if (Unit)
 		{
-			Unit->SelectAbility(INDEX_NONE);
+			// 🔴 **Un'azione armata e GIA' nel piano si disarma** (`#3501`, decisione d'autore): il Back disfa
+			// l'ultimo gesto, e per un supporto su se stessi — o per un attacco col bersaglio gia' dichiarato —
+			// l'ultimo gesto ha scritto il piano. ⏱️ *Fino a `#3501` qui c'era il solo `SelectAbility(INDEX_NONE)`*:
+			// lo slot si spegneva, l'azione restava nel piano e con lei il tetto che imponeva ([D-444]).
+			//
+			// ⛔ Un'azione armata ma NON nel piano — un targeting senza bersaglio — esce e basta: un'altra azione
+			// gia' pianificata, che il Back non ha toccato, resta (`BackOnATargetingKeepsThePlannedAction`).
+			const bool bAzioneNelPiano = !bEraFacing && Unit->SelectedAbilityIndex != INDEX_NONE
+				&& Unit->SelectedAbilityIndex == Unit->PlannedAbilityIndex;
+			// 🔑 **Prima i waypoint posati DOPO l'azione** (decisione d'autore, [D-461] punto 3): un supporto su se
+			// stessi resta armato, e il giocatore puo' posare waypoint dopo averlo pianificato. Il Back disfa
+			// l'ultimo gesto, quindi toglie quelli; l'azione si disarma al Back in cui non ne restano. E il piano
+			// torna esattamente a quello che la riserva aveva troncato, quindi [D-444] restituisce ancora.
+			if (bAzioneNelPiano && Unit->WaypointsAllaDichiarazione != INDEX_NONE
+				&& Unit->PlannedWaypoints.Num() > Unit->WaypointsAllaDichiarazione)
+			{
+				Unit->PlannedWaypoints.Pop();
+				RebuildPlannedPath();
+				Step = ERTPointerBackStep::Waypoint;
+			}
+			else if (bAzioneNelPiano)
+			{
+				const FString Coda = DisarmPlannedAction();
+				bDisarmato = true;
+				UE_LOG(LogRT, Display, TEXT("[RT] Back: '%s' disarma l'azione pianificata%s"),
+					*Unit->GetName(), *Coda);
+			}
+			else
+			{
+				Unit->SelectAbility(INDEX_NONE);
+			}
 		}
 		break;
+	}
 
 	case ERTPointerBackStep::Waypoint:
 		if (Unit && Unit->PlannedWaypoints.Num() > 0)
@@ -3785,9 +3842,11 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	{
 		if (ARTTurnManager* TM = PacingTurnManager(this))
 		{
+			// ⚠️ Un Back che DISARMA conta come `Order`, come il secondo click sullo slot che fa la stessa cosa
+			// (`SelectAbilityForCurrent` lo registra prima di disarmare): cambia il piano, non e' un click neutro.
 			TM->RecordPlanningInput(Step == ERTPointerBackStep::Waypoint
 				? ERTPlanningInput::Undo
-				: ERTPlanningInput::Click);
+				: (bDisarmato ? ERTPlanningInput::Order : ERTPlanningInput::Click));
 		}
 	}
 
@@ -3952,6 +4011,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	}
 
 	Unit->PlannedAbilityIndex = Armed;
+	Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`
 	// Il bersaglio e' la CELLA, e la coppia si scrive in un colpo solo: e' `ARTUnit` a sapere che le due
 	// forme sono esclusive, non i suoi chiamanti (`#2884`).
 	Unit->DeclareAttackOnCell(Cell);
@@ -4017,6 +4077,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// Cella E direzione: il resolver di CP 9.5 rifiuta con `CoverRejected` se il piano non dichiara il lato,
 	// e a portata 3 il bordo non si deduce piu' dalla coppia di celle.
 	Unit->PlannedAbilityIndex = Armed;
+	Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`
 	Unit->DeclareAttackOnCell(Cell);
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;

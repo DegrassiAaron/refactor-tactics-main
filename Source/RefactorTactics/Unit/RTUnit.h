@@ -514,6 +514,19 @@ public:
 	void ScordaTroncamentoDelTetto();
 
 	/**
+	 * Quanti waypoint il piano aveva quando l'azione armata ci e' ENTRATA (`#3501`, [D-461]). `INDEX_NONE` = nessun
+	 * segno.
+	 *
+	 * 🔑 **Serve al Back per disfare l'ultimo gesto.** Un supporto su se stessi resta armato dopo essere entrato nel
+	 * piano, quindi si possono posare waypoint DOPO; il Back toglie prima quelli, e disarma l'azione solo quando non
+	 * ne restano. Lo scrive il controller negli stessi punti in cui scrive `PlannedAbilityIndex`.
+	 *
+	 * ⛔ Memoria di editing, come quella del troncamento qui sopra: non replicata, non letta dal resolver, fuori da
+	 * snapshot e TurnLog.
+	 */
+	int32 WaypointsAllaDichiarazione = INDEX_NONE;
+
+	/**
 	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
 	 * OCCUPATA da un'altra unita' (#79).
 	 *
