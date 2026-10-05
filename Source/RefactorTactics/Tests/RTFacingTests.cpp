@@ -577,7 +577,8 @@ bool FRTFacingPivotBudgetLimitsLegalFacingsTest::RunTest(const FString&)
 		TestTrue(TEXT("l'insieme a 3 contiene quello a 2"), Three.Contains(Dir));
 	}
 
-	// Ordine stabile per valore di enum, a ogni ampiezza: `CycleDeclaredFacing` ci si appoggia.
+	// Ordine stabile per valore di enum, a ogni ampiezza. ⌫ *`CycleDeclaredFacing`, che ci si appoggiava, e' uscito
+	// con D-367 (`#291`).*
 	for (int32 I = 1; I < Two.Num(); ++I)
 	{
 		TestTrue(TEXT("ordinate per valore di enum"), static_cast<uint8>(Two[I - 1]) < static_cast<uint8>(Two[I]));
