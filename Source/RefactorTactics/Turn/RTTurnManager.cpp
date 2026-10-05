@@ -3707,8 +3707,32 @@ void ARTTurnManager::BeginReplayRecording()
 {
 	// Le due guardie restano QUI: `bRecordReplay` e il formato sono condizioni che l'orchestratore conosce,
 	// e duplicarle nel registratore creerebbe due posti in cui la stessa domanda ha risposta.
-	if (!bRecordReplay || MatchRules.FormatId.IsNone())
+	//
+	// ⛔ **Ma il rifiuto si DICHIARA, e dice QUALE delle due guardie ha chiuso** (`#3463`). Fino al
+	// 2026-10-04 questo `return` era muto: una partita non registrata non lasciava traccia, e chi gioca sul
+	// pacchetto non aveva modo di saperlo -- un archivio che manca si scopre quando serve, cioe' quando la
+	// partita non c'e' piu'. ⚠️ Le due guardie sono **separate** per questo: `!A || B` risponde, ma non
+	// dice quale dei due termini ha risposto, ed e' esattamente l'informazione che serviva.
+	//
+	// ⚠️ **`Display` e non `Warning`, ed e' una scelta misurata**: il rifiuto e' un percorso
+	// *legittimo* che due test esercitano di proposito (`RTReplayProducerTests.cpp:107`,
+	// `RTReplayRecordingIntegrationTests.cpp:108`), e un `Warning` li' -- a seconda di come l'automazione
+	// tratta i warning -- trasformerebbe un comportamento voluto in un test rosso.
+	//
+	// ⛔ **E non `AddLogEvent`**, che e' il meccanismo del fallimento *per turno* una funzione piu' sotto:
+	// quello scrive nel TurnLog, cioe' nello stato canonico, e un evento in piu' la' dentro ha un costo di
+	// determinismo e di hash che una riga di osservabilita' non vale.
+	if (!bRecordReplay)
 	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Replay: registrazione NON avviata -- bRecordReplay e' false "
+			"(configurazione del TurnManager). Questa partita non produrra' nessun archivio."));
+		return;
+	}
+	if (MatchRules.FormatId.IsNone())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Replay: registrazione NON avviata -- il formato non e' risolto "
+			"(MatchRules.FormatId e' None) al momento della chiamata. Questa partita non produrra' nessun "
+			"archivio."));
 		return;
 	}
 
@@ -8250,10 +8274,21 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				//
 				// ⚠️ `A.Cells` e non la rotta reale: e' gia' troncato al prefisso osservabile, e leggerlo
 				// qui tiene il velo dalla parte giusta del confine di privacy — come `A.World` sopra.
+				//
+				// 🔴 **Si chiede a `MicroStepAtAlpha`, e fino a `#3458` era un floor nudo.** `Step` ferma
+				// l'orologio sul confine, dove `Alpha * Segmenti` dovrebbe valere un intero esatto; in virgola
+				// mobile puo' valerne uno appena SOTTO, e il floor assegnava la cella PRECEDENTE. L'unita' era
+				// disegnata al posto giusto — `InterpolateAlongPath` e' continua, e a un confine `k - ε` e `k`
+				// danno lo stesso punto — mentre velo e rivelazione delle unita' leggevano la cella di un passo
+				// indietro. Misurato da `Veil.RevealsAtTheMicroStepAtAnyPlaybackRate`: su 5 segmenti cadevano
+				// 1.15, 1.95, 2.30 e 2.95 celle/s, e al primo passo B1 non compariva. Al default `1.44` ci cade
+				// il confine 7 dei percorsi da 7 a 11 segmenti (`Playback.MicroStepAtAlphaLandsOnTheBoundary…`
+				// li stampa); su 5 segmenti no.
 				if (A.Cells.Num() > 0)
 				{
 					const int32 Segmenti = FMath::Max(A.Cells.Num() - 1, 1);
-					const int32 Idx = FMath::Clamp(FMath::FloorToInt(Alpha * Segmenti), 0, A.Cells.Num() - 1);
+					const int32 Idx = FMath::Clamp(
+						URTPlaybackLibrary::MicroStepAtAlpha(Alpha, Segmenti), 0, A.Cells.Num() - 1);
 					if (PlaybackAnimCellIndex.IsValidIndex(AnimIdx) && PlaybackAnimCellIndex[AnimIdx] != Idx)
 					{
 						PlaybackAnimCellIndex[AnimIdx] = Idx;

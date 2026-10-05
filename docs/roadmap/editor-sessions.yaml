@@ -4497,6 +4497,15 @@ sessions:
       [#3461](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3461): il campo `Eroe:` ha
       confronto **esatto**, quindi `Ivrin` svuota la lista in silenzio e serve `Hero.Ivrin`.
 
+      ➕ **Fuori dal giro, seduta `U62` (2026-10-04)**: il passo 1 eseguito sul catalogo **intero**, col
+      filtro vuoto, ha trovato tre difetti che il giro 2 — un'ability del kit di un eroe — non poteva
+      vedere: [#3472](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3472) (una core action
+      che nessuna unita' impugna finiva in `ERROR`), [#3473](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3473)
+      (il readout inventava `catalogo 0 · letto 5`) e [#3474](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3474)
+      (lo `StateDiff` non accoppiava mai le unita'). Corretti in PR #3476 e rieseguiti in Editor sul
+      binario `5f37e0769`: ✅. ⛔ **Non e' un passo del giro**: il criterio vuole i cinque in una sola
+      apertura, e questa era un'altra.
+
       ⛔ **I passi 3-4-5 restano NOT RUN**: `rt.Debug.ScreenHud` non e' stato eseguito — le occorrenze
       nel log sono la fotografia automatica al montaggio — e il Replay Viewer non e' stato aperto.
 
@@ -4766,6 +4775,67 @@ sessions:
       ⚠️ **Scostamenti dalla ricetta, dichiarati**: la `SelectedBar` sta DENTRO lo slot, al fondo, e non 9 px
       sotto; il bordo di `Warning` non e' tratteggiato (lo dice il triangolo); l'etichetta di fase sta in alto
       a destra con 20 px di margine, per lasciare l'angolo ai segni di stato.
+
+  - id: U62
+    title: I residui di U60 in Editor — il Lab sul catalogo intero, il MoveCost frazionario, e quando compare un nemico
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      i verdetti reali, in Editor, dei residui che `U60` aveva lasciato al run
+      `issue/run-3463-3461-3458-3459-3438`: il filtro per eroe del Lab (#3461), i passi 1-2 di `G16` sul
+      catalogo intero, il troncamento di un `MoveCost` frazionario (#3438) e `PIE-KNOW-RIVELAZIONE` (#3458);
+      e i difetti che l'esecuzione ha trovato, aperti sull'owner invece che corretti in silenzio
+    artifacts:
+      - docs/technical/evidence/u62/u62-estratti-2026-10-05.log
+    verifies: [PIE-KNOW-RIVELAZIONE]
+    issues: [3461, 3438, 3458, 3472, 3473, 3474, 3488]
+    done_when: >-
+      ogni controllo ha un esito reale, dato da un'apertura con il proprio `-abslog`; e ogni difetto trovato
+      e' una issue sull'owner, con la sua misura
+    steps: |
+      ✅ **Eseguita il 2026-10-04 e il 2026-10-05**: sette aperture nel clone principale, ognuna col proprio
+      `-abslog`, sempre con `-NoLiveCoding` e dopo aver verificato che nessun altro processo Unreal fosse in
+      piedi; piu' una partita giocata dall'autore nell'Editor di una demo di un'altra sessione. L'estratto
+      delle righe che testimoniano ogni controllo sta in `artifacts:`; i verdetti percettivi li ha dati
+      l'autore guardando, e sono citati con le sue parole.
+
+      | controllo | apertura · binario | esito |
+      |---|---|---|
+      | #3461 · il filtro per eroe del Lab dice perche' una lista e' vuota | 1-2 · Source `e426c553` | ✅ *«1.si 2.si … 3. ok 4.si 5.si»* |
+      | `G16` passo 2 · Hero Lab | 2 · `473c218fd` | ✅ dal log: tre ability di `Hero.Ivrin` `PASS (1/1)`. ⚠️ Nessun verdetto esplicito dell'autore |
+      | `G16` passo 1 · Ability Lab sul catalogo **intero** | 2 · `473c218fd` | ❌ tre difetti, aperti sull'owner: #3472 (`ERROR … 'CASTER' non possiede l'abilita'` su `Action.Withdraw`), #3473 (`catalogo 0 · letto 5`), #3474 (diff di stato senza `Health` su `Hero.Aevik.LinearDischarge`) |
+      | lo stesso, dopo PR #3476 · A1-A5 | 3 · `5f37e0769` | ✅ *«1. si 2.si 3.si anche ability countdowns»*; dal log `Action.Guard: PASS` e `Health: 90 -> 71` nel diff |
+      | #3438 · un `MoveCost` digitato frazionario | 4 · `6b92d0054` | ✅ riprodotto: `2.7` → `2`, `-2.7` → `-2`, troncamento verso zero. ⚠️ `Revision` dopo la modifica non letta, nessuna cattura |
+      | `PIE-KNOW-RIVELAZIONE` a passo singolo | 4-5 · `6b92d0054` | ⛔ non giudicabile: lo scenario finiva in `ERROR (0/0 assertion, 0 turni)` dieci secondi dopo l'`AUTO-RUN`, anche con `t.MaxFPS=15`. ➥ aperta #3488 |
+      | `PIE-KNOW-RIVELAZIONE` a velocita' normale | 6 · `19904609d` | ✅ *«n1 no, n2 si n3 no»*: compare a meta' percorso, non dalla partenza e non dall'arrivo |
+      | `PIE-KNOW-RIVELAZIONE` a passo singolo, col fix di #3488 | 7 · `befb70c9f` | ✅ contando come primo passo la partenza: compare *«al secondo step»*, cioe' dopo il primo `L`, e sparisce *«al 4-5 passo»*. Vedi sotto: era stato letto come ❌ |
+      | #3488 · uno scenario a playback fermo non muore piu' | 7 · `befb70c9f` | ✅ dal log: fermo per minuti senza `ERROR`, poi `PASS (3/3 assertion, 1 turni)` alle 08:49:32 |
+      | la rivelazione in una **partita vera** | demo · `a1a0e5000` | ✅ tre risoluzioni a ×1: *«si vede appena entra nell'area, svanisce proseguendo»* |
+
+      ⚠️ **Il referto a passo singolo era stato letto come un ❌, ed era un equivoco della domanda.** Avevo
+      chiesto *«B1 compare al primo passo di A1?»*, e la risposta *«no, al secondo»* contava come primo passo
+      la posa di PARTENZA: confermato dall'autore il 2026-10-05. Prima della conferma il «ritardo» era stato
+      inseguito senza Editor, ed e' li' che la seconda fonte lo aveva gia' smentito:
+      `Veil.RevealsAtTheMicroStepThatSeesIt` misura la stessa scena, TurnManager e HUD, e da' la comparsa
+      giusta a ogni fermata. 🔑 **La lezione per chi conduce**: si chiede per tasti premuti — *«dopo il primo
+      `L`»* — mai per «passi» di un'unita', che si contano in due modi.
+
+      🔑 **Cosa ha prodotto la seduta oltre ai verdetti**: cinque difetti trovati eseguendo, nessuno corretto in
+      silenzio — #3472, #3473 e #3474 in PR #3476; #3488 in PR #3493; e un floor in virgola mobile in PR #3496,
+      trovato inseguendo il falso ritardo. Quello e' vero: al confine di uno `Step` assegnava la cella
+      PRECEDENTE a certe velocita' di playback, e al default sul confine 7 dei percorsi da 7 a 11 segmenti.
+
+      ⚠️ **Un effetto collaterale, dichiarato**: nell'apertura 4 `DA_HexMap_Template.uasset` risultava salvato
+      alle 20:42:09 nonostante «Don't Save». Ripristinato da git, hash uguale a `HEAD`; nessun asset e' entrato
+      in un commit.
+
+      ⛔ **Non e' il giro di `G16`**: i passi 1-2 sono stati rifatti in aperture diverse, e il criterio di
+      `U60` vuole i cinque passi in una sola. Qui c'e' l'evidenza che il passo 1 sul catalogo intero ora regge,
+      non il verdetto del gate.
+    notes: >-
+      Numerata dopo `U61`, `U63` e `U64` ma cominciata prima di loro: le sue aperture portano il nome
+      `u62-seduta*` dal 2026-10-04 alle 15:49, e le altre tre hanno saltato il numero.
 
   - id: U63
     title: La barra dei comandi occupa la fascia bassa e legge i propri gruppi

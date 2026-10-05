@@ -1,0 +1,38 @@
+{
+  "scenarioId": "Visual.Perception.RevealDuringMove",
+  "tags": ["perception", "knowledge", "veil", "movement", "visual"],
+  "verifies": ["PIE-KNOW-RIVELAZIONE"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 6,
+
+  "_nota": "PIE-KNOW-RIVELAZIONE (#3458): un nemico che entra in vista DURANTE il movimento compare nel micro-step in cui l'unita' lo vede, non a movimento finito. Si guarda con `rt.Debug.PlaybackControls=1` e `rt.Debug.PlaybackStartPaused=1` sulla riga di lancio — lette in `BeginPlay`, da console dopo il Play non hanno effetto — avanzando con L un micro-step alla volta.",
+
+  "_nota_perche_esiste": "Nessuno scenario del corpus allestiva questa voce: l'intersezione fra i tag di percezione e un movimento di team 0 con piu' waypoint era vuota, e `Visual.Perception.Acceptance` fa muovere A1 di un solo passo. L'allestimento a mano su una partita normale dipende da dove i bot portano i nemici, e la seduta del 2026-10-04 non e' riuscita a ottenerlo: con questo file la scena e' la stessa a ogni apertura.",
+
+  "_nota_geometria": "A1 ha `visionRange` 0: gli resta la sola consapevolezza ravvicinata, 2 celle in ogni direzione (`URTPerceptionLibrary::CloseAwarenessRange`). Chi vede cosa e' quindi una funzione della sola cella: niente cono, niente facing, niente VisionRange scritto in un asset. B1 sta fermo a (0,-2). Il percorso di A1 e' dritto, da (-3,0) a (2,0), e la distanza da B1 cella per cella vale 3 · 2 · 2 · 2 · 3 · 4. ∴ B1 deve comparire al PRIMO passo, restare per tre passi e sparire prima dell'arrivo. E' il caso forte della voce: in vista a meta' percorso, NON dalla cella d'arrivo. Una presentazione che accumula fino a fine movimento non lo mostrerebbe mai, perche' dall'arrivo B1 non si vede.",
+
+  "_nota_budget": "Cinque passi su cinque punti movimento di `Hero.Aevik`. Un piano che eccede viene rifiutato per intero e l'unita' resta ferma: il percorso non ha margine, e non va allungato.",
+
+  "_nota_sagoma": "A fine turno non resta la sagoma del ricordo, e non e' un fail: un avvistamento avvenuto solo in transito non diventa contatto canonico, perche' la conoscenza di fine turno si ricalcola dalle celle correnti. La voce chiede il MOMENTO della comparsa, non il ricordo, che e' di PIE-KNOW3.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Aevik", "team": 0, "cell": [-3, 0, 0], "facing": "E", "visionRange": 0 },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [0, -2, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — A1 cammina dritto verso est, un waypoint per cella; B1 non si muove.",
+      "intents": [
+        { "unit": "A1", "move": [[-2, 0, 0], [-1, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "TurnsCompleted", "value": 1 },
+    { "type": "UnitAtCell", "unit": "A1", "cell": [2, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [0, -2, 0] }
+  ]
+}

@@ -93,7 +93,16 @@ enum class ERTActionReadoutResult : uint8
 	/** Letto. L'elenco puo' comunque essere corto: un'azione senza danno non ha voci di danno. */
 	Ok,
 	/** Riferimento nullo, o azione che il catalogo non conosce. E' un difetto dello STRUMENTO, non del dato. */
-	UnknownAction
+	UnknownAction,
+	/**
+	 * L'azione e' nel catalogo, ma **nessuna unita' ne porta un'istanza** — `#3473`. Esiste solo la casa del
+	 * catalogo: `DeclaredValue` e' letto, mentre `ConsumedValue` e `bHomesAgree` non hanno un consumatore che
+	 * li legga, e chi li mostrasse mostrerebbe un numero inventato. Si legge l'esito, non quei due campi.
+	 *
+	 * ⚠️ In coda per costruzione: l'enum e' `BlueprintType`, e un valore inserito in mezzo sposterebbe
+	 * l'indice di quelli che esistevano gia'.
+	 */
+	CatalogOnly
 };
 
 /**

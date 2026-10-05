@@ -233,7 +233,7 @@ namespace
 		FGuid MatchId;
 		if (RadiceRegistrazione != nullptr)
 		{
-			// ⚠️ **Il formato va risolto PRIMA di registrare, o `BeginReplayRecording` esce in silenzio.**
+			// ⚠️ **Il formato va risolto PRIMA di registrare, o `BeginReplayRecording` si rifiuta.**
 			// Si rifiuta con `MatchRules.FormatId.IsNone()`, perche' un archivio con formato assente non e'
 			// confrontabile con niente. Il percorso di PARTITA lo riceve dal GameMode (`ApplyMatchFormat`);
 			// quello dello SCENARIO no, e senza questa riga l'archivio resta vuoto — *misurato: la prima

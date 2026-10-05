@@ -13,6 +13,9 @@
 
 #include "Misc/AutomationTest.h"
 #include "Ability/RTAbilityLab.h"
+#include "Ability/RTActionData.h"
+#include "Ability/RTActionReadout.h"
+#include "Ability/RTCatalogLibrary.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
 #include "ScenarioHarness/RTTestResult.h"
 #include "ScenarioHarness/RTTestScenario.h"
@@ -313,6 +316,307 @@ bool FRTAbilityLabAreaOfEffectTest::RunTest(const FString&)
 		return false;
 	}
 	TestEqual(TEXT("un turno giocato"), Result.TurnsPlayed, 1);
+
+	return true;
+}
+
+// --- I tre difetti trovati in seduta il 2026-10-04 (`#3472`, `#3473`, `#3474`) -----------------------------
+//
+// Tutti e tre erano verdi qui sopra per la stessa ragione: i test del Lab scelgono la loro ability fra le voci
+// di KIT (`!bIsCoreAction`) e verificano che il turno si giochi, non che cosa produca. In Editor la lista
+// offre anche le azioni core, e il pannello mostra il diff di stato: le due cose che nessun test guardava.
+
+/**
+ * Un'azione core si ESEGUE solo se un'unita' la impugna davvero — `#3472`.
+ *
+ * Il caster di una core e' il primo eroe del roster, e un'unita' possiede il proprio kit piu' le generiche che
+ * `MakeGenericActions` le accoda. Una core fuori da quell'insieme, costruita lo stesso, arriva all'harness che
+ * la rifiuta in ERROR con *«'CASTER' non possiede l'abilita'»* — ed e' quello che la seduta ha visto su
+ * `Action.Withdraw`. Il contratto qui: ogni core o si esegue senza ERROR, o e' rifiutata da `BuildFixture`
+ * con un errore che la nomina e senza lasciare una fixture a meta'.
+ *
+ * ⚠️ **I due controlli positivi non sono decorazione.** Senza «almeno un rifiuto» il test sarebbe verde su un
+ * Lab che le costruisce tutte e su un catalogo dove ogni core e' generica; senza «almeno una run» sarebbe
+ * verde su un Lab che le rifiuta tutte, cioe' su un Lab che ha smesso di eseguire le generiche.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabCoreActionRunsOnlyIfAUnitWieldsItTest,
+	"RefactorTactics.AbilityLab.CoreActionRunsOnlyIfAUnitWieldsIt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabCoreActionRunsOnlyIfAUnitWieldsItTest::RunTest(const FString&)
+{
+	int32 Rifiutate = 0;
+	int32 Eseguite = 0;
+
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		if (!Entry.bIsCoreAction) { continue; }
+		const FString Id = Entry.AbilityId.ToString();
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+			RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error))
+		{
+			++Rifiutate;
+			TestTrue(FString::Printf(TEXT("%s: il rifiuto la nomina"), *Id), Error.Contains(Id));
+			TestEqual(FString::Printf(TEXT("%s: fail closed, nessuna unita' posata"), *Id), Scenario.Units.Num(), 0);
+			continue;
+		}
+
+		++Eseguite;
+		const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: BuildFixture l'ha costruita, ma la run va in ERROR: %s"),
+				*Id, *Result.ErrorMessage));
+		}
+	}
+
+	TestTrue(TEXT("almeno una core e' rifiutata"), Rifiutate > 0);
+	TestTrue(TEXT("almeno una core si esegue"), Eseguite > 0);
+	return true;
+}
+
+/**
+ * Ogni voce di KIT che il Lab offre si esegue senza ERROR — `#3472`, la stessa classe di difetto dal lato kit.
+ *
+ * Una voce di kit la impugna sempre il suo eroe, quindi qui non c'e' rifiuto legittimo: se la run va in ERROR
+ * e' la fixture a essere sbagliata. Il caso che l'ha imposto: un'azione che si applica a chi la usa
+ * (`bSelfTarget`) veniva scritta con il CASTER come bersaglio, e il formato lo rifiuta — *«l'unita' bersaglia
+ * se stessa»* — perche' un'abilita' su di se' si dichiara SENZA bersaglio (`AbilityResolvesOnSelf`, `#2283`).
+ * I test sopra non lo vedevano: scelgono la prima voce di una forma, mai una che si applica a se'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest,
+	"RefactorTactics.AbilityLab.EveryKitAbilityRunsWithoutError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabEveryKitAbilityRunsWithoutErrorTest::RunTest(const FString&)
+{
+	int32 Eseguite = 0;
+
+	for (const FRTAbilityLabEntry& Entry : URTAbilityLabLibrary::ListCanonicalAbilities())
+	{
+		if (Entry.bIsCoreAction) { continue; }
+		const FString Id = Entry.AbilityId.ToString();
+
+		FRTTestScenario Scenario;
+		FString Error;
+		if (!TestTrue(FString::Printf(TEXT("%s: BuildFixture la costruisce"), *Id),
+			URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+				RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error)))
+		{
+			AddInfo(FString::Printf(TEXT("%s: %s"), *Id, *Error));
+			continue;
+		}
+
+		++Eseguite;
+		const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+		if (Result.Outcome == ERTTestOutcome::Error)
+		{
+			AddError(FString::Printf(TEXT("%s: la run va in ERROR: %s"), *Id, *Result.ErrorMessage));
+		}
+	}
+
+	// Senza questo controllo il test sarebbe verde su un roster senza kit.
+	TestTrue(TEXT("il roster offre voci di kit da eseguire"), Eseguite > 0);
+	return true;
+}
+
+/**
+ * Il readout di un'azione core descrive l'istanza che l'unita' RICEVE, o dichiara che non ce n'e' una — `#3473`.
+ *
+ * Il valore «letto» e' per contratto cio' che il consumatore reale legge. Per una generica il consumatore e'
+ * l'istanza di `MakeGenericActions`, che propaga dal `Def` portata, ricarica e potenza; il Lab ne costruiva
+ * un'altra copiando il solo `Def`, e mostrava i default legacy (portata 5) come se fossero letti. Per una core
+ * che nessuna unita' porta, un valore letto non esiste affatto: va detto, non inventato.
+ *
+ * 🔑 **Il confronto e' contro l'istanza, non contro il catalogo.** «Letto == catalogo» sarebbe verde anche su
+ * un Lab che riallineasse da se' i campi specchio, cioe' su una terza copia che nessuna unita' usa.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabCoreReadoutMatchesTheUnitsInstanceTest,
+	"RefactorTactics.AbilityLab.CoreReadoutMatchesTheUnitsInstance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabCoreReadoutMatchesTheUnitsInstanceTest::RunTest(const FString&)
+{
+	const TArray<URTActionData*> Generiche = URTCatalogLibrary::MakeGenericActions(GetTransientPackage());
+	if (!TestTrue(TEXT("il catalogo dichiara delle azioni generiche"), Generiche.Num() > 0)) { return false; }
+
+	for (const URTActionData* Istanza : Generiche)
+	{
+		const FString Id = Istanza->Def.ActionId.ToString();
+
+		TArray<FRTActionParameterView> DalLab;
+		TArray<FRTActionParameterView> DallIstanza;
+		const ERTActionReadoutResult Esito = URTAbilityLabLibrary::DescribeAbility(Istanza->Def.ActionId, DalLab);
+		URTActionReadoutLibrary::DescribeActionParameters(Istanza, DallIstanza);
+
+		TestTrue(FString::Printf(TEXT("%s: il Lab la legge"), *Id), Esito == ERTActionReadoutResult::Ok);
+		if (!TestEqual(FString::Printf(TEXT("%s: stesse voci"), *Id), DalLab.Num(), DallIstanza.Num()))
+		{
+			continue;
+		}
+		for (int32 i = 0; i < DalLab.Num(); ++i)
+		{
+			const FString Voce = FString::Printf(TEXT("%s · %s"), *Id, *DallIstanza[i].ParameterKey.ToString());
+			TestEqual(Voce + TEXT(": stessa chiave"), DalLab[i].ParameterKey, DallIstanza[i].ParameterKey);
+			TestEqual(Voce + TEXT(": stesso valore di catalogo"),
+				DalLab[i].DeclaredValue, DallIstanza[i].DeclaredValue);
+			TestEqual(Voce + TEXT(": stesso valore letto"), DalLab[i].ConsumedValue, DallIstanza[i].ConsumedValue);
+		}
+	}
+
+	// La meta' che nessuna unita' porta. Si cerca, non si nomina: vedi la testa di questo file.
+	const TArray<FName> IdGeneriche = URTCatalogLibrary::GetGenericActionIds();
+	const TArray<FRTAbilityLabEntry> Catalogo = URTAbilityLabLibrary::ListCanonicalAbilities();
+	const FRTAbilityLabEntry* NonImpugnata = Catalogo.FindByPredicate([&IdGeneriche](const FRTAbilityLabEntry& E)
+	{
+		return E.bIsCoreAction && !IdGeneriche.Contains(E.AbilityId);
+	});
+	if (!TestNotNull(TEXT("il catalogo ha una core che nessuna unita' impugna"), NonImpugnata)) { return false; }
+
+	TArray<FRTActionParameterView> SoloCatalogo;
+	TestTrue(FString::Printf(TEXT("%s: il readout dichiara che esiste solo la casa del catalogo"),
+			*NonImpugnata->AbilityId.ToString()),
+		URTAbilityLabLibrary::DescribeAbility(NonImpugnata->AbilityId, SoloCatalogo)
+			== ERTActionReadoutResult::CatalogOnly);
+	TestTrue(TEXT("e il catalogo resta leggibile"), SoloCatalogo.Num() > 0);
+
+	return true;
+}
+
+/**
+ * Lo `StateDiff` della run accoppia le unita' di prima con quelle di dopo — `#3474`.
+ *
+ * Il diff si costruisce per `StableUnitId`, e lo stato «prima» si fotografava in `Start()`, quando l'harness
+ * non ha ancora assegnato le identita' (lo fa al lock-in). Prima `{0, 0}`, dopo due id veri: quattro voci,
+ * due «sparite» e due «comparse», nessuna con un campo cambiato — e il pannello, che stampa i campi cambiati,
+ * taceva su un colpo che il TurnLog dichiarava.
+ *
+ * ⚠️ Il controllo sulla `Health` e' il verso che conta: un diff con due voci presenti e nessun campo sarebbe
+ * il sintomo di una cattura spostata DOPO il turno, e questo test deve prendere anche quella.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStateDiffPairsTheUnitsOfTheRunTest,
+	"RefactorTactics.AbilityLab.StateDiffPairsTheUnitsOfTheRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStateDiffPairsTheUnitsOfTheRunTest::RunTest(const FString&)
+{
+	FRTAbilityLabEntry Entry;
+	if (!TestTrue(TEXT("il roster offre un'ability lineare"),
+		RTAbilityLabTestsInternal::FindHeroAbilityWithShape(ERTAbilityShape::Line, Entry)))
+	{
+		return false;
+	}
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("BuildFixture riesce"),
+		URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+			RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error)))
+	{
+		return false;
+	}
+
+	const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR su %s: %s"), *Entry.AbilityId.ToString(), *Result.ErrorMessage));
+		return false;
+	}
+
+	if (!TestEqual(TEXT("una voce di diff per ogni unita' della posa"), Result.StateDiff.Num(), Scenario.Units.Num()))
+	{
+		for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+		{
+			AddInfo(FString::Printf(TEXT("voce: unita' %d, presenza %d, campi cambiati %d"),
+				Diff.UnitId, static_cast<int32>(Diff.Presence), Diff.Changes.Num()));
+		}
+		return false;
+	}
+
+	bool bBersaglioColpito = false;
+	for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+	{
+		TestTrue(FString::Printf(TEXT("unita' %d presente prima e dopo"), Diff.UnitId),
+			Diff.Presence == ERTUnitDiffPresence::Present);
+
+		const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+		if (!TestNotNull(FString::Printf(TEXT("unita' %d ha un'identita' d'authoring"), Diff.UnitId), Authoring))
+		{
+			continue;
+		}
+		if (*Authoring != TEXT("TARGET")) { continue; }
+
+		for (const FRTUnitFieldChange& Cambio : Diff.Changes)
+		{
+			if (Cambio.Field == FName(TEXT("Health")) && FCString::Atoi(*Cambio.After) < FCString::Atoi(*Cambio.Before))
+			{
+				bBersaglioColpito = true;
+			}
+		}
+	}
+	TestTrue(TEXT("la Health del bersaglio scende nel diff, come il TurnLog dichiara"), bBersaglioColpito);
+
+	return true;
+}
+
+/**
+ * Lo `StateDiff` copre l'INTERA run, non l'ultimo turno — `#3474`, dalla revisione di #3476.
+ *
+ * Il «prima» si cattura al primo `PlanningLocked`, e UNA volta sola. Senza quella guardia ogni lock-in lo
+ * ricatturerebbe, e uno scenario a piu' turni misurerebbe solo l'ultimo: il test sopra, a un turno solo, non
+ * se ne accorgerebbe. Qui il colpo arriva al turno 1 e il turno 2 e' vuoto — ogni unita' ferma, come il
+ * corpus gia' scrive (`"intents": []`) — quindi un diff senza la `Health` del bersaglio ha dimenticato il turno 1.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAbilityLabStateDiffSpansTheWholeRunTest,
+	"RefactorTactics.AbilityLab.StateDiffSpansTheWholeRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAbilityLabStateDiffSpansTheWholeRunTest::RunTest(const FString&)
+{
+	FRTAbilityLabEntry Entry;
+	if (!TestTrue(TEXT("il roster offre un'ability lineare"),
+		RTAbilityLabTestsInternal::FindHeroAbilityWithShape(ERTAbilityShape::Line, Entry)))
+	{
+		return false;
+	}
+
+	FRTTestScenario Scenario;
+	FString Error;
+	if (!TestTrue(TEXT("BuildFixture riesce"),
+		URTAbilityLabLibrary::BuildFixture(Entry.AbilityId,
+			RTAbilityLabTestsInternal::SpecWithinRange(Entry), Scenario, Error)))
+	{
+		return false;
+	}
+
+	// Il turno 2, vuoto. L'assertion della fixture conta i turni, quindi segue.
+	Scenario.Turns.Add(FRTScenarioTurn());
+	for (FRTTestExpectation& Attesa : Scenario.Expect)
+	{
+		if (Attesa.Kind == ERTAssertionKind::TurnsCompleted) { Attesa.Value = Scenario.Turns.Num(); }
+	}
+
+	const FRTTestResult Result = RTAbilityLabTestsInternal::RunFixture(*this, Scenario);
+	if (Result.Outcome == ERTTestOutcome::Error)
+	{
+		AddError(FString::Printf(TEXT("ERROR su %s: %s"), *Entry.AbilityId.ToString(), *Result.ErrorMessage));
+		return false;
+	}
+	if (!TestEqual(TEXT("due turni giocati"), Result.TurnsPlayed, 2)) { return false; }
+
+	bool bBersaglioColpito = false;
+	for (const FRTUnitStateDiff& Diff : Result.StateDiff)
+	{
+		const FString* Authoring = Result.ScenarioIdByUnitId.Find(Diff.UnitId);
+		if (!Authoring || *Authoring != TEXT("TARGET")) { continue; }
+
+		for (const FRTUnitFieldChange& Cambio : Diff.Changes)
+		{
+			if (Cambio.Field == FName(TEXT("Health")) && FCString::Atoi(*Cambio.After) < FCString::Atoi(*Cambio.Before))
+			{
+				bBersaglioColpito = true;
+			}
+		}
+	}
+	TestTrue(TEXT("il diff porta il colpo del turno 1, non solo il turno 2"), bBersaglioColpito);
 
 	return true;
 }
