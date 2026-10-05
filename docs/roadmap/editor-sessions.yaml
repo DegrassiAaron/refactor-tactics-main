@@ -4674,7 +4674,7 @@ sessions:
     # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga #3465, con l'Editor
     # **ricompilato** da quel commit prima di aprire la seduta — una DLL di prima non ha i tre campi, e i
     # pin del Blueprint non comparirebbero.
-    shares_setup_with: [U63]
+    shares_setup_with: [U63, U64]
     verifies: []
     # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
     # sta nell'editor PRIMA del Play — la prova in scala di grigi sulla cattura degli stati — quindi il
@@ -4756,7 +4756,7 @@ sessions:
     # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che le contenga TUTTE, con l'Editor
     # ricompilato da quel commit — una DLL di prima non ha `GetActionsInReadingOrder`, e l'albero di prima
     # ha ancora le tre celle basse.
-    shares_setup_with: [U61]
+    shares_setup_with: [U61, U64]
     # Stessa apertura di U61: stessi due Blueprint (`WBP_RT_ActionDock`, `WBP_RT_ActionSlot`), stesso clone.
     verifies: []
     # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
@@ -4785,17 +4785,17 @@ sessions:
     #   3. **Estremita' destra: la lettura del movimento** (#3470), da `GetMovementReadout()` della dock:
     #      `Label` (`Move ×1`, `Sprint ×2`, `Withdraw ×0,25`…) e il badge `SneakKeyLabel`, acceso quando
     #      `bSneakDeclared`. ⛔ **Nascosta quando `bAuthorized` e' falso**, mai spenta: uno spento direbbe
-    #      «fermo» di un'unita' di cui non si sa niente. ⛔ **Il badge NON e' cliccabile** in questa seduta: se
-    #      debba esserlo e' la domanda aperta di #3470, e un secondo canale verso la stessa dichiarazione va
-    #      deciso prima di essere cablato.
+    #      «fermo» di un'unita' di cui non si sa niente. ✅ **Il badge E' cliccabile** ([D-457]): il suo
+    #      `OnClicked` chiama `ToggleSneak()` della dock, che inoltra al corpo del tasto `M`. ⛔ Nessuna regola
+    #      nel grafo: riserva dello slot e tetto li decide `ToggleSneakDeclaration`.
     #      ⚠️ **Dichiarato contro effettivo, da decidere a schermo**: con `Sneak` dichiarato e poi
     #      l'`Overwatch` armata, il badge resta acceso (`bSneakDeclared`) mentre l'etichetta dice
     #      `Withdraw ×0,25`, perche' la riserva vince sul tetto ([D-425]). E' coerente — il badge dice cio' che
     #      si e' premuto, l'etichetta cio' che si spendera' — ma se a schermo si legge come una contraddizione,
     #      la resa del badge si decide qui (revisione di #3470).
     #
-    # ⛔ **Cosa NON si fa in questa seduta**: il badge `M` cliccabile (#3470, da decidere); Confirm · Undo in
-    # `TopRight` (#3471); la Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
+    # ⛔ **Cosa NON si fa in questa seduta**: Confirm · Undo in `TopRight` (e' `U64`, stessa apertura); la
+    # Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
     # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
@@ -4804,6 +4804,45 @@ sessions:
       Scritta il 2026-10-04 dalla PR di #3469 (referto
       `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
       sessione che registra U62 (PR #3466): chi mergia secondo rinumera. Non ancora eseguita.
+
+  - id: U64
+    title: Conferma e Annulla del piano in alto a destra
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_PlanCommit` (parent `URTPlanCommitWidget`) montato nel `Content` di `Zone_TopRight`: `Conferma`
+      e `Annulla` legati alle porte dei tasti, con le etichette dei tasti; il gate dell'albero lo trova per classe
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_PlanCommit.uasset
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**: `URTPlanCommitWidget`,
+    # `TogglePlanDeclaration` e `UndoStep` sono della PR di #3471 dove questa voce nasce. ⛔ Precondizione
+    # ([D-403]): un commit di `main` che li contenga, con l'Editor ricompilato da quel commit.
+    shares_setup_with: [U61, U63]
+    verifies: []
+    issues: [3471, 613]
+    done_when: >-
+      `Zone_TopRight` ospita un `WBP_RT_PlanCommit`; il click su `Conferma` dichiara o ritratta il piano
+      dell'unita' come `Invio`, quello su `Annulla` smonta il Back come il tasto destro e ritira il Ready
+      durante il countdown; `ScreenHud.EveryZoneOwnerIsMountedByClass` lo trova per classe in un processo fresco
+    # 🔴 **Cosa si cabla** ([D-458]):
+    #   1. `WBP_RT_PlanCommit`, parent `URTPlanCommitWidget`, in `/Game/RT/UI/Match/`.
+    #   2. Due `Button`: `Conferma` -> `OnClicked` chiama `Confirm()`; `Annulla` -> `OnClicked` chiama `Undo()`.
+    #      ⛔ Nessuna regola nel grafo: i pulsanti INOLTRANO alle porte dei tasti.
+    #   3. Il testo di `Conferma` dice «Conferma» o «Ritira» secondo `IsPlanDeclared()`, col tasto da
+    #      `GetConfirmKeyLabel()`; quello di `Annulla` col tasto da `GetUndoKeyLabel()`. Mai scritti a mano.
+    #   4. Entrambi spenti (`IsEnabled` falso) quando `HasCommandedUnit()` e' falso.
+    #   5. Montaggio nel `NamedSlot Content` di `Zone_TopRight` con `SetNamedSlotContent`.
+    #   6. 🔴 **Nello STESSO commit dell'asset**: `EveryZoneOwnerIsMountedByClass` riceve la riga
+    #      `{ URTPlanCommitWidget::StaticClass(), TEXT("TopRight"), TEXT("#3471") }`, e
+    #      `guida-screen-hud-umg.md` §3 la riga di `Zone_TopRight`. Prima dell'asset il gate sarebbe rosso.
+    #
+    # ⛔ **Cosa NON si fa**: il `LockIn` di `Spazio` come pulsante — [D-458] lo esclude; lo stato del piano,
+    # il conteggio dei warning e lo stato invalido di §6.8, che restano senza un produttore in questa vista.
+    notes: >-
+      Scritta il 2026-10-05 dalla PR di #3471 (decisione d'autore D-458). Non ancora eseguita.
 
 not_schedulable:
 
