@@ -2430,9 +2430,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
 	}
 
+	// 🔑 **Il denominatore e' il budget dello SNAPSHOT**, come nel rifiuto di `DescribeWaypointRejection`: e' quello
+	// che il profilo dichiarato o riservato ha gia' applicato. ⏱️ *Fino a `#3501` era `GetEffectiveMoveRange()`, la
+	// portata nuda*, e sotto `Withdraw` la stessa unita' risultava «di 1» nel rifiuto e «1/5» qui.
+	const int32 BudgetDelPiano = Snapshot.Units.IsValidIndex(UnitId) ? Snapshot.Units[UnitId].MoveBudget : 0;
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
-		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
-		SelectedUnit->GetEffectiveMoveRange());
+		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost, BudgetDelPiano);
 }
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
@@ -2737,6 +2740,43 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 	return Cast<ARTUnit>(SelectedActor);
 }
 
+FString ARTPlayerController::DisarmPlannedAction(ARTUnit* Unit)
+{
+	if (!Unit)
+	{
+		return FString();
+	}
+
+	// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
+	// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
+	const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
+	Unit->SelectAbility(INDEX_NONE);
+	Unit->PlannedAbilityIndex = INDEX_NONE;
+	Unit->ClearPlannedAttack();
+
+	const bool bRestituiti = !TettoDaRilasciare.IsNone()
+		&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
+	if (bRestituiti)
+	{
+		// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
+		// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
+		RebuildPlannedPath();
+	}
+	FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
+	if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
+	{
+		HMD->SetPreviewPath(Unit->PlannedPath);
+	}
+	RefreshPlanningPreview(GetWorld(), Unit);
+	// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG` del chiamante: la
+	// leggera' chi cerca perche' il suo percorso e' tornato.
+	return bRestituiti
+		? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
+			Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
+		: FString();
+}
+
 void ARTPlayerController::ArmKitAbility(int32 KitIndex)
 {
 	// 🔑 **Il TOGGLE e' tutto cio' che questa porta aggiunge**, e va deciso QUI e non dentro
@@ -2826,37 +2866,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// ad aggiungere l'azione al piano e `ReservedProfileForPlan` a rispondere `Withdraw`: chi armava
 		// l'`Overwatch` e ci ripensava camminava a un quarto del raggio per tutto il turno, con lo slot spento.
 		//
-		// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
-		// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
-		const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
-			URTPlanValidationLibrary::MakePlanFor(Unit));
-		Unit->SelectAbility(INDEX_NONE);
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->ClearPlannedAttack();
-
-		const bool bRestituiti = !TettoDaRilasciare.IsNone()
-			&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
-		if (bRestituiti)
-		{
-			// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
-			// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
-			RebuildPlannedPath();
-		}
-		// ⚠️ Le due chiamate in chiaro e non la lambda `AggiornaAnteprima` di `#3418`: quella e' dichiarata
-		// piu' sotto, dopo l'uscita delle reazioni, e questo ramo esce prima di arrivarci.
-		FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
-		if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
-		{
-			HMD->SetPreviewPath(Unit->PlannedPath);
-		}
-		RefreshPlanningPreview(GetWorld(), Unit);
-		// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG`: un
-		// `*FString::Printf(...)` in quella posizione e' corretto per vita del temporaneo ma si legge male,
-		// e questa riga la leggera' chi cerca perche' il suo percorso e' tornato.
-		const FString Coda = bRestituiti
-			? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
-				Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
-			: FString();
+		// ⏱️ *Il corpo stava qui fino a `#3501`*: ora e' `DisarmPlannedAction`, perche' anche il Back disarma.
+		const FString Coda = DisarmPlannedAction(Unit);
 		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata%s"),
 			*Richiesta, *Unit->GetName(), *Coda);
 		return;
@@ -3731,7 +3742,23 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		bDeclaringFacing = false;
 		if (Unit)
 		{
-			Unit->SelectAbility(INDEX_NONE);
+			// 🔴 **Un'azione armata e GIA' nel piano si disarma** (`#3501`, decisione d'autore): il Back disfa
+			// l'ultimo gesto, e per un supporto su se stessi — o per un attacco col bersaglio gia' dichiarato —
+			// l'ultimo gesto ha scritto il piano. ⏱️ *Fino a `#3501` qui c'era il solo `SelectAbility(INDEX_NONE)`*:
+			// lo slot si spegneva, l'azione restava nel piano e con lei il tetto che imponeva ([D-444]).
+			//
+			// ⛔ Un'azione armata ma NON nel piano — un targeting senza bersaglio — esce e basta: un'altra azione
+			// gia' pianificata, che il Back non ha toccato, resta (`BackOnATargetingKeepsThePlannedAction`).
+			if (Unit->SelectedAbilityIndex != INDEX_NONE && Unit->SelectedAbilityIndex == Unit->PlannedAbilityIndex)
+			{
+				const FString Coda = DisarmPlannedAction(Unit);
+				UE_LOG(LogRT, Display, TEXT("[RT] Back: '%s' disarma l'azione pianificata%s"),
+					*Unit->GetName(), *Coda);
+			}
+			else
+			{
+				Unit->SelectAbility(INDEX_NONE);
+			}
 		}
 		break;
 

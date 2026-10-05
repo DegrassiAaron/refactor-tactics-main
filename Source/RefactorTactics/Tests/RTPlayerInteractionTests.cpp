@@ -3160,6 +3160,158 @@ bool FRTWrongCeilingDoesNotEatTheMemoryTest::RunTest(const FString&)
 }
 
 /**
+ * IL BACK SU UN'AZIONE GIA' NEL PIANO E' UN DISARMO - `#3501`, [D-444], [D-458].
+ *
+ * 🔴 **E' il gemello di `DisarmingReleasesTheReservedSlot`, e il difetto e' lo stesso in un'altra porta.** Un
+ * supporto su se stessi entra nel piano all'armamento; il Back a livello `Declaration` chiamava il solo
+ * `SelectAbility(INDEX_NONE)`, cioe' la riga che [D-444] punto (1) nomina come difetto. Lo slot si spegneva, il
+ * tetto `Withdraw` restava, e i waypoint troncati non tornavano. Il Back e' anche `Annulla` ([D-458]).
+ *
+ * ⚠️ **Tre conseguenze, tre asserzioni**: il piano senza l'azione (il meccanismo), il tetto rilasciato (cio' che
+ * il giocatore sente al prossimo waypoint), i waypoint restituiti (cio' che [D-444] promette al rilascio).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackOnAPlannedActionDisarmsTest,
+	"RefactorTactics.PlayerInput.BackOnAPlannedActionReleasesTheReservedSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackOnAPlannedActionDisarmsTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito, con Action.Overwatch nel kit"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->HandleClickOnCell(FRTCellId(3, -2, 0));
+	B.PC->HandleClickOnCell(FRTCellId(3, -1, 0));
+	const TArray<FRTCellId> Dichiarati = B.Unit->PlannedWaypoints;
+
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	if (!TestEqual(TEXT("premessa: l'Overwatch e' nel piano, non solo selezionato"),
+			B.Unit->PlannedAbilityIndex, B.IdxOverwatch)
+		|| !TestTrue(*FString::Printf(TEXT("premessa: la riserva ha troncato (%d -> %d)"),
+			Dichiarati.Num(), B.Unit->PlannedWaypoints.Num()),
+			B.Unit->PlannedWaypoints.Num() < Dichiarati.Num()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+
+	// 🔴 Il meccanismo.
+	TestEqual(TEXT("il Back toglie l'azione dal PIANO, non solo dalla selezione"),
+		B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e dalla selezione"), B.Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
+	// 🔴 La conseguenza che il giocatore sente.
+	TestTrue(TEXT("e lo slot movimento torna libero: nessun tetto imposto dal piano"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(
+			URTPlanValidationLibrary::MakePlanFor(B.Unit)).IsNone());
+	// 🔴 E cio' che [D-444] promette al rilascio.
+	TestEqual(TEXT("i waypoint troncati tornano tutti"), B.Unit->PlannedWaypoints.Num(), Dichiarati.Num());
+	TestTrue(TEXT("e il percorso derivato arriva all'ultimo"),
+		B.Unit->PlannedPath.Num() > 0 && Dichiarati.Num() > 0 && B.Unit->PlannedPath.Last() == Dichiarati.Last());
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * IL BACK DOPO UN BERSAGLIO DICHIARATO TOGLIE L'ATTACCO DAL PIANO - `#3501`, decisione d'autore.
+ *
+ * 🔑 **Il Back disfa l'ultimo gesto**, e dopo il click sul bersaglio l'ultimo gesto e' la dichiarazione. Fino a
+ * `#3501` il Back usciva dal targeting e lasciava l'attacco nel piano: lo slot passava da armato a pianificato,
+ * e il solo modo di togliere l'attacco era il secondo click sullo slot.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackAfterADeclaredTargetDisarmsTest,
+	"RefactorTactics.PlayerInput.BackAfterADeclaredTargetRemovesTheAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackAfterADeclaredTargetDisarmsTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	// Un nemico accanto, e la prima azione del kit che punta un'UNITA': cercata, non scritta.
+	ARTUnit* Nemico = SpawnInteractionUnit(B.World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, -2, 0));
+	B.PC->SelectActorForTest(B.Unit);
+	int32 Armata = INDEX_NONE;
+	for (int32 i = 0; Nemico && i < B.Unit->NumAbilities() && Armata == INDEX_NONE; ++i)
+	{
+		const URTActionData* A = B.Unit->GetAbility(i);
+		if (!A || A->bSelfTarget || !A->Def.ReservesMovementProfileId.IsNone()) { continue; }
+		B.PC->SelectAbilityForCurrentForTest(i);
+		if (B.PC->GetPointerTargetKind() != ERTPointerTargetKind::Unit) { continue; }
+		B.PC->HandleClickOnUnitForTest(Nemico);
+		if (B.Unit->PlannedAttackTarget == Nemico) { Armata = i; }
+	}
+	if (!TestNotEqual(TEXT("premessa: un'azione del kit ha preso il nemico come bersaglio"), Armata, (int32)INDEX_NONE)
+		|| !TestEqual(TEXT("premessa: l'attacco e' nel piano"), B.Unit->PlannedAbilityIndex, Armata)
+		|| !TestEqual(TEXT("premessa: e resta selezionato dopo il bersaglio"), B.Unit->SelectedAbilityIndex, Armata))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il Back esce dalla dichiarazione"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+
+	TestEqual(TEXT("l'attacco esce dal piano"), B.Unit->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e dalla selezione"), B.Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestTrue(TEXT("e il bersaglio dichiarato e' spento"), B.Unit->PlannedAttackTarget == nullptr);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
+ * IL BACK SU UN'AZIONE ARMATA MA NON NEL PIANO NON TOCCA QUELLA PIANIFICATA - `#3501`, guardia.
+ *
+ * 🔑 **Il Back disfa l'ultimo gesto, non il piano intero.** Con l'`Overwatch` gia' pianificato, armare un'azione
+ * a bersaglio apre un targeting; il Back chiude quel targeting e basta. Se il disarmo di `#3501` scattasse su
+ * qualunque Back a livello `Declaration`, questo toglierebbe l'`Overwatch` che il giocatore non ha toccato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBackOnATargetingKeepsThePlanTest,
+	"RefactorTactics.PlayerInput.BackOnATargetingKeepsThePlannedAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBackOnATargetingKeepsThePlanTest::RunTest(const FString&)
+{
+	FRTBancoTetto B = AllestisciBancoTetto(FRTCellId(2, -2, 0));
+	if (!TestTrue(TEXT("banco allestito"), B.Valido()))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	// Un'azione a bersaglio del kit, cercata e non scritta: la posizione dipende dall'eroe.
+	int32 IdxBersaglio = INDEX_NONE;
+	for (int32 i = 0; i < B.Unit->NumAbilities(); ++i)
+	{
+		const URTActionData* A = B.Unit->GetAbility(i);
+		if (A && !A->bSelfTarget && A->Def.ReservesMovementProfileId.IsNone()) { IdxBersaglio = i; break; }
+	}
+	if (!TestNotEqual(TEXT("premessa: il kit ha un'azione a bersaglio"), IdxBersaglio, (int32)INDEX_NONE))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+	B.PC->SelectActorForTest(B.Unit);
+	B.PC->SelectAbilityForCurrentForTest(B.IdxOverwatch);
+	B.PC->SelectAbilityForCurrentForTest(IdxBersaglio);
+	if (!TestEqual(TEXT("premessa: armata l'azione a bersaglio"), B.Unit->SelectedAbilityIndex, IdxBersaglio)
+		|| !TestEqual(TEXT("premessa: l'Overwatch resta nel piano"), B.Unit->PlannedAbilityIndex, B.IdxOverwatch))
+	{
+		DestroyInteractionWorld(B.World); return false;
+	}
+
+	TestEqual(TEXT("il Back esce dal targeting"), B.PC->ApplyBack(), ERTPointerBackStep::Declaration);
+
+	TestEqual(TEXT("la selezione torna neutra"), B.Unit->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("ma l'Overwatch, che il Back non ha toccato, resta nel piano"),
+		B.Unit->PlannedAbilityIndex, B.IdxOverwatch);
+	TestEqual(TEXT("e il suo tetto resta"),
+		URTMovementProfileLibrary::ReservedProfileForPlan(URTPlanValidationLibrary::MakePlanFor(B.Unit)),
+		URTMovementProfileLibrary::ProfileWithdraw);
+
+	DestroyInteractionWorld(B.World);
+	return true;
+}
+
+/**
  * `#3470` — IL TASTO CHE LA BARRA MOSTRA PER `Sneak` E' QUELLO CHE IL CONTESTO DI INPUT LEGA DAVVERO.
  *
  * 🔑 **Interroga il `UInputMappingContext` reale**, come `HotkeysDoNotCollide`: la barra legge
