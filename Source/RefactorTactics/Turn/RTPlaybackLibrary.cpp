@@ -207,6 +207,49 @@ float URTPlaybackLibrary::AlphaAtMicroStep(int32 StepIndex, int32 StepCount)
 	return FMath::Clamp(static_cast<float>(StepIndex) / static_cast<float>(StepCount), 0.f, 1.f);
 }
 
+float URTPlaybackLibrary::PivotYaw(float FromYaw, float ToYaw, float Progress)
+{
+	// L'arco PIU' CORTO: da 170 a -170 sono venti gradi, non trecentoquaranta.
+	const float Delta = FMath::FindDeltaAngleDegrees(FromYaw, ToYaw);
+	return FRotator::NormalizeAxis(FromYaw + Delta * FMath::Clamp(Progress, 0.f, 1.f));
+}
+
+float URTPlaybackLibrary::StepYawAtAlpha(const TArray<FVector>& World, float Alpha, float EntryYaw, float TurnFraction)
+{
+	const int32 Segmenti = World.Num() - 1;
+	if (Segmenti < 1)
+	{
+		return EntryYaw;
+	}
+
+	// Lo yaw del segmento `I`, o del primo con una direzione andando indietro; `EntryYaw` se nessuno ne ha.
+	const auto YawFinoA = [&World, EntryYaw](int32 I)
+	{
+		for (int32 J = I; J >= 0; --J)
+		{
+			if ((World[J + 1] - World[J]).SizeSquared2D() > UE_KINDA_SMALL_NUMBER)
+			{
+				return DirectionYaw(World[J], World[J + 1]);
+			}
+		}
+		return EntryYaw;
+	};
+
+	const float A = FMath::Clamp(Alpha, 0.f, 1.f);
+	// 🔑 La cella si chiede a `MicroStepAtAlpha`, come fanno velo e rivelazione: su un confine esatto la mesh deve
+	// stare sulla STESSA cella che leggono loro, non su quella prima per un arrotondamento.
+	const int32 K = FMath::Min(MicroStepAtAlpha(A, Segmenti), Segmenti);
+	if (K >= Segmenti)
+	{
+		return YawFinoA(Segmenti - 1);
+	}
+	const float Prima = (K == 0) ? EntryYaw : YawFinoA(K - 1);
+	const float Dopo = YawFinoA(K);
+	const float Frazione = FMath::Clamp(A * Segmenti - K, 0.f, 1.f);
+	const float Giro = (TurnFraction > 0.f) ? FMath::Clamp(Frazione / TurnFraction, 0.f, 1.f) : 1.f;
+	return PivotYaw(Prima, Dopo, Giro);
+}
+
 int32 URTPlaybackLibrary::MicroStepAtAlpha(float Alpha, int32 StepCount)
 {
 	if (StepCount <= 0)

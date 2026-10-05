@@ -1103,9 +1103,12 @@ public:
 	float VisualZOffset = UnitHalfHeight;
 
 	/**
-	 * Se vero, durante il movimento visivo l'unita' si orienta verso la direzione di spostamento (solo yaw).
-	 * Default false = comportamento invariato (il cilindro non ruota). I BP_Unit dei personaggi lo attivano
-	 * cosi' la corsa (es. Jog_Fwd) punta dove vanno. Solo presentazione: non tocca la logica.
+	 * Se vero, ogni `SetVisualLocation` orienta l'unita' verso la direzione di spostamento (solo yaw).
+	 *
+	 * ⌫ *Diceva «i BP_Unit dei personaggi lo attivano», ed era falso: nessuno dei quattro `BP_Unit` lo scrive
+	 * (`#2167`).* Dal `#2167` la posa durante il playback non dipende da questo flag: la decide il TurnManager a ogni
+	 * passo con `URTPlaybackLibrary::StepYawAtAlpha`, uguale alla regola `FacingAtMicroStep` a ogni confine. Resta per
+	 * chi muove un'unita' fuori dal playback.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bFaceMovementDirection = false;

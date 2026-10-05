@@ -158,6 +158,9 @@ void ARTTurnManager::Tick(float DeltaSeconds)
 	{
 		TickPlayback(DeltaSeconds);
 	}
+
+	// Fuori da `bIsResolving`: il pivot finale di chi arriva per ultimo dura oltre la fine del playback (`#2167`).
+	TickPresentationPivots(DeltaSeconds);
 }
 
 /**
@@ -7664,6 +7667,8 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// Gli indici di cella seguono le anim a cui si riferiscono (`#2876`): sopravvivergli farebbe
 	// leggere il confine di un'altra unita'.
 	PlaybackAnimCellIndex.Reset();
+	PlaybackAnimEntryYaw.Reset();
+	PlaybackAnimArrived.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackFootprints.Reset();
@@ -8253,6 +8258,11 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		{
 			PlaybackAnimCellIndex.Init(0, MoveAnims.Num());
 		}
+		if (PlaybackAnimEntryYaw.Num() != MoveAnims.Num())
+		{
+			PlaybackAnimEntryYaw.Init(TNumericLimits<float>::Max(), MoveAnims.Num());
+			PlaybackAnimArrived.Init(false, MoveAnims.Num());
+		}
 		bool bAttraversatoUnConfine = false;
 
 		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
@@ -8267,6 +8277,38 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 					? URTPlaybackLibrary::RouteAlpha(A.World.Num() - 1, PlaybackPhaseElapsed, PlaybackCellsPerSecond)
 					: AlphaFase;
 				A.Unit->SetVisualLocation(URTPlaybackLibrary::InterpolateAlongPath(A.World, Alpha));
+
+				// 🔑 **La posa segue il passo** ([D-462] punto 2, `#2167`): a ogni confine guarda l'ultimo passo
+				// compiuto, come `FacingAtMicroStep`, e si gira verso il nuovo all'inizio di ciascuno. ⛔ Solo per chi
+				// cammina o scatta: una spinta del Blast non orienta chi la subisce. ⏱️ *Fino a `#2167` la mesh restava
+				// girata com'era per tutto il percorso, e a fine playback scattava sul facing logico.*
+				if (bAlphaPerPercorso && A.World.Num() >= 2 && PlaybackAnimEntryYaw.IsValidIndex(AnimIdx))
+				{
+					if (PlaybackAnimEntryYaw[AnimIdx] == TNumericLimits<float>::Max())
+					{
+						PlaybackAnimEntryYaw[AnimIdx] = A.Unit->GetActorRotation().Yaw;
+					}
+					if (!PlaybackAnimArrived[AnimIdx])
+					{
+						A.Unit->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::StepYawAtAlpha(
+							A.World, Alpha, PlaybackAnimEntryYaw[AnimIdx], StepTurnFraction), 0.f));
+						if (Alpha >= 1.f)
+						{
+							PlaybackAnimArrived[AnimIdx] = true;
+							// [D-462] punto 3: arrivata, si gira SUL POSTO verso il verso finale. Solo dopo la sua
+							// ULTIMA anim: dopo uno scatto seguito da un Move il pivot appartiene al Move.
+							bool bUltima = true;
+							for (int32 Dopo = AnimIdx + 1; Dopo < MoveAnims.Num(); ++Dopo)
+							{
+								if (MoveAnims[Dopo].Unit == A.Unit) { bUltima = false; break; }
+							}
+							if (bUltima)
+							{
+								StartPresentationPivot(A.Unit.Get(), FinalFacingYaw(A.Unit.Get()));
+							}
+						}
+					}
+				}
 
 				// 🔑 **Su quale cella e' ADESSO** (`#2876`). `Alpha` copre l'intero percorso disegnato,
 				// quindi l'indice e' la sua frazione sui segmenti — la stessa aritmetica che
@@ -8635,10 +8677,19 @@ void ARTTurnManager::FinishPlayback()
 			ARTUnit* U = Cast<ARTUnit>(UnitActor);
 			if (!U || !U->IsAlive()) { continue; }
 
-			const FVector Here = U->WorldForCell(U->Cell, PBOrigin, PBCellSize, PBLayerHeight);
-			const FRTCellId Ahead = URTHexLibrary::Neighbor(U->Cell, U->Facing);
-			const FVector There = U->WorldForCell(Ahead, PBOrigin, PBCellSize, PBLayerHeight);
-			U->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Here, There), 0.f));
+			// [D-462] punto 3 (`#2167`): alla fine naturale la mesh ci arriva con un pivot animato, anche chi non si e'
+			// mosso — una rotazione dichiarata da fermo, o un facing che il Blast ha cambiato. ⛔ Saltando, scatta:
+			// chi salta chiede lo stato finale, non un'altra animazione.
+			const float Verso = FinalFacingYaw(U);
+			if (bFinishingBySkip)
+			{
+				PivotAnims.RemoveAll([U](const FRTPivotAnim& P) { return P.Unit.Get() == U; });
+				U->SetActorRotation(FRotator(0.f, Verso, 0.f));
+			}
+			else
+			{
+				StartPresentationPivot(U, Verso);
+			}
 		}
 	}
 
@@ -8675,6 +8726,8 @@ void ARTTurnManager::FinishPlayback()
 	// Gli indici di cella seguono le anim a cui si riferiscono (`#2876`): sopravvivergli farebbe
 	// leggere il confine di un'altra unita'.
 	PlaybackAnimCellIndex.Reset();
+	PlaybackAnimEntryYaw.Reset();
+	PlaybackAnimArrived.Reset();
 	PlaybackAttacks.Reset();
 	PlaybackDefeated.Reset();
 	PlaybackFootprints.Reset();
@@ -8718,7 +8771,60 @@ void ARTTurnManager::SkipPlayback()
 	}
 	Pacing.Current().bPlaybackSkipped = true;
 	AddLogEvent(TEXT("Risoluzione: salto"), FRTLogSubject::World());
+	bFinishingBySkip = true;
 	FinishPlayback();
+	bFinishingBySkip = false;
+}
+
+void ARTTurnManager::StartPresentationPivot(ARTUnit* Unit, float ToYaw)
+{
+	if (!Unit)
+	{
+		return;
+	}
+	PivotAnims.RemoveAll([Unit](const FRTPivotAnim& P) { return P.Unit.Get() == Unit; });
+	const float Da = Unit->GetActorRotation().Yaw;
+	// Gia' girata, o pivot spento: nessuna animazione da far girare.
+	if (FMath::Abs(FMath::FindDeltaAngleDegrees(Da, ToYaw)) < 0.5f || FinalPivotSeconds <= 0.f)
+	{
+		Unit->SetActorRotation(FRotator(0.f, ToYaw, 0.f));
+		return;
+	}
+	FRTPivotAnim Pivot;
+	Pivot.Unit = Unit;
+	Pivot.From = Da;
+	Pivot.To = ToYaw;
+	PivotAnims.Add(Pivot);
+}
+
+void ARTTurnManager::TickPresentationPivots(float DeltaSeconds)
+{
+	for (int32 I = PivotAnims.Num() - 1; I >= 0; --I)
+	{
+		FRTPivotAnim& Pivot = PivotAnims[I];
+		ARTUnit* U = Pivot.Unit.Get();
+		if (!U)
+		{
+			PivotAnims.RemoveAt(I);
+			continue;
+		}
+		Pivot.Elapsed += DeltaSeconds;
+		const float Progresso = (FinalPivotSeconds > 0.f) ? Pivot.Elapsed / FinalPivotSeconds : 1.f;
+		U->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::PivotYaw(Pivot.From, Pivot.To, Progresso), 0.f));
+		if (Progresso >= 1.f)
+		{
+			PivotAnims.RemoveAt(I);
+		}
+	}
+}
+
+float ARTTurnManager::FinalFacingYaw(const ARTUnit* Unit) const
+{
+	// Dalla geometria, come l'anteprima del controller: dal centro della cella al centro del vicino nel verso.
+	const FVector Qui = Unit->WorldForCell(Unit->Cell, PBOrigin, PBCellSize, PBLayerHeight);
+	const FVector Avanti = Unit->WorldForCell(URTHexLibrary::Neighbor(Unit->Cell, Unit->Facing), PBOrigin, PBCellSize,
+		PBLayerHeight);
+	return URTPlaybackLibrary::DirectionYaw(Qui, Avanti);
 }
 
 FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const
