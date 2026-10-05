@@ -8274,10 +8274,21 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				//
 				// ⚠️ `A.Cells` e non la rotta reale: e' gia' troncato al prefisso osservabile, e leggerlo
 				// qui tiene il velo dalla parte giusta del confine di privacy — come `A.World` sopra.
+				//
+				// 🔴 **Si chiede a `MicroStepAtAlpha`, e fino a `#3458` era un floor nudo.** `Step` ferma
+				// l'orologio sul confine, dove `Alpha * Segmenti` dovrebbe valere un intero esatto; in virgola
+				// mobile puo' valerne uno appena SOTTO, e il floor assegnava la cella PRECEDENTE. L'unita' era
+				// disegnata al posto giusto — `InterpolateAlongPath` e' continua, e a un confine `k - ε` e `k`
+				// danno lo stesso punto — mentre velo e rivelazione delle unita' leggevano la cella di un passo
+				// indietro. Misurato da `Veil.RevealsAtTheMicroStepAtAnyPlaybackRate`: su 5 segmenti cadevano
+				// 1.15, 1.95, 2.30 e 2.95 celle/s, e al primo passo B1 non compariva. Al default `1.44` ci cade
+				// il confine 7 dei percorsi da 7 a 11 segmenti (`Playback.MicroStepAtAlphaLandsOnTheBoundary…`
+				// li stampa); su 5 segmenti no.
 				if (A.Cells.Num() > 0)
 				{
 					const int32 Segmenti = FMath::Max(A.Cells.Num() - 1, 1);
-					const int32 Idx = FMath::Clamp(FMath::FloorToInt(Alpha * Segmenti), 0, A.Cells.Num() - 1);
+					const int32 Idx = FMath::Clamp(
+						URTPlaybackLibrary::MicroStepAtAlpha(Alpha, Segmenti), 0, A.Cells.Num() - 1);
 					if (PlaybackAnimCellIndex.IsValidIndex(AnimIdx) && PlaybackAnimCellIndex[AnimIdx] != Idx)
 					{
 						PlaybackAnimCellIndex[AnimIdx] = Idx;

@@ -207,6 +207,26 @@ float URTPlaybackLibrary::AlphaAtMicroStep(int32 StepIndex, int32 StepCount)
 	return FMath::Clamp(static_cast<float>(StepIndex) / static_cast<float>(StepCount), 0.f, 1.f);
 }
 
+int32 URTPlaybackLibrary::MicroStepAtAlpha(float Alpha, int32 StepCount)
+{
+	if (StepCount <= 0)
+	{
+		return 0; // nessun segmento: non c'e' un micro-step da contare
+	}
+
+	// ⚠️ **`UE_KINDA_SMALL_NUMBER` si SOMMA, e il verso e' la parte che sbaglia facilmente.** `Alpha`
+	// arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`: senza tolleranza quel
+	// valore cadrebbe appena SOTTO il proprio confine, e il floor lo assegnerebbe al segmento precedente.
+	// ⛔ Sottrarla fa esattamente questo difetto su OGNI confine esatto, non solo su quelli inesatti:
+	// misurato, `NextMicroStepBoundary(0.25f, 4)` restituiva `0.25` invece di `0.5`.
+	//
+	// 🔑 **Per `StepCount`, e non diviso per `1 / StepCount`**: e' l'inversa diretta di `AlphaAtMicroStep`,
+	// e risparmia l'arrotondamento del reciproco. Fino a `#3458` `NextMicroStepBoundary` divideva per il
+	// passo; la differenza fra le due forme sta sotto la tolleranza, e
+	// `Playback.MicroStepAtAlphaLandsOnTheBoundaryAStepStopsAt` la percorre da 1 a 12 segmenti.
+	return FMath::FloorToInt((FMath::Max(0.f, Alpha) + UE_KINDA_SMALL_NUMBER) * static_cast<float>(StepCount));
+}
+
 float URTPlaybackLibrary::NextMicroStepBoundary(float Alpha, int32 StepCount)
 {
 	if (StepCount <= 0)
@@ -214,20 +234,12 @@ float URTPlaybackLibrary::NextMicroStepBoundary(float Alpha, int32 StepCount)
 		return 1.f; // niente da attraversare
 	}
 
-	const float Passo = 1.f / static_cast<float>(StepCount);
-
-	// 🔴 **`FloorToInt(Alpha/Passo) + 1`, e il `+1` e' la regola**: si va al confine SUCCESSIVO anche
-	// quando `Alpha` e' gia' esattamente su uno. Con un arrotondamento «al piu' vicino >=» premere `Step`
-	// due volte su un boundary non farebbe nulla la seconda volta.
-	//
-	// ⚠️ **`UE_KINDA_SMALL_NUMBER` si SOMMA, e il verso e' la parte che sbaglia facilmente.** `Alpha`
-	// arriva da un'accumulazione in virgola mobile, e `1/3` vale `0.333333343`: senza tolleranza quel
-	// valore cadrebbe appena SOTTO il proprio confine, il floor lo assegnerebbe al segmento precedente, e
-	// «il prossimo» sarebbe il confine su cui ci si trova gia' — cioe' `Step` non avanzerebbe.
-	// ⛔ Sottrarla fa esattamente questo difetto su OGNI confine esatto, non solo su quelli inesatti:
-	// misurato, `NextMicroStepBoundary(0.25f, 4)` restituiva `0.25` invece di `0.5`.
-	const int32 Corrente = FMath::FloorToInt((FMath::Max(0.f, Alpha) + UE_KINDA_SMALL_NUMBER) / Passo);
-	const int32 Prossimo = FMath::Max(0, Corrente) + 1;
+	// 🔴 **`MicroStepAtAlpha + 1`, e il `+1` e' la regola**: si va al confine SUCCESSIVO anche quando
+	// `Alpha` e' gia' esattamente su uno. Con un arrotondamento «al piu' vicino >=» premere `Step` due volte
+	// su un boundary non farebbe nulla la seconda volta. La tolleranza che fa riconoscere quel confine e'
+	// in `MicroStepAtAlpha`: senza, «il prossimo» sarebbe il confine su cui ci si trova gia', cioe' `Step`
+	// non avanzerebbe.
+	const int32 Prossimo = FMath::Max(0, MicroStepAtAlpha(Alpha, StepCount)) + 1;
 
 	return AlphaAtMicroStep(Prossimo, StepCount);
 }

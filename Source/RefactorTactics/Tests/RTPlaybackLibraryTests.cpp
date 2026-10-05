@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTPlaybackLibrary.h"
+#include "Turn/RTTurnManager.h" // il default di `PlaybackCellsPerSecond`, letto dal CDO
 #include "Turn/RTTurnRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -472,6 +473,123 @@ bool FRTPlaybackStepWholeMicroStepTest::RunTest(const FString&)
 	TestEqual(TEXT("senza segmenti si e' gia' alla fine"),
 		URTPlaybackLibrary::NextMicroStepBoundary(0.f, 0), 1.f);
 
+	return true;
+}
+
+/**
+ * `#3458` — **al confine di uno `Step`, la cella e' quella del confine**, lungo la stessa catena in virgola
+ * mobile che il playback percorre.
+ *
+ * La catena e' quella di `ARTTurnManager`: la fase `Move` dura `PhaseTime(...).Shown`, `StepMicroStep` mette
+ * il bersaglio a `AlphaAtMicroStep(k, S) * Durata`, e il tick ricava l'`Alpha` del percorso con `RouteAlpha`.
+ * Al confine `k` deve uscirne `k`; e da li', un altro `Step` deve portare esattamente al confine `k + 1`.
+ *
+ * ⚠️ **La premessa e' cio' che rende il test non vacuo**: il campione deve contenere confini che un floor
+ * NUDO sbaglia. Se un giorno l'aritmetica li rendesse tutti esatti, questo test lo direbbe invece di
+ * passare per niente. I casi si stampano, e fra questi quelli alla velocita' di default.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackMicroStepAtBoundaryTest,
+	"RefactorTactics.Playback.MicroStepAtAlphaLandsOnTheBoundaryAStepStopsAt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackMicroStepAtBoundaryTest::RunTest(const FString&)
+{
+	// La griglia di `Veil.RevealsAtTheMicroStepAtAnyPlaybackRate`, piu' il default VERO: letto dal CDO e non
+	// scritto qui, cosi' il test segue il default se cambia.
+	TArray<float> Velocita;
+	for (int32 Centesimi = 50; Centesimi <= 300; Centesimi += 5)
+	{
+		Velocita.Add(Centesimi / 100.f);
+	}
+	const float Default = GetDefault<ARTTurnManager>()->PlaybackCellsPerSecond;
+	Velocita.AddUnique(Default);
+
+	int32 SbagliatiDallaRegola = 0;
+	int32 SbagliatiDalloStep = 0;
+	int32 SbagliatiDaUnFloorNudo = 0;
+	TArray<FString> NudoAlDefault;
+	for (const float V : Velocita)
+	{
+		for (int32 S = 1; S <= 12; ++S)
+		{
+			const float Durata = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Move, S, 0, 0, 0, V, 0.f, 0.f).Shown;
+			for (int32 K = 0; K <= S; ++K)
+			{
+				const float Bersaglio = URTPlaybackLibrary::AlphaAtMicroStep(K, S) * Durata;
+				const float Alpha = URTPlaybackLibrary::RouteAlpha(S, Bersaglio, V);
+
+				const int32 Cella = URTPlaybackLibrary::MicroStepAtAlpha(Alpha, S);
+				if (Cella != K && ++SbagliatiDallaRegola <= 5)
+				{
+					AddError(FString::Printf(TEXT("%.2f celle/s, %d segmenti, confine %d: la cella e' %d"),
+						V, S, K, Cella));
+				}
+
+				// Da questo confine, uno `Step`: si parte dall'`Alpha` di FASE, come fa `StepMicroStep`.
+				if (K < S)
+				{
+					const float Prossimo = URTPlaybackLibrary::NextMicroStepBoundary(Bersaglio / Durata, S);
+					if (Prossimo != URTPlaybackLibrary::AlphaAtMicroStep(K + 1, S) && ++SbagliatiDalloStep <= 5)
+					{
+						AddError(FString::Printf(
+							TEXT("%.2f celle/s, %d segmenti: dal confine %d uno Step porta a %.6f"), V, S, K, Prossimo));
+					}
+				}
+
+				if (FMath::FloorToInt(Alpha * S) != K)
+				{
+					++SbagliatiDaUnFloorNudo;
+					if (V == Default)
+					{
+						NudoAlDefault.Add(FString::Printf(TEXT("%d segmenti al confine %d"), S, K));
+					}
+				}
+			}
+		}
+	}
+
+	AddInfo(FString::Printf(TEXT("un floor nudo sbaglia %d confini del campione; al default (%.2f celle/s): %s"),
+		SbagliatiDaUnFloorNudo, Default,
+		NudoAlDefault.Num() > 0 ? *FString::Join(NudoAlDefault, TEXT(", ")) : TEXT("nessuno")));
+
+	TestEqual(TEXT("ogni confine cade sulla propria cella"), SbagliatiDallaRegola, 0);
+	TestEqual(TEXT("e da ogni confine uno Step porta esattamente al successivo"), SbagliatiDalloStep, 0);
+	TestTrue(TEXT("premessa: il campione contiene confini che un floor nudo sbaglia"), SbagliatiDaUnFloorNudo > 0);
+	return true;
+}
+
+/**
+ * `#3458` — **la tolleranza non anticipa il confine**: poco prima, l'unita' e' ancora sulla cella di prima.
+ *
+ * E' la meta' che il test qui sopra non vede, perche' guarda solo i confini: una tolleranza grande — mezza
+ * cella, o un `RoundToInt` — lo passerebbe. Nel playback continuo velo e rivelazione delle unita'
+ * scatterebbero allora prima che l'unita' arrivi nella cella da cui vede, cioe' un nemico comparirebbe in
+ * anticipo: il leak che `PIE-KNOW-RIVELAZIONE` vieta «nemmeno per un frame».
+ *
+ * 🔑 **Due centesimi di cella**: alla velocita' di default sono circa 14 ms, meno di un fotogramma a 60 fps.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackMicroStepNotEarlyTest,
+	"RefactorTactics.Playback.MicroStepAtAlphaDoesNotFlipBeforeTheBoundary",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackMicroStepNotEarlyTest::RunTest(const FString&)
+{
+	for (int32 S = 1; S <= 12; ++S)
+	{
+		for (int32 K = 1; K <= S; ++K)
+		{
+			const float PocoPrima = (static_cast<float>(K) - 0.02f) / static_cast<float>(S);
+			TestEqual(FString::Printf(TEXT("%d segmenti, due centesimi prima del confine %d: ancora la cella %d"),
+				S, K, K - 1), URTPlaybackLibrary::MicroStepAtAlpha(PocoPrima, S), K - 1);
+
+			const float AMeta = (static_cast<float>(K) - 0.5f) / static_cast<float>(S);
+			TestEqual(FString::Printf(TEXT("%d segmenti, a meta' del segmento %d: la cella %d"), S, K, K - 1),
+				URTPlaybackLibrary::MicroStepAtAlpha(AMeta, S), K - 1);
+		}
+	}
+
+	TestEqual(TEXT("un Alpha negativo vale l'inizio"), URTPlaybackLibrary::MicroStepAtAlpha(-0.3f, 4), 0);
+	TestEqual(TEXT("senza segmenti non c'e' un micro-step"), URTPlaybackLibrary::MicroStepAtAlpha(0.5f, 0), 0);
+	TestEqual(TEXT("a fine percorso e' l'ultimo confine, non limitato"),
+		URTPlaybackLibrary::MicroStepAtAlpha(1.f, 4), 4);
 	return true;
 }
 
