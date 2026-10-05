@@ -682,6 +682,14 @@ struct FRTAbilityCooldownView
 	bool bGroupBreakBefore = false;
 
 	/**
+	 * Questa voce e' la PRIMA del proprio gruppo di lettura: porta l'intestazione `COMUNI` · `BASE` · `KIT`
+	 * (`#3498`). Vera per la prima voce della lista e dove `bGroupBreakBefore` e' vero; la scrive solo
+	 * `OrderForReading`, come il confine.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bFirstOfGroup = false;
+
+	/**
 	 * Il piano e' ILLEGALE e quest'azione ne e' la colpevole (`ValidatePlan`, `OffendingActionId`): lettura B
 	 * di [D-459], stato `Invalid`. Il motivo — `SlotOccupied`, `OnCooldown` — resta del validatore.
 	 */

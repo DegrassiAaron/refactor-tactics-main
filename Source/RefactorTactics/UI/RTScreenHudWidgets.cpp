@@ -713,14 +713,84 @@ URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitial
 	// `SPECIFICA-VISIVA.md` §3. Selected e Warning condividono l'ambra: li separa il secondo canale.
 	const FLinearColor Neutro = RTSlotHex(TEXT("4A5568"));
 	const FLinearColor Ambra = RTSlotHex(TEXT("FFD456"));
-	FrameColors.Add(ERTActionSlotState::Empty, Neutro.CopyWithNewOpacity(0.4f));
+	// Lo slot vuoto del mockup (`Main.dc.html`, «Difesa caratteristica, non assegnata»): contorno neutro pieno,
+	// fondo trasparente, glifo e testo grigi. Il tratteggio del contorno resta escluso.
+	FrameColors.Add(ERTActionSlotState::Empty, Neutro);
 	FrameColors.Add(ERTActionSlotState::Available, Neutro);
 	FrameColors.Add(ERTActionSlotState::Selected, Ambra);
 	FrameColors.Add(ERTActionSlotState::Planned, Ambra);
-	FrameColors.Add(ERTActionSlotState::Cooldown, Neutro);
-	FrameColors.Add(ERTActionSlotState::Unavailable, Neutro);
+	// #3498 — `sorgente-mockup/Main.dc.html`: la ricarica ha un contorno piu' spento del neutro.
+	FrameColors.Add(ERTActionSlotState::Cooldown, RTSlotHex(TEXT("2E3746")));
+	FrameColors.Add(ERTActionSlotState::Unavailable, RTSlotHex(TEXT("2E3746")));
 	FrameColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("FF4D4D")));
 	FrameColors.Add(ERTActionSlotState::Warning, Ambra);
+
+	const FLinearColor FondoAlto = RTSlotHex(TEXT("212733"));   // BG_Raised
+	const FLinearColor FondoBasso = RTSlotHex(TEXT("151A23"));  // BG_Panel
+	FillColors.Add(ERTActionSlotState::Empty, FLinearColor::Transparent);
+	FillColors.Add(ERTActionSlotState::Available, FondoAlto);
+	FillColors.Add(ERTActionSlotState::Selected, RTSlotHex(TEXT("2B2918")));
+	FillColors.Add(ERTActionSlotState::Planned, FondoAlto);
+	FillColors.Add(ERTActionSlotState::Cooldown, FondoBasso);
+	FillColors.Add(ERTActionSlotState::Unavailable, FondoBasso);
+	FillColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("2A1719")));
+	FillColors.Add(ERTActionSlotState::Warning, FondoAlto);
+
+	for (const ERTActionSlotState Spesso : { ERTActionSlotState::Selected, ERTActionSlotState::Planned,
+		ERTActionSlotState::Invalid, ERTActionSlotState::Warning })
+	{
+		FrameWidths.Add(Spesso, 2.f);
+	}
+	for (const ERTActionSlotState Sottile : { ERTActionSlotState::Empty, ERTActionSlotState::Available,
+		ERTActionSlotState::Cooldown, ERTActionSlotState::Unavailable })
+	{
+		FrameWidths.Add(Sottile, 1.f);
+	}
+
+	const FLinearColor Chiaro = RTSlotHex(TEXT("E6EBF2"));
+	const FLinearColor Spento = RTSlotHex(TEXT("3A4454"));
+	const FLinearColor Grigio = RTSlotHex(TEXT("A9B4C2"));
+	IconTints.Add(ERTActionSlotState::Empty, Grigio);
+	IconTints.Add(ERTActionSlotState::Available, Chiaro);
+	IconTints.Add(ERTActionSlotState::Selected, Ambra);
+	IconTints.Add(ERTActionSlotState::Planned, Chiaro);
+	IconTints.Add(ERTActionSlotState::Cooldown, Spento);
+	IconTints.Add(ERTActionSlotState::Unavailable, Neutro); // `Stati.dc.html`: piu' chiaro della ricarica
+	IconTints.Add(ERTActionSlotState::Invalid, Chiaro);
+	IconTints.Add(ERTActionSlotState::Warning, Chiaro);
+
+	// Il nome si spegne dove lo slot non si puo' usare, e resta chiaro dove e' una scelta — armata o pianificata.
+	const FLinearColor NomeSpento = RTSlotHex(TEXT("6B7684"));
+	for (const ERTActionSlotState Chiara : { ERTActionSlotState::Available, ERTActionSlotState::Selected,
+		ERTActionSlotState::Planned, ERTActionSlotState::Invalid, ERTActionSlotState::Warning })
+	{
+		NameTints.Add(Chiara, Chiaro);
+	}
+	NameTints.Add(ERTActionSlotState::Cooldown, NomeSpento);
+	NameTints.Add(ERTActionSlotState::Unavailable, NomeSpento);
+	NameTints.Add(ERTActionSlotState::Empty, Grigio);
+
+	UnavailableStripColor = Neutro;
+	PhaseLabelColor = Grigio;
+	ReactionLabelColor = RTSlotHex(TEXT("B9A8FF"));
+	SelectedBarColor = Ambra;
+
+	ReactionArmedFill = RTSlotHex(TEXT("221E3A"));
+	ReactionArmedFrame = RTSlotHex(TEXT("7C5CFF"));
+	ReactionArmedIcon = RTSlotHex(TEXT("B9A8FF"));
+}
+
+FText URTActionSlotWidget::GroupHeaderFor(ERTActionGroup Group)
+{
+	switch (Group)
+	{
+	case ERTActionGroup::Common: return NSLOCTEXT("RTActionSlot", "GroupCommon", "COMUNI");
+	case ERTActionGroup::Base:   return NSLOCTEXT("RTActionSlot", "GroupBase", "BASE");
+	case ERTActionGroup::Kit:
+	case ERTActionGroup::None:   // una posizione vuota si legge col Kit (`OrderForReading`)
+		break;
+	}
+	return NSLOCTEXT("RTActionSlot", "GroupKit", "KIT");
 }
 
 FName URTActionSlotWidget::IndicatorNameFor(ERTActionSlotState State)
@@ -750,21 +820,86 @@ void URTActionSlotWidget::RefreshLook()
 		PhaseStrip->SetVisibility(Colore ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		if (Colore)
 		{
-			PhaseStrip->SetBrushColor(*Colore);
+			// `Stati.dc.html`: indisponibile perde il colore della fase, in ricarica lo tiene attenuato.
+			FLinearColor Striscia = Stato == ERTActionSlotState::Unavailable ? UnavailableStripColor : *Colore;
+			if (Stato == ERTActionSlotState::Cooldown)
+			{
+				Striscia.A *= CooldownStripOpacity;
+			}
+			PhaseStrip->SetBrushColor(Striscia);
 		}
 	}
 	if (PhaseLabelText)
 	{
 		PhaseLabelText->SetText(Action.PhaseLabel);
+		PhaseLabelText->SetColorAndOpacity(FSlateColor(
+			Action.Slot == ERTActionSlot::Reaction ? ReactionLabelColor : PhaseLabelColor));
 		PhaseLabelText->SetVisibility(Action.PhaseLabel.IsEmpty()
 			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
 	}
+	// 🔑 Una reazione armata ha la propria resa: lo stato e' lo stesso, il colore no (#3498).
+	const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
 	if (StateFrame)
 	{
-		if (const FLinearColor* Colore = FrameColors.Find(Stato))
+		const FLinearColor* Contorno = FrameColors.Find(Stato);
+		if (StateFrame->Background.DrawAs == ESlateBrushDrawType::RoundedBox)
 		{
-			StateFrame->SetBrushColor(*Colore);
+			// #3498: il fondo e' il colore del brush, il contorno sta nelle sue OutlineSettings.
+			FSlateBrush Brush = StateFrame->Background;
+			if (Contorno)
+			{
+				Brush.OutlineSettings.Color = FSlateColor(bReazioneArmata ? ReactionArmedFrame : *Contorno);
+			}
+			if (const float* Spessore = FrameWidths.Find(Stato))
+			{
+				Brush.OutlineSettings.Width = *Spessore;
+			}
+			StateFrame->SetBrush(Brush);
+			if (const FLinearColor* Fondo = FillColors.Find(Stato))
+			{
+				StateFrame->SetBrushColor(bReazioneArmata ? ReactionArmedFill : *Fondo);
+			}
 		}
+		else if (Contorno)
+		{
+			// Un `Border` a texture: un colore solo, quello del bordo — la resa di prima di #3498.
+			StateFrame->SetBrushColor(bReazioneArmata ? ReactionArmedFrame : *Contorno);
+		}
+	}
+
+	if (HotkeyText)
+	{
+		HotkeyText->SetText(Action.HotkeyLabel);
+	}
+	if (HotkeyBadge)
+	{
+		HotkeyBadge->SetVisibility(Action.HotkeyLabel.IsEmpty()
+			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+	if (ActionNameText)
+	{
+		ActionNameText->SetText(Action.DisplayName);
+		if (const FLinearColor* Tinta = NameTints.Find(Stato))
+		{
+			ActionNameText->SetColorAndOpacity(FSlateColor(*Tinta));
+		}
+	}
+	if (GroupHeaderText)
+	{
+		GroupHeaderText->SetText(GroupHeaderFor(Action.Group));
+		// `Hidden` e non `Collapsed`: lo spazio resta, e la fila degli slot resta allineata.
+		GroupHeaderText->SetVisibility(Action.bFirstOfGroup
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
+	}
+	if (SelectedGlow)
+	{
+		SelectedGlow->SetVisibility(Stato == ERTActionSlotState::Selected && !bReazioneArmata
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
+	if (GroupDivider)
+	{
+		GroupDivider->SetVisibility(Action.bGroupBreakBefore
+			? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 	}
 
 	// Un indicatore per stato, acceso solo nel proprio. `CooldownText` non e' qui: ha gia' il suo binding.
@@ -782,6 +917,16 @@ void URTActionSlotWidget::RefreshLook()
 			Voce.Value->SetVisibility(Voce.Key == Stato
 				? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
 		}
+	}
+	// La barra di Selected e' ambra, e viola su una reazione armata (`Main.dc.html`, `isReact`).
+	const FLinearColor Barra = bReazioneArmata ? ReactionArmedFrame : SelectedBarColor;
+	if (UBorder* BarraBordo = Cast<UBorder>(SelectedBar))
+	{
+		BarraBordo->SetBrushColor(Barra);
+	}
+	else if (UImage* BarraImmagine = Cast<UImage>(SelectedBar))
+	{
+		BarraImmagine->SetColorAndOpacity(Barra);
 	}
 
 	// Il separatore dei gruppi e' PADDING: un widget in piu' in `SlotBox` sposterebbe ogni `GetChildAt(i)`.
@@ -859,6 +1004,16 @@ void URTActionSlotWidget::ApplyResolvedIconTo(UImage* Target)
 	// `Resolve Soft Reference`, che e' `Get()`: rende `nullptr` se l'asset non e' gia' in memoria, e a
 	// schermo restava il brush di default. Nessuno caricava la texture, e nessuno se ne accorgeva perche'
 	// la CHIAVE si risolveva: `ResolveIcon` non aveva niente da logare.
+	// #3498: la tinta per stato, PRIMA dell'uscita sulla texture — uno slot senza glifo e' comunque tinto.
+	{
+		const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
+		const bool bReazioneArmata = Stato == ERTActionSlotState::Selected && Action.Slot == ERTActionSlot::Reaction;
+		if (const FLinearColor* Tinta = IconTints.Find(Stato))
+		{
+			Target->SetColorAndOpacity(bReazioneArmata ? ReactionArmedIcon : *Tinta);
+		}
+	}
+
 	UTexture2D* Texture = CachedResolvedIcon.Asset.LoadSynchronous();
 
 	if (Texture == nullptr)

@@ -841,17 +841,117 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionPhaseMark, FLinearColor> PhaseColors;
 
-	/** Il colore del bordo per stato. Default: i token di §32 e la ricetta di `SPECIFICA-VISIVA.md` §3. */
+	/**
+	 * Il colore del bordo per stato. Default: la ricetta del mockup (`sorgente-mockup/Main.dc.html`, #3498).
+	 *
+	 * 🔑 **Su un `StateFrame` disegnato come `RoundedBox` e' il colore del CONTORNO**, e il fondo viene da
+	 * `FillColors`; su un `Border` a texture e' il colore dell'intero bordo. ⚠️ I valori di #3498 valgono anche
+	 * li': ricarica e indisponibile hanno il contorno `#2E3746`, e una reazione armata e' viola.
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	TMap<ERTActionSlotState, FLinearColor> FrameColors;
+
+	/** Il fondo dello slot per stato, su un `StateFrame` `RoundedBox` (#3498). Available `#212733`, Selected `#2B2918`… */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> FillColors;
+
+	/** Lo spessore del contorno per stato, in px: 2 dove il mockup marca lo stato col bordo, 1 altrove (#3498). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, float> FrameWidths;
+
+	/** Il colore dell'icona per stato (#3498): ambra se armata, spenta in ricarica, bianca altrove. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> IconTints;
+
+	/** Il colore del nome per stato (#3498): spento in ricarica e indisponibile, grigio sullo slot vuoto. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	TMap<ERTActionSlotState, FLinearColor> NameTints;
+
+	/** La striscia di uno slot indisponibile: grigia, al posto del colore della fase (`Stati.dc.html`). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor UnavailableStripColor;
+
+	/** L'opacita' della striscia in ricarica: il colore della fase resta, attenuato (`Stati.dc.html`). */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	float CooldownStripOpacity = 0.3f;
+
+	/** Il colore dell'etichetta di fase. Su uno slot di reazione e' `ReactionLabelColor`, il viola chiaro di `REAZ.`. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor PhaseLabelColor;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionLabelColor;
+
+	/**
+	 * Il colore di `SelectedBar`: ambra; su una reazione armata prende `ReactionArmedFrame`. Lo scrive il C++ se
+	 * la barra e' un `Border` (fondo) o un'`Image` (tinta). Il tratteggio della barra della reazione resta escluso.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor SelectedBarColor;
+
+	/**
+	 * 🔑 **Una REAZIONE armata non e' l'ambra di un'azione principale**: il mockup la dice viola — fondo `#221E3A`,
+	 * contorno `#7C5CFF`, icona `#B9A8FF`. Lo stato resta `Selected`; cambia la resa, perche' lo slot e'
+	 * `Reaction` (`Action.Slot`). Il tratteggio del contorno, che `RoundedBox` non sa fare, resta escluso.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionArmedFill;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionArmedFrame;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
+	FLinearColor ReactionArmedIcon;
+
+	/** Il riquadro del tasto in alto a sinistra (#3498): `Collapsed` quando lo slot non ha un tasto. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> HotkeyBadge;
+
+	/** Il tasto, da `Action.HotkeyLabel` — separato dal nome, come nel mockup (#3498). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> HotkeyText;
+
+	/** Il nome dell'azione, da `Action.DisplayName`, senza il tasto (#3498). */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> ActionNameText;
+
+	/**
+	 * L'intestazione del gruppo sopra lo slot — `COMUNI` · `BASE` · `KIT` (#3498). Visibile solo sulla prima voce
+	 * di ogni gruppo (`bFirstOfGroup`); sulle altre e' `Hidden`, NON `Collapsed`, perche' tutti gli slot della
+	 * fila devono restare alla stessa altezza.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UTextBlock> GroupHeaderText;
+
+	/**
+	 * L'alone di `Selected` (#3498): nel mockup 3 px d'ambra al 16% attorno allo slot, che un `RoundedBox` non
+	 * disegna. Acceso solo su un'azione armata che NON e' una reazione: la reazione armata e' viola, senza alone.
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> SelectedGlow;
+
+	/**
+	 * Il divisore che apre un gruppo (#3498): nel mockup una riga di 1 px `#203542` fra due gruppi, a 22 px da
+	 * ciascuno. Acceso solo dove `bGroupBreakBefore`; il Designer lo disegna FUORI dallo slot, a sinistra, dentro
+	 * il `GroupGap`. ⛔ Non e' un widget in `SlotBox`: sposterebbe ogni `GetChildAt(i)` (#3489).
+	 */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Slot")
+	TObjectPtr<class UWidget> GroupDivider;
+
+	/** Il testo dell'intestazione di un gruppo. `None` — una posizione vuota — si legge col Kit. */
+	static FText GroupHeaderFor(ERTActionGroup Group);
 
 	/** Lo spazio a sinistra di uno slot dentro un gruppo (`dati/tokens.json`: `gap`). */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
 	float ItemGap = 8.f;
 
-	/** Lo spazio a sinistra di uno slot che apre un gruppo (`dati/tokens.json`: `separatore_gruppi`). */
+	/**
+	 * Lo spazio a sinistra di uno slot che apre un gruppo: `separatore_gruppi` (22, `dati/tokens.json`) su ENTRAMBI
+	 * i lati del divisore da 1 px, come nel mockup — 22 + 1 + 22 (#3498). ⌫ *Era 22 fino a #3498: il divisore non
+	 * c'era, e lo spazio di un lato solo bastava.*
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "RefactorTactics|HUD|Slot")
-	float GroupGap = 22.f;
+	float GroupGap = 45.f;
 
 	/**
 	 * Il nome del widget che porta il secondo canale di uno stato, o `NAME_None` per gli stati che non ne
