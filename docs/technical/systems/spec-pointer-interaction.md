@@ -405,11 +405,13 @@ l'elenco è ordinato:
 1. ReactionWindow aperta   -> fallback esplicito, se l'opportunity ne dichiara uno
 2. Modal aperto            -> chiudi il modale
 3. Inspector pinnato       -> chiudi l'inspector
-4. Targeting / Facing      -> annulla la dichiarazione, torna a Planning
-5. Pathing con waypoint    -> rimuovi l'ultimo waypoint
-6. Pathing senza waypoint  -> torna a Planning
-7. PhaseFocus pinnato      -> PhaseFocus = Auto
-8. altrimenti              -> NoOp
+4. Facing (selettore)      -> chiudi il selettore del verso, senza toccare il piano
+5. Verso dichiarato        -> cancella il verso e riapri il movimento (D-367, D-462)
+6. Targeting               -> annulla la dichiarazione, torna a Planning
+7. Pathing con waypoint    -> rimuovi l'ultimo waypoint
+8. Pathing senza waypoint  -> torna a Planning
+9. PhaseFocus pinnato      -> PhaseFocus = Auto
+10. altrimenti             -> NoOp
 ```
 
 Due regole che l'ordine da solo non dice:
@@ -418,13 +420,31 @@ Due regole che l'ordine da solo non dice:
   è l'errore che costringe a ricliccare la propria unità dopo ogni ripensamento.
 - **`RMB` non tocca un piano già in `LockIn`.** Il Back agisce sulla dichiarazione in corso, non su ciò che
   è stato consegnato.
+- **Il verso chiude il movimento** ([D-367](../../decisions/RT_PDR_00_Decision_Log.md), [D-462](../../decisions/RT_PDR_00_Decision_Log.md), [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291)).
+  Il verso si sceglie col **secondo click sull'esagono finale**, sul lato puntato (`HandleFacingClick`); da fermo,
+  un click sulla propria cella apre prima i sei triangoli. Con un verso dichiarato un click su un'altra cella non
+  aggiunge waypoint, e la voce 5 lo toglie per prima. Un click sulla destinazione senza un lato (al centro) non
+  sceglie niente e non duplica il waypoint. Qualunque modifica al percorso — waypoint tolto o restituito,
+  troncamento di una riserva o dello `Sneak` — cancella il verso. ⌫ *Il tasto `T` e il ciclo sono usciti dal gioco.*
+  ⚠️ **L'ordine e' statico, e lo si dichiara**: il verso si toglie prima di un'azione armata anche quando l'azione e'
+  stata armata dopo. Il Back che «disfa l'ultimo gesto» chiederebbe una pila di gesti, che non esiste; e armare chiude
+  il selettore, quindi i due gesti non si sovrappongono.
+- **«Annulla la dichiarazione» vuol dire anche il piano, se la dichiarazione l'ha già scritto**
+  ([D-461](../../decisions/RT_PDR_00_Decision_Log.md), [#3501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3501)).
+  Quando l'azione armata è **la stessa** già nel piano, la voce 6 la disarma: la toglie dalla selezione e dal
+  piano, rilascia il tetto di movimento che imponeva, e restituisce i waypoint troncati ([D-444](../../decisions/RT_PDR_00_Decision_Log.md)). Succede a
+  un supporto su se stessi, che entra nel piano all'armamento, e a un attacco col bersaglio già dichiarato.
+  Se dopo l'azione sono stati posati waypoint, il Back toglie **prima quelli**, uno per volta: disfa l'ultimo
+  gesto, e l'azione si disarma al Back in cui non ne restano.
+  ⛔ Un targeting **senza** bersaglio esce e basta: un'altra azione già pianificata resta. E un Back che chiude un
+  `Facing` non tocca il piano.
 
 `BackSpace` segue lo stesso elenco (è già legato a `UndoAction`, `RTPlayerController.cpp:246-247`). `Esc`
 pure, con la sola eccezione della `ReactionWindow`: lì non chiude, perché non scegliere è già `HOLD`.
 
 ### 5.6 `PhaseFocus` non è un contesto
 
-La voce 7 dell'elenco nomina uno stato che **non** appartiene a §4, e la distinzione conta:
+La voce 9 dell'elenco nomina uno stato che **non** appartiene a §4, e la distinzione conta:
 
 `PhaseFocus ∈ {Auto, Prep, Dash, Blast, Move}` è l'asse dello **scrubbing** — quale fase del proprio piano si
 sta guardando. È ortogonale al contesto del puntatore: si può ispezionare la fase `Blast` mentre si posano

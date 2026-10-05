@@ -480,9 +480,6 @@ void ARTPlayerController::BuildInputMappings()
 	OrbitModifierAction = NewObject<UInputAction>(this, TEXT("IA_OrbitModifier"));
 	OrbitModifierAction->ValueType = EInputActionValueType::Boolean;
 
-	FacingAction = NewObject<UInputAction>(this, TEXT("IA_Facing"));
-	FacingAction->ValueType = EInputActionValueType::Boolean;
-
 	// #1771 — `Alt` arma i gesti camera. Boolean come `OrbitModifierAction`: e' uno stato tenuto, non un
 	// evento.
 	CameraModifierAction = NewObject<UInputAction>(this, TEXT("IA_CameraModifier"));
@@ -654,9 +651,8 @@ void ARTPlayerController::BuildInputMappings()
 	MappingContext->MapKey(LayerUpAction, EKeys::PageUp);
 	MappingContext->MapKey(LayerDownAction, EKeys::PageDown);
 
-	// Rotazione dichiarata: `T` come *turn*. Misurati i tasti gia' presi — A D E F Q R S V W, Home, Escape,
-	// BackSpace, Spazio, 1-4 e i pulsanti del mouse — `T` e' libero e sta accanto a chi guida la camera.
-	MappingContext->MapKey(FacingAction, EKeys::T);
+	// ⌫ *Qui stava `T`, la rotazione dichiarata a ciclo.* [D-367] la toglie dal gioco: il verso si sceglie col
+	// secondo click sull'esagono finale (`HandleFacingClick`, `#291`).
 
 	// Velocita' di riproduzione, un tasto che CICLA `x1 · x2 · x4` (CP 47.7, #1015).
 	//
@@ -851,7 +847,6 @@ void ARTPlayerController::SetupInputComponent()
 		EIC->BindAction(PlaybackPauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePlaybackPause);
 		EIC->BindAction(PlaybackStepAction, ETriggerEvent::Started, this, &ARTPlayerController::OnStepPlaybackMicroStep);
 		EIC->BindAction(FocusAction, ETriggerEvent::Started, this, &ARTPlayerController::OnFocusSelected);
-		EIC->BindAction(FacingAction, ETriggerEvent::Started, this, &ARTPlayerController::CycleDeclaredFacing);
 		EIC->BindAction(PauseAction, ETriggerEvent::Started, this, &ARTPlayerController::OnTogglePause);
 	}
 	else
@@ -1658,6 +1653,28 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		SelectedUnit = nullptr;
 	}
 
+	// 🔑 **Il secondo click sull'esagono finale sceglie il verso** ([D-367], [D-462], `#291`), e precede la matrice
+	// delle unita': sopra quell'esagono il pavimento vince sulla mesh, altrimenti un personaggio fermo — o uno che
+	// arriva su una cella occupata — non potrebbe scegliersi il verso.
+	//
+	// ⚠️ **Tranne il secondo click di un doppio click sull'unita' gia' selezionata** (`#1773`, dalla revisione): il
+	// primo click ha aperto il selettore, e questo — sulla stessa unita', entro l'intervallo — e' l'inquadratura, non
+	// una scelta di verso. Si chiude il selettore e si lascia proseguire fino al ramo del doppio click.
+	{
+		const double Adesso = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
+		const bool bDoppioSullaSelezionata = ClickedUnit && ClickedUnit == SelectedUnit
+			&& LastSelectActor == ClickedUnit && LastSelectTime >= 0.0
+			&& (Adesso - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
+		if (bDoppioSullaSelezionata && bDeclaringFacing && !SelectedUnit->bDeclaresPlannedFacing)
+		{
+			EndFacingDeclaration();
+		}
+		else if (SelectedUnit && TryHandleFacingClickUnderCursor(SelectedUnit))
+		{
+			return;
+		}
+	}
+
 	// §5 — la riga di matrice decide, e la decisione e' ESTRAIBILE dal raycast: vedi `DispatchUnitClick`.
 	if (HitActor && DispatchUnitClick(ClickedUnit, SelectedUnit))
 	{
@@ -1713,6 +1730,8 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		const bool bDoubleClick = LastSelectActor == HitActor
 			&& LastSelectTime >= 0.0
 			&& (Now - LastSelectTime) <= static_cast<double>(FMath::Max(DoubleClickInterval, 0.f));
+		// Letto PRIMA di `SelectUnit`, che lo rende vero per chiunque.
+		const bool bGiaSelezionata = HitActor == SelectedActor;
 
 		SelectUnit(HitActor);
 
@@ -1733,6 +1752,12 @@ void ARTPlayerController::OnSelect(const FInputActionValue& Value)
 		{
 			LastSelectTime = Now;
 			LastSelectActor = HitActor;
+			// [D-462] punto 4: da fermo, un click sulla propria unita' GIA' selezionata apre i sei triangoli.
+			// ⚠️ Non sul doppio click, che resta l'inquadratura di `#1773`.
+			if (bGiaSelezionata)
+			{
+				TryOpenFacingSelector();
+			}
 		}
 		return;
 	}
@@ -1776,6 +1801,9 @@ void ARTPlayerController::SelectUnit(AActor* Actor, bool bRecordAsPlayerInput)
 	{
 		return;
 	}
+	// `#291`, dalla revisione: il selettore del verso e' dell'unita' che lo ha aperto. Lasciato acceso, la nuova
+	// unita' saltava il primo click.
+	EndFacingDeclaration();
 	IRTSelectable* Selectable = Cast<IRTSelectable>(Actor);
 	if (!Selectable)
 	{
@@ -1984,6 +2012,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		if (bReady && Reason == ERTHexTargetReason::Ok)
 		{
 			SelectedUnit->PlannedAbilityIndex = AbilityIndex;
+			SelectedUnit->WaypointsAllaDichiarazione = SelectedUnit->PlannedWaypoints.Num(); // `#3501`
 			// ⛔ **Ritira la dichiarazione OPPOSTA**, e senza questa riga il piano andava altrove (`#2884`):
 			// `bAttackTargetsCell` non lo azzerava nessuno, e il Blast lo legge PRIMA del bersaglio-unita'.
 			// Misurato: chi puntava una cella e poi cambiava idea su un nemico gli faceva `0` danni.
@@ -2266,6 +2295,40 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		}
 	}
 
+	// 🔑 **Il verso chiude il movimento, e l'esagono finale non e' un waypoint** ([D-367], [D-462], `#291`).
+	{
+		const FRTCellId Finale = FacingCellFor(SelectedUnit);
+		const bool bDaFermo = Finale == SelectedUnit->Cell;
+		if (SelectedUnit->bDeclaresPlannedFacing)
+		{
+			UE_LOG(LogRT, Log, TEXT("[RT] %s: movimento chiuso dal verso dichiarato — Back per riaprirlo"),
+				*SelectedUnit->GetName());
+			return;
+		}
+		if (Cell == Finale)
+		{
+			if (bDaFermo)
+			{
+				// Da fermo la propria cella apre il selettore ([D-462] punto 4).
+				TryOpenFacingSelector();
+			}
+			else
+			{
+				// ⏱️ *Fino a `#291` questo click aggiungeva un waypoint duplicato a costo zero.* Ora e' il secondo
+				// click della destinazione: senza un lato puntato (il centro, o un chiamante senza cursore) non
+				// sceglie niente, e non duplica.
+				UE_LOG(LogRT, Log, TEXT("[RT] (%d,%d,L%d) e' gia' la destinazione: clicca verso un lato per sceglierne il verso"),
+					Cell.X, Cell.Y, Cell.Layer);
+			}
+			return;
+		}
+		if (bDaFermo && Context == ERTPointerContext::Facing)
+		{
+			// Un click su un'altra cella chiude il selettore e continua come movimento ([D-367]).
+			EndFacingDeclaration();
+		}
+	}
+
 	// Stato autorevole per la validazione: lo fornisce il TurnManager, il client non se lo ricostruisce.
 	FRTHexSnapshot Snapshot;
 	int32 UnitId = INDEX_NONE;
@@ -2430,9 +2493,12 @@ void ARTPlayerController::HandleClickOnCell(const FRTCellId& Cell)
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
 	}
 
+	// 🔑 **Il denominatore e' il budget dello SNAPSHOT**, come nel rifiuto di `DescribeWaypointRejection`: e' quello
+	// che il profilo dichiarato o riservato ha gia' applicato. ⏱️ *Fino a `#3501` era `GetEffectiveMoveRange()`, la
+	// portata nuda*, e sotto `Withdraw` la stessa unita' risultava «di 1» nel rifiuto e «1/5» qui.
+	const int32 BudgetDelPiano = Snapshot.Units.IsValidIndex(UnitId) ? Snapshot.Units[UnitId].MoveBudget : 0;
 	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s -> %d waypoint (costo %d/%d)"),
-		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost,
-		SelectedUnit->GetEffectiveMoveRange());
+		*SelectedUnit->GetName(), SelectedUnit->PlannedWaypoints.Num(), Composite.TotalCost, BudgetDelPiano);
 }
 
 void ARTPlayerController::OnLockIn(const FInputActionValue& Value)
@@ -2509,6 +2575,8 @@ void ARTPlayerController::HandleLockInCommitted()
 	// falso**: `ARTHUD` disegna quella scia su un canale diverso e IN AGGIUNTA, non al posto. La rotta la
 	// spegne il ramo `!Unit` di `RefreshPlanningPreview`, che fino al 2026-09-06 non lo faceva.
 	RefreshPlanningPreview(GetWorld(), nullptr);
+	// Il selettore del verso non sopravvive al commit (`#291`): il turno dopo si apre da capo.
+	EndFacingDeclaration();
 }
 
 void ARTPlayerController::HandlePlaybackFinished()
@@ -2737,6 +2805,49 @@ ARTUnit* ARTPlayerController::GetSelectedUnit() const
 	return Cast<ARTUnit>(SelectedActor);
 }
 
+FString ARTPlayerController::DisarmPlannedAction()
+{
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return FString();
+	}
+
+	// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
+	// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
+	const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
+		URTPlanValidationLibrary::MakePlanFor(Unit));
+	Unit->SelectAbility(INDEX_NONE);
+	Unit->PlannedAbilityIndex = INDEX_NONE;
+	Unit->ClearPlannedAttack();
+	// Anche il LATO dichiarato (`#3501`, dalla revisione): `ClearPlannedAttack` non lo tocca, e il resolver e
+	// l'harness lo spengono insieme a `PlannedAbilityIndex`. Senza, dopo un'azione su bordo disarmata il lato
+	// resterebbe scritto nel piano.
+	Unit->bHasPlannedCoverEdge = false;
+	Unit->WaypointsAllaDichiarazione = INDEX_NONE;
+
+	const bool bRestituiti = !TettoDaRilasciare.IsNone()
+		&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
+	if (bRestituiti)
+	{
+		// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
+		// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
+		RebuildPlannedPath();
+	}
+	FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
+	if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
+	{
+		HMD->SetPreviewPath(Unit->PlannedPath);
+	}
+	RefreshPlanningPreview(GetWorld(), Unit);
+	// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG` del chiamante: la
+	// leggera' chi cerca perche' il suo percorso e' tornato.
+	return bRestituiti
+		? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
+			Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
+		: FString();
+}
+
 void ARTPlayerController::ArmKitAbility(int32 KitIndex)
 {
 	// 🔑 **Il TOGGLE e' tutto cio' che questa porta aggiunge**, e va deciso QUI e non dentro
@@ -2804,6 +2915,11 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 `#291`, dalla revisione: armare (o disarmare) chiude il selettore del verso. `Facing` precede `Targeting` in
+	// `GetPointerContext`, quindi un selettore rimasto aperto mascherava il bersaglio: il click di mira diventava un
+	// waypoint, e un click su un nemico un'ispezione.
+	EndFacingDeclaration();
+
 	// ⚠️ **Il pacing resta QUI**, e la posizione e' una scelta di insieme e non un residuo del riordino:
 	// registra le pressioni che hanno superato le tre guardie e raggiunto un'unita' — le stesse di prima.
 	// Spostarlo sotto le validazioni cambierebbe QUALI input contano come decisione di turno (#971), che e'
@@ -2826,37 +2942,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// ad aggiungere l'azione al piano e `ReservedProfileForPlan` a rispondere `Withdraw`: chi armava
 		// l'`Overwatch` e ci ripensava camminava a un quarto del raggio per tutto il turno, con lo slot spento.
 		//
-		// 🔑 **La riserva si legge dal piano PRIMA di azzerarlo**, perche' dopo non c'e' piu' niente da cui
-		// leggerla — ed e' la stessa chiave con cui il troncamento l'ha registrata.
-		const FName TettoDaRilasciare = URTMovementProfileLibrary::ReservedProfileForPlan(
-			URTPlanValidationLibrary::MakePlanFor(Unit));
-		Unit->SelectAbility(INDEX_NONE);
-		Unit->PlannedAbilityIndex = INDEX_NONE;
-		Unit->ClearPlannedAttack();
-
-		const bool bRestituiti = !TettoDaRilasciare.IsNone()
-			&& Unit->RipristinaWaypointsDelTetto(TettoDaRilasciare);
-		if (bRestituiti)
-		{
-			// ⚠️ `RebuildPlannedPath` e non un'assegnazione: `PlannedPath` e `PlannedCell` sono DERIVATI dai
-			// waypoint, e rimettere i secondi senza ricalcolare i primi lascerebbe due verita' sul percorso.
-			RebuildPlannedPath();
-		}
-		// ⚠️ Le due chiamate in chiaro e non la lambda `AggiornaAnteprima` di `#3418`: quella e' dichiarata
-		// piu' sotto, dopo l'uscita delle reazioni, e questo ramo esce prima di arrivarci.
-		FVector OD; float HSD; float LHD; const URTHexMapAsset* MD = nullptr;
-		if (ARTHexMapActor* HMD = HexMapWithContext(GetWorld(), OD, HSD, LHD, MD))
-		{
-			HMD->SetPreviewPath(Unit->PlannedPath);
-		}
-		RefreshPlanningPreview(GetWorld(), Unit);
-		// La coda del messaggio in una variabile e non in un ternario dentro il `UE_LOG`: un
-		// `*FString::Printf(...)` in quella posizione e' corretto per vita del temporaneo ma si legge male,
-		// e questa riga la leggera' chi cerca perche' il suo percorso e' tornato.
-		const FString Coda = bRestituiti
-			? FString::Printf(TEXT(" — restituiti %d waypoint che il tetto %s aveva tolto"),
-				Unit->PlannedWaypoints.Num(), *TettoDaRilasciare.ToString())
-			: FString();
+		// ⏱️ *Il corpo stava qui fino a `#3501`*: ora e' `DisarmPlannedAction`, perche' anche il Back disarma.
+		const FString Coda = DisarmPlannedAction();
 		UE_LOG(LogRT, Display, TEXT("[RT] %s: '%s' torna senza azione armata%s"),
 			*Richiesta, *Unit->GetName(), *Coda);
 		return;
@@ -3019,6 +3106,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 			// 🔑 La memoria si chiave sul profilo RISERVATO, non sull'azione: al disarmo si legge la stessa
 			// cosa dal piano, e un innesco non puo' restituire cio' che l'altro aveva tolto ([D-444]).
 			Unit->RicordaTroncamentoDelTetto(Ability->Def.ReservesMovementProfileId, PrimaDelTaglio);
+			CancelDeclaredFacing(Unit, TEXT("la riserva ha troncato il percorso"));
 		}
 
 		// L'anteprima NON si ridisegna qui: il piano cambia piu' sotto, e il tetto si legge da quello.
@@ -3035,6 +3123,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		// l'ha gia' verificata la guardia comune qui sopra, ed e' il punto: prima il controllo stava qui, e
 		// il suo ramo negativo usciva lasciando l'azione selezionata sul modello.
 		Unit->PlannedAbilityIndex = Index;
+		Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`: dopo il troncamento della riserva
 		// Un supporto su se stessi non ha bersaglio: si spengono ENTRAMBE le forme (`#2884`).
 		Unit->ClearPlannedAttack();
 		// 🔴 **Qui, e non dodici righe sopra**: il piano ora contiene l'azione, quindi il tetto che
@@ -3374,6 +3463,11 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	Unit->RicordaTroncamentoDelTetto(URTMovementProfileLibrary::ProfileSneak, PrimaDelTaglio);
 	Unit->PlannedPath = Kept.Path;
 	Unit->PlannedCell = Kept.Path.Num() > 0 ? Kept.Path.Last() : Unit->Cell;
+	// Dopo l'assegnazione: l'anteprima della mesh si ricalcola sul percorso gia' troncato (`#291`).
+	if (Dropped > 0)
+	{
+		CancelDeclaredFacing(Unit, TEXT("lo Sneak ha troncato il percorso"));
+	}
 
 	UE_LOG(LogRT, Log,
 		TEXT("[RT] Sneak %s — tetto %s: %d waypoint scartati (%s: %d passi/%d, costo %d/%d), ne restano %d."),
@@ -3428,6 +3522,9 @@ void ARTPlayerController::RebuildPlannedPath()
 		Unit->PlannedPath.Reset();
 		Unit->PlannedCell = Unit->Cell;
 	}
+
+	// [D-367]: qualunque modifica al percorso cancella il verso dichiarato, e il movimento si riapre.
+	CancelDeclaredFacing(Unit, TEXT("il percorso e' cambiato"));
 
 	// #79: il piano e' stato RICOSTRUITO dai waypoint rimasti, quindi il rifiuto registrato apparteneva a un
 	// tentativo che non ne fa piu' parte. Vale per entrambi i rami qui sopra ed e' il motivo per cui sta qui
@@ -3715,8 +3812,11 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	ARTUnit* Unit = GetSelectedUnit();
 	const int32 Waypoints = Unit ? Unit->PlannedWaypoints.Num() : 0;
 
-	const ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
-		GetPointerContext(), bInspectorPinned, Waypoints, bPhaseFocusPinned);
+	// Non `const`: un Back su un'azione nel piano con waypoint posati DOPO diventa un `Waypoint` (`#3501`).
+	ERTPointerBackStep Step = URTPointerLibrary::ResolveBack(
+		GetPointerContext(), bInspectorPinned, Waypoints, bPhaseFocusPinned,
+		/*bHasDeclaredFacing=*/ Unit && Unit->bDeclaresPlannedFacing);
+	bool bDisarmato = false;
 
 	switch (Step)
 	{
@@ -3725,14 +3825,56 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 		break;
 
 	case ERTPointerBackStep::Declaration:
+	{
 		// Esce da `Targeting` o da `Facing` e torna al neutro. **Non deseleziona**: uscire da un targeting
 		// non deve costare la selezione, che e' l'errore che costringe a ricliccare la propria unita' dopo
 		// ogni ripensamento.
+		//
+		// ⚠️ Il Facing si legge PRIMA di spegnerlo (`#3501`, dalla revisione): un Back che chiude una rotazione non
+		// tocca il piano, anche se l'azione armata ci sta dentro.
+		const bool bEraFacing = bDeclaringFacing;
 		bDeclaringFacing = false;
-		if (Unit)
+		// ⚠️ Chiudere il selettore del verso non tocca l'azione armata (`#291`): fino a qui deselezionava anche quella.
+		if (Unit && !bEraFacing)
 		{
-			Unit->SelectAbility(INDEX_NONE);
+			// 🔴 **Un'azione armata e GIA' nel piano si disarma** (`#3501`, decisione d'autore): il Back disfa
+			// l'ultimo gesto, e per un supporto su se stessi — o per un attacco col bersaglio gia' dichiarato —
+			// l'ultimo gesto ha scritto il piano. ⏱️ *Fino a `#3501` qui c'era il solo `SelectAbility(INDEX_NONE)`*:
+			// lo slot si spegneva, l'azione restava nel piano e con lei il tetto che imponeva ([D-444]).
+			//
+			// ⛔ Un'azione armata ma NON nel piano — un targeting senza bersaglio — esce e basta: un'altra azione
+			// gia' pianificata, che il Back non ha toccato, resta (`BackOnATargetingKeepsThePlannedAction`).
+			const bool bAzioneNelPiano = !bEraFacing && Unit->SelectedAbilityIndex != INDEX_NONE
+				&& Unit->SelectedAbilityIndex == Unit->PlannedAbilityIndex;
+			// 🔑 **Prima i waypoint posati DOPO l'azione** (decisione d'autore, [D-461] punto 3): un supporto su se
+			// stessi resta armato, e il giocatore puo' posare waypoint dopo averlo pianificato. Il Back disfa
+			// l'ultimo gesto, quindi toglie quelli; l'azione si disarma al Back in cui non ne restano. E il piano
+			// torna esattamente a quello che la riserva aveva troncato, quindi [D-444] restituisce ancora.
+			if (bAzioneNelPiano && Unit->WaypointsAllaDichiarazione != INDEX_NONE
+				&& Unit->PlannedWaypoints.Num() > Unit->WaypointsAllaDichiarazione)
+			{
+				Unit->PlannedWaypoints.Pop();
+				RebuildPlannedPath();
+				Step = ERTPointerBackStep::Waypoint;
+			}
+			else if (bAzioneNelPiano)
+			{
+				const FString Coda = DisarmPlannedAction();
+				bDisarmato = true;
+				UE_LOG(LogRT, Display, TEXT("[RT] Back: '%s' disarma l'azione pianificata%s"),
+					*Unit->GetName(), *Coda);
+			}
+			else
+			{
+				Unit->SelectAbility(INDEX_NONE);
+			}
 		}
+		break;
+	}
+
+	case ERTPointerBackStep::DeclaredFacing:
+		// [D-367], [D-462]: il verso si toglie per primo, e il movimento si riapre.
+		CancelDeclaredFacing(Unit, TEXT("Back"));
 		break;
 
 	case ERTPointerBackStep::Waypoint:
@@ -3785,9 +3927,11 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 	{
 		if (ARTTurnManager* TM = PacingTurnManager(this))
 		{
+			// ⚠️ Un Back che DISARMA conta come `Order`, come il secondo click sullo slot che fa la stessa cosa
+			// (`SelectAbilityForCurrent` lo registra prima di disarmare): cambia il piano, non e' un click neutro.
 			TM->RecordPlanningInput(Step == ERTPointerBackStep::Waypoint
 				? ERTPlanningInput::Undo
-				: ERTPlanningInput::Click);
+				: (bDisarmato ? ERTPlanningInput::Order : ERTPlanningInput::Click));
 		}
 	}
 
@@ -3952,6 +4096,7 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	}
 
 	Unit->PlannedAbilityIndex = Armed;
+	Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`
 	// Il bersaglio e' la CELLA, e la coppia si scrive in un colpo solo: e' `ARTUnit` a sapere che le due
 	// forme sono esclusive, non i suoi chiamanti (`#2884`).
 	Unit->DeclareAttackOnCell(Cell);
@@ -4017,6 +4162,7 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 	// Cella E direzione: il resolver di CP 9.5 rifiuta con `CoverRejected` se il piano non dichiara il lato,
 	// e a portata 3 il bordo non si deduce piu' dalla coppia di celle.
 	Unit->PlannedAbilityIndex = Armed;
+	Unit->WaypointsAllaDichiarazione = Unit->PlannedWaypoints.Num(); // `#3501`
 	Unit->DeclareAttackOnCell(Cell);
 	Unit->PlannedCoverEdge = Edge;
 	Unit->bHasPlannedCoverEdge = true;
@@ -4096,62 +4242,10 @@ void ARTPlayerController::PreviewPlannedFacing(ARTUnit* Unit) const
 	Unit->SetActorRotation(FRotator(0.f, URTPlaybackLibrary::DirectionYaw(Here, There), 0.f));
 }
 
-void ARTPlayerController::CycleDeclaredFacing()
-{
-	if (IsGameplayInputBlocked())
-	{
-		return;
-	}
-
-	ARTUnit* Unit = GetSelectedUnit();
-	if (!Unit)
-	{
-		UE_LOG(LogRT, Log, TEXT("[RT] Rotazione: nessuna unita' selezionata"));
-		return;
-	}
-
-	// Lo stile e' quello del movimento PIANIFICATO, come in `HandleFacingSector`: chi non si e' mosso ruota
-	// libero, chi ha un percorso a budget ha le tre dell'ultimo passo. E' una previsione, non il verdetto —
-	// il resolver rivalida a fine Move su quel che e' successo davvero.
-	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
-	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
-
-	const TArray<ERTHexDirection> Legal =
-		URTFacingLibrary::LegalFacings(Style, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
-	if (Legal.Num() == 0)
-	{
-		return; // nessuna rotazione possibile: non c'e' niente da ciclare
-	}
-
-	// Il punto di partenza e' cio' che vale ORA: la dichiarazione di questo turno se c'e', altrimenti
-	// l'orientamento attuale. Senza, premere il tasto due volte ripartirebbe sempre dalla stessa direzione.
-	const ERTHexDirection Corrente = Unit->bDeclaresPlannedFacing ? Unit->PlannedFacing : Unit->Facing;
-
-	// `LegalFacings` ha ordine STABILE (per valore dell'enum), quindi il ciclo e' ripetibile: la stessa
-	// sequenza di pressioni da' la stessa sequenza di direzioni.
-	const int32 Indice = Legal.IndexOfByKey(Corrente);
-	const ERTHexDirection Prossima = Legal[(Indice == INDEX_NONE) ? 0 : (Indice + 1) % Legal.Num()];
-
-	// Si passa dal comando esistente invece di scrivere `PlannedFacing` a mano: e' li' che vivono la
-	// validazione, il rifiuto e la registrazione dell'input di planning.
-	BeginFacingDeclaration();
-	if (!HandleFacingSector(Prossima))
-	{
-		// Non dovrebbe accadere: `Prossima` viene da `LegalFacings`. Se accade, le due funzioni non
-		// concordano sullo stile, ed e' un difetto da vedere subito invece che un tasto che non fa nulla.
-		UE_LOG(LogRT, Warning,
-			TEXT("[RT] Rotazione: %d era nell'insieme legale ma e' stata rifiutata"), (int32)Prossima);
-		EndFacingDeclaration();
-		return;
-	}
-
-	UE_LOG(LogRT, Log, TEXT("[RT] %s dichiara la rotazione a %d (%d legali)"),
-		*Unit->GetName(), (int32)Prossima, Legal.Num());
-}
 
 bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 {
-	// #971 — quinto dei cinque siti `Order`. `CycleDeclaredFacing` ci arriva da un tasto e sarebbe gia'
+	// #971 — quinto dei cinque siti `Order`. `HandleFacingClick` ci arriva dal secondo click e sarebbe gia'
 	// coperta a monte; questa funzione e' pubblica e raggiungibile da sola, quindi la guardia sta qui.
 	if (IsPlanningInputInert())
 	{
@@ -4169,18 +4263,21 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 		return false;
 	}
 
-	// Lo stile su cui si misura la legalita' e' quello del movimento PIANIFICATO: chi non si e' mosso ruota
-	// libero (`None`, sei direzioni), chi ha un percorso a budget ha le tre dell'ultimo passo.
+	// Lo stile e la rotta su cui si misura la legalita' sono quelli del movimento PIANIFICATO, letti come li
+	// applica il resolver: uno scatto col proprio stile di catalogo, un percorso a budget, o fermo (sei direzioni).
+	// ⏱️ *Fino a `#291` qui c'era `PlannedPath.Num() > 1 ? Budget : None`*: uno scatto pianificato veniva giudicato
+	// sul budget Move, e il controller accettava versi che il resolver poi rifiutava ([D-367]).
 	//
 	// ⚠️ Questa e' una PREVISIONE, non il verdetto. Il resolver rivalida a fine Move su `MovementStyleThisTurn`
 	// e `WalkedThisTurn`, cioe' su quel che e' successo davvero: un percorso puo' essere interrotto, e la
 	// dichiarazione allora cade con `DeclarationRejected`. La UI propone, il servizio decide — §3 dell'owner.
-	const bool bHasPlannedMove = Unit->PlannedPath.Num() > 1;
-	const ERTMovementStyle Style = bHasPlannedMove ? ERTMovementStyle::Budget : ERTMovementStyle::None;
+	ERTMovementStyle Style = ERTMovementStyle::None;
+	TArray<FRTCellId> Rotta;
+	PlannedMovementForFacing(Unit, Style, Rotta);
 
 	ERTHexDirection Applied = Unit->Facing;
 	const bool bLegal = URTFacingLibrary::TryApplyDeclaredFacing(
-		Style, Unit->PlannedPath, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
+		Style, Rotta, Unit->Facing, Sector, Unit->PivotBudget(), Applied);
 
 	if (!bLegal)
 	{
@@ -4204,6 +4301,230 @@ bool ARTPlayerController::HandleFacingSector(ERTHexDirection Sector)
 	{
 		TM->RecordPlanningInput(ERTPlanningInput::Order);
 	}
-	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s dichiara rotazione %d"), *Unit->GetName(), (int32)Sector);
+	UE_LOG(LogRT, Log, TEXT("[RT] Piano: %s dichiara rotazione %d — il movimento e' chiuso (Back per riaprirlo)"),
+		*Unit->GetName(), (int32)Sector);
+	return true;
+}
+
+FRTCellId ARTPlayerController::FacingCellFor(const ARTUnit* Unit) const
+{
+	if (!Unit)
+	{
+		return FRTCellId();
+	}
+	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashApplies`, il
+	// predicato che usa il resolver, e non il solo indice: uno scatto sulla propria cella non e' uno scatto.
+	if (Unit->PlannedDashApplies())
+	{
+		return Unit->PlannedDashCell;
+	}
+	if (Unit->PlannedPath.Num() > 1)
+	{
+		return Unit->PlannedPath.Last();
+	}
+	return Unit->Cell;
+}
+
+void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle,
+	TArray<FRTCellId>& OutPath) const
+{
+	OutStyle = ERTMovementStyle::None;
+	OutPath.Reset();
+	if (!Unit)
+	{
+		return;
+	}
+
+	if (Unit->PlannedDashApplies())
+	{
+		const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility);
+		if (Scatto)
+		{
+			// 🔑 Lo stile del CATALOGO, come lo legge il resolver (`DashUsed->Def.MovementStyle`).
+			OutStyle = Scatto->Def.MovementStyle;
+			OutPath.Add(Unit->Cell);
+			// La rotta serve per l'ultimo passo. In linea la si cammina lungo una delle sei direzioni; a budget
+			// si prende il percorso piu' breve. Entrambe sono previsioni: il resolver rivalida sulla rotta vera.
+			if (URTMovementActionLibrary::IsLinear(Scatto->Def.MovementStyle))
+			{
+				for (int32 D = 0; D < 6 && OutPath.Num() == 1; ++D)
+				{
+					FRTCellId Passo = Unit->Cell;
+					TArray<FRTCellId> Linea;
+					for (int32 K = 0; K < 32; ++K)
+					{
+						Passo = URTHexLibrary::Neighbor(Passo, static_cast<ERTHexDirection>(D));
+						Linea.Add(Passo);
+						if (Passo == Unit->PlannedDashCell)
+						{
+							OutPath.Append(Linea);
+							break;
+						}
+					}
+				}
+			}
+			else
+			{
+				FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+				if (HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) && Map)
+				{
+					const FRTHexPathResult Breve = URTHexPathLibrary::FindPathAvoiding(
+						Map, Unit->Cell, Unit->PlannedDashCell, nullptr, 0);
+					if (Breve.Status == ERTHexPathStatus::Success && Breve.Path.Num() >= 2)
+					{
+						OutPath = Breve.Path;
+					}
+				}
+			}
+			return;
+		}
+	}
+
+	if (Unit->PlannedPath.Num() > 1)
+	{
+		OutStyle = ERTMovementStyle::Budget;
+		OutPath = Unit->PlannedPath;
+	}
+}
+
+void ARTPlayerController::CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche)
+{
+	if (!Unit || !Unit->bDeclaresPlannedFacing)
+	{
+		return;
+	}
+	Unit->bDeclaresPlannedFacing = false;
+	PreviewPlannedFacing(Unit);
+	UE_LOG(LogRT, Log, TEXT("[RT] %s: verso dichiarato annullato (%s) — il movimento e' di nuovo aperto"),
+		*Unit->GetName(), Perche);
+}
+
+bool ARTPlayerController::TryOpenFacingSelector()
+{
+	if (IsWorldReadOnly() || IsPlanningInputInert())
+	{
+		return false;
+	}
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	// In marcia l'esagono finale e' sempre il selettore: non c'e' niente da aprire.
+	if (!(FacingCellFor(Unit) == Unit->Cell))
+	{
+		return false;
+	}
+	// Un bersaglio da scegliere ha la precedenza: il click e' suo.
+	if (GetPointerContext() == ERTPointerContext::Targeting && GetPointerTargetKind() != ERTPointerTargetKind::None)
+	{
+		return false;
+	}
+	BeginFacingDeclaration();
+	UE_LOG(LogRT, Log, TEXT("[RT] %s: scegli il verso — click su un lato della sua cella (Back per chiudere)"),
+		*Unit->GetName());
+	return true;
+}
+
+bool ARTPlayerController::HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector)
+{
+	if (IsWorldReadOnly() || IsPlanningInputInert())
+	{
+		return false;
+	}
+	ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return false;
+	}
+	const FRTCellId Finale = FacingCellFor(Unit);
+	if (!(Cell == Finale))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Verso: (%d,%d,L%d) non e' la cella finale del movimento"),
+			Cell.X, Cell.Y, Cell.Layer);
+		return false;
+	}
+	const bool bDaFermo = Finale == Unit->Cell;
+	if (bDaFermo && !bDeclaringFacing)
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Verso: da fermo si sceglie dopo un click sulla propria cella"));
+		return false;
+	}
+
+	BeginFacingDeclaration();
+	if (HandleFacingSector(Sector))
+	{
+		return true;
+	}
+	// Illegale: nessuna correzione. Da fermo il selettore resta aperto per un altro lato; in marcia non c'e' un
+	// selettore da tenere, e lasciarlo aperto mangerebbe il click successivo.
+	if (!bDaFermo)
+	{
+		EndFacingDeclaration();
+	}
+	return false;
+}
+
+bool ARTPlayerController::TryHandleFacingClickUnderCursor(ARTUnit* Unit)
+{
+	if (!Unit || IsWorldReadOnly() || IsPlanningInputInert())
+	{
+		return false;
+	}
+	const ERTPointerContext Context = GetPointerContext();
+	if (Context == ERTPointerContext::Targeting && GetPointerTargetKind() != ERTPointerTargetKind::None)
+	{
+		return false; // un bersaglio da scegliere ha la precedenza
+	}
+	const FRTCellId Finale = FacingCellFor(Unit);
+	const bool bDaFermo = Finale == Unit->Cell;
+	if (bDaFermo && Context != ERTPointerContext::Facing)
+	{
+		return false; // da fermo il primo click apre il selettore, e lo fa il ramo della selezione
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	if (!HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map) || !Map)
+	{
+		return false;
+	}
+	FVector RayOrigin, RayDir;
+	if (!DeprojectMousePositionToWorld(RayOrigin, RayDir) || FMath::IsNearlyZero(RayDir.Z))
+	{
+		return false;
+	}
+
+	// 🔑 **Il PAVIMENTO della cella finale, non la mesh colpita** ([D-367]): un personaggio fermo copre la propria
+	// cella col corpo, e senza questa proiezione non potrebbe scegliersi il verso.
+	const FVector Centro = URTHexLibrary::AxialToWorld(Finale, Origin, HexSize, LayerH);
+	const double T = (Centro.Z - RayOrigin.Z) / RayDir.Z;
+	if (T <= 0.0)
+	{
+		return false;
+	}
+	const FVector Punto = RayOrigin + RayDir * T;
+	const FRTCellId Sotto = URTHexLibrary::WorldToCellId(FVector(Punto.X, Punto.Y, Centro.Z), Origin, HexSize, LayerH);
+	if (!(Sotto == Finale))
+	{
+		return false;
+	}
+
+	TArray<FVector2D> Direzioni;
+	Direzioni.Reserve(6);
+	for (int32 D = 0; D < 6; ++D)
+	{
+		const FVector Vicino = URTHexLibrary::AxialToWorld(
+			URTHexLibrary::Neighbor(Finale, static_cast<ERTHexDirection>(D)), Origin, HexSize, LayerH);
+		Direzioni.Add(FVector2D(Vicino - Centro));
+	}
+
+	ERTHexDirection Settore = ERTHexDirection::E;
+	if (!URTPointerLibrary::FacingSectorFromOffset(FVector2D(Punto - Centro), Direzioni,
+		FacingDeadZoneFraction * HexSize, Settore))
+	{
+		UE_LOG(LogRT, Log, TEXT("[RT] Verso: click al centro dell'esagono — clicca verso un lato per sceglierlo"));
+		return true; // consumato: il centro non sceglie e non diventa un waypoint
+	}
+	HandleFacingClick(Finale, Settore);
 	return true;
 }

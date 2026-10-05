@@ -256,15 +256,6 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LayerDownAction;
 
-	/**
-	 * 🔴 **Il tasto che mancava a `#291`.** Le regole della rotazione dichiarata erano complete e testate
-	 * dal 2026-08-09 — `TryApplyDeclaredFacing`, `LegalFacings`, il consumo nel TurnManager, il rifiuto
-	 * invece della correzione silenziosa — ma **nessuno le raggiungeva**: `BeginFacingDeclaration` e
-	 * `HandleFacingSector` avevano come unici chiamanti dei test, e non erano `UFUNCTION`. Il giocatore non
-	 * aveva modo di chiedere una rotazione, e a fine percorso l'unita' si girava dove diceva l'ultimo passo.
-	 */
-	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> FacingAction;
 
 	/** Cicla la velocita' di riproduzione `x1 · x2 · x4` (CP 47.7, #1015). */
 	UPROPERTY(Transient)
@@ -874,6 +865,21 @@ private:
 	 */
 	void SelectAbilityForCurrent(int32 Index, ERTAbilityRequestSource Source);
 
+	/**
+	 * Il DISARMO dell'azione dell'unita' SELEZIONATA: la toglie dalla selezione **e dal piano**, rilascia il tetto di
+	 * movimento che il piano
+	 * imponeva e restituisce i waypoint che quel tetto aveva troncato ([D-444]). Restituisce la coda del messaggio
+	 * di log: vuota, o la frase dei waypoint restituiti.
+	 *
+	 * ⚠️ **Nessun parametro, di proposito**: `RebuildPlannedPath` lavora sull'unita' selezionata, e un'unita' passata
+	 * per argomento potrebbe essere un'altra — rilascerebbe il tetto di una e ricostruirebbe il percorso dell'altra.
+	 *
+	 * 🔑 **Una funzione sola per le due porte che disarmano**: il secondo click sullo slot (`#3417`) e il Back
+	 * su un'azione gia' nel piano (`#3501`). Fino a `#3501` il Back chiamava il solo `SelectAbility(INDEX_NONE)`,
+	 * cioe' la riga che [D-444] nomina come difetto, e il tetto `Withdraw` restava dopo «Annulla».
+	 */
+	FString DisarmPlannedAction();
+
 	/** Come si nomina l'origine nella traccia. Frase gia' preposizionata: «dal tasto», «dallo slot del dock». */
 	static const TCHAR* DescribeAbilityRequestSource(ERTAbilityRequestSource Source);
 
@@ -1273,14 +1279,26 @@ public:
 	void BeginFacingDeclaration();
 
 	/**
-	 * Cicla il facing dichiarato fra le direzioni **legali** per il movimento pianificato, e lo applica.
+	 * Il SECONDO CLICK sull'esagono finale sceglie il verso ([D-367], [D-462], `#291`): `Cell` deve essere la cella
+	 * finale del movimento pianificato, e `Sector` il lato puntato. Dichiara il verso e **chiude il movimento**:
+	 * da quel momento un click su un'altra cella non aggiunge waypoint, finche' un Back non lo riapre.
 	 *
-	 * ⚠️ **Cicla fra le legali invece di offrirle tutte e sei**: l'insieme dipende dallo stile — tre dopo
-	 * un Move a budget, una sola dopo uno scatto lineare, sei da fermo — e senza l'indicatore a schermo
-	 * (`#613`) un giocatore che potesse chiedere una direzione qualunque riceverebbe un rifiuto muto. Qui
-	 * una direzione illegale non e' proprio raggiungibile, che e' la stessa garanzia ottenuta senza HUD.
+	 * ⚠️ **Da fermo serve il selettore aperto** (`TryOpenFacingSelector`): la propria cella non e' una destinazione,
+	 * e un click su di essa senza il primo gesto sarebbe una selezione, non una scelta di verso.
+	 * ⛔ Un settore illegale per il budget di pivot e' rifiutato, mai corretto ([D-367]).
+	 * @return true se il verso e' stato dichiarato.
 	 */
-	void CycleDeclaredFacing();
+	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector);
+
+	/**
+	 * Da fermo, apre i sei triangoli sulla propria cella ([D-462] punto 4). Lo chiama il click sull'unita' gia'
+	 * selezionata e il click sulla sua cella; in marcia non serve, perche' l'esagono finale e' sempre il selettore.
+	 * @return true se il selettore e' stato aperto.
+	 */
+	bool TryOpenFacingSelector();
+
+	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
+	FRTCellId FacingCellFor(const ARTUnit* Unit) const;
 
 	/**
 	 * Ruota la MESH verso il facing che l'unita' avra' a fine mossa: la rotazione dichiarata se c'e',
@@ -1299,6 +1317,18 @@ public:
 
 	/** Esce da `Facing` senza dichiarare nulla. */
 	void EndFacingDeclaration();
+
+	/** Stile e rotta del movimento pianificato su cui si giudica il verso: come li applichera' il resolver (`#291`). */
+	void PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle, TArray<FRTCellId>& OutPath) const;
+
+	/** Cancella il verso dichiarato e riapre il movimento, dicendo perche'. Niente se non c'era un verso. */
+	void CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche);
+
+	/** Il click del giocatore sull'esagono finale, dal cursore: settore, dead-zone, priorita' sulla mesh. */
+	bool TryHandleFacingClickUnderCursor(ARTUnit* Unit);
+
+	/** La dead-zone centrale dell'esagono del verso, in frazione di `HexSize` ([D-367]). */
+	static constexpr float FacingDeadZoneFraction = 0.3f;
 
 	/** Vero mentre si sta dichiarando una rotazione. */
 	bool IsDeclaringFacing() const { return bDeclaringFacing; }

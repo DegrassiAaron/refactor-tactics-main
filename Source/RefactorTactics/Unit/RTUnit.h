@@ -514,6 +514,19 @@ public:
 	void ScordaTroncamentoDelTetto();
 
 	/**
+	 * Quanti waypoint il piano aveva quando l'azione armata ci e' ENTRATA (`#3501`, [D-461]). `INDEX_NONE` = nessun
+	 * segno.
+	 *
+	 * 🔑 **Serve al Back per disfare l'ultimo gesto.** Un supporto su se stessi resta armato dopo essere entrato nel
+	 * piano, quindi si possono posare waypoint DOPO; il Back toglie prima quelli, e disarma l'azione solo quando non
+	 * ne restano. Lo scrive il controller negli stessi punti in cui scrive `PlannedAbilityIndex`.
+	 *
+	 * ⛔ Memoria di editing, come quella del troncamento qui sopra: non replicata, non letta dal resolver, fuori da
+	 * snapshot e TurnLog.
+	 */
+	int32 WaypointsAllaDichiarazione = INDEX_NONE;
+
+	/**
 	 * L'ULTIMO waypoint dichiarato e' stato rifiutato in pianificazione perche' la cella richiesta era
 	 * OCCUPATA da un'altra unita' (#79).
 	 *
@@ -1090,9 +1103,12 @@ public:
 	float VisualZOffset = UnitHalfHeight;
 
 	/**
-	 * Se vero, durante il movimento visivo l'unita' si orienta verso la direzione di spostamento (solo yaw).
-	 * Default false = comportamento invariato (il cilindro non ruota). I BP_Unit dei personaggi lo attivano
-	 * cosi' la corsa (es. Jog_Fwd) punta dove vanno. Solo presentazione: non tocca la logica.
+	 * Se vero, ogni `SetVisualLocation` orienta l'unita' verso la direzione di spostamento (solo yaw).
+	 *
+	 * ⌫ *Diceva «i BP_Unit dei personaggi lo attivano», ed era falso: nessuno dei quattro `BP_Unit` lo scrive
+	 * (`#2167`).* Dal `#2167` la posa durante il playback non dipende da questo flag: la decide il TurnManager a ogni
+	 * passo con `URTPlaybackLibrary::StepYawAtAlpha`, uguale alla regola `FacingAtMicroStep` a ogni confine. Resta per
+	 * chi muove un'unita' fuori dal playback.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Unit")
 	bool bFaceMovementDirection = false;
