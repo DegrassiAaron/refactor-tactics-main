@@ -494,8 +494,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		Cooldowns.Add(View);
 	}
 
-	// --- [D-459] lettura B: il piano dell'unita' COMANDATA, letto due volte ---------------------------------
-	// ⛔ Il solo chiamante e' la dock, con `GetSelectedUnit()`: nessun piano altrui passa di qui.
+	// --- [D-459] lettura B: il piano dell'unita', letto due volte ---------------------------------------------
+	// ⛔ I chiamanti sono due, ed entrambi restano nella PROPRIA squadra: la dock con `GetSelectedUnit()`, e
+	// `BuildIdleBar` ([D-460]) sulle unita' della squadra di chi guarda, che di questa riga NON copia niente —
+	// il suo elenco positivo dei campi lascia al default ogni stato di piano.
 	//
 	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore non legge l'unita' (D-190): un
 	//    `FRTHexSimUnit` vuoto e' cio' che la firma chiede, non un'approssimazione.

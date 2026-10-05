@@ -182,6 +182,8 @@ bool FRTIdleBarCarriesNoPlanTest::RunTest(const FString&)
 		const FString Nome = V.ActionId.IsNone() ? TEXT("(vuota)") : V.ActionId.ToString();
 		TestFalse(*FString::Printf(TEXT("%s: non pianificata"), *Nome), V.bPlanned);
 		TestEqual(*FString::Printf(TEXT("%s: nessuna ricarica"), *Nome), V.TurnsRemaining, 0);
+		TestEqual(*FString::Printf(TEXT("%s: nessun totale di ricarica"), *Nome), V.TotalTurns, 0);
+		TestEqual(*FString::Printf(TEXT("%s: la carica al default"), *Nome), V.ChargeFraction, 1.f);
 		TestFalse(*FString::Printf(TEXT("%s: nessuno stato di D-459"), *Nome),
 			V.bPlanInvalid || V.bPlanDegraded || V.bTargetRefused);
 	}
@@ -237,6 +239,18 @@ bool FRTIdleBarDockTest::RunTest(const FString&)
 		TestEqual(TEXT("A: ogni voce porta l'indice della struttura"), V.AbilityIndex, URTHudViewModel::IdleSlotIndex);
 	}
 	TestEqual(TEXT("B: i vuoti del Kit contano solo la propria squadra"), VuotiKit, IdleBarKitLength(Propria));
+
+	// --- D. ⛔ la stessa domanda dalla squadra 1: il default del campo e' 0, e il controllo B da solo non
+	//    distinguerebbe un filtro scritto `TeamId == 0` da quello vero (dalla revisione di privacy di #3494) ----
+	Propria->TeamId = 1;
+	Avversaria->TeamId = 0;
+	Dock->SetMatchContextForTest(nullptr, /*InPlayerTeamId=*/ 1);
+	int32 VuotiDaUno = 0;
+	for (const FRTAbilityCooldownView& V : Dock->GetActionsInReadingOrder())
+	{
+		VuotiDaUno += V.Group == ERTActionGroup::Kit ? 1 : 0;
+	}
+	TestEqual(TEXT("D: dalla squadra 1 i vuoti contano la squadra 1"), VuotiDaUno, IdleBarKitLength(Propria));
 
 	// --- C. con un'unita' comandata, la barra e' la sua --------------------------------------------------------
 	Dock->SetSelectedUnitForTest(Propria);

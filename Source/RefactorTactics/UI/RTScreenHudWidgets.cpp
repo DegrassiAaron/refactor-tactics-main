@@ -480,8 +480,9 @@ TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() const
 {
-	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente, che e' la stessa di
-	// `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente. Con un'unita' comandata e' la
+	// stessa di `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	// Senza, e' la struttura di [D-460], che `GetActions()` non conosce.
 	if (GetSelectedUnit() == nullptr)
 	{
 		// ➕ [D-460], #3494: senza un'unita' comandata, la STRUTTURA dalle unita' della PROPRIA squadra.
