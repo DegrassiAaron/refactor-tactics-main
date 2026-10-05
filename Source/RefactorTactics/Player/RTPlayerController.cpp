@@ -42,6 +42,7 @@
 #include "InputActionValue.h"
 #include "InputModifiers.h"
 #include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h" // TActorIterator: RefusalUnderPointerForArmed cerca le unita' NOTE sulla cella puntata
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: l'anteprima del facing usa la stessa geometria del playback
 
 namespace
@@ -330,11 +331,10 @@ namespace
 			{
 				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
 				{
-					const ERTHexTargetReason Motivo = URTCombatLibrary::ClassifyHexTargeting(
+					// La coppia ha ora un nome, e lo stesso nome lo leggono gli slot di [D-459] (#3483).
+					Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
 						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
-						Ability->Def.LineOfSightPolicy);
-					Timeline.BlastTargetRefusal =
-						URTCombatLibrary::RefusalForObserver(Motivo, Bersaglio->IsKnownToObserver());
+						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
 				}
 			}
 
@@ -3633,6 +3633,77 @@ ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const
 	if (!Ability) { return ERTPointerTargetKind::None; }
 
 	return URTPointerLibrary::TargetKindForAction(Ability->Def, Ability->bSelfTarget, Ability->Shape);
+}
+
+ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
+{
+	// Le stesse uscite del click, nello stesso ordine: dove il click non mostrerebbe un rifiuto, nemmeno lo
+	// slot lo mostra. Input inerte, nessun targeting, azione non pronta — il click li tace o li dice altrove.
+	if (IsPlanningInputInert() || GetPointerContext() != ERTPointerContext::Targeting)
+	{
+		return ERTTargetRefusal::None;
+	}
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return ERTTargetRefusal::None;
+	}
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	const URTActionData* Ability = Unit->GetAbility(Armed);
+	if (!Ability || !Unit->CanUseAbility(Armed))
+	{
+		return ERTTargetRefusal::None;
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !Map || !HexMap->IsHoveredCellValid())
+	{
+		return ERTTargetRefusal::None;
+	}
+	const FRTCellId Cell = HexMap->GetHoveredCell();
+	if (!Map->ContainsCell(Cell))
+	{
+		return ERTTargetRefusal::None;
+	}
+
+	switch (GetPointerTargetKind())
+	{
+	case ERTPointerTargetKind::Unit:
+	{
+		// Carica e scatto non bersagliano un'unita': il click li manda alla cella o li rifiuta a parole
+		// (`HandleClickOnUnit`), senza un `ERTTargetRefusal`.
+		if (Ability->Def.MovementStyle == ERTMovementStyle::LinearCharge
+			|| URTCatalogLibrary::IsFastMovement(Ability->Def))
+		{
+			return ERTTargetRefusal::None;
+		}
+		// Solo le unita' NOTE: un'ombra sulla cella non accende niente (vedi il docstring). E' la stessa
+		// guardia del click, che su un bersaglio ignoto esce senza dire niente.
+		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		{
+			const ARTUnit* Bersaglio = *It;
+			if (!Bersaglio || Bersaglio == Unit || !Bersaglio->IsAlive() || Bersaglio->Cell != Cell
+				|| !Bersaglio->IsKnownToObserver())
+			{
+				continue;
+			}
+			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->Cell, Bersaglio->Cell,
+				Ability->RangeCells, Ability->Def.LineOfSightPolicy, /*bTargetKnownToObserver*/ true);
+		}
+		return ERTTargetRefusal::None;
+	}
+	case ERTPointerTargetKind::Cell:
+		// La porta del click su una cella (`HandleTargetCell`), non la coppia delle unita': una cella non
+		// ha un flag di conoscenza, e il suo rifiuto non guarda chi la occupa (`#2791`).
+		return URTCombatLibrary::DescribeCellTargetRefusal(
+			Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy).Refusal;
+	case ERTPointerTargetKind::None:
+	case ERTPointerTargetKind::Edge:
+	case ERTPointerTargetKind::Object:
+		break;
+	}
+	return ERTTargetRefusal::None;
 }
 
 ERTPointerBackStep ARTPlayerController::ApplyBack()

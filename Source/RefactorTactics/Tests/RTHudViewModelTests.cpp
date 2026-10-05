@@ -1776,6 +1776,78 @@ bool FRTHudVmSlotStateTest::RunTest(const FString&)
 }
 
 /**
+ * 🔴 **`Invalid` BATTE ANCHE L'ARMATA, `Warning` BATTE LA PIANIFICATA MA NON L'ARMATA** ([D-459], #3483).
+ *
+ * 🔑 **Le coppie, come nel test qui sopra.** I due stati nuovi entrano in una precedenza che c'era gia', e
+ * il rischio e' lo stesso: corretti da soli, sbagliati quando valgono insieme a un altro.
+ *
+ * ⚠️ **Il caso F e' la meta' che si dimentica**: il rifiuto del puntatore appartiene all'azione ARMATA. Uno
+ * slot non armato che lo portasse — per un errore di indice nella dock — direbbe «non lo potrai fare» di
+ * un'azione che il giocatore non sta usando.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHudVmSlotStateRefusalTest,
+	"RefactorTactics.HudViewModel.SlotStateRefusalBeatsArmedAndDegradedBeatsPlanned",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHudVmSlotStateRefusalTest::RunTest(const FString&)
+{
+	FRTAbilityCooldownView Pronta;
+	Pronta.ActionId = TEXT("Action.Guard");
+	Pronta.bUsableNow = true;
+
+	FRTAbilityCooldownView Pianificata = Pronta;
+	Pianificata.bPlanned = true;
+
+	FRTAbilityCooldownView PianificataEInRicarica = Pianificata;
+	PianificataEInRicarica.TurnsRemaining = 2;
+	PianificataEInRicarica.bUsableNow = false;
+
+	// --- E. il rifiuto del puntatore BATTE l'armata ------------------------------------------------------
+	FRTAbilityCooldownView Rifiutata = Pronta;
+	Rifiutata.bTargetRefused = true;
+	TestEqual(TEXT("E: armata col bersaglio rifiutato -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Rifiutata, /*bArmed=*/ true), ERTActionSlotState::Invalid);
+
+	// --- F. ...ma solo se armata --------------------------------------------------------------------------
+	TestEqual(TEXT("F: il rifiuto del puntatore su uno slot non armato non conta"),
+		URTHudViewModel::ResolveSlotState(Rifiutata, /*bArmed=*/ false), ERTActionSlotState::Available);
+
+	// --- G. il piano illegale BATTE pianificata e ricarica, e anche l'armata -----------------------------
+	FRTAbilityCooldownView Illegale = PianificataEInRicarica;
+	Illegale.bPlanInvalid = true;
+	TestEqual(TEXT("G: colpevole di un piano illegale, pianificata e in ricarica -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Illegale, /*bArmed=*/ false), ERTActionSlotState::Invalid);
+	TestEqual(TEXT("G: e anche armata -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Illegale, /*bArmed=*/ true), ERTActionSlotState::Invalid);
+
+	// --- H. il piano degradato BATTE pianificata e ricarica ---------------------------------------------
+	FRTAbilityCooldownView Degradata = PianificataEInRicarica;
+	Degradata.bPlanDegraded = true;
+	TestEqual(TEXT("H: pianificata, in ricarica e degradata -> Warning"),
+		URTHudViewModel::ResolveSlotState(Degradata, /*bArmed=*/ false), ERTActionSlotState::Warning);
+
+	// --- I. ...ma NON l'armata ------------------------------------------------------------------------------
+	TestEqual(TEXT("I: degradata e armata -> Selected"),
+		URTHudViewModel::ResolveSlotState(Degradata, /*bArmed=*/ true), ERTActionSlotState::Selected);
+
+	// --- J. rifiutato BATTE degradato ----------------------------------------------------------------------
+	FRTAbilityCooldownView Entrambe = Degradata;
+	Entrambe.bPlanInvalid = true;
+	TestEqual(TEXT("J: illegale e degradata -> Invalid"),
+		URTHudViewModel::ResolveSlotState(Entrambe, /*bArmed=*/ false), ERTActionSlotState::Invalid);
+
+	// --- K. vuota BATTE ancora tutto -------------------------------------------------------------------------
+	FRTAbilityCooldownView VuotaConTutto;
+	VuotaConTutto.bPlanned = true;
+	VuotaConTutto.bPlanInvalid = true;
+	VuotaConTutto.bPlanDegraded = true;
+	VuotaConTutto.bTargetRefused = true;
+	TestEqual(TEXT("K: una posizione vuota resta vuota con ogni flag acceso"),
+		URTHudViewModel::ResolveSlotState(VuotaConTutto, /*bArmed=*/ true), ERTActionSlotState::Empty);
+
+	return true;
+}
+
+/**
  * 🔴 **`Planned` ARRIVA ALLA VISTA, E LEGGE TUTTI E TRE I CAMPI DEL PIANO** (`#2988`).
  *
  * 🔑 **La reazione e' il caso che rende il test non ovvio.** `PlannedReactionAbility` esiste come campo
