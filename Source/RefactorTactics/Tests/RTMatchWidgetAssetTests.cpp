@@ -1611,4 +1611,47 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⛔ **Le zone il cui contenuto e' arrivato non mostrano piu' il bordo da cantiere** (#3494).
+ *
+ * 🔑 **E' il contratto di `bBlockoutVisible`, scritto sulla classe**: *«Si spegne quando il contenuto della zona
+ * arriva»*. Per `Zone_Bottom` e' arrivato con la barra dei comandi (seduta `U63`), per `Zone_TopRight` con
+ * Conferma e Annulla (`U64`), e i due bordi erano rimasti accesi: l'autore ha visto la fascia bassa col bordo viola.
+ *
+ * ⚠️ **Elenca solo le zone gia' arrivate**, non pretende che le altre restino accese: la prossima zona che riceve
+ * il proprio contenuto si aggiunge qui, nella stessa PR dell'asset. Il bordo lo spegne il `PreConstruct` di
+ * `WBP_RT_HudZone` leggendo questa proprieta' dell'istanza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArrivedZonesHideBlockoutTest,
+	"RefactorTactics.ScreenHud.ZonesWithTheirContentHideTheBlockout",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTArrivedZonesHideBlockoutTest::RunTest(const FString&)
+{
+	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath, TEXT("WBP_RT_TacticalHUD"));
+	if (Tree == nullptr)
+	{
+		return false;
+	}
+
+	const ERTHudZone Arrivate[] = { ERTHudZone::Bottom, ERTHudZone::TopRight };
+	for (const ERTHudZone Zona : Arrivate)
+	{
+		const FString Nome = URTHudZoneWidget::ZoneName(Zona);
+		int32 Trovate = 0;
+		Tree->ForEachWidget([this, Zona, &Nome, &Trovate](UWidget* Widget)
+		{
+			const URTHudZoneWidget* Istanza = Cast<URTHudZoneWidget>(Widget);
+			if (Istanza && Istanza->ZoneId == Zona)
+			{
+				++Trovate;
+				TestFalse(*FString::Printf(TEXT("%s ha il proprio contenuto: il bordo da cantiere e' spento"), *Nome),
+					Istanza->bBlockoutVisible);
+			}
+		});
+		TestEqual(*FString::Printf(TEXT("premessa: l'albero ha una zona %s"), *Nome), Trovate, 1);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
