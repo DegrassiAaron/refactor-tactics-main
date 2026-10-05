@@ -480,8 +480,24 @@ TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() const
 {
-	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente, che e' la stessa di
-	// `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente. Con un'unita' comandata e' la
+	// stessa di `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	// Senza, e' la struttura di [D-460], che `GetActions()` non conosce.
+	if (GetSelectedUnit() == nullptr)
+	{
+		// ➕ [D-460], #3494: senza un'unita' comandata, la STRUTTURA dalle unita' della PROPRIA squadra.
+		// ⛔ Il filtro sta qui e non nel ViewModel perche' e' qui che si sa chi guarda: un avversario
+		// nell'elenco direbbe la lunghezza del suo kit.
+		TArray<const ARTUnit*> Proprie;
+		for (const ARTUnit* Unit : GatherUnitsInWorld())
+		{
+			if (Unit && Unit->TeamId == GetPlayerTeamId())
+			{
+				Proprie.Add(Unit);
+			}
+		}
+		return URTHudViewModel::BuildIdleBar(Proprie);
+	}
 	return URTHudViewModel::OrderForReading(GetActions());
 }
 
@@ -806,7 +822,10 @@ void URTActionSlotWidget::Activate()
 	//
 	// ⚠️ Non e' un controllo di DISPONIBILITA': una posizione di kit vuota porta comunque il proprio indice
 	// (`Cooldowns[i].AbilityIndex == i`, `#2987`) e passa di qui. A rifiutarla e' il core.
-	if (Action.AbilityIndex == INDEX_NONE)
+	//
+	// ➕ **E nessun indice negativo arma niente** ([D-460], #3494): gli slot della struttura della barra senza
+	// unita' portano `URTHudViewModel::IdleSlotIndex`, che non e' una posizione di kit.
+	if (Action.AbilityIndex < 0)
 	{
 		return;
 	}

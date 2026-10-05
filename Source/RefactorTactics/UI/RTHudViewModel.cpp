@@ -494,8 +494,10 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		Cooldowns.Add(View);
 	}
 
-	// --- [D-459] lettura B: il piano dell'unita' COMANDATA, letto due volte ---------------------------------
-	// ⛔ Il solo chiamante e' la dock, con `GetSelectedUnit()`: nessun piano altrui passa di qui.
+	// --- [D-459] lettura B: il piano dell'unita', letto due volte ---------------------------------------------
+	// ⛔ I chiamanti sono due, ed entrambi restano nella PROPRIA squadra: la dock con `GetSelectedUnit()`, e
+	// `BuildIdleBar` ([D-460]) sulle unita' della squadra di chi guarda, che di questa riga NON copia niente —
+	// il suo elenco positivo dei campi lascia al default ogni stato di piano.
 	//
 	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore non legge l'unita' (D-190): un
 	//    `FRTHexSimUnit` vuoto e' cio' che la firma chiede, non un'approssimazione.
@@ -699,6 +701,72 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRT
 		Ordinate[i].bGroupBreakBefore = i > 0 && Rango(Ordinate[i].Group) != Rango(Ordinate[i - 1].Group);
 	}
 	return Ordinate;
+}
+
+TArray<FRTAbilityCooldownView> URTHudViewModel::BuildIdleBar(const TArray<const ARTUnit*>& OwnUnits)
+{
+	TArray<FRTAbilityCooldownView> Comuni;
+	int32 KitPiuLungo = 0;
+	for (const ARTUnit* Unit : OwnUnits)
+	{
+		if (!Unit)
+		{
+			continue;
+		}
+		const TArray<FRTAbilityCooldownView> Righe = OrderForReading(BuildAbilityCooldowns(Unit));
+		int32 Kit = 0;
+		for (const FRTAbilityCooldownView& Riga : Righe)
+		{
+			// Una posizione vuota si legge col Kit, come in `OrderForReading`.
+			Kit += (Riga.Group == ERTActionGroup::Kit || Riga.Group == ERTActionGroup::None) ? 1 : 0;
+		}
+		KitPiuLungo = FMath::Max(KitPiuLungo, Kit);
+
+		// Le Comuni dalla prima unita' dell'elenco: sono le stesse per ogni eroe, e l'elenco arriva gia'
+		// ordinato (`GatherUnitsInWorld`), quindi la fonte non cambia fra due frame.
+		if (Comuni.IsEmpty())
+		{
+			for (const FRTAbilityCooldownView& Riga : Righe)
+			{
+				if (Riga.Group != ERTActionGroup::Common)
+				{
+					continue;
+				}
+				// Elenco POSITIVO dei campi: cio' che non e' qui resta al default, quindi nessun piano,
+				// ricarica o stato di D-459 passa dall'unita' alla struttura.
+				FRTAbilityCooldownView Spenta;
+				Spenta.ActionId = Riga.ActionId;
+				Spenta.IconId = Riga.IconId;
+				Spenta.FallbackIconId = Riga.FallbackIconId;
+				Spenta.DisplayName = Riga.DisplayName;
+				Spenta.HotkeyLabel = Riga.HotkeyLabel;
+				Spenta.Slot = Riga.Slot;
+				Spenta.Phase = Riga.Phase;
+				Spenta.PhaseMark = Riga.PhaseMark;
+				Spenta.PhaseLabel = Riga.PhaseLabel;
+				Spenta.Group = ERTActionGroup::Common;
+				Spenta.AbilityIndex = IdleSlotIndex;
+				Spenta.bUsableNow = false;
+				Comuni.Add(Spenta);
+			}
+		}
+	}
+
+	TArray<FRTAbilityCooldownView> Struttura = Comuni;
+	if (OwnUnits.ContainsByPredicate([](const ARTUnit* U) { return U != nullptr; }))
+	{
+		FRTAbilityCooldownView Vuoto;
+		Vuoto.AbilityIndex = IdleSlotIndex;
+		Vuoto.Group = ERTActionGroup::Base;
+		Struttura.Add(Vuoto);
+		Vuoto.Group = ERTActionGroup::Kit;
+		for (int32 i = 0; i < KitPiuLungo; ++i)
+		{
+			Struttura.Add(Vuoto);
+		}
+	}
+	// Gia' in ordine: `OrderForReading` scrive i confini dei gruppi, come per una barra con un'unita'.
+	return OrderForReading(Struttura);
 }
 
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)

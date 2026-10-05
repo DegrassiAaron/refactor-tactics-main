@@ -497,6 +497,10 @@ public:
 	 * Le stesse azioni in ORDINE DI LETTURA — Comuni, Base, Kit — per disporre la barra (`#3478`, [D-455]).
 	 * ⛔ **E' l'ordine a schermo, non l'identita'**: ogni voce porta il proprio `AbilityIndex`, ed e' quello
 	 * che si arma. Il separatore va dove `Group` cambia IN QUESTA lista, che per costruzione e' contigua.
+	 *
+	 * ➕ **Senza un'unita' comandata consegna la STRUTTURA della barra** ([D-460], #3494): le Comuni spente e i
+	 * vuoti di Base e Kit, da `URTHudViewModel::BuildIdleBar` sulle unita' della propria squadra. ⚠️ Solo
+	 * questa porta: `GetActions()` resta l'identita', vuota senza unita'.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	TArray<FRTAbilityCooldownView> GetActionsInReadingOrder() const;
