@@ -95,18 +95,39 @@ namespace
 		return Out;
 	}
 
-	/** Gli indici degli slot accesi. Un `TArray` e non un conteggio: «quale» e' meta' della domanda. */
+	/**
+	 * Gli INDICI DI KIT degli slot accesi, cioe' l'identita' che ciascuno porta in `Action.AbilityIndex`. Un
+	 * `TArray` e non un conteggio: «quale» e' meta' della domanda.
+	 *
+	 * ⌫ **Restituiva la POSIZIONE nella fila**, e i due test qui sotto confrontavano quella con l'indice
+	 * armato. Era vero finche' la dock disponeva gli slot nell'ordine di kit; dalla seduta `U63` li dispone in
+	 * ordine di lettura ([D-455], #3478) e le due cose divergono — in partita l'indice 1 sta in sesta posizione.
+	 * ⛔ La posizione a schermo non e' mai un indice ([D-397] punti 2 e 4): l'identita' e' il campo.
+	 */
 	TArray<int32> ArmedIndices(const TArray<URTActionSlotWidget*>& Slots)
 	{
 		TArray<int32> Out;
-		for (int32 i = 0; i < Slots.Num(); ++i)
+		for (const URTActionSlotWidget* Slot : Slots)
 		{
-			if (Slots[i]->bArmed)
+			if (Slot->bArmed)
 			{
-				Out.Add(i);
+				Out.Add(Slot->Action.AbilityIndex);
 			}
 		}
 		return Out;
+	}
+
+	/** Lo slot che porta l'indice di kit chiesto, ovunque stia nella fila; `nullptr` se nessuno lo porta. */
+	URTActionSlotWidget* SlotForKitIndex(const TArray<URTActionSlotWidget*>& Slots, int32 KitIndex)
+	{
+		for (URTActionSlotWidget* Slot : Slots)
+		{
+			if (Slot->Action.AbilityIndex == KitIndex)
+			{
+				return Slot;
+			}
+		}
+		return nullptr;
 	}
 }
 
@@ -526,12 +547,12 @@ bool FRTHudDockKitHoleTest::RunTest(const FString&)
 		Slots.Num(), PosizioniDiKit);
 
 	// --- B. il riquadro del buco porta la posizione vuota, non l'azione seguente ----------------------
-	if (TestTrue(TEXT("premessa: il riquadro del buco esiste"), Slots.IsValidIndex(Buco)))
+	// ⚠️ Il riquadro si CERCA per indice di kit, non per posizione: la fila e' in ordine di lettura (`U63`).
+	if (const URTActionSlotWidget* RiquadroDelBuco = SlotForKitIndex(Slots, Buco);
+		TestNotNull(TEXT("premessa: un riquadro porta l'indice del buco"), RiquadroDelBuco))
 	{
 		TestTrue(TEXT("B: il riquadro del buco porta una posizione VUOTA"),
-			Slots[Buco]->Action.ActionId.IsNone());
-		TestEqual(TEXT("B: e porta comunque il proprio indice di kit"),
-			Slots[Buco]->Action.AbilityIndex, Buco);
+			RiquadroDelBuco->Action.ActionId.IsNone());
 	}
 
 	// --- C. armando DOPO il buco si accende quel riquadro, non uno slittato ---------------------------
