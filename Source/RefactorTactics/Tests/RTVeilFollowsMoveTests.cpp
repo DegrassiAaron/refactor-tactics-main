@@ -308,8 +308,10 @@ namespace
 	 * conoscenza canonica — un'altra domanda, che questo banco non pone.
 	 *
 	 * @param CelleAlSecondo velocita' di locomozione del playback; non positiva = il default del TurnManager.
-	 * @return `false` con un motivo se il banco non si allestisce: un banco che non parte non e' un passo
-	 *         sbagliato, e va detto come tale.
+	 * @return `false` con un motivo se il percorso non arriva in fondo: perche' il banco non si allestisce, o
+	 *         perche' il playback non si ferma dove deve. ⚠️ Le fermate osservate fino a li' restano in `Out`, e
+	 *         il chiamante le giudica comunque: un difetto che interrompe il percorso non deve nascondere quelli
+	 *         che l'hanno preceduto.
 	 */
 	bool PercorriAPassi(float CelleAlSecondo, TArray<FRTPassoOsservato>& Out, FString& Motivo)
 	{
@@ -484,13 +486,11 @@ bool FRTVeilRevealsAtTheMicroStepThatSeesItTest::RunTest(const FString&)
 {
 	TArray<FRTPassoOsservato> Passi;
 	FString Motivo;
-	const bool bAllestito = PercorriAPassi(/*CelleAlSecondo=*/ 0.f, Passi, Motivo);
-	if (!TestTrue(FString::Printf(TEXT("il banco a passo singolo regge (%s)"), *Motivo), bAllestito))
-	{
-		return false;
-	}
+	const bool bInFondo = PercorriAPassi(/*CelleAlSecondo=*/ 0.f, Passi, Motivo);
+	TestTrue(FString::Printf(TEXT("il percorso a passo singolo arriva in fondo (%s)"), *Motivo), bInFondo);
 	TestTrue(TEXT("almeno una fermata osservata"), Passi.Num() > 0);
 
+	// Le fermate si giudicano anche se il percorso si e' interrotto: vedi `PercorriAPassi`.
 	for (const FRTPassoOsservato& O : Passi)
 	{
 		AddInfo(O.Descrivi());
@@ -527,18 +527,20 @@ bool FRTVeilRevealsAtTheMicroStepAtAnyRateTest::RunTest(const FString&)
 		const float CelleAlSecondo = Centesimi / 100.f;
 		TArray<FRTPassoOsservato> Passi;
 		FString Motivo;
-		if (!PercorriAPassi(CelleAlSecondo, Passi, Motivo))
+		const bool bInFondo = PercorriAPassi(CelleAlSecondo, Passi, Motivo);
+
+		// Prima le fermate, poi l'interruzione: il primo errore osservato e' spesso la causa del secondo.
+		const FRTPassoOsservato* Sbagliato = Passi.FindByPredicate([](const FRTPassoOsservato& O) { return !O.IsGiusto(); });
+		if (Sbagliato)
 		{
-			AddError(FString::Printf(TEXT("a %.2f celle/s il banco non regge: %s"), CelleAlSecondo, *Motivo));
+			AddError(FString::Printf(TEXT("a %.2f celle/s — %s"), CelleAlSecondo, *Sbagliato->Descrivi()));
+		}
+		if (!bInFondo)
+		{
+			AddError(FString::Printf(TEXT("a %.2f celle/s il percorso si interrompe: %s"), CelleAlSecondo, *Motivo));
 			continue;
 		}
 		++Percorse;
-
-		const FRTPassoOsservato* Sbagliato = Passi.FindByPredicate([](const FRTPassoOsservato& O) { return !O.IsGiusto(); });
-		TestTrue(Sbagliato
-				? FString::Printf(TEXT("a %.2f celle/s — %s"), CelleAlSecondo, *Sbagliato->Descrivi())
-				: FString::Printf(TEXT("a %.2f celle/s ogni fermata e' sulla cella dichiarata"), CelleAlSecondo),
-			Sbagliato == nullptr);
 	}
 	TestTrue(TEXT("almeno una velocita' percorsa"), Percorse > 0);
 	return true;
