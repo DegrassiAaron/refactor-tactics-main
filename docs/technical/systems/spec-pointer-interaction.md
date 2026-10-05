@@ -405,11 +405,13 @@ l'elenco è ordinato:
 1. ReactionWindow aperta   -> fallback esplicito, se l'opportunity ne dichiara uno
 2. Modal aperto            -> chiudi il modale
 3. Inspector pinnato       -> chiudi l'inspector
-4. Targeting / Facing      -> annulla la dichiarazione, torna a Planning
-5. Pathing con waypoint    -> rimuovi l'ultimo waypoint
-6. Pathing senza waypoint  -> torna a Planning
-7. PhaseFocus pinnato      -> PhaseFocus = Auto
-8. altrimenti              -> NoOp
+4. Facing (selettore)      -> chiudi il selettore del verso, senza toccare il piano
+5. Verso dichiarato        -> cancella il verso e riapri il movimento (D-367, D-462)
+6. Targeting               -> annulla la dichiarazione, torna a Planning
+7. Pathing con waypoint    -> rimuovi l'ultimo waypoint
+8. Pathing senza waypoint  -> torna a Planning
+9. PhaseFocus pinnato      -> PhaseFocus = Auto
+10. altrimenti             -> NoOp
 ```
 
 Due regole che l'ordine da solo non dice:
@@ -418,9 +420,15 @@ Due regole che l'ordine da solo non dice:
   è l'errore che costringe a ricliccare la propria unità dopo ogni ripensamento.
 - **`RMB` non tocca un piano già in `LockIn`.** Il Back agisce sulla dichiarazione in corso, non su ciò che
   è stato consegnato.
+- **Il verso chiude il movimento** ([D-367](../../decisions/RT_PDR_00_Decision_Log.md), [D-462](../../decisions/RT_PDR_00_Decision_Log.md), [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291)).
+  Il verso si sceglie col **secondo click sull'esagono finale**, sul lato puntato (`HandleFacingClick`); da fermo,
+  un click sulla propria cella apre prima i sei triangoli. Con un verso dichiarato un click su un'altra cella non
+  aggiunge waypoint, e la voce 5 lo toglie per prima. Un click sulla destinazione senza un lato (al centro) non
+  sceglie niente e non duplica il waypoint. Qualunque modifica al percorso — waypoint tolto o restituito,
+  troncamento di una riserva o dello `Sneak` — cancella il verso. ⌫ *Il tasto `T` e il ciclo sono usciti dal gioco.*
 - **«Annulla la dichiarazione» vuol dire anche il piano, se la dichiarazione l'ha già scritto**
   ([D-461](../../decisions/RT_PDR_00_Decision_Log.md), [#3501](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3501)).
-  Quando l'azione armata è **la stessa** già nel piano, la voce 4 la disarma: la toglie dalla selezione e dal
+  Quando l'azione armata è **la stessa** già nel piano, la voce 6 la disarma: la toglie dalla selezione e dal
   piano, rilascia il tetto di movimento che imponeva, e restituisce i waypoint troncati ([D-444](../../decisions/RT_PDR_00_Decision_Log.md)). Succede a
   un supporto su se stessi, che entra nel piano all'armamento, e a un attacco col bersaglio già dichiarato.
   Se dopo l'azione sono stati posati waypoint, il Back toglie **prima quelli**, uno per volta: disfa l'ultimo
