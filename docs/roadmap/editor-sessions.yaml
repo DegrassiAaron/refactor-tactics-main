@@ -4652,6 +4652,260 @@ sessions:
       Creata il 2026-10-02 come contenitore, senza esecuzione. Il verdetto di `G16` vive nella sua
       riga di `v0.1-definition-of-done.md` §3; questa seduta e il luogo in cui il giro si registra.
 
+  - id: U61
+    title: Lo slot della dock dice la fase, e i suoi stati reggono la scala di grigi
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_ActionSlot` con striscia ed etichetta di fase e con le ricette degli stati di
+      `progettazione-hud.md` §7, ciascuna col proprio secondo canale; la prova in scala di grigi committata
+    artifacts:
+      - docs/technical/evidence/hud/u61-stati-slot-scala-di-grigi.png
+    # 🔑 **Una sola prova, ed e' quella che §47-bis.1 chiede**: una cattura degli stati dello slot portata
+    # in scala di grigi, in cui nessuno stato si confonde con un altro. Il riferimento da imitare e' la
+    # riga inferiore di `docs/research/design/hud/skill-bar-2026-10/immagini/08-stati-slot.png`.
+    # `WBP_RT_ActionSlot.uasset` e `WBP_RT_ActionDock.uasset` non sono elencati: sono gia' tracciati, quindi
+    # `git ls-files` direbbe «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nello STESSO merge**, non perche' manchi una dipendenza: la vista
+    # porta `Phase`, `PhaseMark` e `PhaseLabel` da #3465, e questa voce nasce nella sua stessa PR.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che contenga #3465, con l'Editor
+    # **ricompilato** da quel commit prima di aprire la seduta — una DLL di prima non ha i tre campi, e i
+    # pin del Blueprint non comparirebbero.
+    # ⛔ E un commit di `main` che contenga #3489, le porte per nome: senza, i widget si dichiarano e
+    # nessuno li accende.
+    shares_setup_with: [U63, U64]
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`, ed e' la regola di `AGENTS.md` §9 *Authoring e acceptance***: la verifica
+    # sta nell'editor PRIMA del Play — la prova in scala di grigi sulla cattura degli stati — quindi il
+    # verdetto va nella issue owner e nell'artefatto qui sopra. ⚠️ La issue e' #2826, che possiede la
+    # leggibilita' dello slot e resta aperta: #3465 consegna il DATO e si chiude col proprio merge, quindi un
+    # verdetto scritto li' finirebbe in una issue chiusa.
+    issues: [3465, 2826, 3489]
+    done_when: >-
+      ogni slot della dock porta striscia ed etichetta di fase lette da `Action.PhaseMark` e
+      `Action.PhaseLabel`, gli stati prodotti da `ResolveSlotState` hanno ciascuno il secondo canale della
+      ricetta, e la cattura in scala di grigi e' committata in `artifacts` con nessuno stato confuso
+    # **Riferimenti, tutti in `docs/research/design/hud/skill-bar-2026-10/`** (`PROPOSTA`, non canone):
+    # `SPECIFICA-VISIVA.md` §2 (anatomia, dall'alto al basso dello z-order), §3 (ricette) e §4
+    # (composizione); `dati/tokens.json` per colori e misure; `immagini/01..08.png` come resa attesa.
+    # ⚠️ Le misure di `tokens.json` sono px di design a 1920×1080: in UMG valgono come riferimento, con la
+    # DPI scale del progetto applicata.
+    #
+    # 🔑 **Si cabla PER NOME, non a grafo** (#3489, il disegno di `RTHeroProfileWidget`). Lo slot dichiara
+    # nel Designer i widget coi nomi qui sotto, e il C++ (`URTActionSlotWidget::RefreshLook`, chiamata da
+    # `SetAction`) li accende: visibilita', colore della striscia e del bordo, padding. Il bridge MCP non
+    # scrive il property binding, e un grafo per evento costruito nodo per nodo non si diffa e non si testa.
+    # ⛔ **Nessun grafo nuovo**: forma, texture e posizione sono del Designer, la scelta di quale widget
+    # accendere e' del C++. I nomi, e lo stato che li accende, sono la tabella
+    # `URTActionSlotWidget::IndicatorNameFor`, pinnata da `ScreenHud.EverySlotStateHasItsOwnSecondChannel`.
+    #
+    # 🔴 **Cosa si cabla, e da dove legge**:
+    #   1. **Striscia di fase** (4 px in alto) — un `Border` chiamato **`PhaseStrip`** — ed **etichetta di
+    #      fase** (in alto a destra) — un `TextBlock` chiamato **`PhaseLabelText`**. Li riempie il C++ da
+    #      `Action.PhaseMark` e `Action.PhaseLabel`. ⛔ L'etichetta **non si omette mai**: e' il canale
+    #      che non dipende dal colore (D-232 punto 3).
+    #   2. **Colore della striscia** da `PhaseMark`, scritto dal C++ con la tabella `PhaseColors` dello slot
+    #      (`EditDefaultsOnly`, default qui sotto):
+    #      `Prep #56B4E9 · Dash #009E73 · Blast #D55E00 · Move #0072B2` ([D-233]),
+    #      `Reaction` = `RT_UI_Violet #7C5CFF` (§32: *reaction, special state*), `None` = nessuna striscia.
+    #      ⚠️ **`Cleanup` resta SENZA colore** ([D-232] §1, [D-233], confermato dall'autore il
+    #      2026-10-04): non ha una voce in `PhaseColors`, quindi la striscia si chiude e la fase la dice
+    #      l'etichetta `CLEANUP`. Il mockup usa `#A9B4C2`, che in §32 non esiste. I default sono pinnati
+    #      contro gli HEX della decisione da `ScreenHud.SlotPhaseStripReadsThePhaseMark`.
+    #   3. **Stati di §7** dalla ricetta di `SPECIFICA-VISIVA.md` §3, con lo stato preso da
+    #      `URTHudViewModel::ResolveSlotState(Action, bArmed)` dentro `RefreshLook` — mai ricomposto nel
+    #      grafo (#2988). Il bordo e' un `Border` chiamato **`StateFrame`** (colore da `FrameColors`). Il
+    #      secondo canale e' obbligatorio, e ciascuno e' un widget col suo nome:
+    #      Selected = **`SelectedBar`**, barra 40×4 sotto lo slot · Planned = **`PlannedCorner`**, angolo
+    #      pieno 18 px · Cooldown = `CooldownText`, il numero di turni che c'e' gia' · Unavailable =
+    #      **`UnavailableHatch`**, tratteggio diagonale 135°. Hover e' del widget, non del modello.
+    #      ⚠️ **Selected e Warning condividono l'ambra** (§32 la assegna a entrambi): li separa la forma,
+    #      bordo continuo + barra contro bordo tratteggiato + triangolo.
+    #   4. **Invalid e Warning: ricetta SI', produttore SI'** ([D-459], #3483). `ResolveSlotState` li
+    #      restituisce: `Invalid` quando il gesto sarebbe rifiutato (azione armata col bersaglio puntato
+    #      rifiutato, o colpevole di un piano illegale), `Warning` quando il piano e' accettato ma degradato.
+    #      I widget sono **`InvalidMark`** (la ✕) e **`WarningMark`** (il triangolo). ⌫ *Qui stava
+    #      «produttore NO» (decisione d'autore del 2026-10-04): valeva finche' [D-459] non ha sciolto il
+    #      conflitto fra §7 e il commento di `ERTActionSlotState`.*
+    #
+    # ⛔ **Cosa NON si fa in questa seduta**, ciascuna col motivo:
+    #   - i **separatori di gruppo** Comuni · Base · Kit: sono di `U63`, e non sono widget — il padding lo
+    #     scrive lo slot da `bGroupBreakBefore` (#3489). ⌫ *Qui stava «il campo `Group` non esiste ancora»:
+    #     esiste da #3475.*
+    #   - i **chip** PRINCIPALE · MOVIMENTO · REAZIONE: il dato esiste gia' (`URTSelectedUnitPanelWidget::GetSlots()`)
+    #     e `WBP_RT_SelectedUnitPanel` li mostra. Spostarli sopra la dock e' layout di #613;
+    #   - il **selettore di profilo** a quattro pulsanti: contraddice [D-425], perche' il profilo si deriva
+    #     dalla distanza;
+    #   - lo slot **Difesa caratteristica**: `ERTActionSlot::SignatureDefense` non esiste (#3130);
+    #   - le **icone** del mockup: sono segnaposto, e le vere vengono da `DA_IconCatalog` via `IconId`.
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`, perche' non blocchi le build degli altri cloni.
+    notes: |
+      Scritta il 2026-10-04 dal triage del mockup della skill bar
+      (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`).
+      🟡 **Eseguita il 2026-10-05, verdetto percettivo all'autore**, su `main` = `2b9b15d4c`, con l'Editor del
+      clone principale ricompilato da quel commit. L'authoring e' fatto: `WBP_RT_ActionSlot` dichiara i widget
+      per nome (#3489), avvolti in un `SizeBox` 78×96 (`SlotSize`), con l'icona a 28 px, il nome a 11 px su
+      due righe e il numero di ricarica a 26 px; le quattro texture `T_RT_Slot*` (tratteggio, angolo, ✕,
+      triangolo) sono nuove. ⚠️ **Lo stile del `ClickSurface` aveva un padding di 12 px per lato**, il
+      default di `UButton`: azzerato, altrimenti il gap fra gli slot era il triplo di `tokens.json`.
+      La cattura in scala di grigi e' in `artifacts`, ed e' **dal vivo** (PIE su `L_DevSandbox`, Muiren):
+      `Available`, `Selected`, `Planned` e `Invalid` — quest'ultimo con «Marea circolare» armata e il
+      puntatore su una cella oltre la portata. ⛔ **`Cooldown`, `Unavailable` e `Warning` dal vivo:
+      `NOT RUN`**: il Warning chiede un bersaglio nemico noto e uno scatto pianificato, e nella partita i
+      nemici erano velati; la ricarica non e' comparsa dopo il turno, e la ragione e' una questione di
+      gioco fuori da questa seduta. Il presidio strutturale c'e' — `ScreenHud.SlotLightsOnlyTheIndicatorOfItsState`
+      accende un indicatore per stato sul widget — ma la scala di grigi di quei tre non e' stata guardata.
+      ⛔ **Il criterio e' percettivo** («nessuno stato si confonde»): chi ha cablato non lo firma. La lettura
+      di chi ha eseguito e' che i quattro catturati si distinguano — bordo e angolo, bordo e barra, bordo
+      spento, ✕ — ma il verdetto resta all'autore, sull'immagine committata.
+      ⚠️ **Scostamenti dalla ricetta, dichiarati**: la `SelectedBar` sta DENTRO lo slot, al fondo, e non 9 px
+      sotto; il bordo di `Warning` non e' tratteggiato (lo dice il triangolo); l'etichetta di fase sta in alto
+      a destra con 20 px di margine, per lasciare l'angolo ai segni di stato.
+
+  - id: U63
+    title: La barra dei comandi occupa la fascia bassa e legge i propri gruppi
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_ActionDock` disposta su tutta `Zone_Bottom` (D-456): le voci partizionate per `Action.Group` —
+      Comuni · Base · Kit, con i separatori fra i gruppi — e all'estremita' destra la lettura del movimento
+      di #3470, in sola lettura; la cattura a 1920×1080 committata
+    artifacts:
+      - docs/technical/evidence/hud/u63-barra-fascia-bassa.png
+    # 🔑 **Una cattura sola, col kit PIU' LUNGO del roster**: Branth o Muiren col loadout di default, tredici
+    # voci (`HudViewModel.ActionSlotCarriesItsGroup`, blocco D, le scrive nel log). E' il caso che ha
+    # motivato la fascia intera; un kit da dieci voci entrerebbe anche nella cella vecchia e non proverebbe
+    # niente. `WBP_RT_ActionDock.uasset` non e' elencato: e' gia' tracciato, quindi `git ls-files` direbbe
+    # «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**, non perche' manchi una dipendenza:
+    # il campo `Group` e' #3468 (PR #3475), la zona unica #3469 (PR #3477), l'ordine di lettura #3478, la
+    # lettura del movimento #3470.
+    # ⛔ Precondizione di esecuzione ([D-403]): un commit di `main` che le contenga TUTTE, con l'Editor
+    # ricompilato da quel commit — una DLL di prima non ha `GetActionsInReadingOrder`, e l'albero di prima
+    # ha ancora le tre celle basse.
+    shares_setup_with: [U61, U64]
+    # Stessa apertura di U61: stessi due Blueprint (`WBP_RT_ActionDock`, `WBP_RT_ActionSlot`), stesso clone.
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`**, come U61: la verifica sta nell'Editor prima del Play, sulla cattura. Ma
+    # dopo questa seduta il criterio (1) di `PIE-V01-SCREENHUD` — l'ingombro delle zone — va RIGIUDICATO a
+    # schermo, perche' il suo ultimo verde e' sull'albero a otto zone (#3469).
+    issues: [3468, 3469, 3478, 3470, 613, 3489]
+    done_when: >-
+      la dock in `Zone_Bottom` costruisce gli slot da `GetActionsInReadingOrder()` — Comuni, Base, Kit,
+      mai riordinati nel grafo: ogni slot porta il proprio `AbilityIndex` e `HotkeyLabel` — con i separatori
+      dove `Group` cambia in quella lista; all'estremita' destra la lettura di `GetMovementReadout()`; e
+      l'estremita' destra riservata; la cattura col kit da tredici voci e' committata in `artifacts` e la
+      barra resta dentro la fascia, senza scendere nel centro
+    # **Riferimenti**: `docs/research/design/hud/skill-bar-2026-10/` (`PROPOSTA`) per misure e resa —
+    # `SPECIFICA-VISIVA.md` §4 (composizione), `dati/tokens.json` (slot 78, gap 8, separatore 22, padding
+    # 24) — e D-455/D-456 per le regole.
+    #
+    # 🔴 **Cosa si cabla, e da dove legge**:
+    #   1. **Gli slot si costruiscono da `GetActionsInReadingOrder()`** (#3478), non da `GetActions()`: la
+    #      partizione stabile Comuni → Base → Kit la fa il C++ (`URTHudViewModel::OrderForReading`), e il grafo
+    #      NON la ricompone. ⛔ L'ordine di `GetActions()` resta identita' ([D-397] punto 2), e i suoi gruppi non
+    #      sono contigui — in partita `B KKKKK CCCCC KK` — quindi un separatore messo lungo QUELLA lista sarebbe
+    #      sbagliato. Lungo la lista di lettura invece il gruppo e' contiguo per costruzione: il separatore va
+    #      dove `Group` cambia fra due voci consecutive.
+    #   2. **Separatori** fra i gruppi: **padding, non widget** (#3489). Lo slot legge `bGroupBreakBefore` —
+    #      vero solo nella lista di lettura, dove il gruppo cambia — e scrive sul proprio `HorizontalBoxSlot`
+    #      `GroupGap` (22) o `ItemGap` (8). ⛔ Un widget separatore in `SlotBox` sposterebbe ogni
+    #      `GetChildAt(i)` sulla voce sbagliata. L'intestazione testuale (`COMUNI`, `BASE`, `KIT`) resta
+    #      facoltativa, come testo statico del Blueprint.
+    #   3. **Estremita' destra: la lettura del movimento** (#3470), **per nome** (#3489): un contenitore
+    #      **`MovementReadout`**, un `TextBlock` **`MovementReadoutText`** (`Move ×1`, `Sprint ×2`,
+    #      `Withdraw ×0,25`…), un `Button` **`SneakBadge`** con dentro il `TextBlock` **`SneakBadgeText`**.
+    #      Li riempie `URTActionDockWidget::RefreshMovementReadout` da `GetMovementReadout()`: il badge e'
+    #      acceso (opacita' 1) quando `bSneakDeclared`. ⛔ **Chiusa quando `bAuthorized` e' falso**, mai
+    #      spenta: uno spento direbbe «fermo» di un'unita' di cui non si sa niente. ✅ **Il badge E'
+    #      cliccabile** ([D-457]): il C++ collega il suo `OnClicked` a `ToggleSneak()`, che inoltra al corpo
+    #      del tasto `M`. ⛔ Nessun grafo: riserva dello slot e tetto li decide `ToggleSneakDeclaration`.
+    #      ⚠️ **Dichiarato contro effettivo, da decidere a schermo**: con `Sneak` dichiarato e poi
+    #      l'`Overwatch` armata, il badge resta acceso (`bSneakDeclared`) mentre l'etichetta dice
+    #      `Withdraw ×0,25`, perche' la riserva vince sul tetto ([D-425]). E' coerente — il badge dice cio' che
+    #      si e' premuto, l'etichetta cio' che si spendera' — ma se a schermo si legge come una contraddizione,
+    #      la resa del badge si decide qui (revisione di #3470).
+    #
+    # ⛔ **Cosa NON si fa in questa seduta**: Confirm · Undo in `TopRight` (e' `U64`, stessa apertura); la
+    # Ghost Timeline (#172); la riga d'intestazione del mockup, che D-456 punto 6
+    # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    notes: |
+      Scritta il 2026-10-04 dalla PR di #3469 (referto
+      `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
+      sessione che registra U62 (PR #3466): chi mergia secondo rinumera.
+      ✅ **Eseguita il 2026-10-05** su `main` = `2b9b15d4c`, Editor ricompilato da quel commit. Il nodo
+      `GetActions` del tick e' sostituito da `GetActionsInReadingOrder` con gli stessi quattro consumatori
+      (riletto col DSL); l'albero ha una riga `BarRow` = `SlotBox` + `Spacer` (Fill) + `MovementReadout`.
+      La cattura e' a **1920×1080** (finestra PIE flottante, letta con `PrintWindow`, non dallo schermo):
+      Muiren, tredici voci, la barra dentro la fascia — il suo bordo alto sta a y ≈ 868 ≥ 864 — e i due
+      confini di gruppo visibili come gap piu' largo. ⚠️ **Due test hanno dovuto cambiare, e non per il
+      cablaggio**: `ScreenHud.DockArmsOnlyTheSelectedAction` e `DockSurvivesAHoleInTheKit` confrontavano la
+      POSIZIONE di uno slot nella fila con l'indice di kit, cioe' cio' che [D-397] vieta; con la lista di
+      lettura le due cose divergono. Ora cercano lo slot per `Action.AbilityIndex`.
+      ⛔ **Il rigiudizio del criterio (1) di `PIE-V01-SCREENHUD` resta da fare**: e' percettivo, e la cella
+      stessa registra che chi cabla non lo firma. La cattura e' pronta in `artifacts`.
+
+  - id: U64
+    title: Conferma e Annulla del piano in alto a destra
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u61-u63-barra-dei-comandi.md
+    produces: >-
+      `WBP_RT_PlanCommit` (parent `URTPlanCommitWidget`) montato nel `Content` di `Zone_TopRight`: `Conferma`
+      e `Annulla` legati alle porte dei tasti, con le etichette dei tasti; il gate dell'albero lo trova per classe
+    artifacts:
+      - Content/RT/UI/Match/WBP_RT_PlanCommit.uasset
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**: `URTPlanCommitWidget`,
+    # `TogglePlanDeclaration` e `UndoStep` sono della PR di #3471 dove questa voce nasce. ⛔ Precondizione
+    # ([D-403]): un commit di `main` che li contenga, con l'Editor ricompilato da quel commit.
+    shares_setup_with: [U61, U63]
+    verifies: []
+    issues: [3471, 613, 3489]
+    done_when: >-
+      `Zone_TopRight` ospita un `WBP_RT_PlanCommit`; il click su `Conferma` dichiara o ritratta il piano
+      dell'unita' come `Invio`, quello su `Annulla` smonta il Back come il tasto destro e ritira il Ready
+      durante il countdown; `ScreenHud.EveryZoneOwnerIsMountedByClass` lo trova per classe in un processo fresco
+    # 🔴 **Cosa si cabla** ([D-458]):
+    #   1. `WBP_RT_PlanCommit`, parent `URTPlanCommitWidget`, in `/Game/RT/UI/Match/`.
+    #   2. Due `Button` **per nome** (#3489): **`ConfirmButton`** con dentro il `TextBlock` **`ConfirmText`**, e
+    #      **`UndoButton`** con dentro **`UndoText`**. Il C++ collega i click a `Confirm()` e `Undo()`
+    #      (`BindNamedButtons`, idempotente). ⛔ Nessun grafo: i pulsanti INOLTRANO alle porte dei tasti.
+    #   3. I testi li scrive `RefreshButtons`: «Conferma» o «Ritira» secondo `IsPlanDeclared()`, col tasto di
+    #      `GetConfirmKeyLabel()`; «Annulla» col tasto di `GetUndoKeyLabel()`. Mai scritti a mano.
+    #   4. **Si spegne solo `Conferma`** quando `HasCommandedUnit()` e' falso. ⌫ *Qui stava «entrambi
+    #      spenti»: era sbagliato. `UndoStep` ritira il Ready senza chiedere un'unita', e un `Annulla` spento
+    #      lo renderebbe irraggiungibile dal pulsante (#3489, `ScreenHud.PlanCommitButtonsFollowThePorts` D).*
+    #   5. Montaggio nel `NamedSlot Content` di `Zone_TopRight` con `SetNamedSlotContent`.
+    #   6. 🔴 **Nello STESSO commit dell'asset**: `EveryZoneOwnerIsMountedByClass` riceve la riga
+    #      `{ URTPlanCommitWidget::StaticClass(), TEXT("TopRight"), TEXT("#3471") }`, e
+    #      `guida-screen-hud-umg.md` §3 la riga di `Zone_TopRight`. Prima dell'asset il gate sarebbe rosso.
+    #
+    # ⛔ **Cosa NON si fa**: il `LockIn` di `Spazio` come pulsante — [D-458] lo esclude; lo stato del piano,
+    # il conteggio dei warning e lo stato invalido di §6.8, che restano senza un produttore in questa vista.
+    notes: |
+      Scritta il 2026-10-05 dalla PR di #3471 (decisione d'autore D-458).
+      ✅ **Eseguita il 2026-10-05** su `main` = `2b9b15d4c`: `WBP_RT_PlanCommit` (parent
+      `URTPlanCommitWidget`) con `ConfirmButton`/`ConfirmText` e `UndoButton`/`UndoText`, montato come
+      `WBP_RT_PlanCommitTopRight` nel `Content` di `Zone_TopRight`. `EveryZoneOwnerIsMountedByClass` lo trova
+      per classe in un processo fresco, e `ScreenHud.ActionBarDeclaresTheNamedPorts` ne legge i nomi.
+      In PIE: senza unita' selezionata `Conferma Enter` e' spenta e `Annulla Backspace` accesa; con Muiren
+      selezionata si accende anche `Conferma`. ⛔ **Il click dal vivo sui due pulsanti e' `NOT RUN`**: il
+      collegamento e' del C++ (`BindNamedButtons`) ed e' misurato da
+      `ScreenHud.PlanCommitButtonsFollowThePorts`, non a schermo.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

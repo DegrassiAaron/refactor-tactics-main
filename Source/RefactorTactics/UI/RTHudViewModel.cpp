@@ -12,6 +12,10 @@
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // ProfileForPlan: l'autorita' sul profilo, non un secondo lettore
 #include "Turn/RTPlanValidationLibrary.h"     // MakePlanFor: il piano da cui il profilo si ricava
+#include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
+#include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
+#include "Combat/RTHexCombatLibrary.h"        // BlastOriginCell: il Warning misura da dove si colpira'
+#include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 
@@ -342,12 +346,28 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 		return ERTActionSlotState::Empty;
 	}
 
+	// [D-459] **«Non lo potrai fare» batte anche «cosa sto per fare»**: lo slot armato col bersaglio puntato
+	// rifiutato (lettura A), o lo slot colpevole di un piano illegale (lettura B). E' la sola eccezione alla
+	// regola di `ComposeAbilityLine` qui sotto, e la ragione e' che il bianco dell'armata nasconderebbe il
+	// motivo per cui il click non partira'.
+	if ((bArmed && Action.bTargetRefused) || Action.bPlanInvalid)
+	{
+		return ERTActionSlotState::Invalid;
+	}
+
 	// 🔑 **Armata batte tutto il resto, ed e' la regola di `ARTHUD::ComposeAbilityLine`**, non una nuova:
 	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*. Un'ultimate
 	// armata e ancora in ricarica resta riconoscibile come quella scelta; il motivo lo dice il numero.
 	if (bArmed)
 	{
 		return ERTActionSlotState::Selected;
+	}
+
+	// [D-459] Il piano accettato ma DEGRADATO batte il semplice «pianificato»: e' ancora un impegno preso, e
+	// in piu' dice che in risoluzione prendera' il ripiego.
+	if (Action.bPlanDegraded)
+	{
+		return ERTActionSlotState::Warning;
 	}
 
 	// Gia' nel piano: un impegno preso, che sopravvive al fatto che l'armamento sia passato ad altro.
@@ -406,6 +426,9 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			// ⛔ `ChargeFraction` resta al suo default `1.f`, che per un'azione dichiara «pronta». Qui non
 			// significa nulla — non c'e' un'azione — e il campo che risponde e' `ActionId`. Scriverci `0`
 			// direbbe «scarica», cioe' inventerebbe una ricarica per qualcosa che non ne ha una.
+			//
+			// Stessa ragione per la fase (`#3465`): `PhaseMark` resta `None` e `PhaseLabel` resta VUOTA, non
+			// `—`. Il trattino dice «c'e' un'azione e non si gioca in nessuna fase», che di un vuoto e' falso.
 			Cooldowns.Add(Empty);
 			continue;
 		}
@@ -429,6 +452,18 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 			|| (Unit->PlannedReactionAbility == Index)
 			|| (Unit->PlannedDashAbility == Index);
 		View.Slot = Action->Def.Slot;
+
+		// La fase si LEGGE dal catalogo (`#3465`), per la stessa ragione del tasto e delle chiavi icona: il
+		// `Def` completo esiste qui, e lo slot non lo vedra' mai. `Phase` e' la risposta onesta, `PhaseMark`
+		// cio' che lo slot mostra — divergono su reazione e `Wait`, e la regola sta in `PhaseMarkFor`, non
+		// ripetuta qui.
+		View.Phase = URTCatalogLibrary::MapResolutionPhase(Action->Def.ResolutionPhase);
+		View.PhaseMark = PhaseMarkFor(Action->Def);
+		View.PhaseLabel = PhaseMarkLabel(View.PhaseMark);
+
+		// Il gruppo di lettura si deriva dallo stesso `Def` (`#3468`, D-455), e per la stessa ragione: lo slot
+		// non vede ne' le generiche del catalogo ne' `BaseActionId`.
+		View.Group = GroupFor(Action->Def);
 
 		// Il numero si LEGGE dal simulatore. `FMath::Max(0, ...)` non e' difensivo per abitudine: la vista
 		// dichiara «mai negativo» nel proprio contratto, e un contratto che dipende dal fatto che nessuno
@@ -459,7 +494,211 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		Cooldowns.Add(View);
 	}
 
+	// --- [D-459] lettura B: il piano dell'unita' COMANDATA, letto due volte ---------------------------------
+	// ⛔ Il solo chiamante e' la dock, con `GetSelectedUnit()`: nessun piano altrui passa di qui.
+	//
+	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore non legge l'unita' (D-190): un
+	//    `FRTHexSimUnit` vuoto e' cio' che la firma chiede, non un'approssimazione.
+	const FRTPlanValidation Verdetto =
+		URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(Unit));
+	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
+	{
+		for (FRTAbilityCooldownView& V : Cooldowns)
+		{
+			V.bPlanInvalid |= (V.ActionId == Verdetto.OffendingActionId);
+		}
+	}
+
+	// 2) **Degradato -> `Warning`** sullo slot della principale pianificata su un'unita': la domanda del click,
+	//    con lo stesso nome (`RefusalForKnownTarget`). Un bersaglio ignoto da' `Nothing` e NON accende niente:
+	//    il Warning su un'ombra direbbe «non lo vedi piu'» in un modo nuovo.
+	//
+	//    🔴 **Da DOVE si colpira', non da dove si sta.** La fase Blast parte dalla cella dello scatto, se lo
+	//    scatto si applica (`BlastOriginCell`, ordine `Prep -> Dash -> Blast -> Move`). Il click giudica dalla
+	//    cella corrente, e qui le due letture divergono: «accettato» al click, «degradato» in risoluzione. E'
+	//    il caso che rende il Warning raggiungibile — in planning nessuno si muove, quindi misurato dalla
+	//    cella corrente il bersaglio accettato dal click resterebbe accettato fino alla risoluzione.
+	if (Cooldowns.IsValidIndex(Unit->PlannedAbilityIndex) && !Unit->bAttackTargetsCell)
+	{
+		const URTActionData* Pianificata = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get();
+		FVector Origine; float Lato; float AltezzaPiano;
+		const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(Unit->GetWorld());
+		const URTHexMapAsset* Mappa = HexMap ? HexMap->GetHexContext(Origine, Lato, AltezzaPiano) : nullptr;
+		if (Pianificata && Bersaglio && Mappa)
+		{
+			FRTBlastPreviewPlan PianoBlast;
+			PianoBlast.AttackerId = 0;
+			PianoBlast.bDashResolves = Unit->PlannedDashApplies();
+			PianoBlast.PlannedDashCell = Unit->PlannedDashCell;
+			FRTHexCombatUnit Attaccante;
+			Attaccante.Cell = Unit->Cell;
+			const FRTCellId Da = URTHexCombatLibrary::BlastOriginCell(PianoBlast, { Attaccante });
+
+			const ERTTargetRefusal Rifiuto = URTCombatLibrary::RefusalForKnownTarget(Mappa, Da,
+				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,
+				Bersaglio->IsKnownToObserver());
+			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
+				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+		}
+	}
+
 	return Cooldowns;
+}
+
+ERTActionPhaseMark URTHudViewModel::PhaseMarkFor(const FRTActionDef& Def)
+{
+	// 🔑 **Lo slot PRIMA della fase**, ed e' l'ordine che i due casi decisi il 2026-10-04 richiedono: una
+	// reazione ha una `ResolutionPhase` — quella della sua core — e leggerla per prima direbbe `BLAST` di
+	// qualcosa che non si gioca nel Blast. Lo stesso vale per `Wait`, che risolve in `NormalMovement`.
+	if (Def.Slot == ERTActionSlot::Reaction)
+	{
+		return ERTActionPhaseMark::Reaction;
+	}
+	if (Def.Slot == ERTActionSlot::None)
+	{
+		return ERTActionPhaseMark::None;
+	}
+
+	// Funzione TOTALE sulla macro-fase, come `MapResolutionPhase`: nessun `default`, cosi' una fase aggiunta a
+	// `ERTMatchPhase` senza un segno diventa un avviso di compilazione invece di uno slot muto.
+	switch (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase))
+	{
+	case ERTMatchPhase::Prep:       return ERTActionPhaseMark::Prep;
+	case ERTMatchPhase::Dash:       return ERTActionPhaseMark::Dash;
+	case ERTMatchPhase::Blast:      return ERTActionPhaseMark::Blast;
+	case ERTMatchPhase::Move:       return ERTActionPhaseMark::Move;
+	case ERTMatchPhase::Cleanup:    return ERTActionPhaseMark::Cleanup;
+	case ERTMatchPhase::Planning:   return ERTActionPhaseMark::None; // nessuna azione risolve nel Planning
+	case ERTMatchPhase::MatchEnded: return ERTActionPhaseMark::None;
+	}
+	return ERTActionPhaseMark::None;
+}
+
+FText URTHudViewModel::PhaseMarkLabel(ERTActionPhaseMark Mark)
+{
+	// Le etichette del mockup della skill bar (`docs/research/design/hud/skill-bar-2026-10/`), in maiuscolo
+	// come le stampa la striscia. `REAZ.` e' abbreviata perche' lo slot e' largo un'icona.
+	switch (Mark)
+	{
+	case ERTActionPhaseMark::Prep:     return NSLOCTEXT("RTHud", "PhaseMarkPrep", "PREP");
+	case ERTActionPhaseMark::Dash:     return NSLOCTEXT("RTHud", "PhaseMarkDash", "DASH");
+	case ERTActionPhaseMark::Blast:    return NSLOCTEXT("RTHud", "PhaseMarkBlast", "BLAST");
+	case ERTActionPhaseMark::Move:     return NSLOCTEXT("RTHud", "PhaseMarkMove", "MOVE");
+	case ERTActionPhaseMark::Cleanup:  return NSLOCTEXT("RTHud", "PhaseMarkCleanup", "CLEANUP");
+	case ERTActionPhaseMark::Reaction: return NSLOCTEXT("RTHud", "PhaseMarkReaction", "REAZ.");
+	case ERTActionPhaseMark::None:     return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
+	}
+	return NSLOCTEXT("RTHud", "PhaseMarkNone", "—");
+}
+
+ERTActionGroup URTHudViewModel::GroupFor(const FRTActionDef& Def)
+{
+	// 🔑 **Le generiche PRIMA dell'attacco base**: nessuna delle due condizioni oggi ruba un'azione all'altra
+	// — `Action.BasicAttack` non e' fra le generiche che entrano nel kit — ma l'ordine e' quello della regola di
+	// D-455, e scriverlo uguale evita che una lettura del codice ne deduca un'altra.
+	if (URTCatalogLibrary::GetGenericActionIds().Contains(Def.ActionId))
+	{
+		return ERTActionGroup::Common;
+	}
+
+	static const FName BasicAttackId(TEXT("Action.BasicAttack"));
+	if (Def.ActionId == BasicAttackId || Def.BaseActionId == BasicAttackId)
+	{
+		return ERTActionGroup::Base;
+	}
+
+	return ERTActionGroup::Kit;
+}
+
+FRTMovementReadoutView URTHudViewModel::BuildMovementReadout(const ARTUnit* Unit)
+{
+	FRTMovementReadoutView View;
+	if (!Unit)
+	{
+		return View;
+	}
+
+	const FRTUnitSlotsView Slots = BuildUnitSlots(Unit);
+	View.bAuthorized = Slots.bAuthorized;
+	View.ProfileId = Slots.MovementProfileId;
+	View.Label = MovementReadoutLabel(View.ProfileId);
+	// `PlannedMovementProfileId` porta SOLO la dichiarazione del giocatore (oggi `Sneak`, o vuoto): [D-425].
+	View.bSneakDeclared = Unit->PlannedMovementProfileId == URTMovementProfileLibrary::ProfileSneak;
+	View.SneakKeyLabel = ARTPlayerController::SneakHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+	return View;
+}
+
+FText URTHudViewModel::MovementReadoutLabel(FName ProfileId)
+{
+	using Lib = URTMovementProfileLibrary;
+
+	const FRTMovementProfile Profile = Lib::FindProfile(ProfileId);
+	if (ProfileId.IsNone() || Profile.Id != ProfileId)
+	{
+		return FText::GetEmpty(); // un id che il catalogo non conosce non ha un'etichetta da inventare
+	}
+
+	// Il nome canonico e' l'ultimo segmento dell'id — `MovementProfile.Sprint` -> `Sprint` — cosi' un profilo
+	// nuovo ha gia' un nome invece di un'etichetta vuota.
+	FString Nome = ProfileId.ToString();
+	int32 Punto = INDEX_NONE;
+	if (Nome.FindLastChar(TEXT('.'), Punto))
+	{
+		Nome = Nome.RightChop(Punto + 1);
+	}
+
+	// Chi sta fermo non ha un passo da moltiplicare: il numero mentirebbe su un budget che non si spende.
+	if (ProfileId == Lib::ProfileStill)
+	{
+		return FText::FromString(Nome);
+	}
+
+	// Il moltiplicatore in centesimi, scritto all'italiana: `25` -> `0,25`, `50` -> `0,5`, `200` -> `2`.
+	const int32 Percento = FMath::Max(0, Profile.MoveBudgetPercent);
+	FString Moltiplicatore = FString::FromInt(Percento / 100);
+	const int32 Resto = Percento % 100;
+	if (Resto != 0)
+	{
+		FString Decimali = FString::Printf(TEXT("%02d"), Resto);
+		Decimali.RemoveFromEnd(TEXT("0"));
+		Moltiplicatore += TEXT(",") + Decimali;
+	}
+	return FText::FromString(FString::Printf(TEXT("%s \u00D7%s"), *Nome, *Moltiplicatore));
+}
+
+TArray<FRTAbilityCooldownView> URTHudViewModel::OrderForReading(const TArray<FRTAbilityCooldownView>& Actions)
+{
+	// Il rango di lettura di un gruppo. Funzione TOTALE sull'enum, senza `default`: un gruppo aggiunto senza
+	// rango diventa un avviso di compilazione invece di una voce che finisce in coda per caso.
+	auto Rango = [](ERTActionGroup Group) -> int32
+	{
+		switch (Group)
+		{
+		case ERTActionGroup::Common: return 0;
+		case ERTActionGroup::Base:   return 1;
+		case ERTActionGroup::Kit:    return 2;
+		case ERTActionGroup::None:   return 2; // posizione vuota del kit: si legge col Kit, al suo posto
+		}
+		return 2;
+	};
+
+	// ⚠️ **`StableSort` e non `Sort`**: dentro un gruppo tutte le voci hanno lo stesso rango, e senza
+	// stabilita' l'ordine di kit — cioe' quello in cui il giocatore impara i tasti — dipenderebbe
+	// dall'algoritmo. `HudViewModel.ReadingOrderKeepsKitOrderWithinEachGroup` lo pinna.
+	TArray<FRTAbilityCooldownView> Ordinate = Actions;
+	Ordinate.StableSort([&Rango](const FRTAbilityCooldownView& A, const FRTAbilityCooldownView& B)
+	{
+		return Rango(A.Group) < Rango(B.Group);
+	});
+
+	// Il confine si misura sul RANGO, non su `Group`: una posizione vuota (`None`) si legge col Kit, e fra le
+	// due non c'e' un separatore (#3489).
+	for (int32 i = 0; i < Ordinate.Num(); ++i)
+	{
+		Ordinate[i].bGroupBreakBefore = i > 0 && Rango(Ordinate[i].Group) != Rango(Ordinate[i - 1].Group);
+	}
+	return Ordinate;
 }
 
 TArray<FRTUnitCardView> URTHudViewModel::BuildTeamRoster(const TArray<ARTUnit*>& Units, int32 PlayerTeamId)

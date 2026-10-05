@@ -6,6 +6,8 @@
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "RTPlayerController.generated.h"
 
+enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
+
 class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
@@ -666,6 +668,29 @@ public:
 	 */
 	static const TArray<TPair<FName, FKey>>& GenericHotkeys();
 
+	/**
+	 * Il tasto che DICHIARA `Sneak` ([D-425]): l'unico profilo di movimento che si dichiara invece di derivarsi.
+	 *
+	 * 🔑 **Una sede sola, letta da due parti** (`#3470`): `BuildInputMappings` ci lega `IA_DeclareSneak`, e la
+	 * lettura del movimento nella barra lo mostra come badge. Scritto due volte, il giorno in cui qualcuno
+	 * rimappa il gesto la barra continuerebbe a dire `M` per un tasto che non fa piu' niente.
+	 * `PlayerInput.SneakIsMappedOnTheKeyTheBarShows` lo pinna sul contesto di input reale.
+	 */
+	static const FKey& SneakHotkey();
+
+	/**
+	 * Il tasto che DICHIARA il piano dell'unita' selezionata (`Invio`, #3145) — lo stesso gesto che il pulsante
+	 * `Conferma` della HUD inoltra ([D-458]). Una sede sola, letta dalla mappatura e dall'etichetta del pulsante.
+	 */
+	static const FKey& DeclarePlanHotkey();
+
+	/**
+	 * Il tasto da tastiera del Back (`BackSpace`), gemello del tasto destro — lo stesso gesto che il pulsante
+	 * `Annulla` della HUD inoltra ([D-458]). ⚠️ Il destro resta mappato a parte: e' anche il dolly della camera
+	 * con `Alt`, e un pulsante non ha un modificatore da tenere.
+	 */
+	static const FKey& UndoKeyboardHotkey();
+
 private:
 	void OnSelect(const FInputActionValue& Value);
 	void OnLockIn(const FInputActionValue& Value);
@@ -1079,6 +1104,34 @@ public:
 	void ArmKitAbility(int32 KitIndex);
 
 	/**
+	 * 🔴 **La porta del badge `M` della barra: dichiara o ritira `Sneak`** ([D-457], #3470).
+	 *
+	 * ⛔ **E' il corpo del tasto, non una copia**: `OnToggleSneak` chiama questa, quindi riserva dello slot,
+	 * tetto e waypoint ripristinati restano decisi in un posto solo. Il click e il tasto sono due canali verso
+	 * la STESSA dichiarazione, come slot e tasti numerici per le azioni ([D-397] punto 4).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void ToggleSneakDeclaration();
+
+	/**
+	 * 🔴 **La porta del pulsante `Conferma`: dichiara o ritratta il piano dell'unita' selezionata** ([D-458]).
+	 * Delega a `ToggleTurnPlanDeclared`, che e' il corpo di `Invio`: un'unita' sola, nessuna risoluzione.
+	 * ⛔ Non e' il `LockIn` di `Spazio`, che chiude il turno per tutti.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	bool TogglePlanDeclaration();
+
+	/**
+	 * 🔴 **La porta del pulsante `Annulla`: l'INTERO Back del tasto destro** ([D-458]).
+	 *
+	 * Durante il countdown del Ready **ritira il Ready** (#2193), altrimenti smonta **un** livello con
+	 * `ApplyBack()` (§5.5). ⛔ E' il corpo di `OnUndoWaypoint` meno il dolly della camera, che appartiene al
+	 * tasto destro tenuto con `Alt` e non a un pulsante: le due strade non possono divergere sul gioco.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|Planning")
+	void UndoStep();
+
+	/**
 	 * Il mondo e' in SOLA LETTURA: nessun input puo' cambiare il piano (`#2518`).
 	 *
 	 * 🔑 **E' un INSIEME di contesti, non un valore.** `spec-pointer-interaction.md` §5.3 li elenca insieme
@@ -1098,6 +1151,22 @@ public:
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerTargetKind GetPointerTargetKind() const;
+
+	/**
+	 * Che cosa risponderebbe un click ADESSO, sulla cella sotto il puntatore, con l'azione armata: il rifiuto
+	 * per chi guarda, o `None` (#3483, [D-459] lettura A). Alimenta lo stato `Invalid` dello slot armato.
+	 *
+	 * 🔑 **E' la domanda del click, posta in anticipo — non una regola nuova**: per un'unita'
+	 * `RefusalForKnownTarget`, la stessa coppia del click e dell'anteprima; per una cella la porta di
+	 * `HandleTargetCell`. Dove il click non mostrerebbe un rifiuto, `None`.
+	 *
+	 * ⛔ **Privacy ([D-225])**: per un'azione mirata a un'unita' si considerano SOLO le unita' note
+	 * all'osservatore. Una cella senza unita' note risponde `None`, non `Nothing`: il puntatore su un'ombra non
+	 * deve accendere niente, altrimenti lo slot rosso direbbe «li' c'e' qualcuno». Per un'azione a cella la
+	 * porta e' quella del click su una cella, `DescribeCellTargetRefusal`, che non guarda chi la occupa.
+	 * `Edge` e `Object` hanno regole proprie: `None`.
+	 */
+	ERTTargetRefusal RefusalUnderPointerForArmed() const;
 
 	/**
 	 * `ESC`: apre la pausa se e' chiusa, la chiude se e' aperta.

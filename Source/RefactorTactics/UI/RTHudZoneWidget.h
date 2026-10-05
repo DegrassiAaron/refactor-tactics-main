@@ -5,15 +5,21 @@
 #include "RTHudZoneWidget.generated.h"
 
 /**
- * Le otto celle della griglia 3x3 che circonda il centro tattico.
+ * Le zone dello Screen HUD attorno al centro tattico, sulla griglia 20/60/20 per asse: le tre celle alte, le
+ * due di mezzo, e la **fascia bassa intera**.
  *
  * 🔑 **Il centro NON e' un valore di questo enum**, e l'assenza e' deliberata: e' definito da cio' che non
  * contiene (`progettazione-hud.md` §3.1), e un `ERTHudZone::Center` sarebbe un invito a riempirlo. Il layer
  * §4.2 disegna li' path, AoE e barre ancorate sopra la mappa.
  *
+ * 🔑 **La fascia bassa e' UNA zona, `Bottom`, e non tre celle** ([D-456], #3469): la occupa la barra dei
+ * comandi, che sui kit di partita non entra nella cella centrale. ⌫ *Fino al 2026-10-04 c'erano
+ * `BottomLeft`, `BottomCenter` e `BottomRight`.* Non sono stati tenuti come valori esentati dai gate per la
+ * stessa ragione per cui non esiste `Center`: un valore che non si deve usare e' un invito a riempirlo.
+ *
  * ⚠️ **L'ordine dei valori e' significativo**: `BlockoutColor` deriva la tinta dall'indice, quindi
- * riordinarli rimescola i colori del blockout. Non e' un difetto — sono colori da cantiere — ma chi
- * riordina se ne accorga invece di sorprendersi.
+ * riordinarli — o cambiarne il numero — rimescola i colori del blockout. Non e' un difetto — sono colori da
+ * cantiere — ma chi riordina se ne accorga invece di sorprendersi.
  */
 UENUM(BlueprintType)
 enum class ERTHudZone : uint8
@@ -23,9 +29,8 @@ enum class ERTHudZone : uint8
 	TopRight     UMETA(DisplayName = "Alto destra"),
 	MiddleLeft   UMETA(DisplayName = "Mezzo sinistra"),
 	MiddleRight  UMETA(DisplayName = "Mezzo destra"),
-	BottomLeft   UMETA(DisplayName = "Basso sinistra"),
-	BottomCenter UMETA(DisplayName = "Basso centro"),
-	BottomRight  UMETA(DisplayName = "Basso destra"),
+	/** Tutta la fascia bassa, `(0.0, 0.8) -> (1.0, 1.0)`: la barra dei comandi ([D-456]). */
+	Bottom       UMETA(DisplayName = "Fascia bassa"),
 
 	/** Sentinella per il conteggio. Non e' una zona: non assegnarla mai a un `ZoneId`. */
 	Count        UMETA(Hidden)
@@ -54,7 +59,7 @@ public:
 	/**
 	 * Quale cella della griglia e' questa istanza.
 	 *
-	 * ⚠️ `EditAnywhere` e non `EditDefaultsOnly`: le otto istanze condividono la stessa classe e si
+	 * ⚠️ `EditAnywhere` e non `EditDefaultsOnly`: tutte le istanze condividono la stessa classe e si
 	 * distinguono **per istanza**. E' l'opposto di `bShowDebug` su `URTScreenHudWidgetBase`, che e'
 	 * `EditDefaultsOnly` proprio per non restare acceso in una schermata dimenticata.
 	 */
@@ -73,7 +78,7 @@ public:
 	 * Il colore del bordo da cantiere, DERIVATO da `ZoneId`.
 	 *
 	 * 🔑 **Pura e statica**: stesso ingresso, stesso colore, e la mappa zona -> tinta sta in un punto solo
-	 * invece che in otto istanze da tenere allineate a mano.
+	 * invece che in ogni istanza, da tenere allineate a mano.
 	 *
 	 * ⛔ **Queste tinte NON vengono dalla palette di gioco, e non passano i criteri di accessibilita' del
 	 * progetto.** La palette e' Okabe-Ito e ogni tinta e' impegnata (`spec-icon-card-grammar.md`):

@@ -42,6 +42,7 @@
 #include "InputActionValue.h"
 #include "InputModifiers.h"
 #include "Kismet/GameplayStatics.h"
+#include "EngineUtils.h" // TActorIterator: RefusalUnderPointerForArmed cerca le unita' NOTE sulla cella puntata
 #include "Turn/RTPlaybackLibrary.h" // DirectionYaw: l'anteprima del facing usa la stessa geometria del playback
 
 namespace
@@ -330,11 +331,10 @@ namespace
 			{
 				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
 				{
-					const ERTHexTargetReason Motivo = URTCombatLibrary::ClassifyHexTargeting(
+					// La coppia ha ora un nome, e lo stesso nome lo leggono gli slot di [D-459] (#3483).
+					Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
 						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
-						Ability->Def.LineOfSightPolicy);
-					Timeline.BlastTargetRefusal =
-						URTCombatLibrary::RefusalForObserver(Motivo, Bersaglio->IsKnownToObserver());
+						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
 				}
 			}
 
@@ -373,6 +373,26 @@ const TArray<FKey>& ARTPlayerController::AbilityHotkeys()
 		EKeys::One,  EKeys::Two,   EKeys::Three, EKeys::Four, EKeys::Five,
 		EKeys::Six,  EKeys::Seven, EKeys::Eight, EKeys::Nine, EKeys::Zero };
 	return Hotkeys;
+}
+
+const FKey& ARTPlayerController::SneakHotkey()
+{
+	// `M` per «muoversi piano»: non collide con nessun altro `MapKey` di `BuildInputMappings`, e il controllo
+	// che lo prova e' `PlayerInput.HotkeysDoNotCollide`, che legge il contesto vero e non questa riga.
+	static const FKey Tasto = EKeys::M;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::DeclarePlanHotkey()
+{
+	static const FKey Tasto = EKeys::Enter;
+	return Tasto;
+}
+
+const FKey& ARTPlayerController::UndoKeyboardHotkey()
+{
+	static const FKey Tasto = EKeys::BackSpace;
+	return Tasto;
 }
 
 FText ARTPlayerController::HotkeyLabelFor(const FName& ActionId, int32 KitIndex)
@@ -608,7 +628,7 @@ void ARTPlayerController::BuildInputMappings()
 
 	// Annulla l'ultimo waypoint della path composita (tasto destro del mouse o Backspace).
 	MappingContext->MapKey(UndoAction, EKeys::RightMouseButton);
-	MappingContext->MapKey(UndoAction, EKeys::BackSpace);
+	MappingContext->MapKey(UndoAction, UndoKeyboardHotkey());
 
 	// Ricentra la camera sul centro griglia + reset zoom (tasto Home).
 	// `TAB` — il ciclo di selezione (`#3145`). Nessun altro `MapKey` lo rivendica, e a verificarlo non e'
@@ -619,7 +639,7 @@ void ARTPlayerController::BuildInputMappings()
 	// `Enter` — «ho deciso le mosse di questa unita'» (`#3145`). ⛔ Deliberatamente NON accanto a
 	// `SpaceBar`: quello chiude il turno, questo chiude una dichiarazione. Due gesti che si somigliano e
 	// fanno cose diverse vanno su tasti che non si sfiorano.
-	MappingContext->MapKey(DeclarePlanAction, EKeys::Enter);
+	MappingContext->MapKey(DeclarePlanAction, DeclarePlanHotkey());
 
 	MappingContext->MapKey(RecenterAction, EKeys::Home);
 	MappingContext->MapKey(FocusAction, EKeys::F);
@@ -659,7 +679,7 @@ void ARTPlayerController::BuildInputMappings()
 	// sinistra perche' si premono mentre quella mano guida la camera; questo gesto si usa **mentre si
 	// disegna il percorso col mouse**, cioe' con la sinistra ferma. `M` e' libero, e
 	// `PlayerInput.HotkeysDoNotCollide` lo verifica sull'intero mapping context invece che su una lista.
-	MappingContext->MapKey(SneakAction, EKeys::M);
+	MappingContext->MapKey(SneakAction, SneakHotkey());
 
 	// `#2858` — `K` pausa/riprendi il PLAYBACK, `L` avanza di un micro-step.
 	//
@@ -1198,6 +1218,12 @@ void ARTPlayerController::OnCycleSelection(const FInputActionValue& Value)
 void ARTPlayerController::OnDeclarePlan(const FInputActionValue& Value)
 {
 	ToggleTurnPlanDeclared();
+}
+
+bool ARTPlayerController::TogglePlanDeclaration()
+{
+	// La porta del pulsante `Conferma` ([D-458]): nessuna regola qui, e' quella di `Invio`.
+	return ToggleTurnPlanDeclared();
 }
 
 bool ARTPlayerController::ToggleTurnPlanDeclared()
@@ -3125,6 +3151,19 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 		return;
 	}
 
+	// Il resto e' il gioco, e sta in `UndoStep`: la stessa porta del pulsante `Annulla` della HUD ([D-458]).
+	UndoStep();
+}
+
+void ARTPlayerController::UndoStep()
+{
+	// Ripetuta perche' questa e' anche una porta: un pulsante cliccato sotto una schermata bloccante non deve
+	// smontare niente, esattamente come il tasto.
+	if (IsGameplayInputBlocked())
+	{
+		return;
+	}
+
 	// #971 — sessione non presidiata: non c'e' un piano umano da disfare, e `UndoCount` non deve crescere.
 	if (IsPlanningInputInert())
 	{
@@ -3142,8 +3181,9 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 	// ⛔ **E non e' un toggle su Spazio**: chi preme due volte per abitudine annullerebbe senza volerlo, cioe'
 	// l'opposto esatto del difetto che il countdown esiste per prevenire.
 	//
-	// ⚠️ Sta DOPO le tre guardie qui sopra, e ognuna serve: una schermata bloccante copre la partita,
-	// `Alt`+destro e' un dolly, e in una sessione non presidiata non c'e' un umano che possa disdire.
+	// ⚠️ Sta DOPO le guardie, e ognuna serve: una schermata bloccante copre la partita, e in una sessione
+	// non presidiata non c'e' un umano che possa disdire. La terza — `Alt`+destro e' un dolly — vive in
+	// `OnUndoWaypoint`, PRIMA di arrivare qui: appartiene al tasto tenuto, e un pulsante non ce l'ha ([D-458]).
 	if (ARTTurnManager* TM = PacingTurnManager(this))
 	{
 		if (TM->IsReadyCountdownActive())
@@ -3193,6 +3233,12 @@ void ARTPlayerController::OnUndoWaypoint(const FInputActionValue& Value)
 }
 
 void ARTPlayerController::OnToggleSneak(const FInputActionValue& /*Value*/)
+{
+	// Il gesto. La regola sta in `ToggleSneakDeclaration`, che e' anche la porta del badge della barra ([D-457]).
+	ToggleSneakDeclaration();
+}
+
+void ARTPlayerController::ToggleSneakDeclaration()
 {
 	// Una schermata bloccante copre la partita: questo input non le arriva.
 	if (IsGameplayInputBlocked())
@@ -3587,6 +3633,81 @@ ERTPointerTargetKind ARTPlayerController::GetPointerTargetKind() const
 	if (!Ability) { return ERTPointerTargetKind::None; }
 
 	return URTPointerLibrary::TargetKindForAction(Ability->Def, Ability->bSelfTarget, Ability->Shape);
+}
+
+ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
+{
+	// Le stesse uscite del click, nello stesso ordine: dove il click non mostrerebbe un rifiuto, nemmeno lo
+	// slot lo mostra. Input inerte, nessun targeting, azione non pronta — il click li tace o li dice altrove.
+	if (IsPlanningInputInert() || GetPointerContext() != ERTPointerContext::Targeting)
+	{
+		return ERTTargetRefusal::None;
+	}
+	const ARTUnit* Unit = GetSelectedUnit();
+	if (!Unit)
+	{
+		return ERTTargetRefusal::None;
+	}
+	const int32 Armed = Unit->SelectedAbilityIndex;
+	const URTActionData* Ability = Unit->GetAbility(Armed);
+	if (!Ability || !Unit->CanUseAbility(Armed))
+	{
+		return ERTTargetRefusal::None;
+	}
+
+	FVector Origin; float HexSize; float LayerH; const URTHexMapAsset* Map = nullptr;
+	const ARTHexMapActor* HexMap = HexMapWithContext(GetWorld(), Origin, HexSize, LayerH, Map);
+	if (!HexMap || !Map || !HexMap->IsHoveredCellValid())
+	{
+		return ERTTargetRefusal::None;
+	}
+	const FRTCellId Cell = HexMap->GetHoveredCell();
+	if (!Map->ContainsCell(Cell))
+	{
+		return ERTTargetRefusal::None;
+	}
+
+	switch (GetPointerTargetKind())
+	{
+	case ERTPointerTargetKind::Unit:
+	{
+		// Carica e scatto non bersagliano un'unita': il click li manda alla cella o li rifiuta a parole
+		// (`HandleClickOnUnit`), senza un `ERTTargetRefusal`.
+		if (Ability->Def.MovementStyle == ERTMovementStyle::LinearCharge
+			|| URTCatalogLibrary::IsFastMovement(Ability->Def))
+		{
+			return ERTTargetRefusal::None;
+		}
+		// Solo le unita' NOTE: un'ombra sulla cella non accende niente (vedi il docstring). E' la stessa
+		// guardia del click, che su un bersaglio ignoto esce senza dire niente.
+		//
+		// ⚠️ **Il flag si passa VERO anche dopo la guardia, e non `true`**: e' cio' che fa il sito del click,
+		// e per la stessa ragione — `RefusalForKnownTarget` collassa da se' un ignoto su `Nothing`, quindi la
+		// privacy non dipende dalla sola condizione del ciclo (revisione indipendente di #3483).
+		for (TActorIterator<ARTUnit> It(GetWorld()); It; ++It)
+		{
+			const ARTUnit* Bersaglio = *It;
+			if (!Bersaglio || Bersaglio == Unit || !Bersaglio->IsAlive() || Bersaglio->Cell != Cell
+				|| !Bersaglio->IsKnownToObserver())
+			{
+				continue;
+			}
+			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->Cell, Bersaglio->Cell,
+				Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
+		}
+		return ERTTargetRefusal::None;
+	}
+	case ERTPointerTargetKind::Cell:
+		// La porta del click su una cella (`HandleTargetCell`), non la coppia delle unita': una cella non
+		// ha un flag di conoscenza, e il suo rifiuto non guarda chi la occupa (`#2791`).
+		return URTCombatLibrary::DescribeCellTargetRefusal(
+			Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy).Refusal;
+	case ERTPointerTargetKind::None:
+	case ERTPointerTargetKind::Edge:
+	case ERTPointerTargetKind::Object:
+		break;
+	}
+	return ERTTargetRefusal::None;
 }
 
 ERTPointerBackStep ARTPlayerController::ApplyBack()

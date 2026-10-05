@@ -32,7 +32,7 @@ dichiara: *«nessun asset UMG»* — e disegna già:
 | Round su `RoundLimit` **letto dal formato** | ✅ `GetMatchRules().RoundLimit` (`:403`) — **già conforme**, nessun `12` scritto a mano |
 | Cooldown residui per azione | ✅ `GetAbilityCooldown` (`:510`) |
 | Nessuna informazione avversaria | ✅ per costruzione (`ComputePlannedHitMarks` legge solo `PlayerTeamId`) |
-| **Slot occupati** movimento/azione/reazione | ❌ **l'unica voce scoperta** |
+| **Slot occupati** movimento/azione/reazione | ❌ **l'unica voce scoperta** — ⏱️ *alla data del piano.* Coperta dal giorno dopo: `FRTUnitSlotsView` e `URTSelectedUnitPanelWidget::GetSlots()`, `e7661a7eb` del 2026-08-13, con il caso del nemico ispezionato in `ScreenHud.InspectedEnemyNeverCarriesItsPlannedSlots`. La frase è rimasta e il 2026-10-04 ha fatto chiedere a un work order di ricostruire la vista ([referto](skill-bar-mockup-spec-panel-2026-10-04.md) §4.1) |
 
 In più `ARTHUD` disegna intenti alleati, path, waypoint, traiettoria di Dash, AoE, avviso di fuoco amico e
 banner di esito.

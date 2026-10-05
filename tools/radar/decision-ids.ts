@@ -28,6 +28,13 @@
  *      Con due soli controlli il gate **non lo avrebbe visto**, perche' a rivendicarlo resta un ref
  *      solo e in albero compare una volta sola.
  *
+ *  🔑 **Una presa CONDIVISA non e' due prese** (#3480). Due branch impilati — il secondo creato sopra il
+ *  primo, non ancora mergiato — portano la stessa riga perche' il secondo **contiene il commit** del primo.
+ *  Contare i ref li dava per collisione: misurato il 2026-10-04 su `issue/3468` e `issue/3469`, tre rossi
+ *  su tre numeri presi una volta sola. Ora due ref condividono la presa se il loro **merge-base** la
+ *  aggiunge gia' rispetto a `origin/main`, e le prese condivise si stampano **per nome**, come i fantasmi.
+ *  ⛔ Se `git` non risponde la presa NON e' condivisa: il dubbio resta una collisione, non un verde.
+ *
  *  ⚠️ **Cosa NON verifica**, dichiarato perche' non venga scoperto dopo:
  *   - **le decisioni, solo i numeri.** L'unico incidente davvero registrato, `D-044`, non era una
  *     collisione di numero (044 contro 060) ma di **contenuto**: due sessioni che decidevano la stessa
@@ -146,6 +153,44 @@ export function numeriAggiunti(diff: string): Map<string, number> {
   return netto;
 }
 
+/** Due ref condividono la presa di `id` se il loro merge-base la aggiunge gia' rispetto a `base` (#3480).
+ *
+ *  Copre i due casi reali: un branch impilato sull'altro (il merge-base e' il piu' vecchio dei due) e due
+ *  branch nati sopra lo stesso branch non mergiato (il merge-base e' quello). Due rami che prendono lo
+ *  stesso numero **indipendentemente** hanno un merge-base che non lo porta, e restano una collisione.
+ *
+ *  ⛔ **Su qualunque errore di `git` risponde `false`**: un ref sparito o una storia shallow non devono
+ *  trasformare una collisione possibile in un verde. */
+export function stessaPresaInGit(base: string, id: string, a: string, b: string): boolean {
+  try {
+    const mb = git(['merge-base', a, b]).trim();
+    if (!mb) return false;
+    const diff = git(['diff', '-U0', `${base}...${mb}`, '--', REGISTRO]);
+    return numeriAggiunti(diff).has(id);
+  } catch {
+    return false;
+  }
+}
+
+/** I ref che rivendicano un numero, raggruppati per presa: due ref stanno nello stesso gruppo se
+ *  `stessaPresa` li unisce, anche per transitivita' (a~b e b~c sono una presa sola). */
+function gruppiDiPresa(id: string, refs: string[], stessaPresa: (id: string, a: string, b: string) => boolean): string[][] {
+  const capo = refs.map((_, i) => i);
+  const trova = (i: number): number => (capo[i] === i ? i : (capo[i] = trova(capo[i]!)));
+  for (let i = 0; i < refs.length; i++) {
+    for (let j = i + 1; j < refs.length; j++) {
+      if (trova(i) !== trova(j) && stessaPresa(id, refs[i]!, refs[j]!)) capo[trova(j)] = trova(i);
+    }
+  }
+  const gruppi = new Map<number, string[]>();
+  refs.forEach((r, i) => {
+    const g = gruppi.get(trova(i));
+    if (g) g.push(r);
+    else gruppi.set(trova(i), [r]);
+  });
+  return [...gruppi.values()];
+}
+
 /** Controlli 2 e 3 — chi rivendica un numero che non e' suo da solo.
  *
  *  Tre forme, e la terza e' quella che ha motivato il gate:
@@ -156,6 +201,8 @@ export function numeriAggiunti(diff: string): Map<string, number> {
 export function collisioniFraRef(
   perRef: Map<string, Map<string, number>>,
   giaInMain: ReadonlySet<string>,
+  stessaPresa: (id: string, a: string, b: string) => boolean = () => false,
+  condivise: string[] = [],
 ): string[] {
   const chiRivendica = new Map<string, string[]>();
   const doppioNelRef: string[] = [];
@@ -170,12 +217,20 @@ export function collisioniFraRef(
   const out: string[] = [];
   for (const [id, chi] of chiRivendica) {
     const ordinati = [...chi].sort();
-    if (ordinati.length > 1) {
+    const gruppi = ordinati.length > 1 ? gruppiDiPresa(id, ordinati, stessaPresa) : [ordinati];
+    if (gruppi.length > 1) {
       out.push(`${id}: rivendicato da ${ordinati.length} ref — ${ordinati.join(', ')}`);
-    } else if (giaInMain.has(id)) {
-      out.push(`${id}: gia' preso in origin/main, e ${ordinati[0]} lo rivendica di nuovo`);
+      continue;
+    }
+    // Una presa sola, eventualmente condivisa da piu' ref impilati: si riporta, non si tace.
+    if (ordinati.length > 1) condivise.push(`${id}: presa condivisa da ${ordinati.join(', ')}`);
+    if (giaInMain.has(id)) {
+      out.push(ordinati.length > 1
+        ? `${id}: gia' preso in origin/main, e ${ordinati.join(', ')} lo rivendicano di nuovo`
+        : `${id}: gia' preso in origin/main, e ${ordinati[0]} lo rivendica di nuovo`);
     }
   }
+  condivise.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   out.push(...doppioNelRef);
   out.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   return out;
@@ -253,7 +308,9 @@ function main(): void {
     }
   }
 
-  problemi.push(...collisioniFraRef(perRef, inMain));
+  const condivise: string[] = [];
+  problemi.push(...collisioniFraRef(
+    perRef, inMain, (id, a, b) => stessaPresaInGit('origin/main', id, a, b), condivise));
 
   // --- Copertura, sempre, e conta cio' che ha LETTO --------------------------------------------
   console.error(
@@ -266,6 +323,9 @@ function main(): void {
   }
   if (illeggibili.length) {
     console.error(`  ⚠️ ILLEGGIBILI, non misurati: ${illeggibili.join(', ')}`);
+  }
+  if (condivise.length) {
+    console.error(`  prese condivise da ref impilati, contate una volta: ${condivise.join(' · ')}`);
   }
 
   verdetto(problemi, check);

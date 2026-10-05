@@ -23,9 +23,14 @@
 #include "UI/RTIconLibrary.h"
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
 #include "Kismet/GameplayStatics.h"
 #include "Components/Image.h" // ApplyResolvedIconTo imposta il brush: serve il tipo completo
 #include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
+#include "Components/Border.h"            // #3489: striscia di fase e bordo di stato
+#include "Components/Button.h"            // #3489: badge e pulsanti collegati per nome
+#include "Components/TextBlock.h"         // #3489: etichette scritte dal C++
+#include "Components/HorizontalBoxSlot.h" // #3489: il separatore dei gruppi e' padding, non un widget
 
 // =====================================================================================================
 // Base: il contesto, e nient'altro
@@ -207,6 +212,20 @@ URTReactionWindowViewModel* URTScreenHudWidgetBase::GetReactionWindow() const
 bool URTScreenHudWidgetBase::HasMatchContext() const
 {
 	return TurnManager.IsValid();
+}
+
+void URTScreenHudWidgetBase::SetCommandControllerForTest(ARTPlayerController* InController)
+{
+	CommandControllerForTest = InController;
+}
+
+ARTPlayerController* URTScreenHudWidgetBase::ResolveCommandController() const
+{
+	if (ARTPlayerController* Iniettato = CommandControllerForTest.Get())
+	{
+		return Iniettato;
+	}
+	return Cast<ARTPlayerController>(GetOwningPlayer());
 }
 
 const ARTUnit* URTScreenHudWidgetBase::GetSelectedUnit() const
@@ -442,7 +461,182 @@ FText URTSelectedUnitPanelWidget::GetMovementSlotText() const
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 {
-	return URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
+	TArray<FRTAbilityCooldownView> Azioni = URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
+
+	// [D-459] lettura A: il rifiuto sotto il puntatore va sull'azione ARMATA. Lo scrive la dock perche' dipende
+	// dal puntatore, che il ViewModel non conosce; la domanda la pone il controller con la coppia canonica.
+	const int32 Armata = GetArmedActionIndex();
+	if (Azioni.IsValidIndex(Armata))
+	{
+		if (const ARTPlayerController* PC = ResolveCommandController())
+		{
+			const ERTTargetRefusal Rifiuto = PC->RefusalUnderPointerForArmed();
+			Azioni[Armata].bTargetRefused =
+				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+		}
+	}
+	return Azioni;
+}
+
+TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() const
+{
+	// La regola sta in `OrderForReading`; qui c'e' solo la scelta della sorgente, che e' la stessa di
+	// `GetActions()` — due liste da due sorgenti potrebbero divergere sotto gli occhi del giocatore.
+	return URTHudViewModel::OrderForReading(GetActions());
+}
+
+FRTMovementReadoutView URTActionDockWidget::GetMovementReadout() const
+{
+	// `GetSelectedUnit()` e NON `GetSubject()`: la barra comanda, non ispeziona. E' la stessa sorgente di
+	// `GetActions()`, quindi azioni e movimento parlano sempre della stessa unita'.
+	return URTHudViewModel::BuildMovementReadout(GetSelectedUnit());
+}
+
+void URTActionDockWidget::ToggleSneak()
+{
+	// Nessuna regola qui ([D-457]): riserva dello slot, tetto e waypoint li decide il corpo del tasto `M`.
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->ToggleSneakDeclaration();
+	}
+}
+
+// =====================================================================================================
+// Conferma e Annulla
+// =====================================================================================================
+
+void URTPlanCommitWidget::Confirm()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->TogglePlanDeclaration();
+	}
+}
+
+void URTPlanCommitWidget::Undo()
+{
+	if (ARTPlayerController* PC = ResolveCommandController())
+	{
+		PC->UndoStep();
+	}
+}
+
+bool URTPlanCommitWidget::HasCommandedUnit() const
+{
+	return GetSelectedUnit() != nullptr;
+}
+
+bool URTPlanCommitWidget::IsPlanDeclared() const
+{
+	const ARTUnit* Unit = GetSelectedUnit();
+	return Unit && Unit->bTurnPlanDeclared;
+}
+
+FText URTPlanCommitWidget::GetConfirmKeyLabel() const
+{
+	return ARTPlayerController::DeclarePlanHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+}
+
+FText URTPlanCommitWidget::GetUndoKeyLabel() const
+{
+	return ARTPlayerController::UndoKeyboardHotkey().GetDisplayName(/*bLongDisplayName=*/ false);
+}
+
+void URTPlanCommitWidget::BindNamedButtons()
+{
+	if (ConfirmButton)
+	{
+		ConfirmButton->OnClicked.AddUniqueDynamic(this, &URTPlanCommitWidget::Confirm);
+	}
+	if (UndoButton)
+	{
+		UndoButton->OnClicked.AddUniqueDynamic(this, &URTPlanCommitWidget::Undo);
+	}
+}
+
+void URTPlanCommitWidget::RefreshButtons()
+{
+	const bool bUnita = HasCommandedUnit();
+	if (ConfirmButton)
+	{
+		ConfirmButton->SetIsEnabled(bUnita);
+	}
+	if (ConfirmText)
+	{
+		const FText Verbo = IsPlanDeclared()
+			? NSLOCTEXT("RTPlanCommit", "Withdraw", "Ritira")
+			: NSLOCTEXT("RTPlanCommit", "Confirm", "Conferma");
+		ConfirmText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
+			Verbo, GetConfirmKeyLabel()));
+	}
+	if (UndoText)
+	{
+		UndoText->SetText(FText::Format(NSLOCTEXT("RTPlanCommit", "WithKey", "{0}  {1}"),
+			NSLOCTEXT("RTPlanCommit", "Undo", "Annulla"), GetUndoKeyLabel()));
+	}
+}
+
+void URTPlanCommitWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	BindNamedButtons();
+}
+
+void URTPlanCommitWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	RefreshButtons();
+}
+
+void URTActionDockWidget::BindNamedButtons()
+{
+	if (SneakBadge)
+	{
+		SneakBadge->OnClicked.AddUniqueDynamic(this, &URTActionDockWidget::ToggleSneak);
+	}
+}
+
+void URTActionDockWidget::RefreshMovementReadout()
+{
+	const FRTMovementReadoutView Vista = GetMovementReadout();
+	const ESlateVisibility Visibilita = Vista.bAuthorized
+		? ESlateVisibility::SelfHitTestInvisible : ESlateVisibility::Collapsed;
+
+	// ⛔ Mai spento: un'unita' di cui non si sa niente non e' «ferma». Senza autorizzazione si CHIUDE tutto,
+	// il contenitore se c'e', altrimenti testo e badge uno per uno.
+	if (MovementReadout)
+	{
+		MovementReadout->SetVisibility(Visibilita);
+	}
+	else
+	{
+		if (MovementReadoutText) { MovementReadoutText->SetVisibility(Visibilita); }
+		if (SneakBadge) { SneakBadge->SetVisibility(Vista.bAuthorized ? ESlateVisibility::Visible : Visibilita); }
+	}
+	if (MovementReadoutText)
+	{
+		MovementReadoutText->SetText(Vista.Label);
+	}
+	if (SneakBadgeText)
+	{
+		SneakBadgeText->SetText(Vista.SneakKeyLabel);
+	}
+	if (SneakBadge)
+	{
+		SneakBadge->SetRenderOpacity(Vista.bSneakDeclared ? 1.f : SneakBadgeIdleOpacity);
+	}
+}
+
+void URTActionDockWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	BindNamedButtons();
+}
+
+void URTActionDockWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
+{
+	Super::NativeTick(MyGeometry, InDeltaTime);
+	RefreshMovementReadout();
 }
 
 int32 URTActionDockWidget::GetArmedActionIndex() const
@@ -476,7 +670,112 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
 	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
 
+	// Prima dell'evento: il Blueprint che volesse aggiungere qualcosa lo fa sopra cio' che il C++ ha gia' messo.
+	RefreshLook();
 	OnActionChanged();
+}
+
+namespace
+{
+	FLinearColor RTSlotHex(const TCHAR* Hex)
+	{
+		return FLinearColor::FromSRGBColor(FColor::FromHex(Hex));
+	}
+}
+
+URTActionSlotWidget::URTActionSlotWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// [D-233] per le macro-fasi, §32 per la reazione. ⛔ `Cleanup` NON ha una voce: ha un'etichetta e non un
+	// colore ([D-232] §1), quindi la striscia si chiude e la fase la dice `PhaseLabelText`.
+	PhaseColors.Add(ERTActionPhaseMark::Prep, RTSlotHex(TEXT("56B4E9")));
+	PhaseColors.Add(ERTActionPhaseMark::Dash, RTSlotHex(TEXT("009E73")));
+	PhaseColors.Add(ERTActionPhaseMark::Blast, RTSlotHex(TEXT("D55E00")));
+	PhaseColors.Add(ERTActionPhaseMark::Move, RTSlotHex(TEXT("0072B2")));
+	PhaseColors.Add(ERTActionPhaseMark::Reaction, RTSlotHex(TEXT("7C5CFF")));
+
+	// `SPECIFICA-VISIVA.md` §3. Selected e Warning condividono l'ambra: li separa il secondo canale.
+	const FLinearColor Neutro = RTSlotHex(TEXT("4A5568"));
+	const FLinearColor Ambra = RTSlotHex(TEXT("FFD456"));
+	FrameColors.Add(ERTActionSlotState::Empty, Neutro.CopyWithNewOpacity(0.4f));
+	FrameColors.Add(ERTActionSlotState::Available, Neutro);
+	FrameColors.Add(ERTActionSlotState::Selected, Ambra);
+	FrameColors.Add(ERTActionSlotState::Planned, Ambra);
+	FrameColors.Add(ERTActionSlotState::Cooldown, Neutro);
+	FrameColors.Add(ERTActionSlotState::Unavailable, Neutro);
+	FrameColors.Add(ERTActionSlotState::Invalid, RTSlotHex(TEXT("FF4D4D")));
+	FrameColors.Add(ERTActionSlotState::Warning, Ambra);
+}
+
+FName URTActionSlotWidget::IndicatorNameFor(ERTActionSlotState State)
+{
+	switch (State)
+	{
+	case ERTActionSlotState::Selected:    return TEXT("SelectedBar");
+	case ERTActionSlotState::Planned:     return TEXT("PlannedCorner");
+	case ERTActionSlotState::Cooldown:    return TEXT("CooldownText");
+	case ERTActionSlotState::Unavailable: return TEXT("UnavailableHatch");
+	case ERTActionSlotState::Invalid:     return TEXT("InvalidMark");
+	case ERTActionSlotState::Warning:     return TEXT("WarningMark");
+	case ERTActionSlotState::Empty:
+	case ERTActionSlotState::Available:
+		break;
+	}
+	return NAME_None;
+}
+
+void URTActionSlotWidget::RefreshLook()
+{
+	const ERTActionSlotState Stato = URTHudViewModel::ResolveSlotState(Action, bArmed);
+
+	if (PhaseStrip)
+	{
+		const FLinearColor* Colore = PhaseColors.Find(Action.PhaseMark);
+		PhaseStrip->SetVisibility(Colore ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		if (Colore)
+		{
+			PhaseStrip->SetBrushColor(*Colore);
+		}
+	}
+	if (PhaseLabelText)
+	{
+		PhaseLabelText->SetText(Action.PhaseLabel);
+		PhaseLabelText->SetVisibility(Action.PhaseLabel.IsEmpty()
+			? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+	if (StateFrame)
+	{
+		if (const FLinearColor* Colore = FrameColors.Find(Stato))
+		{
+			StateFrame->SetBrushColor(*Colore);
+		}
+	}
+
+	// Un indicatore per stato, acceso solo nel proprio. `CooldownText` non e' qui: ha gia' il suo binding.
+	const TPair<ERTActionSlotState, UWidget*> Indicatori[] = {
+		{ ERTActionSlotState::Selected, SelectedBar },
+		{ ERTActionSlotState::Planned, PlannedCorner },
+		{ ERTActionSlotState::Unavailable, UnavailableHatch },
+		{ ERTActionSlotState::Invalid, InvalidMark },
+		{ ERTActionSlotState::Warning, WarningMark },
+	};
+	for (const TPair<ERTActionSlotState, UWidget*>& Voce : Indicatori)
+	{
+		if (Voce.Value)
+		{
+			Voce.Value->SetVisibility(Voce.Key == Stato
+				? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+		}
+	}
+
+	// Il separatore dei gruppi e' PADDING: un widget in piu' in `SlotBox` sposterebbe ogni `GetChildAt(i)`.
+	// ⚠️ Si scrive SOLO il lato sinistro: gli altri tre restano quelli del Designer.
+	if (UHorizontalBoxSlot* Posto = Cast<UHorizontalBoxSlot>(Slot))
+	{
+		FMargin Margine = Posto->GetPadding();
+		Margine.Left = Action.bGroupBreakBefore ? GroupGap : ItemGap;
+		Posto->SetPadding(Margine);
+	}
 }
 
 void URTActionSlotWidget::SetArmingControllerForTest(ARTPlayerController* InController)

@@ -24,6 +24,9 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/OverlaySlot.h" // e' lo SLOT a decidere se la zona riempie la cella, non il widget
 #include "Components/Image.h"
+#include "Components/TextBlock.h"
+#include "Components/Button.h"
+#include "Components/Border.h"
 #include "Components/PanelSlot.h"
 #include "Components/Widget.h"
 #include "UI/RTScreenHudWidgets.h"
@@ -43,6 +46,8 @@ namespace
 	const TCHAR* const ActionDockPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionDock.WBP_RT_ActionDock_C");
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
+	// Conferma e Annulla in `TopRight` ([D-458], #3471): entra con l'asset, dalla seduta `U64`.
+	const TCHAR* const PlanCommitPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanCommit.WBP_RT_PlanCommit_C");
 	// UNA zona: il contenitore che porta `ZoneId`, il bordo da cantiere e il `NamedSlot Content`.
 	const TCHAR* const HudZonePath = TEXT("/Game/RT/UI/Match/WBP_RT_HudZone.WBP_RT_HudZone_C");
 	// CP 14.6 (`#166`): la finestra di reazione. Il path entra QUI e non prima — questo file carica per
@@ -223,12 +228,12 @@ bool FRTMatchWidgetsLoadTest::RunTest(const FString&)
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
 		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath,
-		EventLogPath, EventLinePath
+		EventLogPath, EventLinePath, PlanCommitPath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
 		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
-		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine")
+		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine"), TEXT("PlanCommit")
 	};
 	static_assert(UE_ARRAY_COUNT(Paths) == UE_ARRAY_COUNT(Labels),
 		"path ed etichette vanno a coppie: un'etichetta in meno sposta i nomi di tutti i successivi");
@@ -360,6 +365,7 @@ bool FRTMatchWidgetsDeriveFromCppBaseTest::RunTest(const FString&)
 		{ FastDecisionOptionPath, TEXT("FastDecisionOption"),
 		                                               URTFastDecisionOptionWidget::StaticClass() },
 		{ EventLogPath,     TEXT("EventLog"),          URTPlayerEventLogWidget::StaticClass() },
+		{ PlanCommitPath,   TEXT("PlanCommit"),        URTPlanCommitWidget::StaticClass() },
 	};
 
 	for (const FExpected& E : Expected)
@@ -418,12 +424,12 @@ bool FRTMatchWidgetsDeclareNoTextureTest::RunTest(const FString&)
 	const TCHAR* const Paths[] = {
 		TacticalHudPath, TurnHeaderPath, TeamRosterPath, SelectedUnitPath,
 		ActionDockPath, ActionSlotPath, UnitCardPath, FastDecisionPath, FastDecisionOptionPath,
-		EventLogPath, EventLinePath
+		EventLogPath, EventLinePath, PlanCommitPath
 	};
 	const TCHAR* const Labels[] = {
 		TEXT("TacticalHUD"), TEXT("TurnHeader"), TEXT("TeamRoster"), TEXT("SelectedUnitPanel"),
 		TEXT("ActionDock"), TEXT("ActionSlot"), TEXT("UnitCard"), TEXT("FastDecision"),
-		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine")
+		TEXT("FastDecisionOption"), TEXT("EventLog"), TEXT("EventLine"), TEXT("PlanCommit")
 	};
 	static_assert(UE_ARRAY_COUNT(Paths) == UE_ARRAY_COUNT(Labels),
 		"path ed etichette vanno a coppie: un'etichetta in meno sposta i nomi di tutti i successivi");
@@ -943,7 +949,8 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 		const TCHAR* Issue;
 	};
 
-	// ⚠️ Il vocabolario e' quello a OTTO zone, non il TOP/LEFT/RIGHT/BOTTOM di prima. Il criterio non
+	// ⚠️ Il vocabolario e' quello di `ERTHudZone`, non il TOP/LEFT/RIGHT/BOTTOM di prima del 2026-09-12 — e
+	// dal 2026-10-04 la dock sta in `Bottom`, la fascia intera, non piu' in `BottomCenter` ([D-456], #3469). Il criterio non
 	// cambia — la domanda resta «c'e' un'istanza di questa classe?», e il test era verde prima ed e' verde
 	// dopo — ma l'etichetta finisce in un messaggio d'errore che rimanda a `guida-screen-hud-umg.md` §3, e
 	// quella sezione ora descrive la griglia 3x3. Un'etichetta che rimanda a una sezione cambiata sotto di
@@ -954,7 +961,9 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 		{ URTPlayerEventLogWidget::StaticClass(),    TEXT("MiddleRight"),  TEXT("#2697, #1936 fetta F") },
 		// ⚠️ MiddleLeft e non BottomLeft: Selected Unit cambia fascia col rimontaggio delle otto zone.
 		{ URTSelectedUnitPanelWidget::StaticClass(), TEXT("MiddleLeft"),   TEXT("#613, #2760") },
-		{ URTActionDockWidget::StaticClass(),        TEXT("BottomCenter"), TEXT("#220, #2760") },
+		{ URTActionDockWidget::StaticClass(),        TEXT("Bottom"),       TEXT("#220, #2760, #3469") },
+		// Conferma e Annulla ([D-458]): l'asset e la riga entrano nello stesso commit, dalla seduta `U64`.
+		{ URTPlanCommitWidget::StaticClass(),        TEXT("TopRight"),     TEXT("#3471") },
 	};
 
 	for (const FInquilino& Atteso : Attesi)
@@ -968,7 +977,7 @@ bool FRTHudMountsEveryZoneOwnerTest::RunTest(const FString&)
 			}
 		});
 
-		// `%-12s` e non `%-6s`: i nomi a otto zone arrivano a `BottomCenter`, e una colonna troppo stretta
+		// `%-12s` e non `%-6s`: i nomi delle zone arrivano a `MiddleRight`, e una colonna troppo stretta
 		// non tronca ma sfalsa tutte le righe successive, rendendo il report peggiore di nessun report.
 		AddInfo(FString::Printf(TEXT("  %-34s zona %-12s -> %d istanza/e"),
 			*Atteso.Classe->GetName(), Atteso.Zona, Conta));
@@ -1155,7 +1164,7 @@ bool FRTActionSlotCanReceiveAClickTest::RunTest(const FString&)
 	return true;
 }
 // =====================================================================================================
-// Le otto zone: ci sono tutte, una volta ciascuna
+// Le zone: ci sono tutte, una volta ciascuna
 // =====================================================================================================
 //
 // 🔴 **E' la domanda che prima di `URTHudZoneWidget` nessuno poteva porre**, e la ragione per cui quella
@@ -1164,11 +1173,13 @@ bool FRTActionSlotCanReceiveAClickTest::RunTest(const FString&)
 // riportato l'albero allo stato precedente al fix di `#2760`, con la suite verde perche' nessun gate
 // guardava.
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTheEightZonesAreDeclaredExactlyOnceTest,
-	"RefactorTactics.ScreenHud.TheEightZonesAreDeclaredExactlyOnce",
+// ⌫ *Fino al 2026-10-04 il test si chiamava `TheEightZonesAreDeclaredExactlyOnce`*: con la fascia bassa unica
+// ([D-456], #3469) le zone non sono piu' otto, e un nome che conta direbbe il falso alla prossima modifica.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTheZonesAreDeclaredExactlyOnceTest,
+	"RefactorTactics.ScreenHud.TheZonesAreDeclaredExactlyOnce",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FRTTheEightZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
+bool FRTTheZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 {
 	const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, TacticalHudPath,
 		TEXT("WBP_RT_TacticalHUD"));
@@ -1216,9 +1227,9 @@ bool FRTTheEightZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 		if (Conteggio[I] == 0)
 		{
 			AddError(FString::Printf(
-				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le otto zone sono la griglia ")
-				TEXT("3x3 meno il centro (`guida-screen-hud-umg.md` §3): una che manca e' un buco nel ")
-				TEXT("layout, non uno spazio libero."), *Nome));
+				TEXT("`WBP_RT_TacticalHUD` non dichiara nessuna zona `%s`. Le zone sono la griglia ")
+				TEXT("20/60/20 meno il centro, con la fascia bassa intera (`guida-screen-hud-umg.md` §3, ")
+				TEXT("D-456): una che manca e' un buco nel layout, non uno spazio libero."), *Nome));
 		}
 		else if (Conteggio[I] > 1)
 		{
@@ -1241,11 +1252,11 @@ bool FRTTheEightZonesAreDeclaredExactlyOnceTest::RunTest(const FString&)
 }
 
 // =====================================================================================================
-// Le otto zone: stanno dove devono
+// Le zone: stanno dove devono
 // =====================================================================================================
 //
 // 🔑 **`PanelsLeaveTheCenterFree` e' un gate NEGATIVO**: dice che nessuna zona invade il centro, e
-// passerebbe con tutte e otto schiacciate in un angolo. Questo dice dove sono.
+// passerebbe con tutte le zone schiacciate in un angolo. Questo dice dove sono.
 //
 // La griglia e' 20% / 60% / 20% su entrambi gli assi, e non e' una scelta: il keep-out del centro e'
 // `RTCenterFree::CenterFraction` = 0.6 centrato, quindi i tagli cadono a 0.2 e 0.8.
@@ -1266,17 +1277,24 @@ namespace RTGrigliaZone
 
 		// Colonna: 0 = sinistra, 1 = centro, 2 = destra. Riga: 0 = alto, 1 = mezzo, 2 = basso.
 		// L'ordine dell'enum salta la cella centrale, quindi la mappa e' esplicita invece che calcolata.
-		static const int32 Colonne[] = { 0, 1, 2,  0, 2,  0, 1, 2 };
-		static const int32 Righe[]   = { 0, 0, 0,  1, 1,  2, 2, 2 };
+		//
+		// 🔑 **Una zona copre un INTERVALLO di colonne, da `ColonnaDa` a `ColonnaA` comprese** ([D-456],
+		// #3469): `Bottom` va da 0 a 2, cioe' tutta la fascia. ⌫ *Fino al 2026-10-04 la mappa era a colonna
+		// singola, e la fascia bassa erano tre celle.* Le zone di una cella sola hanno `Da == A`.
+		static const int32 ColonnaDa[] = { 0, 1, 2,  0, 2,  0 };
+		static const int32 ColonnaA[]  = { 0, 1, 2,  0, 2,  2 };
+		static const int32 Righe[]     = { 0, 0, 0,  1, 1,  2 };
 
 		// ⚠️ Il trigger realistico non e' il Designer — `ZoneId` e' un `UENUM` e non lascia scegliere fuori
-		// range — ma la CRESCITA dell'enum: un nono valore allarga da solo `Conteggio` in
-		// `TheEightZonesAreDeclaredExactlyOnce` (dimensionato su `ERTHudZone::Count`), mentre queste due
-		// mappe, a dimensione fissa, resterebbero a otto. Lo static_assert lo ferma in compilazione.
-		static_assert(UE_ARRAY_COUNT(Colonne) == static_cast<int32>(ERTHudZone::Count),
-			"`Colonne` deve avere una voce per ogni zona: se l'enum cresce, va aggiornata insieme.");
+		// range — ma la CRESCITA dell'enum: un valore nuovo allarga da solo `Conteggio` in
+		// `TheZonesAreDeclaredExactlyOnce` (dimensionato su `ERTHudZone::Count`), mentre queste mappe, a
+		// dimensione fissa, resterebbero indietro. Lo static_assert lo ferma in compilazione.
+		static_assert(UE_ARRAY_COUNT(ColonnaDa) == static_cast<int32>(ERTHudZone::Count),
+			"`ColonnaDa` deve avere una voce per ogni zona: se l'enum cambia, va aggiornata insieme.");
+		static_assert(UE_ARRAY_COUNT(ColonnaA) == static_cast<int32>(ERTHudZone::Count),
+			"`ColonnaA` deve avere una voce per ogni zona: se l'enum cambia, va aggiornata insieme.");
 		static_assert(UE_ARRAY_COUNT(Righe) == static_cast<int32>(ERTHudZone::Count),
-			"`Righe` deve avere una voce per ogni zona: se l'enum cresce, va aggiornata insieme.");
+			"`Righe` deve avere una voce per ogni zona: se l'enum cambia, va aggiornata insieme.");
 
 		static const float Bordi[] = { 0.f, TaglioBasso, TaglioAlto, 1.f };
 
@@ -1284,15 +1302,15 @@ namespace RTGrigliaZone
 		// compilatore, quindi puo' essere fuori range anche quando le mappe sono dimensionate bene. Uscire
 		// con una cella fuori dalla griglia [0,1] la rende un mismatch rumoroso nel confronto del
 		// chiamante, invece di una lettura fuori array.
-		if (I < 0 || I >= UE_ARRAY_COUNT(Colonne))
+		if (I < 0 || I >= UE_ARRAY_COUNT(ColonnaDa))
 		{
 			Min = FVector2D(-1.0, -1.0);
 			Max = FVector2D(-1.0, -1.0);
 			return;
 		}
 
-		Min.X = Bordi[Colonne[I]];
-		Max.X = Bordi[Colonne[I] + 1];
+		Min.X = Bordi[ColonnaDa[I]];
+		Max.X = Bordi[ColonnaA[I] + 1];
 		Min.Y = Bordi[Righe[I]];
 		Max.Y = Bordi[Righe[I] + 1];
 	}
@@ -1501,6 +1519,95 @@ bool FRTZoneFillsItsCellTest::RunTest(const FString&)
 		*FString::Printf(TEXT("la zona contiene degli `UOverlaySlot` da misurare (ne ha %d)"), Esaminati),
 		Esaminati > 0);
 
+	return true;
+}
+
+/**
+ * ⛔ **I WBP della barra dei comandi dichiarano i nomi che il C++ accende, con la classe giusta** (#3489).
+ *
+ * 🔴 **Esiste perche' un nome sbagliato non da' errore.** I membri sono `BindWidgetOptional`: un widget
+ * chiamato `InvalidMarker` invece di `InvalidMark` compila, si carica, e resta spento per sempre — lo slot non
+ * direbbe mai «rifiutato», e nessun altro test lo vedrebbe, perche' i test headless iniettano i widget a mano.
+ *
+ * 🔑 **I nomi dello slot vengono dalla tabella che `RefreshLook` applica** — `IndicatorNameFor`, uno per stato —
+ * e non da un elenco scritto qui: il gate e il codice leggono lo stesso fatto. Gli altri sono i membri
+ * `BindWidgetOptional` dichiarati in `RTScreenHudWidgets.h`.
+ *
+ * ⚠️ **La classe e' parte del contratto**: un `PhaseStrip` che fosse un `Image` invece di un `Border` porta il
+ * nome giusto e il binding lo scarta in silenzio, perche' il tipo del membro non combacia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionBarDeclaresNamedPortsTest,
+	"RefactorTactics.ScreenHud.ActionBarDeclaresTheNamedPorts",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
+{
+	struct FPorta
+	{
+		FName Nome;
+		UClass* Classe;
+	};
+
+	// Lo slot: gli indicatori dalla tabella di `RefreshLook`, piu' striscia, etichetta e bordo.
+	TArray<FPorta> Slot = {
+		{ TEXT("PhaseStrip"), UBorder::StaticClass() },
+		{ TEXT("PhaseLabelText"), UTextBlock::StaticClass() },
+		{ TEXT("StateFrame"), UBorder::StaticClass() },
+	};
+	const UEnum* Stati = StaticEnum<ERTActionSlotState>();
+	for (int32 i = 0; i < Stati->NumEnums() - 1; ++i)
+	{
+		const FName Nome = URTActionSlotWidget::IndicatorNameFor(
+			static_cast<ERTActionSlotState>(Stati->GetValueByIndex(i)));
+		if (!Nome.IsNone())
+		{
+			Slot.Add({ Nome, UWidget::StaticClass() });
+		}
+	}
+
+	const TArray<FPorta> Dock = {
+		{ TEXT("MovementReadout"), UWidget::StaticClass() },
+		{ TEXT("MovementReadoutText"), UTextBlock::StaticClass() },
+		{ TEXT("SneakBadge"), UButton::StaticClass() },
+		{ TEXT("SneakBadgeText"), UTextBlock::StaticClass() },
+	};
+	const TArray<FPorta> Commit = {
+		{ TEXT("ConfirmButton"), UButton::StaticClass() },
+		{ TEXT("ConfirmText"), UTextBlock::StaticClass() },
+		{ TEXT("UndoButton"), UButton::StaticClass() },
+		{ TEXT("UndoText"), UTextBlock::StaticClass() },
+	};
+
+	struct FAsset
+	{
+		const TCHAR* Path;
+		const TCHAR* Label;
+		const TArray<FPorta>* Porte;
+	};
+	const FAsset Asset[] = {
+		{ ActionSlotPath, TEXT("WBP_RT_ActionSlot"), &Slot },
+		{ ActionDockPath, TEXT("WBP_RT_ActionDock"), &Dock },
+		{ PlanCommitPath, TEXT("WBP_RT_PlanCommit"), &Commit },
+	};
+
+	for (const FAsset& A : Asset)
+	{
+		const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, A.Path, A.Label);
+		if (Tree == nullptr)
+		{
+			continue;
+		}
+		for (const FPorta& P : *A.Porte)
+		{
+			const UWidget* W = Tree->FindWidget(P.Nome);
+			if (!TestNotNull(*FString::Printf(TEXT("%s dichiara '%s'"), A.Label, *P.Nome.ToString()), W))
+			{
+				continue;
+			}
+			TestTrue(*FString::Printf(TEXT("%s: '%s' e' un %s (e' un %s)"), A.Label, *P.Nome.ToString(),
+				*P.Classe->GetName(), *W->GetClass()->GetName()), W->IsA(P.Classe));
+		}
+	}
 	return true;
 }
 

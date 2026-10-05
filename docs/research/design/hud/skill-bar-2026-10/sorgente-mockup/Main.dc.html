@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Skill bar — Aevik, pianificazione</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#00E0FF}a:hover{color:#7FEFFF}
+.rt-slot:hover{filter:brightness(1.18)}
+.rt-slot:focus-visible,.rt-pill:focus-visible{outline:2px solid #00E0FF;outline-offset:3px}
+</style>
+</helmet>
+<div style="width: 1520px; height: 420px; box-sizing: border-box; padding: 40px; background: #080F14; font-family: 'Exo 2', 'Segoe UI', sans-serif; color: #E6EBF2; display: flex; flex-direction: column; gap: 24px; align-items: center">
+
+  <div style="width: 1440px; display: flex; justify-content: space-between; align-items: center">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font-family: Orbitron, 'Exo 2', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; color: #00E0FF">PIANIFICAZIONE</span>
+      <span style="font-size: 14px; color: #A9B4C2">Aevik · unità selezionata</span>
+    </div>
+    <div style="display: flex; gap: 10px">
+      <div style="display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid #203542; border-radius: 6px; background: #151A23">
+        <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.14em; color: #A9B4C2">PRINCIPALE</span>
+        <span style="font-size: 14px; font-weight: 600; color: {{chipPrincipalColor}}">{{principalLabel}}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid #203542; border-radius: 6px; background: #151A23">
+        <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.14em; color: #A9B4C2">MOVIMENTO</span>
+        <span style="font-size: 14px; font-weight: 600; color: {{chipMoveColor}}">{{moveLabel}}</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid #203542; border-radius: 6px; background: #151A23">
+        <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.14em; color: #A9B4C2">REAZIONE</span>
+        <span style="font-size: 14px; font-weight: 600; color: {{chipReactColor}}">{{reactLabel}}</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="width: 1440px; box-sizing: border-box; display: flex; gap: 22px; align-items: flex-start; padding: 20px 24px 22px; background: #151A23; border: 1px solid #203542; border-radius: 10px">
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: #A9B4C2">COMUNI</span>
+      <div style="display: flex; gap: 8px">
+        <button class="rt-slot" type="button" aria-label="Guardia, tasto G" aria-pressed="{{v.guard.pressed}}" onClick="{{v.guard.pick}}" style="{{v.guard.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #56B4E9"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">G</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">PREP</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.guard.ic}}" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Guardia</span>
+          <sc-if value="{{v.guard.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Irrigidimento, tasto B" aria-pressed="{{v.brace.pressed}}" onClick="{{v.brace.pick}}" style="{{v.brace.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #56B4E9"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">B</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">PREP</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.brace.ic}}" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 4v16M4 12h16"></path><path d="M8 21h8"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Irrigidimento</span>
+          <sc-if value="{{v.brace.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Guardia reattiva, tasto C" aria-pressed="{{v.overwatch.pressed}}" onClick="{{v.overwatch.pick}}" style="{{v.overwatch.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #56B4E9"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">C</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">PREP</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.overwatch.ic}}" aria-hidden="true"><path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Guardia reattiva</span>
+          <sc-if value="{{v.overwatch.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Interagisci, tasto X" aria-pressed="{{v.interact.pressed}}" onClick="{{v.interact.pick}}" style="{{v.interact.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #D55E00"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">X</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">BLAST</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.interact.ic}}" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="1"></rect><circle cx="15" cy="12" r="1"></circle></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Interagisci</span>
+          <sc-if value="{{v.interact.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Attesa, tasto Z" aria-pressed="{{v.wait.pressed}}" onClick="{{v.wait.pick}}" style="{{v.wait.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #4A5568"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">Z</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">—</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.wait.ic}}" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Attesa</span>
+          <sc-if value="{{v.wait.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+      </div>
+    </div>
+
+    <div style="width: 1px; align-self: stretch; background: #203542"></div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: #A9B4C2">AEVIK · BASE</span>
+      <div style="display: flex; gap: 8px">
+        <button class="rt-slot" type="button" aria-label="Arc Pulse, attacco base, tasto 1" aria-pressed="{{v.basic.pressed}}" onClick="{{v.basic.pick}}" style="{{v.basic.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #D55E00"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">1</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">BLAST</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.basic.ic}}" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Arc Pulse</span>
+          <sc-if value="{{v.basic.isSel}}" hint-placeholder-val="{{ true }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" disabled aria-label="Difesa caratteristica, non assegnata" style="position: relative; width: 78px; height: 96px; box-sizing: border-box; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 4px 9px; font-family: inherit; color: #A9B4C2; background: transparent; border: 1px dashed #4A5568; cursor: default">
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; border: 1px dashed #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #A9B4C2">?</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z" stroke-dasharray="3 3"></path><path d="M12 9v6M9 12h6"></path></svg>
+          <span style="font-size: 10px; line-height: 12px; font-weight: 600; text-align: center">Difesa caratt.<br>da assegnare</span>
+        </button>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: #A9B4C2">KIT</span>
+      <div style="display: flex; gap: 8px">
+        <button class="rt-slot" type="button" aria-label="Linear Discharge, tasto 2" aria-pressed="{{v.linear.pressed}}" onClick="{{v.linear.pick}}" style="{{v.linear.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #D55E00"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">2</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">BLAST</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.linear.ic}}" aria-hidden="true"><path d="M3 12h4l2-4 3 8 2-4h7"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Linear Discharge</span>
+          <sc-if value="{{v.linear.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Conductive Node, tasto 3" aria-pressed="{{v.node.pressed}}" onClick="{{v.node.pick}}" style="{{v.node.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: repeating-linear-gradient(90deg, #A9B4C2 0 4px, transparent 4px 8px)"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">3</span>
+          <span style="position: absolute; top: 12px; right: 5px; font-family: Orbitron, sans-serif; font-size: 7px; letter-spacing: 0; color: #A9B4C2">CLEANUP</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.node.ic}}" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v6M12 15v6M3 12h6M15 12h6"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Conductive Node</span>
+          <sc-if value="{{v.node.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Overload, tasto 4" aria-pressed="{{v.overload.pressed}}" aria-disabled="{{v.overload.ariaDisabled}}" onClick="{{v.overload.pick}}" style="{{v.overload.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #D55E00; opacity: {{v.overload.stripOpacity}}"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">4</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #A9B4C2">BLAST</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.overload.ic}}" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center; color: {{v.overload.nameColor}}">Overload</span>
+          <sc-if value="{{v.overload.cd}}" hint-placeholder-val="{{ true }}"><span style="position: absolute; top: 30px; left: 0; right: 0; text-align: center; font-family: Orbitron, sans-serif; font-size: 26px; font-weight: 700; color: #FFFFFF">{{cdTurns}}</span></sc-if>
+          <sc-if value="{{v.overload.isSel}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: #FFD456"></span></sc-if>
+        </button>
+        <button class="rt-slot" type="button" aria-label="Reactive Capacitor, reazione, tasto 5" aria-pressed="{{v.capacitor.pressed}}" onClick="{{v.capacitor.pick}}" style="{{v.capacitor.box}}">
+          <span style="position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 6px 6px 0 0; background: #7C5CFF"></span>
+          <span style="position: absolute; top: 9px; left: 6px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 3px; background: #080F14; border: 1px solid #4A5568; font-family: Orbitron, sans-serif; font-size: 10px; line-height: 16px; text-align: center; color: #E6EBF2">5</span>
+          <span style="position: absolute; top: 12px; right: 6px; font-family: Orbitron, sans-serif; font-size: 8px; letter-spacing: 0.08em; color: #B9A8FF">REAZ.</span>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="{{v.capacitor.ic}}" aria-hidden="true"><path d="M3 12h7M14 12h7M10 6v12M14 6v12"></path></svg>
+          <span style="font-size: 11px; line-height: 13px; font-weight: 600; text-align: center">Reactive Capacitor</span>
+          <sc-if value="{{v.capacitor.isReact}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; bottom: -9px; left: 19px; width: 40px; height: 4px; border-radius: 2px; background: repeating-linear-gradient(90deg, #7C5CFF 0 6px, transparent 6px 10px)"></span></sc-if>
+        </button>
+      </div>
+    </div>
+
+    <div style="width: 1px; align-self: stretch; background: #203542"></div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+      <span style="font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 0.16em; color: #A9B4C2">MOVIMENTO · PROFILO</span>
+      <div style="display: flex; gap: 8px">
+        <sc-for list="{{profiles}}" as="p" hint-placeholder-count="4">
+          <button class="rt-pill" type="button" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" disabled="{{p.disabled}}" onClick="{{p.pick}}" style="{{p.style}}">
+            <span style="position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 6px 6px 0 0; background: #0072B2; opacity: {{p.stripOpacity}}"></span>
+            <span style="font-size: 14px; font-weight: 700; color: {{p.nameColor}}">{{p.name}}</span>
+            <span style="font-family: Orbitron, sans-serif; font-size: 9px; white-space: nowrap; color: #A9B4C2">{{p.mult}} · {{p.pm}}</span>
+            <span style="font-family: Orbitron, sans-serif; font-size: 7px; letter-spacing: 0.06em; white-space: nowrap; color: {{p.tagColor}}">{{p.tag}}</span>
+          </button>
+        </sc-for>
+      </div>
+      <span style="width: 344px; font-size: 12px; line-height: 16px; color: {{noteColor}}">{{profileNote}}</span>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"demoCooldown":{"editor":"boolean","default":true,"section":"Demo"},"basePM":{"editor":"int","default":12,"min":4,"max":24,"section":"Demo"},"$preview":{"width":1520,"height":420}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { principal: 'basic', reaction: false, profile: 'Move' };
+  }
+
+  meta() {
+    return {
+      guard:     { kind: 'p', min: 1, name: 'Guardia' },
+      brace:     { kind: 'p', root: true, name: 'Irrigidimento' },
+      overwatch: { kind: 'p', reserve: true, name: 'Guardia reattiva' },
+      interact:  { kind: 'p', min: 0, name: 'Interagisci' },
+      wait:      { kind: 'wait', name: 'Attesa' },
+      basic:     { kind: 'p', min: 1, name: 'Arc Pulse' },
+      linear:    { kind: 'p', unknown: true, name: 'Linear Discharge' },
+      node:      { kind: 'p', unknown: true, name: 'Conductive Node' },
+      overload:  { kind: 'p', unknown: true, name: 'Overload' },
+      capacitor: { kind: 'r', name: 'Reactive Capacitor' }
+    };
+  }
+
+  profilesDef() {
+    return [
+      { name: 'Withdraw', stab: 1, mult: '×0,25', f: 0.25 },
+      { name: 'Sneak',    stab: 2, mult: '×0,5',  f: 0.5 },
+      { name: 'Move',     stab: 1, mult: '×1',    f: 1 },
+      { name: 'Sprint',   stab: 0, mult: '×2',    f: 2 }
+    ];
+  }
+
+  legal(pr) {
+    const M = this.meta();
+    const m = pr ? M[pr] : null;
+    const out = {};
+    this.profilesDef().forEach((p) => {
+      if (m && (m.kind === 'wait' || m.root)) { out[p.name] = 'lock'; return; }
+      if (m && m.reserve) { out[p.name] = p.name === 'Withdraw' ? 'ok' : 'lock'; return; }
+      if (p.name === 'Withdraw') { out[p.name] = 'lock'; return; }
+      if (m && m.min !== undefined) { out[p.name] = p.stab >= m.min ? 'ok' : 'lock'; return; }
+      if (m && m.unknown) { out[p.name] = 'warn'; return; }
+      out[p.name] = 'ok';
+    });
+    return out;
+  }
+
+  fixProfile(pr, cur) {
+    const L = this.legal(pr);
+    if (cur && L[cur] !== 'lock') return cur;
+    const M = this.meta();
+    if (pr && M[pr].reserve) return 'Withdraw';
+    if (L.Move !== 'lock') return 'Move';
+    return null;
+  }
+
+  isCooling(id) {
+    const demo = this.props.demoCooldown ?? true;
+    return demo && id === 'overload';
+  }
+
+  choose(id) {
+    if (this.isCooling(id)) return;
+    const next = this.state.principal === id ? null : id;
+    this.setState({ principal: next, profile: this.fixProfile(next, this.state.profile) });
+  }
+
+  renderVals() {
+    const M = this.meta();
+    const st = this.state;
+    const base = 'position: relative; width: 78px; height: 96px; box-sizing: border-box; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 4px 9px; font-family: inherit; color: #E6EBF2; cursor: pointer; ';
+    const AVAIL = 'background: #212733; border: 1px solid #4A5568;';
+    const SEL = 'background: #2B2918; border: 2px solid #FFD456; box-shadow: 0 0 0 3px rgba(255,212,86,0.16);';
+    const REACT = 'background: #221E3A; border: 2px dashed #7C5CFF;';
+    const COOL = 'background: #151A23; border: 1px solid #2E3746; cursor: not-allowed;';
+
+    const v = {};
+    Object.keys(M).forEach((id) => {
+      const m = M[id];
+      const cd = this.isCooling(id);
+      const isR = m.kind === 'r';
+      const sel = isR ? st.reaction : st.principal === id;
+      let box = base + AVAIL;
+      let ic = '#E6EBF2';
+      if (cd) { box = base + COOL; ic = '#3A4454'; }
+      else if (sel && isR) { box = base + REACT; ic = '#B9A8FF'; }
+      else if (sel) { box = base + SEL; ic = '#FFD456'; }
+      v[id] = {
+        box: box,
+        ic: 'color: ' + ic,
+        pressed: String(!!sel),
+        isSel: !!sel && !isR,
+        isReact: !!sel && isR,
+        cd: cd,
+        ariaDisabled: String(cd),
+        stripOpacity: cd ? '0.3' : '1',
+        nameColor: cd ? '#6B7684' : '#E6EBF2',
+        pick: isR ? () => this.setState({ reaction: !this.state.reaction }) : () => this.choose(id)
+      };
+    });
+
+    const pm = this.props.basePM ?? 12;
+    const L = this.legal(st.principal);
+    const profiles = this.profilesDef().map((p) => {
+      const s = L[p.name];
+      const active = st.profile === p.name;
+      const pbase = 'position: relative; width: 80px; height: 72px; box-sizing: border-box; border-radius: 6px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 4px 8px 0; font-family: inherit; color: #E6EBF2; cursor: pointer; text-align: left; ';
+      let style = pbase + 'border: 1px solid #4A5568; background: #212733;';
+      if (s === 'lock') style = pbase + 'border: 1px solid #2E3746; background: repeating-linear-gradient(135deg, #151A23 0 6px, #1C222D 6px 12px); cursor: not-allowed;';
+      else if (active) style = pbase + 'border: 2px solid #00E0FF; background: #0E2A33;';
+      else if (s === 'warn') style = pbase + 'border: 1px dashed #FFD456; background: #212733;';
+      let tag = '';
+      let tagColor = '#A9B4C2';
+      if (s === 'lock') { tag = 'BLOCCATO'; tagColor = '#8A94A3'; }
+      else if (active && s === 'warn') { tag = 'SCELTO · ?'; tagColor = '#FFD456'; }
+      else if (active) { tag = 'SCELTO'; tagColor = '#00E0FF'; }
+      else if (s === 'warn') { tag = 'DA VERIF.'; tagColor = '#FFD456'; }
+      return {
+        name: p.name,
+        mult: p.mult,
+        pm: Math.floor(pm * p.f) + ' PM',
+        style: style,
+        tag: tag,
+        tagColor: tagColor,
+        nameColor: s === 'lock' ? '#6B7684' : '#E6EBF2',
+        stripOpacity: s === 'lock' ? '0.25' : '1',
+        disabled: s === 'lock',
+        pressed: String(active),
+        aria: p.name + ', ' + p.mult + (s === 'lock' ? ', bloccato' : ''),
+        pick: () => { if (s !== 'lock') this.setState({ profile: p.name }); }
+      };
+    });
+
+    const pr = st.principal;
+    const m = pr ? M[pr] : null;
+    let note = 'Nessuna azione principale: solo movimento.';
+    let noteColor = '#A9B4C2';
+    if (m && m.root) note = 'Irrigidimento: blocca lo spostamento volontario per il turno.';
+    else if (m && m.kind === 'wait') note = 'Attesa: nessuno spostamento volontario. Resta l’orientamento finale.';
+    else if (m && m.reserve) note = 'Guardia reattiva riserva lo slot movimento a Withdraw.';
+    else if (m && m.min === 1) note = 'Sprint non compatibile con ' + m.name + '.';
+    else if (m && m.min === 0) note = m.name + ': compatibile con ogni profilo, Sprint compreso.';
+    else if (m && m.unknown) { note = m.name + ': compatibilità col movimento [DA DICHIARARE nella skill].'; noteColor = '#FFD456'; }
+
+    const prof = this.profilesDef().find((p) => p.name === st.profile);
+    return {
+      v: v,
+      profiles: profiles,
+      profileNote: note,
+      noteColor: noteColor,
+      cdTurns: '2',
+      principalLabel: m ? m.name : '—',
+      chipPrincipalColor: m ? '#FFD456' : '#6B7684',
+      moveLabel: prof ? prof.name + ' ' + prof.mult : '—',
+      chipMoveColor: prof ? '#00E0FF' : '#6B7684',
+      reactLabel: st.reaction ? 'Reactive Capacitor' : '—',
+      chipReactColor: st.reaction ? '#B9A8FF' : '#6B7684'
+    };
+  }
+}
+</script>
+</body>
+</html>

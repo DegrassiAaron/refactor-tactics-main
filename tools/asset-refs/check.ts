@@ -67,6 +67,30 @@ const KNOWN_EXCEPTIONS = [
       + `UN solo asset versionato su 154 lo porta, ed e' questo — il resto del contenuto e' piu' `
       + `vecchio della pipeline. Chi trova il prossimo aggiunga la coppia invece di rifare l'indagine.`,
   },
+  {
+    asset: 'Content/RT/UI/Match/T_RT_SlotCorner.uasset',
+    ref: '/Game/RT/UI/Match',
+    why: `Lo stesso metadato d'import di Interchange di T_RT_ZoneBlockoutBorder: contentImportPath, la ` +
+      `cartella di destinazione, non una dipendenza. Importata dalla seduta U61 (#3489), 2026-10-05.`,
+  },
+  {
+    asset: 'Content/RT/UI/Match/T_RT_SlotHatch.uasset',
+    ref: '/Game/RT/UI/Match',
+    why: `Lo stesso metadato d'import di Interchange di T_RT_ZoneBlockoutBorder: contentImportPath, la ` +
+      `cartella di destinazione, non una dipendenza. Importata dalla seduta U61 (#3489), 2026-10-05.`,
+  },
+  {
+    asset: 'Content/RT/UI/Match/T_RT_SlotInvalid.uasset',
+    ref: '/Game/RT/UI/Match',
+    why: `Lo stesso metadato d'import di Interchange di T_RT_ZoneBlockoutBorder: contentImportPath, la ` +
+      `cartella di destinazione, non una dipendenza. Importata dalla seduta U61 (#3489), 2026-10-05.`,
+  },
+  {
+    asset: 'Content/RT/UI/Match/T_RT_SlotWarning.uasset',
+    ref: '/Game/RT/UI/Match',
+    why: `Lo stesso metadato d'import di Interchange di T_RT_ZoneBlockoutBorder: contentImportPath, la ` +
+      `cartella di destinazione, non una dipendenza. Importata dalla seduta U61 (#3489), 2026-10-05.`,
+  },
 ];
 
 const tracked = new Set(
