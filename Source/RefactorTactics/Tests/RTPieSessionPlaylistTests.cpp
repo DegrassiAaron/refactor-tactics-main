@@ -50,14 +50,34 @@ bool FRTPiePlaylistPrefixTakesEveryItemTest::RunTest(const FString&)
 	const FRTPieSessionPlan Plan = URTPieSessionPlaylist::Compose(TEXT("Visual.Perception.*"));
 
 	TestTrue(TEXT("la coda si puo' eseguire"), Plan.IsRunnable());
-	TestEqual(TEXT("sette passi da un solo allestimento"), Plan.Steps.Num(), 7);
-	for (const FRTPieSessionStep& S : Plan.Steps)
+
+	// ⚠️ Il prefisso prende OGNI scenario che comincia cosi', e il corpus cresce: dal 2026-10-05 sotto
+	// `Visual.Perception.` c'e' anche `RevealDuringMove` (#3458). Questo test diceva «sette passi, tutti da
+	// `Acceptance`», cioe' fotografava il corpus di quel giorno invece della regola, ed e' caduto al primo
+	// scenario nuovo. La regola e' questa: le voci di un allestimento entrano TUTTE, CONTIGUE — l'allestimento
+	// si apre una volta — e nell'ordine in cui il file le dichiara.
+	TArray<FString> DaAcceptance;
+	int32 Primo = INDEX_NONE;
+	int32 Ultimo = INDEX_NONE;
+	for (int32 I = 0; I < Plan.Steps.Num(); ++I)
 	{
-		TestEqual(TEXT("tutti dallo stesso scenario"), S.ScenarioId,
-			TEXT("Visual.Perception.Acceptance"));
-		TestTrue(TEXT("e ognuno nomina la propria voce"), S.PieItem.StartsWith(TEXT("PIE-")));
+		const FRTPieSessionStep& S = Plan.Steps[I];
+		TestTrue(TEXT("ogni passo viene da uno scenario del prefisso"),
+			S.ScenarioId.StartsWith(TEXT("Visual.Perception.")));
+		TestTrue(TEXT("e nomina la propria voce"), S.PieItem.StartsWith(TEXT("PIE-")));
+		if (S.ScenarioId == TEXT("Visual.Perception.Acceptance"))
+		{
+			if (Primo == INDEX_NONE) { Primo = I; }
+			Ultimo = I;
+			DaAcceptance.Add(S.PieItem);
+		}
 	}
-	TestEqual(TEXT("nell'ordine in cui il file le dichiara"), Plan.Steps[0].PieItem, TEXT("PIE-KNOW1"));
+	TestEqual(TEXT("sette passi da un solo allestimento"), DaAcceptance.Num(), 7);
+	TestEqual(TEXT("contigui: l'allestimento si apre UNA volta"), Ultimo - Primo + 1, DaAcceptance.Num());
+	if (DaAcceptance.Num() > 0)
+	{
+		TestEqual(TEXT("nell'ordine in cui il file le dichiara"), DaAcceptance[0], TEXT("PIE-KNOW1"));
+	}
 	return true;
 }
 
