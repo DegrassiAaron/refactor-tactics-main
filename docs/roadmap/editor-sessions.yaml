@@ -4906,6 +4906,49 @@ sessions:
       collegamento e' del C++ (`BindNamedButtons`) ed e' misurato da
       `ScreenHud.PlanCommitButtonsFollowThePorts`, non a schermo.
 
+  - id: U65
+    title: La barra dei comandi fedele al mockup — font, slot e pannello
+    block: 6
+    critical: false
+    execution_lane: asset
+    runbook: docs/technical/runbooks/guida-seduta-u65-barra-fedele-al-mockup.md
+    produces: >-
+      Orbitron ed Exo 2 importati in `/Game/RT/UI/Fonts/` dai file statici degli autori, coi testi OFL
+      versionati accanto e la riga in `asset-licenze.md`; `WBP_RT_ActionSlot` restilizzato come il mockup —
+      `StateFrame` a `RoundedBox`, riquadro del tasto, nome separato, intestazione di gruppo, alone di
+      Selected — e il pannello di `WBP_RT_ActionDock`; la cattura accanto al mockup committata
+    artifacts:
+      - Content/RT/UI/Fonts/OFL-Orbitron.txt
+      - Content/RT/UI/Fonts/OFL-Exo2.txt
+      - docs/technical/evidence/hud/u65-barra-accanto-al-mockup.png
+    # 🔑 Elencati solo i file che oggi NON esistono: i due Blueprint sono gia' tracciati, quindi
+    # `git ls-files` direbbe «esiste» prima ancora di cominciare.
+    unblocked_by: []
+    # ⚠️ **Vuoto perche' il codice entra nella stessa catena di merge**: le porte e le tabelle sono della PR
+    # del C++ di #3498, dove questa voce nasce. ⛔ Precondizione ([D-403]): un commit di `main` che le
+    # contenga, con l'Editor ricompilato da quel commit.
+    shares_setup_with: []
+    verifies: []
+    # ⛔ **Nessuna voce `PIE-*`**: la verifica e' la cattura accanto al mockup, e il giudizio di somiglianza
+    # e' dell'autore. Ma dopo questa seduta il ➖ di `PIE-V01-SCREENHUD` sugli stati del dock va RIGIUDICATO:
+    # la riga di `GetActionLine` che lo rimediava esce dallo slot (guida §2).
+    issues: [3498, 3499]
+    done_when: >-
+      i cinque Font Face e i due Font compositi esistono in `/Game/RT/UI/Fonts/`, coi file degli autori
+      verificati per sha256 e la riga di `Content/RT/UI/Fonts/` nel registro; `WBP_RT_ActionSlot` dichiara
+      `HotkeyBadge`, `HotkeyText`, `ActionNameText`, `GroupHeaderText` e `SelectedGlow`, e
+      `ScreenHud.ActionBarDeclaresTheNamedPorts` li legge da un processo fresco; `StateFrame` e' un
+      `RoundedBox`; la dock ha il pannello; la cattura a 1920×1080 e' committata accanto al mockup
+    # ⛔ **Cosa NON si fa**: il tooltip, che e' #3499 e chiede una vista C++ che non esiste ancora; il
+    # tratteggio della reazione armata e di Warning; il selettore di profilo ([D-425]); la riga
+    # «PIANIFICAZIONE» e i chip ([D-456] punto 6).
+    #
+    # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
+    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    notes: |
+      Scritta il 2026-10-05 dalla PR del C++ di #3498, dopo che l'autore aveva detto in PIE: «la grafica
+      ancora e' molto distante dai mockup».
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
