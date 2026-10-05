@@ -669,6 +669,30 @@ struct FRTAbilityCooldownView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTActionGroup Group = ERTActionGroup::None;
 
+	/**
+	 * Il piano e' ILLEGALE e quest'azione ne e' la colpevole (`ValidatePlan`, `OffendingActionId`): lettura B
+	 * di [D-459], stato `Invalid`. Il motivo — `SlotOccupied`, `OnCooldown` — resta del validatore.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPlanInvalid = false;
+
+	/**
+	 * L'azione e' pianificata su un bersaglio che, misurato dall'ORIGINE DEL BLAST (`BlastOriginCell`: la cella
+	 * dello scatto, se si applica) e allo stato NOTO all'osservatore, il click rifiuterebbe: in risoluzione
+	 * prenderebbe il ripiego. Lettura B di [D-459], stato `Warning`. ⛔ Un bersaglio ignoto (`Nothing`) non
+	 * accende niente.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bPlanDegraded = false;
+
+	/**
+	 * Quest'azione e' ARMATA e la cella sotto il puntatore la rifiuterebbe: lettura A di [D-459], stato
+	 * `Invalid`. ⚠️ **Lo scrive la dock**, non `BuildAbilityCooldowns`: dipende dal puntatore, che il
+	 * ViewModel non conosce. Viene da `ARTPlayerController::RefusalUnderPointerForArmed`.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bTargetRefused = false;
+
 	/** Turni interi che mancano. `0` = ricarica finita. **Mai negativo.** */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 TurnsRemaining = 0;
@@ -803,9 +827,20 @@ struct FRTPlayerEventLineView
  *    `BuildAbilityCooldowns` riceve un `ARTUnit*`. ⚠️ Aggiungerlo qui significherebbe cambiare la firma di
  *    tutti i chiamanti per un valore che oggi nessuno disegna: resta **dichiarato mancante**, e l'owner e'
  *    `#2988` stessa quando un widget lo chiedera'.
- *  - **`Invalid` e `Warning`** riguardano il BERSAGLIO, non l'azione, e hanno gia' un owner:
- *    `ERTTargetRefusal` piu' `URTCombatLibrary::RefusalForObserver`. Duplicarli qui creerebbe un secondo
- *    vocabolario per la stessa domanda.
+ *  - ⌫ *Qui stava «**`Invalid` e `Warning`** riguardano il BERSAGLIO, non l'azione»*: era vero del rifiuto, e
+ *    [D-459] (#3483) li ha resi stati DELLO SLOT senza duplicare il rifiuto. Vedi la sezione sotto.
+ *
+ * ## `Invalid` e `Warning` ([D-459]): due letture, nessun secondo vocabolario
+ *
+ *  - **`Invalid` — il gesto sarebbe RIFIUTATO.** Lo slot armato col bersaglio sotto il puntatore rifiutato
+ *    (`bTargetRefused`, lettura A), oppure lo slot che porta l'azione colpevole di un piano illegale
+ *    (`bPlanInvalid`, lettura B).
+ *  - **`Warning` — il piano e' ACCETTATO ma degradato**: l'azione pianificata il cui bersaglio, allo stato
+ *    noto, prenderebbe il ripiego (`bPlanDegraded`).
+ *
+ * 🔑 Il rifiuto resta di `ERTTargetRefusal`: i campi si calcolano con le porte del click — `RefusalForKnownTarget`
+ * per un'unita', `DescribeCellTargetRefusal` per una cella — e lo stato lo LEGGE. ⚠️ **La precedenza**: `Invalid` batte `Selected` e `Planned` — «non lo potrai fare» e'
+ * la prima cosa che uno slot acceso deve dire — e `Warning` batte `Planned`, ma non `Selected`.
  */
 UENUM(BlueprintType)
 enum class ERTActionSlotState : uint8
@@ -826,7 +861,13 @@ enum class ERTActionSlotState : uint8
 	Unavailable,
 
 	/** Pronta. */
-	Available
+	Available,
+
+	/** Il gesto sarebbe RIFIUTATO ([D-459]): bersaglio rifiutato sotto il puntatore, o piano illegale. */
+	Invalid,
+
+	/** Il piano e' accettato ma DEGRADATO ([D-459]): il bersaglio pianificato prenderebbe il ripiego. */
+	Warning
 };
 
 /**

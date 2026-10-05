@@ -12,6 +12,10 @@
 #include "Turn/RTIntentPrivacyLibrary.h"
 #include "Ability/RTMovementProfileLibrary.h" // ProfileForPlan: l'autorita' sul profilo, non un secondo lettore
 #include "Turn/RTPlanValidationLibrary.h"     // MakePlanFor: il piano da cui il profilo si ricava
+#include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
+#include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
+#include "Combat/RTHexCombatLibrary.h"        // BlastOriginCell: il Warning misura da dove si colpira'
+#include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
 
@@ -342,12 +346,28 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 		return ERTActionSlotState::Empty;
 	}
 
+	// [D-459] **«Non lo potrai fare» batte anche «cosa sto per fare»**: lo slot armato col bersaglio puntato
+	// rifiutato (lettura A), o lo slot colpevole di un piano illegale (lettura B). E' la sola eccezione alla
+	// regola di `ComposeAbilityLine` qui sotto, e la ragione e' che il bianco dell'armata nasconderebbe il
+	// motivo per cui il click non partira'.
+	if ((bArmed && Action.bTargetRefused) || Action.bPlanInvalid)
+	{
+		return ERTActionSlotState::Invalid;
+	}
+
 	// 🔑 **Armata batte tutto il resto, ed e' la regola di `ARTHUD::ComposeAbilityLine`**, non una nuova:
 	// *«"Cosa sto per fare" e "posso farlo" sono due domande, e il bianco risponde alla prima»*. Un'ultimate
 	// armata e ancora in ricarica resta riconoscibile come quella scelta; il motivo lo dice il numero.
 	if (bArmed)
 	{
 		return ERTActionSlotState::Selected;
+	}
+
+	// [D-459] Il piano accettato ma DEGRADATO batte il semplice «pianificato»: e' ancora un impegno preso, e
+	// in piu' dice che in risoluzione prendera' il ripiego.
+	if (Action.bPlanDegraded)
+	{
+		return ERTActionSlotState::Warning;
 	}
 
 	// Gia' nel piano: un impegno preso, che sopravvive al fatto che l'armamento sia passato ad altro.
@@ -472,6 +492,55 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
 		Cooldowns.Add(View);
+	}
+
+	// --- [D-459] lettura B: il piano dell'unita' COMANDATA, letto due volte ---------------------------------
+	// ⛔ Il solo chiamante e' la dock, con `GetSelectedUnit()`: nessun piano altrui passa di qui.
+	//
+	// 1) **Illegale -> `Invalid`** sullo slot della colpevole. Il validatore non legge l'unita' (D-190): un
+	//    `FRTHexSimUnit` vuoto e' cio' che la firma chiede, non un'approssimazione.
+	const FRTPlanValidation Verdetto =
+		URTPlanValidationLibrary::ValidatePlan(FRTHexSimUnit(), URTPlanValidationLibrary::MakePlanFor(Unit));
+	if (!Verdetto.bLegal && !Verdetto.OffendingActionId.IsNone())
+	{
+		for (FRTAbilityCooldownView& V : Cooldowns)
+		{
+			V.bPlanInvalid |= (V.ActionId == Verdetto.OffendingActionId);
+		}
+	}
+
+	// 2) **Degradato -> `Warning`** sullo slot della principale pianificata su un'unita': la domanda del click,
+	//    con lo stesso nome (`RefusalForKnownTarget`). Un bersaglio ignoto da' `Nothing` e NON accende niente:
+	//    il Warning su un'ombra direbbe «non lo vedi piu'» in un modo nuovo.
+	//
+	//    🔴 **Da DOVE si colpira', non da dove si sta.** La fase Blast parte dalla cella dello scatto, se lo
+	//    scatto si applica (`BlastOriginCell`, ordine `Prep -> Dash -> Blast -> Move`). Il click giudica dalla
+	//    cella corrente, e qui le due letture divergono: «accettato» al click, «degradato» in risoluzione. E'
+	//    il caso che rende il Warning raggiungibile — in planning nessuno si muove, quindi misurato dalla
+	//    cella corrente il bersaglio accettato dal click resterebbe accettato fino alla risoluzione.
+	if (Cooldowns.IsValidIndex(Unit->PlannedAbilityIndex) && !Unit->bAttackTargetsCell)
+	{
+		const URTActionData* Pianificata = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get();
+		FVector Origine; float Lato; float AltezzaPiano;
+		const ARTHexMapActor* HexMap = ARTHexMapActor::FindInWorld(Unit->GetWorld());
+		const URTHexMapAsset* Mappa = HexMap ? HexMap->GetHexContext(Origine, Lato, AltezzaPiano) : nullptr;
+		if (Pianificata && Bersaglio && Mappa)
+		{
+			FRTBlastPreviewPlan PianoBlast;
+			PianoBlast.AttackerId = 0;
+			PianoBlast.bDashResolves = Unit->PlannedDashApplies();
+			PianoBlast.PlannedDashCell = Unit->PlannedDashCell;
+			FRTHexCombatUnit Attaccante;
+			Attaccante.Cell = Unit->Cell;
+			const FRTCellId Da = URTHexCombatLibrary::BlastOriginCell(PianoBlast, { Attaccante });
+
+			const ERTTargetRefusal Rifiuto = URTCombatLibrary::RefusalForKnownTarget(Mappa, Da,
+				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,
+				Bersaglio->IsKnownToObserver());
+			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
+				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+		}
 	}
 
 	return Cooldowns;

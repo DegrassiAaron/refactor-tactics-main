@@ -4710,10 +4710,12 @@ sessions:
     #      Unavailable = tratteggio diagonale 135°. Hover e' del widget, non del modello.
     #      ⚠️ **Selected e Warning condividono l'ambra** (§32 la assegna a entrambi): li separa la forma,
     #      bordo continuo + barra contro bordo tratteggiato + triangolo.
-    #   4. **Invalid e Warning: ricetta SI', produttore NO** (decisione d'autore del 2026-10-04). Il ✕ e il
-    #      bordo tratteggiato col triangolo si costruiscono, ma restano spenti: `ERTActionSlotState` non li
-    #      produce, e il suo commento dichiara che riguardano il **bersaglio** (`ERTTargetRefusal`), mentre
-    #      §7 li elenca fra gli stati dello slot. Il conflitto e il produttore sono un seguito, nel referto.
+    #   4. **Invalid e Warning: ricetta SI', produttore SI'** ([D-459], #3483). `ResolveSlotState` li
+    #      restituisce: `Invalid` quando il gesto sarebbe rifiutato (azione armata col bersaglio puntato
+    #      rifiutato, o colpevole di un piano illegale), `Warning` quando il piano e' accettato ma degradato.
+    #      ⛔ Come per gli altri stati, il grafo legge lo stato e non ricompone i flag. ⌫ *Qui stava
+    #      «produttore NO» (decisione d'autore del 2026-10-04): valeva finche' [D-459] non ha sciolto il
+    #      conflitto fra §7 e il commento di `ERTActionSlotState`.*
     #
     # ⛔ **Cosa NON si fa in questa seduta**, ciascuna col motivo:
     #   - i **separatori di gruppo** Comuni · Base · Kit: la regola e' decisa (DEC-SB-2 nel referto), ma il

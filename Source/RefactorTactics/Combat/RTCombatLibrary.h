@@ -637,6 +637,23 @@ public:
 	static ERTTargetRefusal RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver);
 
 	/**
+	 * Il rifiuto di un bersaglio PER CHI GUARDA: `ClassifyHexTargeting` poi `RefusalForObserver`, nello stesso
+	 * ordine del sito del click (#3483, [D-459]).
+	 *
+	 * 🔑 **Esiste per dare un nome alla coppia, non per aggiungere una regola.** La coppia compariva gia' scritta
+	 * a mano nell'anteprima del piano (#172), e [D-459] le aggiunge due lettori — lo stato Warning dello slot
+	 * pianificato e lo stato Invalid dello slot armato all'hover. Tre copie della stessa composizione sono tre
+	 * occasioni di divergere; una funzione sola no.
+	 *
+	 * ⛔ **Il filtro di conoscenza non e' facoltativo**: con `bTargetKnownToObserver` falso l'esito collassa su
+	 * `Nothing` ([D-225]), e i chiamanti di [D-459] trattano `Nothing` come «nessuno stato» — uno slot rosso su
+	 * un'ombra sarebbe un rilevatore di presenze.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Combat")
+	static ERTTargetRefusal RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
+		const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver);
+
+	/**
 	 * IL RIFIUTO DI UN BERSAGLIO A **CELLA**, per intero e senza un soggetto da velare — `#3064`.
 	 *
 	 * 🔴 **Il difetto che chiude.** Il percorso a cella (`ARTPlayerController::HandleTargetCell`) rifiutava

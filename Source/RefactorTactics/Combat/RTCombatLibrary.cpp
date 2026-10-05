@@ -240,6 +240,12 @@ ERTHexTargetReason URTCombatLibrary::ClassifyHexTargeting(const URTHexMapAsset* 
 		? ERTHexTargetReason::Ok : ERTHexTargetReason::NoLineOfSight;
 }
 
+ERTTargetRefusal URTCombatLibrary::RefusalForKnownTarget(const URTHexMapAsset* Map, const FRTCellId& From,
+	const FRTCellId& To, int32 RangeCells, ERTLineOfSightPolicy Policy, bool bTargetKnownToObserver)
+{
+	return RefusalForObserver(ClassifyHexTargeting(Map, From, To, RangeCells, Policy), bTargetKnownToObserver);
+}
+
 ERTTargetRefusal URTCombatLibrary::RefusalForObserver(ERTHexTargetReason Reason, bool bTargetKnownToObserver)
 {
 	// 🔴 **La conoscenza si valuta PRIMA della geometria, e l'ordine e' il requisito.**

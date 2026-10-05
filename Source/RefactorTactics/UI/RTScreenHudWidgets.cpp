@@ -23,6 +23,7 @@
 #include "UI/RTIconLibrary.h"
 #include "UI/RTHUD.h" // ComposeAbilityLine: lo slot la INOLTRA, non ne scrive una seconda
 #include "UI/RTReactionWindowViewModel.h" // il view model si INTERROGA: qui non si costruisce e non si lega
+#include "Combat/RTCombatLibrary.h" // ERTTargetRefusal: la dock scrive la lettura A di D-459 sull'azione armata
 #include "Kismet/GameplayStatics.h"
 #include "Components/Image.h" // ApplyResolvedIconTo imposta il brush: serve il tipo completo
 #include "Blueprint/WidgetTree.h" // ComposeMountReport cammina l'albero COSTRUITO, non quello progettato
@@ -456,7 +457,21 @@ FText URTSelectedUnitPanelWidget::GetMovementSlotText() const
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActions() const
 {
-	return URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
+	TArray<FRTAbilityCooldownView> Azioni = URTHudViewModel::BuildAbilityCooldowns(GetSelectedUnit());
+
+	// [D-459] lettura A: il rifiuto sotto il puntatore va sull'azione ARMATA. Lo scrive la dock perche' dipende
+	// dal puntatore, che il ViewModel non conosce; la domanda la pone il controller con la coppia canonica.
+	const int32 Armata = GetArmedActionIndex();
+	if (Azioni.IsValidIndex(Armata))
+	{
+		if (const ARTPlayerController* PC = ResolveCommandController())
+		{
+			const ERTTargetRefusal Rifiuto = PC->RefusalUnderPointerForArmed();
+			Azioni[Armata].bTargetRefused =
+				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+		}
+	}
+	return Azioni;
 }
 
 TArray<FRTAbilityCooldownView> URTActionDockWidget::GetActionsInReadingOrder() const

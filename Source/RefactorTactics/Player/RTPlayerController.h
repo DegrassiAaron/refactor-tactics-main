@@ -6,6 +6,8 @@
 #include "Player/RTPointerInteraction.h" // il contesto esplicito di CP 11.8 e i suoi tipi
 #include "RTPlayerController.generated.h"
 
+enum class ERTTargetRefusal : uint8; // RefusalUnderPointerForArmed: il tipo vive in Combat/RTCombatLibrary.h
+
 class UInputMappingContext;
 class UInputAction;
 class URTKnowledgeVeilPresenter;
@@ -1149,6 +1151,22 @@ public:
 	/** Che forma di bersaglio chiede l'azione armata. `None` se non c'e' targeting in corso. */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Pointer")
 	ERTPointerTargetKind GetPointerTargetKind() const;
+
+	/**
+	 * Che cosa risponderebbe un click ADESSO, sulla cella sotto il puntatore, con l'azione armata: il rifiuto
+	 * per chi guarda, o `None` (#3483, [D-459] lettura A). Alimenta lo stato `Invalid` dello slot armato.
+	 *
+	 * 🔑 **E' la domanda del click, posta in anticipo — non una regola nuova**: per un'unita'
+	 * `RefusalForKnownTarget`, la stessa coppia del click e dell'anteprima; per una cella la porta di
+	 * `HandleTargetCell`. Dove il click non mostrerebbe un rifiuto, `None`.
+	 *
+	 * ⛔ **Privacy ([D-225])**: per un'azione mirata a un'unita' si considerano SOLO le unita' note
+	 * all'osservatore. Una cella senza unita' note risponde `None`, non `Nothing`: il puntatore su un'ombra non
+	 * deve accendere niente, altrimenti lo slot rosso direbbe «li' c'e' qualcuno». Per un'azione a cella la
+	 * porta e' quella del click su una cella, `DescribeCellTargetRefusal`, che non guarda chi la occupa.
+	 * `Edge` e `Object` hanno regole proprie: `None`.
+	 */
+	ERTTargetRefusal RefusalUnderPointerForArmed() const;
 
 	/**
 	 * `ESC`: apre la pausa se e' chiusa, la chiude se e' aperta.
