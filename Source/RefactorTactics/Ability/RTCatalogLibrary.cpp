@@ -1,4 +1,5 @@
 #include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTActionDescriptions.h" // `#3499`: la frase d'autore di ogni azione
 #include "Ability/RTMovementProfileLibrary.h"
 #include "Core/RTGameplayTags.h"
 #include "Ability/RTActionData.h" // MakeGenericActions crea le istanze accodate al kit
@@ -2047,6 +2048,7 @@ TArray<URTActionData*> URTCatalogLibrary::MakeGenericActions(UObject* Outer)
 		// Il NOME arriva dal catalogo di bilanciamento, e senza di esso l'azione entra nel kit muta: il
 		// giocatore che la arma legge `abilita' attiva -> ` e non sa cosa ha armato.
 		Action->DisplayName = GenericActionDisplayName(Id);
+		Action->Description = RTActionDescriptions::For(Id); // `#3499`: la frase, dove nasce il nome
 		Actions.Add(Action);
 	}
 	return Actions;

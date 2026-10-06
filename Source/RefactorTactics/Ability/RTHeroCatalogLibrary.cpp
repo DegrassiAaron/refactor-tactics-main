@@ -1,4 +1,5 @@
 #include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTActionDescriptions.h" // `#3499`: la frase d'autore di ogni azione
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
@@ -122,6 +123,7 @@ namespace
 		}
 
 		Action->DisplayName = HeroActionDisplayName(Id);
+		Action->Description = RTActionDescriptions::For(Id); // `#3499`: la frase, dove nasce il nome
 
 		// [`INT-8`]: un'abilita' d'eroe che dichiara DANNO e' un'aggressione. Il campo resta comunque
 		// dichiarato e sovrascrivibile dal chiamante -- serve a chi avra' l'equivalente d'eroe di

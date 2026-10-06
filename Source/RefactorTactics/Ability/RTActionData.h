@@ -105,6 +105,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	FText DisplayName;
 
+	/**
+	 * La FRASE d'autore che il tooltip mostra sopra i numeri (`#3499`). Le azioni del catalogo la ricevono da
+	 * `RTActionDescriptions`, una tabella sola chiavata per `ActionId`, dove ricevono il nome.
+	 *
+	 * ⛔ Non porta numeri: quelli li compone il gioco (`URTHudViewModel::BuildActionTooltip`), e una frase che li
+	 * ripetesse invecchierebbe al primo ribilanciamento. Vuota, il tooltip mostra i soli numeri.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
+	FText Description;
+
 	/** Portata in celle (distanza di Manhattan). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Ability")
 	int32 RangeCells = 5;
