@@ -45,6 +45,7 @@ namespace
 	const TCHAR* const SelectedUnitPath = TEXT("/Game/RT/UI/Match/WBP_RT_SelectedUnitPanel.WBP_RT_SelectedUnitPanel_C");
 	const TCHAR* const ActionDockPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionDock.WBP_RT_ActionDock_C");
 	const TCHAR* const ActionSlotPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionSlot.WBP_RT_ActionSlot_C");
+	const TCHAR* const ActionTooltipPath = TEXT("/Game/RT/UI/Match/WBP_RT_ActionTooltip.WBP_RT_ActionTooltip_C");
 	const TCHAR* const UnitCardPath = TEXT("/Game/RT/UI/Match/WBP_RT_UnitCard.WBP_RT_UnitCard_C");
 	// Conferma e Annulla in `TopRight` ([D-458], #3471): entra con l'asset, dalla seduta `U64`.
 	const TCHAR* const PlanCommitPath = TEXT("/Game/RT/UI/Match/WBP_RT_PlanCommit.WBP_RT_PlanCommit_C");
@@ -1614,6 +1615,48 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 			TestTrue(*FString::Printf(TEXT("%s: '%s' e' un %s (e' un %s)"), A.Label, *P.Nome.ToString(),
 				*P.Classe->GetName(), *W->GetClass()->GetName()), W->IsA(P.Classe));
 		}
+	}
+	return true;
+}
+
+/**
+ * **LO SLOT INDOSSA IL TOOLTIP, E IL TOOLTIP DICHIARA LE PORTE CHE IL C++ SCRIVE** — `#3499`, seduta `U66`.
+ *
+ * 🔑 **Due fatti che nessun test headless vede**: che i default di `WBP_RT_ActionSlot` puntino al tooltip — senza,
+ * lo slot ripiega sul testo semplice e niente diventa rosso — e che `WBP_RT_ActionTooltip` porti i quattro testi
+ * col nome giusto. Un nome sbagliato non da' errore: lascia la porta spenta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTActionSlotWearsTooltipTest,
+	"RefactorTactics.ScreenHud.ActionSlotWearsTheTooltipAsset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTActionSlotWearsTooltipTest::RunTest(const FString&)
+{
+	if (const UWidgetTree* Tree = RTWidgetAssetTest::LoadWidgetTree(*this, ActionTooltipPath, TEXT("WBP_RT_ActionTooltip")))
+	{
+		for (const TCHAR* Nome : { TEXT("TitleText"), TEXT("DescriptionText"), TEXT("LinesText"), TEXT("ReasonText") })
+		{
+			const UWidget* W = Tree->FindWidget(Nome);
+			if (TestNotNull(*FString::Printf(TEXT("WBP_RT_ActionTooltip dichiara '%s'"), Nome), W))
+			{
+				TestTrue(*FString::Printf(TEXT("'%s' e' un TextBlock"), Nome), W->IsA(UTextBlock::StaticClass()));
+			}
+		}
+	}
+
+	UWidgetBlueprintGeneratedClass* Tooltip = RTWidgetAssetTest::LoadWidgetClass(ActionTooltipPath);
+	UWidgetBlueprintGeneratedClass* Slot = RTWidgetAssetTest::LoadWidgetClass(ActionSlotPath);
+	if (!TestNotNull(TEXT("il tooltip si carica"), Tooltip) || !TestNotNull(TEXT("lo slot si carica"), Slot))
+	{
+		return false;
+	}
+	TestTrue(TEXT("il tooltip deriva dalla classe nativa che ne scrive le porte"),
+		Tooltip->IsChildOf(URTActionTooltipWidget::StaticClass()));
+	const URTActionSlotWidget* Default = Slot->GetDefaultObject<URTActionSlotWidget>();
+	if (TestNotNull(TEXT("i default dello slot"), Default))
+	{
+		TestTrue(TEXT("i default di WBP_RT_ActionSlot puntano a WBP_RT_ActionTooltip"),
+			Default->TooltipClass.Get() == Tooltip);
 	}
 	return true;
 }
