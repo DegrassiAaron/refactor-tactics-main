@@ -64,6 +64,7 @@ acquisizioni qui elencate ha attraversato un cambio di major.
 | Famiglia | Copre | Fonte | Licenza | Versione | Acquisito | UE | Attribuzione | Consumer |
 |---|---|---|---|---|---|---|---|---|
 | RefactorTactics — contenuto proprietario | `Content/RT/` | prodotto dal progetto | Proprietaria — RefactorTactics | n/a | 2026-08-05 | 5.8 | n/a | il gioco |
+| Orbitron ed Exo 2 — font dell'HUD | `Content/RT/UI/Fonts/` | [theleagueof/orbitron](https://github.com/theleagueof/orbitron) `13e6a522` e [googlefonts/Exo-2.0](https://github.com/googlefonts/Exo-2.0) `f83ea8a0`, file statici non modificati | SIL Open Font License 1.1 | Orbitron 1.000, Exo 2 2.010 | 2026-10-05 | 5.8 | il testo OFL accompagna il font: `OFL-Orbitron.txt`, `OFL-Exo2.txt` nella stessa cartella | `WBP_RT_ActionSlot`, `WBP_RT_ActionDock` |
 | Set iconografico HUD | `Content/Icons/` | [tools/hud-assets/generate_hud_assets.py](../../tools/hud-assets/generate_hud_assets.py) | Proprietaria — RefactorTactics, generato | rigenerabile | 2026-08-27 | 5.8 | n/a | `URTIconLibrary` |
 | UI kit estratto da uno screenshot di concept | `Content/RT_UI_AssetPack_FromHUD/` | screenshot di concept, non tracciato | NON VERIFICATA | n/d | 2026-08-08 | 5.8 | ignota | nessuno — prototipo, non cotto |
 | Icone abilità Paragon — archivio di fan | `tools/icons-downloader/Paragon_Skill_Icons/` | [Paragon Archive](https://paragon-archive.fandom.com/wiki/Category:Abilities) e [ParagoneAPI](https://github.com/alex-taxiera/ParagoneAPI) | NON VERIFICATA | n/d | 2026-08-16 | 5.8 | ignota | nessuno — materiale di studio |
