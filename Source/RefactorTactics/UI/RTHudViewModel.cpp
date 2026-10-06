@@ -18,6 +18,10 @@
 #include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
+#include "Turn/RTActionFallbackLibrary.h" // ERTActionInvalidReason: il motivo del tooltip (`#3499`)
+#include "Turn/RTTurnLogLibrary.h"        // DescribeInvalidReason: il testo del motivo ha gia' un owner
+#include "Terrain/RTTerrainLibrary.h"     // EffectiveTargetingRange: la portata APPLICATA del rifiuto
+#include "UI/RTHUD.h"                     // RefusalText: il testo del rifiuto ha gia' un owner
 
 FRTMatchHeaderView URTHudViewModel::BuildMatchHeader(const ARTTurnManager* TurnManager)
 {
@@ -394,6 +398,115 @@ ERTActionSlotState URTHudViewModel::ResolveSlotState(const FRTAbilityCooldownVie
 	return ERTActionSlotState::Available;
 }
 
+namespace
+{
+	/** «1 turno» e «2 turni»: il numero e la sua parola, accordati. */
+	FText TooltipCount(int32 N, const FText& One, const FText& Many)
+	{
+		return FText::Format(NSLOCTEXT("RTHud", "TooltipCount", "{0} {1}"), FText::AsNumber(N), N == 1 ? One : Many);
+	}
+
+	FRTActionTooltipLine TooltipLine(const FText& Label, const FText& Value)
+	{
+		FRTActionTooltipLine Line;
+		Line.Label = Label;
+		Line.Value = Value;
+		return Line;
+	}
+}
+
+FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed)
+{
+	FRTActionTooltipView Out;
+	if (Action.ActionId.IsNone())
+	{
+		return Out; // una posizione di kit vuota non ha niente da spiegare
+	}
+	Out.Title = Action.DisplayName.IsEmpty() ? FText::FromName(Action.ActionId) : Action.DisplayName;
+	Out.Description = Action.Description;
+	Out.State = ResolveSlotState(Action, bArmed);
+
+	// ── Le righe: fase, slot, portata, ricarica, danno ──────────────────────────────────────────────────
+	if (Action.PhaseMark != ERTActionPhaseMark::None && !Action.PhaseLabel.IsEmpty())
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipPhase", "Fase"), Action.PhaseLabel));
+	}
+	switch (Action.Slot)
+	{
+	case ERTActionSlot::Main:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipSlot", "Slot"), NSLOCTEXT("RTHud", "TooltipSlotMain", "Principale")));
+		break;
+	case ERTActionSlot::Movement:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipSlot", "Slot"), NSLOCTEXT("RTHud", "TooltipSlotMovement", "Movimento")));
+		break;
+	case ERTActionSlot::Reaction:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipSlot", "Slot"), NSLOCTEXT("RTHud", "TooltipSlotReaction", "Reazione")));
+		break;
+	case ERTActionSlot::None:
+		break; // un'azione che non occupa slot non ne dichiara uno
+	}
+	if (Action.bSelfTarget)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipRange", "Portata"), NSLOCTEXT("RTHud", "TooltipRangeSelf", "Su di te")));
+	}
+	else if (Action.RangeCells > 0)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipRange", "Portata"), TooltipCount(Action.RangeCells,
+			NSLOCTEXT("RTHud", "TooltipCell", "cella"), NSLOCTEXT("RTHud", "TooltipCells", "celle"))));
+	}
+	Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipCooldown", "Ricarica"), Action.CooldownTurns > 0
+		? TooltipCount(Action.CooldownTurns, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni"))
+		: NSLOCTEXT("RTHud", "TooltipCooldownNone", "Nessuna")));
+	if (Action.Damage > 0)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipDamage", "Danno"), FText::AsNumber(Action.Damage)));
+	}
+
+	// ── Il motivo di uno stato spento: uno solo, nell'ordine della definizione tecnica (D005) ────────────
+	if (Action.bPlanInvalid)
+	{
+		Out.Reason = (Action.PlanInvalidReason == ERTActionInvalidReason::None)
+			? NSLOCTEXT("RTHud", "TooltipPlanInvalid", "Piano illegale")
+			: FText::Format(NSLOCTEXT("RTHud", "TooltipPlanInvalidBecause", "Piano illegale: {0}"),
+				FText::FromString(URTTurnLogLibrary::DescribeInvalidReason(Action.PlanInvalidReason)));
+	}
+	else if (Action.bPlanDegraded && Action.PlanDegradedRefusal != ERTTargetRefusal::None
+		&& Action.PlanDegradedRefusal != ERTTargetRefusal::Nothing)
+	{
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipDegraded", "{0} — in risoluzione prendera' il ripiego"),
+			FText::FromString(ARTHUD::RefusalText(Action.PlanDegradedRefusal, Action.PlanDegradedRange)));
+	}
+	else if (Action.TurnsRemaining > 0)
+	{
+		Out.Reason = FText::Format(NSLOCTEXT("RTHud", "TooltipCoolingDown", "In ricarica: ancora {0}"),
+			TooltipCount(Action.TurnsRemaining, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni")));
+	}
+	return Out;
+}
+
+FText URTHudViewModel::ComposeTooltipText(const FRTActionTooltipView& Tooltip)
+{
+	if (!Tooltip.IsValid())
+	{
+		return FText::GetEmpty();
+	}
+	TArray<FString> Righe;
+	Righe.Add(Tooltip.Title.ToString());
+	if (!Tooltip.Description.IsEmpty())
+	{
+		Righe.Add(Tooltip.Description.ToString());
+	}
+	for (const FRTActionTooltipLine& Line : Tooltip.Lines)
+	{
+		Righe.Add(FString::Printf(TEXT("%s  %s"), *Line.Label.ToString(), *Line.Value.ToString()));
+	}
+	if (!Tooltip.Reason.IsEmpty())
+	{
+		Righe.Add(Tooltip.Reason.ToString());
+	}
+	return FText::FromString(FString::Join(Righe, TEXT("\n")));
+}
+
 TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTUnit* Unit)
 {
 	TArray<FRTAbilityCooldownView> Cooldowns;
@@ -491,6 +604,23 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// ricarica — quindi oggi risponde come `TurnsRemaining == 0`, per una ragione e non per caso.
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
+		// `#3499`: la frase e i numeri del tooltip, dallo stesso dato che lo slot gia' legge. La portata e' lo
+		// specchio che misura il click (`HandleTargetCell`), non il `Def`: se un giorno divergessero, il tooltip
+		// deve dire quella che il giocatore incontrera'. ⚠️ Oggi coincidono in tutto il roster — il mortaio di
+		// Branth, che corregge la portata del core, li scrive entrambi — e il test li separa apposta.
+		View.Description = Action->Description;
+		View.CooldownTurns = FMath::Max(0, Action->Def.CooldownTurns);
+		View.RangeCells = FMath::Max(0, Action->RangeCells);
+		View.bSelfTarget = Action->bSelfTarget || Action->Def.bSelfTarget;
+		for (const FRTActionEffectSpec& Effetto : Action->Def.Effects)
+		{
+			if (Effetto.Effect == ERTActionEffect::Damage)
+			{
+				View.Damage = FMath::Max(0, Effetto.Amount);
+				break;
+			}
+		}
+
 		Cooldowns.Add(View);
 	}
 
@@ -507,7 +637,11 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	{
 		for (FRTAbilityCooldownView& V : Cooldowns)
 		{
-			V.bPlanInvalid |= (V.ActionId == Verdetto.OffendingActionId);
+			if (V.ActionId == Verdetto.OffendingActionId)
+			{
+				V.bPlanInvalid = true;
+				V.PlanInvalidReason = Verdetto.Reason; // `#3499`: il perche', per il tooltip
+			}
 		}
 	}
 
@@ -542,6 +676,15 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 				Bersaglio->IsKnownToObserver());
 			Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded =
 				Rifiuto != ERTTargetRefusal::None && Rifiuto != ERTTargetRefusal::Nothing;
+			// `#3499`: il rifiuto per il tooltip, dalla stessa domanda e solo quando accende lo stato. ⛔ Un ignoto
+			// e' gia' `Nothing`: il tooltip non puo' dire niente che lo stato non dica.
+			if (Cooldowns[Unit->PlannedAbilityIndex].bPlanDegraded)
+			{
+				Cooldowns[Unit->PlannedAbilityIndex].PlanDegradedRefusal = Rifiuto;
+				Cooldowns[Unit->PlannedAbilityIndex].PlanDegradedRange = (Rifiuto == ERTTargetRefusal::Range)
+					? URTTerrainLibrary::EffectiveTargetingRange(Mappa, Da, Bersaglio->Cell, Pianificata->RangeCells)
+					: INDEX_NONE;
+			}
 		}
 	}
 
@@ -745,6 +888,13 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildIdleBar(const TArray<const 
 				Spenta.Phase = Riga.Phase;
 				Spenta.PhaseMark = Riga.PhaseMark;
 				Spenta.PhaseLabel = Riga.PhaseLabel;
+				// `#3499`: i fatti di CATALOGO del tooltip, uguali per chiunque porti l'azione. ⛔ Nessuno stato di
+				// piano: `TotalTurns`, `TurnsRemaining` e i motivi restano al default, come [D-460] chiede.
+				Spenta.Description = Riga.Description;
+				Spenta.RangeCells = Riga.RangeCells;
+				Spenta.bSelfTarget = Riga.bSelfTarget;
+				Spenta.Damage = Riga.Damage;
+				Spenta.CooldownTurns = Riga.CooldownTurns;
 				Spenta.Group = ERTActionGroup::Common;
 				Spenta.AbilityIndex = IdleSlotIndex;
 				Spenta.bUsableNow = false;

@@ -460,4 +460,53 @@ bool FRTSlotRefusalIllegalPlanTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * ⛔ **IL TOOLTIP NOMINA IL RIFIUTO DI UN BERSAGLIO DEGRADATO SOLO SE IL BERSAGLIO E' NOTO** — `#3499`, DoD 3, [D-225].
+ *
+ * 🔑 Lo stesso mondo di `DegradedPlanWarnsOnlyOnAKnownTarget`. Il caso noto e' il controllo positivo che rende
+ * l'altro non vacuo: senza, «il tooltip tace» proverebbe soltanto che il motivo non si scrive mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTSlotRefusalTooltipPrivacyTest,
+	"RefactorTactics.HudViewModel.TooltipNamesADegradedTargetOnlyWhenKnown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTSlotRefusalTooltipPrivacyTest::RunTest(const FString&)
+{
+	FSlotRefusalBench B;
+	if (!TestTrue(TEXT("banco di prova"), SetUpSlotRefusalBench(B)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	const URTActionData* Attacco = B.Mine->GetAbility(GSlotRefusalAttacco);
+	B.PC->ArmKitAbility(GSlotRefusalAttacco);
+	B.PC->HandleClickOnUnitForTest(B.Nemico);
+	if (!TestNotNull(TEXT("premessa: l'attacco esiste"), Attacco)
+		|| !TestTrue(TEXT("premessa: il click ha pianificato l'attacco sul nemico"),
+			B.Mine->PlannedAttackTarget == B.Nemico && B.Mine->PlannedAbilityIndex == GSlotRefusalAttacco)
+		|| !SlotRefusalGeometryHolds(*this, B, Attacco))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	auto Riga = [&B]() {
+		const TArray<FRTAbilityCooldownView> Righe = URTHudViewModel::BuildAbilityCooldowns(B.Mine);
+		return Righe.IsValidIndex(GSlotRefusalAttacco) ? Righe[GSlotRefusalAttacco] : FRTAbilityCooldownView();
+	};
+
+	MoveSlotRefusalUnit(B.Nemico, GSlotRefusalDietroIlMuro);
+	const FRTAbilityCooldownView Noto = Riga();
+	TestEqual(TEXT("noto oltre il muro: la riga porta il rifiuto"), Noto.PlanDegradedRefusal, ERTTargetRefusal::Cover);
+	TestTrue(TEXT("e il tooltip lo nomina"),
+		URTHudViewModel::BuildActionTooltip(Noto, /*bArmed=*/ false).Reason.ToString().StartsWith(TEXT("Coperto")));
+
+	B.Nemico->SetKnownToObserver(false);
+	const FRTAbilityCooldownView Ignoto = Riga();
+	TestEqual(TEXT("ignoto: la riga non porta nessun rifiuto"), Ignoto.PlanDegradedRefusal, ERTTargetRefusal::None);
+	TestTrue(TEXT("⛔ e il tooltip non dice niente"),
+		URTHudViewModel::BuildActionTooltip(Ignoto, /*bArmed=*/ false).Reason.IsEmpty());
+
+	RTWorldFixtures::DestroyWorld(B.World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

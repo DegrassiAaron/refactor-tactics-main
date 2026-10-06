@@ -15,6 +15,11 @@
 #include "Player/RTPointerInteraction.h" // ERTPointerContext/ERTPointerTargetKind: il prompt li LEGGE, non li sceglie
 #include "RTHudViewModel.generated.h"
 
+// `#3499`: i motivi del tooltip. I tipi vivono nei loro header, che questo non deve tirarsi dietro: i campi che li
+// portano sono solo C++, e chi li legge include l'header.
+enum class ERTActionInvalidReason : uint8;
+enum class ERTTargetRefusal : uint8;
+
 struct FRTTurnLogEntry;
 
 class AActor;
@@ -713,6 +718,48 @@ struct FRTAbilityCooldownView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bTargetRefused = false;
 
+	// ── Il tooltip (`#3499`): la frase e i numeri del catalogo, e il motivo di uno stato spento ──────────────
+	// Li scrive `BuildAbilityCooldowns` nello stesso passo in cui scrive gli stati, cosi' il tooltip li compone
+	// senza risalire all'unita' — la stessa porta che questa vista esiste per chiudere.
+
+	/** La frase d'autore (`URTActionData::Description`). Vuota se l'azione non ne ha una. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Description;
+
+	/** La portata in celle, quella che il click misura (`URTActionData::RangeCells`). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 RangeCells = 0;
+
+	/** L'azione agisce su chi la usa: la portata non si dice in celle. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	bool bSelfTarget = false;
+
+	/** Il danno del primo effetto di danno del catalogo; `0` se l'azione non ne fa. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 Damage = 0;
+
+	/**
+	 * La ricarica DI CATALOGO, in turni: la riga «Ricarica» del tooltip.
+	 *
+	 * ⚠️ **Non e' `TotalTurns`, anche se oggi vale lo stesso.** Quello e' il denominatore della carica, e nella
+	 * barra senza unita' resta `0` per [D-460] (`HudViewModel.IdleBarCarriesNothingOfThePlan`); questo e' un fatto
+	 * dell'azione, uguale per chiunque la porti, e la barra senza unita' lo copia.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 CooldownTurns = 0;
+
+	/** Il motivo del validatore quando `bPlanInvalid` e' vero. ⚠️ Solo C++: il tipo resta nel suo header. */
+	ERTActionInvalidReason PlanInvalidReason{};
+
+	/**
+	 * Il rifiuto che accende `bPlanDegraded`, dalla stessa domanda (`RefusalForKnownTarget`). ⛔ Un bersaglio
+	 * ignoto da' `Nothing`, che non accende lo stato e quindi qui non si scrive. ⚠️ Solo C++.
+	 */
+	ERTTargetRefusal PlanDegradedRefusal{};
+
+	/** La portata APPLICATA quando il rifiuto e' `Range`: il testo la mostra sempre (`#2800`). */
+	int32 PlanDegradedRange = INDEX_NONE;
+
 	/** Turni interi che mancano. `0` = ricarica finita. **Mai negativo.** */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 TurnsRemaining = 0;
@@ -991,6 +1038,53 @@ struct FRTTargetPromptView
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bIsAwaitingTarget = false;
+};
+
+/** Una riga di numeri del tooltip: un'etichetta e il suo valore, gia' scritti (`#3499`). */
+USTRUCT(BlueprintType)
+struct FRTActionTooltipLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Label;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Value;
+};
+
+/**
+ * Il TOOLTIP di uno slot (`#3499`): la frase d'autore, i numeri composti dal gioco e, se lo slot e' spento, il
+ * perche'. Decisione d'autore del 2026-10-05: *«testo d'autore piu' numeri dal gioco»*.
+ *
+ * ⛔ **Sola presentazione**: la compone `URTHudViewModel::BuildActionTooltip` da `FRTAbilityCooldownView`, e non
+ * decide niente — lo stato e' quello di `ResolveSlotState`, i motivi sono quelli che la riga gia' porta.
+ */
+USTRUCT(BlueprintType)
+struct FRTActionTooltipView
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Title;
+
+	/** La frase d'autore. Vuota per un'azione che non ne ha: il tooltip resta di soli numeri. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Description;
+
+	/** Fase, slot, portata, ricarica, danno: solo le righe che per quest'azione hanno un valore. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TArray<FRTActionTooltipLine> Lines;
+
+	/** Il perche' di uno stato spento, uno solo; vuoto se non c'e' niente da spiegare. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Reason;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTActionSlotState State = ERTActionSlotState::Empty;
+
+	/** Una posizione di kit vuota non ha un tooltip. */
+	bool IsValid() const { return !Title.IsEmpty(); }
 };
 
 /**
@@ -1336,6 +1430,30 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	static ERTActionSlotState ResolveSlotState(const FRTAbilityCooldownView& Action, bool bArmed);
+
+	/**
+	 * Il TOOLTIP di uno slot (`#3499`), composto dalla riga che lo slot gia' riceve.
+	 *
+	 * - **Le righe** (decisione d'autore del 2026-10-05): fase, slot, portata, ricarica, danno. Una riga senza
+	 *   valore non si scrive: un'azione senza danno non dice «Danno 0».
+	 * - **Il motivo**, uno solo e in quest'ordine: piano illegale (il motivo del validatore), bersaglio degradato
+	 *   (il rifiuto, con la portata applicata), ricarica (i turni che restano).
+	 *
+	 * ⚠️ **Il rifiuto sotto il puntatore non e' un motivo del tooltip.** Mentre il cursore sta sulla barra non
+	 * punta nessuna cella del campo, e `bTargetRefused` direbbe di una cella che il giocatore non sta guardando.
+	 * ⛔ **Privacy**: il motivo del bersaglio degradato e' gia' filtrato da `RefusalForKnownTarget`. Un ignoto da'
+	 * `Nothing`, e qui non arriva niente da dire ([D-225]).
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static FRTActionTooltipView BuildActionTooltip(const FRTAbilityCooldownView& Action, bool bArmed);
+
+	/**
+	 * Il tooltip in TESTO SEMPLICE: titolo, frase, una riga per numero, motivo. Lo usa lo slot che non ha ancora
+	 * un widget di tooltip (`URTActionSlotWidget::TooltipClass` vuota), cosi' il tooltip esiste prima della seduta
+	 * che lo disegna.
+	 */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	static FText ComposeTooltipText(const FRTActionTooltipView& Tooltip);
 
 	/**
 	 * Quali stati mostrare sopra un'unita', **in che ordine** e con quale durata residua (`#2274`, `D-320`).

@@ -686,9 +686,81 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
 	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
 
+	// `#3499`: il tooltip si compone qui, una volta per cambio azione, come l'icona.
+	TooltipView = URTHudViewModel::BuildActionTooltip(Action, bArmed);
+	RefreshTooltip();
+
 	// Prima dell'evento: il Blueprint che volesse aggiungere qualcosa lo fa sopra cio' che il C++ ha gia' messo.
 	RefreshLook();
 	OnActionChanged();
+}
+
+void URTActionSlotWidget::RefreshTooltip()
+{
+	if (!TooltipView.IsValid())
+	{
+		SetToolTip(nullptr);
+		SetToolTipText(FText::GetEmpty());
+		return;
+	}
+	if (TooltipClass)
+	{
+		if (!ActionTooltip || ActionTooltip->GetClass() != TooltipClass.Get())
+		{
+			// Col giocatore proprietario, o col mondo: e' l'idioma UMG di un tooltip. ⛔ Non con lo slot come
+			// proprietario: richiede il suo `WidgetTree`, che uno slot senza Blueprint non ha (`ensure`).
+			if (APlayerController* Proprietario = GetOwningPlayer())
+			{
+				ActionTooltip = CreateWidget<URTActionTooltipWidget>(Proprietario, TooltipClass);
+			}
+			else if (UWorld* Mondo = GetWorld())
+			{
+				ActionTooltip = CreateWidget<URTActionTooltipWidget>(Mondo, TooltipClass);
+			}
+		}
+		if (ActionTooltip)
+		{
+			ActionTooltip->SetView(TooltipView);
+			SetToolTip(ActionTooltip);
+			return;
+		}
+	}
+	// Il ripiego: senza un widget di tooltip, il testo semplice di UMG. ⚠️ Un widget gia' assegnato si toglie,
+	// altrimenti vincerebbe sul testo e mostrerebbe la vista di prima.
+	SetToolTip(nullptr);
+	SetToolTipText(URTHudViewModel::ComposeTooltipText(TooltipView));
+}
+
+void URTActionTooltipWidget::SetView(const FRTActionTooltipView& InView)
+{
+	View = InView;
+	const auto Scrivi = [](UTextBlock* Porta, const FText& Testo, bool bCollassaSeVuoto)
+	{
+		if (!Porta)
+		{
+			return;
+		}
+		Porta->SetText(Testo);
+		if (bCollassaSeVuoto)
+		{
+			Porta->SetVisibility(Testo.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+		}
+	};
+	Scrivi(TitleText, View.Title, /*bCollassaSeVuoto=*/ false);
+	Scrivi(DescriptionText, View.Description, /*bCollassaSeVuoto=*/ true);
+	Scrivi(LinesText, GetLinesText(), /*bCollassaSeVuoto=*/ true);
+	Scrivi(ReasonText, View.Reason, /*bCollassaSeVuoto=*/ true);
+	OnViewChanged();
+}
+
+FText URTActionTooltipWidget::GetLinesText() const
+{
+	TArray<FString> Righe;
+	for (const FRTActionTooltipLine& Line : View.Lines)
+	{
+		Righe.Add(FString::Printf(TEXT("%s  %s"), *Line.Label.ToString(), *Line.Value.ToString()));
+	}
+	return FText::FromString(FString::Join(Righe, TEXT("\n")));
 }
 
 namespace

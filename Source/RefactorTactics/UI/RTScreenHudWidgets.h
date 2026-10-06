@@ -648,6 +648,56 @@ protected:
 };
 
 /**
+ * `WBP_RT_ActionTooltip` — il tooltip di uno slot (`#3499`). Come lo slot, **riceve** la vista e non va a prenderla:
+ * la compone `URTHudViewModel::BuildActionTooltip`, e questa classe la scrive nelle porte.
+ *
+ * 🔑 **Le porte hanno un nome, e il C++ le scrive**, come per lo slot (`#3489`, `#3498`): il Blueprint disegna e
+ * basta. Una porta mancante non e' un errore — il testo semplice resta il ripiego — ma un nome sbagliato lascia la
+ * porta spenta senza dire niente, ed e' il gate della seduta a verificarli.
+ */
+UCLASS(BlueprintType)
+class REFACTORTACTICS_API URTActionTooltipWidget : public UUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	/** Lo slot chiama questa, una volta per cambio azione. Scrive le porte, poi chiama `OnViewChanged`. */
+	UFUNCTION(BlueprintCallable, Category = "RefactorTactics|HUD")
+	void SetView(const FRTActionTooltipView& InView);
+
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTActionTooltipView GetView() const { return View; }
+
+	/** Le righe dei numeri in un testo solo, «Etichetta  valore» per riga: e' cio' che riceve `LinesText`. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FText GetLinesText() const;
+
+	/** Il nome dell'azione. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Tooltip")
+	TObjectPtr<UTextBlock> TitleText;
+
+	/** La frase d'autore. Collassata quando l'azione non ne ha una. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Tooltip")
+	TObjectPtr<UTextBlock> DescriptionText;
+
+	/** Le righe dei numeri: fase, slot, portata, ricarica, danno. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Tooltip")
+	TObjectPtr<UTextBlock> LinesText;
+
+	/** Il perche' di uno stato spento. Collassata quando non c'e' niente da spiegare. */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "RefactorTactics|HUD|Tooltip")
+	TObjectPtr<UTextBlock> ReasonText;
+
+	/** Il Blueprint che vuole aggiungere qualcosa lo fa qui, sopra cio' che il C++ ha gia' scritto. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|HUD")
+	void OnViewChanged();
+
+protected:
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FRTActionTooltipView View;
+};
+
+/**
  * `WBP_RT_ActionSlot` — UNA azione. Non estende la base di contesto: **riceve** i dati, non va a prenderli.
  *
  * E' la differenza fra un elemento di lista e un pannello: un dock con sei slot che leggono ciascuno il
@@ -664,6 +714,19 @@ public:
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	bool bArmed = false;
+
+	/**
+	 * La classe del tooltip (`#3499`), da assegnare nei default di `WBP_RT_ActionSlot`.
+	 *
+	 * ⚠️ **Vuota, il tooltip esiste lo stesso, in testo semplice** (`URTHudViewModel::ComposeTooltipText`): il dato
+	 * arriva prima del disegno, e il giocatore lo legge anche prima della seduta che lo veste.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	TSubclassOf<URTActionTooltipWidget> TooltipClass;
+
+	/** Il tooltip composto all'ultimo `SetAction`. */
+	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
+	FRTActionTooltipView GetTooltipView() const { return TooltipView; }
 
 	/** Il dock chiama questa; lo slot non si aggiorna da solo. */
 	/**
@@ -968,6 +1031,16 @@ public:
 	explicit URTActionSlotWidget(const FObjectInitializer& ObjectInitializer);
 
 	private:
+	/** Il tooltip composto in `SetAction`, una volta per cambio azione come l'icona (`#3499`). */
+	FRTActionTooltipView TooltipView;
+
+	/** L'istanza di `TooltipClass`, creata la prima volta che serve e riusata. */
+	UPROPERTY(Transient)
+	TObjectPtr<URTActionTooltipWidget> ActionTooltip;
+
+	/** Consegna `TooltipView`: al widget di `TooltipClass` se c'e', altrimenti come testo semplice. */
+	void RefreshTooltip();
+
 	/** L'icona risolta UNA VOLTA, in `SetAction`. `GetResolvedIcon` la rende senza ricalcolare.
 	 *
 	 * 🔴 **Non e' un'ottimizzazione: e' il contratto dichiarato reso vero.** `ResolveIcon` LOGGA quando una
