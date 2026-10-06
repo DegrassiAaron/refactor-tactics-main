@@ -146,9 +146,15 @@ bool FRTTooltipRowsTest::RunTest(const FString&)
 	FRTAbilityCooldownView SuDiSe = TooltipRow(TEXT("Prova.Guardia"), ERTActionSlot::Main, 0, 0, 0);
 	SuDiSe.bSelfTarget = true;
 	const FRTActionTooltipView Guardia = URTHudViewModel::BuildActionTooltip(SuDiSe, false);
-	TestEqual(TEXT("su di se'"), TooltipValue(Guardia, TEXT("Portata")), FString(TEXT("Su di te")));
-	TestEqual(TEXT("nessuna ricarica"), TooltipValue(Guardia, TEXT("Ricarica")), FString(TEXT("Nessuna")));
+	// ⛔ #3419, decisione d'autore del 2026-10-06: una riga senza valore non c'e'.
+	TestEqual(TEXT("su di se', la riga della portata non c'e'"), TooltipValue(Guardia, TEXT("Portata")), FString());
+	TestEqual(TEXT("senza ricarica, la riga non c'e'"), TooltipValue(Guardia, TEXT("Ricarica")), FString());
 	TestEqual(TEXT("senza danno, la riga non c'e'"), TooltipValue(Guardia, TEXT("Danno")), FString());
+	TestEqual(TEXT("restano fase e slot"), Guardia.Lines.Num(), 2);
+	FRTAbilityCooldownView SuDiSeConPortata = SuDiSe;
+	SuDiSeConPortata.RangeCells = 3;
+	TestEqual(TEXT("su di se', la portata non si dice nemmeno se il dato ne ha una"),
+		TooltipValue(URTHudViewModel::BuildActionTooltip(SuDiSeConPortata, false), TEXT("Portata")), FString());
 
 	const FRTActionTooltipView Uno = URTHudViewModel::BuildActionTooltip(
 		TooltipRow(TEXT("Prova.Uno"), ERTActionSlot::Reaction, 1, 1, 0), false);

@@ -445,18 +445,18 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 	case ERTActionSlot::None:
 		break; // un'azione che non occupa slot non ne dichiara uno
 	}
-	if (Action.bSelfTarget)
-	{
-		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipRange", "Portata"), NSLOCTEXT("RTHud", "TooltipRangeSelf", "Su di te")));
-	}
-	else if (Action.RangeCells > 0)
+	// ⛔ **Una riga senza valore non c'e'** (#3419, decisione d'autore del 2026-10-06): un'azione su di se' non ha
+	// una portata da dire, e una ricarica a zero non ha turni. ⏱️ *Fino ad allora dicevano «Su di te» e «Nessuna».*
+	if (!Action.bSelfTarget && Action.RangeCells > 0)
 	{
 		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipRange", "Portata"), TooltipCount(Action.RangeCells,
 			NSLOCTEXT("RTHud", "TooltipCell", "cella"), NSLOCTEXT("RTHud", "TooltipCells", "celle"))));
 	}
-	Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipCooldown", "Ricarica"), Action.CooldownTurns > 0
-		? TooltipCount(Action.CooldownTurns, NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni"))
-		: NSLOCTEXT("RTHud", "TooltipCooldownNone", "Nessuna")));
+	if (Action.CooldownTurns > 0)
+	{
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipCooldown", "Ricarica"), TooltipCount(Action.CooldownTurns,
+			NSLOCTEXT("RTHud", "TooltipTurn", "turno"), NSLOCTEXT("RTHud", "TooltipTurns", "turni"))));
+	}
 	if (Action.Damage > 0)
 	{
 		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipDamage", "Danno"), FText::AsNumber(Action.Damage)));

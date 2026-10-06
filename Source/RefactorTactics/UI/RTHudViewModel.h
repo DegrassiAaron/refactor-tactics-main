@@ -1435,7 +1435,8 @@ public:
 	 * Il TOOLTIP di uno slot (`#3499`), composto dalla riga che lo slot gia' riceve.
 	 *
 	 * - **Le righe** (decisione d'autore del 2026-10-05): fase, slot, portata, ricarica, danno. Una riga senza
-	 *   valore non si scrive: un'azione senza danno non dice «Danno 0».
+	 *   valore non si scrive (#3419, 2026-10-06): niente «Danno 0», niente portata per un'azione su di se',
+	 *   niente ricarica a zero.
 	 * - **Il motivo**, uno solo e in quest'ordine: piano illegale (il motivo del validatore), bersaglio degradato
 	 *   (il rifiuto, con la portata applicata), ricarica (i turni che restano).
 	 *
