@@ -174,6 +174,32 @@ bool FRTTooltipRowsTest::RunTest(const FString&)
 
 	TestFalse(TEXT("una posizione vuota non ha tooltip"),
 		URTHudViewModel::BuildActionTooltip(FRTAbilityCooldownView(), false).IsValid());
+
+	// La forma (#3419): l'impronta di un colpo che non e' puntuale.
+	FRTAbilityCooldownView Area = TooltipRow(TEXT("Prova.Area"), ERTActionSlot::Main, 4, 0, 10);
+	Area.Shape = ERTAbilityShape::Area;
+	Area.AreaRadius = 1;
+	TestEqual(TEXT("un'area dice il raggio"), TooltipValue(URTHudViewModel::BuildActionTooltip(Area, false), TEXT("Forma")),
+		FString(TEXT("Area, raggio 1")));
+	Area.Shape = ERTAbilityShape::Line;
+	TestEqual(TEXT("una linea"), TooltipValue(URTHudViewModel::BuildActionTooltip(Area, false), TEXT("Forma")), FString(TEXT("Linea")));
+	Area.Shape = ERTAbilityShape::Cone;
+	TestEqual(TEXT("un cono"), TooltipValue(URTHudViewModel::BuildActionTooltip(Area, false), TEXT("Forma")), FString(TEXT("Cono")));
+	TestEqual(TEXT("un colpo puntuale non ha la riga della forma"), TooltipValue(Colpo, TEXT("Forma")), FString());
+	TestEqual(TEXT("⛔ niente Energia: e' uscita dal gameplay (D-324)"), TooltipValue(Colpo, TEXT("Energia")), FString());
+
+	// Il compromesso (#3419): con una variante, sotto la frase; senza, niente riga vuota.
+	TestTrue(TEXT("senza variante, niente compromesso"), Colpo.Variant.IsEmpty());
+	FRTAbilityCooldownView ConVariante = TooltipRow(TEXT("Prova.Variante"), ERTActionSlot::Main, 4, 2, 10);
+	ConVariante.VariantName = FText::FromString(TEXT("Marea curativa"));
+	ConVariante.VariantTradeoff = FText::FromString(TEXT("cura 24 invece di 18"));
+	const FRTActionTooltipView Variato = URTHudViewModel::BuildActionTooltip(ConVariante, false);
+	TestEqual(TEXT("con una variante, il suo nome e il compromesso"), Variato.Variant.ToString(),
+		FString(TEXT("Marea curativa: cura 24 invece di 18")));
+	TestTrue(TEXT("e il testo semplice lo porta"),
+		URTHudViewModel::ComposeTooltipText(Variato).ToString().Contains(TEXT("cura 24 invece di 18")));
+	TestFalse(TEXT("e una variante diversa e' un tooltip diverso"), URTHudViewModel::SameTooltip(Variato,
+		URTHudViewModel::BuildActionTooltip(TooltipRow(TEXT("Prova.Variante"), ERTActionSlot::Main, 4, 2, 10), false)));
 	return true;
 }
 
@@ -295,6 +321,41 @@ bool FRTTooltipReadsTheCatalogTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("senza unita', %s: la portata"), *Id), Spenta.RangeCells, Fonte->RangeCells);
 	}
 	TestTrue(TEXT("premessa: la barra senza unita' ha delle comuni"), Comuni > 0);
+
+	// 🔑 **La variante attiva** (#3419): il compromesso e' quello del catalogo eroi, e solo l'azione che la dichiara lo
+	// porta. ⛔ Non l'omonimo del profilo dell'eroe (`FRTHeroProfileView::Tradeoffs`).
+	int32 ConVarianti = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+	{
+		const URTActionData* A = Unit->GetAbility(I);
+		if (A && A->Variants.Num() > 0) { ConVarianti = I; break; }
+	}
+	if (TestNotEqual(TEXT("premessa: un'azione del kit dichiara varianti"), ConVarianti, (int32)INDEX_NONE))
+	{
+		const FRTAbilityVariant& Scelta = Unit->GetAbility(ConVarianti)->Variants[0];
+		for (const FRTAbilityCooldownView& Riga : URTHudViewModel::BuildAbilityCooldowns(Unit))
+		{
+			TestTrue(*FString::Printf(TEXT("senza variante attiva, la riga %d non ha compromesso"), Riga.AbilityIndex),
+				Riga.VariantTradeoff.IsEmpty());
+		}
+		Unit->ActiveVariantId = Scelta.VariantId;
+		for (const FRTAbilityCooldownView& Riga : URTHudViewModel::BuildAbilityCooldowns(Unit))
+		{
+			if (Riga.AbilityIndex == ConVarianti)
+			{
+				TestEqual(TEXT("l'azione con la variante attiva porta il compromesso del catalogo"),
+					Riga.VariantTradeoff.ToString(), Scelta.Tradeoff.ToString());
+				TestTrue(TEXT("e il tooltip lo dice"), URTHudViewModel::BuildActionTooltip(Riga, false).Variant.ToString()
+					.Contains(Scelta.Tradeoff.ToString()));
+			}
+			else
+			{
+				TestTrue(*FString::Printf(TEXT("la riga %d, di un'altra azione, no"), Riga.AbilityIndex),
+					Riga.VariantTradeoff.IsEmpty());
+			}
+		}
+		Unit->ActiveVariantId = NAME_None;
+	}
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

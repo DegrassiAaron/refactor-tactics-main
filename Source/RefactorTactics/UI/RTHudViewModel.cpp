@@ -452,6 +452,22 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipRange", "Portata"), TooltipCount(Action.RangeCells,
 			NSLOCTEXT("RTHud", "TooltipCell", "cella"), NSLOCTEXT("RTHud", "TooltipCells", "celle"))));
 	}
+	switch (Action.Shape)
+	{
+	case ERTAbilityShape::Area:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipShape", "Forma"), Action.AreaRadius > 0
+			? FText::Format(NSLOCTEXT("RTHud", "TooltipShapeAreaRadius", "Area, raggio {0}"), FText::AsNumber(Action.AreaRadius))
+			: NSLOCTEXT("RTHud", "TooltipShapeArea", "Area")));
+		break;
+	case ERTAbilityShape::Line:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipShape", "Forma"), NSLOCTEXT("RTHud", "TooltipShapeLine", "Linea")));
+		break;
+	case ERTAbilityShape::Cone:
+		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipShape", "Forma"), NSLOCTEXT("RTHud", "TooltipShapeCone", "Cono")));
+		break;
+	case ERTAbilityShape::Single:
+		break; // un colpo puntuale non ha una forma da dire
+	}
 	if (Action.CooldownTurns > 0)
 	{
 		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipCooldown", "Ricarica"), TooltipCount(Action.CooldownTurns,
@@ -460,6 +476,13 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 	if (Action.Damage > 0)
 	{
 		Out.Lines.Add(TooltipLine(NSLOCTEXT("RTHud", "TooltipDamage", "Danno"), FText::AsNumber(Action.Damage)));
+	}
+
+	// Il compromesso della variante attiva, accanto ai numeri e non al loro posto (#3419). Senza variante non c'e'.
+	if (!Action.VariantTradeoff.IsEmpty())
+	{
+		Out.Variant = Action.VariantName.IsEmpty() ? Action.VariantTradeoff
+			: FText::Format(NSLOCTEXT("RTHud", "TooltipVariant", "{0}: {1}"), Action.VariantName, Action.VariantTradeoff);
 	}
 
 	// ── Il motivo di uno stato spento: uno solo, nell'ordine della definizione tecnica (D005) ────────────
@@ -487,7 +510,7 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 bool URTHudViewModel::SameTooltip(const FRTActionTooltipView& A, const FRTActionTooltipView& B)
 {
 	if (A.State != B.State || !A.Title.EqualTo(B.Title) || !A.Description.EqualTo(B.Description)
-		|| !A.Reason.EqualTo(B.Reason) || A.Lines.Num() != B.Lines.Num())
+		|| !A.Reason.EqualTo(B.Reason) || !A.Variant.EqualTo(B.Variant) || A.Lines.Num() != B.Lines.Num())
 	{
 		return false;
 	}
@@ -512,6 +535,10 @@ FText URTHudViewModel::ComposeTooltipText(const FRTActionTooltipView& Tooltip)
 	if (!Tooltip.Description.IsEmpty())
 	{
 		Righe.Add(Tooltip.Description.ToString());
+	}
+	if (!Tooltip.Variant.IsEmpty())
+	{
+		Righe.Add(Tooltip.Variant.ToString());
 	}
 	for (const FRTActionTooltipLine& Line : Tooltip.Lines)
 	{
@@ -627,6 +654,15 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		// Branth, che corregge la portata del core, li scrive entrambi — e il test li separa apposta.
 		View.Description = Action->Description;
 		View.CooldownTurns = FMath::Max(0, Action->Def.CooldownTurns);
+		// #3419: la forma che leggono il click e l'anteprima, e la variante attiva su QUEST'azione. ⚠️ `FindVariant`
+		// e non «la prima variante»: l'id e' dell'unita', e solo l'azione che lo dichiara ne porta il compromesso.
+		View.Shape = Action->Shape;
+		View.AreaRadius = FMath::Max(0, Action->AreaRadius);
+		if (const FRTAbilityVariant* Variante = Action->FindVariant(Unit->ActiveVariantId))
+		{
+			View.VariantName = Variante->DisplayName;
+			View.VariantTradeoff = Variante->Tradeoff;
+		}
 		View.RangeCells = FMath::Max(0, Action->RangeCells);
 		View.bSelfTarget = Action->bSelfTarget || Action->Def.bSelfTarget;
 		for (const FRTActionEffectSpec& Effetto : Action->Def.Effects)
@@ -912,6 +948,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildIdleBar(const TArray<const 
 				Spenta.bSelfTarget = Riga.bSelfTarget;
 				Spenta.Damage = Riga.Damage;
 				Spenta.CooldownTurns = Riga.CooldownTurns;
+				Spenta.Shape = Riga.Shape;
+				Spenta.AreaRadius = Riga.AreaRadius;
 				Spenta.Group = ERTActionGroup::Common;
 				Spenta.AbilityIndex = IdleSlotIndex;
 				Spenta.bUsableNow = false;

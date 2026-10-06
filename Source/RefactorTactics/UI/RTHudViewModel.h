@@ -748,6 +748,27 @@ struct FRTAbilityCooldownView
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	int32 CooldownTurns = 0;
 
+	/** La forma dell'impronta, quella che leggono il click e l'anteprima (`URTActionData::Shape`) — #3419. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	ERTAbilityShape Shape = ERTAbilityShape::Single;
+
+	/** Il raggio dell'area, quando `Shape` e' `Area`. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	int32 AreaRadius = 0;
+
+	/**
+	 * La variante ATTIVA su quest'azione (`ARTUnit::ActiveVariantId`), col suo compromesso
+	 * (`FRTAbilityVariant::Tradeoff`, scritto in `RTHeroCatalogLibrary.cpp`) — #3419. Vuoti senza variante.
+	 *
+	 * ⛔ **Non e' `FRTHeroProfileView::Tradeoffs`**, l'omonimo del profilo dell'EROE: quello dice «Fragile se
+	 * accerchiato», questo dice cosa cambia in quest'abilita'.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText VariantName;
+
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText VariantTradeoff;
+
 	/** Il motivo del validatore quando `bPlanInvalid` e' vero. ⚠️ Solo C++: il tipo resta nel suo header. */
 	ERTActionInvalidReason PlanInvalidReason{};
 
@@ -1079,6 +1100,10 @@ struct FRTActionTooltipView
 	/** Il perche' di uno stato spento, uno solo; vuoto se non c'e' niente da spiegare. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	FText Reason;
+
+	/** «Variante: compromesso», quando una variante e' attiva su quest'azione (#3419). Vuoto altrimenti. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
+	FText Variant;
 
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|HUD")
 	ERTActionSlotState State = ERTActionSlotState::Empty;
@@ -1434,9 +1459,11 @@ public:
 	/**
 	 * Il TOOLTIP di uno slot (`#3499`), composto dalla riga che lo slot gia' riceve.
 	 *
-	 * - **Le righe** (decisione d'autore del 2026-10-05): fase, slot, portata, ricarica, danno. Una riga senza
-	 *   valore non si scrive (#3419, 2026-10-06): niente «Danno 0», niente portata per un'azione su di se',
-	 *   niente ricarica a zero.
+	 * - **Le righe** (decisione d'autore del 2026-10-05): fase, slot, portata, forma, ricarica, danno. Una riga
+	 *   senza valore non si scrive (#3419, 2026-10-06): niente «Danno 0», niente portata per un'azione su di se',
+	 *   niente ricarica a zero, niente forma per un colpo puntuale.
+	 * - **Il compromesso** della variante attiva, se c'e' (#3419). ⛔ **Niente costo in Energia**: e' uscita dal
+	 *   gameplay con [D-324].
 	 * - **Il motivo**, uno solo e in quest'ordine: piano illegale (il motivo del validatore), bersaglio degradato
 	 *   (il rifiuto, con la portata applicata), ricarica (i turni che restano).
 	 *
