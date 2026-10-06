@@ -372,6 +372,60 @@ bool FRTCombatTargetReasonTest::RunTest(const FString&)
 }
 
 /**
+ * LA PORTATA E IL VERDETTO DEL CLICK CONCORDANO SU OGNI CELLA - `#3507`.
+ *
+ * 🔑 L'anteprima della portata non deve promettere una cella che il click su una cella (`HandleTargetCell`, cioe'
+ * `DescribeCellTargetRefusal`) rifiuterebbe perche' lontana o su un altro piano. E' in portata se il click non la
+ * rifiuta, o la rifiuta solo per copertura: la portata non e' la vista.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetableRangeCellsTest,
+	"RefactorTactics.Combat.TargetableRangeCellsAgreeWithTheClickVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTargetableRangeCellsTest::RunTest(const FString&)
+{
+	const FRTCellId From(0, 0, 0);
+	constexpr int32 Portata = 3;
+	URTHexMapAsset* Map = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 5);
+
+	// Un muro in portata: la cella dietro resta in portata, perche' a fermarla e' la vista e non la distanza.
+	FRTHexCellData Wall(FRTCellId(1, 0, 0));
+	Wall.bBlocksLineOfSight = true;
+	Map->AddOrUpdateCell(Wall);
+	// Una cella su un secondo piano, sopra una cella in portata: da qui non e' in portata.
+	Map->AddOrUpdateCell(FRTHexCellData(FRTCellId(0, 1, 1)));
+	Map->SortCells();
+
+	const TArray<FRTCellId> Range =
+		URTCombatLibrary::TargetableRangeCells(Map, From, Portata, ERTLineOfSightPolicy::Required);
+	if (!TestTrue(TEXT("premessa: la portata non e' vuota"), Range.Num() > 0))
+	{
+		return false;
+	}
+
+	int32 Coperte = 0;
+	for (const FRTHexCellData& Data : Map->Cells)
+	{
+		const FRTCellTargetRefusal Click = URTCombatLibrary::DescribeCellTargetRefusal(
+			Map, From, Data.Id, Portata, ERTLineOfSightPolicy::Required);
+		const bool bClickInPortata = Click.Refusal == ERTTargetRefusal::None || Click.Refusal == ERTTargetRefusal::Cover;
+		TestEqual(*FString::Printf(TEXT("cella (%d,%d,L%d): portata e click concordano"), Data.Id.X, Data.Id.Y,
+				Data.Id.Layer),
+			Range.Contains(Data.Id), bClickInPortata);
+		if (bClickInPortata && Click.Refusal == ERTTargetRefusal::Cover)
+		{
+			++Coperte;
+		}
+	}
+	TestTrue(TEXT("una cella dietro il muro e' in portata, anche se il click la rifiuta per copertura"), Coperte > 0);
+	TestFalse(TEXT("la cella del secondo piano non e' in portata"), Range.Contains(FRTCellId(0, 1, 1)));
+	TestFalse(TEXT("una cella oltre la portata non c'e'"), Range.Contains(FRTCellId(-(Portata + 1), 0, 0)));
+	TestTrue(TEXT("una al limite si'"), Range.Contains(FRTCellId(-Portata, 0, 0)));
+	TestEqual(TEXT("senza mappa la portata e' vuota"),
+		URTCombatLibrary::TargetableRangeCells(nullptr, From, Portata, ERTLineOfSightPolicy::Required).Num(), 0);
+	return true;
+}
+
+/**
  * `CP 19.3` / `#1124` — il GRUPPO DI CONTROLLO partiziona la squadra.
  *
  * La squadra dice contro chi si combatte; il gruppo dice CHI, fra i giocatori di quella squadra, comanda una

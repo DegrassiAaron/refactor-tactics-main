@@ -202,7 +202,7 @@ Resolver autorevole → TurnLog / Resolved Timeline → Playback / Inspection �
 | Capability | Impl | Valid | Present | Owner | Open work |
 |---|:--:|:--:|:--:|---|---|
 | `RT-CAP-SCREEN-HUD`<br>Screen HUD (Canvas legacy → UMG §4.1) | 🟡 | ✅ | 🟡 | #25 | #613 · #1936 · #2764 · #2757 · #2752 · #2744 · #2732 · #2826 · #2184 · #2618 |
-| `RT-CAP-WORLD-OVERLAY`<br>Tactical World Overlay (grammatica semantica) | 🟡 | 🟡 | 🟡 | #1769 | #1941 · #1942 · #1943 · #1944 · #2742 · #1614 · #921 |
+| `RT-CAP-WORLD-OVERLAY`<br>Tactical World Overlay (grammatica semantica) | 🟡 | 🟡 | 🟡 | #1769 | #1941 · #1942 · #1943 · #1944 · #2742 · #3507 · #1614 · #921 |
 | `RT-CAP-TARGET-PREVIEW`<br>Target & Movement Preview | 🟡 | 🟡 | 🟡 | #1769 | #2825 · #2793 · #2742 · #2632 · #2597 · #1944 · #607 · #172 |
 | `RT-CAP-PLAYER-EVENT-LOG`<br>Player Event Log & Explainability | 🟡 | ✅ | 🟡 | #1937 | #1937 · #1936 · #2697 · #2281 · #1392 |
 | `RT-CAP-COMBAT-FEEDBACK`<br>Combat Feedback (damage token, cue, status) | 🟡 | 🟡 | 🟡 | #2453 | #2453 · #2456 · #2457 · #2828 · #2505 |
@@ -599,7 +599,7 @@ misura di assenza; undici lo sono abbastanza da scriverlo.
 |---|---|---|
 | `RT-CAP-SKILL-WORKBENCH` | il dato della variante **non ha nessuna superficie d'Editor o di UI** | misurato sul codice, non sul titolo di #2577: i consumatori di `FRTWorkbenchVariant` sono `RTScenarioRunner.*`, `RTScenarioSession.*`, `RTUnit.cpp` e due file di test. `SRTLabPanel` esiste ma è il pannello dell'Ability/Hero Lab sulle ability **canoniche** |
 | `RT-CAP-LOS` | ⌫ **Superato il 2026-09-12**: diceva *«`PIE-HEXPLAY-6` è l'unica voce ❌ del subset `RELEASE-V01`, con causa indeterminata»*. La voce è ✅ — seduta convocata da [#2697](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2697), `runId 20260912-141110`, verdetto d'autore `PASS` — e il subset non ha più voci fallite | 🔴 **Il residuo non è il canale, è la frase**: il testo player-facing dice *«nessuna linea di tiro»* e **non nomina** l'ostacolo, quindi la comprensibilità poggia sul marcatore — che è ruotato di 30° ([#3077](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3077)) |
-| `RT-CAP-WORLD-OVERLAY` | Vision d'area, Ability Range, Hazard, Objective, Invalid **non hanno un produttore** | scritto nell'enum stesso: [`RTOverlayArea.h`](../../../Source/RefactorTactics/Map/RTOverlayArea.h) — *«non sono dimenticate: non hanno un produttore»*. Owner che le apre: #1944 |
+| `RT-CAP-WORLD-OVERLAY` | Vision d'area, Hazard, Objective, Invalid **non hanno un produttore** | scritto nell'enum stesso: [`RTOverlayArea.h`](../../../Source/RefactorTactics/Map/RTOverlayArea.h) — *«non sono dimenticate: non hanno un produttore»*. Owner che le apre: #1944. ⌫ *Ability Range ne è uscita il 2026-10-06 con [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507): la portata dell'azione armata, in targeting* |
 | `RT-CAP-VERTICALITY` | la minaccia di caduta **non è leggibile in pianificazione**, e nel caso saturo l'esito non si spiega | #2405 |
 | `RT-CAP-TURNLOG` | il colpo di boundary rispetta la copertura **e nessuno lo dice** | #1392 · #649 — la regola decide e la traccia tace |
 | `RT-CAP-ANIMATION-RUNTIME` | il grafo ha **due sequence player** e consuma `Idle` e `Move` **e nient'altro** | [`RTPresentationRole.h`](../../../Source/RefactorTactics/Unit/RTPresentationRole.h): gli altri ruoli sono **vocabolario**, non clip che il runtime suona |
@@ -699,7 +699,7 @@ Le due superfici vanno tenute separate, e in questa mappa lo sono:
 | | Capability | Cosa possiede | Stato |
 |---|---|---|---|
 | **Screen HUD / UMG** | `RT-CAP-SCREEN-HUD` | §4.1 di `progettazione-hud.md`: header di turno, dock azioni, roster, overlay unità, feed | 🟡 implementazione **doppia**: Canvas vivo + UMG versionato |
-| **Tactical World Overlay** | `RT-CAP-WORLD-OVERLAY` | la grammatica semantica sulla board: `ERTOverlayMeaning` + `URTOverlayPalette` | 🟡 sei significati con produttore, cinque **senza** |
+| **Tactical World Overlay** | `RT-CAP-WORLD-OVERLAY` | la grammatica semantica sulla board: `ERTOverlayMeaning` + `URTOverlayPalette` | 🟡 **senza produttore**: Vision d'area, Hazard, Objective, Invalid — l'elenco dei significati è `URTOverlayPalette::AllMeanings` |
 
 🔴 Il rischio che #2764 nomina è di **categoria**, non di stile: *«il §4.1 ridecide nei Blueprint ciò che
 il C++ decide e testa»*. È la seconda autorità, spostata nella presentazione.

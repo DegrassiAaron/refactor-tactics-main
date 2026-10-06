@@ -1088,6 +1088,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PreviewPathArea.Cells.Num() > 0
 		|| PreviewHitArea.Cells.Num() > 0
 		|| PreviewReachableArea.Cells.Num() > 0
+		|| PreviewRangeArea.Cells.Num() > 0
 		|| bPreviewAttackValid
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
@@ -1111,6 +1112,13 @@ void ARTHexMapActor::SetPreviewReachableCells(const TArray<FRTCellId>& Reachable
 {
 	PreviewReachableArea.Cells = ReachableCells;
 	PreviewReachableArea.Meaning = ERTOverlayMeaning::Movement;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPreviewRangeCells(const TArray<FRTCellId>& RangeCells)
+{
+	PreviewRangeArea.Cells = RangeCells;
+	PreviewRangeArea.Meaning = ERTOverlayMeaning::AbilityRange;
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1430,6 +1438,13 @@ void ARTHexMapActor::DrawPlanningPreview() const
 	for (const FRTCellId& Cell : PreviewReachableArea.Cells)
 	{
 		DrawMeaning(Cell, ERTOverlayMeaning::Movement);
+	}
+
+	// La portata dell'azione armata (`#3507`): dove posso mirare. In targeting prende il posto del ventaglio, e sta
+	// sotto l'area colpita, che dice chi colpisco.
+	for (const FRTCellId& Cell : PreviewRangeArea.Cells)
+	{
+		DrawMeaning(Cell, ERTOverlayMeaning::AbilityRange);
 	}
 
 	// Traccia del percorso: contorno ciano su ogni cella + segmento fra i centri consecutivi.

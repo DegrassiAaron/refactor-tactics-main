@@ -327,6 +327,29 @@ FString URTCombatLibrary::OutOfRangeDiagnostic(int32 DeclaredRange, int32 Effect
 		EffectiveRange, DeclaredRange);
 }
 
+TArray<FRTCellId> URTCombatLibrary::TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From,
+	int32 RangeCells, ERTLineOfSightPolicy Policy)
+{
+	TArray<FRTCellId> Out;
+	if (!Map || RangeCells < 0)
+	{
+		return Out;
+	}
+	for (const FRTCellId& Cell : URTHexLibrary::HexArea(From, RangeCells))
+	{
+		if (!Map->ContainsCell(Cell))
+		{
+			continue;
+		}
+		const ERTHexTargetReason Reason = ClassifyHexTargeting(Map, From, Cell, RangeCells, Policy);
+		if (Reason == ERTHexTargetReason::Ok || Reason == ERTHexTargetReason::NoLineOfSight)
+		{
+			Out.Add(Cell);
+		}
+	}
+	return Out;
+}
+
 bool URTCombatLibrary::CanTargetHexCell(const URTHexMapAsset* Map, const FRTCellId& From, const FRTCellId& To,
 	int32 RangeCells, ERTLineOfSightPolicy Policy)
 {

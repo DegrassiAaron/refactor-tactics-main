@@ -156,6 +156,7 @@ namespace
 		if (!Unit)
 		{
 			HexMap->SetPreviewReachableCells(TArray<FRTCellId>());
+			HexMap->SetPreviewRangeCells(TArray<FRTCellId>());
 			HexMap->SetPreviewHitCells(TArray<FRTCellId>(), TArray<FRTCellId>());
 			HexMap->SetPreviewAttack(FRTCellId(), FRTCellId(), /*bValid=*/ false, /*bOriginPredicted=*/ false);
 
@@ -196,7 +197,29 @@ namespace
 				Reachable.Add(R.Cell);
 			}
 		}
-		HexMap->SetPreviewReachableCells(Reachable);
+
+		// 🔑 **In targeting la PORTATA prende il posto del ventaglio** (`#3507`, decisione d'autore del 2026-10-06): con
+		// un'azione a bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare». Il predicato e' quello
+		// di `GetPointerContext` — armata, e non mobilita' rapida — piu' un bersaglio da scegliere: un supporto su se
+		// stessi non ha una portata da mostrare, e uno scatto chiede una destinazione, cioe' il ventaglio.
+		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dalla cella in cui l'unita' si
+		// trova: e' da li' che `HandleTargetCell` e il click su un'unita' misurano la portata.
+		bool bMira = false;
+		TArray<FRTCellId> Portata;
+		if (const URTActionData* Armata = Unit->GetAbility(Unit->SelectedAbilityIndex))
+		{
+			// ⛔ Una reazione si arma senza bersaglio, e scatta in risoluzione: non ha un punto in cui mirare.
+			bMira = !URTCatalogLibrary::IsFastMovement(Armata->Def) && Armata->Def.Slot != ERTActionSlot::Reaction
+				&& URTPointerLibrary::TargetKindForAction(Armata->Def, Armata->bSelfTarget, Armata->Shape)
+					!= ERTPointerTargetKind::None;
+			if (bMira)
+			{
+				Portata = URTCombatLibrary::TargetableRangeCells(Map, Unit->Cell, Armata->RangeCells,
+					Armata->Def.LineOfSightPolicy);
+			}
+		}
+		HexMap->SetPreviewReachableCells(bMira ? TArray<FRTCellId>() : Reachable);
+		HexMap->SetPreviewRangeCells(Portata);
 
 		// Da dove agira' e su cosa. La derivazione sta in `URTHexCombatLibrary::MakeBlastPreview`, che e'
 		// pura e testabile headless: qui si TRADUCE il piano, non si decide.
@@ -3019,6 +3042,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// moduli esistevano, ma `PlannedReactionAbility` lo scrivevano **solo i test**.
 	if (bReazione)
 	{
+		RefreshPlanningPreview(GetWorld(), Unit); // `#3507`: la portata dell'azione armata prima si spegne
 		Unit->PlannedReactionAbility = Index;
 		UE_LOG(LogRT, Display, TEXT("[RT] %s arma %s (reazione)"), *Unit->GetName(), *Ability->DisplayName.ToString());
 		return;
@@ -3043,8 +3067,8 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// `bSelfTarget = true`. Un refresh messo solo alla fine salterebbe esattamente il caso per cui questa
 	// correzione esiste.
 	//
-	// ⛔ E **non** si aggiorna quando la riserva non c'e': armare un'azione qualunque non cambia il piano di
-	// movimento, e chiamare il refresh comunque allargherebbe il comportamento oltre il difetto.
+	// ⏱️ *Fino a `#3507` qui c'era «E **non** si aggiorna quando la riserva non c'e'»*: armare un'azione a bersaglio
+	// non cambiava niente a schermo. Ora accende la portata, e l'aggiornamento c'e' anche senza riserva, in fondo.
 	bool bAnteprimaDaAggiornare = false;
 	const auto AggiornaAnteprima = [this, Unit, &bAnteprimaDaAggiornare]()
 	{
@@ -3160,6 +3184,9 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// slot e' `Action.Overwatch`, che e' `bSelfTarget` e quindi esce sopra. La chiamata sta qui perche' una
 	// seconda azione che riservasse lo slot senza essere self-target troverebbe il ventaglio giusto senza
 	// che nessuno debba ricordarsene.
+	// 🔑 **Un'azione a bersaglio cambia l'anteprima anche senza riserva** (`#3507`): la portata prende il posto del
+	// ventaglio. ⏱️ *Fino a `#3507` qui si aggiornava solo con la riserva*, perche' armare non cambiava niente a schermo.
+	bAnteprimaDaAggiornare = true;
 	AggiornaAnteprima();
 	UE_LOG(LogRT, Display, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
 }
@@ -3886,6 +3913,7 @@ ERTPointerBackStep ARTPlayerController::ApplyBack()
 			else
 			{
 				Unit->SelectAbility(INDEX_NONE);
+				RefreshPlanningPreview(GetWorld(), Unit); // `#3507`: torna il ventaglio, si spegne la portata
 			}
 		}
 		break;

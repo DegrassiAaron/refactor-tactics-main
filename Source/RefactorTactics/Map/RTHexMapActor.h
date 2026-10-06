@@ -759,6 +759,16 @@ public:
 	void SetPreviewReachableCells(const TArray<FRTCellId>& ReachableCells);
 
 	/**
+	 * Le celle entro la portata dell'azione armata, significato `AbilityRange` (vuoto = nessuna anteprima) — `#3507`.
+	 * Vengono da `URTCombatLibrary::TargetableRangeCells`, la stessa classificazione del click: qui non si ricalcola.
+	 */
+	void SetPreviewRangeCells(const TArray<FRTCellId>& RangeCells);
+
+	/** Cio' che l'anteprima disegnera': il ventaglio e la portata. Servono ai test. */
+	const TArray<FRTCellId>& GetPreviewReachableCells() const { return PreviewReachableArea.Cells; }
+	const TArray<FRTCellId>& GetPreviewRangeCells() const { return PreviewRangeArea.Cells; }
+
+	/**
 	 * Origine e mira dell'attacco pianificato: da DOVE parte il colpo e verso cosa. `bValid = false` spegne
 	 * entrambe.
 	 *
@@ -1014,6 +1024,8 @@ protected:
 	/** Sottoinsieme di `PreviewHitArea` occupato da alleati: fuoco amico. */
 	FRTOverlayArea PreviewAllyHitArea;
 	FRTOverlayArea PreviewReachableArea;
+	/** La portata dell'azione armata (`#3507`): in targeting prende il posto di `PreviewReachableArea`. */
+	FRTOverlayArea PreviewRangeArea;
 
 	/** Cella da cui parte l'attacco pianificato — post-scatto quando lo scatto si applica. */
 	/**
