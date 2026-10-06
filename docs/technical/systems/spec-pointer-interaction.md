@@ -333,12 +333,12 @@ Esiti ammessi — l'elenco è **chiuso**:
 | `Cell` | `IdleSelection` | `Inspect` highlight | `NoOp` | `NoOp` |
 | `Cell` | `Planning` / `Pathing` | `Preview` percorso e costo | `Confirm` waypoint · `Blocked(reason)` se irraggiungibile | `Cancel` ultimo waypoint |
 | `Cell` | `Targeting` / `Cell` | `Preview` celle colpite e alleati in area | `Confirm` bersaglio a terra — **anche se occupata** (§4.1) | `Cancel` → torna a `Planning` |
-| `Cell` | `Targeting` / `Unit` | `Inspect` contesto | `NoOp` — l'azione vuole un'unità | `Cancel` |
+| `Cell` | `Targeting` / `Unit` | **senza bersaglio dichiarato** `Inspect` contesto — come annunciare il rifiuto è aperto in [#705](https://github.com/DegrassiAaron/refactor-tactics-main/issues/705) · **dichiarato il bersaglio** come `Cell` in `Planning` / `Pathing` ([D-128](../../decisions/RT_PDR_00_Decision_Log.md): l'hover annuncia ciò che il click esegue) | **senza bersaglio dichiarato** `Blocked(reason)` — «l'azione vuole un'unità»: niente waypoint, niente verso, l'azione resta armata · **dichiarato il bersaglio** movimento: il waypoint, e sulla cella finale il selettore del verso ([D-466](../../decisions/RT_PDR_00_Decision_Log.md) punto 3) | `Cancel` |
 | `FriendlyUnit` | `IdleSelection` / `Planning` | `Inspect` | `Select` | `NoOp` |
 | `FriendlyUnit` | `Targeting` / `Unit` | `Preview` con alleato marcato in area | `Confirm` **solo** se l'azione ammette bersagli alleati, altrimenti `Blocked` | `Cancel` |
 | `EnemyUnit` **rilevata** | `IdleSelection` / `Planning` | `Inspect` pubblico | `Inspect` — **non pianifica** ([D-128](../../decisions/RT_PDR_00_Decision_Log.md)) | `Cancel` |
 | `EnemyUnit` **rilevata** | `Targeting` / `Unit` | `Preview` dell'attacco: portata, copertura sul lato, esito atteso | `Confirm` attacco/carica · `Blocked(reason)` se illegale | `Cancel` → `Planning` |
-| `EnemyUnit` **non rilevata** | tutti | `NoOp` — §6.1 | `NoOp` | `NoOp` |
+| `EnemyUnit` **non rilevata** | tutti | `NoOp` — §6.1 | `NoOp` · in `Targeting` / `Unit`, **in entrambi i rami**, come una `Cell` vuota: stesso esito e stessa frase ([D-466](../../decisions/RT_PDR_00_Decision_Log.md) punto 2). Negli altri contesti vedi la nota di §6.1 | `NoOp` |
 | `CoverEdge` | `Planning` / `Targeting` / `Cell` | `Inspect` lato e valore | `NoOp` (non è un bersaglio in questi contesti) | `NoOp` |
 | `CoverEdge` | `Targeting` / `Edge` | `Preview` del bordo dichiarato e della relazione difensiva | `Confirm` cella + direzione | `Cancel` → `Planning` |
 | `FacingSector` | `Facing` | `Preview` del settore: pieno se legale, barrato con reason se no | `Confirm` rotazione dichiarata | `Cancel` → `Planning` |
@@ -479,6 +479,19 @@ un Actor nel mondo — e un tooltip su di essa rivelerebbe stato privato.
 non rilevato si comporta come `EmptyWorld`: nessun highlight, nessun tooltip, nessun bersaglio.
 Nessun hover, warning, ghost o Decision Window usa mai intenti avversari privati: i warning si costruiscono
 su stato **pubblico** più intenti della **propria** squadra.
+
+> ⚠️ **`CONTRACT CONFLICT`, registrato il 2026-10-06 con [D-466](../../decisions/RT_PDR_00_Decision_Log.md).**
+> «Si comporta come `EmptyWorld`» non è ciò che fa il codice, e non è ciò che la privacy chiede dove una cella
+> vuota risponde con un esito. Un nemico velato non è pickabile (`ARTUnit::RefreshComponentVisibility` ne spegne
+> la collisione, `RefactorTactics.Veil.HiddenEnemyIsNotPickable`), quindi il click cade sulla cella su cui sta;
+> `RefactorTactics.Pointer.VeiledUnitIsIndistinguishableFromEmptyGround` asserisce la stessa parità sul solo esito
+> del router. D-466 punto 2 decide il **click** in `Targeting` / `Unit`: come la cella vuota, in entrambi i rami.
+> Nella riga `EnemyUnit` non rilevata di §5.1 restano diversi da quelli di una `Cell` l'Hover in ogni contesto,
+> l'RMB fuori da `IdleSelection`, e il click in `Planning` / `Pathing` (`NoOp` contro il waypoint) e in
+> `Targeting` / `Cell` (`NoOp` contro il bersaglio a terra): la lettura che la privacy impone è «come la cella su
+> cui sta», ma la correzione di quelle celle chiede una decisione propria. ⏱️ *Il paragrafo qui sopra descrive il
+> codice del 2026-08-12: oggi `DispatchUnitClick` passa al router anche l'osservazione, e la collisione di
+> un'unità velata è spenta.*
 
 ### 6.2 Il ghost di un alleato è sola lettura
 

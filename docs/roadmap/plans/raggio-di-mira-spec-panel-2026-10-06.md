@@ -5,6 +5,15 @@
 **Data**: 2026-10-06 · **Misurato su**: `main` `903154a41` (ricognizione su `d9a22b75c`); lo stato della portata e dei rilievi aperti è rimisurato su `160c8679d`, dopo il merge di #3513 · **Modalità**: discussion · critique · **Focus**: requirements · architecture · testing
 **Panel**: Wiegers (requisiti) · Cockburn (attore/goal) · Adzic (esempi) · Crispin (testabilità) · Fowler (confini) · Nygard (failure mode), più un verificatore avversario delle premesse
 
+> ✅ **Esiti — decisioni d'autore del 2026-10-06 sulle DR di §11.** Il corpo resta la fotografia del panel.
+> - **DR-1** → [`D-464`](../../decisions/RT_PDR_00_Decision_Log.md): una sola origine di mira per fase, dalla cella dello scatto per `Attack` e `Control` (#3509).
+> - **DR-2** → [`D-465`](../../decisions/RT_PDR_00_Decision_Log.md): per click e portata l'autore ha scelto la (i) dichiarata fino a #2794 — la via che Fowler e Crispin indicavano se non si decide per la v0.1 —, con l'ottimismo per la sola vista dalla destinazione (#3270, #3420).
+> - **DR-6** → [`D-466`](../../decisions/RT_PDR_00_Decision_Log.md): il click su una cella vuota si rifiuta **finché il bersaglio non è dichiarato**, non sempre come raccomandato qui (#705). Risponde a **Q1**: il waypoint con un'azione armata resta possibile dopo la dichiarazione, senza disarmo implicito.
+> - **DR-8** → nessuna portata finché resta armata un'azione in ricarica; rifiutare l'armo è una decisione a parte. **DR-5** → armare porta il piano attivo a quello da cui si mira; il disarmo (**Q6**) resta aperto. Entrambe in [#3517](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3517), fetta di #1944.
+> - **DR-4** → prima la misura sul pacchetto Shipping, poi il canale (#3508).
+> - **DR-14** → confermata la regola di #3513 (commento su #3507): la portata mostra anche le celle coperte, che il click rifiuta col motivo — un'eccezione dichiarata alla lettura «area = click» di D-128. **DR-3** era già decisa in #3507.
+> - Restano aperte **DR-7** — su `main` la portata resta accesa dopo la dichiarazione, e la PIE d'autore di #3507 la giudica distinguibile dall'area colpita; si decide insieme a D-466 punto 3 — e le domande **Q2**…**Q6**.
+
 > Referto della sessione chiesta dall'autore il 2026-10-05: *«dobbiamo rendere visibili le aree quando si
 > seleziona una abilita'. per esempio una a target singolo, mostra con un area sulla mappa, fin dove riuscirebbe
 > a colpire da quella posizione»*.
