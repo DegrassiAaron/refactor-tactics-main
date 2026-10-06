@@ -1,6 +1,6 @@
 # RT — Frasi dei tooltip delle azioni v0.1
 
-> **Owner**: [#3499](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3499) · **Stato**: `DRAFT` — scritte da chi implementa a partire dai dati, **da rivedere dall'autore**
+> **Owner**: [#3499](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3499) · **Stato**: **accettate dall'autore per la v0.1** il 2026-10-06 — *«vanno bene così, le rivedremo in un secondo momento»*. Scritte da chi implementa a partire dai dati; la revisione è [#3526](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3526)
 >
 > La frase che il tooltip di uno slot mostra **sopra i numeri**. Decisione d'autore del 2026-10-05: il tooltip è
 > *testo d'autore più numeri dal gioco*.
