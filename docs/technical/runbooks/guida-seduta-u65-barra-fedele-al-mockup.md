@@ -58,10 +58,23 @@ gli statici degli autori sono la 1.000, del 2011. La differenza va guardata sull
 
 In `/Game/RT/UI/Fonts/`:
 
-- un **Font Face** per file, con *Loading Policy* `Inline`: `FF_RT_Orbitron_Medium`, `FF_RT_Orbitron_Bold`,
-  `FF_RT_Exo2_Regular`, `FF_RT_Exo2_SemiBold`, `FF_RT_Exo2_Bold`;
-- due **Font** compositi: `F_RT_Orbitron`, coi typeface `Medium` e `Bold`; `F_RT_Exo2`, coi typeface
-  `Regular`, `SemiBold` e `Bold`.
+- un **Font Face** per file: `FF_RT_Orbitron_Medium`, `FF_RT_Orbitron_Bold`, `FF_RT_Exo2_Regular`,
+  `FF_RT_Exo2_SemiBold`, `FF_RT_Exo2_Bold`;
+- un **Font** per peso, con un typeface solo: `F_RT_Orbitron_Medium`, `F_RT_Orbitron_Bold`,
+  `F_RT_Exo2_Regular`, `F_RT_Exo2_SemiBold`, `F_RT_Exo2_Bold`. Ogni testo dello slot usa un peso solo, quindi
+  la composita a più typeface non serve.
+
+⏱️ *Fino alla seduta del 2026-10-05 questa sezione chiedeva due Font compositi e la* Loading Policy *`Inline`.*
+Com'è andata, misurato sui `.uasset`:
+
+- **Un Font per peso** è ciò che produce l'import a lotti. `FontFileImportFactory` con `BatchCreateFontAsset`
+  crea un `<nome>_Font` per ogni file, poi rinominato in `F_RT_*`. Il bridge MCP non importa file: l'import
+  passa da `-ExecutePythonScript`, e l'Editor esce alla fine dello script.
+- **La** *Loading Policy* **è `LazyLoad`**, il default dell'import: la composita la dichiara
+  (`EFontLoadingPolicy::LazyLoad` nella name table di `F_RT_*`), il Font Face non la sovrascrive. `Inline` non è
+  stata applicata. ⚠️ Che il pacchetto porti i font è `NOT RUN`, come i testi OFL qui sotto.
+- **I file sono quelli degli autori**: ogni `.ttf` della tabella di §1.1 sta **byte per byte** dentro il suo
+  `FF_RT_*.uasset`, e gli sha256 coincidono con la tabella.
 
 🔑 **Quale peso per quale testo.** Il mockup carica Orbitron solo a 500 e 700
 (`fonts.googleapis.com/css2?…Orbitron:wght@500;700`). Un testo Orbitron senza `font-weight` il browser lo rende
@@ -210,6 +223,22 @@ U61), con un'unità comandata e uno slot armato. Mettila accanto al mockup in
 `docs/technical/evidence/hud/u65-barra-accanto-al-mockup.png`.
 
 ⛔ **Chi cabla non firma la somiglianza.** Il verdetto è percettivo ed è dell'autore.
+
+## 6. Esito
+
+✅ **Eseguita il 2026-10-05** (font, slot, pannello: commit `6386b996a`) **e il 2026-10-06** (rilettura e
+cattura), nel clone principale.
+
+- **Rilettura dal disco**, Editor chiuso: `names.py` sul `WBP_RT_ActionSlot` trova `HotkeyBadge`, `HotkeyText`,
+  `ActionNameText`, `GroupHeaderText`, `SelectedGlow`, `GroupDivider` e `ArmedBorder`, e non trova più
+  `NomeText`. `RefactorTactics.ScreenHud` e `RefactorTactics.Editor`: `PASS` in un processo fresco.
+- **La cattura** è
+  [`u65-barra-accanto-al-mockup.png`](../evidence/hud/u65-barra-accanto-al-mockup.png): sopra il pannello di
+  `01-default-arc-pulse-move.png`, sotto la barra in PIE a 1920×1080 con Aevik selezionato e «Impulso ad arco»
+  armato.
+- **Il giudizio dell'autore**, 2026-10-06: *«per il momento la barra può andare»*. Nella stessa prova, una
+  reazione del kit armata rende lo slot viola.
+- ⚠️ **Resta da rigiudicare** il ➖ di `PIE-V01-SCREENHUD` sugli stati del dock (vedi la voce `U65`).
 
 [#3489]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/3489
 [#3498]: https://github.com/DegrassiAaron/refactor-tactics-main/issues/3498

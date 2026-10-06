@@ -1553,6 +1553,13 @@ bool FRTActionBarDeclaresNamedPortsTest::RunTest(const FString&)
 		{ TEXT("PhaseStrip"), UBorder::StaticClass() },
 		{ TEXT("PhaseLabelText"), UTextBlock::StaticClass() },
 		{ TEXT("StateFrame"), UBorder::StaticClass() },
+		// #3498, seduta U65: la resa del mockup.
+		{ TEXT("HotkeyBadge"), UWidget::StaticClass() },
+		{ TEXT("HotkeyText"), UTextBlock::StaticClass() },
+		{ TEXT("ActionNameText"), UTextBlock::StaticClass() },
+		{ TEXT("GroupHeaderText"), UTextBlock::StaticClass() },
+		{ TEXT("SelectedGlow"), UWidget::StaticClass() },
+		{ TEXT("GroupDivider"), UWidget::StaticClass() },
 	};
 	const UEnum* Stati = StaticEnum<ERTActionSlotState>();
 	for (int32 i = 0; i < Stati->NumEnums() - 1; ++i)
