@@ -5021,6 +5021,15 @@ sessions:
       Scritta il 2026-10-05 dalla PR del C++ di #3498, dopo che l'autore aveva detto in PIE: «la grafica
       ancora e' molto distante dai mockup».
 
+      ✅ **Eseguita il 2026-10-05 e il 2026-10-06**, nel clone principale, con l'Editor ricompilato da un
+      `main` che contiene il C++ di #3498. Asset nel commit `6386b996a`; rilettura e cattura il 2026-10-06.
+      Il giudizio di somiglianza e' dell'autore: «per il momento la barra puo' andare». Nella stessa prova
+      una reazione del kit armata rende lo slot viola. Esito per esteso nella guida, §6.
+      ⚠️ **Diverge dal `done_when` su un punto, e lo si dichiara**: i Font sono **cinque, uno per peso**,
+      non due compositi. E' cio' che produce l'import a lotti, e ogni testo dello slot usa un peso solo.
+      La `Loading Policy` e' `LazyLoad`, non la `Inline` della guida: che il pacchetto porti i font e' `NOT RUN`.
+      ⏳ Resta da rigiudicare il ➖ di `PIE-V01-SCREENHUD` sugli stati del dock (vedi `verifies`).
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
