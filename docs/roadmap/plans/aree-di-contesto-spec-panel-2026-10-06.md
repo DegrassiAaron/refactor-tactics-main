@@ -5,6 +5,13 @@
 **Data**: 2026-10-06 · **Misurato su**: `main` `903154a41`; D-463 (#291) e #3513 (#3507) riletti su `160c8679d` · **Modalità**: discussion · critique · **Focus**: requirements · architecture · testing
 **Panel**: Wiegers (requisiti) · Cockburn (attore/goal) · Adzic (esempi) · Crispin (testabilità) · Fowler (confini) · Nygard (failure mode), in tre coppie, più un verificatore avversario; preceduto da una ricognizione mirata (tre lettori più un critico)
 
+> ✅ **Esiti — decisioni d'autore del 2026-10-06.** Il corpo resta la fotografia del panel.
+> - **Q1** → lettura **A**: V sono le celle che l'unità **vedrà** da lì.
+> - **DR-2 estesa** → [`D-465`](../../decisions/RT_PDR_00_Decision_Log.md): l'ottimismo vale per la sola V — è il dissenso di Adzic, non la (ii) estesa raccomandata in §10 —, mentre click e portata restano sulla mappa piena fino a #2794. V ignora muri e Fumo mai visti: per **Q4** l'intento è deciso — un Fumo comparso fuori vista non entra —, ma nell'esplorato non visibile ora il meccanismo resta da trovare in #3420, perché la mappa autorevole lo rivelerebbe e la sola geometria statica toglierebbe anche un Fumo già visto.
+> - **DR-10** → vista piena (risponde a **Q2**) e **DR-11** → V anche col solo scatto, in #3420. **DR-13** → la portata dalla destinazione resta rinviata.
+> - Dal referto gemello: [`D-464`](../../decisions/RT_PDR_00_Decision_Log.md) (DR-1, origine per fase) e [`D-466`](../../decisions/RT_PDR_00_Decision_Log.md) (DR-6, click su cella vuota).
+> - Restano aperte **DR-9**, **DR-12**, **DR-15** e **DR-7 estesa**, con le domande **Q3** e **Q5**…**Q8**.
+
 > Referto della sessione chiesta dall'autore il 2026-10-06: *«voglio vedere anche le altre aree, in base al
 > contesto. l'area che vedro' se finisco il movimento qua, che area colpisco se click qua, dove riesco a colpire,
 > etc...»*.
