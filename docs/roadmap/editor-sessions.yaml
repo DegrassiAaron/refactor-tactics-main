@@ -5054,14 +5054,16 @@ sessions:
     notes: |
       Scritta il 2026-10-06 da `/issue-run 3499`, che l'ha anche eseguita nella stessa corsa.
 
-      🟡 **Parzialmente eseguita il 2026-10-06**, nel clone principale, con l'Editor ricompilato dal ramo di #3499
+      ✅ **Eseguita il 2026-10-06**, nel clone principale, con l'Editor ricompilato dal ramo di #3499
       (`-NoLiveCoding`). Gli asset sono creati via bridge (`UMGToolSet.CreateWidgetBlueprint`, `AddWidget`,
       `ObjectTools.set_properties` sul CDO dello slot), poi riletti dal disco in un processo fresco.
       `ScreenHud.ActionSlotWearsTheTooltipAsset` e' stato provato in tre configurazioni: rosso senza il tooltip,
       rosso con lo slot di `main`, verde con i due asset nuovi.
-      ⏳ **Manca la verifica a schermo, ed e' dell'autore.** La cattura automatica non e' riuscita: il tooltip di
-      Slate apre una finestra sua, che `PrintWindow` sul gioco non vede, e lo schermo era in uso da altre
-      sessioni, quindi non si poteva prenderne una regione.
+      **La verifica a schermo e' dell'autore**, ed e' arrivata in due tempi. Alla prima prova: «non vedo tooltip».
+      Il dock chiama `SetAction` a ogni frame, e ogni chiamata rifaceva `SetToolTip`: Slate non lo apriva mai.
+      Corretto in #3524. Alla seconda prova: «ora si legge il tooltip».
+      ⚠️ **Nessuna cattura versionata.** Il tooltip di Slate apre una finestra sua, che `PrintWindow` sul gioco
+      non vede, e lo schermo era in uso da altre sessioni, quindi non se ne poteva prendere una regione.
 
 not_schedulable:
 
