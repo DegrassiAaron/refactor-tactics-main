@@ -1456,6 +1456,12 @@ public:
 	static FText ComposeTooltipText(const FRTActionTooltipView& Tooltip);
 
 	/**
+	 * Due tooltip dicono la stessa cosa: stesso stato, stesso titolo, stessa frase, stesse righe, stesso motivo.
+	 * Lo slot consegna il tooltip a Slate solo quando questa risponde falso (`#3499`).
+	 */
+	static bool SameTooltip(const FRTActionTooltipView& A, const FRTActionTooltipView& B);
+
+	/**
 	 * Quali stati mostrare sopra un'unita', **in che ordine** e con quale durata residua (`#2274`, `D-320`).
 	 *
 	 * 🔴 **Esiste perche' il giudizio non nasca dentro il widget.** Un `UserWidget` in Blueprint ha copertura

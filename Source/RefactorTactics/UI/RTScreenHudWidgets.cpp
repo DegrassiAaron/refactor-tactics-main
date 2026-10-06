@@ -686,9 +686,16 @@ void URTActionSlotWidget::SetAction(const FRTAbilityCooldownView& InAction, bool
 	// riga e' quella prescrizione resa vera, invece che affidata a chi scrive il grafo.
 	CachedResolvedIcon = URTIconLibrary::ResolveIcon(ReceivedCatalog, GetIconId(), TEXT("ActionSlot"));
 
-	// `#3499`: il tooltip si compone qui, una volta per cambio azione, come l'icona.
-	TooltipView = URTHudViewModel::BuildActionTooltip(Action, bArmed);
-	RefreshTooltip();
+	// `#3499`: il tooltip si compone qui, ma si CONSEGNA solo quando cambia.
+	// 🔴 **Il dock chiama `SetAction` a ogni frame**, dal suo grafo in `Tick`: consegnarlo ogni volta rifaceva
+	// `SetToolTip`, cioe' un `SToolTip` nuovo a ogni frame, e Slate — che apre un tooltip solo se sotto il cursore
+	// resta lo stesso per tutta l'attesa — non lo apriva mai. Visto in PIE il 2026-10-06: «non vedo tooltip».
+	const FRTActionTooltipView Nuovo = URTHudViewModel::BuildActionTooltip(Action, bArmed);
+	if (!URTHudViewModel::SameTooltip(Nuovo, TooltipView))
+	{
+		TooltipView = Nuovo;
+		RefreshTooltip();
+	}
 
 	// Prima dell'evento: il Blueprint che volesse aggiungere qualcosa lo fa sopra cio' che il C++ ha gia' messo.
 	RefreshLook();
@@ -701,6 +708,7 @@ void URTActionSlotWidget::RefreshTooltip()
 	{
 		SetToolTip(nullptr);
 		SetToolTipText(FText::GetEmpty());
+		++TooltipDeliveries;
 		return;
 	}
 	if (TooltipClass)
@@ -720,8 +728,14 @@ void URTActionSlotWidget::RefreshTooltip()
 		}
 		if (ActionTooltip)
 		{
+			// Il widget si aggiorna SUL POSTO, e a Slate si consegna una volta sola: cosi' un tooltip gia' aperto
+			// cambia testo senza chiudersi, per esempio quando la ricarica scala di un turno.
 			ActionTooltip->SetView(TooltipView);
-			SetToolTip(ActionTooltip);
+			if (GetToolTip() != ActionTooltip)
+			{
+				SetToolTip(ActionTooltip);
+				++TooltipDeliveries;
+			}
 			return;
 		}
 	}
@@ -729,6 +743,7 @@ void URTActionSlotWidget::RefreshTooltip()
 	// altrimenti vincerebbe sul testo e mostrerebbe la vista di prima.
 	SetToolTip(nullptr);
 	SetToolTipText(URTHudViewModel::ComposeTooltipText(TooltipView));
+	++TooltipDeliveries;
 }
 
 void URTActionTooltipWidget::SetView(const FRTActionTooltipView& InView)

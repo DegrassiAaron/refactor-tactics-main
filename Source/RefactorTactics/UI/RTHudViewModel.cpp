@@ -484,6 +484,23 @@ FRTActionTooltipView URTHudViewModel::BuildActionTooltip(const FRTAbilityCooldow
 	return Out;
 }
 
+bool URTHudViewModel::SameTooltip(const FRTActionTooltipView& A, const FRTActionTooltipView& B)
+{
+	if (A.State != B.State || !A.Title.EqualTo(B.Title) || !A.Description.EqualTo(B.Description)
+		|| !A.Reason.EqualTo(B.Reason) || A.Lines.Num() != B.Lines.Num())
+	{
+		return false;
+	}
+	for (int32 I = 0; I < A.Lines.Num(); ++I)
+	{
+		if (!A.Lines[I].Label.EqualTo(B.Lines[I].Label) || !A.Lines[I].Value.EqualTo(B.Lines[I].Value))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 FText URTHudViewModel::ComposeTooltipText(const FRTActionTooltipView& Tooltip)
 {
 	if (!Tooltip.IsValid())
