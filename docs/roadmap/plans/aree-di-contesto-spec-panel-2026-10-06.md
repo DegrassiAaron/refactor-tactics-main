@@ -2,7 +2,7 @@
 
 > `SNAPSHOT` · fotografia del 2026-10-06: vale finché è l'ultima misura del suo oggetto.
 
-**Data**: 2026-10-06 · **Misurato su**: `main` `903154a41` · **Modalità**: discussion · critique · **Focus**: requirements · architecture · testing
+**Data**: 2026-10-06 · **Misurato su**: `main` `903154a41`; D-463 (#291) e #3513 (#3507) riletti su `160c8679d` · **Modalità**: discussion · critique · **Focus**: requirements · architecture · testing
 **Panel**: Wiegers (requisiti) · Cockburn (attore/goal) · Adzic (esempi) · Crispin (testabilità) · Fowler (confini) · Nygard (failure mode), in tre coppie, più un verificatore avversario; preceduto da una ricognizione mirata (tre lettori più un critico)
 
 > Referto della sessione chiesta dall'autore il 2026-10-06: *«voglio vedere anche le altre aree, in base al
@@ -34,7 +34,7 @@ movimento qua, che area colpisco se click qua, dove riesco a colpire, etc...»*.
 |---|---|---|
 | «cosa vedrò se finisco il movimento qui?» | **V** — vista prevista dalla destinazione | #3420, da allargare |
 | «che area colpisco se clicco qui?» | **E** — area d'effetto sotto il cursore | #3512, fetta di #705 (riga `Hover = Preview` di §5.1) |
-| «dove riesco a colpire?» | **R** — raggio di mira | #3507, famiglia #1944 (referto gemello) |
+| «dove riesco a colpire?» | **R** — raggio di mira | #3507, su `main` con #3513 (referto gemello) |
 | «etc.» | §6 | vari, per lo più DEFERRED |
 
 ⚠️ **Lettura da confermare (Q1).** «L'area che vedrò se finisco il movimento qua» si legge come **vista** (V),
@@ -60,7 +60,7 @@ Il contesto non è uno stato nuovo: è `GetPointerContext()`, derivato a ogni ch
 | `IdleSelection` | Default map | |
 | `Planning`, `Pathing` | Movement Mode | un piano fatto **solo di scatto** resta `Planning` (`Pathing` vuole un waypoint); una mobilità rapida armata non produce `Targeting` |
 | `Targeting` (+ `TargetKind`) | Ability Targeting | dopo la dichiarazione del bersaglio l'azione resta armata e il contesto resta `Targeting` (verificato sul percorso cella); armare l'Overwatch dà uno stato persistente `Targeting` con azione su se stessi |
-| `Facing` | — (riga da aggiungere a #1943) | esiste **solo con l'unità ferma**: in marcia il verso si sceglie col secondo click sull'esagono finale, restando in `Pathing` (#291) |
+| `Facing` | — (riga da aggiungere a #1943) | il selettore del verso aperto. Dal 2026-10-06 si apre col click al **centro** della cella finale, in marcia come da fermo, e col selettore aperto ogni click è una direzione (D-463); un click su un **lato** dell'esagono finale sceglie subito, restando in `Pathing` |
 | `ResolutionPlayback`, `Modal` | — | nessuna area di pianificazione |
 | — | Vision Inspection, ispezione nemica (#2597) | **nessun contesto del puntatore** le produce: DEFERRED |
 
@@ -74,12 +74,12 @@ porta i pattern dei Secondary, un Secondary si disegna come **solo perimetro** (
 | IdleSelection | esagono di hover | — (Hazard/Objective DEFERRED) | #1614 | ✅ |
 | Planning, nessuna destinazione | ventaglio `Movement` | — | #1941 | ✅ |
 | Planning/Pathing con destinazione, cursore fuori dall'esagono finale | ventaglio `Movement` | `PathTrace` · **V** dalla destinazione | #1941 · #3420 | ✅ · 🟡 |
-| Pathing, cursore sull'esagono finale | **V** col settore puntato (solo se legale) | `PathTrace` · ventaglio | #3420 | 🟡 |
+| Pathing, cursore su un lato dell'esagono finale | **V** col settore puntato (solo se legale) | `PathTrace` · ventaglio | #3420 | 🟡 |
 | Pathing col verso già dichiarato | ventaglio `Movement` | `PathTrace` · **V** col verso dichiarato | #3420 | 🟡 |
-| Facing (unità ferma) | **V** dalla propria cella col settore puntato (solo se legale) | settori pieno/barrato (CURRENT OPTIONAL, #705) | #3420 | 🟡 |
-| Targeting, cursore non su un bersaglio accettato | **R** (il ventaglio sparisce: decisione d'autore in #3507) | — | #3507 | 🟡 |
+| Facing (selettore aperto, in marcia o da fermo — D-463) | **V** dalla cella finale col lato legale sotto il cursore, lo stesso verso a cui D-463 (4) gira già la mesh | settori pieno/barrato (CURRENT OPTIONAL, #705) | #3420 | 🟡 |
+| Targeting, cursore non su un bersaglio accettato | **R** (il ventaglio sparisce: decisione d'autore in #3507) | — | #3507 | ✅ su `main` (#3513) |
 | Targeting, cursore su un bersaglio accettato | **E** | R, solo perimetro | #3512 | 🟡 |
-| Targeting, bersaglio già dichiarato | anteprima A (E al suo posto sull'hover di un altro bersaglio valido, DR-7 estesa) | — | #3512 (E sull'hover); A è già su `main` | ✅ A |
+| Targeting, bersaglio già dichiarato | anteprima A (E al suo posto sull'hover di un altro bersaglio valido, DR-7 estesa) | R annidata: #3513 la tiene accesa finché l'azione è armata | #3512 (E sull'hover); A è già su `main` | ✅ A |
 | ResolutionPlayback, Modal | nessuna (un solo reset) | — | #3511 (reset) · #3510 (armo nel playback) | difetto aperto |
 
 In `Targeting` V è **spenta** — proposta del panel, non ancora una decisione (Q7, da registrare su #1943) —: R è
@@ -97,9 +97,10 @@ DEFERRED.
   `FRTPerceiver` dice il contrario: deriva da correggere). `VisionRange` è quello dell'unità, mai il default.
   ⛔ Non `HasLineOfSight` a 360° come imposta #3420: l'anteprima mentirebbe a ogni turno.
 - **V-2 Destinazione `D`** — una sola V per unità selezionata, con questa precedenza:
-  1. `Pathing` col cursore sull'**esagono finale**, oppure contesto `Facing` (unità ferma): `D = FacingCellFor(Unit)`
-     e il facing è il **settore sotto il puntatore**, proiettato sul pavimento come fa
-     `TryHandleFacingClickUnderCursor`;
+  1. `Pathing` col cursore su un **lato** dell'esagono finale, oppure contesto `Facing` — il selettore aperto, che dal
+     2026-10-06 si apre in marcia come da fermo (D-463): `D = FacingCellFor(Unit)` e il facing è il **lato legale sotto
+     il puntatore**, proiettato sul pavimento come fa `TryHandleFacingClickUnderCursor` — lo stesso verso a cui D-463
+     (4) gira già la mesh all'hover;
   2. *(seconda fetta, DR-9)* `Planning`/`Pathing` col cursore su una cella di `ReachableCellsAfterPlan` — il set già
      tenuto dall'ultimo refresh, **mai ricalcolato all'hover** (criterio di #711) — senza verso dichiarato e senza
      mobilità armata: `D = HoveredCell`;
@@ -330,7 +331,8 @@ o mira).
    ⚠️ **Non è un prerequisito, ma un difetto ereditato da tutte le aree**: in Shipping non si vedrebbero — [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508)
    (v1 DR-4). Finché il canale non è deciso, ogni implementazione dichiara `Packaged: NOT RUN` con questo motivo.
 2. **E** in `Targeting/Cell`, poi in `Targeting/Unit` dopo v1 DR-6 — [#3512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3512), con #172.
-3. **R** — [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507).
+3. **R** — [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507): su `main` con [#3513](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3513); restano la verifica a schermo e i rilievi aperti del
+   referto gemello (§13).
 4. **V fetta 1** — [#3420](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3420) allargata, con la DoD emendata (VisibleCells e non HasLineOfSight;
    `VisibleArea` e non `Vision`; scatto incluso; settore sull'esagono finale; settori legali). Emenda
    anche l'insieme mostrato (vista piena, DR-10 e Q2) e la seduta PIE: la DoD di #3420 la vuole da `L_Frontend` →

@@ -2,25 +2,29 @@
 
 > `SNAPSHOT` · fotografia del 2026-10-06: vale finché è l'ultima misura del suo oggetto.
 
-**Data**: 2026-10-06 · **Misurato su**: `main` `903154a41` (ricognizione su `d9a22b75c`, premesse centrali riverificate su `903154a41`) · **Modalità**: discussion · critique · **Focus**: requirements · architecture · testing
+**Data**: 2026-10-06 · **Misurato su**: `main` `903154a41` (ricognizione su `d9a22b75c`); lo stato della portata e dei rilievi aperti è rimisurato su `160c8679d`, dopo il merge di #3513 · **Modalità**: discussion · critique · **Focus**: requirements · architecture · testing
 **Panel**: Wiegers (requisiti) · Cockburn (attore/goal) · Adzic (esempi) · Crispin (testabilità) · Fowler (confini) · Nygard (failure mode), più un verificatore avversario delle premesse
 
 > Referto della sessione chiesta dall'autore il 2026-10-05: *«dobbiamo rendere visibili le aree quando si
 > seleziona una abilita'. per esempio una a target singolo, mostra con un area sulla mappa, fin dove riuscirebbe
 > a colpire da quella posizione»*.
 >
-> **Non è un owner.** Le regole restano del Decision Log (D-128, D-364, D-368, D-373, D-393, D-459). La portata la
-> implementa [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507), della famiglia
-> [#1944](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1944) (`OVL-04`); i prerequisiti sono
-> [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509), [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510) e [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511);
-> [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508) è invece un difetto che la portata eredita (in Shipping non si vedrebbe). Le altre aree di contesto stanno nel
+> **Non è un owner.** Le regole restano del Decision Log (D-128, D-364, D-368, D-373, D-393, D-459). La portata è
+> [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507), della famiglia [#1944](https://github.com/DegrassiAaron/refactor-tactics-main/issues/1944) (`OVL-04`), già implementata dalla PR [#3513](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3513); restano
+> aperti [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509), [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510) e [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511), e [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508) è un difetto che la portata
+> eredita (in Shipping non si vedrebbe). Le altre aree di contesto stanno nel
 > referto gemello [`aree-di-contesto-spec-panel-2026-10-06.md`](aree-di-contesto-spec-panel-2026-10-06.md).
 > ⛔ Nessuna riga di codice è cambiata con questo referto.
 >
 > 🔑 **Dopo il panel è nata #3507**, con due decisioni d'autore del 2026-10-06 su punti che qui erano aperti: la
 > portata è viola `#AF52DE` (DR-3) e in targeting il ventaglio verde sparisce (FR-9). #3507 sceglie anche il
-> calcolo — in portata le celle `Ok` **e** `NoLineOfSight` — diverso da FR-2 qui sotto: è DR-14, e non è
-> riconciliato in silenzio.
+> calcolo — in portata le celle `Ok` **e** `NoLineOfSight` — diverso da FR-2 qui sotto (DR-14).
+>
+> ✅ **E #3507 è già su `main`**: la PR [#3513](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3513), mergiata il 2026-10-06 (`160c8679d`), porta
+> `ERTOverlayMeaning::AbilityRange`, il produttore `URTCombatLibrary::TargetableRangeCells` (`Ok` ∪ `NoLineOfSight`
+> dalla cella attuale), la sostituzione del ventaglio in targeting e il ridisegno all'armo e al Back; la issue resta
+> aperta per la verifica a schermo. Il corpo di questo referto è la misura del panel su `903154a41`; quali rilievi
+> #3513 ha chiuso e quali restano aperti lo dice §13, rimisurato su `160c8679d`.
 >
 > Convenzione: niente totali che cambiano da soli. Le gittate sono dati di catalogo, citati con la loro sede; gli
 > esempi di §8 sono ipotesi «da confermare» finché un test headless non li rende verdi sul C++. Le decisioni (DR)
@@ -133,8 +137,9 @@ Livello user-goal. Attore: giocatore in `Planning`.
 
 - **FR-1 · Innesco.** Al ritorno di `SelectAbilityForCurrent` su un'azione in scope, con `!IsWorldReadOnly()` e
   input non inerte, l'oracolo dell'actor `NumPreviewAbilityRange()` vale `|R|`. In ogni altro stato l'armo non
-  produce `R`. Oggi l'armo di un'azione senza riserva **non** ricalcola l'anteprima, e il codice lo dichiara come
-  scelta (commento in `SelectAbilityForCurrent`): questa spec allarga di proposito quel comportamento.
+  produce `R`. Su `903154a41` l'armo di un'azione senza riserva **non** ricalcolava l'anteprima, per scelta dichiarata
+  in `SelectAbilityForCurrent`; ✅ #3513 l'ha cambiato: l'armo di un'azione a bersaglio ora ridisegna. ⚠️ La metà
+  «in ogni altro stato l'armo non produce `R`» resta aperta: l'armo non ha ancora una guardia di fase (#3510).
 - **FR-2 · Contenuto.** Per ogni `c ∈ HexArea(O, Ability->RangeCells)` sul `Layer` di `O` con
   `Map->ContainsCell(c)`: `c ∈ R` ⇔ `DescribeCellTargetRefusal(Map, O, c, Ability->RangeCells,
   Ability->Def.LineOfSightPolicy)` non rifiuta — la domanda che D-459 assegna a un'area, cioè
@@ -146,7 +151,8 @@ Livello user-goal. Attore: giocatore in `Planning`.
   `NoLineOfSight`: la portata dice fin dove si arriva, e la linea di vista la dicono il click e il tratto di #3085.
   Il panel aveva raccomandato `Ok` soltanto, per tenere l'area uguale al click (D-128). La scelta di #3507 ha un
   vantaggio che il panel non aveva pesato: senza la LOS, `R` non disegna i buchi dei muri nelle celle mai osservate,
-  e del canale di D-373 resta solo il cap del Fumo (#3270). Decide l'autore.
+  e del canale di D-373 resta solo il cap del Fumo (#3270). ✅ **Chiuso nei fatti da #3513**, che implementa la regola di
+  #3507 e la prova col test `Combat.TargetableRangeCellsAgreeWithTheClickVerdict`.
 - **FR-3 · Una sola sede.** `R` lo produce una funzione pura di libreria (`Combat`), senza dipendenze da
   `FRTOverlayArea`. Ingressi: `Map`, `O`, `RangeCells`, `Policy`, più la vista della geometria quando DR-2 sarà
   decisa, che entra **nello stesso commit** per click ed enumeratore. Uscita: celle ordinate. L'adattatore in
@@ -352,7 +358,7 @@ quello della tabella.
 | **DR-5** | Piano attivo | **Armare allinea il piano attivo a `Layer(O)`** (unanime). Resta da decidere se al disarmo torna il piano di prima | commento #1944 | AC-8 |
 | **DR-7** | Dopo il bersaglio | **`R` si spegne** e subentra l'anteprima A: l'attenuazione non ha un canale. Dissenso (Adzic): attenuata se il contesto resta `Targeting` e un secondo click ridichiara (che il contesto resti `Targeting` è verificato sul percorso cella — referto gemello §2 —, da verificare sul percorso unità) | commento #1944 | AC-6 |
 | **DR-8** | Azione in ricarica | **`R = ∅`**: lo slot dice già la ricarica, e un'area piena su cui nessun click viene accettato viola D-128 (unanime) | commento #1944 | E14 |
-| **DR-14** | Portata o mira | #3507 sceglie `Ok` ∪ `NoLineOfSight`: la portata dice fin dove arrivi, il click e il tratto di #3085 dicono se vedi, e l'area non disegna i buchi dei muri nelle celle mai osservate. Il panel aveva raccomandato `Ok` soltanto (area = click, D-128). Decide l'autore, e la scelta va scritta: con `Ok` ∪ `NoLineOfSight` l'area non è più la mappa dei click | commento #3507 | AC-2 con la regola scelta, e la terza casella della DoD di #3507 («concordano su ogni cella») riscritta coerente |
+| **DR-14** | Portata o mira | ✅ **Chiusa nei fatti da #3513**: implementa `Ok` ∪ `NoLineOfSight`, come lo scope di #3507, e lo prova cella per cella con `Combat.TargetableRangeCellsAgreeWithTheClickVerdict` (la portata concorda col verdetto del click, e almeno una cella in portata il click la rifiuta per copertura). Il panel aveva raccomandato `Ok` soltanto (area = click, D-128) e non la contesta: la scelta toglie il canale dei muri nel buio. Da registrare come decisione se l'autore la conferma | #3507 | il test citato |
 
 ## 12. Domande aperte per l'autore
 
@@ -367,21 +373,30 @@ quello della tabella.
   contratto, non di presentazione)?
 - **Q6** Con DR-5, al disarmo il piano attivo torna a quello scelto dal giocatore?
 
-## 13. Sequenza e ownership
+## 13. Sequenza e ownership — stato su `160c8679d`
 
 Ogni issue ha un owner solo; le altre relazioni sono dipendenze.
 
-1. **Prerequisiti** (CURRENT REQUIRED perché l'area non menta):
-   - una sola origine di mira per fase, consumata da click, `Invalid`, Warning e anteprima A —
-     [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509) (DR-1);
-   - guardia di fase sull'armo: oggi `IsPlanningInputInert` guarda solo l'autobattle, benché il log dica «o fase
-     che non accetta ordini» — [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510);
-   - un solo ingresso per le aree e un solo reset — [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511);
+1. ✅ **La portata è su `main`** ([#3513](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3513), mergiata il 2026-10-06), con [#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507) aperta per la
+   verifica a schermo. Rilievi di questo referto che #3513 ha **chiuso**: l'innesco all'armo (FR-1) e lo spegnimento
+   col Back e col disarmo (FR-5), la sostituzione del ventaglio (FR-9), la palette (DR-3), la regola `Ok` ∪
+   `NoLineOfSight` (DR-14), l'esclusione di scatti e reazioni, il test di concordanza col click e le mutazioni sulla
+   riga del chiamante.
+2. **Rilievi che restano aperti**, verificati su `160c8679d` e riassunti in un commento su #3507:
+   - azione in ricarica: la portata si mostra piena e il click la rifiuta, perché il produttore non guarda
+     `CanUseAbility` (DR-8);
+   - azioni a portata 0 che chiedono un bersaglio — `Action.Wait` — accendono la portata della sola cella dell'unità e
+     spengono il ventaglio (FR-11; dedotto leggendo il codice, non misurato);
+   - origine con uno scatto pianificato: limite dichiarato da #3513 → [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509) (DR-1);
+   - armo durante il playback: ora che l'armo ridisegna, il rischio è concreto → [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510);
+   - un solo ingresso e un solo reset per le aree → [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511);
+   - piano attivo non allineato al tiratore (DR-5);
    - `NoOp` su cella vuota in `Targeting/Unit` — fetta di #705, dopo la decisione DR-6 (solo per F1).
-   ⚠️ **Non è un prerequisito, ma un difetto ereditato**: in Shipping l'area non si vedrebbe — [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508) (DR-4).
-   Finché il canale non è deciso, chi implementa dichiara `Packaged: NOT RUN` con questo motivo.
-2. **[#3507](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3507) — la portata**: produttore, valore d'enum e palette (`#AF52DE`), sostituzione del ventaglio in
-   targeting. I rilievi di questo referto che la riguardano sono riassunti in un commento sulla issue.
+   ⚠️ **Non è un prerequisito, ma un difetto ereditato**: la portata è disegnata con `DrawDebugLine`, vuota in Shipping
+   → [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508) (DR-4). Finché il canale non è deciso, `Packaged: NOT RUN` con questo motivo.
+   ℹ️ Dopo la dichiarazione del bersaglio la portata **resta accesa** finché l'azione è armata, annidata nell'area
+   colpita (scala `0,60`): è la composizione scelta da #3513, e supera la raccomandazione di DR-7. Che l'azione resti
+   armata dopo la dichiarazione è verificato sul percorso cella, non su quello unità.
 3. **[#3459](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3459)**: chiusa come duplicato istruito di #3507, con un rimando a questo referto.
 4. **DEFERRED**: vedi §4.
 
