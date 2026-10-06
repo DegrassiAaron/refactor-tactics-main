@@ -15,6 +15,7 @@ FColor URTOverlayPalette::ColorFor(const ERTOverlayMeaning Meaning)
 	case ERTOverlayMeaning::FriendlyFire:    return FColor(250, 155, 10);  // #FA9B0A [D-368]
 	case ERTOverlayMeaning::Hover:           return FColor(255, 214, 10);  // #FFD60A [D-368]
 	case ERTOverlayMeaning::Vision:          return FColor(50, 173, 230);  // #32ADE6 [D-368]
+	case ERTOverlayMeaning::AbilityRange:    return FColor(175, 82, 222);  // #AF52DE [D-364], #3507
 	}
 	// Nessun default nello switch: cosi' un significato nuovo rompe la COMPILAZIONE invece di cadere in
 	// silenzio su un colore di ripiego che a schermo sembra una scelta.
@@ -54,6 +55,7 @@ int32 URTOverlayPalette::PriorityFor(const ERTOverlayMeaning Meaning)
 	case ERTOverlayMeaning::FriendlyFire:    return 45;
 	case ERTOverlayMeaning::Hover:           return 50;
 case ERTOverlayMeaning::Vision:       return 20;
+	case ERTOverlayMeaning::AbilityRange:    return 15;
 	}
 	checkNoEntry();
 	return 0;
@@ -70,6 +72,7 @@ float URTOverlayPalette::ScaleFor(const ERTOverlayMeaning Meaning)
 	case ERTOverlayMeaning::FriendlyFire:    return 0.80f;
 	case ERTOverlayMeaning::Hover:           return 0.88f;
 case ERTOverlayMeaning::Vision:       return 0.72f;
+	case ERTOverlayMeaning::AbilityRange:    return 0.60f;
 	}
 	checkNoEntry();
 	return 1.f;
@@ -86,6 +89,7 @@ bool URTOverlayPalette::DrawsThroughUnits(const ERTOverlayMeaning Meaning)
 	case ERTOverlayMeaning::FriendlyFire:    return true;
 	case ERTOverlayMeaning::Hover:           return true;
 case ERTOverlayMeaning::Vision:       return false;
+	case ERTOverlayMeaning::AbilityRange:    return true;
 	}
 	checkNoEntry();
 	return false;
@@ -103,7 +107,8 @@ TArray<ERTOverlayMeaning> URTOverlayPalette::AllMeanings()
 		ERTOverlayMeaning::Attack,
 		ERTOverlayMeaning::FriendlyFire,
 		ERTOverlayMeaning::Hover,
-		ERTOverlayMeaning::Vision
+		ERTOverlayMeaning::Vision,
+		ERTOverlayMeaning::AbilityRange
 	};
 }
 
