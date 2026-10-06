@@ -328,9 +328,42 @@ bool FRTActionSlotCarriesItsTooltipTest::RunTest(const FString&)
 		TestEqual(TEXT("con le righe"), Tooltip->GetLinesText().ToString().Contains(TEXT("Danno  22")), true);
 	}
 
+	// 🔴 **Il dock chiama `SetAction` a ogni frame.** Ogni consegna a Slate crea un `SToolTip` nuovo e chiude quello
+	// aperto: se lo stesso dato si riconsegnasse, il tooltip non si aprirebbe mai — visto in PIE il 2026-10-06.
+	const int32 DopoLaPrima = Vestito->GetTooltipDeliveriesForTest();
+	for (int32 Frame = 0; Frame < 5; ++Frame)
+	{
+		Vestito->SetAction(Riga, false);
+	}
+	TestEqual(TEXT("lo stesso dato, cinque frame dopo, non si riconsegna"), Vestito->GetTooltipDeliveriesForTest(), DopoLaPrima);
+	FRTAbilityCooldownView InRicarica = Riga;
+	InRicarica.TurnsRemaining = 1;
+	Vestito->SetAction(InRicarica, false);
+	TestEqual(TEXT("un dato nuovo aggiorna il widget sul posto, senza riconsegnarlo"),
+		Vestito->GetTooltipDeliveriesForTest(), DopoLaPrima);
+	if (const URTActionTooltipWidget* Aggiornato = Cast<URTActionTooltipWidget>(Vestito->GetToolTip()))
+	{
+		TestFalse(TEXT("e il widget dice il motivo nuovo"), Aggiornato->GetView().Reason.IsEmpty());
+	}
+
+	const int32 TestoPrima = Testo->GetTooltipDeliveriesForTest();
+	Testo->SetAction(Riga, false);
+	Testo->SetAction(Riga, false);
+	TestEqual(TEXT("in testo semplice, lo stesso dato non si riconsegna"), Testo->GetTooltipDeliveriesForTest(), TestoPrima);
+	Testo->SetAction(InRicarica, false);
+	TestEqual(TEXT("un testo nuovo si riconsegna una volta"), Testo->GetTooltipDeliveriesForTest(), TestoPrima + 1);
+
 	Vestito->SetAction(FRTAbilityCooldownView(), false);
 	TestNull(TEXT("una posizione vuota toglie il tooltip"), Vestito->GetToolTip());
 	TestTrue(TEXT("anche il testo"), Vestito->GetToolTipText().IsEmpty());
+	const int32 Vuota = Vestito->GetTooltipDeliveriesForTest();
+	Vestito->SetAction(FRTAbilityCooldownView(), false);
+	TestEqual(TEXT("e una posizione vuota non si riconsegna a ogni frame"), Vestito->GetTooltipDeliveriesForTest(), Vuota);
+
+	TestTrue(TEXT("SameTooltip: lo stesso dato e' lo stesso tooltip"), URTHudViewModel::SameTooltip(
+		URTHudViewModel::BuildActionTooltip(Riga, false), URTHudViewModel::BuildActionTooltip(Riga, false)));
+	TestFalse(TEXT("SameTooltip: un motivo diverso no"), URTHudViewModel::SameTooltip(
+		URTHudViewModel::BuildActionTooltip(Riga, false), URTHudViewModel::BuildActionTooltip(InRicarica, false)));
 
 	RTWorldFixtures::DestroyWorld(World);
 	return true;

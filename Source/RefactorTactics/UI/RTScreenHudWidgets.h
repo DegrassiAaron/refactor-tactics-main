@@ -728,6 +728,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HUD")
 	FRTActionTooltipView GetTooltipView() const { return TooltipView; }
 
+	/** Quante volte lo slot ha consegnato un tooltip a Slate (`SetToolTip`, `SetToolTipText`). Serve ai test. */
+	int32 GetTooltipDeliveriesForTest() const { return TooltipDeliveries; }
+
 	/** Il dock chiama questa; lo slot non si aggiorna da solo. */
 	/**
 	 * Il catalogo da cui risolvere l'icona. Lo **riceve**, non va a prenderlo.
@@ -1040,6 +1043,9 @@ public:
 
 	/** Consegna `TooltipView`: al widget di `TooltipClass` se c'e', altrimenti come testo semplice. */
 	void RefreshTooltip();
+
+	/** Le consegne a Slate, contate: ogni consegna crea un `SToolTip` nuovo, e chiude quello aperto. */
+	int32 TooltipDeliveries = 0;
 
 	/** L'icona risolta UNA VOLTA, in `SetAction`. `GetResolvedIcon` la rende senza ricalcolare.
 	 *
