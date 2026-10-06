@@ -590,6 +590,18 @@ public:
 		int32 RangeCells, ERTLineOfSightPolicy Policy);
 
 	/**
+	 * LA PORTATA, cioe' dove posso mirare — `#3507`. Le celle della mappa entro `RangeCells` da `From`, sul suo piano,
+	 * che `ClassifyHexTargeting` non rifiuta per DISTANZA o per PIANO: e' la classificazione che decide il click, quindi
+	 * l'anteprima non puo' promettere una cella che il click rifiuterebbe perche' troppo lontana.
+	 *
+	 * ⛔ **Non e' la linea di vista**: una cella in portata dietro un muro (`NoLineOfSight`) resta in portata, e il
+	 * click la rifiuta per copertura mostrando dove il tiro si ferma (`#3085`). La vista e' un altro significato.
+	 * Senza mappa e' vuota, come il fail-closed della classificazione. L'ordine e' quello di `URTHexLibrary::HexArea`.
+	 */
+	static TArray<FRTCellId> TargetableRangeCells(const URTHexMapAsset* Map, const FRTCellId& From, int32 RangeCells,
+		ERTLineOfSightPolicy Policy);
+
+	/**
 	 * Come `CanTargetHexCell`, ma dice **perche'**: portata prima, poi linea di tiro. Il chiamante logga il
 	 * motivo esatto invece di attribuire ogni rifiuto alla copertura.
 	 *

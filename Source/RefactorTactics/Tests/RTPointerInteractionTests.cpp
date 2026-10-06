@@ -1243,6 +1243,96 @@ bool FRTTruncationCancelsFacingTest::RunTest(const FString&)
 }
 
 
+/**
+ * IN TARGETING LA PORTATA PRENDE IL POSTO DEL VENTAGLIO - `#3507`.
+ *
+ * 🔴 Il difetto, con le parole dell'autore dalla PIE del 2026-10-06: *«se seleziono un blast, vedo gli esagoni verdi.
+ * ma non ho ancora selezionato un target»*. Il ventaglio verde e' il movimento; la portata e' dove posso mirare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTargetingShowsTheRangeTest,
+	"RefactorTactics.PlayerInput.ArmingATargetedActionShowsTheRangeNotTheFan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTargetingShowsTheRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	int32 ConBersaglio = INDEX_NONE;
+	int32 Reazione = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+	{
+		const URTActionData* A = Unit->GetAbility(I);
+		if (!A) { continue; }
+		if (ConBersaglio == INDEX_NONE && !A->bSelfTarget && A->Def.Slot == ERTActionSlot::Main
+			&& A->Def.ReservesMovementProfileId.IsNone() && A->RangeCells > 0
+			&& URTPointerLibrary::TargetKindForAction(A->Def, A->bSelfTarget, A->Shape) != ERTPointerTargetKind::None)
+		{
+			ConBersaglio = I;
+		}
+		if (Reazione == INDEX_NONE && A->Def.Slot == ERTActionSlot::Reaction)
+		{
+			Reazione = I;
+		}
+	}
+	// Un waypoint accende l'anteprima come in partita: `SelectActorForTest` assegna la selezione e basta.
+	PC->HandleClickOnCell(FRTCellId(1, 0, 0));
+	if (!TestNotEqual(TEXT("premessa: un'azione a bersaglio"), ConBersaglio, (int32)INDEX_NONE)
+		|| !TestEqual(TEXT("premessa: un waypoint"), Unit->PlannedWaypoints.Num(), 1)
+		|| !TestTrue(TEXT("premessa: si vede il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	TestEqual(TEXT("e nessuna portata"), MapActor->GetPreviewRangeCells().Num(), 0);
+
+	PC->SelectAbilityForCurrentForTest(ConBersaglio);
+	const URTActionData* Armata = Unit->GetAbility(ConBersaglio);
+	const TArray<FRTCellId> Attesa = URTCombatLibrary::TargetableRangeCells(
+		Arena, Unit->Cell, Armata->RangeCells, Armata->Def.LineOfSightPolicy);
+	if (!TestEqual(TEXT("premessa: il contesto e' il bersaglio"), PC->GetPointerContext(), ERTPointerContext::Targeting)
+		|| !TestTrue(TEXT("premessa: la portata attesa non e' vuota"), Attesa.Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	TestEqual(TEXT("armata, il ventaglio sparisce"), MapActor->GetPreviewReachableCells().Num(), 0);
+	TestTrue(TEXT("e si vede la portata dell'azione"), MapActor->GetPreviewRangeCells() == Attesa);
+
+	// Il Back su un targeting senza bersaglio esce e basta: la portata si spegne, torna il ventaglio.
+	TestEqual(TEXT("il Back esce dal targeting"), PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestEqual(TEXT("la portata si spegne"), MapActor->GetPreviewRangeCells().Num(), 0);
+	TestTrue(TEXT("e torna il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0);
+
+	// Disarmata dal tasto, lo stesso.
+	PC->SelectAbilityForCurrentForTest(ConBersaglio);
+	TestTrue(TEXT("riarmata, la portata torna"), MapActor->GetPreviewRangeCells().Num() > 0);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	TestEqual(TEXT("disarmata dal tasto, la portata si spegne"), MapActor->GetPreviewRangeCells().Num(), 0);
+	TestTrue(TEXT("e torna il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0);
+
+	// Una reazione armata dopo: la portata dell'azione di prima non resta a schermo.
+	if (Reazione != INDEX_NONE)
+	{
+		PC->SelectAbilityForCurrentForTest(ConBersaglio);
+		PC->SelectAbilityForCurrentForTest(Reazione);
+		TestEqual(TEXT("armata una reazione, la portata dell'azione di prima si spegne"),
+			MapActor->GetPreviewRangeCells().Num(), 0);
+	}
+	else
+	{
+		AddWarning(TEXT("Ivrin non ha una reazione: il ramo della reazione non e' misurato"));
+	}
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlannedFacingPreviewTest,
 	"RefactorTactics.Pointer.PlannedFacingPreviewFollowsThePlan",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)

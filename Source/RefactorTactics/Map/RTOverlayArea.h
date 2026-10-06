@@ -27,8 +27,9 @@
  * ⚠️ **Sono SEI, e il body di #1941 ne contava cinque**: `AttackOriginAim` — *«da dove parte»* e *«verso
  * cosa»* — non era in tabella, ma e' un significato a se' con la sua scala e il suo canale di certezza.
  *
- * ⛔ **Le voci della spec v0.2 che qui NON compaiono — Vision/LOS, Ability Range, Hazard, Objective, Invalid —
- * non sono dimenticate: non hanno un produttore.** #1944 misura quali dati esistono e quali overlay mancano,
+ * ⛔ **Le voci della spec v0.2 che qui NON compaiono — la vista d'AREA, Hazard, Objective, Invalid — non sono
+ * dimenticate: non hanno un produttore.** `Vision` e' entrata con `#2742`, ed e' la LINEA di tiro, non l'area;
+ * `AbilityRange` con `#3507`. Ciascuna insieme al proprio produttore. #1944 misura quali dati esistono e quali overlay mancano,
  * ed e' l'owner che le apre. Dichiararle qui senza produttore sarebbe un placeholder, e un enum con voci che
  * nessuno emette non e' un vocabolario: e' una promessa.
  */
@@ -56,7 +57,17 @@ enum class ERTOverlayMeaning : uint8
 	 * 🔑 Il valore `#32ADE6` era **riservato da [D-368] e tenuto fuori da questo enum**, perche' un
 	 * significato senza produttore nasce morto. Entra ora, insieme a `URTSightLineLibrary`.
 	 */
-	Vision
+	Vision,
+
+	/**
+	 * DOVE POSSO MIRARE: le celle entro la portata dell'azione armata — `#3507`, valore [D-364].
+	 *
+	 * 🔑 **Prende il posto di `Movement` in targeting** (decisione d'autore del 2026-10-06): con un'azione a
+	 * bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare».
+	 * ⛔ **Non e' la linea di vista**: una cella in portata dietro un muro resta in portata, e il click la rifiuta per
+	 * copertura col suo tratto (`#3085`). La vista e' `Vision`.
+	 */
+	AbilityRange
 };
 
 /**
