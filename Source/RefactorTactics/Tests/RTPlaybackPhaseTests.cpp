@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Components/StaticMeshComponent.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -206,6 +207,103 @@ bool FRTPlaybackStillUnitNeverRunsTest::RunTest(const FString&)
 	// guarda niente.
 	TestTrue(TEXT("lo scenario ha davvero mosso qualcuno"), bMoverEverRan);
 	TestEqual(TEXT("e il movimento e' arrivato dove pianificato"), Mover->Cell.ToString(), FRTCellId(4, 2, 0).ToString());
+
+	DestroyPlaybackWorld(World);
+	return true;
+}
+
+/**
+ * Due rotte di lunghezza diversa nella stessa fase: chi arriva prima smette di correre e torna a riposo, mentre
+ * l'altra corre ancora (`#3519`).
+ *
+ * 🔑 **L'istante si cerca, non si calcola.** Si avanza a passi brevi finche' la rotta corta e' ferma e la lunga si
+ * muove ancora: e' esattamente cio' che l'autore ha visto, e non dipende dalla velocita' di playback ne' dalla
+ * lunghezza della fase. Senza quell'istante il test fallisce sulla premessa invece di passare a vuoto.
+ *
+ * ⚠️ **La posa ha un controllo positivo**: il `Lean` del passo `Normal` inclina il corpo di chi si muove e resta
+ * al valore finale, quindi «a riposo» discrimina solo se il corpo di chi corre ancora NON lo e'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackShorterRouteStopsOnArrivalTest,
+	"RefactorTactics.Playback.ShorterRouteStopsRunningOnArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackShorterRouteStopsOnArrivalTest::RunTest(const FString&)
+{
+	UWorld* World = MakePlaybackWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	SpawnPlaybackMap(World);
+
+	// Stessa squadra e righe diverse: nessun bersaglio, nessuna reazione, nessuna cella in comune. Solo due rotte.
+	ARTUnit* Long = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(2, 2));
+	ARTUnit* Short = SpawnPlaybackUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 5));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Long || !Short) { DestroyPlaybackWorld(World); return false; }
+
+	auto Corpo = [](AActor* Actor) -> UStaticMeshComponent*
+	{
+		TArray<UStaticMeshComponent*> Comps;
+		Actor->GetComponents<UStaticMeshComponent>(Comps);
+		for (UStaticMeshComponent* C : Comps)
+		{
+			if (C && C->GetName() == TEXT("Mesh")) { return C; }
+		}
+		return nullptr;
+	};
+	UStaticMeshComponent* LongBody = Corpo(Long);
+	UStaticMeshComponent* ShortBody = Corpo(Short);
+	if (!TestTrue(TEXT("premessa: entrambe le unita' hanno il corpo segnaposto"), LongBody != nullptr && ShortBody != nullptr))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	Long->PlannedCell = FRTCellId(6, 2);  // quattro segmenti
+	Short->PlannedCell = FRTCellId(3, 5); // uno
+	TM->LockInAndResolve();
+
+	if (!TestTrue(TEXT("la fase Move viene riprodotta"), AdvanceUntilPhase(TM, TEXT("Move"))))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	FVector ShortPrima = Short->GetActorLocation();
+	FVector LongPrima = Long->GetActorLocation();
+	bool bShortSiEMossa = false;
+	bool bIstanteTrovato = false;
+	for (int32 I = 0; I < 1000 && TM->IsResolving() && TM->GetPlaybackPhaseName() == TEXT("Move"); ++I)
+	{
+		TM->Tick(0.02f);
+		const FVector ShortOra = Short->GetActorLocation();
+		const FVector LongOra = Long->GetActorLocation();
+		const bool bShortFerma = ShortOra.Equals(ShortPrima, 0.01);
+		const bool bLongInMoto = !LongOra.Equals(LongPrima, 0.01);
+		bShortSiEMossa |= !bShortFerma;
+		if (bShortSiEMossa && bShortFerma && bLongInMoto)
+		{
+			bIstanteTrovato = true;
+			break;
+		}
+		ShortPrima = ShortOra;
+		LongPrima = LongOra;
+	}
+	if (!TestTrue(TEXT("premessa: c'e' un istante in cui la rotta corta e' conclusa e la lunga no"), bIstanteTrovato))
+	{
+		DestroyPlaybackWorld(World);
+		return false;
+	}
+
+	TestFalse(TEXT("arrivata, la rotta corta non corre piu'"), Short->bIsMovingVisually);
+	TestTrue(TEXT("arrivata, la sua velocita' visiva e' nulla"), Short->GetVelocity().IsNearlyZero());
+	TestTrue(TEXT("arrivata, la sua posa e' a riposo"), ShortBody->GetRelativeRotation().IsNearlyZero());
+	TestTrue(TEXT("controllo: la rotta lunga corre ancora"), Long->bIsMovingVisually);
+	TestFalse(TEXT("controllo: il corpo di chi corre ancora non e' a riposo"), LongBody->GetRelativeRotation().IsNearlyZero());
+
+	AdvanceUntilDone(TM);
+	TestFalse(TEXT("a fine risoluzione nessuna corsa residua"), Long->bIsMovingVisually || Short->bIsMovingVisually);
+	TestEqual(TEXT("la rotta lunga e' arrivata dove pianificato"), Long->Cell.ToString(), FRTCellId(6, 2, 0).ToString());
+	TestEqual(TEXT("la rotta corta e' arrivata dove pianificato"), Short->Cell.ToString(), FRTCellId(3, 5, 0).ToString());
 
 	DestroyPlaybackWorld(World);
 	return true;

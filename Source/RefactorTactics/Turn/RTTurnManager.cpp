@@ -8265,18 +8265,52 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		}
 		bool bAttraversatoUnConfine = false;
 
+		// 🔑 **Un alpha per anim, calcolato UNA volta per fotogramma** (`#3519`): lo leggono la posizione, la posa
+		// e la corsa di ciascuna, e la corsa di un'unita' chiede anche quelli delle sue ALTRE anim della fase.
+		// Calcolarlo due volte darebbe due orologi sulla stessa animazione.
+		//
+		// I segmenti sono quelli che l'anim DISEGNA, non quelli del percorso reale: `World` e' gia' troncato al
+		// prefisso osservabile (`ObservedPrefixLength`), e leggerlo qui tiene la presentazione dalla parte giusta
+		// del confine di privacy.
+		TArray<float, TInlineAllocator<16>> AlphaAnim;
+		AlphaAnim.SetNumUninitialized(MoveAnims.Num());
+		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
+		{
+			AlphaAnim[AnimIdx] = bAlphaPerPercorso
+				? URTPlaybackLibrary::RouteAlpha(MoveAnims[AnimIdx].World.Num() - 1, PlaybackPhaseElapsed, PlaybackCellsPerSecond)
+				: AlphaFase;
+		}
+
 		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
 		{
 			const FRTMoveAnim& A = MoveAnims[AnimIdx];
 			if (A.Phase == Ph && A.Unit.IsValid())
 			{
-				// I segmenti sono quelli che l'anim DISEGNA, non quelli del percorso reale: `A.World` e' gia'
-				// troncato al prefisso osservabile (`ObservedPrefixLength`), e leggerlo qui tiene la
-				// presentazione dalla parte giusta del confine di privacy.
-				const float Alpha = bAlphaPerPercorso
-					? URTPlaybackLibrary::RouteAlpha(A.World.Num() - 1, PlaybackPhaseElapsed, PlaybackCellsPerSecond)
-					: AlphaFase;
+				const float Alpha = AlphaAnim[AnimIdx];
 				A.Unit->SetVisualLocation(URTPlaybackLibrary::InterpolateAlongPath(A.World, Alpha));
+
+				// 🔑 **Arrivata, smette di correre** (`#3519`). `EnterPlaybackPhase` accende la corsa a tutte le
+				// unita' della fase e la spegne alla fase dopo: finche' tutte arrivavano insieme, a fine fase, era
+				// giusto. Da `#2370` ogni rotta procede alla propria velocita', e chi ha la piu' corta arriva prima
+				// — e correva sul posto finche' non arrivava la piu' lunga, col corpo fermo sull'ultimo `Lean`.
+				// ⛔ **Per livello, a ogni fotogramma, e non con un evento all'arrivo**: copre anche l'estensione a
+				// meta' turno (`bPreserveClock`, [D-355]), che salta `EnterPlaybackPhase`. Il `Blast` resta com'e':
+				// li' l'alpha e' di fase, e la spinta si distende sull'intera finestra.
+				if (bAlphaPerPercorso)
+				{
+					bool bInCorsa = false;
+					for (int32 Altra = 0; Altra < MoveAnims.Num() && !bInCorsa; ++Altra)
+					{
+						bInCorsa = MoveAnims[Altra].Phase == Ph && MoveAnims[Altra].Unit == A.Unit
+							&& AlphaAnim[Altra] < 1.f;
+					}
+					if (A.Unit->bIsMovingVisually && !bInCorsa)
+					{
+						// La posa torna a riposo INSIEME al flag, come in `EnterPlaybackPhase`.
+						A.Unit->ResetGraykitPose();
+					}
+					A.Unit->bIsMovingVisually = bInCorsa;
+				}
 
 				// 🔑 **La posa segue il passo** ([D-462] punto 2, `#2167`): a ogni confine guarda l'ultimo passo
 				// compiuto, come `FacingAtMicroStep`, e si gira verso il nuovo all'inizio di ciascuno. ⛔ Solo per chi
@@ -8357,10 +8391,15 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				// `#2881`: la fase dice COSA sta facendo, gli stati dicono in che condizione lo fa. Entrambi
 				// vengono dall'ANIM — cioe' dall'evento risolto — e ⛔ **nessuno dei due da `A.Unit`**, che e'
 				// qui accanto e al playback direbbe lo stato di ADESSO invece di quello dell'azione.
-				const ERTGraykitLocomotionStyle Style =
-					URTPresentationBindingLibrary::StyleForMovement(A.Phase, A.SourceStatusNames);
-				A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
-					URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
+				// ⛔ **Non dopo l'arrivo** (`#3519`): l'alpha resta fermo a `1`, e riapplicare la posa conclusa
+				// rimetterebbe il `Lean` che il reset qui sopra ha appena tolto.
+				if (!bAlphaPerPercorso || Alpha < 1.f)
+				{
+					const ERTGraykitLocomotionStyle Style =
+						URTPresentationBindingLibrary::StyleForMovement(A.Phase, A.SourceStatusNames);
+					A.Unit->ApplyGraykitPose(URTGraykitLibrary::Evaluate(
+						URTGraykitLibrary::DescriptorForStyle(Style), Alpha));
+				}
 			}
 		}
 
