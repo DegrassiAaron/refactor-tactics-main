@@ -262,6 +262,16 @@ bool FRTTooltipReadsTheCatalogTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("premessa: almeno un'azione fa danno, quindi la riga del danno e' messa alla prova"), ConDanno > 0);
 
+	// 🔑 La portata e' quella che misura il click — lo specchio — e non il `Def`. Nel roster i due coincidono, quindi
+	// un'azione li separa qui: senza, leggere il campo sbagliato resterebbe verde.
+	if (URTActionData* Separata = const_cast<URTActionData*>(Unit->GetAbility(0)))
+	{
+		Separata->Def.RangeCells = Separata->RangeCells + 2;
+		const TArray<FRTAbilityCooldownView> Righe = URTHudViewModel::BuildAbilityCooldowns(Unit);
+		TestEqual(TEXT("con i due campi separati, la portata e' quella del click"),
+			Righe.IsValidIndex(0) ? Righe[0].RangeCells : INDEX_NONE, Separata->RangeCells);
+	}
+
 	// La barra senza unita' ([D-460]) copia i fatti di catalogo, e niente del piano.
 	const TArray<FRTAbilityCooldownView> Unita = URTHudViewModel::BuildAbilityCooldowns(Unit);
 	int32 Comuni = 0;

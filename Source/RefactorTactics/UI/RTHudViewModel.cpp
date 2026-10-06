@@ -605,8 +605,9 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		View.bUsableNow = Unit->CanUseAbility(Index);
 
 		// `#3499`: la frase e i numeri del tooltip, dallo stesso dato che lo slot gia' legge. La portata e' lo
-		// specchio che misura il click (`HandleTargetCell`), non il `Def`: dove i due divergono — il mortaio di
-		// Branth — il tooltip deve dire quella che il giocatore incontrera'.
+		// specchio che misura il click (`HandleTargetCell`), non il `Def`: se un giorno divergessero, il tooltip
+		// deve dire quella che il giocatore incontrera'. ⚠️ Oggi coincidono in tutto il roster — il mortaio di
+		// Branth, che corregge la portata del core, li scrive entrambi — e il test li separa apposta.
 		View.Description = Action->Description;
 		View.CooldownTurns = FMath::Max(0, Action->Def.CooldownTurns);
 		View.RangeCells = FMath::Max(0, Action->RangeCells);
