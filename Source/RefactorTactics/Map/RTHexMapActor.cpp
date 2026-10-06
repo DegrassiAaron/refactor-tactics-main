@@ -8,7 +8,8 @@
 #include "Map/RTGeometryGrammar.h" // ToPolyline: i muri interni si disegnano dal loro segmento (#712)
 #include "Components/InstancedStaticMeshComponent.h"
 #include "HAL/IConsoleManager.h" // #2761: la CVar che cambia la semantica degli indici di RemoveInstance
-#include "DrawDebugHelpers.h" // anteprima di pianificazione (presentazione, non logica)
+#include "DrawDebugHelpers.h" // il solo contorno di DEBUG delle celle (`DrawCellOverlay`): l'anteprima no (#3508)
+#include "Components/LineBatchComponent.h" // #3508: l'anteprima di pianificazione si disegna anche in Shipping
 #include "EngineUtils.h" // TActorIterator
 #include "UObject/ConstructorHelpers.h"
 #include "RefactorTactics.h"
@@ -27,7 +28,6 @@
 #include "Map/RTOverlayPalette.h" // #1941: colore, scala e profondita' di un significato, in una sede sola
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
-#include "Components/LineBatchComponent.h"
 #include "Map/RTHexLabel.h"
 #include "Map/RTHexLabelLibrary.h"
 // Map Check (`CheckForErrors`): le regole di allestimento del livello. Solo Editor — `CheckForErrors`
@@ -1375,6 +1375,41 @@ FLinearColor ARTHexMapActor::GhostColorForCertainty(ERTIntentCertainty Certainty
 	}
 }
 
+namespace
+{
+	/**
+	 * 🔑 **Una linea dell'anteprima di pianificazione, nel line batcher del MONDO** (`#3508`).
+	 *
+	 * Fino a `#3508` l'anteprima usava `DrawDebugLine`, che in Shipping e' una funzione vuota
+	 * (`UE_ENABLE_DEBUG_DRAWING` vale 0). Misurato sul pacchetto il 2026-10-06: il Development mostrava
+	 * ventaglio, portata e percorso, lo Shipping nessuno dei tre. Il line batcher del mondo esiste in ogni
+	 * build che non sia un server dedicato (`UWorld::UpdateWorldComponents`), e in Shipping scrive sul PDI
+	 * della scena invece che su quello di debug — quindi colore e spessore li conferma solo il pacchetto.
+	 *
+	 * ⚠️ **Le regole sono quelle di `DrawDebugLine`, ricopiate apposta**, perche' in Development l'anteprima
+	 * resti identica: batcher `Foreground` per `SDPG_Foreground` e `World` altrimenti, durata di UN
+	 * fotogramma (`DefaultLifeTime`), niente su un server dedicato.
+	 *
+	 * ⛔ **Non guarda `r.EnableDrawDebugHelpers`**: l'anteprima e' gioco, non debug. Ed e' su quella CVar che
+	 * si appoggia il test che la protegge: spenta, `DrawDebugLine` non disegna — come in Shipping — e queste
+	 * linee si'.
+	 */
+	void DisegnaLineaAnteprima(const UWorld* World, const FVector& Da, const FVector& A, const FColor& Colore,
+		uint8 Profondita, float Spessore)
+	{
+		if (!World || World->GetNetMode() == NM_DedicatedServer)
+		{
+			return;
+		}
+		ULineBatchComponent* Batcher = World->GetLineBatcher(Profondita == SDPG_Foreground
+			? UWorld::ELineBatcherType::Foreground : UWorld::ELineBatcherType::World);
+		if (Batcher)
+		{
+			Batcher->DrawLine(Da, A, Colore, Profondita, Spessore, Batcher->DefaultLifeTime);
+		}
+	}
+}
+
 void ARTHexMapActor::DrawPlanningPreview() const
 {
 	const UWorld* World = GetWorld();
@@ -1417,8 +1452,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 		const uint8 Depth = bThroughUnits ? SDPG_Foreground : SDPG_World;
 		for (int32 I = 0; I < Corners.Num(); ++I)
 		{
-			DrawDebugLine(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color,
-				/*bPersistentLines=*/ false, /*LifeTime=*/ -1.f, Depth, /*Thickness=*/ 3.f);
+			DisegnaLineaAnteprima(World, Corners[I], Corners[(I + 1) % Corners.Num()], Color, Depth, /*Spessore=*/ 3.f);
 		}
 	};
 
@@ -1457,7 +1491,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 				+ FVector(0, 0, CellLift(PreviewPathArea.Cells[I - 1]) + RTLiftPreview + 1.5f);
 			const FVector B = URTHexLibrary::AxialToWorld(PreviewPathArea.Cells[I], Origin, Size, LayerH)
 				+ FVector(0, 0, CellLift(PreviewPathArea.Cells[I]) + RTLiftPreview + 1.5f);
-			DrawDebugLine(World, A, B, URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace), false, -1.f, 0, 4.f);
+			DisegnaLineaAnteprima(World, A, B, URTOverlayPalette::ColorFor(ERTOverlayMeaning::PathTrace), SDPG_World, 4.f);
 		}
 	}
 
@@ -1490,12 +1524,12 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			{
 				const FVector P0 = FMath::Lerp(A, B, S / static_cast<float>(Segments));
 				const FVector P1 = FMath::Lerp(A, B, (S + 1) / static_cast<float>(Segments));
-				DrawDebugLine(World, P0, P1, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+				DisegnaLineaAnteprima(World, P0, P1, AimColor, SDPG_Foreground, /*Spessore=*/ 3.f);
 			}
 		}
 		else
 		{
-			DrawDebugLine(World, A, B, AimColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+			DisegnaLineaAnteprima(World, A, B, AimColor, SDPG_Foreground, /*Spessore=*/ 3.f);
 		}
 	}
 
@@ -1519,7 +1553,7 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			+ FVector(0, 0, CellLift(PreviewSightBlockedAt) + RTLiftPreview + 3.f);
 
 		const FColor SightColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Vision);
-		DrawDebugLine(World, From, Stop, SightColor, false, -1.f, SDPG_Foreground, /*Thickness=*/ 3.f);
+		DisegnaLineaAnteprima(World, From, Stop, SightColor, SDPG_Foreground, /*Spessore=*/ 3.f);
 
 		// L'ostacolo si marca sulla cella che ha fermato il raggio: la linea dice DOVE si e' fermata, il
 		// contorno dice SU COSA. E' la stessa coppia — segmento piu' cella — che `#2697` usa per gli
@@ -1592,8 +1626,8 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			const FVector Asse = CentroB - CentroA;
 			const FVector Meta = (CentroA + CentroB) * 0.5f;
 			const FVector MezzoLato = FVector(-Asse.Y, Asse.X, 0.f) * (0.5f / FMath::Sqrt(3.f));
-			DrawDebugLine(World, Meta - MezzoLato, Meta + MezzoLato, StructureColor, false, -1.f,
-				SDPG_Foreground, Colpo.bDestroyed ? 6.f : 3.f);
+			DisegnaLineaAnteprima(World, Meta - MezzoLato, Meta + MezzoLato, StructureColor, SDPG_Foreground,
+				Colpo.bDestroyed ? 6.f : 3.f);
 		}
 	}
 

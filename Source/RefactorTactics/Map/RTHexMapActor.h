@@ -791,8 +791,8 @@ public:
 	 * con un `FRTPlanPreview` di default, senza un secondo metodo che faccia la stessa cosa con un altro nome.
 	 *
 	 * ⚠️ **Non disegna: POSA.** Le istanze restano dove sono messe, quindi nessun fotogramma successivo paga
-	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue `DrawDebugLine` a ogni `Tick` e per
-	 * questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
+	 * niente — a differenza di `DrawPlanningPreview`, che riemette le sue linee a ogni `Tick` (nel line batcher
+	 * del mondo da `#3508`, prima con `DrawDebugLine`) e per questo lo tiene acceso. E' la voce «aggiornamento a frequenza limitata» della DoD, ottenuta togliendo
 	 * il bisogno di aggiornare invece che rallentandolo.
 	 */
 	void SetPlanPreview(const FRTPlanPreview& Preview);
