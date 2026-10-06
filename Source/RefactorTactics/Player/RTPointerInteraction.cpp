@@ -1,5 +1,24 @@
 #include "Player/RTPointerInteraction.h"
 #include "Unit/RTUnit.h"
+#include "Map/RTHexLibrary.h"
+
+namespace
+{
+	/** I sei vettori centro→vicino di `Cell`, dalla geometria della mappa e non da una tabella di angoli. */
+	TArray<FVector2D> FacingDirectionVectors(const FRTCellId& Cell, const FVector& Origin, float HexSize, float LayerH)
+	{
+		const FVector Centro = URTHexLibrary::AxialToWorld(Cell, Origin, HexSize, LayerH);
+		TArray<FVector2D> Direzioni;
+		Direzioni.Reserve(6);
+		for (int32 D = 0; D < 6; ++D)
+		{
+			const FVector Vicino = URTHexLibrary::AxialToWorld(
+				URTHexLibrary::Neighbor(Cell, static_cast<ERTHexDirection>(D)), Origin, HexSize, LayerH);
+			Direzioni.Add(FVector2D(Vicino - Centro));
+		}
+		return Direzioni;
+	}
+}
 
 ERTPointerTargetKind URTPointerLibrary::TargetKindForAction(const FRTActionDef& Def, bool bSelfTarget,
 	ERTAbilityShape Shape)
@@ -230,6 +249,49 @@ bool URTPointerLibrary::FacingSectorFromOffset(const FVector2D& Offset, const TA
 	}
 	OutSector = static_cast<ERTHexDirection>(Migliore);
 	return true;
+}
+
+ERTFacingClick URTPointerLibrary::ResolveFacingClick(const FVector& RayOrigin, const FVector& RayDir,
+	const FRTCellId& FinalCell, const FVector& MapOrigin, float HexSize, float LayerHeight, float DeadZoneRadius,
+	bool bSelectorOpen, ERTHexDirection& OutSector)
+{
+	if (FMath::IsNearlyZero(RayDir.Z))
+	{
+		return ERTFacingClick::Miss;
+	}
+	const FVector Centro = URTHexLibrary::AxialToWorld(FinalCell, MapOrigin, HexSize, LayerHeight);
+	const double T = (Centro.Z - RayOrigin.Z) / RayDir.Z;
+	if (T <= 0.0)
+	{
+		return ERTFacingClick::Miss;
+	}
+	const FVector Punto = RayOrigin + RayDir * T;
+	if (!bSelectorOpen)
+	{
+		const FRTCellId Sotto = URTHexLibrary::WorldToCellId(FVector(Punto.X, Punto.Y, Centro.Z), MapOrigin, HexSize,
+			LayerHeight);
+		if (!(Sotto == FinalCell))
+		{
+			return ERTFacingClick::OtherCell;
+		}
+	}
+	if (!FacingSectorFromOffset(FVector2D(Punto - Centro),
+		FacingDirectionVectors(FinalCell, MapOrigin, HexSize, LayerHeight), DeadZoneRadius, OutSector))
+	{
+		return ERTFacingClick::Center;
+	}
+	return ERTFacingClick::Side;
+}
+
+bool URTPointerLibrary::FacingSectorTowardCell(const FRTCellId& From, const FRTCellId& To, ERTHexDirection& OutSector)
+{
+	// Origine e scala non contano: la direzione fra due centri non dipende da nessuna delle due. Il piano neppure, e si
+	// scarta: il verso e' planare ([D-367]).
+	const FVector Origine = FVector::ZeroVector;
+	constexpr float Lato = 100.f;
+	const FVector Da = URTHexLibrary::AxialToWorld(From, Origine, Lato, 0.f);
+	const FVector A = URTHexLibrary::AxialToWorld(To, Origine, Lato, 0.f);
+	return FacingSectorFromOffset(FVector2D(A - Da), FacingDirectionVectors(From, Origine, Lato, 0.f), 0.f, OutSector);
 }
 
 ERTPointerOutcome URTPointerLibrary::ResolveOutcome(ERTPointerContext Context, bool bHitUnit, bool bCommandable,
