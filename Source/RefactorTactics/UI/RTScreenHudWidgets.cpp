@@ -762,7 +762,12 @@ void URTActionTooltipWidget::SetView(const FRTActionTooltipView& InView)
 		}
 	};
 	Scrivi(TitleText, View.Title, /*bCollassaSeVuoto=*/ false);
-	Scrivi(DescriptionText, View.Description, /*bCollassaSeVuoto=*/ true);
+	// Il compromesso della variante va sotto la frase, nello stesso testo: e' prosa come lei, e un widget senza una porta
+	// sua lo mostra lo stesso (#3419).
+	const FText Frase = View.Variant.IsEmpty() ? View.Description
+		: (View.Description.IsEmpty() ? View.Variant
+			: FText::Format(INVTEXT("{0}\n{1}"), View.Description, View.Variant));
+	Scrivi(DescriptionText, Frase, /*bCollassaSeVuoto=*/ true);
 	Scrivi(LinesText, GetLinesText(), /*bCollassaSeVuoto=*/ true);
 	Scrivi(ReasonText, View.Reason, /*bCollassaSeVuoto=*/ true);
 	OnViewChanged();
