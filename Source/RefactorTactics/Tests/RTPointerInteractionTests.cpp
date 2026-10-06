@@ -695,10 +695,12 @@ bool FRTSecondClickClosesTheMoveTest::RunTest(const FString&)
 		DestroyPointerWorld(World); return false;
 	}
 
-	// Il secondo click senza un lato (il centro, o un chiamante senza cursore): non sceglie e NON duplica.
+	// Il secondo click senza un lato (il centro, o un chiamante senza cursore): non sceglie e NON duplica, ma apre la
+	// scelta del verso ([D-463]).
 	PC->HandleClickOnCell(Meta);
 	TestEqual(TEXT("il click ripetuto non duplica il waypoint"), Unit->PlannedWaypoints.Num(), 1);
 	TestFalse(TEXT("e non dichiara niente"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("ma apre la scelta del verso"), PC->GetPointerContext(), ERTPointerContext::Facing);
 
 	TestTrue(TEXT("il secondo click verso W dichiara il verso"), PC->HandleFacingClick(Meta, ERTHexDirection::W));
 	TestTrue(TEXT("il verso e' dichiarato"), Unit->bDeclaresPlannedFacing);
@@ -715,6 +717,328 @@ bool FRTSecondClickClosesTheMoveTest::RunTest(const FString&)
 	PC->HandleClickOnCell(FRTCellId(2, 0, 0));
 	TestEqual(TEXT("riaperto: un'altra cella aggiunge il waypoint"), Unit->PlannedWaypoints.Num(), 2);
 	TestEqual(TEXT("e il Back dopo toglie un waypoint"), PC->ApplyBack(), ERTPointerBackStep::Waypoint);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+namespace
+{
+	/** Un settore diverso da `Dir`: chi lo riceve indietro uguale a `Dir` l'ha davvero scritto. */
+	ERTHexDirection AltroVerso(ERTHexDirection Dir)
+	{
+		return Dir == ERTHexDirection::E ? ERTHexDirection::W : ERTHexDirection::E;
+	}
+}
+
+/**
+ * IL CLICK DEL VERSO SI LEGGE SUL PAVIMENTO DELLA CELLA FINALE - [D-367], [D-463], `#291`.
+ *
+ * 🔑 La geometria che il controller teneva senza un test (follow-up di `#3504`). Una mappa spostata dall'origine, una
+ * cella su un piano alto e un raggio OBLIQUO come quello della camera: se la proiezione sbagliasse il piano, il punto
+ * scivolerebbe in un altro settore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTResolveFacingClickTest,
+	"RefactorTactics.Pointer.ResolveFacingClickReadsTheFloorOfTheFinalCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTResolveFacingClickTest::RunTest(const FString&)
+{
+	const FVector Origine(37.f, -112.f, 20.f);
+	constexpr float Lato = 100.f;
+	constexpr float Piano = 250.f;
+	const float DeadZone = 0.3f * Lato;
+	const FRTCellId Finale(2, -1, 1);
+	const FVector Centro = URTHexLibrary::AxialToWorld(Finale, Origine, Lato, Piano);
+
+	auto Su = [](const FVector& Punto, FVector& OutOrigine, FVector& OutDir)
+	{
+		OutOrigine = Punto + FVector(-600.f, 350.f, 1200.f);
+		OutDir = (Punto - OutOrigine).GetSafeNormal();
+	};
+	auto Leggi = [&](const FVector& O, const FVector& D, bool bAperto, ERTHexDirection& Settore)
+	{
+		return URTPointerLibrary::ResolveFacingClick(O, D, Finale, Origine, Lato, Piano, DeadZone, bAperto, Settore);
+	};
+	FVector O, D;
+	ERTHexDirection Settore = ERTHexDirection::E;
+
+	Su(Centro, O, D);
+	TestTrue(TEXT("il centro e' la dead-zone, a selettore chiuso"), Leggi(O, D, false, Settore) == ERTFacingClick::Center);
+	TestTrue(TEXT("e a selettore aperto"), Leggi(O, D, true, Settore) == ERTFacingClick::Center);
+
+	for (uint8 I = 0; I < 6; ++I)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(I);
+		const FVector Vicino = URTHexLibrary::AxialToWorld(URTHexLibrary::Neighbor(Finale, Dir), Origine, Lato, Piano);
+
+		// Dentro l'esagono e fuori dalla dead-zone: il 35% della distanza fra i centri e' circa 0,61 lati, fra la
+		// dead-zone (0,3) e il bordo (0,87).
+		Su(FMath::Lerp(Centro, Vicino, 0.35f), O, D);
+		Settore = AltroVerso(Dir);
+		const ERTFacingClick Dentro = Leggi(O, D, false, Settore);
+		TestTrue(*FString::Printf(TEXT("lato %d: dentro l'esagono e' quel lato"), I),
+			Dentro == ERTFacingClick::Side && Settore == Dir);
+
+		// Sul centro del vicino: a selettore chiuso e' un'altra cella, cioe' movimento.
+		Su(Vicino, O, D);
+		TestTrue(*FString::Printf(TEXT("lato %d: il vicino, a selettore chiuso, e' un'altra cella"), I),
+			Leggi(O, D, false, Settore) == ERTFacingClick::OtherCell);
+		// 🔑 [D-463]: col selettore aperto e' la direzione verso di lui.
+		Settore = AltroVerso(Dir);
+		const ERTFacingClick Aperto = Leggi(O, D, true, Settore);
+		TestTrue(*FString::Printf(TEXT("lato %d: col selettore aperto il vicino e' la sua direzione"), I),
+			Aperto == ERTFacingClick::Side && Settore == Dir);
+	}
+
+	TestTrue(TEXT("un raggio orizzontale non incontra il pavimento"),
+		Leggi(Centro + FVector(0.f, 0.f, 100.f), FVector(1.f, 0.f, 0.f), true, Settore) == ERTFacingClick::Miss);
+	TestTrue(TEXT("ne' uno che sale"),
+		Leggi(Centro + FVector(0.f, 0.f, 100.f), FVector(0.f, 0.f, 1.f), true, Settore) == ERTFacingClick::Miss);
+	return true;
+}
+
+/**
+ * DA UNA CELLA, IL SETTORE VERSO UN'ALTRA - [D-463], `#291`: il click su una cella col selettore aperto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingSectorTowardCellTest,
+	"RefactorTactics.Pointer.FacingSectorTowardCellPointsAtTheNeighbour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingSectorTowardCellTest::RunTest(const FString&)
+{
+	const FRTCellId Da(1, 2, 0);
+	for (uint8 I = 0; I < 6; ++I)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(I);
+		const FRTCellId Vicino = URTHexLibrary::Neighbor(Da, Dir);
+		ERTHexDirection Out = AltroVerso(Dir);
+		TestTrue(*FString::Printf(TEXT("lato %d: il vicino"), I), URTPointerLibrary::FacingSectorTowardCell(Da, Vicino, Out) && Out == Dir);
+
+		const FRTCellId Lontano = URTHexLibrary::Neighbor(URTHexLibrary::Neighbor(Vicino, Dir), Dir);
+		Out = AltroVerso(Dir);
+		TestTrue(*FString::Printf(TEXT("lato %d: lontano, nella stessa direzione"), I),
+			URTPointerLibrary::FacingSectorTowardCell(Da, Lontano, Out) && Out == Dir);
+
+		// Il verso e' planare ([D-367]): il piano della cella cliccata non conta.
+		Out = AltroVerso(Dir);
+		TestTrue(*FString::Printf(TEXT("lato %d: su un altro piano"), I),
+			URTPointerLibrary::FacingSectorTowardCell(Da, FRTCellId(Vicino.X, Vicino.Y, 2), Out) && Out == Dir);
+	}
+	ERTHexDirection Out = ERTHexDirection::E;
+	TestFalse(TEXT("la stessa cella non ha una direzione"), URTPointerLibrary::FacingSectorTowardCell(Da, Da, Out));
+	TestFalse(TEXT("ne' la stessa cella su un altro piano"),
+		URTPointerLibrary::FacingSectorTowardCell(Da, FRTCellId(Da.X, Da.Y, 3), Out));
+	return true;
+}
+
+/**
+ * IN MARCIA, IL CLICK SULLA DESTINAZIONE APRE LA SCELTA DEL VERSO - [D-463], `#291`.
+ *
+ * 🔴 **Il difetto visto in PIE il 2026-10-06**: il secondo click cadeva sul segno del waypoint, cioe' al centro, e la
+ * dead-zone lo consumava senza fare nulla. Il verso non si sceglieva mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDestinationOpensFacingSelectorTest,
+	"RefactorTactics.PlayerInput.DestinationCenterOpensTheFacingSelector",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDestinationOpensFacingSelectorTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	const FRTCellId Meta(1, 0, 0);
+	PC->HandleClickOnCell(Meta);
+	if (!TestEqual(TEXT("premessa: un waypoint"), Unit->PlannedWaypoints.Num(), 1))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	PC->HandleClickOnCell(Meta);
+	TestEqual(TEXT("il click sulla destinazione apre la scelta del verso"), PC->GetPointerContext(), ERTPointerContext::Facing);
+	TestEqual(TEXT("senza duplicare il waypoint"), Unit->PlannedWaypoints.Num(), 1);
+
+	// Il click sull'esagono vicino in direzione NE: e' una direzione, non un passo.
+	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Meta, ERTHexDirection::NE));
+	TestEqual(TEXT("il vicino non diventa un waypoint"), Unit->PlannedWaypoints.Num(), 1);
+	TestTrue(TEXT("dichiara il verso"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' quello verso il vicino"), Unit->PlannedFacing, ERTHexDirection::NE);
+	TestNotEqual(TEXT("e il selettore si chiude"), PC->GetPointerContext(), ERTPointerContext::Facing);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * DA FERMO, COL SELETTORE APERTO IL CLICK SUL VICINO E' UNA DIREZIONE - [D-463], `#291`.
+ *
+ * 🔴 **Il difetto visto in PIE il 2026-10-06**: il corpo copre quasi tutta la propria cella, quindi il click «sul
+ * lato» cadeva sulla cella accanto, e chiudeva il selettore aggiungendo un passo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTOpenSelectorNeighbourIsDirectionTest,
+	"RefactorTactics.PlayerInput.OpenSelectorReadsANeighbourAsADirection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTOpenSelectorNeighbourIsDirectionTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	PC->HandleClickOnCell(Unit->Cell);
+	if (!TestEqual(TEXT("premessa: il selettore e' aperto"), PC->GetPointerContext(), ERTPointerContext::Facing))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Unit->Cell, ERTHexDirection::SW));
+	TestEqual(TEXT("nessun waypoint"), Unit->PlannedWaypoints.Num(), 0);
+	TestTrue(TEXT("il verso e' dichiarato"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' quello verso il vicino"), Unit->PlannedFacing, ERTHexDirection::SW);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * UN LATO ILLEGALE LASCIA APERTO IL SELETTORE APERTO, E L'HOVER NON CI GIRA SOPRA - [D-463], [D-367], `#291`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTIllegalSideKeepsSelectorOpenTest,
+	"RefactorTactics.PlayerInput.IllegalSideKeepsAnOpenSelectorOpen",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTIllegalSideKeepsSelectorOpenTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	// Branth: budget Move 1, quindi esistono lati illegali.
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, -2, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	const FRTCellId Meta(3, -2, 0);
+	PC->HandleClickOnCell(Meta);
+	const TArray<ERTHexDirection> Legali = URTFacingLibrary::LegalFacings(
+		ERTMovementStyle::Budget, Unit->PlannedPath, Unit->Facing, Unit->PivotBudget());
+	const ERTHexDirection UltimoPasso = URTFacingLibrary::FacingFromPath(Unit->PlannedPath, Unit->Facing);
+	ERTHexDirection Illegale = ERTHexDirection::E;
+	ERTHexDirection Legale = UltimoPasso;
+	bool bIllegale = false;
+	bool bLegale = false;
+	for (uint8 D = 0; D < 6; ++D)
+	{
+		const ERTHexDirection Dir = static_cast<ERTHexDirection>(D);
+		if (!Legali.Contains(Dir) && !bIllegale) { Illegale = Dir; bIllegale = true; }
+		if (Legali.Contains(Dir) && Dir != UltimoPasso && !bLegale) { Legale = Dir; bLegale = true; }
+	}
+	if (!TestTrue(TEXT("premessa: un percorso, un lato illegale e uno legale diverso dall'ultimo passo"),
+		Unit->PlannedPath.Num() > 1 && bIllegale && bLegale))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	PC->HandleClickOnCell(Meta);
+	if (!TestEqual(TEXT("premessa: il selettore e' aperto"), PC->GetPointerContext(), ERTPointerContext::Facing))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	// L'hover su un lato illegale non gira la mesh: non e' interattivo ([D-367]).
+	FVector Origin; float HexSize; float LayerH;
+	MapActor->GetHexContext(Origin, HexSize, LayerH);
+	const FVector Sopra(0.f, 0.f, 500.f);
+	const FVector Giu(0.f, 0.f, -1.f);
+	PC->UpdateFacingHoverFromRay(true,
+		URTHexLibrary::AxialToWorld(URTHexLibrary::Neighbor(Meta, Illegale), Origin, HexSize, LayerH) + Sopra, Giu);
+	TestFalse(TEXT("l'hover su un lato illegale non gira la mesh"), PC->GetFacingHoverSector().IsSet());
+
+	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Meta, Illegale));
+	TestFalse(TEXT("il lato illegale non dichiara"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("e il selettore resta aperto per un altro lato"), PC->GetPointerContext(), ERTPointerContext::Facing);
+	TestEqual(TEXT("senza aggiungere waypoint"), Unit->PlannedWaypoints.Num(), 1);
+
+	PC->HandleClickOnCell(URTHexLibrary::Neighbor(Meta, Legale));
+	TestTrue(TEXT("un lato legale, dopo, dichiara"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("ed e' quello"), Unit->PlannedFacing, Legale);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * L'HOVER GIRA LA MESH VERSO IL LATO, SENZA TOCCARE IL PIANO - [D-367], [D-463], `#291`.
+ *
+ * ⚠️ Senza i triangoli disegnati (#172) e' l'unico riscontro del lato prima del click.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFacingHoverTurnsTheMeshTest,
+	"RefactorTactics.PlayerInput.FacingHoverTurnsTheMeshWithoutDeclaring",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFacingHoverTurnsTheMeshTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectActorForTest(Unit);
+
+	FVector Origin; float HexSize; float LayerH;
+	MapActor->GetHexContext(Origin, HexSize, LayerH);
+	auto YawPer = [&](ERTHexDirection Dir)
+	{
+		const FVector Here = Unit->WorldForCell(Unit->Cell, Origin, HexSize, LayerH);
+		const FVector There = Unit->WorldForCell(URTHexLibrary::Neighbor(Unit->Cell, Dir), Origin, HexSize, LayerH);
+		return URTPlaybackLibrary::DirectionYaw(Here, There);
+	};
+	const FVector Sopra(0.f, 0.f, 500.f);
+	const FVector Giu(0.f, 0.f, -1.f);
+	const FVector SulVicinoW = URTHexLibrary::AxialToWorld(
+		URTHexLibrary::Neighbor(Unit->Cell, ERTHexDirection::W), Origin, HexSize, LayerH) + Sopra;
+	const ERTHexDirection Partenza = Unit->Facing;
+	if (!TestNotEqual(TEXT("premessa: W non e' il verso di partenza"), Partenza, ERTHexDirection::W))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->PreviewPlannedFacing(Unit);
+
+	PC->UpdateFacingHoverFromRay(true, SulVicinoW, Giu);
+	TestFalse(TEXT("a selettore chiuso l'hover non fa nulla"), PC->GetFacingHoverSector().IsSet());
+
+	PC->HandleClickOnCell(Unit->Cell);
+	PC->UpdateFacingHoverFromRay(true, SulVicinoW, Giu);
+	TestTrue(TEXT("col selettore aperto l'hover prende il lato W"),
+		PC->GetFacingHoverSector().IsSet() && PC->GetFacingHoverSector().GetValue() == ERTHexDirection::W);
+	TestEqual(TEXT("e la mesh guarda W"), static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(ERTHexDirection::W), 0.5f);
+	TestFalse(TEXT("senza dichiarare"), Unit->bDeclaresPlannedFacing);
+	TestEqual(TEXT("ne' toccare il verso logico"), Unit->Facing, Partenza);
+
+	PC->UpdateFacingHoverFromRay(true, URTHexLibrary::AxialToWorld(Unit->Cell, Origin, HexSize, LayerH) + Sopra, Giu);
+	TestFalse(TEXT("al centro l'hover si spegne"), PC->GetFacingHoverSector().IsSet());
+	TestEqual(TEXT("e la mesh torna al verso pianificato"), static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(Partenza), 0.5f);
+
+	PC->UpdateFacingHoverFromRay(true, SulVicinoW, Giu);
+	TestEqual(TEXT("premessa del Back: la mesh guarda di nuovo W"), static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(ERTHexDirection::W), 0.5f);
+	TestEqual(TEXT("il Back chiude il selettore"), PC->ApplyBack(), ERTPointerBackStep::Declaration);
+	TestFalse(TEXT("l'hover non sopravvive al selettore"), PC->GetFacingHoverSector().IsSet());
+	TestEqual(TEXT("e la mesh torna al verso pianificato"), static_cast<float>(Unit->GetActorRotation().Yaw), YawPer(Partenza), 0.5f);
 
 	DestroyPointerWorld(World);
 	return true;

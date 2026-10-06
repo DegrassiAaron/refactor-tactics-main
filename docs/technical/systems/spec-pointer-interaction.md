@@ -423,8 +423,13 @@ Due regole che l'ordine da solo non dice:
 - **Il verso chiude il movimento** ([D-367](../../decisions/RT_PDR_00_Decision_Log.md), [D-462](../../decisions/RT_PDR_00_Decision_Log.md), [#291](https://github.com/DegrassiAaron/refactor-tactics-main/issues/291)).
   Il verso si sceglie col **secondo click sull'esagono finale**, sul lato puntato (`HandleFacingClick`); da fermo,
   un click sulla propria cella apre prima i sei triangoli. Con un verso dichiarato un click su un'altra cella non
-  aggiunge waypoint, e la voce 5 lo toglie per prima. Un click sulla destinazione senza un lato (al centro) non
-  sceglie niente e non duplica il waypoint. Qualunque modifica al percorso — waypoint tolto o restituito,
+  aggiunge waypoint, e la voce 5 lo toglie per prima. Un click sulla destinazione senza un lato — al centro, sul segno
+  del waypoint — **apre la scelta del verso** e non duplica il waypoint ([D-463](../../decisions/RT_PDR_00_Decision_Log.md)).
+  🔑 **Col selettore aperto ogni click è una direzione**, verso il lato puntato o verso l'esagono cliccato anche fuori
+  dalla cella finale: il movimento resta chiuso finché non si sceglie un verso o la voce 4 non chiude il selettore.
+  Fa eccezione un click su un'altra unità comandabile, che resta una selezione. Un lato illegale lascia aperto il
+  selettore, e l'hover gira la mesh verso il lato legale sotto il cursore senza toccare il piano.
+  Qualunque modifica al percorso — waypoint tolto o restituito,
   troncamento di una riserva o dello `Sneak` — cancella il verso. ⌫ *Il tasto `T` e il ciclo sono usciti dal gioco.*
   ⚠️ **L'ordine e' statico, e lo si dichiara**: il verso si toglie prima di un'azione armata anche quando l'azione e'
   stata armata dopo. Il Back che «disfa l'ultimo gesto» chiederebbe una pila di gesti, che non esiste; e armare chiude

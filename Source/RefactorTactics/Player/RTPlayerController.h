@@ -1291,11 +1291,15 @@ public:
 	bool HandleFacingClick(const FRTCellId& Cell, ERTHexDirection Sector);
 
 	/**
-	 * Da fermo, apre i sei triangoli sulla propria cella ([D-462] punto 4). Lo chiama il click sull'unita' gia'
-	 * selezionata e il click sulla sua cella; in marcia non serve, perche' l'esagono finale e' sempre il selettore.
+	 * Apre la scelta del verso se `ClickedCell` e' la cella finale del movimento: la propria da fermo ([D-462] punto
+	 * 4), la destinazione in marcia ([D-463]). Lo chiamano il click sull'unita' gia' selezionata (con la sua cella,
+	 * quindi solo da fermo) e il click sulla cella finale.
+	 *
+	 * 🔑 **Aperta, chiude il movimento**: ogni click e' una direzione finche' non si sceglie un verso o un Back la
+	 * chiude ([D-463]).
 	 * @return true se il selettore e' stato aperto.
 	 */
-	bool TryOpenFacingSelector();
+	bool TryOpenFacingSelector(const FRTCellId& ClickedCell);
 
 	/** La cella su cui si sceglie il verso: la destinazione dello scatto pianificato, del percorso, o la propria. */
 	FRTCellId FacingCellFor(const ARTUnit* Unit) const;
@@ -1315,11 +1319,29 @@ public:
 	 */
 	void PreviewPlannedFacing(ARTUnit* Unit) const;
 
+	/** Ruota la MESH verso `Direction`, dalla geometria della cella. Solo presentazione: non tocca il piano. */
+	void PreviewFacingToward(ARTUnit* Unit, ERTHexDirection Direction) const;
+
+	/**
+	 * L'hover del selettore aperto ([D-367]: *«l'hover ne anticipa il settore e la rotazione visuale senza mutare lo
+	 * stato autorevole»*): la mesh si gira verso il lato **legale** sotto il cursore, e torna al verso pianificato
+	 * quando il cursore esce o il selettore si chiude. ⚠️ Un lato illegale non ruota: non e' interattivo.
+	 *
+	 * Il raggio arriva da fuori perche' il test possa darlo senza un viewport; in partita lo da' `PlayerTick`.
+	 */
+	void UpdateFacingHoverFromRay(bool bHasRay, const FVector& RayOrigin, const FVector& RayDir);
+
+	/** Il lato su cui il cursore ha girato la mesh, se c'e'. Serve ai test. */
+	TOptional<ERTHexDirection> GetFacingHoverSector() const { return FacingHoverSector; }
+
 	/** Esce da `Facing` senza dichiarare nulla. */
 	void EndFacingDeclaration();
 
 	/** Stile e rotta del movimento pianificato su cui si giudica il verso: come li applichera' il resolver (`#291`). */
 	void PlannedMovementForFacing(const ARTUnit* Unit, ERTMovementStyle& OutStyle, TArray<FRTCellId>& OutPath) const;
+
+	/** Il verso `Sector` e' legale per il movimento pianificato? E' la stessa domanda per il click e per l'hover. */
+	bool IsFacingLegalForPlan(const ARTUnit* Unit, ERTHexDirection Sector) const;
 
 	/** Cancella il verso dichiarato e riapre il movimento, dicendo perche'. Niente se non c'era un verso. */
 	void CancelDeclaredFacing(ARTUnit* Unit, const TCHAR* Perche);
@@ -1350,6 +1372,9 @@ public:
 protected:
 	/** Vero fra `BeginFacingDeclaration` e la conferma/annullamento. */
 	bool bDeclaringFacing = false;
+
+	/** Il lato verso cui l'hover ha girato la mesh: vuoto quando la mesh mostra il verso pianificato. */
+	TOptional<ERTHexDirection> FacingHoverSector;
 
 	bool bInspectorPinned = false;
 
