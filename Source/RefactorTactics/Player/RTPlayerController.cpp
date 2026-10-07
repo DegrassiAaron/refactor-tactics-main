@@ -184,6 +184,26 @@ namespace
 	}
 
 	/**
+	 * Perche' `IsWorldReadOnly()` e' vero, detto al giocatore e non al programmatore ([D-468], `#3510`). Un ordine
+	 * rifiutato nomina la CAUSA. Il ramo dell'autobattle prometteva anche «o fase che non accetta ordini», e la fase
+	 * non la guardava: durante il playback l'ordine passava, e la riga che l'avrebbe spiegato non esisteva.
+	 */
+	const TCHAR* PercheIlMondoESoloLettura(ERTPointerContext Context)
+	{
+		switch (Context)
+		{
+		case ERTPointerContext::ResolutionPlayback:
+			return TEXT("il turno si sta risolvendo, e fino alla fine del playback il piano e' in sola lettura");
+		case ERTPointerContext::ReactionWindow:
+			return TEXT("e' aperta una finestra di reazione, e il piano e' in sola lettura");
+		case ERTPointerContext::Modal:
+			return TEXT("una schermata bloccante copre la partita");
+		default:
+			return TEXT("il mondo e' in sola lettura");
+		}
+	}
+
+	/**
 	 * Aggiorna l'anteprima di pianificazione (SOLA PRESENTAZIONE) dallo stato dell'unita' selezionata:
 	 * dove puo' arrivare, da DOVE agira' e quali celle colpirebbe — segnalando gli ALLEATI che finirebbero
 	 * nell'area.
@@ -1306,9 +1326,21 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 		return false;
 	}
 
+	// 🔴 **[D-468] (`#3510`): durante la risoluzione nessun ordine passa, e dichiarare il piano lo e'.** Il
+	// Cleanup che azzera la dichiarazione gira PRIMA del playback (`ConcludeResolution`): un `Invio` premuto
+	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `TAB` la saltava.
+	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
+	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
+		return false;
+	}
+
 	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `TAB`: dichiarare che le mosse
-	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle, o in una fase che non
-	// accetta ordini, non c'e' niente da dichiarare.
+	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle non c'e' niente da
+	// dichiarare. ⏱️ *Fino a `#3510` diceva anche «o in una fase che non accetta ordini»*: questa guardia la fase
+	// non la guarda, e la regola della fase e' quella qui sopra.
 	if (IsPlanningInputInert())
 	{
 		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: input di planning inerte"));
@@ -2986,12 +3018,30 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 **[D-468] (`#3510`): durante la risoluzione il mondo e' in sola lettura anche per la tastiera.** I click
+	// sul mondo escono su `IsWorldReadOnly()` da `#2518`; questa porta — tasti, generiche, slot del dock — no.
+	// Un tasto premuto durante il playback armava, riaccendeva la portata che il commit aveva spento e, per
+	// un'azione su se stessi, scriveva il piano. E la risoluzione consuma il piano e il Cleanup disarma PRIMA del
+	// playback (`LockInAndResolve`, poi `ConcludeResolution`): quell'armo entrava nel turno dopo, un pre-armo che
+	// nessuno aveva deciso.
+	//
+	// ⚠️ Vale anche per il DISARMO, che passa di qui (`ArmKitAbility`): non ha niente da togliere, perche' il
+	// Cleanup ha gia' disarmato, e lasciarlo passare sarebbe un secondo canale con regole proprie.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"),
+			*Richiesta, PercheIlMondoESoloLettura(GetPointerContext()));
+		return;
+	}
+
 	// #971 — secondo dei cinque siti `Order`, e vale per tutti e dieci i tasti abilita' per la stessa
 	// ragione del commento qui sopra.
+	//
+	// ⏱️ *Fino a `#3510` la riga prometteva «autobattle, o fase che non accetta ordini»*, e la fase questa
+	// guardia non la guarda: la promessa la mantiene ora `IsWorldReadOnly()` qui sopra, con la sua causa.
 	if (IsPlanningInputInert())
 	{
-		UE_LOG(LogRT, Display,
-			TEXT("[RT] %s ignorata: input di planning inerte (autobattle, o fase che non accetta ordini)"),
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: input di planning inerte, l'autobattle e' attivo"),
 			*Richiesta);
 		return;
 	}
@@ -3435,6 +3485,15 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// Una schermata bloccante copre la partita: questo input non le arriva.
 	if (IsGameplayInputBlocked())
 	{
+		return;
+	}
+
+	// [D-468] (`#3510`): dichiarare `Sneak` e' un ordine, e durante la risoluzione nessun ordine passa. La
+	// dichiarazione non la azzera nessuno — resta finche' non la si ritira ([D-425]) —, quindi un `M` premuto
+	// mentre la risoluzione scorre cambiava il passo del turno dopo, deciso quando il piano era in sola lettura.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
 		return;
 	}
 

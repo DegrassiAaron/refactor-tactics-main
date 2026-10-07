@@ -10,6 +10,7 @@
 > - **DR-2 estesa** → [`D-465`](../../decisions/RT_PDR_00_Decision_Log.md): l'ottimismo vale per la sola V — è il dissenso di Adzic, non la (ii) estesa raccomandata in §10 —, mentre click e portata restano sulla mappa piena fino a #2794. V ignora muri e Fumo mai visti: per **Q4** l'intento è deciso — un Fumo comparso fuori vista non entra —, ma nell'esplorato non visibile ora il meccanismo resta da trovare in #3420, perché la mappa autorevole lo rivelerebbe e la sola geometria statica toglierebbe anche un Fumo già visto.
 > - **DR-10** → vista piena (risponde a **Q2**) e **DR-11** → V anche col solo scatto, in #3420. **DR-13** → la portata dalla destinazione resta rinviata.
 > - Dal referto gemello: [`D-464`](../../decisions/RT_PDR_00_Decision_Log.md) (DR-1, origine per fase) e [`D-466`](../../decisions/RT_PDR_00_Decision_Log.md) (DR-6, click su cella vuota).
+> - **Armo nel playback** (§12, prerequisito comune) → [`D-468`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-07), in #3510.
 > - Restano aperte **DR-9**, **DR-12**, **DR-15** e **DR-7 estesa**, con le domande **Q3** e **Q5**…**Q8**.
 
 > Referto della sessione chiesta dall'autore il 2026-10-06: *«voglio vedere anche le altre aree, in base al
@@ -87,7 +88,7 @@ porta i pattern dei Secondary, un Secondary si disegna come **solo perimetro** (
 | Targeting, cursore non su un bersaglio accettato | **R** (il ventaglio sparisce: decisione d'autore in #3507) | — | #3507 | ✅ su `main` (#3513) |
 | Targeting, cursore su un bersaglio accettato | **E** | R, solo perimetro | #3512 | 🟡 |
 | Targeting, bersaglio già dichiarato | anteprima A (E al suo posto sull'hover di un altro bersaglio valido, DR-7 estesa) | R annidata: #3513 la tiene accesa finché l'azione è armata | #3512 (E sull'hover); A è già su `main` | ✅ A |
-| ResolutionPlayback, Modal | nessuna (un solo reset) | — | #3511 (reset) · #3510 (armo nel playback) | difetto aperto |
+| ResolutionPlayback, Modal | nessuna (un solo reset) | — | #3511 (reset) · #3510 (armo nel playback) | 🟡 il reset unico (#3511) resta aperto; l'armo nel playback è chiuso da #3510 ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)) |
 
 In `Targeting` V è **spenta** — proposta del panel, non ancora una decisione (Q7, da registrare su #1943) —: R è
 Primary e i Secondary non bastano. Con una
@@ -334,7 +335,7 @@ o mira).
    - una funzione d'origine consumata anche da `RefusalUnderPointerForArmed` e dal produttore di E —
      [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509) (v1 DR-1 estesa);
    - un solo ingresso misurabile e un solo reset (CX-2) — [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511);
-   - nessun armo durante il playback — [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510).
+   - nessun armo durante il playback — [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510). ✅ Chiuso da [`D-468`](../../decisions/RT_PDR_00_Decision_Log.md).
    ⚠️ **Non è un prerequisito, ma un difetto ereditato da tutte le aree**: in Shipping non si vedrebbero — [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508)
    (v1 DR-4). Finché il canale non è deciso, ogni implementazione dichiara `Packaged: NOT RUN` con questo motivo.
 2. **E** in `Targeting/Cell`, poi in `Targeting/Unit` dopo v1 DR-6 — [#3512](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3512), con #172.
