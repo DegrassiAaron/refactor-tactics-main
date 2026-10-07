@@ -1,22 +1,42 @@
 // La fotografia di una console variable per il lanciatore PIE del Lab (#3541).
 //
-// 🔑 **Perche' `SetWithCurrentPriority` e non `Set(..., ECVF_SetByConsole)`** (stesso idioma di
-// `FRTConsoleVariableGuardForTest`, #2235): `SetWithCurrentPriority` scavalca il valore digitato in console
-// **e** non cambia la priorita' (`SetBy`) della variabile. `Set(..., ECVF_SetByConsole)` fa la prima cosa
-// ma alza il «pavimento» a `Console`: dopo il ripristino la variabile resterebbe a quella priorita', e ogni
-// `Set` successivo a priorita' inferiore (`SetByCode`, un `.ini`) verrebbe ignorato con un warning. Con
-// `SetWithCurrentPriority` il `SetBy` dopo `Restore` e' quello di prima per costruzione.
+// 🔑 **Come scrive: `Set` esplicito alla priorita' `P = max(SetByPrima, ECVF_SetByCode)`**, poi rilegge.
+// `Apply` e `Restore` usano la stessa `P`, derivata una volta da `SetByPrima` catturato in `Capture`.
 //
-// Dopo ogni scrittura si **rilegge**: una variabile `ReadOnly` o un valore non parsabile restano possibili, e
-// una scrittura che non ha preso non deve passare per riuscita.
+// Perche' non le due scorciatoie:
+//  - `Set(..., ECVF_SetByConsole)` scavalca il valore digitato in console, ma alza il «pavimento»: dopo il
+//    ripristino la variabile resterebbe a `Console`, e ogni `Set` successivo a priorita' inferiore
+//    (`SetByCode`, un `.ini`) verrebbe ignorato con un warning.
+//  - `SetWithCurrentPriority` conserva la priorita', ma su una CVar **mai impostata** (la storia contiene
+//    solo `Constructor`: lo stato normale di `rt.Test.Scenario` e `rt.Debug.PlaybackControls` in un Editor
+//    appena aperto) risolve a `SETBY_ERROR` e viene rifiutato con «Trying to Replace Cvar ... Set By
+//    Constructor Value implicitly» (`ConsoleManager.cpp:986-1025`, `FindHighestPriorityAndTag` :783-810).
+//
+// In prosa, per ogni `SetBy` catturato (l'ordine e' quello di `IConsoleManager.h:155-187`: `Constructor` <
+// ... < `Commandline` (0x0D) < `Code` (0x0E) < `Temp` < `Console` (0x10), la piu' alta):
+//  - **Sotto `Code`** (`Constructor`, cioe' mai impostata, ma anche `Scalability`, ini, `Commandline`,
+//    `Hotfix`...): `P = Code`. `Apply` e `Restore` prendono. ⚠️ **Limite dichiarato**: dopo `Restore` il
+//    `SetBy` e' `Code`, non quello di prima — un `Set` a una priorita' piu' bassa di quella corrente e'
+//    rifiutato, e non si puo' scendere. Il valore e' quello di prima; il pavimento e' quello di qualunque
+//    `Set` da codice.
+//  - `Code`, `Temp`, `Console`: `P` e' la stessa priorita' di prima. `Apply` e `Restore` prendono e il
+//    `SetBy` dopo `Restore` e' quello di prima.
+//  - **Alzata DURANTE il PIE** (una riga digitata in console con `P = Code`): `Restore` non puo' scrivere —
+//    `CanChange` rifiuta —, ritorna `false` con il motivo, e la variabile resta com'e' stata alzata.
+//
+// Dopo ogni scrittura si **rilegge**: una variabile `ReadOnly`, un valore non parsabile o una priorita'
+// superiore restano possibili, e una scrittura che non ha preso non deve passare per riuscita. L'errore dice
+// quale delle tre.
+//
+// ⚠️ Diverge dall'idioma di `FRTConsoleVariableGuardForTest` (#2235), che usa `SetWithCurrentPriority`:
+// quel guard vive nei test, che impostano SEMPRE la variabile prima di fotografarla, quindi non incontrano
+// mai `Constructor`. Qui la variabile e' quella reale di un Editor appena aperto. Non si include il guard da
+// questo modulo (e' un header `ForTest`: produzione che lo include e' un odore); un helper condiviso e' un
+// FOLLOW-UP CANDIDATE.
 //
 // ⚠️ Limite dichiarato: se `Apply` non prende, la variabile su cui ha fallito NON viene ripristinata da
-// questa struct — di norma e' rimasta intatta, perche' l'unica causa reale e' `ReadOnly`. Il chiamante
-// (il lanciatore) rimette l'ALTRA variabile, quella gia' applicata, e rifiuta con il motivo.
-//
-// ⚠️ Limite dichiarato: `SetByPrima` lo legge **solo il test**; `Restore` non lo riapplica. Il «per
-// costruzione» di sopra vale se nessuno alza la priorita' DURANTE il PIE: una riga digitata in console in
-// quel tempo lascia la variabile a `Console` anche dopo `Restore`.
+// questa struct — di norma e' rimasta intatta. Il chiamante (il lanciatore) rimette l'ALTRA variabile,
+// quella gia' applicata, e rifiuta con il motivo.
 //
 // ⛔ Nessuna dipendenza da `GEditor`: la struct si prova in un automation test su una CVar di prova.
 
@@ -31,10 +51,10 @@ struct FRTLabCVarSnapshot
 	/** Cattura valore e `SetBy` di `Nome`. `false` (con il motivo) se la variabile non esiste. */
 	static bool Capture(const TCHAR* Nome, FRTLabCVarSnapshot& Out, FString& OutError);
 
-	/** Scrive `Valore` con la priorita' corrente e rilegge. `false` (con il motivo) se non ha preso. */
+	/** Scrive `Valore` a `max(SetByPrima, Code)` e rilegge. `false` (con il motivo) se non ha preso. */
 	bool Apply(const FString& Valore, FString& OutError) const;
 
-	/** Riscrive `ValorePrima` con la priorita' corrente e rilegge. `false` (con il motivo) se non ha preso. */
+	/** Riscrive `ValorePrima` a `max(SetByPrima, Code)` e rilegge. `false` (con il motivo) se non ha preso. */
 	bool Restore(FString& OutError) const;
 
 	FString Nome;

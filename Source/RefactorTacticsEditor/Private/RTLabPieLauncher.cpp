@@ -25,9 +25,10 @@ namespace
 	TUniquePtr<FRTLabPieRestore> GRipristino;
 
 	/**
-	 * Riscrive i valori catturati — con `SetWithCurrentPriority`, quindi anche il `SetBy` torna quello di
-	 * prima — e si sgancia. Un ripristino che non prende si dichiara nel log: nessuno guarda l'Editor in quel
-	 * momento, e una CVar rimasta sul valore del banco farebbe giocare lo scenario sbagliato al PIE dopo.
+	 * Riscrive i valori catturati — `FRTLabCVarSnapshot::Restore`, `Set` a `max(SetByPrima, Code)`: il `SetBy`
+	 * torna quello di prima, salvo il limite dichiarato nell'header per una CVar mai impostata — e si sgancia.
+	 * Un ripristino che non prende si dichiara nel log: nessuno guarda l'Editor in quel momento, e una CVar
+	 * rimasta sul valore del banco farebbe giocare lo scenario sbagliato al PIE dopo.
 	 */
 	void Ripristina()
 	{
@@ -115,10 +116,11 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFu
 	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Test.Scenario"), Nuovo->Scenario, OutError)) { return false; }
 	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Debug.PlaybackControls"), Nuovo->PlaybackControls, OutError)) { return false; }
 
-	// 🔑 `Apply` scrive con `SetWithCurrentPriority` (#3541): vince su un valore digitato in console — un
-	// `Set` a priorita' inferiore verrebbe ignorato, e il banco giocherebbe lo scenario sbagliato credendo di
-	// aver scelto — **senza alzare il pavimento** della variabile. E rilegge: se non ha preso, il lancio si
-	// rifiuta con il motivo invece di partire su uno scenario che non e' quello scelto.
+	// 🔑 `Apply` scrive con `Set` a `max(SetByPrima, Code)` (#3541): vince su un valore digitato in console —
+	// un `Set` a priorita' inferiore verrebbe ignorato, e il banco giocherebbe lo scenario sbagliato credendo
+	// di aver scelto — **senza alzare il pavimento** della variabile, e funziona anche su una CVar mai
+	// impostata (dove `SetWithCurrentPriority` risolverebbe a `SETBY_ERROR`). E rilegge: se non ha preso, il
+	// lancio si rifiuta con il motivo invece di partire su uno scenario che non e' quello scelto.
 	if (!Nuovo->Scenario.Apply(ScenarioId, OutError)) { return false; }
 	if (!Nuovo->PlaybackControls.Apply(TEXT("1"), OutError))
 	{

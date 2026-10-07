@@ -21,6 +21,13 @@
 // la STESSA board e l'asserzione finale passerebbe a vuoto»*. Un guard che non prende e non lo dice
 // trasforma un test in un rituale.
 //
+// ⚠️ **Presuppone che la variabile sia GIA' stata impostata prima di fotografarla.** Su una CVar mai
+// impostata (storia = solo `Constructor`) `SetWithCurrentPriority` risolve a `SETBY_ERROR` e viene
+// rifiutato (`ConsoleManager.cpp:986-1025`): i test di questo repository impostano sempre prima, quindi non
+// la incontrano. `FRTLabCVarSnapshot` (modulo Editor, #3541) invece fotografa la variabile reale di un
+// Editor appena aperto e scrive con `Set` esplicito a `max(SetByPrima, Code)`: la differenza e' voluta, e
+// spiegata nel suo header. Un helper condiviso fra i due e' un FOLLOW-UP CANDIDATE.
+//
 // ⛔ **Namespace NOMINATO e funzioni `inline`**, come `RTWidgetAssetTestHelpers.h` e per le stesse due
 // ragioni: una copia per unita' di traduzione e' codice duplicato nel binario, e un helper anonimo in un
 // header e' una trappola ODR. Una funzione **non** `inline` qui sarebbe invece la collisione vera, ed e'

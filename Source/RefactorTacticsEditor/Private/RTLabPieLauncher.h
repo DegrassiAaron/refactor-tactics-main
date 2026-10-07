@@ -16,7 +16,7 @@ class FRTLabPieLauncher
 public:
 	/**
 	 * Imposta `rt.Test.Scenario` su `ScenarioId` e `rt.Debug.PlaybackControls` su `1` — entrambe con
-	 * `FRTLabCVarSnapshot::Apply`, cioe' `SetWithCurrentPriority`: vince su un valore gia' digitato in
+	 * `FRTLabCVarSnapshot::Apply`, cioe' `Set` a `max(SetByPrima, Code)`: vince su un valore gia' digitato in
 	 * console senza alzare la priorita' della variabile — e chiede PIE su `L_DevSandbox` tramite
 	 * `GlobalMapOverride`, senza toccare il livello aperto nell'Editor.
 	 *
