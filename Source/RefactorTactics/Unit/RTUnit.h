@@ -844,12 +844,45 @@ public:
 	 * 🔴 **Sta qui perche' ha due consumatori, e la seconda copia sarebbe divergibile.** Oltre al resolver la
 	 * chiede l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast, quindi chi
 	 * carica e poi spara agisce da dove e' arrivato. Finche' la condizione stava solo dentro `ResolveDash`,
-	 * l'anteprima non aveva modo di porre la domanda senza riscriverla.
+	 * l'anteprima non aveva modo di porre la domanda senza riscriverla. ⚠️ Da [D-471] l'anteprima la chiede
+	 * attraverso `PlannedDashMoves()`, che aggiunge il rifiuto dello stato.
 	 *
 	 * ⚠️ **Non promette la cella d'arrivo.** `ResolveDash` risolve la collisione simultanea (CP 4.8) e puo'
 	 * fermare lo scatto prima della destinazione: questa risponde «lo scatto parte», non «lo scatto arriva».
 	 */
 	bool PlannedDashApplies() const;
+
+	/** Vero se lo scatto pianificato e' una carica (`LinearCharge`): la sua `PlannedDashCell` e' il bersaglio ([D-296]). */
+	bool PlannedDashIsCharge() const;
+
+	/**
+	 * Vero se lo STATO dell'unita' nega lo scatto pianificato: `Status.Unbalanced` e una mobilita' rapida non
+	 * lineare ([D-319]). Chi ha perso l'equilibrio non sceglie celle una per una correndo, mentre uno slancio
+	 * lineare gia' deciso puo' ancora compierlo.
+	 *
+	 * 🔑 **Una regola, due lettori** ([D-471]): `ARTTurnManager::ResolveDash` per il suo rifiuto dichiarato nel
+	 * TurnLog, `PlannedDashMoves()` per tutti gli altri. Prima la condizione stava scritta dentro il resolver, e
+	 * l'anteprima non la conosceva.
+	 */
+	bool PlannedDashDeniedByStatus() const;
+
+	/**
+	 * 🔑 **Lo scatto pianificato SPOSTA l'unita'** ([D-471]): `PlannedDashApplies()`, e lo stato non lo nega.
+	 *
+	 * E' la domanda di chi deve sapere dove l'unita' sara' dopo il Dash: l'origine di mira (`AimOriginFor`), le
+	 * anteprime, il verso dichiarato. ⛔ Il resolver non la chiede: chiede `PlannedDashApplies()` e poi
+	 * `PlannedDashDeniedByStatus()`, perche' quel rifiuto ha una voce sua nel TurnLog.
+	 */
+	bool PlannedDashMoves() const;
+
+	/**
+	 * Da dove mira quest'unita' un'azione della fase `Phase`, col piano di scatto che ha adesso ([D-464]).
+	 *
+	 * 🔑 **Compone `URTHexCombatLibrary::AimOriginCell` e basta**: la regola sta li', e qui si leggono solo i suoi
+	 * ingressi dal piano. La chiedono i due click, lo slot (`Invalid` e `Warning`), le anteprime e la portata, e
+	 * devono porre tutti la stessa domanda — e' il difetto che #3509 chiude.
+	 */
+	FRTCellId AimOriginFor(ERTResolutionPhase Phase) const;
 
 	/** Cooldown residuo (turni) di un'abilita'. */
 	int32 GetAbilityCooldown(int32 Index) const;

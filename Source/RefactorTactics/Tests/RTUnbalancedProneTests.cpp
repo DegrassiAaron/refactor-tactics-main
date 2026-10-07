@@ -1457,4 +1457,105 @@ bool FRTStunSilencesTheWatcherTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// 5. Lo scatto A BUDGET negato dallo stato: il ramo di `ResolveDash` che il catalogo non raggiunge ([D-471])
+// =========================================================================================================
+namespace
+{
+	/** La voce del rifiuto di `ResolveDash` per questa unita', o `nullptr`. */
+	const FRTTurnLogEntry* BudgetDashRefusalOf(const ARTTurnManager* TM, const ARTUnit* Unit)
+	{
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.UnitId == Unit->StableUnitId
+				&& E.Phase == ERTMatchPhase::Dash
+				&& E.Outcome == static_cast<uint8>(ERTFallbackOutcome::Cancelled)
+				&& E.Amount == static_cast<int32>(ERTActionInvalidReason::Unbalanced))
+			{
+				return &E;
+			}
+		}
+		return nullptr;
+	}
+
+	/**
+	 * Un turno con uno scatto pianificato di DUE celle: `Action.Dodge`, con lo stile che chiede il test.
+	 * Torna la cella dell'unita' a turno risolto, e la voce del rifiuto se c'e'.
+	 */
+	FRTCellId RunBudgetDashTurn(FAutomationTestBase& Test, ERTMovementStyle Stile, bool bSbilanciato,
+		bool& bOutRifiutato)
+	{
+		bOutRifiutato = false;
+		UWorld* World = MakeFallWorld();
+		if (!Test.TestNotNull(TEXT("world di prova"), World)) { return FRTCellId(); }
+		SpawnFallMap(World, /*Radius=*/ 6);
+		ARTUnit* Runner = SpawnFallUnit(World, 0, FRTCellId(0, 0));
+		ARTUnit* Foe = SpawnFallUnit(World, 1, FRTCellId(-6, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Runner || !Foe) { DestroyFallWorld(World); return FRTCellId(); }
+		NeutralizeAllIntents(Foe);
+		NeutralizeAllIntents(Runner);
+
+		// 🔑 **L'azione si COSTRUISCE**: nessuna mobilita' rapida spedita e' a budget, quindi il ramo si raggiunge
+		// solo cosi'. `Action.Dodge` resta `FastMovement`; cambia il solo stile, che e' cio' che il criterio legge.
+		const int32 Scatto = RTAbilityFixtures::AddCoreAbility(Runner, TEXT("Action.Dodge"));
+		if (!Test.TestTrue(TEXT("premessa: Action.Dodge e' nel catalogo core"), Scatto != INDEX_NONE))
+		{
+			DestroyFallWorld(World);
+			return FRTCellId();
+		}
+		Runner->GetAbility(Scatto)->Def.MovementStyle = Stile;
+		if (bSbilanciato)
+		{
+			Runner->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+		}
+		Runner->PlannedDashAbility = Scatto;
+		Runner->PlannedDashCell = FRTCellId(2, 0);
+		Test.TestTrue(TEXT("premessa: lo scatto si applica, per la regola del catalogo"), Runner->PlannedDashApplies());
+
+		RunFallTurn(TM);
+		const FRTCellId Arrivo = Runner->Cell;
+		bOutRifiutato = BudgetDashRefusalOf(TM, Runner) != nullptr;
+		DestroyFallWorld(World);
+		return Arrivo;
+	}
+}
+
+/**
+ * **`Unbalanced` nega lo scatto a BUDGET** ([D-319], [D-471]): l'unita' resta ferma, e il rifiuto ha la sua voce.
+ *
+ * Fino a [D-471] la condizione era scritta dentro `ResolveDash`; ora e' `ARTUnit::PlannedDashDeniedByStatus()`,
+ * la stessa che anteprima e mira leggono. Questo test pinna che il resolver non e' cambiato: stessa voce, stesso
+ * esito. ⚠️ Nessun test lo raggiungeva prima: da [D-425] lo `Sprint` non e' piu' una mobilita' rapida.
+ *
+ * 🔴 **Due controlli positivi**, perche' l'asserzione principale e' negativa — «non si e' mosso» e' vera anche per
+ * una mappa che non lo permette. Lo stesso scatto SENZA lo stato arriva; uno scatto LINEARE con lo stato arriva
+ * anche lui, perche' [D-319] nega la corsa, non lo slancio.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBudgetDashRefusedWhileUnbalancedTest,
+	"RefactorTactics.Status.BudgetDashRefusedWhileUnbalanced",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBudgetDashRefusedWhileUnbalancedTest::RunTest(const FString&)
+{
+	const FRTCellId Partenza(0, 0);
+	const FRTCellId Meta(2, 0);
+	bool bRifiutato = false;
+
+	// CONTROLLO 1 — lo stesso scatto a budget, senza lo stato: arriva, e nessun rifiuto.
+	const FRTCellId SenzaStato = RunBudgetDashTurn(*this, ERTMovementStyle::Budget, /*bSbilanciato=*/ false, bRifiutato);
+	TestEqual(TEXT("controllo: senza Unbalanced lo scatto a budget arriva"), SenzaStato, Meta);
+	TestFalse(TEXT("controllo: e non lascia un rifiuto"), bRifiutato);
+
+	// IL CUORE — con lo stato resta fermo, e il rifiuto e' dichiarato.
+	const FRTCellId ConStato = RunBudgetDashTurn(*this, ERTMovementStyle::Budget, /*bSbilanciato=*/ true, bRifiutato);
+	TestEqual(TEXT("Unbalanced: lo scatto a budget non parte"), ConStato, Partenza);
+	TestTrue(TEXT("e il TurnLog dice perche' (Fallback/Cancelled, motivo Unbalanced)"), bRifiutato);
+
+	// CONTROLLO 2 — lo slancio lineare, con lo stato: arriva lo stesso.
+	const FRTCellId Lineare = RunBudgetDashTurn(*this, ERTMovementStyle::LinearDash, /*bSbilanciato=*/ true, bRifiutato);
+	TestEqual(TEXT("controllo: uno scatto lineare con Unbalanced arriva"), Lineare, Meta);
+	TestFalse(TEXT("controllo: e non lascia un rifiuto"), bRifiutato);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -15,6 +15,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTOverlayPalette.h"
+#include "Map/RTPlaybackTracer.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "RTConsoleVariableGuardForTest.h"
 
@@ -133,6 +134,50 @@ bool FRTPreviewDrawsWithDebugDrawingOffTest::RunTest(const FString&)
 	}
 	TestEqual(TEXT("il ventaglio ha il colore Movement della palette"), LineeMovimento, Ventaglio.Num() * 6);
 	TestTrue(TEXT("ogni linea dura un fotogramma, come con DrawDebugLine"), bDurataDiUnFotogramma);
+
+	DestroyLineeAnteprimaWorld(World);
+	return true;
+}
+
+// Il tracer del playback si disegna anche col debug spento (`#2454`), come l'anteprima (`#3508`, D-467).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPreviewTracerDrawsWithDebugDrawingOffTest,
+	"RefactorTactics.Preview.TracerDrawsWithDebugDrawingOff",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPreviewTracerDrawsWithDebugDrawingOffTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLineeAnteprimaWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+
+	ULineBatchComponent* Primo = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground);
+	IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EnableDrawDebugHelpers"));
+	if (!TestTrue(TEXT("premessa: batcher Foreground e CVar di debug presenti"), Primo != nullptr && Debug != nullptr))
+	{
+		DestroyLineeAnteprimaWorld(World);
+		return false;
+	}
+	RTTestConsoleVariable::TGuardia<int32> DebugSpento(*Debug, 0);
+
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("HexMap spawnato"), HexMap)) { DestroyLineeAnteprimaWorld(World); return false; }
+	HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+
+	FRTPlaybackTracer T;
+	T.From = FRTCellId(0, 0);
+	T.To = FRTCellId(2, 0);
+	T.Alpha = 0.5f;
+	T.Style = ERTTracerStyle::Projectile;
+	HexMap->SetPlaybackTracers({ T });
+
+	Primo->Flush();
+	static_cast<AActor*>(HexMap)->Tick(0.f);
+
+	// 🔑 Un tracer, UNA linea, nel batcher Foreground: attraversa le unita' come la linea di mira.
+	TestEqual(TEXT("una linea nel batcher Foreground per il tracer"), Primo->BatchedLines.Num(), 1);
+	if (Primo->BatchedLines.Num() == 1)
+	{
+		const FLinearColor Attacco(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack));
+		TestTrue(TEXT("col colore Attack della palette"), Primo->BatchedLines[0].Color.Equals(Attacco));
+	}
 
 	DestroyLineeAnteprimaWorld(World);
 	return true;

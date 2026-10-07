@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Map/RTPlaybackTracer.h"
 #include "Turn/RTTurnRules.h"
 // FRTResolvedEvent: il confine di azione si legge sulla timeline gia' risolta (`#2857`). L'inclusione non
 // e' circolare — `RTResolvedEvent.h` non include questo header.
@@ -45,9 +46,12 @@ enum class ERTPlaybackStopAt : uint8
 	 * il prossimo confine di fase se arriva prima.
 	 *
 	 * 🔑 **La fase conta come confine d'atto, e non e' una scorciatoia.** Il tempo del playback scorre per
-	 * fase, e l'unica sequenza che esso srotola un elemento per volta sono i colpi del `Blast`
-	 * (`AttacksToShow`). Un `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il
-	 * confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
+	 * fase, e le sequenze che esso srotola un elemento per volta sono le attivazioni di `Prep` e `Dash` e la
+	 * sequenza per intento del `Blast` (#3549), percorsa sui battiti di `AttackBeatsDue` (`#2454`). ⚠️ Il confine
+	 * d'atto di un colpo cade al suo ARRIVO, non al lancio: e' li' che il colpo si mostra — e un colpo che segue la
+	 * propria attivazione o impronta non apre un atto, perche' la coppia `(sorgente, azione)` e' la stessa. Un
+	 * `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il confine di fase: fermarsi li' e' la
+	 * risposta giusta, non un ripiego.
 	 */
 	NextAction
 };
@@ -210,6 +214,66 @@ public:
 		int32 NumStructureHits, int32 NumActivations);
 
 	/**
+	 * Il segmento da disegnare per un tracer (`#2454`). Pura: estremi nel mondo, avanzamento, lunghezza del dardo.
+	 *
+	 * - `Jet`: dall'origine fino al punto raggiunto — ancorato.
+	 * - `Projectile`: un dardo lungo al piu' `DashLength` che termina nel punto raggiunto — staccato.
+	 * - `None`: un segmento degenere (i due estremi coincidono).
+	 * `Alpha` si taglia in [0,1]: un avanzamento oltre la fine non supera l'impatto.
+	 */
+	static void TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+		float DashLength, FVector& OutStart, FVector& OutEnd);
+
+	/**
+	 * Il volo effettivo di un colpo (`#2454`, spec §2.3): `Min(TracerFlightSeconds, A/2)` se idoneo, 0 altrimenti.
+	 *
+	 * 🔑 Il tetto a `A/2` e' cio' che tiene il Blast della sua durata: l'arrivo di un colpo precede il lancio del
+	 * successivo, e l'ultimo arrivo cade prima di `N·A` — la durata che `PhaseTime` gia' calcola.
+	 * Con `AttackShowSeconds <= 0` non c'e' scaglionamento, quindi nemmeno volo.
+	 */
+	static float TracerFlightFor(bool bEligible, float TracerFlightSeconds, float AttackShowSeconds);
+
+	/**
+	 * L'istante del LANCIO del colpo `AttackIndex`, dall'inizio del Blast: `i·A` (con `A` tagliato a 0), lo stesso
+	 * istante di `AttacksToShow`.
+	 * 🔑 **Un'unica formula**: la usano `AttackBeatSeconds` e `TracerAlpha`. Il battito e l'avanzamento del tracer
+	 * misurano dallo stesso istante, e una copia che divergesse sfaserebbe il segmento dal suo numero.
+	 */
+	static float AttackLaunchSeconds(int32 AttackIndex, float AttackShowSeconds);
+
+	/**
+	 * L'istante di un battito, misurato dall'inizio del Blast. Il battito `2i` e' il LANCIO del colpo `i`
+	 * (`AttackLaunchSeconds`), il `2i+1` il suo ARRIVO (`AttackLaunchSeconds + Flights[i]`).
+	 */
+	static float AttackBeatSeconds(int32 Beat, float AttackShowSeconds, const TArray<float>& Flights);
+
+	/**
+	 * Quanti battiti sono usciti a `PhaseElapsed`: la lunghezza del prefisso con istante `<= t`.
+	 * ⚠️ E' un PREFISSO perche' la sequenza e' monotona (`Flights[i] <= A/2`): chi la percorre con un cursore
+	 * solo vede `L0, A0, L1, A1, ...` anche in un tick lungo. Con `A <= 0` escono tutti.
+	 * 🔑 **Il playback le passa i voli della SEQUENZA del Blast** (#3549 con `#2454`), uno per elemento e zero per
+	 * ogni elemento che non e' un colpo idoneo: l'indice `i` e' allora la posizione nella sequenza, e con voli nulli
+	 * il battito `2i` cade dove `AttacksToShow` rivelerebbe l'elemento `i`.
+	 */
+	static int32 AttackBeatsDue(float PhaseElapsed, float AttackShowSeconds, const TArray<float>& Flights);
+
+	/** L'avanzamento in [0,1] del tracer del colpo `AttackIndex`; senza volo vale 1. */
+	static float TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight);
+
+	/**
+	 * Le condizioni 1-3 della spec §2.1: un `Attack` di un attacco base (`ActionId` OPPURE `BaseActionId` ==
+	 * `Action.BasicAttack`), di forma `Single` o `Line`, con geometria risolta. Decide il RITMO: non legge chi guarda.
+	 * ⚠️ Idoneita' PROVVISORIA e dichiarata: la sostituisce la tabella `ActionId -> profilo` del sotto-progetto 4.
+	 */
+	static bool IsTracerEligible(const FRTResolvedEvent& Ev);
+
+	/**
+	 * Lo stile del tracer per chi guarda: `None` se non idoneo, o se la squadra non conosceva l'attaccante in
+	 * `From` OPPURE la vittima in `Impact` (spec §0.3, P1). Decide il DISEGNO, mai il ritmo.
+	 */
+	static ERTTracerStyle TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *
 	 * `MaxMoveSegments` e' il percorso PIU' LUNGO fra quelli riprodotti in questa fase, non la loro somma:
@@ -218,10 +282,14 @@ public:
 	 *  - `Dash` / `Move`  → `MaxMoveSegments / CellsPerSecond`. Gli attacchi non entrano.
 	 *  - `Blast`          → `Max(sequenza, spinta)`: la sequenza per intento (#3549, D5) si svela un elemento
 	 *                       per volta, quindi la fase dura quanto la SEQUENZA, non quanto il canale piu'
-	 *                       lungo. Il tempo ha un pavimento di uno anche quando non c'e' nulla da scaglionare,
-	 *                       perche' un Blast di sola spinta si vede e deve durare.
+	 *                       lungo. Il cursore e' sui battiti (`AttackBeatsDue`, `#2454`): l'elemento `k` esce a
+	 *                       `k·A` — per un colpo e' il LANCIO — e un colpo ARRIVA entro `k·A + A/2`, prima
+	 *                       dell'elemento dopo; il volo non allunga la fase. Il tempo ha un pavimento di uno
+	 *                       anche quando non c'e' nulla da scaglionare, perche' un Blast di sola spinta si vede
+	 *                       e deve durare.
 	 *                       ⏱️ *Fino a #3549 era il `Max` fra i canali paralleli (colpi, muri da `#2828`,
-	 *                       impronte da `#3278`). Ogni volta il difetto era lo stesso: il canale apriva la
+	 *                       impronte da `#3278`; i colpi su `AttackBeatsDue` da `#2454`). Ogni volta il difetto
+	 *                       era lo stesso: il canale apriva la
 	 *                       fase e non la dimensionava, e cio' che non faceva in tempo usciva dal catch-all
 	 *                       nello stesso fotogramma.*
 	 *  - ogni altra fase  → un beat (`PhaseBeatSeconds`).

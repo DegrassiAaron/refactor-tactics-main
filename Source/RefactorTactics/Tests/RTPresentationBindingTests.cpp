@@ -545,8 +545,8 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
  * ⚠️ **Questo test non chiede che esista una cue qualsiasi: chiede che sia QUELLA.** Asserire il solo
  * `Kind == Cues` lascerebbe verde una voce che nomina un effetto mai scritto — la lista di intenzioni che
  * `#2483` vieta. Il nome asserito qui e' una funzione che il C++ chiama davvero
- * (`ARTHexMapActor::AddPlaybackStructureHit`, invocata da `ARTTurnManager::RevealBlastSequence` — ⏱️ *fino a
- * #3549 da `RevealPlaybackStructureHits`*).
+ * (`ARTHexMapActor::AddPlaybackStructureHit`, invocata da `ARTTurnManager::AdvanceBlastSequence` — ⏱️ *fino a
+ * #3549 da `RevealPlaybackStructureHits`, poi da `RevealBlastSequence` fino al merge di `#2454`*).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationStructureHitHasDeclaredBindingTest,
 	"RefactorTactics.Presentation.StructureHitHasDeclaredBinding",

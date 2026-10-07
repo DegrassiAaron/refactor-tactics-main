@@ -634,6 +634,23 @@ public:
 	const TArray<FRTResolvedEvent>& ResolvedTimelineForTest() const { return ResolvedTimeline; }
 
 	/**
+	 * Spegne il riempimento di `FRTResolvedEvent::HitGeometry` (`#2454`). Esiste per un test solo —
+	 * `Determinism.HitGeometryStaysOutOfHashes` — che confronta gli hash dello stesso turno con e senza.
+	 */
+	bool bSkipHitGeometryForTest = false;
+
+	/** Registra i battiti del Blast in `AttackBeatTraceForTest` (`L<i>` lancio, `A<i>` arrivo). Solo test. */
+	bool bRecordAttackBeatsForTest = false;
+	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
+
+	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test. */
+	ERTMatchPhase CurrentPlaybackPhaseForTest() const
+	{
+		return (bIsResolving && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)) ? PlaybackPhases[PlaybackPhaseIdx]
+			: ERTMatchPhase::Planning;
+	}
+
+	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
 	 *
 	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:
@@ -653,8 +670,11 @@ public:
 	/** L'indice di cella dell'anim di `Unit` nella fase di playback corrente; `INDEX_NONE` se non ne ha una (#3549). */
 	int32 PlaybackAnimCellIndexForTest(const ARTUnit* Unit) const;
 
-	/** Quanti elementi della sequenza di Blast sono gia' stati mostrati: il prefisso congelato di D-355 (#3549). */
-	int32 PlaybackBlastShownForTest() const { return BlastShown; }
+	/**
+	 * Quanti elementi della sequenza di Blast sono gia' stati RIVELATI: il prefisso congelato di D-355 (#3549). Un
+	 * colpo lanciato e non ancora arrivato ne fa gia' parte (`#2454`).
+	 */
+	int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }
 
 	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
 	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
@@ -1280,6 +1300,14 @@ public:
 	/** Durata di visualizzazione di ogni colpo nel Blast (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float AttackShowSeconds = 0.50f;
+
+	/**
+	 * Tempo di volo del tracer di un attacco base (`#2454`): il colpo parte col lancio e il numero compare
+	 * all'arrivo. ⚠️ Tagliato a `AttackShowSeconds / 2` da `URTPlaybackLibrary::TracerFlightFor`, cosi' il Blast
+	 * non si allunga; con `AttackShowSeconds <= 0` non c'e' volo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float TracerFlightSeconds = 0.25f;
 
 	/**
 	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
@@ -2364,21 +2392,53 @@ protected:
 	bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo);
 
 	/**
-	 * Rivela la sequenza di Blast fino a `UpTo`, un ramo per tipo; `true` se un confine ha messo in pausa (#3549).
+	 * Percorre la sequenza di Blast sul cursore dei battiti fino a `BeatsTarget` (#3549 D5 con `#2454`); `true` se il
+	 * tick deve uscire: un confine d'atto ha messo in pausa, o un ascoltatore di `OnAttackResolved` ha chiuso il
+	 * playback.
+	 *
+	 * 🔑 **Un cursore solo, `BlastBeatsDone`, sugli elementi della sequenza**: il battito `2k` RIVELA l'elemento `k`
+	 * — un ramo per tipo; per un `Attack` e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che fa qualcosa solo per un
+	 * `Attack` (`Hit`, numero, `Colpo:`, `OnAttackResolved`). Il volo e' `PlaybackBlastFlights[k]`, zero per ogni
+	 * altro tipo, quindi l'elemento `k` esce a `k·A` come con `AttacksToShow` e l'arrivo cade prima di `k+1`.
+	 * ⛔ Due cursori — la sequenza da una parte, i colpi dall'altra — in un tick lungo rivelerebbero l'elemento dopo
+	 * prima dell'arrivo del colpo: e' la stessa ragione per cui `#2454` ne ha uno.
 	 *
 	 * ⛔ **Non riordina, non aggrega e non ricalcola**: l'ordine e' quello che `BuildBlastSequence` ha deciso, le
 	 * celle dell'impronta e il bordo del muro si LEGGONO dall'evento (`#2454`, `#2828`).
+	 * ⚠️ Il confine `Next Action` di un colpo cade al suo ARRIVO (`#2454`), quello di ogni altro elemento alla
+	 * rivelazione: un colpo e' mostrato quando arriva.
 	 */
-	bool RevealBlastSequence(int32 UpTo);
+	bool AdvanceBlastSequence(int32 BeatsTarget);
+
+	/** Quanti elementi della sequenza di Blast sono gia' stati RIVELATI: il prefisso congelato di D-355. */
+	int32 BlastElementsShown() const { return (BlastBeatsDone + 1) / 2; }
+
+	/** Il numero d'ordine del colpo fra i soli `Attack` della sequenza, per la traccia dei battiti dei test. */
+	int32 BlastAttackOrdinal(int32 SequenceIndex) const;
 
 	/** Aggiorna l'atto in corso e consuma un `Next Action` armato: la regola e' `IsActBoundary` (#3292, #3549). */
 	bool NotePlaybackActShown(const FRTResolvedEvent& Ev);
 
-	/** Il colpo: riga `Colpo:`, ruoli `Attack`/`Hit`, token, broadcast — il corpo del vecchio ciclo dei colpi. */
-	void ShowPlaybackAttack(const FRTResolvedEvent& Atk);
-
 	/** Quanto la fase spende in attivazioni PRIMA delle rotte: solo il Dash ne ha (#3549, spec §2.4). */
 	float PlaybackActivationLeadSeconds(ERTMatchPhase InPhase) const;
+
+	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. `AttackOrdinal` serve solo alla traccia. */
+	void LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
+	/**
+	 * L'ARRIVO di un colpo (`#2454`): la riga `Colpo:`, `Hit`, numero e `OnAttackResolved`.
+	 * ⚠️ **Scrive la riga anche dalla rete di fine fase** (#3549, spec «il momento» §6): la rete percorre lo
+	 * stesso cursore del ciclo, e un recupero che tacesse il feed sarebbe una seconda versione dello stesso fatto.
+	 * ⛔ Trasmette `OnAttackResolved`: un ascoltatore puo' chiudere il playback, e chi chiama lo verifica prima di
+	 * rileggere qualunque stato del playback.
+	 */
+	void ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
+
+	/**
+	 * Consegna alla mappa il tracer in volo (`#2454`). Col cursore unico ce n'e' AL PIU' UNO: l'elemento dopo
+	 * segue l'arrivo del colpo. Il disegno dipende da chi guarda (`TracerStyleFor`), il ritmo no.
+	 * ⚠️ Non tocca la mappa se non c'e' nulla in volo e l'ultima consegna era gia' vuota (`bPlaybackTracerChannelFull`).
+	 */
+	void PushPlaybackTracers();
 
 	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
@@ -3359,7 +3419,7 @@ private:
 	 * svelavano con contatori indipendenti: «l'attivazione precede il colpo dello stesso intento» non
 	 * discendeva dall'ordine delle code. La costruisce `URTPlaybackLibrary::BuildBlastSequence`.
 	 *
-	 * ⚠️ **Un elemento e' un indice di timeline, e il tipo lo DICHIARA l'evento.** `RevealBlastSequence` sceglie
+	 * ⚠️ **Un elemento e' un indice di timeline, e il tipo lo DICHIARA l'evento.** `AdvanceBlastSequence` sceglie
 	 * la cue per `Type` — un `Attack` per VITTIMA, un'impronta per INTENTO ([D-301]: l'area su sole celle vuote
 	 * ha un'impronta e zero colpi), un muro per BORDO — e non chiede mai a un colpo se sia un muro: e' la logica
 	 * nella presentazione che [D-278] vieta, e la ragione per cui i muri avevano un array proprio.
@@ -3399,7 +3459,30 @@ private:
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
 	int32 ActivationsShown = 0;             // attivazioni gia' rivelate nella fase corrente (Prep o Dash), #3549
-	int32 BlastShown = 0;                   // elementi della sequenza di Blast gia' rivelati; prefisso congelato di D-355
+	/**
+	 * Battiti gia' eseguiti nel Blast corrente, sulla SEQUENZA per intento (#3549 D5 con `#2454`): il `2k` RIVELA
+	 * l'elemento `k` — per un colpo e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che conta solo per un colpo.
+	 * ⛔ Un cursore solo: due contatori separati, in un tick lungo, rivelerebbero l'elemento `k+1` prima dell'arrivo
+	 * di `k`. `BlastElementsShown()` ne deriva il prefisso congelato di D-355. Si azzera in `EnterPlaybackPhase` e
+	 * in `FinishPlayback`, MAI in `BeginPlayback` (l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`).
+	 * ⏱️ *Fino al merge di #2454 in #3549 erano due: `BlastShown` sulla sequenza e `AttackBeatsDone` sui soli colpi.*
+	 */
+	int32 BlastBeatsDone = 0;
+	/**
+	 * `true` se l'ultima consegna a `ARTHexMapActor::SetPlaybackTracers` non era vuota (`#2454`): permette a
+	 * `PushPlaybackTracers` di non toccare la mappa a ogni tick quando non c'e' nulla in volo e nulla da spegnere.
+	 * ⛔ Si azzera ESATTAMENTE dove il canale si spegne (finalizzazione del `Blast` e `FinishPlayback`).
+	 */
+	bool bPlaybackTracerChannelFull = false;
+	/**
+	 * Il volo di ogni elemento, parallelo a `PlaybackBlastSequence` (`URTPlaybackLibrary::TracerFlightFor`): zero per
+	 * ogni elemento che non e' un colpo idoneo, quindi il suo arrivo coincide con la rivelazione.
+	 */
+	TArray<float> PlaybackBlastFlights;
+	/** La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer, mai il ritmo. */
+	int32 PlaybackViewerTeamId = 0;
+	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`): `L<i>`/`A<i>`, `i` = ordine fra i soli colpi. */
+	TArray<FString> AttackBeatTrace;
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.

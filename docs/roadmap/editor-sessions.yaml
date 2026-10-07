@@ -5094,6 +5094,25 @@ sessions:
       Ratificata dall'autore il 2026-10-07. I follow-up #3541 e #3542 hanno poi cambiato il meccanismo dei
       criteri (1) e (3) e aggiunto il (5): la rigiudicazione a schermo la porta #3546, non questa seduta.
 
+  - id: U68
+    title: Il colpo che parte e arriva — il tracer degli attacchi base
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: verdetto su PIE-V01-TRACER, aperta insieme alla sua feature
+    artifacts: []
+    unblocked_by: []
+    # Vuoto e misurato al merge: la feature e' in `main` con la PR di #2454, e la voce nomina i propri test
+    # headless verdi. Cio' che manca e' un occhio.
+    verifies:
+      - PIE-V01-TRACER
+    issues: [2454]
+    done_when: ogni voce elencata in `verifies` ha esito reale nel registro
+    unblocks: []
+    notes: >-
+      Tre scene su scenari del corpus, una domanda ciascuna. La terza e' la privacy: un tracer che partisse
+      dalla cella di un attaccante non visto la rivelerebbe. Per il tiro alla cieca vedi PIE-V01-BLINDFIRE.
+
   - id: U69
     title: Il momento — il beat di cast sulla sorgente (AbilityActivated)
     block: 6

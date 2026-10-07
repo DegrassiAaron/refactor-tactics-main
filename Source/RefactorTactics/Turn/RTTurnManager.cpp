@@ -4652,6 +4652,8 @@ void ARTTurnManager::ResolveDash()
 		// l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast. Il flag
 		// legacy `bDash` non esiste piu' (#142).
 		const bool bDashApplies = Unit->PlannedDashApplies();
+		// [D-471]: il rifiuto dello stato si legge QUI, prima del consumo, per la stessa ragione della riga sopra.
+		const bool bNegatoDalloStato = Unit->PlannedDashDeniedByStatus();
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 
@@ -4661,10 +4663,16 @@ void ARTTurnManager::ResolveDash()
 		}
 
 		// `Status.Unbalanced` NEGA la corsa ([D-319], `#2253`). Il criterio e' lo STILE dichiarato dal
-		// catalogo — mobilita' rapida a BUDGET, oggi il solo `Action.Sprint` — e non l'`ActionId`: chi ha
-		// perso l'equilibrio non sceglie celle una per una correndo, mentre uno slancio lineare gia' deciso
-		// puo' ancora compierlo. Un confronto sul nome lascerebbe fuori la prossima azione a budget senza
-		// che nulla diventi rosso.
+		// catalogo — mobilita' rapida a BUDGET — e non l'`ActionId`: chi ha perso l'equilibrio non sceglie celle
+		// una per una correndo, mentre uno slancio lineare gia' deciso puo' ancora compierlo. Un confronto sul
+		// nome lascerebbe fuori la prossima azione a budget senza che nulla diventi rosso.
+		//
+		// ⏱️ *Fino al 2026-10-07 diceva «oggi il solo `Action.Sprint`»*: da [D-425] lo `Sprint` e' un
+		// `NormalMovement`, e ogni mobilita' rapida spedita e' lineare. Il ramo oggi non si raggiunge con il
+		// catalogo; lo prova un'azione a budget costruita nel test (`Status.BudgetDashRefusedWhileUnbalanced`).
+		//
+		// 🔑 **La condizione e' `ARTUnit::PlannedDashDeniedByStatus()`** ([D-471]): la stessa che anteprima e mira
+		// leggono attraverso `PlannedDashMoves()`. Prima era scritta qui, e la mira mirava dallo scatto negato.
 		//
 		// 🔑 **Rifiuto DICHIARATO, non scarto muto.** Stessa forma della principale scartata da una
 		// `MovementAndMain` piu' sotto: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi rilegge il
@@ -4674,8 +4682,7 @@ void ARTTurnManager::ResolveDash()
 		// ⚠️ **`PlannedDashAbility` e' gia' azzerato** dalla riga sopra: l'azione e' consumata per il turno
 		// comunque, esattamente come per ogni altro scatto che non si compie. Chi ha pianificato `Sprint`
 		// resta fermo — lo `Sprint` occupa lo slot movimento, quindi non c'e' un Move da ripiegare.
-		if (Unit->HasStatus(TAG_Status_Unbalanced)
-			&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+		if (bNegatoDalloStato)
 		{
 			FRTTurnLogEntry Rifiutata;
 			Rifiutata.Phase = ERTMatchPhase::Dash;
@@ -6328,6 +6335,38 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		Ev.SourceStableUnitId = Attacker ? Attacker->StableUnitId : 0;
 		Ev.TargetStableUnitId = Victim ? Victim->StableUnitId : 0;
 		Ev.Amount = Hit.Power;
+		// `#2454` (spec `2026-10-07-tracer-attacco-base` §3): la forma e la geometria del colpo, per il tracer.
+		//
+		// 🔑 **La forma dall'INTENTO, l'origine da `ResolveImpactOrigin`**: e' la stessa lettura che, qualche riga
+		// sopra, racconta da che lato e' arrivato il colpo. Quella funzione esiste *«perche' i chiamanti sono DUE e
+		// devono restare d'accordo»*: questo e' il terzo, e una terza copia della regola si separerebbe alla prima
+		// modifica.
+		// ⛔ **Il predicato dei FATTI PUNTUALI** ([D-223]): `FreezeVerdictFor` con la cella del fatto, lo stesso che
+		// congela le righe di combattimento. Non `FreezeRouteCellVerdict`: quello esiste perche' una rotta non e'
+		// un fatto puntuale. E `RevealHitTargetsToAttackers` ([D-380]) e' gia' passato: chi colpisce conosce la vittima.
+		//
+		// ⛔ **Un intento sconosciuto non produce una geometria risolta**: senza `IsValidIndex` qui sotto,
+		// `Ev.Shape` resterebbe il `Single` di default e `ResolveImpactOrigin` (che tratta l'intento mancante come
+		// non-area) darebbe comunque l'attaccante come origine — una geometria «risolta» con una forma inventata.
+		// ⚠️ **Per un colpo `Area` `From`/`FromVerdict` descrivono il CENTRO d'impatto, non l'attaccante**:
+		// `ResolveImpactOrigin` restituisce `Footprint->AimCell`. Oggi non conta, perche' `Area` non e' idonea al
+		// tracer (`IsTracerEligible` ammette solo `Single` e `Line`); chi la rendesse idonea deve leggere questo
+		// campo come «da dove arriva il colpo», non come «dove sta chi spara».
+		const bool bHasIntent = Intents.IsValidIndex(Hit.IntentIndex);
+		if (bHasIntent)
+		{
+			Ev.Shape = Intents[Hit.IntentIndex].Shape;
+		}
+		FRTCellId HitFrom;
+		if (!bSkipHitGeometryForTest && bHasIntent && Attacker && Victim && HexUnits.IsValidIndex(Hit.TargetId)
+			&& ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, HitFrom))
+		{
+			Ev.HitGeometry.bResolved = true;
+			Ev.HitGeometry.From = HitFrom;
+			Ev.HitGeometry.Impact = HexUnits[Hit.TargetId].Cell;
+			Ev.HitGeometry.FromVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(Attacker, HitFrom));
+			Ev.HitGeometry.ImpactVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(Victim, Ev.HitGeometry.Impact));
+		}
 		// `#2857`: QUALE colpo. Stessa fonte e stesso indice che il `case Push`/`case Pull` qui sopra usano
 		// per riempire `FRTDisplacementCause` — `IntentDefs[Hit.IntentIndex]` — cosi' il colpo e lo
 		// spostamento che ne consegue dichiarano la **stessa** azione invece di due letture da tenere
@@ -7796,6 +7835,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// confine di sicurezza: quando la partita sara' in rete, il dato non autorizzato non dovra' essere
 	// replicato — non filtrato all'arrivo. Vedi `conoscenza-parziale-visibile-spec.md` §1.3.
 	const int32 ViewerTeamId = ARTPlayerState::TeamIdOf(UGameplayStatics::GetPlayerController(this, 0));
+	PlaybackViewerTeamId = ViewerTeamId;
 
 	TSet<ARTUnit*> StartPositioned; // per posizionare il cilindro all'inizio della sua PRIMA fase (Dash prima di Move)
 	for (const FRTResolvedEvent& Ev : ResolvedTimeline)
@@ -7869,28 +7909,36 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		}
 		// ⏱️ *Fino a #3549 qui c'erano anche i rami `Attack`, `AttackFootprint` e `StructureHit`, uno per canale
 		// parallelo del Blast.* Ora quei fatti li smista `BuildBlastSequence` qui sotto, e cio' che i loro commenti
-		// avevano di ancora vero sta in testa a `RevealBlastSequence`.
+		// avevano di ancora vero sta in testa a `AdvanceBlastSequence`.
 	}
 
 	// La sequenza per intento del Blast (D5). 🔑 **Estendendo (D-355) il prefisso gia' mostrato e' stabile**:
-	// i primi `BlastShown` elementi si riproducono verbatim e non si ripetono. Il resto si ricostruisce per
+	// i primi `BlastElementsShown()` elementi si riproducono verbatim e non si ripetono. Il resto si ricostruisce per
 	// gruppo (Ruling H): un evento nuovo si unisce al SUO gruppo `(sorgente, azione)`, e la chiave del gruppo si
 	// legge dalla sua attivazione ovunque stia, prefisso compreso — quindi un evento tardivo di un atto aperto
 	// presto cade fra i primi oltre il prefisso, non in fondo. Precondizione: la timeline cresce solo per
 	// accodamento.
-	// ⚠️ `BlastShown` e' il prefisso giusto perche' `EnterPlaybackPhase`, che lo azzera a ogni fase, non passa di
+	// ⚠️ `BlastElementsShown()` e' il prefisso giusto perche' `EnterPlaybackPhase`, che ne azzera il cursore a ogni fase, non passa di
 	// qui quando si estende. Vale `0` se il playback non e' ancora entrato nel Blast (prefisso vuoto); vale la
 	// lunghezza della sequenza parziale se il playback parziale ha finito il Blast ed e' fermo sulla finestra —
 	// tutto mostrato, ed e' un prefisso valido; vale `0` anche quando il Blast e' gia' passato e si e' entrati
 	// in una fase successiva, dove la sequenza non si riproduce piu'.
+	// ⚠️ Il prefisso e' `BlastElementsShown()`, derivato dal cursore dei battiti (`#2454`): un colpo LANCIATO e non
+	// ancora arrivato ne fa parte, quindi resta al suo posto e il suo arrivo, ancora dovuto, cade sullo stesso indice.
 	PlaybackBlastSequence = URTPlaybackLibrary::BuildBlastSequence(ResolvedTimeline,
 		bPreserveClock ? PlaybackBlastSequence : TArray<FRTBlastSequenceElement>(),
-		bPreserveClock ? BlastShown : 0, ViewerTeamId);
+		bPreserveClock ? BlastElementsShown() : 0, ViewerTeamId);
 
+	// `#2454`: il volo di ogni elemento, deciso dall'idoneita' e MAI da chi guarda — cosi' il ritmo e' lo stesso
+	// per entrambe le squadre (spec del tracer §2.1). `IsTracerEligible` e' falso per ogni tipo che non sia
+	// `Attack`: attivazioni, impronte e muri hanno volo zero. Si ricalcola anche estendendo: e' funzione pura degli
+	// eventi, e il prefisso congelato porta gli stessi eventi, quindi gli stessi voli.
 	int32 NumColpi = 0, NumImpronte = 0, NumMuri = 0, NumAttivazioniBlast = 0;
+	PlaybackBlastFlights.Reset(PlaybackBlastSequence.Num());
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
 	{
-		switch (ResolvedTimeline[E.TimelineIndex].Type)
+		const FRTResolvedEvent& Ev = ResolvedTimeline[E.TimelineIndex];
+		switch (Ev.Type)
 		{
 		case ERTResolvedEventType::Attack:           ++NumColpi; break;
 		case ERTResolvedEventType::AttackFootprint:  ++NumImpronte; break;
@@ -7898,6 +7946,8 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		case ERTResolvedEventType::AbilityActivated: ++NumAttivazioniBlast; break;
 		default: break;
 		}
+		PlaybackBlastFlights.Add(URTPlaybackLibrary::TracerFlightFor(
+			URTPlaybackLibrary::IsTracerEligible(Ev), TracerFlightSeconds, AttackShowSeconds));
 	}
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
@@ -8078,33 +8128,6 @@ bool ARTTurnManager::RevealPlaybackActivations(const TArray<FRTResolvedEvent>& A
 	return false;
 }
 
-void ARTTurnManager::ShowPlaybackAttack(const FRTResolvedEvent& Atk)
-{
-	ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
-	ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
-	AddLogEvent(FString::Printf(TEXT("Colpo: %s -> %s (%d)"),
-		AtkSrc ? *AtkSrc->GetName() : TEXT("?"),
-		AtkTgt ? *AtkTgt->GetName() : TEXT("(eliminato)"),
-		// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
-		// verdetto di [D-223] non si calcola — servono anche squadra e cella.
-		Atk.Amount), FRTLogSubject::Unit(AtkSrc));
-	if (AtkSrc) { AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack); }
-	if (AtkTgt)
-	{
-		AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit);
-		// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante della cue.
-		//
-		// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
-		// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
-		// e questo file continua a non includere **nessun** header di `UI/`.
-		//
-		// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il numero, la stessa
-		// convenzione della cue di impatto e della categoria `Combat` del TurnLog (`#1150`).
-		AtkTgt->ShowDamageToken(Atk.Amount);
-	}
-	OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Atk.Amount);
-}
-
 // La sequenza di Blast (#3549, D5). I commenti dei tre rami di `BeginPlayback` che questa funzione sostituisce,
 // in cio' che hanno di ancora vero:
 //
@@ -8120,10 +8143,10 @@ void ARTTurnManager::ShowPlaybackAttack(const FRTResolvedEvent& Atk)
 // prende solo `Phase == Blast`: un muro colpito in Cleanup non entra in questa sequenza e non apre la fase.
 // 🔑 **L'unico filtro di privacy di questa sequenza e' sulle ATTIVAZIONI** (D6), ed e' a monte, in
 // `BuildBlastSequence`: qui si mostra tutto cio' che e' in sequenza.
-bool ARTTurnManager::RevealBlastSequence(int32 UpTo)
+bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 {
-	const int32 Target = FMath::Min(UpTo, PlaybackBlastSequence.Num());
-	if (BlastShown >= Target)
+	const int32 Target = FMath::Min(BeatsTarget, 2 * PlaybackBlastSequence.Num());
+	if (BlastBeatsDone >= Target)
 	{
 		return false;
 	}
@@ -8132,18 +8155,45 @@ bool ARTTurnManager::RevealBlastSequence(int32 UpTo)
 	// il ciclo lo renderebbe quadratico in un ramo che gira a ogni tick del Blast.
 	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
 
-	while (BlastShown < Target)
+	while (BlastBeatsDone < Target)
 	{
-		const int32 Indice = PlaybackBlastSequence[BlastShown].TimelineIndex;
-		++BlastShown; // ⚠️ avanza anche senza `MapActor` o con un indice fuori range: un fatto consumato non ripassa
+		const int32 Elemento = BlastBeatsDone / 2;
+		const bool bArrivo = (BlastBeatsDone % 2) == 1;
+		// ⚠️ Avanza anche con un indice fuori range o senza `MapActor`: un battito consumato non ripassa.
+		++BlastBeatsDone;
+		const int32 Indice = PlaybackBlastSequence[Elemento].TimelineIndex;
 		if (!ResolvedTimeline.IsValidIndex(Indice))
 		{
 			continue;
 		}
 		const FRTResolvedEvent& Ev = ResolvedTimeline[Indice];
 
+		if (bArrivo)
+		{
+			// 🔑 **L'arrivo esiste solo per un colpo** (`#2454`): per ogni altro tipo il volo e' zero e il battito
+			// non fa niente — l'elemento si e' gia' mostrato tutto alla rivelazione.
+			if (Ev.Type != ERTResolvedEventType::Attack)
+			{
+				continue;
+			}
+			ArrivePlaybackAttack(Ev, BlastAttackOrdinal(Elemento));
+			// ⛔ **L'arrivo ha appena trasmesso `OnAttackResolved`**: un ascoltatore (Blueprint-assegnabile) puo'
+			// chiudere il playback — `SkipPlayback` → `FinishPlayback` svuota la sequenza e azzera il cursore — e
+			// da qui in poi nulla del playback va riletto senza saperlo (`#2454`, guardia di rientranza).
+			if (!bIsResolving || !PlaybackBlastSequence.IsValidIndex(Elemento) || !ResolvedTimeline.IsValidIndex(Indice))
+			{
+				return true;
+			}
+			// `#2855`: il confine d'atto di un colpo cade al suo ARRIVO, perche' il colpo e' mostrato quando arriva.
+			if (NotePlaybackActShown(ResolvedTimeline[Indice]))
+			{
+				return true; // i battiti che questo tick avrebbe ancora eseguito restano per la ripresa
+			}
+			continue;
+		}
+
 		// 🔑 **Un `switch`, e i rami sono le cue di prima** (#3549, D5): la cue per elemento non cambia, cambia
-		// chi decide QUANDO — la sequenza, non tre contatori.
+		// chi decide QUANDO — la sequenza, non tre contatori. Per un colpo la rivelazione e' il LANCIO (`#2454`).
 		switch (Ev.Type)
 		{
 		case ERTResolvedEventType::AbilityActivated:
@@ -8166,8 +8216,9 @@ bool ARTTurnManager::RevealBlastSequence(int32 UpTo)
 			}
 			break;
 		case ERTResolvedEventType::Attack:
-			ShowPlaybackAttack(Ev);
-			break;
+			LaunchPlaybackAttack(Ev, BlastAttackOrdinal(Elemento));
+			// ⚠️ Nessun confine qui: quello di un colpo cade all'arrivo, ed e' il battito che segue.
+			continue;
 		default:
 			break;
 		}
@@ -8180,17 +8231,114 @@ bool ARTTurnManager::RevealBlastSequence(int32 UpTo)
 	return false;
 }
 
+int32 ARTTurnManager::BlastAttackOrdinal(int32 SequenceIndex) const
+{
+	int32 Ordinale = 0;
+	for (int32 K = 0; K < SequenceIndex && PlaybackBlastSequence.IsValidIndex(K); ++K)
+	{
+		const int32 Indice = PlaybackBlastSequence[K].TimelineIndex;
+		if (ResolvedTimeline.IsValidIndex(Indice) && ResolvedTimeline[Indice].Type == ERTResolvedEventType::Attack)
+		{
+			++Ordinale;
+		}
+	}
+	return Ordinale;
+}
+
+void ARTTurnManager::LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal)
+{
+	if (ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId))
+	{
+		AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack);
+	}
+	if (bRecordAttackBeatsForTest) { AttackBeatTrace.Add(FString::Printf(TEXT("L%d"), AttackOrdinal)); }
+}
+
+void ARTTurnManager::ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal)
+{
+	ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId);
+	ARTUnit* const AtkTgt = UnitByStableId(Atk.TargetStableUnitId);
+	const int32 Amount = Atk.Amount; // ⛔ `Atk` vive nella timeline: dopo il broadcast non si rilegge
+	AddLogEvent(FString::Printf(TEXT("Colpo: %s -> %s (%d)"),
+		AtkSrc ? *AtkSrc->GetName() : TEXT("?"),
+		AtkTgt ? *AtkTgt->GetName() : TEXT("(eliminato)"),
+		// `FRTLogSubject::Unit` vuole l'Actor e non l'id, e lo dichiara: da un id soltanto il
+		// verdetto di [D-223] non si calcola — servono anche squadra e cella.
+		Amount), FRTLogSubject::Unit(AtkSrc));
+	if (AtkTgt)
+	{
+		AtkTgt->PlayPresentationRole(ERTPresentationRole::Hit);
+		// #2455 — il NUMERO del colpo, dallo stesso evento e nello stesso istante della cue.
+		//
+		// 🔑 **Il simulatore passa un intero, non una vista.** `Atk.Amount` e' lo stesso valore che
+		// il log scrive e che `OnAttackResolved` gia' trasporta: la composizione avviene in `ARTUnit`,
+		// e questo file continua a non includere **nessun** header di `UI/`.
+		//
+		// ⛔ Sul BERSAGLIO e mai sull'attaccante: e' chi subisce a portare il numero, la stessa
+		// convenzione della cue di impatto e della categoria `Combat` del TurnLog (`#1150`).
+		AtkTgt->ShowDamageToken(Amount);
+	}
+	OnAttackResolved.Broadcast(AtkSrc, AtkTgt, Amount);
+	if (bRecordAttackBeatsForTest) { AttackBeatTrace.Add(FString::Printf(TEXT("A%d"), AttackOrdinal)); }
+}
+
+void ARTTurnManager::PushPlaybackTracers()
+{
+	TArray<FRTPlaybackTracer> InVolo;
+	if (BlastBeatsDone % 2 == 1) // rivelato, non ancora arrivato: in volo solo se e' un colpo con un tracer
+	{
+		const int32 Elemento = BlastBeatsDone / 2;
+		if (PlaybackBlastSequence.IsValidIndex(Elemento) && PlaybackBlastFlights.IsValidIndex(Elemento)
+			&& ResolvedTimeline.IsValidIndex(PlaybackBlastSequence[Elemento].TimelineIndex))
+		{
+			const FRTResolvedEvent& Atk = ResolvedTimeline[PlaybackBlastSequence[Elemento].TimelineIndex];
+			// `TracerStyleFor` risponde `None` per ogni tipo che non sia un `Attack` idoneo (`IsTracerEligible`).
+			const ERTTracerStyle Style = URTPlaybackLibrary::TracerStyleFor(Atk, PlaybackViewerTeamId);
+			if (Style != ERTTracerStyle::None)
+			{
+				FRTPlaybackTracer T;
+				T.From = Atk.HitGeometry.From;
+				T.To = Atk.HitGeometry.Impact;
+				T.Style = Style;
+				// ⚠️ L'indice e' quello dell'ELEMENTO nella sequenza: il lancio cade a `Elemento·A`, lo stesso istante
+				// di `AttacksToShow` e di `AttackBeatsDue` sui voli della sequenza.
+				T.Alpha = URTPlaybackLibrary::TracerAlpha(
+					Elemento, PlaybackPhaseElapsed, AttackShowSeconds, PlaybackBlastFlights[Elemento]);
+				InVolo.Add(T);
+			}
+		}
+	}
+	// ⚠️ **Si consegna solo se c'e' qualcosa da dire alla mappa.** Questa funzione gira a OGNI tick del `Blast` e
+	// `FindInWorld` scorre il mondo: e' la stessa preoccupazione per cui `AdvanceBlastSequence` cerca l'actor
+	// UNA volta per chiamata e non per elemento. Niente in volo adesso E canale gia' vuoto = niente da consegnare.
+	// ⛔ Il canale si spegne anche altrove (finalizzazione del `Blast`, `FinishPlayback`), e il flag si azzera
+	// ESATTAMENTE li': un canale svuotato non va creduto pieno, e uno pieno non va creduto vuoto — il tracer
+	// resterebbe disegnato.
+	const bool bInVolo = !InVolo.IsEmpty();
+	if (!bInVolo && !bPlaybackTracerChannelFull)
+	{
+		return;
+	}
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!MapActor) { return; }
+
+	MapActor->SetPlaybackTracers(InVolo);
+	bPlaybackTracerChannelFull = bInVolo;
+}
+
 void ARTTurnManager::EnterPlaybackPhase()
 {
 	PlaybackPhaseElapsed = 0.f;
 	ActivationsShown = 0;
-	// ⚠️ Si azzera a ogni FASE come i tre contatori che sostituisce, e il ramo `bPreserveClock` salta questa
-	// funzione: e' cio' che rende `BlastShown` il prefisso congelato di D-355.
+	AttackBeatTrace.Reset();
+	// ⚠️ Il cursore dei battiti si azzera a ogni FASE come i contatori che sostituisce, e il ramo `bPreserveClock`
+	// salta questa funzione: e' cio' che rende `BlastElementsShown()` il prefisso congelato di D-355, e cio' che
+	// impedisce all'estensione di rigiocare lanci e arrivi (`#2454`, `Reactions.Brace.ExtendedBlastDoesNotReplayHits`).
 	// ⚠️ **Ma `ARTHexMapActor` svuota impronte e muri solo in `FinishPlayback`.** Oggi non si vede perche'
 	// `Blast` compare al massimo una volta in `PlaybackPhases`. ⛔ Ma l'invariante non e' difeso da niente: un
 	// passo-indietro che rientrasse nel `Blast`, o un `PlaybackPhases` che lo contenesse due volte,
 	// ri-aggiungerebbe ogni impronta e ogni muro. Chi introduce uno dei due svuoti anche i canali dell'actor.
-	BlastShown = 0;
+	BlastBeatsDone = 0;
 	// `#3292`: l'atto in corso e' un contatore di rivelazione come gli altri, e si azzera con loro.
 	// ⚠️ Entrando in una fase nessun atto e' ancora passato, quindi il primo fatto che esce e' gia' un
 	// confine — la stessa semantica che `NextActionBoundary` da' a un indice negativo.
@@ -8675,17 +8823,30 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	// alcun effetto: i colpi uscivano tutti nello stesso frame dal blocco di finalizzazione (#911).
 	if (Ph == ERTMatchPhase::Blast)
 	{
-		// 🔴 **Una sequenza, un contatore, una cadenza** (#3549, D5): attivazione, impronta, muri, colpi di un
-		// intento, poi il successivo — uno ogni `AttackShowSeconds`, per leggibilita' del danno. L'impronta
-		// PRECEDE i suoi colpi (`#2454`) e l'attivazione precede tutto il suo atto: lo decide la sequenza.
-		// ⚠️ **Stessa funzione di ritmo, non un tempo suo**: `AttacksToShow` e' il contro-termine di `PhaseTime`,
-		// che dimensiona il Blast sulla lunghezza della stessa sequenza. ⏱️ *Fino a #3549 tre canali paralleli con
-		// contatori propri, e il `Max` fra loro.*
+		// `#2454`: il tracer si consegna a OGNI uscita di questo ramo — il `return` delle fermate compreso — o a
+		// una fermata resterebbe disegnato nella posizione del tick prima. In pausa il tick non arriva qui
+		// (`bPlaybackPaused`, in testa a `TickPlayback`), e il tracer resta fermo dove l'ultima consegna lo ha
+		// lasciato.
+		// ⚠️ Lo scope e' questo `if`, non la funzione: la finalizzazione della fase, piu' sotto, gira DOPO la
+		// consegna — ed e' li' che il canale si spegne.
+		ON_SCOPE_EXIT{ PushPlaybackTracers(); };
+
+		// 🔴 **Una sequenza, un cursore, una cadenza** (#3549 D5, `#2454`): attivazione, impronta, muri, colpi di un
+		// intento, poi il successivo — un elemento ogni `AttackShowSeconds`, per leggibilita' del danno. L'impronta
+		// PRECEDE i suoi colpi e l'attivazione precede tutto il suo atto: lo decide la sequenza. Un colpo PARTE
+		// quando il suo elemento esce e ARRIVA dopo il volo, prima dell'elemento dopo: lancio e arrivo sono due
+		// battiti dello stesso cursore, monotoni perche' `TracerFlightFor` taglia il volo a `A/2`.
+		// ⛔ Due cicli separati — la sequenza da una parte, gli arrivi dall'altra — in un tick lungo rivelerebbero
+		// l'elemento dopo prima che l'arrivo del colpo fermi `Next Action`: `Playback.AttackBeatsStayOrderedInOneTick`.
+		// ⚠️ **Stessa funzione di ritmo, non un tempo suo**: con voli nulli `AttackBeatsDue` rivela l'elemento `k` a
+		// `k·A` come `AttacksToShow`, il contro-termine di `PhaseTime` che dimensiona il Blast sulla stessa sequenza.
+		// ⏱️ *Fino a #3549 tre canali paralleli con contatori propri, e il `Max` fra loro; fino al merge di `#2454`
+		// due cursori, la sequenza su `AttacksToShow` e i colpi su `AttackBeatsDue`.*
 		// 🔴 **`return` e non `break`, e la differenza e' un difetto vero** (`#2855`): uscendo solo dal ciclo, un
 		// fatto che cade nell'ultimo tick della fase metterebbe in pausa e la finalizzazione qui sotto avanzerebbe
 		// lo stesso. Uscire dal tick lascia la fase dov'e'; la finalizzazione la fara' il primo tick dopo la ripresa.
-		if (RevealBlastSequence(URTPlaybackLibrary::AttacksToShow(
-			PlaybackBlastSequence.Num(), PlaybackPhaseElapsed, AttackShowSeconds)))
+		if (AdvanceBlastSequence(URTPlaybackLibrary::AttackBeatsDue(
+			PlaybackPhaseElapsed, AttackShowSeconds, PlaybackBlastFlights)))
 		{
 			return;
 		}
@@ -8712,18 +8873,46 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// `N x AttackShowSeconds` piu' le loro altre voci: a fine fase `AttacksToShow` vale gia' `N`, e le righe qui
 		// sotto non recuperano nulla. ⛔ Il recupero e' silenzioso per costruzione: se qualcuno accorciasse una fase,
 		// la rete tornerebbe necessaria e nessun rosso lo direbbe. Per il Blast l'invariante che la rende inutile e'
-		// pinnato da `Playback.EveryChannelIsFullyRevealedByPhaseEnd`, che cade **prima**; per Prep e Dash vale la
+		// pinnato da `Playback.EveryChannelIsFullyRevealedByPhaseEnd` (le rivelazioni) e da
+		// `Playback.EveryAttackArrivesByPhaseEnd` (gli arrivi, `#2454`), che cadono **prima**; per Prep e Dash vale la
 		// stessa aritmetica (`Shown >= N x AttackShowSeconds`), e nessun gate la pinna.
 		//
 		// ⚠️ **Dichiarato (spec §6): il recupero del Blast ora fa due cose che prima non faceva.** Scrive anche le
 		// righe `Colpo:` — ⏱️ *il vecchio ciclo di recupero suonava ruoli, token e broadcast SENZA la riga del feed* —
 		// e passa dal predicato di confine (`NotePlaybackActShown`), quindi un `Next Action` armato puo' fermarsi
-		// anche qui. Se ci si fermasse con elementi ancora in coda, quelli della fase verrebbero saltati dal
-		// passaggio alla fase successiva qui sotto: lo stesso limite che i vecchi recuperi di impronte e muri
-		// avevano. Su un turno normale non accade, perche' la rete e' senza casi.
+		// anche qui. Per Prep e Dash, se ci si fermasse con elementi ancora in coda, quelli della fase verrebbero
+		// saltati dal passaggio alla fase successiva qui sotto; il Blast invece esce e riprende (sotto). Su un turno
+		// normale non accade, perche' la rete e' senza casi.
 		if (Ph == ERTMatchPhase::Prep) { RevealPlaybackActivations(PlaybackActivationsPrep, PlaybackActivationsPrep.Num()); }
 		if (Ph == ERTMatchPhase::Dash) { RevealPlaybackActivations(PlaybackActivationsDash, PlaybackActivationsDash.Num()); }
-		if (Ph == ERTMatchPhase::Blast) { RevealBlastSequence(PlaybackBlastSequence.Num()); }
+		if (Ph == ERTMatchPhase::Blast)
+		{
+			// 🔑 **Un punto di uscita, in quest'ordine: mostra il resto → consegna gli arrivi → spegni il canale**
+			// (merge di `#2454` in #3549). Rivelazioni e arrivi sono battiti dello STESSO cursore, quindi la rete li
+			// percorre insieme nell'ordine `L, A` del ciclo: un elemento mai rivelato riceve rivelazione (per un colpo
+			// il lancio) e arrivo; un colpo lanciato e non arrivato riceve SOLO l'arrivo — ⛔ mai un secondo ruolo
+			// `Attack` sull'attaccante.
+			// ⚠️ Coi battiti resta una rete senza casi: l'ultimo arrivo cade entro `(N - ½)·A`, prima della fine della
+			// fase — lo pinna `Playback.EveryAttackArrivesByPhaseEnd`, sulla durata REALE di `PhaseTime` e sulla
+			// sequenza; `EveryChannelIsFullyRevealedByPhaseEnd` pinna solo le rivelazioni (`(N - 1)·A`).
+			// 🔴 **Si esce se la rete si ferma**, ed e' un cambio rispetto alle due stesure fuse: un ascoltatore di
+			// `OnAttackResolved` puo' aver chiuso il playback (la guardia di `#2454`), oppure un `Next Action` armato
+			// si e' fermato su un confine — e allora la fase resta dov'e', e la rete riprende dal cursore al primo
+			// tick dopo la ripresa. ⏱️ *La stesura di #3549 proseguiva alla fase dopo e dichiarava saltati gli
+			// elementi in coda; con gli arrivi in coda avrebbe saltato un `Hit` e il suo numero.*
+			if (AdvanceBlastSequence(2 * PlaybackBlastSequence.Num()))
+			{
+				return;
+			}
+
+			// `#2454`: nessun tracer sopravvive alla fase. ⚠️ Qui e non solo in `FinishPlayback`, che esce presto
+			// quando e' trattenuto da una finestra di reazione.
+			if (ARTHexMapActor* const TracerMap = ARTHexMapActor::FindInWorld(GetWorld()))
+			{
+				TracerMap->ClearPlaybackTracers();
+			}
+			bPlaybackTracerChannelFull = false; // vedi `PushPlaybackTracers`: il flag segue il canale
+		}
 
 		// Morte visiva differita: l'eliminazione si ANNUNCIA qui, a fine della fase in cui e' avvenuta, dopo
 		// che il colpo (Blast) o l'attraversamento (Move) e' stato mostrato.
@@ -8938,19 +9127,23 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackActivationsPrep.Reset();
 	PlaybackActivationsDash.Reset();
 	ActivationsShown = 0;
-	// La sequenza si svuota QUI e non in `BeginPlayback`, che estendendo (D-355) la usa come `Previous`.
+	// La sequenza si svuota QUI e non in `BeginPlayback`, che estendendo (D-355) la usa come `Previous`; con lei
+	// il cursore dei battiti e i voli che le sono paralleli (`#2454`).
 	PlaybackBlastSequence.Reset();
-	BlastShown = 0;
+	BlastBeatsDone = 0;
+	PlaybackBlastFlights.Reset();
 	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
 	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
 	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		FootprintMap->ClearPlaybackFootprint();
+		FootprintMap->ClearPlaybackTracers(); // `#2454`: e passa di qui anche `SkipPlayback`
 		// ⛔ **Anche i muri caduti si spengono qui, e passa di qui pure `SkipPlayback`** (`#2828`): il
 		// segno e' il CAMBIAMENTO, e un cambiamento che sopravvive al turno torna a essere «lo stato dopo»
 		// — cioe' quel che si vedeva prima che questo evento esistesse.
 		FootprintMap->ClearPlaybackStructureHits();
 	}
+	bPlaybackTracerChannelFull = false; // `#2454`: il flag di `PushPlaybackTracers` segue il canale che si spegne qui
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();

@@ -71,6 +71,38 @@ namespace
 		return TM;
 	}
 
+	/**
+	 * Il turno di prova a DUE atti (`#2454`): Branth colpisce Ivrin, poi Aevik spara su una cella VUOTA.
+	 *
+	 * 🔑 **Esiste per far cadere una fermata `Next Action` nello stesso tick dell'ARRIVO di un colpo.** Con la
+	 * sequenza per intento (#3549) ogni atto si apre con la sua attivazione: il colpo di Branth segue attivazione e
+	 * impronta del proprio atto, quindi il suo arrivo non e' mai un confine. Il confine dopo l'arrivo e'
+	 * l'attivazione dell'atto di Aevik, che esce dopo l'arrivo: un tick lungo che li copra entrambi arriva il
+	 * colpo e si ferma sull'atto dopo, ed e' li' che la consegna del tracer all'uscita della fermata si misura.
+	 * ⚠️ L'ordine degli intenti segue il roster `(cella, id, nome)`: Branth (X = 2) sta a sinistra di Aevik (X = 6).
+	 * Il test che lo usa lo verifica come premessa invece di darlo per scontato.
+	 * ⏱️ *La stesura di `#2454` metteva Aevik per primo: la fermata cadeva sull'ARRIVO di Branth, perche' prima di
+	 * #3549 un colpo dopo l'impronta di un altro atto apriva l'atto proprio.*
+	 */
+	ARTTurnManager* SetUpTwoActTurn(UWorld* World)
+	{
+		SpawnStopPredicateMap(World);
+		ARTUnit* Aevik    = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(6, -2));
+		ARTUnit* Branth   = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Bersaglio = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Aevik || !Branth || !Bersaglio) { return nullptr; }
+
+		Aevik->PlannedAbilityIndex = 0;
+		Aevik->DeclareAttackOnCell(FRTCellId(6, 0)); // nessuno ci sta: un'impronta senza colpi
+		Aevik->PlannedCell = Aevik->Cell;
+		Branth->PlannedAbilityIndex = 0;
+		Branth->PlannedAttackTarget = Bersaglio;
+		Branth->PlannedCell = Branth->Cell;
+		TM->bRecordAttackBeatsForTest = true;
+		return TM;
+	}
+
 	/** Avanza il playback di al piu' `MaxTick` tick, fermandosi appena il playback si mette in pausa. */
 	void AdvanceUntilPausedOrDone(ARTTurnManager* TM, int32 MaxTick = 400)
 	{
@@ -245,9 +277,9 @@ bool FRTPlaybackPredicateDoesNotSurviveTheTurnTest::RunTest(const FString&)
  * issue lo consuma).
  *
  * ⚠️ Su un turno con un solo atto il confine di azione coincide con quello di fase, e la fermata avviene
- * comunque: il test asserisce che ci si fermi **prima della fine**, non su quale dei due sia scattato.
- * Distinguerli richiederebbe un turno con due azioni diverse nello stesso `Blast`, che il corpus di questo
- * file non costruisce — ed e' dichiarato invece di essere simulato.
+ * comunque: la prima parte del test asserisce che ci si fermi **prima della fine**, non su quale dei due
+ * sia scattato. Distinguerli richiede un turno con due azioni diverse nello stesso `Blast`, e lo costruisce
+ * `SetUpTwoActTurn`: lo usa il blocco in coda, per la fermata che cade nel tick di un ARRIVO.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionStopsBeforeTheEndTest,
 	"RefactorTactics.Playback.NextActionStopsAtTheActionBoundary",
@@ -275,6 +307,76 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 	TestTrue(TEXT("ed e' fermo"), TM->IsPlaybackPaused());
 	TestEqual(TEXT("il predicato si e' consumato"),
 		static_cast<int32>(TM->GetArmedPlaybackStop()), static_cast<int32>(ERTPlaybackStopAt::None));
+
+	// `#2454`: la fermata dopo un ARRIVO non lascia il tracer a mezz'aria accanto al suo numero.
+	//
+	// 🔴 **Non su questo turno, e la ragione e' misurata.** Con UN atto solo la prima fermata cade
+	// sull'attivazione — che apre l'atto e precede impronta e colpo (#3549) — e da li' nessun `Next Action` cade
+	// piu' dopo un arrivo: il colpo e' dello stesso atto, quindi non e' un confine, e la fermata successiva e' il
+	// cambio di fase, dove `EnterPlaybackPhase` azzera anche la traccia dei battiti.
+	//
+	// 🔑 **Con la sequenza per intento l'arrivo di un colpo non e' mai il confine del proprio atto**: lo apre la
+	// sua attivazione. La fermata «dopo l'arrivo» cade allora sull'atto SEGUENTE, e un tick lungo che copra
+	// arrivo e confine e' l'unico in cui la consegna del tracer all'uscita della fermata fa differenza: con tick
+	// corti l'arrivo ha gia' svuotato il canale qualche tick prima. ⏱️ *La stesura di `#2454` cercava la fermata
+	// sull'ARRIVO stesso, a tick corti: prima di #3549 era un confine.* Il turno e' `SetUpTwoActTurn`.
+	{
+		UWorld* World2 = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova a due atti"), World2)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World2); };
+
+		ARTTurnManager* TM2 = SetUpTwoActTurn(World2);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World2);
+		if (!TestTrue(TEXT("turno e mappa a due atti"), TM2 != nullptr && Mappa != nullptr)) { return false; }
+
+		TM2->SetPlaybackControlsEnabled(true);
+		TM2->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ il turno a due atti sta riproducendo qualcosa"), TM2->IsResolving())) { return false; }
+
+		// ⛔ ANTI-VACUITA': nella sequenza il colpo deve essere SEGUITO da un elemento di un altro atto. Se fosse
+		// l'ultimo — Aevik non dopo Branth, o il suo intento non entrato nel Blast — nessun confine cadrebbe dopo
+		// l'arrivo e la fermata qui sotto non esisterebbe.
+		const TArray<FRTResolvedEvent>& Timeline = TM2->ResolvedTimelineForTest();
+		const TArray<int32> Sequenza = TM2->PlaybackBlastSequenceIndicesForTest();
+		int32 PosColpo = INDEX_NONE;
+		for (int32 K = 0; K < Sequenza.Num(); ++K)
+		{
+			if (Timeline[Sequenza[K]].Type == ERTResolvedEventType::Attack) { PosColpo = K; break; }
+		}
+		if (!TestTrue(TEXT("premessa: nella sequenza il colpo e' seguito da un elemento di un altro atto"),
+			PosColpo != INDEX_NONE && Sequenza.IsValidIndex(PosColpo + 1)
+			&& Timeline[Sequenza[PosColpo + 1]].SourceStableUnitId != Timeline[Sequenza[PosColpo]].SourceStableUnitId))
+		{
+			return false;
+		}
+
+		// Tick corti, senza predicato, finche' il colpo e' IN VOLO: lanciato, non arrivato, disegnato.
+		for (int32 I = 0; I < 400 && TM2->IsResolving()
+			&& !(TM2->AttackBeatTraceForTest().Contains(TEXT("L0")) && !TM2->AttackBeatTraceForTest().Contains(TEXT("A0"))); ++I)
+		{
+			TM2->Tick(0.05f);
+		}
+		if (!TestTrue(TEXT("premessa: il colpo e' in volo e la mappa lo disegna"),
+			TM2->IsResolving() && !TM2->AttackBeatTraceForTest().Contains(TEXT("A0")) && Mappa->NumPlaybackTracers() == 1))
+		{
+			return false;
+		}
+
+		// Un tick LUNGO — uno slot intero, `AttackShowSeconds` — copre l'arrivo (mezzo slot al piu' dopo il lancio)
+		// e la rivelazione dell'elemento dopo, che apre l'atto di Aevik ed e' il confine.
+		TM2->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+		TM2->Tick(TM2->AttackShowSeconds);
+		if (TM2->IsPlaybackPaused() && TM2->AttackBeatTraceForTest().Contains(TEXT("A0")))
+		{
+			// 🔴 **La mutazione dichiarata**: la consegna dopo il ciclo dei battiti salta il `return` della
+			// fermata, e il tracer resta disegnato dov'era il tick prima — in volo, accanto al suo numero.
+			TestEqual(TEXT("fermo dopo l'arrivo: nessun tracer in volo"), Mappa->NumPlaybackTracers(), 0);
+		}
+		else
+		{
+			AddError(TEXT("premessa: il playback non si e' fermato sull'atto dopo l'arrivo del colpo"));
+		}
+	}
 
 	return true;
 }

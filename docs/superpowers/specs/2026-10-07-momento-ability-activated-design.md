@@ -259,6 +259,12 @@ discende:
   (`RevealPlaybackFootprints`, i muri, il ciclo dei colpi) diventano i **rami per tipo** di un unico `switch`
   sull'elemento corrente: la cue per elemento non cambia, cambia chi decide quando. Per l'attivazione il
   ramo chiama `Src->PlayPresentationRole(ERTPresentationRole::Cast)` e scrive la riga `Attiva:`.
+  ➕ merge. Con il tracer di [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454)
+  (spec `2026-10-07-tracer-attacco-base-design.md` §2.3) il contatore è un **cursore di battiti** sulla
+  sequenza, `BlastBeatsDone`: il battito `2k` rivela l'elemento `k` — per un `Attack` è il **lancio** — e il
+  `2k+1` è il suo **arrivo** (`Hit`, numero, `Colpo:`, `OnAttackResolved`, confine `Next Action`), con i voli
+  paralleli alla sequenza e nulli per ogni altro tipo. La cadenza resta `k·A`; `BlastShown` è
+  `BlastElementsShown()`, derivato dal cursore, e resta il prefisso congelato di D-355.
 - **`PhaseTime`** (➕ rev., I5): la firma guadagna `int32 NumActivations` e, per il Blast,
   `int32 NumSequenceElements` prende il posto dei tre conteggi di canale:
   - Prep: `Shown = NumActivations × AttackShowSeconds`, `Slack = PhaseBeatSeconds` (il beat di oggi resta);

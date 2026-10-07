@@ -540,16 +540,19 @@ def build(tentativi=40):
     riporterebbe «nessun test se ne accorge» - indistinguibile da una lacuna vera, e la peggiore
     risposta possibile.
 
-    Quattro esiti, non due:
+    Tre esiti:
 
     * **si ritenta** quando il motore e' conteso e l'attesa lo risolve - il mutex, l'altra istanza,
-      oppure `Unable to build while Live Coding is active` con l'Editor che lo tiene ancora VIVO;
+      oppure `Unable to build while Live Coding is active`. Su quest'ultimo `build()` nomina gli
+      `UnrealEditor.exe` che possono tenere il lock, vivi o zombie ([D-469]);
     * **si esce subito** su un errore di compilazione, con la coda del compilatore;
-    * **si esce subito** anche quando quello stesso lock e' tenuto da un `LiveCodingConsole`
-      **orfano** - il processo che lo ha aperto non esiste piu' - perche' nessuna attesa lo
-      rilascia. Prima finiva nel primo ramo e costava `tentativi x pausa` ([#2392]);
-    * si ritenta **dichiarandolo** quando l'enumerazione dei processi non risponde: non sapere
-      non e' «nessun orfano».
+    * **si esce subito** anche quando TUTTI i detentori di quel lock sono zombie - l'ancora di `AGENTS.md`
+      §Build Editor, un thread e memoria minima -, perche' nessuna attesa lo rilascia ([D-472]). La leva
+      `-NoHotReloadFromIDE` resta un gesto umano.
+
+    ⌫ *Fino a [D-469] erano quattro*: un `LiveCodingConsole` **orfano** faceva uscire subito ([#2392])
+    o veniva terminato ([D-400]). La premessa era falsa: misurato il 2026-10-07, una console orfana
+    non blocca le build.
 
     ⛔ **`Failed (OtherCompilationError)` NON e' fra le cause di ritentativo, ed e' misurato.**
     UBT lo emette anche per un errore C++ vero, e una mutazione scritta a mano spesso non compila:

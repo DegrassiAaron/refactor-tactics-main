@@ -1842,6 +1842,74 @@ bool FRTHexMapActorPlaybackFootprintChannelTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPlaybackTracerChannelTest,
+	"RefactorTactics.HexMapActor.PlaybackTracerIsItsOwnChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPlaybackTracerChannelTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+
+	URTHexMapAsset* Asset = MakeActorTestAsset(/*Radius*/ 1);
+	ARTHexMapActor* Actor = SpawnMapActor(World, Asset);
+	TestNotNull(TEXT("actor spawnato"), Actor);
+	if (!Actor) { DestroyMapActorWorld(World); return false; }
+
+	FRTPlaybackTracer T;
+	T.From = FRTCellId(0, 0);
+	T.To = FRTCellId(1, 0);
+	T.Alpha = 0.5f;
+	T.Style = ERTTracerStyle::Projectile;
+
+	TestEqual(TEXT("si parte senza tracer"), Actor->NumPlaybackTracers(), 0);
+	// Controllo: l'actor nasce a Tick spento (`bStartWithTickEnabled = false`). Senza questa premessa il
+	// `TestTrue` qui sotto passerebbe anche se il Tick fosse acceso per tutt'altra ragione.
+	TestFalse(TEXT("l'actor parte con il Tick spento"), Actor->IsActorTickEnabled());
+	Actor->SetPlaybackTracers({ T });
+	TestEqual(TEXT("un tracer dopo la consegna"), Actor->NumPlaybackTracers(), 1);
+
+	// 🔴 **Il Tick e' l'unico motivo per cui il tracer si vede in partita**: `DrawPlanningPreview` gira da
+	// `Tick`, e il Tick lo accende solo `HasAnythingToDraw`. Il test del line batcher chiama `Tick(0.f)` a mano
+	// e aggira l'accensione: tolta la riga `PlaybackTracers.Num() > 0` da `HasAnythingToDraw` resterebbero
+	// verdi tutti i gate, e il tracer non comparirebbe mai.
+	TestTrue(TEXT("consegnato un tracer, il Tick si accende"), Actor->IsActorTickEnabled());
+
+	// 🔑 **SOSTITUZIONE, non accumulo**: il volo e' funzione dell'orologio, e ogni tick consegna lo stato
+	// intero. Se `Set` diventasse un `Append`, la seconda consegna lascerebbe due tracer.
+	Actor->SetPlaybackTracers({ T });
+	TestEqual(TEXT("la seconda consegna sostituisce la prima"), Actor->NumPlaybackTracers(), 1);
+
+	// ⛔ **I canali non si toccano**: impronta e anteprima non spengono il tracer, e il tracer non spegne loro.
+	Actor->AddPlaybackFootprint({ FRTCellId(0, 0) });
+	Actor->ClearPlaybackFootprint();
+	Actor->SetPreviewHitCells({ FRTCellId(0, 0) }, {});
+	Actor->SetPreviewHitCells({}, {});
+	TestEqual(TEXT("spenti impronta e anteprima, il tracer resta"), Actor->NumPlaybackTracers(), 1);
+
+	Actor->AddPlaybackFootprint({ FRTCellId(1, 0) });
+	Actor->ClearPlaybackTracers();
+	TestEqual(TEXT("dopo Clear non resta nessun tracer"), Actor->NumPlaybackTracers(), 0);
+	TestEqual(TEXT("e l'impronta non e' stata toccata"), Actor->NumPlaybackFootprintCells(), 1);
+
+	Actor->SetPlaybackTracers({});
+	TestEqual(TEXT("una consegna vuota e' un canale vuoto"), Actor->NumPlaybackTracers(), 0);
+
+	// ⚠️ **Il Tick si spegne quando NESSUN canale ha piu' niente da disegnare**, non prima: finche' l'impronta
+	// di `(1, 0)` c'e', il Tick resta acceso anche a tracer vuoti. Svuotata anche quella, tutto tace.
+	Actor->ClearPlaybackFootprint();
+	TestFalse(TEXT("a tutti i canali vuoti il Tick e' spento"), Actor->IsActorTickEnabled());
+
+	// E `ClearPlaybackTracers` e' l'ultimo canale a spegnersi: il Tick segue la consegna e il suo spegnimento.
+	Actor->SetPlaybackTracers({ T });
+	TestTrue(TEXT("una nuova consegna riaccende il Tick"), Actor->IsActorTickEnabled());
+	Actor->ClearPlaybackTracers();
+	TestFalse(TEXT("ClearPlaybackTracers, ultimo canale acceso, spegne il Tick"), Actor->IsActorTickEnabled());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 /**
  * 🔴 **`#2731` — IL LEAK: il corpo strutturale si vede sotto una cella mai osservata.**
  *

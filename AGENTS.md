@@ -324,16 +324,15 @@ Se devi invocare a mano lo stesso — un filtro che lo strumento non prevede, un
 ```powershell
 & "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
     "-ExecCmds=Automation RunTests RefactorTactics;Quit" `
-    -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-abslog=<scratchpad della sessione>/<nome-parlante>.log"
+    -unattended -nopause -nosplash -nullrhi "-abslog=<scratchpad della sessione>/<nome-parlante>.log"
 ```
 
-⚠️ **`-NoLiveCoding` qui non spegne il Live Coding: lo spegne `-unattended`** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)).
-In UE 5.8.1 `-NoLiveCoding` è un'opzione di UBT (`TargetRules.bWithLiveCoding`), e l'Editor non la legge; un
-processo `-unattended` invece non avvia il Live Coding (`FLiveCodingModule::StartupModule`), salvo un
-`-LiveCoding` esplicito. Il flag resta nella riga per un'altra ragione: i gate di `tools/mutation/` lo leggono
-come il segno di una run che non usa Live Coding ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md), il cui
-criterio è in discussione in [#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536)).
-`tools/suite/esegui.py` lo passa per la stessa ragione.
+⚠️ **Il Live Coding di una run così lo spegne `-unattended`** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)):
+un processo `-unattended` non lo avvia (`FLiveCodingModule::StartupModule`), salvo un `-LiveCoding` esplicito.
+⌫ *Fino a [#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536) la riga portava anche `-NoLiveCoding`*: in UE 5.8.1 è un'opzione di UBT
+(`TargetRules.bWithLiveCoding`), e l'Editor non la legge. Ci stava perché i gate di `tools/mutation/` la
+cercavano per decidere se terminare una console orfana ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)). [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md) ha superato quella
+voce, e il flag non ha più lettori, nemmeno in `tools/suite/esegui.py`.
 
 ⛔ **`-abslog` e non `-log`, e non è una preferenza di percorso.** §11 punto 3 dichiara che è *«l'unica
 dichiarazione di possesso che sopravvive senza script: il processo stesso … se il processo non c'è, la
@@ -550,7 +549,7 @@ Quando l'Editor che tiene il mutex sta in un **altro** clone, i suoi object file
 
 🔴 **E quando la leva è SBAGLIATA: Editor vivo di un'altra sessione.** Lì si **aspetta** (§11), e usare il flag è precisamente l'uso che quel check esiste per impedire. La leva serve quando il mutex è tenuto da un processo che **non lo rilascerà**, non quando è tenuto da qualcuno che sta lavorando.
 
-⚠️ **L'Editor *zombie* è un terzo caso, e non è il `LiveCodingConsole` orfano di §11**: sono processi diversi, quindi il `Name` del filtro li distingue già. L'orfano è `LiveCodingConsole.exe` col `ParentProcessId` che non risolve; lo zombie è un `UnrealEditor.exe` morto male il cui mutex sopravvive.
+⚠️ **L'Editor *zombie* è un terzo caso, ed è l'unico che il nome «orfano» descriveva davvero**: un `UnrealEditor.exe` morto male il cui mutex sopravvive. ⌫ *Fino a [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md) qui si distingueva anche un `LiveCodingConsole` orfano*, convinti che tenesse il lock: misurato il 2026-10-07, non lo tiene, e muore da sola con l'ultimo processo del suo gruppo. 🔑 **I gate di `tools/mutation/` riconoscono lo zombie con le ancore qui sotto e si fermano**, invece di attendere mezz'ora: `misura.stato_del_detentore()` guarda `ThreadCount` e `WorkingSetSize`, gli stessi valori di `Threads.Count` e `WorkingSet64` ([`D-472`](docs/decisions/RT_PDR_00_Decision_Log.md)). Non usano la leva: resta un gesto umano.
 
 ⛔ **Quelli che seguono sono DUE ANCORE, non soglie.** C'è **un** quadro zombie (2026-08-24) e **un** quadro di Editor vivo (2026-09-11): due osservazioni, non una distribuzione. Un valore intermedio — un Editor a metà chiusura, per dire — non è mai stato osservato, quindi questa tabella non lo classifica male: **non può classificarlo**. Chi ne incontra uno è fuori dai dati, e deve saperlo invece di arrotondare all'ancora più vicina.
 
@@ -857,13 +856,13 @@ Unreal è **uno** e lo condividono tutti i checkout. Da cui:
 **2 · Prima di prendere: leggi chi c'è, e da dove.**
 
 ```powershell
-Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'LiveCoding%'" |
+Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" |
     Select ProcessId, ParentProcessId, Name, CommandLine
 ```
 
 ⛔ **Un conteggio di processi non serve a niente.** La `CommandLine` porta il `.uproject`, quindi **quale clone**; `UnrealEditor.exe` contro `UnrealEditor-Cmd.exe` dice se è un Editor interattivo o una run headless; e `-abslog` dice **quale sessione**. Sono le tre cose che decidono se aspettare.
 
-⛔ **E `LiveCodingConsole` va nel filtro, perché non contiene `UnrealEditor`.** Tiene lo stesso lock di compilazione — di **tutti** i cloni — e sopravvive all’Editor che lo ha aperto: un filtro sul solo `UnrealEditor%` torna **vuoto** mentre la build resta bloccata su *«Unable to build while Live Coding is active … Exit the editor»*, e non c’è un Editor da chiudere. Per questo serve il `ParentProcessId`: se non risolve a un processo vivo **nello stesso campione**, quel `LiveCodingConsole` è **orfano**. [#2392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392) lo ha misurato; i gate di `tools/mutation/` lo classificano in `misura.classifica_livecoding()`.
+⌫ **`LiveCodingConsole` era nel filtro fino a [`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md), e non c'è più.** Si credeva che tenesse lo stesso lock di compilazione e sopravvivesse all'Editor che l'aveva aperta ([#2392](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2392)). Misurato il 2026-10-07: il lock che UBT interroga è un mutex che ogni `UnrealEditor.exe` crea nel proprio processo, e una console col padre morto non impedisce a nessuna build di passare; muore da sola con l'ultimo processo del suo gruppo. Una build rifiutata con *«Unable to build while Live Coding is active»* ha dietro un `UnrealEditor.exe`, vivo o zombie (§*Build Editor*), ed è quello che il filtro qui sopra trova. `misura.build()` lo nomina quando il rifiuto arriva.
 
 **3 · Quando prendi, rendi il tuo processo leggibile.** Ogni run headless passa `-abslog` dentro la propria directory di scratchpad di sessione:
 
@@ -881,8 +880,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'L
 | misura di **performance** in qualunque clone | qualsiasi cosa sul motore | **aspetta**: la contesa di CPU falsa i tempi |
 | qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
 | Editor interattivo in **qualunque** clone | build | **aspetta**: Live Coding è chiavato sul percorso dell'**eseguibile** di target, non sul `.uproject` — vedi §*Build Editor*. ⚠️ Diceva *«sul **tuo** clone — tiene il DLL»* fino al 2026-09-16: sbagliava **sede** e **meccanismo**, e contraddiceva §*Build Editor* nello stesso documento |
-| `LiveCodingConsole` col **padre vivo** | build in qualunque clone | **aspetta**: il lock è di chi sta iterando, e chiuderglielo gli costa il lavoro non salvato |
-| `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**, se nessun Editor interattivo è vivo: nessuno lo rilascerà, si **termina**. ⚠️ **Con un Editor vivo, un padre che non risolve non vuol dire che nessuno lo usi**: un Editor aperto dopo si aggancia alla console del suo gruppo invece di aprirne una propria (log: *«Detected running instance in process group … connecting to console process»*, misurato il 2026-10-07, [#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)). I gate di `tools/mutation/` lo fanno da sé, ma solo quando nessun motore vivo potrebbe usare Live Coding — interattivo no, headless sì se la riga porta `-NoLiveCoding` ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)). ⚠️ Quel flag non è ciò che spegne il Live Coding di una suite, lo è `-unattended`: il criterio di `D-400` è prudente, ma non è il segno vero |
+| `LiveCodingConsole`, col padre vivo o orfana | build in qualunque clone | **non decide niente**, e non si termina ([`D-469`](docs/decisions/RT_PDR_00_Decision_Log.md)): non tiene il lock. Se la build è rifiutata, il detentore è un `UnrealEditor.exe` — vivo, ed è la riga dell'Editor interattivo; zombie, ed è §*Build Editor*. ⌫ *Fino al 2026-10-07 qui c'erano due righe*: col padre vivo «aspetta», orfana «si termina» ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)). Entrambe poggiavano sulla stessa premessa falsa |
 | qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
 
 **5 · Se non puoi aspettare, non misurare comunque.** Si dichiara `NOT RUN` con il motivo — *«motore occupato da `<clone>`»* — invece di produrre un verde in finestra sporca. Un `NOT RUN` onesto costa un giro; una misura invalida costa la fiducia in tutte le altre.

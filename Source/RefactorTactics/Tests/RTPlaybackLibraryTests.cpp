@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTPlaybackLibrary.h"
+#include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnManager.h" // il default di `PlaybackCellsPerSecond`, letto dal CDO
 #include "Turn/RTTurnRules.h"
 
@@ -278,6 +279,223 @@ bool FRTPlaybackAttackStaggerDegenerateTest::RunTest(const FString&)
 		URTPlaybackLibrary::AttacksToShow(3, 0.f, -1.f), 3);
 	TestEqual(TEXT("tempo negativo -> il primo colpo, non zero ne' un indice fuori range"),
 		URTPlaybackLibrary::AttacksToShow(3, -5.f, 0.5f), 1);
+	return true;
+}
+
+// --- TracerSegment (`#2454`) ------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerSegmentShapesTest,
+	"RefactorTactics.Playback.TracerSegmentShapes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerSegmentShapesTest::RunTest(const FString&)
+{
+	// 🔑 Le due forme si distinguono per GEOMETRIA, non per colore: il getto resta ancorato all'origine, il
+	// proiettile se ne stacca. Se le due righe del ramo si scambiassero, cadono le asserzioni sulla coda.
+	const FVector A(0.f, 0.f, 0.f);
+	const FVector B(1000.f, 0.f, 0.f);
+	FVector S, E;
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Jet, A, B, 0.5f, 100.f, S, E);
+	TestTrue(TEXT("il getto resta ancorato all'origine"), S.Equals(A, RTTol));
+	TestTrue(TEXT("e arriva fin dove e' arrivato il volo"), E.Equals(FVector(500.f, 0.f, 0.f), RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Projectile, A, B, 0.5f, 100.f, S, E);
+	TestTrue(TEXT("la testa del proiettile e' dove e' arrivato il volo"), E.Equals(FVector(500.f, 0.f, 0.f), RTTol));
+	TestTrue(TEXT("la coda e' a un dardo di distanza, NON all'origine"), S.Equals(FVector(400.f, 0.f, 0.f), RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Projectile, A, B, 0.05f, 100.f, S, E);
+	TestTrue(TEXT("in partenza la coda non scavalca l'origine"), S.Equals(A, RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Jet, A, B, 2.f, 100.f, S, E);
+	TestTrue(TEXT("un avanzamento oltre 1 non supera l'impatto"), E.Equals(B, RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::None, A, B, 0.5f, 100.f, S, E);
+	TestTrue(TEXT("None non disegna un segmento: i due estremi coincidono"), S.Equals(E, RTTol));
+	return true;
+}
+
+// --- Il tempo del tracer (`#2454`, spec §2.3) --------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerArrivesAfterFlightTest,
+	"RefactorTactics.Playback.TracerArrivesAfterFlight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerArrivesAfterFlightTest::RunTest(const FString&)
+{
+	const float A = 0.5f;
+	const float F = URTPlaybackLibrary::TracerFlightFor(/*bEligible=*/ true, 0.25f, A);
+	TestEqual(TEXT("un colpo idoneo vola per il tempo dichiarato"), F, 0.25f, RTTol);
+	TestEqual(TEXT("un colpo non idoneo non vola"), URTPlaybackLibrary::TracerFlightFor(false, 0.25f, A), 0.f, RTTol);
+
+	const TArray<float> Flights = { F };
+	TestEqual(TEXT("il lancio e' a fase appena iniziata"), URTPlaybackLibrary::AttackBeatSeconds(0, A, Flights), 0.f, RTTol);
+	TestEqual(TEXT("l'arrivo e' dopo il volo"), URTPlaybackLibrary::AttackBeatSeconds(1, A, Flights), 0.25f, RTTol);
+
+	// 🔴 **La mutazione dichiarata**: con il volo a zero il lancio e l'arrivo cadono nello stesso istante, e
+	// cade la riga a 0.1 s (due battiti usciti invece di uno) — e' la forma di oggi, quella che #2454 chiede di
+	// superare. ⚠️ La riga a 0.25 s NON cade: e' il testimone del confine **inclusivo** (un battito dovuto a
+	// `t == istante` e' uscito), e vale con qualunque volo `<= 0.25`.
+	TestEqual(TEXT("a 0.1 s e' uscito il lancio e non l'arrivo"), URTPlaybackLibrary::AttackBeatsDue(0.1f, A, Flights), 1);
+	TestEqual(TEXT("a 0.25 s e' uscito anche l'arrivo"), URTPlaybackLibrary::AttackBeatsDue(0.25f, A, Flights), 2);
+
+	TestEqual(TEXT("a meta' volo l'avanzamento e' 0.5"), URTPlaybackLibrary::TracerAlpha(0, 0.125f, A, F), 0.5f, RTTol);
+	TestEqual(TEXT("prima del lancio e' 0"), URTPlaybackLibrary::TracerAlpha(1, 0.1f, A, F), 0.f, RTTol);
+	TestEqual(TEXT("senza volo e' gia' 1"), URTPlaybackLibrary::TracerAlpha(0, 0.f, A, 0.f), 1.f, RTTol);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerFlightNeverOutlastsTheSlotTest,
+	"RefactorTactics.Playback.TracerFlightNeverOutlastsTheSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerFlightNeverOutlastsTheSlotTest::RunTest(const FString&)
+{
+	// 🔑 **Il Blast non si allunga** (spec §2.3): per ogni volo chiesto, `F_eff <= A/2`, quindi l'arrivo di un
+	// colpo precede il lancio del successivo e l'ultimo arrivo cade prima di `N·A`.
+	const float A = 0.5f;
+	for (const float Chiesto : { 0.f, 0.1f, 0.25f, 0.49f, 0.5f, 3.f })
+	{
+		const float F = URTPlaybackLibrary::TracerFlightFor(true, Chiesto, A);
+		TestTrue(FString::Printf(TEXT("volo chiesto %.2f: F_eff %.3f <= A/2"), Chiesto, F), F <= 0.5f * A + RTTol);
+
+		// Idonei e non idonei alternati: gli arrivi restano monotoni anche mescolandoli.
+		const TArray<float> Flights = { F, 0.f, F, F };
+		for (int32 Beat = 0; Beat + 1 < 2 * Flights.Num(); ++Beat)
+		{
+			TestTrue(FString::Printf(TEXT("volo %.2f: battito %d non dopo il %d"), Chiesto, Beat, Beat + 1),
+				URTPlaybackLibrary::AttackBeatSeconds(Beat, A, Flights)
+					<= URTPlaybackLibrary::AttackBeatSeconds(Beat + 1, A, Flights) + RTTol);
+		}
+		const float UltimoArrivo = URTPlaybackLibrary::AttackBeatSeconds(2 * Flights.Num() - 1, A, Flights);
+		TestTrue(FString::Printf(TEXT("volo %.2f: ultimo arrivo %.3f < N*A"), Chiesto, UltimoArrivo),
+			UltimoArrivo < Flights.Num() * A);
+		TestEqual(FString::Printf(TEXT("volo %.2f: a N*A tutti i battiti sono usciti"), Chiesto),
+			URTPlaybackLibrary::AttackBeatsDue(Flights.Num() * A, A, Flights), 2 * Flights.Num());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerZeroFlightKeepsTodaysRhythmTest,
+	"RefactorTactics.Playback.TracerZeroFlightKeepsTodaysRhythm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerZeroFlightKeepsTodaysRhythmTest::RunTest(const FString&)
+{
+	// Senza volo, gli arrivi escono come i colpi di oggi: `AttacksToShow` e' l'oracolo, non un secondo calcolo.
+	const float A = 0.5f;
+	const TArray<float> Flights = { 0.f, 0.f, 0.f, 0.f };
+	for (const float T : { 0.f, 0.49f, 0.5f, 1.f, 1.6f, 10.f })
+	{
+		TestEqual(FString::Printf(TEXT("t=%.2f: arrivi = colpi di oggi"), T),
+			URTPlaybackLibrary::AttackBeatsDue(T, A, Flights) / 2,
+			URTPlaybackLibrary::AttacksToShow(Flights.Num(), T, A));
+	}
+	// `AttackShowSeconds <= 0`: nessuno scaglionamento, tutti i battiti subito — come `AttacksToShow`.
+	TestEqual(TEXT("A<=0: niente volo"), URTPlaybackLibrary::TracerFlightFor(true, 0.25f, 0.f), 0.f, RTTol);
+	TestEqual(TEXT("A<=0: tutti i battiti subito"), URTPlaybackLibrary::AttackBeatsDue(0.f, 0.f, Flights), 8);
+	TestEqual(TEXT("nessun colpo, nessun battito"), URTPlaybackLibrary::AttackBeatsDue(5.f, A, {}), 0);
+	return true;
+}
+
+// --- Idoneita' e stile del tracer (`#2454`) ---------------------------------------------------
+
+namespace
+{
+	/** Un `Attack` idoneo e visibile alle squadre 0 e 1 (nome unico per file: unity build). */
+	FRTResolvedEvent MakeTracerAttackEvent(ERTAbilityShape Shape)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Attack;
+		Ev.ActionId = TEXT("Hero.Ivrin.PulseShot");
+		Ev.BaseActionId = TEXT("Action.BasicAttack");
+		Ev.Shape = Shape;
+		Ev.HitGeometry.bResolved = true;
+		Ev.HitGeometry.From = FRTCellId(0, 0);
+		Ev.HitGeometry.Impact = FRTCellId(3, 0);
+		Ev.HitGeometry.FromVerdict.AllowTeam(0);
+		Ev.HitGeometry.FromVerdict.AllowTeam(1);
+		Ev.HitGeometry.ImpactVerdict.AllowTeam(0);
+		Ev.HitGeometry.ImpactVerdict.AllowTeam(1);
+		return Ev;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerStyleFollowsShapeTest,
+	"RefactorTactics.Playback.TracerStyleFollowsShapeForBasicAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerStyleFollowsShapeTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("Single -> proiettile"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Single), 0) == ERTTracerStyle::Projectile);
+	TestTrue(TEXT("Line -> getto"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Line), 0) == ERTTracerStyle::Jet);
+	TestTrue(TEXT("Area -> niente"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Area), 0) == ERTTracerStyle::None);
+	TestTrue(TEXT("Cone -> niente"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Cone), 0) == ERTTracerStyle::None);
+
+	FRTResolvedEvent Abilita = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Abilita.ActionId = TEXT("Hero.Ivrin.PassingBlade");
+	Abilita.BaseActionId = NAME_None;
+	TestFalse(TEXT("un'azione che non e' un attacco base non e' idonea"), URTPlaybackLibrary::IsTracerEligible(Abilita));
+
+	FRTResolvedEvent Generica = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Generica.ActionId = TEXT("Action.BasicAttack");
+	Generica.BaseActionId = NAME_None;
+	TestTrue(TEXT("l'attacco base GENERICO e' idoneo dal suo ActionId"), URTPlaybackLibrary::IsTracerEligible(Generica));
+
+	// ⛔ **`bResolved` e non le celle**: `FRTCellId()` e' `(0,0,0)`, una cella VALIDA.
+	FRTResolvedEvent Irrisolto = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Irrisolto.HitGeometry.bResolved = false;
+	TestFalse(TEXT("senza geometria risolta non c'e' tracer, anche con celle valide"),
+		URTPlaybackLibrary::IsTracerEligible(Irrisolto));
+
+	FRTResolvedEvent Movimento = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Movimento.Type = ERTResolvedEventType::Move;
+	TestFalse(TEXT("solo un Attack ha un tracer"), URTPlaybackLibrary::IsTracerEligible(Movimento));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyTracerHiddenWhenOriginUnknownTest,
+	"RefactorTactics.Privacy.TracerHiddenWhenOriginUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyTracerHiddenWhenOriginUnknownTest::RunTest(const FString&)
+{
+	// La squadra 1 e' stata colpita da un attaccante che NON vedeva: il verdetto dell'origine la esclude.
+	FRTResolvedEvent Ev = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Ev.HitGeometry.FromVerdict = FRTKnowledgeVerdict::NoOne();
+	Ev.HitGeometry.FromVerdict.AllowTeam(0);
+
+	TestTrue(TEXT("chi spara vede il proprio tracer"),
+		URTPlaybackLibrary::TracerStyleFor(Ev, 0) == ERTTracerStyle::Projectile);
+	// 🔴 **La mutazione dichiarata**: ignorare `FromVerdict` fa disegnare qui un proiettile, cioe' rivela la
+	// cella di chi spara a chi non la conosceva — la riga che deve cadere.
+	TestTrue(TEXT("chi non vedeva l'attaccante NON vede il tracer"),
+		URTPlaybackLibrary::TracerStyleFor(Ev, 1) == ERTTracerStyle::None);
+
+	FRTResolvedEvent Cieco = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Cieco.HitGeometry.ImpactVerdict = FRTKnowledgeVerdict::NoOne();
+	Cieco.HitGeometry.ImpactVerdict.AllowTeam(1);
+	TestTrue(TEXT("chi non conosceva la cella d'impatto non vede il tracer"),
+		URTPlaybackLibrary::TracerStyleFor(Cieco, 0) == ERTTracerStyle::None);
+	TestTrue(TEXT("un osservatore fuori intervallo non legge"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Single), -1) == ERTTracerStyle::None);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest,
+	"RefactorTactics.Privacy.TracerRhythmIsTheSameForEveryViewer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest::RunTest(const FString&)
+{
+	// 🔑 Il RITMO dipende dall'idoneita' (spec §2.1, condizioni 1-3), il DISEGNO dalla conoscenza (condizione 4).
+	// Due squadre con verdetti opposti vedono l'arrivo nello stesso istante.
+	FRTResolvedEvent Ev = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Ev.HitGeometry.FromVerdict = FRTKnowledgeVerdict::NoOne();
+	Ev.HitGeometry.FromVerdict.AllowTeam(0);
+
+	TestTrue(TEXT("premessa: le due squadre hanno disegni diversi"),
+		URTPlaybackLibrary::TracerStyleFor(Ev, 0) != URTPlaybackLibrary::TracerStyleFor(Ev, 1));
+	const float Volo = URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Ev), 0.25f, 0.5f);
+	TestEqual(TEXT("e lo stesso volo: l'idoneita' non legge chi guarda"), Volo, 0.25f, RTTol);
 	return true;
 }
 
@@ -1089,6 +1307,95 @@ bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
 	// ∴ la differenza fra i due blocchi e' **solo** la durata della fase, ed e' la durata che questo gate
 	// sorveglia. Il catch-all non e' morto: e' inutile finche' questa riga resta verde.
 
+	return true;
+}
+
+/**
+ * Alla fine della fase `Blast` OGNI colpo e' gia' ARRIVATO — `#2454`, spec §2.3.
+ *
+ * 🔴 **E' il gate gemello di `EveryChannelIsFullyRevealedByPhaseEnd`, e quello non basta.** Quel test chiede
+ * `AttacksToShow(N, PhaseDur) == N`, cioe' `PhaseDur >= (N-1)·A`: la soglia dei LANCI. L'arrivo dell'ultimo
+ * colpo cade a `(N-1)·A + F_eff`, con `F_eff` fino ad `A/2`, quindi serve `PhaseDur >= (N-1)·A + F_eff`, fino a
+ * `(N-½)·A`. Una fase accorciata fra `(N-1)·A` e `(N-½)·A` lascerebbe il primo gate **verde** e farebbe
+ * consegnare l'ultimo arrivo dalla rete di fine fase — senza la riga di log e senza la fermata di `Next
+ * Action` — **in silenzio**, perche' il recupero e' silenzioso per costruzione.
+ *
+ * ⚠️ **Non e' `TracerFlightNeverOutlastsTheSlot`**: quello valuta gli arrivi a un `N·A` scritto nel test, non
+ * alla durata che `PhaseTime` da' davvero al `Blast`. Qui la durata e' quella vera.
+ *
+ * ⛔ Il volo chiesto e' enorme di proposito: `TracerFlightFor` lo taglia ad `A/2`, che e' il PEGGIOR caso
+ * ammesso — se la fase regge quello, regge ogni volo configurabile.
+ *
+ * ⚠️ Pura di proposito: l'invariante e' aritmetico e non richiede un mondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEveryAttackArrivesByPhaseEndTest,
+	"RefactorTactics.Playback.EveryAttackArrivesByPhaseEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEveryAttackArrivesByPhaseEndTest::RunTest(const FString&)
+{
+	// Nome con prefisso per l'unity build, come gli altri helper di questo file.
+	struct FRTPlaybackArrivalCase
+	{
+		int32 MaxSeg;
+		int32 Attacks;
+		int32 Strutture;
+		int32 Impronte;
+		const TCHAR* Nome;
+	};
+
+	const float CellsPerSec = 2.f;
+	const float ShowSeconds = 0.5f;
+	const float BeatSeconds = 0.3f;
+
+	// Gli stessi casi di `EveryChannelIsFullyRevealedByPhaseEnd`, piu' il colpo singolo: li' la fase dura
+	// `1·A` e l'arrivo cade a `A/2`, il caso piu' stretto in assoluto.
+	const FRTPlaybackArrivalCase Casi[] = {
+		{ 0, 4, 0, 0, TEXT("solo colpi") },
+		{ 0, 1, 0, 0, TEXT("un colpo solo") },
+		{ 0, 0, 4, 0, TEXT("solo muri") },
+		{ 0, 0, 0, 4, TEXT("solo impronte") },
+		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
+		{ 0, 0, 0, 0, TEXT("vuota: il pavimento di uno") },
+	};
+
+	const float VoloPeggiore = URTPlaybackLibrary::TracerFlightFor(/*bEligible=*/ true, /*Chiesto=*/ 10.f, ShowSeconds);
+	// ⛔ **Premessa asserita, non assunta**: il volo del test e' il tetto `A/2`. Se il taglio cambiasse, questo
+	// gate smetterebbe di misurare il caso peggiore senza dirlo.
+	TestEqual(TEXT("premessa: il volo peggiore e' il tetto A/2"), VoloPeggiore, 0.5f * ShowSeconds, RTTol);
+
+	for (const FRTPlaybackArrivalCase& C : Casi)
+	{
+		// 🔑 **Sulla SEQUENZA per intento** (merge di `#2454` in #3549): il Blast si percorre su un cursore solo, un
+		// elemento per fatto — colpi, muri, impronte — e i voli sono paralleli alla sequenza, zero per ogni elemento
+		// che non e' un colpo. ⏱️ *La stesura di `#2454` passava i tre canali a `PhaseTime` e i soli colpi ad
+		// `AttackBeatsDue`.*
+		const int32 Sequenza = C.Attacks + C.Strutture + C.Impronte;
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, C.MaxSeg,
+			/*NumActivations=*/ 0, Sequenza, CellsPerSec, ShowSeconds, BeatSeconds);
+
+		// ⛔ **I colpi IN CODA, col volo peggiore**: e' il caso peggiore, perche' l'ultimo arrivo cade allora a
+		// `(Sequenza - 1)·A + A/2`. Con un colpo in testa l'ultimo battito sarebbe una rivelazione, a `(Sequenza - 1)·A`.
+		TArray<float> Flights;
+		Flights.Init(0.f, Sequenza);
+		for (int32 K = Sequenza - C.Attacks; K < Sequenza; ++K) { Flights[K] = VoloPeggiore; }
+
+		// La durata a runtime e' `Shown + Slack * scala`, e sul Blast lo Slack e' zero (lo asserisce l'altro
+		// gate): `Shown` e' la durata vera.
+		TestEqual(FString::Printf(TEXT("%s: a fine fase sono usciti TUTTI i battiti, rivelazioni e arrivi"), C.Nome),
+			URTPlaybackLibrary::AttackBeatsDue(T.Shown, ShowSeconds, Flights), 2 * Sequenza);
+
+		// --- ⛔ ANTI-VACUITA' ------------------------------------------------------------------------
+		// `AttackBeatsDue` PUO' restituire meno del totale: a `(N-1)·A`, con tutte le rivelazioni uscite, manca
+		// ESATTAMENTE l'ultimo arrivo. Senza questa riga l'asserzione qui sopra sarebbe vera anche con una
+		// `AttackBeatsDue` che restituisce sempre `2·N`.
+		if (C.Attacks >= 1)
+		{
+			TestTrue(FString::Printf(TEXT("%s: a (N-1)*A l'ultimo arrivo NON e' ancora uscito"), C.Nome),
+				URTPlaybackLibrary::AttackBeatsDue((Sequenza - 1) * ShowSeconds, ShowSeconds, Flights) < 2 * Sequenza);
+		}
+	}
 	return true;
 }
 

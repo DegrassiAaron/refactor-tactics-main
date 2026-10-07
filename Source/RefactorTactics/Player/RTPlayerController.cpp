@@ -171,16 +171,17 @@ namespace
 	}
 
 	/**
-	 * La cella da cui si mira, e da cui si misura la portata. 🔑 **Una sola espressione per la portata e per il piano
-	 * attivo** (`DR-5`, `#3517`): se divergessero, la portata starebbe su un piano e il click su un altro.
+	 * La cella da cui si mira l'azione ARMATA, e da cui si misura la portata. 🔑 **Una sola espressione per la portata
+	 * e per il piano attivo** (`DR-5`, `#3517`): se divergessero, la portata starebbe su un piano e il click su un
+	 * altro.
 	 *
-	 * ⚠️ E' la cella in cui l'unita' si trova, la stessa da cui misurano la portata `HandleTargetCell` e il click su
-	 * un'unita' — che pero' la leggono da `Unit->Cell`, non da qui. Con uno scatto pianificato l'origine cambia per
-	 * fase (`#3509`, [D-464]): va cambiata qui **e** in quei siti insieme, o portata e click tornano a divergere.
+	 * Dipende dalla FASE dell'azione ([D-464], `#3509`): con uno scatto pianificato un `Attack` mira dalla cella
+	 * dello scatto, un `Environment` da quella corrente. ⏱️ *Fino a #3509 era `Unit->Cell`*, e `HandleTargetCell` e il
+	 * click su un'unita' la leggevano da li' per conto proprio: ora chiedono tutti `ARTUnit::AimOriginFor`.
 	 */
-	FRTCellId OrigineDiMira(const ARTUnit* Unit)
+	FRTCellId OrigineDiMira(const ARTUnit* Unit, const URTActionData& Armata)
 	{
-		return Unit->Cell;
+		return Unit->AimOriginFor(Armata.Def.ResolutionPhase);
 	}
 
 	/**
@@ -280,7 +281,7 @@ namespace
 			bMira = ChiedeUnBersaglio(*Armata) && Armata->RangeCells > 0;
 			if (MostraLaPortata(Unit, Unit->SelectedAbilityIndex, *Armata))
 			{
-				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit), Armata->RangeCells,
+				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit, *Armata), Armata->RangeCells,
 					Armata->Def.LineOfSightPolicy);
 			}
 		}
@@ -296,17 +297,23 @@ namespace
 		// aveva dichiarato coperto («l'area colpita in preview prima del click»).
 		//
 		// 🔴 **E l'origine non e' piu' `Unit->Cell` in ogni caso.** La fase Dash precede il Blast, quindi chi
-		// ha pianificato una carica sparera' da dove sara' arrivato. `PlannedDashApplies()` e' la stessa
-		// domanda che `ResolveDash` si pone.
+		// ha pianificato uno scatto e poi un attacco sparera' da dove sara' arrivato. `PlannedDashMoves()` e' la
+		// stessa domanda che `ResolveDash` si pone, rifiuto dello stato compreso ([D-471]). ⚠️ Da #3509 decide anche
+		// la FASE dell'azione, e la carica ne resta fuori ([D-464], `AimOriginCell`).
 		FRTBlastPreviewPlan PreviewPlan;
 		PreviewPlan.AttackerId = UnitId;
-		PreviewPlan.bDashResolves = Unit->PlannedDashApplies();
+		PreviewPlan.bDashResolves = Unit->PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
 		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
+		PreviewPlan.bDashIsCharge = Unit->PlannedDashIsCharge();
 
 		const URTActionData* Ability = Unit->GetAbility(Unit->PlannedAbilityIndex);
 		if (Ability)
 		{
 			PreviewPlan.bHasAction = true;
+			// [D-464]: l'area colpita parte da dove l'azione MIRA, e quello dipende dalla sua fase. Senza, un
+			// `Environment` pianificato dopo uno scatto veniva anteprimato dalla cella dello scatto, mentre il click
+			// lo giudicava da quella corrente.
+			PreviewPlan.Phase = Ability->Def.ResolutionPhase;
 			PreviewPlan.Shape = Ability->Shape;
 			PreviewPlan.RangeCells = Ability->RangeCells;
 			PreviewPlan.AreaRadius = Ability->AreaRadius;
@@ -385,7 +392,7 @@ namespace
 			// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
 			Timeline.bDashPlanned = Unit->PlannedDashAbility != INDEX_NONE
 				&& !(Unit->PlannedDashCell == Unit->Cell);
-			Timeline.bDashResolves = Unit->PlannedDashApplies();
+			Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
 			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
@@ -421,8 +428,9 @@ namespace
 				if (const ARTUnit* Bersaglio = Unit->PlannedAttackTarget.Get())
 				{
 					// La coppia ha ora un nome, e lo stesso nome lo leggono gli slot di [D-459] (#3483).
+					// [D-464]: dall'origine della fase, come il click. ⏱️ *Fino a #3509 da `Unit->Cell`*.
 					Timeline.BlastTargetRefusal = URTCombatLibrary::RefusalForKnownTarget(
-						Map, Unit->Cell, Bersaglio->Cell, Ability->RangeCells,
+						Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Bersaglio->Cell, Ability->RangeCells,
 						Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
 				}
 			}
@@ -2102,8 +2110,13 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 		// `HandleTargetCell` e non passano di qua. Si legge lo stesso perche' il dato e' **uno**: il giorno
 		// in cui un'azione mirata dichiarera' il tiro indiretto, questo sito non sara' quello dimenticato.
 		// ⛔ E non tocca la CONOSCENZA: la guardia `IsKnownToObserver()` qui sotto vale comunque (`#2741`).
+		// 🔴 **[D-464]: da dove l'azione MIRA, non da dove l'unita' sta.** Con uno scatto pianificato un `Attack` parte
+		// dalla cella dello scatto, e la risoluzione colpisce da li' (`CollectHexAttacks`): giudicare dalla cella
+		// corrente accettava bersagli che il resolver manca e ne rifiutava altri che colpira'. ⚠️ La stessa origine
+		// vale per TUTTO cio' che segue — rifiuto, portata efficace, linea di tiro: il tratto rosso parte da li'.
+		const FRTCellId DaDoveMira = SelectedUnit->AimOriginFor(Ability->Def.ResolutionPhase);
 		const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-			TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+			TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 
 		// 🔴 **NON SI BERSAGLIA CIO' CHE NON SI VEDE, e questa guardia chiude il canale PIU' RUMOROSO**
 		// (`#2741`). Se un click raggiungesse un nemico velato e questo fosse anche in portata e in linea,
@@ -2169,7 +2182,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				// copia della regola nel canale diagnostico direbbe il vero solo finche' qualcuno non
 				// cambia il catalogo del terreno.
 				const int32 EffectiveRange = URTTerrainLibrary::EffectiveTargetingRange(
-					TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells);
+					TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells);
 				UE_LOG(LogRT, Log, TEXT("[RT] %s %s"), *ClickedUnit->GetName(),
 					*URTCombatLibrary::OutOfRangeDiagnostic(Ability->RangeCells, EffectiveRange));
 				break;
@@ -2218,9 +2231,9 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				Hud->SetTargetRefusal(
 					URTCombatLibrary::RefusalForObserver(Reason, ClickedUnit->IsKnownToObserver()),
 					URTTerrainLibrary::EffectiveTargetingRange(
-						TMap, SelectedUnit->Cell, ClickedUnit->Cell, Ability->RangeCells),
-					URTHexVisionLibrary::DescribeLineOfSight(TMap, SelectedUnit->Cell, ClickedUnit->Cell),
-					SelectedUnit->Cell, ClickedUnit->Cell);
+						TMap, DaDoveMira, ClickedUnit->Cell, Ability->RangeCells),
+					URTHexVisionLibrary::DescribeLineOfSight(TMap, DaDoveMira, ClickedUnit->Cell),
+					DaDoveMira, ClickedUnit->Cell);
 			}
 
 			// ── LA LINEA CHE NON PASSA (`#2742`), accanto al messaggio che dice perche' (`#2741`).
@@ -2242,7 +2255,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				if (Reason == ERTHexTargetReason::NoLineOfSight)
 				{
 					const TArray<FRTSightLine> Lines = URTSightLineLibrary::AuthorizedSightLines(
-						TMap, SelectedUnit->Cell,
+						TMap, DaDoveMira,
 						{ FRTObservedTarget(ClickedUnit->Cell, ClickedUnit->IsKnownToObserver()) });
 					if (Lines.Num() > 0 && !Lines[0].IsClear())
 					{
@@ -2253,7 +2266,7 @@ void ARTPlayerController::HandleClickOnUnit(ARTUnit* ClickedUnit)
 				// Chiamata SEMPRE, non solo quando c'e' da accendere: e' cio' che spegne la linea del click
 				// precedente. La stessa durata del messaggio di `#2741` — vive quanto la decisione che l'ha
 				// prodotta, e un altro click e' un'altra decisione.
-				THexMap->SetPreviewSightBlock(bDrawBlocked, SelectedUnit->Cell, BlockedAt);
+				THexMap->SetPreviewSightBlock(bDrawBlocked, DaDoveMira, BlockedAt);
 			}
 		}
 	}
@@ -3291,7 +3304,7 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// `Q6` del referto del 2026-10-06, e non e' decisa.
 	if (MostraLaPortata(Unit, Index, *Ability))
 	{
-		SetActiveLayer(OrigineDiMira(Unit).Layer);
+		SetActiveLayer(OrigineDiMira(Unit, *Ability).Layer);
 	}
 	bAnteprimaDaAggiornare = true;
 	AggiornaAnteprima();
@@ -3951,16 +3964,17 @@ ERTTargetRefusal ARTPlayerController::RefusalUnderPointerForArmed() const
 			{
 				continue;
 			}
-			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->Cell, Bersaglio->Cell,
-				Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
+			// [D-464]: la stessa origine del click che questo stato anticipa — la fase dell'azione ARMATA.
+			return URTCombatLibrary::RefusalForKnownTarget(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
+				Bersaglio->Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy, Bersaglio->IsKnownToObserver());
 		}
 		return ERTTargetRefusal::None;
 	}
 	case ERTPointerTargetKind::Cell:
 		// La porta del click su una cella (`HandleTargetCell`), non la coppia delle unita': una cella non
 		// ha un flag di conoscenza, e il suo rifiuto non guarda chi la occupa (`#2791`).
-		return URTCombatLibrary::DescribeCellTargetRefusal(
-			Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy).Refusal;
+		return URTCombatLibrary::DescribeCellTargetRefusal(Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase),
+			Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy).Refusal;
 	case ERTPointerTargetKind::None:
 	case ERTPointerTargetKind::Edge:
 	case ERTPointerTargetKind::Object:
@@ -4167,8 +4181,12 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// ignoto sopra il bersaglio arrivano entrambi qui con lo stesso `FRTCellTargetRefusal`, campo per campo.
 	// E' l'invariante di `#2791` applicata al targeting, e cio' che
 	// `BlindFire.CellRefusalIsNotAnEnemyDetector` pinna.
+	//
+	// 🔴 **[D-464]: dall'origine della FASE, non dalla cella corrente.** Con uno scatto pianificato un `Attack` mira
+	// dalla cella dello scatto: e' da li' che la risoluzione colpira'. La stessa `DaDoveMira` sotto, nel tratto rosso.
+	const FRTCellId DaDoveMira = Unit->AimOriginFor(Ability->Def.ResolutionPhase);
 	const FRTCellTargetRefusal Verdetto = URTCombatLibrary::DescribeCellTargetRefusal(
-		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+		Map, DaDoveMira, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
 
 	// ── IL CANALE DEL GIOCATORE, che su questo percorso non esisteva (`#3064`).
 	//
@@ -4182,13 +4200,13 @@ bool ARTPlayerController::HandleTargetCell(const FRTCellId& Cell)
 	// giocatore non fa un altro click»*, e questo E' un altro click — la stessa disciplina dell'azzeramento
 	// in cima a `OnSelect`, di cui questa chiamata e' la meta' che parla.
 	//
-	// 🔑 **E passa `Sight`, `Unit->Cell` e `Cell`**, cioe' la forma a cinque argomenti: con quelli `ARTHUD`
+	// 🔑 **E passa `Sight`, `DaDoveMira` e `Cell`**, cioe' la forma a cinque argomenti: con quelli `ARTHUD`
 	// compone da sola il tratto 2D sul Canvas (`ComputeRefusedShotLine`, `#3085`), che porta **gia' montato**
 	// il filtro sulla cella che BLOCCA. Nessuna riga di privacy nuova da scrivere per quel canale.
 	ARTHUD* Hud = Cast<ARTHUD>(GetHUD());
 	if (Hud)
 	{
-		Hud->SetTargetRefusal(Verdetto.Refusal, Verdetto.EffectiveRange, Verdetto.Sight, Unit->Cell, Cell);
+		Hud->SetTargetRefusal(Verdetto.Refusal, Verdetto.EffectiveRange, Verdetto.Sight, DaDoveMira, Cell);
 	}
 
 	// ── LA LINEA CHE NON PASSA, anche per un bersaglio a CELLA (`#2742` + `#3085`, DoD 3 di `#3064`).
@@ -4314,8 +4332,10 @@ bool ARTPlayerController::HandleTargetEdge(const FRTCellId& Cell, ERTHexDirectio
 
 	// La policy si legge dall'azione anche qui: una struttura di bordo si erige DOVE si arriva, e se un giorno
 	// un'azione dichiarera' di poterlo fare senza vedere il lato, il dato e' gia' quello giusto (`#2870`).
+	// [D-464]: anche qui dall'origine della fase, perche' la regola e' una per chiunque giudichi la mira.
 	const ERTHexTargetReason Reason = URTCombatLibrary::ClassifyHexTargeting(
-		Map, Unit->Cell, Cell, Ability->RangeCells, Ability->Def.LineOfSightPolicy);
+		Map, Unit->AimOriginFor(Ability->Def.ResolutionPhase), Cell, Ability->RangeCells,
+		Ability->Def.LineOfSightPolicy);
 	if (Reason != ERTHexTargetReason::Ok)
 	{
 		UE_LOG(LogRT, Log, TEXT("[RT] Bordo non raggiungibile (portata %d)"), Ability->RangeCells);
@@ -4516,9 +4536,10 @@ FRTCellId ARTPlayerController::FacingCellFor(const ARTUnit* Unit) const
 	{
 		return FRTCellId();
 	}
-	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashApplies`, il
-	// predicato che usa il resolver, e non il solo indice: uno scatto sulla propria cella non e' uno scatto.
-	if (Unit->PlannedDashApplies())
+	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashMoves`, e non il
+	// solo indice: uno scatto sulla propria cella non e' uno scatto, e uno che lo stato nega lascia l'unita' dov'e'
+	// ([D-471]).
+	if (Unit->PlannedDashMoves())
 	{
 		return Unit->PlannedDashCell;
 	}
@@ -4539,7 +4560,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 		return;
 	}
 
-	if (Unit->PlannedDashApplies())
+	if (Unit->PlannedDashMoves()) // [D-471]: uno scatto negato dallo stato non muove l'unita'
 	{
 		const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility);
 		if (Scatto)

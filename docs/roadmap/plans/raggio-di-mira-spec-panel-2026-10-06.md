@@ -6,7 +6,7 @@
 **Panel**: Wiegers (requisiti) · Cockburn (attore/goal) · Adzic (esempi) · Crispin (testabilità) · Fowler (confini) · Nygard (failure mode), più un verificatore avversario delle premesse
 
 > ✅ **Esiti — decisioni d'autore del 2026-10-06 sulle DR di §11.** Il corpo resta la fotografia del panel.
-> - **DR-1** → [`D-464`](../../decisions/RT_PDR_00_Decision_Log.md): una sola origine di mira per fase, dalla cella dello scatto per `Attack` e `Control` (#3509).
+> - **DR-1** → [`D-464`](../../decisions/RT_PDR_00_Decision_Log.md): una sola origine di mira per fase, dalla cella dello scatto per `Attack` e `Control` (#3509). ✅ Implementata da #3509 (`AimOriginCell`): E10 ed E11 sono test headless, `AimOrigin.AttackAfterADashAimsFromTheDash` e `AimOrigin.EnvironmentAfterADashAimsFromHere`, col loadout di default montato; con quello la portata di `PressureJet` è 4.
 > - **DR-2** → [`D-465`](../../decisions/RT_PDR_00_Decision_Log.md): per click e portata l'autore ha scelto la (i) dichiarata fino a #2794 — la via che Fowler e Crispin indicavano se non si decide per la v0.1 —, con l'ottimismo per la sola vista dalla destinazione (#3270, #3420).
 > - **DR-6** → [`D-466`](../../decisions/RT_PDR_00_Decision_Log.md): il click su una cella vuota si rifiuta **finché il bersaglio non è dichiarato**, non sempre come raccomandato qui (#705). Risponde a **Q1**: il waypoint con un'azione armata resta possibile dopo la dichiarazione, senza disarmo implicito.
 > - **DR-8** → nessuna portata finché resta armata un'azione in ricarica; rifiutare l'armo è una decisione a parte. **DR-5** → armare porta il piano attivo a quello da cui si mira; il disarmo (**Q6**) resta aperto. Entrambe in [#3517](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3517), fetta di #1944.
@@ -419,8 +419,10 @@ Ogni issue ha un owner solo; le altre relazioni sono dipendenze.
   l'alpha e per il costo; nessuna issue registrava il caso Shipping: ora è [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508). **Non misurato su un binario.**
 - L'anteprima d'area parte dalla cella del nemico dopo una carica, mentre l'arrivo reale è la cella adiacente
   (`PlannedDashCell` contro `ResolveLinearMove`, D-296) — dentro #3509.
+  ✅ #3509 la esclude come chiede D-464 (5): con una carica l'anteprima parte dalla cella corrente, come il click. Resta il limite dichiarato: il resolver colpisce dall'adiacente.
 - `BlastOriginCell` ignora la fase: un'azione `Environment` o `Preparation` dopo uno scatto viene anteprimata
   da una cella diversa da quella da cui il click la giudica (`RefreshPlanningPreview` applica `BlastOriginCell` a qualunque azione pianificata) — dentro #3509.
+  ✅ Chiuso da #3509: `FRTBlastPreviewPlan` porta la fase, e `BlastOriginCell` chiede `AimOriginCell`.
 - Si arma durante la risoluzione e il playback: `SelectAbilityForCurrent` non ha una guardia di fase — #3510.
   ✅ Chiuso da #3510 ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)), insieme a `Sneak` e `Invio`, che avevano la stessa forma.
 - `InterceptShot` non è dichiarabile dal click (kind `Unit`, ma vuole una cella): l'abilità si consuma senza

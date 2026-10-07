@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
 #include "Map/RTOverlayArea.h" // FRTOverlayArea: le anteprime sono aree semantiche (#1941)
+#include "Map/RTPlaybackTracer.h" // FRTPlaybackTracer: il tracer in volo, in celle (`#2454`)
 #include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
@@ -785,6 +786,14 @@ public:
 		bool bOriginPredicted);
 
 	/**
+	 * L'origine che l'anteprima d'attacco sta mostrando, e se e' accesa. Sola lettura: servono a chi verifica che
+	 * area colpita, click e slot partano dalla stessa cella ([D-464], #3509) anche con un'azione `Single`, la cui
+	 * area non si sposta con l'origine e quindi non la rivela.
+	 */
+	const FRTCellId& GetPreviewAttackOrigin() const { return PreviewAttackOrigin; }
+	bool IsPreviewAttackValid() const { return bPreviewAttackValid; }
+
+	/**
 	 * 🔑 **Posa i GHOST della timeline: uno per fase del piano** — `CP 11.5` ([#172]).
 	 *
 	 * Una timeline **vuota li toglie**, ed e' il caso dell'annullamento: chi spegne l'anteprima chiama questa
@@ -796,6 +805,13 @@ public:
 	 * il bisogno di aggiornare invece che rallentandolo.
 	 */
 	void SetPlanPreview(const FRTPlanPreview& Preview);
+
+	/**
+	 * L'ultima timeline ricevuta, com'era, anche dove i ghost non si posano (un mondo senza componente). Sola
+	 * lettura: serve a chi verifica cosa il controller ha chiesto alla timeline — origine e rifiuto del Blast
+	 * ([D-464], #3509) — senza ricostruirlo dai ghost, che di un rifiuto non portano traccia.
+	 */
+	const FRTPlanPreview& GetPlanPreview() const { return LastPlanPreview; }
 
 	/**
 	 * Quanti ghost sono posati, e su quali celle. Per i test e per la diagnostica.
@@ -897,6 +913,21 @@ public:
 	int32 NumPreviewReachableCells() const { return PreviewReachableArea.Cells.Num(); }
 	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
 	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
+
+	/**
+	 * I tracer in volo nel fotogramma corrente (`#2454`). Li consegna `ARTTurnManager` a ogni tick del Blast e li
+	 * SOSTITUISCE in blocco: il volo e' funzione dell'orologio del playback, non uno stato che si accumula.
+	 *
+	 * Separato dall'impronta come quella lo e' dall'anteprima: lo spegne `ClearPlaybackTracers`, chiamato a fine
+	 * Blast e da `FinishPlayback`. ⛔ Nessun filtro qui: la conoscenza l'ha gia' applicata chi consegna.
+	 */
+	void SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers);
+
+	/** Spegne il canale. */
+	void ClearPlaybackTracers();
+
+	int32 NumPlaybackTracers() const { return PlaybackTracers.Num(); }
+	const TArray<FRTPlaybackTracer>& GetPlaybackTracers() const { return PlaybackTracers; }
 
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitArea.Cells.Contains(Cell); }
@@ -1059,6 +1090,9 @@ protected:
 	 * cambia e' chi la spegne.
 	 */
 	TArray<FRTCellId> PlaybackFootprintCells;
+
+	/** I tracer del fotogramma corrente: vedi `SetPlaybackTracers`. */
+	TArray<FRTPlaybackTracer> PlaybackTracers;
 
 	/**
 	 * I colpi a struttura mostrati durante il playback (`#2828`). Stesso ciclo di vita dell'impronta: nasce
@@ -1464,6 +1498,9 @@ protected:
 
 	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
 	TArray<FRTCellId> PlanGhostCells;
+
+	/** La timeline ricevuta da `SetPlanPreview`. Vedi `GetPlanPreview`. */
+	FRTPlanPreview LastPlanPreview;
 
 	/** Il colore che rende un livello di certezza. Vedi `SetPlanPreview`. */
 	static FLinearColor GhostColorForCertainty(ERTIntentCertainty Certainty);
