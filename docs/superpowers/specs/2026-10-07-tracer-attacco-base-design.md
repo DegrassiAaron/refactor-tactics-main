@@ -4,6 +4,7 @@
 > [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454), righe `Single` e `Line` della
 > grammatica *Basic Combat Cues* e criterio *«il momento dell'arrivo è distinto dal momento della partenza»*.
 > Nessuna issue nuova: la grammatica ha già un owner aperto, e questa spec ne consegna una fetta.
+> **Piano**: [`2026-10-07-tracer-attacco-base.md`](../plans/2026-10-07-tracer-attacco-base.md).
 >
 > **Provenienza**: `/sc:spec-panel` del 2026-10-07 sulla richiesta d'autore *«partiamo dagli attacchi base
 > dei personaggi. lanciano qualcosa? un proiettile? si vede nel gameplay?»*, poi due decisioni d'autore (§0.2).
@@ -234,7 +235,8 @@ struct FRTHitGeometry
 |---|---|
 | `Turn/RTResolvedEvent.h` | `FRTHitGeometry`, il campo `HitGeometry`, `RTServerOnly` sul tipo, l'intestazione di `Shape` |
 | `Turn/RTTurnManager.cpp` (emissione `Attack`, `:6254-6276`) | `Shape` dall'intento; `HitGeometry` da `ResolveImpactOrigin`, `HexUnits[Hit.TargetId].Cell` e due `FreezeVerdictFor` |
-| `Turn/RTPlaybackLibrary.{h,cpp}` | **pure**: `IsTracerEligible(Ev)`, `TracerFlightSeconds(Ev, F, A)`, `AttackBeatSeconds(Beat, A, Flights)`, `AttackBeatsDue(t, A, Flights)`, `TracerAlpha(...)`, `TracerStyleFor(Ev, ViewerTeamId)` → `None` / `Projectile` / `Jet` |
+| `Map/RTPlaybackTracer.h` *(nuovo)* | `ERTTracerStyle` (`None` / `Projectile` / `Jet`) e `FRTPlaybackTracer` (estremi in celle, avanzamento, stile) |
+| `Turn/RTPlaybackLibrary.{h,cpp}` | **pure**: `TracerSegment(Style, Da, A, Alpha, Dardo)`, `TracerFlightFor(bEligible, F, A)`, `AttackBeatSeconds(Beat, A, Flights)`, `AttackBeatsDue(t, A, Flights)`, `TracerAlpha(...)`, `IsTracerEligible(Ev)`, `TracerStyleFor(Ev, ViewerTeamId)` |
 | `Turn/RTTurnManager.{h,cpp}` (tick del Blast) | ➕ rev. `AttacksShown` cede il posto a **un cursore di battiti**, azzerato in `EnterPlaybackPhase` (`:7982`) e in `FinishPlayback`, **mai** in `BeginPlayback` (l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`); `ON_SCOPE_EXIT` che consegna i tracer; rete di finalizzazione per battiti; canale spento a fine Blast |
 | `Map/RTHexMapActor.{h,cpp}` | canale `SetPlaybackTracers` / `ClearPlaybackTracers`, disegnato nel `Tick` con `DisegnaLineaAnteprima`, incluso in `HasAnythingToDraw` (`:1084-1097`) — separato dal canale dell'impronta come quello lo è dall'anteprima |
 | `Turn/RTPresentationBinding.cpp` | la voce `Attack` dichiara anche `SetPlaybackTracers` |
@@ -250,7 +252,7 @@ struct FRTHitGeometry
 | Caso | Comportamento |
 |---|---|
 | Attaccante ignoto a chi guarda | niente tracer; `Hit` e numero **all'istante d'arrivo**, uguale per tutti |
-| Tiro alla cieca che colpisce (D-415, PR #3230 aperta) | ➕ rev. **tracer visibile a chi spara**: D-380 gli rivela la vittima prima che il verdetto si congeli (`:5483`). Un tiro alla cieca che non colpisce nessuno non ha `Attack`: resta la sola impronta |
+| Tiro alla cieca che colpisce (D-415, PR #3230 aperta) | ➕ rev. **tracer visibile a chi spara**: D-380 gli rivela la vittima prima che il verdetto si congeli (`:5483`). Un tiro alla cieca che non colpisce nessuno non ha `Attack`: resta la sola impronta. ⚠️ Non testabile su `main` finché #3230 non atterra: oggi l'attacco base richiede la linea di tiro |
 | `bResolved = false` (origine non risolvibile, vittima perduta) | niente tracer, `F_eff = 0`: ritmo di oggi |
 | Colpo fermato da un muro alto: solo `StructureHit`, nessun `Attack` | niente tracer, ritmo invariato |
 | `AttackShowSeconds ≤ 0` | `F_eff = 0`: tutti i colpi insieme, come oggi |
@@ -258,7 +260,7 @@ struct FRTHitGeometry
 | Estensione del playback con `bPreserveClock` (finestra di reazione, il Brace può sospendere il Blast: `RTTurnManager_Blast.cpp:2622`) | ➕ rev. il cursore **sopravvive**: nessun lancio né arrivo ripetuto |
 | Rete di finalizzazione (`RTTurnManager.cpp:8540-8561`) | ➕ rev. per battiti: un colpo **mai lanciato** riceve `Attack` e l'arrivo; uno **lanciato e non arrivato** riceve **solo** l'arrivo — mai un secondo `Attack` |
 | `SkipPlayback`, `FinishPlayback` | **nessun tracer rigiocato**; il canale si spegne alla fine del Blast **e** in `FinishPlayback`, che esce presto se trattenuto da una finestra (`:8654-8658`). È la politica di seek che #2454 chiede di **scrivere** |
-| `Line` con due vittime | ⚠️ **limite noto**: i colpi sono ordinati per `TargetId`, non per distanza (`RTHexCombatLibrary.cpp:653-659`), quindi il getto verso la vittima lontana può partire per primo e attraversare quella vicina. Domanda della seduta PIE |
+| `Line` con due vittime | ⚠️ **limite noto**: i colpi sono ordinati per `TargetId`, non per distanza (`RTHexCombatLibrary.cpp:653-659`), quindi il getto verso la vittima lontana può partire per primo e attraversare quella vicina. Va con l'ordine dei getti per distanza (§7) |
 | Vittima spinta (`PressureJet`; `ImpactShot` col default `Weapon.Impact`) | ⚠️ **limite noto**: la spinta scivola con l'alpha di **fase** dall'inizio del Blast (`RTTurnManager.cpp:8245-8252`), quindi il colpo arriva sulla cella che la vittima sta lasciando. È la famiglia *«gli esiti precedono la scena»* di #2453; cambiarlo è una decisione separata, e il commento in loco lo dice |
 | 🔴 Impronta `Line` di un attaccante ignoto | ⚠️ **limite preesistente, non introdotto qui**: `HexLine(From, Target)` meno `From` lascia la cella adiacente a chi spara (`RTHexCombatLibrary.cpp:34-38`), e `BeginPlayback` la disegna senza filtro (`RTTurnManager.cpp:7749-7757`). Per `PressureJet` il fail-closed del tracer **non toglie** ciò che l'impronta già mostra. Vale anche per `Cone`. Va in una issue propria (§8) |
 | Clip assenti (`FabAsset` non presente) | il tracer funziona lo stesso: non dipende da alcuna animazione |
@@ -272,17 +274,24 @@ struct FRTHitGeometry
 
 | Test | Asserisce |
 |---|---|
-| `Playback.TracerArrivesAfterFlight` | arrivo = lancio + `F_eff`; prima dell'arrivo nessun `Hit`. 🔴 **Mutazione**: `F_eff = 0` → rosso |
-| `Playback.TracerFlightNeverOutlastsTheSlot` | per ogni `F` e `A > 0`, `Arrivo(i) < Lancio(i+1)` e l'ultimo arrivo `< N·A`; `PhaseTime` identico con e senza tracer |
-| `Playback.AttackBeatsStayOrderedInOneTick` | ➕ rev. con `Dt` di più battiti in un tick, l'ordine è `L0, A0, L1, A1`; 🔴 **mutazione**: due cicli separati → rosso (l'ordine provato per mutazione è richiesto da #2454, *«Test attesi»*) |
+| `Playback.TracerSegmentShapes` | il getto resta ancorato all'origine, il proiettile se ne stacca; l'avanzamento oltre 1 non supera l'impatto |
+| `HexMapActor.PlaybackTracerIsItsOwnChannel` | il canale **sostituisce** a ogni consegna, si spegne con `ClearPlaybackTracers`, non tocca impronta né anteprima. 🔴 **Mutazione**: `Append` invece di assegnazione → rosso |
+| `Preview.TracerDrawsWithDebugDrawingOff` | col debug spento, come in Shipping, il tracer scrive **una** linea nel batcher Foreground, col colore `Attack` |
+| `Playback.TracerArrivesAfterFlight` | arrivo = lancio + `F_eff`. 🔴 **Mutazione**: `F_eff = 0` → rosso |
+| `Playback.TracerFlightNeverOutlastsTheSlot` | per ogni `F` e `A > 0`, `F_eff <= A/2`, battiti monotoni anche mescolando idonei e non idonei, ultimo arrivo `< N·A` |
+| `Playback.TracerZeroFlightKeepsTodaysRhythm` | senza volo gli arrivi coincidono con `AttacksToShow`; con `A <= 0` escono tutti subito |
 | `Playback.TracerStyleFollowsShapeForBasicAttack` | `Single` → `Projectile`, `Line` → `Jet`; `Area`/`Cone`, azioni non base e `bResolved = false` → `None`; l'azione generica `Action.BasicAttack` è idonea |
-| `Combat.AttackCarriesHitGeometry` | su un `Line` con due vittime ogni `Attack` porta l'origine di `ResolveImpactOrigin` e la cella **della propria** vittima; su un `Single` contro un bersaglio in copertura bassa la geometria è risolta e il tracer arriva sul bersaglio |
-| `Privacy.TracerHiddenWhenOriginUnknown` | squadra che non vedeva l'attaccante → `None`; squadra dell'attaccante → disegnato; tiro alla cieca che colpisce → disegnato per chi spara. 🔴 **Mutazione**: ignorare il verdetto → rosso |
-| `Privacy.TracerRhythmIsTheSameForEveryViewer` | ➕ rev. gli istanti di lancio e arrivo non dipendono da `ViewerTeamId` |
-| `Determinism.HitGeometryStaysOutOfHashes` | ➕ rev. con un hook di test che azzera `HitGeometry` sullo stesso turno, `StateHash` e `HashTurnLog` sono identici |
-| `HexMapActor.PlaybackTracerIsItsOwnChannel` | il canale si accende, si spegne con `ClearPlaybackTracers`, non tocca impronta né anteprima |
-| `Playback.TracerChannelClearsAtBlastEnd` | ➕ rev. finita la fase Blast, nessun tracer resta consegnato — anche quando `FinishPlayback` esce presto |
-| `Playback.PreservedClockDoesNotReplayHits` | ➕ rev. l'estensione con `bPreserveClock` non ripete né `Attack` né l'arrivo |
+| `Privacy.TracerHiddenWhenOriginUnknown` | sul valore: squadra che non vedeva l'attaccante → `None`, squadra dell'attaccante → disegnato. 🔴 **Mutazione**: ignorare `FromVerdict` → rosso |
+| `Privacy.TracerRhythmIsTheSameForEveryViewer` | ➕ rev. due squadre con disegni diversi hanno lo stesso volo |
+| `Combat.AttackCarriesHitGeometry` | su un `Line` con due vittime ogni `Attack` porta l'origine di `ResolveImpactOrigin`, la forma dell'intento e la cella **della propria** vittima prima della spinta |
+| `Combat.CoveredHitCarriesHitGeometry` | copertura bassa: colpo ridotto, geometria risolta, proiettile; copertura alta: nessun `Attack`, quindi nessun tracer |
+| `Privacy.UnseenAttackerIsOutOfTheOriginVerdict` | un colpo alle spalle, oltre la consapevolezza ravvicinata: il verdetto dell'origine esclude la squadra colpita. 🔴 **Mutazione**: verdetto `Everyone()` → rosso. ⚠️ Il tiro alla cieca non è su `main` (PR #3230): il suo caso resta di `PIE-V01-BLINDFIRE` |
+| `Determinism.HitGeometryStaysOutOfHashes` | ➕ rev. con un hook di test che lascia vuota `HitGeometry`, `StateHash` e `HashTurnLog` dello stesso turno sono identici; controllo positivo che il hook agisca |
+| `Playback.HitArrivesAfterTheLaunch` | nel playback vero, l'arrivo cade in un tick successivo al lancio. 🔴 **Mutazione**: volo zero → rosso |
+| `Playback.AttackBeatsStayOrderedInOneTick` | ➕ rev. un tick lungo produce `L0, A0, L1, A1`. 🔴 **Mutazione**: due cicli separati → rosso (l'ordine provato per mutazione è richiesto da #2454, *«Test attesi»*) |
+| `Reactions.Brace.ExtendedBlastDoesNotReplayHits` | ➕ rev. l'estensione con `bPreserveClock` non ripete né lanci né arrivi. 🔴 **Mutazione**: azzerare il cursore in `BeginPlayback` → rosso |
+| `Playback.TracerIsInFlightBetweenLaunchAndArrival` | fra lancio e arrivo la mappa ha **un** tracer, dalla cella dell'attaccante a quella della vittima; dopo l'arrivo nessuno |
+| `Playback.TracerChannelClearsAtBlastEnd` | ➕ rev. dopo `SkipPlayback` con un tracer in volo, e all'uscita dal Blast, il canale è spento |
 | `Playback.NextActionStopsAtTheActionBoundary` *(esistente, `RTPlaybackStopPredicateTests.cpp:252`)* | ➕ rev. **esteso**, non duplicato: la pausa cade dopo l'arrivo e nessun tracer resta a mezz'aria |
 
 ⚠️ **Il gate di D-278 non vede una cue mai chiamata**: `FindMissingBindings` conta i nomi non vuoti
