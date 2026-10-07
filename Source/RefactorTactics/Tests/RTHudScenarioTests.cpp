@@ -41,6 +41,12 @@
 #include "Engine/World.h"
 #include "EngineUtils.h" // TActorIterator
 #include "Player/RTPlayerController.h" // il percorso REALE di armamento (#2986)
+#include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h" // DefaultLoadoutFor: il loadout che `SpawnHero` equipaggia
+#include "Ability/RTHeroCatalogLibrary.h" // #3419: il roster spedito, non uno scenario
+#include "Ability/RTHeroData.h"
+#include "Components/TextBlock.h"
+#include "Kismet/GameplayStatics.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -602,6 +608,82 @@ bool FRTHudDockKitHoleTest::RunTest(const FString&)
 			ArmedIndices(SlotsOf(Dock)).Contains(Buco));
 	}
 
+	return true;
+}
+
+// =====================================================================================================
+// #3419 — la forma dell'impronta, dal roster allo schermo
+// =====================================================================================================
+
+/**
+ * ⛔ **Il tooltip d'abilita' dice la forma, nel dock della partita** (#3419).
+ *
+ * 🔑 E' tutto il percorso della partita: l'unita' allestita come la allestisce `SpawnHero` — la classe
+ * Blueprint dell'eroe, i dati del roster spedito, il loadout di default —, il **grafo** di `WBP_RT_ActionDock`
+ * che a ogni `Tick` passa le righe agli slot, lo slot dell'asset e il testo della porta `LinesText` del suo
+ * tooltip. I test della forma in `RTActionTooltipTests.cpp` costruiscono la riga a mano, e non vedono nessuno di
+ * questi passaggi: togliere la copia di `Shape` in `BuildAbilityCooldowns` non rendeva rosso nessun test di
+ * `HudViewModel.*` e `ScreenHud.*`.
+ *
+ * ⚠️ L'oracolo e' l'azione dell'unita', non una lista d'eroi: un'area nuova nel roster si controlla da sola.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDockTooltipShowsTheShapeTest,
+	"RefactorTactics.ScreenHud.DockTooltipShowsTheShapeOfEveryRosterArea",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FRTDockTooltipShowsTheShapeTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	UClass* DockClass = LoadClass<URTActionDockWidget>(nullptr, DockBlueprintPath);
+	if (!TestNotNull(TEXT("WBP_RT_ActionDock si carica"), DockClass)) { return false; }
+
+	int32 Aree = 0;
+	int32 Cella = 0;
+	for (const URTHeroData* Hero : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		// La classe che `ARTGameMode` associa all'eroe (`HeroUnitClasses`): `Hero.Aevik` -> `BP_Unit_Aevik`.
+		const FString Nome = ARTUnit::ShortHeroName(Hero->HeroId, FString());
+		UClass* UnitClass = LoadClass<ARTUnit>(nullptr, *FString::Printf(
+			TEXT("/Game/RT/Characters/%s/Blueprints/BP_Unit_%s.BP_Unit_%s_C"), *Nome, *Nome, *Nome));
+		if (!TestNotNull(*FString::Printf(TEXT("%s: la classe Blueprint dell'eroe"), *Nome), UnitClass)) { continue; }
+		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(UnitClass, FTransform::Identity);
+		if (!TestNotNull(TEXT("unita'"), Unit)) { continue; }
+		Unit->TeamId = 0;
+		Unit->ConfigureFromHeroData(Hero);
+		Unit->EquipLoadout(URTCatalogLibrary::DefaultLoadoutFor(Hero->HeroId));
+		UGameplayStatics::FinishSpawningActor(Unit, FTransform::Identity);
+		Unit->DispatchBeginPlay();
+		Unit->PlaceOnCell(FRTCellId(Cella++, 0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+
+		URTActionDockWidget* Dock = CreateWidget<URTActionDockWidget>(World, DockClass);
+		if (!TestNotNull(TEXT("il dock si istanzia"), Dock)) { continue; }
+		Dock->SetSelectedUnitForTest(Unit);
+		Dock->Tick(FGeometry(), 0.f);
+
+		const TArray<URTActionSlotWidget*> Slots = SlotsOf(Dock);
+		TestTrue(*FString::Printf(TEXT("%s: il dock costruisce gli slot"), *Nome), Slots.Num() > 0);
+		for (const URTActionSlotWidget* Slot : Slots)
+		{
+			const URTActionData* A = Slot ? Unit->GetAbility(Slot->Action.AbilityIndex) : nullptr;
+			if (!A || A->Shape != ERTAbilityShape::Area || A->AreaRadius <= 0) { continue; }
+			++Aree;
+			const FString Id = A->Def.ActionId.ToString();
+			const FString Attesa = FString::Printf(TEXT("Forma  Area, raggio %d"), A->AreaRadius);
+			const URTActionTooltipWidget* Tooltip = Cast<URTActionTooltipWidget>(Slot->GetToolTip());
+			if (!TestNotNull(*FString::Printf(TEXT("%s: il tooltip e' il widget dell'asset"), *Id), Tooltip)) { continue; }
+			if (TestNotNull(*FString::Printf(TEXT("%s: la porta delle righe"), *Id), Tooltip->LinesText.Get()))
+			{
+				const FString Letto = Tooltip->LinesText->GetText().ToString().Replace(TEXT("\n"), TEXT(" | "));
+				AddInfo(FString::Printf(TEXT("%s, righe a schermo: %s"), *Id, *Letto));
+				TestTrue(*FString::Printf(TEXT("%s: a schermo c'e' '%s' (letto: '%s')"), *Id, *Attesa, *Letto),
+					Letto.Contains(Attesa));
+			}
+		}
+	}
+	TestTrue(TEXT("premessa: il roster ha almeno un'area con un raggio"), Aree > 0);
 	return true;
 }
 
