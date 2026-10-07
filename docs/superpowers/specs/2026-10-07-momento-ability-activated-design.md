@@ -228,7 +228,10 @@ struct FRTBlastSequenceElement { int32 TimelineIndex; int32 SourceStableUnitId; 
  * Un gruppo senza attivazione (impatti di carica, StructureHit senza identità, Attack di reazione) è un
  * atto proprio, alla posizione della sua prima apparizione.
  * FrozenPrefix: i primi N elementi della sequenza precedente si riproducono VERBATIM (D-355, §2.4);
- * gli eventi non ancora sequenziati si raggruppano e si accodano. Con N = 0 è la costruzione da zero.
+ * gli eventi non ancora sequenziati si raggruppano DOPO il prefisso. ➕ impl. La chiave di un gruppo si
+ * legge dall'attivazione OVUNQUE stia in timeline, anche dentro il prefisso: così Build(T, S, k) == S per
+ * ogni k (idempotenza, anche a metà atto) e un evento nuovo con chiave già aperta si unisce al suo gruppo
+ * nella parte non congelata. Con N = 0 è la costruzione da zero.
  */
 static TArray<FRTBlastSequenceElement> BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
     const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId);
@@ -277,9 +280,15 @@ discende:
   ricostruisce le code mantenendo i contatori (`:7635-7639`, `:7857-7862`). Invariante dichiarata: **il
   prefisso già mostrato della sequenza è stabile all'estensione** — la ricostruzione chiama
   `BuildBlastSequence(Timeline, PlaybackBlastSequence, BlastShown, Viewer)`, i primi `BlastShown` elementi
-  sono riprodotti verbatim e gli eventi nuovi, anche se appartengono a un gruppo già aperto, si accodano
-  come atto proprio. `Ruling`: coda e non inserimento; costo se sbagliato: un colpo arrivato in estensione
-  si vede staccato dalla sua attivazione, che è il comportamento di oggi per ogni evento d'estensione.
+  sono riprodotti verbatim; ⌫ ➕ impl. *la prima stesura diceva che gli eventi nuovi di un gruppo già aperto
+  si accodavano come atto proprio («coda e non inserimento»)*: la review del Task 5 ha mostrato che con un
+  prefisso a metà atto il resto dell'atto perdeva la sua attivazione (nel prefisso) e scivolava dietro gli
+  atti successivi — `Build(T, S, k) != S` senza che la timeline fosse cresciuta. `Ruling` rivisto: la chiave
+  di un gruppo si legge dall'attivazione **ovunque stia**, anche nel prefisso; la parte non congelata si
+  ricostruisce da zero con quelle chiavi, quindi `Build(T, S, k) == S` per ogni `k` e un evento nuovo con
+  chiave aperta si unisce al suo gruppo nel tail. La regola «il prefisso mostrato non si muove» resta
+  intera: l'inserimento avviene solo oltre `BlastShown`. Test: idempotenza per ogni `k`; evento nuovo con
+  chiave aperta nel suo gruppo.
   Precondizione dichiarata: la timeline cresce **solo per accodamento** e gli indici già mostrati restano
   stabili; `BlastSequencePrefixIsStableUnderExtension` lo asserisce confrontando i `TimelineIndex` del prefisso.
 - **D-287**: nessuna fase nuova (punto 1); i tempi restano `PROPOSED FOR PLAYTEST` (punto 7).
@@ -336,7 +345,7 @@ tabella esista in quella forma).
 | Un intento senza `ActionId` arriva a un sito di emissione | Non emette e scrive un `ensureMsgf`: l'`ActionId` è ciò che il sotto-progetto 3 consuma, e un `NAME_None` dimenticato non fa fallire nessun test (`RTResolvedEvent.h:310-312`). ➕ impl. Vale per i siti che leggono dal catalogo (Prep, Dash, Cleanse, Heal, ModifyArc). Gli **intenti d'attacco legacy** senza `ActionId` (abilità di `EnsureDefaultAbilities`/`MakeAbility`, ammesse da `CollectAttackIntents`) sono il caso normale delle unità nude dei test: `EmitAttackIntentActivations` li **salta prima** dell'helper, senza `ensure` — D1 dice «ogni intento **con un `ActionId`**». |
 | Evento di Blast senza attivazione corrispondente | Atto proprio alla posizione di prima apparizione: si vede comunque. |
 | Sorgente non osservata | Nessun beat, nessuna fermata d'atto: la sequenza salta l'elemento. |
-| Estensione D-355 dentro un gruppo già mostrato | L'evento si accoda come atto proprio: il prefisso mostrato non si muove. |
+| Estensione D-355 dentro un gruppo già aperto | ➕ impl. L'evento si unisce al suo gruppo nella parte non ancora mostrata; il prefisso mostrato non si muove. Se l'atto era già tutto mostrato, l'evento resta nel suo gruppo, in coda a ciò che resta da mostrare, nell'ordine della chiave. |
 | Replay / seek | Timeline per turno e per playback; nessun dato nuovo in snapshot, TurnLog o hash. |
 
 ---
@@ -398,7 +407,9 @@ conoscenza, nessun beat. Il banco di #3532 serve ad allestire ciascuna abilità 
 - I colpi del Blast si vedono raggruppati per atto, non più nell'ordine `AttackerId, TargetId, Power`; il
   contrattacco di una reazione può vedersi staccato dal colpo che lo ha innescato.
 - Un `StructureHit` senza identità d'azione (#3281) resta un atto proprio.
-- Un evento arrivato in estensione D-355 si accoda anche se il suo atto era già aperto.
+- ⌫ ➕ impl. *«Un evento arrivato in estensione D-355 si accoda anche se il suo atto era già aperto»*: ora si
+  unisce al suo gruppo oltre il prefisso mostrato; se l'atto era già tutto mostrato, si vede staccato dalla
+  sua attivazione — è il solo caso in cui il cast e il colpo si separano, e nasce dalla sospensione.
 - La Prep di un nemico nascosto non produce beat sulla sorgente: esito voluto da D6.
 - Fra le sorgenti del Blast l'ordine è quello dei pass, non quello delle unità.
 - ➕ piano. Un intento d'attacco fuori portata, con bersaglio ignoto o sparito, finisce in `Fallback Cancelled`
