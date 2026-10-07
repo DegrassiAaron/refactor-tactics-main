@@ -16,15 +16,16 @@ class FRTLabPieLauncher
 public:
 	/**
 	 * Imposta `rt.Test.Scenario` su `ScenarioId` e `rt.Debug.PlaybackControls` su `1` — entrambe con
-	 * `ECVF_SetByConsole`, perche' un valore gia' digitato in console vince su un `Set` a priorita'
-	 * inferiore — e chiede PIE su `L_DevSandbox` tramite `GlobalMapOverride`, senza toccare il livello
-	 * aperto nell'Editor.
+	 * `FRTLabCVarSnapshot::Apply`, cioe' `SetWithCurrentPriority`: vince su un valore gia' digitato in
+	 * console senza alzare la priorita' della variabile — e chiede PIE su `L_DevSandbox` tramite
+	 * `GlobalMapOverride`, senza toccare il livello aperto nell'Editor.
 	 *
-	 * I valori precedenti vengono catturati e **ripristinati** al primo fra `EndPIE` e `CancelPIE`.
+	 * Valore e priorita' precedenti vengono catturati e **ripristinati** al primo fra `EndPIE` e `CancelPIE`.
 	 *
-	 * ⛔ Rifiuta, senza toccare niente, se: PIE e' gia' in corso o gia' richiesto (in coda per il tick
-	 * successivo: `IsPlaySessionInProgress`); una delle due CVar non si trova; un
-	 * lancio precedente e' ancora in attesa di ripristino.
+	 * ⛔ Rifiuta, senza lasciare niente cambiato, se: PIE e' gia' in corso o gia' richiesto (in coda per il
+	 * tick successivo: `IsPlaySessionInProgress`); una delle due CVar non si trova; una delle due scritture
+	 * non prende (CVar `ReadOnly`, valore non parsabile); un lancio precedente e' ancora in attesa di
+	 * ripristino.
 	 */
 	static bool Launch(const FString& ScenarioId, FString& OutError);
 

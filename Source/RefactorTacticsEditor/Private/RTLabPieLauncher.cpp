@@ -1,34 +1,29 @@
 #include "RTLabPieLauncher.h"
 
+#include "RTLabCVarSnapshot.h"
+
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
-#include "HAL/IConsoleManager.h"
 #include "PlayInEditorDataTypes.h"
 
 namespace
 {
-	/** Cio' che serve per rimettere le cose com'erano: i due valori e i due handle. */
+	/** Cio' che serve per rimettere le cose com'erano: le due fotografie e i due handle. */
 	struct FRTLabPieRestore
 	{
-		FString ScenarioPrima;
-		FString PlaybackControlsPrima;
+		FRTLabCVarSnapshot Scenario;
+		FRTLabCVarSnapshot PlaybackControls;
 		FDelegateHandle SuEndPIE;
 		FDelegateHandle SuCancelPIE;
 	};
 
 	TUniquePtr<FRTLabPieRestore> GRipristino;
 
-	IConsoleVariable* TrovaCVar(const TCHAR* Nome, FString& OutError)
-	{
-		IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Nome);
-		if (!Var)
-		{
-			OutError = FString::Printf(TEXT("la console variable '%s' non esiste in questo binario"), Nome);
-		}
-		return Var;
-	}
-
-	/** Riapplica i valori catturati, con la stessa priorita' con cui erano stati scavalcati, e si sgancia. */
+	/**
+	 * Riscrive i valori catturati — con `SetWithCurrentPriority`, quindi anche il `SetBy` torna quello di
+	 * prima — e si sgancia. Un ripristino che non prende si dichiara nel log: nessuno guarda l'Editor in quel
+	 * momento, e una CVar rimasta sul valore del banco farebbe giocare lo scenario sbagliato al PIE dopo.
+	 */
 	void Ripristina()
 	{
 		if (!GRipristino)
@@ -39,14 +34,14 @@ namespace
 		FEditorDelegates::EndPIE.Remove(R->SuEndPIE);
 		FEditorDelegates::CancelPIE.Remove(R->SuCancelPIE);
 
-		FString Ignorato;
-		if (IConsoleVariable* Scenario = TrovaCVar(TEXT("rt.Test.Scenario"), Ignorato))
+		FString Errore;
+		if (!R->Scenario.Restore(Errore))
 		{
-			Scenario->Set(*R->ScenarioPrima, ECVF_SetByConsole);
+			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
 		}
-		if (IConsoleVariable* Controls = TrovaCVar(TEXT("rt.Debug.PlaybackControls"), Ignorato))
+		if (!R->PlaybackControls.Restore(Errore))
 		{
-			Controls->Set(*R->PlaybackControlsPrima, ECVF_SetByConsole);
+			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
 		}
 	}
 }
@@ -83,21 +78,28 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError)
 		return false;
 	}
 
-	// Entrambe le CVar PRIMA di toccarne una: se la seconda manca, la prima non va cambiata.
-	IConsoleVariable* Scenario = TrovaCVar(TEXT("rt.Test.Scenario"), OutError);
-	if (!Scenario) { return false; }
-	IConsoleVariable* Controls = TrovaCVar(TEXT("rt.Debug.PlaybackControls"), OutError);
-	if (!Controls) { return false; }
+	// Entrambe le fotografie PRIMA di toccare una CVar: se la seconda manca, la prima non va cambiata.
+	TUniquePtr<FRTLabPieRestore> Nuovo = MakeUnique<FRTLabPieRestore>();
+	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Test.Scenario"), Nuovo->Scenario, OutError)) { return false; }
+	if (!FRTLabCVarSnapshot::Capture(TEXT("rt.Debug.PlaybackControls"), Nuovo->PlaybackControls, OutError)) { return false; }
 
-	GRipristino = MakeUnique<FRTLabPieRestore>();
-	GRipristino->ScenarioPrima = Scenario->GetString();
-	GRipristino->PlaybackControlsPrima = Controls->GetString();
-
-	// 🔑 `ECVF_SetByConsole`: un valore digitato in console ha quella priorita', e un `Set` a priorita'
-	// inferiore verrebbe ignorato con un warning — il banco giocherebbe lo scenario sbagliato credendo di
-	// aver scelto.
-	Scenario->Set(*ScenarioId, ECVF_SetByConsole);
-	Controls->Set(TEXT("1"), ECVF_SetByConsole);
+	// 🔑 `Apply` scrive con `SetWithCurrentPriority` (#3541): vince su un valore digitato in console — un
+	// `Set` a priorita' inferiore verrebbe ignorato, e il banco giocherebbe lo scenario sbagliato credendo di
+	// aver scelto — **senza alzare il pavimento** della variabile. E rilegge: se non ha preso, il lancio si
+	// rifiuta con il motivo invece di partire su uno scenario che non e' quello scelto.
+	if (!Nuovo->Scenario.Apply(ScenarioId, OutError)) { return false; }
+	if (!Nuovo->PlaybackControls.Apply(TEXT("1"), OutError))
+	{
+		// La prima e' gia' applicata: la si rimette com'era prima di rifiutare. Se anche questo non prende,
+		// il motivo del rifiuto resta quello primario e il secondo finisce nel log.
+		FString ErroreRipristino;
+		if (!Nuovo->Scenario.Restore(ErroreRipristino))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *ErroreRipristino);
+		}
+		return false;
+	}
+	GRipristino = MoveTemp(Nuovo);
 
 	// Al primo dei due che scatta si ripristina e ci si sgancia da entrambi. `CancelPIE` copre il PIE che
 	// non comincia: `RequestPlaySession` e' differita, ed `EndPIE` da sola scatterebbe solo per una
