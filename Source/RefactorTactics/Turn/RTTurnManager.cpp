@@ -4894,8 +4894,25 @@ void ARTTurnManager::ResolveDash()
 		// nessuna cella — una carica su un adiacente colpisce senza muoversi, e il gesto c'e' stato.
 		if (const URTActionData* Attivata = Units[i]->GetAbility(DashAbilityIdx[i]))
 		{
+			// 🔑 **Il bersaglio dichiarato di una carica e' l'unita' sulla `PlannedDashCell`** ([D-296]: per una
+			// `LinearCharge` quella cella E' il bersaglio). Si legge dalle celle di INIZIO fase — il placement viene
+			// dopo, come per gli osservatori qui sopra — e non da `PendingChargeImpacts`: quello ha gia' scartato
+			// le cariche che una collisione simultanea ha fermato, e l'attivazione e' il gesto, non l'esito.
+			// Uno scatto che non e' una carica non dichiara nessun bersaglio: `0`.
+			int32 BersaglioDichiarato = 0;
+			if (Attivata->Def.MovementStyle == ERTMovementStyle::LinearCharge)
+			{
+				for (const ARTUnit* Candidato : Units)
+				{
+					if (Candidato && Candidato != Units[i] && Candidato->IsAlive() && Candidato->Cell == Units[i]->PlannedDashCell)
+					{
+						BersaglioDichiarato = Candidato->StableUnitId;
+						break;
+					}
+				}
+			}
 			EmitAbilityActivated(Units[i], ERTMatchPhase::Dash, Attivata->Def.ActionId, Attivata->Def.BaseActionId,
-				/*TargetStableUnitId=*/ 0, Units[i]->PlannedDashCell, Attivata->Shape);
+				BersaglioDichiarato, Units[i]->PlannedDashCell, Attivata->Shape);
 		}
 
 		if (Resolved[i].Entered.Num() > 0)
@@ -7929,10 +7946,15 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		bPreserveClock ? PlaybackBlastSequence : TArray<FRTBlastSequenceElement>(),
 		bPreserveClock ? BlastElementsShown() : 0, ViewerTeamId);
 
-	// `#2454`: il volo di ogni elemento, deciso dall'idoneita' e MAI da chi guarda — cosi' il ritmo e' lo stesso
-	// per entrambe le squadre (spec del tracer §2.1). `IsTracerEligible` e' falso per ogni tipo che non sia
-	// `Attack`: attivazioni, impronte e muri hanno volo zero. Si ricalcola anche estendendo: e' funzione pura degli
-	// eventi, e il prefisso congelato porta gli stessi eventi, quindi gli stessi voli.
+	// `#2454`: il volo di ogni elemento, deciso dall'idoneita' e non dal disegno che chi guarda vedrebbe.
+	// ⚠️ **Il ritmo NON e' lo stesso per ogni squadra** (`CONTRACT CONFLICT` con la spec del tracer §2.1, che governa
+	// il tracer ma non questo punto): chi guarda decide il disegno E, attraverso le attivazioni che ha il diritto di
+	// vedere (`BuildBlastSequence`, D6), l'INDICE del colpo nella sequenza — quindi l'istante di lancio e di arrivo. Il
+	// ritmo coincide solo fra squadre con la stessa conoscenza. Un'attivazione nascosta non lascia un buco, o ne
+	// rivelerebbe l'esistenza col tempo (spec del momento §2.4; `Playback.BlastSequenceIndexDependsOnTheViewer`).
+	// `IsTracerEligible` e' falso per ogni tipo che non sia `Attack`: attivazioni, impronte e muri hanno volo zero.
+	// Si ricalcola anche estendendo: e' funzione pura degli eventi, e il prefisso congelato porta gli stessi eventi,
+	// quindi gli stessi voli.
 	int32 NumColpi = 0, NumImpronte = 0, NumMuri = 0, NumAttivazioniBlast = 0;
 	PlaybackBlastFlights.Reset(PlaybackBlastSequence.Num());
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
@@ -8176,7 +8198,8 @@ bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 			{
 				continue;
 			}
-			ArrivePlaybackAttack(Ev, BlastAttackOrdinal(Elemento));
+			// L'ordinale serve solo alla traccia dei test: in produzione non si scorre la sequenza a ogni arrivo.
+			ArrivePlaybackAttack(Ev, bRecordAttackBeatsForTest ? BlastAttackOrdinal(Elemento) : 0);
 			// ⛔ **L'arrivo ha appena trasmesso `OnAttackResolved`**: un ascoltatore (Blueprint-assegnabile) puo'
 			// chiudere il playback — `SkipPlayback` → `FinishPlayback` svuota la sequenza e azzera il cursore — e
 			// da qui in poi nulla del playback va riletto senza saperlo (`#2454`, guardia di rientranza).
@@ -8216,7 +8239,8 @@ bool ARTTurnManager::AdvanceBlastSequence(int32 BeatsTarget)
 			}
 			break;
 		case ERTResolvedEventType::Attack:
-			LaunchPlaybackAttack(Ev, BlastAttackOrdinal(Elemento));
+			// L'ordinale serve solo alla traccia dei test: in produzione non si scorre la sequenza a ogni lancio.
+			LaunchPlaybackAttack(Ev, bRecordAttackBeatsForTest ? BlastAttackOrdinal(Elemento) : 0);
 			// ⚠️ Nessun confine qui: quello di un colpo cade all'arrivo, ed e' il battito che segue.
 			continue;
 		default:

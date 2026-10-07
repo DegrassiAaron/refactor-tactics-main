@@ -265,6 +265,12 @@ discende:
   `2k+1` è il suo **arrivo** (`Hit`, numero, `Colpo:`, `OnAttackResolved`, confine `Next Action`), con i voli
   paralleli alla sequenza e nulli per ogni altro tipo. La cadenza resta `k·A`; `BlastShown` è
   `BlastElementsShown()`, derivato dal cursore, e resta il prefisso congelato di D-355.
+  ➕ merge `CONTRACT CONFLICT` con la spec del tracer §2.1 («il ritmo non dipende da chi guarda»): con D6 la
+  sequenza del Blast si costruisce per squadra, quindi l'indice — e con il tracer l'istante di lancio e di
+  arrivo — di uno stesso colpo differisce fra chi vede la sorgente e chi no. **Governa questa spec**:
+  un'attivazione nascosta non deve lasciare un buco nel ritmo che ne riveli l'esistenza. La durata delle fasi
+  dipendeva già dal viewer (rotte troncate al tratto osservato). Pinnato da
+  `Playback.BlastSequenceIndexDependsOnTheViewer`.
 - **`PhaseTime`** (➕ rev., I5): la firma guadagna `int32 NumActivations` e, per il Blast,
   `int32 NumSequenceElements` prende il posto dei tre conteggi di canale:
   - Prep: `Shown = NumActivations × AttackShowSeconds`, `Slack = PhaseBeatSeconds` (il beat di oggi resta);
@@ -382,7 +388,7 @@ l'attivazione della squadra del viewer **è** visibile.
 | `Unit.CastRoleResolvesAClipForEveryHero` | `ActiveClipFor(HeroId, Cast)` sul CDO di `URTUnitAnimInstance` (`RTUnitAnimInstance.h:197`) non è nullo per i quattro eroi del roster (il path, senza caricare). |
 | `Playback.PhaseTimeCountsActivations` | `PhaseTime` con N attivazioni: Prep e Dash crescono di `N × AttackShowSeconds`; Blast usa `NumSequenceElements`; con zero tutto resta com'era (regressione, e `PhaseDuration` invariato). |
 | `Playback.BlastSequenceIsOrderedPerIntent` (puro) | Timeline sintetica con due intenti aggressivi: `A1 F1 H1 H1 A2 F2 H2`; un `Attack` senza attivazione è un atto proprio alla sua prima apparizione; `ArcHit` assente. Mutazione: raggruppare per tipo invece che per chiave fa cadere l'asserto. |
-| `Playback.BlastSequencePrefixIsStableUnderExtension` (puro, ➕ rev.) | `BuildBlastSequence(T2, S1, N, V)` con `T2 = T1 + eventi` riproduce i primi `N` elementi di `S1` e accoda i nuovi; un evento nuovo con chiave già aperta sta in coda. |
+| `Playback.BlastSequencePrefixIsStableUnderExtension` (puro, ➕ rev.) | `BuildBlastSequence(T2, S1, N, V)` con `T2 = T1 + eventi` riproduce i primi `N` elementi di `S1` e accoda i nuovi; un evento nuovo con chiave già aperta si unisce al suo gruppo oltre il prefisso (Ruling H). |
 | `Playback.BlastPhaseOpensForActivationsOnly` (puro, ➕ rev.) | `BlastPhaseIsActive(0,false,0,0,1)` è vero; `(0,false,0,0,0)` falso. |
 | `Playback.NextActionDoesNotStopTwiceWithinOneIntent` (esteso, in `Tests/RTPlaybackStopPredicateTests.cpp:604-680`) | Attivazione + impronta + colpo dello stesso intento = **una** fermata; due cure consecutive da unità diverse = **due**. |
 | `Playback.HiddenSourceHasNoActivationBeat` | Sorgente non osservata dal viewer: l'attivazione non entra nelle code; osservata: entra. Mutazione: togliere il filtro fa cadere il primo ramo. |
@@ -399,9 +405,15 @@ Voce nuova **`PIE-CAST-BEAT`** nel registro (⏳) e seduta nel file delle sedute
 unità: una che usa un'abilità **senza colpo** (`Hero.Muiren.TideGuard`, un `Action.Shield` di Prep,
 `RTHeroCatalogLibrary.cpp:657`) e una con colpo (`Hero.Branth.ImpactShot`, `:740`). Criteri binari: (0)
 l'abilità senza colpo ha un beat visibile **sulla sorgente** (prima la Prep aveva solo il beat generico);
-(1) per quella con colpo si vedono **due** momenti, cast e poi impatto, nell'ordine; (2)
-`rt.Debug.PlaybackControls 1`: una fermata per intento, non due; (3) con la sorgente nemica fuori dalla
-conoscenza, nessun beat. Il banco di #3532 serve ad allestire ciascuna abilità da sola.
+(1) per quella con colpo si vedono **tre** momenti, cast, lancio e impatto, nell'ordine — ➕ merge: il lancio
+è il proiettile del tracer di [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454), che
+dopo il merge separa l'arrivo dalla rivelazione; (2) ➕ impl. `NOT RUN` in PIE: la fermata per atto
+(`RequestPlaybackStopAt`, `Next Action`) non ha oggi nessun ingresso da tastiera né da console, quindi «una
+fermata per intento, non due» è coperta solo headless (`Playback.NextActionDoesNotStopTwiceWithinOneIntent`,
+`Playback.ActivationAndWallOfOneIntentAreOneAct`) e si giudicherà a schermo il giorno in cui avrà un ingresso;
+(3) con la sorgente nemica fuori dalla conoscenza, nessun beat. Il banco di #3532 serve ad allestire ciascuna
+abilità da sola; `rt.Debug.PlaybackControls 1` resta utile per `K`/`L` (pausa e passo singolo per micro-step),
+non per il criterio (2).
 
 ---
 
@@ -417,6 +429,11 @@ conoscenza, nessun beat. Il banco di #3532 serve ad allestire ciascuna abilità 
   unisce al suo gruppo oltre il prefisso mostrato; se l'atto era già tutto mostrato, si vede staccato dalla
   sua attivazione — è il solo caso in cui il cast e il colpo si separano, e nasce dalla sospensione.
 - La Prep di un nemico nascosto non produce beat sulla sorgente: esito voluto da D6.
+- ➕ merge `CONTRACT CONFLICT` con la spec del tracer §2.1 («il ritmo non dipende da chi guarda»): con D6 la
+  sequenza del Blast si costruisce per squadra, quindi l'indice — e con il tracer l'istante di lancio e di
+  arrivo — di uno stesso colpo differisce fra chi vede la sorgente e chi no. Governa questa spec: un'attivazione
+  nascosta non deve lasciare un buco nel ritmo che ne riveli l'esistenza. La durata delle fasi dipendeva già dal
+  viewer (rotte troncate al tratto osservato). Pinnato da `Playback.BlastSequenceIndexDependsOnTheViewer`.
 - Fra le sorgenti del Blast l'ordine è quello dei pass, non quello delle unità.
 - ➕ piano. Un intento d'attacco fuori portata, con bersaglio ignoto o sparito, finisce in `Fallback Cancelled`
   prima di entrare nel Blast e **non** si attiva: il TurnLog lo racconta, il playback no.

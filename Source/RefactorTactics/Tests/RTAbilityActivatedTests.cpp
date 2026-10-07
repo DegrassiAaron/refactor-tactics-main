@@ -168,6 +168,10 @@ bool FRTTurnPrepActivatesEveryKindOfIntentTest::RunTest(const FString&)
  *
  * 🔑 **E una carica che non entra in nessuna cella si attiva lo stesso**: il primo ciclo di `ResolveDash`
  * emetteva solo con `Resolved[i].Entered.Num() > 0`, e l'attivazione non deve dipendere dallo spostamento.
+ *
+ * 🔑 **Il bersaglio dichiarato**: una carica porta quello sulla sua `PlannedDashCell` (sezione 1); uno scatto che
+ * non e' una carica non ne dichiara nessuno e scrive `0` (sezione 3). ✅ Validato per mutazione: scrivere sempre `0`
+ * fa cadere l'asserto della sezione 1 (e di `ChargeActivatesInDashNotInBlast`).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnDashActivationPrecedesItsMoveTest,
 	"RefactorTactics.Turn.DashActivationPrecedesItsMove",
@@ -209,6 +213,8 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 		TestTrue(TEXT("🔴 l'attivazione PRECEDE il Move dello stesso scatto"), IdxAttivazione < IdxMove);
 		TestEqual(TEXT("con l'azione dello scatto"),
 			TM->ResolvedTimelineForTest()[IdxAttivazione].ActionId, FName(TEXT("Hero.Branth.Ram")));
+		TestEqual(TEXT("🔴 e il bersaglio dichiarato di una carica: l'unita' sulla cella pianificata"),
+			TM->ResolvedTimelineForTest()[IdxAttivazione].TargetStableUnitId, Bersaglio->StableUnitId);
 	}
 
 	// --- 2. Una carica che non entra in nessuna cella: il bersaglio e' gia' adiacente ------------------
@@ -238,6 +244,38 @@ bool FRTTurnDashActivationPrecedesItsMoveTest::RunTest(const FString&)
 			PrimoIndiceAttivazione(TM, [Sid](const FRTResolvedEvent& E)
 			{ return E.Type == ERTResolvedEventType::AbilityActivated && E.Phase == ERTMatchPhase::Dash && E.SourceStableUnitId == Sid; })
 			!= INDEX_NONE);
+	}
+
+	// --- 3. Uno scatto che non e' una carica: nessun bersaglio dichiarato -------------------------------
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnAttivazioneMap(World);
+
+		// Un avversario in campo ma lontano dalla traiettoria: lo scatto non ha niente da dichiarare.
+		ARTUnit* Altro = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(0, 4));
+		ARTUnit* Corridore = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Altro || !Corridore) { return false; }
+
+		const int32 Scia = IndiceAbilitaAttivazione(Corridore, TEXT("Hero.Muiren.FluidTrail"));
+		if (!TestTrue(TEXT("premessa: Muiren ha FluidTrail"), Scia != INDEX_NONE)) { return false; }
+		Corridore->PlannedDashAbility = Scia;
+		Corridore->PlannedDashCell = FRTCellId(2, 0);
+		Corridore->PlannedCell = Corridore->Cell;
+
+		TM->LockInAndResolve();
+
+		const int32 Sid = Corridore->StableUnitId;
+		const int32 IdxAttivazione = PrimoIndiceAttivazione(TM, [Sid](const FRTResolvedEvent& E)
+		{
+			return E.Type == ERTResolvedEventType::AbilityActivated && E.Phase == ERTMatchPhase::Dash
+				&& E.SourceStableUnitId == Sid;
+		});
+		if (!TestTrue(TEXT("⛔ premessa: lo scatto non-carica si e' attivato"), IdxAttivazione != INDEX_NONE)) { return false; }
+		TestEqual(TEXT("🔴 uno scatto che non e' una carica non dichiara un bersaglio: 0"),
+			TM->ResolvedTimelineForTest()[IdxAttivazione].TargetStableUnitId, 0);
 	}
 	return true;
 }
@@ -700,6 +738,8 @@ bool FRTTurnChargeActivatesInDashNotInBlastTest::RunTest(const FString&)
 			++Attivazioni;
 			TestEqual(TEXT("l'attivazione della carica e' di fase Dash"),
 				static_cast<int32>(Ev.Phase), static_cast<int32>(ERTMatchPhase::Dash));
+			TestEqual(TEXT("🔴 e porta il bersaglio dichiarato: la vittima della carica"),
+				Ev.TargetStableUnitId, Bersaglio->StableUnitId);
 		}
 		if (Ev.Type == ERTResolvedEventType::Attack && Ev.ActionId == Ram
 			&& Ev.SourceStableUnitId == Caricatore->StableUnitId && Ev.Phase == ERTMatchPhase::Blast)

@@ -1354,8 +1354,8 @@ bool FRTPlaybackEveryAttackArrivesByPhaseEndTest::RunTest(const FString&)
 		{ 0, 1, 0, 0, TEXT("un colpo solo") },
 		{ 0, 0, 4, 0, TEXT("solo muri") },
 		{ 0, 0, 0, 4, TEXT("solo impronte") },
-		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
-		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		{ 0, 2, 3, 4, TEXT("colpi, muri e impronte, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("colpi, muri e impronte, i colpi piu' lunghi") },
 		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
 		{ 0, 0, 0, 0, TEXT("vuota: il pavimento di uno") },
 	};
@@ -1623,6 +1623,44 @@ bool FRTPlaybackBlastSequenceOrderedPerIntentTest::RunTest(const FString&)
 		TestEqual(TEXT("l'elemento porta la chiave del suo atto"), S[0].SourceStableUnitId, 1);
 		TestEqual(TEXT("e la sua azione"), S[0].ActionId, FName(TEXT("A")));
 	}
+	return true;
+}
+
+/**
+ * L'INDICE di un colpo nella sequenza dipende da chi guarda — `CONTRACT CONFLICT` dichiarato, spec §2.4 e §6.
+ *
+ * 🔑 **Il comportamento e' voluto.** La spec del tracer §2.1 diceva «il ritmo non dipende da chi guarda»; con D6 la
+ * sequenza si costruisce per squadra, quindi uno stesso colpo cade su un indice diverso per chi vede la sua
+ * attivazione e per chi non la vede — e con il tracer (`#2454`) l'istante di lancio e di arrivo si sposta di conseguenza.
+ * Governa la spec del momento: tenere il posto di un'attivazione nascosta lascerebbe un buco nel ritmo che ne rivela
+ * l'esistenza col tempo. La durata delle fasi dipendeva gia' dal viewer (rotte troncate al tratto osservato).
+ * ⛔ Chi trovasse questo test rosso perche' «il ritmo deve essere uguale» sta riaprendo quella decisione, non
+ * correggendo un difetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceIndexDependsOnTheViewerTest,
+	"RefactorTactics.Playback.BlastSequenceIndexDependsOnTheViewer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceIndexDependsOnTheViewerTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("X")));
+	T[0].SourceVerdict = FRTKnowledgeVerdict::NoOne();
+	T[0].SourceVerdict.AllowTeam(1); // l'attivazione la vede solo la squadra 1
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint, 1, TEXT("X")));
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,          1, TEXT("X")));
+
+	auto IndiceDelColpo = [&T](int32 Viewer)
+	{
+		const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, Viewer);
+		for (int32 i = 0; i < S.Num(); ++i)
+		{
+			if (T[S[i].TimelineIndex].Type == ERTResolvedEventType::Attack) { return i; }
+		}
+		return static_cast<int32>(INDEX_NONE);
+	};
+
+	TestEqual(TEXT("chi vede l'attivazione: attivazione, impronta, colpo, quindi il colpo e' il terzo"), IndiceDelColpo(1), 2);
+	TestEqual(TEXT("🔴 chi non la vede: nessun buco al suo posto, il colpo e' il secondo"), IndiceDelColpo(0), 1);
 	return true;
 }
 

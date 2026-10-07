@@ -3479,7 +3479,11 @@ private:
 	 * ogni elemento che non e' un colpo idoneo, quindi il suo arrivo coincide con la rivelazione.
 	 */
 	TArray<float> PlaybackBlastFlights;
-	/** La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer, mai il ritmo. */
+	/**
+	 * La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer E, tramite le attivazioni che
+	 * ha il diritto di vedere, l'indice di un colpo nella sequenza di Blast — quindi il suo istante. Il ritmo e' lo
+	 * stesso solo fra squadre con la stessa conoscenza (`CONTRACT CONFLICT` risolto dalla spec del momento §2.4).
+	 */
 	int32 PlaybackViewerTeamId = 0;
 	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`): `L<i>`/`A<i>`, `i` = ordine fra i soli colpi. */
 	TArray<FString> AttackBeatTrace;

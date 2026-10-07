@@ -5130,8 +5130,10 @@ sessions:
     notes: |
       Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-momento-ability-activated.md`.
       L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: `rt.Test.Scenario Visual.Ability.CastBeat`
-      da `L_DevSandbox`, `rt.Debug.PlaybackControls 1` per il criterio (2). Il criterio (3) si allestisce col
-      banco Ability Lab di U67, un'abilita' di una sorgente nemica non osservata.
+      da `L_DevSandbox`. Il criterio (1) giudica tre momenti (cast, lancio, impatto); il (2) e' `NOT RUN` in PIE
+      (la fermata per atto non ha un ingresso). `rt.Debug.PlaybackControls 1` resta utile per `K`/`L`, pausa e
+      passo singolo. Il criterio (3) si allestisce col banco Ability Lab di U67, un'abilita' di una sorgente nemica
+      non osservata.
 
 not_schedulable:
 
