@@ -32,9 +32,14 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// lo scudo agiscono a valle, su un altro array. Un colpo da 30 su un bersaglio in Brace con scudo mostra
 	// `-30` mentre la barra scende di meno: e' la convenzione di `#2460`, scelta perche' i due canali
 	// raccontino lo stesso colpo con lo stesso numero.
+	//
+	// `#2454`: `SetPlaybackTracers` — il tracer fra lancio e arrivo, solo per gli attacchi base `Single`/`Line` e
+	// solo se chi guarda conosceva entrambi gli estremi. ⚠️ Il gate conta i nomi, non le chiamate: che la cue sia
+	// chiamata lo dice `Playback.TracerIsInFlightBetweenLaunchAndArrival`.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")),
-		  FName(TEXT("ShowDamageToken")), FName(TEXT("PulseHealthBar")) }));
+		  FName(TEXT("ShowDamageToken")), FName(TEXT("PulseHealthBar")),
+		  FName(TEXT("SetPlaybackTracers")) }));
 
 	// HazardDamage — PendingPresentation dal 2026-09-05, owner `#2505`. Era `NoPresentation` dal 2026-08-31.
 	//

@@ -1059,6 +1059,77 @@ bool FRTBraceWindowSuspendsBlastTest::RunTest(const FString&)
 }
 
 /**
+ * **Il Blast esteso dopo una finestra non rigioca i colpi** (`#2454`, spec §5).
+ *
+ * 🔑 Il cursore dei battiti si azzera in `EnterPlaybackPhase` e in `FinishPlayback`, MAI in `BeginPlayback`:
+ * l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`, e un azzeramento li' farebbe arrivare due volte
+ * i colpi gia' mostrati.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBraceExtendedBlastDoesNotReplayHitsTest,
+	"RefactorTactics.Reactions.Brace.ExtendedBlastDoesNotReplayHits",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBraceExtendedBlastDoesNotReplayHitsTest::RunTest(const FString&)
+{
+	UWorld* World = MakeDefWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnDefMap(World, /*Radius*/ 8);
+
+	ARTUnit* Bracer = SpawnDefUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Pusher = SpawnDefUnit(World, 1, FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Bracer"), Bracer) || !TestNotNull(TEXT("Pusher"), Pusher) || !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyDefWorld(World);
+		return false;
+	}
+	Bracer->bIsBotControlled = false;
+	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
+	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
+	Bracer->PlannedCell = Bracer->Cell;
+	Pusher->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Pusher, TEXT("Action.Push"), 3);
+	Pusher->PlannedAttackTarget = Bracer;
+	Pusher->PlannedCell = Pusher->Cell;
+
+	TM->bEnablePlayback = true;
+	TM->bRecordAttackBeatsForTest = true;
+	// ⚠️ **Senza un delegate legato la finestra non si apre**: e' una delle condizioni del ramo che sospende
+	// (`OnReactionWindowOpened.IsBound()`, `RTTurnManager_Blast.cpp`), come in `WindowSuspendsBlast`. Misurato:
+	// senza questa riga la premessa qui sotto cade.
+	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->LockInAndResolve();
+	if (!TestTrue(TEXT("premessa: la finestra ha sospeso il Blast"), TM->IsResolutionSuspended()))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+	for (int32 I = 0; I < 20; ++I) { TM->Tick(0.05f); } // il playback avanza sulla timeline parziale
+	// 🔑 **Premessa, non decorazione**: senza un arrivo PRIMA dell'estensione il test non attraversa niente — un
+	// cursore azzerato alla ripresa non avrebbe colpi gia' mostrati da rigiocare, e il verde sarebbe vacuo.
+	if (!TestTrue(TEXT("premessa: il colpo e' arrivato sulla timeline parziale, prima dell'estensione"),
+		TM->AttackBeatTraceForTest().Contains(TEXT("A0"))))
+	{
+		TM->OnReactionWindowOpened.Unbind();
+		DestroyDefWorld(World);
+		return false;
+	}
+	for (int32 Scadenze = 0; TM->IsResolutionSuspended() && Scadenze < 8; ++Scadenze) { TM->ExpireReactionWindow(); }
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+	// Ogni battito al piu' una volta: nessun lancio e nessun arrivo ripetuto dall'estensione.
+	TSet<FString> Unici;
+	for (const FString& B : TM->AttackBeatTraceForTest()) { Unici.Add(B); }
+	TestEqual(TEXT("nessun battito ripetuto"), Unici.Num(), TM->AttackBeatTraceForTest().Num());
+	TestEqual(TEXT("e ogni colpo e' arrivato"),
+		TM->AttackBeatTraceForTest().FilterByPredicate([](const FString& B) { return B.StartsWith(TEXT("A")); }).Num(),
+		TM->ResolvedEventCountOfTypeForTest(ERTResolvedEventType::Attack));
+
+	TM->OnReactionWindowOpened.Unbind();
+	DestroyDefWorld(World);
+	return true;
+}
+
+/**
  * **La finestra scade da sola, senza che nessuno la chiuda a mano** (`#2717`).
  *
  * 🔴 **E' il difetto che #2717 esiste per chiudere, e i test lo mascheravano.** `#2679` e `#2692` hanno
