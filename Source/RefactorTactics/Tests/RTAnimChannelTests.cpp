@@ -10,6 +10,7 @@
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Ability/RTHeroCatalogLibrary.h"
+#include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -100,6 +101,53 @@ namespace
 	{
 		GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero.Remove(IdDiProva);
 	}
+
+	// --- Le voci per azione (#3563, spec «la clip per abilita'» §2.1-§2.2) -------------------------------------
+
+	/** Due eroi sintetici: non toccano il roster nel CDO, e `GenericActionClipIsSharedAcrossHeroes` ne vuole DUE. */
+	const FName IdAzioneDiProva(TEXT("Hero.AzioneDiProva"));
+	const FName IdAzioneDiProvaBis(TEXT("Hero.AzioneDiProvaBis"));
+
+	const TCHAR* PathRuoloCast    = TEXT("/Game/Prova/RuoloCast.RuoloCast");
+	const TCHAR* PathRuoloAttacco = TEXT("/Game/Prova/RuoloAttacco.RuoloAttacco");
+	const TCHAR* PathProfilo      = TEXT("/Game/Prova/Profilo.Profilo");
+	const TCHAR* PathGenerica     = TEXT("/Game/Prova/Generica.Generica");
+
+	/** Un pool con una sola variante, attiva: la forma di `MakeRuolo` del default, con un path sintetico. */
+	FRTAnimRoleClips PoolAzioneDiProva(const TCHAR* Path)
+	{
+		FRTAnimRoleClips Pool;
+		Pool.AddVariant(FName(TEXT("AV_ProvaPool")), FName(TEXT("A")),
+			TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(Path)));
+		Pool.MakeActive(FName(TEXT("AV_ProvaPool")));
+		return Pool;
+	}
+
+	/**
+	 * Scrive nel CDO la voce di `Eroe` con i ruoli `Cast` e `Attack` popolati e NESSUNA azione — la stessa
+	 * disciplina di `ConfiguraVariante` (`:75-96`): il ripiego sul ruolo e' il controllo positivo di ogni
+	 * asserto sotto, e senza un path di ruolo «e' tornato il ruolo» e «e' tornato nulla» sarebbero lo stesso.
+	 *
+	 * ⚠️ Restituisce un riferimento dentro `ClipsPerHero`: lo si usa SUBITO, prima di aggiungere un altro eroe
+	 * (un `Add` successivo puo' riallocare la mappa).
+	 */
+	FRTHeroPresentationClips& ConfiguraVoceAzione(const FName& Eroe)
+	{
+		FRTHeroPresentationClips Voce;
+		Voce.PerRole.Add(ERTPresentationRole::Cast, PoolAzioneDiProva(PathRuoloCast));
+		Voce.PerRole.Add(ERTPresentationRole::Attack, PoolAzioneDiProva(PathRuoloAttacco));
+		return GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero.Add(Eroe, Voce);
+	}
+
+	/** Come `PulisciVariante` (`:99-102`): il CDO e' stato globale. */
+	void PulisciVoceAzione()
+	{
+		URTUnitAnimInstance* Cdo = GetMutableDefault<URTUnitAnimInstance>();
+		Cdo->ClipsPerHero.Remove(IdAzioneDiProva);
+		Cdo->ClipsPerHero.Remove(IdAzioneDiProvaBis);
+	}
+
+	FString PathDi(const TSoftObjectPtr<UAnimSequenceBase>& Clip) { return Clip.ToSoftObjectPath().ToString(); }
 }
 
 /**
@@ -327,6 +375,147 @@ bool FRTUnitCastRoleResolvesAClipForEveryHeroTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("%s: in v0.1 e' la stessa del ruolo Attack"), Eroe),
 			Cast.ToSoftObjectPath().ToString(), Attacco.ToSoftObjectPath().ToString());
 	}
+	return true;
+}
+
+
+/**
+ * La clip d'AZIONE vince su quella di ruolo, e senza voce si torna al ruolo — spec «la clip per abilita'» §2.2, D2.
+ *
+ * 🔑 **Controllo positivo e ripiego nello stesso test**: con la sola voce di ruolo il risultato e' il path di ruolo;
+ * aggiunta la voce d'azione, e' il path d'azione. Lo stesso eroe, la stessa chiamata: cambia solo il dato, e il
+ * risultato deve cambiare con lui.
+ * ✅ Validato per mutazione (1): il ruolo consultato PRIMA delle azioni fa cadere «l'azione vince».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitActionClipWinsOverRoleClipTest,
+	"RefactorTactics.Unit.ActionClipWinsOverRoleClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitActionClipWinsOverRoleClipTest::RunTest(const FString&)
+{
+	ON_SCOPE_EXIT{ PulisciVoceAzione(); };
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	const FName Profilo(TEXT("Hero.AzioneDiProva.Colpo"));
+	const FName Generica(TEXT("Action.BasicAttack"));
+
+	ConfiguraVoceAzione(IdAzioneDiProva);
+	TestEqual(TEXT("senza voce d'azione: il ripiego e' il ruolo"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Cast, Profilo, Generica)), FString(PathRuoloCast));
+
+	GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero[IdAzioneDiProva]
+		.PerAction.FindOrAdd(Profilo).PerRole.Add(ERTPresentationRole::Cast, PoolAzioneDiProva(PathProfilo));
+	TestEqual(TEXT("🔴 con la voce d'azione attiva: l'azione vince sul ruolo"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Cast, Profilo, Generica)), FString(PathProfilo));
+	TestEqual(TEXT("l'overload a due argomenti resta il ruolo"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Cast)), FString(PathRuoloCast));
+
+	// Una voce d'azione con la variante NON attiva e' «non popolata»: si torna al ruolo (spec §4).
+	GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero[IdAzioneDiProva]
+		.PerAction[Profilo].PerRole[ERTPresentationRole::Cast].ActiveClipVariant = NAME_None;
+	TestEqual(TEXT("voce d'azione senza variante attiva: ripiego sul ruolo"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Cast, Profilo, Generica)), FString(PathRuoloCast));
+	return true;
+}
+
+/**
+ * La generica (`BaseActionId`) e' condivisa fra eroi, e il profilo la batte — spec §2.2, D2.
+ * ✅ Validato per mutazione (P2): i due livelli d'azione in ordine inverso fanno cadere «il profilo batte la generica».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitGenericActionClipIsSharedAcrossHeroesTest,
+	"RefactorTactics.Unit.GenericActionClipIsSharedAcrossHeroes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitGenericActionClipIsSharedAcrossHeroesTest::RunTest(const FString&)
+{
+	ON_SCOPE_EXIT{ PulisciVoceAzione(); };
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	const FName Generica(TEXT("Action.BasicAttack"));
+	const FName ProfiloUno(TEXT("Hero.AzioneDiProva.Colpo"));
+	const FName ProfiloDue(TEXT("Hero.AzioneDiProvaBis.Colpo"));
+
+	// ⚠️ Un eroe per volta: il riferimento di `ConfiguraVoceAzione` non sopravvive all'`Add` del secondo.
+	ConfiguraVoceAzione(IdAzioneDiProva).PerAction.FindOrAdd(Generica)
+		.PerRole.Add(ERTPresentationRole::Attack, PoolAzioneDiProva(PathGenerica));
+	ConfiguraVoceAzione(IdAzioneDiProvaBis).PerAction.FindOrAdd(Generica)
+		.PerRole.Add(ERTPresentationRole::Attack, PoolAzioneDiProva(PathGenerica));
+
+	TestEqual(TEXT("primo eroe, profilo senza voce: la generica"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, ProfiloUno, Generica)), FString(PathGenerica));
+	TestEqual(TEXT("secondo eroe, profilo senza voce: la STESSA generica"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProvaBis, ERTPresentationRole::Attack, ProfiloDue, Generica)), FString(PathGenerica));
+
+	// 🔴 Il profilo batte la generica: e' il primo livello, la generica il secondo.
+	GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero[IdAzioneDiProva]
+		.PerAction.FindOrAdd(ProfiloUno).PerRole.Add(ERTPresentationRole::Attack, PoolAzioneDiProva(PathProfilo));
+	TestEqual(TEXT("🔴 con entrambe popolate il profilo batte la generica"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, ProfiloUno, Generica)), FString(PathProfilo));
+	TestEqual(TEXT("e il secondo eroe, senza profilo, resta sulla generica"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProvaBis, ERTPresentationRole::Attack, ProfiloDue, Generica)), FString(PathGenerica));
+	return true;
+}
+
+/**
+ * `BaseActionId` si legge dall'EVENTO e non si indovina — `Ruling` di §2.2, `Turn/RTResolvedEvent.h:393-397`.
+ *
+ * 🔑 Con la generica popolata e nessuna voce per il profilo: passando `Action.BasicAttack` si risolve la generica
+ * (controllo positivo); passando `NAME_None` si risolve il RUOLO. Un `ActiveClipFor` che derivasse la generica dal
+ * profilo darebbe la generica anche nel secondo caso.
+ * ✅ Validato per mutazione (P4): la generica derivata quando manca fa cadere il secondo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitBaseActionIdIsNeverDerivedTest,
+	"RefactorTactics.Unit.BaseActionIdIsNeverDerived",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitBaseActionIdIsNeverDerivedTest::RunTest(const FString&)
+{
+	ON_SCOPE_EXIT{ PulisciVoceAzione(); };
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	const FName Generica(TEXT("Action.BasicAttack"));
+	const FName Profilo(TEXT("Hero.AzioneDiProva.Colpo"));
+
+	ConfiguraVoceAzione(IdAzioneDiProva).PerAction.FindOrAdd(Generica)
+		.PerRole.Add(ERTPresentationRole::Attack, PoolAzioneDiProva(PathGenerica));
+
+	TestEqual(TEXT("controllo positivo: con BaseActionId dichiarato si risolve la generica"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, Profilo, Generica)), FString(PathGenerica));
+	TestEqual(TEXT("🔴 con BaseActionId vuoto si salta il livello: il RUOLO, non la generica indovinata"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, Profilo, NAME_None)), FString(PathRuoloAttacco));
+	TestEqual(TEXT("e con entrambi vuoti, il ruolo"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, NAME_None, NAME_None)), FString(PathRuoloAttacco));
+	return true;
+}
+
+/**
+ * Review Focus (a): una voce per l'azione che NON ha il ruolo richiesto non ferma la ricerca.
+ *
+ * 🔴 Il caso reale: `Hero.Muiren.TideGuard` ha solo un beat `Cast` (spec §2.6). Un `Attack` con quella chiave — o
+ * qualunque ruolo assente dalla voce — deve passare alla generica, poi al ruolo; mai restituire nulla perche' «la
+ * voce dell'azione c'era».
+ * ✅ Validato per mutazione (P1): `return` incondizionato quando la voce dell'azione esiste → cade il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitActionEntryWithoutTheRoleFallsBackTest,
+	"RefactorTactics.Unit.ActionEntryWithoutTheRoleFallsBack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitActionEntryWithoutTheRoleFallsBackTest::RunTest(const FString&)
+{
+	ON_SCOPE_EXIT{ PulisciVoceAzione(); };
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	const FName Profilo(TEXT("Hero.AzioneDiProva.Scudo"));
+	const FName Generica(TEXT("Action.BasicAttack"));
+
+	// Il profilo ha SOLO `Cast`.
+	ConfiguraVoceAzione(IdAzioneDiProva).PerAction.FindOrAdd(Profilo)
+		.PerRole.Add(ERTPresentationRole::Cast, PoolAzioneDiProva(PathProfilo));
+
+	const TSoftObjectPtr<UAnimSequenceBase> Attacco =
+		Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, Profilo, NAME_None);
+	TestFalse(TEXT("🔴 voce solo Cast, richiesta Attack: NON nulla"), Attacco.IsNull());
+	TestEqual(TEXT("e' la clip di ruolo Attack"), PathDi(Attacco), FString(PathRuoloAttacco));
+
+	// Con la generica popolata per Attack, il ripiego si ferma li', prima del ruolo.
+	GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero[IdAzioneDiProva]
+		.PerAction.FindOrAdd(Generica).PerRole.Add(ERTPresentationRole::Attack, PoolAzioneDiProva(PathGenerica));
+	TestEqual(TEXT("voce solo Cast, richiesta Attack, generica popolata: la generica"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Attack, Profilo, Generica)), FString(PathGenerica));
+	TestEqual(TEXT("controllo positivo: il Cast dello stesso profilo e' la voce d'azione"),
+		PathDi(Cdo->ActiveClipFor(IdAzioneDiProva, ERTPresentationRole::Cast, Profilo, Generica)), FString(PathProfilo));
 	return true;
 }
 

@@ -182,6 +182,36 @@ TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
 	return Attiva ? Attiva->Clip : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
 }
 
+TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
+	const FName& ActionId, const FName& BaseActionId) const
+{
+	if (const FRTHeroPresentationClips* Eroe = FindClipsFor(HeroId))
+	{
+		// 🔑 L'ORDINE dei livelli e' la decisione D2: il profilo, poi la generica condivisa fra eroi.
+		for (const FName& Chiave : { ActionId, BaseActionId })
+		{
+			if (Chiave.IsNone())
+			{
+				continue;   // un livello senza chiave si salta: non si indovina
+			}
+			const FRTActionPresentationClips* Azione = Eroe->PerAction.Find(Chiave);
+			if (Azione == nullptr)
+			{
+				continue;
+			}
+			const FRTAnimRoleClips* Pool = Azione->PerRole.Find(Role);
+			const FRTAnimVariant* Attiva = Pool ? Pool->FindActive() : nullptr;
+			if (Attiva != nullptr)
+			{
+				return Attiva->Clip;
+			}
+			// ⚠️ La voce dell'azione c'era ma non per questo ruolo, o senza attiva: si prosegue (Review Focus (a)).
+		}
+	}
+	// Il ripiego e' la clip di ruolo di oggi, con le sue tre uscite a nulla tutte normali.
+	return ActiveClipFor(HeroId, Role);
+}
+
 FAnimInstanceProxy* URTUnitAnimInstance::CreateAnimInstanceProxy()
 {
 	return new FRTUnitAnimProxy(this);

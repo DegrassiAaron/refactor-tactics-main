@@ -129,6 +129,27 @@ struct FRTAnimRoleClips
 };
 
 /**
+ * Le clip di UN'azione, per ruolo di presentazione (#3563, spec «la clip per abilita'» §2.1).
+ *
+ * 🔴 **Esiste per lo stesso vincolo di `FRTHeroPresentationClips`**: UHT non ammette contenitori ANNIDATI come
+ * `UPROPERTY`, e `TMap<FName, TMap<ERTPresentationRole, ...>>` non compila.
+ *
+ * ⚠️ **Un pool DISTINTO da quello di ruolo**, e «una sola attiva» vale per pool: una clip di ruolo e una d'azione
+ * attive per lo stesso `(eroe, ruolo)` convivono, e a risolvere vince l'azione (`ActiveClipFor` a quattro
+ * argomenti). L'alternativa — un secondo `ActiveClipVariant` per azione dentro il pool di ruolo — mescolava le
+ * varianti dei due livelli e rendeva «una sola attiva» ambiguo (spec §2.1, alternativa scartata).
+ */
+USTRUCT(BlueprintType)
+struct FRTActionPresentationClips
+{
+	GENERATED_BODY()
+
+	/** Solo i ruoli che qualcuno ha popolato. In v0.1 li consultano solo `Cast` e `Attack` (spec D3). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	TMap<ERTPresentationRole, FRTAnimRoleClips> PerRole;
+};
+
+/**
  * I ruoli di UN eroe.
  *
  * 🔴 **Questa struct esiste per un vincolo del motore, non per stile: UHT non supporta i contenitori
@@ -144,6 +165,16 @@ struct FRTHeroPresentationClips
 	/** Solo i ruoli che qualcuno ha popolato. Un ruolo assente non e' un errore: e' un ruolo assente. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	TMap<ERTPresentationRole, FRTAnimRoleClips> PerRole;
+
+	/**
+	 * Clip per `(ActionId, ruolo)` (#3563). Chiave: l'`ActionId` dell'evento — un profilo `Hero.X.Y` o una generica
+	 * `Action.Z` — mai derivato a valle (`RTResolvedEvent.h:393-397`).
+	 *
+	 * ⚠️ Un'azione assente, un ruolo assente o una variante non attiva sono tutti «non popolato», e la risoluzione
+	 * passa al livello successivo: e' `ActiveClipFor` a quattro argomenti a saperlo, non chi chiama.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	TMap<FName, FRTActionPresentationClips> PerAction;
 
 	/** Le varianti del ruolo, o `nullptr` se nessuno l'ha popolato. */
 	REFACTORTACTICS_API const FRTAnimRoleClips* FindRole(ERTPresentationRole Role) const;
@@ -195,6 +226,17 @@ public:
 	 * tutte e tre normali e nessuna e' un errore. Chi le controlla a mano ne dimentica una.
 	 */
 	TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresentationRole Role) const;
+
+	/**
+	 * La clip attiva di `Role` per `HeroId` quando il beat conosce l'AZIONE (#3563, spec D2): `PerAction[ActionId]`,
+	 * poi `PerAction[BaseActionId]`, poi `PerRole` — l'overload a due argomenti qui sopra.
+	 *
+	 * 🔴 **Ogni livello «non popolato» passa al successivo**: azione assente, ruolo assente dalla voce dell'azione,
+	 * nessuna variante attiva. Una voce d'azione che ha `Cast` ma non `Attack` NON ferma un `Attack`.
+	 * ⛔ **`BaseActionId` vuoto salta il proprio livello**: non si deriva dal profilo (`Ruling` di §2.2).
+	 */
+	TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
+		const FName& ActionId, const FName& BaseActionId) const;
 
 protected:
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;
