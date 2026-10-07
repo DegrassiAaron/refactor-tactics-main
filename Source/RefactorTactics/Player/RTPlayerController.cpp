@@ -161,8 +161,9 @@ namespace
 	 *   e `Action.Wait` contornava di viola l'unita' stessa;
 	 * - **tiratore vivo** — `AC-10`: un'unita' caduta, ancora selezionata a fine playback, non mira.
 	 *
-	 * ⚠️ **Non decide il ventaglio**: quello lo spegne `ChiedeUnBersaglio`. Con un'azione in ricarica armata la board
-	 * non mostra ne' l'uno ne' l'altra, che e' cio' che `DR-8` chiede.
+	 * ⚠️ **Non decide il ventaglio**: quello lo spegne un'azione che chiede un bersaglio con una portata positiva
+	 * (`RefreshPlanningPreview`). Con un'azione in ricarica armata la board non mostra ne' l'uno ne' l'altra, che e'
+	 * cio' che `DR-8` chiede.
 	 */
 	bool MostraLaPortata(const ARTUnit* Unit, int32 Index, const URTActionData& Armata)
 	{
@@ -173,8 +174,9 @@ namespace
 	 * La cella da cui si mira, e da cui si misura la portata. 🔑 **Una sola espressione per la portata e per il piano
 	 * attivo** (`DR-5`, `#3517`): se divergessero, la portata starebbe su un piano e il click su un altro.
 	 *
-	 * ⚠️ E' la cella in cui l'unita' si trova, da cui `HandleTargetCell` e il click su un'unita' misurano la portata.
-	 * Con uno scatto pianificato l'origine cambia per fase: e' `#3509` ([D-464]), e si cambia qui.
+	 * ⚠️ E' la cella in cui l'unita' si trova, la stessa da cui misurano la portata `HandleTargetCell` e il click su
+	 * un'unita' — che pero' la leggono da `Unit->Cell`, non da qui. Con uno scatto pianificato l'origine cambia per
+	 * fase (`#3509`, [D-464]): va cambiata qui **e** in quei siti insieme, o portata e click tornano a divergere.
 	 */
 	FRTCellId OrigineDiMira(const ARTUnit* Unit)
 	{
@@ -247,13 +249,15 @@ namespace
 		// un'azione a bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare».
 		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dall'origine di mira.
 		//
-		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`): un'azione in ricarica, o
-		// `Action.Wait`, chiede un bersaglio — il ventaglio si spegne — ma non ha celle su cui il click venga accettato.
+		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`). Un'azione in ricarica chiede un
+		// bersaglio — il ventaglio si spegne, `DR-8` — ma non ha celle su cui il click venga accettato. `Action.Wait`
+		// invece ha portata `0`, cioe' nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta, e la
+		// portata che contornava la cella dell'unita' sparisce (referto del 2026-10-06, §13: erano due difetti).
 		bool bMira = false;
 		TArray<FRTCellId> Portata;
 		if (const URTActionData* Armata = Unit->GetAbility(Unit->SelectedAbilityIndex))
 		{
-			bMira = ChiedeUnBersaglio(*Armata);
+			bMira = ChiedeUnBersaglio(*Armata) && Armata->RangeCells > 0;
 			if (MostraLaPortata(Unit, Unit->SelectedAbilityIndex, *Armata))
 			{
 				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit), Armata->RangeCells,

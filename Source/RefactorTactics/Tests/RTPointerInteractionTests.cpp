@@ -1470,12 +1470,18 @@ bool FRTDegenerateArmShowsNoRangeTest::RunTest(const FString&)
 	{
 		DestroyPointerWorld(World); return false;
 	}
+	if (!TestTrue(TEXT("premessa: selezionata, si vede il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
 	PC->SelectAbilityForCurrentForTest(Attesa);
 	if (!TestEqual(TEXT("premessa: Action.Wait e' armata"), Unit->SelectedAbilityIndex, Attesa))
 	{
 		DestroyPointerWorld(World); return false;
 	}
 	TestEqual(TEXT("1: Action.Wait armata non mostra nessuna portata"), MapActor->GetPreviewRangeCells().Num(), 0);
+	// Portata 0 vuol dire nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta.
+	TestTrue(TEXT("1: e il ventaglio resta"), MapActor->GetPreviewReachableCells().Num() > 0);
 	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 
 	// --- 2. l'unita' caduta: la fine del playback ridisegna dalla selezione ---------------------------------------
@@ -1547,6 +1553,22 @@ bool FRTArmingAlignsActivePlaneTest::RunTest(const FString&)
 	{
 		DestroyPointerWorld(World); return false;
 	}
+
+	// Il controllo: un armo SENZA portata non sposta il piano. `Action.Wait` ha portata 0, quindi non c'e' niente su
+	// cui mirare, e il piano attivo resta dov'e'. Senza questo passo un allineamento incondizionato resterebbe verde.
+	int32 Attesa = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities() && Attesa == INDEX_NONE; ++I)
+	{
+		const URTActionData* W = Unit->GetAbility(I);
+		if (W && W->Def.ActionId == TEXT("Action.Wait")) { Attesa = I; }
+	}
+	if (!TestNotEqual(TEXT("premessa: Action.Wait nel kit"), Attesa, (int32)INDEX_NONE))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attesa);
+	TestEqual(TEXT("un armo senza portata non sposta il piano attivo"), PC->GetActiveLayer(), 0);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
 
 	PC->SelectAbilityForCurrentForTest(Area);
 	TestEqual(TEXT("armata, il piano attivo e' quello del tiratore"), PC->GetActiveLayer(), Piattaforma.Layer);
