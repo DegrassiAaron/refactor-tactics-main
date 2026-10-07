@@ -435,6 +435,10 @@ non per il criterio (2).
   nascosta non deve lasciare un buco nel ritmo che ne riveli l'esistenza. La durata delle fasi dipendeva già dal
   viewer (rotte troncate al tratto osservato). Pinnato da `Playback.BlastSequenceIndexDependsOnTheViewer`.
 - Fra le sorgenti del Blast l'ordine è quello dei pass, non quello delle unità.
+- ➕ impl. Il «bersaglio dichiarato» dell'attivazione di una carica è l'**occupante vivo della `PlannedDashCell`** a
+  inizio fase (D-296), non l'unità che la carica colpisce davvero: una carica fermata prima dal primo ostile
+  lungo la traiettoria porta `0` o un'altra unità, e un alleato sulla cella viene riportato anche se blocca lo
+  scatto. Nessun consumatore legge oggi quel campo; il sotto-progetto 3 lo erediterà con questo significato.
 - ➕ piano. Un intento d'attacco fuori portata, con bersaglio ignoto o sparito, finisce in `Fallback Cancelled`
   prima di entrare nel Blast e **non** si attiva: il TurnLog lo racconta, il playback no.
 - ➕ piano. Durante l'anticipo delle attivazioni nel Dash lo scattatore non deve correre sul posto (la classe

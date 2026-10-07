@@ -3730,7 +3730,7 @@ Poi la riga «Rimisurato» nuova va **subito sotto la riga dei totali**, cioè *
     notes: |
       Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-momento-ability-activated.md`.
       L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: `rt.Test.Scenario Visual.Ability.CastBeat`
-      da `L_DevSandbox`, `rt.Debug.PlaybackControls 1` per il criterio (2). Il criterio (3) si allestisce col
+      da `L_DevSandbox`, `rt.Debug.PlaybackControls 1` per `K`/`L` (➕ impl. il criterio (2) è `NOT RUN` in PIE: la fermata per atto non ha un ingresso). Il criterio (3) si allestisce col
       banco Ability Lab di U67, un'abilita' di una sorgente nemica non osservata.
 ```
 
