@@ -51,7 +51,7 @@ risponde e si rilancia, non si aspetta.
 ```powershell
 & "D:\EpicGames\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" `
   "D:\Repositories\refactor-tactics-main\RefactorTactics.uproject" `
-  -NoLiveCoding `
+  -LiveCoding=false `
   -abslog="<scratchpad-di-sessione>\g16-u60.log"
 ```
 
@@ -59,7 +59,7 @@ risponde e si rilancia, non si aspetta.
 |---|---|
 | **una sola** apertura | il criterio di `G16` chiede *«nello stesso giro»*, e il testimone è che il **processo sia uno**: un solo `-abslog`, citato in `artifacts:` della seduta |
 | `-abslog="..."` **fra virgolette** | senza virgolette si perde e il risultato è `exit 255` e nessun log, indistinguibile da *«non ha funzionato»* |
-| `-NoLiveCoding` | Live Coding tiene la DLL e fa fallire la build successiva |
+| `-LiveCoding=false` | un Editor col Live Coding attivo fa fallire `Build.bat` dell'Editor in **tutti** i cloni (`AGENTS.md` §9 *Build Editor*). ⌫ Fino al 2026-10-07 qui c'era `-NoLiveCoding`, che l'Editor non legge ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)) |
 
 ⛔ **Il log prova che il processo è uno; non prova che tu abbia guardato.** L'oracolo dei passi 3–5
 resta umano, ed è dichiarato così nella cella.
