@@ -264,6 +264,19 @@ struct FRTResolvedEvent
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
 	/**
+	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — solo per `AbilityActivated` (#3549).
+	 *
+	 * 🔴 **Non e' `CellVerdicts`**: un'attivazione non ha rotta ne' celle, e un vettore vuoto letto con
+	 * `ObservedPrefixLength` nasconderebbe ogni attivazione, comprese quelle di chi guarda. Il predicato e'
+	 * quello delle righe di log: `AllowsTeam`, su questo verdetto congelato da `FreezeVerdictFor`.
+	 *
+	 * ⚠️ Vuoto = `NoOne()` = fail-closed. `UPROPERTY()` nudo per la stessa ragione di `CellVerdicts`: un
+	 * verdetto leggibile da Blueprint sarebbe anche un verdetto aggirabile da Blueprint.
+	 */
+	UPROPERTY()
+	FRTKnowledgeVerdict SourceVerdict;
+
+	/**
 	 * Quante celle iniziali di `Path` appartengono al PIANO di chi si muove — `#3263`.
 	 *
 	 * 🔴 **Tutto cio' che sta oltre e' estensione AMBIENTALE**: uno scivolamento su ghiaccio, cioe' un

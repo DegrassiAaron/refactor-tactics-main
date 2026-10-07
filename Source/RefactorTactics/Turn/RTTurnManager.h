@@ -2370,6 +2370,13 @@ protected:
 	 * quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
 	 */
 	void PausePlaybackAtActBoundary();
+
+	/**
+	 * Il beat di un `AbilityActivated`: la clip del ruolo `Cast` sulla sorgente e la riga `Attiva:` del feed
+	 * (#3549, spec §2.3). ⛔ Non decide se mostrarlo: il filtro di privacy sta a monte, in `BeginPlayback` e in
+	 * `BuildBlastSequence`. La riga porta il verdetto CONGELATO nell'evento, non uno ricalcolato.
+	 */
+	void ShowActivation(const FRTResolvedEvent& Ev);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();

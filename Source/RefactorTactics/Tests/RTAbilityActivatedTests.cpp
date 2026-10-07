@@ -935,4 +935,53 @@ bool FRTTurnLegacyIntentWithoutActionIdTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il verdetto di [D-223] si congela all'emissione: la squadra della sorgente vede la propria attivazione, una
+ * squadra assente dalla partita no (fail-closed). Spec §2.1 e §2.5.
+ *
+ * ⚠️ **Precondizione dichiarata**: `FreezeVerdict` itera solo le squadre presenti in `TeamKnowledgeState`, e il
+ * Blast lo rinfresca in testa (`RefreshTeamKnowledgeForBlast`). Per la Prep serve il refresh di pianificazione:
+ * qui lo si chiama esplicitamente, ed e' la stessa precondizione delle righe di log.
+ * ✅ Validato per mutazione: togliere `Ev.SourceVerdict = ...` da `EmitAbilityActivated` fa cadere il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnActivationFreezesSourceVerdictTest,
+	"RefactorTactics.Turn.AbilityActivatedFreezesTheSourceVerdict",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnActivationFreezesSourceVerdictTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnAttivazioneMap(World);
+
+	ARTUnit* Scudo     = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-2, 0));
+	ARTUnit* Tiratore  = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Scudo || !Tiratore || !Bersaglio) { return false; }
+
+	Scudo->PlannedAbilityIndex = IndiceAbilitaAttivazione(Scudo, TEXT("Hero.Muiren.TideGuard"));
+	Scudo->PlannedCell = Scudo->Cell;
+	Tiratore->PlannedAbilityIndex = 0;
+	Tiratore->PlannedAttackTarget = Bersaglio;
+	Tiratore->PlannedCell = Tiratore->Cell;
+
+	TM->RefreshTeamKnowledgeNow(); // la precondizione della Prep
+	TM->LockInAndResolve();
+
+	const int32 SquadraAssente = 7; // nessuna unita' in campo: fuori da `TeamKnowledgeState`
+	int32 Viste = 0;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if (Ev.Type != ERTResolvedEventType::AbilityActivated) { continue; }
+		++Viste;
+		TestTrue(*FString::Printf(TEXT("%s: la squadra della sorgente la vede"), *Ev.ActionId.ToString()),
+			Ev.SourceVerdict.AllowsTeam(0));
+		TestFalse(*FString::Printf(TEXT("%s: ⛔ una squadra assente no (fail-closed)"), *Ev.ActionId.ToString()),
+			Ev.SourceVerdict.AllowsTeam(SquadraAssente));
+	}
+	TestEqual(TEXT("⛔ anti-vacuita': le due attivazioni, Prep e Blast"), Viste, 2);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

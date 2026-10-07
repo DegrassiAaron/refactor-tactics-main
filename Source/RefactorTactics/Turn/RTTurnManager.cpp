@@ -333,6 +333,9 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 	Ev.BaseActionId = BaseActionId;
 	Ev.AimCell = AimCell;
 	Ev.Shape = Shape;
+	// [D-223], spec §2.1: il verdetto si decide ADESSO, quando l'unita' agisce, e si trasporta. Lo stesso valore
+	// fa da verdetto alla riga `Attiva:` del playback (`ShowActivation`): calcolato una volta, mai due.
+	Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Source));
 	// ⛔ Nessun riordino: l'ordine in timeline E' l'ordine di emissione (spec §2.2).
 	ResolvedTimeline.Add(MoveTemp(Ev));
 }
@@ -8001,6 +8004,17 @@ void ARTTurnManager::PausePlaybackAtActBoundary()
 	PlaybackStopFromAction = NAME_None;
 	bPlaybackPaused = true;
 	PlaybackStepTargetElapsed = -1.f;
+}
+
+void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
+{
+	ARTUnit* const Src = UnitByStableId(Ev.SourceStableUnitId);
+	AddLogEvent(FString::Printf(TEXT("Attiva: %s -> %s"), Src ? *Src->GetName() : TEXT("?"), *Ev.ActionId.ToString()),
+		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
+	if (Src)
+	{
+		Src->PlayPresentationRole(ERTPresentationRole::Cast);
+	}
 }
 
 bool ARTTurnManager::RevealPlaybackFootprints(int32 UpTo)
