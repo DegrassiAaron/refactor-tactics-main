@@ -310,6 +310,66 @@ bool FRTTurnCoverStructureActivatesOnlyWhenAppliedTest::RunTest(const FString&)
 }
 
 /**
+ * Una copertura rifiutata IN APPLICAZIONE non si attiva — la meta' del `Ruling` che il test accanto non vede.
+ *
+ * 🔑 Il test accanto rifiuta nella RACCOLTA («nessun bordo dichiarato»), prima che la mappa venga toccata. Qui
+ * il piano e' completo e valido, e a rifiutarlo e' `AddCover` quando applica: il bordo e' gia' riparato. Sono
+ * due `continue` diversi, e un'emissione spostata prima del secondo non cade sul test accanto.
+ * ⛔ La premessa legge il TurnLog: `CoverRejected` presente e `CoverCreated` assente, cosi' il «zero» non e' vero
+ * per un piano che non e' mai arrivato all'applicazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnCoverStructureAlreadyRepairedDoesNotActivateTest,
+	"RefactorTactics.Turn.CoverStructureAlreadyRepairedDoesNotActivate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnCoverStructureAlreadyRepairedDoesNotActivateTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	URTHexMapAsset* Map = SpawnAttivazioneMap(World);
+	if (!TestNotNull(TEXT("mappa di prova"), Map)) { return false; }
+
+	ARTUnit* Branth = SpawnAttivazioneUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Branth) { return false; }
+
+	const int32 Pannello = IndiceAbilitaAttivazione(Branth, TEXT("Hero.Branth.KineticPanel"));
+	if (!TestTrue(TEXT("premessa: Branth ha KineticPanel"), Pannello != INDEX_NONE)) { return false; }
+	Branth->PlannedAbilityIndex = Pannello;
+	Branth->bAttackTargetsCell = true;
+	Branth->PlannedAttackCell = FRTCellId(1, 0);
+	Branth->bHasPlannedCoverEdge = true;
+	Branth->PlannedCoverEdge = ERTHexDirection::E;
+	Branth->PlannedCell = Branth->Cell;
+
+	// Il bordo che il pannello vuole erigere e' GIA' riparato: lo stesso piano valido del test accanto, ma
+	// `AddCover` lo rifiutera' in applicazione.
+	if (!TestTrue(TEXT("⛔ premessa: la copertura preesistente e' stata installata"),
+		URTHexCoverLibrary::AddCover(Map, FRTCellId(1, 0), ERTHexDirection::E, ERTHexCoverType::Low, 30)))
+	{
+		return false;
+	}
+
+	TM->LockInAndResolve();
+
+	auto HaEsito = [TM](ERTEnvironmentOutcome Esito)
+	{
+		return TM->GetTurnLog().ContainsByPredicate([Esito](const FRTTurnLogEntry& E)
+			{ return E.Category == ERTLogCategory::Environment && E.Outcome == static_cast<uint8>(Esito); });
+	};
+	if (!TestTrue(TEXT("⛔ premessa: il pannello e' stato rifiutato"), HaEsito(ERTEnvironmentOutcome::CoverRejected))) { return false; }
+	if (!TestFalse(TEXT("⛔ premessa: e nessuna copertura e' stata eretta"), HaEsito(ERTEnvironmentOutcome::CoverCreated))) { return false; }
+
+	int32 Attivazioni = 0;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == Branth->StableUnitId) { ++Attivazioni; }
+	}
+	TestEqual(TEXT("🔴 rifiutata da AddCover: nessuna attivazione"), Attivazioni, 0);
+	return true;
+}
+
+/**
  * La predittiva SENZA cella si attiva — `Ruling` di spec §2.2 (Review Focus 2): l'unita' ha speso l'azione,
  * anche se non arma niente (`RTTurnManager.cpp:4268`). La cella mirata e' allora quella di chi agisce.
  * ⛔ Controllo positivo: con la cella dichiarata si attiva anch'essa, e porta QUELLA cella.
