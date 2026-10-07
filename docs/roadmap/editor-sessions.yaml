@@ -5084,8 +5084,8 @@ sessions:
       (spec `docs/superpowers/specs/2026-10-07-banco-abilita-in-pie-design.md`), che arrivano in `main` con
       la PR del branch `docs/banco-abilita-in-pie-spec`, separata da quella di #3532.
       L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: Editor su una mappa diversa da
-      `L_DevSandbox`, pannello Ability Lab, un'abilità con bersaglio, e `rt.Test.Scenario Core.PhaseOrder`
-      digitata PRIMA del clic. Il criterio (4) richiede Live Coding attivo ed è facoltativo.
+      `L_DevSandbox` che usi il GameMode di progetto, es. `L_HexArena`, pannello Ability Lab, un'abilità con bersaglio, e `rt.Test.Scenario Core.PhaseOrder`
+      digitata PRIMA del clic. Il criterio (4) richiede un Blueprint di prova non versionato con un errore di compilazione, ed è facoltativo.
 
 not_schedulable:
 
