@@ -657,6 +657,15 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 		GAimOriginQui);
 	TestTrue(TEXT("e il verso si giudica da fermo: anche l'opposto alla corsa e' legale"),
 		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
+	// ⚠️ **La voce Dash resta**, come per ogni scatto pianificato che non si applica: la decide `bDashPlanned`, che
+	// non e' un lettore di `PlannedDashApplies()`, e `MakePlanPreview` la vuole visibile. Nasconderla direbbe che lo
+	// scatto non e' stato pianificato.
+	bool bVoceScatto = false;
+	for (const FRTPhasePreviewEntry& Voce : B.MapActor->GetPlanPreview().Phases)
+	{
+		bVoceScatto |= Voce.Phase == ERTResolutionPhase::FastMovement;
+	}
+	TestTrue(TEXT("e la voce Dash della timeline resta: lo scatto e' pianificato"), bVoceScatto);
 
 	// CONTROLLO 2 — lo slancio LINEARE, con lo stato, sposta ancora: [D-319] nega la corsa, non lo slancio.
 	Scia->Def.MovementStyle = ERTMovementStyle::LinearDash;
