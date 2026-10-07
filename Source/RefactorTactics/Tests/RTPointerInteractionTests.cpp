@@ -25,6 +25,8 @@
 #include "Turn/RTMovementActionLibrary.h"
 #include "Map/RTHexMapAsset.h"
 #include "Map/RTCellId.h"
+#include "Ability/RTCatalogLibrary.h" // IsFastMovement: la premessa «chiede un bersaglio» dei test di #3517
+#include "Combat/RTCombatLibrary.h"   // TargetableRangeCells e ClassifyHexTargeting, chiesti come premesse
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 
@@ -85,6 +87,30 @@ namespace
 		{
 			const URTActionData* A = U->GetAbility(i);
 			if (A && A->Def.StructureOp != ERTStructureOp::None) { return i; }
+		}
+		return INDEX_NONE;
+	}
+
+	/**
+	 * Un'azione che chiede un bersaglio e ha una portata positiva: quella che la portata viola mostra (`#3507`).
+	 * `bConRicarica` ne chiede una che la ricarica possa davvero fermare (`#3517`).
+	 *
+	 * ⚠️ **Si cerca per proprieta' e non per nome, e per `E14` e' una correzione e non uno stile.** Il referto nomina
+	 * `ArcPulse` in ricarica, ma `ArcPulse` e' un attacco base, e `Action.BasicAttack` ha ricarica `0` a catalogo:
+	 * `ConsumeAbility` non lo ferma mai, quindi in partita non e' mai in ricarica.
+	 */
+	int32 FindAimedAbilityForRange(const ARTUnit* U, bool bConRicarica)
+	{
+		for (int32 i = 0; i < U->NumAbilities(); ++i)
+		{
+			const URTActionData* A = U->GetAbility(i);
+			if (A && !A->bSelfTarget && A->Def.Slot == ERTActionSlot::Main && A->RangeCells > 0
+				&& A->Def.ReservesMovementProfileId.IsNone() && !URTCatalogLibrary::IsFastMovement(A->Def)
+				&& URTPointerLibrary::TargetKindForAction(A->Def, A->bSelfTarget, A->Shape) != ERTPointerTargetKind::None
+				&& (!bConRicarica || A->CooldownTurns > 0))
+			{
+				return i;
+			}
 		}
 		return INDEX_NONE;
 	}
@@ -1328,6 +1354,249 @@ bool FRTTargetingShowsTheRangeTest::RunTest(const FString&)
 	{
 		AddWarning(TEXT("Ivrin non ha una reazione: il ramo della reazione non e' misurato"));
 	}
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * UN'AZIONE IN RICARICA ARMATA NON MOSTRA NE' LA PORTATA NE' IL VENTAGLIO - `#3517`, `DR-8` (`E14` del referto del
+ * 2026-10-06).
+ *
+ * 🔴 Il difetto: un'azione attiva in ricarica si arma ancora, e la board mostrava la portata piena su cui il click
+ * rifiuta ogni bersaglio. ⚠️ **Il controllo positivo e' la stessa azione PRONTA, dalla stessa cella**: senza, «la
+ * portata e' vuota» potrebbe voler dire soltanto che quell'azione una portata non l'ha mai.
+ *
+ * 🔑 Passa dalla catena del gioco, `SelectUnit` e poi l'armo, non da `SelectActorForTest`: e' `SelectUnit` ad
+ * accendere l'anteprima, ed e' il ventaglio che accende quello che questo test vede sparire.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTCooldownArmShowsNoRangeTest,
+	"RefactorTactics.PlayerInput.AnArmedActionOnCooldownShowsNeitherRangeNorFan",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTCooldownArmShowsNoRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectUnit(Unit);
+
+	const int32 Azione = FindAimedAbilityForRange(Unit, /*bConRicarica=*/ true);
+	if (!TestNotEqual(TEXT("premessa: un'azione a bersaglio con una ricarica"), Azione, (int32)INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: selezionata, si vede il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	PC->SelectAbilityForCurrentForTest(Azione);
+	if (!TestTrue(TEXT("premessa: pronta, l'azione armata mostra la portata"), MapActor->GetPreviewRangeCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	Unit->ConsumeAbility(Azione);
+	if (!TestFalse(TEXT("premessa: l'azione e' in ricarica"), Unit->CanUseAbility(Azione)))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	// ⚠️ Che si armi ancora e' la regola che `#3517` lascia com'e': rifiutare l'armo e' una decisione a parte.
+	PC->SelectAbilityForCurrentForTest(Azione);
+	if (!TestEqual(TEXT("premessa: in ricarica l'azione si arma ancora"), Unit->SelectedAbilityIndex, Azione)
+		|| !TestEqual(TEXT("premessa: e il contesto e' il bersaglio"), PC->GetPointerContext(), ERTPointerContext::Targeting))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	TestEqual(TEXT("in ricarica, nessuna cella di portata"), MapActor->GetPreviewRangeCells().Num(), 0);
+	TestEqual(TEXT("e nessun ventaglio"), MapActor->GetPreviewReachableCells().Num(), 0);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * UN ARMO DEGENERE NON MOSTRA NESSUNA PORTATA - `#3517`, `AC-10` del referto del 2026-10-06.
+ *
+ * Tre casi, ognuno col suo controllo:
+ * - **`Action.Wait`**, portata `0`. La premessa chiede al produttore cosa darebbe: la sola cella del tiratore, che la
+ *   board contornava di viola. Cosi' il verde non puo' venire da un produttore cambiato;
+ * - **un'unita' caduta**, ancora selezionata quando il playback finisce e l'anteprima si ridisegna. Il controllo e'
+ *   la stessa azione con l'unita' viva;
+ * - **la mappa che manca**. ⚠️ Questo caso lo tiene gia' il produttore, che con una mappa nulla restituisce un
+ *   insieme vuoto: qui si misura che la catena non lo aggiri, non una riga di `#3517`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDegenerateArmShowsNoRangeTest,
+	"RefactorTactics.PlayerInput.ADegenerateArmShowsNoRange",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDegenerateArmShowsNoRangeTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	// 🔴 **Senza, la fine del playback non raggiunge il controller, e non lo dice.** Il delegate e' DINAMICO e
+	// passa da `AActor::ProcessEvent`, che scarta ogni evento finche' il mondo non ha `AreActorsInitialized()`.
+	// Misurato qui il 2026-10-07: il controller era iscritto e la portata restava quella di prima. La spiegazione
+	// completa sta in `MakeLockInPreviewBench` (`RTHexMatchIntegrationTests.cpp`).
+	World->InitializeActorsForPlay(FURL());
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0, 0));
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit || !TM) { DestroyPointerWorld(World); return false; }
+	PC->SelectUnit(Unit);
+
+	// --- 1. `Action.Wait`: portata 0 ----------------------------------------------------------------------------
+	int32 Attesa = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities() && Attesa == INDEX_NONE; ++I)
+	{
+		const URTActionData* A = Unit->GetAbility(I);
+		if (A && A->Def.ActionId == TEXT("Action.Wait")) { Attesa = I; }
+	}
+	const URTActionData* Wait = Unit->GetAbility(Attesa);
+	if (!TestNotNull(TEXT("premessa: Action.Wait nel kit"), Wait)
+		|| !TestEqual(TEXT("premessa: ha portata 0"), Wait->RangeCells, 0)
+		|| !TestNotEqual(TEXT("premessa: e chiede un bersaglio, quindi si arma in targeting"),
+			URTPointerLibrary::TargetKindForAction(Wait->Def, Wait->bSelfTarget, Wait->Shape), ERTPointerTargetKind::None)
+		|| !TestTrue(TEXT("premessa: il produttore da solo le darebbe la cella del tiratore"),
+			URTCombatLibrary::TargetableRangeCells(Arena, Unit->Cell, Wait->RangeCells, Wait->Def.LineOfSightPolicy)
+				== TArray<FRTCellId>{ Unit->Cell }))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	if (!TestTrue(TEXT("premessa: selezionata, si vede il ventaglio"), MapActor->GetPreviewReachableCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attesa);
+	if (!TestEqual(TEXT("premessa: Action.Wait e' armata"), Unit->SelectedAbilityIndex, Attesa))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	TestEqual(TEXT("1: Action.Wait armata non mostra nessuna portata"), MapActor->GetPreviewRangeCells().Num(), 0);
+	// Portata 0 vuol dire nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta.
+	TestTrue(TEXT("1: e il ventaglio resta"), MapActor->GetPreviewReachableCells().Num() > 0);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	// --- 2. l'unita' caduta: la fine del playback ridisegna dalla selezione ---------------------------------------
+	const int32 Azione = FindAimedAbilityForRange(Unit, /*bConRicarica=*/ false);
+	PC->SelectAbilityForCurrentForTest(Azione);
+	if (!TestNotEqual(TEXT("premessa: un'azione a bersaglio"), Azione, (int32)INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: viva, l'azione armata mostra la portata"), MapActor->GetPreviewRangeCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	Unit->Health = 0;
+	TM->OnResolvePlaybackFinished.Broadcast();
+	if (!TestTrue(TEXT("premessa: la caduta resta selezionata"), PC->GetSelectedUnit() == Unit)
+		|| !TestFalse(TEXT("premessa: e non e' viva"), Unit->IsAlive()))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	TestEqual(TEXT("2: un'unita' caduta non mostra nessuna portata"), MapActor->GetPreviewRangeCells().Num(), 0);
+
+	// --- 3. la mappa che manca ---------------------------------------------------------------------------------
+	Unit->Health = 100;
+	TM->OnResolvePlaybackFinished.Broadcast();
+	if (!TestTrue(TEXT("premessa: di nuovo viva, la portata torna"), MapActor->GetPreviewRangeCells().Num() > 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	MapActor->MapAsset = nullptr;
+	TM->OnResolvePlaybackFinished.Broadcast();
+	TestEqual(TEXT("3: senza mappa, nessuna portata"), MapActor->GetPreviewRangeCells().Num(), 0);
+
+	DestroyPointerWorld(World);
+	return true;
+}
+
+/**
+ * ARMARE PORTA IL PIANO ATTIVO A QUELLO DA CUI SI MIRA - `#3517`, `DR-5` (`AC-8` ed `E7` del referto del 2026-10-06).
+ *
+ * 🔴 Il difetto: il click si risolve sul piano attivo, la portata sta sul piano del tiratore. Da una piattaforma, con
+ * il piano attivo a terra, ogni cella della portata cliccata diventava la cella di sotto, e `HandleTargetCell` la
+ * rifiutava «su un altro piano».
+ *
+ * 🔑 **Il click si riproduce com'e' in partita, senza raycast.** `ResolveCellUnderCursor` restituisce sempre una
+ * cella del piano ATTIVO, quindi la cella cliccata sopra una cella `c` della portata e' `(c.X, c.Y, piano attivo)`.
+ * Il raycast headless non c'e'; la scelta del piano si', ed e' cio' che `DR-5` cambia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTArmingAlignsActivePlaneTest,
+	"RefactorTactics.PlayerInput.ArmingMovesTheActivePlaneToTheShooter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTArmingAlignsActivePlaneTest::RunTest(const FString&)
+{
+	UWorld* World = MakePointerWorld();
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
+	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+	MapActor->MapAsset = Arena;
+	World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	const FRTCellId Piattaforma(2, 0, 1);
+	ARTUnit* Unit = SpawnPointerUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), Piattaforma);
+	ARTPlayerController* PC = World->SpawnActor<ARTPlayerController>();
+	if (!PC || !Unit) { DestroyPointerWorld(World); return false; }
+	PC->SelectUnit(Unit);
+
+	const int32 Area = FindAreaAbility(Unit);
+	const URTActionData* A = Unit->GetAbility(Area);
+	if (!TestTrue(TEXT("premessa: la piattaforma e' nella mappa"), Arena->ContainsCell(Piattaforma))
+		|| !TestNotNull(TEXT("premessa: un'azione ad area"), A)
+		|| !TestTrue(TEXT("premessa: pronta, e con una portata"), Unit->CanUseAbility(Area) && A->RangeCells > 0)
+		|| !TestEqual(TEXT("premessa: il piano attivo e' a terra"), PC->GetActiveLayer(), 0))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	// Il controllo: un armo SENZA portata non sposta il piano. `Action.Wait` ha portata 0, quindi non c'e' niente su
+	// cui mirare, e il piano attivo resta dov'e'. Senza questo passo un allineamento incondizionato resterebbe verde.
+	int32 Attesa = INDEX_NONE;
+	for (int32 I = 0; I < Unit->NumAbilities() && Attesa == INDEX_NONE; ++I)
+	{
+		const URTActionData* W = Unit->GetAbility(I);
+		if (W && W->Def.ActionId == TEXT("Action.Wait")) { Attesa = I; }
+	}
+	if (!TestNotEqual(TEXT("premessa: Action.Wait nel kit"), Attesa, (int32)INDEX_NONE))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+	PC->SelectAbilityForCurrentForTest(Attesa);
+	TestEqual(TEXT("un armo senza portata non sposta il piano attivo"), PC->GetActiveLayer(), 0);
+	PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+
+	PC->SelectAbilityForCurrentForTest(Area);
+	TestEqual(TEXT("armata, il piano attivo e' quello del tiratore"), PC->GetActiveLayer(), Piattaforma.Layer);
+
+	// Una cella della portata che il click accetta: la portata contiene anche le celle coperte, che il click
+	// rifiuta col motivo (`#3507`), e la cella del tiratore resta fuori per non dipendere da un caso speciale.
+	FRTCellId Bersaglio;
+	bool bTrovato = false;
+	for (const FRTCellId& C : MapActor->GetPreviewRangeCells())
+	{
+		if (!bTrovato && !(C == Unit->Cell)
+			&& URTCombatLibrary::ClassifyHexTargeting(Arena, Unit->Cell, C, A->RangeCells, A->Def.LineOfSightPolicy)
+				== ERTHexTargetReason::Ok)
+		{
+			Bersaglio = C;
+			bTrovato = true;
+		}
+	}
+	if (!TestTrue(TEXT("premessa: una cella della portata che il click accetta"), bTrovato)
+		|| !TestEqual(TEXT("premessa: e sta sul piano del tiratore"), Bersaglio.Layer, Piattaforma.Layer))
+	{
+		DestroyPointerWorld(World); return false;
+	}
+
+	PC->HandleClickOnCellForTest(FRTCellId(Bersaglio.X, Bersaglio.Y, PC->GetActiveLayer()));
+	TestEqual(TEXT("il click sulla portata produce un piano"), Unit->PlannedAbilityIndex, Area);
+	TestTrue(TEXT("con il bersaglio su una cella"), Unit->bAttackTargetsCell);
+	TestEqual(TEXT("quella cliccata"), Unit->PlannedAttackCell, Bersaglio);
 
 	DestroyPointerWorld(World);
 	return true;
