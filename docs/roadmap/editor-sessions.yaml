@@ -5091,6 +5091,8 @@ sessions:
       ✅ **Eseguita il 2026-10-07** dalla sessione che ha scritto il codice, su richiesta dell'autore, su `main` = `a84e62aae`
       col bridge MCP a guidare Slate (menu Tools → pannello, console via appunti, catture con `CaptureEditorImage`).
       Il verdetto, criterio per criterio, è in `test-manuali-pie.md`; il (4) è `NOT RUN`.
+      Ratificata dall'autore il 2026-10-07. I follow-up #3541 e #3542 hanno poi cambiato il meccanismo dei
+      criteri (1) e (3) e aggiunto il (5): la rigiudicazione a schermo la porta #3546, non questa seduta.
 
 not_schedulable:
 
