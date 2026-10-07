@@ -16,6 +16,7 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTTestScenario.h"
+#include "Tests/RTScenarioTestSupport.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -462,37 +463,6 @@ bool FRTLabEmptyListSaysWhyTest::RunTest(const FString&)
 	return true;
 }
 
-namespace RTLabViewModelTestsInternal
-{
-	FString LabRootDiProva(const TCHAR* Nome)
-	{
-		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RTLabPrepare"), Nome);
-	}
-
-	/** Imposta una radice del Lab di prova vuota. Chi la chiama la azzera con `ON_SCOPE_EXIT`. */
-	FString ApriRadiceDiProva(const TCHAR* Nome)
-	{
-		const FString Root = LabRootDiProva(Nome);
-		IFileManager::Get().DeleteDirectory(*Root, false, true);
-		IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
-		URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
-		return Root;
-	}
-
-	void ChiudiRadiceDiProva(const FString& Root)
-	{
-		URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
-		IFileManager::Get().DeleteDirectory(*Root, false, true);
-	}
-
-	int32 FileJsonIn(const FString& Root)
-	{
-		TArray<FString> Files;
-		IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.json"), true, false);
-		return Files.Num();
-	}
-}
-
 /**
  * `PrepareForPie` scrive un file che l'indice risolve a QUEL percorso e che si rilegge uguale alla fixture
  * in memoria (spec §5.1). Il confronto campo per campo e' lo stesso di `RunWithoutHeroUsesAbilityLabFixture`.
@@ -502,8 +472,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieWritesAResolvableScenarioTes
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieWritesAResolvableScenarioTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Scrive"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Scrive"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
@@ -546,8 +517,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAndWritesNothingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieRefusesAndWritesNothingTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Rifiuta"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Rifiuta"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTLabViewModel Modello; // nessuna ability selezionata
@@ -565,8 +537,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAnAmbiguousIdTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Doppione"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Doppione"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
@@ -575,9 +548,7 @@ bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 
 	// Un secondo file, con nome diverso, che dichiara lo stesso Id della fixture.
 	const FString IdFixture = FString::Printf(TEXT("AbilityLab.%s"), *Ability.AbilityId.ToString());
-	FFileHelper::SaveStringToFile(
-		FString::Printf(TEXT("{ \"scenarioId\": \"%s\", \"tags\": [\"ability-lab\"] }"), *IdFixture),
-		*FPaths::Combine(Root, TEXT("Doppione.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	ScriviHeaderScenario(Root, TEXT("Doppione.json"), *IdFixture, TEXT("\"ability-lab\""));
 
 	FRTLabViewModel Modello;
 	TestTrue(TEXT("l'ability si seleziona"), Modello.SelectAbility(Ability.AbilityId));
@@ -631,8 +602,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieOverwritesAStaleFixtureTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Stantio"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Stantio"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
@@ -654,6 +626,111 @@ bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("il file si rilegge"), URTScenarioLoader::LoadFromFile(Percorso, DaDisco, E))) { AddError(E); return false; }
 	TestEqual(TEXT("su disco c'e' il seed dell'ultimo clic"), DaDisco.Seed, 11);
 	TestEqual(TEXT("e c'e' un solo file"), FileJsonIn(Root), 1);
+	return true;
+}
+
+/**
+ * L'Id dell'ultimo lancio in PIE vive nel modello e lo azzera ogni gesto successivo (#3542): selezione,
+ * filtro, run. La riga di stato mostra una cosa sola, l'ultimo gesto.
+ *
+ * ⚠️ **Controlli positivi sullo stesso oggetto**: un `SelectAbility` rifiutato e un `SetHeroFilter` che non
+ * cambia il filtro NON sono gesti, e l'Id deve restare. Senza, l'asserto sarebbe verde anche su un modello
+ * che azzera a ogni chiamata.
+ *
+ * Per `Run` basta il percorso senza mondo: `Run` azzera in testa, prima di qualunque rifiuto, quindi non
+ * serve un `UWorld` transitorio per provare l'azzeramento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabLaunchedIdIsClearedBySelectionFilterAndRunTest,
+	"RefactorTactics.Lab.LaunchedIdIsClearedBySelectionFilterAndRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabLaunchedIdIsClearedBySelectionFilterAndRunTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	const TArray<FRTAbilityLabEntry> Catalogo = URTAbilityLabLibrary::ListCanonicalAbilities();
+	if (!TestTrue(TEXT("premessa: il catalogo ha almeno due ability"), Catalogo.Num() >= 2)) { return false; }
+
+	FRTHeroLabEntry Eroe;
+	FRTAbilityLabEntry AbilityEroe;
+	if (!TestTrue(TEXT("premessa: un eroe con kit esiste"), PrimoEroeConKit(Eroe, AbilityEroe))) { return false; }
+
+	const FString IdLanciato = TEXT("AbilityLab.X");
+	FRTLabViewModel Modello;
+	TestTrue(TEXT("all'apertura nessun lancio"), Modello.LaunchedScenarioId().IsEmpty());
+	TestTrue(TEXT("la prima selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+
+	// --- controllo positivo: i non-gesti non azzerano ---
+	Modello.NoteLaunched(IdLanciato);
+	TestEqual(TEXT("NoteLaunched imposta l'Id"), Modello.LaunchedScenarioId(), IdLanciato);
+	TestFalse(TEXT("un'ability inesistente e' rifiutata"), Modello.SelectAbility(TEXT("Ability.NonEsiste")));
+	TestEqual(TEXT("un SelectAbility rifiutato NON azzera l'Id"), Modello.LaunchedScenarioId(), IdLanciato);
+	Modello.SetHeroFilter(NAME_None); // gia' senza filtro: non cambia nulla
+	TestEqual(TEXT("un SetHeroFilter che non cambia il filtro NON azzera l'Id"), Modello.LaunchedScenarioId(), IdLanciato);
+
+	// --- la selezione di un'altra ability ---
+	TestTrue(TEXT("un'altra ability si seleziona"), Modello.SelectAbility(Catalogo[1].AbilityId));
+	TestTrue(TEXT("SelectAbility accettato azzera l'Id"), Modello.LaunchedScenarioId().IsEmpty());
+
+	// --- il filtro ---
+	Modello.NoteLaunched(IdLanciato);
+	Modello.SetHeroFilter(Eroe.HeroId);
+	TestTrue(TEXT("SetHeroFilter che cambia azzera l'Id"), Modello.LaunchedScenarioId().IsEmpty());
+
+	// --- la run (senza mondo: azzera in testa, poi rifiuta) ---
+	Modello.NoteLaunched(IdLanciato);
+	FString Errore;
+	TestFalse(TEXT("senza mondo la run rifiuta"), Modello.Run(nullptr, Errore));
+	TestTrue(TEXT("Run azzera l'Id anche quando rifiuta"), Modello.LaunchedScenarioId().IsEmpty());
+	return true;
+}
+
+/**
+ * A fine PIE il modello azzera l'Id e ricorda che il lancio e' finito: e' la riga «PIE terminato» del
+ * pannello (#3542). Un gesto successivo la toglie, come toglie l'Id.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabLaunchFinishedClearsTheLaunchedIdTest,
+	"RefactorTactics.Lab.LaunchFinishedClearsTheLaunchedId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabLaunchFinishedClearsTheLaunchedIdTest::RunTest(const FString&)
+{
+	const TArray<FRTAbilityLabEntry> Catalogo = URTAbilityLabLibrary::ListCanonicalAbilities();
+	if (!TestTrue(TEXT("premessa: il catalogo ha almeno un'ability"), Catalogo.Num() >= 1)) { return false; }
+
+	FRTLabViewModel Modello;
+	TestFalse(TEXT("all'apertura nessun lancio e' finito"), Modello.WasLaunchFinished());
+
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	TestFalse(TEXT("controllo positivo: lanciato ma non finito"), Modello.WasLaunchFinished());
+
+	// (a) fine PIE con ripristino riuscito
+	Modello.NoteLaunchFinished(true);
+	TestTrue(TEXT("a fine PIE l'Id e' vuoto"), Modello.LaunchedScenarioId().IsEmpty());
+	TestTrue(TEXT("e il lancio risulta finito"), Modello.WasLaunchFinished());
+	TestTrue(TEXT("e il ripristino risulta riuscito"), Modello.LastLaunchRestored());
+
+	TestTrue(TEXT("un gesto successivo: la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+	TestFalse(TEXT("SelectAbility toglie la riga «PIE terminato»"), Modello.WasLaunchFinished());
+
+	// (b) l'ultimo gesto vince: una selezione fra il lancio e la fine del PIE non viene scavalcata.
+	// Controllo positivo: stesso modello, stesso ordine di chiamate di (a), salvo il gesto in mezzo.
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	TestTrue(TEXT("(b) la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+	Modello.NoteLaunchFinished(true);
+	TestFalse(TEXT("(b) la fine del PIE NON scavalca il gesto successivo"), Modello.WasLaunchFinished());
+	TestTrue(TEXT("(b) e l'Id resta vuoto"), Modello.LaunchedScenarioId().IsEmpty());
+
+	// (c) ripristino fallito: la riga «terminato» c'e', ma dice che il ripristino non ha preso.
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	Modello.NoteLaunchFinished(false);
+	TestTrue(TEXT("(c) il lancio risulta finito"), Modello.WasLaunchFinished());
+	TestFalse(TEXT("(c) e il ripristino risulta NON riuscito"), Modello.LastLaunchRestored());
+
+	// (d) ripristino fallito DOPO un gesto successivo: si registra comunque. Stessa sequenza di (b), salvo
+	// l'esito: con `true` (b) non registra, con `false` si'.
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	TestTrue(TEXT("(d) la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+	Modello.NoteLaunchFinished(false);
+	TestTrue(TEXT("(d) un ripristino fallito si registra anche dopo un gesto successivo"), Modello.WasLaunchFinished());
+	TestFalse(TEXT("(d) e dice che il ripristino NON e' riuscito"), Modello.LastLaunchRestored());
 	return true;
 }
 

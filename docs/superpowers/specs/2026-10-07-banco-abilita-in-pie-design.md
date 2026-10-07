@@ -17,7 +17,17 @@
 > due squadre»), quindi un file reale in `Saved/RTLab` li avrebbe resi rossi su una macchina sola. La review
 > finale dell'intero branch l'ha trovato; la correzione è in §2 passo 2. Il ramo `CancelPIE` di §2 passo 4 e
 > §4 citava Live Coding come causa, ed era falso: corretto. La voce PIE `PIE-LAB-PIE` e la seduta `U67` sono
-> nel registro, **⏳ da eseguire**: il verdetto a schermo resta dell'autore.
+> nel registro: ➕ fu. **seduta U67 eseguita il 2026-10-07** (criteri 0-3 misurati a schermo, (4) `NOT RUN`),
+> PR [#3540](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3540), e **ratificata dall'autore**
+> lo stesso giorno («ratifico»).
+>
+> ➕ fu. **Follow-up chiusi il 2026-10-07** nella PR che chiude #3541–#3544, marcati `➕ fu.` nel testo: [#3541](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3541)
+> `Set` esplicito a `max(SetByPrima, Code)` al posto di `ECVF_SetByConsole` (§2 passi 3-4, §4); [#3542](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3542)
+> lo stato dell'ultimo lancio vive nel modello e si azzera a fine PIE (§3, criterio **(5)** della voce PIE);
+> [#3543](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3543) l'abbreviazione per segmenti
+> confronta solo gli Id versionati (§6); [#3544](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3544)
+> helper di test condivisi in `Tests/RTScenarioTestSupport.h` (§5.1). Il quinto candidato di #3532 —
+> l'invariante dei gate nel codice invece che nei test — resta in §7.
 >
 > **Stato misurato**: 2026-10-07, `main` = `8286276e1`. Ogni riga `file:riga` qui sotto è stata letta su
 > quel commit; chi la rilegge più tardi la **rimisura**. Nessun totale volatile in questo documento: dove
@@ -150,15 +160,36 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    map is loaded for the Play session»* e che `UGameInstance::InitializeForPlayInEditor` legge come
    `OverrideMapURL`. Il livello aperto nell'Editor resta com'è, sporco o pulito che sia. Prima della
    richiesta il lanciatore **cattura** i valori correnti di `rt.Test.Scenario` e
-   `rt.Debug.PlaybackControls` e li imposta sull'Id e su `1` con priorità **`ECVF_SetByConsole`**: un
-   `Set` a priorità `SetByCode` sarebbe ignorato con un solo warning se l'utente avesse già digitato la
-   variabile in console, e il banco giocherebbe lo scenario sbagliato credendo di aver scelto. Se una
-   delle due CVar non si trova, il lanciatore si ferma **prima** di toccare l'altra. Da lì in avanti il
+   `rt.Debug.PlaybackControls` e li imposta sull'Id e su `1`. ➕ fu. (#3541) Non più con
+   `ECVF_SetByConsole` ma tramite `FRTLabCVarSnapshot` (`RTLabCVarSnapshot.{h,cpp}`), che fotografa valore
+   e `SetBy` e scrive con un **`Set` esplicito alla priorità `P = max(SetByPrima, ECVF_SetByCode)`**, con
+   rilettura dopo ogni scrittura: scavalca il valore che l'utente avesse già digitato in console (a
+   priorità uguale la scrittura prende) **senza alzare la priorità** oltre quella che la variabile aveva.
+   ⌫ *Fino alla code review della PR dei follow-up questa riga diceva `SetWithCurrentPriority`*: su una CVar
+   **mai impostata** (storia = solo `Constructor`, lo stato normale in un Editor appena aperto) quella
+   chiamata risolve a `SETBY_ERROR` e l'Engine stampa *«This is not allowed»*
+   (`Runtime/Core/Private/HAL/ConsoleManager.cpp:783-810, 986-1025`). L'ordine dell'enum, letto in
+   `IConsoleManager.h:155-187`: `Constructor` < … < `Commandline` < `Code` < `Temp` < `Console` — quindi
+   `-dpcvars=` sta **sotto** `Code`, e nulla sta sopra `Console`. Un `Set` a priorità `SetByCode` fissa sarebbe ignorato con un solo warning
+   se l'utente avesse digitato la variabile, e il banco giocherebbe lo scenario sbagliato credendo di aver
+   scelto. Se una delle due CVar non si trova, o la scrittura non prende (`ReadOnly`, o una priorità
+   superiore), il lanciatore si ferma **prima** di toccare l'altra, e rimette la prima se era già stata
+   applicata. Da lì in avanti il
    percorso è quello esistente: il GameMode risolve lo scenario dalla console e lo Scenario Harness lo
    gioca nel TurnManager con il playback.
 4. **Ripristino.** ➕ rev. Su `FEditorDelegates::EndPIE` **oppure** `FEditorDelegates::CancelPIE` il
-   lanciatore riapplica i valori catturati al passo 3, sempre con `ECVF_SetByConsole` — non un `""`
-   cieco: ripristina ciò che c'era. `CancelPIE` copre il PIE che **non comincia**: `RequestPlaySession` è
+   lanciatore riapplica i valori catturati al passo 3 — non un `""` cieco: ripristina ciò che c'era. ➕ fu.
+   (#3541) Con `FRTLabCVarSnapshot::Restore`, che riscrive il valore catturato alla stessa priorità `P`:
+   dopo il ripristino il `SetBy` è `P`, cioè quello di prima per `Code` e `Console`.
+   **Limite dichiarato**: una CVar che stava **sotto** `Code` (`Constructor` se mai impostata, `Scalability`,
+   un `.ini`, `Commandline` da `-dpcvars=`) torna a `Code`, non alla sua priorità — un `Set` a una priorità
+   più bassa di quella corrente è rifiutato dall'Engine — e `Code` è il pavimento di qualunque `Set` da
+   codice (`IConsoleVariable::Unset(Code)` toglierebbe la voce dalla storia e riporterebbe la priorità di
+   prima: `FOLLOW-UP CANDIDATE`, §7); e se
+   qualcuno alza la priorità **durante** il PIE (una riga digitata in console con `P = Code`), `Restore`
+   non prende, ritorna `false` e il pannello lo dice. ➕ fu. (#3542) La
+   callback di fine PIE porta l'esito del ripristino, e il pannello lo dice se una CVar non è tornata.
+   `CancelPIE` copre il PIE che **non comincia**: `RequestPlaySession` è
    una richiesta differita e `EndPIE` da sola scatterebbe solo per una sessione partita. Al primo dei due
    che scatta, il lanciatore ripristina e si sgancia da entrambi. Senza questo passo il Play successivo
    rilancerebbe lo scenario del Lab in silenzio.
@@ -166,10 +197,14 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    `Editor/UnrealEd/Private/PlayLevel.cpp`, una modifica C++ non compilata con Live Coding **non** blocca
    l'avvio del PIE, che parte coi binari vecchi. Il ramo reale di `CancelPIE` è «Blueprint con errori di
    compilazione → alla domanda *avviare comunque?* si risponde No», ramo che emette `EndPIE` e poi
-   `CancelPIE`. ⚠️ Il ripristino con `ECVF_SetByConsole` lascia le due CVar a **priorità console** per il
-   resto del processo: un `Set(..., ECVF_SetByCode)` successivo nello stesso Editor è ignorato. È voluto —
-   una priorità inferiore verrebbe ignorata a sua volta — e dichiarato come follow-up nella issue (il test
-   `Playback.ControlCVarsTurnOnTheControls` scrive a `SetByCode`).
+   `CancelPIE`. ⌫ ➕ fu. *Questo paragrafo diceva che il ripristino con `ECVF_SetByConsole` lasciava le due
+   CVar a priorità console per il resto del processo, e che un `Set(..., ECVF_SetByCode)` successivo veniva
+   ignorato.* Era il follow-up #3541, chiuso: scrivendo a `P = max(SetByPrima, Code)` il pavimento non si
+   alza oltre quello che c'era, e il test `Lab.CVarSnapshotRestoresValueAndPriority` asserisce, caso per
+   caso (`Constructor`, `Code`, `Console`, `Commandline`, alzata durante), valore e `SetBy` dopo `Restore`,
+   e che dopo `Restore` un `Set` a `SetByCode` **prende**. Limite dichiarato: se una `Apply` non prende, la
+   CVar che ha fallito non viene ripristinata (resta di norma intatta: le cause sono `ReadOnly` o una
+   priorità superiore a `P`).
 
 Il pannello mostra l'Id lanciato e con quale riga di log confermare che è partito il banco giusto. ➕ rev.
 La riga la scrive `FRTScenarioCoordinator` (`ScenarioHarness/RTScenarioCoordinator.cpp:43`) e **comincia**
@@ -183,7 +218,8 @@ Le API dell'Engine che i passi 3 e 4 usano esistono in UE 5.8.1, lette negli hea
 `UEditorEngine::RequestPlaySession` (`Editor/UnrealEd/Classes/Editor/EditorEngine.h:1817`),
 `FRequestPlaySessionParams::GlobalMapOverride` (`Editor/UnrealEd/Public/PlayInEditorDataTypes.h`, letto in
 `Runtime/Engine/Private/GameInstance.cpp:324`), `FEditorDelegates::EndPIE` e `CancelPIE`
-(`Editor/UnrealEd/Public/Editor.h:284,298`), `ECVF_SetByCode < ECVF_SetByConsole`
+(`Editor/UnrealEd/Public/Editor.h:284,298`), `ECVF_SetByCode < ECVF_SetByConsole` (ordine dell'enum, ancora
+valido: è il motivo per cui un `Set` a priorità `Console` scavalca il valore digitato, e uno a `Code` no)
 (`Runtime/Core/Public/HAL/IConsoleManager.h:183,187`).
 
 ---
@@ -196,8 +232,9 @@ Le API dell'Engine che i passi 3 e 4 usano esistono in UE 5.8.1, lette negli hea
 | `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.{h,cpp}` | ➕ rev. `Scan` **invariata** (una radice). Nuova `ScanAll(OutProblems)` che legge entrambe; `ResolvePath`, `ListIds` e `ListTags` passano a `ScanAll`. Una radice assente non è un problema né una voce. Un Id presente in entrambe è un **duplicato**: `BuildFrom` lo segnala e `ResolvePath` lo rifiuta come «ambiguo», come già oggi dentro `Scenarios/`. Il messaggio «non trovato nell'indice (… sotto `<radice>`)» nomina entrambe le radici. |
 | `Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp` | ➕ rev. Due testi d'aiuto che nominano la sola `Scenarios/`: l'help di `rt.Test.List` («versionati in Scenarios/») e il messaggio «nessuno scenario in `<radice>`». |
 | `Source/RefactorTacticsEditor/Private/RTLabViewModel.{h,cpp}` | `bool PrepareForPie(FString& OutScenarioId, FString& OutError)`: costruisce, valida, salva, **e verifica che l'Id risolva a quel file**. **Pura e headless**: non sa nulla di PIE né di `GEditor`. |
-| `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: cattura e imposta le CVar con `ECVF_SetByConsole`, chiede PIE con `GlobalMapOverride`, si aggancia a `EndPIE` e `CancelPIE` per il ripristino, si sgancia da entrambi al primo scatto. Isolata perché nessun automation test la vede. Nel modulo Editor non c'è oggi nessun uso di `RequestPlaySession` o dei delegate PIE: questo è il primo. |
-| `Source/RefactorTacticsEditor/Private/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). |
+| `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: cattura e imposta le CVar (➕ fu. #3541: con `FRTLabCVarSnapshot`, `Set` esplicito a `max(SetByPrima, Code)`), chiede PIE con `GlobalMapOverride`, si aggancia a `EndPIE` e `CancelPIE` per il ripristino, si sgancia da entrambi al primo scatto. ➕ fu. (#3542) `CanLaunch(OutError)` espone le guardie prima di scrivere, e `Launch` accetta un `OnFinished` chiamato dopo il ripristino. Isolata perché nessun automation test la vede. |
+| `Source/RefactorTacticsEditor/Private/RTLabCVarSnapshot.{h,cpp}` (➕ fu. #3541) | Fotografia di una CVar: valore e `SetBy` alla cattura; `Apply`/`Restore` con un `Set` esplicito a `max(SetByPrima, Code)` e rilettura. Nessuna dipendenza da `GEditor`: verificabile headless. |
+| `Source/RefactorTacticsEditor/Private/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). ➕ fu. (#3542) Lo stato dell'ultimo lancio vive nel modello (`LaunchedScenarioId`, `WasLaunchFinished`): il pannello chiede `CanLaunch` **prima** di `PrepareForPie`, così non scrive se non può lanciare, e a fine PIE mostra «PIE terminato: le CVar sono tornate com'erano» — oppure «PIE terminato: il ripristino di una CVar NON ha preso, vedi il log» se una `Restore` non ha preso. L'ultimo gesto vince: una Run o una selezione fatta durante il PIE non viene scavalcata dalla fine del PIE (e in quel caso un ripristino fallito resta solo nel log). |
 | `Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp` | I test della seconda radice (§5). |
 | `Source/RefactorTacticsEditor/Private/Tests/RTLabViewModelTests.cpp` | I test di `PrepareForPie` (§5). |
 
@@ -219,7 +256,8 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | PIE in corso **o già richiesto** per il tick successivo | ➕ impl. `GEditor->IsPlaySessionInProgress()` copre entrambi: il pulsante rifiuta senza toccare niente. |
 | PIE già in corso (`GEditor->PlayWorld != nullptr`) | Il pulsante rifiuta con «PIE in corso». Non chiede una seconda sessione. |
 | CVar non trovata (`FindConsoleVariable` → `nullptr`) | ➕ rev. Il lanciatore si ferma **prima** di toccare l'altra. `rt.Debug.PlaybackControls` è compilata `!UE_BUILD_SHIPPING`, quindi in Editor c'è sempre; la guardia resta perché il costo è una riga e l'alternativa è un crash. |
-| CVar già impostata a mano in console | ➕ rev. `Set` con `ECVF_SetByConsole` la scavalca; un `Set` a priorità inferiore sarebbe ignorato con un solo warning. Vale anche per il ripristino. |
+| CVar già impostata a mano in console | ➕ rev. ➕ fu. (#3541) il `Set` a `P = max(SetByPrima, Code)` la scavalca a priorità uguale, senza alzarla; un `Set` a priorità inferiore sarebbe ignorato con un solo warning. Vale anche per il ripristino, che riporta valore **e** `SetBy` di prima. |
+| CVar `ReadOnly` o valore che non prende | ➕ fu. (#3541) `Apply` rilegge e rifiuta con il motivo; la prima CVar già applicata viene rimessa; nessun PIE parte. |
 | Scenario non risolto dal GameMode | Il log lo dice già con `[RT-Test]`. Il pannello non lo intercetta: il verdetto sul lancio resta di chi guarda, come per ogni scenario. |
 | Motore occupato da un'altra sessione | Il pannello non può saperlo. Vale `CLAUDE.md` §10, a carico di chi preme il pulsante. |
 | PIE non comincia (Blueprint con errori di compilazione, «No» al prompt) | ➕ rev. `CancelPIE` scatta: il ripristino avviene. ➕ impl. Live Coding **non** è una causa: il PIE parte coi binari vecchi. |
@@ -244,6 +282,13 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | `RefactorTactics.Lab.PrepareForPieOverwritesAStaleFixture` | ➕ piano. Due chiamate con lo stesso Id e seed diversi lasciano **un** file, con il seed della seconda. |
 | `RefactorTactics.ScenarioIndex.LabRootIsHiddenFromAutomationByDefault` | ➕ impl. Senza override e sotto `GIsAutomationTesting`, `LabScenariosRoot()` è **vuota**; `ScanAll` e `Scan` coincidono per Id. Mutazione: tolto il ramo, cade insieme ai gate sul corpus. |
 | `RefactorTactics.Lab.PrepareForPieRefusesWithoutARootUnderAutomation` | ➕ impl. Senza override, sotto automation, `PrepareForPie` → `false`, nessun file. |
+| `RefactorTactics.ScenarioIndex.AbbreviationIgnoresTheLabRoot` | ➕ fu. (#3543) Con `AbilityLab.Hero.Ivrin.Deflection` nella radice del Lab, l'Id esatto risolve al file del Lab e `Deflection` risolve all'unico versionato che termina con `.Deflection`. Mutazione: candidati di nuovo da `ScanAll` → cade su «ambigua». |
+| `RefactorTactics.Lab.CVarSnapshotRestoresValueAndPriority` | ➕ fu. (#3541) Su una CVar di prova: `Apply` scavalca un valore a priorità code **e** uno a priorità console; `Restore` riporta valore e `SetBy`; dopo `Restore` un `Set` a `SetByCode` prende. Mutazione: `Set(..., ECVF_SetByConsole)` in `Apply` → cade «il pavimento non si alza». |
+| `RefactorTactics.Lab.LaunchedIdIsClearedBySelectionFilterAndRun` · `LaunchFinishedClearsTheLaunchedId` | ➕ fu. (#3542) L'Id dell'ultimo lancio vive nel modello: lo azzerano selezione accettata, cambio di filtro, run e fine PIE; una selezione rifiutata **non** lo azzera; la fine del PIE **non** scavalca un gesto fatto durante il PIE (asserto (b), mutazione: senza la guardia cade); `LastLaunchRestored()` porta l'esito del ripristino (asserto (c)). |
+
+➕ fu. (#3544) Gli helper di radice di prova, header di scenario e conteggi stanno in
+`Source/RefactorTactics/Tests/RTScenarioTestSupport.h` (namespace `RTScenarioTestSupport`), condivisi dai
+test dell'indice e del Lab: nessuna copia locale (`grep -n "FString LabRootDiProva" Source/**/*.cpp` → 0).
 
 🔴 **Controllo di mutazione dichiarato**: togliere la radice del Lab da `ScanAll` deve far diventare
 rosso `ScanAllSeesTheLabRoot`. Un test che resta verde con la mutazione non prova niente.
@@ -264,7 +309,10 @@ Si verificano in una **seduta PIE** registrata nel registro del progetto
 0. ➕ rev. **prima** del clic, in console: `rt.Test.Scenario Core.PhaseOrder` (o un altro Id del corpus),
    così la CVar porta già un valore a priorità console;
 1. dopo il clic, il log porta `AUTO-RUN AbilityLab.<Id>` con `da: console rt.Test.Scenario` — e **non**
-   `Core.PhaseOrder`: è la prova che `ECVF_SetByConsole` ha scavalcato il valore digitato;
+   `Core.PhaseOrder`: è la prova che il lanciatore ha scavalcato il valore digitato (➕ fu. da #3541 con
+   `Set` esplicito a `max(SetByPrima, Code)`: i criteri **(1)** e **(3)** della voce `PIE-LAB-PIE` sono da rigiudicare su
+   quel codice, insieme al **(5)** di #3542 — li porta
+   [#3546](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3546));
 2. il playback mostra l'abilità scelta sulle due unità della fixture, su `L_DevSandbox`, **qualunque**
    mappa fosse aperta nell'Editor;
 3. terminato PIE, `rt.Test.Scenario` vale di nuovo `Core.PhaseOrder` (si legge con il solo nome in
@@ -286,9 +334,12 @@ di esso il banco funzionerebbe e lascerebbe il processo dirottato.
   passano da `Scan`; può solo comparire in `rt.Test.List` o produrre un problema in `ScanAll`.
 - Il livello aperto nell'Editor non viene né cambiato né salvato: PIE carica `L_DevSandbox` per
   proprio conto.
-- ➕ impl. Un file del Lab può rendere **ambigua un'abbreviazione**: `rt.Test.Scenario Deflection` su una
-  macchina dove il banco ha scritto `AbilityLab.Hero.Ivrin.Deflection` non risolve più, fail-closed con
-  l'elenco dei candidati. Si disambigua aggiungendo un segmento. Non si cambia `ResolvePath`.
+- ⌫ ➕ fu. *Questa riga diceva che un file del Lab può rendere ambigua un'abbreviazione (`rt.Test.Scenario
+  Deflection` con `AbilityLab.Hero.Ivrin.Deflection` sulla macchina) e che non si cambiava `ResolvePath`.*
+  Era il follow-up #3543, chiuso: l'abbreviazione per segmenti confronta **solo gli Id versionati**
+  (`Scan`), mentre l'Id esatto e i redirect vedono anche il Lab (`ScanAll`). Uno scenario del Lab si
+  nomina quindi con il suo Id completo; il test `ScenarioIndex.AbbreviationIgnoresTheLabRoot` lo asserisce
+  e cade se il ciclo dei candidati torna su `ScanAll`.
 - ➕ impl. La tendina `ScenarioToRun` di `BP_GameMode` e il browser del Tactical Designer elencano anche gli
   Id `AbilityLab.*` della macchina: non salvare un asset che li citi.
 - `rt.Debug.PlaybackStartPaused` **non** viene acceso dal banco. Chi vuole il playback fermo lo imposta
@@ -305,3 +356,11 @@ di esso il banco funzionerebbe e lascerebbe il processo dirottato.
 - Pulizia di `Saved/RTLab/Scenarios/` da un pulsante o all'avvio dell'Editor.
 - Il pannello che legge il `result.json` della run a fine PIE e lo mostra accanto al TurnLog testuale.
 - Le spec dei sotto-progetti 2, 3 e 4, nell'ordine di §0.3.
+- ➕ fu. L'invariante «i gate sul corpus vedono solo il versionato» nel codice invece che nei test
+  (quinto candidato di #3532, non aperto).
+- ➕ fu. (#3541) Un test sui rami di fallimento di `FRTLabCVarSnapshot` (`ReadOnly`) e sul rollback di `Launch`.
+- ➕ fu. (#3541) `Restore` con `IConsoleVariable::Unset(Code)` quando la CVar stava sotto `Code`: toglierebbe la
+  voce dalla storia e riporterebbe valore **e** priorità di prima, chiudendo il limite «torna a `Code`».
+- ➕ fu. (#3541) Un helper condiviso per l'idioma «scrivi alla priorità giusta e rileggi», oggi in due copie
+  (`RTConsoleVariableGuardForTest.h` con `SetWithCurrentPriority`, `RTLabCVarSnapshot` con `Set` esplicito).
+- ➕ fu. (#3544) Sostituire i `MakeDirectory` a mano dei test dell'indice con `ApriRadiceDiProva`.

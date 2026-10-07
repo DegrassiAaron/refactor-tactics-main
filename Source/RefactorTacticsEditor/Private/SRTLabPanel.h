@@ -79,6 +79,6 @@ private:
 	/** L'ultimo errore di costruzione o esecuzione, per mostrarlo invece di lasciare il pannello muto. */
 	FString UltimoErrore;
 
-	/** L'Id lanciato in PIE dall'ultimo clic, per dire a chi guarda quale riga di log cercare. */
-	FString UltimoIdLanciato;
+	// ⚠️ Lo stato dell'ultimo lancio in PIE **non e' un campo del widget**: vive in `FRTLabViewModel`
+	// (`LaunchedScenarioId`, `WasLaunchFinished`), che lo azzera a fine PIE e a ogni gesto (#3542).
 };
