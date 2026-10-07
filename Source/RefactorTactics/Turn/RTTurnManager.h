@@ -639,6 +639,17 @@ public:
 	 */
 	bool bSkipHitGeometryForTest = false;
 
+	/** Registra i battiti del Blast in `AttackBeatTraceForTest` (`L<i>` lancio, `A<i>` arrivo). Solo test. */
+	bool bRecordAttackBeatsForTest = false;
+	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
+
+	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test. */
+	ERTMatchPhase CurrentPlaybackPhaseForTest() const
+	{
+		return (bIsResolving && PlaybackPhases.IsValidIndex(PlaybackPhaseIdx)) ? PlaybackPhases[PlaybackPhaseIdx]
+			: ERTMatchPhase::Planning;
+	}
+
 	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
 	 *
@@ -1269,6 +1280,14 @@ public:
 	/** Durata di visualizzazione di ogni colpo nel Blast (secondi). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float AttackShowSeconds = 0.50f;
+
+	/**
+	 * Tempo di volo del tracer di un attacco base (`#2454`): il colpo parte col lancio e il numero compare
+	 * all'arrivo. ⚠️ Tagliato a `AttackShowSeconds / 2` da `URTPlaybackLibrary::TracerFlightFor`, cosi' il Blast
+	 * non si allunga; con `AttackShowSeconds <= 0` non c'e' volo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float TracerFlightSeconds = 0.25f;
 
 	/**
 	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
@@ -2351,6 +2370,14 @@ protected:
 	 */
 	bool RevealPlaybackStructureHits(int32 UpTo);
 
+	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. */
+	void LaunchPlaybackAttack(int32 Index);
+	/**
+	 * L'ARRIVO di un colpo: `Hit`, numero, `OnAttackResolved` e, con `bWithLog`, la riga `Colpo:` del log.
+	 * ⚠️ La rete di finalizzazione passa `false`: oggi non scrive il log, e non comincia a farlo qui.
+	 */
+	void ArrivePlaybackAttack(int32 Index, bool bWithLog);
+
 	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
 	 *
@@ -3350,7 +3377,19 @@ private:
 	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
-	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
+	/**
+	 * Battiti gia' eseguiti nel Blast corrente (`#2454`): il `2i` e' il LANCIO del colpo `i`, il `2i+1` il suo
+	 * ARRIVO. ⛔ Un cursore solo: due contatori separati, in un tick lungo, lancerebbero `i+1` prima dell'arrivo di
+	 * `i`. Si azzera in `EnterPlaybackPhase` e in `FinishPlayback`, MAI in `BeginPlayback` (l'estensione con
+	 * `bPreserveClock` salta `EnterPlaybackPhase`).
+	 */
+	int32 AttackBeatsDone = 0;
+	/** Volo effettivo di ogni colpo, parallelo a `PlaybackAttacks` (`URTPlaybackLibrary::TracerFlightFor`). */
+	TArray<float> PlaybackAttackFlights;
+	/** La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer, mai il ritmo. */
+	int32 PlaybackViewerTeamId = 0;
+	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`). */
+	TArray<FString> AttackBeatTrace;
 	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
 	int32 StructureHitsShown = 0;           // colpi a struttura gia' rivelati nel Blast corrente (`#2828`)
 
