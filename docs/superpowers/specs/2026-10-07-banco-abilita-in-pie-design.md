@@ -1,13 +1,23 @@
 # Vedere un'abilità in azione — il banco Ability Lab → PIE
 
-> **Statuto**: design **accettato in sessione** il 2026-10-07, **non implementato**. Nessuna issue
-> ancora aperta: questa spec è il testo da cui nascono. È il **primo di quattro sotto-progetti** di una
-> stessa richiesta d'autore, elencati in §0; gli altri tre avranno ciascuno la propria spec quando
-> arriverà il loro turno.
+> **Statuto**: design **accettato in sessione** il 2026-10-07 e **implementato lo stesso giorno** (vedi il
+> blocco ✅ qui sotto). Issue [#3532](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3532).
+> È il **primo di quattro sotto-progetti** di una stessa richiesta d'autore, elencati in §0; gli altri tre
+> avranno ciascuno la propria spec quando arriverà il loro turno.
 >
 > **Revisione indipendente** del 2026-10-07 (agente revisore, letta su `3b50eaf7f`): dieci affermazioni
 > verificate sul codice, dieci findings accolti. I cambiamenti che ne derivano sono marcati `➕ rev.` nel
 > testo; la via `GlobalMapOverride` di §2 è emersa nello stesso giro leggendo gli header dell'Engine.
+>
+> ✅ **Implementato il 2026-10-07** sul branch `issue/3532-banco-ability-lab-pie`, PR
+> [#3535](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3535). 🔴 **`IMPLEMENTATION DRIFT`
+> accolto nella stessa PR, marcato `➕ impl.` nel testo**: la premessa di §2 passo 2 e §6 — *«i gate sul corpus
+> passano da `Scan`»* — era vera a metà. Diversi test enumerano il corpus da `ListIds` e `ResolvePath`
+> (`DevSandboxLauncher.TagFiltersIntersect`, `Scenario.EveryShippedScenarioRuns`, i selettori «primo scenario a
+> due squadre»), quindi un file reale in `Saved/RTLab` li avrebbe resi rossi su una macchina sola. La review
+> finale dell'intero branch l'ha trovato; la correzione è in §2 passo 2. Il ramo `CancelPIE` di §2 passo 4 e
+> §4 citava Live Coding come causa, ed era falso: corretto. La voce PIE `PIE-LAB-PIE` e la seduta `U67` sono
+> nel registro, **⏳ da eseguire**: il verdetto a schermo resta dell'autore.
 >
 > **Stato misurato**: 2026-10-07, `main` = `8286276e1`. Ogni riga `file:riga` qui sotto è stata letta su
 > quel commit; chi la rilegge più tardi la **rimisura**. Nessun totale volatile in questo documento: dove
@@ -118,6 +128,22 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    `ListTags` — cioè il GameMode, la console e il Launcher. `rt.Test.Scenario AbilityLab.Hero.Aevik.ArcPulse`
    risolve quindi come qualunque altro Id, e `rt.Test.List` lo elenca (il comando stampa i soli Id; il tag
    `ability-lab` serve ai filtri di `ListIds`).
+   ➕ impl. **Ma `ScanAll` non basta a tenere i gate sul corpus fuori da `Saved/`.** Misurato in review
+   finale: `DevSandboxLauncher.TagFiltersIntersect` confronta `Scan` con `ListIds`;
+   `Scenario.EveryShippedScenarioRuns` e `ShippedScenariosRequireKnownCapabilities` eseguono ogni Id di
+   `ListIds`; i test che scelgono «il primo scenario a due squadre» prenderebbero `AbilityLab.*`, che precede
+   `AutoBattle.*`. ∴ `LabScenariosRoot()` ha **tre rami in quest'ordine**: l'override di test; sotto
+   `GIsAutomationTesting` una radice **vuota** (`ScanRoots` la salta, `PrepareForPie` rifiuta: nessuno può
+   crearla né scriverci — ⌫ *la prima stesura usava un percorso transiente «Assente», che la code review ha
+   mostrato scrivibile*); altrimenti `Saved/RTLab/Scenarios`. Ogni automation test è cieco a `Saved/RTLab` per
+   default; chi la vuole la imposta con l'override, che vince. ➕ impl. **La tendina `ScenarioToRun` di
+   `BP_GameMode`** usa `ListVersionedIds`/`ListVersionedTags` (solo `Scan`): un Id del Lab salvato in un
+   `.uasset` non risolverebbe su nessun'altra macchina. La console e l'auto-run continuano a vedere il Lab. `GIsAutomationTesting` è vero solo mentre un test esegue
+   (`Runtime/Core/Private/Misc/AutomationTest.cpp`), mai in Editor interattivo o in PIE. Lo pinna
+   `ScenarioIndex.LabRootIsHiddenFromAutomationByDefault`, validato per mutazione: tolto il ramo, cadono il test
+   nuovo **e** i tre gate sopra — cioè il difetto riprodotto. La misura reale: con un file in
+   `Saved/RTLab/Scenarios` del worktree, le famiglie `DevSandboxLauncher`, `ScenarioIndex`, `Scenario` e `Lab`
+   restano verdi.
 3. **Avvio.** ➕ rev. Il pannello, lato Editor, **non apre la mappa nell'Editor**: chiede PIE con
    `GEditor->RequestPlaySession` passando `FRequestPlaySessionParams::GlobalMapOverride =
    "/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox"`. È il campo che l'Engine documenta come *«Override which
@@ -132,10 +158,18 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    gioca nel TurnManager con il playback.
 4. **Ripristino.** ➕ rev. Su `FEditorDelegates::EndPIE` **oppure** `FEditorDelegates::CancelPIE` il
    lanciatore riapplica i valori catturati al passo 3, sempre con `ECVF_SetByConsole` — non un `""`
-   cieco: ripristina ciò che c'era. `CancelPIE` copre il PIE che **non comincia** (errore di compilazione,
-   Live Coding in corso): `RequestPlaySession` è una richiesta differita e `EndPIE` da sola scatterebbe
-   solo per una sessione partita. Al primo dei due che scatta, il lanciatore ripristina e si sgancia da
-   entrambi. Senza questo passo il Play successivo rilancerebbe lo scenario del Lab in silenzio.
+   cieco: ripristina ciò che c'era. `CancelPIE` copre il PIE che **non comincia**: `RequestPlaySession` è
+   una richiesta differita e `EndPIE` da sola scatterebbe solo per una sessione partita. Al primo dei due
+   che scatta, il lanciatore ripristina e si sgancia da entrambi. Senza questo passo il Play successivo
+   rilancerebbe lo scenario del Lab in silenzio.
+   ➕ impl. ⌫ *Questa riga diceva «errore di compilazione, Live Coding in corso», ed era falso*: letto in
+   `Editor/UnrealEd/Private/PlayLevel.cpp`, una modifica C++ non compilata con Live Coding **non** blocca
+   l'avvio del PIE, che parte coi binari vecchi. Il ramo reale di `CancelPIE` è «Blueprint con errori di
+   compilazione → alla domanda *avviare comunque?* si risponde No», ramo che emette `EndPIE` e poi
+   `CancelPIE`. ⚠️ Il ripristino con `ECVF_SetByConsole` lascia le due CVar a **priorità console** per il
+   resto del processo: un `Set(..., ECVF_SetByCode)` successivo nello stesso Editor è ignorato. È voluto —
+   una priorità inferiore verrebbe ignorata a sua volta — e dichiarato come follow-up nella issue (il test
+   `Playback.ControlCVarsTurnOnTheControls` scrive a `SetByCode`).
 
 Il pannello mostra l'Id lanciato e con quale riga di log confermare che è partito il banco giusto. ➕ rev.
 La riga la scrive `FRTScenarioCoordinator` (`ScenarioHarness/RTScenarioCoordinator.cpp:43`) e **comincia**
@@ -181,13 +215,14 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | Caso | Comportamento |
 |---|---|
 | Fixture invalida, abilità non canonica | `PrepareForPie` ritorna `false` con il motivo di `BuildFixture` o di `SaveToFile`; **nulla viene scritto**; il pannello mostra la frase. Stesso fail-closed del Lab di oggi. |
-| Id ambiguo (lo stesso `AbilityLab.<AbilityId>` esiste anche in `Scenarios/`) | ➕ rev. Il file viene scritto, ma `PrepareForPie` ritorna `false` con il motivo di `ResolvePath`. Il pulsante non chiede PIE. |
+| Id ambiguo (lo stesso `AbilityLab.<AbilityId>` esiste anche in `Scenarios/`) | ➕ rev. `PrepareForPie` ritorna `false` con il motivo di `ResolvePath`. ➕ impl. Il file appena scritto viene **rimosso**: lasciarlo avvelenerebbe quell'Id per la console e il GameMode a ogni clic. Il pulsante non chiede PIE. |
+| PIE in corso **o già richiesto** per il tick successivo | ➕ impl. `GEditor->IsPlaySessionInProgress()` copre entrambi: il pulsante rifiuta senza toccare niente. |
 | PIE già in corso (`GEditor->PlayWorld != nullptr`) | Il pulsante rifiuta con «PIE in corso». Non chiede una seconda sessione. |
 | CVar non trovata (`FindConsoleVariable` → `nullptr`) | ➕ rev. Il lanciatore si ferma **prima** di toccare l'altra. `rt.Debug.PlaybackControls` è compilata `!UE_BUILD_SHIPPING`, quindi in Editor c'è sempre; la guardia resta perché il costo è una riga e l'alternativa è un crash. |
 | CVar già impostata a mano in console | ➕ rev. `Set` con `ECVF_SetByConsole` la scavalca; un `Set` a priorità inferiore sarebbe ignorato con un solo warning. Vale anche per il ripristino. |
 | Scenario non risolto dal GameMode | Il log lo dice già con `[RT-Test]`. Il pannello non lo intercetta: il verdetto sul lancio resta di chi guarda, come per ogni scenario. |
 | Motore occupato da un'altra sessione | Il pannello non può saperlo. Vale `CLAUDE.md` §10, a carico di chi preme il pulsante. |
-| PIE non comincia (compile error, Live Coding in corso) | ➕ rev. `CancelPIE` scatta: il ripristino avviene. |
+| PIE non comincia (Blueprint con errori di compilazione, «No» al prompt) | ➕ rev. `CancelPIE` scatta: il ripristino avviene. ➕ impl. Live Coding **non** è una causa: il PIE parte coi binari vecchi. |
 | PIE termina per errore | `EndPIE` scatta comunque: il ripristino avviene. |
 | Pannello chiuso durante PIE | I delegate restano agganciati finché uno scatta, poi il lanciatore si sgancia da entrambi. Il ripristino non dipende dalla vita del widget. |
 | Una seduta PIE «in corso» (`URTPieSessionSubsystem::IsConducting`) che vincerebbe sulla console | ➕ rev. **Non può accadere**: il subsystem è un `UGameInstanceSubsystem`, nasce e muore con la GameInstance del PIE, quindi all'avvio di un PIE nuovo non è mai «in corso». Nessuna guardia da aggiungere. |
@@ -207,6 +242,8 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | `RefactorTactics.ScenarioIndex.LabRootProblemsStayOutOfScan` | ➕ piano. Un file corrotto nella radice del Lab è un problema di `ScanAll` e non di `Scan`, e non nasconde gli altri file del Lab. |
 | `RefactorTactics.Lab.PrepareForPieRefusesAnAmbiguousId` | ➕ piano. Un secondo file nella radice del Lab con lo stesso `scenarioId` rende l'Id ambiguo: `PrepareForPie` ritorna `false` e il motivo dice «ambiguo». |
 | `RefactorTactics.Lab.PrepareForPieOverwritesAStaleFixture` | ➕ piano. Due chiamate con lo stesso Id e seed diversi lasciano **un** file, con il seed della seconda. |
+| `RefactorTactics.ScenarioIndex.LabRootIsHiddenFromAutomationByDefault` | ➕ impl. Senza override e sotto `GIsAutomationTesting`, `LabScenariosRoot()` è **vuota**; `ScanAll` e `Scan` coincidono per Id. Mutazione: tolto il ramo, cade insieme ai gate sul corpus. |
+| `RefactorTactics.Lab.PrepareForPieRefusesWithoutARootUnderAutomation` | ➕ impl. Senza override, sotto automation, `PrepareForPie` → `false`, nessun file. |
 
 🔴 **Controllo di mutazione dichiarato**: togliere la radice del Lab da `ScanAll` deve far diventare
 rosso `ScanAllSeesTheLabRoot`. Un test che resta verde con la mutazione non prova niente.
@@ -249,6 +286,11 @@ di esso il banco funzionerebbe e lascerebbe il processo dirottato.
   passano da `Scan`; può solo comparire in `rt.Test.List` o produrre un problema in `ScanAll`.
 - Il livello aperto nell'Editor non viene né cambiato né salvato: PIE carica `L_DevSandbox` per
   proprio conto.
+- ➕ impl. Un file del Lab può rendere **ambigua un'abbreviazione**: `rt.Test.Scenario Deflection` su una
+  macchina dove il banco ha scritto `AbilityLab.Hero.Ivrin.Deflection` non risolve più, fail-closed con
+  l'elenco dei candidati. Si disambigua aggiungendo un segmento. Non si cambia `ResolvePath`.
+- ➕ impl. La tendina `ScenarioToRun` di `BP_GameMode` e il browser del Tactical Designer elencano anche gli
+  Id `AbilityLab.*` della macchina: non salvare un asset che li citi.
 - `rt.Debug.PlaybackStartPaused` **non** viene acceso dal banco. Chi vuole il playback fermo lo imposta
   dalla console come oggi (`FOLLOW-UP CANDIDATES`).
 - L'Anim Browser (#2554) e il Gray Kit Playground (#1990) non sono toccati.
