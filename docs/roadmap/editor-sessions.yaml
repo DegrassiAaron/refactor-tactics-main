@@ -4614,14 +4614,15 @@ sessions:
 
       Lancio, da clone principale, con l Editor compilato DAL CANDIDATE:
         & "<engine>\Engine\Binaries\Win64\UnrealEditor.exe" "<repo>\RefactorTactics.uproject" `
-            -NoLiveCoding -abslog=<repo>\Saved\Logs\g16-u60.log
+            -LiveCoding=false -abslog=<repo>\Saved\Logs\g16-u60.log
 
       🔑 **L `-abslog` NON e per te: e il testimone che il giro e stato UNO.** Il criterio chiede
       "una sola apertura", e una dichiarazione non lo prova — un log solo si. Va citato in
       `artifacts:` a seduta finita. ⚠️ Virgolettato se il percorso ha spazi: senza, si perde in
       silenzio e resti senza log.
-      🔑 **`-NoLiveCoding` e cortesia verso chi compila**: un Editor interattivo senza quel flag
-      blocca `Build.bat` su TUTTI i cloni, non solo sul proprio (AGENTS.md §9).
+      🔑 **`-LiveCoding=false` e cortesia verso chi compila**: un Editor interattivo senza quel flag
+      blocca `Build.bat` su TUTTI i cloni, non solo sul proprio (AGENTS.md §9). ⌫ Fino al 2026-10-07
+      qui c era `-NoLiveCoding`, che l Editor non legge (#3522).
 
       --- DOVE SI APRONO LE CINQUE SUPERFICI ---------------------------------------------------
 
@@ -4752,7 +4753,7 @@ sessions:
     #   - le **icone** del mockup: sono segnaposto, e le vere vengono da `DA_IconCatalog` via `IconId`.
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
-    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`, perche' non blocchi le build degli altri cloni.
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false`, perche' non blocchi le build degli altri cloni (#3522).
     notes: |
       Scritta il 2026-10-04 dal triage del mockup della skill bar
       (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`).
@@ -4910,7 +4911,7 @@ sessions:
     # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
-    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false` (#3522).
     notes: |
       Scritta il 2026-10-04 dalla PR di #3469 (referto
       `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
@@ -5016,7 +5017,7 @@ sessions:
     # «PIANIFICAZIONE» e i chip ([D-456] punto 6).
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
-    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false` (#3522).
     notes: |
       Scritta il 2026-10-05 dalla PR del C++ di #3498, dopo che l'autore aveva detto in PIE: «la grafica
       ancora e' molto distante dai mockup».

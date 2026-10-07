@@ -44,7 +44,9 @@ non esisteva.
 il target senza Live Coding), e passata all'Editor non la legge nessuno. Nello stesso corpus, i 27
 Editor interattivi aperti con quel flag e arrivati all'avvio dei moduli hanno scritto tutti «Starting
 LiveCoding» (un ventottesimo si era fermato prima, su «Waiting for ZenServer»). Per spegnerlo in un
-processo che non e' `-unattended`, la riga che il motore legge e' `-LiveCoding=false`.
+processo che non e' `-unattended`, la riga che il motore legge e' `-LiveCoding=false`. Misurato lo
+stesso giorno su tre avvii dello stesso Editor senza `-unattended`: senza flag e con `-NoLiveCoding` il
+log dice «Starting LiveCoding», con `-LiveCoding=false` non c'e' nessuna riga `LogLiveCoding`.
 
 ⛔ **Non decide se la misura sia VALIDA.** Quel giudizio e' di `misura.verdetto()`, che confronta le
 istantanee dell'albero git prima e dopo e sa dire se il sorgente e' cambiato sotto la run. Qui si

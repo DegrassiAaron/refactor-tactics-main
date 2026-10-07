@@ -311,8 +311,10 @@ stuck — nobody will release it.
 🔑 **The mechanism, because the precondition below depends on it.** The Live Coding lock is keyed on
 `Global\LiveCoding_` **+ the engine executable path** (`HotReload.cs`), **not** on the `.uproject`. For a
 project target against an installed build that path is shared by every checkout — so an interactive
-Editor **anywhere** makes `Build.bat` fail in **every** clone, and `-NoLiveCoding` is what lets one stay
-open without blocking the others. ⚠️ It collides *if and only if* you resolve to the same engine
+Editor **anywhere** makes `Build.bat` fail in **every** clone, and `-LiveCoding=false` is what lets one stay
+open without blocking the others. ⌫ Said `-NoLiveCoding` until 2026-10-07: that is a **UBT** option the
+Editor does not read, and Editors opened with it started Live Coding anyway (#3522). Headless suites never
+start it because they pass `-unattended`. ⚠️ It collides *if and only if* you resolve to the same engine
 binary, which is why the `InstalledBuild.txt` caveat below is the same statement and not an extra caution.
 
 ⌫ **This section carried its own copy of that table until 2026-09-16, and the copy had diverged.** One
@@ -473,7 +475,8 @@ plugins                        asset schema               dependencies that blur
 
 Respect the exclusion policy between Editor and build: an interactive Editor in **any** clone blocks
 `Build.bat` everywhere, because Live Coding is a machine-wide mutex. ⌫ Said *«on this clone … holds the
-DLL»* until 2026-09-16. If you must keep an Editor open while others build, pass `-NoLiveCoding`.
+DLL»* until 2026-09-16. If you must keep an Editor open while others build, pass `-LiveCoding=false`
+(⌫ said `-NoLiveCoding` until 2026-10-07, which the Editor ignores — #3522).
 
 ## What makes a measurement valid
 
