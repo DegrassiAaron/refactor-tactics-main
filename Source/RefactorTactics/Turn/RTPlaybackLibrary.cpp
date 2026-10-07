@@ -76,6 +76,52 @@ void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From
 	OutEnd = Head;
 }
 
+float URTPlaybackLibrary::TracerFlightFor(bool bEligible, float TracerFlightSeconds, float AttackShowSeconds)
+{
+	if (!bEligible || AttackShowSeconds <= 0.f)
+	{
+		return 0.f;
+	}
+	return FMath::Clamp(TracerFlightSeconds, 0.f, 0.5f * AttackShowSeconds);
+}
+
+float URTPlaybackLibrary::AttackBeatSeconds(int32 Beat, float AttackShowSeconds, const TArray<float>& Flights)
+{
+	const int32 Index = Beat / 2;
+	const float Lancio = Index * FMath::Max(0.f, AttackShowSeconds);
+	if (Beat % 2 == 0)
+	{
+		return Lancio;
+	}
+	return Lancio + (Flights.IsValidIndex(Index) ? FMath::Max(0.f, Flights[Index]) : 0.f);
+}
+
+int32 URTPlaybackLibrary::AttackBeatsDue(float PhaseElapsed, float AttackShowSeconds, const TArray<float>& Flights)
+{
+	const int32 NumBeats = 2 * Flights.Num();
+	if (AttackShowSeconds <= 0.f)
+	{
+		return NumBeats; // nessuno scaglionamento richiesto: come `AttacksToShow`
+	}
+	const float T = FMath::Max(0.f, PhaseElapsed);
+	int32 Due = 0;
+	while (Due < NumBeats && AttackBeatSeconds(Due, AttackShowSeconds, Flights) <= T)
+	{
+		++Due;
+	}
+	return Due;
+}
+
+float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight)
+{
+	if (Flight <= 0.f)
+	{
+		return 1.f;
+	}
+	const float Lancio = AttackIndex * FMath::Max(0.f, AttackShowSeconds);
+	return FMath::Clamp((PhaseElapsed - Lancio) / Flight, 0.f, 1.f);
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {

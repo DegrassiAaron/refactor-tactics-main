@@ -198,6 +198,31 @@ public:
 		float DashLength, FVector& OutStart, FVector& OutEnd);
 
 	/**
+	 * Il volo effettivo di un colpo (`#2454`, spec §2.3): `Min(TracerFlightSeconds, A/2)` se idoneo, 0 altrimenti.
+	 *
+	 * 🔑 Il tetto a `A/2` e' cio' che tiene il Blast della sua durata: l'arrivo di un colpo precede il lancio del
+	 * successivo, e l'ultimo arrivo cade prima di `N·A` — la durata che `PhaseTime` gia' calcola.
+	 * Con `AttackShowSeconds <= 0` non c'e' scaglionamento, quindi nemmeno volo.
+	 */
+	static float TracerFlightFor(bool bEligible, float TracerFlightSeconds, float AttackShowSeconds);
+
+	/**
+	 * L'istante di un battito, misurato dall'inizio del Blast. Il battito `2i` e' il LANCIO del colpo `i`
+	 * (`i·A`, lo stesso istante di `AttacksToShow`), il `2i+1` il suo ARRIVO (`i·A + Flights[i]`).
+	 */
+	static float AttackBeatSeconds(int32 Beat, float AttackShowSeconds, const TArray<float>& Flights);
+
+	/**
+	 * Quanti battiti sono usciti a `PhaseElapsed`: la lunghezza del prefisso con istante `<= t`.
+	 * ⚠️ E' un PREFISSO perche' la sequenza e' monotona (`Flights[i] <= A/2`): chi la percorre con un cursore
+	 * solo vede `L0, A0, L1, A1, ...` anche in un tick lungo. Con `A <= 0` escono tutti.
+	 */
+	static int32 AttackBeatsDue(float PhaseElapsed, float AttackShowSeconds, const TArray<float>& Flights);
+
+	/** L'avanzamento in [0,1] del tracer del colpo `AttackIndex`; senza volo vale 1. */
+	static float TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight);
+
+	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *
 	 * `MaxMoveSegments` e' il percorso PIU' LUNGO fra quelli riprodotti in questa fase, non la loro somma:

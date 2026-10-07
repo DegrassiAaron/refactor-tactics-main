@@ -313,6 +313,84 @@ bool FRTPlaybackTracerSegmentShapesTest::RunTest(const FString&)
 	return true;
 }
 
+// --- Il tempo del tracer (`#2454`, spec §2.3) --------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerArrivesAfterFlightTest,
+	"RefactorTactics.Playback.TracerArrivesAfterFlight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerArrivesAfterFlightTest::RunTest(const FString&)
+{
+	const float A = 0.5f;
+	const float F = URTPlaybackLibrary::TracerFlightFor(/*bEligible=*/ true, 0.25f, A);
+	TestEqual(TEXT("un colpo idoneo vola per il tempo dichiarato"), F, 0.25f, RTTol);
+	TestEqual(TEXT("un colpo non idoneo non vola"), URTPlaybackLibrary::TracerFlightFor(false, 0.25f, A), 0.f, RTTol);
+
+	const TArray<float> Flights = { F };
+	TestEqual(TEXT("il lancio e' a fase appena iniziata"), URTPlaybackLibrary::AttackBeatSeconds(0, A, Flights), 0.f, RTTol);
+	TestEqual(TEXT("l'arrivo e' dopo il volo"), URTPlaybackLibrary::AttackBeatSeconds(1, A, Flights), 0.25f, RTTol);
+
+	// 🔴 **La mutazione dichiarata**: con il volo a zero il lancio e l'arrivo cadono nello stesso istante, e
+	// queste due righe cadono — e' la forma di oggi, quella che #2454 chiede di superare.
+	TestEqual(TEXT("a 0.1 s e' uscito il lancio e non l'arrivo"), URTPlaybackLibrary::AttackBeatsDue(0.1f, A, Flights), 1);
+	TestEqual(TEXT("a 0.25 s e' uscito anche l'arrivo"), URTPlaybackLibrary::AttackBeatsDue(0.25f, A, Flights), 2);
+
+	TestEqual(TEXT("a meta' volo l'avanzamento e' 0.5"), URTPlaybackLibrary::TracerAlpha(0, 0.125f, A, F), 0.5f, RTTol);
+	TestEqual(TEXT("prima del lancio e' 0"), URTPlaybackLibrary::TracerAlpha(1, 0.1f, A, F), 0.f, RTTol);
+	TestEqual(TEXT("senza volo e' gia' 1"), URTPlaybackLibrary::TracerAlpha(0, 0.f, A, 0.f), 1.f, RTTol);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerFlightNeverOutlastsTheSlotTest,
+	"RefactorTactics.Playback.TracerFlightNeverOutlastsTheSlot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerFlightNeverOutlastsTheSlotTest::RunTest(const FString&)
+{
+	// 🔑 **Il Blast non si allunga** (spec §2.3): per ogni volo chiesto, `F_eff <= A/2`, quindi l'arrivo di un
+	// colpo precede il lancio del successivo e l'ultimo arrivo cade prima di `N·A`.
+	const float A = 0.5f;
+	for (const float Chiesto : { 0.f, 0.1f, 0.25f, 0.49f, 0.5f, 3.f })
+	{
+		const float F = URTPlaybackLibrary::TracerFlightFor(true, Chiesto, A);
+		TestTrue(FString::Printf(TEXT("volo chiesto %.2f: F_eff %.3f <= A/2"), Chiesto, F), F <= 0.5f * A + RTTol);
+
+		// Idonei e non idonei alternati: gli arrivi restano monotoni anche mescolandoli.
+		const TArray<float> Flights = { F, 0.f, F, F };
+		for (int32 Beat = 0; Beat + 1 < 2 * Flights.Num(); ++Beat)
+		{
+			TestTrue(FString::Printf(TEXT("volo %.2f: battito %d non dopo il %d"), Chiesto, Beat, Beat + 1),
+				URTPlaybackLibrary::AttackBeatSeconds(Beat, A, Flights)
+					<= URTPlaybackLibrary::AttackBeatSeconds(Beat + 1, A, Flights) + RTTol);
+		}
+		const float UltimoArrivo = URTPlaybackLibrary::AttackBeatSeconds(2 * Flights.Num() - 1, A, Flights);
+		TestTrue(FString::Printf(TEXT("volo %.2f: ultimo arrivo %.3f < N*A"), Chiesto, UltimoArrivo),
+			UltimoArrivo < Flights.Num() * A);
+		TestEqual(FString::Printf(TEXT("volo %.2f: a N*A tutti i battiti sono usciti"), Chiesto),
+			URTPlaybackLibrary::AttackBeatsDue(Flights.Num() * A, A, Flights), 2 * Flights.Num());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerZeroFlightKeepsTodaysRhythmTest,
+	"RefactorTactics.Playback.TracerZeroFlightKeepsTodaysRhythm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerZeroFlightKeepsTodaysRhythmTest::RunTest(const FString&)
+{
+	// Senza volo, gli arrivi escono come i colpi di oggi: `AttacksToShow` e' l'oracolo, non un secondo calcolo.
+	const float A = 0.5f;
+	const TArray<float> Flights = { 0.f, 0.f, 0.f, 0.f };
+	for (const float T : { 0.f, 0.49f, 0.5f, 1.f, 1.6f, 10.f })
+	{
+		TestEqual(FString::Printf(TEXT("t=%.2f: arrivi = colpi di oggi"), T),
+			URTPlaybackLibrary::AttackBeatsDue(T, A, Flights) / 2,
+			URTPlaybackLibrary::AttacksToShow(Flights.Num(), T, A));
+	}
+	// `AttackShowSeconds <= 0`: nessuno scaglionamento, tutti i battiti subito — come `AttacksToShow`.
+	TestEqual(TEXT("A<=0: niente volo"), URTPlaybackLibrary::TracerFlightFor(true, 0.25f, 0.f), 0.f, RTTol);
+	TestEqual(TEXT("A<=0: tutti i battiti subito"), URTPlaybackLibrary::AttackBeatsDue(0.f, 0.f, Flights), 8);
+	TestEqual(TEXT("nessun colpo, nessun battito"), URTPlaybackLibrary::AttackBeatsDue(5.f, A, {}), 0);
+	return true;
+}
+
 // --- PhaseDuration --------------------------------------------------------------------------
 //
 // La durata di UNA fase del playback. Stava in `ARTTurnManager::DurationForPlaybackPhase`, dove per
