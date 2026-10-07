@@ -2050,3 +2050,40 @@ Lancia `/code-review` sulla PR; accogli o confuta ogni finding con evidenza (`su
 Dopo il merge: commento su #2454 con lo sha mergiato, i gate e la riga della tabella dell'epic #2453 che cambia
 (`Single`/`Line` → consegnate per gli attacchi base). Spunta in #2454 i criteri visivi che **restano** del registro
 PIE solo come `⏳`, mai come fatti. Branch locale cancellato, worktree rimosso, `git remote prune origin`.
+
+---
+
+## Esecuzione — divergenze registrate
+
+Il testo dei Task sopra resta quello scritto prima di eseguire. Dove il codice committato se ne scosta, la ragione è
+qui, una riga per scarto: chi rilegge il piano per rifare un passo parte da ciò che è nel commit, non dalla bozza.
+
+- **Task 1** — `PlaybackTracerIsItsOwnChannel` asserisce anche che il `Tick` dell'attore si accenda e si spenga con il
+  canale. Il piano non lo prevedeva: l'attore nasce con il tick spento e nessun test guardava `HasAnythingToDraw`, quindi
+  togliere `|| PlaybackTracers.Num() > 0` lasciava tutto verde mentre in partita il tracer non sarebbe mai stato disegnato.
+- **Task 3** — la motivazione di `RTServerOnly` sta nel blocco `/** */` di `FRTResolvedEvent`, non in righe `//` come
+  scrive il piano: UHT fondeva le righe `//` nel tooltip del tipo. `FRTPlannedIntent` e `FRTReactionOpportunity` fanno lo
+  stesso.
+- **Task 4** — anche `FRTHitGeometry` è `RTServerOnly`: porta i verdetti di ogni squadra, ed è il payload sensibile.
+- **Task 4** — `AttackCarriesHitGeometry` indicizza le vittime **dopo** il turno: `StableUnitId` vale `0` prima di
+  `LockInAndResolve`, che è dove si assegna: le due vittime avevano entrambe chiave `0`, la mappa collassava in una voce
+  e `Find` non ne trovava nessuna.
+- **Task 4** — `HitGeometryStaysOutOfHashes` ricalcola lo `StateHash` con `HashMatchState` + `BuildUnitDigests`:
+  `GetPendingFinalStateHash` vale `0` senza registrazione del replay, e `0 == 0` era un confronto vacuo.
+- **Task 5** — `Reactions.Brace.ExtendedBlastDoesNotReplayHits` lega `OnReactionWindowOpened`, perché la finestra che
+  sospende il Blast si apre solo con un delegate legato, e asserisce `A0` **prima** dell'estensione: senza un arrivo
+  già avvenuto il test non attraversa niente e la mutazione resterebbe verde per costruzione.
+- **Task 6** — la parte `#2454` di `NextActionStopsAtTheActionBoundary` gira su `SetUpTwoActTurn` e non su
+  `SetUpTwoPhaseTurn`: su un turno a un atto il colpo ha lo stesso `ActionId` dell'impronta, quindi un arrivo non è mai
+  un confine di atto e il blocco prescritto dal piano non poteva fermarsi.
+- **Task 6** — `TracerChannelClearsAtBlastEnd` ha un caso (c), assente dal piano: con (a) e (b) togliere
+  `ClearPlaybackTracers` dalla finalizzazione lasciava tutto verde, perché `PhaseTime` dimensiona il Blast in modo che
+  all'ultimo tick l'ultimo arrivo sia già passato e la consegna in uscita abbia già svuotato il canale. (c) abbassa
+  `AttackShowSeconds` con un colpo in volo e mette un `Move` dopo il Blast: è l'unico regime in cui la pulizia di fine
+  Blast conta.
+- **Task 6** — `TracerIsInFlightBetweenLaunchAndArrival` pinna anche `OnAttackResolved` all'arrivo (decisione V1: *«il
+  numero compare all'arrivo»*): `HitArrivesAfterTheLaunch` misura la traccia dei battiti e non cade se il broadcast
+  torna al lancio.
+- **Task 6** — test nuovo `Privacy.UnseenAttackerTracerIsNotDelivered`: nessun test guardava il filtro di privacy alla
+  consegna, perché ogni fixture di playback aveva l'attaccante nella squadra dello spettatore e togliere la guardia
+  `Style != None`, o sostituire `TracerStyleFor` con uno stile costante, lasciava tutto verde.

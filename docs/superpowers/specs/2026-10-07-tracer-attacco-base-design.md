@@ -291,8 +291,9 @@ struct FRTHitGeometry
 | `Playback.AttackBeatsStayOrderedInOneTick` | ➕ rev. un tick lungo produce `L0, A0, L1, A1`. 🔴 **Mutazione**: due cicli separati → rosso (l'ordine provato per mutazione è richiesto da #2454, *«Test attesi»*) |
 | `Reactions.Brace.ExtendedBlastDoesNotReplayHits` | ➕ rev. l'estensione con `bPreserveClock` non ripete né lanci né arrivi. 🔴 **Mutazione**: azzerare il cursore in `BeginPlayback` → rosso |
 | `Playback.TracerIsInFlightBetweenLaunchAndArrival` | fra lancio e arrivo la mappa ha **un** tracer, dalla cella dell'attaccante a quella della vittima; dopo l'arrivo nessuno |
-| `Playback.TracerChannelClearsAtBlastEnd` | ➕ rev. dopo `SkipPlayback` con un tracer in volo, e all'uscita dal Blast, il canale è spento |
-| `Playback.NextActionStopsAtTheActionBoundary` *(esistente, `RTPlaybackStopPredicateTests.cpp:252`)* | ➕ rev. **esteso**, non duplicato: la pausa cade dopo l'arrivo e nessun tracer resta a mezz'aria |
+| `Playback.TracerChannelClearsAtBlastEnd` | ➕ rev. (a) dopo `SkipPlayback` con un tracer in volo, e (b) all'uscita dal Blast, il canale è spento; (c) con `AttackShowSeconds` abbassato con un colpo in volo e un `Move` dopo il Blast: l'unico regime in cui la pulizia di fine Blast conta, perché in (a) e (b) la consegna in uscita ha già lasciato il canale vuoto. 🔴 **Mutazione**: togliere `ClearPlaybackTracers` dalla finalizzazione → rosso su (c), verde su (a) e (b) |
+| `Playback.NextActionStopsAtTheActionBoundary` *(esistente, `RTPlaybackStopPredicateTests.cpp:252`)* | ➕ rev. **esteso**, non duplicato: la pausa cade dopo l'arrivo e nessun tracer resta a mezz'aria. La parte `#2454` gira su una fixture a **due atti** (`SetUpTwoActTurn`): su un turno a un atto un arrivo non è mai un confine di atto |
+| `Privacy.UnseenAttackerTracerIsNotDelivered` | playback con le squadre scambiate: chi guarda è la vittima di un attaccante alle spalle; **nessun tracer su nessun tick**. Controllo positivo con le squadre invertite: chi spara lo vede. 🔴 **Mutazione**: togliere la guardia `Style != None` → rosso. ⚠️ Limite residuo: un viewer costante `0` non si vede headless, perché lo spettatore del test è fisso alla squadra 0 |
 
 ⚠️ **Il gate di D-278 non vede una cue mai chiamata**: `FindMissingBindings` conta i nomi non vuoti
 (`RTPresentationBinding.cpp:276-370`). Per questo i test asseriscono **quale** cue, **su quale soggetto** e **in
@@ -316,7 +317,7 @@ Una scena, una domanda binaria, per tasti e non per «passi»:
 2. `Visual.Combat.WaterElectricCoordinated` — il `PressureJet` di Muiren: *«Vedi una linea che si allunga da
    Muiren fino al bersaglio, ancorata a Muiren?»*
 3. una scena in cui la squadra di chi guarda **non vede** l'attaccante: *«Vedi una linea partire da una cella
-   che non vedi?»* — risposta attesa **no**. Se il corpus non ha già questa scena, il piano la scrive.
+   che non vedi?»* — risposta attesa **no**. Scenario: `Visual.Combat.TracerHiddenFromUnseenAttacker`.
    ⚠️ Per non confondere la domanda con il limite preesistente di §5, l'attaccante usa un `Single`.
 
 La voce va nel registro PIE e in `editor-sessions.yaml`, con un rimando a `PIE-V01-BLINDFIRE` per il tiro alla
