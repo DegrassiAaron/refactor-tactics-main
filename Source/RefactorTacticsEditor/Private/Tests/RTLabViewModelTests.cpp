@@ -534,7 +534,9 @@ bool FRTLabPrepareForPieWritesAResolvableScenarioTest::RunTest(const FString&)
 	if (!TestTrue(TEXT("la fixture in memoria si costruisce"), Modello.BuildScenario(InMemoria, E1))) { return false; }
 	if (!TestTrue(TEXT("il file si rilegge"), URTScenarioLoader::LoadFromFile(Atteso, DaDisco, E2))) { AddError(E2); return false; }
 	TestTrue(TEXT("il file rilegge la stessa fixture, campo per campo"), FixtureCoincidono(*this, InMemoria, DaDisco));
-	TestEqual(TEXT("e porta il tag del Lab"), DaDisco.Tags, InMemoria.Tags);
+	// Asserto sul VALORE, non sul confronto fra i due array: tolto il tag dalla fixture, due array vuoti
+	// sarebbero uguali e il vecchio `TestEqual` passerebbe.
+	TestTrue(TEXT("e porta il tag del Lab"), DaDisco.Tags.Contains(TEXT("ability-lab")));
 	return true;
 }
 
@@ -585,6 +587,41 @@ bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 	// ⚠️ Il messaggio incorpora il percorso e `Contains` e' case-insensitive: la cartella di prova non deve contenere la parola cercata.
 	TestTrue(TEXT("e il motivo dice che e' ambiguo"), Errore.Contains(TEXT("ambigu")));
 	TestTrue(TEXT("e il motivo e' quello dell'indice"), Errore.Contains(TEXT("dichiarato da")));
+	// Un file che rende ambiguo un Id avvelenerebbe console e GameMode a ogni clic: non deve restare.
+	TestFalse(TEXT("il file del Lab non resta sul disco"),
+		IFileManager::Get().FileExists(*FPaths::Combine(Root, IdFixture + TEXT(".json"))));
+	TestTrue(TEXT("il doppione preesistente non viene toccato"),
+		IFileManager::Get().FileExists(*FPaths::Combine(Root, TEXT("Doppione.json"))));
+	return true;
+}
+
+/**
+ * Sotto automation, senza override, la radice del Lab e' VUOTA: `PrepareForPie` rifiuta invece di creare e
+ * scrivere in una cartella di cui nessuno ha deciso l'esistenza.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesWithoutARootTest,
+	"RefactorTactics.Lab.PrepareForPieRefusesWithoutARootUnderAutomation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabPrepareForPieRefusesWithoutARootTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
+	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
+
+	// Controllo positivo della premessa: senza, il rifiuto potrebbe venire da altro.
+	TestTrue(TEXT("premessa: la radice del Lab e' vuota"), URTScenarioLoader::LabScenariosRoot().IsEmpty());
+
+	FRTHeroLabEntry Eroe;
+	FRTAbilityLabEntry Ability;
+	if (!TestTrue(TEXT("un eroe con kit esiste"), PrimoEroeConKit(Eroe, Ability))) { return false; }
+
+	FRTLabViewModel Modello;
+	TestTrue(TEXT("l'ability si seleziona"), Modello.SelectAbility(Ability.AbilityId));
+
+	FString Id, Errore;
+	TestFalse(TEXT("senza radice PrepareForPie rifiuta"), Modello.PrepareForPie(Id, Errore));
+	TestFalse(TEXT("e dice perche'"), Errore.IsEmpty());
+	TestTrue(TEXT("e l'Id resta vuoto"), Id.IsEmpty());
 	return true;
 }
 

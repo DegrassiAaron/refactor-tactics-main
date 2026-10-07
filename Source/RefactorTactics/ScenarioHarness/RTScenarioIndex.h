@@ -81,8 +81,8 @@ public:
 	 * 🔑 E' la funzione delle RICERCHE — `ResolvePath`, `ListIds`, `ListTags` — cioe' del GameMode, della
 	 * console e del Launcher. `Scan` resta a una radice e vale «tutto cio' che e' versionato». I gate che
 	 * enumerano il corpus passano da `ListIds`, quindi da qui: restano misure della sola radice versionata
-	 * perche' sotto automation la radice del Lab e' una cartella assente (`LabScenariosRoot`). Una radice
-	 * assente non e' un problema ne' una voce.
+	 * perche' sotto automation la radice del Lab e' VUOTA (`LabScenariosRoot`) e viene saltata. Una radice
+	 * vuota o assente non e' un problema ne' una voce.
 	 */
 	static TArray<FRTScenarioEntry> ScanAll(TArray<FString>& OutProblems);
 
@@ -118,6 +118,13 @@ public:
 	static TArray<FString> ListIds(const FString& FilterA, const FString& FilterB);
 
 	/**
+	 * Come `ListIds`, ma sulla sola radice **versionata** (`Scan`, non `ScanAll`): per cio' che finisce in un
+	 * asset o in un file versionato — la tendina di `BP_GameMode`. Un Id del Lab salvato in un `.uasset` non
+	 * risolverebbe su nessun'altra macchina.
+	 */
+	static TArray<FString> ListVersionedIds(const FString& FilterA, const FString& FilterB);
+
+	/**
 	 * Vocabolario dei tag: l'unione di quelli **realmente presenti** nei file, ordinata.
 	 *
 	 * Nessun elenco dichiarato da qualche parte, per la stessa ragione per cui la tendina degli scenari
@@ -126,6 +133,9 @@ public:
 	 * lo rende visibile subito, invece che silenzioso.
 	 */
 	static TArray<FString> ListTags();
+
+	/** Come `ListTags`, ma sulla sola radice **versionata**: vedi `ListVersionedIds`. */
+	static TArray<FString> ListVersionedTags();
 
 	/** Tabella `vecchio ID -> nuovo ID` da `Scenarios/_redirects.json`. File assente = mappa vuota, non un errore. */
 	static TMap<FString, FString> LoadRedirects();
@@ -145,4 +155,10 @@ public:
 private:
 	/** Il corpo comune di `Scan` e `ScanAll`: legge ricorsivamente i `.json` sotto ogni radice data. */
 	static TArray<FRTScenarioEntry> ScanRoots(const TArray<FString>& Roots, TArray<FString>& OutProblems);
+
+	/** Il corpo comune di `ListIds` e `ListVersionedIds`: filtra le voci per i due tag, in ordine alfabetico. */
+	static TArray<FString> IdsFrom(const TArray<FRTScenarioEntry>& Entries, const FString& FilterA, const FString& FilterB);
+
+	/** Il corpo comune di `ListTags` e `ListVersionedTags`: l'unione dei tag delle voci, ordinata. */
+	static TArray<FString> TagsFrom(const TArray<FRTScenarioEntry>& Entries);
 };

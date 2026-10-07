@@ -179,10 +179,11 @@ public:
 	 * 🔑 La legge `URTScenarioIndex::ScanAll` (quindi `ResolvePath`, `ListIds`, `ListTags`), non `Scan`.
 	 *
 	 * ⚠️ Ordine di risoluzione: (1) l'override di `SetLabScenariosRootOverrideForTest`, se non vuoto;
-	 * (2) **sotto automation** (`GIsAutomationTesting`) una cartella transiente che NON esiste, cosi' i test
-	 * che enumerano il corpus vedono la sola radice versionata e un file stantio lasciato in `Saved/RTLab`
-	 * non li rende rossi su una macchina e verdi su un'altra; (3) altrimenti la radice vera.
-	 * Un Editor interattivo e il PIE non sono automation: li' vale (3).
+	 * (2) **sotto automation** (`GIsAutomationTesting`) la stringa VUOTA — la radice non esiste e nessuno puo'
+	 * crearla o scriverci — cosi' i test che enumerano il corpus vedono la sola radice versionata e un file
+	 * stantio lasciato in `Saved/RTLab` non li rende rossi su una macchina e verdi su un'altra; (3) altrimenti
+	 * la radice vera. Un Editor interattivo e il PIE non sono automation: li' vale (3).
+	 * Chi scrive nella radice (`FRTLabViewModel::PrepareForPie`) rifiuta se e' vuota.
 	 */
 	static FString LabScenariosRoot();
 

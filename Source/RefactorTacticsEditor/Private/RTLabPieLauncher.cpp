@@ -70,9 +70,11 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError)
 		OutError = TEXT("GEditor assente: il lanciatore vive solo nell'Editor");
 		return false;
 	}
-	if (GEditor->PlayWorld != nullptr)
+	// `IsPlaySessionInProgress` copre il PIE in corso E la richiesta gia' in coda per il tick successivo:
+	// `PlayWorld` da solo e' nullo fra `RequestPlaySession` e l'avvio, e un secondo clic lo scavalcherebbe.
+	if (GEditor->IsPlaySessionInProgress())
 	{
-		OutError = TEXT("PIE in corso: fermalo prima di lanciare il banco");
+		OutError = TEXT("PIE in corso o gia' richiesto: fermalo o aspetta prima di lanciare il banco");
 		return false;
 	}
 	if (GRipristino)

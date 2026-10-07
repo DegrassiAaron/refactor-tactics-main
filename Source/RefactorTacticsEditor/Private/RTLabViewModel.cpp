@@ -164,7 +164,14 @@ bool FRTLabViewModel::PrepareForPie(FString& OutScenarioId, FString& OutError)
 		return false;
 	}
 
+	// 🔴 Radice vuota = sotto automation, senza override: non esiste e non si crea. Scrivere comunque
+	// `MakeDirectory("")` + un percorso relativo sporcherebbe la cartella corrente.
 	const FString Root = URTScenarioLoader::LabScenariosRoot();
+	if (Root.IsEmpty())
+	{
+		OutError = TEXT("la radice del Lab non e' disponibile sotto automation senza override: niente da scrivere");
+		return false;
+	}
 	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
 	const FString Percorso = FPaths::ConvertRelativePathToFull(
 		FPaths::Combine(Root, Scenario.ScenarioId + TEXT(".json")));
@@ -181,12 +188,17 @@ bool FRTLabViewModel::PrepareForPie(FString& OutScenarioId, FString& OutError)
 	const FString Risolto = URTScenarioIndex::ResolvePath(Scenario.ScenarioId, ErroreIndice);
 	if (Risolto.IsEmpty())
 	{
-		OutError = FString::Printf(TEXT("fixture scritta in '%s' ma non lanciabile: %s"), *Percorso, *ErroreIndice);
+		// Un file che rende ambiguo un Id avvelenerebbe la console e il GameMode a ogni clic: si toglie.
+		IFileManager::Get().Delete(*Percorso);
+		OutError = FString::Printf(TEXT("fixture scritta in '%s' ma non lanciabile: %s; il file appena scritto e' stato rimosso"),
+			*Percorso, *ErroreIndice);
 		return false;
 	}
 	if (!FPaths::IsSamePath(Risolto, Percorso))
 	{
-		OutError = FString::Printf(TEXT("'%s' risolve a '%s', non al file appena scritto '%s'"),
+		// Stessa ragione del ramo sopra: un file che non e' quello a cui l'Id risolve non deve restare.
+		IFileManager::Get().Delete(*Percorso);
+		OutError = FString::Printf(TEXT("'%s' risolve a '%s', non al file appena scritto '%s'; il file appena scritto e' stato rimosso"),
 			*Scenario.ScenarioId, *Risolto, *Percorso);
 		return false;
 	}

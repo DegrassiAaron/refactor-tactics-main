@@ -443,6 +443,11 @@ bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
 	TestTrue(TEXT("ListIds filtra per il suo tag"),
 		URTScenarioIndex::ListIds(TEXT("ability-lab"), FString()).Contains(TEXT("AbilityLab.Prova")));
 	TestTrue(TEXT("ListTags porta il tag del Lab"), URTScenarioIndex::ListTags().Contains(TEXT("ability-lab")));
+	// La tendina di `BP_GameMode` finisce in un `.uasset`: un Id del Lab salvato li' non risolverebbe altrove.
+	TestFalse(TEXT("ListVersionedIds NON elenca lo scenario del Lab"),
+		URTScenarioIndex::ListVersionedIds(FString(), FString()).Contains(TEXT("AbilityLab.Prova")));
+	TestFalse(TEXT("ListVersionedTags non porta il tag del Lab"),
+		URTScenarioIndex::ListVersionedTags().Contains(TEXT("ability-lab")));
 
 	// Rimosso il file, l'Id sparisce da `ScanAll`: niente cache fra una chiamata e l'altra.
 	IFileManager::Get().Delete(*FPaths::Combine(Root, TEXT("AbilityLab.Prova.json")));
@@ -513,7 +518,7 @@ bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
 }
 
 /**
- * Senza override, sotto automation la radice del Lab e' una cartella transiente che non esiste: i test che
+ * Senza override, sotto automation la radice del Lab e' VUOTA (non esiste e nessuno puo' scriverla): i test che
  * enumerano il corpus (`ListIds`/`ListTags`/`ResolvePath` passano da `ScanAll`) vedono la sola radice versionata
  * anche su una macchina dove il banco ha lasciato un file in `Saved/RTLab`.
  */
@@ -528,9 +533,9 @@ bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
 	// Controllo positivo della premessa: senza, i due asserti sulla radice non dimostrano niente.
 	TestTrue(TEXT("GIsAutomationTesting e' vero qui"), GIsAutomationTesting);
 
-	const FString Root = URTScenarioLoader::LabScenariosRoot();
-	TestTrue(TEXT("sotto automation la radice del Lab e' transiente"), Root.StartsWith(FPaths::AutomationTransientDir()));
-	TestFalse(TEXT("e non esiste"), IFileManager::Get().DirectoryExists(*Root));
+	// 🔴 VUOTA, non «una cartella che non esiste»: un percorso reale e' scrivibile, e `PrepareForPie` lo
+	// avrebbe creato alla prima chiamata senza override, rendendo rosso questo test.
+	TestTrue(TEXT("sotto automation la radice del Lab e' VUOTA"), URTScenarioLoader::LabScenariosRoot().IsEmpty());
 
 	TArray<FString> ProblemiScan, ProblemiAll;
 	const TArray<FRTScenarioEntry> DaScan = URTScenarioIndex::Scan(ProblemiScan);

@@ -724,17 +724,19 @@ FString URTScenarioLoader::LabScenariosRoot()
 		return GLabScenariosRootOverride;
 	}
 
-	// 🔴 **Sotto automation la radice del Lab e' una cartella transiente che NON esiste.** `ListIds`,
-	// `ListTags` e `ResolvePath` leggono entrambe le radici, e i test che enumerano il corpus passano da
-	// loro (`DevSandboxLauncher.TagFiltersIntersect`, `Scenario.EveryShippedScenarioRuns`, i selettori
-	// «primo scenario a due squadre»): con la radice vera, un file che il banco ha lasciato in
-	// `Saved/RTLab` renderebbe quei test rossi su QUELLA macchina sola. Chi vuole la radice del Lab in
-	// un test la imposta con `SetLabScenariosRootOverrideForTest`, che vince su questo ramo.
+	// 🔴 **Sotto automation la radice del Lab NON ESISTE: stringa vuota, che nessuno puo' creare ne'
+	// scrivere.** `ListIds`, `ListTags` e `ResolvePath` leggono entrambe le radici, e i test che
+	// enumerano il corpus passano da loro (`DevSandboxLauncher.TagFiltersIntersect`,
+	// `Scenario.EveryShippedScenarioRuns`, i selettori «primo scenario a due squadre»): con la radice
+	// vera, un file che il banco ha lasciato in `Saved/RTLab` renderebbe quei test rossi su QUELLA
+	// macchina sola. Un percorso «assente» ma reale sarebbe invece scrivibile (`PrepareForPie` lo
+	// creerebbe alla prima chiamata): per questo e' vuota. Chi vuole la radice del Lab in un test la
+	// imposta con `SetLabScenariosRootOverrideForTest`, che vince su questo ramo.
 	// `GIsAutomationTesting` e' vero solo mentre un automation test esegue (`AutomationTest.cpp`), mai
 	// in un Editor interattivo o in PIE.
 	if (GIsAutomationTesting)
 	{
-		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RTLab"), TEXT("Assente"));
+		return FString();
 	}
 
 	return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTLab"), TEXT("Scenarios"));

@@ -22,7 +22,8 @@ public:
 	 *
 	 * I valori precedenti vengono catturati e **ripristinati** al primo fra `EndPIE` e `CancelPIE`.
 	 *
-	 * ⛔ Rifiuta, senza toccare niente, se: PIE e' gia' in corso; una delle due CVar non si trova; un
+	 * ⛔ Rifiuta, senza toccare niente, se: PIE e' gia' in corso o gia' richiesto (in coda per il tick
+	 * successivo: `IsPlaySessionInProgress`); una delle due CVar non si trova; un
 	 * lancio precedente e' ancora in attesa di ripristino.
 	 */
 	static bool Launch(const FString& ScenarioId, FString& OutError);
