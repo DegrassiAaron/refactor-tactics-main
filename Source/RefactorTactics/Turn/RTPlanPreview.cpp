@@ -192,9 +192,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 
 	// ── DASH ────────────────────────────────────────────────────────────────────────────────────────────
 	//
-	// ⚠️ La voce si mostra anche quando lo scatto **non** si applica, e il livello di certezza e' cio' che
-	// porta la differenza: nasconderla direbbe al giocatore che non ha pianificato uno scatto, mentre lo ha
-	// pianificato e potrebbe non arrivare.
+	// ⚠️ La voce si mostra anche quando lo scatto **non** si applica: nasconderla direbbe al giocatore che non ha
+	// pianificato uno scatto, mentre lo ha pianificato.
+	//
+	// 🔑 **La differenza la porta il ghost, che sta dove sara' l'unita'** ([D-474]). Uno scatto che non si applica
+	// non la porta da nessuna parte, e la voce si comporta come una rotta rifiutata: ghost sulla cella corrente,
+	// facing di adesso, nessun percorso. La cella dello scatto resta nell'intento dell'HUD (`Intent.DashCell`).
+	// ⏱️ *Fino a [D-474] il ghost stava sulla cella dello scatto in ogni caso, e questo commento diceva che la
+	// differenza la portava la certezza*: ma la certezza e' `Uncertain` in entrambi i casi.
 	if (Plan.bDashPlanned)
 	{
 		// 🔴 **La rotta dello scatto la CALCOLA il resolver, e la prima stesura la inventava.**
@@ -203,8 +208,11 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		// percorso ricava anche il facing. Su uno scatto che deve aggirare un ostacolo il ghost disegnava una
 		// retta ATTRAVERSO l'ostacolo e dichiarava un orientamento che l'unita' non avrebbe mai avuto: lo
 		// stesso difetto che la fase Move era stata scritta per evitare, sulla fase accanto.
-		const FRTHexPathResult RottaScatto =
-			URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell);
+		// [D-474]: la rotta si chiede al resolver solo per uno scatto che si applica. Per gli altri resta vuota,
+		// cioe' la rotta rifiutata qui sotto: l'unita' non si sposta e non si gira.
+		const FRTHexPathResult RottaScatto = bScattoEffettivo
+			? URTHexSimLibrary::FindPathForUnit(Snapshot, Plan.UnitId, Plan.PlannedDashCell)
+			: FRTHexPathResult();
 
 		FRTPhasePreviewEntry Dash;
 		Dash.Phase = ERTResolutionPhase::FastMovement;
