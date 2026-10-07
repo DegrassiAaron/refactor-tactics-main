@@ -5088,6 +5088,10 @@ sessions:
       `L_DevSandbox` che usi il GameMode di progetto, es. `L_HexArena`, pannello Ability Lab, un'abilità con bersaglio, e `rt.Test.Scenario Core.PhaseOrder`
       digitata PRIMA del clic. Il criterio (4) richiede un Blueprint di prova non versionato con un errore di compilazione, ed è facoltativo.
 
+      ✅ **Eseguita il 2026-10-07** dalla sessione che ha scritto il codice, su richiesta dell'autore, su `main` = `a84e62aae`
+      col bridge MCP a guidare Slate (menu Tools → pannello, console via appunti, catture con `CaptureEditorImage`).
+      Il verdetto, criterio per criterio, è in `test-manuali-pie.md`; il (4) è `NOT RUN`.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
