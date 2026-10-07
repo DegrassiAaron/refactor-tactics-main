@@ -1,6 +1,6 @@
 # Il colpo che parte e arriva — il tracer degli attacchi base
 
-> **Statuto**: design **accettato in sessione** il 2026-10-07, **non implementato**. Owner del lavoro:
+> **Statuto**: design **accettato in sessione** il 2026-10-07, **implementato** sul branch `issue/2454-tracer-attacco-base`, **non ancora in `main`**. Il verdetto a schermo, `PIE-V01-TRACER`, è ancora ⏳. Owner del lavoro:
 > [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454), righe `Single` e `Line` della
 > grammatica *Basic Combat Cues* e criterio *«il momento dell'arrivo è distinto dal momento della partenza»*.
 > Nessuna issue nuova: la grammatica ha già un owner aperto, e questa spec ne consegna una fetta.
