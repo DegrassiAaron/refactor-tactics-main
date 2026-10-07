@@ -20,8 +20,9 @@
  *
  * Un turno simultaneo va reso leggibile **prima** di confermarlo. L'anteprima che c'era mostrava la cella di
  * destinazione e l'area del colpo; non diceva **da dove** l'unita' agira', ne' in quale ordine le cose
- * accadranno. Questo view model porta le quattro fasi che il giocatore subisce — Prep, Dash, Blast, Move —
- * ciascuna con la propria origine, la propria destinazione e il proprio grado di certezza.
+ * accadranno. Questo view model porta le fasi che il giocatore subisce — Prep, Dash, Blast, Move, e il Cleanup
+ * quando l'azione principale e' ambientale ([D-470]) — ciascuna con la propria origine, la propria destinazione e
+ * il proprio grado di certezza.
  *
  * ## 🔴 Non e' una seconda autorita', e ogni campo dice da dove viene
  *
@@ -74,10 +75,13 @@ struct FRTPhasePreviewEntry
 	GENERATED_BODY()
 
 	/**
-	 * ⚠️ **`ERTResolutionPhase` e non un enum nuovo di quattro valori**, benche' questa timeline ne usi
-	 * quattro. Le fasi sono gia' una tassonomia canonica (ADR-0003 §3), con `FastMovement` e `NormalMovement`
-	 * sdoppiate apposta: un secondo enum «delle fasi che si disegnano» sarebbe una seconda autorita' sullo
-	 * stesso ordinamento, e divergerebbe al primo che ne cambia uno.
+	 * ⚠️ **`ERTResolutionPhase` e non un enum nuovo**, benche' questa timeline non ne usi tutti i valori. Le fasi
+	 * sono gia' una tassonomia canonica (ADR-0003 §3), con `FastMovement` e `NormalMovement` sdoppiate apposta:
+	 * un secondo enum «delle fasi che si disegnano» sarebbe una seconda autorita' sullo stesso ordinamento, e
+	 * divergerebbe al primo che ne cambia uno.
+	 *
+	 * 🔑 **La voce dell'azione principale porta la fase DEL CATALOGO** ([D-470]): `Preparation`, `Control`,
+	 * `Attack` o `Environment`. ⏱️ *Fino a [D-470] diceva sempre `Attack`.*
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	ERTResolutionPhase Phase = ERTResolutionPhase::Snapshot;
@@ -90,15 +94,22 @@ struct FRTPhasePreviewEntry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	FName ActionId;
 
-	/** Da dove l'unita' agisce in questa fase — il punto che l'anteprima vecchia non diceva. */
+	/**
+	 * Da dove l'unita' agisce in questa fase — il punto che l'anteprima vecchia non diceva. Per l'azione
+	 * principale e' la sua origine di MIRA ([D-464]).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	FRTCellId PreviewOrigin;
 
-	/** Dove sara' a fase conclusa. Uguale a `PreviewOrigin` per le fasi che non spostano. */
+	/**
+	 * Dove sara' a fase conclusa: e' qui che si posa il ghost. Per le fasi che non spostano coincide con
+	 * `PreviewOrigin`, con un'eccezione: la principale del Cleanup mira da dove e' stata pianificata ([D-464]) e
+	 * risolve dopo il Move, quindi la sua destinazione e' la cella dopo il Move ([D-470]).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	FRTCellId PreviewDestination;
 
-	/** Il percorso completo, quando la fase ne ha uno. Vuoto per Prep e Blast. */
+	/** Il percorso completo, quando la fase ne ha uno. Vuoto per le fasi che non spostano. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Preview")
 	TArray<FRTCellId> PreviewPath;
 
@@ -271,7 +282,10 @@ struct FRTPlanPreviewInput
 	FName DashActionId;
 
 	// ── Blast ───────────────────────────────────────────────────────────────────────────────────────────
-	/** Il piano dell'azione principale, nella forma che `MakeBlastPreview` gia' consuma. */
+	/**
+	 * Il piano dell'azione principale, nella forma che `MakeBlastPreview` gia' consuma. La sua `Phase` decide
+	 * anche l'etichetta e il posto della voce nella timeline ([D-470]).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	FRTBlastPreviewPlan Blast;
 

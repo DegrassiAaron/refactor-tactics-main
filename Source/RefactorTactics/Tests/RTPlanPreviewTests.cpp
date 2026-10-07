@@ -580,4 +580,243 @@ bool FRTPlanPreviewGhostsArePooledTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// L'azione principale nella SUA fase e nel SUO posto ([D-470], #3554)
+// =========================================================================================================
+namespace
+{
+	// La scena comune: Partenza (-2,0,0) col facing a W, scatto a (0,0,0) (verso E), Move a (0,2,0) (verso SE), e
+	// un nemico vivo in (3,0,0), che da entrambe le origini sta a E. Tre direzioni diverse, cosi' «ereditato dal
+	// Move», «ereditato dallo scatto», «girato verso il bersaglio» e «quello di adesso» si distinguono.
+	const FRTCellId GD470Partenza(-2, 0, 0);
+	const FRTCellId GD470DopoScatto(0, 0, 0);
+	const FRTCellId GD470DopoIlMove(0, 2, 0);
+	const FRTCellId GD470Bersaglio(3, 0, 0);
+
+	FRTHexSnapshot MakeD470Snapshot(URTHexMapAsset* Map)
+	{
+		TArray<FRTHexSimUnit> Units;
+		FRTHexSimUnit U(/*UnitId=*/ 0, GD470Partenza, /*MoveBudget=*/ 8);
+		U.Facing = ERTHexDirection::W;
+		Units.Add(U);
+		Units.Add(FRTHexSimUnit(/*UnitId=*/ 1, GD470Bersaglio, /*MoveBudget=*/ 0));
+		return URTHexSimLibrary::MakeSnapshotOmniscient(Map, Units);
+	}
+
+	TArray<FRTHexCombatUnit> MakeD470CombatUnits()
+	{
+		return { MakePlanPreviewCombatUnit(0, /*TeamId=*/ 0, GD470Partenza),
+			MakePlanPreviewCombatUnit(1, /*TeamId=*/ 1, GD470Bersaglio) };
+	}
+
+	/** Uno scatto che si applica, un Move dopo, e un'azione principale della fase data sul nemico vivo. */
+	FRTPlanPreviewInput MakeD470Plan(ERTResolutionPhase Fase, const TCHAR* ActionId, bool bConMove)
+	{
+		FRTPlanPreviewInput Plan;
+		Plan.UnitId = 0;
+		Plan.bDashPlanned = true;
+		Plan.bDashResolves = true;
+		Plan.PlannedDashCell = GD470DopoScatto;
+		Plan.DashActionId = TEXT("Action.Dodge");
+		Plan.Blast.AttackerId = 0;
+		Plan.Blast.bDashResolves = true;
+		Plan.Blast.PlannedDashCell = GD470DopoScatto;
+		Plan.Blast.Phase = Fase;
+		Plan.Blast.bHasAction = true;
+		Plan.Blast.Shape = ERTAbilityShape::Single;
+		Plan.Blast.RangeCells = 6;
+		Plan.Blast.TargetId = 1;
+		Plan.BlastActionId = ActionId;
+		if (bConMove)
+		{
+			Plan.PlannedWaypoints = { GD470DopoIlMove };
+			Plan.MoveActionId = TEXT("Action.Move");
+		}
+		return Plan;
+	}
+
+	/** L'indice della prima voce che soddisfa `Pred`, o `INDEX_NONE`: l'ordine della lista e' cio' che si prova. */
+	template <typename TPred>
+	int32 D470IndexOf(const FRTPlanPreview& Preview, TPred Pred)
+	{
+		for (int32 I = 0; I < Preview.Phases.Num(); ++I)
+		{
+			if (Pred(Preview.Phases[I])) { return I; }
+		}
+		return INDEX_NONE;
+	}
+
+	int32 D470IndexOfPhase(const FRTPlanPreview& Preview, ERTResolutionPhase Phase)
+	{
+		return D470IndexOf(Preview, [Phase](const FRTPhasePreviewEntry& E) { return E.Phase == Phase; });
+	}
+
+	/** La voce dell'azione principale si cerca per `ActionId`: la fase e' proprio cio' che il test verifica. */
+	int32 D470IndexOfAction(const FRTPlanPreview& Preview, FName ActionId)
+	{
+		return D470IndexOf(Preview, [ActionId](const FRTPhasePreviewEntry& E) { return E.ActionId == ActionId; });
+	}
+}
+
+/**
+ * **Un'azione principale di `Preparation` sta PRIMA dello scatto, sulla cella corrente** ([D-470], #3554).
+ *
+ * `ResolvePrep` la risolve prima del Dash: `Action.Overwatch` si arma da dove l'unita' e' adesso, col facing di
+ * adesso. ⏱️ *Fino a [D-470] la timeline la chiamava `Attack` e la metteva fra lo scatto e il Move.*
+ *
+ * ⚠️ Il piano ha uno scatto E un Move, e il bersaglio e' un'unita' viva fuori dal facing corrente: senza lo scatto
+ * «prima» e «dopo» coinciderebbero, e senza il bersaglio una rotazione prevista per sbaglio non si vedrebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewPreparationBeforeTheDashTest,
+	"RefactorTactics.Preview.PreparationActionResolvesBeforeTheDash",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewPreparationBeforeTheDashTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTHexSnapshot Snapshot = MakeD470Snapshot(M);
+	const FRTPlanPreviewInput Plan = MakeD470Plan(ERTResolutionPhase::Preparation, TEXT("Action.Overwatch"),
+		/*bConMove=*/ true);
+	const FRTPlanPreview Preview = URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, MakeD470CombatUnits());
+
+	const int32 IndiceAzione = D470IndexOfAction(Preview, TEXT("Action.Overwatch"));
+	const int32 IndiceScatto = D470IndexOfPhase(Preview, ERTResolutionPhase::FastMovement);
+	if (!TestTrue(TEXT("la timeline porta la voce dell'azione"), IndiceAzione != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: e lo scatto"), IndiceScatto != INDEX_NONE)
+		|| !TestTrue(TEXT("premessa: e il Move"), D470IndexOfPhase(Preview, ERTResolutionPhase::NormalMovement) != INDEX_NONE))
+	{
+		return false;
+	}
+	const FRTPhasePreviewEntry& Azione = Preview.Phases[IndiceAzione];
+	TestTrue(TEXT("premessa: lo scatto porta l'unita' altrove"),
+		Preview.Phases[IndiceScatto].PreviewDestination == GD470DopoScatto && !(GD470DopoScatto == GD470Partenza));
+
+	TestEqual(TEXT("la voce porta la sua fase, Preparation"), Azione.Phase, ERTResolutionPhase::Preparation);
+	TestEqual(TEXT("e nessuna voce si chiama Attack"), D470IndexOfPhase(Preview, ERTResolutionPhase::Attack),
+		static_cast<int32>(INDEX_NONE));
+	TestTrue(TEXT("sta PRIMA dello scatto"), IndiceAzione < IndiceScatto);
+	TestTrue(TEXT("parte dalla cella corrente"), Azione.PreviewOrigin == GD470Partenza);
+	TestTrue(TEXT("e il ghost sta sulla cella corrente"), Azione.PreviewDestination == GD470Partenza);
+	TestEqual(TEXT("col facing di adesso: il Prep non gira chi agisce"), Azione.Facing, ERTHexDirection::W);
+	TestEqual(TEXT("ed e' quello autorevole"), Azione.FacingSource, ERTPreviewFacingSource::Authoritative);
+	return true;
+}
+
+/**
+ * **Un'azione principale di `Environment` sta DOPO il Move, col ghost dove sara' l'unita'** ([D-470], #3554).
+ *
+ * `ResolveEnvironment` la risolve nel Cleanup, dopo il Move. L'origine resta quella di mira, la cella da cui e'
+ * stata pianificata ([D-464]); il ghost va dove l'unita' sara' allora. Senza un Move, dove lo scatto la lascia.
+ * `ResolveEnvironment` non gira chi agisce: il facing e' quello che il Move le lascia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewEnvironmentAfterTheMoveTest,
+	"RefactorTactics.Preview.EnvironmentActionResolvesAfterTheMove",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewEnvironmentAfterTheMoveTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTHexSnapshot Snapshot = MakeD470Snapshot(M);
+
+	// CON IL MOVE
+	{
+		const FRTPlanPreviewInput Plan = MakeD470Plan(ERTResolutionPhase::Environment, TEXT("Action.Electrify"),
+			/*bConMove=*/ true);
+		const FRTPlanPreview Preview =
+			URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, MakeD470CombatUnits());
+
+		const int32 IndiceAzione = D470IndexOfAction(Preview, TEXT("Action.Electrify"));
+		const int32 IndiceScatto = D470IndexOfPhase(Preview, ERTResolutionPhase::FastMovement);
+		const int32 IndiceMove = D470IndexOfPhase(Preview, ERTResolutionPhase::NormalMovement);
+		if (!TestTrue(TEXT("la timeline porta la voce dell'azione"), IndiceAzione != INDEX_NONE)
+			|| !TestTrue(TEXT("premessa: e lo scatto"), IndiceScatto != INDEX_NONE)
+			|| !TestTrue(TEXT("premessa: e il Move"), IndiceMove != INDEX_NONE))
+		{
+			return false;
+		}
+		const FRTPhasePreviewEntry& Azione = Preview.Phases[IndiceAzione];
+		const FRTPhasePreviewEntry& Move = Preview.Phases[IndiceMove];
+		// Le premesse che rendono distinguibili le asserzioni qui sotto.
+		TestTrue(TEXT("premessa: il Move arriva a (0,2,0)"), Move.PreviewDestination == GD470DopoIlMove);
+		TestEqual(TEXT("premessa: e lascia l'unita' verso SE"), Move.Facing, ERTHexDirection::SE);
+		TestEqual(TEXT("premessa: lo scatto la lascia verso E"), Preview.Phases[IndiceScatto].Facing,
+			ERTHexDirection::E);
+
+		TestEqual(TEXT("la voce porta la sua fase, Environment"), Azione.Phase, ERTResolutionPhase::Environment);
+		TestEqual(TEXT("e nessuna voce si chiama Attack"), D470IndexOfPhase(Preview, ERTResolutionPhase::Attack),
+			static_cast<int32>(INDEX_NONE));
+		TestTrue(TEXT("sta DOPO il Move"), IndiceAzione > IndiceMove && IndiceMove > IndiceScatto);
+		TestTrue(TEXT("l'origine e' quella di mira, la cella corrente"), Azione.PreviewOrigin == GD470Partenza);
+		TestTrue(TEXT("e il ghost sta dove sara' l'unita', dopo il Move"),
+			Azione.PreviewDestination == Move.PreviewDestination);
+		TestEqual(TEXT("col facing che il Move le lascia: il Cleanup non gira chi agisce"), Azione.Facing,
+			ERTHexDirection::SE);
+		TestEqual(TEXT("ereditato dalla fase prima"), Azione.FacingSource,
+			ERTPreviewFacingSource::InheritedFromPreviousPhase);
+	}
+
+	// SENZA IL MOVE — l'unita' resta dove lo scatto la lascia.
+	{
+		const FRTPlanPreviewInput Plan = MakeD470Plan(ERTResolutionPhase::Environment, TEXT("Action.Electrify"),
+			/*bConMove=*/ false);
+		const FRTPlanPreview Preview =
+			URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, MakeD470CombatUnits());
+
+		const int32 IndiceAzione = D470IndexOfAction(Preview, TEXT("Action.Electrify"));
+		const int32 IndiceScatto = D470IndexOfPhase(Preview, ERTResolutionPhase::FastMovement);
+		if (!TestTrue(TEXT("senza Move: la timeline porta la voce dell'azione"), IndiceAzione != INDEX_NONE)
+			|| !TestTrue(TEXT("senza Move: premessa, e lo scatto"), IndiceScatto != INDEX_NONE))
+		{
+			return false;
+		}
+		const FRTPhasePreviewEntry& Azione = Preview.Phases[IndiceAzione];
+		TestTrue(TEXT("senza Move: la voce sta dopo lo scatto"), IndiceAzione > IndiceScatto);
+		TestTrue(TEXT("senza Move: il ghost sta dove lo scatto la lascia"),
+			Azione.PreviewDestination == GD470DopoScatto);
+		TestTrue(TEXT("senza Move: e l'origine resta la cella corrente"), Azione.PreviewOrigin == GD470Partenza);
+		TestEqual(TEXT("senza Move: col facing dello scatto"), Azione.Facing, ERTHexDirection::E);
+	}
+	return true;
+}
+
+/**
+ * **Le azioni del Blast restano dove sono, con la fase vera** ([D-470], #3554): `Control` e `Attack` fra lo
+ * scatto e il Move, dall'origine dopo lo scatto ([D-464]), girate verso un bersaglio vivo come le gira
+ * `CollectAttackIntents`. ⏱️ *Fino a [D-470] anche un `Control` si chiamava `Attack`.*
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewBlastActionsKeepTheirPlaceTest,
+	"RefactorTactics.Preview.BlastActionsKeepTheirPlaceAndPhase",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewBlastActionsKeepTheirPlaceTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTHexSnapshot Snapshot = MakeD470Snapshot(M);
+
+	for (const ERTResolutionPhase Fase : { ERTResolutionPhase::Control, ERTResolutionPhase::Attack })
+	{
+		const FString Nome = Fase == ERTResolutionPhase::Control ? TEXT("Control") : TEXT("Attack");
+		const FRTPlanPreviewInput Plan = MakeD470Plan(Fase, TEXT("Action.Strike"), /*bConMove=*/ true);
+		const FRTPlanPreview Preview =
+			URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, MakeD470CombatUnits());
+
+		const int32 IndiceAzione = D470IndexOfAction(Preview, TEXT("Action.Strike"));
+		const int32 IndiceScatto = D470IndexOfPhase(Preview, ERTResolutionPhase::FastMovement);
+		const int32 IndiceMove = D470IndexOfPhase(Preview, ERTResolutionPhase::NormalMovement);
+		if (!TestTrue(FString::Printf(TEXT("%s: la timeline porta la voce, lo scatto e il Move"), *Nome),
+			IndiceAzione != INDEX_NONE && IndiceScatto != INDEX_NONE && IndiceMove != INDEX_NONE))
+		{
+			return false;
+		}
+		const FRTPhasePreviewEntry& Azione = Preview.Phases[IndiceAzione];
+		TestEqual(FString::Printf(TEXT("%s: la voce porta la sua fase"), *Nome), Azione.Phase, Fase);
+		TestTrue(FString::Printf(TEXT("%s: sta fra lo scatto e il Move"), *Nome),
+			IndiceScatto < IndiceAzione && IndiceAzione < IndiceMove);
+		TestTrue(FString::Printf(TEXT("%s: parte da dopo lo scatto"), *Nome),
+			Azione.PreviewOrigin == GD470DopoScatto);
+		TestTrue(FString::Printf(TEXT("%s: e il ghost sta li'"), *Nome),
+			Azione.PreviewDestination == GD470DopoScatto);
+		TestEqual(FString::Printf(TEXT("%s: il Blast gira chi agisce verso il bersaglio vivo"), *Nome),
+			Azione.FacingSource, ERTPreviewFacingSource::DerivedFromPath);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
