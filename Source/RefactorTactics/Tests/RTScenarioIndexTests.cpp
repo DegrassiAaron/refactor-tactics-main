@@ -536,4 +536,63 @@ bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * #3543 — l'abbreviazione per segmenti confronta solo gli Id **versionati**.
+ *
+ * Un file del Lab il cui Id finisce per lo stesso segmento di uno scenario versionato non deve rendere
+ * ambigua l'abbreviazione che, sul corpus versionato, e' univoca: l'Id esatto e i redirect vedono anche il
+ * Lab, l'abbreviazione no. Il caso di prova (`Deflection`) e' ricavato dal corpus, non assunto: se non
+ * fosse piu' univoco il test lo dice invece di passare su un'abbreviazione gia' ambigua.
+ * ✅ Validato per mutazione: far scorrere di nuovo `Entries` (ScanAll) invece delle sole voci versionate
+ * deve far cadere *«Deflection risolve»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexAbbreviationIgnoresLabTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationIgnoresTheLabRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexAbbreviationIgnoresLabTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+
+	// Il caso di prova dal corpus versionato, e deve essere UNO: altrimenti l'abbreviazione e' gia' ambigua
+	// senza il Lab e il test non dimostrerebbe nulla.
+	TArray<FString> Candidati;
+	for (const FString& Id : URTScenarioIndex::ListVersionedIds(FString(), FString()))
+	{
+		if (Id.EndsWith(TEXT(".Deflection")))
+		{
+			Candidati.Add(Id);
+		}
+	}
+	if (Candidati.Num() != 1)
+	{
+		AddError(FString::Printf(TEXT("il corpus versionato e' cambiato: gli Id che finiscono per .Deflection non sono piu' uno solo (%s) — scegli di nuovo il caso di prova"),
+			*FString::Join(Candidati, TEXT(", "))));
+		return false;
+	}
+
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabIndex"), TEXT("Abbrev"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+	if (!TestTrue(TEXT("il file di prova si scrive"),
+		ScriviHeaderScenario(Root, TEXT("AbilityLab.Hero.Ivrin.Deflection.json"), TEXT("AbilityLab.Hero.Ivrin.Deflection"), TEXT("\"ability-lab\""))))
+	{
+		return false;
+	}
+
+	// Controllo positivo: l'Id esatto del Lab risolve, quindi il file e' davvero visibile alle ricerche.
+	FString Errore;
+	const FString DelLab = URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Hero.Ivrin.Deflection"), Errore);
+	TestTrue(TEXT("l'Id esatto del Lab risolve al file del Lab"),
+		!DelLab.IsEmpty() && FPaths::IsSamePath(DelLab,
+			FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, TEXT("AbilityLab.Hero.Ivrin.Deflection.json")))));
+
+	// L'abbreviazione: il Lab non la rende ambigua, e risolve al versionato.
+	Errore.Reset();
+	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("Deflection"), Errore);
+	TestFalse(*FString::Printf(TEXT("Deflection risolve (errore: %s)"), *Errore), Risolto.IsEmpty());
+	TestFalse(TEXT("e non risolve al file del Lab"), FPaths::IsSamePath(Risolto, DelLab));
+	TestTrue(*FString::Printf(TEXT("e risolve al versionato %s"), *Candidati[0]),
+		!Risolto.IsEmpty() && Risolto.EndsWith(TEXT("Deflection.json")) && !Risolto.Contains(TEXT("RTLabIndex")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -89,6 +89,10 @@ public:
 	/**
 	 * Percorso del file che dichiara questo `ScenarioId`, seguendo i redirect se l'ID non risulta più.
 	 *
+	 * 🔑 Tre tentativi, in quest'ordine: l'ID esatto e i redirect (su **entrambe** le radici, versionata e del
+	 * Lab), poi l'abbreviazione per segmenti, che confronta le sole voci **versionate** (#3543): un file del Lab
+	 * non la rende ambigua. Un'abbreviazione non trova quindi uno scenario del Lab: serve il suo Id completo.
+	 *
 	 * Stringa vuota + `OutError` valorizzato quando l'ID non esiste **oppure** quando è ambiguo. Un ID
 	 * dichiarato da due file non fa vincere il primo trovato: sceglierne uno in silenzio significherebbe
 	 * eseguire uno scenario diverso da quello che si è chiesto.

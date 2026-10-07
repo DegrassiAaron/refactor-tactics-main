@@ -303,8 +303,12 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 	// abbrevia davvero.
 	if (Matches.Num() == 0)
 	{
+		// #3543: un file del Lab non deve rendere ambigua un'abbreviazione che sul corpus versionato e'
+		// univoca; l'Id esatto e i redirect vedono anche il Lab.
+		TArray<FString> ProblemiIgnorati;
+		const TArray<FRTScenarioEntry> Versionate = Scan(ProblemiIgnorati);
 		TArray<FString> Candidati;
-		for (const FRTScenarioEntry& Entry : Entries)
+		for (const FRTScenarioEntry& Entry : Versionate)
 		{
 			if (IsSegmentSuffix(Entry.ScenarioId, ScenarioId))
 			{
