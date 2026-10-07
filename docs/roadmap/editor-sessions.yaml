@@ -5080,7 +5080,9 @@ sessions:
     done_when: >-
       la voce `PIE-LAB-PIE` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
     notes: |
-      Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-banco-abilita-in-pie.md`.
+      Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-banco-abilita-in-pie.md`
+      (spec `docs/superpowers/specs/2026-10-07-banco-abilita-in-pie-design.md`), che arrivano in `main` con
+      la PR del branch `docs/banco-abilita-in-pie-spec`, separata da quella di #3532.
       L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: Editor su una mappa diversa da
       `L_DevSandbox`, pannello Ability Lab, un'abilità con bersaglio, e `rt.Test.Scenario Core.PhaseOrder`
       digitata PRIMA del clic. Il criterio (4) richiede Live Coding attivo ed è facoltativo.
