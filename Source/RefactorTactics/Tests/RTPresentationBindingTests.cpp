@@ -58,6 +58,7 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	//   6 -> 7   2026-09-04   `StatusChanged`     (#2245)
 	//   7 -> 8   2026-09-22   `StructureHit`      (#2828)
 	//   8 -> 9   2026-09-24   `ArcHit`            (#3280, [D-437])
+	//   9 -> 10  2026-10-07   `AbilityActivated`  (#3549, il momento: entra CON cue, `PlayCastMontage`)
 	// Quattro volte su quattro e' fallita per prima e ha mandato a dichiarare la presentazione del valore
 	// nuovo — l'ultima compresa: `ArcHit` e' entrato in `DeclaredBindings()` come voce IN ATTESA con owner
 	// `#3293` perche' questa riga ha chiesto conto del nono valore.
@@ -66,8 +67,8 @@ bool FRTPresentationEnumSizeIsPinnedTest::RunTest(const FString&)
 	// valori (Move, Attack, HazardDamage, Defeated, AttackFootprint)»* mentre ne attendeva **6**, perche'
 	// `#2191` aggiorno' la cifra e non la frase. Un messaggio d'errore che mente su cio' che misura manda a
 	// cercare il difetto nel posto sbagliato — quindi l'elenco non si ripete piu' qui: lo porta l'enum.
-	TestEqual(TEXT("ERTResolvedEventType dichiara nove valori: l'ultimo aggiunto ha una voce nella tabella?"),
-		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 9);
+	TestEqual(TEXT("ERTResolvedEventType dichiara dieci valori: l'ultimo aggiunto ha una voce nella tabella?"),
+		URTPresentationBindingLibrary::DeclaredEventTypeCount(), 10);
 
 	// La reflection c'e' davvero: senza, `DeclaredEventTypeCount()` restituirebbe 0 e l'assertion sopra
 	// fallirebbe per il motivo sbagliato.
@@ -514,6 +515,11 @@ bool FRTPresentationAbsenceCensusIsPinnedTest::RunTest(const FString&)
 	// di rimetterla in attesa in silenzio — stessa forma della riga di `AttackFootprint` qui sopra.
 	TestEqual(TEXT("StructureHit non attende nessuno: nasce con cue"),
 		OwnerDi(ERTResolvedEventType::StructureHit), FString());
+	// ✅ `AbilityActivated` nasce con cue (`PlayCastMontage`, #3549): NON e' in attesa, quindi non ha un
+	// `PendingOwner`. Il conteggio delle attese qui sopra resta quello di prima, ed e' la prova che la voce
+	// non e' stata dichiarata in attesa per comodita'.
+	TestEqual(TEXT("AbilityActivated non attende nessuno: nasce con cue"),
+		OwnerDi(ERTResolvedEventType::AbilityActivated), FString());
 	// ⚠️ **L'owner e' una issue che ESISTE e ha una dipendenza dichiarata**: `#3293` possiede la cue
 	// dell'arco ed e' bloccata da `#1768`, che possiede *«un arco si vede in PIE»*. Un owner inventato
 	// sarebbe una promessa che nessuno puo' riscuotere, cioe' il difetto che `PendingOwner` esiste per

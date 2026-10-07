@@ -155,7 +155,26 @@ enum class ERTResolvedEventType : uint8
 	 * ⚠️ **In CODA, come i tre valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint, e
 	 * inserirlo in mezzo rinumererebbe i successivi cambiando in silenzio ogni default gia' serializzato.
 	 */
-	ArcHit
+	ArcHit,
+
+	/**
+	 * Un intento di abilita' e' stato ACCETTATO dal resolver: «questa unita' sta agendo adesso con questa
+	 * azione» (spec «il momento», #3549). Una voce per INTENTO, in Prep, Dash e Blast.
+	 *
+	 * 🔴 **Un'abilita' senza colpo non aveva un istante.** Cure, purificazioni, archi, interruzioni e ogni
+	 * istanza di Prep non producevano alcun evento: il produttore c'era, mancava il momento — la forma di
+	 * #2505 e #2828.
+	 *
+	 * ⛔ **Niente celle colpite, niente esiti**: quelli restano di `AttackFootprint` e `Attack`. Questo evento
+	 * racconta il GESTO, e si emette anche quando il gesto non tocca nulla (linea di tiro bloccata, fuori
+	 * portata, degradato da [D-300]).
+	 *
+	 * 🔑 `SourceVerdict` porta il verdetto di [D-223] congelato all'emissione: il playback lo filtra con
+	 * `AllowsTeam`, come le righe di log, non con `ObservedPrefixLength` come il `Move` (spec §2.5).
+	 *
+	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
+	 */
+	AbilityActivated
 };
 
 /**
@@ -331,7 +350,8 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FName BaseActionId;
 
-	// --- Solo per `AttackFootprint` ([D-301]). Vuoti/di default per ogni altro `Type`. ---
+	// --- `AttackFootprint` ([D-301]); `AimCell` e `Shape` anche per `AbilityActivated` (#3549). Vuoti/di default
+	//     per ogni altro `Type`. ---
 
 	/**
 	 * Le celle investite, **nell'ordine che `HexHitCells` produce** (`URTHexLibrary::StableLess`).

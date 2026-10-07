@@ -1324,6 +1324,24 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
 	void PlayDefeatMontage(UAnimSequenceBase* Resolved);
 
+	/** La sorgente esegue il cast di un'abilita' (`AbilityActivated`, #3549), con la clip gia' risolta. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
+	void PlayCastMontage(UAnimSequenceBase* Resolved);
+
+	/**
+	 * Quante volte `PlayPresentationRole(Cast)` e' stata chiamata su questa unita' — seam di misura (#3549).
+	 *
+	 * ⚠️ **Il contatore cresce solo sotto `WITH_DEV_AUTOMATION_TESTS`** (in `RTUnit.cpp`): fuori dai build di
+	 * test resta `0`. Il campo non e' una `UPROPERTY`, come gli accessori `*ForTest` di `ARTTurnManager`, e
+	 * permette di asserire il MECCANISMO — la cue chiamata — senza un Blueprint.
+	 */
+	int32 CastCuesPlayedForTest() const { return CastCuesPlayed; }
+
+private:
+	int32 CastCuesPlayed = 0;
+
+public:
+
 	// IRTSelectable
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;

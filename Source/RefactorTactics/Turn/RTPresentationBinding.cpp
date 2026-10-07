@@ -255,6 +255,17 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 		TEXT("esiti che possono differire, e non sono un duplicato (D-437)."),
 		TEXT("#3293")));
 
+	// AbilityActivated — il momento del cast (#3549). **Con cue**, non in attesa.
+	//
+	// 🔑 **`PlayCastMontage` e' l'evento Blueprint che `ARTUnit::PlayPresentationRole(Cast)` notifica**, con la
+	// clip gia' risolta dal CDO: la stessa forma di `PlayAttackMontage`. Il segnale visivo (ring, pulse) resta
+	// di #2454 e non e' dichiarato qui.
+	//
+	// ⚠️ **Il gate `FindMissingBindings` verifica solo che la cue non sia `NAME_None`**: che venga CHIAMATA lo
+	// prova `Playback.ActivationPlaysTheCastCue`, che conta le chiamate sulla sorgente.
+	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AbilityActivated,
+		{ FName(TEXT("PlayCastMontage")) }));
+
 	return Out;
 }
 

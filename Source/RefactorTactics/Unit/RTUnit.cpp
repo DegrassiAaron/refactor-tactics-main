@@ -768,9 +768,15 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
 	case ERTPresentationRole::Attack: PlayAttackMontage(Sequenza); break;
 	case ERTPresentationRole::Hit:    PlayHitMontage(Sequenza);    break;
 	case ERTPresentationRole::Death:  PlayDefeatMontage(Sequenza); break;
+	case ERTPresentationRole::Cast:
+#if WITH_DEV_AUTOMATION_TESTS
+		++CastCuesPlayed; // seam di misura: la cue e' stata CHIAMATA, che il BP la implementi o no
+#endif
+		PlayCastMontage(Sequenza);
+		break;
 	default:
-		// Gli altri ruoli non hanno un evento discreto: `Idle` e `Move` li suona il grafo, e i restanti non
-		// hanno ancora un consumatore. Suonare la clip resta corretto; notificare non avrebbe chi ascolta.
+		// `Idle` e `Move` li suona il grafo; `Dash`, `Defend` e `Fall` non hanno ancora un consumatore.
+		// ⏱️ *Fino a #3549 anche `Cast` stava qui: il ruolo esisteva e nessuno lo suonava.*
 		break;
 	}
 }
