@@ -33,6 +33,19 @@ Fa tre cose che l'invocazione a mano non fa:
 3. **Termina l'albero** quando il log dichiara finito e il processo resta vivo oltre la grazia, e lo
    **dichiara nel referto** invece di nasconderlo.
 
+🔑 **Non tiene il Live Coding, e non per un flag dedicato** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)).
+In UE 5.8.1 il Live Coding si avvia da solo soltanto in un processo che **non** e' `-unattended`
+(`FLiveCodingModule::StartupModule` chiede `FApp::IsUnattended()`), e la suite lo e'. Misurato il
+2026-10-07: nei log scritti dal 2026-09-20, nessuna delle 419 run `-unattended` contiene
+«Starting LiveCoding»; e con una suite viva il mutex che UBT interroga prima di compilare l'Editor
+non esisteva.
+
+⛔ **Non aggiungere `-NoLiveCoding`.** E' un'opzione di **UBT** (`TargetRules.bWithLiveCoding`: compila
+il target senza Live Coding), e passata all'Editor non la legge nessuno. Nello stesso corpus, i 27
+Editor interattivi aperti con quel flag e arrivati all'avvio dei moduli hanno scritto tutti «Starting
+LiveCoding» (un ventottesimo si era fermato prima, su «Waiting for ZenServer»). Per spegnerlo in un
+processo che non e' `-unattended`, la riga che il motore legge e' `-LiveCoding=false`.
+
 ⛔ **Non decide se la misura sia VALIDA.** Quel giudizio e' di `misura.verdetto()`, che confronta le
 istantanee dell'albero git prima e dopo e sa dire se il sorgente e' cambiato sotto la run. Qui si
 esegue una suite e si riferisce cosa ha detto; per una verifica di mutazione si usano i gate.
@@ -107,6 +120,8 @@ def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
     # ⚠️ `;Quit`, mai `+Quit` — vedi il docstring di modulo. Su FILE e non su `PIPE`: senza drenare,
     # `PIPE` va in deadlock appena il buffer di sistema si riempie, e una suite intera emette
     # megabyte. Il log vero e' il file `-abslog=`; qui basta non bloccare il figlio.
+    # 🔑 `-unattended` e' anche cio' che tiene spento il Live Coding; `-NoLiveCoding` qui non servirebbe
+    # a niente, perche' e' un'opzione di UBT (#3522, docstring di modulo).
     scarto = tempfile.TemporaryFile()
     avvio = subprocess.Popen(
         [ENGINE_CMD, UPROJECT,
