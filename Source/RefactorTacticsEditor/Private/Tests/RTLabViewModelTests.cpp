@@ -564,7 +564,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAnAmbiguousIdTest,
 bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 {
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Ambiguo"));
+	const FString Root = ApriRadiceDiProva(TEXT("Doppione"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
@@ -582,7 +582,9 @@ bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 
 	FString Id, Errore;
 	TestFalse(TEXT("con un doppione l'Id e' ambiguo e PrepareForPie rifiuta"), Modello.PrepareForPie(Id, Errore));
+	// ⚠️ Il messaggio incorpora il percorso e `Contains` e' case-insensitive: la cartella di prova non deve contenere la parola cercata.
 	TestTrue(TEXT("e il motivo dice che e' ambiguo"), Errore.Contains(TEXT("ambigu")));
+	TestTrue(TEXT("e il motivo e' quello dell'indice"), Errore.Contains(TEXT("dichiarato da")));
 	return true;
 }
 
