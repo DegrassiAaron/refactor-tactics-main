@@ -540,12 +540,15 @@ def build(tentativi=40):
     riporterebbe «nessun test se ne accorge» - indistinguibile da una lacuna vera, e la peggiore
     risposta possibile.
 
-    Due esiti:
+    Tre esiti:
 
     * **si ritenta** quando il motore e' conteso e l'attesa lo risolve - il mutex, l'altra istanza,
       oppure `Unable to build while Live Coding is active`. Su quest'ultimo `build()` nomina gli
       `UnrealEditor.exe` che possono tenere il lock, vivi o zombie ([D-469]);
-    * **si esce subito** su un errore di compilazione, con la coda del compilatore.
+    * **si esce subito** su un errore di compilazione, con la coda del compilatore;
+    * **si esce subito** anche quando TUTTI i detentori di quel lock sono zombie - l'ancora di `AGENTS.md`
+      §Build Editor, un thread e memoria minima -, perche' nessuna attesa lo rilascia ([D-472]). La leva
+      `-NoHotReloadFromIDE` resta un gesto umano.
 
     ⌫ *Fino a [D-469] erano quattro*: un `LiveCodingConsole` **orfano** faceva uscire subito ([#2392])
     o veniva terminato ([D-400]). La premessa era falsa: misurato il 2026-10-07, una console orfana

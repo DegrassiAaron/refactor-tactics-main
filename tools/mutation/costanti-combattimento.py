@@ -39,8 +39,8 @@ C++ vero, che e' il caso comune quando una mutazione scritta a mano non compila.
 
 ⌫ *Fino a [D-469] non su tutta la contesa*: un `LiveCodingConsole` **orfano** faceva uscire subito,
 nella convinzione che tenesse il lock (#2392). Misurato il 2026-10-07, non lo tiene: il lock e' di un
-`UnrealEditor.exe`, vivo o zombie, e su di lui si aspetta come su ogni contesa. `misura.build()` lo
-nomina.
+`UnrealEditor.exe`, vivo o zombie. Su un Editor vivo si aspetta come su ogni contesa; se tutti i detentori
+sono zombie si esce subito, col pid e il rimedio ([D-472]). `misura.build()` li nomina.
 
 🔴 **Si RICOSTRUISCE dopo l'attesa, non prima.** La suite puo' restare in attesa del motore fino a 90
 minuti, e in quella finestra un'altra sessione puo' riscrivere il DLL condiviso: l'invariante di validita'
