@@ -304,13 +304,14 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 	if (Matches.Num() == 0)
 	{
 		// #3543: un file del Lab non deve rendere ambigua un'abbreviazione che sul corpus versionato e'
-		// univoca; l'Id esatto e i redirect vedono anche il Lab.
-		TArray<FString> ProblemiIgnorati;
-		const TArray<FRTScenarioEntry> Versionate = Scan(ProblemiIgnorati);
+		// univoca; l'Id esatto e i redirect vedono anche il Lab. I candidati si filtrano dalle voci gia' lette
+		// da `ScanAll` — niente seconda `Scan` — tenendo quelle sotto la radice versionata. `Entry.Path` e'
+		// gia' assoluto (`ScanRoots` lo converte), quindi si porta assoluta anche la radice.
+		const FString RadiceVersionata = FPaths::ConvertRelativePathToFull(URTScenarioLoader::ScenariosRoot());
 		TArray<FString> Candidati;
-		for (const FRTScenarioEntry& Entry : Versionate)
+		for (const FRTScenarioEntry& Entry : Entries)
 		{
-			if (IsSegmentSuffix(Entry.ScenarioId, ScenarioId))
+			if (FPaths::IsUnderDirectory(Entry.Path, RadiceVersionata) && IsSegmentSuffix(Entry.ScenarioId, ScenarioId))
 			{
 				Candidati.AddUnique(Entry.ScenarioId);
 			}
