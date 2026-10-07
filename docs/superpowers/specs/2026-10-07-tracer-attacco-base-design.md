@@ -262,7 +262,7 @@ struct FRTHitGeometry
 | `SkipPlayback`, `FinishPlayback` | **nessun tracer rigiocato**; il canale si spegne alla fine del Blast **e** in `FinishPlayback`, che esce presto se trattenuto da una finestra (`:8654-8658`). È la politica di seek che #2454 chiede di **scrivere** |
 | `Line` con due vittime | ⚠️ **limite noto**: i colpi sono ordinati per `TargetId`, non per distanza (`RTHexCombatLibrary.cpp:653-659`), quindi il getto verso la vittima lontana può partire per primo e attraversare quella vicina. Va con l'ordine dei getti per distanza (§7) |
 | Vittima spinta (`PressureJet`; `ImpactShot` col default `Weapon.Impact`) | ⚠️ **limite noto**: la spinta scivola con l'alpha di **fase** dall'inizio del Blast (`RTTurnManager.cpp:8245-8252`), quindi il colpo arriva sulla cella che la vittima sta lasciando. È la famiglia *«gli esiti precedono la scena»* di #2453; cambiarlo è una decisione separata, e il commento in loco lo dice |
-| 🔴 Impronta `Line` di un attaccante ignoto | ⚠️ **limite preesistente, non introdotto qui**: `HexLine(From, Target)` meno `From` lascia la cella adiacente a chi spara (`RTHexCombatLibrary.cpp:34-38`), e `BeginPlayback` la disegna senza filtro (`RTTurnManager.cpp:7749-7757`). Per `PressureJet` il fail-closed del tracer **non toglie** ciò che l'impronta già mostra. Vale anche per `Cone`. Va in una issue propria (§8) |
+| 🔴 Impronta `Line` di un attaccante ignoto | ⚠️ **limite preesistente, non introdotto qui**: `HexLine(From, Target)` meno `From` lascia la cella adiacente a chi spara (`RTHexCombatLibrary.cpp:34-38`), e `BeginPlayback` la disegna senza filtro (`RTTurnManager.cpp:7749-7757`). Per `PressureJet` il fail-closed del tracer **non toglie** ciò che l'impronta già mostra. Vale anche per `Cone`. È [#3551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3551) (§8) |
 | Clip assenti (`FabAsset` non presente) | il tracer funziona lo stesso: non dipende da alcuna animazione |
 | Server dedicato | `DisegnaLineaAnteprima` non disegna: nessun effetto |
 
@@ -341,8 +341,9 @@ cieca. Il verdetto è di chi guarda, non di questa spec.
 
 ## 8. Follow-up candidates
 
-- 🔴 **Issue propria**: l'impronta `Line`/`Cone` di un attaccante ignoto ne rivela la cella (§5, ultima riga
-  della parte privacy). Misurato sul codice; manca solo lo scenario in cui la squadra colpita non vede chi spara.
+- 🔴 **[#3551](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3551)**: l'impronta `Line`/`Cone` di un attaccante ignoto ne rivela la cella (§5, ultima riga
+  della parte privacy). Misurato sul codice. La geometria del colpo alle spalle c'è già per un `Single`
+  (`Visual.Combat.TracerHiddenFromUnseenAttacker`); quella con un `Line` è un criterio di #3551.
 - `docs/characters/v0.1/riktor.md` dichiara `Hero.Riktor.ImpactShot`; il codice ha `Hero.Branth.ImpactShot`
   (`git grep -c "Hero.Riktor.ImpactShot" -- Source` → nessuna occorrenza).
 - `FindMissingBindings` che verifichi i nomi delle cue contro funzioni reali (§C4 del panel del 2026-09-10).
