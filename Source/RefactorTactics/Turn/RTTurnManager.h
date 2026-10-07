@@ -1764,6 +1764,19 @@ protected:
 	void ResolveCombatPasses(FRTBlastContext& Ctx);
 
 	/**
+	 * Un `AbilityActivated` per ogni intento d'attacco ACCETTATO, in ordine di `IntentIndex` (#3549, spec §2.2
+	 * punto 4). Esclusi: gli impatti di carica (`IntentAbilityIndex == INDEX_NONE`, gia' attivati nel Dash),
+	 * gli interrotti (`Ctx.InterruptedIntents`), chi e' morto prima del Blast. Inclusi: i degradati ([D-300])
+	 * e i bloccati da linea di tiro o senza mappa (`NoLineOfSight`, `NoMap`, `UnverifiableIntents`): entrano in
+	 * `Ctx.Intents`, e l'attivazione racconta il gesto.
+	 *
+	 * ⛔ **Non vede mai i `Fallback Cancelled`** — fuori portata, bersaglio ignoto, bersaglio sparito: per
+	 * loro `CollectAttackIntents` fa `continue` PRIMA di `Intents.Add`, quindi non si attivano. E' la stessa
+	 * regola del `ModifyArc` fuori portata (spec §2.2, §6).
+	 */
+	void EmitAttackIntentActivations(const FRTBlastContext& Ctx);
+
+	/**
 	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il
 	 * controllo con una reazione. Quale controllo salti lo decide QUI chi applica, che ha davanti la lista
 	 * completa e sceglie il piu' grave: deciderlo nel pass sarebbe sceglierlo due volte, in due posti che

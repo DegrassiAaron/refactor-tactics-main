@@ -5545,6 +5545,11 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	LogBlockedIntents(Ctx);
 	ApplyEnvironmentChanges(Ctx);
 
+	// #3549: le attivazioni degli intenti d'attacco, PRIMA delle impronte qui sotto e dei colpi del ciclo del
+	// danno: in timeline l'attivazione precede l'impronta e i colpi dello stesso intento (D3). ⚠️ I
+	// `StructureHit` di `ApplyEnvironmentChanges` restano PRIMA: e' dichiarato (spec §2.2), e la sequenza di
+	// playback li raggruppa per intento.
+	EmitAttackIntentActivations(Ctx);
 
 	// Impronte a terra dei colpi, nella timeline di playback ([D-301]).
 	//
@@ -6625,6 +6630,41 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 	// stavano qui vivono in `FinishBlastPhase`, raggiungibile da due strade — come `ConcludeResolution`
 	// da `#2679`, e per la stessa ragione.
 	ApplyDisplacements(Ctx);
+}
+
+void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
+{
+	for (int32 k = 0; k < Ctx.Intents.Num(); ++k)
+	{
+		if (!Ctx.IntentAbilityIndex.IsValidIndex(k) || Ctx.IntentAbilityIndex[k] == INDEX_NONE)
+		{
+			continue; // impatto di carica: attivato nel Dash, con lo stesso `Def` dello scatto
+		}
+		if (Ctx.InterruptedIntents.Contains(k) || !Ctx.IntentDefs.IsValidIndex(k))
+		{
+			continue; // cancellato da un Interrupt efficace: l'azione e' annullata, non attivata
+		}
+		const FRTHexAttackIntent& Intent = Ctx.Intents[k];
+		ARTUnit* const Attaccante = Ctx.Units.IsValidIndex(Intent.AttackerId) ? Ctx.Units[Intent.AttackerId] : nullptr;
+		if (Attaccante == nullptr || !Attaccante->IsAlive())
+		{
+			continue; // morto in Prep o nel Dash: la stessa guardia di `ApplyInterrupts` (`IsAlive()` sull'attaccante)
+		}
+		const ARTUnit* const Bersaglio = (Intent.TargetId != INDEX_NONE && Ctx.Units.IsValidIndex(Intent.TargetId))
+			? Ctx.Units[Intent.TargetId] : nullptr;
+		const FRTActionDef& Def = Ctx.IntentDefs[k];
+		// 🔴 **`Action.Wait` e il movimento normale PASSANO di qui, e non si attivano** (spec D1). La spec li dava
+		// per «esclusi per costruzione», e non lo sono: `CollectAttackIntents` filtra solo la mobilita' rapida
+		// (`IsFastMovement`), quindi un'azione di fase Move pianificata come abilita' arriva fino a
+		// `Intents.Add` — `Wait` con fallback `Stop` produce effetti e ne esce un intento a danno zero. La fase
+		// del catalogo e' il criterio che la spec stessa nomina («risolve in `NormalMovement`»).
+		if (URTCatalogLibrary::MapResolutionPhase(Def.ResolutionPhase) == ERTMatchPhase::Move)
+		{
+			continue;
+		}
+		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
+			Bersaglio ? Bersaglio->StableUnitId : 0, Bersaglio ? Bersaglio->Cell : Intent.TargetCell, Intent.Shape);
+	}
 }
 
 /**
