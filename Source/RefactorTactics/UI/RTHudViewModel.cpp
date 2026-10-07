@@ -14,7 +14,6 @@
 #include "Turn/RTPlanValidationLibrary.h"     // MakePlanFor: il piano da cui il profilo si ricava
 #include "Turn/RTHexSim.h"                    // FRTHexSimUnit: `ValidatePlan` lo chiede, e dopo D-190 non lo legge
 #include "Combat/RTCombatLibrary.h"           // RefusalForKnownTarget: lo stato Warning legge il rifiuto, non lo rifa'
-#include "Combat/RTHexCombatLibrary.h"        // BlastOriginCell: il Warning misura da dove si colpira'
 #include "Map/RTHexMapActor.h"                // la mappa del bersaglio pianificato
 #include "UI/RTPlayerEventProjector.h" // la porta autorizzata del feed: il filtro non e' del widget
 #include "Turn/RTTurnLog.h"            // FRTTurnLogEntry: il feed consuma il log canonico, non il testo
@@ -703,10 +702,11 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 	//    il Warning su un'ombra direbbe «non lo vedi piu'» in un modo nuovo.
 	//
 	//    🔴 **Da DOVE si colpira', non da dove si sta.** La fase Blast parte dalla cella dello scatto, se lo
-	//    scatto si applica (`BlastOriginCell`, ordine `Prep -> Dash -> Blast -> Move`). Il click giudica dalla
-	//    cella corrente, e qui le due letture divergono: «accettato» al click, «degradato» in risoluzione. E'
-	//    il caso che rende il Warning raggiungibile — in planning nessuno si muove, quindi misurato dalla
-	//    cella corrente il bersaglio accettato dal click resterebbe accettato fino alla risoluzione.
+	//    scatto si applica (ordine `Prep -> Dash -> Blast -> Move`). ⏱️ *Fino a #3509 il click giudicava dalla
+	//    cella corrente*, e il Warning nasceva da quella divergenza. Con [D-464] click e Warning chiedono la
+	//    stessa origine per fase (`ARTUnit::AimOriginFor`): il Warning resta per il solo caso che [D-464] (4)
+	//    gli lascia — lo scatto CAMBIATO dopo che il bersaglio era stato dichiarato. In planning nessuno si
+	//    muove, ed e' lo scatto a separare «accettato» da «degradato».
 	if (Cooldowns.IsValidIndex(Unit->PlannedAbilityIndex) && !Unit->bAttackTargetsCell)
 	{
 		const URTActionData* Pianificata = Unit->GetAbility(Unit->PlannedAbilityIndex);
@@ -716,13 +716,8 @@ TArray<FRTAbilityCooldownView> URTHudViewModel::BuildAbilityCooldowns(const ARTU
 		const URTHexMapAsset* Mappa = HexMap ? HexMap->GetHexContext(Origine, Lato, AltezzaPiano) : nullptr;
 		if (Pianificata && Bersaglio && Mappa)
 		{
-			FRTBlastPreviewPlan PianoBlast;
-			PianoBlast.AttackerId = 0;
-			PianoBlast.bDashResolves = Unit->PlannedDashApplies();
-			PianoBlast.PlannedDashCell = Unit->PlannedDashCell;
-			FRTHexCombatUnit Attaccante;
-			Attaccante.Cell = Unit->Cell;
-			const FRTCellId Da = URTHexCombatLibrary::BlastOriginCell(PianoBlast, { Attaccante });
+			// La regola e' `AimOriginCell`: qui se ne chiede la risposta per la fase dell'azione PIANIFICATA.
+			const FRTCellId Da = Unit->AimOriginFor(Pianificata->Def.ResolutionPhase);
 
 			const ERTTargetRefusal Rifiuto = URTCombatLibrary::RefusalForKnownTarget(Mappa, Da,
 				Bersaglio->Cell, Pianificata->RangeCells, Pianificata->Def.LineOfSightPolicy,

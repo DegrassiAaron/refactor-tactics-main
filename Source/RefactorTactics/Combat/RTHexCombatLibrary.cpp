@@ -1,5 +1,6 @@
 #include "Combat/RTHexCombatLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: l'origine di mira dipende dalla fase ([D-464])
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexMapAsset.h"
@@ -798,6 +799,21 @@ TArray<FRTAttack> URTHexCombatLibrary::ToAttacks(const FRTHexBlastPlan& Plan)
 	return Attacks;
 }
 
+FRTCellId URTHexCombatLibrary::AimOriginCell(ERTResolutionPhase Phase, const FRTCellId& CurrentCell,
+	bool bDashResolves, bool bDashIsCharge, const FRTCellId& PlannedDashCell)
+{
+	// La fase si chiede alla mappatura del catalogo, non si elenca qui: `Control` e `Attack` sono le due che
+	// cadono nel Blast, e una terza che vi cadesse domani mirerebbe dallo scatto senza toccare questa riga.
+	const bool bDopoLoScatto = URTCatalogLibrary::MapResolutionPhase(Phase) == ERTMatchPhase::Blast;
+	// `PlannedDashCell == CurrentCell` e' lo stesso scarto che fa `ResolveDash`: uno scatto che non sposta non e'
+	// uno scatto, e trattarlo come tale farebbe dichiarare «origine dallo scatto» a chi non si e' mosso.
+	if (bDopoLoScatto && bDashResolves && !bDashIsCharge && !(PlannedDashCell == CurrentCell))
+	{
+		return PlannedDashCell;
+	}
+	return CurrentCell;
+}
+
 FRTCellId URTHexCombatLibrary::BlastOriginCell(const FRTBlastPreviewPlan& Plan,
 	const TArray<FRTHexCombatUnit>& Units)
 {
@@ -805,14 +821,8 @@ FRTCellId URTHexCombatLibrary::BlastOriginCell(const FRTBlastPreviewPlan& Plan,
 	{
 		return FRTCellId();
 	}
-	const FRTCellId& Current = Units[Plan.AttackerId].Cell;
-	// `PlannedDashCell == Current` e' lo stesso scarto che fa `ResolveDash`: uno scatto che non sposta non e'
-	// uno scatto, e trattarlo come tale farebbe dichiarare «origine dallo scatto» a chi non si e' mosso.
-	if (Plan.bDashResolves && !(Plan.PlannedDashCell == Current))
-	{
-		return Plan.PlannedDashCell;
-	}
-	return Current;
+	return AimOriginCell(Plan.Phase, Units[Plan.AttackerId].Cell, Plan.bDashResolves, Plan.bDashIsCharge,
+		Plan.PlannedDashCell);
 }
 
 TArray<FRTRevealedVictim> URTHexCombatLibrary::VictimsRevealedByHits(const TArray<FRTHexAttackHit>& Hits,
