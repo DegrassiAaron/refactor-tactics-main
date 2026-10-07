@@ -729,6 +729,29 @@ bool FRTPlaybackNextActionDoesNotStopTwiceWithinOneIntentTest::RunTest(const FSt
 		TM2->SetPlaybackControlsEnabled(true);
 		TM2->LockInAndResolve();
 		if (!TestTrue(TEXT("⛔ premessa: il turno delle cure si riproduce"), TM2->IsResolving())) { return false; }
+		// ⛔ Premessa: le DUE attivazioni sono in sequenza per chi guarda, con lo stesso `ActionId` e sorgenti
+		// diverse — e' esattamente la coppia che il confine sul solo `ActionId` confonderebbe.
+		if (!TestEqual(TEXT("⛔ premessa: due attivazioni in coda"), TM2->PlaybackActivationsQueuedForTest(), 2))
+		{
+			return false;
+		}
+		{
+			TSet<FName> AzioniCure;
+			TSet<int32> SorgentiCure;
+			for (const FRTResolvedEvent& Ev : TM2->ResolvedTimelineForTest())
+			{
+				if (Ev.Type == ERTResolvedEventType::AbilityActivated)
+				{
+					AzioniCure.Add(Ev.ActionId);
+					SorgentiCure.Add(Ev.SourceStableUnitId);
+				}
+			}
+			if (!TestEqual(TEXT("⛔ premessa: le attivazioni portano lo STESSO ActionId"), AzioniCure.Num(), 1)
+				|| !TestEqual(TEXT("⛔ premessa: e due sorgenti diverse"), SorgentiCure.Num(), 2))
+			{
+				return false;
+			}
+		}
 
 		int32 FermateCure = 0;
 		for (int32 I = 0; I < 600 && TM2->IsResolving(); ++I)

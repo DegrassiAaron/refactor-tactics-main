@@ -6,8 +6,8 @@
 // `ARTPlayerState` e `TeamIdOf` ripiega su 0 (`Player/RTPlayerState.cpp:5-12`).
 // 🔴 **E la fixture non basta da sola**: senza `InitializeActorsForPlay` il controller non entra nella lista del
 // mondo e `GetPlayerController(this, 0)` — la porta di `BeginPlayback` — non lo trova (misurato: zero controller
-// nel mondo). Dove il viewer e' di una squadra diversa da 0 il mondo e' inizializzato e una premessa lo misura;
-// dove e' la squadra 0 il ripiego coincide con la fixture, e i test non dipendono dalla differenza.
+// nel mondo). Dove il viewer e' scelto dal test il mondo e' inizializzato e una premessa misura il viewer letto;
+// dove basta la squadra 0 il test non crea nessun controller, e il viewer e' il ripiego — la squadra delle sorgenti.
 // ⚠️ La squadra «che non vede» dei primi due test e' una squadra SENZA unita' in campo: fuori da
 // `TeamKnowledgeState`, quindi fail-closed. Esercita il FILTRO; la percezione vera (una squadra presente, un
 // muro alto) e' `EnemyBehindHighCoverHasNoActivationBeat`.
@@ -145,6 +145,9 @@ bool FRTPlaybackActivationPlaysTheCastCueTest::RunTest(const FString&)
 		B.TM->LockInAndResolve();
 		FinoAllaFineDelPlayback(B.TM);
 		TestEqual(TEXT("⛔ sorgente non osservata: nessuna cue"), B.Tiratore->CastCuesPlayedForTest(), 0);
+		TestEqual(TEXT("⛔ e nemmeno sullo scudo, nella Prep"), B.Scudo->CastCuesPlayedForTest(), 0);
+		// ⚠️ L'assenza della riga e' doppiamente coperta: la nasconde gia' il filtro [D-223] del feed, sul verdetto
+		// congelato. Il filtro D6 delle CODE di playback lo pinna `HiddenSourceHasNoActivationBeat`.
 		TestFalse(TEXT("⛔ e nessuna riga Attiva: per quella squadra"), HaRigaAttiva(B.TM, 7));
 	}
 	return true;
@@ -215,10 +218,20 @@ namespace
  * ⚠️ **La finestra si apre solo con un decisore legato** (`OnReactionWindowOpened.IsBound()`, la prima delle
  * condizioni del ramo del `Brace` in `RTTurnManager_Blast.cpp`): senza, la reazione si decide subito e non c'e'
  * nessuna sospensione da attraversare. Il montaggio di riferimento lo lega per misurare; qui serve ad aprirla.
- * ⚠️ **Limite del montaggio, misurato**: la mutazione «ricostruisci da zero anche estendendo» (`Previous` vuoto,
- * prefisso 0 in `BeginPlayback`) resta VERDE qui, perche' su questo turno gli eventi che la ripresa aggiunge al
- * Blast cadono comunque dopo gli elementi gia' mostrati. Il test prova che il prefisso SOPRAVVIVE a una
- * sospensione vera; che sarebbe stato rotto senza il `Previous` lo pinna il test puro, non questo.
+ * ⚠️ **Limite del montaggio, misurato: la ripresa NON aggiunge elementi alla sequenza di Blast.** Il test scrive la
+ * crescita nel proprio log (`AddInfo`, «crescita della sequenza»): su questo turno e' ZERO, mentre la timeline
+ * cresce — la ripresa aggiunge la spinta e i suoi esiti, nessuno di un tipo che entri in sequenza. La ragione sta nel
+ * resolver — attivazioni, impronte, colpi e muri del Blast escono tutti PRIMA della sospensione: l'unico
+ * produttore di `Attack` e' il ciclo del danno, le attivazioni escono dopo `ApplyEnvironmentChanges`, e l'unico
+ * produttore di `StructureHit` e' `ApplyEnvironmentChanges` (danno raccolto dal piano dei colpi,
+ * `Plan.StructureHits`). La spinta, che e' cio' che la finestra sospende, in `ApplyDisplacements` non colpisce
+ * strutture: nessuno `StructureHit` con la coppia (Pusher, `Action.Push`) puo' nascere dopo la ripresa.
+ * ∴ la mutazione «ricostruisci da zero anche estendendo» (`Previous` vuoto, prefisso 0 in `BeginPlayback`) resta
+ * VERDE per IDEMPOTENZA — `Build(T, vuoto, 0) == Build(T, S, k)` quando la parte di Blast della timeline non
+ * cresce — e non perche' gli eventi nuovi cadano dopo: di eventi nuovi in sequenza non ce ne sono.
+ * Questo test prova che il prefisso SOPRAVVIVE a una sospensione vera (finestra aperta, playback parziale,
+ * ripresa); che senza il `Previous` sarebbe stato rotto lo pinna il test puro
+ * `BlastSequencePrefixIsStableUnderExtension`, e nessun turno giocato oggi lo puo' pinnare.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActivationPrefixSurvivesSuspensionTest,
 	"RefactorTactics.Playback.ActivationPrefixSurvivesASuspendedBlast",
@@ -233,7 +246,9 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 	ARTUnit* Bracer = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(0, 0));
 	ARTUnit* Pusher = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Bracer || !Pusher || !RTWorldFixtures::MakePlayerOnTeam(World, 0)) { return false; }
+	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra del Bracer: un
+	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
+	if (!TM || !Bracer || !Pusher) { return false; }
 
 	Bracer->ReactionProfileId = TEXT("Profile.Sidestep");
 	Bracer->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbilityInSlot(Bracer, TEXT("Action.Brace"), 3);
@@ -248,7 +263,8 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 
 	TM->RefreshTeamKnowledgeNow();
 	TM->LockInAndResolve();
-	if (!TestTrue(TEXT("⛔ premessa: la resolution e' sospesa sulla finestra del Brace"), TM->IsResolutionSuspended()))
+	if (!TestTrue(TEXT("⛔ premessa: la resolution e' sospesa sulla finestra del Brace"), TM->IsResolutionSuspended())
+		|| !TestEqual(TEXT("⛔ premessa: la sospensione e' la finestra del Brace, aperta una volta"), FinestreAperte, 1))
 	{
 		return false;
 	}
@@ -276,6 +292,7 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 		return false;
 	}
 	const TArray<int32> Prima = TM->PlaybackBlastSequenceIndicesForTest();
+	const int32 TimelinePrima = TM->ResolvedTimelineCountForTest();
 
 	for (int32 Scadenze = 0; Scadenze < 8 && TM->IsResolutionSuspended(); ++Scadenze)
 	{
@@ -285,6 +302,9 @@ bool FRTPlaybackActivationPrefixSurvivesSuspensionTest::RunTest(const FString&)
 	TM->Tick(0.01f); // l'estensione e' gia' avvenuta; un tick breve non tocca il prefisso, che e' gia' mostrato
 
 	const TArray<int32> Dopo = TM->PlaybackBlastSequenceIndicesForTest();
+	// La misura che il commento di testa cita: quanto la ripresa ha aggiunto alla timeline e alla sequenza.
+	AddInfo(FString::Printf(TEXT("crescita della sequenza di Blast: %d (prima %d, dopo %d, mostrati %d); crescita della timeline: %d"),
+		Dopo.Num() - Prima.Num(), Prima.Num(), Dopo.Num(), Mostrati, TM->ResolvedTimelineCountForTest() - TimelinePrima));
 	if (!TestTrue(TEXT("la sequenza estesa non e' piu' corta del prefisso"), Dopo.Num() >= Mostrati)) { return false; }
 	for (int32 i = 0; i < Mostrati; ++i)
 	{
@@ -316,7 +336,9 @@ bool FRTPlaybackDashStepAfterActivationsTest::RunTest(const FString&)
 	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
 	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-2, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Caricatore || !Bersaglio || !RTWorldFixtures::MakePlayerOnTeam(World, 0)) { return false; }
+	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
+	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
+	if (!TM || !Caricatore || !Bersaglio) { return false; }
 
 	Caricatore->PlannedDashAbility = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
 	Caricatore->PlannedDashCell = Bersaglio->Cell;
@@ -410,6 +432,10 @@ bool FRTPlaybackEnemyBehindHighCoverTest::RunTest(const FString&)
 		}
 
 		TM->LockInAndResolve();
+		// ⚠️ Misurata DOPO la risoluzione, mentre il verdetto dell'attivazione si congela all'emissione, nel Blast:
+		// le due letture coincidono perche' in questo turno nessuno si muove (nessun piano di movimento, nessuna
+		// spinta), e la premessa qui sotto misura che il muro nega ancora la vista a fine turno: un muro non si
+		// ricostruisce dentro il turno, quindi con le stesse posizioni la negava anche all'emissione.
 		OutVisibile = TM->KnowledgeForTeamPublic(0).VisibleCells.Contains(Tiratore->Cell);
 		FinoAllaFineDelPlayback(TM);
 		OutCue = Tiratore->CastCuesPlayedForTest();
@@ -445,7 +471,9 @@ bool FRTPlaybackDashOpensForActivationsOnlyTest::RunTest(const FString&)
 	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(0, 0));
 	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-1, 0));
 	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
-	if (!TM || !Caricatore || !Bersaglio || !RTWorldFixtures::MakePlayerOnTeam(World, 0)) { return false; }
+	// Il viewer e' il ripiego a 0 (`TeamIdOf` senza controller nel mondo), la squadra della sorgente: un
+	// `MakePlayerOnTeam(World, 0)` qui sarebbe inerte, perche' il mondo non e' inizializzato.
+	if (!TM || !Caricatore || !Bersaglio) { return false; }
 	Caricatore->PlannedDashAbility = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
 	Caricatore->PlannedDashCell = Bersaglio->Cell;
 	Caricatore->PlannedCell = Caricatore->Cell;

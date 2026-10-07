@@ -7873,11 +7873,16 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	}
 
 	// La sequenza per intento del Blast (D5). 🔑 **Estendendo (D-355) il prefisso gia' mostrato e' stabile**:
-	// i primi `BlastShown` elementi si riproducono verbatim e gli eventi nuovi si accodano (`Ruling`: coda, non
-	// inserimento) — un evento nuovo di un atto gia' aperto si unisce al suo atto oltre il prefisso (Ruling H).
-	// Precondizione: la timeline cresce solo per accodamento.
-	// ⚠️ `BlastShown` e' il prefisso giusto solo perche' `EnterPlaybackPhase`, che lo azzera, non passa di qui
-	// quando si estende: fuori dal Blast vale zero, e zero e' il prefisso di un Blast non ancora cominciato.
+	// i primi `BlastShown` elementi si riproducono verbatim e non si ripetono. Il resto si ricostruisce per
+	// gruppo (Ruling H): un evento nuovo si unisce al SUO gruppo `(sorgente, azione)`, e la chiave del gruppo si
+	// legge dalla sua attivazione ovunque stia, prefisso compreso — quindi un evento tardivo di un atto aperto
+	// presto cade fra i primi oltre il prefisso, non in fondo. Precondizione: la timeline cresce solo per
+	// accodamento.
+	// ⚠️ `BlastShown` e' il prefisso giusto perche' `EnterPlaybackPhase`, che lo azzera a ogni fase, non passa di
+	// qui quando si estende. Vale `0` se il playback non e' ancora entrato nel Blast (prefisso vuoto); vale la
+	// lunghezza della sequenza parziale se il playback parziale ha finito il Blast ed e' fermo sulla finestra —
+	// tutto mostrato, ed e' un prefisso valido; vale `0` anche quando il Blast e' gia' passato e si e' entrati
+	// in una fase successiva, dove la sequenza non si riproduce piu'.
 	PlaybackBlastSequence = URTPlaybackLibrary::BuildBlastSequence(ResolvedTimeline,
 		bPreserveClock ? PlaybackBlastSequence : TArray<FRTBlastSequenceElement>(),
 		bPreserveClock ? BlastShown : 0, ViewerTeamId);
