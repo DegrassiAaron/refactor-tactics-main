@@ -125,7 +125,8 @@ struct FRTAnimBinding
 	FName ActionId;
 
 	/**
-	 * Se questa e' la variante che suona per quel `(eroe, ruolo)`.
+	 * Se questa e' la variante che suona per il suo POOL: `(eroe, ruolo)` per un binding di ruolo, `(eroe, ruolo,
+	 * azione)` per uno d'azione (#3563).
 	 *
 	 * ⛔ **Il default e' `false`, e non e' un dettaglio**: una variante appena legata entra INATTIVA,
 	 * qualunque sia lo stato del ruolo. «E' l'unica, quindi sara' lei» e' la deduzione che l'autore non
@@ -160,7 +161,8 @@ struct FRTAnimClipAuthored
 	FString Notes;
 
 	/**
-	 * A quali `(eroe, ruolo)` questa clip e' legata, e in quale di essi e' quella attiva.
+	 * A quali POOL questa clip e' legata, e in quali e' quella attiva. Un pool e' `(eroe, ruolo)` per un binding di
+	 * ruolo, `(eroe, ruolo, azione)` per uno d'azione (#3563).
 	 *
 	 * 🔴 **E' authoring, non runtime.** Il gioco legge `URTUnitAnimInstance::ClipsPerHero`, mai questo
 	 * file: un JSON sotto `Data/` non e' un asset versionato sotto `/Game/RT` e il cook non sa seguirlo

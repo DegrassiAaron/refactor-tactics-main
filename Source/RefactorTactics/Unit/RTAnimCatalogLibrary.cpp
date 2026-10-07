@@ -433,6 +433,18 @@ bool URTAnimCatalogLibrary::LoadFromString(const FString& JsonText, FRTAnimCatal
 
 					// `actionId` (#3563): opzionale; assente o vuoto = binding di ruolo. ⛔ In un file dichiarato v1 e'
 					// un ERRORE: una build v1 lo avrebbe ignorato, legando la clip al ruolo invece che all'azione.
+					// 🔴 **Presente ma non stringa e' un ERRORE, non un binding di ruolo** (review Task 4): si guarda il
+					// TIPO del valore, perche' `TryGetStringField` converte un numero in testo e fallisce in silenzio su
+					// `null`, oggetto, array — e un `actionId` ignorato lega la clip al ruolo, il guasto che il bump esiste
+					// per evitare, qui per un file modificato a mano.
+					if (const TSharedPtr<FJsonValue> ActionField = (*BindingObj)->TryGetField(KeyActionId);
+						ActionField.IsValid() && ActionField->Type != EJson::String)
+					{
+						OutError = FString::Printf(
+							TEXT("voce #%d ('%s'): binding %s / %s: '%s' presente ma non e' una stringa"),
+							Index, *IdText, *HeroText, *RoleText, KeyActionId);
+						return false;
+					}
 					FString ActionText;
 					if ((*BindingObj)->TryGetStringField(KeyActionId, ActionText) && !ActionText.IsEmpty())
 					{

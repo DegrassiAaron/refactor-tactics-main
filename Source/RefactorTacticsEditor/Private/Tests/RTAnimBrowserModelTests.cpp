@@ -80,7 +80,7 @@ namespace
 
 	/**
 	 * Aggiunge al catalogo una voce `Promoted` con UN binding per Aevik, e tiene `NextId` dominante.
-	 * ⚠️ `Clip` distinta per voce: due voci sullo stesso path sono gia' un errore di `ValidateCatalog` (`:576-582`).
+	 * ⚠️ `Clip` distinta per voce: due voci sullo stesso path sono gia' un errore di `ValidateCatalog` (il controllo sul path in `ValidateCatalog`).
 	 */
 	void AggiungiLegame(FRTAnimCatalog& Catalog, const TCHAR* Id, const TCHAR* Clip, ERTPresentationRole Role,
 		const TCHAR* ActionId, bool bActive)
@@ -419,6 +419,15 @@ bool FRTAnimCatalogRejectsTwoActivePerActionRoleTest::RunTest(const FString&)
 		}
 	}
 	TestTrue(TEXT("la riga nomina le due clip e l'azione"), bNominaEntrambe);
+
+	// 🔑 L'altra meta' di «un pool per terna»: azioni DIVERSE sullo stesso (eroe, ruolo) sono pool diversi, e
+	// convivono — attive entrambe, e anche insieme a quella di ruolo. Una chiave piu' debole della terna cade qui.
+	FRTAnimCatalog Distinti;
+	AggiungiLegame(Distinti, TEXT("AV_0001"), TEXT("Cast"), ERTPresentationRole::Cast, nullptr, true);
+	AggiungiLegame(Distinti, TEXT("AV_0002"), TEXT("Throw_Ready"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), true);
+	AggiungiLegame(Distinti, TEXT("AV_0003"), TEXT("Ability_Q_Target"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.ArcPulse"), true);
+	TestEqual(TEXT("🔑 due azioni diverse attive sullo stesso (eroe, ruolo), e quella di ruolo: valido"),
+		URTAnimCatalogLibrary::ValidateCatalog(&Distinti).Num(), 0);
 	return true;
 }
 
@@ -441,6 +450,36 @@ bool FRTAnimCatalogFormatVersion2IsRequiredTest::RunTest(const FString&)
 	FString ErroreV2;
 	TestTrue(TEXT("controllo positivo: lo stesso testo v2 si legge"),
 		URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(2, TEXT(R"("actionId": "Hero.Aevik.Overload", )")), LettoV2, ErroreV2));
+	return true;
+}
+
+/**
+ * Un `actionId` PRESENTE ma non stringa e' un errore di lettura: ignorarlo farebbe del binding un binding di RUOLO
+ * attivo, il guasto che il bump di versione esiste per evitare (review Task 4, M1).
+ * ✅ Validato per mutazione: il controllo sul tipo del valore tolto → cade «🔴 actionId non stringa: rifiutato».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogRejectsNonStringActionIdTest,
+	"RefactorTactics.Anim.Catalog.RejectsNonStringActionId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogRejectsNonStringActionIdTest::RunTest(const FString&)
+{
+	// Il controllo positivo: lo stesso testo con la stringa si legge, quindi il rifiuto sotto e' del TIPO.
+	FRTAnimCatalog Positivo;
+	FString ErrorePositivo;
+	TestTrue(TEXT("controllo positivo: actionId stringa si legge"),
+		URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(2, TEXT(R"("actionId": "Hero.Aevik.Overload", )")), Positivo, ErrorePositivo));
+
+	const TCHAR* NonStringhe[] = { TEXT("7"), TEXT("null"), TEXT("{}"), TEXT("[]"), TEXT("true") };
+	for (const TCHAR* Valore : NonStringhe)
+	{
+		FRTAnimCatalog Letto;
+		FString Errore;
+		const FString Frammento = FString::Printf(TEXT("\"actionId\": %s, "), Valore);
+		TestFalse(*FString::Printf(TEXT("🔴 actionId non stringa: rifiutato (%s)"), Valore),
+			URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(2, *Frammento), Letto, Errore));
+		TestTrue(*FString::Printf(TEXT("e il messaggio nomina il campo e l'eroe (%s)"), Valore),
+			Errore.Contains(TEXT("actionId")) && Errore.Contains(TEXT("Hero.Aevik")));
+	}
 	return true;
 }
 
@@ -488,7 +527,7 @@ bool FRTAnimCatalogRejectsActionIdOnNonPropagatingRoleTest::RunTest(const FStrin
 
 /**
  * `Ruling` R10: un'azione concessa dall'equipaggiamento porta l'id del PEZZO (`MakeEquipmentAction`,
- * `RTCatalogLibrary.cpp:933`) e si attiva come le altre: `Gadget.Sprinkler` su `Cast` e' accettato.
+ * in `URTCatalogLibrary`) e si attiva come le altre: `Gadget.Sprinkler` su `Cast` e' accettato.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogAcceptsEquipmentActionIdTest,
 	"RefactorTactics.Anim.Catalog.AcceptsEquipmentActionId",
