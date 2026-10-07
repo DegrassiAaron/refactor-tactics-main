@@ -159,6 +159,8 @@ void SRTLabPanel::OnSelezione(FVoce Voce, ESelectInfo::Type)
 FReply SRTLabPanel::OnEsegui()
 {
 	UltimoErrore.Reset();
+	// La riga di stato mostra una cosa sola: l'ultimo gesto. Senza questo, il messaggio del PIE nasconde l'esito.
+	UltimoIdLanciato.Reset();
 
 	// Un mondo transitorio, creato e distrutto qui. Il livello aperto nell'editor non viene toccato.
 	UWorld* Mondo = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
