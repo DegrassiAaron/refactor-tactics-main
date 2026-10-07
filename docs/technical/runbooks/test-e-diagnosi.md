@@ -141,13 +141,14 @@ corso, UAT ha fatto **una sola** invocazione di UBT per tre target ed è uscita 
 
 Il perché sta nel sorgente di UAT e UBT (UE 5.8.1), e dice anche dove il flag vale:
 
-- UBT legge `-WaitMutex` **solo dalla propria riga di comando**, prima di guardare i target:
-  `GlobalOptions.WaitMutex`, consultato da `UnrealBuildTool.Main` quando prende il mutex. ⚠️ Lo prende
-  anche se il target è già aggiornato.
+- UBT legge `-WaitMutex` prima di guardare i target, e da **due** posti soltanto: la propria riga di comando,
+  e la variabile d'ambiente `UBT_EXTRA_ARGS`, che `UnrealBuildTool.Main` accoda alla riga prima di leggerla
+  (`GetExtraArgsFromEnvVar`). Il valore finisce in `GlobalOptions.WaitMutex` quando UBT prende il mutex, e
+  ⚠️ UBT lo prende anche se il target è già aggiornato.
 - Con **più di un target**, UAT chiude gli argomenti di ciascuno in una stringa `-Target="…"`
   (`UnrealBuild.BuildWithUBT`), e lì UBT non lo cerca. Sulla riga di UBT aggiunge solo `-NoXGE`,
-  `-AllCores` e `-SkipBuild`. ∴ **non esiste un parametro di UAT che porti `-WaitMutex` all'invocazione
-  intera.**
+  `-AllCores` e `-SkipBuild`. ∴ **nessun parametro di UAT porta `-WaitMutex` all'invocazione intera.** La
+  variabile d'ambiente sì, perché UAT lancia UBT col proprio ambiente.
 - E `-ubtargs` non arriva nemmeno a tutti i target. L'Editor, che `-cook -build` compila per il cook, riceve
   solo le opzioni di build dell'Editor (`EditorBuildArgs` in `BuildProjectCommand.Build`); `-ubtargs` va ai
   soli target del gioco.
@@ -155,10 +156,29 @@ Il perché sta nel sorgente di UAT e UBT (UE 5.8.1), e dice anche dove il flag v
 | Comando | `-WaitMutex` |
 |---|---|
 | `Build.bat <target> … -WaitMutex` | ✅ aspetta: il flag sta sulla riga di UBT |
+| `UBT_EXTRA_ARGS=-WaitMutex` nell'ambiente | ✅ aspetta, misurato su UBT il 2026-10-07 (qui sotto). Che arrivi all'UBT di `BuildCookRun` è per sorgente. ⏳ Un `BuildCookRun` intero non è misurato |
 | `BuildCookRun -build` con **un solo** target da compilare, per esempio `-skipbuildeditor` e una sola configurazione | ✅ per sorgente: con un target solo UAT non usa `-Target="…"`, e gli argomenti finiscono sulla riga di UBT. ⏳ Non misurato |
 | `BuildCookRun -cook -build`: l'Editor per il cook più almeno un target del gioco | ❌ chiuso dentro `-Target="…"`: `ConflictingInstance`, misurato il 2026-10-06 |
 
-**La ricetta misurata.** Subito prima di lanciare `BuildCookRun`, controlla che non ci siano UBT vive:
+**Il rimedio: `UBT_EXTRA_ARGS=-WaitMutex` nell'ambiente di `RunUAT`.**
+
+```powershell
+$env:UBT_EXTRA_ARGS = '-WaitMutex'   # vale per questa shell e per ciò che lancia
+& "<engine>/Engine/Build/BatchFiles/RunUAT.bat" BuildCookRun -project=<uproject> ...
+```
+
+Misurato il 2026-10-07 con una build del gioco in corso, cioè col mutex di UBT preso. Due UBT identici,
+lanciati direttamente in modo `-Mode=QueryTargets`, hanno dato:
+
+- **senza la variabile**: uscita `10` dopo 0,6 secondi, con *«A conflicting instance of
+  Global\UnrealBuildTool_Mutex_… is already running»*, cioè il guasto di #3523;
+- **con la variabile**: ha aspettato circa due minuti e mezzo, finché la build ha rilasciato il mutex, e poi è
+  uscito con `0`.
+
+⚠️ La variabile vale per **ogni** UBT che quella shell lancia, finché c'è.
+
+**Se la variabile non si può usare, c'è una ricetta misurata da capo a fondo.** Subito prima di lanciare
+`BuildCookRun`, controlla che non ci siano UBT vive:
 
 ```powershell
 Get-CimInstance Win32_Process -Filter "Name = 'dotnet.exe'" |
@@ -177,6 +197,10 @@ Due alternative, ⏳ **non misurate**:
   di compilazione non c'è. Resta da misurare che nient'altro, in `-cook -stage -pak`, invochi UBT.
 - ⛔ **Compilare prima solo l'Editor non basta.** Con `-build` UAT lo rimette nella stessa invocazione, che
   prende il mutex anche se il target è aggiornato.
+
+⚠️ **E `Build.bat` ha un lucchetto suo, prima di quello di UBT**: un secondo `Build.bat` stampa *«Build.bat is
+already running, waiting for existing script to terminate...»* e aspetta il primo anche senza `-WaitMutex`.
+Per questo una sonda del mutex di UBT va lanciata su UBT direttamente, non via `Build.bat`.
 
 > **Un worktree basta, e questo va detto perché il contrario sembra ovvio.** `Content/**/*.uasset` è
 > ignorato da `.gitignore`, quindi verrebbe da concludere che un worktree non abbia contenuti e non possa
