@@ -2439,6 +2439,16 @@ protected:
 	FRTKnowledgeVerdict FreezeVerdictFor(const FRTLogSubject& Subject) const;
 
 	/**
+	 * L'UNICO costruttore di `AbilityActivated` (#3549, spec «il momento» §2.1). Copia, non ricalcola: chi
+	 * chiama passa cio' che il resolver ha gia' in mano nel punto in cui ACCETTA l'intento.
+	 *
+	 * ⚠️ Un `ActionId` `NAME_None` non emette e scrive un `ensureMsgf`: e' cio' che il sotto-progetto 3
+	 * consuma, e un vuoto dimenticato non farebbe fallire nessun test (`RTResolvedEvent.h:310-312`).
+	 */
+	void EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
+		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape);
+
+	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
 	 * URTCombatLibrary::ApplyDamage, Status via Unit->ApplyStatus. Usata da ResolveDash e ResolveMovement
 	 * sulle celle FRTHexMoveResult::Entered di ciascuna unita' (CP 8.1).

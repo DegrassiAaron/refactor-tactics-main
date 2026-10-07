@@ -311,6 +311,32 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 	return URTTeamKnowledgeLibrary::FreezeVerdict(TeamKnowledgeState, S);
 }
 
+void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
+	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape)
+{
+	if (!ensureMsgf(!ActionId.IsNone(), TEXT("AbilityActivated senza ActionId (fase %d): il produttore ha perso l'azione"),
+		static_cast<int32>(InPhase)))
+	{
+		return;
+	}
+	if (Source == nullptr)
+	{
+		return; // nessuno da attivare: il sito chiamante ha gia' perso l'attore, e un id 0 non e' un'unita' ([D-063])
+	}
+
+	FRTResolvedEvent Ev;
+	Ev.Phase = InPhase;
+	Ev.Type = ERTResolvedEventType::AbilityActivated;
+	Ev.SourceStableUnitId = Source->StableUnitId;
+	Ev.TargetStableUnitId = TargetStableUnitId;
+	Ev.ActionId = ActionId;
+	Ev.BaseActionId = BaseActionId;
+	Ev.AimCell = AimCell;
+	Ev.Shape = Shape;
+	// ⛔ Nessun riordino: l'ordine in timeline E' l'ordine di emissione (spec §2.2).
+	ResolvedTimeline.Add(MoveTemp(Ev));
+}
+
 TArray<FString> ARTTurnManager::GetRecentEvents() const
 {
 	// Vista COMPLETA, non filtrata: e' la forma che RecentEvents aveva prima di portare un soggetto. Chi
@@ -3879,6 +3905,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		 * riordinato per cella/bordo, quindi l'indice qui non e' piu' quello dell'unita' che l'ha richiesta.
 		 */
 		ARTUnit* Actor = nullptr;
+		FName BaseActionId;
 	};
 	TArray<FRTPendingCoverOp> Pending;
 
@@ -3892,6 +3919,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		FName ActionId;
 		ARTUnit* Mover = nullptr;
 		int32 AbilityIndex = INDEX_NONE;
+		FName BaseActionId;
 	};
 	TArray<FRTPendingMoveOp> Moves;
 
@@ -3990,7 +4018,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		// quale copertura verra' mossa, e quello succede in applicazione.
 		if (Def.StructureOp == ERTStructureOp::MoveCover)
 		{
-			Moves.Add({ TargetCell, Edge, Def.ActionId, Unit, Index });
+			Moves.Add({ TargetCell, Edge, Def.ActionId, Unit, Index, Def.BaseActionId });
 			continue;
 		}
 
@@ -4022,7 +4050,7 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 			}
 		}
 
-		Pending.Add({ TargetCell, Edge, Integrity, Turns, FreeRotations, Def.ActionId, Unit });
+		Pending.Add({ TargetCell, Edge, Integrity, Turns, FreeRotations, Def.ActionId, Unit, Def.BaseActionId });
 	}
 
 	if (Pending.Num() == 0 && Moves.Num() == 0 && Rejections.Num() == 0)
@@ -4078,6 +4106,11 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura eretta (%d turni)"),
 			Op.Cell.X, Op.Cell.Y, Op.Cell.Layer, Op.Turns), FRTLogSubject::World());
 		++Applied;
+		// #3549: la copertura e' APPLICATA, quindi l'intento e' accettato. Un `Reject` e un `AddCover` rifiutato
+		// sopra non arrivano qui: un rifiuto non si attiva (spec §2.2, `Ruling` sulle coperture). Una struttura
+		// di un'unita' stordita SI attiva — questa funzione non passa da `RefuseMainActionIfStunned`.
+		EmitAbilityActivated(Op.Actor, ERTMatchPhase::Prep, Op.ActionId, Op.BaseActionId,
+			Op.Actor ? Op.Actor->StableUnitId : 0, Op.Cell, ERTAbilityShape::Single);
 	}
 
 	// Gli SPOSTAMENTI dopo le creazioni: agiscono su un campo gia' aggiornato, e l'ordine fra i due gruppi e'
@@ -4183,6 +4216,8 @@ int32 ARTTurnManager::ResolveCoverStructures(const TArray<ARTUnit*>& Units)
 		Entry2.TgtCell = Toward;
 		Entry2.Amount = MovedIntegrity; // l'integrita' viaggia con la copertura: spostarla non la ripara
 		AppendLogEntry(Entry2, Mover); // chi ha spostato la copertura
+		EmitAbilityActivated(Mover, ERTMatchPhase::Prep, Move.ActionId, Move.BaseActionId,
+			Mover ? Mover->StableUnitId : 0, Move.Cell, ERTAbilityShape::Single);
 		AddLogEvent(FString::Printf(TEXT("(q=%d,r=%d,L%d): copertura spostata%s"),
 			Move.Cell.X, Move.Cell.Y, Move.Cell.Layer, bWasFree ? TEXT(" (rotazione gratuita)") : TEXT("")), FRTLogSubject::World());
 		// Anche uno SPOSTAMENTO e' successo qualcosa. Contando solo le erezioni, un turno in cui l'unico
@@ -4282,6 +4317,11 @@ void ARTTurnManager::ResolvePrep()
 				bPrepActiveThisTurn = true; // armare e' un beat di Prep osservabile
 			}
 
+			// #3549 `Ruling`: anche la predittiva SENZA cella si attiva — l'unita' ha speso l'azione, e
+			// un'attivazione muta sarebbe indistinguibile da un difetto.
+			EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId,
+				Unit->StableUnitId, Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : Unit->Cell, Ability->Shape);
+
 			// L'abilita' e' comunque SPESA: chi ha scommesso ha pagato il cooldown, che la previsione sia
 			// giusta o no. E' la meta' del costo che rende il whiff una scelta e non un tentativo gratuito.
 			Unit->ConsumeAbility(Index);
@@ -4343,6 +4383,8 @@ void ARTTurnManager::ResolvePrep()
 			// costo-opportunita' di D-012, ed e' cio' che rende la scommessa una scommessa. «Se nessun
 			// trigger avviene, l'investimento e' perso» (`brief-azioni-generiche-overwatch.md` §6).
 			// Da non confondere con la CHARGE, che `bCharged` tiene e che solo un `FIRE` consuma.
+			EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Ability->Def.ActionId, Ability->Def.BaseActionId,
+				Unit->StableUnitId, Unit->Cell, Ability->Shape);
 			Unit->ConsumeAbility(Index);
 			Unit->PlannedAbilityIndex = INDEX_NONE;
 			Unit->ClearPlannedAttack();
@@ -4415,10 +4457,14 @@ void ARTTurnManager::ResolvePrep()
 		bPrepActiveThisTurn = true; // c'e' un beat di Prep da mostrare nel playback
 	}
 
-	// 5. Consuma le abilita' usate e libera i piani.
+	// 5. Consuma le abilita' usate e libera i piani. #3549: qui ogni istanza si ATTIVA, nell'ordine di
+	// `SortActionInstances` — il terzo dei tre ordini della fase (coperture, raccolta, istanze; spec §2.2).
 	for (const FRTActionInstance& Instance : Instances)
 	{
 		ARTUnit* Unit = Units[Instance.SourceUnitId];
+		const URTActionData* Usata = Unit->GetAbility(Unit->PlannedAbilityIndex);
+		EmitAbilityActivated(Unit, ERTMatchPhase::Prep, Instance.Def.ActionId, Instance.Def.BaseActionId,
+			Unit->StableUnitId, Unit->Cell, Usata ? Usata->Shape : ERTAbilityShape::Single);
 		Unit->ConsumeAbility(Unit->PlannedAbilityIndex);
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumato in Prep
 		Unit->ClearPlannedAttack();
@@ -4828,50 +4874,63 @@ void ARTTurnManager::ResolveDash()
 	const TArray<FRTRouteObserverTeam> ObserverTeams = BuildRouteObserverTeams(Units);
 	for (int32 i = 0; i < Units.Num(); ++i)
 	{
-		if (DashAbilityIdx[i] != INDEX_NONE && Resolved[i].Entered.Num() > 0)
+		if (DashAbilityIdx[i] == INDEX_NONE)
 		{
-			TArray<FRTCellId> Route;
-			Route.Add(Units[i]->Cell);
-			Route.Append(Resolved[i].Entered);
+			continue;
+		}
 
-			// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.SourceStableUnitId` due righe
-			// sotto. L'indice di `LastMoveRoutes` non la porta: l'`Add` e' condizionale (`#1497`).
-			FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
-			Tracked.StableUnitId = Units[i]->StableUnitId;
-			Tracked.Cells = Route;
+		// #3549, D4: l'attivazione PRIMA del `Move` dello stesso scatto, e anche quando lo scatto non entra in
+		// nessuna cella — una carica su un adiacente colpisce senza muoversi, e il gesto c'e' stato.
+		if (const URTActionData* Attivata = Units[i]->GetAbility(DashAbilityIdx[i]))
+		{
+			EmitAbilityActivated(Units[i], ERTMatchPhase::Dash, Attivata->Def.ActionId, Attivata->Def.BaseActionId,
+				/*TargetStableUnitId=*/ 0, Units[i]->PlannedDashCell, Attivata->Shape);
+		}
 
-			// Il verdetto per cella di [D-223], come nel sito del Move.
-			//
-			// ⚠️ **Queste rotte non arrivano a schermo**, e il verdetto si calcola lo stesso: `ResolveMovement`
-			// gira SEMPRE dopo `ResolveDash` nella stessa risoluzione e apre con `LastMoveRoutes.Reset()`.
-			// Una voce senza verdetto qui sarebbe pero' una voce fail-closed pronta a diventare visibile il
-			// giorno in cui quell'ordine cambia — cioe' una traccia che sparisce senza che nessuno capisca
-			// perche'. Il costo e' una risoluzione di percezione per cella, una volta per turno.
-			FreezeRouteVerdicts(Snapshot.Map, ObserverTeams, Units[i]->TeamId, Route, Tracked.CellVerdicts);
+		if (Resolved[i].Entered.Num() > 0)
+		{
+				TArray<FRTCellId> Route;
+				Route.Add(Units[i]->Cell);
+				Route.Append(Resolved[i].Entered);
 
-			FRTResolvedEvent Ev;
-			Ev.Phase = ERTMatchPhase::Dash;
-			Ev.Type = ERTResolvedEventType::Move;
-			Ev.SourceStableUnitId = Units[i]->StableUnitId;
-			Ev.Path = Route;
-			// `#2857`: con quale mobilita' si e' scattato. La fonte e' la STESSA del ciclo che scrive la voce
-			// di TurnLog poco piu' sotto — `Unit->GetAbility(DashAbilityIdx[i])->Def`, cioe' il catalogo — e
-			// non una deduzione dalla fase: `Dash` dice QUANDO, l'azione dice CON COSA, ed e' la distinzione
-			// che quella voce dichiara di voler conservare. Un'abilita' non risolvibile lascia `NAME_None`,
-			// come la voce di log che lo stesso `if` gia' salta.
-			if (const URTActionData* DashDef = Units[i]->GetAbility(DashAbilityIdx[i]))
-			{
-				Ev.ActionId = DashDef->Def.ActionId;
-				Ev.BaseActionId = DashDef->Def.BaseActionId;
-			}
-			// `#3117`: gli stati di chi scatta, al momento dello scatto.
-			Ev.SourceStatusNames = Units[i]->GetActiveStatusNames();
-			// 🔴 **Lo STESSO verdetto della traccia, copiato e non ricalcolato** (`#1525`). Questa era la
-			// «seconda strada» che la stessa rotta prendeva due righe piu' sotto: `LastMoveRoutes` moriva
-			// nel `Reset()` del Move e non arrivava a schermo, mentre questo evento ci arrivava — senza
-			// verdetto. Il Dash era quindi la meta' viva del difetto, non quella morta.
-			Ev.CellVerdicts = Tracked.CellVerdicts;
-			ResolvedTimeline.Add(Ev);
+				// L'identita' si prende da `Units[i]`, lo stesso indice da cui la prende `Ev.SourceStableUnitId` due righe
+				// sotto. L'indice di `LastMoveRoutes` non la porta: l'`Add` e' condizionale (`#1497`).
+				FRTMoveRoute& Tracked = LastMoveRoutes.AddDefaulted_GetRef();
+				Tracked.StableUnitId = Units[i]->StableUnitId;
+				Tracked.Cells = Route;
+
+				// Il verdetto per cella di [D-223], come nel sito del Move.
+				//
+				// ⚠️ **Queste rotte non arrivano a schermo**, e il verdetto si calcola lo stesso: `ResolveMovement`
+				// gira SEMPRE dopo `ResolveDash` nella stessa risoluzione e apre con `LastMoveRoutes.Reset()`.
+				// Una voce senza verdetto qui sarebbe pero' una voce fail-closed pronta a diventare visibile il
+				// giorno in cui quell'ordine cambia — cioe' una traccia che sparisce senza che nessuno capisca
+				// perche'. Il costo e' una risoluzione di percezione per cella, una volta per turno.
+				FreezeRouteVerdicts(Snapshot.Map, ObserverTeams, Units[i]->TeamId, Route, Tracked.CellVerdicts);
+
+				FRTResolvedEvent Ev;
+				Ev.Phase = ERTMatchPhase::Dash;
+				Ev.Type = ERTResolvedEventType::Move;
+				Ev.SourceStableUnitId = Units[i]->StableUnitId;
+				Ev.Path = Route;
+				// `#2857`: con quale mobilita' si e' scattato. La fonte e' la STESSA del ciclo che scrive la voce
+				// di TurnLog poco piu' sotto — `Unit->GetAbility(DashAbilityIdx[i])->Def`, cioe' il catalogo — e
+				// non una deduzione dalla fase: `Dash` dice QUANDO, l'azione dice CON COSA, ed e' la distinzione
+				// che quella voce dichiara di voler conservare. Un'abilita' non risolvibile lascia `NAME_None`,
+				// come la voce di log che lo stesso `if` gia' salta.
+				if (const URTActionData* DashDef = Units[i]->GetAbility(DashAbilityIdx[i]))
+				{
+					Ev.ActionId = DashDef->Def.ActionId;
+					Ev.BaseActionId = DashDef->Def.BaseActionId;
+				}
+				// `#3117`: gli stati di chi scatta, al momento dello scatto.
+				Ev.SourceStatusNames = Units[i]->GetActiveStatusNames();
+				// 🔴 **Lo STESSO verdetto della traccia, copiato e non ricalcolato** (`#1525`). Questa era la
+				// «seconda strada» che la stessa rotta prendeva due righe piu' sotto: `LastMoveRoutes` moriva
+				// nel `Reset()` del Move e non arrivava a schermo, mentre questo evento ci arrivava — senza
+				// verdetto. Il Dash era quindi la meta' viva del difetto, non quella morta.
+				Ev.CellVerdicts = Tracked.CellVerdicts;
+				ResolvedTimeline.Add(Ev);
 		}
 	}
 
