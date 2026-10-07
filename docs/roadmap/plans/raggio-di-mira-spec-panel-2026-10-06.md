@@ -11,6 +11,7 @@
 > - **DR-6** → [`D-466`](../../decisions/RT_PDR_00_Decision_Log.md): il click su una cella vuota si rifiuta **finché il bersaglio non è dichiarato**, non sempre come raccomandato qui (#705). Risponde a **Q1**: il waypoint con un'azione armata resta possibile dopo la dichiarazione, senza disarmo implicito.
 > - **DR-8** → nessuna portata finché resta armata un'azione in ricarica; rifiutare l'armo è una decisione a parte. **DR-5** → armare porta il piano attivo a quello da cui si mira; il disarmo (**Q6**) resta aperto. Entrambe in [#3517](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3517), fetta di #1944.
 > - **DR-4** → prima la misura sul pacchetto Shipping, poi il canale (#3508).
+> - **FR-1** «in ogni altro stato l'armo non produce `R`» e l'armo nel playback di **FR-5** → [`D-468`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-07): con `IsWorldReadOnly()` vero nessun ordine da tastiera passa, e il log ne dice la causa (#3510).
 > - **DR-14** → confermata la regola di #3513 (commento su #3507): la portata mostra anche le celle coperte, che il click rifiuta col motivo — un'eccezione dichiarata alla lettura «area = click» di D-128. **DR-3** era già decisa in #3507.
 > - Restano aperte **DR-7** — su `main` la portata resta accesa dopo la dichiarazione, e la PIE d'autore di #3507 la giudica distinguibile dall'area colpita; si decide insieme a D-466 punto 3 — e le domande **Q2**…**Q6**.
 
@@ -149,6 +150,7 @@ Livello user-goal. Attore: giocatore in `Planning`.
   produce `R`. Su `903154a41` l'armo di un'azione senza riserva **non** ricalcolava l'anteprima, per scelta dichiarata
   in `SelectAbilityForCurrent`; ✅ #3513 l'ha cambiato: l'armo di un'azione a bersaglio ora ridisegna. ⚠️ La metà
   «in ogni altro stato l'armo non produce `R`» resta aperta: l'armo non ha ancora una guardia di fase (#3510).
+  ✅ **Chiusa da #3510** ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)): durante la risoluzione l'armo è un no-op, e `HexMatch.PlaybackKeyboardArmIsANoOp` lo prova su tutte le superfici di pianificazione, portata compresa.
 - **FR-2 · Contenuto.** Per ogni `c ∈ HexArea(O, Ability->RangeCells)` sul `Layer` di `O` con
   `Map->ContainsCell(c)`: `c ∈ R` ⇔ `DescribeCellTargetRefusal(Map, O, c, Ability->RangeCells,
   Ability->Def.LineOfSightPolicy)` non rifiuta — la domanda che D-459 assegna a un'area, cioè
@@ -420,6 +422,7 @@ Ogni issue ha un owner solo; le altre relazioni sono dipendenze.
 - `BlastOriginCell` ignora la fase: un'azione `Environment` o `Preparation` dopo uno scatto viene anteprimata
   da una cella diversa da quella da cui il click la giudica (`RefreshPlanningPreview` applica `BlastOriginCell` a qualunque azione pianificata) — dentro #3509.
 - Si arma durante la risoluzione e il playback: `SelectAbilityForCurrent` non ha una guardia di fase — #3510.
+  ✅ Chiuso da #3510 ([`D-468`](../../decisions/RT_PDR_00_Decision_Log.md)), insieme a `Sneak` e `Invio`, che avevano la stessa forma.
 - `InterceptShot` non è dichiarabile dal click (kind `Unit`, ma vuole una cella): l'abilità si consuma senza
   armarsi.
 - Commenti stantii: `RTOverlayPalette.cpp` dice che un significato nuovo «rompe la COMPILAZIONE» (falso con i

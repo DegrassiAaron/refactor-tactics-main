@@ -46,7 +46,7 @@ resta fermo: lo dice solo la rilettura del §3.
 git fetch origin && git merge-base --is-ancestor 2b9b15d4c origin/main && echo "main contiene tutto"
 ```
 
-Apertura dal **clone principale**, con `-NoLiveCoding` perché non blocchi le build degli altri cloni.
+Apertura dal **clone principale**, con `-LiveCoding=false` perché non blocchi le build degli altri cloni. ⌫ Diceva `-NoLiveCoding`, che l'Editor non legge ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)).
 
 ---
 

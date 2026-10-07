@@ -135,7 +135,8 @@ namespace
 		const TArray<FString> Ids = URTScenarioRunner::ListScenarioIds();
 		if (Ids.Num() == 0)
 		{
-			Ar.Logf(TEXT("[RT-Test] nessuno scenario in %s"), *URTScenarioLoader::ScenariosRoot());
+			Ar.Logf(TEXT("[RT-Test] nessuno scenario in %s ne' in %s"),
+				*URTScenarioLoader::ScenariosRoot(), *URTScenarioLoader::LabScenariosRoot());
 			return;
 		}
 		Ar.Logf(TEXT("[RT-Test] %d scenari:"), Ids.Num());
@@ -216,7 +217,7 @@ namespace
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestList(
 	TEXT("rt.Test.List"),
-	TEXT("Elenca gli scenari di test versionati in Scenarios/."),
+	TEXT("Elenca gli scenari di test: quelli versionati in Scenarios/ e quelli del Lab in Saved/RTLab/Scenarios/."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(&RTTestListCommand));
 
 static FAutoConsoleCommandWithWorldArgsAndOutputDevice GRTTestRun(

@@ -327,6 +327,14 @@ Se devi invocare a mano lo stesso — un filtro che lo strumento non prevede, un
     -unattended -nopause -nosplash -nullrhi -NoLiveCoding "-abslog=<scratchpad della sessione>/<nome-parlante>.log"
 ```
 
+⚠️ **`-NoLiveCoding` qui non spegne il Live Coding: lo spegne `-unattended`** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)).
+In UE 5.8.1 `-NoLiveCoding` è un'opzione di UBT (`TargetRules.bWithLiveCoding`), e l'Editor non la legge; un
+processo `-unattended` invece non avvia il Live Coding (`FLiveCodingModule::StartupModule`), salvo un
+`-LiveCoding` esplicito. Il flag resta nella riga per un'altra ragione: i gate di `tools/mutation/` lo leggono
+come il segno di una run che non usa Live Coding ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md), il cui
+criterio è in discussione in [#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536)).
+`tools/suite/esegui.py` lo passa per la stessa ragione.
+
 ⛔ **`-abslog` e non `-log`, e non è una preferenza di percorso.** §11 punto 3 dichiara che è *«l'unica
 dichiarazione di possesso che sopravvive senza script: il processo stesso … se il processo non c'è, la
 dichiarazione non c'è»*. Un `-log=suite.log` relativo produce un processo **non attribuibile**: chi guarda
@@ -497,7 +505,13 @@ or press Ctrl+Alt+F11 if iterating on code in the editor or game
 Result: Failed (OtherCompilationError)
 ```
 
-⚠️ **La distinzione non è fra cloni, è fra Editor interattivo e run headless**: una suite parte con `-NoLiveCoding` e non blocca nessuno; un Editor aperto senza quel flag blocca tutti. ∴ **per una seduta di authoring asset passa `-NoLiveCoding`** — l'MCP non ne ha bisogno, Live Coding serve a ricompilare C++ senza riavviare — e gli altri possono continuare a compilare. Chi trova una build rifiutata così non cerchi il proprio clone: cerchi l'Editor, con
+⚠️ **La distinzione non è fra cloni, è fra Editor interattivo e run headless.** Una suite non blocca nessuno, per due ragioni: parte con `-unattended`, e un processo `-unattended` non avvia il Live Coding (`FLiveCodingModule::StartupModule`), salvo un `-LiveCoding` esplicito; e anche se lo avviasse, il suo mutex prende il nome di `UnrealEditor-Cmd.exe`, mentre UBT, per il target Editor, interroga quello di `UnrealEditor.exe`. Un Editor interattivo invece lo avvia e blocca tutti. ∴ **per una seduta di authoring asset passa `-LiveCoding=false`** — l'MCP non ne ha bisogno, Live Coding serve a ricompilare C++ senza riavviare — e gli altri possono continuare a compilare.
+
+⚠️ **`-LiveCoding=false` spegne l'avvio automatico, non il Live Coding.** Premere *Compile* o `Ctrl+Alt+F11` lo avvia lo stesso, e da lì il lock resta fino alla chiusura dell'Editor (`StopLiveCoding` rilascia il mutex, non lo chiude).
+
+⌫ **Fino al 2026-10-07 qui si prescriveva `-NoLiveCoding`, e non spegneva niente** ([#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)). È un'opzione di **UBT** (`TargetRules.bWithLiveCoding`, che compila il target senza Live Coding), e l'Editor non la legge: nei log scritti dal 2026-09-20, ogni Editor interattivo aperto con quel flag e arrivato all'avvio dei moduli ha scritto *«Starting LiveCoding»*. Chi lo passava per non bloccare gli altri li bloccava lo stesso. La riga che il motore legge è `-LiveCoding=false`, misurato lo stesso giorno su tre avvii di `UnrealEditor-Cmd` senza `-unattended`. Senza flag e con `-NoLiveCoding` il log dice *«Starting LiveCoding»*; con `-LiveCoding=false` non c'è nessuna riga `LogLiveCoding`. ✅ **Misurato su `UnrealEditor.exe` interattivo il 2026-10-07** (seduta `U67`, log della sessione con `-abslog`): avviato con `-LiveCoding=false`, il log non contiene **nessuna** riga `LogLiveCoding` e nessun `LiveCodingConsole` è partito.
+
+Chi trova una build rifiutata così non cerchi il proprio clone: cerchi l'Editor, con
 
 ```powershell
 Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select ProcessId, Name, CommandLine
@@ -507,7 +521,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%'" | Select Proce
 
 #### E se la build non può aspettare: la leva del builder
 
-`-NoLiveCoding` qui sopra è la leva di chi **apre** l'Editor. Ma chi resta bloccato è chi **compila**, e sull'Editor di un'altra sessione non può fare niente — non può chiuderlo (⛔ qui sopra) e non può passargli un flag a posteriori. La sua leva è `-NoHotReloadFromIDE`, su `Build.bat`:
+`-LiveCoding=false` qui sopra è la leva di chi **apre** l'Editor. Ma chi resta bloccato è chi **compila**, e sull'Editor di un'altra sessione non può fare niente — non può chiuderlo (⛔ qui sopra) e non può passargli un flag a posteriori. La sua leva è `-NoHotReloadFromIDE`, su `Build.bat`:
 
 ```powershell
 & "<engine>/Engine/Build/BatchFiles/Build.bat" RefactorTacticsEditor Win64 Development `
@@ -868,7 +882,7 @@ Get-CimInstance Win32_Process -Filter "Name LIKE 'UnrealEditor%' OR Name LIKE 'L
 | qualsiasi cosa nel **tuo** clone | qualsiasi cosa | **aspetta**: stesso `Binaries/` |
 | Editor interattivo in **qualunque** clone | build | **aspetta**: Live Coding è chiavato sul percorso dell'**eseguibile** di target, non sul `.uproject` — vedi §*Build Editor*. ⚠️ Diceva *«sul **tuo** clone — tiene il DLL»* fino al 2026-09-16: sbagliava **sede** e **meccanismo**, e contraddiceva §*Build Editor* nello stesso documento |
 | `LiveCodingConsole` col **padre vivo** | build in qualunque clone | **aspetta**: il lock è di chi sta iterando, e chiuderglielo gli costa il lavoro non salvato |
-| `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**: nessuno lo rilascerà, si **termina**. I gate di `tools/mutation/` lo fanno da sé, ma solo quando nessun motore vivo potrebbe usare Live Coding — interattivo no, headless con `-NoLiveCoding` sì ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)) |
+| `LiveCodingConsole` **orfano** — il `ParentProcessId` non risolve | build in qualunque clone | ⛔ **non aspettare**, se nessun Editor interattivo è vivo: nessuno lo rilascerà, si **termina**. ⚠️ **Con un Editor vivo, un padre che non risolve non vuol dire che nessuno lo usi**: un Editor aperto dopo si aggancia alla console del suo gruppo invece di aprirne una propria (log: *«Detected running instance in process group … connecting to console process»*, misurato il 2026-10-07, [#3522](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3522)). I gate di `tools/mutation/` lo fanno da sé, ma solo quando nessun motore vivo potrebbe usare Live Coding — interattivo no, headless sì se la riga porta `-NoLiveCoding` ([`D-400`](docs/decisions/RT_PDR_00_Decision_Log.md)). ⚠️ Quel flag non è ciò che spegne il Live Coding di una suite, lo è `-unattended`: il criterio di `D-400` è prudente, ma non è il segno vero |
 | qualsiasi cosa | build di un target **Engine** | **aspetta**, e avvisa: decade l'argomento di §9 |
 
 **5 · Se non puoi aspettare, non misurare comunque.** Si dichiara `NOT RUN` con il motivo — *«motore occupato da `<clone>`»* — invece di produrre un verde in finestra sporca. Un `NOT RUN` onesto costa un giro; una misura invalida costa la fiducia in tutte le altre.

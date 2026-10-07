@@ -137,6 +137,73 @@ namespace
 	}
 
 	/**
+	 * L'azione armata chiede un BERSAGLIO, e allora in targeting la portata prende il posto del ventaglio (`#3507`).
+	 *
+	 * Il predicato e' quello di `GetPointerContext` — armata, e non mobilita' rapida — piu' un bersaglio da scegliere:
+	 * un supporto su se stessi non ha una portata da mostrare, e uno scatto chiede una destinazione, cioe' il ventaglio.
+	 * ⛔ Una reazione si arma senza bersaglio, e scatta in risoluzione: non ha un punto in cui mirare.
+	 */
+	bool ChiedeUnBersaglio(const URTActionData& Armata)
+	{
+		return !URTCatalogLibrary::IsFastMovement(Armata.Def) && Armata.Def.Slot != ERTActionSlot::Reaction
+			&& URTPointerLibrary::TargetKindForAction(Armata.Def, Armata.bSelfTarget, Armata.Shape)
+				!= ERTPointerTargetKind::None;
+	}
+
+	/**
+	 * ...e quella portata ha celle da mostrare (`#3517`). Ogni congiunto toglie un caso in cui il click rifiuterebbe
+	 * ogni cella dell'area, cioe' la lettura che [D-128] vieta:
+	 *
+	 * - **pronta** — `DR-8`, decisione d'autore del 2026-10-06. Un'azione attiva in ricarica si arma ancora
+	 *   (`SelectAbilityForCurrent`), ma `HandleTargetCell` e il click su un'unita' ne rifiutano ogni bersaglio: la
+	 *   ricarica la dice la riga dello slot, non un'area;
+	 * - **portata positiva** — `AC-10`. Con portata `0` `TargetableRangeCells` restituisce la sola cella del tiratore,
+	 *   e `Action.Wait` contornava di viola l'unita' stessa;
+	 * - **tiratore vivo** — `AC-10`: un'unita' caduta, ancora selezionata a fine playback, non mira.
+	 *
+	 * ⚠️ **Non decide il ventaglio**: quello lo spegne un'azione che chiede un bersaglio con una portata positiva
+	 * (`RefreshPlanningPreview`). Con un'azione in ricarica armata la board non mostra ne' l'uno ne' l'altra, che e'
+	 * cio' che `DR-8` chiede.
+	 */
+	bool MostraLaPortata(const ARTUnit* Unit, int32 Index, const URTActionData& Armata)
+	{
+		return ChiedeUnBersaglio(Armata) && Unit->IsAlive() && Unit->CanUseAbility(Index) && Armata.RangeCells > 0;
+	}
+
+	/**
+	 * La cella da cui si mira, e da cui si misura la portata. 🔑 **Una sola espressione per la portata e per il piano
+	 * attivo** (`DR-5`, `#3517`): se divergessero, la portata starebbe su un piano e il click su un altro.
+	 *
+	 * ⚠️ E' la cella in cui l'unita' si trova, la stessa da cui misurano la portata `HandleTargetCell` e il click su
+	 * un'unita' — che pero' la leggono da `Unit->Cell`, non da qui. Con uno scatto pianificato l'origine cambia per
+	 * fase (`#3509`, [D-464]): va cambiata qui **e** in quei siti insieme, o portata e click tornano a divergere.
+	 */
+	FRTCellId OrigineDiMira(const ARTUnit* Unit)
+	{
+		return Unit->Cell;
+	}
+
+	/**
+	 * Perche' `IsWorldReadOnly()` e' vero, detto al giocatore e non al programmatore ([D-468], `#3510`). Un ordine
+	 * rifiutato nomina la CAUSA. Il ramo dell'autobattle prometteva anche «o fase che non accetta ordini», e la fase
+	 * non la guardava: durante il playback l'ordine passava, e la riga che l'avrebbe spiegato non esisteva.
+	 */
+	const TCHAR* PercheIlMondoESoloLettura(ERTPointerContext Context)
+	{
+		switch (Context)
+		{
+		case ERTPointerContext::ResolutionPlayback:
+			return TEXT("il turno si sta risolvendo, e fino alla fine del playback il piano e' in sola lettura");
+		case ERTPointerContext::ReactionWindow:
+			return TEXT("e' aperta una finestra di reazione, e il piano e' in sola lettura");
+		case ERTPointerContext::Modal:
+			return TEXT("una schermata bloccante copre la partita");
+		default:
+			return TEXT("il mondo e' in sola lettura");
+		}
+	}
+
+	/**
 	 * Aggiorna l'anteprima di pianificazione (SOLA PRESENTAZIONE) dallo stato dell'unita' selezionata:
 	 * dove puo' arrivare, da DOVE agira' e quali celle colpirebbe — segnalando gli ALLEATI che finirebbero
 	 * nell'area.
@@ -199,22 +266,21 @@ namespace
 		}
 
 		// 🔑 **In targeting la PORTATA prende il posto del ventaglio** (`#3507`, decisione d'autore del 2026-10-06): con
-		// un'azione a bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare». Il predicato e' quello
-		// di `GetPointerContext` — armata, e non mobilita' rapida — piu' un bersaglio da scegliere: un supporto su se
-		// stessi non ha una portata da mostrare, e uno scatto chiede una destinazione, cioe' il ventaglio.
-		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dalla cella in cui l'unita' si
-		// trova: e' da li' che `HandleTargetCell` e il click su un'unita' misurano la portata.
+		// un'azione a bersaglio armata la domanda e' «dove posso mirare», non «dove posso andare».
+		// ⛔ Le celle vengono da `TargetableRangeCells`, la classificazione del click, dall'origine di mira.
+		//
+		// ⚠️ **Spegnere il ventaglio e mostrare la portata sono due domande** (`#3517`). Un'azione in ricarica chiede un
+		// bersaglio — il ventaglio si spegne, `DR-8` — ma non ha celle su cui il click venga accettato. `Action.Wait`
+		// invece ha portata `0`, cioe' nessuna area di mira che prenda il posto del ventaglio: il ventaglio resta, e la
+		// portata che contornava la cella dell'unita' sparisce (referto del 2026-10-06, §13: erano due difetti).
 		bool bMira = false;
 		TArray<FRTCellId> Portata;
 		if (const URTActionData* Armata = Unit->GetAbility(Unit->SelectedAbilityIndex))
 		{
-			// ⛔ Una reazione si arma senza bersaglio, e scatta in risoluzione: non ha un punto in cui mirare.
-			bMira = !URTCatalogLibrary::IsFastMovement(Armata->Def) && Armata->Def.Slot != ERTActionSlot::Reaction
-				&& URTPointerLibrary::TargetKindForAction(Armata->Def, Armata->bSelfTarget, Armata->Shape)
-					!= ERTPointerTargetKind::None;
-			if (bMira)
+			bMira = ChiedeUnBersaglio(*Armata) && Armata->RangeCells > 0;
+			if (MostraLaPortata(Unit, Unit->SelectedAbilityIndex, *Armata))
 			{
-				Portata = URTCombatLibrary::TargetableRangeCells(Map, Unit->Cell, Armata->RangeCells,
+				Portata = URTCombatLibrary::TargetableRangeCells(Map, OrigineDiMira(Unit), Armata->RangeCells,
 					Armata->Def.LineOfSightPolicy);
 			}
 		}
@@ -1260,9 +1326,21 @@ bool ARTPlayerController::ToggleTurnPlanDeclared()
 		return false;
 	}
 
+	// 🔴 **[D-468] (`#3510`): durante la risoluzione nessun ordine passa, e dichiarare il piano lo e'.** Il
+	// Cleanup che azzera la dichiarazione gira PRIMA del playback (`ConcludeResolution`): un `Invio` premuto
+	// mentre la risoluzione scorre apriva il turno dopo con l'unita' gia' conclusa, e `TAB` la saltava.
+	// ⛔ L'elenco di [D-468] non nomina `Invio`, ma la regola del titolo lo comprende: e' la porta del pulsante
+	// `Conferma`, e la stessa forma di `Sneak` — una dichiarazione sul piano dell'unita'.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
+		return false;
+	}
+
 	// ⚠️ **Qui la guardia `IsPlanningInputInert` SERVE**, al contrario di `TAB`: dichiarare che le mosse
-	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle, o in una fase che non
-	// accetta ordini, non c'e' niente da dichiarare.
+	// sono decise e' una decisione di turno, non un cambio di soggetto. In autobattle non c'e' niente da
+	// dichiarare. ⏱️ *Fino a `#3510` diceva anche «o in una fase che non accetta ordini»*: questa guardia la fase
+	// non la guarda, e la regola della fase e' quella qui sopra.
 	if (IsPlanningInputInert())
 	{
 		UE_LOG(LogRT, Display, TEXT("[RT] Enter ignorato: input di planning inerte"));
@@ -2940,12 +3018,30 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 		return;
 	}
 
+	// 🔴 **[D-468] (`#3510`): durante la risoluzione il mondo e' in sola lettura anche per la tastiera.** I click
+	// sul mondo escono su `IsWorldReadOnly()` da `#2518`; questa porta — tasti, generiche, slot del dock — no.
+	// Un tasto premuto durante il playback armava, riaccendeva la portata che il commit aveva spento e, per
+	// un'azione su se stessi, scriveva il piano. E la risoluzione consuma il piano e il Cleanup disarma PRIMA del
+	// playback (`LockInAndResolve`, poi `ConcludeResolution`): quell'armo entrava nel turno dopo, un pre-armo che
+	// nessuno aveva deciso.
+	//
+	// ⚠️ Vale anche per il DISARMO, che passa di qui (`ArmKitAbility`): non ha niente da togliere, perche' il
+	// Cleanup ha gia' disarmato, e lasciarlo passare sarebbe un secondo canale con regole proprie.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: %s"),
+			*Richiesta, PercheIlMondoESoloLettura(GetPointerContext()));
+		return;
+	}
+
 	// #971 — secondo dei cinque siti `Order`, e vale per tutti e dieci i tasti abilita' per la stessa
 	// ragione del commento qui sopra.
+	//
+	// ⏱️ *Fino a `#3510` la riga prometteva «autobattle, o fase che non accetta ordini»*, e la fase questa
+	// guardia non la guarda: la promessa la mantiene ora `IsWorldReadOnly()` qui sopra, con la sua causa.
 	if (IsPlanningInputInert())
 	{
-		UE_LOG(LogRT, Display,
-			TEXT("[RT] %s ignorata: input di planning inerte (autobattle, o fase che non accetta ordini)"),
+		UE_LOG(LogRT, Display, TEXT("[RT] %s ignorata: input di planning inerte, l'autobattle e' attivo"),
 			*Richiesta);
 		return;
 	}
@@ -3186,6 +3282,17 @@ void ARTPlayerController::SelectAbilityForCurrent(int32 Index, ERTAbilityRequest
 	// che nessuno debba ricordarsene.
 	// 🔑 **Un'azione a bersaglio cambia l'anteprima anche senza riserva** (`#3507`): la portata prende il posto del
 	// ventaglio. ⏱️ *Fino a `#3507` qui si aggiornava solo con la riserva*, perche' armare non cambiava niente a schermo.
+	//
+	// 🔴 **E armare porta il piano attivo a quello da cui si mira** (`DR-5`, decisione d'autore del 2026-10-06,
+	// `#3517`). Il click si risolve sul piano attivo: con la portata disegnata sul piano del tiratore e il piano attivo
+	// altrove, ogni cella della portata cliccata diventava la cella di un altro piano, e `HandleTargetCell` la
+	// rifiutava con «su un altro piano». ⚠️ Solo all'armo: se poi il giocatore cambia piano a mano, la portata resta
+	// dov'e' e il click altrove riceve quel rifiuto. Al disarmo il piano attivo non torna a quello di prima: e' la
+	// `Q6` del referto del 2026-10-06, e non e' decisa.
+	if (MostraLaPortata(Unit, Index, *Ability))
+	{
+		SetActiveLayer(OrigineDiMira(Unit).Layer);
+	}
 	bAnteprimaDaAggiornare = true;
 	AggiornaAnteprima();
 	UE_LOG(LogRT, Display, TEXT("[RT] %s: abilita' attiva -> %s"), *Unit->GetName(), *Ability->DisplayName.ToString());
@@ -3378,6 +3485,15 @@ void ARTPlayerController::ToggleSneakDeclaration()
 	// Una schermata bloccante copre la partita: questo input non le arriva.
 	if (IsGameplayInputBlocked())
 	{
+		return;
+	}
+
+	// [D-468] (`#3510`): dichiarare `Sneak` e' un ordine, e durante la risoluzione nessun ordine passa. La
+	// dichiarazione non la azzera nessuno — resta finche' non la si ritira ([D-425]) —, quindi un `M` premuto
+	// mentre la risoluzione scorre cambiava il passo del turno dopo, deciso quando il piano era in sola lettura.
+	if (IsWorldReadOnly())
+	{
+		UE_LOG(LogRT, Display, TEXT("[RT] Sneak ignorato: %s"), PercheIlMondoESoloLettura(GetPointerContext()));
 		return;
 	}
 

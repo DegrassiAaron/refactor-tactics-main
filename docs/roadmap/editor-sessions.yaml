@@ -4614,14 +4614,15 @@ sessions:
 
       Lancio, da clone principale, con l Editor compilato DAL CANDIDATE:
         & "<engine>\Engine\Binaries\Win64\UnrealEditor.exe" "<repo>\RefactorTactics.uproject" `
-            -NoLiveCoding -abslog=<repo>\Saved\Logs\g16-u60.log
+            -LiveCoding=false -abslog=<repo>\Saved\Logs\g16-u60.log
 
       🔑 **L `-abslog` NON e per te: e il testimone che il giro e stato UNO.** Il criterio chiede
       "una sola apertura", e una dichiarazione non lo prova — un log solo si. Va citato in
       `artifacts:` a seduta finita. ⚠️ Virgolettato se il percorso ha spazi: senza, si perde in
       silenzio e resti senza log.
-      🔑 **`-NoLiveCoding` e cortesia verso chi compila**: un Editor interattivo senza quel flag
-      blocca `Build.bat` su TUTTI i cloni, non solo sul proprio (AGENTS.md §9).
+      🔑 **`-LiveCoding=false` e cortesia verso chi compila**: un Editor interattivo senza quel flag
+      blocca `Build.bat` su TUTTI i cloni, non solo sul proprio (AGENTS.md §9). ⌫ Fino al 2026-10-07
+      qui c era `-NoLiveCoding`, che l Editor non legge (#3522).
 
       --- DOVE SI APRONO LE CINQUE SUPERFICI ---------------------------------------------------
 
@@ -4752,7 +4753,7 @@ sessions:
     #   - le **icone** del mockup: sono segnaposto, e le vere vengono da `DA_IconCatalog` via `IconId`.
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
-    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`, perche' non blocchi le build degli altri cloni.
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false`, perche' non blocchi le build degli altri cloni (#3522).
     notes: |
       Scritta il 2026-10-04 dal triage del mockup della skill bar
       (`docs/roadmap/plans/skill-bar-mockup-spec-panel-2026-10-04.md`).
@@ -4910,7 +4911,7 @@ sessions:
     # esclude; il selettore di profilo, che contraddice D-425; lo slot della difesa caratteristica (#3130).
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
-    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false` (#3522).
     notes: |
       Scritta il 2026-10-04 dalla PR di #3469 (referto
       `docs/roadmap/plans/skill-bar-fascia-bassa-spec-panel-2026-10-04.md`). Numero concordato con la
@@ -5016,7 +5017,7 @@ sessions:
     # «PIANIFICAZIONE» e i chip ([D-456] punto 6).
     #
     # ⚠️ **Dove eseguirla: nel clone principale**, che ospita il bridge MCP e il `Content` completo
-    # (`CLAUDE.md` §10). Apertura con `-NoLiveCoding`.
+    # (`CLAUDE.md` §10). Apertura con `-LiveCoding=false` (#3522).
     notes: |
       Scritta il 2026-10-05 dalla PR del C++ di #3498, dopo che l'autore aveva detto in PIE: «la grafica
       ancora e' molto distante dai mockup».
@@ -5064,6 +5065,33 @@ sessions:
       Corretto in #3524. Alla seconda prova: «ora si legge il tooltip».
       ⚠️ **Nessuna cattura versionata.** Il tooltip di Slate apre una finestra sua, che `PrintWindow` sul gioco
       non vede, e lo schermo era in uso da altre sessioni, quindi non se ne poteva prendere una regione.
+
+  - id: U67
+    title: Il banco Ability Lab → PIE — il pulsante «Esegui in PIE» e il ripristino delle CVar
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-LAB-PIE`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-LAB-PIE]
+    issues: [3532]
+    done_when: >-
+      la voce `PIE-LAB-PIE` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
+    notes: |
+      Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-banco-abilita-in-pie.md`
+      (spec `docs/superpowers/specs/2026-10-07-banco-abilita-in-pie-design.md`), che arrivano in `main` con
+      la PR del branch `docs/banco-abilita-in-pie-spec`, separata da quella di #3532.
+      L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: Editor su una mappa diversa da
+      `L_DevSandbox` che usi il GameMode di progetto, es. `L_HexArena`, pannello Ability Lab, un'abilità con bersaglio, e `rt.Test.Scenario Core.PhaseOrder`
+      digitata PRIMA del clic. Il criterio (4) richiede un Blueprint di prova non versionato con un errore di compilazione, ed è facoltativo.
+
+      ✅ **Eseguita il 2026-10-07** dalla sessione che ha scritto il codice, su richiesta dell'autore, su `main` = `a84e62aae`
+      col bridge MCP a guidare Slate (menu Tools → pannello, console via appunti, catture con `CaptureEditorImage`).
+      Il verdetto, criterio per criterio, è in `test-manuali-pie.md`; il (4) è `NOT RUN`.
+
   - id: U68
     title: Il colpo che parte e arriva — il tracer degli attacchi base
     block: 6
