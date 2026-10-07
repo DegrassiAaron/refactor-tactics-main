@@ -1,6 +1,7 @@
 #include "SRTLabPanel.h"
 
 #include "Ability/RTHeroLab.h"
+#include "RTLabPieLauncher.h"
 
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -112,6 +113,15 @@ TSharedRef<SWidget> SRTLabPanel::CostruisciEsecuzione()
 		.ToolTipText(LOCTEXT("EseguiTip",
 			"Costruisce la fixture deterministica e la esegue con il resolver reale."))
 		.OnClicked(this, &SRTLabPanel::OnEsegui)
+	]
+	+ SHorizontalBox::Slot().AutoWidth().Padding(6.f, 0.f, 0.f, 0.f)
+	[
+		SNew(SButton)
+		.Text(LOCTEXT("EseguiInPie", "Esegui in PIE"))
+		.ToolTipText(LOCTEXT("EseguiInPieTip",
+			"Salva la fixture in Saved/RTLab/Scenarios, imposta rt.Test.Scenario e avvia PIE su L_DevSandbox. "
+			"Le CVar tornano com'erano a fine PIE."))
+		.OnClicked(this, &SRTLabPanel::OnEseguiInPie)
 	];
 }
 
@@ -149,6 +159,8 @@ void SRTLabPanel::OnSelezione(FVoce Voce, ESelectInfo::Type)
 FReply SRTLabPanel::OnEsegui()
 {
 	UltimoErrore.Reset();
+	// La riga di stato mostra una cosa sola: l'ultimo gesto. Senza questo, il messaggio del PIE nasconde l'esito.
+	UltimoIdLanciato.Reset();
 
 	// Un mondo transitorio, creato e distrutto qui. Il livello aperto nell'editor non viene toccato.
 	UWorld* Mondo = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
@@ -178,6 +190,27 @@ FReply SRTLabPanel::OnEsegui()
 		UltimoErrore = Errore;
 	}
 
+	return FReply::Handled();
+}
+
+FReply SRTLabPanel::OnEseguiInPie()
+{
+	UltimoErrore.Reset();
+	UltimoIdLanciato.Reset();
+
+	FString Id, Errore;
+	if (!Modello.PrepareForPie(Id, Errore))
+	{
+		UltimoErrore = Errore;
+		return FReply::Handled();
+	}
+	if (!FRTLabPieLauncher::Launch(Id, Errore))
+	{
+		UltimoErrore = Errore;
+		return FReply::Handled();
+	}
+
+	UltimoIdLanciato = Id;
 	return FReply::Handled();
 }
 
@@ -277,6 +310,15 @@ FText SRTLabPanel::TestoEsito() const
 	if (!UltimoErrore.IsEmpty())
 	{
 		return FText::FromString(FString::Printf(TEXT("⛔ %s"), *UltimoErrore));
+	}
+
+	if (!UltimoIdLanciato.IsEmpty())
+	{
+		// La riga di log la scrive `FRTScenarioCoordinator` e COMINCIA cosi'; seguono turni e pausa.
+		return FText::FromString(FString::Printf(
+			TEXT("PIE richiesto per %s su L_DevSandbox.\nNel log cerca: [RT-Test] AUTO-RUN %s (da: console rt.Test.Scenario)\n"
+				 "A fine PIE le CVar tornano com'erano."),
+			*UltimoIdLanciato, *UltimoIdLanciato));
 	}
 
 	const FRTLabRunResult& Esito = Modello.LastRun();

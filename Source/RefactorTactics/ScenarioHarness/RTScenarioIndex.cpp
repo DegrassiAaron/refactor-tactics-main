@@ -123,11 +123,30 @@ TArray<FRTScenarioEntry> URTScenarioIndex::BuildFrom(const TArray<TPair<FString,
 
 TArray<FRTScenarioEntry> URTScenarioIndex::Scan(TArray<FString>& OutProblems)
 {
-	const FString Root = URTScenarioLoader::ScenariosRoot();
+	return ScanRoots({ URTScenarioLoader::ScenariosRoot() }, OutProblems);
+}
 
+TArray<FRTScenarioEntry> URTScenarioIndex::ScanAll(TArray<FString>& OutProblems)
+{
+	return ScanRoots({ URTScenarioLoader::ScenariosRoot(), URTScenarioLoader::LabScenariosRoot() }, OutProblems);
+}
+
+TArray<FRTScenarioEntry> URTScenarioIndex::ScanRoots(const TArray<FString>& Roots, TArray<FString>& OutProblems)
+{
 	TArray<FString> FoundFiles;
-	IFileManager::Get().FindFilesRecursive(FoundFiles, *Root, TEXT("*.json"),
-		/*Files=*/ true, /*Directories=*/ false);
+	for (const FString& Root : Roots)
+	{
+		// Radice vuota = non disponibile (il Lab sotto automation): saltarla, non scansionare la cartella corrente.
+		if (Root.IsEmpty())
+		{
+			continue;
+		}
+
+		// Una radice assente produce zero file e nessun errore: `FindFilesRecursive` non protesta.
+		// `bClearFileNames=false`: di default svuoterebbe `FoundFiles` a ogni radice successiva alla prima.
+		IFileManager::Get().FindFilesRecursive(FoundFiles, *Root, TEXT("*.json"),
+			/*Files=*/ true, /*Directories=*/ false, /*bClearFileNames=*/ false);
+	}
 
 	TArray<TPair<FString, FString>> Loaded;
 	TArray<FString> ReadProblems;
@@ -238,7 +257,7 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 	}
 
 	TArray<FString> Problems;
-	const TArray<FRTScenarioEntry> Entries = Scan(Problems);
+	const TArray<FRTScenarioEntry> Entries = ScanAll(Problems);
 
 	// Cerca prima l'ID così com'è: un ID **vivo** deve vincere su una voce di redirect rimasta indietro,
 	// altrimenti riusare un nome liberato porterebbe al file sbagliato.
@@ -326,10 +345,20 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 		return FString();
 	}
 
-	// Nessuna corrispondenza: il messaggio dice DOVE si è cercato e quanti scenari c'erano, così chi legge
-	// distingue «ho sbagliato l'ID» da «la cartella degli scenari non è quella che credevo».
-	OutError = FString::Printf(TEXT("scenario '%s' non trovato nell'indice (%d scenari sotto %s)"),
-		*ScenarioId, Entries.Num(), *URTScenarioLoader::ScenariosRoot());
+	// Nessuna corrispondenza: il messaggio dice DOVE si è cercato, così chi legge distingue «ho sbagliato
+	// l'ID» da «la cartella degli scenari non è quella che credevo». ⚠️ Nessun totale: un conteggio di
+	// scenari in un messaggio invecchia da solo e si legge come corrente (AGENTS.md §14).
+	const FString LabRoot = URTScenarioLoader::LabScenariosRoot();
+	if (LabRoot.IsEmpty())
+	{
+		OutError = FString::Printf(TEXT("scenario '%s' non trovato nell'indice (cercato sotto %s; radice del Lab non disponibile)"),
+			*ScenarioId, *URTScenarioLoader::ScenariosRoot());
+	}
+	else
+	{
+		OutError = FString::Printf(TEXT("scenario '%s' non trovato nell'indice (cercato sotto %s e sotto %s)"),
+			*ScenarioId, *URTScenarioLoader::ScenariosRoot(), *LabRoot);
+	}
 	if (Problems.Num() > 0)
 	{
 		OutError += FString::Printf(TEXT(" · %d file con problemi: %s"), Problems.Num(), *FString::Join(Problems, TEXT(" · ")));
@@ -340,8 +369,17 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 TArray<FString> URTScenarioIndex::ListIds(const FString& FilterA, const FString& FilterB)
 {
 	TArray<FString> Problems;
-	const TArray<FRTScenarioEntry> Entries = Scan(Problems);
+	return IdsFrom(ScanAll(Problems), FilterA, FilterB);
+}
 
+TArray<FString> URTScenarioIndex::ListVersionedIds(const FString& FilterA, const FString& FilterB)
+{
+	TArray<FString> Problems;
+	return IdsFrom(Scan(Problems), FilterA, FilterB);
+}
+
+TArray<FString> URTScenarioIndex::IdsFrom(const TArray<FRTScenarioEntry>& Entries, const FString& FilterA, const FString& FilterB)
+{
 	const FString A = NormalizeTag(FilterA);
 	const FString B = NormalizeTag(FilterB);
 
@@ -360,8 +398,17 @@ TArray<FString> URTScenarioIndex::ListIds(const FString& FilterA, const FString&
 TArray<FString> URTScenarioIndex::ListTags()
 {
 	TArray<FString> Problems;
-	const TArray<FRTScenarioEntry> Entries = Scan(Problems);
+	return TagsFrom(ScanAll(Problems));
+}
 
+TArray<FString> URTScenarioIndex::ListVersionedTags()
+{
+	TArray<FString> Problems;
+	return TagsFrom(Scan(Problems));
+}
+
+TArray<FString> URTScenarioIndex::TagsFrom(const TArray<FRTScenarioEntry>& Entries)
+{
 	TArray<FString> Tags;
 	for (const FRTScenarioEntry& Entry : Entries)
 	{
