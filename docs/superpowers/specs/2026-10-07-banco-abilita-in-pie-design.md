@@ -5,6 +5,10 @@
 > stessa richiesta d'autore, elencati in §0; gli altri tre avranno ciascuno la propria spec quando
 > arriverà il loro turno.
 >
+> **Revisione indipendente** del 2026-10-07 (agente revisore, letta su `3b50eaf7f`): dieci affermazioni
+> verificate sul codice, dieci findings accolti. I cambiamenti che ne derivano sono marcati `➕ rev.` nel
+> testo; la via `GlobalMapOverride` di §2 è emersa nello stesso giro leggendo gli header dell'Engine.
+>
 > **Stato misurato**: 2026-10-07, `main` = `8286276e1`. Ogni riga `file:riga` qui sotto è stata letta su
 > quel commit; chi la rilegge più tardi la **rimisura**. Nessun totale volatile in questo documento: dove
 > serve una misura c'è il comando che la produce.
@@ -79,9 +83,11 @@ Tre pezzi di questo giro esistono già e non si parlano:
 - `URTAbilityLabLibrary::BuildFixture` (`Ability/RTAbilityLab.h`) costruisce uno scenario valido per
   qualunque abilità canonica, con Id `AbilityLab.<AbilityId>` e tag `ability-lab`
   (`Ability/RTAbilityLab.cpp:251-254`). Fail-closed: un'abilità non canonica non produce una fixture a metà;
-- `URTScenarioLoader::SaveToFile` (`ScenarioHarness/RTScenarioLoader.h:171`) valida e scrive uno
-  scenario; `URTScenarioIndex::Scan` indicizza ricorsivamente **una sola radice**,
-  `FPaths::ProjectDir()/Scenarios` (`RTScenarioIndex.cpp:124-129`, `RTScenarioLoader.cpp:709-712`);
+- `URTScenarioLoader::SaveToFile` (dichiarata in `ScenarioHarness/RTScenarioLoader.h:171`,
+  **implementata in `RTScenarioWriter.cpp`**) valida e scrive uno scenario; `URTScenarioIndex::Scan`
+  indicizza ricorsivamente **una sola radice**, `FPaths::ProjectDir()/Scenarios`
+  (`RTScenarioIndex.cpp:124-129`, `RTScenarioLoader.cpp:709-712`). Un Id dichiarato da più file è
+  segnalato da `BuildFrom` e reso **non lanciabile** da `ResolvePath`, che risponde «ambiguo»;
 - `ARTGameMode::ResolveScenarioToRun` (`RTGameMode.cpp`) legge quattro sorgenti — seduta PIE, console,
   riga di comando, property — e lo Scenario Harness esegue lo scenario **nel TurnManager vero, con
   playback visivo** (`ScenarioHarness/RTScenarioSession.cpp`).
@@ -100,28 +106,51 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
    la salva in `Saved/RTLab/Scenarios/<ScenarioId>.json` tramite `URTScenarioLoader::SaveToFile`, che
    valida prima di toccare il disco. Una fixture invalida non produce un file. `Saved/` è in `.gitignore`
    (riga `Saved/`): niente entra in git.
-2. **Indicizzazione.** `URTScenarioIndex::Scan` legge una **seconda radice**, `Saved/RTLab/Scenarios/`.
-   `rt.Test.Scenario AbilityLab.Hero.Aevik.ArcPulse` risolve quindi come qualunque altro Id, e
-   `rt.Test.List` lo elenca con il suo tag `ability-lab`.
-3. **Avvio.** Il pannello, lato Editor, apre `/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox` se non è la
-   mappa corrente (`FEditorFileUtils::LoadMap`), **cattura** i valori correnti di `rt.Test.Scenario` e
-   `rt.Debug.PlaybackControls`, li imposta sull'Id e su `1`, poi chiede PIE con
-   `GEditor->RequestPlaySession`. Da lì in avanti il percorso è quello esistente: il GameMode risolve lo
-   scenario dalla console e lo Scenario Harness lo gioca nel TurnManager con il playback.
-4. **Ripristino.** Su `FEditorDelegates::EndPIE` il pannello riapplica i valori catturati al passo 3 — non
-   un `""` cieco: ripristina ciò che c'era. Senza questo passo il Play successivo rilancerebbe lo scenario
-   del Lab in silenzio.
+   ➕ rev. **Poi verifica di essere lanciabile**: chiama `URTScenarioIndex::ResolvePath` sull'Id e
+   pretende che il percorso risolto sia **quel** file. Se un `AbilityLab.<AbilityId>` esiste anche in
+   `Scenarios/`, l'indice risponde «ambiguo» e `PrepareForPie` ritorna `false` con quel motivo, invece di
+   lasciare che il GameMode lo scopra a schermo.
+2. **Indicizzazione.** ➕ rev. L'indice impara una **seconda radice**, `Saved/RTLab/Scenarios/`, ma
+   **non dentro `Scan`**. `Scan` resta a una radice, perché due gate sul corpus la usano come «tutto ciò
+   che è versionato» — `ScenarioIndex.ShippedScenariosAreTagged` e `WriterRoundTripsShippedScenarios` — e
+   un file stantio in `Saved/` di una macchina li farebbe rossi lì e verdi altrove. Si aggiunge
+   `ScanAll`, che legge entrambe le radici, e la usano le **ricerche** — `ResolvePath`, `ListIds`,
+   `ListTags` — cioè il GameMode, la console e il Launcher. `rt.Test.Scenario AbilityLab.Hero.Aevik.ArcPulse`
+   risolve quindi come qualunque altro Id, e `rt.Test.List` lo elenca (il comando stampa i soli Id; il tag
+   `ability-lab` serve ai filtri di `ListIds`).
+3. **Avvio.** ➕ rev. Il pannello, lato Editor, **non apre la mappa nell'Editor**: chiede PIE con
+   `GEditor->RequestPlaySession` passando `FRequestPlaySessionParams::GlobalMapOverride =
+   "/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox"`. È il campo che l'Engine documenta come *«Override which
+   map is loaded for the Play session»* e che `UGameInstance::InitializeForPlayInEditor` legge come
+   `OverrideMapURL`. Il livello aperto nell'Editor resta com'è, sporco o pulito che sia. Prima della
+   richiesta il lanciatore **cattura** i valori correnti di `rt.Test.Scenario` e
+   `rt.Debug.PlaybackControls` e li imposta sull'Id e su `1` con priorità **`ECVF_SetByConsole`**: un
+   `Set` a priorità `SetByCode` sarebbe ignorato con un solo warning se l'utente avesse già digitato la
+   variabile in console, e il banco giocherebbe lo scenario sbagliato credendo di aver scelto. Se una
+   delle due CVar non si trova, il lanciatore si ferma **prima** di toccare l'altra. Da lì in avanti il
+   percorso è quello esistente: il GameMode risolve lo scenario dalla console e lo Scenario Harness lo
+   gioca nel TurnManager con il playback.
+4. **Ripristino.** ➕ rev. Su `FEditorDelegates::EndPIE` **oppure** `FEditorDelegates::CancelPIE` il
+   lanciatore riapplica i valori catturati al passo 3, sempre con `ECVF_SetByConsole` — non un `""`
+   cieco: ripristina ciò che c'era. `CancelPIE` copre il PIE che **non comincia** (errore di compilazione,
+   Live Coding in corso): `RequestPlaySession` è una richiesta differita e `EndPIE` da sola scatterebbe
+   solo per una sessione partita. Al primo dei due che scatta, il lanciatore ripristina e si sgancia da
+   entrambi. Senza questo passo il Play successivo rilancerebbe lo scenario del Lab in silenzio.
 
-Il pannello mostra l'Id lanciato e la riga di log con cui confermare che è partito il banco giusto:
+Il pannello mostra l'Id lanciato e con quale riga di log confermare che è partito il banco giusto. ➕ rev.
+La riga la scrive `FRTScenarioCoordinator` (`ScenarioHarness/RTScenarioCoordinator.cpp:43`) e **comincia**
+così — segue il numero di turni e la pausa:
 
 ```
-LogRT: Warning: [RT-Test] AUTO-RUN AbilityLab.<AbilityId> (da: console rt.Test.Scenario)
+LogRT: Warning: [RT-Test] AUTO-RUN AbilityLab.<AbilityId> (da: console rt.Test.Scenario): …
 ```
 
-Le tre API dell'Engine che il passo 3 usa esistono in UE 5.8.1, lette negli header il 2026-10-07:
+Le API dell'Engine che i passi 3 e 4 usano esistono in UE 5.8.1, lette negli header il 2026-10-07:
 `UEditorEngine::RequestPlaySession` (`Editor/UnrealEd/Classes/Editor/EditorEngine.h:1817`),
-`FEditorFileUtils::LoadMap` (`Editor/UnrealEd/Public/FileHelpers.h:280`), `FEditorDelegates::EndPIE`
-(`Editor/UnrealEd/Public/Editor.h:284`).
+`FRequestPlaySessionParams::GlobalMapOverride` (`Editor/UnrealEd/Public/PlayInEditorDataTypes.h`, letto in
+`Runtime/Engine/Private/GameInstance.cpp:324`), `FEditorDelegates::EndPIE` e `CancelPIE`
+(`Editor/UnrealEd/Public/Editor.h:284,298`), `ECVF_SetByCode < ECVF_SetByConsole`
+(`Runtime/Core/Public/HAL/IConsoleManager.h:183,187`).
 
 ---
 
@@ -129,15 +158,17 @@ Le tre API dell'Engine che il passo 3 usa esistono in UE 5.8.1, lette negli head
 
 | File | Cosa cambia |
 |---|---|
-| `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.{h,cpp}` | `ScenariosRoot()` resta. Si aggiunge `LabScenariosRoot()` → `FPaths::ProjectSavedDir()/RTLab/Scenarios`. |
-| `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.cpp` | `Scan` legge entrambe le radici. Una cartella assente non è un problema né una voce. Un Id presente in entrambe è un **duplicato**, trattato come lo sono già i duplicati dentro `Scenarios/`. |
-| `Source/RefactorTacticsEditor/Private/RTLabViewModel.{h,cpp}` | `bool PrepareForPie(FString& OutScenarioId, FString& OutError)`: costruisce, valida, salva. **Pura e headless**: non sa nulla di PIE né di `GEditor`. |
-| `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: carica la mappa, cattura e imposta le CVar, chiede PIE, si aggancia a `EndPIE` per il ripristino, si sgancia dopo il primo scatto. Isolata perché nessun automation test la vede. |
+| `Source/RefactorTactics/ScenarioHarness/RTScenarioLoader.{h,cpp}` | `ScenariosRoot()` resta. Si aggiunge `LabScenariosRoot()` → `FPaths::ProjectSavedDir()/RTLab/Scenarios`. (`SaveToFile` non si tocca: è dichiarata qui e implementata in `RTScenarioWriter.cpp`.) |
+| `Source/RefactorTactics/ScenarioHarness/RTScenarioIndex.{h,cpp}` | ➕ rev. `Scan` **invariata** (una radice). Nuova `ScanAll(OutProblems)` che legge entrambe; `ResolvePath`, `ListIds` e `ListTags` passano a `ScanAll`. Una radice assente non è un problema né una voce. Un Id presente in entrambe è un **duplicato**: `BuildFrom` lo segnala e `ResolvePath` lo rifiuta come «ambiguo», come già oggi dentro `Scenarios/`. Il messaggio «non trovato nell'indice (… sotto `<radice>`)» nomina entrambe le radici. |
+| `Source/RefactorTactics/ScenarioHarness/RTTestConsole.cpp` | ➕ rev. Due testi d'aiuto che nominano la sola `Scenarios/`: l'help di `rt.Test.List` («versionati in Scenarios/») e il messaggio «nessuno scenario in `<radice>`». |
+| `Source/RefactorTacticsEditor/Private/RTLabViewModel.{h,cpp}` | `bool PrepareForPie(FString& OutScenarioId, FString& OutError)`: costruisce, valida, salva, **e verifica che l'Id risolva a quel file**. **Pura e headless**: non sa nulla di PIE né di `GEditor`. |
+| `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: cattura e imposta le CVar con `ECVF_SetByConsole`, chiede PIE con `GlobalMapOverride`, si aggancia a `EndPIE` e `CancelPIE` per il ripristino, si sgancia da entrambi al primo scatto. Isolata perché nessun automation test la vede. Nel modulo Editor non c'è oggi nessun uso di `RequestPlaySession` o dei delegate PIE: questo è il primo. |
 | `Source/RefactorTacticsEditor/Private/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). |
 | `Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp` | I test della seconda radice (§5). |
-| `Source/RefactorTacticsEditor/Private/Tests/` | I test di `PrepareForPie` (§5). |
+| `Source/RefactorTacticsEditor/Private/Tests/RTLabViewModelTests.cpp` | I test di `PrepareForPie` (§5). |
 
 ⛔ **Nessun `.uasset`.** Nessuna modifica al TurnManager, al resolver, al formato scenario o al GameMode.
+⛔ **`Scan` non cambia firma né semantica**: è la superficie che i gate sul corpus misurano.
 
 La separazione modello / lanciatore ricalca quella che il pannello ha già: `FRTLabViewModel` è
 verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
@@ -150,12 +181,16 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | Caso | Comportamento |
 |---|---|
 | Fixture invalida, abilità non canonica | `PrepareForPie` ritorna `false` con il motivo di `BuildFixture` o di `SaveToFile`; **nulla viene scritto**; il pannello mostra la frase. Stesso fail-closed del Lab di oggi. |
+| Id ambiguo (lo stesso `AbilityLab.<AbilityId>` esiste anche in `Scenarios/`) | ➕ rev. Il file viene scritto, ma `PrepareForPie` ritorna `false` con il motivo di `ResolvePath`. Il pulsante non chiede PIE. |
 | PIE già in corso (`GEditor->PlayWorld != nullptr`) | Il pulsante rifiuta con «PIE in corso». Non chiede una seconda sessione. |
-| Caricamento mappa rifiutato (livello sporco, salvataggio annullato) | Il lanciatore si ferma **prima** di toccare le CVar. Nessuno stato resta a metà. |
+| CVar non trovata (`FindConsoleVariable` → `nullptr`) | ➕ rev. Il lanciatore si ferma **prima** di toccare l'altra. `rt.Debug.PlaybackControls` è compilata `!UE_BUILD_SHIPPING`, quindi in Editor c'è sempre; la guardia resta perché il costo è una riga e l'alternativa è un crash. |
+| CVar già impostata a mano in console | ➕ rev. `Set` con `ECVF_SetByConsole` la scavalca; un `Set` a priorità inferiore sarebbe ignorato con un solo warning. Vale anche per il ripristino. |
 | Scenario non risolto dal GameMode | Il log lo dice già con `[RT-Test]`. Il pannello non lo intercetta: il verdetto sul lancio resta di chi guarda, come per ogni scenario. |
 | Motore occupato da un'altra sessione | Il pannello non può saperlo. Vale `CLAUDE.md` §10, a carico di chi preme il pulsante. |
+| PIE non comincia (compile error, Live Coding in corso) | ➕ rev. `CancelPIE` scatta: il ripristino avviene. |
 | PIE termina per errore | `EndPIE` scatta comunque: il ripristino avviene. |
-| Pannello chiuso durante PIE | Il delegate resta agganciato finché non scatta una volta, poi si sgancia. Il ripristino non dipende dalla vita del widget. |
+| Pannello chiuso durante PIE | I delegate restano agganciati finché uno scatta, poi il lanciatore si sgancia da entrambi. Il ripristino non dipende dalla vita del widget. |
+| Una seduta PIE «in corso» (`URTPieSessionSubsystem::IsConducting`) che vincerebbe sulla console | ➕ rev. **Non può accadere**: il subsystem è un `UGameInstanceSubsystem`, nasce e muore con la GameInstance del PIE, quindi all'avvio di un PIE nuovo non è mai «in corso». Nessuna guardia da aggiungere. |
 
 ---
 
@@ -165,16 +200,19 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 
 | Test | Asserisce |
 |---|---|
-| `RefactorTactics.Scenario.Index.ScansLabRoot` | Un file scritto nella seconda radice viene indicizzato con Id, percorso e tag; rimosso il file, l'Id non risolve più. |
-| `RefactorTactics.Scenario.Index.LabRootAbsentIsNotAnError` | Cartella `Saved/RTLab/Scenarios` mancante: zero problemi, zero voci da quella radice, le voci di `Scenarios/` intatte. |
-| `RefactorTactics.AbilityLab.PrepareForPieWritesAResolvableScenario` | Per un'abilità canonica il file esiste, `URTScenarioIndex::ResolvePath` lo trova e `LoadFromFile` lo rilegge **uguale** alla fixture in memoria. |
-| `RefactorTactics.AbilityLab.PrepareForPieRefusesAndWritesNothing` | Abilità non canonica → `false`, `OutError` non vuota, **nessun file**. |
+| `RefactorTactics.ScenarioIndex.ScanAllSeesTheLabRoot` | Un file scritto nella radice del Lab compare in `ScanAll` con Id, percorso e tag e **non** compare in `Scan`; `ResolvePath` lo trova; rimosso il file, l'Id non risolve più. |
+| `RefactorTactics.ScenarioIndex.LabRootAbsentIsNotAnError` | Radice del Lab mancante: `ScanAll` non aggiunge problemi né voci, e le voci di `Scenarios/` sono le stesse di `Scan`, confrontate **per Id** e non contate. |
+| `RefactorTactics.Lab.PrepareForPieWritesAResolvableScenario` | Per un'abilità canonica il file esiste nella radice del Lab, `OutScenarioId` è `AbilityLab.<AbilityId>`, `ResolvePath` restituisce **quel** percorso e `LoadFromFile` lo rilegge **uguale** alla fixture in memoria, campo per campo con lo stesso confronto di `RunWithoutHeroUsesAbilityLabFixture`. |
+| `RefactorTactics.Lab.PrepareForPieRefusesAndWritesNothing` | Nessuna abilità selezionata → `false`, `OutError` non vuota, **nessun file** nella radice del Lab. |
 
-🔴 **Controllo di mutazione dichiarato**: togliere la seconda radice da `Scan` deve far diventare rosso
-`ScansLabRoot`. Un test che resta verde con la mutazione non prova niente.
+🔴 **Controllo di mutazione dichiarato**: togliere la radice del Lab da `ScanAll` deve far diventare
+rosso `ScanAllSeesTheLabRoot`. Un test che resta verde con la mutazione non prova niente.
 
-I test scrivono in una sotto-cartella temporanea e la rimuovono: `Saved/` è condiviso con l'Editor e
-non è un luogo di prova.
+➕ rev. **I test non misurano `Saved/RTLab` vero**: la radice del Lab è una funzione sovrascrivibile per
+il test (`URTScenarioLoader::LabScenariosRoot()` legge un override impostabile da test e lo azzera a fine
+test con `ON_SCOPE_EXIT`), e i file di prova vivono sotto `FPaths::AutomationTransientDir()`, come già
+`RTMatchHistoryTests.cpp`. `Saved/RTLab` è condiviso con l'Editor e non è un luogo di prova.
+⛔ Nessun test asserisce `Entries.Num()` sul corpus: è un totale che cambia da solo.
 
 ### 5.2 Non misurabile headless, e dichiarato
 
@@ -183,12 +221,17 @@ Si verificano in una **seduta PIE** registrata nel registro del progetto
 ([`test-manuali-pie.md`](../../technical/test-manuali-pie.md) e
 [`editor-sessions.yaml`](../../roadmap/editor-sessions.yaml)), con criterio binario:
 
-1. dopo il clic, il log porta `AUTO-RUN AbilityLab.<Id>` con `da: console rt.Test.Scenario`;
-2. il playback mostra l'abilità scelta sulle due unità della fixture;
-3. terminato PIE, un secondo Play **senza** passare dal Lab avvia una partita normale.
+0. ➕ rev. **prima** del clic, in console: `rt.Test.Scenario Core.PhaseOrder` (o un altro Id del corpus),
+   così la CVar porta già un valore a priorità console;
+1. dopo il clic, il log porta `AUTO-RUN AbilityLab.<Id>` con `da: console rt.Test.Scenario` — e **non**
+   `Core.PhaseOrder`: è la prova che `ECVF_SetByConsole` ha scavalcato il valore digitato;
+2. il playback mostra l'abilità scelta sulle due unità della fixture, su `L_DevSandbox`, **qualunque**
+   mappa fosse aperta nell'Editor;
+3. terminato PIE, `rt.Test.Scenario` vale di nuovo `Core.PhaseOrder` (si legge con il solo nome in
+   console) e un Play senza passare dal Lab avvia **quello**, non il banco.
 
-Il terzo punto è il controllo del ripristino: senza di esso il banco funzionerebbe e lascerebbe il
-processo dirottato.
+Il terzo punto è il controllo del ripristino, e dice *«ripristina ciò che c'era»*, non *«azzera»*: senza
+di esso il banco funzionerebbe e lascerebbe il processo dirottato.
 
 ---
 
@@ -199,7 +242,10 @@ processo dirottato.
 - Il banco mostra lo **stato attuale** della presentazione. Finché i sotto-progetti 2, 3 e 4 non
   atterrano, un attacco suona la clip di ruolo e le abilità senza colpo non hanno beat. È voluto.
 - Un file in `Saved/RTLab/` sopravvive al processo. Il Lab lo sovrascrive al lancio successivo con lo
-  stesso Id; non fa pulizia.
+  stesso Id; non fa pulizia. ➕ rev. Un file stantio o corrotto lì **non** tocca i gate sul corpus, che
+  passano da `Scan`; può solo comparire in `rt.Test.List` o produrre un problema in `ScanAll`.
+- Il livello aperto nell'Editor non viene né cambiato né salvato: PIE carica `L_DevSandbox` per
+  proprio conto.
 - `rt.Debug.PlaybackStartPaused` **non** viene acceso dal banco. Chi vuole il playback fermo lo imposta
   dalla console come oggi (`FOLLOW-UP CANDIDATES`).
 - L'Anim Browser (#2554) e il Gray Kit Playground (#1990) non sono toccati.
