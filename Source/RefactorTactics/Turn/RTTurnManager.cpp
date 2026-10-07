@@ -7906,7 +7906,7 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// un istante in cui disegnare (`#2454`). La decisione sta in una funzione pura perche' cambia la
 	// DURATA di un turno, ed e' cio' che i test di pacing sorvegliano.
 	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove,
-		PlaybackFootprints.Num(), PlaybackStructureHits.Num()))
+		PlaybackFootprints.Num(), PlaybackStructureHits.Num(), /*NumActivations=*/ 0))
 	{
 		PlaybackPhases.Add(ERTMatchPhase::Blast);
 	}
@@ -9002,8 +9002,10 @@ FRTPhaseTime ARTTurnManager::PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) co
 
 	// La formula sta in `URTPlaybackLibrary::PhaseTime`, dove si esercita senza mondo e senza Actor
 	// (#1817). Qui resta la sola raccolta degli ingressi.
-	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, PlaybackAttacks.Num(),
-		PlaybackStructureHits.Num(), PlaybackFootprints.Num(),
+	// ⚠️ **Transitorio, sostituito dal Task 7 di #3549**: i tre canali restano paralleli fino ad allora, e la
+	// loro somma e' una durata che li contiene tutti.
+	return URTPlaybackLibrary::PhaseTime(InPhase, MaxSeg, /*NumActivations=*/ 0,
+		PlaybackAttacks.Num() + PlaybackStructureHits.Num() + PlaybackFootprints.Num(),
 		PlaybackCellsPerSecond, AttackShowSeconds, PhaseBeatSeconds);
 }
 

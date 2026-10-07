@@ -45,12 +45,11 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 }
 
 bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
-	int32 NumStructureHits)
+	int32 NumStructureHits, int32 NumActivations)
 {
-	// Quattro ragioni indipendenti, e la quarta e' quella nuova: un muro abbattuto senza vittime e senza
-	// impronta su cella occupata e' comunque un fatto avvenuto nel Blast (`#2828`). ⛔ Nessuna somma e
-	// nessuna soglia: basta che UNA sia vera.
-	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0;
+	// Cinque ragioni indipendenti; la quinta e' quella di #3549: un Blast di sole cure si vede. ⛔ Nessuna
+	// somma e nessuna soglia: basta che UNA sia vera.
+	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0;
 }
 
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
@@ -58,31 +57,35 @@ float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegmen
 {
 	// Una riga: la formula sta in `PhaseTime`, e il totale e' la somma dei suoi due termini. Non c'e' un
 	// secondo calcolo da tenere allineato.
-	// ⚠️ **DUE zeri, e nessuno dei due e' una dimenticanza**: questo wrapper non conosce ne i colpi a
-	// struttura (`#2828`) ne le impronte (`#3278`), quindi su un `Blast` in cui uno dei due canali e' piu'
-	// lungo dei colpi restituisce una durata SOTTOSTIMATA. ⛔ Chi dimensiona il playback vero non passa di
-	// qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` con tutti i conteggi. Questa forma sopravvive per
-	// i gate di pacing sulle fasi classiche, e la riga esiste perche' il prossimo che la usi altrove sappia
-	// cosa NON sta contando.
-	return PhaseTime(Phase, MaxMoveSegments, NumAttacks, /*NumStructureHits=*/ 0, /*NumFootprints=*/ 0,
+	// ⚠️ **TRE zeri, e nessuno e' una dimenticanza**: questo wrapper non conosce ne i colpi a struttura
+	// (`#2828`), ne le impronte (`#3278`), ne le attivazioni (#3549). Passa `NumActivations = 0` e usa i soli
+	// colpi come sequenza, quindi su un `Blast` la durata restituita e' SOTTOSTIMATA. ⛔ Chi dimensiona il
+	// playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` con la sequenza intera.
+	// Questa forma sopravvive per i gate di pacing sulle fasi classiche. ⏱️ *Fino a #3549 diceva «DUE zeri».*
+	return PhaseTime(Phase, MaxMoveSegments, /*NumActivations=*/ 0, /*NumSequenceElements=*/ NumAttacks,
 		CellsPerSecond, AttackShowSeconds, PhaseBeatSeconds).Total();
 }
 
-FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
-	int32 NumStructureHits, int32 NumFootprints,
-	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
+FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumActivations,
+	int32 NumSequenceElements, float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {
 	// Il tempo di movimento e' lo stesso calcolo per tutte le fasi che muovono, Blast compreso: si scrive
 	// una volta sola perche' due copie divergerebbero alla prima modifica di una delle due.
 	const float MoveTime = (CellsPerSecond > 0.f)
 		? (FMath::Max(0, MaxMoveSegments) / CellsPerSecond)
 		: 0.f;
+	// Il tempo delle attivazioni di Prep e Dash (#3549): mostrato, quindi incomprimibile come i colpi.
+	const float ActivationTime = FMath::Max(0, NumActivations) * FMath::Max(0.f, AttackShowSeconds);
 
 	FRTPhaseTime Out;
 
 	switch (Phase)
 	{
 	case ERTMatchPhase::Dash:
+		// Prima le attivazioni, poi le rotte: `RouteAlpha` parte dopo il loro tempo.
+		Out.Shown = ActivationTime + MoveTime;
+		break;
+
 	case ERTMatchPhase::Move:
 		// Tutto movimento: non c'e' attesa da togliere, e toglierla sarebbe accelerare i cilindri.
 		Out.Shown = MoveTime;
@@ -90,41 +93,32 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 
 	case ERTMatchPhase::Blast:
 	{
-		// `Max(1, ...)`: un Blast di sola spinta non ha colpi, e una fase che si vede non puo' durare zero.
-		// 🔴 **`Max` fra TUTTI i canali scaglionati, non i soli colpi** (`#2828` i muri, `#3278` le
-		// impronte). I tre si rivelano in PARALLELO, ognuno col proprio contatore e con la stessa
-		// `AttacksToShow`: la fase deve durare quanto il piu' lungo, non quanto quello che c'era prima.
-		//
-		// ⚠️ **Lo stesso difetto e' comparso due volte, a un canale di distanza.** Senza il termine dei muri
-		// un Blast che ne abbatteva piu' d'uno durava `Max(1, 0)` = UN intervallo; senza quello delle impronte
-		// lo stesso accadeva a un'area con piu' intenti che vittime. In entrambi i casi il canale **apriva** la
-		// fase — `BlastPhaseIsActive` li conta tutti — e non la **dimensionava**, e cio' che non faceva in
-		// tempo usciva dal catch-all nello stesso fotogramma.
-		//
-		// ⛔ **Non una somma**: i canali scorrono insieme, non uno dopo l'altro.
-		// ⏱️ *Le IMPRONTE sono entrate qui con `#3278`. Fino ad allora questa riga le dichiarava fuori, e la
-		// soglia che scriveva era sbagliata su entrambe le meta': diceva «un'area su sole celle vuote con piu'
-		// impronte che colpi», mentre **un'area produce UNA impronta** — `ResolveCombatPasses` ne emette una
-		// per INTENTO — e il catch-all cominciava a scaricare solo da `NumFootprints >= Max(1, …) + 2`. Chi ne
-		// avesse ricavato un caso di prova avrebbe ottenuto un gate verde concludendo che il difetto non
-		// esiste.*
-		const float AttackTime =
-			FMath::Max(1, FMath::Max(NumAttacks, FMath::Max(NumStructureHits, NumFootprints))) * AttackShowSeconds;
-		// `Max` e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
+		// 🔴 **La SEQUENZA, non il `Max` fra canali** (#3549, D5). I tre canali paralleli di #2828/#3278 sono
+		// diventati una sequenza per intento, svelata un elemento per volta: la fase dura quanto la sequenza.
+		// `Max(1, ...)`: un Blast di sola spinta si vede e non puo' durare zero.
+		// ⏱️ *Fino a #3549 qui c'era il `Max` fra colpi, muri e impronte, rivelati in parallelo.*
+		const float SequenceTime = FMath::Max(1, NumSequenceElements) * AttackShowSeconds;
+		// `Max` con la spinta e non somma: i colpi si vedono MENTRE il bersaglio scivola, non dopo.
 		//
 		// 🔴 **Tutto `Shown`, zero `Slack`, e la prima stesura sbagliava qui.** Metteva in `Slack`
-		// l'eccedenza `AttackTime - MoveTime`, ragionando che fosse tempo «di lettura» e quindi
+		// l'eccedenza `SequenceTime - MoveTime`, ragionando che fosse tempo «di lettura» e quindi
 		// comprimibile. Non lo e': l'ordine di recupero di #1878 autorizza i beat delle fasi che NON
 		// mostrano nulla, e questa mostra i colpi. Comprimerlo faceva due danni — la fase poteva durare
 		// zero e i colpi uscivano tutti in un frame, e la spinta accelerava fino al rate base perche'
 		// `Alpha` la misura su `PhaseDur`.
-		Out.Shown = FMath::Max(AttackTime, MoveTime);
+		Out.Shown = FMath::Max(SequenceTime, MoveTime);
 		break;
 	}
 
+	case ERTMatchPhase::Prep:
+		// Le attivazioni si mostrano; il beat di oggi resta, ed e' l'unica parte che il budget puo' togliere.
+		Out.Shown = ActivationTime;
+		Out.Slack = PhaseBeatSeconds;
+		break;
+
 	default:
-		// Prep, Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa
-		// che il budget puo' togliere.
+		// Cleanup, Planning: un beat, e non c'e' niente da guardare mentre passa. E' l'unica attesa che il
+		// budget puo' togliere.
 		Out.Slack = PhaseBeatSeconds;
 		break;
 	}
@@ -346,4 +340,109 @@ bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName Curr
 	// dell'impronta: impronta e colpi nascono dallo stesso intento, quindi portano la stessa azione e non
 	// fanno fermare due volte. Stessa ragione per cui un'area su tre bersagli e' un atto solo.
 	return Event.ActionId != CurrentAction;
+}
+
+namespace
+{
+	/** Il rango di un tipo DENTRO un atto: attivazione, impronte, muri, colpi (spec §2.4). -1 = non entra. */
+	int32 RTRangoNellAtto(ERTResolvedEventType Type)
+	{
+		switch (Type)
+		{
+		case ERTResolvedEventType::AbilityActivated: return 0;
+		case ERTResolvedEventType::AttackFootprint:  return 1;
+		case ERTResolvedEventType::StructureHit:     return 2;
+		case ERTResolvedEventType::Attack:           return 3;
+		default:                                     return -1; // `ArcHit` compreso: #3293
+		}
+	}
+}
+
+TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId)
+{
+	TArray<FRTBlastSequenceElement> Out;
+
+	// D-355: il prefisso gia' mostrato si riproduce VERBATIM. ⚠️ `TSet` solo per `Contains`.
+	const int32 Congelati = FMath::Clamp(FrozenPrefix, 0, Previous.Num());
+	TSet<int32> GiaInSequenza;
+	for (int32 i = 0; i < Congelati; ++i)
+	{
+		Out.Add(Previous[i]);
+		GiaInSequenza.Add(Previous[i].TimelineIndex);
+	}
+
+	struct FRTAttoInCostruzione
+	{
+		int32 Source = 0;
+		FName ActionId;
+		TArray<int32> Indici;
+		int32 PrimaApparizione = INDEX_NONE;
+		int32 IndiceAttivazione = INDEX_NONE; // l'attivazione VISIBILE del gruppo, se c'e'
+		/** La chiave d'ordine fra gli atti (decisione (d)): l'attivazione se c'e', altrimenti la prima apparizione. */
+		int32 Chiave() const { return IndiceAttivazione != INDEX_NONE ? IndiceAttivazione : PrimaApparizione; }
+	};
+	// Gli atti nascono nell'ordine di prima apparizione (la scansione va in avanti) e si RIORDINANO poi per
+	// `Chiave()`: uno `StructureHit` emesso prima delle attivazioni non deve trascinare il suo intento davanti a
+	// quelli con `IntentIndex` minore. ⚠️ Le chiavi sono indici di timeline distinti: l'ordine e' totale.
+	TArray<FRTAttoInCostruzione> Atti;
+
+	for (int32 i = 0; i < Timeline.Num(); ++i)
+	{
+		const FRTResolvedEvent& Ev = Timeline[i];
+		if (Ev.Phase != ERTMatchPhase::Blast || RTRangoNellAtto(Ev.Type) < 0 || GiaInSequenza.Contains(i))
+		{
+			continue;
+		}
+		// D6: un'attivazione che chi guarda non ha il diritto di vedere non entra — tutto o niente.
+		if (Ev.Type == ERTResolvedEventType::AbilityActivated && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
+		{
+			continue;
+		}
+
+		int32 Atto = INDEX_NONE;
+		if (!Ev.ActionId.IsNone()) // senza identita' = atto proprio, mai fuso (#3281)
+		{
+			Atto = Atti.IndexOfByPredicate([&Ev](const FRTAttoInCostruzione& A)
+			{
+				return !A.ActionId.IsNone() && A.Source == Ev.SourceStableUnitId && A.ActionId == Ev.ActionId;
+			});
+		}
+		if (Atto == INDEX_NONE)
+		{
+			FRTAttoInCostruzione& Nuovo = Atti.AddDefaulted_GetRef();
+			Nuovo.Source = Ev.SourceStableUnitId;
+			Nuovo.ActionId = Ev.ActionId;
+			Nuovo.PrimaApparizione = i;
+			Atto = Atti.Num() - 1;
+		}
+		Atti[Atto].Indici.Add(i);
+		if (Ev.Type == ERTResolvedEventType::AbilityActivated && Atti[Atto].IndiceAttivazione == INDEX_NONE)
+		{
+			Atti[Atto].IndiceAttivazione = i; // solo le VISIBILI arrivano qui: le altre sono uscite sopra
+		}
+	}
+
+	// Decisione (d): l'ordine fra gli atti e' quello delle loro attivazioni.
+	Atti.StableSort([](const FRTAttoInCostruzione& X, const FRTAttoInCostruzione& Y) { return X.Chiave() < Y.Chiave(); });
+
+	for (FRTAttoInCostruzione& A : Atti)
+	{
+		// Ordine TOTALE (rango, poi indice): nessuna dipendenza dalla stabilita' dell'algoritmo.
+		A.Indici.StableSort([&Timeline](int32 X, int32 Y)
+		{
+			const int32 RX = RTRangoNellAtto(Timeline[X].Type);
+			const int32 RY = RTRangoNellAtto(Timeline[Y].Type);
+			return (RX != RY) ? (RX < RY) : (X < Y);
+		});
+		for (const int32 Indice : A.Indici)
+		{
+			FRTBlastSequenceElement E;
+			E.TimelineIndex = Indice;
+			E.SourceStableUnitId = Timeline[Indice].SourceStableUnitId;
+			E.ActionId = Timeline[Indice].ActionId;
+			Out.Add(E);
+		}
+	}
+	return Out;
 }
