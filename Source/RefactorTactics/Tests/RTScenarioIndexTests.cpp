@@ -433,11 +433,26 @@ bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
 
 	TestFalse(TEXT("Scan NON vede lo scenario del Lab"), ContieneId(Versionati, TEXT("AbilityLab.Prova")));
 
+	FString Errore;
+	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Prova"), Errore);
+	TestFalse(TEXT("ResolvePath trova lo scenario del Lab"), Risolto.IsEmpty());
+	TestTrue(TEXT("e il percorso e' quello del file scritto"),
+		FPaths::IsSamePath(Risolto, FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, TEXT("AbilityLab.Prova.json")))));
+	TestTrue(TEXT("ListIds elenca lo scenario del Lab"),
+		URTScenarioIndex::ListIds(FString(), FString()).Contains(TEXT("AbilityLab.Prova")));
+	TestTrue(TEXT("ListIds filtra per il suo tag"),
+		URTScenarioIndex::ListIds(TEXT("ability-lab"), FString()).Contains(TEXT("AbilityLab.Prova")));
+	TestTrue(TEXT("ListTags porta il tag del Lab"), URTScenarioIndex::ListTags().Contains(TEXT("ability-lab")));
+
 	// Rimosso il file, l'Id sparisce da `ScanAll`: niente cache fra una chiamata e l'altra.
 	IFileManager::Get().Delete(*FPaths::Combine(Root, TEXT("AbilityLab.Prova.json")));
 	TArray<FString> ProblemiDopo;
 	TestFalse(TEXT("rimosso il file, ScanAll non lo vede piu'"),
 		ContieneId(URTScenarioIndex::ScanAll(ProblemiDopo), TEXT("AbilityLab.Prova")));
+	Errore.Reset();
+	TestTrue(TEXT("rimosso il file, l'Id non risolve piu'"),
+		URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Prova"), Errore).IsEmpty());
+	TestTrue(TEXT("e l'errore nomina la radice del Lab"), Errore.Contains(TEXT("RTLabIndex")));
 	return true;
 }
 

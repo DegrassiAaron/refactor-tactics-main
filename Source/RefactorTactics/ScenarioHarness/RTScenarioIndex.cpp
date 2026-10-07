@@ -251,7 +251,7 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 	}
 
 	TArray<FString> Problems;
-	const TArray<FRTScenarioEntry> Entries = Scan(Problems);
+	const TArray<FRTScenarioEntry> Entries = ScanAll(Problems);
 
 	// Cerca prima l'ID così com'è: un ID **vivo** deve vincere su una voce di redirect rimasta indietro,
 	// altrimenti riusare un nome liberato porterebbe al file sbagliato.
@@ -339,10 +339,11 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 		return FString();
 	}
 
-	// Nessuna corrispondenza: il messaggio dice DOVE si è cercato e quanti scenari c'erano, così chi legge
-	// distingue «ho sbagliato l'ID» da «la cartella degli scenari non è quella che credevo».
-	OutError = FString::Printf(TEXT("scenario '%s' non trovato nell'indice (%d scenari sotto %s)"),
-		*ScenarioId, Entries.Num(), *URTScenarioLoader::ScenariosRoot());
+	// Nessuna corrispondenza: il messaggio dice DOVE si è cercato, così chi legge distingue «ho sbagliato
+	// l'ID» da «la cartella degli scenari non è quella che credevo». ⚠️ Nessun totale: un conteggio di
+	// scenari in un messaggio invecchia da solo e si legge come corrente (AGENTS.md §14).
+	OutError = FString::Printf(TEXT("scenario '%s' non trovato nell'indice (cercato sotto %s e sotto %s)"),
+		*ScenarioId, *URTScenarioLoader::ScenariosRoot(), *URTScenarioLoader::LabScenariosRoot());
 	if (Problems.Num() > 0)
 	{
 		OutError += FString::Printf(TEXT(" · %d file con problemi: %s"), Problems.Num(), *FString::Join(Problems, TEXT(" · ")));
@@ -353,7 +354,7 @@ FString URTScenarioIndex::ResolvePath(const FString& ScenarioId, FString& OutErr
 TArray<FString> URTScenarioIndex::ListIds(const FString& FilterA, const FString& FilterB)
 {
 	TArray<FString> Problems;
-	const TArray<FRTScenarioEntry> Entries = Scan(Problems);
+	const TArray<FRTScenarioEntry> Entries = ScanAll(Problems);
 
 	const FString A = NormalizeTag(FilterA);
 	const FString B = NormalizeTag(FilterB);
@@ -373,7 +374,7 @@ TArray<FString> URTScenarioIndex::ListIds(const FString& FilterA, const FString&
 TArray<FString> URTScenarioIndex::ListTags()
 {
 	TArray<FString> Problems;
-	const TArray<FRTScenarioEntry> Entries = Scan(Problems);
+	const TArray<FRTScenarioEntry> Entries = ScanAll(Problems);
 
 	TArray<FString> Tags;
 	for (const FRTScenarioEntry& Entry : Entries)
