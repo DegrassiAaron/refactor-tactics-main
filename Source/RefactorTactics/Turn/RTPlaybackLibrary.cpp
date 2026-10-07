@@ -122,6 +122,26 @@ float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, flo
 	return FMath::Clamp((PhaseElapsed - Lancio) / Flight, 0.f, 1.f);
 }
 
+bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
+{
+	static const FName BasicAttack(TEXT("Action.BasicAttack"));
+	return Ev.Type == ERTResolvedEventType::Attack
+		&& (Ev.ActionId == BasicAttack || Ev.BaseActionId == BasicAttack)
+		&& (Ev.Shape == ERTAbilityShape::Single || Ev.Shape == ERTAbilityShape::Line)
+		&& Ev.HitGeometry.bResolved;
+}
+
+ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	if (!IsTracerEligible(Ev)
+		|| !Ev.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId)
+		|| !Ev.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return ERTTracerStyle::None;
+	}
+	return Ev.Shape == ERTAbilityShape::Line ? ERTTracerStyle::Jet : ERTTracerStyle::Projectile;
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {

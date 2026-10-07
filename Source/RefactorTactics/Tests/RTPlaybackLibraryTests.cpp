@@ -1,5 +1,6 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTPlaybackLibrary.h"
+#include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnManager.h" // il default di `PlaybackCellsPerSecond`, letto dal CDO
 #include "Turn/RTTurnRules.h"
 
@@ -388,6 +389,111 @@ bool FRTPlaybackTracerZeroFlightKeepsTodaysRhythmTest::RunTest(const FString&)
 	TestEqual(TEXT("A<=0: niente volo"), URTPlaybackLibrary::TracerFlightFor(true, 0.25f, 0.f), 0.f, RTTol);
 	TestEqual(TEXT("A<=0: tutti i battiti subito"), URTPlaybackLibrary::AttackBeatsDue(0.f, 0.f, Flights), 8);
 	TestEqual(TEXT("nessun colpo, nessun battito"), URTPlaybackLibrary::AttackBeatsDue(5.f, A, {}), 0);
+	return true;
+}
+
+// --- Idoneita' e stile del tracer (`#2454`) ---------------------------------------------------
+
+namespace
+{
+	/** Un `Attack` idoneo e visibile alle squadre 0 e 1 (nome unico per file: unity build). */
+	FRTResolvedEvent MakeTracerAttackEvent(ERTAbilityShape Shape)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Attack;
+		Ev.ActionId = TEXT("Hero.Ivrin.PulseShot");
+		Ev.BaseActionId = TEXT("Action.BasicAttack");
+		Ev.Shape = Shape;
+		Ev.HitGeometry.bResolved = true;
+		Ev.HitGeometry.From = FRTCellId(0, 0);
+		Ev.HitGeometry.Impact = FRTCellId(3, 0);
+		Ev.HitGeometry.FromVerdict.AllowTeam(0);
+		Ev.HitGeometry.FromVerdict.AllowTeam(1);
+		Ev.HitGeometry.ImpactVerdict.AllowTeam(0);
+		Ev.HitGeometry.ImpactVerdict.AllowTeam(1);
+		return Ev;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerStyleFollowsShapeTest,
+	"RefactorTactics.Playback.TracerStyleFollowsShapeForBasicAttack",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerStyleFollowsShapeTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("Single -> proiettile"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Single), 0) == ERTTracerStyle::Projectile);
+	TestTrue(TEXT("Line -> getto"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Line), 0) == ERTTracerStyle::Jet);
+	TestTrue(TEXT("Area -> niente"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Area), 0) == ERTTracerStyle::None);
+	TestTrue(TEXT("Cone -> niente"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Cone), 0) == ERTTracerStyle::None);
+
+	FRTResolvedEvent Abilita = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Abilita.ActionId = TEXT("Hero.Ivrin.PassingBlade");
+	Abilita.BaseActionId = NAME_None;
+	TestFalse(TEXT("un'azione che non e' un attacco base non e' idonea"), URTPlaybackLibrary::IsTracerEligible(Abilita));
+
+	FRTResolvedEvent Generica = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Generica.ActionId = TEXT("Action.BasicAttack");
+	Generica.BaseActionId = NAME_None;
+	TestTrue(TEXT("l'attacco base GENERICO e' idoneo dal suo ActionId"), URTPlaybackLibrary::IsTracerEligible(Generica));
+
+	// ⛔ **`bResolved` e non le celle**: `FRTCellId()` e' `(0,0,0)`, una cella VALIDA.
+	FRTResolvedEvent Irrisolto = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Irrisolto.HitGeometry.bResolved = false;
+	TestFalse(TEXT("senza geometria risolta non c'e' tracer, anche con celle valide"),
+		URTPlaybackLibrary::IsTracerEligible(Irrisolto));
+
+	FRTResolvedEvent Movimento = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Movimento.Type = ERTResolvedEventType::Move;
+	TestFalse(TEXT("solo un Attack ha un tracer"), URTPlaybackLibrary::IsTracerEligible(Movimento));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyTracerHiddenWhenOriginUnknownTest,
+	"RefactorTactics.Privacy.TracerHiddenWhenOriginUnknown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyTracerHiddenWhenOriginUnknownTest::RunTest(const FString&)
+{
+	// La squadra 1 e' stata colpita da un attaccante che NON vedeva: il verdetto dell'origine la esclude.
+	FRTResolvedEvent Ev = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Ev.HitGeometry.FromVerdict = FRTKnowledgeVerdict::NoOne();
+	Ev.HitGeometry.FromVerdict.AllowTeam(0);
+
+	TestTrue(TEXT("chi spara vede il proprio tracer"),
+		URTPlaybackLibrary::TracerStyleFor(Ev, 0) == ERTTracerStyle::Projectile);
+	// 🔴 **La mutazione dichiarata**: ignorare `FromVerdict` fa disegnare qui un proiettile, cioe' rivela la
+	// cella di chi spara a chi non la conosceva — la riga che deve cadere.
+	TestTrue(TEXT("chi non vedeva l'attaccante NON vede il tracer"),
+		URTPlaybackLibrary::TracerStyleFor(Ev, 1) == ERTTracerStyle::None);
+
+	FRTResolvedEvent Cieco = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Cieco.HitGeometry.ImpactVerdict = FRTKnowledgeVerdict::NoOne();
+	Cieco.HitGeometry.ImpactVerdict.AllowTeam(1);
+	TestTrue(TEXT("chi non conosceva la cella d'impatto non vede il tracer"),
+		URTPlaybackLibrary::TracerStyleFor(Cieco, 0) == ERTTracerStyle::None);
+	TestTrue(TEXT("un osservatore fuori intervallo non legge"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Single), -1) == ERTTracerStyle::None);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest,
+	"RefactorTactics.Privacy.TracerRhythmIsTheSameForEveryViewer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest::RunTest(const FString&)
+{
+	// 🔑 Il RITMO dipende dall'idoneita' (spec §2.1, condizioni 1-3), il DISEGNO dalla conoscenza (condizione 4).
+	// Due squadre con verdetti opposti vedono l'arrivo nello stesso istante.
+	FRTResolvedEvent Ev = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Ev.HitGeometry.FromVerdict = FRTKnowledgeVerdict::NoOne();
+	Ev.HitGeometry.FromVerdict.AllowTeam(0);
+
+	TestTrue(TEXT("premessa: le due squadre hanno disegni diversi"),
+		URTPlaybackLibrary::TracerStyleFor(Ev, 0) != URTPlaybackLibrary::TracerStyleFor(Ev, 1));
+	const float Volo = URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Ev), 0.25f, 0.5f);
+	TestEqual(TEXT("e lo stesso volo: l'idoneita' non legge chi guarda"), Volo, 0.25f, RTTol);
 	return true;
 }
 

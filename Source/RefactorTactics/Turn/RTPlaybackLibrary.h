@@ -223,6 +223,19 @@ public:
 	static float TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight);
 
 	/**
+	 * Le condizioni 1-3 della spec §2.1: un `Attack` di un attacco base (`ActionId` OPPURE `BaseActionId` ==
+	 * `Action.BasicAttack`), di forma `Single` o `Line`, con geometria risolta. Decide il RITMO: non legge chi guarda.
+	 * ⚠️ Idoneita' PROVVISORIA e dichiarata: la sostituisce la tabella `ActionId -> profilo` del sotto-progetto 4.
+	 */
+	static bool IsTracerEligible(const FRTResolvedEvent& Ev);
+
+	/**
+	 * Lo stile del tracer per chi guarda: `None` se non idoneo, o se la squadra non conosceva l'attaccante in
+	 * `From` OPPURE la vittima in `Impact` (spec §0.3, P1). Decide il DISEGNO, mai il ritmo.
+	 */
+	static ERTTracerStyle TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *
 	 * `MaxMoveSegments` e' il percorso PIU' LUNGO fra quelli riprodotti in questa fase, non la loro somma:

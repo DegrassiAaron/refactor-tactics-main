@@ -159,6 +159,37 @@ enum class ERTResolvedEventType : uint8
 };
 
 /**
+ * La geometria di un colpo per il tracer del playback (`#2454`, spec `2026-10-07-tracer-attacco-base` §3).
+ * ⚠️ **Solo `Attack`, solo playback**: vive in `ResolvedTimeline`, fuori da `StateHash`, TurnLog e replay.
+ */
+USTRUCT(BlueprintType)
+struct FRTHitGeometry
+{
+	GENERATED_BODY()
+
+	/** ⛔ **L'unico indicatore di presenza**: `FRTCellId()` e' `(0,0,0)`, una cella VALIDA, quindi un estremo
+	 *  mancante non si riconosce dalle celle. Falso = il produttore non ha risolto l'origine o la vittima. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	bool bResolved = false;
+
+	/** L'origine dichiarata del colpo, da `ResolveImpactOrigin` ([D-302] punto 3). */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId From;
+
+	/** La cella della vittima nell'istante del colpo, prima di ogni spostamento forzato. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTCellId Impact;
+
+	/** Chi conosceva l'ATTACCANTE in `From` quando il colpo e' partito ([D-223], fatto puntuale). */
+	UPROPERTY()
+	FRTKnowledgeVerdict FromVerdict;
+
+	/** Chi conosceva la VITTIMA in `Impact` quando il colpo e' arrivato ([D-223], fatto puntuale). */
+	UPROPERTY()
+	FRTKnowledgeVerdict ImpactVerdict;
+};
+
+/**
  * Evento gia' risolto dalla logica, emesso a lock-in per essere RIPRODOTTO nel tempo.
  * L'animazione legge questi eventi: non decide nulla (invariante #1).
  *
@@ -178,8 +209,12 @@ enum class ERTResolvedEventType : uint8
  * far partire un montage. Se l'unita' e' stata distrutta nel frattempo la porta risponde `nullptr`, che
  * e' esattamente cio' che rispondeva `TWeakObjectPtr::Get()` — il comportamento del playback non cambia,
  * cambia dove sta il puntatore.
+ *
+ * ⛔ **`RTServerOnly`** (`#2454`, spec §0.3, P5): con la geometria e i verdetti di ogni squadra l'evento porta
+ * l'informazione COMPLETA. Un client ricevera' una proiezione, mai questo tipo:
+ * `Privacy.ServerOnlyTypesAreNotReplicated` lo misura.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (RTServerOnly))
 struct FRTResolvedEvent
 {
 	GENERATED_BODY()
@@ -331,7 +366,8 @@ struct FRTResolvedEvent
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FName BaseActionId;
 
-	// --- Solo per `AttackFootprint` ([D-301]). Vuoti/di default per ogni altro `Type`. ---
+	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO).
+	//     Vuoti/di default per ogni altro `Type`. ---
 
 	/**
 	 * Le celle investite, **nell'ordine che `HexHitCells` produce** (`URTHexLibrary::StableLess`).
@@ -511,6 +547,10 @@ struct FRTResolvedEvent
 	/** Il capo **verso cui** l'arco va. Con `ArcFrom` fa l'arco diretto; copiato, come lui. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId ArcTo;
+
+	/** Solo `Attack` (`#2454`): da dove e verso dove il colpo e' andato, e chi lo sapeva. */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	FRTHitGeometry HitGeometry;
 
 	FRTResolvedEvent() = default;
 };
