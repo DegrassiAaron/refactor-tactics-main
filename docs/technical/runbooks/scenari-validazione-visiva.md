@@ -213,6 +213,7 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 | `Visual.Combat.AreaGuardFromImpactCenter` | r5 | due difensori **identici** in `Guard`, entrambi rivolti a ovest, presi dalla stessa area: la Guardia legge il **centro dell'esplosione** e non chi l'ha lanciata, quindi uno è coperto e l'altro no. Il contrasto è tutto ciò che si guarda (`COV-12`) | scritto, voce `PIE-VIS-AREAGUARD` |
 | `Movement.Collision` *(esiste)* | r3 | chi cede la cella contesa, e che si capisca **perché** | già nel corpus |
 | `Combat.CounterStrikesBack` *(esiste)* | r4 | la terza grammatica difensiva: lo scudo assorbe **e** restituisce danno | già nel corpus |
+| `Visual.Ability.CastBeat` | r4 | il **momento** del cast: TideGuard di Muiren, che non colpisce nessuno, ha un beat sulla sorgente in Prep; ImpactShot di Branth mostra **due** momenti, il cast e poi l'impatto | scritto |
 
 `Visual.Reaction.Interposition` è il caso più istruttivo del catalogo. La capability `Reaction` è
 **disponibile** — `Hero.Riktor.Interposition` è cablata e automatica. Ma `FRTScenarioIntent` ha `UnitId`, `Move`,
