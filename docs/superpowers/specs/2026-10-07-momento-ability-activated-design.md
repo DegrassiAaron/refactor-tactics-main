@@ -345,7 +345,7 @@ tabella esista in quella forma).
 | Un intento senza `ActionId` arriva a un sito di emissione | Non emette e scrive un `ensureMsgf`: l'`ActionId` è ciò che il sotto-progetto 3 consuma, e un `NAME_None` dimenticato non fa fallire nessun test (`RTResolvedEvent.h:310-312`). ➕ impl. Vale per i siti che leggono dal catalogo (Prep, Dash, Cleanse, Heal, ModifyArc). Gli **intenti d'attacco legacy** senza `ActionId` (abilità di `EnsureDefaultAbilities`/`MakeAbility`, ammesse da `CollectAttackIntents`) sono il caso normale delle unità nude dei test: `EmitAttackIntentActivations` li **salta prima** dell'helper, senza `ensure` — D1 dice «ogni intento **con un `ActionId`**». |
 | Evento di Blast senza attivazione corrispondente | Atto proprio alla posizione di prima apparizione: si vede comunque. |
 | Sorgente non osservata | Nessun beat, nessuna fermata d'atto: la sequenza salta l'elemento. |
-| Estensione D-355 dentro un gruppo già aperto | ➕ impl. L'evento si unisce al suo gruppo nella parte non ancora mostrata; il prefisso mostrato non si muove. Se l'atto era già tutto mostrato, l'evento resta nel suo gruppo, in coda a ciò che resta da mostrare, nell'ordine della chiave. |
+| Estensione D-355 dentro un gruppo già aperto | ➕ impl. L'evento si unisce al suo gruppo nella parte non ancora mostrata; il prefisso mostrato non si muove. Se l'atto era già tutto mostrato, l'evento resta nel suo gruppo e si colloca nella parte non mostrata **secondo la chiave del gruppo** (l'indice della sua attivazione): un atto aperto presto ha una chiave bassa, quindi il suo evento tardivo è fra i primi oltre il prefisso, non in fondo. |
 | Replay / seek | Timeline per turno e per playback; nessun dato nuovo in snapshot, TurnLog o hash. |
 
 ---
