@@ -8100,7 +8100,8 @@ void ARTTurnManager::ShowActivation(const FRTResolvedEvent& Ev)
 		FRTLogSubject::Frozen(Ev.SourceStableUnitId, Ev.SourceVerdict));
 	if (Src)
 	{
-		Src->PlayPresentationRole(ERTPresentationRole::Cast);
+		// L'azione arriva al beat (#3563, D3): la clip del profilo, poi della generica, poi del ruolo.
+		Src->PlayPresentationRole(ERTPresentationRole::Cast, Ev.ActionId, Ev.BaseActionId);
 	}
 }
 
@@ -8286,7 +8287,8 @@ void ARTTurnManager::LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 Att
 {
 	if (ARTUnit* const AtkSrc = UnitByStableId(Atk.SourceStableUnitId))
 	{
-		AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack);
+		// ⚠️ Per l'impatto di una carica `ActionId` e' lo SCATTO (`Impact.Def = Dash->Def`): e' voluto (#3563).
+		AtkSrc->PlayPresentationRole(ERTPresentationRole::Attack, Atk.ActionId, Atk.BaseActionId);
 	}
 	if (bRecordAttackBeatsForTest) { AttackBeatTrace.Add(FString::Printf(TEXT("L%d"), AttackOrdinal)); }
 }

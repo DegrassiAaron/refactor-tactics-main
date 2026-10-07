@@ -1332,8 +1332,11 @@ public:
 	 * ⛔ **Degrada in silenzio, sempre**: senza skeletal, senza `AnimInstance`, senza voce nel CDO o con un
 	 * `TSoftObjectPtr` che non risolve, non fa nulla e non rompe niente. La partita si gioca uguale.
 	 * ⚠️ Solo presentazione: non tocca stato logico, TurnLog ne' ordinamento (invariante #1).
+	 * 🔑 **`ActionId`/`BaseActionId` (#3563)**: li passano solo i beat che conoscono l'azione — `Cast` da
+	 * `ShowActivation`, `Attack` da `LaunchPlaybackAttack` (spec D3). Vuoti, la risoluzione e' quella di ruolo.
+	 * ⛔ Non e' una `UFUNCTION`: il default e' lecito, e `Hit`/`Death` restano a un argomento.
 	 */
-	void PlayPresentationRole(ERTPresentationRole Ruolo);
+	void PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId = NAME_None, FName BaseActionId = NAME_None);
 
 	/**
 	 * Il PATH della clip che `PlayPresentationRole` suonerebbe per questo ruolo, senza caricarla.
@@ -1343,7 +1346,8 @@ public:
 	 * giusta non si carica» da «punto alla clip sbagliata». Il path invece c'e' sempre, ed e' cio' che il
 	 * controllo positivo di `SimulationOutcomeIsUnchangedAcrossVariants` puo' asserire.
 	 */
-	TSoftObjectPtr<UAnimSequenceBase> ResolvedClipPathFor(ERTPresentationRole Ruolo) const;
+	TSoftObjectPtr<UAnimSequenceBase> ResolvedClipPathFor(ERTPresentationRole Ruolo,
+		FName ActionId = NAME_None, FName BaseActionId = NAME_None) const;
 
 	/** L'attaccante esegue la presentazione d'attacco (fase Blast), con la clip gia' risolta. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "RefactorTactics|Anim")
@@ -1370,8 +1374,22 @@ public:
 	 */
 	int32 CastCuesPlayedForTest() const { return CastCuesPlayed; }
 
+	/**
+	 * Il path che l'ULTIMA `PlayPresentationRole(Ruolo)` ha risolto su questa unita' — seam di misura (#3563).
+	 *
+	 * 🔑 **Per ruolo, non uno slot unico**: la stessa unita' suona `Cast` e poi `Attack` nello stesso turno, e uno
+	 * slot unico mostrerebbe solo l'ultimo. Vuoto se quel ruolo non e' mai stato suonato, o se ha risolto nulla.
+	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
+	 */
+	FSoftObjectPath LastResolvedClipPathForTest(ERTPresentationRole Ruolo) const
+	{
+		const FSoftObjectPath* Path = LastResolvedClipPaths.Find(Ruolo);
+		return Path ? *Path : FSoftObjectPath();
+	}
+
 private:
 	int32 CastCuesPlayed = 0;
+	TMap<ERTPresentationRole, FSoftObjectPath> LastResolvedClipPaths;
 
 public:
 

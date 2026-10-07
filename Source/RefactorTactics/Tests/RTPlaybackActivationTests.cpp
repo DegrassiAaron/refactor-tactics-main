@@ -18,6 +18,7 @@
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTResolvedEvent.h"
 #include "Unit/RTUnit.h"
+#include "Unit/RTUnitAnimInstance.h"
 #include "Map/RTHexMapActor.h"
 #include "Map/RTHexMapAsset.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -114,6 +115,25 @@ namespace
 	{
 		return TM->GetRecentEventsForTeam(Squadra).ContainsByPredicate(
 			[](const FString& Riga) { return Riga.StartsWith(TEXT("Attiva:")); });
+	}
+
+	// --- La clip per abilita' (#3563) ------------------------------------------------------------------------
+
+	/** Path sintetici: non esistono nei pack, quindi non si confondono con una clip vera del default. */
+	const TCHAR* ClipAzioneScudo    = TEXT("/Game/Prova/AzioneTideGuard.AzioneTideGuard");
+	const TCHAR* ClipAzioneTiratore = TEXT("/Game/Prova/AzioneImpactShot.AzioneImpactShot");
+	const TCHAR* ClipCaricaLancio   = TEXT("/Game/Prova/AzioneRamCast.AzioneRamCast");
+	const TCHAR* ClipCaricaImpatto  = TEXT("/Game/Prova/AzioneRamImpatto.AzioneRamImpatto");
+
+	/** Una variante attiva in `PerAction[ActionId][Ruolo]` dell'eroe, nel CDO di `URTUnitAnimInstance`. */
+	void IniettaClipAzioneBeat(const FName& HeroId, const FName& ActionId, ERTPresentationRole Ruolo, const TCHAR* Path)
+	{
+		FRTAnimRoleClips Pool;
+		Pool.AddVariant(FName(TEXT("AV_ProvaBeat")), FName(TEXT("A")),
+			TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(Path)));
+		Pool.MakeActive(FName(TEXT("AV_ProvaBeat")));
+		GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero.FindOrAdd(HeroId)
+			.PerAction.FindOrAdd(ActionId).PerRole.Add(Ruolo, Pool);
 	}
 }
 
@@ -493,6 +513,125 @@ bool FRTPlaybackDashOpensForActivationsOnlyTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("🔴 la fase Dash e' nata dalla sola attivazione"), bFaseDash);
 	TestEqual(TEXT("🔴 e il cast dello scatto e' suonato"), Caricatore->CastCuesPlayedForTest(), 1);
+	return true;
+}
+
+/**
+ * Il beat conosce l'AZIONE: il cast dello Scudo suona la clip di TideGuard, l'attacco del Tiratore quella di
+ * ImpactShot — spec «la clip per abilita'» §2.2, D3.
+ *
+ * 🔴 **Prima misura che il beat `Attack` PARTA** (`L0` nella traccia dei battiti): nessun altro test su questa
+ * fixture asserisce un attacco — contano le cue `Cast` — e senza la premessa la mutazione (6) sarebbe vacua.
+ * 🔑 Il `Cast` del Tiratore e' il ripiego (nessuna voce per `ImpactShot`/`Cast`, nessuna generica): e' il
+ * controllo positivo dello stesso turno.
+ * ✅ Validato per mutazione: (3) `ShowActivation` a un argomento → cade sullo Scudo; (6) `LaunchPlaybackAttack` a
+ * un argomento → cade sul Tiratore.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActivationPlaysTheActionClipTest,
+	"RefactorTactics.Playback.ActivationPlaysTheActionClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActivationPlaysTheActionClipTest::RunTest(const FString&)
+{
+	const TMap<FName, FRTHeroPresentationClips> Salvato = GetDefault<URTUnitAnimInstance>()->ClipsPerHero;
+	ON_SCOPE_EXIT{ GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero = Salvato; };
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Muiren")), FName(TEXT("Hero.Muiren.TideGuard")),
+		ERTPresentationRole::Cast, ClipAzioneScudo);
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Branth")), FName(TEXT("Hero.Branth.ImpactShot")),
+		ERTPresentationRole::Attack, ClipAzioneTiratore);
+
+	FRTBeatDiProva B;
+	const bool bOk = CostruisciBeat(*this, /*Viewer*/ 0, B);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+	if (!bOk) { return false; }
+	B.TM->bRecordAttackBeatsForTest = true;
+	B.TM->LockInAndResolve();
+	FinoAllaFineDelPlayback(B.TM);
+
+	// ⛔ Le premesse: i due beat sono PARTITI. Senza, ogni asserto sotto confronterebbe un path vuoto.
+	if (!TestEqual(TEXT("⛔ premessa: il cast dello scudo e' suonato"), B.Scudo->CastCuesPlayedForTest(), 1)
+		|| !TestTrue(TEXT("⛔ premessa: LaunchPlaybackAttack e' partito (L0 nella traccia dei battiti)"),
+			B.TM->AttackBeatTraceForTest().Contains(TEXT("L0"))))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("🔴 il cast dello scudo suona la clip d'azione di TideGuard"),
+		B.Scudo->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(), FString(ClipAzioneScudo));
+	TestEqual(TEXT("🔴 l'attacco del tiratore suona la clip d'azione di ImpactShot"),
+		B.Tiratore->LastResolvedClipPathForTest(ERTPresentationRole::Attack).ToString(), FString(ClipAzioneTiratore));
+	TestEqual(TEXT("controllo positivo: il cast del tiratore non ha voce, e' il ruolo"),
+		B.Tiratore->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(),
+		GetDefault<URTUnitAnimInstance>()->ActiveClipFor(FName(TEXT("Hero.Branth")), ERTPresentationRole::Cast)
+			.ToSoftObjectPath().ToString());
+	return true;
+}
+
+/**
+ * Review Focus (e): l'impatto di una carica porta l'`ActionId` dello SCATTO (`Impact.Def = Dash->Def`,
+ * `RTTurnManager.cpp:4746`), quindi suona la clip `Attack` dello scatto — spec §2.6, riga di `Hero.Branth.Ram`.
+ *
+ * ⚠️ Il caricatore e' della squadra 0 e il test non crea nessun controller: il viewer e' il ripiego sulla squadra 0
+ * (`RTPlaybackActivationTests.cpp:9-10`), cioe' la squadra delle sorgenti. E' la fixture di
+ * `Playback.DashStepLandsOnCellsAfterTheActivations` (qui sopra: `BeatMappa`, mondo non inizializzato, viewer di
+ * ripiego), con il bersaglio adiacente alla cella d'arrivo come in `Turn.ChargeActivatesInDashNotInBlast`
+ * (`Tests/RTAbilityActivatedTests.cpp`); qui si asserisce il PATH suonato.
+ * ✅ Validato per mutazione (6).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackChargeImpactPlaysTheDashAttackClipTest,
+	"RefactorTactics.Playback.ChargeImpactPlaysTheDashAttackClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
+{
+	const TMap<FName, FRTHeroPresentationClips> Salvato = GetDefault<URTUnitAnimInstance>()->ClipsPerHero;
+	ON_SCOPE_EXIT{ GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero = Salvato; };
+	const FName Ram(TEXT("Hero.Branth.Ram"));
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Branth")), Ram, ERTPresentationRole::Cast, ClipCaricaLancio);
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Branth")), Ram, ERTPresentationRole::Attack, ClipCaricaImpatto);
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	BeatMappa(World, 8);
+
+	ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+	ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Caricatore || !Bersaglio) { return false; }
+	const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
+	if (!TestTrue(TEXT("⛔ premessa: Branth ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
+	Caricatore->PlannedDashAbility = IndiceRam;
+	Caricatore->PlannedDashCell = Bersaglio->Cell;
+	Caricatore->PlannedCell = Caricatore->Cell;
+
+	TM->bRecordAttackBeatsForTest = true;
+	TM->RefreshTeamKnowledgeNow();
+	TM->LockInAndResolve();
+
+	bool bImpattoConLaChiaveDelloScatto = false;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if (Ev.Type == ERTResolvedEventType::Attack && Ev.ActionId == Ram
+			&& Ev.SourceStableUnitId == Caricatore->StableUnitId && Ev.Phase == ERTMatchPhase::Blast)
+		{
+			bImpattoConLaChiaveDelloScatto = true;
+		}
+	}
+	if (!TestTrue(TEXT("⛔ premessa: l'impatto e' un Attack di Blast con la chiave dello scatto"),
+			bImpattoConLaChiaveDelloScatto))
+	{
+		return false;
+	}
+
+	FinoAllaFineDelPlayback(TM);
+	if (!TestTrue(TEXT("⛔ premessa: LaunchPlaybackAttack e' partito per l'impatto"),
+			TM->AttackBeatTraceForTest().Contains(TEXT("L0"))))
+	{
+		return false;
+	}
+	TestEqual(TEXT("🔴 l'impatto della carica suona la clip Attack dello SCATTO"),
+		Caricatore->LastResolvedClipPathForTest(ERTPresentationRole::Attack).ToString(), FString(ClipCaricaImpatto));
+	TestEqual(TEXT("e il cast della carica, nel Dash, la clip Cast dello scatto"),
+		Caricatore->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(), FString(ClipCaricaLancio));
 	return true;
 }
 

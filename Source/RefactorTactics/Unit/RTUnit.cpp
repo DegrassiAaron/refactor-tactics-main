@@ -720,7 +720,8 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::GhostFallbackClipPath() const
 	return GhostFallbackClipFor(Defaults, HeroId);
 }
 
-TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo) const
+TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRole Ruolo, FName ActionId,
+	FName BaseActionId) const
 {
 	// Stessa porta di `GhostFallbackClipPath`, e per la stessa ragione: il CDO di `UnitAnimClass` e' l'unica
 	// lista dei nomi delle clip. Una seconda lista qui divergerebbe alla prima modifica.
@@ -736,14 +737,18 @@ TSoftObjectPtr<UAnimSequenceBase> ARTUnit::ResolvedClipPathFor(ERTPresentationRo
 	}
 
 	// 🔑 Risolve SENZA caricare: headless i pack non ci sono, e il PATH e' cio' che un test puo' asserire.
-	return Defaults->ActiveClipFor(HeroId, Ruolo);
+	// Con l'azione (#3563): profilo, poi generica, poi ruolo — l'ordine vive in `ActiveClipFor`, non qui.
+	return Defaults->ActiveClipFor(HeroId, Ruolo, ActionId, BaseActionId);
 }
 
-void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo)
+void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FName BaseActionId)
 {
 	// ⛔ Ogni uscita anticipata di questa funzione e' un DEGRADO previsto, non un errore: l'unita' resta in
 	// posa di riferimento e la partita si gioca uguale (invariante #1, come D-248 per la locomozione).
-	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo);
+	const TSoftObjectPtr<UAnimSequenceBase> Path = ResolvedClipPathFor(Ruolo, ActionId, BaseActionId);
+#if WITH_DEV_AUTOMATION_TESTS
+	LastResolvedClipPaths.Add(Ruolo, Path.ToSoftObjectPath()); // seam: QUALE path, prima di caricare
+#endif
 	UAnimSequenceBase* const Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
 
 	if (Sequenza != nullptr)
