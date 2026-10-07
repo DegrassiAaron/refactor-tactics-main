@@ -204,6 +204,9 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | `RefactorTactics.ScenarioIndex.LabRootAbsentIsNotAnError` | Radice del Lab mancante: `ScanAll` non aggiunge problemi né voci, e le voci di `Scenarios/` sono le stesse di `Scan`, confrontate **per Id** e non contate. |
 | `RefactorTactics.Lab.PrepareForPieWritesAResolvableScenario` | Per un'abilità canonica il file esiste nella radice del Lab, `OutScenarioId` è `AbilityLab.<AbilityId>`, `ResolvePath` restituisce **quel** percorso e `LoadFromFile` lo rilegge **uguale** alla fixture in memoria, campo per campo con lo stesso confronto di `RunWithoutHeroUsesAbilityLabFixture`. |
 | `RefactorTactics.Lab.PrepareForPieRefusesAndWritesNothing` | Nessuna abilità selezionata → `false`, `OutError` non vuota, **nessun file** nella radice del Lab. |
+| `RefactorTactics.ScenarioIndex.LabRootProblemsStayOutOfScan` | ➕ piano. Un file corrotto nella radice del Lab è un problema di `ScanAll` e non di `Scan`, e non nasconde gli altri file del Lab. |
+| `RefactorTactics.Lab.PrepareForPieRefusesAnAmbiguousId` | ➕ piano. Un secondo file nella radice del Lab con lo stesso `scenarioId` rende l'Id ambiguo: `PrepareForPie` ritorna `false` e il motivo dice «ambiguo». |
+| `RefactorTactics.Lab.PrepareForPieOverwritesAStaleFixture` | ➕ piano. Due chiamate con lo stesso Id e seed diversi lasciano **un** file, con il seed della seconda. |
 
 🔴 **Controllo di mutazione dichiarato**: togliere la radice del Lab da `ScanAll` deve far diventare
 rosso `ScanAllSeesTheLabRoot`. Un test che resta verde con la mutazione non prova niente.

@@ -14,7 +14,7 @@
 
 - Engine: **UE 5.8.1** in `D:/EpicGames/UE_5.8`. Nessun aggiornamento di Engine, plugin o dipendenze.
 - ⛔ **Nessun `.uasset`**, nessuna modifica a TurnManager, resolver, formato scenario o `ARTGameMode`.
-- ⛔ **`URTScenarioIndex::Scan` non cambia firma né semantica**: resta a una radice. Le ricerche passano a `ScanAll`.
+- ⛔ **`URTScenarioIndex::Scan` non cambia firma né semantica**: resta a una radice. Le ricerche passano a `ScanAll`. **`PieSession/RTPieSessionPlaylist.cpp` resta su `Scan` di proposito**: la playlist delle sedute legge il corpus versionato, non il Lab. Un `grep "Scan("` che la trovasse non è una dimenticanza da correggere.
 - Le CVar si impostano e si ripristinano con **`ECVF_SetByConsole`**, mai `SetByCode`.
 - Il ripristino scatta su **`FEditorDelegates::EndPIE` oppure `FEditorDelegates::CancelPIE`**, al primo dei due, poi il lanciatore si sgancia da entrambi.
 - I test **non toccano `Saved/RTLab`**: la radice del Lab è sovrascrivibile per test e i file di prova vivono sotto `FPaths::AutomationTransientDir()`, rimossi con `ON_SCOPE_EXIT`.
@@ -170,10 +170,15 @@ bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
 		return false;
 	}
 
+	TArray<FString> ProblemiScan;
+	const TArray<FRTScenarioEntry> Versionati = URTScenarioIndex::Scan(ProblemiScan);
+
 	TArray<FString> ProblemiAll;
 	const TArray<FRTScenarioEntry> Tutti = URTScenarioIndex::ScanAll(ProblemiAll);
 	TestTrue(TEXT("ScanAll vede lo scenario del Lab"), ContieneId(Tutti, TEXT("AbilityLab.Prova")));
-	TestEqual(TEXT("ScanAll non segnala problemi"), ProblemiAll.Num(), 0);
+	// Relativo a `Scan`, non assoluto: un corpus versionato sporco e' un difetto SUO, e qui si leggerebbe
+	// come un difetto di `ScanAll`.
+	TestEqual(TEXT("ScanAll non aggiunge problemi oltre a quelli di Scan"), ProblemiAll.Num(), ProblemiScan.Num());
 
 	const FRTScenarioEntry* Voce = Tutti.FindByPredicate(
 		[](const FRTScenarioEntry& E) { return E.ScenarioId == TEXT("AbilityLab.Prova"); });
@@ -183,8 +188,6 @@ bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
 		TestTrue(TEXT("il tag e' letto"), Voce->Tags.Contains(TEXT("ability-lab")));
 	}
 
-	TArray<FString> ProblemiScan;
-	const TArray<FRTScenarioEntry> Versionati = URTScenarioIndex::Scan(ProblemiScan);
 	TestFalse(TEXT("Scan NON vede lo scenario del Lab"), ContieneId(Versionati, TEXT("AbilityLab.Prova")));
 
 	// Rimosso il file, l'Id sparisce da `ScanAll`: niente cache fra una chiamata e l'altra.
@@ -252,7 +255,7 @@ bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
 }
 ```
 
-Aggiungi in testa al file, fra gli `#include`: `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`.
+Aggiungi in testa al file, fra gli `#include`: `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`, `#include "Misc/ScopeExit.h"` (per `ON_SCOPE_EXIT`: né `CoreMinimal.h` né `AutomationTest.h` lo portano, e i test del progetto lo includono esplicitamente, es. `RTHudScenarioTests.cpp`).
 
 - [ ] **Step 2: Compila e verifica che fallisca per simboli mancanti**
 
@@ -672,7 +675,7 @@ bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
 }
 ```
 
-In testa al file aggiungi gli include: `#include "ScenarioHarness/RTScenarioIndex.h"`, `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`.
+In testa al file aggiungi gli include: `#include "ScenarioHarness/RTScenarioIndex.h"`, `#include "ScenarioHarness/RTScenarioLoader.h"`, `#include "HAL/FileManager.h"`, `#include "Misc/FileHelper.h"`, `#include "Misc/Paths.h"`, `#include "Misc/ScopeExit.h"`.
 
 ⚠️ `FixtureCoincidono` non confronta `Expect` né `Tags`: per questo il test aggiunge l'asserto sui `Tags`. Non estendere l'helper, che altri test usano con il significato attuale.
 
@@ -1068,10 +1071,20 @@ EOF
 Trova la fine della tabella di `### Scenario Test Harness` (la prima riga vuota dopo la sua ultima riga `| **PIE-...`) e aggiungi **prima** di quella riga vuota, come unica riga di tabella con le stesse cinque colonne delle righe sopra:
 
 ```markdown
-| **PIE-LAB-PIE** | Il pulsante «Esegui in PIE» dell'Ability Lab lancia la fixture dell'abilità scelta nel playback vero, e a fine PIE le CVar tornano com'erano ([#<n>](https://github.com/DegrassiAaron/refactor-tactics-main/issues/<n>)) | Editor aperto su una mappa **qualsiasi diversa da `L_DevSandbox`** (per provare `GlobalMapOverride`); pannello Ability Lab aperto; un'abilità con bersaglio selezionata, es. `Hero.Branth.ImpactShot`. **Prima** del clic, in console: `rt.Test.Scenario Core.PhaseOrder`, così la CVar porta già un valore a priorità console | **(0)** Il clic non produce errore nel pannello e la riga di stato mostra l'Id `AbilityLab.<AbilityId>`. **(1)** Il log porta una riga che comincia con `[RT-Test] AUTO-RUN AbilityLab.<AbilityId> (da: console rt.Test.Scenario)` — e **non** `Core.PhaseOrder`: è la prova che `ECVF_SetByConsole` ha scavalcato il valore digitato. **(2)** Il PIE gira su `L_DevSandbox` e il playback mostra l'abilità sulle due unità della fixture, con i controlli di playback accesi; il livello aperto nell'Editor non è cambiato. **(3)** Fermato il PIE, `rt.Test.Scenario` digitata da sola in console risponde `Core.PhaseOrder`, e un Play **senza** passare dal Lab avvia quello scenario, non il banco. **(4, facoltativo)** Con Live Coding attivo e una modifica C++ non compilata, il clic produce un PIE che non parte: `rt.Test.Scenario` deve comunque valere `Core.PhaseOrder` subito dopo. ⚠️ Il **(3)** dice *ripristina ciò che c'era*, non *azzera*. Coperto headless: `Lab.PrepareForPie*` e `ScenarioIndex.ScanAll*`; qui resta ciò che nessun test vede — il lancio, la mappa, il ripristino | ⏳ da eseguire — scritta il 2026-10-07 insieme al codice di [#<n>](https://github.com/DegrassiAaron/refactor-tactics-main/issues/<n>); il verdetto è dell'autore |
+| **PIE-LAB-PIE** | Il pulsante «Esegui in PIE» dell'Ability Lab lancia la fixture dell'abilità scelta nel playback vero, e a fine PIE le CVar tornano com'erano ([#<n>](https://github.com/DegrassiAaron/refactor-tactics-main/issues/<n>)) | Editor aperto su una mappa **qualsiasi diversa da `L_DevSandbox`** (per provare `GlobalMapOverride`); pannello Ability Lab aperto; un'abilità con bersaglio selezionata, es. `Hero.Branth.ImpactShot`. **Prima** del clic, in console: `rt.Test.Scenario Core.PhaseOrder`, così la CVar porta già un valore a priorità console | **(0)** Il clic non produce errore nel pannello e la riga di stato mostra l'Id `AbilityLab.<AbilityId>`. **(1)** Il log porta una riga che comincia con `[RT-Test] AUTO-RUN AbilityLab.<AbilityId> (da: console rt.Test.Scenario)` — e **non** `Core.PhaseOrder`: è la prova che `ECVF_SetByConsole` ha scavalcato il valore digitato. **(2)** Il PIE gira su `L_DevSandbox` e il playback mostra l'abilità sulle due unità della fixture, con i controlli di playback accesi; il livello aperto nell'Editor non è cambiato. **(3)** Fermato il PIE, `rt.Test.Scenario` digitata da sola in console risponde `Core.PhaseOrder`, e un Play **senza** passare dal Lab avvia quello scenario, non il banco. **(4, facoltativo)** Con Live Coding attivo e una modifica C++ non compilata, il clic produce un PIE che non parte: `rt.Test.Scenario` deve comunque valere `Core.PhaseOrder` subito dopo. ⚠️ Il **(3)** dice *ripristina ciò che c'era*, non *azzera*. Coperto headless: `Lab.PrepareForPie*`, `ScenarioIndex.ScanAllSeesTheLabRoot` e `ScenarioIndex.LabRoot*`; qui resta ciò che nessun test vede — il lancio, la mappa, il ripristino | ⏳ da eseguire — scritta il 2026-10-07 insieme al codice di [#<n>](https://github.com/DegrassiAaron/refactor-tactics-main/issues/<n>); il verdetto è dell'autore |
 ```
 
 ⚠️ Nessuna pipe `|` dentro le celle (romperebbe il conteggio delle voci); l'ultima cella è lo **stato** e comincia con un solo glifo.
+
+- [ ] **Step 1b: Il preambolo della sezione non deve più contare le righe**
+
+Il preambolo di `### Scenario Test Harness` (riga ~1551) dice *«Restano **otto** cose che nessun test automatico può vedere»*: con la riga nuova il numero diventa falso, ed è esattamente il totale volatile che `AGENTS.md` §14 vieta. Sostituisci quella frase con:
+
+```markdown
+> 2026-08-08). Restano, elencate nella tabella qui sotto, le cose che nessun test automatico può vedere, perché riguardano ciò che accade
+```
+
+(la riga precedente e quella seguente restano com'erano; si contano con `grep -c '^| \*\*PIE-' ` sulla sezione, non si scrivono).
 
 - [ ] **Step 2: La seduta**
 
@@ -1105,7 +1118,11 @@ Verifica che la seduta chiuda `sessions` e che la coda `not_schedulable` non cam
 python -c "import yaml; d=yaml.safe_load(open('docs/roadmap/editor-sessions.yaml',encoding='utf-8')); print([x['id'] for x in d['sessions']][-3:], len(d['not_schedulable']))"
 ```
 
-Expected: l'elenco termina con `U67`; il secondo numero è lo stesso di prima dell'inserimento (misuralo prima). Controlla i line ending: `file docs/roadmap/editor-sessions.yaml` deve dire CRLF come prima.
+Expected: l'elenco termina con `U67`; il secondo numero è lo stesso di prima dell'inserimento (misuralo prima). Controlla i line ending, che devono restare CRLF (da Git Bash, non da PowerShell dove `file` non esiste):
+
+```bash
+file docs/roadmap/editor-sessions.yaml   # atteso: "... with CRLF line terminators"
+```
 
 - [ ] **Step 3: Il radar dei documenti**
 
@@ -1113,7 +1130,11 @@ Expected: l'elenco termina con `U67`; il secondo numero è lo stesso di prima de
 node tools/radar/doc-coherence.ts --check
 ```
 
-Expected: nessun rosso nuovo. Se `tools/radar/` ha altri controlli elencati nel suo README, lanciali tutti (la memoria del progetto dice che sono venti, non due).
+Expected: nessun rosso nuovo. Poi lancia **tutti** i controlli del radar, non solo questo — l'elenco si misura, non si ricorda:
+
+```bash
+ls tools/radar/*.ts | grep -v test
+```
 
 - [ ] **Step 4: Commit**
 
@@ -1156,4 +1177,4 @@ Merge della PR nel parent; `git branch -D issue/<n>-banco-ability-lab-pie`; `git
 
 - [ ] **Step 5: Spec e piano**
 
-Nel branch `docs/banco-abilita-in-pie-spec`, aggiorna lo **Statuto** della spec: «implementato il <data> sul branch `issue/<n>-…`, PR #<pr>», e apri la PR anche per quel branch.
+Nel branch `docs/banco-abilita-in-pie-spec`, aggiorna lo **Statuto** della spec: «implementato il <data> sul branch `issue/<n>-…`, PR #<pr>». La tabella §5.1 della spec elenca già i sette test di questo piano (allineata il 2026-10-07 insieme al piano): se durante l'implementazione un test cambia nome o ne nasce uno, aggiorna **quella** tabella nello stesso commit, perché la spec resta la fonte e il DoD della issue la cita. Poi apri la PR anche per quel branch.
