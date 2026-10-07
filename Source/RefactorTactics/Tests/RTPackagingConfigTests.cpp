@@ -593,11 +593,14 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 			// Il PACKAGE path, non l'object path: `/.../Idle.Idle` non compare nella tabella di import di
 			// chi lo referenzia — la chiave e' `/.../Idle`, la stessa lezione di `RTPackagePathOf`.
 			const FString Package = Path.GetLongPackageName();
-			++CoppieCoperte;
 			Richieste.AddUnique(Package);
 			FString& Chi = Provenienza.FindOrAdd(Package);
 			if (!Chi.IsEmpty()) { Chi += TEXT("; "); }
 			Chi += FString::Printf(TEXT("%s / %s"), *Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key));
+			// ⚠️ Per ULTIMO, dopo l'inserimento: un `continue` futuro fra l'inserimento e il contatore
+			// sottrarrebbe path al cook senza far divergere i due numeri. Il contatore testimonia che la
+			// coppia e' ENTRATA, non che e' stata vista.
+			++CoppieCoperte;
 		}
 	}
 
