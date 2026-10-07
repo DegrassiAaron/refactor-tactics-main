@@ -314,8 +314,8 @@ public:
 	 * la stessa cosa di «non esiste modo di farne divergere le due letture», come questa riga affermava.
 	 *
 	 * 🔑 **Chi dimensiona il playback vero non passa di qui**: `ARTTurnManager::PhaseTimeForPlaybackPhase`
-	 * chiama `PhaseTime`. ⏱️ *Oggi con la SOMMA provvisoria dei canali; la sequenza intera, attivazioni
-	 * comprese, arriva col Task 7 di #3549.* Questa forma sopravvive per i gate di pacing sulle fasi
+	 * chiama `PhaseTime` con le attivazioni e la lunghezza della sequenza del Blast (#3549). ⏱️ *Fino al
+	 * Task 7 di #3549 passava la SOMMA provvisoria dei tre canali.* Questa forma sopravvive per i gate di pacing sulle fasi
 	 * classiche, e la riga esiste perche' chi la usi altrove sappia cosa NON sta contando.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")

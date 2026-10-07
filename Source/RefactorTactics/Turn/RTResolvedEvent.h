@@ -395,8 +395,9 @@ struct FRTResolvedEvent
 	 * derivarla qui sarebbe ricalcolare a valle cio' che il catalogo sa gia', ed e' il modo in cui due
 	 * letture della stessa identita' cominciano a divergere.
 	 *
-	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda `ActionId`
-	 * e solo quello: due profili distinti della stessa generica — `Branth.Interposition` e
+	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda la coppia
+	 * (`SourceStableUnitId`, `ActionId`) — da #3549; prima il solo `ActionId` — e mai questo campo: due
+	 * profili distinti della stessa generica — `Branth.Interposition` e
 	 * `Action.Intercept` — sono due atti, ed e' esattamente la distinzione che `RTTurnLog.h` dichiara di
 	 * voler conservare.
 	 */
