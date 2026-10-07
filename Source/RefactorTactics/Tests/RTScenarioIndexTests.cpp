@@ -15,6 +15,7 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "Tests/RTScenarioTestSupport.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -363,27 +364,6 @@ bool FRTScenarioIndexAbbreviationOnCorpusTest::RunTest(const FString&)
 	TestFalse(TEXT("un ID esatto risolve anche se il suo ultimo segmento e' ambiguo"), Esatto.IsEmpty());
 	return true;
 }
-namespace
-{
-	/** Una radice del Lab di prova, sotto la cartella transiente dell'automation: mai `Saved/RTLab` vero. */
-	FString LabRootDiProva(const TCHAR* Nome)
-	{
-		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RTLabIndex"), Nome);
-	}
-
-	/** Scrive un file di scenario minimo — solo header — nella cartella data. */
-	bool ScriviHeaderScenario(const FString& Dir, const TCHAR* NomeFile, const TCHAR* Id, const TCHAR* Tags)
-	{
-		const FString Testo = FString::Printf(TEXT("{ \"scenarioId\": \"%s\", \"tags\": [%s] }"), Id, Tags);
-		return FFileHelper::SaveStringToFile(Testo, *FPaths::Combine(Dir, NomeFile),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-	}
-
-	bool ContieneId(const TArray<FRTScenarioEntry>& Entries, const TCHAR* Id)
-	{
-		return Entries.ContainsByPredicate([Id](const FRTScenarioEntry& E) { return E.ScenarioId == Id; });
-	}
-}
 
 /**
  * La radice del Lab si vede da `ScanAll` e NON da `Scan` (spec §2 passo 2, §3).
@@ -398,7 +378,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexScanAllSeesTheLabRootTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
 {
-	const FString Root = LabRootDiProva(TEXT("Vista"));
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("Vista"));
 	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
 	ON_SCOPE_EXIT
@@ -467,7 +448,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootAbsentTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexLabRootAbsentTest::RunTest(const FString&)
 {
-	const FString Root = LabRootDiProva(TEXT("CheNonEsiste"));
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("CheNonEsiste"));
 	IFileManager::Get().DeleteDirectory(*Root, false, true);
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
 	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
@@ -495,7 +477,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootProblemsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
 {
-	const FString Root = LabRootDiProva(TEXT("Rotto"));
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("Rotto"));
 	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
 	ON_SCOPE_EXIT
@@ -527,6 +510,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootHiddenTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
 	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
 

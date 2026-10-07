@@ -16,6 +16,7 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTTestScenario.h"
+#include "Tests/RTScenarioTestSupport.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -462,37 +463,6 @@ bool FRTLabEmptyListSaysWhyTest::RunTest(const FString&)
 	return true;
 }
 
-namespace RTLabViewModelTestsInternal
-{
-	FString LabRootDiProva(const TCHAR* Nome)
-	{
-		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RTLabPrepare"), Nome);
-	}
-
-	/** Imposta una radice del Lab di prova vuota. Chi la chiama la azzera con `ON_SCOPE_EXIT`. */
-	FString ApriRadiceDiProva(const TCHAR* Nome)
-	{
-		const FString Root = LabRootDiProva(Nome);
-		IFileManager::Get().DeleteDirectory(*Root, false, true);
-		IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
-		URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
-		return Root;
-	}
-
-	void ChiudiRadiceDiProva(const FString& Root)
-	{
-		URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
-		IFileManager::Get().DeleteDirectory(*Root, false, true);
-	}
-
-	int32 FileJsonIn(const FString& Root)
-	{
-		TArray<FString> Files;
-		IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.json"), true, false);
-		return Files.Num();
-	}
-}
-
 /**
  * `PrepareForPie` scrive un file che l'indice risolve a QUEL percorso e che si rilegge uguale alla fixture
  * in memoria (spec §5.1). Il confronto campo per campo e' lo stesso di `RunWithoutHeroUsesAbilityLabFixture`.
@@ -502,8 +472,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieWritesAResolvableScenarioTes
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieWritesAResolvableScenarioTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Scrive"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Scrive"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
@@ -546,8 +517,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAndWritesNothingTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieRefusesAndWritesNothingTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Rifiuta"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Rifiuta"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTLabViewModel Modello; // nessuna ability selezionata
@@ -565,8 +537,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAnAmbiguousIdTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Doppione"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Doppione"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
@@ -575,9 +548,7 @@ bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
 
 	// Un secondo file, con nome diverso, che dichiara lo stesso Id della fixture.
 	const FString IdFixture = FString::Printf(TEXT("AbilityLab.%s"), *Ability.AbilityId.ToString());
-	FFileHelper::SaveStringToFile(
-		FString::Printf(TEXT("{ \"scenarioId\": \"%s\", \"tags\": [\"ability-lab\"] }"), *IdFixture),
-		*FPaths::Combine(Root, TEXT("Doppione.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+	ScriviHeaderScenario(Root, TEXT("Doppione.json"), *IdFixture, TEXT("\"ability-lab\""));
 
 	FRTLabViewModel Modello;
 	TestTrue(TEXT("l'ability si seleziona"), Modello.SelectAbility(Ability.AbilityId));
@@ -631,8 +602,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieOverwritesAStaleFixtureTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	using namespace RTLabViewModelTestsInternal;
-	const FString Root = ApriRadiceDiProva(TEXT("Stantio"));
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabPrepare"), TEXT("Stantio"));
 	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
 
 	FRTHeroLabEntry Eroe;
