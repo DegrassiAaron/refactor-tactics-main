@@ -14,6 +14,10 @@
 // questa struct — di norma e' rimasta intatta, perche' l'unica causa reale e' `ReadOnly`. Il chiamante
 // (il lanciatore) rimette l'ALTRA variabile, quella gia' applicata, e rifiuta con il motivo.
 //
+// ⚠️ Limite dichiarato: `SetByPrima` lo legge **solo il test**; `Restore` non lo riapplica. Il «per
+// costruzione» di sopra vale se nessuno alza la priorita' DURANTE il PIE: una riga digitata in console in
+// quel tempo lascia la variabile a `Console` anche dopo `Restore`.
+//
 // ⛔ Nessuna dipendenza da `GEditor`: la struct si prova in un automation test su una CVar di prova.
 
 #pragma once

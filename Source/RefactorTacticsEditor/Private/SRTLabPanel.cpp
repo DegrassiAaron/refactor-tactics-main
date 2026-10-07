@@ -216,11 +216,11 @@ FReply SRTLabPanel::OnEseguiInPie()
 	// Il PIE puo' finire dopo che il pannello e' stato chiuso: il lanciatore tiene la callback, quindi la
 	// si lega **debole**. Il modello e' membro del widget e non sopravvive a lui.
 	const bool bLanciato = FRTLabPieLauncher::Launch(Id, Errore,
-		[Debole = TWeakPtr<SRTLabPanel>(SharedThis(this))]()
+		[Debole = TWeakPtr<SRTLabPanel>(SharedThis(this))](const bool bRipristinato)
 		{
 			if (const TSharedPtr<SRTLabPanel> Pannello = Debole.Pin())
 			{
-				Pannello->Modello.NoteLaunchFinished();
+				Pannello->Modello.NoteLaunchFinished(bRipristinato);
 			}
 		});
 	if (!bLanciato)
@@ -334,7 +334,10 @@ FText SRTLabPanel::TestoEsito() const
 	// Lo stato dell'ultimo lancio e' del modello: si azzera a fine PIE e a ogni gesto successivo.
 	if (Modello.WasLaunchFinished())
 	{
-		return LOCTEXT("PieTerminato", "PIE terminato: le CVar sono tornate com'erano.");
+		// Due frasi distinte: dire «tornate com'erano» dopo un ripristino che non ha preso sarebbe falso.
+		return Modello.LastLaunchRestored()
+			? LOCTEXT("PieTerminato", "PIE terminato: le CVar sono tornate com'erano.")
+			: LOCTEXT("PieTerminatoSenzaRipristino", "PIE terminato: il ripristino di una CVar NON ha preso, vedi il log.");
 	}
 
 	const FString& IdLanciato = Modello.LaunchedScenarioId();

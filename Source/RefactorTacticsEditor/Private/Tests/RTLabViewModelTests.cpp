@@ -701,12 +701,28 @@ bool FRTLabLaunchFinishedClearsTheLaunchedIdTest::RunTest(const FString&)
 	Modello.NoteLaunched(TEXT("AbilityLab.X"));
 	TestFalse(TEXT("controllo positivo: lanciato ma non finito"), Modello.WasLaunchFinished());
 
-	Modello.NoteLaunchFinished();
+	// (a) fine PIE con ripristino riuscito
+	Modello.NoteLaunchFinished(true);
 	TestTrue(TEXT("a fine PIE l'Id e' vuoto"), Modello.LaunchedScenarioId().IsEmpty());
 	TestTrue(TEXT("e il lancio risulta finito"), Modello.WasLaunchFinished());
+	TestTrue(TEXT("e il ripristino risulta riuscito"), Modello.LastLaunchRestored());
 
 	TestTrue(TEXT("un gesto successivo: la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
 	TestFalse(TEXT("SelectAbility toglie la riga «PIE terminato»"), Modello.WasLaunchFinished());
+
+	// (b) l'ultimo gesto vince: una selezione fra il lancio e la fine del PIE non viene scavalcata.
+	// Controllo positivo: stesso modello, stesso ordine di chiamate di (a), salvo il gesto in mezzo.
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	TestTrue(TEXT("(b) la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+	Modello.NoteLaunchFinished(true);
+	TestFalse(TEXT("(b) la fine del PIE NON scavalca il gesto successivo"), Modello.WasLaunchFinished());
+	TestTrue(TEXT("(b) e l'Id resta vuoto"), Modello.LaunchedScenarioId().IsEmpty());
+
+	// (c) ripristino fallito: la riga «terminato» c'e', ma dice che il ripristino non ha preso.
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	Modello.NoteLaunchFinished(false);
+	TestTrue(TEXT("(c) il lancio risulta finito"), Modello.WasLaunchFinished());
+	TestFalse(TEXT("(c) e il ripristino risulta NON riuscito"), Modello.LastLaunchRestored());
 	return true;
 }
 

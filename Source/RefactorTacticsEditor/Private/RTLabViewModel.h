@@ -177,11 +177,20 @@ public:
 	/** Registra il lancio riuscito di `Id`: azzera «PIE terminato», che apparteneva al gesto precedente. */
 	void NoteLaunched(const FString& Id);
 
-	/** Il PIE e' finito (o non e' mai partito): l'Id si azzera e resta la sola traccia «terminato». */
-	void NoteLaunchFinished();
+	/**
+	 * Il PIE e' finito (o non e' mai partito): l'Id si azzera e resta la sola traccia «terminato», con
+	 * `bRestored` = le CVar sono davvero tornate com'erano.
+	 *
+	 * ⛔ **Non scavalca un gesto successivo**: se nel frattempo c'e' stata una run, una selezione o un cambio
+	 * di filtro, l'Id e' gia' vuoto e la fine del PIE non fa nulla — l'ultimo gesto vince.
+	 */
+	void NoteLaunchFinished(bool bRestored);
 
 	/** `true` dalla fine del PIE fino al gesto successivo (selezione, filtro, run, nuovo lancio). */
 	bool WasLaunchFinished() const { return bLaunchFinishedOnce; }
+
+	/** L'esito del ripristino delle CVar dell'ultimo lancio finito. Significativo solo se `WasLaunchFinished()`. */
+	bool LastLaunchRestored() const { return bLastRestoreOk; }
 
 	/** La spec della fixture, esposta perche' il pannello possa offrire seed e posa. */
 	FRTAbilityLabFixtureSpec& MutableSpec() { return Spec; }
@@ -201,6 +210,9 @@ private:
 
 	/** Vedi `WasLaunchFinished()`. */
 	bool bLaunchFinishedOnce = false;
+
+	/** Vedi `LastLaunchRestored()`. */
+	bool bLastRestoreOk = false;
 
 	/** Un gesto dell'utente (selezione, filtro, run) chiude la riga dell'ultimo lancio, in entrambe le forme. */
 	void ClearLaunchStatus();

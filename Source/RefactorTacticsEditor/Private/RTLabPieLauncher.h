@@ -30,12 +30,16 @@ public:
 	 * `OnFinished`, se data, e' chiamata **una volta**, al primo fra `EndPIE` e `CancelPIE`, dopo aver
 	 * ripristinato le CVar e sganciato i delegate (#3542). Non e' chiamata se `Launch` rifiuta. Il chiamante
 	 * che la lega a un oggetto la lega **debole**: il PIE puo' finire dopo che il pannello e' stato chiuso.
+	 * Riceve `bRipristinato`: vero solo se ENTRAMBE le CVar sono tornate com'erano; un ripristino che non
+	 * prende si dichiara anche nel log.
 	 */
-	static bool Launch(const FString& ScenarioId, FString& OutError, TFunction<void()> OnFinished = nullptr);
+	static bool Launch(const FString& ScenarioId, FString& OutError, TFunction<void(bool bRipristinato)> OnFinished = nullptr);
 
 	/**
-	 * Le guardie di `Launch` che non dipendono dall'Id: `GEditor`, PIE in corso o gia' richiesto, ripristino
-	 * di un lancio precedente ancora pendente. `false` col motivo in `OutError`.
+	 * Le guardie di `Launch` che non dipendono dall'Id **e non toccano le CVar**: `GEditor`, PIE in corso o gia'
+	 * richiesto, ripristino di un lancio precedente ancora pendente. `false` col motivo in `OutError`.
+	 * ⚠️ L'esistenza delle CVar e una `Apply` rifiutata NON sono qui: restano in `Launch`, e in quei casi la
+	 * fixture e' gia' stata scritta.
 	 *
 	 * 🔑 **Esiste perche' il chiamante possa chiedere «si puo' lanciare?» PRIMA di scrivere lo scenario su
 	 * disco** (#3542): il pannello salvava la fixture e solo dopo scopriva che PIE era gia' in corso,

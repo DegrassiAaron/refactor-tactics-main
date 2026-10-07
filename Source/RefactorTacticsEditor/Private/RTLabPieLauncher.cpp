@@ -15,8 +15,11 @@ namespace
 		FRTLabCVarSnapshot PlaybackControls;
 		FDelegateHandle SuEndPIE;
 		FDelegateHandle SuCancelPIE;
-		/** Chiamata da `Ripristina()` a CVar rimesse e delegate sganciati (#3542); puo' essere vuota. */
-		TFunction<void()> OnFinished;
+		/**
+		 * Chiamata da `Ripristina()` a CVar rimesse e delegate sganciati (#3542); puo' essere vuota.
+		 * Il parametro dice se ENTRAMBE le `Restore` hanno preso.
+		 */
+		TFunction<void(bool bRipristinato)> OnFinished;
 	};
 
 	TUniquePtr<FRTLabPieRestore> GRipristino;
@@ -36,21 +39,26 @@ namespace
 		FEditorDelegates::EndPIE.Remove(R->SuEndPIE);
 		FEditorDelegates::CancelPIE.Remove(R->SuCancelPIE);
 
+		// Entrambe le `Restore` si eseguono sempre: la seconda non deve restare indietro perche' la prima non ha preso.
 		FString Errore;
+		bool bRipristinato = true;
 		if (!R->Scenario.Restore(Errore))
 		{
+			bRipristinato = false;
 			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
 		}
 		if (!R->PlaybackControls.Restore(Errore))
 		{
+			bRipristinato = false;
 			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
 		}
 
 		// 🔑 **Per ultima**: chi ascolta «e' finito» deve trovare le CVar gia' com'erano e il lanciatore gia'
-		// libero (`GRipristino` vuoto, quindi un nuovo `Launch` e' lecito dal suo interno).
+		// libero (`GRipristino` vuoto, quindi un nuovo `Launch` e' lecito dal suo interno). Porta l'esito:
+		// dire «sono tornate com'erano» dopo un ripristino fallito sarebbe una frase falsa a schermo.
 		if (R->OnFinished)
 		{
-			R->OnFinished();
+			R->OnFinished(bRipristinato);
 		}
 	}
 }
@@ -84,7 +92,7 @@ bool FRTLabPieLauncher::CanLaunch(FString& OutError)
 	return true;
 }
 
-bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFunction<void()> OnFinished)
+bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFunction<void(bool bRipristinato)> OnFinished)
 {
 	OutError.Reset();
 
@@ -93,7 +101,10 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFu
 		OutError = TEXT("nessuno ScenarioId da lanciare");
 		return false;
 	}
-	// Le guardie che non dipendono dall'Id stanno in `CanLaunch`, chiamabile **prima** di scrivere lo scenario.
+	// Le guardie indipendenti dall'Id che stanno in `CanLaunch` sono quelle che NON toccano le CVar
+	// (`GEditor`, PIE in corso, ripristino pendente): si possono chiedere **prima** di scrivere lo scenario.
+	// ⚠️ L'esistenza delle CVar (`Capture`) e una `Apply` rifiutata restano QUI: in quei casi la fixture e'
+	// gia' stata scritta su disco quando il lancio rifiuta.
 	if (!CanLaunch(OutError))
 	{
 		return false;

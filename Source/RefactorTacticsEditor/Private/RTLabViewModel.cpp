@@ -108,10 +108,16 @@ void FRTLabViewModel::NoteLaunched(const FString& Id)
 	bLaunchFinishedOnce = false;
 }
 
-void FRTLabViewModel::NoteLaunchFinished()
+void FRTLabViewModel::NoteLaunchFinished(bool bRestored)
 {
+	// Senza un lancio in corso nel modello l'ultimo gesto e' un altro (run, selezione, filtro): vince lui.
+	if (LaunchedId.IsEmpty())
+	{
+		return;
+	}
 	LaunchedId.Reset();
 	bLaunchFinishedOnce = true;
+	bLastRestoreOk = bRestored;
 }
 
 ERTActionReadoutResult FRTLabViewModel::DescribeSelection(TArray<FRTActionParameterView>& OutParameters) const
