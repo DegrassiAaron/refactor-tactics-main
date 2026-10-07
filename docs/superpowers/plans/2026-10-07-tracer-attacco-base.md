@@ -2077,10 +2077,11 @@ qui, una riga per scarto: chi rilegge il piano per rifare un passo parte da ciò
   `SetUpTwoPhaseTurn`: su un turno a un atto il colpo ha lo stesso `ActionId` dell'impronta, quindi un arrivo non è mai
   un confine di atto e il blocco prescritto dal piano non poteva fermarsi.
 - **Task 6** — `TracerChannelClearsAtBlastEnd` ha un caso (c), assente dal piano: con (a) e (b) togliere
-  `ClearPlaybackTracers` dalla finalizzazione lasciava tutto verde, perché `PhaseTime` dimensiona il Blast in modo che
-  all'ultimo tick l'ultimo arrivo sia già passato e la consegna in uscita abbia già svuotato il canale. (c) abbassa
-  `AttackShowSeconds` con un colpo in volo e mette un `Move` dopo il Blast: è l'unico regime in cui la pulizia di fine
-  Blast conta.
+  `ClearPlaybackTracers` dalla finalizzazione di fase del Blast lasciava tutto verde, per due ragioni diverse. (a) passa
+  da `SkipPlayback`, che va dritto a `FinishPlayback`, e `FinishPlayback` spegne il canale per conto suo. In (b)
+  `PhaseTime` dimensiona il Blast in modo che all'ultimo tick l'ultimo arrivo sia già passato, e la consegna in uscita
+  ha già svuotato il canale. Solo (c) — `AttackShowSeconds` abbassato con un colpo in volo e un `Move` dopo il Blast —
+  arriva alla pulizia di fine Blast.
 - **Task 6** — `TracerIsInFlightBetweenLaunchAndArrival` pinna anche `OnAttackResolved` all'arrivo (decisione V1: *«il
   numero compare all'arrivo»*): `HitArrivesAfterTheLaunch` misura la traccia dei battiti e non cade se il broadcast
   torna al lancio.
