@@ -173,7 +173,9 @@ struct FRTHitGeometry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	bool bResolved = false;
 
-	/** L'origine dichiarata del colpo, da `ResolveImpactOrigin` ([D-302] punto 3). */
+	/** L'origine dichiarata del colpo, da `ResolveImpactOrigin` ([D-302] punto 3).
+	 *  ⚠️ **Per un colpo `Area` e' il CENTRO d'impatto, non la cella dell'attaccante** (`Footprint->AimCell`):
+	 *  irrilevante finche' `Area` non e' idonea al tracer, ma e' il significato del campo. */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId From;
 
@@ -181,7 +183,9 @@ struct FRTHitGeometry
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId Impact;
 
-	/** Chi conosceva l'ATTACCANTE in `From` quando il colpo e' partito ([D-223], fatto puntuale). */
+	/** Chi conosceva l'ATTACCANTE in `From` quando il colpo e' partito ([D-223], fatto puntuale).
+	 *  ⚠️ **Salvo per un colpo `Area`**, dove `From` e' il centro d'impatto e questo verdetto riguarda quella
+	 *  cella, non l'attaccante. */
 	UPROPERTY()
 	FRTKnowledgeVerdict FromVerdict;
 

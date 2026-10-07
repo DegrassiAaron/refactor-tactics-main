@@ -67,7 +67,6 @@ namespace
 		Attaccante->PlannedAbilityIndex = 0;
 		Attaccante->PlannedAttackTarget = Bersaglio;
 		Attaccante->PlannedCell = FRTCellId(2, 3);
-		TM->bRecordAttackBeatsForTest = true; // `#2454`: la traccia dei battiti, per sapere se un colpo e' arrivato
 		return TM;
 	}
 

@@ -331,7 +331,9 @@ bool FRTPlaybackTracerArrivesAfterFlightTest::RunTest(const FString&)
 	TestEqual(TEXT("l'arrivo e' dopo il volo"), URTPlaybackLibrary::AttackBeatSeconds(1, A, Flights), 0.25f, RTTol);
 
 	// 🔴 **La mutazione dichiarata**: con il volo a zero il lancio e l'arrivo cadono nello stesso istante, e
-	// queste due righe cadono — e' la forma di oggi, quella che #2454 chiede di superare.
+	// cade la riga a 0.1 s (due battiti usciti invece di uno) — e' la forma di oggi, quella che #2454 chiede di
+	// superare. ⚠️ La riga a 0.25 s NON cade: e' il testimone del confine **inclusivo** (un battito dovuto a
+	// `t == istante` e' uscito), e vale con qualunque volo `<= 0.25`.
 	TestEqual(TEXT("a 0.1 s e' uscito il lancio e non l'arrivo"), URTPlaybackLibrary::AttackBeatsDue(0.1f, A, Flights), 1);
 	TestEqual(TEXT("a 0.25 s e' uscito anche l'arrivo"), URTPlaybackLibrary::AttackBeatsDue(0.25f, A, Flights), 2);
 

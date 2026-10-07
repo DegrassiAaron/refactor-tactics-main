@@ -309,8 +309,8 @@ bool FRTPrivacyUnseenAttackerTracerTest::RunTest(const FString&)
 	// 🔴 **Il filtro di privacy del tracer vive in UN punto**: `PushPlaybackTracers` non consegna un tracer il cui
 	// stile, per chi guarda, e' `None`. La mappa disegna TUTTO cio' che riceve, quindi quella guardia e' l'intero
 	// filtro che impedisce a una linea di partire dalla cella di un attaccante che lo spettatore non poteva vedere.
-	// Finora ogni fixture di playback aveva l'attaccante nella squadra 0 — lo spettatore di un mondo di prova —
-	// e togliere la guardia, o sostituire `TracerStyleFor(...)` con uno stile costante, lasciava tutto verde.
+	// Negli altri fixture di playback l'attaccante e' nella squadra 0 — lo spettatore di un mondo di prova — quindi
+	// togliere la guardia, o sostituire `TracerStyleFor(...)` con uno stile costante, lascia tutto verde.
 	//
 	// Qui le squadre si scambiano: lo spettatore (squadra 0) e' la VITTIMA, colpita alle spalle a 3 celle da un
 	// attaccante che non vedeva (`Privacy.UnseenAttackerIsOutOfTheOriginVerdict` misura il verdetto, questo misura

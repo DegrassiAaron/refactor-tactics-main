@@ -199,7 +199,10 @@ bool FRTPrivacyUnseenAttackerTest::RunTest(const FString&)
 	TestTrue(TEXT("chi spara conosce la propria origine"), G.FromVerdict.AllowsTeam(0));
 	// 🔴 Il punto del test: la squadra colpita non vedeva chi sparava, e il verdetto lo dice.
 	TestFalse(TEXT("la squadra colpita NON conosceva l'attaccante"), G.FromVerdict.AllowsTeam(1));
-	// D-380: chi colpisce conosce la vittima prima che il verdetto si congeli (`RevealHitTargetsToAttackers`).
+	// ⚠️ Qui vale per **vista diretta**: Branth guarda a Est e Ivrin gli sta dritto davanti, a 3 celle, quindi la
+	// squadra 0 vede la vittima da se'. ⛔ **Il caso di D-380** (`RevealHitTargetsToAttackers`: chi colpisce conosce
+	// la vittima anche quando non la vedeva) **non e' coperto da questo test**: il tiro alla cieca non e' su `main`
+	// (PR #3230) e il suo caso resta di `PIE-V01-BLINDFIRE`.
 	TestTrue(TEXT("chi spara conosce la cella d'impatto"), G.ImpactVerdict.AllowsTeam(0));
 
 	TestTrue(TEXT("per chi spara: proiettile"), URTPlaybackLibrary::TracerStyleFor(Colpi[0], 0) == ERTTracerStyle::Projectile);

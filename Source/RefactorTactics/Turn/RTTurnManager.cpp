@@ -6269,12 +6269,21 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// ⛔ **Il predicato dei FATTI PUNTUALI** ([D-223]): `FreezeVerdictFor` con la cella del fatto, lo stesso che
 		// congela le righe di combattimento. Non `FreezeRouteCellVerdict`: quello esiste perche' una rotta non e'
 		// un fatto puntuale. E `RevealHitTargetsToAttackers` ([D-380]) e' gia' passato: chi colpisce conosce la vittima.
-		if (Intents.IsValidIndex(Hit.IntentIndex))
+		//
+		// ⛔ **Un intento sconosciuto non produce una geometria risolta**: senza `IsValidIndex` qui sotto,
+		// `Ev.Shape` resterebbe il `Single` di default e `ResolveImpactOrigin` (che tratta l'intento mancante come
+		// non-area) darebbe comunque l'attaccante come origine — una geometria «risolta» con una forma inventata.
+		// ⚠️ **Per un colpo `Area` `From`/`FromVerdict` descrivono il CENTRO d'impatto, non l'attaccante**:
+		// `ResolveImpactOrigin` restituisce `Footprint->AimCell`. Oggi non conta, perche' `Area` non e' idonea al
+		// tracer (`IsTracerEligible` ammette solo `Single` e `Line`); chi la rendesse idonea deve leggere questo
+		// campo come «da dove arriva il colpo», non come «dove sta chi spara».
+		const bool bHasIntent = Intents.IsValidIndex(Hit.IntentIndex);
+		if (bHasIntent)
 		{
 			Ev.Shape = Intents[Hit.IntentIndex].Shape;
 		}
 		FRTCellId HitFrom;
-		if (!bSkipHitGeometryForTest && Attacker && Victim && HexUnits.IsValidIndex(Hit.TargetId)
+		if (!bSkipHitGeometryForTest && bHasIntent && Attacker && Victim && HexUnits.IsValidIndex(Hit.TargetId)
 			&& ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, HitFrom))
 		{
 			Ev.HitGeometry.bResolved = true;
