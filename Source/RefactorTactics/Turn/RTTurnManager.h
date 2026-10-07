@@ -2379,8 +2379,23 @@ protected:
 	void ArrivePlaybackAttack(int32 Index, bool bWithLog);
 
 	/**
+	 * Esegue il PROSSIMO battito del cursore `AttackBeatsDone` (`#2454`): il `2i` lancia il colpo `i`, il `2i+1`
+	 * lo fa arrivare, e il cursore avanza di uno. `bWithLog` va all'arrivo (`ArrivePlaybackAttack`).
+	 *
+	 * 🔑 **L'unico posto in cui il cursore si interpreta**: lo percorrono sia il ciclo del `Blast` sia la rete di
+	 * finalizzazione, e due copie dello stesso `Index = N / 2, arrivo = N % 2` sono due occasioni di sfasarle.
+	 * ⚠️ Il confine `Next Action` NON sta qui: lo valuta solo il ciclo principale, dopo un arrivo.
+	 *
+	 * @return l'indice del colpo se il battito era un ARRIVO, `INDEX_NONE` se era un lancio. ⛔ Dopo un arrivo
+	 *         `OnAttackResolved` e' stato trasmesso: un ascoltatore puo' aver chiuso il playback, e chi riceve
+	 *         l'indice deve verificarlo (`PlaybackAttacks.IsValidIndex`) prima di rileggere l'evento.
+	 */
+	int32 ExecuteNextAttackBeat(bool bWithLog);
+
+	/**
 	 * Consegna alla mappa il tracer in volo (`#2454`). Col cursore unico ce n'e' AL PIU' UNO: il lancio di `i+1`
 	 * segue l'arrivo di `i`. Il disegno dipende da chi guarda (`TracerStyleFor`), il ritmo no.
+	 * ⚠️ Non tocca la mappa se non c'e' nulla in volo e l'ultima consegna era gia' vuota (`bPlaybackTracerChannelFull`).
 	 */
 	void PushPlaybackTracers();
 
@@ -3390,6 +3405,12 @@ private:
 	 * `bPreserveClock` salta `EnterPlaybackPhase`).
 	 */
 	int32 AttackBeatsDone = 0;
+	/**
+	 * `true` se l'ultima consegna a `ARTHexMapActor::SetPlaybackTracers` non era vuota (`#2454`): permette a
+	 * `PushPlaybackTracers` di non toccare la mappa a ogni tick quando non c'e' nulla in volo e nulla da spegnere.
+	 * ⛔ Si azzera ESATTAMENTE dove il canale si spegne (finalizzazione del `Blast` e `FinishPlayback`).
+	 */
+	bool bPlaybackTracerChannelFull = false;
 	/** Volo effettivo di ogni colpo, parallelo a `PlaybackAttacks` (`URTPlaybackLibrary::TracerFlightFor`). */
 	TArray<float> PlaybackAttackFlights;
 	/** La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer, mai il ritmo. */

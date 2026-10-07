@@ -46,9 +46,10 @@ enum class ERTPlaybackStopAt : uint8
 	 * il prossimo confine di fase se arriva prima.
 	 *
 	 * 🔑 **La fase conta come confine d'atto, e non e' una scorciatoia.** Il tempo del playback scorre per
-	 * fase, e l'unica sequenza che esso srotola un elemento per volta sono i colpi del `Blast`
-	 * (`AttacksToShow`). Un `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il
-	 * confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
+	 * fase, e le uniche sequenze che esso srotola un elemento per volta stanno nel `Blast`: impronte e colpi a
+	 * struttura per `AttacksToShow`, i colpi per `AttackBeatsDue`. ⚠️ Il confine d'atto di un colpo cade al suo
+	 * ARRIVO, non al lancio: e' li' che il colpo si mostra. Un `Move` e' un atto solo — `Action.Move` — quindi
+	 * il suo confine **e'** il confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
 	 */
 	NextAction
 };
@@ -207,8 +208,16 @@ public:
 	static float TracerFlightFor(bool bEligible, float TracerFlightSeconds, float AttackShowSeconds);
 
 	/**
+	 * L'istante del LANCIO del colpo `AttackIndex`, dall'inizio del Blast: `i·A` (con `A` tagliato a 0), lo stesso
+	 * istante di `AttacksToShow`.
+	 * 🔑 **Un'unica formula**: la usano `AttackBeatSeconds` e `TracerAlpha`. Il battito e l'avanzamento del tracer
+	 * misurano dallo stesso istante, e una copia che divergesse sfaserebbe il segmento dal suo numero.
+	 */
+	static float AttackLaunchSeconds(int32 AttackIndex, float AttackShowSeconds);
+
+	/**
 	 * L'istante di un battito, misurato dall'inizio del Blast. Il battito `2i` e' il LANCIO del colpo `i`
-	 * (`i·A`, lo stesso istante di `AttacksToShow`), il `2i+1` il suo ARRIVO (`i·A + Flights[i]`).
+	 * (`AttackLaunchSeconds`), il `2i+1` il suo ARRIVO (`AttackLaunchSeconds + Flights[i]`).
 	 */
 	static float AttackBeatSeconds(int32 Beat, float AttackShowSeconds, const TArray<float>& Flights);
 
@@ -243,7 +252,8 @@ public:
 	 *
 	 *  - `Dash` / `Move`  → `MaxMoveSegments / CellsPerSecond`. Gli attacchi non entrano.
 	 *  - `Blast`          → `Max(colpi, muri, impronte, spinta)`, **non** la somma: i canali si rivelano
-	 *                       nella stessa finestra, ciascuno col proprio contatore su `AttacksToShow`. Il
+	 *                       nella stessa finestra, ciascuno col proprio contatore. Impronte e muri su
+	 *                       `AttacksToShow`; i colpi su `AttackBeatsDue` (lancio e arrivo, `#2454`). Il
 	 *                       tempo ha un pavimento di uno anche quando non c'e' nulla da scaglionare, perche'
 	 *                       un Blast di sola spinta si vede e deve durare.
 	 *                       ⏱️ *Erano i soli colpi fino a `#2828`, che ha aggiunto i muri; le impronte sono

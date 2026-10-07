@@ -274,9 +274,9 @@ bool FRTPlaybackPredicateDoesNotSurviveTheTurnTest::RunTest(const FString&)
  * issue lo consuma).
  *
  * ⚠️ Su un turno con un solo atto il confine di azione coincide con quello di fase, e la fermata avviene
- * comunque: il test asserisce che ci si fermi **prima della fine**, non su quale dei due sia scattato.
- * Distinguerli richiederebbe un turno con due azioni diverse nello stesso `Blast`, che il corpus di questo
- * file non costruisce — ed e' dichiarato invece di essere simulato.
+ * comunque: la prima parte del test asserisce che ci si fermi **prima della fine**, non su quale dei due
+ * sia scattato. Distinguerli richiede un turno con due azioni diverse nello stesso `Blast`, e lo costruisce
+ * `SetUpTwoActTurn`: lo usa il blocco in coda, per la fermata che cade su un ARRIVO.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackNextActionStopsBeforeTheEndTest,
 	"RefactorTactics.Playback.NextActionStopsAtTheActionBoundary",

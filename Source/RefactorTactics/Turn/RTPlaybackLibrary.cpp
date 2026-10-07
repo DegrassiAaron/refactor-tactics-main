@@ -85,10 +85,15 @@ float URTPlaybackLibrary::TracerFlightFor(bool bEligible, float TracerFlightSeco
 	return FMath::Clamp(TracerFlightSeconds, 0.f, 0.5f * AttackShowSeconds);
 }
 
+float URTPlaybackLibrary::AttackLaunchSeconds(int32 AttackIndex, float AttackShowSeconds)
+{
+	return AttackIndex * FMath::Max(0.f, AttackShowSeconds);
+}
+
 float URTPlaybackLibrary::AttackBeatSeconds(int32 Beat, float AttackShowSeconds, const TArray<float>& Flights)
 {
 	const int32 Index = Beat / 2;
-	const float Lancio = Index * FMath::Max(0.f, AttackShowSeconds);
+	const float Lancio = AttackLaunchSeconds(Index, AttackShowSeconds);
 	if (Beat % 2 == 0)
 	{
 		return Lancio;
@@ -118,7 +123,7 @@ float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, flo
 	{
 		return 1.f;
 	}
-	const float Lancio = AttackIndex * FMath::Max(0.f, AttackShowSeconds);
+	const float Lancio = AttackLaunchSeconds(AttackIndex, AttackShowSeconds);
 	return FMath::Clamp((PhaseElapsed - Lancio) / Flight, 0.f, 1.f);
 }
 

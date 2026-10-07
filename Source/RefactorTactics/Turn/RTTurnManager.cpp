@@ -8059,11 +8059,22 @@ void ARTTurnManager::ArrivePlaybackAttack(int32 Index, bool bWithLog)
 	if (bRecordAttackBeatsForTest) { AttackBeatTrace.Add(FString::Printf(TEXT("A%d"), Index)); }
 }
 
+int32 ARTTurnManager::ExecuteNextAttackBeat(bool bWithLog)
+{
+	const int32 Index = AttackBeatsDone / 2;
+	const bool bArrivo = (AttackBeatsDone % 2) == 1;
+	++AttackBeatsDone;
+	if (!bArrivo)
+	{
+		LaunchPlaybackAttack(Index);
+		return INDEX_NONE;
+	}
+	ArrivePlaybackAttack(Index, bWithLog);
+	return Index;
+}
+
 void ARTTurnManager::PushPlaybackTracers()
 {
-	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
-	if (!MapActor) { return; }
-
 	TArray<FRTPlaybackTracer> InVolo;
 	if (AttackBeatsDone % 2 == 1) // lanciato, non ancora arrivato
 	{
@@ -8084,7 +8095,22 @@ void ARTTurnManager::PushPlaybackTracers()
 			}
 		}
 	}
+	// ⚠️ **Si consegna solo se c'e' qualcosa da dire alla mappa.** Questa funzione gira a OGNI tick del `Blast` e
+	// `FindInWorld` scorre il mondo: e' la stessa preoccupazione per cui `RevealPlaybackFootprints` cerca l'actor
+	// UNA volta per chiamata e non per colpo. Niente in volo adesso E canale gia' vuoto = niente da consegnare.
+	// ⛔ Il canale si spegne anche altrove (finalizzazione del `Blast`, `FinishPlayback`), e il flag si azzera
+	// ESATTAMENTE li': un canale svuotato non va creduto pieno, e uno pieno non va creduto vuoto — il tracer
+	// resterebbe disegnato.
+	const bool bInVolo = !InVolo.IsEmpty();
+	if (!bInVolo && !bPlaybackTracerChannelFull)
+	{
+		return;
+	}
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!MapActor) { return; }
+
 	MapActor->SetPlaybackTracers(InVolo);
+	bPlaybackTracerChannelFull = bInVolo;
 }
 
 void ARTTurnManager::EnterPlaybackPhase()
@@ -8574,15 +8600,19 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			PlaybackPhaseElapsed, AttackShowSeconds, PlaybackAttackFlights);
 		while (AttackBeatsDone < BeatsDue)
 		{
-			const int32 Index = AttackBeatsDone / 2;
-			const bool bArrivo = (AttackBeatsDone % 2) == 1;
-			++AttackBeatsDone;
-			if (!bArrivo)
+			const int32 Index = ExecuteNextAttackBeat(/*bWithLog=*/ true);
+			if (Index == INDEX_NONE)
 			{
-				LaunchPlaybackAttack(Index);
-				continue;
+				continue; // era un lancio
 			}
-			ArrivePlaybackAttack(Index, /*bWithLog=*/ true);
+			// ⛔ **Dopo un ARRIVO si rilegge `PlaybackAttacks[Index]`, e l'arrivo ha appena trasmesso
+			// `OnAttackResolved`**: un ascoltatore (Blueprint-assegnabile) puo' chiudere il playback —
+			// `SkipPlayback` → `FinishPlayback` svuota `PlaybackAttacks` e azzera `AttackBeatsDone` — e senza
+			// questa guardia l'indice sarebbe fuori range.
+			if (!bIsResolving || !PlaybackAttacks.IsValidIndex(Index))
+			{
+				return;
+			}
 
 			// `#2855`: il confine di AZIONE dentro il `Blast`, che e' l'unica sequenza che il playback
 			// srotola un elemento per volta — e con `#2454` cade all'ARRIVO, perche' il colpo e' mostrato
@@ -8659,11 +8689,14 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			// `Playback.TracerFlightNeverOutlastsTheSlot`, che valuta a un `N·A` scritto nel test.
 			while (AttackBeatsDone < 2 * PlaybackAttacks.Num())
 			{
-				const int32 Index = AttackBeatsDone / 2;
-				const bool bArrivo = (AttackBeatsDone % 2) == 1;
-				++AttackBeatsDone;
-				if (bArrivo) { ArrivePlaybackAttack(Index, /*bWithLog=*/ false); }
-				else { LaunchPlaybackAttack(Index); }
+				const int32 Arrivato = ExecuteNextAttackBeat(/*bWithLog=*/ false);
+				// ⛔ Stessa guardia del ciclo principale: l'arrivo trasmette `OnAttackResolved`, e un suo
+				// ascoltatore puo' chiudere il playback. ⚠️ Non basta che questo ciclo si fermi da se' — `FinishPlayback`
+				// azzera `PlaybackAttacks` — perche' sotto la fase continuerebbe a lavorare su un playback finito.
+				if (Arrivato != INDEX_NONE && (!bIsResolving || !PlaybackAttacks.IsValidIndex(Arrivato)))
+				{
+					return;
+				}
 			}
 
 			// `#2454`: nessun tracer sopravvive alla fase. ⚠️ Qui e non solo in `FinishPlayback`, che esce presto
@@ -8672,6 +8705,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			{
 				TracerMap->ClearPlaybackTracers();
 			}
+			bPlaybackTracerChannelFull = false; // vedi `PushPlaybackTracers`: il flag segue il canale
 		}
 
 		// Morte visiva differita: l'eliminazione si ANNUNCIA qui, a fine della fase in cui e' avvenuta, dopo
@@ -8899,6 +8933,7 @@ void ARTTurnManager::FinishPlayback()
 		// — cioe' quel che si vedeva prima che questo evento esistesse.
 		FootprintMap->ClearPlaybackStructureHits();
 	}
+	bPlaybackTracerChannelFull = false; // `#2454`: il flag di `PushPlaybackTracers` segue il canale che si spegne qui
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();
