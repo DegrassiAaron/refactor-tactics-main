@@ -306,7 +306,9 @@ another clone (§9, and the 🔑 below). Everything else — performance, same c
 **anywhere**, an Engine target, `LiveCodingConsole` — is in [`AGENTS.md`](../../../AGENTS.md) §11
 *«Prendere il motore, senza un lease»*, which owns the list **including the cases where the answer is
 «don't wait»**. ⚠️ One of those is an **orphaned** `LiveCodingConsole`: there «wait» is not safe, it is
-stuck — nobody will release it.
+stuck — nobody will release it. But only with **no** interactive Editor alive: an Editor opened later
+joins the console of its group instead of spawning one, so a dead parent does not mean nobody uses it
+(#3522).
 
 🔑 **The mechanism, because the precondition below depends on it.** The Live Coding lock is keyed on
 `Global\LiveCoding_` **+ the engine executable path** (`HotReload.cs`), **not** on the `.uproject`. For a
