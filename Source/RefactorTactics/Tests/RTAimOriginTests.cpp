@@ -174,12 +174,15 @@ namespace
 		return Righe.IsValidIndex(Index) ? Righe[Index] : FRTAbilityCooldownView();
 	}
 
-	/** La voce del Blast nella timeline posata (`MakePlanPreview` la etichetta sempre `Attack`), o `nullptr`. */
-	const FRTPhasePreviewEntry* AimOriginBlastEntry(const FAimOriginBench& B)
+	/**
+	 * La voce dell'azione principale nella timeline posata, cercata per la SUA fase, o `nullptr`.
+	 * ⏱️ *Fino a [D-470] si cercava `Attack` per ogni azione: `MakePlanPreview` la etichettava sempre cosi'.*
+	 */
+	const FRTPhasePreviewEntry* AimOriginMainEntry(const FAimOriginBench& B, ERTResolutionPhase Phase)
 	{
 		for (const FRTPhasePreviewEntry& Voce : B.MapActor->GetPlanPreview().Phases)
 		{
-			if (Voce.Phase == ERTResolutionPhase::Attack)
+			if (Voce.Phase == Phase)
 			{
 				return &Voce;
 			}
@@ -355,7 +358,7 @@ bool FRTAimOriginAttackAfterDashTest::RunTest(const FString&)
 	TestFalse(TEXT("anteprima: e non passa dietro lo scatto"), B.MapActor->IsPreviewHitCell(FRTCellId(1, 0, 0)));
 
 	// LA TIMELINE DEL PIANO (#172) — la voce del Blast parte dallo scatto, e il suo rifiuto e' quello del click.
-	if (const FRTPhasePreviewEntry* Colpo = AimOriginBlastEntry(B);
+	if (const FRTPhasePreviewEntry* Colpo = AimOriginMainEntry(B, ERTResolutionPhase::Attack);
 		TestNotNull(TEXT("timeline: c'e' la voce del Blast"), Colpo))
 	{
 		TestEqual(TEXT("timeline: parte dallo scatto"), Colpo->PreviewOrigin, GAimOriginScatto);
@@ -449,10 +452,13 @@ bool FRTAimOriginEnvironmentAfterDashTest::RunTest(const FString&)
 	TestTrue(TEXT("anteprima: e' accesa"), B.MapActor->IsPreviewAttackValid());
 	TestEqual(TEXT("anteprima: l'origine e' la cella corrente, non lo scatto"), B.MapActor->GetPreviewAttackOrigin(),
 		GAimOriginQui);
-	if (const FRTPhasePreviewEntry* Colpo = AimOriginBlastEntry(B);
-		TestNotNull(TEXT("timeline: c'e' la voce dell'azione"), Colpo))
+	if (const FRTPhasePreviewEntry* Colpo = AimOriginMainEntry(B, ERTResolutionPhase::Environment);
+		TestNotNull(TEXT("timeline: c'e' la voce dell'azione, nella sua fase"), Colpo))
 	{
 		TestEqual(TEXT("timeline: parte dalla cella corrente"), Colpo->PreviewOrigin, GAimOriginQui);
+		// [D-470]: il ghost sta dove sara' l'unita' quando l'azione risolve. Nessun Move nel banco: dopo lo scatto.
+		TestEqual(TEXT("timeline: e il ghost sta dove lo scatto la lascia"), Colpo->PreviewDestination,
+			GAimOriginScatto);
 		TestEqual(TEXT("timeline: e non rifiuta il bersaglio che il click ha accettato"), Colpo->TargetRefusal,
 			ERTTargetRefusal::None);
 	}
