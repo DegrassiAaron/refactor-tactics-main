@@ -819,4 +819,77 @@ bool FRTPlanPreviewBlastActionsKeepTheirPlaceTest::RunTest(const FString&)
 	return true;
 }
 
+// =========================================================================================================
+// Il ghost di uno scatto che non si applica ([D-474], #3565)
+// =========================================================================================================
+
+/**
+ * **Uno scatto che non si applica lascia il ghost sulla cella corrente** ([D-474], #3565).
+ *
+ * `bDashResolves` falso vuol dire che il resolver rifiutera' lo scatto per fatti gia' noti in pianificazione
+ * (`ARTUnit::PlannedDashMoves()`, [D-471]). La voce Dash resta, perche' lo scatto e' pianificato; ma il ghost
+ * sta dove sara' l'unita', e la voce si comporta come una rotta rifiutata. ⏱️ *Fino a [D-474] il ghost stava
+ * sulla cella dello scatto in ogni caso.*
+ *
+ * ⚠️ Il CONTROLLO e' lo stesso piano con lo scatto che si applica: arriva, si gira e porta la rotta. Senza, «sta
+ * sulla cella corrente» sarebbe vero anche per una mappa in cui lo scatto non puo' andare da nessuna parte.
+ * ⬜ La certezza della voce non si asserisce: [D-474] la lascia aperta.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewDashThatDoesNotApplyTest,
+	"RefactorTactics.Preview.DashThatDoesNotApplyLeavesTheGhostHere",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewDashThatDoesNotApplyTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(-2, 0, 0);
+	const FRTCellId CellaScatto(0, 0, 0);
+	const FRTCellId DopoIlMove(0, 2, 0);
+
+	TArray<FRTHexSimUnit> Units;
+	FRTHexSimUnit U(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 8);
+	U.Facing = ERTHexDirection::W;
+	Units.Add(U);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	const auto Piano = [&](bool bSiApplica)
+	{
+		FRTPlanPreviewInput Plan;
+		Plan.UnitId = 0;
+		Plan.bDashPlanned = true;
+		Plan.bDashResolves = bSiApplica;
+		Plan.PlannedDashCell = CellaScatto;
+		Plan.DashActionId = TEXT("Action.Dodge");
+		Plan.PlannedWaypoints = { DopoIlMove };
+		Plan.MoveActionId = TEXT("Action.Move");
+		return URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
+	};
+
+	// CONTROLLO — lo scatto si applica: il ghost arriva alla sua cella, girato dalla rotta.
+	const FRTPlanPreview Applicato = Piano(/*bSiApplica=*/ true);
+	const FRTPhasePreviewEntry* ScattoVero = PhaseOf(Applicato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("controllo: la timeline porta lo scatto che si applica"), ScattoVero)) { return false; }
+	TestTrue(TEXT("controllo: il ghost arriva alla cella dello scatto"), ScattoVero->PreviewDestination == CellaScatto);
+	TestTrue(TEXT("controllo: e la voce porta la rotta"), ScattoVero->PreviewPath.Num() >= 2);
+	TestEqual(TEXT("controllo: e l'unita' si gira verso E"), ScattoVero->Facing, ERTHexDirection::E);
+
+	// IL CUORE — lo scatto non si applica: la voce resta, il ghost sta dove sara' l'unita'.
+	const FRTPlanPreview Negato = Piano(/*bSiApplica=*/ false);
+	const FRTPhasePreviewEntry* Scatto = PhaseOf(Negato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("la voce Dash resta: lo scatto e' pianificato"), Scatto)) { return false; }
+	TestTrue(TEXT("il ghost sta sulla cella corrente"), Scatto->PreviewDestination == Partenza);
+	TestTrue(TEXT("da dove parte"), Scatto->PreviewOrigin == Partenza);
+	TestEqual(TEXT("nessun percorso: la fase non ne percorre uno"), Scatto->PreviewPath.Num(), 0);
+	TestEqual(TEXT("e il facing di adesso: l'unita' non si gira"), Scatto->Facing, ERTHexDirection::W);
+	TestEqual(TEXT("ereditato, come per una rotta rifiutata"), Scatto->FacingSource,
+		ERTPreviewFacingSource::InheritedFromPreviousPhase);
+
+	// E il Move parte da dove l'unita' e' rimasta: lo era gia' prima di [D-474], e qui si guarda che resti cosi'.
+	const FRTPhasePreviewEntry* Move = PhaseOf(Negato, ERTResolutionPhase::NormalMovement);
+	if (TestNotNull(TEXT("la timeline porta il Move"), Move))
+	{
+		TestTrue(TEXT("il Move parte dalla cella corrente"), Move->PreviewOrigin == Partenza);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
