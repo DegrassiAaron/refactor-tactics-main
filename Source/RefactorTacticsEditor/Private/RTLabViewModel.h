@@ -141,6 +141,19 @@ public:
 	 */
 	bool Run(UWorld* World, FString& OutError);
 
+	/**
+	 * Prepara la fixture per il PIE: la costruisce, la valida, la **salva** in
+	 * `URTScenarioLoader::LabScenariosRoot()/<ScenarioId>.json` e verifica che `URTScenarioIndex::ResolvePath`
+	 * risolva `ScenarioId` a QUEL file.
+	 *
+	 * ⛔ Fail closed: senza selezione, fixture invalida o scrittura fallita → `false`, nessun file nuovo.
+	 * Con un Id ambiguo — lo stesso `scenarioId` dichiarato anche da un altro file — il file viene scritto
+	 * ma la funzione ritorna `false` col motivo dell'indice: meglio qui che a schermo dal GameMode.
+	 *
+	 * ⚠️ Non sa nulla di PIE ne' di `GEditor`: l'avvio e' del lanciatore, questo e' il pezzo misurabile.
+	 */
+	bool PrepareForPie(FString& OutScenarioId, FString& OutError);
+
 	const FRTLabRunResult& LastRun() const { return Result; }
 
 	/** Azzera l'esito. Il filtro e la selezione restano: non e' un reset del pannello. */

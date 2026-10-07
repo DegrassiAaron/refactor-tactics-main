@@ -13,7 +13,13 @@
 #include "RTLabViewModel.h"
 #include "Ability/RTAbilityLab.h"
 #include "Ability/RTHeroLab.h"
+#include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTTestScenario.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
@@ -453,6 +459,162 @@ bool FRTLabEmptyListSaysWhyTest::RunTest(const FString&)
 	TestTrue(TEXT("controllo positivo: con l'id completo l'elenco non e' vuoto"),
 		Modello.VisibleAbilities().Num() > 0);
 
+	return true;
+}
+
+namespace RTLabViewModelTestsInternal
+{
+	FString LabRootDiProva(const TCHAR* Nome)
+	{
+		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RTLabPrepare"), Nome);
+	}
+
+	/** Imposta una radice del Lab di prova vuota. Chi la chiama la azzera con `ON_SCOPE_EXIT`. */
+	FString ApriRadiceDiProva(const TCHAR* Nome)
+	{
+		const FString Root = LabRootDiProva(Nome);
+		IFileManager::Get().DeleteDirectory(*Root, false, true);
+		IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
+		URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
+		return Root;
+	}
+
+	void ChiudiRadiceDiProva(const FString& Root)
+	{
+		URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
+		IFileManager::Get().DeleteDirectory(*Root, false, true);
+	}
+
+	int32 FileJsonIn(const FString& Root)
+	{
+		TArray<FString> Files;
+		IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*.json"), true, false);
+		return Files.Num();
+	}
+}
+
+/**
+ * `PrepareForPie` scrive un file che l'indice risolve a QUEL percorso e che si rilegge uguale alla fixture
+ * in memoria (spec §5.1). Il confronto campo per campo e' lo stesso di `RunWithoutHeroUsesAbilityLabFixture`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieWritesAResolvableScenarioTest,
+	"RefactorTactics.Lab.PrepareForPieWritesAResolvableScenario",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabPrepareForPieWritesAResolvableScenarioTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	const FString Root = ApriRadiceDiProva(TEXT("Scrive"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+
+	FRTHeroLabEntry Eroe;
+	FRTAbilityLabEntry Ability;
+	if (!TestTrue(TEXT("un eroe con kit esiste"), PrimoEroeConKit(Eroe, Ability))) { return false; }
+
+	FRTLabViewModel Modello;
+	Modello.MutableSpec().Seed = 21;
+	TestTrue(TEXT("l'ability si seleziona"), Modello.SelectAbility(Ability.AbilityId));
+
+	FString Id, Errore;
+	if (!TestTrue(TEXT("PrepareForPie riesce"), Modello.PrepareForPie(Id, Errore)))
+	{
+		AddError(Errore);
+		return false;
+	}
+	TestEqual(TEXT("l'Id e' quello della fixture"), Id, FString::Printf(TEXT("AbilityLab.%s"), *Ability.AbilityId.ToString()));
+
+	const FString Atteso = FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, Id + TEXT(".json")));
+	TestTrue(TEXT("il file esiste nella radice del Lab"), IFileManager::Get().FileExists(*Atteso));
+
+	FString ErroreIndice;
+	const FString Risolto = URTScenarioIndex::ResolvePath(Id, ErroreIndice);
+	TestTrue(TEXT("l'indice risolve l'Id a QUEL file"), FPaths::IsSamePath(Risolto, Atteso));
+
+	FRTTestScenario InMemoria, DaDisco;
+	FString E1, E2;
+	if (!TestTrue(TEXT("la fixture in memoria si costruisce"), Modello.BuildScenario(InMemoria, E1))) { return false; }
+	if (!TestTrue(TEXT("il file si rilegge"), URTScenarioLoader::LoadFromFile(Atteso, DaDisco, E2))) { AddError(E2); return false; }
+	TestTrue(TEXT("il file rilegge la stessa fixture, campo per campo"), FixtureCoincidono(*this, InMemoria, DaDisco));
+	TestEqual(TEXT("e porta il tag del Lab"), DaDisco.Tags, InMemoria.Tags);
+	return true;
+}
+
+/** Senza selezione: `false`, motivo scritto, NESSUN file. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAndWritesNothingTest,
+	"RefactorTactics.Lab.PrepareForPieRefusesAndWritesNothing",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabPrepareForPieRefusesAndWritesNothingTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	const FString Root = ApriRadiceDiProva(TEXT("Rifiuta"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+
+	FRTLabViewModel Modello; // nessuna ability selezionata
+	FString Id, Errore;
+	TestFalse(TEXT("senza selezione PrepareForPie rifiuta"), Modello.PrepareForPie(Id, Errore));
+	TestFalse(TEXT("e dice perche'"), Errore.IsEmpty());
+	TestTrue(TEXT("e l'Id resta vuoto"), Id.IsEmpty());
+	TestEqual(TEXT("e non scrive nessun file"), FileJsonIn(Root), 0);
+	return true;
+}
+
+/** Due file con lo stesso Id nella radice del Lab: l'Id e' ambiguo e `PrepareForPie` lo dice, invece di lasciarlo al GameMode. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieRefusesAnAmbiguousIdTest,
+	"RefactorTactics.Lab.PrepareForPieRefusesAnAmbiguousId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabPrepareForPieRefusesAnAmbiguousIdTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	const FString Root = ApriRadiceDiProva(TEXT("Ambiguo"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+
+	FRTHeroLabEntry Eroe;
+	FRTAbilityLabEntry Ability;
+	if (!TestTrue(TEXT("un eroe con kit esiste"), PrimoEroeConKit(Eroe, Ability))) { return false; }
+
+	// Un secondo file, con nome diverso, che dichiara lo stesso Id della fixture.
+	const FString IdFixture = FString::Printf(TEXT("AbilityLab.%s"), *Ability.AbilityId.ToString());
+	FFileHelper::SaveStringToFile(
+		FString::Printf(TEXT("{ \"scenarioId\": \"%s\", \"tags\": [\"ability-lab\"] }"), *IdFixture),
+		*FPaths::Combine(Root, TEXT("Doppione.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+
+	FRTLabViewModel Modello;
+	TestTrue(TEXT("l'ability si seleziona"), Modello.SelectAbility(Ability.AbilityId));
+
+	FString Id, Errore;
+	TestFalse(TEXT("con un doppione l'Id e' ambiguo e PrepareForPie rifiuta"), Modello.PrepareForPie(Id, Errore));
+	TestTrue(TEXT("e il motivo dice che e' ambiguo"), Errore.Contains(TEXT("ambigu")));
+	return true;
+}
+
+/** Una fixture stantia con lo stesso Id viene sovrascritta: su disco c'e' l'ultimo clic. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabPrepareForPieOverwritesAStaleFixtureTest,
+	"RefactorTactics.Lab.PrepareForPieOverwritesAStaleFixture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	const FString Root = ApriRadiceDiProva(TEXT("Stantio"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+
+	FRTHeroLabEntry Eroe;
+	FRTAbilityLabEntry Ability;
+	if (!TestTrue(TEXT("un eroe con kit esiste"), PrimoEroeConKit(Eroe, Ability))) { return false; }
+
+	FRTLabViewModel Modello;
+	TestTrue(TEXT("l'ability si seleziona"), Modello.SelectAbility(Ability.AbilityId));
+
+	FString Id, Errore;
+	Modello.MutableSpec().Seed = 7;
+	if (!TestTrue(TEXT("prima corsa"), Modello.PrepareForPie(Id, Errore))) { AddError(Errore); return false; }
+	Modello.MutableSpec().Seed = 11;
+	if (!TestTrue(TEXT("seconda corsa, stesso Id"), Modello.PrepareForPie(Id, Errore))) { AddError(Errore); return false; }
+
+	FRTTestScenario DaDisco;
+	FString E;
+	const FString Percorso = FPaths::Combine(Root, Id + TEXT(".json"));
+	if (!TestTrue(TEXT("il file si rilegge"), URTScenarioLoader::LoadFromFile(Percorso, DaDisco, E))) { AddError(E); return false; }
+	TestEqual(TEXT("su disco c'e' il seed dell'ultimo clic"), DaDisco.Seed, 11);
+	TestEqual(TEXT("e c'e' un solo file"), FileJsonIn(Root), 1);
 	return true;
 }
 

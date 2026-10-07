@@ -1,6 +1,11 @@
 #include "RTLabViewModel.h"
 
+#include "ScenarioHarness/RTScenarioIndex.h"
+#include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+
+#include "HAL/FileManager.h"
+#include "Misc/Paths.h"
 
 void FRTLabViewModel::SetHeroFilter(const FName& InHeroId)
 {
@@ -145,5 +150,47 @@ bool FRTLabViewModel::Run(UWorld* World, FString& OutError)
 		return false;
 	}
 
+	return true;
+}
+
+bool FRTLabViewModel::PrepareForPie(FString& OutScenarioId, FString& OutError)
+{
+	OutScenarioId.Reset();
+	OutError.Reset();
+
+	FRTTestScenario Scenario;
+	if (!BuildScenario(Scenario, OutError))
+	{
+		return false;
+	}
+
+	const FString Root = URTScenarioLoader::LabScenariosRoot();
+	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
+	const FString Percorso = FPaths::ConvertRelativePathToFull(
+		FPaths::Combine(Root, Scenario.ScenarioId + TEXT(".json")));
+
+	// `SaveToFile` valida prima di toccare il disco: una fixture invalida non lascia un file a meta'.
+	if (!URTScenarioLoader::SaveToFile(Scenario, Percorso, OutError))
+	{
+		return false;
+	}
+
+	// 🔑 Lanciabile = l'indice risolve l'Id a QUESTO file. Un doppione altrove rende l'Id ambiguo, e il
+	// GameMode lo rifiuterebbe a schermo senza che il pannello potesse dirlo prima.
+	FString ErroreIndice;
+	const FString Risolto = URTScenarioIndex::ResolvePath(Scenario.ScenarioId, ErroreIndice);
+	if (Risolto.IsEmpty())
+	{
+		OutError = FString::Printf(TEXT("fixture scritta in '%s' ma non lanciabile: %s"), *Percorso, *ErroreIndice);
+		return false;
+	}
+	if (!FPaths::IsSamePath(Risolto, Percorso))
+	{
+		OutError = FString::Printf(TEXT("'%s' risolve a '%s', non al file appena scritto '%s'"),
+			*Scenario.ScenarioId, *Risolto, *Percorso);
+		return false;
+	}
+
+	OutScenarioId = Scenario.ScenarioId;
 	return true;
 }
