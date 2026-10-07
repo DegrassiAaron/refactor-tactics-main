@@ -15,6 +15,8 @@ namespace
 		FRTLabCVarSnapshot PlaybackControls;
 		FDelegateHandle SuEndPIE;
 		FDelegateHandle SuCancelPIE;
+		/** Chiamata da `Ripristina()` a CVar rimesse e delegate sganciati (#3542); puo' essere vuota. */
+		TFunction<void()> OnFinished;
 	};
 
 	TUniquePtr<FRTLabPieRestore> GRipristino;
@@ -43,6 +45,13 @@ namespace
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Lab PIE: ripristino non riuscito: %s"), *Errore);
 		}
+
+		// 🔑 **Per ultima**: chi ascolta «e' finito» deve trovare le CVar gia' com'erano e il lanciatore gia'
+		// libero (`GRipristino` vuoto, quindi un nuovo `Launch` e' lecito dal suo interno).
+		if (R->OnFinished)
+		{
+			R->OnFinished();
+		}
 	}
 }
 
@@ -51,15 +60,10 @@ FString FRTLabPieLauncher::DevSandboxMapPath()
 	return TEXT("/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox");
 }
 
-bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError)
+bool FRTLabPieLauncher::CanLaunch(FString& OutError)
 {
 	OutError.Reset();
 
-	if (ScenarioId.IsEmpty())
-	{
-		OutError = TEXT("nessuno ScenarioId da lanciare");
-		return false;
-	}
 	if (!GEditor)
 	{
 		OutError = TEXT("GEditor assente: il lanciatore vive solo nell'Editor");
@@ -75,6 +79,23 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError)
 	if (GRipristino)
 	{
 		OutError = TEXT("un lancio precedente aspetta ancora il ripristino delle CVar");
+		return false;
+	}
+	return true;
+}
+
+bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError, TFunction<void()> OnFinished)
+{
+	OutError.Reset();
+
+	if (ScenarioId.IsEmpty())
+	{
+		OutError = TEXT("nessuno ScenarioId da lanciare");
+		return false;
+	}
+	// Le guardie che non dipendono dall'Id stanno in `CanLaunch`, chiamabile **prima** di scrivere lo scenario.
+	if (!CanLaunch(OutError))
+	{
 		return false;
 	}
 
@@ -99,6 +120,7 @@ bool FRTLabPieLauncher::Launch(const FString& ScenarioId, FString& OutError)
 		}
 		return false;
 	}
+	Nuovo->OnFinished = MoveTemp(OnFinished);
 	GRipristino = MoveTemp(Nuovo);
 
 	// Al primo dei due che scatta si ripristina e ci si sgancia da entrambi. `CancelPIE` copre il PIE che

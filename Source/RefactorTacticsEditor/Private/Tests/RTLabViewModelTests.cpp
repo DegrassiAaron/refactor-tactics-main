@@ -629,4 +629,85 @@ bool FRTLabPrepareForPieOverwritesAStaleFixtureTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * L'Id dell'ultimo lancio in PIE vive nel modello e lo azzera ogni gesto successivo (#3542): selezione,
+ * filtro, run. La riga di stato mostra una cosa sola, l'ultimo gesto.
+ *
+ * ⚠️ **Controlli positivi sullo stesso oggetto**: un `SelectAbility` rifiutato e un `SetHeroFilter` che non
+ * cambia il filtro NON sono gesti, e l'Id deve restare. Senza, l'asserto sarebbe verde anche su un modello
+ * che azzera a ogni chiamata.
+ *
+ * Per `Run` basta il percorso senza mondo: `Run` azzera in testa, prima di qualunque rifiuto, quindi non
+ * serve un `UWorld` transitorio per provare l'azzeramento.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabLaunchedIdIsClearedBySelectionFilterAndRunTest,
+	"RefactorTactics.Lab.LaunchedIdIsClearedBySelectionFilterAndRun",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabLaunchedIdIsClearedBySelectionFilterAndRunTest::RunTest(const FString&)
+{
+	using namespace RTLabViewModelTestsInternal;
+	const TArray<FRTAbilityLabEntry> Catalogo = URTAbilityLabLibrary::ListCanonicalAbilities();
+	if (!TestTrue(TEXT("premessa: il catalogo ha almeno due ability"), Catalogo.Num() >= 2)) { return false; }
+
+	FRTHeroLabEntry Eroe;
+	FRTAbilityLabEntry AbilityEroe;
+	if (!TestTrue(TEXT("premessa: un eroe con kit esiste"), PrimoEroeConKit(Eroe, AbilityEroe))) { return false; }
+
+	const FString IdLanciato = TEXT("AbilityLab.X");
+	FRTLabViewModel Modello;
+	TestTrue(TEXT("all'apertura nessun lancio"), Modello.LaunchedScenarioId().IsEmpty());
+	TestTrue(TEXT("la prima selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+
+	// --- controllo positivo: i non-gesti non azzerano ---
+	Modello.NoteLaunched(IdLanciato);
+	TestEqual(TEXT("NoteLaunched imposta l'Id"), Modello.LaunchedScenarioId(), IdLanciato);
+	TestFalse(TEXT("un'ability inesistente e' rifiutata"), Modello.SelectAbility(TEXT("Ability.NonEsiste")));
+	TestEqual(TEXT("un SelectAbility rifiutato NON azzera l'Id"), Modello.LaunchedScenarioId(), IdLanciato);
+	Modello.SetHeroFilter(NAME_None); // gia' senza filtro: non cambia nulla
+	TestEqual(TEXT("un SetHeroFilter che non cambia il filtro NON azzera l'Id"), Modello.LaunchedScenarioId(), IdLanciato);
+
+	// --- la selezione di un'altra ability ---
+	TestTrue(TEXT("un'altra ability si seleziona"), Modello.SelectAbility(Catalogo[1].AbilityId));
+	TestTrue(TEXT("SelectAbility accettato azzera l'Id"), Modello.LaunchedScenarioId().IsEmpty());
+
+	// --- il filtro ---
+	Modello.NoteLaunched(IdLanciato);
+	Modello.SetHeroFilter(Eroe.HeroId);
+	TestTrue(TEXT("SetHeroFilter che cambia azzera l'Id"), Modello.LaunchedScenarioId().IsEmpty());
+
+	// --- la run (senza mondo: azzera in testa, poi rifiuta) ---
+	Modello.NoteLaunched(IdLanciato);
+	FString Errore;
+	TestFalse(TEXT("senza mondo la run rifiuta"), Modello.Run(nullptr, Errore));
+	TestTrue(TEXT("Run azzera l'Id anche quando rifiuta"), Modello.LaunchedScenarioId().IsEmpty());
+	return true;
+}
+
+/**
+ * A fine PIE il modello azzera l'Id e ricorda che il lancio e' finito: e' la riga «PIE terminato» del
+ * pannello (#3542). Un gesto successivo la toglie, come toglie l'Id.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLabLaunchFinishedClearsTheLaunchedIdTest,
+	"RefactorTactics.Lab.LaunchFinishedClearsTheLaunchedId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTLabLaunchFinishedClearsTheLaunchedIdTest::RunTest(const FString&)
+{
+	const TArray<FRTAbilityLabEntry> Catalogo = URTAbilityLabLibrary::ListCanonicalAbilities();
+	if (!TestTrue(TEXT("premessa: il catalogo ha almeno un'ability"), Catalogo.Num() >= 1)) { return false; }
+
+	FRTLabViewModel Modello;
+	TestFalse(TEXT("all'apertura nessun lancio e' finito"), Modello.WasLaunchFinished());
+
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	TestFalse(TEXT("controllo positivo: lanciato ma non finito"), Modello.WasLaunchFinished());
+
+	Modello.NoteLaunchFinished();
+	TestTrue(TEXT("a fine PIE l'Id e' vuoto"), Modello.LaunchedScenarioId().IsEmpty());
+	TestTrue(TEXT("e il lancio risulta finito"), Modello.WasLaunchFinished());
+
+	TestTrue(TEXT("un gesto successivo: la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+	TestFalse(TEXT("SelectAbility toglie la riga «PIE terminato»"), Modello.WasLaunchFinished());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

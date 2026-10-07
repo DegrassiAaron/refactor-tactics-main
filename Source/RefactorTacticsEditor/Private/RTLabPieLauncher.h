@@ -26,8 +26,22 @@ public:
 	 * tick successivo: `IsPlaySessionInProgress`); una delle due CVar non si trova; una delle due scritture
 	 * non prende (CVar `ReadOnly`, valore non parsabile); un lancio precedente e' ancora in attesa di
 	 * ripristino.
+	 *
+	 * `OnFinished`, se data, e' chiamata **una volta**, al primo fra `EndPIE` e `CancelPIE`, dopo aver
+	 * ripristinato le CVar e sganciato i delegate (#3542). Non e' chiamata se `Launch` rifiuta. Il chiamante
+	 * che la lega a un oggetto la lega **debole**: il PIE puo' finire dopo che il pannello e' stato chiuso.
 	 */
-	static bool Launch(const FString& ScenarioId, FString& OutError);
+	static bool Launch(const FString& ScenarioId, FString& OutError, TFunction<void()> OnFinished = nullptr);
+
+	/**
+	 * Le guardie di `Launch` che non dipendono dall'Id: `GEditor`, PIE in corso o gia' richiesto, ripristino
+	 * di un lancio precedente ancora pendente. `false` col motivo in `OutError`.
+	 *
+	 * 🔑 **Esiste perche' il chiamante possa chiedere «si puo' lanciare?» PRIMA di scrivere lo scenario su
+	 * disco** (#3542): il pannello salvava la fixture e solo dopo scopriva che PIE era gia' in corso,
+	 * lasciando un file per un lancio mai avvenuto. Non modifica nulla.
+	 */
+	static bool CanLaunch(FString& OutError);
 
 	/** `/Game/RT/Maps/Dev/L_DevSandbox/L_DevSandbox`: la mappa ospite di ogni scenario. */
 	static FString DevSandboxMapPath();

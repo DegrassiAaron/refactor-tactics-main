@@ -161,6 +161,28 @@ public:
 	/** Azzera l'esito. Il filtro e la selezione restano: non e' un reset del pannello. */
 	void ClearRun() { Result = FRTLabRunResult(); }
 
+	// ── Ultimo lancio in PIE (#3542) ────────────────────────────────────────────────────────────────
+
+	/**
+	 * L'Id dell'ultimo lancio in PIE, o vuoto. Lo azzerano la selezione (accettata), il filtro (quando
+	 * cambia), una run e la fine del PIE.
+	 *
+	 * 🔑 **La riga di stato mostra una cosa sola: l'ultimo gesto.** Per questo l'Id vive qui e non in un
+	 * campo del widget: un campo del widget non si azzera da solo, e dopo lo stop del PIE il pannello
+	 * continuava a dire «PIE richiesto per X» su un PIE che non c'era piu'. Nel modello e' misurabile,
+	 * nel widget no.
+	 */
+	const FString& LaunchedScenarioId() const { return LaunchedId; }
+
+	/** Registra il lancio riuscito di `Id`: azzera «PIE terminato», che apparteneva al gesto precedente. */
+	void NoteLaunched(const FString& Id);
+
+	/** Il PIE e' finito (o non e' mai partito): l'Id si azzera e resta la sola traccia «terminato». */
+	void NoteLaunchFinished();
+
+	/** `true` dalla fine del PIE fino al gesto successivo (selezione, filtro, run, nuovo lancio). */
+	bool WasLaunchFinished() const { return bLaunchFinishedOnce; }
+
 	/** La spec della fixture, esposta perche' il pannello possa offrire seed e posa. */
 	FRTAbilityLabFixtureSpec& MutableSpec() { return Spec; }
 	const FRTAbilityLabFixtureSpec& GetSpec() const { return Spec; }
@@ -173,4 +195,13 @@ private:
 	FName SelectedAbility;
 	FRTAbilityLabFixtureSpec Spec;
 	FRTLabRunResult Result;
+
+	/** Vedi `LaunchedScenarioId()`. */
+	FString LaunchedId;
+
+	/** Vedi `WasLaunchFinished()`. */
+	bool bLaunchFinishedOnce = false;
+
+	/** Un gesto dell'utente (selezione, filtro, run) chiude la riga dell'ultimo lancio, in entrambe le forme. */
+	void ClearLaunchStatus();
 };
