@@ -723,6 +723,14 @@ bool FRTLabLaunchFinishedClearsTheLaunchedIdTest::RunTest(const FString&)
 	Modello.NoteLaunchFinished(false);
 	TestTrue(TEXT("(c) il lancio risulta finito"), Modello.WasLaunchFinished());
 	TestFalse(TEXT("(c) e il ripristino risulta NON riuscito"), Modello.LastLaunchRestored());
+
+	// (d) ripristino fallito DOPO un gesto successivo: si registra comunque. Stessa sequenza di (b), salvo
+	// l'esito: con `true` (b) non registra, con `false` si'.
+	Modello.NoteLaunched(TEXT("AbilityLab.X"));
+	TestTrue(TEXT("(d) la selezione e' accettata"), Modello.SelectAbility(Catalogo[0].AbilityId));
+	Modello.NoteLaunchFinished(false);
+	TestTrue(TEXT("(d) un ripristino fallito si registra anche dopo un gesto successivo"), Modello.WasLaunchFinished());
+	TestFalse(TEXT("(d) e dice che il ripristino NON e' riuscito"), Modello.LastLaunchRestored());
 	return true;
 }
 

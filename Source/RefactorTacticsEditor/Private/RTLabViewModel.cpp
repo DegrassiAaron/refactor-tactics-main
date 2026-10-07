@@ -110,8 +110,11 @@ void FRTLabViewModel::NoteLaunched(const FString& Id)
 
 void FRTLabViewModel::NoteLaunchFinished(bool bRestored)
 {
-	// Senza un lancio in corso nel modello l'ultimo gesto e' un altro (run, selezione, filtro): vince lui.
-	if (LaunchedId.IsEmpty())
+	// Senza un lancio in corso nel modello l'ultimo gesto e' un altro (run, selezione, filtro): vince lui —
+	// ma solo per un ripristino riuscito. Un ripristino FALLITO si registra sempre: le CVar sono rimaste sul
+	// valore del banco, e il PIE successivo giocherebbe lo scenario sbagliato; tacerlo perche' l'utente ha
+	// cliccato altro nasconderebbe l'unico segnale.
+	if (LaunchedId.IsEmpty() && bRestored)
 	{
 		return;
 	}

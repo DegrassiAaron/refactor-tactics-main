@@ -221,6 +221,8 @@ FReply SRTLabPanel::OnEseguiInPie()
 			if (const TSharedPtr<SRTLabPanel> Pannello = Debole.Pin())
 			{
 				Pannello->Modello.NoteLaunchFinished(bRipristinato);
+				// Una riga «PIE in corso» rimasta da un secondo clic non deve sopravvivere alla fine del PIE.
+				Pannello->UltimoErrore.Reset();
 			}
 		});
 	if (!bLanciato)

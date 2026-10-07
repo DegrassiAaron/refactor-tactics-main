@@ -181,8 +181,10 @@ public:
 	 * Il PIE e' finito (o non e' mai partito): l'Id si azzera e resta la sola traccia «terminato», con
 	 * `bRestored` = le CVar sono davvero tornate com'erano.
 	 *
-	 * ⛔ **Non scavalca un gesto successivo**: se nel frattempo c'e' stata una run, una selezione o un cambio
-	 * di filtro, l'Id e' gia' vuoto e la fine del PIE non fa nulla — l'ultimo gesto vince.
+	 * ⛔ **Un ripristino riuscito non scavalca un gesto successivo**: se nel frattempo c'e' stata una run, una
+	 * selezione o un cambio di filtro, l'Id e' gia' vuoto e la fine del PIE non fa nulla — l'ultimo gesto vince.
+	 * ⚠️ **Un ripristino FALLITO si registra sempre**, anche con l'Id vuoto: le CVar sono rimaste sul valore del
+	 * banco, e l'avviso non deve dipendere da cosa l'utente ha cliccato nel frattempo.
 	 */
 	void NoteLaunchFinished(bool bRestored);
 
