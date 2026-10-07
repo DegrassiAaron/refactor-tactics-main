@@ -624,6 +624,10 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 	B.Mine->bAttackTargetsCell = true;
 	B.Mine->PlannedAttackCell = FRTCellId(-3, 0, 0);
 	B.PC->SelectAbilityForCurrentForTest(B.Getto);
+	// La corsa va da (-1,0,0) a (2,0,0), quindi l'ultimo passo e' verso E. A fine corsa a budget il cono del verso
+	// e' di `MoveEndPivotMaxSteps` passi (Muiren: 2) attorno a E, e W, l'opposto, ne resta fuori; da fermo ogni verso
+	// e' legale ([D-367]). E' il quarto lettore della domanda, attraverso `PlannedMovementForFacing`.
+	const ERTHexDirection Indietro = ERTHexDirection::W;
 
 	// CONTROLLO — senza lo stato lo scatto a budget sposta: mira, portata e verso partono dallo scatto.
 	TestTrue(TEXT("controllo: senza Unbalanced lo scatto a budget sposta"), B.Mine->PlannedDashMoves());
@@ -636,6 +640,8 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 		GAimOriginScatto);
 	TestEqual(TEXT("controllo: la reazione guarda dallo scatto"), B.MapActor->GetPlanPreview().Reaction.WatchOrigin,
 		GAimOriginScatto);
+	TestFalse(TEXT("controllo: a fine corsa a budget il verso opposto alla corsa non e' legale"),
+		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
 
 	// IL CUORE — lo stato nega lo scatto: la regola del catalogo dice ancora si', quella che sposta no.
 	B.Mine->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
@@ -649,6 +655,8 @@ bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
 	TestEqual(TEXT("e l'area colpita parte dalla cella corrente"), B.MapActor->GetPreviewAttackOrigin(), GAimOriginQui);
 	TestEqual(TEXT("e la reazione guarda dalla cella corrente"), B.MapActor->GetPlanPreview().Reaction.WatchOrigin,
 		GAimOriginQui);
+	TestTrue(TEXT("e il verso si giudica da fermo: anche l'opposto alla corsa e' legale"),
+		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
 
 	// CONTROLLO 2 — lo slancio LINEARE, con lo stato, sposta ancora: [D-319] nega la corsa, non lo slancio.
 	Scia->Def.MovementStyle = ERTMovementStyle::LinearDash;
