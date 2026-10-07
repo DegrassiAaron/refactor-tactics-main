@@ -8635,13 +8635,19 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			// se qualcuno accorciasse la fase — un canale nuovo non aggiunto al `Max`, uno `Slack` comprimibile
 			// sul `Blast` — la rete tornerebbe necessaria e nessun rosso lo direbbe. L'invariante che la rende
 			// inutile e' pinnato da `Playback.EveryChannelIsFullyRevealedByPhaseEnd`, che cade **prima**.
+			// ⚠️ **Vale per i canali che si rivelano per `AttacksToShow`** — impronte e muri. I colpi hanno ora anche un
+			// ARRIVO, e quello non lo pinna questo gate: `AttacksToShow(N, PhaseDur)` chiede solo `PhaseDur >= (N-1)·A`,
+			// mentre l'ultimo arrivo vuole `PhaseDur >= (N-1)·A + F_eff`. Quello lo pinna
+			// `Playback.EveryAttackArrivesByPhaseEnd` (il ciclo sui battiti, piu' sotto).
 			RevealPlaybackFootprints(PlaybackFootprints.Num());
 			RevealPlaybackStructureHits(PlaybackStructureHits.Num());
 
 			// `#2454`: la rete passa per BATTITI. Un colpo mai lanciato riceve lancio e arrivo; uno lanciato e
 			// non arrivato riceve SOLO l'arrivo — ⛔ mai un secondo ruolo `Attack` sull'attaccante.
 			// ⚠️ Coi battiti resta una rete senza casi: l'ultimo arrivo cade entro `(N - ½)·A`, prima della fine
-			// della fase — e' `Playback.TracerFlightNeverOutlastsTheSlot` a pinnarlo, non `AttacksToShow`.
+			// della fase — lo pinna `Playback.EveryAttackArrivesByPhaseEnd`, che misura gli arrivi sulla durata
+			// REALE di `PhaseTime` sul `Blast`. Non `AttacksToShow` (chiede solo `(N - 1)·A`), e non
+			// `Playback.TracerFlightNeverOutlastsTheSlot`, che valuta a un `N·A` scritto nel test.
 			while (AttackBeatsDone < 2 * PlaybackAttacks.Num())
 			{
 				const int32 Index = AttackBeatsDone / 2;

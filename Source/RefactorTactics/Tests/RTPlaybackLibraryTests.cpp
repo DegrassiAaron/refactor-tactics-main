@@ -1299,6 +1299,88 @@ bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Alla fine della fase `Blast` OGNI colpo e' gia' ARRIVATO — `#2454`, spec §2.3.
+ *
+ * 🔴 **E' il gate gemello di `EveryChannelIsFullyRevealedByPhaseEnd`, e quello non basta.** Quel test chiede
+ * `AttacksToShow(N, PhaseDur) == N`, cioe' `PhaseDur >= (N-1)·A`: la soglia dei LANCI. L'arrivo dell'ultimo
+ * colpo cade a `(N-1)·A + F_eff`, con `F_eff` fino ad `A/2`, quindi serve `PhaseDur >= (N-1)·A + F_eff`, fino a
+ * `(N-½)·A`. Una fase accorciata fra `(N-1)·A` e `(N-½)·A` lascerebbe il primo gate **verde** e farebbe
+ * consegnare l'ultimo arrivo dalla rete di fine fase — senza la riga di log e senza la fermata di `Next
+ * Action` — **in silenzio**, perche' il recupero e' silenzioso per costruzione.
+ *
+ * ⚠️ **Non e' `TracerFlightNeverOutlastsTheSlot`**: quello valuta gli arrivi a un `N·A` scritto nel test, non
+ * alla durata che `PhaseTime` da' davvero al `Blast`. Qui la durata e' quella vera.
+ *
+ * ⛔ Il volo chiesto e' enorme di proposito: `TracerFlightFor` lo taglia ad `A/2`, che e' il PEGGIOR caso
+ * ammesso — se la fase regge quello, regge ogni volo configurabile.
+ *
+ * ⚠️ Pura di proposito: l'invariante e' aritmetico e non richiede un mondo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEveryAttackArrivesByPhaseEndTest,
+	"RefactorTactics.Playback.EveryAttackArrivesByPhaseEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEveryAttackArrivesByPhaseEndTest::RunTest(const FString&)
+{
+	// Nome con prefisso per l'unity build, come gli altri helper di questo file.
+	struct FRTPlaybackArrivalCase
+	{
+		int32 MaxSeg;
+		int32 Attacks;
+		int32 Strutture;
+		int32 Impronte;
+		const TCHAR* Nome;
+	};
+
+	const float CellsPerSec = 2.f;
+	const float ShowSeconds = 0.5f;
+	const float BeatSeconds = 0.3f;
+
+	// Gli stessi casi di `EveryChannelIsFullyRevealedByPhaseEnd`, piu' il colpo singolo: li' la fase dura
+	// `1·A` e l'arrivo cade a `A/2`, il caso piu' stretto in assoluto.
+	const FRTPlaybackArrivalCase Casi[] = {
+		{ 0, 4, 0, 0, TEXT("solo colpi") },
+		{ 0, 1, 0, 0, TEXT("un colpo solo") },
+		{ 0, 0, 4, 0, TEXT("solo muri") },
+		{ 0, 0, 0, 4, TEXT("solo impronte") },
+		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
+		{ 0, 0, 0, 0, TEXT("vuota: il pavimento di uno") },
+	};
+
+	const float VoloPeggiore = URTPlaybackLibrary::TracerFlightFor(/*bEligible=*/ true, /*Chiesto=*/ 10.f, ShowSeconds);
+	// ⛔ **Premessa asserita, non assunta**: il volo del test e' il tetto `A/2`. Se il taglio cambiasse, questo
+	// gate smetterebbe di misurare il caso peggiore senza dirlo.
+	TestEqual(TEXT("premessa: il volo peggiore e' il tetto A/2"), VoloPeggiore, 0.5f * ShowSeconds, RTTol);
+
+	for (const FRTPlaybackArrivalCase& C : Casi)
+	{
+		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, C.MaxSeg,
+			C.Attacks, C.Strutture, C.Impronte, CellsPerSec, ShowSeconds, BeatSeconds);
+
+		// Tutti i colpi idonei, tutti col volo peggiore.
+		TArray<float> Flights;
+		Flights.Init(VoloPeggiore, C.Attacks);
+
+		// La durata a runtime e' `Shown + Slack * scala`, e sul Blast lo Slack e' zero (lo asserisce l'altro
+		// gate): `Shown` e' la durata vera.
+		TestEqual(FString::Printf(TEXT("%s: a fine fase sono usciti TUTTI i battiti, lanci e arrivi"), C.Nome),
+			URTPlaybackLibrary::AttackBeatsDue(T.Shown, ShowSeconds, Flights), 2 * C.Attacks);
+
+		// --- ⛔ ANTI-VACUITA' ------------------------------------------------------------------------
+		// `AttackBeatsDue` PUO' restituire meno del totale: a `(N-1)·A`, con tutti i lanci usciti, manca
+		// ESATTAMENTE l'ultimo arrivo. Senza questa riga l'asserzione qui sopra sarebbe vera anche con una
+		// `AttackBeatsDue` che restituisce sempre `2·N`.
+		if (C.Attacks >= 1)
+		{
+			TestTrue(FString::Printf(TEXT("%s: a (N-1)*A l'ultimo arrivo NON e' ancora uscito"), C.Nome),
+				URTPlaybackLibrary::AttackBeatsDue((C.Attacks - 1) * ShowSeconds, ShowSeconds, Flights) < 2 * C.Attacks);
+		}
+	}
+	return true;
+}
+
 // --- NextActionBoundary: il confine di AZIONE sulla timeline (`#2857`) ------------------------------
 //
 // 🔑 **Sono test PURI e senza mondo**, ed e' il criterio d'accettazione alla lettera: *«il prossimo

@@ -279,6 +279,7 @@ struct FRTHitGeometry
 | `Preview.TracerDrawsWithDebugDrawingOff` | col debug spento, come in Shipping, il tracer scrive **una** linea nel batcher Foreground, col colore `Attack` |
 | `Playback.TracerArrivesAfterFlight` | arrivo = lancio + `F_eff`. 🔴 **Mutazione**: `F_eff = 0` → rosso |
 | `Playback.TracerFlightNeverOutlastsTheSlot` | per ogni `F` e `A > 0`, `F_eff <= A/2`, battiti monotoni anche mescolando idonei e non idonei, ultimo arrivo `< N·A` |
+| `Playback.EveryAttackArrivesByPhaseEnd` | ➕ rev. sulla durata **vera** di `PhaseTime` sul `Blast`, con il volo peggiore (`A/2`), a fine fase sono usciti lanci **e** arrivi; a `(N-1)·A` manca l'ultimo arrivo. `EveryChannelIsFullyRevealedByPhaseEnd` non lo copre: chiede `(N-1)·A`, l'arrivo vuole fino a `(N-½)·A`. 🔴 **Mutazione**: la durata del Blast in `PhaseTime` accorciata di un intervallo (`(max(1, canali) - 1)·A`) → rosso, e `EveryChannelIsFullyRevealedByPhaseEnd` resta verde |
 | `Playback.TracerZeroFlightKeepsTodaysRhythm` | senza volo gli arrivi coincidono con `AttacksToShow`; con `A <= 0` escono tutti subito |
 | `Playback.TracerStyleFollowsShapeForBasicAttack` | `Single` → `Projectile`, `Line` → `Jet`; `Area`/`Cone`, azioni non base e `bResolved = false` → `None`; l'azione generica `Action.BasicAttack` è idonea |
 | `Privacy.TracerHiddenWhenOriginUnknown` | sul valore: squadra che non vedeva l'attaccante → `None`, squadra dell'attaccante → disegnato. 🔴 **Mutazione**: ignorare `FromVerdict` → rosso |
