@@ -590,8 +590,12 @@ bool FRTScenarioIndexAbbreviationIgnoresLabTest::RunTest(const FString&)
 	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("Deflection"), Errore);
 	TestFalse(*FString::Printf(TEXT("Deflection risolve (errore: %s)"), *Errore), Risolto.IsEmpty());
 	TestFalse(TEXT("e non risolve al file del Lab"), FPaths::IsSamePath(Risolto, DelLab));
+	// Lo STESSO file che l'Id completo del versionato risolve: un suffisso di nome non basta, perche' l'Id
+	// e' indipendente dal percorso (`IdIsIndependentOfPath`) e un file omonimo altrove passerebbe.
+	Errore.Reset();
+	const FString DelVersionato = URTScenarioIndex::ResolvePath(Candidati[0], Errore);
 	TestTrue(*FString::Printf(TEXT("e risolve al versionato %s"), *Candidati[0]),
-		!Risolto.IsEmpty() && Risolto.EndsWith(TEXT("Deflection.json")) && !Risolto.Contains(TEXT("RTLabIndex")));
+		!Risolto.IsEmpty() && !DelVersionato.IsEmpty() && FPaths::IsSamePath(Risolto, DelVersionato));
 	return true;
 }
 
