@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Combat/RTHexCombatLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Core/RTGameplayTags.h" // TAG_Status_Unbalanced: lo stato che nega lo scatto a budget (#3555)
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTHeroCatalogLibrary.h"
@@ -582,6 +583,97 @@ bool FRTAimOriginChargeStaysOutTest::RunTest(const FString&)
 		Branth->AimOriginFor(ERTResolutionPhase::Attack), QuiBranth);
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Uno scatto a BUDGET che lo stato nega non sposta la mira** ([D-471], #3555).
+ *
+ * `ResolveDash` rifiuta una mobilita' rapida non lineare a chi e' `Unbalanced` ([D-319]), mentre fino a [D-471] la
+ * mira chiedeva solo `PlannedDashApplies()`: con lo scatto negato, il click mirava da una cella che l'unita' non
+ * avrebbe raggiunto. Ora tutti chiedono `PlannedDashMoves()`.
+ *
+ * ⚠️ **L'azione si COSTRUISCE**: nessuna mobilita' rapida spedita e' a budget, quindi `FluidTrail` diventa a budget
+ * solo qui. I due controlli sono lo stesso scatto senza lo stato, e uno lineare con lo stato: entrambi spostano.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAimOriginUnbalancedBudgetDashTest,
+	"RefactorTactics.AimOrigin.UnbalancedBudgetDashDoesNotMoveTheAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAimOriginUnbalancedBudgetDashTest::RunTest(const FString&)
+{
+	const FRTCellId Lontano(4, 0, 0);
+
+	FAimOriginBench B;
+	if (!SetUpAimOriginBench(*this, B, FRTCellId(-4, 4, 0), FRTCellId(4, -4, 0)))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	URTActionData* Scia = B.Mine->GetAbility(B.Scatto);
+	Scia->Def.MovementStyle = ERTMovementStyle::Budget;
+	// Un attacco su una cella e una reazione armata: sono i due lettori di `bDashResolves` dell'anteprima, l'area
+	// colpita e la timeline, che altrimenti nessuna riga di questo test guarderebbe.
+	const int32 Reazione = AimOriginKitIndex(B.Mine, TEXT("Reaction.HazardEscape"));
+	if (!TestTrue(TEXT("premessa: il loadout ha portato la reazione"), Reazione != INDEX_NONE))
+	{
+		RTWorldFixtures::DestroyWorld(B.World);
+		return false;
+	}
+	B.Mine->PlannedReactionAbility = Reazione;
+	B.Mine->PlannedAbilityIndex = B.Getto;
+	B.Mine->bAttackTargetsCell = true;
+	B.Mine->PlannedAttackCell = FRTCellId(-3, 0, 0);
+	B.PC->SelectAbilityForCurrentForTest(B.Getto);
+	// La corsa va da (-1,0,0) a (2,0,0), quindi l'ultimo passo e' verso E. A fine corsa a budget il cono del verso
+	// e' di `MoveEndPivotMaxSteps` passi (Muiren: 2) attorno a E, e W, l'opposto, ne resta fuori; da fermo ogni verso
+	// e' legale ([D-367]). E' il quarto lettore della domanda, attraverso `PlannedMovementForFacing`.
+	const ERTHexDirection Indietro = ERTHexDirection::W;
+
+	// CONTROLLO — senza lo stato lo scatto a budget sposta: mira, portata e verso partono dallo scatto.
+	TestTrue(TEXT("controllo: senza Unbalanced lo scatto a budget sposta"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("controllo: un Attack mira dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginScatto);
+	TestTrue(TEXT("controllo: la portata arriva a (4,0,0)"), B.MapActor->GetPreviewRangeCells().Contains(Lontano));
+	TestEqual(TEXT("controllo: il verso si dichiara dalla cella dello scatto"), B.PC->FacingCellFor(B.Mine),
+		GAimOriginScatto);
+	TestEqual(TEXT("controllo: l'area colpita parte dallo scatto"), B.MapActor->GetPreviewAttackOrigin(),
+		GAimOriginScatto);
+	TestEqual(TEXT("controllo: la reazione guarda dallo scatto"), B.MapActor->GetPlanPreview().Reaction.WatchOrigin,
+		GAimOriginScatto);
+	TestFalse(TEXT("controllo: a fine corsa a budget il verso opposto alla corsa non e' legale"),
+		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
+
+	// IL CUORE — lo stato nega lo scatto: la regola del catalogo dice ancora si', quella che sposta no.
+	B.Mine->ApplyStatus(TAG_Status_Unbalanced, URTCombatLibrary::UnbalancedDurationTurns);
+	B.PC->SelectAbilityForCurrentForTest(B.Getto); // la riconferma ridisegna l'anteprima
+	TestTrue(TEXT("premessa: per la regola del catalogo lo scatto si applica ancora"), B.Mine->PlannedDashApplies());
+	TestFalse(TEXT("ma lo stato lo nega: lo scatto non sposta"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("e un Attack mira dalla cella corrente"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginQui);
+	TestFalse(TEXT("e la portata non arriva piu' a (4,0,0)"), B.MapActor->GetPreviewRangeCells().Contains(Lontano));
+	TestEqual(TEXT("e il verso si dichiara da dove l'unita' resta"), B.PC->FacingCellFor(B.Mine), GAimOriginQui);
+	TestEqual(TEXT("e l'area colpita parte dalla cella corrente"), B.MapActor->GetPreviewAttackOrigin(), GAimOriginQui);
+	TestEqual(TEXT("e la reazione guarda dalla cella corrente"), B.MapActor->GetPlanPreview().Reaction.WatchOrigin,
+		GAimOriginQui);
+	TestTrue(TEXT("e il verso si giudica da fermo: anche l'opposto alla corsa e' legale"),
+		B.PC->IsFacingLegalForPlan(B.Mine, Indietro));
+	// ⚠️ **La voce Dash resta**, come per ogni scatto pianificato che non si applica: la decide `bDashPlanned`, che
+	// non e' un lettore di `PlannedDashApplies()`, e `MakePlanPreview` la vuole visibile. Nasconderla direbbe che lo
+	// scatto non e' stato pianificato.
+	bool bVoceScatto = false;
+	for (const FRTPhasePreviewEntry& Voce : B.MapActor->GetPlanPreview().Phases)
+	{
+		bVoceScatto |= Voce.Phase == ERTResolutionPhase::FastMovement;
+	}
+	TestTrue(TEXT("e la voce Dash della timeline resta: lo scatto e' pianificato"), bVoceScatto);
+
+	// CONTROLLO 2 — lo slancio LINEARE, con lo stato, sposta ancora: [D-319] nega la corsa, non lo slancio.
+	Scia->Def.MovementStyle = ERTMovementStyle::LinearDash;
+	TestTrue(TEXT("controllo: uno scatto lineare con Unbalanced sposta"), B.Mine->PlannedDashMoves());
+	TestEqual(TEXT("controllo: e la mira parte dallo scatto"), B.Mine->AimOriginFor(ERTResolutionPhase::Attack),
+		GAimOriginScatto);
+
+	RTWorldFixtures::DestroyWorld(B.World);
 	return true;
 }
 

@@ -759,7 +759,7 @@ public:
 	 * avrebbe senso. Limite dichiarato in #3509: con una carica pianificata il resolver colpisce dall'adiacente, e
 	 * nessuna di queste domande lo sa.
 	 *
-	 * `bDashResolves` e' l'esito di `ARTUnit::PlannedDashApplies()`, deciso dal chiamante come per
+	 * `bDashResolves` e' l'esito di `ARTUnit::PlannedDashMoves()` ([D-471]), deciso dal chiamante come per
 	 * `FRTBlastPreviewPlan`: qui non si rivaluta.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|HexCombat")

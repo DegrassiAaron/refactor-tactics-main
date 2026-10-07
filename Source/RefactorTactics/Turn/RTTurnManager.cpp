@@ -4602,6 +4602,8 @@ void ARTTurnManager::ResolveDash()
 		// l'ANTEPRIMA, che deve partire dalla cella post-scatto: la fase Dash precede il Blast. Il flag
 		// legacy `bDash` non esiste piu' (#142).
 		const bool bDashApplies = Unit->PlannedDashApplies();
+		// [D-471]: il rifiuto dello stato si legge QUI, prima del consumo, per la stessa ragione della riga sopra.
+		const bool bNegatoDalloStato = Unit->PlannedDashDeniedByStatus();
 		Unit->PlannedDashAbility = INDEX_NONE; // consumato per questo turno (valido o no)
 		const URTActionData* Dash = Unit->GetAbility(DashIdx);
 
@@ -4611,10 +4613,16 @@ void ARTTurnManager::ResolveDash()
 		}
 
 		// `Status.Unbalanced` NEGA la corsa ([D-319], `#2253`). Il criterio e' lo STILE dichiarato dal
-		// catalogo — mobilita' rapida a BUDGET, oggi il solo `Action.Sprint` — e non l'`ActionId`: chi ha
-		// perso l'equilibrio non sceglie celle una per una correndo, mentre uno slancio lineare gia' deciso
-		// puo' ancora compierlo. Un confronto sul nome lascerebbe fuori la prossima azione a budget senza
-		// che nulla diventi rosso.
+		// catalogo — mobilita' rapida a BUDGET — e non l'`ActionId`: chi ha perso l'equilibrio non sceglie celle
+		// una per una correndo, mentre uno slancio lineare gia' deciso puo' ancora compierlo. Un confronto sul
+		// nome lascerebbe fuori la prossima azione a budget senza che nulla diventi rosso.
+		//
+		// ⏱️ *Fino al 2026-10-07 diceva «oggi il solo `Action.Sprint`»*: da [D-425] lo `Sprint` e' un
+		// `NormalMovement`, e ogni mobilita' rapida spedita e' lineare. Il ramo oggi non si raggiunge con il
+		// catalogo; lo prova un'azione a budget costruita nel test (`Status.BudgetDashRefusedWhileUnbalanced`).
+		//
+		// 🔑 **La condizione e' `ARTUnit::PlannedDashDeniedByStatus()`** ([D-471]): la stessa che anteprima e mira
+		// leggono attraverso `PlannedDashMoves()`. Prima era scritta qui, e la mira mirava dallo scatto negato.
 		//
 		// 🔑 **Rifiuto DICHIARATO, non scarto muto.** Stessa forma della principale scartata da una
 		// `MovementAndMain` piu' sotto: famiglia `Fallback`/`Cancelled`, causa in `Amount`. Chi rilegge il
@@ -4624,8 +4632,7 @@ void ARTTurnManager::ResolveDash()
 		// ⚠️ **`PlannedDashAbility` e' gia' azzerato** dalla riga sopra: l'azione e' consumata per il turno
 		// comunque, esattamente come per ogni altro scatto che non si compie. Chi ha pianificato `Sprint`
 		// resta fermo — lo `Sprint` occupa lo slot movimento, quindi non c'e' un Move da ripiegare.
-		if (Unit->HasStatus(TAG_Status_Unbalanced)
-			&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle))
+		if (bNegatoDalloStato)
 		{
 			FRTTurnLogEntry Rifiutata;
 			Rifiutata.Phase = ERTMatchPhase::Dash;
