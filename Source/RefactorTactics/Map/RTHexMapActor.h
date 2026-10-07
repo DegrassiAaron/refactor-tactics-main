@@ -785,6 +785,14 @@ public:
 		bool bOriginPredicted);
 
 	/**
+	 * L'origine che l'anteprima d'attacco sta mostrando, e se e' accesa. Sola lettura: servono a chi verifica che
+	 * area colpita, click e slot partano dalla stessa cella ([D-464], #3509) anche con un'azione `Single`, la cui
+	 * area non si sposta con l'origine e quindi non la rivela.
+	 */
+	const FRTCellId& GetPreviewAttackOrigin() const { return PreviewAttackOrigin; }
+	bool IsPreviewAttackValid() const { return bPreviewAttackValid; }
+
+	/**
 	 * 🔑 **Posa i GHOST della timeline: uno per fase del piano** — `CP 11.5` ([#172]).
 	 *
 	 * Una timeline **vuota li toglie**, ed e' il caso dell'annullamento: chi spegne l'anteprima chiama questa
@@ -796,6 +804,13 @@ public:
 	 * il bisogno di aggiornare invece che rallentandolo.
 	 */
 	void SetPlanPreview(const FRTPlanPreview& Preview);
+
+	/**
+	 * L'ultima timeline ricevuta, com'era, anche dove i ghost non si posano (un mondo senza componente). Sola
+	 * lettura: serve a chi verifica cosa il controller ha chiesto alla timeline — origine e rifiuto del Blast
+	 * ([D-464], #3509) — senza ricostruirlo dai ghost, che di un rifiuto non portano traccia.
+	 */
+	const FRTPlanPreview& GetPlanPreview() const { return LastPlanPreview; }
 
 	/**
 	 * Quanti ghost sono posati, e su quali celle. Per i test e per la diagnostica.
@@ -1464,6 +1479,9 @@ protected:
 
 	/** La cella di ogni ghost, per indice. Stato DERIVATO, riscritto da `SetPlanPreview`. */
 	TArray<FRTCellId> PlanGhostCells;
+
+	/** La timeline ricevuta da `SetPlanPreview`. Vedi `GetPlanPreview`. */
+	FRTPlanPreview LastPlanPreview;
 
 	/** Il colore che rende un livello di certezza. Vedi `SetPlanPreview`. */
 	static FLinearColor GhostColorForCertainty(ERTIntentCertainty Certainty);

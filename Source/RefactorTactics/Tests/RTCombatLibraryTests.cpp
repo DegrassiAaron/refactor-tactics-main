@@ -1,6 +1,7 @@
 #include "Misc/AutomationTest.h"
 #include "Turn/RTMatchSetupLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h" // AimOriginCell: la portata con uno scatto pianificato ([D-464])
 #include "Terrain/RTTerrainLibrary.h"
 #include "Map/RTHexLibrary.h"
 #include "Map/RTHexCellData.h"
@@ -422,6 +423,35 @@ bool FRTTargetableRangeCellsTest::RunTest(const FString&)
 	TestTrue(TEXT("una al limite si'"), Range.Contains(FRTCellId(-Portata, 0, 0)));
 	TestEqual(TEXT("senza mappa la portata e' vuota"),
 		URTCombatLibrary::TargetableRangeCells(nullptr, From, Portata, ERTLineOfSightPolicy::Required).Num(), 0);
+
+	// ── [D-464] (`#3509`): CON UNO SCATTO PIANIFICATO portata e click partono dalla stessa origine per fase, e
+	// concordano anche da li'. Le due origini attese sono scritte a mano: un `Attack` mira da dove lo scatto arriva,
+	// un `Environment` da dove l'unita' sta.
+	const FRTCellId Scatto(-2, 0, 0);
+	for (const ERTResolutionPhase Fase : { ERTResolutionPhase::Attack, ERTResolutionPhase::Environment })
+	{
+		const FRTCellId Origine = URTHexCombatLibrary::AimOriginCell(Fase, From, /*bDashResolves=*/ true,
+			/*bDashIsCharge=*/ false, Scatto);
+		const FString Nome = UEnum::GetValueAsString(Fase);
+		TestEqual(*FString::Printf(TEXT("%s: l'origine con lo scatto"), *Nome), Origine,
+			Fase == ERTResolutionPhase::Attack ? Scatto : From);
+		const TArray<FRTCellId> DallOrigine =
+			URTCombatLibrary::TargetableRangeCells(Map, Origine, Portata, ERTLineOfSightPolicy::Required);
+		for (const FRTHexCellData& Data : Map->Cells)
+		{
+			const ERTTargetRefusal Rifiuto = URTCombatLibrary::DescribeCellTargetRefusal(
+				Map, Origine, Data.Id, Portata, ERTLineOfSightPolicy::Required).Refusal;
+			TestEqual(*FString::Printf(TEXT("%s, cella (%d,%d,L%d): portata e click concordano"), *Nome, Data.Id.X,
+					Data.Id.Y, Data.Id.Layer),
+				DallOrigine.Contains(Data.Id),
+				Rifiuto == ERTTargetRefusal::None || Rifiuto == ERTTargetRefusal::Cover);
+		}
+	}
+	// E le due portate DIFFERISCONO: senza, la concordanza qui sopra varrebbe anche con un'origine sola.
+	TestTrue(TEXT("dallo scatto la portata arriva dove da qui non arriva"),
+		URTCombatLibrary::TargetableRangeCells(Map, Scatto, Portata, ERTLineOfSightPolicy::Required)
+			.Contains(FRTCellId(-5, 0, 0))
+		&& !Range.Contains(FRTCellId(-5, 0, 0)));
 	return true;
 }
 

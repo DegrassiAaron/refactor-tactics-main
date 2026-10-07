@@ -851,6 +851,18 @@ public:
 	 */
 	bool PlannedDashApplies() const;
 
+	/** Vero se lo scatto pianificato e' una carica (`LinearCharge`): la sua `PlannedDashCell` e' il bersaglio ([D-296]). */
+	bool PlannedDashIsCharge() const;
+
+	/**
+	 * Da dove mira quest'unita' un'azione della fase `Phase`, col piano di scatto che ha adesso ([D-464]).
+	 *
+	 * 🔑 **Compone `URTHexCombatLibrary::AimOriginCell` e basta**: la regola sta li', e qui si leggono solo i suoi
+	 * ingressi dal piano. La chiedono i due click, lo slot (`Invalid` e `Warning`), le anteprime e la portata, e
+	 * devono porre tutti la stessa domanda — e' il difetto che #3509 chiude.
+	 */
+	FRTCellId AimOriginFor(ERTResolutionPhase Phase) const;
+
 	/** Cooldown residuo (turni) di un'abilita'. */
 	int32 GetAbilityCooldown(int32 Index) const;
 

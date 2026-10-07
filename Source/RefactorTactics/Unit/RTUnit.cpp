@@ -5,6 +5,7 @@
 #include "Unit/RTGraykitLibrary.h" // #2880: gli anchor dei bracci si risolvono da li', non da numeri qui
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
+#include "Combat/RTHexCombatLibrary.h" // AimOriginCell: l'origine di mira ha una regola sola ([D-464])
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
@@ -1801,6 +1802,18 @@ bool ARTUnit::PlannedDashApplies() const
 	// Mobilita' rapida: lo dichiara il CATALOGO (fase FastMovement -> macro-fase Dash) e nient'altro (#142).
 	const bool bFastMovement = Dash != nullptr && URTCatalogLibrary::IsFastMovement(Dash->Def);
 	return bFastMovement && CanUseAbility(PlannedDashAbility) && !(PlannedDashCell == Cell);
+}
+
+bool ARTUnit::PlannedDashIsCharge() const
+{
+	const URTActionData* Dash = GetAbility(PlannedDashAbility);
+	return Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge;
+}
+
+FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const
+{
+	return URTHexCombatLibrary::AimOriginCell(Phase, Cell, PlannedDashApplies(), PlannedDashIsCharge(),
+		PlannedDashCell);
 }
 
 void ARTUnit::SelectAbility(int32 Index)
