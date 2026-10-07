@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Map/RTPlaybackTracer.h"
 #include "Turn/RTTurnRules.h"
 // FRTResolvedEvent: il confine di azione si legge sulla timeline gia' risolta (`#2857`). L'inclusione non
 // e' circolare — `RTResolvedEvent.h` non include questo header.
@@ -184,6 +185,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
 		int32 NumStructureHits);
+
+	/**
+	 * Il segmento da disegnare per un tracer (`#2454`). Pura: estremi nel mondo, avanzamento, lunghezza del dardo.
+	 *
+	 * - `Jet`: dall'origine fino al punto raggiunto — ancorato.
+	 * - `Projectile`: un dardo lungo al piu' `DashLength` che termina nel punto raggiunto — staccato.
+	 * - `None`: un segmento degenere (i due estremi coincidono).
+	 * `Alpha` si taglia in [0,1]: un avanzamento oltre la fine non supera l'impatto.
+	 */
+	static void TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+		float DashLength, FVector& OutStart, FVector& OutEnd);
 
 	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.

@@ -53,6 +53,29 @@ bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove
 	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0;
 }
 
+void URTPlaybackLibrary::TracerSegment(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+	float DashLength, FVector& OutStart, FVector& OutEnd)
+{
+	const FVector Head = FMath::Lerp(From, To, FMath::Clamp(Alpha, 0.f, 1.f));
+	if (Style == ERTTracerStyle::Jet)
+	{
+		OutStart = From;
+		OutEnd = Head;
+		return;
+	}
+	if (Style == ERTTracerStyle::Projectile)
+	{
+		// La coda non scavalca l'origine: in partenza il dardo e' piu' corto, non sporge dietro chi spara.
+		const FVector Back = From - Head;
+		const float Len = Back.Size();
+		OutStart = Len > KINDA_SMALL_NUMBER ? Head + Back * (FMath::Min(FMath::Max(0.f, DashLength), Len) / Len) : Head;
+		OutEnd = Head;
+		return;
+	}
+	OutStart = Head;
+	OutEnd = Head;
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {

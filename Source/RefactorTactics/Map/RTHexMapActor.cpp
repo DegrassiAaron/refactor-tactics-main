@@ -4,6 +4,7 @@
 #include "Map/RTHexCellData.h"
 #include "Map/RTHexLibrary.h"
 #include "Turn/RTMatchSetupLibrary.h"
+#include "Turn/RTPlaybackLibrary.h" // #2454: `TracerSegment`, la geometria del tracer — pura, non la riscrive il disegno
 #include "Map/RTArenaCriteriaLibrary.h"
 #include "Map/RTGeometryGrammar.h" // ToPolyline: i muri interni si disegnano dal loro segmento (#712)
 #include "Components/InstancedStaticMeshComponent.h"
@@ -168,6 +169,14 @@ namespace
 	// quota assoluta non dice nulla; su uno spessore dice quello che si intende.
 	static_assert(RTBoundaryRibbonHeight > (RTLiftPreview - RTCellTopZ) * 4.f,
 		"La ribbon di perimetro deve TORREGGIARE sulla pila dei lift, non infilarcisi dentro (#1942).");
+
+	// Tracer del playback (`#2454`): altezza sopra la cella, lunghezza del dardo in frazioni di `HexSize`,
+	// spessori. ⚠️ Valori di GRAYBOX, tarati in PIE (`PIE-V01-TRACER`): il getto e' piu' spesso del proiettile
+	// perche' le due forme devono separarsi anche in un fotogramma fermo.
+	constexpr float RTTracerHeight = 60.f;
+	constexpr float RTTracerDashFraction = 0.35f;
+	constexpr float RTTracerProjectileThickness = 4.f;
+	constexpr float RTTracerJetThickness = 7.f;
 
 	/**
 	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
@@ -1093,6 +1102,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| bHasPreviewSightBlock
 		|| PlaybackFootprintCells.Num() > 0
 		|| PlaybackStructureHits.Num() > 0
+		|| PlaybackTracers.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0;
 }
@@ -1162,6 +1172,18 @@ void ARTHexMapActor::AddPlaybackFootprint(const TArray<FRTCellId>& FootprintCell
 void ARTHexMapActor::ClearPlaybackFootprint()
 {
 	PlaybackFootprintCells.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers)
+{
+	PlaybackTracers = Tracers;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackTracers()
+{
+	PlaybackTracers.Reset();
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1628,6 +1650,28 @@ void ARTHexMapActor::DrawPlanningPreview() const
 			const FVector MezzoLato = FVector(-Asse.Y, Asse.X, 0.f) * (0.5f / FMath::Sqrt(3.f));
 			DisegnaLineaAnteprima(World, Meta - MezzoLato, Meta + MezzoLato, StructureColor, SDPG_Foreground,
 				Colpo.bDestroyed ? 6.f : 3.f);
+		}
+	}
+
+	// Tracer degli attacchi base IN VOLO, durante il playback (`#2454`).
+	//
+	// 🔑 **Stesso significato di un colpo, quindi stesso colore**: `ERTOverlayMeaning::Attack`, come l'impronta e i
+	// muri qui sopra. ⛔ Nessun `FColor` letterale e nessun significato nuovo (`#1941`): proiettile e getto si
+	// separano per GEOMETRIA, che e' `URTPlaybackLibrary::TracerSegment`.
+	// ⚠️ **Foreground**: il tracer attraversa le unita' come la linea di mira, o sparirebbe dentro chi spara.
+	if (PlaybackTracers.Num() > 0)
+	{
+		const FColor TracerColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
+		for (const FRTPlaybackTracer& T : PlaybackTracers)
+		{
+			const FVector Da = URTHexLibrary::AxialToWorld(T.From, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(T.From) + RTTracerHeight);
+			const FVector A = URTHexLibrary::AxialToWorld(T.To, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(T.To) + RTTracerHeight);
+			FVector Inizio, Fine;
+			URTPlaybackLibrary::TracerSegment(T.Style, Da, A, T.Alpha, Size * RTTracerDashFraction, Inizio, Fine);
+			DisegnaLineaAnteprima(World, Inizio, Fine, TracerColor, SDPG_Foreground,
+				T.Style == ERTTracerStyle::Jet ? RTTracerJetThickness : RTTracerProjectileThickness);
 		}
 	}
 

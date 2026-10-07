@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Map/RTCellId.h"
 #include "Map/RTOverlayArea.h" // FRTOverlayArea: le anteprime sono aree semantiche (#1941)
+#include "Map/RTPlaybackTracer.h" // FRTPlaybackTracer: il tracer in volo, in celle (`#2454`)
 #include "Turn/RTPlanPreview.h" // #172: la timeline che i ghost disegnano
 #include "Perception/RTTeamKnowledge.h" // FRTTeamKnowledge: l'ingresso del velo ([D-227])
 #include "Perception/RTVeilTransition.h" // FRTVeilTransitionParams: le due costanti di tempo del velo (`#2874`)
@@ -898,6 +899,21 @@ public:
 	/** Celle dell'impronta di playback correntemente mostrate (oracolo headless di `#2454`). */
 	int32 NumPlaybackFootprintCells() const { return PlaybackFootprintCells.Num(); }
 
+	/**
+	 * I tracer in volo nel fotogramma corrente (`#2454`). Li consegna `ARTTurnManager` a ogni tick del Blast e li
+	 * SOSTITUISCE in blocco: il volo e' funzione dell'orologio del playback, non uno stato che si accumula.
+	 *
+	 * Separato dall'impronta come quella lo e' dall'anteprima: lo spegne `ClearPlaybackTracers`, chiamato a fine
+	 * Blast e da `FinishPlayback`. ⛔ Nessun filtro qui: la conoscenza l'ha gia' applicata chi consegna.
+	 */
+	void SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers);
+
+	/** Spegne il canale. */
+	void ClearPlaybackTracers();
+
+	int32 NumPlaybackTracers() const { return PlaybackTracers.Num(); }
+	const TArray<FRTPlaybackTracer>& GetPlaybackTracers() const { return PlaybackTracers; }
+
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle colpite **e** occupata da un alleato (test del fuoco amico). */
@@ -1059,6 +1075,9 @@ protected:
 	 * cambia e' chi la spegne.
 	 */
 	TArray<FRTCellId> PlaybackFootprintCells;
+
+	/** I tracer del fotogramma corrente: vedi `SetPlaybackTracers`. */
+	TArray<FRTPlaybackTracer> PlaybackTracers;
 
 	/**
 	 * I colpi a struttura mostrati durante il playback (`#2828`). Stesso ciclo di vita dell'impronta: nasce

@@ -281,6 +281,38 @@ bool FRTPlaybackAttackStaggerDegenerateTest::RunTest(const FString&)
 	return true;
 }
 
+// --- TracerSegment (`#2454`) ------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerSegmentShapesTest,
+	"RefactorTactics.Playback.TracerSegmentShapes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerSegmentShapesTest::RunTest(const FString&)
+{
+	// 🔑 Le due forme si distinguono per GEOMETRIA, non per colore: il getto resta ancorato all'origine, il
+	// proiettile se ne stacca. Se le due righe del ramo si scambiassero, cadono le asserzioni sulla coda.
+	const FVector A(0.f, 0.f, 0.f);
+	const FVector B(1000.f, 0.f, 0.f);
+	FVector S, E;
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Jet, A, B, 0.5f, 100.f, S, E);
+	TestTrue(TEXT("il getto resta ancorato all'origine"), S.Equals(A, RTTol));
+	TestTrue(TEXT("e arriva fin dove e' arrivato il volo"), E.Equals(FVector(500.f, 0.f, 0.f), RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Projectile, A, B, 0.5f, 100.f, S, E);
+	TestTrue(TEXT("la testa del proiettile e' dove e' arrivato il volo"), E.Equals(FVector(500.f, 0.f, 0.f), RTTol));
+	TestTrue(TEXT("la coda e' a un dardo di distanza, NON all'origine"), S.Equals(FVector(400.f, 0.f, 0.f), RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Projectile, A, B, 0.05f, 100.f, S, E);
+	TestTrue(TEXT("in partenza la coda non scavalca l'origine"), S.Equals(A, RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::Jet, A, B, 2.f, 100.f, S, E);
+	TestTrue(TEXT("un avanzamento oltre 1 non supera l'impatto"), E.Equals(B, RTTol));
+
+	URTPlaybackLibrary::TracerSegment(ERTTracerStyle::None, A, B, 0.5f, 100.f, S, E);
+	TestTrue(TEXT("None non disegna un segmento: i due estremi coincidono"), S.Equals(E, RTTol));
+	return true;
+}
+
 // --- PhaseDuration --------------------------------------------------------------------------
 //
 // La durata di UNA fase del playback. Stava in `ARTTurnManager::DurationForPlaybackPhase`, dove per
