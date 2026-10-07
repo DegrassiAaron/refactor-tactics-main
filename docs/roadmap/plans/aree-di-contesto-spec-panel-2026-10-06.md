@@ -333,7 +333,7 @@ o mira).
 
 1. **Prerequisiti comuni** (CURRENT REQUIRED perché nessuna area menta o resti stantia):
    - una funzione d'origine consumata anche da `RefusalUnderPointerForArmed` e dal produttore di E —
-     [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509) (v1 DR-1 estesa);
+     [#3509](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3509) (v1 DR-1 estesa). ✅ Chiuso da #3509: `ARTUnit::AimOriginFor`, che il produttore di E (#3512) dovrà chiedere invece di `Unit->Cell`;
    - un solo ingresso misurabile e un solo reset (CX-2) — [#3511](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3511);
    - nessun armo durante il playback — [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510). ✅ Chiuso da [`D-468`](../../decisions/RT_PDR_00_Decision_Log.md).
    ⚠️ **Non è un prerequisito, ma un difetto ereditato da tutte le aree**: in Shipping non si vedrebbero — [#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508)

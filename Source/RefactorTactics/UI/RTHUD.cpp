@@ -285,8 +285,12 @@ void ARTHUD::ComputePlannedHitMarks(const TArray<ARTUnit*>& Units, int32 PlayerT
 		}
 
 		// Le stesse celle che decideranno l'esito: `HexHitCells` e' la funzione del resolver, non una copia.
-		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(
-			Ability->Shape, Attacker->Cell, Target->Cell, Ability->RangeCells, Ability->AreaRadius);
+		//
+		// [D-464]: e partono da dove l'azione MIRA. ⏱️ *Fino a #3509 da `Attacker->Cell`*: con uno scatto e poi una
+		// `Line`, i segni sulle unita' cadevano su una retta diversa da quella che l'area colpita disegnava.
+		const TArray<FRTCellId> Hit = URTHexCombatLibrary::HexHitCells(Ability->Shape,
+			Attacker->AimOriginFor(Ability->Def.ResolutionPhase), Target->Cell, Ability->RangeCells,
+			Ability->AreaRadius);
 		OutHitCells.Append(TSet<FRTCellId>(Hit));
 
 		// Fuoco amico solo se l'azione puo' DAVVERO colpire i propri: segnalare un alleato che non subirebbe

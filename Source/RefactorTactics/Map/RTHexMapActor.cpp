@@ -1306,6 +1306,9 @@ void ARTHexMapActor::DrawCellOverlay() const
 
 void ARTHexMapActor::SetPlanPreview(const FRTPlanPreview& Preview)
 {
+	// Prima della guardia sul componente: la timeline e' un fatto del piano, non dei ghost che la disegnano.
+	LastPlanPreview = Preview;
+
 	if (!PlanGhosts)
 	{
 		return;
