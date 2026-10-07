@@ -1438,6 +1438,11 @@ bool FRTDegenerateArmShowsNoRangeTest::RunTest(const FString&)
 {
 	UWorld* World = MakePointerWorld();
 	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+	// 🔴 **Senza, la fine del playback non raggiunge il controller, e non lo dice.** Il delegate e' DINAMICO e
+	// passa da `AActor::ProcessEvent`, che scarta ogni evento finche' il mondo non ha `AreActorsInitialized()`.
+	// Misurato qui il 2026-10-07: il controller era iscritto e la portata restava quella di prima. La spiegazione
+	// completa sta in `MakeLockInPreviewBench` (`RTHexMatchIntegrationTests.cpp`).
+	World->InitializeActorsForPlay(FURL());
 	URTHexMapAsset* Arena = URTMatchSetupLibrary::MakeTestArena(World);
 	ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 	MapActor->MapAsset = Arena;
