@@ -132,7 +132,51 @@ in silenzio: il GameMode lo dichiara e tiene la proprieta'.
 E una che e' dell'ambiente, non della ricetta: se un'altra sessione sta compilando, UAT esce con
 **`Error_SDKNotFound`** — codice fuorviante, perche' la causa vera sta tre righe piu' su nel log:
 `A conflicting instance of ... UnrealBuildTool_Mutex ... is already running` -> `Failed (ConflictingInstance)`.
-Rimedio: `-ubtargs="-WaitMutex"`, che aspetta invece di fallire.
+
+⌫ **Qui c'era scritto** *«Rimedio: `-ubtargs="-WaitMutex"`, che aspetta invece di fallire»*. **Con `-build` e
+più di un target non aspetta niente** ([#3523](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3523)).
+Il 2026-10-06, con `-clientconfig=Development+Shipping -cook -build` e un `Build.bat` del gioco già in
+corso, UAT ha fatto **una sola** invocazione di UBT per tre target ed è uscita dopo 0,39 secondi con
+`ConflictingInstance`.
+
+Il perché sta nel sorgente di UAT e UBT (UE 5.8.1), e dice anche dove il flag vale:
+
+- UBT legge `-WaitMutex` **solo dalla propria riga di comando**, prima di guardare i target:
+  `GlobalOptions.WaitMutex`, consultato da `UnrealBuildTool.Main` quando prende il mutex. ⚠️ Lo prende
+  anche se il target è già aggiornato.
+- Con **più di un target**, UAT chiude gli argomenti di ciascuno in una stringa `-Target="…"`
+  (`UnrealBuild.BuildWithUBT`), e lì UBT non lo cerca. Sulla riga di UBT aggiunge solo `-NoXGE`,
+  `-AllCores` e `-SkipBuild`. ∴ **non esiste un parametro di UAT che porti `-WaitMutex` all'invocazione
+  intera.**
+- E `-ubtargs` non arriva nemmeno a tutti i target. L'Editor, che `-cook -build` compila per il cook, riceve
+  solo le opzioni di build dell'Editor (`EditorBuildArgs` in `BuildProjectCommand.Build`); `-ubtargs` va ai
+  soli target del gioco.
+
+| Comando | `-WaitMutex` |
+|---|---|
+| `Build.bat <target> … -WaitMutex` | ✅ aspetta: il flag sta sulla riga di UBT |
+| `BuildCookRun -build` con **un solo** target da compilare, per esempio `-skipbuildeditor` e una sola configurazione | ✅ per sorgente: con un target solo UAT non usa `-Target="…"`, e gli argomenti finiscono sulla riga di UBT. ⏳ Non misurato |
+| `BuildCookRun -cook -build`: l'Editor per il cook più almeno un target del gioco | ❌ chiuso dentro `-Target="…"`: `ConflictingInstance`, misurato il 2026-10-06 |
+
+**La ricetta misurata.** Subito prima di lanciare `BuildCookRun`, controlla che non ci siano UBT vive:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name = 'dotnet.exe'" |
+    Where-Object CommandLine -match 'UnrealBuildTool' | Select ProcessId, CommandLine
+```
+
+Se la lista è vuota, si lancia. Con questa ricetta sono stati prodotti i pacchetti del 2026-10-06 per
+[#3508](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3508): la terza passata e quella dopo la
+correzione. ⚠️ La ricetta chiude la finestra, non la gara. Una build altrui che parte nei secondi dopo il
+controllo fa fallire lo stesso, con il `ConflictingInstance` qui sopra, e allora si rilancia.
+
+Due alternative, ⏳ **non misurate**:
+
+- **Compilare prima, poi `BuildCookRun` senza `-build`.** Si compilano i target con `Build.bat … -WaitMutex`.
+  Senza `-build` UAT non chiama UBT per compilare (`BuildProjectCommand.Build` esce subito), quindi la gara
+  di compilazione non c'è. Resta da misurare che nient'altro, in `-cook -stage -pak`, invochi UBT.
+- ⛔ **Compilare prima solo l'Editor non basta.** Con `-build` UAT lo rimette nella stessa invocazione, che
+  prende il mutex anche se il target è aggiornato.
 
 > **Un worktree basta, e questo va detto perché il contrario sembra ovvio.** `Content/**/*.uasset` è
 > ignorato da `.gitignore`, quindi verrebbe da concludere che un worktree non abbia contenuti e non possa
@@ -159,8 +203,12 @@ configurazione.
 ```bash
 RunUAT.bat BuildCookRun -project=<uproject> -noP4 -platform=Win64 \
   -clientconfig=Development+Shipping -cook -build -stage -pak -archive \
-  -archivedirectory=<dir> -utf8output -ubtargs="-WaitMutex"
+  -archivedirectory=<dir> -utf8output
 ```
+
+Prima di lanciarla, controlla che nessuna UBT sia viva, come nella ricetta qui sopra. ⌫ La riga terminava
+con `-ubtargs="-WaitMutex"`: con tre target da compilare il flag finisce dentro `-Target="…"`, e non
+proteggeva niente.
 
 ```text
 Binaries/Win64/RefactorTactics.exe                 336 MB   Development
