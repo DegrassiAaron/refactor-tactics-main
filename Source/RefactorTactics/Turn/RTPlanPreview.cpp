@@ -3,6 +3,7 @@
 #include "Turn/RTHexSim.h"
 #include "Turn/RTHexSimLibrary.h"  // BuildCompositeHexPath: lo STESSO A* del resolver
 #include "Turn/RTFacingLibrary.h"  // FacingFromPath: la derivazione pura, senza TurnLog
+#include "Ability/RTCatalogLibrary.h" // MapResolutionPhase: la fase dell'azione decide il posto della voce ([D-470])
 
 namespace
 {
@@ -59,6 +60,105 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	FRTCellId CellaCorrenteDiFase = CellaCorrente;
 	ERTHexDirection FacingCorrenteDiFase = FacingCorrente;
 
+	// ── L'AZIONE PRINCIPALE: una voce, nella SUA fase e nel SUO posto ([D-470]) ───────────────────────────
+	//
+	// La fase la dichiara il catalogo (`Plan.Blast.Phase`), e la macro-fase in cui risolve decide dove sta la
+	// voce: una `Preparation` prima dello scatto, una `Control` o un `Attack` fra lo scatto e il Move, una
+	// `Environment` dopo il Move. ⏱️ *Fino a [D-470] la voce si chiamava sempre `Attack` e stava sempre fra lo
+	// scatto e il Move*, contro le due promesse dell'header: la fase canonica, e l'ordine di risoluzione.
+	//
+	// ⛔ L'origine e l'area NON si ricalcolano qui: le produce `MakeBlastPreview`, che a sua volta chiama
+	// `HexHitCells` — la forma canonica del combat. Una seconda derivazione sarebbe la seconda autorita' che
+	// questo checkpoint vieta espressamente.
+	const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(Plan.Blast, CombatUnits);
+	const ERTMatchPhase MacroFaseAzione = URTCatalogLibrary::MapResolutionPhase(Plan.Blast.Phase);
+	const bool bAzioneNelPrep = Plan.Blast.bHasAction && MacroFaseAzione == ERTMatchPhase::Prep;
+	const bool bAzioneNelCleanup = Plan.Blast.bHasAction && MacroFaseAzione == ERTMatchPhase::Cleanup;
+	// ⚠️ Il Blast prende anche le fasi che un'azione principale non ha — `Snapshot` e i due movimenti: lo scatto ha
+	// il suo slot e il percorso e' il Move. E' il posto in cui la voce stava per tutte prima di [D-470].
+	const bool bAzioneNelBlast = Plan.Blast.bHasAction && !bAzioneNelPrep && !bAzioneNelCleanup;
+
+	/**
+	 * La voce dell'azione principale, una sola costruzione per i tre posti in cui puo' stare.
+	 *
+	 * `DoveSara` e' la cella in cui l'unita' si trova quando l'azione risolve, cioe' dove va il ghost; `FacingPrima`
+	 * e `FontePrima` sono l'orientamento che la fase riceve. `bRuotaVersoIlBersaglio` e' vero nel solo Blast: e' li'
+	 * che `CollectAttackIntents` gira chi agisce, mentre `ResolvePrep` e `ResolveEnvironment` non lo girano.
+	 */
+	const auto VoceAzionePrincipale = [&Plan, &Blast, &CombatUnits](const FRTCellId& DoveSara,
+		ERTHexDirection FacingPrima, ERTPreviewFacingSource FontePrima, bool bRuotaVersoIlBersaglio)
+	{
+		FRTPhasePreviewEntry Colpo;
+		Colpo.Phase = Plan.Blast.Phase;
+		Colpo.UnitId = Plan.UnitId;
+		Colpo.ActionId = Plan.BlastActionId;
+		// L'origine e' quella di MIRA ([D-464]); la destinazione e' dove sara' l'unita'. Coincidono salvo per
+		// un'azione del Cleanup dopo un movimento: mira da dove e' stata pianificata, e risolve dopo il Move.
+		Colpo.PreviewOrigin = Blast.Origin;
+		Colpo.PreviewDestination = DoveSara;
+		Colpo.AffectedCells = Blast.HitCells;
+		Colpo.AllyCells = Blast.AllyCells;
+		Colpo.TargetRefusal = Plan.BlastTargetRefusal;
+
+		// Cio' che il piano DICHIARA di bersagliare, distinto da cio' che l'azione toccherebbe.
+		//
+		// ⛔ **Un bersaglio CADUTO non ha una cella dichiarata, e la prima stesura gliela dava.**
+		// `MakeBlastPreview` esige `Units[TargetId].bAlive` e lo motiva: *«un bersaglio caduto non degrada
+		// alla propria ultima cella — quello sarebbe il FALLBACK del resolver»*. Leggendo il solo
+		// `IsValidIndex` la timeline segnava un bersaglio sulla cella di un cadavere, che l'area lasciava
+		// giustamente vuota: due campi della stessa voce che si contraddicevano.
+		FRTCellId CellaMira;
+		bool bMiraSuUnitaViva = false;
+		bool bMiraNota = false;
+		if (Plan.Blast.bTargetsCell)
+		{
+			CellaMira = Plan.Blast.TargetCell;
+			bMiraNota = true;
+		}
+		else if (CombatUnits.IsValidIndex(Plan.Blast.TargetId) && CombatUnits[Plan.Blast.TargetId].bAlive)
+		{
+			CellaMira = CombatUnits[Plan.Blast.TargetId].Cell;
+			bMiraNota = true;
+			bMiraSuUnitaViva = true;
+		}
+		if (bMiraNota)
+		{
+			Colpo.TargetCells.Add(CellaMira);
+		}
+
+		// 🔴 **La rotazione verso il bersaglio vale SOLO per un'unita' viva, e la prima stesura la
+		// prevedeva anche per una cella.** Il resolver la guarda con
+		// `if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)`
+		// (`RTTurnManager_Blast.cpp:715`): un'azione bersagliata su una CELLA — un'area lasciata cadere su un
+		// varco vuoto — non orienta chi la esegue. Prevederla comunque faceva leggere al giocatore una postura
+		// di copertura direzionale che al momento del colpo non sarebbe esistita.
+		// ⚠️ **E vale solo nel Blast** ([D-470]): prima la si prevedeva per ogni fase, anche dove il resolver non
+		// gira nessuno.
+		if (bRuotaVersoIlBersaglio && bMiraSuUnitaViva)
+		{
+			// La stessa derivazione che il resolver registra come `TargetingReoriented`. Qui si PREVEDE
+			// quella rotazione, non se ne inventa un'altra.
+			Colpo.Facing = FacingVerso(Blast.Origin, CellaMira, FacingPrima);
+			Colpo.FacingSource = ERTPreviewFacingSource::DerivedFromPath;
+		}
+		else
+		{
+			Colpo.Facing = FacingPrima;
+			Colpo.FacingSource = FontePrima;
+		}
+
+		// 🔑 **Il livello segue le definizioni dell'enum, non un giudizio di questa funzione.**
+		//  - bersaglio rifiutato o nessuna cella colpita: il piano non produrra' niente → `Uncertain`;
+		//  - origine che viene da uno scatto: dipende da un movimento, e «muoversi basta» → `Uncertain`;
+		//  - altrimenti: c'e' un bersaglio e l'unita' non si sposta → `Predicted`.
+		const bool bBersaglioUtile =
+			Plan.BlastTargetRefusal == ERTTargetRefusal::None && Blast.HitCells.Num() > 0;
+		Colpo.Certainty = (!bBersaglioUtile || Blast.bOriginFromPlannedDash)
+			? ERTIntentCertainty::Uncertain
+			: ERTIntentCertainty::Predicted;
+		return Colpo;
+	};
+
 	// ── PREP ────────────────────────────────────────────────────────────────────────────────────────────
 	//
 	// Non sposta e non bersaglia: per la definizione di `ERTIntentCertainty::Confirmed` — *«niente puo'
@@ -75,6 +175,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		Prep.FacingSource = ERTPreviewFacingSource::Authoritative;
 		Prep.Certainty = ERTIntentCertainty::Confirmed;
 		Out.Phases.Add(Prep);
+	}
+
+	// La principale di `Preparation` risolve qui, prima dello scatto ([D-470]): `ResolvePrep` la arma da dove
+	// l'unita' e' adesso, e col facing di adesso — le azioni di Prep agiscono su chi le usa, e non lo girano.
+	if (bAzioneNelPrep)
+	{
+		Out.Phases.Add(VoceAzionePrincipale(CellaCorrenteDiFase, FacingCorrenteDiFase,
+			ERTPreviewFacingSource::Authoritative, /*bRuotaVersoIlBersaglio=*/ false));
 	}
 
 	// ⚠️ **Lo scatto si applica solo se e' stato pianificato E risolve.** I due flag sono indipendenti
@@ -134,80 +242,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 
 	// ── BLAST ───────────────────────────────────────────────────────────────────────────────────────────
 	//
-	// ⛔ L'origine e l'area NON si ricalcolano qui: le produce `MakeBlastPreview`, che a sua volta chiama
-	// `HexHitCells` — la forma canonica del combat. Una seconda derivazione sarebbe la seconda autorita' che
-	// questo checkpoint vieta espressamente.
-	const FRTBlastPreview Blast = URTHexCombatLibrary::MakeBlastPreview(Plan.Blast, CombatUnits);
-	if (Plan.Blast.bHasAction)
+	// La principale di `Control` o di `Attack` risolve qui, fra lo scatto e il Move, ed e' la sola che il
+	// resolver gira verso un bersaglio vivo (`CollectAttackIntents`, [D-020]). Non sposta chi la esegue: il
+	// ghost sta sulla sua origine, che dopo uno scatto e' la cella d'arrivo ([D-464]).
+	if (bAzioneNelBlast)
 	{
-		FRTPhasePreviewEntry Colpo;
-		Colpo.Phase = ERTResolutionPhase::Attack;
-		Colpo.UnitId = Plan.UnitId;
-		Colpo.ActionId = Plan.BlastActionId;
-		Colpo.PreviewOrigin = Blast.Origin;
-		Colpo.PreviewDestination = Blast.Origin; // il Blast non sposta chi lo esegue
-		Colpo.AffectedCells = Blast.HitCells;
-		Colpo.AllyCells = Blast.AllyCells;
-		Colpo.TargetRefusal = Plan.BlastTargetRefusal;
-
-		// Cio' che il piano DICHIARA di bersagliare, distinto da cio' che l'azione toccherebbe.
-		//
-		// ⛔ **Un bersaglio CADUTO non ha una cella dichiarata, e la prima stesura gliela dava.**
-		// `MakeBlastPreview` esige `Units[TargetId].bAlive` e lo motiva: *«un bersaglio caduto non degrada
-		// alla propria ultima cella — quello sarebbe il FALLBACK del resolver»*. Leggendo il solo
-		// `IsValidIndex` la timeline segnava un bersaglio sulla cella di un cadavere, che l'area lasciava
-		// giustamente vuota: due campi della stessa voce che si contraddicevano.
-		FRTCellId CellaMira;
-		bool bMiraSuUnitaViva = false;
-		bool bMiraNota = false;
-		if (Plan.Blast.bTargetsCell)
-		{
-			CellaMira = Plan.Blast.TargetCell;
-			bMiraNota = true;
-		}
-		else if (CombatUnits.IsValidIndex(Plan.Blast.TargetId) && CombatUnits[Plan.Blast.TargetId].bAlive)
-		{
-			CellaMira = CombatUnits[Plan.Blast.TargetId].Cell;
-			bMiraNota = true;
-			bMiraSuUnitaViva = true;
-		}
-		if (bMiraNota)
-		{
-			Colpo.TargetCells.Add(CellaMira);
-		}
-
-		// 🔴 **La rotazione verso il bersaglio vale SOLO per un'unita' viva, e la prima stesura la
-		// prevedeva anche per una cella.** Il resolver la guarda con
-		// `if (Unit->IsAlive() && Target && Target->IsAlive() && Target != Unit)`
-		// (`RTTurnManager_Blast.cpp:715`): un'azione bersagliata su una CELLA — un'area lasciata cadere su un
-		// varco vuoto — non orienta chi la esegue. Prevederla comunque faceva leggere al giocatore una postura
-		// di copertura direzionale che al momento del colpo non sarebbe esistita.
-		if (bMiraSuUnitaViva)
-		{
-			// La stessa derivazione che il resolver registra come `TargetingReoriented`. Qui si PREVEDE
-			// quella rotazione, non se ne inventa un'altra.
-			Colpo.Facing = FacingVerso(Blast.Origin, CellaMira, FacingDopoScatto);
-			Colpo.FacingSource = ERTPreviewFacingSource::DerivedFromPath;
-		}
-		else
-		{
-			Colpo.Facing = FacingDopoScatto;
-			Colpo.FacingSource = bScattoEffettivo
-				? ERTPreviewFacingSource::InheritedFromPreviousPhase
-				: ERTPreviewFacingSource::Authoritative;
-		}
-
-		// 🔑 **Il livello segue le definizioni dell'enum, non un giudizio di questa funzione.**
-		//  - bersaglio rifiutato o nessuna cella colpita: il piano non produrra' niente → `Uncertain`;
-		//  - origine che viene da uno scatto: dipende da un movimento, e «muoversi basta» → `Uncertain`;
-		//  - altrimenti: c'e' un bersaglio e l'unita' non si sposta → `Predicted`.
-		const bool bBersaglioUtile =
-			Plan.BlastTargetRefusal == ERTTargetRefusal::None && Blast.HitCells.Num() > 0;
-		Colpo.Certainty = (!bBersaglioUtile || Blast.bOriginFromPlannedDash)
-			? ERTIntentCertainty::Uncertain
-			: ERTIntentCertainty::Predicted;
-
-		Out.Phases.Add(Colpo);
+		Out.Phases.Add(VoceAzionePrincipale(Blast.Origin, FacingDopoScatto,
+			bScattoEffettivo ? ERTPreviewFacingSource::InheritedFromPreviousPhase : ERTPreviewFacingSource::Authoritative,
+			/*bRuotaVersoIlBersaglio=*/ true));
 	}
 
 	// ── MOVE ────────────────────────────────────────────────────────────────────────────────────────────
@@ -223,6 +265,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// scatto non ci parte piu', e il resolver **ricalcola** verso `PlannedCell`. Ecco perche' la certezza di
 	// questa fase scende quando lo scatto si applica: cio' che si disegna e' il percorso dichiarato, e il
 	// resolver ne percorrera' un altro.
+	// Dove sara' l'unita' a Move concluso, e come guardera': li' risolve la principale del Cleanup ([D-470]).
+	// Senza un Move resta dove lo scatto l'ha lasciata.
+	FRTCellId CellaDopoIlMove = CellaDopoScatto;
+	ERTHexDirection FacingDopoIlMove = FacingDopoScatto;
+	ERTPreviewFacingSource FonteDopoIlMove = bScattoEffettivo
+		? ERTPreviewFacingSource::InheritedFromPreviousPhase
+		: ERTPreviewFacingSource::Authoritative;
+
 	if (Plan.PlannedWaypoints.Num() > 0)
 	{
 		// 🔴 **Spostare l'unita' vuol dire spostare anche l'OCCUPAZIONE, e la prima stesura riscriveva
@@ -274,6 +324,21 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 			: ERTPreviewFacingSource::InheritedFromPreviousPhase;
 		Move.Certainty = ERTIntentCertainty::Uncertain;
 		Out.Phases.Add(Move);
+
+		CellaDopoIlMove = Move.PreviewDestination;
+		FacingDopoIlMove = Move.Facing;
+		FonteDopoIlMove = ERTPreviewFacingSource::InheritedFromPreviousPhase;
+	}
+
+	// ── CLEANUP ─────────────────────────────────────────────────────────────────────────────────────────
+	//
+	// La principale di `Environment` risolve dopo il Move ([D-470]), in `ResolveEnvironment`. Il ghost va dove
+	// l'unita' sara' allora, cioe' dopo il Move; l'origine resta quella di mira, la cella da cui e' stata
+	// pianificata ([D-464]). `ResolveEnvironment` non gira chi agisce: il facing e' quello che il Move le lascia.
+	if (bAzioneNelCleanup)
+	{
+		Out.Phases.Add(VoceAzionePrincipale(CellaDopoIlMove, FacingDopoIlMove, FonteDopoIlMove,
+			/*bRuotaVersoIlBersaglio=*/ false));
 	}
 
 	// ── LA REAZIONE, che fase non e' ────────────────────────────────────────────────────────────────────
