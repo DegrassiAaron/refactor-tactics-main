@@ -8050,6 +8050,34 @@ void ARTTurnManager::ArrivePlaybackAttack(int32 Index, bool bWithLog)
 	if (bRecordAttackBeatsForTest) { AttackBeatTrace.Add(FString::Printf(TEXT("A%d"), Index)); }
 }
 
+void ARTTurnManager::PushPlaybackTracers()
+{
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!MapActor) { return; }
+
+	TArray<FRTPlaybackTracer> InVolo;
+	if (AttackBeatsDone % 2 == 1) // lanciato, non ancora arrivato
+	{
+		const int32 Index = AttackBeatsDone / 2;
+		if (PlaybackAttacks.IsValidIndex(Index) && PlaybackAttackFlights.IsValidIndex(Index))
+		{
+			const FRTResolvedEvent& Atk = PlaybackAttacks[Index];
+			const ERTTracerStyle Style = URTPlaybackLibrary::TracerStyleFor(Atk, PlaybackViewerTeamId);
+			if (Style != ERTTracerStyle::None)
+			{
+				FRTPlaybackTracer T;
+				T.From = Atk.HitGeometry.From;
+				T.To = Atk.HitGeometry.Impact;
+				T.Style = Style;
+				T.Alpha = URTPlaybackLibrary::TracerAlpha(
+					Index, PlaybackPhaseElapsed, AttackShowSeconds, PlaybackAttackFlights[Index]);
+				InVolo.Add(T);
+			}
+		}
+	}
+	MapActor->SetPlaybackTracers(InVolo);
+}
+
 void ARTTurnManager::EnterPlaybackPhase()
 {
 	PlaybackPhaseElapsed = 0.f;
@@ -8496,6 +8524,14 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	// di finalizzazione (#911). E' la stessa struttura a due `if` che quel blocco usa piu' sotto.
 	if (Ph == ERTMatchPhase::Blast)
 	{
+		// `#2454`: il tracer si consegna a OGNI uscita di questo ramo — i tre `return` delle fermate compresi —
+		// o a una fermata resterebbe disegnato nella posizione del tick prima. In pausa il tick non arriva qui
+		// (`bPlaybackPaused`, in testa a `TickPlayback`), e il tracer resta fermo dove l'ultima consegna lo ha
+		// lasciato.
+		// ⚠️ Lo scope e' questo `if`, non la funzione: la finalizzazione della fase, piu' sotto, gira DOPO la
+		// consegna — ed e' li' che il canale si spegne.
+		ON_SCOPE_EXIT{ PushPlaybackTracers(); };
+
 		// Rivela i colpi in serie (uno ogni AttackShowSeconds) per leggibilita' del danno.
 		// L'impronta PRECEDE i suoi colpi: e' il segno a terra dell'azione, e vederla dopo le vittime
 		// racconterebbe la storia al contrario (`#2454`). Stesso scaglionamento, contatore proprio.
@@ -8613,6 +8649,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 				++AttackBeatsDone;
 				if (bArrivo) { ArrivePlaybackAttack(Index, /*bWithLog=*/ false); }
 				else { LaunchPlaybackAttack(Index); }
+			}
+
+			// `#2454`: nessun tracer sopravvive alla fase. ⚠️ Qui e non solo in `FinishPlayback`, che esce presto
+			// quando e' trattenuto da una finestra di reazione.
+			if (ARTHexMapActor* const TracerMap = ARTHexMapActor::FindInWorld(GetWorld()))
+			{
+				TracerMap->ClearPlaybackTracers();
 			}
 		}
 
@@ -8835,6 +8878,7 @@ void ARTTurnManager::FinishPlayback()
 	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		FootprintMap->ClearPlaybackFootprint();
+		FootprintMap->ClearPlaybackTracers(); // `#2454`: e passa di qui anche `SkipPlayback`
 		// ⛔ **Anche i muri caduti si spengono qui, e passa di qui pure `SkipPlayback`** (`#2828`): il
 		// segno e' il CAMBIAMENTO, e un cambiamento che sopravvive al turno torna a essere «lo stato dopo»
 		// — cioe' quel che si vedeva prima che questo evento esistesse.

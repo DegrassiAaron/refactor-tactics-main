@@ -67,6 +67,37 @@ namespace
 		Attaccante->PlannedAbilityIndex = 0;
 		Attaccante->PlannedAttackTarget = Bersaglio;
 		Attaccante->PlannedCell = FRTCellId(2, 3);
+		TM->bRecordAttackBeatsForTest = true; // `#2454`: la traccia dei battiti, per sapere se un colpo e' arrivato
+		return TM;
+	}
+
+	/**
+	 * Il turno di prova a DUE atti (`#2454`): Aevik spara su una cella VUOTA, Branth colpisce Ivrin.
+	 *
+	 * 🔑 **Esiste per far cadere una fermata `Next Action` su un ARRIVO.** Un'impronta nasce per intento anche
+	 * quando l'intento non colpisce nessuno, e i colpi sono solo quelli che arrivano a segno: l'impronta di
+	 * Aevik (intento 0) e' quindi la PRIMA a comparire, e il primo — e unico — colpo e' di Branth. Dopo la
+	 * fermata sull'impronta l'atto in corso e' quello di Aevik: il colpo di Branth che arriva e' di un atto
+	 * diverso, cioe' un confine. Con UN atto solo il colpo e' dello stesso atto della sua impronta e non lo e'
+	 * mai. ⚠️ L'ordine degli intenti segue il roster `(squadra, cella, nome)`: Aevik sta a sinistra di Branth.
+	 * Il test che lo usa lo verifica come premessa invece di darlo per scontato.
+	 */
+	ARTTurnManager* SetUpTwoActTurn(UWorld* World)
+	{
+		SpawnStopPredicateMap(World);
+		ARTUnit* Aevik    = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(-3, -2));
+		ARTUnit* Branth   = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Bersaglio = SpawnStopPredicateUnit(World, 1, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(4, 2));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Aevik || !Branth || !Bersaglio) { return nullptr; }
+
+		Aevik->PlannedAbilityIndex = 0;
+		Aevik->DeclareAttackOnCell(FRTCellId(-3, 0)); // nessuno ci sta: un'impronta senza colpi
+		Aevik->PlannedCell = Aevik->Cell;
+		Branth->PlannedAbilityIndex = 0;
+		Branth->PlannedAttackTarget = Bersaglio;
+		Branth->PlannedCell = Branth->Cell;
+		TM->bRecordAttackBeatsForTest = true;
 		return TM;
 	}
 
@@ -274,6 +305,61 @@ bool FRTPlaybackNextActionStopsBeforeTheEndTest::RunTest(const FString&)
 	TestTrue(TEXT("ed e' fermo"), TM->IsPlaybackPaused());
 	TestEqual(TEXT("il predicato si e' consumato"),
 		static_cast<int32>(TM->GetArmedPlaybackStop()), static_cast<int32>(ERTPlaybackStopAt::None));
+
+	// `#2454`: la fermata dopo un ARRIVO non lascia il tracer a mezz'aria accanto al suo numero.
+	//
+	// 🔴 **Non su questo turno, e la ragione e' misurata.** Con UN atto solo la prima fermata cade
+	// sull'impronta — che apre l'atto e precede il suo colpo — e da li' nessun `Next Action` cade piu' su un
+	// arrivo: il colpo e' dello stesso atto che l'impronta ha gia' mostrato, quindi non e' un confine, e la
+	// fermata successiva e' il cambio di fase, dove `EnterPlaybackPhase` azzera anche la traccia dei battiti.
+	// Una stesura di questo blocco che riprendeva da qui trovava sempre «mai fermato dopo l'arrivo».
+	// Il caso e' di un turno a DUE atti, di cui il primo senza colpi: `SetUpTwoActTurn`.
+	{
+		UWorld* World2 = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova a due atti"), World2)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World2); };
+
+		ARTTurnManager* TM2 = SetUpTwoActTurn(World2);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World2);
+		if (!TestTrue(TEXT("turno e mappa a due atti"), TM2 != nullptr && Mappa != nullptr)) { return false; }
+
+		TM2->SetPlaybackControlsEnabled(true);
+		TM2->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ il turno a due atti sta riproducendo qualcosa"), TM2->IsResolving())) { return false; }
+
+		// ⛔ ANTI-VACUITA': l'impronta e il colpo che escono PER PRIMI devono essere di atti diversi. Se
+		// coincidessero — l'impronta di Aevik non fosse la prima, o il suo intento colpisse qualcuno — nessun
+		// arrivo aprirebbe un atto e il ciclo qui sotto non troverebbe mai la fermata che cerca.
+		FName PrimaImpronta = NAME_None;
+		FName PrimoColpo = NAME_None;
+		for (const FRTResolvedEvent& E : TM2->ResolvedTimelineForTest())
+		{
+			if (E.Type == ERTResolvedEventType::AttackFootprint && PrimaImpronta.IsNone()) { PrimaImpronta = E.ActionId; }
+			if (E.Type == ERTResolvedEventType::Attack && PrimoColpo.IsNone()) { PrimoColpo = E.ActionId; }
+		}
+		if (!TestTrue(FString::Printf(TEXT("premessa: la prima impronta (%s) e il primo colpo (%s) sono di atti diversi"),
+			*PrimaImpronta.ToString(), *PrimoColpo.ToString()),
+			!PrimaImpronta.IsNone() && !PrimoColpo.IsNone() && PrimaImpronta != PrimoColpo)) { return false; }
+
+		// Si riprende finche' la fermata cade su un colpo arrivato, poi si guarda la mappa.
+		for (int32 Giro = 0; Giro < 20 && TM2->IsResolving(); ++Giro)
+		{
+			if (TM2->IsPlaybackPaused() && TM2->AttackBeatTraceForTest().Contains(TEXT("A0"))) { break; }
+			TM2->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+			TM2->ResumePlayback();
+			AdvanceUntilPausedOrDone(TM2);
+		}
+		if (TM2->IsPlaybackPaused() && TM2->AttackBeatTraceForTest().Contains(TEXT("A0")))
+		{
+			// 🔴 **La mutazione dichiarata**: la consegna dopo il ciclo dei battiti salta il `return` della
+			// fermata, e il tracer resta disegnato dov'era il tick prima — in volo, accanto al suo numero.
+			TestEqual(TEXT("fermo dopo l'arrivo: nessun tracer in volo"), Mappa->NumPlaybackTracers(), 0);
+		}
+		else
+		{
+			AddError(TEXT("premessa: il playback non si e' mai fermato dopo l'arrivo del colpo"));
+		}
+	}
 
 	return true;
 }

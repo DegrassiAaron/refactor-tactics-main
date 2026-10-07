@@ -2379,6 +2379,12 @@ protected:
 	void ArrivePlaybackAttack(int32 Index, bool bWithLog);
 
 	/**
+	 * Consegna alla mappa il tracer in volo (`#2454`). Col cursore unico ce n'e' AL PIU' UNO: il lancio di `i+1`
+	 * segue l'arrivo di `i`. Il disegno dipende da chi guarda (`TracerStyleFor`), il ritmo no.
+	 */
+	void PushPlaybackTracers();
+
+	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
 	 *
 	 * 🔑 **Esiste perche' i siti che la chiamano sono TRE**, uno per canale del `Blast`, e quattro righe

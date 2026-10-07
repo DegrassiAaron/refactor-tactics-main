@@ -11,6 +11,7 @@
 #include "Ability/RTHeroData.h"
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
+#include "RTAttackPlaybackProbeForTest.h" // `OnAttackResolved` col tick di risoluzione in cui scatta (#911)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -32,9 +33,11 @@ namespace
 
 	/**
 	 * Il turno di prova: attaccanti della squadra 0 — quella di chi guarda in un mondo senza player controller
-	 * (`ARTPlayerState::TeamIdOf(nullptr)` risponde 0) — contro Ivrin. Con `bDue`, Aevik spara anche lui.
+	 * (`ARTPlayerState::TeamIdOf(nullptr)` risponde 0) — contro Ivrin. Con `bDue`, Aevik spara anche lui. Con
+	 * `bConMove`, Branth si sposta dopo il colpo: dopo il Blast c'e' un'altra fase, e a fine Blast il playback
+	 * non finisce — quindi nessun `FinishPlayback` ripulisce al posto della fase.
 	 */
-	ARTTurnManager* SetUpBattitoTurn(UWorld* World, bool bDue)
+	ARTTurnManager* SetUpBattitoTurn(UWorld* World, bool bDue, bool bConMove = false)
 	{
 		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
 		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
@@ -44,7 +47,7 @@ namespace
 		if (!TM || !Branth || !Bersaglio) { return nullptr; }
 		Branth->PlannedAbilityIndex = 0;
 		Branth->PlannedAttackTarget = Bersaglio;
-		Branth->PlannedCell = Branth->Cell;
+		Branth->PlannedCell = bConMove ? FRTCellId(1, 3) : Branth->Cell;
 		if (bDue)
 		{
 			ARTUnit* Aevik = SpawnBattitoUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(3, 4));
@@ -131,6 +134,147 @@ bool FRTPlaybackAttackBeatsOrderedInOneTickTest::RunTest(const FString&)
 	const TArray<FString> Attesa = { TEXT("L0"), TEXT("A0"), TEXT("L1"), TEXT("A1") };
 	TestEqual(TEXT("i battiti escono L0, A0, L1, A1"),
 		FString::Join(TM->AttackBeatTraceForTest(), TEXT(",")), FString::Join(Attesa, TEXT(",")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerInFlightTest,
+	"RefactorTactics.Playback.TracerIsInFlightBetweenLaunchAndArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerInFlightTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+	ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false);
+	ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+	if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+
+	// La sonda di `OnAttackResolved`: dice in quale TICK scatta il broadcast, che e' l'istante in cui compaiono
+	// `Hit`, numero e barra. `AddToRoot` perche' un `UObject` locale senza riferimento lo porta via il GC.
+	URTAttackPlaybackProbeForTest* Sonda = NewObject<URTAttackPlaybackProbeForTest>();
+	Sonda->AddToRoot();
+	ON_SCOPE_EXIT{ Sonda->RemoveFromRoot(); };
+	TM->OnAttackResolved.AddDynamic(Sonda, &URTAttackPlaybackProbeForTest::OnAttackResolved);
+
+	TM->LockInAndResolve();
+	bool bVistoInVolo = false;
+	bool bInVoloDopoArrivo = false;
+	int32 TickLancio = -1;
+	int32 TickArrivo = -1;
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		Sonda->CurrentTick = I;
+		TM->Tick(0.02f);
+		const TArray<FString>& Traccia = TM->AttackBeatTraceForTest();
+		const bool bLanciato = Traccia.Contains(TEXT("L0"));
+		const bool bArrivato = Traccia.Contains(TEXT("A0"));
+		if (bLanciato && TickLancio < 0) { TickLancio = I; }
+		if (bArrivato && TickArrivo < 0) { TickArrivo = I; }
+		if (bLanciato && !bArrivato && Mappa->NumPlaybackTracers() == 1)
+		{
+			bVistoInVolo = true;
+			const FRTPlaybackTracer& T = Mappa->GetPlaybackTracers()[0];
+			TestTrue(TEXT("ImpactShot e' un proiettile"), T.Style == ERTTracerStyle::Projectile);
+			TestTrue(TEXT("parte dalla cella di Branth"), T.From == FRTCellId(1, 2));
+			TestTrue(TEXT("e va su quella di Ivrin"), T.To == FRTCellId(3, 2));
+		}
+		bInVoloDopoArrivo |= (bArrivato && Mappa->NumPlaybackTracers() > 0);
+	}
+	// 🔴 **La mutazione dichiarata**: senza la consegna alla mappa nessun tracer e' mai in volo.
+	TestTrue(TEXT("fra lancio e arrivo il tracer e' in volo"), bVistoInVolo);
+	TestFalse(TEXT("dopo l'arrivo nessun tracer resta"), bInVoloDopoArrivo);
+
+	// V1 — decisione dell'autore: «il numero compare all'arrivo». Il proiettile parte al lancio, ma `Hit`,
+	// numero e `OnAttackResolved` scattano al tick dell'ARRIVO e mai a quello del lancio: se il broadcast
+	// tornasse al lancio, il danno comparirebbe prima che il proiettile sia partito.
+	// ⚠️ Si pinna il tick del broadcast e non quello del tracer: il secondo lo misura la meta' sopra.
+	if (TestTrue(TEXT("premessa: il colpo e' partito ed e' arrivato"), TickLancio >= 0 && TickArrivo >= 0)
+		&& TestEqual(TEXT("premessa: un solo colpo ha scatenato `OnAttackResolved`"), Sonda->AttackTicks.Num(), 1))
+	{
+		TestEqual(TEXT("il broadcast di `OnAttackResolved` cade al tick dell'arrivo"),
+			Sonda->AttackTicks[0], TickArrivo);
+		TestTrue(FString::Printf(TEXT("e dopo il tick del lancio (%d), non con esso (%d)"),
+			TickLancio, Sonda->AttackTicks[0]), Sonda->AttackTicks[0] > TickLancio);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerChannelClearsTest,
+	"RefactorTactics.Playback.TracerChannelClearsAtBlastEnd",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerChannelClearsTest::RunTest(const FString&)
+{
+	// (a) `SkipPlayback` con un tracer in volo: il canale si spegne.
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo A"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa A"), TM != nullptr && Mappa != nullptr)) { return false; }
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 600 && TM->IsResolving() && Mappa->NumPlaybackTracers() == 0; ++I) { TM->Tick(0.02f); }
+		if (!TestEqual(TEXT("premessa: un tracer in volo"), Mappa->NumPlaybackTracers(), 1)) { return false; }
+		TM->SkipPlayback();
+		TestEqual(TEXT("dopo SkipPlayback il canale e' spento"), Mappa->NumPlaybackTracers(), 0);
+	}
+	// (b) Fine del Blast: nessun tracer sopravvive alla fase.
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo B"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ true);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa B"), TM != nullptr && Mappa != nullptr)) { return false; }
+
+		TM->LockInAndResolve();
+		if (!TestTrue(TEXT("premessa: il playback arriva al Blast"), TickUntilBlast(TM))) { return false; }
+		for (int32 I = 0; I < 600 && TM->IsResolving() && TM->CurrentPlaybackPhaseForTest() == ERTMatchPhase::Blast; ++I)
+		{
+			TM->Tick(0.02f);
+		}
+		TestEqual(TEXT("uscito dal Blast, il canale e' spento"), Mappa->NumPlaybackTracers(), 0);
+	}
+	// (c) Una fase accorciata SOTTO il volo: l'unico caso in cui la rete di finalizzazione serve davvero, e
+	// quindi l'unico in cui lo spegnimento a fine Blast non e' ridondante.
+	//
+	// 🔴 **(b) non lo pinna, ed e' misurato**: col ritmo di oggi `PhaseTime` dimensiona il Blast su
+	// `Max(1, N) * AttackShowSeconds`, quindi all'ultimo tick della fase l'ultimo arrivo e' gia' passato e la
+	// consegna in uscita ha gia' lasciato il canale vuoto. Tolta la riga di spegnimento, (a) e (b) restano
+	// verdi. Qui `AttackShowSeconds` si abbassa A COLPO IN VOLO (e' una `UPROPERTY` scrivibile, riletta a ogni
+	// tick da `PhaseTime`): la fase scade con il colpo lanciato e non arrivato, la consegna lascia il tracer
+	// in canale, e a spegnerlo e' solo lo spegnimento a fine Blast.
+	// ⚠️ Con un Move dopo il Blast, altrimenti `FinishPlayback` ripulisce comunque e la prova non distingue.
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo C"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false, /*bConMove=*/ true);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa C"), TM != nullptr && Mappa != nullptr)) { return false; }
+
+		URTAttackPlaybackProbeForTest* Sonda = NewObject<URTAttackPlaybackProbeForTest>();
+		Sonda->AddToRoot();
+		ON_SCOPE_EXIT{ Sonda->RemoveFromRoot(); };
+		TM->OnAttackResolved.AddDynamic(Sonda, &URTAttackPlaybackProbeForTest::OnAttackResolved);
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 600 && TM->IsResolving() && Mappa->NumPlaybackTracers() == 0; ++I) { TM->Tick(0.02f); }
+		if (!TestEqual(TEXT("premessa: un tracer in volo"), Mappa->NumPlaybackTracers(), 1)) { return false; }
+		if (!TestTrue(TEXT("premessa: siamo nel Blast"), TM->CurrentPlaybackPhaseForTest() == ERTMatchPhase::Blast)) { return false; }
+
+		TM->AttackShowSeconds = 0.05f; // la fase scade prima dell'arrivo previsto a `TracerFlightSeconds`
+		for (int32 I = 0; I < 50 && TM->IsResolving() && TM->CurrentPlaybackPhaseForTest() == ERTMatchPhase::Blast; ++I)
+		{
+			TM->Tick(0.02f);
+		}
+		if (!TestTrue(TEXT("premessa: il playback e' passato alla fase dopo il Blast, senza finire"),
+			TM->IsResolving() && TM->CurrentPlaybackPhaseForTest() != ERTMatchPhase::Blast)) { return false; }
+		TestEqual(TEXT("la rete ha arrivato il colpo lanciato e non arrivato"), Sonda->AttackTicks.Num(), 1);
+		TestEqual(TEXT("e uscito dal Blast il canale e' spento"), Mappa->NumPlaybackTracers(), 0);
+	}
 	return true;
 }
 
