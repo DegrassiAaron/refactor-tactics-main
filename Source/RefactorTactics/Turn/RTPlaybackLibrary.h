@@ -179,7 +179,7 @@ public:
 	 * esattamente il caso che `D-301` esiste per far esistere.
 	 *
 	 * ⚠️ **E cambia anche la DURATA della fase, non solo la sua esistenza**: `PhaseTime` prende
-	 * `Max(sequenza, spinta)`. ⏱️ *Fino a #3549 era `Max(colpi, muri, impronte, spinta)`: i tre canali sono
+	 * `Max(sequenza, spinta)`. ⏱️ *Fino a #3549 era `Max(colpi, muri, impronte, spinta)`: i canali paralleli sono
 	 * diventati una sequenza per intento.* ⛔ Ne segue un effetto che va saputo: il `Blast` e' l'unica fase in cui lo
 	 * scivolamento del knockback segue l'Alpha di FASE, quindi allungarla **rallenta la spinta** — e da
 	 * `#2828` puo' allungarla un canale che con l'unita' spinta non ha rapporto, i muri abbattuti da altri.
@@ -220,7 +220,7 @@ public:
 	 *                       per volta, quindi la fase dura quanto la SEQUENZA, non quanto il canale piu'
 	 *                       lungo. Il tempo ha un pavimento di uno anche quando non c'e' nulla da scaglionare,
 	 *                       perche' un Blast di sola spinta si vede e deve durare.
-	 *                       ⏱️ *Fino a #3549 era il `Max` fra TRE canali paralleli (colpi, muri da `#2828`,
+	 *                       ⏱️ *Fino a #3549 era il `Max` fra i canali paralleli (colpi, muri da `#2828`,
 	 *                       impronte da `#3278`). Ogni volta il difetto era lo stesso: il canale apriva la
 	 *                       fase e non la dimensionava, e cio' che non faceva in tempo usciva dal catch-all
 	 *                       nello stesso fotogramma.*
@@ -239,14 +239,15 @@ public:
 	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
 	 * totale, si somma questa.
 	 *
-	 * ⛔ **QUESTO WRAPPER NON CONOSCE NE I MURI, NE LE IMPRONTE, NE LE ATTIVAZIONI** — tre zeri dichiarati
+	 * ⛔ **QUESTO WRAPPER NON CONOSCE NE I MURI, NE LE IMPRONTE, NE LE ATTIVAZIONI** — gli zeri dichiarati
 	 * (#2828, #3278, #3549). Delega a `PhaseTime` con `NumActivations = 0` e `NumSequenceElements = NumAttacks`:
 	 * su un `Blast` la sequenza vera e' piu' lunga dei soli colpi, e la durata restituita e' **sottostimata**.
 	 * ✅ Resta `PhaseTime(...).Total()` — la formula ha un owner solo — ma su un ingresso FISSATO, che non e'
 	 * la stessa cosa di «non esiste modo di farne divergere le due letture», come questa riga affermava.
 	 *
 	 * 🔑 **Chi dimensiona il playback vero non passa di qui**: `ARTTurnManager::PhaseTimeForPlaybackPhase`
-	 * chiama `PhaseTime` con tutti i conteggi. Questa forma sopravvive per i gate di pacing sulle fasi
+	 * chiama `PhaseTime`. ⏱️ *Oggi con la SOMMA provvisoria dei canali; la sequenza intera, attivazioni
+	 * comprese, arriva col Task 7 di #3549.* Questa forma sopravvive per i gate di pacing sulle fasi
 	 * classiche, e la riga esiste perche' chi la usi altrove sappia cosa NON sta contando.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
@@ -261,7 +262,7 @@ public:
 	 *  - `Dash`  → `Shown = NumActivations x ASS + movimento`: prima le attivazioni, poi le rotte.
 	 *  - `Move`  → tutto `Shown`, il movimento.
 	 *  - `Blast` → tutto `Shown`, `Max(Max(1, NumSequenceElements) x ASS, spinta)`. ⏱️ *Fino a #3549 era il
-	 *              `Max` fra TRE canali paralleli (colpi, muri da #2828, impronte da #3278); la sequenza per
+	 *              `Max` fra i canali paralleli (colpi, muri da #2828, impronte da #3278); la sequenza per
 	 *              intento (D5) li svela uno dopo l'altro, quindi la fase dura quanto la SEQUENZA.* Le
 	 *              attivazioni di Blast sono gia' elementi della sequenza: `NumActivations` qui non conta.
 	 *              ⚠️ Zero slack **di proposito** — vedi `FRTPhaseTime`.
@@ -284,8 +285,12 @@ public:
 	 *
 	 * 🔑 `ViewerTeamId`: un'attivazione con `!SourceVerdict.AllowsTeam(ViewerTeamId)` non entra (D6); le sue
 	 * impronte e i suoi colpi restano — il velo sul bersaglio e' di [D-223], non di questa funzione.
-	 * 🔑 `FrozenPrefix`: i primi N elementi di `Previous` si riproducono VERBATIM (D-355); gli eventi non ancora
-	 * sequenziati si raggruppano fra loro e si accodano. Con N = 0 e' la costruzione da zero.
+	 * 🔑 `FrozenPrefix`: i primi N elementi di `Previous` si riproducono VERBATIM (D-355) e i loro eventi NON si
+	 * ripetono; il resto si ricostruisce da zero. La CHIAVE di un gruppo si legge dall'attivazione ovunque
+	 * stia in timeline, anche dentro il prefisso congelato: cosi' `Build(T, S, k) == S` per ogni `k` (idempotenza,
+	 * Ruling H), e un evento nuovo con chiave gia' aperta si unisce al suo gruppo nella parte oltre il prefisso,
+	 * nell'ordine di rango e indice — come primo elemento oltre il prefisso se il gruppo era tutto nel prefisso,
+	 * perche' la sua chiave e' la piu' bassa. Con N = 0 e' la costruzione da zero.
 	 */
 	static TArray<FRTBlastSequenceElement> BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
 		const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId);

@@ -47,7 +47,8 @@ int32 URTPlaybackLibrary::AttacksToShow(int32 NumAttacks, float PhaseElapsed, fl
 bool URTPlaybackLibrary::BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
 	int32 NumStructureHits, int32 NumActivations)
 {
-	// Cinque ragioni indipendenti; la quinta e' quella di #3549: un Blast di sole cure si vede. ⛔ Nessuna
+	// Le ragioni sono indipendenti (colpi, spinta, impronte, muri, attivazioni); l'ultima e' quella di #3549:
+	// un Blast di sole cure si vede. ⛔ Nessuna
 	// somma e nessuna soglia: basta che UNA sia vera.
 	return NumAttacks > 0 || bHasBlastMove || NumFootprints > 0 || NumStructureHits > 0 || NumActivations > 0;
 }
@@ -57,10 +58,11 @@ float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegmen
 {
 	// Una riga: la formula sta in `PhaseTime`, e il totale e' la somma dei suoi due termini. Non c'e' un
 	// secondo calcolo da tenere allineato.
-	// ⚠️ **TRE zeri, e nessuno e' una dimenticanza**: questo wrapper non conosce ne i colpi a struttura
+	// ⚠️ **Gli zeri (muri, impronte, attivazioni) sono dichiarati, nessuno e' una dimenticanza**: questo wrapper non conosce ne i colpi a struttura
 	// (`#2828`), ne le impronte (`#3278`), ne le attivazioni (#3549). Passa `NumActivations = 0` e usa i soli
 	// colpi come sequenza, quindi su un `Blast` la durata restituita e' SOTTOSTIMATA. ⛔ Chi dimensiona il
-	// playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` con la sequenza intera.
+	// playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime`. ⏱️ *Oggi con la SOMMA
+	// provvisoria dei canali; la sequenza intera arriva col Task 7 di #3549.*
 	// Questa forma sopravvive per i gate di pacing sulle fasi classiche. ⏱️ *Fino a #3549 diceva «DUE zeri».*
 	return PhaseTime(Phase, MaxMoveSegments, /*NumActivations=*/ 0, /*NumSequenceElements=*/ NumAttacks,
 		CellsPerSecond, AttackShowSeconds, PhaseBeatSeconds).Total();
@@ -93,7 +95,7 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 
 	case ERTMatchPhase::Blast:
 	{
-		// 🔴 **La SEQUENZA, non il `Max` fra canali** (#3549, D5). I tre canali paralleli di #2828/#3278 sono
+		// 🔴 **La SEQUENZA, non il `Max` fra canali** (#3549, D5). I canali paralleli di #2828/#3278 sono
 		// diventati una sequenza per intento, svelata un elemento per volta: la fase dura quanto la sequenza.
 		// `Max(1, ...)`: un Blast di sola spinta si vede e non puo' durare zero.
 		// ⏱️ *Fino a #3549 qui c'era il `Max` fra colpi, muri e impronte, rivelati in parallelo.*
@@ -369,7 +371,8 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 {
 	TArray<FRTBlastSequenceElement> Out;
 
-	// D-355: il prefisso gia' mostrato si riproduce VERBATIM. ⚠️ `TSet` solo per `Contains`.
+	// D-355: il prefisso gia' mostrato si riproduce VERBATIM, e i suoi eventi non si ripetono. ⚠️ `TSet` solo
+	// per `Contains`.
 	const int32 Congelati = FMath::Clamp(FrozenPrefix, 0, Previous.Num());
 	TSet<int32> GiaInSequenza;
 	for (int32 i = 0; i < Congelati; ++i)
@@ -391,12 +394,18 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 	// Gli atti nascono nell'ordine di prima apparizione (la scansione va in avanti) e si RIORDINANO poi per
 	// `Chiave()`: uno `StructureHit` emesso prima delle attivazioni non deve trascinare il suo intento davanti a
 	// quelli con `IntentIndex` minore. ⚠️ Le chiavi sono indici di timeline distinti: l'ordine e' totale.
+	//
+	// 🔴 **La scansione copre TUTTA la timeline, prefisso congelato compreso** (Ruling H, #3549): la chiave di un
+	// gruppo si legge dalla sua attivazione ovunque stia. Cercarla solo fra gli eventi non ancora sequenziati
+	// faceva diventare «senza attivazione» il resto di un atto interrotto a meta', con chiave = prima apparizione:
+	// scivolava dietro gli atti successivi senza che la timeline fosse cresciuta, e `Build(T, S, k) != S`. Gli
+	// eventi del prefisso entrano nei gruppi per dare la chiave e NON si riemettono (vedi sotto).
 	TArray<FRTAttoInCostruzione> Atti;
 
 	for (int32 i = 0; i < Timeline.Num(); ++i)
 	{
 		const FRTResolvedEvent& Ev = Timeline[i];
-		if (Ev.Phase != ERTMatchPhase::Blast || RTRangoNellAtto(Ev.Type) < 0 || GiaInSequenza.Contains(i))
+		if (Ev.Phase != ERTMatchPhase::Blast || RTRangoNellAtto(Ev.Type) < 0)
 		{
 			continue;
 		}
@@ -443,6 +452,10 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		});
 		for (const int32 Indice : A.Indici)
 		{
+			if (GiaInSequenza.Contains(Indice))
+			{
+				continue; // gia' nel prefisso congelato: verbatim sopra, non si ripete
+			}
 			FRTBlastSequenceElement E;
 			E.TimelineIndex = Indice;
 			E.SourceStableUnitId = Timeline[Indice].SourceStableUnitId;

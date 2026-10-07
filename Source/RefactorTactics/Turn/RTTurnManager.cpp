@@ -7905,6 +7905,8 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// vuote»: zero vittime -> zero `Attack` -> senza questo termine la fase non nasceva, e non esisteva
 	// un istante in cui disegnare (`#2454`). La decisione sta in una funzione pura perche' cambia la
 	// DURATA di un turno, ed e' cio' che i test di pacing sorvegliano.
+	// ⚠️ **Transitorio, sostituito dal Task 7 di #3549**: il `0` e' provvisorio, le attivazioni di Blast arrivano
+	// da li'.
 	if (URTPlaybackLibrary::BlastPhaseIsActive(PlaybackAttacks.Num(), bHasBlastMove,
 		PlaybackFootprints.Num(), PlaybackStructureHits.Num(), /*NumActivations=*/ 0))
 	{

@@ -815,8 +815,10 @@ bool FRTPlaybackBlastPhaseOpensForFootprintOnlyTest::RunTest(const FString&)
 	// ⛔ Nessuna soglia e nessuna somma: le ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
 	// "misurare quanto succede", questa riga resterebbe verde e la precedente cadrebbe — ed e' voluto.
 	// ⏱️ *Erano tre fino al 2026-09-22: `#2828` ha aggiunto i colpi a struttura.*
-	TestTrue(TEXT("le quattro ragioni insieme aprono il Blast"),
+	TestTrue(TEXT("colpi, spinta, impronte e muri insieme aprono il Blast"),
 		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4, 0));
+	TestTrue(TEXT("e con le attivazioni accese insieme a tutte le altre"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4, 1));
 
 	return true;
 }
@@ -886,7 +888,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForStructureHitsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 {
-	// ⏱️ *Fino a #3549 questo gate pinnava il `Max` fra tre canali paralleli. D5 (spec «il momento») li ha
+	// ⏱️ *Fino a #3549 questo gate pinnava il `Max` fra i canali paralleli. D5 (spec «il momento») li ha
 	// fatti diventare UNA sequenza per intento, svelata un elemento per volta: un muro e un colpo sono due
 	// elementi, e la fase li dura entrambi. Il gate resta per la ragione per cui era nato — il canale deve
 	// DIMENSIONARE la fase, non solo aprirla — con la formula nuova.*
@@ -922,12 +924,12 @@ bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 			FMath::IsNearlyEqual(T.Shown, 2.5f, RTTol));
 	}
 
-	// E il verso opposto: i muri non ACCORCIANO mai una fase che i colpi hanno gia' allungato.
+	// Con la sequenza ogni elemento ALLUNGA la fase della sua quota: un muro in piu' non e' assorbito dai colpi.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 5, 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("quattro colpi e un muro: 2,5 s"),
-			FMath::IsNearlyEqual(T.Shown, 2.5f, RTTol));
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 6, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("quattro colpi e due muri: sei elementi, 3,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
 	}
 
 	return true;
@@ -956,7 +958,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForFootprintsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
 {
-	// ⏱️ *Fino a #3549 questo gate pinnava il `Max` fra tre canali paralleli. D5 (spec «il momento») li ha
+	// ⏱️ *Fino a #3549 questo gate pinnava il `Max` fra i canali paralleli. D5 (spec «il momento») li ha
 	// fatti diventare UNA sequenza per intento, svelata un elemento per volta: un muro e un colpo sono due
 	// elementi, e la fase li dura entrambi. Il gate resta per la ragione per cui era nato — il canale deve
 	// DIMENSIONARE la fase, non solo aprirla — con la formula nuova.*
@@ -981,7 +983,7 @@ bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
 	}
 
 	// 🔴 **SOMMA, su tre tipi di elemento** (#3549, D5): due colpi, tre muri e quattro impronte sono nove
-	// elementi in sequenza. ⏱️ *Diceva «`Max` e non SOMMA, su TRE canali».*
+	// elementi in sequenza. ⏱️ *Diceva «`Max` e non SOMMA», sui canali paralleli.*
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
 			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 9, 2.f, 0.5f, 0.3f);
@@ -989,7 +991,7 @@ bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
 			FMath::IsNearlyEqual(T.Shown, 4.5f, RTTol));
 	}
 
-	// E il verso opposto: le impronte non ACCORCIANO una fase che gli altri canali hanno gia' allungato.
+	// Con la sequenza ogni elemento ALLUNGA la fase della sua quota: un'impronta in piu' non e' assorbita dagli altri.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
 			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 6, 2.f, 0.5f, 0.3f);
@@ -1014,7 +1016,7 @@ bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
  * `Max(SequenceTime, MoveTime)` con `SequenceTime = Max(1, N) * AttackShowSeconds`, dove `N` e' la
  * lunghezza della sequenza per intento (#3549, D5: attivazioni, impronte, muri, colpi). ∴
  * `PhaseDur >= N * ASS`, e `AttacksToShow` a quel punto vale `Min(N, 1 + floor(PhaseDur / ASS)) = N`.
- * ⏱️ *Fino a #3549 erano tre canali paralleli e `maxCanale`; prima di #2828 e #3278 un Blast di soli muri
+ * ⏱️ *Fino a #3549 erano canali paralleli e `maxCanale`; prima di #2828 e #3278 un Blast di soli muri
  * o di sole impronte durava UN intervallo, e il catch-all era l'unica cosa che impediva di perdere i fatti
  * successivi al primo.*
  *
@@ -1048,8 +1050,8 @@ bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
 		{ 0, 4, 0, 0, TEXT("solo colpi") },
 		{ 0, 0, 4, 0, TEXT("solo muri") },
 		{ 0, 0, 0, 4, TEXT("solo impronte") },
-		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
-		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		{ 0, 2, 3, 4, TEXT("colpi, muri e impronte, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("colpi, muri e impronte, i colpi piu' lunghi") },
 		// ⚠️ `MaxSeg` alto: la fase e' dominata dal MOVIMENTO, non dai colpi. L'invariante deve reggere
 		// anche li', perche' allungare la fase non puo' che aiutare — ma va misurato, non dedotto.
 		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
@@ -1065,7 +1067,7 @@ bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
 		// ⛔ **Premessa dell'invariante, asserita e non assunta**: sul `Blast` lo `Slack` e' zero, quindi la
 		// durata a runtime (`Shown + Slack * PlaybackSlackScale`) non dipende dalla compressione del budget.
 		// Se un giorno il `Blast` acquisisse dello slack comprimibile, `PhaseDur` potrebbe scendere sotto
-		// `maxCanale * ASS` e tutto il resto di questo gate smetterebbe di misurare cio' che crede.
+		// `N * ASS` (la sequenza) e tutto il resto di questo gate smetterebbe di misurare cio' che crede.
 		TestTrue(FString::Printf(TEXT("%s: il Blast non ha slack comprimibile"), C.Nome),
 			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 
@@ -1273,7 +1275,8 @@ namespace
 /**
  * La sequenza del Blast e' ordinata PER INTENTO — D5, spec §2.4.
  *
- * 🔑 `A1 F1 H1 H1 A2 F2 H2`: un gruppo per `(Source, ActionId)` nell'ordine di prima apparizione, e dentro il
+ * 🔑 `A1 F1 H1 H1 A2 F2 H2`: un gruppo per `(Source, ActionId)`, ordinati per indice dell'attivazione visibile
+ * (altrimenti per prima apparizione), e dentro il
  * gruppo attivazione, impronte, muri, colpi. Un colpo senza attivazione e' un atto proprio; `ArcHit` non entra;
  * un'attivazione non visibile non entra, ma il suo colpo si'.
  * ✅ Validato per mutazione: raggruppare per TIPO invece che per chiave fa cadere il primo asserto.
@@ -1317,11 +1320,55 @@ bool FRTPlaybackBlastSequenceOrderedPerIntentTest::RunTest(const FString&)
 }
 
 /**
+ * `BuildBlastSequence` e' IDEMPOTENTE per ogni prefisso — Ruling H, spec §2.4.
+ *
+ * 🔴 `Build(T, S, k) == S` per ogni `k` in `[0, S.Num()]`, a timeline invariata. Cercando l'attivazione solo fra
+ * gli eventi non ancora sequenziati, con `k` a meta' di un atto il resto del gruppo perdeva la chiave e
+ * scivolava dietro gli atti successivi: misurato a mano dal reviewer su questa stessa timeline, `Build(T, S, 2)`
+ * dava `1,3, 2,4,0,6, 5,7, 8,11`.
+ * ✅ Validato per mutazione: tornare a cercare l'attivazione solo fra i non sequenziati fa cadere gli `k` a meta'
+ * atto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceIdempotentTest,
+	"RefactorTactics.Playback.BlastSequenceIsIdempotentForEveryPrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceIdempotentTest::RunTest(const FString&)
+{
+	// La timeline del test d'ordine: muro in testa, due attivazioni, area, colpi, un atto senza attivazione,
+	// un ArcHit e un'attivazione nascosta.
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::StructureHit,     2, TEXT("B")));          // 0
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A")));          // 1
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B")));          // 2
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  1, TEXT("A")));          // 3
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  2, TEXT("B")));          // 4
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A")));          // 5
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("B")));          // 6
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A")));          // 7
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           3, TEXT("C")));          // 8
+	T.Add(SeqEvento(ERTResolvedEventType::ArcHit,           0, nullptr));            // 9
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 4, TEXT("D"), true));    // 10
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           4, TEXT("D")));          // 11
+
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, 0);
+	TestTrue(TEXT("premessa: la sequenza non e' vuota"), S.Num() > 0);
+	for (int32 k = 0; k <= S.Num(); ++k)
+	{
+		TestTrue(*FString::Printf(TEXT("🔴 Build(T, S, %d) == S"), k),
+			URTPlaybackLibrary::BuildBlastSequence(T, S, k, 0) == S);
+	}
+	return true;
+}
+
+/**
  * Il prefisso gia' mostrato e' STABILE all'estensione — D-355, spec §2.4.
  *
- * 🔑 Gli eventi nuovi di un atto gia' interamente mostrato si accodano come atto proprio (`Ruling`: coda, non
- * inserimento); quelli di un atto non ancora mostrato vi si uniscono. Precondizione: la timeline cresce solo
- * per accodamento, e lo si asserisce confrontando i `TimelineIndex` del prefisso.
+ * 🔑 Un evento nuovo con la chiave di un gruppo gia' aperto nel prefisso (Ruling H) si unisce al suo gruppo nella
+ * parte oltre il prefisso, nell'ordine di rango e indice: subito dopo gli elementi residui del gruppo, o come
+ * primo elemento oltre il prefisso se il gruppo era tutto nel prefisso (la sua chiave e' la piu' bassa).
+ * Precondizione: la timeline cresce solo per accodamento, e lo si asserisce confrontando i `TimelineIndex` del
+ * prefisso, che resta verbatim.
+ * ⏱️ *Fino al Ruling H il colpo nuovo di un atto tutto mostrato andava in CODA alla sequenza.*
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequencePrefixStableTest,
 	"RefactorTactics.Playback.BlastSequencePrefixIsStableUnderExtension",
@@ -1349,8 +1396,20 @@ bool FRTPlaybackBlastSequencePrefixStableTest::RunTest(const FString&)
 		TestEqual(*FString::Printf(TEXT("🔴 l'elemento %d del prefisso e' riprodotto verbatim"), i),
 			S2.IsValidIndex(i) ? S2[i].TimelineIndex : INDEX_NONE, S1[i].TimelineIndex);
 	}
-	TestEqual(TEXT("B raccoglie il proprio colpo nuovo; il colpo nuovo di A sta in CODA"),
-		SeqIndici(S2), TArray<int32>({ 0, 2, 3, 1, 4, 6, 5 }));
+	TestEqual(TEXT("🔴 atto A tutto nel prefisso: il suo colpo nuovo e' il PRIMO oltre il prefisso (chiave piu' bassa); B raccoglie il proprio"),
+		SeqIndici(S2), TArray<int32>({ 0, 2, 3, 5, 1, 4, 6 }));
+
+	// Atto A interrotto a meta' (A e F mostrati, H no): il residuo di A e il colpo nuovo restano uniti,
+	// nell'ordine di rango e indice, PRIMA di B.
+	const int32 MostratiAMeta = 2;
+	const TArray<FRTBlastSequenceElement> S3 = URTPlaybackLibrary::BuildBlastSequence(T2, S1, MostratiAMeta, 0);
+	for (int32 i = 0; i < MostratiAMeta; ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("🔴 con prefisso a meta' atto, l'elemento %d e' riprodotto verbatim"), i),
+			S3.IsValidIndex(i) ? S3[i].TimelineIndex : INDEX_NONE, S1[i].TimelineIndex);
+	}
+	TestEqual(TEXT("🔴 atto A a meta': il residuo (3) e il colpo nuovo (5) restano nel suo gruppo, prima di B"),
+		SeqIndici(S3), TArray<int32>({ 0, 2, 3, 5, 1, 4, 6 }));
 
 	// Con prefisso zero e' la costruzione da zero: `Previous` non conta.
 	TestEqual(TEXT("FrozenPrefix 0 ignora Previous"),
