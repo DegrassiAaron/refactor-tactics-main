@@ -161,8 +161,9 @@ enum class ERTResolvedEventType : uint8
 /**
  * La geometria di un colpo per il tracer del playback (`#2454`, spec `2026-10-07-tracer-attacco-base` §3).
  * ⚠️ **Solo `Attack`, solo playback**: vive in `ResolvedTimeline`, fuori da `StateHash`, TurnLog e replay.
+ * ⛔ **`RTServerOnly`** perche' porta i verdetti di OGNI squadra: un client ne riceve una proiezione, mai questo tipo.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (RTServerOnly))
 struct FRTHitGeometry
 {
 	GENERATED_BODY()
@@ -367,7 +368,7 @@ struct FRTResolvedEvent
 	FName BaseActionId;
 
 	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO).
-	//     Vuoti/di default per ogni altro `Type`. ---
+	//     Gli altri campi: vuoti/di default per ogni altro `Type`. ---
 
 	/**
 	 * Le celle investite, **nell'ordine che `HexHitCells` produce** (`URTHexLibrary::StableLess`).
@@ -387,6 +388,9 @@ struct FRTResolvedEvent
 	/**
 	 * La forma che ha prodotto `HitCells`. Dichiarata e non dedotta: un `Single` resta distinguibile da
 	 * un'`Area` di raggio 0, che a valle sono due disegni diversi con lo stesso numero di celle.
+	 *
+	 * Su un `Attack` porta invece la forma dell'INTENTO che ha prodotto il colpo (`#2454`): `HitCells` li' resta
+	 * vuoto, e la forma dice solo di che tracciato si tratta.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	ERTAbilityShape Shape = ERTAbilityShape::Single;

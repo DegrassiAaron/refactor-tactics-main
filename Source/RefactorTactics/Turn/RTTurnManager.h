@@ -634,6 +634,12 @@ public:
 	const TArray<FRTResolvedEvent>& ResolvedTimelineForTest() const { return ResolvedTimeline; }
 
 	/**
+	 * Spegne il riempimento di `FRTResolvedEvent::HitGeometry` (`#2454`). Esiste per un test solo —
+	 * `Determinism.HitGeometryStaysOutOfHashes` — che confronta gli hash dello stesso turno con e senza.
+	 */
+	bool bSkipHitGeometryForTest = false;
+
+	/**
 	 * Hook per i test: quanti eventi di quel tipo ci sono sulla timeline di questo turno.
 	 *
 	 * 🔴 Esiste per le asserzioni di **assenza**, che gli accessori filtrati qui sopra non possono reggere:

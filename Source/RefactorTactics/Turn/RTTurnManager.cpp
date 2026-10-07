@@ -6260,6 +6260,29 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		Ev.SourceStableUnitId = Attacker ? Attacker->StableUnitId : 0;
 		Ev.TargetStableUnitId = Victim ? Victim->StableUnitId : 0;
 		Ev.Amount = Hit.Power;
+		// `#2454` (spec `2026-10-07-tracer-attacco-base` §3): la forma e la geometria del colpo, per il tracer.
+		//
+		// 🔑 **La forma dall'INTENTO, l'origine da `ResolveImpactOrigin`**: e' la stessa lettura che, qualche riga
+		// sopra, racconta da che lato e' arrivato il colpo. Quella funzione esiste *«perche' i chiamanti sono DUE e
+		// devono restare d'accordo»*: questo e' il terzo, e una terza copia della regola si separerebbe alla prima
+		// modifica.
+		// ⛔ **Il predicato dei FATTI PUNTUALI** ([D-223]): `FreezeVerdictFor` con la cella del fatto, lo stesso che
+		// congela le righe di combattimento. Non `FreezeRouteCellVerdict`: quello esiste perche' una rotta non e'
+		// un fatto puntuale. E `RevealHitTargetsToAttackers` ([D-380]) e' gia' passato: chi colpisce conosce la vittima.
+		if (Intents.IsValidIndex(Hit.IntentIndex))
+		{
+			Ev.Shape = Intents[Hit.IntentIndex].Shape;
+		}
+		FRTCellId HitFrom;
+		if (!bSkipHitGeometryForTest && Attacker && Victim && HexUnits.IsValidIndex(Hit.TargetId)
+			&& ResolveImpactOrigin(Intents, Plan, HexUnits, Hit, HitFrom))
+		{
+			Ev.HitGeometry.bResolved = true;
+			Ev.HitGeometry.From = HitFrom;
+			Ev.HitGeometry.Impact = HexUnits[Hit.TargetId].Cell;
+			Ev.HitGeometry.FromVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(Attacker, HitFrom));
+			Ev.HitGeometry.ImpactVerdict = FreezeVerdictFor(FRTLogSubject::UnitAt(Victim, Ev.HitGeometry.Impact));
+		}
 		// `#2857`: QUALE colpo. Stessa fonte e stesso indice che il `case Push`/`case Pull` qui sopra usano
 		// per riempire `FRTDisplacementCause` — `IntentDefs[Hit.IntentIndex]` — cosi' il colpo e lo
 		// spostamento che ne consegue dichiarano la **stessa** azione invece di due letture da tenere
