@@ -22,8 +22,9 @@
 // trasforma un test in un rituale.
 //
 // ⚠️ **Presuppone che la variabile sia GIA' stata impostata prima di fotografarla.** Su una CVar mai
-// impostata (storia = solo `Constructor`) `SetWithCurrentPriority` risolve a `SETBY_ERROR` e viene
-// rifiutato (`ConsoleManager.cpp:986-1025`): i test di questo repository impostano sempre prima, quindi non
+// impostata (storia = solo `Constructor`) `SetWithCurrentPriority` risolve a `SETBY_ERROR`: il valore prende,
+// ma il `SetBy` diventa il valore riservato `0x01000000` e l'Engine logga «This is not allowed»
+// (`ConsoleManager.cpp:986-1025`). I test di questo repository impostano sempre prima, quindi non
 // la incontrano. `FRTLabCVarSnapshot` (modulo Editor, #3541) invece fotografa la variabile reale di un
 // Editor appena aperto e scrive con `Set` esplicito a `max(SetByPrima, Code)`: la differenza e' voluta, e
 // spiegata nel suo header. Un helper condiviso fra i due e' un FOLLOW-UP CANDIDATE.

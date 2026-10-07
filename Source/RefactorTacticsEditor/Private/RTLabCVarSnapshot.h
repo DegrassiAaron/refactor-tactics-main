@@ -9,7 +9,8 @@
 //    (`SetByCode`, un `.ini`) verrebbe ignorato con un warning.
 //  - `SetWithCurrentPriority` conserva la priorita', ma su una CVar **mai impostata** (la storia contiene
 //    solo `Constructor`: lo stato normale di `rt.Test.Scenario` e `rt.Debug.PlaybackControls` in un Editor
-//    appena aperto) risolve a `SETBY_ERROR` e viene rifiutato con «Trying to Replace Cvar ... Set By
+//    appena aperto) risolve a `SETBY_ERROR`: il valore PRENDE (`CanChange(0x01000000 >= 0)`), ma il `SetBy`
+//    diventa il valore riservato `0x01000000`, con il log «Trying to Replace Cvar ... Set By
 //    Constructor Value implicitly» (`ConsoleManager.cpp:986-1025`, `FindHighestPriorityAndTag` :783-810).
 //
 // In prosa, per ogni `SetBy` catturato (l'ordine e' quello di `IConsoleManager.h:155-187`: `Constructor` <
@@ -20,7 +21,8 @@
 //    rifiutato, e non si puo' scendere. Il valore e' quello di prima; il pavimento e' quello di qualunque
 //    `Set` da codice.
 //  - `Code`, `Temp`, `Console`: `P` e' la stessa priorita' di prima. `Apply` e `Restore` prendono e il
-//    `SetBy` dopo `Restore` e' quello di prima.
+//    `SetBy` dopo `Restore` e' quello di prima — con la conseguenza che era gia' vera prima del lancio: dopo
+//    un `Restore` a `Console` un `Set` a `Code` resta ignorato, perche' l'utente l'aveva digitata.
 //  - **Alzata DURANTE il PIE** (una riga digitata in console con `P = Code`): `Restore` non puo' scrivere —
 //    `CanChange` rifiuta —, ritorna `false` con il motivo, e la variabile resta com'e' stata alzata.
 //
