@@ -1863,8 +1863,17 @@ bool FRTHexMapActorPlaybackTracerChannelTest::RunTest(const FString&)
 	T.Style = ERTTracerStyle::Projectile;
 
 	TestEqual(TEXT("si parte senza tracer"), Actor->NumPlaybackTracers(), 0);
+	// Controllo: l'actor nasce a Tick spento (`bStartWithTickEnabled = false`). Senza questa premessa il
+	// `TestTrue` qui sotto passerebbe anche se il Tick fosse acceso per tutt'altra ragione.
+	TestFalse(TEXT("l'actor parte con il Tick spento"), Actor->IsActorTickEnabled());
 	Actor->SetPlaybackTracers({ T });
 	TestEqual(TEXT("un tracer dopo la consegna"), Actor->NumPlaybackTracers(), 1);
+
+	// 🔴 **Il Tick e' l'unico motivo per cui il tracer si vede in partita**: `DrawPlanningPreview` gira da
+	// `Tick`, e il Tick lo accende solo `HasAnythingToDraw`. Il test del line batcher chiama `Tick(0.f)` a mano
+	// e aggira l'accensione: tolta la riga `PlaybackTracers.Num() > 0` da `HasAnythingToDraw` resterebbero
+	// verdi tutti i gate, e il tracer non comparirebbe mai.
+	TestTrue(TEXT("consegnato un tracer, il Tick si accende"), Actor->IsActorTickEnabled());
 
 	// 🔑 **SOSTITUZIONE, non accumulo**: il volo e' funzione dell'orologio, e ogni tick consegna lo stato
 	// intero. Se `Set` diventasse un `Append`, la seconda consegna lascerebbe due tracer.
@@ -1885,6 +1894,17 @@ bool FRTHexMapActorPlaybackTracerChannelTest::RunTest(const FString&)
 
 	Actor->SetPlaybackTracers({});
 	TestEqual(TEXT("una consegna vuota e' un canale vuoto"), Actor->NumPlaybackTracers(), 0);
+
+	// ⚠️ **Il Tick si spegne quando NESSUN canale ha piu' niente da disegnare**, non prima: finche' l'impronta
+	// di `(1, 0)` c'e', il Tick resta acceso anche a tracer vuoti. Svuotata anche quella, tutto tace.
+	Actor->ClearPlaybackFootprint();
+	TestFalse(TEXT("a tutti i canali vuoti il Tick e' spento"), Actor->IsActorTickEnabled());
+
+	// E `ClearPlaybackTracers` e' l'ultimo canale a spegnersi: il Tick segue la consegna e il suo spegnimento.
+	Actor->SetPlaybackTracers({ T });
+	TestTrue(TEXT("una nuova consegna riaccende il Tick"), Actor->IsActorTickEnabled());
+	Actor->ClearPlaybackTracers();
+	TestFalse(TEXT("ClearPlaybackTracers, ultimo canale acceso, spegne il Tick"), Actor->IsActorTickEnabled());
 
 	DestroyMapActorWorld(World);
 	return true;
