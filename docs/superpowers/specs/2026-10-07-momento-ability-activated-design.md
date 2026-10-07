@@ -238,7 +238,14 @@ static TArray<FRTBlastSequenceElement> BuildBlastSequence(const TArray<FRTResolv
 ```
 
 `ViewerTeamId` serve al filtro di §2.5: le attivazioni non visibili non entrano; i loro impronte e colpi
-restano, come oggi (il velo sul bersaglio è di [D-223], non di questa spec). ➕ rev. `ArcHit` **non** entra
+restano, come oggi (il velo sul bersaglio è di [D-223], non di questa spec). ➕ impl. (review PR #3561)
+**L'attivazione nascosta dà comunque la chiave al suo gruppo**: ordinare per il suo indice non rivela nulla —
+non si mostra, e impronte e colpi si mostrano comunque. «Prima apparizione» resta solo per i gruppi che non
+hanno un'attivazione in timeline (impatti di carica, muri anonimi, reazioni). ⌫ *La prima stesura dava al gruppo
+nascosto la chiave della prima apparizione: con uno `StructureHit` — emesso prima di tutte le attivazioni —
+finiva davanti a ogni atto visibile, senza muro in coda; l'ordine si ribaltava con la presenza di un muro.*
+Pinnato da `Playback.HiddenActivationStillKeysItsAct`. Un evento con sorgente `0` e azione nominata (non
+attribuibile, [D-063]) forma il gruppo `(0, azione)`, un atto proprio: non sappiamo a chi appartenga. ➕ rev. `ArcHit` **non** entra
 nella sequenza: oggi `BeginPlayback` non ha un ramo per lui (`:7688-7778`), la sua voce D-278 è in attesa con
 owner #3293 (`RTPresentationBinding.cpp:249`) e porta sempre `NAME_None` (`RTPlaybackLibrary.cpp:337-339`).
 
@@ -287,7 +294,12 @@ discende:
   pretende. I rami Prep e Dash aggiornano `PlaybackLastShownAction` e chiamano `IsActBoundary` come oggi fa
   solo il Blast (`:8498-8504`), altrimenti `Next Action` salterebbe le attivazioni. Costo se sbagliato: una
   fermata in più fra due colpi della stessa area da unità diverse — che oggi non esistono (un intento ha una
-  sorgente).
+  sorgente). ➕ impl. (review PR #3561) **La sorgente `0` non apre mai un confine**: `StructureHit` e
+  `AttackFootprint` possono portarla con l'azione nominata quando l'autore non è attribuibile ([D-063]), e `0 != S`
+  apriva una seconda fermata dentro lo stesso intento. Il confronto sulla sorgente vale solo fra due sorgenti note
+  (evento `!= 0`, atto in corso `> 0`); l'atto in corso prende la sorgente solo da un evento che ne porta una e con
+  la stessa azione (`NextActionBoundary` all'indietro, `NotePlaybackActShown` in avanti). Pinnato da
+  `Playback.UnknownSourceDoesNotOpenAnAct`.
 - **D-355** (➕ rev., I6): il Blast può sospendersi (`:5416-5423`) e `BeginPlayback(bPreserveClock)`
   ricostruisce le code mantenendo i contatori (`:7635-7639`, `:7857-7862`). Invariante dichiarata: **il
   prefisso già mostrato della sequenza è stabile all'estensione** — la ricostruzione chiama
@@ -392,6 +404,9 @@ l'attivazione della squadra del viewer **è** visibile.
 | `Playback.BlastPhaseOpensForActivationsOnly` (puro, ➕ rev.) | `BlastPhaseIsActive(0,false,0,0,1)` è vero; `(0,false,0,0,0)` falso. |
 | `Playback.NextActionDoesNotStopTwiceWithinOneIntent` (esteso, in `Tests/RTPlaybackStopPredicateTests.cpp:604-680`) | Attivazione + impronta + colpo dello stesso intento = **una** fermata; due cure consecutive da unità diverse = **due**. |
 | `Playback.HiddenSourceHasNoActivationBeat` | Sorgente non osservata dal viewer: l'attivazione non entra nelle code; osservata: entra. Mutazione: togliere il filtro fa cadere il primo ramo. |
+| `Playback.HiddenActivationStillKeysItsAct` (puro, ➕ review PR #3561) | Un muro in testa e l'attivazione di X nascosta al viewer: A prima di X anche per chi non la vede (chiave = attivazione, non muro); l'attivazione nascosta non entra; senza muro lo stesso ordine. Mutazione: chiave solo dalle visibili → X davanti ad A. |
+| `Playback.UnknownSourceDoesNotOpenAnAct` (puro, ➕ review PR #3561) | `Attack(S, X)` poi `StructureHit(0, X)`: nessun confine; `Attack(T, X)`: confine. `NextActionBoundary` tiene la sorgente nota oltre lo `0`. Mutazione: togliere `!= 0` → cade il primo. |
+| `Playback.PhaseEndNetStopsWithThePause` (➕ review PR #3561) | Con la sola rete di fine fase a rivelare, tre attivazioni di Prep e `Next Action`: tre fermate in Prep, un cast per sorgente. Mutazione: togliere il `return` della rete → le attivazioni dopo la prima si perdono. |
 | `Match.Autobattle.DeterminismIsIndependentOfPlayback` (esistente) | Resta verde. |
 
 🔴 Controlli di mutazione dichiarati: (1) togliere l'emissione degli intenti d'attacco → cade
@@ -445,6 +460,13 @@ non per il criterio (2).
   di difetti di #3519): la posa di corsa parte con le rotte, non con la fase.
 - ➕ piano. Il recupero di fine fase del Blast scrive anche le righe `Colpo:` e passa dal predicato di confine,
   cosa che prima non faceva.
+- ➕ impl. (review PR #3561) La rete di fine fase di Prep e Dash **esce dal tick se un `Next Action` si ferma**,
+  come quella del Blast: proseguendo, il passaggio di fase azzerava il contatore e le attivazioni in coda si
+  perdevano. ⌫ *La prima stesura dichiarava qui quella perdita come limite.* ⚠️ La rete resta **senza casi per
+  aritmetica** — la fase dura `N × AttackShowSeconds` più il resto, e il ramo per tick legge lo stesso valore nello
+  stesso tick — quindi il suo comportamento in pausa si esercita solo con un aggancio di test che la rende l'unica
+  a rivelare (`bRevealActivationsOnlyAtPhaseEndForTest`, `Playback.PhaseEndNetStopsWithThePause`). Nessun gate
+  pinna l'aritmetica di Prep e Dash come `EveryChannelIsFullyRevealedByPhaseEnd` pinna quella del Blast.
 
 ---
 

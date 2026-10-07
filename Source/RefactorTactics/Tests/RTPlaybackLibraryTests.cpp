@@ -1582,8 +1582,8 @@ namespace
 /**
  * La sequenza del Blast e' ordinata PER INTENTO — D5, spec §2.4.
  *
- * 🔑 `A1 F1 H1 H1 A2 F2 H2`: un gruppo per `(Source, ActionId)`, ordinati per indice dell'attivazione visibile
- * (altrimenti per prima apparizione), e dentro il
+ * 🔑 `A1 F1 H1 H1 A2 F2 H2`: un gruppo per `(Source, ActionId)`, ordinati per indice dell'attivazione — anche
+ * nascosta, che da' la chiave senza entrare (review della PR #3561) — altrimenti per prima apparizione, e dentro il
  * gruppo attivazione, impronte, muri, colpi. Un colpo senza attivazione e' un atto proprio; `ArcHit` non entra;
  * un'attivazione non visibile non entra, ma il suo colpo si'.
  * ✅ Validato per mutazione: raggruppare per TIPO invece che per chiave fa cadere il primo asserto.
@@ -1831,6 +1831,94 @@ bool FRTPlaybackActBoundaryDistinguishesSourceTest::RunTest(const FString&)
 	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal")));
 	T.Add(CuraDiDue);
 	TestEqual(TEXT("NextActionBoundary si ferma sulla seconda cura"), URTPlaybackLibrary::NextActionBoundary(T, 0), 1);
+	return true;
+}
+
+/**
+ * Un'attivazione NASCOSTA a chi guarda non entra nella sequenza, ma da' la chiave al suo atto — review della PR
+ * #3561, spec §2.4.
+ *
+ * 🔴 **Il difetto**: il gruppo di una sorgente nascosta restava senza attivazione e prendeva la chiave dalla prima
+ * apparizione. Con uno `StructureHit` — che il resolver emette PRIMA di tutte le attivazioni — finiva davanti a ogni
+ * atto visibile; senza muro, in coda. L'ordine degli atti nascosti si ribaltava con la presenza di un muro.
+ * 🔑 Ordinare per l'indice dell'attivazione nascosta non rivela nulla: l'attivazione non si mostra (asserito qui), e
+ * impronte e colpi si mostrano comunque.
+ * ⚠️ Dentro l'atto l'ordine e' quello di rango — impronta, muro, colpo — quindi X si legge `4, 0, 5`.
+ * ✅ Validato per mutazione: tornare a dare la chiave solo alle attivazioni VISIBILI porta X davanti ad A per chi non
+ * la vede, e il primo asserto cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackHiddenActivationStillKeysItsActTest,
+	"RefactorTactics.Playback.HiddenActivationStillKeysItsAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackHiddenActivationStillKeysItsActTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::StructureHit,     2, TEXT("X")));   // 0  il muro di X, in testa
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A")));   // 1  visibile a tutti
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  1, TEXT("A")));   // 2
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("X")));   // 3  la vede solo la squadra 2
+	T[3].SourceVerdict = FRTKnowledgeVerdict::NoOne();
+	T[3].SourceVerdict.AllowTeam(2);
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  2, TEXT("X")));   // 4
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("X")));   // 5
+
+	TestEqual(TEXT("🔴 chi non vede X: A prima di X, perche' la chiave di X e' la sua attivazione (3 > 1), non il muro (0)"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0)), TArray<int32>({ 1, 2, 4, 0, 5 }));
+	TestEqual(TEXT("chi vede X: lo stesso ordine, con l'attivazione in testa al suo atto"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 2)), TArray<int32>({ 1, 2, 3, 4, 0, 5 }));
+	TestFalse(TEXT("⛔ D6: l'attivazione nascosta non entra"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, 0)).Contains(3));
+
+	// Controllo: senza il muro l'ordine degli atti e' lo stesso — e' l'invarianza che il difetto rompeva.
+	TArray<FRTResolvedEvent> SenzaMuro = T;
+	SenzaMuro.RemoveAt(0);
+	TestEqual(TEXT("senza muro: A prima di X come con il muro"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(SenzaMuro, {}, 0, 0)), TArray<int32>({ 0, 1, 3, 4 }));
+	return true;
+}
+
+/**
+ * Una sorgente `0` — non attribuibile, [D-063] — non apre un atto — review della PR #3561, spec §2.4.
+ *
+ * 🔴 `StructureHit` e `AttackFootprint` possono portare `SourceStableUnitId = 0` con l'azione nominata. Con il
+ * confronto `0 != S` il muro dentro un intento diventava una seconda fermata, il difetto che `#3292` esclude.
+ * 🔑 Il confronto sulla sorgente vale solo fra due sorgenti note: una sorgente diversa e NON zero resta un confine.
+ * ⚠️ `NextActionBoundary` legge la sorgente dell'atto da un evento che ne porta una: dopo `Attack(S) · Muro(0)` l'atto
+ * e' ancora di `S`, quindi un colpo di `T` lo chiude e uno di `S` no.
+ * ✅ Validato per mutazione: togliere la condizione `Event.SourceStableUnitId != 0` da `IsActBoundary` fa cadere il
+ * primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackUnknownSourceDoesNotOpenAnActTest,
+	"RefactorTactics.Playback.UnknownSourceDoesNotOpenAnAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackUnknownSourceDoesNotOpenAnActTest::RunTest(const FString&)
+{
+	const FName X(TEXT("X"));
+	const int32 S = 3;
+	const int32 Tu = 4;
+
+	TestFalse(TEXT("🔴 Attack(S, X) poi StructureHit(0, X): stesso atto, la sorgente 0 non decide"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::StructureHit, 0, TEXT("X")), X, S));
+	TestFalse(TEXT("lo stesso per un'impronta non attribuibile"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::AttackFootprint, 0, TEXT("X")), X, S));
+	TestTrue(TEXT("Attack(S, X) poi Attack(T, X): confine, T e' una sorgente nota e diversa"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::Attack, Tu, TEXT("X")), X, S));
+	TestFalse(TEXT("atto in corso senza sorgente (0): nessun confronto sulla sorgente"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::Attack, Tu, TEXT("X")), X, 0));
+	TestTrue(TEXT("⛔ ma un'azione diversa resta un confine anche con sorgente 0"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::StructureHit, 0, TEXT("Y")), X, S));
+
+	TArray<FRTResolvedEvent> Stesso;
+	Stesso.Add(SeqEvento(ERTResolvedEventType::Attack,       S, TEXT("X")));
+	Stesso.Add(SeqEvento(ERTResolvedEventType::StructureHit, 0, TEXT("X")));
+	Stesso.Add(SeqEvento(ERTResolvedEventType::Attack,       S, TEXT("X")));
+	TestEqual(TEXT("NextActionBoundary: Attack(S) · Muro(0) · Attack(S) e' un atto solo"),
+		URTPlaybackLibrary::NextActionBoundary(Stesso, 0), Stesso.Num());
+
+	TArray<FRTResolvedEvent> Altro = Stesso;
+	Altro[2].SourceStableUnitId = Tu;
+	TestEqual(TEXT("🔴 NextActionBoundary: dopo Muro(0) l'atto e' ancora di S, quindi Attack(T) lo chiude"),
+		URTPlaybackLibrary::NextActionBoundary(Altro, 1), 2);
 	return true;
 }
 

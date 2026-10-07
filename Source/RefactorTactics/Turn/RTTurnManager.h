@@ -641,6 +641,14 @@ public:
 
 	/** Registra i battiti del Blast in `AttackBeatTraceForTest` (`L<i>` lancio, `A<i>` arrivo). Solo test. */
 	bool bRecordAttackBeatsForTest = false;
+
+	/**
+	 * Le attivazioni di Prep e Dash le rivela SOLO la rete di fine fase (review della PR #3561). Solo test.
+	 * 🔑 La rete e' senza casi per aritmetica — `PhaseTime` dimensiona la fase su `N x AttackShowSeconds` e il ramo
+	 * per tick legge lo stesso valore nello stesso tick — quindi senza questo flag il suo comportamento in pausa non
+	 * si esercita. Simula una fase accorciata, che e' il caso per cui la rete esiste.
+	 */
+	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
 	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
 
 	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test. */
@@ -2387,7 +2395,8 @@ protected:
 	/**
 	 * Rivela le attivazioni fino a `UpTo`, in ordine di timeline; `true` se un confine d'atto ha messo in
 	 * pausa (#3549). ⚠️ Si ferma **dopo** aver mostrato il fatto, come `#2855` prescrive: quelle che il tick
-	 * avrebbe ancora rivelato restano per la ripresa.
+	 * avrebbe ancora rivelato restano per la ripresa. ⛔ Ogni chiamante esce dal tick su `true` — il ramo per tick
+	 * e la rete di fine fase — o il passaggio alla fase dopo perderebbe le attivazioni in coda.
 	 */
 	bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo);
 
@@ -3541,8 +3550,10 @@ private:
 	FName PlaybackLastShownAction;
 
 	/**
-	 * La sorgente dell'ultimo fatto MOSTRATO con un'azione: con `PlaybackLastShownAction` e' l'atto in corso (#3549).
+	 * La sorgente dell'atto MOSTRATO in corso: con `PlaybackLastShownAction` e' l'atto in corso (#3549).
 	 * ⚠️ `0` = nessuna sorgente, sentinella dello stato, diversa dal default `-1` della funzione (`IsActBoundary`).
+	 * 🔑 Un fatto con sorgente `0` (non attribuibile, [D-063]) non la sovrascrive; un cambio d'azione la riparte
+	 * (review della PR #3561, `NotePlaybackActShown`).
 	 */
 	int32 PlaybackLastShownSource = 0;
 

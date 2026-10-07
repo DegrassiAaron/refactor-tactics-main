@@ -343,16 +343,21 @@ public:
 	/**
 	 * La sequenza per intento del Blast (D5, spec §2.4). Gli eventi di fase Blast di tipo AbilityActivated,
 	 * AttackFootprint, StructureHit e Attack si raggruppano per (SourceStableUnitId, ActionId). I gruppi si
-	 * ordinano per l'indice in timeline della loro ATTIVAZIONE visibile se ne hanno una, altrimenti per prima
-	 * apparizione: cosi' uno `StructureHit` — che `ApplyEnvironmentChanges` emette PRIMA delle attivazioni —
-	 * non porta il suo intento davanti a uno con `IntentIndex` minore. Dentro il gruppo: attivazione, impronte,
-	 * muri, colpi, ciascuno nell'ordine di timeline. Un evento senza `ActionId` (lo `StructureHit` aggregato,
-	 * #3281) e' un atto proprio; un gruppo senza attivazione visibile (impatti di carica, contrattacchi, una
-	 * sorgente nascosta) e' un atto proprio alla sua prima apparizione.
+	 * ordinano per l'indice in timeline della loro ATTIVAZIONE — visibile o no a chi guarda — se ne hanno una,
+	 * altrimenti per prima apparizione: cosi' uno `StructureHit` — che `ApplyEnvironmentChanges` emette PRIMA delle
+	 * attivazioni — non porta il suo intento davanti a uno con `IntentIndex` minore. Dentro il gruppo: attivazione,
+	 * impronte, muri, colpi, ciascuno nell'ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
+	 * aggregato, #3281) e' un atto proprio; un gruppo senza attivazione in timeline (impatti di carica,
+	 * contrattacchi, muri anonimi) e' un atto proprio alla sua prima apparizione. Un evento con sorgente `0` e
+	 * azione nominata (non attribuibile, [D-063]) forma il gruppo `(0, azione)`, un atto proprio: non sappiamo a
+	 * chi appartenga.
 	 * `ArcHit` non entra (#3293).
 	 *
 	 * 🔑 `ViewerTeamId`: un'attivazione con `!SourceVerdict.AllowsTeam(ViewerTeamId)` non entra (D6); le sue
-	 * impronte e i suoi colpi restano — il velo sul bersaglio e' di [D-223], non di questa funzione.
+	 * impronte e i suoi colpi restano — il velo sul bersaglio e' di [D-223], non di questa funzione. ⚠️ **Ma da'
+	 * la chiave al suo gruppo** (review della PR #3561): ordinare per il suo indice non rivela nulla, perche'
+	 * l'attivazione non si mostra e impronte e colpi si mostrano comunque. ⏱️ *Prima il gruppo nascosto prendeva la
+	 * chiave dalla prima apparizione, e un muro in testa lo portava davanti a ogni atto visibile.*
 	 * 🔑 `FrozenPrefix`: i primi N elementi di `Previous` si riproducono VERBATIM (D-355) e i loro eventi NON si
 	 * ripetono; il resto si ricostruisce da zero. La CHIAVE di un gruppo si legge dall'attivazione ovunque
 	 * stia in timeline, anche dentro il prefisso congelato: cosi' `Build(T, S, k) == S` per ogni `k` (idempotenza,
@@ -570,6 +575,8 @@ public:
 	 *
 	 * ✅ **Il limite noto di #2855 e' chiuso** (#3549): due unita' con la stessa azione generica sono due atti,
 	 * perche' l'atto in corso e' la coppia `(SourceStableUnitId, ActionId)` dell'ultimo evento con un'azione.
+	 * ⚠️ La sorgente dell'atto in corso si legge solo da eventi con sorgente `!= 0` e con la STESSA azione (review
+	 * della PR #3561): uno `0` non sostituisce la sorgente nota, e quella di un atto precedente non si presta.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static int32 NextActionBoundary(const TArray<FRTResolvedEvent>& Timeline, int32 FromIndex);
@@ -609,6 +616,12 @@ public:
 	 * ⚠️ **`CurrentSource` e' IN CODA e vale `INDEX_NONE` per default** (#3549): un nodo Blueprint scritto prima
 	 * di #3549 continua a compilare e ottiene il criterio storico, l'`ActionId` da solo. Ogni chiamante C++
 	 * passa la sorgente.
+	 *
+	 * 🔴 **Una sorgente `0` non apre mai un confine** (review della PR #3561). `0` non e' un'unita' ([D-063]):
+	 * `StructureHit` e `AttackFootprint` la portano con l'azione nominata quando l'autore non e' attribuibile. Il
+	 * confronto sulla sorgente vale solo fra due sorgenti note: `Event.SourceStableUnitId != 0` e
+	 * `CurrentSource > 0` — con `CurrentSource == 0` l'atto in corso non ha ancora una sorgente, con `-1` vale il
+	 * criterio storico. ⏱️ *Prima `0 != S` apriva una seconda fermata dentro lo stesso intento.*
 	 *
 	 * ⛔ Il default e' scritto `-1` e non `INDEX_NONE`: UHT non risolve la macro in un default di `UFUNCTION`
 	 * («Default parameter not parsed»). Sono lo stesso valore, e il corpo confronta con `INDEX_NONE`.

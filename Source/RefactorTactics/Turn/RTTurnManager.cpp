@@ -8120,10 +8120,21 @@ bool ARTTurnManager::NotePlaybackActShown(const FRTResolvedEvent& Ev)
 	// ⚠️ L'atto in corso si aggiorna **solo** su un'azione vera: un `NAME_None` non lo azzera, come nella
 	// scansione all'indietro di `NextActionBoundary`. Su uno `StructureHit` il vuoto E' un confine ([D-437]) e
 	// non aggiorna l'atto: l'aggregato ha piu' autori, quindi non ce n'e' uno a cui l'atto possa passare.
+	// 🔴 **E la sorgente si aggiorna solo da un evento che ne porta una** (review della PR #3561): `0` e' «sorgente
+	// sconosciuta» ([D-063]) e non cancella quella nota dell'atto, che `IsActBoundary` confronta. Quando l'AZIONE
+	// cambia, invece, la sorgente dell'atto precedente non vale piu': si riparte da quella del nuovo, `0` compreso.
+	// E' la regola della scansione all'indietro di `URTPlaybackLibrary::NextActionBoundary`, scritta in avanti.
 	if (!Ev.ActionId.IsNone())
 	{
+		if (Ev.ActionId != PlaybackLastShownAction)
+		{
+			PlaybackLastShownSource = 0;
+		}
 		PlaybackLastShownAction = Ev.ActionId;
-		PlaybackLastShownSource = Ev.SourceStableUnitId;
+		if (Ev.SourceStableUnitId != 0)
+		{
+			PlaybackLastShownSource = Ev.SourceStableUnitId;
+		}
 	}
 	if (PlaybackStopAt == ERTPlaybackStopAt::NextAction
 		&& URTPlaybackLibrary::IsActBoundary(Ev, PlaybackStopFromAction, PlaybackStopFromSource))
@@ -8834,7 +8845,9 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	// #3549: Prep e Dash svelano le proprie attivazioni una per volta, con lo stesso ritmo dei colpi.
 	// ⚠️ **Il `return` e' lo stesso del Blast, e per la stessa ragione** (`#3292`): dopo questo blocco il tick
 	// prosegue con la finalizzazione della fase, quindi uscire senza uscire dal tick farebbe durare la fermata zero.
-	if (Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash)
+	// 🧪 `bRevealActivationsOnlyAtPhaseEndForTest` salta questo ramo: simula una fase accorciata, l'unico caso in cui la
+	// rete di fine fase qui sotto recupera qualcosa (`Playback.PhaseEndNetStopsWithThePause`).
+	if ((Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash) && !bRevealActivationsOnlyAtPhaseEndForTest)
 	{
 		const TArray<FRTResolvedEvent>& Attivazioni =
 			(Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep : PlaybackActivationsDash;
@@ -8906,11 +8919,22 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// ⚠️ **Dichiarato (spec §6): il recupero del Blast ora fa due cose che prima non faceva.** Scrive anche le
 		// righe `Colpo:` — ⏱️ *il vecchio ciclo di recupero suonava ruoli, token e broadcast SENZA la riga del feed* —
 		// e passa dal predicato di confine (`NotePlaybackActShown`), quindi un `Next Action` armato puo' fermarsi
-		// anche qui. Per Prep e Dash, se ci si fermasse con elementi ancora in coda, quelli della fase verrebbero
-		// saltati dal passaggio alla fase successiva qui sotto; il Blast invece esce e riprende (sotto). Su un turno
-		// normale non accade, perche' la rete e' senza casi.
-		if (Ph == ERTMatchPhase::Prep) { RevealPlaybackActivations(PlaybackActivationsPrep, PlaybackActivationsPrep.Num()); }
-		if (Ph == ERTMatchPhase::Dash) { RevealPlaybackActivations(PlaybackActivationsDash, PlaybackActivationsDash.Num()); }
+		// anche qui.
+		// 🔴 **Prep e Dash escono dal tick se la rete mette in pausa, come il Blast** (review della PR #3561):
+		// `RevealPlaybackActivations` dice `true` quando si ferma su un confine, e proseguendo il passaggio alla fase
+		// dopo — `EnterPlaybackPhase` azzera `ActivationsShown` — avrebbe perso le attivazioni ancora in coda. Uscire
+		// lascia la fase dov'e': al primo tick dopo la ripresa la rete riprende dal contatore. ⏱️ *La stesura di #3549
+		// ignorava il ritorno e dichiarava saltati gli elementi in coda.* Su un turno normale non accade, perche' la
+		// rete e' senza casi; lo forza `bRevealActivationsOnlyAtPhaseEndForTest`.
+		if (Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash)
+		{
+			const TArray<FRTResolvedEvent>& Attivazioni =
+				(Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep : PlaybackActivationsDash;
+			if (RevealPlaybackActivations(Attivazioni, Attivazioni.Num()))
+			{
+				return;
+			}
+		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
 			// 🔑 **Un punto di uscita, in quest'ordine: mostra il resto → consegna gli arrivi → spegni il canale**

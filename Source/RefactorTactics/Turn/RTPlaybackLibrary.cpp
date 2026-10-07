@@ -392,17 +392,36 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	// un'azione e' gia' un confine. `Min(FromIndex, Fine - 1)` tiene la scansione dentro l'array anche
 	// quando l'indice arriva oltre la fine, e su timeline vuota il ciclo non parte.
 	//
-	// 🔑 **L'atto in corso e' la COPPIA `(Corrente, SorgenteCorrente)`** (#3549): la stessa scansione legge azione
-	// e sorgente dallo stesso evento. ⚠️ `SorgenteCorrente = 0` significa «nessuna sorgente», la sentinella di
-	// questo stato — diversa dal default `-1` di `IsActBoundary`, che vorrebbe dire «sorgente non dichiarata».
+	// 🔑 **L'atto in corso e' la COPPIA `(Corrente, SorgenteCorrente)`** (#3549). ⚠️ `SorgenteCorrente = 0`
+	// significa «nessuna sorgente», la sentinella di questo stato — diversa dal default `-1` di `IsActBoundary`, che
+	// vorrebbe dire «sorgente non dichiarata».
+	//
+	// 🔴 **La sorgente si legge solo da un evento che ne porta una** (review della PR #3561): `0` e' «sorgente
+	// sconosciuta» ([D-063]) e non sostituisce quella nota dell'atto. ∴ l'azione e' quella dell'ultimo evento che
+	// ne ha una; la sorgente, quella dell'ultimo evento con QUELLA azione e una sorgente `!= 0`, senza scavalcare un
+	// evento con un'altra azione — l'atto precedente ha la sua sorgente, e prestarla a questo farebbe decidere un
+	// confine a uno `0`. E' la stessa regola con cui `ARTTurnManager::NotePlaybackActShown` aggiorna l'atto
+	// mostrato, scritta in avanti invece che all'indietro.
 	FName Corrente = NAME_None;
 	int32 SorgenteCorrente = 0;
 	for (int32 i = FMath::Min(FromIndex, Fine - 1); i >= 0; --i)
 	{
-		if (!Timeline[i].ActionId.IsNone())
+		const FRTResolvedEvent& Ev = Timeline[i];
+		if (Ev.ActionId.IsNone())
 		{
-			Corrente = Timeline[i].ActionId;
-			SorgenteCorrente = Timeline[i].SourceStableUnitId;
+			continue;
+		}
+		if (Corrente.IsNone())
+		{
+			Corrente = Ev.ActionId;
+		}
+		else if (Ev.ActionId != Corrente)
+		{
+			break; // un altro atto: la sua sorgente non e' quella di questo
+		}
+		if (Ev.SourceStableUnitId != 0)
+		{
+			SorgenteCorrente = Ev.SourceStableUnitId;
 			break;
 		}
 	}
@@ -444,8 +463,14 @@ bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName Curr
 	//
 	// #3549: la COPPIA. Stessa azione da un'altra unita' e' un altro atto (spec «il momento» §2.4).
 	// `INDEX_NONE` = sorgente non dichiarata (il default per i nodi Blueprint): il criterio storico.
+	//
+	// 🔴 **Una sorgente `0` non decide mai un confine** (review della PR #3561). `0` non e' un'unita' ([D-063]): uno
+	// `StructureHit` o un'impronta possono portarla con l'azione nominata, quando l'autore non e' attribuibile. Il
+	// confronto sulla sorgente si fa quindi solo fra DUE sorgenti note — l'evento con `!= 0`, l'atto in corso con
+	// `> 0` (`0` = «nessuna sorgente ancora», `-1` = il criterio storico). ⏱️ *Fino alla review `0 != S` apriva una
+	// seconda fermata dentro lo stesso intento, il difetto che `#3292` esclude.*
 	return Event.ActionId != CurrentAction
-		|| (CurrentSource != INDEX_NONE && Event.SourceStableUnitId != CurrentSource);
+		|| (Event.SourceStableUnitId != 0 && CurrentSource > 0 && Event.SourceStableUnitId != CurrentSource);
 }
 
 namespace
@@ -485,8 +510,8 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		FName ActionId;
 		TArray<int32> Indici;
 		int32 PrimaApparizione = INDEX_NONE;
-		int32 IndiceAttivazione = INDEX_NONE; // l'attivazione VISIBILE del gruppo, se c'e'
-		/** La chiave d'ordine fra gli atti (decisione (d)): l'attivazione se c'e', altrimenti la prima apparizione. */
+		int32 IndiceAttivazione = INDEX_NONE; // l'attivazione del gruppo, se c'e' — ANCHE nascosta a chi guarda
+		/** La chiave d'ordine fra gli atti (decisione (d)): l'attivazione se c'e' (anche nascosta), altrimenti la prima apparizione. */
 		int32 Chiave() const { return IndiceAttivazione != INDEX_NONE ? IndiceAttivazione : PrimaApparizione; }
 	};
 	// Gli atti nascono nell'ordine di prima apparizione (la scansione va in avanti) e si RIORDINANO poi per
@@ -507,12 +532,18 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		{
 			continue;
 		}
-		// D6: un'attivazione che chi guarda non ha il diritto di vedere non entra — tutto o niente.
-		if (Ev.Type == ERTResolvedEventType::AbilityActivated && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId))
-		{
-			continue;
-		}
+		// D6: un'attivazione che chi guarda non ha il diritto di vedere non ENTRA nella sequenza — tutto o niente.
+		// 🔑 **Ma da' la chiave al suo gruppo** (review della PR #3561): ordinare per il suo indice non rivela nulla —
+		// l'attivazione non si mostra, e impronte e colpi si mostrano comunque. ⏱️ *Prima usciva qui, e il gruppo
+		// prendeva la chiave dalla prima apparizione: con uno `StructureHit` (emesso PRIMA di tutte le attivazioni)
+		// finiva davanti a ogni atto visibile, senza muro in coda. L'ordine degli atti nascosti si ribaltava con la
+		// presenza di un muro.*
+		const bool bAttivazione = (Ev.Type == ERTResolvedEventType::AbilityActivated);
+		const bool bNascosta = bAttivazione && !Ev.SourceVerdict.AllowsTeam(ViewerTeamId);
 
+		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
+		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima
+		// apparizione. Non e' la regola del confine — `IsActBoundary` non lo fa fermare — ma quella dell'ordine.
 		int32 Atto = INDEX_NONE;
 		if (!Ev.ActionId.IsNone()) // senza identita' = atto proprio, mai fuso (#3281)
 		{
@@ -529,10 +560,13 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 			Nuovo.PrimaApparizione = i;
 			Atto = Atti.Num() - 1;
 		}
-		Atti[Atto].Indici.Add(i);
-		if (Ev.Type == ERTResolvedEventType::AbilityActivated && Atti[Atto].IndiceAttivazione == INDEX_NONE)
+		if (!bNascosta)
 		{
-			Atti[Atto].IndiceAttivazione = i; // solo le VISIBILI arrivano qui: le altre sono uscite sopra
+			Atti[Atto].Indici.Add(i);
+		}
+		if (bAttivazione && Atti[Atto].IndiceAttivazione == INDEX_NONE)
+		{
+			Atti[Atto].IndiceAttivazione = i; // anche la nascosta: la chiave, non un elemento
 		}
 	}
 

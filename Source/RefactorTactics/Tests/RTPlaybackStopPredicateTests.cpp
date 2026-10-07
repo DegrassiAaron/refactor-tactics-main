@@ -1005,6 +1005,98 @@ bool FRTPlaybackNextActionStopsOnPrepAndDashTest::RunTest(const FString&)
 }
 
 /**
+ * La rete di fine fase di Prep e Dash si ferma con la pausa, e le attivazioni in coda escono alla ripresa — review
+ * della PR #3561, spec §6.
+ *
+ * 🔴 **Il difetto**: `RevealPlaybackActivations` dice `true` quando un `Next Action` si ferma su un confine, ma la rete
+ * proseguiva al passaggio di fase, ed `EnterPlaybackPhase` azzera il contatore: le attivazioni rimaste si perdevano.
+ * 🔑 **La rete e' senza casi per aritmetica**, quindi il test la rende l'unica a rivelare con
+ * `bRevealActivationsOnlyAtPhaseEndForTest` — una fase «accorciata», il caso per cui la rete esiste. Tre attivazioni di
+ * Prep da tre unita': tre atti, quindi tre fermate dentro la Prep, e ogni sorgente suona il proprio cast una volta.
+ * ⛔ **Anti-vacuita'**: il controllo senza `Next Action` mostra che la rete, da sola, rivela tutte e tre.
+ * ✅ Validato per mutazione: togliere il `return` della rete fa cadere le fermate in Prep e il cast delle sorgenti
+ * dopo la prima.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseEndNetStopsWithThePauseTest,
+	"RefactorTactics.Playback.PhaseEndNetStopsWithThePause",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseEndNetStopsWithThePauseTest::RunTest(const FString&)
+{
+	auto GiraLaPrep = [this](bool bNextAction, int32& OutFermatePrep, TArray<int32>& OutCast) -> bool
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		SpawnStopPredicateMap(World);
+
+		ARTUnit* Scudo      = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeMuiren(), FRTCellId(-3, 1));
+		ARTUnit* Sentinella = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(),  FRTCellId(0, 0));
+		ARTUnit* Riparo     = SpawnStopPredicateUnit(World, 0, URTHeroCatalogLibrary::MakeAevik(),  FRTCellId(3, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Scudo || !Sentinella || !Riparo) { return false; }
+
+		for (int32 i = 0; i < Scudo->NumAbilities(); ++i)
+		{
+			if (Scudo->GetAbility(i) && Scudo->GetAbility(i)->Def.ActionId == FName(TEXT("Hero.Muiren.TideGuard")))
+			{
+				Scudo->PlannedAbilityIndex = i;
+			}
+		}
+		Scudo->PlannedCell = Scudo->Cell;
+		Sentinella->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Sentinella, TEXT("Action.Overwatch"));
+		Sentinella->PlannedCell = Sentinella->Cell;
+		Riparo->PlannedAbilityIndex = RTAbilityFixtures::AddCoreAbility(Riparo, TEXT("Action.Shield"));
+		Riparo->PlannedCell = Riparo->Cell;
+		if (!TestTrue(TEXT("premessa: Muiren ha TideGuard"), Scudo->PlannedAbilityIndex != INDEX_NONE)) { return false; }
+
+		// Viewer: senza controller `TeamIdOf` ripiega sulla squadra 0, quella delle tre sorgenti; il refresh e' la
+		// precondizione delle attivazioni di Prep (spec §2.5).
+		TM->RefreshTeamKnowledgeNow();
+		TM->SetPlaybackControlsEnabled(true);
+		TM->bRevealActivationsOnlyAtPhaseEndForTest = true;
+		TM->LockInAndResolve();
+		if (!TestTrue(TEXT("⛔ il turno si riproduce"), TM->IsResolving())) { return false; }
+
+		int32 AttivazioniPrep = 0;
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.Phase == ERTMatchPhase::Prep) { ++AttivazioniPrep; }
+		}
+		if (!TestEqual(TEXT("⛔ premessa: tre attivazioni di Prep"), AttivazioniPrep, 3)) { return false; }
+
+		OutFermatePrep = 0;
+		for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+		{
+			if (TM->IsPlaybackPaused())
+			{
+				if (TM->GetPlaybackPhaseName() == TEXT("Prep")) { ++OutFermatePrep; }
+				TM->ResumePlayback();
+				if (bNextAction) { TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction); }
+			}
+			else if (bNextAction && TM->GetArmedPlaybackStop() == ERTPlaybackStopAt::None)
+			{
+				TM->RequestPlaybackStopAt(ERTPlaybackStopAt::NextAction);
+			}
+			TM->Tick(0.05f);
+		}
+		OutCast = { Scudo->CastCuesPlayedForTest(), Sentinella->CastCuesPlayedForTest(), Riparo->CastCuesPlayedForTest() };
+		return true;
+	};
+
+	int32 Fermate = 0;
+	TArray<int32> Cast;
+	if (!GiraLaPrep(/*bNextAction*/ false, Fermate, Cast)) { return false; }
+	TestEqual(TEXT("⛔ controllo: senza Next Action la rete, da sola, rivela tutte e tre"), Cast, TArray<int32>({ 1, 1, 1 }));
+	TestEqual(TEXT("e non si ferma"), Fermate, 0);
+
+	if (!GiraLaPrep(/*bNextAction*/ true, Fermate, Cast)) { return false; }
+	TestEqual(TEXT("🔴 con Next Action: tre atti, tre fermate dentro la Prep"), Fermate, 3);
+	TestEqual(TEXT("🔴 e ogni sorgente suona il proprio cast una volta: nessuna attivazione persa al cambio di fase"),
+		Cast, TArray<int32>({ 1, 1, 1 }));
+	return true;
+}
+
+/**
  * La regola del confine d'atto ha **una sola** implementazione — `#3292`.
  *
  * 🔴 **Ne aveva due, e una non era eseguita.** `NextActionBoundary` la conteneva e non aveva un solo
@@ -1047,6 +1139,8 @@ bool FRTPlaybackActBoundaryRuleHasOneImplementationTest::RunTest(const FString&)
 	Timeline.Add(Evento(ERTResolvedEventType::ArcHit,          nullptr));          // vuoto: NON un confine
 	Timeline.Add(Evento(ERTResolvedEventType::AbilityActivated, TEXT("Action.Heal"), 1)); // atto nuovo
 	Timeline.Add(Evento(ERTResolvedEventType::AbilityActivated, TEXT("Action.Heal"), 2)); // #3549: altra sorgente = confine
+	Timeline.Add(Evento(ERTResolvedEventType::StructureHit,    TEXT("Action.Heal"), 0)); // sorgente 0: NON un confine
+	Timeline.Add(Evento(ERTResolvedEventType::Attack,          TEXT("Action.Heal"), 3)); // l'atto e' ancora di 2: confine
 
 	// ⛔ ANTI-VACUITA': i due rami devono essere entrambi esercitati, o il confronto sarebbe fra due
 	// risposte sempre uguali per costruzione.
@@ -1055,14 +1149,17 @@ bool FRTPlaybackActBoundaryRuleHasOneImplementationTest::RunTest(const FString&)
 
 	for (int32 i = 0; i < Timeline.Num(); ++i)
 	{
-		// L'atto in corso a `i-1`, con la stessa scansione all'indietro di `NextActionBoundary`.
+		// L'atto in corso a `i-1`, con la stessa scansione all'indietro di `NextActionBoundary`: l'azione dell'ultimo
+		// evento che ne ha una, la sorgente dell'ultimo con QUELLA azione e una sorgente `!= 0` (review della PR #3561).
 		FName Corrente = NAME_None;
 		int32 SorgenteCorrente = 0;
 		for (int32 k = i - 1; k >= 0; --k)
 		{
-			if (!Timeline[k].ActionId.IsNone())
+			if (Timeline[k].ActionId.IsNone()) { continue; }
+			if (Corrente.IsNone()) { Corrente = Timeline[k].ActionId; }
+			else if (Timeline[k].ActionId != Corrente) { break; }
+			if (Timeline[k].SourceStableUnitId != 0)
 			{
-				Corrente = Timeline[k].ActionId;
 				SorgenteCorrente = Timeline[k].SourceStableUnitId;
 				break;
 			}
