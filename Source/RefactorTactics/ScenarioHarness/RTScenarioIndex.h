@@ -76,6 +76,15 @@ public:
 	static TArray<FRTScenarioEntry> Scan(TArray<FString>& OutProblems);
 
 	/**
+	 * Come `Scan`, ma sulle **due** radici: quella versionata e quella del Lab (`URTScenarioLoader::LabScenariosRoot`).
+	 *
+	 * 🔑 E' la funzione delle RICERCHE — `ResolvePath`, `ListIds`, `ListTags` — cioe' del GameMode, della
+	 * console e del Launcher. `Scan` resta a una radice perche' i gate sul corpus la usano come «tutto cio'
+	 * che e' versionato». Una radice assente non e' un problema ne' una voce.
+	 */
+	static TArray<FRTScenarioEntry> ScanAll(TArray<FString>& OutProblems);
+
+	/**
 	 * Percorso del file che dichiara questo `ScenarioId`, seguendo i redirect se l'ID non risulta più.
 	 *
 	 * Stringa vuota + `OutError` valorizzato quando l'ID non esiste **oppure** quando è ambiguo. Un ID
@@ -130,4 +139,8 @@ public:
 	// vede perche' il file compila: se un giorno queste due parole smettono di essere la stessa, e' rotto.
 	/** Forma canonica di un tag: senza spazi ai bordi, minuscolo. `Aevik` e `gadget ` sono lo stesso filtro. */
 	static FString NormalizeTag(const FString& Tag);
+
+private:
+	/** Il corpo comune di `Scan` e `ScanAll`: legge ricorsivamente i `.json` sotto ogni radice data. */
+	static TArray<FRTScenarioEntry> ScanRoots(const TArray<FString>& Roots, TArray<FString>& OutProblems);
 };

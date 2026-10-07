@@ -174,6 +174,22 @@ public:
 	static FString ScenariosRoot();
 
 	/**
+	 * Radice degli scenari **del Lab**: `<Saved>/RTLab/Scenarios/`. Non versionata (`Saved/` e' in `.gitignore`).
+	 *
+	 * 🔑 La legge `URTScenarioIndex::ScanAll`, non `Scan`: i gate sul corpus misurano la sola radice
+	 * versionata, e un file stantio qui non deve farli rossi su una macchina e verdi su un'altra.
+	 */
+	static FString LabScenariosRoot();
+
+	/**
+	 * Sovrascrive `LabScenariosRoot()` per un test. Stringa vuota = nessun override.
+	 *
+	 * ⚠️ Chi la imposta la azzera con `ON_SCOPE_EXIT`: `Saved/RTLab` e' condiviso con l'Editor e non e'
+	 * un luogo di prova.
+	 */
+	static void SetLabScenariosRootOverrideForTest(const FString& Root);
+
+	/**
 	 * L'enum degli esiti che appartiene a una categoria del TurnLog: `ERTMoveOutcome` se `Move`,
 	 * `ERTEnvironmentOutcome` se `Environment`, e cosi' via. `nullptr` se la categoria non ne ha uno.
 	 *

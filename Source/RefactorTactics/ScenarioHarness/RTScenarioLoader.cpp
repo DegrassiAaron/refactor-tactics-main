@@ -711,6 +711,26 @@ FString URTScenarioLoader::ScenariosRoot()
 	return FPaths::Combine(FPaths::ProjectDir(), TEXT("Scenarios"));
 }
 
+namespace
+{
+	/** L'override di test della radice del Lab. Vuoto = la radice vera. */
+	FString GLabScenariosRootOverride;
+}
+
+FString URTScenarioLoader::LabScenariosRoot()
+{
+	if (!GLabScenariosRootOverride.IsEmpty())
+	{
+		return GLabScenariosRootOverride;
+	}
+	return FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("RTLab"), TEXT("Scenarios"));
+}
+
+void URTScenarioLoader::SetLabScenariosRootOverrideForTest(const FString& Root)
+{
+	GLabScenariosRootOverride = Root;
+}
+
 const UEnum* URTScenarioLoader::OutcomeEnumForCategory(ERTLogCategory Category)
 {
 	// ⚠️ **La mappa non vive piu' qui** (`#1427`, 2026-08-27): la corrispondenza categoria -> enum degli

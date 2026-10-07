@@ -123,11 +123,24 @@ TArray<FRTScenarioEntry> URTScenarioIndex::BuildFrom(const TArray<TPair<FString,
 
 TArray<FRTScenarioEntry> URTScenarioIndex::Scan(TArray<FString>& OutProblems)
 {
-	const FString Root = URTScenarioLoader::ScenariosRoot();
+	return ScanRoots({ URTScenarioLoader::ScenariosRoot() }, OutProblems);
+}
 
+TArray<FRTScenarioEntry> URTScenarioIndex::ScanAll(TArray<FString>& OutProblems)
+{
+	return ScanRoots({ URTScenarioLoader::ScenariosRoot(), URTScenarioLoader::LabScenariosRoot() }, OutProblems);
+}
+
+TArray<FRTScenarioEntry> URTScenarioIndex::ScanRoots(const TArray<FString>& Roots, TArray<FString>& OutProblems)
+{
 	TArray<FString> FoundFiles;
-	IFileManager::Get().FindFilesRecursive(FoundFiles, *Root, TEXT("*.json"),
-		/*Files=*/ true, /*Directories=*/ false);
+	for (const FString& Root : Roots)
+	{
+		// Una radice assente produce zero file e nessun errore: `FindFilesRecursive` non protesta.
+		// `bClearFileNames=false`: di default svuoterebbe `FoundFiles` a ogni radice successiva alla prima.
+		IFileManager::Get().FindFilesRecursive(FoundFiles, *Root, TEXT("*.json"),
+			/*Files=*/ true, /*Directories=*/ false, /*bClearFileNames=*/ false);
+	}
 
 	TArray<TPair<FString, FString>> Loaded;
 	TArray<FString> ReadProblems;
