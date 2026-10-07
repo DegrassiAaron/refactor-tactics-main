@@ -855,9 +855,9 @@ bool FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest::RunTest(const FString&)
 	TestFalse(TEXT("niente di niente: nessun Blast"),
 		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0));
 
-	// ⛔ **Il termine e' INDIPENDENTE, non un rinforzo degli altri tre.** Se qualcuno lo legasse a uno di
+	// ⛔ **Il termine e' INDIPENDENTE, non un rinforzo degli altri.** Se qualcuno lo legasse a uno di
 	// essi — "conta le strutture solo se ci sono impronte" — la prima asserzione cadrebbe e questa no.
-	TestTrue(TEXT("e non indebolisce le tre ragioni preesistenti"),
+	TestTrue(TEXT("e non indebolisce le ragioni preesistenti: colpi, spinta, impronte"),
 		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0, 0)
 		&& URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0, 0)
 		&& URTPlaybackLibrary::BlastPhaseIsActive(0, false, 1, 0, 0));

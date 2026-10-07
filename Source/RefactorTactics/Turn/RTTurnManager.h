@@ -647,6 +647,23 @@ public:
 	 */
 	int32 ResolvedEventCountOfTypeForTest(ERTResolvedEventType Type) const;
 
+	/** Le attivazioni nelle code di playback (Prep, Dash, e gli elementi `AbilityActivated` della sequenza), #3549. */
+	int32 PlaybackActivationsQueuedForTest() const;
+
+	/** L'indice di cella dell'anim di `Unit` nella fase di playback corrente; `INDEX_NONE` se non ne ha una (#3549). */
+	int32 PlaybackAnimCellIndexForTest(const ARTUnit* Unit) const;
+
+	/** Quanti elementi della sequenza di Blast sono gia' stati mostrati: il prefisso congelato di D-355 (#3549). */
+	int32 PlaybackBlastShownForTest() const { return BlastShown; }
+
+	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
+	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
+	{
+		TArray<int32> Out;
+		for (const FRTBlastSequenceElement& E : PlaybackBlastSequence) { Out.Add(E.TimelineIndex); }
+		return Out;
+	}
+
 	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
 	 *
@@ -2340,34 +2357,36 @@ protected:
 	void BeginPlayback(bool bPreserveClock = false);
 
 	/**
-	 * Porta a schermo le impronte fino a `UpTo`, in ordine di timeline — `#2454`.
-	 *
-	 * ⛔ **Non riordina e non aggrega.** Consuma `PlaybackFootprints` nell'ordine in cui il resolver le ha
-	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
-	 *
-	 * @return `true` se l'ultima impronta mostrata apre un ATTO NUOVO e il playback deve fermarsi li'
-	 *         (`#3292`). ⚠️ Si ferma **dopo** averla mostrata, come `#2855` prescrive: quelle che il tick
-	 *         avrebbe ancora rivelato restano per la ripresa.
+	 * Rivela le attivazioni fino a `UpTo`, in ordine di timeline; `true` se un confine d'atto ha messo in
+	 * pausa (#3549). ⚠️ Si ferma **dopo** aver mostrato il fatto, come `#2855` prescrive: quelle che il tick
+	 * avrebbe ancora rivelato restano per la ripresa.
 	 */
-	bool RevealPlaybackFootprints(int32 UpTo);
+	bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo);
 
 	/**
-	 * Rivela i primi `UpTo` colpi a struttura del Blast corrente, senza mai tornare indietro (`#2828`).
+	 * Rivela la sequenza di Blast fino a `UpTo`, un ramo per tipo; `true` se un confine ha messo in pausa (#3549).
 	 *
-	 * ⛔ **Non riordina, non aggrega e non ricalcola il bordo**: consuma `PlaybackStructureHits` nell'ordine
-	 * in cui il resolver li ha prodotti, e il bordo lo LEGGE dall'evento. Chiederlo alla mappa sarebbe la
-	 * seconda risposta a una domanda gia' risolta — ed e' il divieto che la issue scrive per intero.
-	 *
-	 * @return `true` se l'ultimo colpo mostrato apre un atto nuovo, come la gemella qui sopra (`#3292`).
+	 * ⛔ **Non riordina, non aggrega e non ricalcola**: l'ordine e' quello che `BuildBlastSequence` ha deciso, le
+	 * celle dell'impronta e il bordo del muro si LEGGONO dall'evento (`#2454`, `#2828`).
 	 */
-	bool RevealPlaybackStructureHits(int32 UpTo);
+	bool RevealBlastSequence(int32 UpTo);
+
+	/** Aggiorna l'atto in corso e consuma un `Next Action` armato: la regola e' `IsActBoundary` (#3292, #3549). */
+	bool NotePlaybackActShown(const FRTResolvedEvent& Ev);
+
+	/** Il colpo: riga `Colpo:`, ruoli `Attack`/`Hit`, token, broadcast — il corpo del vecchio ciclo dei colpi. */
+	void ShowPlaybackAttack(const FRTResolvedEvent& Atk);
+
+	/** Quanto la fase spende in attivazioni PRIMA delle rotte: solo il Dash ne ha (#3549, spec §2.4). */
+	float PlaybackActivationLeadSeconds(ERTMatchPhase InPhase) const;
 
 	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
 	 *
-	 * 🔑 **Esiste perche' i siti che la chiamano sono TRE**, uno per canale del `Blast`, e quattro righe
-	 * ripetute tre volte sono tre occasioni di dimenticarne una. ⚠️ `PlaybackStepTargetElapsed = -1` e'
-	 * quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
+	 * 🔑 **Esiste perche' i siti che la chiamano sono piu' d'uno** — `NotePlaybackActShown`, per ogni fatto che
+	 * il playback rivela, e il cambio di fase — e quattro righe ripetute sono altrettante occasioni di
+	 * dimenticarne una. ⏱️ *Fino a #3549 erano i tre canali del `Blast`.* ⚠️ `PlaybackStepTargetElapsed = -1`
+	 * e' quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
 	 */
 	void PausePlaybackAtActBoundary();
 
@@ -3325,28 +3344,29 @@ private:
 	TMap<int32, int32> BotIdleRound;
 
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
-	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
 
 	/**
-	 * Eventi `AttackFootprint`, rivelati nel Blast come i colpi — `#2454`.
-	 *
-	 * 🔴 **Array proprio e non fuso con `PlaybackAttacks`**, perche' i due contano cose diverse:
-	 * `ResolveCombatPasses` emette un `Attack` per **vittima** e un'impronta per **intento**. Fonderli
-	 * perderebbe proprio il caso che `D-301` esiste per far esistere — l'area su sole celle vuote, che ha
-	 * un'impronta e zero colpi.
+	 * Le attivazioni VISIBILI di Prep e di Dash, in ordine di timeline (#3549, spec §2.4). Una sorgente che
+	 * chi guarda non ha il diritto di vedere non entra: tutto o niente (D6).
 	 */
-	TArray<FRTResolvedEvent> PlaybackFootprints;
+	TArray<FRTResolvedEvent> PlaybackActivationsPrep;
+	TArray<FRTResolvedEvent> PlaybackActivationsDash;
 
 	/**
-	 * I colpi alle STRUTTURE del Blast corrente, in ordine di risoluzione (`#2828`).
+	 * Il Blast come UNA sequenza per intento (#3549, D5): attivazione, impronte, muri, colpi, un atto dopo
+	 * l'altro. 🔴 Sostituisce i canali paralleli di prima (colpi, impronte da #2454, muri da #2828), che si
+	 * svelavano con contatori indipendenti: «l'attivazione precede il colpo dello stesso intento» non
+	 * discendeva dall'ordine delle code. La costruisce `URTPlaybackLibrary::BuildBlastSequence`.
 	 *
-	 * 🔴 **Array proprio, per la stessa ragione di `PlaybackFootprints` e un passo piu' in la'.** Un
-	 * `Attack` ha per soggetto un'unita'; questo ha per soggetto un **bordo**, che non ha uno
-	 * `StableUnitId` da mettere in `TargetStableUnitId`. Fonderli costringerebbe chi consuma a chiedere a
-	 * ogni evento «sei un'unita' o un muro?», che e' la logica nella presentazione che [D-278] vieta.
+	 * ⚠️ **Un elemento e' un indice di timeline, e il tipo lo DICHIARA l'evento.** `RevealBlastSequence` sceglie
+	 * la cue per `Type` — un `Attack` per VITTIMA, un'impronta per INTENTO ([D-301]: l'area su sole celle vuote
+	 * ha un'impronta e zero colpi), un muro per BORDO — e non chiede mai a un colpo se sia un muro: e' la logica
+	 * nella presentazione che [D-278] vieta, e la ragione per cui i muri avevano un array proprio.
+	 * ⚠️ **Non si azzera in `BeginPlayback`**: estendendo (D-355) e' il `Previous` della ricostruzione. La
+	 * svuota `FinishPlayback`.
 	 */
-	TArray<FRTResolvedEvent> PlaybackStructureHits;
+	TArray<FRTBlastSequenceElement> PlaybackBlastSequence;
 
 	/**
 	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
@@ -3378,9 +3398,8 @@ private:
 	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
-	int32 AttacksShown = 0;                 // colpi gia' rivelati nel Blast corrente
-	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
-	int32 StructureHitsShown = 0;           // colpi a struttura gia' rivelati nel Blast corrente (`#2828`)
+	int32 ActivationsShown = 0;             // attivazioni gia' rivelate nella fase corrente (Prep o Dash), #3549
+	int32 BlastShown = 0;                   // elementi della sequenza di Blast gia' rivelati; prefisso congelato di D-355
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.
@@ -3405,11 +3424,15 @@ private:
 	 */
 	FName PlaybackStopFromAction;
 
-	/** La sorgente dell'atto in corso all'armamento: con `PlaybackStopFromAction` e' la COPPIA del confine (#3549). */
+	/**
+	 * La sorgente dell'atto in corso all'armamento: con `PlaybackStopFromAction` e' la COPPIA del confine (#3549).
+	 * ⚠️ `0` = nessuna sorgente: e' la sentinella dello STATO, diversa dal default `-1` di
+	 * `URTPlaybackLibrary::IsActBoundary`, che significa «sorgente non dichiarata» e riporta il criterio storico.
+	 */
 	int32 PlaybackStopFromSource = 0;
 
 	/**
-	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque canale del `Blast` — `#3292`.
+	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque fase e da qualunque tipo — `#3292`, `#3549`.
 	 *
 	 * 🔴 **Esiste perche' l'atto in corso si leggeva da un canale solo, ed era la terza faccia dello stesso
 	 * difetto.** `RequestPlaybackStopAt` congelava `PlaybackAttacks[AttacksShown - 1]`: ∴ dopo essersi
@@ -3417,7 +3440,8 @@ private:
 	 * dello stesso intento che seguiva sembrava aprire un atto nuovo. Due fermate dentro un intento solo,
 	 * che e' precisamente cio' che `#3292` esclude.
 	 *
-	 * ⚠️ **Lo aggiornano i tre canali quando mostrano un fatto con un'azione**, e **solo** allora: un
+	 * ⚠️ **Lo aggiorna `NotePlaybackActShown` quando si mostra un fatto con un'azione** — attivazioni di Prep e
+	 * Dash, elementi della sequenza di Blast (#3549; ⏱️ *prima i tre canali del Blast*) — e **solo** allora: un
 	 * `NAME_None` non cambia l'atto in corso. E' la stessa scelta della scansione all'indietro di
 	 * `NextActionBoundary`, che salta i vuoti invece di lasciarsene azzerare.
 	 *
@@ -3427,7 +3451,10 @@ private:
 	 */
 	FName PlaybackLastShownAction;
 
-	/** La sorgente dell'ultimo fatto MOSTRATO con un'azione: con `PlaybackLastShownAction` e' l'atto in corso (#3549). */
+	/**
+	 * La sorgente dell'ultimo fatto MOSTRATO con un'azione: con `PlaybackLastShownAction` e' l'atto in corso (#3549).
+	 * ⚠️ `0` = nessuna sorgente, sentinella dello stato, diversa dal default `-1` della funzione (`IsActBoundary`).
+	 */
 	int32 PlaybackLastShownSource = 0;
 
 	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.

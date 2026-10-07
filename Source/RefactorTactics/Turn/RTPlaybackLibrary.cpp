@@ -61,8 +61,8 @@ float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegmen
 	// ⚠️ **Gli zeri (muri, impronte, attivazioni) sono dichiarati, nessuno e' una dimenticanza**: questo wrapper non conosce ne i colpi a struttura
 	// (`#2828`), ne le impronte (`#3278`), ne le attivazioni (#3549). Passa `NumActivations = 0` e usa i soli
 	// colpi come sequenza, quindi su un `Blast` la durata restituita e' SOTTOSTIMATA. ⛔ Chi dimensiona il
-	// playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime`. ⏱️ *Oggi con la SOMMA
-	// provvisoria dei canali; la sequenza intera arriva col Task 7 di #3549.*
+	// playback vero non passa di qui — `PhaseTimeForPlaybackPhase` chiama `PhaseTime` con le attivazioni e la
+	// lunghezza della sequenza di Blast (#3549).
 	// Questa forma sopravvive per i gate di pacing sulle fasi classiche. ⏱️ *Fino a #3549 diceva «DUE zeri».*
 	return PhaseTime(Phase, MaxMoveSegments, /*NumActivations=*/ 0, /*NumSequenceElements=*/ NumAttacks,
 		CellsPerSecond, AttackShowSeconds, PhaseBeatSeconds).Total();
@@ -297,6 +297,10 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	// ⚠️ `FromIndex` negativo significa «prima dell'inizio»: nessun atto in corso, e il primo evento con
 	// un'azione e' gia' un confine. `Min(FromIndex, Fine - 1)` tiene la scansione dentro l'array anche
 	// quando l'indice arriva oltre la fine, e su timeline vuota il ciclo non parte.
+	//
+	// 🔑 **L'atto in corso e' la COPPIA `(Corrente, SorgenteCorrente)`** (#3549): la stessa scansione legge azione
+	// e sorgente dallo stesso evento. ⚠️ `SorgenteCorrente = 0` significa «nessuna sorgente», la sentinella di
+	// questo stato — diversa dal default `-1` di `IsActBoundary`, che vorrebbe dire «sorgente non dichiarata».
 	FName Corrente = NAME_None;
 	int32 SorgenteCorrente = 0;
 	for (int32 i = FMath::Min(FromIndex, Fine - 1); i >= 0; --i)

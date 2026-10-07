@@ -495,9 +495,10 @@ public:
 	 * si ferma su un atto che non esiste e' meno leggibile di uno che ne salta uno — ed e' il motivo per cui
 	 * il caso a una azione sola ha un gate suo (`Playback.SingleActionStructureHitNamesItsAction`).
 	 *
-	 * ⚠️ **Piu' eventi con lo stesso `ActionId` sono UN atto**, ed e' voluto: un'area che colpisce tre
-	 * bersagli emette tre `Attack` per un solo intento, e fermarsi tre volte sarebbe il difetto che
-	 * `AttackFootprint` documenta gia' («una voce per INTENTO, non per vittima»).
+	 * ⚠️ **Piu' eventi con la stessa coppia `(sorgente, azione)` sono UN atto** (#3549; ⏱️ *prima «lo stesso
+	 * `ActionId`»*), ed e' voluto: un'area che colpisce piu' bersagli emette un `Attack` per vittima per un solo
+	 * intento, e fermarsi su ciascuno sarebbe il difetto che `AttackFootprint` documenta gia' («una voce per
+	 * INTENTO, non per vittima»).
 	 *
 	 * ✅ **Il limite noto di #2855 e' chiuso** (#3549): due unita' con la stessa azione generica sono due atti,
 	 * perche' l'atto in corso e' la coppia `(SourceStableUnitId, ActionId)` dell'ultimo evento con un'azione.
@@ -515,8 +516,9 @@ public:
 	 * seconda»*: diceva il vero sull'intenzione e il falso sul codice. Due copie divergono alla prima
 	 * modifica di una sola — e qui una delle due non era nemmeno eseguita.
 	 *
-	 * ∴ ora `NextActionBoundary` **chiama questa**, e i tre canali del `Blast` pure. Una modifica alla
-	 * regola si scrive una volta.
+	 * ∴ ora `NextActionBoundary` **chiama questa**, e il playback pure: `ARTTurnManager::NotePlaybackActShown`,
+	 * per ogni fatto che rivela — attivazioni di Prep e Dash, elementi della sequenza di Blast (#3549). ⏱️ *Fino
+	 * a #3549 i chiamanti erano i tre canali paralleli del `Blast`.* Una modifica alla regola si scrive una volta.
 	 *
 	 * 🔑 **Il criterio e' la coppia `(SourceStableUnitId, ActionId)`** (#3549, `Ruling` della spec «il
 	 * momento» §2.4). ⏱️ *Fino a #3549 era l'`ActionId` da solo, come #2855 lo scriveva.* Un evento e' un confine
