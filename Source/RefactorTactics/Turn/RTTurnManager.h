@@ -3405,6 +3405,9 @@ private:
 	 */
 	FName PlaybackStopFromAction;
 
+	/** La sorgente dell'atto in corso all'armamento: con `PlaybackStopFromAction` e' la COPPIA del confine (#3549). */
+	int32 PlaybackStopFromSource = 0;
+
 	/**
 	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque canale del `Blast` — `#3292`.
 	 *
@@ -3423,6 +3426,9 @@ private:
 	 * bersaglio, che e' il difetto che il congelamento esiste per evitare.
 	 */
 	FName PlaybackLastShownAction;
+
+	/** La sorgente dell'ultimo fatto MOSTRATO con un'azione: con `PlaybackLastShownAction` e' l'atto in corso (#3549). */
+	int32 PlaybackLastShownSource = 0;
 
 	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.
 	FVector PBOrigin = FVector::ZeroVector;

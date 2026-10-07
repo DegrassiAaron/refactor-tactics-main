@@ -701,11 +701,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActBoundaryRuleHasOneImplementationT
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackActBoundaryRuleHasOneImplementationTest::RunTest(const FString&)
 {
-	auto Evento = [](ERTResolvedEventType Type, const TCHAR* Azione)
+	auto Evento = [](ERTResolvedEventType Type, const TCHAR* Azione, int32 Sorgente = 0)
 	{
 		FRTResolvedEvent Ev;
 		Ev.Type = Type;
 		Ev.ActionId = (Azione != nullptr) ? FName(Azione) : NAME_None;
+		Ev.SourceStableUnitId = Sorgente;
 		return Ev;
 	};
 
@@ -719,6 +720,8 @@ bool FRTPlaybackActBoundaryRuleHasOneImplementationTest::RunTest(const FString&)
 	Timeline.Add(Evento(ERTResolvedEventType::Attack,          TEXT("Action.B"))); // atto nuovo
 	Timeline.Add(Evento(ERTResolvedEventType::StructureHit,    TEXT("Action.B"))); // stesso atto
 	Timeline.Add(Evento(ERTResolvedEventType::ArcHit,          nullptr));          // vuoto: NON un confine
+	Timeline.Add(Evento(ERTResolvedEventType::AbilityActivated, TEXT("Action.Heal"), 1)); // atto nuovo
+	Timeline.Add(Evento(ERTResolvedEventType::AbilityActivated, TEXT("Action.Heal"), 2)); // #3549: altra sorgente = confine
 
 	// ⛔ ANTI-VACUITA': i due rami devono essere entrambi esercitati, o il confronto sarebbe fra due
 	// risposte sempre uguali per costruzione.
@@ -729,12 +732,18 @@ bool FRTPlaybackActBoundaryRuleHasOneImplementationTest::RunTest(const FString&)
 	{
 		// L'atto in corso a `i-1`, con la stessa scansione all'indietro di `NextActionBoundary`.
 		FName Corrente = NAME_None;
+		int32 SorgenteCorrente = 0;
 		for (int32 k = i - 1; k >= 0; --k)
 		{
-			if (!Timeline[k].ActionId.IsNone()) { Corrente = Timeline[k].ActionId; break; }
+			if (!Timeline[k].ActionId.IsNone())
+			{
+				Corrente = Timeline[k].ActionId;
+				SorgenteCorrente = Timeline[k].SourceStableUnitId;
+				break;
+			}
 		}
 
-		const bool bPredicato = URTPlaybackLibrary::IsActBoundary(Timeline[i], Corrente);
+		const bool bPredicato = URTPlaybackLibrary::IsActBoundary(Timeline[i], Corrente, SorgenteCorrente);
 		const bool bVista = (URTPlaybackLibrary::NextActionBoundary(Timeline, i - 1) == i);
 		if (bPredicato) { ++Confini; } else { ++NonConfini; }
 

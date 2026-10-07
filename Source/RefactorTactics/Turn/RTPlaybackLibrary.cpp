@@ -296,11 +296,13 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	// un'azione e' gia' un confine. `Min(FromIndex, Fine - 1)` tiene la scansione dentro l'array anche
 	// quando l'indice arriva oltre la fine, e su timeline vuota il ciclo non parte.
 	FName Corrente = NAME_None;
+	int32 SorgenteCorrente = 0;
 	for (int32 i = FMath::Min(FromIndex, Fine - 1); i >= 0; --i)
 	{
 		if (!Timeline[i].ActionId.IsNone())
 		{
 			Corrente = Timeline[i].ActionId;
+			SorgenteCorrente = Timeline[i].SourceStableUnitId;
 			break;
 		}
 	}
@@ -310,7 +312,7 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 		// 🔑 **La regola NON si riscrive qui**: e' `IsActBoundary`, e da `#3292` ha un solo posto. Questa
 		// funzione e' la sua vista su una timeline — decide COSA sia l'atto in corso (la scansione
 		// all'indietro qui sopra) e delega il resto.
-		if (IsActBoundary(Timeline[i], Corrente))
+		if (IsActBoundary(Timeline[i], Corrente, SorgenteCorrente))
 		{
 			return i;
 		}
@@ -321,7 +323,7 @@ int32 URTPlaybackLibrary::NextActionBoundary(const TArray<FRTResolvedEvent>& Tim
 	return Fine;
 }
 
-bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction)
+bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction, int32 CurrentSource)
 {
 	// 🔴 **`StructureHit` senza azione E' un confine, e su nessun altro tipo lo e'** — `#3281`, [D-437].
 	// Su questo tipo `NAME_None` non significa *«nessuna azione dietro»*: significa **«piu' di uno l'ha
@@ -336,10 +338,14 @@ bool URTPlaybackLibrary::IsActBoundary(const FRTResolvedEvent& Event, FName Curr
 		return Event.Type == ERTResolvedEventType::StructureHit;
 	}
 
-	// ⚠️ **Piu' eventi con lo stesso `ActionId` sono UN atto**, ed e' la riga che risolve il caso
-	// dell'impronta: impronta e colpi nascono dallo stesso intento, quindi portano la stessa azione e non
+	// ⚠️ **Piu' eventi con la stessa coppia `(sorgente, azione)` sono UN atto**, ed e' la riga che risolve il
+	// caso dell'impronta: impronta e colpi nascono dallo stesso intento, quindi portano la stessa coppia e non
 	// fanno fermare due volte. Stessa ragione per cui un'area su tre bersagli e' un atto solo.
-	return Event.ActionId != CurrentAction;
+	//
+	// #3549: la COPPIA. Stessa azione da un'altra unita' e' un altro atto (spec «il momento» §2.4).
+	// `INDEX_NONE` = sorgente non dichiarata (il default per i nodi Blueprint): il criterio storico.
+	return Event.ActionId != CurrentAction
+		|| (CurrentSource != INDEX_NONE && Event.SourceStableUnitId != CurrentSource);
 }
 
 namespace

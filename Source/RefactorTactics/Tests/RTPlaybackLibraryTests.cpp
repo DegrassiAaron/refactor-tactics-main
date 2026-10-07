@@ -1403,4 +1403,31 @@ bool FRTPlaybackPhaseTimeCountsActivationsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Due unita' con la stessa azione generica sono DUE atti — `Ruling` di spec §2.4 (#3549).
+ * ⏱️ *Era il «limite noto» di #2855: il criterio guardava l'`ActionId` da solo.*
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActBoundaryDistinguishesSourceTest,
+	"RefactorTactics.Playback.ActBoundaryDistinguishesTheSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActBoundaryDistinguishesSourceTest::RunTest(const FString&)
+{
+	FRTResolvedEvent CuraDiDue = SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("Action.Heal"));
+	TestTrue(TEXT("🔴 stessa azione, sorgente diversa: confine"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Heal")), /*CurrentSource*/ 1));
+	TestFalse(TEXT("stessa azione, stessa sorgente: stesso atto"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Heal")), /*CurrentSource*/ 2));
+	TestTrue(TEXT("azione diversa: confine, come prima"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Shield")), 2));
+	// ⚠️ Il default `INDEX_NONE` e' il criterio STORICO, per i nodi Blueprint che non passano la sorgente.
+	TestFalse(TEXT("senza sorgente (default): solo l'ActionId, come prima di #3549"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Heal"))));
+
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal")));
+	T.Add(CuraDiDue);
+	TestEqual(TEXT("NextActionBoundary si ferma sulla seconda cura"), URTPlaybackLibrary::NextActionBoundary(T, 0), 1);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -494,12 +494,8 @@ public:
 	 * bersagli emette tre `Attack` per un solo intento, e fermarsi tre volte sarebbe il difetto che
 	 * `AttackFootprint` documenta gia' («una voce per INTENTO, non per vittima»).
 	 *
-	 * 🔴 **Limite noto, dichiarato e non aggirato**: il criterio e' l'`ActionId` **da solo**, come `#2855`
-	 * lo scrive. Ne segue che due unita' diverse che nello stesso `Blast` usano la **stessa** azione
-	 * (`Action.BasicAttack` per entrambe) producono eventi che questa funzione legge come **un** atto, e
-	 * `Next Action` salta il secondo attaccante. Distinguerli chiederebbe la coppia
-	 * `(ActionId, SourceStableUnitId)` — cioe' un criterio diverso da quello che l'issue fissa, e va
-	 * deciso li' invece che allargato qui.
+	 * ✅ **Il limite noto di #2855 e' chiuso** (#3549): due unita' con la stessa azione generica sono due atti,
+	 * perche' l'atto in corso e' la coppia `(SourceStableUnitId, ActionId)` dell'ultimo evento con un'azione.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static int32 NextActionBoundary(const TArray<FRTResolvedEvent>& Timeline, int32 FromIndex);
@@ -517,10 +513,12 @@ public:
 	 * ∴ ora `NextActionBoundary` **chiama questa**, e i tre canali del `Blast` pure. Una modifica alla
 	 * regola si scrive una volta.
 	 *
-	 * 🔑 **Il criterio resta quello di `#2855`: l'`ActionId` da solo.** Un evento e' un confine quando porta
-	 * un'azione **diversa** da quella in corso. Piu' eventi con lo stesso `ActionId` sono **un** atto, e
-	 * questo e' cio' che risolve il caso dell'impronta: un'impronta e i colpi che la seguono nascono dallo
-	 * stesso intento, quindi portano lo stesso `ActionId` e **non** fanno fermare due volte.
+	 * 🔑 **Il criterio e' la coppia `(SourceStableUnitId, ActionId)`** (#3549, `Ruling` della spec «il
+	 * momento» §2.4). ⏱️ *Fino a #3549 era l'`ActionId` da solo, come #2855 lo scriveva.* Un evento e' un confine
+	 * quando porta un'azione diversa da quella in corso **o** la porta un'altra unita': due cure consecutive da
+	 * due unita' sono due atti. Piu' eventi con la stessa coppia sono **un** atto — impronta e colpi dello
+	 * stesso intento non fanno fermare due volte: nascono dallo stesso intento, quindi portano la stessa
+	 * coppia.
 	 *
 	 * ⚠️ **L'eccezione di `StructureHit`, decisa da `#3281`** ([D-437]): li' `NAME_None` non significa
 	 * *«nessuna azione dietro»* ma *«piu' di uno l'ha fatto»* — il produttore nomina l'azione quando
@@ -532,7 +530,14 @@ public:
 	 *
 	 * ⚠️ **Non dice se l'atto in corso vada AGGIORNATO**: e' una domanda di chi chiama. `NextActionBoundary`
 	 * la risolve scandendo all'indietro; il playback tenendo l'ultima azione mostrata.
+	 *
+	 * ⚠️ **`CurrentSource` e' IN CODA e vale `INDEX_NONE` per default** (#3549): un nodo Blueprint scritto prima
+	 * di #3549 continua a compilare e ottiene il criterio storico, l'`ActionId` da solo. Ogni chiamante C++
+	 * passa la sorgente.
+	 *
+	 * ⛔ Il default e' scritto `-1` e non `INDEX_NONE`: UHT non risolve la macro in un default di `UFUNCTION`
+	 * («Default parameter not parsed»). Sono lo stesso valore, e il corpo confronta con `INDEX_NONE`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static bool IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction);
+	static bool IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction, int32 CurrentSource = -1);
 };

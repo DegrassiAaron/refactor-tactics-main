@@ -8002,6 +8002,7 @@ void ARTTurnManager::PausePlaybackAtActBoundary()
 {
 	PlaybackStopAt = ERTPlaybackStopAt::None;
 	PlaybackStopFromAction = NAME_None;
+	PlaybackStopFromSource = 0;
 	bPlaybackPaused = true;
 	PlaybackStepTargetElapsed = -1.f;
 }
@@ -8048,9 +8049,13 @@ bool ARTTurnManager::RevealPlaybackFootprints(int32 UpTo)
 		//
 		// ⚠️ L'atto in corso si aggiorna **solo** su un'azione vera: un `NAME_None` non lo azzera, come
 		// nella scansione all'indietro di `NextActionBoundary`.
-		if (!Footprint.ActionId.IsNone()) { PlaybackLastShownAction = Footprint.ActionId; }
+		if (!Footprint.ActionId.IsNone())
+		{
+			PlaybackLastShownAction = Footprint.ActionId;
+			PlaybackLastShownSource = Footprint.SourceStableUnitId;
+		}
 		if (PlaybackStopAt == ERTPlaybackStopAt::NextAction
-			&& URTPlaybackLibrary::IsActBoundary(Footprint, PlaybackStopFromAction))
+			&& URTPlaybackLibrary::IsActBoundary(Footprint, PlaybackStopFromAction, PlaybackStopFromSource))
 		{
 			PausePlaybackAtActBoundary();
 			return true; // le impronte che questo tick avrebbe ancora rivelato restano per la ripresa
@@ -8089,9 +8094,13 @@ bool ARTTurnManager::RevealPlaybackStructureHits(int32 UpTo)
 		// tempo, e che `Next Action` attraversava senza vedere.
 		// ⚠️ Qui un `NAME_None` **e'** un confine ([D-437]), e non aggiorna l'atto in corso: l'aggregato ha
 		// piu' autori, quindi non ce n'e' uno a cui l'atto possa passare.
-		if (!Colpo.ActionId.IsNone()) { PlaybackLastShownAction = Colpo.ActionId; }
+		if (!Colpo.ActionId.IsNone())
+		{
+			PlaybackLastShownAction = Colpo.ActionId;
+			PlaybackLastShownSource = Colpo.SourceStableUnitId;
+		}
 		if (PlaybackStopAt == ERTPlaybackStopAt::NextAction
-			&& URTPlaybackLibrary::IsActBoundary(Colpo, PlaybackStopFromAction))
+			&& URTPlaybackLibrary::IsActBoundary(Colpo, PlaybackStopFromAction, PlaybackStopFromSource))
 		{
 			PausePlaybackAtActBoundary();
 			return true;
@@ -8117,6 +8126,7 @@ void ARTTurnManager::EnterPlaybackPhase()
 	// ⚠️ Entrando in una fase nessun atto e' ancora passato, quindi il primo fatto che esce e' gia' un
 	// confine — la stessa semantica che `NextActionBoundary` da' a un indice negativo.
 	PlaybackLastShownAction = NAME_None;
+	PlaybackLastShownSource = 0;
 	const ERTMatchPhase Ph = PlaybackPhases[PlaybackPhaseIdx];
 	AddLogEvent(FString::Printf(TEXT("Playback fase: %s"), *GetPlaybackPhaseName()), FRTLogSubject::World());
 	OnPhasePlaybackStarted.Broadcast(Ph);
@@ -8174,6 +8184,7 @@ void ARTTurnManager::SetPlaybackControlsEnabled(bool bEnabled)
 		// stessa partita bloccata da un flag che le due righe qui sopra esistono per evitare.
 		PlaybackStopAt = ERTPlaybackStopAt::None;
 		PlaybackStopFromAction = NAME_None;
+		PlaybackStopFromSource = 0;
 		// `#2858`: e cade anche la politica di partire in pausa. Sopravvivendo, il prossimo playback
 		// nascerebbe fermo in una sessione che non ha piu' il comando per riprenderlo — la stessa partita
 		// bloccata da un flag, per una terza via.
@@ -8256,6 +8267,7 @@ void ARTTurnManager::RequestPlaybackStopAt(ERTPlaybackStopAt Boundary)
 	if (Boundary == ERTPlaybackStopAt::None)
 	{
 		PlaybackStopFromAction = NAME_None;
+		PlaybackStopFromSource = 0;
 		return;
 	}
 
@@ -8271,6 +8283,7 @@ void ARTTurnManager::RequestPlaybackStopAt(ERTPlaybackStopAt Boundary)
 	// possibile a *«qual e' l'atto in corso»* quando i canali hanno contatori indipendenti: non esiste un
 	// indice comune da cui leggerlo all'indietro.
 	PlaybackStopFromAction = PlaybackLastShownAction;
+	PlaybackStopFromSource = PlaybackLastShownSource;
 
 	// 🔑 **Si riparte, ma solo fino al confine — la stessa forma di `StepMicroStep`.** E' lo stesso gesto a
 	// una granularita' diversa: *«portami al prossimo X e fermati li'»*. Chi lo preme lo preme quasi sempre
@@ -8619,9 +8632,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			// tick lascia la fase dov'e'; la finalizzazione la fara' il primo tick dopo la ripresa, che
 			// trova `PlaybackPhaseElapsed` ancora oltre la durata.
 			// ⚠️ L'atto in corso segue la riproduzione da TUTTI i canali (`#3292`), non dai soli colpi.
-			if (!Atk.ActionId.IsNone()) { PlaybackLastShownAction = Atk.ActionId; }
+			if (!Atk.ActionId.IsNone())
+			{
+				PlaybackLastShownAction = Atk.ActionId;
+				PlaybackLastShownSource = Atk.SourceStableUnitId;
+			}
 			if (PlaybackStopAt == ERTPlaybackStopAt::NextAction
-				&& URTPlaybackLibrary::IsActBoundary(Atk, PlaybackStopFromAction))
+				&& URTPlaybackLibrary::IsActBoundary(Atk, PlaybackStopFromAction, PlaybackStopFromSource))
 			{
 				PausePlaybackAtActBoundary();
 				return; // i colpi che questo tick avrebbe ancora rivelato restano per la ripresa
@@ -8795,7 +8812,9 @@ void ARTTurnManager::FinishPlayback()
 	// della finestra e mai ancora servito.
 	PlaybackStopAt = ERTPlaybackStopAt::None;
 	PlaybackStopFromAction = NAME_None;
+	PlaybackStopFromSource = 0;
 	PlaybackLastShownAction = NAME_None; // `#3292`: nemmeno l'atto in corso sopravvive al turno
+	PlaybackLastShownSource = 0; // #3549: la coppia si azzera insieme
 
 	// 🔴 **E la PAUSA non sopravvive al turno, per la stessa ragione e per una via che `#2858` apre**
 	// (rischio dichiarato in quella issue). `TickPlayback` esce prima di toccare qualunque cosa quando e'
