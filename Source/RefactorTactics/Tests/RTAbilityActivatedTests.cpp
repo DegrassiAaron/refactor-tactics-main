@@ -557,8 +557,8 @@ bool FRTTurnBlastActivatesAllFourSourcesTest::RunTest(const FString&)
 		Curatore->PlannedAbilityIndex = Cura;
 		Curatore->PlannedAttackTarget = Ferito;
 		Curatore->PlannedCell = Curatore->Cell;
-		// Nel secondo giro la cura e' SENZA EFFETTO: `Amount <= 0` e' il ramo `NoEffect` di
-		// il controllo di `Amount` in `CollectHealActions`. E' partita (spesa da `MarkAbilitySpent`), quindi si attiva lo stesso (decisione (c)).
+		// Nel secondo giro la cura e' SENZA EFFETTO (`Amount <= 0`, il ramo `NoEffect` di `CollectHealActions`):
+		// e' partita, spesa da `MarkAbilitySpent`, quindi si attiva lo stesso (decisione (c)).
 		if (!bArcoInPortata)
 		{
 			for (FRTActionEffectSpec& Spec : Curatore->Abilities[Cura]->Def.Effects)
@@ -863,6 +863,75 @@ bool FRTTurnInterruptedOrDeadDoesNotActivateTest::RunTest(const FString&)
 		}
 		TestEqual(TEXT("🔴 fuori portata: nessuna attivazione"), AttivazioniDi(TM, Lontano), 0);
 	}
+	return true;
+}
+
+/**
+ * Un intento di un'abilita' LEGACY, senza `ActionId`, non si attiva — e non fa scattare l'`ensureMsgf` dell'helper.
+ *
+ * `CollectAttackIntents` ammette abilita' senza `ActionId` (`Instance.Def.ActionId.IsNone()` e' un caso
+ * previsto li'), e `ARTUnit::EnsureDefaultAbilities` ne crea tre — «Attacco», «Colpo pesante», «Ultimate» — con
+ * `MakeAbility`. D1 dice «ogni intento CON un `ActionId`»: senza la guardia in `EmitAttackIntentActivations`
+ * l'helper emetterebbe un `ensureMsgf` per ogni colpo di un archetipo legacy.
+ * ⛔ **Anti-vacuita'**: la premessa e' che il colpo AVVENGA (un `Attack` in timeline) e che l'abilita' sia
+ * davvero senza `ActionId`; «zero attivazioni» da solo sarebbe vero anche se l'intento non esistesse.
+ * ✅ Validato per mutazione: togliere la guardia `ActionId.IsNone()` fa scattare l'ensure e cadere il test.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTTurnLegacyIntentWithoutActionIdTest,
+	"RefactorTactics.Turn.LegacyIntentWithoutActionIdDoesNotActivate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTTurnLegacyIntentWithoutActionIdTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	SpawnAttivazioneMap(World);
+
+	// Un'unita' SENZA eroe: e' `BeginPlay` -> `EnsureDefaultAbilities` a darle il kit legacy. `DispatchBeginPlay`
+	// non e' decorativo: senza, `Abilities` resta vuoto e il test non avrebbe nessuna abilita' da pianificare.
+	ARTUnit* Legacy = World->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+	if (!TestNotNull(TEXT("unita' legacy"), Legacy)) { return false; }
+	Legacy->TeamId = 0;
+	Legacy->bIsBotControlled = false;
+	UGameplayStatics::FinishSpawningActor(Legacy, FTransform::Identity);
+	Legacy->DispatchBeginPlay();
+	Legacy->PlaceOnCell(FRTCellId(0, 0), FVector::ZeroVector, 100.f, /*LayerHeight=*/ 250.f);
+	ARTUnit* Bersaglio = SpawnAttivazioneUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 0));
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TM || !Bersaglio) { return false; }
+
+	const URTActionData* Attacco = Legacy->GetAbility(0);
+	if (!TestTrue(TEXT("premessa: l'abilita' legacy esiste, e non porta un ActionId"),
+		Attacco != nullptr && Attacco->Def.ActionId.IsNone()))
+	{
+		return false;
+	}
+	if (!TestTrue(TEXT("premessa: il bersaglio e' in portata"),
+		URTHexLibrary::HexDistance(Legacy->Cell, Bersaglio->Cell) <= Attacco->RangeCells))
+	{
+		return false;
+	}
+	// ⚠️ **Il colpo va ABILITATO a mano**: `MakeAbility` lascia `Def.bCountsAsAttack` a `false`, e
+	// `CollectHexAttacks` scarta un intento che non conta come attacco — l'abilita' legacy cosi' com'e' produce
+	// l'intento ma nessun `Attack`, quindi un asserto sul colpo sarebbe impossibile e uno sul solo conteggio
+	// delle attivazioni vacuo. Con il flag acceso l'intento ha un colpo osservabile e continua a non avere
+	// `ActionId`: e' proprio la combinazione che la guardia deve tenere fuori dall'helper.
+	Legacy->Abilities[0]->Def.bCountsAsAttack = true;
+	Legacy->PlannedAbilityIndex = 0;
+	Legacy->PlannedAttackTarget = Bersaglio;
+	Legacy->PlannedCell = Legacy->Cell;
+
+	TM->LockInAndResolve();
+
+	int32 Colpi = 0, Attivazioni = 0;
+	for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+	{
+		if (Ev.SourceStableUnitId != Legacy->StableUnitId) { continue; }
+		if (Ev.Type == ERTResolvedEventType::Attack) { ++Colpi; }
+		if (Ev.Type == ERTResolvedEventType::AbilityActivated) { ++Attivazioni; }
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il colpo legacy e' avvenuto (un Attack in timeline)"), Colpi >= 1)) { return false; }
+	TestEqual(TEXT("🔴 un intento senza ActionId non si attiva"), Attivazioni, 0);
 	return true;
 }
 

@@ -1766,7 +1766,11 @@ protected:
 	/**
 	 * Un `AbilityActivated` per ogni intento d'attacco ACCETTATO, in ordine di `IntentIndex` (#3549, spec §2.2
 	 * punto 4). Esclusi: gli impatti di carica (`IntentAbilityIndex == INDEX_NONE`, gia' attivati nel Dash),
-	 * gli interrotti (`Ctx.InterruptedIntents`), chi e' morto prima del Blast. Inclusi: i degradati ([D-300])
+	 * gli interrotti (`Ctx.InterruptedIntents`), chi e' morto prima del Blast, le azioni la cui fase di catalogo
+	 * e' `Move` (`Action.Wait`, `Action.Sprint`, `Action.Withdraw`: passano da `CollectAttackIntents` come
+	 * intenti a danno zero, ma non sono un gesto di Blast) e le abilita' legacy senza `ActionId`
+	 * (`EnsureDefaultAbilities`: non c'e' nulla da nominare, e l'`ensureMsgf` dell'helper e' per i siti che
+	 * leggono dal catalogo). Inclusi: i degradati ([D-300])
 	 * e i bloccati da linea di tiro o senza mappa (`NoLineOfSight`, `NoMap`, `UnverifiableIntents`): entrano in
 	 * `Ctx.Intents`, e l'attivazione racconta il gesto.
 	 *

@@ -6663,6 +6663,16 @@ void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
 		{
 			continue;
 		}
+		// ⛔ **Un'abilita' legacy non ha un `ActionId`, e non si attiva** (spec D1: «ogni intento CON un
+		// `ActionId`»). `CollectAttackIntents` la ammette di proposito (`Instance.Def.ActionId.IsNone()` e' un caso
+		// previsto li'), e `EnsureDefaultAbilities`/`MakeAbility` ne creano tre — «Attacco», «Colpo pesante»,
+		// «Ultimate» — senza. Il `continue` sta PRIMA dell'helper perche' il suo `ensureMsgf` e' per i siti che
+		// leggono dal catalogo, dove un nome vuoto e' un produttore che ha perso l'azione: qui scatterebbe a
+		// ogni colpo di un archetipo legacy, che e' un caso legittimo.
+		if (Def.ActionId.IsNone())
+		{
+			continue;
+		}
 		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
 			Bersaglio ? Bersaglio->StableUnitId : 0, Bersaglio ? Bersaglio->Cell : Intent.TargetCell, Intent.Shape);
 	}
