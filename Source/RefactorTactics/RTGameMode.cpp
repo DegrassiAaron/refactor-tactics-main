@@ -1327,7 +1327,9 @@ TArray<FString> ARTGameMode::GetScenarioOptions() const
 	// campo sarebbe cancellarne il testo a mano — proprio cio' che il menu a tendina dovrebbe evitare.
 	TArray<FString> Options;
 	Options.Add(FString());
-	Options.Append(URTScenarioIndex::ListIds(ScenarioFilterA, ScenarioFilterB));
+	// Solo gli Id VERSIONATI: la tendina finisce salvata in `BP_GameMode.uasset`, e un Id del Lab non
+	// risolverebbe su nessun'altra macchina. L'auto-run (`ResolvePath`) continua a vedere anche il Lab.
+	Options.Append(URTScenarioIndex::ListVersionedIds(ScenarioFilterA, ScenarioFilterB));
 	return Options;
 }
 
@@ -1337,7 +1339,8 @@ TArray<FString> ARTGameMode::GetScenarioTagOptions() const
 	// modo per togliere un filtro sarebbe cancellarne il testo a mano.
 	TArray<FString> Options;
 	Options.Add(FString());
-	Options.Append(URTScenarioIndex::ListTags());
+	// Solo i tag VERSIONATI, per la stessa ragione di `GetScenarioOptions`.
+	Options.Append(URTScenarioIndex::ListVersionedTags());
 	return Options;
 }
 

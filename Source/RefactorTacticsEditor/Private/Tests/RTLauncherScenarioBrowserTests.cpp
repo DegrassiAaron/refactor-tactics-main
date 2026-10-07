@@ -37,7 +37,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTLauncherTagFiltersIntersectTest,
 bool FRTLauncherTagFiltersIntersectTest::RunTest(const FString&)
 {
 	// ⚠️ **Una sola scansione del corpus**, e le attese si costruiscono da qui in memoria. `ListIds` passa
-	// da `Scan` a ogni chiamata — novanta letture e novanta parse — quindi un test che la interrogasse per
+	// da `ScanAll` a ogni chiamata (che sotto automation vede la sola radice versionata, perche' la radice
+	// del Lab e' una cartella assente) — novanta letture e novanta parse — quindi un test che la interrogasse per
 	// ogni tag pagherebbe il corpus decine di volte per rispondere a domande che una scansione sola copre.
 	TArray<FString> Problems;
 	const TArray<FRTScenarioEntry> Entries = URTScenarioIndex::Scan(Problems);
