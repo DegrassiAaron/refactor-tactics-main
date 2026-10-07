@@ -158,9 +158,9 @@ void SRTLabPanel::OnSelezione(FVoce Voce, ESelectInfo::Type)
 
 FReply SRTLabPanel::OnEsegui()
 {
+	// L'Id dell'ultimo lancio PIE non si azzera qui: lo fa `Modello.Run`, perche' la riga di stato mostra
+	// una cosa sola — l'ultimo gesto — e quella regola sta nel modello, dove si misura.
 	UltimoErrore.Reset();
-	// La riga di stato mostra una cosa sola: l'ultimo gesto. Senza questo, il messaggio del PIE nasconde l'esito.
-	UltimoIdLanciato.Reset();
 
 	// Un mondo transitorio, creato e distrutto qui. Il livello aperto nell'editor non viene toccato.
 	UWorld* Mondo = UWorld::CreateWorld(EWorldType::Game, /*bInformEngineOfWorld=*/ false);
@@ -196,21 +196,42 @@ FReply SRTLabPanel::OnEsegui()
 FReply SRTLabPanel::OnEseguiInPie()
 {
 	UltimoErrore.Reset();
-	UltimoIdLanciato.Reset();
 
-	FString Id, Errore;
+	// ⛔ **Prima si chiede se si puo' lanciare, poi si scrive.** `PrepareForPie` salva la fixture su disco: con
+	// PIE gia' in corso il lancio rifiuta comunque, e il file resterebbe per un lancio mai avvenuto.
+	FString Errore;
+	if (!FRTLabPieLauncher::CanLaunch(Errore))
+	{
+		UltimoErrore = Errore;
+		return FReply::Handled();
+	}
+
+	FString Id;
 	if (!Modello.PrepareForPie(Id, Errore))
 	{
 		UltimoErrore = Errore;
 		return FReply::Handled();
 	}
-	if (!FRTLabPieLauncher::Launch(Id, Errore))
+
+	// Il PIE puo' finire dopo che il pannello e' stato chiuso: il lanciatore tiene la callback, quindi la
+	// si lega **debole**. Il modello e' membro del widget e non sopravvive a lui.
+	const bool bLanciato = FRTLabPieLauncher::Launch(Id, Errore,
+		[Debole = TWeakPtr<SRTLabPanel>(SharedThis(this))](const bool bRipristinato)
+		{
+			if (const TSharedPtr<SRTLabPanel> Pannello = Debole.Pin())
+			{
+				Pannello->Modello.NoteLaunchFinished(bRipristinato);
+				// Una riga «PIE in corso» rimasta da un secondo clic non deve sopravvivere alla fine del PIE.
+				Pannello->UltimoErrore.Reset();
+			}
+		});
+	if (!bLanciato)
 	{
 		UltimoErrore = Errore;
 		return FReply::Handled();
 	}
 
-	UltimoIdLanciato = Id;
+	Modello.NoteLaunched(Id);
 	return FReply::Handled();
 }
 
@@ -312,13 +333,23 @@ FText SRTLabPanel::TestoEsito() const
 		return FText::FromString(FString::Printf(TEXT("⛔ %s"), *UltimoErrore));
 	}
 
-	if (!UltimoIdLanciato.IsEmpty())
+	// Lo stato dell'ultimo lancio e' del modello: si azzera a fine PIE e a ogni gesto successivo.
+	if (Modello.WasLaunchFinished())
+	{
+		// Due frasi distinte: dire «tornate com'erano» dopo un ripristino che non ha preso sarebbe falso.
+		return Modello.LastLaunchRestored()
+			? LOCTEXT("PieTerminato", "PIE terminato: le CVar sono tornate com'erano.")
+			: LOCTEXT("PieTerminatoSenzaRipristino", "PIE terminato: il ripristino di una CVar NON ha preso, vedi il log.");
+	}
+
+	const FString& IdLanciato = Modello.LaunchedScenarioId();
+	if (!IdLanciato.IsEmpty())
 	{
 		// La riga di log la scrive `FRTScenarioCoordinator` e COMINCIA cosi'; seguono turni e pausa.
 		return FText::FromString(FString::Printf(
 			TEXT("PIE richiesto per %s su L_DevSandbox.\nNel log cerca: [RT-Test] AUTO-RUN %s (da: console rt.Test.Scenario)\n"
 				 "A fine PIE le CVar tornano com'erano."),
-			*UltimoIdLanciato, *UltimoIdLanciato));
+			*IdLanciato, *IdLanciato));
 	}
 
 	const FRTLabRunResult& Esito = Modello.LastRun();

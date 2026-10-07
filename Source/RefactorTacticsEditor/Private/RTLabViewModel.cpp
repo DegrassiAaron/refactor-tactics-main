@@ -15,6 +15,8 @@ void FRTLabViewModel::SetHeroFilter(const FName& InHeroId)
 	}
 
 	HeroFilter = InHeroId;
+	// Il filtro e' cambiato davvero (il ritorno anticipato sopra lascia l'Id dov'e'): e' un gesto.
+	ClearLaunchStatus();
 
 	// La selezione sopravvive al cambio di filtro **solo** se e' ancora visibile. Senza questa riga il
 	// pannello mostrerebbe il readout di un'ability che non appartiene al kit elencato: numeri veri, che
@@ -90,7 +92,35 @@ bool FRTLabViewModel::SelectAbility(const FName& InAbilityId)
 
 	SelectedAbility = InAbilityId;
 	Result = FRTLabRunResult();
+	ClearLaunchStatus();
 	return true;
+}
+
+void FRTLabViewModel::ClearLaunchStatus()
+{
+	LaunchedId.Reset();
+	bLaunchFinishedOnce = false;
+}
+
+void FRTLabViewModel::NoteLaunched(const FString& Id)
+{
+	LaunchedId = Id;
+	bLaunchFinishedOnce = false;
+}
+
+void FRTLabViewModel::NoteLaunchFinished(bool bRestored)
+{
+	// Senza un lancio in corso nel modello l'ultimo gesto e' un altro (run, selezione, filtro): vince lui —
+	// ma solo per un ripristino riuscito. Un ripristino FALLITO si registra sempre: le CVar sono rimaste sul
+	// valore del banco, e il PIE successivo giocherebbe lo scenario sbagliato; tacerlo perche' l'utente ha
+	// cliccato altro nasconderebbe l'unico segnale.
+	if (LaunchedId.IsEmpty() && bRestored)
+	{
+		return;
+	}
+	LaunchedId.Reset();
+	bLaunchFinishedOnce = true;
+	bLastRestoreOk = bRestored;
 }
 
 ERTActionReadoutResult FRTLabViewModel::DescribeSelection(TArray<FRTActionParameterView>& OutParameters) const
@@ -117,6 +147,8 @@ bool FRTLabViewModel::BuildScenario(FRTTestScenario& OutScenario, FString& OutEr
 bool FRTLabViewModel::Run(UWorld* World, FString& OutError)
 {
 	Result = FRTLabRunResult();
+	// Una run e' un gesto: la riga di stato mostra l'esito di questa, non il lancio PIE di prima.
+	ClearLaunchStatus();
 
 	if (!World)
 	{

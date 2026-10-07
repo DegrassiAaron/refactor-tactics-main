@@ -15,6 +15,7 @@
 #include "ScenarioHarness/RTScenarioIndex.h"
 #include "ScenarioHarness/RTScenarioLoader.h"
 #include "ScenarioHarness/RTScenarioRunner.h"
+#include "Tests/RTScenarioTestSupport.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -363,27 +364,6 @@ bool FRTScenarioIndexAbbreviationOnCorpusTest::RunTest(const FString&)
 	TestFalse(TEXT("un ID esatto risolve anche se il suo ultimo segmento e' ambiguo"), Esatto.IsEmpty());
 	return true;
 }
-namespace
-{
-	/** Una radice del Lab di prova, sotto la cartella transiente dell'automation: mai `Saved/RTLab` vero. */
-	FString LabRootDiProva(const TCHAR* Nome)
-	{
-		return FPaths::Combine(FPaths::AutomationTransientDir(), TEXT("RTLabIndex"), Nome);
-	}
-
-	/** Scrive un file di scenario minimo — solo header — nella cartella data. */
-	bool ScriviHeaderScenario(const FString& Dir, const TCHAR* NomeFile, const TCHAR* Id, const TCHAR* Tags)
-	{
-		const FString Testo = FString::Printf(TEXT("{ \"scenarioId\": \"%s\", \"tags\": [%s] }"), Id, Tags);
-		return FFileHelper::SaveStringToFile(Testo, *FPaths::Combine(Dir, NomeFile),
-			FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-	}
-
-	bool ContieneId(const TArray<FRTScenarioEntry>& Entries, const TCHAR* Id)
-	{
-		return Entries.ContainsByPredicate([Id](const FRTScenarioEntry& E) { return E.ScenarioId == Id; });
-	}
-}
 
 /**
  * La radice del Lab si vede da `ScanAll` e NON da `Scan` (spec §2 passo 2, §3).
@@ -398,7 +378,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexScanAllSeesTheLabRootTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexScanAllSeesTheLabRootTest::RunTest(const FString&)
 {
-	const FString Root = LabRootDiProva(TEXT("Vista"));
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("Vista"));
 	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
 	ON_SCOPE_EXIT
@@ -467,7 +448,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootAbsentTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexLabRootAbsentTest::RunTest(const FString&)
 {
-	const FString Root = LabRootDiProva(TEXT("CheNonEsiste"));
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("CheNonEsiste"));
 	IFileManager::Get().DeleteDirectory(*Root, false, true);
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
 	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
@@ -495,7 +477,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootProblemsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
 {
-	const FString Root = LabRootDiProva(TEXT("Rotto"));
+	using namespace RTScenarioTestSupport;
+	const FString Root = LabRootDiProva(TEXT("RTLabIndex"), TEXT("Rotto"));
 	IFileManager::Get().MakeDirectory(*Root, /*Tree=*/ true);
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(Root);
 	ON_SCOPE_EXIT
@@ -527,6 +510,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootHiddenTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
 {
+	using namespace RTScenarioTestSupport;
 	URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
 	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
 
@@ -549,6 +533,69 @@ bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
 	{
 		TestTrue(FString::Printf(TEXT("%s di ScanAll e' anche in Scan"), *E.ScenarioId), ContieneId(DaScan, *E.ScenarioId));
 	}
+	return true;
+}
+
+/**
+ * #3543 — l'abbreviazione per segmenti confronta solo gli Id **versionati**.
+ *
+ * Un file del Lab il cui Id finisce per lo stesso segmento di uno scenario versionato non deve rendere
+ * ambigua l'abbreviazione che, sul corpus versionato, e' univoca: l'Id esatto e i redirect vedono anche il
+ * Lab, l'abbreviazione no. Il caso di prova (`Deflection`) e' ricavato dal corpus, non assunto: se non
+ * fosse piu' univoco il test lo dice invece di passare su un'abbreviazione gia' ambigua.
+ * ✅ Validato per mutazione: far scorrere di nuovo `Entries` (ScanAll) invece delle sole voci versionate
+ * deve far cadere *«Deflection risolve»*.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexAbbreviationIgnoresLabTest,
+	"RefactorTactics.ScenarioIndex.AbbreviationIgnoresTheLabRoot",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexAbbreviationIgnoresLabTest::RunTest(const FString&)
+{
+	using namespace RTScenarioTestSupport;
+
+	// Il caso di prova dal corpus versionato, e deve essere UNO: altrimenti l'abbreviazione e' gia' ambigua
+	// senza il Lab e il test non dimostrerebbe nulla.
+	TArray<FString> Candidati;
+	for (const FString& Id : URTScenarioIndex::ListVersionedIds(FString(), FString()))
+	{
+		if (Id.EndsWith(TEXT(".Deflection")))
+		{
+			Candidati.Add(Id);
+		}
+	}
+	if (Candidati.Num() != 1)
+	{
+		AddError(FString::Printf(TEXT("il corpus versionato e' cambiato: gli Id che finiscono per .Deflection non sono piu' uno solo (%s) — scegli di nuovo il caso di prova"),
+			*FString::Join(Candidati, TEXT(", "))));
+		return false;
+	}
+
+	const FString Root = ApriRadiceDiProva(TEXT("RTLabIndex"), TEXT("Abbrev"));
+	ON_SCOPE_EXIT{ ChiudiRadiceDiProva(Root); };
+	if (!TestTrue(TEXT("il file di prova si scrive"),
+		ScriviHeaderScenario(Root, TEXT("AbilityLab.Hero.Ivrin.Deflection.json"), TEXT("AbilityLab.Hero.Ivrin.Deflection"), TEXT("\"ability-lab\""))))
+	{
+		return false;
+	}
+
+	// Controllo positivo: l'Id esatto del Lab risolve, quindi il file e' davvero visibile alle ricerche.
+	FString Errore;
+	const FString DelLab = URTScenarioIndex::ResolvePath(TEXT("AbilityLab.Hero.Ivrin.Deflection"), Errore);
+	TestTrue(TEXT("l'Id esatto del Lab risolve al file del Lab"),
+		!DelLab.IsEmpty() && FPaths::IsSamePath(DelLab,
+			FPaths::ConvertRelativePathToFull(FPaths::Combine(Root, TEXT("AbilityLab.Hero.Ivrin.Deflection.json")))));
+
+	// L'abbreviazione: il Lab non la rende ambigua, e risolve al versionato.
+	Errore.Reset();
+	const FString Risolto = URTScenarioIndex::ResolvePath(TEXT("Deflection"), Errore);
+	TestFalse(*FString::Printf(TEXT("Deflection risolve (errore: %s)"), *Errore), Risolto.IsEmpty());
+	TestFalse(TEXT("e non risolve al file del Lab"), FPaths::IsSamePath(Risolto, DelLab));
+	// Lo STESSO file che l'Id completo del versionato risolve: un suffisso di nome non basta, perche' l'Id
+	// e' indipendente dal percorso (`IdIsIndependentOfPath`) e un file omonimo altrove passerebbe.
+	Errore.Reset();
+	const FString DelVersionato = URTScenarioIndex::ResolvePath(Candidati[0], Errore);
+	TestTrue(*FString::Printf(TEXT("e risolve al versionato %s"), *Candidati[0]),
+		!Risolto.IsEmpty() && !DelVersionato.IsEmpty() && FPaths::IsSamePath(Risolto, DelVersionato));
 	return true;
 }
 
