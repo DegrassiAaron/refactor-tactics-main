@@ -258,8 +258,8 @@ struct FRTPlanPreviewInput
 
 	/**
 	 * Vero se lo scatto si applica DAVVERO prima del Blast. ⚠️ Non e' `bDashPlanned`: `ResolveDash` puo'
-	 * fermarlo (collisione simultanea, CP 4.8), ed e' la stessa domanda che `ARTUnit::PlannedDashApplies()`
-	 * risponde per il resolver.
+	 * fermarlo (collisione simultanea, CP 4.8). La risposta e' `ARTUnit::PlannedDashMoves()` ([D-471]): la domanda
+	 * del resolver, compreso il rifiuto dello stato.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Preview")
 	bool bDashResolves = false;

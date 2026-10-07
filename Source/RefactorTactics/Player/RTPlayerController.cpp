@@ -297,12 +297,12 @@ namespace
 		// aveva dichiarato coperto («l'area colpita in preview prima del click»).
 		//
 		// 🔴 **E l'origine non e' piu' `Unit->Cell` in ogni caso.** La fase Dash precede il Blast, quindi chi
-		// ha pianificato uno scatto e poi un attacco sparera' da dove sara' arrivato. `PlannedDashApplies()` e' la
-		// stessa domanda che `ResolveDash` si pone. ⚠️ Da #3509 decide anche la FASE dell'azione, e la carica ne
-		// resta fuori ([D-464], `AimOriginCell`).
+		// ha pianificato uno scatto e poi un attacco sparera' da dove sara' arrivato. `PlannedDashMoves()` e' la
+		// stessa domanda che `ResolveDash` si pone, rifiuto dello stato compreso ([D-471]). ⚠️ Da #3509 decide anche
+		// la FASE dell'azione, e la carica ne resta fuori ([D-464], `AimOriginCell`).
 		FRTBlastPreviewPlan PreviewPlan;
 		PreviewPlan.AttackerId = UnitId;
-		PreviewPlan.bDashResolves = Unit->PlannedDashApplies();
+		PreviewPlan.bDashResolves = Unit->PlannedDashMoves(); // [D-471]: uno scatto negato dallo stato non sposta
 		PreviewPlan.PlannedDashCell = Unit->PlannedDashCell;
 		PreviewPlan.bDashIsCharge = Unit->PlannedDashIsCharge();
 
@@ -392,7 +392,7 @@ namespace
 			// stesse sopra, e dopo un turno risolto ridisegnava la destinazione dello scatto PRECEDENTE.
 			Timeline.bDashPlanned = Unit->PlannedDashAbility != INDEX_NONE
 				&& !(Unit->PlannedDashCell == Unit->Cell);
-			Timeline.bDashResolves = Unit->PlannedDashApplies();
+			Timeline.bDashResolves = Unit->PlannedDashMoves(); // [D-471]
 			Timeline.PlannedDashCell = Unit->PlannedDashCell;
 			if (const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility))
 			{
@@ -4536,9 +4536,10 @@ FRTCellId ARTPlayerController::FacingCellFor(const ARTUnit* Unit) const
 	{
 		return FRTCellId();
 	}
-	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashApplies`, il
-	// predicato che usa il resolver, e non il solo indice: uno scatto sulla propria cella non e' uno scatto.
-	if (Unit->PlannedDashApplies())
+	// Lo scatto sostituisce il movimento: la sua cella e' quella in cui l'unita' finira'. `PlannedDashMoves`, e non il
+	// solo indice: uno scatto sulla propria cella non e' uno scatto, e uno che lo stato nega lascia l'unita' dov'e'
+	// ([D-471]).
+	if (Unit->PlannedDashMoves())
 	{
 		return Unit->PlannedDashCell;
 	}
@@ -4559,7 +4560,7 @@ void ARTPlayerController::PlannedMovementForFacing(const ARTUnit* Unit, ERTMovem
 		return;
 	}
 
-	if (Unit->PlannedDashApplies())
+	if (Unit->PlannedDashMoves()) // [D-471]: uno scatto negato dallo stato non muove l'unita'
 	{
 		const URTActionData* Scatto = Unit->GetAbility(Unit->PlannedDashAbility);
 		if (Scatto)

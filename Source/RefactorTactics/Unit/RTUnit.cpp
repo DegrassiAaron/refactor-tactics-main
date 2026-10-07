@@ -6,6 +6,7 @@
 #include "Map/RTHexLibrary.h"
 #include "Combat/RTCombatLibrary.h"
 #include "Combat/RTHexCombatLibrary.h" // AimOriginCell: l'origine di mira ha una regola sola ([D-464])
+#include "Turn/RTMovementActionLibrary.h" // IsLinear: lo stato nega lo scatto a budget, non quello lineare ([D-471])
 #include "Ability/RTActionData.h"
 #include "Ability/RTCatalogLibrary.h"
 #include "Ability/RTEquipmentData.h" // ERTEquipmentSlot: `EquipLoadout` distingue chi MODIFICA da chi CONCEDE
@@ -1810,9 +1811,22 @@ bool ARTUnit::PlannedDashIsCharge() const
 	return Dash != nullptr && Dash->Def.MovementStyle == ERTMovementStyle::LinearCharge;
 }
 
+bool ARTUnit::PlannedDashDeniedByStatus() const
+{
+	const URTActionData* Dash = GetAbility(PlannedDashAbility);
+	return Dash != nullptr && HasStatus(TAG_Status_Unbalanced)
+		&& !URTMovementActionLibrary::IsLinear(Dash->Def.MovementStyle);
+}
+
+bool ARTUnit::PlannedDashMoves() const
+{
+	return PlannedDashApplies() && !PlannedDashDeniedByStatus();
+}
+
 FRTCellId ARTUnit::AimOriginFor(ERTResolutionPhase Phase) const
 {
-	return URTHexCombatLibrary::AimOriginCell(Phase, Cell, PlannedDashApplies(), PlannedDashIsCharge(),
+	// [D-471]: uno scatto che lo stato nega non sposta l'origine, e la mira lo sa come il resolver.
+	return URTHexCombatLibrary::AimOriginCell(Phase, Cell, PlannedDashMoves(), PlannedDashIsCharge(),
 		PlannedDashCell);
 }
 
