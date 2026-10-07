@@ -371,6 +371,8 @@ mondo, qualunque cosa ci sia sotto.
 | `ReactionWindow` | `Inspect` delle **sole** risposte sanificate dell'opportunity | `Confirm` di una risposta legale; nient'altro è raggiungibile | `Cancel` → equivale a non scegliere, quindi `HOLD` al timeout |
 | `Modal` | `Inspect` | `Confirm` del modale | `Cancel` del modale |
 
+> ➕ **[`D-468`](../../decisions/RT_PDR_00_Decision_Log.md) (2026-10-07, [#3510](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3510)): la riga di `ResolutionPlayback` vale anche per la tastiera e per i pulsanti della barra.** Armo e disarmo — tasti, generiche, slot del dock —, `Sneak` e `Invio`/`Conferma` sono `Blocked`, con la causa nel log. Restano `Inspect` il piano attivo (`PageUp`/`PageDown`) e la camera. Il Back era già conforme: qui `ResolveBack` non tocca il piano.
+
 > Durante `ReactionWindow` il targeting normale **non si riapre**: le opzioni sono quelle che
 > l'opportunity dichiara, e sono già sanificate ([ADR-0004](../../decisions/adr-0004-finestre-di-reazione.md)).
 

@@ -23,6 +23,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Tests/RTWorldFixtures.h"
+#include "Ability/RTMovementProfileLibrary.h" // ProfileSneak: `Sneak` durante il playback non si dichiara (#3510)
 // `#2359`: la sonda del commit, e il controller che vi si aggancia.
 #include "Player/RTPlayerController.h"
 #include "UI/RTScreenHudWidgets.h" // URTPlanCommitWidget: Annulla durante il countdown passa dal pulsante (#3471)
@@ -1552,6 +1553,260 @@ bool FRTPlaybackAllowsInspectAndRestoresPreviewTest::RunTest(const FString&)
 	TestTrue(TEXT("e il ventaglio contiene una cella adiacente ALL'UNITA' ISPEZIONATA"),
 		B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[0])
 		|| B.HexMap->IsPreviewReachableCell(URTHexLibrary::Neighbors(Seconda->Cell)[1]));
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+// =====================================================================================================
+// `#3510`, [D-468] — durante la risoluzione il mondo e' in sola lettura ANCHE PER LA TASTIERA.
+//
+// I click sul mondo escono su `IsWorldReadOnly()` da `#2518` (`PlaybackRejectsPlanningInput`, qui sopra). Le
+// porte degli ordini da tastiera — armo, `Invio`, `Sneak` — guardavano al piu' il modale e l'autobattle.
+//
+// 🔑 **Il «dopo» conta quanto il «durante».** La risoluzione consuma il piano e il Cleanup disarma PRIMA del
+// playback (`LockInAndResolve`, poi `ConcludeResolution`): cio' che un tasto scrive mentre il playback scorre
+// non lo azzera nessuno, ed entra nel turno dopo. Per questo ogni test drena il playback e guarda il turno nuovo.
+// =====================================================================================================
+
+namespace
+{
+	/**
+	 * Le CINQUE superfici di pianificazione. `PreviewCellsLit` ne conta tre, e fra queste non c'e' la portata:
+	 * proprio l'area che l'armo accende da `#3507`. Guardando solo quelle il test resterebbe verde a portata accesa.
+	 */
+	int32 PlanningSurfacesLit(const ARTHexMapActor* HexMap)
+	{
+		return PreviewCellsLit(HexMap) + HexMap->NumPreviewAllyHitCells() + HexMap->GetPreviewRangeCells().Num();
+	}
+
+	/** La posizione del kit che porta `ActionId`, o `INDEX_NONE`. */
+	int32 KitIndexOf(const ARTUnit* Unit, const FName& ActionId)
+	{
+		for (int32 I = 0; I < Unit->NumAbilities(); ++I)
+		{
+			const URTActionData* Ability = Unit->GetAbility(I);
+			if (Ability && Ability->Def.ActionId == ActionId)
+			{
+				return I;
+			}
+		}
+		return INDEX_NONE;
+	}
+
+	/** Chiude il turno dal tetto, come i test qui sopra: il Ready non va premuto (vedi `#2390`). */
+	void CommitFromTimeout(const FRTLockInPreviewBench& B)
+	{
+		B.TM->SetPlanningSeconds(1.0f);
+		AdvanceWallClock(B.World, 1.5f);
+	}
+
+	/** ANTI-VACUITA' — la risoluzione scorre davvero, e il puntatore lo sa. Senza, ogni «invariato» e' gratis. */
+	bool AssertInPlayback(FAutomationTestBase& Test, const FRTLockInPreviewBench& B)
+	{
+		const bool bInCorso = Test.TestTrue(TEXT("la risoluzione e' in corso"), B.TM->IsResolving());
+		Test.TestEqual(TEXT("e il contesto e' ResolutionPlayback"),
+			B.PC->GetPointerContext(), ERTPointerContext::ResolutionPlayback);
+		Test.TestEqual(TEXT("e il commit ha spento ogni superficie di pianificazione"),
+			PlanningSurfacesLit(B.HexMap), 0);
+		return bInCorso;
+	}
+
+	/** La causa che il rifiuto deve nominare ([D-468]): la frase di `PercheIlMondoESoloLettura`. */
+	const TCHAR* const CausaPlayback = TEXT("fino alla fine del playback il piano e' in sola lettura");
+}
+
+/**
+ * **#3510 — un tasto abilita' durante il playback non arma, e non accende nessuna area di pianificazione.**
+ *
+ * Il terzo criterio della issue, sul banco che il criterio nomina. I canali sono due e la porta una: lo slot
+ * del dock (`ArmKitAbility`) e il tasto (`SelectAbilityForCurrent`).
+ *
+ * ⚠️ **L'azione si sceglie col CONTROLLO POSITIVO, non per nome**: quale posizione del kit abbia una portata
+ * dipende dall'eroe del banco, e la prima che in pianificazione la accende e' quella buona — come il banco fa
+ * coi vicini per la rotta. Un'azione senza portata renderebbe «zero celle» vero per costruzione.
+ *
+ * ⚠️ **Il dock va PRIMA del tasto**, e non per estetica: `ArmKitAbility` sulla posizione gia' armata DISARMA. Col
+ * tasto per primo, senza la guardia il dock spegnerebbe cio' che il tasto aveva acceso, e la sua riga
+ * passerebbe per la ragione sbagliata.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackKeyboardArmIsANoOpTest,
+	"RefactorTactics.HexMatch.PlaybackKeyboardArmIsANoOp",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackKeyboardArmIsANoOpTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// CONTROLLO POSITIVO, come DELTA — in pianificazione il tasto ARMA, e la portata si accende.
+	int32 Mirata = INDEX_NONE;
+	for (int32 I = 0; I < B.Mine->NumAbilities() && Mirata == INDEX_NONE; ++I)
+	{
+		B.PC->SelectAbilityForCurrentForTest(I);
+		if (B.Mine->SelectedAbilityIndex == I && B.HexMap->GetPreviewRangeCells().Num() > 0)
+		{
+			Mirata = I;
+		}
+		B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	}
+	if (!TestTrue(TEXT("controllo: in pianificazione un tasto arma un'azione e ne accende la portata"),
+		Mirata != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	CommitFromTimeout(B);
+	if (!AssertInPlayback(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+	TestEqual(TEXT("e il Cleanup ha lasciato l'unita' disarmata"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+
+	// IL LOG — la causa vera, una riga per canale. Prima diceva «autobattle, o fase che non accetta ordini», e
+	// nessuna delle due era vera.
+	AddExpectedMessagePlain(CausaPlayback, ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 2);
+
+	// IL CUORE — lo slot del dock...
+	B.PC->ArmKitAbility(Mirata);
+	TestEqual(TEXT("durante il playback lo slot del dock non arma"),
+		B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e non accende nessuna area di pianificazione"), PlanningSurfacesLit(B.HexMap), 0);
+
+	// ...e il tasto, che passa dalla stessa porta.
+	B.PC->SelectAbilityForCurrentForTest(Mirata);
+	TestEqual(TEXT("ne' il tasto abilita'"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e la portata resta spenta"), PlanningSurfacesLit(B.HexMap), 0);
+
+	DrainPlayback(B.TM);
+	TestFalse(TEXT("il playback e' finito"), B.TM->IsResolving());
+	TestEqual(TEXT("e il turno nuovo comincia disarmato"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **#3510 — un armo durante il playback non entra nel turno dopo: non e' un pre-armo** ([D-468] punto 4).
+ *
+ * E' la misura che la issue chiedeva prima di correggere: *«lo stato armato sopravvive al turno? Il piano
+ * scritto vale per il turno dopo?»*. L'azione e' l'`Overwatch` perche' scrive il piano all'armo, senza
+ * aspettare un bersaglio (`bSelfTarget`), ed e' una generica: la porta ogni unita'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackArmIsNotAPreArmTest,
+	"RefactorTactics.HexMatch.PlaybackArmIsNotAPreArm",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackArmIsNotAPreArmTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const int32 Overwatch = KitIndexOf(B.Mine, FName(TEXT("Action.Overwatch")));
+	if (!TestTrue(TEXT("l'Overwatch e' nel kit: le generiche le riceve ogni unita'"), Overwatch != INDEX_NONE))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	// CONTROLLO POSITIVO, come DELTA — in pianificazione armarlo SCRIVE il piano, e il disarmo lo toglie.
+	B.PC->SelectAbilityForCurrentForTest(Overwatch);
+	TestEqual(TEXT("controllo: in pianificazione armare l'Overwatch lo mette nel piano"),
+		B.Mine->PlannedAbilityIndex, Overwatch);
+	B.PC->SelectAbilityForCurrentForTest(INDEX_NONE);
+	TestEqual(TEXT("controllo: e il disarmo lo toglie"), B.Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
+
+	CommitFromTimeout(B);
+	if (!AssertInPlayback(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	AddExpectedMessagePlain(CausaPlayback, ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 1);
+
+	// IL CUORE — durante il playback il tasto non arma e non scrive il piano...
+	B.PC->SelectAbilityForCurrentForTest(Overwatch);
+	TestEqual(TEXT("durante il playback il tasto non arma"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e non scrive il piano"), B.Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e non accende nessuna area di pianificazione"), PlanningSurfacesLit(B.HexMap), 0);
+
+	// ...e il turno dopo non lo eredita. E' la meta' che la sola guardia «durante» non dimostrerebbe.
+	DrainPlayback(B.TM);
+	TestFalse(TEXT("il playback e' finito"), B.TM->IsResolving());
+	TestEqual(TEXT("il turno nuovo comincia disarmato"), B.Mine->SelectedAbilityIndex, (int32)INDEX_NONE);
+	TestEqual(TEXT("e senza un Overwatch che nessuno ha pianificato"),
+		B.Mine->PlannedAbilityIndex, (int32)INDEX_NONE);
+
+	DestroyHexMatchWorld(B.World);
+	return true;
+}
+
+/**
+ * **#3510 — `Sneak` e `Invio` durante il playback non dichiarano niente, e il turno dopo non li eredita.**
+ *
+ * Hanno la forma dell'armo: una dichiarazione sul piano dell'unita', scritta da un tasto e da un pulsante della
+ * barra (`ToggleSneakDeclaration`, `TogglePlanDeclaration`) che guardavano solo il modale. E nessuna delle due
+ * la azzera il playback: la dichiarazione del piano la toglie il Cleanup, che gira prima; `Sneak` resta finche'
+ * non lo si ritira ([D-425]).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackRejectsPlanDeclarationsTest,
+	"RefactorTactics.HexMatch.PlaybackRejectsPlanDeclarations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackRejectsPlanDeclarationsTest::RunTest(const FString&)
+{
+	FRTLockInPreviewBench B;
+	if (!MakeLockInPreviewBench(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	const FName Sneak = URTMovementProfileLibrary::ProfileSneak;
+
+	// CONTROLLI POSITIVI, come DELTA — in pianificazione i due tasti dichiarano, e ripremuti ritirano.
+	TestTrue(TEXT("controllo: si parte senza Sneak"), B.Mine->PlannedMovementProfileId.IsNone());
+	B.PC->ToggleSneakForTest();
+	TestEqual(TEXT("controllo: in pianificazione M dichiara Sneak"), B.Mine->PlannedMovementProfileId, Sneak);
+	B.PC->ToggleSneakForTest();
+	TestTrue(TEXT("controllo: e ripremuto lo ritira"), B.Mine->PlannedMovementProfileId.IsNone());
+
+	TestTrue(TEXT("controllo: in pianificazione Invio dichiara il piano"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestTrue(TEXT("controllo: e la dichiarazione e' sull'unita'"), B.Mine->bTurnPlanDeclared);
+	B.PC->ToggleTurnPlanDeclaredForTest();
+	TestFalse(TEXT("controllo: e ripremuto la ritratta"), B.Mine->bTurnPlanDeclared);
+
+	CommitFromTimeout(B);
+	if (!AssertInPlayback(*this, B))
+	{
+		DestroyHexMatchWorld(B.World);
+		return false;
+	}
+
+	AddExpectedMessagePlain(CausaPlayback, ELogVerbosity::Display,
+		EAutomationExpectedMessageFlags::Contains, /*Occurrences=*/ 2);
+
+	// IL CUORE — durante il playback nessuno dei due dichiara...
+	B.PC->ToggleSneakForTest();
+	TestTrue(TEXT("durante il playback M non dichiara Sneak"), B.Mine->PlannedMovementProfileId.IsNone());
+	TestFalse(TEXT("e Invio rifiuta"), B.PC->ToggleTurnPlanDeclaredForTest());
+	TestFalse(TEXT("e non dichiara il piano"), B.Mine->bTurnPlanDeclared);
+
+	// ...e il turno dopo non eredita niente.
+	DrainPlayback(B.TM);
+	TestFalse(TEXT("il playback e' finito"), B.TM->IsResolving());
+	TestTrue(TEXT("il turno nuovo comincia senza Sneak dichiarato"), B.Mine->PlannedMovementProfileId.IsNone());
+	TestFalse(TEXT("e con l'unita' ancora da concludere"), B.Mine->bTurnPlanDeclared);
 
 	DestroyHexMatchWorld(B.World);
 	return true;
