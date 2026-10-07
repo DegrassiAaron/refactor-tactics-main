@@ -62,7 +62,7 @@ public:
 	 */
 	static FRTTestResult RunById(UWorld* World, const FString& ScenarioId, FString& OutReportDirectory);
 
-	/** ID di tutti gli scenari versionati sotto `Scenarios/`, in ordine alfabetico. */
+	/** ID di tutti gli scenari sotto `Scenarios/` e, fuori da automation, sotto la radice del Lab, in ordine alfabetico. */
 	static TArray<FString> ListScenarioIds();
 
 	/**
