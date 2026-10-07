@@ -38,7 +38,7 @@ namespace
 	}
 
 	/**
-	 * I sei ruoli di un eroe del roster, ciascuno con la sua clip attiva.
+	 * I ruoli di un eroe del roster, ciascuno con la sua clip attiva.
 	 *
 	 * 🔴 **La clip dei pack che si CHIAMA `Cast` riempie DUE ruoli, e non e' un errore** (#2450, #3549). Sul
 	 * ruolo `Attack` e' il colpo; sul ruolo `Cast` e' il gesto di attivazione di `AbilityActivated`. In v0.1
@@ -225,10 +225,10 @@ void FRTUnitAnimProxy::Initialize(UAnimInstance* InAnimInstance)
 		return;
 	}
 
-	// ⚠️ **DUE ruoli, non nove.** `ERTPresentationRole` ne nomina nove perche' servono all'authoring, ma
-	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri sette non hanno ancora
-	// un consumatore a runtime: `Attack`/`Hit`/`Death` passano dai `BlueprintImplementableEvent` di
-	// `ARTUnit`, gli altri quattro da niente.
+	// ⚠️ **DUE ruoli, non tutti.** `ERTPresentationRole` ne nomina di piu' perche' servono all'authoring, ma
+	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri non passano da qui:
+	// `Attack`/`Hit`/`Death`/`Cast` dai `BlueprintImplementableEvent` di `ARTUnit` (`Cast` da #3549),
+	// `Dash`/`Defend`/`Fall` da niente, ancora.
 	//
 	// `ActiveClipFor` copre da solo le tre vie che danno «nessuna clip» — eroe fuori catalogo, ruolo non
 	// popolato, nessuna variante attiva — e nessuna delle tre e' un errore.
