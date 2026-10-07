@@ -79,8 +79,10 @@ public:
 	 * Come `Scan`, ma sulle **due** radici: quella versionata e quella del Lab (`URTScenarioLoader::LabScenariosRoot`).
 	 *
 	 * 🔑 E' la funzione delle RICERCHE — `ResolvePath`, `ListIds`, `ListTags` — cioe' del GameMode, della
-	 * console e del Launcher. `Scan` resta a una radice perche' i gate sul corpus la usano come «tutto cio'
-	 * che e' versionato». Una radice assente non e' un problema ne' una voce.
+	 * console e del Launcher. `Scan` resta a una radice e vale «tutto cio' che e' versionato». I gate che
+	 * enumerano il corpus passano da `ListIds`, quindi da qui: restano misure della sola radice versionata
+	 * perche' sotto automation la radice del Lab e' una cartella assente (`LabScenariosRoot`). Una radice
+	 * assente non e' un problema ne' una voce.
 	 */
 	static TArray<FRTScenarioEntry> ScanAll(TArray<FString>& OutProblems);
 

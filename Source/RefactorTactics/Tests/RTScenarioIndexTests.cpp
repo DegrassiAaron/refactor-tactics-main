@@ -512,4 +512,39 @@ bool FRTScenarioIndexLabRootProblemsTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Senza override, sotto automation la radice del Lab e' una cartella transiente che non esiste: i test che
+ * enumerano il corpus (`ListIds`/`ListTags`/`ResolvePath` passano da `ScanAll`) vedono la sola radice versionata
+ * anche su una macchina dove il banco ha lasciato un file in `Saved/RTLab`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioIndexLabRootHiddenTest,
+	"RefactorTactics.ScenarioIndex.LabRootIsHiddenFromAutomationByDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioIndexLabRootHiddenTest::RunTest(const FString&)
+{
+	URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString());
+	ON_SCOPE_EXIT{ URTScenarioLoader::SetLabScenariosRootOverrideForTest(FString()); };
+
+	// Controllo positivo della premessa: senza, i due asserti sulla radice non dimostrano niente.
+	TestTrue(TEXT("GIsAutomationTesting e' vero qui"), GIsAutomationTesting);
+
+	const FString Root = URTScenarioLoader::LabScenariosRoot();
+	TestTrue(TEXT("sotto automation la radice del Lab e' transiente"), Root.StartsWith(FPaths::AutomationTransientDir()));
+	TestFalse(TEXT("e non esiste"), IFileManager::Get().DirectoryExists(*Root));
+
+	TArray<FString> ProblemiScan, ProblemiAll;
+	const TArray<FRTScenarioEntry> DaScan = URTScenarioIndex::Scan(ProblemiScan);
+	const TArray<FRTScenarioEntry> DaAll = URTScenarioIndex::ScanAll(ProblemiAll);
+	// Confronto per Id, nei due versi, senza mai asserire un totale sul corpus.
+	for (const FRTScenarioEntry& E : DaScan)
+	{
+		TestTrue(FString::Printf(TEXT("%s di Scan e' anche in ScanAll"), *E.ScenarioId), ContieneId(DaAll, *E.ScenarioId));
+	}
+	for (const FRTScenarioEntry& E : DaAll)
+	{
+		TestTrue(FString::Printf(TEXT("%s di ScanAll e' anche in Scan"), *E.ScenarioId), ContieneId(DaScan, *E.ScenarioId));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -176,8 +176,13 @@ public:
 	/**
 	 * Radice degli scenari **del Lab**: `<Saved>/RTLab/Scenarios/`. Non versionata (`Saved/` e' in `.gitignore`).
 	 *
-	 * 🔑 La legge `URTScenarioIndex::ScanAll`, non `Scan`: i gate sul corpus misurano la sola radice
-	 * versionata, e un file stantio qui non deve farli rossi su una macchina e verdi su un'altra.
+	 * 🔑 La legge `URTScenarioIndex::ScanAll` (quindi `ResolvePath`, `ListIds`, `ListTags`), non `Scan`.
+	 *
+	 * ⚠️ Ordine di risoluzione: (1) l'override di `SetLabScenariosRootOverrideForTest`, se non vuoto;
+	 * (2) **sotto automation** (`GIsAutomationTesting`) una cartella transiente che NON esiste, cosi' i test
+	 * che enumerano il corpus vedono la sola radice versionata e un file stantio lasciato in `Saved/RTLab`
+	 * non li rende rossi su una macchina e verdi su un'altra; (3) altrimenti la radice vera.
+	 * Un Editor interattivo e il PIE non sono automation: li' vale (3).
 	 */
 	static FString LabScenariosRoot();
 
