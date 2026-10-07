@@ -1808,6 +1808,36 @@ bool FRTPlaybackPhaseTimeCountsActivationsTest::RunTest(const FString&)
 }
 
 /**
+ * L'anticipo delle attivazioni lo possiede `PhaseTime` — review della PR #3561, spec §2.4.
+ *
+ * 🔑 `FRTPhaseTime::Lead` e' il tempo delle attivazioni di Prep e Dash, la stessa quantita' che entra in `Shown`: chi
+ * anima le rotte del Dash la legge da qui invece di ricalcolare `N x AttackShowSeconds` (la copia che c'era in
+ * `ARTTurnManager::PlaybackActivationLeadSeconds`). Zero nelle fasi senza anticipo, e mai un terzo termine di `Total()`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseTimeLeadEqualsActivationTimeTest,
+	"RefactorTactics.Playback.PhaseTimeLeadEqualsActivationTime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseTimeLeadEqualsActivationTimeTest::RunTest(const FString&)
+{
+	const FRTPhaseTime Dash = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 2, 0, 2.f, 0.5f, 0.3f);
+	TestTrue(TEXT("🔴 Dash: Lead = 2 attivazioni x 0,5 s"), FMath::IsNearlyEqual(Dash.Lead, 1.0f, RTTol));
+	TestTrue(TEXT("e le rotte occupano il resto del mostrato"), FMath::IsNearlyEqual(Dash.Shown - Dash.Lead, 1.5f, RTTol));
+	TestTrue(TEXT("Prep: Lead = 3 attivazioni x 0,5 s"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Prep, 0, 3, 0, 2.f, 0.5f, 0.3f).Lead, 1.5f, RTTol));
+	TestTrue(TEXT("Dash senza attivazioni: nessun anticipo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 0, 0, 2.f, 0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ cadenza negativa: nessun anticipo negativo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 2, 0, 2.f, -0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ Blast: le attivazioni sono elementi della sequenza, nessun anticipo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, 0, 5, 4, 2.f, 0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ Move: nessun anticipo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Move, 3, 2, 0, 2.f, 0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ Lead non e' un terzo termine: Total resta Shown + Slack"),
+		FMath::IsNearlyEqual(Dash.Total(), Dash.Shown + Dash.Slack, RTTol));
+	return true;
+}
+
+/**
  * Due unita' con la stessa azione generica sono DUE atti — `Ruling` di spec §2.4 (#3549).
  * ⏱️ *Era il «limite noto» di #2855: il criterio guardava l'`ActionId` da solo.*
  */

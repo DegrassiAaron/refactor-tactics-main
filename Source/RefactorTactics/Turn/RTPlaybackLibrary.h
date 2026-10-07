@@ -101,6 +101,17 @@ struct FRTPhaseTime
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	float Slack = 0.f;
 
+	/**
+	 * L'ANTICIPO delle attivazioni di Prep e Dash (#3549): il tempo che la fase spende a mostrarle prima di tutto il
+	 * resto — nel Dash, prima che partano le rotte. Zero nelle altre fasi: nel Blast le attivazioni sono elementi
+	 * della sequenza.
+	 * ⚠️ **E' GIA' dentro `Shown`**, non un terzo termine: `Total()` non lo somma. Esiste perche' chi anima le rotte
+	 * (`ARTTurnManager`) lo legga dalla stessa formula che dimensiona la fase. ⏱️ *Fino alla review della PR #3561
+	 * lo ricalcolava `ARTTurnManager::PlaybackActivationLeadSeconds`, una seconda copia di `N x AttackShowSeconds`.*
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	float Lead = 0.f;
+
 	/** La durata della fase senza compressione: e' cio' che `PhaseDuration` restituisce. */
 	float Total() const { return Shown + Slack; }
 };
@@ -110,17 +121,20 @@ struct FRTPhaseTime
  *
  * ⚠️ **Non e' un `USTRUCT`**: vive fra `BuildBlastSequence` e il playback, non si serializza, non entra in
  * snapshot, TurnLog o hash. `TimelineIndex` vale solo finche' la timeline cresce per accodamento (D-355).
+ *
+ * 🔑 **L'identita' dell'elemento e' `TimelineIndex`, e basta** (review della PR #3561). `SourceStableUnitId` e
+ * `ActionId` sono una CACHE di `Timeline[TimelineIndex]`, copiata da `BuildBlastSequence` per la lettura dei test e dei
+ * log; `operator==` non li confronta, perche' due elementi con lo stesso indice sono lo stesso fatto per costruzione.
  */
 struct FRTBlastSequenceElement
 {
 	int32 TimelineIndex = INDEX_NONE;
-	int32 SourceStableUnitId = 0;
-	FName ActionId;
+	int32 SourceStableUnitId = 0; // cache di `Timeline[TimelineIndex].SourceStableUnitId`
+	FName ActionId;               // cache di `Timeline[TimelineIndex].ActionId`
 
 	bool operator==(const FRTBlastSequenceElement& Other) const
 	{
-		return TimelineIndex == Other.TimelineIndex && SourceStableUnitId == Other.SourceStableUnitId
-			&& ActionId == Other.ActionId;
+		return TimelineIndex == Other.TimelineIndex;
 	}
 };
 
@@ -326,8 +340,9 @@ public:
 	 * La formula di durata, nei suoi due termini: quanto della fase e' mostrato e quanto e' attesa.
 	 *
 	 *  - `Prep`  → `Shown = NumActivations x ASS`, `Slack = PhaseBeatSeconds`: il beat di oggi resta, le
-	 *              attivazioni si mostrano (#3549).
-	 *  - `Dash`  → `Shown = NumActivations x ASS + movimento`: prima le attivazioni, poi le rotte.
+	 *              attivazioni si mostrano (#3549). `Lead = NumActivations x ASS`.
+	 *  - `Dash`  → `Shown = NumActivations x ASS + movimento`: prima le attivazioni, poi le rotte, che partono
+	 *              dopo `Lead = NumActivations x ASS`. Nelle altre fasi `Lead` e' zero.
 	 *  - `Move`  → tutto `Shown`, il movimento.
 	 *  - `Blast` → tutto `Shown`, `Max(Max(1, NumSequenceElements) x ASS, spinta)`. ⏱️ *Fino a #3549 era il
 	 *              `Max` fra i canali paralleli (colpi, muri da #2828, impronte da #3278); la sequenza per

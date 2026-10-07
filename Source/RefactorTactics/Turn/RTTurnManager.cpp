@@ -8400,7 +8400,7 @@ void ARTTurnManager::EnterPlaybackPhase()
 		// #3549: con attivazioni nel Dash la corsa NON parte con la fase — la accende `TickPlayback` quando le
 		// rotte cominciano, dopo l'anticipo. Accenderla qui farebbe correre sul posto lo scattatore mentre suona
 		// il cast: la classe di difetti di #3519. L'annuncio `OnUnitMoveStarted` resta all'ingresso.
-		const bool bCorsaRinviata = PlaybackActivationLeadSeconds(Ph) > 0.f;
+		const bool bCorsaRinviata = PhaseTimeForPlaybackPhase(Ph).Lead > 0.f;
 		for (const FRTMoveAnim& A : MoveAnims)
 		{
 			if (A.Phase == Ph && A.Unit.IsValid())
@@ -8512,7 +8512,7 @@ void ARTTurnManager::StepMicroStep()
 	// #3549: nel Dash i micro-step cominciano DOPO le attivazioni — i confini si contano sul solo tratto delle
 	// rotte, o `Step` si fermerebbe a meta' di un segmento. Fuori dal Dash l'anticipo e' zero e la formula e'
 	// quella di prima.
-	const float Anticipo = FMath::Clamp(PlaybackActivationLeadSeconds(PlaybackPhases[PlaybackPhaseIdx]), 0.f, Durata);
+	const float Anticipo = FMath::Clamp(PhaseTimeForPlaybackPhase(PlaybackPhases[PlaybackPhaseIdx]).Lead, 0.f, Durata);
 	const float DurataRotte = Durata - Anticipo;
 	if (DurataRotte <= 0.f)
 	{
@@ -8664,7 +8664,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// loro.* ⚠️ Ne segue cio' che la spec dichiara (§6): la sequenza e' piu' lunga del piu' lungo dei canali,
 		// quindi la spinta rallenta ancora, e la puo' allungare un intento che con l'unita' spinta non ha rapporto.
 		// Cambiarlo e' una decisione separata con la sua evidenza, non un effetto collaterale di questa.
-		// 🔑 Nel Dash, invece, le rotte partono DOPO l'anticipo delle attivazioni (`PlaybackActivationLeadSeconds`).
+		// 🔑 Nel Dash, invece, le rotte partono DOPO l'anticipo delle attivazioni (`FRTPhaseTime::Lead`).
 		const bool bAlphaPerPercorso = (Ph != ERTMatchPhase::Blast);
 		const float AlphaFase = (PhaseDur > 0.f) ? FMath::Clamp(PlaybackPhaseElapsed / PhaseDur, 0.f, 1.f) : 1.f;
 
@@ -8691,7 +8691,8 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		//
 		// #3549: nel Dash le rotte partono DOPO le attivazioni (spec §2.4). `RouteAlpha` clampa un tempo negativo
 		// a zero: durante le attivazioni il cilindro resta sulla cella di partenza.
-		const float AnticipoAttivazioni = PlaybackActivationLeadSeconds(Ph);
+		// L'anticipo lo possiede `PhaseTime` (`FRTPhaseTime::Lead`): la stessa formula che dimensiona la fase.
+		const float AnticipoAttivazioni = PhaseTimeForPlaybackPhase(Ph).Lead;
 		TArray<float, TInlineAllocator<16>> AlphaAnim;
 		AlphaAnim.SetNumUninitialized(MoveAnims.Num());
 		for (int32 AnimIdx = 0; AnimIdx < MoveAnims.Num(); ++AnimIdx)
@@ -9312,14 +9313,6 @@ float ARTTurnManager::DurationForPlaybackPhase(ERTMatchPhase InPhase) const
 	// classificazione di `PhaseTime`, e ci si e' arrivati dopo che la prima stesura — che comprimeva il
 	// tempo dei colpi — faceva uscire tutti i colpi in un frame e accelerava la spinta del knockback.
 	return T.Shown + T.Slack * PlaybackSlackScale;
-}
-
-float ARTTurnManager::PlaybackActivationLeadSeconds(ERTMatchPhase InPhase) const
-{
-	// Solo il Dash: in Prep non ci sono rotte, nel Blast la sequenza contiene gia' le attivazioni.
-	return (InPhase == ERTMatchPhase::Dash)
-		? PlaybackActivationsDash.Num() * FMath::Max(0.f, AttackShowSeconds)
-		: 0.f;
 }
 
 int32 ARTTurnManager::PlaybackActivationsQueuedForTest() const

@@ -281,7 +281,10 @@ discende:
 - **`PhaseTime`** (➕ rev., I5): la firma guadagna `int32 NumActivations` e, per il Blast,
   `int32 NumSequenceElements` prende il posto dei tre conteggi di canale:
   - Prep: `Shown = NumActivations × AttackShowSeconds`, `Slack = PhaseBeatSeconds` (il beat di oggi resta);
-  - Dash: `Shown = NumActivations × AttackShowSeconds + MoveTime`;
+  - Dash: `Shown = NumActivations × AttackShowSeconds + MoveTime`; ➕ impl. (review PR #3561) l'anticipo delle
+    rotte lo possiede `PhaseTime`, nel campo `FRTPhaseTime::Lead` (= il tempo delle attivazioni, in Prep e Dash;
+    zero altrove; già dentro `Shown`, non un terzo termine). ⌫ *Il TurnManager lo ricalcolava in
+    `PlaybackActivationLeadSeconds`, una seconda copia della formula.*
   - Blast: `Shown = Max(Max(1, NumSequenceElements) × AttackShowSeconds, MoveTime)` — il `Max` con la spinta
     resta (`RTPlaybackLibrary.cpp:111-121`), la sequenza sostituisce il `Max` fra canali;
   - `PhaseDuration` (`:56-69`) sopravvive per i gate di pacing con **tre** zeri dichiarati invece di due.
@@ -407,6 +410,7 @@ l'attivazione della squadra del viewer **è** visibile.
 | `Playback.HiddenActivationStillKeysItsAct` (puro, ➕ review PR #3561) | Un muro in testa e l'attivazione di X nascosta al viewer: A prima di X anche per chi non la vede (chiave = attivazione, non muro); l'attivazione nascosta non entra; senza muro lo stesso ordine. Mutazione: chiave solo dalle visibili → X davanti ad A. |
 | `Playback.UnknownSourceDoesNotOpenAnAct` (puro, ➕ review PR #3561) | `Attack(S, X)` poi `StructureHit(0, X)`: nessun confine; `Attack(T, X)`: confine. `NextActionBoundary` tiene la sorgente nota oltre lo `0`. Mutazione: togliere `!= 0` → cade il primo. |
 | `Playback.PhaseEndNetStopsWithThePause` (➕ review PR #3561) | Con la sola rete di fine fase a rivelare, tre attivazioni di Prep e `Next Action`: tre fermate in Prep, un cast per sorgente. Mutazione: togliere il `return` della rete → le attivazioni dopo la prima si perdono. |
+| `Playback.PhaseTimeLeadEqualsActivationTime` (puro, ➕ review PR #3561) | `Lead` vale il tempo delle attivazioni in Prep e Dash, zero in Blast e Move e con cadenza negativa; `Total()` resta `Shown + Slack`. |
 | `Match.Autobattle.DeterminismIsIndependentOfPlayback` (esistente) | Resta verde. |
 
 🔴 Controlli di mutazione dichiarati: (1) togliere l'emissione degli intenti d'attacco → cade

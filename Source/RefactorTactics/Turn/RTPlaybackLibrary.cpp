@@ -178,7 +178,9 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 	switch (Phase)
 	{
 	case ERTMatchPhase::Dash:
-		// Prima le attivazioni, poi le rotte: `RouteAlpha` parte dopo il loro tempo.
+		// Prima le attivazioni, poi le rotte: `RouteAlpha` parte dopo il loro tempo, che e' `Lead`. Uno, letto da chi
+		// dimensiona la fase e da chi anima le rotte: due copie di `N x ASS` divergerebbero alla prima modifica.
+		Out.Lead = ActivationTime;
 		Out.Shown = ActivationTime + MoveTime;
 		break;
 
@@ -208,6 +210,8 @@ FRTPhaseTime URTPlaybackLibrary::PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSeg
 
 	case ERTMatchPhase::Prep:
 		// Le attivazioni si mostrano; il beat di oggi resta, ed e' l'unica parte che il budget puo' togliere.
+		// `Lead` = tutto il mostrato: in Prep non c'e' altro dopo le attivazioni.
+		Out.Lead = ActivationTime;
 		Out.Shown = ActivationTime;
 		Out.Slack = PhaseBeatSeconds;
 		break;
@@ -524,6 +528,10 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 	// scivolava dietro gli atti successivi senza che la timeline fosse cresciuta, e `Build(T, S, k) != S`. Gli
 	// eventi del prefisso entrano nei gruppi per dare la chiave e NON si riemettono (vedi sotto).
 	TArray<FRTAttoInCostruzione> Atti;
+	// La chiave `(sorgente, azione)` -> l'indice dell'atto in `Atti` (review della PR #3561: prima un
+	// `IndexOfByPredicate` per evento, lineare negli atti). ⛔ **Solo `Find`/`Add`**: nessuna iterazione su questa
+	// mappa decide un ordine — l'ordine degli atti e' quello di `Atti`, poi gli `StableSort` qui sotto.
+	TMap<TPair<int32, FName>, int32> AttoPerChiave;
 
 	for (int32 i = 0; i < Timeline.Num(); ++i)
 	{
@@ -544,14 +552,10 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 		// ⚠️ Una sorgente `0` con un'azione nominata (uno `StructureHit` o un'impronta non attribuibili, [D-063]) forma
 		// un gruppo `(0, azione)` suo: non sappiamo a chi appartenga, quindi resta un atto proprio, alla sua prima
 		// apparizione. Non e' la regola del confine — `IsActBoundary` non lo fa fermare — ma quella dell'ordine.
-		int32 Atto = INDEX_NONE;
-		if (!Ev.ActionId.IsNone()) // senza identita' = atto proprio, mai fuso (#3281)
-		{
-			Atto = Atti.IndexOfByPredicate([&Ev](const FRTAttoInCostruzione& A)
-			{
-				return !A.ActionId.IsNone() && A.Source == Ev.SourceStableUnitId && A.ActionId == Ev.ActionId;
-			});
-		}
+		const bool bHaIdentita = !Ev.ActionId.IsNone(); // senza identita' = atto proprio, mai fuso (#3281)
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		const int32* Trovato = bHaIdentita ? AttoPerChiave.Find(Chiave) : nullptr;
+		int32 Atto = Trovato ? *Trovato : INDEX_NONE;
 		if (Atto == INDEX_NONE)
 		{
 			FRTAttoInCostruzione& Nuovo = Atti.AddDefaulted_GetRef();
@@ -559,6 +563,10 @@ TArray<FRTBlastSequenceElement> URTPlaybackLibrary::BuildBlastSequence(const TAr
 			Nuovo.ActionId = Ev.ActionId;
 			Nuovo.PrimaApparizione = i;
 			Atto = Atti.Num() - 1;
+			if (bHaIdentita)
+			{
+				AttoPerChiave.Add(Chiave, Atto);
+			}
 		}
 		if (!bNascosta)
 		{

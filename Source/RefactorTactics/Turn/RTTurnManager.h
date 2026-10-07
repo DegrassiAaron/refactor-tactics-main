@@ -2428,9 +2428,6 @@ protected:
 	/** Aggiorna l'atto in corso e consuma un `Next Action` armato: la regola e' `IsActBoundary` (#3292, #3549). */
 	bool NotePlaybackActShown(const FRTResolvedEvent& Ev);
 
-	/** Quanto la fase spende in attivazioni PRIMA delle rotte: solo il Dash ne ha (#3549, spec §2.4). */
-	float PlaybackActivationLeadSeconds(ERTMatchPhase InPhase) const;
-
 	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. `AttackOrdinal` serve solo alla traccia. */
 	void LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
 	/**
@@ -2478,7 +2475,8 @@ protected:
 	/**
 	 * I due termini della fase — movimento e attesa — prima che il budget tocchi il secondo.
 	 * Raccoglie gli ingressi che solo il TurnManager possiede e delega la formula a
-	 * `URTPlaybackLibrary::PhaseTime`.
+	 * `URTPlaybackLibrary::PhaseTime`. ⚠️ Porta anche l'anticipo delle attivazioni (`Lead`), che le rotte del Dash, la
+	 * corsa rinviata e `StepMicroStep` leggono da qui (review della PR #3561).
 	 */
 	FRTPhaseTime PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const;
 
