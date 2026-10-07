@@ -54,6 +54,64 @@ namespace
 		IFileManager::Get().Delete(*Temp);
 		return Modello;
 	}
+
+	/**
+	 * Un catalogo VALIDO con una voce `Promoted` e un binding ATTIVO per Aevik (#3563). `ActionId` nullo = binding
+	 * di ruolo. E' la base dei test sulla terna: ogni rosso sotto parte da un verde misurato.
+	 */
+	FRTAnimCatalog CatalogoConLegame(ERTPresentationRole Role, const TCHAR* ActionId)
+	{
+		FRTAnimCatalog Catalog;
+		Catalog.NextId = 2;
+		FRTAnimCatalogEntry E;
+		E.Id = FName(TEXT("AV_0001"));
+		E.Derived.AssetPath = PathDi(TEXT("Gadget"), TEXT("Throw_Ready"));
+		E.Derived.AssetName = TEXT("Throw_Ready");
+		E.Authored.Status = ERTAnimClipStatus::Promoted;
+		FRTAnimBinding B;
+		B.HeroId = FName(TEXT("Hero.Aevik"));
+		B.Role = Role;
+		B.ActionId = ActionId ? FName(ActionId) : NAME_None;
+		B.bActive = true;
+		E.Authored.Bindings.Add(B);
+		Catalog.Entries.Add(MoveTemp(E));
+		return Catalog;
+	}
+
+	/**
+	 * Aggiunge al catalogo una voce `Promoted` con UN binding per Aevik, e tiene `NextId` dominante.
+	 * ⚠️ `Clip` distinta per voce: due voci sullo stesso path sono gia' un errore di `ValidateCatalog` (`:576-582`).
+	 */
+	void AggiungiLegame(FRTAnimCatalog& Catalog, const TCHAR* Id, const TCHAR* Clip, ERTPresentationRole Role,
+		const TCHAR* ActionId, bool bActive)
+	{
+		FRTAnimCatalogEntry E;
+		E.Id = FName(Id);
+		E.Derived.AssetPath = PathDi(TEXT("Gadget"), Clip);
+		E.Derived.AssetName = Clip;
+		E.Authored.Status = ERTAnimClipStatus::Promoted;
+		FRTAnimBinding B;
+		B.HeroId = FName(TEXT("Hero.Aevik"));
+		B.Role = Role;
+		B.ActionId = ActionId ? FName(ActionId) : NAME_None;
+		B.bActive = bActive;
+		E.Authored.Bindings.Add(B);
+		Catalog.Entries.Add(MoveTemp(E));
+		Catalog.NextId = Catalog.Entries.Num() + 1;
+	}
+
+	bool QualcheRigaContiene(const TArray<FString>& Righe, const TCHAR* Frammento)
+	{
+		return Righe.ContainsByPredicate([Frammento](const FString& R) { return R.Contains(Frammento); });
+	}
+
+	/** Un catalogo JSON minimo con UN binding Cast di Aevik; `ActionIdJson` e' il frammento della chiave, o vuoto. */
+	FString JsonConUnLegame(int32 Versione, const TCHAR* ActionIdJson)
+	{
+		return FString::Printf(TEXT(R"({ "formatVersion": %d, "nextId": 2, "entries": [ { "id": "AV_0001", )")
+			TEXT(R"("derived": { "assetPath": "/Game/A.A" }, "authored": { "status": "Promoted", "bindings": [ )")
+			TEXT(R"({ "hero": "Hero.Aevik", "role": "Cast", %s"active": true } ] } } ] })"), Versione, ActionIdJson);
+	}
 }
 
 // ─── Il pack si legge dal path ───────────────────────────────────────────────────────────────────────
@@ -265,6 +323,184 @@ bool FRTAnimCatalogRejectsTwoActivePerRoleTest::RunTest(const FString&)
 	}
 	// Il messaggio deve dire QUALI due: «catalogo non valido» non si aziona.
 	TestTrue(TEXT("la riga nomina entrambe le clip in conflitto"), bNominaEntrambe);
+	return true;
+}
+
+// ─── La chiave `actionId` (#3563, spec «la clip per abilita'» §2.3) ──────────────────────────────────────────
+
+/**
+ * Il JSON con `actionId` fa round-trip, e un catalogo v1 che guadagna un `actionId` si RISALVA come v2.
+ * ✅ Validato per mutazione (P5): il writer che scrive `Catalog.FormatVersion` invece di `CurrentFormatVersion`
+ * fa rifiutare la rilettura («un actionId esiste solo da v2») → cade «la rilettura riesce».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogActionIdRoundTripsTest,
+	"RefactorTactics.Anim.Catalog.ActionIdRoundTrips",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogActionIdRoundTripsTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Catalog;
+	Catalog.FormatVersion = 1;   // 🔑 un catalogo letto da un file v1, a cui l'autore aggiunge un binding d'azione
+	AggiungiLegame(Catalog, TEXT("AV_0001"), TEXT("Throw_Ready"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), true);
+	AggiungiLegame(Catalog, TEXT("AV_0002"), TEXT("Cast"), ERTPresentationRole::Cast, nullptr, true);
+
+	FString Json;
+	TestTrue(TEXT("scrittura riuscita"), URTAnimCatalogLibrary::SaveToString(Catalog, Json));
+	TestTrue(TEXT("il file scritto dichiara formatVersion 2"), Json.Contains(TEXT("\"formatVersion\": 2")));
+	TestTrue(TEXT("il binding d'azione porta actionId"), Json.Contains(TEXT("\"actionId\": \"Hero.Aevik.Overload\"")));
+	int32 Occorrenze = 0;
+	for (int32 Da = Json.Find(TEXT("\"actionId\"")); Da != INDEX_NONE;
+		Da = Json.Find(TEXT("\"actionId\""), ESearchCase::CaseSensitive, ESearchDir::FromStart, Da + 1))
+	{
+		++Occorrenze;
+	}
+	TestEqual(TEXT("il binding di ruolo NON porta la chiave"), Occorrenze, 1);
+
+	FRTAnimCatalog Riletto;
+	FString Errore;
+	if (!TestTrue(TEXT("🔴 la rilettura riesce"), URTAnimCatalogLibrary::LoadFromString(Json, Riletto, Errore)))
+	{
+		AddInfo(Errore);
+		return false;
+	}
+	TestEqual(TEXT("round-trip: l'azione del primo binding"),
+		Riletto.Entries[0].Authored.Bindings[0].ActionId, FName(TEXT("Hero.Aevik.Overload")));
+	TestEqual(TEXT("round-trip: il secondo resta di ruolo"),
+		Riletto.Entries[1].Authored.Bindings[0].ActionId, FName(NAME_None));
+	return true;
+}
+
+/**
+ * Un `actionId` che non e' un'azione conosciuta e' un ERRORE, col suo nome — `Ruling` di §2.3.
+ * ✅ Validato per mutazione (5): il controllo dell'azione ignota tolto → cade «un refuso e' un errore».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogRejectsUnknownActionIdTest,
+	"RefactorTactics.Anim.Catalog.RejectsUnknownActionId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogRejectsUnknownActionIdTest::RunTest(const FString&)
+{
+	const FRTAnimCatalog Buono = CatalogoConLegame(ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"));
+	TestEqual(TEXT("controllo positivo: un'abilita' del kit e' valida"),
+		URTAnimCatalogLibrary::ValidateCatalog(&Buono).Num(), 0);
+	const FRTAnimCatalog Generica = CatalogoConLegame(ERTPresentationRole::Attack, TEXT("Action.BasicAttack"));
+	TestEqual(TEXT("controllo positivo: una generica core e' valida"),
+		URTAnimCatalogLibrary::ValidateCatalog(&Generica).Num(), 0);
+
+	const FRTAnimCatalog Refuso = CatalogoConLegame(ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overlaod"));
+	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateCatalog(&Refuso);
+	TestTrue(TEXT("🔴 un refuso e' un errore"), Errori.Num() > 0);
+	TestTrue(TEXT("e la riga nomina l'azione"), QualcheRigaContiene(Errori, TEXT("Hero.Aevik.Overlaod")));
+	return true;
+}
+
+/**
+ * Al piu' una attiva per POOL: due sulla stessa terna sono errore; una di ruolo e una d'azione sullo stesso
+ * `(eroe, ruolo)` sono due pool, e convivono (Review Focus (b), meta' «entrambi validi»).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogRejectsTwoActivePerActionRoleTest,
+	"RefactorTactics.Anim.Catalog.RejectsTwoActivePerActionRole",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogRejectsTwoActivePerActionRoleTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Pool;
+	AggiungiLegame(Pool, TEXT("AV_0001"), TEXT("Cast"), ERTPresentationRole::Cast, nullptr, true);
+	AggiungiLegame(Pool, TEXT("AV_0002"), TEXT("Throw_Ready"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), true);
+	TestEqual(TEXT("🔑 una attiva di ruolo e una d'azione sullo stesso (eroe, ruolo): valido"),
+		URTAnimCatalogLibrary::ValidateCatalog(&Pool).Num(), 0);
+
+	AggiungiLegame(Pool, TEXT("AV_0003"), TEXT("Ability_Q_Target"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), true);
+	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateCatalog(&Pool);
+	TestTrue(TEXT("🔴 due attive sulla stessa terna sono un errore"), Errori.Num() > 0);
+	bool bNominaEntrambe = false;
+	for (const FString& E : Errori)
+	{
+		if (E.Contains(TEXT("AV_0002")) && E.Contains(TEXT("AV_0003")) && E.Contains(TEXT("Hero.Aevik.Overload")))
+		{
+			bNominaEntrambe = true;
+		}
+	}
+	TestTrue(TEXT("la riga nomina le due clip e l'azione"), bNominaEntrambe);
+	return true;
+}
+
+/**
+ * `formatVersion: 1` con un `actionId` e' rifiutato: una build vecchia lo leggerebbe come binding di RUOLO, cioe'
+ * una clip sbagliata e attiva (spec §2.3, §4). Lo stesso testo dichiarato v2 si legge.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogFormatVersion2IsRequiredTest,
+	"RefactorTactics.Anim.Catalog.FormatVersion2IsRequired",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogFormatVersion2IsRequiredTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Letto;
+	FString Errore;
+	TestFalse(TEXT("🔴 v1 con actionId: rifiutato"),
+		URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(1, TEXT(R"("actionId": "Hero.Aevik.Overload", )")), Letto, Errore));
+	TestTrue(TEXT("e il messaggio nomina actionId"), Errore.Contains(TEXT("actionId")));
+
+	FRTAnimCatalog LettoV2;
+	FString ErroreV2;
+	TestTrue(TEXT("controllo positivo: lo stesso testo v2 si legge"),
+		URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(2, TEXT(R"("actionId": "Hero.Aevik.Overload", )")), LettoV2, ErroreV2));
+	return true;
+}
+
+/** Review Focus (c): un catalogo v2 di soli binding di RUOLO si legge, ed e' valido. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogFormatVersion2WithoutActionIdLoadsTest,
+	"RefactorTactics.Anim.Catalog.FormatVersion2WithoutActionIdLoads",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogFormatVersion2WithoutActionIdLoadsTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Letto;
+	FString Errore;
+	if (!TestTrue(TEXT("🔴 v2 senza actionId: si legge"),
+			URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(2, TEXT("")), Letto, Errore)))
+	{
+		AddInfo(Errore);
+		return false;
+	}
+	TestEqual(TEXT("il binding e' di ruolo"), Letto.Entries[0].Authored.Bindings[0].ActionId, FName(NAME_None));
+	TestEqual(TEXT("ed e' valido"), URTAnimCatalogLibrary::ValidateCatalog(&Letto).Num(), 0);
+	FRTAnimCatalog LettoV1;
+	TestTrue(TEXT("e un v1 senza actionId si legge ancora"),
+		URTAnimCatalogLibrary::LoadFromString(JsonConUnLegame(1, TEXT("")), LettoV1, Errore));
+	return true;
+}
+
+/**
+ * Un `actionId` VALIDO su un ruolo che non propaga l'azione (`Move`) e' un errore: non suonerebbe mai (D3).
+ * ✅ Validato per mutazione (9): il controllo del ruolo tolto → cade il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogRejectsActionIdOnNonPropagatingRoleTest,
+	"RefactorTactics.Anim.Catalog.RejectsActionIdOnNonPropagatingRole",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogRejectsActionIdOnNonPropagatingRoleTest::RunTest(const FString&)
+{
+	const FRTAnimCatalog SuMove = CatalogoConLegame(ERTPresentationRole::Move, TEXT("Hero.Aevik.Overload"));
+	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateCatalog(&SuMove);
+	TestTrue(TEXT("🔴 actionId valido su Move: errore"), Errori.Num() > 0);
+	TestTrue(TEXT("e la riga nomina il ruolo"), QualcheRigaContiene(Errori, TEXT("Move")));
+
+	const FRTAnimCatalog SuCast = CatalogoConLegame(ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"));
+	TestEqual(TEXT("controllo positivo: la stessa azione su Cast e' valida"),
+		URTAnimCatalogLibrary::ValidateCatalog(&SuCast).Num(), 0);
+	return true;
+}
+
+/**
+ * `Ruling` R10: un'azione concessa dall'equipaggiamento porta l'id del PEZZO (`MakeEquipmentAction`,
+ * `RTCatalogLibrary.cpp:933`) e si attiva come le altre: `Gadget.Sprinkler` su `Cast` e' accettato.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimCatalogAcceptsEquipmentActionIdTest,
+	"RefactorTactics.Anim.Catalog.AcceptsEquipmentActionId",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimCatalogAcceptsEquipmentActionIdTest::RunTest(const FString&)
+{
+	const FRTAnimCatalog Gadget = CatalogoConLegame(ERTPresentationRole::Cast, TEXT("Gadget.Sprinkler"));
+	TestEqual(TEXT("🔴 l'azione di un gadget e' un'azione conosciuta"),
+		URTAnimCatalogLibrary::ValidateCatalog(&Gadget).Num(), 0);
+	// Il controllo positivo del rifiuto: senza, «accettato» non distinguerebbe «conosciuta» da «nessun controllo».
+	const FRTAnimCatalog Refuso = CatalogoConLegame(ERTPresentationRole::Cast, TEXT("Gadget.Sprinklr"));
+	TestTrue(TEXT("e un pezzo inesistente resta un errore"), URTAnimCatalogLibrary::ValidateCatalog(&Refuso).Num() > 0);
 	return true;
 }
 
