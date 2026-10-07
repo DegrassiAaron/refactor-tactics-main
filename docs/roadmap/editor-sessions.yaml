@@ -5103,7 +5103,7 @@ sessions:
       il verdetto su `PIE-CAST-BEAT`; nessun asset
     artifacts: []
     unblocked_by: []
-    shares_setup_with: [U67]
+    shares_setup_with: []
     verifies: [PIE-CAST-BEAT]
     issues: [3549]
     done_when: >-

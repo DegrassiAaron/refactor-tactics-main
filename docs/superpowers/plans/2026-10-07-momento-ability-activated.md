@@ -3661,21 +3661,21 @@ EOF
   "turns": [
     {
       "intents": [
-        { "unit": "M1", "ability": "Hero.Muiren.TideGuard", "target": "M1" },
+        { "unit": "M1", "ability": "Hero.Muiren.TideGuard" },
         { "unit": "B1", "ability": "Hero.Branth.ImpactShot", "target": "M1" }
       ]
     }
   ],
 
   "expect": [
-    { "type": "UnitAtCell",     "unit": "M1", "cell": [-1, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "M1", "cell": [-2, 0, 0] },
     { "type": "UnitAtCell",     "unit": "B1", "cell": [ 1, 0, 0] },
     { "type": "TurnsCompleted", "value": 1 }
   ]
 }
 ```
 
-🔑 **`"target": "M1"` su TideGuard non è un bersaglio inventato, è ciò che il caricatore pretende.** Un intento con `ability` e senza `target` è accettato solo se `AbilityResolvesOnSelf` risponde vero, e quella domanda va al catalogo **core**: un'azione d'eroe come `Hero.Muiren.TideGuard` non vi compare, quindi senza `target` il caricatore rifiuta lo scenario con *«l'abilita' … non dichiara un bersaglio (campo target)»* (`ScenarioHarness/RTScenarioLoader.cpp:1660-1683`). In Prep l'istanza agisce comunque su chi la usa (`Instance.TargetUnitId = i`, `RTTurnManager.cpp:4355`): il `target` su sé stesso è la forma accettata e coincide con ciò che il resolver fa.
+⌫ ➕ impl. *Questo paragrafo prescriveva `"target": "M1"` su TideGuard, «ciò che il caricatore pretende», ed era falso*: eseguito nel Task 8, il caricatore rifiuta quell'intento con *«l'unita' bersaglia se stessa»* (`ScenarioHarness/RTScenarioLoader.cpp:2827-2832`), perché `TideGuard` è self-target (`bSelfTarget`, `AbilityResolvesOnSelf`) e il campo va **omesso**, come fa `Scenarios/Spec/Combat/ProactiveShieldAbsorbsWhereBaseShieldDoesNot.json`. Con il campo cadevano `ShippedScenariosAreValid`, `ShippedScenariosRequireKnownCapabilities` ed `EveryShippedScenarioRuns`. In Prep l'istanza agisce su chi la usa (`Instance.TargetUnitId = i`): il `target` esplicito non serve e non è accettato. ➕ impl. Anche l'atteso su `M1` è `[-2, 0, 0]`, non `[-1, 0, 0]`: `Hero.Branth.ImpactShot` porta `Weapon.Impact`, che aggiunge una spinta di una cella verso ovest (misurato dal fallimento di `UnitAtCell(M1)` al secondo run).
 
 Il corpus golden **non** chiede nulla per l'Id nuovo: è un elenco esplicito (`Tests/RTGoldenCorpusTests.cpp:583`), e `Visual.Ability.CastBeat` non vi entra.
 
@@ -3713,7 +3713,7 @@ Poi la riga «Rimisurato» nuova va **subito sotto la riga dei totali**, cioè *
 `editor-sessions.yaml`, subito prima della riga `not_schedulable:`. Prima misura l'ultimo id: `grep -n "^  - id: U" docs/roadmap/editor-sessions.yaml | tail -1` (in pianificazione era `U67`, `:5069`); usa il successivo.
 
 ```yaml
-  - id: U68
+  - id: U69   # ➕ impl. il piano diceva U68, ma main l'ha presa per PIE-V01-TRACER (#2454) prima del merge
     title: Il momento — il beat di cast sulla sorgente (AbilityActivated)
     block: 6
     critical: false
