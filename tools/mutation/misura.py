@@ -172,8 +172,10 @@ def _alberi_processi():
             [PWSH, "-NoProfile", "-NonInteractive", "-Command",
              "Get-CimInstance Win32_Process | "
              "Select-Object ProcessId,ParentProcessId,Name,ThreadCount,WorkingSetSize,CommandLine | "
-             "ForEach-Object { '{0};{1};{2};{3};{4};{5}' -f $_.ProcessId,$_.ParentProcessId,$_.Name,"
-             "$_.ThreadCount,$_.WorkingSetSize,$(if ($_.Name -like 'Unreal*') { $_.CommandLine }) }"],
+             "ForEach-Object { '{0};{1};{2};{3};{4};{5};{6}' -f $_.ProcessId,$_.ParentProcessId,$_.Name,"
+             "$_.ThreadCount,$_.WorkingSetSize,"
+             "$(if ($_.Name -like 'Unreal*') { [int](-not (Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue)) }),"
+             "$(if ($_.Name -like 'Unreal*') { $_.CommandLine }) }"],
             capture_output=True, text=True, errors="replace")
     except OSError:
         # Interprete non risolvibile: PATH senza System32, container, host non-Windows.
@@ -185,12 +187,13 @@ def _alberi_processi():
 
 
 def _parse_processi(righe):
-    """PURA. `{'motori': {pid}, 'padre': {pid: ppid}, 'motori_info': {pid: (nome, cmdline, thread, memoria)}}`.
+    """PURA. `{'motori': {pid}, 'padre': {pid: ppid}, 'motori_info': {pid: (nome, cmdline, thread, memoria, uscito)}}`.
 
-    Una riga e' `pid;ppid;nome;thread;memoria;cmdline`. `thread` e `memoria` sono `ThreadCount` e
-    `WorkingSetSize` di `Win32_Process`, gli stessi valori di `Threads.Count` e `WorkingSet64` di `Get-Process`
-    su cui `AGENTS.md` §*Build Editor* ha misurato le due ancore dello zombie. Una riga di tre campi resta
-    accettata senza info: e' la forma dei casi del self-test che non ne hanno bisogno.
+    Una riga e' `pid;ppid;nome;thread;memoria;uscito;cmdline`. `thread` e `memoria` sono `ThreadCount` e
+    `WorkingSetSize` di `Win32_Process`, gli stessi valori di `Threads.Count` e `WorkingSet64` di `Get-Process`.
+    `uscito` e' `1` se `Get-Process -Id` non trova il processo, `0` se lo trova, vuoto per chi non e' un motore:
+    e' cio' che distingue lo zombie ([D-473]). Una riga di tre campi resta accettata senza info: e' la forma dei
+    casi del self-test che non ne hanno bisogno.
 
     🔴 **Separata da `_alberi_processi` perche' il filtro e' la sostanza, e senza questa firma
     nessun test lo vede**: `detentori_live_coding` riceve il dict GIA' costruito, quindi togliere il
@@ -198,21 +201,23 @@ def _parse_processi(righe):
     """
     motori, padre, motori_info = set(), {}, {}
     for riga in righe:
-        # ⚠️ `maxsplit=5`: una `CommandLine` contiene `;`, e rispezzarla la troncherebbe. Sta per
-        # ULTIMA apposta, e il sesto campo si prende INTERO.
-        campi = riga.strip().split(";", 5)
+        # ⚠️ `maxsplit=6`: una `CommandLine` contiene `;`, e rispezzarla la troncherebbe. Sta per
+        # ULTIMA apposta, e il settimo campo si prende INTERO.
+        campi = riga.strip().split(";", 6)
         if len(campi) < 3 or not campi[0].isdigit():
             continue
         pid, ppid, nome = int(campi[0]), int(campi[1]) if campi[1].isdigit() else 0, campi[2]
         thread = int(campi[3]) if len(campi) > 3 and campi[3].isdigit() else None
         memoria = int(campi[4]) if len(campi) > 4 and campi[4].isdigit() else None
-        cmdline = campi[5] if len(campi) > 5 and campi[5] else None
+        # Un campo che non e' `0` ne' `1` non dice niente: e' `None`, e uno zombie non si deduce da un vuoto.
+        uscito = {"1": True, "0": False}.get(campi[5]) if len(campi) > 5 else None
+        cmdline = campi[6] if len(campi) > 6 and campi[6] else None
         padre[pid] = ppid
         if "UnrealEditor" in nome:
             motori.add(pid)
             # Il NOME dice interattivo contro headless, la `CommandLine` quale clone: e' cio' che
             # `build()` nomina quando il lock di Live Coding rifiuta la build ([D-469]).
-            motori_info[pid] = (nome, cmdline, thread, memoria)
+            motori_info[pid] = (nome, cmdline, thread, memoria, uscito)
         # ⌫ *Fino a [D-469] qui si raccoglievano anche i `LiveCodingConsole`* (#2392), nella
         # convinzione che tenessero il lock di compilazione. Misurato il 2026-10-07: non lo tengono.
         # Il lock e' un mutex che ogni `UnrealEditor.exe` crea nel proprio processo, e la console
@@ -691,28 +696,39 @@ def detentori_live_coding(motori):
                   if info[0].lower() == "unrealeditor.exe")
 
 
-# Le DUE ANCORE di `AGENTS.md` §*Build Editor*: uno zombie misurato il 2026-08-24 (`Threads.Count` 1,
-# `WorkingSet64` ~0,2 MB) e un Editor vivo il 2026-09-11 (93, ~3,6 GB). ⛔ **Due osservazioni, non una
-# distribuzione**: i limiti qui sotto danno a ciascuna un margine che nessun processo dell'altra specie
-# attraversa, e tutto cio' che sta in mezzo e' «fuori dai dati». Decide solo lo zombie: «vivo» e «fuori dai
-# dati» si aspettano entrambi, e cambia solo cio' che si stampa.
+# 🔑 **Lo ZOMBIE e' un processo USCITO con un thread solo** ([D-473], che emenda l'ancora di [D-472]): un
+# `UnrealEditor.exe` la cui terminazione non si e' chiusa. `Get-Process -Id` non lo trova piu' e `HasExited` vale
+# `True`, ma `Win32_Process` lo elenca, con un thread e gli handle ancora aperti: il mutex di Live Coding e il
+# lock sul `.dll` fra questi.
+#
+# ⌫ *Fino a [D-473] lo zombie si riconosceva dalla memoria*, un thread con al massimo 1 MB, sull'ancora di
+# `AGENTS.md` §*Build Editor* (2026-08-24, ~0,2 MB). Ma la memoria scende col tempo e non distingue niente: il
+# 2026-09-02 uno zombie con 4,27 GB teneva il mutex e il `.dll`, e il 2026-10-07 il pid 56772 aveva un thread,
+# 0,9 GB di working set e 5,4 GB di commit. Per la vecchia regola erano «fuori dai dati», e il gate aspettava.
+#
+# L'Editor VIVO resta l'ancora del 2026-09-11 (93 thread, ~3,6 GB), visibile a `Get-Process`: il limite sulla
+# memoria serve solo a dire «vivo» invece di «fuori dai dati», e quella e' una differenza di stampa. Decide solo
+# lo zombie.
 ZOMBIE_THREAD = 1
-ZOMBIE_MEMORIA_MAX = 1024 * 1024            # 1 MB: cinque volte l'ancora, e nessun Editor vivo ci sta
-VIVO_MEMORIA_MIN = 1024 * 1024 * 1024       # 1 GB: un terzo dell'ancora, e nessuno zombie ci arriva
+VIVO_MEMORIA_MIN = 1024 * 1024 * 1024       # 1 GB: un terzo dell'ancora dell'Editor vivo
 
 
-def stato_del_detentore(thread, memoria):
-    """PURA. Un detentore del lock contro le due ancore: `zombie` | `vivo` | `fuori dai dati`.
+def stato_del_detentore(thread, memoria, uscito):
+    """PURA. Un detentore del lock: `zombie` | `vivo` | `fuori dai dati`.
 
     🔑 **Lo zombie e' l'unico stato che cambia cosa fa `build()`**: si ferma, perche' nessuna attesa rilascia un
-    mutex che il processo morto non chiudera'. Un dato mancante non e' uno zombie: e' «fuori dai dati», e si
-    aspetta.
+    mutex che il processo morto non chiudera'. E' un processo uscito con un thread solo, qualunque sia la sua
+    memoria ([D-473]).
+
+    ⛔ Un dato mancante non e' uno zombie: e' «fuori dai dati», e si aspetta. Lo stesso per un thread solo in un
+    processo che `Get-Process` trova ancora, come uno che sta partendo, e per molti thread in uno uscito, che
+    sta chiudendo.
     """
-    if thread is None or memoria is None:
+    if thread is None or uscito is None:
         return "fuori dai dati"
-    if thread == ZOMBIE_THREAD and memoria <= ZOMBIE_MEMORIA_MAX:
+    if uscito and thread == ZOMBIE_THREAD:
         return "zombie"
-    if thread > ZOMBIE_THREAD and memoria >= VIVO_MEMORIA_MIN:
+    if not uscito and thread > ZOMBIE_THREAD and memoria is not None and memoria >= VIVO_MEMORIA_MIN:
         return "vivo"
     return "fuori dai dati"
 
@@ -729,7 +745,8 @@ def decide_sul_lock(motori):
         info = motori[pid]
         thread = info[2] if len(info) > 2 else None
         memoria = info[3] if len(info) > 3 else None
-        righe.append((pid, stato_del_detentore(thread, memoria), cmdline))
+        uscito = info[4] if len(info) > 4 else None
+        righe.append((pid, stato_del_detentore(thread, memoria, uscito), cmdline))
     if righe and all(stato == "zombie" for _, stato, _ in righe):
         return "ferma-zombie", righe
     return "riprova", righe
@@ -1013,57 +1030,78 @@ def self_test():
     casi.append(("una riga malformata non entra e non solleva",
                  _parse_processi(["x;y;z", "", "9;7"])["motori"] == set(), "ok"))
 
-    # La raccolta porta nome, CommandLine, thread e memoria dei motori: e' cio' che `build()` stampa e giudica.
+    # La raccolta porta nome, CommandLine, thread, memoria e uscita dei motori: e' cio' che `build()` stampa e
+    # giudica. Per chi non e' un motore il campo dell'uscita e' vuoto, come lo scrive la raccolta.
     pieno = _parse_processi([
-        "7;496;UnrealEditor.exe;93;3865470566;UnrealEditor.exe D:/X.uproject",
-        "9;7;LiveCodingConsole.exe;12;40000000;",
-        "13;1;explorer.exe;416;449110016;"])
-    casi.append(("la raccolta porta nome, CommandLine, thread e memoria dei motori, e solo dei motori",
+        "7;496;UnrealEditor.exe;93;3865470566;0;UnrealEditor.exe D:/X.uproject",
+        "9;7;LiveCodingConsole.exe;12;40000000;;",
+        "13;1;explorer.exe;416;449110016;;"])
+    casi.append(("la raccolta porta nome, CommandLine, thread, memoria e uscita dei motori, e solo dei motori",
                  pieno["motori_info"] == {7: ("UnrealEditor.exe", "UnrealEditor.exe D:/X.uproject",
-                                              93, 3865470566)}
+                                              93, 3865470566, False)}
                  and pieno["motori"] == {7} and set(pieno["padre"]) == {7, 9, 13},
                  str(pieno)))
-    # ⚠️ Una CommandLine contiene `;`: sta per ULTIMA, e il sesto campo si prende INTERO.
-    conpv = _parse_processi(["7;496;UnrealEditor-Cmd.exe;40;900000000;cmd.exe /c a;b;c -unattended"])
+    # ⚠️ Una CommandLine contiene `;`: sta per ULTIMA, e il settimo campo si prende INTERO.
+    conpv = _parse_processi(["7;496;UnrealEditor-Cmd.exe;40;900000000;0;cmd.exe /c a;b;c -unattended"])
     casi.append(("la CommandLine con `;` dentro non viene troncata",
                  conpv["motori_info"][7] == ("UnrealEditor-Cmd.exe", "cmd.exe /c a;b;c -unattended",
-                                             40, 900000000),
+                                             40, 900000000, False),
                  str(conpv["motori_info"])))
+    # Il campo dell'uscita: `1` e' uscito, `0` no, e qualunque altra cosa non dice niente.
+    uscite = _parse_processi(["7;1;UnrealEditor.exe;1;900000000;1;A", "8;1;UnrealEditor.exe;1;900000000;x;B"])
+    casi.append(("il campo dell'uscita: `1` e' uscito, un valore illeggibile e' ignoto",
+                 uscite["motori_info"][7][4] is True and uscite["motori_info"][8][4] is None,
+                 str(uscite["motori_info"])))
 
-    # --- #3556: lo ZOMBIE che tiene il lock si riconosce, e si dice ------------------------------------
-    # 🔑 **Le due ancore di `AGENTS.md` §Build Editor, e niente in mezzo.** Il caso che porta il peso e' il
-    # terzo: un processo con un thread solo ma memoria da Editor non e' ne' l'uno ne' l'altro, e arrotondarlo
-    # allo zombie farebbe fermare un gate davanti alla seduta di qualcuno.
-    def stato(nome, atteso, thread, memoria):
-        v = stato_del_detentore(thread, memoria)
+    # --- #3556, #3564: lo ZOMBIE che tiene il lock si riconosce, e si dice ------------------------------
+    # 🔑 **Lo zombie e' un processo uscito con un thread solo, e la memoria non conta** ([D-473]). I due casi che
+    # portano il peso sono le forme MISURATE: lo zombie del 2026-10-07 con GB di memoria, che per la regola di
+    # [D-472] era «fuori dai dati», e il thread solo in un processo che `Get-Process` trova ancora, che non e' uno
+    # zombie: arrotondarlo farebbe fermare un gate davanti a un Editor che sta partendo.
+    def stato(nome, atteso, thread, memoria, uscito):
+        v = stato_del_detentore(thread, memoria, uscito)
         casi.append((nome, v == atteso, "atteso %s, ottenuto %s" % (atteso, v)))
 
-    stato("l'ancora dello zombie: un thread, ~0,2 MB", "zombie", 1, 200000)
-    stato("l'ancora dell'Editor vivo: 93 thread, ~3,6 GB", "vivo", 93, 3865470566)
-    stato("un thread ma memoria da Editor: fuori dai dati, non zombie", "fuori dai dati", 1, 3865470566)
-    stato("molti thread e poca memoria: fuori dai dati", "fuori dai dati", 40, 50000000)
-    stato("un dato mancante non e' uno zombie", "fuori dai dati", None, 200000)
+    stato("l'ancora dello zombie del 2026-08-24: un thread, ~0,2 MB, uscito", "zombie", 1, 200000, True)
+    stato("lo zombie del 2026-10-07: un thread, uscito, con GB di memoria", "zombie", 1, 939524096, True)
+    stato("lo zombie del 2026-09-02: un thread, uscito, con 4,27 GB", "zombie", 1, 4584877260, True)
+    stato("la memoria non serve a dire zombie", "zombie", 1, None, True)
+    stato("un thread in un processo che Get-Process trova: fuori dai dati, sta partendo", "fuori dai dati",
+          1, 200000, False)
+    stato("l'ancora dell'Editor vivo: 93 thread, ~3,6 GB, visibile", "vivo", 93, 3865470566, False)
+    stato("molti thread in un processo uscito: fuori dai dati, sta chiudendo", "fuori dai dati",
+          40, 3865470566, True)
+    stato("molti thread e poca memoria: fuori dai dati", "fuori dai dati", 40, 50000000, False)
+    stato("un dato mancante non e' uno zombie: il thread", "fuori dai dati", None, 200000, True)
+    stato("un dato mancante non e' uno zombie: l'uscita", "fuori dai dati", 1, 200000, None)
+    stato("e nemmeno un Editor vivo: un'uscita ignota non prova niente", "fuori dai dati", 93, 3865470566, None)
 
-    ZOMBIE = ("UnrealEditor.exe", "UnrealEditor.exe D:/Z.uproject", 1, 200000)
-    VIVO = ("UnrealEditor.exe", "UnrealEditor.exe D:/V.uproject", 93, 3865470566)
+    ZOMBIE = ("UnrealEditor.exe", "UnrealEditor.exe D:/Z.uproject", 1, 200000, True)
+    ZOMBIE_GB = ("UnrealEditor.exe", "UnrealEditor.exe D:/G.uproject", 1, 939524096, True)
+    VIVO = ("UnrealEditor.exe", "UnrealEditor.exe D:/V.uproject", 93, 3865470566, False)
 
     def lock(nome, atteso, motori):
         v, righe = decide_sul_lock(motori)
         casi.append((nome, v == atteso, "atteso %s, ottenuto %s (%s)" % (atteso, v, righe)))
 
     lock("solo zombie fra i detentori: ci si ferma", "ferma-zombie", {7: ZOMBIE})
+    lock("uno zombie con GB di memoria ferma come l'altro", "ferma-zombie", {7: ZOMBIE_GB})
+    lock("due zombie, uno per forma: ci si ferma", "ferma-zombie", {7: ZOMBIE, 9: ZOMBIE_GB})
     lock("uno zombie accanto a un Editor vivo: si aspetta, il lock e' anche suo", "riprova",
          {7: ZOMBIE, 8: VIVO})
     lock("nessun detentore: si aspetta, non c'e' niente da dire", "riprova", {})
     lock("una suite headless con un thread solo non e' un detentore", "riprova",
-         {4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject", 1, 200000)})
+         {4242: ("UnrealEditor-Cmd.exe", "UnrealEditor-Cmd.exe X.uproject", 1, 200000, True)})
 
-    # 🔴 **Dalla RIGA alla decisione**, non solo dal dict gia' costruito: con thread e memoria scambiati nella
-    # raccolta, i casi qui sopra resterebbero verdi. Questo e' il solo che lega le ancore a CIO' CHE LEGGE la
-    # macchina.
-    letto = _parse_processi(["7;496;UnrealEditor.exe;1;200000;UnrealEditor.exe D:/Z.uproject"])
-    casi.append(("una riga di zombie, raccolta e giudicata, ferma il gate",
+    # 🔴 **Dalla RIGA alla decisione**, non solo dal dict gia' costruito: con i campi scambiati nella raccolta, i
+    # casi qui sopra resterebbero verdi. Sono i soli che legano la regola a CIO' CHE LEGGE la macchina: la riga
+    # dello zombie del 2026-10-07, e la stessa con il processo ancora trovato da `Get-Process`.
+    letto = _parse_processi(["7;496;UnrealEditor.exe;1;939524096;1;UnrealEditor.exe D:/Z.uproject"])
+    casi.append(("una riga di zombie con GB, raccolta e giudicata, ferma il gate",
                  decide_sul_lock(letto["motori_info"])[0] == "ferma-zombie", str(letto["motori_info"])))
+    trovato = _parse_processi(["7;496;UnrealEditor.exe;1;939524096;0;UnrealEditor.exe D:/Z.uproject"])
+    casi.append(("la stessa riga con il processo trovato da Get-Process non ferma",
+                 decide_sul_lock(trovato["motori_info"])[0] == "riprova", str(trovato["motori_info"])))
 
     # --- #3048: quando la suite e' FINITA, e quando il processo e' APPESO ---------------------
     # 🔑 **Misurato su quattro log veri, due modalita' di invocazione** (`;Quit` dentro
