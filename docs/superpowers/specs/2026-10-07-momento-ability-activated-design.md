@@ -170,10 +170,15 @@ dopo.
 delle attivazioni degli intenti d'attacco. Il playback li raggruppa per intento (§2.4), quindi a schermo
 l'ordine è comunque attivazione → impronta → colpi/muri.
 
-**Esclusi per costruzione**: `Action.Wait` (risolve in `NormalMovement`, `Ability/RTCatalogLibrary.cpp:1184`)
-e il `Move` normale, che non passano da questi siti; ➕ rev. le abilità di fase Cleanup/Environment
-(`RTTurnManager_Blast.cpp:628-637`) e `Action.Withdraw`, che non sono intenti di Prep, Dash o Blast; le
-**reazioni**, il cui momento è `ReactionResolved` (#2191).
+**Esclusi**: ⌫ ➕ impl. *Questa riga diceva «esclusi per costruzione: `Action.Wait` … non passa da questi
+siti», ed era falso* — `IMPLEMENTATION DRIFT` trovato dal Task 3 al primo run verde: `CollectAttackIntents`
+filtra solo `IsFastMovement`, e `Wait` (fallback `Stop`, che produce effetti) arriva fino a `Intents.Add`.
+L'esclusione è quindi **per filtro di fase**, in `EmitAttackIntentActivations`: salta gli intenti il cui
+`MapResolutionPhase(Def.ResolutionPhase)` è `Move` — `Action.Wait` (risolve in `NormalMovement`,
+`Ability/RTCatalogLibrary.cpp:1184`), `Sprint`, `Withdraw` e il `Move` normale. È il criterio che D1
+nomina. Mutazione dichiarata: filtro disattivato → cade «`Action.Wait` non si attiva». Restano fuori per
+costruzione le abilità di fase Cleanup/Environment (`RTTurnManager_Blast.cpp:628-637`), che non sono
+intenti di Prep, Dash o Blast, e le **reazioni**, il cui momento è `ReactionResolved` (#2191).
 
 Ordinamento: solo da `SortUnitsForResolution`, `SortActionInstances`, `IntentIndex` e l'ordine dei pass, mai
 da `TMap`/`TSet`/Actor. La timeline resta fuori da TurnLog, snapshot e `StateHash`
@@ -328,7 +333,7 @@ tabella esista in quella forma).
 |---|---|
 | Nessuna clip attiva per `(eroe, Cast)` | `PlayPresentationRole` degrada come per gli altri ruoli (`RTUnit.cpp:740-745`): nessuna clip, notifica Blueprint con `nullptr`, la partita si gioca uguale. |
 | Blueprint che non implementa `PlayCastMontage` | Nessun effetto: invariante #1. |
-| Un intento senza `ActionId` arriva a un sito di emissione | Non emette e scrive un `ensureMsgf`: l'`ActionId` è ciò che il sotto-progetto 3 consuma, e un `NAME_None` dimenticato non fa fallire nessun test (`RTResolvedEvent.h:310-312`). |
+| Un intento senza `ActionId` arriva a un sito di emissione | Non emette e scrive un `ensureMsgf`: l'`ActionId` è ciò che il sotto-progetto 3 consuma, e un `NAME_None` dimenticato non fa fallire nessun test (`RTResolvedEvent.h:310-312`). ➕ impl. Vale per i siti che leggono dal catalogo (Prep, Dash, Cleanse, Heal, ModifyArc). Gli **intenti d'attacco legacy** senza `ActionId` (abilità di `EnsureDefaultAbilities`/`MakeAbility`, ammesse da `CollectAttackIntents`) sono il caso normale delle unità nude dei test: `EmitAttackIntentActivations` li **salta prima** dell'helper, senza `ensure` — D1 dice «ogni intento **con un `ActionId`**». |
 | Evento di Blast senza attivazione corrispondente | Atto proprio alla posizione di prima apparizione: si vede comunque. |
 | Sorgente non osservata | Nessun beat, nessuna fermata d'atto: la sequenza salta l'elemento. |
 | Estensione D-355 dentro un gruppo già mostrato | L'evento si accoda come atto proprio: il prefisso mostrato non si muove. |
@@ -351,7 +356,7 @@ l'attivazione della squadra del viewer **è** visibile.
 
 | Test | Asserisce |
 |---|---|
-| `Turn.AbilityActivatedIsEmittedOncePerIntent` | Un turno con un intento di Prep (scudo), un Dash e un Blast con colpo, su tre unità: tre `AbilityActivated`, uno per fase, con `Source` e `ActionId` dell'intento; `Action.Move` e `Action.Wait` non ne producono. **Controllo positivo**: aggiungere un quarto intento (una cura) produce un quarto evento con il suo `ActionId`. |
+| `Turn.AbilityActivatedIsEmittedOncePerIntent` | Un turno con un intento di Prep (scudo), un Dash e un Blast con colpo, su tre unità: tre `AbilityActivated`, uno per fase, con `Source` e `ActionId` dell'intento; `Action.Move` e `Action.Wait` non ne producono (➕ impl. per il filtro di fase Move, non per costruzione: mutazione «filtro disattivato» → `Wait` si attiva). **Controllo positivo**: aggiungere un quarto intento (una cura) produce un quarto evento con il suo `ActionId`. ➕ impl. Un intento legacy senza `ActionId` (unità con `EnsureDefaultAbilities`) non si attiva e non fa scattare l'`ensure`. |
 | `Turn.BlastActivatesAllFourSources` (➕ rev.) | Cleanse, Heal, ModifyArc e un intento d'attacco nello stesso Blast: quattro attivazioni, nell'ordine dei pass (Cleanse, Heal, Arc, Attack). Un `ModifyArc` fuori portata: nessuna. |
 | `Turn.AbilityActivatedPrecedesItsFootprintAndHits` | Per ogni intento di Blast, l'indice dell'attivazione è minore di quello dell'`AttackFootprint` e degli `Attack` con lo stesso `(Source, ActionId)`. ⛔ Non asserisce nulla sui `StructureHit`: in timeline precedono l'attivazione (§2.2) e solo la sequenza di playback li riordina. |
 | `Turn.DashActivationPrecedesItsMove` (➕ rev.) | In timeline l'attivazione di fase Dash ha indice minore del `Move` di fase Dash della stessa unità; una carica che non entra in nessuna cella ha l'attivazione e nessun `Move`. |
