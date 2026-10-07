@@ -44,12 +44,12 @@ In UE 5.8.1:
   dall'eseguibile del processo, qui `UnrealEditor-Cmd.exe` (`FLiveCodingModule::StartLiveCoding`);
   per il target Editor UBT interroga quello di `UnrealEditor.exe` (`HotReload.IsLiveCodingSessionActive`).
 
-🔑 **`-NoLiveCoding` c'e', ma non per il motore.** E' un'opzione di **UBT** (`TargetRules.bWithLiveCoding`:
-compila il target senza Live Coding), e l'Editor non la legge: gli Editor interattivi aperti con quel
-flag hanno scritto «Starting LiveCoding» lo stesso. Sta nella riga perche' i gate di `tools/mutation/`
-lo leggono come il segno di una run che non usa Live Coding ([`D-400`], `misura.puo_terminare_orfano()`).
-Senza, una suite di questo strumento viva impediva a quei gate di terminare una console orfana. Se
-`D-400` cambiera' criterio ([#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536)), il flag andra' riletto.
+⌫ **`-NoLiveCoding` non c'e' piu'** ([`D-469`], [#3536](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3536)).
+E' un'opzione di **UBT** (`TargetRules.bWithLiveCoding`: compila il target senza Live Coding), e l'Editor
+non la legge: gli Editor interattivi aperti con quel flag hanno scritto «Starting LiveCoding» lo stesso.
+Stava nella riga perche' i gate di `tools/mutation/` la cercavano per decidere se terminare una console
+orfana ([`D-400`]). `D-469` ha superato quella voce — una console orfana non blocca le build, e nessun
+gate la termina —, e il flag ha perso il suo ultimo lettore.
 Per spegnere il Live Coding in un processo che non e' `-unattended`, la riga che il motore legge e'
 `-LiveCoding=false`: misurato su tre avvii di `UnrealEditor-Cmd` senza `-unattended`. Senza flag e con
 `-NoLiveCoding` il log dice «Starting LiveCoding»; con `-LiveCoding=false` non c'e' nessuna riga
@@ -129,13 +129,13 @@ def esegui(filtro, log_path, grazia, timeout_minuti, campionamento, verboso):
     # ⚠️ `;Quit`, mai `+Quit` — vedi il docstring di modulo. Su FILE e non su `PIPE`: senza drenare,
     # `PIPE` va in deadlock appena il buffer di sistema si riempie, e una suite intera emette
     # megabyte. Il log vero e' il file `-abslog=`; qui basta non bloccare il figlio.
-    # 🔑 `-unattended` e' anche cio' che tiene spento il Live Coding. `-NoLiveCoding` il motore non lo
-    # legge: sta qui per i gate di `D-400`, che lo cercano nella riga (#3522, docstring di modulo).
+    # 🔑 `-unattended` e' anche cio' che tiene spento il Live Coding (#3522). ⌫ `-NoLiveCoding` non c'e'
+    # piu': il motore non lo legge, e i gate che lo cercavano non esistono dopo [D-469] (docstring di modulo).
     scarto = tempfile.TemporaryFile()
     avvio = subprocess.Popen(
         [ENGINE_CMD, UPROJECT,
          "-ExecCmds=Automation RunTests " + filtro + ";Quit",
-         "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoSound", "-NoLiveCoding",
+         "-unattended", "-nopause", "-nosplash", "-nullrhi", "-NoSound",
          "-abslog=" + log_path],
         stdout=scarto, stderr=subprocess.STDOUT)
 
