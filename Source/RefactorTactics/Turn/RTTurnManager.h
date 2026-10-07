@@ -641,6 +641,14 @@ public:
 
 	/** Registra i battiti del Blast in `AttackBeatTraceForTest` (`L<i>` lancio, `A<i>` arrivo). Solo test. */
 	bool bRecordAttackBeatsForTest = false;
+
+	/**
+	 * Le attivazioni di Prep e Dash le rivela SOLO la rete di fine fase (review della PR #3561). Solo test.
+	 * 🔑 La rete e' senza casi per aritmetica — `PhaseTime` dimensiona la fase su `N x AttackShowSeconds` e il ramo
+	 * per tick legge lo stesso valore nello stesso tick — quindi senza questo flag il suo comportamento in pausa non
+	 * si esercita. Simula una fase accorciata, che e' il caso per cui la rete esiste.
+	 */
+	bool bRevealActivationsOnlyAtPhaseEndForTest = false;
 	const TArray<FString>& AttackBeatTraceForTest() const { return AttackBeatTrace; }
 
 	/** La fase in riproduzione, o `Planning` se non si sta riproducendo. Solo test. */
@@ -663,6 +671,26 @@ public:
 	 * @return il numero di eventi con quel `Type`; `0` se il tipo non e' stato emesso in questo turno.
 	 */
 	int32 ResolvedEventCountOfTypeForTest(ERTResolvedEventType Type) const;
+
+	/** Le attivazioni nelle code di playback (Prep, Dash, e gli elementi `AbilityActivated` della sequenza), #3549. */
+	int32 PlaybackActivationsQueuedForTest() const;
+
+	/** L'indice di cella dell'anim di `Unit` nella fase di playback corrente; `INDEX_NONE` se non ne ha una (#3549). */
+	int32 PlaybackAnimCellIndexForTest(const ARTUnit* Unit) const;
+
+	/**
+	 * Quanti elementi della sequenza di Blast sono gia' stati RIVELATI: il prefisso congelato di D-355 (#3549). Un
+	 * colpo lanciato e non ancora arrivato ne fa gia' parte (`#2454`).
+	 */
+	int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }
+
+	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
+	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
+	{
+		TArray<int32> Out;
+		for (const FRTBlastSequenceElement& E : PlaybackBlastSequence) { Out.Add(E.TimelineIndex); }
+		return Out;
+	}
 
 	/**
 	 * Hook per i test: applica una modifica temporanea di superficie dichiarandone l'autore.
@@ -1789,6 +1817,23 @@ protected:
 	void ResolveCombatPasses(FRTBlastContext& Ctx);
 
 	/**
+	 * Un `AbilityActivated` per ogni intento d'attacco ACCETTATO, in ordine di `IntentIndex` (#3549, spec §2.2
+	 * punto 4). Esclusi: gli impatti di carica (`IntentAbilityIndex == INDEX_NONE`, gia' attivati nel Dash),
+	 * gli interrotti (`Ctx.InterruptedIntents`), chi e' morto prima del Blast, le azioni la cui fase di catalogo
+	 * e' `Move` (`Action.Wait`, `Action.Sprint`, `Action.Withdraw`: passano da `CollectAttackIntents` come
+	 * intenti a danno zero, ma non sono un gesto di Blast) e le abilita' legacy senza `ActionId`
+	 * (`EnsureDefaultAbilities`: non c'e' nulla da nominare — le esclude la guardia di `EmitAbilityActivated`,
+	 * una per tutti i siti e senza `ensure`). Inclusi: i degradati ([D-300])
+	 * e i bloccati da linea di tiro o senza mappa (`NoLineOfSight`, `NoMap`, `UnverifiableIntents`): entrano in
+	 * `Ctx.Intents`, e l'attivazione racconta il gesto.
+	 *
+	 * ⛔ **Non vede mai i `Fallback Cancelled`** — fuori portata, bersaglio ignoto, bersaglio sparito: per
+	 * loro `CollectAttackIntents` fa `continue` PRIMA di `Intents.Add`, quindi non si attivano. E' la stessa
+	 * regola del `ModifyArc` fuori portata (spec §2.2, §6).
+	 */
+	void EmitAttackIntentActivations(const FRTBlastContext& Ctx);
+
+	/**
 	 * Applica ai bersagli sopravvissuti gli stati dichiarati dai colpi, consultando prima chi ha annullato il
 	 * controllo con una reazione. Quale controllo salti lo decide QUI chi applica, che ha davanti la lista
 	 * completa e sceglie il piu' grave: deciderlo nel pass sarebbe sceglierlo due volte, in due posti che
@@ -2348,53 +2393,55 @@ protected:
 	void BeginPlayback(bool bPreserveClock = false);
 
 	/**
-	 * Porta a schermo le impronte fino a `UpTo`, in ordine di timeline — `#2454`.
-	 *
-	 * ⛔ **Non riordina e non aggrega.** Consuma `PlaybackFootprints` nell'ordine in cui il resolver le ha
-	 * emesse: la presentazione non ricostruisce una priorita' che l'autorita' ha gia' deciso.
-	 *
-	 * @return `true` se l'ultima impronta mostrata apre un ATTO NUOVO e il playback deve fermarsi li'
-	 *         (`#3292`). ⚠️ Si ferma **dopo** averla mostrata, come `#2855` prescrive: quelle che il tick
-	 *         avrebbe ancora rivelato restano per la ripresa.
+	 * Rivela le attivazioni fino a `UpTo`, in ordine di timeline; `true` se un confine d'atto ha messo in
+	 * pausa (#3549). ⚠️ Si ferma **dopo** aver mostrato il fatto, come `#2855` prescrive: quelle che il tick
+	 * avrebbe ancora rivelato restano per la ripresa. ⛔ Ogni chiamante esce dal tick su `true` — il ramo per tick
+	 * e la rete di fine fase — o il passaggio alla fase dopo perderebbe le attivazioni in coda.
 	 */
-	bool RevealPlaybackFootprints(int32 UpTo);
+	bool RevealPlaybackActivations(const TArray<FRTResolvedEvent>& Activations, int32 UpTo);
 
 	/**
-	 * Rivela i primi `UpTo` colpi a struttura del Blast corrente, senza mai tornare indietro (`#2828`).
+	 * Percorre la sequenza di Blast sul cursore dei battiti fino a `BeatsTarget` (#3549 D5 con `#2454`); `true` se il
+	 * tick deve uscire: un confine d'atto ha messo in pausa, o un ascoltatore di `OnAttackResolved` ha chiuso il
+	 * playback.
 	 *
-	 * ⛔ **Non riordina, non aggrega e non ricalcola il bordo**: consuma `PlaybackStructureHits` nell'ordine
-	 * in cui il resolver li ha prodotti, e il bordo lo LEGGE dall'evento. Chiederlo alla mappa sarebbe la
-	 * seconda risposta a una domanda gia' risolta — ed e' il divieto che la issue scrive per intero.
+	 * 🔑 **Un cursore solo, `BlastBeatsDone`, sugli elementi della sequenza**: il battito `2k` RIVELA l'elemento `k`
+	 * — un ramo per tipo; per un `Attack` e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che fa qualcosa solo per un
+	 * `Attack` (`Hit`, numero, `Colpo:`, `OnAttackResolved`). Il volo e' `PlaybackBlastFlights[k]`, zero per ogni
+	 * altro tipo, quindi l'elemento `k` esce a `k·A` come con `AttacksToShow` e l'arrivo cade prima di `k+1`.
+	 * ⛔ Due cursori — la sequenza da una parte, i colpi dall'altra — in un tick lungo rivelerebbero l'elemento dopo
+	 * prima dell'arrivo del colpo: e' la stessa ragione per cui `#2454` ne ha uno.
 	 *
-	 * @return `true` se l'ultimo colpo mostrato apre un atto nuovo, come la gemella qui sopra (`#3292`).
+	 * ⛔ **Non riordina, non aggrega e non ricalcola**: l'ordine e' quello che `BuildBlastSequence` ha deciso, le
+	 * celle dell'impronta e il bordo del muro si LEGGONO dall'evento (`#2454`, `#2828`).
+	 * ⚠️ Il confine `Next Action` di un colpo cade al suo ARRIVO (`#2454`), quello di ogni altro elemento alla
+	 * rivelazione: un colpo e' mostrato quando arriva.
 	 */
-	bool RevealPlaybackStructureHits(int32 UpTo);
+	bool AdvanceBlastSequence(int32 BeatsTarget);
 
-	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. */
-	void LaunchPlaybackAttack(int32 Index);
+	/** Quanti elementi della sequenza di Blast sono gia' stati RIVELATI: il prefisso congelato di D-355. */
+	int32 BlastElementsShown() const { return (BlastBeatsDone + 1) / 2; }
+
+	/** Il numero d'ordine del colpo fra i soli `Attack` della sequenza, per la traccia dei battiti dei test. */
+	int32 BlastAttackOrdinal(int32 SequenceIndex) const;
+
+	/** Aggiorna l'atto in corso e consuma un `Next Action` armato: la regola e' `IsActBoundary` (#3292, #3549). */
+	bool NotePlaybackActShown(const FRTResolvedEvent& Ev);
+
+	/** Il LANCIO di un colpo (`#2454`): il ruolo `Attack` sull'attaccante. `AttackOrdinal` serve solo alla traccia. */
+	void LaunchPlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
 	/**
-	 * L'ARRIVO di un colpo: `Hit`, numero, `OnAttackResolved` e, con `bWithLog`, la riga `Colpo:` del log.
-	 * ⚠️ La rete di finalizzazione passa `false`: oggi non scrive il log, e non comincia a farlo qui.
+	 * L'ARRIVO di un colpo (`#2454`): la riga `Colpo:`, `Hit`, numero e `OnAttackResolved`.
+	 * ⚠️ **Scrive la riga anche dalla rete di fine fase** (#3549, spec «il momento» §6): la rete percorre lo
+	 * stesso cursore del ciclo, e un recupero che tacesse il feed sarebbe una seconda versione dello stesso fatto.
+	 * ⛔ Trasmette `OnAttackResolved`: un ascoltatore puo' chiudere il playback, e chi chiama lo verifica prima di
+	 * rileggere qualunque stato del playback.
 	 */
-	void ArrivePlaybackAttack(int32 Index, bool bWithLog);
+	void ArrivePlaybackAttack(const FRTResolvedEvent& Atk, int32 AttackOrdinal);
 
 	/**
-	 * Esegue il PROSSIMO battito del cursore `AttackBeatsDone` (`#2454`): il `2i` lancia il colpo `i`, il `2i+1`
-	 * lo fa arrivare, e il cursore avanza di uno. `bWithLog` va all'arrivo (`ArrivePlaybackAttack`).
-	 *
-	 * 🔑 **L'unico posto in cui il cursore si interpreta**: lo percorrono sia il ciclo del `Blast` sia la rete di
-	 * finalizzazione, e due copie dello stesso `Index = N / 2, arrivo = N % 2` sono due occasioni di sfasarle.
-	 * ⚠️ Il confine `Next Action` NON sta qui: lo valuta solo il ciclo principale, dopo un arrivo.
-	 *
-	 * @return l'indice del colpo se il battito era un ARRIVO, `INDEX_NONE` se era un lancio. ⛔ Dopo un arrivo
-	 *         `OnAttackResolved` e' stato trasmesso: un ascoltatore puo' aver chiuso il playback, e chi riceve
-	 *         l'indice deve verificarlo (`PlaybackAttacks.IsValidIndex`) prima di rileggere l'evento.
-	 */
-	int32 ExecuteNextAttackBeat(bool bWithLog);
-
-	/**
-	 * Consegna alla mappa il tracer in volo (`#2454`). Col cursore unico ce n'e' AL PIU' UNO: il lancio di `i+1`
-	 * segue l'arrivo di `i`. Il disegno dipende da chi guarda (`TracerStyleFor`), il ritmo no.
+	 * Consegna alla mappa il tracer in volo (`#2454`). Col cursore unico ce n'e' AL PIU' UNO: l'elemento dopo
+	 * segue l'arrivo del colpo. Il disegno dipende da chi guarda (`TracerStyleFor`), il ritmo no.
 	 * ⚠️ Non tocca la mappa se non c'e' nulla in volo e l'ultima consegna era gia' vuota (`bPlaybackTracerChannelFull`).
 	 */
 	void PushPlaybackTracers();
@@ -2402,11 +2449,19 @@ protected:
 	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
 	 *
-	 * 🔑 **Esiste perche' i siti che la chiamano sono TRE**, uno per canale del `Blast`, e quattro righe
-	 * ripetute tre volte sono tre occasioni di dimenticarne una. ⚠️ `PlaybackStepTargetElapsed = -1` e'
-	 * quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
+	 * 🔑 **Esiste perche' i siti che la chiamano sono piu' d'uno** — `NotePlaybackActShown`, per ogni fatto che
+	 * il playback rivela, e il cambio di fase — e quattro righe ripetute sono altrettante occasioni di
+	 * dimenticarne una. ⏱️ *Fino a #3549 erano i tre canali del `Blast`.* ⚠️ `PlaybackStepTargetElapsed = -1`
+	 * e' quella che si dimentica: senza, un passo pendente riprenderebbe da solo subito dopo la pausa.
 	 */
 	void PausePlaybackAtActBoundary();
+
+	/**
+	 * Il beat di un `AbilityActivated`: la clip del ruolo `Cast` sulla sorgente e la riga `Attiva:` del feed
+	 * (#3549, spec §2.3). ⛔ Non decide se mostrarlo: il filtro di privacy sta a monte, in `BeginPlayback` e in
+	 * `BuildBlastSequence`. La riga porta il verdetto CONGELATO nell'evento, non uno ricalcolato.
+	 */
+	void ShowActivation(const FRTResolvedEvent& Ev);
 	void EnterPlaybackPhase();
 	void TickPlayback(float DeltaSeconds);
 	void FinishPlayback();
@@ -2420,7 +2475,8 @@ protected:
 	/**
 	 * I due termini della fase — movimento e attesa — prima che il budget tocchi il secondo.
 	 * Raccoglie gli ingressi che solo il TurnManager possiede e delega la formula a
-	 * `URTPlaybackLibrary::PhaseTime`.
+	 * `URTPlaybackLibrary::PhaseTime`. ⚠️ Porta anche l'anticipo delle attivazioni (`Lead`), che le rotte del Dash, la
+	 * corsa rinviata e `StepMicroStep` leggono da qui (review della PR #3561).
 	 */
 	FRTPhaseTime PhaseTimeForPlaybackPhase(ERTMatchPhase InPhase) const;
 
@@ -2491,6 +2547,18 @@ protected:
 	 * legge, mai una che si legge per sbaglio.
 	 */
 	FRTKnowledgeVerdict FreezeVerdictFor(const FRTLogSubject& Subject) const;
+
+	/**
+	 * L'UNICO costruttore di `AbilityActivated` (#3549, spec «il momento» §2.1). Copia, non ricalcola: chi
+	 * chiama passa cio' che il resolver ha gia' in mano nel punto in cui ACCETTA l'intento.
+	 *
+	 * ⚠️ Un `ActionId` `NAME_None` **non emette, senza `ensure`**: e' il caso legacy che il gioco ammette (intenti
+	 * d'attacco di `EnsureDefaultAbilities`, scatto legacy, istanze e coperture senza nome), e D1 attiva solo gli
+	 * intenti CON un `ActionId` — quello che il sotto-progetto 3 consuma. La guardia e' qui, una per tutti i siti.
+	 * ⏱️ *Fino alla review della PR #3561 scriveva un `ensureMsgf`, che lo scatto legacy raggiungeva.*
+	 */
+	void EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
+		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape);
 
 	/**
 	 * Applica gli OnEnterEffects (URTTerrainLibrary) di ogni cella in Entered a Unit: Damage via
@@ -3345,28 +3413,29 @@ private:
 	TMap<int32, int32> BotIdleRound;
 
 	TArray<FRTMoveAnim> MoveAnims;          // derivati dagli eventi Move
-	TArray<FRTResolvedEvent> PlaybackAttacks; // eventi Attack, mostrati in serie nel Blast
 	TArray<FRTResolvedEvent> PlaybackDefeated; // eventi Defeated, mostrati a fine della loro fase
 
 	/**
-	 * Eventi `AttackFootprint`, rivelati nel Blast come i colpi — `#2454`.
-	 *
-	 * 🔴 **Array proprio e non fuso con `PlaybackAttacks`**, perche' i due contano cose diverse:
-	 * `ResolveCombatPasses` emette un `Attack` per **vittima** e un'impronta per **intento**. Fonderli
-	 * perderebbe proprio il caso che `D-301` esiste per far esistere — l'area su sole celle vuote, che ha
-	 * un'impronta e zero colpi.
+	 * Le attivazioni VISIBILI di Prep e di Dash, in ordine di timeline (#3549, spec §2.4). Una sorgente che
+	 * chi guarda non ha il diritto di vedere non entra: tutto o niente (D6).
 	 */
-	TArray<FRTResolvedEvent> PlaybackFootprints;
+	TArray<FRTResolvedEvent> PlaybackActivationsPrep;
+	TArray<FRTResolvedEvent> PlaybackActivationsDash;
 
 	/**
-	 * I colpi alle STRUTTURE del Blast corrente, in ordine di risoluzione (`#2828`).
+	 * Il Blast come UNA sequenza per intento (#3549, D5): attivazione, impronte, muri, colpi, un atto dopo
+	 * l'altro. 🔴 Sostituisce i canali paralleli di prima (colpi, impronte da #2454, muri da #2828), che si
+	 * svelavano con contatori indipendenti: «l'attivazione precede il colpo dello stesso intento» non
+	 * discendeva dall'ordine delle code. La costruisce `URTPlaybackLibrary::BuildBlastSequence`.
 	 *
-	 * 🔴 **Array proprio, per la stessa ragione di `PlaybackFootprints` e un passo piu' in la'.** Un
-	 * `Attack` ha per soggetto un'unita'; questo ha per soggetto un **bordo**, che non ha uno
-	 * `StableUnitId` da mettere in `TargetStableUnitId`. Fonderli costringerebbe chi consuma a chiedere a
-	 * ogni evento «sei un'unita' o un muro?», che e' la logica nella presentazione che [D-278] vieta.
+	 * ⚠️ **Un elemento e' un indice di timeline, e il tipo lo DICHIARA l'evento.** `AdvanceBlastSequence` sceglie
+	 * la cue per `Type` — un `Attack` per VITTIMA, un'impronta per INTENTO ([D-301]: l'area su sole celle vuote
+	 * ha un'impronta e zero colpi), un muro per BORDO — e non chiede mai a un colpo se sia un muro: e' la logica
+	 * nella presentazione che [D-278] vieta, e la ragione per cui i muri avevano un array proprio.
+	 * ⚠️ **Non si azzera in `BeginPlayback`**: estendendo (D-355) e' il `Previous` della ricostruzione. La
+	 * svuota `FinishPlayback`.
 	 */
-	TArray<FRTResolvedEvent> PlaybackStructureHits;
+	TArray<FRTBlastSequenceElement> PlaybackBlastSequence;
 
 	/**
 	 * Chi ha gia' ricevuto l'annuncio di morte in questo playback, per `StableUnitId`.
@@ -3398,27 +3467,35 @@ private:
 	float PlaybackSlackScale = 1.f;         // quanto il budget comprime le ATTESE (1 = nessuna, 0 = tutto)
 	float PlaybackTotalSeconds = 0.f;       // durata stimata (per la progress bar)
 	float PlaybackElapsedTotal = 0.f;
+	int32 ActivationsShown = 0;             // attivazioni gia' rivelate nella fase corrente (Prep o Dash), #3549
 	/**
-	 * Battiti gia' eseguiti nel Blast corrente (`#2454`): il `2i` e' il LANCIO del colpo `i`, il `2i+1` il suo
-	 * ARRIVO. ⛔ Un cursore solo: due contatori separati, in un tick lungo, lancerebbero `i+1` prima dell'arrivo di
-	 * `i`. Si azzera in `EnterPlaybackPhase` e in `FinishPlayback`, MAI in `BeginPlayback` (l'estensione con
-	 * `bPreserveClock` salta `EnterPlaybackPhase`).
+	 * Battiti gia' eseguiti nel Blast corrente, sulla SEQUENZA per intento (#3549 D5 con `#2454`): il `2k` RIVELA
+	 * l'elemento `k` — per un colpo e' il LANCIO — e il `2k+1` e' il suo ARRIVO, che conta solo per un colpo.
+	 * ⛔ Un cursore solo: due contatori separati, in un tick lungo, rivelerebbero l'elemento `k+1` prima dell'arrivo
+	 * di `k`. `BlastElementsShown()` ne deriva il prefisso congelato di D-355. Si azzera in `EnterPlaybackPhase` e
+	 * in `FinishPlayback`, MAI in `BeginPlayback` (l'estensione con `bPreserveClock` salta `EnterPlaybackPhase`).
+	 * ⏱️ *Fino al merge di #2454 in #3549 erano due: `BlastShown` sulla sequenza e `AttackBeatsDone` sui soli colpi.*
 	 */
-	int32 AttackBeatsDone = 0;
+	int32 BlastBeatsDone = 0;
 	/**
 	 * `true` se l'ultima consegna a `ARTHexMapActor::SetPlaybackTracers` non era vuota (`#2454`): permette a
 	 * `PushPlaybackTracers` di non toccare la mappa a ogni tick quando non c'e' nulla in volo e nulla da spegnere.
 	 * ⛔ Si azzera ESATTAMENTE dove il canale si spegne (finalizzazione del `Blast` e `FinishPlayback`).
 	 */
 	bool bPlaybackTracerChannelFull = false;
-	/** Volo effettivo di ogni colpo, parallelo a `PlaybackAttacks` (`URTPlaybackLibrary::TracerFlightFor`). */
-	TArray<float> PlaybackAttackFlights;
-	/** La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer, mai il ritmo. */
+	/**
+	 * Il volo di ogni elemento, parallelo a `PlaybackBlastSequence` (`URTPlaybackLibrary::TracerFlightFor`): zero per
+	 * ogni elemento che non e' un colpo idoneo, quindi il suo arrivo coincide con la rivelazione.
+	 */
+	TArray<float> PlaybackBlastFlights;
+	/**
+	 * La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer E, tramite le attivazioni che
+	 * ha il diritto di vedere, l'indice di un colpo nella sequenza di Blast — quindi il suo istante. Il ritmo e' lo
+	 * stesso solo fra squadre con la stessa conoscenza (`CONTRACT CONFLICT` risolto dalla spec del momento §2.4).
+	 */
 	int32 PlaybackViewerTeamId = 0;
-	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`). */
+	/** Traccia dei battiti per i test (`bRecordAttackBeatsForTest`): `L<i>`/`A<i>`, `i` = ordine fra i soli colpi. */
 	TArray<FString> AttackBeatTrace;
-	int32 FootprintsShown = 0;              // impronte gia' rivelate nel Blast corrente (`#2454`)
-	int32 StructureHitsShown = 0;           // colpi a struttura gia' rivelati nel Blast corrente (`#2828`)
 
 	/**
 	 * Il predicato di pausa una tantum armato da `RequestPlaybackStopAt` (`#2855`), o `None`.
@@ -3444,7 +3521,14 @@ private:
 	FName PlaybackStopFromAction;
 
 	/**
-	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque canale del `Blast` — `#3292`.
+	 * La sorgente dell'atto in corso all'armamento: con `PlaybackStopFromAction` e' la COPPIA del confine (#3549).
+	 * ⚠️ `0` = nessuna sorgente: e' la sentinella dello STATO, diversa dal default `-1` di
+	 * `URTPlaybackLibrary::IsActBoundary`, che significa «sorgente non dichiarata» e riporta il criterio storico.
+	 */
+	int32 PlaybackStopFromSource = 0;
+
+	/**
+	 * L'azione dell'ultimo fatto MOSTRATO, da qualunque fase e da qualunque tipo — `#3292`, `#3549`.
 	 *
 	 * 🔴 **Esiste perche' l'atto in corso si leggeva da un canale solo, ed era la terza faccia dello stesso
 	 * difetto.** `RequestPlaybackStopAt` congelava `PlaybackAttacks[AttacksShown - 1]`: ∴ dopo essersi
@@ -3452,7 +3536,8 @@ private:
 	 * dello stesso intento che seguiva sembrava aprire un atto nuovo. Due fermate dentro un intento solo,
 	 * che e' precisamente cio' che `#3292` esclude.
 	 *
-	 * ⚠️ **Lo aggiornano i tre canali quando mostrano un fatto con un'azione**, e **solo** allora: un
+	 * ⚠️ **Lo aggiorna `NotePlaybackActShown` quando si mostra un fatto con un'azione** — attivazioni di Prep e
+	 * Dash, elementi della sequenza di Blast (#3549; ⏱️ *prima i tre canali del Blast*) — e **solo** allora: un
 	 * `NAME_None` non cambia l'atto in corso. E' la stessa scelta della scansione all'indietro di
 	 * `NextActionBoundary`, che salta i vuoti invece di lasciarsene azzerare.
 	 *
@@ -3461,6 +3546,14 @@ private:
 	 * bersaglio, che e' il difetto che il congelamento esiste per evitare.
 	 */
 	FName PlaybackLastShownAction;
+
+	/**
+	 * La sorgente dell'atto MOSTRATO in corso: con `PlaybackLastShownAction` e' l'atto in corso (#3549).
+	 * ⚠️ `0` = nessuna sorgente, sentinella dello stato, diversa dal default `-1` della funzione (`IsActBoundary`).
+	 * 🔑 Un fatto con sorgente `0` (non attribuibile, [D-063]) non la sovrascrive; un cambio d'azione la riparte
+	 * (review della PR #3561, `NotePlaybackActShown`).
+	 */
+	int32 PlaybackLastShownSource = 0;
 
 	// Trasformazione griglia in cache per convertire celle->mondo durante il playback.
 	FVector PBOrigin = FVector::ZeroVector;

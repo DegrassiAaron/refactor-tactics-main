@@ -38,13 +38,12 @@ namespace
 	}
 
 	/**
-	 * I cinque ruoli di un eroe del roster, ciascuno con la sua clip attiva.
+	 * I ruoli di un eroe del roster, ciascuno con la sua clip attiva.
 	 *
-	 * 🔴 **`Attack` e non `Cast`, ed e' l'errore che non fa rumore** (#2450). La clip che riempie il
-	 * ruolo d'attacco si CHIAMA `Cast` su tutti e quattro i pack, ma `ERTPresentationRole::Cast` e' un
-	 * ruolo DIVERSO e senza consumatore: scriverci dentro la clip darebbe un dato corretto che non suona
-	 * mai, senza errore, senza warning e senza log. Due tassonomie omonime, come `Role` di rete e il ruolo
-	 * di presentazione.
+	 * 🔴 **La clip dei pack che si CHIAMA `Cast` riempie DUE ruoli, e non e' un errore** (#2450, #3549). Sul
+	 * ruolo `Attack` e' il colpo; sul ruolo `Cast` e' il gesto di attivazione di `AbilityActivated`. In v0.1
+	 * cast e colpo suonano la stessa sequenza in DUE MOMENTI diversi (spec «il momento» D2); una clip d'attacco
+	 * diversa e' un giudizio umano nel catalogo ANIM CORE, non un ritocco qui.
 	 *
 	 * ⚠️ I nomi si MISURANO: §AS.3b li ha letti sul disco, e **quattro caselle su dodici** fra i tre
 	 * ruoli discreti non si chiamano come ci si aspetta.
@@ -56,6 +55,8 @@ namespace
 		Clips.PerRole.Add(ERTPresentationRole::Idle, MakeRuolo(Pack, Idle));
 		Clips.PerRole.Add(ERTPresentationRole::Move, MakeRuolo(Pack, Move));
 		Clips.PerRole.Add(ERTPresentationRole::Attack, MakeRuolo(Pack, Attack));
+		// La STESSA clip del ruolo `Attack`: vedi il commento qui sopra.
+		Clips.PerRole.Add(ERTPresentationRole::Cast, MakeRuolo(Pack, Attack));
 		Clips.PerRole.Add(ERTPresentationRole::Hit, MakeRuolo(Pack, Hit));
 		Clips.PerRole.Add(ERTPresentationRole::Death, MakeRuolo(Pack, Death));
 		return Clips;
@@ -224,10 +225,10 @@ void FRTUnitAnimProxy::Initialize(UAnimInstance* InAnimInstance)
 		return;
 	}
 
-	// ⚠️ **DUE ruoli, non nove.** `ERTPresentationRole` ne nomina nove perche' servono all'authoring, ma
-	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri sette non hanno ancora
-	// un consumatore a runtime: `Attack`/`Hit`/`Death` passano dai `BlueprintImplementableEvent` di
-	// `ARTUnit`, gli altri quattro da niente.
+	// ⚠️ **DUE ruoli, non tutti.** `ERTPresentationRole` ne nomina di piu' perche' servono all'authoring, ma
+	// questo grafo ha due sequence player e legge solo `Idle` e `Move`. Gli altri non passano da qui:
+	// `Attack`/`Hit`/`Death`/`Cast` dai `BlueprintImplementableEvent` di `ARTUnit` (`Cast` da #3549),
+	// `Dash`/`Defend`/`Fall` da niente, ancora.
 	//
 	// `ActiveClipFor` copre da solo le tre vie che danno «nessuna clip» — eroe fuori catalogo, ruolo non
 	// popolato, nessuna variante attiva — e nessuna delle tre e' un errore.

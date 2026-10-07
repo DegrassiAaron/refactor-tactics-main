@@ -1096,6 +1096,7 @@ bool FRTBraceExtendedBlastDoesNotReplayHitsTest::RunTest(const FString&)
 	// (`OnReactionWindowOpened.IsBound()`, `RTTurnManager_Blast.cpp`), come in `WindowSuspendsBlast`. Misurato:
 	// senza questa riga la premessa qui sotto cade.
 	TM->OnReactionWindowOpened.BindLambda([](const FRTReactionWindowView&, int32) {});
+	TM->SetFastReactionDuration(60.f); // vedi il ciclo qui sotto: la finestra non deve scadere prima dell'arrivo
 	TM->LockInAndResolve();
 	if (!TestTrue(TEXT("premessa: la finestra ha sospeso il Blast"), TM->IsResolutionSuspended()))
 	{
@@ -1103,7 +1104,16 @@ bool FRTBraceExtendedBlastDoesNotReplayHitsTest::RunTest(const FString&)
 		DestroyDefWorld(World);
 		return false;
 	}
-	for (int32 I = 0; I < 20; ++I) { TM->Tick(0.05f); } // il playback avanza sulla timeline parziale
+	// Il playback avanza sulla timeline parziale finche' il colpo arriva, e solo finche' la finestra e' aperta.
+	// ⏱️ *La stesura di `#2454` faceva venti tick fissi, cioe' un secondo: con la sequenza per intento di #3549 il
+	// colpo esce dopo l'attivazione e l'impronta del suo atto, e — a finestra aperta il playback va al rallentatore
+	// di [D-350] — il suo arrivo cadeva DOPO la scadenza della finestra di default.* Per questo la finestra si
+	// allunga qui sotto: la domanda del test e' il cursore all'estensione, non la durata della finestra. La guardia
+	// su `IsResolutionSuspended` tiene la premessa onesta: un arrivo dopo la scadenza sarebbe gia' nell'estensione.
+	for (int32 I = 0; I < 600 && TM->IsResolutionSuspended() && !TM->AttackBeatTraceForTest().Contains(TEXT("A0")); ++I)
+	{
+		TM->Tick(0.05f);
+	}
 	// 🔑 **Premessa, non decorazione**: senza un arrivo PRIMA dell'estensione il test non attraversa niente — un
 	// cursore azzerato alla ripresa non avrebbe colpi gia' mostrati da rigiocare, e il verde sarebbe vacuo.
 	if (!TestTrue(TEXT("premessa: il colpo e' arrivato sulla timeline parziale, prima dell'estensione"),

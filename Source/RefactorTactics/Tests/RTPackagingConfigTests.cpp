@@ -574,7 +574,13 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// questo test diventa rosso finche' un asset versionato sotto `/Game/RT` non la referenzia duro.
 	// `Make Active` in Editor non e' gratis su packaged, e questo e' il posto in cui quel costo si vede.
 	TArray<FString> Richieste;
-	TMap<FString, FString> Provenienza;   // package path -> «Hero.X / Ruolo», per un errore azionabile
+	// package path -> «Hero.X / Ruolo», per un errore azionabile. ⚠️ Un package puo' servire PIU' ruoli
+	// (`Cast` e `Attack` condividono la clip, #3549): le provenienze si ACCODANO, separate da `; `, e non si
+	// sovrascrivono — chi legge l'errore deve vedere tutti i ruoli che quella clip serve.
+	TMap<FString, FString> Provenienza;
+	// Le coppie (eroe, ruolo) con una variante attiva viste da QUESTO ciclo. Non e' `Richieste.Num()` ne'
+	// `Provenienza.Num()`: quelle sono per PACKAGE e si deduplicano, questa e' per COPPIA e non puo' collassare.
+	int32 CoppieCoperte = 0;
 	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
 	{
 		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
@@ -588,8 +594,13 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 			// chi lo referenzia — la chiave e' `/.../Idle`, la stessa lezione di `RTPackagePathOf`.
 			const FString Package = Path.GetLongPackageName();
 			Richieste.AddUnique(Package);
-			Provenienza.Add(Package, FString::Printf(TEXT("%s / %s"),
-				*Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key)));
+			FString& Chi = Provenienza.FindOrAdd(Package);
+			if (!Chi.IsEmpty()) { Chi += TEXT("; "); }
+			Chi += FString::Printf(TEXT("%s / %s"), *Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key));
+			// ⚠️ Per ULTIMO, dopo l'inserimento: un `continue` futuro fra l'inserimento e il contatore
+			// sottrarrebbe path al cook senza far divergere i due numeri. Il contatore testimonia che la
+			// coppia e' ENTRATA, non che e' stata vista.
+			++CoppieCoperte;
 		}
 	}
 
@@ -610,6 +621,13 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	//
 	// Il presidio e' un conteggio INDIPENDENTE delle coppie (eroe, ruolo) che hanno una variante attiva,
 	// fatto in un ciclo separato: se il ciclo di sopra ne ha saltata anche una, i due numeri divergono.
+	//
+	// 🔴 **Due ruoli possono condividere un package (`Cast` = `Attack`, #3549): si contano le COPPIE, non i
+	// package.** La prima stesura confrontava `Provenienza.Num()` — una mappa per PACKAGE — con le coppie, e
+	// il giorno che `Cast` ha preso la clip di `Attack` quattro coppie sono collassate e il test e' diventato
+	// rosso per una ragione che non era una sottrazione. Il confronto resta stretto: `CoppieCoperte` cresce a
+	// ogni coppia con variante attiva, indipendentemente dalla deduplicazione di `Richieste`, quindi un `break`
+	// o un `continue` di troppo lo fa ancora divergere.
 	int32 CoppieAttese = 0;
 	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
 	{
@@ -624,7 +642,7 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	if (!TestEqual(
 			TEXT("il set richiesto copre TUTTE le coppie (eroe, ruolo) con una variante attiva: ")
 			TEXT("un ciclo che ne salta una rende questo gate verde chiedendo di meno"),
-			Provenienza.Num(), CoppieAttese))
+			CoppieCoperte, CoppieAttese))
 	{
 		return false;
 	}

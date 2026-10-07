@@ -461,6 +461,11 @@ void ARTTurnManager::ResolveCleanseActions(FRTBlastContext& Ctx)
 		}
 
 		Ctx.MarkAbilitySpent(Unit, CleanseIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
+		// #3549, spec §2.2 punto 1: la purificazione si ATTIVA quando e' SPESA — il gesto, non l'esito. Anche una
+		// Cleanse che non trova lo stato dichiarato (la voce `NoEffect` qui sotto) si attiva: e' lo stesso
+		// `Ruling` della predittiva senza cella. ⛔ Nessuna condizione su `Removed`.
+		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Cleanse->Def.ActionId, Cleanse->Def.BaseActionId,
+			Unit->StableUnitId, Unit->Cell, ERTAbilityShape::Single);
 		Unit->PlannedAbilityIndex = INDEX_NONE; // consumata qui: non deve diventare anche un intento d'attacco
 		Unit->ClearPlannedAttack();
 
@@ -556,6 +561,11 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// qualunque cosa vada storta e' un esito. Il cooldown si paga, e resta pagato anche se la
 		// simultaneita' disfa la cura piu' tardi — il bersaglio che cade nello stesso Blast, [D-197].
 		Ctx.MarkAbilitySpent(Unit, HealIdx); // parte qui, si paga in `SpendStartedAbilities` (`#1451`)
+		// #3549, spec §2.2 punto 2: la cura si ATTIVA quando e' SPESA, anche se poi non ha effetto (`NoEffect`,
+		// il controllo di `Amount` qui sotto): il gesto, non l'esito. ⛔ Il fuori portata e' uscito con `continue`
+		// sopra e non si paga: non e' un gesto, e non si attiva.
+		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Heal->Def.ActionId, Heal->Def.BaseActionId,
+			HealTarget->StableUnitId, HealTarget->Cell, ERTAbilityShape::Single);
 
 		int32 Amount = 0;
 		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
@@ -703,6 +713,10 @@ void ARTTurnManager::CollectAttackIntents(FRTBlastContext& Ctx)
 
 				Ctx.MarkAbilitySpent(Unit, ArcAbilityIndex); // parte qui, si paga in `SpendStartedAbilities`
 				PendingArcOps.Add({ Unit->Cell, ArcTarget->Cell, Unit, PlannedNow->Def });
+				// #3549: dopo la validazione di portata — un arco fuori portata e' uscito con `continue` sopra
+				// (`ArcRejected`) e non si attiva.
+				EmitAbilityActivated(Unit, ERTMatchPhase::Blast, PlannedNow->Def.ActionId, PlannedNow->Def.BaseActionId,
+					ArcTarget->StableUnitId, ArcTarget->Cell, ERTAbilityShape::Single);
 			}
 			continue;
 		}
@@ -1225,7 +1239,7 @@ void ARTTurnManager::ApplyInterrupts(FRTBlastContext& Ctx)
 	// definisce efficace come *«nessun Interrupt efficace lo cancella»*, quindi un Interrupt che viene
 	// soltanto degradato resta efficace e continua a togliere ai propri bersagli. Per questo la lettura di
 	// `Stato[]` qui sopra e' invariata: la distinzione nasce **dopo** che l'efficacia e' decisa.
-	TSet<int32> InterruptedIntents;   // cancellati: il colpo sparisce, l'azione e' annullata
+	TSet<int32>& InterruptedIntents = Ctx.InterruptedIntents; // cancellati: il colpo sparisce, l'azione e' annullata
 	TSet<int32> DegradedIntents;      // degradati: il colpo resta, cadono gli effetti oltre il primo
 	for (int32 i = 0; i < Interruttori.Num(); ++i)
 	{

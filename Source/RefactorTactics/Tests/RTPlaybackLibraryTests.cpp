@@ -152,7 +152,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// accelerare i cilindri — che e' esattamente cio' che #1878 vieta.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 0,
+			ERTMatchPhase::Move, /*MaxSeg*/ 4, /*Attivazioni*/ 0, /*Sequenza*/ 0,
 			/*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Move: 2 s mostrati"), FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Move: nessuno slack"), FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
@@ -161,7 +161,7 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// Prep: un beat, e non mostra nulla. E' l'unica attesa comprimibile del sistema.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Prep, 0, 0, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
+			ERTMatchPhase::Prep, 0, 0, 0, 2.f, 0.5f, /*Beat*/ 0.3f);
 		TestTrue(TEXT("Prep: non mostra nulla"), FMath::IsNearlyEqual(T.Shown, 0.0f, RTTol));
 		TestTrue(TEXT("Prep: il beat e' tutto slack"), FMath::IsNearlyEqual(T.Slack, 0.3f, RTTol));
 	}
@@ -171,20 +171,20 @@ bool FRTPlaybackPhaseTimeSplitTest::RunTest(const FString&)
 	// scala a zero, questa fase durerebbe 0,5 s e tre colpi su quattro uscirebbero nello stesso frame.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attacks*/ 4, /*Strutture*/ 0, /*Impronte*/ 0,
+			ERTMatchPhase::Blast, /*MaxSeg*/ 1, /*Attivazioni*/ 0, /*Sequenza*/ 4,
 			/*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: il tempo dei colpi e' mostrato, non atteso"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("Blast: nessuno slack, nemmeno l'eccedenza dei colpi sulla spinta"),
 			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
-		TestTrue(TEXT("Blast: il totale resta Max(colpi, spinta)"),
+		TestTrue(TEXT("Blast: il totale resta Max(sequenza, spinta)"),
 			FMath::IsNearlyEqual(T.Total(), 2.0f, RTTol));
 	}
 
 	// Blast dominato dalla SPINTA: 6 celle a 2 celle/s = 3 s contro 1 colpo da 0,5 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attacks*/ 1, /*Strutture*/ 0, /*Impronte*/ 0,
+			ERTMatchPhase::Blast, /*MaxSeg*/ 6, /*Attivazioni*/ 0, /*Sequenza*/ 1,
 			/*CellsPerSec*/ 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("Blast: spinta dominante -> 3 s mostrati"),
 			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
@@ -729,7 +729,7 @@ bool FRTPlaybackMicroStepAtBoundaryTest::RunTest(const FString&)
 	{
 		for (int32 S = 1; S <= 12; ++S)
 		{
-			const float Durata = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Move, S, 0, 0, 0, V, 0.f, 0.f).Shown;
+			const float Durata = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Move, S, 0, 0, V, 0.f, 0.f).Shown;
 			for (int32 K = 0; K <= S; ++K)
 			{
 				const float Bersaglio = URTPlaybackLibrary::AlphaAtMicroStep(K, S) * Durata;
@@ -1017,24 +1017,26 @@ bool FRTPlaybackBlastPhaseOpensForFootprintOnlyTest::RunTest(const FString&)
 	// Il caso nuovo, e il solo che prima falliva.
 	TestTrue(TEXT("una impronta senza colpi apre il Blast"),
 		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false, /*NumFootprints=*/ 1,
-			/*NumStructureHits=*/ 0));
+			/*NumStructureHits=*/ 0, /*NumActivations=*/ 0));
 
 	// ⚠️ **La controprova, senza la quale il test sopra non prova niente**: il vuoto deve restare vuoto.
 	// Un `return true` costante passerebbe la prima asserzione e fallirebbe questa.
 	TestFalse(TEXT("niente colpi, niente spinta, niente impronte: nessun Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0));
 
 	// Le due ragioni preesistenti non sono state indebolite.
 	TestTrue(TEXT("un colpo apre il Blast, come prima"),
-		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0, 0));
 	TestTrue(TEXT("una spinta apre il Blast, come prima"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0, 0));
 
 	// ⛔ Nessuna soglia e nessuna somma: le ragioni sono INDIPENDENTI. Se qualcuno le sommasse per
 	// "misurare quanto succede", questa riga resterebbe verde e la precedente cadrebbe — ed e' voluto.
 	// ⏱️ *Erano tre fino al 2026-09-22: `#2828` ha aggiunto i colpi a struttura.*
-	TestTrue(TEXT("le quattro ragioni insieme aprono il Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4));
+	TestTrue(TEXT("colpi, spinta, impronte e muri insieme aprono il Blast"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4, 0));
+	TestTrue(TEXT("e con le attivazioni accese insieme a tutte le altre"),
+		URTPlaybackLibrary::BlastPhaseIsActive(3, true, 2, 4, 1));
 
 	return true;
 }
@@ -1064,19 +1066,19 @@ bool FRTPlaybackBlastPhaseOpensForStructureHitOnlyTest::RunTest(const FString&)
 	// Il caso nuovo, e il solo che prima falliva: un muro cade e nient'altro accade.
 	TestTrue(TEXT("un colpo a struttura senza vittime ne' impronte apre il Blast"),
 		URTPlaybackLibrary::BlastPhaseIsActive(/*NumAttacks=*/ 0, /*bHasBlastMove=*/ false,
-			/*NumFootprints=*/ 0, /*NumStructureHits=*/ 1));
+			/*NumFootprints=*/ 0, /*NumStructureHits=*/ 1, /*NumActivations=*/ 0));
 
 	// ⚠️ **La controprova, senza la quale l'asserzione sopra non prova niente**: il vuoto resta vuoto.
 	// Un `return true` costante passerebbe la prima e fallirebbe questa.
 	TestFalse(TEXT("niente di niente: nessun Blast"),
-		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0));
+		URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0));
 
-	// ⛔ **Il termine e' INDIPENDENTE, non un rinforzo degli altri tre.** Se qualcuno lo legasse a uno di
+	// ⛔ **Il termine e' INDIPENDENTE, non un rinforzo degli altri.** Se qualcuno lo legasse a uno di
 	// essi — "conta le strutture solo se ci sono impronte" — la prima asserzione cadrebbe e questa no.
-	TestTrue(TEXT("e non indebolisce le tre ragioni preesistenti"),
-		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0)
-		&& URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0)
-		&& URTPlaybackLibrary::BlastPhaseIsActive(0, false, 1, 0));
+	TestTrue(TEXT("e non indebolisce le ragioni preesistenti: colpi, spinta, impronte"),
+		URTPlaybackLibrary::BlastPhaseIsActive(1, false, 0, 0, 0)
+		&& URTPlaybackLibrary::BlastPhaseIsActive(0, true, 0, 0, 0)
+		&& URTPlaybackLibrary::BlastPhaseIsActive(0, false, 1, 0, 0));
 
 	return true;
 }
@@ -1104,43 +1106,48 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForStructureHitsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBlastLastsForStructureHitsTest::RunTest(const FString&)
 {
+	// ⏱️ *Fino a #3549 questo gate pinnava il `Max` fra i canali paralleli. D5 (spec «il momento») li ha
+	// fatti diventare UNA sequenza per intento, svelata un elemento per volta: un muro e un colpo sono due
+	// elementi, e la fase li dura entrambi. Il gate resta per la ragione per cui era nato — il canale deve
+	// DIMENSIONARE la fase, non solo aprirla — con la formula nuova.*
 	// Il caso che distingue la formula nuova dalla vecchia: quattro muri, nessun colpo, nessuna spinta.
 	// ⛔ Con `Max(1, NumAttacks)` questa riga darebbe 0,5 s invece di 2,0 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 4, /*Impronte*/ 0,
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 4,
 			/*CellsPerSec*/ 2.f, /*AttackShow*/ 0.5f, /*Beat*/ 0.3f);
-		TestTrue(TEXT("✅ quattro muri durano quanto quattro colpi: 2,0 s"),
+		TestTrue(TEXT("✅ quattro muri: quattro elementi, 2,0 s"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("e restano tutti MOSTRATI: il tempo di lettura non e' comprimibile"),
 			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 	}
 
-	// ⚠️ **La controprova, senza la quale l'asserzione sopra non distingue niente**: a zero strutture la
-	// formula deve dare ESATTAMENTE quel che dava prima. Se qualcuno sostituisse il `Max` con una somma,
-	// questa riga resterebbe verde e la prossima cadrebbe.
+	// ⚠️ **La controprova, senza la quale l'asserzione sopra non distingue niente**: a zero elementi la
+	// formula deve dare ESATTAMENTE quel che dava prima, il pavimento di uno. Se qualcuno togliesse il
+	// `Max(1, ...)`, questa riga cadrebbe.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 0, 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("nessun muro e nessun colpo: il pavimento di uno, come prima"),
 			FMath::IsNearlyEqual(T.Shown, 0.5f, RTTol));
 	}
 
-	// ⛔ **`Max` e non SOMMA**: i due canali si rivelano in parallelo, ciascuno col proprio contatore su
-	// `AttacksToShow`. Tre colpi e due muri durano quanto tre colpi, non quanto cinque cose.
+	// 🔴 **SOMMA e non `Max`, da #3549** (D5): colpi e muri sono elementi della STESSA sequenza, svelati uno
+	// dopo l'altro. ⏱️ *Fino a #3549 questa riga diceva «`Max` e non SOMMA: i due canali si rivelano in
+	// parallelo».* Tre colpi e due muri sono cinque elementi.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 3, /*Strutture*/ 2, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("tre colpi e due muri: 1,5 s, non 2,5 s"),
-			FMath::IsNearlyEqual(T.Shown, 1.5f, RTTol));
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 5, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("tre colpi e due muri: cinque elementi in sequenza, 2,5 s (D5)"),
+			FMath::IsNearlyEqual(T.Shown, 2.5f, RTTol));
 	}
 
-	// E il verso opposto: i muri non ACCORCIANO mai una fase che i colpi hanno gia' allungato.
+	// Con la sequenza ogni elemento ALLUNGA la fase della sua quota: un muro in piu' non e' assorbito dai colpi.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 4, /*Strutture*/ 1, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("quattro colpi e un muro: restano 2,0 s"),
-			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 6, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("quattro colpi e due muri: sei elementi, 3,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
 	}
 
 	return true;
@@ -1169,13 +1176,17 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastLastsForFootprintsTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
 {
+	// ⏱️ *Fino a #3549 questo gate pinnava il `Max` fra i canali paralleli. D5 (spec «il momento») li ha
+	// fatti diventare UNA sequenza per intento, svelata un elemento per volta: un muro e un colpo sono due
+	// elementi, e la fase li dura entrambi. Il gate resta per la ragione per cui era nato — il canale deve
+	// DIMENSIONARE la fase, non solo aprirla — con la formula nuova.*
 	// Il caso che distingue la formula nuova dalla vecchia: quattro impronte, nessun colpo, nessun muro.
 	// ⛔ Prima di `#3278` questa riga dava 0,5 s invece di 2,0 s.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 4,
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 4,
 			/*CellsPerSec*/ 2.f, /*AttackShow*/ 0.5f, /*Beat*/ 0.3f);
-		TestTrue(TEXT("✅ quattro impronte durano quanto quattro colpi: 2,0 s"),
+		TestTrue(TEXT("✅ quattro impronte: 2,0 s"),
 			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
 		TestTrue(TEXT("e restano MOSTRATE: il tempo di lettura non e' comprimibile"),
 			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
@@ -1184,26 +1195,26 @@ bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
 	// ⚠️ **La controprova**: a zero impronte la formula deve dare esattamente quel che dava prima.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 0, /*Strutture*/ 0, /*Impronte*/ 0, 2.f, 0.5f, 0.3f);
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 0, 2.f, 0.5f, 0.3f);
 		TestTrue(TEXT("niente di niente: il pavimento di uno, come prima"),
 			FMath::IsNearlyEqual(T.Shown, 0.5f, RTTol));
 	}
 
-	// ⛔ **`Max` e non SOMMA, su TRE canali.** Due colpi, tre muri e quattro impronte durano quanto quattro
-	// cose, non quanto nove: si rivelano in parallelo, ognuno col proprio contatore su `AttacksToShow`.
+	// 🔴 **SOMMA, su tre tipi di elemento** (#3549, D5): due colpi, tre muri e quattro impronte sono nove
+	// elementi in sequenza. ⏱️ *Diceva «`Max` e non SOMMA», sui canali paralleli.*
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 2, /*Strutture*/ 3, /*Impronte*/ 4, 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("due colpi, tre muri e quattro impronte: 2,0 s, non 4,5 s"),
-			FMath::IsNearlyEqual(T.Shown, 2.0f, RTTol));
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 9, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("due colpi, tre muri e quattro impronte: nove elementi, 4,5 s (D5)"),
+			FMath::IsNearlyEqual(T.Shown, 4.5f, RTTol));
 	}
 
-	// E il verso opposto: le impronte non ACCORCIANO una fase che gli altri canali hanno gia' allungato.
+	// Con la sequenza ogni elemento ALLUNGA la fase della sua quota: un'impronta in piu' non e' assorbita dagli altri.
 	{
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(
-			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attacks*/ 5, /*Strutture*/ 0, /*Impronte*/ 1, 2.f, 0.5f, 0.3f);
-		TestTrue(TEXT("cinque colpi e una impronta: restano 2,5 s"),
-			FMath::IsNearlyEqual(T.Shown, 2.5f, RTTol));
+			ERTMatchPhase::Blast, /*MaxSeg*/ 0, /*Attivazioni*/ 0, /*Sequenza*/ 6, 2.f, 0.5f, 0.3f);
+		TestTrue(TEXT("cinque colpi e un'impronta: 3,0 s"),
+			FMath::IsNearlyEqual(T.Shown, 3.0f, RTTol));
 	}
 
 	return true;
@@ -1220,14 +1231,15 @@ bool FRTPlaybackBlastLastsForFootprintsTest::RunTest(const FString&)
  * verde sempre — anche rimuovendo il catch-all. Cioe' un gate della famiglia che non puo' dare rosso.
  *
  * 🔑 **Perche' e' diventato inutile, e chi lo ha reso tale.** La durata della fase e'
- * `Max(AttackTime, MoveTime)` con `AttackTime = Max(1, maxCanale) * AttackShowSeconds`, dove `maxCanale`
- * conta colpi (sempre), muri (da `#2828`) e impronte (da `#3278`). ∴ `PhaseDur >= maxCanale * ASS`, e
- * `AttacksToShow` a quel punto vale `Min(N, 1 + floor(PhaseDur / ASS)) = N` per ogni canale.
- * ⏱️ *Prima di quelle due correzioni non valeva: un Blast di soli muri o di sole impronte durava UN
- * intervallo, e il catch-all era l'unica cosa che impediva di perdere i fatti successivi al primo.*
+ * `Max(SequenceTime, MoveTime)` con `SequenceTime = Max(1, N) * AttackShowSeconds`, dove `N` e' la
+ * lunghezza della sequenza per intento (#3549, D5: attivazioni, impronte, muri, colpi). ∴
+ * `PhaseDur >= N * ASS`, e `AttacksToShow` a quel punto vale `Min(N, 1 + floor(PhaseDur / ASS)) = N`.
+ * ⏱️ *Fino a #3549 erano canali paralleli e `maxCanale`; prima di #2828 e #3278 un Blast di soli muri
+ * o di sole impronte durava UN intervallo, e il catch-all era l'unica cosa che impediva di perdere i fatti
+ * successivi al primo.*
  *
  * ⚠️ **Il catch-all resta, e questo gate e' la ragione per cui puo' restare.** E' difesa in profondita':
- * se qualcuno accorciasse la fase — un quarto canale non aggiunto al `Max`, una compressione del tempo
+ * se qualcuno accorciasse la fase — un tipo di elemento non aggiunto alla sequenza, una compressione del tempo
  * mostrato, un `Slack` diverso da zero sul `Blast` — la rete tornerebbe necessaria **e nessuno lo
  * saprebbe**, perche' il recupero e' silenzioso per costruzione. Questa riga diventa rossa prima.
  *
@@ -1256,8 +1268,8 @@ bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
 		{ 0, 4, 0, 0, TEXT("solo colpi") },
 		{ 0, 0, 4, 0, TEXT("solo muri") },
 		{ 0, 0, 0, 4, TEXT("solo impronte") },
-		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
-		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		{ 0, 2, 3, 4, TEXT("colpi, muri e impronte, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("colpi, muri e impronte, i colpi piu' lunghi") },
 		// ⚠️ `MaxSeg` alto: la fase e' dominata dal MOVIMENTO, non dai colpi. L'invariante deve reggere
 		// anche li', perche' allungare la fase non puo' che aiutare — ma va misurato, non dedotto.
 		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
@@ -1266,24 +1278,21 @@ bool FRTPlaybackEveryChannelRevealedByPhaseEndTest::RunTest(const FString&)
 
 	for (const FRTPlaybackChannelCase& C : Casi)
 	{
+		const int32 Sequenza = C.Attacks + C.Strutture + C.Impronte; // D5: un elemento per fatto, in serie
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, C.MaxSeg,
-			C.Attacks, C.Strutture, C.Impronte, CellsPerSec, ShowSeconds, BeatSeconds);
+			/*NumActivations=*/ 0, Sequenza, CellsPerSec, ShowSeconds, BeatSeconds);
 
 		// ⛔ **Premessa dell'invariante, asserita e non assunta**: sul `Blast` lo `Slack` e' zero, quindi la
 		// durata a runtime (`Shown + Slack * PlaybackSlackScale`) non dipende dalla compressione del budget.
 		// Se un giorno il `Blast` acquisisse dello slack comprimibile, `PhaseDur` potrebbe scendere sotto
-		// `maxCanale * ASS` e tutto il resto di questo gate smetterebbe di misurare cio' che crede.
+		// `N * ASS` (la sequenza) e tutto il resto di questo gate smetterebbe di misurare cio' che crede.
 		TestTrue(FString::Printf(TEXT("%s: il Blast non ha slack comprimibile"), C.Nome),
 			FMath::IsNearlyEqual(T.Slack, 0.0f, RTTol));
 
 		const float PhaseDur = T.Shown;
 
-		TestEqual(FString::Printf(TEXT("%s: i COLPI sono tutti rivelati a fine fase"), C.Nome),
-			URTPlaybackLibrary::AttacksToShow(C.Attacks, PhaseDur, ShowSeconds), C.Attacks);
-		TestEqual(FString::Printf(TEXT("%s: i MURI sono tutti rivelati a fine fase"), C.Nome),
-			URTPlaybackLibrary::AttacksToShow(C.Strutture, PhaseDur, ShowSeconds), C.Strutture);
-		TestEqual(FString::Printf(TEXT("%s: le IMPRONTE sono tutte rivelate a fine fase"), C.Nome),
-			URTPlaybackLibrary::AttacksToShow(C.Impronte, PhaseDur, ShowSeconds), C.Impronte);
+		TestEqual(FString::Printf(TEXT("%s: la SEQUENZA e' tutta rivelata a fine fase"), C.Nome),
+			URTPlaybackLibrary::AttacksToShow(Sequenza, PhaseDur, ShowSeconds), Sequenza);
 	}
 
 	// --- ⛔ ANTI-VACUITA', e qui e' tutto il gate ----------------------------------------------------
@@ -1345,8 +1354,8 @@ bool FRTPlaybackEveryAttackArrivesByPhaseEndTest::RunTest(const FString&)
 		{ 0, 1, 0, 0, TEXT("un colpo solo") },
 		{ 0, 0, 4, 0, TEXT("solo muri") },
 		{ 0, 0, 0, 4, TEXT("solo impronte") },
-		{ 0, 2, 3, 4, TEXT("tre canali, le impronte piu' lunghe") },
-		{ 0, 5, 1, 1, TEXT("tre canali, i colpi piu' lunghi") },
+		{ 0, 2, 3, 4, TEXT("colpi, muri e impronte, le impronte piu' lunghe") },
+		{ 0, 5, 1, 1, TEXT("colpi, muri e impronte, i colpi piu' lunghi") },
 		{ 6, 1, 1, 1, TEXT("dominata dal movimento") },
 		{ 0, 0, 0, 0, TEXT("vuota: il pavimento di uno") },
 	};
@@ -1358,26 +1367,33 @@ bool FRTPlaybackEveryAttackArrivesByPhaseEndTest::RunTest(const FString&)
 
 	for (const FRTPlaybackArrivalCase& C : Casi)
 	{
+		// 🔑 **Sulla SEQUENZA per intento** (merge di `#2454` in #3549): il Blast si percorre su un cursore solo, un
+		// elemento per fatto — colpi, muri, impronte — e i voli sono paralleli alla sequenza, zero per ogni elemento
+		// che non e' un colpo. ⏱️ *La stesura di `#2454` passava i tre canali a `PhaseTime` e i soli colpi ad
+		// `AttackBeatsDue`.*
+		const int32 Sequenza = C.Attacks + C.Strutture + C.Impronte;
 		const FRTPhaseTime T = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, C.MaxSeg,
-			C.Attacks, C.Strutture, C.Impronte, CellsPerSec, ShowSeconds, BeatSeconds);
+			/*NumActivations=*/ 0, Sequenza, CellsPerSec, ShowSeconds, BeatSeconds);
 
-		// Tutti i colpi idonei, tutti col volo peggiore.
+		// ⛔ **I colpi IN CODA, col volo peggiore**: e' il caso peggiore, perche' l'ultimo arrivo cade allora a
+		// `(Sequenza - 1)·A + A/2`. Con un colpo in testa l'ultimo battito sarebbe una rivelazione, a `(Sequenza - 1)·A`.
 		TArray<float> Flights;
-		Flights.Init(VoloPeggiore, C.Attacks);
+		Flights.Init(0.f, Sequenza);
+		for (int32 K = Sequenza - C.Attacks; K < Sequenza; ++K) { Flights[K] = VoloPeggiore; }
 
 		// La durata a runtime e' `Shown + Slack * scala`, e sul Blast lo Slack e' zero (lo asserisce l'altro
 		// gate): `Shown` e' la durata vera.
-		TestEqual(FString::Printf(TEXT("%s: a fine fase sono usciti TUTTI i battiti, lanci e arrivi"), C.Nome),
-			URTPlaybackLibrary::AttackBeatsDue(T.Shown, ShowSeconds, Flights), 2 * C.Attacks);
+		TestEqual(FString::Printf(TEXT("%s: a fine fase sono usciti TUTTI i battiti, rivelazioni e arrivi"), C.Nome),
+			URTPlaybackLibrary::AttackBeatsDue(T.Shown, ShowSeconds, Flights), 2 * Sequenza);
 
 		// --- ⛔ ANTI-VACUITA' ------------------------------------------------------------------------
-		// `AttackBeatsDue` PUO' restituire meno del totale: a `(N-1)·A`, con tutti i lanci usciti, manca
+		// `AttackBeatsDue` PUO' restituire meno del totale: a `(N-1)·A`, con tutte le rivelazioni uscite, manca
 		// ESATTAMENTE l'ultimo arrivo. Senza questa riga l'asserzione qui sopra sarebbe vera anche con una
 		// `AttackBeatsDue` che restituisce sempre `2·N`.
 		if (C.Attacks >= 1)
 		{
 			TestTrue(FString::Printf(TEXT("%s: a (N-1)*A l'ultimo arrivo NON e' ancora uscito"), C.Nome),
-				URTPlaybackLibrary::AttackBeatsDue((C.Attacks - 1) * ShowSeconds, ShowSeconds, Flights) < 2 * C.Attacks);
+				URTPlaybackLibrary::AttackBeatsDue((Sequenza - 1) * ShowSeconds, ShowSeconds, Flights) < 2 * Sequenza);
 		}
 	}
 	return true;
@@ -1536,6 +1552,403 @@ bool FRTPlaybackActionBoundaryDistinguishesProfilesTest::RunTest(const FString&)
 
 	TestEqual(TEXT("due profili della stessa generica restano due atti"),
 		URTPlaybackLibrary::NextActionBoundary(Timeline, 0), 1);
+	return true;
+}
+
+// --- La sequenza del Blast per intento (#3549, D5) ----------------------------------------------------
+
+namespace
+{
+	/** Un evento sintetico di fase Blast, visibile a tutti salvo `bNascosto`. Nome distinto per l'unity build. */
+	FRTResolvedEvent SeqEvento(ERTResolvedEventType Type, int32 Sorgente, const TCHAR* Azione, bool bNascosto = false)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = Type;
+		Ev.SourceStableUnitId = Sorgente;
+		Ev.ActionId = Azione ? FName(Azione) : NAME_None;
+		Ev.SourceVerdict = bNascosto ? FRTKnowledgeVerdict::NoOne() : FRTKnowledgeVerdict::Everyone();
+		return Ev;
+	}
+
+	TArray<int32> SeqIndici(const TArray<FRTBlastSequenceElement>& S)
+	{
+		TArray<int32> Out;
+		for (const FRTBlastSequenceElement& E : S) { Out.Add(E.TimelineIndex); }
+		return Out;
+	}
+}
+
+/**
+ * La sequenza del Blast e' ordinata PER INTENTO — D5, spec §2.4.
+ *
+ * 🔑 `A1 F1 H1 H1 A2 F2 H2`: un gruppo per `(Source, ActionId)`, ordinati per indice dell'attivazione — anche
+ * nascosta, che da' la chiave senza entrare (review della PR #3561) — altrimenti per prima apparizione, e dentro il
+ * gruppo attivazione, impronte, muri, colpi. Un colpo senza attivazione e' un atto proprio; `ArcHit` non entra;
+ * un'attivazione non visibile non entra, ma il suo colpo si'.
+ * ✅ Validato per mutazione: raggruppare per TIPO invece che per chiave fa cadere il primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceOrderedPerIntentTest,
+	"RefactorTactics.Playback.BlastSequenceIsOrderedPerIntent",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceOrderedPerIntentTest::RunTest(const FString&)
+{
+	// 🔑 **Lo `StructureHit` di B sta IN TESTA**, come in un turno vero: `ApplyEnvironmentChanges` lo emette
+	// prima delle attivazioni (spec §2.2). Ordinando gli atti per prima apparizione B passerebbe davanti ad A,
+	// che ha `IntentIndex` minore; per decisione (d) gli atti si ordinano per la loro ATTIVAZIONE.
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::StructureHit,     2, TEXT("B")));          // 0  W2 (muro di B, in testa)
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A")));          // 1  A1
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B")));          // 2  A2
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  1, TEXT("A")));          // 3  F1
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  2, TEXT("B")));          // 4  F2
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A")));          // 5  H1
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("B")));          // 6  H2
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A")));          // 7  H1
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           3, TEXT("C")));          // 8  senza attivazione
+	T.Add(SeqEvento(ERTResolvedEventType::ArcHit,           0, nullptr));            // 9  non entra
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 4, TEXT("D"), true));    // 10 nascosta: non entra
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           4, TEXT("D")));          // 11 il suo colpo resta
+
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0);
+	// A1 F1 H1 H1 | A2 F2 W2 H2 | C | D. ⛔ Con «prima apparizione» uscirebbe { 2, 4, 0, 6, 1, 3, 5, 7, 8, 11 }:
+	// e' la mutazione che fissa la decisione (d).
+	const TArray<int32> Atteso = { 1, 3, 5, 7, 2, 4, 0, 6, 8, 11 };
+	TestEqual(TEXT("🔴 atti per attivazione: A1 F1 H1 H1, A2 F2 W2 H2, poi gli atti senza attivazione"),
+		SeqIndici(S), Atteso);
+	TestFalse(TEXT("⛔ ArcHit non entra nella sequenza"), SeqIndici(S).Contains(9));
+	TestFalse(TEXT("⛔ un'attivazione nascosta non entra"), SeqIndici(S).Contains(10));
+	if (S.Num() > 0)
+	{
+		TestEqual(TEXT("l'elemento porta la chiave del suo atto"), S[0].SourceStableUnitId, 1);
+		TestEqual(TEXT("e la sua azione"), S[0].ActionId, FName(TEXT("A")));
+	}
+	return true;
+}
+
+/**
+ * L'INDICE di un colpo nella sequenza dipende da chi guarda — `CONTRACT CONFLICT` dichiarato, spec §2.4 e §6.
+ *
+ * 🔑 **Il comportamento e' voluto.** La spec del tracer §2.1 diceva «il ritmo non dipende da chi guarda»; con D6 la
+ * sequenza si costruisce per squadra, quindi uno stesso colpo cade su un indice diverso per chi vede la sua
+ * attivazione e per chi non la vede — e con il tracer (`#2454`) l'istante di lancio e di arrivo si sposta di conseguenza.
+ * Governa la spec del momento: tenere il posto di un'attivazione nascosta lascerebbe un buco nel ritmo che ne rivela
+ * l'esistenza col tempo. La durata delle fasi dipendeva gia' dal viewer (rotte troncate al tratto osservato).
+ * ⛔ Chi trovasse questo test rosso perche' «il ritmo deve essere uguale» sta riaprendo quella decisione, non
+ * correggendo un difetto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceIndexDependsOnTheViewerTest,
+	"RefactorTactics.Playback.BlastSequenceIndexDependsOnTheViewer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceIndexDependsOnTheViewerTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("X")));
+	T[0].SourceVerdict = FRTKnowledgeVerdict::NoOne();
+	T[0].SourceVerdict.AllowTeam(1); // l'attivazione la vede solo la squadra 1
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint, 1, TEXT("X")));
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,          1, TEXT("X")));
+
+	auto IndiceDelColpo = [&T](int32 Viewer)
+	{
+		const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, Viewer);
+		for (int32 i = 0; i < S.Num(); ++i)
+		{
+			if (T[S[i].TimelineIndex].Type == ERTResolvedEventType::Attack) { return i; }
+		}
+		return static_cast<int32>(INDEX_NONE);
+	};
+
+	TestEqual(TEXT("chi vede l'attivazione: attivazione, impronta, colpo, quindi il colpo e' il terzo"), IndiceDelColpo(1), 2);
+	TestEqual(TEXT("🔴 chi non la vede: nessun buco al suo posto, il colpo e' il secondo"), IndiceDelColpo(0), 1);
+	return true;
+}
+
+/**
+ * `BuildBlastSequence` e' IDEMPOTENTE per ogni prefisso — Ruling H, spec §2.4.
+ *
+ * 🔴 `Build(T, S, k) == S` per ogni `k` in `[0, S.Num()]`, a timeline invariata. Cercando l'attivazione solo fra
+ * gli eventi non ancora sequenziati, con `k` a meta' di un atto il resto del gruppo perdeva la chiave e
+ * scivolava dietro gli atti successivi: misurato a mano dal reviewer su questa stessa timeline, `Build(T, S, 2)`
+ * dava `1,3, 2,4,0,6, 5,7, 8,11`.
+ * ✅ Validato per mutazione: tornare a cercare l'attivazione solo fra i non sequenziati fa cadere gli `k` a meta'
+ * atto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequenceIdempotentTest,
+	"RefactorTactics.Playback.BlastSequenceIsIdempotentForEveryPrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequenceIdempotentTest::RunTest(const FString&)
+{
+	// La timeline del test d'ordine: muro in testa, due attivazioni, area, colpi, un atto senza attivazione,
+	// un ArcHit e un'attivazione nascosta.
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::StructureHit,     2, TEXT("B")));          // 0
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A")));          // 1
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B")));          // 2
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  1, TEXT("A")));          // 3
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  2, TEXT("B")));          // 4
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A")));          // 5
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("B")));          // 6
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A")));          // 7
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           3, TEXT("C")));          // 8
+	T.Add(SeqEvento(ERTResolvedEventType::ArcHit,           0, nullptr));            // 9
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 4, TEXT("D"), true));    // 10
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           4, TEXT("D")));          // 11
+
+	const TArray<FRTBlastSequenceElement> S = URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, 0);
+	TestTrue(TEXT("premessa: la sequenza non e' vuota"), S.Num() > 0);
+	for (int32 k = 0; k <= S.Num(); ++k)
+	{
+		TestTrue(*FString::Printf(TEXT("🔴 Build(T, S, %d) == S"), k),
+			URTPlaybackLibrary::BuildBlastSequence(T, S, k, 0) == S);
+	}
+	return true;
+}
+
+/**
+ * Il prefisso gia' mostrato e' STABILE all'estensione — D-355, spec §2.4.
+ *
+ * 🔑 Un evento nuovo con la chiave di un gruppo gia' aperto nel prefisso (Ruling H) si unisce al suo gruppo nella
+ * parte oltre il prefisso, nell'ordine di rango e indice: subito dopo gli elementi residui del gruppo, o come
+ * primo elemento oltre il prefisso se il gruppo era tutto nel prefisso (la sua chiave e' la piu' bassa).
+ * Precondizione: la timeline cresce solo per accodamento, e lo si asserisce confrontando i `TimelineIndex` del
+ * prefisso, che resta verbatim.
+ * ⏱️ *Fino al Ruling H il colpo nuovo di un atto tutto mostrato andava in CODA alla sequenza.*
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastSequencePrefixStableTest,
+	"RefactorTactics.Playback.BlastSequencePrefixIsStableUnderExtension",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastSequencePrefixStableTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T1;
+	T1.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A"))); // 0
+	T1.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("B"))); // 1
+	T1.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  1, TEXT("A"))); // 2
+	T1.Add(SeqEvento(ERTResolvedEventType::Attack,           1, TEXT("A"))); // 3
+	T1.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("B"))); // 4
+
+	const TArray<FRTBlastSequenceElement> S1 = URTPlaybackLibrary::BuildBlastSequence(T1, {}, 0, 0);
+	TestEqual(TEXT("premessa: S1 = A F H | B H"), SeqIndici(S1), TArray<int32>({ 0, 2, 3, 1, 4 }));
+
+	TArray<FRTResolvedEvent> T2 = T1;
+	T2.Add(SeqEvento(ERTResolvedEventType::Attack, 1, TEXT("A")));            // 5: atto A gia' mostrato
+	T2.Add(SeqEvento(ERTResolvedEventType::Attack, 2, TEXT("B")));            // 6: atto B non ancora mostrato
+
+	const int32 Mostrati = 3; // l'atto A per intero
+	const TArray<FRTBlastSequenceElement> S2 = URTPlaybackLibrary::BuildBlastSequence(T2, S1, Mostrati, 0);
+	for (int32 i = 0; i < Mostrati; ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("🔴 l'elemento %d del prefisso e' riprodotto verbatim"), i),
+			S2.IsValidIndex(i) ? S2[i].TimelineIndex : INDEX_NONE, S1[i].TimelineIndex);
+	}
+	TestEqual(TEXT("🔴 atto A tutto nel prefisso: il suo colpo nuovo e' il PRIMO oltre il prefisso (chiave piu' bassa); B raccoglie il proprio"),
+		SeqIndici(S2), TArray<int32>({ 0, 2, 3, 5, 1, 4, 6 }));
+
+	// Atto A interrotto a meta' (A e F mostrati, H no): il residuo di A e il colpo nuovo restano uniti,
+	// nell'ordine di rango e indice, PRIMA di B.
+	const int32 MostratiAMeta = 2;
+	const TArray<FRTBlastSequenceElement> S3 = URTPlaybackLibrary::BuildBlastSequence(T2, S1, MostratiAMeta, 0);
+	for (int32 i = 0; i < MostratiAMeta; ++i)
+	{
+		TestEqual(*FString::Printf(TEXT("🔴 con prefisso a meta' atto, l'elemento %d e' riprodotto verbatim"), i),
+			S3.IsValidIndex(i) ? S3[i].TimelineIndex : INDEX_NONE, S1[i].TimelineIndex);
+	}
+	TestEqual(TEXT("🔴 atto A a meta': il residuo (3) e il colpo nuovo (5) restano nel suo gruppo, prima di B"),
+		SeqIndici(S3), TArray<int32>({ 0, 2, 3, 5, 1, 4, 6 }));
+
+	// Con prefisso zero e' la costruzione da zero: `Previous` non conta.
+	TestEqual(TEXT("FrozenPrefix 0 ignora Previous"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T2, S1, 0, 0)),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T2, {}, 0, 0)));
+	return true;
+}
+
+/** Un Blast di sole attivazioni apre la fase — spec §2.4, C3. Il quinto termine e' INDIPENDENTE. */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBlastOpensForActivationsOnlyTest,
+	"RefactorTactics.Playback.BlastPhaseOpensForActivationsOnly",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBlastOpensForActivationsOnlyTest::RunTest(const FString&)
+{
+	TestTrue(TEXT("una sola attivazione apre il Blast"), URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 1));
+	TestFalse(TEXT("⛔ il vuoto resta vuoto"), URTPlaybackLibrary::BlastPhaseIsActive(0, false, 0, 0, 0));
+	return true;
+}
+
+/**
+ * `PhaseTime` conta le attivazioni — spec §2.4, I5.
+ *
+ * Prep: `N x ASS` mostrati piu' il beat; Dash: `N x ASS` piu' il movimento; Blast: la sequenza, col `Max` sulla
+ * spinta. Con zero tutto resta com'era, e `PhaseDuration` non cambia.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseTimeCountsActivationsTest,
+	"RefactorTactics.Playback.PhaseTimeCountsActivations",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseTimeCountsActivationsTest::RunTest(const FString&)
+{
+	const FRTPhaseTime Prep3 = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Prep, 0, 3, 0, 2.f, 0.5f, 0.3f);
+	TestTrue(TEXT("Prep: 3 attivazioni = 1,5 s mostrati"), FMath::IsNearlyEqual(Prep3.Shown, 1.5f, RTTol));
+	TestTrue(TEXT("Prep: il beat resta slack"), FMath::IsNearlyEqual(Prep3.Slack, 0.3f, RTTol));
+	const FRTPhaseTime Prep0 = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Prep, 0, 0, 0, 2.f, 0.5f, 0.3f);
+	TestTrue(TEXT("Prep senza attivazioni: com'era"), FMath::IsNearlyEqual(Prep0.Shown, 0.f, RTTol)
+		&& FMath::IsNearlyEqual(Prep0.Slack, 0.3f, RTTol));
+
+	TestTrue(TEXT("Dash: 2 attivazioni + 3 celle a 2 c/s = 2,5 s"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 2, 0, 2.f, 0.5f, 0.3f).Shown, 2.5f, RTTol));
+	TestTrue(TEXT("Dash senza attivazioni: com'era, 1,5 s"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 0, 0, 2.f, 0.5f, 0.3f).Shown, 1.5f, RTTol));
+
+	TestTrue(TEXT("Blast: 4 elementi = 2,0 s"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, 0, 0, 4, 2.f, 0.5f, 0.3f).Shown, 2.0f, RTTol));
+	TestTrue(TEXT("⛔ Blast: le attivazioni contano GIA' nella sequenza, non due volte"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, 0, 5, 0, 2.f, 0.5f, 0.3f).Shown, 0.5f, RTTol));
+
+	TestTrue(TEXT("PhaseDuration invariata: Blast 1,5 s come prima"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseDuration(ERTMatchPhase::Blast, 3, 2, 2.f, 0.5f, 0.3f), 1.5f, RTTol));
+	return true;
+}
+
+/**
+ * L'anticipo delle attivazioni lo possiede `PhaseTime` — review della PR #3561, spec §2.4.
+ *
+ * 🔑 `FRTPhaseTime::Lead` e' il tempo delle attivazioni di Prep e Dash, la stessa quantita' che entra in `Shown`: chi
+ * anima le rotte del Dash la legge da qui invece di ricalcolare `N x AttackShowSeconds` (la copia che c'era in
+ * `ARTTurnManager::PlaybackActivationLeadSeconds`). Zero nelle fasi senza anticipo, e mai un terzo termine di `Total()`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackPhaseTimeLeadEqualsActivationTimeTest,
+	"RefactorTactics.Playback.PhaseTimeLeadEqualsActivationTime",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackPhaseTimeLeadEqualsActivationTimeTest::RunTest(const FString&)
+{
+	const FRTPhaseTime Dash = URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 2, 0, 2.f, 0.5f, 0.3f);
+	TestTrue(TEXT("🔴 Dash: Lead = 2 attivazioni x 0,5 s"), FMath::IsNearlyEqual(Dash.Lead, 1.0f, RTTol));
+	TestTrue(TEXT("e le rotte occupano il resto del mostrato"), FMath::IsNearlyEqual(Dash.Shown - Dash.Lead, 1.5f, RTTol));
+	TestTrue(TEXT("Prep: Lead = 3 attivazioni x 0,5 s"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Prep, 0, 3, 0, 2.f, 0.5f, 0.3f).Lead, 1.5f, RTTol));
+	TestTrue(TEXT("Dash senza attivazioni: nessun anticipo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 0, 0, 2.f, 0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ cadenza negativa: nessun anticipo negativo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Dash, 3, 2, 0, 2.f, -0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ Blast: le attivazioni sono elementi della sequenza, nessun anticipo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Blast, 0, 5, 4, 2.f, 0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ Move: nessun anticipo"), FMath::IsNearlyEqual(
+		URTPlaybackLibrary::PhaseTime(ERTMatchPhase::Move, 3, 2, 0, 2.f, 0.5f, 0.3f).Lead, 0.f, RTTol));
+	TestTrue(TEXT("⛔ Lead non e' un terzo termine: Total resta Shown + Slack"),
+		FMath::IsNearlyEqual(Dash.Total(), Dash.Shown + Dash.Slack, RTTol));
+	return true;
+}
+
+/**
+ * Due unita' con la stessa azione generica sono DUE atti — `Ruling` di spec §2.4 (#3549).
+ * ⏱️ *Era il «limite noto» di #2855: il criterio guardava l'`ActionId` da solo.*
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActBoundaryDistinguishesSourceTest,
+	"RefactorTactics.Playback.ActBoundaryDistinguishesTheSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActBoundaryDistinguishesSourceTest::RunTest(const FString&)
+{
+	FRTResolvedEvent CuraDiDue = SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("Action.Heal"));
+	TestTrue(TEXT("🔴 stessa azione, sorgente diversa: confine"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Heal")), /*CurrentSource*/ 1));
+	TestFalse(TEXT("stessa azione, stessa sorgente: stesso atto"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Heal")), /*CurrentSource*/ 2));
+	TestTrue(TEXT("azione diversa: confine, come prima"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Shield")), 2));
+	// ⚠️ Il default `INDEX_NONE` e' il criterio STORICO, per i nodi Blueprint che non passano la sorgente.
+	TestFalse(TEXT("senza sorgente (default): solo l'ActionId, come prima di #3549"),
+		URTPlaybackLibrary::IsActBoundary(CuraDiDue, FName(TEXT("Action.Heal"))));
+
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("Action.Heal")));
+	T.Add(CuraDiDue);
+	TestEqual(TEXT("NextActionBoundary si ferma sulla seconda cura"), URTPlaybackLibrary::NextActionBoundary(T, 0), 1);
+	return true;
+}
+
+/**
+ * Un'attivazione NASCOSTA a chi guarda non entra nella sequenza, ma da' la chiave al suo atto — review della PR
+ * #3561, spec §2.4.
+ *
+ * 🔴 **Il difetto**: il gruppo di una sorgente nascosta restava senza attivazione e prendeva la chiave dalla prima
+ * apparizione. Con uno `StructureHit` — che il resolver emette PRIMA di tutte le attivazioni — finiva davanti a ogni
+ * atto visibile; senza muro, in coda. L'ordine degli atti nascosti si ribaltava con la presenza di un muro.
+ * 🔑 Ordinare per l'indice dell'attivazione nascosta non rivela nulla: l'attivazione non si mostra (asserito qui), e
+ * impronte e colpi si mostrano comunque.
+ * ⚠️ Dentro l'atto l'ordine e' quello di rango — impronta, muro, colpo — quindi X si legge `4, 0, 5`.
+ * ✅ Validato per mutazione: tornare a dare la chiave solo alle attivazioni VISIBILI porta X davanti ad A per chi non
+ * la vede, e il primo asserto cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackHiddenActivationStillKeysItsActTest,
+	"RefactorTactics.Playback.HiddenActivationStillKeysItsAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackHiddenActivationStillKeysItsActTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(SeqEvento(ERTResolvedEventType::StructureHit,     2, TEXT("X")));   // 0  il muro di X, in testa
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 1, TEXT("A")));   // 1  visibile a tutti
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  1, TEXT("A")));   // 2
+	T.Add(SeqEvento(ERTResolvedEventType::AbilityActivated, 2, TEXT("X")));   // 3  la vede solo la squadra 2
+	T[3].SourceVerdict = FRTKnowledgeVerdict::NoOne();
+	T[3].SourceVerdict.AllowTeam(2);
+	T.Add(SeqEvento(ERTResolvedEventType::AttackFootprint,  2, TEXT("X")));   // 4
+	T.Add(SeqEvento(ERTResolvedEventType::Attack,           2, TEXT("X")));   // 5
+
+	TestEqual(TEXT("🔴 chi non vede X: A prima di X, perche' la chiave di X e' la sua attivazione (3 > 1), non il muro (0)"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 0)), TArray<int32>({ 1, 2, 4, 0, 5 }));
+	TestEqual(TEXT("chi vede X: lo stesso ordine, con l'attivazione in testa al suo atto"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, /*Viewer*/ 2)), TArray<int32>({ 1, 2, 3, 4, 0, 5 }));
+	TestFalse(TEXT("⛔ D6: l'attivazione nascosta non entra"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(T, {}, 0, 0)).Contains(3));
+
+	// Controllo: senza il muro l'ordine degli atti e' lo stesso — e' l'invarianza che il difetto rompeva.
+	TArray<FRTResolvedEvent> SenzaMuro = T;
+	SenzaMuro.RemoveAt(0);
+	TestEqual(TEXT("senza muro: A prima di X come con il muro"),
+		SeqIndici(URTPlaybackLibrary::BuildBlastSequence(SenzaMuro, {}, 0, 0)), TArray<int32>({ 0, 1, 3, 4 }));
+	return true;
+}
+
+/**
+ * Una sorgente `0` — non attribuibile, [D-063] — non apre un atto — review della PR #3561, spec §2.4.
+ *
+ * 🔴 `StructureHit` e `AttackFootprint` possono portare `SourceStableUnitId = 0` con l'azione nominata. Con il
+ * confronto `0 != S` il muro dentro un intento diventava una seconda fermata, il difetto che `#3292` esclude.
+ * 🔑 Il confronto sulla sorgente vale solo fra due sorgenti note: una sorgente diversa e NON zero resta un confine.
+ * ⚠️ `NextActionBoundary` legge la sorgente dell'atto da un evento che ne porta una: dopo `Attack(S) · Muro(0)` l'atto
+ * e' ancora di `S`, quindi un colpo di `T` lo chiude e uno di `S` no.
+ * ✅ Validato per mutazione: togliere la condizione `Event.SourceStableUnitId != 0` da `IsActBoundary` fa cadere il
+ * primo asserto.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackUnknownSourceDoesNotOpenAnActTest,
+	"RefactorTactics.Playback.UnknownSourceDoesNotOpenAnAct",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackUnknownSourceDoesNotOpenAnActTest::RunTest(const FString&)
+{
+	const FName X(TEXT("X"));
+	const int32 S = 3;
+	const int32 Tu = 4;
+
+	TestFalse(TEXT("🔴 Attack(S, X) poi StructureHit(0, X): stesso atto, la sorgente 0 non decide"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::StructureHit, 0, TEXT("X")), X, S));
+	TestFalse(TEXT("lo stesso per un'impronta non attribuibile"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::AttackFootprint, 0, TEXT("X")), X, S));
+	TestTrue(TEXT("Attack(S, X) poi Attack(T, X): confine, T e' una sorgente nota e diversa"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::Attack, Tu, TEXT("X")), X, S));
+	TestFalse(TEXT("atto in corso senza sorgente (0): nessun confronto sulla sorgente"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::Attack, Tu, TEXT("X")), X, 0));
+	TestTrue(TEXT("⛔ ma un'azione diversa resta un confine anche con sorgente 0"),
+		URTPlaybackLibrary::IsActBoundary(SeqEvento(ERTResolvedEventType::StructureHit, 0, TEXT("Y")), X, S));
+
+	TArray<FRTResolvedEvent> Stesso;
+	Stesso.Add(SeqEvento(ERTResolvedEventType::Attack,       S, TEXT("X")));
+	Stesso.Add(SeqEvento(ERTResolvedEventType::StructureHit, 0, TEXT("X")));
+	Stesso.Add(SeqEvento(ERTResolvedEventType::Attack,       S, TEXT("X")));
+	TestEqual(TEXT("NextActionBoundary: Attack(S) · Muro(0) · Attack(S) e' un atto solo"),
+		URTPlaybackLibrary::NextActionBoundary(Stesso, 0), Stesso.Num());
+
+	TArray<FRTResolvedEvent> Altro = Stesso;
+	Altro[2].SourceStableUnitId = Tu;
+	TestEqual(TEXT("🔴 NextActionBoundary: dopo Muro(0) l'atto e' ancora di S, quindi Attack(T) lo chiude"),
+		URTPlaybackLibrary::NextActionBoundary(Altro, 1), 2);
 	return true;
 }
 

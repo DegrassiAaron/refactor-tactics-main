@@ -278,7 +278,7 @@ namespace
 	 * il caso di `GuardReduction` in forma di funzione invece che di campo, e nessun ritiro di specificatore
 	 * lo chiude.
 	 *
-	 * ⚠️ Copre SOLO le funzioni che `ARTUnit` dichiara — cinque. Il canale funzione EREDITATO
+	 * ⚠️ Copre SOLO le funzioni che `ARTUnit` dichiara. Il canale funzione EREDITATO
 	 * (`AActor::K2_GetActorLocation`) e quello di LIBRERIA (`URTPlanValidationLibrary::MakePlanFor`,
 	 * `ARTPlayerController::GetInspectedUnit`) restano fuori portata di un gate costruito su questa classe, e
 	 * la voce di decisione li dichiara per nome.
@@ -297,6 +297,7 @@ namespace
 	{ TEXT("PlayAttackMontage"),  false, Amm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta, il grafo non legge l'unita'") },
 	{ TEXT("PlayHitMontage"),     false, Amm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta") },
 	{ TEXT("PlayDefeatMontage"),  false, Amm, TEXT("BlueprintImplementableEvent: il C++ chiama DENTRO il grafo con la clip gia' risolta") },
+	{ TEXT("PlayCastMontage"),    false, Amm, TEXT("BlueprintImplementableEvent (#3549): il C++ chiama DENTRO il grafo con la clip gia' risolta, il grafo non legge l'unita'") },
 	};
 
 	const FRTUnitFunctionRule* TrovaFunzione(const FString& Nome)

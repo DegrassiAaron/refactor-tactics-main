@@ -46,10 +46,12 @@ enum class ERTPlaybackStopAt : uint8
 	 * il prossimo confine di fase se arriva prima.
 	 *
 	 * 🔑 **La fase conta come confine d'atto, e non e' una scorciatoia.** Il tempo del playback scorre per
-	 * fase, e le uniche sequenze che esso srotola un elemento per volta stanno nel `Blast`: impronte e colpi a
-	 * struttura per `AttacksToShow`, i colpi per `AttackBeatsDue`. ⚠️ Il confine d'atto di un colpo cade al suo
-	 * ARRIVO, non al lancio: e' li' che il colpo si mostra. Un `Move` e' un atto solo — `Action.Move` — quindi
-	 * il suo confine **e'** il confine di fase: fermarsi li' e' la risposta giusta, non un ripiego.
+	 * fase, e le sequenze che esso srotola un elemento per volta sono le attivazioni di `Prep` e `Dash` e la
+	 * sequenza per intento del `Blast` (#3549), percorsa sui battiti di `AttackBeatsDue` (`#2454`). ⚠️ Il confine
+	 * d'atto di un colpo cade al suo ARRIVO, non al lancio: e' li' che il colpo si mostra — e un colpo che segue la
+	 * propria attivazione o impronta non apre un atto, perche' la coppia `(sorgente, azione)` e' la stessa. Un
+	 * `Move` e' un atto solo — `Action.Move` — quindi il suo confine **e'** il confine di fase: fermarsi li' e' la
+	 * risposta giusta, non un ripiego.
 	 */
 	NextAction
 };
@@ -99,8 +101,41 @@ struct FRTPhaseTime
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	float Slack = 0.f;
 
+	/**
+	 * L'ANTICIPO delle attivazioni di Prep e Dash (#3549): il tempo che la fase spende a mostrarle prima di tutto il
+	 * resto — nel Dash, prima che partano le rotte. Zero nelle altre fasi: nel Blast le attivazioni sono elementi
+	 * della sequenza.
+	 * ⚠️ **E' GIA' dentro `Shown`**, non un terzo termine: `Total()` non lo somma. Esiste perche' chi anima le rotte
+	 * (`ARTTurnManager`) lo legga dalla stessa formula che dimensiona la fase. ⏱️ *Fino alla review della PR #3561
+	 * lo ricalcolava `ARTTurnManager::PlaybackActivationLeadSeconds`, una seconda copia di `N x AttackShowSeconds`.*
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
+	float Lead = 0.f;
+
 	/** La durata della fase senza compressione: e' cio' che `PhaseDuration` restituisce. */
 	float Total() const { return Shown + Slack; }
+};
+
+/**
+ * Un elemento della sequenza di Blast (#3549, D5): l'indice dell'evento in timeline e la chiave del suo atto.
+ *
+ * ⚠️ **Non e' un `USTRUCT`**: vive fra `BuildBlastSequence` e il playback, non si serializza, non entra in
+ * snapshot, TurnLog o hash. `TimelineIndex` vale solo finche' la timeline cresce per accodamento (D-355).
+ *
+ * 🔑 **L'identita' dell'elemento e' `TimelineIndex`, e basta** (review della PR #3561). `SourceStableUnitId` e
+ * `ActionId` sono una CACHE di `Timeline[TimelineIndex]`, copiata da `BuildBlastSequence` per la lettura dei test e dei
+ * log; `operator==` non li confronta, perche' due elementi con lo stesso indice sono lo stesso fatto per costruzione.
+ */
+struct FRTBlastSequenceElement
+{
+	int32 TimelineIndex = INDEX_NONE;
+	int32 SourceStableUnitId = 0; // cache di `Timeline[TimelineIndex].SourceStableUnitId`
+	FName ActionId;               // cache di `Timeline[TimelineIndex].ActionId`
+
+	bool operator==(const FRTBlastSequenceElement& Other) const
+	{
+		return TimelineIndex == Other.TimelineIndex;
+	}
 };
 
 /**
@@ -162,7 +197,8 @@ public:
 	 * esattamente il caso che `D-301` esiste per far esistere.
 	 *
 	 * ⚠️ **E cambia anche la DURATA della fase, non solo la sua esistenza**: `PhaseTime` prende
-	 * `Max(colpi, muri, impronte, spinta)`. ⛔ Ne segue un effetto che va saputo: il `Blast` e' l'unica fase in cui lo
+	 * `Max(sequenza, spinta)`. ⏱️ *Fino a #3549 era `Max(colpi, muri, impronte, spinta)`: i canali paralleli sono
+	 * diventati una sequenza per intento.* ⛔ Ne segue un effetto che va saputo: il `Blast` e' l'unica fase in cui lo
 	 * scivolamento del knockback segue l'Alpha di FASE, quindi allungarla **rallenta la spinta** — e da
 	 * `#2828` puo' allungarla un canale che con l'unita' spinta non ha rapporto, i muri abbattuti da altri.
 	 * ℹ️ Non e' nuovo: lo faceva gia' il conteggio dei colpi altrui, e `#2828` estende lo stesso
@@ -176,6 +212,10 @@ public:
 	 * livello piu' sotto. ⚠️ E sarebbe stato muto: nessun log, nessun rosso, solo un evento che non
 	 * compare mai.
 	 *
+	 * 🔴 **E `NumActivations` e' il quinto, per la stessa ragione** (#3549, spec §2.4 C3): un Blast di sole
+	 * cure o purificazioni non ha colpi, impronte, muri ne' spinta, e senza questo termine le sue attivazioni
+	 * non avrebbero una fase in cui accadere.
+	 *
 	 * ⛔ **Nessuna somma e nessuna soglia: le ragioni sono INDIPENDENTI**, e basta che una sia vera.
 	 * Sommarle per «misurare quanto succede» aprirebbe la fase sugli stessi casi e chiuderebbe quelli con
 	 * un solo fatto, che sono precisamente quelli per cui i termini sono stati aggiunti.
@@ -185,7 +225,7 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static bool BlastPhaseIsActive(int32 NumAttacks, bool bHasBlastMove, int32 NumFootprints,
-		int32 NumStructureHits);
+		int32 NumStructureHits, int32 NumActivations);
 
 	/**
 	 * Il segmento da disegnare per un tracer (`#2454`). Pura: estremi nel mondo, avanzamento, lunghezza del dardo.
@@ -225,6 +265,9 @@ public:
 	 * Quanti battiti sono usciti a `PhaseElapsed`: la lunghezza del prefisso con istante `<= t`.
 	 * ⚠️ E' un PREFISSO perche' la sequenza e' monotona (`Flights[i] <= A/2`): chi la percorre con un cursore
 	 * solo vede `L0, A0, L1, A1, ...` anche in un tick lungo. Con `A <= 0` escono tutti.
+	 * 🔑 **Il playback le passa i voli della SEQUENZA del Blast** (#3549 con `#2454`), uno per elemento e zero per
+	 * ogni elemento che non e' un colpo idoneo: l'indice `i` e' allora la posizione nella sequenza, e con voli nulli
+	 * il battito `2i` cade dove `AttacksToShow` rivelerebbe l'elemento `i`.
 	 */
 	static int32 AttackBeatsDue(float PhaseElapsed, float AttackShowSeconds, const TArray<float>& Flights);
 
@@ -251,13 +294,16 @@ public:
 	 * le unita' si muovono in parallelo, quindi la fase finisce quando finisce l'ultima.
 	 *
 	 *  - `Dash` / `Move`  → `MaxMoveSegments / CellsPerSecond`. Gli attacchi non entrano.
-	 *  - `Blast`          → `Max(colpi, muri, impronte, spinta)`, **non** la somma: i canali si rivelano
-	 *                       nella stessa finestra, ciascuno col proprio contatore. Impronte e muri su
-	 *                       `AttacksToShow`; i colpi su `AttackBeatsDue` (lancio e arrivo, `#2454`). Il
-	 *                       tempo ha un pavimento di uno anche quando non c'e' nulla da scaglionare, perche'
-	 *                       un Blast di sola spinta si vede e deve durare.
-	 *                       ⏱️ *Erano i soli colpi fino a `#2828`, che ha aggiunto i muri; le impronte sono
-	 *                       entrate con `#3278`. Ogni volta il difetto era lo stesso: il canale apriva la
+	 *  - `Blast`          → `Max(sequenza, spinta)`: la sequenza per intento (#3549, D5) si svela un elemento
+	 *                       per volta, quindi la fase dura quanto la SEQUENZA, non quanto il canale piu'
+	 *                       lungo. Il cursore e' sui battiti (`AttackBeatsDue`, `#2454`): l'elemento `k` esce a
+	 *                       `k·A` — per un colpo e' il LANCIO — e un colpo ARRIVA entro `k·A + A/2`, prima
+	 *                       dell'elemento dopo; il volo non allunga la fase. Il tempo ha un pavimento di uno
+	 *                       anche quando non c'e' nulla da scaglionare, perche' un Blast di sola spinta si vede
+	 *                       e deve durare.
+	 *                       ⏱️ *Fino a #3549 era il `Max` fra i canali paralleli (colpi, muri da `#2828`,
+	 *                       impronte da `#3278`; i colpi su `AttackBeatsDue` da `#2454`). Ogni volta il difetto
+	 *                       era lo stesso: il canale apriva la
 	 *                       fase e non la dimensionava, e cio' che non faceva in tempo usciva dal catch-all
 	 *                       nello stesso fotogramma.*
 	 *  - ogni altra fase  → un beat (`PhaseBeatSeconds`).
@@ -271,18 +317,19 @@ public:
 	 *
 	 * ⛔ **Non aggiungerne una aggregata.** Ne e' esistita una — `EstimatePlaybackSeconds`, rimossa il
 	 * 2026-08-31 — che sommava movimento, colpi e beat sull'intero round: dava un numero **diverso** da
-	 * questo, perche' qui il `Blast` prende `Max(colpi, spinta)` e non la somma. Era coperta da quattro
+	 * questo, perche' il `Blast` prendeva allora `Max(colpi, spinta)` e non la somma. Era coperta da quattro
 	 * asserzioni e chiamata da nessuno, cioe' una verita' verde e morta accanto a quella viva. Se serve il
 	 * totale, si somma questa.
 	 *
-	 * ⛔ **QUESTO WRAPPER NON CONOSCE NE I MURI NE LE IMPRONTE, e le due letture DIVERGONO.** Delega a
-	 * `PhaseTime` passando `NumStructureHits = 0` e `NumFootprints = 0` (`#2828`, `#3278`): su un `Blast`
-	 * in cui uno dei due canali e' piu' lungo dei colpi restituisce una durata **sottostimata**. ✅ Resta `PhaseTime(...).Total()` — la formula ha un owner solo
-	 * — ma su un ingresso FISSATO, che non e' la stessa cosa di «non esiste modo di farne divergere le due
-	 * letture», come questa riga affermava.
+	 * ⛔ **QUESTO WRAPPER NON CONOSCE NE I MURI, NE LE IMPRONTE, NE LE ATTIVAZIONI** — gli zeri dichiarati
+	 * (#2828, #3278, #3549). Delega a `PhaseTime` con `NumActivations = 0` e `NumSequenceElements = NumAttacks`:
+	 * su un `Blast` la sequenza vera e' piu' lunga dei soli colpi, e la durata restituita e' **sottostimata**.
+	 * ✅ Resta `PhaseTime(...).Total()` — la formula ha un owner solo — ma su un ingresso FISSATO, che non e'
+	 * la stessa cosa di «non esiste modo di farne divergere le due letture», come questa riga affermava.
 	 *
 	 * 🔑 **Chi dimensiona il playback vero non passa di qui**: `ARTTurnManager::PhaseTimeForPlaybackPhase`
-	 * chiama `PhaseTime` con entrambi i conteggi. Questa forma sopravvive per i gate di pacing sulle fasi
+	 * chiama `PhaseTime` con le attivazioni e la lunghezza della sequenza del Blast (#3549). ⏱️ *Fino al
+	 * Task 7 di #3549 passava la SOMMA provvisoria dei tre canali.* Questa forma sopravvive per i gate di pacing sulle fasi
 	 * classiche, e la riga esiste perche' chi la usi altrove sappia cosa NON sta contando.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
@@ -290,19 +337,51 @@ public:
 		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
 
 	/**
-	 * La formula di durata, nei suoi due termini: quanto della fase e' movimento e quanto e' attesa.
-	 * Gli argomenti sono quelli di `PhaseDuration`, e la somma dei termini e' il suo risultato.
+	 * La formula di durata, nei suoi due termini: quanto della fase e' mostrato e quanto e' attesa.
 	 *
-	 *  - `Dash` / `Move`  → tutto `Shown`. Non c'e' nulla da comprimere: la fase dura quanto il percorso
-	 *                       piu' lungo impiega, e comprimerla sarebbe accelerare i cilindri.
-	 *  - `Blast`          → tutto `Shown`, e vale `Max(colpi, spinta)`: i due si sovrappongono, non si
-	 *                       sommano. ⚠️ Zero slack **di proposito** — vedi `FRTPhaseTime`.
-	 *  - ogni altra fase  → tutto `Slack`: un beat non mostra nulla, ed e' l'unica attesa comprimibile.
+	 *  - `Prep`  → `Shown = NumActivations x ASS`, `Slack = PhaseBeatSeconds`: il beat di oggi resta, le
+	 *              attivazioni si mostrano (#3549). `Lead = NumActivations x ASS`.
+	 *  - `Dash`  → `Shown = NumActivations x ASS + movimento`: prima le attivazioni, poi le rotte, che partono
+	 *              dopo `Lead = NumActivations x ASS`. Nelle altre fasi `Lead` e' zero.
+	 *  - `Move`  → tutto `Shown`, il movimento.
+	 *  - `Blast` → tutto `Shown`, `Max(Max(1, NumSequenceElements) x ASS, spinta)`. ⏱️ *Fino a #3549 era il
+	 *              `Max` fra i canali paralleli (colpi, muri da #2828, impronte da #3278); la sequenza per
+	 *              intento (D5) li svela uno dopo l'altro, quindi la fase dura quanto la SEQUENZA.* Le
+	 *              attivazioni di Blast sono gia' elementi della sequenza: `NumActivations` qui non conta.
+	 *              ⚠️ Zero slack **di proposito** — vedi `FRTPhaseTime`.
+	 *  - ogni altra fase → tutto `Slack`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
-		int32 NumStructureHits, int32 NumFootprints,
-		float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
+	static FRTPhaseTime PhaseTime(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumActivations,
+		int32 NumSequenceElements, float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds);
+
+	/**
+	 * La sequenza per intento del Blast (D5, spec §2.4). Gli eventi di fase Blast di tipo AbilityActivated,
+	 * AttackFootprint, StructureHit e Attack si raggruppano per (SourceStableUnitId, ActionId). I gruppi si
+	 * ordinano per l'indice in timeline della loro ATTIVAZIONE — visibile o no a chi guarda — se ne hanno una,
+	 * altrimenti per prima apparizione: cosi' uno `StructureHit` — che `ApplyEnvironmentChanges` emette PRIMA delle
+	 * attivazioni — non porta il suo intento davanti a uno con `IntentIndex` minore. Dentro il gruppo: attivazione,
+	 * impronte, muri, colpi, ciascuno nell'ordine di timeline. Un evento senza `ActionId` (lo `StructureHit`
+	 * aggregato, #3281) e' un atto proprio; un gruppo senza attivazione in timeline (impatti di carica,
+	 * contrattacchi, muri anonimi) e' un atto proprio alla sua prima apparizione. Un evento con sorgente `0` e
+	 * azione nominata (non attribuibile, [D-063]) forma il gruppo `(0, azione)`, un atto proprio: non sappiamo a
+	 * chi appartenga.
+	 * `ArcHit` non entra (#3293).
+	 *
+	 * 🔑 `ViewerTeamId`: un'attivazione con `!SourceVerdict.AllowsTeam(ViewerTeamId)` non entra (D6); le sue
+	 * impronte e i suoi colpi restano — il velo sul bersaglio e' di [D-223], non di questa funzione. ⚠️ **Ma da'
+	 * la chiave al suo gruppo** (review della PR #3561): ordinare per il suo indice non rivela nulla, perche'
+	 * l'attivazione non si mostra e impronte e colpi si mostrano comunque. ⏱️ *Prima il gruppo nascosto prendeva la
+	 * chiave dalla prima apparizione, e un muro in testa lo portava davanti a ogni atto visibile.*
+	 * 🔑 `FrozenPrefix`: i primi N elementi di `Previous` si riproducono VERBATIM (D-355) e i loro eventi NON si
+	 * ripetono; il resto si ricostruisce da zero. La CHIAVE di un gruppo si legge dall'attivazione ovunque
+	 * stia in timeline, anche dentro il prefisso congelato: cosi' `Build(T, S, k) == S` per ogni `k` (idempotenza,
+	 * Ruling H), e un evento nuovo con chiave gia' aperta si unisce al suo gruppo nella parte oltre il prefisso,
+	 * nell'ordine di rango e indice — come primo elemento oltre il prefisso se il gruppo era tutto nel prefisso,
+	 * perche' la sua chiave e' la piu' bassa. Con N = 0 e' la costruzione da zero.
+	 */
+	static TArray<FRTBlastSequenceElement> BuildBlastSequence(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Previous, int32 FrozenPrefix, int32 ViewerTeamId);
 
 	/**
 	 * Quanto comprimere lo `Slack` del round per stare nel budget di presentazione: `1` se ci si sta gia'
@@ -504,16 +583,15 @@ public:
 	 * si ferma su un atto che non esiste e' meno leggibile di uno che ne salta uno — ed e' il motivo per cui
 	 * il caso a una azione sola ha un gate suo (`Playback.SingleActionStructureHitNamesItsAction`).
 	 *
-	 * ⚠️ **Piu' eventi con lo stesso `ActionId` sono UN atto**, ed e' voluto: un'area che colpisce tre
-	 * bersagli emette tre `Attack` per un solo intento, e fermarsi tre volte sarebbe il difetto che
-	 * `AttackFootprint` documenta gia' («una voce per INTENTO, non per vittima»).
+	 * ⚠️ **Piu' eventi con la stessa coppia `(sorgente, azione)` sono UN atto** (#3549; ⏱️ *prima «lo stesso
+	 * `ActionId`»*), ed e' voluto: un'area che colpisce piu' bersagli emette un `Attack` per vittima per un solo
+	 * intento, e fermarsi su ciascuno sarebbe il difetto che `AttackFootprint` documenta gia' («una voce per
+	 * INTENTO, non per vittima»).
 	 *
-	 * 🔴 **Limite noto, dichiarato e non aggirato**: il criterio e' l'`ActionId` **da solo**, come `#2855`
-	 * lo scrive. Ne segue che due unita' diverse che nello stesso `Blast` usano la **stessa** azione
-	 * (`Action.BasicAttack` per entrambe) producono eventi che questa funzione legge come **un** atto, e
-	 * `Next Action` salta il secondo attaccante. Distinguerli chiederebbe la coppia
-	 * `(ActionId, SourceStableUnitId)` — cioe' un criterio diverso da quello che l'issue fissa, e va
-	 * deciso li' invece che allargato qui.
+	 * ✅ **Il limite noto di #2855 e' chiuso** (#3549): due unita' con la stessa azione generica sono due atti,
+	 * perche' l'atto in corso e' la coppia `(SourceStableUnitId, ActionId)` dell'ultimo evento con un'azione.
+	 * ⚠️ La sorgente dell'atto in corso si legge solo da eventi con sorgente `!= 0` e con la STESSA azione (review
+	 * della PR #3561): uno `0` non sostituisce la sorgente nota, e quella di un atto precedente non si presta.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
 	static int32 NextActionBoundary(const TArray<FRTResolvedEvent>& Timeline, int32 FromIndex);
@@ -528,13 +606,16 @@ public:
 	 * seconda»*: diceva il vero sull'intenzione e il falso sul codice. Due copie divergono alla prima
 	 * modifica di una sola — e qui una delle due non era nemmeno eseguita.
 	 *
-	 * ∴ ora `NextActionBoundary` **chiama questa**, e i tre canali del `Blast` pure. Una modifica alla
-	 * regola si scrive una volta.
+	 * ∴ ora `NextActionBoundary` **chiama questa**, e il playback pure: `ARTTurnManager::NotePlaybackActShown`,
+	 * per ogni fatto che rivela — attivazioni di Prep e Dash, elementi della sequenza di Blast (#3549). ⏱️ *Fino
+	 * a #3549 i chiamanti erano i tre canali paralleli del `Blast`.* Una modifica alla regola si scrive una volta.
 	 *
-	 * 🔑 **Il criterio resta quello di `#2855`: l'`ActionId` da solo.** Un evento e' un confine quando porta
-	 * un'azione **diversa** da quella in corso. Piu' eventi con lo stesso `ActionId` sono **un** atto, e
-	 * questo e' cio' che risolve il caso dell'impronta: un'impronta e i colpi che la seguono nascono dallo
-	 * stesso intento, quindi portano lo stesso `ActionId` e **non** fanno fermare due volte.
+	 * 🔑 **Il criterio e' la coppia `(SourceStableUnitId, ActionId)`** (#3549, `Ruling` della spec «il
+	 * momento» §2.4). ⏱️ *Fino a #3549 era l'`ActionId` da solo, come #2855 lo scriveva.* Un evento e' un confine
+	 * quando porta un'azione diversa da quella in corso **o** la porta un'altra unita': due cure consecutive da
+	 * due unita' sono due atti. Piu' eventi con la stessa coppia sono **un** atto — impronta e colpi dello
+	 * stesso intento non fanno fermare due volte: nascono dallo stesso intento, quindi portano la stessa
+	 * coppia.
 	 *
 	 * ⚠️ **L'eccezione di `StructureHit`, decisa da `#3281`** ([D-437]): li' `NAME_None` non significa
 	 * *«nessuna azione dietro»* ma *«piu' di uno l'ha fatto»* — il produttore nomina l'azione quando
@@ -546,7 +627,20 @@ public:
 	 *
 	 * ⚠️ **Non dice se l'atto in corso vada AGGIORNATO**: e' una domanda di chi chiama. `NextActionBoundary`
 	 * la risolve scandendo all'indietro; il playback tenendo l'ultima azione mostrata.
+	 *
+	 * ⚠️ **`CurrentSource` e' IN CODA e vale `INDEX_NONE` per default** (#3549): un nodo Blueprint scritto prima
+	 * di #3549 continua a compilare e ottiene il criterio storico, l'`ActionId` da solo. Ogni chiamante C++
+	 * passa la sorgente.
+	 *
+	 * 🔴 **Una sorgente `0` non apre mai un confine** (review della PR #3561). `0` non e' un'unita' ([D-063]):
+	 * `StructureHit` e `AttackFootprint` la portano con l'azione nominata quando l'autore non e' attribuibile. Il
+	 * confronto sulla sorgente vale solo fra due sorgenti note: `Event.SourceStableUnitId != 0` e
+	 * `CurrentSource > 0` — con `CurrentSource == 0` l'atto in corso non ha ancora una sorgente, con `-1` vale il
+	 * criterio storico. ⏱️ *Prima `0 != S` apriva una seconda fermata dentro lo stesso intento.*
+	 *
+	 * ⛔ Il default e' scritto `-1` e non `INDEX_NONE`: UHT non risolve la macro in un default di `UFUNCTION`
+	 * («Default parameter not parsed»). Sono lo stesso valore, e il corpo confronta con `INDEX_NONE`.
 	 */
 	UFUNCTION(BlueprintPure, Category = "RefactorTactics|Playback")
-	static bool IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction);
+	static bool IsActBoundary(const FRTResolvedEvent& Event, FName CurrentAction, int32 CurrentSource = -1);
 };

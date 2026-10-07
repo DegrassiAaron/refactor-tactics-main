@@ -5113,6 +5113,28 @@ sessions:
       Tre scene su scenari del corpus, una domanda ciascuna. La terza e' la privacy: un tracer che partisse
       dalla cella di un attaccante non visto la rivelerebbe. Per il tiro alla cieca vedi PIE-V01-BLINDFIRE.
 
+  - id: U69
+    title: Il momento — il beat di cast sulla sorgente (AbilityActivated)
+    block: 6
+    critical: false
+    execution_lane: pie
+    produces: >-
+      il verdetto su `PIE-CAST-BEAT`; nessun asset
+    artifacts: []
+    unblocked_by: []
+    shares_setup_with: []
+    verifies: [PIE-CAST-BEAT]
+    issues: [3549]
+    done_when: >-
+      la voce `PIE-CAST-BEAT` ha un verdetto nel registro, dato a schermo da una persona dopo il merge del codice
+    notes: |
+      Scritta il 2026-10-07 dal piano `docs/superpowers/plans/2026-10-07-momento-ability-activated.md`.
+      L'esito atteso vive in `test-manuali-pie.md`; qui solo l'allestimento: `rt.Test.Scenario Visual.Ability.CastBeat`
+      da `L_DevSandbox`. Il criterio (1) giudica tre momenti (cast, lancio, impatto); il (2) e' `NOT RUN` in PIE
+      (la fermata per atto non ha un ingresso). `rt.Debug.PlaybackControls 1` resta utile per `K`/`L`, pausa e
+      passo singolo. Il criterio (3) si allestisce col banco Ability Lab di U67, un'abilita' di una sorgente nemica
+      non osservata.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────

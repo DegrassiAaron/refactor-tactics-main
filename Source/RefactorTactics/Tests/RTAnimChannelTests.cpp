@@ -300,4 +300,34 @@ bool FRTAnimChannelOutcomeUnchangedTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il ruolo `Cast` risolve una clip per ogni eroe del roster — spec «il momento» §2.3.
+ *
+ * 🔑 **Il PATH, senza caricare**: i pack Paragon non sono versionati, e headless `LoadSynchronous` darebbe
+ * `nullptr` su ogni clone appena creato. E' la stessa ragione di `ResolvedAnimationReachesTheUnit`.
+ *
+ * ⚠️ **In v0.1 la clip e' la STESSA del ruolo `Attack`**, ed e' una decisione (D2): cast e colpo si
+ * distinguono per MOMENTO, non per forma. La seconda asserzione lo pinna, cosi' che chi la cambia lo faccia
+ * nel catalogo ANIM CORE e non per sbaglio qui.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitCastRoleResolvesAClipForEveryHeroTest,
+	"RefactorTactics.Unit.CastRoleResolvesAClipForEveryHero",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitCastRoleResolvesAClipForEveryHeroTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO di URTUnitAnimInstance"), Cdo)) { return false; }
+
+	static const TCHAR* Eroi[] = { TEXT("Hero.Aevik"), TEXT("Hero.Muiren"), TEXT("Hero.Branth"), TEXT("Hero.Ivrin") };
+	for (const TCHAR* Eroe : Eroi)
+	{
+		const TSoftObjectPtr<UAnimSequenceBase> Cast = Cdo->ActiveClipFor(FName(Eroe), ERTPresentationRole::Cast);
+		const TSoftObjectPtr<UAnimSequenceBase> Attacco = Cdo->ActiveClipFor(FName(Eroe), ERTPresentationRole::Attack);
+		TestFalse(*FString::Printf(TEXT("%s: il ruolo Cast ha una clip attiva"), Eroe), Cast.IsNull());
+		TestEqual(*FString::Printf(TEXT("%s: in v0.1 e' la stessa del ruolo Attack"), Eroe),
+			Cast.ToSoftObjectPath().ToString(), Attacco.ToSoftObjectPath().ToString());
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

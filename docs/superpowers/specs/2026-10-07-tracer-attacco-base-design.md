@@ -140,6 +140,11 @@ Le condizioni 1–3 decidono il **ritmo**; la 4 decide solo il **disegno**. ➕ 
 chi guarda**: entrambe le squadre vedono l'arrivo nello stesso istante. Non è *privo* di informazione — rivela che
 un attaccante, anche non visto, ha usato un attacco base `Single` o `Line` — ma è informazione che il numero di
 danno sul bersaglio dà già oggi.
+⌫ ➕ #3549 *«Il ritmo quindi non dipende da chi guarda»* è **superato** sull'indice del colpo nella sequenza:
+con l'attivazione per intento di [#3549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3549) la
+sequenza del Blast si costruisce per squadra (D6), e lo stesso colpo cade su un indice — quindi su un istante —
+diverso per chi vede la sorgente e per chi no. Vale ancora per l'idoneità: le condizioni 1–3 non leggono chi
+guarda. Governa la spec del momento §2.4 (`CONTRACT CONFLICT`), non questa.
 
 ### 2.2 Le due forme
 

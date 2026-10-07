@@ -155,7 +155,26 @@ enum class ERTResolvedEventType : uint8
 	 * ⚠️ **In CODA, come i tre valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint, e
 	 * inserirlo in mezzo rinumererebbe i successivi cambiando in silenzio ogni default gia' serializzato.
 	 */
-	ArcHit
+	ArcHit,
+
+	/**
+	 * Un intento di abilita' e' stato ACCETTATO dal resolver: «questa unita' sta agendo adesso con questa
+	 * azione» (spec «il momento», #3549). Una voce per INTENTO, in Prep, Dash e Blast.
+	 *
+	 * 🔴 **Un'abilita' senza colpo non aveva un istante.** Cure, purificazioni, archi, interruzioni e ogni
+	 * istanza di Prep non producevano alcun evento: il produttore c'era, mancava il momento — la forma di
+	 * #2505 e #2828.
+	 *
+	 * ⛔ **Niente celle colpite, niente esiti**: quelli restano di `AttackFootprint` e `Attack`. Questo evento
+	 * racconta il GESTO, e si emette anche quando il gesto non tocca nulla (linea di tiro bloccata, fuori
+	 * portata, degradato da [D-300]).
+	 *
+	 * 🔑 `SourceVerdict` porta il verdetto di [D-223] congelato all'emissione: il playback lo filtra con
+	 * `AllowsTeam`, come le righe di log, non con `ObservedPrefixLength` come il `Move` (spec §2.5).
+	 *
+	 * ⚠️ **In CODA, come i valori sopra e per la stessa ragione**: e' un `uint8` esposto a Blueprint.
+	 */
+	AbilityActivated
 };
 
 /**
@@ -285,6 +304,19 @@ struct FRTResolvedEvent
 	TArray<FRTKnowledgeVerdict> CellVerdicts;
 
 	/**
+	 * Chi puo' vedere la SORGENTE agire, nell'istante in cui agisce — solo per `AbilityActivated` (#3549).
+	 *
+	 * 🔴 **Non e' `CellVerdicts`**: un'attivazione non ha rotta ne' celle, e un vettore vuoto letto con
+	 * `ObservedPrefixLength` nasconderebbe ogni attivazione, comprese quelle di chi guarda. Il predicato e'
+	 * quello delle righe di log: `AllowsTeam`, su questo verdetto congelato da `FreezeVerdictFor`.
+	 *
+	 * ⚠️ Vuoto = `NoOne()` = fail-closed. `UPROPERTY()` nudo per la stessa ragione di `CellVerdicts`: un
+	 * verdetto leggibile da Blueprint sarebbe anche un verdetto aggirabile da Blueprint.
+	 */
+	UPROPERTY()
+	FRTKnowledgeVerdict SourceVerdict;
+
+	/**
 	 * Quante celle iniziali di `Path` appartengono al PIANO di chi si muove — `#3263`.
 	 *
 	 * 🔴 **Tutto cio' che sta oltre e' estensione AMBIENTALE**: uno scivolamento su ghiaccio, cioe' un
@@ -363,16 +395,18 @@ struct FRTResolvedEvent
 	 * derivarla qui sarebbe ricalcolare a valle cio' che il catalogo sa gia', ed e' il modo in cui due
 	 * letture della stessa identita' cominciano a divergere.
 	 *
-	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda `ActionId`
-	 * e solo quello: due profili distinti della stessa generica — `Branth.Interposition` e
+	 * ⛔ **Non partecipa al confine di azione.** `URTPlaybackLibrary::NextActionBoundary` guarda la coppia
+	 * (`SourceStableUnitId`, `ActionId`) — da #3549; prima il solo `ActionId` — e mai questo campo: due
+	 * profili distinti della stessa generica — `Branth.Interposition` e
 	 * `Action.Intercept` — sono due atti, ed e' esattamente la distinzione che `RTTurnLog.h` dichiara di
 	 * voler conservare.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FName BaseActionId;
 
-	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO).
-	//     Gli altri campi: vuoti/di default per ogni altro `Type`. ---
+	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO);
+	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549). Gli altri campi: vuoti/di default per ogni
+	//     altro `Type`. ---
 
 	/**
 	 * Le celle investite, **nell'ordine che `HexHitCells` produce** (`URTHexLibrary::StableLess`).
