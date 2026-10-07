@@ -60,6 +60,29 @@ namespace
 		return TM;
 	}
 
+	/**
+	 * Il colpo ALLE SPALLE di `Privacy.UnseenAttackerIsOutOfTheOriginVerdict`: Branth in (2,2) spara a Ivrin in
+	 * (5,2), entrambi a Est — a 3 celle, oltre la consapevolezza ravvicinata (2) e fuori dall'arco frontale di Ivrin.
+	 * `TeamBranth` decide chi guarda: in un mondo senza player controller lo spettatore e' la squadra 0, quindi con
+	 * `TeamBranth == 0` guarda chi spara, con `1` guarda chi e' colpito e non conosceva l'attaccante.
+	 */
+	ARTTurnManager* SetUpAlleSpalleTurn(UWorld* World, int32 TeamBranth)
+	{
+		ARTHexMapActor* MapActor = World->SpawnActor<ARTHexMapActor>();
+		MapActor->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 8);
+		ARTUnit* Branth = SpawnBattitoUnit(World, TeamBranth, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(2, 2));
+		ARTUnit* Ivrin = SpawnBattitoUnit(World, 1 - TeamBranth, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(5, 2));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Branth || !Ivrin) { return nullptr; }
+		Branth->Facing = ERTHexDirection::E;
+		Ivrin->Facing = ERTHexDirection::E;
+		Branth->PlannedAbilityIndex = 0; // Hero.Branth.ImpactShot, Single, portata 3
+		Branth->PlannedAttackTarget = Ivrin;
+		Branth->PlannedCell = Branth->Cell;
+		TM->bRecordAttackBeatsForTest = true;
+		return TM;
+	}
+
 	/** Tick piccoli finche' il playback e' nel Blast; falso se la risoluzione finisce prima. */
 	bool TickUntilBlast(ARTTurnManager* TM)
 	{
@@ -274,6 +297,67 @@ bool FRTPlaybackTracerChannelClearsTest::RunTest(const FString&)
 			TM->IsResolving() && TM->CurrentPlaybackPhaseForTest() != ERTMatchPhase::Blast)) { return false; }
 		TestEqual(TEXT("la rete ha arrivato il colpo lanciato e non arrivato"), Sonda->AttackTicks.Num(), 1);
 		TestEqual(TEXT("e uscito dal Blast il canale e' spento"), Mappa->NumPlaybackTracers(), 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyUnseenAttackerTracerTest,
+	"RefactorTactics.Privacy.UnseenAttackerTracerIsNotDelivered",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyUnseenAttackerTracerTest::RunTest(const FString&)
+{
+	// 🔴 **Il filtro di privacy del tracer vive in UN punto**: `PushPlaybackTracers` non consegna un tracer il cui
+	// stile, per chi guarda, e' `None`. La mappa disegna TUTTO cio' che riceve, quindi quella guardia e' l'intero
+	// filtro che impedisce a una linea di partire dalla cella di un attaccante che lo spettatore non poteva vedere.
+	// Finora ogni fixture di playback aveva l'attaccante nella squadra 0 — lo spettatore di un mondo di prova —
+	// e togliere la guardia, o sostituire `TracerStyleFor(...)` con uno stile costante, lasciava tutto verde.
+	//
+	// Qui le squadre si scambiano: lo spettatore (squadra 0) e' la VITTIMA, colpita alle spalle a 3 celle da un
+	// attaccante che non vedeva (`Privacy.UnseenAttackerIsOutOfTheOriginVerdict` misura il verdetto, questo misura
+	// che il playback lo rispetti). La proprieta' e' su OGNI tick: nessun tracer in canale, mai.
+	//
+	// ⚠️ **Il controllo positivo e' la meta' che regge il test**: con `TracerStyleFor == None` anche una geometria
+	// non risolta darebbe zero tracer, e la proprieta' sarebbe vera per un motivo che non e' la privacy. Lo stesso
+	// colpo, con le squadre nell'altro verso, deve mostrare il tracer a chi spara.
+	//
+	// ⛔ **Limite residuo, dichiarato**: una mutazione che sostituisca `PlaybackViewerTeamId` con la costante 0 resta
+	// INDIVIDUABILE solo a mano finche' lo spettatore del test e' fisso alla squadra 0 — in un mondo senza player
+	// controller `ARTPlayerState::TeamIdOf(nullptr)` risponde 0, e la squadra dello spettatore non si puo' variare
+	// da qui. Lo coprono la lettura del codice e la seduta PIE con due giocatori, non questo test.
+	for (const bool bSpettatoreEColpito : { false, true })
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		ARTTurnManager* TM = SetUpAlleSpalleTurn(World, /*TeamBranth=*/ bSpettatoreEColpito ? 1 : 0);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+
+		TM->LockInAndResolve();
+		bool bLanciato = false;
+		bool bArrivato = false;
+		int32 TickConTracer = 0;
+		for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.02f);
+			bLanciato |= TM->AttackBeatTraceForTest().Contains(TEXT("L0"));
+			bArrivato |= TM->AttackBeatTraceForTest().Contains(TEXT("A0"));
+			if (Mappa->NumPlaybackTracers() > 0) { ++TickConTracer; }
+		}
+		if (!TestTrue(bSpettatoreEColpito
+				? TEXT("premessa (colpito): il colpo alle spalle e' partito ed e' arrivato")
+				: TEXT("premessa (controllo): il colpo e' partito ed e' arrivato"), bLanciato && bArrivato)) { return false; }
+
+		if (bSpettatoreEColpito)
+		{
+			TestEqual(TEXT("la vittima non vedeva l'attaccante: nessun tracer in canale, su nessun tick"),
+				TickConTracer, 0);
+		}
+		else
+		{
+			TestTrue(TEXT("controllo positivo: chi spara vede il tracer dello stesso colpo"), TickConTracer > 0);
+		}
 	}
 	return true;
 }
