@@ -172,7 +172,10 @@ Nel pannello Ability Lab, accanto a «Esegui», compare **«Esegui in PIE»**. A
 4. **Ripristino.** ➕ rev. Su `FEditorDelegates::EndPIE` **oppure** `FEditorDelegates::CancelPIE` il
    lanciatore riapplica i valori catturati al passo 3 — non un `""` cieco: ripristina ciò che c'era. ➕ fu.
    (#3541) Con `FRTLabCVarSnapshot::Restore`, che riscrive il valore catturato con `SetWithCurrentPriority`:
-   dopo il ripristino il `SetBy` è quello di prima **per costruzione**, non per un secondo `Set`. `CancelPIE` copre il PIE che **non comincia**: `RequestPlaySession` è
+   dopo il ripristino il `SetBy` è quello di prima **per costruzione**, non per un secondo `Set` (limite: vale
+   se nessuno alza la priorità **durante** il PIE; `SetByPrima` lo legge solo il test). ➕ fu. (#3542) La
+   callback di fine PIE porta l'esito del ripristino, e il pannello lo dice se una CVar non è tornata.
+   `CancelPIE` copre il PIE che **non comincia**: `RequestPlaySession` è
    una richiesta differita e `EndPIE` da sola scatterebbe solo per una sessione partita. Al primo dei due
    che scatta, il lanciatore ripristina e si sgancia da entrambi. Senza questo passo il Play successivo
    rilancerebbe lo scenario del Lab in silenzio.
@@ -199,7 +202,8 @@ Le API dell'Engine che i passi 3 e 4 usano esistono in UE 5.8.1, lette negli hea
 `UEditorEngine::RequestPlaySession` (`Editor/UnrealEd/Classes/Editor/EditorEngine.h:1817`),
 `FRequestPlaySessionParams::GlobalMapOverride` (`Editor/UnrealEd/Public/PlayInEditorDataTypes.h`, letto in
 `Runtime/Engine/Private/GameInstance.cpp:324`), `FEditorDelegates::EndPIE` e `CancelPIE`
-(`Editor/UnrealEd/Public/Editor.h:284,298`), `ECVF_SetByCode < ECVF_SetByConsole`
+(`Editor/UnrealEd/Public/Editor.h:284,298`), `ECVF_SetByCode < ECVF_SetByConsole` (ordine dell'enum, ancora
+valido: è il motivo per cui `SetWithCurrentPriority` scavalca la console senza alzare il pavimento)
 (`Runtime/Core/Public/HAL/IConsoleManager.h:183,187`).
 
 ---
@@ -214,7 +218,7 @@ Le API dell'Engine che i passi 3 e 4 usano esistono in UE 5.8.1, lette negli hea
 | `Source/RefactorTacticsEditor/Private/RTLabViewModel.{h,cpp}` | `bool PrepareForPie(FString& OutScenarioId, FString& OutError)`: costruisce, valida, salva, **e verifica che l'Id risolva a quel file**. **Pura e headless**: non sa nulla di PIE né di `GEditor`. |
 | `Source/RefactorTacticsEditor/Private/RTLabPieLauncher.{h,cpp}` (nuovo) | La sola parte che tocca `GEditor`: cattura e imposta le CVar (➕ fu. #3541: con `FRTLabCVarSnapshot`, `SetWithCurrentPriority`), chiede PIE con `GlobalMapOverride`, si aggancia a `EndPIE` e `CancelPIE` per il ripristino, si sgancia da entrambi al primo scatto. ➕ fu. (#3542) `CanLaunch(OutError)` espone le guardie prima di scrivere, e `Launch` accetta un `OnFinished` chiamato dopo il ripristino. Isolata perché nessun automation test la vede. |
 | `Source/RefactorTacticsEditor/Private/RTLabCVarSnapshot.{h,cpp}` (➕ fu. #3541) | Fotografia di una CVar: valore e `SetBy` alla cattura; `Apply`/`Restore` con `SetWithCurrentPriority` e rilettura. Nessuna dipendenza da `GEditor`: verificabile headless. |
-| `Source/RefactorTacticsEditor/Private/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). ➕ fu. (#3542) Lo stato dell'ultimo lancio vive nel modello (`LaunchedScenarioId`, `WasLaunchFinished`): il pannello chiede `CanLaunch` **prima** di `PrepareForPie`, così non scrive se non può lanciare, e a fine PIE mostra «PIE terminato: le CVar sono tornate com'erano». |
+| `Source/RefactorTacticsEditor/Private/SRTLabPanel.{h,cpp}` | Il pulsante «Esegui in PIE» e la riga di stato (Id lanciato, riga di log da cercare, oppure l'errore). ➕ fu. (#3542) Lo stato dell'ultimo lancio vive nel modello (`LaunchedScenarioId`, `WasLaunchFinished`): il pannello chiede `CanLaunch` **prima** di `PrepareForPie`, così non scrive se non può lanciare, e a fine PIE mostra «PIE terminato: le CVar sono tornate com'erano» — oppure «PIE terminato: il ripristino di una CVar NON ha preso, vedi il log» se una `Restore` non ha preso. L'ultimo gesto vince: una Run o una selezione fatta durante il PIE non viene scavalcata dalla fine del PIE (e in quel caso un ripristino fallito resta solo nel log). |
 | `Source/RefactorTactics/Tests/RTScenarioIndexTests.cpp` | I test della seconda radice (§5). |
 | `Source/RefactorTacticsEditor/Private/Tests/RTLabViewModelTests.cpp` | I test di `PrepareForPie` (§5). |
 
@@ -264,7 +268,7 @@ verificabile headless e `SRTLabPanel` no, e il motivo è scritto in testa a
 | `RefactorTactics.Lab.PrepareForPieRefusesWithoutARootUnderAutomation` | ➕ impl. Senza override, sotto automation, `PrepareForPie` → `false`, nessun file. |
 | `RefactorTactics.ScenarioIndex.AbbreviationIgnoresTheLabRoot` | ➕ fu. (#3543) Con `AbilityLab.Hero.Ivrin.Deflection` nella radice del Lab, l'Id esatto risolve al file del Lab e `Deflection` risolve all'unico versionato che termina con `.Deflection`. Mutazione: candidati di nuovo da `ScanAll` → cade su «ambigua». |
 | `RefactorTactics.Lab.CVarSnapshotRestoresValueAndPriority` | ➕ fu. (#3541) Su una CVar di prova: `Apply` scavalca un valore a priorità code **e** uno a priorità console; `Restore` riporta valore e `SetBy`; dopo `Restore` un `Set` a `SetByCode` prende. Mutazione: `Set(..., ECVF_SetByConsole)` in `Apply` → cade «il pavimento non si alza». |
-| `RefactorTactics.Lab.LaunchedIdIsClearedBySelectionFilterAndRun` · `LaunchFinishedClearsTheLaunchedId` | ➕ fu. (#3542) L'Id dell'ultimo lancio vive nel modello: lo azzerano selezione accettata, cambio di filtro, run e fine PIE; una selezione rifiutata **non** lo azzera. |
+| `RefactorTactics.Lab.LaunchedIdIsClearedBySelectionFilterAndRun` · `LaunchFinishedClearsTheLaunchedId` | ➕ fu. (#3542) L'Id dell'ultimo lancio vive nel modello: lo azzerano selezione accettata, cambio di filtro, run e fine PIE; una selezione rifiutata **non** lo azzera; la fine del PIE **non** scavalca un gesto fatto durante il PIE (asserto (b), mutazione: senza la guardia cade); `LastLaunchRestored()` porta l'esito del ripristino (asserto (c)). |
 
 ➕ fu. (#3544) Gli helper di radice di prova, header di scenario e conteggi stanno in
 `Source/RefactorTactics/Tests/RTScenarioTestSupport.h` (namespace `RTScenarioTestSupport`), condivisi dai
