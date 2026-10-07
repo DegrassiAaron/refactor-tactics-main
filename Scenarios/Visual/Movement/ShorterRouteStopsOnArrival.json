@@ -1,0 +1,30 @@
+{
+  "scenarioId": "Visual.Movement.ShorterRouteStopsOnArrival",
+  "tags": ["movement", "animation", "visual"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Scenario da GUARDARE per #3519: due unita' della stessa squadra partono insieme su righe diverse; A1 percorre sei celle, B1 due. La domanda della seduta: B1 si ferma all'arrivo e poi ruota sul posto, mentre A1 corre ancora? Prima della correzione B1 restava a correre sul posto, inclinata, finche' A1 non arrivava. Le assertion valgono anche headless.",
+
+  "units": [
+    { "id": "A1", "hero": "Hero.Ivrin",  "team": 0, "cell": [-3, 0, 0] },
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [-3, 2, 0] },
+    { "id": "E1", "hero": "Hero.Aevik",  "team": 1, "cell": [ 4, -4, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "A1", "move": [[-2, 0, 0], [-1, 0, 0], [0, 0, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0]] },
+        { "unit": "B1", "move": [[-2, 2, 0], [-1, 2, 0]] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell", "unit": "A1", "cell": [3, 0, 0] },
+    { "type": "UnitAtCell", "unit": "B1", "cell": [-1, 2, 0] },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
