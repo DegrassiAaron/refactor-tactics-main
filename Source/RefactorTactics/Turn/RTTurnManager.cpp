@@ -314,8 +314,14 @@ FRTKnowledgeVerdict ARTTurnManager::FreezeVerdictFor(const FRTLogSubject& Subjec
 void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId,
 	FName BaseActionId, int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape)
 {
-	if (!ensureMsgf(!ActionId.IsNone(), TEXT("AbilityActivated senza ActionId (fase %d): il produttore ha perso l'azione"),
-		static_cast<int32>(InPhase)))
+	// 🔑 **Un intento senza `ActionId` non si attiva, e non e' un difetto** (spec D1: «ogni intento CON un
+	// `ActionId`»; §4). Il gioco lo ammette in piu' di un sito: gli intenti d'attacco legacy di
+	// `EnsureDefaultAbilities`/`MakeAbility` (`CollectAttackIntents`), lo scatto legacy di `ResolveDash`
+	// (`Dash->Def.ActionId.IsNone() ? Dash->RangeCells : ...`), le istanze della Prep e le coperture.
+	// ⏱️ *Fino alla review della PR #3561 qui c'era un `ensureMsgf`, e la guardia muta stava solo nel sito del Blast:
+	// lo scatto legacy, la Prep e le coperture raggiungevano l'ensure.* La guardia sta QUI perche' copre ogni sito in
+	// un punto solo — un produttore nuovo non deve ricordarsene.
+	if (ActionId.IsNone())
 	{
 		return;
 	}
@@ -6723,15 +6729,11 @@ void ARTTurnManager::EmitAttackIntentActivations(const FRTBlastContext& Ctx)
 			continue;
 		}
 		// ⛔ **Un'abilita' legacy non ha un `ActionId`, e non si attiva** (spec D1: «ogni intento CON un
-		// `ActionId`»). `CollectAttackIntents` la ammette di proposito (`Instance.Def.ActionId.IsNone()` e' un caso
-		// previsto li'), e `EnsureDefaultAbilities`/`MakeAbility` ne creano tre — «Attacco», «Colpo pesante»,
-		// «Ultimate» — senza. Il `continue` sta PRIMA dell'helper perche' il suo `ensureMsgf` e' per i siti che
-		// leggono dal catalogo, dove un nome vuoto e' un produttore che ha perso l'azione: qui scatterebbe a
-		// ogni colpo di un archetipo legacy, che e' un caso legittimo.
-		if (Def.ActionId.IsNone())
-		{
-			continue;
-		}
+		// `ActionId`»). `CollectAttackIntents` la ammette di proposito, e `EnsureDefaultAbilities`/`MakeAbility` ne
+		// creano tre — «Attacco», «Colpo pesante», «Ultimate» — senza. ⚠️ **La guardia non sta qui ma in
+		// `EmitAbilityActivated`**, una per tutti i siti. ⏱️ *Fino alla review della PR #3561 qui c'era un `continue`
+		// che scansava l'`ensureMsgf` dell'helper; l'helper non ha piu' l'ensure, e una seconda guardia avrebbe reso
+		// la mutazione della prima invisibile a `Turn.LegacyIntentWithoutActionIdDoesNotActivate`.*
 		EmitAbilityActivated(Attaccante, ERTMatchPhase::Blast, Def.ActionId, Def.BaseActionId,
 			Bersaglio ? Bersaglio->StableUnitId : 0, Bersaglio ? Bersaglio->Cell : Intent.TargetCell, Intent.Shape);
 	}

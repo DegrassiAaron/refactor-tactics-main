@@ -1814,8 +1814,8 @@ protected:
 	 * gli interrotti (`Ctx.InterruptedIntents`), chi e' morto prima del Blast, le azioni la cui fase di catalogo
 	 * e' `Move` (`Action.Wait`, `Action.Sprint`, `Action.Withdraw`: passano da `CollectAttackIntents` come
 	 * intenti a danno zero, ma non sono un gesto di Blast) e le abilita' legacy senza `ActionId`
-	 * (`EnsureDefaultAbilities`: non c'e' nulla da nominare, e l'`ensureMsgf` dell'helper e' per i siti che
-	 * leggono dal catalogo). Inclusi: i degradati ([D-300])
+	 * (`EnsureDefaultAbilities`: non c'e' nulla da nominare — le esclude la guardia di `EmitAbilityActivated`,
+	 * una per tutti i siti e senza `ensure`). Inclusi: i degradati ([D-300])
 	 * e i bloccati da linea di tiro o senza mappa (`NoLineOfSight`, `NoMap`, `UnverifiableIntents`): entrano in
 	 * `Ctx.Intents`, e l'attivazione racconta il gesto.
 	 *
@@ -2545,8 +2545,10 @@ protected:
 	 * L'UNICO costruttore di `AbilityActivated` (#3549, spec «il momento» §2.1). Copia, non ricalcola: chi
 	 * chiama passa cio' che il resolver ha gia' in mano nel punto in cui ACCETTA l'intento.
 	 *
-	 * ⚠️ Un `ActionId` `NAME_None` non emette e scrive un `ensureMsgf`: e' cio' che il sotto-progetto 3
-	 * consuma, e un vuoto dimenticato non farebbe fallire nessun test (`RTResolvedEvent.h:310-312`).
+	 * ⚠️ Un `ActionId` `NAME_None` **non emette, senza `ensure`**: e' il caso legacy che il gioco ammette (intenti
+	 * d'attacco di `EnsureDefaultAbilities`, scatto legacy, istanze e coperture senza nome), e D1 attiva solo gli
+	 * intenti CON un `ActionId` — quello che il sotto-progetto 3 consuma. La guardia e' qui, una per tutti i siti.
+	 * ⏱️ *Fino alla review della PR #3561 scriveva un `ensureMsgf`, che lo scatto legacy raggiungeva.*
 	 */
 	void EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase, FName ActionId, FName BaseActionId,
 		int32 TargetStableUnitId, const FRTCellId& AimCell, ERTAbilityShape Shape);
