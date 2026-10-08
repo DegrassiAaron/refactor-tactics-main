@@ -183,7 +183,9 @@ bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 	Attesi.Add(TEXT("Hero.Ivrin.PhaseGuard"),      FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None));
 	Attesi.Add(TEXT("Action.Charge"),              FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
 	Attesi.Add(TEXT("Action.Push"),                FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
-	Attesi.Add(TEXT("Action.Pull"),                FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Action.Root"),                FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Action.Slow"),                FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
+	Attesi.Add(TEXT("Action.Interrupt"),           FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
 
 	TSet<FName> NelRoster;
 	int32 Viste = 0;
@@ -211,19 +213,40 @@ bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 	}
 	TestTrue(TEXT("⛔ premessa: il roster dichiara azioni"), Viste > 0);
 
-	// #3578 (review del Task 2): anche le azioni CORE che contano come attacco (`bCountsAsAttack`) — lista dal catalogo,
-	// non letterale. `FRTActionDef` non porta una forma: l'azione core vive in un `URTActionData` di forma `Single`.
-	int32 ColpiCore = 0;
+	// #3578 (review del Task 2, Ruling R15): anche le azioni CORE che contano come attacco (`bCountsAsAttack`) — lista dal
+	// catalogo, non letterale. `FRTActionDef` non porta una forma: l'azione core vive in un `URTActionData` di forma `Single`.
+	// 🔴 L'ATTESO del tracer e' una FUNZIONE del catalogo: a contatto (`RangeCells == 1`) nessun proiettile; altrimenti il
+	// default della forma, salvo una riga approvata dall'autore (`Action.Charge`, D5). `RangeCells <= 0` e' la portata del
+	// portatore, non il contatto (`FRTActionDef::RangeCells`, punto 2).
+	int32 ColpiCore = 0, Contatto = 0;
 	for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
 	{
 		if (!Def.bCountsAsAttack || Def.ActionId.IsNone()) { continue; }
 		++ColpiCore;
+		const bool bAContatto = Def.RangeCells == 1;
+		Contatto += bAContatto ? 1 : 0;
+		AddInfo(FString::Printf(TEXT("colpo core %s: RangeCells=%d%s"), *Def.ActionId.ToString(), Def.RangeCells,
+			bAContatto ? TEXT(" (a contatto)") : TEXT("")));
+		const FRTAbilityFxProfile Vero = URTPresentationBindingLibrary::FxProfileFor(Def.ActionId, Def.BaseActionId, ERTAbilityShape::Single);
 		const FRTAbilityFxProfile* Riga = Attesi.Find(Def.ActionId);
+		if (bAContatto)
+		{
+			TestTrue(FString::Printf(TEXT("🔴 %s (core, a contatto): ha la riga gemella"), *Def.ActionId.ToString()), Riga != nullptr);
+			TestTrue(FString::Printf(TEXT("🔴 %s (core, a contatto): nessun proiettile"), *Def.ActionId.ToString()),
+				Vero.Tracer == ERTTracerStyle::None);
+		}
+		else if (!Riga)
+		{
+			TestEqual(FString::Printf(TEXT("%s (core, a distanza): il tracer e' il default della forma"), *Def.ActionId.ToString()),
+				static_cast<int32>(Vero.Tracer),
+				static_cast<int32>(URTPresentationBindingLibrary::DefaultFxProfileFor(ERTAbilityShape::Single).Tracer));
+		}
 		const FRTAbilityFxProfile Atteso = Riga ? *Riga : URTPresentationBindingLibrary::DefaultFxProfileFor(ERTAbilityShape::Single);
 		TestEqual(FString::Printf(TEXT("%s (core): il profilo e' quello approvato"), *Def.ActionId.ToString()),
-			FxTesto(URTPresentationBindingLibrary::FxProfileFor(Def.ActionId, Def.BaseActionId, ERTAbilityShape::Single)), FxTesto(Atteso));
+			FxTesto(Vero), FxTesto(Atteso));
 	}
 	TestTrue(TEXT("⛔ premessa: il catalogo core dichiara colpi"), ColpiCore > 0);
+	TestTrue(TEXT("⛔ premessa: il catalogo core dichiara colpi a contatto"), Contatto > 0);
 
 	// Il verso opposto: ogni riga VERA ha la gemella qui, e ogni riga `Hero.*` e' un'abilita' del roster.
 	for (const TPair<FName, FRTAbilityFxProfile>& Riga : URTPresentationBindingLibrary::DeclaredFxOverrideRows())

@@ -499,12 +499,18 @@ const TArray<TPair<FName, FRTAbilityFxProfile>>& URTPresentationBindingLibrary::
 		Riga(TEXT("Hero.Ivrin.Feint"),           URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::None,   F::None));
 		Riga(TEXT("Hero.Ivrin.PhaseGuard"),      URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::None,   F::None));
 		Riga(TEXT("Action.Charge"),              URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
-		// #3578, Ruling del controller (review del Task 2, stessa logica di `Ram`): i controlli OSTILI a contatto non hanno
-		// proiettile — un proiettile dalla cella adiacente mentirebbe. Forma MISURATA: `FRTActionDef` non porta `Shape`;
-		// l'azione core vive in un `URTActionData` di forma `Single` (il default del campo `Shape`, `Ability/RTActionData.h`).
-		// Il volo resta quello di `Single` (R13); attivazione, impatto e impronta sono quelli del default di `Single`.
+		// #3578, Ruling R15 del controller (review del Task 2, la logica della riga `Ram`): un'azione CORE che conta come
+		// attacco (`bCountsAsAttack`) ed e' A CONTATTO — `RangeCells == 1` — non disegna un proiettile: dalla cella adiacente
+		// mentirebbe. ⚠️ `RangeCells <= 0` NON e' contatto: e' «la portata del portatore» (`FRTActionDef::RangeCells`, punto 2),
+		// quindi `BasicAttack`, `PrecisionAttack`, `HeavyAttack` e `MarkTarget` tengono il default della forma.
+		// Si misura sul catalogo: `URTCatalogLibrary::GetCoreActionCatalog()` filtrato su `bCountsAsAttack && RangeCells == 1`
+		// — e' cio' che `Fx.DeclaredOverridesMatchTheProposal` deriva e confronta con queste righe, che restano esplicite.
+		// Forma: `FRTActionDef` non porta `Shape`; l'azione core vive in un `URTActionData` di forma `Single` (default del
+		// campo, `Ability/RTActionData.h`). Volo di `Single` (R13); attivazione, impatto e impronta del default di `Single`.
 		Riga(TEXT("Action.Push"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
-		Riga(TEXT("Action.Pull"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Root"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Slow"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Interrupt"),           URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
 		return R;
 	}();
 	return Righe;
