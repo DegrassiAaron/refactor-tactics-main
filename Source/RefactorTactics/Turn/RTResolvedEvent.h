@@ -194,7 +194,7 @@ struct FRTHitGeometry
 
 	/** L'origine dichiarata del colpo, da `ResolveImpactOrigin` ([D-302] punto 3).
 	 *  ⚠️ **Per un colpo `Area` e' il CENTRO d'impatto, non la cella dell'attaccante** (`Footprint->AimCell`):
-	 *  irrilevante finche' `Area` non e' idonea al tracer, ma e' il significato del campo. */
+	 *  da #3578 e' il centro dell'`AreaPulse` (spec «il profilo FX» §2.4). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId From;
 
@@ -204,7 +204,7 @@ struct FRTHitGeometry
 
 	/** Chi conosceva l'ATTACCANTE in `From` quando il colpo e' partito ([D-223], fatto puntuale).
 	 *  ⚠️ **Salvo per un colpo `Area`**, dove `From` e' il centro d'impatto e questo verdetto riguarda quella
-	 *  cella, non l'attaccante. */
+	 *  cella, non l'attaccante. Da #3578 e' il verdetto dell'`AreaPulse`. */
 	UPROPERTY()
 	FRTKnowledgeVerdict FromVerdict;
 

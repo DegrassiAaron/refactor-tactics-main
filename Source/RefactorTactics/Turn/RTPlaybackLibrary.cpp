@@ -1,6 +1,7 @@
 #include "Turn/RTPlaybackLibrary.h"
 
 #include "Turn/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
+#include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
 
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
@@ -263,6 +264,140 @@ void URTPlaybackLibrary::BlastActivationCuesAt(const TArray<FRTResolvedEvent>& T
 		}
 		FRTPlaybackCue Cue;
 		if (ActivationCueFor(Timeline[Indice], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+float URTPlaybackLibrary::ImpactCueDuration(float ImpactCueSeconds, float AttackShowSeconds, float Flight)
+{
+	return AttackShowSeconds > 0.f
+		? FMath::Max(0.f, FMath::Min(FMath::Max(0.f, ImpactCueSeconds), AttackShowSeconds - FMath::Max(0.f, Flight)))
+		: 0.f;
+}
+
+bool URTPlaybackLibrary::ImpactCueFor(const FRTResolvedEvent& Atk, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Atk.Type != ERTResolvedEventType::Attack
+		|| !Atk.HitGeometry.bResolved
+		|| !Atk.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return false;
+	}
+	if (URTPresentationBindingLibrary::FxProfileFor(Atk.ActionId, Atk.BaseActionId, Atk.Shape).Impact != ERTImpactFxStyle::Marker)
+	{
+		return false;
+	}
+	OutCue.Kind = ERTPlaybackCueKind::Marker;
+	OutCue.At = Atk.HitGeometry.Impact;
+	OutCue.Toward = Atk.HitGeometry.Impact;
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+bool URTPlaybackLibrary::FootprintCueFor(const FRTResolvedEvent& Footprint, const FRTResolvedEvent& Atk,
+	int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Footprint.Type != ERTResolvedEventType::AttackFootprint || Atk.Type != ERTResolvedEventType::Attack
+		|| !Atk.HitGeometry.bResolved
+		|| !Atk.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return false;
+	}
+	switch (URTPresentationBindingLibrary::FxProfileFor(Atk.ActionId, Atk.BaseActionId, Atk.Shape).Footprint)
+	{
+	case ERTFootprintFxStyle::AreaPulse:
+		OutCue.Kind = ERTPlaybackCueKind::AreaPulse;
+		OutCue.At = Footprint.AimCell;
+		OutCue.Toward = Footprint.AimCell;
+		break;
+	case ERTFootprintFxStyle::ConeSweep:
+		OutCue.Kind = ERTPlaybackCueKind::ConeSweep;
+		OutCue.At = Footprint.Origin;
+		OutCue.Toward = Footprint.AimCell;
+		break;
+	default:
+		return false;
+	}
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+TArray<int32> URTPlaybackLibrary::FootprintFxForSequence(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence)
+{
+	TArray<int32> Out;
+	Out.Init(INDEX_NONE, Sequence.Num());
+	// ⛔ Solo `Find`/`Add`/`Remove`: l'esito non dipende dall'ordine d'iterazione della mappa.
+	TMap<TPair<int32, FName>, int32> Aperte;
+	for (int32 K = 0; K < Sequence.Num(); ++K)
+	{
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice))
+		{
+			continue;
+		}
+		const FRTResolvedEvent& Ev = Timeline[Indice];
+		if (Ev.SourceStableUnitId == 0)
+		{
+			continue; // D-063: un atto non attribuibile non si associa (spec §2.4, degrado)
+		}
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			if (Aperte.Contains(Chiave))
+			{
+				UE_LOG(LogRT, Verbose, TEXT("FootprintFxForSequence: una seconda impronta per (%d, %s) sostituisce la prima (R14)"),
+					Ev.SourceStableUnitId, *Ev.ActionId.ToString());
+			}
+			Aperte.Add(Chiave, Indice);
+		}
+		else if (Ev.Type == ERTResolvedEventType::Attack)
+		{
+			if (const int32* Impronta = Aperte.Find(Chiave))
+			{
+				Out[K] = *Impronta;
+				Aperte.Remove(Chiave); // il PRIMO colpo la consuma: una cue d'impronta per impronta
+			}
+		}
+	}
+	return Out;
+}
+
+void URTPlaybackLibrary::BlastHitCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, const TArray<float>& Flights, const TArray<int32>& FootprintFx,
+	int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId,
+	TArray<FRTPlaybackCue>& Out)
+{
+	for (int32 K = 0; K < Sequence.Num(); ++K)
+	{
+		const int32 BattitoArrivo = 2 * K + 1;
+		if (BeatsDone <= BattitoArrivo)
+		{
+			break; // la sequenza dei battiti e' monotona: dopo il primo non arrivato, nessuno lo e'
+		}
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice) || Timeline[Indice].Type != ERTResolvedEventType::Attack)
+		{
+			continue;
+		}
+		const FRTResolvedEvent& Atk = Timeline[Indice];
+		const float Volo = Flights.IsValidIndex(K) ? Flights[K] : 0.f;
+		const float Durata = ImpactCueDuration(ImpactCueSeconds, AttackShowSeconds, Volo);
+		const float Inizio = AttackBeatSeconds(BattitoArrivo, AttackShowSeconds, Flights);
+		if (Durata <= 0.f || PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		const float Alpha = (PhaseElapsed - Inizio) / Durata;
+		const int32 Impronta = FootprintFx.IsValidIndex(K) ? FootprintFx[K] : INDEX_NONE;
+		FRTPlaybackCue Cue;
+		if (ImpactCueFor(Atk, ViewerTeamId, Alpha, Cue))
+		{
+			Out.Add(Cue);
+		}
+		if (Timeline.IsValidIndex(Impronta) && FootprintCueFor(Timeline[Impronta], Atk, ViewerTeamId, Alpha, Cue))
 		{
 			Out.Add(Cue);
 		}

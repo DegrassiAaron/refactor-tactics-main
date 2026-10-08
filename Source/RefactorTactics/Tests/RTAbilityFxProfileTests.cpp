@@ -341,6 +341,299 @@ bool FRTPrivacyActivationCueNeedsTheSourceTest::RunTest(const FString&)
 	return true;
 }
 
+// --- Le cue di colpo (#3578, spec §2.4) ------------------------------------------------------------------------
+
+namespace
+{
+	FRTResolvedEvent FxImpronta(int32 Sorgente, const TCHAR* Azione, ERTAbilityShape Forma, const FRTCellId& Origine,
+		const FRTCellId& Mira)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::AttackFootprint;
+		Ev.SourceStableUnitId = Sorgente;
+		Ev.ActionId = Azione;
+		Ev.Shape = Forma;
+		Ev.Origin = Origine;
+		Ev.AimCell = Mira;
+		return Ev;
+	}
+
+	/** Un colpo risolto, visibile alle squadre 0 e 1 su entrambi gli estremi. */
+	FRTResolvedEvent FxColpo(int32 Sorgente, const TCHAR* Azione, ERTAbilityShape Forma, const FRTCellId& Da,
+		const FRTCellId& Vittima)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Blast;
+		Ev.Type = ERTResolvedEventType::Attack;
+		Ev.SourceStableUnitId = Sorgente;
+		Ev.ActionId = Azione;
+		Ev.Shape = Forma;
+		Ev.HitGeometry.bResolved = true;
+		Ev.HitGeometry.From = Da;
+		Ev.HitGeometry.Impact = Vittima;
+		Ev.HitGeometry.FromVerdict.AllowTeam(0);
+		Ev.HitGeometry.FromVerdict.AllowTeam(1);
+		Ev.HitGeometry.ImpactVerdict.AllowTeam(0);
+		Ev.HitGeometry.ImpactVerdict.AllowTeam(1);
+		return Ev;
+	}
+
+	/** La sequenza «come viene»: un elemento per evento, nell'ordine dato (il test costruisce gia' l'ordine di §2.4). */
+	TArray<FRTBlastSequenceElement> FxSequenza(const TArray<FRTResolvedEvent>& T)
+	{
+		TArray<FRTBlastSequenceElement> S;
+		for (int32 I = 0; I < T.Num(); ++I)
+		{
+			FRTBlastSequenceElement E;
+			E.TimelineIndex = I;
+			E.SourceStableUnitId = T[I].SourceStableUnitId;
+			E.ActionId = T[I].ActionId;
+			S.Add(E);
+		}
+		return S;
+	}
+
+	/** I voli come li calcola `BeginPlayback` (`RTTurnManager.cpp`, il ciclo su `PlaybackBlastSequence`). */
+	TArray<float> FxVoli(const TArray<FRTResolvedEvent>& T, float A)
+	{
+		TArray<float> V;
+		for (const FRTResolvedEvent& Ev : T)
+		{
+			V.Add(URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Ev), 0.25f, A));
+		}
+		return V;
+	}
+
+	/** Le cue del Blast all'istante `t`, per chi guarda: la stessa composizione di `PushPlaybackCues`. */
+	TArray<FRTPlaybackCue> FxCueAl(const TArray<FRTResolvedEvent>& T, float t, float A, int32 Viewer = 0)
+	{
+		const TArray<FRTBlastSequenceElement> S = FxSequenza(T);
+		const TArray<float> V = FxVoli(T, A);
+		const TArray<int32> Impronte = URTPlaybackLibrary::FootprintFxForSequence(T, S);
+		const int32 Battiti = URTPlaybackLibrary::AttackBeatsDue(t, A, V);
+		TArray<FRTPlaybackCue> Out;
+		URTPlaybackLibrary::BlastActivationCuesAt(T, S, Battiti, t, A, 0.35f, Viewer, Out);
+		URTPlaybackLibrary::BlastHitCuesAt(T, S, V, Impronte, Battiti, t, A, 0.20f, Viewer, Out);
+		return Out;
+	}
+
+	bool FxHa(const TArray<FRTPlaybackCue>& C, ERTPlaybackCueKind Tipo, const FRTCellId& Cella)
+	{
+		return C.ContainsByPredicate([&](const FRTPlaybackCue& X) { return X.Kind == Tipo && X.At == Cella; });
+	}
+
+	/** Quante volte una cue del tipo compare, contando le CORSE di presenza su tutto il Blast (passo 5 ms). */
+	int32 FxCorse(const TArray<FRTResolvedEvent>& T, float A, ERTPlaybackCueKind Tipo)
+	{
+		int32 Corse = 0;
+		bool bPrima = false;
+		for (float t = 0.f; t <= T.Num() * A + 0.01f; t += 0.005f)
+		{
+			const bool bOra = FxCueAl(T, t, A).ContainsByPredicate([&](const FRTPlaybackCue& X) { return X.Kind == Tipo; });
+			Corse += (bOra && !bPrima) ? 1 : 0;
+			bPrima = bOra;
+		}
+		return Corse;
+	}
+
+	/** L'atto `Area` di prova: impronta di Branth centrata su (3,0), due vittime NON al centro. */
+	TArray<FRTResolvedEvent> FxAttoArea(bool bConImpronta = true)
+	{
+		TArray<FRTResolvedEvent> T;
+		if (bConImpronta)
+		{
+			T.Add(FxImpronta(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(3, 0)));
+		}
+		T.Add(FxColpo(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(3, 0), FRTCellId(4, 0)));
+		T.Add(FxColpo(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(3, 0), FRTCellId(2, 1)));
+		return T;
+	}
+}
+
+/**
+ * Il `Marker` solo per chi conosceva la vittima nella sua cella (`ImpactVerdict`, spec §2.3), e solo se il profilo lo
+ * dice. ✅ Validato per mutazione (10): `ImpactVerdict` ignorato fa cadere «chi non conosceva la vittima».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyImpactMarkerNeedsTheVictimTest,
+	"RefactorTactics.Privacy.ImpactMarkerNeedsTheVictim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyImpactMarkerNeedsTheVictimTest::RunTest(const FString&)
+{
+	FRTResolvedEvent Colpo = FxColpo(1, TEXT("Hero.Branth.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0), FRTCellId(2, 0));
+	Colpo.HitGeometry.ImpactVerdict = FRTKnowledgeVerdict::NoOne();
+	Colpo.HitGeometry.ImpactVerdict.AllowTeam(0);
+	FRTPlaybackCue C;
+	TestFalse(TEXT("🔴 chi non conosceva la vittima non vede il Marker"), URTPlaybackLibrary::ImpactCueFor(Colpo, 1, 0.5f, C));
+	if (TestTrue(TEXT("chi la conosceva lo vede"), URTPlaybackLibrary::ImpactCueFor(Colpo, 0, 0.5f, C)))
+	{
+		TestTrue(TEXT("e' un Marker"), C.Kind == ERTPlaybackCueKind::Marker);
+		TestTrue(TEXT("sulla cella d'impatto"), C.At == FRTCellId(2, 0));
+	}
+	const FRTResolvedEvent Finta = FxColpo(1, TEXT("Hero.Ivrin.Feint"), ERTAbilityShape::Single, FRTCellId(0, 0), FRTCellId(2, 0));
+	TestFalse(TEXT("un profilo con Impact = None non ha Marker"), URTPlaybackLibrary::ImpactCueFor(Finta, 0, 0.5f, C));
+	return true;
+}
+
+/**
+ * L'`AreaPulse` sta sull'`AimCell` dell'IMPRONTA, non su un `Impact` (spec §2.4, F5).
+ * ➕ rev2. **Premessa asserita prima**: l'`AimCell` e' diversa da OGNI `Impact` dell'atto, o la mutante (11) sarebbe
+ * indistinguibile. ✅ Validato per mutazione (11).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFxAreaPulseIsOnTheFootprintAimTest,
+	"RefactorTactics.Fx.AreaPulseIsOnTheFootprintAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFxAreaPulseIsOnTheFootprintAimTest::RunTest(const FString&)
+{
+	const TArray<FRTResolvedEvent> T = FxAttoArea();
+	const FRTCellId Mira = T[0].AimCell;
+	for (int32 I = 1; I < T.Num(); ++I)
+	{
+		if (!TestFalse(TEXT("⛔ premessa: l'AimCell non e' l'Impact di nessun colpo"), T[I].HitGeometry.Impact == Mira)) { return false; }
+	}
+	const float A = 0.5f;
+	const float Arrivo = URTPlaybackLibrary::AttackBeatSeconds(3, A, FxVoli(T, A)); // il battito 2·1+1: arrivo del primo colpo
+	const TArray<FRTPlaybackCue> C = FxCueAl(T, Arrivo + 0.01f, A);
+	TestTrue(TEXT("🔴 l'AreaPulse e' sull'AimCell dell'impronta"), FxHa(C, ERTPlaybackCueKind::AreaPulse, Mira));
+	TestFalse(TEXT("e non sull'Impact del colpo che lo porta"), FxHa(C, ERTPlaybackCueKind::AreaPulse, T[1].HitGeometry.Impact));
+	return true;
+}
+
+/**
+ * OGNI `Attack` ha il suo `Marker`, il primo dell'atto compreso (spec §2.4, F6: la R8 e' caduta), su un'`Area` con
+ * due vittime e su una `Line` con due vittime.
+ * ✅ Validato per mutazione (12).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackEveryAttackGetsItsProfileMarkerTest,
+	"RefactorTactics.Playback.EveryAttackGetsItsProfileMarker",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackEveryAttackGetsItsProfileMarkerTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T = FxAttoArea();
+	T.Add(FxImpronta(2, TEXT("Hero.Aevik.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(3, 2)));
+	T.Add(FxColpo(2, TEXT("Hero.Aevik.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(1, 2)));
+	T.Add(FxColpo(2, TEXT("Hero.Aevik.LinearDischarge"), ERTAbilityShape::Line, FRTCellId(0, 2), FRTCellId(2, 2)));
+	const float A = 0.5f;
+	const TArray<float> V = FxVoli(T, A);
+	TestTrue(TEXT("premessa: la scarica vola (Line con un id), il mortaio no"), V[4] > 0.f && V[1] == 0.f);
+	for (int32 K = 0; K < T.Num(); ++K)
+	{
+		if (T[K].Type != ERTResolvedEventType::Attack) { continue; }
+		const float Arrivo = URTPlaybackLibrary::AttackBeatSeconds(2 * K + 1, A, V);
+		TestTrue(FString::Printf(TEXT("🔴 elemento %d: Marker sulla sua vittima all'arrivo"), K),
+			FxHa(FxCueAl(T, Arrivo + 0.01f, A), ERTPlaybackCueKind::Marker, T[K].HitGeometry.Impact));
+	}
+	return true;
+}
+
+/**
+ * UNA cue d'impronta per impronta, portata dal primo colpo, contata su TUTTI gli istanti del Blast (➕ rev2.); con
+ * l'impronta tolta nessun pulse, nessun errore, e i `Marker` restano.
+ * ✅ Validato per mutazione (21): l'impronta non consumata fa portare il pulse a ogni colpo — due corse.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFootprintCueOncePerFootprintTest,
+	"RefactorTactics.Playback.FootprintCueOncePerFootprint",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFootprintCueOncePerFootprintTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("🔴 un solo AreaPulse in tutto il Blast"), FxCorse(FxAttoArea(), 0.5f, ERTPlaybackCueKind::AreaPulse), 1);
+	TestEqual(TEXT("e due Marker, uno per colpo"), FxCorse(FxAttoArea(), 0.5f, ERTPlaybackCueKind::Marker), 2);
+	TestEqual(TEXT("impronta tolta: nessun pulse"), FxCorse(FxAttoArea(false), 0.5f, ERTPlaybackCueKind::AreaPulse), 0);
+	TestEqual(TEXT("impronta tolta: i Marker restano"), FxCorse(FxAttoArea(false), 0.5f, ERTPlaybackCueKind::Marker), 2);
+	return true;
+}
+
+/**
+ * R14 (➕ rev2.): due `AttackFootprint` con la stessa chiave prima del colpo → la cue usa le celle della SECONDA.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackSecondFootprintReplacesTheFirstTest,
+	"RefactorTactics.Playback.SecondFootprintReplacesTheFirst",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackSecondFootprintReplacesTheFirstTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(FxImpronta(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(3, 0)));
+	T.Add(FxImpronta(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(0, 0), FRTCellId(5, 0)));
+	T.Add(FxColpo(1, TEXT("Hero.Branth.MortarShot"), ERTAbilityShape::Area, FRTCellId(5, 0), FRTCellId(6, 0)));
+	const TArray<int32> Impronte = URTPlaybackLibrary::FootprintFxForSequence(T, FxSequenza(T));
+	TestEqual(TEXT("🔴 il colpo consuma la SECONDA impronta"), Impronte.IsValidIndex(2) ? Impronte[2] : INDEX_NONE, 1);
+	const float Arrivo = URTPlaybackLibrary::AttackBeatSeconds(5, 0.5f, FxVoli(T, 0.5f));
+	const TArray<FRTPlaybackCue> C = FxCueAl(T, Arrivo + 0.01f, 0.5f);
+	TestTrue(TEXT("il pulse e' sul centro della seconda"), FxHa(C, ERTPlaybackCueKind::AreaPulse, FRTCellId(5, 0)));
+	TestFalse(TEXT("e non su quello della prima"), FxHa(C, ERTPlaybackCueKind::AreaPulse, FRTCellId(3, 0)));
+	return true;
+}
+
+/**
+ * Review Focus (d): il centro di un'`Area` non visto da chi guarda non si rivela col pulse. `FromVerdict` di un colpo
+ * `Area` e' congelato sul CENTRO (`RTTurnManager.cpp`, il produttore dell'`Attack`; spec §2.4); il `Marker` segue
+ * invece la vittima.
+ * ✅ Validato per mutazione (P3): `FromVerdict` ignorato in `FootprintCueFor`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyAreaPulseNeedsTheCenterTest,
+	"RefactorTactics.Privacy.AreaPulseNeedsTheCenter",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyAreaPulseNeedsTheCenterTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T = FxAttoArea();
+	T[1].HitGeometry.FromVerdict = FRTKnowledgeVerdict::NoOne();
+	T[1].HitGeometry.FromVerdict.AllowTeam(0);
+	FRTPlaybackCue C;
+	TestFalse(TEXT("🔴 chi non vede il centro non riceve l'AreaPulse"), URTPlaybackLibrary::FootprintCueFor(T[0], T[1], 1, 0.5f, C));
+	TestTrue(TEXT("ma vede il Marker della vittima che conosce"), URTPlaybackLibrary::ImpactCueFor(T[1], 1, 0.5f, C));
+	TestTrue(TEXT("controllo: chi vede il centro riceve il pulse"), URTPlaybackLibrary::FootprintCueFor(T[0], T[1], 0, 0.5f, C)
+		&& C.Kind == ERTPlaybackCueKind::AreaPulse && C.At == FRTCellId(3, 0));
+	return true;
+}
+
+/**
+ * Le finestre delle cue di elementi diversi non si sovrappongono e finiscono entro `N·A` (spec §2.1, «conseguenza dei
+ * tetti»), sulla griglia dichiarata: `A ∈ {0.1, 0.5, 1.0}`, `F ∈ {0, A/4, A/2, A}`, durate `∈ {0, A/2, 2A}`.
+ * Sequenza mista: attivazione, colpo con volo, colpo senza volo, attivazione, colpo con volo.
+ * ✅ Validato per mutazione (13): i `Min` tolti.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFxCuesNeverOverlapInTheBlastTest,
+	"RefactorTactics.Playback.FxCuesNeverOverlapInTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFxCuesNeverOverlapInTheBlastTest::RunTest(const FString&)
+{
+	for (const float A : { 0.1f, 0.5f, 1.0f })
+	{
+		for (const float Fq : { 0.f, 0.25f * A, 0.5f * A, A })
+		{
+			for (const float Act : { 0.f, 0.5f * A, 2.f * A })
+			{
+				for (const float Imp : { 0.f, 0.5f * A, 2.f * A })
+				{
+					const float F = URTPlaybackLibrary::TracerFlightFor(true, Fq, A);
+					// (tipo, volo): true = attivazione, false = colpo
+					const TArray<TPair<bool, float>> Elementi = { { true, 0.f }, { false, F }, { false, 0.f }, { true, 0.f }, { false, F } };
+					TArray<FVector2D> Finestre; // [inizio, fine)
+					for (int32 K = 0; K < Elementi.Num(); ++K)
+					{
+						const float Lancio = URTPlaybackLibrary::AttackLaunchSeconds(K, A);
+						const float Inizio = Elementi[K].Key ? Lancio : Lancio + Elementi[K].Value;
+						const float Durata = Elementi[K].Key ? URTPlaybackLibrary::ActivationCueDuration(Act, A)
+							: URTPlaybackLibrary::ImpactCueDuration(Imp, A, Elementi[K].Value);
+						Finestre.Add(FVector2D(Inizio, Inizio + Durata));
+					}
+					for (int32 I = 0; I < Finestre.Num(); ++I)
+					{
+						TestTrue(FString::Printf(TEXT("A=%.2f F=%.2f act=%.2f imp=%.2f: elemento %d entro N·A"), A, F, Act, Imp, I),
+							Finestre[I].Y <= Elementi.Num() * A + 1e-4f);
+						for (int32 J = I + 1; J < Finestre.Num(); ++J)
+						{
+							TestTrue(FString::Printf(TEXT("🔴 A=%.2f F=%.2f act=%.2f imp=%.2f: %d finisce prima che %d cominci"),
+								A, F, Act, Imp, I, J), Finestre[I].Y <= Finestre[J].X + 1e-4f);
+						}
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
 // --- I test dei Task 3, 4 e 5 si aggiungono QUI, prima di `#endif` ----------------------------------------
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -6383,9 +6383,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// `Ev.Shape` resterebbe il `Single` di default e `ResolveImpactOrigin` (che tratta l'intento mancante come
 		// non-area) darebbe comunque l'attaccante come origine — una geometria «risolta» con una forma inventata.
 		// ⚠️ **Per un colpo `Area` `From`/`FromVerdict` descrivono il CENTRO d'impatto, non l'attaccante**:
-		// `ResolveImpactOrigin` restituisce `Footprint->AimCell`. Oggi non conta, perche' `Area` non e' idonea al
-		// tracer (`IsTracerEligible` ammette solo `Single` e `Line`); chi la rendesse idonea deve leggere questo
-		// campo come «da dove arriva il colpo», non come «dove sta chi spara».
+		// `ResolveImpactOrigin` restituisce `Footprint->AimCell`.
+		// ⌫ *Fino a #3578 qui c'era «oggi non conta, perche' `Area` non e' idonea al tracer».* Da #3578 conta: per
+		// un'`Area` questo `FromVerdict` e' il verdetto dell'`AreaPulse` sul centro (spec «il profilo FX» §2.4) — aperto
+		// alla squadra dell'attaccante e, per le altre, solo se vedono il centro.
 		const bool bHasIntent = Intents.IsValidIndex(Hit.IntentIndex);
 		if (bHasIntent)
 		{
@@ -7986,6 +7987,9 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		PlaybackBlastFlights.Add(URTPlaybackLibrary::TracerFlightFor(
 			URTPlaybackLibrary::IsTracerEligible(Ev), TracerFlightSeconds, AttackShowSeconds));
 	}
+	// #3578 (spec «il profilo FX» §2.4): quale impronta porta ogni colpo. ⚠️ Si ricostruisce sull'INTERA sequenza
+	// anche estendendo: un'impronta consumata nel prefisso congelato resta consumata.
+	PlaybackBlastFootprintFx = URTPlaybackLibrary::FootprintFxForSequence(ResolvedTimeline, PlaybackBlastSequence);
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
 	bool bHasDash = false, bHasMove = false, bHasBlastMove = false;
@@ -8393,6 +8397,9 @@ void ARTTurnManager::PushPlaybackCues(ERTMatchPhase InPhase)
 	{
 		URTPlaybackLibrary::BlastActivationCuesAt(ResolvedTimeline, PlaybackBlastSequence, BlastBeatsDone,
 			PlaybackPhaseElapsed, AttackShowSeconds, ActivationCueSeconds, PlaybackViewerTeamId, Cues);
+		URTPlaybackLibrary::BlastHitCuesAt(ResolvedTimeline, PlaybackBlastSequence, PlaybackBlastFlights,
+			PlaybackBlastFootprintFx, BlastBeatsDone, PlaybackPhaseElapsed, AttackShowSeconds, ImpactCueSeconds,
+			PlaybackViewerTeamId, Cues);
 	}
 	// ⚠️ Stessa economia di `PushPlaybackTracers`: niente da dire E canale gia' vuoto = la mappa non si tocca.
 	const bool bPiene = !Cues.IsEmpty();
@@ -9238,6 +9245,7 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackBlastSequence.Reset();
 	BlastBeatsDone = 0;
 	PlaybackBlastFlights.Reset();
+	PlaybackBlastFootprintFx.Reset(); // #3578: parallelo alla sequenza, si svuota con lei
 	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
 	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
 	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))

@@ -3521,6 +3521,12 @@ private:
 	 */
 	TArray<float> PlaybackBlastFlights;
 	/**
+	 * #3578: per ogni elemento di `PlaybackBlastSequence`, l'indice di timeline dell'impronta che consuma (o
+	 * `INDEX_NONE`), da `URTPlaybackLibrary::FootprintFxForSequence`. Parallelo alla sequenza come i voli, e come loro si
+	 * ricalcola anche estendendo: funzione pura degli eventi.
+	 */
+	TArray<int32> PlaybackBlastFootprintFx;
+	/**
 	 * La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer E, tramite le attivazioni che
 	 * ha il diritto di vedere, l'indice di un colpo nella sequenza di Blast — quindi il suo istante. Il ritmo e' lo
 	 * stesso solo fra squadre con la stessa conoscenza (`CONTRACT CONFLICT` risolto dalla spec del momento §2.4).

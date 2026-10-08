@@ -323,6 +323,40 @@ public:
 		const TArray<FRTBlastSequenceElement>& Sequence, int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds,
 		float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
 
+	/** `D_imp = A > 0 ? Min(Max(0, ImpactCueSeconds), A − F_eff) : 0` (R2): finisce prima del lancio dopo. */
+	static float ImpactCueDuration(float ImpactCueSeconds, float AttackShowSeconds, float Flight);
+
+	/**
+	 * Il `Marker` di un `Attack`: sulla `HitGeometry.Impact`, se il profilo dice `Marker`, la geometria e' risolta e
+	 * chi guarda e' in `ImpactVerdict`. Ogni vittima e' un evento: ogni `Attack` ha il suo (F6).
+	 */
+	static bool ImpactCueFor(const FRTResolvedEvent& Atk, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue);
+
+	/**
+	 * La cue d'impronta dell'atto, portata dal colpo che la consuma: `AreaPulse` sull'`AimCell` dell'impronta,
+	 * `ConeSweep` da `Origin` verso `AimCell`. Il VERDETTO e' quello del colpo (`FromVerdict`: per un'`Area` e' il
+	 * centro), le CELLE quelle dell'impronta, e coincidono per costruzione (spec §2.4).
+	 */
+	static bool FootprintCueFor(const FRTResolvedEvent& Footprint, const FRTResolvedEvent& Atk, int32 ViewerTeamId,
+		float Alpha, FRTPlaybackCue& OutCue);
+
+	/**
+	 * Per ogni elemento della sequenza, l'indice di timeline dell'impronta che consuma, o `INDEX_NONE` (spec §2.4):
+	 * un `AttackFootprint` apre la chiave `(SourceStableUnitId, ActionId)` del suo atto, il PRIMO `Attack` successivo con
+	 * la stessa chiave la consuma. Sorgente `0` (D-063): nessuna associazione. R14: una seconda impronta con la stessa
+	 * chiave, ancora aperta, SOSTITUISCE la prima (log `Verbose`). Pura: si ricalcola anche estendendo.
+	 */
+	static TArray<int32> FootprintFxForSequence(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Sequence);
+
+	/**
+	 * Blast: per ogni `Attack` ARRIVATO (`BeatsDone > 2k+1`) nella sua finestra `[k·A + F_k, k·A + F_k + D_imp(k))`, il
+	 * `Marker` e, se l'elemento consuma un'impronta, la cue d'impronta. Con volo nullo l'arrivo coincide col lancio.
+	 */
+	static void BlastHitCuesAt(const TArray<FRTResolvedEvent>& Timeline, const TArray<FRTBlastSequenceElement>& Sequence,
+		const TArray<float>& Flights, const TArray<int32>& FootprintFx, int32 BeatsDone, float PhaseElapsed,
+		float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
+
 	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *
