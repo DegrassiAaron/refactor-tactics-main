@@ -272,6 +272,75 @@ namespace
 		}
 		return Contains(Wide.GetData(), Wide.Num());
 	}
+
+	/**
+	 * Il set di package che il cook deve portare: la variante ATTIVA di ogni pool del CDO — `(eroe, ruolo)` e, da
+	 * #3563, `(eroe, azione, ruolo)`. Estratto dal gate perche' abbia un test proprio, verde
+	 * (`RequiredSetIncludesActionClips`), mentre il gate guarda i riferimenti duri (#3562).
+	 *
+	 * ⚠️ Un package puo' servire piu' pool (`Cast` = `Attack` sul ruolo; la stessa clip per due azioni): le
+	 * provenienze si ACCODANO con `; `. `OutTerneCoperte` cresce per OGNI pool entrato, dopo l'inserimento: un
+	 * `continue` futuro fra i due sottrarrebbe path al cook senza far divergere il conteggio indipendente.
+	 */
+	TArray<FString> RTRequiredAnimationPackages(const URTUnitAnimInstance* Cdo,
+		TMap<FString, FString>& OutProvenienza, int32& OutTerneCoperte)
+	{
+		TArray<FString> Richieste;
+		OutTerneCoperte = 0;
+		auto Accoda = [&Richieste, &OutProvenienza, &OutTerneCoperte](const FSoftObjectPath& Path, const FString& Chi)
+		{
+			// Il PACKAGE path, non l'object path: la chiave della tabella di import e' `/.../Idle`.
+			const FString Package = Path.GetLongPackageName();
+			Richieste.AddUnique(Package);
+			FString& Gia = OutProvenienza.FindOrAdd(Package);
+			if (!Gia.IsEmpty()) { Gia += TEXT("; "); }
+			Gia += Chi;
+			++OutTerneCoperte;   // per ULTIMO
+		};
+		for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
+		{
+			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
+			{
+				const FSoftObjectPath Path = Cdo->ActiveClipFor(Voce.Key, Ruolo.Key).ToSoftObjectPath();
+				if (Path.IsNull()) { continue; }   // nessuna attiva: posa di riferimento, e va bene
+				Accoda(Path, FString::Printf(TEXT("%s / %s"), *Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key)));
+			}
+			// ➕ #3563: i pool d'AZIONE. La loro variante attiva entra nel set come quella di ruolo.
+			for (const TPair<FName, FRTActionPresentationClips>& Azione : Voce.Value.PerAction)
+			{
+				for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
+				{
+					const FRTAnimVariant* Attiva = Ruolo.Value.FindActive();
+					const FSoftObjectPath Path = Attiva ? Attiva->Clip.ToSoftObjectPath() : FSoftObjectPath();
+					if (Path.IsNull()) { continue; }
+					Accoda(Path, FString::Printf(TEXT("%s / %s / %s"), *Voce.Key.ToString(), *Azione.Key.ToString(),
+						*UEnum::GetValueAsString(Ruolo.Key)));
+				}
+			}
+		}
+		return Richieste;
+	}
+
+	/** Il conteggio INDIPENDENTE dei pool con una variante attiva, nei due livelli: il presidio anti-sottrazione. */
+	int32 RTTerneConVarianteAttiva(const URTUnitAnimInstance* Cdo)
+	{
+		int32 Terne = 0;
+		for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
+		{
+			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
+			{
+				if (Ruolo.Value.FindActive() != nullptr) { ++Terne; }
+			}
+			for (const TPair<FName, FRTActionPresentationClips>& Azione : Voce.Value.PerAction)
+			{
+				for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
+				{
+					if (Ruolo.Value.FindActive() != nullptr) { ++Terne; }
+				}
+			}
+		}
+		return Terne;
+	}
 }
 
 /**
@@ -573,36 +642,14 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// ⚠️ Conseguenza voluta e da conoscere: **rendere attiva una variante la porta nel set del cook**, e
 	// questo test diventa rosso finche' un asset versionato sotto `/Game/RT` non la referenzia duro.
 	// `Make Active` in Editor non e' gratis su packaged, e questo e' il posto in cui quel costo si vede.
-	TArray<FString> Richieste;
-	// package path -> «Hero.X / Ruolo», per un errore azionabile. ⚠️ Un package puo' servire PIU' ruoli
-	// (`Cast` e `Attack` condividono la clip, #3549): le provenienze si ACCODANO, separate da `; `, e non si
-	// sovrascrivono — chi legge l'errore deve vedere tutti i ruoli che quella clip serve.
+	// ➕ #3563: il calcolo vive in `RTRequiredAnimationPackages`, che attraversa ANCHE i pool d'azione con la
+	// provenienza `Hero.X / Azione / Ruolo`; il suo test verde e' `RequiredSetIncludesActionClips`.
+	// ⚠️ Un package puo' servire PIU' pool (`Cast` e `Attack` condividono la clip, #3549): le provenienze si
+	// ACCODANO, separate da `; `, e non si sovrascrivono — chi legge l'errore deve vedere tutti i pool serviti.
+	// `CoppieCoperte` conta le TERNE (eroe, [azione,] ruolo) entrate, non i package: quelli si deduplicano.
 	TMap<FString, FString> Provenienza;
-	// Le coppie (eroe, ruolo) con una variante attiva viste da QUESTO ciclo. Non e' `Richieste.Num()` ne'
-	// `Provenienza.Num()`: quelle sono per PACKAGE e si deduplicano, questa e' per COPPIA e non puo' collassare.
 	int32 CoppieCoperte = 0;
-	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
-	{
-		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
-		{
-			const FSoftObjectPath Path = Cdo->ActiveClipFor(Voce.Key, Ruolo.Key).ToSoftObjectPath();
-			if (Path.IsNull())
-			{
-				continue;   // nessuna variante attiva: il ruolo resta in posa di riferimento, e va bene
-			}
-			// Il PACKAGE path, non l'object path: `/.../Idle.Idle` non compare nella tabella di import di
-			// chi lo referenzia — la chiave e' `/.../Idle`, la stessa lezione di `RTPackagePathOf`.
-			const FString Package = Path.GetLongPackageName();
-			Richieste.AddUnique(Package);
-			FString& Chi = Provenienza.FindOrAdd(Package);
-			if (!Chi.IsEmpty()) { Chi += TEXT("; "); }
-			Chi += FString::Printf(TEXT("%s / %s"), *Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key));
-			// ⚠️ Per ULTIMO, dopo l'inserimento: un `continue` futuro fra l'inserimento e il contatore
-			// sottrarrebbe path al cook senza far divergere i due numeri. Il contatore testimonia che la
-			// coppia e' ENTRATA, non che e' stata vista.
-			++CoppieCoperte;
-		}
-	}
+	const TArray<FString> Richieste = RTRequiredAnimationPackages(Cdo, Provenienza, CoppieCoperte);
 
 	// Primo controllo anti-vacuita': un set vuoto renderebbe verde il ciclo qui sotto senza guardare
 	// niente. Sono otto oggi, e l'asserzione e' «almeno una» per non impuntarsi su un numero che #288
@@ -628,19 +675,9 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	// rosso per una ragione che non era una sottrazione. Il confronto resta stretto: `CoppieCoperte` cresce a
 	// ogni coppia con variante attiva, indipendentemente dalla deduplicazione di `Richieste`, quindi un `break`
 	// o un `continue` di troppo lo fa ancora divergere.
-	int32 CoppieAttese = 0;
-	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
-	{
-		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
-		{
-			if (Ruolo.Value.FindActive() != nullptr)
-			{
-				++CoppieAttese;
-			}
-		}
-	}
+	const int32 CoppieAttese = RTTerneConVarianteAttiva(Cdo);   // ➕ #3563: conta ruoli E azioni
 	if (!TestEqual(
-			TEXT("il set richiesto copre TUTTE le coppie (eroe, ruolo) con una variante attiva: ")
+			TEXT("il set richiesto copre TUTTE le terne (eroe, [azione,] ruolo) con una variante attiva: ")
 			TEXT("un ciclo che ne salta una rende questo gate verde chiedendo di meno"),
 			CoppieCoperte, CoppieAttese))
 	{
@@ -718,14 +755,14 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 	{
 		// 🔑 **Il messaggio dice COSA FARE, e non solo cosa manca.** Chi incontra questo rosso la prima
 		// volta lo legge come un guasto dello strumento se non gli si spiega che il cook segue solo i
-		// riferimenti duri, e che scriverlo e' lavoro di #2444 (proprietario dei `BP_Unit_*`, che sono
-		// binari e non si mergiano).
+		// riferimenti duri, e che scriverlo e' lavoro di #3562 (eredita la chiusa #2444; proprietario dei
+		// `BP_Unit_*`, che sono binari e non si mergiano). Da #3563 la provenienza nomina anche l'AZIONE.
 		const FString* Chi = Provenienza.Find(Scoperta);
 		AddError(FString::Printf(
 			TEXT("%s e' la variante ATTIVA di [%s] e nessun asset versionato sotto Content/RT la ")
 			TEXT("referenzia duro: il cook non ha nessuna dipendenza da seguire, e nel pacchetto ")
 			TEXT("l'unita' resta in posa di riferimento (D-262). ")
-			TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#2444), oppure ")
+			TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#3562), oppure ")
 			TEXT("disattiva la variante se non deve entrare nel pacchetto."),
 			*Scoperta, Chi ? **Chi : TEXT("ruolo ignoto")));
 	}
@@ -735,6 +772,55 @@ bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 			Richieste.Num()),
 		Scoperte.Num(), 0);
 
+	return true;
+}
+
+/**
+ * Il set che il cook deve portare include le clip per AZIONE (#3563, spec «la clip per abilita'» §2.5) — verde, e
+ * separato dal gate qui sopra (`RequiredAnimationClipsAreCooked`), che guarda un'altra domanda: se ogni clip del
+ * set e' raggiunta da un riferimento duro (#3562).
+ *
+ * 🔑 **Perche' un test a parte**: dentro il gate, la mutazione «`PerAction` saltato» si distinguerebbe da un altro
+ * fallimento solo leggendo il messaggio, e il suo esito dipenderebbe dai `BP_Unit_*`. Qui asserisce il SET, che
+ * dipende solo dal CDO.
+ * ✅ Validato per mutazione (4): il ciclo su `PerAction` dell'helper saltato → cade «terne coperte».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredSetIncludesActionClipsTest,
+	"RefactorTactics.Packaging.RequiredSetIncludesActionClips",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRequiredSetIncludesActionClipsTest::RunTest(const FString&)
+{
+	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+	if (!TestNotNull(TEXT("CDO del grafo di animazione"), Cdo)) { return false; }
+
+	TMap<FString, FString> Provenienza;
+	int32 TerneCoperte = 0;
+	const TArray<FString> Richieste = RTRequiredAnimationPackages(Cdo, Provenienza, TerneCoperte);
+
+	// 🔴 Anti-sottrazione su ENTRAMBI i pool: il conteggio indipendente conta ruoli e azioni.
+	TestEqual(TEXT("🔴 terne coperte: il set richiesto copre ogni variante attiva, di ruolo E d'azione"),
+		TerneCoperte, RTTerneConVarianteAttiva(Cdo));
+
+	int32 ClipDAzioneViste = 0;
+	for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
+	{
+		for (const TPair<FName, FRTActionPresentationClips>& Azione : Voce.Value.PerAction)
+		{
+			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
+			{
+				const FRTAnimVariant* Attiva = Ruolo.Value.FindActive();
+				if (Attiva == nullptr || Attiva->Clip.IsNull()) { continue; }
+				++ClipDAzioneViste;
+				const FString Package = Attiva->Clip.ToSoftObjectPath().GetLongPackageName();
+				const FString Chi = FString::Printf(TEXT("%s / %s / %s"), *Voce.Key.ToString(),
+					*Azione.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key));
+				TestTrue(*FString::Printf(TEXT("%s: la clip d'azione e' nel set richiesto"), *Chi), Richieste.Contains(Package));
+				const FString* Prov = Provenienza.Find(Package);
+				TestTrue(*FString::Printf(TEXT("%s: e la provenienza la nomina"), *Chi), Prov && Prov->Contains(Chi));
+			}
+		}
+	}
+	TestTrue(TEXT("⛔ premessa: il default porta clip per azione (#3563)"), ClipDAzioneViste > 0);
 	return true;
 }
 
