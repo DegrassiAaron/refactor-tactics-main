@@ -325,6 +325,9 @@ appartiene a **[#3562](https://github.com/DegrassiAaron/refactor-tactics-main/is
   `Hero.X / Hero.X.Abilità / Ruolo`, nessuno quella di un ruolo. Resta rosso finché i `BP_Unit_*` non le
   referenziano (#3562). Il set stesso è pinnato dal test verde
   `RefactorTactics.Packaging.RequiredSetIncludesActionClips`.
+- **Dal 2026-10-08 i gate sono due** (decisione d'autore, spec statuto R14): `RequiredAnimationClipsAreCooked`
+  pretende le sole clip di **ruolo** ed è verde; `RequiredActionClipsAreCooked` pretende le clip d'**azione** ed è
+  rosso finché #3562 non fa il gesto. Così un futuro rosso di ruolo non si nasconde dentro un test già rosso.
 
 Il numero di scoperte non si scrive qui: si rimisura lanciando il gate e leggendo il log, una riga per package
 scoperto con la sua provenienza.

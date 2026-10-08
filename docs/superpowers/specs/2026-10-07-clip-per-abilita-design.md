@@ -55,6 +55,14 @@
 > mutazione «ripiego tolto» → cade). Il pacchetto degrada come prima di #3563; il gate dice solo che le clip d'azione
 > non ci sono. Costo se sbagliato: un caricamento in più per beat, solo quando il primo fallisce.
 >
+> ➕ **R14 (decisione d'autore, 2026-10-08) — il gate di cook si separa.** Fra le tre uscite di R12 l'autore ha scelto il
+> gate separato: `Packaging.RequiredAnimationClipsAreCooked` torna a pretendere le sole clip di **ruolo** (`PerRole`) ed è
+> di nuovo **verde e binario**, come su `main`; il nuovo `Packaging.RequiredActionClipsAreCooked` pretende le clip
+> d'**azione** (`PerAction`) ed è **rosso** con owner [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562)
+> finché i `BP_Unit_*` non le referenziano. `RequiredSetIncludesActionClips` resta il test verde sull'helper, che
+> prende un filtro di pool. Perché: un gate unico già rosso avrebbe nascosto un futuro rosso di ruolo dentro un test
+> che è già `Fail`. Costo: un commit in più sul branch; il merge non rende rosso nessun gate che oggi è verde.
+>
 > **Follow-up candidates** emersi in implementazione: in §7, marcati `➕ impl.`.
 
 ---
@@ -247,7 +255,7 @@ giudizio umano» — vero per il ruolo; per azione il giudizio è in §2.6), il 
 
 ### 2.5 I gate
 
-- `Packaging.RequiredAnimationClipsAreCooked` (`Tests/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
+- ➕ R14: il gate si separa — `RequiredAnimationClipsAreCooked` resta sul pool di ruolo (verde), `RequiredActionClipsAreCooked` nasce sul pool d'azione (rosso, owner #3562); il testo che segue descrive il disegno a gate unico, superato. `Packaging.RequiredAnimationClipsAreCooked` (`Tests/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
   `PerAction` (ogni (eroe, azione, ruolo) con variante attiva), con la provenienza `Hero.X / Action / Ruolo`; il conteggio
   anti-sottrazione conta le **terne** di entrambi i pool in un ciclo indipendente. ➕ rev. Il calcolo del set richiesto
   esce in un helper (`RequiredAnimationPackages(Cdo, OutProvenienza)`) con un **test proprio, verde**
@@ -358,7 +366,7 @@ riferimento mancante sarebbero altrimenti indistinguibili nel gate di cook, `RTP
 | ➕ rev2. `Anim.Bindings.MergeKeepsDefaultPools` | `MergeClipsPerHero(Base, PerEroe)`: eroe assente dal catalogo → tutti i pool del default; eroe con solo `Cast` → `Move` del default e `Cast` del catalogo; pool d'azione aggiunto senza toccare `PerRole`. Mutazione (8): `Merge` = assegnazione → cade. |
 | `Anim.Browser.BindingRulesPerAction` | I predicati del modello distinguono `(Hero, Role)` da `(Hero, Role, ActionId)`. |
 | `Playback.ActivationPlaysTheActionClip` | ➕ rev. La fixture di `RTPlaybackActivationTests.cpp` (Scudo `TideGuard`, Tiratore `ImpactShot`): dopo il playback `LastResolvedClipPathForTest(Cast)` dello **Scudo** è il path **d'azione** di `TideGuard` e `LastResolvedClipPathForTest(Attack)` del **Tiratore** è il path **d'azione** di `ImpactShot` (il `Cast` del Tiratore è «ruolo», non discrimina). ➕ rev2. `Ruling` R11: il test **inietta** path sintetici in `PerAction` sul CDO e li ripristina alla fine, invece di leggere i path del default di §2.6 — così prova la catena evento → `ActionId` → risoluzione senza dipendere dal Task 3, e la mappa non vive in una terza copia (§6 ne dichiara due). Che i path del default siano quelli giusti lo dice `Unit.DefaultActionClipsResolveForEveryKitAbility`; che suonino a schermo lo dice la seduta PIE (§5.2). Costo se sbagliato: nessun test headless lega «quale clip del pack» a «quale evento»; lo lega la PIE. Mutazione (3): `ShowActivation` torna a un argomento → cade sullo Scudo; mutazione (6): `LaunchPlaybackAttack` torna a un argomento → cade sul Tiratore. ➕ rev2. Nessun test di oggi su questa fixture asserisce un beat `Attack` (contano solo le cue `Cast`): il piano **mostra** che `LaunchPlaybackAttack` (`RTTurnManager.cpp:8256`) parte nella fixture — asserto positivo sul path `Attack` del Tiratore **prima** della mutazione — altrimenti la (6) è vacua e la fixture va estesa finché non parte. |
-| `Packaging.RequiredSetIncludesActionClips` (nuovo, verde) + `RequiredAnimationClipsAreCooked` (esteso, ⌫ ~~ancora rosso~~ rosso **da qui**) | ➕ rev. Il nuovo test chiama l'helper `RequiredAnimationPackages` sul CDO e asserisce che le clip d'azione attive siano nel set con la provenienza `Hero / Action / Ruolo`, e che le terne coperte eguaglino quelle attese (mutazione (4): `PerAction` saltato → cade QUI). Il gate di cook usa lo stesso helper e ⌫ ~~resta ROSSO per i riferimenti duri mancanti (#3562): il suo rosso è dichiarato, non misura questo sotto-progetto~~ ➕ misurato 2026-10-08. **diventa** rosso con questo sotto-progetto: era verde su `193984837`, e i package che scopre su `9ed05ef60` sono le sole clip d'azione senza riferimento duro (#3562). Il rosso è dichiarato nello statuto (R12). |
+| `Packaging.RequiredSetIncludesActionClips` (nuovo, verde) + `RequiredAnimationClipsAreCooked` (esteso, ⌫ ~~ancora rosso~~ ⌫ ~~rosso **da qui**~~ ➕ R14: di nuovo **verde**, sul solo pool di ruolo) + `RequiredActionClipsAreCooked` (➕ R14, nuovo, **rosso** sul pool d'azione, owner #3562) | ➕ rev. Il nuovo test chiama l'helper `RequiredAnimationPackages` sul CDO e asserisce che le clip d'azione attive siano nel set con la provenienza `Hero / Action / Ruolo`, e che le terne coperte eguaglino quelle attese (mutazione (4): `PerAction` saltato → cade QUI). Il gate di cook usa lo stesso helper e ⌫ ~~resta ROSSO per i riferimenti duri mancanti (#3562): il suo rosso è dichiarato, non misura questo sotto-progetto~~ ➕ misurato 2026-10-08. **diventa** rosso con questo sotto-progetto: era verde su `193984837`, e i package che scopre su `9ed05ef60` sono le sole clip d'azione senza riferimento duro (#3562). Il rosso è dichiarato nello statuto (R12). |
 | `Unit.CastRoleResolvesAClipForEveryHero` (esteso) · `DiscreteRoleClipsMatchThePacks` (invariato) · `BlueprintSurfaceIsCensused` (invariato) | Il ripiego e i contratti di oggi. |
 
 🔴 Controlli di mutazione dichiarati: (1) ordine dei livelli invertito; (2) una riga del default tolta; (3) `ShowActivation`

@@ -1692,7 +1692,7 @@ capabilities:
     consumers: [RT-CAP-CHAR-PRESENTATION]
     dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]
     tests:
-      automation: ["RefactorTactics.Anim.*", "RefactorTactics.Unit.ActionClipWinsOverRoleClip", "RefactorTactics.Unit.GenericActionClipIsSharedAcrossHeroes", "RefactorTactics.Unit.BaseActionIdIsNeverDerived", "RefactorTactics.Unit.ActionEntryWithoutTheRoleFallsBack", "RefactorTactics.Unit.DefaultActionClipsResolveForEveryKitAbility", "RefactorTactics.Unit.CastRoleResolvesAClipForEveryHero", "RefactorTactics.Playback.ActivationPlaysTheActionClip", "RefactorTactics.Playback.ChargeImpactPlaysTheDashAttackClip", "RefactorTactics.Packaging.RequiredSetIncludesActionClips", "RefactorTactics.Packaging.RequiredAnimationClipsAreCooked"]
+      automation: ["RefactorTactics.Anim.*", "RefactorTactics.Unit.ActionClipWinsOverRoleClip", "RefactorTactics.Unit.GenericActionClipIsSharedAcrossHeroes", "RefactorTactics.Unit.BaseActionIdIsNeverDerived", "RefactorTactics.Unit.ActionEntryWithoutTheRoleFallsBack", "RefactorTactics.Unit.DefaultActionClipsResolveForEveryKitAbility", "RefactorTactics.Unit.CastRoleResolvesAClipForEveryHero", "RefactorTactics.Playback.ActivationPlaysTheActionClip", "RefactorTactics.Playback.ChargeImpactPlaysTheDashAttackClip", "RefactorTactics.Packaging.RequiredSetIncludesActionClips", "RefactorTactics.Packaging.RequiredAnimationClipsAreCooked", "RefactorTactics.Packaging.RequiredActionClipsAreCooked"]
       scenarios: []
       mutation: []
     verification: { pie: [PIE-AS4b, PIE-AS4c, PIE-CLIP-ABILITA], packaged: [G13] }
