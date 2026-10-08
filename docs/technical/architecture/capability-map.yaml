@@ -1688,14 +1688,14 @@ capabilities:
         - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
         - Data/Anim/AnimCatalog.json
         - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
-    issues: { open: [288, 2521, 2545, 2167, 3563], closed: [2443, 2445, 1663] }
+    issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663, 3563] }
     consumers: [RT-CAP-CHAR-PRESENTATION]
     dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]
     tests:
-      automation: ["RefactorTactics.Anim.*"]
+      automation: ["RefactorTactics.Anim.*", "RefactorTactics.Unit.ActionClipWinsOverRoleClip", "RefactorTactics.Unit.GenericActionClipIsSharedAcrossHeroes", "RefactorTactics.Unit.BaseActionIdIsNeverDerived", "RefactorTactics.Unit.ActionEntryWithoutTheRoleFallsBack", "RefactorTactics.Unit.DefaultActionClipsResolveForEveryKitAbility", "RefactorTactics.Unit.CastRoleResolvesAClipForEveryHero", "RefactorTactics.Playback.ActivationPlaysTheActionClip", "RefactorTactics.Playback.ChargeImpactPlaysTheDashAttackClip", "RefactorTactics.Packaging.RequiredSetIncludesActionClips", "RefactorTactics.Packaging.RequiredAnimationClipsAreCooked"]
       scenarios: []
       mutation: []
-    verification: { pie: [PIE-AS4b, PIE-AS4c], packaged: [G13] }
+    verification: { pie: [PIE-AS4b, PIE-AS4c, PIE-CLIP-ABILITA], packaged: [G13] }
     risks:
       - "🔴 FATTO scritto nel codice: `RTPresentationRole.h` dichiara che «il grafo di
          `URTUnitAnimInstance` ha DUE sequence player e consuma `Idle` e `Move` e nient'altro».
