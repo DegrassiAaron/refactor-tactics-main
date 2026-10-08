@@ -93,10 +93,11 @@ struct FRTAnimClipDerived
 /**
  * Il legame fra una clip e un `(eroe, ruolo)`, deciso da una persona.
  *
- * ⚠️ **`bActive` e' unico dentro `(HeroId, Role)`, non dentro la voce.** Una clip puo' essere attiva per
- * Aevik/`Move` e legata-ma-inattiva per Phase/`Move`: l'unicita' che conta e' quella del ruolo, ed e'
- * la stessa invariante che `FRTAnimRoleClips::ActiveClipVariant` porta a runtime. Qui vive nel testo, e
- * `ValidateCatalog` la difende — perche' un file lo si puo' modificare a mano.
+ * ⚠️ **`bActive` e' unico dentro il POOL, non dentro la voce**: `(HeroId, Role)` per un binding di ruolo,
+ * `(HeroId, Role, ActionId)` per uno d'azione (#3563). Una clip puo' essere attiva per Aevik/`Move` e
+ * legata-ma-inattiva per Phase/`Move`, e una clip d'azione attiva convive con quella di ruolo dello stesso
+ * `(eroe, ruolo)`: e' la stessa invariante che `FRTAnimRoleClips::ActiveClipVariant` porta a runtime, un pool alla
+ * volta. Qui vive nel testo, e `ValidateCatalog` la difende — perche' un file lo si puo' modificare a mano.
  */
 USTRUCT(BlueprintType)
 struct FRTAnimBinding
@@ -112,7 +113,20 @@ struct FRTAnimBinding
 	ERTPresentationRole Role = ERTPresentationRole::Idle;
 
 	/**
-	 * Se questa e' la variante che suona per quel `(eroe, ruolo)`.
+	 * L'azione a cui il legame vale (#3563, spec «la clip per abilita'» §2.3). `NAME_None` = binding di RUOLO, come
+	 * prima di questo campo: il pool di `(eroe, ruolo)`.
+	 *
+	 * 🔑 **Un binding d'azione vive in un pool proprio**: `(eroe, ruolo, azione)`. Ha senso solo su `Cast` e
+	 * `Attack`, gli unici beat che conoscono l'azione (D3), e solo per un'azione che il catalogo conosce:
+	 * `ValidateCatalog` rifiuta entrambi i casi, perche' un binding che non suona mai non lo vedrebbe nessun test.
+	 * ⚠️ Esiste solo da `formatVersion` 2 (`FRTAnimCatalog::FirstFormatVersionWithActionId`).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
+	FName ActionId;
+
+	/**
+	 * Se questa e' la variante che suona per il suo POOL: `(eroe, ruolo)` per un binding di ruolo, `(eroe, ruolo,
+	 * azione)` per uno d'azione (#3563).
 	 *
 	 * ⛔ **Il default e' `false`, e non e' un dettaglio**: una variante appena legata entra INATTIVA,
 	 * qualunque sia lo stato del ruolo. «E' l'unica, quindi sara' lei» e' la deduzione che l'autore non
@@ -147,7 +161,8 @@ struct FRTAnimClipAuthored
 	FString Notes;
 
 	/**
-	 * A quali `(eroe, ruolo)` questa clip e' legata, e in quale di essi e' quella attiva.
+	 * A quali POOL questa clip e' legata, e in quali e' quella attiva. Un pool e' `(eroe, ruolo)` per un binding di
+	 * ruolo, `(eroe, ruolo, azione)` per uno d'azione (#3563).
 	 *
 	 * 🔴 **E' authoring, non runtime.** Il gioco legge `URTUnitAnimInstance::ClipsPerHero`, mai questo
 	 * file: un JSON sotto `Data/` non e' un asset versionato sotto `/Game/RT` e il cook non sa seguirlo
@@ -215,7 +230,16 @@ struct FRTAnimCatalog
 	 * build vecchia che **ignora** i campi che non conosce legge un catalogo dimezzato e non se ne accorge —
 	 * uscirebbe verde su un dato che non ha capito. Rifiutare accusa la build, che e' la cosa giusta.
 	 */
-	static constexpr int32 CurrentFormatVersion = 1;
+	static constexpr int32 CurrentFormatVersion = 2;
+
+	/**
+	 * Da quale versione un binding puo' portare `actionId` (#3563).
+	 *
+	 * 🔴 **Il bump e' la ragione per cui questa riga esiste**: una build v1 che ignorasse `actionId` leggerebbe un
+	 * binding d'azione come binding di RUOLO — una clip sbagliata e attiva, in silenzio. Con la versione a 2 quella
+	 * build rifiuta il file (sopra), e il reader nuovo rifiuta un `actionId` in un file dichiarato v1.
+	 */
+	static constexpr int32 FirstFormatVersionWithActionId = 2;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")
 	int32 FormatVersion = FRTAnimCatalog::CurrentFormatVersion;

@@ -608,8 +608,10 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 		//     (#3549) lo suona via `PlayCastMontage`, e il roster lo popola con la STESSA clip di `Attack`
 		//     (spec «il momento» D2: cast e colpo si distinguono per momento, non per forma).
 		//
-		// 🔑 ∴ l'invariante non e' piu' «`Cast` vuoto» ma «`Cast` uguale ad `Attack`». Una clip diversa sul
-		// ruolo `Cast` e' un giudizio umano del catalogo ANIM CORE, e chi la fa cambia anche questa riga.
+		// 🔑 ∴ l'invariante non e' piu' «`Cast` vuoto» ma «`Cast` uguale ad `Attack`» SUL RUOLO. Una clip diversa
+		// per un'ABILITA' vive in `PerAction` (#3563, spec «la clip per abilita'» §2.6) e non tocca questo asserto;
+		// una clip diversa sul RUOLO `Cast` resta un giudizio umano del catalogo ANIM CORE, e chi la fa cambia
+		// anche questa riga.
 		TestEqual(*FString::Printf(TEXT("%s: in v0.1 il ruolo Cast suona la stessa clip di Attack"), *Chi),
 			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Cast).ToSoftObjectPath().ToString(),
 			Cdo->ActiveClipFor(Chiave, ERTPresentationRole::Attack).ToSoftObjectPath().ToString());

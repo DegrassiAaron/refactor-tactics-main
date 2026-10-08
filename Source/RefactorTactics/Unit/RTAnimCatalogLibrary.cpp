@@ -7,6 +7,13 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
+#include "Ability/RTActionData.h"
+#include "Ability/RTCatalogLibrary.h"
+#include "Ability/RTEquipmentData.h"
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "UObject/Package.h"
+
 const TCHAR* URTAnimCatalogLibrary::IdPrefix = TEXT("AV_");
 const TCHAR* URTAnimCatalogLibrary::CatalogRelativePath = TEXT("Data/Anim/AnimCatalog.json");
 
@@ -38,6 +45,7 @@ namespace
 	const TCHAR* KeyHero = TEXT("hero");
 	const TCHAR* KeyRole = TEXT("role");
 	const TCHAR* KeyActive = TEXT("active");
+	const TCHAR* KeyActionId = TEXT("actionId");   // #3563: solo da formatVersion 2
 
 	/** Il ruolo si serializza per NOME, per la stessa ragione dello `Status`: si legge in un diff. */
 	FString RoleToString(ERTPresentationRole Role)
@@ -392,7 +400,8 @@ bool URTAnimCatalogLibrary::LoadFromString(const FString& JsonText, FRTAnimCatal
 			(*AuthoredObj)->TryGetStringField(KeyNotes, Entry.Authored.Notes);
 
 			// I binding (#2443). Assenti nei cataloghi scritti prima: un'assenza e' zero legami, non un
-			// errore di formato — e per questo `formatVersion` non cambia.
+			// errore di formato. ⏱️ *Fino a #3563 questo commento giustificava il NON-bump di `formatVersion`; la
+			// chiave `actionId` lo ha reso necessario — vedi `FirstFormatVersionWithActionId`.*
 			const TArray<TSharedPtr<FJsonValue>>* BindingsArr = nullptr;
 			if ((*AuthoredObj)->TryGetArrayField(KeyBindings, BindingsArr) && BindingsArr != nullptr)
 			{
@@ -420,6 +429,33 @@ bool URTAnimCatalogLibrary::LoadFromString(const FString& JsonText, FRTAnimCatal
 						OutError = FString::Printf(TEXT("voce #%d ('%s'): ruolo '%s' sconosciuto"),
 							Index, *IdText, *RoleText);
 						return false;
+					}
+
+					// `actionId` (#3563): opzionale; assente o vuoto = binding di ruolo. ⛔ In un file dichiarato v1 e'
+					// un ERRORE: una build v1 lo avrebbe ignorato, legando la clip al ruolo invece che all'azione.
+					// 🔴 **Presente ma non stringa e' un ERRORE, non un binding di ruolo** (review Task 4): si guarda il
+					// TIPO del valore, perche' `TryGetStringField` converte un numero in testo e fallisce in silenzio su
+					// `null`, oggetto, array — e un `actionId` ignorato lega la clip al ruolo, il guasto che il bump esiste
+					// per evitare, qui per un file modificato a mano.
+					if (const TSharedPtr<FJsonValue> ActionField = (*BindingObj)->TryGetField(KeyActionId);
+						ActionField.IsValid() && ActionField->Type != EJson::String)
+					{
+						OutError = FString::Printf(
+							TEXT("voce #%d ('%s'): binding %s / %s: '%s' presente ma non e' una stringa"),
+							Index, *IdText, *HeroText, *RoleText, KeyActionId);
+						return false;
+					}
+					FString ActionText;
+					if ((*BindingObj)->TryGetStringField(KeyActionId, ActionText) && !ActionText.IsEmpty())
+					{
+						if (OutCatalog.FormatVersion < FRTAnimCatalog::FirstFormatVersionWithActionId)
+						{
+							OutError = FString::Printf(
+								TEXT("voce #%d ('%s'): 'actionId' in un catalogo di formato %d — esiste solo da %d"),
+								Index, *IdText, OutCatalog.FormatVersion, FRTAnimCatalog::FirstFormatVersionWithActionId);
+							return false;
+						}
+						Binding.ActionId = FName(*ActionText);
 					}
 
 					(*BindingObj)->TryGetBoolField(KeyActive, Binding.bActive);
@@ -460,7 +496,10 @@ bool URTAnimCatalogLibrary::SaveToString(const FRTAnimCatalog& Catalog, FString&
 		TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&OutJsonText);
 
 	Writer->WriteObjectStart();
-	Writer->WriteValue(KeyFormatVersion, Catalog.FormatVersion);
+	// 🔑 **Sempre la versione CORRENTE, non quella letta** (#3563): un catalogo v1 a cui si aggiunge un `actionId`
+	// deve uscire v2, o la sua rilettura lo rifiuterebbe. Ogni salvataggio di una build nuova e' v2, anche senza
+	// `actionId`: una sola versione in circolazione, per scelta (spec §4, §6).
+	Writer->WriteValue(KeyFormatVersion, FRTAnimCatalog::CurrentFormatVersion);
 	Writer->WriteValue(KeyNextId, Catalog.NextId);
 
 	Writer->WriteArrayStart(KeyEntries);
@@ -494,6 +533,12 @@ bool URTAnimCatalogLibrary::SaveToString(const FRTAnimCatalog& Catalog, FString&
 			Writer->WriteObjectStart();
 			Writer->WriteValue(KeyHero, Binding.HeroId.ToString());
 			Writer->WriteValue(KeyRole, RoleToString(Binding.Role));
+			// ⚠️ **Solo quando c'e'**, al contrario dell'array `bindings` (sopra): un binding di ruolo resta scritto
+			// come prima di #3563, quindi il diff di un catalogo che non usa le azioni non cambia riga per riga.
+			if (!Binding.ActionId.IsNone())
+			{
+				Writer->WriteValue(KeyActionId, Binding.ActionId.ToString());
+			}
 			Writer->WriteValue(KeyActive, Binding.bActive);
 			Writer->WriteObjectEnd();
 		}
@@ -506,6 +551,56 @@ bool URTAnimCatalogLibrary::SaveToString(const FRTAnimCatalog& Catalog, FString&
 
 	Writer->WriteObjectEnd();
 	return Writer->Close();
+}
+
+namespace
+{
+	/** I soli beat che conoscono l'azione (spec D3): un `actionId` altrove non suonerebbe mai. */
+	bool RTRuoloPropagaAzione(ERTPresentationRole Role)
+	{
+		return Role == ERTPresentationRole::Cast || Role == ERTPresentationRole::Attack;
+	}
+
+	/**
+	 * Ogni `ActionId` che un beat puo' portare (#3563, spec §2.3): core, generiche, abilita' degli eroi (reazioni e
+	 * fasi Environment comprese, `URTHeroData::Actions`) e azioni concesse dall'equipaggiamento (`Ruling` R10:
+	 * `MakeEquipmentAction` riscrive `ActionId` con l'id del pezzo).
+	 *
+	 * ⚠️ **Costa**: costruisce il roster e i pezzi a ogni chiamata. `ValidateCatalog` la chiama SOLO se un binding
+	 * nomina un'azione, e gira nel commandlet e nei test, mai in partita (spec §2.3, costo accettato).
+	 */
+	TSet<FName> RTAzioniConosciute()
+	{
+		TSet<FName> Azioni;
+		for (const FRTActionDef& Def : URTCatalogLibrary::GetCoreActionCatalog())
+		{
+			Azioni.Add(Def.ActionId);
+		}
+		for (const FName& Id : URTCatalogLibrary::GetGenericActionIds())
+		{
+			Azioni.Add(Id);
+		}
+		for (const URTHeroData* Eroe : URTHeroCatalogLibrary::GetHeroRoster())
+		{
+			if (Eroe == nullptr) { continue; }
+			for (const URTActionData* Azione : Eroe->Actions)
+			{
+				if (Azione != nullptr) { Azioni.Add(Azione->Def.ActionId); }
+			}
+		}
+		TArray<URTEquipmentData*> Pezzi = URTCatalogLibrary::MakeWeaponVariants();
+		Pezzi.Append(URTCatalogLibrary::MakeGadgets());
+		Pezzi.Append(URTCatalogLibrary::MakeReactionModules());
+		for (const URTEquipmentData* Pezzo : Pezzi)
+		{
+			// `nullptr` se il pezzo non concede un'azione, o ne dichiara una che il core non ha (vedi `MakeEquipmentAction`).
+			if (const URTActionData* Concessa = URTCatalogLibrary::MakeEquipmentAction(Pezzo, GetTransientPackage()))
+			{
+				Azioni.Add(Concessa->Def.ActionId);
+			}
+		}
+		return Azioni;
+	}
 }
 
 TArray<FString> URTAnimCatalogLibrary::ValidateCatalog(const FRTAnimCatalog* Catalog)
@@ -597,34 +692,67 @@ TArray<FString> URTAnimCatalogLibrary::ValidateCatalog(const FRTAnimCatalog* Cat
 			Catalog->NextId, *MakeId(HighestAssignedId)));
 	}
 
-	// 🔴 **Al piu' UNA variante attiva per `(eroe, ruolo)`, e qui e' l'unico posto che puo' difenderlo.**
+	// 🔴 **Al piu' UNA variante attiva per POOL, e qui e' l'unico posto che puo' difenderlo.** Un pool e'
+	// `(eroe, ruolo)` per un binding di ruolo, `(eroe, ruolo, azione)` per uno d'azione (#3563): una clip di ruolo
+	// attiva e una d'azione attiva per lo stesso `(eroe, ruolo)` sono due pool, e convivono.
 	//
 	// A runtime l'invariante e' strutturale: `FRTAnimRoleClips::ActiveClipVariant` e' UN `FName`, e due
-	// attive non sono nemmeno rappresentabili. Nel testo lo sono — bastano due `"active": true` scritti a
-	// mano, o un merge che unisce due rami che hanno legato la stessa Action.
+	// attive nello stesso pool non sono nemmeno rappresentabili. Nel testo lo sono — bastano due `"active": true`
+	// scritti a mano, o un merge che unisce due rami che hanno legato la stessa Action.
 	//
 	// Senza questo controllo il commandlet dovrebbe scegliere quale delle due vince, e sceglierebbe per
 	// posizione nell'array: cioe' l'autore vedrebbe cambiare la clip che suona riordinando un file.
-	TMap<TPair<FName, ERTPresentationRole>, FName> AttivaPerRuolo;
+	//
+	// ⛔ **E un `actionId` deve poter suonare** (#3563): un'azione che il catalogo non conosce, o un ruolo che non
+	// propaga l'azione, sono un binding che non suona mai — un errore, non un avviso, perche' nessun test lo vedrebbe.
+	TSet<FName> AzioniConosciute;
+	bool bAzioniCalcolate = false;   // l'insieme costa: si costruisce solo se un binding nomina un'azione
+	TMap<TTuple<FName, ERTPresentationRole, FName>, FName> AttivaPerPool;
 	for (const FRTAnimCatalogEntry& Entry : Catalog->Entries)
 	{
 		for (const FRTAnimBinding& Binding : Entry.Authored.Bindings)
 		{
+			if (!Binding.ActionId.IsNone())
+			{
+				if (!RTRuoloPropagaAzione(Binding.Role))
+				{
+					Errors.Add(FString::Printf(
+						TEXT("%s / %s / %s ('%s'): il ruolo %s non conosce l'azione — solo Cast e Attack la propagano, e il binding non suonerebbe mai"),
+						*Binding.HeroId.ToString(), *RoleToString(Binding.Role), *Binding.ActionId.ToString(),
+						*Entry.Id.ToString(), *RoleToString(Binding.Role)));
+				}
+				if (!bAzioniCalcolate)
+				{
+					AzioniConosciute = RTAzioniConosciute();
+					bAzioniCalcolate = true;
+				}
+				if (!AzioniConosciute.Contains(Binding.ActionId))
+				{
+					Errors.Add(FString::Printf(
+						TEXT("%s / %s ('%s'): l'azione '%s' non e' nel catalogo — un refuso sarebbe un binding che non suona mai"),
+						*Binding.HeroId.ToString(), *RoleToString(Binding.Role), *Entry.Id.ToString(),
+						*Binding.ActionId.ToString()));
+				}
+			}
+
 			if (!Binding.bActive)
 			{
 				continue;   // legata e inattiva e' lo stato normale: nessun vincolo di unicita'
 			}
-			const TPair<FName, ERTPresentationRole> Chiave(Binding.HeroId, Binding.Role);
-			if (const FName* Gia = AttivaPerRuolo.Find(Chiave))
+			const TTuple<FName, ERTPresentationRole, FName> Chiave(Binding.HeroId, Binding.Role, Binding.ActionId);
+			if (const FName* Gia = AttivaPerPool.Find(Chiave))
 			{
+				const FString Pool = Binding.ActionId.IsNone()
+					? FString::Printf(TEXT("%s / %s"), *Binding.HeroId.ToString(), *RoleToString(Binding.Role))
+					: FString::Printf(TEXT("%s / %s / %s"), *Binding.HeroId.ToString(), *RoleToString(Binding.Role),
+						*Binding.ActionId.ToString());
 				Errors.Add(FString::Printf(
-					TEXT("%s / %s: '%s' e '%s' sono entrambe attive, e il ruolo ne ammette una sola"),
-					*Binding.HeroId.ToString(), *RoleToString(Binding.Role),
-					*Gia->ToString(), *Entry.Id.ToString()));
+					TEXT("%s: '%s' e '%s' sono entrambe attive, e il pool ne ammette una sola"),
+					*Pool, *Gia->ToString(), *Entry.Id.ToString()));
 			}
 			else
 			{
-				AttivaPerRuolo.Add(Chiave, Entry.Id);
+				AttivaPerPool.Add(Chiave, Entry.Id);
 			}
 		}
 	}

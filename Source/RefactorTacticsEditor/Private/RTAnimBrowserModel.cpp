@@ -155,7 +155,7 @@ bool FRTAnimBrowserModel::ApplyUserStatus(const FName& Id, ERTAnimClipStatus New
 	return true;
 }
 
-bool FRTAnimBrowserModel::BindToRole(const FName& Id, const FName& HeroId, ERTPresentationRole Role)
+bool FRTAnimBrowserModel::BindToRole(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId)
 {
 	FRTAnimCatalogEntry* Entry = FindEntry(Id);
 	if (Entry == nullptr || HeroId.IsNone())
@@ -172,7 +172,7 @@ bool FRTAnimBrowserModel::BindToRole(const FName& Id, const FName& HeroId, ERTPr
 	}
 
 	const bool bGia = Entry->Authored.Bindings.ContainsByPredicate(
-		[&HeroId, Role](const FRTAnimBinding& B) { return B.HeroId == HeroId && B.Role == Role; });
+		[&HeroId, Role, &ActionId](const FRTAnimBinding& B) { return B.HeroId == HeroId && B.Role == Role && B.ActionId == ActionId; });
 	if (bGia)
 	{
 		return false;   // idempotente e non duplicante
@@ -181,12 +181,13 @@ bool FRTAnimBrowserModel::BindToRole(const FName& Id, const FName& HeroId, ERTPr
 	FRTAnimBinding Binding;
 	Binding.HeroId = HeroId;
 	Binding.Role = Role;
-	Binding.bActive = false;   // ⛔ SEMPRE inattiva, anche se e' la prima del ruolo
+	Binding.ActionId = ActionId;
+	Binding.bActive = false;   // ⛔ SEMPRE inattiva, anche se e' la prima del pool
 	Entry->Authored.Bindings.Add(MoveTemp(Binding));
 	return true;
 }
 
-bool FRTAnimBrowserModel::MakeActive(const FName& Id, const FName& HeroId, ERTPresentationRole Role)
+bool FRTAnimBrowserModel::MakeActive(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId)
 {
 	// Prima si verifica che il bersaglio esista: un `Make Active` fallito non deve poter disattivare
 	// quella che c'era, che sarebbe una disattivazione travestita da errore.
@@ -196,19 +197,19 @@ bool FRTAnimBrowserModel::MakeActive(const FName& Id, const FName& HeroId, ERTPr
 		return false;
 	}
 	const bool bLegata = Target->Authored.Bindings.ContainsByPredicate(
-		[&HeroId, Role](const FRTAnimBinding& B) { return B.HeroId == HeroId && B.Role == Role; });
+		[&HeroId, Role, &ActionId](const FRTAnimBinding& B) { return B.HeroId == HeroId && B.Role == Role && B.ActionId == ActionId; });
 	if (!bLegata)
 	{
 		return false;
 	}
 
-	// 🔑 L'atomicita': in un solo passaggio si spegne ogni altra attiva di QUESTO ruolo e si accende la
+	// 🔑 L'atomicita': in un solo passaggio si spegne ogni altra attiva di QUESTO pool e si accende la
 	// scelta. Non esiste un istante intermedio con due attive, che e' cio' che `ValidateCatalog` rifiuta.
 	for (FRTAnimCatalogEntry& Entry : Catalog.Entries)
 	{
 		for (FRTAnimBinding& Binding : Entry.Authored.Bindings)
 		{
-			if (Binding.HeroId == HeroId && Binding.Role == Role)
+			if (Binding.HeroId == HeroId && Binding.Role == Role && Binding.ActionId == ActionId)
 			{
 				Binding.bActive = (Entry.Id == Id);
 			}
@@ -217,7 +218,7 @@ bool FRTAnimBrowserModel::MakeActive(const FName& Id, const FName& HeroId, ERTPr
 	return true;
 }
 
-bool FRTAnimBrowserModel::Unbind(const FName& Id, const FName& HeroId, ERTPresentationRole Role)
+bool FRTAnimBrowserModel::Unbind(const FName& Id, const FName& HeroId, ERTPresentationRole Role, const FName& ActionId)
 {
 	FRTAnimCatalogEntry* Entry = FindEntry(Id);
 	if (Entry == nullptr)
@@ -225,7 +226,7 @@ bool FRTAnimBrowserModel::Unbind(const FName& Id, const FName& HeroId, ERTPresen
 		return false;
 	}
 	const int32 Rimossi = Entry->Authored.Bindings.RemoveAll(
-		[&HeroId, Role](const FRTAnimBinding& B) { return B.HeroId == HeroId && B.Role == Role; });
+		[&HeroId, Role, &ActionId](const FRTAnimBinding& B) { return B.HeroId == HeroId && B.Role == Role && B.ActionId == ActionId; });
 
 	// ⚠️ Nessuna elezione di una sostituta. Se quella rimossa era l'attiva, il ruolo resta senza attiva e
 	// l'unita' torna in posa di riferimento: si vede, ed e' la scelta dell'autore da rifare.

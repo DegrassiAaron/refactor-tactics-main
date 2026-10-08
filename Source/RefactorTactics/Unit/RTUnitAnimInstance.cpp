@@ -4,6 +4,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Unit/RTUnit.h"
 
+#include <initializer_list>
+
 namespace
 {
 	/**
@@ -41,9 +43,11 @@ namespace
 	 * I ruoli di un eroe del roster, ciascuno con la sua clip attiva.
 	 *
 	 * 🔴 **La clip dei pack che si CHIAMA `Cast` riempie DUE ruoli, e non e' un errore** (#2450, #3549). Sul
-	 * ruolo `Attack` e' il colpo; sul ruolo `Cast` e' il gesto di attivazione di `AbilityActivated`. In v0.1
-	 * cast e colpo suonano la stessa sequenza in DUE MOMENTI diversi (spec «il momento» D2); una clip d'attacco
-	 * diversa e' un giudizio umano nel catalogo ANIM CORE, non un ritocco qui.
+	 * ruolo `Attack` e' il colpo; sul ruolo `Cast` e' il gesto di attivazione di `AbilityActivated`. Sul RUOLO
+	 * cast e colpo suonano la stessa sequenza in due momenti diversi (spec «il momento» D2).
+	 *
+	 * 🔑 **Da #3563 sopra il ruolo ci sono le clip per ABILITA'** (`MakeActionClips`, qui sotto): il ruolo resta
+	 * il RIPIEGO, e una clip diversa per un'abilita' si scrive li', non cambiando questo ruolo.
 	 *
 	 * ⚠️ I nomi si MISURANO: §AS.3b li ha letti sul disco, e **quattro caselle su dodici** fra i tre
 	 * ruoli discreti non si chiamano come ci si aspetta.
@@ -60,6 +64,35 @@ namespace
 		Clips.PerRole.Add(ERTPresentationRole::Hit, MakeRuolo(Pack, Hit));
 		Clips.PerRole.Add(ERTPresentationRole::Death, MakeRuolo(Pack, Death));
 		return Clips;
+	}
+
+	/** Una voce della mappa abilita'→clip: quale azione, su quale beat, con quale clip del pack. */
+	struct FRTVoceClipAzione
+	{
+		const TCHAR* ActionId;
+		ERTPresentationRole Role;
+		const TCHAR* Clip;
+	};
+
+	/**
+	 * Le clip per AZIONE di un eroe del roster (#3563, spec «la clip per abilita'» §2.4, D4).
+	 *
+	 * 🔑 **Una riga per (abilita', beat)**, ciascuna una variante `AV_Roster` gia' attiva — la stessa forma di
+	 * `MakeRuolo`. Solo `Cast` e `Attack` (D3): gli altri ruoli non conoscono l'azione, e una voce li' non suonerebbe.
+	 *
+	 * ⚠️ **La mappa e' un giudizio dell'autore, scelto dai NOMI** (spec §2.6, approvata il 2026-10-07): la seduta
+	 * `PIE-CLIP-ABILITA` puo' cambiarne ogni riga. Chi la cambia cambia anche la seconda copia dichiarata,
+	 * `ClipAtteseDefault` in `Tests/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
+	 * entrare qui (spec §2.6, che porta il comando di misura): i nomi non si deducono.
+	 */
+	TMap<FName, FRTActionPresentationClips> MakeActionClips(const TCHAR* Pack, std::initializer_list<FRTVoceClipAzione> Voci)
+	{
+		TMap<FName, FRTActionPresentationClips> PerAzione;
+		for (const FRTVoceClipAzione& Voce : Voci)
+		{
+			PerAzione.FindOrAdd(FName(Voce.ActionId)).PerRole.Add(Voce.Role, MakeRuolo(Pack, Voce.Clip));
+		}
+		return PerAzione;
 	}
 }
 
@@ -155,14 +188,43 @@ const FRTAnimRoleClips* FRTHeroPresentationClips::FindRole(ERTPresentationRole R
 
 URTUnitAnimInstance::URTUnitAnimInstance()
 {
+	// ⚠️ Il riferimento restituito da `Add` si usa SUBITO: l'`Add` dell'eroe successivo puo' riallocare la mappa.
 	ClipsPerHero.Add(FName(TEXT("Hero.Aevik")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
-		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd")));
+		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Gadget"), {
+		{ TEXT("Hero.Aevik.ArcPulse"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_A") },
+		{ TEXT("Hero.Aevik.LinearDischarge"), ERTPresentationRole::Cast,   TEXT("Ability_Q_Target") },
+		{ TEXT("Hero.Aevik.LinearDischarge"), ERTPresentationRole::Attack, TEXT("LMB_Fire_B") },
+		{ TEXT("Hero.Aevik.Overload"),        ERTPresentationRole::Cast,   TEXT("Throw_Ready") },
+		{ TEXT("Hero.Aevik.Overload"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_C") },
+	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Muiren")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death")));
+		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death"))).PerAction = MakeActionClips(TEXT("Phase"), {
+		{ TEXT("Hero.Muiren.PressureJet"),  ERTPresentationRole::Attack, TEXT("Primary_Attack_A_Medium") },
+		{ TEXT("Hero.Muiren.CircularTide"), ERTPresentationRole::Cast,   TEXT("R_Ability_Intro") },
+		{ TEXT("Hero.Muiren.FluidTrail"),   ERTPresentationRole::Cast,   TEXT("Ability_E") },
+		{ TEXT("Hero.Muiren.TideGuard"),    ERTPresentationRole::Cast,   TEXT("Ability_R_Alt") },
+	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd")));
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Riktor"), {
+		{ TEXT("Hero.Branth.ImpactShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_A_Slow") },
+		{ TEXT("Hero.Branth.KineticPanel"), ERTPresentationRole::Cast,   TEXT("Ability_Lockdown") },
+		{ TEXT("Hero.Branth.Reconfigure"),  ERTPresentationRole::Cast,   TEXT("Ability_Hook_Pull") },
+		// L'impatto di una carica porta l'ActionId dello SCATTO (`Impact.Def = Dash->Def`): Ram ha un beat Attack.
+		{ TEXT("Hero.Branth.Ram"),          ERTPresentationRole::Cast,   TEXT("Ability_Hook_Start") },
+		{ TEXT("Hero.Branth.Ram"),          ERTPresentationRole::Attack, TEXT("Ability_ShockingPunch") },
+		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Cast,   TEXT("Ability_Hook_Cast") },
+		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_B_Slow") },
+	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Ivrin")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward")));
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward"))).PerAction = MakeActionClips(TEXT("Wraith"), {
+		{ TEXT("Hero.Ivrin.PulseShot"),     ERTPresentationRole::Attack, TEXT("Fire_A_Fast_V1") },
+		// Il colpo predittivo non emette un `Attack` (`RTTurnManager.cpp:7133-7136`): solo il beat Cast.
+		{ TEXT("Hero.Ivrin.InterceptShot"), ERTPresentationRole::Cast,   TEXT("Ability_E_Targeting_Start") },
+		{ TEXT("Hero.Ivrin.PassingBlade"),  ERTPresentationRole::Cast,   TEXT("Ability_R_InMotion") },
+		{ TEXT("Hero.Ivrin.PassingBlade"),  ERTPresentationRole::Attack, TEXT("Ability_Q_Fire_Fwd") },
+		{ TEXT("Hero.Ivrin.Feint"),         ERTPresentationRole::Cast,   TEXT("Ability_E") },
+		{ TEXT("Hero.Ivrin.PhaseGuard"),    ERTPresentationRole::Cast,   TEXT("Ability_RMB_Start") },
+	});
 }
 
 TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
@@ -180,6 +242,36 @@ TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(
 	}
 	const FRTAnimVariant* Attiva = Ruolo->FindActive();
 	return Attiva ? Attiva->Clip : TSoftObjectPtr<UAnimSequenceBase>(nullptr);
+}
+
+TSoftObjectPtr<UAnimSequenceBase> URTUnitAnimInstance::ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
+	const FName& ActionId, const FName& BaseActionId) const
+{
+	if (const FRTHeroPresentationClips* Eroe = FindClipsFor(HeroId))
+	{
+		// 🔑 L'ORDINE dei livelli e' la decisione D2: il profilo, poi la generica condivisa fra eroi.
+		for (const FName& Chiave : { ActionId, BaseActionId })
+		{
+			if (Chiave.IsNone())
+			{
+				continue;   // un livello senza chiave si salta: non si indovina
+			}
+			const FRTActionPresentationClips* Azione = Eroe->PerAction.Find(Chiave);
+			if (Azione == nullptr)
+			{
+				continue;
+			}
+			const FRTAnimRoleClips* Pool = Azione->PerRole.Find(Role);
+			const FRTAnimVariant* Attiva = Pool ? Pool->FindActive() : nullptr;
+			if (Attiva != nullptr)
+			{
+				return Attiva->Clip;
+			}
+			// ⚠️ La voce dell'azione c'era ma non per questo ruolo, o senza attiva: si prosegue (Review Focus (a)).
+		}
+	}
+	// Il ripiego e' la clip di ruolo di oggi, con le sue tre uscite a nulla tutte normali.
+	return ActiveClipFor(HeroId, Role);
 }
 
 FAnimInstanceProxy* URTUnitAnimInstance::CreateAnimInstanceProxy()

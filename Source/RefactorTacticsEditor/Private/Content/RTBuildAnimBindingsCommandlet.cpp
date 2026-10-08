@@ -41,7 +41,11 @@ TMap<FName, FRTHeroPresentationClips> URTBuildAnimBindingsCommandlet::BuildClips
 			}
 
 			FRTHeroPresentationClips& Eroe = PerEroe.FindOrAdd(Binding.HeroId);
-			FRTAnimRoleClips& Ruolo = Eroe.PerRole.FindOrAdd(Binding.Role);
+			// 🔑 #3563: un binding d'azione va nel pool dell'AZIONE, mai in quello di ruolo — due pool, una attiva per
+			// pool. Un binding di ruolo resta dov'era: per lui questa funzione non cambia.
+			FRTAnimRoleClips& Ruolo = Binding.ActionId.IsNone()
+				? Eroe.PerRole.FindOrAdd(Binding.Role)
+				: Eroe.PerAction.FindOrAdd(Binding.ActionId).PerRole.FindOrAdd(Binding.Role);
 
 			// `AddVariant` mette la variante INATTIVA, sempre: e' la stessa regola che vale nel pannello
 			// e nel catalogo, e qui la si eredita invece di riscriverla.
@@ -52,7 +56,7 @@ TMap<FName, FRTHeroPresentationClips> URTBuildAnimBindingsCommandlet::BuildClips
 
 			if (Binding.bActive)
 			{
-				// `ValidateCatalog` ha gia' rifiutato due attive sullo stesso ruolo, quindi questa
+				// `ValidateCatalog` ha gia' rifiutato due attive nello stesso pool, quindi questa
 				// chiamata non puo' sovrascriverne un'altra: la garanzia sta a monte, non qui.
 				Ruolo.MakeActive(Entry.Id);
 			}
@@ -60,6 +64,37 @@ TMap<FName, FRTHeroPresentationClips> URTBuildAnimBindingsCommandlet::BuildClips
 		}
 	}
 	return PerEroe;
+}
+
+/**
+ * Il catalogo SOPRA il default, un pool alla volta (#3563, `Ruling` di §2.3).
+ *
+ * 🔴 **Prima di questa funzione il commandlet SOSTITUIVA l'intera mappa**: con la classe autorata cablata (#3562),
+ * un eroe senza binding avrebbe perso ogni clip. Qui ogni `(eroe, ruolo)` e ogni `(eroe, azione, ruolo)` che il
+ * catalogo nomina sostituisce il pool di `Base` per intero; eroi e pool che non nomina restano quelli di `Base`.
+ * ⚠️ Pura e separata da `BuildClipsPerHero`, che resta la traduzione del solo catalogo (`Anim.Bindings.MapToCdo`).
+ */
+TMap<FName, FRTHeroPresentationClips> URTBuildAnimBindingsCommandlet::MergeClipsPerHero(
+	const TMap<FName, FRTHeroPresentationClips>& Base, const TMap<FName, FRTHeroPresentationClips>& PerEroe)
+{
+	TMap<FName, FRTHeroPresentationClips> Fuso = Base;
+	for (const TPair<FName, FRTHeroPresentationClips>& Eroe : PerEroe)
+	{
+		FRTHeroPresentationClips& Dest = Fuso.FindOrAdd(Eroe.Key);
+		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Pool : Eroe.Value.PerRole)
+		{
+			Dest.PerRole.Add(Pool.Key, Pool.Value);   // `Add` su chiave esistente sostituisce: il pool intero
+		}
+		for (const TPair<FName, FRTActionPresentationClips>& Azione : Eroe.Value.PerAction)
+		{
+			FRTActionPresentationClips& DestAzione = Dest.PerAction.FindOrAdd(Azione.Key);
+			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Pool : Azione.Value.PerRole)
+			{
+				DestAzione.PerRole.Add(Pool.Key, Pool.Value);
+			}
+		}
+	}
+	return Fuso;
 }
 
 namespace
@@ -93,9 +128,10 @@ int32 URTBuildAnimBindingsCommandlet::Main(const FString& Params)
 		return 1;
 	}
 
-	// ⛔ **Si rifiuta di generare da un catalogo non valido.** Due attive sullo stesso `(eroe, ruolo)`
-	// sono rappresentabili nel testo e non a runtime: generare comunque significherebbe sceglierne una
-	// per posizione nell'array, cioe' far dipendere la clip che suona dall'ordine delle righe di un file.
+	// ⛔ **Si rifiuta di generare da un catalogo non valido.** Due attive nello stesso POOL — `(eroe, ruolo)` o,
+	// da #3563, `(eroe, ruolo, azione)` — sono rappresentabili nel testo e non a runtime: generare comunque
+	// significherebbe sceglierne una per posizione nell'array, cioe' far dipendere la clip che suona dall'ordine
+	// delle righe di un file. Lo stesso vale per un `actionId` che non suonerebbe mai.
 	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateCatalog(&Catalog);
 	if (Errori.Num() > 0)
 	{
@@ -122,8 +158,9 @@ int32 URTBuildAnimBindingsCommandlet::Main(const FString& Params)
 
 	// ── 2. Il Blueprint ─────────────────────────────────────────────────────────────────────────────
 	//
-	// ⚠️ Rigenerare qui e' **non distruttivo per definizione**: questo asset non ha grafo né layout
-	// autorato — porta solo `ClipsPerHero`, che il catalogo possiede per intero. E' la differenza con
+	// ⚠️ Rigenerare qui e' **non distruttivo per definizione**: questo asset non ha grafo né layout autorato, e
+	// porta solo `ClipsPerHero` — che e' il default C++ con sopra i POOL che il catalogo nomina (#3563). Il
+	// catalogo non possiede la mappa intera: possiede i pool che nomina. E' la differenza con
 	// `RTBuildPlaygroundPanel`, che invece si rifiuta senza `-Force` perche' cancellerebbe un grafo.
 	UBlueprint* Esistente = LoadObject<UBlueprint>(nullptr, RTAuthoredPackage);
 	if (Esistente)
@@ -152,15 +189,18 @@ int32 URTBuildAnimBindingsCommandlet::Main(const FString& Params)
 
 	// ── 3. Il CDO ───────────────────────────────────────────────────────────────────────────────────
 	//
-	// 🔑 Si scrive sul CDO della classe generata, non sull'oggetto Blueprint: e' il default che ogni
-	// istanza erediterà, ed e' cio' che `ClipsPerHero` significa.
+	// 🔑 Si scrive sul CDO della classe generata, non sull'oggetto Blueprint: e' il default che ogni istanza
+	// erediterà. Il valore e' il default C++ della CLASSE BASE con sopra i pool del catalogo (#3563).
 	URTUnitAnimInstance* Cdo = Cast<URTUnitAnimInstance>(Generato->GeneratedClass->GetDefaultObject());
 	if (Cdo == nullptr)
 	{
 		UE_LOG(LogRTAnimBindings, Error, TEXT("[AnimBindings] CDO della classe generata non trovato."));
 		return 1;
 	}
-	Cdo->ClipsPerHero = PerEroe;
+	// ⛔ La base e' il CDO di `URTUnitAnimInstance`, NON quello della classe generata: quello si porterebbe dietro
+	// la mappa della run precedente, e un pool tolto dal catalogo resterebbe nell'asset.
+	Cdo->ClipsPerHero = URTBuildAnimBindingsCommandlet::MergeClipsPerHero(
+		URTUnitAnimInstance::StaticClass()->GetDefaultObject<URTUnitAnimInstance>()->ClipsPerHero, PerEroe);
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Generato);
 	FKismetEditorUtilities::CompileBlueprint(Generato);
