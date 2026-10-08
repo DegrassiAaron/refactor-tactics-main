@@ -45,7 +45,7 @@ Le cinque condizioni che la spec implica e che nessun task esercita da solo, con
 
 1. **Un'area che contiene solo chi cura** (nessun'altra compagna nel raggio): deve curare chi cura e basta, una voce `Healed`, nessun fallback — `Heroes.TideHealsAlliesInArea` (Task 2) copre il caso con compagne; aggiungere l'asserto «solo sé» come secondo caso nello stesso test.
 2. **Centro mirato a un'unità** (`PlannedAttackTarget` invece di `PlannedAttackCell`): il centro è la cella del bersaglio e il bersaglio è curato se alleato — caso aggiunto a `Heroes.TideHealsAlliesInArea`.
-3. **Centro fuori mappa o fuori portata**: `Fallback/OutOfRange` come oggi, nessuna cura, cooldown **non** pagato (l'azione non è partita) — `Heroes.TideOnEmptyAreaStillStarts` porta il controllo opposto: a vuoto **dentro** la portata il cooldown si paga.
+3. **Centro fuori portata**: `Fallback/OutOfRange` come oggi, nessuna cura, cooldown **non** pagato (l'azione non è partita); un centro fuori mappa ma in portata non è un caso di questo percorso (`HexDistance` non guarda la mappa: lo scarta la validazione del click) — `Heroes.TideOnEmptyAreaStillStarts` porta il controllo opposto: a vuoto **dentro** la portata il cooldown si paga.
 4. **La variante `Impact`** (cura 10 + spinta 1): cura 10, nessuna spinta, nessun errore — asserto aggiunto a `Heroes.TideHealsVariantAmount`.
 5. **Il bot con la cura e un'altra abilità**: pianifica l'altra, non la cura — `Bot.DerivedHealIsNotAnAttackCandidate` (Task 1) con due abilità nei fatti.
 
@@ -120,7 +120,11 @@ Build, poi `RunTests RefactorTactics.Heroes.Phase.TideDerivesFromHeal` → `Resu
 	// `Power` resta 0 — e' il danno letto dal bot — e il fallback resta quello del core.
 	URTActionData* CircularTide = MakeHeroActionFromCore(TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal"),
 		/*Cooldown*/ 2, ERTAbilityShape::Area, /*AreaRadius*/ 1);
-	checkf(CircularTide, TEXT("Action.Heal manca dal catalogo core: CircularTide non si costruisce"));
+	if (!CircularTide)
+	{
+		checkf(false, TEXT("Action.Heal manca dal catalogo core: CircularTide non si costruisce"));
+		return Muiren; // in Shipping `checkf` sparisce: niente dereferenza di un nullptr
+	}
 	CircularTide->Def.RangeCells = 4;
 	CircularTide->RangeCells = 4; // specchio legacy, come `MakeHeroAction` lo scrive (`:88-125`)
 	CircularTide->Def.Priority = 60;
@@ -130,7 +134,7 @@ Build, poi `RunTests RefactorTactics.Heroes.Phase.TideDerivesFromHeal` → `Resu
 
 Rileggi `MakeHeroAction` (`:88-125`) e riscrivi **ogni** specchio legacy che quella funzione deriva da `RangeCells`, `Priority` o `Effects` (se ne scrive altri oltre a `RangeCells`, aggiungili qui con un commento che li nomina; `Power` no). Aggiorna il commento sopra la riga (`:504-517`) togliendo ciò che la derivazione rende falso. Build; Step 1 verde; `RunTests RefactorTactics.Heroes.Phase` tutto verde (`TideHealsWithoutWetting`, `VariantTradeoff` leggono `Actions[1]`).
 
-- [ ] **Step 3: `DerivedActionsDeclareTheirOrigin`.** In `Tests/RTHeroCatalogTests.cpp:628-640` aggiungi la riga `{ TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal") },` con il commento `// #3593: la cura ad area passa dalle cure solo se deriva da Action.Heal.`; a `:617` «**undici** da [D-380]» diventa «**undici** da [D-380], **dodici** da #3593»; a `:663-668` l'elenco delle proprie perde `CircularTide` e diventa «**sette** abilità: `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`, `InterceptShot`, `PassingBlade`, `Feint`», e la somma «Undici derivate + otto proprie + quattro base = 23» diventa «Dodici derivate + sette proprie + quattro base = 23». `RunTests RefactorTactics.Heroes` verde.
+- [ ] **Step 3: `DerivedActionsDeclareTheirOrigin`.** In `Tests/RTHeroCatalogTests.cpp`, nella mappa `Atteso` di `DerivedActionsDeclareTheirOrigin` (cerca `Hero.Ivrin.PhaseGuard`), aggiungi la riga `{ TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal") },` con il commento `// #3593: la cura ad area passa dalle cure solo se deriva da Action.Heal.`; nel commento sopra la mappa, «**undici** da [D-380]» diventa «**undici** da [D-380], **dodici** da #3593»; nel commento del ramo `else` l'elenco delle proprie perde `CircularTide` e diventa «**sette** abilità: `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`, `InterceptShot`, `PassingBlade`, `Feint`», e la somma «Undici derivate + otto proprie + quattro base = 23» diventa «Dodici derivate + sette proprie + quattro base = 23». `RunTests RefactorTactics.Heroes` verde.
 
 - [ ] **Step 4: Test del bot, rosso.** In `Tests/RTBotPlanningTests.cpp`, accanto a `FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest` (`:267`), con gli stessi helper (`MakeFlatMap`, `MakeFacts`) e la stessa conoscenza piena (`FRTTeamKnowledge Vista` con `VisibleCells` sulla cella del nemico, `:306-335`):
 
@@ -159,7 +163,12 @@ bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
 		Cura->RangeCells = 1;
 		Cura->Power = 40; // controllo positivo: senza la derivazione e' un attacco appetibile
 		Cura->Def.DerivedFromActionId = bDerivata ? FName(TEXT("Action.Heal")) : NAME_None;
-		Facts[0].Abilities.Add(Cura);
+		Facts[0].Abilities.Add(Cura);            // indice 0
+		Facts[0].bAbilityUsable.Add(true);
+		URTActionData* Colpo = NewObject<URTActionData>(); // indice 1: l'attacco vero, piu' debole della cura
+		Colpo->RangeCells = 1;
+		Colpo->Power = 20;
+		Facts[0].Abilities.Add(Colpo);
 		Facts[0].bAbilityUsable.Add(true);
 		FRTBotWeights Pesi; Pesi.WKill = 100; Pesi.WDamage = 50; Pesi.WApproach = 5;
 		FRTTeamKnowledge Vista; Vista.TeamId = 1; Vista.VisibleCells.Add(FRTCellId(1, 0, 0));
@@ -167,15 +176,17 @@ bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
 		TMap<int32, int32> Inattivita; TMap<int32, int32> UltimoRound;
 		const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
 			Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
-		return Esito.Decisions.Num() == 1 ? Esito.Decisions[0].PlannedAttackTargetIndex : -99;
+		if (Esito.Decisions.Num() != 1) { return -99; }
+		TestEqual(TEXT("il nemico adiacente e' il bersaglio in entrambi i casi"), Esito.Decisions[0].PlannedAttackTargetIndex, 1);
+		return Esito.Decisions[0].PlannedAbilityIndex;
 	};
-	TestEqual(TEXT("controllo positivo: la stessa azione NON derivata viene pianificata sul nemico"), Pianifica(false), 1);
-	TestEqual(TEXT("derivata da Action.Heal: nessun bersaglio d'attacco"), Pianifica(true), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("controllo positivo: non derivata e piu' forte, la pianifica (indice 0)"), Pianifica(false), 0);
+	TestEqual(TEXT("derivata da Action.Heal: pianifica l'ALTRA abilita' (indice 1), non la cura"), Pianifica(true), 1);
 	return true;
 }
 ```
 
-Se `FRTTeamKnowledge` o la chiave della mappa di conoscenza hanno una forma diversa da quella del test a `:306-335`, copia **quella**. Build; `RunTests RefactorTactics.Bot.DerivedHealIsNotAnAttackCandidate` → rosso sul secondo asserto.
+Se `FRTTeamKnowledge` o la chiave della mappa di conoscenza hanno una forma diversa da quella del test a `:306-335`, copia **quella**. `PlannedAbilityIndex` sta in `FRTBotPlanDecision` (`Bot/RTBotPlanning.h`). Build; `RunTests RefactorTactics.Bot.DerivedHealIsNotAnAttackCandidate` → rosso sull'ultimo asserto.
 
 - [ ] **Step 5: Il passo 2.** In `RTBotPlanningLibrary.cpp:853-857`:
 
@@ -210,7 +221,7 @@ Build; Step 4 verde; `RunTests RefactorTactics.Bot` verde.
 - Consumes: `ARTUnit` — `PlannedAbilityIndex`, `PlannedAttackTarget`, `PlannedAttackCell`, `bAttackTargetsCell` (`Unit/RTUnit.h:306-397`: `DeclareAttackOnCell`, `DeclareAttackOnUnit`, `ClearPlannedAttack`), `ActiveVariantId` (`:332`), `GetAbility`, `CanUseAbility`, `IsAlive`, `Cell`, `TeamId`, `StableUnitId`, `Health`/`MaxHealth`; `URTActionData::FindVariant(FName)`, `FRTAbilityVariant::Effects`; `FRTBlastContext::AddHeal(Actor, Target, Amount, SourceCell, Def)` (`Turn/RTBlastContext.h:237`), `Ctx.MarkAbilitySpent(Unit, Idx)`, `Ctx.Units`; `MakeSupportFallback(Autore, Bersaglio, Def, Motivo)` (`RTTurnManager_Blast.cpp:241-255`); `EmitAbilityActivated(Source, Phase, ActionId, BaseActionId, TargetStableUnitId, AimCell, Shape)` (`Turn/RTTurnManager.cpp:314`); `URTHexLibrary::HexDistance`.
 - Produces: per un'azione di cura con `Shape == Area`: N voci `Combat/Healed` (una per compagna nel raggio, cadaveri compresi che diventano `Fallback/TargetDead` in `ApplyPlannedHeals`), o una `Fallback/Cancelled` con `Amount == NoEffect` e `TgtCell == centro` se nessuno della squadra è nel raggio; un `AbilityActivated` con `Shape == Area`, `AimCell == centro`, `TargetStableUnitId` = bersaglio pianificato o 0; cooldown pagato in entrambi i casi.
 
-- [ ] **Step 1: La fixture e i tre test, rossi.** Crea `Tests/RTHealAreaTests.cpp` (CRLF). Includi ciò che `Tests/RTEquipmentTests.cpp` include per `MakeEquipWorld`/`SpawnEquipMap`/`SpawnEquipUnit`/`RunEquipTurn` (`:397-443`) e copia quei quattro helper in un namespace **proprio** `RTHealAreaTestsInternal` (due namespace anonimi con lo stesso `MakeFlatMap` collidono in unity build: `Tests/RTBotPlanningTests.cpp:26-29`). Aggiungi:
+- [ ] **Step 1: La fixture e i tre test, rossi.** Crea `Tests/RTHealAreaTests.cpp` (CRLF). Riusa `Tests/RTWorldFixtures.h` (`RTWorldFixtures::MakeWorld`, `DestroyWorld`, `PlayOneTurn`: è ciò che `Tests/RTAbilityActivatedTests.cpp` usa — leggi lì come si spawnano mappa e unità) invece di copiare gli helper di `RTEquipmentTests.cpp`; dove serve un helper nuovo mettilo in un namespace **proprio** `RTHealAreaTestsInternal` (due namespace anonimi con lo stesso nome di funzione collidono in unity build). Nel codice dei test qui sotto `MakeHealWorld`/`SpawnHealMap`/`SpawnHealUnit`/`RunHealTurn`/`DestroyHealWorld` sono **segnaposto da sostituire** con gli equivalenti di `RTWorldFixtures` (o con wrapper sottili su di essi). ⚠️ **Ogni mondo ha un `Nemico` di squadra 1 lontano e senza intenti**: con una sola squadra la partita finisce per eliminazione. Aggiungi:
 
 ```cpp
 	/** Pianifica CircularTide di `Curatrice` su una cella. L'indice 1 e' quello del catalogo (Task 1). */
@@ -219,8 +230,8 @@ Build; Step 4 verde; `RunTests RefactorTactics.Bot` verde.
 		const int32 Idx = 1;
 		Curatrice->PlannedAbilityIndex = Idx;
 		Curatrice->PlannedCell = Curatrice->Cell;
-		// Il setter della coppia cella/flag (`Unit/RTUnit.h:392-397`): scrivere i due campi a mano salterebbe
-		// l'invariante di `#2884`.
+		// Il setter della coppia cella/flag (`Unit/RTUnit.h`, `DeclareAttackOnCell`): scrivere i due campi a mano
+		// salterebbe l'invariante di `#2884`.
 		Curatrice->DeclareAttackOnCell(Centro);
 		return Idx;
 	}
@@ -305,7 +316,7 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 }
 ```
 
-Secondo caso nello stesso test (Review Focus 1 e 2), **dopo** `DestroyHealWorld` del primo, con un mondo nuovo: chi cura a (0,0) a −10 e nessun'altra compagna, centro (0,0) → +10, **una** voce `Healed`, nessun fallback; poi un terzo mondo con `Curatrice->DeclareAttackOnUnit(A1)` (A1 alleata a (2,0), a −40, nessuna cella) → A1 +18 e il `Beat->TargetStableUnitId == A1->StableUnitId`, `AimCell == A1->Cell`.
+Secondo caso nello stesso test (Review Focus 1 e 2), **dopo** `DestroyHealWorld` del primo, con un mondo nuovo (con il suo `Nemico` lontano): chi cura a (0,0) a −10 e nessun'altra compagna, centro (0,0) → +10, **una** voce `Healed`, nessun fallback; poi un terzo mondo (con `Nemico`) con `Curatrice->DeclareAttackOnUnit(A1)` (A1 alleata a (2,0), a −40, nessuna cella) → A1 +18 e il `Beat->TargetStableUnitId == A1->StableUnitId`, `AimCell == A1->Cell`.
 
 ```cpp
 /** #3593, spec §2.1 punto 6: l'amount viene dalla variante attiva (`Healing` 24), altrimenti da `Def`. Review Focus 4: `Impact` cura 10 e non spinge. */
@@ -383,7 +394,7 @@ bool FRTTideOnEmptyAreaStillStartsTest::RunTest(const FString&)
 
 `Nemico` serve perché un mondo con una sola squadra può chiudere la partita per eliminazione. Build; `RunTests RefactorTactics.Heroes.Tide` → i tre test rossi (oggi: nessuna cura, nessuna voce).
 
-- [ ] **Step 2: `CollectHealActions`.** Riscrivi il corpo (`:494-608`) così, tenendo intatti i commenti esistenti che restano veri e il ramo `Single`:
+- [ ] **Step 2: `CollectHealActions`.** ⚠️ **Modifica in sede, non sostituzione del corpo**: il corpo attuale (`:494-608`) porta i commenti D-196, D-197, D-200, #1437, #1445, #1451 e «Niente `AddLogEvent`», che restano tutti; si inseriscono o cambiano **solo** le righe che il blocco qui sotto mostra diverse, e il commento sul bersaglio (`:522-523`) si completa con il caso `Area`. Il blocco è il risultato atteso senza i commenti preesistenti:
 
 ```cpp
 void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
@@ -399,8 +410,9 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
 		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
-		const FRTCellId Centro = Unit->bAttackTargetsCell ? Unit->PlannedAttackCell : HealTarget->Cell;
-		const int32 BersaglioStableId = Unit->PlannedAttackTarget ? HealTarget->StableUnitId : 0;
+		// Solo l'AREA legge la cella dichiarata: il ramo `Single` resta com'era (bersaglio o se', `AimCell` = la sua cella).
+		const FRTCellId Centro = (bArea && Unit->bAttackTargetsCell) ? Unit->PlannedAttackCell : HealTarget->Cell;
+		const int32 BersaglioStableId = (bArea && !Unit->PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
 		Unit->PlannedAbilityIndex = INDEX_NONE;
 		Unit->ClearPlannedAttack(); // ENTRAMBE le forme (`#2884`): questo ramo esce con `continue`
 
@@ -466,7 +478,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 - [ ] **Step 3: Commit.** `feat(3593): il percorso delle cure impara la forma Area — una cura per compagna nel raggio, a vuoto parte lo stesso`.
 
-- [ ] **Step 4: Mutazioni.** (3) il filtro `Compagna->TeamId != Unit->TeamId` tolto → cade «il nemico nel raggio non guarisce»; (4) `> Heal->AreaRadius` → `>= ` → cade «compagna A2» o «A1» (chi sta sul bordo); (5) `if (!Compagna || !Compagna->IsAlive() || …)` → cade «una voce di fallback: la morta»; (6) `ERTAbilityShape::Single` passato sempre → cade «di forma Area»; (7) `Ctx.MarkAbilitySpent` spostato dopo `if (Destinatarie == 0) { …; continue; }` (cioè non pagato a vuoto) → cade «il cooldown e' pagato» in `TideOnEmptyAreaStillStarts`; (8) la lettura della variante tolta → cade `TideHealsVariantAmount` su `Healing`; (9) il blocco `if (Destinatarie == 0)` tolto → cade «una voce NoEffect»; (10) `Vuota.TgtCell = Centro;` tolta → cade «con TgtCell = centro». Report con i nomi di tutti i test caduti.
+- [ ] **Step 4: Mutazioni.** (3) il filtro `Compagna->TeamId != Unit->TeamId` tolto → cade «il nemico nel raggio non guarisce»; (4) `> Heal->AreaRadius` → `>= ` → cade «compagna A2» o «A1» (chi sta sul bordo); (5) `if (!Compagna || !Compagna->IsAlive() || …)` → cade «una voce di fallback: la morta»; (6) `ERTAbilityShape::Single` passato sempre → cade «di forma Area»; (7) la riga `Ctx.MarkAbilitySpent(Unit, HealIdx);` tolta e sostituita, dopo il ciclo `for (ARTUnit* Compagna …)`, da `if (Destinatarie > 0) { Ctx.MarkAbilitySpent(Unit, HealIdx); }` (cooldown non pagato a vuoto; il ramo `Single` resta senza cooldown in questa mutazione, e lo dice il report) → cade «il cooldown e' pagato» in `TideOnEmptyAreaStillStarts`; (8) la lettura della variante tolta → cade `TideHealsVariantAmount` su `Healing`; (9) il blocco `if (Destinatarie == 0)` tolto → cade «una voce NoEffect»; (10) `Vuota.TgtCell = Centro;` tolta → cade «con TgtCell = centro». Report con i nomi di tutti i test caduti.
 
 ---
 
@@ -498,8 +510,9 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 - [ ] **Step 2: Registro PIE.** Cella di stato di `PIE-CLIP-ABILITA` (riga `| **PIE-CLIP-ABILITA** |`, ultima cella): **in coda**, prima di `⏮️ Stato precedente`, `➕ **Dopo [#3593](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3593)** (la cura ad area): in `Visual.Ability.ClipMuiren` la barra di Aevik sale di 18 e al cast di `CircularTide` si vede il `Pulse` (riga FX riscritta); da giudicare nella riconvocazione di `U70` insieme ad Aevik su #3595.` Nessun glifo di stato cambia. `node tools/radar/doc-coherence.ts --check`: A1 invariato; A4 resta rosso su `PIE-CLIP-ABILITA` per #3590 **e** ora per #3593 (entrambe chiuse al merge): è il segnale previsto, si spegne con il rigiudizio — scriverlo nel report, non «aggiustarlo».
 - [ ] **Step 3: Seduta.** In `editor-sessions.yaml`, `U70`, in coda a `notes`: `Da riconvocare dopo #3595 (Aevik: clip piene sugli attacchi) e #3593 (Muiren: la cura arriva e il cast mostra il Pulse): scene 1-3 della spec SP5 §5.2, una seduta sola, Editor ricompilato sul clone principale.`
 - [ ] **Step 4: Generatore HUD (F11).** Da Git Bash: `PATH="/c/Program Files/GTK3-Runtime Win64/bin:$PATH" python tools/hud-assets/generate_hud_assets.py` (guida `docs/technical/runbooks/guida-catalogo-icone.md` §1); confronta `Chiavi richieste` con una corsa sul commit di partenza (checkout temporaneo del solo `RTHeroCatalogLibrary.cpp` di `origin/main`, oppure la corsa fatta nel Task 0 se la aggiungi lì). Se `CircularTide` esce dai glifi richiesti per il ripiego a `Action.Heal`, è ciò che `MakeActionIconFallbackId` farà davvero: **accettato**, scritto nel report; se il diff degli asset rigenerati tocca solo file spiegabili da questo, commettili; altrimenti non commettere e scrivi cosa è cambiato. Esegui anche il passo 2 della guida (il commandlet delle icone) e allega l'esito.
-- [ ] **Step 5: Statuto della spec.** Blocco `✅ **Implementato il 2026-10-08**` con i commit dei Task 1–4 e i gate eseguiti (come nelle spec sorelle).
-- [ ] **Step 6: Commit.** `docs(3593): ClipMuiren a 78, nota in coda alla voce PIE, riconvocazione di U70 dichiarata, statuto`.
+- [ ] **Step 5: Spec SP5, due righe.** In §4 «Area di cura senza alleati: una voce `Fallback/TargetGone`» diventa `Fallback/NoEffect` (è R2 ribaltato, §2.1); in §6 si aggiunge «La variante `Impact` promette nel suo `Tradeoff` (`RTHeroCatalogLibrary.cpp`, «applica Push 1 ai nemici») e in `RTActionDescriptions.cpp` («cura gli alleati o colpisce») una spinta che R3 non produce: testo da riallineare nel follow-up della spinta curativa, non qui.»
+- [ ] **Step 6: Statuto della spec.** Blocco `✅ **Implementato il 2026-10-08**` con i commit dei Task 1–4 e i gate eseguiti (come nelle spec sorelle).
+- [ ] **Step 7: Commit.** `docs(3593): ClipMuiren a 78, nota in coda alla voce PIE, riconvocazione di U70 dichiarata, statuto`.
 
 ---
 
