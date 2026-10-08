@@ -237,6 +237,8 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 		// reazioni scattano nel Blast e nel Cleanup. E una rotta rifiutata qui lo e' anche nel resolver: lo snapshot di
 		// pianificazione porta la posizione vera delle unita' note ([D-371]), e il tetto di [D-425] non e' mai minore
 		// della banda. ⛔ La voce Move resta `Uncertain`: una spinta nel Blast puo' spostare l'unita' prima del Move.
+		// 🔑 La premessa la fissa `Actions.Charge.StandingUnitStaysPutUntilTheBlast` (#3576): se un giorno il Dash
+		// spostasse un'unita' ferma, quel test diventerebbe rosso prima di questa riga.
 		// ⏱️ *Fino a [D-475] la voce Dash era `Uncertain` in ogni caso.*
 		Dash.Certainty = RottaScatto.Path.Num() >= 2 ? ERTIntentCertainty::Uncertain : ERTIntentCertainty::Confirmed;
 		Out.Phases.Add(Dash);
