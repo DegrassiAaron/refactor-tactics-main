@@ -546,8 +546,8 @@ def build(tentativi=40):
       oppure `Unable to build while Live Coding is active`. Su quest'ultimo `build()` nomina gli
       `UnrealEditor.exe` che possono tenere il lock, vivi o zombie ([D-469]);
     * **si esce subito** su un errore di compilazione, con la coda del compilatore;
-    * **si esce subito** anche quando TUTTI i detentori di quel lock sono zombie - un processo uscito con un
-      thread solo, qualunque sia la sua memoria ([D-473]) -, perche' nessuna attesa lo rilascia ([D-472]). La leva
+    * **si esce subito** anche quando TUTTI i detentori di quel lock sono zombie - un processo con un thread
+      solo, uscito oppure con al massimo 1 MB ([D-476]) -, perche' nessuna attesa lo rilascia ([D-472]). La leva
       `-NoHotReloadFromIDE` resta un gesto umano.
 
     ⌫ *Fino a [D-469] erano quattro*: un `LiveCodingConsole` **orfano** faceva uscire subito ([#2392])
