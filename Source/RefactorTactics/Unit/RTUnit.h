@@ -1403,10 +1403,25 @@ public:
 		return bRipiego != nullptr && *bRipiego;
 	}
 
+	/**
+	 * La clip che l'ULTIMA `PlayPresentationRole(Ruolo)` ha davvero passato allo slot e al Blueprint — seam (#3590).
+	 *
+	 * 🔑 **Dopo ogni ripiego e ogni rifiuto**: e' cio' che suona, non cio' che si e' risolto
+	 * (`LastResolvedClipPathForTest`) ne' la decisione di ripiegare (`LastClipLoadFellBackToRoleForTest`). `nullptr`
+	 * se il ruolo e' scattato senza clip, o se non e' mai stato suonato.
+	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
+	 */
+	UAnimSequenceBase* LastPlayedClipForTest(ERTPresentationRole Ruolo) const
+	{
+		const TWeakObjectPtr<UAnimSequenceBase>* Clip = LastPlayedClips.Find(Ruolo);
+		return Clip ? Clip->Get() : nullptr;
+	}
+
 private:
 	int32 CastCuesPlayed = 0;
 	TMap<ERTPresentationRole, FSoftObjectPath> LastResolvedClipPaths;
 	TMap<ERTPresentationRole, bool> LastClipLoadFellBackToRole;
+	TMap<ERTPresentationRole, TWeakObjectPtr<UAnimSequenceBase>> LastPlayedClips;
 
 public:
 

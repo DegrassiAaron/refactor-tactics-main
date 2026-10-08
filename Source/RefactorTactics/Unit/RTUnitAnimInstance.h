@@ -243,6 +243,22 @@ protected:
 };
 
 /**
+ * Se `Clip` e' ADDITIVA: un delta da sommare a un'altra posa, non una posa intera (#3590).
+ *
+ * 🔴 **Sullo slot del grafo un'additiva si somma all'`Idle`, e non si vede.** `ARTUnit::PlayPresentationRole` suona
+ * con `PlaySlotAnimationAsDynamicMontage`, e lo slot somma un montaggio additivo come delta sulla posa sorgente
+ * (`AnimInstanceProxy.cpp`, `SlotEvaluatePose`). Le additive dei pack Paragon sono autorate contro una posa di mira:
+ * sull'`Idle` la posa non cambia in modo leggibile. Misurato nella seduta `U70`: le clip d'azione di Aevik si
+ * caricavano e suonavano, e a schermo la posa restava ferma mentre tracer e numeri arrivavano.
+ *
+ * ⚠️ **Decide il tipo AUTORATO, non soltanto `IsValidAdditive()`.** Una `UAnimSequence` additiva senza la sua posa
+ * di riferimento (`ABPT_AnimFrame` senza `RefPoseSeq`) risponde `false` a `IsValidAdditive` (`AnimSequence.cpp`,
+ * `UAnimSequence::IsValidAdditive`) ed e' comunque un delta. Per gli altri tipi (montaggi, composite) decide
+ * `IsValidAdditive`. `nullptr` non e' additiva: e' un'altra domanda, e la fa chi chiama.
+ */
+REFACTORTACTICS_API bool RTClipIsAdditive(const UAnimSequenceBase* Clip);
+
+/**
  * Il grafo vero e proprio: due sequence player, un blend fra loro, uno slot per i montaggi.
  *
  *     Idle  ─┐
