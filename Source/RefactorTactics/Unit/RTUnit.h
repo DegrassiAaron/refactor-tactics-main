@@ -1389,12 +1389,13 @@ public:
 
 	/**
 	 * Se l'ULTIMA `PlayPresentationRole(Ruolo)` ha ripiegato sulla clip di RUOLO perche' quella d'azione non si e'
-	 * caricata — seam di misura (#3563, review finale I1).
+	 * caricata — seam di misura (#3563, review finale I1) — o perche' era un gesto ADDITIVO (#3590).
 	 *
 	 * 🔑 **Registra la DECISIONE, non l'esito del caricamento**: headless i pack non ci sono e falliscono entrambi i
 	 * caricamenti, ma il tentativo sul ruolo e' cio' che separa un pacchetto che degrada come prima da uno muto.
-	 * Falso se il ruolo non e' mai stato suonato, se la clip d'azione si e' caricata, o se non c'era una voce
-	 * d'azione (il path risolto E' gia' quello di ruolo). Il path RISOLTO resta in `LastResolvedClipPathForTest`.
+	 * Falso se il ruolo non e' mai stato suonato, se la clip d'azione si e' caricata e non e' un gesto additivo, o se
+	 * non c'era una voce d'azione (il path risolto E' gia' quello di ruolo). Il path RISOLTO resta in
+	 * `LastResolvedClipPathForTest`, la clip SUONATA in `LastPlayedClipForTest`.
 	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
 	 */
 	bool LastClipLoadFellBackToRoleForTest(ERTPresentationRole Ruolo) const
@@ -1403,10 +1404,25 @@ public:
 		return bRipiego != nullptr && *bRipiego;
 	}
 
+	/**
+	 * La clip che l'ULTIMA `PlayPresentationRole(Ruolo)` ha davvero passato allo slot e al Blueprint — seam (#3590).
+	 *
+	 * 🔑 **Dopo ogni ripiego e ogni rifiuto**: e' cio' che suona, non cio' che si e' risolto
+	 * (`LastResolvedClipPathForTest`) ne' la decisione di ripiegare (`LastClipLoadFellBackToRoleForTest`). `nullptr`
+	 * se il ruolo e' scattato senza clip, o se non e' mai stato suonato.
+	 * ⚠️ Scritto solo sotto `WITH_DEV_AUTOMATION_TESTS`; non e' una `UPROPERTY` (`BlueprintSurfaceIsCensused`).
+	 */
+	UAnimSequenceBase* LastPlayedClipForTest(ERTPresentationRole Ruolo) const
+	{
+		const TWeakObjectPtr<UAnimSequenceBase>* Clip = LastPlayedClips.Find(Ruolo);
+		return Clip ? Clip->Get() : nullptr;
+	}
+
 private:
 	int32 CastCuesPlayed = 0;
 	TMap<ERTPresentationRole, FSoftObjectPath> LastResolvedClipPaths;
 	TMap<ERTPresentationRole, bool> LastClipLoadFellBackToRole;
+	TMap<ERTPresentationRole, TWeakObjectPtr<UAnimSequenceBase>> LastPlayedClips;
 
 public:
 
