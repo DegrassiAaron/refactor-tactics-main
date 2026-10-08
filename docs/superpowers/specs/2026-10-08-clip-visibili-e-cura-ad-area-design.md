@@ -8,7 +8,8 @@
 > È il seguito del terzo sotto-progetto della richiesta d'autore *«associare animazioni e FX alle skill e vederle in azione»*:
 > la clip per abilità ([#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563), spec
 > [`2026-10-07-clip-per-abilita-design.md`](2026-10-07-clip-per-abilita-design.md)), di cui corregge la tabella §2.6 (`⌫`
-> in §2.6 qui sotto). Da rivedere dal panel; poi il piano.
+> in §2.6 qui sotto). ➕ rev. **Rivista dal panel il 2026-10-08** (`.superpowers/sp5-spec-panel.md`, verdetto *APPROVATA CON MODIFICHE*, finding
+> F1–F11): le modifiche sono incorporate e marcate `➕ rev.`; il `Ruling R2` è ribaltato (`⌫`). Da far rivedere all'autore; poi il piano.
 >
 > **Stato misurato**: 2026-10-08, `origin/main` = `834f4ff18`. Ogni `file:riga` è stato letto su quel commit, in sola
 > lettura, sul clone principale; chi lo rilegge più tardi lo **rimisura**. Nessun totale volatile: dove serve una misura
@@ -49,6 +50,7 @@ nessuna riga `Clip d'azione non caricata`: la clip **si carica e viene suonata**
 | Branth (Riktor) | `PrimaryAttack_A_Slow`, `PrimaryAttack_B_Slow`, `Ability_Lockdown`, `Ability_Hook_Pull`, `Ability_Hook_Start`, `Ability_Hook_Cast`, `Ability_ShockingPunch` | full-body |
 | Ivrin (Wraith) | `Fire_A_Fast_V1`, `Ability_Q_Fire_Fwd`, `Ability_E_Targeting_Start`, `Ability_R_InMotion`, `Ability_E`, `Ability_RMB_Start` | full-body |
 | ruolo `Hit` (`MakeClips`) | Gadget `Hitreact_Fwd`, Phase `HitReact_Fwd`, Riktor `HitReact_Front`, Wraith `HitReact_Front` | **additive** |
+| ruoli `Idle`, `Move`, `Cast`, `Death` (`MakeClips`, ➕ rev. F10) | Gadget `Idle`/`Run_Fwd`/`Cast`/`Death_Fwd`, Phase `Idle`/`Jog_Fwd`/`Cast`/`Death`, Riktor `Idle`/`Jog_Fwd`/`Cast`/`Death_Fwd`, Wraith `Idle_NonCombat`/`Jog_Fwd`/`Cast`/`Death_Forward` | full-body (sonda `PROBEROLE` della stessa seduta) |
 
 Perché non si vede: `ARTUnit::PlayPresentationRole` (`Unit/RTUnit.cpp:744-812`) suona la sequenza con
 `PlaySlotAnimationAsDynamicMontage` (`:790`), che la avvolge com'è (`Engine/Private/Animation/AnimMontage.cpp`,
@@ -61,8 +63,11 @@ tutte additive).
 
 Perché nessun test lo vede: `Unit.DefaultActionClipsResolveForEveryKitAbility` (`Tests/RTAnimChannelTests.cpp`) verifica
 che ogni path **risolva**; i gate di cook (`Tests/RTPackagingConfigTests.cpp`) che sia **raggiungibile**. Nessuno chiede
-se la sequenza sia additiva, e il runtime non lo chiede: `UAnimSequence::IsValidAdditive()` (`AnimSequence.cpp:2638`,
-vero quando `AdditiveAnimType != AAT_None`) esiste e non viene letto. La spec sorella §2.6 lo dichiarava: *«scelta dai
+se la sequenza sia additiva, e il runtime non lo chiede: `UAnimSequence::IsValidAdditive()` (`AnimSequence.cpp:2638-2663`: vero quando `AdditiveAnimType != AAT_None` **e**
+`RefPoseType` descrive una base valida — `ABPT_RefPose`, o `ABPT_AnimScaled`/`ABPT_AnimFrame` con `RefPoseSeq`, o
+`ABPT_LocalAnimFrame` con un `RefFrameIndex`; nel `default` risponde falso) esiste e non viene letto. ➕ rev. F1: è lo
+stesso predicato con cui lo slot separa gli additivi (`FAnimTrack::IsAdditive`, `AnimCompositeBase.cpp:333-345`), ed è
+per questo che la guardia di §2.2 lo chiama e non ricostruisce la regola da `AdditiveAnimType`. La spec sorella §2.6 lo dichiarava: *«scelta dai
 nomi dei pack (nessuno le ha viste)»*.
 
 ### 1.2 La cura che non arriva (#3593)
@@ -92,13 +97,28 @@ verifica la **dichiarazione** — *«Qui si verifica la dichiarazione, non l'app
 (`RTHeroCatalogLibrary.cpp:1051-1066` copia fase, priorità, portata, fallback ed effetti del core, e scrive
 `DerivedFromActionId`, `bSelfTarget`, `LineOfSightPolicy`). `Action.Heal` (`Ability/RTCatalogLibrary.cpp:1834-1836`) porta
 fase `Attack`, priorità 70, portata 3, cooldown 1, `Heal 20`: i numeri **dell'eroe** restano quelli di oggi e si
-riscrivono dopo la derivazione, come `FluidTrail` fa con lo slot — `Def.RangeCells = 4`, `Def.Priority = 60`,
-`Def.Effects = { Heal 18 }`, `Def.Fallback = AttackCell`, e i campi legacy specchiati (`Range`, `Power`) con loro.
-`Ruling R1`: la derivazione dice *da quale percorso passa*, non *con quali numeri* — costo se è sbagliata: due numeri in
+riscrivono dopo la derivazione, come `FluidTrail` fa con lo slot — ➕ rev. F5, **elenco chiuso**: `Def.RangeCells = 4` con lo specchio legacy `RangeCells`, `Def.Priority = 60`,
+`Def.Effects = { Heal 18 }`. **Niente altro**: `Power` resta 0 — viene dal solo `Damage`
+(`RTHeroCatalogLibrary.cpp:119-122`) e il bot lo legge come danno (`Bot/RTBotPlanningLibrary.cpp:856-858`); `Fallback`
+resta quello del core (`Cancel`: nessuno lo legge sul percorso delle cure) ed entra nell'asserto di
+`TideDerivesFromHeal` così com'è. `MakeHeroActionFromCore` può restituire `nullptr`: l'azione si aggiunge all'**indice 1**
+— `Muiren->Actions[1]` è indirizzato per indice dal catalogo (`:677-678`) e dai test (`Tests/RTHeroMuirenTests.cpp:137`,
+`:173`) — dentro un `if` con `check`, come il catalogo fa per le altre derivate.
+`Ruling R1`: la derivazione dice *da quale percorso passa*, non *con quali numeri* — costo se è sbagliata: tre numeri in
 più da tenere allineati a mano, pinnati da `TideHealsWithoutWetting`, che resta verde così com'è. Le due varianti non
 cambiano. `Tests/RTHeroCatalogTests.cpp:628-672` aggiunge la riga `{ Hero.Muiren.CircularTide, Action.Heal }` e il
 commento passa da «otto» a «sette» proprie: `LinearDischarge`, `Overload`, `Reconfigure`, `FlowReaction`, `InterceptShot`,
-`PassingBlade`, `Feint`.
+`PassingBlade`, `Feint`; ➕ rev. F5: i conteggi scritti a `:617` («undici») e `:665` («Undici derivate + otto proprie»)
+diventano «dodici» e «dodici derivate + sette proprie».
+
+➕ rev. F11 — **gli altri consumatori di `DerivedFromActionId`**, che la derivazione tocca senza che nessuno glielo chieda:
+il ripiego d'icona (`UI/RTIconLibrary.cpp:131-138`) cade su `Action.Heal` se `CircularTide` non ha un glifo proprio; il
+generatore HUD (`tools/hud-assets/generate_hud_assets.py:2096-2105`) toglie dai glifi richiesti ogni abilità costruita
+con una fabbrica `FromCore`, e `tools/hud-assets/action_axes.py:269-287` legge fase ed effetti **del core** quando
+l'eroe li riscrive dopo la chiamata (qui: `Heal 20` invece di 18). Il piano rilancia il generatore e il gate delle icone
+(`docs/technical/runbooks/guida-catalogo-icone.md`) e confronta `Chiavi richieste` prima e dopo; se `action_axes` sbaglia
+l'effetto, la riscrittura va dichiarata nel sorgente in una forma che il suo parser legge, o il suo output va corretto
+nella stessa PR.
 
 **Percorso delle cure.** `CollectHealActions` impara la forma. Oggi: un bersaglio (`PlannedAttackTarget` o sé), controllo
 di portata, `Ctx.AddHeal` (`Turn/RTBlastContext.h:237`, cinque array paralleli), poi `ApplyPlannedHeals`
@@ -106,18 +126,35 @@ di portata, `Ctx.AddHeal` (`Turn/RTBlastContext.h:237`, cinque array paralleli),
 curato davvero, evento `+N salute`. Con `Shape == Area`:
 
 1. il **centro** è `PlannedAttackCell` se `bAttackTargetsCell`, altrimenti la cella del bersaglio pianificato, altrimenti
-   la cella di chi cura (`Unit/RTUnit.h:306-392`: i due canali sono mutuamente esclusivi, `#2884`);
+   la cella di chi cura (`Unit/RTUnit.h:306-392`: i due canali sono mutuamente esclusivi, `#2884`); ➕ rev. F8: centro e
+   bersaglio si leggono **prima** di `ClearPlannedAttack()` (`Turn/RTTurnManager_Blast.cpp:530`), che oggi gira prima del
+   controllo di portata e azzererebbe `bAttackTargetsCell`;
 2. la portata si misura **sul centro** (`HexDistance(Unit->Cell, Centro) > RangeCells` → `MakeSupportFallback(OutOfRange)`,
    come oggi);
-3. i **destinatari** sono le unità vive della squadra di chi cura — chi cura compresa — con `HexDistance(Centro, U->Cell) <=
-   AreaRadius`, ordinate per `StableUnitId` crescente (ordinamento esplicito, mai l'ordine di `Ctx.Units`);
+3. i **destinatari** sono le unità della squadra di chi cura — chi cura compresa — con `HexDistance(Centro, U->Cell) <=
+   AreaRadius`, nell'ordine di `Ctx.Units` (➕ rev. F3: è già l'ordine totale canonico, cella per prima,
+   `Turn/RTTurnManager_Blast.cpp:281` e `Turn/RTActionQueueLibrary.cpp:154`; un secondo ordinamento sarebbe una seconda
+   regola accanto alla sede unica di `#2922`). Un alleato **morto** nell'area entra come oggi un bersaglio morto di `Single`:
+   `ApplyPlannedHeals` scrive `Fallback/TargetDead` (`Turn/RTTurnManager.cpp:2245-2290`) e non lo cura; non si filtra prima;
 4. per ciascuna, `Ctx.AddHeal(Unit, U, Amount, Unit->Cell, Def)`: una voce `Healed` per alleato, con il suo `Amount`
-   reale; un'area senza nessun alleato dentro produce **una** voce `MakeSupportFallback(TargetGone)` (`ERTActionInvalidReason` non ha un «nessuno nell'area»: `TargetGone` è il motivo più vicino, e la voce porta il centro come `TgtCell`) — `Ruling R2`:
-   un'area vuota è un errore dello scenario e si legge nel TurnLog, non un silenzio; costo se è sbagliata: una voce di
-   fallback in più nel log di chi cura il vuoto apposta;
-5. `EmitAbilityActivated` **una** volta, con `ERTAbilityShape::Area` e il centro (oggi `:559`: `Single` e la cella del
-   bersaglio), così il profilo FX (`Turn/RTPresentationBinding.cpp`) legge la forma giusta e l'anello d'attivazione cade
-   sulla sorgente; nessuna `AttackFootprint` (è un'impronta d'attacco: §6);
+   reale. ⌫ `Ruling R2` (➕ rev. F2): un'area **senza nessuno** della squadra dentro è un **esito**, non una mira
+   impossibile — gli alleati possono essere usciti nel Dash ([D-200]): l'azione **parte**, il cooldown si paga
+   (`MarkAbilitySpent`, `:563`), l'attivazione si emette (punto 5), e il TurnLog riceve **una** voce
+   `MakeSupportFallback(…, NoEffect)` con `TgtCell` = centro scritto a mano (`MakeSupportFallback` con bersaglio nullo
+   metterebbe `SrcCell`, `:241-255`). Non `TargetGone`, che in questo percorso significa già «l'Actor è stato distrutto fra
+   raccolta e applicazione» (`Turn/RTTurnManager.cpp:2275-2278`) ed entra nell'hash come `Amount`; costo se è sbagliato:
+   una cura a vuoto che costa un cooldown, che è ciò che un giocatore si aspetta da un'azione partita;
+5. `EmitAbilityActivated` **una** volta, con `ERTAbilityShape::Area` e il centro (oggi `:557-558`: `Single` e la cella del
+   bersaglio) e ➕ rev. F8 `TargetStableUnitId` = quello del bersaglio pianificato se c'è, altrimenti `0` (il valore che
+   l'`AbilityActivated` di un'area mirata a cella porta già); nessuna `AttackFootprint` (è un'impronta d'attacco: §6).
+   ➕ rev. F4 — **`CONTRACT CONFLICT` con la spec del profilo FX**, deciso qui: la riga d'override approvata
+   `Hero.Muiren.CircularTide` = `Pulse / None / Marker / AreaPulse` (`Turn/RTPresentationBinding.cpp:498`, gemella in
+   `Tests/RTAbilityFxProfileTests.cpp:177`) assegna a questa abilità il `Marker` e l'onda d'area, che arrivano **solo** da
+   un colpo (`RTPresentationBinding.cpp:36-39`): sul percorso delle cure sono dato morto. La riga diventa
+   `Pulse / None / None / None` nella stessa PR, con la gemella nel test e una riga `⌫` nella spec del profilo FX §2.2; al
+   cast si vede il `Pulse` (due esagoni che si stringono), che è ciò che §5.2 scena 3 giudica. `Ruling R7`: niente onda
+   per le cure in questa spec — un'impronta di supporto è il follow-up §7; costo: una cura ad area senza segno sulle
+   celle curate, letta dai numeri verdi;
 6. l'**amount** viene dalla variante attiva se ne dichiara uno (`Ability->FindVariant(Unit->ActiveVariantId)` →
    `Effects`, primo `Heal`), altrimenti da `Def.Effects` — oggi `CollectHealActions` legge solo `Def` (`:571-575`) e
    `Healing` (24) non arriverebbe mai; `Ruling R3`: la `Push 1` di `Impact` **non** passa dalle cure (§6, follow-up §7),
@@ -157,10 +194,14 @@ if (Sequenza != nullptr && RefusesAdditive(Ruolo) && !URTUnitAnimInstance::IsPla
   caricamento di `:757-776`): se è diversa dal path rifiutato e a sua volta playable, si carica e si suona; altrimenti
   `Sequenza = nullptr` e il Blueprint riceve `nullptr` come oggi (`:794-811`). Nessun nuovo `Play*Montage`, nessuna
   `UPROPERTY`.
-- Un **seam** di misura sotto `WITH_DEV_AUTOMATION_TESTS`, accanto a `LastClipLoadFellBackToRole`
-  (`:753`, `:779`): `LastClipRefusedAsAdditive.Add(Ruolo, bRipiegoAdditivo)` e il lettore
-  `LastClipRefusedAsAdditiveForTest(Ruolo)`; più un **ingresso** di prova `ForcedClipForTest` (`TStrongObjectPtr`
-  o `TObjectPtr` non-`UPROPERTY`, stesso `#if`): se impostato, `PlayPresentationRole` lo usa al posto di `LoadSynchronous`.
+- Un **seam** di misura accanto a `LastClipLoadFellBackToRole` (➕ rev. F9: i vicini sono membri **incondizionati**
+  dell'header, `Unit/RTUnit.h:1371-1407`; solo le scritture nel `.cpp` stanno sotto `WITH_DEV_AUTOMATION_TESTS`, `:753`,
+  `:779` — stessa forma): `LastClipRefusedAsAdditive.Add(Ruolo, bRipiegoAdditivo)` e il lettore
+  `LastClipRefusedAsAdditiveForTest(Ruolo)`; più un **ingresso** di prova `ForcedClipForTest`, un
+  `TStrongObjectPtr<UAnimSequenceBase>` (**non** `TObjectPtr`: non riflesso, non terrebbe vivo un `NewObject` fino alla
+  chiamata), letto in `PlayPresentationRole` sotto lo stesso `#if` al posto di `LoadSynchronous` quando è impostato. Il
+  confronto «diversa dal path rifiutato» si fa con il path **effettivamente caricato**: dopo il ripiego al caricamento
+  (`:757-776`) è `PathRuolo`, non `Path`.
   `Ruling R5`: senza l'ingresso un test headless non può far passare un'additiva dal percorso vero — i pack sono
   gitignorati e in un worktree nessun path risolve — e un test che chiama solo la funzione pura sarebbe verde con la
   guardia tolta; costo: un membro di prova in più su `ARTUnit`, non censito perché non è `UPROPERTY`.
@@ -191,8 +232,9 @@ scegliere (§2.5).
 
 `Unit.DeclaredClipsAreNotAdditive` (`EditorContext`, `Tests/RTAnimChannelTests.cpp`): per ogni eroe del CDO di
 `URTUnitAnimInstance`, per ogni voce di `MakeClips` (`Idle`, `Move`, `Cast`, `Death` — **non** `Hit`, D3) e di
-`MakeActionClips`, `LoadSynchronous()` sul path; se **risolve**, `TestTrue(IsPlayableAsMontage)`; se non risolve, una
-riga `AddInfo("N/A: <path> non sul disco")` e nessun asserto. `Ruling R6`: il test vale dove i pack ci sono (clone
+`MakeActionClips`, `LoadSynchronous()` sul path; se **risolve**, `TestTrue(IsPlayableAsMontage)`; se non risolve, ➕ rev. F10: `N/A` (una riga
+`AddInfo`) **solo** se manca la cartella del pack (`Content/FabAsset/Paragon/Paragon<Pack>/`); se il pack c'è e il path
+non risolve è un **errore** (un nome sbagliato in tabella); se le voci misurate sono zero, `AddWarning`. `Ruling R6`: il test vale dove i pack ci sono (clone
 principale) e tace dove non ci sono (worktree, CI assente per scelta), invece di essere rosso per un gitignore; costo:
 un verde da worktree non dice niente su questa domanda, e il piano lo esegue **sul clone principale** una volta, con il
 log allegato. Un contatore di `N/A` in `AddInfo` dice quante voci ha davvero misurato: un run con tutte `N/A` non è un
@@ -208,6 +250,8 @@ gate.
   Lo stato resta 🟡 finché la seduta non lo cambia.
 - `docs/roadmap/editor-sessions.yaml`, `U70`: la riconvocazione dichiarata, con le scene (§5.2).
 - Issue #3590 e #3593: chiuse dalla PR con il DoD nel commento; #3593 cita l'`expect` di `ClipMuiren` tornato a 78.
+- Spec del profilo FX `2026-10-08-profilo-fx-per-abilita-design.md` §2.2: `⌫` sulla riga di `CircularTide` (F4).
+- ➕ rev. F11: generatore HUD e gate delle icone rieseguiti (§2.1), con `Chiavi richieste` prima e dopo nel report.
 - Memoria di progetto già scritta (`clip-additiva-suona-e-non-si-vede`): la regola «sonda prima di dichiarare».
 
 ## 3. Fuori scope
@@ -231,23 +275,34 @@ gate.
 
 ### 5.1 Automation, headless
 
-Famiglie esistenti che devono restare verdi: `Heroes.*`, `Equipment.*` (`MedkitHealsInMatch` è la regressione di
-`Single`), `Unit.*`, `Playback.*`, `Anim.*`, `Packaging.*` (con il solo rosso ereditato), `Scenario.EveryShippedScenarioRuns`
-(con `ClipMuiren` a 78), `Determinism.*`.
+➕ rev. F7: **suite completa** `RefactorTactics` prima (sull'albero di partenza) e dopo, con il diff dei nomi e degli esiti:
+l'unico rosso ammesso è `Packaging.RequiredActionClipsAreCooked` (ereditato, #3562). Famiglie che leggono i dati toccati e
+che il piano nomina una per una: `Heroes.*`, `Equipment.*` (`MedkitHealsInMatch` è la regressione di `Single`), `Actions.*`
+(`Actions.Heal.*`, `Actions.HeroKitsMatchTheirCatalogDef`), `Fx.*` (la gemella della riga d'override, F4), `AimOrigin.*`
+(`CellTargetAfterADashAimsFromTheDash`, `Tests/RTAimOriginTests.cpp:487-535`), `Icon*`/`Hud*`, `Bot.*`, `Unit.*`,
+`Playback.*`, `Anim.*`, `Packaging.*`, `Scenario.EveryShippedScenarioRuns` (con `ClipMuiren` a 78), `Determinism.*`.
+
+`Ruling R8` (➕ rev. F7, il bot): il passo 2 dei candidati d'attacco (`Bot/RTBotPlanningLibrary.cpp:850-858`) esclude già
+`bSelfTarget` e la mobilità; oggi `CircularTide` vi entra con `Power` 0 e la derivazione non lo cambia. Per non lasciare
+al caso che il bot «attacchi» con una cura, il passo 2 esclude anche le azioni con `DerivedFromActionId == Action.Heal`,
+pinnato da `Bot.DerivedHealIsNotAnAttackCandidate`; l'uso della cura ad area da parte del bot è il follow-up §7. Costo se è
+sbagliato: un bot Muiren che oggi, per caso di punteggio, curava gli alleati accanto a un nemico smette di farlo.
 
 Test nuovi, ciascuno visto rosso prima del codice e validato per mutazione:
 
 | Test | Asserto | Mutazione che lo fa cadere |
 |---|---|---|
 | `Heroes.Phase.TideDerivesFromHeal` | `DerivedFromActionId == Action.Heal`, `RangeCells == 4`, `Priority == 60`, `Effects == {Heal 18}`, `Area`, raggio 1 | (1) `MakeHeroAction` al posto di `MakeHeroActionFromCore`; (2) `RangeCells` non riscritto (→ 3) |
-| `Heroes.TideHealsAlliesInArea` (fixture come `MedkitHealsInMatch`) | due alleati nel raggio a −40 HP salgono di 18; un alleato fuori raggio e un nemico dentro non cambiano; chi cura, dentro il raggio e a −10, sale di 10 (tetto); due voci `Healed` ordinate per `StableUnitId`; `AbilityActivated` una sola volta con `Shape == Area` | (3) destinatari presi con `Ctx.Units` senza il sort → l'ordine delle voci cade; (4) `<= AreaRadius` → `<` → l'alleato sul bordo non è curato; (5) il filtro di squadra tolto → il nemico guarisce; (6) `EmitAbilityActivated` con `Single` |
-| `Heroes.TideHealsVariantAmount` | con `ActiveVariantId = …Healing` l'alleato sale di 24 | (7) l'amount letto solo da `Def` |
-| `Heroes.TideOnEmptyAreaIsAFallback` | nessun alleato nel raggio → una voce `Fallback/TargetGone`, nessuna `Healed` | (8) il ramo vuoto tolto → nessuna voce |
-| `Anim.AdditiveClipIsNotPlayableAsMontage` | `NewObject<UAnimSequence>` con `AdditiveAnimType = AAT_LocalSpaceBase` (`AnimSequence.h:285`, pubblico) → `false`; con `AAT_None` → `true`; `nullptr` → `false` | (9) il predicato restituisce sempre `true` |
-| `Playback.AdditiveClipFallsBackToRole` | `ForcedClipForTest` = sequenza additiva; `PlayPresentationRole(Cast, LinearDischarge)` → `LastClipRefusedAsAdditive(Cast) == true`, `CastCuesPlayed` invariato nel conteggio (la cue parte lo stesso) | (10) la guardia tolta → il seam resta falso |
-| `Playback.HitRoleKeepsAdditiveClips` | stessa sequenza, `PlayPresentationRole(Hit, …)` → seam **falso** (D3) | (11) `RefusesAdditive` sempre vero |
-| `Unit.DeclaredClipsAreNotAdditive` (§2.4) | ogni path che risolve è playable; `AddInfo` con il conto dei `N/A` | (12) una riga di Gadget riportata a `LMB_Fire_B` — eseguita **sul clone principale** |
-| `Unit.DefaultActionClipsResolveForEveryKitAbility` (esistente) | la copia dichiarata coincide con la tabella | (13) una riga della copia lasciata a `Ability_Q_Target` |
+| `Heroes.TideHealsAlliesInArea` (fixture come `MedkitHealsInMatch`) | due alleati nel raggio a −40 HP salgono di 18; un alleato fuori raggio e un nemico dentro non cambiano; chi cura, dentro il raggio e a −10, sale di 10 (tetto); **tre** voci `Healed` nell'ordine di `Ctx.Units`; un alleato **morto** nel raggio produce una voce `Fallback/TargetDead` e resta morto; `AbilityActivated` una sola volta con `Shape == Area`; il cooldown è pagato | (3) il filtro «stessa squadra» tolto → il nemico guarisce; (4) `<= AreaRadius` → `<` → l'alleato sul bordo non è curato; (5) il morto filtrato prima di `AddHeal` → la voce `TargetDead` sparisce; (6) `EmitAbilityActivated` con `Single`; (7) `MarkAbilitySpent` saltato → il cooldown non è pagato |
+| `Heroes.TideHealsVariantAmount` | con `ActiveVariantId = …Healing` l'alleato sale di 24 | (8) l'amount letto solo da `Def` |
+| `Heroes.TideOnEmptyAreaStillStarts` | nessuno della squadra nel raggio → una voce `Fallback/NoEffect` con `TgtCell` = centro, nessuna `Healed`, cooldown pagato, `AbilityActivated` emesso | (9) il ramo vuoto tolto → nessuna voce; (10) `TgtCell` lasciato a `SrcCell` |
+| `Bot.DerivedHealIsNotAnAttackCandidate` (R8) | un bot Muiren con un nemico in portata e `CircularTide` pronta non la pianifica come attacco | (11) l'esclusione tolta dal passo 2 |
+| `Anim.AdditiveClipIsNotPlayableAsMontage` | `NewObject<UAnimSequence>` con `AdditiveAnimType = AAT_LocalSpaceBase` **e** `RefPoseType = ABPT_RefPose` (➕ rev. F1: il costruttore lascia `ABPT_None` e `IsValidAdditive` risponderebbe falso) → `false`; con `AAT_LocalSpaceBase` e `ABPT_None` → `true` (pinna il predicato del motore, non una regola nostra); con `AAT_None` → `true`; `nullptr` → `false` | (12) il predicato restituisce sempre `true`; (13) il predicato riscritto come `AdditiveAnimType != AAT_None` → cade il caso `ABPT_None` |
+| `Playback.AdditiveClipFallsBackToRole` | `ForcedClipForTest` = sequenza additiva valida; `PlayPresentationRole(Cast, LinearDischarge)` **e** `PlayPresentationRole(Attack, LinearDischarge)` (➕ rev. F6: il difetto misurato era sul colpo) → seam vero su entrambi; `CastCuesPlayed` sale di uno (la cue parte lo stesso) | (14) la guardia tolta → il seam resta falso; (15) `RefusesAdditive = (Ruolo == Cast)` → cade il ramo `Attack`; (16) `return` dopo il rifiuto → `CastCuesPlayed` non sale |
+| `Playback.HitRoleKeepsAdditiveClips` | stessa sequenza, `PlayPresentationRole(Hit, …)` → seam **falso** (D3) | (17) `RefusesAdditive` sempre vero |
+| `Unit.DeclaredClipsAreNotAdditive` (§2.4) | ogni path che risolve è playable; `N/A` solo senza la cartella del pack; errore se il pack c'è e il path non risolve; `AddWarning` a zero misure | (18) una riga di Gadget riportata a `LMB_Fire_B` — eseguita **sul clone principale** |
+| `Unit.DefaultActionClipsResolveForEveryKitAbility` (esistente) | la copia dichiarata coincide con la tabella | (19) una riga della copia lasciata a `Ability_Q_Target` |
+| `Fx.DeclaredOverridesMatchTheProposal` (esistente, F4) | la riga di `CircularTide` è `Pulse/None/None/None` | (20) la gemella lasciata a `Marker/AreaPulse` |
 
 ### 5.2 Seduta PIE — riconvocazione di `U70`
 
@@ -273,6 +328,7 @@ Esito atteso: `PIE-CLIP-ABILITA` da 🟡 a ✅ se 1–3 sono sì e le due abilit
 - La cura ad area non lascia un'impronta sulla mappa: l'`AbilityActivated` con `Area` dà l'anello d'attivazione sulla
   sorgente (profilo FX), i numeri verdi dicono chi è stato curato; l'onda d'area è dei colpi.
 - La `Push 1` di `CircularTide.Impact` non si applica (R3).
+- Il bot non usa la cura ad area (R8): la pianifica nessuno finché il follow-up non le dà un punteggio.
 - `Hit` resta additiva fino a decisione (D3).
 - La guardia legge `IsValidAdditive()` dell'asset: una clip full-body **autorata male** passa; una clip additiva
   **pensata** per sommarsi all'idle (nessuna oggi fra Cast/Attack) verrebbe rifiutata. Il giorno che ne serve una, la
@@ -285,5 +341,6 @@ Esito atteso: `PIE-CLIP-ABILITA` da 🟡 a ✅ se 1–3 sono sì e le due abilit
   v0.1 o scegliere `KnockBack` con una durata tagliata.
 - **La spinta curativa** della variante `Impact`: dove vive un'azione con `Heal` agli alleati e `Push` ai nemici nella
   stessa area (R3).
-- **L'impronta delle cure**: un'`AttackFootprint`-gemella per le aree di supporto, se il profilo FX vuole un'onda verde.
+- **L'impronta delle cure**: un'`AttackFootprint`-gemella per le aree di supporto, se il profilo FX vuole un'onda verde (R7).
+- **Il bot e la cura ad area** (R8): un punteggio per curare gli alleati raggruppati, nel passo dei candidati di supporto.
 - **Il test sulla tabella in un gate con i pack**: oggi `R6` lo lascia a una corsa manuale sul clone principale.
