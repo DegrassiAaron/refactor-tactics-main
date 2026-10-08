@@ -850,11 +850,14 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// 2) Attacco da FERMO, un'abilita' per volta: budget 0 -> l'unica cella candidata e' quella attuale.
 		FRTHexSnapshot StaySnapshot = Snapshot;
 		StaySnapshot.Units[Bot.Index].MoveBudget = 0;
+		// #3593, spec SP5 R8: una cura (derivata da `Action.Heal`) non e' un attacco — fin qui entrava con
+		// `Power` 0 e usciva dal punteggio per caso. L'uso della cura ad area dal bot e' un follow-up.
+		static const FName ActionHealId(TEXT("Action.Heal"));
 		for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 		{
 			const URTActionData* Ability = Bot.GetAbility(A);
 			if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
-				|| !Bot.CanUseAbility(A)) { continue; }
+				|| Ability->Def.DerivedFromActionId == ActionHealId || !Bot.CanUseAbility(A)) { continue; }
 			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
 		}
 

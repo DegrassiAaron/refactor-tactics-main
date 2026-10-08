@@ -345,6 +345,52 @@ bool FRTBotPlanningMissingKnowledgeIsNotOmniscienceTest::RunTest(const FString&)
 }
 
 /**
+ * #3593, spec SP5 R8: un'azione che deriva da `Action.Heal` non e' un candidato d'ATTACCO. Il passo 2 dei
+ * candidati (`AddCandidates` da fermo) la escludeva solo per caso — `Power` 0 — e il controllo positivo qui
+ * sotto mostra che con un `Power` qualunque la pianificherebbe su un nemico.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTBotDerivedHealIsNotAnAttackCandidateTest,
+	"RefactorTactics.Bot.DerivedHealIsNotAnAttackCandidate",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTBotDerivedHealIsNotAnAttackCandidateTest::RunTest(const FString&)
+{
+	auto Pianifica = [this](bool bDerivata) -> int32
+	{
+		URTHexMapAsset* M = MakeFlatMap(4);
+		TArray<FRTHexSimUnit> SimUnits;
+		SimUnits.Add(FRTHexSimUnit(0, FRTCellId(0, 0, 0), /*budget*/ 2));
+		SimUnits.Add(FRTHexSimUnit(1, FRTCellId(1, 0, 0), /*budget*/ 2));
+		const FRTHexSnapshot Snap = URTHexSimLibrary::MakeSnapshotOmniscient(M, SimUnits);
+		TArray<FRTBotUnitFacts> Facts;
+		Facts.Add(MakeFacts(0, /*Team*/ 1, FRTCellId(0, 0, 0), /*bBot*/ true));
+		Facts.Add(MakeFacts(1, /*Team*/ 0, FRTCellId(1, 0, 0), /*bBot*/ false));
+		URTActionData* Cura = NewObject<URTActionData>();
+		Cura->RangeCells = 1;
+		Cura->Power = 40; // controllo positivo: senza la derivazione e' un attacco appetibile
+		Cura->Def.DerivedFromActionId = bDerivata ? FName(TEXT("Action.Heal")) : NAME_None;
+		Facts[0].Abilities.Add(Cura);            // indice 0
+		Facts[0].bAbilityUsable.Add(true);
+		URTActionData* Colpo = NewObject<URTActionData>(); // indice 1: l'attacco vero, piu' debole della cura
+		Colpo->RangeCells = 1;
+		Colpo->Power = 20;
+		Facts[0].Abilities.Add(Colpo);
+		Facts[0].bAbilityUsable.Add(true);
+		FRTBotWeights Pesi; Pesi.WKill = 100; Pesi.WDamage = 50; Pesi.WApproach = 5;
+		FRTTeamKnowledge Vista; Vista.TeamId = 1; Vista.VisibleCells.Add(FRTCellId(1, 0, 0));
+		TMap<int32, FRTTeamKnowledge> Conoscenza; Conoscenza.Add(1, Vista);
+		TMap<int32, int32> Inattivita; TMap<int32, int32> UltimoRound;
+		const FRTBotPlanningOutcome Esito = URTBotPlanningLibrary::PlanTurn(
+			Snap, Facts, Pesi, Conoscenza, Inattivita, UltimoRound, /*TurnNumber*/ 1, /*bRecordAudit*/ false);
+		if (Esito.Decisions.Num() != 1) { return -99; }
+		TestEqual(TEXT("il nemico adiacente e' il bersaglio in entrambi i casi"), Esito.Decisions[0].PlannedAttackTargetIndex, 1);
+		return Esito.Decisions[0].PlannedAbilityIndex;
+	};
+	TestEqual(TEXT("controllo positivo: non derivata e piu' forte, la pianifica (indice 0)"), Pianifica(false), 0);
+	TestEqual(TEXT("derivata da Action.Heal: pianifica l'ALTRA abilita' (indice 1), non la cura"), Pianifica(true), 1);
+	return true;
+}
+
+/**
  * Il CANALE fra la stima del bot e chi la misura: la pianificazione riporta i punti di copertura che i piani
  * scelti si aspettano di scavalcare (`#649`).
  *

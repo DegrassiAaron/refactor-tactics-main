@@ -515,11 +515,23 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	//
 	// Il limite dichiarato di prima resta e non c'entra col cambio: `bFriendlyFire` decide SE colpire un
 	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Aevik.Overload`.
-	Muiren->Actions.Add(MakeHeroAction(TEXT("Hero.Muiren.CircularTide"), ERTResolutionPhase::Attack, /*Priority*/ 60,
-		/*Range*/ 4, /*Cooldown*/ 2, ERTActionFallback::AttackCell,
-		{
-			FRTActionEffectSpec(ERTActionEffect::Heal, 18),
-		}, ERTAbilityShape::Area, /*AreaRadius*/ 1));
+	//
+	// #3593: deriva da `Action.Heal` perche' le cure passano da `CollectHealActions`, che raccoglie SOLO le
+	// derivate (`IsCoreAction`): costruita da zero finiva fra gli attacchi, dove un'area non cura nessuno.
+	// I numeri restano dell'eroe (spec SP5 §2.1, R1): si riscrivono dopo la derivazione, elenco chiuso.
+	// `Power` resta 0 — e' il danno letto dal bot — e il fallback resta quello del core.
+	URTActionData* CircularTide = MakeHeroActionFromCore(TEXT("Hero.Muiren.CircularTide"), TEXT("Action.Heal"),
+		/*Cooldown*/ 2, ERTAbilityShape::Area, /*AreaRadius*/ 1);
+	if (!CircularTide)
+	{
+		checkf(false, TEXT("Action.Heal manca dal catalogo core: CircularTide non si costruisce"));
+		return Muiren; // in Shipping `checkf` sparisce: niente dereferenza di un nullptr
+	}
+	CircularTide->Def.RangeCells = 4;
+	CircularTide->RangeCells = 4; // specchio legacy, come `MakeHeroAction` lo scrive (`Def.RangeCells` -> `RangeCells`)
+	CircularTide->Def.Priority = 60;
+	CircularTide->Def.Effects = { FRTActionEffectSpec(ERTActionEffect::Heal, 18) };
+	Muiren->Actions.Add(CircularTide); // indice 1: le varianti qui sotto e i test lo indirizzano cosi'
 
 	// Indice 2 — FluidTrail. `Dash 3` e **basta**: la scia d'acqua e' uscita dal kit con #1006. Nessun
 	// Effects dichiarato, e non e' un limite in attesa di un sistema — e' la forma corrente dell'abilita'.
