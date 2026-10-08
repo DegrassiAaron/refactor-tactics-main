@@ -804,7 +804,8 @@ int32 FRTScenarioSession::ClearScenarioSpawnedUnits(UWorld* InWorld)
 	return DaTogliere.Num();
 }
 
-bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)
+bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario,
+	const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses)
 {
 	Scenario = InScenario;
 	Result = FRTTestResult();

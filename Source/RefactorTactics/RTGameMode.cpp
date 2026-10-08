@@ -535,13 +535,10 @@ void ARTGameMode::BeginPlay()
 	// girare senza un mondo e senza un Editor.
 	InstallPieSessionPorts();
 
-	// `#3586`: lo scenario posa i personaggi con la loro mesh, come la partita normale. Senza, in PIE le clip di
-	// un banco `Visual.*` suonano su un cilindro. Lo stesso dato della partita, nessuna seconda tabella; vale
-	// anche per la porta del conduttore di seduta, che usa lo stesso coordinatore.
-	ScenarioCoordinator.HeroUnitClasses = HeroUnitClasses;
-
+	// `#3586`: lo scenario posa i personaggi con la loro mesh, come la partita normale — senza, in PIE le clip di
+	// un banco `Visual.*` suonano su un cilindro. Lo stesso dato della partita, letto ADESSO e non copiato.
 	switch (ScenarioCoordinator.Start(World, ResolveScenarioToRun(),
-		RTScenarioEntry::LogSourceLabel(), ScenarioTurnPauseSeconds))
+		RTScenarioEntry::LogSourceLabel(), ScenarioTurnPauseSeconds, HeroUnitClasses))
 	{
 	case ERTScenarioStart::NotRequested:
 		// Partita normale: si prosegue qui sotto.
@@ -1026,8 +1023,10 @@ void ARTGameMode::InstallPieSessionPorts()
 			return FRTPieLaunchOutcome::NonCaricabile();
 		}
 
+		// `#3586`: le classi CORRENTI del GameMode, lette a ogni lancio — un Blueprint ricompilato fra due passi
+		// della seduta non lascia al coordinatore una classe vecchia.
 		const ERTScenarioStart Esito = Self->ScenarioCoordinator.Start(Self->GetWorld(), ScenarioId,
-			TEXT("seduta PIE (rt.Pie.Session)"), Self->ScenarioTurnPauseSeconds);
+			TEXT("seduta PIE (rt.Pie.Session)"), Self->ScenarioTurnPauseSeconds, Self->HeroUnitClasses);
 
 		if (Esito != ERTScenarioStart::Started)
 		{

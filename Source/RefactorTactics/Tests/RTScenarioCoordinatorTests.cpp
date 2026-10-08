@@ -32,7 +32,7 @@ bool FRTScenarioCoordinatorEmptyRequestTest::RunTest(const FString&)
 	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
 
 	FRTScenarioCoordinator Coordinator;
-	const ERTScenarioStart Esito = Coordinator.Start(World, FString(), TEXT("test"), 0.f);
+	const ERTScenarioStart Esito = Coordinator.Start(World, FString(), TEXT("test"), 0.f, {});
 
 	TestTrue(TEXT("nessuna richiesta -> il chiamante allestisce la partita normale"),
 		Esito == ERTScenarioStart::NotRequested);
@@ -74,7 +74,7 @@ bool FRTScenarioCoordinatorMissingFailsClosedTest::RunTest(const FString&)
 
 	FRTScenarioCoordinator Coordinator;
 	const ERTScenarioStart Esito = Coordinator.Start(
-		World, TEXT("Scenario.CheNonEsiste.RTTest"), TEXT("test"), 0.f);
+		World, TEXT("Scenario.CheNonEsiste.RTTest"), TEXT("test"), 0.f, {});
 
 	TestTrue(TEXT("chiesto e non caricabile -> NotLoadable, non NotRequested"),
 		Esito == ERTScenarioStart::NotLoadable);
@@ -103,7 +103,7 @@ bool FRTScenarioCoordinatorStartsRealScenarioTest::RunTest(const FString&)
 		// Il coordinatore vive in un blocco proprio: la sessione va distrutta PRIMA del mondo, altrimenti il
 		// suo distruttore sbinderebbe un decisore su un turn manager gia' andato.
 		FRTScenarioCoordinator Coordinator;
-		const ERTScenarioStart Esito = Coordinator.Start(World, TEXT("Movement.Basic"), TEXT("test"), 0.f);
+		const ERTScenarioStart Esito = Coordinator.Start(World, TEXT("Movement.Basic"), TEXT("test"), 0.f, {});
 
 		TestTrue(TEXT("uno scenario spedito parte"), Esito == ERTScenarioStart::Started);
 		TestTrue(TEXT("e la sessione sta girando"), Coordinator.IsRunning());
@@ -137,12 +137,15 @@ bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
 		{
 			// Il coordinatore vive in un blocco proprio: la sessione va distrutta PRIMA del mondo.
 			FRTScenarioCoordinator Coordinator;
+			TMap<FName, TSubclassOf<ARTUnit>> Classi;
 			if (bConClassi)
 			{
-				Coordinator.HeroUnitClasses.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+				Classi.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
 			}
-			const ERTScenarioStart Esito = Coordinator.Start(World, TEXT("Movement.Basic"), TEXT("test"), 0.f);
+			const ERTScenarioStart Esito = Coordinator.Start(World, TEXT("Movement.Basic"), TEXT("test"), 0.f, Classi);
 			TestTrue(TEXT("premessa: lo scenario parte"), Esito == ERTScenarioStart::Started);
+			// ⚠️ `Started` arriva anche quando la sessione fallisce: e' `IsRunning` a dire che e' partita davvero.
+			TestTrue(TEXT("premessa: e la sessione sta girando"), Coordinator.IsRunning());
 
 			int32 Aevik = 0;
 			int32 Branth = 0;

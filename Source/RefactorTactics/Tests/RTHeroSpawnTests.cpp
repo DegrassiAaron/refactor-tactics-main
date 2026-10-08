@@ -783,6 +783,12 @@ bool FRTUnitClassForHeroTest::RunTest(const FString&)
 		RTUnitClassForHero(Classi, FName(TEXT("Hero.Muiren"))) == ARTUnit::StaticClass());
 	TestTrue(TEXT("una mappa vuota da' sempre il cilindro"),
 		RTUnitClassForHero({}, FName(TEXT("Hero.Aevik"))) == ARTUnit::StaticClass());
+
+	// Una classe che `SpawnActorDeferred` rifiuterebbe ricade sul cilindro, non su un'unita' mancante.
+	TMap<FName, TSubclassOf<ARTUnit>> Astratte;
+	Astratte.Add(FName(TEXT("Hero.Ivrin")), ARTUnitAbstractProbeForTest::StaticClass());
+	TestTrue(TEXT("una classe astratta riceve il cilindro"),
+		RTUnitClassForHero(Astratte, FName(TEXT("Hero.Ivrin"))) == ARTUnit::StaticClass());
 	return true;
 }
 

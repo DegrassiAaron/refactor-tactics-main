@@ -15,6 +15,19 @@
 #include "Turn/RTTurnManager.h"
 #include "Unit/RTUnit.h"
 
+UClass* RTUnitClassForHero(const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses, FName HeroId)
+{
+	const TSubclassOf<ARTUnit>* Configured = HeroUnitClasses.Find(HeroId);
+	UClass* const Classe = (Configured && *Configured) ? Configured->Get() : nullptr;
+	// ⛔ Anche una classe che non si puo' spawnare ricade sul cilindro: astratta, deprecata o rimpiazzata da un
+	// Blueprint ricompilato. `SpawnActorDeferred` la rifiuterebbe, e un'unita' mancante e' peggio di un cilindro.
+	if (Classe == nullptr || Classe->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	{
+		return ARTUnit::StaticClass();
+	}
+	return Classe;
+}
+
 /**
  * I passi dell'allestimento.
  *
@@ -22,12 +35,6 @@
  * statiche in file diversi collidono. E' lo stesso vincolo che ha costretto quarantatre' file di test a
  * rinominare la propria `MakeWorld`, e la difesa che scala e' il namespace, non il nome piu' lungo.
  */
-UClass* RTUnitClassForHero(const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses, FName HeroId)
-{
-	const TSubclassOf<ARTUnit>* Configured = HeroUnitClasses.Find(HeroId);
-	return (Configured && *Configured) ? Configured->Get() : ARTUnit::StaticClass();
-}
-
 namespace RTMatchBootstrapDetail
 {
 	/**
