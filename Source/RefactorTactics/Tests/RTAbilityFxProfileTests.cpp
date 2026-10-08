@@ -174,7 +174,7 @@ bool FRTFxDeclaredOverridesMatchTheProposalTest::RunTest(const FString&)
 	TMap<FName, FRTAbilityFxProfile> Attesi;
 	Attesi.Add(TEXT("Hero.Aevik.LinearDischarge"), FxP(FxA::Ring,  FxT::Zigzag, FxI::Marker, FxF::None));
 	Attesi.Add(TEXT("Hero.Aevik.Overload"),        FxP(FxA::Flash, FxT::None,   FxI::Marker, FxF::AreaPulse));
-	Attesi.Add(TEXT("Hero.Muiren.CircularTide"),   FxP(FxA::Pulse, FxT::None,   FxI::Marker, FxF::AreaPulse));
+	Attesi.Add(TEXT("Hero.Muiren.CircularTide"),   FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None)); // #3593: una cura non ha un colpo, quindi ne' Marker ne' onda (spec SP5 F4, R7)
 	Attesi.Add(TEXT("Hero.Muiren.TideGuard"),      FxP(FxA::Pulse, FxT::None,   FxI::None,   FxF::None));
 	Attesi.Add(TEXT("Hero.Branth.Ram"),            FxP(FxA::Ring,  FxT::None,   FxI::Marker, FxF::None));
 	Attesi.Add(TEXT("Hero.Ivrin.InterceptShot"),   FxP(FxA::Flash, FxT::None,   FxI::None,   FxF::None));
