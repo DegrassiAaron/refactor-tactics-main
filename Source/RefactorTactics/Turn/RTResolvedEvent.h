@@ -194,7 +194,7 @@ struct FRTHitGeometry
 
 	/** L'origine dichiarata del colpo, da `ResolveImpactOrigin` ([D-302] punto 3).
 	 *  ⚠️ **Per un colpo `Area` e' il CENTRO d'impatto, non la cella dell'attaccante** (`Footprint->AimCell`):
-	 *  irrilevante finche' `Area` non e' idonea al tracer, ma e' il significato del campo. */
+	 *  da #3578 e' il centro dell'`AreaPulse` (spec «il profilo FX» §2.4). */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId From;
 
@@ -204,7 +204,7 @@ struct FRTHitGeometry
 
 	/** Chi conosceva l'ATTACCANTE in `From` quando il colpo e' partito ([D-223], fatto puntuale).
 	 *  ⚠️ **Salvo per un colpo `Area`**, dove `From` e' il centro d'impatto e questo verdetto riguarda quella
-	 *  cella, non l'attaccante. */
+	 *  cella, non l'attaccante. Da #3578 e' il verdetto dell'`AreaPulse`. */
 	UPROPERTY()
 	FRTKnowledgeVerdict FromVerdict;
 
@@ -405,7 +405,8 @@ struct FRTResolvedEvent
 	FName BaseActionId;
 
 	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO);
-	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549). Gli altri campi: vuoti/di default per ogni
+	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549), e `Origin` anche per `AbilityActivated` (#3578: la
+	//     cella della sorgente quando agisce, per la cue d'attivazione). Gli altri campi: vuoti/di default per ogni
 	//     altro `Type`. ---
 
 	/**
@@ -439,6 +440,9 @@ struct FRTResolvedEvent
 	 * ⚠️ **Non si deriva dall'Actor.** Al playback l'unita' puo' essersi gia' mossa, e `ARTUnit::Cell`
 	 * risponderebbe con la posizione finale del turno invece che con quella del colpo. E' la stessa
 	 * ragione per cui `FRTBlastPreview` porta un `Origin` proprio.
+	 *
+	 * ➕ #3578: su `AbilityActivated` e' la cella della SORGENTE nell'istante in cui agisce (spec «il profilo FX» §2.3,
+	 * R5), letta dallo stesso soggetto su cui si congela `SourceVerdict`.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId Origin;

@@ -639,6 +639,12 @@ public:
 	 */
 	bool bSkipHitGeometryForTest = false;
 
+	/**
+	 * Lascia vuoto `Origin` di `AbilityActivated` (#3578), l'unico campo che il profilo FX aggiunge al produttore. Esiste
+	 * per un test solo — `Determinism.FxFieldsStayOutOfHashes`. Membro C++ nudo, non `UPROPERTY` (F20).
+	 */
+	bool bSkipFxFieldsForTest = false;
+
 	/** Registra i battiti del Blast in `AttackBeatTraceForTest` (`L<i>` lancio, `A<i>` arrivo). Solo test. */
 	bool bRecordAttackBeatsForTest = false;
 
@@ -683,6 +689,9 @@ public:
 	 * colpo lanciato e non ancora arrivato ne fa gia' parte (`#2454`).
 	 */
 	int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }
+
+	/** L'orologio della fase di playback (#3578): l'oracolo con cui i test confrontano `Alpha` con le formule. Solo test. */
+	float PlaybackPhaseElapsedForTest() const { return PlaybackPhaseElapsed; }
 
 	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
 	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
@@ -1310,12 +1319,27 @@ public:
 	float AttackShowSeconds = 0.50f;
 
 	/**
-	 * Tempo di volo del tracer di un attacco base (`#2454`): il colpo parte col lancio e il numero compare
+	 * Tempo di volo del tracer di un colpo con profilo FX (`#2454` per gli attacchi base, `#3578` per ogni azione
+	 * la cui forma di default ha un tracer): il colpo parte col lancio e il numero compare
 	 * all'arrivo. ⚠️ Tagliato a `AttackShowSeconds / 2` da `URTPlaybackLibrary::TracerFlightFor`, cosi' il Blast
 	 * non si allunga; con `AttackShowSeconds <= 0` non c'e' volo.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float TracerFlightSeconds = 0.25f;
+
+	/**
+	 * Durata della cue d'attivazione (#3578, spec «il profilo FX» §2.1, R2). ⚠️ Tagliata ad `AttackShowSeconds` da
+	 * `URTPlaybackLibrary::ActivationCueDuration`: l'elemento dopo esce a `(k+1)·A`. Proposta da playtest (D-287).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float ActivationCueSeconds = 0.35f;
+
+	/**
+	 * Durata delle cue di colpo — `Marker` e cue d'impronta (#3578, R2). ⚠️ Tagliata a `A − F_eff` da
+	 * `URTPlaybackLibrary::ImpactCueDuration`: l'arrivo cade a `k·A + F_eff`, il lancio dopo a `(k+1)·A`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float ImpactCueSeconds = 0.20f;
 
 	/**
 	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
@@ -2447,6 +2471,13 @@ protected:
 	void PushPlaybackTracers();
 
 	/**
+	 * Consegna alla mappa le cue del profilo FX della fase (#3578, spec §2.4): Prep e Dash dalle code di attivazione,
+	 * il Blast dalla sequenza e dal cursore dei battiti. Gemella di `PushPlaybackTracers`, con un flag gemello: non tocca
+	 * la mappa se non c'e' nulla da dire e l'ultima consegna era gia' vuota (`bPlaybackCueChannelFull`).
+	 */
+	void PushPlaybackCues(ERTMatchPhase InPhase);
+
+	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
 	 *
 	 * 🔑 **Esiste perche' i siti che la chiamano sono piu' d'uno** — `NotePlaybackActShown`, per ogni fatto che
@@ -3483,11 +3514,19 @@ private:
 	 * ⛔ Si azzera ESATTAMENTE dove il canale si spegne (finalizzazione del `Blast` e `FinishPlayback`).
 	 */
 	bool bPlaybackTracerChannelFull = false;
+	/** #3578: come `bPlaybackTracerChannelFull`, per `SetPlaybackCues`. Si azzera dove il canale si spegne. */
+	bool bPlaybackCueChannelFull = false;
 	/**
 	 * Il volo di ogni elemento, parallelo a `PlaybackBlastSequence` (`URTPlaybackLibrary::TracerFlightFor`): zero per
 	 * ogni elemento che non e' un colpo idoneo, quindi il suo arrivo coincide con la rivelazione.
 	 */
 	TArray<float> PlaybackBlastFlights;
+	/**
+	 * #3578: per ogni elemento di `PlaybackBlastSequence`, l'indice di timeline dell'impronta che consuma (o
+	 * `INDEX_NONE`), da `URTPlaybackLibrary::FootprintFxForSequence`. Parallelo alla sequenza come i voli, e come loro si
+	 * ricalcola anche estendendo: funzione pura degli eventi.
+	 */
+	TArray<int32> PlaybackBlastFootprintFx;
 	/**
 	 * La squadra di chi guarda, fissata in `BeginPlayback`: decide il DISEGNO del tracer E, tramite le attivazioni che
 	 * ha il diritto di vedere, l'indice di un colpo nella sequenza di Blast — quindi il suo istante. Il ritmo e' lo

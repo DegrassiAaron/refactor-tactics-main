@@ -33,13 +33,16 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// `-30` mentre la barra scende di meno: e' la convenzione di `#2460`, scelta perche' i due canali
 	// raccontino lo stesso colpo con lo stesso numero.
 	//
-	// `#2454`: `SetPlaybackTracers` — il tracer fra lancio e arrivo, solo per gli attacchi base `Single`/`Line` e
-	// solo se chi guarda conosceva entrambi gli estremi. ⚠️ Il gate conta i nomi, non le chiamate: che la cue sia
-	// chiamata lo dice `Playback.TracerIsInFlightBetweenLaunchAndArrival`.
+	// `#2454`: `SetPlaybackTracers` — il tracer fra lancio e arrivo, secondo il profilo FX (#3578: il volo dalla forma di
+	// default di un'azione con un id, il disegno dall'override) e solo se chi guarda conosceva entrambi gli estremi.
+	// #3578: `SetPlaybackCues` — il `Marker` all'arrivo di ogni colpo e, sul primo colpo dell'atto, la cue d'impronta
+	// (`AreaPulse`, `ConeSweep`): `AttackFootprint` non ha una cue propria, la consegna il colpo che la consuma.
+	// ⚠️ Il gate conta i nomi, non le chiamate: che le cue siano chiamate lo dicono
+	// `Playback.TracerIsInFlightBetweenLaunchAndArrival` e `Playback.ImpactCueComesAtTheArrival`.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")),
 		  FName(TEXT("ShowDamageToken")), FName(TEXT("PulseHealthBar")),
-		  FName(TEXT("SetPlaybackTracers")) }));
+		  FName(TEXT("SetPlaybackTracers")), FName(TEXT("SetPlaybackCues")) }));
 
 	// HazardDamage — PendingPresentation dal 2026-09-05, owner `#2505`. Era `NoPresentation` dal 2026-08-31.
 	//
@@ -263,13 +266,14 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// AbilityActivated — il momento del cast (#3549). **Con cue**, non in attesa.
 	//
 	// 🔑 **`PlayCastMontage` e' l'evento Blueprint che `ARTUnit::PlayPresentationRole(Cast)` notifica**, con la
-	// clip gia' risolta dal CDO: la stessa forma di `PlayAttackMontage`. Il segnale visivo (ring, pulse) resta
-	// di #2454 e non e' dichiarato qui.
+	// clip gia' risolta dal CDO: la stessa forma di `PlayAttackMontage`. ➕ #3578: il segnale visivo (`Ring`, `Pulse`,
+	// `Flash`) e' il profilo d'attivazione del sotto-progetto 4, grammatica di #2454, consegnato con `SetPlaybackCues`
+	// sulla cella della sorgente (`Playback.ActivationCueAtTheSourceCell`). ⌫ *Diceva «resta di #2454».*
 	//
 	// ⚠️ **Il gate `FindMissingBindings` verifica solo che la cue non sia `NAME_None`**: che venga CHIAMATA lo
 	// prova `Playback.ActivationPlaysTheCastCue`, che conta le chiamate sulla sorgente.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AbilityActivated,
-		{ FName(TEXT("PlayCastMontage")) }));
+		{ FName(TEXT("PlayCastMontage")), FName(TEXT("SetPlaybackCues")) }));
 
 	return Out;
 }
@@ -442,4 +446,120 @@ ERTGraykitLocomotionStyle URTPresentationBindingLibrary::StyleForMovement(ERTMat
 		// presentazione degrada; e' la simulazione che deve essere rumorosa quando incontra l'ignoto.
 		return ERTGraykitLocomotionStyle::Normal;
 	}
+}
+
+// --- Il profilo FX per abilita' (#3578) -----------------------------------------------------------------------
+
+FRTAbilityFxProfile URTPresentationBindingLibrary::MakeFxProfile(ERTActivationFxStyle Activation, ERTTracerStyle Tracer,
+	ERTImpactFxStyle Impact, ERTFootprintFxStyle Footprint)
+{
+	FRTAbilityFxProfile P;
+	P.Activation = Activation;
+	P.Tracer = Tracer;
+	P.Impact = Impact;
+	P.Footprint = Footprint;
+	return P;
+}
+
+FRTAbilityFxProfile URTPresentationBindingLibrary::DefaultFxProfileFor(ERTAbilityShape Shape)
+{
+	// La grammatica di #2454 per forma (spec §2.2). ⚠️ `Single`/`Line` sono le sole forme con un tracer di default,
+	// quindi le sole con un VOLO (R13, `URTPlaybackLibrary::IsTracerEligible`).
+	switch (Shape)
+	{
+	case ERTAbilityShape::Single:
+		return MakeFxProfile(ERTActivationFxStyle::Ring, ERTTracerStyle::Projectile, ERTImpactFxStyle::Marker, ERTFootprintFxStyle::None);
+	case ERTAbilityShape::Line:
+		return MakeFxProfile(ERTActivationFxStyle::Ring, ERTTracerStyle::Jet, ERTImpactFxStyle::Marker, ERTFootprintFxStyle::None);
+	case ERTAbilityShape::Area:
+		return MakeFxProfile(ERTActivationFxStyle::Ring, ERTTracerStyle::None, ERTImpactFxStyle::Marker, ERTFootprintFxStyle::AreaPulse);
+	case ERTAbilityShape::Cone:
+		return MakeFxProfile(ERTActivationFxStyle::Ring, ERTTracerStyle::None, ERTImpactFxStyle::Marker, ERTFootprintFxStyle::ConeSweep);
+	}
+	return FRTAbilityFxProfile();
+}
+
+const TArray<TPair<FName, FRTAbilityFxProfile>>& URTPresentationBindingLibrary::DeclaredFxOverrideRows()
+{
+	// La mappa approvata dall'autore il 2026-10-08 (spec §2.2, D5). Notazione: Activation · Tracer · Impact · Footprint.
+	// Le ragioni stanno nella spec, una riga per override; qui solo i dati.
+	// ⚠️ `Hero.Aevik.ReactiveCapacitor` NON ha riga (F22, ➕ rev2.): il suo contrattacco non emette un evento `Attack`
+	// (`RTTurnManager.cpp:6357` contro `:6460-6468`), quindi non ha colpo da disegnare; resta il default della forma.
+	static const TArray<TPair<FName, FRTAbilityFxProfile>> Righe = []()
+	{
+		using A = ERTActivationFxStyle;
+		using T = ERTTracerStyle;
+		using I = ERTImpactFxStyle;
+		using F = ERTFootprintFxStyle;
+		TArray<TPair<FName, FRTAbilityFxProfile>> R;
+		auto Riga = [&R](const TCHAR* Id, const FRTAbilityFxProfile& P) { R.Emplace(FName(Id), P); };
+		Riga(TEXT("Hero.Aevik.LinearDischarge"), URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::Zigzag, I::Marker, F::None));
+		Riga(TEXT("Hero.Aevik.Overload"),        URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::Marker, F::AreaPulse));
+		Riga(TEXT("Hero.Muiren.CircularTide"),   URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::Marker, F::AreaPulse));
+		Riga(TEXT("Hero.Muiren.TideGuard"),      URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::None,   F::None));
+		Riga(TEXT("Hero.Branth.Ram"),            URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Hero.Ivrin.InterceptShot"),   URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::None,   F::None));
+		Riga(TEXT("Hero.Ivrin.PassingBlade"),    URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Hero.Ivrin.Feint"),           URTPresentationBindingLibrary::MakeFxProfile(A::Flash, T::None,   I::None,   F::None));
+		Riga(TEXT("Hero.Ivrin.PhaseGuard"),      URTPresentationBindingLibrary::MakeFxProfile(A::Pulse, T::None,   I::None,   F::None));
+		Riga(TEXT("Action.Charge"),              URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		// #3578, Ruling R15 del controller (review del Task 2, la logica della riga `Ram`): un'azione CORE che conta come
+		// attacco (`bCountsAsAttack`) ed e' A CONTATTO — `RangeCells == 1` — non disegna un proiettile: dalla cella adiacente
+		// mentirebbe. ⚠️ `RangeCells <= 0` NON e' contatto: e' «la portata del portatore» (`FRTActionDef::RangeCells`, punto 2),
+		// quindi `BasicAttack`, `PrecisionAttack`, `HeavyAttack` e `MarkTarget` tengono il default della forma.
+		// Si misura sul catalogo: `URTCatalogLibrary::GetCoreActionCatalog()` filtrato su `bCountsAsAttack && RangeCells == 1`
+		// — e' cio' che `Fx.DeclaredOverridesMatchTheProposal` deriva e confronta con queste righe, che restano esplicite.
+		// Forma: `FRTActionDef` non porta `Shape`; l'azione core vive in un `URTActionData` di forma `Single` (default del
+		// campo, `Ability/RTActionData.h`). Volo di `Single` (R13); attivazione, impatto e impronta del default di `Single`.
+		Riga(TEXT("Action.Push"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Root"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Slow"),                URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		Riga(TEXT("Action.Interrupt"),           URTPresentationBindingLibrary::MakeFxProfile(A::Ring,  T::None,   I::Marker, F::None));
+		return R;
+	}();
+	return Righe;
+}
+
+const TMap<FName, FRTAbilityFxProfile>& URTPresentationBindingLibrary::DeclaredFxOverrides()
+{
+	static const TMap<FName, FRTAbilityFxProfile> Mappa = []()
+	{
+		TMap<FName, FRTAbilityFxProfile> M;
+		for (const TPair<FName, FRTAbilityFxProfile>& Riga : URTPresentationBindingLibrary::DeclaredFxOverrideRows())
+		{
+			M.Add(Riga.Key, Riga.Value);
+		}
+		return M;
+	}();
+	return Mappa;
+}
+
+FRTAbilityFxProfile URTPresentationBindingLibrary::FxProfileForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+	FName ActionId, FName BaseActionId, ERTAbilityShape Shape)
+{
+	// R12 (spec §2.2, F8): nessuna azione, nessun profilo — gli attacchi legacy restano senza FX e senza volo.
+	if (ActionId.IsNone() && BaseActionId.IsNone())
+	{
+		return FRTAbilityFxProfile();
+	}
+	if (!ActionId.IsNone())
+	{
+		if (const FRTAbilityFxProfile* P = Overrides.Find(ActionId))
+		{
+			return *P;
+		}
+	}
+	if (!BaseActionId.IsNone())
+	{
+		if (const FRTAbilityFxProfile* P = Overrides.Find(BaseActionId))
+		{
+			return *P;
+		}
+	}
+	return DefaultFxProfileFor(Shape);
+}
+
+FRTAbilityFxProfile URTPresentationBindingLibrary::FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape)
+{
+	return FxProfileForIn(DeclaredFxOverrides(), ActionId, BaseActionId, Shape);
 }

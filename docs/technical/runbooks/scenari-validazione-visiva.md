@@ -214,6 +214,7 @@ la spinta non si legge, non è un difetto del VFX — è la §8.1.
 | `Movement.Collision` *(esiste)* | r3 | chi cede la cella contesa, e che si capisca **perché** | già nel corpus |
 | `Combat.CounterStrikesBack` *(esiste)* | r4 | la terza grammatica difensiva: lo scudo assorbe **e** restituisce danno | già nel corpus |
 | `Visual.Ability.CastBeat` | r4 | il **momento** del cast: TideGuard di Muiren, che non colpisce nessuno, ha un beat sulla sorgente in Prep; ImpactShot di Branth mostra **due** momenti, il cast e poi l'impatto | scritto |
+| `Visual.Ability.FxProfile` | r5 | il **profilo FX** di un'abilità ([#3578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3578)): al primo numero del mortaio di Branth un esagono a raggi si allarga **una volta** dal centro dell'area, e una X compare su **ciascuna** delle due vittime; prima dell'onda di `Overload`, raggi inclinati sulla cella di Aevik. Lo zigzag della scarica lineare si guarda in `Visual.Combat.WaterElectricCoordinated` | scritto |
 
 `Visual.Reaction.Interposition` è il caso più istruttivo del catalogo. La capability `Reaction` è
 **disponibile** — `Hero.Riktor.Interposition` è cablata e automatica. Ma `FRTScenarioIntent` ha `UnitId`, `Move`,

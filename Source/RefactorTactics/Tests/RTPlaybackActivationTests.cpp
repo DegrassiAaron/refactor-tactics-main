@@ -135,6 +135,37 @@ namespace
 		GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero.FindOrAdd(HeroId)
 			.PerAction.FindOrAdd(ActionId).PerRole.Add(Ruolo, Pool);
 	}
+
+	// --- Le cue d'attivazione (#3578, spec «il profilo FX» §2.3) ------------------------------------------------
+
+	/** L'`AbilityActivated` della sorgente data, letto DOPO `LockInAndResolve` (prima il `StableUnitId` vale 0). */
+	const FRTResolvedEvent* BeatAttivazioneDi(const ARTTurnManager* TM, const ARTUnit* Sorgente)
+	{
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Sorgente && Ev.SourceStableUnitId == Sorgente->StableUnitId)
+			{
+				return &Ev;
+			}
+		}
+		return nullptr;
+	}
+
+	bool BeatHaCue(const ARTHexMapActor* Mappa, ERTPlaybackCueKind Tipo, const FRTCellId& Cella)
+	{
+		return Mappa && Mappa->GetPlaybackCues().ContainsByPredicate([&](const FRTPlaybackCue& C)
+		{
+			return C.Kind == Tipo && C.At == Cella;
+		});
+	}
+
+	bool BeatHaCueDiAttivazione(const ARTHexMapActor* Mappa)
+	{
+		return Mappa && Mappa->GetPlaybackCues().ContainsByPredicate([](const FRTPlaybackCue& C)
+		{
+			return C.Kind == ERTPlaybackCueKind::Ring || C.Kind == ERTPlaybackCueKind::Pulse || C.Kind == ERTPlaybackCueKind::Flash;
+		});
+	}
 }
 
 /**
@@ -682,6 +713,208 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 		Caricatore->LastResolvedClipPathForTest(ERTPresentationRole::Attack).ToString(), FString(ClipCaricaImpatto));
 	TestEqual(TEXT("e il cast della carica, nel Dash, la clip Cast dello scatto"),
 		Caricatore->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(), FString(ClipCaricaLancio));
+	return true;
+}
+
+/**
+ * Regressione zero sul tracer di un attacco base, a mondo (spec §5.1, D5): a meta' volo il canale ha UN tracer con
+ * `From`, `To`, `Style = Projectile` e `Alpha` uguali alle formule di prima di #3578.
+ * 🔑 Fixture `CostruisciBeat` col viewer 0 (mondo inizializzato, viewer asserito): il Tiratore e' Branth in (0,0)
+ * con `ImpactShot` sul bersaglio in (1,0). L'indice del colpo nella sequenza si legge dopo `LockInAndResolve`.
+ * ⚠️ **Pin di regressione, non coperto dalle mutazioni del set di #3578** ((5), (6), (17), (19), (22), (1): nessuna tocca il
+ * tracer di un attacco base). Lo fanno cadere, in `ARTTurnManager::PushPlaybackTracers`: `T.Style = ERTTracerStyle::Jet` al
+ * posto di `T.Style = Style` («🔴 Style = Projectile»), oppure `TracerAlpha(Elemento + 1, …)` («Alpha = (t − k·A) / F»).
+ * ✅ Validato per mutazione (review del Task 2, M2): `T.Style = ERTTracerStyle::Jet`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBasicAttackTracerIsUnchangedTest,
+	"RefactorTactics.Playback.BasicAttackTracerIsUnchanged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBasicAttackTracerIsUnchangedTest::RunTest(const FString&)
+{
+	FRTBeatDiProva B;
+	const bool bOk = CostruisciBeat(*this, /*Viewer*/ 0, B);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+	if (!bOk) { return false; }
+	ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(B.World);
+	if (!TestNotNull(TEXT("mappa"), Mappa)) { return false; }
+	B.TM->LockInAndResolve();
+
+	int32 K = INDEX_NONE;
+	const TArray<int32> Sequenza = B.TM->PlaybackBlastSequenceIndicesForTest();
+	for (int32 I = 0; I < Sequenza.Num(); ++I)
+	{
+		const FRTResolvedEvent& Ev = B.TM->ResolvedTimelineForTest()[Sequenza[I]];
+		if (Ev.Type == ERTResolvedEventType::Attack && Ev.SourceStableUnitId == B.Tiratore->StableUnitId) { K = I; }
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il colpo del tiratore e' nella sequenza del Blast"), K != INDEX_NONE)) { return false; }
+	const float A = B.TM->AttackShowSeconds;
+	const float Volo = FMath::Clamp(B.TM->TracerFlightSeconds, 0.f, 0.5f * A); // la formula di `TracerFlightFor`
+
+	bool bVisto = false;
+	for (int32 I = 0; I < 600 && B.TM->IsResolving(); ++I)
+	{
+		B.TM->Tick(0.02f);
+		if (B.TM->CurrentPlaybackPhaseForTest() != ERTMatchPhase::Blast || Mappa->NumPlaybackTracers() != 1) { continue; }
+		bVisto = true;
+		const FRTPlaybackTracer& T = Mappa->GetPlaybackTracers()[0];
+		TestTrue(TEXT("From = cella del tiratore"), T.From == FRTCellId(0, 0));
+		TestTrue(TEXT("To = cella del bersaglio"), T.To == FRTCellId(1, 0));
+		TestTrue(TEXT("🔴 Style = Projectile"), T.Style == ERTTracerStyle::Projectile);
+		const float Atteso = FMath::Clamp((B.TM->PlaybackPhaseElapsedForTest() - K * A) / Volo, 0.f, 1.f);
+		TestEqual(TEXT("Alpha = (t − k·A) / F"), T.Alpha, Atteso, 1e-3f);
+	}
+	TestTrue(TEXT("🔴 a meta' volo il tracer c'e'"), bVisto);
+	return true;
+}
+
+/**
+ * La cue d'attivazione esce sulla cella dell'EVENTO, nell'istante della rivelazione, e si spegne dopo `D_act` — spec
+ * «il profilo FX» §2.3, R5, R6. Tre fasi: `Pulse` di TideGuard in Prep, `Ring` di ImpactShot nel Blast, `Ring` di Ram
+ * nel Dash. E a ogni cambio di fase il canale e' vuoto.
+ *
+ * 🔴 **La premessa di F15**: nella prima fixture nessuna sorgente si sposta, quindi `Ev.Origin == Src->Cell` e una
+ * cue letta dall'attore passerebbe. La seconda meta' usa la carica di `Playback.ChargeImpactPlaysTheDashAttackClip`:
+ * Branth parte da (1,0) e finisce addosso al bersaglio — `Ev.Origin != Src->Cell` a fine risoluzione, ASSERITO.
+ * ✅ Validato per mutazione (7): la cella presa da `Src->Cell` fa cadere «Ring di Ram su Ev.Origin».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActivationCueAtTheSourceCellTest,
+	"RefactorTactics.Playback.ActivationCueAtTheSourceCell",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActivationCueAtTheSourceCellTest::RunTest(const FString&)
+{
+	{
+		FRTBeatDiProva B;
+		const bool bOk = CostruisciBeat(*this, /*Viewer*/ 0, B);
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+		if (!bOk) { return false; }
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(B.World);
+		B.TM->LockInAndResolve();
+		const FRTResolvedEvent* AttScudo = BeatAttivazioneDi(B.TM, B.Scudo);
+		const FRTResolvedEvent* AttTiratore = BeatAttivazioneDi(B.TM, B.Tiratore);
+		if (!TestTrue(TEXT("⛔ premessa: mappa e due attivazioni in timeline"), Mappa && AttScudo && AttTiratore)) { return false; }
+		const FRTCellId OrigineScudo = AttScudo->Origin;
+		const FRTCellId OrigineTiratore = AttTiratore->Origin;
+		const float Dact = URTPlaybackLibrary::ActivationCueDuration(B.TM->ActivationCueSeconds, B.TM->AttackShowSeconds);
+
+		// ⚠️ «A fine fase il canale e' vuoto» si misura per CELLA E TIPO della fase lasciata, non come canale vuoto al
+		// primo tick della fase dopo: il Blast rivela la sua prima attivazione a t = 0, nello stesso tick dell'ingresso.
+		bool bPulse = false, bRing = false, bPulseOltre = false, bPulseFuoriDallaPrep = false, bRingFuoriDalBlast = false;
+		float RivScudo = -1.f;
+		for (int32 I = 0; I < 600 && B.TM->IsResolving(); ++I)
+		{
+			B.TM->Tick(0.02f);
+			const ERTMatchPhase Fase = B.TM->CurrentPlaybackPhaseForTest();
+			const float T = B.TM->PlaybackPhaseElapsedForTest();
+			bPulseFuoriDallaPrep |= RivScudo >= 0.f && Fase != ERTMatchPhase::Prep
+				&& BeatHaCue(Mappa, ERTPlaybackCueKind::Pulse, OrigineScudo);
+			bRingFuoriDalBlast |= bRing && Fase != ERTMatchPhase::Blast
+				&& BeatHaCue(Mappa, ERTPlaybackCueKind::Ring, OrigineTiratore);
+			if (RivScudo < 0.f && B.Scudo->CastCuesPlayedForTest() == 1)
+			{
+				RivScudo = T;
+				bPulse = BeatHaCue(Mappa, ERTPlaybackCueKind::Pulse, OrigineScudo);
+			}
+			else if (RivScudo >= 0.f && Fase == ERTMatchPhase::Prep && T >= RivScudo + Dact)
+			{
+				bPulseOltre |= BeatHaCue(Mappa, ERTPlaybackCueKind::Pulse, OrigineScudo);
+			}
+			if (!bRing && Fase == ERTMatchPhase::Blast && B.Tiratore->CastCuesPlayedForTest() == 1)
+			{
+				bRing = BeatHaCue(Mappa, ERTPlaybackCueKind::Ring, OrigineTiratore);
+			}
+		}
+		TestTrue(TEXT("🔴 Pulse su Ev.Origin dello scudo, al tick della rivelazione in Prep"), bPulse);
+		TestTrue(TEXT("🔴 Ring su Ev.Origin del tiratore, al tick della rivelazione nel Blast"), bRing);
+		TestFalse(TEXT("dopo D_act il Pulse non c'e' piu'"), bPulseOltre);
+		TestFalse(TEXT("finita la Prep, il Pulse non sopravvive"), bPulseFuoriDallaPrep);
+		TestFalse(TEXT("finito il Blast, il Ring non sopravvive"), bRingFuoriDalBlast);
+		TestEqual(TEXT("a fine playback il canale e' vuoto"), Mappa->NumPlaybackCues(), 0);
+	}
+	{
+		// La carica: viewer di ripiego (squadra 0, mondo non inizializzato), come `ChargeImpactPlaysTheDashAttackClip`.
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		BeatMappa(World, 8);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		ARTUnit* Caricatore = SpawnBeatUnit(World, 0, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(1, 0));
+		ARTUnit* Bersaglio  = SpawnBeatUnit(World, 1, URTHeroCatalogLibrary::MakeAevik(), FRTCellId(-1, 0));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Caricatore || !Bersaglio || !Mappa) { return false; }
+		const int32 IndiceRam = BeatIndiceAbilita(Caricatore, TEXT("Hero.Branth.Ram"));
+		if (!TestTrue(TEXT("⛔ premessa: Branth ha Ram"), IndiceRam != INDEX_NONE)) { return false; }
+		Caricatore->PlannedDashAbility = IndiceRam;
+		Caricatore->PlannedDashCell = Bersaglio->Cell;
+		Caricatore->PlannedCell = Caricatore->Cell;
+		TM->RefreshTeamKnowledgeNow();
+		TM->LockInAndResolve();
+
+		const FRTResolvedEvent* AttRam = BeatAttivazioneDi(TM, Caricatore);
+		if (!TestTrue(TEXT("⛔ premessa: l'attivazione di Ram e' in timeline, nel Dash"),
+				AttRam && AttRam->Phase == ERTMatchPhase::Dash)
+			|| !TestTrue(TEXT("⛔ premessa F15: Ev.Origin e' la cella di partenza"), AttRam->Origin == FRTCellId(1, 0))
+			|| !TestFalse(TEXT("⛔ premessa F15: e a fine risoluzione l'attore NON e' piu' li'"), Caricatore->Cell == AttRam->Origin))
+		{
+			return false;
+		}
+		const FRTCellId OrigineRam = AttRam->Origin;
+		// ⚠️ Nessun `break`: il ciclo arriva alla fine del playback, cosi' si misura anche che il `Ring` del Dash non
+		// sopravvive alla sua fase (spec §5.1: canale vuoto a fine Prep, Dash e Blast).
+		bool bRingRam = false, bRingFuoriDalDash = false, bRivelata = false;
+		for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.02f);
+			const ERTMatchPhase Fase = TM->CurrentPlaybackPhaseForTest();
+			if (!bRivelata && Caricatore->CastCuesPlayedForTest() == 1)
+			{
+				bRivelata = true;
+				bRingRam = BeatHaCue(Mappa, ERTPlaybackCueKind::Ring, OrigineRam);
+			}
+			bRingFuoriDalDash |= bRivelata && Fase != ERTMatchPhase::Dash
+				&& BeatHaCue(Mappa, ERTPlaybackCueKind::Ring, OrigineRam);
+		}
+		TestTrue(TEXT("🔴 Ring di Ram su Ev.Origin, non sulla cella dell'attore"), bRingRam);
+		TestFalse(TEXT("finito il Dash, il Ring di Ram non sopravvive"), bRingFuoriDalDash);
+		TestEqual(TEXT("a fine playback il canale e' vuoto"), Mappa->NumPlaybackCues(), 0);
+	}
+	return true;
+}
+
+/**
+ * Review Focus (a): chi non vede la sorgente non riceve NESSUNA cue d'attivazione su nessun tick, e la riga
+ * `Attiva:` resta congelata sul verdetto (assente per quella squadra). Controllo positivo col viewer 0.
+ * 🔑 Fixture di `Playback.HiddenSourceHasNoActivationBeat` (qui sopra): viewer 7, squadra senza unita' in campo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyHiddenSourceDeliversNoActivationCueTest,
+	"RefactorTactics.Privacy.HiddenSourceDeliversNoActivationCue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyHiddenSourceDeliversNoActivationCueTest::RunTest(const FString&)
+{
+	for (const int32 Viewer : { 7, 0 })
+	{
+		FRTBeatDiProva B;
+		const bool bOk = CostruisciBeat(*this, Viewer, B);
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+		if (!bOk) { return false; }
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(B.World);
+		B.TM->LockInAndResolve();
+		bool bVista = false;
+		for (int32 I = 0; I < 600 && B.TM->IsResolving(); ++I)
+		{
+			B.TM->Tick(0.02f);
+			bVista |= BeatHaCueDiAttivazione(Mappa);
+		}
+		if (Viewer == 7)
+		{
+			TestFalse(TEXT("🔴 sorgente non osservata: nessuna cue d'attivazione su nessun tick"), bVista);
+			TestFalse(TEXT("e la riga Attiva: resta nascosta a quella squadra (verdetto congelato)"), HaRigaAttiva(B.TM, 7));
+		}
+		else
+		{
+			TestTrue(TEXT("controllo positivo: il viewer 0 vede le cue d'attivazione"), bVista);
+			TestTrue(TEXT("e la riga Attiva:"), HaRigaAttiva(B.TM, 0));
+		}
+	}
 	return true;
 }
 

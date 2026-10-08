@@ -275,17 +275,95 @@ public:
 	static float TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight);
 
 	/**
-	 * Le condizioni 1-3 della spec §2.1: un `Attack` di un attacco base (`ActionId` OPPURE `BaseActionId` ==
-	 * `Action.BasicAttack`), di forma `Single` o `Line`, con geometria risolta. Decide il RITMO: non legge chi guarda.
-	 * ⚠️ Idoneita' PROVVISORIA e dichiarata: la sostituisce la tabella `ActionId -> profilo` del sotto-progetto 4.
+	 * Il VOLO di un colpo (#3578, spec «il profilo FX» §2.2, R12, R13): un `Attack` con geometria risolta, con un id
+	 * (`ActionId` o `BaseActionId`), la cui forma di DEFAULT ha un tracer (`Single`, `Line`). Decide il RITMO: non
+	 * legge l'override ne' chi guarda.
+	 * ⌫ *Era «un attacco base, idoneita' PROVVISORIA»: la tabella del sotto-progetto 4 l'ha sostituita.*
 	 */
 	static bool IsTracerEligible(const FRTResolvedEvent& Ev);
 
 	/**
-	 * Lo stile del tracer per chi guarda: `None` se non idoneo, o se la squadra non conosceva l'attaccante in
-	 * `From` OPPURE la vittima in `Impact` (spec §0.3, P1). Decide il DISEGNO, mai il ritmo.
+	 * Lo stile del tracer per chi guarda: `None` se non idoneo o se la squadra non conosceva l'attaccante in `From`
+	 * OPPURE la vittima in `Impact` (spec del tracer §0.3, P1); altrimenti il `Tracer` del profilo FX, che puo' essere
+	 * `None` con lo stesso volo (R13). Decide il DISEGNO, mai il ritmo.
 	 */
 	static ERTTracerStyle TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/** `TracerStyleFor` su una tabella d'override data (pura, per i test: come `FxProfileForIn`). */
+	static ERTTracerStyle TracerStyleForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+		const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
+	 * La polilinea di uno `Zigzag` (#3578, spec §2.1, F11, F12): otto segmenti fra `From` e `To`, scarto laterale
+	 * `±0.12·HexSize` alternato per INDICE di vertice, tagliata da `Alpha` — quindi a `α` minore e' un PREFISSO di quella
+	 * a `α` maggiore. Pura: nessun `Rand`, nessun orologio. Per ogni altro stile `OutPoints` resta vuoto.
+	 */
+	static void TracerPolyline(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+		float HexSize, TArray<FVector>& OutPoints);
+
+	// --- Le cue del profilo FX (#3578, spec «il profilo FX per abilita'» §2.1, §2.3-§2.4) ----------------------
+	// 🔑 Funzioni dell'orologio (`PhaseElapsed`) e del cursore (`Shown`, `BeatsDone`), e di nient'altro (§2.6): un tick
+	// unico fino a t e molti tick fino a t danno le stesse cue.
+
+	/** `D_act = A > 0 ? Min(Max(0, ActivationCueSeconds), A) : 0` (R2): la cue finisce prima dell'elemento dopo. */
+	static float ActivationCueDuration(float ActivationCueSeconds, float AttackShowSeconds);
+
+	/**
+	 * La cue d'attivazione di un `AbilityActivated`: lo stile `Activation` del profilo, sulla cella `Ev.Origin`.
+	 * ⛔ Falso se chi guarda non e' in `SourceVerdict` (R7: seconda porta dopo le code), o se lo stile e' `None`.
+	 */
+	static bool ActivationCueFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue);
+
+	/** Prep e Dash: le attivazioni gia' rivelate (`Shown`) la cui finestra `[k·A, k·A + D_act)` contiene `PhaseElapsed`. */
+	static void ActivationCuesAt(const TArray<FRTResolvedEvent>& Activations, int32 Shown, float PhaseElapsed,
+		float AttackShowSeconds, float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
+
+	/** Blast: gli `AbilityActivated` della sequenza rivelati (`BeatsDone > 2k`) nella loro finestra `[k·A, k·A + D_act)`. */
+	static void BlastActivationCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Sequence, int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds,
+		float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
+
+	/** `D_imp = A > 0 ? Min(Max(0, ImpactCueSeconds), A − F_eff) : 0` (R2): finisce prima del lancio dopo. */
+	static float ImpactCueDuration(float ImpactCueSeconds, float AttackShowSeconds, float Flight);
+
+	/**
+	 * Il `Marker` di un `Attack`: sulla `HitGeometry.Impact`, se il profilo dice `Marker`, la geometria e' risolta e
+	 * chi guarda e' in `ImpactVerdict`. Ogni vittima e' un evento: ogni `Attack` ha il suo (F6).
+	 */
+	static bool ImpactCueFor(const FRTResolvedEvent& Atk, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue);
+
+	/**
+	 * La cue d'impronta dell'atto, portata dal colpo che la consuma: `AreaPulse` sull'`AimCell` dell'impronta,
+	 * `ConeSweep` da `Origin` verso `AimCell`. Il VERDETTO e' quello del colpo (`FromVerdict`: per un'`Area` e' il
+	 * centro), le CELLE quelle dell'impronta, e coincidono per costruzione (spec §2.4).
+	 */
+	static bool FootprintCueFor(const FRTResolvedEvent& Footprint, const FRTResolvedEvent& Atk, int32 ViewerTeamId,
+		float Alpha, FRTPlaybackCue& OutCue);
+
+	/**
+	 * Per ogni elemento della sequenza, l'indice di timeline dell'impronta che consuma, o `INDEX_NONE` (spec §2.4):
+	 * un `AttackFootprint` apre la chiave `(SourceStableUnitId, ActionId)` del suo atto, il PRIMO `Attack` successivo con
+	 * la stessa chiave la consuma. Sorgente `0` (D-063): nessuna associazione. R14: una seconda impronta con la stessa
+	 * chiave, ancora aperta, SOSTITUISCE la prima (log `Verbose`). Pura: si ricalcola anche estendendo.
+	 */
+	static TArray<int32> FootprintFxForSequence(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Sequence);
+
+	/**
+	 * Blast: per ogni `Attack` ARRIVATO (`BeatsDone > 2k+1`) nella sua finestra `[k·A + F_k, k·A + F_k + D_imp(k))`, il
+	 * `Marker` e, se l'elemento consuma un'impronta, la cue d'impronta. Con volo nullo l'arrivo coincide col lancio.
+	 */
+	static void BlastHitCuesAt(const TArray<FRTResolvedEvent>& Timeline, const TArray<FRTBlastSequenceElement>& Sequence,
+		const TArray<float>& Flights, const TArray<int32>& FootprintFx, int32 BeatsDone, float PhaseElapsed,
+		float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
+
+	/**
+	 * I segmenti di una cue (#3578, spec §2.1, F7, F21), in coppie `OutStarts[i] → OutEnds[i]`, attorno ad `At` (nel mondo).
+	 * `Toward` serve solo a `ConeSweep`. Scale in frazioni di `HexSize`, graybox (D-287 punto 7) ma DIVERSE a coppie:
+	 * lo pinna `Fx.CueStylesDifferByGeometry`. Pura: la usa il disegno di `ARTHexMapActor`.
+	 */
+	static void CueSegments(ERTPlaybackCueKind Kind, const FVector& At, const FVector& Toward, float HexSize, float Alpha,
+		TArray<FVector>& OutStarts, TArray<FVector>& OutEnds);
 
 	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.

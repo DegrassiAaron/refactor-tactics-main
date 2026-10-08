@@ -1,5 +1,8 @@
 #include "Turn/RTPlaybackLibrary.h"
 
+#include "Turn/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
+#include "RefactorTactics.h" // #3578: `LogRT`, per il log `Verbose` di R14
+
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
 	const int32 N = Waypoints.Num();
@@ -129,14 +132,19 @@ float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, flo
 
 bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
 {
-	static const FName BasicAttack(TEXT("Action.BasicAttack"));
+	// #3578 (spec «il profilo FX» §2.2, R12, R13): il VOLO — quindi il ritmo — e' la sola forma di DEFAULT di un'azione
+	// con un id. Non legge l'override ne' chi guarda: un attaccante non visto non rivela col ritardo l'override della
+	// sua azione. ⚠️ ➕ rev2. Il ritmo e' «stesso volo a parita' di indice nella sequenza», e l'indice dipende dalle
+	// attivazioni che chi guarda ha il diritto di vedere (`BuildBlastSequence`, D6 del momento).
+	// ⏱️ *Fino a #3578 l'idoneita' era «attacco base», dichiarata provvisoria (spec del tracer §2.1, condizione 1).*
 	return Ev.Type == ERTResolvedEventType::Attack
-		&& (Ev.ActionId == BasicAttack || Ev.BaseActionId == BasicAttack)
-		&& (Ev.Shape == ERTAbilityShape::Single || Ev.Shape == ERTAbilityShape::Line)
-		&& Ev.HitGeometry.bResolved;
+		&& Ev.HitGeometry.bResolved
+		&& !(Ev.ActionId.IsNone() && Ev.BaseActionId.IsNone()) // R12: nessuna azione, nessun volo
+		&& URTPresentationBindingLibrary::DefaultFxProfileFor(Ev.Shape).Tracer != ERTTracerStyle::None;
 }
 
-ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+ERTTracerStyle URTPlaybackLibrary::TracerStyleForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+	const FRTResolvedEvent& Ev, int32 ViewerTeamId)
 {
 	if (!IsTracerEligible(Ev)
 		|| !Ev.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId)
@@ -144,7 +152,334 @@ ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, in
 	{
 		return ERTTracerStyle::None;
 	}
-	return Ev.Shape == ERTAbilityShape::Line ? ERTTracerStyle::Jet : ERTTracerStyle::Projectile;
+	// Il DISEGNO: lo stile del profilo. `None` qui = stesso volo, nessun disegno (R13: `Ram`, `PassingBlade`).
+	return URTPresentationBindingLibrary::FxProfileForIn(Overrides, Ev.ActionId, Ev.BaseActionId, Ev.Shape).Tracer;
+}
+
+ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return TracerStyleForIn(URTPresentationBindingLibrary::DeclaredFxOverrides(), Ev, ViewerTeamId);
+}
+
+void URTPlaybackLibrary::TracerPolyline(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+	float HexSize, TArray<FVector>& OutPoints)
+{
+	OutPoints.Reset();
+	if (Style != ERTTracerStyle::Zigzag)
+	{
+		return; // `Projectile` e `Jet` restano su `TracerSegment` (F11)
+	}
+	constexpr int32 Segmenti = 8;
+	const FVector Asse = To - From;
+	const FVector Laterale = FVector::CrossProduct(Asse, FVector::UpVector).GetSafeNormal();
+	const float Scarto = 0.12f * HexSize;
+	auto Vertice = [&](int32 I) -> FVector
+	{
+		if (I <= 0) { return From; }
+		if (I >= Segmenti) { return To; }
+		// 🔑 Il segno dall'INDICE del vertice, mai da `Alpha` (F12): e' cio' che rende la linea un prefisso che cresce.
+		const float Segno = (I % 2 == 1) ? 1.f : -1.f;
+		return From + Asse * (static_cast<float>(I) / Segmenti) + Laterale * (Segno * Scarto);
+	};
+	const float T = FMath::Clamp(Alpha, 0.f, 1.f) * Segmenti;
+	const int32 Interi = FMath::Min(FMath::FloorToInt(T), Segmenti);
+	for (int32 I = 0; I <= Interi; ++I)
+	{
+		OutPoints.Add(Vertice(I));
+	}
+	if (Interi < Segmenti && T - Interi > KINDA_SMALL_NUMBER)
+	{
+		OutPoints.Add(FMath::Lerp(Vertice(Interi), Vertice(Interi + 1), T - Interi));
+	}
+}
+
+float URTPlaybackLibrary::ActivationCueDuration(float ActivationCueSeconds, float AttackShowSeconds)
+{
+	return AttackShowSeconds > 0.f ? FMath::Min(FMath::Max(0.f, ActivationCueSeconds), AttackShowSeconds) : 0.f;
+}
+
+bool URTPlaybackLibrary::ActivationCueFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Ev.Type != ERTResolvedEventType::AbilityActivated
+		|| !Ev.SourceVerdict.AllowsTeam(ViewerTeamId)) // R7: fail-closed anche se la coda e' gia' filtrata
+	{
+		return false;
+	}
+	switch (URTPresentationBindingLibrary::FxProfileFor(Ev.ActionId, Ev.BaseActionId, Ev.Shape).Activation)
+	{
+	case ERTActivationFxStyle::Ring:  OutCue.Kind = ERTPlaybackCueKind::Ring;  break;
+	case ERTActivationFxStyle::Pulse: OutCue.Kind = ERTPlaybackCueKind::Pulse; break;
+	case ERTActivationFxStyle::Flash: OutCue.Kind = ERTPlaybackCueKind::Flash; break;
+	default: return false;
+	}
+	OutCue.At = Ev.Origin;
+	OutCue.Toward = Ev.Origin;
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+void URTPlaybackLibrary::ActivationCuesAt(const TArray<FRTResolvedEvent>& Activations, int32 Shown, float PhaseElapsed,
+	float AttackShowSeconds, float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out)
+{
+	const float Durata = ActivationCueDuration(ActivationCueSeconds, AttackShowSeconds);
+	if (Durata <= 0.f)
+	{
+		return; // `A <= 0`: tutto in un frame, nessuna cue (spec §4)
+	}
+	for (int32 K = 0; K < FMath::Min(Shown, Activations.Num()); ++K)
+	{
+		const float Inizio = AttackLaunchSeconds(K, AttackShowSeconds);
+		if (PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		FRTPlaybackCue Cue;
+		if (ActivationCueFor(Activations[K], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+void URTPlaybackLibrary::BlastActivationCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds,
+	float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out)
+{
+	const float Durata = ActivationCueDuration(ActivationCueSeconds, AttackShowSeconds);
+	if (Durata <= 0.f)
+	{
+		return;
+	}
+	for (int32 K = 0; K < Sequence.Num() && BeatsDone > 2 * K; ++K) // il battito `2k` rivela l'elemento `k`
+	{
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice) || Timeline[Indice].Type != ERTResolvedEventType::AbilityActivated)
+		{
+			continue;
+		}
+		const float Inizio = AttackLaunchSeconds(K, AttackShowSeconds);
+		if (PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		FRTPlaybackCue Cue;
+		if (ActivationCueFor(Timeline[Indice], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+float URTPlaybackLibrary::ImpactCueDuration(float ImpactCueSeconds, float AttackShowSeconds, float Flight)
+{
+	return AttackShowSeconds > 0.f
+		? FMath::Max(0.f, FMath::Min(FMath::Max(0.f, ImpactCueSeconds), AttackShowSeconds - FMath::Max(0.f, Flight)))
+		: 0.f;
+}
+
+bool URTPlaybackLibrary::ImpactCueFor(const FRTResolvedEvent& Atk, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Atk.Type != ERTResolvedEventType::Attack
+		|| !Atk.HitGeometry.bResolved
+		|| !Atk.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return false;
+	}
+	if (URTPresentationBindingLibrary::FxProfileFor(Atk.ActionId, Atk.BaseActionId, Atk.Shape).Impact != ERTImpactFxStyle::Marker)
+	{
+		return false;
+	}
+	OutCue.Kind = ERTPlaybackCueKind::Marker;
+	OutCue.At = Atk.HitGeometry.Impact;
+	OutCue.Toward = Atk.HitGeometry.Impact;
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+bool URTPlaybackLibrary::FootprintCueFor(const FRTResolvedEvent& Footprint, const FRTResolvedEvent& Atk,
+	int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Footprint.Type != ERTResolvedEventType::AttackFootprint || Atk.Type != ERTResolvedEventType::Attack
+		|| !Atk.HitGeometry.bResolved
+		|| !Atk.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId))
+	{
+		return false;
+	}
+	switch (URTPresentationBindingLibrary::FxProfileFor(Atk.ActionId, Atk.BaseActionId, Atk.Shape).Footprint)
+	{
+	case ERTFootprintFxStyle::AreaPulse:
+		OutCue.Kind = ERTPlaybackCueKind::AreaPulse;
+		OutCue.At = Footprint.AimCell;
+		OutCue.Toward = Footprint.AimCell;
+		break;
+	case ERTFootprintFxStyle::ConeSweep:
+		OutCue.Kind = ERTPlaybackCueKind::ConeSweep;
+		OutCue.At = Footprint.Origin;
+		OutCue.Toward = Footprint.AimCell;
+		break;
+	default:
+		return false;
+	}
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+TArray<int32> URTPlaybackLibrary::FootprintFxForSequence(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence)
+{
+	TArray<int32> Out;
+	Out.Init(INDEX_NONE, Sequence.Num());
+	// ⛔ Solo `Find`/`Add`/`Remove`: l'esito non dipende dall'ordine d'iterazione della mappa.
+	TMap<TPair<int32, FName>, int32> Aperte;
+	for (int32 K = 0; K < Sequence.Num(); ++K)
+	{
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice))
+		{
+			continue;
+		}
+		const FRTResolvedEvent& Ev = Timeline[Indice];
+		if (Ev.SourceStableUnitId == 0)
+		{
+			continue; // D-063: un atto non attribuibile non si associa (spec §2.4, degrado)
+		}
+		const TPair<int32, FName> Chiave(Ev.SourceStableUnitId, Ev.ActionId);
+		if (Ev.Type == ERTResolvedEventType::AttackFootprint)
+		{
+			if (Aperte.Contains(Chiave))
+			{
+				UE_LOG(LogRT, Verbose, TEXT("FootprintFxForSequence: una seconda impronta per (%d, %s) sostituisce la prima (R14)"),
+					Ev.SourceStableUnitId, *Ev.ActionId.ToString());
+			}
+			Aperte.Add(Chiave, Indice);
+		}
+		else if (Ev.Type == ERTResolvedEventType::Attack)
+		{
+			if (const int32* Impronta = Aperte.Find(Chiave))
+			{
+				Out[K] = *Impronta;
+				Aperte.Remove(Chiave); // il PRIMO colpo la consuma: una cue d'impronta per impronta
+			}
+		}
+	}
+	return Out;
+}
+
+void URTPlaybackLibrary::BlastHitCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, const TArray<float>& Flights, const TArray<int32>& FootprintFx,
+	int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId,
+	TArray<FRTPlaybackCue>& Out)
+{
+	for (int32 K = 0; K < Sequence.Num(); ++K)
+	{
+		const int32 BattitoArrivo = 2 * K + 1;
+		if (BeatsDone <= BattitoArrivo)
+		{
+			break; // la sequenza dei battiti e' monotona: dopo il primo non arrivato, nessuno lo e'
+		}
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice) || Timeline[Indice].Type != ERTResolvedEventType::Attack)
+		{
+			continue;
+		}
+		const FRTResolvedEvent& Atk = Timeline[Indice];
+		const float Volo = Flights.IsValidIndex(K) ? Flights[K] : 0.f;
+		const float Durata = ImpactCueDuration(ImpactCueSeconds, AttackShowSeconds, Volo);
+		const float Inizio = AttackBeatSeconds(BattitoArrivo, AttackShowSeconds, Flights);
+		if (Durata <= 0.f || PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		const float Alpha = (PhaseElapsed - Inizio) / Durata;
+		const int32 Impronta = FootprintFx.IsValidIndex(K) ? FootprintFx[K] : INDEX_NONE;
+		FRTPlaybackCue Cue;
+		if (ImpactCueFor(Atk, ViewerTeamId, Alpha, Cue))
+		{
+			Out.Add(Cue);
+		}
+		if (Timeline.IsValidIndex(Impronta) && FootprintCueFor(Timeline[Impronta], Atk, ViewerTeamId, Alpha, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+void URTPlaybackLibrary::CueSegments(ERTPlaybackCueKind Kind, const FVector& At, const FVector& Toward, float HexSize,
+	float Alpha, TArray<FVector>& OutStarts, TArray<FVector>& OutEnds)
+{
+	OutStarts.Reset();
+	OutEnds.Reset();
+	const float A = FMath::Clamp(Alpha, 0.f, 1.f);
+	const float S = HexSize;
+	auto Direzione = [](float Gradi)
+	{
+		const float R = FMath::DegreesToRadians(Gradi);
+		return FVector(FMath::Cos(R), FMath::Sin(R), 0.f);
+	};
+	auto Esagono = [&](float Raggio)
+	{
+		for (int32 I = 0; I < 6; ++I)
+		{
+			OutStarts.Add(At + Direzione(30.f + 60.f * I) * Raggio);
+			OutEnds.Add(At + Direzione(30.f + 60.f * (I + 1)) * Raggio);
+		}
+	};
+	switch (Kind)
+	{
+	case ERTPlaybackCueKind::Ring:
+		Esagono(FMath::Lerp(0.55f, 0.95f, A) * S);
+		break;
+	case ERTPlaybackCueKind::Pulse:
+		Esagono(FMath::Lerp(1.00f, 0.60f, A) * S);
+		Esagono(FMath::Lerp(0.75f, 0.35f, A) * S);
+		break;
+	case ERTPlaybackCueKind::Flash:
+		for (int32 I = 0; I < 6; ++I)
+		{
+			// F21: inclinati di 45° verso l'alto e l'esterno — un raggio verticale, dalla camera tattica, e' un punto.
+			const FVector Fuori = Direzione(30.f + 60.f * I);
+			const FVector Base = At + Fuori * (0.5f * S);
+			OutStarts.Add(Base);
+			OutEnds.Add(Base + (Fuori + FVector::UpVector).GetSafeNormal() * (0.4f * S));
+		}
+		break;
+	case ERTPlaybackCueKind::Marker:
+		for (int32 I = 0; I < 4; ++I)
+		{
+			OutStarts.Add(At);
+			OutEnds.Add(At + Direzione(45.f + 90.f * I) * (FMath::Lerp(0.f, 0.35f, A) * S));
+		}
+		break;
+	case ERTPlaybackCueKind::AreaPulse:
+	{
+		const float R = FMath::Lerp(0.3f, 1.7f, A) * S;
+		Esagono(R);
+		for (int32 I = 0; I < 6; ++I)
+		{
+			OutStarts.Add(At);
+			OutEnds.Add(At + Direzione(30.f + 60.f * I) * R);
+		}
+		break;
+	}
+	case ERTPlaybackCueKind::ConeSweep:
+	{
+		FVector Asse = Toward - At;
+		Asse.Z = 0.f;
+		const float L = Asse.Size();
+		if (L < KINDA_SMALL_NUMBER)
+		{
+			break; // asse degenere: niente da spazzare, nessun errore (spec §4)
+		}
+		const float Base = FMath::RadiansToDegrees(FMath::Atan2(Asse.Y, Asse.X));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base - 60.f) * (0.3f * L));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base + 60.f) * (0.3f * L));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base + FMath::Lerp(-60.f, 60.f, A)) * L);
+		break;
+	}
+	}
 }
 
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,

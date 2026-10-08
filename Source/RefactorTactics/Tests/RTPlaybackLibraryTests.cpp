@@ -3,6 +3,10 @@
 #include "Turn/RTResolvedEvent.h"
 #include "Turn/RTTurnManager.h" // il default di `PlaybackCellsPerSecond`, letto dal CDO
 #include "Turn/RTTurnRules.h"
+#include "Turn/RTPresentationBinding.h" // #3578: il profilo FX, la tabella e il default per forma
+#include "Ability/RTHeroCatalogLibrary.h"
+#include "Ability/RTHeroData.h"
+#include "Ability/RTActionData.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -432,10 +436,31 @@ bool FRTPlaybackTracerStyleFollowsShapeTest::RunTest(const FString&)
 	TestTrue(TEXT("Cone -> niente"),
 		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Cone), 0) == ERTTracerStyle::None);
 
+	// ➕ #3578 — ECCEZIONE DICHIARATA nella PR (spec «il profilo FX» §5.1). ⏱️ *Fino a #3578 qui c'era
+	// `TestFalse(IsTracerEligible(PassingBlade))`: l'idoneita' era «attacco base», ed era dichiarata provvisoria.*
+	// Con R13 il VOLO lo decide la forma di default (Single → idonea) e il DISEGNO l'override (PassingBlade → None).
 	FRTResolvedEvent Abilita = MakeTracerAttackEvent(ERTAbilityShape::Single);
 	Abilita.ActionId = TEXT("Hero.Ivrin.PassingBlade");
 	Abilita.BaseActionId = NAME_None;
-	TestFalse(TEXT("un'azione che non e' un attacco base non e' idonea"), URTPlaybackLibrary::IsTracerEligible(Abilita));
+	TestTrue(TEXT("un'azione con un id e forma Single e' idonea al VOLO (R13)"), URTPlaybackLibrary::IsTracerEligible(Abilita));
+	// ⚠️ Questo asserto regge su una riga GIUDICATA della tabella (spec §2.2): la variante qui sotto prova il meccanismo.
+	TestTrue(TEXT("🔴 ma PassingBlade non lo DISEGNA: override Tracer = None"),
+		URTPlaybackLibrary::TracerStyleFor(Abilita, 0) == ERTTracerStyle::None);
+
+	// ➕ rev2. La variante a tabella INIETTATA: un'azione Single sintetica con `Tracer = None` vola come la forma e
+	// non si disegna, senza dipendere da nessuna riga dell'autore.
+	TMap<FName, FRTAbilityFxProfile> Prova;
+	Prova.Add(FName(TEXT("Hero.Prova.Lama")), URTPresentationBindingLibrary::MakeFxProfile(
+		ERTActivationFxStyle::Ring, ERTTracerStyle::None, ERTImpactFxStyle::Marker, ERTFootprintFxStyle::None));
+	FRTResolvedEvent Sintetica = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Sintetica.ActionId = TEXT("Hero.Prova.Lama");
+	Sintetica.BaseActionId = NAME_None;
+	TestEqual(TEXT("tabella iniettata: il volo e' quello della forma"),
+		URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Sintetica), 0.25f, 0.5f), 0.25f, RTTol);
+	TestTrue(TEXT("tabella iniettata: lo stile e' None"),
+		URTPlaybackLibrary::TracerStyleForIn(Prova, Sintetica, 0) == ERTTracerStyle::None);
+	TestTrue(TEXT("controllo: senza la riga, il proiettile della forma"),
+		URTPlaybackLibrary::TracerStyleForIn(TMap<FName, FRTAbilityFxProfile>(), Sintetica, 0) == ERTTracerStyle::Projectile);
 
 	FRTResolvedEvent Generica = MakeTracerAttackEvent(ERTAbilityShape::Single);
 	Generica.ActionId = TEXT("Action.BasicAttack");
@@ -496,6 +521,172 @@ bool FRTPrivacyTracerRhythmIsTheSameForEveryViewerTest::RunTest(const FString&)
 		URTPlaybackLibrary::TracerStyleFor(Ev, 0) != URTPlaybackLibrary::TracerStyleFor(Ev, 1));
 	const float Volo = URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Ev), 0.25f, 0.5f);
 	TestEqual(TEXT("e lo stesso volo: l'idoneita' non legge chi guarda"), Volo, 0.25f, RTTol);
+	return true;
+}
+
+// --- Il tracer come caso del profilo FX (#3578, spec «il profilo FX per abilita'» §2.2) --------------------------
+
+/**
+ * L'override decide il disegno: `LinearDischarge` (Line, non base) e' idonea e da' `Zigzag`; `Ram` e `Action.Charge`
+ * volano come la loro forma e non si disegnano.
+ * ✅ Validato per mutazioni (5) — il vecchio corpo di `IsTracerEligible` — e (17) — il volo letto dall'override.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerFollowsTheProfileTest,
+	"RefactorTactics.Playback.TracerFollowsTheProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerFollowsTheProfileTest::RunTest(const FString&)
+{
+	FRTResolvedEvent Scarica = MakeTracerAttackEvent(ERTAbilityShape::Line);
+	Scarica.ActionId = TEXT("Hero.Aevik.LinearDischarge");
+	Scarica.BaseActionId = NAME_None;
+	TestTrue(TEXT("🔴 LinearDischarge idonea"), URTPlaybackLibrary::IsTracerEligible(Scarica));
+	TestTrue(TEXT("e disegnata a zigzag"), URTPlaybackLibrary::TracerStyleFor(Scarica, 0) == ERTTracerStyle::Zigzag);
+
+	for (const TCHAR* Id : { TEXT("Hero.Branth.Ram"), TEXT("Action.Charge") })
+	{
+		FRTResolvedEvent Carica = MakeTracerAttackEvent(ERTAbilityShape::Single);
+		Carica.ActionId = Id;
+		Carica.BaseActionId = NAME_None;
+		TestTrue(FString::Printf(TEXT("🔴 %s idonea al volo"), Id), URTPlaybackLibrary::IsTracerEligible(Carica));
+		TestTrue(FString::Printf(TEXT("%s non disegnata"), Id), URTPlaybackLibrary::TracerStyleFor(Carica, 0) == ERTTracerStyle::None);
+	}
+	// #3578 (review del Task 2): un controllo ostile a contatto vola come `Single` e non si disegna (come `Ram`).
+	FRTResolvedEvent Spinta = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Spinta.ActionId = TEXT("Action.Push");
+	Spinta.BaseActionId = NAME_None;
+	TestTrue(TEXT("Action.Push idonea al volo"), URTPlaybackLibrary::IsTracerEligible(Spinta));
+	TestTrue(TEXT("🔴 Action.Push non disegnata: nessun proiettile da una cella adiacente"),
+		URTPlaybackLibrary::TracerStyleFor(Spinta, 0) == ERTTracerStyle::None);
+	TestTrue(TEXT("controllo: un attacco base resta un proiettile"),
+		URTPlaybackLibrary::TracerStyleFor(MakeTracerAttackEvent(ERTAbilityShape::Single), 0) == ERTTracerStyle::Projectile);
+	return true;
+}
+
+/**
+ * D5/R3 come REGOLA: per ogni attacco base del roster (lista = funzione del catalogo, `MakeHeroBasicAttack` scrive
+ * `BaseActionId`, `MakeHeroBasicAttack` in `Ability/RTHeroCatalogLibrary.cpp`) il tracer e' il default della forma e volo e stile sono
+ * quelli di prima di #3578.
+ * ✅ Validato per mutazione (6): un override `Zigzag` su `PressureJet` (righe E copia del test della tabella).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBasicAttackTracersEqualShapeDefaultTest,
+	"RefactorTactics.Playback.BasicAttackTracersEqualShapeDefault",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBasicAttackTracersEqualShapeDefaultTest::RunTest(const FString&)
+{
+	static const FName Base(TEXT("Action.BasicAttack"));
+	int32 Visti = 0;
+	for (const URTHeroData* Eroe : URTHeroCatalogLibrary::GetHeroRoster())
+	{
+		for (const URTActionData* Azione : Eroe ? Eroe->Actions : TArray<TObjectPtr<URTActionData>>())
+		{
+			if (!Azione || Azione->Def.BaseActionId != Base) { continue; }
+			++Visti;
+			const FString Id = Azione->Def.ActionId.ToString();
+			const ERTAbilityShape Forma = Azione->Shape;
+			TestTrue(FString::Printf(TEXT("🔴 %s: tracer == default della forma"), *Id),
+				URTPresentationBindingLibrary::FxProfileFor(Azione->Def.ActionId, Base, Forma).Tracer
+					== URTPresentationBindingLibrary::DefaultFxProfileFor(Forma).Tracer);
+
+			FRTResolvedEvent Ev = MakeTracerAttackEvent(Forma);
+			Ev.ActionId = Azione->Def.ActionId;
+			Ev.BaseActionId = Base;
+			// Lo stile «di oggi» e' il corpo di `URTPlaybackLibrary::TracerStyleFor` prima di #3578: Line → getto, Single → proiettile.
+			const ERTTracerStyle DiOggi = Forma == ERTAbilityShape::Line ? ERTTracerStyle::Jet
+				: (Forma == ERTAbilityShape::Single ? ERTTracerStyle::Projectile : ERTTracerStyle::None);
+			TestTrue(FString::Printf(TEXT("%s: lo stile di prima"), *Id), URTPlaybackLibrary::TracerStyleFor(Ev, 0) == DiOggi);
+			TestEqual(FString::Printf(TEXT("%s: il volo di prima"), *Id),
+				URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Ev), 0.25f, 0.5f),
+				DiOggi != ERTTracerStyle::None ? 0.25f : 0.f, RTTol);
+		}
+	}
+	TestTrue(TEXT("⛔ premessa: il catalogo dichiara attacchi base"), Visti > 0);
+	return true;
+}
+
+/**
+ * R13 e privacy (F9): il volo — quindi il ritmo — e' funzione della sola forma di default. `Ram` (override senza
+ * tracer) vola come `ImpactShot`: un attaccante non visto non rivela col ritardo l'override della sua azione. E' la
+ * stessa espressione che `BeginPlayback` usa per `PlaybackBlastFlights` (`RTTurnManager.cpp`, il ciclo sotto «il volo di ogni elemento, deciso dall'idoneita'»).
+ * ⚠️ ➕ rev2. Il ritmo e' «stesso volo a parita' di indice nella sequenza», non «lo stesso per ogni squadra»: l'indice
+ * dipende dalle attivazioni visibili (`RTTurnManager.cpp`, il commento «Il ritmo NON e' lo stesso per ogni squadra»). Qui si prova il VOLO, che non legge chi guarda.
+ * ✅ Validato per mutazioni (17) e (5).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyFlightDependsOnShapeNotOverrideTest,
+	"RefactorTactics.Privacy.FlightDependsOnShapeNotOverride",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyFlightDependsOnShapeNotOverrideTest::RunTest(const FString&)
+{
+	FRTResolvedEvent Ram = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Ram.ActionId = TEXT("Hero.Branth.Ram");
+	Ram.BaseActionId = NAME_None;
+	FRTResolvedEvent Tiro = MakeTracerAttackEvent(ERTAbilityShape::Single);
+	Tiro.ActionId = TEXT("Hero.Branth.ImpactShot");
+	if (!TestTrue(TEXT("⛔ premessa: i due colpi hanno disegni diversi"),
+			URTPlaybackLibrary::TracerStyleFor(Ram, 0) != URTPlaybackLibrary::TracerStyleFor(Tiro, 0)))
+	{
+		return false;
+	}
+	for (const float A : { 0.1f, 0.5f, 1.0f })
+	{
+		const float VoloRam = URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Ram), 0.25f, A);
+		const float VoloTiro = URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Tiro), 0.25f, A);
+		TestTrue(FString::Printf(TEXT("premessa A=%.1f: il tiro vola"), A), VoloTiro > 0.f);
+		TestEqual(FString::Printf(TEXT("🔴 A=%.1f: il volo di Ram e' quello di ImpactShot"), A), VoloRam, VoloTiro, RTTol);
+	}
+	return true;
+}
+
+/**
+ * Lo `Zigzag` e' deterministico e CRESCE come un prefisso (spec §2.4, F11, F12): nessun `Rand`, nessun orologio, e
+ * la linea a `α = 0.3` e' l'inizio di quella a `α = 0.6`. Ancorata all'origine, mai oltre l'impatto.
+ * ✅ Validato per mutazione (19): lo scarto laterale calcolato da `Alpha` invece che dall'indice del vertice.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackTracerZigzagGrowsAsAPrefixTest,
+	"RefactorTactics.Playback.TracerZigzagGrowsAsAPrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackTracerZigzagGrowsAsAPrefixTest::RunTest(const FString&)
+{
+	const FVector Da(0.f, 0.f, 60.f);
+	const FVector A(300.f, 0.f, 60.f);
+	const float S = 100.f;
+	TArray<FVector> Corta, Lunga, Ancora, Piena;
+	URTPlaybackLibrary::TracerPolyline(ERTTracerStyle::Zigzag, Da, A, 0.3f, S, Corta);
+	URTPlaybackLibrary::TracerPolyline(ERTTracerStyle::Zigzag, Da, A, 0.6f, S, Lunga);
+	URTPlaybackLibrary::TracerPolyline(ERTTracerStyle::Zigzag, Da, A, 0.3f, S, Ancora);
+	URTPlaybackLibrary::TracerPolyline(ERTTracerStyle::Zigzag, Da, A, 1.0f, S, Piena);
+	if (!TestTrue(TEXT("⛔ premessa: polilinee non degeneri"), Corta.Num() >= 2 && Lunga.Num() > Corta.Num()))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("deterministica: stessa chiamata, stessi punti"), Ancora.Num(), Corta.Num());
+	for (int32 I = 0; I < FMath::Min(Ancora.Num(), Corta.Num()); ++I)
+	{
+		TestTrue(FString::Printf(TEXT("deterministica: punto %d"), I), Ancora[I].Equals(Corta[I], 0.01f));
+	}
+	TestTrue(TEXT("ancorata all'origine"), Corta[0].Equals(Da, 0.01f) && Lunga[0].Equals(Da, 0.01f));
+
+	const int32 Ultimo = Corta.Num() - 1;
+	for (int32 I = 0; I < Ultimo; ++I)
+	{
+		TestTrue(FString::Printf(TEXT("🔴 prefisso: il vertice %d della corta e' quello della lunga"), I), Corta[I].Equals(Lunga[I], 0.01f));
+	}
+	TestTrue(TEXT("🔴 prefisso: la punta della corta sta sul segmento corrispondente della lunga"),
+		FMath::PointDistToSegment(Corta[Ultimo], Lunga[Ultimo - 1], Lunga[Ultimo]) < 0.01f);
+
+	const FVector Asse = (A - Da).GetSafeNormal();
+	for (const FVector& P : Piena)
+	{
+		TestTrue(TEXT("nessun punto oltre l'impatto"), FVector::DotProduct(P - Da, Asse) <= (A - Da).Size() + 0.01f);
+	}
+	TestEqual(TEXT("a α = 1: otto segmenti, nove vertici"), Piena.Num(), 9);
+	TestTrue(TEXT("a α = 1 finisce sull'impatto"), Piena.Num() == 9 && Piena.Last().Equals(A, 0.01f));
+	TestTrue(TEXT("e' davvero spezzata: il primo vertice interno e' scostato di 0.12·HexSize"),
+		Piena.Num() == 9 && FMath::IsNearlyEqual(FMath::Abs(Piena[1].Y), 0.12f * S, 0.01f));
+
+	TArray<FVector> Getto;
+	URTPlaybackLibrary::TracerPolyline(ERTTracerStyle::Jet, Da, A, 0.5f, S, Getto);
+	TestEqual(TEXT("Projectile e Jet restano su TracerSegment: nessuna polilinea"), Getto.Num(), 0);
 	return true;
 }
 

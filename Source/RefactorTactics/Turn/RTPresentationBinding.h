@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Turn/RTResolvedEvent.h"
+// #3578: il profilo FX vive accanto al tracer (`FRTAbilityFxProfile`). Header di soli tipi di valore.
+#include "Map/RTPlaybackTracer.h"
 // #2881: `ERTGraykitLocomotionStyle`. Header di soli enum e struct di valore — nessuna dipendenza
 // pesante, e nessun ribaltamento di ownership: e' questa libreria a decidere l'andatura, il graykit
 // si limita a renderla.
@@ -256,4 +258,38 @@ public:
 	 */
 	static ERTGraykitLocomotionStyle StyleForMovement(ERTMatchPhase Phase,
 		const TArray<FName>& ActiveStatusNames);
+
+	// --- Il profilo FX per abilita' (#3578, spec «il profilo FX per abilita'» §2.2, D2) -------------------------
+	//
+	// 🔑 **Sta qui per la stessa ragione di `StyleForMovement`**: questa libreria e' l'owner dell'asse
+	// «evento -> presentazione» ([D-278]). Funzioni statiche C++, NON `UFUNCTION`: nessuna superficie Blueprint.
+	// Ogni cambio ricompila; una migrazione ad asset non cambia il gate (spec §3).
+
+	/** Un profilo con TUTTI e quattro i campi: l'unico costruttore delle righe (F17). */
+	static FRTAbilityFxProfile MakeFxProfile(ERTActivationFxStyle Activation, ERTTracerStyle Tracer,
+		ERTImpactFxStyle Impact, ERTFootprintFxStyle Footprint);
+
+	/** Il default della forma (spec §2.2, D3): Single → proiettile, Line → getto, Area → AreaPulse, Cone → ConeSweep. */
+	static FRTAbilityFxProfile DefaultFxProfileFor(ERTAbilityShape Shape);
+
+	/**
+	 * Le righe d'override APPROVATE dall'autore (D5), in ordine. Una riga per override; la gemella sta in
+	 * `Fx.DeclaredOverridesMatchTheProposal`. ⛔ Nessun override di tracer sugli attacchi base (R3).
+	 */
+	static const TArray<TPair<FName, FRTAbilityFxProfile>>& DeclaredFxOverrideRows();
+
+	/** La mappa costruita UNA volta dalle righe. Si usa solo con `Find`. */
+	static const TMap<FName, FRTAbilityFxProfile>& DeclaredFxOverrides();
+
+	/**
+	 * Il ripiego `Overrides[ActionId]` → `Overrides[BaseActionId]` → default della forma, su una tabella data (pura:
+	 * i test le passano la propria). Un id vuoto salta il proprio livello; `BaseActionId` non si deriva mai.
+	 * 🔴 **R12**: con `ActionId` E `BaseActionId` vuoti il profilo e' tutto `None`, senza passare dalla forma.
+	 * ⛔ `DerivedFromActionId` non e' un livello: non e' sull'evento.
+	 */
+	static FRTAbilityFxProfile FxProfileForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+		FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
+
+	/** `FxProfileForIn` sulla tabella vera. */
+	static FRTAbilityFxProfile FxProfileFor(FName ActionId, FName BaseActionId, ERTAbilityShape Shape);
 };

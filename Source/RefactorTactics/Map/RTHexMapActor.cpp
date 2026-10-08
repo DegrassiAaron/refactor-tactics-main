@@ -178,6 +178,13 @@ namespace
 	constexpr float RTTracerProjectileThickness = 4.f;
 	constexpr float RTTracerJetThickness = 7.f;
 
+	// Profilo FX (#3578, spec «il profilo FX» §2.1): spessori per tipo e sollevamento sopra la cella. ⚠️ Graybox,
+	// tarati in PIE (`PIE-FX-ABILITA`); le scale vivono in `URTPlaybackLibrary::CueSegments`.
+	constexpr float RTTracerZigzagThickness = 5.f;
+	constexpr float RTCueLift = 6.f;
+	constexpr float RTCueThickness = 3.f;
+	constexpr float RTCueThickThickness = 4.f; // `Flash` e `ConeSweep`
+
 	/**
 	 * 🔴 **Il tetto vero dello spessore del tile, e NON e' lo `static_assert` degli anelli.**
 	 *
@@ -1103,6 +1110,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackFootprintCells.Num() > 0
 		|| PlaybackStructureHits.Num() > 0
 		|| PlaybackTracers.Num() > 0
+		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0;
 }
@@ -1184,6 +1192,18 @@ void ARTHexMapActor::SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers
 void ARTHexMapActor::ClearPlaybackTracers()
 {
 	PlaybackTracers.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPlaybackCues(const TArray<FRTPlaybackCue>& Cues)
+{
+	PlaybackCues = Cues;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackCues()
+{
+	PlaybackCues.Reset();
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 
@@ -1671,10 +1691,46 @@ void ARTHexMapActor::DrawPlanningPreview() const
 				+ FVector(0, 0, CellLift(T.From) + RTTracerHeight);
 			const FVector A = URTHexLibrary::AxialToWorld(T.To, Origin, Size, LayerH)
 				+ FVector(0, 0, CellLift(T.To) + RTTracerHeight);
+			if (T.Style == ERTTracerStyle::Zigzag)
+			{
+				// #3578: lo zigzag e' una polilinea pura (`TracerPolyline`), un prefisso che cresce.
+				TArray<FVector> Punti;
+				URTPlaybackLibrary::TracerPolyline(T.Style, Da, A, T.Alpha, Size, Punti);
+				for (int32 P = 1; P < Punti.Num(); ++P)
+				{
+					DisegnaLineaAnteprima(World, Punti[P - 1], Punti[P], TracerColor, SDPG_Foreground, RTTracerZigzagThickness);
+				}
+				continue;
+			}
 			FVector Inizio, Fine;
 			URTPlaybackLibrary::TracerSegment(T.Style, Da, A, T.Alpha, Size * RTTracerDashFraction, Inizio, Fine);
 			DisegnaLineaAnteprima(World, Inizio, Fine, TracerColor, SDPG_Foreground,
 				T.Style == ERTTracerStyle::Jet ? RTTracerJetThickness : RTTracerProjectileThickness);
+		}
+	}
+
+	// Le cue del profilo FX, durante il playback (#3578, spec «il profilo FX» §2.1, §2.4).
+	//
+	// 🔑 **Stesso colore del colpo** (R1): `ERTOverlayMeaning::Attack`, nessun significato nuovo (#1941). Gli stili si
+	// separano per GEOMETRIA (`CueSegments`), mai per colore. ⚠️ Foreground, come il tracer: un anello sotto chi agisce
+	// sparirebbe dentro la sua mesh. ⛔ Nessun `DrawDebug*` (D-467): `DisegnaLineaAnteprima` tace sul server dedicato.
+	if (PlaybackCues.Num() > 0)
+	{
+		const FColor CueColor = URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack);
+		for (const FRTPlaybackCue& C : PlaybackCues)
+		{
+			const FVector Ancora = URTHexLibrary::AxialToWorld(C.At, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(C.At) + RTCueLift);
+			const FVector Verso = URTHexLibrary::AxialToWorld(C.Toward, Origin, Size, LayerH)
+				+ FVector(0, 0, CellLift(C.Toward) + RTCueLift);
+			TArray<FVector> Inizi, Fini;
+			URTPlaybackLibrary::CueSegments(C.Kind, Ancora, Verso, Size, C.Alpha, Inizi, Fini);
+			const float Spessore = (C.Kind == ERTPlaybackCueKind::Flash || C.Kind == ERTPlaybackCueKind::ConeSweep)
+				? RTCueThickThickness : RTCueThickness;
+			for (int32 I = 0; I < Inizi.Num(); ++I)
+			{
+				DisegnaLineaAnteprima(World, Inizi[I], Fini[I], CueColor, SDPG_Foreground, Spessore);
+			}
 		}
 	}
 

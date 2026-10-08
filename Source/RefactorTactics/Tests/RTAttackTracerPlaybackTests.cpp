@@ -12,6 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "RTWorldFixtures.h"
 #include "RTAttackPlaybackProbeForTest.h" // `OnAttackResolved` col tick di risoluzione in cui scatta (#911)
+#include "EngineUtils.h" // #3578: `TActorIterator`, per ritrovare l'attaccante della fixture
+#include "Turn/RTResolvedEvent.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -99,6 +101,36 @@ namespace
 	{
 		for (const TPair<int32, FString>& V : Visti) { if (V.Value == Battito) { return V.Key; } }
 		return -1;
+	}
+
+	// --- Le cue di colpo (#3578, spec «il profilo FX» §2.4) ---------------------------------------------------------
+
+	bool BattitoHaCue(const ARTHexMapActor* Mappa, ERTPlaybackCueKind Tipo, const FRTCellId& Cella)
+	{
+		return Mappa && Mappa->GetPlaybackCues().ContainsByPredicate([&](const FRTPlaybackCue& C)
+		{
+			return C.Kind == Tipo && C.At == Cella;
+		});
+	}
+
+	bool BattitoHaCueDiColpo(const ARTHexMapActor* Mappa)
+	{
+		return Mappa && Mappa->GetPlaybackCues().ContainsByPredicate([](const FRTPlaybackCue& C)
+		{
+			return C.Kind == ERTPlaybackCueKind::Marker || C.Kind == ERTPlaybackCueKind::AreaPulse
+				|| C.Kind == ERTPlaybackCueKind::ConeSweep;
+		});
+	}
+
+	/** L'indice nella sequenza del Blast del primo `Attack` della timeline, letto dopo `LockInAndResolve`. */
+	int32 BattitoIndiceDelColpo(const ARTTurnManager* TM)
+	{
+		const TArray<int32> Sequenza = TM->PlaybackBlastSequenceIndicesForTest();
+		for (int32 K = 0; K < Sequenza.Num(); ++K)
+		{
+			if (TM->ResolvedTimelineForTest()[Sequenza[K]].Type == ERTResolvedEventType::Attack) { return K; }
+		}
+		return INDEX_NONE;
 	}
 }
 
@@ -358,6 +390,221 @@ bool FRTPrivacyUnseenAttackerTracerTest::RunTest(const FString&)
 		{
 			TestTrue(TEXT("controllo positivo: chi spara vede il tracer dello stesso colpo"), TickConTracer > 0);
 		}
+	}
+	return true;
+}
+
+/**
+ * Il `Marker` arriva con l'ARRIVO, mai col lancio (spec §2.4, V1 del tracer): durante il volo il canale non ha il
+ * `Marker`, al tick dell'arrivo si', sulla cella d'impatto. Fixture di `TracerIsInFlightBetweenLaunchAndArrival`.
+ * ➕ rev2. **Premessa asserita prima**: il colpo ha `F_eff > 0`, quindi lancio e arrivo cadono in tick DIVERSI; con
+ * volo nullo cadono nello stesso tick (`ARTTurnManager::AdvanceBlastSequence`, che esegue lancio e arrivo dovuti in
+ * un ciclo solo) e la mutante (9) sopravviverebbe.
+ * ✅ Validato per mutazioni (9) e (12) (atto con una vittima: e' il primo colpo dell'atto).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackImpactCueComesAtTheArrivalTest,
+	"RefactorTactics.Playback.ImpactCueComesAtTheArrival",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackImpactCueComesAtTheArrivalTest::RunTest(const FString&)
+{
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false);
+	ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+	if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+	if (!TestTrue(TEXT("⛔ premessa: F_eff > 0"),
+			URTPlaybackLibrary::TracerFlightFor(true, TM->TracerFlightSeconds, TM->AttackShowSeconds) > 0.f))
+	{
+		return false;
+	}
+	TM->LockInAndResolve();
+	bool bMarkerInVolo = false, bMarkerAllArrivo = false;
+	int32 TickLancio = -1, TickArrivo = -1;
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.02f);
+		const bool bLanciato = TM->AttackBeatTraceForTest().Contains(TEXT("L0"));
+		const bool bArrivato = TM->AttackBeatTraceForTest().Contains(TEXT("A0"));
+		if (bLanciato && TickLancio < 0) { TickLancio = I; }
+		if (bLanciato && !bArrivato) { bMarkerInVolo |= BattitoHaCue(Mappa, ERTPlaybackCueKind::Marker, FRTCellId(3, 2)); }
+		if (bArrivato && TickArrivo < 0)
+		{
+			TickArrivo = I;
+			bMarkerAllArrivo = BattitoHaCue(Mappa, ERTPlaybackCueKind::Marker, FRTCellId(3, 2));
+		}
+	}
+	if (!TestTrue(TEXT("⛔ premessa: lancio e arrivo in tick diversi"), TickLancio >= 0 && TickArrivo > TickLancio)) { return false; }
+	TestFalse(TEXT("🔴 al battito 2k (in volo) nessun Marker"), bMarkerInVolo);
+	TestTrue(TEXT("🔴 al battito 2k+1 il Marker sulla cella d'impatto"), bMarkerAllArrivo);
+	return true;
+}
+
+/**
+ * Review Focus (b): un colpo con `HitGeometry.bResolved == false` non ha tracer, `Marker` ne' cue d'impronta, e la
+ * clip `Attack` suona comunque. Prima la funzione pura (con verdetti APERTI: a mondo il verdetto di default e'
+ * gia' chiuso e nasconderebbe il difetto), poi il turno col gancio `bSkipHitGeometryForTest`.
+ * ✅ Validato per mutazione (P4): `bResolved` ignorato in `ImpactCueFor`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackUnresolvedGeometryHasNoFxTest,
+	"RefactorTactics.Playback.UnresolvedGeometryHasNoFxButPlaysTheClip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackUnresolvedGeometryHasNoFxTest::RunTest(const FString&)
+{
+	FRTResolvedEvent Irrisolto;
+	Irrisolto.Type = ERTResolvedEventType::Attack;
+	Irrisolto.ActionId = TEXT("Hero.Branth.ImpactShot");
+	Irrisolto.Shape = ERTAbilityShape::Single;
+	Irrisolto.HitGeometry.bResolved = false;
+	Irrisolto.HitGeometry.FromVerdict.AllowTeam(0);
+	Irrisolto.HitGeometry.ImpactVerdict.AllowTeam(0);
+	FRTPlaybackCue C;
+	TestFalse(TEXT("🔴 geometria irrisolta: nessun Marker, anche coi verdetti aperti"), URTPlaybackLibrary::ImpactCueFor(Irrisolto, 0, 0.5f, C));
+	TestFalse(TEXT("e nessun tracer"), URTPlaybackLibrary::IsTracerEligible(Irrisolto));
+
+	UWorld* World = RTWorldFixtures::MakeWorld();
+	if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+	ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false);
+	ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+	if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+	TM->bSkipHitGeometryForTest = true;
+	TM->LockInAndResolve();
+	bool bFx = false;
+	for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+	{
+		TM->Tick(0.02f);
+		bFx |= Mappa->NumPlaybackTracers() > 0 || BattitoHaCueDiColpo(Mappa);
+	}
+	ARTUnit* Attaccante = nullptr;
+	for (TActorIterator<ARTUnit> It(World); It; ++It) { if (It->TeamId == 0) { Attaccante = *It; } }
+	if (!TestTrue(TEXT("⛔ premessa: il colpo e' partito ed e' arrivato"),
+			TM->AttackBeatTraceForTest().Contains(TEXT("L0")) && TM->AttackBeatTraceForTest().Contains(TEXT("A0")))
+		|| !TestNotNull(TEXT("⛔ premessa: l'attaccante"), Attaccante))
+	{
+		return false;
+	}
+	TestFalse(TEXT("🔴 nessun tracer, Marker o cue d'impronta su nessun tick"), bFx);
+	TestFalse(TEXT("e la clip Attack e' stata risolta comunque"),
+		Attaccante->LastResolvedClipPathForTest(ERTPresentationRole::Attack).IsNull());
+	return true;
+}
+
+/**
+ * Review Focus (c), spec §2.6: le cue sono funzione dell'orologio e del cursore. Due mondi identici, entrati nel
+ * Blast con gli stessi tick; poi uno avanza con UN tick fino a t, l'altro con tick da 1/60 s fino allo stesso t,
+ * dentro la finestra del `Marker`. Stesse cue, `Alpha` uguale entro 1e-3.
+ * 🔑 Premesse misurate in review: `TickPlayback` non taglia `DeltaSeconds` (`Dt = DeltaSeconds × velocita'`, poi
+ * `PlaybackPhaseElapsed += Dt`); nel Blast un tick lungo esegue tutti i battiti dovuti (`AdvanceBlastSequence` su
+ * `AttackBeatsDue`) e finalizza al piu' una fase per tick. Il salto resta dentro il Blast, quindi un tick basta.
+ * ✅ Validato per mutazione (14): `Alpha` da un accumulatore azzerato al tick della rivelazione.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackFxCuesAreAFunctionOfTheClockTest,
+	"RefactorTactics.Playback.FxCuesAreAFunctionOfTheClock",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackFxCuesAreAFunctionOfTheClockTest::RunTest(const FString&)
+{
+	TArray<FRTPlaybackCue> Esito[2];
+	float Orologio[2] = { 0.f, 0.f };
+	for (int32 Run = 0; Run < 2; ++Run)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+		TM->LockInAndResolve();
+		const int32 K = BattitoIndiceDelColpo(TM);
+		if (!TestTrue(TEXT("⛔ premessa: il colpo e' in sequenza"), K != INDEX_NONE) || !TestTrue(TEXT("⛔ premessa: si entra nel Blast"), TickUntilBlast(TM)))
+		{
+			return false;
+		}
+		const float A = TM->AttackShowSeconds;
+		const float F = URTPlaybackLibrary::TracerFlightFor(true, TM->TracerFlightSeconds, A);
+		const float Delta = (K * A + F + 0.1f) - TM->PlaybackPhaseElapsedForTest(); // dentro [arrivo, arrivo + D_imp)
+		if (!TestTrue(TEXT("⛔ premessa: il salto e' lungo"), Delta > 0.05f)) { return false; }
+		if (Run == 0)
+		{
+			TM->Tick(Delta);
+		}
+		else
+		{
+			const int32 N = FMath::CeilToInt(Delta * 60.f);
+			for (int32 I = 0; I < N; ++I) { TM->Tick(Delta / N); }
+		}
+		Esito[Run] = Mappa->GetPlaybackCues();
+		Orologio[Run] = TM->PlaybackPhaseElapsedForTest();
+	}
+	if (!TestEqual(TEXT("⛔ premessa: i due mondi sono allo stesso orologio"), Orologio[0], Orologio[1], 1e-3f)
+		|| !TestTrue(TEXT("⛔ premessa: il Marker e' nella sua finestra in entrambi"),
+			Esito[0].ContainsByPredicate([](const FRTPlaybackCue& C) { return C.Kind == ERTPlaybackCueKind::Marker; })
+			&& Esito[1].ContainsByPredicate([](const FRTPlaybackCue& C) { return C.Kind == ERTPlaybackCueKind::Marker; })))
+	{
+		return false;
+	}
+	TestEqual(TEXT("stesso numero di cue"), Esito[0].Num(), Esito[1].Num());
+	for (int32 I = 0; I < FMath::Min(Esito[0].Num(), Esito[1].Num()); ++I)
+	{
+		TestTrue(FString::Printf(TEXT("cue %d: stesso tipo e stessa cella"), I),
+			Esito[0][I].Kind == Esito[1][I].Kind && Esito[0][I].At == Esito[1][I].At);
+		TestEqual(FString::Printf(TEXT("🔴 cue %d: Alpha uguale (salto %.3f, lineare %.3f)"), I, Esito[0][I].Alpha, Esito[1][I].Alpha),
+			Esito[0][I].Alpha, Esito[1][I].Alpha, 1e-3f);
+	}
+	return true;
+}
+
+/**
+ * `SkipPlayback` a meta' della finestra di un `Marker` spegne il canale: nessuna cue rigiocata, nessuna che resta
+ * (spec §2.6, F2). E a fine Blast, con una fase dopo, la cue non sopravvive.
+ * ✅ Validato per mutazione (16): `ClearPlaybackCues` tolto da `FinishPlayback`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackCueChannelClearsOnSkipTest,
+	"RefactorTactics.Playback.CueChannelClearsOnSkip",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackCueChannelClearsOnSkipTest::RunTest(const FString&)
+{
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno e mappa di prova"), TM != nullptr && Mappa != nullptr)) { return false; }
+		TM->LockInAndResolve();
+		bool bPieno = false;
+		for (int32 I = 0; I < 600 && TM->IsResolving() && !bPieno; ++I)
+		{
+			TM->Tick(0.02f);
+			bPieno = BattitoHaCue(Mappa, ERTPlaybackCueKind::Marker, FRTCellId(3, 2));
+		}
+		if (!TestTrue(TEXT("⛔ premessa: un tick prima il canale ha il Marker"), bPieno)) { return false; }
+		TM->SkipPlayback();
+		// `ARTTurnManager::SkipPlayback` chiude in sincrono via `FinishPlayback`, salvo finestra di reazione aperta
+		// (`IsResolutionSuspended`, in testa a `FinishPlayback`); qui nessuna finestra si apre (trappola 4), e la
+		// premessa lo asserisce.
+		if (!TestFalse(TEXT("⛔ premessa: lo Skip ha chiuso il playback in sincrono"), TM->IsResolving())) { return false; }
+		TestEqual(TEXT("🔴 dopo SkipPlayback il canale e' vuoto"), Mappa->NumPlaybackCues(), 0);
+	}
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+		ARTTurnManager* TM = SetUpBattitoTurn(World, /*bDue=*/ false, /*bConMove=*/ true);
+		ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(World);
+		if (!TestTrue(TEXT("turno con Move e mappa"), TM != nullptr && Mappa != nullptr)) { return false; }
+		TM->LockInAndResolve();
+		bool bDopoIlBlast = false, bCueDopoIlBlast = false;
+		for (int32 I = 0; I < 600 && TM->IsResolving(); ++I)
+		{
+			TM->Tick(0.02f);
+			const ERTMatchPhase Fase = TM->CurrentPlaybackPhaseForTest();
+			if (Fase == ERTMatchPhase::Move) { bDopoIlBlast = true; bCueDopoIlBlast |= BattitoHaCueDiColpo(Mappa); }
+		}
+		TestTrue(TEXT("⛔ premessa: dopo il Blast c'e' una fase Move"), bDopoIlBlast);
+		// ⚠️ Regressione, rete senza casi: coi tetti di R2 l'ultima finestra finisce prima di `N·A` e `PushPlaybackCues`
+		// svuota gia' il canale; il `ClearPlaybackCues` della finalizzazione del Blast e' la rete, come per il tracer.
+		TestFalse(TEXT("a fine Blast nessuna cue di colpo sopravvive"), bCueDopoIlBlast);
 	}
 	return true;
 }

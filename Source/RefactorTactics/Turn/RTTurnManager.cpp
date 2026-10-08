@@ -341,7 +341,18 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 	Ev.Shape = Shape;
 	// [D-223], spec §2.1: il verdetto si decide ADESSO, quando l'unita' agisce, e si trasporta. Lo stesso valore
 	// fa da verdetto alla riga `Attiva:` del playback (`ShowActivation`): calcolato una volta, mai due.
-	Ev.SourceVerdict = FreezeVerdictFor(FRTLogSubject::Unit(Source));
+	// #3578 (spec «il profilo FX» §2.3, R5, F16): **il soggetto si legge UNA volta**, come `GetFactCell` chiede
+	// (`FRTLogSubject::GetFactCell`). `Unit()` non dichiara una cella, quindi `GetFactCell()` e' quella dell'Actor — ed e' su
+	// quella che `FreezeVerdictFor` congela: cella della cue e verdetto coincidono per costruzione. Nel Dash e' la cella
+	// da cui lo scatto PARTE. `Origin` e' presentazione: `FRTResolvedEvent` e' `RTServerOnly`, fuori dagli hash
+	// (`Determinism.FxFieldsStayOutOfHashes`).
+	// ⚠️ `GetFactCell()` senza unita' renderebbe `(0,0,0)`: la guardia che lo esclude e' `Source == nullptr`, qui sopra.
+	const FRTLogSubject Soggetto = FRTLogSubject::Unit(Source);
+	if (!bSkipFxFieldsForTest)
+	{
+		Ev.Origin = Soggetto.GetFactCell();
+	}
+	Ev.SourceVerdict = FreezeVerdictFor(Soggetto);
 	// ⛔ Nessun riordino: l'ordine in timeline E' l'ordine di emissione (spec §2.2).
 	ResolvedTimeline.Add(MoveTemp(Ev));
 }
@@ -6372,9 +6383,10 @@ void ARTTurnManager::ResolveCombatPasses(FRTBlastContext& Ctx)
 		// `Ev.Shape` resterebbe il `Single` di default e `ResolveImpactOrigin` (che tratta l'intento mancante come
 		// non-area) darebbe comunque l'attaccante come origine — una geometria «risolta» con una forma inventata.
 		// ⚠️ **Per un colpo `Area` `From`/`FromVerdict` descrivono il CENTRO d'impatto, non l'attaccante**:
-		// `ResolveImpactOrigin` restituisce `Footprint->AimCell`. Oggi non conta, perche' `Area` non e' idonea al
-		// tracer (`IsTracerEligible` ammette solo `Single` e `Line`); chi la rendesse idonea deve leggere questo
-		// campo come «da dove arriva il colpo», non come «dove sta chi spara».
+		// `ResolveImpactOrigin` restituisce `Footprint->AimCell`.
+		// ⌫ *Fino a #3578 qui c'era «oggi non conta, perche' `Area` non e' idonea al tracer».* Da #3578 conta: per
+		// un'`Area` questo `FromVerdict` e' il verdetto dell'`AreaPulse` sul centro (spec «il profilo FX» §2.4) — aperto
+		// alla squadra dell'attaccante e, per le altre, solo se vedono il centro.
 		const bool bHasIntent = Intents.IsValidIndex(Hit.IntentIndex);
 		if (bHasIntent)
 		{
@@ -7957,6 +7969,8 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// `IsTracerEligible` e' falso per ogni tipo che non sia `Attack`: attivazioni, impronte e muri hanno volo zero.
 	// Si ricalcola anche estendendo: e' funzione pura degli eventi, e il prefisso congelato porta gli stessi eventi,
 	// quindi gli stessi voli.
+	// #3578: l'idoneita' e' la forma di DEFAULT di un'azione con un id (R12, R13, `IsTracerEligible`): un override che
+	// toglie il disegno (`Ram`, `PassingBlade`) non toglie il volo, e un colpo non base con forma `Single`/`Line` ora vola.
 	int32 NumColpi = 0, NumImpronte = 0, NumMuri = 0, NumAttivazioniBlast = 0;
 	PlaybackBlastFlights.Reset(PlaybackBlastSequence.Num());
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
@@ -7973,6 +7987,9 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 		PlaybackBlastFlights.Add(URTPlaybackLibrary::TracerFlightFor(
 			URTPlaybackLibrary::IsTracerEligible(Ev), TracerFlightSeconds, AttackShowSeconds));
 	}
+	// #3578 (spec «il profilo FX» §2.4): quale impronta porta ogni colpo. ⚠️ Si ricostruisce sull'INTERA sequenza
+	// anche estendendo: un'impronta consumata nel prefisso congelato resta consumata.
+	PlaybackBlastFootprintFx = URTPlaybackLibrary::FootprintFxForSequence(ResolvedTimeline, PlaybackBlastSequence);
 
 	// Fasi attive, in ordine canonico (Prep -> Dash -> Blast -> Move). Cleanup: gia' applicato, nessun beat.
 	bool bHasDash = false, bHasMove = false, bHasBlastMove = false;
@@ -8363,6 +8380,37 @@ void ARTTurnManager::PushPlaybackTracers()
 
 	MapActor->SetPlaybackTracers(InVolo);
 	bPlaybackTracerChannelFull = bInVolo;
+}
+
+void ARTTurnManager::PushPlaybackCues(ERTMatchPhase InPhase)
+{
+	// ⚠️ `InPhase` e non `Phase`: `Phase` e' gia' un membro (la fase della partita), e il parametro lo nasconderebbe
+	// (`C4458`, che qui e' un errore). E' la fase del PLAYBACK, quella che `TickPlayback` chiama `Ph`.
+	TArray<FRTPlaybackCue> Cues;
+	if (InPhase == ERTMatchPhase::Prep || InPhase == ERTMatchPhase::Dash)
+	{
+		const TArray<FRTResolvedEvent>& Coda = (InPhase == ERTMatchPhase::Prep) ? PlaybackActivationsPrep : PlaybackActivationsDash;
+		URTPlaybackLibrary::ActivationCuesAt(Coda, ActivationsShown, PlaybackPhaseElapsed, AttackShowSeconds,
+			ActivationCueSeconds, PlaybackViewerTeamId, Cues);
+	}
+	else if (InPhase == ERTMatchPhase::Blast)
+	{
+		URTPlaybackLibrary::BlastActivationCuesAt(ResolvedTimeline, PlaybackBlastSequence, BlastBeatsDone,
+			PlaybackPhaseElapsed, AttackShowSeconds, ActivationCueSeconds, PlaybackViewerTeamId, Cues);
+		URTPlaybackLibrary::BlastHitCuesAt(ResolvedTimeline, PlaybackBlastSequence, PlaybackBlastFlights,
+			PlaybackBlastFootprintFx, BlastBeatsDone, PlaybackPhaseElapsed, AttackShowSeconds, ImpactCueSeconds,
+			PlaybackViewerTeamId, Cues);
+	}
+	// ⚠️ Stessa economia di `PushPlaybackTracers`: niente da dire E canale gia' vuoto = la mappa non si tocca.
+	const bool bPiene = !Cues.IsEmpty();
+	if (!bPiene && !bPlaybackCueChannelFull)
+	{
+		return;
+	}
+	ARTHexMapActor* const MapActor = ARTHexMapActor::FindInWorld(GetWorld());
+	if (!MapActor) { return; }
+	MapActor->SetPlaybackCues(Cues);
+	bPlaybackCueChannelFull = bPiene;
 }
 
 void ARTTurnManager::EnterPlaybackPhase()
@@ -8852,6 +8900,9 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 	// rete di fine fase qui sotto recupera qualcosa (`Playback.PhaseEndNetStopsWithThePause`).
 	if ((Ph == ERTMatchPhase::Prep || Ph == ERTMatchPhase::Dash) && !bRevealActivationsOnlyAtPhaseEndForTest)
 	{
+		// #3578: la cue d'attivazione si consegna a OGNI uscita di questo ramo — il `return` delle fermate compreso —
+		// come il tracer nel Blast. ⚠️ E' il primo ramo di Prep/Dash che consegna qualcosa alla mappa.
+		ON_SCOPE_EXIT{ PushPlaybackCues(Ph); };
 		const TArray<FRTResolvedEvent>& Attivazioni =
 			(Ph == ERTMatchPhase::Prep) ? PlaybackActivationsPrep : PlaybackActivationsDash;
 		if (RevealPlaybackActivations(Attivazioni,
@@ -8871,7 +8922,7 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 		// lasciato.
 		// ⚠️ Lo scope e' questo `if`, non la funzione: la finalizzazione della fase, piu' sotto, gira DOPO la
 		// consegna — ed e' li' che il canale si spegne.
-		ON_SCOPE_EXIT{ PushPlaybackTracers(); };
+		ON_SCOPE_EXIT{ PushPlaybackTracers(); PushPlaybackCues(Ph); }; // #3578: due consegne per tick (R10)
 
 		// 🔴 **Una sequenza, un cursore, una cadenza** (#3549 D5, `#2454`): attivazione, impronta, muri, colpi di un
 		// intento, poi il successivo — un elemento ogni `AttackShowSeconds`, per leggibilita' del danno. L'impronta
@@ -8937,6 +8988,13 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			{
 				return;
 			}
+			// #3578: nessuna cue sopravvive alla fase (spec §2.4). ⚠️ Coi tetti di R2 qui il canale e' gia' vuoto: e' la
+			// rete del caso in cui una fase venga accorciata.
+			if (ARTHexMapActor* const CueMap = ARTHexMapActor::FindInWorld(GetWorld()))
+			{
+				CueMap->ClearPlaybackCues();
+			}
+			bPlaybackCueChannelFull = false;
 		}
 		if (Ph == ERTMatchPhase::Blast)
 		{
@@ -8963,8 +9021,10 @@ void ARTTurnManager::TickPlayback(float DeltaSeconds)
 			if (ARTHexMapActor* const TracerMap = ARTHexMapActor::FindInWorld(GetWorld()))
 			{
 				TracerMap->ClearPlaybackTracers();
+				TracerMap->ClearPlaybackCues(); // #3578: nessuna cue sopravvive al Blast
 			}
 			bPlaybackTracerChannelFull = false; // vedi `PushPlaybackTracers`: il flag segue il canale
+			bPlaybackCueChannelFull = false;
 		}
 
 		// Morte visiva differita: l'eliminazione si ANNUNCIA qui, a fine della fase in cui e' avvenuta, dopo
@@ -9185,18 +9245,21 @@ void ARTTurnManager::FinishPlayback()
 	PlaybackBlastSequence.Reset();
 	BlastBeatsDone = 0;
 	PlaybackBlastFlights.Reset();
+	PlaybackBlastFootprintFx.Reset(); // #3578: parallelo alla sequenza, si svuota con lei
 	// ⛔ **Il canale si spegne qui, e passa di qui anche `SkipPlayback`**: un'impronta che
 	// sopravvivesse al turno sarebbe un'anteprima di qualcosa che non accadra' (`#2454`).
 	if (ARTHexMapActor* const FootprintMap = ARTHexMapActor::FindInWorld(GetWorld()))
 	{
 		FootprintMap->ClearPlaybackFootprint();
 		FootprintMap->ClearPlaybackTracers(); // `#2454`: e passa di qui anche `SkipPlayback`
+		FootprintMap->ClearPlaybackCues(); // #3578: e passa di qui anche `SkipPlayback` — nessuna cue rigiocata (§2.6)
 		// ⛔ **Anche i muri caduti si spengono qui, e passa di qui pure `SkipPlayback`** (`#2828`): il
 		// segno e' il CAMBIAMENTO, e un cambiamento che sopravvive al turno torna a essere «lo stato dopo»
 		// — cioe' quel che si vedeva prima che questo evento esistesse.
 		FootprintMap->ClearPlaybackStructureHits();
 	}
 	bPlaybackTracerChannelFull = false; // `#2454`: il flag di `PushPlaybackTracers` segue il canale che si spegne qui
+	bPlaybackCueChannelFull = false; // #3578: il flag segue il canale che si spegne qui
 	PlaybackDefeatShown.Reset(); // l'annuncio e' per playback: il marcatore non sopravvive al round
 	PlaybackDefeatBeatRemaining = 0.f; // e nemmeno la coda: `SkipPlayback` passa di qui e la scavalca
 	PlaybackPhases.Reset();

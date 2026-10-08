@@ -267,4 +267,68 @@ bool FRTDeterminismHitGeometryOutOfHashesTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il solo campo nuovo di #3578 — `Ev.Origin` di `AbilityActivated` — non entra in `StateHash` ne' in `HashTurnLog`.
+ * Gemello di `HitGeometryStaysOutOfHashes` (sopra): stessa fixture, stesso calcolo dello hash (⚠️ non
+ * `GetPendingFinalStateHash()`, che vale 0 senza registrazione), gancio `bSkipFxFieldsForTest`.
+ * ⚠️ **E' un TRIPWIRE, come il gemello**: oggi ne' `HashMatchState` ne' `HashTurnLog` leggono `ResolvedTimeline`, quindi
+ * con il codice attuale non puo' diventare rosso; il controllo positivo prova che il gancio agisce, non che il confronto
+ * vedrebbe una fuga. Cade il giorno in cui qualcuno scrive `Origin` in un dato hashato — e la PR lo dichiara cosi'.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTDeterminismFxFieldsOutOfHashesTest,
+	"RefactorTactics.Determinism.FxFieldsStayOutOfHashes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTDeterminismFxFieldsOutOfHashesTest::RunTest(const FString&)
+{
+	int64 StatoHash[2] = { 0, 0 };
+	uint32 LogHash[2] = { 0, 0 };
+	FRTCellId Origine[2];
+	bool bTrovata[2] = { false, false };
+	for (int32 Run = 0; Run < 2; ++Run)
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+		ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(World); };
+
+		const URTHexMapAsset* Map = SpawnTracerMap(World);
+		ARTUnit* Ivrin = SpawnTracerUnit(World, 0, URTHeroCatalogLibrary::MakeIvrin(), FRTCellId(1, 2));
+		ARTUnit* Branth = SpawnTracerUnit(World, 1, URTHeroCatalogLibrary::MakeBranth(), FRTCellId(3, 2));
+		ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+		if (!TM || !Ivrin || !Branth) { AddError(TEXT("allestimento fallito")); return false; }
+		TM->bSkipFxFieldsForTest = (Run == 1);
+		Ivrin->PlannedAbilityIndex = 0;
+		Ivrin->PlannedAttackTarget = Branth;
+		Ivrin->PlannedCell = Ivrin->Cell;
+
+		TM->LockInAndResolve();
+		for (int32 I = 0; I < 400 && TM->IsResolving(); ++I) { TM->Tick(0.05f); }
+
+		TArray<ARTUnit*> Unita;
+		Unita.Add(Ivrin);
+		Unita.Add(Branth);
+		TArray<int32> Punteggi;
+		Punteggi.Add(TM->GetTeamScore(0));
+		Punteggi.Add(TM->GetTeamScore(1));
+		StatoHash[Run] = static_cast<int64>(URTMatchStateHashLibrary::HashMatchState(
+			Map, URTMatchStateHashLibrary::BuildUnitDigests(Unita), Punteggi));
+		LogHash[Run] = URTTurnLogLibrary::HashTurnLog(TM->GetTurnLog());
+		for (const FRTResolvedEvent& Ev : TM->ResolvedTimelineForTest())
+		{
+			if (Ev.Type == ERTResolvedEventType::AbilityActivated && Ev.SourceStableUnitId == Ivrin->StableUnitId)
+			{
+				Origine[Run] = Ev.Origin;
+				bTrovata[Run] = true;
+			}
+		}
+	}
+	// Controllo positivo: il gancio ha davvero tolto il campo, o il confronto non misurerebbe niente.
+	TestTrue(TEXT("premessa: l'attivazione di Ivrin c'e' in entrambe le run"), bTrovata[0] && bTrovata[1]);
+	TestTrue(TEXT("controllo: senza gancio, Origin e' la cella di Ivrin"), Origine[0] == FRTCellId(1, 2));
+	TestTrue(TEXT("controllo: col gancio, Origin e' vuoto"), Origine[1] == FRTCellId());
+	TestNotEqual(TEXT("premessa: lo StateHash e' stato catturato"), StatoHash[0], (int64)0);
+	TestEqual(TEXT("🔴 StateHash identico con e senza Origin"), StatoHash[0], StatoHash[1]);
+	TestEqual(TEXT("🔴 HashTurnLog identico con e senza Origin"), LogHash[0], LogHash[1]);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
