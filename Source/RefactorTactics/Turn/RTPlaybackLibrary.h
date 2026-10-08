@@ -358,6 +358,14 @@ public:
 		float AttackShowSeconds, float ImpactCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
 
 	/**
+	 * I segmenti di una cue (#3578, spec §2.1, F7, F21), in coppie `OutStarts[i] → OutEnds[i]`, attorno ad `At` (nel mondo).
+	 * `Toward` serve solo a `ConeSweep`. Scale in frazioni di `HexSize`, graybox (D-287 punto 7) ma DIVERSE a coppie:
+	 * lo pinna `Fx.CueStylesDifferByGeometry`. Pura: la usa il disegno di `ARTHexMapActor`.
+	 */
+	static void CueSegments(ERTPlaybackCueKind Kind, const FVector& At, const FVector& Toward, float HexSize, float Alpha,
+		TArray<FVector>& OutStarts, TArray<FVector>& OutEnds);
+
+	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *
 	 * `MaxMoveSegments` e' il percorso PIU' LUNGO fra quelli riprodotti in questa fase, non la loro somma:

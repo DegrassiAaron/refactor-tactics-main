@@ -774,4 +774,34 @@ bool FRTPresentationReducedBeatsRunTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+/**
+ * D-278 (#3578, spec «il profilo FX» §2.5): le voci `Attack` e `AbilityActivated` dichiarano `SetPlaybackCues`.
+ * ⚠️ Il gate `FindMissingBindings` conta i nomi, non le chiamate: QUALE cue e su QUALE cella lo dicono i test di
+ * `Playback.*` che leggono `GetPlaybackCues()`. `AttackFootprint` NON guadagna la cue: la consegna il colpo.
+ * ✅ Validato per mutazione (P2): `SetPlaybackCues` tolto da `AbilityActivated`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPresentationFxCueIsDeclaredTest,
+	"RefactorTactics.Presentation.FxCueIsDeclaredForAttackAndActivation",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPresentationFxCueIsDeclaredTest::RunTest(const FString&)
+{
+	const TArray<FRTPresentationBinding> Tabella = URTPresentationBindingLibrary::DeclaredBindings();
+	const FName Cue(TEXT("SetPlaybackCues"));
+	for (const ERTResolvedEventType Tipo : { ERTResolvedEventType::Attack, ERTResolvedEventType::AbilityActivated })
+	{
+		const FRTPresentationBinding* Voce = Tabella.FindByPredicate([Tipo](const FRTPresentationBinding& B) { return B.Type == Tipo; });
+		if (!TestNotNull(FString::Printf(TEXT("premessa: la voce %s"), *URTPresentationBindingLibrary::EventTypeName(Tipo)), Voce)) { return false; }
+		TestTrue(FString::Printf(TEXT("🔴 %s dichiara SetPlaybackCues"), *URTPresentationBindingLibrary::EventTypeName(Tipo)),
+			Voce->Cues.Contains(Cue));
+	}
+	const FRTPresentationBinding* Impronta = Tabella.FindByPredicate([](const FRTPresentationBinding& B)
+	{
+		return B.Type == ERTResolvedEventType::AttackFootprint;
+	});
+	TestTrue(TEXT("AttackFootprint non dichiara la cue: la consegna il colpo che la consuma"),
+		Impronta != nullptr && !Impronta->Cues.Contains(Cue));
+	TestEqual(TEXT("e il gate resta senza mancanze"), URTPresentationBindingLibrary::FindMissingBindings(Tabella).Num(), 0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

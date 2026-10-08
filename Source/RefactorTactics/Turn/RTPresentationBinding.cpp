@@ -33,13 +33,16 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// `-30` mentre la barra scende di meno: e' la convenzione di `#2460`, scelta perche' i due canali
 	// raccontino lo stesso colpo con lo stesso numero.
 	//
-	// `#2454`: `SetPlaybackTracers` — il tracer fra lancio e arrivo, solo per gli attacchi base `Single`/`Line` e
-	// solo se chi guarda conosceva entrambi gli estremi. ⚠️ Il gate conta i nomi, non le chiamate: che la cue sia
-	// chiamata lo dice `Playback.TracerIsInFlightBetweenLaunchAndArrival`.
+	// `#2454`: `SetPlaybackTracers` — il tracer fra lancio e arrivo, secondo il profilo FX (#3578: il volo dalla forma di
+	// default di un'azione con un id, il disegno dall'override) e solo se chi guarda conosceva entrambi gli estremi.
+	// #3578: `SetPlaybackCues` — il `Marker` all'arrivo di ogni colpo e, sul primo colpo dell'atto, la cue d'impronta
+	// (`AreaPulse`, `ConeSweep`): `AttackFootprint` non ha una cue propria, la consegna il colpo che la consuma.
+	// ⚠️ Il gate conta i nomi, non le chiamate: che le cue siano chiamate lo dicono
+	// `Playback.TracerIsInFlightBetweenLaunchAndArrival` e `Playback.ImpactCueComesAtTheArrival`.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::Attack,
 		{ FName(TEXT("PlayAttackMontage")), FName(TEXT("PlayHitMontage")),
 		  FName(TEXT("ShowDamageToken")), FName(TEXT("PulseHealthBar")),
-		  FName(TEXT("SetPlaybackTracers")) }));
+		  FName(TEXT("SetPlaybackTracers")), FName(TEXT("SetPlaybackCues")) }));
 
 	// HazardDamage — PendingPresentation dal 2026-09-05, owner `#2505`. Era `NoPresentation` dal 2026-08-31.
 	//
@@ -263,13 +266,14 @@ TArray<FRTPresentationBinding> URTPresentationBindingLibrary::DeclaredBindings()
 	// AbilityActivated — il momento del cast (#3549). **Con cue**, non in attesa.
 	//
 	// 🔑 **`PlayCastMontage` e' l'evento Blueprint che `ARTUnit::PlayPresentationRole(Cast)` notifica**, con la
-	// clip gia' risolta dal CDO: la stessa forma di `PlayAttackMontage`. Il segnale visivo (ring, pulse) resta
-	// di #2454 e non e' dichiarato qui.
+	// clip gia' risolta dal CDO: la stessa forma di `PlayAttackMontage`. ➕ #3578: il segnale visivo (`Ring`, `Pulse`,
+	// `Flash`) e' il profilo d'attivazione del sotto-progetto 4, grammatica di #2454, consegnato con `SetPlaybackCues`
+	// sulla cella della sorgente (`Playback.ActivationCueAtTheSourceCell`). ⌫ *Diceva «resta di #2454».*
 	//
 	// ⚠️ **Il gate `FindMissingBindings` verifica solo che la cue non sia `NAME_None`**: che venga CHIAMATA lo
 	// prova `Playback.ActivationPlaysTheCastCue`, che conta le chiamate sulla sorgente.
 	Out.Add(FRTPresentationBinding(ERTResolvedEventType::AbilityActivated,
-		{ FName(TEXT("PlayCastMontage")) }));
+		{ FName(TEXT("PlayCastMontage")), FName(TEXT("SetPlaybackCues")) }));
 
 	return Out;
 }

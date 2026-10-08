@@ -404,6 +404,84 @@ void URTPlaybackLibrary::BlastHitCuesAt(const TArray<FRTResolvedEvent>& Timeline
 	}
 }
 
+void URTPlaybackLibrary::CueSegments(ERTPlaybackCueKind Kind, const FVector& At, const FVector& Toward, float HexSize,
+	float Alpha, TArray<FVector>& OutStarts, TArray<FVector>& OutEnds)
+{
+	OutStarts.Reset();
+	OutEnds.Reset();
+	const float A = FMath::Clamp(Alpha, 0.f, 1.f);
+	const float S = HexSize;
+	auto Direzione = [](float Gradi)
+	{
+		const float R = FMath::DegreesToRadians(Gradi);
+		return FVector(FMath::Cos(R), FMath::Sin(R), 0.f);
+	};
+	auto Esagono = [&](float Raggio)
+	{
+		for (int32 I = 0; I < 6; ++I)
+		{
+			OutStarts.Add(At + Direzione(30.f + 60.f * I) * Raggio);
+			OutEnds.Add(At + Direzione(30.f + 60.f * (I + 1)) * Raggio);
+		}
+	};
+	switch (Kind)
+	{
+	case ERTPlaybackCueKind::Ring:
+		Esagono(FMath::Lerp(0.55f, 0.95f, A) * S);
+		break;
+	case ERTPlaybackCueKind::Pulse:
+		Esagono(FMath::Lerp(1.00f, 0.60f, A) * S);
+		Esagono(FMath::Lerp(0.75f, 0.35f, A) * S);
+		break;
+	case ERTPlaybackCueKind::Flash:
+		for (int32 I = 0; I < 6; ++I)
+		{
+			// F21: inclinati di 45° verso l'alto e l'esterno — un raggio verticale, dalla camera tattica, e' un punto.
+			const FVector Fuori = Direzione(30.f + 60.f * I);
+			const FVector Base = At + Fuori * (0.5f * S);
+			OutStarts.Add(Base);
+			OutEnds.Add(Base + (Fuori + FVector::UpVector).GetSafeNormal() * (0.4f * S));
+		}
+		break;
+	case ERTPlaybackCueKind::Marker:
+		for (int32 I = 0; I < 4; ++I)
+		{
+			OutStarts.Add(At);
+			OutEnds.Add(At + Direzione(45.f + 90.f * I) * (FMath::Lerp(0.f, 0.35f, A) * S));
+		}
+		break;
+	case ERTPlaybackCueKind::AreaPulse:
+	{
+		const float R = FMath::Lerp(0.3f, 1.7f, A) * S;
+		Esagono(R);
+		for (int32 I = 0; I < 6; ++I)
+		{
+			OutStarts.Add(At);
+			OutEnds.Add(At + Direzione(30.f + 60.f * I) * R);
+		}
+		break;
+	}
+	case ERTPlaybackCueKind::ConeSweep:
+	{
+		FVector Asse = Toward - At;
+		Asse.Z = 0.f;
+		const float L = Asse.Size();
+		if (L < KINDA_SMALL_NUMBER)
+		{
+			break; // asse degenere: niente da spazzare, nessun errore (spec §4)
+		}
+		const float Base = FMath::RadiansToDegrees(FMath::Atan2(Asse.Y, Asse.X));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base - 60.f) * (0.3f * L));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base + 60.f) * (0.3f * L));
+		OutStarts.Add(At);
+		OutEnds.Add(At + Direzione(Base + FMath::Lerp(-60.f, 60.f, A)) * L);
+		break;
+	}
+	}
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {

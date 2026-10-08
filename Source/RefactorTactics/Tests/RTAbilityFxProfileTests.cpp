@@ -634,6 +634,100 @@ bool FRTPlaybackFxCuesNeverOverlapInTheBlastTest::RunTest(const FString&)
 	return true;
 }
 
+// --- La geometria delle cue (#3578, spec §2.1, F7) -------------------------------------------------------------
+
+namespace
+{
+	struct FFxFirma { int32 Segmenti = 0; float Max = 0.f; float Min = TNumericLimits<float>::Max(); float Verticale = 0.f; };
+
+	FFxFirma FxFirmaDi(ERTPlaybackCueKind Tipo)
+	{
+		const FVector Ancora(0.f, 0.f, 0.f);
+		TArray<FVector> Da, A;
+		URTPlaybackLibrary::CueSegments(Tipo, Ancora, FVector(300.f, 0.f, 0.f), 100.f, 0.5f, Da, A);
+		FFxFirma F;
+		F.Segmenti = Da.Num();
+		float ZMin = TNumericLimits<float>::Max(), ZMax = -TNumericLimits<float>::Max();
+		for (int32 I = 0; I < Da.Num(); ++I)
+		{
+			for (const FVector& P : { Da[I], A[I] })
+			{
+				const float D = FVector::Dist(P, Ancora);
+				F.Max = FMath::Max(F.Max, D);
+				F.Min = FMath::Min(F.Min, D);
+				ZMin = FMath::Min(ZMin, P.Z);
+				ZMax = FMath::Max(ZMax, P.Z);
+			}
+		}
+		F.Verticale = Da.Num() > 0 ? ZMax - ZMin : 0.f;
+		return F;
+	}
+}
+
+/**
+ * Le sei cue sono DIVERSE in geometria, a coppie (spec §2.1, F7, #2453: il canale e' la geometria, mai il solo
+ * colore): per ogni coppia, numero di segmenti diverso, oppure ≥ 0.1 s di differenza nella distanza massima o minima
+ * dall'ancora, oppure nell'estensione verticale. A `α = 0.5`, `s = 100`.
+ * ✅ Validato per mutazione (20): `AreaPulse` disegnato come `Ring` fa cadere la coppia `Ring`/`AreaPulse`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFxCueStylesDifferByGeometryTest,
+	"RefactorTactics.Fx.CueStylesDifferByGeometry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFxCueStylesDifferByGeometryTest::RunTest(const FString&)
+{
+	const TArray<ERTPlaybackCueKind> Tipi = { ERTPlaybackCueKind::Ring, ERTPlaybackCueKind::Pulse, ERTPlaybackCueKind::Flash,
+		ERTPlaybackCueKind::Marker, ERTPlaybackCueKind::AreaPulse, ERTPlaybackCueKind::ConeSweep };
+	const float Soglia = 0.1f * 100.f;
+	for (int32 I = 0; I < Tipi.Num(); ++I)
+	{
+		const FFxFirma Fi = FxFirmaDi(Tipi[I]);
+		TestTrue(FString::Printf(TEXT("%s: almeno un segmento"), *UEnum::GetValueAsString(Tipi[I])), Fi.Segmenti > 0);
+		for (int32 J = I + 1; J < Tipi.Num(); ++J)
+		{
+			const FFxFirma Fj = FxFirmaDi(Tipi[J]);
+			const bool bDiversi = Fi.Segmenti != Fj.Segmenti || FMath::Abs(Fi.Max - Fj.Max) >= Soglia
+				|| FMath::Abs(Fi.Min - Fj.Min) >= Soglia || FMath::Abs(Fi.Verticale - Fj.Verticale) >= Soglia;
+			TestTrue(FString::Printf(TEXT("🔴 %s e %s si distinguono per geometria"),
+				*UEnum::GetValueAsString(Tipi[I]), *UEnum::GetValueAsString(Tipi[J])), bDiversi);
+		}
+	}
+	return true;
+}
+
+/**
+ * Il `ConeSweep` (spec §2.4, F4): da un atto `Cone` costruito dal test — nessuna azione del catalogo dichiara `Cone`
+ * (spec §1) — la cue e' ancorata all'`Origin` dell'impronta e punta all'`AimCell`; la geometria ha i due bordi
+ * simmetrici attorno all'asse e il braccio lungo `|Origin → AimCell|`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTFxConeSweepAxisIsTheAimTest,
+	"RefactorTactics.Fx.ConeSweepAxisIsTheAim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTFxConeSweepAxisIsTheAimTest::RunTest(const FString&)
+{
+	TArray<FRTResolvedEvent> T;
+	T.Add(FxImpronta(3, TEXT("Hero.Prova.Ventaglio"), ERTAbilityShape::Cone, FRTCellId(0, 0), FRTCellId(2, 0)));
+	T.Add(FxColpo(3, TEXT("Hero.Prova.Ventaglio"), ERTAbilityShape::Cone, FRTCellId(0, 0), FRTCellId(1, 0)));
+	const float Arrivo = URTPlaybackLibrary::AttackBeatSeconds(3, 0.5f, FxVoli(T, 0.5f));
+	const TArray<FRTPlaybackCue> C = FxCueAl(T, Arrivo + 0.01f, 0.5f);
+	const FRTPlaybackCue* Sweep = C.FindByPredicate([](const FRTPlaybackCue& X) { return X.Kind == ERTPlaybackCueKind::ConeSweep; });
+	if (!TestNotNull(TEXT("🔴 l'atto Cone ha il suo ConeSweep"), Sweep)) { return false; }
+	TestTrue(TEXT("ancorato all'Origin dell'impronta"), Sweep->At == FRTCellId(0, 0));
+	TestTrue(TEXT("verso l'AimCell dell'impronta, non verso la vittima"), Sweep->Toward == FRTCellId(2, 0));
+
+	const FVector Da(0.f, 0.f, 0.f), Verso(200.f, 0.f, 0.f);
+	TArray<FVector> S, E;
+	URTPlaybackLibrary::CueSegments(ERTPlaybackCueKind::ConeSweep, Da, Verso, 100.f, 0.5f, S, E);
+	if (!TestEqual(TEXT("tre segmenti"), S.Num(), 3)) { return false; }
+	for (const FVector& P : S) { TestTrue(TEXT("ogni segmento parte dall'origine"), P.Equals(Da, 0.01f)); }
+	// ⚠️ Letterali `double`: `FVector` e' in doppia precisione (LWC), e `TestEqual(double, float, float)` e' ambiguo.
+	TestEqual(TEXT("bordo sinistro lungo 0.3 L"), FVector::Dist(Da, E[0]), 0.3 * 200.0, 0.5);
+	TestEqual(TEXT("bordo destro lungo 0.3 L"), FVector::Dist(Da, E[1]), 0.3 * 200.0, 0.5);
+	TestEqual(TEXT("i bordi sono simmetrici attorno all'asse"), E[0].Y, -E[1].Y, 0.5);
+	TestEqual(TEXT("🔴 il braccio e' lungo |Origin → AimCell|"), FVector::Dist(Da, E[2]), 200.0, 0.5);
+	TestEqual(TEXT("a α = 0.5 il braccio sta sull'asse"), E[2].Y, 0.0, 0.5);
+	return true;
+}
+
 // --- I test dei Task 3, 4 e 5 si aggiungono QUI, prima di `#endif` ----------------------------------------
 
 #endif // WITH_DEV_AUTOMATION_TESTS

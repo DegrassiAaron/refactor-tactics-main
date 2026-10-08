@@ -183,4 +183,61 @@ bool FRTPreviewTracerDrawsWithDebugDrawingOffTest::RunTest(const FString&)
 	return true;
 }
 
+// Le cue del profilo FX e lo `Zigzag` si disegnano col debug spento (#3578, D-467), nel batcher Foreground, col colore
+// `Attack` (R1): gemello di `TracerDrawsWithDebugDrawingOff`. Un tipo per volta, col numero di segmenti di §2.1.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPreviewFxCuesDrawWithDebugDrawingOffTest,
+	"RefactorTactics.Preview.FxCuesDrawWithDebugDrawingOff",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPreviewFxCuesDrawWithDebugDrawingOffTest::RunTest(const FString&)
+{
+	UWorld* World = MakeLineeAnteprimaWorld();
+	if (!TestNotNull(TEXT("World creato"), World)) { return false; }
+	ULineBatchComponent* Primo = World->GetLineBatcher(UWorld::ELineBatcherType::Foreground);
+	IConsoleVariable* Debug = IConsoleManager::Get().FindConsoleVariable(TEXT("r.EnableDrawDebugHelpers"));
+	if (!TestTrue(TEXT("premessa: batcher Foreground e CVar di debug presenti"), Primo != nullptr && Debug != nullptr))
+	{
+		DestroyLineeAnteprimaWorld(World);
+		return false;
+	}
+	RTTestConsoleVariable::TGuardia<int32> DebugSpento(*Debug, 0);
+	ARTHexMapActor* HexMap = World->SpawnActor<ARTHexMapActor>();
+	if (!TestNotNull(TEXT("HexMap spawnato"), HexMap)) { DestroyLineeAnteprimaWorld(World); return false; }
+	HexMap->MapAsset = URTMatchSetupLibrary::MakeFlatArena(GetTransientPackage(), 4);
+	const FLinearColor Attacco(URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack));
+
+	const TArray<TPair<ERTPlaybackCueKind, int32>> Attesi = {
+		{ ERTPlaybackCueKind::Ring, 6 }, { ERTPlaybackCueKind::Pulse, 12 }, { ERTPlaybackCueKind::Flash, 6 },
+		{ ERTPlaybackCueKind::Marker, 4 }, { ERTPlaybackCueKind::AreaPulse, 12 }, { ERTPlaybackCueKind::ConeSweep, 3 } };
+	for (const TPair<ERTPlaybackCueKind, int32>& Atteso : Attesi)
+	{
+		FRTPlaybackCue C;
+		C.Kind = Atteso.Key;
+		C.At = FRTCellId(0, 0);
+		C.Toward = FRTCellId(2, 0);
+		C.Alpha = 0.5f;
+		HexMap->SetPlaybackCues({ C });
+		Primo->Flush();
+		static_cast<AActor*>(HexMap)->Tick(0.f);
+		const FString Nome = UEnum::GetValueAsString(Atteso.Key);
+		TestEqual(FString::Printf(TEXT("🔴 %s: le sue linee nel batcher Foreground"), *Nome), Primo->BatchedLines.Num(), Atteso.Value);
+		bool bTutteAttack = Primo->BatchedLines.Num() > 0;
+		for (const FBatchedLine& L : Primo->BatchedLines) { bTutteAttack &= L.Color.Equals(Attacco); }
+		TestTrue(FString::Printf(TEXT("%s: col colore Attack della palette"), *Nome), bTutteAttack);
+	}
+	HexMap->ClearPlaybackCues();
+
+	FRTPlaybackTracer T;
+	T.From = FRTCellId(0, 0);
+	T.To = FRTCellId(3, 0);
+	T.Alpha = 1.f;
+	T.Style = ERTTracerStyle::Zigzag;
+	HexMap->SetPlaybackTracers({ T });
+	Primo->Flush();
+	static_cast<AActor*>(HexMap)->Tick(0.f);
+	TestEqual(TEXT("🔴 lo Zigzag intero: otto linee"), Primo->BatchedLines.Num(), 8);
+
+	DestroyLineeAnteprimaWorld(World);
+	return true;
+}
+
 #endif
