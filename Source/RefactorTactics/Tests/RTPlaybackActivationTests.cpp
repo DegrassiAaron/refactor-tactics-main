@@ -567,6 +567,56 @@ bool FRTPlaybackActivationPlaysTheActionClipTest::RunTest(const FString&)
 }
 
 /**
+ * Review finale I1: una clip d'azione che NON si carica ripiega sulla clip di RUOLO, al caricamento — il pacchetto,
+ * dove le clip d'azione non sono cotte (#3562), degrada come prima di #3563 invece di restare muto.
+ *
+ * 🔑 Il path d'azione dello Scudo e' sintetico: non si carica mai, ne' headless ne' altrove. Il path di ruolo
+ * (`Cast` di Muiren, il default del CDO) e' diverso e non nullo, quindi il ripiego va TENTATO; headless fallisce
+ * anch'esso, e per questo si asserisce la DECISIONE (`LastClipLoadFellBackToRoleForTest`), non la clip suonata.
+ * ⛔ La risoluzione NON cambia: `LastResolvedClipPathForTest` resta il path d'azione (i test qui sopra).
+ * 🔑 Controllo positivo: il `Cast` del Tiratore non ha voce d'azione — il path risolto E' gia' quello di ruolo, e
+ * non c'e' niente su cui ripiegare.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackActionClipThatFailsToLoadFallsBackToRoleTest,
+	"RefactorTactics.Playback.ActionClipThatFailsToLoadFallsBackToRole",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackActionClipThatFailsToLoadFallsBackToRoleTest::RunTest(const FString&)
+{
+	const TMap<FName, FRTHeroPresentationClips> Salvato = GetDefault<URTUnitAnimInstance>()->ClipsPerHero;
+	ON_SCOPE_EXIT{ GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero = Salvato; };
+	IniettaClipAzioneBeat(FName(TEXT("Hero.Muiren")), FName(TEXT("Hero.Muiren.TideGuard")),
+		ERTPresentationRole::Cast, ClipAzioneScudo);
+
+	FRTBeatDiProva B;
+	const bool bOk = CostruisciBeat(*this, /*Viewer*/ 0, B);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+	if (!bOk) { return false; }
+	B.TM->LockInAndResolve();
+	FinoAllaFineDelPlayback(B.TM);
+
+	// ⛔ Le premesse: i due cast sono SUONATI, e il ruolo dello Scudo ha un path diverso da quello d'azione.
+	// Senza la seconda il ripiego non avrebbe dove andare, e il «falso» sotto non distinguerebbe niente.
+	const FString PathRuoloScudo = GetDefault<URTUnitAnimInstance>()
+		->ActiveClipFor(FName(TEXT("Hero.Muiren")), ERTPresentationRole::Cast).ToSoftObjectPath().ToString();
+	if (!TestEqual(TEXT("⛔ premessa: il cast dello scudo e' suonato"), B.Scudo->CastCuesPlayedForTest(), 1)
+		|| !TestFalse(TEXT("⛔ premessa: il cast del tiratore e' suonato (path risolto non vuoto)"),
+			B.Tiratore->LastResolvedClipPathForTest(ERTPresentationRole::Cast).IsNull())
+		|| !TestTrue(TEXT("⛔ premessa: il ruolo Cast dello scudo ha un path, diverso da quello d'azione"),
+			!PathRuoloScudo.IsEmpty() && PathRuoloScudo != FString(ClipAzioneScudo)))
+	{
+		return false;
+	}
+
+	TestEqual(TEXT("la risoluzione non cambia: lo scudo ha risolto la clip d'azione di TideGuard"),
+		B.Scudo->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(), FString(ClipAzioneScudo));
+	TestTrue(TEXT("🔴 la clip d'azione non si carica: lo scudo ripiega sulla clip di ruolo"),
+		B.Scudo->LastClipLoadFellBackToRoleForTest(ERTPresentationRole::Cast));
+	TestFalse(TEXT("controllo positivo: il cast del tiratore non ha voce d'azione, niente su cui ripiegare"),
+		B.Tiratore->LastClipLoadFellBackToRoleForTest(ERTPresentationRole::Cast));
+	return true;
+}
+
+/**
  * Review Focus (e): l'impatto di una carica porta l'`ActionId` dello SCATTO (`Impact.Def = Dash->Def`,
  * `RTTurnManager.cpp:4746`), quindi suona la clip `Attack` dello scatto — spec §2.6, riga di `Hero.Branth.Ram`.
  *

@@ -749,7 +749,31 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 #if WITH_DEV_AUTOMATION_TESTS
 	LastResolvedClipPaths.Add(Ruolo, Path.ToSoftObjectPath()); // seam: QUALE path, prima di caricare
 #endif
-	UAnimSequenceBase* const Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+	UAnimSequenceBase* Sequenza = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+
+	// 🔴 **Il ripiego sul RUOLO vale anche al CARICAMENTO, non solo nella scelta del path** (review finale I1).
+	// In un pacchetto le clip d'azione non sono cotte — nessun riferimento duro, owner #3562 — e `LoadSynchronous`
+	// torna `nullptr`: senza questo blocco il beat non suonerebbe NIENTE, dove prima di #3563 suonava la clip di
+	// ruolo. Si ritenta col path di SOLO ruolo (l'overload a due argomenti) quando e' diverso da quello risolto:
+	// se e' uguale non c'era una voce d'azione, e ricaricarlo darebbe lo stesso `nullptr`.
+	bool bRipiegoAlRuolo = false;
+	if (Sequenza == nullptr && !Path.IsNull())
+	{
+		// `Path` non nullo implica un CDO valido: e' la stessa porta di `ResolvedClipPathFor`.
+		const URTUnitAnimInstance* Defaults = Cast<URTUnitAnimInstance>(UnitAnimClass->GetDefaultObject());
+		const TSoftObjectPtr<UAnimSequenceBase> PathRuolo =
+			Defaults != nullptr ? Defaults->ActiveClipFor(HeroId, Ruolo) : TSoftObjectPtr<UAnimSequenceBase>();
+		if (!PathRuolo.IsNull() && PathRuolo.ToSoftObjectPath() != Path.ToSoftObjectPath())
+		{
+			bRipiegoAlRuolo = true;
+			UE_LOG(LogRT, Verbose, TEXT("[RT] Clip d'azione non caricata (%s): ripiego sulla clip di ruolo (%s)"),
+				*Path.ToSoftObjectPath().ToString(), *PathRuolo.ToSoftObjectPath().ToString());
+			Sequenza = PathRuolo.LoadSynchronous(); // anche questo puo' tornare nullptr: resta un degrado
+		}
+	}
+#if WITH_DEV_AUTOMATION_TESTS
+	LastClipLoadFellBackToRole.Add(Ruolo, bRipiegoAlRuolo); // seam: la DECISIONE di ripiegare, non il suo esito
+#endif
 
 	if (Sequenza != nullptr)
 	{
