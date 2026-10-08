@@ -110,6 +110,15 @@ namespace
 	}
 }
 
+TArray<FString> URTBuildAnimBindingsCommandlet::ValidateForGeneration(const FRTAnimCatalog& Catalog,
+	int32& OutGestiNonVerificati)
+{
+	// Prima la struttura, poi i gesti: le righe escono in quest'ordine, e un catalogo rotto le mostra entrambe.
+	TArray<FString> Rifiuti = URTAnimCatalogLibrary::ValidateCatalog(&Catalog);
+	Rifiuti.Append(URTAnimCatalogLibrary::ValidateGestureClips(&Catalog, OutGestiNonVerificati));
+	return Rifiuti;
+}
+
 int32 URTBuildAnimBindingsCommandlet::Main(const FString& Params)
 {
 	TArray<FString> Tokens;
@@ -132,7 +141,9 @@ int32 URTBuildAnimBindingsCommandlet::Main(const FString& Params)
 	// da #3563, `(eroe, ruolo, azione)` — sono rappresentabili nel testo e non a runtime: generare comunque
 	// significherebbe sceglierne una per posizione nell'array, cioe' far dipendere la clip che suona dall'ordine
 	// delle righe di un file. Lo stesso vale per un `actionId` che non suonerebbe mai.
-	const TArray<FString> Errori = URTAnimCatalogLibrary::ValidateCatalog(&Catalog);
+	// ➕ #3596: e per un GESTO attivo con una clip additiva, che in partita il runtime rifiuterebbe.
+	int32 GestiNonVerificati = 0;
+	const TArray<FString> Errori = URTBuildAnimBindingsCommandlet::ValidateForGeneration(Catalog, GestiNonVerificati);
 	if (Errori.Num() > 0)
 	{
 		for (const FString& E : Errori)
@@ -140,6 +151,13 @@ int32 URTBuildAnimBindingsCommandlet::Main(const FString& Params)
 			UE_LOG(LogRTAnimBindings, Error, TEXT("[AnimBindings] catalogo non valido: %s"), *E);
 		}
 		return 1;
+	}
+	if (GestiNonVerificati > 0)
+	{
+		// Una clip che non si carica non e' un gesto «passato»: e' un gesto non verificato, e il log lo dice.
+		UE_LOG(LogRTAnimBindings, Warning,
+			TEXT("[AnimBindings] %d binding attivi su un gesto NON verificati: la clip non si carica (pack Paragon assenti?) — NOT RUN, non PASS"),
+			GestiNonVerificati);
 	}
 
 	int32 Legami = 0;

@@ -12,7 +12,10 @@
 #include "Ability/RTEquipmentData.h"
 #include "Ability/RTHeroCatalogLibrary.h"
 #include "Ability/RTHeroData.h"
+#include "Animation/AnimSequenceBase.h"
+#include "Unit/RTUnitAnimInstance.h"   // RTClipIsAdditive, RTRoleWantsAFullBodyClip: lo stesso criterio del runtime (#3596)
 #include "UObject/Package.h"
+#include "UObject/SoftObjectPtr.h"
 
 const TCHAR* URTAnimCatalogLibrary::IdPrefix = TEXT("AV_");
 const TCHAR* URTAnimCatalogLibrary::CatalogRelativePath = TEXT("Data/Anim/AnimCatalog.json");
@@ -758,6 +761,48 @@ TArray<FString> URTAnimCatalogLibrary::ValidateCatalog(const FRTAnimCatalog* Cat
 	}
 
 	return Errors;
+}
+
+TArray<FString> URTAnimCatalogLibrary::ValidateGestureClips(const FRTAnimCatalog* Catalog, int32& OutNonVerificati)
+{
+	OutNonVerificati = 0;
+	TArray<FString> Additivi;
+	if (!Catalog)
+	{
+		return Additivi;
+	}
+
+	for (const FRTAnimCatalogEntry& Entry : Catalog->Entries)
+	{
+		// La clip si apre una volta per voce, e solo se un binding attivo su un gesto la chiede.
+		bool bCaricata = false;
+		const UAnimSequenceBase* Clip = nullptr;
+		for (const FRTAnimBinding& Binding : Entry.Authored.Bindings)
+		{
+			if (!Binding.bActive || !RTRoleWantsAFullBodyClip(Binding.Role))
+			{
+				continue;
+			}
+			if (!bCaricata)
+			{
+				Clip = Entry.Derived.AssetPath.IsEmpty() ? nullptr
+					: TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(Entry.Derived.AssetPath)).LoadSynchronous();
+				bCaricata = true;
+			}
+			if (Clip == nullptr)
+			{
+				++OutNonVerificati;   // non si carica: NOT RUN, mai «passato»
+				continue;
+			}
+			if (RTClipIsAdditive(Clip))
+			{
+				Additivi.Add(FString::Printf(
+					TEXT("%s / %s ('%s'): la clip '%s' e' additiva — su un gesto lo slot la somma alla posa e non si vede (#3590)"),
+					*Binding.HeroId.ToString(), *RoleToString(Binding.Role), *Entry.Id.ToString(), *Entry.Derived.AssetPath));
+			}
+		}
+	}
+	return Additivi;
 }
 
 TArray<FString> URTAnimCatalogLibrary::ValidateReferents(const FRTAnimCatalog* Catalog, bool& bOutRan)

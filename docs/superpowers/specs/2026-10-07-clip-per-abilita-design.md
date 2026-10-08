@@ -367,6 +367,7 @@ riferimento mancante sarebbero altrimenti indistinguibili nel gate di cook, `RTP
 | Catalogo `formatVersion` 2 letto da una build vecchia | Rifiutato per versione (non letto a metà). |
 | Catalogo `formatVersion` 1 che contiene un `actionId` (editato a mano, o scritto da una build nuova e riletto da una vecchia) | Il reader lo rifiuta: un `actionId` esiste solo da v2. Il writer scrive sempre `CurrentFormatVersion`, quindi un v1 che guadagna un `actionId` si risalva come v2. |
 | Due binding attivi per `(eroe, ruolo, azione)` | Rifiutati da `ValidateCatalog`. |
+| ➕ #3596. Binding **attivo** su un gesto (`Cast`, `Attack`) la cui clip è additiva | `ValidateGestureClips` lo rifiuta con voce, eroe, ruolo e clip, e il commandlet non genera la classe autorata (`ValidateForGeneration`). Una clip che non si carica è contata come non verificata e il commandlet la dichiara `NOT RUN` in un `Warning`. Un binding inattivo, o su `Hit`, non si controlla. |
 | `actionId` su un ruolo che non propaga (`Move`, `Hit`, …) | Rifiutato da `ValidateCatalog` col nome dell'azione e del ruolo. |
 | ➕ rev2. Catalogo **senza** nessun `actionId` risalvato da una build nuova | Diventa v2 comunque (il writer scrive sempre `CurrentFormatVersion`): le build vecchie lo rifiutano per versione. È voluto: una sola versione in circolazione, nessun file «v1 ma scritto da v2». |
 | Catalogo v2 che il commandlet fonde sopra il default | Un eroe o un pool senza binding tiene il default C++; solo i pool nominati dal catalogo cambiano (§2.3). |

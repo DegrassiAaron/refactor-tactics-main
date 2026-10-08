@@ -4,6 +4,9 @@
 #include "RTAnimBrowserModel.h"
 #include "Content/RTBuildAnimBindingsCommandlet.h"
 #include "Unit/RTAnimCatalogLibrary.h"
+#include "Animation/AnimSequence.h"
+#include "UObject/Package.h"
+#include "UObject/StrongObjectPtr.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -816,6 +819,65 @@ bool FRTAnimBrowserBindingRulesPerActionTest::RunTest(const FString&)
 	// ⛔ Un pool mai legato non si attiva: Idle ha un binding (Aevik, Cast) ma d'azione Overload, non di questa.
 	TestFalse(TEXT("🔴 MakeActive su un (eroe, ruolo, azione) mai legato torna false"),
 		M.MakeActive(Idle, Aevik, ERTPresentationRole::Cast, FName(TEXT("Hero.Aevik.MaiLegata"))));
+	return true;
+}
+
+/**
+ * **`RTBuildAnimBindings` non genera la classe autorata se un gesto attivo e' additivo** (#3596).
+ *
+ * 🔑 Si prova la PORTA di `Main` (`ValidateForGeneration`), non il solo validatore della libreria: e' cio' che separa
+ * «la funzione esiste» da «il commandlet la chiama». Il catalogo e' strutturalmente valido — lo dice la premessa — quindi
+ * l'unico motivo per rifiutare e' la clip additiva. Il controllo positivo e' lo stesso catalogo con una clip piena.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBindingsGenerationRefusesAnAdditiveGestureTest,
+	"RefactorTactics.Anim.Bindings.GenerationRefusesAnAdditiveGesture",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimBindingsGenerationRefusesAnAdditiveGestureTest::RunTest(const FString&)
+{
+	auto InMemoria = [](const TCHAR* Nome, EAdditiveAnimationType Tipo)
+	{
+		UAnimSequence* S = NewObject<UAnimSequence>(GetTransientPackage(),
+			MakeUniqueObjectName(GetTransientPackage(), UAnimSequence::StaticClass(), FName(Nome)));
+		S->AdditiveAnimType = Tipo;
+		S->RefPoseType = (Tipo == AAT_None) ? ABPT_None : ABPT_RefPose;
+		return TStrongObjectPtr<UAnimSequence>(S);
+	};
+	const TStrongObjectPtr<UAnimSequence> Additiva = InMemoria(TEXT("RTGenerazioneAdditiva"), AAT_LocalSpaceBase);
+	const TStrongObjectPtr<UAnimSequence> Piena = InMemoria(TEXT("RTGenerazionePiena"), AAT_None);
+
+	// Un catalogo con UN Cast attivo di Aevik, la cui clip e' `Path`.
+	auto Catalogo = [](const FString& Path)
+	{
+		FRTAnimCatalog C;
+		FRTAnimCatalogEntry E;
+		E.Id = FName(TEXT("AV_0001"));
+		E.Derived.AssetPath = Path;
+		E.Authored.Status = ERTAnimClipStatus::Promoted;
+		FRTAnimBinding B;
+		B.HeroId = FName(TEXT("Hero.Aevik"));
+		B.Role = ERTPresentationRole::Cast;
+		B.bActive = true;
+		E.Authored.Bindings.Add(B);
+		C.Entries.Add(MoveTemp(E));
+		C.NextId = 2;
+		return C;
+	};
+
+	const FRTAnimCatalog ConAdditiva = Catalogo(FSoftObjectPath(Additiva.Get()).ToString());
+	if (!TestEqual(TEXT("⛔ premessa: il catalogo e' strutturalmente valido"),
+			URTAnimCatalogLibrary::ValidateCatalog(&ConAdditiva).Num(), 0))
+	{
+		return false;
+	}
+
+	int32 NonVerificati = -1;
+	const TArray<FString> Rifiuti = URTBuildAnimBindingsCommandlet::ValidateForGeneration(ConAdditiva, NonVerificati);
+	TestTrue(TEXT("🔴 un Cast attivo additivo ferma la generazione"), QualcheRigaContiene(Rifiuti, TEXT("AV_0001")));
+
+	const FRTAnimCatalog ConPiena = Catalogo(FSoftObjectPath(Piena.Get()).ToString());
+	TestEqual(TEXT("controllo positivo: con una clip piena si genera"),
+		URTBuildAnimBindingsCommandlet::ValidateForGeneration(ConPiena, NonVerificati).Num(), 0);
+	TestEqual(TEXT("e la clip e' stata verificata"), NonVerificati, 0);
 	return true;
 }
 

@@ -148,4 +148,19 @@ public:
 	 * **deve** scrivere `NOT RUN` — che non e' `PASS`, mai.
 	 */
 	static TArray<FString> ValidateReferents(const FRTAnimCatalog* Catalog, bool& bOutRan);
+
+	/**
+	 * I binding ATTIVI su un GESTO (`Cast`, `Attack`: `RTRoleWantsAFullBodyClip`) la cui clip e' ADDITIVA (#3596).
+	 * **Vuoto = nessun gesto additivo fra quelli VERIFICATI**: `OutNonVerificati` conta i binding attivi su un gesto la
+	 * cui clip non si carica, e quelli non sono «passati», sono `NOT RUN` — la disciplina di `ValidateReferents`.
+	 *
+	 * 🔴 **Lo stesso predicato del runtime** (`RTClipIsAdditive`, #3590): su un gesto lo slot somma l'additiva
+	 * all'`Idle` e la posa non cambia. Senza questo controllo il commandlet genererebbe un gesto che in partita il
+	 * runtime rifiuterebbe con un `Warning` — l'errore arriverebbe a valle, invece che qui.
+	 * ⛔ Un binding INATTIVO non si controlla: e' materiale d'authoring, e non suona. `Hit` additivo e' giusto
+	 * (`PIE-AS4b`): non e' un gesto.
+	 * ⚠️ **Apre gli asset**: gira nel commandlet e nei test, mai in partita. Ogni riga nomina voce, eroe, ruolo e clip;
+	 * l'ordine e' quello delle voci e dei binding, quindi deterministico.
+	 */
+	static TArray<FString> ValidateGestureClips(const FRTAnimCatalog* Catalog, int32& OutNonVerificati);
 };
