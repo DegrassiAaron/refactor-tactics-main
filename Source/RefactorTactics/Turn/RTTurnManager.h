@@ -684,6 +684,9 @@ public:
 	 */
 	int32 PlaybackBlastShownForTest() const { return BlastElementsShown(); }
 
+	/** L'orologio della fase di playback (#3578): l'oracolo con cui i test confrontano `Alpha` con le formule. Solo test. */
+	float PlaybackPhaseElapsedForTest() const { return PlaybackPhaseElapsed; }
+
 	/** I `TimelineIndex` della sequenza di Blast, in ordine (#3549). */
 	TArray<int32> PlaybackBlastSequenceIndicesForTest() const
 	{

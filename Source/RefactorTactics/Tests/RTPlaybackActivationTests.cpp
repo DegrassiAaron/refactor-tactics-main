@@ -685,4 +685,51 @@ bool FRTPlaybackChargeImpactPlaysTheDashAttackClipTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Regressione zero sul tracer di un attacco base, a mondo (spec §5.1, D5): a meta' volo il canale ha UN tracer con
+ * `From`, `To`, `Style = Projectile` e `Alpha` uguali alle formule di prima di #3578.
+ * 🔑 Fixture `CostruisciBeat` col viewer 0 (mondo inizializzato, viewer asserito): il Tiratore e' Branth in (0,0)
+ * con `ImpactShot` sul bersaglio in (1,0). L'indice del colpo nella sequenza si legge dopo `LockInAndResolve`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlaybackBasicAttackTracerIsUnchangedTest,
+	"RefactorTactics.Playback.BasicAttackTracerIsUnchanged",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlaybackBasicAttackTracerIsUnchangedTest::RunTest(const FString&)
+{
+	FRTBeatDiProva B;
+	const bool bOk = CostruisciBeat(*this, /*Viewer*/ 0, B);
+	ON_SCOPE_EXIT{ RTWorldFixtures::DestroyWorld(B.World); };
+	if (!bOk) { return false; }
+	ARTHexMapActor* Mappa = ARTHexMapActor::FindInWorld(B.World);
+	if (!TestNotNull(TEXT("mappa"), Mappa)) { return false; }
+	B.TM->LockInAndResolve();
+
+	int32 K = INDEX_NONE;
+	const TArray<int32> Sequenza = B.TM->PlaybackBlastSequenceIndicesForTest();
+	for (int32 I = 0; I < Sequenza.Num(); ++I)
+	{
+		const FRTResolvedEvent& Ev = B.TM->ResolvedTimelineForTest()[Sequenza[I]];
+		if (Ev.Type == ERTResolvedEventType::Attack && Ev.SourceStableUnitId == B.Tiratore->StableUnitId) { K = I; }
+	}
+	if (!TestTrue(TEXT("⛔ premessa: il colpo del tiratore e' nella sequenza del Blast"), K != INDEX_NONE)) { return false; }
+	const float A = B.TM->AttackShowSeconds;
+	const float Volo = FMath::Clamp(B.TM->TracerFlightSeconds, 0.f, 0.5f * A); // la formula di `TracerFlightFor`
+
+	bool bVisto = false;
+	for (int32 I = 0; I < 600 && B.TM->IsResolving(); ++I)
+	{
+		B.TM->Tick(0.02f);
+		if (B.TM->CurrentPlaybackPhaseForTest() != ERTMatchPhase::Blast || Mappa->NumPlaybackTracers() != 1) { continue; }
+		bVisto = true;
+		const FRTPlaybackTracer& T = Mappa->GetPlaybackTracers()[0];
+		TestTrue(TEXT("From = cella del tiratore"), T.From == FRTCellId(0, 0));
+		TestTrue(TEXT("To = cella del bersaglio"), T.To == FRTCellId(1, 0));
+		TestTrue(TEXT("🔴 Style = Projectile"), T.Style == ERTTracerStyle::Projectile);
+		const float Atteso = FMath::Clamp((B.TM->PlaybackPhaseElapsedForTest() - K * A) / Volo, 0.f, 1.f);
+		TestEqual(TEXT("Alpha = (t − k·A) / F"), T.Alpha, Atteso, 1e-3f);
+	}
+	TestTrue(TEXT("🔴 a meta' volo il tracer c'e'"), bVisto);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

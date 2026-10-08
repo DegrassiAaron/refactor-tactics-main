@@ -275,17 +275,31 @@ public:
 	static float TracerAlpha(int32 AttackIndex, float PhaseElapsed, float AttackShowSeconds, float Flight);
 
 	/**
-	 * Le condizioni 1-3 della spec §2.1: un `Attack` di un attacco base (`ActionId` OPPURE `BaseActionId` ==
-	 * `Action.BasicAttack`), di forma `Single` o `Line`, con geometria risolta. Decide il RITMO: non legge chi guarda.
-	 * ⚠️ Idoneita' PROVVISORIA e dichiarata: la sostituisce la tabella `ActionId -> profilo` del sotto-progetto 4.
+	 * Il VOLO di un colpo (#3578, spec «il profilo FX» §2.2, R12, R13): un `Attack` con geometria risolta, con un id
+	 * (`ActionId` o `BaseActionId`), la cui forma di DEFAULT ha un tracer (`Single`, `Line`). Decide il RITMO: non
+	 * legge l'override ne' chi guarda.
+	 * ⌫ *Era «un attacco base, idoneita' PROVVISORIA»: la tabella del sotto-progetto 4 l'ha sostituita.*
 	 */
 	static bool IsTracerEligible(const FRTResolvedEvent& Ev);
 
 	/**
-	 * Lo stile del tracer per chi guarda: `None` se non idoneo, o se la squadra non conosceva l'attaccante in
-	 * `From` OPPURE la vittima in `Impact` (spec §0.3, P1). Decide il DISEGNO, mai il ritmo.
+	 * Lo stile del tracer per chi guarda: `None` se non idoneo o se la squadra non conosceva l'attaccante in `From`
+	 * OPPURE la vittima in `Impact` (spec del tracer §0.3, P1); altrimenti il `Tracer` del profilo FX, che puo' essere
+	 * `None` con lo stesso volo (R13). Decide il DISEGNO, mai il ritmo.
 	 */
 	static ERTTracerStyle TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/** `TracerStyleFor` su una tabella d'override data (pura, per i test: come `FxProfileForIn`). */
+	static ERTTracerStyle TracerStyleForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+		const FRTResolvedEvent& Ev, int32 ViewerTeamId);
+
+	/**
+	 * La polilinea di uno `Zigzag` (#3578, spec §2.1, F11, F12): otto segmenti fra `From` e `To`, scarto laterale
+	 * `±0.12·HexSize` alternato per INDICE di vertice, tagliata da `Alpha` — quindi a `α` minore e' un PREFISSO di quella
+	 * a `α` maggiore. Pura: nessun `Rand`, nessun orologio. Per ogni altro stile `OutPoints` resta vuoto.
+	 */
+	static void TracerPolyline(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+		float HexSize, TArray<FVector>& OutPoints);
 
 	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.

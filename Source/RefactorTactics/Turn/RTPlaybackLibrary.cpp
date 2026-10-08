@@ -1,5 +1,7 @@
 #include "Turn/RTPlaybackLibrary.h"
 
+#include "Turn/RTPresentationBinding.h" // #3578: il profilo FX — default per forma (volo) e override (disegno)
+
 FVector URTPlaybackLibrary::InterpolateAlongPath(const TArray<FVector>& Waypoints, float Alpha)
 {
 	const int32 N = Waypoints.Num();
@@ -129,14 +131,19 @@ float URTPlaybackLibrary::TracerAlpha(int32 AttackIndex, float PhaseElapsed, flo
 
 bool URTPlaybackLibrary::IsTracerEligible(const FRTResolvedEvent& Ev)
 {
-	static const FName BasicAttack(TEXT("Action.BasicAttack"));
+	// #3578 (spec «il profilo FX» §2.2, R12, R13): il VOLO — quindi il ritmo — e' la sola forma di DEFAULT di un'azione
+	// con un id. Non legge l'override ne' chi guarda: un attaccante non visto non rivela col ritardo l'override della
+	// sua azione. ⚠️ ➕ rev2. Il ritmo e' «stesso volo a parita' di indice nella sequenza», e l'indice dipende dalle
+	// attivazioni che chi guarda ha il diritto di vedere (`BuildBlastSequence`, D6 del momento).
+	// ⏱️ *Fino a #3578 l'idoneita' era «attacco base», dichiarata provvisoria (spec del tracer §2.1, condizione 1).*
 	return Ev.Type == ERTResolvedEventType::Attack
-		&& (Ev.ActionId == BasicAttack || Ev.BaseActionId == BasicAttack)
-		&& (Ev.Shape == ERTAbilityShape::Single || Ev.Shape == ERTAbilityShape::Line)
-		&& Ev.HitGeometry.bResolved;
+		&& Ev.HitGeometry.bResolved
+		&& !(Ev.ActionId.IsNone() && Ev.BaseActionId.IsNone()) // R12: nessuna azione, nessun volo
+		&& URTPresentationBindingLibrary::DefaultFxProfileFor(Ev.Shape).Tracer != ERTTracerStyle::None;
 }
 
-ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+ERTTracerStyle URTPlaybackLibrary::TracerStyleForIn(const TMap<FName, FRTAbilityFxProfile>& Overrides,
+	const FRTResolvedEvent& Ev, int32 ViewerTeamId)
 {
 	if (!IsTracerEligible(Ev)
 		|| !Ev.HitGeometry.FromVerdict.AllowsTeam(ViewerTeamId)
@@ -144,7 +151,45 @@ ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, in
 	{
 		return ERTTracerStyle::None;
 	}
-	return Ev.Shape == ERTAbilityShape::Line ? ERTTracerStyle::Jet : ERTTracerStyle::Projectile;
+	// Il DISEGNO: lo stile del profilo. `None` qui = stesso volo, nessun disegno (R13: `Ram`, `PassingBlade`).
+	return URTPresentationBindingLibrary::FxProfileForIn(Overrides, Ev.ActionId, Ev.BaseActionId, Ev.Shape).Tracer;
+}
+
+ERTTracerStyle URTPlaybackLibrary::TracerStyleFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId)
+{
+	return TracerStyleForIn(URTPresentationBindingLibrary::DeclaredFxOverrides(), Ev, ViewerTeamId);
+}
+
+void URTPlaybackLibrary::TracerPolyline(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
+	float HexSize, TArray<FVector>& OutPoints)
+{
+	OutPoints.Reset();
+	if (Style != ERTTracerStyle::Zigzag)
+	{
+		return; // `Projectile` e `Jet` restano su `TracerSegment` (F11)
+	}
+	constexpr int32 Segmenti = 8;
+	const FVector Asse = To - From;
+	const FVector Laterale = FVector::CrossProduct(Asse, FVector::UpVector).GetSafeNormal();
+	const float Scarto = 0.12f * HexSize;
+	auto Vertice = [&](int32 I) -> FVector
+	{
+		if (I <= 0) { return From; }
+		if (I >= Segmenti) { return To; }
+		// 🔑 Il segno dall'INDICE del vertice, mai da `Alpha` (F12): e' cio' che rende la linea un prefisso che cresce.
+		const float Segno = (I % 2 == 1) ? 1.f : -1.f;
+		return From + Asse * (static_cast<float>(I) / Segmenti) + Laterale * (Segno * Scarto);
+	};
+	const float T = FMath::Clamp(Alpha, 0.f, 1.f) * Segmenti;
+	const int32 Interi = FMath::Min(FMath::FloorToInt(T), Segmenti);
+	for (int32 I = 0; I <= Interi; ++I)
+	{
+		OutPoints.Add(Vertice(I));
+	}
+	if (Interi < Segmenti && T - Interi > KINDA_SMALL_NUMBER)
+	{
+		OutPoints.Add(FMath::Lerp(Vertice(Interi), Vertice(Interi + 1), T - Interi));
+	}
 }
 
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,

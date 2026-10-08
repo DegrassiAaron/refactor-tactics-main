@@ -141,6 +141,19 @@ bool FRTFxNoActionNoProfileTest::RunTest(const FString&)
 	TestEqual(TEXT("controllo: con un solo id, la forma torna"),
 		FxTesto(URTPresentationBindingLibrary::FxProfileFor(NAME_None, TEXT("Action.BasicAttack"), ERTAbilityShape::Single)),
 		FxTesto(URTPresentationBindingLibrary::DefaultFxProfileFor(ERTAbilityShape::Single)));
+
+	// 🔴 La clausola R12 PROPRIA di `IsTracerEligible`: legge `DefaultFxProfileFor`, non `FxProfileFor`, quindi la
+	// guardia di `FxProfileForIn` non la copre (mutazione (22)).
+	FRTResolvedEvent Legacy;
+	Legacy.Type = ERTResolvedEventType::Attack;
+	Legacy.Shape = ERTAbilityShape::Single;
+	Legacy.HitGeometry.bResolved = true;
+	TestFalse(TEXT("🔴 IsTracerEligible falso anche con geometria risolta"), URTPlaybackLibrary::IsTracerEligible(Legacy));
+	TestEqual(TEXT("quindi nessun volo: il ritmo dei test con unita' legacy non cambia"),
+		URTPlaybackLibrary::TracerFlightFor(URTPlaybackLibrary::IsTracerEligible(Legacy), 0.25f, 0.5f), 0.f);
+	FRTResolvedEvent ConId = Legacy;
+	ConId.ActionId = TEXT("Action.BasicAttack");
+	TestTrue(TEXT("controllo: con un id la stessa geometria e' idonea"), URTPlaybackLibrary::IsTracerEligible(ConId));
 	return true;
 }
 

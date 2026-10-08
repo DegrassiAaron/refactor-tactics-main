@@ -7957,6 +7957,8 @@ void ARTTurnManager::BeginPlayback(bool bPreserveClock)
 	// `IsTracerEligible` e' falso per ogni tipo che non sia `Attack`: attivazioni, impronte e muri hanno volo zero.
 	// Si ricalcola anche estendendo: e' funzione pura degli eventi, e il prefisso congelato porta gli stessi eventi,
 	// quindi gli stessi voli.
+	// #3578: l'idoneita' e' la forma di DEFAULT di un'azione con un id (R12, R13, `IsTracerEligible`): un override che
+	// toglie il disegno (`Ram`, `PassingBlade`) non toglie il volo, e un colpo non base con forma `Single`/`Line` ora vola.
 	int32 NumColpi = 0, NumImpronte = 0, NumMuri = 0, NumAttivazioniBlast = 0;
 	PlaybackBlastFlights.Reset(PlaybackBlastSequence.Num());
 	for (const FRTBlastSequenceElement& E : PlaybackBlastSequence)
