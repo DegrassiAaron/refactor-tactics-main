@@ -274,6 +274,14 @@ namespace
 	}
 
 	/**
+	 * Quale pool di clip un helper di cook attraversa (R14, #3563): il pool di RUOLO (`PerRole` dell'eroe) e quello d'AZIONE
+	 * (`PerAction`) hanno owner e stato diversi — il primo e' raggiunto dai `BP_Unit_*`, il secondo no (#3562) — e un
+	 * gate unico, gia' rosso per il secondo, nasconderebbe un rosso futuro del primo. `Entrambi` e' il default: il set
+	 * completo, quello che guarda `RequiredSetIncludesActionClips`.
+	 */
+	enum class ERTPoolClip : uint8 { Ruolo, Azione, Entrambi };
+
+	/**
 	 * Il set di package che il cook deve portare: la variante ATTIVA di ogni pool del CDO — `(eroe, ruolo)` e, da
 	 * #3563, `(eroe, azione, ruolo)`. Estratto dal gate perche' abbia un test proprio, verde
 	 * (`RequiredSetIncludesActionClips`), mentre il gate guarda i riferimenti duri (#3562).
@@ -283,7 +291,7 @@ namespace
 	 * `continue` aggiunto fra l'inserimento e il contatore sottrarrebbe path al cook senza far divergere il conteggio indipendente.
 	 */
 	TArray<FString> RTRequiredAnimationPackages(const URTUnitAnimInstance* Cdo,
-		TMap<FString, FString>& OutProvenienza, int32& OutTerneCoperte)
+		TMap<FString, FString>& OutProvenienza, int32& OutTerneCoperte, ERTPoolClip Pool = ERTPoolClip::Entrambi)
 	{
 		TArray<FString> Richieste;
 		OutTerneCoperte = 0;
@@ -301,6 +309,7 @@ namespace
 		{
 			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
 			{
+				if (Pool == ERTPoolClip::Azione) { break; }   // R14: il gate d'azione non chiede le clip di ruolo
 				const FSoftObjectPath Path = Cdo->ActiveClipFor(Voce.Key, Ruolo.Key).ToSoftObjectPath();
 				if (Path.IsNull()) { continue; }   // nessuna attiva: posa di riferimento, e va bene
 				Accoda(Path, FString::Printf(TEXT("%s / %s"), *Voce.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key)));
@@ -308,6 +317,7 @@ namespace
 			// ➕ #3563: i pool d'AZIONE. La loro variante attiva entra nel set come quella di ruolo.
 			for (const TPair<FName, FRTActionPresentationClips>& Azione : Voce.Value.PerAction)
 			{
+				if (Pool == ERTPoolClip::Ruolo) { break; }   // R14: il gate di ruolo non chiede le clip d'azione
 				for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
 				{
 					const FRTAnimVariant* Attiva = Ruolo.Value.FindActive();
@@ -321,18 +331,20 @@ namespace
 		return Richieste;
 	}
 
-	/** Il conteggio INDIPENDENTE dei pool con una variante attiva, nei due livelli: il presidio anti-sottrazione. */
-	int32 RTTerneConVarianteAttiva(const URTUnitAnimInstance* Cdo)
+	/** Il conteggio INDIPENDENTE dei pool con una variante attiva, nei due livelli (o in quello di `Pool`): il presidio anti-sottrazione. */
+	int32 RTTerneConVarianteAttiva(const URTUnitAnimInstance* Cdo, ERTPoolClip Pool = ERTPoolClip::Entrambi)
 	{
 		int32 Terne = 0;
 		for (const TPair<FName, FRTHeroPresentationClips>& Voce : Cdo->ClipsPerHero)
 		{
 			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Voce.Value.PerRole)
 			{
+				if (Pool == ERTPoolClip::Azione) { break; }
 				if (Ruolo.Value.FindActive() != nullptr) { ++Terne; }
 			}
 			for (const TPair<FName, FRTActionPresentationClips>& Azione : Voce.Value.PerAction)
 			{
+				if (Pool == ERTPoolClip::Ruolo) { break; }
 				for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
 				{
 					if (Ruolo.Value.FindActive() != nullptr) { ++Terne; }
@@ -340,6 +352,188 @@ namespace
 			}
 		}
 		return Terne;
+	}
+
+	/**
+	 * Il corpo comune dei due gate di cook (R14, #3563): le terne del pool `Pool` hanno un riferimento duro che le porta nel cook?
+	 * `Rimedio` e' la frase finale dell'errore: il gate di ruolo e quello d'azione hanno lo stesso meccanismo e due owner di lavoro diversi.
+	 */
+	bool RTVerificaCotturaClip(FAutomationTestBase& Test, ERTPoolClip Pool, const TCHAR* Rimedio)
+	{
+		const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
+		if (!Test.TestNotNull(TEXT("CDO del grafo di animazione"), Cdo))
+		{
+			return false;
+		}
+
+		// Il set RICHIESTO, derivato dal roster e non trascritto.
+		//
+		// 🔴 **Il ciclo (oggi in `RTRequiredAnimationPackages`) cresceva con gli EROI, non con i RUOLI, e il commento che stava qui prometteva il
+		// contrario.** Diceva: «il giorno che una terza clip entra in `ClipsPerHero`, entra anche qui senza
+		// che nessuno tocchi questo file». Vero per un eroe nuovo — il ciclo esterno lo prende da solo.
+		// Falso per un ruolo nuovo: l'elenco dei ruoli di allora era **letterale**, e un ruolo che non era
+		// nominato li' restava fuori dal set richiesto. Nel pacchetto la sua clip non c'e', in Editor tutto
+		// sembra a posto, e il difetto si vede solo su packaged come posa di riferimento.
+		//
+		// ✅ **Estensione del 2026-09-05 (#2442): il ciclo interno ora attraversa i RUOLI POPOLATI, non un
+		// elenco letterale.** L'adeguamento meccanico di #2441 aveva lasciato `{ Idle, Move }` scritti a mano;
+		// da qui in poi un ruolo nuovo entra nel set richiesto **senza che nessuno tocchi questo file**, che
+		// e' cio' che il commento di prima prometteva senza mantenerlo.
+		//
+		// ⚠️ Si itera `PerRole` e non ogni valore di `ERTPresentationRole`: un ruolo che nessuno ha popolato non esiste
+		// nella mappa, e chiedere il suo cook sarebbe chiedere il cook del nulla.
+		//
+		// 🔑 **La variante ATTIVA, non tutte.** Una variante legata ma non attiva e' materiale d'authoring:
+		// non gioca, e pretenderne il riferimento duro gonfierebbe il pacchetto con clip che nessuno vede.
+		// E' la lettura fedele di `D-262`, che ordina un set minimo ESPLICITO e non l'albero.
+		//
+		// ⚠️ Conseguenza voluta e da conoscere: **rendere attiva una variante la porta nel set del cook**, e
+		// questo test diventa rosso finche' un asset versionato sotto `/Game/RT` non la referenzia duro.
+		// `Make Active` in Editor non e' gratis su packaged, e questo e' il posto in cui quel costo si vede.
+		// ➕ #3563: il calcolo vive in `RTRequiredAnimationPackages`, che attraversa ANCHE i pool d'azione con la
+		// provenienza `Hero.X / Azione / Ruolo`; il suo test verde e' `RequiredSetIncludesActionClips`.
+		// ➕ R14: `Pool` restringe il set al pool che questo gate possiede (`RequiredAnimationClipsAreCooked` = ruolo,
+		// `RequiredActionClipsAreCooked` = azione); il conteggio anti-sottrazione vale per quel pool.
+		// ⚠️ Un package puo' servire PIU' pool (`Cast` e `Attack` condividono la clip, #3549): le provenienze si
+		// ACCODANO, separate da `; `, e non si sovrascrivono — chi legge l'errore deve vedere tutti i pool serviti.
+		// `TerneCoperte` conta le TERNE (eroe, [azione,] ruolo) entrate, non i package: quelli si deduplicano.
+		TMap<FString, FString> Provenienza;
+		int32 TerneCoperte = 0;
+		const TArray<FString> Richieste = RTRequiredAnimationPackages(Cdo, Provenienza, TerneCoperte, Pool);
+
+		// Primo controllo anti-vacuita': un set vuoto renderebbe verde il ciclo qui sotto senza guardare
+		// niente. L'asserzione e' «almeno una» per non impuntarsi su un numero che il roster
+		// fara' crescere.
+		if (!Test.TestTrue(TEXT("il roster dichiara almeno una clip richiesta"), Richieste.Num() > 0))
+		{
+			return false;
+		}
+
+		// 🔴 **Anti-SOTTRAZIONE, e senza questo il resto del test si puo' rendere verde togliendo lavoro.**
+		//
+		// Le due anti-vacuita' classiche guardano lo zero. Ma un ciclo che smette presto — un `break` dopo il
+		// primo ruolo, un `continue` di troppo — produce un set piu' PICCOLO e non vuoto: ogni path che resta
+		// e' coperto, il conteggio degli scoperti e' zero, e il gate diventa **verde perche' chiede di meno**.
+		// E' il modo piu' facile di rompere questo oracolo senza che nessuno se ne accorga.
+		//
+		// Il presidio e' un conteggio INDIPENDENTE delle terne (eroe, [azione,] ruolo) che hanno una variante attiva,
+		// fatto in un ciclo separato (`RTTerneConVarianteAttiva`): se l'helper ne ha saltata anche una, i due numeri divergono.
+		//
+		// 🔴 **Due ruoli possono condividere un package (`Cast` = `Attack`, #3549): si contano le TERNE, non i
+		// package.** La prima stesura confrontava `Provenienza.Num()` — una mappa per PACKAGE — con le coppie (eroe,
+		// ruolo), e il giorno che `Cast` ha preso la clip di `Attack` le coppie di quel package sono collassate e il
+		// test e' diventato rosso per una ragione che non era una sottrazione. Il confronto resta stretto:
+		// `TerneCoperte` cresce a ogni terna con variante attiva, indipendentemente dalla deduplicazione di `Richieste`, quindi un `break`
+		// o un `continue` di troppo lo fa ancora divergere.
+		const int32 TerneAttese = RTTerneConVarianteAttiva(Cdo, Pool);   // ➕ R14: le terne del SUO pool, non dell'altro
+		if (!Test.TestEqual(
+				TEXT("il set richiesto copre TUTTE le terne (eroe, [azione,] ruolo) con una variante attiva: ")
+				TEXT("un ciclo che ne salta una rende questo gate verde chiedendo di meno"),
+				TerneCoperte, TerneAttese))
+		{
+			return false;
+		}
+
+		const FString ContentDir = FPaths::ProjectContentDir();
+		const TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
+
+		// Secondo controllo anti-vacuita': se non si leggesse nessun package, ogni clip risulterebbe scoperta
+		// e il rosso non direbbe niente sul cook.
+		if (!Test.TestTrue(TEXT("ci sono package versionati sotto Content/RT da esaminare"), Versionati.Num() > 0))
+		{
+			return false;
+		}
+
+		// I byte, letti una volta sola: il ciclo sotto e' Clip x Package, e rileggere i file per ogni clip
+		// moltiplicherebbe l'I/O per il numero di clip senza cambiare l'esito.
+		TArray<TArray<uint8>> Byte;
+		Byte.Reserve(Versionati.Num());
+		for (const FString& File : Versionati)
+		{
+			TArray<uint8> Bytes;
+			FFileHelper::LoadFileToArray(Bytes, *File);
+			Byte.Add(MoveTemp(Bytes));
+		}
+
+		auto QualcunoReferenzia = [&Byte](const FString& PackagePath) -> bool
+		{
+			for (const TArray<uint8>& Bytes : Byte)
+			{
+				if (RTBytesMentionPath(Bytes, PackagePath))
+				{
+					return true;
+				}
+			}
+			return false;
+		};
+
+		// 🔑 **Terzo controllo, e il piu' importante: il metodo sa trovare un riferimento VERO.**
+		// Le mesh Paragon sono la famiglia SORELLA delle clip — stesso pack, stesso eroe, cartella accanto —
+		// e sono referenziate duro dai `BP_Unit_*`: misurato il 2026-10-08: mesh e clip di RUOLO sono referenziate duro, le clip
+		// d'AZIONE no (#3562). ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
+		// «l'oracolo non sa guardare» invece di «la clip non e' raggiungibile» — la stessa confusione che il
+		// registro PIE avverte per gli zeri di packaging.
+		// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
+		// nome dell'asset di terze parti, non l'id dell'eroe. Misurato dentro il package che lo referenzia:
+		// `python -c` su `Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset` (allora `.../Gadget/BP_Unit_Gadget`, `#2297`) estrae
+		// `.../Heroes/Gadget/Meshes/Gadget` — e `.../Meshes/Aevik` non esiste.
+		//
+		// 🔴 Ha detto `Aevik` dal rename al 2026-09-10, e il controllo POSITIVO cadeva: il test usciva rosso
+		// dichiarando che «il metodo di ricerca non sa guardare», cioe' accusando il proprio oracolo di un
+		// difetto che era un refuso nel letterale.
+		const FString MeshDiControllo =
+			TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget");
+		if (!Test.TestTrue(
+				TEXT("controllo positivo: la mesh Paragon di Aevik e' referenziata da un asset versionato — ")
+				TEXT("se questo fallisce, il metodo di ricerca non sa guardare e il resto dell'esito non vale"),
+				QualcunoReferenzia(MeshDiControllo)))
+		{
+			return false;
+		}
+
+		// L'asserzione per cui questo test esiste.
+		TArray<FString> Scoperte;
+		for (const FString& Richiesta : Richieste)
+		{
+			if (!QualcunoReferenzia(Richiesta))
+			{
+				Scoperte.Add(Richiesta);
+			}
+		}
+
+		// Ordine stabile fra run: `Richieste` segue l'iterazione dei `TMap` del CDO, e il log non deve dipenderne.
+		Scoperte.Sort();
+
+		for (const FString& Scoperta : Scoperte)
+		{
+			// 🔑 **Il messaggio dice COSA FARE, e non solo cosa manca.** Chi incontra questo rosso la prima
+			// volta lo legge come un guasto dello strumento se non gli si spiega che il cook segue solo i
+			// riferimenti duri, e che scriverlo e' lavoro di #3562 (storico: #2444, chiusa; proprietario dei
+			// `BP_Unit_*`, che sono binari e non si mergiano). Da #3563 la provenienza nomina anche l'AZIONE.
+			const FString* Provenuta = Provenienza.Find(Scoperta);
+			FString Chi = TEXT("ruolo ignoto");
+			if (Provenuta)
+			{
+				// Stesso motivo del `Sort` qui sopra: le provenienze di un package condiviso si accodano in ordine di `TMap`.
+				TArray<FString> Voci;
+				Provenuta->ParseIntoArray(Voci, TEXT("; "));
+				Voci.Sort();
+				Chi = FString::Join(Voci, TEXT("; "));
+			}
+			Test.AddError(FString::Printf(
+				TEXT("%s e' la variante ATTIVA di [%s] e nessun asset versionato sotto Content/RT la ")
+				TEXT("referenzia duro: il cook non ha nessuna dipendenza da seguire, e nel pacchetto ")
+				TEXT("l'unita' resta in posa di riferimento (D-262). ")
+				TEXT("%s"),
+				*Scoperta, *Chi, Rimedio));
+		}
+
+		Test.TestEqual(
+			FString::Printf(TEXT("clip richieste senza un riferimento che le porti nel cook (su %d)"),
+				Richieste.Num()),
+			Scoperte.Num(), 0);
+
+		return true;
 	}
 }
 
@@ -578,6 +772,10 @@ bool FRTEditorNamespaceScanDetectsAViolationTest::RunTest(const FString&)
 /**
  * **Le clip di animazione richieste dal vertical slice sono raggiungibili dal cook** (#1663, `D-262`).
  *
+ * ➕ **R14 (#3563): questo gate pretende SOLO le clip del pool di RUOLO** (`PerRole`), e resta verde e binario; le clip del pool
+ * d'AZIONE hanno il gate gemello `RequiredActionClipsAreCooked` (rosso finche' #3562 non scrive i riferimenti duri). Il corpo e'
+ * comune (`RTVerificaCotturaClip`).
+ *
  * 🔴 **Cosa questo test presidia, nella forma che `D-262` ordina.** Quella voce dichiara che una build
  * che si avvia ma ripiega sulla posa di riferimento **non e' Done**, e che *«la validazione del packaged
  * FALLISCE quando una dipendenza di animazione richiesta manca»*. Questo e' quel gate.
@@ -612,185 +810,40 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredAnimationClipsAreCookedTest,
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FRTRequiredAnimationClipsAreCookedTest::RunTest(const FString&)
 {
-	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
-	if (!TestNotNull(TEXT("CDO del grafo di animazione"), Cdo))
-	{
-		return false;
-	}
+	return RTVerificaCotturaClip(*this, ERTPoolClip::Ruolo,
+		TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#3562), oppure ")
+		TEXT("disattiva la variante se non deve entrare nel pacchetto."));
+}
 
-	// Il set RICHIESTO, derivato dal roster e non trascritto.
-	//
-	// 🔴 **Il ciclo (oggi in `RTRequiredAnimationPackages`) cresceva con gli EROI, non con i RUOLI, e il commento che stava qui prometteva il
-	// contrario.** Diceva: «il giorno che una terza clip entra in `ClipsPerHero`, entra anche qui senza
-	// che nessuno tocchi questo file». Vero per un eroe nuovo — il ciclo esterno lo prende da solo.
-	// Falso per un ruolo nuovo: l'elenco dei ruoli di allora era **letterale**, e un ruolo che non era
-	// nominato li' restava fuori dal set richiesto. Nel pacchetto la sua clip non c'e', in Editor tutto
-	// sembra a posto, e il difetto si vede solo su packaged come posa di riferimento.
-	//
-	// ✅ **Estensione del 2026-09-05 (#2442): il ciclo interno ora attraversa i RUOLI POPOLATI, non un
-	// elenco letterale.** L'adeguamento meccanico di #2441 aveva lasciato `{ Idle, Move }` scritti a mano;
-	// da qui in poi un ruolo nuovo entra nel set richiesto **senza che nessuno tocchi questo file**, che
-	// e' cio' che il commento di prima prometteva senza mantenerlo.
-	//
-	// ⚠️ Si itera `PerRole` e non ogni valore di `ERTPresentationRole`: un ruolo che nessuno ha popolato non esiste
-	// nella mappa, e chiedere il suo cook sarebbe chiedere il cook del nulla.
-	//
-	// 🔑 **La variante ATTIVA, non tutte.** Una variante legata ma non attiva e' materiale d'authoring:
-	// non gioca, e pretenderne il riferimento duro gonfierebbe il pacchetto con clip che nessuno vede.
-	// E' la lettura fedele di `D-262`, che ordina un set minimo ESPLICITO e non l'albero.
-	//
-	// ⚠️ Conseguenza voluta e da conoscere: **rendere attiva una variante la porta nel set del cook**, e
-	// questo test diventa rosso finche' un asset versionato sotto `/Game/RT` non la referenzia duro.
-	// `Make Active` in Editor non e' gratis su packaged, e questo e' il posto in cui quel costo si vede.
-	// ➕ #3563: il calcolo vive in `RTRequiredAnimationPackages`, che attraversa ANCHE i pool d'azione con la
-	// provenienza `Hero.X / Azione / Ruolo`; il suo test verde e' `RequiredSetIncludesActionClips`.
-	// ⚠️ Un package puo' servire PIU' pool (`Cast` e `Attack` condividono la clip, #3549): le provenienze si
-	// ACCODANO, separate da `; `, e non si sovrascrivono — chi legge l'errore deve vedere tutti i pool serviti.
-	// `TerneCoperte` conta le TERNE (eroe, [azione,] ruolo) entrate, non i package: quelli si deduplicano.
-	TMap<FString, FString> Provenienza;
-	int32 TerneCoperte = 0;
-	const TArray<FString> Richieste = RTRequiredAnimationPackages(Cdo, Provenienza, TerneCoperte);
-
-	// Primo controllo anti-vacuita': un set vuoto renderebbe verde il ciclo qui sotto senza guardare
-	// niente. L'asserzione e' «almeno una» per non impuntarsi su un numero che il roster
-	// fara' crescere.
-	if (!TestTrue(TEXT("il roster dichiara almeno una clip richiesta"), Richieste.Num() > 0))
-	{
-		return false;
-	}
-
-	// 🔴 **Anti-SOTTRAZIONE, e senza questo il resto del test si puo' rendere verde togliendo lavoro.**
-	//
-	// Le due anti-vacuita' classiche guardano lo zero. Ma un ciclo che smette presto — un `break` dopo il
-	// primo ruolo, un `continue` di troppo — produce un set piu' PICCOLO e non vuoto: ogni path che resta
-	// e' coperto, il conteggio degli scoperti e' zero, e il gate diventa **verde perche' chiede di meno**.
-	// E' il modo piu' facile di rompere questo oracolo senza che nessuno se ne accorga.
-	//
-	// Il presidio e' un conteggio INDIPENDENTE delle terne (eroe, [azione,] ruolo) che hanno una variante attiva,
-	// fatto in un ciclo separato (`RTTerneConVarianteAttiva`): se l'helper ne ha saltata anche una, i due numeri divergono.
-	//
-	// 🔴 **Due ruoli possono condividere un package (`Cast` = `Attack`, #3549): si contano le TERNE, non i
-	// package.** La prima stesura confrontava `Provenienza.Num()` — una mappa per PACKAGE — con le coppie (eroe,
-	// ruolo), e il giorno che `Cast` ha preso la clip di `Attack` le coppie di quel package sono collassate e il
-	// test e' diventato rosso per una ragione che non era una sottrazione. Il confronto resta stretto:
-	// `TerneCoperte` cresce a ogni terna con variante attiva, indipendentemente dalla deduplicazione di `Richieste`, quindi un `break`
-	// o un `continue` di troppo lo fa ancora divergere.
-	const int32 TerneAttese = RTTerneConVarianteAttiva(Cdo);   // ➕ #3563: conta ruoli E azioni
-	if (!TestEqual(
-			TEXT("il set richiesto copre TUTTE le terne (eroe, [azione,] ruolo) con una variante attiva: ")
-			TEXT("un ciclo che ne salta una rende questo gate verde chiedendo di meno"),
-			TerneCoperte, TerneAttese))
-	{
-		return false;
-	}
-
-	const FString ContentDir = FPaths::ProjectContentDir();
-	const TArray<FString> Versionati = RTPackageFilesUnder(FPaths::Combine(ContentDir, TEXT("RT")));
-
-	// Secondo controllo anti-vacuita': se non si leggesse nessun package, ogni clip risulterebbe scoperta
-	// e il rosso non direbbe niente sul cook.
-	if (!TestTrue(TEXT("ci sono package versionati sotto Content/RT da esaminare"), Versionati.Num() > 0))
-	{
-		return false;
-	}
-
-	// I byte, letti una volta sola: il ciclo sotto e' Clip x Package, e rileggere i file per ogni clip
-	// moltiplicherebbe l'I/O per il numero di clip senza cambiare l'esito.
-	TArray<TArray<uint8>> Byte;
-	Byte.Reserve(Versionati.Num());
-	for (const FString& File : Versionati)
-	{
-		TArray<uint8> Bytes;
-		FFileHelper::LoadFileToArray(Bytes, *File);
-		Byte.Add(MoveTemp(Bytes));
-	}
-
-	auto QualcunoReferenzia = [&Byte](const FString& PackagePath) -> bool
-	{
-		for (const TArray<uint8>& Bytes : Byte)
-		{
-			if (RTBytesMentionPath(Bytes, PackagePath))
-			{
-				return true;
-			}
-		}
-		return false;
-	};
-
-	// 🔑 **Terzo controllo, e il piu' importante: il metodo sa trovare un riferimento VERO.**
-	// Le mesh Paragon sono la famiglia SORELLA delle clip — stesso pack, stesso eroe, cartella accanto —
-	// e sono referenziate duro dai `BP_Unit_*`: misurato il 2026-10-08: mesh e clip di RUOLO sono referenziate duro, le clip
-	// d'AZIONE no (#3562). ⛔ Se la scansione non trovasse **nemmeno queste**, il rosso sulle clip significherebbe
-	// «l'oracolo non sa guardare» invece di «la clip non e' raggiungibile» — la stessa confusione che il
-	// registro PIE avverte per gli zeri di packaging.
-	// ⛔ **Il path e' quello PARAGON e non segue il rename del roster** (`#2491`): l'ultimo segmento e' il
-	// nome dell'asset di terze parti, non l'id dell'eroe. Misurato dentro il package che lo referenzia:
-	// `python -c` su `Content/RT/Characters/Aevik/Blueprints/BP_Unit_Aevik.uasset` (allora `.../Gadget/BP_Unit_Gadget`, `#2297`) estrae
-	// `.../Heroes/Gadget/Meshes/Gadget` — e `.../Meshes/Aevik` non esiste.
-	//
-	// 🔴 Ha detto `Aevik` dal rename al 2026-09-10, e il controllo POSITIVO cadeva: il test usciva rosso
-	// dichiarando che «il metodo di ricerca non sa guardare», cioe' accusando il proprio oracolo di un
-	// difetto che era un refuso nel letterale.
-	const FString MeshDiControllo =
-		TEXT("/Game/FabAsset/Paragon/ParagonGadget/Characters/Heroes/Gadget/Meshes/Gadget");
-	if (!TestTrue(
-			TEXT("controllo positivo: la mesh Paragon di Aevik e' referenziata da un asset versionato — ")
-			TEXT("se questo fallisce, il metodo di ricerca non sa guardare e il resto dell'esito non vale"),
-			QualcunoReferenzia(MeshDiControllo)))
-	{
-		return false;
-	}
-
-	// L'asserzione per cui questo test esiste.
-	TArray<FString> Scoperte;
-	for (const FString& Richiesta : Richieste)
-	{
-		if (!QualcunoReferenzia(Richiesta))
-		{
-			Scoperte.Add(Richiesta);
-		}
-	}
-
-	// Ordine stabile fra run: `Richieste` segue l'iterazione dei `TMap` del CDO, e il log non deve dipenderne.
-	Scoperte.Sort();
-
-	for (const FString& Scoperta : Scoperte)
-	{
-		// 🔑 **Il messaggio dice COSA FARE, e non solo cosa manca.** Chi incontra questo rosso la prima
-		// volta lo legge come un guasto dello strumento se non gli si spiega che il cook segue solo i
-		// riferimenti duri, e che scriverlo e' lavoro di #3562 (storico: #2444, chiusa; proprietario dei
-		// `BP_Unit_*`, che sono binari e non si mergiano). Da #3563 la provenienza nomina anche l'AZIONE.
-		const FString* Provenuta = Provenienza.Find(Scoperta);
-		FString Chi = TEXT("ruolo ignoto");
-		if (Provenuta)
-		{
-			// Stesso motivo del `Sort` qui sopra: le provenienze di un package condiviso si accodano in ordine di `TMap`.
-			TArray<FString> Voci;
-			Provenuta->ParseIntoArray(Voci, TEXT("; "));
-			Voci.Sort();
-			Chi = FString::Join(Voci, TEXT("; "));
-		}
-		AddError(FString::Printf(
-			TEXT("%s e' la variante ATTIVA di [%s] e nessun asset versionato sotto Content/RT la ")
-			TEXT("referenzia duro: il cook non ha nessuna dipendenza da seguire, e nel pacchetto ")
-			TEXT("l'unita' resta in posa di riferimento (D-262). ")
-			TEXT("Per chiudere: aggiungi il riferimento duro nel BP_Unit_ dell'eroe (#3562), oppure ")
-			TEXT("disattiva la variante se non deve entrare nel pacchetto."),
-			*Scoperta, *Chi));
-	}
-
-	TestEqual(
-		FString::Printf(TEXT("clip richieste senza un riferimento che le porti nel cook (su %d)"),
-			Richieste.Num()),
-		Scoperte.Num(), 0);
-
-	return true;
+/**
+ * **Le clip d'AZIONE sono raggiungibili dal cook** (#3563, R14) — il gemello di `RequiredAnimationClipsAreCooked`, che pretende
+ * solo le clip di RUOLO e deve restare verde e binario.
+ *
+ * 🔴 **Rosso per costruzione finche' #3562 non scrive i riferimenti duri.** Le clip del pool d'azione (`PerAction`) sono nel
+ * set richiesto dal cook, ma nessun `BP_Unit_*` le referenzia: il cook non le segue, e su packaged l'azione ripiega sulla clip
+ * di ruolo. L'owner del gesto in Editor e' #3562 (riferimenti duri nei `BP_Unit_*` alle clip d'azione; sono binari e non si
+ * mergiano). Il rosso elenca, ordinate, le clip scoperte con la provenienza `Hero.X / Azione / Ruolo`.
+ *
+ * 🔑 **Perche' non dentro il gate di ruolo**: un gate unico, gia' rosso per le clip d'azione, avrebbe nascosto un rosso futuro
+ * del ruolo (una variante di ruolo resa attiva senza riferimento) nello stesso elenco. Separati, il verde del ruolo dice
+ * qualcosa. Le scoperte si contano col test stesso: `Automation RunTests RefactorTactics.Packaging.RequiredActionClipsAreCooked`.
+ *
+ * ⛔ Stessa riserva del gemello: prova che la clip e' **raggiungibile** dal cook, non che il cook sia stato eseguito.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTRequiredActionClipsAreCookedTest,
+	"RefactorTactics.Packaging.RequiredActionClipsAreCooked",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTRequiredActionClipsAreCookedTest::RunTest(const FString&)
+{
+	return RTVerificaCotturaClip(*this, ERTPoolClip::Azione,
+		TEXT("L'owner del gesto in Editor e' #3562: aggiungi il riferimento duro alla clip d'azione nel BP_Unit_ dell'eroe, ")
+		TEXT("oppure disattiva la variante d'azione se non deve entrare nel pacchetto."));
 }
 
 /**
  * Il set che il cook deve portare include le clip per AZIONE (#3563, spec «la clip per abilita'» §2.5) — verde, e
- * separato dal gate qui sopra (`RequiredAnimationClipsAreCooked`), che guarda un'altra domanda: se ogni clip del
- * set e' raggiunta da un riferimento duro (#3562).
+ * separato dai due gate di cook (`RequiredAnimationClipsAreCooked`, `RequiredActionClipsAreCooked`), che guardano un'altra domanda: se ogni clip del
+ * proprio pool e' raggiunta da un riferimento duro (#3562).
  *
  * 🔑 **Perche' un test a parte**: dentro il gate, la mutazione «`PerAction` saltato» si distinguerebbe da un altro
  * fallimento solo leggendo il messaggio, e il suo esito dipenderebbe dai `BP_Unit_*`. Qui asserisce il SET, che
