@@ -1,6 +1,5 @@
 #include "Unit/RTUnitAnimInstance.h"
 
-#include "Animation/AnimSequence.h"
 #include "Animation/AnimSequenceBase.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Unit/RTUnit.h"
@@ -53,12 +52,12 @@ namespace
 	 * ⚠️ I nomi si MISURANO: §AS.3b li ha letti sul disco, e **quattro caselle su dodici** fra i tre
 	 * ruoli discreti non si chiamano come ci si aspetta.
 	 *
-	 * 🔴 **Il ruolo `Hit` non ha clip di default** (#3590): in tutti e quattro i pack ogni `HitReact_*` e' ADDITIVA
-	 * (`RTClipIsAdditive`, sondate dall'asset), e sullo slot si sommava all'`Idle` senza vedersi. Le reazioni piene dei
-	 * pack sono `KnockBack` e `Stun_*`, che raccontano un'altra cosa. Una clip qui torna quando ce n'e' una piena.
+	 * ⚠️ **La clip `Hit` e' ADDITIVA in tutti e quattro i pack, ed e' giusto cosi'** (#3590): una hit-react e' un sussulto
+	 * da sommare alla posa corrente, e la seduta `U8` (`PIE-AS4b`) l'ha vista. La regola «niente additive» vale per i
+	 * gesti (`RTRoleWantsAFullBodyClip`), non per le reazioni.
 	 */
 	FRTHeroPresentationClips MakeClips(const TCHAR* Pack, const TCHAR* Idle, const TCHAR* Move,
-		const TCHAR* Attack, const TCHAR* Death)
+		const TCHAR* Attack, const TCHAR* Hit, const TCHAR* Death)
 	{
 		FRTHeroPresentationClips Clips;
 		Clips.PerRole.Add(ERTPresentationRole::Idle, MakeRuolo(Pack, Idle));
@@ -66,6 +65,7 @@ namespace
 		Clips.PerRole.Add(ERTPresentationRole::Attack, MakeRuolo(Pack, Attack));
 		// La STESSA clip del ruolo `Attack`: vedi il commento qui sopra.
 		Clips.PerRole.Add(ERTPresentationRole::Cast, MakeRuolo(Pack, Attack));
+		Clips.PerRole.Add(ERTPresentationRole::Hit, MakeRuolo(Pack, Hit));
 		Clips.PerRole.Add(ERTPresentationRole::Death, MakeRuolo(Pack, Death));
 		return Clips;
 	}
@@ -88,8 +88,8 @@ namespace
 	 * `PIE-CLIP-ABILITA` puo' cambiarne ogni riga. Chi la cambia cambia anche la seconda copia dichiarata,
 	 * `ClipAtteseDefault` in `Tests/RTAnimChannelTests.cpp`. Ogni nome e' stato MISURATO sul disco prima di
 	 * entrare qui (spec §2.6, che porta il comando di misura): i nomi non si deducono.
-	 * 🔴 **E nessuna clip e' additiva** (#3590): un nome che esiste non basta, perche' un'additiva suona e non si vede.
-	 * Lo presidia `Unit.DefaultClipsAreNotAdditive`, che legge l'asset dove i pack ci sono.
+	 * 🔴 **E nessuna clip e' additiva** (#3590): un nome che esiste non basta, perche' su un gesto un'additiva suona e
+	 * non si vede. Lo presidia `Unit.DefaultGestureClipsAreNotAdditive`, che legge l'asset dove i pack ci sono.
 	 */
 	TMap<FName, FRTActionPresentationClips> MakeActionClips(const TCHAR* Pack, std::initializer_list<FRTVoceClipAzione> Voci)
 	{
@@ -198,20 +198,20 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 	// 🔴 #3590: gli `LMB_Fire_*` nudi di Gadget sono ADDITIVI; le varianti `_Slow_V1` sono piene. Tutti i cast di
 	// Gadget (`Ability_Q*`, `Throw_Ready*`) sono additivi: per i cast di Aevik resta la `Cast` del pack (il ruolo).
 	ClipsPerHero.Add(FName(TEXT("Hero.Aevik")), MakeClips(TEXT("Gadget"), TEXT("Idle"), TEXT("Run_Fwd"),
-		TEXT("Cast"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Gadget"), {
+		TEXT("Cast"), TEXT("Hitreact_Fwd"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Gadget"), {
 		{ TEXT("Hero.Aevik.ArcPulse"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_A_Slow_V1") },
 		{ TEXT("Hero.Aevik.LinearDischarge"), ERTPresentationRole::Attack, TEXT("LMB_Fire_B_Slow_V1") },
 		{ TEXT("Hero.Aevik.Overload"),        ERTPresentationRole::Attack, TEXT("LMB_Fire_C_Slow_V1") },
 	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Muiren")), MakeClips(TEXT("Phase"), TEXT("Idle"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("Death"))).PerAction = MakeActionClips(TEXT("Phase"), {
+		TEXT("Cast"), TEXT("HitReact_Fwd"), TEXT("Death"))).PerAction = MakeActionClips(TEXT("Phase"), {
 		{ TEXT("Hero.Muiren.PressureJet"),  ERTPresentationRole::Attack, TEXT("Primary_Attack_A_Medium") },
 		{ TEXT("Hero.Muiren.CircularTide"), ERTPresentationRole::Cast,   TEXT("R_Ability_Intro") },
 		{ TEXT("Hero.Muiren.FluidTrail"),   ERTPresentationRole::Cast,   TEXT("Ability_E") },
 		{ TEXT("Hero.Muiren.TideGuard"),    ERTPresentationRole::Cast,   TEXT("Ability_R_Alt") },
 	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Branth")), MakeClips(TEXT("Riktor"), TEXT("Idle"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Riktor"), {
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd"))).PerAction = MakeActionClips(TEXT("Riktor"), {
 		{ TEXT("Hero.Branth.ImpactShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_A_Slow") },
 		{ TEXT("Hero.Branth.KineticPanel"), ERTPresentationRole::Cast,   TEXT("Ability_Lockdown") },
 		{ TEXT("Hero.Branth.Reconfigure"),  ERTPresentationRole::Cast,   TEXT("Ability_Hook_Pull") },
@@ -222,7 +222,7 @@ URTUnitAnimInstance::URTUnitAnimInstance()
 		{ TEXT("Hero.Branth.MortarShot"),   ERTPresentationRole::Attack, TEXT("PrimaryAttack_B_Slow") },
 	});
 	ClipsPerHero.Add(FName(TEXT("Hero.Ivrin")), MakeClips(TEXT("Wraith"), TEXT("Idle_NonCombat"), TEXT("Jog_Fwd"),
-		TEXT("Cast"), TEXT("Death_Forward"))).PerAction = MakeActionClips(TEXT("Wraith"), {
+		TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward"))).PerAction = MakeActionClips(TEXT("Wraith"), {
 		{ TEXT("Hero.Ivrin.PulseShot"),     ERTPresentationRole::Attack, TEXT("Fire_A_Fast_V1") },
 		// Il colpo predittivo non emette un `Attack` (`RTTurnManager.cpp:7133-7136`): solo il beat Cast.
 		{ TEXT("Hero.Ivrin.InterceptShot"), ERTPresentationRole::Cast,   TEXT("Ability_E_Targeting_Start") },
@@ -287,16 +287,12 @@ FAnimInstanceProxy* URTUnitAnimInstance::CreateAnimInstanceProxy()
 
 bool RTClipIsAdditive(const UAnimSequenceBase* Clip)
 {
-	if (Clip == nullptr)
-	{
-		return false;
-	}
-	// Il tipo AUTORATO prima: un'additiva senza la sua posa di riferimento risponde `false` a `IsValidAdditive`.
-	if (const UAnimSequence* Sequenza = Cast<UAnimSequence>(Clip))
-	{
-		return Sequenza->AdditiveAnimType != AAT_None;
-	}
-	return Clip->IsValidAdditive();
+	return Clip != nullptr && Clip->IsValidAdditive();
+}
+
+bool RTRoleWantsAFullBodyClip(ERTPresentationRole Role)
+{
+	return Role == ERTPresentationRole::Cast || Role == ERTPresentationRole::Attack;
 }
 
 void FRTUnitAnimProxy::Initialize(UAnimInstance* InAnimInstance)

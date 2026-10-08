@@ -243,20 +243,26 @@ protected:
 };
 
 /**
- * Se `Clip` e' ADDITIVA: un delta da sommare a un'altra posa, non una posa intera (#3590).
+ * Se `Clip` SUONA come additiva: un delta che lo slot somma alla posa corrente, non una posa intera (#3590).
  *
- * 🔴 **Sullo slot del grafo un'additiva si somma all'`Idle`, e non si vede.** `ARTUnit::PlayPresentationRole` suona
- * con `PlaySlotAnimationAsDynamicMontage`, e lo slot somma un montaggio additivo come delta sulla posa sorgente
- * (`AnimInstanceProxy.cpp`, `SlotEvaluatePose`). Le additive dei pack Paragon sono autorate contro una posa di mira:
- * sull'`Idle` la posa non cambia in modo leggibile. Misurato nella seduta `U70`: le clip d'azione di Aevik si
- * caricavano e suonavano, e a schermo la posa restava ferma mentre tracer e numeri arrivavano.
- *
- * ⚠️ **Decide il tipo AUTORATO, non soltanto `IsValidAdditive()`.** Una `UAnimSequence` additiva senza la sua posa
- * di riferimento (`ABPT_AnimFrame` senza `RefPoseSeq`) risponde `false` a `IsValidAdditive` (`AnimSequence.cpp`,
- * `UAnimSequence::IsValidAdditive`) ed e' comunque un delta. Per gli altri tipi (montaggi, composite) decide
- * `IsValidAdditive`. `nullptr` non e' additiva: e' un'altra domanda, e la fa chi chiama.
+ * 🔑 **Decide il test dell'engine, `IsValidAdditive()`, e non il tipo autorato.** `UAnimSequence` tratta la sequenza
+ * come additiva solo quando e' valida (`AnimSequence.cpp`, `bTreatAnimAsAdditive`), e lo slot decide allo stesso modo
+ * per il montaggio. Un `AdditiveAnimType` senza una posa di riferimento valida suona come posa PIENA: rifiutarla
+ * toglierebbe una clip che si vede. `nullptr` non e' additiva: e' un'altra domanda, e la fa chi chiama.
  */
 REFACTORTACTICS_API bool RTClipIsAdditive(const UAnimSequenceBase* Clip);
+
+/**
+ * Se il ruolo e' un GESTO che deve SOSTITUIRE la posa: `Cast` e `Attack`, i due beat che conoscono l'azione (D3) (#3590).
+ *
+ * 🔴 **Su un gesto un'additiva non si legge.** Lo slot la somma all'`Idle`: le clip d'azione di Aevik
+ * (`LMB_Fire_*`, `Ability_Q_Target`, `Throw_Ready`) sono il rinculo e la mira di un personaggio gia' in posa di tiro,
+ * e sull'`Idle` la posa non cambiava (seduta `U70`), mentre tracer e numeri arrivavano.
+ * ⛔ **`Hit` NO, ed e' misurato a schermo**: la hit-react e' un sussulto autorato additivo in tutti e quattro i pack,
+ * pensato per sommarsi alla posa corrente, e la seduta `U8` (`PIE-AS4b`, 2026-09-28) l'ha vista sui quattro eroi.
+ * `Death`, `Idle` e `Move` restano fuori: nessuna misura dice che un'additiva li' sia invisibile.
+ */
+REFACTORTACTICS_API bool RTRoleWantsAFullBodyClip(ERTPresentationRole Role);
 
 /**
  * Il grafo vero e proprio: due sequence player, un blend fra loro, uno slot per i montaggi.

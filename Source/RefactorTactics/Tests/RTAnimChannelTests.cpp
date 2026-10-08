@@ -705,14 +705,14 @@ bool FRTUnitDefaultActionClipsResolveForEveryKitAbilityTest::RunTest(const FStri
 	return true;
 }
 
-// ─── #3590: un'additiva non si suona sullo slot ───────────────────────────────────────────────────────────────
+// ─── #3590: un gesto additivo non si suona sullo slot ──────────────────────────────────────────────────────────
 
 /**
- * **`RTClipIsAdditive` riconosce il tipo autorato, non soltanto `IsValidAdditive()`** (#3590).
+ * **`RTClipIsAdditive` risponde come l'engine, non come il tipo autorato** (#3590).
  *
- * 🔑 Il caso che separa le due letture e' il quarto: un'additiva `ABPT_AnimFrame` senza `RefPoseSeq`, per cui
- * `IsValidAdditive()` risponde `false` (`UAnimSequence::IsValidAdditive`) ed e' comunque un delta. La premessa lo
- * misura, cosi' l'asserto non puo' passare per la ragione sbagliata.
+ * 🔑 Il caso che separa le due letture e' il quarto: un `AdditiveAnimType` con `ABPT_AnimFrame` e senza `RefPoseSeq`.
+ * `IsValidAdditive()` risponde `false`, e allora `UAnimSequence` la suona come posa PIENA (`AnimSequence.cpp`,
+ * `bTreatAnimAsAdditive`): rifiutarla toglierebbe una clip che si vede. Le premesse misurano entrambe le meta'.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimChannelAdditiveClipIsDetectedTest,
 	"RefactorTactics.Anim.Channel.AdditiveClipIsDetected",
@@ -731,11 +731,12 @@ bool FRTAnimChannelAdditiveClipIsDetectedTest::RunTest(const FString&)
 	TestTrue(TEXT("additiva in spazio locale (Gadget, Phase, Wraith)"), RTClipIsAdditive(Locale.Get()));
 	TestTrue(TEXT("additiva di rotazione in spazio mesh (Riktor)"), RTClipIsAdditive(Rotazione.Get()));
 
-	if (!TestFalse(TEXT("⛔ premessa: senza RefPoseSeq IsValidAdditive risponde no"), SenzaRiferimento->IsValidAdditive()))
+	if (!TestTrue(TEXT("⛔ premessa: il tipo autorato e' additivo"), SenzaRiferimento->AdditiveAnimType != AAT_None)
+		|| !TestFalse(TEXT("⛔ premessa: ma senza RefPoseSeq IsValidAdditive risponde no"), SenzaRiferimento->IsValidAdditive()))
 	{
 		return false;
 	}
-	TestTrue(TEXT("🔴 e resta un delta: conta il tipo autorato"), RTClipIsAdditive(SenzaRiferimento.Get()));
+	TestFalse(TEXT("🔴 l'engine la suona piena: non e' additiva"), RTClipIsAdditive(SenzaRiferimento.Get()));
 	return true;
 }
 
@@ -794,15 +795,13 @@ bool FRTAnimChannelAdditiveActionClipFallsBackToTheRoleTest::RunTest(const FStri
 }
 
 /**
- * **Una clip di RUOLO additiva non si suona affatto** (#3590): non c'e' niente su cui ripiegare, e il ruolo scatta
- * senza clip — il Blueprint riceve `nullptr`, come per una clip che non si carica.
- *
- * ⚠️ E' il caso del ruolo `Hit` prima di #3590: in tutti e quattro i pack la hit-react e' additiva.
+ * **La clip di RUOLO di un gesto, se additiva, non si suona affatto** (#3590): non c'e' niente su cui ripiegare, e il
+ * ruolo scatta senza clip — il Blueprint riceve `nullptr`, come per una clip che non si carica.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimChannelAdditiveRoleClipIsNotPlayedTest,
-	"RefactorTactics.Anim.Channel.AdditiveRoleClipIsNotPlayed",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimChannelAdditiveGestureRoleClipIsNotPlayedTest,
+	"RefactorTactics.Anim.Channel.AdditiveGestureRoleClipIsNotPlayed",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTAnimChannelAdditiveRoleClipIsNotPlayedTest::RunTest(const FString&)
+bool FRTAnimChannelAdditiveGestureRoleClipIsNotPlayedTest::RunTest(const FString&)
 {
 	UWorld* World = MakeChannelWorld();
 	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
@@ -816,26 +815,61 @@ bool FRTAnimChannelAdditiveRoleClipIsNotPlayedTest::RunTest(const FString&)
 	const TStrongObjectPtr<UAnimSequence> Piena = SequenzaDiProva(TEXT("RTProvaRuoloPieno"), AAT_None, ABPT_None);
 
 	FRTHeroPresentationClips& Voce = ConfiguraVoceAzione(IdAzioneDiProva);
-	Voce.PerRole.Add(ERTPresentationRole::Hit, PoolAzioneDiProva(*PathDiSequenza(Additiva)));
+	Voce.PerRole.Add(ERTPresentationRole::Cast, PoolAzioneDiProva(*PathDiSequenza(Additiva)));
 
 	AddExpectedMessagePlain(RigaClipAdditiva, ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
 
-	U->PlayPresentationRole(ERTPresentationRole::Hit);
+	U->PlayPresentationRole(ERTPresentationRole::Cast);
 	if (!TestEqual(TEXT("⛔ premessa: il path risolto e' il ruolo additivo"),
-			U->LastResolvedClipPathForTest(ERTPresentationRole::Hit).ToString(), PathDiSequenza(Additiva)))
+			U->LastResolvedClipPathForTest(ERTPresentationRole::Cast).ToString(), PathDiSequenza(Additiva)))
 	{
 		return false;
 	}
 	TestFalse(TEXT("nessuna voce d'azione: niente su cui ripiegare"),
-		U->LastClipLoadFellBackToRoleForTest(ERTPresentationRole::Hit));
-	TestNull(TEXT("🔴 il ruolo additivo non suona: lo slot e il Blueprint ricevono nullptr"),
-		U->LastPlayedClipForTest(ERTPresentationRole::Hit));
+		U->LastClipLoadFellBackToRoleForTest(ERTPresentationRole::Cast));
+	TestNull(TEXT("🔴 il gesto additivo non suona: lo slot e il Blueprint ricevono nullptr"),
+		U->LastPlayedClipForTest(ERTPresentationRole::Cast));
 
 	// Controllo positivo: un ruolo PIENO suona.
-	Voce.PerRole.Add(ERTPresentationRole::Hit, PoolAzioneDiProva(*PathDiSequenza(Piena)));
-	U->PlayPresentationRole(ERTPresentationRole::Hit);
+	Voce.PerRole.Add(ERTPresentationRole::Cast, PoolAzioneDiProva(*PathDiSequenza(Piena)));
+	U->PlayPresentationRole(ERTPresentationRole::Cast);
 	TestTrue(TEXT("controllo positivo: un ruolo pieno suona"),
-		U->LastPlayedClipForTest(ERTPresentationRole::Hit) == Piena.Get());
+		U->LastPlayedClipForTest(ERTPresentationRole::Cast) == Piena.Get());
+	return true;
+}
+
+/**
+ * **La hit-react additiva SI suona** (#3590): `Hit` e' una reazione da sommare alla posa, non un gesto
+ * (`RTRoleWantsAFullBodyClip`).
+ *
+ * 🔑 E' cio' che la seduta `U8` ha visto a schermo (`PIE-AS4b`, 2026-09-28): in tutti e quattro i pack la hit-react e'
+ * additiva, e si vede. Un controllo che rifiutasse ogni additiva la toglierebbe senza che nessun altro test cada.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimChannelAdditiveHitClipStillPlaysTest,
+	"RefactorTactics.Anim.Channel.AdditiveHitClipStillPlays",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimChannelAdditiveHitClipStillPlaysTest::RunTest(const FString&)
+{
+	UWorld* World = MakeChannelWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	ON_SCOPE_EXIT{ PulisciVoceAzione(); DestroyChannelWorld(World); };
+	ARTUnit* U = SpawnChannelUnit(World, 0, FRTCellId(0, 0));
+	if (!TestNotNull(TEXT("unita' di prova"), U)) { return false; }
+	U->HeroId = IdAzioneDiProva;
+
+	const TStrongObjectPtr<UAnimSequence> Reazione =
+		SequenzaDiProva(TEXT("RTProvaReazioneAdditiva"), AAT_LocalSpaceBase, ABPT_RefPose);
+	if (!TestTrue(TEXT("⛔ premessa: la reazione di prova e' additiva"), RTClipIsAdditive(Reazione.Get())))
+	{
+		return false;
+	}
+
+	FRTHeroPresentationClips& Voce = ConfiguraVoceAzione(IdAzioneDiProva);
+	Voce.PerRole.Add(ERTPresentationRole::Hit, PoolAzioneDiProva(*PathDiSequenza(Reazione)));
+
+	U->PlayPresentationRole(ERTPresentationRole::Hit);
+	TestTrue(TEXT("🔴 la hit-react additiva arriva allo slot e al Blueprint"),
+		U->LastPlayedClipForTest(ERTPresentationRole::Hit) == Reazione.Get());
 	return true;
 }
 
@@ -883,20 +917,20 @@ bool FRTAnimChannelAdditiveFallbackOnAnAdditiveRolePlaysNothingTest::RunTest(con
 }
 
 /**
- * **Nessuna clip attiva del default C++ e' additiva** (#3590): ne' di ruolo (`MakeClips`) ne' d'azione
- * (`MakeActionClips`), letto dall'ASSET.
+ * **Nessun GESTO del default C++ e' additivo** (#3590): ne' di ruolo (`MakeClips`) ne' d'azione (`MakeActionClips`),
+ * sui ruoli di `RTRoleWantsAFullBodyClip` — lo stesso criterio del runtime — letto dall'ASSET.
  *
  * 🔑 E' la domanda che `DefaultActionClipsResolveForEveryKitAbility` (il path risolve) e i gate di cook (il path e'
- * raggiungibile) non fanno: la seduta `U70` ha trovato cinque clip d'azione e quattro clip `Hit` che risolvevano,
- * si cuocevano, suonavano — e non si vedevano.
+ * raggiungibile) non fanno: la seduta `U70` ha trovato cinque clip d'azione di Aevik che risolvevano, si cuocevano,
+ * suonavano — e non si vedevano. ⛔ La hit-react, additiva in tutti i pack, non e' un gesto e resta fuori.
  * ⚠️ **Misura solo dove i pack ci sono**: `Content/FabAsset/` e' gitignorato. Su un checkout senza pack nessuna clip
  * si carica e il test lo DICHIARA (`AddInfo`, «N/A»), come `RTPackagingConfigTests.cpp` per un invariante vacuo;
  * dove i pack ci sono dichiara quante clip ha letto.
  */
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDefaultClipsAreNotAdditiveTest,
-	"RefactorTactics.Unit.DefaultClipsAreNotAdditive",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDefaultGestureClipsAreNotAdditiveTest,
+	"RefactorTactics.Unit.DefaultGestureClipsAreNotAdditive",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FRTUnitDefaultClipsAreNotAdditiveTest::RunTest(const FString&)
+bool FRTUnitDefaultGestureClipsAreNotAdditiveTest::RunTest(const FString&)
 {
 	const URTUnitAnimInstance* Cdo = GetDefault<URTUnitAnimInstance>();
 	if (!TestNotNull(TEXT("CDO di URTUnitAnimInstance"), Cdo)) { return false; }
@@ -928,30 +962,36 @@ bool FRTUnitDefaultClipsAreNotAdditiveTest::RunTest(const FString&)
 	{
 		for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Eroe.Value.PerRole)
 		{
-			Esamina(FString::Printf(TEXT("%s / %s"), *Eroe.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key)), Ruolo.Value);
+			if (RTRoleWantsAFullBodyClip(Ruolo.Key))
+			{
+				Esamina(FString::Printf(TEXT("%s / %s"), *Eroe.Key.ToString(), *UEnum::GetValueAsString(Ruolo.Key)), Ruolo.Value);
+			}
 		}
 		for (const TPair<FName, FRTActionPresentationClips>& Azione : Eroe.Value.PerAction)
 		{
 			for (const TPair<ERTPresentationRole, FRTAnimRoleClips>& Ruolo : Azione.Value.PerRole)
 			{
-				Esamina(FString::Printf(TEXT("%s / %s / %s"), *Eroe.Key.ToString(), *Azione.Key.ToString(),
-					*UEnum::GetValueAsString(Ruolo.Key)), Ruolo.Value);
+				if (RTRoleWantsAFullBodyClip(Ruolo.Key))
+				{
+					Esamina(FString::Printf(TEXT("%s / %s / %s"), *Eroe.Key.ToString(), *Azione.Key.ToString(),
+						*UEnum::GetValueAsString(Ruolo.Key)), Ruolo.Value);
+				}
 			}
 		}
 	}
 
-	if (!TestTrue(TEXT("⛔ premessa: il default dichiara clip attive"), Caricate + NonCaricate > 0))
+	if (!TestTrue(TEXT("⛔ premessa: il default dichiara gesti attivi"), Caricate + NonCaricate > 0))
 	{
 		return false;
 	}
 	if (Caricate == 0)
 	{
-		AddInfo(FString::Printf(TEXT("N/A: nessuna delle %d clip del default si carica su questo checkout ")
+		AddInfo(FString::Printf(TEXT("N/A: nessuno dei %d gesti del default si carica su questo checkout ")
 			TEXT("(pack Paragon assenti): il test misura solo dove i pack ci sono"), NonCaricate));
 		return true;
 	}
-	AddInfo(FString::Printf(TEXT("clip lette dall'asset: %d; non caricate: %d"), Caricate, NonCaricate));
-	TestEqual(*FString::Printf(TEXT("nessuna clip attiva del default e' additiva: %s"),
+	AddInfo(FString::Printf(TEXT("gesti letti dall'asset: %d; non caricati: %d"), Caricate, NonCaricate));
+	TestEqual(*FString::Printf(TEXT("nessun gesto attivo del default e' additivo: %s"),
 		*FString::Join(Additive, TEXT("; "))), Additive.Num(), 0);
 	return true;
 }

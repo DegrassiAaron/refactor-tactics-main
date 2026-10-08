@@ -538,8 +538,7 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
 
 
 /**
- * **I tre ruoli discreti — `Attack`, `Hit`, `Death` — puntano alle clip misurate sul disco** (#2450), e `Hit` a
- * NESSUNA (#3590).
+ * **I tre ruoli discreti — `Attack`, `Hit`, `Death` — puntano alle clip misurate sul disco** (#2450).
  *
  * 🔴 **Il gemello di `LocomotionClipsMatchThePacks`, e la ragione per cui e' un test SEPARATO**: quello
  * presidia cio' che il GRAFO suona di continuo (due sequence player), questo cio' che il CANALE discreto
@@ -550,11 +549,6 @@ bool FRTUnitAnimClipsTest::RunTest(const FString&)
  * non a memoria: `Hitreact_Fwd` con la `r` minuscola per Aevik, `HitReact_Fwd` per Phase, `Death` nudo per
  * Phase, `Death_Forward` per Ivrin. `Cast` regge **4 volte su 4**, ed e' l'unico ruolo che si trasferisce
  * sempre.
- *
- * 🔴 **`Hit` e' vuoto per decisione, e misurato** (#3590): in tutti e quattro i pack ogni `HitReact_*` e' ADDITIVA
- * (Gadget, Phase e Wraith `AAT_LocalSpaceBase`, Riktor `AAT_RotationOffsetMeshSpace`, sondate dall'asset), e sullo
- * slot si sommava all'`Idle` senza vedersi. Le uniche reazioni piene dei pack sono `KnockBack` e `Stun_*`, che
- * raccontano un'altra cosa. Un ruolo senza clip e' il degrado previsto: il Blueprint riceve `nullptr`.
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitDiscreteRoleClipsTest,
 	"RefactorTactics.Unit.DiscreteRoleClipsMatchThePacks",
@@ -571,11 +565,10 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 	// cui un residuo sopravvive a una migrazione.
 	struct FAttesa { const TCHAR* Hero; const TCHAR* Pack; const TCHAR* Attack; const TCHAR* Hit; const TCHAR* Death; };
 	static const FAttesa Attese[] = {
-		// `nullptr` = nessuna clip di default (#3590: le hit-react dei pack sono additive).
-		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Cast"), nullptr, TEXT("Death_Fwd") },
-		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Cast"), nullptr, TEXT("Death") },
-		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), nullptr, TEXT("Death_Fwd") },
-		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), nullptr, TEXT("Death_Forward") },
+		{ TEXT("Hero.Aevik"), TEXT("Gadget"), TEXT("Cast"), TEXT("Hitreact_Fwd"),   TEXT("Death_Fwd") },
+		{ TEXT("Hero.Muiren"),  TEXT("Phase"),  TEXT("Cast"), TEXT("HitReact_Fwd"),   TEXT("Death") },
+		{ TEXT("Hero.Branth"), TEXT("Riktor"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Fwd") },
+		{ TEXT("Hero.Ivrin"), TEXT("Wraith"), TEXT("Cast"), TEXT("HitReact_Front"), TEXT("Death_Forward") },
 	};
 
 	for (const FAttesa& A : Attese)
@@ -594,14 +587,9 @@ bool FRTUnitDiscreteRoleClipsTest::RunTest(const FString&)
 		for (int32 I = 0; I < 3; ++I)
 		{
 			const FString Visto = Cdo->ActiveClipFor(Chiave, Ruoli[I]).ToSoftObjectPath().ToString();
-			if (Nomi[I] == nullptr)
-			{
-				TestEqual(*FString::Printf(TEXT("%s: %s senza clip di default (#3590)"), *Chi, Etichette[I]),
-					Visto, FString());
-				continue;
-			}
 			// Il PACK e' parte dell'asserto quanto la clip: lo scambio fra due eroi passerebbe un controllo
-			// scritto sul solo nome, perche' `Cast` e' identico su tutti e quattro.
+			// scritto sul solo nome, perche' `Cast` e' identico su tutti e quattro e due condividono
+			// `HitReact_Front`.
 			TestEqual(*FString::Printf(TEXT("%s: %s"), *Chi, Etichette[I]),
 				Visto, FString::Printf(TEXT("%s%s.%s"), *Radice, Nomi[I], Nomi[I]));
 		}

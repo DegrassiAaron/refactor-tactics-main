@@ -757,11 +757,13 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 	// ruolo. Si ritenta col path di SOLO ruolo (l'overload a due argomenti) quando e' diverso da quello risolto:
 	// se e' uguale non c'era una voce d'azione, e ricaricarlo darebbe lo stesso `nullptr`.
 	//
-	// 🔴 **E vale per una clip che si carica ma e' ADDITIVA** (#3590): sullo slot si somma all'`Idle` come delta e la
+	// 🔴 **E vale per un GESTO che si carica ma e' ADDITIVO** (#3590): sullo slot si somma all'`Idle` come delta e la
 	// posa non cambia. Nella seduta `U70` le clip d'azione di Aevik suonavano cosi', senza una riga di log. Qui il
-	// ripiego e' un `Warning`, non un `Verbose`: un'additiva nella tabella e' un errore di dati, non un degrado
+	// ripiego e' un `Warning`, non un `Verbose`: un'additiva su un gesto e' un errore di dati, non un degrado
 	// previsto come la clip non cotta.
-	const bool bAdditiva = RTClipIsAdditive(Sequenza);
+	// ⛔ Solo i gesti (`RTRoleWantsAFullBodyClip`): la hit-react additiva e' una reazione che si somma, e si vede.
+	const bool bGesto = RTRoleWantsAFullBodyClip(Ruolo);
+	const bool bAdditiva = bGesto && RTClipIsAdditive(Sequenza);
 	bool bRipiegoAlRuolo = false;
 	if ((Sequenza == nullptr || bAdditiva) && !Path.IsNull())
 	{
@@ -786,9 +788,10 @@ void ARTUnit::PlayPresentationRole(ERTPresentationRole Ruolo, FName ActionId, FN
 		}
 	}
 
-	// ⛔ **Dopo ogni ripiego**: anche la clip di ruolo puo' essere additiva, e non c'e' piu' niente su cui ripiegare.
-	// Il ruolo scatta senza clip — il Blueprint riceve `nullptr`, come per una clip che non si carica — e il log lo dice.
-	if (RTClipIsAdditive(Sequenza))
+	// ⛔ **Dopo ogni ripiego**: anche la clip di ruolo di un gesto puo' essere additiva, e non c'e' piu' niente su cui
+	// ripiegare. Il ruolo scatta senza clip — il Blueprint riceve `nullptr`, come per una clip che non si carica — e il
+	// log lo dice.
+	if (bGesto && RTClipIsAdditive(Sequenza))
 	{
 		UE_LOG(LogRT, Warning, TEXT("[RT] Clip additiva, non suonata (%s): il ruolo %s scatta senza clip"),
 			*GetPathNameSafe(Sequenza), *UEnum::GetValueAsString(Ruolo));
