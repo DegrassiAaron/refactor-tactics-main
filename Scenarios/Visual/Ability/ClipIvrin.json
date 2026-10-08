@@ -1,0 +1,64 @@
+{
+  "scenarioId": "Visual.Ability.ClipIvrin",
+  "tags": ["animation", "ability", "cast", "wraith", "riktor"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "BANCO CLIP per le abilita' di Ivrin che nessun altro scenario esercita (#3592, voce `PIE-CLIP-ABILITA`). Un'abilita' per turno; Branth e' il bersaglio e si muove solo quando la scena lo chiede. Clip attese (spec `2026-10-07-clip-per-abilita-design.md` §2.6): `Ability_RMB_Start` per PhaseGuard, `Fire_A_Fast_V1` per il colpo di PulseShot, `Ability_E_Targeting_Start` per InterceptShot, `Ability_E` per Feint, `Ability_R_InMotion` per il cast di PassingBlade e `Ability_Q_Fire_Fwd` per il suo colpo su chi viene attraversato. Chi guarda tiene la camera stretta su Ivrin.",
+
+  "_nota_predizione": "InterceptShot colpisce solo chi ENTRA nella cella prevista durante il turno — una unita' gia' ferma li' non conta (`Spec.Predictive.WhiffOnEmptyCell`). Per questo a T3 Branth si avvicina di una cella e Ivrin spara sulla cella d'arrivo; a T4 Branth torna indietro, cosi' a T5 sta a due celle, in mezzo alla traiettoria dello scatto, nella stessa geometria che `Scenario.PassingBladeHitsWhoItCrosses` pinna.",
+
+  "_nota_colpi": "PulseShot, InterceptShot e il colpo dello scatto fanno danno `Direct`, e lo scudo base ne assorbe 5 per turno ([D-224]). Gli HP finali di Branth sono del primo run, non calcolati a mente: la scena e' per le clip, non per l'aritmetica.",
+
+  "_nota_fuori": "`Hero.Ivrin.Deflection` e' una reazione e non suona.",
+
+  "units": [
+    { "id": "V1", "hero": "Hero.Ivrin",  "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "B1", "hero": "Hero.Branth", "team": 1, "cell": [2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — PhaseGuard su se stessa: beat di Prep, clip `Ability_RMB_Start`. Nessun colpo.",
+      "intents": [
+        { "unit": "V1", "ability": "Hero.Ivrin.PhaseGuard" }
+      ]
+    },
+    {
+      "_turno": "T2 — PulseShot su Branth a due celle: il cast e' la `Cast` del pack (attacco base, nessuna voce), il colpo e' `Fire_A_Fast_V1`.",
+      "intents": [
+        { "unit": "V1", "ability": "Hero.Ivrin.PulseShot", "target": "B1" }
+      ]
+    },
+    {
+      "_turno": "T3 — InterceptShot sulla cella (1,0), dove Branth sta per entrare: beat di Prep `Ability_E_Targeting_Start`; il colpo predittivo scrive il TurnLog, nessun evento `Attack`.",
+      "requires": ["PredictiveAction"],
+      "intents": [
+        { "unit": "V1", "ability": "Hero.Ivrin.InterceptShot", "targetCell": [1, 0, 0] },
+        { "unit": "B1", "move": [[1, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T4 — Feint su Branth: controllo senza effetto, in Blast; beat `Ability_E` e niente altro. Branth torna a (2,0).",
+      "intents": [
+        { "unit": "V1", "ability": "Hero.Ivrin.Feint", "target": "B1" },
+        { "unit": "B1", "move": [[2, 0, 0]] }
+      ]
+    },
+    {
+      "_turno": "T5 — PassingBlade: lo scatto attraversa Branth a (2,0) e arriva a (3,0). Cast `Ability_R_InMotion` durante lo scatto, colpo `Ability_Q_Fire_Fwd` su chi e' stato attraversato.",
+      "intents": [
+        { "unit": "V1", "dash": "Hero.Ivrin.PassingBlade", "dashTo": [3, 0, 0] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAlive",      "unit": "B1", "value": true },
+    { "type": "UnitHpEquals",   "unit": "B1", "value": 78 },
+    { "type": "UnitAtCell",     "unit": "V1", "cell": [3, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [2, 0, 0] },
+    { "type": "TurnsCompleted", "value": 5 }
+  ]
+}
