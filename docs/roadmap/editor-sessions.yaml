@@ -5188,6 +5188,11 @@ sessions:
       Le cue sono linee del line batcher: nessun asset, nessuna dipendenza dai pack gitignorati.
       La scena (0) si confronta col verdetto di `PIE-V01-TRACER` (seduta `U68`), dato su `main` prima di #3578.
 
+      ✅ **Eseguita il 2026-10-08** su `main` = `b786ce65e`: i cinque scenari corsi dal conduttore (sessione Claude)
+      con catture di schermo, i verdetti proposti ratificati dall'autore — `PIE-FX-ABILITA` ✅, (1)–(6) e (8) come
+      atteso, (7) N/A. Due note di taratura (durata dell'onda, X sotto il cilindro) e il rimando a #3261/#3582
+      stanno nella cella del registro.
+
 not_schedulable:
 
   # ── La presentazione non disegna ancora cio' che il dato gia' porta ─────────────────────────────
