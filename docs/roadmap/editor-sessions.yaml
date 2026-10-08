@@ -5113,6 +5113,10 @@ sessions:
       Tre scene su scenari del corpus, una domanda ciascuna. La terza e' la privacy: un tracer che partisse
       dalla cella di un attaccante non visto la rivelerebbe. Per il tiro alla cieca vedi PIE-V01-BLINDFIRE.
 
+      ✅ **Eseguita il 2026-10-08** dall'autore, su `main` = `c7e365e50`, Editor interattivo su `L_DevSandbox`
+      con gli scenari lanciati da console. Le tre scene sono verdi; il verdetto e la nota fuori dal criterio
+      (l'ordine dei colpi nel Blast, #3582) sono in `test-manuali-pie.md`.
+
   - id: U69
     title: Il momento — il beat di cast sulla sorgente (AbilityActivated)
     block: 6
