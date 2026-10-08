@@ -24,12 +24,13 @@
  * `ARTUnit::ApplyUnitAnimClass` dichiara in chiaro che *«una `Anim Class` gia' scelta in Blueprint
  * VINCE»*. Il Blueprint generato scavalca quindi il default C++ **senza ricompilare**.
  *
- * ⛔ **Non promuove niente e non lega niente.** Legge i binding che una persona ha scritto e li traduce.
- * Se il catalogo non ha binding, l'asset generato e' vuoto e il roster resta quello del default C++.
+ * ⛔ **Non promuove niente e non lega niente.** Legge i binding che una persona ha scritto e li traduce, e li
+ * FONDE sopra il default C++ un pool alla volta (#3563): eroi e pool che il catalogo non nomina tengono il
+ * default. Se il catalogo non ha binding, l'asset generato porta il default e basta.
  *
- * ⛔ **Rifiuta un catalogo non valido.** Due varianti attive sullo stesso `(eroe, ruolo)` sono
- * rappresentabili nel testo ma non a runtime: generare comunque significherebbe sceglierne una per
- * posizione nell'array, cioe' far dipendere la clip che suona dall'ordine delle righe di un file.
+ * ⛔ **Rifiuta un catalogo non valido.** Due varianti attive nello stesso pool sono rappresentabili nel testo
+ * ma non a runtime: generare comunque significherebbe sceglierne una per posizione nell'array, cioe' far
+ * dipendere la clip che suona dall'ordine delle righe di un file.
  *
  * Uso — si avvia ed esce da solo, senza tenere aperto un Editor:
  *
@@ -58,4 +59,12 @@ public:
 	 */
 	static TMap<FName, FRTHeroPresentationClips> BuildClipsPerHero(
 		const struct FRTAnimCatalog& Catalog, int32& OutLegami);
+
+	/**
+	 * Il catalogo sopra il default, un pool alla volta (#3563): ogni `(eroe, ruolo)` e `(eroe, azione, ruolo)` di
+	 * `PerEroe` sostituisce quello di `Base`; il resto di `Base` resta. Pura, e provata da
+	 * `Anim.Bindings.MergeKeepsDefaultPools`.
+	 */
+	static TMap<FName, FRTHeroPresentationClips> MergeClipsPerHero(
+		const TMap<FName, FRTHeroPresentationClips>& Base, const TMap<FName, FRTHeroPresentationClips>& PerEroe);
 };

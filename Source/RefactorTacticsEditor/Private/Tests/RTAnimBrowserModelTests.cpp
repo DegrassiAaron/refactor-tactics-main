@@ -1,4 +1,5 @@
 #include "Misc/AutomationTest.h"
+#include "Misc/ScopeExit.h"
 
 #include "RTAnimBrowserModel.h"
 #include "Content/RTBuildAnimBindingsCommandlet.h"
@@ -111,6 +112,21 @@ namespace
 		return FString::Printf(TEXT(R"({ "formatVersion": %d, "nextId": 2, "entries": [ { "id": "AV_0001", )")
 			TEXT(R"("derived": { "assetPath": "/Game/A.A" }, "authored": { "status": "Promoted", "bindings": [ )")
 			TEXT(R"({ "hero": "Hero.Aevik", "role": "Cast", %s"active": true } ] } } ] })"), Versione, ActionIdJson);
+	}
+
+	/** Un pool di una variante attiva, per costruire a mano le mappe della fusione (#3563). */
+	FRTAnimRoleClips PoolDiFusione(const TCHAR* Path)
+	{
+		FRTAnimRoleClips Pool;
+		Pool.AddVariant(FName(TEXT("AV_Fusione")), FName(TEXT("A")), TSoftObjectPtr<UAnimSequenceBase>(FSoftObjectPath(Path)));
+		Pool.MakeActive(FName(TEXT("AV_Fusione")));
+		return Pool;
+	}
+
+	FString PathAttivoDi(const FRTAnimRoleClips* Pool)
+	{
+		const FRTAnimVariant* Attiva = Pool ? Pool->FindActive() : nullptr;
+		return Attiva ? Attiva->Clip.ToSoftObjectPath().ToString() : FString();
 	}
 }
 
@@ -628,6 +644,174 @@ bool FRTAnimBindingsMapToCdoTest::RunTest(const FString&)
 		URTBuildAnimBindingsCommandlet::BuildClipsPerHero(Sporco, LegamiSporchi);
 	TestEqual(TEXT("un binding senza eroe non si traduce"), LegamiSporchi, 0);
 	TestEqual(TEXT("e non crea eroi"), Vuota.Num(), 0);
+	return true;
+}
+
+// ─── Il pool d'azione nel CDO (#3563, spec «la clip per abilita'» §2.3) ──────────────────────────────────────
+
+/**
+ * Un binding con `actionId` va in `PerAction[azione].PerRole[ruolo]`, uno senza in `PerRole` — due pool.
+ * ✅ Validato per mutazione (P6): lo smistamento sostituito da `Eroe.PerRole.FindOrAdd(Binding.Role)` → cade.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBindingsMapToCdoPerActionTest,
+	"RefactorTactics.Anim.Bindings.MapToCdoPerAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimBindingsMapToCdoPerActionTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Catalog;
+	AggiungiLegame(Catalog, TEXT("AV_0001"), TEXT("Cast"), ERTPresentationRole::Cast, nullptr, true);
+	AggiungiLegame(Catalog, TEXT("AV_0002"), TEXT("Throw_Ready"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), true);
+	AggiungiLegame(Catalog, TEXT("AV_0003"), TEXT("Ability_Q_Target"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), false);
+
+	int32 Legami = 0;
+	const TMap<FName, FRTHeroPresentationClips> PerEroe = URTBuildAnimBindingsCommandlet::BuildClipsPerHero(Catalog, Legami);
+	if (!TestEqual(TEXT("tre legami tradotti"), Legami, 3)) { return false; }
+	const FRTHeroPresentationClips* Aevik = PerEroe.Find(FName(TEXT("Hero.Aevik")));
+	if (!TestNotNull(TEXT("Aevik c'e'"), (const void*)Aevik)) { return false; }
+
+	const FRTAnimRoleClips* Ruolo = Aevik->FindRole(ERTPresentationRole::Cast);
+	if (!TestNotNull(TEXT("il pool di ruolo Cast c'e'"), (const void*)Ruolo)) { return false; }
+	TestEqual(TEXT("🔴 il pool di ruolo ha SOLO il binding di ruolo"), Ruolo->Variants.Num(), 1);
+	TestEqual(TEXT("ed e' AV_0001, attiva"), Ruolo->ActiveClipVariant, FName(TEXT("AV_0001")));
+
+	const FRTActionPresentationClips* Azione = Aevik->PerAction.Find(FName(TEXT("Hero.Aevik.Overload")));
+	const FRTAnimRoleClips* PoolAzione = Azione ? Azione->PerRole.Find(ERTPresentationRole::Cast) : nullptr;
+	if (!TestNotNull(TEXT("🔴 il pool d'azione Overload/Cast c'e'"), (const void*)PoolAzione)) { return false; }
+	TestEqual(TEXT("con le due varianti d'azione"), PoolAzione->Variants.Num(), 2);
+	TestEqual(TEXT("attiva quella dichiarata, AV_0002"), PoolAzione->ActiveClipVariant, FName(TEXT("AV_0002")));
+	return true;
+}
+
+/**
+ * Review Focus (b): un binding d'azione attivo e uno di ruolo attivo per lo stesso `(eroe, ruolo)` sono VALIDI, e a
+ * risolvere vince l'azione; senza azione resta il ruolo.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBindingsActionAndRoleBindingsCoexistTest,
+	"RefactorTactics.Anim.Bindings.ActionAndRoleBindingsCoexist",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimBindingsActionAndRoleBindingsCoexistTest::RunTest(const FString&)
+{
+	FRTAnimCatalog Catalog;
+	AggiungiLegame(Catalog, TEXT("AV_0001"), TEXT("Cast"), ERTPresentationRole::Cast, nullptr, true);
+	AggiungiLegame(Catalog, TEXT("AV_0002"), TEXT("Throw_Ready"), ERTPresentationRole::Cast, TEXT("Hero.Aevik.Overload"), true);
+	if (!TestEqual(TEXT("⛔ premessa: le due attive sono valide"), URTAnimCatalogLibrary::ValidateCatalog(&Catalog).Num(), 0))
+	{
+		return false;
+	}
+	int32 Legami = 0;
+	const TMap<FName, FRTHeroPresentationClips> PerEroe = URTBuildAnimBindingsCommandlet::BuildClipsPerHero(Catalog, Legami);
+
+	// Il CDO e' l'unico `ActiveClipFor` disponibile: si scrive e si ripristina, come `ConfiguraVariante`.
+	URTUnitAnimInstance* Cdo = GetMutableDefault<URTUnitAnimInstance>();
+	const TMap<FName, FRTHeroPresentationClips> Salvato = Cdo->ClipsPerHero;
+	ON_SCOPE_EXIT{ Cdo->ClipsPerHero = Salvato; };
+	Cdo->ClipsPerHero = PerEroe;
+
+	const FName Aevik(TEXT("Hero.Aevik"));
+	TestEqual(TEXT("🔴 con l'azione: vince la clip d'azione"),
+		Cdo->ActiveClipFor(Aevik, ERTPresentationRole::Cast, FName(TEXT("Hero.Aevik.Overload")), NAME_None).ToSoftObjectPath().ToString(),
+		PathDi(TEXT("Gadget"), TEXT("Throw_Ready")));
+	TestEqual(TEXT("senza azione: la clip di ruolo"),
+		Cdo->ActiveClipFor(Aevik, ERTPresentationRole::Cast).ToSoftObjectPath().ToString(),
+		PathDi(TEXT("Gadget"), TEXT("Cast")));
+	return true;
+}
+
+/**
+ * La fusione per pool (`Ruling` di §2.3, ➕ rev2.): eroi e pool che il catalogo non nomina tengono il default.
+ * ✅ Validato per mutazione (8): `MergeClipsPerHero` ridotta a `return PerEroe;` → cade «eroe assente».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBindingsMergeKeepsDefaultPoolsTest,
+	"RefactorTactics.Anim.Bindings.MergeKeepsDefaultPools",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimBindingsMergeKeepsDefaultPoolsTest::RunTest(const FString&)
+{
+	const FName Aevik(TEXT("Hero.Aevik"));
+	const FName Ivrin(TEXT("Hero.Ivrin"));
+	const FName Overload(TEXT("Hero.Aevik.Overload"));
+
+	TMap<FName, FRTHeroPresentationClips> Base;
+	FRTHeroPresentationClips& BaseAevik = Base.Add(Aevik);
+	BaseAevik.PerRole.Add(ERTPresentationRole::Move, PoolDiFusione(TEXT("/Game/Prova/DefMove.DefMove")));
+	BaseAevik.PerRole.Add(ERTPresentationRole::Cast, PoolDiFusione(TEXT("/Game/Prova/DefCast.DefCast")));
+	Base.Add(Ivrin).PerRole.Add(ERTPresentationRole::Idle, PoolDiFusione(TEXT("/Game/Prova/DefIdle.DefIdle")));
+
+	TMap<FName, FRTHeroPresentationClips> PerEroe;
+	FRTHeroPresentationClips& DalCatalogo = PerEroe.Add(Aevik);
+	DalCatalogo.PerRole.Add(ERTPresentationRole::Cast, PoolDiFusione(TEXT("/Game/Prova/CatCast.CatCast")));
+	DalCatalogo.PerAction.FindOrAdd(Overload).PerRole.Add(ERTPresentationRole::Cast,
+		PoolDiFusione(TEXT("/Game/Prova/CatOverload.CatOverload")));
+
+	const TMap<FName, FRTHeroPresentationClips> Fuso = URTBuildAnimBindingsCommandlet::MergeClipsPerHero(Base, PerEroe);
+
+	// 1. Eroe assente dal catalogo: tutti i pool del default.
+	const FRTHeroPresentationClips* FusoIvrin = Fuso.Find(Ivrin);
+	if (!TestNotNull(TEXT("🔴 eroe assente dal catalogo: resta"), (const void*)FusoIvrin)) { return false; }
+	TestEqual(TEXT("con il suo Idle di default"), PathAttivoDi(FusoIvrin->FindRole(ERTPresentationRole::Idle)),
+		FString(TEXT("/Game/Prova/DefIdle.DefIdle")));
+
+	// 2. Eroe con solo Cast nel catalogo: Move del default, Cast del catalogo.
+	const FRTHeroPresentationClips* FusoAevik = Fuso.Find(Aevik);
+	if (!TestNotNull(TEXT("Aevik c'e'"), (const void*)FusoAevik)) { return false; }
+	TestEqual(TEXT("🔴 il Move che il catalogo non nomina resta quello di default"),
+		PathAttivoDi(FusoAevik->FindRole(ERTPresentationRole::Move)), FString(TEXT("/Game/Prova/DefMove.DefMove")));
+	TestEqual(TEXT("il Cast che il catalogo nomina e' quello del catalogo"),
+		PathAttivoDi(FusoAevik->FindRole(ERTPresentationRole::Cast)), FString(TEXT("/Game/Prova/CatCast.CatCast")));
+
+	// 3. Il pool d'azione si aggiunge a PerAction senza toccare PerRole.
+	const FRTActionPresentationClips* Azione = FusoAevik->PerAction.Find(Overload);
+	TestEqual(TEXT("il pool d'azione del catalogo e' entrato"),
+		PathAttivoDi(Azione ? Azione->PerRole.Find(ERTPresentationRole::Cast) : nullptr),
+		FString(TEXT("/Game/Prova/CatOverload.CatOverload")));
+	TestEqual(TEXT("e PerRole ha ancora i suoi due ruoli"), FusoAevik->PerRole.Num(), 2);
+	return true;
+}
+
+/**
+ * I predicati del modello distinguono `(eroe, ruolo)` da `(eroe, ruolo, azione)`: attivare un binding di ruolo non
+ * spegne quello d'azione, e viceversa (spec §2.3, il quarto predicato).
+ * ✅ Validato per mutazione (7): il ciclo atomico di `MakeActive` senza `&& Binding.ActionId == ActionId` → cade
+ * «attivare il ruolo non spegne l'azione».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTAnimBrowserBindingRulesPerActionTest,
+	"RefactorTactics.Anim.Browser.BindingRulesPerAction",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTAnimBrowserBindingRulesPerActionTest::RunTest(const FString&)
+{
+	FRTAnimBrowserModel M = ModelloDiProva();
+	const FName Aevik(TEXT("Hero.Aevik"));
+	const FName Overload(TEXT("Hero.Aevik.Overload"));
+	const FName Idle(TEXT("AV_0001"));    // Promoted
+	const FName Jog(TEXT("AV_0004"));     // Promoted
+
+	auto Attiva = [&M](const FName& Id, const FName& Hero, ERTPresentationRole Role, const FName& ActionId) -> bool
+	{
+		for (const FRTAnimCatalogEntry& E : M.GetCatalog().Entries)
+		{
+			if (E.Id != Id) { continue; }
+			for (const FRTAnimBinding& B : E.Authored.Bindings)
+			{
+				if (B.HeroId == Hero && B.Role == Role && B.ActionId == ActionId) { return B.bActive; }
+			}
+		}
+		return false;
+	};
+
+	TestTrue(TEXT("lega Idle al ruolo Cast"), M.BindToRole(Idle, Aevik, ERTPresentationRole::Cast));
+	TestTrue(TEXT("🔑 la STESSA clip si lega anche all'azione: e' un altro pool, non un duplicato"),
+		M.BindToRole(Idle, Aevik, ERTPresentationRole::Cast, Overload));
+	TestTrue(TEXT("lega Jog all'azione"), M.BindToRole(Jog, Aevik, ERTPresentationRole::Cast, Overload));
+
+	TestTrue(TEXT("attiva Jog sull'azione"), M.MakeActive(Jog, Aevik, ERTPresentationRole::Cast, Overload));
+	TestTrue(TEXT("attiva Idle sul ruolo"), M.MakeActive(Idle, Aevik, ERTPresentationRole::Cast));
+	TestTrue(TEXT("🔴 attivare il ruolo non spegne l'azione"), Attiva(Jog, Aevik, ERTPresentationRole::Cast, Overload));
+	TestTrue(TEXT("e il ruolo e' attivo"), Attiva(Idle, Aevik, ERTPresentationRole::Cast, NAME_None));
+	TestFalse(TEXT("Idle sull'azione resta inattiva"), Attiva(Idle, Aevik, ERTPresentationRole::Cast, Overload));
+	TestEqual(TEXT("il catalogo e' valido: una attiva per pool"), URTAnimCatalogLibrary::ValidateCatalog(&M.GetCatalog()).Num(), 0);
+
+	TestTrue(TEXT("unbind del ruolo"), M.Unbind(Idle, Aevik, ERTPresentationRole::Cast));
+	TestTrue(TEXT("🔴 non tocca il binding d'azione della stessa clip"),
+		M.MakeActive(Idle, Aevik, ERTPresentationRole::Cast, Overload));
 	return true;
 }
 
