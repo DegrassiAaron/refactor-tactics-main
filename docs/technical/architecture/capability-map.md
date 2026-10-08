@@ -207,7 +207,7 @@ Resolver autorevole → TurnLog / Resolved Timeline → Playback / Inspection �
 | `RT-CAP-PLAYER-EVENT-LOG`<br>Player Event Log & Explainability | 🟡 | ✅ | 🟡 | #1937 | #1937 · #1936 · #2697 · #2281 · #1392 |
 | `RT-CAP-COMBAT-FEEDBACK`<br>Combat Feedback (damage token, cue, status) | 🟡 | 🟡 | 🟡 | #2453 | #2453 · #2456 · #2457 · #2828 · #2505 |
 | `RT-CAP-CHAR-PRESENTATION`<br>Character Presentation (mesh, anelli, sagome) | ✅ | ✅ | 🟡 | #286 | #286 · #1750 · #2545 · #1095 · #2167 |
-| `RT-CAP-ANIMATION-RUNTIME`<br>Animation Runtime & Catalog | 🟡 | ✅ | 🟡 | #286 | #288 · #2521 · #2545 · #2167 |
+| `RT-CAP-ANIMATION-RUNTIME`<br>Animation Runtime & Catalog | 🟡 | ✅ | 🟡 | #286 | #288 · #2521 · #2545 · #2167 · #3590 |
 | `RT-CAP-VFX`<br>VFX (line batcher in v0.1; Niagara fuori, D-124) | 🟡 | 🟡 | 🟡 | **nessuno** | #288 · #2453 · #2454 · #3578 |
 | `RT-CAP-AUDIO`<br>Audio Feedback | ❌ | ❌ | ❌ | **nessuno** | — |
 | `RT-CAP-CAMERA`<br>Tactical Camera & Map Presentation | ✅ | ✅ | 🟡 | #1769 | #1769 · #1781 · #1775 · #1809 |

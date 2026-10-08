@@ -5125,8 +5125,8 @@ sessions:
     produces: >-
       il verdetto su `PIE-CAST-BEAT`; nessun asset
     artifacts: []
-    unblocked_by: [3586]
-    # I criteri (0) e (1) giudicano una clip sulla sorgente, e negli scenari la sorgente e' un cilindro (#3586).
+    unblocked_by: []
+    # I criteri (0) e (1) giudicano una clip sulla sorgente: negli scenari la sorgente era un cilindro fino a #3586.
     shares_setup_with: []
     verifies: [PIE-CAST-BEAT]
     issues: [3549]
@@ -5143,6 +5143,10 @@ sessions:
       🟡 **Eseguita in parte il 2026-10-08** dall'autore, su `main` = `76cd19685`: (3) ✅ (allestito con
       `Visual.Combat.TracerHiddenFromUnseenAttacker`), (0) e (1) ⛔ perche' negli scenari le unita' sono cilindri
       (#3586), (2) `NOT RUN`. Da riconvocare per (0) e (1) quando #3586 atterra.
+
+      ✅ **Riconvocata ed eseguita il 2026-10-08** su `main` = `fa4b90001` (#3586 mergiata, Editor ricompilato): (0) e
+      (1) corse dal conduttore con catture di schermo su `Visual.Ability.CastBeat`, verdetti ratificati dall'autore —
+      entrambi ✅. `PIE-CAST-BEAT` ✅, con (2) `NOT RUN` come dichiarato.
 
   - id: U70
     title: La clip per abilita' — ogni abilita' suona la sua clip
@@ -5164,6 +5168,13 @@ sessions:
       per volta, con il default C++ (il catalogo JSON non arriva al gioco senza #3562). Le clip si possono vedere prima,
       senza partita, nell'anteprima dell'Anim Browser. Le clip stanno nei pack gitignorati: la seduta gira sul clone
       principale, dove ci sono.
+
+      🟡 **Eseguita il 2026-10-08** su `main` = `fa4b90001` (#3586 mergiata, Editor ricompilato): scenari da console al
+      posto del banco — `Visual.Ability.CastBeat`, `Visual.Combat.WaterElectricCoordinated`, `Visual.Movement.Charge`,
+      `Visual.Ability.FxProfile`, `Visual.Combat.WaterElectric` — corsi dal conduttore con catture di schermo, verdetti
+      ratificati dall'autore. Muiren, Branth e Ivrin ✅; Aevik ❌ perche' le sue clip d'azione sono additive (#3590:
+      `LinearDischarge` osservato, `Overload` no, stesse clip); senza scena `CircularTide`, `FlowReaction`, il cast di
+      `Ram` e il colpo di `PassingBlade`. Da riconvocare per Aevik quando #3590 atterra.
 
   - id: U71
     title: Il profilo FX per abilita' — attivazione, colpo e onda sulla mappa
