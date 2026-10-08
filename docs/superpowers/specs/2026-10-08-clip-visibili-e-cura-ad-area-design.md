@@ -9,7 +9,20 @@
 > la clip per abilità ([#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563), spec
 > [`2026-10-07-clip-per-abilita-design.md`](2026-10-07-clip-per-abilita-design.md)), di cui corregge la tabella §2.6 (`⌫`
 > in §2.6 qui sotto). ➕ rev. **Rivista dal panel il 2026-10-08** (`.superpowers/sp5-spec-panel.md`, verdetto *APPROVATA CON MODIFICHE*, finding
-> F1–F11): le modifiche sono incorporate e marcate `➕ rev.`; il `Ruling R2` è ribaltato (`⌫`). Da far rivedere all'autore; poi il piano.
+> F1–F11): le modifiche sono incorporate e marcate `➕ rev.`; il `Ruling R2` è ribaltato (`⌫`). **Approvata dall'autore** il
+> 2026-10-08 (AskUserQuestion).
+>
+> ⌫ **Perimetro ridotto lo stesso giorno, dai fatti**: mentre la spec era in review, la sessione parallela ha chiuso
+> [#3590](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3590) con la PR
+> [#3595](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3595) (`main` = `1c5f7150a`): il predicato
+> `RTClipIsAdditive` (risponde come il motore, F1 compreso), la guardia sui soli **gesti** (`Cast`, `Attack`) con ripiego al
+> ruolo, la tabella di Gadget con le `_Slow_V1` e i cast tolti (D2), il test `Unit.DefaultGestureClipsAreNotAdditive` sulla
+> tabella, e la hit-react **tenuta**: la review di quella PR ha trovato che l'autore l'ha vista sui quattro eroi
+> (`PIE-AS4b`, seduta `U8`, 2026-09-28), quindi D3 è sciolta dall'evidenza e non da una misura nuova. Le parti di questa spec
+> che #3595 copre — §1.1, §2.2, §2.3, §2.4, le righe di clip di §5.1, le scene 1, 2 e 4 di §5.2 — restano scritte come
+> registro e sono marcate `⌫ #3595`; **non si implementano qui**. Resta in perimetro: §2.1 (la cura ad area, #3593), la
+> riga FX di `CircularTide` (F4), R8 (il bot), §2.5, e la riconvocazione di `U70` che giudica Aevik su #3595 e Muiren su
+> questa spec nella stessa seduta. Branch: `issue/3593-cura-ad-area`, worktree `rt-wt-sp5-clip`.
 >
 > **Stato misurato**: 2026-10-08, `origin/main` = `834f4ff18`. Ogni `file:riga` è stato letto su quel commit, in sola
 > lettura, sul clone principale; chi lo rilegge più tardi lo **rimisura**. Nessun totale volatile: dove serve una misura
@@ -27,7 +40,7 @@
   `LMB_Fire_A_Slow_V1`, `LinearDischarge` → `LMB_Fire_B_Slow_V1`, `Overload` → `LMB_Fire_C_Slow_V1` (full-body, 0,9 s);
   le righe di cast `Ability_Q_Target` e `Throw_Ready` **escono** dalla tabella (nessuna variante full-body nel pack:
   ripiego al ruolo, R13 della spec sorella). Scartate le `_Fast_V1` (0,6 s) e la sola guardia a runtime senza tabella.
-- **D3 — il ruolo `Hit` si misura prima di deciderlo.** Le hit-react dei quattro pack sono additive e le sole full-body
+- **D3 — il ruolo `Hit` si misura prima di deciderlo.** ⌫ Sciolta da #3595 con l'evidenza di `PIE-AS4b` (`U8`): la hit-react additiva si vede e resta. Le hit-react dei quattro pack sono additive e le sole full-body
   sono `KnockBack` (~2 s) e `Stun_*`. La guardia a runtime di questa spec **non** tocca `Hit`: nella riconvocazione di `U70`
   una scena con un colpo su una mesh dice se l'additiva sommata all'idle si legge. La decisione (esentare, togliere il
   ruolo in v0.1, o `KnockBack`) è un follow-up (§7).
@@ -168,7 +181,9 @@ curato davvero, evento `+N salute`. Con `Shape == Area`:
 `Visual.Ability.ClipMuiren` (`grep -rl CircularTide Scenarios/` → solo quello), quindi nessun golden cambia; l'`expect`
 di Aevik torna `78` (`60 + 18`) e la `_nota_curare` perde il rimando a #3593.
 
-### 2.2 La guardia a runtime (#3590)
+### 2.2 La guardia a runtime (#3590) — ⌫ #3595
+
+⌫ **Implementata da #3595** (`Unit/RTUnit.cpp`, `Unit/RTUnitAnimInstance.{h,cpp}`: `RTClipIsAdditive`, guardia sui gesti). Testo tenuto come registro del disegno proposto.
 
 In `PlayPresentationRole`, dopo il caricamento (`Unit/RTUnit.cpp:751`) e **prima** del montaggio (`:790`):
 
@@ -208,7 +223,9 @@ if (Sequenza != nullptr && RefusesAdditive(Ruolo) && !URTUnitAnimInstance::IsPla
 - Il log è `Warning`, una riga per chiamata: in PIE si legge nel feed di `LogRT`; nessun `ensure` (un asset sbagliato non
   è un invariante rotto).
 
-### 2.3 La tabella di Gadget (D2) — `⌫` sulla spec sorella §2.6
+### 2.3 La tabella di Gadget (D2) — ⌫ #3595
+
+⌫ **Fatta da #3595**, che ha anche annotato la spec sorella §2.6 e il runbook delle animazioni.
 
 `MakeActionClips(TEXT("Gadget"), …)` (`Unit/RTUnitAnimInstance.cpp:193-198`) diventa:
 
@@ -228,7 +245,9 @@ e il suo elenco di scoperte cambia nomi, non stato. La spec sorella §2.6 riceve
 la riga *«scelte dai nomi dei pack (nessuno le ha viste)»* riceve il `➕ rev.` che dice **come** si guarda prima di
 scegliere (§2.5).
 
-### 2.4 Il test sulla tabella — nessuna clip dichiarata è additiva
+### 2.4 Il test sulla tabella — ⌫ #3595
+
+⌫ **Coperto da `Unit.DefaultGestureClipsAreNotAdditive` di #3595** (sui gesti, non su `Hit`, che resta per evidenza).
 
 `Unit.DeclaredClipsAreNotAdditive` (`EditorContext`, `Tests/RTAnimChannelTests.cpp`): per ogni eroe del CDO di
 `URTUnitAnimInstance`, per ogni voce di `MakeClips` (`Idle`, `Move`, `Cast`, `Death` — **non** `Hit`, D3) e di
@@ -288,7 +307,13 @@ al caso che il bot «attacchi» con una cura, il passo 2 esclude anche le azioni
 pinnato da `Bot.DerivedHealIsNotAnAttackCandidate`; l'uso della cura ad area da parte del bot è il follow-up §7. Costo se è
 sbagliato: un bot Muiren che oggi, per caso di punteggio, curava gli alleati accanto a un nemico smette di farlo.
 
-Test nuovi, ciascuno visto rosso prima del codice e validato per mutazione:
+⌫ #3595: le righe `Anim.AdditiveClipIsNotPlayableAsMontage`, `Playback.AdditiveClipFallsBackToRole`, `Playback.HitRoleKeepsAdditiveClips`,
+`Unit.DeclaredClipsAreNotAdditive` e `Unit.DefaultActionClipsResolveForEveryKitAbility` (mutazioni 12–19) sono coperte
+da `Anim.Channel.AdditiveClipIsDetected`, `…AdditiveActionClipFallsBackToTheRole`, `…AdditiveGestureRoleClipIsNotPlayed`,
+`…AdditiveFallbackOnAnAdditiveRolePlaysNothing`, `…AdditiveHitClipStillPlays` e `Unit.DefaultGestureClipsAreNotAdditive`,
+già in `main`; qui restano come registro.
+
+Test nuovi di **questa** spec, ciascuno visto rosso prima del codice e validato per mutazione:
 
 | Test | Asserto | Mutazione che lo fa cadere |
 |---|---|---|
@@ -311,17 +336,18 @@ Module.RefactorTactics.N.cpp` per i moduli che contengono `RTUnit.cpp`, `RTUnitA
 `RTHeroCatalogLibrary.cpp`; «Target is up to date» = binario vecchio), stessa ricetta di `U70`: scenari da console,
 `rt.Debug.PlaybackStartPaused 1`, ripresa con `K`, camera stretta su un personaggio, catture a raffica.
 
-1. **Aevik, colpo** — `Visual.Combat.WaterElectricCoordinated`, camera su Aevik: al `Colpo:` di `LinearDischarge` una posa
-   diversa dall'idle (`LMB_Fire_B_Slow_V1`); all'`Attiva:` la `Cast` del pack. Atteso **sì** su entrambi.
-2. **Aevik, area** — `Visual.Ability.FxProfile`: `LMB_Fire_C_Slow_V1` al colpo di `Overload`.
-3. **Muiren, cura** — `Visual.Ability.ClipMuiren`: la barra di Aevik sale (`+18 salute` nel feed) e la posa di
-   `R_Ability_Intro` al cast.
-4. **Ruolo `Hit`, misura (D3)** — `Visual.Ability.ClipIvrin` T2, camera su Branth: al `-16` si vede un sussulto? È la
-   risposta che decide il follow-up §7, e si registra nella cella con un fotogramma.
+1. **Aevik, colpo** (giudica #3595) — `Visual.Combat.WaterElectricCoordinated`, camera su Aevik: al `Colpo:` di
+   `LinearDischarge` una posa diversa dall'idle (`LMB_Fire_B_Slow_V1`); all'`Attiva:` la `Cast` del pack. Atteso **sì**.
+2. **Aevik, area** (giudica #3595) — `Visual.Ability.FxProfile`: `LMB_Fire_C_Slow_V1` al colpo di `Overload`.
+3. **Muiren, cura** (giudica questa spec) — `Visual.Ability.ClipMuiren`: la barra di Aevik sale (`+18 salute` nel feed), il
+   `Pulse` sulla cella di Muiren al cast (F4) e la posa di `R_Ability_Intro`.
+4. ⌫ **Ruolo `Hit`**: già misurato (`PIE-AS4b`, `U8`); nessuna scena.
 5. Le scene (0)–(3) di `PIE-CLIP-ABILITA` già verdi in `U70` si rigiudicano solo se cambia qualcosa che le tocca: la
    guardia non tocca Muiren, Branth e Ivrin (clip full-body), quindi **no**, salvo regressione vista per caso.
 
-Esito atteso: `PIE-CLIP-ABILITA` da 🟡 a ✅ se 1–3 sono sì e le due abilità senza scena restano dichiarate; `U70` chiusa.
+Esito atteso: `PIE-CLIP-ABILITA` da 🟡 a ✅ se 1–3 sono sì (le abilità senza scena hanno ora i banchi di #3592);
+`U70` chiusa; `doc-coherence` A4, rosso su `main` da #3595 («`PIE-CLIP-ABILITA` è 🟡 ma #3590 è CLOSED»), si spegne
+con il rigiudizio.
 
 ## 6. Limiti dichiarati
 
@@ -337,8 +363,6 @@ Esito atteso: `PIE-CLIP-ABILITA` da 🟡 a ✅ se 1–3 sono sì e le due abilit
 
 ## 7. Follow-up candidates
 
-- **Il ruolo `Hit`** dopo la misura di §5.2: esentare la guardia se l'additiva si legge; altrimenti togliere il ruolo in
-  v0.1 o scegliere `KnockBack` con una durata tagliata.
 - **La spinta curativa** della variante `Impact`: dove vive un'azione con `Heal` agli alleati e `Push` ai nemici nella
   stessa area (R3).
 - **L'impronta delle cure**: un'`AttackFootprint`-gemella per le aree di supporto, se il profilo FX vuole un'onda verde (R7).
