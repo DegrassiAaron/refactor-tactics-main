@@ -929,6 +929,21 @@ public:
 	int32 NumPlaybackTracers() const { return PlaybackTracers.Num(); }
 	const TArray<FRTPlaybackTracer>& GetPlaybackTracers() const { return PlaybackTracers; }
 
+	/**
+	 * Le cue del profilo FX nel fotogramma corrente (#3578, spec «il profilo FX» §2.4, R10): attivazione, `Marker`,
+	 * `AreaPulse`, `ConeSweep`. Le consegna `ARTTurnManager::PushPlaybackCues` e le SOSTITUISCE in blocco, come i
+	 * tracer: sono funzione dell'orologio. Un canale proprio, separato dal tracer, che resta com'e'.
+	 * ⛔ Nessun filtro qui: la conoscenza l'ha gia' applicata chi consegna.
+	 */
+	void SetPlaybackCues(const TArray<FRTPlaybackCue>& Cues);
+
+	/** Spegne il canale. */
+	void ClearPlaybackCues();
+
+	int32 NumPlaybackCues() const { return PlaybackCues.Num(); }
+	/** L'oracolo headless: QUALE cue, su QUALE cella (spec §2.5 — il gate D-278 non vede una cue mai chiamata). */
+	const TArray<FRTPlaybackCue>& GetPlaybackCues() const { return PlaybackCues; }
+
 	/** Vero se la cella e' fra quelle colpite dall'anteprima corrente (test). */
 	bool IsPreviewHitCell(const FRTCellId& Cell) const { return PreviewHitArea.Cells.Contains(Cell); }
 	/** Vero se la cella e' fra quelle colpite **e** occupata da un alleato (test del fuoco amico). */
@@ -1093,6 +1108,9 @@ protected:
 
 	/** I tracer del fotogramma corrente: vedi `SetPlaybackTracers`. */
 	TArray<FRTPlaybackTracer> PlaybackTracers;
+
+	/** #3578: le cue del profilo FX consegnate dal playback. */
+	TArray<FRTPlaybackCue> PlaybackCues;
 
 	/**
 	 * I colpi a struttura mostrati durante il playback (`#2828`). Stesso ciclo di vita dell'impronta: nasce

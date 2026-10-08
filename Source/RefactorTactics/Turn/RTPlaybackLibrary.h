@@ -301,6 +301,28 @@ public:
 	static void TracerPolyline(ERTTracerStyle Style, const FVector& From, const FVector& To, float Alpha,
 		float HexSize, TArray<FVector>& OutPoints);
 
+	// --- Le cue del profilo FX (#3578, spec «il profilo FX per abilita'» §2.1, §2.3-§2.4) ----------------------
+	// 🔑 Funzioni dell'orologio (`PhaseElapsed`) e del cursore (`Shown`, `BeatsDone`), e di nient'altro (§2.6): un tick
+	// unico fino a t e molti tick fino a t danno le stesse cue.
+
+	/** `D_act = A > 0 ? Min(Max(0, ActivationCueSeconds), A) : 0` (R2): la cue finisce prima dell'elemento dopo. */
+	static float ActivationCueDuration(float ActivationCueSeconds, float AttackShowSeconds);
+
+	/**
+	 * La cue d'attivazione di un `AbilityActivated`: lo stile `Activation` del profilo, sulla cella `Ev.Origin`.
+	 * ⛔ Falso se chi guarda non e' in `SourceVerdict` (R7: seconda porta dopo le code), o se lo stile e' `None`.
+	 */
+	static bool ActivationCueFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue);
+
+	/** Prep e Dash: le attivazioni gia' rivelate (`Shown`) la cui finestra `[k·A, k·A + D_act)` contiene `PhaseElapsed`. */
+	static void ActivationCuesAt(const TArray<FRTResolvedEvent>& Activations, int32 Shown, float PhaseElapsed,
+		float AttackShowSeconds, float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
+
+	/** Blast: gli `AbilityActivated` della sequenza rivelati (`BeatsDone > 2k`) nella loro finestra `[k·A, k·A + D_act)`. */
+	static void BlastActivationCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+		const TArray<FRTBlastSequenceElement>& Sequence, int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds,
+		float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out);
+
 	/**
 	 * Durata (secondi) di UNA fase del playback, prima di qualunque accelerazione.
 	 *

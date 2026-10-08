@@ -1103,6 +1103,7 @@ bool ARTHexMapActor::HasAnythingToDraw() const
 		|| PlaybackFootprintCells.Num() > 0
 		|| PlaybackStructureHits.Num() > 0
 		|| PlaybackTracers.Num() > 0
+		|| PlaybackCues.Num() > 0
 		// Una dissolvenza del velo in volo e' lavoro da fare per fotogramma quanto un'anteprima (`#2875`).
 		|| VeilCellsInTransition > 0;
 }
@@ -1184,6 +1185,18 @@ void ARTHexMapActor::SetPlaybackTracers(const TArray<FRTPlaybackTracer>& Tracers
 void ARTHexMapActor::ClearPlaybackTracers()
 {
 	PlaybackTracers.Reset();
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::SetPlaybackCues(const TArray<FRTPlaybackCue>& Cues)
+{
+	PlaybackCues = Cues;
+	SetActorTickEnabled(HasAnythingToDraw());
+}
+
+void ARTHexMapActor::ClearPlaybackCues()
+{
+	PlaybackCues.Reset();
 	SetActorTickEnabled(HasAnythingToDraw());
 }
 

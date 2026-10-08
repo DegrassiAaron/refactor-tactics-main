@@ -405,7 +405,8 @@ struct FRTResolvedEvent
 	FName BaseActionId;
 
 	// --- `AttackFootprint` ([D-301]); `Shape` vale anche per `Attack` (`#2454`, la forma dell'INTENTO);
-	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549). Gli altri campi: vuoti/di default per ogni
+	//     `AimCell` e `Shape` anche per `AbilityActivated` (#3549), e `Origin` anche per `AbilityActivated` (#3578: la
+	//     cella della sorgente quando agisce, per la cue d'attivazione). Gli altri campi: vuoti/di default per ogni
 	//     altro `Type`. ---
 
 	/**
@@ -439,6 +440,9 @@ struct FRTResolvedEvent
 	 * ⚠️ **Non si deriva dall'Actor.** Al playback l'unita' puo' essersi gia' mossa, e `ARTUnit::Cell`
 	 * risponderebbe con la posizione finale del turno invece che con quella del colpo. E' la stessa
 	 * ragione per cui `FRTBlastPreview` porta un `Origin` proprio.
+	 *
+	 * ➕ #3578: su `AbilityActivated` e' la cella della SORGENTE nell'istante in cui agisce (spec «il profilo FX» §2.3,
+	 * R5), letta dallo stesso soggetto su cui si congela `SourceVerdict`.
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "RefactorTactics|Playback")
 	FRTCellId Origin;

@@ -2166,4 +2166,64 @@ bool FRTAreaOverlayPreviewAddsNoActorPerCellTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Il canale delle cue (#3578, spec «il profilo FX» §2.4, R10): SOSTITUISCE in blocco, si spegne da solo, non tocca
+ * tracer, impronta ne' anteprima, e accende il Tick (il gemello di `PlaybackTracerIsItsOwnChannel`, qui sopra).
+ * ✅ Validato per mutazioni (15) — `Append` invece dell'assegnazione — e (P5) — il canale fuori da `HasAnythingToDraw`.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTHexMapActorPlaybackCueChannelTest,
+	"RefactorTactics.HexMapActor.PlaybackCueIsItsOwnChannel",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTHexMapActorPlaybackCueChannelTest::RunTest(const FString&)
+{
+	UWorld* World = MakeMapActorWorld();
+	TestNotNull(TEXT("World creato"), World);
+	if (!World) { return false; }
+	ARTHexMapActor* Actor = SpawnMapActor(World, MakeActorTestAsset(/*Radius*/ 1));
+	TestNotNull(TEXT("actor spawnato"), Actor);
+	if (!Actor) { DestroyMapActorWorld(World); return false; }
+
+	FRTPlaybackCue C;
+	C.Kind = ERTPlaybackCueKind::Ring;
+	C.At = FRTCellId(0, 0);
+	C.Toward = C.At;
+	C.Alpha = 0.5f;
+	FRTPlaybackTracer T;
+	T.From = FRTCellId(0, 0);
+	T.To = FRTCellId(1, 0);
+	T.Alpha = 0.5f;
+	T.Style = ERTTracerStyle::Projectile;
+
+	TestEqual(TEXT("si parte senza cue"), Actor->NumPlaybackCues(), 0);
+	TestFalse(TEXT("premessa: l'actor parte col Tick spento"), Actor->IsActorTickEnabled());
+	Actor->SetPlaybackCues({ C });
+	TestEqual(TEXT("una cue dopo la consegna"), Actor->NumPlaybackCues(), 1);
+	TestTrue(TEXT("🔴 consegnata una cue, il Tick si accende"), Actor->IsActorTickEnabled());
+	Actor->SetPlaybackCues({ C });
+	TestEqual(TEXT("🔴 la seconda consegna sostituisce la prima"), Actor->NumPlaybackCues(), 1);
+
+	Actor->SetPlaybackTracers({ T });
+	Actor->ClearPlaybackTracers();
+	Actor->AddPlaybackFootprint({ FRTCellId(1, 0) });
+	Actor->ClearPlaybackFootprint();
+	Actor->SetPreviewHitCells({ FRTCellId(0, 0) }, {});
+	Actor->SetPreviewHitCells({}, {});
+	TestEqual(TEXT("spenti tracer, impronta e anteprima, la cue resta"), Actor->NumPlaybackCues(), 1);
+
+	Actor->SetPlaybackTracers({ T });
+	Actor->ClearPlaybackCues();
+	TestEqual(TEXT("dopo Clear non resta nessuna cue"), Actor->NumPlaybackCues(), 0);
+	TestEqual(TEXT("e il tracer non e' stato toccato"), Actor->NumPlaybackTracers(), 1);
+	Actor->ClearPlaybackTracers();
+	TestFalse(TEXT("a tutti i canali vuoti il Tick e' spento"), Actor->IsActorTickEnabled());
+
+	Actor->SetPlaybackCues({ C });
+	Actor->SetPlaybackCues({});
+	TestEqual(TEXT("una consegna vuota e' un canale vuoto"), Actor->NumPlaybackCues(), 0);
+	TestFalse(TEXT("e spegne il Tick, ultimo canale acceso"), Actor->IsActorTickEnabled());
+
+	DestroyMapActorWorld(World);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

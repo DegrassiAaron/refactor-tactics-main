@@ -639,6 +639,12 @@ public:
 	 */
 	bool bSkipHitGeometryForTest = false;
 
+	/**
+	 * Lascia vuoto `Origin` di `AbilityActivated` (#3578), l'unico campo che il profilo FX aggiunge al produttore. Esiste
+	 * per un test solo — `Determinism.FxFieldsStayOutOfHashes`. Membro C++ nudo, non `UPROPERTY` (F20).
+	 */
+	bool bSkipFxFieldsForTest = false;
+
 	/** Registra i battiti del Blast in `AttackBeatTraceForTest` (`L<i>` lancio, `A<i>` arrivo). Solo test. */
 	bool bRecordAttackBeatsForTest = false;
 
@@ -1319,6 +1325,20 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
 	float TracerFlightSeconds = 0.25f;
+
+	/**
+	 * Durata della cue d'attivazione (#3578, spec «il profilo FX» §2.1, R2). ⚠️ Tagliata ad `AttackShowSeconds` da
+	 * `URTPlaybackLibrary::ActivationCueDuration`: l'elemento dopo esce a `(k+1)·A`. Proposta da playtest (D-287).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float ActivationCueSeconds = 0.35f;
+
+	/**
+	 * Durata delle cue di colpo — `Marker` e cue d'impronta (#3578, R2). ⚠️ Tagliata a `A − F_eff` da
+	 * `URTPlaybackLibrary::ImpactCueDuration`: l'arrivo cade a `k·A + F_eff`, il lancio dopo a `(k+1)·A`.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RefactorTactics|Playback")
+	float ImpactCueSeconds = 0.20f;
 
 	/**
 	 * Coda finale quando l'ULTIMA fase riprodotta si chiude su un'eliminazione (secondi).
@@ -2450,6 +2470,13 @@ protected:
 	void PushPlaybackTracers();
 
 	/**
+	 * Consegna alla mappa le cue del profilo FX della fase (#3578, spec §2.4): Prep e Dash dalle code di attivazione,
+	 * il Blast dalla sequenza e dal cursore dei battiti. Gemella di `PushPlaybackTracers`, con lo stesso flag: non tocca
+	 * la mappa se non c'e' nulla da dire e l'ultima consegna era gia' vuota (`bPlaybackCueChannelFull`).
+	 */
+	void PushPlaybackCues(ERTMatchPhase InPhase);
+
+	/**
 	 * Mette in pausa il playback su un confine d'atto e disarma il predicato — `#3292`.
 	 *
 	 * 🔑 **Esiste perche' i siti che la chiamano sono piu' d'uno** — `NotePlaybackActShown`, per ogni fatto che
@@ -3486,6 +3513,8 @@ private:
 	 * ⛔ Si azzera ESATTAMENTE dove il canale si spegne (finalizzazione del `Blast` e `FinishPlayback`).
 	 */
 	bool bPlaybackTracerChannelFull = false;
+	/** #3578: come `bPlaybackTracerChannelFull`, per `SetPlaybackCues`. Si azzera dove il canale si spegne. */
+	bool bPlaybackCueChannelFull = false;
 	/**
 	 * Il volo di ogni elemento, parallelo a `PlaybackBlastSequence` (`URTPlaybackLibrary::TracerFlightFor`): zero per
 	 * ogni elemento che non e' un colpo idoneo, quindi il suo arrivo coincide con la rivelazione.

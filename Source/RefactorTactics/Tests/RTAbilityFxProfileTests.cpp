@@ -288,6 +288,59 @@ bool FRTFxDeclaredOverridesHaveNoDuplicateKeysTest::RunTest(const FString&)
 	return true;
 }
 
+
+// --- La cue d'attivazione (#3578, spec §2.3) -------------------------------------------------------------------
+
+namespace
+{
+	/** Un'attivazione visibile alla squadra 0, con la sorgente in `Origine`. */
+	FRTResolvedEvent FxAttivazione(const TCHAR* Azione, ERTAbilityShape Forma, const FRTCellId& Origine)
+	{
+		FRTResolvedEvent Ev;
+		Ev.Phase = ERTMatchPhase::Prep;
+		Ev.Type = ERTResolvedEventType::AbilityActivated;
+		Ev.SourceStableUnitId = 1;
+		Ev.ActionId = Azione;
+		Ev.Shape = Forma;
+		Ev.Origin = Origine;
+		Ev.SourceVerdict.AllowTeam(0);
+		return Ev;
+	}
+}
+
+/**
+ * R7: la funzione pura della cue d'attivazione RICONTROLLA `SourceVerdict` (le code sono gia' filtrate a monte, e
+ * questa e' la seconda porta). Lo stile e' quello del profilo, la cella e' `Ev.Origin`.
+ * ✅ Validato per mutazione (8): il controllo di `SourceVerdict` tolto fa cadere «chi non vede la sorgente».
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPrivacyActivationCueNeedsTheSourceTest,
+	"RefactorTactics.Privacy.ActivationCueNeedsTheSource",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPrivacyActivationCueNeedsTheSourceTest::RunTest(const FString&)
+{
+	const FRTResolvedEvent Scudo = FxAttivazione(TEXT("Hero.Muiren.TideGuard"), ERTAbilityShape::Single, FRTCellId(2, 1));
+	FRTPlaybackCue Cue;
+	TestFalse(TEXT("🔴 chi non vede la sorgente non riceve la cue"), URTPlaybackLibrary::ActivationCueFor(Scudo, 1, 0.5f, Cue));
+	TestFalse(TEXT("un osservatore fuori intervallo non legge"), URTPlaybackLibrary::ActivationCueFor(Scudo, -1, 0.5f, Cue));
+	if (TestTrue(TEXT("chi la vede riceve la cue"), URTPlaybackLibrary::ActivationCueFor(Scudo, 0, 0.5f, Cue)))
+	{
+		TestTrue(TEXT("TideGuard: Pulse (override)"), Cue.Kind == ERTPlaybackCueKind::Pulse);
+		TestTrue(TEXT("sulla cella dell'evento, non dell'attore"), Cue.At == FRTCellId(2, 1));
+		TestEqual(TEXT("con l'Alpha data"), Cue.Alpha, 0.5f);
+	}
+	FRTPlaybackCue Altra;
+	TestTrue(TEXT("Overload: Flash"), URTPlaybackLibrary::ActivationCueFor(
+		FxAttivazione(TEXT("Hero.Aevik.Overload"), ERTAbilityShape::Area, FRTCellId(0, 0)), 0, 0.f, Altra)
+		&& Altra.Kind == ERTPlaybackCueKind::Flash);
+	TestTrue(TEXT("un attacco base: Ring (default)"), URTPlaybackLibrary::ActivationCueFor(
+		FxAttivazione(TEXT("Hero.Branth.ImpactShot"), ERTAbilityShape::Single, FRTCellId(0, 0)), 0, 0.f, Altra)
+		&& Altra.Kind == ERTPlaybackCueKind::Ring);
+	FRTResolvedEvent Colpo = Scudo;
+	Colpo.Type = ERTResolvedEventType::Attack;
+	TestFalse(TEXT("solo un AbilityActivated ha una cue d'attivazione"), URTPlaybackLibrary::ActivationCueFor(Colpo, 0, 0.f, Altra));
+	return true;
+}
+
 // --- I test dei Task 3, 4 e 5 si aggiungono QUI, prima di `#endif` ----------------------------------------
 
 #endif // WITH_DEV_AUTOMATION_TESTS

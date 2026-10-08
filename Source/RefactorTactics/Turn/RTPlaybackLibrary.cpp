@@ -192,6 +192,83 @@ void URTPlaybackLibrary::TracerPolyline(ERTTracerStyle Style, const FVector& Fro
 	}
 }
 
+float URTPlaybackLibrary::ActivationCueDuration(float ActivationCueSeconds, float AttackShowSeconds)
+{
+	return AttackShowSeconds > 0.f ? FMath::Min(FMath::Max(0.f, ActivationCueSeconds), AttackShowSeconds) : 0.f;
+}
+
+bool URTPlaybackLibrary::ActivationCueFor(const FRTResolvedEvent& Ev, int32 ViewerTeamId, float Alpha, FRTPlaybackCue& OutCue)
+{
+	if (Ev.Type != ERTResolvedEventType::AbilityActivated
+		|| !Ev.SourceVerdict.AllowsTeam(ViewerTeamId)) // R7: fail-closed anche se la coda e' gia' filtrata
+	{
+		return false;
+	}
+	switch (URTPresentationBindingLibrary::FxProfileFor(Ev.ActionId, Ev.BaseActionId, Ev.Shape).Activation)
+	{
+	case ERTActivationFxStyle::Ring:  OutCue.Kind = ERTPlaybackCueKind::Ring;  break;
+	case ERTActivationFxStyle::Pulse: OutCue.Kind = ERTPlaybackCueKind::Pulse; break;
+	case ERTActivationFxStyle::Flash: OutCue.Kind = ERTPlaybackCueKind::Flash; break;
+	default: return false;
+	}
+	OutCue.At = Ev.Origin;
+	OutCue.Toward = Ev.Origin;
+	OutCue.Alpha = FMath::Clamp(Alpha, 0.f, 1.f);
+	return true;
+}
+
+void URTPlaybackLibrary::ActivationCuesAt(const TArray<FRTResolvedEvent>& Activations, int32 Shown, float PhaseElapsed,
+	float AttackShowSeconds, float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out)
+{
+	const float Durata = ActivationCueDuration(ActivationCueSeconds, AttackShowSeconds);
+	if (Durata <= 0.f)
+	{
+		return; // `A <= 0`: tutto in un frame, nessuna cue (spec §4)
+	}
+	for (int32 K = 0; K < FMath::Min(Shown, Activations.Num()); ++K)
+	{
+		const float Inizio = AttackLaunchSeconds(K, AttackShowSeconds);
+		if (PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		FRTPlaybackCue Cue;
+		if (ActivationCueFor(Activations[K], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
+void URTPlaybackLibrary::BlastActivationCuesAt(const TArray<FRTResolvedEvent>& Timeline,
+	const TArray<FRTBlastSequenceElement>& Sequence, int32 BeatsDone, float PhaseElapsed, float AttackShowSeconds,
+	float ActivationCueSeconds, int32 ViewerTeamId, TArray<FRTPlaybackCue>& Out)
+{
+	const float Durata = ActivationCueDuration(ActivationCueSeconds, AttackShowSeconds);
+	if (Durata <= 0.f)
+	{
+		return;
+	}
+	for (int32 K = 0; K < Sequence.Num() && BeatsDone > 2 * K; ++K) // il battito `2k` rivela l'elemento `k`
+	{
+		const int32 Indice = Sequence[K].TimelineIndex;
+		if (!Timeline.IsValidIndex(Indice) || Timeline[Indice].Type != ERTResolvedEventType::AbilityActivated)
+		{
+			continue;
+		}
+		const float Inizio = AttackLaunchSeconds(K, AttackShowSeconds);
+		if (PhaseElapsed < Inizio || PhaseElapsed >= Inizio + Durata)
+		{
+			continue;
+		}
+		FRTPlaybackCue Cue;
+		if (ActivationCueFor(Timeline[Indice], ViewerTeamId, (PhaseElapsed - Inizio) / Durata, Cue))
+		{
+			Out.Add(Cue);
+		}
+	}
+}
+
 float URTPlaybackLibrary::PhaseDuration(ERTMatchPhase Phase, int32 MaxMoveSegments, int32 NumAttacks,
 	float CellsPerSecond, float AttackShowSeconds, float PhaseBeatSeconds)
 {
