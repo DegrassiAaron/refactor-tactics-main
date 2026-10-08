@@ -1688,7 +1688,7 @@ capabilities:
         - Source/RefactorTactics/Unit/RTAnimCatalogTypes.h
         - Data/Anim/AnimCatalog.json
         - Source/RefactorTacticsEditor/Private/Content/RTBuildAnimBindingsCommandlet.h
-    issues: { open: [288, 2521, 2545, 2167], closed: [2443, 2445, 1663, 3563] }
+    issues: { open: [288, 2521, 2545, 2167, 3590], closed: [2443, 2445, 1663, 3563] }
     consumers: [RT-CAP-CHAR-PRESENTATION]
     dependencies: [RT-CAP-ANIM-BROWSER, RT-CAP-FACING, RT-CAP-RESOLVED-TIMELINE]
     tests:
