@@ -521,7 +521,14 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
 		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
+		// ⚠️ Per un'AREA (#3593) questa e' la regola del solo bersaglio-unita': il centro puo' essere una CELLA, e
+		// allora nessuna unita' e' stata scelta — il «se stessi» qui sotto serve alla forma `Single`, non al centro.
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
+		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
+		const bool bArea = Heal->Shape == ERTAbilityShape::Area;
+		// Solo l'AREA legge la cella dichiarata: il ramo `Single` resta com'era (bersaglio o se', `AimCell` = la sua cella).
+		const FRTCellId Centro = (bArea && Unit->bAttackTargetsCell) ? Unit->PlannedAttackCell : HealTarget->Cell;
+		const int32 BersaglioStableId = (bArea && !Unit->PlannedAttackTarget) ? 0 : HealTarget->StableUnitId;
 		// Il PIANO si azzera qui, il COOLDOWN piu' sotto (`#1445`, [D-200]): l'unita' ha speso il suo turno —
 		// non puo' riagire — ma l'abilita' si paga solo se l'azione e' PARTITA. Azzerare il piano piu' in
 		// basso lascerebbe il ciclo degli intenti costruire un attacco su un alleato, che e' la ragione per
@@ -531,7 +538,7 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		// Portata dal catalogo, misurata come per ogni altra azione: una cura a distanza infinita sarebbe una
 		// regola diversa da quella scritta.
-		if (URTHexLibrary::HexDistance(Unit->Cell, HealTarget->Cell) > Heal->Def.RangeCells)
+		if (URTHexLibrary::HexDistance(Unit->Cell, Centro) > Heal->Def.RangeCells)
 		{
 			// 🔴 **L'asimmetria INVERSA** ([D-196], `#1412` punto 4): fino a qui questa cura mancata viveva
 			// SOLO nel combat log. Il record autoritativo non la conteneva, quindi un replay non poteva
@@ -549,7 +556,8 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 			// (`TargetDead`, [D-197]) e la def senza effetto utile (`NoEffect`) sono ESITI di un'azione
 			// partita, e restano a carico. Un esito si paga; una mira impossibile no.
 			FRTTurnLogEntry CuraMancata = MakeSupportFallback(
-				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
+				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::OutOfRange);
+			if (bArea) { CuraMancata.TgtCell = Centro; } // l'area non ha un bersaglio-unita': la voce dice DOVE mirava
 			AppendLogEntry(CuraMancata, Unit);
 			// ⛔ **Niente `AddLogEvent`**: `ConcludeTurn` deriva una riga per ogni voce di TurnLog, quindi
 			// tenerla avrebbe creato un duplicato nuovo. La riga derivata porta azione, motivo e celle; il
@@ -565,12 +573,23 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		// il controllo di `Amount` qui sotto): il gesto, non l'esito. ⛔ Il fuori portata e' uscito con `continue`
 		// sopra e non si paga: non e' un gesto, e non si attiva.
 		EmitAbilityActivated(Unit, ERTMatchPhase::Blast, Heal->Def.ActionId, Heal->Def.BaseActionId,
-			HealTarget->StableUnitId, HealTarget->Cell, ERTAbilityShape::Single);
+			BersaglioStableId, Centro, bArea ? ERTAbilityShape::Area : ERTAbilityShape::Single);
 
+		// #3593, spec SP5 §2.1 punto 6: l'amount della VARIANTE attiva, se ne dichiara uno; altrimenti di `Def`.
 		int32 Amount = 0;
-		for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
+		if (const FRTAbilityVariant* Variante = Heal->FindVariant(Unit->ActiveVariantId))
 		{
-			if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+			for (const FRTActionEffectSpec& Spec : Variante->Effects)
+			{
+				if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+			}
+		}
+		if (Amount <= 0)
+		{
+			for (const FRTActionEffectSpec& Spec : Heal->Def.Effects)
+			{
+				if (Spec.Effect == ERTActionEffect::Heal) { Amount = Spec.Amount; break; }
+			}
 		}
 		// 🔴 Una cura che non cura **non sparisce in silenzio** (`#1437`). Ci si arriva DOPO l'ANNOTAZIONE
 		// — il cooldown lo scrivera' `SpendStartedAbilities` a fase finita (`#1451`; fino ad allora questa
@@ -597,14 +616,39 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 		if (Amount <= 0)
 		{
 			FRTTurnLogEntry CuraVuota = MakeSupportFallback(
-				Unit, HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
+				Unit, bArea ? nullptr : HealTarget, Heal->Def, ERTActionInvalidReason::NoEffect);
+			if (bArea) { CuraVuota.TgtCell = Centro; }
 			AppendLogEntry(CuraVuota, Unit);
 			continue;
 		}
 
 		// Chi cura, accanto a da-dove: la cella del curatore non identifica un'unita' ([D-063]), e il TurnLog
 		// deve dire chi ha agito (#405). `AddHeal` tiene allineati i quattro array paralleli.
-		Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell, Heal->Def);
+		if (!bArea)
+		{
+			Ctx.AddHeal(Unit, HealTarget, Amount, Unit->Cell, Heal->Def);
+			continue;
+		}
+
+		// #3593: ogni compagna nel raggio, chi cura compresa, nell'ordine canonico di `Ctx.Units` (cella per prima,
+		// `GatherBlastUnits`): niente secondo ordinamento. Le morte entrano lo stesso: `ApplyPlannedHeals` scrive
+		// `TargetDead`. I nemici non entrano mai: la cura non e' un colpo, e `bFriendlyFire` qui non si legge.
+		int32 Destinatarie = 0;
+		for (ARTUnit* Compagna : Ctx.Units)
+		{
+			if (!Compagna || Compagna->TeamId != Unit->TeamId) { continue; }
+			if (URTHexLibrary::HexDistance(Centro, Compagna->Cell) > Heal->AreaRadius) { continue; }
+			Ctx.AddHeal(Unit, Compagna, Amount, Unit->Cell, Heal->Def);
+			++Destinatarie;
+		}
+		if (Destinatarie == 0)
+		{
+			// R2 ribaltato (spec SP5): l'azione e' PARTITA — cooldown e attivazione sopra — e non ha trovato nessuno.
+			// `NoEffect`, non `TargetGone`, che in `ApplyPlannedHeals` dice «distrutta fra raccolta e applicazione».
+			FRTTurnLogEntry Vuota = MakeSupportFallback(Unit, nullptr, Heal->Def, ERTActionInvalidReason::NoEffect);
+			Vuota.TgtCell = Centro;
+			AppendLogEntry(Vuota, Unit);
+		}
 	}
 }
 

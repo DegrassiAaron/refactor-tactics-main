@@ -513,8 +513,8 @@ URTHeroData* URTHeroCatalogLibrary::MakeMuiren()
 	// Aevik (`LinearDischarge` fa +8 su bersaglio `Wet`). La combo passa ora solo per la linea di
 	// `PressureJet`, che copre meno bersagli.
 	//
-	// Il limite dichiarato di prima resta e non c'entra col cambio: `bFriendlyFire` decide SE colpire un
-	// alleato, non CON QUALE effetto. Portata 4 e raggio 1: stessi numeri di `Aevik.Overload`.
+	// Il limite dichiarato di prima resta e non c'entra col cambio. Sul percorso delle cure (#3593) `bFriendlyFire`
+	// non si legge: la cura raggiunge le compagne del raggio e mai un nemico. Portata 4 e raggio 1: stessi numeri di `Aevik.Overload`.
 	//
 	// #3593: deriva da `Action.Heal` perche' le cure passano da `CollectHealActions`, che raccoglie SOLO le
 	// derivate (`IsCoreAction`): costruita da zero finiva fra gli attacchi, dove un'area non cura nessuno.
