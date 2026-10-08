@@ -95,9 +95,9 @@ public:
 	 *
 	 * Limiti dichiarati: `CircularTide` **cura e basta** (`{ Heal 18 }`). Il `Wet` ad area e' uscito dalla
 	 * dichiarazione con #1006, che allinea Muiren al grado `Access` di #995 — una sola capability elementale,
-	 * e resta `PressureJet`. Il limite che *resta* e' un altro: **nessun resolver applica oggi effetti diversi
-	 * ad alleati e nemici dentro la stessa area** (`bFriendlyFire` decide solo SE un alleato viene colpito,
-	 * non CON QUALE effetto). `FluidTrail` **non crea piu' acqua**: sempre #1006 la riporta a uno scatto puro,
+	 * e resta `PressureJet`. Il limite che *resta* e' un altro: il percorso delle cure (#3593) cura gli alleati
+	 * nel raggio e lascia i nemici; una spinta ai nemici nella stessa area (variante `Impact`) resta senza
+	 * resolver (spec SP5, R3). `FluidTrail` **non crea piu' acqua**: sempre #1006 la riporta a uno scatto puro,
 	 * e l'owner della superficie e' l'equipaggiamento (`Gadget.Sprinkler`). `FlowReaction` e' **rinviata a
 	 * E14** (ADR-0004): produce movimento dentro un boundary di risoluzione, che il motore delle reazioni di
 	 * E5 non fa — il rinvio e' dichiarato come dato (slot `None`, nessun trigger), non lasciato a un commento.

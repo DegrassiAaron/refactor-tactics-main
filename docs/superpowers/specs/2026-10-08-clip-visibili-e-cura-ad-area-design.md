@@ -24,6 +24,39 @@
 > riga FX di `CircularTide` (F4), R8 (il bot), §2.5, e la riconvocazione di `U70` che giudica Aevik su #3595 e Muiren su
 > questa spec nella stessa seduta. Branch: `issue/3593-cura-ad-area`, worktree `rt-wt-sp5-clip`.
 >
+> ✅ **Implementato il 2026-10-08** sul branch `issue/3593-cura-ad-area`, da `834f4ff18`, col piano
+> [`2026-10-08-cura-ad-area.md`](../plans/2026-10-08-cura-ad-area.md): un commit per task, più il giro di fix della
+> review del Task 2. Il catalogo e il bot `c023228cd` (`Hero.Muiren.CircularTide` deriva da `Action.Heal` con i numeri
+> dell'eroe; il passo 2 dei candidati del bot scarta una cura derivata); il percorso delle cure che impara la forma `Area`
+> `11d3b386c`, con il fix della sua review `e75ce9998` (commento del ripiego «su se stessi», `TgtCell` di `OutOfRange`
+> asserito, tolto l'asserto sulla `Health` di un'unità distrutta); la riga FX `240d59609` (`Pulse · None · None · None`,
+> gemella nel test, nota nella spec del profilo); scenario `ClipMuiren` a 78, nota in coda alla voce PIE, riconvocazione di
+> `U70` dichiarata, §4 e §6 di questa spec e il commento di `MakeMuiren` nel commit `docs(3593)` che porta questo blocco.
+>
+> **Gate**, ciascuno sul commit del proprio task, con i log nei report della sessione (non versionati), tutti con
+> `**** TEST COMPLETE`, nessun `Ensure condition failed`: compile `PASS` su ogni commit di codice.
+> `c023228cd`: rosso prima del codice su `TideDerivesFromHeal`, `DerivedActionsDeclareTheirOrigin` e
+> `Bot.DerivedHealIsNotAnAttackCandidate`; poi `RefactorTactics.Heroes` + `RefactorTactics.Bot` `PASS` (87 asserti) ed
+> `Actions` + `Fx` + `Scenario` `PASS` (342); le tre mutazioni (derivazione dal core sostituita da `MakeHeroAction`,
+> portata/specchio tolti, scarto del bot tolto) sono cadute ciascuna sui propri asserti e solo su quelli.
+> `11d3b386c` + `e75ce9998`: rosso prima del codice sui tre test di `RTHealAreaTests.cpp`
+> (`Heroes.TideHealsAlliesInArea`, `TideHealsVariantAmount`, `TideOnEmptyAreaStillStarts`); poi `Heroes.Tide` `PASS`
+> (3 test), `Heroes` + `Equipment.MedkitHealsInMatch` + `Actions` `PASS` (179), `AimOrigin` + `BlindFire` + `Icon` + `Anim`
+> `PASS` (82), `Turn` `PASS` (89); le mutazioni sul filtro `Heroes` + `Equipment.MedkitHealsInMatch` (nemico curato, bordo del
+> raggio `>=`, esclusione della morta, forma sempre `Single`, cooldown pagato solo a destinatarie, lettura della variante,
+> blocco a vuoto reso morto, `TgtCell` del centro) sono cadute su un solo test ciascuna; quella del cooldown, rimisurata
+> col filtro esteso a `Actions`, fa cadere anche `Actions.Blast.PlannedActionPaysOnlyIfItStarted`, `Actions.Heal.DeadTargetIsTraced`
+> e `Actions.Heal.NoEffectIsTraced` (la prima misura, a filtro stretto, aveva concluso per un buco di copertura che non
+> c'era). `Scenario.EveryShippedScenarioRuns` era rosso su `Visual.Ability.ClipMuiren` (60 atteso, 78 ottenuto): esito
+> previsto, l'`expect` lo ha riallineato questo task.
+> `240d59609`: `RefactorTactics.Fx` rosso su `DeclaredOverridesMatchTheProposal` prima della riga, poi `PASS`;
+> `Playback` `PASS` (131); la mutazione (riga di test riportata a `Marker`/`AreaPulse`) è caduta sullo stesso test.
+> Questo task: `node tools/radar/scenario-notes.ts --check` verde e `Scenario.EveryShippedScenarioRuns` `PASS` con
+> `Visual.Ability.ClipMuiren: PASS (5/5 assertion, 2 turni)`. Il generatore HUD, rilanciato prima e dopo, esce con una chiave
+> richiesta in meno (`CircularTide` ripiega su `Action.Heal`), senza diff versionato (`Content/RT/UI/_Generated/` è ignorato
+> da git). Determinismo, replay, privacy: `NOT RUN` come gate dedicati — nessun dato nuovo in snapshot, `TurnLog`,
+> `StateHash` o replay (si riusano `Healed`, `Cancelled`, `NoEffect`), e `Turn` ed `Heroes` sono verdi su `e75ce9998`. PIE e packaged: `NOT RUN`, la voce `PIE-CLIP-ABILITA` resta da giudicare nella riconvocazione di `U70`.
+>
 > **Stato misurato**: 2026-10-08, `origin/main` = `834f4ff18`. Ogni `file:riga` è stato letto su quel commit, in sola
 > lettura, sul clone principale; chi lo rilegge più tardi lo **rimisura**. Nessun totale volatile: dove serve una misura
 > c'è il comando, dove serve un elenco ci sono i nomi. Le scelte di chi scrive sono marcate `Ruling`, ognuna col suo
@@ -286,7 +319,7 @@ gate.
 - Clip additiva su `Cast`/`Attack`: `Warning` nel log, ripiego al ruolo, poi `nullptr` → posa di riferimento, partita
   identica (invariante #1 di `PlayPresentationRole`).
 - Clip di ruolo a sua volta additiva (`Hit` oggi; `Cast` mai, sondato): `nullptr`, stesso degrado.
-- Area di cura senza alleati: una voce `Fallback/TargetGone`, nessuna cura, nessun `ensure`.
+- Area di cura senza nessuno della squadra: l'azione parte (cooldown pagato, attivazione emessa) e lascia una voce `Fallback/NoEffect` sul centro, nessuna cura, nessun `ensure`.
 - Centro fuori portata: `Fallback/OutOfRange`, come oggi per `Single`.
 - Alleato a salute piena nell'area: voce `Healed` con `Amount = 0` (già così per `Single`).
 
@@ -354,6 +387,7 @@ con il rigiudizio.
 - La cura ad area non lascia un'impronta sulla mappa: l'`AbilityActivated` con `Area` dà l'anello d'attivazione sulla
   sorgente (profilo FX), i numeri verdi dicono chi è stato curato; l'onda d'area è dei colpi.
 - La `Push 1` di `CircularTide.Impact` non si applica (R3).
+- La variante `Impact` promette nel suo `Tradeoff` (`RTHeroCatalogLibrary.cpp`, «applica Push 1 ai nemici») e in `RTActionDescriptions.cpp` («cura gli alleati o colpisce») una spinta che R3 non produce: testo da riallineare nel follow-up della spinta curativa, non qui.
 - Il bot non usa la cura ad area (R8): la pianifica nessuno finché il follow-up non le dà un punteggio.
 - `Hit` resta additiva fino a decisione (D3).
 - La guardia legge `IsValidAdditive()` dell'asset: una clip full-body **autorata male** passa; una clip additiva
