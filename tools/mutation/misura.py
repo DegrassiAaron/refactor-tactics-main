@@ -696,20 +696,25 @@ def detentori_live_coding(motori):
                   if info[0].lower() == "unrealeditor.exe")
 
 
-# 🔑 **Lo ZOMBIE e' un processo USCITO con un thread solo** ([D-473], che emenda l'ancora di [D-472]): un
-# `UnrealEditor.exe` la cui terminazione non si e' chiusa. `Get-Process -Id` non lo trova piu' e `HasExited` vale
-# `True`, ma `Win32_Process` lo elenca, con un thread e gli handle ancora aperti: il mutex di Live Coding e il
-# lock sul `.dll` fra questi.
+# 🔑 **Lo ZOMBIE e' un processo con un thread solo, USCITO oppure con al massimo 1 MB** ([D-476]): le due forme
+# misurate, unite.
 #
-# ⌫ *Fino a [D-473] lo zombie si riconosceva dalla memoria*, un thread con al massimo 1 MB, sull'ancora di
-# `AGENTS.md` §*Build Editor* (2026-08-24, ~0,2 MB). Ma la memoria scende col tempo e non distingue niente: il
-# 2026-09-02 uno zombie con 4,27 GB teneva il mutex e il `.dll`, e il 2026-10-07 il pid 56772 aveva un thread,
-# 0,9 GB di working set e 5,4 GB di commit. Per la vecchia regola erano «fuori dai dati», e il gate aspettava.
+# - **Uscito** ([D-473]): un `UnrealEditor.exe` la cui terminazione non si e' chiusa. `Get-Process -Id` non lo trova
+#   piu' e `HasExited` vale `True`, ma `Win32_Process` lo elenca, con un thread e gli handle ancora aperti: il mutex
+#   di Live Coding e il lock sul `.dll` fra questi. Puo' tenere GB per piu' di un'ora: il 2026-09-02 uno con 4,27 GB,
+#   il 2026-10-07 il pid 56772 con 0,9 GB di working set e 5,4 GB di commit.
+# - **Al massimo 1 MB** ([D-472]): l'ancora di `AGENTS.md` §*Build Editor* (2026-08-24, ~0,2 MB). Nessuno annoto' se
+#   `Get-Process -Id` la trovasse, e un Editor fermo nella propria chiusura, prima che il codice d'uscita sia scritto,
+#   e' ancora «trovato». ⌫ *Con la sola uscita, fra [D-473] e [D-476], quella forma era «fuori dai dati».*
+#
+# ⚠️ Il prezzo e' quello gia' accettato da [D-472]: un processo appena partito ha un thread e poca memoria. Un thread
+# solo in un processo non uscito con piu' di 1 MB resta «fuori dai dati».
 #
 # L'Editor VIVO resta l'ancora del 2026-09-11 (93 thread, ~3,6 GB), visibile a `Get-Process`: il limite sulla
 # memoria serve solo a dire «vivo» invece di «fuori dai dati», e quella e' una differenza di stampa. Decide solo
 # lo zombie.
 ZOMBIE_THREAD = 1
+ZOMBIE_MEMORIA_MAX = 1024 * 1024            # 1 MB: cinque volte l'ancora del 2026-08-24, e nessun Editor vivo ci sta
 VIVO_MEMORIA_MIN = 1024 * 1024 * 1024       # 1 GB: un terzo dell'ancora dell'Editor vivo
 
 
@@ -717,18 +722,18 @@ def stato_del_detentore(thread, memoria, uscito):
     """PURA. Un detentore del lock: `zombie` | `vivo` | `fuori dai dati`.
 
     🔑 **Lo zombie e' l'unico stato che cambia cosa fa `build()`**: si ferma, perche' nessuna attesa rilascia un
-    mutex che il processo morto non chiudera'. E' un processo uscito con un thread solo, qualunque sia la sua
-    memoria ([D-473]).
+    mutex che il processo morto non chiudera'. E' un processo con un thread solo, uscito oppure con al massimo 1 MB
+    ([D-476]).
 
-    ⛔ Un dato mancante non e' uno zombie: e' «fuori dai dati», e si aspetta. Lo stesso per un thread solo in un
-    processo che `Get-Process` trova ancora, come uno che sta partendo, e per molti thread in uno uscito, che
-    sta chiudendo.
+    ⛔ **Ogni ramo decide coi propri dati.** L'uscita vale solo se e' nota, e la memoria solo se e' letta: un dato
+    mancante non fa uno zombie, e senza l'altro ramo e' «fuori dai dati». Lo stesso per un thread solo in un
+    processo non uscito con piu' di 1 MB, e per molti thread in uno uscito, che sta chiudendo.
     """
-    if thread is None or uscito is None:
+    if thread is None:
         return "fuori dai dati"
-    if uscito and thread == ZOMBIE_THREAD:
+    if thread == ZOMBIE_THREAD and (uscito is True or (memoria is not None and memoria <= ZOMBIE_MEMORIA_MAX)):
         return "zombie"
-    if not uscito and thread > ZOMBIE_THREAD and memoria is not None and memoria >= VIVO_MEMORIA_MIN:
+    if uscito is False and thread > ZOMBIE_THREAD and memoria is not None and memoria >= VIVO_MEMORIA_MIN:
         return "vivo"
     return "fuori dai dati"
 
@@ -1066,14 +1071,20 @@ def self_test():
     stato("lo zombie del 2026-10-07: un thread, uscito, con GB di memoria", "zombie", 1, 939524096, True)
     stato("lo zombie del 2026-09-02: un thread, uscito, con 4,27 GB", "zombie", 1, 4584877260, True)
     stato("la memoria non serve a dire zombie", "zombie", 1, None, True)
-    stato("un thread in un processo che Get-Process trova: fuori dai dati, sta partendo", "fuori dai dati",
+    # [D-476]: l'ancora del 2026-08-24 non fu misurata con `Get-Process -Id`. Se non era uscita, la memoria basta.
+    stato("l'ancora del 2026-08-24 anche se Get-Process la trova: zombie, per la memoria", "zombie",
           1, 200000, False)
+    stato("un thread non uscito con GB di memoria: fuori dai dati", "fuori dai dati", 1, 939524096, False)
+    stato("molti thread e memoria minima: fuori dai dati, la memoria vale solo col thread solo", "fuori dai dati",
+          40, 200000, False)
     stato("l'ancora dell'Editor vivo: 93 thread, ~3,6 GB, visibile", "vivo", 93, 3865470566, False)
     stato("molti thread in un processo uscito: fuori dai dati, sta chiudendo", "fuori dai dati",
           40, 3865470566, True)
     stato("molti thread e poca memoria: fuori dai dati", "fuori dai dati", 40, 50000000, False)
     stato("un dato mancante non e' uno zombie: il thread", "fuori dai dati", None, 200000, True)
-    stato("un dato mancante non e' uno zombie: l'uscita", "fuori dai dati", 1, 200000, None)
+    stato("uscita ignota ma memoria da zombie: zombie, per la memoria", "zombie", 1, 200000, None)
+    stato("uscita ignota e memoria da Editor: fuori dai dati", "fuori dai dati", 1, 939524096, None)
+    stato("uscita e memoria ignote: fuori dai dati", "fuori dai dati", 1, None, None)
     stato("e nemmeno un Editor vivo: un'uscita ignota non prova niente", "fuori dai dati", 93, 3865470566, None)
 
     ZOMBIE = ("UnrealEditor.exe", "UnrealEditor.exe D:/Z.uproject", 1, 200000, True)
@@ -1086,6 +1097,8 @@ def self_test():
 
     lock("solo zombie fra i detentori: ci si ferma", "ferma-zombie", {7: ZOMBIE})
     lock("uno zombie con GB di memoria ferma come l'altro", "ferma-zombie", {7: ZOMBIE_GB})
+    lock("l'ancora del 2026-08-24, anche non uscita, ferma", "ferma-zombie",
+         {7: ("UnrealEditor.exe", "UnrealEditor.exe D:/A.uproject", 1, 200000, False)})
     lock("due zombie, uno per forma: ci si ferma", "ferma-zombie", {7: ZOMBIE, 9: ZOMBIE_GB})
     lock("uno zombie accanto a un Editor vivo: si aspetta, il lock e' anche suo", "riprova",
          {7: ZOMBIE, 8: VIVO})
