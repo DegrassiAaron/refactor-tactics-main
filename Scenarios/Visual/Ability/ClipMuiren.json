@@ -1,0 +1,44 @@
+{
+  "scenarioId": "Visual.Ability.ClipMuiren",
+  "tags": ["animation", "ability", "cast", "muiren", "gadget"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 4,
+
+  "_nota": "BANCO CLIP per le abilita' di Muiren che nessun altro scenario esercita (#3592, voce `PIE-CLIP-ABILITA`). Un'abilita' per turno, cosi' ogni `Attiva:` nel log corrisponde a UNA clip da guardare sulla sorgente. Le clip attese sono quelle della tabella §2.6 della spec `2026-10-07-clip-per-abilita-design.md`: `R_Ability_Intro` per CircularTide, `Ability_E` per FluidTrail. Chi guarda tiene la camera stretta su Muiren.",
+
+  "_nota_curare": "CircularTide cura 18 ad area (raggio 1, portata 4) e basta — niente Wet dal 2026 (#1006). Aevik parte a 60 HP perche' una cura su un'unita' piena non si legge; l'area e' centrata sulla cella vuota accanto a lei, cosi' il bersaglio dichiarato non e' un alleato. ⚠️ **Aevik resta a 60**: misurato al primo run (2026-10-08), la cura non arriva — l'effetto `Heal` di un'azione d'eroe non derivata da `Action.Heal` non ha un consumatore (#3593). La scena serve alla CLIP del cast, che parte lo stesso (`Attiva:` nel log); quando #3593 atterra, l'attesa torna 78.",
+
+  "_nota_nemico": "Ivrin e' in campo solo perche' la partita non finisca per eliminazione al primo turno: senza un nemico il runner chiude la corsa dopo T1 e T2 non gira. Non ha intenti e sta fuori dalla traiettoria dello scatto.",
+
+  "_nota_fuori": "`Hero.Muiren.FlowReaction` ha slot `None` e nessun trigger: non e' dichiarabile come intento e non ha scena per costruzione. `Hero.Muiren.TideGuard` e `Hero.Muiren.PressureJet` stanno in `Visual.Ability.CastBeat` e `Visual.Combat.WaterElectricCoordinated`.",
+
+  "units": [
+    { "id": "M1", "hero": "Hero.Muiren", "team": 0, "cell": [0, 0, 0], "facing": "E" },
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [2, 0, 0], "health": 60 },
+    { "id": "N1", "hero": "Hero.Ivrin",  "team": 1, "cell": [1, -3, 0] }
+  ],
+
+  "turns": [
+    {
+      "_turno": "T1 — CircularTide sulla cella (3,0), con Aevik dentro il raggio 1: il beat di cast in Blast e' `R_Ability_Intro`, la clip che la spec chiede di guardare per prima perche' potrebbe essere lunga.",
+      "intents": [
+        { "unit": "M1", "ability": "Hero.Muiren.CircularTide", "targetCell": [3, 0, 0] }
+      ]
+    },
+    {
+      "_turno": "T2 — FluidTrail: lo scatto lineare verso ovest, tre celle, in fase Dash. Il beat di cast e' `Ability_E`; non c'e' colpo.",
+      "intents": [
+        { "unit": "M1", "dash": "Hero.Muiren.FluidTrail", "dashTo": [-3, 0, 0] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitHpEquals",   "unit": "A1", "value": 60 },
+    { "type": "UnitAtCell",     "unit": "N1", "cell": [1, -3, 0] },
+    { "type": "UnitAtCell",     "unit": "M1", "cell": [-3, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "A1", "cell": [2, 0, 0] },
+    { "type": "TurnsCompleted", "value": 2 }
+  ]
+}
