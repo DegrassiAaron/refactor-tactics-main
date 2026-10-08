@@ -1192,6 +1192,85 @@ bool FRTChargeDoesNotRefundUltimateTest::RunTest(const FString&)
 }
 
 /**
+ * **Un'unita' ferma e' ancora nella sua cella alla fine del Dash: la carica la colpisce nel Blast** ([D-475], #3576).
+ *
+ * E' la premessa della certezza della voce Dash che non sposta: prima della fine del Dash nessuno muove un'unita'
+ * ferma. La carica che le arriva addosso nel Dash registra solo un impatto in sospeso (`PendingChargeImpacts`), e
+ * danno e spinta risolvono nel Blast, con gli altri colpi. Se un giorno il Dash spostasse un'unita' ferma,
+ * l'anteprima direbbe `Confirmed` sbagliando, e questo test diventerebbe rosso.
+ *
+ * ⚠️ Il confine si legge da `OnPhaseClosed(Dash)`, che `RunPhaseLoop` annuncia prima che il Blast cominci. Il
+ * CONTROLLO e' a fine turno: la stessa carica la colpisce e la spinge. Senza, «a fine Dash e' dove era» sarebbe
+ * vero anche per una carica che non la raggiunge mai.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTChargeStandingUnitStaysPutUntilTheBlastTest,
+	"RefactorTactics.Actions.Charge.StandingUnitStaysPutUntilTheBlast",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTChargeStandingUnitStaysPutUntilTheBlastTest::RunTest(const FString&)
+{
+	UWorld* World = MakeControlWorld();
+	if (!TestNotNull(TEXT("world di prova"), World)) { return false; }
+	SpawnControlMap(World, 8);
+
+	const FRTCellId Partenza(3, 0);
+	ARTUnit* Caricatore = SpawnControlUnit(World, 0, FRTCellId(0, 0));
+	ARTUnit* Fermo = SpawnControlUnit(World, 1, Partenza);
+	ARTTurnManager* TM = World->SpawnActor<ARTTurnManager>(ARTTurnManager::StaticClass());
+	if (!TestNotNull(TEXT("Caricatore"), Caricatore) || !TestNotNull(TEXT("unita' ferma"), Fermo)
+		|| !TestNotNull(TEXT("TM"), TM))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	const int32 ChargeIdx = RTAbilityFixtures::AddCoreAbility(Caricatore, TEXT("Action.Charge"));
+	if (!TestTrue(TEXT("premessa: il catalogo ha una carica"), ChargeIdx != INDEX_NONE))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+	Caricatore->PlannedDashAbility = ChargeIdx;
+	Caricatore->PlannedDashCell = Fermo->Cell;
+	Caricatore->PlannedCell = Caricatore->Cell;
+	Fermo->PlannedCell = Fermo->Cell;
+
+	// Lo stato dell'unita' ferma NELL'ISTANTE in cui il Dash si chiude: nessuna riga del Blast ha ancora girato.
+	bool bDashChiuso = false;
+	FRTCellId CellaAFineDash;
+	int32 SaluteAFineDash = -1;
+	const FDelegateHandle Ascolto = TM->OnPhaseClosed.AddLambda([&](ERTMatchPhase Closed)
+	{
+		if (Closed == ERTMatchPhase::Dash)
+		{
+			bDashChiuso = true;
+			CellaAFineDash = Fermo->Cell;
+			SaluteAFineDash = Fermo->Health;
+		}
+	});
+	RunControlTurn(TM);
+	TM->OnPhaseClosed.Remove(Ascolto);
+
+	if (!TestTrue(TEXT("premessa: la fase Dash si e' chiusa"), bDashChiuso)
+		|| !TestTrue(TEXT("premessa: la carica e' arrivata addosso all'unita' ferma"),
+			URTHexLibrary::HexDistance(Caricatore->Cell, Partenza) <= 1))
+	{
+		DestroyControlWorld(World);
+		return false;
+	}
+
+	// IL CUORE — a fine Dash l'unita' ferma e' dove era, e intatta.
+	TestTrue(TEXT("a fine Dash l'unita' ferma e' ancora nella sua cella"), CellaAFineDash == Partenza);
+	TestEqual(TEXT("e la carica non l'ha ancora colpita"), SaluteAFineDash, Fermo->MaxHealth);
+
+	// IL CONTROLLO — nel Blast la stessa carica la colpisce e la spinge.
+	TestTrue(TEXT("controllo: nel Blast la carica la colpisce"), Fermo->Health < Fermo->MaxHealth);
+	TestFalse(TEXT("controllo: e la spinge via dalla sua cella"), Fermo->Cell == Partenza);
+
+	DestroyControlWorld(World);
+	return true;
+}
+
+/**
  * **La catena A→B→C si risolve allo stesso modo nei due ordini di spawn** (`#1451`, [D-202]).
  *
  * `ApplyInterrupts` scorreva `Plan.Hits`, che `CollectHexAttacks` ordina per `AttackerId`, e decideva
