@@ -5,7 +5,7 @@
 > MODIFICHE*, finding F1–F22): le modifiche sono incorporate e marcate `➕ rev.`, quelle che ribaltano un `Ruling` della
 > prima stesura lo dicono col `⌫`. ➕ rev2. Re-review mirata dello stesso giorno (`.superpowers/sp4-spec-rereview.md`, OK per
 > il piano): gli ultimi ritocchi sono marcati `➕ rev2.`. **Implementato** in [#3578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3578) sul branch
-> `issue/3578-profilo-fx-per-abilita` (blocco «Implementato» qui sotto), PR verso `main` in apertura; la voce
+> `issue/3578-profilo-fx-per-abilita` (blocco «Implementato» qui sotto), PR [#3585](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3585) verso `main`, aperta il 2026-10-08; la voce
 > `PIE-FX-ABILITA` resta da eseguire. È il **quarto di quattro sotto-progetti** della richiesta d'autore
 > *«associare animazioni e FX alle skill e vederle in azione»*: il banco Ability Lab → PIE
 > ([#3532](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3532)), il momento `AbilityActivated`
@@ -345,7 +345,7 @@ scorre `URTCatalogLibrary::GetCoreActionCatalog()` filtrato su `bCountsAsAttack`
 log per ognuna (`Select-String "colpo core" <log>`). Esito misurato il 2026-10-08: `Action.Push`, `Action.Root`,
 `Action.Slow`, `Action.Interrupt` a contatto; `Action.Pull` ha portata 2 (aggancia a distanza) e tiene il proiettile di
 default; `Action.Charge` resta la riga d'autore. La forma dei core è `Single` perché `FRTActionDef` non porta `Shape` e
-l'azione core vive in un `URTActionData` col default del campo. ⚠️ Nessuna unità porta oggi questi quattro controlli —
+l'azione core vive in un `URTActionData` col default del campo. ⚠️ Nessuna unità porta oggi questi controlli (`Action.Push`, `Action.Root`, `Action.Slow`, `Action.Interrupt`) —
 non sono in un kit né fra le generiche di `URTCatalogLibrary::GetGenericActionIds` —, quindi le righe hanno consumatori
 solo nei test e la PIE ne giudica la regola su `Ram` (§5.2, scena (8)). Costo se sbagliato: una riga per azione.
 
