@@ -27,11 +27,11 @@
 > `PASS`; `RefactorTactics.Unit`, `RefactorTactics.Anim` e `RefactorTactics.Playback` `PASS` su `f4731c68d`
 > (nessun `Result={Fail}`); `RefactorTactics.Anim` `PASS` su `96732a147` e sul contenuto di `193984837`;
 > `RefactorTactics.Packaging` su `9ed05ef60`: `RequiredSetIncludesActionClips` `PASS`,
-> `RequiredAnimationClipsAreCooked` `FAIL` dichiarato (qui sotto). Ogni test nuovo è stato visto rosso prima del
+> `RequiredAnimationClipsAreCooked` `FAIL` dichiarato (qui sotto; ➕ superato da R14: da `25aff969f` è verde e il rosso è di `RequiredActionClipsAreCooked`). Ogni test nuovo è stato visto rosso prima del
 > codice, e ciascuna delle mutazioni (1)–(9) di §5.1 è caduta sul proprio asserto. `RefactorTactics.Unit` `PASS`
 > anche sull'albero del commit `docs(3563)`. **Suite intera** `RefactorTactics` su `542f1a5fd` (il merge di
 > `origin/main` `ed753e121` nel branch, nessun file in comune): `Result={Success}` 3007, `Result={Fail}` 1 —
-> il solo `RequiredAnimationClipsAreCooked` —, nessun `Ensure condition failed`, con `**** TEST COMPLETE`; i commit
+> il solo `RequiredAnimationClipsAreCooked`, ➕ superato da R14 —, nessun `Ensure condition failed`, con `**** TEST COMPLETE`; i commit
 > successivi toccano solo documenti e, con `➕ R13`, `RTUnit.{h,cpp}` e il test del ripiego (log nei report). `NOT RUN`: la PIE
 > (`PIE-CLIP-ABILITA`, seduta `U70`); il pacchetto. `N/A`: determinismo, replay e privacy — nessun dato nuovo in
 > snapshot, TurnLog o `StateHash`, nessun tipo di evento nuovo.
@@ -41,7 +41,7 @@
 > del 2026-09-05. Rimisurato con `Automation RunTests RefactorTactics.Packaging`: su `193984837`, prima che il set
 > richiesto includesse le clip d'azione, il gate è **verde** (`Result={Success}`, nessun package scoperto); su
 > `9ed05ef60` è **rosso**, e ogni package scoperto ha la provenienza `Hero / Action / Ruolo` di una clip d'azione
-> del default (§2.6), nessuno quella di un ruolo. ⚠️ **Il merge di #3563 rende quindi rosso il gate su `main`**,
+> del default (§2.6), nessuno quella di un ruolo. ⚠️ **Il merge di #3563 rende quindi rosso il gate su `main`** (➕ superato da R14: il gate di ruolo resta verde, il rosso è del nuovo gate d'azione),
 > finché [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562) non fa il gesto in Editor sui
 > `BP_Unit_*`. ⛔ Non lo decide questa spec né chi l'ha implementata: la PR lo espone in testa, e l'autore sceglie
 > al merge fra tre uscite — merge col rosso dichiarato; PR in attesa di #3562; un gate separato per le clip
