@@ -521,8 +521,8 @@ void ARTTurnManager::CollectHealActions(FRTBlastContext& Ctx)
 
 		// Bersaglio: chi e' stato scelto in pianificazione, oppure SE STESSI se non c'e' nessuno — il catalogo
 		// dichiara che la cura «puo' bersagliare se stessi», e curare a vuoto non e' un'alternativa sensata.
-		// ⚠️ Per un'AREA (#3593) questa e' la regola del solo bersaglio-unita': il centro puo' essere una CELLA, e
-		// allora nessuna unita' e' stata scelta — il «se stessi» qui sotto serve alla forma `Single`, non al centro.
+		// ⚠️ Per un'AREA (#3593) il centro puo' essere una CELLA dichiarata, e allora nessuna unita' e' stata scelta;
+		// senza ne' cella ne' unita' dichiarate il ripiego «su se stessi» vale anche qui: il centro e' la cella di chi cura.
 		ARTUnit* HealTarget = Unit->PlannedAttackTarget ? Unit->PlannedAttackTarget.Get() : Unit;
 		// #3593: centro e bersaglio si leggono PRIMA di `ClearPlannedAttack`, che azzera anche `bAttackTargetsCell`.
 		const bool bArea = Heal->Shape == ERTAbilityShape::Area;

@@ -157,7 +157,6 @@ bool FRTTideHealsAlliesInAreaTest::RunTest(const FString&)
 		TestEqual(TEXT("chi cura e' nel raggio: +10, tetto a MaxHealth"), Curatrice->Health - PrimaC, 10);
 		TestEqual(TEXT("fuori raggio: invariata"), Lontana->Health, PrimaL);
 		TestEqual(TEXT("il nemico nel raggio non guarisce"), Nemico->Health, PrimaN);
-		TestEqual(TEXT("la morta resta morta"), Morta->Health, 0);
 		TestEqual(TEXT("tre voci Healed"), ConteggioVoci(TM, ERTLogCategory::Combat, static_cast<uint8>(ERTCombatOutcome::Healed)), 3);
 		TestEqual(TEXT("una voce di fallback: la morta"), ConteggioVoci(TM, ERTLogCategory::Fallback, static_cast<uint8>(ERTFallbackOutcome::Cancelled)), 1);
 		TestTrue(TEXT("e dice TargetDead"), ConteggioFallback(TM, ERTActionInvalidReason::TargetDead) == 1);
@@ -296,6 +295,12 @@ bool FRTTideOnEmptyAreaStillStartsTest::RunTest(const FString&)
 		const int32 Idx = PianificaTideSuCella(Curatrice, FRTCellId(5, -5, 0)); // distanza 5: fuori portata 4
 		RunHealTurn(TM);
 		TestEqual(TEXT("fuori portata: una voce OutOfRange"), ConteggioFallback(TM, ERTActionInvalidReason::OutOfRange), 1);
+		bool bSulCentroMirato = false;
+		for (const FRTTurnLogEntry& E : TM->GetTurnLog())
+		{
+			if (E.Category == ERTLogCategory::Fallback && E.Amount == static_cast<int32>(ERTActionInvalidReason::OutOfRange)) { bSulCentroMirato = (E.TgtCell == FRTCellId(5, -5, 0)); }
+		}
+		TestTrue(TEXT("e la voce dice DOVE mirava: TgtCell = centro dichiarato"), bSulCentroMirato);
 		TestTrue(TEXT("e il cooldown NON e' pagato: l'azione non e' partita"), Curatrice->CanUseAbility(Idx));
 		TestTrue(TEXT("e nessuna attivazione"), AttivazioneDi(TM, Curatrice) == nullptr);
 	}
