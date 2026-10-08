@@ -162,6 +162,31 @@ Misurata sul disco il **2026-08-13**, cartella
 > Genera `/Game/RT/Anim/ABP_RTUnitAuthored`, figlio di `URTUnitAnimInstance` con `ClipsPerHero` scritto
 > sul CDO. Si avvia ed esce da solo: non lascia un Editor aperto.
 >
+> 🎯 **L'asse per azione, dal 2026-10-08** ([#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563),
+> spec [`2026-10-07-clip-per-abilita-design.md`](../../superpowers/specs/2026-10-07-clip-per-abilita-design.md)).
+> Un binding può portare `actionId`: la clip vale per quell'abilità su quel ruolo, sopra la clip di ruolo. La
+> risoluzione è `(ActionId, ruolo)` → `(BaseActionId, ruolo)` → `ruolo`, e solo i beat `Cast` e `Attack` conoscono
+> l'azione. Il default C++ porta già una clip per le abilità di ogni kit del roster, scelta dai nomi dei pack
+> (`MakeActionClips` in `URTUnitAnimInstance`): il catalogo la sovrascrive un pool alla volta.
+>
+> - **`formatVersion` 2.** Un `actionId` esiste solo da v2, e il reader lo rifiuta in un file dichiarato v1. ⚠️ **Ogni
+>   salvataggio da una build nuova produce un file v2, anche senza nessun `actionId`**: le build vecchie lo
+>   rifiutano per versione. È voluto — una sola versione in circolazione, nessun file «v1 ma scritto da v2».
+> - **Validazione.** Un `actionId` deve essere un'azione conosciuta (core, generiche, abilità degli eroi, azioni
+>   concesse dall'equipaggiamento come `Gadget.Sprinkler`) e stare su `Cast` o `Attack`: altrimenti il commandlet
+>   non genera. Un `actionId` che non è una stringa è rifiutato, non letto come testo. «Una sola attiva» vale
+>   **per pool**: una clip di ruolo attiva e una d'azione attiva per lo stesso `(eroe, ruolo)` convivono, e a
+>   suonare è l'azione.
+> - **Fusione per pool.** Il commandlet parte dal default C++ della classe base `URTUnitAnimInstance` e sostituisce
+>   solo i pool che il catalogo nomina: eroi e pool senza binding tengono il default, e una run precedente del
+>   commandlet non lascia traccia nel risultato. ⚠️ Un pool d'autore si toglie solo con una voce nel catalogo: un
+>   binding vuoto esplicito è un follow-up, non esiste ancora.
+> - **Il pannello non lega**, né per azione né per ruolo. Il modello (`FRTAnimBrowserModel`) ha l'API per
+>   `(eroe, ruolo, azione)`, ma fuori dai test nessuno la chiama — misura del 2026-10-08:
+>   `grep -rn "BindToRole" Source/RefactorTacticsEditor --include=*.cpp` fuori da `Tests/` trova solo la
+>   definizione. ⚠️ `IMPLEMENTATION DRIFT`: la frase «da una clip `Promoted` si lega un `(eroe, ruolo)`» qui sopra
+>   descrive il modello, non il pannello. Oggi si lega scrivendo il JSON, e il commandlet lo valida.
+>
 > ⚠️ **Perché funziona senza ricompilare**: `ClipsPerHero` è `EditDefaultsOnly`, e
 > `ARTUnit::ApplyUnitAnimClass` dichiara che *«una `Anim Class` già scelta in Blueprint VINCE»*.
 >
@@ -280,9 +305,35 @@ Non per il **wiring degli eventi** — quello non serve davvero, la clip la sceg
 asset versionato sotto `/Game/RT`, ed è così che le clip di locomozione ci arrivano già (misurato sulla name
 table: `Run_Fwd` ×2 in `BP_Unit_Gadget`, `Jog_Fwd` e `Idle_NonCombat` ×2 in `BP_Unit_Wraith`).
 
-Sono **due ragioni diverse** per aprire gli stessi quattro binari, e confonderle costa un gate rosso:
-`RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` → *«12 clip richieste su 20 senza un riferimento
-che le porti nel cook»*. Il gesto appartiene a **#2444**.
+Sono **due ragioni diverse** per aprire gli stessi quattro binari, e confonderle costa un gate rosso. Il gesto
+appartiene a **[#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562)**, che eredita la chiusa #2444.
+
+> ⌫ **Qui stava la misura del 2026-09-05**: `RefactorTactics.Packaging.RequiredAnimationClipsAreCooked` →
+> *«12 clip richieste su 20 senza un riferimento che le porti nel cook»*. Era la misura di quel giorno; il 2026-10-08
+> lo stesso gate, sulle clip di ruolo, era verde.
+
+📏 **Misurato il 2026-10-08** ([#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563)), con lo stesso gate su due commit del branch
+`issue/3563-clip-per-abilita`:
+
+- **Clip di ruolo: tutte referenziate.** Su `193984837`, prima che il set richiesto includesse le clip per
+  azione, il gate è **verde** (`Result={Success}`, nessun package scoperto): i quattro `BP_Unit_*` versionati
+  portano già il riferimento duro alle clip di ruolo (name table di `BP_Unit_Aevik`: `Cast`, `Death_Fwd`,
+  `Hitreact_Fwd`, `Idle`, `Run_Fwd`).
+- **Clip d'azione: nessuna referenziata.** Da `637b0c02a` il set richiesto include anche le clip per **azione**
+  del default (`MakeActionClips`), e il gate è **rosso** per quelle sole: ogni package scoperto ha la provenienza
+  `Hero.X / Hero.X.Abilità / Ruolo`, nessuno quella di un ruolo. Resta rosso finché i `BP_Unit_*` non le
+  referenziano (#3562). Il set stesso è pinnato dal test verde
+  `RefactorTactics.Packaging.RequiredSetIncludesActionClips`.
+
+Il numero di scoperte non si scrive qui: si rimisura lanciando il gate e leggendo il log, una riga per package
+scoperto con la sua provenienza.
+
+```powershell
+& "<engine>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "<repo>/RefactorTactics.uproject" `
+    "-ExecCmds=Automation RunTests RefactorTactics.Packaging;Quit" -unattended -nopause -nosplash -nullrhi `
+    "-abslog=<scratch>/packaging.log"
+Select-String <scratch>/packaging.log -Pattern "variante ATTIVA di"
+```
 
 ### Perché non serve un montaggio-asset
 

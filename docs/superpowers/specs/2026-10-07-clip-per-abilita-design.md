@@ -1,7 +1,10 @@
 # La clip per abilità — una chiave `ActionId` sopra il ruolo di presentazione
 
-> **Statuto**: design **accettato in sessione** il 2026-10-07 (quattro decisioni d'autore, §0), **non ancora
-> rivisto dal panel né implementato**. È il **terzo di quattro sotto-progetti** della richiesta d'autore
+> **Statuto**: design **accettato in sessione** il 2026-10-07 (quattro decisioni d'autore, §0), **rivisto dal
+> panel** lo stesso giorno in due giri (le modifiche sono incorporate e marcate `➕ rev.` e `➕ rev2.`) e
+> **implementato** in [#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563) sul branch
+> `issue/3563-clip-per-abilita` (blocco ✅ qui sotto), PR in apertura. La voce `PIE-CLIP-ABILITA` resta da
+> eseguire. È il **terzo di quattro sotto-progetti** della richiesta d'autore
 > *«associare animazioni e FX alle skill e vederle in azione»*: il primo è il banco Ability Lab → PIE
 > ([#3532](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3532)), il secondo il momento
 > `AbilityActivated` ([#3549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3549), spec
@@ -10,6 +13,39 @@
 > **Stato misurato**: 2026-10-07, `origin/main` = `12bd4def4`. Ogni `file:riga` è stato letto su quel commit
 > (ricognizione in sola lettura); chi lo rilegge più tardi lo **rimisura**. Nessun totale volatile: dove serve
 > una misura c'è il comando. Le decisioni prese in sessione dal controller sono marcate `Ruling`, con il loro costo.
+>
+> ✅ **Implementato il 2026-10-08** sul branch `issue/3563-clip-per-abilita`, da `12bd4def4`, col piano
+> [`2026-10-07-clip-per-abilita.md`](../plans/2026-10-07-clip-per-abilita.md): un commit per task, più i giri di
+> review. Spec e piano `255696ef4`; il modello (`PerAction`, `ActiveClipFor` a tre livelli) `03754e78b`; il beat
+> conosce l'azione `0b25a1d56`; la mappa di default `f4731c68d`; il catalogo JSON (`actionId`, `formatVersion` 2)
+> `20360b730` e `96732a147`; commandlet e browser `fe5dfd8c4` e `193984837`; il gate di cook `637b0c02a` e
+> `9ed05ef60`; registro PIE, seduta `U70`, runbook e questo statuto nel commit `docs(3563)` che porta questo
+> blocco. Le correzioni emerse in implementazione sono marcate `➕ impl.` (§2.1, §2.2, §2.3) e
+> `➕ misurato 2026-10-08.` (§2.5, §5.1, §6).
+>
+> **Gate**, ciascuno sul commit del proprio task, con il log nei report della sessione (non versionati): compile
+> `PASS`; `RefactorTactics.Unit`, `RefactorTactics.Anim` e `RefactorTactics.Playback` `PASS` su `f4731c68d`
+> (nessun `Result={Fail}`); `RefactorTactics.Anim` `PASS` su `96732a147` e sul contenuto di `193984837`;
+> `RefactorTactics.Packaging` su `9ed05ef60`: `RequiredSetIncludesActionClips` `PASS`,
+> `RequiredAnimationClipsAreCooked` `FAIL` dichiarato (qui sotto). Ogni test nuovo è stato visto rosso prima del
+> codice, e ciascuna delle mutazioni (1)–(9) di §5.1 è caduta sul proprio asserto. `RefactorTactics.Unit` `PASS`
+> anche sull'albero del commit `docs(3563)`. `NOT RUN`: la suite intera `RefactorTactics` sull'ultimo commit
+> (`Playback` non è stato rilanciato dopo `f4731c68d`); la PIE
+> (`PIE-CLIP-ABILITA`, seduta `U70`); il pacchetto. `N/A`: determinismo, replay e privacy — nessun dato nuovo in
+> snapshot, TurnLog o `StateHash`, nessun tipo di evento nuovo.
+>
+> 🔴 **Il gate di cook era VERDE, e questa spec lo dava per rosso** (`Ruling` R12, 2026-10-08). §2.5 e §6
+> davano `Packaging.RequiredAnimationClipsAreCooked` per già rosso sulle clip di ruolo, sulla misura del runbook
+> del 2026-09-05. Rimisurato con `Automation RunTests RefactorTactics.Packaging`: su `193984837`, prima che il set
+> richiesto includesse le clip d'azione, il gate è **verde** (`Result={Success}`, nessun package scoperto); su
+> `9ed05ef60` è **rosso**, e ogni package scoperto ha la provenienza `Hero / Action / Ruolo` di una clip d'azione
+> del default (§2.6), nessuno quella di un ruolo. ⚠️ **Il merge di #3563 rende quindi rosso il gate su `main`**,
+> finché [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562) non fa il gesto in Editor sui
+> `BP_Unit_*`. ⛔ Non lo decide questa spec né chi l'ha implementata: la PR lo espone in testa, e l'autore sceglie
+> al merge fra tre uscite — merge col rosso dichiarato; PR in attesa di #3562; un gate separato per le clip
+> d'azione, rosso con owner #3562, mentre quello storico resta verde.
+>
+> **Follow-up candidates** emersi in implementazione: in §7, marcati `➕ impl.`.
 
 ---
 
@@ -86,6 +122,11 @@ TMap<FName, FRTActionPresentationClips> PerAction;
 La struttura intermedia riusa `FRTAnimRoleClips`: varianti, `AddVariant`, `MakeActive` atomico, `FindActive`, senza
 toccarli. Una clip di ruolo e una clip d'azione sono due pool distinti: «una sola attiva» vale **per pool**.
 
+➕ impl. **Gli specifier sono quelli del file, non quelli del blocco qui sopra**: `USTRUCT(BlueprintType)` e
+`UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "RefactorTactics|Anim")`, come `PerRole`
+(`Unit/RTUnitAnimInstance.h:142-149` per la struct, `:176-177` per `PerAction`). La prima stesura scriveva
+`USTRUCT()`, `EditDefaultsOnly` e `"RT|Anim"`: la forma, non gli specifier, era il contenuto di questa sezione.
+
 **Alternativa scartata**: una `TMap<FName, FName> ActiveClipVariantPerAction` dentro `FRTAnimRoleClips` che scelga una
 variante del pool di ruolo. Mescola varianti di ruolo e d'azione nello stesso pool e rende «una sola attiva» ambiguo.
 
@@ -97,6 +138,10 @@ TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresenta
 TSoftObjectPtr<UAnimSequenceBase> ActiveClipFor(const FName& HeroId, ERTPresentationRole Role,
                                                 const FName& ActionId, const FName& BaseActionId) const;      // nuovo
 ```
+
+➕ impl. L'overload a quattro argomenti **non ha default** (`Unit/RTUnitAnimInstance.h:238-239`): chi chiama
+`ActiveClipFor` passa sempre la terna, `NAME_None` compreso. I default stanno solo sulle due funzioni di `ARTUnit`
+qui sotto, dove servono a far compilare invariati i chiamanti di oggi.
 
 Ordine: `PerAction[ActionId].PerRole[Role].FindActive()` → `PerAction[BaseActionId].PerRole[Role].FindActive()` →
 `PerRole[Role].FindActive()`. Ogni livello «non popolato» (azione assente, ruolo assente, nessuna variante attiva) passa
@@ -160,7 +205,8 @@ I due consumatori passano l'azione (D3): `ShowActivation` → `PlayPresentationR
   sbagliato: un pool d'autore che non voleva il default lo eredita; si toglie con un binding vuoto esplicito (follow-up).
   ➕ rev2. **Come**: `BuildClipsPerHero` resta pura e con la semantica di oggi (il test `MapToCdo` asserisce che Ivrin
   **non** abbia il ruolo `Move` sulla sua uscita: deve restare vero). La fusione è una **seconda funzione statica
-  pura**, `MergeClipsPerHero(const TMap<FName, FRTHeroPresentationClips>& Base, const TMap<…>& PerEroe)`, che `Run`
+  pura**, `MergeClipsPerHero(const TMap<FName, FRTHeroPresentationClips>& Base, const TMap<…>& PerEroe)`, che ⌫ ~~`Run`~~
+  ➕ impl. **`Main`** (`URTBuildAnimBindingsCommandlet::Main`: è lì l'assegnazione del CDO, e `Run` non esiste)
   chiama con `Base = URTUnitAnimInstance::StaticClass()->GetDefaultObject<URTUnitAnimInstance>()->ClipsPerHero` — il
   CDO della **classe base**, non quello della classe generata, che si porterebbe dietro la mappa della run precedente.
   Test proprio `Anim.Bindings.MergeKeepsDefaultPools`: un eroe senza binding tiene tutti i pool del default; un eroe con
@@ -195,9 +241,13 @@ giudizio umano» — vero per il ruolo; per azione il giudizio è in §2.6), il 
   anti-sottrazione conta le **terne** di entrambi i pool in un ciclo indipendente. ➕ rev. Il calcolo del set richiesto
   esce in un helper (`RequiredAnimationPackages(Cdo, OutProvenienza)`) con un **test proprio, verde**
   (`Packaging.RequiredSetIncludesActionClips`): la mutazione «`PerAction` saltato» cade lì, non dentro un gate già rosso
-  dove un altro fallimento si distingue solo dal messaggio. `Ruling`: il gate di cook è rosso per le clip di ruolo
+  dove un altro fallimento si distingue solo dal messaggio. `Ruling`: ⌫ ~~il gate di cook è rosso per le clip di ruolo
   senza riferimento duro — misura **storica** del runbook (`docs/technical/runbooks/guida-animazioni-paragon.md:283-285`),
-  da rimisurare nel piano; le clip per azione del default allargano il set e il rosso cresce. Resta rosso finché i
+  da rimisurare nel piano; le clip per azione del default allargano il set e il rosso cresce.~~ ➕ misurato 2026-10-08.
+  Il gate di cook era **verde** su `193984837` per le clip di ruolo (`Result={Success}`, nessun package scoperto: i
+  `BP_Unit_*` versionati le referenziano già); il rosso **nasce** con le clip d'azione di questo sotto-progetto (su
+  `9ed05ef60` ogni package scoperto ha la provenienza `Hero / Action / Ruolo`). La misura è il run
+  `RefactorTactics.Packaging` prima e dopo il gate esteso, e si ripete col comando del runbook. Resta rosso finché i
   `BP_Unit_*` non referenziano le clip: owner [#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562)
   (eredita #2444, chiusa). Dichiarato in §6; il messaggio del gate elenca i package per nome.
 - `Unit.CastRoleResolvesAClipForEveryHero` (`Tests/RTAnimChannelTests.cpp:313-330`): + «azione senza voce → ripiego sul ruolo».
@@ -297,7 +347,7 @@ riferimento mancante sarebbero altrimenti indistinguibili nel gate di cook, `RTP
 | ➕ rev2. `Anim.Bindings.MergeKeepsDefaultPools` | `MergeClipsPerHero(Base, PerEroe)`: eroe assente dal catalogo → tutti i pool del default; eroe con solo `Cast` → `Move` del default e `Cast` del catalogo; pool d'azione aggiunto senza toccare `PerRole`. Mutazione (8): `Merge` = assegnazione → cade. |
 | `Anim.Browser.BindingRulesPerAction` | I predicati del modello distinguono `(Hero, Role)` da `(Hero, Role, ActionId)`. |
 | `Playback.ActivationPlaysTheActionClip` | ➕ rev. La fixture di `RTPlaybackActivationTests.cpp` (Scudo `TideGuard`, Tiratore `ImpactShot`): dopo il playback `LastResolvedClipPathForTest(Cast)` dello **Scudo** è il path **d'azione** di `TideGuard` e `LastResolvedClipPathForTest(Attack)` del **Tiratore** è il path **d'azione** di `ImpactShot` (il `Cast` del Tiratore è «ruolo», non discrimina). ➕ rev2. `Ruling` R11: il test **inietta** path sintetici in `PerAction` sul CDO e li ripristina alla fine, invece di leggere i path del default di §2.6 — così prova la catena evento → `ActionId` → risoluzione senza dipendere dal Task 3, e la mappa non vive in una terza copia (§6 ne dichiara due). Che i path del default siano quelli giusti lo dice `Unit.DefaultActionClipsResolveForEveryKitAbility`; che suonino a schermo lo dice la seduta PIE (§5.2). Costo se sbagliato: nessun test headless lega «quale clip del pack» a «quale evento»; lo lega la PIE. Mutazione (3): `ShowActivation` torna a un argomento → cade sullo Scudo; mutazione (6): `LaunchPlaybackAttack` torna a un argomento → cade sul Tiratore. ➕ rev2. Nessun test di oggi su questa fixture asserisce un beat `Attack` (contano solo le cue `Cast`): il piano **mostra** che `LaunchPlaybackAttack` (`RTTurnManager.cpp:8256`) parte nella fixture — asserto positivo sul path `Attack` del Tiratore **prima** della mutazione — altrimenti la (6) è vacua e la fixture va estesa finché non parte. |
-| `Packaging.RequiredSetIncludesActionClips` (nuovo, verde) + `RequiredAnimationClipsAreCooked` (esteso, ancora rosso) | ➕ rev. Il nuovo test chiama l'helper `RequiredAnimationPackages` sul CDO e asserisce che le clip d'azione attive siano nel set con la provenienza `Hero / Action / Ruolo`, e che le terne coperte eguaglino quelle attese (mutazione (4): `PerAction` saltato → cade QUI). Il gate di cook usa lo stesso helper e resta ROSSO per i riferimenti duri mancanti (#3562): il suo rosso è dichiarato, non misura questo sotto-progetto. |
+| `Packaging.RequiredSetIncludesActionClips` (nuovo, verde) + `RequiredAnimationClipsAreCooked` (esteso, ⌫ ~~ancora rosso~~ rosso **da qui**) | ➕ rev. Il nuovo test chiama l'helper `RequiredAnimationPackages` sul CDO e asserisce che le clip d'azione attive siano nel set con la provenienza `Hero / Action / Ruolo`, e che le terne coperte eguaglino quelle attese (mutazione (4): `PerAction` saltato → cade QUI). Il gate di cook usa lo stesso helper e ⌫ ~~resta ROSSO per i riferimenti duri mancanti (#3562): il suo rosso è dichiarato, non misura questo sotto-progetto~~ ➕ misurato 2026-10-08. **diventa** rosso con questo sotto-progetto: era verde su `193984837`, e i package che scopre su `9ed05ef60` sono le sole clip d'azione senza riferimento duro (#3562). Il rosso è dichiarato nello statuto (R12). |
 | `Unit.CastRoleResolvesAClipForEveryHero` (esteso) · `DiscreteRoleClipsMatchThePacks` (invariato) · `BlueprintSurfaceIsCensused` (invariato) | Il ripiego e i contratti di oggi. |
 
 🔴 Controlli di mutazione dichiarati: (1) ordine dei livelli invertito; (2) una riga del default tolta; (3) `ShowActivation`
@@ -322,8 +372,10 @@ l'anteprima dell'Anim Browser (#2554) serve a vedere le clip prima di promuoverl
 - Il catalogo JSON **non arriva al gioco** finché i `BP_Unit_*` non impostano `UnitAnimClass` sulla classe autorata
   ([#3562](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3562), che eredita la chiusa #2444): in v0.1
   suona il default C++ di §2.4.
-- Il gate di cook è rosso (misura storica del runbook, da rimisurare) e cresce con le clip d'azione, finché i
-  riferimenti duri non ci sono (#3562).
+- ⌫ ~~Il gate di cook è rosso (misura storica del runbook, da rimisurare) e cresce con le clip d'azione, finché i
+  riferimenti duri non ci sono (#3562).~~ ➕ misurato 2026-10-08. Il gate di cook era verde per le clip di ruolo (su
+  `193984837`) ed è rosso per le sole clip d'azione di §2.6 (da `637b0c02a`), finché i `BP_Unit_*` non le
+  referenziano (#3562). Il merge porta il rosso su `main`: statuto, R12.
 - Il livello generico `(BaseActionId, Ruolo)` è raggiungibile oggi solo dai quattro attacchi base: le altre abilità
   degli eroi non dichiarano un `BaseActionId`.
 - La mappa di default vive in due righe per voce — `MakeActionClips` e la lista attesa del test — e ogni ritocco a
@@ -346,3 +398,21 @@ l'anteprima dell'Anim Browser (#2554) serve a vedere le clip prima di promuoverl
 - `ActionId` come parametro dei `Play*Montage` Blueprint, se un BP vorrà distinguerli.
 - Clip per `Hit` per abilità (reazione al colpo di una specifica azione).
 - Uno `RTAnimScan` versionabile dei pack per non scegliere a tavolino.
+- ➕ impl. Il binding vuoto esplicito, per togliere un pool del default dal catalogo (§2.3, §6).
+- ➕ impl. `label`, `notes`, `hero` e `role` del catalogo si leggono con `TryGetStringField`, che converte un numero
+  in testo: lo stesso rischio che per `actionId` è chiuso da un controllo di tipo (`Anim.Catalog.RejectsNonStringActionId`).
+- ➕ impl. Un `actionId` non stringa in un file v1 dà l'errore di tipo invece di «esiste solo da 2»: il file è
+  rifiutato comunque, col messaggio meno preciso.
+- ➕ impl. Un test di appartenenza per generiche, armi e reazioni nell'insieme delle azioni conosciute
+  (`RTAzioniConosciute`, `Unit/RTAnimCatalogLibrary.cpp`): oggi un catalogo che non vi entrasse ne resterebbe fuori in
+  silenzio.
+- ➕ impl. `LastResolvedClipPaths` in `Unit/RTUnit.h` è dichiarata anche fuori da `WITH_DEV_AUTOMATION_TESTS`, come
+  `CastCuesPlayed`.
+- ➕ impl. L'asserto sul `Cast` della carica in `Playback.ChargeImpactPlaysTheDashAttackClip`
+  (`Tests/RTPlaybackActivationTests.cpp`) non ha una prova di mutazione.
+- ➕ impl. La traccia `L0` di `LaunchPlaybackAttack` è scritta fuori da `if (AtkSrc)`: prova che la funzione è
+  partita, non che abbia trovato la sorgente.
+- ➕ impl. Due righe con la stessa (abilità, beat) in `MakeActionClips` si sovrascriverebbero in silenzio.
+- ➕ impl. Un run `RefactorTactics.Anim` si è fermato una volta senza `TEST COMPLETE`, dopo l'avvio di
+  `RosterMigrationKeepsPaths`, per una causa ignota; i run successivi sono completi. Da rilanciare alla chiusura; se
+  si ripete, è un'issue.
