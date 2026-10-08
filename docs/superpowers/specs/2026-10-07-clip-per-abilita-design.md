@@ -3,7 +3,7 @@
 > **Statuto**: design **accettato in sessione** il 2026-10-07 (decisioni d'autore D1–D4, §0), **rivisto dal
 > panel** lo stesso giorno in due giri (le modifiche sono incorporate e marcate `➕ rev.` e `➕ rev2.`) e
 > **implementato** in [#3563](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3563) sul branch
-> `issue/3563-clip-per-abilita` (blocco «Implementato» qui sotto), PR in apertura. La voce `PIE-CLIP-ABILITA` resta da
+> `issue/3563-clip-per-abilita` (blocco «Implementato» qui sotto), PR [#3571](https://github.com/DegrassiAaron/refactor-tactics-main/pull/3571) verso `main`, aperta il 2026-10-08. La voce `PIE-CLIP-ABILITA` resta da
 > eseguire. È il **terzo di quattro sotto-progetti** della richiesta d'autore
 > *«associare animazioni e FX alle skill e vederle in azione»*: il primo è il banco Ability Lab → PIE
 > ([#3532](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3532)), il secondo il momento
