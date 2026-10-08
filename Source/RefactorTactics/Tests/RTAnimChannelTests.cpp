@@ -127,7 +127,7 @@ namespace
 
 	/**
 	 * Scrive nel CDO la voce di `Eroe` con i ruoli `Cast` e `Attack` popolati e NESSUNA azione — la stessa
-	 * disciplina di `ConfiguraVariante` (`:75-96`): il ripiego sul ruolo e' il controllo positivo di ogni
+	 * disciplina di `ConfiguraVariante` (qui sopra, nello stesso namespace): il ripiego sul ruolo e' il controllo positivo di ogni
 	 * asserto sotto, e senza un path di ruolo «e' tornato il ruolo» e «e' tornato nulla» sarebbero lo stesso.
 	 *
 	 * ⚠️ Restituisce un riferimento dentro `ClipsPerHero`: lo si usa SUBITO, prima di aggiungere un altro eroe
@@ -141,7 +141,7 @@ namespace
 		return GetMutableDefault<URTUnitAnimInstance>()->ClipsPerHero.Add(Eroe, Voce);
 	}
 
-	/** Come `PulisciVariante` (`:99-102`): il CDO e' stato globale. */
+	/** Come `PulisciVariante` (qui sopra): il CDO e' stato globale. */
 	void PulisciVoceAzione()
 	{
 		URTUnitAnimInstance* Cdo = GetMutableDefault<URTUnitAnimInstance>();

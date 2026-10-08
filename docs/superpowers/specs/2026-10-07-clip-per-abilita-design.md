@@ -29,8 +29,10 @@
 > `RefactorTactics.Packaging` su `9ed05ef60`: `RequiredSetIncludesActionClips` `PASS`,
 > `RequiredAnimationClipsAreCooked` `FAIL` dichiarato (qui sotto). Ogni test nuovo è stato visto rosso prima del
 > codice, e ciascuna delle mutazioni (1)–(9) di §5.1 è caduta sul proprio asserto. `RefactorTactics.Unit` `PASS`
-> anche sull'albero del commit `docs(3563)`. `NOT RUN`: la suite intera `RefactorTactics` sull'ultimo commit
-> (`Playback` non è stato rilanciato dopo `f4731c68d`); la PIE
+> anche sull'albero del commit `docs(3563)`. **Suite intera** `RefactorTactics` su `542f1a5fd` (il merge di
+> `origin/main` `ed753e121` nel branch, nessun file in comune): `Result={Success}` 3007, `Result={Fail}` 1 —
+> il solo `RequiredAnimationClipsAreCooked` —, nessun `Ensure condition failed`, con `**** TEST COMPLETE`; i commit
+> successivi toccano solo documenti e, con `➕ R13`, `RTUnit.{h,cpp}` e il test del ripiego (log nei report). `NOT RUN`: la PIE
 > (`PIE-CLIP-ABILITA`, seduta `U70`); il pacchetto. `N/A`: determinismo, replay e privacy — nessun dato nuovo in
 > snapshot, TurnLog o `StateHash`, nessun tipo di evento nuovo.
 >
@@ -44,6 +46,14 @@
 > `BP_Unit_*`. ⛔ Non lo decide questa spec né chi l'ha implementata: la PR lo espone in testa, e l'autore sceglie
 > al merge fra tre uscite — merge col rosso dichiarato; PR in attesa di #3562; un gate separato per le clip
 > d'azione, rosso con owner #3562, mentre quello storico resta verde.
+>
+> ➕ **R13 (review finale, 2026-10-08) — il ripiego avviene anche al CARICAMENTO.** In un pacchetto le clip d'azione
+> non sono cotte (nessun riferimento duro: è il rosso qui sopra): con il ripiego solo nella scelta del path il beat
+> avrebbe suonato **niente** dove prima suonava la clip di ruolo — una regressione del pacchetto che il gate rosso
+> non nomina. Ora `PlayPresentationRole` prova la clip d'azione e, se `LoadSynchronous` torna nullo, carica quella
+> di ruolo (seam `LastClipLoadFellBackToRoleForTest`, test `Playback.ActionClipThatFailsToLoadFallsBackToRole`,
+> mutazione «ripiego tolto» → cade). Il pacchetto degrada come prima di #3563; il gate dice solo che le clip d'azione
+> non ci sono. Costo se sbagliato: un caricamento in più per beat, solo quando il primo fallisce.
 >
 > **Follow-up candidates** emersi in implementazione: in §7, marcati `➕ impl.`.
 
@@ -329,7 +339,7 @@ riferimento mancante sarebbero altrimenti indistinguibili nel gate di cook, `RTP
 | `actionId` su un ruolo che non propaga (`Move`, `Hit`, …) | Rifiutato da `ValidateCatalog` col nome dell'azione e del ruolo. |
 | ➕ rev2. Catalogo **senza** nessun `actionId` risalvato da una build nuova | Diventa v2 comunque (il writer scrive sempre `CurrentFormatVersion`): le build vecchie lo rifiutano per versione. È voluto: una sola versione in circolazione, nessun file «v1 ma scritto da v2». |
 | Catalogo v2 che il commandlet fonde sopra il default | Un eroe o un pool senza binding tiene il default C++; solo i pool nominati dal catalogo cambiano (§2.3). |
-| Path del default che non esiste nel pack | `LoadSynchronous` nullo: nessuna clip, notifica BP con `nullptr`, la partita gioca; il gate di cook lo nomina. |
+| Path del default che non esiste nel pack | `LoadSynchronous` nullo: nessuna clip, notifica BP con `nullptr`, la partita gioca; il gate di cook lo nomina. ➕ R13: se il path mancante è quello **d'azione**, si carica la clip di **ruolo** (ripiego anche al caricamento, non solo nella scelta del path): è il caso del pacchetto senza riferimenti duri alle clip d'azione. |
 
 ---
 
