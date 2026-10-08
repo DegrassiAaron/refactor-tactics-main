@@ -28,6 +28,7 @@ namespace RTScenarioStateDiff
 		const TArray<FRTUnitStateDigest>& After);
 }
 #include "Ability/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
+#include "Templates/SubclassOf.h"         // HeroUnitClasses (#3586)
 
 class UWorld;
 class ARTUnit;
@@ -98,8 +99,19 @@ public:
 	 *
 	 * @return false se lo scenario non e' eseguibile — l'esito e' gia' un `Error` con il motivo in
 	 *         `GetResult()`. Non lancia mai: un harness che crasha non sa dire perche'.
+	 *
+	 * @param HeroUnitClasses la classe visiva per `HeroId` (`#3586`): quella con la mesh dell'eroe dove il
+	 *        chiamante la fornisce, il cilindro `ARTUnit` altrimenti — la regola della partita,
+	 *        `RTUnitClassForHero`. 🔑 La fornisce il GameMode, attraverso `FRTScenarioCoordinator`: in PIE uno
+	 *        scenario `Visual.*` deve mostrare le clip sul personaggio. ⛔ L'automation headless passa la mappa
+	 *        vuota e resta sul cilindro, piu' rapido e indipendente da `Content/FabAsset/`, che manca nei
+	 *        worktree. ⚠️ Si usa durante `Start` e non si conserva: un Blueprint ricompilato in PIE non lascia
+	 *        alla sessione un puntatore a una classe vecchia.
+	 *        La classe decide la RESA: nell'ordine canonico delle unita' il nome dell'Actor e' solo l'ultimo
+	 *        spareggio, dopo squadra e cella, e due unita' di scenario non condividono una cella.
 	 */
-	bool Start(UWorld* World, const FRTTestScenario& Scenario);
+	bool Start(UWorld* World, const FRTTestScenario& Scenario,
+		const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses = TMap<FName, TSubclassOf<ARTUnit>>());
 
 	/**
 	 * Avanza di un passo.

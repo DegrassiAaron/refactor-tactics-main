@@ -2,11 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/SubclassOf.h"
 
 struct FRTTestResult;
 
 class UWorld;
 class FRTScenarioSession;
+class ARTUnit;
 
 /**
  * Cosa e' successo alla richiesta di eseguire uno scenario. **Tre esiti perche' i casi sono tre**, e il
@@ -74,9 +76,13 @@ public:
 	 * @param SourceLabel    chi ha scelto questo scenario, per il log dell'AUTO-RUN. E' un'informazione che
 	 *                       il coordinatore non puo' avere: la precedenza la risolve il chiamante.
 	 * @param InTurnPauseSeconds pausa fra un turno e l'altro: e' cio' che rende lo scenario osservabile.
+	 * @param HeroUnitClasses la classe visiva per `HeroId`, inoltrata alla sessione (`#3586`). Il GameMode passa
+	 *        le proprie `HeroUnitClasses` — i personaggi con la mesh — e chi passa la mappa vuota ottiene il
+	 *        cilindro. ⚠️ **Senza default, e di proposito**: ogni chiamante deve dire cosa posa, e un nuovo
+	 *        punto di lancio che la dimenticasse non compilerebbe invece di mostrare cilindri in silenzio.
 	 */
 	ERTScenarioStart Start(UWorld* World, const FString& ScenarioId, const FString& SourceLabel,
-		float InTurnPauseSeconds);
+		float InTurnPauseSeconds, const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses);
 
 	/**
 	 * Fa avanzare la sessione di un passo, e alla fine scrive il referto.

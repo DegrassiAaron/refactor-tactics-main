@@ -87,6 +87,17 @@ struct FRTMatchBootstrapConfig
 };
 
 /**
+ * La classe visiva di un eroe (`#3586`): quella configurata per il suo `HeroId`, altrimenti il cilindro
+ * `ARTUnit`. Una voce nulla, o una classe che non si puo' spawnare (astratta, deprecata, rimpiazzata da un
+ * Blueprint ricompilato), vale come assente: il ripiego non restituisce mai `nullptr`.
+ *
+ * 🔑 **Una regola sola per la partita e per gli scenari.** La usano `FRTMatchBootstrapper` e
+ * `FRTScenarioSession`: due copie si separerebbero alla prima modifica, e uno scenario mostrerebbe un
+ * personaggio diverso da quello della partita che dichiara di riprodurre.
+ */
+REFACTORTACTICS_API UClass* RTUnitClassForHero(const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses, FName HeroId);
+
+/**
  * Cosa e' successo all'allestimento, per chi lo ha ordinato.
  *
  * ⚠️ **Non e' il rapporto d'avvio**: quello e' `FRTStartupReport`, lo legge un widget, ed elenca le

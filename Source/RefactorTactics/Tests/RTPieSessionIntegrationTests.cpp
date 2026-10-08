@@ -13,6 +13,9 @@
 #include "Engine/World.h"
 #include "PieSession/RTPieSessionSubsystem.h"
 #include "RTGameMode.h"
+#include "EngineUtils.h"                  // TActorIterator: quale classe la porta ha posato (#3586)
+#include "Tests/RTUnitClassProbeForTest.h"
+#include "Unit/RTUnit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -151,6 +154,69 @@ bool FRTPieSessionBeatsTheConsoleCVarTest::RunTest(const FString&)
 	Conduttore->Abort();
 	TestEqual(TEXT("e finita la seduta la proprieta' torna a valere"),
 		GameMode->ResolveScenarioToRun(), FString(TEXT("Movement.Basic")));
+
+	PieIntegrationDestroyWorld(World);
+	return true;
+}
+
+/**
+ * **La porta del conduttore posa le classi CORRENTI del GameMode** (`#3586`).
+ *
+ * 🔑 E' il collegamento che rende vere le mesh in PIE: il GameMode passa le proprie `HeroUnitClasses` al
+ * coordinatore a ogni lancio. Il test di `FRTScenarioCoordinator` prova l'inoltro; questo prova che il GameMode
+ * lo FA — togliendo l'argomento dalla lambda della porta, Aevik torna cilindro e la riga cade.
+ *
+ * ⚠️ La mappa si cambia DOPO lo spawn del GameMode e PRIMA del lancio: e' cio' che distingue «letta a ogni
+ * lancio» da «copiata una volta». La sonda fa le veci del `BP_Unit_*`, che in un worktree non si carica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPieSessionPortPosesHeroClassesTest,
+	"RefactorTactics.PieSession.ThePortPosesTheGameModeHeroClasses",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPieSessionPortPosesHeroClassesTest::RunTest(const FString&)
+{
+	UGameInstance* GI = nullptr;
+	UWorld* World = PieIntegrationMakeWorld(GI);
+	if (!TestNotNull(TEXT("mondo"), World)) { return false; }
+
+	URTPieSessionSubsystem* Conduttore = GI ? GI->GetSubsystem<URTPieSessionSubsystem>() : nullptr;
+	ARTGameMode* GameMode = World->SpawnActor<ARTGameMode>();
+	if (!TestNotNull(TEXT("il conduttore esiste sulla GameInstance"), Conduttore)
+		|| !TestNotNull(TEXT("game mode"), GameMode))
+	{
+		PieIntegrationDestroyWorld(World);
+		return false;
+	}
+
+	// Solo Aevik ha una classe; Branth, assente dalla mappa, deve restare il cilindro.
+	GameMode->HeroUnitClasses.Empty();
+	GameMode->HeroUnitClasses.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+
+	GameMode->InstallPieSessionPorts();
+	Conduttore->Begin({ [] {
+		FRTPieSessionStep S;
+		S.PieItem = TEXT("PIE-VIS-SIGHTWALL");
+		S.ScenarioId = TEXT("Visual.Map.SightWallIsWalkable"); // A1 Aevik, B1 Branth
+		return S;
+	}() });
+
+	int32 Aevik = 0;
+	int32 Branth = 0;
+	for (TActorIterator<ARTUnit> It(World); It; ++It)
+	{
+		const ARTUnit* U = *It;
+		if (U->HeroId == FName(TEXT("Hero.Aevik")))
+		{
+			++Aevik;
+			TestTrue(TEXT("Aevik e' posato con la classe che il GameMode ha ADESSO"), U->IsA<ARTUnitClassProbeForTest>());
+		}
+		else if (U->HeroId == FName(TEXT("Hero.Branth")))
+		{
+			++Branth;
+			TestTrue(TEXT("Branth, senza classe, resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
+		}
+	}
+	TestEqual(TEXT("premessa: la porta ha posato Aevik"), Aevik, 1);
+	TestEqual(TEXT("premessa: la porta ha posato Branth"), Branth, 1);
 
 	PieIntegrationDestroyWorld(World);
 	return true;

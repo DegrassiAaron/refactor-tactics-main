@@ -175,6 +175,7 @@ namespace RTScenarioStateDiff
 #include "Turn/RTTurnManager.h"
 #include "Turn/RTTurnRules.h"
 #include "Unit/RTUnit.h"
+#include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la stessa regola della partita (#3586)
 #include "Player/RTPlayerController.h"
 #include "RefactorTactics.h"
 #include "Kismet/GameplayStatics.h"
@@ -803,7 +804,8 @@ int32 FRTScenarioSession::ClearScenarioSpawnedUnits(UWorld* InWorld)
 	return DaTogliere.Num();
 }
 
-bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario)
+bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenario,
+	const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses)
 {
 	Scenario = InScenario;
 	Result = FRTTestResult();
@@ -901,7 +903,10 @@ bool FRTScenarioSession::Start(UWorld* InWorld, const FRTTestScenario& InScenari
 				*Spec.Id, *Spec.Cell.ToString()));
 		}
 
-		ARTUnit* Unit = InWorld->SpawnActorDeferred<ARTUnit>(ARTUnit::StaticClass(), FTransform::Identity);
+		// `#3586`: la classe dell'eroe se il chiamante l'ha fornita — in PIE il GameMode, con la mesh — il cilindro
+		// altrimenti. La regola e' quella della partita: uno scenario mostra lo stesso personaggio.
+		ARTUnit* Unit = InWorld->SpawnActorDeferred<ARTUnit>(
+			RTUnitClassForHero(HeroUnitClasses, Hero->HeroId), FTransform::Identity);
 		if (!Unit)
 		{
 			return Fail(FString::Printf(TEXT("spawn fallito per l'unita' '%s'"), *Spec.Id));
