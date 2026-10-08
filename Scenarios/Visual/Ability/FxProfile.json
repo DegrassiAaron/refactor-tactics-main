@@ -1,0 +1,39 @@
+{
+  "scenarioId": "Visual.Ability.FxProfile",
+  "tags": ["vfx", "ability", "fx", "branth", "aevik"],
+  "version": 1,
+  "seed": 0,
+  "mapRadius": 5,
+
+  "_nota": "Il profilo FX per abilita' (#3578, spec 2026-10-08-profilo-fx-per-abilita-design.md §2.7). Branth lancia MortarShot (Area r1) sul centro (1,0,0): due nemici adiacenti dentro l'area, quindi UN AreaPulse sul centro e UNA X su ciascuna vittima, all'arrivo. Aevik attiva Overload (Area r1): un Flash di raggi inclinati sulla sua cella prima dell'onda, poi il suo AreaPulse. Il Cone non c'e': nessuna azione del catalogo lo dichiara. Lo Zigzag di LinearDischarge si guarda in Visual.Combat.WaterElectricCoordinated.",
+
+  "_nota_geometria": "B1 in (-2,0,0) e A1 in (-2,2,0), squadra 0, fuori da entrambe le aree. N1 in (1,0,0) e N2 in (2,0,0), squadra 1. MortarShot (portata 3, Area raggio 1: RTHeroCatalogLibrary.cpp:828-831) su (1,0,0), a distanza 3 da B1: l'area r1 contiene N1 (il centro) e N2. targetCell [q, r, layer] come in Scenarios/Spec/Combat/AreaGuardFromImpactCenterIsBypassed.json:26. Overload su (1,1,0), a distanza 3 da A1 (la portata di Overload, RTHeroCatalogLibrary.cpp:405-407): l'area r1 contiene N1 e N2. Celle ed expect si fissano col run headless.",
+
+  "units": [
+    { "id": "B1", "hero": "Hero.Branth", "team": 0, "cell": [-2, 0, 0] },
+    { "id": "A1", "hero": "Hero.Aevik",  "team": 0, "cell": [-2, 2, 0] },
+    { "id": "N1", "hero": "Hero.Ivrin",  "team": 1, "cell": [ 1, 0, 0] },
+    { "id": "N2", "hero": "Hero.Muiren", "team": 1, "cell": [ 2, 0, 0] }
+  ],
+
+  "turns": [
+    {
+      "intents": [
+        { "unit": "B1", "ability": "Hero.Branth.MortarShot", "targetCell": [1, 0, 0] },
+        { "unit": "A1", "ability": "Hero.Aevik.Overload",    "targetCell": [1, 1, 0] }
+      ]
+    }
+  ],
+
+  "expect": [
+    { "type": "UnitAtCell",     "unit": "B1", "cell": [-2, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "A1", "cell": [-2, 2, 0] },
+    { "type": "UnitAtCell",     "unit": "N1", "cell": [ 1, 0, 0] },
+    { "type": "UnitAtCell",     "unit": "N2", "cell": [ 2, 0, 0] },
+    { "type": "LogEventCount",  "category": "Combat", "outcome": "Hit", "actionId": "Hero.Branth.MortarShot", "value": 2 },
+    { "type": "LogEventCount",  "category": "Combat", "outcome": "Hit", "actionId": "Hero.Aevik.Overload",    "value": 2 },
+    { "type": "UnitHpEquals",   "unit": "N1", "value": 65 },
+    { "type": "UnitHpEquals",   "unit": "N2", "value": 70 },
+    { "type": "TurnsCompleted", "value": 1 }
+  ]
+}
