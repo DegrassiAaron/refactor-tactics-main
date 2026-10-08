@@ -56,7 +56,7 @@ TMap<FName, FRTHeroPresentationClips> URTBuildAnimBindingsCommandlet::BuildClips
 
 			if (Binding.bActive)
 			{
-				// `ValidateCatalog` ha gia' rifiutato due attive sullo stesso ruolo, quindi questa
+				// `ValidateCatalog` ha gia' rifiutato due attive nello stesso pool, quindi questa
 				// chiamata non puo' sovrascriverne un'altra: la garanzia sta a monte, non qui.
 				Ruolo.MakeActive(Entry.Id);
 			}

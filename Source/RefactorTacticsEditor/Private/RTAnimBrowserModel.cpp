@@ -182,7 +182,7 @@ bool FRTAnimBrowserModel::BindToRole(const FName& Id, const FName& HeroId, ERTPr
 	Binding.HeroId = HeroId;
 	Binding.Role = Role;
 	Binding.ActionId = ActionId;
-	Binding.bActive = false;   // ⛔ SEMPRE inattiva, anche se e' la prima del ruolo
+	Binding.bActive = false;   // ⛔ SEMPRE inattiva, anche se e' la prima del pool
 	Entry->Authored.Bindings.Add(MoveTemp(Binding));
 	return true;
 }

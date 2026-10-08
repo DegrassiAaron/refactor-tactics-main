@@ -812,6 +812,10 @@ bool FRTAnimBrowserBindingRulesPerActionTest::RunTest(const FString&)
 	TestTrue(TEXT("unbind del ruolo"), M.Unbind(Idle, Aevik, ERTPresentationRole::Cast));
 	TestTrue(TEXT("🔴 non tocca il binding d'azione della stessa clip"),
 		M.MakeActive(Idle, Aevik, ERTPresentationRole::Cast, Overload));
+
+	// ⛔ Un pool mai legato non si attiva: Idle ha un binding (Aevik, Cast) ma d'azione Overload, non di questa.
+	TestFalse(TEXT("🔴 MakeActive su un (eroe, ruolo, azione) mai legato torna false"),
+		M.MakeActive(Idle, Aevik, ERTPresentationRole::Cast, FName(TEXT("Hero.Aevik.MaiLegata"))));
 	return true;
 }
 
