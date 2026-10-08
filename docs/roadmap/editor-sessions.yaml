@@ -5157,6 +5157,7 @@ sessions:
       il verdetto su `PIE-CLIP-ABILITA`; nessun asset
     artifacts: []
     unblocked_by: []
+    # Aevik: le sue clip d'azione erano additive, e a schermo non si vedevano, fino a #3590.
     shares_setup_with: []
     verifies: [PIE-CLIP-ABILITA]
     issues: [3563]

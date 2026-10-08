@@ -372,6 +372,12 @@ corretto che non suona **mai**, senza errore, senza warning e senza log.
 | **`Hit`** | 🔴 `Hitreact_Fwd` | 🔴 `HitReact_Fwd` | `HitReact_Front` | `HitReact_Front` |
 | **`Death`** | `Death_Fwd` | 🔴 `Death` | `Death_Fwd` | 🔴 `Death_Forward` |
 
+➕ **2026-10-08 ([#3590](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3590)): il ruolo `Hit` non
+si popola più.** Le quattro `HitReact_*` di questa riga sono **additive** (Gadget, Phase e Wraith
+`AAT_LocalSpaceBase`, Riktor `AAT_RotationOffsetMeshSpace`): sullo slot si sommavano all'`Idle` e a schermo non si
+vedevano. Un nome che esiste non dice se la clip è una posa intera — si legge `additive_anim_type` dall'asset, e
+`Unit.DefaultClipsAreNotAdditive` lo fa per ogni clip del default.
+
 ⚠️ **Quattro caselle su dodici** non si chiamano come ci si aspetta — contate su questa tabella, non a
 memoria. `Cast` regge **4 volte su 4**: è l'unico ruolo che si trasferisce sempre, come
 [AS.3b](#as3b--le-clip-dei-quattro-pack-del-roster) misura sulle sue venti caselle. Si **leggono dalla

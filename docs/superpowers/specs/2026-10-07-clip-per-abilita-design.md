@@ -253,6 +253,9 @@ giudizio umano» — vero per il ruolo; per azione il giudizio è in §2.6), il 
 (`RTAnimCatalogLibrary.cpp:599`, «(eroe, ruolo)» → terna), quelli del commandlet (`:96`, `:126`, `:155-156`) e
 ➕ rev2. il messaggio del gate di cook (`RTPackagingConfigTests.cpp:728`), che cita ancora `#2444`: l'owner è `#3562`.
 
+➕ #3590. `MakeClips` perde il parametro `Hit` (`MakeClips(Pack, Idle, Move, Attack, Death)`): il ruolo `Hit` non ha una
+clip di default, perché ogni hit-react dei quattro pack è additiva (§2.6).
+
 ### 2.5 I gate
 
 - ➕ R14: il gate si separa — `RequiredAnimationClipsAreCooked` resta sul pool di ruolo (verde), `RequiredActionClipsAreCooked` nasce sul pool d'azione (rosso, owner #3562); il testo che segue descrive il disegno a gate unico, superato. `Packaging.RequiredAnimationClipsAreCooked` (`Tests/RTPackagingConfigTests.cpp:541-739`): il set richiesto itera **anche**
@@ -286,9 +289,9 @@ forma `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/Animations/
 
 | Eroe (pack) | `ActionId` | natura | beat `Cast` | beat `Attack` |
 |---|---|---|---|---|
-| Aevik (Gadget) | `Hero.Aevik.ArcPulse` | attacco base (`Action.BasicAttack`) | ruolo | `LMB_Fire_A` |
-| | `Hero.Aevik.LinearDischarge` | linea, Blast | `Ability_Q_Target` | `LMB_Fire_B` |
-| | `Hero.Aevik.Overload` | area r1, Blast | `Throw_Ready` | `LMB_Fire_C` |
+| Aevik (Gadget) | `Hero.Aevik.ArcPulse` | attacco base (`Action.BasicAttack`) | ruolo | ⌫ ~~`LMB_Fire_A`~~ ➕ #3590 `LMB_Fire_A_Slow_V1` |
+| | `Hero.Aevik.LinearDischarge` | linea, Blast | ⌫ ~~`Ability_Q_Target`~~ ➕ #3590 ruolo | ⌫ ~~`LMB_Fire_B`~~ ➕ #3590 `LMB_Fire_B_Slow_V1` |
+| | `Hero.Aevik.Overload` | area r1, Blast | ⌫ ~~`Throw_Ready`~~ ➕ #3590 ruolo | ⌫ ~~`LMB_Fire_C`~~ ➕ #3590 `LMB_Fire_C_Slow_V1` |
 | | `Hero.Aevik.ConductiveNode` | Environment | nessun beat in v0.1 | — |
 | | `Hero.Aevik.ReactiveCapacitor` | reazione | non suona | — |
 | Muiren (Phase) | `Hero.Muiren.PressureJet` | attacco base | ruolo | `Primary_Attack_A_Medium` |
@@ -310,9 +313,26 @@ forma `/Game/FabAsset/Paragon/Paragon<Pack>/Characters/Heroes/<Pack>/Animations/
 | | `Hero.Ivrin.PhaseGuard` | scudo su sé, Prep | `Ability_RMB_Start` | — |
 | | `Hero.Ivrin.Deflection` | reazione | non suona | — |
 
+➕ #3590 (seduta `U70`, 2026-10-08). **Una clip della mappa non è additiva**, e il nome non lo dice. Un'additiva è un
+delta da sommare a un'altra posa: lo slot del grafo la somma all'`Idle` e la posa non cambia. Le cinque clip d'azione di
+Aevik lo erano tutte (`AAT_LocalSpaceBase`): si caricavano, suonavano, e a schermo non si vedevano. Sondate dall'asset
+(`additive_anim_type` in Python nell'Editor, e poi `Unit.DefaultClipsAreNotAdditive` in C++, che concordano):
+
+- in Gadget le varianti **piene** esistono per gli attacchi — `LMB_Fire_A_Slow_V1`, `LMB_Fire_B_Slow_V1`/`_Fast_V1`,
+  `LMB_Fire_C_Slow_V1`/`_Fast_V1` — e la mappa prende le `_Slow_V1`; i **cast** di Gadget (`Ability_Q*`, `Throw_Ready*`)
+  sono tutti additivi, quindi i cast di Aevik tornano al ruolo (la `Cast` del pack);
+- la clip di ruolo **`Hit`** è additiva in **tutti e quattro** i pack: ogni `HitReact_*` di Gadget, Phase e Wraith è
+  `AAT_LocalSpaceBase`, quelle di Riktor `AAT_RotationOffsetMeshSpace`. Le uniche reazioni piene dei pack sono
+  `KnockBack` e `Stun_*`, che raccontano un'altra cosa. `Ruling` di #3590: **in v0.1 il ruolo `Hit` non ha clip di
+  default**, e il Blueprint riceve `nullptr` come per ogni ruolo senza clip. Costo se sbagliato: un colpo subito resta
+  senza gesto, come già era a schermo. Torna con una hit-react piena, o con uno slot additivo nel grafo (fuori scope).
+
+Al runtime un'additiva non entra nel montaggio (§4): una clip d'azione additiva ripiega sul ruolo, e una clip di ruolo
+additiva non suona; entrambe lo dicono con un `Warning`.
+
 Da vedere per prime a schermo: `R_Ability_Intro` e `Ability_R_InMotion` (potrebbero essere lunghe o preludere a un loop).
-Clip del pack che entrano nel set richiesto del cook (D-262), oltre a quelle di ruolo: Gadget `LMB_Fire_A/B/C`,
-`Ability_Q_Target`, `Throw_Ready`; Phase `Primary_Attack_A_Medium`, `R_Ability_Intro`, `Ability_E`, `Ability_R_Alt`;
+Clip del pack che entrano nel set richiesto del cook (D-262), oltre a quelle di ruolo: Gadget ⌫ ~~`LMB_Fire_A/B/C`,
+`Ability_Q_Target`, `Throw_Ready`~~ ➕ #3590 `LMB_Fire_A_Slow_V1`, `LMB_Fire_B_Slow_V1`, `LMB_Fire_C_Slow_V1`; Phase `Primary_Attack_A_Medium`, `R_Ability_Intro`, `Ability_E`, `Ability_R_Alt`;
 Riktor `PrimaryAttack_A_Slow`, `PrimaryAttack_B_Slow`, `Ability_Lockdown`, `Ability_Hook_Pull`, `Ability_Hook_Start`,
 `Ability_Hook_Cast`, `Ability_ShockingPunch`; Wraith `Fire_A_Fast_V1`, `Ability_Q_Fire_Fwd`, `Ability_E_Targeting_Start`,
 `Ability_R_InMotion`, `Ability_E`, `Ability_RMB_Start`. ➕ rev. **I nomi non si deducono** (`RTUnitAnimInstance.h:178-181`):
@@ -347,6 +367,7 @@ riferimento mancante sarebbero altrimenti indistinguibili nel gate di cook, `RTP
 | `actionId` su un ruolo che non propaga (`Move`, `Hit`, …) | Rifiutato da `ValidateCatalog` col nome dell'azione e del ruolo. |
 | ➕ rev2. Catalogo **senza** nessun `actionId` risalvato da una build nuova | Diventa v2 comunque (il writer scrive sempre `CurrentFormatVersion`): le build vecchie lo rifiutano per versione. È voluto: una sola versione in circolazione, nessun file «v1 ma scritto da v2». |
 | Catalogo v2 che il commandlet fonde sopra il default | Un eroe o un pool senza binding tiene il default C++; solo i pool nominati dal catalogo cambiano (§2.3). |
+| ➕ #3590. Clip che si carica ma è **additiva** (`RTClipIsAdditive`) | Non entra nel montaggio. Se è la clip d'**azione** si ripiega sulla clip di **ruolo**, con un `Warning`; se è la clip di ruolo — anche dopo un ripiego — il ruolo scatta senza clip (`nullptr` al Blueprint), con un `Warning`. Un'additiva nella mappa è un errore di dati, non un degrado previsto: per questo `Warning` e non `Verbose`. |
 | Path del default che non esiste nel pack | `LoadSynchronous` nullo: nessuna clip, notifica BP con `nullptr`, la partita gioca; il gate di cook lo nomina. ➕ R13: se il path mancante è quello **d'azione**, si carica la clip di **ruolo** (ripiego anche al caricamento, non solo nella scelta del path): è il caso del pacchetto senza riferimenti duri alle clip d'azione. |
 
 ---
@@ -367,7 +388,9 @@ riferimento mancante sarebbero altrimenti indistinguibili nel gate di cook, `RTP
 | `Anim.Browser.BindingRulesPerAction` | I predicati del modello distinguono `(Hero, Role)` da `(Hero, Role, ActionId)`. |
 | `Playback.ActivationPlaysTheActionClip` | ➕ rev. La fixture di `RTPlaybackActivationTests.cpp` (Scudo `TideGuard`, Tiratore `ImpactShot`): dopo il playback `LastResolvedClipPathForTest(Cast)` dello **Scudo** è il path **d'azione** di `TideGuard` e `LastResolvedClipPathForTest(Attack)` del **Tiratore** è il path **d'azione** di `ImpactShot` (il `Cast` del Tiratore è «ruolo», non discrimina). ➕ rev2. `Ruling` R11: il test **inietta** path sintetici in `PerAction` sul CDO e li ripristina alla fine, invece di leggere i path del default di §2.6 — così prova la catena evento → `ActionId` → risoluzione senza dipendere dal Task 3, e la mappa non vive in una terza copia (§6 ne dichiara due). Che i path del default siano quelli giusti lo dice `Unit.DefaultActionClipsResolveForEveryKitAbility`; che suonino a schermo lo dice la seduta PIE (§5.2). Costo se sbagliato: nessun test headless lega «quale clip del pack» a «quale evento»; lo lega la PIE. Mutazione (3): `ShowActivation` torna a un argomento → cade sullo Scudo; mutazione (6): `LaunchPlaybackAttack` torna a un argomento → cade sul Tiratore. ➕ rev2. Nessun test di oggi su questa fixture asserisce un beat `Attack` (contano solo le cue `Cast`): il piano **mostra** che `LaunchPlaybackAttack` (`RTTurnManager.cpp:8256`) parte nella fixture — asserto positivo sul path `Attack` del Tiratore **prima** della mutazione — altrimenti la (6) è vacua e la fixture va estesa finché non parte. |
 | `Packaging.RequiredSetIncludesActionClips` (nuovo, verde) + `RequiredAnimationClipsAreCooked` (esteso, ⌫ ~~ancora rosso~~ ⌫ ~~rosso **da qui**~~ ➕ R14: di nuovo **verde**, sul solo pool di ruolo) + `RequiredActionClipsAreCooked` (➕ R14, nuovo, **rosso** sul pool d'azione, owner #3562) | ➕ rev. Il nuovo test chiama l'helper `RequiredAnimationPackages` sul CDO e asserisce che le clip d'azione attive siano nel set con la provenienza `Hero / Action / Ruolo`, e che le terne coperte eguaglino quelle attese (mutazione (4): `PerAction` saltato → cade QUI). Il gate di cook usa lo stesso helper e ⌫ ~~resta ROSSO per i riferimenti duri mancanti (#3562): il suo rosso è dichiarato, non misura questo sotto-progetto~~ ➕ misurato 2026-10-08. **diventa** rosso con questo sotto-progetto: era verde su `193984837`, e i package che scopre su `9ed05ef60` sono le sole clip d'azione senza riferimento duro (#3562). Il rosso è dichiarato nello statuto (R12). |
-| `Unit.CastRoleResolvesAClipForEveryHero` (esteso) · `DiscreteRoleClipsMatchThePacks` (invariato) · `BlueprintSurfaceIsCensused` (invariato) | Il ripiego e i contratti di oggi. |
+| `Unit.CastRoleResolvesAClipForEveryHero` (esteso) · `DiscreteRoleClipsMatchThePacks` (invariato) · `BlueprintSurfaceIsCensused` (invariato) | Il ripiego e i contratti di oggi. ➕ #3590: `DiscreteRoleClipsMatchThePacks` asserisce `Hit` **vuoto**. |
+| ➕ #3590. `Anim.Channel.AdditiveClipIsDetected` · `AdditiveActionClipFallsBackToTheRole` · `AdditiveRoleClipIsNotPlayed` · `AdditiveFallbackOnAnAdditiveRolePlaysNothing` | Sequenze **in memoria**, additive o piene a comando: `RTClipIsAdditive` legge il tipo autorato (un'additiva senza `RefPoseSeq` risponde `false` a `IsValidAdditive` ed è comunque additiva); un'azione additiva ripiega sul ruolo e suona il ruolo (seam `LastPlayedClipForTest`), un ruolo additivo non suona, un ripiego su un ruolo additivo non suona; ognuno col suo controllo positivo e la riga di `Warning` attesa. |
+| ➕ #3590. `Unit.DefaultClipsAreNotAdditive` | Ogni clip attiva del default C++, di ruolo e d'azione, letta dall'**asset**: nessuna è additiva. Dove i pack mancano nessuna clip si carica, e il test lo dichiara (`N/A` in un `AddInfo`). |
 
 🔴 Controlli di mutazione dichiarati: (1) ordine dei livelli invertito; (2) una riga del default tolta; (3) `ShowActivation`
 a un argomento (cade sullo Scudo); (4) `PerAction` saltato nel set richiesto (cade nel test verde dell'helper);
@@ -376,6 +399,12 @@ a un argomento (cade sullo Scudo); (4) `PerAction` saltato nel set richiesto (ca
 `Anim.Browser.BindingRulesPerAction`; ➕ rev2. (8) `MergeClipsPerHero` ridotta all'assegnazione → cade
 `Anim.Bindings.MergeKeepsDefaultPools`; (9) `ValidateCatalog` senza il controllo del ruolo che non propaga → cade
 `Anim.Catalog.RejectsActionIdOnNonPropagatingRole`.
+➕ #3590. (M1) `RTClipIsAdditive` ridotto a `IsValidAdditive()` → cade `AdditiveClipIsDetected` sul caso senza
+`RefPoseSeq`; (M2) il ripiego che ignora l'additiva → cadono `AdditiveActionClipFallsBackToTheRole` e
+`AdditiveFallbackOnAnAdditiveRolePlaysNothing`; (M3) il controllo dopo il ripiego spento → cadono
+`AdditiveRoleClipIsNotPlayed` e `AdditiveFallbackOnAnAdditiveRolePlaysNothing`; (M4) **solo il testo** della riga di log
+cambiato → i tre test cadono soltanto sul messaggio atteso; (M5) un'additiva rimessa nella mappa **e** nella sua gemella →
+cade soltanto `DefaultClipsAreNotAdditive`.
 
 ### 5.2 Seduta PIE
 
@@ -405,6 +434,7 @@ l'anteprima dell'Anim Browser (#2554) serve a vedere le clip prima di promuoverl
 - Un binding di ruolo attivo e uno d'azione attivo convivono per lo stesso `(eroe, ruolo)`: «una sola attiva» vale per pool.
 - Le clip del default sono scelte **dai nomi** dei pack: il giudizio a schermo può cambiarle (è un `Set` di una riga).
 - `Hit` e `Death` non conoscono l'azione.
+- ➕ #3590. `Hit` non ha clip di default in v0.1: ogni hit-react dei pack è additiva (§2.6).
 - Il pannello del browser non lega: si lega modificando il JSON, validato dal commandlet.
 - ➕ rev2. Ogni salvataggio del catalogo da una build nuova produce un file `formatVersion` 2, anche senza `actionId`:
   le build vecchie lo rifiutano. Una sola versione in circolazione, per scelta.
