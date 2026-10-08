@@ -9,7 +9,7 @@
 
   "_nota_copertura": "T1 erige il pannello sul bordo E della propria cella, T2 lo sposta sul bordo NE della stessa cella: `Reconfigure` vuole una cella con UNA sola copertura e un bordo diverso da quello corrente, e il pannello dura due turni contati da quello in cui nasce, quindi a T2 c'e' ancora.",
 
-  "_nota_carica": "T3 e' la carica gia' vista in `Visual.Movement.Charge`, ma qui la scena nasce per il CAST: Ivrin sta a due celle, dentro la portata 3, e Branth si ferma addosso a lei e la spinge di una cella. Gli HP e le celle finali sono del primo run: dipendono dall'ordine fra arresto e spinta, come in quello scenario.",
+  "_nota_carica": "T3 e' la carica gia' vista in `Visual.Movement.Charge`, ma qui la scena nasce per il CAST: Ivrin sta a due celle, dentro la portata 3, e Branth si ferma addosso a lei e la spinge di una cella. Gli HP e le celle finali dipendono dall'ordine fra arresto e spinta e qui sono fissati dal primo run, mentre in quello scenario le celle non sono assertion.",
 
   "_nota_fuori": "`Hero.Branth.ImpactShot` e `Hero.Branth.MortarShot` stanno in `Visual.Ability.CastBeat` e `Visual.Ability.FxProfile`; `Hero.Branth.Interposition` e' una reazione e non suona.",
 
