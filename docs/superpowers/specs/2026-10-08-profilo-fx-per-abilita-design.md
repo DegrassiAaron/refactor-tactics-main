@@ -316,7 +316,7 @@ nel test (§5.1). Notazione: `Activation · Tracer · Impact · Footprint`.
 | | `Hero.Aevik.Overload` (`:405-407`) | `Area` r1 | area · Blast | Ring · None · Marker · AreaPulse | **Flash · None · Marker · AreaPulse** | «sovraccarico»: la carica si scarica in un istante sulla sorgente prima dell'onda |
 | | `Hero.Aevik.ReactiveCapacitor` (`:416`) | `Single` | reazione | Ring · Projectile · Marker · None | — | non si attiva. ➕ rev. (F22) ➕ rev3. **Misurato il 2026-10-08: il contrattacco non produce un evento `Attack`** — l'unico `Type = Attack` è a `RTTurnManager.cpp:6357`, nel ciclo sui colpi del piano; i contrattacchi entrano in `Attacks` dopo (`:6460-6468`, commento `:6470`); `Action.Counter` ha `Range 0` e trigger `HitByDirectAttack`. Quindi nessuna cue di colpo e nessuna riga d'override; il piano lo conferma con un grep al Task 4 Step 0 |
 | Muiren | `Hero.Muiren.PressureJet` (`:496-502`) | `Line` | attacco base · Blast | Ring · Jet · Marker · None | — | R3 |
-| | `Hero.Muiren.CircularTide` (`:518-522`) | `Area` r1 | cura ad area · Blast | Ring · None · Marker · AreaPulse | **Pulse · None · Marker · AreaPulse** | «marea circolare» cura: due anelli che si stringono si leggono come sostegno. ➕ rev. Se la cura non emette `Attack` né `AttackFootprint`, `Impact` e `Footprint` non hanno consumatore: il piano lo misura |
+| | `Hero.Muiren.CircularTide` (`:518-522`) | `Area` r1 | cura ad area · Blast | Ring · None · Marker · AreaPulse | **Pulse · None · None · None** | «marea circolare» cura: due anelli che si stringono si leggono come sostegno. ➕ rev. Se la cura non emette `Attack` né `AttackFootprint`, `Impact` e `Footprint` non hanno consumatore: il piano lo misura ⌫ #3593: `Pulse · None · None · None` — la cura passa dalle cure e non emette `Attack`: `Marker` e `AreaPulse` erano dato morto (spec SP5 F4, R7) |
 | | `Hero.Muiren.FluidTrail` (`:573-574`) | `Single` | scatto · Dash | Ring · Projectile · Marker · None | — | lo scatto ha già la rotta |
 | | `Hero.Muiren.MistVeil` (`:601-602`) | `Area` r1 | Environment | — | — | nessun beat in v0.1 |
 | | `Hero.Muiren.FlowReaction` (`:642-644`) | `Single` | inerte (slot `None`) | Ring · Projectile · Marker · None | — | nessun effetto da segnalare |
@@ -792,7 +792,7 @@ binaria; il verdetto è dell'autore.
 - ➕ rev. Se `Hero.Muiren.CircularTide` non emette `Attack`, il suo `AreaPulse` non ha consumatore: o la cura guadagna una
   cue d'impronta propria, o la riga perde `Footprint`. ➕ esecuzione: **confermato** al Task 4 Step 0 — la cura ha
   `bCountsAsAttack` falso ed esce in `URTHexCombatLibrary` prima dell'impronta e dei colpi; in v0.1 il suo `AreaPulse` e il
-  suo `Marker` non hanno consumatore.
+  suo `Marker` non hanno consumatore. ✅ Deciso in #3593: nessun consumatore, riga riscritta.
 - ➕ rev. (F9) Un volo uguale per ogni colpo, se l'autore vuole chiudere anche il bit di forma del ritmo.
 - `ReactionResolved` e `Defeated` come profilo, quando #2454 ne avrà la grammatica.
 - I profili come dati esterni, se un autore non programmatore dovrà toccarli (migrazione di D-278).

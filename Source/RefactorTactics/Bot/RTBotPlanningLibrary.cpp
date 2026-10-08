@@ -850,11 +850,21 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 		// 2) Attacco da FERMO, un'abilita' per volta: budget 0 -> l'unica cella candidata e' quella attuale.
 		FRTHexSnapshot StaySnapshot = Snapshot;
 		StaySnapshot.Units[Bot.Index].MoveBudget = 0;
+		// #3593, spec SP5 R8: una cura (derivata da `Action.Heal`) non e' un attacco. Con `Power` 0 non nasce
+		// nessuna candidata (`RTHexBotLibrary.cpp`: `AttackDamage <= 0` -> `continue`), quindi la cura era
+		// esclusa per costruzione; l'esclusione esplicita serve perche' un'azione derivata da `Action.Heal`
+		// con un `Power` qualunque non diventi un attacco. Lo stesso predicato vale per il passo da fermo e per
+		// quello dopo lo scatto. L'uso della cura ad area dal bot e' un follow-up.
+		static const FName ActionHealId(TEXT("Action.Heal"));
+		const auto IsAttackCandidateAbility = [](const URTActionData* Ability)
+		{
+			return Ability && !URTCatalogLibrary::IsFastMovement(Ability->Def) && !Ability->bSelfTarget
+				&& Ability->Def.DerivedFromActionId != ActionHealId;
+		};
 		for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 		{
 			const URTActionData* Ability = Bot.GetAbility(A);
-			if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
-				|| !Bot.CanUseAbility(A)) { continue; }
+			if (!IsAttackCandidateAbility(Ability) || !Bot.CanUseAbility(A)) { continue; }
 			AddCandidates(StaySnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ false, /*bAttacksOnly*/ true);
 		}
 
@@ -927,8 +937,7 @@ FRTBotPlanningOutcome URTBotPlanningLibrary::PlanTurn(
 			for (int32 A = 0; A < Bot.NumAbilities(); ++A)
 			{
 				const URTActionData* Ability = Bot.GetAbility(A);
-				if (!Ability || URTCatalogLibrary::IsFastMovement(Ability->Def) || Ability->bSelfTarget
-					|| !Bot.CanUseAbility(A)) { continue; }
+				if (!IsAttackCandidateAbility(Ability) || !Bot.CanUseAbility(A)) { continue; }
 				AddCandidates(DashSnapshot, A, Ability->RangeCells, Ability->Power, /*bViaDash*/ true, /*bAttacksOnly*/ true);
 			}
 			AddCandidates(DashSnapshot, INDEX_NONE, /*Range*/ 0, /*Damage*/ 0, /*bViaDash*/ true, /*bAttacksOnly*/ false);

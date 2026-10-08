@@ -5176,6 +5176,8 @@ sessions:
       ratificati dall'autore. Muiren, Branth e Ivrin ✅; Aevik ❌ perche' le sue clip d'azione sono additive (#3590:
       `LinearDischarge` osservato, `Overload` no, stesse clip); senza scena `CircularTide`, `FlowReaction`, il cast di
       `Ram` e il colpo di `PassingBlade`. Da riconvocare per Aevik quando #3590 atterra.
+      Da riconvocare dopo #3595 (Aevik: clip piene sugli attacchi) e #3593 (Muiren: la cura arriva e al cast è atteso il Pulse):
+      scene 1-3 della spec SP5 §5.2, una seduta sola, Editor ricompilato sul clone principale.
 
   - id: U71
     title: Il profilo FX per abilita' — attivazione, colpo e onda sulla mappa
