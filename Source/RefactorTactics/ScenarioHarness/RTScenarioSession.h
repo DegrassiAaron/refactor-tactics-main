@@ -28,6 +28,7 @@ namespace RTScenarioStateDiff
 		const TArray<FRTUnitStateDigest>& After);
 }
 #include "Ability/RTWorkbenchVariant.h" // per valore: la sessione la possiede, non la osserva
+#include "Templates/SubclassOf.h"         // HeroUnitClasses (#3586)
 
 class UWorld;
 class ARTUnit;
@@ -92,6 +93,20 @@ public:
 	 * baseline.
 	 */
 	FRTWorkbenchVariant WorkbenchVariant;
+
+	/**
+	 * La classe visiva per `HeroId` (`#3586`): quella con la mesh dell'eroe dove il chiamante la fornisce, il
+	 * cilindro `ARTUnit` altrimenti — la stessa regola della partita, `RTUnitClassForHero`.
+	 *
+	 * 🔑 **La fornisce il GameMode, attraverso `FRTScenarioCoordinator`**: in PIE uno scenario `Visual.*` deve
+	 * mostrare le clip sul personaggio, e sul cilindro suonano su uno scheletro che non si vede.
+	 * ⛔ **L'automation headless non la tocca**: resta sul cilindro, piu' rapido e indipendente da
+	 * `Content/FabAsset/`, che non e' versionato e manca in ogni worktree.
+	 *
+	 * Campo pubblico come `TurnPauseSeconds`: si imposta prima di `Start`. Presentazione soltanto: la classe non
+	 * entra in snapshot, TurnLog o `StateHash`.
+	 */
+	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
 
 	/**
 	 * Allestisce il mondo: arena, unita' dal catalogo, turn manager.

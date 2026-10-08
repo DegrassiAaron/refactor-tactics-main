@@ -7,6 +7,9 @@
 #include "Misc/AutomationTest.h"
 #include "ScenarioHarness/RTScenarioCoordinator.h"
 #include "Tests/RTWorldFixtures.h"
+#include "Tests/RTUnitClassProbeForTest.h"
+#include "Unit/RTUnit.h"
+#include "EngineUtils.h" // TActorIterator: quale classe l'harness ha posato (#3586)
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -108,6 +111,69 @@ bool FRTScenarioCoordinatorStartsRealScenarioTest::RunTest(const FString&)
 	}
 
 	RTWorldFixtures::DestroyWorld(World);
+	return true;
+}
+
+/**
+ * **Lo scenario posa la classe che il chiamante gli da', e il cilindro senza** (`#3586`).
+ *
+ * 🔑 In PIE il GameMode passa al coordinatore le sue `HeroUnitClasses` — i `BP_Unit_*` con la mesh — e uno
+ * scenario `Visual.*` mostra le clip sul personaggio. ⛔ L'automation headless non le passa: il cilindro resta
+ * il default, ed e' la seconda meta' di questo test. Senza di essa il ripiego potrebbe sparire senza un rosso.
+ *
+ * ⚠️ La sonda fa le veci della classe con mesh: un `BP_Unit_*` in un worktree non si carica.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTScenarioCoordinatorPosesHeroClassTest,
+	"RefactorTactics.Scenario.CoordinatorPosesTheHeroClassItIsGiven",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTScenarioCoordinatorPosesHeroClassTest::RunTest(const FString&)
+{
+	// `Movement.Basic`: A1 e' Aevik, B1 e' Branth. Solo Aevik riceve una classe.
+	for (const bool bConClassi : { true, false })
+	{
+		UWorld* World = RTWorldFixtures::MakeWorld();
+		if (!TestNotNull(TEXT("mondo di prova"), World)) { return false; }
+
+		{
+			// Il coordinatore vive in un blocco proprio: la sessione va distrutta PRIMA del mondo.
+			FRTScenarioCoordinator Coordinator;
+			if (bConClassi)
+			{
+				Coordinator.HeroUnitClasses.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+			}
+			const ERTScenarioStart Esito = Coordinator.Start(World, TEXT("Movement.Basic"), TEXT("test"), 0.f);
+			TestTrue(TEXT("premessa: lo scenario parte"), Esito == ERTScenarioStart::Started);
+
+			int32 Aevik = 0;
+			int32 Branth = 0;
+			for (TActorIterator<ARTUnit> It(World); It; ++It)
+			{
+				const ARTUnit* U = *It;
+				if (U->HeroId == FName(TEXT("Hero.Aevik")))
+				{
+					++Aevik;
+					if (bConClassi)
+					{
+						TestTrue(TEXT("con le classi, Aevik e' posato con la SUA classe"),
+							U->IsA<ARTUnitClassProbeForTest>());
+					}
+					else
+					{
+						TestTrue(TEXT("senza classi, Aevik e' il cilindro"), U->GetClass() == ARTUnit::StaticClass());
+					}
+				}
+				else if (U->HeroId == FName(TEXT("Hero.Branth")))
+				{
+					++Branth;
+					TestTrue(TEXT("Branth non ha una classe: resta il cilindro"), U->GetClass() == ARTUnit::StaticClass());
+				}
+			}
+			TestEqual(TEXT("premessa: c'e' un Aevik"), Aevik, 1);
+			TestEqual(TEXT("premessa: c'e' un Branth"), Branth, 1);
+		}
+
+		RTWorldFixtures::DestroyWorld(World);
+	}
 	return true;
 }
 

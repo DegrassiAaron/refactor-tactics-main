@@ -13,6 +13,8 @@
 #include "Frontend/RTStartupReport.h"
 #include "RTGameMode.h"
 #include "Unit/RTUnit.h"
+#include "Match/RTMatchBootstrapper.h" // RTUnitClassForHero: la classe visiva per eroe (#3586)
+#include "Tests/RTUnitClassProbeForTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -752,6 +754,35 @@ bool FRTHeroMeshYawOffsetIsPinnedTest::RunTest(const FString&)
 			UnitCdo->MeshYawOffset, Atteso.Value);
 	}
 
+	return true;
+}
+
+// --- La classe visiva di un eroe (`#3586`) ----------------------------------------------------
+
+/**
+ * **Una regola sola per partita e scenari**: la classe configurata per l'eroe se c'e', il cilindro altrimenti.
+ *
+ * 🔑 Il ripiego vale per DUE casi distinti, e il test li separa: l'eroe assente dalla mappa e l'eroe presente
+ * con una classe nulla (una voce di `HeroUnitClasses` lasciata vuota in un Blueprint). Entrambi devono dare il
+ * cilindro, mai un `nullptr` che `SpawnActorDeferred` rifiuterebbe.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTUnitClassForHeroTest,
+	"RefactorTactics.Heroes.UnitClassForHeroFallsBackToTheCylinder",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTUnitClassForHeroTest::RunTest(const FString&)
+{
+	TMap<FName, TSubclassOf<ARTUnit>> Classi;
+	Classi.Add(FName(TEXT("Hero.Aevik")), ARTUnitClassProbeForTest::StaticClass());
+	Classi.Add(FName(TEXT("Hero.Muiren")), nullptr);
+
+	TestTrue(TEXT("un eroe con la sua classe riceve quella"),
+		RTUnitClassForHero(Classi, FName(TEXT("Hero.Aevik"))) == ARTUnitClassProbeForTest::StaticClass());
+	TestTrue(TEXT("un eroe assente dalla mappa riceve il cilindro"),
+		RTUnitClassForHero(Classi, FName(TEXT("Hero.Branth"))) == ARTUnit::StaticClass());
+	TestTrue(TEXT("una voce nulla riceve il cilindro, non nullptr"),
+		RTUnitClassForHero(Classi, FName(TEXT("Hero.Muiren"))) == ARTUnit::StaticClass());
+	TestTrue(TEXT("una mappa vuota da' sempre il cilindro"),
+		RTUnitClassForHero({}, FName(TEXT("Hero.Aevik"))) == ARTUnit::StaticClass());
 	return true;
 }
 

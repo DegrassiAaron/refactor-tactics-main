@@ -2,11 +2,13 @@
 
 #include "CoreMinimal.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/SubclassOf.h"
 
 struct FRTTestResult;
 
 class UWorld;
 class FRTScenarioSession;
+class ARTUnit;
 
 /**
  * Cosa e' successo alla richiesta di eseguire uno scenario. **Tre esiti perche' i casi sono tre**, e il
@@ -66,6 +68,12 @@ enum class ERTScenarioStart : uint8
 class REFACTORTACTICS_API FRTScenarioCoordinator
 {
 public:
+	/**
+	 * Le classi visive per `HeroId` da passare alla sessione (`#3586`). Le imposta il GameMode con le proprie
+	 * `HeroUnitClasses`; vuote — il default, e cio' che fa l'automation — lo scenario posa il cilindro.
+	 */
+	TMap<FName, TSubclassOf<ARTUnit>> HeroUnitClasses;
+
 	/**
 	 * Carica lo scenario e avvia la sessione.
 	 *

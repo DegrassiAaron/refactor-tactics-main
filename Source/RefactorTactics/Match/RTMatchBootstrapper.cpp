@@ -22,6 +22,12 @@
  * statiche in file diversi collidono. E' lo stesso vincolo che ha costretto quarantatre' file di test a
  * rinominare la propria `MakeWorld`, e la difesa che scala e' il namespace, non il nome piu' lungo.
  */
+UClass* RTUnitClassForHero(const TMap<FName, TSubclassOf<ARTUnit>>& HeroUnitClasses, FName HeroId)
+{
+	const TSubclassOf<ARTUnit>* Configured = HeroUnitClasses.Find(HeroId);
+	return (Configured && *Configured) ? Configured->Get() : ARTUnit::StaticClass();
+}
+
 namespace RTMatchBootstrapDetail
 {
 	/**
@@ -298,9 +304,9 @@ namespace RTMatchBootstrapDetail
 		}
 
 		// Classe visiva per eroe: se assegnata (BP_Unit con skeletal) usala, altrimenti fallback al cilindro C++.
-		// E' il comportamento di ripiego di sempre, ora per HeroId invece che per archetipo.
-		const TSubclassOf<ARTUnit>* Configured = Config.HeroUnitClasses.Find(Hero->HeroId);
-		UClass* UnitClass = (Configured && *Configured) ? Configured->Get() : ARTUnit::StaticClass();
+		// E' il comportamento di ripiego di sempre, ora per HeroId invece che per archetipo — e da `#3586` la
+		// regola e' una funzione sola, condivisa con lo Scenario Harness.
+		UClass* UnitClass = RTUnitClassForHero(Config.HeroUnitClasses, Hero->HeroId);
 
 		// Deferred: team e statistiche PRIMA di BeginPlay, cosi' colore e dati sono corretti al primo frame.
 		ARTUnit* Unit = World->SpawnActorDeferred<ARTUnit>(UnitClass, FTransform::Identity);

@@ -49,6 +49,7 @@ ERTScenarioStart FRTScenarioCoordinator::Start(UWorld* World, const FString& Sce
 	// vedeva muoversi erano turni fantasma — misurato in PIE, non supposto.
 	Session = MakeShared<FRTScenarioSession>();
 	Session->TurnPauseSeconds = InTurnPauseSeconds;
+	Session->HeroUnitClasses = HeroUnitClasses; // #3586: in PIE i personaggi con la loro mesh
 	if (!Session->Start(World, Scenario))
 	{
 		UE_LOG(LogRT, Error, TEXT("[RT-Test] %s -> ERROR: %s"),

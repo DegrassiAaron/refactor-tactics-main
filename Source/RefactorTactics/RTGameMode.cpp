@@ -535,6 +535,11 @@ void ARTGameMode::BeginPlay()
 	// girare senza un mondo e senza un Editor.
 	InstallPieSessionPorts();
 
+	// `#3586`: lo scenario posa i personaggi con la loro mesh, come la partita normale. Senza, in PIE le clip di
+	// un banco `Visual.*` suonano su un cilindro. Lo stesso dato della partita, nessuna seconda tabella; vale
+	// anche per la porta del conduttore di seduta, che usa lo stesso coordinatore.
+	ScenarioCoordinator.HeroUnitClasses = HeroUnitClasses;
+
 	switch (ScenarioCoordinator.Start(World, ResolveScenarioToRun(),
 		RTScenarioEntry::LogSourceLabel(), ScenarioTurnPauseSeconds))
 	{
