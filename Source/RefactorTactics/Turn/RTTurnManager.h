@@ -2471,7 +2471,7 @@ protected:
 
 	/**
 	 * Consegna alla mappa le cue del profilo FX della fase (#3578, spec §2.4): Prep e Dash dalle code di attivazione,
-	 * il Blast dalla sequenza e dal cursore dei battiti. Gemella di `PushPlaybackTracers`, con lo stesso flag: non tocca
+	 * il Blast dalla sequenza e dal cursore dei battiti. Gemella di `PushPlaybackTracers`, con un flag gemello: non tocca
 	 * la mappa se non c'e' nulla da dire e l'ultima consegna era gia' vuota (`bPlaybackCueChannelFull`).
 	 */
 	void PushPlaybackCues(ERTMatchPhase InPhase);

@@ -129,6 +129,8 @@ Un evento `Attack` ha un tracer quando **tutte** valgono:
    (`Ability/RTHeroCatalogLibrary.cpp:168`), l'azione generica nel primo (`Ability/RTCatalogLibrary.cpp:1226`).
    Le altre azioni restano come oggi. ⚠️ È un'idoneità **provvisoria e dichiarata**: la sostituisce la tabella del
    sotto-progetto 4.
+   ⌫ Superata da [#3578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3578) ([spec del profilo FX](2026-10-08-profilo-fx-per-abilita-design.md) §2.2, R12, R13): il volo è la forma di default di un'azione con un id; un
+   override toglie il disegno, mai il volo, e non può aggiungerli.
 2. `Shape ∈ { Single, Line }` — `Area` e `Cone` restano senza tracer: le loro righe di grammatica (arrivo
    sull'`AimCell`, ventaglio) non sono di questa fetta.
 3. ➕ rev. `HitGeometry.bResolved` — il produttore ha risolto l'origine (`ResolveImpactOrigin` ha risposto `true`)
@@ -139,7 +141,8 @@ Un evento `Attack` ha un tracer quando **tutte** valgono:
 Le condizioni 1–3 decidono il **ritmo**; la 4 decide solo il **disegno**. ➕ rev. Il ritmo quindi **non dipende da
 chi guarda**: entrambe le squadre vedono l'arrivo nello stesso istante. Non è *privo* di informazione — rivela che
 un attaccante, anche non visto, ha usato un attacco base `Single` o `Line` — ma è informazione che il numero di
-danno sul bersaglio dà già oggi.
+danno sul bersaglio dà già oggi. ⌫ Allargata da #3578 a «un'azione con un id»; il ritmo è lo stesso a parità di
+indice nella sequenza ([spec del profilo FX](2026-10-08-profilo-fx-per-abilita-design.md) §2.3).
 ⌫ ➕ #3549 *«Il ritmo quindi non dipende da chi guarda»* è **superato** sull'indice del colpo nella sequenza:
 con l'attivazione per intento di [#3549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3549) la
 sequenza del Blast si costruisce per squadra (D6), e lo stesso colpo cade su un indice — quindi su un istante —
@@ -147,6 +150,9 @@ diverso per chi vede la sorgente e per chi no. Vale ancora per l'idoneità: le c
 guarda. Governa la spec del momento §2.4 (`CONTRACT CONFLICT`), non questa.
 
 ### 2.2 Le due forme
+
+⌫ La tabella «Single = proiettile, Line = getto» è da #3578 la riga di default del profilo FX ([spec del profilo FX](2026-10-08-profilo-fx-per-abilita-design.md) §2.2);
+lo Zigzag è un override.
 
 Il canale non è il colore: è la **geometria**. Il colore è `URTOverlayPalette::ColorFor(ERTOverlayMeaning::Attack)`,
 ⛔ nessun `FColor` letterale nuovo.
@@ -333,8 +339,10 @@ cieca. Il verdetto è di chi guarda, non di questa spec.
 
 ## 7. Limiti e non-goal
 
-- **Per eroe**: scarica a zigzag, impulsi a tratti, proiettile pieno — sotto-progetto 4 (V2).
-- **Area e Cone**, e ogni azione che non sia attacco base.
+- **Per eroe**: scarica a zigzag, impulsi a tratti, proiettile pieno — sotto-progetto 4 (V2). ⌫ Consegnati da #3578,
+  come cue d'impronta e override, non come tracer.
+- **Area e Cone**, e ogni azione che non sia attacco base. ⌫ Consegnati da #3578, come cue d'impronta e override, non
+  come tracer.
 - **Arco balistico**: [#2825](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2825). Il tracer è
   retto e non significa niente sul gameplay.
 - **Direzione dell'attacco a chi non vede** (CP 13.4): non esiste nel codice, e il tracer non la sostituisce.
@@ -353,4 +361,4 @@ cieca. Il verdetto è di chi guarda, non di questa spec.
   (`git grep -c "Hero.Riktor.ImpactShot" -- Source` → nessuna occorrenza).
 - `FindMissingBindings` che verifichi i nomi delle cue contro funzioni reali (§C4 del panel del 2026-09-10).
 - Il tracer anche per `Area` (arrivo sull'`AimCell`) e `Cone` (ventaglio), quando il sotto-progetto 4 ne avrà il
-  profilo.
+  profilo. ⌫ Consegnati da #3578, come cue d'impronta (`AreaPulse`, `ConeSweep`), non come tracer.

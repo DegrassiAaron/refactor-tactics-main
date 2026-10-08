@@ -1622,7 +1622,7 @@ capabilities:
         - Source/RefactorTactics/UI/RTUnitOverlayWidget.h
         - Source/RefactorTactics/UI/RTUnitOverlayWidget.cpp
         - Source/RefactorTacticsEditor/Private/Content/RTAddDamageTokenCommandlet.h
-    issues: { open: [2453, 2456, 2457, 2828, 2505], closed: [2455, 2288] }
+    issues: { open: [2453, 2456, 2457, 2828, 2505, 2454, 3578], closed: [2455, 2288] }
     consumers: [RT-CAP-SCREEN-HUD]
     dependencies: [RT-CAP-COMBAT, RT-CAP-PLAYBACK, RT-CAP-RESOLVED-TIMELINE, RT-CAP-STATUS]
     tests:
@@ -1630,7 +1630,7 @@ capabilities:
       scenarios: []
       mutation: []
     verification:
-      pie: []
+      pie: [PIE-V01-TRACER, PIE-FX-ABILITA]
       packaged: []
     notes:
       - "Evidenza visiva gia' raccolta: docs/technical/evidence/hud-damage-token/ (tre PNG del
@@ -1705,20 +1705,20 @@ capabilities:
          repository e `TSoftObjectPtr` e' la conseguenza dichiarata."
 
   - id: RT-CAP-VFX
-    name: VFX (Niagara)
+    name: VFX (line batcher in v0.1; Niagara fuori, D-124)
     area: presentation
-    status: { implementation: missing, validation: missing, presentation: missing }
+    status: { implementation: partial, validation: partial, presentation: missing }
     owner:
       epic: null
       spec: null
       adr: docs/decisions/RT_PDR_00_Decision_Log.md   # D-124 (fuori perimetro v0.1), D-278
       capability_view: CR-PRESENT
-    implementation: { files: [] }
-    issues: { open: [288, 2453], closed: [] }
+    implementation: { files: [Source/RefactorTactics/Map/RTPlaybackTracer.h, Source/RefactorTactics/Turn/RTPresentationBinding.h, Source/RefactorTactics/Turn/RTPresentationBinding.cpp, Source/RefactorTactics/Turn/RTPlaybackLibrary.h, Source/RefactorTactics/Turn/RTPlaybackLibrary.cpp, Source/RefactorTactics/Map/RTHexMapActor.cpp] }
+    issues: { open: [288, 2453, 2454, 3578], closed: [] }
     consumers: []
     dependencies: [RT-CAP-RESOLVED-TIMELINE]
-    tests: { automation: [], scenarios: [], mutation: [] }
-    verification: { pie: [], packaged: [] }
+    tests: { automation: ["RefactorTactics.Fx.*", "RefactorTactics.Playback.*", "RefactorTactics.Privacy.*", "RefactorTactics.HexMapActor.*", "RefactorTactics.Preview.*", "RefactorTactics.Presentation.*", "RefactorTactics.Determinism.*"], scenarios: ["Visual.Ability.FxProfile"], mutation: [] }
+    verification: { pie: [PIE-V01-TRACER, PIE-FX-ABILITA], packaged: [] }
     risks:
       - "OWNER GAP: nessuna epic possiede i VFX. #288 (CP E21.2) e #2453 (Combat Feedback) li
          sfiorano dal lato animazione e cue."
@@ -1734,6 +1734,7 @@ capabilities:
          `OnResolvePlaybackFinished` — e `:981` ripete *«per VFX/SFX di morte in Blueprint»*. Manca
          il CONTENUTO e il legame dichiarativo, non l'attacco: chi apre questa capability non deve
          progettare un canale, deve riempirne uno che c'e'."
+      - "#3578: il profilo FX per abilita' (attivazione, colpo, impronta) e' la prima implementazione, col line batcher (D-467); Niagara resta fuori (D-124). La misura di Niagara qui sopra e' storica."
 
   - id: RT-CAP-AUDIO
     name: Audio Feedback

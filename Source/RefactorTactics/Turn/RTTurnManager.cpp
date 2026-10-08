@@ -342,7 +342,7 @@ void ARTTurnManager::EmitAbilityActivated(ARTUnit* Source, ERTMatchPhase InPhase
 	// [D-223], spec §2.1: il verdetto si decide ADESSO, quando l'unita' agisce, e si trasporta. Lo stesso valore
 	// fa da verdetto alla riga `Attiva:` del playback (`ShowActivation`): calcolato una volta, mai due.
 	// #3578 (spec «il profilo FX» §2.3, R5, F16): **il soggetto si legge UNA volta**, come `GetFactCell` chiede
-	// (`RTCombatLog.h:82`). `Unit()` non dichiara una cella, quindi `GetFactCell()` e' quella dell'Actor — ed e' su
+	// (`FRTLogSubject::GetFactCell`). `Unit()` non dichiara una cella, quindi `GetFactCell()` e' quella dell'Actor — ed e' su
 	// quella che `FreezeVerdictFor` congela: cella della cue e verdetto coincidono per costruzione. Nel Dash e' la cella
 	// da cui lo scatto PARTE. `Origin` e' presentazione: `FRTResolvedEvent` e' `RTServerOnly`, fuori dagli hash
 	// (`Determinism.FxFieldsStayOutOfHashes`).

@@ -665,7 +665,7 @@ namespace
 }
 
 /**
- * Le sei cue sono DIVERSE in geometria, a coppie (spec §2.1, F7, #2453: il canale e' la geometria, mai il solo
+ * Le cue elencate qui sotto sono DIVERSE in geometria, a coppie (spec §2.1, F7, #2453: il canale e' la geometria, mai il solo
  * colore): per ogni coppia, numero di segmenti diverso, oppure ≥ 0.1 s di differenza nella distanza massima o minima
  * dall'ancora, oppure nell'estensione verticale. A `α = 0.5`, `s = 100`.
  * ✅ Validato per mutazione (20): `AreaPulse` disegnato come `Ring` fa cadere la coppia `Ring`/`AreaPulse`.

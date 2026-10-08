@@ -22,7 +22,8 @@ enum class ERTTracerStyle : uint8
 	/**
 	 * ➕ #3578 (spec «il profilo FX» §2.1). Un getto SPEZZATO: ancorato all'origine come `Jet`, con i vertici funzione
 	 * di (From, To) soltanto — nessun `Rand`, nessun orologio — quindi a `α` minore e' un PREFISSO di quello a `α`
-	 * maggiore (`URTPlaybackLibrary::TracerPolyline`). Un solo consumatore oggi: `Hero.Aevik.LinearDischarge` (D5).
+	 * maggiore (`URTPlaybackLibrary::TracerPolyline`). I consumatori sono le righe `Zigzag` di `DeclaredFxOverrideRows`
+	 * (`git grep -n "T::Zigzag" -- Source/RefactorTactics/Turn/RTPresentationBinding.cpp`; alla scrittura: `Hero.Aevik.LinearDischarge`, D5).
 	 */
 	Zigzag,
 };

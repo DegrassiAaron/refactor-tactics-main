@@ -1,10 +1,12 @@
 # Il profilo FX per abilità — attivazione e colpo, una tabella `ActionId → profilo` sopra la forma
 
-> **Statuto**: design **proposto** il 2026-10-08 sulle decisioni d'autore D1–D4 (§0, prese lo stesso giorno, tutte le
-> raccomandate). ➕ rev. **Rivista dal panel il 2026-10-08** (`.superpowers/sp4-spec-panel.md`, verdetto *APPROVATA CON
+> **Statuto**: design **accettato** il 2026-10-08 sulle decisioni d'autore D1–D5 (§0, prese lo stesso giorno: D1–D4 tutte le
+> raccomandate, D5 dopo la stesura). ➕ rev. **Rivista dal panel il 2026-10-08** (`.superpowers/sp4-spec-panel.md`, verdetto *APPROVATA CON
 > MODIFICHE*, finding F1–F22): le modifiche sono incorporate e marcate `➕ rev.`, quelle che ribaltano un `Ruling` della
 > prima stesura lo dicono col `⌫`. ➕ rev2. Re-review mirata dello stesso giorno (`.superpowers/sp4-spec-rereview.md`, OK per
-> il piano): gli ultimi ritocchi sono marcati `➕ rev2.`. **Non implementato.** È il **quarto di quattro sotto-progetti** della richiesta d'autore
+> il piano): gli ultimi ritocchi sono marcati `➕ rev2.`. **Implementato** in [#3578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3578) sul branch
+> `issue/3578-profilo-fx-per-abilita` (blocco «Implementato» qui sotto), PR verso `main` in apertura; la voce
+> `PIE-FX-ABILITA` resta da eseguire. È il **quarto di quattro sotto-progetti** della richiesta d'autore
 > *«associare animazioni e FX alle skill e vederle in azione»*: il banco Ability Lab → PIE
 > ([#3532](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3532)), il momento `AbilityActivated`
 > ([#3549](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3549), spec
@@ -13,7 +15,7 @@
 > [`2026-10-07-clip-per-abilita-design.md`](2026-10-07-clip-per-abilita-design.md)) sono in `main`. Owner della
 > grammatica che questa spec **consuma**: [#2454](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2454)
 > (*Basic Combat Cues*, aperta), epic [#2453](https://github.com/DegrassiAaron/refactor-tactics-main/issues/2453). La
-> issue di lavoro si apre col piano: questa spec non ne inventa il numero.
+> issue di lavoro, aperta col piano, è [#3578](https://github.com/DegrassiAaron/refactor-tactics-main/issues/3578).
 >
 > **Stato misurato**: 2026-10-08, `origin/main` = `ef49b454d`. Ogni `file:riga` è stato letto su quel commit, in sola
 > lettura, sul checkout `rt-wt-sp4-fx`; chi lo rilegge più tardi lo **rimisura**. Nessun totale volatile: dove serve
@@ -28,6 +30,51 @@
 > l'alternativa nella tabella.
 >
 > ✅ **Sciolta dall'autore il 2026-10-08** (AskUserQuestion): **tracer identico** sugli attacchi base (R3 confermata); la varietà per eroe vive sugli override; gli attacchi base ricevono comunque il marcatore d'impatto all'arrivo (grammatica `Single` di #2454). La mappa degli override di §2.2 è **approvata così** (D5).
+>
+> ✅ **Implementato il 2026-10-08** sul branch `issue/3578-profilo-fx-per-abilita`, da `ef49b454d`, col piano
+> [`2026-10-08-profilo-fx-per-abilita.md`](../plans/2026-10-08-profilo-fx-per-abilita.md): un commit per task, più i giri di
+> review. Spec e piano `a2dd733b6`; tipi, default per forma, override e ripiego `530b3ef38`; il tracer che segue il
+> profilo `70f86b4a9`, con i due fix della sua review `f788d1724` (puntatori, `Action.Push` senza proiettile) e `fb7c0d47f`
+> (R15, qui sotto); il segnale di attivazione — `Ev.Origin`, la cue dietro `SourceVerdict`, il canale di mappa —
+> `17d83a223`; le cue di colpo (`Marker`, `AreaPulse`, `ConeSweep`, R14) `379c0c87f`; il disegno col line batcher e D-278
+> `e835c5fdd`; lo scenario `Visual.Ability.FxProfile` `ecb008548`; il merge di `origin/main` `867a4d0a3` nel branch
+> `b70faca87` (nessun file in comune); registro PIE, seduta `U71`, capability map, conoscenza parziale, spec superate, piano
+> e questo statuto nel commit `docs(3578)` che porta questo blocco. Le correzioni emerse in esecuzione sono marcate
+> `➕ esecuzione` (§2.1, §2.2, §5.1, §5.2, §6, §7); il piano porta le sue con lo stesso marcatore.
+>
+> **Gate**, ciascuno sul commit del proprio task, con il log nei report della sessione (non versionati), tutti con
+> `**** TEST COMPLETE`, nessun `Result={Fail}` e nessun `Ensure condition failed`: compile `PASS` su ogni commit di
+> codice; `RefactorTactics.Fx` e `Presentation` + `Playback.Tracer` `PASS` su `530b3ef38`; le famiglie di mondo il cui
+> ritmo può cambiare (`Playback`, `Privacy`, `Reactions`, `Turn`, `HexMatch`, `HexBotPlay`, `Actions`, `HexBlast`,
+> `HexMapActor`) `PASS` **prima** (su `530b3ef38`) e **dopo** (sul contenuto di `70f86b4a9`), con lo stesso insieme di nomi più
+> i test nuovi e nessuna differenza d'esito; `Fx` + `Playback` + `Privacy`, i gate del tracer e
+> `Unit.BlueprintSurfaceIsCensused` `PASS` su `70f86b4a9`, `f788d1724` e `fb7c0d47f`; `Playback` + `Determinism` +
+> `HexMapActor` + `Privacy` + `Fx` + `Unit.BlueprintSurfaceIsCensused` e `Turn` + `Replay` `PASS` su `17d83a223`; `Playback` +
+> `Privacy` + `Determinism` + `HexMapActor` + `Presentation` + `Fx` + `Unit.BlueprintSurfaceIsCensused` `PASS` su `379c0c87f`;
+> `Fx` + `Preview` + `Presentation` + `HexMapActor` + `Playback` + `Unit.BlueprintSurfaceIsCensused` `PASS` su `e835c5fdd`;
+> `Scenario.EveryShippedScenarioRuns` `PASS` su `ecb008548`, con `Visual.Ability.FxProfile` verde; `Fx` +
+> `Playback.TracerFollowsTheProfile` `PASS` sull'albero del commit `docs(3578)` (solo commenti di sorgente). Ogni test nuovo
+> è stato visto rosso prima del codice (di compilazione, o `Result={Fail}` per i test di disegno e di binding del Task 5), e
+> ciascuna mutazione di §5.1 e del piano è caduta sul proprio asserto. Determinismo: `PASS` limitato a `Determinism.*`;
+> `Determinism.FxFieldsStayOutOfHashes` è un **tripwire** — oggi nessun hash legge `ResolvedTimeline`, e il controllo
+> positivo prova che il gancio agisce. Replay: `RefactorTactics.Replay` `PASS` su `17d83a223`. Privacy: la famiglia
+> `RefactorTactics.Privacy` `PASS`. ⚠️ Ogni log porta due `Condition failed` all'avvio del motore, al fotogramma `[0]`,
+> prima di qualunque test: c'erano già sulla base (`530b3ef38`), nessun `Result={Fail}` li accompagna. `NOT RUN`: la suite
+> intera `RefactorTactics` (la lancia la chiusura, Task 8); la PIE (`PIE-FX-ABILITA`, seduta `U71`); il pacchetto.
+>
+> **Eccezioni dichiarate**, ognuna con la sua ragione: (a) `Playback.TracerStyleFollowsShapeForBasicAttack` è l'unico test
+> esistente riscritto (§5.1); (b) la mutazione (2) è eseguita in forma compilabile (§5.1); (c) `Fx.ConeSweepAxisIsTheAim`
+> usa letterali `double`, perché `TestEqual(double, float, float)` non compila con `FVector` in doppia precisione (`C2666`),
+> asserti e tolleranze invariati; (d) al Task 4 le mutazioni hanno un **solo** verde finale, sul commit pulito, invece di
+> un verde dopo ogni ripristino: la review lo ha accettato con tre misure — l'albero finale è il commit e la build finale è
+> posteriore all'ultima scrittura, il binario finale contiene i sorgenti ripristinati, e ogni log di mutazione mostra solo
+> le cadute della propria mutante; (e) al Task 3 il parametro di `PushPlaybackCues` è `InPhase`, perché `Phase` è un membro
+> di `ARTTurnManager` (`C4458`), e le due manopole non hanno `ClampMin`, come le vicine (§2.1).
+>
+> ➕ esecuzione. `Ruling` **R15** (controller, review del Task 2): un'azione **core** che conta come attacco ed è **a
+> contatto** non disegna un proiettile, come `Ram`; il criterio è la portata, le righe restano esplicite (§2.2). Costo se
+> sbagliato: una riga per azione. ➕ esecuzione. **F1 è chiusa dal fatto, non dalla dipendenza**: `PIE-V01-TRACER` è stata
+> eseguita su `main` (seduta `U68`) **prima** di #3578 (§2.2). I follow-up emersi in esecuzione sono in §7.
 
 ---
 
@@ -163,7 +210,7 @@ parte:
 | `Flash` | 6 raggi | dai vertici a `0.5 s`; ➕ rev. (F21) **inclinati di 45°** verso l'alto e l'esterno, non verticali, perché dalla camera tattica un segmento verticale si proietta quasi in un punto | lunghezza `0.4 s` | `0.4 s` (fissi) | nessuno: un lampo | 4 |
 | `Marker` | 4 raggi a X | centro della vittima, nel piano | `0` | `0.35 s` | crescono | 3 |
 | `AreaPulse` | 12 (un esagono + 6 raggi dal centro ai vertici) | `AimCell` dell'impronta | `0.3 s` | `1.7 s` | si allarga | 3 |
-| `ConeSweep` | 3 (due bordi fissi a `±60°` lunghi `0.3 L`, un braccio lungo `L`) | `Origin` dell'impronta, `L = |Origin → AimCell|` | braccio a `−60°` | braccio a `+60°` | ruota | 4 |
+| `ConeSweep` | 3 (due bordi fissi a `±60°` lunghi `0.3 L`, un braccio lungo `L`) | `Origin` dell'impronta, `L = \|Origin → AimCell\|` | braccio a `−60°` | braccio a `+60°` | ruota | 4 |
 | `Zigzag` | 8, scarto laterale `±0.12 s` alternato | `HitGeometry.From`, ancorato | prefisso lungo `α` | intero fino a `Impact` | cresce | ➕ rev. (F11) 5 |
 
 `Projectile` e `Jet` non cambiano (`RTHexMapActor.cpp:176-179`, `:1676-1677`). Colore da `URTOverlayPalette::ColorFor`:
@@ -183,6 +230,9 @@ meta = (ClampMin = "0.0"))` — ⛔ niente su `ARTUnit`:
 
 Con `A = AttackShowSeconds` e `F_eff` di `TracerFlightFor`. `Impact` e `Footprint` usano `D_imp`. Le durate **non**
 sono nel profilo: sono ritmo (D-287 punto 7). `PhaseBeatSeconds` non entra: è lo `Slack` della Prep.
+➕ esecuzione (Task 3). Le vicine **non** hanno `ClampMin` (`TracerFlightSeconds`, `ARTTurnManager`): applicata la regola
+«gli stessi specificatori delle vicine», le due manopole sono `UPROPERTY(EditAnywhere, BlueprintReadWrite, Category =
+"RefactorTactics|Playback")`, senza `meta`.
 
 🔑 **Conseguenza dei tetti**: nel Blast le cue dell'elemento `k` vivono dentro `[k·A, (k+1)·A)`, quindi le cue di
 elementi diversi non si sovrappongono, e il tracer finisce dove comincia la cue d'arrivo. Al primo arrivo di un atto
@@ -246,6 +296,9 @@ volo, e `Fx.DeclaredOverridesMatchTheProposal` lo asserisce su ogni riga. Costo:
 🔑 **Per un attacco base il risultato è identico a oggi**: `Single` → `Projectile`, `Line` → `Jet`, stesso volo. Lo
 pinna **come regola**, non come riga, `Playback.BasicAttackTracersEqualShapeDefault` (➕ rev. F10, §5.1). Cambia per i
 colpi **non** base con un id e forma `Single`/`Line`: da oggi hanno un volo, e un tracer salvo override.
+➕ esecuzione. Con il volo si allarga anche il **disegno**: ogni azione non base di forma `Single`/`Line` senza riga
+d'override riceve il tracer di default della sua forma (D3), dove prima non c'era nulla — per esempio le azioni core a
+distanza che contano come attacco, `Action.Pull` fra queste. È ciò che D3 prescrive; dichiarato in §6, la PIE lo giudica.
 
 **La mappa.** `Ruling` R3, confermata dall'autore (D5): **nessun override di tracer sugli attacchi base**. Le ragioni
 sono il nome dell'abilità e la sua natura, non la fedeltà al pack (D-297). «fase» = quella del suo `AbilityActivated`;
@@ -278,6 +331,23 @@ nel test (§5.1). Notazione: `Activation · Tracer · Impact · Footprint`.
 | | `Hero.Ivrin.Feint` (`:1002-1003`) | `Single` | controllo · Blast, nessun effetto | Ring · Projectile · Marker · None | **Flash · None · None · None** | «finta»: un lampo senza seguito |
 | | `Hero.Ivrin.PhaseGuard` (`:1011-1012`) | `Single` | scudo su sé · Prep | Ring · Projectile · Marker · None | **Pulse · None · None · None** | gemello di `TideGuard` (`:1005`) |
 | *fuori roster* | `Action.Charge` (core di `Ram`) | `Single` | carica generica | Ring · Projectile · Marker · None | **Ring · None · Marker · None** | come `Ram`: `DerivedFromActionId` non è un livello del ripiego |
+| *core, a contatto* | `Action.Push` (`URTCatalogLibrary`, `RangeCells` 1) | `Single` (default del campo) | controllo a contatto: spinge | Ring · Projectile · Marker · None | **Ring · None · Marker · None** | ➕ esecuzione, R15: a contatto, come `Ram`; volo invariato (R13) |
+| *core, a contatto* | `Action.Root` (`URTCatalogLibrary`, `RangeCells` 1) | `Single` (default del campo) | controllo a contatto: radica | Ring · Projectile · Marker · None | **Ring · None · Marker · None** | ➕ esecuzione, R15: a contatto, come `Ram`; volo invariato (R13) |
+| *core, a contatto* | `Action.Slow` (`URTCatalogLibrary`, `RangeCells` 1) | `Single` (default del campo) | controllo a contatto: rallenta | Ring · Projectile · Marker · None | **Ring · None · Marker · None** | ➕ esecuzione, R15: a contatto, come `Ram`; volo invariato (R13) |
+| *core, a contatto* | `Action.Interrupt` (`URTCatalogLibrary`, `RangeCells` 1) | `Single` (default del campo) | controllo a contatto: interrompe | Ring · Projectile · Marker · None | **Ring · None · Marker · None** | ➕ esecuzione, R15: a contatto, come `Ram`; volo invariato (R13) |
+
+➕ esecuzione. `Ruling` **R15** (controller, 2026-10-08, review del Task 2): la logica della riga `Ram` vale per le azioni
+**core** che contano come attacco (`bCountsAsAttack`) ed entrano a **contatto**. Il criterio applicato è
+`bCountsAsAttack && RangeCells == 1`: ⚠️ `RangeCells == 0` **non** è contatto, è *«la portata del portatore»*
+(`FRTActionDef::RangeCells`), e contarlo toglierebbe il proiettile a `Action.BasicAttack`, cioè a ogni attacco base per
+ripiego su `BaseActionId` (contro R3). Le righe restano esplicite e la misura si ripete: `Fx.DeclaredOverridesMatchTheProposal`
+scorre `URTCatalogLibrary::GetCoreActionCatalog()` filtrato su `bCountsAsAttack` e scrive una riga «colpo core …» nel
+log per ognuna (`Select-String "colpo core" <log>`). Esito misurato il 2026-10-08: `Action.Push`, `Action.Root`,
+`Action.Slow`, `Action.Interrupt` a contatto; `Action.Pull` ha portata 2 (aggancia a distanza) e tiene il proiettile di
+default; `Action.Charge` resta la riga d'autore. La forma dei core è `Single` perché `FRTActionDef` non porta `Shape` e
+l'azione core vive in un `URTActionData` col default del campo. ⚠️ Nessuna unità porta oggi questi quattro controlli —
+non sono in un kit né fra le generiche di `URTCatalogLibrary::GetGenericActionIds` —, quindi le righe hanno consumatori
+solo nei test e la PIE ne giudica la regola su `Ram` (§5.2, scena (8)). Costo se sbagliato: una riga per azione.
 
 ➕ rev. (F1) 🔴 **`LinearDischarge` cambia a schermo una scena di `PIE-V01-TRACER`.** `Visual.Combat.WaterElectricCoordinated`
 (`Scenarios/Visual/Combat/WaterElectricCoordinated.json:22-31`, misura del panel) fa colpire lo stesso bersaglio ad Aevik
@@ -287,6 +357,10 @@ vale sugli **attacchi base del roster** (➕ rev2.: quelli con `BaseActionId == 
 del piano scrive **in coda** alla cella di `PIE-V01-TRACER` nel registro (`test-manuali-pie.md:1670`) la nota *«da
 eseguire su `main` prima del merge di SP4, altrimenti la domanda della scena (2) si riformula: la scarica di Aevik viaggia
 a zigzag»*. Costo: la voce del tracer resta senza verdetto, con una dipendenza dichiarata.
+➕ esecuzione. **Chiusa dal fatto, non dalla dipendenza.** `PIE-V01-TRACER` è stata eseguita su `main` nella seduta `U68`
+(2026-10-08), prima di #3578. La nota in coda alla sua cella dice quindi un'altra cosa: quel verdetto vale per il tracer
+degli attacchi base, che #3578 non cambia; dopo il merge la scena (2) cambia a schermo, e la scarica di Aevik e le cue
+le giudica `PIE-FX-ABILITA`. ⌫ *«la voce del tracer resta senza verdetto»*.
 
 ⚖️ Le varianti di tracer sugli attacchi base (zigzag, proiettile pieno, a tratti) restano fuori per D5. ⛔ `Slug` e
 `Dashed` **non** si aggiungono a `ERTTracerStyle`: un valore che nessuna riga usa è un dato senza consumatore.
@@ -371,7 +445,7 @@ abilità per turno); se un giorno un'unità avrà due intenti della stessa azion
 | Cue | Celle (dall'impronta) | Momento | Privacy |
 |---|---|---|---|
 | `AreaPulse` | centro = `AimCell` | arrivo del colpo che la consuma | `FromVerdict` di quel colpo |
-| `ConeSweep` | `At = Origin`, `Toward = AimCell`, braccio lungo `L = |Origin → AimCell|` | idem | `FromVerdict` di quel colpo |
+| `ConeSweep` | `At = Origin`, `Toward = AimCell`, braccio lungo `L = \|Origin → AimCell\|` | idem | `FromVerdict` di quel colpo |
 
 - ➕ rev. **Il verdetto è del colpo, le celle dell'impronta, e coincidono per costruzione**: per un'`Area`
   `HitGeometry.From` **è** `Footprint->AimCell` (`RTTurnManager.cpp:2578`); per le altre forme `From` è la cella
@@ -572,14 +646,14 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 | `Fx.DefaultProfileFollowsShape` | `DefaultFxProfileFor` dà la tabella dei default di §2.2 per ogni valore di `ERTAbilityShape`. Mutazione (1). |
 | `Fx.ProfileFallsBackActionThenBaseThenShape` | Su una tabella **iniettata** in `FxProfileForIn` (non quella giudicata, come R11 della spec della clip): `ActionId` vince; senza, `BaseActionId`; senza, la forma; `BaseActionId = NAME_None` non indovina la generica. Mutazioni (2), (3). |
 | ➕ rev. `Fx.NoActionNoProfile` (F8) | `ActionId` e `BaseActionId` vuoti, forma `Single` e `Area`: profilo tutto `None`; `IsTracerEligible` falso anche con geometria risolta. Mutazioni (18) e (22): ➕ rev2. due asserti distinti, perché `IsTracerEligible` ha la **propria** clausola R12 e legge `DefaultFxProfileFor`, non `FxProfileFor`. |
-| `Fx.DeclaredOverridesMatchTheProposal` | Per ogni abilità del roster (lista attesa = **funzione** di `URTHeroCatalogLibrary`) il profilo è quello della tabella di §2.2, ricopiata nel test come seconda copia dichiarata; ➕ rev. nessuna riga dà `Tracer != None` a una forma che non ne ha di default (R13). Mutazione (4). |
+| `Fx.DeclaredOverridesMatchTheProposal` | Per ogni abilità del roster (lista attesa = **funzione** di `URTHeroCatalogLibrary`) il profilo è quello della tabella di §2.2, ricopiata nel test come seconda copia dichiarata; ➕ rev. nessuna riga dà `Tracer != None` a una forma che non ne ha di default (R13). Mutazione (4). ➕ esecuzione (R15): scorre anche il catalogo core filtrato su `bCountsAsAttack` — a contatto (`RangeCells == 1`) la riga gemella e nessun proiettile, a distanza senza riga il tracer di default — e scrive «colpo core …» nel log per ognuna; validato togliendo la riga `Action.Root` (cade «🔴 Action.Root (core, a contatto): nessun proiettile»). |
 | ➕ rev. `Fx.DeclaredOverridesHaveNoDuplicateKeys` (F17) | `DeclaredFxOverrideRows()` non ha due righe con la stessa chiave: in un `TMap` letterale una duplicata vincerebbe in silenzio. |
 | ➕ rev. `Fx.CueStylesDifferByGeometry` (F7) | Per ogni coppia di stili distinti fra `Ring`, `Pulse`, `Flash`, `Marker`, `AreaPulse`, `ConeSweep`, a `α = 0.5` su una cella di prova, `CueSegments` dà insiemi che differiscono per **numero** di segmenti, oppure di almeno `0.1 s` nella distanza massima o minima dall'ancora, oppure nell'estensione verticale. Mutazione (20). |
 | ➕ rev. `Playback.BasicAttackTracersEqualShapeDefault` (F10) | Per ogni azione del roster con `BaseActionId == Action.BasicAttack` (lista **funzione** del catalogo: `MakeHeroBasicAttack` la scrive, `Ability/RTHeroCatalogLibrary.cpp:165-168`), `FxProfileFor(...).Tracer == DefaultFxProfileFor(Shape).Tracer` e il volo è quello di oggi. È R3/D5 come **regola**. Mutazione (6). |
 | `Playback.TracerStyleFollowsShapeForBasicAttack` *(esistente, `Tests/RTPlaybackLibraryTests.cpp:421-455`)* | ➕ rev. **Cambia, dichiarato.** L'evento di prova è `Hero.Ivrin.PulseShot` (`:407-408`), senza override, e quegli asserti restano verdi. L'asserto su `PassingBlade` (`:436-438`, `IsTracerEligible == false`) **cade** con R13: `PassingBlade` è idonea al volo (forma `Single`) e il suo stile è `None` per override. Il piano lo riscrive su `TracerStyleFor(...) == None` e lo dichiara nella PR. ⚠️ Da SP4 quell'asserto regge su una riga **giudicata** della tabella (panel). ➕ rev2. Perciò gli si affianca la **variante a tabella iniettata**, come R11 della spec della clip: con `FxProfileForIn` e una tabella di prova che dà `Tracer = None` a un'azione `Single` sintetica, il volo resta quello della forma e lo stile è `None`. Il meccanismo è provato senza dipendere da una riga giudicata. |
 | `Playback.TracerFollowsTheProfile` | `Hero.Aevik.LinearDischarge` (`Line`, non base) è idonea e dà `Zigzag`; `Hero.Branth.Ram` e `Action.Charge` sono idonee al volo e danno `None`. Mutazione (5). |
 | ➕ rev. `Privacy.FlightDependsOnShapeNotOverride` (F9) | `PlaybackBlastFlights` di un `Ram` e di un `ImpactShot` con la stessa `A`: uguali. Mutazione (17). |
-| `Playback.BasicAttackTracerIsUnchanged` | Sulla fixture di `RTPlaybackActivationTests.cpp` (`ImpactShot`), a metà volo, `GetPlaybackTracers()` ha **un** tracer con `From`, `To`, `Style = Projectile` e `Alpha` uguali a quelli delle formule di oggi. |
+| `Playback.BasicAttackTracerIsUnchanged` | Sulla fixture di `RTPlaybackActivationTests.cpp` (`ImpactShot`), a metà volo, `GetPlaybackTracers()` ha **un** tracer con `From`, `To`, `Style = Projectile` e `Alpha` uguali a quelli delle formule di oggi. ➕ esecuzione: pin d'istanza, nessuna mutazione dell'elenco qui sotto lo fa cadere; lo valida la mutazione del fix del Task 2, `T.Style = ERTTracerStyle::Jet` in `ARTTurnManager::PushPlaybackTracers` (cade «🔴 Style = Projectile», e con lui `Playback.TracerIsInFlightBetweenLaunchAndArrival`). |
 | ➕ rev. `Playback.TracerZigzagGrowsAsAPrefix` (F12) | `TracerPolyline(Zigzag, …)` a `α = 0.3` è un prefisso di quella a `α = 0.6`; due chiamate uguali danno gli stessi punti; ancorata all'origine; nessun punto oltre l'impatto. Mutazione (19). |
 | `Playback.ActivationCueAtTheSourceCell` | Fixture del momento: dopo il tick della rivelazione, `GetPlaybackCues()` ha `Pulse` su `Ev.Origin` dello Scudo in Prep e `Ring` sul Tiratore nel Blast; dopo `D_act`, nessuna. ➕ rev. (F15) **Premessa asserita prima**: per lo Scudo `Ev.Origin != Src->Cell` a fine risoluzione; se la fixture non lo sposta, il piano la estende finché la premessa vale. Mutazione (7). |
 | `Privacy.ActivationCueNeedsTheSource` | Pura: `SourceVerdict` che esclude la squadra → nessuna cue; che la include → lo stile del profilo. Mutazione (8). |
@@ -590,7 +664,7 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 | ➕ rev. `Fx.AreaPulseIsOnTheFootprintAim` (F5) | Un atto `Area` costruito dal test (impronta, poi due `Attack`): l'`AreaPulse` è sull'`AimCell` dell'impronta, non su un `Impact`. ➕ rev2. **Premessa asserita prima**: l'`AimCell` è diversa da **ogni** `Impact` dell'atto. Mutazione (11). |
 | ➕ rev. `Playback.FootprintCueOncePerFootprint` (F5, F6) | Stesso atto: **un** `AreaPulse`, portato dal primo `Attack` e ➕ rev2. contato su **tutti i tick** del Blast, non su uno; con l'impronta tolta, nessun pulse, nessun errore, i `Marker` restano. Mutazione (21). |
 | ➕ rev2. `Playback.SecondFootprintReplacesTheFirst` (R14) | Due `AttackFootprint` costruiti dal test, con la stessa chiave, prima del colpo: la cue d'impronta usa le celle della **seconda**. |
-| `Fx.ConeSweepAxisIsTheAim` | Un atto `Cone` costruito dal test: lo sweep è ancorato all'`Origin` dell'impronta, simmetrico attorno a `Origin → AimCell`, ➕ rev. (F4) con braccio lungo `|Origin → AimCell|`. |
+| `Fx.ConeSweepAxisIsTheAim` | Un atto `Cone` costruito dal test: lo sweep è ancorato all'`Origin` dell'impronta, simmetrico attorno a `Origin → AimCell`, ➕ rev. (F4) con braccio lungo `\|Origin → AimCell\|`. |
 | `Playback.FxCuesNeverOverlapInTheBlast` | ➕ rev. (panel, Wiegers) Sulla griglia dichiarata `A ∈ {0.1, 0.5, 1.0}`, `F ∈ {0, A/4, A/2, A}`, `ActivationCueSeconds` e `ImpactCueSeconds ∈ {0, A/2, 2A}`, con sequenze miste: le finestre di elementi diversi sono disgiunte e ordinate, l'ultima finisce entro `N·A`. Mutazione (13). |
 | `Playback.FxCuesAreAFunctionOfTheClock` | Lo stesso turno con un tick unico fino a `t` e con tick da `1/60 s` fino a `t`, con `t` dentro la finestra di una cue: stesse cue, `Alpha` uguale entro `1e-3`. Mutazione (14). |
 | `HexMapActor.PlaybackCueIsItsOwnChannel` | `SetPlaybackCues` **sostituisce**, `ClearPlaybackCues` spegne, non tocca tracer, impronta né anteprima. Mutazione (15). |
@@ -598,24 +672,26 @@ si fissano **misurando** il run headless dello scenario (la fixture vuole `units
 | ➕ rev. `Playback.CueChannelClearsOnSkip` (F2) | `SkipPlayback` chiamato a metà della finestra di un `Marker` (premessa asserita: canale **non** vuoto un tick prima): dopo, canale vuoto; e a fine Prep, Dash e Blast il canale è vuoto. Mutazione (16). |
 | `Determinism.FxFieldsStayOutOfHashes` | Gemello di `Determinism.HitGeometryStaysOutOfHashes` (`RTAttackTracerTests.cpp:214`). ➕ rev. (F20) Gancio `bool bSkipFxFieldsForTest`, semplice e non `UPROPERTY`, accanto a `bSkipHitGeometryForTest` (`RTTurnManager.h:636-640`): lascia vuoto `Origin` di `AbilityActivated`, l'unico campo nuovo. Con e senza, `StateHash` e `HashTurnLog` dello stesso turno sono identici; controllo positivo che il gancio agisca. |
 | `Presentation.FxCueIsDeclaredForAttackAndActivation` | Le voci `Attack` e `AbilityActivated` dichiarano `SetPlaybackCues`. |
+| ➕ esecuzione `Privacy.AreaPulseNeedsTheCenter` | Dal piano: pura, `FromVerdict` del colpo che esclude la squadra → nessun `AreaPulse`; controllo positivo con chi vede il centro. Mutazione (P3) del piano. |
+| ➕ esecuzione `Playback.UnresolvedGeometryHasNoFxButPlaysTheClip` | Dal piano: con `HitGeometry.bResolved = false` nessun `Marker`, anche coi verdetti aperti (parte pura), e la clip suona (parte di mondo). Mutazione (P4) del piano. |
 
 🔴 **Controlli di mutazione** (ognuno visto rosso sull'asserto nominato, poi ripristinato; il codice nuovo si nomina per
 funzione, quello esistente per `file:riga`):
 
 1. In `DefaultFxProfileFor`, la riga `Line` dà `Tracer = Projectile` → cade `Fx.DefaultProfileFollowsShape` («`Line` → `Jet`»), ➕ rev2. e anche `Playback.TracerStyleFollowsShapeForBasicAttack` (`Tests/RTPlaybackLibraryTests.cpp:428-429`, «Line -> getto»).
-2. In `FxProfileForIn`, la forma letta prima di `ActionId` → cade `Fx.ProfileFallsBackActionThenBaseThenShape` («`ActionId` vince»).
+2. In `FxProfileForIn`, la forma letta prima di `ActionId` → cade `Fx.ProfileFallsBackActionThenBaseThenShape` («`ActionId` vince»). ➕ esecuzione: spostare il `return` lascia codice irraggiungibile, e `C4702` qui è un errore; la forma eseguita è una guardia sempre vera subito dopo la guardia R12, `if (Overrides.Num() >= 0) { return DefaultFxProfileFor(Shape); }`. Cadono **tre** test, perché leggono la forma al posto della riga: `Fx.ProfileFallsBackActionThenBaseThenShape`, `Fx.BaseActionOverrideWinsOverShapeDefault` e `Fx.DeclaredOverridesMatchTheProposal`.
 3. In `FxProfileForIn`, il livello `BaseActionId` saltato → cade lo stesso test («senza `ActionId`, vince `BaseActionId`»).
 4. Una riga tolta da `DeclaredFxOverrideRows` → cade `Fx.DeclaredOverridesMatchTheProposal` (la riga attesa dalla copia).
 5. `IsTracerEligible` riportata al corpo di `RTPlaybackLibrary.cpp:130-137` → cade `Playback.TracerFollowsTheProfile` («`LinearDischarge` idonea»), ➕ rev2. e anche `Privacy.FlightDependsOnShapeNotOverride` (`Ram` senza volo, `ImpactShot` col volo).
 6. ➕ rev. (F10, F15) Override `Zigzag` su `Hero.Muiren.PressureJet` in `DeclaredFxOverrideRows` **e** nella copia del test di (4) → cade `Playback.BasicAttackTracersEqualShapeDefault` («tracer == default della forma»), mentre (4) resta verde.
 7. ➕ rev. (F15) In `PushPlaybackCues`, la cella d'attivazione presa da `Src->Cell` invece che da `Ev.Origin`, **dopo** la premessa `Ev.Origin != Src->Cell` → cade `Playback.ActivationCueAtTheSourceCell` («`Pulse` su `Ev.Origin`»).
 8. Nella funzione pura della cue d'attivazione, il controllo di `SourceVerdict` tolto → cade `Privacy.ActivationCueNeedsTheSource`.
-9. In `PushPlaybackCues`, la finestra del `Marker` aperta al battito `2k` invece che al `2k+1` → cade `Playback.ImpactCueComesAtTheArrival` («al `2k` nessun `Marker`»). ➕ rev2. **Premessa**: `F_eff > 0`; con volo nullo `2k` e `2k+1` cadono nello stesso tick (`RTTurnManager.cpp:8207-8262`) e la mutante sopravvive.
+9. In `PushPlaybackCues`, la finestra del `Marker` aperta al battito `2k` invece che al `2k+1` → cade `Playback.ImpactCueComesAtTheArrival` («al `2k` nessun `Marker`»). ➕ rev2. **Premessa**: `F_eff > 0`; con volo nullo `2k` e `2k+1` cadono nello stesso tick (`RTTurnManager.cpp:8207-8262`) e la mutante sopravvive. ➕ esecuzione: per la stessa ragione cadono solo gli elementi che volano (la `Line`), e `Fx.AreaPulseIsOnTheFootprintAim` resta verde (i colpi `Area` hanno volo nullo).
 10. Nella funzione pura del `Marker`, `ImpactVerdict` ignorato → cade `Privacy.ImpactMarkerNeedsTheVictim`.
 11. ➕ rev. L'`AreaPulse` centrato su `HitGeometry.Impact` del colpo invece che sull'`AimCell` dell'impronta → cade `Fx.AreaPulseIsOnTheFootprintAim`. ➕ rev2. **Premessa**: `AimCell` diversa da ogni `Impact` dell'atto.
 12. ➕ rev. (F6) Il `Marker` saltato sul primo `Attack` di un atto (la R8 caduta) → cade `Playback.EveryAttackGetsItsProfileMarker` («la prima vittima ha il `Marker`»), ➕ rev2. e anche ogni asserto sul `Marker` di un atto con **una** vittima (`Playback.ImpactCueComesAtTheArrival`).
 13. I tetti di `D_act`/`D_imp` tolti (i `Min` rimossi) → cade `Playback.FxCuesNeverOverlapInTheBlast` (finestre disgiunte con `ImpactCueSeconds = 2A`).
-14. ➕ rev. (F3) In `PushPlaybackCues`, `Alpha` letta da un accumulatore `CueElapsed` **azzerato nel tick in cui l'elemento si rivela** e aumentato di `Dt` solo nei tick successivi, invece che da `PlaybackPhaseElapsed − k·A` → cade `Playback.FxCuesAreAFunctionOfTheClock`: col tick unico l'accumulatore vale `0`, quindi `Alpha = 0`; coi tick da `1/60 s` vale circa `t − k·A`. Il piano mostra prima che la mutante dà i due valori diversi, o la mutazione è vacua.
+14. ➕ rev. (F3) In `PushPlaybackCues`, `Alpha` letta da un accumulatore `CueElapsed` **azzerato nel tick in cui l'elemento si rivela** e aumentato di `Dt` solo nei tick successivi, invece che da `PlaybackPhaseElapsed − k·A` → cade `Playback.FxCuesAreAFunctionOfTheClock`: col tick unico l'accumulatore vale `0`, quindi `Alpha = 0`; coi tick da `1/60 s` vale circa `t − k·A`. Il piano mostra prima che la mutante dà i due valori diversi, o la mutazione è vacua. ➕ esecuzione: i due `Alpha` misurati sono `0.000` e `0.417`, non «circa `t − k·A`» (l'accumulatore parte dal primo tick che vede l'arrivo, non dall'istante dell'arrivo); la caduta non cambia.
 15. In `ARTHexMapActor::SetPlaybackCues`, `Append` invece dell'assegnazione → cade `HexMapActor.PlaybackCueIsItsOwnChannel` («sostituisce»).
 16. ➕ rev. (F2) `ClearPlaybackCues` tolto da `FinishPlayback` (blocco di spegnimento, `RTTurnManager.cpp:9186-9199`) → cade `Playback.CueChannelClearsOnSkip` («canale vuoto dopo `SkipPlayback` a metà `Marker`»). ⌫ *La prima stesura mutava la pulizia di fine Prep: vacua, perché con i tetti di R2 lì il canale è già vuoto.*
 17. ➕ rev. (F9) In `IsTracerEligible`, `DefaultFxProfileFor(Shape).Tracer` sostituito con `FxProfileFor(…).Tracer` → cade `Privacy.FlightDependsOnShapeNotOverride` («volo di `Ram` == volo di `ImpactShot`»), ➕ rev2. e anche `Playback.TracerFollowsTheProfile` («`Ram` e `Action.Charge` idonee al volo»).
@@ -645,7 +721,8 @@ binaria; il verdetto è dell'autore.
    di quella voce. La scena (2) **cambia** con SP4: se `PIE-V01-TRACER` è ancora senza verdetto, le sue tre domande si
    eseguono su `main` **prima** del merge (nota in coda alla sua cella, §2.2); dopo il merge la scena (2) si giudica con
    la domanda riformulata *«il getto di Muiren è una linea liscia ancorata a Muiren, e la scarica di Aevik viaggia a
-   zigzag?»*.
+   zigzag?»*. ➕ esecuzione: `PIE-V01-TRACER` ha il verdetto della seduta `U68`, dato su `main` prima di #3578; il
+   confronto si fa con quel verdetto, e la scena (2) con la domanda riformulata.
 1. `Visual.Ability.CastBeat` — *Durante la Prep vedi due anelli che si stringono sulla cella di Muiren, e nessun
    proiettile?* (`Pulse` di `TideGuard`)
 2. `Visual.Ability.CastBeat` — *Quando il proiettile di Branth arriva su Muiren, compare una X sulla cella di Muiren
@@ -659,6 +736,9 @@ binaria; il verdetto è dell'autore.
 6. `Visual.Combat.TracerHiddenFromUnseenAttacker` — *Vedi un anello, una X o un'onda su una cella che non vedi?* —
    atteso **no**.
 7. `Cone`: **`N/A`** — forma senza contenuto in v0.1. Non si giudica.
+8. ➕ esecuzione (R15). `Visual.Movement.Charge` — *Vedi l'anello d'attivazione sulla cella da cui Branth parte,
+   **nessun** proiettile, e una X sulla cella colpita quando la carica arriva?* (`Hero.Branth.Ram`). È la regola dei
+   controlli core a contatto, che non hanno una scena: nessuna unità li porta (§2.2).
 
 ---
 
@@ -667,7 +747,15 @@ binaria; il verdetto è dell'autore.
 - **La varietà per eroe del tracer ha un consumatore solo** (D5): gli attacchi base restano `Projectile`/`Jet`.
 - ➕ rev. (F1) **La scena (2) di `PIE-V01-TRACER` cambia a schermo** con lo `Zigzag` di `LinearDischarge`: la regressione
   zero vale sugli attacchi base del roster (➕ rev2., lista dal catalogo) ed è pinnata da `Playback.BasicAttackTracersEqualShapeDefault`; la scena si esegue
-  su `main` prima del merge, oppure si riformula (§2.2, §5.2).
+  su `main` prima del merge, oppure si riformula (§2.2, §5.2). ➕ esecuzione: eseguita su `main` (seduta `U68`) prima
+  del merge; il limite resta per la scena (2) dopo il merge, che giudica `PIE-FX-ABILITA`.
+- ➕ esecuzione. **Il disegno si allarga col volo** (R13): ogni azione non base di forma `Single`/`Line` senza riga
+  d'override riceve il tracer di default della forma (D3), anche dove prima non c'era nulla (§2.2).
+- ➕ esecuzione. **La tabella è per `ActionId`, non per istanza**: un'azione con `RangeCells == 0` eredita la portata
+  dell'arma, quindi un `Action.HeavyAttack` portato con un'arma a portata 1 colpisce a contatto e disegna un proiettile.
+  R15 legge la portata del catalogo (§2.2, §7).
+- ➕ esecuzione. **I controlli core a contatto non hanno una scena**: nessuna unità li porta in v0.1, e le loro righe hanno
+  consumatori solo nei test (§2.2).
 - ➕ rev. (F4) **`Cone`, forma senza contenuto in v0.1**: profilo, cue e test esistono; nessuna azione la dichiara, e la
   PIE la dichiara `N/A`. Nessun campo nuovo e nessun tocco al produttore la servono.
 - ➕ rev. (F9) **Il ritmo rivela la classe di forma** di un colpo con un id a chi non vede l'attaccante (`Single`/`Line`
@@ -696,12 +784,33 @@ binaria; il verdetto è dell'autore.
 - ➕ rev. (F22) ➕ rev3. `Hero.Aevik.ReactiveCapacitor`, **misurato il 2026-10-08: il contrattacco non produce un evento
   `Attack`** (`RTTurnManager.cpp:6357` è l'unico `Type = Attack`, nel ciclo sui colpi del piano; i contrattacchi entrano in
   `Attacks` dopo, `:6460-6468`, commento `:6470`; `Action.Counter` ha `Range 0` e trigger `HitByDirectAttack`). Quindi
-  nessuna cue di colpo e nessuna riga d'override; il piano lo conferma con un grep al Task 4 Step 0.
+  nessuna cue di colpo e nessuna riga d'override; il piano lo conferma con un grep al Task 4 Step 0. ➕ esecuzione:
+  confermato al Task 4 Step 0 (l'unica assegnazione `Type = Attack` resta nel ciclo sui colpi del piano).
 - ➕ rev. Se `Hero.Muiren.CircularTide` non emette `Attack`, il suo `AreaPulse` non ha consumatore: o la cura guadagna una
-  cue d'impronta propria, o la riga perde `Footprint`.
+  cue d'impronta propria, o la riga perde `Footprint`. ➕ esecuzione: **confermato** al Task 4 Step 0 — la cura ha
+  `bCountsAsAttack` falso ed esce in `URTHexCombatLibrary` prima dell'impronta e dei colpi; in v0.1 il suo `AreaPulse` e il
+  suo `Marker` non hanno consumatore.
 - ➕ rev. (F9) Un volo uguale per ogni colpo, se l'autore vuole chiudere anche il bit di forma del ritmo.
 - `ReactionResolved` e `Defeated` come profilo, quando #2454 ne avrà la grammatica.
 - I profili come dati esterni, se un autore non programmatore dovrà toccarli (migrazione di D-278).
 - Una cue minima garantita per un fotogramma, se la PIE la chiede.
 - `FindMissingBindings` che verifichi i nomi delle cue contro funzioni reali (già candidato della spec del tracer §8).
 - `owner.epic` di `RT-CAP-VFX`: decisione di ownership.
+- ➕ esecuzione. **Dai giri di review**, nessuno bloccante:
+  - `Determinism.FxFieldsStayOutOfHashes` senza la premessa «TurnLog non vuoto» (due log vuoti hanno lo stesso hash), e
+    non copre snapshot e replay.
+  - Un asserto per `SourceVerdict` vuoto con il viewer `0` → nessuna cue.
+  - La mutazione (7) copre solo Prep e Dash: nel Blast nessuna fixture ha una sorgente che si sposta.
+  - `URTPlaybackLibrary::FootprintCueFor` assume che il `From` del colpo stia sulle celle dell'impronta: con due impronte a
+    stessa chiave (R14) un colpo mostrerebbe l'impronta dell'altro intento col verdetto del proprio centro (nessun caso in
+    v0.1). Correzione candidata: la cue solo se `From == AimCell` (`Area`) o `From == Origin` (`Cone`). La sua guardia
+    `bResolved` non ha test né mutazione.
+  - `Playback.FxCuesAreAFunctionOfTheClock` confronta i due `Alpha` fra loro, non col valore atteso.
+  - `Fx.ConeSweepAxisIsTheAim` prova solo un asse orizzontale e `α = 0.5`: servono un asse obliquo e `α = 0`, `α = 1`.
+  - `Preview.FxCuesDrawWithDebugDrawingOff` non asserisce lo spessore né il colore dello `Zigzag`; nessun test conta le
+    linee di un `Jet` **disegnato** (la regressione zero sul `Jet` poggia sul diff di `RTHexMapActor.cpp`).
+  - La portata d'istanza (§6): una riga per `ActionId` non vede l'arma che la porta.
+  - L'atteso di `Fx.DeclaredOverridesMatchTheProposal` ignora il livello `BaseActionId` per le voci senza riga.
+  - `MakeFxProfile` obbligatorio è una convenzione, non un vincolo di tipo.
+  - `UENUM(BlueprintType)` sui tre enum nuovi, senza consumatori Blueprint.
+  - Le varianti di tracer sugli attacchi base: D5 le ha sciolte «identiche», e restano riapribili dall'autore.

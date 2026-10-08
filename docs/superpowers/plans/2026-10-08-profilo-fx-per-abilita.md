@@ -773,7 +773,7 @@ EOF
 Ogni mutazione: modifica, build, test `RefactorTactics.Fx`, `Result={Fail}` sull'asserto indicato, `git checkout -- Source/RefactorTactics/Turn/RTPresentationBinding.cpp`, build, verde.
 
 1. In `DefaultFxProfileFor`, `case ERTAbilityShape::Line:` → `ERTTracerStyle::Jet` diventa `ERTTracerStyle::Projectile`. Cade `Fx.DefaultProfileFollowsShape` «🔴 Line → Jet». (Dal Task 2 cade anche `Playback.TracerStyleFollowsShapeForBasicAttack` «Line -> getto», `Tests/RTPlaybackLibraryTests.cpp:428-429`: lo si ripete al Task 2 Step 7, ➕ rev2.)
-2. In `FxProfileForIn`, sposta `return DefaultFxProfileFor(Shape);` subito dopo la guardia R12, prima di `if (!ActionId.IsNone())`. Cade `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 ActionId vince».
+2. In `FxProfileForIn`, sposta `return DefaultFxProfileFor(Shape);` subito dopo la guardia R12, prima di `if (!ActionId.IsNone())`. Cade `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 ActionId vince». ➕ esecuzione (Task 1). Alla lettera **non compila**: il codice dopo il `return` è irraggiungibile, e `C4702` in questo progetto è un errore. La forma eseguita, con la stessa semantica, è una guardia sempre vera subito dopo la guardia R12: `if (Overrides.Num() >= 0) { return DefaultFxProfileFor(Shape); }`. Cadono **tre** test, perché leggono la forma al posto della riga: `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 ActionId vince», `Fx.BaseActionOverrideWinsOverShapeDefault` e `Fx.DeclaredOverridesMatchTheProposal`.
 3. In `FxProfileForIn`, cancella il blocco `if (!BaseActionId.IsNone()) { … }`. Cadono `Fx.ProfileFallsBackActionThenBaseThenShape` «🔴 senza ActionId in tabella, vince BaseActionId» **e** `Fx.BaseActionOverrideWinsOverShapeDefault` «🔴 una carica senza riga propria…».
 4. In `DeclaredFxOverrideRows`, cancella `Riga(TEXT("Hero.Muiren.TideGuard"), …);`. Cade `Fx.DeclaredOverridesMatchTheProposal` «Hero.Muiren.TideGuard: il profilo e' quello approvato».
 18. In `FxProfileForIn`, cancella `if (ActionId.IsNone() && BaseActionId.IsNone()) { return FRTAbilityFxProfile(); }`. Cade `Fx.NoActionNoProfile` sugli asserti «🔴 legacy Single: profilo tutto None» e «🔴 legacy Area: profilo tutto None» (➕ rev2.: il profilo torna quello della forma; `IsTracerEligible` non è toccata, è la mutazione (22)).
@@ -810,7 +810,7 @@ git grep -ln "EnsureDefaultAbilities\|AttackBeatTraceForTest\|NumPlaybackTracers
 git grep -n "Hero.Branth.Ram\|Action.Charge\|Hero.Aevik.LinearDischarge\|Hero.Ivrin.PassingBlade" -- Source/RefactorTactics/Tests
 ```
 
-Alla re-review il secondo dava `RTPlaybackActivationTests.cpp:363`, `:497`, `:637`, `:650` e `RTPlaybackStopPredicateTests.cpp:975`. Rileggi **ogni** occorrenza e annota in `<scratchpad>/t2-ritmo.md` se asserisce un istante del Blast (un tick, un `L<i>`/`A<i>` in un tick dato, una durata). Poi lancia i file che ne contengono, **prima** del codice:
+Alla re-review il secondo dava `RTPlaybackActivationTests.cpp:363`, `:497`, `:637`, `:650` e `RTPlaybackStopPredicateTests.cpp:975`. ➕ esecuzione (Task 2). All'esecuzione dava **anche** `Tests/RTAbilityActivatedTests.cpp` (righe con `Hero.Branth.Ram`): test `Turn.*` sulla timeline risolta, nessun tick del playback. E R13 dà un volo a **ogni** `Attack` con un id e forma di default `Single`/`Line`, non ai soli quattro nomi del grep: il filtro di questo step e dello Step 6 si è allargato alle famiglie `Playback`, `Privacy`, `Reactions`, `Turn`, `HexMatch`, `HexBotPlay`, `Actions`, `HexBlast`, `HexMapActor`, senza differenze d'esito. Rileggi **ogni** occorrenza e annota in `<scratchpad>/t2-ritmo.md` se asserisce un istante del Blast (un tick, un `L<i>`/`A<i>` in un tick dato, una durata). Poi lancia i file che ne contengono, **prima** del codice:
 
 ```text
 RefactorTactics.Playback.ActivationPlaysTheCastCue+RefactorTactics.Playback.DashStepLandsOnCellsAfterTheActivations+RefactorTactics.Playback.DashPhaseOpensForActivationsOnly+RefactorTactics.Playback.ChargeImpactPlaysTheDashAttackClip+RefactorTactics.Playback.NextActionStopsOnPrepAndDashActivations+RefactorTactics.Playback.NextActionStopsAtTheActionBoundary+RefactorTactics.Playback.NextActionDoesNotStopTwiceWithinOneIntent+RefactorTactics.Playback.PhaseEndNetStopsWithThePause+RefactorTactics.Playback.NextPhaseStopsAtThePhaseBoundary+RefactorTactics.Playback.Tracer+RefactorTactics.Playback.HitArrivesAfterTheLaunch+RefactorTactics.Playback.AttackBeatsStayOrderedInOneTick+RefactorTactics.Privacy.UnseenAttacker+RefactorTactics.Playback.EveryAttackArrivesByPhaseEnd+RefactorTactics.Playback.EveryChannelIsFullyRevealedByPhaseEnd
@@ -2879,6 +2879,8 @@ EOF
 
 Ogni mutazione: modifica, build, test indicato, `Result={Fail}` sull'asserto indicato, `git checkout -- <file>`, build, verde.
 
+➕ esecuzione (Task 4). Eseguito con **un solo** verde finale, sul commit pulito dopo l'ultimo ripristino, invece di un verde dopo ogni ripristino. La review l'ha accettato con tre misure: l'albero finale è il commit e la build finale è posteriore all'ultima scrittura sui sorgenti; il binario finale contiene i sorgenti ripristinati; ogni log di mutazione mostra **solo** le cadute della propria mutante, quindi nessun ripristino è rimasto incompleto. Lo scarto dal protocollo si dichiara nella PR.
+
 9. In `BlastHitCuesAt`, `const int32 BattitoArrivo = 2 * K + 1;` diventa `const int32 BattitoArrivo = 2 * K;` (cursore **e** inizio della finestra al lancio). Test `RefactorTactics.Playback.ImpactCueComesAtTheArrival`: cade «🔴 al battito 2k (in volo) nessun Marker» (la premessa `F_eff > 0` è asserita prima: la mutante non è vacua). Nello stesso test cade **anche** «🔴 al battito 2k+1 il Marker sulla cella d'impatto»: la finestra mutata è `[k·A, k·A + 0.2)` e l'arrivo cade a `k·A + 0.25`, fuori. Cadono anche `Fx.AreaPulseIsOnTheFootprintAim` e `Playback.EveryAttackGetsItsProfileMarker` se il loro istante di prova esce dalla finestra spostata: la PR li elenca come esito misurato (➕ rev2.).
 10. In `ImpactCueFor`, cancella `|| !Atk.HitGeometry.ImpactVerdict.AllowsTeam(ViewerTeamId)`. Test `RefactorTactics.Privacy.ImpactMarkerNeedsTheVictim`: cade «🔴 chi non conosceva la vittima non vede il Marker».
 11. In `FootprintCueFor`, ramo `AreaPulse`, `OutCue.At = Footprint.AimCell;` diventa `OutCue.At = Atk.HitGeometry.Impact;`. Test `RefactorTactics.Fx.AreaPulseIsOnTheFootprintAim`: cade «🔴 l'AreaPulse e' sull'AimCell dell'impronta» (premessa «l'AimCell non e' l'Impact di nessun colpo» asserita prima, ➕ rev2.). Cadono anche `Playback.SecondFootprintReplacesTheFirst` «il pulse e' sul centro della seconda» e `Privacy.AreaPulseNeedsTheCenter` «controllo…»: la PR li elenca.
@@ -3023,14 +3025,17 @@ bool FRTFxConeSweepAxisIsTheAimTest::RunTest(const FString&)
 	URTPlaybackLibrary::CueSegments(ERTPlaybackCueKind::ConeSweep, Da, Verso, 100.f, 0.5f, S, E);
 	if (!TestEqual(TEXT("tre segmenti"), S.Num(), 3)) { return false; }
 	for (const FVector& P : S) { TestTrue(TEXT("ogni segmento parte dall'origine"), P.Equals(Da, 0.01f)); }
-	TestEqual(TEXT("bordo sinistro lungo 0.3 L"), FVector::Dist(Da, E[0]), 0.3f * 200.f, 0.5f);
-	TestEqual(TEXT("bordo destro lungo 0.3 L"), FVector::Dist(Da, E[1]), 0.3f * 200.f, 0.5f);
-	TestEqual(TEXT("i bordi sono simmetrici attorno all'asse"), E[0].Y, -E[1].Y, 0.5f);
-	TestEqual(TEXT("🔴 il braccio e' lungo |Origin → AimCell|"), FVector::Dist(Da, E[2]), 200.f, 0.5f);
-	TestEqual(TEXT("a α = 0.5 il braccio sta sull'asse"), E[2].Y, 0.f, 0.5f);
+	// ⚠️ Letterali `double`: `FVector` e' in doppia precisione (LWC), e `TestEqual(double, float, float)` e' ambiguo.
+	TestEqual(TEXT("bordo sinistro lungo 0.3 L"), FVector::Dist(Da, E[0]), 0.3 * 200.0, 0.5);
+	TestEqual(TEXT("bordo destro lungo 0.3 L"), FVector::Dist(Da, E[1]), 0.3 * 200.0, 0.5);
+	TestEqual(TEXT("i bordi sono simmetrici attorno all'asse"), E[0].Y, -E[1].Y, 0.5);
+	TestEqual(TEXT("🔴 il braccio e' lungo |Origin → AimCell|"), FVector::Dist(Da, E[2]), 200.0, 0.5);
+	TestEqual(TEXT("a α = 0.5 il braccio sta sull'asse"), E[2].Y, 0.0, 0.5);
 	return true;
 }
 ```
+
+➕ esecuzione (Task 5, commit `e835c5fdd`). Con i letterali `float` della prima stesura il test non compilava: `C2666`, perché `FVector::Dist` e `FVector::Y` sono `double` (LWC) e `TestEqual(double, float, float)` è ambiguo. Il blocco qui sopra porta già i letterali `double`; asserti e tolleranze sono gli stessi.
 
 `Tests/RTPreviewLineBatcherTests.cpp`, prima di `#endif` (`:186`):
 
@@ -3434,6 +3439,8 @@ EOF
 **Interfaces:** nessuna di codice. Regole: l'esito atteso vive **solo** in `test-manuali-pie.md`; il file delle sedute cita gli **ID**, mai l'esito; nessun totale volatile; i file sono CRLF; nessuna pipe `|` dentro le celle; una nota con un numero di issue in una cella PIE va **in coda** alla cella.
 
 - [ ] **Step 1: La nota in coda a `PIE-V01-TRACER` (F1) e la voce PIE nuova**
+
+➕ esecuzione (Task 7). Prima di questo step `origin/main` aveva eseguito `PIE-V01-TRACER` (seduta `U68`): F1 è chiusa dal fatto. La nota in coda alla sua cella dice che quel verdetto, dato prima di #3578, vale per il tracer degli attacchi base, e che la scarica di Aevik e le cue le giudica `PIE-FX-ABILITA`; la scena (0) della voce nuova si confronta con quel verdetto. La voce nuova ha in più la scena (8), il colpo a contatto senza proiettile su `Visual.Movement.Charge` (R15: i controlli core a contatto non li porta nessuna unità). Il branch ha fuso `origin/main` (`867a4d0a3`) prima di toccare i documenti.
 
 Prima di toccare il file: `node tools/radar/doc-coherence.ts --check` e annota il ricalcolo A1 che stampa (`<prima>`).
 
