@@ -199,7 +199,8 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 	// non la porta da nessuna parte, e la voce si comporta come una rotta rifiutata: ghost sulla cella corrente,
 	// facing di adesso, nessun percorso. La cella dello scatto resta nell'intento dell'HUD (`Intent.DashCell`).
 	// ⏱️ *Fino a [D-474] il ghost stava sulla cella dello scatto in ogni caso, e questo commento diceva che la
-	// differenza la portava la certezza*: ma la certezza e' `Uncertain` in entrambi i casi.
+	// differenza la portava la certezza*: ma la certezza era `Uncertain` in entrambi i casi. Da [D-475] la porta
+	// anche lei: una voce Dash che non sposta e' `Confirmed`, vedi sotto.
 	if (Plan.bDashPlanned)
 	{
 		// 🔴 **La rotta dello scatto la CALCOLA il resolver, e la prima stesura la inventava.**
@@ -230,7 +231,14 @@ FRTPlanPreview URTPlanPreviewLibrary::MakePlanPreview(const FRTHexSnapshot& Snap
 			? ERTPreviewFacingSource::DerivedFromPath
 			: ERTPreviewFacingSource::InheritedFromPreviousPhase;
 		// «Muoversi basta»: le celle del percorso sono contendibili e il resolver puo' troncare la rotta.
-		Dash.Certainty = ERTIntentCertainty::Uncertain;
+		//
+		// 🔑 **Ma una voce che non sposta e' certa** ([D-475]): uno scatto che non si applica, o una rotta rifiutata.
+		// Prima della fine del Dash nessuno muove un'unita' ferma: la Prep non sposta, la carica spinge nel Blast, e le
+		// reazioni scattano nel Blast e nel Cleanup. E una rotta rifiutata qui lo e' anche nel resolver: lo snapshot di
+		// pianificazione porta la posizione vera delle unita' note ([D-371]), e il tetto di [D-425] non e' mai minore
+		// della banda. ⛔ La voce Move resta `Uncertain`: una spinta nel Blast puo' spostare l'unita' prima del Move.
+		// ⏱️ *Fino a [D-475] la voce Dash era `Uncertain` in ogni caso.*
+		Dash.Certainty = RottaScatto.Path.Num() >= 2 ? ERTIntentCertainty::Uncertain : ERTIntentCertainty::Confirmed;
 		Out.Phases.Add(Dash);
 
 		// 🔴 **Solo se si applica DAVVERO.** `bDashResolves` e' la stessa domanda che `ResolveDash` si pone,

@@ -833,7 +833,7 @@ bool FRTPlanPreviewBlastActionsKeepTheirPlaceTest::RunTest(const FString&)
  *
  * ⚠️ Il CONTROLLO e' lo stesso piano con lo scatto che si applica: arriva, si gira e porta la rotta. Senza, «sta
  * sulla cella corrente» sarebbe vero anche per una mappa in cui lo scatto non puo' andare da nessuna parte.
- * ⬜ La certezza della voce non si asserisce: [D-474] la lascia aperta.
+ * La certezza della voce la prova `Preview.DashThatDoesNotMoveIsConfirmed` ([D-475]).
  */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewDashThatDoesNotApplyTest,
 	"RefactorTactics.Preview.DashThatDoesNotApplyLeavesTheGhostHere",
@@ -962,6 +962,74 @@ bool FRTPlanPreviewMoveWithoutAPathKeepsTheBlastFacingTest::RunTest(const FStrin
 		TestEqual(TEXT("controllo: derivato dal percorso"), MoveVero->FacingSource,
 			ERTPreviewFacingSource::DerivedFromPath);
 	}
+	return true;
+}
+
+// =========================================================================================================
+// La voce Dash che non sposta e' certa ([D-475], #3572)
+// =========================================================================================================
+
+/**
+ * **Una voce Dash che non sposta l'unita' e' `Confirmed`** ([D-475], #3572): lo scatto che non si applica, e la
+ * rotta rifiutata. Prima della fine del Dash nessuno muove un'unita' ferma.
+ *
+ * ⚠️ Il CONTROLLO e' lo scatto che si applica, che resta `Uncertain`: senza, una voce sempre `Confirmed` passerebbe.
+ * E la voce Move resta `Uncertain` anche quando lo scatto non si applica: una spinta nel Blast puo' spostare
+ * l'unita' prima del Move.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRTPlanPreviewDashThatDoesNotMoveIsConfirmedTest,
+	"RefactorTactics.Preview.DashThatDoesNotMoveIsConfirmed",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FRTPlanPreviewDashThatDoesNotMoveIsConfirmedTest::RunTest(const FString&)
+{
+	URTHexMapAsset* M = MakePlanPreviewMap(/*Radius=*/ 4);
+	const FRTCellId Partenza(-2, 0, 0);
+
+	TArray<FRTHexSimUnit> Units;
+	FRTHexSimUnit U(/*UnitId=*/ 0, Partenza, /*MoveBudget=*/ 8);
+	U.Facing = ERTHexDirection::W;
+	Units.Add(U);
+	const FRTHexSnapshot Snapshot = URTHexSimLibrary::MakeSnapshotOmniscient(M, Units);
+
+	const auto Piano = [&](bool bSiApplica, const FRTCellId& CellaScatto)
+	{
+		FRTPlanPreviewInput Plan;
+		Plan.UnitId = 0;
+		Plan.bDashPlanned = true;
+		Plan.bDashResolves = bSiApplica;
+		Plan.PlannedDashCell = CellaScatto;
+		Plan.DashActionId = TEXT("Action.Dodge");
+		Plan.PlannedWaypoints = { FRTCellId(0, 2, 0) };
+		Plan.MoveActionId = TEXT("Action.Move");
+		return URTPlanPreviewLibrary::MakePlanPreview(Snapshot, Plan, {});
+	};
+
+	// CONTROLLO — lo scatto che si applica sposta l'unita', ed e' incerto: «muoversi basta».
+	const FRTPlanPreview Applicato = Piano(/*bSiApplica=*/ true, FRTCellId(0, 0, 0));
+	const FRTPhasePreviewEntry* Vero = PhaseOf(Applicato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("controllo: la timeline porta lo scatto che si applica"), Vero)) { return false; }
+	TestTrue(TEXT("controllo: e lo scatto sposta l'unita'"), Vero->PreviewDestination == FRTCellId(0, 0, 0));
+	TestEqual(TEXT("controllo: uno scatto che sposta e' incerto"), Vero->Certainty, ERTIntentCertainty::Uncertain);
+
+	// LO SCATTO CHE NON SI APPLICA — non sposta, ed e' certo.
+	const FRTPlanPreview Negato = Piano(/*bSiApplica=*/ false, FRTCellId(0, 0, 0));
+	const FRTPhasePreviewEntry* Fermo = PhaseOf(Negato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("la timeline porta lo scatto che non si applica"), Fermo)) { return false; }
+	TestEqual(TEXT("lo scatto che non si applica e' certo"), Fermo->Certainty, ERTIntentCertainty::Confirmed);
+	const FRTPhasePreviewEntry* Move = PhaseOf(Negato, ERTResolutionPhase::NormalMovement);
+	if (TestNotNull(TEXT("la timeline porta il Move"), Move))
+	{
+		TestEqual(TEXT("e il Move resta incerto: il Blast puo' spostare l'unita' prima"), Move->Certainty,
+			ERTIntentCertainty::Uncertain);
+	}
+
+	// LA ROTTA RIFIUTATA — lo scatto si applicherebbe, ma la cella e' fuori dalla mappa: non sposta, ed e' certo.
+	const FRTPlanPreview Rifiutato = Piano(/*bSiApplica=*/ true, FRTCellId(9, 0, 0));
+	const FRTPhasePreviewEntry* Rotta = PhaseOf(Rifiutato, ERTResolutionPhase::FastMovement);
+	if (!TestNotNull(TEXT("la timeline porta lo scatto con la rotta rifiutata"), Rotta)) { return false; }
+	TestTrue(TEXT("premessa: la rotta e' rifiutata, e l'unita' resta"),
+		Rotta->PreviewPath.Num() == 0 && Rotta->PreviewDestination == Partenza);
+	TestEqual(TEXT("la rotta rifiutata e' certa"), Rotta->Certainty, ERTIntentCertainty::Confirmed);
 	return true;
 }
 
