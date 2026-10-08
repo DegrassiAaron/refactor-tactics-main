@@ -1707,7 +1707,7 @@ capabilities:
   - id: RT-CAP-VFX
     name: VFX (line batcher in v0.1; Niagara fuori, D-124)
     area: presentation
-    status: { implementation: partial, validation: partial, presentation: missing }
+    status: { implementation: partial, validation: partial, presentation: partial }   # presentation: partial dal 2026-10-08, seduta U71 — PIE-V01-TRACER e PIE-FX-ABILITA verdi; Niagara resta fuori (D-124)
     owner:
       epic: null
       spec: null
